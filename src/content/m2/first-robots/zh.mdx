@@ -1,0 +1,623 @@
+## 把五课合成一台机器人
+
+第二个月把机器人拆成五块，让你一块一块单独认识它们：Arduino 的输入输出与 PWM、用 millis() 和中断计时、ESP32、带编码器闭环的电机与驱动，以及挂在 I2C 上、配互补滤波器的传感器。这最后一课把它们重新装回去。从这里开始你做的每一台机器人——循线小车、自平衡车，再往后的机械臂或小车——底下跑的都是同一个循环：
+
+**感知 → 估计 → 决策 → 执行**，以固定频率不断重复。
+
+| 步骤 | 循线小车 | 自平衡车 | 对应课程 |
+| --- | --- | --- | --- |
+| 感知 | 8 路反射式传感器 | 加速度计 + 陀螺仪（走 I2C） | 第 5 课（传感器、I2C、互补滤波器） |
+| 估计 | 线的位置 0..7000 | 由互补滤波器算出的俯仰角 | 第 5 课（传感器、I2C、互补滤波器） |
+| 决策 | 对位置误差做 PD | 对角和角速度做 PD | 本课 |
+| 执行 | 两个电机，经 TB6612FNG 用 PWM 驱动 | 同上 | 第 4 课（电机、驱动、编码器闭环） |
+| 计时 | 用 millis() 跑 100 Hz 循环 | 用 micros() 跑 200 Hz 循环 | 第 2 课（计时与中断） |
+
+这张表值得再读一遍，因为它就是整个月的浓缩：五行字。传感器不同、数学不同，但骨架从不变：读一个东西，把它变成一个有意义的数，做决定，驱动电机，然后赶在下一个节拍到来之前回到循环开头。五行里只有“决策”这一行是全新的；其余每一行你都已经用更小的零件搭过了。
+
+两者性格上有差别，而这个差别决定了你先做哪一个。循线小车**宽容**：增益调坏了它只会摇头、过弯走宽、来回摆动，但它还在跑，你能看见它在干什么并把它修好。自平衡车**不宽容**：滤波器、某个符号、循环时序只要有一点不对，它不会摇头——直接倒下。而“倒下”能告诉你的信息比“摇头”少得多，它几乎抹掉了你需要的全部线索。所以先做循线小车：它是同一个循环，只是后果被调小了，调它学到的一切可以原样搬到自平衡车上。
+
+<Callout type="info" title="本课的动手任务">
+**先做循线小车**。先用纯 P 调到能循线，再加 D，看着抖动消失。把两个版本都拍下来。一段“调坏了”和“调好了”的对比视频，能证明你真懂这个循环；放进作品集里，它比一台恰好能跑的机器人更值钱——一台能跑的机器人谁都能照抄，能讲清差别才是本事。之后再做自平衡车。
+</Callout>
+
+## 一页讲清 PID
+
+本课所有控制器都是 PID 控制器，所以我们用一页把整个思路压清楚。先定义误差（error），因为其余一切都建立在它上面：
+
+error = setpoint − measurement（设定值 − 测量值）
+
+对循线小车，设定值是传感器阵列的正中 `3500`，测量值是传感器报出的位置，于是 `error = position − 3500`。对自平衡车，设定值是“水平”，`0` 度，测量值是滤波器估出的俯仰角。一旦你手里有了这样一个有意义的数，控制器就几乎不剩什么了。
+
+三项的含义：
+
+- **P（比例项）**：输出与误差成正比，偏得越远推得越狠。单独用它，只要系统里存在任何延迟，它就会过冲和振荡：你冲回设定点时它还在使劲推，于是直直地越过去。真实系统总有延迟——电机不可能瞬间变速——所以单靠 P 几乎一定会“振铃”。
+- **D（微分项）**：与误差变化的速度成正比，作用像阻尼器。当你逼近目标时误差在缩小，D 就产生一个反对运动、给修正“点刹车”的输出。消掉过冲的正是它。
+- **I（积分项）**：与误差随时间的累积成正比，用来消除一个恒定的偏差，比如某个电机偏弱，这是单靠 P 留不下的。它也会**积分饱和（wind up）**：当机器人顶在墙上、或输出已经打满时，累积的误差会涨得极大，一旦脱困，这个攒下来的数会把它一把甩过线。所以要对积分限幅，并且在 P、D 调好之前干脆先不用 I。
+
+循环周期固定时，离散形式就是三次乘法：
+
+```text
+output = KP × error + KI × sum_of_errors + KD × (error − last_error)
+```
+
+**算例**：一台循线小车取 `KP = 0.06`、`KD = 0.3`。传感器报出位置 4700，于是误差为 `4700 − 3500 = 1200`。上一次误差是 1500，所以变化量是 `1200 − 1500 = −300`。
+
+```text
+P term = 0.06 × 1200 = 72
+D term = 0.3 × (−300) = −90
+correction = 72 − 90 = −18
+```
+
+只靠 P 本想狠狠打一把方向——修正量 72——但误差比上一轮缩小了 300，于是 D 减去 90，只剩 −18。用大白话说，D 在讲：“你已经在快速回正了，松点劲。”这个修正量随后加到一侧电机、从另一侧减去：左电机得到 `120 + (−18) = 102`，右电机得到 `120 + 18 = 138`。机器人于是轻轻往线的方向转，而不是大范围摆过去。
+
+<Quiz id="q1" question="KP = 0.05，error = −800，KD = 0。修正量是多少？" answer={-40} explanation="KD = 0 时只有 P 项起作用：0.05 × (−800) = −40。负号只表示修正方向与误差相反。" />
+
+在项目里，你会被要求用“你改了某一项之后机器人做了什么”来解释 P、I、D。调参时随手记笔记吧——每次尝试写一句就够，这些笔记最后会变成你的 README。
+
+## 循线小车：零件与接线
+
+这台车有两个版本：高质量版和预算版。两者跑同一份代码，高质量版只是更抗撞、标定更稳。下列价格全部是课程作者给出的近似数字——下单前请以你自己所在店铺的现价为准。
+
+**高质量版，约 $105**
+
+| 零件 | 约合价格 | 为什么选它 |
+| --- | --- | --- |
+| ESP32-S3 开发板 | $15.95 | 快、引脚多，就是第 3 课那一系列的板子 |
+| Pololu Romi 底盘套件 | $39.95 | 圆形两轮差速底盘，电机、轮子、电池盒都配齐 |
+| TB6612FNG 驱动 | $14.77 | 低导通压降的 MOSFET H 桥，几乎不发热 |
+| QTR-8RC 反射式阵列 | $12.95 | 一行八路、可标定的循线传感器 |
+| 电池与电池盒 | 约 $12 | |
+| 杜邦线与排针 | 约 $10 | |
+| **合计** | **约 $105** | |
+
+**预算版，约 $38**
+
+| 零件 | 约合价格 |
+| --- | --- |
+| 通用 ESP32 | 约 $6 |
+| 2WD 亚克力底盘 | 约 $12 |
+| DRV8833 驱动 | $5.95 |
+| 五个 TCRT5000 传感器 | 约 $3 |
+| 电池 | 约 $6 |
+| 接线 | 约 $5 |
+
+下一部分的程序针对的是 **Arduino Uno**，因为本课程之前所有示例都用它，而它的 PWM 引脚是清楚已知的。把它迁到 ESP32 上是一次“选引脚”的练习，而不是重写：ESP32 上要避开 strapping 引脚，还要记住 ADC2 与 Wi-Fi 共享（第 3 课讲过 strapping 引脚、ADC2 和 Wi-Fi）。较新的 ESP32 Arduino 核心是支持 `analogWrite` 的，所以驱动电机的调用几乎一模一样。
+
+接下来是让整台车成立的那颗传感器。**QTR-8RC** 是八对红外发射/光敏接收管排成一行，间距 9.5 mm。每一对向地面发射红外、测量有多少被反射回来：白色表面反得多，黑线几乎不反。名字里的“RC”是巧妙之处。每个传感器的输出是一根数字引脚：库先把引脚拉高（给传感器输出端的小电容充电），然后释放，再由库去测这根引脚衰减回低电平用了多久——反光多（白）时很快，反光少（黑）时长达数毫秒。因为它只测时间，一根普通数字引脚就够，**不需要 ADC**。
+
+<Resource id="qtr-8rc" />
+
+Pololu 的 `QTRSensors` 库替你完成所有这些计时。经过一次标定后，它给每个传感器返回 0（白）到 1000（黑）的值，而 `readLineBlack()` 把八路合成为一个 0 到 7000 的加权平均位置，3500 表示线正好在阵列中间。这一个数——估计位置——就是这台车在表格里“感知”和“估计”两列的全部内容。
+
+标定不是可选项。执行 `calibrate()` 时，每个传感器都必须见到它将来会遇到的最暗和最亮两种表面，库会为每个传感器记下这两个极值。常见做法是握住小车，在标定运行的整整 5 秒里让它从左到右扫过那条线。要在你将实际行驶的同一种光照下标定，因为红外反射会随环境光变化。
+
+安装位置也有讲究。把阵列装在**车轮前方**、离地约 **3 mm**；Pololu 给出的最佳高度是 3 mm，最大是 9.5 mm，再高反射信号就太弱了。红外 LED 全开时这块板大约耗电 **100 mA**，所以给它干净的供电和共地。下一部分程序对应的接线是：
+
+- 传感器 1–8 → A0、A1、A2、A3、A4、A5、D10、D11（这里把模拟引脚当数字输入用）。
+- TB6612FNG 左电机：PWMA → D5，AIN1 → D7，AIN2 → D8。
+- TB6612FNG 右电机：PWMB → D6，BIN1 → D4，BIN2 → D12。
+- STBY → D9。
+- VM → 电机电池正极。
+- 所有地线共地。
+
+<Quiz id="q2" question="用 8 路传感器时，当线正好在阵列正中间，readLineBlack() 返回多少？" answer={3500} explanation="加权平均的取值范围是 0 到 7000；八个等距传感器的中心就是 7000 的一半，即 3500。" />
+
+## 在模拟里比较 P 和 PD
+
+在碰到任何一根线之前，先跑这个玩具模型，看 P 和 D 怎么打架。它是一段由本站编辑编写的 Python 程序，不是机器人代码——它简化地描述一台循线小车：从偏离线的 20 mm 处起步，先只用 P 调，再用两个不同的 D 值调。下面的输出就是这段程序原样打印出来的结果。
+
+```python
+"""line_sim.py: a line follower that starts 20 mm off the line, tuned with P and then PD.
+
+Toy model: 8 reflectance sensors 9.5 mm apart (like a QTR-8RC), a 100 Hz control loop,
+and wheels that need about 80 ms to reach a new turning speed.
+"""
+import math
+
+SPEED = 0.30           # forward speed, m/s
+DT = 0.01              # control loop period, s (100 Hz)
+MOTOR_TAU = 0.08       # how fast the turn rate follows the command, s
+SPACING = 0.0095       # sensor spacing, m
+LINE_HALF_WIDTH = 0.009
+
+
+def read_position(offset_m):
+    """Weighted average of 8 sensor readings: 0..7000, 3500 = line under the centre."""
+    total = weighted = 0.0
+    for i in range(8):
+        x = (i - 3.5) * SPACING + offset_m           # sensor position relative to the line
+        r = 1000 * math.exp(-(x / LINE_HALF_WIDTH) ** 2)  # 0 = white, 1000 = black
+        total += r
+        weighted += r * i * 1000
+    if total < 50:                                    # line lost: report the nearest edge
+        return 0 if offset_m > 0 else 7000
+    return weighted / total
+
+
+def run(kp, kd, seconds=3.0):
+    y, heading, turn_rate = 0.020, 0.0, 0.0          # start 20 mm to one side
+    last_error = None
+    log = []
+    for step in range(int(seconds / DT)):
+        error = read_position(y) - 3500               # negative = line is to the left
+        d_error = 0.0 if last_error is None else (error - last_error) / DT
+        last_error = error
+        command = kp * error + kd * d_error            # rad/s of turning
+        command = max(-6.0, min(6.0, command))
+        for _ in range(10):                            # robot physics at 1 ms
+            turn_rate += (command - turn_rate) * 0.001 / MOTOR_TAU
+            heading += turn_rate * 0.001
+            y += SPEED * math.sin(heading) * 0.001
+        log.append(((step + 1) * DT, y))
+    return log
+
+
+def describe(log):
+    ys = [y for _, y in log]
+    overshoot = max(0.0, -min(ys)) * 1000              # mm past the line on the other side
+    crossings = sum(1 for a, b in zip(ys, ys[1:]) if a * b < 0)
+    settled = next((t for t, _ in log if all(abs(y) < 0.002 for tt, y in log if tt >= t)), None)
+    return overshoot, crossings, settled
+
+
+if __name__ == "__main__":
+    cases = (("P only", 0.0003, 0.0), ("P + small D", 0.0003, 0.0001), ("P + D", 0.0003, 0.0002))
+    logs = {name: run(kp, kd, seconds=4.0) for name, kp, kd in cases}
+    print("offset from the line (mm), every 0.5 s")
+    print("  t_s  " + "  ".join(f"{name:>11}" for name, _, _ in cases))
+    for k in range(0, 9):
+        t = k * 0.5
+        row = []
+        for name, _, _ in cases:
+            y = 20.0 if k == 0 else logs[name][int(round(t / DT)) - 1][1] * 1000
+            row.append(f"{y:11.1f}")
+        print(f"  {t:3.1f}  " + "  ".join(row))
+    print()
+    for name, kp, kd in cases:
+        overshoot, crossings, settled = describe(logs[name])
+        settled_txt = f"{settled:.2f} s" if settled is not None else "never"
+        print(f"{name:11} kp={kp} kd={kd}: overshoot {overshoot:4.1f} mm, "
+              f"{crossings} line crossings, within 2 mm from {settled_txt}")
+```
+
+```text
+offset from the line (mm), every 0.5 s
+  t_s       P only  P + small D        P + D
+  0.0         20.0         20.0         20.0
+  0.5          4.1          7.8         10.6
+  1.0        -26.3         -4.5          3.6
+  1.5        -11.9         -1.6          1.3
+  2.0         34.1          1.2          0.5
+  2.5         30.4          0.3          0.2
+  3.0        -31.8         -0.3          0.1
+  3.5        -61.9         -0.1          0.0
+  4.0        -16.1          0.1          0.0
+
+P only      kp=0.0003 kd=0.0: overshoot 62.3 mm, 3 line crossings, within 2 mm from never
+P + small D kp=0.0003 kd=0.0001: overshoot  4.8 mm, 4 line crossings, within 2 mm from 1.47 s
+P + D       kp=0.0003 kd=0.0002: overshoot  0.0 mm, 0 line crossings, within 2 mm from 1.30 s
+```
+
+三次运行都从偏离 20 mm 起步，都会往线的方向转。**只用 P** 很快够到线——0.5 s 时偏差已降到 4.1 mm——但它到了线上并不停转。轮子需要大约 80 ms 才能达到新的转速，所以等机器人知道自己到位时，车头仍指着线的另一侧，于是冲过头。偏差的正负随之翻转、再翻回来，而且每次摆得更大：3.5 s 时已偏到 61.9 mm，汇总那行说它**永远**进不了 2 mm。这就是一个被延迟主宰的系统，也正是单靠 P 的样子。
+
+**加一点 D（0.0001）** 几乎改变了全部。它把过冲从 62.3 mm 砍到 **4.8 mm**，并在 **1.47 s** 进入 2 mm，误差缩小时 D 在给修正“点刹车”，这正是前面 PID 那一节许诺的阻尼。**D = 0.0002** 更好：一次都不穿越，从 **1.30 s** 起就在 2 mm 之内。
+
+注意单位。这个模型的输出是以 rad/s 为单位的转速，所以增益看起来极小，和程序里将要用到的 `KP = 0.06` 完全不是一回事。增益从来不能在模型之间、也不能在机器人之间通用；能通用的只有调参的流程。你最终总要按自己手上的硬件去调。
+
+<Quiz id="q3" question="在模拟里，加进 D 项改变最大的是什么？" options={["机器人跑得更快", "绕线时的过冲与振荡", "传感器读数变得不那么嘈杂"]} answer={1} explanation="D 给修正加阻尼，所以它缩小过冲和绕线摆动的幅度（只用 P 时 62.3 mm，加 D 后 4.8 mm 和 0 mm）。它不改变速度，也不会净化传感器——实际上它会放大传感器噪声。" />
+
+## 循线程序与调参
+
+这里是一份把小车的全部塞进一个程序的代码。它用 `QTRSensors` 4.0.0 库为 Uno 编译通过，但**没有在真机器人上跑过**——机器人没有模拟器，所以这里没有输出可给。
+
+```cpp
+// PD line follower: QTR-8RC array + TB6612FNG + two gearmotors (Arduino Uno).
+// Library: "QTRSensors" by Pololu (Library Manager).
+#include <QTRSensors.h>
+
+// TB6612FNG
+const int PWMA = 5, AIN1 = 7, AIN2 = 8;     // left motor
+const int PWMB = 6, BIN1 = 4, BIN2 = 12;    // right motor
+const int STBY = 9;
+
+const uint8_t SENSOR_PINS[8] = {A0, A1, A2, A3, A4, A5, 10, 11};
+QTRSensors qtr;
+uint16_t values[8];
+
+const float KP = 0.06;          // PWM per unit of position error  (start here)
+const float KD = 0.0;           // add D after P is working: try 0.3, then tune
+const int BASE_PWM = 120;       // straight-line speed
+const unsigned long PERIOD_MS = 10;   // 100 Hz control loop
+
+int lastError = 0;
+unsigned long last = 0;
+
+void setMotor(int pwmPin, int in1, int in2, int speed) {   // speed -255..255
+  speed = constrain(speed, -255, 255);
+  digitalWrite(in1, speed > 0);
+  digitalWrite(in2, speed < 0);
+  analogWrite(pwmPin, abs(speed));
+}
+
+void setup() {
+  int outs[] = {PWMA, AIN1, AIN2, PWMB, BIN1, BIN2, STBY};
+  for (int p : outs) pinMode(p, OUTPUT);
+  digitalWrite(STBY, HIGH);
+
+  qtr.setTypeRC();
+  qtr.setSensorPins(SENSOR_PINS, 8);
+
+  // Calibrate for ~5 s: slide the robot by hand so every sensor sees black and white.
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, HIGH);
+  for (int i = 0; i < 200; i++) qtr.calibrate();
+  digitalWrite(LED_BUILTIN, LOW);
+  last = millis();
+}
+
+void loop() {
+  unsigned long now = millis();
+  if (now - last < PERIOD_MS) return;
+  last += PERIOD_MS;
+
+  uint16_t position = qtr.readLineBlack(values);   // 0..7000, 3500 = centred
+  int error = (int)position - 3500;
+  int derivative = error - lastError;              // per loop period (fixed 10 ms)
+  lastError = error;
+
+  int correction = (int)(KP * error + KD * derivative);
+  setMotor(PWMA, AIN1, AIN2, BASE_PWM + correction);
+  setMotor(PWMB, BIN1, BIN2, BASE_PWM - correction);
+}
+```
+
+从头讲一遍。循环用 `last += PERIOD_MS` 而不是 `last = now`，跑在固定的 100 Hz 上（第 2 课：以固定步长累加能保持频率稳定，于是“每循环的微分量”每次含义都相同）。`setup()` 里标定 200 次，期间点亮板载 LED 作为提示——那盏灯也是你该开始手动拖动小车扫过线的信号。循环里，`readLineBlack()` 返回位置，`error` 是它减去中心值，`derivative` 是相对上一轮的误差变化量。修正量加到一侧电机的速度、从另一侧减去。最后 `setMotor()` 把速度钳在 −255..255 并设置方向引脚，和第 4 课的 `drive()` 辅助函数完全一致。
+
+在信任它之前先检查一件事：如果机器人朝着**背离**线的方向转，那说明对你这套接线来说符号反了。把 `KP` 和 `KD` 的符号翻转（或者对调哪只电机加、哪只减）。这里没有放之四海皆准的答案，它取决于你把车身哪一侧叫“左”。
+
+调参是一套流程，不是瞎猜。按顺序来：
+
+1. **先让轮子离地**。用手把线移到传感器下，观察电机。确认它们方向对：线在左侧时应当减慢左轮，而不是右轮。
+2. 把 `KD = 0`，`BASE_PWM` 调低（约 80）。增大 `KP`，直到小车能循线但开始摇摆。
+3. **拍下来**。这是你的“纯 P”片段。
+4. 小步加入 `KD`，直到摇摆消失。如果电机嗡嗡响或抽动，说明 `KD` 太大——它放大了传感器噪声。
+5. **再拍一次**。这是你的“PD”片段。
+6. 提高 `BASE_PWM` 再重复一遍。跑得越快需要越多 D；越快，延迟咬得越早。
+7. 把每次尝试都写进调参日志：`KP`、`KD`、`BASE_PWM`，以及发生了什么。
+
+<Callout type="tip" title="别删掉那段“烂”视频">
+纯 P 时看到的摆动不是 bug——它正是你在学着消掉的东西。留着那段视频。一组前后对比，能教给读者的东西，比一段侥幸能跑的机器人视频多得多。
+</Callout>
+
+<Quiz id="q4" question="你把 KD 调高之后，小车能循线，但电机发出嗡嗡的抽动声，最可能的原因是什么？" options={["KD 太大，放大了传感器噪声", "KP 太小", "循环跑得太慢"]} answer={0} explanation="微分项对误差变化的速度反应，所以它会放大传感器读数里的噪声。KD 过大时每个循环的修正都在抖，电机就嗡嗡响。把 KD 调小。" />
+
+## 自平衡车：难在哪里
+
+自平衡车是一个**倒立摆（inverted pendulum）**——和你用手掌立住一把扫帚是同一个问题。放任不管，它不是慢慢漂移，而是在远不到一秒内就倒。这带来一个硬性后果：控制器必须在毫秒级反应，而且必须**每隔几毫秒**反应一次，而不是偶尔反应一次。此外它还需要一个既快又不漂移的角度估计，这正是第 5 课互补滤波器的活儿——陀螺仪给出快但会漂的角度，加速度计给出慢但绝对的角度，滤波器把两者融合成一个足够可靠、可以据以行动的数值。轮子随后移到重心下方去接住这次倒下：机器人不是静态地平衡，而是不断地把自己驱动回重心正下方。
+
+零件部分，同样是课程作者给出的近似数字：
+
+**高质量版，约 $134**
+
+| 零件 | 约合价格 |
+| --- | --- |
+| ESP32 | $15.95 |
+| 两套带编码器的减速电机组件 | $39.90 |
+| TB6612FNG 驱动 | $14.77 |
+| MPU-6050 惯性测量单元 | $12.95 |
+| 3D 打印或激光切割底盘 | 约 $10 |
+| LiPo 电池、充电器和轮子 | 约 $30 |
+| 杂项 | 约 $10 |
+
+**预算版，约 $62**——课程这里只给了总价；按上表去淘等效的通用零件即可。
+
+现在是模型。这第二个 Python 玩具模型同样由本站编辑编写，其输出就是它原样打印的结果。它模拟机器人重心位于轮轴上方 0.10 m 处，控制器设定轮子的加速度。角度来自一个时间常数恒为 0.5 s 的互补滤波器，无论循环多快。
+
+```python
+"""balance_sim.py: why a self-balancer needs both a good angle estimate and a fast, steady loop.
+
+Toy inverted pendulum: the robot's centre of mass sits 0.10 m above the axle and the
+controller sets the wheels' acceleration. The angle comes from a complementary filter
+(gyro bias already calibrated out, noisy gyro and accelerometer) whose time constant
+is 0.5 s at every loop rate.
+Real robots also need an outer speed loop from the wheel encoders; this model leaves it out.
+"""
+import math
+import random
+
+G, L = 9.81, 0.10            # gravity, height of the centre of mass (m)
+MAX_ACCEL = 6.0              # m/s^2 the motors can deliver
+MOTOR_TAU = 0.02             # wheels reach a new acceleration in ~20 ms
+
+
+def run(loop_hz, kp, kd, use_filter=True, seconds=5.0, seed=3):
+    """Start tipped 3 degrees; at t = 2.5 s someone gives the robot a push."""
+    rng = random.Random(seed)
+    dt_ctrl = 1.0 / loop_hz
+    theta, omega, accel = math.radians(3.0), 0.0, 0.0    # starts tipped 3 degrees
+    est, next_ctrl, command, t = 0.0, 0.0, 0.0, 0.0
+    worst, sq, n, pushed = 0.0, 0.0, 0, False
+    while t < seconds:
+        if t >= next_ctrl:                               # --- controller runs here ---
+            next_ctrl = t + dt_ctrl
+            gyro = math.degrees(omega) + rng.gauss(0, 0.3)
+            acc = math.degrees(theta) + rng.gauss(0, 2.5)     # accelerometer tilt, shaken by the motors
+            if use_filter:
+                a = 0.5 / (0.5 + dt_ctrl)                  # same 0.5 s time constant at any rate
+                est = a * (est + gyro * dt_ctrl) + (1 - a) * acc
+            else:
+                est = acc                                # raw accelerometer angle only
+            command = kp * est + kd * gyro               # PD on angle (deg) and rate (deg/s)
+            command = max(-MAX_ACCEL, min(MAX_ACCEL, command))
+        # --- physics at 1 ms ---
+        accel += (command - accel) * 0.001 / MOTOR_TAU
+        alpha = (G * math.sin(theta) - accel * math.cos(theta)) / L
+        omega += alpha * 0.001
+        theta += omega * 0.001
+        if not pushed and t >= 2.5:
+            omega += math.radians(40)                      # a push: +40 deg/s
+            pushed = True
+        if 1.0 < t < 2.5:
+            sq += math.degrees(theta) ** 2
+            n += 1
+        t += 0.001
+        worst = max(worst, abs(math.degrees(theta)))
+        if worst > 45:
+            return f"fell over after {t:.2f} s"
+    return f"upright, wobble {math.sqrt(sq / n):.2f} deg rms, worst tilt {worst:.1f} deg"
+
+
+if __name__ == "__main__":
+    print("200 Hz, PD, filtered angle:  ", run(200, kp=0.8, kd=0.04))
+    print("200 Hz, PD, raw accel angle: ", run(200, kp=0.8, kd=0.04, use_filter=False))
+    print("200 Hz, P only:              ", run(200, kp=0.8, kd=0.0))
+    print(" 50 Hz, PD, filtered angle:  ", run(50, kp=0.8, kd=0.04))
+    print(" 10 Hz, PD, filtered angle:  ", run(10, kp=0.8, kd=0.04))
+```
+
+```text
+200 Hz, PD, filtered angle:   upright, wobble 0.36 deg rms, worst tilt 3.6 deg
+200 Hz, PD, raw accel angle:  upright, wobble 1.09 deg rms, worst tilt 3.6 deg
+200 Hz, P only:               fell over after 1.27 s
+ 50 Hz, PD, filtered angle:   upright, wobble 0.71 deg rms, worst tilt 3.5 deg
+ 10 Hz, PD, filtered angle:   fell over after 1.23 s
+```
+
+五行逐条读。
+
+- **200 Hz，PD，滤波角度：站稳，抖动 0.36 度 rms，最大倾角 3.6 度**。机器人从倾斜 3° 起步，2.5 s 时挨了一下 40 °/s 的推挤，仍然站住，抖动只有 0.36° rms，非常稳。整套设计都在正常工作。
+- **200 Hz，PD，原始加速度计角度：站住但抖动 1.09 度 rms，最大倾角 3.6 度**。这里绕过了滤波器，控制器直接用原始加速度计角度，而模型给它加上了 2.5° 的噪声（电机振动）。它仍能站住，但抖动是**三倍**。在真机器人上，这份噪声会直接灌进电机，变成发热和嗡嗡声。
+- **200 Hz，只用 P：1.27 s 后倒下**。没有 D 项，没有东西给摆动加阻尼。它连开头那 3° 都没救回来：一次比一次摆得大，在 1.27 s 倒下，2.5 s 那一推还没来。
+- **50 Hz，PD，滤波角度：站住，抖动 0.71 度 rms，最大倾角 3.5 度**。一半的循环频率仍能站住，但抖动差不多翻倍。修正变慢，阻尼就变差。
+- **10 Hz，PD，滤波角度：1.23 s 后倒下**。频率只剩二十分之一时，下一次修正到来之前机器人已经跑偏太远，1.23 s 就倒了，同样是在那一推之前。调高增益只会倒得更快。换成更软的增益（我们在同一个模型里试了 kp = 0.3、kd = 0.02）在 10 Hz 下能站住，但晃动约 3° rms，是 200 Hz 时的八倍多，几乎没有余量。问题出在循环本身太慢。
+
+最后一条背后的算术是这样的，循环周期就是频率的倒数：
+
+```text
+200 Hz：周期 = 1 / 200 = 0.005 s = 5 ms
+ 10 Hz：周期 = 1 / 10  = 0.1 s   = 100 ms
+```
+
+对一个大约一秒就倒的东西来说，5 毫秒很短；而 100 毫秒是快循环的二十倍，根本来不及。
+
+对这个模型的边界要诚实，它自己的文档字符串就写着：这里**没有外环速度环**，所以它无视了一个事实——真实的自平衡车会缓缓滚走，需要靠轮子上的编码器（第 4 课）去修。而且 `kp = 0.8`、`kd = 0.04` 是模型自己单位下的数，不是“每度多少 PWM”，不能直接抄进固件。这个模型给你看的是**为什么**每一项要求存在，而不是可以出厂的那些数值。
+
+当互补滤波器不再够用——当你想要一种更有章法的方式去融合传感器、认真处理陀螺仪零偏时——标准的下一步是卡尔曼滤波。下面这本书是常被推荐的入门，它以可以真正运行的 notebook 形式呈现。
+
+<Resource id="labbe-kalman" />
+
+<Quiz id="q5" question="一台自平衡车的控制循环跑在 250 Hz，循环周期是多少毫秒？" answer={4} unit="ms" explanation="周期 = 1 / 250 Hz = 0.004 s = 4 ms。" />
+
+## 自平衡程序
+
+这是固件。它以固定的 200 Hz 运行互补滤波器和 PD 控制器，并在倒地时保护自己。
+
+```cpp
+// Self-balancer skeleton: MPU-6050 + complementary filter + PD at a fixed 200 Hz.
+// Uno + TB6612FNG (both channels) + two gearmotors. Mount the MPU-6050 so that
+// tilting forward makes the pitch positive. Tune KP first, then KD (see the lesson).
+#include <Wire.h>
+
+const int PWMA = 5, AIN1 = 7, AIN2 = 8;     // left motor
+const int PWMB = 6, BIN1 = 4, BIN2 = 12;    // right motor
+const int STBY = 9;
+
+const uint8_t MPU = 0x68;
+const float ACCEL_LSB_PER_G = 16384.0;      // +-2 g (default)
+const float GYRO_LSB_PER_DPS = 131.0;       // +-250 deg/s (default)
+
+const unsigned long PERIOD_US = 5000;       // 200 Hz control loop
+const float DT = PERIOD_US / 1e6;
+const float TAU = 0.5;                      // filter time constant, s
+const float ALPHA = TAU / (TAU + DT);       // = 0.990 at 200 Hz
+
+float KP = 25.0;                            // PWM per degree
+float KD = 0.8;                             // PWM per deg/s
+const float SETPOINT = 0.0;                 // pitch when balanced, deg (trim this)
+const float CUTOFF_DEG = 40.0;              // beyond this it has fallen: motors off
+
+float pitch = 0, gyroBias = 0;
+bool running = false;
+unsigned long nextTick = 0, worstLoopUs = 0, lastReport = 0;
+
+void setMotor(int pwmPin, int in1, int in2, int speed) {   // -255..255
+  speed = constrain(speed, -255, 255);
+  digitalWrite(in1, speed > 0);
+  digitalWrite(in2, speed < 0);
+  analogWrite(pwmPin, abs(speed));
+}
+
+void stopMotors() {
+  setMotor(PWMA, AIN1, AIN2, 0);
+  setMotor(PWMB, BIN1, BIN2, 0);
+}
+
+void readImu(float &accelPitch, float &rate) {
+  Wire.beginTransmission(MPU);
+  Wire.write(0x3B);                         // ACCEL_XOUT_H
+  Wire.endTransmission(false);
+  Wire.requestFrom(MPU, (uint8_t)14);
+  int16_t v[7];
+  for (int i = 0; i < 7; i++) v[i] = (Wire.read() << 8) | Wire.read();
+  accelPitch = atan2(v[0] / ACCEL_LSB_PER_G, v[2] / ACCEL_LSB_PER_G) * 180.0 / PI;
+  rate = v[5] / GYRO_LSB_PER_DPS - gyroBias; // gyro Y
+}
+
+void setup() {
+  int outs[] = {PWMA, AIN1, AIN2, PWMB, BIN1, BIN2, STBY};
+  for (int p : outs) pinMode(p, OUTPUT);
+  digitalWrite(STBY, HIGH);
+  Serial.begin(115200);
+  Wire.begin();
+  Wire.setClock(400000);                    // fast-mode I2C: shorter reads
+  Wire.beginTransmission(MPU);
+  Wire.write(0x6B);                         // PWR_MGMT_1: wake up
+  Wire.write(0);
+  Wire.endTransmission();
+
+  // Gyro bias: hold the robot still for one second at power-up.
+  float sum = 0, a, r;
+  for (int i = 0; i < 200; i++) { readImu(a, r); sum += r; delay(5); }
+  gyroBias = sum / 200;
+  readImu(a, r);
+  pitch = a;                                // start the filter from the accelerometer
+  Serial.print(F("gyro bias (deg/s): "));
+  Serial.println(gyroBias, 2);
+  nextTick = micros();
+}
+
+void loop() {
+  if ((long)(micros() - nextTick) < 0) return;   // wait for the next 5 ms tick
+  unsigned long start = micros();
+  nextTick += PERIOD_US;
+
+  float accelPitch, rate;
+  readImu(accelPitch, rate);
+  pitch = ALPHA * (pitch + rate * DT) + (1 - ALPHA) * accelPitch;
+
+  if (fabs(pitch) > CUTOFF_DEG) running = false;   // fallen: stop
+  if (!running && fabs(pitch) < 5.0) running = true; // stood back up by hand: go
+
+  if (running) {
+    int out = (int)(KP * (pitch - SETPOINT) + KD * rate);
+    setMotor(PWMA, AIN1, AIN2, out);
+    setMotor(PWMB, BIN1, BIN2, out);
+  } else {
+    stopMotors();
+  }
+
+  unsigned long used = micros() - start;
+  if (used > worstLoopUs) worstLoopUs = used;
+  if (millis() - lastReport >= 1000) {      // once a second; printing takes time too
+    lastReport = millis();
+    Serial.print(F("pitch "));
+    Serial.print(pitch, 1);
+    Serial.print(F("  worst loop us "));
+    Serial.println(worstLoopUs);
+    worstLoopUs = 0;
+  }
+}
+```
+
+把关键处过一遍。
+
+- **用 micros() 打固定的 200 Hz 节拍**。`nextTick += PERIOD_US` 让目标每轮精确前进 5 ms。比较式 `(long)(micros() - nextTick) < 0` 能扛住 micros() 溢出，第 2 课讲过原因——有符号减法让回绕表现得正常。
+- **由时间常数算出 ALPHA**。`ALPHA = TAU / (TAU + DT)`，代入 `TAU = 0.5`、`DT = 0.005` 得 0.990。因为 ALPHA 是从周期推出来的，改变循环频率时仍是同样的 0.5 s 时间常数——换时钟不会在你不察觉的情况下把滤波器也换掉。
+- **启动时测陀螺仪零偏**。头一秒里，趁机器人被握稳不动，代码把 200 次陀螺仪读数平均成 `gyroBias`。正是这个零偏让“只用陀螺仪”的角度会漂，这也是第 5 课互补滤波器存在的理由；这里每次读数都把它减掉。
+- **从加速度计起步**。`pitch = a` 用一个绝对角度给滤波器做初值，而不是从 0 开始，于是它不必花几秒去收敛。
+- **直接对俯仰角和陀螺仪角速度做 PD**。陀螺仪读数本身就是角度的干净微分，代码直接拿来用，而不是去对含噪的角度做差分。
+- **40° 截止**。超过 40° 就算倒下，`running` 置假、电机停转；只有当你把它扶回到 5° 以内，它才重新启动。这是安全特性，绝不要省。
+- **每秒报一次最差循环时间**。代码记录最长的单轮耗时并每秒上报，你就能看出自己离撑爆 5 ms 预算还有多远。
+
+下面就是这份固件在 simavr AVR 模拟器、配一块模拟 MPU-6050 时打印出来的东西。这颗模拟传感器的俯仰角按脚本变化：3 到 4 秒之间从 0° 升到 30°，保持，然后 7 到 8 秒之间回到 0°，陀螺仪零偏为 +1.5 °/s。**没有模拟电机，也没有模拟机器人物理**，而且模拟器不模拟 I2C 总线耗时。这是一次 10 s 的运行。
+
+```text
+gyro bias (deg/s): 1.54
+pitch -1.4  worst loop us 780
+pitch -0.2  worst loop us 736
+pitch 3.6  worst loop us 732
+pitch 30.0  worst loop us 732
+pitch 29.8  worst loop us 728
+pitch 30.1  worst loop us 728
+pitch 26.2  worst loop us 724
+pitch -0.1  worst loop us 732
+pitch 0.1  worst loop us 736
+```
+
+测得的零偏 **1.54 °/s** 与模拟传感器的 +1.5 °/s 吻合。俯仰角跟着脚本倾到 30° 再回到 0°，全程不漂，正是互补滤波器该有的表现。而循环只用了 5 ms 预算里的大约 **0.73 ms**，还留有余地。
+
+唯一的说明：这个模拟器不模拟 I2C 总线耗时，所以那 0.73 ms 偏乐观。把真实开销估一下：
+
+```text
+18 字节 × 每字节 9 个时钟周期 = 162 个周期
+400 kHz：162 / 400 000 = 0.000 405 s ≈ 0.41 ms
+100 kHz：162 / 100 000 = 0.001 62 s  ≈ 1.62 ms
+```
+
+读 14 个数据字节，加上寻址和寄存器字节，大约 18 个字节，而 I2C 上每个字节要 9 个时钟周期（8 位数据加 1 位应答）。在 400 kHz 下约 0.41 ms；在默认的 100 kHz 下则是 1.62 ms——光读一个传感器就要吃掉整个 5 ms 预算的近三分之一。这就是程序里要调用 `Wire.setClock(400000)` 的原因。
+
+调试上手和循线小车是同一套纪律，只是更不宽容：
+
+1. **在轮子离地时确认符号**。把车往前倾，轮子必须**朝前**驱动——也就是朝机器人倒下的方向，好把自己重新挪到重心下面。如果轮子往后转，就把 `KP` 和 `KD` 的符号翻转。
+2. 把 `KD = 0`，增大 `KP` 直到它想站却快速振荡。
+3. 加入 `KD` 直到振荡被压下去。
+4. 微调 `SETPOINT`，让它不再倾斜——电池位置会改变“平衡”在哪里。
+5. 要预料到它会缓缓滚走。修法是加一个基于编码器轮速的外环（第 4 课）去微调 `SETPOINT`；这是很自然的下一步，也是 README 里很棒的一节。
+
+<Callout type="warn" title="自平衡车会突然窜出去">
+自平衡车可能毫无征兆地满功率猛窜。抓车架，手指离轮子远一点，保留 40° 截止，第一次测试时把电池放在能立刻拔掉的位置。
+</Callout>
+
+<Quiz id="q6" question="在玩具模型里，哪一项改动让机器人即使用了滤波角度也倒下了？" options={["把循环从 200 Hz 降到 10 Hz", "加入 D 项", "用 0.5 s 的滤波器时间常数"]} answer={0} explanation="10 Hz 那次在 1.23 s 后倒下：循环就是太慢，来不及修正。滤波角度和 D 项都在，也没能救回来。" />
+
+## 在 GitHub 上展示成果
+
+本月最后的里程碑，是把两台能跑的机器人放到 GitHub 上，附上接线、代码，以及对“哪里坏了”的诚实记录。如果 Git 和 GitHub 还让你心里没底，动手前先回看第 1 个月的 Git 与 GitHub 那一课。仓库布局越干净、越朴素越好：
+
+```text
+README.md
+line-follower/
+  line_follower.ino
+  wiring.png
+  tuning-log.md
+balancer/
+  balancer.ino
+  wiring.png
+  tuning-log.md
+media/
+  p-only.mp4   (or a link)
+  pd.mp4
+```
+
+README 是陌生人第一眼看到的东西，所以把有用的一开始就放上去：
+
+- 顶部放一张照片和 P 与 PD 的对比视频。
+- 用两句话说明它做什么。
+- BOM 清单，写清你实际花了多少钱。
+- 接线图或接线表。
+- 如何搭建与烧录。
+- 调参日志，做成表格。
+- 一节“哪里坏了”。
+
+那份调参日志值得做成表格。下面这个只是示例——数字是编的，只为展示真实日志长什么样：
+
+| 第几次 | KP | KD | 速度 | 发生了什么 |
+| --- | --- | --- | --- | --- |
+| 1 | 0.06 | 0 | 80 | 能循线，但一直摇摆 |
+| 2 | 0.06 | 0.3 | 80 | 平顺，不再摇摆 |
+| 3 | 0.06 | 0.3 | 150 | 在急弯处走宽 |
+
+然后是“哪里坏了”那一节——要诚实地写。欠压复位、接反的电机、忘了拉高的 `STBY` 让所有东西都不动：正是这一节让读者相信你真的动手造了它，而不是照抄教程。一个毫无失败记录的精致仓库，读起来像小说。
+
+还有一条你早在第 3 课就该知道的规矩：**不要把密钥提交进仓库**。Wi-Fi 密码和 API key 属于一个单独的文件，并加进 `.gitignore`，绝不能写进程序本身。
+
+最后是第二个月的总结。到这个月结束时，你应当能够：
+
+- 以受控的转速驱动电机，并能分清占空比和 RPM（第 4 课）。
+- 读取编码器并闭合一个位置环（第 4 课）。
+- 照着数据手册接好并读取一个 I2C 传感器（第 5 课）。
+- 把加速度计和陀螺仪融合成一个稳定的角度（第 5 课）。
+- 用“你改了某一项之后机器人做了什么”来讲清 P、I、D（本课）。
+- 把两台机器人放上 GitHub，并写下哪里坏了（本课）。
+
+准备好的时候，去看月页面上的里程碑清单——两台机器人，加一个能讲出它们故事的仓库，这就是全部。

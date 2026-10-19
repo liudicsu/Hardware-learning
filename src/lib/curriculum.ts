@@ -187,6 +187,22 @@ const month2Lessons: Lesson[] = [
       { id: "imu-filter", text: { zh: "在真 IMU 上打印俯仰角：先纯陀螺积分看漂移，再加互补滤波看漂移消失", en: "Print pitch from a real IMU: integrate the gyro alone and watch it drift, then add the complementary filter and watch the drift vanish" } },
     ],
   },
+  {
+    slug: "first-robots",
+    title: { zh: "你的前两台机器人：循线小车与自平衡车", en: "Your first two robots: line follower & self-balancer" },
+    summary: {
+      zh: "把前五课合成一个闭环：用 P 再加 D 调好循线小车，再挑战只有滤波和循环时序都对才能站住的自平衡车。",
+      en: "Put the first five lessons into one closed loop: tune a line follower with P then D, then take on a balancer that only stands when both the filter and the loop timing are right.",
+    },
+    minutes: 240,
+    resources: ["romi-chassis", "qtr-8rc", "tb6612-breakout", "drv8833", "romi-gearmotor-encoder", "esp32-s3-devkit", "labbe-kalman"],
+    tasks: [
+      { id: "pd-sim", text: { zh: "运行本课的循线 Python 模拟，比较 P 和 PD 的过冲与振荡", en: "Run the lesson's line-follower Python simulation and compare overshoot and oscillation for P vs PD" } },
+      { id: "line-follower", text: { zh: "搭好循线小车，先只用 P 调参，再加入 D，两个版本都录视频", en: "Build the line follower, tune it with P only, then add D, and film both versions" } },
+      { id: "balancer", text: { zh: "搭自平衡车：固定频率控制循环、互补滤波、倾角过大自动断电", en: "Build the balancer: fixed-rate control loop, complementary filter, motor cut-off on large tilt" } },
+      { id: "writeup", text: { zh: "在 GitHub 上为两台机器人写 README：接线、代码、调参过程和出过的故障", en: "Write a GitHub README for both robots: wiring, code, tuning notes and what broke" } },
+    ],
+  },
 ];
 
 export const months: Month[] = [

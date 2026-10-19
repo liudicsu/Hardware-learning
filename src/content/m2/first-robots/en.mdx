@@ -1,0 +1,623 @@
+## From five lessons to one robot
+
+Month 2 took the five pieces of a robot apart so you could meet each one on its own: Arduino input and PWM, timing with millis() and interrupts, the ESP32, motors with drivers and an encoder loop, and sensors on I2C with the complementary filter. This final lesson bolts them back together. Every robot you build from here — a line follower, a self-balancer, and later an arm or a rover — runs the same loop underneath:
+
+**sense → estimate → decide → act**, repeated at a fixed rate.
+
+| Step | Line follower | Self-balancer | Lesson |
+| --- | --- | --- | --- |
+| Sense | 8 reflectance sensors | accelerometer + gyro over I2C | Lesson 5 (sensors, I2C, complementary filter) |
+| Estimate | line position 0..7000 | pitch angle from a complementary filter | Lesson 5 (sensors, I2C, complementary filter) |
+| Decide | PD on position error | PD on angle and angular rate | this lesson |
+| Act | two motors, PWM through a TB6612FNG | same | Lesson 4 (motors, drivers, encoder loop) |
+| Keep time | 100 Hz loop with millis() | 200 Hz loop with micros() | Lesson 2 (timing and interrupts) |
+
+Read that table once more, because it is the whole month in five rows. The sensors differ and the maths differs, but the shape never changes: read something, turn it into one meaningful number, decide, drive the motors, and be back at the top of the loop before the next tick. Only the "decide" row is genuinely new; every other row you have already built, just in smaller pieces.
+
+There is one difference in temperament, and it decides the order you build in. The line follower is **forgiving**. Get the gain wrong and it wobbles, runs wide on a corner, saws back and forth — but it keeps driving, and you can watch what it is doing and fix it. The self-balancer is **not forgiving**. If the filter, the sign of a loop, or the loop timing is even slightly off, it does not wobble; it simply falls over. "Falls over" tells you far less than "wobbles" does — it throws away almost all the information you need to fix it. So build the line follower first. It is the same loop with the consequences turned down, and everything you learn while tuning it transfers straight to the balancer.
+
+<Callout type="info" title="Your practice task for this lesson">
+**Build the line follower first.** Tune it with P alone until it follows the line, then add D and watch the oscillation go away. Film both versions. A side-by-side video of the badly tuned and the well tuned robot proves you understand the loop, and in a portfolio it is worth more than a robot that merely works — anyone can copy a working robot, but explaining the difference is the skill. Only then build the balancer.
+</Callout>
+
+## PID in one page
+
+Every controller in this lesson is a PID controller, so let us compress the whole idea into one page. Define the error first, because everything else is built on it:
+
+error = setpoint − measurement
+
+For the line follower the setpoint is the centre of the array, `3500`, and the measurement is whatever the sensors report, so `error = position − 3500`. For the balancer the setpoint is "level", `0` degrees, and the measurement is the pitch the filter estimates. Once you have one meaningful number like this, the controller is almost trivial.
+
+The three terms:
+
+- **P (proportional)** — the output is proportional to the error, so the further off you are, the harder it pushes back. On its own, with any delay anywhere in the system, P overshoots and oscillates: it is still pushing hard as you arrive back at the setpoint, so you sail straight past it. Every real system has delay — a motor cannot change speed instantly — which is why P alone almost always rings.
+- **D (derivative)** — proportional to how fast the error is changing. It behaves like a damper. As you approach the target the error is shrinking, so D produces an output that opposes the motion and brakes the correction. This is the term that kills the overshoot.
+- **I (integral)** — proportional to the accumulated error over time. It removes a steady offset, for example one motor being weaker than the other, that P alone would leave behind. It can also **wind up**: while the robot is stuck against a wall, or its output is saturated, the accumulated error grows enormous, and the moment it frees itself that stored-up number flings it across the line. Clamp the integral, and leave it out entirely until P and D work.
+
+For a fixed loop period the discrete form is just three multiplications:
+
+```text
+output = KP × error + KI × sum_of_errors + KD × (error − last_error)
+```
+
+**Worked example.** A line follower with `KP = 0.06` and `KD = 0.3`. The sensors report position 4700, so the error is `4700 − 3500 = 1200`. The previous error was 1500, so the change is `1200 − 1500 = −300`.
+
+```text
+P term = 0.06 × 1200 = 72
+D term = 0.3 × (−300) = −90
+correction = 72 − 90 = −18
+```
+
+The P term alone wanted to steer hard — a correction of 72 — but the error shrank by 300 since the last pass, so the D term subtracts 90 and leaves just −18. In plain words, D says: "you are already returning fast, ease off." That correction is then added to one motor and subtracted from the other, so the left motor gets `120 + (−18) = 102` and the right motor gets `120 + 18 = 138`. The robot turns gently toward the line instead of swinging wide across it.
+
+<Quiz id="q1" question="KP = 0.05, error = −800, KD = 0. What is the correction?" answer={-40} explanation="With KD = 0 only the P term acts: 0.05 × (−800) = −40. The sign just means the correction pushes the opposite way from the error." />
+
+During the project you will be asked to explain P, I and D by describing what your robot actually did when you changed each one. Keep notes while you tune — one sentence per attempt is enough, and those notes become your README later.
+
+## Line follower: parts and wiring
+
+There are two builds of this robot: a quality version and a budget version. They run the same code; the quality one simply survives more collisions and holds its calibration better. All prices are approximate figures from the course author — check current prices in your own store before ordering.
+
+**Quality build, roughly $105**
+
+| Part | Approx. price | Why this one |
+| --- | --- | --- |
+| ESP32-S3 dev board | $15.95 | fast, plenty of pins, the board family from Lesson 3 |
+| Pololu Romi chassis kit | $39.95 | round differential base with motors, wheels and battery holder |
+| TB6612FNG driver | $14.77 | low-drop MOSFET H-bridge, barely warms |
+| QTR-8RC reflectance array | $12.95 | eight calibrated line sensors in a row |
+| Batteries and holder | about $12 | |
+| Wiring and headers | about $10 | |
+| **Total** | **roughly $105** | |
+
+**Budget build, roughly $38**
+
+| Part | Approx. price |
+| --- | --- |
+| Generic ESP32 | about $6 |
+| 2WD acrylic chassis | about $12 |
+| DRV8833 driver | $5.95 |
+| Five TCRT5000 sensors | about $3 |
+| Batteries | about $6 |
+| Wiring | about $5 |
+
+The sketch in the next part targets an **Arduino Uno**, because every earlier example in the course did and its PWM pins are well known. Moving it to the ESP32 is a pin-choice exercise, not a rewrite: on the ESP32 avoid the strapping pins and remember that ADC2 is shared with Wi-Fi (Lesson 3 covers strapping pins, ADC2 and Wi-Fi). `analogWrite` does work on recent ESP32 Arduino cores, so the motor calls stay almost identical.
+
+Now the sensor that makes the whole robot possible. The **QTR-8RC** is eight IR emitter/phototransistor pairs in a row at 9.5 mm pitch. Each pair shines infrared at the floor and measures how much bounces back: a white surface reflects a lot, a black line reflects almost nothing. The "RC" in the name is the clever part. Each sensor output is a digital pin that the library first drives high (charging the small capacitor on the sensor's output), then releases. The library times how long the pin takes to decay back to low: fast when there is a lot of reflected light (white), up to a few milliseconds when there is little (black). Because it only measures a time, a plain digital pin is enough — **no ADC is needed**.
+
+<Resource id="qtr-8rc" />
+
+The Pololu `QTRSensors` library does all that timing for you. After a calibration pass it returns values from 0 (white) to 1000 (black) for each sensor, and `readLineBlack()` combines the eight into a single weighted-average position from 0 to 7000, where 3500 means the line is under the middle of the array. That one number — the estimated position — is the whole "sense" and "estimate" column of the table for this robot.
+
+Calibration is not optional. During `calibrate()` every sensor must see both the darkest and the lightest surface it will meet, and the library records those two extremes per sensor. The usual method is to hold the robot and slide it across the line, left to right, for the full 5 seconds the routine runs. Calibrate under the same lighting you will drive under, because IR reflectance shifts with ambient light.
+
+Mounting matters. Put the array **ahead of the wheels** and about **3 mm above the floor**; Pololu gives 3 mm as the optimal height and 9.5 mm as the maximum, after which the reflected signal is too weak. The board draws about **100 mA** with its IR LEDs on, so give it a clean supply and common ground. The wiring for the sketch in the next part is:
+
+- Sensors 1–8 → A0, A1, A2, A3, A4, A5, D10, D11 (analog pins are used as digital inputs here).
+- TB6612FNG left motor: PWMA → D5, AIN1 → D7, AIN2 → D8.
+- TB6612FNG right motor: PWMB → D6, BIN1 → D4, BIN2 → D12.
+- STBY → D9.
+- VM → motor battery positive.
+- All grounds common.
+
+<Quiz id="q2" question="With 8 sensors, what does readLineBlack() return when the line is exactly under the middle of the array?" answer={3500} explanation="The weighted average runs from 0 to 7000; the centre of eight evenly spaced sensors is half of 7000, which is 3500." />
+
+## P vs PD in a simulation
+
+Before you touch a single wire, run this toy model and watch P and D fight it out. It is a Python program written by the site editor, not robot code — a simplified picture of a line follower that starts 20 mm off the line and is tuned with P only, then with two different values of D. The output below is exactly what this file prints.
+
+```python
+"""line_sim.py: a line follower that starts 20 mm off the line, tuned with P and then PD.
+
+Toy model: 8 reflectance sensors 9.5 mm apart (like a QTR-8RC), a 100 Hz control loop,
+and wheels that need about 80 ms to reach a new turning speed.
+"""
+import math
+
+SPEED = 0.30           # forward speed, m/s
+DT = 0.01              # control loop period, s (100 Hz)
+MOTOR_TAU = 0.08       # how fast the turn rate follows the command, s
+SPACING = 0.0095       # sensor spacing, m
+LINE_HALF_WIDTH = 0.009
+
+
+def read_position(offset_m):
+    """Weighted average of 8 sensor readings: 0..7000, 3500 = line under the centre."""
+    total = weighted = 0.0
+    for i in range(8):
+        x = (i - 3.5) * SPACING + offset_m           # sensor position relative to the line
+        r = 1000 * math.exp(-(x / LINE_HALF_WIDTH) ** 2)  # 0 = white, 1000 = black
+        total += r
+        weighted += r * i * 1000
+    if total < 50:                                    # line lost: report the nearest edge
+        return 0 if offset_m > 0 else 7000
+    return weighted / total
+
+
+def run(kp, kd, seconds=3.0):
+    y, heading, turn_rate = 0.020, 0.0, 0.0          # start 20 mm to one side
+    last_error = None
+    log = []
+    for step in range(int(seconds / DT)):
+        error = read_position(y) - 3500               # negative = line is to the left
+        d_error = 0.0 if last_error is None else (error - last_error) / DT
+        last_error = error
+        command = kp * error + kd * d_error            # rad/s of turning
+        command = max(-6.0, min(6.0, command))
+        for _ in range(10):                            # robot physics at 1 ms
+            turn_rate += (command - turn_rate) * 0.001 / MOTOR_TAU
+            heading += turn_rate * 0.001
+            y += SPEED * math.sin(heading) * 0.001
+        log.append(((step + 1) * DT, y))
+    return log
+
+
+def describe(log):
+    ys = [y for _, y in log]
+    overshoot = max(0.0, -min(ys)) * 1000              # mm past the line on the other side
+    crossings = sum(1 for a, b in zip(ys, ys[1:]) if a * b < 0)
+    settled = next((t for t, _ in log if all(abs(y) < 0.002 for tt, y in log if tt >= t)), None)
+    return overshoot, crossings, settled
+
+
+if __name__ == "__main__":
+    cases = (("P only", 0.0003, 0.0), ("P + small D", 0.0003, 0.0001), ("P + D", 0.0003, 0.0002))
+    logs = {name: run(kp, kd, seconds=4.0) for name, kp, kd in cases}
+    print("offset from the line (mm), every 0.5 s")
+    print("  t_s  " + "  ".join(f"{name:>11}" for name, _, _ in cases))
+    for k in range(0, 9):
+        t = k * 0.5
+        row = []
+        for name, _, _ in cases:
+            y = 20.0 if k == 0 else logs[name][int(round(t / DT)) - 1][1] * 1000
+            row.append(f"{y:11.1f}")
+        print(f"  {t:3.1f}  " + "  ".join(row))
+    print()
+    for name, kp, kd in cases:
+        overshoot, crossings, settled = describe(logs[name])
+        settled_txt = f"{settled:.2f} s" if settled is not None else "never"
+        print(f"{name:11} kp={kp} kd={kd}: overshoot {overshoot:4.1f} mm, "
+              f"{crossings} line crossings, within 2 mm from {settled_txt}")
+```
+
+```text
+offset from the line (mm), every 0.5 s
+  t_s       P only  P + small D        P + D
+  0.0         20.0         20.0         20.0
+  0.5          4.1          7.8         10.6
+  1.0        -26.3         -4.5          3.6
+  1.5        -11.9         -1.6          1.3
+  2.0         34.1          1.2          0.5
+  2.5         30.4          0.3          0.2
+  3.0        -31.8         -0.3          0.1
+  3.5        -61.9         -0.1          0.0
+  4.0        -16.1          0.1          0.0
+
+P only      kp=0.0003 kd=0.0: overshoot 62.3 mm, 3 line crossings, within 2 mm from never
+P + small D kp=0.0003 kd=0.0001: overshoot  4.8 mm, 4 line crossings, within 2 mm from 1.47 s
+P + D       kp=0.0003 kd=0.0002: overshoot  0.0 mm, 0 line crossings, within 2 mm from 1.30 s
+```
+
+All three runs start 20 mm to one side and all three turn toward the line. **P only** reaches the line quickly — by 0.5 s the offset is down to 4.1 mm — but it does not stop turning there. The wheels need about 80 ms to reach a new turn rate, so by the time the robot knows it has arrived its heading is still pointing across the line, and it overshoots. The sign of the offset then flips, then flips back, and the swings grow wider each time: at 3.5 s it is 61.9 mm off, and the summary says it is **never** within 2 mm. That is a system dominated by delay, exactly what P-alone does.
+
+**A small D (0.0001)** changes almost everything. It cuts the overshoot from 62.3 mm to **4.8 mm** and settles within 2 mm by **1.47 s**. The D term is braking the correction as the error shrinks, which is precisely the damping promised in the PID discussion above. **D = 0.0002** does better still: it approaches the line without crossing it even once and is within 2 mm from **1.30 s**.
+
+Notice the units. This model's output is a turn rate in rad/s, so the gains look tiny, and they are nothing like the `KP = 0.06` the sketch will use. Gains never transfer between models or between robots; only the procedure transfers. You will always have to tune on your own hardware.
+
+<Quiz id="q3" question="In the simulation, what did adding the D term change most?" options={["The robot drove faster", "The overshoot and oscillation around the line", "The sensor readings became less noisy"]} answer={1} explanation="D damps the correction, so it shrinks the overshoot and the size of the swings around the line (62.3 mm with P only, 4.8 mm and 0 mm with D). It does not change speed and it does not clean up the sensors — it actually amplifies sensor noise." />
+
+## The line-follower sketch and how to tune it
+
+Here is the whole robot in one sketch. It was compiled for the Uno with the `QTRSensors` 4.0.0 library, but it was **not run on a robot** — there is no simulator for the robot, so there is no output to show here.
+
+```cpp
+// PD line follower: QTR-8RC array + TB6612FNG + two gearmotors (Arduino Uno).
+// Library: "QTRSensors" by Pololu (Library Manager).
+#include <QTRSensors.h>
+
+// TB6612FNG
+const int PWMA = 5, AIN1 = 7, AIN2 = 8;     // left motor
+const int PWMB = 6, BIN1 = 4, BIN2 = 12;    // right motor
+const int STBY = 9;
+
+const uint8_t SENSOR_PINS[8] = {A0, A1, A2, A3, A4, A5, 10, 11};
+QTRSensors qtr;
+uint16_t values[8];
+
+const float KP = 0.06;          // PWM per unit of position error  (start here)
+const float KD = 0.0;           // add D after P is working: try 0.3, then tune
+const int BASE_PWM = 120;       // straight-line speed
+const unsigned long PERIOD_MS = 10;   // 100 Hz control loop
+
+int lastError = 0;
+unsigned long last = 0;
+
+void setMotor(int pwmPin, int in1, int in2, int speed) {   // speed -255..255
+  speed = constrain(speed, -255, 255);
+  digitalWrite(in1, speed > 0);
+  digitalWrite(in2, speed < 0);
+  analogWrite(pwmPin, abs(speed));
+}
+
+void setup() {
+  int outs[] = {PWMA, AIN1, AIN2, PWMB, BIN1, BIN2, STBY};
+  for (int p : outs) pinMode(p, OUTPUT);
+  digitalWrite(STBY, HIGH);
+
+  qtr.setTypeRC();
+  qtr.setSensorPins(SENSOR_PINS, 8);
+
+  // Calibrate for ~5 s: slide the robot by hand so every sensor sees black and white.
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, HIGH);
+  for (int i = 0; i < 200; i++) qtr.calibrate();
+  digitalWrite(LED_BUILTIN, LOW);
+  last = millis();
+}
+
+void loop() {
+  unsigned long now = millis();
+  if (now - last < PERIOD_MS) return;
+  last += PERIOD_MS;
+
+  uint16_t position = qtr.readLineBlack(values);   // 0..7000, 3500 = centred
+  int error = (int)position - 3500;
+  int derivative = error - lastError;              // per loop period (fixed 10 ms)
+  lastError = error;
+
+  int correction = (int)(KP * error + KD * derivative);
+  setMotor(PWMA, AIN1, AIN2, BASE_PWM + correction);
+  setMotor(PWMB, BIN1, BIN2, BASE_PWM - correction);
+}
+```
+
+Walk through it from the top. The loop runs at a fixed 100 Hz using `last += PERIOD_MS` rather than `last = now` (Lesson 2: advancing by a fixed step keeps the rate steady, so "derivative per loop" means the same thing every single time). In `setup()` the robot calibrates 200 times with the built-in LED lit as a visual cue — that LED is also how you know when to start sliding the robot across the line. In the loop, `readLineBlack()` returns the position, `error` is that minus the centre, and `derivative` is the change in error since the last pass. The correction is added to one motor's speed and subtracted from the other's. Finally `setMotor()` clamps the speed to −255..255 and sets the direction pins, exactly like the `drive()` helper from Lesson 4.
+
+One thing to check before you trust any of it: if the robot steers **away** from the line instead of toward it, the sign is wrong for your wiring. Flip the sign of `KP` and `KD` (or swap which motor gets the plus and which gets the minus). There is no universal right answer here; it depends on which side of the robot you call left.
+
+Tuning is a procedure, not a guess. Follow it in order:
+
+1. **Wheels off the ground first.** Move the line under the sensors by hand and watch the motors. Check they react the right way: line to the left should slow the left wheel, not the right.
+2. Set `KD = 0` and a low `BASE_PWM` (about 80). Raise `KP` until the robot follows the line but wiggles.
+3. **Film it.** This is your "P only" clip.
+4. Add `KD` in small steps until the wiggle dies. If the motors buzz or twitch, `KD` is too high — it amplifies sensor noise.
+5. **Film it again.** This is your "PD" clip.
+6. Raise `BASE_PWM` and repeat. Faster needs more D; the faster you go, the sooner delay bites.
+7. Write every attempt in a tuning log: `KP`, `KD`, `BASE_PWM`, and what happened.
+
+<Callout type="tip" title="Keep the bad video">
+The oscillation you see with P only is not a bug — it is the exact thing you are learning to remove. Keep that video. A before-and-after pair teaches a reader more than a single clip of a robot that happens to work.
+</Callout>
+
+<Quiz id="q4" question="Your robot follows the line but the motors make a buzzing, twitchy sound after you raised KD. What is the most likely cause?" options={["KD is too high and amplifies sensor noise", "KP is too low", "The loop is running too slowly"]} answer={0} explanation="The derivative term reacts to how fast the error changes, so it amplifies whatever noise is in the sensor reading. When KD is too high the correction jitters every loop and the motors buzz. Lower KD." />
+
+## Self-balancer: why it is hard
+
+A self-balancer is an **inverted pendulum** — the same problem as balancing a broom upright on your hand. Left alone, it does not drift slowly; it falls in well under a second. That has a hard consequence: the controller must react within milliseconds, and it must do so **every few milliseconds**, not once in a while. On top of that it needs an angle estimate that is both fast and non-drifting, which is exactly the job of the complementary filter from Lesson 5 — the gyro gives a fast but drifting angle, the accelerometer a slow but absolute one, and the filter fuses them so you get a number good enough to act on. The wheels then move under the centre of mass to catch the fall: the robot is not balancing statically, it is continuously driving itself back under its own centre of gravity.
+
+The parts, again approximate figures from the course author:
+
+**Quality build, roughly $134**
+
+| Part | Approx. price |
+| --- | --- |
+| ESP32 | $15.95 |
+| Two gearmotor-with-encoder assemblies | $39.90 |
+| TB6612FNG driver | $14.77 |
+| MPU-6050 IMU | $12.95 |
+| Printed or laser-cut chassis | about $10 |
+| LiPo, charger and wheels | about $30 |
+| Miscellaneous | about $10 |
+
+**Budget build, roughly $62** — the course gives only the total here; source the equivalent generic parts from the tables above.
+
+Now the model. This second Python toy model was also written by the site editor, and its output is exactly what it prints. It simulates the robot's centre of mass 0.10 m above the axle, with the controller setting the wheels' acceleration. The angle comes from a complementary filter with a 0.5 s time constant at every loop rate.
+
+```python
+"""balance_sim.py: why a self-balancer needs both a good angle estimate and a fast, steady loop.
+
+Toy inverted pendulum: the robot's centre of mass sits 0.10 m above the axle and the
+controller sets the wheels' acceleration. The angle comes from a complementary filter
+(gyro bias already calibrated out, noisy gyro and accelerometer) whose time constant
+is 0.5 s at every loop rate.
+Real robots also need an outer speed loop from the wheel encoders; this model leaves it out.
+"""
+import math
+import random
+
+G, L = 9.81, 0.10            # gravity, height of the centre of mass (m)
+MAX_ACCEL = 6.0              # m/s^2 the motors can deliver
+MOTOR_TAU = 0.02             # wheels reach a new acceleration in ~20 ms
+
+
+def run(loop_hz, kp, kd, use_filter=True, seconds=5.0, seed=3):
+    """Start tipped 3 degrees; at t = 2.5 s someone gives the robot a push."""
+    rng = random.Random(seed)
+    dt_ctrl = 1.0 / loop_hz
+    theta, omega, accel = math.radians(3.0), 0.0, 0.0    # starts tipped 3 degrees
+    est, next_ctrl, command, t = 0.0, 0.0, 0.0, 0.0
+    worst, sq, n, pushed = 0.0, 0.0, 0, False
+    while t < seconds:
+        if t >= next_ctrl:                               # --- controller runs here ---
+            next_ctrl = t + dt_ctrl
+            gyro = math.degrees(omega) + rng.gauss(0, 0.3)
+            acc = math.degrees(theta) + rng.gauss(0, 2.5)     # accelerometer tilt, shaken by the motors
+            if use_filter:
+                a = 0.5 / (0.5 + dt_ctrl)                  # same 0.5 s time constant at any rate
+                est = a * (est + gyro * dt_ctrl) + (1 - a) * acc
+            else:
+                est = acc                                # raw accelerometer angle only
+            command = kp * est + kd * gyro               # PD on angle (deg) and rate (deg/s)
+            command = max(-MAX_ACCEL, min(MAX_ACCEL, command))
+        # --- physics at 1 ms ---
+        accel += (command - accel) * 0.001 / MOTOR_TAU
+        alpha = (G * math.sin(theta) - accel * math.cos(theta)) / L
+        omega += alpha * 0.001
+        theta += omega * 0.001
+        if not pushed and t >= 2.5:
+            omega += math.radians(40)                      # a push: +40 deg/s
+            pushed = True
+        if 1.0 < t < 2.5:
+            sq += math.degrees(theta) ** 2
+            n += 1
+        t += 0.001
+        worst = max(worst, abs(math.degrees(theta)))
+        if worst > 45:
+            return f"fell over after {t:.2f} s"
+    return f"upright, wobble {math.sqrt(sq / n):.2f} deg rms, worst tilt {worst:.1f} deg"
+
+
+if __name__ == "__main__":
+    print("200 Hz, PD, filtered angle:  ", run(200, kp=0.8, kd=0.04))
+    print("200 Hz, PD, raw accel angle: ", run(200, kp=0.8, kd=0.04, use_filter=False))
+    print("200 Hz, P only:              ", run(200, kp=0.8, kd=0.0))
+    print(" 50 Hz, PD, filtered angle:  ", run(50, kp=0.8, kd=0.04))
+    print(" 10 Hz, PD, filtered angle:  ", run(10, kp=0.8, kd=0.04))
+```
+
+```text
+200 Hz, PD, filtered angle:   upright, wobble 0.36 deg rms, worst tilt 3.6 deg
+200 Hz, PD, raw accel angle:  upright, wobble 1.09 deg rms, worst tilt 3.6 deg
+200 Hz, P only:               fell over after 1.27 s
+ 50 Hz, PD, filtered angle:   upright, wobble 0.71 deg rms, worst tilt 3.5 deg
+ 10 Hz, PD, filtered angle:   fell over after 1.23 s
+```
+
+Read the five lines one at a time.
+
+- **200 Hz, PD, filtered angle: upright, wobble 0.36 deg rms, worst tilt 3.6 deg.** The robot starts tipped 3° and takes a 40 °/s push at 2.5 s, and stays up. It wobbles only 0.36° rms — a very steady balance. This is the whole design working.
+- **200 Hz, PD, raw accel angle: upright, wobble 1.09 deg rms, worst tilt 3.6 deg.** Here the filter is bypassed and the controller uses the raw accelerometer angle, which the model shakes with 2.5° of noise (motor vibration). It still stands, but it wobbles **three times as much**. On a real robot that noise goes straight into the motors and shows up as heat and buzzing.
+- **200 Hz, P only: fell over after 1.27 s.** With no D term nothing damps the swing. It never recovers from the 3° start: each swing is bigger than the last, and it falls at 1.27 s, before the push at 2.5 s even arrives.
+- **50 Hz, PD, filtered angle: upright, wobble 0.71 deg rms, worst tilt 3.5 deg.** Half the loop rate still stands, but the wobble roughly doubles. Slower correction means less damping.
+- **10 Hz, PD, filtered angle: fell over after 1.23 s.** At a twentieth of the rate, by the time the next correction arrives the robot has already moved too far. It falls at 1.23 s, again before the push. Raising the gains only makes it fall sooner. Softer gains (we tried kp = 0.3, kd = 0.02 in the same model) keep it up at 10 Hz, but it wobbles about 3° rms, nearly nine times worse than at 200 Hz, with almost no margin. The loop itself is too slow.
+
+Here is the arithmetic behind that last point. Loop period is just one over the rate:
+
+```text
+200 Hz: period = 1 / 200 = 0.005 s = 5 ms
+ 10 Hz: period = 1 / 10  = 0.1 s   = 100 ms
+```
+
+Five milliseconds is a short time for something that falls in about a second; a hundred milliseconds is twenty times longer than the fast loop and simply too late.
+
+Be honest about what this model is. Its own docstring says it: there is **no outer speed loop**, so it ignores the fact that a real balancer slowly rolls away and needs the wheel encoders (Lesson 4) to fix that. And the gains `kp = 0.8`, `kd = 0.04` are in the model's own units, not PWM per degree — they are not values you can paste into firmware. The model shows you *why* each requirement exists, not the numbers to ship.
+
+When the complementary filter is no longer enough — when you want a principled way to blend the sensors and to handle the gyro bias properly — the standard next step is a Kalman filter. The book below is the usual recommendation, and it runs as notebooks you can actually execute.
+
+<Resource id="labbe-kalman" />
+
+<Quiz id="q5" question="A balancer's control loop runs at 250 Hz. What is the loop period in milliseconds?" answer={4} unit="ms" explanation="Period = 1 / 250 Hz = 0.004 s = 4 ms." />
+
+## The balancer sketch
+
+This is the firmware. It runs the complementary filter and a PD controller at a fixed 200 Hz, and it protects itself when it falls over.
+
+```cpp
+// Self-balancer skeleton: MPU-6050 + complementary filter + PD at a fixed 200 Hz.
+// Uno + TB6612FNG (both channels) + two gearmotors. Mount the MPU-6050 so that
+// tilting forward makes the pitch positive. Tune KP first, then KD (see the lesson).
+#include <Wire.h>
+
+const int PWMA = 5, AIN1 = 7, AIN2 = 8;     // left motor
+const int PWMB = 6, BIN1 = 4, BIN2 = 12;    // right motor
+const int STBY = 9;
+
+const uint8_t MPU = 0x68;
+const float ACCEL_LSB_PER_G = 16384.0;      // +-2 g (default)
+const float GYRO_LSB_PER_DPS = 131.0;       // +-250 deg/s (default)
+
+const unsigned long PERIOD_US = 5000;       // 200 Hz control loop
+const float DT = PERIOD_US / 1e6;
+const float TAU = 0.5;                      // filter time constant, s
+const float ALPHA = TAU / (TAU + DT);       // = 0.990 at 200 Hz
+
+float KP = 25.0;                            // PWM per degree
+float KD = 0.8;                             // PWM per deg/s
+const float SETPOINT = 0.0;                 // pitch when balanced, deg (trim this)
+const float CUTOFF_DEG = 40.0;              // beyond this it has fallen: motors off
+
+float pitch = 0, gyroBias = 0;
+bool running = false;
+unsigned long nextTick = 0, worstLoopUs = 0, lastReport = 0;
+
+void setMotor(int pwmPin, int in1, int in2, int speed) {   // -255..255
+  speed = constrain(speed, -255, 255);
+  digitalWrite(in1, speed > 0);
+  digitalWrite(in2, speed < 0);
+  analogWrite(pwmPin, abs(speed));
+}
+
+void stopMotors() {
+  setMotor(PWMA, AIN1, AIN2, 0);
+  setMotor(PWMB, BIN1, BIN2, 0);
+}
+
+void readImu(float &accelPitch, float &rate) {
+  Wire.beginTransmission(MPU);
+  Wire.write(0x3B);                         // ACCEL_XOUT_H
+  Wire.endTransmission(false);
+  Wire.requestFrom(MPU, (uint8_t)14);
+  int16_t v[7];
+  for (int i = 0; i < 7; i++) v[i] = (Wire.read() << 8) | Wire.read();
+  accelPitch = atan2(v[0] / ACCEL_LSB_PER_G, v[2] / ACCEL_LSB_PER_G) * 180.0 / PI;
+  rate = v[5] / GYRO_LSB_PER_DPS - gyroBias; // gyro Y
+}
+
+void setup() {
+  int outs[] = {PWMA, AIN1, AIN2, PWMB, BIN1, BIN2, STBY};
+  for (int p : outs) pinMode(p, OUTPUT);
+  digitalWrite(STBY, HIGH);
+  Serial.begin(115200);
+  Wire.begin();
+  Wire.setClock(400000);                    // fast-mode I2C: shorter reads
+  Wire.beginTransmission(MPU);
+  Wire.write(0x6B);                         // PWR_MGMT_1: wake up
+  Wire.write(0);
+  Wire.endTransmission();
+
+  // Gyro bias: hold the robot still for one second at power-up.
+  float sum = 0, a, r;
+  for (int i = 0; i < 200; i++) { readImu(a, r); sum += r; delay(5); }
+  gyroBias = sum / 200;
+  readImu(a, r);
+  pitch = a;                                // start the filter from the accelerometer
+  Serial.print(F("gyro bias (deg/s): "));
+  Serial.println(gyroBias, 2);
+  nextTick = micros();
+}
+
+void loop() {
+  if ((long)(micros() - nextTick) < 0) return;   // wait for the next 5 ms tick
+  unsigned long start = micros();
+  nextTick += PERIOD_US;
+
+  float accelPitch, rate;
+  readImu(accelPitch, rate);
+  pitch = ALPHA * (pitch + rate * DT) + (1 - ALPHA) * accelPitch;
+
+  if (fabs(pitch) > CUTOFF_DEG) running = false;   // fallen: stop
+  if (!running && fabs(pitch) < 5.0) running = true; // stood back up by hand: go
+
+  if (running) {
+    int out = (int)(KP * (pitch - SETPOINT) + KD * rate);
+    setMotor(PWMA, AIN1, AIN2, out);
+    setMotor(PWMB, BIN1, BIN2, out);
+  } else {
+    stopMotors();
+  }
+
+  unsigned long used = micros() - start;
+  if (used > worstLoopUs) worstLoopUs = used;
+  if (millis() - lastReport >= 1000) {      // once a second; printing takes time too
+    lastReport = millis();
+    Serial.print(F("pitch "));
+    Serial.print(pitch, 1);
+    Serial.print(F("  worst loop us "));
+    Serial.println(worstLoopUs);
+    worstLoopUs = 0;
+  }
+}
+```
+
+Walk through the important parts.
+
+- **Fixed 200 Hz tick with micros().** `nextTick += PERIOD_US` advances the target by exactly 5 ms every loop. The comparison `(long)(micros() - nextTick) < 0` survives the micros() overflow, as Lesson 2 explained — signed subtraction makes the wrap-around behave.
+- **ALPHA from the time constant.** `ALPHA = TAU / (TAU + DT)` with `TAU = 0.5` and `DT = 0.005` gives 0.990. Because ALPHA is derived from the period, changing the loop rate keeps the same 0.5 s time constant — you are not silently changing the filter when you change the clock.
+- **Gyro bias measured at startup.** The first second, while the robot is held still, the code averages 200 gyro readings into `gyroBias`. That bias is the thing that makes a gyro-only angle drift, which is why the complementary filter of Lesson 5 exists; here it is subtracted on every read.
+- **Start from the accelerometer.** `pitch = a` seeds the filter with an absolute angle instead of 0, so it does not have to spend seconds converging.
+- **PD on pitch and the gyro rate directly.** The gyro reading *is* a clean derivative of the angle, so the code uses it straight, rather than differencing the noisy angle.
+- **The 40° cutoff.** Past 40° the robot has fallen, so `running` goes false and the motors stop; it only restarts when you stand it back up within 5°. This is a safety feature — never skip it.
+- **Worst loop time, once a second.** The code tracks the longest loop and reports it every second, so you can see whether you are close to overrunning the 5 ms budget.
+
+Now here is what that firmware prints on the simavr AVR simulator with a simulated MPU-6050. The simulated sensor's pitch follows a scripted profile: 0° → 30° between 3 and 4 s, held, then back to 0° between 7 and 8 s, with a gyro bias of +1.5 °/s. **No motors or robot physics are simulated**, and the simulator does not model the time the I2C bus takes. This is a 10 s run.
+
+```text
+gyro bias (deg/s): 1.54
+pitch -1.4  worst loop us 780
+pitch -0.2  worst loop us 736
+pitch 3.6  worst loop us 732
+pitch 30.0  worst loop us 732
+pitch 29.8  worst loop us 728
+pitch 30.1  worst loop us 728
+pitch 26.2  worst loop us 724
+pitch -0.1  worst loop us 732
+pitch 0.1  worst loop us 736
+```
+
+The measured bias of **1.54 °/s** matches the simulated sensor's +1.5 °/s. The pitch follows the scripted tilt up to 30° and back to 0° with no drift, exactly as the complementary filter is supposed to do. And the loop used about **0.73 ms** of its 5 ms budget, so there is room to spare.
+
+The one caveat: this simulator does not model the time the I2C bus takes, so that 0.73 ms is optimistic. Estimate the real cost:
+
+```text
+18 bytes × 9 clock cycles each = 162 cycles
+400 kHz: 162 / 400 000 = 0.000 405 s ≈ 0.41 ms
+100 kHz: 162 / 100 000 = 0.001 62 s  ≈ 1.62 ms
+```
+
+Reading 14 data bytes, plus addressing and the register byte, is about 18 bytes, and each byte on I2C takes 9 clock cycles (8 bits plus an acknowledge). At 400 kHz that is about 0.41 ms; at the default 100 kHz it is 1.62 ms — nearly a third of the whole 5 ms budget, just for the sensor. That is why the sketch calls `Wire.setClock(400000)`.
+
+Bring-up is the same discipline as the line follower, but even less forgiving:
+
+1. **Check the sign with the wheels off the ground.** Tilt the robot forward; the wheels must drive **forward**, i.e. in the direction the robot is falling, to get back under it. If they drive backward, flip `KP` and `KD`.
+2. Set `KD = 0` and raise `KP` until it tries to stand but oscillates quickly.
+3. Add `KD` until the oscillation is damped.
+4. Trim `SETPOINT` so it does not lean — battery position changes where "balanced" is.
+5. Expect it to roll slowly away. The fix is an outer loop on wheel speed from the encoders (Lesson 4) that nudges `SETPOINT`; that is the natural next step and a great README section.
+
+<Callout type="warn" title="A balancer can lunge">
+A self-balancer can lunge suddenly at full power, with no warning. Hold it by the frame, keep fingers well away from the wheels, keep the 40° cut-off, and for the first tests have the battery where you can unplug it instantly.
+</Callout>
+
+<Quiz id="q6" question="In the toy model, which change made the robot fall over even though it used the filtered angle?" options={["Running the loop at 10 Hz instead of 200 Hz", "Adding the D term", "Using a 0.5 s filter time constant"]} answer={0} explanation="The 10 Hz run fell after 1.23 s: the loop was simply too slow to correct in time. The filtered angle and the D term were both present and did not save it." />
+
+## Show your work on GitHub
+
+The month's final milestone is two working robots on GitHub, with wiring, code and an honest written account of what broke. If Git and GitHub still feel shaky, revisit the Month 1 Git & GitHub lesson before you start. A clean, boring repo layout works best:
+
+```text
+README.md
+line-follower/
+  line_follower.ino
+  wiring.png
+  tuning-log.md
+balancer/
+  balancer.ino
+  wiring.png
+  tuning-log.md
+media/
+  p-only.mp4   (or a link)
+  pd.mp4
+```
+
+Your README is what a stranger sees first, so put the useful things at the top:
+
+- A photo and the P vs PD videos right at the top.
+- What it does in two sentences.
+- The BOM, with what you actually paid.
+- A wiring diagram or a wiring table.
+- How to build and flash it.
+- The tuning log as a table.
+- A "what broke" section.
+
+That tuning log is worth formatting as a table. The one below is an example — clearly invented numbers, just showing the shape of a real log:
+
+| Attempt | KP | KD | Speed | What happened |
+| --- | --- | --- | --- | --- |
+| 1 | 0.06 | 0 | 80 | wiggles but follows the line |
+| 2 | 0.06 | 0.3 | 80 | smooth, no wiggle |
+| 3 | 0.06 | 0.3 | 150 | runs wide on the tight curves |
+
+Then the "what broke" section — and be honest in it. The brownout, the reversed motor, the forgotten `STBY` that kept everything dead: that section is what convinces a reader you actually built the robot rather than copied a tutorial. A polished repo with no failures in it reads as fiction.
+
+One rule you already met in Lesson 3: **do not commit secrets.** Wi-Fi passwords and API keys belong in a separate file that you add to `.gitignore`, never in the sketch itself.
+
+Finally, the Month 2 wrap-up. By the end of this month you should be able to:
+
+- Drive a motor at a controlled speed and tell duty from RPM (Lesson 4).
+- Read an encoder and close a position loop (Lesson 4).
+- Wire and read an I2C sensor from its datasheet (Lesson 5).
+- Fuse accelerometer and gyro into a stable angle (Lesson 5).
+- Explain P, I and D by what your robot did when you changed them (this lesson).
+- Put two robots on GitHub with a write-up of what broke (this lesson).
+
+When you are ready, check the milestone checklist on the month page — both robots and a repo that tells their story is the whole thing.
