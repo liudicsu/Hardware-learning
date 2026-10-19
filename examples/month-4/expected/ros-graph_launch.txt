@@ -1,0 +1,10 @@
+[INFO] [launch]: All log files can be found below /home/box/.ros/log/2026-10-20-05-09-39-463600-grok-bot-vm-228922889-439732
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [sensor_node-1]: process started with pid [439738]
+[INFO] [filter_node-2]: process started with pid [439741]
+[INFO] [aggregator_node-3]: process started with pid [439743]
+[INFO] [config_node-4]: process started with pid [439746]
+[filter_node-2] [INFO] [1792444179.528612241] [filter_node]: filtering /raw -> /filtered, alpha 0.20
+[config_node-4] [INFO] [1792444179.673083590] [config_node]: /set_alpha ready (configures /filter_node)
+[sensor_node-1] [INFO] [1792444179.679724312] [sensor_node]: publishing /raw at 5.0 Hz
+[aggregator_node-3] [INFO] [1792444179.691333018] [aggregator_node]: window 10, listening on /filtered

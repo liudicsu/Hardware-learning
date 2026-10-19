@@ -1,0 +1,8 @@
+# Collect a number of filtered readings and report their mean.
+uint32 samples       # goal: how many readings to collect
+---
+uint32 received      # result
+float64 mean
+---
+uint32 received      # feedback, sent after every reading
+float64 latest

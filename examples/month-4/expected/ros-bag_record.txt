@@ -1,0 +1,18 @@
+$ ros2 bag record -o sensor_run /raw /filtered
+[INFO] [1792444193.178419115] [rosbag2_recorder]: Subscribed to topic '/raw'
+[INFO] [1792444193.179012611] [rosbag2_recorder]: Subscribed to topic '/filtered'
+[INFO] [1792444196.860380339] [rosbag2_recorder]: Recording stopped
+$ ros2 bag info sensor_run
+
+Files:             sensor_run_0.mcap
+Bag size:          12.4 KiB
+Storage id:        mcap
+ROS Distro:        jazzy
+Duration:          3.400421477s
+Start:             Oct 20 2026 05:09:53.270130922 (1792444193.270130922)
+End:               Oct 20 2026 05:09:56.670552399 (1792444196.670552399)
+Messages:          36
+Topic information: Topic: /filtered | Type: m4_interfaces/msg/Reading | Count: 18 | Serialization Format: cdr
+                   Topic: /raw | Type: m4_interfaces/msg/Reading | Count: 18 | Serialization Format: cdr
+Service:           0
+Service information: 

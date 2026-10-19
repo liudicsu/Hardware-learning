@@ -4,7 +4,7 @@
 # simulator (the Gazebo and mock-hardware runs are in tools/sim/reproduce.sh).
 # Needs: ROS 2 Jazzy sourced (ros2, colcon) - see README.md. Output that changes from run to run
 # (timestamps, timings, process numbers) is masked by compare.py.
-# Usage: examples/month-4/check.sh        UPDATE=1 examples/month-4/check.sh rewrites expected/
+# Usage: examples/month-4/check.sh        UPDATE=1 (or UPDATE=<glob>) examples/month-4/check.sh rewrites expected/
 set -uo pipefail
 M4="$(cd "$(dirname "$0")" && pwd)"
 if [[ "${ROS_DISTRO:-}" != "jazzy" ]] || ! command -v colcon >/dev/null; then
@@ -15,11 +15,14 @@ export ROS_DOMAIN_ID=$(( 40 + RANDOM % 50 )) ROS_AUTOMATIC_DISCOVERY_RANGE=LOCAL
 export RCUTILS_COLORIZED_OUTPUT=0 PYTHONUNBUFFERED=1
 ros2 daemon start > /dev/null 2>&1   # the CLI's discovery cache for this domain; warm it up early
 fail=0
-check() {     # check <expected file> [--tol T] [--mask REGEX]... <command...>
+check() {     # check <expected file> [--tol T] [--mask REGEX]... [--sort 1] <command...>
   local name="$1"; shift; local tol=()
-  while [[ "${1:-}" == --tol || "${1:-}" == --mask ]]; do tol+=("$1" "$2"); shift 2; done
+  while [[ "${1:-}" == --tol || "${1:-}" == --mask || "${1:-}" == --sort ]]; do tol+=("$1" "$2"); shift 2; done
   "$@" > "$TMP/out" 2>&1
-  if [[ -n "${UPDATE:-}" ]]; then cp "$TMP/out" "$M4/expected/$name"; echo "wrote $name"; return; fi
+  # UPDATE=1 rewrites every expected file; UPDATE=<glob> only the matching ones (e.g. UPDATE='ros-bag*')
+  if [[ -n "${UPDATE:-}" ]] && { [[ "$UPDATE" == 1 ]] || [[ "$name" == $UPDATE ]]; }; then
+    cp "$TMP/out" "$M4/expected/$name"; echo "wrote $name"; return
+  fi
   if python3 "$M4/compare.py" "$M4/expected/$name" "$TMP/out" "${tol[@]}" > "$TMP/diff"; then
     echo "same  $name"
   else
@@ -56,5 +59,77 @@ hello_graph() {
   pkill -INT -f 'lib/m4_hello/hello_node'; wait
 }
 check ros-hello_graph.txt --tol 0.05 --mask 'hello #[0-9]+' hello_graph
+
+# ---- Lesson 2: a graph with custom interfaces, a C++ node, a launch file and a bag ----------
+WS2="$TMP/graph_ws"; mkdir -p "$WS2/src"; cp -r "$M4/ros2-graph/"m4_* "$WS2/src/"
+check ros-graph_build.txt  bash -c "cd '$WS2' && colcon build"
+set +u; source "$WS2/install/setup.bash"; set -u
+check ros-interface_show.txt bash -c "for i in msg/Reading srv/SetAlpha action/Collect; do echo \"\$ ros2 interface show m4_interfaces/\$i\"; ros2 interface show m4_interfaces/\$i; done"
+check ros-launch_args.txt  ros2 launch m4_graph graph.launch.py --show-args
+start_graph() {   # start_graph [launch args...]: the Lesson 2 graph in the background, log in $TMP/launch
+  timeout -s INT 60 ros2 launch m4_graph graph.launch.py "$@" > "$TMP/launch" 2>&1 &
+  for _ in $(seq 50); do grep -q 'listening on' "$TMP/launch" && grep -q 'set_alpha ready' "$TMP/launch" && break; sleep 0.2; done
+  for _ in $(seq 20); do [[ $(ros2 node list | wc -l) -ge 4 ]] && break; sleep 0.5; done   # CLI cache
+  sleep 1
+}
+stop_graph() { pkill -INT -f 'ros2 launch m4_graph' ; wait; }
+start_graph
+check ros-graph_launch.txt --sort 1 bash -c "grep -v -E 'Traceback|^\[[a-z_]+-[0-9]\]  ' '$TMP/launch' | head -10"
+graph_inspect() {
+  echo '$ ros2 node list'; ros2 node list
+  echo '$ ros2 topic list -t'; ros2 topic list -t
+  echo '$ ros2 node info /aggregator_node'; ros2 node info /aggregator_node
+}
+check ros-graph_inspect.txt graph_inspect
+check ros-summary_echo.txt --tol 1 ros2 topic echo /summary --once
+set_alpha() {
+  echo '$ ros2 service call /set_alpha m4_interfaces/srv/SetAlpha "{alpha: 0.5}"'
+  ros2 service call /set_alpha m4_interfaces/srv/SetAlpha "{alpha: 0.5}"
+  echo '$ ros2 service call /set_alpha m4_interfaces/srv/SetAlpha "{alpha: 1.5}"'
+  ros2 service call /set_alpha m4_interfaces/srv/SetAlpha "{alpha: 1.5}"
+  echo '$ ros2 param get /filter_node alpha'; ros2 param get /filter_node alpha
+  echo '$ ros2 param set /filter_node alpha 2.0'; ros2 param set /filter_node alpha 2.0
+}
+check ros-set_alpha.txt set_alpha
+check ros-collect.txt --tol 1 ros2 run m4_graph collect_client 5
+check ros-collect_cancel.txt --tol 1 ros2 run m4_graph collect_client 20 --cancel-after 3
+# ros2 bag: record 4 s of /raw and /filtered, look inside, replay /raw into a lone filter node
+bag() {
+  cd "$TMP" && rm -rf sensor_run
+  echo '$ ros2 bag record -o sensor_run /raw /filtered'
+  timeout -s INT 4 ros2 bag record -o sensor_run /raw /filtered 2>&1 | grep -E 'Subscribed|Recording stopped'
+  echo '$ ros2 bag info sensor_run'; ros2 bag info sensor_run
+}
+check ros-bag_record.txt --tol 0.35 --sort 1 --mask '(Bag size|Duration|Start|End): .*' bag
+stop_graph
+bag_play() {
+  cd "$TMP"
+  timeout -s INT 20 ros2 run m4_graph_cpp filter_node > /dev/null 2>&1 &
+  sleep 1
+  timeout -s INT 6 ros2 topic echo /filtered --field value > "$TMP/replayed" 2>&1 &
+  sleep 1
+  ros2 bag play sensor_run --topics /raw > /dev/null 2>&1
+  wait %2 2>/dev/null
+  grep -v -- '---' "$TMP/replayed" | head -3
+  pkill -INT -f 'm4_graph_cpp/filter_node'; wait
+}
+check ros-bag_play.txt --tol 1 bag_play
+start_graph rate:=10.0 summary_topic:=stats
+remapped() {
+  echo '$ ros2 topic list'; ros2 topic list
+  echo '$ ros2 topic hz /raw'; timeout -s INT 3.5 ros2 topic hz /raw 2>&1 | head -1
+}
+check ros-launch_remap.txt --tol 0.05 remapped
+stop_graph
+qos() {
+  timeout -s INT 8 ros2 topic pub -r 2 --qos-reliability best_effort /qos_demo std_msgs/msg/String "{data: hi}" > /dev/null 2>&1 &
+  sleep 1.5
+  echo '$ ros2 topic echo --qos-reliability reliable /qos_demo std_msgs/msg/String'
+  timeout -s INT 3 ros2 topic echo --qos-reliability reliable /qos_demo std_msgs/msg/String 2>&1 | head -3
+  echo '$ ros2 topic echo --qos-reliability best_effort /qos_demo std_msgs/msg/String'
+  timeout -s INT 2.5 ros2 topic echo --qos-reliability best_effort /qos_demo std_msgs/msg/String 2>&1 | head -2
+  wait
+}
+check ros-qos_mismatch.txt qos
 
 exit $fail

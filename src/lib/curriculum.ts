@@ -321,6 +321,24 @@ const month4Lessons: Lesson[] = [
       { id: "inspect", text: { zh: "用 ros2 node list、topic list、topic echo 和 topic hz 检查你的节点，确认发布频率", en: "Inspect your node with ros2 node list, topic list, topic echo and topic hz, and confirm its rate" } },
     ],
   },
+  {
+    slug: "ros2-graph",
+    title: { zh: "节点、话题、服务与动作", en: "Nodes, topics, services and actions" },
+    summary: {
+      zh: "不用机器人、不用仿真器，搭一个完整的多节点系统：自定义 msg/srv/action、Python 和 C++ 节点、参数与 YAML、带参数的 launch 文件、ros2 bag 录制回放，以及“发了却收不到”的 QoS 问题。",
+      en: "A complete multi-node system with no robot and no simulator: your own msg/srv/action, Python and C++ nodes, parameters and YAML, a launch file with arguments, recording and replaying with ros2 bag, and the QoS mismatch behind “it publishes but nothing receives”.",
+    },
+    minutes: 240,
+    resources: ["ros2-tutorials", "renard-ros2-l1", "articulated-robotics", "mogi-ros", "automatic-addison", "ros2-qos"],
+    tasks: [
+      { id: "pick-pipe", text: { zh: "为你设想的机器人列出 6 种数据流，每种判断该用话题、服务还是动作，写下理由", en: "List six data flows for a robot you have in mind and decide topic, service or action for each, with the reason" } },
+      { id: "interfaces", text: { zh: "建一个接口包，至少包含一个自定义 .msg 和一个 .srv，用 ros2 interface show 检查", en: "Create an interfaces package with at least one custom .msg and one .srv, and check them with ros2 interface show" } },
+      { id: "graph", text: { zh: "搭出本课的四节点系统（传感器、处理、配置服务、带参数的汇总），其中至少一个节点用 C++", en: "Build this lesson's four-node system (sensor, processing, configuration service, parameterised aggregator), with at least one node in C++" } },
+      { id: "launch", text: { zh: "写一个带参数的 Python launch 文件，用参数改变频率并重映射一个话题", en: "Write a Python launch file with arguments; use them to change a rate and remap a topic" } },
+      { id: "bag", text: { zh: "用 ros2 bag 录一段数据，再把它回放给单独运行的处理节点", en: "Record a run with ros2 bag and replay it into the processing node running on its own" } },
+      { id: "qos", text: { zh: "故意制造一次 QoS 不兼容，读懂警告，再修好它", en: "Cause a QoS mismatch on purpose, read the warning, then fix it" } },
+    ],
+  },
 ];
 
 export const months: Month[] = [

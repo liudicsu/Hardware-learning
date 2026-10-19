@@ -1,0 +1,7 @@
+# Parameters loaded by graph.launch.py. The top-level key is the node name.
+aggregator_node:
+  ros__parameters:
+    window: 10          # readings per /summary message
+filter_node:
+  ros__parameters:
+    alpha: 0.2          # starting smoothing factor (change it at runtime with /set_alpha)

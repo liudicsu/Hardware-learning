@@ -1100,6 +1100,72 @@ export const resources: Record<string, Resource> = {
     license: { zh: "开源（MIT），© RoboStack 贡献者", en: "Open source (MIT), © RoboStack contributors" },
     extra: true,
   },
+  "renard-ros2-l1": {
+    id: "renard-ros2-l1",
+    url: "https://www.udemy.com/course/ros2-for-beginners/",
+    title: { zh: "ROS 2 for Beginners（Level 1）", en: "ROS 2 for Beginners (Level 1)" },
+    author: "Edouard Renard",
+    kind: "course",
+    cost: { zh: "Udemy 付费课，打折时约 $10–20（几乎一直在打折，别按原价买）", en: "Paid Udemy course, about $10–20 on sale (it is almost always on sale; never pay list price)" },
+    summary: {
+      zh: "约 13 小时，Python 和 C++ 双语讲解：节点、包、话题、服务、自定义接口、参数和 launch 文件，正好对应本课内容。",
+      en: "About thirteen hours in both Python and C++: nodes, packages, topics, services, custom interfaces, parameters and launch files, matching this lesson closely.",
+    },
+    license: { zh: "© Edouard Renard / Udemy，仅提供外链", en: "© Edouard Renard / Udemy; external link only" },
+  },
+  "articulated-robotics": {
+    id: "articulated-robotics",
+    url: "https://articulatedrobotics.xyz/tutorials/",
+    title: { zh: "Articulated Robotics 教程", en: "Articulated Robotics tutorials" },
+    author: "Josh Newans",
+    kind: "guide",
+    cost: { zh: "免费（文章 + 视频）", en: "Free (articles + videos)" },
+    summary: {
+      zh: "免费资源里最完整的一条主线：设计机器人、写 URDF、仿真、加 ros2_control、装到带激光雷达的树莓派上，再做 SLAM 和导航。ros2_control 讲得尤其好。",
+      en: "The best free end-to-end story: design a robot, write the URDF, simulate it, add ros2_control, put it on a Raspberry Pi with a lidar, then SLAM and navigation. Unusually good on ros2_control.",
+    },
+    license: { zh: "© Josh Newans，仅提供外链", en: "© Josh Newans; external link only" },
+  },
+  "mogi-ros": {
+    id: "mogi-ros",
+    url: "https://github.com/orgs/MOGI-ROS/repositories",
+    title: { zh: "MOGI-ROS：完整的大学课程", en: "MOGI-ROS: a full university course" },
+    author: "BME MOGI (Budapest University of Technology and Economics)",
+    kind: "course",
+    cost: { zh: "免费 · 开源", en: "Free · open source" },
+    summary: {
+      zh: "一整个学期的大纲，基于 ROS 2 Jazzy 和 Gazebo Harmonic：从发布/订阅到 URDF、传感器、导航和 MoveIt 2 机械臂，每周都有能跑的代码。",
+      en: "A semester-length syllabus on ROS 2 Jazzy with Gazebo Harmonic, from publish/subscribe through URDF, sensors, navigation and MoveIt 2 arms, with working code for every week.",
+    },
+    license: { zh: "开源（课程仓库为 Apache-2.0），© BME MOGI", en: "Open source (course repositories under Apache-2.0), © BME MOGI" },
+  },
+  "automatic-addison": {
+    id: "automatic-addison",
+    url: "https://automaticaddison.com/tutorials/",
+    title: { zh: "Automatic Addison 教程", en: "Automatic Addison tutorials" },
+    author: "Addison Sears-Collins",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "按发行版整理的“菜谱式”指南，已经有 Lyrical 和 Jazzy 两条线。想查“Jazzy 里怎么写一个动作”时来这里，而不是当成完整课程来学。",
+      en: "Recipe-style guides organised by distro, already carrying Lyrical tracks alongside Jazzy. Come here for “how do I write an action in Jazzy”, not for a full course.",
+    },
+    license: { zh: "© Automatic Addison，仅提供外链", en: "© Automatic Addison; external link only" },
+  },
+  "ros2-qos": {
+    id: "ros2-qos",
+    url: "https://docs.ros.org/en/jazzy/Concepts/Intermediate/About-Quality-of-Service-Settings.html",
+    title: { zh: "ROS 2 文档：服务质量（QoS）设置", en: "ROS 2 docs: Quality of Service settings" },
+    author: "Open Robotics / ROS 2 documentation contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "可靠性、持久性、历史深度等策略各自是什么意思，以及发布者和订阅者在什么组合下才兼容。课程作者指出没有哪门课把 QoS 讲好，遇到“发了收不到”时就读这一页。",
+      en: "What reliability, durability, history and the other policies mean, and which publisher/subscriber combinations are compatible. The course notes that no tutorial covers QoS well; this is the page to read when a topic publishes but nothing receives.",
+    },
+    license: { zh: "文档以 CC BY 4.0 发布，© Open Robotics；仅提供外链", en: "Docs under CC BY 4.0, © Open Robotics; external link only" },
+    extra: true,
+  },
 };
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

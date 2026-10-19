@@ -1,0 +1,887 @@
+Months 1 to 3 lived on a microcontroller: one program, one loop, the board doing exactly what that loop said. This lesson is the other shape of robotics. You will build a system of several programs that each do one thing and talk to each other over named channels, and you will build it entirely on your computer — no robot, no simulator, no hardware of any kind.
+
+Concretely, you are going to assemble a small graph: a sensor node that publishes made-up readings, a processing node that smooths them, a configuration node that changes the settings over a service, and an aggregator that publishes statistics and offers an action. You will write your own message and service types, wire the whole thing together in a Python launch file that takes command-line arguments, and record a run with `ros2 bag` so you can replay it later. The "sensor" makes its numbers up, and that is deliberate: the point is to prove you understand the graph, not that you can launch a demo someone else wrote. This is also exactly this topic's practice task, so by the end of the lesson you will have finished it.
+
+Along the way the lesson covers everything the course lists for this topic: nodes, topics, services and actions and how to tell which one a problem needs; custom message and service definitions; parameters and YAML config files; Python launch files with arguments and remapping; colcon workspaces and package layout; and `ros2 bag` for recording and replaying, which is how you debug anything that only fails occasionally. It ends by adding an action, because the later lessons lean on actions the moment a robot has to do something that takes time.
+
+You arrived here from Lesson 1, where you installed ROS 2 Jazzy, created `~/ros2_ws` and ran your first node. That workspace is the home for everything below: the three packages you build here go into `~/ros2_ws/src`. Next come Lesson 3 and the robot's body, built from URDF and TF — so keep the messages here in mind, because they already carry a frame name that nothing has used yet.
+
+A note on the outputs. Every command output quoted in this lesson is a real run of ROS 2 Jazzy on the site editor's computer (Debian 13, Jazzy installed from RoboStack), not a simulation. Timestamps, process ids and the exact sensor values differ between runs: the sensor uses a fixed random seed, so its sequence of numbers repeats every time, but which readings you catch depends on when you start listening. Code comments stay in English. When your numbers differ from the ones shown here, that is the system working, not a bug.
+
+## Pick the right pipe
+
+A node is one program with one job. The whole ROS 2 style is to give each job its own node — one reads the lidar, one filters the readings, one decides where to drive — and then let them exchange messages instead of calling each other directly. That last part is what makes a system replaceable: as long as the messages keep the same shape, you can rewrite, restart or move any node without touching the others.
+
+Nodes talk in three patterns, and most of the design work in ROS 2 is choosing between them.
+
+| Pattern | Shape | Use it for | Example in this lesson |
+| --- | --- | --- | --- |
+| Topic | one-way stream, many publishers and subscribers, nobody waits | continuous data: sensor readings, images, velocity commands, odometry | /raw, /filtered, /summary |
+| Service | request → one reply, the caller waits | quick questions and settings that finish at once | /set_alpha |
+| Action | goal → stream of feedback → result, can be cancelled | anything that takes time: drive 2 m, move an arm, collect N samples | /collect |
+
+Once you have that table in your head, the choice is usually obvious, and it is worth saying out loud as a rule of thumb:
+
+- If it flows continuously — sensor readings, images, wheel speeds, odometry — use a **topic**. Nobody is waiting, and missing a message is acceptable.
+- If it is a question with one immediate answer — read a setting, reset a counter, ask a node to switch mode — use a **service**. The caller waits for the reply, so the work has to be quick.
+- If it takes longer than about a second, sends progress along the way, or might need stopping — drive two metres, move an arm, collect a hundred samples — use an **action**.
+
+The two common mistakes both come from mixing these up. Using a service for something slow freezes the caller: it is blocked inside the call and cannot cancel, so a ten-second service looks exactly like a hung program. Using a topic for a command that must be acknowledged means the command can be dropped and nobody notices. If the work finishes in the same instant the request arrives, a service; if it drains your patience, an action.
+
+There is a fourth thing, and it is not a way to send data at all: **parameters**. A parameter is a named setting that lives inside a node, declared with a default and then readable and changeable from outside. When you run `ros2 param set` you are not publishing anything; under the hood ROS 2 calls a service that every node is given for free, which is why parameters behave like settings and not like messages. They are how you tune a node without recompiling it.
+
+Here is the system this lesson builds. Read it as a pipeline: readings enter on the left, statistics leave on the right, and two side channels control and collect.
+
+```text
+sensor_node (Python) --/raw--> filter_node (C++) --/filtered--> aggregator_node (Python) --/summary-->
+                                     ^                                  |
+                    set_parameters   |                                  +-- /collect action
+                                     |
+ you --/set_alpha service--> config_node (Python)
+```
+
+The sensor publishes raw readings on `/raw`. The filter, written in C++, smooths each reading and republishes it on `/filtered`. The aggregator listens on `/filtered` and publishes a statistics message on `/summary`. The config node sits off to the side: when you call its `/set_alpha` service it validates the new smoothing factor and pushes it into the filter's `alpha` parameter through that node's own parameter service — the arrow labelled `set_parameters` in the diagram. The aggregator also runs a `/collect` action, so a client can ask it to gather a number of readings, watch feedback arrive, and cancel the job if it changes its mind. Four nodes, three patterns, one graph, and no hardware anywhere.
+
+<Quiz id="q1" question="Your robot must drive to the kitchen, which takes about 40 seconds, and you want to see progress and be able to stop it. Which pattern?" options={["a topic", "a service", "an action", "a parameter"]} answer={2} explanation="Long-running, with feedback and cancellation: that is exactly what an action adds over a service." />
+
+## Your own interfaces
+
+Messages are typed. A topic does not carry an anonymous lump of bytes; it carries a message of a specific type, and both ends must agree on that type before a single message moves. The standard packages cover a surprising amount: `std_msgs` has plain values like `String` and `Float64`, `sensor_msgs` has `Image`, `LaserScan` and `Imu`, and `geometry_msgs` has `Twist`, `Pose` and `Point`. But a robot of your own soon needs fields nobody standardised — the readings from a particular sensor, the summary you want to compute — and then you write your own.
+
+Your interfaces live in their own package. That package is built with CMake even if every node that uses it is written in Python, because generating message code is a code-generation step rather than a Python step; making it a CMake package is what lets any package, in any language, depend on it. In this lesson the interface package is called `m4_interfaces`, and both node packages depend on it.
+
+Four files define our vocabulary. Each is a short text file with its own small grammar.
+
+<CodeSource path="examples/month-4/ros2-graph/m4_interfaces/msg/Reading.msg" />
+
+```text
+# One sample from a sensor.
+std_msgs/Header header   # stamp = when it was measured, frame_id = where
+string sensor_id
+float64 value
+```
+
+<CodeSource path="examples/month-4/ros2-graph/m4_interfaces/msg/Summary.msg" />
+
+```text
+# Statistics over the last `count` filtered readings.
+uint32 count
+float64 mean
+float64 minimum
+float64 maximum
+```
+
+<CodeSource path="examples/month-4/ros2-graph/m4_interfaces/srv/SetAlpha.srv" />
+
+```text
+# Ask the configuration node to change the filter's smoothing factor.
+float64 alpha    # 0 < alpha <= 1; smaller = smoother but slower
+---
+bool accepted
+string message
+```
+
+<CodeSource path="examples/month-4/ros2-graph/m4_interfaces/action/Collect.action" />
+
+```text
+# Collect a number of filtered readings and report their mean.
+uint32 samples       # goal: how many readings to collect
+---
+uint32 received      # result
+float64 mean
+---
+uint32 received      # feedback, sent after every reading
+float64 latest
+```
+
+Look at the shapes and the three file types fall out. A `.msg` is simply a list of typed fields, one per line, written as `type name`. A `.srv` has two halves separated by a line of three dashes: everything above is the request, everything below is the response. An `.action` has three halves separated by two such lines: goal, then result, then feedback. That is the whole grammar, and once you can read it you can read almost any interface in ROS 2.
+
+`std_msgs/Header` deserves a moment. It is the standard first field of any sensor message, and it carries two things: a timestamp called `stamp` (the moment the measurement was taken) and a frame name called `frame_id` (the coordinate frame the value belongs to). The timestamp lets a later node reason about delays; the frame name is how the value gets attached to a physical place on the robot. Frames do not matter yet — Lesson 3 is where they become real — but put a Header in every sensor message from the start, because adding one later means changing every node that touches the type. Field names are `lower_snake_case`; file names are `CamelCase`, which is why the file is `Reading.msg` and the field is `sensor_id`.
+
+Generating the code is the job of the package's build file.
+
+<CodeSource path="examples/month-4/ros2-graph/m4_interfaces/CMakeLists.txt" />
+
+```cmake
+cmake_minimum_required(VERSION 3.10)
+project(m4_interfaces)
+
+find_package(ament_cmake REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+find_package(std_msgs REQUIRED)
+
+# Generate C++ and Python code for every interface listed here.
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/Reading.msg"
+  "msg/Summary.msg"
+  "srv/SetAlpha.srv"
+  "action/Collect.action"
+  DEPENDENCIES std_msgs
+)
+
+ament_export_dependencies(rosidl_default_runtime)
+ament_package()
+```
+
+`rosidl_generate_interfaces` is the command that turns those text files into C++ headers and Python modules, and every interface you want has to be listed — miss one and its type simply does not exist. The `DEPENDENCIES std_msgs` line tells the generator that our messages reference `std_msgs/Header`, so it must look there while generating. `ament_export_dependencies(rosidl_default_runtime)` makes the runtime support available to packages that depend on us.
+
+In `package.xml` a few lines matter, and they are easy to get wrong. Add a `buildtool_depend` on `rosidl_default_generators` (the generator), a `depend` on both `std_msgs` and `action_msgs` (the standard packages our messages build on), and an `exec_depend` on `rosidl_default_runtime` (needed when the generated code actually runs). Then add the group line `<member_of_group>rosidl_interface_packages</member_of_group>`. Forgetting that last line is the classic "it builds but the type is not found" error: the code is generated and installed correctly, but ROS never learns that this package provides interfaces, so `ros2 interface show` and other packages cannot find the types.
+
+Build the three packages. This is the same colcon loop from Lesson 1, just with more of them:
+
+```bash
+cd ~/ros2_ws && colcon build && source install/setup.bash
+```
+
+Real output:
+
+```text
+Starting >>> m4_interfaces
+Finished <<< m4_interfaces [7.66s]
+Starting >>> m4_graph_cpp
+Finished <<< m4_graph_cpp [7.53s]
+Starting >>> m4_graph
+Finished <<< m4_graph [0.72s]
+
+Summary: 3 packages finished [16.0s]
+```
+
+Read the order: colcon builds in dependency order, so the interfaces go first because both other packages need them, then the C++ filter, then the Python package. Generating code for two languages is why the interface package takes most of those seven seconds — that is not a hang, it is code generation doing its job. If you ever see a package build before one it depends on, you have forgotten to declare that dependency.
+
+You can check what was generated from any terminal. `ros2 interface show` prints the definition the way ROS understands it, not the way you typed it:
+
+```text
+$ ros2 interface show m4_interfaces/msg/Reading
+# One sample from a sensor.
+std_msgs/Header header   # stamp = when it was measured, frame_id = where
+	builtin_interfaces/Time stamp
+		int32 sec
+		uint32 nanosec
+	string frame_id
+string sensor_id
+float64 value
+$ ros2 interface show m4_interfaces/srv/SetAlpha
+# Ask the configuration node to change the filter's smoothing factor.
+float64 alpha    # 0 < alpha <= 1; smaller = smoother but slower
+---
+bool accepted
+string message
+$ ros2 interface show m4_interfaces/action/Collect
+# Collect a number of filtered readings and report their mean.
+uint32 samples       # goal: how many readings to collect
+---
+uint32 received      # result
+float64 mean
+---
+uint32 received      # feedback, sent after every reading
+float64 latest
+```
+
+Notice what happened to the Header in the first block: it was expanded into its own fields, `stamp` and `frame_id`, and `stamp` in turn into `sec` and `nanosec`. That is ROS showing you the full layout rather than the shorthand, and it is the fastest way to confirm a type really exists.
+
+## Topics
+
+### A publisher in Python
+
+A topic needs someone to publish and someone to subscribe. The simplest honest sensor is a node that invents its numbers, so that is what we start with.
+
+<CodeSource path="examples/month-4/ros2-graph/m4_graph/m4_graph/sensor_node.py" />
+
+```python
+"""Sensor publisher: a fake temperature sensor on /raw (no hardware needed).
+
+The values are a slow wave plus noise from a fixed random seed, so every run publishes
+the same sequence of numbers."""
+import math
+import random
+
+import rclpy
+from rclpy.executors import ExternalShutdownException
+from rclpy.node import Node
+
+from m4_interfaces.msg import Reading
+
+
+class SensorNode(Node):
+    def __init__(self):
+        super().__init__('sensor_node')
+        self.rate = self.declare_parameter('rate', 5.0).value          # Hz
+        self.sensor_id = self.declare_parameter('sensor_id', 'temp0').value
+        self.pub = self.create_publisher(Reading, 'raw', 10)
+        self.rng = random.Random(7)
+        self.k = 0
+        self.create_timer(1.0 / self.rate, self.tick)
+        self.get_logger().info(f'publishing /raw at {self.rate:.1f} Hz')
+
+    def tick(self):
+        msg = Reading()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = 'sensor_link'
+        msg.sensor_id = self.sensor_id
+        msg.value = 21.0 + 0.5 * math.sin(2 * math.pi * self.k / 50) + self.rng.gauss(0, 0.2)
+        self.pub.publish(msg)
+        self.k += 1
+
+
+def main():
+    rclpy.init()
+    node = SensorNode()
+    try:
+        rclpy.spin(node)
+    except (KeyboardInterrupt, ExternalShutdownException):
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.try_shutdown()
+```
+
+Two lines do most of the work of making this node configurable. `declare_parameter('rate', 5.0)` gives the node a setting named `rate` with a default of five; `.value` reads it back immediately. From now on a launch file or a YAML file can override that default without a single edit to this file. The header is filled in on every message: `get_clock().now()` gives the node's current time, and `.to_msg()` converts it to the header's time type; `frame_id` is set to `sensor_link`, a name that means nothing yet but will mean a lot in Lesson 3.
+
+The value itself is deliberately boring: a slow sine wave around 21 degrees plus a little Gaussian noise. The noise comes from `random.Random(7)`, a random generator started from a fixed seed. That is a small decision with a large payoff — a fixed seed means every run produces the same sequence of numbers, which is exactly what you want from a test signal. When a filter behaves strangely you can reproduce the exact input that caused it, instead of chasing a signal that was different last time.
+
+### A filter in C++
+
+The processing node is written in C++. The concepts are identical to the Python node, only the syntax and the compile step change; the month's milestone asks for nodes in both languages, and seeing the same ideas in two syntaxes is the quickest way to tell the concepts apart from the language.
+
+<CodeSource path="examples/month-4/ros2-graph/m4_graph_cpp/src/filter_node.cpp" />
+
+```cpp
+// Processing node in C++: smooth /raw readings with an exponential moving average
+// and publish them on /filtered. The smoothing factor is the parameter "alpha".
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "m4_interfaces/msg/reading.hpp"
+#include "rclcpp/rclcpp.hpp"
+
+using m4_interfaces::msg::Reading;
+
+class FilterNode : public rclcpp::Node
+{
+public:
+  FilterNode()
+  : Node("filter_node")
+  {
+    alpha_ = declare_parameter("alpha", 0.2);   // default; a launch file or YAML can override it
+    // Reject bad values before they are applied (ros2 param set prints the reason).
+    param_cb_ = add_on_set_parameters_callback(
+      [this](const std::vector<rclcpp::Parameter> & params) {
+        rcl_interfaces::msg::SetParametersResult result;
+        result.successful = true;
+        for (const auto & p : params) {
+          if (p.get_name() == "alpha") {
+            double a = p.as_double();
+            if (a <= 0.0 || a > 1.0) {
+              result.successful = false;
+              result.reason = "alpha must be in (0, 1]";
+            } else {
+              alpha_ = a;
+              RCLCPP_INFO(get_logger(), "alpha is now %.2f", alpha_);
+            }
+          }
+        }
+        return result;
+      });
+    pub_ = create_publisher<Reading>("filtered", 10);
+    sub_ = create_subscription<Reading>(
+      "raw", 10, [this](const Reading & msg) {on_reading(msg);});
+    RCLCPP_INFO(get_logger(), "filtering /raw -> /filtered, alpha %.2f", alpha_);
+  }
+
+private:
+  void on_reading(const Reading & msg)
+  {
+    // y = y + alpha * (x - y); the first reading starts the filter.
+    estimate_ = have_estimate_ ? estimate_ + alpha_ * (msg.value - estimate_) : msg.value;
+    have_estimate_ = true;
+    Reading out = msg;          // keep the header and sensor_id
+    out.value = estimate_;
+    pub_->publish(out);
+  }
+
+  double alpha_;
+  double estimate_ = 0.0;
+  bool have_estimate_ = false;
+  rclcpp::Publisher<Reading>::SharedPtr pub_;
+  rclcpp::Subscription<Reading>::SharedPtr sub_;
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr param_cb_;
+};
+
+int main(int argc, char ** argv)
+{
+  rclcpp::init(argc, argv);
+  rclcpp::spin(std::make_shared<FilterNode>());
+  rclcpp::shutdown();
+  return 0;
+}
+```
+
+The smoothing is an exponential moving average, and it is worth understanding because it is the same idea behind every "smooth this noisy signal" line you will write for the rest of the course. Stepping back to plain symbols, the update is:
+
+```text
+y ← y + α × (x − y)
+```
+
+where `x` is the new reading, `y` is the running estimate, and `α` (alpha) is a number between 0 and 1. In words: each new reading pulls the estimate a fraction `α` of the way towards it. A small `α` barely moves the estimate, so the output is smooth but lags the input; a large `α` follows the input quickly but lets more noise through; `α = 1` is no filtering at all, just copying the reading. The first reading has no estimate to smooth, so `have_estimate_` is used to seed the filter with it.
+
+**Worked example**: the estimate is 21.00 °C and a new reading of 22.00 °C arrives.
+
+```text
+α = 0.2:  y = 21.00 + 0.2 × (22.00 − 21.00) = 21.00 + 0.20 = 21.20
+α = 0.5:  y = 21.00 + 0.5 × (22.00 − 21.00) = 21.00 + 0.50 = 21.50
+α = 1.0:  y = 21.00 + 1.0 × (22.00 − 21.00) = 21.00 + 1.00 = 22.00   (no filtering)
+```
+
+That is the whole arithmetic. Smaller α means the estimate moves less in one step, which is exactly what "smoother but slower" means.
+
+The parameter callback is the second idea in this node, and it has the last word on the node's own settings: `add_on_set_parameters_callback` installs a function that runs every time someone tries to change a parameter, and if it returns `successful = false` with a reason, the change is refused before it takes effect. Here any `alpha` outside `(0, 1]` is rejected. This is a real pattern you will use constantly: a node that validates its own settings so a mistyped command cannot quietly corrupt its behaviour.
+
+The subscription is the last piece. `create_subscription<Reading>("raw", 10, lambda)` says "call this function for each `Reading` on `raw`", and the lambda simply forwards to `on_reading`. Inside, `Reading out = msg;` copies the incoming message — including its header and `sensor_id` — before overwriting only `value`. That copy is deliberate: the timestamp of the original measurement now travels on with the filtered value, so a downstream node can still tell when the reading was taken, not when it was smoothed.
+
+A C++ node needs a build file too, and it has one line that matters more than the rest.
+
+<CodeSource path="examples/month-4/ros2-graph/m4_graph_cpp/CMakeLists.txt" />
+
+```cmake
+cmake_minimum_required(VERSION 3.10)
+project(m4_graph_cpp)
+
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(m4_interfaces REQUIRED)
+
+add_executable(filter_node src/filter_node.cpp)
+target_compile_features(filter_node PUBLIC cxx_std_17)
+ament_target_dependencies(filter_node rclcpp m4_interfaces)
+
+# Installed here, `ros2 run m4_graph_cpp filter_node` can find it.
+install(TARGETS filter_node DESTINATION lib/${PROJECT_NAME})
+
+ament_package()
+```
+
+`find_package(m4_interfaces REQUIRED)` is what lets the C++ code include `m4_interfaces/msg/reading.hpp`; without it the header does not exist as far as this package is concerned. But the line people forget is `install(TARGETS ...)`. Building the executable is not enough — if it is never installed, `ros2 run m4_graph_cpp filter_node` cannot find it, even though the build succeeded. This is the C++ twin of forgetting `entry_points` in `setup.py` from Lesson 1; same symptom, different file.
+
+<Quiz id="q2" question="The filter's estimate is 20.0 and α is 0.25. A reading of 24.0 arrives. What is the new estimate?" answer={21} tolerance={0.01} explanation="20.0 + 0.25 × (24.0 − 20.0) = 20.0 + 1.0 = 21.0." />
+
+## Services and parameters
+
+Parameters can reach a node from three places, and knowing all three is what makes a node feel finished. The first is the default in `declare_parameter`, which is what you already saw. The second is a YAML file loaded at start, which lets you set up a whole graph's worth of settings without typing them every time. The third is a runtime change, either with `ros2 param set` or by calling the node's `set_parameters` service — which is what our config node does.
+
+The YAML file is small, and its shape is the whole lesson.
+
+<CodeSource path="examples/month-4/ros2-graph/m4_graph/config/aggregator.yaml" />
+
+```yaml
+# Parameters loaded by graph.launch.py. The top-level key is the node name.
+aggregator_node:
+  ros__parameters:
+    window: 10          # readings per /summary message
+filter_node:
+  ros__parameters:
+    alpha: 0.2          # starting smoothing factor (change it at runtime with /set_alpha)
+```
+
+The indentation is meaningful, as it always is in YAML. The top-level key is the node's name — `aggregator_node`, `filter_node` — and under it comes `ros__parameters`, with two underscores. That double underscore is not a typo; it is the fixed ROS 2 key, and a single underscore is not recognised. Underneath sit the parameter names and values. One file can hold the settings for several nodes, which is why both nodes appear here, and that is what makes it the natural companion to a launch file: one place for everything the graph needs.
+
+The configuration node is the clever one, because it is a service server and a service client at the same time.
+
+<CodeSource path="examples/month-4/ros2-graph/m4_graph/m4_graph/config_node.py" />
+
+```python
+"""Configuration node: a /set_alpha service that checks a new smoothing factor and then
+sets the filter node's "alpha" parameter through that node's own parameter service."""
+import rclpy
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
+from rclpy.node import Node
+from rcl_interfaces.msg import Parameter, ParameterType
+from rcl_interfaces.srv import SetParameters
+
+from m4_interfaces.srv import SetAlpha
+
+
+class ConfigNode(Node):
+    def __init__(self):
+        super().__init__('config_node')
+        self.target = self.declare_parameter('target_node', 'filter_node').value
+        # Every node offers <name>/set_parameters; this client calls the filter's one.
+        # It gets its own callback group so its reply can arrive while on_set_alpha waits.
+        self.client = self.create_client(SetParameters, f'/{self.target}/set_parameters',
+                                         callback_group=MutuallyExclusiveCallbackGroup())
+        self.create_service(SetAlpha, 'set_alpha', self.on_set_alpha)
+        self.get_logger().info(f'/set_alpha ready (configures /{self.target})')
+
+    def on_set_alpha(self, request, response):
+        if not 0.0 < request.alpha <= 1.0:
+            response.accepted = False
+            response.message = f'rejected: alpha {request.alpha} is outside (0, 1]'
+            return response
+        param = Parameter(name='alpha')
+        param.value.type = ParameterType.PARAMETER_DOUBLE
+        param.value.double_value = request.alpha
+        if not self.client.wait_for_service(timeout_sec=2.0):
+            response.accepted = False
+            response.message = f'/{self.target} is not running'
+            return response
+        result = self.client.call(SetParameters.Request(parameters=[param]))   # blocks this callback only
+        ok = result.results[0].successful
+        response.accepted = ok
+        response.message = (f'alpha set to {request.alpha} on /{self.target}' if ok
+                            else 'rejected by filter: ' + result.results[0].reason)
+        self.get_logger().info(response.message)
+        return response
+
+
+def main():
+    rclpy.init()
+    node = ConfigNode()
+    try:
+        rclpy.spin(node, executor=MultiThreadedExecutor())   # two threads: service + client reply
+    except (KeyboardInterrupt, ExternalShutdownException):
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.try_shutdown()
+```
+
+Follow the two halves. The server half is `create_service(SetAlpha, 'set_alpha', self.on_set_alpha)`: whenever someone calls `/set_alpha`, `on_set_alpha` receives the request and fills the response. The client half is `create_client(SetParameters, ...)`, which talks to the filter node's parameter service. So the node validates the requested `alpha`, then forwards it, and reports what the filter said. That two-step is why the config node exists at all: it gives you one place that checks settings and could log or persist them, instead of every tool poking parameters directly and each tool needing its own copy of the rules.
+
+Now the trap, because it is the single most common way to hang a ROS 2 node. Calling a service from inside a service callback deadlocks with the default single-threaded executor. Here is why: `on_set_alpha` runs on the executor's one and only thread, and `self.client.call(...)` blocks that thread while it waits for the reply. But the reply has to be received and processed by that same executor — which is busy waiting. Nobody is left to answer, so it waits forever. The fix used here has two parts: `MultiThreadedExecutor` gives the executor more than one thread, and the client's own `MutuallyExclusiveCallbackGroup` reserves a callback slot so its reply can be handled on another thread while `on_set_alpha` is still waiting. Asynchronous calls are the other way out, but this is the pattern to remember first.
+
+With the system running (the launch file comes in section 6), here is what those calls look like from a second terminal:
+
+```text
+$ ros2 service call /set_alpha m4_interfaces/srv/SetAlpha "{alpha: 0.5}"
+waiting for service to become available...
+requester: making request: m4_interfaces.srv.SetAlpha_Request(alpha=0.5)
+
+response:
+m4_interfaces.srv.SetAlpha_Response(accepted=True, message='alpha set to 0.5 on /filter_node')
+
+$ ros2 service call /set_alpha m4_interfaces/srv/SetAlpha "{alpha: 1.5}"
+waiting for service to become available...
+requester: making request: m4_interfaces.srv.SetAlpha_Request(alpha=1.5)
+
+response:
+m4_interfaces.srv.SetAlpha_Response(accepted=False, message='rejected: alpha 1.5 is outside (0, 1]')
+
+$ ros2 param get /filter_node alpha
+Double value is: 0.5
+$ ros2 param set /filter_node alpha 2.0
+Setting parameter failed: alpha must be in (0, 1]
+```
+
+Read it line by line. The first call asks for 0.5, the config node accepts it, forwards it, and reports success. The second asks for 1.5 and is rejected immediately by the config node itself, which never even bothers the filter. Then `ros2 param get` confirms that the filter really is running with `alpha = 0.5` now — the forwarded change took effect. And the last line is the interesting one: trying to set an invalid value directly on the filter is still refused, this time by the filter's own parameter callback. Two independent layers of validation, and the second one works no matter who is doing the asking.
+
+<Quiz id="q3" question="A service callback calls another service and waits for the answer. The node uses the default single-threaded executor and the call never returns. Why?" options={["the second service does not exist", "the only executor thread is busy waiting, so nothing can process the reply", "services cannot call services in ROS 2", "the QoS settings are incompatible"]} answer={1} explanation="The reply arrives, but the thread that would handle it is the one stuck waiting; give the client its own callback group and use a multi-threaded executor, or make the call asynchronous." />
+
+## Actions
+
+The aggregator node is the busiest one: it publishes a statistics message every `window` readings, and it offers the `/collect` action.
+
+<CodeSource path="examples/month-4/ros2-graph/m4_graph/m4_graph/aggregator_node.py" />
+
+```python
+"""Aggregator: a /summary topic every `window` readings, and a /collect action that
+gathers a requested number of readings, with feedback and cancellation."""
+import threading
+
+import rclpy
+from rclpy.action import ActionServer, CancelResponse
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
+from rclpy.node import Node
+
+from m4_interfaces.action import Collect
+from m4_interfaces.msg import Reading, Summary
+
+
+class AggregatorNode(Node):
+    def __init__(self):
+        super().__init__('aggregator_node')
+        self.window = self.declare_parameter('window', 10).value
+        self.values = []
+        self.collectors = []            # one list per running /collect goal
+        self.new_reading = threading.Condition()
+        group = ReentrantCallbackGroup()  # let the action run while readings arrive
+        self.pub = self.create_publisher(Summary, 'summary', 10)
+        self.create_subscription(Reading, 'input', self.on_reading, 10, callback_group=group)
+        ActionServer(self, Collect, 'collect', self.execute, callback_group=group,
+                     cancel_callback=self.on_cancel)
+        self.get_logger().info(f'window {self.window}, listening on {self.resolve_topic_name("input")}')
+
+    def on_reading(self, msg):
+        self.values.append(msg.value)
+        if len(self.values) == self.window:
+            v = self.values
+            self.pub.publish(Summary(count=len(v), mean=sum(v) / len(v),
+                                     minimum=min(v), maximum=max(v)))
+            self.values = []
+        with self.new_reading:
+            for c in self.collectors:
+                c.append(msg.value)
+            self.new_reading.notify_all()
+
+    def on_cancel(self, goal_handle):
+        with self.new_reading:
+            self.new_reading.notify_all()   # wake execute() so it sees the request at once
+        return CancelResponse.ACCEPT
+
+    def execute(self, goal_handle):
+        want = goal_handle.request.samples
+        got = []
+        with self.new_reading:
+            self.collectors.append(got)
+        try:
+            sent = 0
+            while sent < want:
+                with self.new_reading:
+                    self.new_reading.wait_for(
+                        lambda: len(got) > sent or goal_handle.is_cancel_requested, timeout=0.5)
+                if goal_handle.is_cancel_requested:
+                    goal_handle.canceled()
+                    self.get_logger().info(f'collect canceled after {sent} readings')
+                    return self.result(got[:sent])
+                while sent < min(len(got), want):
+                    sent += 1
+                    goal_handle.publish_feedback(Collect.Feedback(received=sent, latest=got[sent - 1]))
+            goal_handle.succeed()
+            return self.result(got[:want])
+        finally:
+            with self.new_reading:
+                self.collectors.remove(got)
+
+    @staticmethod
+    def result(values):
+        mean = sum(values) / len(values) if values else 0.0
+        return Collect.Result(received=len(values), mean=mean)
+
+
+def main():
+    rclpy.init()
+    node = AggregatorNode()
+    try:
+        rclpy.spin(node, executor=MultiThreadedExecutor())
+    except (KeyboardInterrupt, ExternalShutdownException):
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.try_shutdown()
+```
+
+The first thing to notice is the topic name: the subscription listens on `'input'`, a relative name, which the launch file remaps to `/filtered` in section 6. The node never hard-codes where its data comes from — it says "input" and lets the outside world decide what that connects to. That one decision is what makes the node reusable: record a bag, replay it, and the same node summarises a live sensor or a five-minute-old recording without a code change.
+
+The `/collect` action is the new idea. `ActionServer(self, Collect, 'collect', self.execute, ...)` wires up a server whose job is `execute`, which runs once per goal. Read `execute` as a small state machine. It reads how many samples the goal wants, registers a fresh list to collect them into, then loops: it waits for a new reading to arrive (or for a cancel request), reports one feedback message per reading it has received, and finishes with either `succeed()` or `canceled()` plus a result. The `ReentrantCallbackGroup` and the `MultiThreadedExecutor` are there for the same reason as in section 4 — readings must keep arriving and being processed while `execute` is sitting in its wait, and a single thread would stall the whole node. `on_cancel` wakes `execute` up immediately so a cancellation takes effect at once rather than at the end of the next timeout.
+
+Here is the summary topic in action, one message:
+
+```text
+count: 10
+mean: 21.161432463771973
+minimum: 20.974611788770712
+maximum: 21.298657354248668
+---
+```
+
+Ten readings averaged to about 21.16, with the smallest just under 21 and the largest just above it. Your exact numbers will differ because you are catching a different window of the sequence.
+
+The action needs a client, and this one is also a useful tool.
+
+<CodeSource path="examples/month-4/ros2-graph/m4_graph/m4_graph/collect_client.py" />
+
+```python
+"""Action client for /collect: send a goal, print the feedback, optionally cancel.
+
+usage: ros2 run m4_graph collect_client <samples> [--cancel-after N]"""
+import argparse
+
+import rclpy
+from rclpy.action import ActionClient
+from rclpy.node import Node
+
+from m4_interfaces.action import Collect
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('samples', type=int)
+    parser.add_argument('--cancel-after', type=int, default=0, help='cancel after N feedback messages')
+    args = parser.parse_args()
+
+    rclpy.init()
+    node = Node('collect_client')
+    client = ActionClient(node, Collect, 'collect')
+    client.wait_for_server()
+    state = {'feedback': 0, 'handle': None}
+
+    def on_feedback(msg):
+        fb = msg.feedback
+        print(f'feedback: {fb.received}/{args.samples}, latest {fb.latest:.2f}')
+        state['feedback'] += 1
+        if args.cancel_after and state['feedback'] == args.cancel_after and state['handle']:
+            print('requesting cancel')
+            state['handle'].cancel_goal_async()
+
+    goal = client.send_goal_async(Collect.Goal(samples=args.samples), feedback_callback=on_feedback)
+    rclpy.spin_until_future_complete(node, goal)
+    state['handle'] = goal.result()
+    if not state['handle'].accepted:
+        print('goal rejected')
+        return
+    result = state['handle'].get_result_async()
+    rclpy.spin_until_future_complete(node, result)
+    status = {4: 'succeeded', 5: 'canceled', 6: 'aborted'}.get(result.result().status, 'unknown')
+    r = result.result().result
+    print(f'{status}: {r.received} readings, mean {r.mean:.2f}')
+    node.destroy_node()
+    rclpy.try_shutdown()
+```
+
+A goal is sent with `send_goal_async` and a `feedback_callback`, and the feedback function prints one line per reading as it arrives. A successful run of five samples looks like this:
+
+```text
+feedback: 1/5, latest 20.91
+feedback: 2/5, latest 21.13
+feedback: 3/5, latest 21.25
+feedback: 4/5, latest 21.37
+feedback: 5/5, latest 21.50
+succeeded: 5 readings, mean 21.23
+```
+
+The feedback arrives as each reading does, which is the whole point of an action over a service: the client is not blind while it waits. Now ask for twenty samples but cancel after the third feedback:
+
+```text
+feedback: 1/20, latest 21.41
+feedback: 2/20, latest 21.33
+feedback: 3/20, latest 21.31
+requesting cancel
+canceled: 3 readings, mean 21.35
+```
+
+The cancelled goal still returns a result with what it had — three readings, and their mean. That is the property that makes actions the right tool for robot motion: you can stop the robot and still learn where it got to, so "cancel and report" is a normal outcome rather than an error. Lesson 5 writes an action that drives the robot a set distance; it has exactly this structure, with odometry in place of readings. You can drive the same thing by hand with `ros2 action send_goal --feedback` from a terminal, which is a handy way to poke an action without writing any code.
+
+## Launch it all
+
+Running four nodes means typing four commands into four terminals, which does not scale and is easy to get wrong — start them in the wrong order, forget to source, forget a parameter. A launch file solves all of that at once: it starts the whole graph with its parameters and its remappings from one command.
+
+<CodeSource path="examples/month-4/ros2-graph/m4_graph/launch/graph.launch.py" />
+
+```python
+"""Start the whole Lesson 2 graph: sensor -> filter (C++) -> aggregator, plus the config node.
+
+ros2 launch m4_graph graph.launch.py rate:=10.0 summary_topic:=stats"""
+import os
+
+from ament_index_python.packages import get_package_share_directory
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node
+
+
+def generate_launch_description():
+    params = os.path.join(get_package_share_directory('m4_graph'), 'config', 'aggregator.yaml')
+    rate = LaunchConfiguration('rate')
+    summary_topic = LaunchConfiguration('summary_topic')
+    return LaunchDescription([
+        DeclareLaunchArgument('rate', default_value='5.0', description='sensor rate in Hz'),
+        DeclareLaunchArgument('summary_topic', default_value='summary',
+                              description='where the aggregator publishes'),
+        Node(package='m4_graph', executable='sensor_node',
+             parameters=[{'rate': rate}]),
+        Node(package='m4_graph_cpp', executable='filter_node',
+             parameters=[params]),
+        Node(package='m4_graph', executable='aggregator_node',
+             parameters=[params],
+             remappings=[('input', 'filtered'), ('summary', summary_topic)]),
+        Node(package='m4_graph', executable='config_node'),
+    ])
+```
+
+`DeclareLaunchArgument` and `LaunchConfiguration` are the pair that turns something into a command-line argument: the first declares it and gives a default, the second refers to its value when you build a node. `parameters=[...]` accepts either a dictionary of values like `{'rate': rate}` or a path to a YAML file like `params`. `remappings=[('input', 'filtered'), ...]` renames topics from outside the node, which is how the aggregator's `input` becomes `/filtered` and its `summary` becomes whatever `summary_topic` is. And `get_package_share_directory` finds the installed YAML file, so the launch file does not care where your workspace lives.
+
+For `ros2 launch` to find the launch file and the YAML at runtime, both have to be installed by `setup.py`. Add these two lines to its `data_files` list:
+
+```python
+        ('share/' + package_name + '/launch', glob('launch/*.launch.py')),
+        ('share/' + package_name + '/config', glob('config/*.yaml')),
+```
+
+Each says "copy everything matching this pattern into the package's share directory when installing". Without them the files sit in your `src/` folder and the launch command cannot see them — another version of the same install-time lesson from earlier.
+
+A launch file documents its own arguments:
+
+```text
+Arguments (pass arguments as '<name>:=<value>'):
+
+    'rate':
+        sensor rate in Hz
+        (default: '5.0')
+
+    'summary_topic':
+        where the aggregator publishes
+        (default: 'summary')
+```
+
+Starting it normally produces this:
+
+```text
+[INFO] [launch]: All log files can be found below /home/box/.ros/log/2026-10-20-05-09-39-463600-grok-bot-vm-228922889-439732
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [sensor_node-1]: process started with pid [439738]
+[INFO] [filter_node-2]: process started with pid [439741]
+[INFO] [aggregator_node-3]: process started with pid [439743]
+[INFO] [config_node-4]: process started with pid [439746]
+[filter_node-2] [INFO] [1792444179.528612241] [filter_node]: filtering /raw -> /filtered, alpha 0.20
+[config_node-4] [INFO] [1792444179.673083590] [config_node]: /set_alpha ready (configures /filter_node)
+[sensor_node-1] [INFO] [1792444179.679724312] [sensor_node]: publishing /raw at 5.0 Hz
+[aggregator_node-3] [INFO] [1792444179.691333018] [aggregator_node]: window 10, listening on /filtered
+```
+
+Four nodes start at once and each announces itself. The order of the lines from different nodes can differ from run to run, because the nodes start in parallel and race to log — do not read anything into the interleaving. What matters is that all four are up and the aggregator is listening on `/filtered`, which proves the remapping worked.
+
+With the graph running, the inspect commands from Lesson 1 now describe a whole system:
+
+```text
+$ ros2 node list
+/aggregator_node
+/config_node
+/filter_node
+/sensor_node
+$ ros2 topic list -t
+/filtered [m4_interfaces/msg/Reading]
+/parameter_events [rcl_interfaces/msg/ParameterEvent]
+/raw [m4_interfaces/msg/Reading]
+/rosout [rcl_interfaces/msg/Log]
+/summary [m4_interfaces/msg/Summary]
+$ ros2 node info /aggregator_node
+/aggregator_node
+  Subscribers:
+    /filtered: m4_interfaces/msg/Reading
+  Publishers:
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /rosout: rcl_interfaces/msg/Log
+    /summary: m4_interfaces/msg/Summary
+  Service Servers:
+    /aggregator_node/describe_parameters: rcl_interfaces/srv/DescribeParameters
+    /aggregator_node/get_parameter_types: rcl_interfaces/srv/GetParameterTypes
+    /aggregator_node/get_parameters: rcl_interfaces/srv/GetParameters
+    /aggregator_node/get_type_description: type_description_interfaces/srv/GetTypeDescription
+    /aggregator_node/list_parameters: rcl_interfaces/srv/ListParameters
+    /aggregator_node/set_parameters: rcl_interfaces/srv/SetParameters
+    /aggregator_node/set_parameters_atomically: rcl_interfaces/srv/SetParametersAtomically
+  Service Clients:
+
+  Action Servers:
+    /collect: m4_interfaces/action/Collect
+  Action Clients:
+
+```
+
+`node info` is the single best debugging command in ROS 2. Read what it says about the aggregator: it subscribes to `/filtered` (that is `input`, remapped), publishes `/summary`, and offers the `/collect` action. And every node gets seven parameter services for free — everything from reading a single setting to describing all of them. Those services are where `ros2 param` and your config node are actually talking; you never wrote them, and that is exactly the point of ROS 2 handing them out.
+
+Now use the arguments, without editing a line of code:
+
+```text
+$ ros2 topic list
+/filtered
+/parameter_events
+/raw
+/rosout
+/stats
+$ ros2 topic hz /raw
+average rate: 10.000
+```
+
+`/summary` has become `/stats` and the sensor is running at 10 Hz, because `summary_topic:=stats` and `rate:=10.0` were passed on the command line. Changing a system's wiring and its rate from the outside, with no rebuild, is the payoff of launch arguments and remapping.
+
+<Callout type="info" title="Ctrl+C and Python tracebacks">
+When you stop a launch with Ctrl+C, the terminal sends SIGINT to every process and launch forwards another one, so Python nodes sometimes print a KeyboardInterrupt traceback while shutting down and launch reports "process has died … exit code -2". The official Jazzy demo nodes do the same; it is noise from the double signal, not a bug in your code. Read past it, but do read the first lines — real errors look different, so do not train yourself to ignore everything in red.
+</Callout>
+
+<Quiz id="q4" question="A node subscribes to the relative topic name 'input'. The launch file has remappings=[('input', 'filtered')]. Which topic does it receive?" options={["/input", "/filtered", "both /input and /filtered", "none until you change the code"]} answer={1} explanation="Remapping renames the topic from outside; the code keeps saying 'input'." />
+
+## Bags and QoS
+
+### Record and replay
+
+`ros2 bag` records topics to a file and plays them back with the original timing, and in Jazzy the default file format is MCAP. It sounds minor and it is not: a problem that happens once an hour in the lab can be recorded once and then replayed as often as you like, because the recording does not care that the bug is rare. This is the tool behind "how do you debug anything that only fails occasionally" — you stop trying to catch it live and start keeping the data.
+
+With the graph running, record `/raw` and `/filtered` for about four seconds and press Ctrl+C:
+
+```text
+$ ros2 bag record -o sensor_run /raw /filtered
+[INFO] [1792444193.178419115] [rosbag2_recorder]: Subscribed to topic '/raw'
+[INFO] [1792444193.179012611] [rosbag2_recorder]: Subscribed to topic '/filtered'
+[INFO] [1792444196.860380339] [rosbag2_recorder]: Recording stopped
+$ ros2 bag info sensor_run
+
+Files:             sensor_run_0.mcap
+Bag size:          12.4 KiB
+Storage id:        mcap
+ROS Distro:        jazzy
+Duration:          3.400421477s
+Start:             Oct 20 2026 05:09:53.270130922 (1792444193.270130922)
+End:               Oct 20 2026 05:09:56.670552399 (1792444196.670552399)
+Messages:          36
+Topic information: Topic: /filtered | Type: m4_interfaces/msg/Reading | Count: 18 | Serialization Format: cdr
+                   Topic: /raw | Type: m4_interfaces/msg/Reading | Count: 18 | Serialization Format: cdr
+Service:           0
+Service information: 
+```
+
+`-o sensor_run` names the recording. `ros2 bag info` then tells the whole story: about 3.4 seconds, eighteen messages on each topic, which works out to roughly 5 Hz — matching the sensor's rate — and the exact message type on each topic, so anyone opening the bag later knows what is inside. The counts depend on exactly how long you recorded; yours will not be 18 and that is fine.
+
+The point of a bag is the replay. Stop the launch, then start only the filter node on its own, and in two other terminals echo the filtered value and play the recording back:
+
+```bash
+ros2 run m4_graph_cpp filter_node
+ros2 topic echo /filtered --field value
+ros2 bag play sensor_run --topics /raw
+```
+
+The filter cannot tell the difference between a live sensor and a recording — it subscribes to `/raw` either way. The first three filtered values it published from the recorded data were:
+
+```text
+21.015805553261274
+21.031387544743442
+21.103138790242603
+```
+
+Notice what those numbers quietly tell you. This lone filter started at its default `alpha = 0.2`, but the recording was made after `/set_alpha` had already changed the filter to 0.5 — so the same input produces different output. Replaying one recording through a node while you vary its settings is exactly how you tune a node offline, with no robot and no risk, and it is worth building the habit early.
+
+### QoS mismatches
+
+Here is an honest gap the course names. DDS and QoS are covered badly by every resource the course author could find — the topic is either skipped or buried — yet when a topic publishes but nothing receives, the answer is almost always a QoS mismatch. You will end up reading the official Concepts page, and it is worth knowing that going in.
+
+QoS, quality of service, is a set of policies that each publisher and subscriber carries. A connection only forms if the two sides are compatible, and when they are not, the publisher keeps publishing and the subscriber silently stays empty. Three policies explain almost everything you will meet.
+
+| Policy | Options | Rule |
+| --- | --- | --- |
+| Reliability | reliable (default) / best effort | a best-effort publisher cannot serve a reliable subscriber |
+| Durability | volatile (default) / transient local | a transient-local subscriber gets the last messages a transient-local publisher kept (used for maps and robot descriptions); a volatile publisher with a transient-local subscriber is incompatible |
+| History + depth | keep last N (default 10) / keep all | how many messages wait in the queue |
+
+The reliability row is the one you will hit first. Sensor drivers often publish best effort, on purpose: the `sensor_data` profile is built around the idea that a lost lidar scan is better than a late one, so it does not re-send. A subscriber that asks for reliable delivery cannot be served by a best-effort publisher, and ROS 2 tells you so if you look. Here is the demonstration: a best-effort publisher, a reliable subscriber, then a best-effort one.
+
+```text
+$ ros2 topic echo --qos-reliability reliable /qos_demo std_msgs/msg/String
+[WARN] [1792444212.682225980] [_ros2cli_440298]: New publisher discovered on topic '/qos_demo', offering incompatible QoS. No messages will be received from it. Last incompatible policy: RELIABILITY
+$ ros2 topic echo --qos-reliability best_effort /qos_demo std_msgs/msg/String
+data: hi
+---
+```
+
+The first subscriber receives nothing and says why in plain words: the publisher offers an incompatible QoS, and the last incompatible policy was RELIABILITY. The second subscriber, matching best effort, receives the message immediately. When a topic "publishes but nothing receives", that warning is your best clue.
+
+So here is the debug order, and it is short. First `ros2 topic info -v <topic>`, which lists each endpoint and its QoS — compare the publisher and subscriber configurations. Second, if the QoS looks fine, check `ROS_DOMAIN_ID` from Lesson 1: two terminals on different domains never see each other at all. Third, check the topic name and namespace, because a small typo or a missing remap produces the same silence. Work down that list before you touch your code.
+
+<Resource id="ros2-qos" />
+
+<Quiz id="q5" question="A lidar driver publishes /scan as best effort. Your node subscribes with the default QoS and receives nothing. What fixes it?" options={["make the subscriber best effort (for example the sensor-data profile)", "increase the queue depth to 100", "make the subscriber transient local", "restart the lidar driver"]} answer={0} explanation="The default subscriber is reliable, which a best-effort publisher cannot serve; a best-effort subscriber matches." />
+
+That is the whole graph. The practice task for this topic is the system you have just read about — the sensor, the processing node, the configuration service and the parameterised aggregator, with your own `.msg` and `.srv`, a launch file that takes arguments, and a bag you record and replay — and rather than restate it here, go and do it: the folder `examples/month-4/ros2-graph` contains all three packages, so copy them into `~/ros2_ws/src` and build. Change one thing before you build — the `window`, an `alpha`, the sensor rate — and watch what breaks and what does not, because that is where the understanding actually settles.
+
+One thread runs through the whole lesson unspent: every message carried a `frame_id`, and nothing used it. `/raw` and `/filtered` both say `sensor_link`, but your robot has no body yet, so the name points at nothing. Lesson 3 gives the robot a body with URDF and TF, and every part gets its own frame; from then on, the `frame_id` in a message has to be a name that really exists in the robot's TF tree — and you will see for yourself what happens when it does not.

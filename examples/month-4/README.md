@@ -6,6 +6,7 @@ One folder per lesson; each folder's README lists what it contains and how to ru
 | Lesson / 课程 | Folder / 目录 | What / 内容 | Checked by / 验证方式 |
 | --- | --- | --- | --- |
 | 1 Which ROS 2, first workspace / 选哪个 ROS 2、第一个工作空间 | [`ros2-setup/`](ros2-setup/) | `m4_hello`: a first Python node / 第一个 Python 节点 | `check.sh` (real runs / 真实运行) |
+| 2 Nodes, topics, services and actions / 节点、话题、服务与动作 | [`ros2-graph/`](ros2-graph/) | `m4_interfaces`, `m4_graph_cpp`, `m4_graph`: a four-node graph with msg/srv/action, launch, bag, QoS / 四节点图：msg/srv/action、launch、bag、QoS | `check.sh` (real runs / 真实运行) |
 
 ## Install ROS 2 Jazzy / 安装 ROS 2 Jazzy
 

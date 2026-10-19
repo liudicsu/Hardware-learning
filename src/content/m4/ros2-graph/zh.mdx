@@ -1,0 +1,887 @@
+前三个月，程序都活在一颗单片机上：一个程序、一个循环，板子照着循环的吩咐做事。这一课是机器人的另一种形态。你要搭起由多个程序组成的系统，每个程序只负责一件事，彼此通过命名的通道交换消息，而且整套东西完全跑在你的电脑上——没有机器人、没有仿真器、不碰任何硬件。
+
+具体来说，你要拼出一个小图（graph）：一个发布“编造”读数的话题节点、一个把读数平滑掉的滤波节点、一个通过服务改设置、以及一个既发统计又提供动作的汇总节点。你会写自己的消息类型和服务类型，用一个接受命令行参数的 Python launch 文件把整张图接起来，再用 `ros2 bag` 把一次运行录下来，方便以后回放。“传感器”的数据是它自己造出来的，这是刻意的：这道练习要证明的是你懂这张图，而不是你能跑起别人写好的演示。它也正好是本主题的实践任务，所以你读到结尾时，这件事已经做完了。
+
+这一课会覆盖课程为这个主题列出的全部内容：节点、话题、服务与动作，以及怎样判断一个问题该用哪一种；自定义消息与服务定义；参数与 YAML 配置文件；带参数和重映射（remapping）的 Python launch 文件；colcon 工作空间与包的结构；以及用 `ros2 bag` 录制和回放——也就是“偶尔才失败的问题该怎么调试”。最后还会加一个动作，因为后面的课程只要机器人要做一件耗时的事，就会用到动作。
+
+你是从第 1 课过来的：那一课装了 ROS 2 Jazzy，建了 `~/ros2_ws`，跑通了第一个节点。那个工作空间就是下面一切的家——本课的三个包都放进 `~/ros2_ws/src`。接下来是第 3 课，用 URDF 和 TF 给机器人装上身体；所以这里出现的消息要记在心里，它们已经带了一个目前还没人用到的坐标系名字。
+
+关于下面的输出：本课引用的每一条命令输出，都是 ROS 2 Jazzy 在网站编辑电脑（Debian 13，Jazzy 来自 RoboStack）上的真实运行结果，不是仿真。时间戳、进程号、传感器读到的具体数值每次都会有差别：传感器用了固定的随机种子，所以它产出的数列每次都一样，但你抓到哪几个读数，取决于你什么时候开始监听。代码里的注释保持英文。当你的数字和这里显示的不同时，那是系统在正常工作，不是 bug。
+
+## 选对通道
+
+节点就是“一个程序、一件事”。ROS 2 的全部风格，就是让每件事各有一个节点——一个读激光雷达，一个把读数滤波，一个决定往哪开——然后让它们交换消息，而不是直接互相调用。后半句正是系统可替换的原因：只要消息的形状不变，你可以重写、重启或搬走任何一个节点，而不用动其它节点。
+
+节点之间只有三种通信方式，而 ROS 2 里大部分的架构设计，本质就是在它们之间做选择。
+
+| 模式 | 形态 | 用它来做什么 | 本课的例子 |
+| --- | --- | --- | --- |
+| 话题（topic） | 单向数据流，可以有多个发布者和订阅者，谁都不等待 | 连续不断的数据：传感器读数、图像、速度指令、里程计 | /raw、/filtered、/summary |
+| 服务（service） | 请求 → 一个回复，调用方一直等 | 能立即完成的快速查询和设置 | /set_alpha |
+| 动作（action） | 目标 → 一串反馈 → 结果，可以取消 | 任何要花时间的事：走 2 米、移动机械臂、采集 N 个样本 | /collect |
+
+记住这张表，选择通常就一目了然了。把它念成一条经验法则：
+
+- 如果数据**连续不断**——读数、图像、轮速、里程计——用**话题**。没人在等，偶尔丢一条也可以接受。
+- 如果是一个**能立即得到答案的问题**——读一个设置、清零、让节点换个模式——用**服务**。调用方要等回复，所以活儿必须很快。
+- 如果它**超过大约一秒**、会**沿途报告进度**、或者**可能要中途停下**——走两米、动机械臂、采集一百个样本——用**动作**。
+
+两个常见的错误，都源于把这几样搞混。用服务去做慢活，会把调用方卡死：它堵在调用里，也没法取消，所以一个耗时十秒的服务，看起来和一个卡死的程序一模一样。用话题去发一条必须被确认的命令，命令可能被丢掉，而且没人会发现。如果活儿在请求到达的同一瞬间就干完了，用服务；如果它能耗光你的耐心，用动作。
+
+还有第四样东西，它根本不是用来“发数据”的：**参数（parameter）**。参数是活在节点内部的一个具名设置，先用默认值声明，然后可以从外部读取和修改。你运行 `ros2 param set` 时并没有在发布任何东西；底层是 ROS 2 调用了每个节点都免费获得的那个服务，这也是为什么参数感觉像“设置”而不像“消息”。它让你不必重新编译就能调一个节点。
+
+下面就是本课要搭的系统。把它当成一条流水线来读：读数从左边进，统计从右边出，另外两条侧通道分别负责控制和采集。
+
+```text
+sensor_node (Python) --/raw--> filter_node (C++) --/filtered--> aggregator_node (Python) --/summary-->
+                                     ^                                  |
+                    set_parameters   |                                  +-- /collect action
+                                     |
+ you --/set_alpha service--> config_node (Python)
+```
+
+传感器在 `/raw` 上发布原始读数。用 C++ 写的滤波器把每条读数平滑后，重新发布到 `/filtered`。汇总节点监听 `/filtered`，把一条统计消息发到 `/summary`。配置节点待在旁边：当你调用它的 `/set_alpha` 服务时，它先校验新的平滑系数，再通过滤波器节点自己的参数服务，把值写进滤波器的 `alpha` 参数——就是图里标着 `set_parameters` 的那个箭头。汇总节点还提供了一个 `/collect` 动作，于是客户端可以让它采集若干个读数、看着反馈一条条到达、后悔了就把任务取消。四个节点、三种模式、一张图，没有任何硬件。
+
+<Quiz id="q1" question="你的机器人要开去厨房，大约需要 40 秒，你想看到进度，还希望能中途停下。该用哪种模式？" options={["话题", "服务", "动作", "参数"]} answer={2} explanation="持续时间长、要反馈、还要能取消——这正是动作比服务多出来的东西。" />
+
+## 自定义接口
+
+消息是有类型的。话题传的不是一坨匿名的字节，而是某种具体类型的消息，而且在第一条消息流动之前，两端就得对这个类型达成一致。标准包里已经覆盖了相当多东西：`std_msgs` 有 `String`、`Float64` 这样的普通值，`sensor_msgs` 有 `Image`、`LaserScan`、`Imu`，`geometry_msgs` 有 `Twist`、`Pose`、`Point`。但你自己的机器人很快就会需要一些没人标准化过的字段——某个特定传感器的读数、你想计算的那种统计——这时就得自己写。
+
+你的接口放在一个单独的包里。哪怕用它写成的节点全是 Python，这个包也要用 CMake 来构建，因为生成消息代码是一个“代码生成”步骤，而不是 Python 步骤；把它做成 CMake 包，才能让任何语言写的任何包都依赖它。本课里这个接口包叫 `m4_interfaces`，另外两个节点包都依赖它。
+
+四个文件定义了我们这套词汇。每个文件都是一份很短的文本，各有自己的一小套语法。
+
+<CodeSource path="examples/month-4/ros2-graph/m4_interfaces/msg/Reading.msg" />
+
+```text
+# One sample from a sensor.
+std_msgs/Header header   # stamp = when it was measured, frame_id = where
+string sensor_id
+float64 value
+```
+
+<CodeSource path="examples/month-4/ros2-graph/m4_interfaces/msg/Summary.msg" />
+
+```text
+# Statistics over the last `count` filtered readings.
+uint32 count
+float64 mean
+float64 minimum
+float64 maximum
+```
+
+<CodeSource path="examples/month-4/ros2-graph/m4_interfaces/srv/SetAlpha.srv" />
+
+```text
+# Ask the configuration node to change the filter's smoothing factor.
+float64 alpha    # 0 < alpha <= 1; smaller = smoother but slower
+---
+bool accepted
+string message
+```
+
+<CodeSource path="examples/month-4/ros2-graph/m4_interfaces/action/Collect.action" />
+
+```text
+# Collect a number of filtered readings and report their mean.
+uint32 samples       # goal: how many readings to collect
+---
+uint32 received      # result
+float64 mean
+---
+uint32 received      # feedback, sent after every reading
+float64 latest
+```
+
+看清它们的形状，三种文件类型的规矩就自然浮现了。`.msg` 就是一行一个带类型的字段，写成 `类型 名字`。`.srv` 用一行三条短横线分成两半：上面是请求（request），下面是响应（response）。`.action` 用两条这样的分隔线分成三半：目标（goal）、结果（result）、反馈（feedback）。整套语法就这么多，而一旦你能读它，几乎 ROS 2 里任何接口你都能读懂。
+
+`std_msgs/Header` 值得多说两句。它是任何传感器消息标准的第一个字段，携带两样东西：一个叫 `stamp` 的时间戳（测量发生的时刻），和一个叫 `frame_id` 的坐标系名字（这个数值属于哪个坐标系）。时间戳让后面的节点能判断延迟；坐标系名字是把数值挂到机器人身上某个具体位置的钥匙。坐标系现在还不重要——第 3 课才真正用上——但从一开始就给每条传感器消息加上 Header，因为以后再补，意味着所有碰过这个类型的节点都得改。字段名用 `lower_snake_case`（小写下划线），文件名用 `CamelCase`（大驼峰），所以文件叫 `Reading.msg`，字段叫 `sensor_id`。
+
+生成代码是包的构建文件的活儿。
+
+<CodeSource path="examples/month-4/ros2-graph/m4_interfaces/CMakeLists.txt" />
+
+```cmake
+cmake_minimum_required(VERSION 3.10)
+project(m4_interfaces)
+
+find_package(ament_cmake REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+find_package(std_msgs REQUIRED)
+
+# Generate C++ and Python code for every interface listed here.
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/Reading.msg"
+  "msg/Summary.msg"
+  "srv/SetAlpha.srv"
+  "action/Collect.action"
+  DEPENDENCIES std_msgs
+)
+
+ament_export_dependencies(rosidl_default_runtime)
+ament_package()
+```
+
+`rosidl_generate_interfaces` 就是把那些文本文件变成 C++ 头文件和 Python 模块的命令，你想要哪个接口就得把它列进去——漏掉哪个，那个类型就根本不存在。`DEPENDENCIES std_msgs` 这一行是在告诉生成器：我们的消息引用了 `std_msgs/Header`，生成时要到那里去找。`ament_export_dependencies(rosidl_default_runtime)` 则让依赖我们的包也能拿到运行时的支持。
+
+在 `package.xml` 里有几行很关键，而且容易写错。加上一个对 `rosidl_default_generators` 的 `buildtool_depend`（生成器本身），一个对 `std_msgs` 和 `action_msgs` 的 `depend`（我们的消息建立在这两个标准包之上），还有一个对 `rosidl_default_runtime` 的 `exec_depend`（生成的代码真正运行时要靠它）。然后加上这一行分组声明：`<member_of_group>rosidl_interface_packages</member_of_group>`。忘了最后这一行，就是那个经典的“能编译，但类型找不到”的错误：代码确实生成好、装好了，但 ROS 从不知道这个包提供接口，于是 `ros2 interface show` 和其它包都找不到这些类型。
+
+现在构建这三个包。这就是第 1 课里那个 colcon 循环，只不过包变多了：
+
+```bash
+cd ~/ros2_ws && colcon build && source install/setup.bash
+```
+
+真实输出：
+
+```text
+Starting >>> m4_interfaces
+Finished <<< m4_interfaces [7.66s]
+Starting >>> m4_graph_cpp
+Finished <<< m4_graph_cpp [7.53s]
+Starting >>> m4_graph
+Finished <<< m4_graph [0.72s]
+
+Summary: 3 packages finished [16.0s]
+```
+
+看构建顺序：colcon 按依赖顺序来，接口包排在最前面，因为另外两个包都依赖它，然后是 C++ 滤波包，最后是 Python 包。要生成两种语言的代码，这就是为什么接口包占掉了那七秒多——它不是卡住了，是代码生成在干活。如果你哪天看到某个包排在它所依赖的包前面，那就是你漏声明依赖了。
+
+从任何一个终端都能检查生成了什么。`ros2 interface show` 打印的是 ROS 理解的定义，而不是你敲进去的样子：
+
+```text
+$ ros2 interface show m4_interfaces/msg/Reading
+# One sample from a sensor.
+std_msgs/Header header   # stamp = when it was measured, frame_id = where
+	builtin_interfaces/Time stamp
+		int32 sec
+		uint32 nanosec
+	string frame_id
+string sensor_id
+float64 value
+$ ros2 interface show m4_interfaces/srv/SetAlpha
+# Ask the configuration node to change the filter's smoothing factor.
+float64 alpha    # 0 < alpha <= 1; smaller = smoother but slower
+---
+bool accepted
+string message
+$ ros2 interface show m4_interfaces/action/Collect
+# Collect a number of filtered readings and report their mean.
+uint32 samples       # goal: how many readings to collect
+---
+uint32 received      # result
+float64 mean
+---
+uint32 received      # feedback, sent after every reading
+float64 latest
+```
+
+注意第一段里 Header 发生了什么：它被展开成了自己的字段 `stamp` 和 `frame_id`，而 `stamp` 又进一步展开成 `sec` 和 `nanosec`。这是 ROS 在给你看完整布局，而不是简写，也是确认一个类型真实存在最快的方法。
+
+## 话题
+
+### Python 发布者
+
+一个话题需要一个发布者和一个订阅者。最诚实的传感器，就是一个自己编数字的节点，所以就从这个开始。
+
+<CodeSource path="examples/month-4/ros2-graph/m4_graph/m4_graph/sensor_node.py" />
+
+```python
+"""Sensor publisher: a fake temperature sensor on /raw (no hardware needed).
+
+The values are a slow wave plus noise from a fixed random seed, so every run publishes
+the same sequence of numbers."""
+import math
+import random
+
+import rclpy
+from rclpy.executors import ExternalShutdownException
+from rclpy.node import Node
+
+from m4_interfaces.msg import Reading
+
+
+class SensorNode(Node):
+    def __init__(self):
+        super().__init__('sensor_node')
+        self.rate = self.declare_parameter('rate', 5.0).value          # Hz
+        self.sensor_id = self.declare_parameter('sensor_id', 'temp0').value
+        self.pub = self.create_publisher(Reading, 'raw', 10)
+        self.rng = random.Random(7)
+        self.k = 0
+        self.create_timer(1.0 / self.rate, self.tick)
+        self.get_logger().info(f'publishing /raw at {self.rate:.1f} Hz')
+
+    def tick(self):
+        msg = Reading()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = 'sensor_link'
+        msg.sensor_id = self.sensor_id
+        msg.value = 21.0 + 0.5 * math.sin(2 * math.pi * self.k / 50) + self.rng.gauss(0, 0.2)
+        self.pub.publish(msg)
+        self.k += 1
+
+
+def main():
+    rclpy.init()
+    node = SensorNode()
+    try:
+        rclpy.spin(node)
+    except (KeyboardInterrupt, ExternalShutdownException):
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.try_shutdown()
+```
+
+有两行在做这个节点“可配置”这件大事。`declare_parameter('rate', 5.0)` 给节点一个名叫 `rate`、默认值为五的设置；`.value` 立刻把它读回来。从此，launch 文件或 YAML 文件就能覆盖这个默认值，而这个文件一个字都不用改。Header 每条消息都填一次：`get_clock().now()` 给出节点的当前时间，`.to_msg()` 把它转成 Header 需要的时间类型；`frame_id` 设成 `sensor_link`，这个名字暂时没有意义，但到第 3 课意义就大了。
+
+数值本身刻意做得很无聊：一条围绕 21 度的慢正弦波，加上一点高斯噪声。噪声来自 `random.Random(7)`，一个用固定种子启动的随机数发生器。这个决定很小，回报却很大——固定种子意味着每次运行都产生同一串数字，而这正是你对测试信号的全部期望。当滤波器行为古怪时，你可以精确复现引起它的那份输入，而不是去追一个上次和这次不一样的信号。
+
+### C++ 滤波节点
+
+处理节点用 C++ 写。概念和 Python 节点完全一样，只是语法和编译步骤变了；本月的里程碑要求两种语言都会写节点；同一套概念用两种语法各看一遍，最容易把“概念”和“语言”分开。
+
+<CodeSource path="examples/month-4/ros2-graph/m4_graph_cpp/src/filter_node.cpp" />
+
+```cpp
+// Processing node in C++: smooth /raw readings with an exponential moving average
+// and publish them on /filtered. The smoothing factor is the parameter "alpha".
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "m4_interfaces/msg/reading.hpp"
+#include "rclcpp/rclcpp.hpp"
+
+using m4_interfaces::msg::Reading;
+
+class FilterNode : public rclcpp::Node
+{
+public:
+  FilterNode()
+  : Node("filter_node")
+  {
+    alpha_ = declare_parameter("alpha", 0.2);   // default; a launch file or YAML can override it
+    // Reject bad values before they are applied (ros2 param set prints the reason).
+    param_cb_ = add_on_set_parameters_callback(
+      [this](const std::vector<rclcpp::Parameter> & params) {
+        rcl_interfaces::msg::SetParametersResult result;
+        result.successful = true;
+        for (const auto & p : params) {
+          if (p.get_name() == "alpha") {
+            double a = p.as_double();
+            if (a <= 0.0 || a > 1.0) {
+              result.successful = false;
+              result.reason = "alpha must be in (0, 1]";
+            } else {
+              alpha_ = a;
+              RCLCPP_INFO(get_logger(), "alpha is now %.2f", alpha_);
+            }
+          }
+        }
+        return result;
+      });
+    pub_ = create_publisher<Reading>("filtered", 10);
+    sub_ = create_subscription<Reading>(
+      "raw", 10, [this](const Reading & msg) {on_reading(msg);});
+    RCLCPP_INFO(get_logger(), "filtering /raw -> /filtered, alpha %.2f", alpha_);
+  }
+
+private:
+  void on_reading(const Reading & msg)
+  {
+    // y = y + alpha * (x - y); the first reading starts the filter.
+    estimate_ = have_estimate_ ? estimate_ + alpha_ * (msg.value - estimate_) : msg.value;
+    have_estimate_ = true;
+    Reading out = msg;          // keep the header and sensor_id
+    out.value = estimate_;
+    pub_->publish(out);
+  }
+
+  double alpha_;
+  double estimate_ = 0.0;
+  bool have_estimate_ = false;
+  rclcpp::Publisher<Reading>::SharedPtr pub_;
+  rclcpp::Subscription<Reading>::SharedPtr sub_;
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr param_cb_;
+};
+
+int main(int argc, char ** argv)
+{
+  rclcpp::init(argc, argv);
+  rclcpp::spin(std::make_shared<FilterNode>());
+  rclcpp::shutdown();
+  return 0;
+}
+```
+
+这里的平滑用的是指数移动平均（exponential moving average），值得弄懂，因为往后一整门课里，每一行“把这个噪声信号平滑一下”的背后都是同一个想法。换成纯符号看，更新公式是：
+
+```text
+y ← y + α × (x − y)
+```
+
+其中 `x` 是新读数，`y` 是当前估计值，`α`（alpha）是 0 到 1 之间的数。用一句话说：每来一条新读数，就把估计值朝它拉近 `α` 这么多比例。`α` 小，估计值几乎不动，输出平滑但滞后于输入；`α` 大，跟得快但放进来更多噪声；`α = 1` 就是完全不滤波，直接照抄读数。第一条读数没有任何估计值可以平滑，所以用 `have_estimate_` 把它当作滤波器的起点。
+
+**算例**：估计值是 21.00 °C，来了一条 22.00 °C 的新读数。
+
+```text
+α = 0.2:  y = 21.00 + 0.2 × (22.00 − 21.00) = 21.00 + 0.20 = 21.20
+α = 0.5:  y = 21.00 + 0.5 × (22.00 − 21.00) = 21.00 + 0.50 = 21.50
+α = 1.0:  y = 21.00 + 1.0 × (22.00 − 21.00) = 21.00 + 1.00 = 22.00   (no filtering)
+```
+
+算术就这么多。`α` 越小，估计值一步挪得越少，这正是“更平滑但更慢”的含义。
+
+参数回调是这个节点里的第二个核心想法，它对节点自己的设置拥有最终裁决权：`add_on_set_parameters_callback` 装上一个函数，每次有人想改参数时它都会先跑一遍；如果它带着理由返回 `successful = false`，改动就会在生效之前被拒绝。这里任何落在 `(0, 1]` 之外的 `alpha` 都会被拒。这是一个你以后会反复用的真实套路：让节点自己校验自己的设置，这样一条手抖敲错的命令就没法悄悄破坏它的行为。
+
+订阅是最后一块。`create_subscription<Reading>("raw", 10, lambda)` 的意思是“每来一条 `raw` 上的 `Reading`，就调这个函数”，那个 lambda 只是转发给 `on_reading`。里面 `Reading out = msg;` 把传进来的消息整体复制了一份——连同它的 Header 和 `sensor_id`——然后只覆盖 `value`。这次复制是刻意的：原始测量的时间戳就此跟着平滑后的数值一路传下去，下游节点仍然能知道读数是什么时候测的，而不是什么时候被平滑的。
+
+C++ 节点也需要构建文件，其中有一行比其余的都要紧。
+
+<CodeSource path="examples/month-4/ros2-graph/m4_graph_cpp/CMakeLists.txt" />
+
+```cmake
+cmake_minimum_required(VERSION 3.10)
+project(m4_graph_cpp)
+
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(m4_interfaces REQUIRED)
+
+add_executable(filter_node src/filter_node.cpp)
+target_compile_features(filter_node PUBLIC cxx_std_17)
+ament_target_dependencies(filter_node rclcpp m4_interfaces)
+
+# Installed here, `ros2 run m4_graph_cpp filter_node` can find it.
+install(TARGETS filter_node DESTINATION lib/${PROJECT_NAME})
+
+ament_package()
+```
+
+`find_package(m4_interfaces REQUIRED)` 让 C++ 代码能 include 到 `m4_interfaces/msg/reading.hpp`；没有它，对这个包来说那个头文件根本不存在。但真正容易忘的是 `install(TARGETS ...)` 这一行。把可执行文件编译出来还不够——如果它从未被安装，`ros2 run m4_graph_cpp filter_node` 就找不到它，哪怕构建是成功的。这就是“忘了在 `setup.py` 里写 `entry_points`”的 C++ 版本（第 1 课）：症状一样，只是换了个文件。
+
+<Quiz id="q2" question="滤波器的估计值是 20.0，α 为 0.25。来了一条 24.0 的读数，新的估计值是多少？" answer={21} tolerance={0.01} explanation="20.0 + 0.25 × (24.0 − 20.0) = 20.0 + 1.0 = 21.0。" />
+
+## 服务与参数
+
+参数可以经由三个地方到达一个节点，三处都清楚，节点才算“完整”。第一个是 `declare_parameter` 里的默认值，你已经见过了。第二个是启动时加载的 YAML 文件，它让你一次性配好整张图的设置，而不必每次手敲。第三个是运行时的修改，要么用 `ros2 param set`，要么调用节点自己的 `set_parameters` 服务——这正是我们的配置节点做的事。
+
+YAML 文件很短，它的形状就是全部要点。
+
+<CodeSource path="examples/month-4/ros2-graph/m4_graph/config/aggregator.yaml" />
+
+```yaml
+# Parameters loaded by graph.launch.py. The top-level key is the node name.
+aggregator_node:
+  ros__parameters:
+    window: 10          # readings per /summary message
+filter_node:
+  ros__parameters:
+    alpha: 0.2          # starting smoothing factor (change it at runtime with /set_alpha)
+```
+
+缩进是有意义的，YAML 里向来如此。顶层键是节点名——`aggregator_node`、`filter_node`——它下面跟着 `ros__parameters`，两个下划线。这两个下划线不是打错字，它是 ROS 2 固定的键名，写成单下划线就不会被识别。再下面才是参数名和值。一个文件可以装下好几个节点的设置，这就是为什么两个节点都出现在这里，也这正是它天生要配 launch 文件的原因：整张图需要的一切，都放在一个地方。
+
+配置节点是最聪明的一个，因为它同时是一个服务端和一个客户端。
+
+<CodeSource path="examples/month-4/ros2-graph/m4_graph/m4_graph/config_node.py" />
+
+```python
+"""Configuration node: a /set_alpha service that checks a new smoothing factor and then
+sets the filter node's "alpha" parameter through that node's own parameter service."""
+import rclpy
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
+from rclpy.node import Node
+from rcl_interfaces.msg import Parameter, ParameterType
+from rcl_interfaces.srv import SetParameters
+
+from m4_interfaces.srv import SetAlpha
+
+
+class ConfigNode(Node):
+    def __init__(self):
+        super().__init__('config_node')
+        self.target = self.declare_parameter('target_node', 'filter_node').value
+        # Every node offers <name>/set_parameters; this client calls the filter's one.
+        # It gets its own callback group so its reply can arrive while on_set_alpha waits.
+        self.client = self.create_client(SetParameters, f'/{self.target}/set_parameters',
+                                         callback_group=MutuallyExclusiveCallbackGroup())
+        self.create_service(SetAlpha, 'set_alpha', self.on_set_alpha)
+        self.get_logger().info(f'/set_alpha ready (configures /{self.target})')
+
+    def on_set_alpha(self, request, response):
+        if not 0.0 < request.alpha <= 1.0:
+            response.accepted = False
+            response.message = f'rejected: alpha {request.alpha} is outside (0, 1]'
+            return response
+        param = Parameter(name='alpha')
+        param.value.type = ParameterType.PARAMETER_DOUBLE
+        param.value.double_value = request.alpha
+        if not self.client.wait_for_service(timeout_sec=2.0):
+            response.accepted = False
+            response.message = f'/{self.target} is not running'
+            return response
+        result = self.client.call(SetParameters.Request(parameters=[param]))   # blocks this callback only
+        ok = result.results[0].successful
+        response.accepted = ok
+        response.message = (f'alpha set to {request.alpha} on /{self.target}' if ok
+                            else 'rejected by filter: ' + result.results[0].reason)
+        self.get_logger().info(response.message)
+        return response
+
+
+def main():
+    rclpy.init()
+    node = ConfigNode()
+    try:
+        rclpy.spin(node, executor=MultiThreadedExecutor())   # two threads: service + client reply
+    except (KeyboardInterrupt, ExternalShutdownException):
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.try_shutdown()
+```
+
+跟着它的两半走一遍。服务端那一半是 `create_service(SetAlpha, 'set_alpha', self.on_set_alpha)`：只要有人调用 `/set_alpha`，`on_set_alpha` 就收到请求、填好响应。客户端那一半是 `create_client(SetParameters, ...)`，它去和滤波节点的参数服务对话。于是这个节点先校验请求的 `alpha`，再把它转发出去，并报告滤波器怎么回复。这个两步流程，就是配置节点存在的全部理由：它给出唯一一处校验设置的地方，而且还能顺手记日志或持久化，而不是让每个工具都直接去戳参数、各自还得抄一份规则。
+
+接下来是那个陷阱，因为它是把一个 ROS 2 节点搞挂的最常见方式。在服务回调里再调另一个服务，配上默认的单线程执行器，会死锁。原因是这样的：`on_set_alpha` 跑在执行器唯一的那条线程上，而 `self.client.call(...)` 在等回复时把这条线程堵住了。可回复恰恰又需要同一个执行器来接收和处理——而它正忙着等。没人能应答，于是永远地等下去。这里的修法分两部分：`MultiThreadedExecutor` 给执行器不止一条线程，而客户端自带的 `MutuallyExclusiveCallbackGroup` 为它预留了一个回调位置，让回复能在 `on_set_alpha` 还在等待时，被另一条线程处理。改成异步调用是另一条出路，但这个模式要先记住。
+
+在系统运行起来之后（launch 文件在第 6 节），从第二个终端看这些调用是这样的：
+
+```text
+$ ros2 service call /set_alpha m4_interfaces/srv/SetAlpha "{alpha: 0.5}"
+waiting for service to become available...
+requester: making request: m4_interfaces.srv.SetAlpha_Request(alpha=0.5)
+
+response:
+m4_interfaces.srv.SetAlpha_Response(accepted=True, message='alpha set to 0.5 on /filter_node')
+
+$ ros2 service call /set_alpha m4_interfaces/srv/SetAlpha "{alpha: 1.5}"
+waiting for service to become available...
+requester: making request: m4_interfaces.srv.SetAlpha_Request(alpha=1.5)
+
+response:
+m4_interfaces.srv.SetAlpha_Response(accepted=False, message='rejected: alpha 1.5 is outside (0, 1]')
+
+$ ros2 param get /filter_node alpha
+Double value is: 0.5
+$ ros2 param set /filter_node alpha 2.0
+Setting parameter failed: alpha must be in (0, 1]
+```
+
+逐行读。第一次要 0.5，配置节点接受、转发、报告成功。第二次要 1.5，直接被配置节点自己拒掉，它压根没去打扰滤波器。接着 `ros2 param get` 确认滤波器现在真的跑在 `alpha = 0.5` 上——转发出去的改动生效了。最后一行最有意思：直接把一个非法值设到滤波器上，还是被拒，这次是滤波器自己的参数回调拒的。两层各自独立的校验，而第二层不管是谁来问都管用。
+
+<Quiz id="q3" question="一个服务回调里调用另一个服务并等待答复。节点用的是默认的单线程执行器，这个调用却永远不返回。为什么？" options={["第二个服务不存在", "执行器唯一的那条线程正在忙着等待，没人能处理那条回复", "ROS 2 里服务不能调用服务", "QoS 设置不兼容"]} answer={1} explanation="回复其实到了，但本该处理它的那条线程正堵在等待里；给客户端单独的回调组并用多线程执行器，或者改成异步调用。" />
+
+## 动作
+
+汇总节点是最忙的一个：它每收满 `window` 条读数就发布一条统计消息，同时提供 `/collect` 动作。
+
+<CodeSource path="examples/month-4/ros2-graph/m4_graph/m4_graph/aggregator_node.py" />
+
+```python
+"""Aggregator: a /summary topic every `window` readings, and a /collect action that
+gathers a requested number of readings, with feedback and cancellation."""
+import threading
+
+import rclpy
+from rclpy.action import ActionServer, CancelResponse
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
+from rclpy.node import Node
+
+from m4_interfaces.action import Collect
+from m4_interfaces.msg import Reading, Summary
+
+
+class AggregatorNode(Node):
+    def __init__(self):
+        super().__init__('aggregator_node')
+        self.window = self.declare_parameter('window', 10).value
+        self.values = []
+        self.collectors = []            # one list per running /collect goal
+        self.new_reading = threading.Condition()
+        group = ReentrantCallbackGroup()  # let the action run while readings arrive
+        self.pub = self.create_publisher(Summary, 'summary', 10)
+        self.create_subscription(Reading, 'input', self.on_reading, 10, callback_group=group)
+        ActionServer(self, Collect, 'collect', self.execute, callback_group=group,
+                     cancel_callback=self.on_cancel)
+        self.get_logger().info(f'window {self.window}, listening on {self.resolve_topic_name("input")}')
+
+    def on_reading(self, msg):
+        self.values.append(msg.value)
+        if len(self.values) == self.window:
+            v = self.values
+            self.pub.publish(Summary(count=len(v), mean=sum(v) / len(v),
+                                     minimum=min(v), maximum=max(v)))
+            self.values = []
+        with self.new_reading:
+            for c in self.collectors:
+                c.append(msg.value)
+            self.new_reading.notify_all()
+
+    def on_cancel(self, goal_handle):
+        with self.new_reading:
+            self.new_reading.notify_all()   # wake execute() so it sees the request at once
+        return CancelResponse.ACCEPT
+
+    def execute(self, goal_handle):
+        want = goal_handle.request.samples
+        got = []
+        with self.new_reading:
+            self.collectors.append(got)
+        try:
+            sent = 0
+            while sent < want:
+                with self.new_reading:
+                    self.new_reading.wait_for(
+                        lambda: len(got) > sent or goal_handle.is_cancel_requested, timeout=0.5)
+                if goal_handle.is_cancel_requested:
+                    goal_handle.canceled()
+                    self.get_logger().info(f'collect canceled after {sent} readings')
+                    return self.result(got[:sent])
+                while sent < min(len(got), want):
+                    sent += 1
+                    goal_handle.publish_feedback(Collect.Feedback(received=sent, latest=got[sent - 1]))
+            goal_handle.succeed()
+            return self.result(got[:want])
+        finally:
+            with self.new_reading:
+                self.collectors.remove(got)
+
+    @staticmethod
+    def result(values):
+        mean = sum(values) / len(values) if values else 0.0
+        return Collect.Result(received=len(values), mean=mean)
+
+
+def main():
+    rclpy.init()
+    node = AggregatorNode()
+    try:
+        rclpy.spin(node, executor=MultiThreadedExecutor())
+    except (KeyboardInterrupt, ExternalShutdownException):
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.try_shutdown()
+```
+
+首先要留意的是话题名：订阅监听的是 `'input'`，一个相对名字，第 6 节的 launch 文件会把它重映射成 `/filtered`。这个节点从不把“数据从哪来”写死——它只说“input”，让外面的世界决定它接到什么上。就是这一个决定，让节点变得可复用：把 bag 录下来、再回放，同一个节点既能汇总实时传感器的数据，也能汇总五分钟前录下的数据，不用改一行代码。
+
+`/collect` 动作是新东西。`ActionServer(self, Collect, 'collect', self.execute, ...)` 装上一个服务端，它的职责是 `execute`，每个目标（goal）调用一次。把 `execute` 当成一个小状态机来读。它先读出这个目标要多少样本，登记一个全新的列表来收集它们，然后进循环：等一条新读数到达（或等来一个取消请求），每收到一条就发一条反馈消息，最后要么 `succeed()` 要么 `canceled()`，再返回一个结果。这里的 `ReentrantCallbackGroup` 和多线程执行器，和第 4 节是同一个理由——`execute` 坐在那里等的时候，读数必须还能继续到达并被处理，单线程会把整个节点卡住。`on_cancel` 立刻把 `execute` 叫醒，这样取消请求当场生效，而不是等到下一次超时才响应。
+
+下面是运行中的 summary 话题，一条消息：
+
+```text
+count: 10
+mean: 21.161432463771973
+minimum: 20.974611788770712
+maximum: 21.298657354248668
+---
+```
+
+十条读数平均下来约 21.16，最小值略低于 21，最大值略高于它。你的具体数字会不同，因为你抓到的是数列里另一段窗口。
+
+动作需要一个客户端，而这个客户端本身也是个好用的工具。
+
+<CodeSource path="examples/month-4/ros2-graph/m4_graph/m4_graph/collect_client.py" />
+
+```python
+"""Action client for /collect: send a goal, print the feedback, optionally cancel.
+
+usage: ros2 run m4_graph collect_client <samples> [--cancel-after N]"""
+import argparse
+
+import rclpy
+from rclpy.action import ActionClient
+from rclpy.node import Node
+
+from m4_interfaces.action import Collect
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('samples', type=int)
+    parser.add_argument('--cancel-after', type=int, default=0, help='cancel after N feedback messages')
+    args = parser.parse_args()
+
+    rclpy.init()
+    node = Node('collect_client')
+    client = ActionClient(node, Collect, 'collect')
+    client.wait_for_server()
+    state = {'feedback': 0, 'handle': None}
+
+    def on_feedback(msg):
+        fb = msg.feedback
+        print(f'feedback: {fb.received}/{args.samples}, latest {fb.latest:.2f}')
+        state['feedback'] += 1
+        if args.cancel_after and state['feedback'] == args.cancel_after and state['handle']:
+            print('requesting cancel')
+            state['handle'].cancel_goal_async()
+
+    goal = client.send_goal_async(Collect.Goal(samples=args.samples), feedback_callback=on_feedback)
+    rclpy.spin_until_future_complete(node, goal)
+    state['handle'] = goal.result()
+    if not state['handle'].accepted:
+        print('goal rejected')
+        return
+    result = state['handle'].get_result_async()
+    rclpy.spin_until_future_complete(node, result)
+    status = {4: 'succeeded', 5: 'canceled', 6: 'aborted'}.get(result.result().status, 'unknown')
+    r = result.result().result
+    print(f'{status}: {r.received} readings, mean {r.mean:.2f}')
+    node.destroy_node()
+    rclpy.try_shutdown()
+```
+
+目标用 `send_goal_async` 发出，并带一个 `feedback_callback`；反馈函数在每条读数到达时打印一行。成功采集五个样本的一次运行是这样的：
+
+```text
+feedback: 1/5, latest 20.91
+feedback: 2/5, latest 21.13
+feedback: 3/5, latest 21.25
+feedback: 4/5, latest 21.37
+feedback: 5/5, latest 21.50
+succeeded: 5 readings, mean 21.23
+```
+
+反馈随每条读数抵达，这正是动作相对于服务的全部意义：等待期间客户端不是瞎的。现在要二十个样本，但在第三条反馈之后取消：
+
+```text
+feedback: 1/20, latest 21.41
+feedback: 2/20, latest 21.33
+feedback: 3/20, latest 21.31
+requesting cancel
+canceled: 3 readings, mean 21.35
+```
+
+被取消的目标仍然带回一个结果，里面是它已经拿到的——三条读数，还有它们的均值。正是这个特性，让动作成为机器人运动的正确工具：你可以停下机器人，同时仍然知道它走到了哪里，于是“取消并汇报”成了一种正常结果，而不是错误。第 5 课会写一个把机器人开出一段指定距离的动作，结构和这里一模一样，只是把读数换成了里程计。你也可以在终端里用 `ros2 action send_goal --feedback` 手动做同样的事，这是不用写代码就拨弄一个动作的便捷方式。
+
+## 一键启动
+
+要跑四个节点，意味着往四个终端里敲四条命令——这既不能扩展，也容易出错：启动顺序搞反、忘了 source、漏了某个参数。launch 文件一次解决所有这些问题：一条命令就把整张图连同它的参数和重映射一起启动。
+
+<CodeSource path="examples/month-4/ros2-graph/m4_graph/launch/graph.launch.py" />
+
+```python
+"""Start the whole Lesson 2 graph: sensor -> filter (C++) -> aggregator, plus the config node.
+
+ros2 launch m4_graph graph.launch.py rate:=10.0 summary_topic:=stats"""
+import os
+
+from ament_index_python.packages import get_package_share_directory
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node
+
+
+def generate_launch_description():
+    params = os.path.join(get_package_share_directory('m4_graph'), 'config', 'aggregator.yaml')
+    rate = LaunchConfiguration('rate')
+    summary_topic = LaunchConfiguration('summary_topic')
+    return LaunchDescription([
+        DeclareLaunchArgument('rate', default_value='5.0', description='sensor rate in Hz'),
+        DeclareLaunchArgument('summary_topic', default_value='summary',
+                              description='where the aggregator publishes'),
+        Node(package='m4_graph', executable='sensor_node',
+             parameters=[{'rate': rate}]),
+        Node(package='m4_graph_cpp', executable='filter_node',
+             parameters=[params]),
+        Node(package='m4_graph', executable='aggregator_node',
+             parameters=[params],
+             remappings=[('input', 'filtered'), ('summary', summary_topic)]),
+        Node(package='m4_graph', executable='config_node'),
+    ])
+```
+
+`DeclareLaunchArgument` 和 `LaunchConfiguration` 是把一样东西变成命令行参数的一对：前者声明它并给出默认值，后者在拼装节点时引用它的值。`parameters=[...]` 既接受 `{'rate': rate}` 这样的字典，也接受 `params` 这样的 YAML 文件路径。`remappings=[('input', 'filtered'), ...]` 从节点外部给话题改名，汇总节点的 `input` 就是这样变成 `/filtered`、它的 `summary` 变成 `summary_topic` 所指定的名字。而 `get_package_share_directory` 负责找到安装好的 YAML 文件，于是 launch 文件并不关心你的工作空间放在哪里。
+
+要想让 `ros2 launch` 在运行时找到 launch 文件和 YAML，两者都得由 `setup.py` 安装。把下面两行加进它的 `data_files` 列表：
+
+```python
+        ('share/' + package_name + '/launch', glob('launch/*.launch.py')),
+        ('share/' + package_name + '/config', glob('config/*.yaml')),
+```
+
+每一行的意思是“安装时把符合这个模式的文件都拷进包自己的 share 目录”。没有它们，文件就躺在你的 `src/` 里，而启动命令看不见——这又是前面那条“安装期”教训的另一个版本。
+
+launch 文件会自己说明它接受哪些参数：
+
+```text
+Arguments (pass arguments as '<name>:=<value>'):
+
+    'rate':
+        sensor rate in Hz
+        (default: '5.0')
+
+    'summary_topic':
+        where the aggregator publishes
+        (default: 'summary')
+```
+
+正常启动它是这样的：
+
+```text
+[INFO] [launch]: All log files can be found below /home/box/.ros/log/2026-10-20-05-09-39-463600-grok-bot-vm-228922889-439732
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [sensor_node-1]: process started with pid [439738]
+[INFO] [filter_node-2]: process started with pid [439741]
+[INFO] [aggregator_node-3]: process started with pid [439743]
+[INFO] [config_node-4]: process started with pid [439746]
+[filter_node-2] [INFO] [1792444179.528612241] [filter_node]: filtering /raw -> /filtered, alpha 0.20
+[config_node-4] [INFO] [1792444179.673083590] [config_node]: /set_alpha ready (configures /filter_node)
+[sensor_node-1] [INFO] [1792444179.679724312] [sensor_node]: publishing /raw at 5.0 Hz
+[aggregator_node-3] [INFO] [1792444179.691333018] [aggregator_node]: window 10, listening on /filtered
+```
+
+四个节点同时启动，各自报到。不同节点的日志行顺序每次可能不同，因为节点是并行启动、抢着打日志的——别去解读这个交错顺序。真正要紧的是四个都起来了，而且汇总节点在监听 `/filtered`，这就证明重映射生效了。
+
+在整张图运行时，第 1 课那几个检查命令描述的就是一个完整的系统：
+
+```text
+$ ros2 node list
+/aggregator_node
+/config_node
+/filter_node
+/sensor_node
+$ ros2 topic list -t
+/filtered [m4_interfaces/msg/Reading]
+/parameter_events [rcl_interfaces/msg/ParameterEvent]
+/raw [m4_interfaces/msg/Reading]
+/rosout [rcl_interfaces/msg/Log]
+/summary [m4_interfaces/msg/Summary]
+$ ros2 node info /aggregator_node
+/aggregator_node
+  Subscribers:
+    /filtered: m4_interfaces/msg/Reading
+  Publishers:
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /rosout: rcl_interfaces/msg/Log
+    /summary: m4_interfaces/msg/Summary
+  Service Servers:
+    /aggregator_node/describe_parameters: rcl_interfaces/srv/DescribeParameters
+    /aggregator_node/get_parameter_types: rcl_interfaces/srv/GetParameterTypes
+    /aggregator_node/get_parameters: rcl_interfaces/srv/GetParameters
+    /aggregator_node/get_type_description: type_description_interfaces/srv/GetTypeDescription
+    /aggregator_node/list_parameters: rcl_interfaces/srv/ListParameters
+    /aggregator_node/set_parameters: rcl_interfaces/srv/SetParameters
+    /aggregator_node/set_parameters_atomically: rcl_interfaces/srv/SetParametersAtomically
+  Service Clients:
+
+  Action Servers:
+    /collect: m4_interfaces/action/Collect
+  Action Clients:
+
+```
+
+`node info` 是 ROS 2 里最有用的单个调试命令。看看它怎么说汇总节点：订阅 `/filtered`（那就是 `input`，被重映射了），发布 `/summary`，并提供 `/collect` 动作。而每个节点都免费获得了七个参数服务——从读单个设置到描述全部设置，一应俱全。`ros2 param` 和你的配置节点实际就是在和这些服务说话；你从没写过它们，而这正是 ROS 2 把它们免费发下来的意义。
+
+现在用上那些参数，一行代码都不用改：
+
+```text
+$ ros2 topic list
+/filtered
+/parameter_events
+/raw
+/rosout
+/stats
+$ ros2 topic hz /raw
+average rate: 10.000
+```
+
+`/summary` 变成了 `/stats`，传感器跑在 10 Hz，因为命令行上传来的是 `summary_topic:=stats` 和 `rate:=10.0`。从外部改变一个系统的接线和它的频率、而且不用重新构建，这就是 launch 参数与重映射的回报。
+
+<Callout type="info" title="Ctrl+C 与 Python 报错堆栈">
+用 Ctrl+C 停掉一个 launch 时，终端会给每个进程发 SIGINT，而 launch 会再转发一次，所以 Python 节点在关闭时有时会打印一段 KeyboardInterrupt 报错堆栈，launch 也报 “process has died … exit code -2”。官方的 Jazzy 演示节点也是如此；这是双重信号带来的噪声，不是你代码的 bug。越过它继续看，但要读最前面几行——真正的错误长得不一样，别把自己训练成对满屏红字一律无视。
+</Callout>
+
+<Quiz id="q4" question="一个节点订阅相对话题名 'input'。launch 文件里写着 remappings=[('input', 'filtered')]。它收到的数据来自哪个话题？" options={["/input", "/filtered", "/input 和 /filtered 都能收到", "除非改代码，否则什么都收不到"]} answer={1} explanation="重映射是从外部给话题改名；代码里始终写着 'input'。" />
+
+## bag 与 QoS
+
+### 录制与回放
+
+`ros2 bag` 把话题录到文件里，再按原始时序回放，Jazzy 里默认的文件格式是 MCAP。这听着不起眼，其实不然：实验室里一小时才出现一次的问题，你录一次，就能爱回放多少遍回放多少遍，因为录制根本不在乎那个 bug 有多罕见。这就是“偶尔才失败的问题该怎么调试”背后的工具——你不再试图现场抓住它，而是开始把数据留下来。
+
+在整张图运行时，录 `/raw` 和 `/filtered` 大约四秒，然后按 Ctrl+C：
+
+```text
+$ ros2 bag record -o sensor_run /raw /filtered
+[INFO] [1792444193.178419115] [rosbag2_recorder]: Subscribed to topic '/raw'
+[INFO] [1792444193.179012611] [rosbag2_recorder]: Subscribed to topic '/filtered'
+[INFO] [1792444196.860380339] [rosbag2_recorder]: Recording stopped
+$ ros2 bag info sensor_run
+
+Files:             sensor_run_0.mcap
+Bag size:          12.4 KiB
+Storage id:        mcap
+ROS Distro:        jazzy
+Duration:          3.400421477s
+Start:             Oct 20 2026 05:09:53.270130922 (1792444193.270130922)
+End:               Oct 20 2026 05:09:56.670552399 (1792444196.670552399)
+Messages:          36
+Topic information: Topic: /filtered | Type: m4_interfaces/msg/Reading | Count: 18 | Serialization Format: cdr
+                   Topic: /raw | Type: m4_interfaces/msg/Reading | Count: 18 | Serialization Format: cdr
+Service:           0
+Service information: 
+```
+
+`-o sensor_run` 给这段录制命名。`ros2 bag info` 随后讲清了全部来龙去脉：约 3.4 秒、每个话题十八条消息（折算下来约 5 Hz，正好对上传感器的频率）、以及每个话题确切的消息类型，这样以后打开这个 bag 的人都知道里面装的是什么。条数取决于你录了多久；你的不会是 18，这没关系。
+
+bag 的意义在于回放。停掉 launch，然后单独只启动滤波节点，另外开两个终端，一个打印滤波后的值，一个回放录像：
+
+```bash
+ros2 run m4_graph_cpp filter_node
+ros2 topic echo /filtered --field value
+ros2 bag play sensor_run --topics /raw
+```
+
+滤波器分不出实时传感器和一段录像——两种情况它都是订阅 `/raw`。它从录制数据里发布出来的前三个滤波值是：
+
+```text
+21.015805553261274
+21.031387544743442
+21.103138790242603
+```
+
+注意这几个数字悄悄告诉你的事。这个孤立的滤波器用的是默认的 `alpha = 0.2`，可那段录像是在 `/set_alpha` 已经把滤波器改成 0.5 之后录的——所以同一份输入会产生不同的输出。把一段录像反复喂给一个节点、同时改变它的设置，正是离线调参的方法：不用机器人、不冒风险，而且值得早点养成这个习惯。
+
+### QoS 不兼容
+
+这里有一个课程亲口承认的空白。DDS 和 QoS 在课程作者能找到的每一种资料里都讲得很差——要么直接跳过，要么一笔带过——可当某个话题在发布却谁也收不到时，答案几乎总是 QoS 不兼容。你最后会去读官方那页 Concepts 文档，出发前知道这一点挺好。
+
+QoS，即服务质量（quality of service），是每个发布者和订阅者各自携带的一组策略。只有两端兼容，连接才能建立；不兼容时，发布者照发不误，订阅者则静静空着。三条策略几乎能解释你将来会碰到的全部情况。
+
+| 策略 | 选项 | 规则 |
+| --- | --- | --- |
+| 可靠性（Reliability） | reliable（默认）/ best effort | best-effort 的发布者无法服务 reliable 的订阅者 |
+| 持久性（Durability） | volatile（默认）/ transient local | transient-local 的订阅者能拿到 transient-local 发布者保留的最后几条消息（用于地图和机器人描述）；volatile 发布者配 transient-local 订阅者则不兼容 |
+| 历史与深度（History + depth） | keep last N（默认 10）/ keep all | 队列里允许多少条消息排队等待 |
+
+可靠性那一行是你最先撞上的。传感器驱动常常故意用 best effort：`sensor_data` 配置（profile）就是围绕“丢掉一帧激光数据，也好过收到一帧迟到的”这个想法设计的，所以它不会重发。一个要求可靠投递的订阅者，无法被 best-effort 的发布者服务，而只要你去看，ROS 2 会告诉你原因。下面是演示：一个 best-effort 发布者，先配一个 reliable 订阅者，再配一个 best-effort 的。
+
+```text
+$ ros2 topic echo --qos-reliability reliable /qos_demo std_msgs/msg/String
+[WARN] [1792444212.682225980] [_ros2cli_440298]: New publisher discovered on topic '/qos_demo', offering incompatible QoS. No messages will be received from it. Last incompatible policy: RELIABILITY
+$ ros2 topic echo --qos-reliability best_effort /qos_demo std_msgs/msg/String
+data: hi
+---
+```
+
+第一个订阅者什么都收不到，并且用大白话说明了原因：发布者提供的 QoS 不兼容，最后一个不兼容的策略是 RELIABILITY。第二个订阅者改成了 best effort，立刻收到了消息。当某个话题“在发布却谁也收不到”时，这条警告就是你最好的线索。
+
+于是调试顺序很短。第一，`ros2 topic info -v <topic>`，它会列出每个端点及其 QoS——把发布者和订阅者的配置对一对。第二，如果 QoS 看着没问题，查第 1 课讲过的 `ROS_DOMAIN_ID`：处在不同域的两个终端，根本互相看不见。第三，查话题名和命名空间，因为一个小笔误或漏掉一次重映射，也会造成同样的沉默。把这张单子走完，再回头看你的代码。
+
+<Resource id="ros2-qos" />
+
+<Quiz id="q5" question="一个激光雷达驱动以 best effort 在 /scan 上发布。你的节点用默认 QoS 订阅，什么都收不到。怎么修？" options={["把订阅者改成 best effort（比如用 sensor-data 配置）", "把队列深度加到 100", "把订阅者改成 transient local", "重启激光雷达驱动"]} answer={0} explanation="默认订阅者是 reliable，而 best-effort 发布者无法服务它；改成 best-effort 订阅就匹配了。" />
+
+这就是整张图。这个主题的实践任务，就是你刚刚读到的那套系统——传感器、处理节点、配置服务、带参数的汇总节点，加上你自己的 `.msg` 和 `.srv`、一个接受参数的 launch 文件、以及一段你录下又回放的 bag——这里就不重复了，去做吧：`examples/month-4/ros2-graph` 目录里有这三个包，把它们拷进 `~/ros2_ws/src` 再构建。构建之前先改一样东西——`window`、某个 `alpha`、传感器频率——然后看什么坏了、什么没坏，因为理解正是在那里真正落地的。
+
+有一根线贯穿全课却始终没被用掉：每条消息都带着一个 `frame_id`，而没人动过它。`/raw` 和 `/filtered` 都写着 `sensor_link`，可你的机器人还没有身体，这个名字什么也不指。第 3 课会用 URDF 和 TF 给机器人装上身体，每个部件都有自己的坐标系；从那以后，消息里的 `frame_id` 必须是机器人 TF 树里真实存在的名字——你会亲眼看到名字对不上时会发生什么。

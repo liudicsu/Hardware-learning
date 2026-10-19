@@ -1,0 +1,24 @@
+$ ros2 interface show m4_interfaces/msg/Reading
+# One sample from a sensor.
+std_msgs/Header header   # stamp = when it was measured, frame_id = where
+	builtin_interfaces/Time stamp
+		int32 sec
+		uint32 nanosec
+	string frame_id
+string sensor_id
+float64 value
+$ ros2 interface show m4_interfaces/srv/SetAlpha
+# Ask the configuration node to change the filter's smoothing factor.
+float64 alpha    # 0 < alpha <= 1; smaller = smoother but slower
+---
+bool accepted
+string message
+$ ros2 interface show m4_interfaces/action/Collect
+# Collect a number of filtered readings and report their mean.
+uint32 samples       # goal: how many readings to collect
+---
+uint32 received      # result
+float64 mean
+---
+uint32 received      # feedback, sent after every reading
+float64 latest

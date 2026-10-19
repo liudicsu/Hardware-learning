@@ -1,0 +1,8 @@
+Starting >>> m4_interfaces
+Finished <<< m4_interfaces [7.66s]
+Starting >>> m4_graph_cpp
+Finished <<< m4_graph_cpp [7.53s]
+Starting >>> m4_graph
+Finished <<< m4_graph [0.72s]
+
+Summary: 3 packages finished [16.0s]
