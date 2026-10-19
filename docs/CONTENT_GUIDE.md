@@ -56,3 +56,30 @@ now (the full list is already shown at the end of the page).
 ## In-page table of contents
 
 Every `## ` heading (outside code fences) becomes an entry in the lesson's "In this lesson / 本课内容" table of contents and gets an anchor id derived from its text. Keep h2 titles short and unique within a lesson; use `###` for sub-sections that should not appear in the TOC.
+
+## Code, examples and simulated outputs (standard for every month)
+
+- **Every runnable program quoted in a lesson lives in the repo**, byte-for-byte identical to the code block:
+  sketches and scripts in `examples/month-N/<lesson-slug>/` (with a `README.md` listing hardware, wiring and build commands),
+  simulators, harnesses and toy models in `tools/sim/`.
+- **Link each such code block to its file** by putting `<CodeSource path="examples/month-2/motors-drivers/one_rev/one_rev.ino" />`
+  on its own line (blank line before and after) directly above the fence. The link points at `blob/main/<path>`.
+- **Label every output that comes from a simulator or toy model** by wrapping the fenced block:
+
+  ~~~mdx
+  <SimOutput source="avr">
+
+  ```text
+  done, count = 1441
+  ```
+
+  </SimOutput>
+  ~~~
+
+  `source="avr"` = firmware run in simavr with simulated parts; `source="model"` = a Python toy model.
+  The component shows "Simulated output / 仿真输出" and the note that real hardware values will differ.
+  Outputs from real runs on a computer (e.g. Month 1 Python, `overflow.c`) are not labelled.
+- **Reproducibility:** add every simulated run to `tools/sim/reproduce.sh` and its quoted output to `tools/sim/expected/`;
+  real computer runs go into a `check.sh` next to the examples (see `examples/month-1/check.sh`). Both must pass from a clean checkout.
+- **Long code blocks fold automatically:** any fenced block over 30 lines shows its first 15 lines with an
+  "Expand all / 展开全部" button. Every block has a Copy button. Nothing to do in MDX; just don't split code to avoid folding.

@@ -124,5 +124,19 @@
   "notFound": {
     "title": "页面不存在",
     "back": "回到首页"
+  },
+  "code": {
+    "copy": "复制",
+    "copied": "已复制",
+    "expandAll": "展开全部（{lines} 行）",
+    "collapse": "收起",
+    "source": "GitHub 源文件："
+  },
+  "sim": {
+    "label": "仿真输出",
+    "avr": "固件在 simavr 模拟器中运行，外设为模拟。",
+    "model": "Python 玩具模型的输出。",
+    "note": "真实硬件上的数值会有所不同。",
+    "reproduce": "如何复现"
   }
 }

@@ -18,6 +18,9 @@ import { Falstad } from "@/components/mdx/Falstad";
 import { Callout } from "@/components/mdx/Callout";
 import { Formula } from "@/components/mdx/Formula";
 import { H2 } from "@/components/lesson/Heading";
+import { CodeBlock } from "@/components/mdx/CodeBlock";
+import { SimOutput } from "@/components/mdx/SimOutput";
+import { CodeSource } from "@/components/mdx/CodeSource";
 import { Toc } from "@/components/lesson/Toc";
 import { lessonToc } from "@/lib/toc";
 
@@ -71,6 +74,9 @@ export default async function LessonPage({ params }: Params) {
     Callout,
     Formula,
     h2: H2,
+    pre: CodeBlock,
+    SimOutput,
+    CodeSource,
     Resource: ({ id }: { id: string }) => (
       <div className="not-prose my-6">
       <ResourceCard

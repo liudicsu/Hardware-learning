@@ -1,0 +1,10 @@
+gyro bias (deg/s): 1.54
+pitch -1.4  worst loop us 780
+pitch -0.2  worst loop us 736
+pitch 3.6  worst loop us 732
+pitch 30.0  worst loop us 732
+pitch 29.8  worst loop us 728
+pitch 30.1  worst loop us 728
+pitch 26.2  worst loop us 724
+pitch -0.1  worst loop us 732
+pitch 0.1  worst loop us 736

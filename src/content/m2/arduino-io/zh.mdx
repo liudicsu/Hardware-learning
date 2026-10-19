@@ -56,6 +56,8 @@
 
 ### 逐行读一遍
 
+<CodeSource path="examples/month-2/arduino-io/blink_custom/blink_custom.ino" />
+
 ```cpp
 // Blink with an uneven rhythm: 200 ms on, 800 ms off.
 const int LED_PIN = LED_BUILTIN;  // pin 13 on an Uno
@@ -117,6 +119,8 @@ ATmega328P 的每个数字引脚内部都有一个可开关的上拉电阻（pul
 按下时上拉电流约 5 V / 30 kΩ ≈ 0.17 mA，小到可以忽略。外接一只 10 kΩ 电阻效果相同，但用内部的能省下元件和走线。
 
 ### 只在状态变化时打印
+
+<CodeSource path="examples/month-2/arduino-io/button_pullup/button_pullup.ino" />
 
 ```cpp
 // Button between pin 2 and GND, internal pull-up enabled.
@@ -270,6 +274,8 @@ ADC 给出 0–1023，`analogWrite()` 要 0–255。最快的换算就是整数�
 
 ### 程序
 
+<CodeSource path="examples/month-2/arduino-io/pot_pwm/pot_pwm.ino" />
+
 ```cpp
 // Potentiometer wiper on A0 sets the brightness of an LED on pin 9 (PWM).
 const int POT_PIN = A0;
@@ -305,6 +311,8 @@ void loop() {
 
 我们把这个程序编译给 Uno，在 simavr 这个 AVR 仿真器里运行，没有接旋钮，而是让仿真器依次在 A0 上施加 0 V、1.0 V、2.5 V、4.0 V 和 5.0 V。下面就是真实的串口输出（已去掉重复的相同行）：
 
+<SimOutput source="avr">
+
 ```text
 raw:0,duty:0,volts:0.00
 raw:204,duty:51,volts:1.00
@@ -312,6 +320,8 @@ raw:511,duty:127,volts:2.50
 raw:818,duty:204,volts:4.00
 raw:1023,duty:255,volts:5.00
 ```
+
+</SimOutput>
 
 随手验算一行，取 `raw:818`：
 

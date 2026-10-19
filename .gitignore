@@ -42,3 +42,9 @@ next-env.d.ts
 
 # scratch space for local experiments
 .scratch/
+
+# simulation build products and outputs
+tools/sim/build/
+tools/sim/out/
+# written by examples/month-1/python-terminal/log.py
+examples/**/measurements.json

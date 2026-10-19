@@ -124,5 +124,19 @@
   "notFound": {
     "title": "Page not found",
     "back": "Back home"
+  },
+  "code": {
+    "copy": "Copy",
+    "copied": "Copied",
+    "expandAll": "Expand all ({lines} lines)",
+    "collapse": "Collapse",
+    "source": "Source on GitHub:"
+  },
+  "sim": {
+    "label": "Simulated output",
+    "avr": "Firmware run in the simavr simulator with simulated parts.",
+    "model": "Output of a Python toy model.",
+    "note": "Real hardware values will differ.",
+    "reproduce": "How to reproduce"
   }
 }

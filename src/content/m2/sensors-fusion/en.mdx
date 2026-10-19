@@ -53,6 +53,8 @@ I2C is not the only bus you will meet. SPI uses four wires — SCK, COPI (often 
 
 The first program to run with any new I2C device is not a driver. It is a scanner. It walks the 7-bit address range, asks each address whether anyone is there, and prints the ones that answer. This one short sketch saves more time than any library.
 
+<CodeSource path="examples/month-2/sensors-fusion/i2c_scanner/i2c_scanner.ino" />
+
 ```cpp
 // I2C scanner: try every 7-bit address and report the ones that answer.
 #include <Wire.h>
@@ -82,18 +84,26 @@ void loop() {}
 
 These lines come from the same simulated setup used later in the lesson, not from a physical board: an Arduino Uno firmware running under the simavr AVR simulator with a simulated MPU-6050 attached.
 
+<SimOutput source="avr">
+
 ```text
 Scanning...
 Found device at 0x68
 1 device(s) found
 ```
 
+</SimOutput>
+
 With nothing attached, the same sketch prints:
+
+<SimOutput source="avr">
 
 ```text
 Scanning...
 0 device(s) found
 ```
+
+</SimOutput>
 
 A scanner can only tell you that something answered. It cannot tell you what the device is; another chip could share the same address. That is what the WHO_AM_I register is for, a few paragraphs from here.
 
@@ -180,6 +190,8 @@ At 100 Hz (dt = 0.01 s) and α = 0.98, the correction time constant is about hal
 
 The Python script below simulates the problem before you wire anything. The board lies flat, is tilted to 30° between t = 3 s and 4 s, held there, and laid flat again between 7 s and 8 s. The simulated gyro reads 1.5 °/s too high, and the accelerometer has noise.
 
+<CodeSource path="tools/sim/models/filter_sim.py" />
+
 ```python
 """filter_sim.py: gyro drift, accelerometer noise, and the complementary filter.
 
@@ -250,6 +262,8 @@ if __name__ == "__main__":
 
 Running it prints:
 
+<SimOutput source="model">
+
 ```text
  t_s  true  gyro_only  accel_only  fused
    1   0.0        1.5         0.5    0.6
@@ -264,6 +278,8 @@ alpha  offset_flat  noise_flat  worst_error
 0.98         0.72        0.07          1.0
 0.995        2.96        0.02          3.0
 ```
+
+</SimOutput>
 
 Read the first table as three different philosophies. The gyro-only column climbs by 1.5 °/s forever: 4.6° at t = 3 s while the board is still flat, 40.6° at t = 7 s while the true angle is 30°, and 18.0° at t = 12 s after the board has returned to flat. It is always "30°-ish plus drift" while tilted, and it never comes back to zero.
 
@@ -296,6 +312,8 @@ The proper fix is not a smaller α; it is to remove the bias at the source. With
 ## On the real chip
 
 Wiring the common GY-521 breakout to an Uno is short: VCC to 5 V (the board has a 3.3 V regulator), GND to GND, SDA to A4, SCL to A5, and AD0 left unconnected for address 0x68. The same breakout has 3.3 V pull-ups on the I2C lines; check your particular board, because some bare MPU-6050 modules are 3.3 V only and have no regulator. The same sketch runs on an ESP32 with different I2C pins — call `Wire.begin(sda, scl)` with the pins you chose, classic default 21 and 22 — but the ESP32 is 3.3 V logic, so never feed it 5 V signals without checking.
+
+<CodeSource path="examples/month-2/sensors-fusion/imu_pitch/imu_pitch.ino" />
 
 ```cpp
 // MPU-6050 pitch angle three ways: gyro only, accelerometer only, complementary filter.
@@ -387,6 +405,8 @@ The loop uses the `millis()` pattern from Lesson 2 (timing and interrupts), but 
 
 The output below is not from a physical board. It comes from running the compiled Uno firmware in the simavr AVR simulator with a simulated MPU-6050 model written by the site editor: the board lies flat, is tilted to 30° between t = 3 s and 4 s, held, and laid flat again between 7 s and 8 s. The simulated gyro reads 1.5 °/s too high and the accelerometer has noise. Treat the exact digits as a demonstration of behaviour, not as a calibration of your own sensor.
 
+<SimOutput source="avr">
+
 ```text
 WHO_AM_I = 0x68
 t_s,gyro_only,accel_only,fused
@@ -404,11 +424,15 @@ t_s,gyro_only,accel_only,fused
 12.0,18.5,2.4,0.8
 ```
 
+</SimOutput>
+
 The three behaviours are exactly the ones from the Python model. The gyro-only column climbs about 1.5° per second even while the board is flat, jumps by roughly 30° when the tilt happens, keeps climbing while the board is held, and lands at 12.4° when the board is flat again — then keeps going to 18.5°. The accelerometer-only column is never far from the truth on average, but it wanders: −1.2° at t = 3 s, 32.4° at t = 5 s, 2.4° at t = 12 s. The fused column sits at 30.6–30.7° during the hold and near 0.6–1.1° when flat, within about one degree of the truth. The exact digits differ from the Python run because the noise samples and the timing are different, but the story is identical.
 
 The practice task is worth doing on real hardware. Put the IMU on the table, start the sketch, and do not touch it. The gyro-only column will still climb, because the gyro has a bias. The fused column will stay put, because the accelerometer keeps pulling it back. That contrast is the single most important lesson in state estimation: a smooth sensor can still be wrong, and a noisy sensor can still be right on average.
 
-Where next? Kalman filters are the natural sequel: <Resource id="labbe-kalman" /> is a free, runnable book that starts from the g-h filter and builds up to the full Kalman filter. For the concepts before the mathematics, the MathWorks sensor-fusion video series is a clear, visual introduction. If you would rather not implement fusion at all, an IMU with on-chip fusion such as the BNO085 hands you an orientation directly — buying your way out of the maths, at a higher price.
+Where next? Kalman filters are the natural sequel: Roger Labbe's *Kalman and Bayesian Filters in Python* is a free, runnable book that starts from the g-h filter and builds up to the full Kalman filter. For the concepts before the mathematics, the MathWorks sensor-fusion video series is a clear, visual introduction. If you would rather not implement fusion at all, an IMU with on-chip fusion such as the BNO085 hands you an orientation directly — buying your way out of the maths, at a higher price.
+
+<Resource id="labbe-kalman" />
 
 ## Common mistakes and a checklist
 

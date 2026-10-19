@@ -21,7 +21,9 @@ A stepper motor moves in fixed increments. It has no brushes and no internal fee
 By the end of the month you should understand all four: what you send to each one, what comes back, and when the extra cost of feedback is worth it. You do not need to master every driver chip, but you should be able to look at a mechanism and say which family fits and why.
 </Callout>
 
-Brushless DC motors (BLDC) are the next level. They have no brushes to wear out and can be very efficient, but they need electronic commutation and usually field-oriented control (FOC) to run smoothly. FOC is a genuinely interesting topic, not a beginner requirement. When you are ready, the SimpleFOC project is the clearest free on-ramp. <Resource id="simplefoc" />
+Brushless DC motors (BLDC) are the next level. They have no brushes to wear out and can be very efficient, but they need electronic commutation and usually field-oriented control (FOC) to run smoothly. FOC is a genuinely interesting topic, not a beginner requirement. When you are ready, the SimpleFOC project is the clearest free on-ramp.
+
+<Resource id="simplefoc" />
 
 ## DC motors, gearboxes and why duty is not speed
 
@@ -82,7 +84,9 @@ The TB6612FNG has a simple control table. Each channel has two direction inputs 
 | H | H | any | Short brake (fast stop) |
 | L | L | any | Stop (coast) |
 
-STBY must be HIGH or the outputs stay disabled and nothing moves. That pin catches almost everyone once: the code looks perfect, the motor is silent, and the only problem is a floating standby input. Tie it HIGH deliberately, or drive it from a pin so you can disable the driver in software. <Resource id="sparkfun-tb6612" />
+STBY must be HIGH or the outputs stay disabled and nothing moves. That pin catches almost everyone once: the code looks perfect, the motor is silent, and the only problem is a floating standby input. Tie it HIGH deliberately, or drive it from a pin so you can disable the driver in software.
+
+<Resource id="sparkfun-tb6612" />
 
 **Worked example.** A 7.4 V pack, an L298N with a 2 V output drop:
 
@@ -166,6 +170,8 @@ The practice task for this lesson is deliberately small and deliberately real. F
 
 Start with a toy model in Python. The model is not a hardware measurement. It is a simplified simulation written for this lesson, with a motor that responds to voltage, a dead band below which friction wins, and an encoder that counts 1440 times per wheel turn. The output below comes from running the given model exactly as printed.
 
+<CodeSource path="tools/sim/models/one_rev_sim.py" />
+
 ```python
 """one_rev_sim.py: turn a wheel exactly one revolution, open loop vs encoder feedback.
 
@@ -227,6 +233,8 @@ if __name__ == "__main__":
               f" | P + min duty: {closed_loop(battery, min_duty=0.15):5d}")
 ```
 
+<SimOutput source="model">
+
 ```text
 counts per wheel revolution: 1440
 open-loop run time (tuned at 8.4 V): 1.099 s
@@ -235,6 +243,8 @@ battery 7.4 V | open loop:  1269 | P only:  1435 | P + min duty:  1441
 battery 6.6 V | open loop:  1132 | P only:  1430 | P + min duty:  1440
 ```
 
+</SimOutput>
+
 Read the first block carefully. The open-loop time is calibrated on a fully charged 8.4 V pack. At that voltage it hits 1440 counts almost exactly. At 7.4 V it reaches only 1269 counts, and at 6.6 V only 1132. The tired pack falls short by 308 counts, which is 308 / 1440 × 360° ≈ 77°. The code did exactly what it was told: same duty, same time. The motor, however, had less voltage, so it turned more slowly and covered less ground. This is the open-loop trap in one table.
 
 The P controller fixes most of it. It measures the remaining error, 1440 minus the current count, and makes the duty proportional to that error with a gain `kp`. Near the target the duty becomes small, so the wheel slows down instead of overshooting. At 7.4 V it ends at 1435 and at 6.6 V at 1430: much better, but still a few counts short. The reason is friction. Below about 0.8 V at the motor the wheel does not move at all, so a small remaining error produces a duty that cannot overcome the dead band. The wheel stops just before the target.
@@ -242,6 +252,8 @@ The P controller fixes most of it. It measures the remaining error, 1440 minus t
 The third column adds a minimum duty. While the error is outside the tolerance, the controller never commands less than 15 % duty in the direction of travel. That is enough to keep the wheel creeping, so the error can actually reach the tolerance. At 8.4 V and 7.4 V the result is 1441 counts; at 6.6 V it is exactly 1440. Notice that this is still a P controller: the minimum duty is a patch for stiction, not an integral term. A full PID controller adds an integral term that accumulates small errors over time and a derivative term that anticipates overshoot. That is Lesson 6. For now, the lesson is that a feedback loop is only as good as its ability to keep moving when the error is small.
 
 Now the same idea on the Uno. The sketch below is the compiled firmware used for the output that follows. The output is not a hardware measurement: it comes from running this firmware in the simavr AVR simulator, connected to the same toy motor and encoder model used by the Python script. Treat it as a check of the logic and the arithmetic, not as a promise about your bench.
+
+<CodeSource path="examples/month-2/motors-drivers/one_rev/one_rev.ino" />
 
 ```cpp
 // Turn a wheel exactly one revolution using a quadrature encoder.
@@ -343,19 +355,27 @@ The QDEC table is the heart of the decoder. The index is four bits: the previous
 
 `brake()` and `drive(0)` are not the same thing. `drive(0)` sets both direction inputs low, which lets the motor coast. `brake()` sets both direction inputs high, which shorts the motor terminals inside the driver and stops it quickly. At the target, braking matters because the wheel has momentum. We ran the firmware three times in the simulator, once per battery voltage. The sketch itself prints only `done, count = …`; the battery label in front of each line is ours. With `brake()` at the target:
 
+<SimOutput source="avr">
+
 ```text
 battery 8.4 V: done, count = 1441
 battery 7.4 V: done, count = 1441
 battery 6.6 V: done, count = 1440
 ```
 
+</SimOutput>
+
 If the sketch stops with `drive(0)` instead of `brake()`, the coasting wheel carries past the target:
+
+<SimOutput source="avr">
 
 ```text
 battery 8.4 V: done, count = 1455
 battery 7.4 V: done, count = 1453
 battery 6.6 V: done, count = 1451
 ```
+
+</SimOutput>
 
 The difference is 11 to 15 counts, about 3° of wheel rotation. On a real robot expect less tidy numbers: gearbox backlash, a heavier wheel, a slightly different floor and a different motor will all move the result. Tune `MIN_PWM` by finding the smallest PWM that reliably starts your wheel from rest, then add a small margin. Tune `KP` by raising it until the wheel overshoots or buzzes around the target, then backing off. Do this at two battery voltages, because a setting that is perfect on a full pack may be too weak on a tired one.
 

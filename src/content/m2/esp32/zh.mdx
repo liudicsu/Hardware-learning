@@ -53,6 +53,8 @@ S3 有一个几乎人人都会踩的细节。很多 S3 板有两个 USB 口：�
 
 下面是第一个程序，它让板载 LED 闪烁，并报告自己是什么芯片：
 
+<CodeSource path="examples/month-2/esp32/chip_info/chip_info.ino" />
+
 ```cpp
 // Blink the on-board LED and report which chip this is.
 // Set LED_PIN to your board's LED (many classic DevKits: 2; check your board's pinout).
@@ -210,6 +212,8 @@ angle 180 -> duty 1638
 - 舵机 − → GND，与 ESP32 共地。
 - 电位器两端 → 3.3 V 和 GND。
 - 电位器中间抽头 → 经典 ESP32 用 GPIO 34，S3 用 GPIO 4。
+
+<CodeSource path="examples/month-2/esp32/web_servo/web_servo.ino" />
 
 ```cpp
 // ESP32 web servo: a phone on the same Wi-Fi sees a live reading
