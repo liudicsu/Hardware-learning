@@ -1205,6 +1205,46 @@ export const resources: Record<string, Resource> = {
     },
     license: { zh: "文档以 CC BY 4.0 发布，© Open Robotics；仅提供外链", en: "Docs under CC BY 4.0, © Open Robotics; external link only" },
   },
+  "gazebo-docs": {
+    id: "gazebo-docs",
+    url: "https://gazebosim.org/docs/latest/getstarted/",
+    title: { zh: "Gazebo 官方文档与教程", en: "Gazebo documentation and tutorials" },
+    author: "Open Robotics / Gazebo contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "从这里开始：搭自己的机器人、让它动起来、写 SDF 世界、加传感器、把 URDF 放进仿真。页面顶部可以切换 Gazebo 版本，用 Jazzy 就选 Harmonic。",
+      en: "The place to start: building your own robot, moving it, SDF worlds, sensors and spawning a URDF. The version picker at the top matters: with Jazzy, choose Harmonic.",
+    },
+    license: { zh: "© Open Robotics，仅提供外链", en: "© Open Robotics; external link only" },
+  },
+  "mujoco-sim": {
+    id: "mujoco-sim",
+    url: "https://mujoco.readthedocs.io/en/stable/overview.html",
+    title: { zh: "MuJoCo 文档", en: "MuJoCo documentation" },
+    author: "Google DeepMind",
+    kind: "simulator",
+    cost: { zh: "免费，开源", en: "Free, open source" },
+    summary: {
+      zh: "接触动力学又快又准，以 CPU 为主、不需要 GPU，是足式运动和操作学习研究的标准工具。想做强化学习或腿式机器人时再来。",
+      en: "Fast, accurate contact dynamics, CPU-first so it needs no GPU, and the research standard for locomotion and manipulation learning. Come here when you want reinforcement learning or legged robots.",
+    },
+    license: { zh: "Apache-2.0，仅提供外链", en: "Apache-2.0; external link only" },
+  },
+  "isaac-sim": {
+    id: "isaac-sim",
+    url: "https://docs.isaacsim.omniverse.nvidia.com/6.0.0/installation/requirements.html",
+    title: { zh: "NVIDIA Isaac Sim 系统要求", en: "NVIDIA Isaac Sim system requirements" },
+    author: "NVIDIA",
+    kind: "simulator",
+    cost: { zh: "免费下载（但需要高端 RTX 显卡）", en: "Free download (but needs a high-end RTX GPU)" },
+    summary: {
+      zh: "照片级仿真和合成数据生成。先读这页要求：最低 RTX 4080、16 GB 显存、32 GB 内存；A100、H100 这类没有 RT 核心的数据中心卡完全不支持。",
+      en: "Photoreal simulation and synthetic data. Read this page first: the minimum is an RTX 4080 with 16 GB of VRAM and 32 GB of RAM, and data-centre cards without RT cores, such as the A100 and H100, are not supported at all.",
+    },
+    license: { zh: "© NVIDIA，仅提供外链", en: "© NVIDIA; external link only" },
+    extra: true,
+  },
 };
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

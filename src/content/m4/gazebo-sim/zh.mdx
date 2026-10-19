@@ -1,0 +1,700 @@
+这一课，机器人终于离开图纸。第 3 课里你用 xacro 描述了 m4bot，在 RViz 里看它的 TF 树；那时它不会动，也碰不到任何东西，周围只有一张空网格。现在，同一台机器人被放进 Gazebo 这个物理仿真器里，站在一个有四面墙和三个障碍物的房间中。我们给它装上激光雷达（lidar）和相机（camera），把数据桥接进 ROS 2，再拿世界文件手算一遍来核对数字。这正是原课程在本主题的练习任务：把上一课的 xacro 机器人放进 Gazebo，加激光雷达插件和相机插件，自己写一个带障碍物的 SDF 世界，并确认传感器数据出现在 ROS 2 话题上、能在 RViz 里显示。这一课就用 m4bot 把它从头做一遍。本月的里程碑说起来很简单，也真的很实用：**在 Gazebo 里仿真你的机器人，让激光雷达和相机都能工作**。
+
+本课引用的所有输出，都来自真实的 ROS 2 Jazzy 软件驱动 Gazebo Harmonic（gz-sim 8.10）中的仿真机器人，运行在网站编辑的电脑上：Debian 13、RoboStack 安装、无头模式（headless）、没有 GPU。物理和传感器噪声会让每次运行略有不同，你机器上的数字会在最后几位上有差异，这是正常的。目标从来不是逐字符对上截图，而是弄懂每个数字从哪来——这样当真实传感器和你吵架时，你知道该信谁。
+
+## 哪个 Gazebo
+
+机器人领域很少有哪个名字比它更让人糊涂，所以先用一段话把来龙去脉讲清。Gazebo Classic 指版本号从 1 排到 11 的那个老仿真器，它已经在 2025 年 1 月停止维护（end of life）。它的继任者是重写而非升级，有一段时间叫 Ignition Gazebo。2022 年 4 月，项目把名字改回朴素的 Gazebo，所有 `ign` 命令都变成了 `gz`。所以今天说“Gazebo”指的是新仿真器，说“Gazebo Classic”指的是老的，而“Ignition”是你在旧论坛帖里还会遇到的历史名称。改名没有改变物理引擎，却改变了命令、插件名和文档——这已经足够让 2022 年以前写的教程全部失效。
+
+这段历史给了你一个很实用的过滤器。过时的教程通常在第一屏就露馅：
+
+- 它敲的是 `roslaunch`（ROS 1 的命令）或 `ros2 launch gazebo_ros ...`；
+- 它运行 `ign gazebo`，而不是 `gz sim`；
+- 它的 URDF 加载名为 `libgazebo_ros_*.so` 的插件；
+- 它把 `.world` 文件和 `gazebo_ros_pkgs` 当成现在的主流。
+
+这些做法本身没有错，只是曾经正确。但在 Jazzy 上照着做，你会把一下午浪费在找不到的软件包和改了名的插件上。关掉那个标签页，去找 Harmonic 时代的教程。
+
+当前的 Gazebo 版本按字母顺序命名：Fortress、Garden、Harmonic、Ionic、Jetty。Garden 已经停止维护，所以推荐它的教程即使名字看起来很新，内容也已经过时。安装时要选和你的 ROS 2 发行版配对的版本，否则你会和一堆跟机器人毫无关系的编译错误搏斗。
+
+| ROS 2 发行版 | Gazebo 版本 | 说明 |
+| --- | --- | --- |
+| Humble | Fortress | LTS 配对 |
+| Jazzy | Harmonic | LTS 配对，本课使用的组合 |
+| Kilted | Ionic | — |
+| Lyrical | Jetty | LTS 配对，最新 |
+
+依据是 Gazebo 官方文档的兼容性表格，它同时把其他组合标注为“possible, but use with caution”（可能可行，但请谨慎使用）。实践中的“谨慎使用”意思是：你是第一个尝试这个组合的人，编译错误得你自己扛。ROS-Gazebo 桥接是针对特定 Gazebo 版本编译的，版本不匹配时可能编译通过、运行时才失败，而这是最难查的一类故障。
+
+在 Ubuntu 24.04 配 Jazzy 的环境里，一条命令就能装好正确的 Gazebo 和 ROS 桥接：
+
+```bash
+sudo apt install ros-jazzy-ros-gz
+```
+
+这个包名本身就是一小段历史课：`gazebo_ros_pkgs` 连接的是 ROS 和 Gazebo Classic，`ros_gz` 连接的是 ROS 2 和新版 Gazebo。`gazebo_ros_pkgs` 根本没有 Jazzy 版本，所以让你安装它的教程，写于上一个时代。装完可以运行 `gz sim --versions`，确认拿到的是 8.x，而不是系统里残留的旧版本。
+
+<Quiz id="q1" question="某教程一上来就运行 'ign gazebo shapes.sdf'，还加载 libgazebo_ros_diff_drive.so。这说明什么？" options={["它是最新的，能在 Jazzy 上正常工作", "它是为旧版 Gazebo 写的，你需要翻译命令和插件名", "它需要 GPU", "它是给 MuJoCo 用的"]} answer={1} explanation="ign 是 2022 年以前 gz 工具的旧名字，libgazebo_ros_* 插件属于 Gazebo Classic；两者都是教程过时的信号。" />
+
+## 选哪个仿真器
+
+ROS 2 能和不止一个仿真器通信，而“该学哪个”的诚实答案是“学和你当前目标匹配的那个”。原课程的决策框架短到可以记在脑子里：先学 Gazebo，因为它是唯一和 ROS 2 原生接好的；当接触动力学和学习是重点时用 MuJoCo；只有当你真有硬件、也真有具体理由时才上 Isaac Sim。
+
+| 仿真器 | 成本与硬件 | 强项 | 什么时候用 |
+| --- | --- | --- | --- |
+| Gazebo | 免费，你现在这台笔记本就能跑 | 唯一与 ROS 2 原生打通的仿真器 | 第一个学它 |
+| MuJoCo | 免费、开源、以 CPU 为主、不需要 GPU | 接触动力学最快也最准；足式运动与操作学习的研究标准 | 强化学习、腿式机器人 |
+| NVIDIA Isaac Sim / Isaac Lab | 免费下载，但最低要求 RTX 4080、16 GB 显存、32 GB 内存；没有 RT 核心的数据中心卡（A100、H100）不受支持 | 照片级渲染与合成数据 | 只有具备 RTX 硬件且有明确理由时 |
+
+Gazebo 的优势不是它的物理最漂亮，而是整个 ROS 2 生态都默认它：桥接、launch 文件、传感器消息类型，以及你以后会读的一半教程，全都以它为前提。对第一台机器人来说，这种集成度比任何跑分都值钱。它还能跑在普通核显上，所以这一课才能在一台完全没有 GPU 的机器上制作出来。
+
+MuJoCo 在接触占主导时胜出：一只脚落地、夹爪合拢、手操纵工具。它以 CPU 为主，不需要显卡，也是机器人学习论文里的默认工具。如果你的兴趣是强化学习或腿式机器人，早晚会走到那里。但它不是学习 ROS 2 话题和 TF 如何配合的自然场所。
+
+Isaac Sim 和 Isaac Lab 是照片级选项，而且它们对价格很诚实：下载免费，但最低配置是 RTX 4080、16 GB 显存和 32 GB 内存。A100、H100 这类数据中心卡完全不支持，因为它们没有 RT 核心；花更多钱买计算卡也帮不上忙。合成数据生成、一个堆满逼真托盘的仓库、或者在仿真里训练基于相机的策略，都是好理由。“视频里看起来很酷”不是。
+
+还有两个名字经常出现，而诚实的更新比最初的结论更重要。PyBullet：原课程的建议是跳过它，原先的理由是“2022 年以来没有发布新版本”。这个具体说法现在略微过时了：PyPI 上能看到 2023 年 11 月的 3.2.6 和 2025 年 1 月的 3.2.7，项目并没有死。但建议仍然成立——偶尔的维护性发布不等于活跃开发，PyBullet 也不是新机器人工作发生的地方。只有当某个现成代码库逼着你用时，才去学它。
+
+Genesis 是相反的情况。原课程说可以关注它，但暂时不要把作品集押在它上面，因为 1.0 版本刚发布不久，而且没有 ROS 2 集成。此后它发展很快：2026 年 9 月 PyPI 上出现了 1.4.0，10 月已经到了 1.4.4。发展快是双刃剑，功能来得快，API 也变得快。依赖它之前先查它当前的 ROS 2 支持，并且在集成被验证之前，把项目控制在小规模。
+
+<Resource id="mujoco-sim" />
+
+<Resource id="isaac-sim" />
+
+## 自己的世界
+
+URDF 为 ROS 描述一台机器人：连杆、关节、惯量、坐标系。SDF（Simulation Description Format）是 Gazebo 的原生格式，描述的却是一个完整世界：太阳、地面、静态障碍物，以及站在其中的机器人。两种格式有重叠，但回答的是不同问题。你把 URDF 生成到仿真里时，Gazebo 会在内部把它转换成 SDF，这也是为什么 URDF 可以在 `<gazebo>` 标签里携带仿真专用信息，同时不破坏 RViz。
+
+下面是本课使用的世界。它刻意做得很小，而且完全自包含。
+
+<CodeSource path="examples/month-4/gazebo-sim/m4_gazebo/worlds/obstacles.sdf" />
+
+```xml
+<?xml version="1.0"?>
+<!-- A 6 m x 6 m walled room with three obstacles. Everything is defined here,
+     so the world loads without downloading models. -->
+<sdf version="1.9">
+  <world name="obstacles">
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.9 0.9 0.9 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><plane><normal>0 0 1</normal><size>20 20</size></plane></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><plane><normal>0 0 1</normal><size>20 20</size></plane></geometry>
+          <material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- four walls, 0.1 m thick, 0.5 m high; inner faces at x = +-2.95 and y = +-2.95 -->
+    <model name="walls">
+      <static>true</static>
+      <link name="link">
+        <collision name="north_c"><pose>3 0 0.25 0 0 0</pose><geometry><box><size>0.1 6.0 0.5</size></box></geometry></collision>
+        <visual name="north_v"><pose>3 0 0.25 0 0 0</pose><geometry><box><size>0.1 6.0 0.5</size></box></geometry>
+          <material><ambient>0.8 0.8 0.75 1</ambient><diffuse>0.8 0.8 0.75 1</diffuse></material></visual>
+        <collision name="south_c"><pose>-3 0 0.25 0 0 0</pose><geometry><box><size>0.1 6.0 0.5</size></box></geometry></collision>
+        <visual name="south_v"><pose>-3 0 0.25 0 0 0</pose><geometry><box><size>0.1 6.0 0.5</size></box></geometry>
+          <material><ambient>0.8 0.8 0.75 1</ambient><diffuse>0.8 0.8 0.75 1</diffuse></material></visual>
+        <collision name="west_c"><pose>0 3 0.25 0 0 0</pose><geometry><box><size>6.1 0.1 0.5</size></box></geometry></collision>
+        <visual name="west_v"><pose>0 3 0.25 0 0 0</pose><geometry><box><size>6.1 0.1 0.5</size></box></geometry>
+          <material><ambient>0.8 0.8 0.75 1</ambient><diffuse>0.8 0.8 0.75 1</diffuse></material></visual>
+        <collision name="east_c"><pose>0 -3 0.25 0 0 0</pose><geometry><box><size>6.1 0.1 0.5</size></box></geometry></collision>
+        <visual name="east_v"><pose>0 -3 0.25 0 0 0</pose><geometry><box><size>6.1 0.1 0.5</size></box></geometry>
+          <material><ambient>0.8 0.8 0.75 1</ambient><diffuse>0.8 0.8 0.75 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <!-- straight ahead of the robot: a red box, front face at x = 1.8 -->
+    <model name="red_box">
+      <static>true</static>
+      <pose>2.0 0 0.25 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.4 0.4 0.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.4 0.4 0.5</size></box></geometry>
+          <material><ambient>0.8 0.1 0.1 1</ambient><diffuse>0.8 0.1 0.1 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <!-- to the front right: a blue pillar -->
+    <model name="blue_pillar">
+      <static>true</static>
+      <pose>1.0 -1.2 0.4 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><cylinder><radius>0.25</radius><length>0.8</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.25</radius><length>0.8</length></cylinder></geometry>
+          <material><ambient>0.1 0.2 0.8 1</ambient><diffuse>0.1 0.2 0.8 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <!-- behind on the left: a long green block -->
+    <model name="green_block">
+      <static>true</static>
+      <pose>-1.5 1.5 0.2 0 0 0.6</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>1.2 0.3 0.4</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>1.2 0.3 0.4</size></box></geometry>
+          <material><ambient>0.1 0.6 0.2 1</ambient><diffuse>0.1 0.6 0.2 1</diffuse></material></visual>
+      </link>
+    </model>
+  </world>
+</sdf>
+```
+
+顶部四个系统插件决定了这个世界能不能工作。Physics 每 1 ms 推进一步仿真，这就是 `<max_step_size>0.001</max_step_size>` 的含义。UserCommands 允许生成器之类的工具往运行中的世界里添加实体。SceneBroadcaster 把场景送给图形界面，所以无头运行也需要它——你以后可能接一个客户端上来看。Sensors 用 ogre2 引擎渲染激光雷达和相机；没有这个插件，传感器虽然存在，却什么都不会发布，看起来和桥接坏掉一模一样，直到你学会先检查世界文件。
+
+`<static>true</static>` 表示这个障碍物永不移动，因此不消耗物理计算。测试世界里的墙、方块和柱子不需要被撞倒，标成静态既省时间，也少一个意外来源。位姿（pose）按 x y z roll pitch yaw 书写，单位是米和弧度；方块的位姿是它的中心，不是某个角。红色方块宽 0.4 m，中心在 x = 2.0，所以它的前表面在 2.0 − 0.4/2 = 2.0 − 0.2 = 1.80 m。墙厚 0.1 m，中心在 ±3.0 m，所以内表面在 3.0 − 0.05 = 2.95 m。这两个数 1.80 和 2.95 后面还会用到，现在先把它们记下来。
+
+所有东西都写在文件里，而不是从 Gazebo 的在线模型库 Fuel 下载。这是刻意的选择：世界可以离线加载，每次都一样，也不会因为模型服务器慢而失败。在编辑的机器上，Fuel 下载根本连不上，如果教程要求“下载太阳和地面”，这一课就根本没法复现。把几十行内容复制进文件，比依赖网络便宜得多。
+
+![Gazebo 窗口中的 m4bot：灰色围墙房间中央一台橙色小机器人，前方一个红色方块，右前方一根蓝色柱子，左后方一块长条绿色方块](/m4/gz_world.png)
+
+这张截图是在虚拟屏幕（没有接显示器）上抓的，由 CPU 做软件渲染。有 GPU 只会让窗口更流畅，画面不会不同：几何、阴影和传感器数据都一样，而本课关心的是数据。
+
+## 给机器人装上传感器
+
+第 3 课的描述原封不动。第二个 xacro 引用它，只添加仿真需要的东西，这样只给 RViz 用的包继续照常工作。这种分离不是为了整洁好看：等真实机器人到货时，你会希望同一份 URDF 继续负责 TF，而 Gazebo 用另一个变体；混在一起会让两边都更难查。
+
+<CodeSource path="examples/month-4/gazebo-sim/m4_gazebo/urdf/m4bot_gz.urdf.xacro" />
+
+```xml
+<?xml version="1.0"?>
+<!-- m4bot for Gazebo: the Lesson 3 description plus what only a simulator needs:
+     friction, a lidar, a camera, a diff-drive plugin and joint plugins. -->
+<robot name="m4bot" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:include filename="$(find m4_description)/urdf/robot.urdf.xacro"/>
+
+  <!-- the caster ball should slide, the wheels should grip -->
+  <gazebo reference="caster_link">
+    <mu1>0.001</mu1>
+    <mu2>0.001</mu2>
+  </gazebo>
+  <gazebo reference="left_wheel_link">
+    <mu1>1.0</mu1>
+    <mu2>1.0</mu2>
+  </gazebo>
+  <gazebo reference="right_wheel_link">
+    <mu1>1.0</mu1>
+    <mu2>1.0</mu2>
+  </gazebo>
+
+  <!-- 2D lidar: 360 beams, 10 Hz. min 0.20 m so the beams that hit our own mast are dropped. -->
+  <gazebo reference="lidar_link">
+    <sensor name="lidar" type="gpu_lidar">
+      <topic>scan</topic>
+      <gz_frame_id>lidar_link</gz_frame_id>   <!-- the frame_id in every LaserScan -->
+      <update_rate>10</update_rate>
+      <always_on>true</always_on>
+      <lidar>
+        <scan>
+          <horizontal>
+            <samples>360</samples>
+            <min_angle>-3.14159</min_angle>
+            <max_angle>3.12414</max_angle>   <!-- pi - 1 degree: 360 beams, exactly 1 degree apart -->
+          </horizontal>
+        </scan>
+        <range>
+          <min>0.20</min>
+          <max>8.0</max>
+          <resolution>0.01</resolution>
+        </range>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.01</stddev>
+        </noise>
+      </lidar>
+    </sensor>
+  </gazebo>
+
+  <!-- camera: looks along camera_link's x axis; images are stamped with the optical frame -->
+  <gazebo reference="camera_link">
+    <sensor name="camera" type="camera">
+      <topic>camera/image_raw</topic>
+      <gz_frame_id>camera_optical_link</gz_frame_id>
+      <update_rate>15</update_rate>
+      <always_on>true</always_on>
+      <camera>
+        <camera_info_topic>camera/camera_info</camera_info_topic>
+        <horizontal_fov>1.047</horizontal_fov>
+        <image>
+          <width>640</width>
+          <height>480</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip>
+          <near>0.05</near>
+          <far>20</far>
+        </clip>
+      </camera>
+    </sensor>
+  </gazebo>
+
+  <gazebo>
+    <!-- drive: listens on cmd_vel, publishes odom and the odom -> base_footprint transform.
+         Lesson 5 replaces this plugin with ros2_control. -->
+    <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
+      <left_joint>left_wheel_joint</left_joint>
+      <right_joint>right_wheel_joint</right_joint>
+      <wheel_separation>${wheel_separation}</wheel_separation>
+      <wheel_radius>${wheel_radius}</wheel_radius>
+      <topic>cmd_vel</topic>
+      <odom_topic>odom</odom_topic>
+      <tf_topic>tf</tf_topic>
+      <frame_id>odom</frame_id>
+      <child_frame_id>base_footprint</child_frame_id>
+      <odom_publish_frequency>30</odom_publish_frequency>
+    </plugin>
+    <!-- report every joint's position, so robot_state_publisher can publish the TF -->
+    <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
+      <topic>joint_states</topic>
+    </plugin>
+    <!-- hold the pan-tilt head where it is told (otherwise gravity tips the camera over) -->
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>pan_joint</joint_name>
+      <topic>pan_cmd</topic>
+      <p_gain>2.0</p_gain>
+      <d_gain>0.05</d_gain>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>tilt_joint</joint_name>
+      <topic>tilt_cmd</topic>
+      <p_gain>2.0</p_gain>
+      <d_gain>0.05</d_gain>
+    </plugin>
+  </gazebo>
+
+</robot>
+```
+
+文件里有六个细节值得弄懂，因为它们也正是别人机器人坏掉的六个地方：
+
+1. `$(find m4_description)` 在 xacro 运行时（这里是每次启动 launch 文件时）定位另一个包。描述包和 Gazebo 包保持分离，所以第 3 课那套只用 RViz 的流程不必安装 Gazebo，这个包也不必复制机器人的几何。
+2. `<gazebo reference="link">` 给指定连杆添加仅仿真使用的属性。这里是摩擦系数 `mu1` 和 `mu2`：轮子抓地取 1.0，万向球滑动取 0.001。没有这个差别，万向球会拖地，机器人会跑偏，而你会花一个小时去怪差速驱动插件，其实问题在摩擦。
+3. 激光雷达是 `gpu_lidar`，360 条光束，从 −180° 到 179°。最大角是 π 减去 1°（3.12414 rad），这样第一条和最后一条光束不指向同一个方向，你得到恰好 360 个不同方向，间隔 1°。它每秒更新 10 次，量程 0.20 m 到 8 m，并加入标准差 1 cm 的高斯噪声。
+4. `<gz_frame_id>` 设定写进每条消息的 `frame_id`，而且它必须是 URDF 里真实存在的连杆名。这里是扫描用 `lidar_link`，图像用 `camera_optical_link`。这就是第 3 课坐标系纪律的实践：消息里的坐标系在 TF 中不存在，数据再好，RViz 也用不了。
+5. 相机装在 `camera_link` 上，这个连杆的 x 轴朝前，也正是 Gazebo 相机看向的方向。但图像盖的是 `camera_optical_link` 的戳，这是图像工具期待的光学坐标系：z 轴朝前，x 轴朝右。传感器装在一个连杆上，照片却用另一个坐标系标注。这不是 bug，是约定。
+6. 三类 Gazebo 插件在干活。DiffDrive 监听 `cmd_vel`，发布里程计以及 `odom → base_footprint` 变换；第 5 课会用 `ros2_control` 替换它。JointStatePublisher 上报每个关节的位置，于是 `robot_state_publisher` 像第 3 课的滑块那样发布 TF。JointPositionController 把云台保持在指令位置；没有它，物理一开始，重力就会把相机头掀翻，你拍到的第一张图就是地板。
+
+最小量程 0.20 m 值得单独说一句。桅杆立在激光雷达后方 0.18 m 处，朝后的光束会打到机器人自己，在每次扫描里显示成一个假障碍物。真实激光雷达也会看见自己的安装结构，所以驱动都提供最小量程或角度过滤。把最小值设成 0.20 m，这些光束就被干净地丢掉了。
+
+Gazebo 加载这台机器人时会打印一条警告。下面是真实输出：
+
+<SimOutput source="ros">
+
+```text
+XML Element[gz_frame_id], child of element[sensor], not defined in SDF. Copying[gz_frame_id] as children of [sensor].
+```
+
+</SimOutput>
+
+它是无害的。URDF 到 SDF 的转换器不认识这个元素，于是原样复制过去，传感器照样读取它。证据在第 6 节：话题里带的就是正确的坐标系名。这类警告读一遍就可以忽略；真正危险的是写着“failed”或“not found”的那种，而不是“copying”。
+
+<Quiz id="q2" question="激光雷达装在机器人 x = 0.12 m 处。机器人位于原点、朝向 +x，中间没有东西，正前方那条光束对 x = 2.95 m 处的墙内表面会报告多少米？" answer={2.83} unit="m" tolerance={0.01} explanation="2.95 − 0.12 = 2.83 m：激光雷达从自己的坐标系量起，不是从机器人中心。" />
+
+## 启动与桥接
+
+Gazebo 和 ROS 2 是两套独立系统，各有各的传输层。Gazebo 用自己的消息类型往自己的话题上发布；在某个东西把选定的话题复制过来并转换类型之前，ROS 2 节点根本看不见它们。这个东西就是 `ros_gz_bridge`。桥接故意做得很显式：你列出每个话题、它在两边的类型以及方向，除此之外什么也不过来。这听起来麻烦，直到你有一台四十个话题的机器人，想知道到底哪十个进了 ROS 2。
+
+<CodeSource path="examples/month-4/gazebo-sim/m4_gazebo/config/bridge.yaml" />
+
+```yaml
+# ros_gz_bridge: which Gazebo topics appear in ROS 2, with which message types.
+# GZ_TO_ROS = sensor data and state coming out of the simulator; ROS_TO_GZ = commands going in.
+- ros_topic_name: clock
+  gz_topic_name: clock
+  ros_type_name: rosgraph_msgs/msg/Clock
+  gz_type_name: gz.msgs.Clock
+  direction: GZ_TO_ROS
+- ros_topic_name: scan
+  gz_topic_name: scan
+  ros_type_name: sensor_msgs/msg/LaserScan
+  gz_type_name: gz.msgs.LaserScan
+  direction: GZ_TO_ROS
+- ros_topic_name: camera/image_raw
+  gz_topic_name: camera/image_raw
+  ros_type_name: sensor_msgs/msg/Image
+  gz_type_name: gz.msgs.Image
+  direction: GZ_TO_ROS
+- ros_topic_name: camera/camera_info
+  gz_topic_name: camera/camera_info
+  ros_type_name: sensor_msgs/msg/CameraInfo
+  gz_type_name: gz.msgs.CameraInfo
+  direction: GZ_TO_ROS
+- ros_topic_name: joint_states
+  gz_topic_name: joint_states
+  ros_type_name: sensor_msgs/msg/JointState
+  gz_type_name: gz.msgs.Model
+  direction: GZ_TO_ROS
+- ros_topic_name: odom
+  gz_topic_name: odom
+  ros_type_name: nav_msgs/msg/Odometry
+  gz_type_name: gz.msgs.Odometry
+  direction: GZ_TO_ROS
+- ros_topic_name: tf
+  gz_topic_name: tf
+  ros_type_name: tf2_msgs/msg/TFMessage
+  gz_type_name: gz.msgs.Pose_V
+  direction: GZ_TO_ROS
+- ros_topic_name: cmd_vel
+  gz_topic_name: cmd_vel
+  ros_type_name: geometry_msgs/msg/Twist
+  gz_type_name: gz.msgs.Twist
+  direction: ROS_TO_GZ
+- ros_topic_name: pan_cmd
+  gz_topic_name: pan_cmd
+  ros_type_name: std_msgs/msg/Float64
+  gz_type_name: gz.msgs.Double
+  direction: ROS_TO_GZ
+- ros_topic_name: tilt_cmd
+  gz_topic_name: tilt_cmd
+  ros_type_name: std_msgs/msg/Float64
+  gz_type_name: gz.msgs.Double
+  direction: ROS_TO_GZ
+```
+
+GZ_TO_ROS 把传感器数据和状态送出仿真器：时钟、扫描、两个相机话题、关节状态、里程计和 TF。ROS_TO_GZ 把命令送进去：速度、pan 和 tilt。`/clock` 很容易被忽略，却是文件里最重要的一行，因为所有 ROS 2 节点都靠它知道仿真认为现在几点。
+
+launch 文件按正确顺序启动所有东西。
+
+<CodeSource path="examples/month-4/gazebo-sim/m4_gazebo/launch/sim.launch.py" />
+
+```python
+"""m4bot in the obstacles world: Gazebo, the robot, the ROS-Gazebo bridge (+ RViz).
+
+ros2 launch m4_gazebo sim.launch.py                   # Gazebo window and RViz
+ros2 launch m4_gazebo sim.launch.py headless:=true    # no windows (servers, CI)"""
+import os
+
+from ament_index_python.packages import get_package_share_directory
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.conditions import IfCondition, UnlessCondition
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import Command, LaunchConfiguration
+from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
+
+
+def generate_launch_description():
+    share = get_package_share_directory('m4_gazebo')
+    world = os.path.join(share, 'worlds', 'obstacles.sdf')
+    gz_launch = os.path.join(get_package_share_directory('ros_gz_sim'), 'launch', 'gz_sim.launch.py')
+    robot_description = ParameterValue(
+        Command(['xacro ', os.path.join(share, 'urdf', 'm4bot_gz.urdf.xacro')]), value_type=str)
+    headless = LaunchConfiguration('headless')
+
+    def gazebo(gz_args, condition):
+        return IncludeLaunchDescription(PythonLaunchDescriptionSource(gz_launch),
+                                        launch_arguments={'gz_args': gz_args}.items(),
+                                        condition=condition)
+
+    return LaunchDescription([
+        DeclareLaunchArgument('headless', default_value='false',
+                              description='true = server only, no Gazebo window and no RViz'),
+        # -r: start running at once; -s: server only; --headless-rendering: sensors without a display
+        gazebo(f'-r {world}', UnlessCondition(headless)),
+        gazebo(f'-s -r --headless-rendering {world}', IfCondition(headless)),
+        # the same robot_state_publisher as Lesson 3, but on the simulator's clock
+        Node(package='robot_state_publisher', executable='robot_state_publisher',
+             parameters=[{'robot_description': robot_description, 'use_sim_time': True}]),
+        # put the robot into the running world, from the robot_description topic
+        Node(package='ros_gz_sim', executable='create',
+             arguments=['-topic', 'robot_description', '-name', 'm4bot', '-z', '0.01']),
+        # Gazebo topics <-> ROS 2 topics, as listed in bridge.yaml
+        Node(package='ros_gz_bridge', executable='parameter_bridge',
+             parameters=[{'config_file': os.path.join(share, 'config', 'bridge.yaml'),
+                          'use_sim_time': True}]),
+        Node(package='rviz2', executable='rviz2',
+             arguments=['-d', os.path.join(share, 'rviz', 'sim.rviz')],
+             parameters=[{'use_sim_time': True}], condition=UnlessCondition(headless)),
+    ])
+```
+
+它引用 `ros_gz_sim` 自带的 `gz_sim.launch.py`，而不是手动启动 `gz sim`，因为那个 include 已经知道 Gazebo 的可执行文件和插件在哪。`-r` 让仿真立刻开始跑，而不是暂停。无头版本加上 `-s`（仅服务器）和 `--headless-rendering`（没有显示器也能渲染传感器）；编辑用的就是这个组合，任何 CI 机器也应该用它。
+
+`robot_state_publisher` 和第 3 课是同一个节点，只多了一项：`use_sim_time: True`。每个和仿真器打交道的节点都必须使用来自 `/clock` 的仿真时间。否则 Gazebo 的时间戳（从仿真开始算起的秒数）和墙钟时间戳会对不上，TF 会报“extrapolation into the future”，因为某个节点在请求一个仿真还没到达的时刻的变换。这就是第 3 课调试清单里的第 5 条，现在你看到了具体原因。
+
+`create` 节点从 `robot_description` 话题生成机器人，而不是从文件路径读取。它拿到的是 `robot_state_publisher` 收到的同一份描述，所以 Gazebo 里的模型和 ROS 2 里的 TF 不可能各自漂移。末尾的 `-z 0.01` 把机器人抬高 1 cm，避免第一步就和地面相撞。
+
+构建并运行：
+
+```bash
+cp -r m4_description m4_gazebo ~/ros2_ws/src/     # m4_description from Lesson 3
+cd ~/ros2_ws && colcon build && source install/setup.bash
+ros2 launch m4_gazebo sim.launch.py              # add headless:=true on a machine without a screen
+```
+
+在没有网络连接的机器上，Gazebo 的传输层可能什么都找不到。如果 launch 卡住或话题不出现，先运行 `export GZ_IP=127.0.0.1`；编辑当时正是这么解决的。这种修复属于猜不到、知道后却简单得要命的一类。想知道传感器是不是真的在发布，可以先 `ros2 topic hz /scan`：正常应该接近 10 Hz，桥接没配好时它一声不吭。
+
+launch 日志会确认生成成功。下面是真实输出：
+
+<SimOutput source="ros">
+
+```text
+[INFO] [1792447060.986552523] [ros_gz_sim]: Entity creation successful.
+```
+
+</SimOutput>
+
+ROS 2 这边现在有这个列表。下面是真实输出：
+
+<SimOutput source="ros">
+
+```text
+$ ros2 topic list
+/camera/camera_info
+/camera/image_raw
+/clock
+/cmd_vel
+/joint_states
+/odom
+/pan_cmd
+/parameter_events
+/robot_description
+/rosout
+/scan
+/tf
+/tf_static
+/tilt_cmd
+```
+
+</SimOutput>
+
+每个桥接话题都在，另外还有 `robot_state_publisher` 发布的 `/robot_description` 和 `/tf_static`。如果某个你期待的话题不在，先查 `bridge.yaml`，别查别的。十次里有九次是传感器在正常发布，桥接没有复制那个话题，重启 Gazebo 一万次也没用。
+
+<Quiz id="q3" question="一切都在运行，但 RViz 里的机器人模型闪烁，TF 还警告 'extrapolation into the future'。最可能的原因是什么？" options={["激光雷达太快了", "某个节点用墙钟时间，而其他节点用仿真的 /clock", "世界里的障碍物太多", "桥接漏掉了 /cmd_vel"]} answer={1} explanation="Gazebo 的时间从零开始；用墙钟的节点会请求仿真尚未到达的时刻的变换。给每个节点设 use_sim_time: true。" />
+
+## 读传感器
+
+先看激光雷达。这个探针订阅 `/scan`，把五帧扫描平均以压掉噪声，然后打印一份简短摘要：多少条光束、角度范围、多少条有回波、正前方是什么、最近的东西在哪。
+
+<CodeSource path="examples/month-4/gazebo-sim/scan_probe.py" />
+
+```python
+#!/usr/bin/env python3
+"""Read five LaserScans from /scan and summarise them: what the lidar sees, in numbers.
+
+usage: python3 scan_probe.py        (with the simulation running)
+Each range is averaged over the five scans, which takes out most of the sensor noise."""
+import math
+
+import rclpy
+from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
+from sensor_msgs.msg import LaserScan
+
+
+def summarise(scans):
+    scan = scans[0]
+    n = len(scan.ranges)
+    ranges = [sum(s.ranges[i] for s in scans) / len(scans) for i in range(n)]
+    angle = lambda i: math.degrees(scan.angle_min + i * scan.angle_increment)
+    valid = [(r, i) for i, r in enumerate(ranges) if scan.range_min <= r <= scan.range_max]
+    ahead = min(range(n), key=lambda i: abs(angle(i)))         # the beam closest to 0 degrees
+    print(f'frame_id: {scan.header.frame_id}')
+    print(f'beams: {n}, from {angle(0):.1f} to {angle(n - 1):.1f} deg, '
+          f'step {math.degrees(scan.angle_increment):.2f} deg')
+    print(f'range limits: {scan.range_min:.2f} to {scan.range_max:.2f} m')
+    print(f'beams with a hit: {len(valid)}, without (inf): {n - len(valid)}')
+    print(f'straight ahead ({angle(ahead):.1f} deg): {ranges[ahead]:.2f} m')
+    r, i = min(valid)
+    # a round object returns almost the same range over several beams: report their middle
+    near = [j for d, j in valid if d <= r + 0.02 and abs(angle(j) - angle(i)) < 20]
+    print(f'nearest hit: {r:.2f} m, centred at {sum(angle(j) for j in near) / len(near):.0f} deg')
+
+
+def main():
+    rclpy.init()
+    node = Node('scan_probe')
+    got = []
+    node.create_subscription(LaserScan, 'scan', got.append, qos_profile_sensor_data)
+    while rclpy.ok() and len(got) < 5:
+        rclpy.spin_once(node, timeout_sec=0.5)
+    summarise(got[:5])
+    node.destroy_node()
+    rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
+```
+
+注意 QoS 配置：`qos_profile_sensor_data` 是 best effort，这就是第 2 课 QoS 那一节的应用。订阅传感器数据流就该这么写；它也能匹配 reliable 发布者，所以你不必先知道对面怎么配置。搞错这一点会出现最气人的情况：`ros2 topic list` 明明有话题，你的订阅者却什么都收不到。
+
+在仿真已经运行时执行：
+
+```bash
+python3 scan_probe.py
+```
+
+输出是真实的：
+
+<SimOutput source="ros">
+
+```text
+$ python3 scan_probe.py
+frame_id: lidar_link
+beams: 360, from -180.0 to 179.0 deg, step 1.00 deg
+range limits: 0.20 to 8.00 m
+beams with a hit: 360, without (inf): 0
+straight ahead (0.0 deg): 1.67 m
+nearest hit: 1.24 m, centred at -54 deg
+```
+
+</SimOutput>
+
+信任一个仿真器之前，先自己做一遍算术。两个数字都能从世界文件和 URDF 推导出来。
+
+```text
+straight ahead:
+  red box centre x = 2.00 m, width 0.40 m  ->  front face x = 2.00 - 0.40/2 = 1.80 m
+  lidar x = 0.12 m on the robot, robot at x = 0  ->  range = 1.80 - 0.12 = 1.68 m
+nearest:
+  blue pillar centre (1.00, -1.20), radius 0.25 m
+  dx = 1.00 - 0.12 = 0.88 m, dy = -1.20 m
+  distance to centre = sqrt(0.88^2 + 1.20^2) = sqrt(0.7744 + 1.44) = sqrt(2.2144) = 1.488 m
+  surface = 1.488 - 0.25 = 1.238 m ~ 1.24 m
+  direction = atan2(-1.20, 0.88) = -53.7 deg ~ -54 deg
+```
+
+探针报告 1.67 m 和 1.24 m，手算给出 1.68 m 和 1.238 m。1 cm 的差别正好是激光雷达模型里高斯噪声的量级，五帧平均能把它压小，但消除不了；这也是为什么你的运行可能打印 1.68 或 1.69。能用手算核对的仿真器，才是可信的仿真器。数字对上以后，你就可以用仿真去调试那些手算不了的东西，比如控制器。
+
+再看相机。快照脚本保存一帧为 PNG，并打印图像头部自己声明的信息。
+
+<CodeSource path="examples/month-4/gazebo-sim/snap_camera.py" />
+
+```python
+#!/usr/bin/env python3
+"""Save one frame from /camera/image_raw as a PNG, and print what the image header says.
+
+usage: python3 snap_camera.py [out.png]      (needs Pillow: pip install pillow)"""
+import sys
+
+import rclpy
+from PIL import Image as PILImage
+from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
+from sensor_msgs.msg import Image
+
+
+def main():
+    out = sys.argv[1] if len(sys.argv) > 1 else 'camera.png'
+    rclpy.init()
+    node = Node('snap_camera')
+    got = []
+    node.create_subscription(Image, 'camera/image_raw', got.append, qos_profile_sensor_data)
+    while rclpy.ok() and not got:
+        rclpy.spin_once(node, timeout_sec=0.5)
+    img = got[0]
+    print(f'frame_id: {img.header.frame_id}, {img.width} x {img.height}, encoding {img.encoding}')
+    PILImage.frombytes('RGB', (img.width, img.height), bytes(img.data)).save(out)
+    print(f'saved {out}')
+    node.destroy_node()
+    rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
+```
+
+```bash
+python3 snap_camera.py camera.png
+```
+
+<SimOutput source="ros">
+
+```text
+$ python3 snap_camera.py camera.png
+frame_id: camera_optical_link, 640 x 480, encoding rgb8
+saved camera.png
+```
+
+</SimOutput>
+
+坐标系是 `camera_optical_link`，正是第 3 课为此添加的那个坐标系。编码 `rgb8` 表示每个像素三个字节，依次是红、绿、蓝，所以字节数组是 640 × 480 × 3 = 921,600 字节。这也是脚本能把原始数据直接交给 PIL、不需要解码的原因。
+
+![m4bot 仿真相机拍到的一帧：正前方的红色方块，背后是灰色墙壁，地面浅灰](/m4/gz_camera.png)
+
+最后，两个传感器一起进 RViz。`sim.rviz` 配置会显示机器人、红色的激光点和相机图像面板。
+
+![仿真中的 RViz：左侧相机面板显示红色方块；右侧从上方看机器人，红色激光点勾勒出墙、方块、柱子和绿色长块](/m4/gz_rviz.png)
+
+这就是练习任务里“传感器数据出现在 ROS 2 话题上、并在 RViz 里渲染”的检查，从头到尾做完了。如果激光点位置不对，是坐标系名错了；如果点出现了但墙是弯的，是角度增量错了；如果相机面板全黑，是图像话题没桥接，或者相机正对着地板。还有一个新手常犯的配置错误：RViz 顶部的 Fixed Frame 要设成 `odom`（或 `base_footprint`）。如果留成 `map`，而这一课根本没有地图，激光点和模型都会消失，看起来活像传感器坏了。
+
+<Quiz id="q4" question="机器人笔直向前开了 0.50 m。正前方那条光束现在应该报告多少米？" answer={1.18} unit="m" tolerance={0.02} explanation="1.80 − (0.50 + 0.12) = 1.18 m：方块没动，激光雷达靠近了 0.50 m。" />
+
+## 开起来，互相印证
+
+用键盘开：
+
+```bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+```
+
+按键是 `i` 前进、`j` 和 `l` 转向、`k` 停止，节点往 `/cmd_vel` 发布 `geometry_msgs/Twist`。这是最快找到手感的方式，但它不可重复：你的按键节奏是人的节奏。
+
+要做可重复的测试，编辑只发了一条命令，等大约四秒，再发停止，然后拿里程计和激光雷达对照。下面是真实输出：
+
+<SimOutput source="ros">
+
+```text
+$ ros2 topic echo --once /odom --field pose.pose.position
+x: -2.315490468450792e-19
+y: 3.441733634253394e-38
+z: 0.0
+---
+$ ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}"   # then wait 4 s
+$ ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist "{}"
+$ ros2 topic echo --once /odom --field pose.pose.position
+x: 0.9497999999999838
+y: 1.6561290378733758e-20
+z: 0.0
+---
+$ python3 scan_probe.py | grep ahead
+straight ahead (0.0 deg): 0.73 m
+```
+
+</SimOutput>
+
+慢慢读。里程计说机器人从 x ≈ 0 走到了 0.95 m；那些 e-19、e-38 的小数字是浮点舍入噪声，也就是零。以 0.2 m/s 走 4 s，本该是 0.80 m，但每条 `ros2` 命令启动都要一点时间，停止命令到得比四秒晚。命令行不是实时工具，多出来的 0.15 m 就是启动延迟。
+
+再和激光雷达对账。它现在读到的方块距离是 0.73 m，里程计说机器人走了 0.95 m。相加：0.95 + 0.73 = 1.68 m，而开始时测得 1.67 m（手算 1.68 m）。里程计和激光雷达在 1 cm 的传感器噪声范围内一致。在仿真里这种一致太容易了，因为轮子永不打滑，里程计完美无缺。真实机器人上里程计会漂移，而漂移正是第 6 课 SLAM 用激光雷达去修正的东西。
+
+<Quiz id="q5" question="上面的运行里，机器人走了 0.95 m，而不是 0.2 m/s × 4 s = 0.80 m。为什么？" options={["Gazebo 的物理算错了", "停止命令比 4 s 晚到，因为每条 ros2 命令启动都需要时间", "轮子打滑了", "激光雷达推动了机器人"]} answer={1} explanation="差速驱动插件会保持上一条命令，直到新命令到达；多出的 0.15 m 就是 0.2 m/s 下的 0.75 s 命令行启动延迟。" />
+
+现在做练习任务，用你自己的机器人。把第 3 课的 xacro 机器人放进你自己的 SDF 世界，摆上障碍物，加激光雷达和相机，确认两者都出现在 ROS 2 话题和 RViz 里。按这份清单逐条过：
+
+1. 世界能离线加载，没有 Fuel 下载，也没有找不到模型。
+2. 机器人生成后待着不动。如果它跳、抖或下沉，先用第 3 课的 `inertia_check.py` 查惯量，再改别的。
+3. `ros2 topic list` 里能看到 `/scan` 和 `/camera/image_raw`。
+4. `frame_id` 是 URDF 里真实存在的连杆名，不是随手编的名字。
+5. 扫描的正前方距离和从世界文件手算的结果一致。
+6. RViz 里能看到激光点和相机图像，而且机器人和它们对得上。
+
+`examples/month-4/gazebo-sim` 文件夹里有这个包和两个脚本；编辑的运行可以用 `tools/sim/ros/run.sh` 复现。
+
+<Resource id="gazebo-docs" />
+
+第 5 课会拆掉 DiffDrive 插件，改用 `ros2_control` 驱动 m4bot，和真实机器人的电机被驱动的方式一样。激光雷达和相机原封不动，因为传感器不关心是谁在命令轮子。当你看到扫描数字和世界文件对上时，你就拥有了一张零成本、永远不会坏掉的测试台。

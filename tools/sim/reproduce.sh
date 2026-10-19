@@ -105,6 +105,12 @@ echo "== comparing with expected/"
 fail=0
 for f in "$SIM"/expected/*.txt; do
   n="$(basename "$f")"
+  [[ "$n" == m4-ros-* ]] && continue   # compared by ros/run.sh below, with a tolerance
   if diff -u "$f" "$OUT/$n" > "$OUT/$n.diff"; then echo "same  $n"; rm "$OUT/$n.diff"; else echo "DIFF  $n (see $OUT/$n.diff)"; fail=1; fi
 done
+
+# Month 4: real ROS 2 software driving a simulated robot (Gazebo, mock hardware); skipped with a
+# message when ROS 2 Jazzy is not sourced
+echo "== Month 4 ROS 2 runs (tools/sim/ros/run.sh)"
+"$SIM/ros/run.sh" || fail=1
 exit $fail

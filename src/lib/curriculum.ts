@@ -356,6 +356,23 @@ const month4Lessons: Lesson[] = [
       { id: "broken", text: { zh: "故意弄断 TF 树（不发 joint_states、用错 frame 名），读懂报错，再修好", en: "Break the TF tree on purpose (no joint_states, a wrong frame name), read the errors, then fix them" } },
     ],
   },
+  {
+    slug: "gazebo-sim",
+    title: { zh: "仿真：把机器人放进 Gazebo", en: "Simulation: your robot in Gazebo" },
+    summary: {
+      zh: "理清 Gazebo 的命名历史和版本配对，选对仿真器（Gazebo、MuJoCo、Isaac Sim）；然后写一个带障碍物的 SDF 世界，把上一课的 xacro 机器人放进去，加上激光雷达和相机，通过 ros_gz_bridge 在 ROS 2 和 RViz 里看到传感器数据。",
+      en: "Untangle Gazebo's naming history and version pairing and pick the right simulator (Gazebo, MuJoCo, Isaac Sim); then write an SDF world with obstacles, put last lesson's xacro robot into it with a lidar and a camera, and see the sensor data in ROS 2 and RViz through ros_gz_bridge.",
+    },
+    minutes: 240,
+    resources: ["gazebo-docs", "mujoco-sim", "isaac-sim"],
+    tasks: [
+      { id: "versions", text: { zh: "确认你的 ROS 2 发行版配哪个 Gazebo 版本，并找一篇用 gazebo_ros 或 ign gazebo 的过时教程", en: "Confirm which Gazebo release pairs with your ROS 2 distro, and find one outdated tutorial that uses gazebo_ros or ign gazebo" } },
+      { id: "world", text: { zh: "写一个自己的 SDF 世界：地面、光照、四面墙和至少三个障碍物，不依赖在线模型", en: "Write your own SDF world: ground, light, four walls and at least three obstacles, with no downloaded models" } },
+      { id: "sensors", text: { zh: "给你的 xacro 机器人加上激光雷达和相机插件，frame_id 用你 URDF 里的连杆名", en: "Add a lidar and a camera to your xacro robot, with frame_ids that are link names from your URDF" } },
+      { id: "bridge", text: { zh: "用 ros_gz_bridge 把 /scan、/camera/image_raw、/odom、/cmd_vel 接进 ROS 2，在 RViz 里同时看到激光点和相机画面", en: "Bridge /scan, /camera/image_raw, /odom and /cmd_vel into ROS 2 and see the laser points and the camera image together in RViz" } },
+      { id: "check", text: { zh: "手算机器人到正前方障碍物的距离，再用 scan_probe.py 核对；开一段距离后，用里程计和激光读数互相印证", en: "Work out the distance to the obstacle straight ahead by hand and check it with scan_probe.py; drive forward and check odometry and lidar against each other" } },
+    ],
+  },
 ];
 
 export const months: Month[] = [

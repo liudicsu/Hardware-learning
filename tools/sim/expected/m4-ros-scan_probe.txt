@@ -1,0 +1,6 @@
+frame_id: lidar_link
+beams: 360, from -180.0 to 179.0 deg, step 1.00 deg
+range limits: 0.20 to 8.00 m
+beams with a hit: 360, without (inf): 0
+straight ahead (0.0 deg): 1.67 m
+nearest hit: 1.24 m, centred at -54 deg
