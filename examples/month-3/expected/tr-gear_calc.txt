@@ -1,0 +1,19 @@
+-- planetary stages
+sun 12, ring 48, planet 18, 3 planets: ratio 5.000 : 1
+sun 12, ring 46, planet 17: 3 planets cannot be spaced evenly ((sun + ring) / 3 = 19.33)
+sun 13, ring 47, planet 17, 3 planets: ratio 4.615 : 1
+sun 14, ring 46, planet 16, 4 planets: ratio 4.286 : 1
+sun 12, ring 45: no whole planet size (16.5 teeth) -> will not mesh
+-- cycloidal stages
+10 ring pins, 9 lobes: ratio 9 : 1, output turns the opposite way
+16 ring pins, 15 lobes: ratio 15 : 1, output turns the opposite way
+-- two 5:1 planetary stages, 90 % per stage (a guess for printed gears; measure yours)
+ratio 25:1, efficiency 81 %: output 1.01 N*m at 240 rpm (motor: 0.05 N*m at 6000 rpm)
+-- turning the output by hand (backdriving), relative to a 147:1 gearbox
+147:1  friction felt x1.00   rotor inertia felt x1.00
+191:1  friction felt x1.30   rotor inertia felt x1.69
+345:1  friction felt x2.35   rotor inertia felt x5.51
+-- backlash at the joint -> error at the tip of a 0.30 m arm
+0.5 deg ->  2.6 mm
+1.0 deg ->  5.2 mm
+2.0 deg -> 10.5 mm

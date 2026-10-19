@@ -1,0 +1,4 @@
+ping 1           SDK FF FF 01 02 01 FB           same
+torque on 1      SDK FF FF 01 04 03 28 01 CE     same
+goal 2048 on 1   SDK FF FF 01 05 03 2A 00 08 C4  same
+read position 6  SDK FF FF 06 04 02 38 02 B9     same

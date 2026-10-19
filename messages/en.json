@@ -73,7 +73,10 @@
       "interactive": "Interactive",
       "guide": "Guide",
       "book": "Book",
-      "hardware": "Hardware"
+      "hardware": "Hardware",
+      "software": "Software",
+      "service": "Service",
+      "model": "3D model"
     },
     "allTitle": "Resource library",
     "allLead": "Every external resource referenced in the course. Copyright stays with each author; this site only provides original summaries and links. Items marked “Supplement” are our own additions, not in the original course list.",

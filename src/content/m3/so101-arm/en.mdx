@@ -1,0 +1,370 @@
+## Why the SO-101
+
+This is the capstone of Month 3: after four lessons of CAD, printing, gearboxes and control loops, the pieces become a robot. The SO-101 is an open-source robot arm from TheRobotStudio and Hugging Face, released under the Apache-2.0 licence. It has five degrees of freedom plus a gripper, driven by six small serial servos, and it is designed as a leader and follower pair: you move the leader by hand, and the follower copies the motion. The five degrees of freedom are the axes that position the tool: base pan, shoulder lift, elbow flex, and the two wrist motions. The gripper is the sixth motor, not a positioning axis; it holds what the arm reaches. The follower does the work, while the leader is the input device, mechanically similar but geared to be pushed by hand. The course's buying guide ranks it as the most worthwhile hardware purchase in the entire roadmap, and this lesson is where that ranking has to prove itself.
+
+That copying is called teleoperation, and it is not a demo trick. Moving the leader by hand while the follower repeats the motion is how you record demonstrations: the leader gives the motion, the follower gives the robot's own joint readings, and the pair together produce the data that Month 6 is built on. The arm is the platform for Months 5 and 6, and Month 6 records its demonstrations with it. It is not a one-off project, so the time you spend on a clean build and an honest calibration is time you get back later.
+
+One honest note before the shopping list: the editor has not built or run an SO-101. The steps below follow the official LeRobot SO-101 documentation, v0.6.x, checked in October 2026. The command-line tools change between versions, so re-check the commands on that page before you run them; where this lesson and the current docs disagree, the docs win.
+
+The official bill of materials in the SO-ARM100 repository comes to $229.88 for a leader and follower pair, or $121.94 for one follower, with printing not included. The printed parts are not a small afterthought: the repository asks for PLA+, 15 % infill, 0.2 mm layers and a 0.4 mm nozzle, which is exactly the kind of PLA+ job from the material table in Lesson 2 (3D printing: materials, calibration & tolerances). A full build is roughly 1 kg of filament, which matters when you compare routes in the next section.
+
+<Resource id="so-arm100" />
+
+The repository and LeRobot use the same six joint names and motor IDs. Learn them now, because every command and every calibration step refers to them:
+
+- **1 `shoulder_pan`**: turns the whole arm left and right around the base.
+- **2 `shoulder_lift`**: raises and lowers the upper arm; it carries most of the arm's own weight.
+- **3 `elbow_flex`**: bends the forearm at the elbow.
+- **4 `wrist_flex`**: tilts the hand up and down.
+- **5 `wrist_roll`**: rotates the hand around the forearm axis.
+- **6 `gripper`**: opens and closes the two fingers.
+
+The numbering runs from the base out to the tool, while the wiring runs the other way: the serial line daisy-chains from the gripper back to the base, and the shoulder_pan motor (ID 1) plugs into the controller board. Keep that picture in your head during assembly; it explains why the setup script starts at the gripper and walks back to the base.
+
+## Choose your route
+
+There is no single correct way to get an SO-101, because the expensive part of the decision is not always the money. A simulator gives you the software path for nothing but no hands. A cheap linkage arm teaches mechanics but not the servo-bus protocol this course uses. A single follower is a real arm but cannot record leader-follower demonstrations. The table lists the routes the course considers. Prices are the course's verified figures from September 2026, except Robonine, which is the store page in October 2026; all of them change, so check before ordering.
+
+| Route | Price | What you get | What you lose |
+| --- | --- | --- | --- |
+| MuJoCo simulation | $0 | the whole LeRobot software stack runs in simulation before any hardware exists | no hands-on hardware |
+| EEZYbotARM MK2 | about $50–80 | free STLs, MG996R hobby servos | teaches linkage kinematics rather than servo-bus protocols, not LeRobot-compatible |
+| Single SO-101 follower, printed yourself | about $122 + filament | the whole software path | no teleoperation (no leader) |
+| Hiwonder xArm 1S | $199.99 | cheapest arm with intelligent bus servos that report position and voltage | not the SO-101 ecosystem |
+| SO-101 pair from the BOM | $229.88 + about 1 kg PLA+ | everything, sourced part by part | you do the sourcing |
+| Seeed Studio SO-ARM101 Pro servo kit | $277.99 (+ $30.99 for Seeed's printed parts set if you have no printer) | servos and control boards for both arms | no printed parts in the base kit |
+| WowRobo via OpenELAB | $325.99 printed parts plus servos / $419.99 unassembled full kit / $489.99 fully assembled | both arms, in the level of completeness you pay for | the highest prices in the table; check exactly what each tier contains |
+| Robonine SO-ARM101 Black & White kit | $349 (store page, October 2026) | both arms unassembled with 12 servos, driver boards, power adapters and a camera | you still assemble everything, and you pay more than sourcing the BOM |
+
+Read the table by its last two columns, not by its price column. "What you get" answers "what can I do afterwards"; "What you lose" answers "what will I still be missing". MuJoCo is the honest choice if you cannot import hardware yet: the LeRobot stack runs in simulation, and you can move to a physical arm later without relearning the software. The EEZYbotARM is a fine mechanical project, but its hobby servos take PWM pulses and cannot report where they are, so it teaches a different lesson. Hiwonder's arm has intelligent bus servos, which is the right technology, but it is not the SO-101 ecosystem, so the LeRobot commands and the files in this course do not apply.
+
+The single follower is the cheapest way to touch the real software path. You can set it up, calibrate it, read every joint and command it from Python. What you cannot do is move a leader by hand and record the follower copying it, because there is no leader. That is a real loss for Month 6, which is built on demonstrations.
+
+The Seeed route is the one most people with a printer should price first. The servo kit plus Seeed's printed parts set is:
+
+```text
+Seeed servo kit + Seeed printed parts = $277.99 + $30.99 = $308.98
+Seeed servo kit + your own print ≈ $277.99 + $20–25 of filament (Lesson 2) ≈ $298–303
+```
+
+If you own a printer, the kit-plus-own-print route is the cheapest full pair with the least sourcing: two arms' worth of servos and boards arrive together, and you print the parts yourself instead of sourcing every bracket and screw. If you cannot import anything, start in MuJoCo and keep the whole software path; a simulator is not a consolation prize, it is the same stack without the motors.
+
+<Quiz id="q1" question="You buy the BOM pair ($229.88) and print the parts yourself with about $22 of PLA+. What is the total, in dollars?" answer={251.88} unit="USD" tolerance={0.01} explanation="Add the two costs: $229.88 + $22.00 = $251.88. The BOM does not include printing, which is why the filament has to be added separately." />
+
+## Bus servos and packets
+
+A hobby servo from Month 2 takes a PWM pulse and holds an angle. It has no name on the bus, no way to say "I am here", and no way to report what it is doing. The SO-101 uses six Feetech STS3215 bus servos per arm, and each one is a small closed-loop actuator. It has an ID, a 12-bit magnetic encoder with 4096 steps per turn, and its own position loop inside the case. That loop is the same idea as the PID loops in Lesson 4 (PID & control: windup and cascade loops), except it runs in the servo rather than on your microcontroller: you send a goal, and the servo drives its motor until the encoder says it has arrived. That 4096 is the encoder's resolution, not the arm's accuracy: backlash, horn mounting and flex in the printed parts all add error after the encoder.
+
+The six servos share one half-duplex serial line, daisy-chained from motor to motor; LeRobot runs that line at 1 Mbit/s. Half-duplex means one pair of wires carries traffic in both directions, but not at the same time: the controller talks, then listens. It is a walkie-talkie, not a telephone. The ID in every packet is roll call, and the checksum exists because one corrupted bit can turn a safe goal into a collision. Every servo hears every packet, and only the servo whose ID matches the packet answers. A servo can also be asked for its position, speed, load, voltage and temperature, which is why a bus servo can tell you it is straining or getting hot instead of silently stalling.
+
+The servo comes in different gear ratios, and the two arms do not use the same set. The follower uses 1/345 on all six joints. The leader mixes ratios so that it holds its own weight where it must, yet moves easily by hand everywhere else:
+
+| Joint | Leader ratio |
+| --- | --- |
+| shoulder_pan | 1/191 |
+| shoulder_lift | 1/345 |
+| elbow_flex | 1/191 |
+| wrist_flex | 1/147 |
+| wrist_roll | 1/147 |
+| gripper | 1/147 |
+
+This is the backdriving arithmetic from Lesson 3 (Transmissions & backlash: gears, belts and bearings) in hardware form. Through a reduction n, the friction you feel at the output scales with n, and the rotor inertia scales with n². Compare the wrist's 1/147 with the follower's 1/345: 345 / 147 = 2.35, so the follower's 345:1 joint feels about 2.35 times more friction, and its rotor inertia feels (345/147)² ≈ 5.51 times larger. The leader's wrist is therefore much lighter to push, while the shoulder_lift keeps the 1/345 ratio because that joint has to hold the arm up. The leader is not a weaker arm; it is an arm geared for being moved by a human.
+
+The wire protocol is simple enough to read by eye. Every message is a packet:
+
+```text
+0xFF 0xFF  ID  LENGTH  INSTRUCTION  PARAMS...  CHECKSUM
+LENGTH = number of params + 2
+CHECKSUM = ~(ID + LENGTH + INSTRUCTION + PARAMS) & 0xFF   (the low byte of the sum, inverted)
+two-byte values are little-endian (low byte first)
+```
+
+The registers used in this lesson are from the STS control table LeRobot uses: Torque_Enable 40, Goal_Position 42 and Present_Position 56. Torque_Enable is one byte; the two position registers are two bytes each, which is where little-endian matters. The program below builds packets by hand and checks a reply. It is an ordinary Python program on your computer, not a simulation and not a servo: no hardware is connected, and it only prints bytes.
+
+<CodeSource path="examples/month-3/so101-arm/sts_packet.py" />
+
+```python
+"""sts_packet.py: build and check Feetech STS3215 bus-servo packets by hand.
+
+The SO-101 arm's six STS3215 servos share one serial wire (half duplex, 1 Mbit/s in LeRobot).
+Every message is a packet:
+    0xFF 0xFF  ID  LENGTH  INSTRUCTION  PARAMS...  CHECKSUM
+LENGTH = number of params + 2, CHECKSUM = ~(ID + LENGTH + INSTRUCTION + PARAMS) & 0xFF.
+A servo answers with  0xFF 0xFF ID LENGTH ERROR PARAMS... CHECKSUM.
+Two-byte values are little-endian (low byte first). Register addresses are from the STS
+control table used by LeRobot: Torque_Enable 40, Goal_Position 42, Present_Position 56.
+No hardware needed: this only prints bytes.
+"""
+PING, READ, WRITE = 0x01, 0x02, 0x03
+TORQUE_ENABLE, GOAL_POSITION, PRESENT_POSITION = 40, 42, 56
+STEPS_PER_TURN = 4096                       # 12-bit magnetic encoder
+
+
+def checksum(body):
+    return ~sum(body) & 0xFF
+
+
+def packet(servo_id, instruction, params=()):
+    body = [servo_id, len(params) + 2, instruction, *params]
+    return bytes([0xFF, 0xFF, *body, checksum(body)])
+
+
+def hexs(data):
+    return " ".join(f"{b:02X}" for b in data)
+
+
+def parse_status(data):
+    """Check a reply and return (id, error byte, params)."""
+    if data[:2] != b"\xff\xff":
+        raise ValueError("no 0xFF 0xFF header")
+    servo_id, length, error = data[2], data[3], data[4]
+    params = data[5:5 + length - 2]
+    if checksum(data[2:5 + length - 2]) != data[5 + length - 2]:
+        raise ValueError("bad checksum: the bytes were corrupted on the wire")
+    return servo_id, error, params
+
+
+if __name__ == "__main__":
+    goal = 2048                                     # half a turn = the middle of the range
+    print(f"{'ping servo 1:':32s}", hexs(packet(1, PING)))
+    print(f"{'torque on, servo 1:':32s}", hexs(packet(1, WRITE, [TORQUE_ENABLE, 1])))
+    print(f"{'goal position 2048, servo 1:':32s}", hexs(packet(1, WRITE, [GOAL_POSITION, goal & 0xFF, goal >> 8])))
+    print(f"{'read present position, servo 6:':32s}", hexs(packet(6, READ, [PRESENT_POSITION, 2])))
+
+    reply = bytes([0xFF, 0xFF, 0x06, 0x04, 0x00, 0x2C, 0x0C])   # a made-up answer from servo 6
+    reply += bytes([checksum(reply[2:])])
+    sid, err, params = parse_status(reply)
+    steps = params[0] | params[1] << 8
+    print(f"reply {hexs(reply)} -> servo {sid}, error {err}, position {steps} "
+          f"= {steps * 360 / STEPS_PER_TURN:.1f} deg")
+    broken = reply[:-2] + bytes([reply[-2] ^ 0x01]) + reply[-1:]  # flip one bit on the wire
+    try:
+        parse_status(broken)
+    except ValueError as e:
+        print(f"reply {hexs(broken)} -> {e}")
+```
+
+Real output:
+
+```text
+$ python3 sts_packet.py
+ping servo 1:                    FF FF 01 02 01 FB
+torque on, servo 1:              FF FF 01 04 03 28 01 CE
+goal position 2048, servo 1:     FF FF 01 05 03 2A 00 08 C4
+read present position, servo 6:  FF FF 06 04 02 38 02 B9
+reply FF FF 06 04 00 2C 0C BD -> servo 6, error 0, position 3116 = 273.9 deg
+reply FF FF 06 04 00 2C 0D BD -> bad checksum: the bytes were corrupted on the wire
+```
+
+Walk through the first four lines. The ping is addressed to servo 1, carries no parameters, so LENGTH is 2 (instruction plus checksum), and the checksum is ~(1 + 2 + 1) & 0xFF = 0xFB. The torque-on packet has two parameters, the register address 40 and the value 1, so LENGTH is 4 and the checksum is ~(1 + 4 + 3 + 40 + 1) & 0xFF = ~49 & 0xFF = 0xCE. The goal packet has three parameters, address 42 and the two bytes of 2048. The read packet asks servo 6 for two bytes starting at register 56.
+
+Here is the goal-position checksum by hand:
+
+```text
+ID 01 + LENGTH 05 + WRITE 03 + address 2A + low byte 00 + high byte 08 = 0x3B (decimal 1 + 5 + 3 + 42 + 0 + 8 = 59)
+invert: 0xFF − 0x3B = 0xC4 → matches the last byte
+2048 = 0x0800 → low byte 00, high byte 08
+reply params 2C 0C → 0x0C2C = 3116 steps → 3116 × 360 / 4096 = 273.9°
+```
+
+The reply line decodes the same way. Its LENGTH is 4, because it carries two data bytes plus the error byte and the checksum. The error byte is 0, so the servo is happy. The parameters 2C 0C are little-endian: 0x0C2C = 3116, and 3116 / 4096 of a turn is 273.9°. The final line flips one bit in the low data byte, 0C becomes 0D, and the checksum catches it before anyone can mistake 0x0D2C for a real position. That is the point of a checksum: it does not repair the message, it refuses it.
+
+<Quiz id="q2" question="What is the checksum of a ping to servo 2 (FF FF 02 02 01 ?)?" options={["FA", "FB", "05", "FD"]} answer={0} explanation="Add the bytes covered by the checksum: 02 + 02 + 01 = 05. Invert the low byte: 0xFF − 0x05 = 0xFA." />
+
+<Quiz id="q3" question="A servo reports position 1024 steps. How many degrees is that?" answer={90} unit="°" explanation="The encoder has 4096 steps per turn, so 1024 steps is 1024 / 4096 = 1/4 of a turn. 360° × 1/4 = 90°." />
+
+Feetech's own Python SDK can cross-check the hand arithmetic. With the SDK installed (`pip install feetech-servo-sdk`), the next program writes the same four packets into a fake serial port, and compares the bytes with `sts_packet.py`. Again, no servo is connected; the fake port simply records what the SDK would have sent.
+
+<CodeSource path="examples/month-3/so101-arm/compare_sdk.py" />
+
+```python
+"""compare_sdk.py: check sts_packet.py against Feetech's own Python SDK, no servo needed.
+
+The SDK writes its packets to a fake serial port that just records the bytes.
+Needs:  pip install feetech-servo-sdk   (tested with 1.0.0; it also installs pyserial)
+"""
+import scservo_sdk as scs
+
+import sts_packet as mine
+
+
+class FakePort:
+    """Just enough of scservo_sdk.PortHandler for the SDK to send a packet."""
+    is_using = False
+    baudrate = 1_000_000
+
+    def __init__(self):
+        self.sent = b""
+
+    def clearPort(self):
+        pass
+
+    def setPacketTimeout(self, length):
+        pass
+
+    def writePort(self, packet):
+        self.sent = bytes(packet)
+        return len(packet)
+
+
+def sent_by_sdk(call):
+    port = FakePort()
+    call(scs.PacketHandler(0), port)          # 0 = STS byte order (little-endian)
+    return port.sent
+
+
+cases = [
+    ("ping 1", lambda h, p: h.txPacket(p, [0, 0, 1, 2, scs.INST_PING, 0]), mine.packet(1, mine.PING)),
+    ("torque on 1", lambda h, p: h.write1ByteTxOnly(p, 1, 40, 1), mine.packet(1, mine.WRITE, [40, 1])),
+    ("goal 2048 on 1", lambda h, p: h.write2ByteTxOnly(p, 1, 42, 2048), mine.packet(1, mine.WRITE, [42, 0x00, 0x08])),
+    ("read position 6", lambda h, p: h.readTx(p, 6, 56, 2), mine.packet(6, mine.READ, [56, 2])),
+]
+for name, call, expected in cases:
+    got = sent_by_sdk(call)
+    print(f"{name:16s} SDK {mine.hexs(got):27s} {'same' if got == expected else 'DIFFERENT'}")
+```
+
+Real output:
+
+```text
+$ pip install feetech-servo-sdk
+$ python3 compare_sdk.py
+ping 1           SDK FF FF 01 02 01 FB           same
+torque on 1      SDK FF FF 01 04 03 28 01 CE     same
+goal 2048 on 1   SDK FF FF 01 05 03 2A 00 08 C4  same
+read position 6  SDK FF FF 06 04 02 38 02 B9     same
+```
+
+Every line says `same`. Feetech's SDK, writing into the fake port, produces exactly the same bytes as the hand-built packets, which is a good sign that both the length field and the checksum are right. LeRobot uses this SDK underneath, so the packets you send through LeRobot have the same shape. You will never need to build packets by hand to use the arm, but when a servo stops answering, knowing what should be on the wire is how you decide whether the problem is power, wiring, ID or corruption.
+
+## Assemble and set IDs
+
+The build has two halves: the software has to be installed and able to see the boards, and the motors have to be given IDs before any of it makes sense. Do the software first, because a motor with the wrong ID is much easier to diagnose when you know the port and the tools already work.
+
+### Install LeRobot
+
+Follow the LeRobot installation guide and put it in a separate Python environment. LeRobot pulls in a large stack of packages, and mixing it with your system Python is a good way to break something else. Once the repository is cloned and the environment is active, install the Feetech extra from inside the cloned folder:
+
+```bash
+pip install -e ".[feetech]"
+```
+
+The `-e` makes the install editable, so the commands come from your checkout; the `[feetech]` extra installs the serial SDK that talks to the STS3215. If the command fails, check that you are in the folder containing `pyproject.toml`, and re-check the installation page for the current Python version and any system packages.
+
+<Resource id="lerobot-so101" />
+
+### Find the ports
+
+Each arm has its own controller board and its own USB port. Run:
+
+```bash
+lerobot-find-port
+```
+
+The tool lists the serial ports, asks you to unplug one board and press Enter, and then tells you which port disappeared. Plug it back in and repeat for the other board. Write down which port belongs to the leader and which to the follower, on paper or in a note next to the command you will use. On Linux the names look like `/dev/ttyACM0` and `/dev/ttyACM1`, but they can change when you replug, so check rather than assume. The examples below use `/dev/ttyACM0` for the follower and `/dev/ttyACM1` for the leader; replace them with your own.
+
+### One motor at a time
+
+New servos all come with ID 1. If you connect two of them at once, both will answer to the same packets, and the setup script cannot tell them apart. That is why the official procedure connects exactly one motor at a time. The ID and the bus baud rate are written to the servo's EEPROM once, and they stay there until you change them. A replacement motor arrives as ID 1 again, so keep a note of which servo sits at which joint.
+
+```bash
+lerobot-setup-motors \
+    --robot.type=so101_follower \
+    --robot.port=/dev/ttyACM0
+```
+
+The script asks for the gripper motor first and sets it to ID 6, then wrist_roll, wrist_flex, elbow_flex, shoulder_lift and finally shoulder_pan = 1. Connect ONLY the motor it asks for to the board each time, not daisy-chained to another motor. Before every Enter, check the power and the 3-pin cable; a loose cable at this stage looks exactly like a dead servo. Then do the same for the leader:
+
+```bash
+lerobot-setup-motors \
+    --teleop.type=so101_leader \
+    --teleop.port=/dev/ttyACM1
+```
+
+Keep the leader's differently geared servos apart from the follower's before you start, and label them. The two sets look identical from the outside, and putting a 1/147 servo in the follower's shoulder is an easy mistake: the arm will move, but it will not have the torque the follower was designed for.
+
+### Assembly notes
+
+The official guide's details are worth following literally:
+
+- Remove all support material first; a small screwdriver under the supports is the tool the guide suggests. A leftover blob can stop a joint from seating.
+- Fit one 3-pin cable into each motor as you place it, before the next part covers the socket. Once the parts are together, the socket is hard to reach.
+- Most joints use two motor horns; the top one takes an M3×6 screw, the bottom one does not (the wrist roll motor gets only one horn).
+- Motors are held with M2×6 screws, the smallest in the kit. Printed parts attach to the horns with M3×6 screws.
+- Daisy-chain from the gripper back to the base, and plug shoulder_pan (ID 1) into the board.
+
+Keep the two screw sizes apart and bag the printed parts by joint; M2×6 and M3×6 look similar in a pile. Two practical tips. Do not overtighten screws into printed plastic; the threads strip long before the screw feels tight, and a stripped boss cannot be fixed with more force. And turn each joint by hand after mounting it. If it binds, find out why before you go on: a cable trapped under a horn or a support fragment inside a bearing seat will not fix itself, and it will make calibration and teleoperation feel like a software problem when it is mechanical.
+
+<Quiz id="q4" question="Why must each new servo be connected alone while you set its ID?" options={["the power supply is too weak for two", "all new servos answer to ID 1, so two on the bus would both take the new ID", "the baud rate changes with each motor", "the gripper motor must always be first on the bus"]} answer={1} explanation="New servos ship with the same default ID, so two on the bus cannot be addressed separately. The setup script would be talking to both at once. Power, baud rate and bus order are not the reason." />
+
+## Calibrate and teleoperate
+
+Calibration makes the leader and follower report the same numbers in the same physical pose. The servos are mechanically identical in type, but the horns, the printed parts and the encoder zero are not; a raw count of 1830 on one arm can mean a different angle than 1830 on another. Calibration records the middle and the ends of each joint's travel and builds the mapping from raw counts to joint angles. Do it for both arms, and use the same saved name every time you start that arm.
+
+This is also what lets a policy trained on one arm run on another, which is the whole point of Month 6. A demonstration recorded with one calibration is only comparable to another if both arms agree on what "middle" and "end" mean. Calibration is not a checkbox before the fun part; it is the coordinate system the fun part runs in.
+
+Calibrate the follower:
+
+```bash
+lerobot-calibrate \
+    --robot.type=so101_follower \
+    --robot.port=/dev/ttyACM0 \
+    --robot.id=my_follower
+```
+
+Then the leader:
+
+```bash
+lerobot-calibrate \
+    --teleop.type=so101_leader \
+    --teleop.port=/dev/ttyACM1 \
+    --teleop.id=my_leader
+```
+
+The procedure is the same for both. Move the arm so every joint is in the middle of its range, then press Enter. Then move every joint slowly through its full range, so the tool sees both ends. Do not force a joint against its mechanical stop; reach the end of travel, then stop. The `id` is the name the calibration is saved under; it is not the motor ID, and it is not a serial number. Use the same name every time you start this arm, or you will wonder why it behaves like a different robot.
+
+With both arms calibrated, teleoperation is one command:
+
+```bash
+lerobot-teleoperate \
+    --robot.type=so101_follower \
+    --robot.port=/dev/ttyACM0 \
+    --robot.id=my_follower \
+    --teleop.type=so101_leader \
+    --teleop.port=/dev/ttyACM1 \
+    --teleop.id=my_leader
+```
+
+Move the leader slowly at first, and keep a hand near the follower's power switch. Clear the table around the arm before you start: the follower will copy whatever you do, including a fast move into a cup. The first minute is for checking directions and range, not for judging how well it tracks.
+
+When it misbehaves, work from the outside in:
+
+- **A motor is not found**: check power, USB and the 3-pin cable at that motor. The Waveshare board needs its two jumpers on the B (USB) channel; on the wrong channel the board is powered but the computer sees nothing.
+- **The follower jumps on start**: it was calibrated in a different pose or under another id. Re-run calibration with the pose and the id you intend to use.
+- **A joint moves the wrong way or is offset**: recalibrate that arm. Do not fix it by editing the command; the mapping is wrong, not the command.
+- **A servo gets hot or the gripper buzzes when closed on an object**: it is pushing against something. The position loop keeps a steady error and keeps applying torque, exactly the steady-state behaviour from Lesson 4. Release the grip or lower the goal; do not let it buzz for minutes.
+
+<Quiz id="q5" question="The follower suddenly jumps when teleoperation starts. What is the most likely cause?" options={["the baud rate is too low", "it was calibrated under a different id or pose than the leader", "the checksum is wrong", "the 1/345 gearing is too slow"]} answer={1} explanation="A jump at startup is the classic symptom of a calibration mismatch: the follower's saved mapping does not match the pose or name it is being started with. Baud rate would cause communication errors, a bad checksum would be rejected, and gearing does not change the zero." />
+
+## Practice: build, calibrate, film
+
+Your practice task for this lesson is the build itself. Assemble the SO-101, set IDs 1–6 on both arms, calibrate every servo, and teleoperate the follower with the leader. Then make a short video of the follower mirroring the leader. In the next lesson you will design and print your own TPU gripper fingers and test them on three differently shaped objects; the video and the calibration are what make that comparison meaningful.
+
+A checklist, in the order the work happens:
+
+- Route chosen, and the total cost written down before ordering.
+- Parts printed with the repository's settings: PLA+, 15 % infill, 0.2 mm layers, 0.4 mm nozzle.
+- IDs 1–6 set on both arms, with the leader's geared servos kept separate.
+- Both arms calibrated, with the saved ids written next to the commands.
+- A short video of the follower mirroring the leader, including one slow move and one move that uses the wrist.
+- Notes on anything that went wrong and how you fixed it. The notes are the part you will reread when the next build misbehaves.
+
+Film the whole arm and the table, not just the gripper: later you need to see whether a failure was the grasp or the path. If one joint lags in the video, check the mechanics and the calibration before blaming the software.
+
+If the full pair is out of reach, the cheaper paths still teach most of the lesson. With a single follower you keep the whole software path: you can set it up, calibrate it, read its joints and command it from Python, and you can add a leader later. With MuJoCo you can run the same software before any hardware exists; what you miss is the hands, the cables and the sound of a servo straining. Neither shortcut is wasted time, as long as you are honest with yourself about which half of the skill you have practised.
+
+<Callout type="warn" title="The follower is not a toy">
+The follower is strong enough to pinch fingers and knock things off a desk. Keep the workspace clear, keep cables and cups out of the arm's reach, and power it off when you work on it. A moving arm does not know where your hand is.
+</Callout>
+
+Lesson 6 takes the next step: gripper fingers. They are small, they are cheap to iterate, and they are the part that proves you can design as well as assemble. A working arm with a gripper you designed for it is a much better answer to "can you build a robot?" than a kit that only runs the manufacturer's demo.

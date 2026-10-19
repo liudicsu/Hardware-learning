@@ -1,0 +1,21 @@
+inner loop only:          fell over after 6.9 s, -1.97 m from the start
+outer P   (12):           upright, farthest 22.99 wheel turns from the start; push moved it 11.17 turns, 1.54 turns off 5 s later; wobble 0.3 deg rms
+outer PI  (12, 12):       upright, farthest 0.51 wheel turns from the start; push moved it 0.16 turns, 0.08 turns off 5 s later; wobble 0.3 deg rms
+outer PI  (60, 60):       upright, farthest 6.84 wheel turns from the start; push moved it 3.35 turns, 0.53 turns off 5 s later; wobble 3.3 deg rms
+outer PI (12, 12), asked to drive at +0.2 m/s from t = 40 s:
+t=39.96 s  setpoint +0.93 deg  tilt -0.11 deg  wheels +0.00 m/s
+t=40.00 s  setpoint +3.00 deg  tilt -0.15 deg  wheels -0.00 m/s
+t=40.04 s  setpoint +3.00 deg  tilt +0.17 deg  wheels -0.04 m/s
+t=40.08 s  setpoint +3.00 deg  tilt +1.31 deg  wheels -0.06 m/s
+t=40.12 s  setpoint +3.00 deg  tilt +2.56 deg  wheels -0.03 m/s
+t=40.16 s  setpoint +3.00 deg  tilt +3.20 deg  wheels +0.02 m/s
+t=40.20 s  setpoint +3.00 deg  tilt +3.18 deg  wheels +0.07 m/s
+t=40.24 s  setpoint +2.61 deg  tilt +2.85 deg  wheels +0.09 m/s
+t=40.28 s  setpoint +3.00 deg  tilt +2.50 deg  wheels +0.11 m/s
+t=40.32 s  setpoint +2.01 deg  tilt +2.26 deg  wheels +0.12 m/s
+t=40.36 s  setpoint +2.73 deg  tilt +2.15 deg  wheels +0.14 m/s
+t=40.40 s  setpoint +2.78 deg  tilt +1.93 deg  wheels +0.15 m/s
+t=40.44 s  setpoint +2.11 deg  tilt +1.91 deg  wheels +0.15 m/s
+t=40.48 s  setpoint +2.12 deg  tilt +2.00 deg  wheels +0.17 m/s
+t=40.52 s  setpoint +2.14 deg  tilt +1.82 deg  wheels +0.20 m/s
+t=40.56 s  setpoint +1.44 deg  tilt +1.47 deg  wheels +0.21 m/s

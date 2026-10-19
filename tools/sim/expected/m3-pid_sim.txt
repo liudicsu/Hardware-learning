@@ -1,0 +1,8 @@
+P    kp 0.05                   final  55.5 deg, overshoot 10.8 deg, within 1 deg from never
+P    kp 0.2                    final  59.0 deg, overshoot 11.3 deg, within 1 deg from never
+PD   kp 0.05, kd 0.002         final  55.5 deg, overshoot  0.0 deg, within 1 deg from never
+PI   kp 0.05, ki 0.1           final  60.0 deg, overshoot 11.5 deg, within 1 deg from 0.92 s
+PID  kp 0.05, ki 0.1, kd 0.002 final  60.0 deg, overshoot  0.1 deg, within 1 deg from 0.24 s
+  ...same, no anti-windup      final  60.0 deg, overshoot  8.8 deg, within 1 deg from 1.07 s
+PID  kp 0.05, ki 0.4, kd 0.002 final  60.0 deg, overshoot  8.9 deg, within 1 deg from 0.56 s
+  ...same, no anti-windup      final  60.0 deg, overshoot 39.0 deg, within 1 deg from 0.64 s

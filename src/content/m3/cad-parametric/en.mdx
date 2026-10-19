@@ -1,0 +1,335 @@
+## Pick one CAD tool
+
+Month 3 is about making a physical part that fits something else: a servo, a screw, a bearing, another printed piece. The first decision is not a feature or a workbench setting, it is a tool. The course's advice is blunt: pick one CAD program and go deep. Trying four programs feels productive, but every one has its own names for sketches, constraints and assemblies, and switching costs you the thing you actually need — hours of drawing. The goal is not to collect software; it is to finish parts.
+
+There is no perfect choice, and the differences matter less than the internet suggests. After roughly 20 hours in any of the four tools below, the learning curves converge, and the tool matters much less than finishing parts. Pick the one whose constraints match your situation, then stop shopping.
+
+| Tool | Cost | Pick it if | The catch |
+| --- | --- | --- | --- |
+| Onshape Free | Free, in the browser | You are happy designing in public; it runs on any machine, including a Chromebook, and its assemblies and mates behave like real robot joints | Every document on the free plan is public |
+| Fusion for personal use | Free for personal, non-commercial use under $1,000/year revenue | You want CAM and 3D-printing integration later | Limited import/export file types; the licence has to be renewed. Autodesk's page currently describes it as a 1-year term, while the course describes a renewable 3-year term — check when you sign up |
+| FreeCAD | Free, open source | Cloud CAD or card payment is a problem, or you object to a licence that can be revoked; version 1.1 (March 2026) made it genuinely usable | Steeper learning curve, fewer polished tutorials |
+| SOLIDWORKS for Makers | $48/year | You want the industry-standard tool | Native files are watermarked and will not open in commercial SOLIDWORKS |
+
+Onshape is the easiest option if your computer is weak or you work on a Chromebook, because the heavy lifting happens on someone else's server. The price is not money but privacy: on the free plan, every document is public. Do not put anything confidential in it. Its learning centre is a structured free course, and the card below is the place to start if you choose this route.
+
+<Resource id="onshape-learn" />
+
+This site's example parts are written in OpenSCAD, which is free and open source and describes parts as code. That choice is about reproducibility, not about which tool you should learn. A text file can be diffed, reviewed and re-run by anyone from the repository; every dimension is visible, and a change is a one-line diff instead of a binary file with no history. OpenSCAD is not a replacement for a sketch-based tool. It will not teach you to think in constraints the way Onshape, Fusion, FreeCAD or SOLIDWORKS does, so you still pick one of the four above for the practice task.
+
+<Resource id="openscad" />
+
+<Callout type="tip" title="Choose in one minute">
+Chromebook or weak laptop → Onshape. You will want CAM or CNC later → Fusion. No account, offline work or licence worries → FreeCAD. Your employer or university uses SOLIDWORKS → SOLIDWORKS for Makers. After about 20 hours the learning curves converge; the tool matters much less than finishing parts.
+</Callout>
+
+## Sketches and constraints
+
+Parametric CAD is a loop. You draw a 2D sketch, turn it into a feature — extrude, revolve, cut, fillet — and then draw the next sketch on the result. The order is recorded in a history, usually called the feature tree. Change an early sketch and everything downstream rebuilds. That is the whole promise: the model is a set of instructions, not a frozen shape.
+
+A sketch has degrees of freedom (DOF). A free point in 2D has two, x and y. A line has more because both ends can move. Constraints remove DOF: horizontal, vertical, coincident, equal, tangent, fixed. Dimensions also remove DOF, because they fix a distance or an angle. A sketch is fully constrained when zero DOF remain. Most tools show this by colour — lines turn black in Onshape, FreeCAD and Fusion — or by a counter that drops to zero.
+
+Why make such a fuss? Because an under-constrained sketch will move when you edit something later and ruin your day. You change a hole position, and a line you never dimensioned slides sideways, turning a bracket into a scrap part. The constraint display is not decoration; it is the difference between a model you can edit and a model that edits itself.
+
+### From zero to fully constrained
+
+Take a rectangle drawn as four lines whose ends are joined. Once the ends are joined, the shape is a closed loop with four corner points. Each point can move in x and y, so the starting count is 8 DOF. Now add constraints one at a time:
+
+```text
+4 corner points × 2 DOF each = 8 DOF
+2 horizontal constraints      = −2 → 6 DOF
+2 vertical constraints        = −2 → 4 DOF
+one corner coincident with the origin = −2 → 2 DOF
+width dimension 40.2 mm       = −1 → 1 DOF
+height dimension 20.4 mm      = −1 → 0 DOF (fully constrained)
+```
+
+The origin coincidence is worth two because it fixes both x and y. The width and height each remove one because each fixes one distance. The numbers 40.2 and 20.4 are not arbitrary: they are the plate dimensions used by the bracket later in this lesson, which is 40.2 mm long and 20.4 mm high. If the sketch is fully constrained, changing either dimension changes exactly one thing.
+
+A circle has 3 DOF: centre x, centre y and radius. Placing a screw hole therefore needs 2 position dimensions plus 1 diameter. If the hole sits on a centre line, a symmetry constraint can replace one position dimension, but the counting idea is the same. This is also why a hole that “looks right” is not done: without the diameter and two positions, it can still move or resize.
+
+Practical habits, learned the hard way:
+
+- Dimension from a datum — the origin, a centre line, one reference edge — rather than chaining dimensions edge to edge. Chained dimensions accumulate errors, and an edit ripples through every link.
+- Use symmetry constraints about a centre line for parts like a servo bracket. One dimension then controls both sides, and the part stays symmetric when you change it.
+- Never “eyeball” a line to look horizontal. Constrain it. A line that is 0.2° off looks fine on screen and makes a bracket that sits crooked.
+
+Over-constrained is the opposite failure: two constraints fight each other, the tool shows red or refuses the constraint, and nothing you do makes it happy. The fix is to delete one constraint, not to nudge the numbers until the warning disappears. A model with contradictory dimensions is not more precise; it is just broken in a way that is harder to see.
+
+<Quiz id="q1" question="A sketch has a circle that is not yet constrained at all, plus a fully constrained rectangle. How many DOF are left?" answer={3} unit="DOF" explanation="A free circle has centre x, centre y and radius: 3 DOF. The rectangle contributes 0 because it is fully constrained, so 3 + 0 = 3." />
+
+<Quiz id="q2" question="You dimension five holes in a row, each 10 mm from the previous one. The first hole moves 0.5 mm. What happens to the last hole?" options={["it stays put", "it moves 0.5 mm too", "it moves 2.5 mm", "the sketch becomes over-constrained"]} answer={1} explanation="Chained dimensions carry the change along: if each hole is defined relative to the previous one, moving the first shifts every hole after it by the same 0.5 mm. If each hole should stay at a fixed place, dimension each one from the same datum." />
+
+## Parameters drive the part
+
+Parametric design becomes useful when the part is driven by variables rather than by numbers typed into individual features. Change one dimension and the whole part updates. In GUI tools these are called named variables or user parameters: Onshape has “variables”, Fusion has “Change Parameters”, FreeCAD uses a spreadsheet or a VarSet. The name differs; the idea is identical.
+
+Use a named parameter for every size that depends on hardware (servo body, screw size) or on your printer (clearance). Then make derived sizes expressions, never retyped numbers. For example, the cut-out length is `cut_l = servo_l + 2 * clearance`, not a second number that you promise to keep in sync by hand. The expression is the documentation: it says why the number is what it is. The same habit drives every size of Lesson 2's snap-fit case and Lesson 6's gripper finger.
+
+### Inside the bracket file
+
+<CodeSource path="examples/month-3/cad-parametric/servo_bracket.scad" />
+
+```scad
+// servo_bracket.scad: a parametric L-bracket for an SG90-class micro servo.
+// Every size is a named parameter. Measure YOUR servo with calipers and change
+// the numbers at the top; never trust one datasheet drawing.
+//   Render:  openscad -o servo_bracket.stl servo_bracket.scad
+//   Change one value from the command line:  openscad -D clearance=0.4 -o b.stl servo_bracket.scad
+
+// --- the servo (common SG90 drawing: body 22.2 x 11.8 mm, 32.2 mm across the tabs) ---
+servo_l      = 22.2;   // body length, mm
+servo_w      = 11.8;   // body width, mm
+tab_span     = 32.2;   // length across both mounting tabs, mm
+hole_pitch   = 27.5;   // tab screw spacing: not on that drawing; sources say 27-28, measure it
+hole_d       = 2.0;    // tab hole for an M2 / self-tapping screw, mm
+
+// --- the printer and the bracket ---
+clearance    = 0.3;    // gap on each side of the body (from your tolerance gauge, Lesson 2)
+wall         = 3.0;    // plate thickness, mm
+margin       = 4.0;    // material left around the cut-out, mm
+base_depth   = 26.0;   // how far the foot sticks out, mm (servo body hangs ~16 mm behind the plate)
+mount_d      = 3.4;    // foot holes for M3 screws (3 mm + clearance), mm
+
+// --- derived sizes: computed, never typed in twice ---
+cut_l   = servo_l + 2 * clearance;
+cut_w   = servo_w + 2 * clearance;
+plate_l = tab_span + 2 * margin;
+plate_h = cut_w + 2 * margin;
+
+echo("cut-out (mm)", cut_l, "x", cut_w);
+echo("plate (mm)", plate_l, "x", plate_h, "x", wall);
+echo("screw pitch (mm)", hole_pitch, "tab overhang each side (mm)", (tab_span - servo_l) / 2);
+assert(hole_pitch > cut_l + hole_d, "screw holes would cut into the body opening");
+assert(hole_pitch < tab_span - hole_d, "screw holes would fall off the tabs");
+
+$fn = 32;
+
+module plate() {                       // upright plate that the servo tabs screw onto
+  difference() {
+    cube([plate_l, wall, plate_h]);
+    translate([(plate_l - cut_l) / 2, -1, margin])
+      cube([cut_l, wall + 2, cut_w]);
+    for (s = [-1, 1])
+      translate([plate_l / 2 + s * hole_pitch / 2, -1, plate_h / 2])
+        rotate([-90, 0, 0]) cylinder(d = hole_d, h = wall + 2);
+  }
+}
+
+module foot() {                        // horizontal foot that bolts to the robot
+  difference() {
+    cube([plate_l, base_depth, wall]);
+    for (s = [-1, 1])
+      translate([plate_l / 2 + s * 10, base_depth - 5, -1])   // in front of the servo body
+        cylinder(d = mount_d, h = wall + 2);
+  }
+}
+
+module gusset() {                      // triangular rib: stops the plate flexing
+  rotate([90, 0, 90]) linear_extrude(wall)
+    polygon([[wall, wall], [base_depth, wall], [wall, plate_h * 0.6]]);
+}
+
+plate();
+foot();
+gusset();
+translate([plate_l - wall, 0, 0]) gusset();
+```
+
+The file has three groups of parameters. The first group describes the servo: body length, body width, the span across both mounting tabs, the tab hole spacing and the hole diameter. The comments say where those numbers came from and which one is uncertain. The second group describes the printer and the bracket: clearance, wall thickness, material margin, foot depth and the foot screw diameter. The third group is derived: `cut_l`, `cut_w`, `plate_l` and `plate_h` are computed from the first two groups.
+
+`echo()` prints the derived sizes so you can see what the model actually built, not what you think you typed. The two `assert()` calls are guardrails. The first stops the render if the tab holes would cut into the body opening; the second stops it if the holes would fall off the tabs. A failed assert is much cheaper than a failed print.
+
+The modules are the shape. `plate()` is the upright plate with the servo opening and two tab holes. `foot()` is the horizontal foot with two M3 holes. `gusset()` is a triangular rib, and it is placed twice, once at each end of the plate; that rib is what stops the plate flexing when the servo pulls on it. The `difference()` operations subtract the opening and the holes from solid blocks, and the extra `-1` offsets make the cutting tools pass completely through instead of leaving a thin skin. `$fn = 32` controls how many segments a circle gets.
+
+Render it and look at the numbers:
+
+```text
+$ openscad -o servo_bracket.stl servo_bracket.scad 2>&1 | grep ECHO
+ECHO: "cut-out (mm)", 22.8, "x", 12.4
+ECHO: "plate (mm)", 40.2, "x", 20.4, "x", 3
+ECHO: "screw pitch (mm)", 27.5, "tab overhang each side (mm)", 5
+```
+
+![The servo bracket rendered from servo_bracket.scad: an upright plate with the servo opening and two tab holes, a foot with two M3 holes, and two triangular gussets](/m3/servo_bracket.png)
+
+The picture above was rendered by OpenSCAD from the file above, using the script at `examples/month-3/render_previews.sh`. It has only been checked in software: the site editor has not printed it or test-fitted it to a servo. That is the honest state of a CAD model before manufacturing — the render proves the geometry is coherent, not that the tolerances are right.
+
+Now change one parameter from the command line:
+
+```text
+$ openscad -D clearance=0.15 -o b.stl servo_bracket.scad 2>&1 | grep cut-out
+ECHO: "cut-out (mm)", 22.5, "x", 12.1
+```
+
+The arithmetic is visible in the output. The length is 22.2 + 2 × 0.15 = 22.5 mm, and the width is 11.8 + 2 × 0.15 = 12.1 mm. The plate length stays 40.2 mm because it depends on `tab_span` and `margin`, not on `clearance`: 32.2 + 2 × 4.0 = 40.2. Any size derived from the cut-out, such as the plate height, follows the cut-out; any size that does not use clearance stays put. This is the point of derived dimensions: you change one input and only the dependants move.
+
+<Quiz id="q3" question="With servo_l = 22.2 and clearance = 0.4, how long is the cut-out in mm?" answer={23} unit="mm" explanation="cut_l = servo_l + 2 × clearance = 22.2 + 0.8 = 23.0 mm." />
+
+## Design from the datasheet
+
+The course's rule is simple: design around hardware you actually own, starting from the datasheet drawing rather than by eye. A datasheet drawing is not a suggestion; it is the manufacturer's description of the envelope you have to fit around. But it is also not a complete manufacturing drawing, and the gaps are where beginners get into trouble.
+
+The common TowerPro-style SG90 drawing gives a body of 22.2 × 11.8 mm, 32.2 mm across both mounting tabs, 31 mm total height, and 16 mm from the bottom of the case to the underside of the tabs. Its spec list rounds the size to “22.2 × 11.8 × 31 mm approx.” That is enough to lay out the plate and the opening. What it does not give is the tab hole spacing.
+
+Other sources disagree about that missing number. 27.5 mm is the most quoted figure, one seller lists 28 mm, and one website even quotes a 23 × 32 mm “pattern” that cannot fit a 22.2 mm body with 32.2 mm tabs. That last one is a good reminder that numbers copied around the internet need a sanity check. If the tabs only span 32.2 mm and the body is 22.2 mm wide, a 23 × 32 pattern is describing something that is not this servo.
+
+From the drawing alone you can estimate the spacing. Each tab sticks out (32.2 − 22.2) / 2 = 5 mm. A hole in the middle of each tab gives 22.2 + 5 = 27.2 mm, which is close to 27.5. That is a reasonable starting estimate, not a measurement. So: start from the drawing, mark every number you could not find as an estimate in a comment — as `servo_bracket.scad` does — and then measure your own servo with calipers before you print.
+
+### Measuring with calipers
+
+Zero the calipers first, measure three times, and take the middle value. For hole spacing, measure outside-to-outside across the two holes and subtract one hole diameter, or measure inside-to-inside and add one diameter. Both work because the outside measurement spans the spacing plus two half-holes, which is one full diameter.
+
+```text
+outside-to-outside 29.5 mm, hole diameter 2.0 mm
+spacing = 29.5 − 2.0 = 27.5 mm
+```
+
+These example readings happen to give 27.5 mm, the most quoted figure; your servo may not. If yours measures 28.1 mm, change the parameter to 28.1 and note the measurement in your fit log. Do not average your measurement with a number from a website; average your own three readings.
+
+Clearance is the other number the drawing cannot give you. The drawing is the nominal size. A printed hole usually comes out a little smaller and a printed outline a little larger, so the cut-out gets clearance on each side. The 0.3 mm here is a placeholder until Lesson 2's tolerance gauge gives you your printer's real number. On a well-tuned printer it may be close; on a printer with elephant's foot or over-extrusion it may be far too tight.
+
+Shaft clearance is separate from body clearance. The bracket also must not touch the output shaft or the horn when it turns. The rectangular cut-out clears the body, but the horn sweeps a circle above it, and a screw head or a gusset can quietly sit in that circle. Check the moving envelope in the assembly, not just the static fit.
+
+The asserts catch one kind of bad value before you print. Ask for a hole pitch of 24 mm:
+
+```text
+$ openscad -D hole_pitch=24 -o b.stl servo_bracket.scad 2>&1 | grep ERROR
+ERROR: Assertion '(hole_pitch > (cut_l + hole_d))' failed: "screw holes would cut into the body opening" in file servo_bracket.scad, line 30
+```
+
+24 mm is less than `cut_l + hole_d` = 22.8 + 2.0 = 24.8 mm, so the holes would break into the opening instead of sitting in solid tab material. The assert turns a silent bad part into a loud error before you waste filament. It does not prove the design is right; it only checks the two relationships the author thought to encode. You still have to measure.
+
+<Quiz id="q4" question="Your caliper reads 30.1 mm outside-to-outside across two 2.2 mm holes. What is the hole spacing?" options={["30.1 mm", "32.3 mm", "27.9 mm", "28.0 mm because that is what one seller says"]} answer={2} explanation="Outside-to-outside includes one full hole diameter, so spacing = 30.1 − 2.2 = 27.9 mm. 32.3 mm comes from adding the diameter instead of subtracting it; 28.0 mm is someone else's servo, not your measurement." />
+
+## Assemblies and mates
+
+An assembly places parts relative to each other. A free rigid body in space has 6 DOF: three translations and three rotations. A mate removes some of those freedoms and leaves the rest. This is exactly how a real joint works, which is why a good assembly is useful for more than making a picture.
+
+| Mate | DOF left | Real joint | Example on a robot |
+| --- | --- | --- | --- |
+| Fixed | 0 | Bolted or welded joint | A bracket bolted to a chassis |
+| Revolute | 1 rotation | Hinge, servo output | An arm link on the SO-101 |
+| Slider | 1 translation | Linear rail, drawer | A camera carriage on a rail |
+
+Build the assembly to mirror how the real thing moves, so you can drag the arm through its range and see collisions. Add the servo as a real part, not a box drawn by eye. Many vendors and the SO-101 repository publish STEP models of servos; Lesson 5 uses those published models. A box with the right outside dimensions will fit the bracket but will not show you where the horn sweeps or where the cable exits.
+
+Interference checks are the assembly's second job. Most tools can show where two parts overlap, and some can run a motion study and flag collisions along the path. Lesson 2 does the same check in OpenSCAD by intersecting a closed lid with its base: if the intersection has any volume, the parts clash. Finding that in software costs a few minutes; finding it after printing costs a spool of filament and an afternoon.
+
+<Quiz id="q5" question="A part is attached with one revolute mate. How many DOF does it have left?" answer={1} unit="DOF" explanation="A free body starts with 6 DOF. A revolute mate removes three translations and two rotations, leaving one rotation about the joint axis." />
+
+## STEP, STL and 3MF
+
+Three file formats cover almost everything a hobby roboticist needs, and confusing them causes a lot of unnecessary pain.
+
+STEP is exact geometry: true cylinders, planes and edges, stored as a solid model. It is editable in any CAD tool and is the format for sharing a design or asking a machine shop to make a part. If a friend wants to change your hole size, STEP is what you send.
+
+STL is a mesh of triangles only. It has no units and no exact circles: a 2 mm hole becomes a polygon with a finite number of flat sides. Slicers eat STL, which is why it is everywhere, but it is a dead end for editing. Do not treat the STL as your master file.
+
+3MF is also a mesh, but it carries units, colours, multiple parts and print settings in one file. It is increasingly the better slicer format, especially when a print has several bodies or a specific orientation. It is still an output format, not a substitute for the CAD model.
+
+The rule: keep the CAD file, and export STEP, as the master. STL and 3MF are throw-away outputs that you regenerate whenever the design changes. If you only keep the STL, you have kept the photocopy and thrown away the document.
+
+Hole facets matter before you slice. OpenSCAD's `$fn` sets how many sides a circle gets; the bracket uses `$fn = 32`. That is enough for an M2 or M3 screw hole at this scale, but a press fit or a bearing seat may want more. More facets make a smoother circle and a larger file; too few make a hole that a screw can feel. Check the mesh before slicing.
+
+### Check the mesh before slicing
+
+<CodeSource path="examples/month-3/cad-parametric/stl_info.py" />
+
+```python
+"""stl_info.py: check an exported STL before you slice it.
+
+Prints the bounding box, the triangle count, whether every edge is shared by exactly two
+triangles (a "watertight" mesh that slicers can fill), the volume, and the mass of a solid
+print. Reads ASCII or binary STL. No packages needed.
+Usage: python3 stl_info.py part.stl [density g/cm^3, default 1.24 for PLA]
+"""
+import struct
+import sys
+from collections import Counter
+
+
+def load(path):
+    data = open(path, "rb").read()
+    if data[:5] == b"solid" and b"facet" in data[:400]:          # ASCII STL
+        nums = [tuple(map(float, line.split()[1:4]))
+                for line in data.decode().splitlines() if line.strip().startswith("vertex")]
+        return [nums[i:i + 3] for i in range(0, len(nums), 3)]
+    (count,) = struct.unpack_from("<I", data, 80)                 # binary STL
+    tris = []
+    for i in range(count):
+        v = struct.unpack_from("<12f", data, 84 + 50 * i)
+        tris.append([v[3:6], v[6:9], v[9:12]])
+    return tris
+
+
+def volume(tris):
+    """Sum of signed tetrahedra from the origin: exact for a closed mesh."""
+    total = 0.0
+    for a, b, c in tris:
+        total += (a[0] * (b[1] * c[2] - b[2] * c[1])
+                  - a[1] * (b[0] * c[2] - b[2] * c[0])
+                  + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6.0
+    return abs(total)
+
+
+def main():
+    path = sys.argv[1]
+    density = float(sys.argv[2]) if len(sys.argv) > 2 else 1.24
+    tris = load(path)
+    pts = [p for t in tris for p in t]
+    lo = [min(p[i] for p in pts) for i in range(3)]
+    hi = [max(p[i] for p in pts) for i in range(3)]
+    edges = Counter()
+    for t in tris:
+        for i in range(3):
+            edges[tuple(sorted((t[i], t[(i + 1) % 3])))] += 1
+    open_edges = sum(1 for n in edges.values() if n != 2)
+    vol = volume(tris) / 1000.0                                   # mm^3 -> cm^3
+    print(f"size: {hi[0] - lo[0]:.1f} x {hi[1] - lo[1]:.1f} x {hi[2] - lo[2]:.1f} mm")
+    print(f"triangles: {len(tris)}, edges not shared by exactly 2: {open_edges}"
+          + ("  (watertight)" if open_edges == 0 else "  (NOT watertight: fix before slicing)"))
+    print(f"volume: {vol:.2f} cm^3, solid mass at {density} g/cm^3: {vol * density:.1f} g")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+Run it on the exported bracket:
+
+```text
+$ python3 stl_info.py servo_bracket.stl
+size: 40.2 x 26.0 x 20.4 mm
+triangles: 580, edges not shared by exactly 2: 0  (watertight)
+volume: 4.95 cm^3, solid mass at 1.24 g/cm^3: 6.1 g
+```
+
+The size matches the plate length (40.2 mm), the foot depth (26.0 mm) and the plate height (20.4 mm). Watertight means every triangle edge is shared by exactly two triangles, so a slicer can tell inside from outside and fill the part correctly. The volume trick sums signed tetrahedra from the origin; for a closed mesh the signs cancel outside the solid and leave the true volume. The 6.1 g figure is for a 100 % solid part. The slicer's estimate with walls and 15–20 % infill will be lower.
+
+Different OpenSCAD versions write different numbers of triangles, so your triangle count may not be 580. The size and watertight result should match, and the volume should be close. If you see a non-zero count of edges not shared by exactly two triangles, stop and fix the mesh before slicing; a non-watertight model can produce missing walls or a slicer that refuses to slice.
+
+<Quiz id="q6" question="You want a friend to change the hole size of your bracket in their CAD tool. Which file do you send?" options={["STL", "3MF", "G-code", "STEP"]} answer={3} explanation="STEP stores exact editable geometry. STL and 3MF are meshes, and G-code is already sliced instructions for one printer; neither is a CAD source." />
+
+## Practice: a servo bracket
+
+Your practice task is this: model a bracket that holds the exact servo you bought, with correctly sized screw holes and shaft clearance, working from the manufacturer's datasheet drawing rather than by eye. Then print it and see if it fits. It probably will not fit the first time, and that failure is the lesson. A bracket that misses by 0.4 mm teaches you more than one that happens to work, because it forces you to find which number was wrong.
+
+If you used a small hobby servo in Month 2's ESP32 lesson (the SG90 is the usual one), use that one. Measure it before you draw anything. The datasheet gets you close; the calipers tell you what you actually own.
+
+A checklist for the model, before you export anything:
+
+- Fully constrained sketches (0 DOF everywhere).
+- Every hardware size and the clearance as named parameters.
+- Dimensions from datums, not chains.
+- Estimates marked as estimates.
+- STEP master plus STL/3MF export.
+- A short fit log: what you measured, what you changed, by how much.
+
+Use this lesson's OpenSCAD file only to check your numbers against yours, not as a substitute for drawing it in your chosen tool. If your bracket comes out at 40.2 mm and the example says 40.2 mm, that is a coincidence worth checking, not a reason to skip the sketch. If your numbers differ, understand why before you change them.
+
+<Callout type="warn" title="Measure the servo first">
+Do not print a bracket for a servo you have not measured. The datasheet is the starting point; your calipers are the truth. A printed bracket that is 0.5 mm too tight is not a tolerance problem, it is a measurement you skipped.
+</Callout>
+
+The next step is Lesson 2. Print a tolerance gauge, find your printer's real clearance, and replace the 0.3 mm placeholder in this design with a number that belongs to your machine. The bracket is not finished when it looks right on screen; it is finished when it fits.

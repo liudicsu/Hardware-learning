@@ -50,3 +50,7 @@ tools/sim/out/
 examples/**/measurements.json
 # the ESP32 core also exports binaries into <sketch>/build/
 examples/**/build/
+
+# Python caches
+__pycache__/
+*.pyc

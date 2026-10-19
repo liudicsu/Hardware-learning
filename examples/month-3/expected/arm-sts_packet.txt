@@ -1,0 +1,6 @@
+ping servo 1:                    FF FF 01 02 01 FB
+torque on, servo 1:              FF FF 01 04 03 28 01 CE
+goal position 2048, servo 1:     FF FF 01 05 03 2A 00 08 C4
+read present position, servo 6:  FF FF 06 04 02 38 02 B9
+reply FF FF 06 04 00 2C 0C BD -> servo 6, error 0, position 3116 = 273.9 deg
+reply FF FF 06 04 00 2C 0D BD -> bad checksum: the bytes were corrupted on the wire

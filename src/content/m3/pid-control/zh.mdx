@@ -1,0 +1,521 @@
+一个关节被要求转到 60°，它却停在 55.5°：稳稳地顶住重力，却永远到不了目标。一台平衡车被要求待在原地，它平衡得很好，却慢慢滚过地板，直到撞上什么东西。两种失败长得一样：只对误差作出反应的控制器，可以很稳、很顺，却仍然是错的。
+
+本课是本站补充内容。课程会在第 5 个月“控制理论：从 PID 开始”里正式讲控制：MATLAB Tech Talks、在平衡车上记录 P、PD、PID 的阶跃响应，最后是 LQR。这一课放在这里有两个原因：它要完成第 2 个月第 6 课留下的选做挑战；第 5 课的 SO-101 机械臂本身就是一组位置环。第 5 个月会更深入、更形式化；这里先给你现在就用得上的直觉。
+
+## P、I、D 各管什么
+
+本课程里的每一个反馈控制器都在做同样的四件事，周而复始：测量你关心的量，和目标比较，算出误差，针对误差出力。然后它在固定的频率上再做一遍，不管上一次修正有没有生效。控制器永远不会“判断自己已经到了”；它只是不断缩小它能看见的误差。
+
+教科书里的 PID 公式只有一行：
+
+```text
+输出 = Kp × 误差 + Ki × (误差 × dt 的累加) + Kd × (变化率)
+```
+
+三项，三种职责。比例项 P 按“差多远”成比例地推：误差翻倍，推力也翻倍。积分项 I 把误差随时间的累积加起来，所以一个一直不消失的小误差，最终会变成很大的指令；它就是那个一直推、直到稳态误差消失的项，比如机械臂关节上的重力负载。微分项 D 对测量值变化的快慢作出反应，给接近目标的过程踩刹车：关节快速冲向目标时，D 会从指令里减掉一部分，让它别冲过头。
+
+用大白话说：P 是弹簧，D 是减震器，I 是那只把活干完的、有耐心的手。只有弹簧会来回弹，还可能停在差一点的地方；只有减震器，静止时什么也不做；有耐心的手才会注意到最后那一毫米，一直轻轻推，直到它消失。
+
+为什么只有 P 时，遇到恒定负载会留下误差？因为控制器只能靠“存在误差”来产生力矩。如果关节需要 0.227 N·m 才能顶住重力，那么静止时电机必须输出 0.227 N·m，而 P 控制器输出的是 Kp × error。让两者相等再解：
+
+```text
+Kp = 0.05 N·m/度
+误差 = 0.227 / 0.05 = 4.5°
+手臂停在 60 − 4.5 = 55.5°
+```
+
+机械臂没有坏，控制器也没有不稳定。它只是找到了唯一一个“推力刚好等于重力”的角度。把 Kp 调大，误差会变小，但不会变成零；只有积分项才能在零误差时继续输出力矩。
+
+有两个工程细节，能把教科书 PID 变成机器人上真正能用的 PID。第一，微分要取测量值的变化率，而不是误差的变化率。如果 D 对误差求导，而目标突然从 0° 跳到 60°，误差也会瞬间跳变，微分项在一个采样周期里看到巨大的变化率，于是给电机一个猛烈的“微分冲击”（derivative kick），可实际上没有任何东西真的动了。对测量值求导就没有这个问题：目标跳变会改变误差，但不会改变已经测到的角度，所以 D 保持安静。本课的代码用 `rate = (measurement − previous measurement) / dt`，再减去 `kd × rate`。第二，循环必须跑在固定频率上，也就是第 2 个月第 2 课讲过的定时纪律。PID 假设每一次循环的 `dt` 都一样；如果这一圈用了 5 ms、下一圈用了 15 ms，积分项和微分项就会用错时间，同一组增益在不同时刻代表的含义都不一样。
+
+<Resource id="beauregard-pid" />
+
+Brett Beauregard 那组“改进入门级 PID”的文章，正是本课几个习惯的来源：对测量值求导、固定采样时间、抗积分饱和。先把下文的几种失败看一遍，再去读它，会更有感觉。
+
+<Quiz id="q1" question="一个关节需要 0.3 N·m 才能顶住重力。只用 P，Kp = 0.1 N·m/度，它会比目标少多少度停下？" answer={3} unit="°" explanation="静止时 P 的力矩必须等于 0.3 N·m：0.1 × error = 0.3，所以 error = 3°。它会在目标前 3° 停下。" />
+
+## 一个关节，四种控制器
+
+要看清 P、I、D 各自的作用，最好的办法是让四种控制器在同一个关节上跑一遍。下面的模型只有一个关节，可以想成 SO-101 的肩关节带一根短臂。它从水平的 0° 出发，被要求抬到 60°。重力按 0.4 N·m × cos(角度) 往下拉，电机最多只能给 1 N·m，还有一点黏性摩擦，控制器每 200 Hz 算一次。模型里的增益用的是模型自己的单位，不是能直接抄进固件的 PWM 数值。
+
+<CodeSource path="tools/sim/models/pid_sim.py" />
+
+```python
+"""pid_sim.py: P, PI, PID and integral windup on one arm joint lifting against gravity.
+
+Toy model of a single joint (think of an SO-101 shoulder with a short arm): the motor
+torque is limited, gravity pulls the arm down by 0.4 N*m * cos(angle), and there is a
+little friction. The controller runs at 200 Hz and is asked to move the joint from
+0 degrees (horizontal) to 60 degrees at t = 0.
+"""
+import math
+
+J = 0.004          # kg*m^2, arm inertia seen at the joint
+B = 0.05           # N*m per rad/s, viscous friction
+GRAV = 0.4         # N*m, gravity torque with the arm horizontal
+MAX_TORQUE = 1.0   # N*m the motor can give
+DT = 0.005         # 200 Hz control loop
+
+
+def run(kp, ki=0.0, kd=0.0, anti_windup=True, target=60.0, seconds=3.0):
+    q, w, integral, t = 0.0, 0.0, 0.0, 0.0       # angle (rad), speed (rad/s)
+    peak, settle = 0.0, None
+    prev = q
+    while t < seconds:
+        error = target - math.degrees(q)
+        rate = (math.degrees(q) - math.degrees(prev)) / DT   # derivative of the measurement
+        prev = q
+        unclipped = kp * error + ki * integral - kd * rate
+        torque = max(-MAX_TORQUE, min(MAX_TORQUE, unclipped))
+        if not anti_windup or torque == unclipped:            # only integrate while not saturated
+            integral += error * DT
+        for _ in range(5):                                    # physics at 1 ms
+            alpha = (torque - B * w - GRAV * math.cos(q)) / J
+            w += alpha * 0.001
+            q += w * 0.001
+        t += DT
+        deg = math.degrees(q)
+        peak = max(peak, deg)
+        if abs(deg - target) > 1.0:
+            settle = None
+        elif settle is None:
+            settle = t
+    over = max(0.0, peak - target)
+    s = f"{settle:.2f} s" if settle is not None else "never"
+    return f"final {math.degrees(q):5.1f} deg, overshoot {over:4.1f} deg, within 1 deg from {s}"
+
+
+if __name__ == "__main__":
+    print("P    kp 0.05                  ", run(0.05))
+    print("P    kp 0.2                   ", run(0.2))
+    print("PD   kp 0.05, kd 0.002        ", run(0.05, kd=0.002))
+    print("PI   kp 0.05, ki 0.1          ", run(0.05, ki=0.1))
+    print("PID  kp 0.05, ki 0.1, kd 0.002", run(0.05, ki=0.1, kd=0.002))
+    print("  ...same, no anti-windup     ", run(0.05, ki=0.1, kd=0.002, anti_windup=False))
+    print("PID  kp 0.05, ki 0.4, kd 0.002", run(0.05, ki=0.4, kd=0.002))
+    print("  ...same, no anti-windup     ", run(0.05, ki=0.4, kd=0.002, anti_windup=False))
+```
+
+<SimOutput source="model">
+
+```text
+$ python3 tools/sim/models/pid_sim.py
+P    kp 0.05                   final  55.5 deg, overshoot 10.8 deg, within 1 deg from never
+P    kp 0.2                    final  59.0 deg, overshoot 11.3 deg, within 1 deg from never
+PD   kp 0.05, kd 0.002         final  55.5 deg, overshoot  0.0 deg, within 1 deg from never
+PI   kp 0.05, ki 0.1           final  60.0 deg, overshoot 11.5 deg, within 1 deg from 0.92 s
+PID  kp 0.05, ki 0.1, kd 0.002 final  60.0 deg, overshoot  0.1 deg, within 1 deg from 0.24 s
+  ...same, no anti-windup      final  60.0 deg, overshoot  8.8 deg, within 1 deg from 1.07 s
+PID  kp 0.05, ki 0.4, kd 0.002 final  60.0 deg, overshoot  8.9 deg, within 1 deg from 0.56 s
+  ...same, no anti-windup      final  60.0 deg, overshoot 39.0 deg, within 1 deg from 0.64 s
+```
+
+</SimOutput>
+
+逐行看输出。P、Kp = 0.05 停在 55.5°，正好是上面算出的差 4.5°；路上还冲过头 10.8°——机械臂有惯性，弹簧把它拉回来之前，它已经越过目标了。P、Kp = 0.2 更接近，停在 59.0°，因为静止时它的误差大约是 1°，此时 0.2 × 1.0° = 0.2 N·m，而 59° 处的重力是 0.4 × cos 59° = 0.4 × 0.515 = 0.206 N·m，两边几乎相等，于是它就停在那里。它始终进不了“误差 1° 以内”的范围，因为 1° 的误差正好是 Kp = 0.2 产生 0.2 N·m 所需要的误差；平衡点就落在 1° 这条线外侧一点点。继续加大 Kp，最终误差会更小，但超调会变大：同一条弹簧拉得更狠，接近过程里储存的能量也更多。
+
+PD 加上 Kd = 0.002，把超调完全消掉（0.0°），但最终角度仍然是 55.5°。这是关于 D 最重要的一课：它只在“有东西在动”时起作用。机械臂一旦静止，变化率为零，D 的贡献就是零，稳态误差仍然停在 P 留下的位置。D 改善的是过程，不是终点。
+
+PI 加上 Ki = 0.1，能到 60.0°，但超调 11.5°，0.92 s 后才进入 1° 范围。积分最终会在零误差时补上重力力矩，所以终点对了；代价是机械臂还在接近时积分仍在推，于是冲过头。PID 三项齐全：Kp 0.05、Ki 0.1、Kd 0.002，到 60.0°，超调只有 0.1°，0.24 s 就进入 1° 范围。对这个关节来说，它显然是这组里最好的：积分修好终点，微分管住到达，P 干主要的活。
+
+<Quiz id="q2" question="哪一项能消除重力造成的稳态误差？" options={["P", "D", "I", "提高循环频率"]} answer={2} explanation="只有积分项能在误差为零时继续输出指令。它把剩下的那点误差累积起来，直到输出足以顶住重力，关节才真正到达目标。D 在静止时为零，P 必须靠误差才能产生力矩，更快的循环只改变动态过程，不会消除对积分项的需要。" />
+
+## 积分饱和
+
+电机的输出上限，正是积分项容易出事的地方。开始时误差是 60°，光 P 就要 0.05 × 60 = 3 N·m，而电机最多给 1 N·m，于是输出被削在 1 N·m：控制器饱和了。如果输出被削住时积分还继续把误差加进去，它就会存下一大团“推不出去”的指令；等机械臂终于到了，这团指令还在，于是把它推过目标，积分还得慢慢退回来。
+
+具体算一下：在 200 Hz 下，0.1 s 有 20 次循环；如果误差大约是 60°，积分在这 0.1 s 里会增加约 60 × 0.1 = 6 度·秒。Ki = 0.1 时，这相当于 0.1 × 6 = 0.6 N·m 的指令；Ki = 0.4 时就是 0.4 × 6 = 2.4 N·m。这些力矩电机根本没有输出过，但积分记得它们。
+
+输出的最后四行正好量出了这件事：Ki = 0.1 时，有抗饱和的 PID 超调 0.1°，没有抗饱和是 8.8°；Ki = 0.4 时，有抗饱和 8.9°，没有抗饱和 39.0°。积分增益越大，存得越快，冲得越狠。
+
+模型里的修法只有一个条件：只在输出没有饱和时积分。代码就是 `if not anti_windup or torque == unclipped:`。当请求力矩超过上限时，`torque` 和 `unclipped` 不相等，积分被冻住；等机械臂近到光靠 P 已经不会再让电机满载，积分才开始工作。别的修法原理相同：把积分限制在一个范围内（平衡车的外环就是这么做的），或者在目标跳变时把积分清零，免得上一段动作的旧误差漏到新动作里。任何一条都比“让积分在电机满输出时继续跑”强。
+
+<Quiz id="q3" question="Kp = 0.05 N·m/度，误差 60°，电机上限 1 N·m。光 P 项是上限的多少倍？" answer={3} explanation="P 项要求 0.05 × 60 = 3 N·m。电机上限是 1 N·m，所以请求是上限的 3 / 1 = 3 倍。这就是饱和，也是必须把积分按住的原因。" />
+
+## 有章法地调参
+
+调参不是寻找魔法数字，而是一个有顺序的短流程，每次只改一处。顺序很重要，因为后面的增益依赖前面的结果。
+
+1. **先用一个很小的 Kp 确认方向**。给关节一个小目标阶跃，看它往哪边动。如果它朝远离目标的方向动，先把控制器输出的符号翻过来（或者对调电机线），再谈别的。正反馈回路不管增益多小，最后都会撞到某个极限。
+2. **加大 Kp，直到它响应够快并开始振荡，然后退回大约一半**。振荡点说明回路的增益已经超过阻尼；取一半是实用的起点，不是定律。
+3. **加 Kd 压住超调**。D 会放大传感器噪声，因为对带噪声的信号求导，等于把快速抖动按频率放大。把变化率滤波，或者直接用陀螺仪测角速度：平衡车就是用陀螺仪，所以它的 D 项不需要对噪声很大的角度求导。
+4. **加一点 Ki 消掉剩下的误差，并且从一开始就开抗饱和**。小步加；积分是最慢的一项，也最容易饱和。
+5. **每次只改一个增益，把每一次尝试写进调参日志**。记录增益、超调、稳定时间、你看到和听到的现象。第 2 个月就要求过同样的日志；它是你判断“到底是哪一处改动起了作用”的唯一依据。
+
+循环频率必须明显高于系统运动的速度。200 Hz 的循环每 5 ms 修正一次，对平衡车或小关节都绰绰有余。慢循环会带来延迟，而延迟相当于一个让系统不稳定的推力：等控制器反应过来，误差已经跑到别处去了。如果提不高频率，就把增益降下来；慢循环配高增益，就是一台会来回振荡的机器。
+
+第 3 课讲的齿隙，会限制你把 Kp 和 Ki 推到多高——尤其是编码器装在齿轮之后时。齿隙里面，电机对机械臂根本没有抓握力；高增益回路会冲过空隙、超调、反向、再冲回来，形成一个小幅极限环。关节在静止时嗡嗡响或来回找位，除了微分噪声，第二个要怀疑的就是齿隙。真正的修法是降增益、加预紧，或者把编码器挪到输出端；继续加增益只会更糟。
+
+<Resource id="mathworks-pid" />
+
+MathWorks 的那组视频很适合接着看：公式很少，重点全在直觉——每一项到底在干什么，以及积分饱和和微分滤波是怎么回事。
+
+<Quiz id="q4" question="你把 Kd 调大，电机在静止时开始嗡嗡响。最可能的原因是什么？" options={["Kp 太小", "微分项在放大传感器噪声", "积分饱和了", "循环太快"]} answer={1} explanation="静止时真实的变化率接近零，所以变化率信号里的任何抖动都是噪声，而 Kd 会把噪声乘进去。对带噪声的角度求导，会产生很大的交替指令。应该给变化率滤波或改用陀螺仪，并把 Kd 降到嗡嗡声消失为止。" />
+
+## 串级回路
+
+串级（cascade）就是两个反馈回路套在一起。内环快，控制变化快的东西，比如俯仰角；外环慢，控制变化慢的东西，比如轮速，办法是改内环的目标值。外环不直接驱动电机，它只移动内环正在努力保持的那个设定点。
+
+```text
+target speed ──► [ outer PI, 25 Hz ] ──► setpoint (±3°) ──► [ inner PD, 200 Hz ] ──► motors
+      ▲                                                       ▲                       │
+      │                                                       └──── pitch (IMU) ◄──────┤
+      └────────────── wheel speed (encoders) ◄────────────────────────────────────────┘
+```
+
+规则是：外环必须明显比内环慢。这里内环 200 Hz，外环 25 Hz，慢了 8 倍。外环的输出还被限制在 ±3° 的倾角以内。两条规则服务同一个目的：外环犯的错，不能把机器人弄倒。平衡的最终决定权仍然在内环；外环只是“建议”一个小倾角。
+
+为什么只有内环时平衡车会自己滚走？因为 IMU 永远不可能装得绝对正。如果传感器读 0° 时，车身实际上已经前倾 1°，那么“保持 pitch = 0”就等于“保持前倾 1°”。重力把车往前拉，内环驱动轮子追到身体下面，车就加速；它一直加速到轮子到达最高转速，然后倒下。模型把这些都加进去了：1° 的安装误差、1 m/s 的最高轮速，还有每转 90 个计数、只数 A 相上升沿的粗编码器（和固件一致）。
+
+<CodeSource path="tools/sim/models/cascade_sim.py" />
+
+```python
+"""cascade_sim.py: finish the Month 2 balancer with an outer speed loop (a cascade).
+
+Same toy inverted pendulum as balance_sim.py (centre of mass 0.10 m above the axle, the
+controller sets wheel acceleration, complementary filter with a 0.5 s time constant),
+plus the things that make a real balancer roll away:
+  * the IMU is mounted 1 degree off, so "pitch = 0" is not quite the balance point
+  * the wheels have a top speed, and a coarse encoder (90 counts per turn of a 65 mm wheel)
+Inner loop: PD on pitch at 200 Hz. Outer loop: PI on wheel speed at 25 Hz, which moves
+the inner loop's SETPOINT. 60 s run; at t = 30 s someone pushes the robot.
+"""
+import math
+import random
+
+G, L = 9.81, 0.10            # gravity, height of the centre of mass (m)
+MAX_ACCEL = 6.0              # m/s^2 the motors can deliver
+MOTOR_TAU = 0.02             # wheels reach a new acceleration in ~20 ms
+MAX_SPEED = 1.0              # m/s, wheel top speed
+MOUNT_ERROR = 1.0            # deg, IMU reads this much more than the true tilt
+WHEEL_TURN = math.pi * 0.065 # m per wheel turn (65 mm wheel)
+COUNTS_PER_TURN = 90         # encoder counts per wheel turn (A edges only, as in the sketch)
+KP, KD = 0.8, 0.04           # inner PD, same gains as balance_sim.py
+
+
+def run(outer=None, kp_s=0.0, ki_s=0.0, push=40.0, go=None, seconds=60.0, seed=3, trace=None):
+    """outer=None: inner loop only; outer="P" or "PI" adds the speed loop.
+    kp_s is in deg of setpoint per m/s of speed error, ki_s in deg per metre.
+    go=(t, speed): from time t on, ask for this wheel speed instead of 0."""
+    rng = random.Random(seed)
+    dt = 0.005
+    theta, omega, accel = math.radians(3.0), 0.0, 0.0
+    x, v = 0.0, 0.0
+    est, setpoint, integral = 0.0, 0.0, 0.0
+    last_counts, tick, t, next_ctrl = 0, 0, 0.0, 0.0
+    far, pushed, sq, n = 0.0, False, 0.0, 0
+    x_before, push_far, settled = 0.0, 0.0, None
+    log = []
+    while t < seconds:
+        if t >= next_ctrl:                                   # --- 200 Hz controller tick ---
+            next_ctrl += dt
+            gyro = math.degrees(omega) + rng.gauss(0, 0.3)
+            acc = math.degrees(theta) + MOUNT_ERROR + rng.gauss(0, 2.5)
+            a = 0.5 / (0.5 + dt)
+            est = a * (est + gyro * dt) + (1 - a) * acc
+            if outer and tick % 8 == 0:                      # --- 25 Hz outer loop ---
+                counts = math.floor(x / WHEEL_TURN * COUNTS_PER_TURN)
+                speed = (counts - last_counts) / COUNTS_PER_TURN * WHEEL_TURN / (8 * dt)
+                last_counts = counts
+                target = go[1] if go and t >= go[0] else 0.0
+                error = target - speed
+                if outer == "PI":
+                    integral += error * 8 * dt
+                    limit = 3.0 / ki_s                       # anti-windup: the integral alone
+                    integral = max(-limit, min(limit, integral))  # may ask for at most 3 deg
+                setpoint = max(-3.0, min(3.0, kp_s * error + ki_s * integral))
+            tick += 1
+            command = KP * (est - setpoint) + KD * gyro
+            command = max(-MAX_ACCEL, min(MAX_ACCEL, command))
+            if trace and trace[0] <= t < trace[1] and tick % 8 == 1:
+                log.append(f"t={t:5.2f} s  setpoint {setpoint:+5.2f} deg  tilt {math.degrees(theta):+5.2f} deg  "
+                           f"wheels {v:+.2f} m/s")
+        # --- physics at 1 ms ---
+        accel += (command - accel) * 0.001 / MOTOR_TAU
+        a_real = accel
+        if (v >= MAX_SPEED and a_real > 0) or (v <= -MAX_SPEED and a_real < 0):
+            a_real = 0.0                                     # motors are flat out
+        alpha = (G * math.sin(theta) - a_real * math.cos(theta)) / L
+        omega += alpha * 0.001
+        theta += omega * 0.001
+        v += a_real * 0.001
+        x += v * 0.001
+        if not pushed and t >= 30.0:
+            omega += math.radians(push)
+            pushed, x_before = True, x
+        if pushed:
+            push_far = max(push_far, abs(x - x_before))
+            if settled is None and t >= 35.0:
+                settled = abs(x - x_before)                  # 5 s after the push
+        if 40.0 < t < 60.0:
+            sq += math.degrees(theta) ** 2
+            n += 1
+        t += 0.001
+        if not go:
+            far = max(far, abs(x))
+        if abs(math.degrees(theta)) > 45:
+            return f"fell over after {t:.1f} s, {x:+.2f} m from the start", log
+    return (f"upright, farthest {far / WHEEL_TURN:.2f} wheel turns from the start; push moved it "
+            f"{push_far / WHEEL_TURN:.2f} turns, {settled / WHEEL_TURN:.2f} turns off 5 s later; "
+            f"wobble {math.sqrt(sq / n):.1f} deg rms"), log
+
+
+if __name__ == "__main__":
+    print("inner loop only:         ", run()[0])
+    print("outer P   (12):          ", run("P", kp_s=12)[0])
+    print("outer PI  (12, 12):      ", run("PI", kp_s=12, ki_s=12)[0])
+    print("outer PI  (60, 60):      ", run("PI", kp_s=60, ki_s=60)[0])
+    print("outer PI (12, 12), asked to drive at +0.2 m/s from t = 40 s:")
+    print("\n".join(run("PI", kp_s=12, ki_s=12, go=(40.0, 0.2), seconds=41.0, trace=(39.96, 40.6))[1]))
+```
+
+<SimOutput source="model">
+
+```text
+$ python3 tools/sim/models/cascade_sim.py
+inner loop only:          fell over after 6.9 s, -1.97 m from the start
+outer P   (12):           upright, farthest 22.99 wheel turns from the start; push moved it 11.17 turns, 1.54 turns off 5 s later; wobble 0.3 deg rms
+outer PI  (12, 12):       upright, farthest 0.51 wheel turns from the start; push moved it 0.16 turns, 0.08 turns off 5 s later; wobble 0.3 deg rms
+outer PI  (60, 60):       upright, farthest 6.84 wheel turns from the start; push moved it 3.35 turns, 0.53 turns off 5 s later; wobble 3.3 deg rms
+outer PI (12, 12), asked to drive at +0.2 m/s from t = 40 s:
+t=39.96 s  setpoint +0.93 deg  tilt -0.11 deg  wheels +0.00 m/s
+t=40.00 s  setpoint +3.00 deg  tilt -0.15 deg  wheels -0.00 m/s
+t=40.04 s  setpoint +3.00 deg  tilt +0.17 deg  wheels -0.04 m/s
+t=40.08 s  setpoint +3.00 deg  tilt +1.31 deg  wheels -0.06 m/s
+t=40.12 s  setpoint +3.00 deg  tilt +2.56 deg  wheels -0.03 m/s
+t=40.16 s  setpoint +3.00 deg  tilt +3.20 deg  wheels +0.02 m/s
+t=40.20 s  setpoint +3.00 deg  tilt +3.18 deg  wheels +0.07 m/s
+t=40.24 s  setpoint +2.61 deg  tilt +2.85 deg  wheels +0.09 m/s
+t=40.28 s  setpoint +3.00 deg  tilt +2.50 deg  wheels +0.11 m/s
+t=40.32 s  setpoint +2.01 deg  tilt +2.26 deg  wheels +0.12 m/s
+t=40.36 s  setpoint +2.73 deg  tilt +2.15 deg  wheels +0.14 m/s
+t=40.40 s  setpoint +2.78 deg  tilt +1.93 deg  wheels +0.15 m/s
+t=40.44 s  setpoint +2.11 deg  tilt +1.91 deg  wheels +0.15 m/s
+t=40.48 s  setpoint +2.12 deg  tilt +2.00 deg  wheels +0.17 m/s
+t=40.52 s  setpoint +2.14 deg  tilt +1.82 deg  wheels +0.20 m/s
+t=40.56 s  setpoint +1.44 deg  tilt +1.47 deg  wheels +0.21 m/s
+```
+
+</SimOutput>
+
+逐项看输出。只有内环时，机器人在 6.9 s 后倒下，离起点 1.97 m：安装误差足以让它滚走，轮子最后也没速度可用了。外环只用 P、kp_s = 12 时，它站住了，但最远漂到离起点 22.99 个轮子转，约 4.7 m，推一下会移动 11.17 转，约 2.3 m。P 必须靠一个速度误差才能产生倾角，这正是第 1 节说的稳态误差：要维持抵消安装误差所需的倾角，外环就得一直保留一个速度误差，于是车一直滚。
+
+外环用 PI、kp_s = 12、ki_s = 12 时，60 s 内最远只离开 0.51 个轮子转，约 10 cm，同样的推力只让它移动 0.16 转，约 3 cm；积分在速度误差为零时也能提供那个倾角。外环 PI 用 60、60 就太激进了：车仍然站着，但抖动 3.3° rms。原因是每转只有 90 个计数，40 ms 的窗口里只看到 0、1 或 2 个计数，高增益把这个粗糙的速度读数放大成了跳动的设定点。这里的增益单位是：P 是“每 1 m/s 速度误差对应多少度设定点”，I 是“每 1 m 累积位置误差对应多少度设定点”。
+
+### 为什么先往反方向动
+
+最后一段轨迹是在 t = 40 s 时要求以 +0.2 m/s 前进。设定点先跳到 +3°，也就是前倾。但看轮子：它先向后走，−0.04、−0.06、−0.03 m/s，然后才真正往前，在 40.56 s 达到 +0.21 m/s。这不是 bug。要让车身向前倾，内环必须先让轮子向后加速，车身才会绕接地点向前转；等车身已经前倾，内环再驱动轮子向前，追到身体下面。
+
+停下来时反过来也一样：要刹车，它先稍微加速，取得一个后倾角，然后才慢下来。工程上把这叫非最小相位（non-minimum-phase）行为。对你来说只有一条实用规则：不要去“修”最开始那一下反方向运动。那是倒立摆的物理，强行压掉它，机器人反而会倒。
+
+<Quiz id="q5" question="你的平衡车在缓慢向前漂。外环应该把设定点往哪边移，才能让它停下？" options={["继续前倾", "稍微后仰", "不用改，加大内环 Kp", "关掉内环"]} answer={1} explanation="向前漂意味着轮速为正。外环看到负的速度误差，就把设定点往后移，让重力把车拉回来；内环再驱动轮子维持新的倾角。继续前倾只会让它更快，而加大内环 Kp 消不掉稳态速度误差。" />
+
+<Quiz id="q6" question="每转 90 个计数、轮子直径 65 mm，机器人每个计数走多少毫米？（π × 65 / 90）" answer={2.27} unit="mm" tolerance={0.02} explanation="轮子转一圈是 π × 65 = 204.2 mm。除以 90 个计数：204.2 / 90 = 2.269 mm，约 2.27 mm 每计数。固件里的 METERS_PER_COUNT 就是这么来的。" />
+
+## 把平衡车做完
+
+这一课把[第 2 个月第 6 课的选做挑战](/zh/month/month-2/first-robots)做完：也就是“你的前两台机器人：循线小车与自平衡车”里的自平衡车。内环 PD 你已经有了；新加的是编码器（就是第 2 个月第 4 课讲的带正交编码器的减速电机）和外环 PI。内环自己还站不稳之前，不要开始调外环。串级救不了一个坏掉的内环。
+
+固件就是第 2 个月的平衡车，加上编码器和外环 PI。接线新增：
+
+| 信号 | Uno 引脚 | 说明 |
+| --- | --- | --- |
+| 左编码器 A | D2 | 中断引脚 |
+| 左编码器 B | D10 | 方向 |
+| 右编码器 A | D3 | 中断引脚 |
+| 右编码器 B | D11 | 方向 |
+
+D2 和 D3 是 Uno 上仅有的两个外部中断引脚，所以两路 A 相都接在这里。
+
+<CodeSource path="examples/month-3/pid-control/balancer_cascade/balancer_cascade.ino" />
+
+```cpp
+// Self-balancer with a cascade: the Month 2 balancer (inner PD on pitch, 200 Hz) plus an
+// outer PI loop on wheel speed (25 Hz) that moves the inner loop's SETPOINT.
+// Uno + TB6612FNG + two gearmotors with encoders + MPU-6050, wired as in Month 2 Lesson 6,
+// plus: left encoder A -> D2, B -> D10; right encoder A -> D3, B -> D11.
+// Get the inner loop balancing first (Month 2), then copy your KP/KD here.
+#include <Wire.h>
+
+const int PWMA = 5, AIN1 = 7, AIN2 = 8;     // left motor
+const int PWMB = 6, BIN1 = 4, BIN2 = 12;    // right motor
+const int STBY = 9;
+const int ENC_LA = 2, ENC_LB = 10;          // A channels on the two interrupt pins
+const int ENC_RA = 3, ENC_RB = 11;
+
+const uint8_t MPU = 0x68;
+const float ACCEL_LSB_PER_G = 16384.0;
+const float GYRO_LSB_PER_DPS = 131.0;
+
+const unsigned long PERIOD_US = 5000;       // inner loop: 200 Hz
+const float DT = PERIOD_US / 1e6;
+const int OUTER_EVERY = 8;                  // outer loop: every 8th tick = 25 Hz
+const float OUTER_DT = DT * OUTER_EVERY;
+const float ALPHA = 0.5 / (0.5 + DT);       // complementary filter, 0.5 s time constant
+
+// Encoder: counting rising edges of A only = 1/4 of the full quadrature resolution.
+// Example: 12 CPR motor encoder (3 rising edges of A per motor turn) x 30:1 gearbox, 65 mm wheel.
+const float METERS_PER_COUNT = 3.14159 * 0.065 / (3 * 30);
+
+float KP = 25.0, KD = 0.8;                  // inner PD: YOUR tuned Month 2 values
+float KP_S = 3.0;                           // outer P: deg of setpoint per m/s of speed error
+float KI_S = 3.0;                           // outer I: deg of setpoint per metre
+const float SETPOINT_MAX = 3.0;             // the outer loop may lean the robot at most 3 deg
+const float CUTOFF_DEG = 40.0;
+
+volatile long leftCount = 0, rightCount = 0;
+float pitch = 0, gyroBias = 0, setpoint = 0, integral = 0, speed = 0, targetSpeed = 0;
+long lastPos = 0;
+bool running = false;
+unsigned int tick = 0;
+unsigned long nextTick = 0, worstLoopUs = 0, lastReport = 0;
+
+// If a wheel counts backwards when it rolls forward, swap that motor's A and B wires.
+void leftEdge()  { leftCount  += digitalRead(ENC_LB) ? -1 : 1; }
+void rightEdge() { rightCount += digitalRead(ENC_RB) ? -1 : 1; }
+
+void setMotor(int pwmPin, int in1, int in2, int speed) {
+  speed = constrain(speed, -255, 255);
+  digitalWrite(in1, speed > 0);
+  digitalWrite(in2, speed < 0);
+  analogWrite(pwmPin, abs(speed));
+}
+
+void readImu(float &accelPitch, float &rate) {
+  Wire.beginTransmission(MPU);
+  Wire.write(0x3B);
+  Wire.endTransmission(false);
+  Wire.requestFrom(MPU, (uint8_t)14);
+  int16_t v[7];
+  for (int i = 0; i < 7; i++) v[i] = (Wire.read() << 8) | Wire.read();
+  accelPitch = atan2(v[0] / ACCEL_LSB_PER_G, v[2] / ACCEL_LSB_PER_G) * 180.0 / PI;
+  rate = v[5] / GYRO_LSB_PER_DPS - gyroBias;
+}
+
+void outerLoop() {                          // 25 Hz: wheel speed -> setpoint
+  noInterrupts();
+  long pos = (leftCount + rightCount) / 2;
+  interrupts();
+  speed = (pos - lastPos) * METERS_PER_COUNT / OUTER_DT;   // m/s
+  lastPos = pos;
+  float error = targetSpeed - speed;
+  integral += error * OUTER_DT;
+  float iMax = SETPOINT_MAX / KI_S;         // anti-windup: the I term alone stays within 3 deg
+  integral = constrain(integral, -iMax, iMax);
+  setpoint = constrain(KP_S * error + KI_S * integral, -SETPOINT_MAX, SETPOINT_MAX);
+}
+
+void setup() {
+  int outs[] = {PWMA, AIN1, AIN2, PWMB, BIN1, BIN2, STBY};
+  for (int p : outs) pinMode(p, OUTPUT);
+  digitalWrite(STBY, HIGH);
+  int ins[] = {ENC_LA, ENC_LB, ENC_RA, ENC_RB};
+  for (int p : ins) pinMode(p, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(ENC_LA), leftEdge, RISING);
+  attachInterrupt(digitalPinToInterrupt(ENC_RA), rightEdge, RISING);
+  Serial.begin(115200);
+  Wire.begin();
+  Wire.setClock(400000);
+  Wire.beginTransmission(MPU);
+  Wire.write(0x6B);
+  Wire.write(0);
+  Wire.endTransmission();
+
+  float sum = 0, a, r;                      // gyro bias: hold still for one second
+  for (int i = 0; i < 200; i++) { readImu(a, r); sum += r; delay(5); }
+  gyroBias = sum / 200;
+  readImu(a, r);
+  pitch = a;
+  Serial.print(F("gyro bias (deg/s): "));
+  Serial.println(gyroBias, 2);
+  nextTick = micros();
+}
+
+void loop() {
+  if ((long)(micros() - nextTick) < 0) return;
+  unsigned long start = micros();
+  nextTick += PERIOD_US;
+
+  float accelPitch, rate;
+  readImu(accelPitch, rate);
+  pitch = ALPHA * (pitch + rate * DT) + (1 - ALPHA) * accelPitch;
+
+  if (fabs(pitch) > CUTOFF_DEG) running = false;
+  if (!running && fabs(pitch) < 5.0) {      // stood back up: start both loops from zero
+    running = true;
+    integral = 0;
+    setpoint = 0;
+    noInterrupts();
+    lastPos = (leftCount + rightCount) / 2;
+    interrupts();
+  }
+
+  if (running) {
+    if (++tick % OUTER_EVERY == 0) outerLoop();
+    int out = (int)(KP * (pitch - setpoint) + KD * rate);
+    setMotor(PWMA, AIN1, AIN2, out);
+    setMotor(PWMB, BIN1, BIN2, out);
+  } else {
+    setMotor(PWMA, AIN1, AIN2, 0);
+    setMotor(PWMB, BIN1, BIN2, 0);
+  }
+
+  unsigned long used = micros() - start;
+  if (used > worstLoopUs) worstLoopUs = used;
+  if (millis() - lastReport >= 1000) {
+    lastReport = millis();
+    Serial.print(F("pitch "));
+    Serial.print(pitch, 1);
+    Serial.print(F("  setpoint "));
+    Serial.print(setpoint, 2);
+    Serial.print(F("  speed "));
+    Serial.print(speed, 3);
+    Serial.print(F("  worst loop us "));
+    Serial.println(worstLoopUs);
+    worstLoopUs = 0;
+  }
+}
+```
+
+和 Month 2 相比，新增的部分是：
+
+- 编码器中断只数 A 相的上升沿，再读 B 相判断方向；如果某个轮子向前滚时计数却在减小，把那个电机 A、B 两根线对调。
+- `METERS_PER_COUNT` = π × 0.065 / (3 × 30) = 0.00227 m：12 CPR 的电机编码器（电机每转 3 个 A 相上升沿）配 30:1 减速箱和 65 mm 轮子。换电机就要改这个数。
+- `outerLoop()` 每第 8 个 tick 跑一次（25 Hz）。读计数时短暂关中断，免得两个 long 读到一半被中断改掉；然后算 m/s，再做 PI：积分被限制在 3 / KI_S（这样光靠 I 项最多只能要求 3°），设定点限制在 ±3°。
+- 机器人被扶正重新开始时，积分、设定点和位置基准都清零，免得旧的误差把它直接推倒。
+- 外环增益 3 和 3 是保守的起点。模型喜欢 12 和 12，但你的机器人不是模型。
+
+然后是这次运行：simavr 模拟器，带一个模拟的 MPU-6050（脚本是：先水平，3–4 s 倾斜到 30° 并保持，7–8 s 回到 0°；陀螺零偏 +1.5 °/s），并在 D2、D3 上注入编码器脉冲，就好像机器人在 1.5–5.5 s 之间以 0.1 m/s 向后滚。没有模拟电机或整车物理，也没有计入 I2C 总线时间。跑 8 s，`tools/sim/reproduce.sh` 可以复现。
+
+<SimOutput source="avr">
+
+```text
+gyro bias (deg/s): 1.54
+pitch -1.4  setpoint 0.00  speed 0.000  worst loop us 840
+pitch -0.2  setpoint 0.35  speed -0.057  worst loop us 900
+pitch 3.6  setpoint 0.65  speed -0.057  worst loop us 920
+pitch 30.0  setpoint 0.95  speed -0.057  worst loop us 904
+pitch 29.8  setpoint 1.43  speed -0.113  worst loop us 900
+pitch 30.1  setpoint 1.20  speed 0.000  worst loop us 900
+pitch 26.2  setpoint 1.20  speed 0.000  worst loop us 844
+```
+
+</SimOutput>
+
+pitch 一列是脚本设定的倾角，不是车倒了；它一直低于 40° 的保护阈值，所以两个环都在运行。B 相被上拉电阻拉高，所以每个 A 相边沿都计成 −1：注入的脉冲看起来就是向后运动。40 ms 窗口里只有一两个计数，所以速度读到 −0.057 或 −0.113 m/s：一个计数是 0.00227 m，除以 0.04 s 得 0.00227 / 0.04 = 0.0568 m/s，两个计数就翻倍。真实的 0.1 m/s 是它们的平均值；这就是模型里说的粗编码器效应。
+
+设定点在“向后滚”期间从 0.35° 升到 1.43°。P 部分是 3 × 0.1 = 0.3°，其余来自积分。脉冲停止后速度读到 0.000，设定点停在 1.20°；这就是 I 项，3 × 0.4 m 的累积位置误差（0.1 m/s × 4 s）。正的设定点表示前倾，也就是向前开，回到出发的地方。最坏一圈用了 5,000 µs 预算里的 840–920 µs，比 Month 2 的约 730 µs 多；真机上 I2C 读取还要花模拟器没算的时间，所以一定要看你自己测到的最坏循环时间。
+
+### 上真车调试
+
+1. 先让内环自己平衡（第 2 个月），把你调好的 KP、KD 抄进来。外环先别开。
+2. 把 KP_S 和 KI_S 设成 0。用手滚动机器人，看串口打印的速度：向前必须是正。轮子转一整圈是 π × 0.065 = 0.204 m；如果读数和你滚过的距离对不上，先查 `METERS_PER_COUNT` 和编码器接线。
+3. 一点一点加 KP_S，再加 KI_S。把机器人拿在手里，你应该感觉到它顶着你的推力往回来——轮子想重新钻到身体下面。如果它往反方向倾，说明 KP_S 的符号错了。
+4. 盯住串口里的设定点。如果它一直停在 +3.00 或 −3.00，说明外环饱和了：增益太大，或者速度符号反了。饱和的外环没有在控制，它只是在要求最大倾角。
+5. 记录每一次尝试：内环增益、外环增益、设定点怎么动、车跑了多远、声音听起来怎样。
+
+本站编者没有在真实机器人上跑过这套串级。把这些增益当成起点，不要当成结果。你的电机、轮子、编码器计数和 IMU 安装角度都会改变这些数字。
+
+本课（本站补充内容）的里程碑：平衡车能在 60 s 内保持在放入位置的一个轮子转以内，被轻轻推一下之后能自己回来。
+
+第 5 课是 SO-101 机械臂，它的每一个关节都是一个位置环，和本课第 2 节很像，PID 就藏在 STS3215 总线舵机内部。你要问的问题也一样：稳态误差是多少？输出饱和时会发生什么？齿轮有齿隙时回路会怎样？第 5 个月会给你更正式的工具。现在，你已经有了能用的直觉，也有一台能待在原地的平衡车。

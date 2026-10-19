@@ -1,0 +1,1 @@
+ERROR: Assertion '(hole_pitch > (cut_l + hole_d))' failed: "screw holes would cut into the body opening" in file servo_bracket.scad, line 30

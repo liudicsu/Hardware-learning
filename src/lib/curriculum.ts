@@ -206,6 +206,104 @@ const month2Lessons: Lesson[] = [
   },
 ];
 
+const month3Lessons: Lesson[] = [
+  {
+    slug: "cad-parametric",
+    title: { zh: "CAD：选好工具，用参数设计", en: "CAD: pick a tool, then design with parameters" },
+    summary: {
+      zh: "选一个 CAD 工具深入下去：完全约束的草图、参数驱动的尺寸、照数据手册建模，以及 STEP 和 STL 的区别。",
+      en: "Pick one CAD tool and go deep: fully constrained sketches, parameters that drive every size, modelling from the datasheet, and STEP versus STL.",
+    },
+    minutes: 150,
+    resources: ["onshape-free", "onshape-learn", "fusion-personal", "pdo-fusion30", "freecad", "mangojelly", "solidworks-makers", "openscad"],
+    tasks: [
+      { id: "pick-tool", text: { zh: "选定一个 CAD 工具，完成它的入门课程（Onshape 基础课或 30 天 Fusion 的前 5 天）", en: "Pick one CAD tool and finish its starter course (Onshape Fundamentals or the first 5 days of Fusion in 30 Days)" } },
+      { id: "constrained", text: { zh: "画一个完全约束（0 自由度）的草图，尺寸都从基准标注", en: "Draw a fully constrained (0 DOF) sketch with every dimension taken from a datum" } },
+      { id: "measure-servo", text: { zh: "用卡尺测量你自己的舵机（机身、安装耳宽度、孔距），和数据手册对比并记录差异", en: "Measure your own servo with calipers (body, tab span, hole spacing), compare with the datasheet and log the differences" } },
+      { id: "bracket", text: { zh: "按数据手册和实测尺寸建一个参数化舵机支架，导出 STEP 和 STL", en: "Model a parametric servo bracket from the datasheet and your measurements; export STEP and STL" } },
+    ],
+  },
+  {
+    slug: "fdm-printing",
+    title: { zh: "3D 打印：材料、校准与公差", en: "3D printing: materials, calibration & tolerances" },
+    summary: {
+      zh: "选打印机和耗材，按顺序校准，测出你机器的真实间隙，再为 FDM 设计零件：方向、悬垂、层间结合和能反复扣合的卡扣。",
+      en: "Choose a printer and filament, calibrate in the right order, measure your machine's real clearances, then design for FDM: orientation, overhangs, layer adhesion and snap-fits that click.",
+    },
+    minutes: 180,
+    resources: ["ender3-v3-se", "bambu-a1-mini", "bambu-a1", "creality-k1c", "bambu-p1s", "orca-calibration", "teachingtech-calibration", "cnc-kitchen", "tolerance-gauge", "hubs-dfam", "fablabs", "library-makerspace", "craftcloud", "jlc3dp"],
+    tasks: [
+      { id: "calibrate", text: { zh: "按 OrcaSlicer 的顺序完成温度、流量和回抽校准，把结果记在打印日志里", en: "Run temperature, flow and retraction calibration in OrcaSlicer's order and record the results in a print log" } },
+      { id: "gauge", text: { zh: "打印公差测试件，写下你机器的滑配和压配间隙", en: "Print the tolerance gauge and write down your machine's sliding-fit and press-fit clearances" } },
+      { id: "snap-calc", text: { zh: "用本课的卡扣公式检查一根悬臂卡扣，再打印一根测试臂扣 20 次", en: "Check a cantilever snap arm with this lesson's formula, then print a test arm and snap it 20 times" } },
+      { id: "enclosure", text: { zh: "设计并打印一个不用胶水就能扣紧的两件式 ESP32 外壳，反复迭代直到扣合清脆", en: "Design and print a two-part ESP32 enclosure that closes without glue; iterate until it clicks properly" } },
+    ],
+  },
+  {
+    slug: "transmissions",
+    title: { zh: "传动与回差：齿轮、皮带与轴承", en: "Transmissions & backlash: gears, belts and bearings" },
+    summary: {
+      zh: "减速比怎样用速度换扭矩，回差为什么会毁掉定位精度而软件补不回来，以及轴承预紧、皮带与直驱的取舍。",
+      en: "How a gear ratio trades speed for torque, why backlash ruins position accuracy in a way software cannot fully fix, and choosing bearings, preload, belts or direct drive.",
+    },
+    minutes: 150,
+    resources: ["opencycloid", "sts3215"],
+    tasks: [
+      { id: "ratio-calc", text: { zh: "用本课的脚本设计一个能装配的行星级（齿数、行星数、减速比）", en: "Use the lesson's script to design a planetary stage that assembles (teeth, planet count, ratio)" } },
+      { id: "reducer", text: { zh: "为步进电机或玩具电机设计并打印一个行星或摆线减速器", en: "Design and print a planetary or cycloidal reducer for a NEMA17 stepper or a hobby motor" } },
+      { id: "measure-backlash", text: { zh: "夹住输入轴、来回摇动输出，用指针量出回差（度），改进设计后再测一次", en: "Lock the input, rock the output and measure the backlash in degrees with a pointer; redesign and measure again" } },
+    ],
+  },
+  {
+    slug: "pid-control",
+    title: { zh: "PID 与控制：积分饱和与串级回路", en: "PID & control: windup and cascade loops" },
+    summary: {
+      zh: "把 PID 补完整：积分消除稳态误差、微分阻尼、积分饱和与抗饱和；然后用串级外环让第 2 个月的平衡车停在原地。",
+      en: "Finish PID properly: I for steady error, D for damping, windup and anti-windup; then add a cascade outer loop that keeps Month 2's balancer in one place.",
+    },
+    minutes: 180,
+    resources: ["mathworks-pid", "beauregard-pid"],
+    tasks: [
+      { id: "pid-sim", text: { zh: "运行本课的关节 PID 模型，自己改增益，找出有/无抗饱和时超调的差别", en: "Run the lesson's joint PID model, change the gains yourself and find the overshoot difference with and without anti-windup" } },
+      { id: "cascade-sim", text: { zh: "运行串级平衡车模型，复现“只有内环会溜走、PI 外环能停住”的结果", en: "Run the cascade balancer model and reproduce: inner loop alone runs away, an outer PI loop holds it" } },
+      { id: "cascade-robot", text: { zh: "给你的平衡车加上外环：60 s 内离起点不超过一圈轮子，轻推后能回来", en: "Add the outer loop to your balancer: within one wheel turn of the start for 60 s, and back after a gentle push" } },
+      { id: "tuning-log", text: { zh: "在调参日志里分开记录内环和外环的增益，并用自己的话解释串级", en: "Log the inner and outer gains separately and explain the cascade in your own words" } },
+    ],
+  },
+  {
+    slug: "so101-arm",
+    title: { zh: "组装 SO-101 机械臂：校准与遥操作", en: "Build the SO-101 arm: calibrate and teleoperate" },
+    summary: {
+      zh: "选购买方式，组装主从两只臂，读懂总线舵机的数据包，按 LeRobot 的步骤设置 ID、校准，再用主臂遥控从臂。",
+      en: "Choose how to buy it, build the leader and follower arms, read the bus-servo packets, then set IDs, calibrate and teleoperate with LeRobot.",
+    },
+    minutes: 240,
+    resources: ["so-arm100", "lerobot-so101", "seeed-so101-pro", "seeed-so101-printed", "robonine-so101", "wowrobo-so101", "eezybotarm", "xarm-1s", "mujoco", "sts3215"],
+    tasks: [
+      { id: "buy-plan", text: { zh: "按你的预算选一条路线（MuJoCo、单从臂、整套主从），写下总价和理由", en: "Choose a route for your budget (MuJoCo, single follower, full pair) and write down the total and why" } },
+      { id: "packets", text: { zh: "运行本课的数据包脚本，手算一个校验和并和输出对照", en: "Run the lesson's packet script and work out one checksum by hand to match it" } },
+      { id: "build-calibrate", text: { zh: "组装两只臂，设置舵机 ID 1–6，用 lerobot-calibrate 校准主臂和从臂", en: "Build both arms, set servo IDs 1–6, and calibrate leader and follower with lerobot-calibrate" } },
+      { id: "teleop", text: { zh: "用 lerobot-teleoperate 让从臂跟随主臂，录一段视频", en: "Teleoperate the follower from the leader with lerobot-teleoperate and film it" } },
+    ],
+  },
+  {
+    slug: "gripper-fingers",
+    title: { zh: "设计你自己的夹爪手指（TPU）", en: "Design your own gripper fingers (TPU)" },
+    summary: {
+      zh: "用摩擦力算出夹多紧才够，用鳍条结构让手指包住物体，用 TPU 打印并在三种不同形状的物体上测试，最后完成本月的机械臂改造。",
+      en: "Work out how hard to squeeze from friction, use a fin-ray structure so fingers wrap around objects, print them in TPU and test them on three differently shaped objects, finishing the month's arm modification.",
+    },
+    minutes: 180,
+    resources: ["so101-compliant-gripper", "so-arm100", "cnc-kitchen"],
+    tasks: [
+      { id: "friction", text: { zh: "用斜板法测出 PLA 和 TPU 在你的物体上的摩擦系数，算出需要的夹紧力", en: "Measure PLA and TPU friction on your objects with a tilted board and work out the squeeze force needed" } },
+      { id: "test-finger", text: { zh: "打印本课的参数化鳍条手指，改一个参数（肋数或壁厚）再打一次，比较它们怎样弯", en: "Print the lesson's parametric fin-ray finger, change one parameter (rib count or flank) and compare how they bend" } },
+      { id: "own-fingers", text: { zh: "基于 SO-101 的 STEP 文件设计你自己的 TPU 手指并装上机械臂", en: "Design your own TPU fingers from the SO-101 STEP files and fit them to the arm" } },
+      { id: "three-objects", text: { zh: "在三种不同形状的物体上测试（各 10 次），记录成功率并和原装夹爪对比", en: "Test on three differently shaped objects (10 tries each), log the success rate and compare with the stock gripper" } },
+    ],
+  },
+];
+
 export const months: Month[] = [
   {
     id: 1,
@@ -266,12 +364,13 @@ export const months: Month[] = [
       zh: "在 CAD 中设计一个零件，把它制造出来，并且装得上。",
       en: "Design a part in CAD, manufacture it, and have it fit.",
     },
-    status: "outline",
+    status: "ready",
     topics: [
       { zh: "CAD：Onshape / Fusion / FreeCAD / SOLIDWORKS 选型与参数化建模", en: "CAD: choosing Onshape / Fusion / FreeCAD / SOLIDWORKS; parametric modelling" },
       { zh: "3D 打印：校准、公差与面向 FDM 的设计", en: "3D printing: calibration, tolerances and design for FDM" },
       { zh: "执行器、传动与回差", en: "Actuators, transmissions and backlash" },
       { zh: "组装并改造一台真实的机械臂", en: "Build and modify a real robot arm" },
+      { zh: "控制：PID、积分饱和与串级回路（本站补充）", en: "Control: PID, windup and cascade loops (site supplement)" },
     ],
     milestones: [
       { zh: "根据数据手册用完全约束的草图建模零件", en: "Model a part from a datasheet with fully constrained sketches" },
@@ -280,8 +379,9 @@ export const months: Month[] = [
       { zh: "为零件选择 PLA/PETG/ABS/TPU 并说明理由", en: "Choose PLA, PETG, ABS or TPU for a part and justify it" },
       { zh: "解释并演示回差", en: "Explain and demonstrate backlash" },
       { zh: "展示一台你组装、校准并用自制零件改造过的机械臂", en: "Show a robot arm you assembled, calibrated and modified with your own parts" },
+      { zh: "让第 2 个月的平衡车靠串级外环在 60 秒内停在原地（本站补充）", en: "Keep Month 2's balancer in place for 60 s with a cascade outer loop (site supplement)" },
     ],
-    lessons: [],
+    lessons: month3Lessons,
   },
   {
     id: 4,
