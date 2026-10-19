@@ -171,6 +171,22 @@ const month2Lessons: Lesson[] = [
       { id: "one-rev", text: { zh: "在真车轮上实现“恰好转一圈”函数，并在两种电池电压下验证", en: "Implement “turn exactly one revolution” on a real wheel and check it at two battery voltages" } },
     ],
   },
+  {
+    slug: "sensors-fusion",
+    title: { zh: "传感器、I2C 与互补滤波", en: "Sensors, I2C & the complementary filter" },
+    summary: {
+      zh: "只看数据手册接好并读取 I2C 传感器，理解陀螺仪漂移和加速度计噪声，用四行互补滤波得到稳定的倾角。",
+      en: "Wire and read an I2C sensor from its datasheet, understand gyro drift and accelerometer noise, and get a stable tilt angle from a four-line complementary filter.",
+    },
+    minutes: 210,
+    resources: ["arduino-docs", "labbe-kalman", "mathworks-fusion", "adafruit-bno085", "wokwi"],
+    tasks: [
+      { id: "i2c-scan", text: { zh: "运行 I2C 扫描程序，找到你的 IMU 地址，并读出 WHO_AM_I 寄存器", en: "Run the I2C scanner, find your IMU's address and read its WHO_AM_I register" } },
+      { id: "raw-to-units", text: { zh: "只靠数据手册把原始加速度/陀螺仪读数换算成 g 和 °/s", en: "Convert raw accel/gyro readings to g and °/s using only the datasheet" } },
+      { id: "drift-sim", text: { zh: "运行本课的 Python 漂移模拟，把 a 改成 0.90 和 0.995，比较噪声和漂移", en: "Run the lesson's Python drift simulation with a = 0.90 and 0.995 and compare noise vs drift" } },
+      { id: "imu-filter", text: { zh: "在真 IMU 上打印俯仰角：先纯陀螺积分看漂移，再加互补滤波看漂移消失", en: "Print pitch from a real IMU: integrate the gyro alone and watch it drift, then add the complementary filter and watch the drift vanish" } },
+    ],
+  },
 ];
 
 export const months: Month[] = [
