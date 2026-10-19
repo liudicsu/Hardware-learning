@@ -83,3 +83,13 @@ Every `## ` heading (outside code fences) becomes an entry in the lesson's "In t
   real computer runs go into a `check.sh` next to the examples (see `examples/month-1/check.sh`). Both must pass from a clean checkout.
 - **Long code blocks fold automatically:** any fenced block over 30 lines shows its first 15 lines with an
   "Expand all / 展开全部" button. Every block has a Copy button. Nothing to do in MDX; just don't split code to avoid folding.
+
+## Curriculum notes (decisions for later months)
+
+- **PID lives in Month 3 as a site supplement** (`/month/month-3/pid-control`: P/I/D, windup, tuning, cascade loops,
+  the balancer outer loop). When Month 5 ("Control theory, starting with PID") is written, do **not** repeat those basics:
+  open with a "Review Month 3 PID / 复习第 3 个月的 PID" link to that lesson and go deeper — system modelling,
+  the frequency domain (transfer functions, Bode plots, stability margins), and LQR.
+- **Licence and price facts follow the official page** of the product (e.g. Autodesk Fusion for personal use: 1-year term,
+  renewable) and add "check the official site when you sign up / 以注册时官网为准". Where the course text differs, the
+  official page wins.
