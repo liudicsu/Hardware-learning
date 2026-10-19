@@ -1271,6 +1271,59 @@ export const resources: Record<string, Resource> = {
     },
     license: { zh: "© Josh Newans，仅提供外链", en: "© Josh Newans; external link only" },
   },
+  "slam-toolbox": {
+    id: "slam-toolbox",
+    url: "https://github.com/SteveMacenski/slam_toolbox",
+    title: { zh: "SLAM Toolbox（GitHub）", en: "SLAM Toolbox (GitHub)" },
+    author: "Steve Macenski and contributors",
+    kind: "guide",
+    cost: { zh: "免费，开源", en: "Free, open source" },
+    summary: {
+      zh: "ROS 2 默认的二维激光 SLAM。README 是最好的参数说明书：建图、定位和终身建图三种模式，各参数的含义，以及怎样保存和加载位姿图。遇到奇怪的地图先看这里的 issue。",
+      en: "The default 2D lidar SLAM for ROS 2. The README is the best parameter reference: the mapping, localization and lifelong modes, what each parameter does, and how to save and load pose graphs. Search its issues first when a map looks odd.",
+    },
+    license: { zh: "LGPL-2.1；仅提供外链", en: "LGPL-2.1; external link only" },
+  },
+  "nav2-docs": {
+    id: "nav2-docs",
+    url: "https://docs.nav2.org/",
+    title: { zh: "Nav2 官方文档", en: "Nav2 documentation" },
+    author: "Open Navigation and Nav2 contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "Nav2 的概念（行为树、规划器、控制器、代价地图）、给自己的机器人配置 Nav2 的入门指南、每个插件的参数页，以及调参指南。版本选 Jazzy。",
+      en: "Nav2's concepts (behaviour trees, planners, controllers, costmaps), the first-time setup guides for your own robot, a parameter page for every plugin, and a tuning guide. Pick the Jazzy version.",
+    },
+    license: { zh: "文档以 Apache-2.0 发布；仅提供外链", en: "Docs under Apache-2.0; external link only" },
+  },
+  "articulated-slam": {
+    id: "articulated-slam",
+    url: "https://articulatedrobotics.xyz/tutorials/mobile-robot/applications/slam/",
+    title: { zh: "Articulated Robotics：用 slam_toolbox 做 SLAM", en: "Articulated Robotics: SLAM with slam_toolbox" },
+    author: "Josh Newans",
+    kind: "guide",
+    cost: { zh: "免费（文章 + 视频）", en: "Free (article + video)" },
+    summary: {
+      zh: "同一台差速小车先在仿真里、再在真机上用 slam_toolbox 建图，还讲了地图的保存与加载和定位模式。和本课的流程一一对应，适合对照着看。",
+      en: "The same differential-drive robot mapping with slam_toolbox in simulation and then for real, plus saving, loading and localization mode. It follows the same steps as this lesson, so it is a good side-by-side read.",
+    },
+    license: { zh: "© Josh Newans，仅提供外链", en: "© Josh Newans; external link only" },
+  },
+  "articulated-nav2": {
+    id: "articulated-nav2",
+    url: "https://articulatedrobotics.xyz/tutorials/mobile-robot/applications/nav2/",
+    title: { zh: "Articulated Robotics：用 Nav2 导航", en: "Articulated Robotics: navigation with Nav2" },
+    author: "Josh Newans",
+    kind: "guide",
+    cost: { zh: "免费（文章 + 视频）", en: "Free (article + video)" },
+    summary: {
+      zh: "在 slam_toolbox 的地图上启动 Nav2，在 RViz 里发目标点，并解释代价地图和膨胀层在做什么。真机部分展示了仿真里看不到的问题。",
+      en: "Starting Nav2 on a slam_toolbox map, sending goals from RViz, and what the costmaps and the inflation layer are doing. The real-robot part shows problems a simulation never does.",
+    },
+    license: { zh: "© Josh Newans，仅提供外链", en: "© Josh Newans; external link only" },
+    extra: true,
+  },
 };
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

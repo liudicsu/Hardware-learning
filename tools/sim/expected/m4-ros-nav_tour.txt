@@ -1,0 +1,6 @@
+$ python3 tour.py
+spin once on the spot
+at waypoint (1.4, 1.4): odom x 1.37 y 1.37
+at waypoint (-1.2, -1.2): odom x -1.16 y -1.16
+at waypoint (0.0, 0.0): odom x -0.04 y -0.04
+done, facing +x again: yaw 1 deg

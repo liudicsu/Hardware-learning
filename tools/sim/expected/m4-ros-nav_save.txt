@@ -1,0 +1,37 @@
+$ ros2 service call /slam_toolbox/serialize_map slam_toolbox/srv/SerializePoseGraph "{filename: '/home/you/maps/room'}"
+waiting for service to become available...
+requester: making request: slam_toolbox.srv.SerializePoseGraph_Request(filename='/home/you/maps/room')
+
+response:
+slam_toolbox.srv.SerializePoseGraph_Response(result=0)
+
+$ ros2 run nav2_map_server map_saver_cli -f ~/maps/room --ros-args -p use_sim_time:=true
+[INFO] [1792451180.539218586] [map_saver]: 
+	map_saver lifecycle node launched. 
+	Waiting on external lifecycle transitions to activate
+	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[INFO] [1792451180.539273614] [map_saver]: Creating
+[INFO] [1792451180.539326203] [map_saver]: Configuring
+[INFO] [1792451180.544049221] [map_saver]: Saving map from 'map' topic to '/home/you/maps/room' file
+[WARN] [1792451180.544074518] [map_saver]: Free threshold unspecified. Setting it to default value: 0.250000
+[WARN] [1792451180.544079626] [map_saver]: Occupied threshold unspecified. Setting it to default value: 0.650000
+[WARN] [1792451180.720973669] [map_io]: Image format unspecified. Setting it to: pgm
+[INFO] [1792451180.721083605] [map_io]: Received a 120 X 120 map @ 0.05 m/pix
+[INFO] [1792451180.737619110] [map_io]: Writing map occupancy data to /home/you/maps/room.pgm
+[INFO] [1792451180.738094889] [map_io]: Writing map metadata to /home/you/maps/room.yaml
+[INFO] [1792451180.738179644] [map_io]: Map saved
+[INFO] [1792451180.738186115] [map_saver]: Map saved successfully
+[INFO] [1792451180.738779121] [map_saver]: Destroying
+$ ls ~/maps
+room.data
+room.pgm
+room.posegraph
+room.yaml
+$ cat ~/maps/room.yaml
+image: room.pgm
+mode: trinary
+resolution: 0.050
+origin: [-2.989, -3.002, 0]
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.196

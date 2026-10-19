@@ -42,7 +42,7 @@ wait_for() {  # wait_for <file> <regex> [tries]: poll a log until a line appears
 
 WS="$TMP/ws"; mkdir -p "$WS/src"
 cp -r "$M4/urdf-tf/m4_description" "$M4/gazebo-sim/m4_gazebo" "$M4/ros2-control/m4_control" \
-      "$M4/ros2-control/m4_drive_interfaces" "$WS/src/"
+      "$M4/ros2-control/m4_drive_interfaces" "$M4/slam-nav/m4_nav" "$WS/src/"
 (cd "$WS" && colcon build > "$TMP/build" 2>&1) || { cat "$TMP/build"; exit 1; }
 set +u; source "$WS/install/setup.bash"; set -u
 
@@ -121,5 +121,50 @@ mock_demo() {
 }
 check m4-ros-ctl_mock.txt --tol 0.1 mock_demo
 pkill -INT -f 'ros2 launch m4_control'; wait
+
+# ---- Lesson 6: odometry check, mapping with SLAM Toolbox, navigation with Nav2 -------------
+NAV="$M4/slam-nav"; MAPS="$TMP/maps"; mkdir -p "$MAPS"
+# the scans are compared to 0.1 deg and Gazebo's contact physics is not bit-exact
+timeout -s INT 90 ros2 launch m4_control control.launch.py headless:=true > "$TMP/ctl6" 2>&1 &
+ctl_ready || { tail -30 "$TMP/ctl6"; exit 1; }
+check m4-ros-nav_spin_raw.txt --tol 0.03 bash -c "echo '\$ python3 spin_check.py'; python3 '$NAV/spin_check.py'"
+pkill -INT -f 'ros2 launch m4_control'; wait
+
+timeout -s INT 400 ros2 launch m4_nav slam.launch.py headless:=true > "$TMP/slam" 2>&1 &
+ctl_ready || { tail -30 "$TMP/slam"; exit 1; }
+wait_for "$TMP/slam" 'Registering sensor' 200 || { tail -30 "$TMP/slam"; exit 1; }
+check m4-ros-nav_spin_cal.txt --tol 0.03 bash -c "echo '\$ python3 spin_check.py'; python3 '$NAV/spin_check.py'"
+check m4-ros-nav_tour.txt --tol 0.06 --mask 'yaw -?[0-9]+ deg' bash -c "echo '\$ python3 tour.py'; python3 '$NAV/tour.py'"
+save_map() {
+  echo "\$ ros2 service call /slam_toolbox/serialize_map slam_toolbox/srv/SerializePoseGraph \"{filename: '/home/you/maps/room'}\""
+  ros2 service call /slam_toolbox/serialize_map slam_toolbox/srv/SerializePoseGraph "{filename: '$MAPS/room'}" | sed "s|$MAPS|/home/you/maps|"
+  echo '$ ros2 run nav2_map_server map_saver_cli -f ~/maps/room --ros-args -p use_sim_time:=true'
+  ros2 run nav2_map_server map_saver_cli -f "$MAPS/room" --ros-args -p use_sim_time:=true 2>&1 | sed "s|$MAPS|/home/you/maps|"
+  echo '$ ls ~/maps'; ls "$MAPS"
+  echo '$ cat ~/maps/room.yaml'; cat "$MAPS/room.yaml"; echo   # map_saver ends the file without a newline
+}
+# the map's origin is where SLAM Toolbox's first scan put the walls: a few mm either way
+check m4-ros-nav_save.txt --tol 0.01 save_map
+check m4-ros-nav_map_check.txt --tol 0.5 bash -c "echo '\$ python3 map_check.py ~/maps/room.yaml'; python3 '$NAV/map_check.py' '$MAPS/room.yaml'"
+pkill -INT -f 'ros2 launch m4_nav'; wait
+
+timeout -s INT 300 ros2 launch m4_nav nav.launch.py map:="$MAPS/room" headless:=true > "$TMP/nav" 2>&1 &
+wait_for "$TMP/nav" 'Managed nodes are active' 300 || { tail -30 "$TMP/nav"; exit 1; }
+sleep 3
+where() {     # the robot's pose in the map, as the TF tree says
+  echo '$ ros2 run tf2_ros tf2_echo map base_footprint --ros-args -p use_sim_time:=true'
+  timeout -s INT 8 ros2 run tf2_ros tf2_echo map base_footprint --ros-args -p use_sim_time:=true 2>/dev/null \
+    | grep -m1 -A4 '^At time' | grep -E 'Translation|degree'
+}
+goal() {      # goal <x> <y>: one NavigateToPose goal from the command line, then where the robot is
+  local g="{pose: {header: {frame_id: map}, pose: {position: {x: $1, y: $2}, orientation: {w: 1.0}}}}"
+  echo "\$ ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose \"$g\""
+  ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose "$g"
+  where
+}
+# Nav2 stops anywhere within its goal tolerance (0.10 m, 0.15 rad in nav2.yaml): heading masked
+check m4-ros-nav_goal.txt --tol 0.1 --mask 'ID: [0-9a-f]+' --mask 'degree\) \[.*\]' goal 2.0 -2.0
+cp "$TMP/nav" "$OUT/m4-ros-nav_log.txt"
+pkill -INT -f 'ros2 launch m4_nav'; wait
 
 exit $fail

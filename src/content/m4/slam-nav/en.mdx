@@ -1,0 +1,695 @@
+A robot that knows where it is and has a map of where it is going can do something genuinely useful: you click a point on the floor plan and it drives there by itself, around the furniture, without you steering. That needs two things at once. To build a map, the robot has to know where it was when it saw each wall. To know where it is, it has to compare what it sees with a map. **SLAM** (simultaneous localization and mapping) solves both together, and **Nav2** turns "where I am" plus "where I want to be" into wheel commands.
+
+This is the sixth and last lesson of Month 4. Everything it needs is already in place: m4bot from Lesson 3, the obstacles world and the lidar from Lesson 4, and `diff_drive_controller` from Lesson 5, which publishes odometry and accepts `TwistStamped` commands. Today we add three packages that every ROS 2 mobile robot uses — SLAM Toolbox for the map, Nav2 for the driving and `nav2_map_server` for saving the map — and one habit that saves hours: checking odometry before trusting any map built on it.
+
+The practice task follows the order you would use on a real robot: calibrate odometry against the lidar, map the room and save the map, navigate in the saved map, then break navigation on purpose and find out why. The month's milestone is **map a room with SLAM Toolbox and navigate it autonomously with Nav2**.
+
+## SLAM in one picture
+
+Odometry alone is not enough. `diff_drive_controller` integrates wheel rotations into a pose, and every small error — a wheel that slips, a radius that is half a millimetre off, a turn that comes out one degree long — is added up forever. After a few minutes of driving, odometry can be tens of centimetres and several degrees away from the truth, and it never notices. The lidar, on the other hand, sees the walls directly, but a single scan does not say where the robot is unless you already have a map to compare it with.
+
+SLAM Toolbox combines the two. It keeps a **pose graph**: every time the robot has moved 0.2 m or turned 0.2 rad, it stores the current scan together with the pose where it was taken. Each new scan is matched against the recent ones (scan matching), which corrects the small odometry errors as they happen. When the robot comes back to a place it has seen before, SLAM Toolbox recognises the scan (a **loop closure**) and adjusts the whole graph so that the old and new views agree. The map is then drawn from all the scans at their corrected poses.
+
+The result appears in TF as one extra frame. The chain from the map to the robot is:
+
+```text
+map ──► odom ──► base_footprint ──► base_link ──► laser_link ...
+    │         │                   │
+    │         │                   └ robot_state_publisher (URDF, Lesson 3)
+    │         └ diff_drive_controller (wheel odometry, Lesson 5): smooth, drifts slowly
+    └ SLAM Toolbox: jumps a little whenever a scan match corrects the drift
+```
+
+SLAM Toolbox does not overwrite odometry. It publishes `map → odom`, the correction that makes the whole chain land in the right place. Odometry stays smooth for the controllers that need a continuous signal, and the map frame stays right for planning. When SLAM Toolbox corrects drift, only `map → odom` moves.
+
+<Quiz id="q1" question="Which node publishes the map → odom transform while m4bot is mapping?" options={["diff_drive_controller", "robot_state_publisher", "SLAM Toolbox", "Nav2's bt_navigator"]} answer={2} explanation="diff_drive_controller publishes odom → base_footprint and robot_state_publisher publishes the robot's own links; SLAM Toolbox publishes map → odom, the correction for odometry drift." />
+
+## Check odometry first
+
+SLAM Toolbox uses odometry as its first guess for every scan match. If odometry is only a little off, scan matching fixes it. If it is badly off — say every turn comes out ten per cent too short — the first guess lands far from the truth, matching may lock onto the wrong wall, and the map comes out smeared or doubled. So before mapping, measure how good odometry is.
+
+The cleanest test for a differential-drive robot is a full turn on the spot. Turning is where odometry is weakest, because the turn angle depends on the wheel separation, and the real separation is where the tyres touch the ground, not where the CAD drawing says. A full turn also has a built-in reference: after exactly 360°, the room looks exactly as it did before. `spin_check.py` turns the robot until odometry says 360°, then compares the lidar scan before and after. If the robot really turned 365°, every wall appears 5° further round, and the script finds the rotation that lines the two scans up.
+
+<CodeSource path="examples/month-4/slam-nav/spin_check.py" />
+
+```python
+#!/usr/bin/env python3
+"""Check odometry's heading against the lidar: spin m4bot one full turn by odometry, then ask the
+lidar how far it really turned.
+
+usage: python3 spin_check.py        (with control.launch.py or slam.launch.py running)
+If odometry is right, the room looks the same to the lidar before and after one turn. If not, the
+two scans are rotated against each other, and the rotation is the odometry's heading error."""
+import math
+
+import rclpy
+from geometry_msgs.msg import TwistStamped
+from nav_msgs.msg import Odometry
+from rclpy.node import Node
+from rclpy.parameter import Parameter
+from rclpy.qos import qos_profile_sensor_data
+from sensor_msgs.msg import LaserScan
+
+
+class SpinCheck(Node):
+    def __init__(self):
+        super().__init__('spin_check', parameter_overrides=[Parameter('use_sim_time', value=True)])
+        self.cmd = self.create_publisher(TwistStamped, 'diff_drive_controller/cmd_vel', 10)
+        self.create_subscription(Odometry, 'diff_drive_controller/odom', self.on_odom, 1)
+        self.scans = []
+        self.create_subscription(LaserScan, 'scan', self.scans.append, qos_profile_sensor_data)
+        self.yaw = None
+
+    def on_odom(self, msg):
+        q = msg.pose.pose.orientation
+        self.yaw = math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
+
+    def send(self, w):
+        msg = TwistStamped()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.twist.angular.z = w
+        self.cmd.publish(msg)
+
+    def average_scan(self, count=5):
+        """Mean of the next `count` scans; beams without a hit count as the lidar's maximum range."""
+        self.scans.clear()
+        while len(self.scans) < count:
+            rclpy.spin_once(self, timeout_sec=0.1)
+        top = self.scans[0].range_max
+        return [sum(min(s.ranges[i], top) for s in self.scans) / count
+                for i in range(len(self.scans[0].ranges))]
+
+    def settle(self, seconds):
+        end = self.get_clock().now().nanoseconds + seconds * 1e9
+        while self.get_clock().now().nanoseconds < end:
+            self.send(0.0)
+            rclpy.spin_once(self, timeout_sec=0.05)
+
+    def run(self):
+        while self.yaw is None:
+            rclpy.spin_once(self, timeout_sec=0.1)
+        before = self.average_scan()
+        turned, last = 0.0, self.yaw
+        while turned < 2 * math.pi - 0.002:              # one full turn, counted by odometry
+            remaining = 2 * math.pi - turned
+            self.send(max(0.05, min(0.5, 2.0 * remaining)))
+            rclpy.spin_once(self, timeout_sec=0.05)
+            step = math.atan2(math.sin(self.yaw - last), math.cos(self.yaw - last))
+            turned, last = turned + step, self.yaw
+        self.settle(1.0)
+        after = self.average_scan()
+        turned += math.atan2(math.sin(self.yaw - last), math.cos(self.yaw - last))
+        error = best_shift(before, after)
+        odom_deg, real_deg = math.degrees(turned), math.degrees(turned) + error
+        print(f'odometry says: {odom_deg:.1f} deg')
+        print(f'lidar says:    {real_deg:.1f} deg  (scans rotated by {error:+.1f} deg)')
+        print(f'odometry / real = {odom_deg / real_deg:.3f}')
+
+
+def best_shift(before, after, step=0.1, limit=60.0):
+    """The angle (deg) that turns the `before` scan into the `after` one, to `step` degrees.
+
+    A robot that turned d degrees too far sees every wall d degrees further clockwise, so
+    after(theta) = before(theta + d). Beams are 1 degree apart; in between we interpolate."""
+    n = len(before)
+
+    def at(scan, deg):
+        i = math.floor(deg) % n
+        f = deg - math.floor(deg)
+        return scan[i] * (1 - f) + scan[(i + 1) % n] * f
+
+    def cost(d):
+        return sum(abs(after[i] - at(before, i + d)) for i in range(n))
+
+    shifts = [k * step - limit for k in range(int(2 * limit / step) + 1)]
+    return min(shifts, key=cost)
+
+
+def main():
+    rclpy.init()
+    node = SpinCheck()
+    node.run()
+    node.destroy_node()
+    rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
+```
+
+The lidar has 360 beams, one per degree; `best_shift` interpolates between beams to estimate the rotation to 0.1°. Averaging five scans before and after removes most of the lidar's noise. Run it with Lesson 5's launch file, which loads the controller exactly as Lesson 5 left it:
+
+<SimOutput source="ros">
+
+```text
+$ python3 spin_check.py
+odometry says: 360.0 deg
+lidar says:    403.1 deg  (scans rotated by +43.1 deg)
+odometry / real = 0.893
+```
+
+</SimOutput>
+
+That is a large error. Odometry thought it had turned 360°, but the robot really turned about 403°, 12 % more. Straight lines were fine in Lesson 5 (the drive-distance action stopped within 3 mm), so the wheel radius is right and the separation is wrong. In this simulation the wheel–ground contact makes the 0.28 m wheel base behave like a narrower one; on a real robot the cause is usually tyres that are wider or softer than the drawing. Either way the fix is the same, because `diff_drive_controller` has a parameter for it:
+
+<Formula label="Separation calibration">new multiplier = old multiplier × odometry angle ÷ real angle</Formula>
+
+Here that is 1.0 × 360 ÷ 403.1 = 0.893. The editor's first calibration run gave 0.896, which is what `odom_calibration.yaml` uses; the 0.003 difference is run-to-run variation of the contact model and well inside what you can measure this way.
+
+<CodeSource path="examples/month-4/slam-nav/m4_nav/config/odom_calibration.yaml" />
+
+```yaml
+# Odometry calibration for m4bot, found with spin_check.py. Loaded on top of Lesson 5's
+# controllers.yaml through control.launch.py's drive_params argument.
+diff_drive_controller:
+  ros__parameters:
+    # odometry and commands use wheel_separation x multiplier = 0.28 x 0.896 = 0.251 m:
+    # the separation the simulated wheels really behave as if they had
+    wheel_separation_multiplier: 0.896
+```
+
+`wheel_separation_multiplier` scales the separation in both directions: in odometry (wheel motion to body motion) and in commands (body velocity to wheel speeds). Calibrating it therefore also makes a commanded 1 rad/s turn come out as 1 rad/s. Lesson 5's launch file takes the file through its `drive_params` argument, and both of today's launch files pass it. Run the check again under `slam.launch.py`, which loads the calibration:
+
+<SimOutput source="ros">
+
+```text
+$ python3 spin_check.py
+odometry says: 360.0 deg
+lidar says:    361.0 deg  (scans rotated by +1.0 deg)
+odometry / real = 0.997
+```
+
+</SimOutput>
+
+One degree in a full turn is an error of 0.3 %, small enough for scan matching to correct easily. On a real robot, do this check on the floor the robot will actually drive on, and repeat it in both directions; a robot that turns differently left and right has a wheel-radius difference as well.
+
+<Quiz id="q2" question="Your robot's wheel_separation_multiplier is 1.0. spin_check.py reports odometry 360.0 deg, lidar 400.0 deg. What should the new multiplier be?" answer={0.9} tolerance={0.01} explanation="new = 1.0 × 360 / 400 = 0.90. The robot turns more than odometry thinks, so odometry must assume a narrower wheel base." />
+
+## Map the room
+
+SLAM Toolbox's defaults are good; `slam.yaml` sets only the frames, the topic and the few values that depend on our robot.
+
+<CodeSource path="examples/month-4/slam-nav/m4_nav/config/slam.yaml" />
+
+```yaml
+# SLAM Toolbox for m4bot. Everything not listed keeps SLAM Toolbox's default.
+slam_toolbox:
+  ros__parameters:
+    mode: mapping                 # mapping: build a new map; localization: use a saved one
+    odom_frame: odom              # published by diff_drive_controller (Lesson 5)
+    map_frame: map                # SLAM Toolbox publishes map -> odom
+    base_frame: base_footprint
+    scan_topic: /scan
+    resolution: 0.05              # m per map cell
+    max_laser_range: 8.0          # the lidar's range in Lesson 4's xacro
+    minimum_travel_distance: 0.2  # add a new scan to the graph after 0.2 m ...
+    minimum_travel_heading: 0.2   # ... or 0.2 rad of turning
+    map_update_interval: 2.0      # s between /map updates
+```
+
+`max_laser_range` matches the 8 m range of the lidar in Lesson 4's xacro, so no reading is thrown away. `resolution` 0.05 m means each map cell is 5 cm square, a common choice for indoor robots: fine enough to see a chair leg, coarse enough that a room is only a few thousand cells. The launch file reuses Lesson 5's launch file with the calibrated odometry and a different RViz view, and adds SLAM Toolbox's own launch file:
+
+<CodeSource path="examples/month-4/slam-nav/m4_nav/launch/slam.launch.py" />
+
+```python
+"""Map the room: m4bot through ros2_control in Gazebo (Lesson 5) plus SLAM Toolbox in mapping mode.
+
+ros2 launch m4_nav slam.launch.py                  # Gazebo window and RViz
+ros2 launch m4_nav slam.launch.py headless:=true   # no windows"""
+import os
+
+from ament_index_python.packages import get_package_share_directory
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration
+
+
+def generate_launch_description():
+    share = get_package_share_directory('m4_nav')
+
+    def include(package, launch_file, **args):
+        path = os.path.join(get_package_share_directory(package), 'launch', launch_file)
+        return IncludeLaunchDescription(PythonLaunchDescriptionSource(path),
+                                        launch_arguments=args.items())
+
+    return LaunchDescription([
+        DeclareLaunchArgument('headless', default_value='false'),
+        # the robot, its controllers and the sensors from Lesson 5, with calibrated odometry
+        include('m4_control', 'control.launch.py', headless=LaunchConfiguration('headless'),
+                rviz_config=os.path.join(share, 'rviz', 'nav.rviz'),
+                drive_params=os.path.join(share, 'config', 'odom_calibration.yaml')),
+        # SLAM Toolbox's own launch file, with our parameters
+        include('slam_toolbox', 'online_async_launch.py', use_sim_time='true',
+                slam_params_file=os.path.join(share, 'config', 'slam.yaml')),
+    ])
+```
+
+SLAM Toolbox has several node variants. `online_async_launch.py` starts the asynchronous one: it processes the newest scan when it is ready and skips scans if it falls behind, which keeps the map current on a slow computer. The synchronous variant processes every scan and can lag behind the robot.
+
+### Drive the tour
+
+Now drive the robot around until every wall and obstacle has been seen from more than one side. With a keyboard you would run `ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -p stamped:=true -p use_sim_time:=true -r cmd_vel:=/diff_drive_controller/cmd_vel`, as in Lesson 5. For a repeatable result the editor used a script that does the same thing: spin on the spot, then drive to two opposite corners and back.
+
+<CodeSource path="examples/month-4/slam-nav/tour.py" />
+
+```python
+#!/usr/bin/env python3
+"""Drive m4bot along a fixed tour of the obstacles room, so SLAM Toolbox sees every corner.
+
+usage: python3 tour.py        (with slam.launch.py running)
+The same thing you would do with teleop_twist_keyboard, but repeatable: it turns on the spot and
+drives between waypoints, steering by odometry. It prints the odometry pose at each waypoint."""
+import math
+
+import rclpy
+from geometry_msgs.msg import TwistStamped
+from nav_msgs.msg import Odometry
+from rclpy.node import Node
+from rclpy.parameter import Parameter
+
+# (x, y) in the odom frame, which starts where the robot was spawned: the room's centre
+WAYPOINTS = [(1.4, 1.4), (-1.2, -1.2), (0.0, 0.0)]
+
+
+class Tour(Node):
+    def __init__(self):
+        # stamp commands with the simulator's clock, like every node in a simulation
+        super().__init__('tour', parameter_overrides=[Parameter('use_sim_time', value=True)])
+        self.cmd = self.create_publisher(TwistStamped, 'diff_drive_controller/cmd_vel', 10)
+        self.create_subscription(Odometry, 'diff_drive_controller/odom', self.on_odom, 1)
+        self.pose = None
+
+    def on_odom(self, msg):
+        p, q = msg.pose.pose.position, msg.pose.pose.orientation
+        yaw = math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
+        self.pose = (p.x, p.y, yaw)
+
+    def send(self, v, w):
+        msg = TwistStamped()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.twist.linear.x, msg.twist.angular.z = v, w
+        self.cmd.publish(msg)
+
+    def step(self):
+        rclpy.spin_once(self, timeout_sec=0.05)
+
+    def turn_to(self, target):
+        while True:
+            self.step()
+            err = math.atan2(math.sin(target - self.pose[2]), math.cos(target - self.pose[2]))
+            if abs(err) < 0.02:
+                break
+            self.send(0.0, max(-0.6, min(0.6, 2.0 * err)))   # slow turns keep the scans sharp
+        self.send(0.0, 0.0)
+
+    def drive_to(self, x, y):
+        while True:
+            self.step()
+            dx, dy = x - self.pose[0], y - self.pose[1]
+            if math.hypot(dx, dy) < 0.05:
+                break
+            err = math.atan2(dy, dx) - self.pose[2]
+            err = math.atan2(math.sin(err), math.cos(err))
+            self.send(min(0.25, math.hypot(dx, dy)), 2.0 * err)
+        self.send(0.0, 0.0)
+
+    def run(self):
+        while self.pose is None:
+            self.step()
+        print('spin once on the spot')
+        for target in (math.pi / 2, math.pi, -math.pi / 2, 0.0):
+            self.turn_to(target)
+        for x, y in WAYPOINTS:
+            self.turn_to(math.atan2(y - self.pose[1], x - self.pose[0]))
+            self.drive_to(x, y)
+            print(f'at waypoint ({x:.1f}, {y:.1f}): odom x {self.pose[0]:.2f} y {self.pose[1]:.2f}')
+        self.turn_to(0.0)
+        print(f'done, facing +x again: yaw {math.degrees(self.pose[2]):.0f} deg')
+
+
+def main():
+    rclpy.init()
+    node = Tour()
+    node.run()
+    node.destroy_node()
+    rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
+```
+
+<SimOutput source="ros">
+
+```text
+$ python3 tour.py
+spin once on the spot
+at waypoint (1.4, 1.4): odom x 1.37 y 1.37
+at waypoint (-1.2, -1.2): odom x -1.16 y -1.16
+at waypoint (0.0, 0.0): odom x -0.04 y -0.04
+done, facing +x again: yaw 1 deg
+```
+
+</SimOutput>
+
+The script stops within 5 cm of each waypoint, so the odometry poses sit a few centimetres short of them. Two habits matter more than the exact route: drive slowly, especially when turning (fast turns smear a scan, because the robot moves while the lidar sweeps), and come back to where you started, so SLAM Toolbox gets a chance to close the loop. In RViz you can watch the map grow; grey is unknown, white is free, black is occupied.
+
+### Save the map
+
+There are two formats, for two different consumers. SLAM Toolbox's **pose graph** (`.posegraph` plus `.data`) contains every scan and pose, so SLAM Toolbox can load it later, localize in it and even keep extending it. The **occupancy grid** (`.pgm` image plus `.yaml`) is just the picture, which Nav2's map server, other tools and people can read. Save both while `slam.launch.py` is still running:
+
+<SimOutput source="ros">
+
+```text
+$ ros2 service call /slam_toolbox/serialize_map slam_toolbox/srv/SerializePoseGraph "{filename: '/home/you/maps/room'}"
+waiting for service to become available...
+requester: making request: slam_toolbox.srv.SerializePoseGraph_Request(filename='/home/you/maps/room')
+
+response:
+slam_toolbox.srv.SerializePoseGraph_Response(result=0)
+
+$ ros2 run nav2_map_server map_saver_cli -f ~/maps/room --ros-args -p use_sim_time:=true
+[INFO] [1792451180.539218586] [map_saver]: 
+	map_saver lifecycle node launched. 
+	Waiting on external lifecycle transitions to activate
+	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[INFO] [1792451180.539273614] [map_saver]: Creating
+[INFO] [1792451180.539326203] [map_saver]: Configuring
+[INFO] [1792451180.544049221] [map_saver]: Saving map from 'map' topic to '/home/you/maps/room' file
+[WARN] [1792451180.544074518] [map_saver]: Free threshold unspecified. Setting it to default value: 0.250000
+[WARN] [1792451180.544079626] [map_saver]: Occupied threshold unspecified. Setting it to default value: 0.650000
+[WARN] [1792451180.720973669] [map_io]: Image format unspecified. Setting it to: pgm
+[INFO] [1792451180.721083605] [map_io]: Received a 120 X 120 map @ 0.05 m/pix
+[INFO] [1792451180.737619110] [map_io]: Writing map occupancy data to /home/you/maps/room.pgm
+[INFO] [1792451180.738094889] [map_io]: Writing map metadata to /home/you/maps/room.yaml
+[INFO] [1792451180.738179644] [map_io]: Map saved
+[INFO] [1792451180.738186115] [map_saver]: Map saved successfully
+[INFO] [1792451180.738779121] [map_saver]: Destroying
+$ ls ~/maps
+room.data
+room.pgm
+room.posegraph
+room.yaml
+$ cat ~/maps/room.yaml
+image: room.pgm
+mode: trinary
+resolution: 0.050
+origin: [-2.989, -3.002, 0]
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.196
+```
+
+</SimOutput>
+
+`result=0` means the pose graph was written. The map is 120 × 120 cells of 0.05 m, which is 6.0 m × 6.0 m, the size of the room. `origin` is the position of the bottom-left cell in the map frame: the map frame starts where the robot was when SLAM started, the centre of the room, so the corner is about 3 m away in both directions. In this trinary PGM, occupied cells are black (0), free cells white (254) and unknown cells grey (205).
+
+A map that looks right in RViz can still be wrong by a few cells, so check it against the world it came from. `map_check.py` reads the saved files with nothing but Python's standard library and looks for occupied cells where Lesson 4's world file put the walls and obstacles:
+
+<CodeSource path="examples/month-4/slam-nav/map_check.py" />
+
+```python
+#!/usr/bin/env python3
+"""Check a saved map against the world it came from: are the walls and obstacles where the
+obstacles world (Lesson 4) put them?
+
+usage: python3 map_check.py ~/maps/room.yaml
+Reads the .yaml and .pgm written by nav2_map_server's map_saver_cli. Only the Python standard
+library is needed. The map frame starts where the robot was spawned, the centre of the room."""
+import os
+import sys
+
+# what is really in the obstacles world, in the map frame (centre x, centre y, half x, half y)
+OBJECTS = {
+    'north wall': (3.0, 0.0, 0.05, 3.0),
+    'south wall': (-3.0, 0.0, 0.05, 3.0),
+    'west wall': (0.0, 3.0, 3.05, 0.05),
+    'east wall': (0.0, -3.0, 3.05, 0.05),
+    'red box': (2.0, 0.0, 0.2, 0.2),
+    'blue pillar': (1.0, -1.2, 0.15, 0.15),
+    'green block': (-1.5, 1.5, 0.6, 0.6),   # 1.2 x 0.3 m turned 0.6 rad: check its bounding square
+}
+
+
+def read_yaml(path):
+    """The few keys map_saver writes, without needing PyYAML."""
+    meta = {}
+    for line in open(path):
+        key, _, value = line.partition(':')
+        meta[key.strip()] = value.strip()
+    origin = [float(v) for v in meta['origin'].strip('[]').split(',')]
+    return meta['image'], float(meta['resolution']), origin
+
+
+def read_pgm(path):
+    """A binary (P5) PGM: returns width, height and the rows, top row first."""
+    data = open(path, 'rb').read()
+    fields, pos = [], 0
+    while len(fields) < 4:                    # magic, width, height, maxval
+        while data[pos:pos + 1].isspace():
+            pos += 1
+        if data[pos:pos + 1] == b'#':         # comment line
+            pos = data.index(b'\n', pos)
+            continue
+        end = pos
+        while not data[end:end + 1].isspace():
+            end += 1
+        fields.append(data[pos:end])
+        pos = end
+    width, height = int(fields[1]), int(fields[2])
+    pixels = data[pos + 1:]
+    return width, height, [pixels[r * width:(r + 1) * width] for r in range(height)]
+
+
+def main():
+    yaml_path = sys.argv[1]
+    image, res, origin = read_yaml(yaml_path)
+    width, height, rows = read_pgm(os.path.join(os.path.dirname(yaml_path), image))
+    print(f'map: {width} x {height} cells of {res:.2f} m = {width * res:.1f} m x {height * res:.1f} m')
+    counts = {0: 0, 254: 0, 205: 0}           # occupied, free, unknown in a trinary map
+    for row in rows:
+        for v in row:
+            counts[v] = counts.get(v, 0) + 1
+    total = width * height
+    print(f'occupied {counts[0]} ({100 * counts[0] / total:.0f} %), free {counts[254]} '
+          f'({100 * counts[254] / total:.0f} %), unknown {counts[205]} ({100 * counts[205] / total:.0f} %)')
+
+    def cell(x, y):                           # map coordinates -> pixel value (row 0 = top = max y)
+        col = int((x - origin[0]) / res)
+        row = height - 1 - int((y - origin[1]) / res)
+        return rows[row][col] if 0 <= col < width and 0 <= row < height else None
+
+    for name, (cx, cy, hx, hy) in OBJECTS.items():
+        # look for occupied cells in the object's footprint plus one cell all round
+        found = 0
+        steps_x, steps_y = int(2 * (hx + res) / res) + 1, int(2 * (hy + res) / res) + 1
+        for i in range(steps_x):
+            for j in range(steps_y):
+                if cell(cx - hx - res + i * res, cy - hy - res + j * res) == 0:
+                    found += 1
+        print(f'{name:12s} at ({cx:+.1f}, {cy:+.1f}): {"found" if found else "MISSING"} ({found} occupied cells)')
+
+
+if __name__ == '__main__':
+    main()
+```
+
+<SimOutput source="ros">
+
+```text
+$ python3 map_check.py ~/maps/room.yaml
+map: 120 x 120 cells of 0.05 m = 6.0 m x 6.0 m
+occupied 664 (5 %), free 12691 (88 %), unknown 1045 (7 %)
+north wall   at (+3.0, +0.0): found (158 occupied cells)
+south wall   at (-3.0, +0.0): found (187 occupied cells)
+west wall    at (+0.0, +3.0): found (118 occupied cells)
+east wall    at (+0.0, -3.0): found (157 occupied cells)
+red box      at (+2.0, +0.0): found (25 occupied cells)
+blue pillar  at (+1.0, -1.2): found (16 occupied cells)
+green block  at (-1.5, +1.5): found (49 occupied cells)
+```
+
+</SimOutput>
+
+Every object is where it should be. The cell counts differ from run to run, by tens of cells on the walls, because the scans and the loop closure never come out exactly the same; what matters is that nothing is missing and that the unknown share is small. The 7 % of unknown cells are mostly behind the obstacles and outside the walls, where the lidar cannot see. On a real robot you would compare against a tape measure instead: pick two walls, measure the distance, and count the cells between them.
+
+<Quiz id="q3" question="How many cells has a map of a 6 m × 6 m room at a resolution of 0.05 m?" answer={14400} unit="cells" explanation="6 / 0.05 = 120 cells per side, and 120 × 120 = 14,400 cells." />
+
+## Navigate with Nav2
+
+Navigation needs the map and the robot's pose in it. Nav2's classic answer is `map_server` plus AMCL (a particle filter); with SLAM Toolbox you can instead load the saved pose graph in **localization mode**, which matches scans against the stored ones and publishes the same `map → odom` transform as before. That keeps one tool for mapping and localizing.
+
+<CodeSource path="examples/month-4/slam-nav/m4_nav/config/slam_localization.yaml" />
+
+```yaml
+# SLAM Toolbox in localization mode: load the saved pose graph and only track the robot in it.
+slam_toolbox:
+  ros__parameters:
+    mode: localization
+    odom_frame: odom
+    map_frame: map
+    base_frame: base_footprint
+    scan_topic: /scan
+    resolution: 0.05
+    max_laser_range: 8.0
+    minimum_travel_distance: 0.2
+    minimum_travel_heading: 0.2
+    map_update_interval: 2.0
+    map_start_pose: [0.0, 0.0, 0.0]   # where the robot is in the saved map at start (x, y, yaw)
+```
+
+`map_start_pose` tells SLAM Toolbox where the robot is in the saved map when it starts. Here the robot spawns at the same place where mapping started, so it is the origin. If you start the robot somewhere else, either set this to the right pose or set it roughly and let scan matching pull it in, which only works for small errors.
+
+<CodeSource path="examples/month-4/slam-nav/m4_nav/launch/nav.launch.py" />
+
+```python
+"""Navigate in a saved map: Lesson 5's robot, SLAM Toolbox in localization mode, and Nav2.
+
+ros2 launch m4_nav nav.launch.py map:=$HOME/maps/room                  # Gazebo window and RViz
+ros2 launch m4_nav nav.launch.py map:=$HOME/maps/room headless:=true   # no windows
+map: the pose graph saved with /slam_toolbox/serialize_map, without the .posegraph extension"""
+import os
+
+from ament_index_python.packages import get_package_share_directory
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration
+from nav2_common.launch import RewrittenYaml
+
+
+def generate_launch_description():
+    share = get_package_share_directory('m4_nav')
+
+    def include(package, launch_file, **args):
+        path = os.path.join(get_package_share_directory(package), 'launch', launch_file)
+        return IncludeLaunchDescription(PythonLaunchDescriptionSource(path),
+                                        launch_arguments=args.items())
+
+    # put the map given on the command line into SLAM Toolbox's parameters
+    slam_params = RewrittenYaml(
+        source_file=os.path.join(share, 'config', 'slam_localization.yaml'),
+        param_rewrites={'map_file_name': LaunchConfiguration('map')}, convert_types=True)
+
+    return LaunchDescription([
+        DeclareLaunchArgument('map', description='saved pose graph, without .posegraph'),
+        DeclareLaunchArgument('headless', default_value='false'),
+        include('m4_control', 'control.launch.py', headless=LaunchConfiguration('headless'),
+                rviz_config=os.path.join(share, 'rviz', 'nav.rviz'),
+                drive_params=os.path.join(share, 'config', 'odom_calibration.yaml')),
+        include('slam_toolbox', 'localization_launch.py', use_sim_time='true',
+                slam_params_file=slam_params),
+        # Nav2's planner, controller, behaviours and BT navigator, with m4bot's parameters
+        include('nav2_bringup', 'navigation_launch.py', use_sim_time='true',
+                params_file=os.path.join(share, 'config', 'nav2.yaml')),
+    ])
+```
+
+`RewrittenYaml` (from `nav2_common`) writes the map path from the command line into SLAM Toolbox's parameters, so the YAML file never contains a path from your computer. The third include is Nav2's own `navigation_launch.py`, with our parameter file.
+
+### What Nav2 runs
+
+Nav2 is a set of servers coordinated by a behaviour tree. The parameter file [`m4_nav/config/nav2.yaml`](https://github.com/liudicsu/Hardware-learning/blob/main/examples/month-4/slam-nav/m4_nav/config/nav2.yaml) is based on the one shipped with `nav2_bringup`, and the lines changed for m4bot are marked `# m4bot`. Follow one goal through it:
+
+1. **`bt_navigator`** receives the `NavigateToPose` goal and runs a behaviour tree: plan, follow, and on failure try recoveries (clear the costmaps, spin, wait, back up) before giving up.
+2. **`planner_server`** plans a path on the **global costmap**, which is the saved map (the static layer) plus obstacles currently seen by the lidar, plus inflation. The planner is NavFn, a grid search.
+3. **`controller_server`** follows the path with Regulated Pure Pursuit at up to 0.25 m/s, steering on the **local costmap**, a 3 m × 3 m window around the robot built from the lidar alone. It turns on the spot first when the path points more than 0.785 rad (45°) away from the robot's heading.
+4. **`velocity_smoother`** limits acceleration, and **`collision_monitor`** slows or stops the robot if the lidar sees something about to be hit. Its output, `cmd_vel_out_topic: "/diff_drive_controller/cmd_vel"`, is the only line that connects Nav2 to Lesson 5's controller. Because that controller expects `TwistStamped`, every server that publishes velocities has `enable_stamped_cmd_vel: true`.
+
+The robot's shape enters through `footprint`, a rectangle around `base_footprint` from 0.11 m behind to 0.21 m in front and 0.16 m to each side. **Inflation** adds a cost that falls off with distance around every obstacle, out to `inflation_radius: 0.45` m. Cells the footprint would hit are forbidden; inflated cells are allowed but expensive, so the planner keeps a margin where it can and squeezes through narrow gaps only when it must. Goals count as reached within `xy_goal_tolerance` 0.10 m and `yaw_goal_tolerance` 0.15 rad (about 9°).
+
+### Send a goal
+
+Start `nav.launch.py` with the saved map and wait for the lifecycle manager to log "Managed nodes are active". In RViz, the **Nav2 Goal** button lets you click a goal and drag its heading. From a terminal, send one `NavigateToPose` goal and then ask TF where the robot ended up:
+
+<SimOutput source="ros">
+
+```text
+$ ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose "{pose: {header: {frame_id: map}, pose: {position: {x: 2.0, y: -2.0}, orientation: {w: 1.0}}}}"
+Waiting for an action server to become available...
+Sending goal:
+     pose:
+  header:
+    stamp:
+      sec: 0
+      nanosec: 0
+    frame_id: map
+  pose:
+    position:
+      x: 2.0
+      y: -2.0
+      z: 0.0
+    orientation:
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 1.0
+behavior_tree: ''
+
+Goal accepted with ID: b2d49f3aba82495a8972eaee49b62a2b
+
+Result:
+    error_code: 0
+error_msg: ''
+
+Goal finished with status: SUCCEEDED
+$ ros2 run tf2_ros tf2_echo map base_footprint --ros-args -p use_sim_time:=true
+- Translation: [1.970, -1.909, 0.000]
+- Rotation: in RPY (degree) [0.000, 0.000, -7.994]
+```
+
+</SimOutput>
+
+The goal (2.0, −2.0) is in the far corner behind the blue pillar, about 2.8 m from the start. The robot stopped at (1.97, −1.91), 0.09 m from the goal and inside the 0.10 m tolerance, about 8° off the requested heading, inside 9°. That is exactly what "succeeded" means: within tolerance, not exactly on the point. The path went round the pillar, never through it, because the pillar's cells and their inflation make the straight line expensive.
+
+<Quiz id="q4" question="The straight line from the start to (2.0, −2.0) passes near the blue pillar at (1.0, −1.2). Why does Nav2's path curve around it instead of skimming its edge?" options={["the lidar cannot see the pillar", "the inflation layer makes cells near the pillar expensive, so the planner prefers a path with more clearance", "Regulated Pure Pursuit cannot drive straight lines", "SLAM Toolbox moves the pillar in the map"]} answer={1} explanation="Inflation spreads a falling cost around every obstacle out to inflation_radius; the planner minimises total cost, so it trades a slightly longer path for clearance." />
+
+## When navigation fails
+
+Nav2 failures look alike from the outside: the robot does not move, or it spins and gives up. The cause is almost always one of a few things, and each leaves a trace you can find.
+
+| Symptom | Likely cause | Where to look |
+| --- | --- | --- |
+| "Lookup would require extrapolation" or "frame does not exist" in the logs | one node runs on wall time while the rest use the simulator's clock (`use_sim_time`) | `ros2 param get <node> use_sim_time` on each node |
+| The goal is accepted, nothing moves | velocities go to a topic nobody listens to, or plain `Twist` reaches a controller that wants `TwistStamped` | `ros2 topic info -v /diff_drive_controller/cmd_vel` |
+| Planning fails at once | the goal or the robot is inside an obstacle or its forbidden zone; or the map frame is missing because localization did not start | the global costmap in RViz; `ros2 run tf2_tools view_frames` |
+| The robot stops for no visible reason | the lidar stopped publishing, so the costmaps time out the sensor and the collision monitor sees no data | `ros2 topic hz /scan` |
+| The map is smeared or the robot jumps in RViz | odometry badly calibrated, or `map_start_pose` far from the real starting pose | `spin_check.py`; the starting pose |
+| The robot will not pass through a doorway that is clearly wide enough | the footprint or `inflation_radius` too large for the gap | the costmaps in RViz |
+
+Start with TF, because every server needs `map → odom → base_footprint` to be complete and current. `ros2 run tf2_tools view_frames` draws the tree (Lesson 3's broken-tree diagnosis works here unchanged); `ros2 run tf2_ros tf2_echo map base_footprint --ros-args -p use_sim_time:=true` shows whether the robot has a pose in the map at all. Note the `use_sim_time:=true`: without it, `tf2_echo` asks for transforms at the computer's time while everything else lives on Gazebo's clock, and it will only ever report extrapolation errors, which is the first row of the table in miniature.
+
+Then look at the costmaps. In RViz, add a Map display on `/global_costmap/costmap` and one on `/local_costmap/costmap`. A goal that sits in the bright forbidden band around an obstacle cannot be reached however good the rest of the setup is, and a doorway whose two inflated edges touch is closed as far as the planner is concerned. Lowering `inflation_radius` opens it; making the footprint smaller than the real robot also opens it, and that is how robots end up scraping door frames. Fix the footprint first, then tune inflation.
+
+<Callout type="tip" title="Read the log from the top">Nav2 prints its recoveries in order ("Running spin", "Running backup", ...) before it finally reports a failure. The first warning before them usually names the real problem, for example a costmap sensor timeout or a failed transform. Scrolling straight to the last line only tells you that it gave up.</Callout>
+
+<Quiz id="q5" question="Nav2 accepts a goal, then logs costmap warnings that the scan has not been updated, and the robot never moves. What do you check first?" options={["the behaviour tree XML", "whether /scan is still being published, with ros2 topic hz /scan", "the planner's tolerance", "the goal's orientation"]} answer={1} explanation="The costmaps and the collision monitor need recent lidar data; when /scan stops (a crashed driver, a broken bridge, a QoS mismatch), they treat the robot as blind and it stays put." />
+
+<Resource id="nav2-docs" />
+
+## Month 4 wrap-up
+
+You now have a complete ROS 2 robot stack, and every layer of it is the same one professional robots use. Here is how the month's milestones map onto the six lessons:
+
+| Milestone | Where you did it |
+| --- | --- |
+| Write ROS 2 nodes in Python and C++ using topics, services and actions | Lesson 1 (first workspace) and Lesson 2 (the four-node graph) |
+| Describe the robot in xacro with correct frames, inertias and collisions | Lesson 3 (m4bot, `inertia_check.py`) |
+| Simulate it in Gazebo with working lidar and camera | Lesson 4 (the obstacles world, `ros_gz_bridge`) |
+| Configure ros2_control and drive through a controller | Lesson 5 (`diff_drive_controller`, the drive-distance action) |
+| Map with SLAM Toolbox and navigate with Nav2 | this lesson |
+| Diagnose a broken TF tree | Lesson 3, and again today: navigation fails first at TF |
+
+Now do the practice task with your own robot:
+
+1. Run `spin_check.py` (adapt the topic names), calibrate `wheel_separation_multiplier`, and check both turning directions until the error is under 1 %.
+2. Map your room and save both the pose graph and the PGM. Check the map against reality: two known distances, measured in cells.
+3. Start Nav2 in the saved map and send three goals: one in the open, one behind an obstacle, one through the narrowest gap you have.
+4. Break it once on purpose — stop the lidar, give a goal inside an obstacle, or start one node without `use_sim_time` — and find the cause from the logs, TF and the costmaps before you fix it.
+
+The folder `examples/month-4/slam-nav` has the package and the three scripts; `tools/sim/ros/run.sh` repeats every run quoted in this lesson.
+
+<Resource id="articulated-slam" />
+
+Month 5 goes underneath what you have been using. Nav2's controller, the PID loops of Month 3 and the balancer all rest on control theory; the planner and the arm in Month 3 rest on kinematics; the camera you simulated is waiting for calibration and perception. Next month is the maths that makes those parts work.
