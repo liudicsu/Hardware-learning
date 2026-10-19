@@ -1,0 +1,3 @@
+At time 0.0
+- Translation: [0.120, 0.000, 0.090]
+- Rotation: in Quaternion (xyzw) [0.000, 0.000, 0.000, 1.000]

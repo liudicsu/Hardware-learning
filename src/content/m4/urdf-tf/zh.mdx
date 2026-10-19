@@ -1,0 +1,687 @@
+第 2 课留下了一根没收的线：每条消息都带着一个叫 `sensor_link` 的 `frame_id`，可系统里没有谁知道它在哪儿。本课给机器人装上身体，让坐标系的名字开始对应真实的位置。
+
+课程为这个主题布置的实践任务是：用 xacro 设计你自己的机器人（不是 TurtleBot）——差速底盘、传感器桅杆、二自由度云台，惯量正确，视觉几何和碰撞几何分开；再用滑块驱动它的关节，在 RViz 里看完整的 TF 树。本课一步步搭出这样一台机器人，取名 **m4bot**：你会写它、检查它、转动它的关节、读懂它的变换，并故意弄断它的 TF 树。然后，设计就交到你手里。
+
+本课的一切都在你的电脑上运行。RViz 只是把模型画出来，还没有仿真器（那是第 4 课的事），也没有真机。下面引用的每一段输出，都是在本站编者电脑上（Debian 13，从 RoboStack 安装的 Jazzy）真实运行 ROS 2 Jazzy 得到的；你那边的时间戳会不同。
+
+## 连杆、关节与坐标系
+
+机器人描述是一棵树。这一句话就是本课的核心思想，值得在一行 XML 出现之前慢慢讲清楚。
+
+树的**节点**是连杆（link）。连杆是一块刚性零件：形状绝不改变的一部分，比如底盘板、一个轮子或相机的机身。每个连杆都拥有自己的坐标系（coordinate frame）——带 x、y、z 轴的一个小原点——你之后关于这块零件说的话，都用这个坐标系来表达。
+
+树的**边**是关节（joint）。一个关节恰好连接一个父连杆和一个子连杆，同时干两件事。第一，说明子连杆相对父连杆坐在哪里：一个 `origin`，平移 `xyz` 的单位是米，姿态 `rpy`（roll、pitch、yaw，横滚/俯仰/偏航）的单位是弧度。第二，说明子连杆允许怎么动：也就是关节类型。因为一个连杆只能是一个关节的子节点，连杆和关节合起来永远是一棵树，任意两部分之间有且只有一条路径。
+
+**URDF**（Unified Robot Description Format，统一机器人描述格式）就是你把上面这棵树写进去的那份 XML 文件。它只是一份描述，仅此而已：里面没有代码、没有行为，只是一句静态的声明，说明有哪些零件、它们怎么连接。**TF** 则是机器人在运行时，持续发布每个坐标系相对其父坐标系位置的系统，每条回答都盖上时间戳，于是任何节点都能问一句「此刻相机相对底盘在哪里？」，并拿到可信的答案。第二课里每条消息都带着的 `frame_id`——那个指向虚无的名字——无非就是这套系统里某个坐标系的名称。从这一课开始，它能指向真实的东西了。
+
+有两条约定能让你不必自己发明一套、事后再后悔。**ROS REP 103** 规定了单位和坐标轴方向：米、千克、弧度（不是厘米、不是克、不是度），x 向前、y 向左、z 向上，构成右手系。**ROS REP 105** 规定了移动平台的坐标系：`base_link` 固定在机器人本体上，`base_footprint` 是它正下方地面上的那个点。之所以要分成两个，是因为机器人压过台阶时会俯仰、侧倾；导航想要一个始终贴地的坐标系，`base_footprint` 就是它。
+
+关节由类型定义。入门阶段你只会遇到四种：
+
+| 类型 | 怎么动 | m4bot 里的例子 |
+| --- | --- | --- |
+| fixed（固定） | 完全不动 | 激光雷达、桅杆、相机 |
+| continuous（连续） | 无限制旋转 | 两个轮子 |
+| revolute（转动） | 在限位内旋转 | pan 和 tilt |
+| prismatic（滑动） | 沿轴滑动 | （本例没有；升降台或直线模组） |
+
+要把 `continuous` 和 `revolute` 分清楚，这一对最容易让人栽跟头：两者都绕一根轴旋转，但 continuous 关节能永远转下去（被驱动的轮子），revolute 关节会在上下限处停下（舵机臂）。prismatic 关节是滑动版，像升降台或直线模组；m4bot 没有，但你做第一个上下运动的机构时就会遇到它。
+
+**m4bot** 的布局是这样的。底盘是一个长 0.30 m、宽 0.24 m、高 0.08 m 的盒子。两个半径 5 cm 的轮子分列车轴两侧，前方一个万向球提供第三个接触点。甲板前部放一个小激光雷达，后部一根 20 cm 的桅杆托着云台相机。用 `tf2_tools` 里的 `view_frames` 画出来，它的树长这样：
+
+![tf2_tools view_frames 画出的 m4bot TF 树：最上面是 base_footprint，下面是 base_link 和它的五个子连杆（left_wheel_link、mast_link、right_wheel_link、caster_link、lidar_link），以及 mast_link、pan_link、tilt_link、camera_link、camera_optical_link 这条链](/m4/tf_tree.png)
+
+那幅图里出现了两类边。以大约 10 Hz 发布的边是**运动关节**——轮子、pan、tilt——因为它们的位置一直在变，必须有人持续重发。标着 `Average rate: 10000.0` 和 `Most recent transform: 0.0` 的边是**静态变换**（static transform），来自固定关节：它们只发布一次、永久有效，所以工具只能报出一个毫无意义的频率。读懂这样一棵树，是理解一台不是你自己搭的机器人的最快办法。
+
+<Quiz id="q1" question="一个能在左右各 45° 范围内转动的转向舵机，应该用哪种关节类型？" options={["fixed", "continuous", "revolute", "prismatic"]} answer={2} explanation="它会旋转，而且只在两个限位之间转：这就是 revolute 关节；continuous 是给永远转下去的轮子用的。" />
+
+## 用 xacro 写 m4bot
+
+朴素 URDF 会逼你重复自己。两个一模一样的轮子要写两段几乎相同的 XML；每个 visual、collision、inertial 都要把同一个 origin 抄三遍；每个数字都写死在用到它的地方，于是改一个底盘长度，要满文件找四个地方去改。**xacro** 是一门小宏语言，替你把 URDF 写出来，消掉所有这些重复。四个特性几乎就能覆盖你需要的全部：`xacro:property` 给尺寸起名字，`${...}` 对它们做算术，`xacro:macro` 描述一个要用多次的部件，`xacro:include` 把一台大机器人拆到多个文件里。
+
+下面是 m4bot 的全文，从上到下。
+
+<CodeSource path="examples/month-4/urdf-tf/m4_description/urdf/robot.urdf.xacro" />
+
+```xml
+<?xml version="1.0"?>
+<!-- m4bot: a differential-drive base, a lidar, and a pan-tilt camera head on a mast.
+     All lengths in metres, masses in kilograms, angles in radians. -->
+<robot name="m4bot" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:include filename="inertial_macros.xacro"/>
+
+  <!-- ===== dimensions: change these, everything else follows ===== -->
+  <xacro:property name="chassis_x" value="0.30"/>
+  <xacro:property name="chassis_y" value="0.24"/>
+  <xacro:property name="chassis_z" value="0.08"/>
+  <xacro:property name="chassis_mass" value="2.0"/>
+  <xacro:property name="chassis_offset_x" value="0.05"/>   <!-- chassis centre ahead of the axle -->
+  <xacro:property name="wheel_radius" value="0.05"/>
+  <xacro:property name="wheel_width" value="0.03"/>
+  <xacro:property name="wheel_mass" value="0.2"/>
+  <xacro:property name="wheel_separation" value="0.28"/>   <!-- centre to centre -->
+  <xacro:property name="caster_radius" value="0.025"/>
+  <xacro:property name="mast_height" value="0.20"/>
+  <xacro:property name="chassis_top" value="${chassis_z - 0.01}"/>  <!-- top face, above base_link -->
+
+  <!-- base_footprint: on the floor, under the axle centre. base_link: the axle centre. -->
+  <link name="base_footprint"/>
+  <joint name="base_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 ${wheel_radius}"/>
+  </joint>
+
+  <link name="base_link">
+    <visual>
+      <origin xyz="${chassis_offset_x} 0 ${chassis_z/2 - 0.01}"/>
+      <geometry><box size="${chassis_x} ${chassis_y} ${chassis_z}"/></geometry>
+      <material name="orange"><color rgba="1.0 0.45 0.1 1"/></material>
+    </visual>
+    <collision>
+      <origin xyz="${chassis_offset_x} 0 ${chassis_z/2 - 0.01}"/>
+      <geometry><box size="${chassis_x} ${chassis_y} ${chassis_z}"/></geometry>
+    </collision>
+    <xacro:inertial_box mass="${chassis_mass}" x="${chassis_x}" y="${chassis_y}" z="${chassis_z}">
+      <origin xyz="${chassis_offset_x} 0 ${chassis_z/2 - 0.01}"/>
+    </xacro:inertial_box>
+  </link>
+
+  <!-- one macro, two wheels: reflect = +1 for left (+y), -1 for right -->
+  <xacro:macro name="wheel" params="side reflect">
+    <link name="${side}_wheel_link">
+      <visual>
+        <origin rpy="${-pi/2} 0 0"/>
+        <geometry><cylinder radius="${wheel_radius}" length="${wheel_width}"/></geometry>
+        <material name="black"><color rgba="0.1 0.1 0.1 1"/></material>
+      </visual>
+      <collision>
+        <origin rpy="${-pi/2} 0 0"/>
+        <geometry><cylinder radius="${wheel_radius}" length="${wheel_width}"/></geometry>
+      </collision>
+      <xacro:inertial_cylinder mass="${wheel_mass}" radius="${wheel_radius}" length="${wheel_width}">
+        <origin rpy="${-pi/2} 0 0"/>
+      </xacro:inertial_cylinder>
+    </link>
+    <joint name="${side}_wheel_joint" type="continuous">
+      <parent link="base_link"/>
+      <child link="${side}_wheel_link"/>
+      <origin xyz="0 ${reflect * wheel_separation/2} 0"/>
+      <axis xyz="0 1 0"/>   <!-- positive rotation drives the robot forward on both sides -->
+    </joint>
+  </xacro:macro>
+  <xacro:wheel side="left" reflect="1"/>
+  <xacro:wheel side="right" reflect="-1"/>
+
+  <!-- caster: a sphere touching the floor; visual and collision are the same ball -->
+  <link name="caster_link">
+    <visual>
+      <geometry><sphere radius="${caster_radius}"/></geometry>
+      <material name="grey"><color rgba="0.6 0.6 0.6 1"/></material>
+    </visual>
+    <collision>
+      <geometry><sphere radius="${caster_radius}"/></geometry>
+    </collision>
+    <xacro:inertial_sphere mass="0.05" radius="${caster_radius}">
+      <origin xyz="0 0 0"/>
+    </xacro:inertial_sphere>
+  </link>
+  <joint name="caster_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="caster_link"/>
+    <origin xyz="0.16 0 ${caster_radius - wheel_radius}"/>
+  </joint>
+
+  <!-- lidar: a fixed (static) transform on the front of the chassis.
+       Its link name is the frame_id the lidar driver must use. -->
+  <link name="lidar_link">
+    <visual>
+      <geometry><cylinder radius="0.035" length="0.04"/></geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <geometry><cylinder radius="0.035" length="0.04"/></geometry>
+    </collision>
+    <xacro:inertial_cylinder mass="0.1" radius="0.035" length="0.04">
+      <origin xyz="0 0 0"/>
+    </xacro:inertial_cylinder>
+  </link>
+  <joint name="lidar_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="lidar_link"/>
+    <origin xyz="0.12 0 ${chassis_top + 0.02}"/>
+  </joint>
+
+  <!-- mast at the back of the chassis -->
+  <link name="mast_link">
+    <visual>
+      <origin xyz="0 0 ${mast_height/2}"/>
+      <geometry><cylinder radius="0.015" length="${mast_height}"/></geometry>
+      <material name="grey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${mast_height/2}"/>
+      <geometry><cylinder radius="0.015" length="${mast_height}"/></geometry>
+    </collision>
+    <xacro:inertial_cylinder mass="0.1" radius="0.015" length="${mast_height}">
+      <origin xyz="0 0 ${mast_height/2}"/>
+    </xacro:inertial_cylinder>
+  </link>
+  <joint name="mast_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="mast_link"/>
+    <origin xyz="-0.06 0 ${chassis_top}"/>
+  </joint>
+
+  <!-- pan-tilt head: pan turns about z, tilt about y -->
+  <link name="pan_link">
+    <visual>
+      <origin xyz="0 0 0.01"/>
+      <geometry><box size="0.04 0.04 0.02"/></geometry>
+      <material name="grey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.01"/>
+      <geometry><box size="0.04 0.04 0.02"/></geometry>
+    </collision>
+    <xacro:inertial_box mass="0.05" x="0.04" y="0.04" z="0.02">
+      <origin xyz="0 0 0.01"/>
+    </xacro:inertial_box>
+  </link>
+  <joint name="pan_joint" type="revolute">
+    <parent link="mast_link"/>
+    <child link="pan_link"/>
+    <origin xyz="0 0 ${mast_height}"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="${-pi/2}" upper="${pi/2}" effort="1.0" velocity="2.0"/>
+  </joint>
+
+  <!-- the camera body: a detailed shape for looks, a plain box for collisions -->
+  <link name="tilt_link">
+    <visual>
+      <geometry><box size="0.03 0.08 0.03"/></geometry>
+      <material name="black"/>
+    </visual>
+    <visual>
+      <origin xyz="0.017 0 0" rpy="0 ${pi/2} 0"/>
+      <geometry><cylinder radius="0.008" length="0.006"/></geometry>   <!-- lens -->
+      <material name="grey"/>
+    </visual>
+    <collision>
+      <geometry><box size="0.04 0.08 0.03"/></geometry>
+    </collision>
+    <xacro:inertial_box mass="0.05" x="0.03" y="0.08" z="0.03">
+      <origin xyz="0 0 0"/>
+    </xacro:inertial_box>
+  </link>
+  <joint name="tilt_joint" type="revolute">
+    <parent link="pan_link"/>
+    <child link="tilt_link"/>
+    <origin xyz="0 0 0.035"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-0.8" upper="0.8" effort="1.0" velocity="2.0"/>
+  </joint>
+
+  <!-- camera_link: x forward (ROS body convention).
+       camera_optical_link: z forward, x right, y down (what image drivers expect). -->
+  <link name="camera_link"/>
+  <joint name="camera_joint" type="fixed">
+    <parent link="tilt_link"/>
+    <child link="camera_link"/>
+    <origin xyz="0.02 0 0"/>
+  </joint>
+  <link name="camera_optical_link"/>
+  <joint name="camera_optical_joint" type="fixed">
+    <parent link="camera_link"/>
+    <child link="camera_optical_link"/>
+    <origin rpy="${-pi/2} 0 ${-pi/2}"/>
+  </joint>
+
+</robot>
+```
+
+现在逐条走一遍，因为这些选择以后每一条都会显形。
+
+1. **属性块**。每个尺寸都有名字和数值，而且数值只写一次。把 `chassis_x` 从 0.30 改成 0.35，visual 盒子、collision 盒子和 inertial 会一起跟着变，因为它们都读的是 `${chassis_x}`。`${chassis_z/2 - 0.01}` 甚至还替你做了算术。
+2. **`base_footprint` 到 `base_link`**。一个固定关节把 `base_link` 抬高 `wheel_radius`，于是 `base_link` 落在车轴上，`base_footprint` 留在地面。底盘盒子再向前挪 `chassis_offset_x`，因为车轴并不在车体正中间。
+3. **一个轮子宏，调用两次**。`wheel` 宏接收 `side` 和 `reflect`；左轮用 `reflect="1"` 调用，右轮用 `reflect="-1"`，一段文字就画出了两侧的轮子。轮子的圆柱体被 `rpy="${-pi/2} 0 0"` 转过来了，因为 URDF 的圆柱默认沿自己的 z 轴立着，而轮子得侧躺；关节轴取 `0 1 0`，于是正方向旋转在两侧都让机器人前进。
+4. **万向球正好触地**。它的 origin 在 z = `caster_radius − wheel_radius` = 0.025 − 0.05 = −0.025，所以这个小球恰好垂到车轴中心坐标系下方的地面。
+5. **激光雷达是固定的，而它的名字是一句承诺**。`lidar_link` 位于甲板前方的一个静态变换上。这个连杆的名字，就是激光雷达驱动往扫描数据里盖的 `frame_id`；没有任何机制会替你把关，所以只能靠你自己写对（第 6 节会演示写错的下场）。
+6. **pan 绕 z、tilt 绕 y，两个都是 revolute**。pan 关节绕 z 转，限位 ±π/2；tilt 关节绕 y 转，限位 ±0.8 rad。两者都是 `revolute`，这里写下的限位，就是滑块、以及后面的仿真器和控制器让关节保持在其中的范围。
+7. **visual 与 collision 分开**。`tilt_link` 有两个 visual——相机机身和一小段镜头圆柱——是为了好看，但碰撞体只有一个朴素的盒子。物理引擎每秒要检查几千次碰撞，所以简单形状便宜、漂亮形状不便宜；把细节留给 visual，把简单留给 collision。
+8. **`camera_link` 与 `camera_optical_link`**。`camera_link` 遵循 ROS 机体约定，x 向前。光学坐标系被 `rpy="${-pi/2} 0 ${-pi/2}"` 转了一下，变成 z 向前、x 向右、y 向下——这正是图像驱动和 OpenCV 期待的坐标系。图像工具链会去找光学坐标系，所以哪怕它只是一个固定旋转，也值得加。
+
+把 xacro 转成朴素 URDF，并在 RViz 看到它之前先检查：
+
+```bash
+cd ~/ros2_ws/src/m4_description/urdf
+xacro robot.urdf.xacro > /tmp/robot.urdf && check_urdf /tmp/robot.urdf
+```
+
+```text
+robot name is: m4bot
+---------- Successfully Parsed XML ---------------
+root Link: base_footprint has 1 child(ren)
+    child(1):  base_link
+        child(1):  caster_link
+        child(2):  left_wheel_link
+        child(3):  lidar_link
+        child(4):  mast_link
+            child(1):  pan_link
+                child(1):  tilt_link
+                    child(1):  camera_link
+                        child(1):  camera_optical_link
+        child(5):  right_wheel_link
+```
+
+`check_urdf` 会解析文件并打印这棵树。如果某个关节声明了一个不存在的父连杆，它会在这里就报错——远早于 RViz 给你看一台散架的机器人。生成出来的文件大约 250 行，而写出它的 xacro 只有 195 行，外加一个 37 行的宏文件——而且改一个数字，全部都跟着变。这就是课程里那句「手写 400 行 XML」警告的答案：你从不手写那 250 行，你写的是生成它们的那份短文件。
+
+## 惯量不靠猜
+
+RViz 不在乎质量，Gazebo 非常在乎。每个有质量的连杆都需要一个 `<inertial>` 元素，带着质量和 3×3 的惯量矩阵；没有它，或者里面是胡编的数值，物理一开始机器人就会炸开、抖动，或者穿过地板沉下去。纯坐标系的连杆——`base_footprint`、`camera_link` 和 `camera_optical_link`——故意不带 inertial，因为它们表示的是点和朝向，不是物质。
+
+不需要 CAD 也能算对。把每个零件近似成一个均匀实心体，套标准公式即可；我们把这些公式包进三个宏，这样它们绝不会被抄错第二遍。
+
+<CodeSource path="examples/month-4/urdf-tf/m4_description/urdf/inertial_macros.xacro" />
+
+```xml
+<?xml version="1.0"?>
+<!-- Inertia of simple solids (uniform density), about the centre of mass.
+     Each macro takes the same pose as the geometry it belongs to. -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="inertial_box" params="mass x y z *origin">
+    <inertial>
+      <xacro:insert_block name="origin"/>
+      <mass value="${mass}"/>
+      <inertia ixx="${mass / 12 * (y*y + z*z)}" ixy="0" ixz="0"
+               iyy="${mass / 12 * (x*x + z*z)}" iyz="0"
+               izz="${mass / 12 * (x*x + y*y)}"/>
+    </inertial>
+  </xacro:macro>
+
+  <!-- cylinder along its local z axis -->
+  <xacro:macro name="inertial_cylinder" params="mass radius length *origin">
+    <inertial>
+      <xacro:insert_block name="origin"/>
+      <mass value="${mass}"/>
+      <inertia ixx="${mass / 12 * (3*radius*radius + length*length)}" ixy="0" ixz="0"
+               iyy="${mass / 12 * (3*radius*radius + length*length)}" iyz="0"
+               izz="${mass / 2 * radius*radius}"/>
+    </inertial>
+  </xacro:macro>
+
+  <xacro:macro name="inertial_sphere" params="mass radius *origin">
+    <inertial>
+      <xacro:insert_block name="origin"/>
+      <mass value="${mass}"/>
+      <inertia ixx="${2 / 5 * mass * radius*radius}" ixy="0" ixz="0"
+               iyy="${2 / 5 * mass * radius*radius}" iyz="0"
+               izz="${2 / 5 * mass * radius*radius}"/>
+    </inertial>
+  </xacro:macro>
+
+</robot>
+```
+
+公式用纯文本写出来，全部相对质心：
+
+```text
+长方体：   Ixx = m/12·(y²+z²),  Iyy = m/12·(x²+z²),  Izz = m/12·(x²+y²)
+圆柱体：   Ixx = Iyy = m/12·(3r²+h²),  Izz = m/2·r²      （绕自身 z 轴）
+球体：     I = 2/5·m·r²
+```
+
+**算例 1：底盘**。盒子 m = 2.0 kg，尺寸 0.30 × 0.24 × 0.08 m。每一步都写出来：
+
+```text
+Ixx = 2.0/12 × (0.24² + 0.08²) = 0.16667 × (0.0576 + 0.0064)
+    = 0.16667 × 0.0640 = 0.010667 kg·m²
+Iyy = 2.0/12 × (0.30² + 0.08²) = 0.16667 × (0.0900 + 0.0064)
+    = 0.16667 × 0.0964 = 0.016067 kg·m²
+Izz = 2.0/12 × (0.30² + 0.24²) = 0.16667 × (0.0900 + 0.0576)
+    = 0.16667 × 0.1476 = 0.024600 kg·m²
+```
+
+注意每个分量里缺的是哪个尺寸：Ixx 量的是绕 x 轴的转动，所以它用的是垂直于 x 的两个尺寸（y 和 z），永远不含 x 自己。
+
+**算例 2：一个轮子**。m = 0.2 kg，r = 0.05 m，h = 0.03 m。轮子是绕自身轴的圆柱：
+
+```text
+Izz = 0.2/2 × 0.05² = 0.1 × 0.0025 = 0.00025 kg·m²
+Ixx = Iyy = 0.2/12 × (3 × 0.05² + 0.03²)
+    = 0.016667 × (3 × 0.0025 + 0.0009)
+    = 0.016667 × (0.0075 + 0.0009) = 0.016667 × 0.0084 = 0.00014 kg·m²
+```
+
+宏取的 origin 要和它所属几何体的 origin 一致：底盘的 inertial 跟着盒子一起前移，轮子的 inertial 跟着圆柱一起转过方向。忘了这一点，惯量就是绕错误的点算的，仿真的手感会微妙地不对，却又不会报任何错。
+
+有一条任何真实物体都满足的合理性规则，能替你抓住大多数笔误：**三角不等式**（triangle rule）。每个惯量最多等于另外两个之和——Ixx + Iyy ≥ Izz，依此类推。任何实心体绕某根轴转动，都不会比绕另外两根轴加起来更难，所以只要有一位数字打错，这个不等式通常立刻就不成立了。
+
+与其相信自己的算术，不如让脚本替你查。下面这个脚本读一份 URDF，把物理引擎没法模拟的连杆全部标出来：
+
+<CodeSource path="examples/month-4/urdf-tf/inertia_check.py" />
+
+```python
+#!/usr/bin/env python3
+"""Check the <inertial> of every link in a URDF before Gazebo does it the hard way.
+
+usage: xacro robot.urdf.xacro > robot.urdf && python3 inertia_check.py robot.urdf
+
+Flags links that a physics engine cannot simulate: no inertial at all (fine only for
+massless frames such as base_footprint or camera_link), a mass of zero or less, a
+non-positive moment of inertia, or moments that break the triangle rule
+(Ixx + Iyy >= Izz and so on), which no real object can have."""
+import sys
+import xml.etree.ElementTree as ET
+
+
+def main(path):
+    robot = ET.parse(path).getroot()
+    total, problems = 0.0, 0
+    print(f'{"link":20} {"mass kg":>8} {"Ixx":>10} {"Iyy":>10} {"Izz":>10}  check')
+    for link in robot.findall('link'):
+        name = link.get('name')
+        inertial = link.find('inertial')
+        if inertial is None:
+            print(f'{name:20} {"-":>8} {"":>10} {"":>10} {"":>10}  no inertial (frame only)')
+            continue
+        m = float(inertial.find('mass').get('value'))
+        i = inertial.find('inertia')
+        ixx, iyy, izz = (float(i.get(k)) for k in ('ixx', 'iyy', 'izz'))
+        ok = m > 0 and min(ixx, iyy, izz) > 0 and \
+            ixx + iyy >= izz and iyy + izz >= ixx and ixx + izz >= iyy
+        problems += not ok
+        total += m
+        print(f'{name:20} {m:8.3f} {ixx:10.3e} {iyy:10.3e} {izz:10.3e}  {"ok" if ok else "BAD"}')
+    print(f'total mass {total:.3f} kg, {problems} problem(s)')
+    return 1 if problems else 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1]))
+```
+
+拿它检查刚才生成的那份 URDF：
+
+```bash
+python3 inertia_check.py /tmp/robot.urdf
+```
+
+```text
+link                  mass kg        Ixx        Iyy        Izz  check
+base_footprint              -                                   no inertial (frame only)
+base_link               2.000  1.067e-02  1.607e-02  2.460e-02  ok
+left_wheel_link         0.200  1.400e-04  1.400e-04  2.500e-04  ok
+right_wheel_link        0.200  1.400e-04  1.400e-04  2.500e-04  ok
+caster_link             0.050  1.250e-05  1.250e-05  1.250e-05  ok
+lidar_link              0.100  4.396e-05  4.396e-05  6.125e-05  ok
+mast_link               0.100  3.390e-04  3.390e-04  1.125e-05  ok
+pan_link                0.050  8.333e-06  8.333e-06  1.333e-05  ok
+tilt_link               0.050  3.042e-05  7.500e-06  3.042e-05  ok
+camera_link                 -                                   no inertial (frame only)
+camera_optical_link         -                                   no inertial (frame only)
+total mass 2.750 kg, 0 problem(s)
+```
+
+把 `base_link` 那一行（1.067e-02、1.607e-02、2.460e-02）和算例 1 对照、把两行轮子和算例 2 对照：它们逐位吻合。`total mass 2.750 kg` 对一台小型室内机器人来说是合理的质量，这本身就是一次有用的合理性检查——如果你的总质量算出来是 40 kg，那就一定有问题。三个纯坐标系连杆正确地报了 `no inertial (frame only)`，整个文件零问题通过。每次开 Gazebo 之前都跑一遍它；花一秒，省一下午。
+
+<Quiz id="q2" question="一块盒状电池质量 1.0 kg，尺寸 x = 0.15 m、y = 0.20 m、z = 0.10 m。它的 Ixx 是多少 kg·m²？" answer={0.00417} tolerance={0.0001} explanation="Ixx = m/12 × (y² + z²) = 1.0/12 × (0.04 + 0.01) = 0.05/12 ≈ 0.00417 kg·m²；x 不出现在 Ixx 里。" />
+
+## 两个发布者，一棵树
+
+这是课程的常见问题里的第一个，值得把话说死：大多数初学者分不清 `joint_state_publisher` 和 `robot_state_publisher`，而这份混淆会悄悄毁掉后面的一切。
+
+`robot_state_publisher` 才是关键的那个。它读取 URDF（通过 `robot_description` 参数传进来），然后对它从 `/joint_states` 听到的每一个关节位置，算出并发布对应的变换到 `/tf` 上。那些永不移动的关节——固定关节——它只在 `/tf_static` 上发布一次。它不发明任何东西；它只是把关节位置加上 URDF 变成变换。
+
+`joint_state_publisher` 以及它的滑块版 `joint_state_publisher_gui` 正好相反：它**凭空发明**关节位置，作为 `/joint_states` 发出去。在真机上、或在 Gazebo 里，是硬件驱动或仿真器在发布 `/joint_states`，这时你就别再跑 `joint_state_publisher` 了。这两个程序坐在同一根管道的两端，这正是它们名字如此相似、人们又总搞混的原因。
+
+```text
+robot_description (URDF) ------------------> robot_state_publisher
+joint_state_publisher_gui --/joint_states--> robot_state_publisher --/tf, /tf_static--> RViz、tf2_echo 以及其他所有节点
+```
+
+launch 文件把它们接起来，并加上 RViz，用一个参数决定关节位置从哪来：
+
+<CodeSource path="examples/month-4/urdf-tf/m4_description/launch/display.launch.py" />
+
+```python
+"""Show m4bot: robot_state_publisher + a joint state source (+ RViz).
+
+ros2 launch m4_description display.launch.py                         # sliders and RViz
+ros2 launch m4_description display.launch.py joints:=zero rviz:=false # headless, all joints at 0
+ros2 launch m4_description display.launch.py joints:=none rviz:=false # no joint states at all"""
+import os
+
+from ament_index_python.packages import get_package_share_directory
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition
+from launch.substitutions import Command, EqualsSubstitution, LaunchConfiguration
+from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
+
+
+def generate_launch_description():
+    share = get_package_share_directory('m4_description')
+    xacro_file = os.path.join(share, 'urdf', 'robot.urdf.xacro')
+    # run xacro at launch time; the result is the robot_description string
+    robot_description = ParameterValue(Command(['xacro ', xacro_file]), value_type=str)
+    joints = LaunchConfiguration('joints')
+    return LaunchDescription([
+        DeclareLaunchArgument('joints', default_value='gui',
+                              description='gui = sliders, zero = all joints at 0, none = no joint states'),
+        DeclareLaunchArgument('rviz', default_value='true', description='start RViz'),
+        # turns joint positions + the URDF into TF transforms
+        Node(package='robot_state_publisher', executable='robot_state_publisher',
+             parameters=[{'robot_description': robot_description}]),
+        # invents joint positions - on a real robot, the hardware driver publishes them instead
+        Node(package='joint_state_publisher_gui', executable='joint_state_publisher_gui',
+             condition=IfCondition(EqualsSubstitution(joints, 'gui'))),
+        Node(package='joint_state_publisher', executable='joint_state_publisher',
+             condition=IfCondition(EqualsSubstitution(joints, 'zero'))),
+        Node(package='rviz2', executable='rviz2',
+             arguments=['-d', os.path.join(share, 'rviz', 'display.rviz')],
+             condition=IfCondition(LaunchConfiguration('rviz'))),
+    ])
+```
+
+这份文件里有三个细节值得停一下。`Command(['xacro ', xacro_file])` 在启动时运行 xacro，所以你改完 xacro、重新 launch 就能看到变化——不需要单独的构建步骤。把它包进 `ParameterValue(..., value_type=str)` 是为了阻止 `launch` 把这段 XML 当成 YAML 去解析，否则它真会那么干并把内容弄乱。`joints` 参数则在滑块、全部归零、什么都不发之间做选择；「什么都不发」正是第 6 节故意弄断那棵树的工具。和第二课一样，`setup.py` 必须把 `urdf`、`launch` 和 `rviz` 这几个目录安装进去，否则 launch 文件会找不到自己的文件。
+
+构建这个包并启动它：
+
+```bash
+cp -r m4_description ~/ros2_ws/src/
+cd ~/ros2_ws && colcon build && source install/setup.bash
+ros2 launch m4_description display.launch.py
+```
+
+滑块窗口会列出 `pan_joint` 和 `tilt_joint` 以及它们的限位，还有两个轮子关节。拖动 pan，就能看到 RViz 里云台转头、TF 坐标轴跟着摆动：
+
+![RViz 中的 m4bot：橙色底盘、两个黑色轮子和一个灰色万向球，甲板前部是激光雷达，后部的灰色桅杆上是云台相机，每个连杆上都画着 TF 坐标轴和坐标系名称](/m4/m4bot_rviz.png)
+
+那张图是本站编辑在一台没有显示器的电脑上、用一块虚拟屏幕跑 RViz 拍下来的，云台则由小程序 `pose_head.py`（第 5 节给出）摆到 pan 30°，而不是用滑块。在你自己的桌面上，滑块做的是同一件事。
+
+<Resource id="urdf-rsp-tutorial" />
+
+<Quiz id="q3" question="你用 URDF 启动了 robot_state_publisher，但没启动 joint_state_publisher，也没有别的程序发布 /joint_states。RViz 里会显示什么？" options={["完整的机器人，所有关节都在零位", "只有靠固定关节连接的部分；轮子和云台都不见了", "什么都不显示，因为 robot_state_publisher 拒绝启动", "机器人，但整体变灰"]} answer={1} explanation="robot_state_publisher 能直接从 URDF 发布固定关节，但一个运动关节在有人报告它的位置之前，根本没有变换。" />
+
+本站编者确实这样试过：RobotModel 显示变红，轮子和整个云台（pan、tilt、相机）干脆不见了，而底盘、万向球、激光雷达和桅杆依然画得出来。
+
+## 读懂一个变换
+
+一个变换就是一次平移加一次旋转，合起来把某个坐标系里的坐标变成另一个坐标系里的坐标。沿着树把若干变换串起来，就得到任意两个坐标系之间的变换——课程作者说，坐标系和变换正是大多数人理解 URDF 时卡住的概念，所以值得亲手做一遍。
+
+要把云台摆到精确的角度、而不是拖滑块，这里有一个很小的发布者：
+
+<CodeSource path="examples/month-4/urdf-tf/pose_head.py" />
+
+```python
+#!/usr/bin/env python3
+"""Publish /joint_states for m4bot with the head at a chosen pan and tilt (in degrees).
+
+usage: python3 pose_head.py PAN_DEG TILT_DEG
+Stands in for joint_state_publisher_gui when you want exact angles from the terminal.
+On the real robot, the motor driver publishes /joint_states instead."""
+import math
+import sys
+
+import rclpy
+from rclpy.executors import ExternalShutdownException
+from rclpy.node import Node
+from sensor_msgs.msg import JointState
+
+
+def main():
+    pan, tilt = (math.radians(float(a)) for a in sys.argv[1:3])
+    rclpy.init()
+    node = Node('pose_head')
+    pub = node.create_publisher(JointState, 'joint_states', 10)
+
+    def tick():
+        msg = JointState()
+        msg.header.stamp = node.get_clock().now().to_msg()   # robot_state_publisher needs a stamp
+        msg.name = ['left_wheel_joint', 'right_wheel_joint', 'pan_joint', 'tilt_joint']
+        msg.position = [0.0, 0.0, pan, tilt]
+        pub.publish(msg)
+
+    node.create_timer(0.1, tick)
+    try:
+        rclpy.spin(node)
+    except (KeyboardInterrupt, ExternalShutdownException):
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.try_shutdown()
+
+
+if __name__ == '__main__':
+    main()
+```
+
+它每秒十次带着新时间戳发布 `/joint_states`，这正是 `robot_state_publisher` 工作所必需的。用「没有其它关节来源」的方式启动机器人，把云台摆到 pan 30°，然后查询从底盘到相机的变换：
+
+```bash
+ros2 launch m4_description display.launch.py joints:=none rviz:=false
+python3 pose_head.py 30 0          # second terminal: pan 30°, tilt 0°
+ros2 run tf2_ros tf2_echo base_link camera_link    # third terminal
+```
+
+```text
+At time 1792444943.693046481
+- Translation: [-0.043, 0.010, 0.305]
+- Rotation: in Quaternion (xyzw) [0.000, 0.000, 0.259, 0.966]
+- Rotation: in RPY (radian) [0.000, -0.000, 0.524]
+- Rotation: in RPY (degree) [0.000, -0.000, 30.000]
+- Matrix:
+  0.866 -0.500  0.000 -0.043
+  0.500  0.866  0.000  0.010
+  0.000  0.000  1.000  0.305
+  0.000  0.000  0.000  1.000
+```
+
+怎么读它。平移单位是米。旋转出现了两次：一次是四元数（x, y, z, w），这是 TF 存储它的形式，因为没有奇异点；一次是 roll-pitch-yaw，这是给人读的——这里的 yaw 是 30°，正是我们要求的 pan 角。最后一段是 4×4 齐次矩阵：左上 3×3 是旋转（cos 30° = 0.866、sin 30° = 0.500 出现在你预期的位置），最右一列是平移。这里面每一个数，你都本该能自己算出来，而亲手算一遍就是重点。
+
+**算例**。手算从 `base_link` 到 `camera_link` 的这条链，每一步都写出来：
+
+```text
+base_link -> mast_link:  平移 (-0.06, 0, 0.07)          [chassis_top = 0.08 - 0.01 = 0.07]
+mast_link -> pan_link:   平移 (0, 0, 0.20)，再绕 z 转 30°
+pan_link  -> tilt_link:  平移 (0, 0, 0.035)
+tilt_link -> camera_link: 平移 (0.02, 0, 0)
+
+后两段偏移是在转过的 pan 坐标系里表示的，所以先把 (0.02, 0, 0.035) 绕 z 转 30°：
+    x = 0.02 × cos 30° = 0.02 × 0.866 = 0.0173
+    y = 0.02 × sin 30° = 0.02 × 0.500 = 0.0100
+    z = 0.035
+再加上 pan 旋转之前、不受旋转影响的那部分：
+    x = -0.06 + 0.0173 = -0.0427 ≈ -0.043
+    y =  0.00 + 0.0100 = 0.010
+    z =  0.07 + 0.20 + 0.035 = 0.305
+```
+
+四舍五入到毫米，正好就是 `tf2_echo` 给出的 `[-0.043, 0.010, 0.305]`。这份串联正是 TF 每秒替你做成千上万次的事，也是为什么链上任何一处 origin 写错，都会把下面的一切挪走：`mast_joint` 一错，整个云台连同相机都会跟着偏。
+
+<Resource id="ar-transforms" />
+
+<Quiz id="q4" question="还是这条链，把云台转到 90°（tilt 0°）。camera_link 在 base_link 里的 y 平移是多少米？" answer={0.02} tolerance={0.001} explanation="把 (0.02, 0, 0.035) 绕 z 转 90° 得到 (0, 0.02, 0.035)；转的只有相机那 2 cm 的前向偏移，所以 y = 0.02 m。" />
+
+## 诊断损坏的 TF 树
+
+弄断一棵 TF 树，用课程的话说，你就撞上了整个技术栈里最常见的故障——本月的里程碑甚至要你去诊断一次。与其等它自己发生，不如我们故意制造三种很真实的断裂：一种用 `joints:=none`，另一种用一个坐标系名字写错的驱动。
+
+```bash
+ros2 launch m4_description display.launch.py joints:=none rviz:=false
+ros2 run tf2_ros tf2_echo base_link camera_link
+ros2 run tf2_ros tf2_echo base_link laser
+ros2 run tf2_ros tf2_echo base_link lidar_link
+```
+
+```text
+$ ros2 run tf2_ros tf2_echo base_link camera_link
+[INFO] [1792444928.258559294] [tf2_echo]: Waiting for transform base_link ->  camera_link: Could not find a connection between 'base_link' and 'camera_link' because they are not part of the same tree.Tf has two or more unconnected trees.
+$ ros2 run tf2_ros tf2_echo base_link laser
+[INFO] [1792444932.407209955] [tf2_echo]: Waiting for transform base_link ->  laser: Invalid frame ID "laser" passed to canTransform argument source_frame - frame does not exist
+$ ros2 run tf2_ros tf2_echo base_link lidar_link
+At time 0.0
+- Translation: [0.120, 0.000, 0.090]
+- Rotation: in Quaternion (xyzw) [0.000, 0.000, 0.000, 1.000]
+- Rotation: in RPY (radian) [0.000, -0.000, 0.000]
+- Rotation: in RPY (degree) [0.000, -0.000, 0.000]
+```
+
+读这三条消息，每一条都指向一种不同的病症。
+
+1. **not part of the same tree … two or more unconnected trees** 说明链上有一处被切断了。这里 pan 和 tilt 关节没有位置，于是 `mast_link` 及它上面的一切，和 `base_link` 分成了两棵独立的树。修法是让本该发布 `/joint_states` 的那个东西出来工作：GUI、驱动，或者 Gazebo。
+2. **`Invalid frame ID "laser" … frame does not exist`** 说明根本没有人发布叫这个名字的坐标系。经典病因是激光雷达驱动给扫描盖上 `laser`，而你的 URDF 把那个连杆叫作 `lidar_link`。
+3. **`lidar_link` 现在就能用**，因为挂在固定关节上的它，由 `robot_state_publisher` 直接从 URDF 发布。输出里那句 `At time 0.0` 就是静态变换的标志——它在任何时刻都有效。
+
+对第 2 种断裂，你有两个修法。更好的一个是把驱动参数里的坐标系改名，让它对上你的 URDF。更快的那个是加一个静态变换，把两个名字桥接起来：
+
+```bash
+ros2 run tf2_ros static_transform_publisher --frame-id lidar_link --child-frame-id laser
+```
+
+有了它，`tf2_echo base_link laser` 会给出：
+
+```text
+At time 0.0
+- Translation: [0.120, 0.000, 0.090]
+- Rotation: in Quaternion (xyzw) [0.000, 0.000, 0.000, 1.000]
+```
+
+那个缺失的激光雷达变换，用课程的话说，比起任何算法问题，要为更多的新手 SLAM 失败负责：SLAM 无法安放一个它定位不了的扫描。一个完美的建图算法，喂给它一个坐标系根本不存在的扫描，也只会一无所获。
+
+当你自己的树坏掉时，按这个顺序排查：
+
+1. `ros2 run tf2_tools view_frames` 会把树真实的样子写成一个 PDF。拿它和你的预期对比；第 1 节那张图就是这么来的。
+2. 对出故障的那一对坐标系跑 `tf2_echo <父> <子>`，看清它给的是两种错误里的哪一种。
+3. 跑 `ros2 topic echo /joint_states`，看看到底有没有人在报告那些运动关节。
+4. 把出错消息里的 `frame_id`（`ros2 topic echo <话题> --field header.frame_id`）和 URDF 里的连杆名字对一遍。
+5. 对时间类错误（「extrapolation into the future / past」），检查所有节点用的是不是同一个时钟。这在第 4 课很重要，那时 Gazebo 的仿真时钟会登场。
+
+<Quiz id="q5" question="你的 SLAM 节点报错说无法从 'base_scan' 变换到 'base_link'。view_frames 显示你的树里有 lidar_link，但没有 base_scan。最可能的原因是什么？" options={["激光雷达坏了", "激光雷达驱动给扫描盖的坐标系名字，你的 URDF 里没有", "SLAM 参数不对", "RViz 没在运行"]} answer={1} explanation="消息里的那个坐标系名字在树里不存在；让驱动改用 lidar_link，或者加一个静态变换。" />
+
+## 你的机器人，你的截图
+
+现在轮到练习任务：用 xacro 设计你自己的机器人。不是 TurtleBot，也不是 m4bot 的复制品。它要有差速底盘、传感器桅杆和二自由度云台，惯量正确，视觉与碰撞几何分开。用滑块驱动关节，在 RViz 里看完整的 TF 树。然后截一张图——课程把它称作初学者作品集里最容易看懂的一个信号，因为任何人扫一眼就能看出你确实描述了一台真实的机器人。
+
+大致按这个顺序做，边做边查：
+
+1. 先写属性，给每个尺寸起名字。
+2. 加上 `base_footprint` 和 `base_link`，然后是底盘的 visual、collision 和 inertial。
+3. 写**一个**轮子宏，像 m4bot 那样调用两次。
+4. 加上万向球。
+5. 每加几个连杆就跑一次 `check_urdf`，别等到最后。
+6. 加上各 inertial，跑 `inertia_check.py`。
+7. 加上桅杆和云台，再跑一次 `check_urdf`。
+8. 启动 RViz，拖动滑块，最后用 `view_frames` 收尾。
+
+几条真做过之后才有的建议。学的时候把机器人做小、用整数；0.30 m 的底盘配 5 cm 的轮子好推理，以后可以再改比例。把 origin 放在**关节**上，而不是 visual 上，除非某个形状确实相对自己的坐标系有偏移——把两者混用是最难改掉的坏习惯。还有，当一个零件出现在错误的位置时，先查父关节的 origin，再去动 visual：实践中一般 visual 没错，错的是关节 origin。
+
+本课的一切都在 `examples/month-4/urdf-tf` 里：整个 `m4_description` 包，加上 `inertia_check.py` 和 `pose_head.py`。把它复制走、改起来、弄坏它。
+
+<Resource id="renard-ros2-l2" />
+
+第 4 课里，同一份 xacro 会进入 Gazebo，那时重力、惯量和你在这里写的碰撞盒子突然都成了真的，激光雷达和相机也开始产出数据——盖的正是你在这里选定的坐标系名字。现在把树写对，仿真就轻松；写错，没有哪个算法救得了你。

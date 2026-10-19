@@ -1,0 +1,195 @@
+<?xml version="1.0"?>
+<!-- m4bot: a differential-drive base, a lidar, and a pan-tilt camera head on a mast.
+     All lengths in metres, masses in kilograms, angles in radians. -->
+<robot name="m4bot" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:include filename="inertial_macros.xacro"/>
+
+  <!-- ===== dimensions: change these, everything else follows ===== -->
+  <xacro:property name="chassis_x" value="0.30"/>
+  <xacro:property name="chassis_y" value="0.24"/>
+  <xacro:property name="chassis_z" value="0.08"/>
+  <xacro:property name="chassis_mass" value="2.0"/>
+  <xacro:property name="chassis_offset_x" value="0.05"/>   <!-- chassis centre ahead of the axle -->
+  <xacro:property name="wheel_radius" value="0.05"/>
+  <xacro:property name="wheel_width" value="0.03"/>
+  <xacro:property name="wheel_mass" value="0.2"/>
+  <xacro:property name="wheel_separation" value="0.28"/>   <!-- centre to centre -->
+  <xacro:property name="caster_radius" value="0.025"/>
+  <xacro:property name="mast_height" value="0.20"/>
+  <xacro:property name="chassis_top" value="${chassis_z - 0.01}"/>  <!-- top face, above base_link -->
+
+  <!-- base_footprint: on the floor, under the axle centre. base_link: the axle centre. -->
+  <link name="base_footprint"/>
+  <joint name="base_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 ${wheel_radius}"/>
+  </joint>
+
+  <link name="base_link">
+    <visual>
+      <origin xyz="${chassis_offset_x} 0 ${chassis_z/2 - 0.01}"/>
+      <geometry><box size="${chassis_x} ${chassis_y} ${chassis_z}"/></geometry>
+      <material name="orange"><color rgba="1.0 0.45 0.1 1"/></material>
+    </visual>
+    <collision>
+      <origin xyz="${chassis_offset_x} 0 ${chassis_z/2 - 0.01}"/>
+      <geometry><box size="${chassis_x} ${chassis_y} ${chassis_z}"/></geometry>
+    </collision>
+    <xacro:inertial_box mass="${chassis_mass}" x="${chassis_x}" y="${chassis_y}" z="${chassis_z}">
+      <origin xyz="${chassis_offset_x} 0 ${chassis_z/2 - 0.01}"/>
+    </xacro:inertial_box>
+  </link>
+
+  <!-- one macro, two wheels: reflect = +1 for left (+y), -1 for right -->
+  <xacro:macro name="wheel" params="side reflect">
+    <link name="${side}_wheel_link">
+      <visual>
+        <origin rpy="${-pi/2} 0 0"/>
+        <geometry><cylinder radius="${wheel_radius}" length="${wheel_width}"/></geometry>
+        <material name="black"><color rgba="0.1 0.1 0.1 1"/></material>
+      </visual>
+      <collision>
+        <origin rpy="${-pi/2} 0 0"/>
+        <geometry><cylinder radius="${wheel_radius}" length="${wheel_width}"/></geometry>
+      </collision>
+      <xacro:inertial_cylinder mass="${wheel_mass}" radius="${wheel_radius}" length="${wheel_width}">
+        <origin rpy="${-pi/2} 0 0"/>
+      </xacro:inertial_cylinder>
+    </link>
+    <joint name="${side}_wheel_joint" type="continuous">
+      <parent link="base_link"/>
+      <child link="${side}_wheel_link"/>
+      <origin xyz="0 ${reflect * wheel_separation/2} 0"/>
+      <axis xyz="0 1 0"/>   <!-- positive rotation drives the robot forward on both sides -->
+    </joint>
+  </xacro:macro>
+  <xacro:wheel side="left" reflect="1"/>
+  <xacro:wheel side="right" reflect="-1"/>
+
+  <!-- caster: a sphere touching the floor; visual and collision are the same ball -->
+  <link name="caster_link">
+    <visual>
+      <geometry><sphere radius="${caster_radius}"/></geometry>
+      <material name="grey"><color rgba="0.6 0.6 0.6 1"/></material>
+    </visual>
+    <collision>
+      <geometry><sphere radius="${caster_radius}"/></geometry>
+    </collision>
+    <xacro:inertial_sphere mass="0.05" radius="${caster_radius}">
+      <origin xyz="0 0 0"/>
+    </xacro:inertial_sphere>
+  </link>
+  <joint name="caster_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="caster_link"/>
+    <origin xyz="0.16 0 ${caster_radius - wheel_radius}"/>
+  </joint>
+
+  <!-- lidar: a fixed (static) transform on the front of the chassis.
+       Its link name is the frame_id the lidar driver must use. -->
+  <link name="lidar_link">
+    <visual>
+      <geometry><cylinder radius="0.035" length="0.04"/></geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <geometry><cylinder radius="0.035" length="0.04"/></geometry>
+    </collision>
+    <xacro:inertial_cylinder mass="0.1" radius="0.035" length="0.04">
+      <origin xyz="0 0 0"/>
+    </xacro:inertial_cylinder>
+  </link>
+  <joint name="lidar_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="lidar_link"/>
+    <origin xyz="0.12 0 ${chassis_top + 0.02}"/>
+  </joint>
+
+  <!-- mast at the back of the chassis -->
+  <link name="mast_link">
+    <visual>
+      <origin xyz="0 0 ${mast_height/2}"/>
+      <geometry><cylinder radius="0.015" length="${mast_height}"/></geometry>
+      <material name="grey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${mast_height/2}"/>
+      <geometry><cylinder radius="0.015" length="${mast_height}"/></geometry>
+    </collision>
+    <xacro:inertial_cylinder mass="0.1" radius="0.015" length="${mast_height}">
+      <origin xyz="0 0 ${mast_height/2}"/>
+    </xacro:inertial_cylinder>
+  </link>
+  <joint name="mast_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="mast_link"/>
+    <origin xyz="-0.06 0 ${chassis_top}"/>
+  </joint>
+
+  <!-- pan-tilt head: pan turns about z, tilt about y -->
+  <link name="pan_link">
+    <visual>
+      <origin xyz="0 0 0.01"/>
+      <geometry><box size="0.04 0.04 0.02"/></geometry>
+      <material name="grey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.01"/>
+      <geometry><box size="0.04 0.04 0.02"/></geometry>
+    </collision>
+    <xacro:inertial_box mass="0.05" x="0.04" y="0.04" z="0.02">
+      <origin xyz="0 0 0.01"/>
+    </xacro:inertial_box>
+  </link>
+  <joint name="pan_joint" type="revolute">
+    <parent link="mast_link"/>
+    <child link="pan_link"/>
+    <origin xyz="0 0 ${mast_height}"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="${-pi/2}" upper="${pi/2}" effort="1.0" velocity="2.0"/>
+  </joint>
+
+  <!-- the camera body: a detailed shape for looks, a plain box for collisions -->
+  <link name="tilt_link">
+    <visual>
+      <geometry><box size="0.03 0.08 0.03"/></geometry>
+      <material name="black"/>
+    </visual>
+    <visual>
+      <origin xyz="0.017 0 0" rpy="0 ${pi/2} 0"/>
+      <geometry><cylinder radius="0.008" length="0.006"/></geometry>   <!-- lens -->
+      <material name="grey"/>
+    </visual>
+    <collision>
+      <geometry><box size="0.04 0.08 0.03"/></geometry>
+    </collision>
+    <xacro:inertial_box mass="0.05" x="0.03" y="0.08" z="0.03">
+      <origin xyz="0 0 0"/>
+    </xacro:inertial_box>
+  </link>
+  <joint name="tilt_joint" type="revolute">
+    <parent link="pan_link"/>
+    <child link="tilt_link"/>
+    <origin xyz="0 0 0.035"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-0.8" upper="0.8" effort="1.0" velocity="2.0"/>
+  </joint>
+
+  <!-- camera_link: x forward (ROS body convention).
+       camera_optical_link: z forward, x right, y down (what image drivers expect). -->
+  <link name="camera_link"/>
+  <joint name="camera_joint" type="fixed">
+    <parent link="tilt_link"/>
+    <child link="camera_link"/>
+    <origin xyz="0.02 0 0"/>
+  </joint>
+  <link name="camera_optical_link"/>
+  <joint name="camera_optical_joint" type="fixed">
+    <parent link="camera_link"/>
+    <child link="camera_optical_link"/>
+    <origin rpy="${-pi/2} 0 ${-pi/2}"/>
+  </joint>
+
+</robot>

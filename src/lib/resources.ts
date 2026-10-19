@@ -1166,6 +1166,45 @@ export const resources: Record<string, Resource> = {
     license: { zh: "文档以 CC BY 4.0 发布，© Open Robotics；仅提供外链", en: "Docs under CC BY 4.0, © Open Robotics; external link only" },
     extra: true,
   },
+  "ar-transforms": {
+    id: "ar-transforms",
+    url: "https://articulatedrobotics.xyz/category/coordinate-transforms-for-robotics",
+    title: { zh: "Coordinate Transforms for Robotics（坐标变换系列）", en: "Coordinate Transforms for Robotics" },
+    author: "Josh Newans (Articulated Robotics)",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "专讲坐标系和变换的系列文章：二维、三维旋转，平移，最后合成变换矩阵。课程作者认为这正是大多数人卡在 URDF 上的那个概念。",
+      en: "A series devoted to frames and transforms: 2D and 3D rotations, translations, then transformation matrices. The course author calls this the concept that blocks most people's understanding of URDF.",
+    },
+    license: { zh: "© Josh Newans，仅提供外链", en: "© Josh Newans; external link only" },
+  },
+  "renard-ros2-l2": {
+    id: "renard-ros2-l2",
+    url: "https://www.udemy.com/course/ros2-tf-urdf-rviz-gazebo/",
+    title: { zh: "ROS 2 for Beginners Level 2 - TF | URDF | RViz | Gazebo", en: "ROS 2 for Beginners Level 2 - TF | URDF | RViz | Gazebo" },
+    author: "Edouard Renard",
+    kind: "course",
+    cost: { zh: "Udemy 付费课，打折时约 $10–20", en: "Paid Udemy course, about $10–20 on sale" },
+    summary: {
+      zh: "约 14 小时，课程作者心目中最好的 URDF 资源：xacro 宏、robot_state_publisher、RViz 配置、Gazebo 插件，最后在移动底盘上装一条机械臂。",
+      en: "About fourteen hours, and in the course author's view the single best URDF resource: xacro macros, robot_state_publisher, RViz configuration and Gazebo plugins, ending with an arm on a mobile base.",
+    },
+    license: { zh: "© Edouard Renard / Udemy，仅提供外链", en: "© Edouard Renard / Udemy; external link only" },
+  },
+  "urdf-rsp-tutorial": {
+    id: "urdf-rsp-tutorial",
+    url: "https://docs.ros.org/en/jazzy/Tutorials/Intermediate/URDF/Using-URDF-with-Robot-State-Publisher-cpp.html",
+    title: { zh: "官方教程：URDF 与 robot_state_publisher", en: "Official tutorial: using URDF with robot_state_publisher" },
+    author: "Open Robotics / ROS 2 documentation contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "标准的入门流程：写 URDF、用 robot_state_publisher 发布 TF、在 RViz 里看。有 C++ 和 Python 两个版本。",
+      en: "The canonical walkthrough: write a URDF, publish its TF with robot_state_publisher, and watch it in RViz. Available in both C++ and Python versions.",
+    },
+    license: { zh: "文档以 CC BY 4.0 发布，© Open Robotics；仅提供外链", en: "Docs under CC BY 4.0, © Open Robotics; external link only" },
+  },
 };
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

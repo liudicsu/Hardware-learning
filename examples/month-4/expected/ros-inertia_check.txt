@@ -1,0 +1,13 @@
+link                  mass kg        Ixx        Iyy        Izz  check
+base_footprint              -                                   no inertial (frame only)
+base_link               2.000  1.067e-02  1.607e-02  2.460e-02  ok
+left_wheel_link         0.200  1.400e-04  1.400e-04  2.500e-04  ok
+right_wheel_link        0.200  1.400e-04  1.400e-04  2.500e-04  ok
+caster_link             0.050  1.250e-05  1.250e-05  1.250e-05  ok
+lidar_link              0.100  4.396e-05  4.396e-05  6.125e-05  ok
+mast_link               0.100  3.390e-04  3.390e-04  1.125e-05  ok
+pan_link                0.050  8.333e-06  8.333e-06  1.333e-05  ok
+tilt_link               0.050  3.042e-05  7.500e-06  3.042e-05  ok
+camera_link                 -                                   no inertial (frame only)
+camera_optical_link         -                                   no inertial (frame only)
+total mass 2.750 kg, 0 problem(s)

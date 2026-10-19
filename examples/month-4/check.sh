@@ -132,4 +132,36 @@ qos() {
 }
 check ros-qos_mismatch.txt qos
 
+# ---- Lesson 3: the m4bot description, its inertias and its TF tree --------------------------
+WS3="$TMP/desc_ws"; mkdir -p "$WS3/src"; cp -r "$M4/urdf-tf/m4_description" "$WS3/src/"
+(cd "$WS3" && colcon build > /dev/null 2>&1)
+set +u; source "$WS3/install/setup.bash"; set -u
+URDF_X="$M4/urdf-tf/m4_description/urdf/robot.urdf.xacro"
+check ros-xacro_check.txt bash -c "cd '$TMP' && xacro '$URDF_X' > robot.urdf && check_urdf robot.urdf"
+check ros-inertia_check.txt python3 "$M4/urdf-tf/inertia_check.py" "$TMP/robot.urdf"
+start_display() {   # start_display <joints>: robot_state_publisher (+ joint source), no RViz
+  timeout -s INT 60 ros2 launch m4_description display.launch.py joints:="$1" rviz:=false > "$TMP/display" 2>&1 &
+  for _ in $(seq 50); do grep -q 'Robot initialized' "$TMP/display" && break; sleep 0.2; done
+  sleep 2
+}
+stop_display() { pkill -INT -f 'pose_head.py|static_transform_publisher' ; pkill -INT -f 'ros2 launch m4_description'; wait; }
+echo_tf() {   # echo_tf <from> <to> <lines>: the first transform tf2_echo prints (or what it waits for)
+  timeout -s INT 4 ros2 run tf2_ros tf2_echo "$1" "$2" 2>&1 | grep -v -E 'signal_handler|^\[INFO\].*target_frame - frame does not exist' | head -"$3"
+}
+export -f echo_tf
+start_display none
+broken() {
+  echo '$ ros2 run tf2_ros tf2_echo base_link camera_link'; echo_tf base_link camera_link 1
+  echo '$ ros2 run tf2_ros tf2_echo base_link laser'; echo_tf base_link laser 1
+  echo '$ ros2 run tf2_ros tf2_echo base_link lidar_link'; echo_tf base_link lidar_link 5
+}
+check ros-tf_broken.txt broken
+timeout -s INT 30 python3 "$M4/urdf-tf/pose_head.py" 30 0 > /dev/null 2>&1 &
+sleep 2
+check ros-tf_pan30.txt --mask 'At time [0-9.]+' bash -c "echo_tf base_link camera_link 10"
+timeout -s INT 30 ros2 run tf2_ros static_transform_publisher --frame-id lidar_link --child-frame-id laser > /dev/null 2>&1 &
+sleep 2
+check ros-tf_laser_alias.txt bash -c "echo_tf base_link laser 3"
+stop_display
+
 exit $fail

@@ -339,6 +339,23 @@ const month4Lessons: Lesson[] = [
       { id: "qos", text: { zh: "故意制造一次 QoS 不兼容，读懂警告，再修好它", en: "Cause a QoS mismatch on purpose, read the warning, then fix it" } },
     ],
   },
+  {
+    slug: "urdf-tf",
+    title: { zh: "URDF 与 TF：描述一台机器人", en: "URDF and TF: describing a robot" },
+    summary: {
+      zh: "用 xacro 写出自己的机器人：差速底盘、传感器桅杆和二自由度云台，惯量正确，视觉与碰撞几何分开；再用 robot_state_publisher、RViz 和 tf2 工具看懂并诊断 TF 树。",
+      en: "Write your own robot in xacro: a differential-drive base, a sensor mast and a two-DOF pan-tilt head, with correct inertias and separate visual and collision geometry; then read and diagnose its TF tree with robot_state_publisher, RViz and the tf2 tools.",
+    },
+    minutes: 240,
+    resources: ["ar-transforms", "renard-ros2-l2", "urdf-rsp-tutorial"],
+    tasks: [
+      { id: "xacro", text: { zh: "用 xacro 写出你自己的机器人（不是 TurtleBot）：差速底盘、桅杆、云台，尺寸都用 property，轮子用宏", en: "Write your own robot in xacro (not TurtleBot): a differential-drive base, a mast and a pan-tilt head, with dimensions as properties and the wheels as a macro" } },
+      { id: "inertia", text: { zh: "给每个有质量的连杆加上 inertial，并用 inertia_check.py 或手算核对至少一个", en: "Give every link with mass an inertial, and check at least one by hand or with inertia_check.py" } },
+      { id: "sliders", text: { zh: "用 joint_state_publisher_gui 拖动云台关节，在 RViz 里看 TF 跟着动，截一张图", en: "Drive the pan-tilt joints with joint_state_publisher_gui, watch the TF move in RViz, and take a screenshot" } },
+      { id: "tf-math", text: { zh: "手算云台转 30° 时 base_link → camera_link 的平移，再用 tf2_echo 核对", en: "Work out the base_link → camera_link translation with the head panned 30° by hand, then check it with tf2_echo" } },
+      { id: "broken", text: { zh: "故意弄断 TF 树（不发 joint_states、用错 frame 名），读懂报错，再修好", en: "Break the TF tree on purpose (no joint_states, a wrong frame name), read the errors, then fix them" } },
+    ],
+  },
 ];
 
 export const months: Month[] = [
