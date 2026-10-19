@@ -78,16 +78,16 @@ export interface CalloutProps {
 export function Callout({ type = "info", title, children }: CalloutProps) {
   const style = STYLE[type];
   return (
-    <div className={`rounded-lg border-l-2 border-y border-r border-white/10 bg-white/[0.03] p-4 ${style.border}`}>
+    <div className={`my-6 rounded-lg border-l-2 border-y border-r border-white/10 bg-white/[0.03] p-4 ${style.border}`}>
       <div className="flex items-start gap-3">
         <div className={`${style.text} flex h-4 w-4 translate-y-0.5`}>
           <TypeIcon type={type} />
         </div>
-        <div className="min-w-0 text-sm">
+        <div className="min-w-0 text-[0.95rem] leading-relaxed [&_p+p]:mt-2">
           {title !== undefined && (
             <p className="font-semibold text-zinc-100">{title}</p>
           )}
-          <div className={title !== undefined ? "mt-1 text-zinc-400" : "text-zinc-400"}>
+          <div className={title !== undefined ? "mt-1 text-zinc-300" : "text-zinc-300"}>
             {children}
           </div>
         </div>

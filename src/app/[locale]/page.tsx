@@ -11,7 +11,6 @@ export default async function HomePage({ params }: PageProps<"/[locale]">) {
   setRequestLocale(locale);
   const t = await getTranslations("home");
   const tm = await getTranslations("month");
-  const m1 = months[0];
 
   return (
     <div className="space-y-20">
@@ -79,7 +78,7 @@ export default async function HomePage({ params }: PageProps<"/[locale]">) {
           ))}
         </div>
         <p className="mt-4 text-xs text-zinc-500">
-          {t("progressLocal")} · {tr(m1.title, locale)}
+          {t("progressLocal")}
         </p>
       </section>
     </div>
