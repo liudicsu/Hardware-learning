@@ -201,6 +201,7 @@ const month2Lessons: Lesson[] = [
       { id: "line-follower", text: { zh: "搭好循线小车，先只用 P 调参，再加入 D，两个版本都录视频", en: "Build the line follower, tune it with P only, then add D, and film both versions" } },
       { id: "balancer", text: { zh: "搭自平衡车：固定频率控制循环、互补滤波、倾角过大自动断电", en: "Build the balancer: fixed-rate control loop, complementary filter, motor cut-off on large tilt" } },
       { id: "writeup", text: { zh: "在 GitHub 上为两台机器人写 README：接线、代码、调参过程和出过的故障", en: "Write a GitHub README for both robots: wiring, code, tuning notes and what broke" } },
+      { id: "outer-loop", text: { zh: "选做挑战：给平衡车加一个外环速度控制（编码器测速 → 调整倾角设定值），60 s 内不溜走、轻推后能回来", en: "Optional challenge: add an outer speed loop to the balancer (encoder speed → angle setpoint) so it stays put for 60 s and recovers from a gentle push" } },
     ],
   },
 ];

@@ -56,6 +56,8 @@ That shape fits hardware naturally. `setup()` is where you configure pins, start
 
 ### Reading the sketch line by line
 
+<CodeSource path="examples/month-2/arduino-io/blink_custom/blink_custom.ino" />
+
 ```cpp
 // Blink with an uneven rhythm: 200 ms on, 800 ms off.
 const int LED_PIN = LED_BUILTIN;  // pin 13 on an Uno
@@ -117,6 +119,8 @@ This arrangement is called **active low** because the active (pressed) state is 
 When the button is pressed, the pull-up current is about 5 V / 30 kΩ ≈ 0.17 mA — negligible. An external 10 kΩ resistor works the same way, but the internal one saves parts and wiring.
 
 ### Printing only when something changes
+
+<CodeSource path="examples/month-2/arduino-io/button_pullup/button_pullup.ino" />
 
 ```cpp
 // Button between pin 2 and GND, internal pull-up enabled.
@@ -270,6 +274,8 @@ The general-purpose `map(raw, 0, 1023, 0, 255)` function does the same job with 
 
 ### The sketch
 
+<CodeSource path="examples/month-2/arduino-io/pot_pwm/pot_pwm.ino" />
+
 ```cpp
 // Potentiometer wiper on A0 sets the brightness of an LED on pin 9 (PWM).
 const int POT_PIN = A0;
@@ -305,6 +311,8 @@ Printing both the raw value and the converted values is deliberate. The raw numb
 
 We compiled this sketch for the Uno and ran it in the simavr AVR simulator, with no knob attached: instead, the simulator put 0 V, 1.0 V, 2.5 V, 4.0 V and 5.0 V on pin A0, one after another. This is the exact serial output (repeated identical lines removed):
 
+<SimOutput source="avr">
+
 ```text
 raw:0,duty:0,volts:0.00
 raw:204,duty:51,volts:1.00
@@ -312,6 +320,8 @@ raw:511,duty:127,volts:2.50
 raw:818,duty:204,volts:4.00
 raw:1023,duty:255,volts:5.00
 ```
+
+</SimOutput>
 
 Check one line by hand. Take `raw:818`:
 

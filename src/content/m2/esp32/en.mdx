@@ -53,6 +53,8 @@ Upload failures are usually connection failures, not code failures. The reliable
 
 Here is the first sketch. It blinks an LED and reports the chip's identity:
 
+<CodeSource path="examples/month-2/esp32/chip_info/chip_info.ino" />
+
 ```cpp
 // Blink the on-board LED and report which chip this is.
 // Set LED_PIN to your board's LED (many classic DevKits: 2; check your board's pinout).
@@ -210,6 +212,8 @@ Wiring:
 - Servo − → GND, shared with the ESP32.
 - Potentiometer ends → 3.3 V and GND.
 - Potentiometer wiper → GPIO 34 on a classic ESP32, or GPIO 4 on an S3.
+
+<CodeSource path="examples/month-2/esp32/web_servo/web_servo.ino" />
 
 ```cpp
 // ESP32 web servo: a phone on the same Wi-Fi sees a live reading

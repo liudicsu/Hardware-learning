@@ -1,0 +1,5 @@
+200 Hz, PD, filtered angle:   upright, wobble 0.36 deg rms, worst tilt 3.6 deg
+200 Hz, PD, raw accel angle:  upright, wobble 1.09 deg rms, worst tilt 3.6 deg
+200 Hz, P only:               fell over after 1.27 s
+ 50 Hz, PD, filtered angle:   upright, wobble 0.71 deg rms, worst tilt 3.5 deg
+ 10 Hz, PD, filtered angle:   fell over after 1.23 s

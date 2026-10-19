@@ -36,6 +36,8 @@ if (now - last >= PERIOD) {
 
 Here is a complete sketch with two LEDs running at different rates:
 
+<CodeSource path="examples/month-2/timing-interrupts/two_blinks/two_blinks.ino" />
+
 ```cpp
 // Two LEDs blinking at different rates, no delay() anywhere.
 const int LED_A = 8;
@@ -79,6 +81,8 @@ void loop() {
 
 We ran it in the simavr AVR simulator for 1.25 s; this is the exact serial output:
 
+<SimOutput source="avr">
+
 ```text
 250 A
 400 B
@@ -88,6 +92,8 @@ We ran it in the simavr AVR simulator for 1.25 s; this is the exact serial outpu
 1000 A
 1200 B
 ```
+
+</SimOutput>
 
 Read the timestamps: the two rhythms separate cleanly. LED A toggles at 250, 500, 750 and 1000 ms; LED B at 400, 800 and 1200 ms. The next A toggle would be at 1250 ms, just as the 1.25 s run ends, which is why it is not in the output. Neither LED delays the other. Between two printed lines, `loop()` runs thousands of times checking two comparisons; in a real robot those empty passes are where the sensor reads and motor updates go.
 
@@ -136,6 +142,8 @@ So after about seven weeks of continuous uptime, the counter returns to zero. Th
 The good news is that the standard pattern survives the wrap. Unsigned arithmetic in C and C++ is modular: subtraction is performed modulo 2^32, so `now - last` still gives the true elapsed time even when `now` is a small number after the wrap and `last` is a large number from before it. The result is not "a huge negative number"; it is exactly the number of milliseconds that actually passed, as long as the interval is less than 49.7 days.
 
 The comparison style `now > last + PERIOD` does not survive, because it compares absolute times instead of elapsed time. Here is a small C program that uses the same 32-bit unsigned maths, run on a PC:
+
+<CodeSource path="examples/month-2/timing-interrupts/overflow.c" />
 
 ```c
 #include <stdio.h>
@@ -231,6 +239,8 @@ The software cure is time-based debouncing. You watch the raw input; when it cha
 
 The following Python simulation makes the problem visible. It models a button whose contacts chatter for a few milliseconds at every edge, then compares naive edge counting with a time-based debounce:
 
+<CodeSource path="tools/sim/models/debounce_sim.py" />
+
 ```python
 """debounce_sim.py: why one button press can look like several, and how a time-based debounce fixes it."""
 import random
@@ -298,6 +308,8 @@ if __name__ == "__main__":
 
 and its exact output:
 
+<SimOutput source="model">
+
 ```text
 real presses:        5
 naive edge count:    19
@@ -306,6 +318,8 @@ debounced, 10 ms:   5
 debounced, 20 ms:   5
 debounced, 50 ms:   5
 ```
+
+</SimOutput>
 
 The model uses five real presses lasting 300, 150, 400, 80 and 250 ms. Every press and release edge chatters for a random 3–8 ms, with gaps of 0.2–3 ms. The generator is seeded, so the output repeats. The sampler reads every 0.1 ms—far faster than an Arduino loop, but it makes the bounce visible.
 
@@ -326,6 +340,8 @@ The reaction-timer sketch below uses a "quiet line" rule instead. The first edge
 This is the practice task for the month: a game that measures how fast you react. The LED stays off for a random 2–5 seconds, then lights up. You press as quickly as possible, and the reaction time in milliseconds prints to the serial monitor. Pressing before the LED lights is a foul and the round is lost; the best time is remembered across rounds.
 
 Wiring: the LED is the built-in one on pin 13, so no external LED or resistor is needed; the button goes between pin 2 and GND. Pin 2 is INT0, and `INPUT_PULLUP` makes the pin read HIGH when released and LOW when pressed.
+
+<CodeSource path="examples/month-2/timing-interrupts/reaction_timer/reaction_timer.ino" />
 
 ```cpp
 // Reaction-timer game.
@@ -434,6 +450,8 @@ The reaction time is `t - litAt`, where `t` is the ISR timestamp and `litAt` is 
 
 We ran this sketch in the simavr AVR simulator, driving pin 2 from a test script that pressed early once, then reacted after about 243 ms, 198 ms and 310 ms, including a few milliseconds of simulated bounce. This is the exact serial output:
 
+<SimOutput source="avr">
+
 ```text
 Get ready...
 Foul! You pressed too early.
@@ -445,6 +463,8 @@ Get ready...
 Reaction: 310 ms
 Get ready...
 ```
+
+</SimOutput>
 
 The foul line appears because the test script pressed once during `WAITING`. The next three rounds show the measured reactions. The first two print 1 ms lower than the scripted 243 and 198 ms because `millis()` counts whole milliseconds: the LED and the press both fall somewhere inside a millisecond, and the difference of the truncated timestamps can be one count short. The 310 ms round happened to land on a boundary and printed 310. This is normal for millisecond timing and is well below human reaction-time differences.
 

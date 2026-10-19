@@ -1,0 +1,6 @@
+real presses:        5
+naive edge count:    19
+debounced,  2 ms:   9
+debounced, 10 ms:   5
+debounced, 20 ms:   5
+debounced, 50 ms:   5

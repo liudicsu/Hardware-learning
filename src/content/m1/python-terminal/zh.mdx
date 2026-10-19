@@ -117,6 +117,8 @@ deactivate
 
 这个脚本从电压和电阻算电流，也算两个电阻分压后的输出电压。它用 `argparse` 做两个子命令。新建 `ohm.py`：
 
+<CodeSource path="examples/month-1/python-terminal/ohm.py" />
+
 ```python
 """ohm.py — command-line Ohm's law and voltage divider calculator."""
 
@@ -228,6 +230,8 @@ error: ohms must be positive
 
 类（class）把数据和属于数据的操作绑在一起。电阻有标称值和误差，还能给出合理范围。Python 的 `@dataclass` 替我们省掉大量样板代码：
 
+<CodeSource path="examples/month-1/python-terminal/resistors.py" />
+
 ```python
 """resistors.py — dataclass Resistor, series/parallel helpers."""
 
@@ -318,6 +322,8 @@ Rtotal = 1 / 0.0002 Ω = 5000 Ω
 ## 文件与 JSON：测量日志
 
 万用表那一课要求你测 5 个电阻，并与色环读数比较。用脚本记录更好：带时间戳、可重复使用。JSON 是一种表示嵌套数据的文本格式——带字符串键的对象、数组、数字、字符串、布尔值和 null——几乎能直接对应 Python 的列表和字典。一条测量正好是字典，整个日志就是字典的列表。
+
+<CodeSource path="examples/month-1/python-terminal/log.py" />
 
 ```python
 """log.py — append a measurement to measurements.json and check tolerance."""

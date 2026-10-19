@@ -1,0 +1,3 @@
+now - last  = 496 ms
+now > last + 250 ? no
+wrap after  = 49.7 days

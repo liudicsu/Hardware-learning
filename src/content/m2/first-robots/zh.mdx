@@ -106,6 +106,8 @@ Pololu 的 `QTRSensors` 库替你完成所有这些计时。经过一次标定�
 
 在碰到任何一根线之前，先跑这个玩具模型，看 P 和 D 怎么打架。它是一段由本站编辑编写的 Python 程序，不是机器人代码——它简化地描述一台循线小车：从偏离线的 20 mm 处起步，先只用 P 调，再用两个不同的 D 值调。下面的输出就是这段程序原样打印出来的结果。
 
+<CodeSource path="tools/sim/models/line_sim.py" />
+
 ```python
 """line_sim.py: a line follower that starts 20 mm off the line, tuned with P and then PD.
 
@@ -180,6 +182,8 @@ if __name__ == "__main__":
               f"{crossings} line crossings, within 2 mm from {settled_txt}")
 ```
 
+<SimOutput source="model">
+
 ```text
 offset from the line (mm), every 0.5 s
   t_s       P only  P + small D        P + D
@@ -198,6 +202,8 @@ P + small D kp=0.0003 kd=0.0001: overshoot  4.8 mm, 4 line crossings, within 2 m
 P + D       kp=0.0003 kd=0.0002: overshoot  0.0 mm, 0 line crossings, within 2 mm from 1.30 s
 ```
 
+</SimOutput>
+
 三次运行都从偏离 20 mm 起步，都会往线的方向转。**只用 P** 很快够到线——0.5 s 时偏差已降到 4.1 mm——但它到了线上并不停转。轮子需要大约 80 ms 才能达到新的转速，所以等机器人知道自己到位时，车头仍指着线的另一侧，于是冲过头。偏差的正负随之翻转、再翻回来，而且每次摆得更大：3.5 s 时已偏到 61.9 mm，汇总那行说它**永远**进不了 2 mm。这就是一个被延迟主宰的系统，也正是单靠 P 的样子。
 
 **加一点 D（0.0001）** 几乎改变了全部。它把过冲从 62.3 mm 砍到 **4.8 mm**，并在 **1.47 s** 进入 2 mm，误差缩小时 D 在给修正“点刹车”，这正是前面 PID 那一节许诺的阻尼。**D = 0.0002** 更好：一次都不穿越，从 **1.30 s** 起就在 2 mm 之内。
@@ -209,6 +215,8 @@ P + D       kp=0.0003 kd=0.0002: overshoot  0.0 mm, 0 line crossings, within 2 m
 ## 循线程序与调参
 
 这里是一份把小车的全部塞进一个程序的代码。它用 `QTRSensors` 4.0.0 库为 Uno 编译通过，但**没有在真机器人上跑过**——机器人没有模拟器，所以这里没有输出可给。
+
+<CodeSource path="examples/month-2/first-robots/line_follower/line_follower.ino" />
 
 ```cpp
 // PD line follower: QTR-8RC array + TB6612FNG + two gearmotors (Arduino Uno).
@@ -313,6 +321,8 @@ void loop() {
 
 现在是模型。这第二个 Python 玩具模型同样由本站编辑编写，其输出就是它原样打印的结果。它模拟机器人重心位于轮轴上方 0.10 m 处，控制器设定轮子的加速度。角度来自一个时间常数恒为 0.5 s 的互补滤波器，无论循环多快。
 
+<CodeSource path="tools/sim/models/balance_sim.py" />
+
 ```python
 """balance_sim.py: why a self-balancer needs both a good angle estimate and a fast, steady loop.
 
@@ -375,6 +385,8 @@ if __name__ == "__main__":
     print(" 10 Hz, PD, filtered angle:  ", run(10, kp=0.8, kd=0.04))
 ```
 
+<SimOutput source="model">
+
 ```text
 200 Hz, PD, filtered angle:   upright, wobble 0.36 deg rms, worst tilt 3.6 deg
 200 Hz, PD, raw accel angle:  upright, wobble 1.09 deg rms, worst tilt 3.6 deg
@@ -382,6 +394,8 @@ if __name__ == "__main__":
  50 Hz, PD, filtered angle:   upright, wobble 0.71 deg rms, worst tilt 3.5 deg
  10 Hz, PD, filtered angle:   fell over after 1.23 s
 ```
+
+</SimOutput>
 
 五行逐条读。
 
@@ -411,6 +425,8 @@ if __name__ == "__main__":
 ## 自平衡程序
 
 这是固件。它以固定的 200 Hz 运行互补滤波器和 PD 控制器，并在倒地时保护自己。
+
+<CodeSource path="examples/month-2/first-robots/balancer/balancer.ino" />
 
 ```cpp
 // Self-balancer skeleton: MPU-6050 + complementary filter + PD at a fixed 200 Hz.
@@ -531,6 +547,8 @@ void loop() {
 
 下面就是这份固件在 simavr AVR 模拟器、配一块模拟 MPU-6050 时打印出来的东西。这颗模拟传感器的俯仰角按脚本变化：3 到 4 秒之间从 0° 升到 30°，保持，然后 7 到 8 秒之间回到 0°，陀螺仪零偏为 +1.5 °/s。**没有模拟电机，也没有模拟机器人物理**，而且模拟器不模拟 I2C 总线耗时。这是一次 10 s 的运行。
 
+<SimOutput source="avr">
+
 ```text
 gyro bias (deg/s): 1.54
 pitch -1.4  worst loop us 780
@@ -543,6 +561,8 @@ pitch 26.2  worst loop us 724
 pitch -0.1  worst loop us 732
 pitch 0.1  worst loop us 736
 ```
+
+</SimOutput>
 
 测得的零偏 **1.54 °/s** 与模拟传感器的 +1.5 °/s 吻合。俯仰角跟着脚本倾到 30° 再回到 0°，全程不漂，正是互补滤波器该有的表现。而循环只用了 5 ms 预算里的大约 **0.73 ms**，还留有余地。
 
@@ -569,6 +589,42 @@ pitch 0.1  worst loop us 736
 </Callout>
 
 <Quiz id="q6" question="在玩具模型里，哪一项改动让机器人即使用了滤波角度也倒下了？" options={["把循环从 200 Hz 降到 10 Hz", "加入 D 项", "用 0.5 s 的滤波器时间常数"]} answer={0} explanation="10 Hz 那次在 1.23 s 后倒下：循环就是太慢，来不及修正。滤波角度和 D 项都在，也没能救回来。" />
+
+### 选做挑战：外环速度控制
+
+这一部分是选做的。上面的平衡车能站住，但会慢慢溜走，因为程序里没有任何东西关心轮子往哪儿跑。要让它停在原地，需要在第一个控制器外面再套一个控制器。控制工程里把这种结构叫**串级控制（cascade）**。
+
+- **内环**就是你已经写好的那个。它跑 200 Hz，读取俯仰角，驱动电机，让车保持一个给定的角度 `SETPOINT`。
+- **外环**是新的。它慢 5–10 倍（每 4 到 8 个节拍一次，也就是 25–50 Hz），用编码器（第 4 课）读出轮速，再把 `SETPOINT` 改一点，让车慢下来。
+
+```text
+target speed (0) ──► [ outer PI: speed error ] ──► SETPOINT (clamped to ±3°)
+                                                       │
+                     pitch from the filter ──► [ inner PD: angle error ] ──► motor PWM
+                                                       ▲
+wheel speed from the encoders ◄────────────────────────┘ (measured every outer tick)
+```
+
+最反直觉的是方向。假设车正往前溜。要停下来，它得先稍微**向后**倾，让重力把它往回拉。而为了进入这个后倾姿态，内环会先让轮子往前多转一点，然后车才减速。所以外环给出的设定倾角，和车的运动方向相反。每次都会有那么一下看起来像是做错了，这是正常的。
+
+外环的结构示意（只是结构说明，不是经过测试的代码）：
+
+```text
+every 8th 200 Hz tick (25 Hz):
+  speed     = (left counts + right counts) / 2 since the last outer tick
+  error     = 0 − speed
+  integral  = clamp(integral + error, −I_MAX, I_MAX)          # anti-windup
+  SETPOINT  = clamp(KP_SPEED × error + KI_SPEED × integral, −3°, +3°)
+```
+
+**做对的标准：**
+- 只开内环时已经能站稳。在这之前不要加外环。
+- 外环明显比内环慢，而且输出被限制在几度之内。设定值乱跳会把车直接推倒。
+- 在平地上 60 s 内，车停在离起点大约一圈轮子的范围内，而不是一路溜走。
+- 轻推一下，它会滚出去一点、再回来停住，不会倒，也不会越晃越厉害。
+- 调参记录里把外环增益和内环增益分开记，README 里用你自己的话解释串级结构。
+
+现在做不出来也没关系。第 3 个月讲 PID 与控制的那一课会回到这台车，把外环完整做完：怎么调串级、怎么防积分饱和，以及为什么车会先往“错误”的方向动。
 
 ## 在 GitHub 上展示成果
 

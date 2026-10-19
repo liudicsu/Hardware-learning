@@ -36,6 +36,8 @@ if (now - last >= PERIOD) {
 
 下面这个完整程序让两颗 LED 以不同频率闪烁：
 
+<CodeSource path="examples/month-2/timing-interrupts/two_blinks/two_blinks.ino" />
+
 ```cpp
 // Two LEDs blinking at different rates, no delay() anywhere.
 const int LED_A = 8;
@@ -79,6 +81,8 @@ void loop() {
 
 我们在 simavr AVR 仿真器里运行了 1.25 s，下面是完全一致的串口输出：
 
+<SimOutput source="avr">
+
 ```text
 250 A
 400 B
@@ -88,6 +92,8 @@ void loop() {
 1000 A
 1200 B
 ```
+
+</SimOutput>
 
 看时间戳就分开了：A 在 250、500、750、1000 ms 翻转，B 在 400、800、1200 ms 翻转；A 的下一次 1250 ms 正好是仿真终点。两者互不拖慢。两条打印之间 `loop()` 已空转几千次，这些轮次正是读传感器、更新电机的地方。
 
@@ -136,6 +142,8 @@ Uno 的 `unsigned long` 是 32 位，`millis()` 数到 4 294 967 295 后回到 0
 标准写法能穿过回绕。C/C++ 无符号减法按 2^32 取模，所以即使 `now` 是回绕后的小数、`last` 是回绕前的大数，`now - last` 仍是真实经过时间（间隔小于 49.7 天）。
 
 比较式 `now > last + PERIOD` 活不过回绕，因为它比的是绝对时刻。下面这个 PC 小程序用同样的 32 位无符号运算：
+
+<CodeSource path="examples/month-2/timing-interrupts/overflow.c" />
 
 ```c
 #include <stdio.h>
@@ -231,6 +239,8 @@ interrupts();
 
 下面这段 Python 仿真模拟每次边沿抖动几毫秒的按键，比较“数边沿”和“时间消抖”：
 
+<CodeSource path="tools/sim/models/debounce_sim.py" />
+
 ```python
 """debounce_sim.py: why one button press can look like several, and how a time-based debounce fixes it."""
 import random
@@ -298,6 +308,8 @@ if __name__ == "__main__":
 
 以及它完全一致的输出：
 
+<SimOutput source="model">
+
 ```text
 real presses:        5
 naive edge count:    19
@@ -306,6 +318,8 @@ debounced, 10 ms:   5
 debounced, 20 ms:   5
 debounced, 50 ms:   5
 ```
+
+</SimOutput>
 
 模型有五次真实按下，持续 300、150、400、80、250 ms。每个按下和松开边沿都随机抖动 3–8 ms，弹跳间隔 0.2–3 ms。种子固定，输出可复现；采样每 0.1 ms 一次，比 Arduino 快得多，但能看清弹跳。
 
@@ -326,6 +340,8 @@ debounced, 50 ms:   5
 本月的实践任务：做一个小游戏测反应速度。LED 先灭，随机等 2–5 秒后亮；尽快按键，反应时间以毫秒打印到串口。灯亮前按算犯规，该轮作废；程序记住最好成绩。
 
 接线：LED 用 13 号引脚（Uno 板载），无需外接灯和电阻；按键一端接 2 号引脚、一端接 GND。2 号是 INT0；`INPUT_PULLUP` 让松开读 HIGH、按下读 LOW。
+
+<CodeSource path="examples/month-2/timing-interrupts/reaction_timer/reaction_timer.ino" />
 
 ```cpp
 // Reaction-timer game.
@@ -434,6 +450,8 @@ void loop() {
 
 我们在 simavr 中运行，并用测试脚本驱动 2 号引脚：先提前按一次，再在约 243、198、310 ms 后各按一次，含几毫秒弹跳。串口输出：
 
+<SimOutput source="avr">
+
 ```text
 Get ready...
 Foul! You pressed too early.
@@ -445,6 +463,8 @@ Get ready...
 Reaction: 310 ms
 Get ready...
 ```
+
+</SimOutput>
 
 犯规行来自 `WAITING` 期间的提前按下。前两轮比脚本值低 1 ms，因为 `millis()` 只数整毫秒：灯亮和按下都落在毫秒中间，截断后相减可能少 1；310 ms 恰好落在边界，原样打印。这远小于人与人的反应差异。
 

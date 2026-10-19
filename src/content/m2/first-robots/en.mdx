@@ -106,6 +106,8 @@ Mounting matters. Put the array **ahead of the wheels** and about **3 mm above t
 
 Before you touch a single wire, run this toy model and watch P and D fight it out. It is a Python program written by the site editor, not robot code — a simplified picture of a line follower that starts 20 mm off the line and is tuned with P only, then with two different values of D. The output below is exactly what this file prints.
 
+<CodeSource path="tools/sim/models/line_sim.py" />
+
 ```python
 """line_sim.py: a line follower that starts 20 mm off the line, tuned with P and then PD.
 
@@ -180,6 +182,8 @@ if __name__ == "__main__":
               f"{crossings} line crossings, within 2 mm from {settled_txt}")
 ```
 
+<SimOutput source="model">
+
 ```text
 offset from the line (mm), every 0.5 s
   t_s       P only  P + small D        P + D
@@ -198,6 +202,8 @@ P + small D kp=0.0003 kd=0.0001: overshoot  4.8 mm, 4 line crossings, within 2 m
 P + D       kp=0.0003 kd=0.0002: overshoot  0.0 mm, 0 line crossings, within 2 mm from 1.30 s
 ```
 
+</SimOutput>
+
 All three runs start 20 mm to one side and all three turn toward the line. **P only** reaches the line quickly — by 0.5 s the offset is down to 4.1 mm — but it does not stop turning there. The wheels need about 80 ms to reach a new turn rate, so by the time the robot knows it has arrived its heading is still pointing across the line, and it overshoots. The sign of the offset then flips, then flips back, and the swings grow wider each time: at 3.5 s it is 61.9 mm off, and the summary says it is **never** within 2 mm. That is a system dominated by delay, exactly what P-alone does.
 
 **A small D (0.0001)** changes almost everything. It cuts the overshoot from 62.3 mm to **4.8 mm** and settles within 2 mm by **1.47 s**. The D term is braking the correction as the error shrinks, which is precisely the damping promised in the PID discussion above. **D = 0.0002** does better still: it approaches the line without crossing it even once and is within 2 mm from **1.30 s**.
@@ -209,6 +215,8 @@ Notice the units. This model's output is a turn rate in rad/s, so the gains look
 ## The line-follower sketch and how to tune it
 
 Here is the whole robot in one sketch. It was compiled for the Uno with the `QTRSensors` 4.0.0 library, but it was **not run on a robot** — there is no simulator for the robot, so there is no output to show here.
+
+<CodeSource path="examples/month-2/first-robots/line_follower/line_follower.ino" />
 
 ```cpp
 // PD line follower: QTR-8RC array + TB6612FNG + two gearmotors (Arduino Uno).
@@ -313,6 +321,8 @@ The parts, again approximate figures from the course author:
 
 Now the model. This second Python toy model was also written by the site editor, and its output is exactly what it prints. It simulates the robot's centre of mass 0.10 m above the axle, with the controller setting the wheels' acceleration. The angle comes from a complementary filter with a 0.5 s time constant at every loop rate.
 
+<CodeSource path="tools/sim/models/balance_sim.py" />
+
 ```python
 """balance_sim.py: why a self-balancer needs both a good angle estimate and a fast, steady loop.
 
@@ -375,6 +385,8 @@ if __name__ == "__main__":
     print(" 10 Hz, PD, filtered angle:  ", run(10, kp=0.8, kd=0.04))
 ```
 
+<SimOutput source="model">
+
 ```text
 200 Hz, PD, filtered angle:   upright, wobble 0.36 deg rms, worst tilt 3.6 deg
 200 Hz, PD, raw accel angle:  upright, wobble 1.09 deg rms, worst tilt 3.6 deg
@@ -382,6 +394,8 @@ if __name__ == "__main__":
  50 Hz, PD, filtered angle:   upright, wobble 0.71 deg rms, worst tilt 3.5 deg
  10 Hz, PD, filtered angle:   fell over after 1.23 s
 ```
+
+</SimOutput>
 
 Read the five lines one at a time.
 
@@ -411,6 +425,8 @@ When the complementary filter is no longer enough — when you want a principled
 ## The balancer sketch
 
 This is the firmware. It runs the complementary filter and a PD controller at a fixed 200 Hz, and it protects itself when it falls over.
+
+<CodeSource path="examples/month-2/first-robots/balancer/balancer.ino" />
 
 ```cpp
 // Self-balancer skeleton: MPU-6050 + complementary filter + PD at a fixed 200 Hz.
@@ -531,6 +547,8 @@ Walk through the important parts.
 
 Now here is what that firmware prints on the simavr AVR simulator with a simulated MPU-6050. The simulated sensor's pitch follows a scripted profile: 0° → 30° between 3 and 4 s, held, then back to 0° between 7 and 8 s, with a gyro bias of +1.5 °/s. **No motors or robot physics are simulated**, and the simulator does not model the time the I2C bus takes. This is a 10 s run.
 
+<SimOutput source="avr">
+
 ```text
 gyro bias (deg/s): 1.54
 pitch -1.4  worst loop us 780
@@ -543,6 +561,8 @@ pitch 26.2  worst loop us 724
 pitch -0.1  worst loop us 732
 pitch 0.1  worst loop us 736
 ```
+
+</SimOutput>
 
 The measured bias of **1.54 °/s** matches the simulated sensor's +1.5 °/s. The pitch follows the scripted tilt up to 30° and back to 0° with no drift, exactly as the complementary filter is supposed to do. And the loop used about **0.73 ms** of its 5 ms budget, so there is room to spare.
 
@@ -569,6 +589,42 @@ A self-balancer can lunge suddenly at full power, with no warning. Hold it by th
 </Callout>
 
 <Quiz id="q6" question="In the toy model, which change made the robot fall over even though it used the filtered angle?" options={["Running the loop at 10 Hz instead of 200 Hz", "Adding the D term", "Using a 0.5 s filter time constant"]} answer={0} explanation="The 10 Hz run fell after 1.23 s: the loop was simply too slow to correct in time. The filtered angle and the D term were both present and did not save it." />
+
+### Optional challenge: the outer speed loop
+
+This part is optional. The balancer above stays upright, but it slowly drifts away, because nothing in it cares where the wheels are going. A balancer that stays in one place needs a second controller wrapped around the first one. Control engineers call this a **cascade**.
+
+- The **inner loop** is the one you already have. It runs at 200 Hz, reads the pitch, and drives the motors so the robot holds a requested angle, `SETPOINT`.
+- The **outer loop** is new. It runs about 5–10 times slower (every 4th to 8th tick, so 25–50 Hz). It reads the wheel speed from the encoders (Lesson 4) and changes `SETPOINT` a little, to slow the robot down.
+
+```text
+target speed (0) ──► [ outer PI: speed error ] ──► SETPOINT (clamped to ±3°)
+                                                       │
+                     pitch from the filter ──► [ inner PD: angle error ] ──► motor PWM
+                                                       ▲
+wheel speed from the encoders ◄────────────────────────┘ (measured every outer tick)
+```
+
+The surprising part is the direction. Say the robot is drifting forward. To stop, it has to lean slightly **backward**, which makes gravity pull it back. To get into that backward lean, the inner loop first drives the wheels forward a little harder, and only then does the robot slow down. So the setpoint the outer loop asks for leans the opposite way to the direction the robot is moving. Expect it to look wrong for a moment every time.
+
+Outline of the outer loop (a description of the structure, not tested code):
+
+```text
+every 8th 200 Hz tick (25 Hz):
+  speed     = (left counts + right counts) / 2 since the last outer tick
+  error     = 0 − speed
+  integral  = clamp(integral + error, −I_MAX, I_MAX)          # anti-windup
+  SETPOINT  = clamp(KP_SPEED × error + KI_SPEED × integral, −3°, +3°)
+```
+
+**You have done it right when:**
+- the inner loop alone already balances. Do not start the outer loop before that works.
+- the outer loop is clearly slower than the inner one, and its output is clamped to a few degrees. A wild setpoint knocks the robot over.
+- on a flat floor it stays within about one wheel turn of where it started for 60 s, instead of rolling away.
+- after a gentle push it rolls a little, comes back, and stops without falling or oscillating more and more.
+- your tuning log records the outer gains separately from the inner ones, and the README explains the cascade in your own words.
+
+Do not worry if this does not work yet. The Month 3 lesson on PID and control will come back to this exact robot and finish the outer loop properly: tuning a cascade, anti-windup, and why the robot first moves the "wrong" way.
 
 ## Show your work on GitHub
 

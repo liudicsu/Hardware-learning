@@ -42,3 +42,11 @@ next-env.d.ts
 
 # scratch space for local experiments
 .scratch/
+
+# simulation build products and outputs
+tools/sim/build/
+tools/sim/out/
+# written by examples/month-1/python-terminal/log.py
+examples/**/measurements.json
+# the ESP32 core also exports binaries into <sketch>/build/
+examples/**/build/

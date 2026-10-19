@@ -117,6 +117,8 @@ Two rules. **Never commit `.venv` to Git**: it contains binaries and absolute pa
 
 This script computes current from voltage and resistance, and the output of a two-resistor divider. It uses `argparse` with two subcommands. Create `ohm.py`:
 
+<CodeSource path="examples/month-1/python-terminal/ohm.py" />
+
 ```python
 """ohm.py — command-line Ohm's law and voltage divider calculator."""
 
@@ -228,6 +230,8 @@ The `$` is a shell prompt, not part of the command. Exit code 1 tells a shell sc
 
 A class bundles data with its operations. A resistor has a nominal value and a tolerance, and can report its plausible range. Python's `@dataclass` removes most of the boilerplate:
 
+<CodeSource path="examples/month-1/python-terminal/resistors.py" />
+
 ```python
 """resistors.py — dataclass Resistor, series/parallel helpers."""
 
@@ -318,6 +322,8 @@ Two equal resistors in parallel give half the value — 5 kΩ, not 20 kΩ. Note 
 ## Files and JSON: a measurement log
 
 The multimeter lesson asks you to measure five resistors and compare them with their colour bands. A script makes that record timestamped and reusable. JSON is a text format for nested data — objects with string keys, arrays, numbers, strings, booleans and null — and it maps almost directly onto Python lists and dictionaries. A measurement is naturally a dict; the log is a list of them.
+
+<CodeSource path="examples/month-1/python-terminal/log.py" />
 
 ```python
 """log.py — append a measurement to measurements.json and check tolerance."""

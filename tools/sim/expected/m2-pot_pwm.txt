@@ -1,0 +1,5 @@
+raw:0,duty:0,volts:0.00
+raw:204,duty:51,volts:1.00
+raw:511,duty:127,volts:2.50
+raw:818,duty:204,volts:4.00
+raw:1023,duty:255,volts:5.00

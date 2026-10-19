@@ -53,6 +53,8 @@ I2C 也不是你会遇到的唯一总线。SPI 用四根线——SCK、COPI（�
 
 拿到任何新的 I2C 器件，第一个要跑的程序不是驱动，而是扫描器。它遍历 7 位地址空间，逐个问“这个地址有没有人”，然后把应答的地址打印出来。这几十行代码省下的时间，比任何库都多。
 
+<CodeSource path="examples/month-2/sensors-fusion/i2c_scanner/i2c_scanner.ino" />
+
 ```cpp
 // I2C scanner: try every 7-bit address and report the ones that answer.
 #include <Wire.h>
@@ -82,18 +84,26 @@ void loop() {}
 
 下面这两段输出来自本课后面使用的同一套模拟环境，而不是真实电路板：编译后的 Arduino Uno 固件运行在 simavr AVR 模拟器里，并接有一个模拟的 MPU-6050。
 
+<SimOutput source="avr">
+
 ```text
 Scanning...
 Found device at 0x68
 1 device(s) found
 ```
 
+</SimOutput>
+
 什么也不接时，同一个程序打印：
+
+<SimOutput source="avr">
 
 ```text
 Scanning...
 0 device(s) found
 ```
+
+</SimOutput>
 
 扫描器只能告诉你“有人应答”，不能告诉你“对方是谁”；另一个芯片完全可能用同一个地址。要确认身份，得读 WHO_AM_I 寄存器，后面很快就会讲到。
 
@@ -180,6 +190,8 @@ after 60 s: 1.5 °/s × 60 s = 90°
 
 下面这段 Python 在接线之前先把问题模拟一遍。板子先平放，在 t = 3 s 到 4 s 之间倾斜到 30°，保持到 7 s，然后在 7 s 到 8 s 之间放平。模拟陀螺仪读数偏高 1.5 °/s，加速度计带噪声。
 
+<CodeSource path="tools/sim/models/filter_sim.py" />
+
 ```python
 """filter_sim.py: gyro drift, accelerometer noise, and the complementary filter.
 
@@ -250,6 +262,8 @@ if __name__ == "__main__":
 
 运行后输出：
 
+<SimOutput source="model">
+
 ```text
  t_s  true  gyro_only  accel_only  fused
    1   0.0        1.5         0.5    0.6
@@ -264,6 +278,8 @@ alpha  offset_flat  noise_flat  worst_error
 0.98         0.72        0.07          1.0
 0.995        2.96        0.02          3.0
 ```
+
+</SimOutput>
 
 把第一张表读成三种“世界观”。纯陀螺仪那一列每秒稳定爬升 1.5°：板子还平放着的 t = 3 s 已经到 4.6°；真实角度是 30° 的 t = 7 s 到 40.6°；板子已经放平的 t = 12 s 还有 18.0°。倾斜时它永远是“30° 附近再加漂移”，放平后也回不到零。
 
@@ -296,6 +312,8 @@ offset ≈ α / (1 − α) × bias × dt
 ## 放到真芯片上
 
 把常见的 GY-521 模块接到 Uno 上，接线很短：VCC 接 5 V（模块上有 3.3 V 稳压器），GND 接 GND，SDA 接 A4，SCL 接 A5，AD0 悬空即为地址 0x68。多数 GY-521 在 I2C 线上已经有 3.3 V 上拉；但要看清你手里是哪一版，有些裸 MPU-6050 模块只支持 3.3 V，也没有稳压器。同一份代码可以跑在 ESP32 上，只是 I2C 引脚不同——用 `Wire.begin(sda, scl)` 传入你选的引脚，经典默认是 21 和 22——但 ESP32 是 3.3 V 逻辑，未经确认不要把 5 V 信号送进去。
+
+<CodeSource path="examples/month-2/sensors-fusion/imu_pitch/imu_pitch.ino" />
 
 ```cpp
 // MPU-6050 pitch angle three ways: gyro only, accelerometer only, complementary filter.
@@ -387,6 +405,8 @@ void loop() {
 
 下面的输出不是来自真实电路板。它来自在 simavr AVR 模拟器中运行编译后的 Uno 固件，并接上一个由本站编辑编写的模拟 MPU-6050 模型：板子先平放，在 t = 3 s 到 4 s 之间倾斜到 30°，保持，然后在 7 s 到 8 s 之间放平；模拟陀螺仪读数偏高 1.5 °/s，加速度计带噪声。请把这些具体数字当作行为演示，而不是你自己传感器的校准结果。
 
+<SimOutput source="avr">
+
 ```text
 WHO_AM_I = 0x68
 t_s,gyro_only,accel_only,fused
@@ -404,11 +424,15 @@ t_s,gyro_only,accel_only,fused
 12.0,18.5,2.4,0.8
 ```
 
+</SimOutput>
+
 三种行为和 Python 模型完全一致。gyro-only 在板子平放时也每秒爬约 1.5°，倾斜发生时跳约 30°，保持倾斜期间继续爬，板子放平后落到 12.4°，然后继续爬到 18.5°。accel-only 平均而言始终离真值不远，但一直在飘：t = 3 s 是 −1.2°，t = 5 s 是 32.4°，t = 12 s 是 2.4°。fused 在保持倾斜时停在 30.6–30.7°，放平后在 0.6–1.1° 附近，离真值约一度以内。具体数字和 Python 那次不同，因为噪声采样和时序不一样，但故事完全相同。
 
 这个练习值得在真实硬件上做一遍：把 IMU 放在桌上，启动程序，手不要碰。gyro-only 仍然会往一个方向爬，因为陀螺仪有零偏；fused 却基本不动，因为加速度计一直把它往回拉。这个对比就是状态估计里最重要的一课：平滑的传感器也可能一直是错的，而嘈杂的传感器平均下来也可能是对的。
 
-接下来学什么？卡尔曼滤波是自然的下一步：<Resource id="labbe-kalman" /> 是一本免费、可运行的书，从 g-h 滤波一路讲到完整的卡尔曼滤波。想在数学之前先建立概念，可以看 MathWorks 的传感器融合视频系列，画面和直觉都很好。如果你根本不想自己实现融合，像 BNO085 这种片上完成融合的 IMU 会直接给你姿态角——花钱绕过数学，代价是更贵。
+接下来学什么？卡尔曼滤波是自然的下一步：Roger Labbe 的《Kalman and Bayesian Filters in Python》是一本免费、可运行的书，从 g-h 滤波一路讲到完整的卡尔曼滤波。想在数学之前先建立概念，可以看 MathWorks 的传感器融合视频系列，画面和直觉都很好。如果你根本不想自己实现融合，像 BNO085 这种片上完成融合的 IMU 会直接给你姿态角——花钱绕过数学，代价是更贵。
+
+<Resource id="labbe-kalman" />
 
 ## 常见错误与检查清单
 
