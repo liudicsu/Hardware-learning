@@ -36,7 +36,7 @@ Brett Beauregard's series on improving the beginner's PID is the source of sever
 
 ## One joint, four controllers
 
-The best way to feel the four terms is to watch them on the same joint. The model below is one arm joint, like an SO-101 shoulder with a short arm. It starts horizontal at 0° and is asked to lift to 60°. Gravity pulls down with 0.4 N·m × cos(angle), the motor can give at most 1 N·m, there is a little viscous friction, and the controller runs at 200 Hz. The gains are in the model's own units, not PWM values to paste into firmware.
+The best way to see what the terms do is to run four controllers on the same joint. The model below is one arm joint, like an SO-101 shoulder with a short arm. It starts horizontal at 0° and is asked to lift to 60°. Gravity pulls down with 0.4 N·m × cos(angle), the motor can give at most 1 N·m, there is a little viscous friction, and the controller runs at 200 Hz. The gains are in the model's own units, not PWM values to paste into firmware.
 
 <CodeSource path="tools/sim/models/pid_sim.py" />
 
@@ -112,7 +112,7 @@ PID  kp 0.05, ki 0.4, kd 0.002 final  60.0 deg, overshoot  8.9 deg, within 1 deg
 
 </SimOutput>
 
-Read the output one line at a time. P with Kp = 0.05 stops at 55.5°, exactly the 4.5° shortfall calculated above, and overshoots 10.8° on the way: the arm has inertia, so it carries past the target before the spring pulls it back. P with Kp = 0.2 gets closer, 59.0°, because at rest its error is about 1°, where 0.2 × 1.0° = 0.2 N·m nearly matches gravity at 59°: 0.4 × cos 59° = 0.4 × 0.515 = 0.206 N·m. The two are almost equal, so the arm stops there. It never gets inside the 1° band because that band is exactly where the required push and the available push are almost equal; the model settles just outside it. Raise Kp further and the final error shrinks, but the overshoot grows: the same spring that pulls harder also stores more energy in the approach.
+Read the output one line at a time. P with Kp = 0.05 stops at 55.5°, exactly the 4.5° shortfall calculated above, and overshoots 10.8° on the way: the arm has inertia, so it carries past the target before the spring pulls it back. P with Kp = 0.2 gets closer, 59.0°, because at rest its error is about 1°, where 0.2 × 1.0° = 0.2 N·m nearly matches gravity at 59°: 0.4 × cos 59° = 0.4 × 0.515 = 0.206 N·m. The two are almost equal, so the arm stops there. It never gets inside the 1° band because an error of about 1° is exactly what Kp = 0.2 needs to make 0.2 N·m; the balance point lands just outside that line. Raise Kp further and the final error shrinks, but the overshoot grows: the same spring that pulls harder also stores more energy in the approach.
 
 PD adds Kd = 0.002 and removes the overshoot completely (0.0°), but the final angle is still 55.5°. That is the important lesson about D: it acts only while something is moving. Once the arm is still, the rate is zero, D contributes zero, and the steady error is exactly where P left it. D improves the journey; it does not fix the destination.
 
@@ -134,7 +134,7 @@ The fix in the model is one condition: only integrate while the output is not sa
 
 Tuning is not a search for magic numbers; it is a short procedure with one change at a time. The order matters because each gain depends on the ones before it.
 
-1. **Check the sign with a tiny Kp.** Give the joint a small target step and watch which way it moves. If it moves away from the target, flip the sign of Kp and Kd before doing anything else. A positive-feedback loop will slam into a limit no matter how small the gain.
+1. **Check the sign with a tiny Kp.** Give the joint a small target step and watch which way it moves. If it moves away from the target, flip the sign of the controller output (or swap the motor wires) before doing anything else. A positive-feedback loop will slam into a limit no matter how small the gain.
 2. **Raise Kp until it reaches quickly and starts to oscillate, then back off to about half.** The oscillation point tells you where the loop has more gain than damping; half is a practical starting point, not a law.
 3. **Add Kd to calm the overshoot.** D amplifies sensor noise, because differentiating a noisy signal multiplies the fast wiggle by the frequency. Filter the rate, or use a rate sensor directly: the balancer uses the gyro for exactly this reason, so its D term does not differentiate a noisy angle.
 4. **Add a little Ki to remove the remaining error, with anti-windup from the start.** Take small steps; the integral is the slowest term and the easiest to wind up.
@@ -146,7 +146,7 @@ Backlash from Lesson 3 limits how high you can push Kp and Ki when the encoder i
 
 <Resource id="mathworks-pid" />
 
-The MathWorks series is a good next watch: it is light on algebra and heavy on the intuition of what each term does, including windup and cascade loops.
+The MathWorks series is a good next watch: it is light on algebra and heavy on the intuition of what each term does, including integrator windup and derivative filtering.
 
 <Quiz id="q4" question="You raise Kd and the motor starts buzzing at standstill. What is the most likely cause?" options={["Kp is too low", "the derivative is amplifying sensor noise", "the integral has wound up", "the loop is too fast"]} answer={1} explanation="At standstill the true rate is near zero, so any buzz in the rate signal is noise being multiplied by Kd. A noisy angle measurement, differentiated, produces a large alternating command. Filter the rate or use a gyro, and reduce Kd until the buzz stops." />
 
@@ -312,7 +312,7 @@ Stopping works the same way in reverse: to brake, the robot first speeds up a li
 
 ## Finish the balancer
 
-This lesson completes the optional challenge from [Month 2 Lesson 6 challenge](/en/month/month-2/first-robots). You already have the inner PD loop; the new part is the encoders and the outer PI loop. Do not start the outer loop until the inner loop balances on its own. A cascade cannot fix a broken inner loop.
+This lesson completes the optional [Month 2 Lesson 6 challenge](/en/month/month-2/first-robots): the self-balancer in "Your first two robots: line follower & self-balancer". You already have the inner PD loop; the new part is the encoders (the same gear motors with quadrature encoders from Month 2 Lesson 4) and the outer PI loop. Do not start the outer loop until the inner loop balances on its own. A cascade cannot fix a broken inner loop.
 
 The firmware is the Month 2 balancer plus encoders and an outer PI loop. The wiring additions are:
 
@@ -500,7 +500,7 @@ pitch 26.2  setpoint 1.20  speed 0.000  worst loop us 844
 
 </SimOutput>
 
-The B channels sit high on their pull-ups, so every A edge counts −1: the injected pulses look like backwards motion. A 40 ms window holds one or two counts, so the speed reads −0.057 or −0.113 m/s: one count is 0.00227 m in 0.04 s, and 0.00227 / 0.04 = 0.0568 m/s, so two counts double it. The true 0.1 m/s is their average; this is the coarse-encoder effect from the model.
+The pitch column is the scripted tilt, not the robot falling over; it stays under the 40° cutoff, so both loops keep running. The B channels sit high on their pull-ups, so every A edge counts −1: the injected pulses look like backwards motion. A 40 ms window holds one or two counts, so the speed reads −0.057 or −0.113 m/s: one count is 0.00227 m in 0.04 s, and 0.00227 / 0.04 = 0.0568 m/s, so two counts double it. The true 0.1 m/s is their average; this is the coarse-encoder effect from the model.
 
 The setpoint rises from 0.35° to 1.43° while the robot rolls backwards. The P part is 3 × 0.1 = 0.3°, and the integral adds the rest. Once the pulses stop the speed reads 0.000 and the setpoint stays at 1.20°; that is the I term, 3 × 0.4 m of accumulated position error (0.1 m/s × 4 s). A positive setpoint means lean forward, which drives the robot forward back toward where it started. The worst loop takes 840–920 µs of the 5,000 µs budget, up from about 730 µs in Month 2. On real hardware the I2C read adds time the simulator does not count, so check your own worst-loop number.
 
@@ -516,4 +516,4 @@ The editor has not run this cascade on a real robot. Treat the gains as a starti
 
 The milestone for this lesson is the balancer staying within one wheel turn of where you put it for 60 s and coming back after a gentle push.
 
-Lesson 5 is the SO-101 arm, and every one of its joints is a position loop much like section 2, with the PID running inside the servo. The same questions apply: what is the steady error, what happens when the output saturates, and what does the loop do when the gears have backlash. Month 5 will give you the formal tools. For now, you have the working intuition and a balancer that stays put.
+Lesson 5 is the SO-101 arm, and every one of its joints is a position loop much like section 2, with the PID running inside the STS3215 bus servo. The same questions apply: what is the steady error, what happens when the output saturates, and what does the loop do when the gears have backlash. Month 5 will give you the formal tools. For now, you have the working intuition and a balancer that stays put.

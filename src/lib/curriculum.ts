@@ -254,6 +254,22 @@ const month3Lessons: Lesson[] = [
       { id: "measure-backlash", text: { zh: "夹住输入轴、来回摇动输出，用指针量出回差（度），改进设计后再测一次", en: "Lock the input, rock the output and measure the backlash in degrees with a pointer; redesign and measure again" } },
     ],
   },
+  {
+    slug: "pid-control",
+    title: { zh: "PID 与控制：积分饱和与串级回路", en: "PID & control: windup and cascade loops" },
+    summary: {
+      zh: "把 PID 补完整：积分消除稳态误差、微分阻尼、积分饱和与抗饱和；然后用串级外环让第 2 个月的平衡车停在原地。",
+      en: "Finish PID properly: I for steady error, D for damping, windup and anti-windup; then add a cascade outer loop that keeps Month 2's balancer in one place.",
+    },
+    minutes: 180,
+    resources: ["mathworks-pid", "beauregard-pid"],
+    tasks: [
+      { id: "pid-sim", text: { zh: "运行本课的关节 PID 模型，自己改增益，找出有/无抗饱和时超调的差别", en: "Run the lesson's joint PID model, change the gains yourself and find the overshoot difference with and without anti-windup" } },
+      { id: "cascade-sim", text: { zh: "运行串级平衡车模型，复现“只有内环会溜走、PI 外环能停住”的结果", en: "Run the cascade balancer model and reproduce: inner loop alone runs away, an outer PI loop holds it" } },
+      { id: "cascade-robot", text: { zh: "给你的平衡车加上外环：60 s 内离起点不超过一圈轮子，轻推后能回来", en: "Add the outer loop to your balancer: within one wheel turn of the start for 60 s, and back after a gentle push" } },
+      { id: "tuning-log", text: { zh: "在调参日志里分开记录内环和外环的增益，并用自己的话解释串级", en: "Log the inner and outer gains separately and explain the cascade in your own words" } },
+    ],
+  },
 ];
 
 export const months: Month[] = [
