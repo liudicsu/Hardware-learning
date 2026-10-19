@@ -239,6 +239,21 @@ const month3Lessons: Lesson[] = [
       { id: "enclosure", text: { zh: "设计并打印一个不用胶水就能扣紧的两件式 ESP32 外壳，反复迭代直到扣合清脆", en: "Design and print a two-part ESP32 enclosure that closes without glue; iterate until it clicks properly" } },
     ],
   },
+  {
+    slug: "transmissions",
+    title: { zh: "传动与回差：齿轮、皮带与轴承", en: "Transmissions & backlash: gears, belts and bearings" },
+    summary: {
+      zh: "减速比怎样用速度换扭矩，回差为什么会毁掉定位精度而软件补不回来，以及轴承预紧、皮带与直驱的取舍。",
+      en: "How a gear ratio trades speed for torque, why backlash ruins position accuracy in a way software cannot fully fix, and choosing bearings, preload, belts or direct drive.",
+    },
+    minutes: 150,
+    resources: ["opencycloid", "sts3215"],
+    tasks: [
+      { id: "ratio-calc", text: { zh: "用本课的脚本设计一个能装配的行星级（齿数、行星数、减速比）", en: "Use the lesson's script to design a planetary stage that assembles (teeth, planet count, ratio)" } },
+      { id: "reducer", text: { zh: "为步进电机或玩具电机设计并打印一个行星或摆线减速器", en: "Design and print a planetary or cycloidal reducer for a NEMA17 stepper or a hobby motor" } },
+      { id: "measure-backlash", text: { zh: "夹住输入轴、来回摇动输出，用指针量出回差（度），改进设计后再测一次", en: "Lock the input, rock the output and measure the backlash in degrees with a pointer; redesign and measure again" } },
+    ],
+  },
 ];
 
 export const months: Month[] = [

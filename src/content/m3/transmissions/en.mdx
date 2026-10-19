@@ -1,0 +1,357 @@
+## Trade speed for torque
+
+A small electric motor is the opposite of what most robot joints need. It spins fast and produces very little torque at the shaft. A joint wants the other trade: slow motion and enough torque to hold the arm, lift a payload and survive a bump. A transmission is how you make that trade, and understanding gear reduction, backlash and torque density is much of what separates a robot that works once in a video from one that works every time.
+
+A reduction of n:1 means the input turns n times for one turn of the output. Ignoring friction, that multiplies torque by n and divides speed by n. Power is not created, only traded: the same power passes through with more torque and less speed. In symbols, P = τ × ω, so if ω falls by n and τ rises by n, the product is unchanged. Real gears add friction, so the output torque is always a little less than the ideal n times the input, and the difference is what the efficiency number describes.
+
+Three things are worth putting in a text file next to your design, because you will use them over and over:
+
+```text
+output torque = motor torque × n × efficiency
+output speed = motor speed / n
+stages multiply: ratios multiply, efficiencies multiply
+```
+
+The last line matters because almost no useful robot joint is a single gear pair. A two-stage gearbox with 5:1 in the first stage and 5:1 in the second gives 25:1 overall. Each stage also loses some torque to friction, so two stages at 90 % each leave 0.9 × 0.9 = 0.81, not 0.9. This is the arithmetic behind a worked example you can check by hand:
+
+```text
+motor: 0.05 N·m at 6000 rpm
+two 5:1 stages → n = 5 × 5 = 25
+efficiency = 0.9 × 0.9 = 0.81
+output torque = 0.05 × 25 × 0.81 = 1.0125 ≈ 1.01 N·m
+output speed = 6000 / 25 = 240 rpm
+```
+
+The motor gave 0.05 N·m at 6000 rpm; the gearbox output gives about 1.01 N·m at 240 rpm. Notice what did not happen: the gearbox did not create energy. It converted a fast, weak input into a slow, strong output, and friction ate a small part of the power along the way. If the efficiency of printed gears is worse than 90 %, the torque drops further; if it is better, the torque rises. The number 90 % per stage is a guess for printed gears, not a measurement. You should replace it with your own measurement once you print a reducer, and the practice section at the end of this lesson shows how.
+
+Torque density is the reason robot arms are built this way. Torque density means newton-metres of output torque per kilogram of actuator, and a small high-speed motor with a good reduction beats a large slow motor on that measure. A big direct-drive motor large enough to hold an arm would weigh a lot and cost a lot; the same job done by a small motor and a gearbox is lighter, cheaper and easier to package. In Lesson 5 the SO-101 arm uses six Feetech STS3215 bus servos, and each one is small for the torque it produces because there is a gear train inside. The servo is not a powerful motor; it is a modest motor plus a ratio.
+
+<Quiz id="q1" question="A motor gives 0.1 N·m. It drives a 10:1 gearbox that is 90 % efficient. What is the output torque (N·m)?" answer={0.9} unit="N·m" tolerance={0.01} explanation="Output torque = motor torque × n × efficiency = 0.1 × 10 × 0.9 = 0.9 N·m. Without friction it would be 1.0 N·m, but 10 % is lost in the gearbox." />
+
+## Planetary and cycloidal
+
+Two reducer geometries dominate small robot joints: planetary and cycloidal. They look different, but both solve the same problem, which is getting a large ratio out of a small package without relying on a single pair of tiny teeth.
+
+### Planetary
+
+A planetary stage has four parts. The sun gear sits in the middle. Several planet gears orbit around it. The ring gear is the toothed circle on the outside. The carrier is the plate that holds the planet gears and rotates with them. By choosing which part is held still and which part is the input and the output, you get different ratios; the common robot configuration is the ring fixed, the sun as input and the carrier as output. In that configuration the ratio is:
+
+```text
+ratio = 1 + ring / sun
+```
+
+It is worth seeing where the plus one comes from. First hold the carrier still: the gears become an ordinary train, and turning the ring once (backwards) turns the sun ring / sun times. Now turn the whole stage once forwards as a solid block: every part, sun included, gains one turn, and the ring is back where it started, so it has in effect been held still. Add the two motions: the carrier made one turn while the sun made 1 + ring / sun turns. That free extra turn is why a planetary gives a useful ratio in a very short package.
+
+Geometry imposes two assembly rules that you must satisfy on paper before you print anything. First, the planets must fill the gap between the sun and the ring, so the planet tooth count must be a whole number:
+
+```text
+planet = (ring − sun) / 2 must be a whole number of teeth
+```
+
+If ring minus sun is odd, the planets would need half a tooth and the stage will not mesh. Second, if you want N planets spaced equally around the sun, the sun and ring tooth counts must divide evenly by that number:
+
+```text
+(sun + ring) / N must be a whole number
+```
+
+If it is not, the planets cannot be spaced equally, and unequal spacing leaves the stage unbalanced, so it vibrates and loads the planets unevenly. When both rules are satisfied, several planets share the load, which is why a planetary is compact and strong for its diameter: the same torque passes through three or four sets of teeth at once instead of one.
+
+### Cycloidal
+
+A cycloidal reducer works by rolling instead of by ordinary meshing. An eccentric input shaft carries a lobed disc. The disc rolls around a ring of pins, and because the disc has one fewer lobe than the ring has pins, the disc steps backward by one lobe for each input revolution. With N pins and N − 1 lobes, the ratio is N − 1 : 1, and the output turns the opposite way to the input:
+
+```text
+ratio = N − 1 : 1, output turns the opposite way
+```
+
+The number of lobes that touch the pins at the same time is large, which is where the reputation of cycloidal drives comes from. They are stiff, they tolerate shock loads well, and they have low backlash because the load is spread across many contacts instead of sitting on one or two teeth. The cost is in the details: the eccentric mass must be balanced or the actuator will vibrate, and the output pins or holes must be accurate, or their looseness becomes play at the output. A cycloidal reducer is harder to design than a planetary, but for a compact, stiff joint it is often the better answer.
+
+<Resource id="opencycloid" />
+
+The program below is ordinary arithmetic run on the editor's computer with Python 3. It is not a simulation of a mechanism; it is a calculator for the tooth counts and ratios described above, plus a few of the numbers you will read about in later sections. It is worth running with your own numbers before you open CAD.
+
+<CodeSource path="examples/month-3/transmissions/gear_calc.py" />
+
+```python
+"""gear_calc.py: the arithmetic behind a gearbox, before you print one.
+
+1. Planetary stage (ring fixed, sun in, carrier out): ratio = 1 + ring / sun.
+   It only assembles if planet = (ring - sun) / 2 is a whole number of teeth and
+   (sun + ring) / planets is a whole number (equally spaced planets).
+2. Cycloidal stage with N ring pins and N - 1 lobes: ratio N - 1, output turns backwards.
+3. What a ratio n does: torque x n (minus losses), speed / n, and what you feel when you
+   turn the output by hand: friction x n and rotor inertia x n^2.
+4. Backlash at the joint becomes a position error at the tip: arc = reach x angle.
+"""
+import math
+
+
+def planetary(sun, ring, planets):
+    gap = ring - sun
+    if gap % 2:
+        return f"sun {sun:2d}, ring {ring:2d}: no whole planet size ({gap / 2} teeth) -> will not mesh"
+    planet = gap // 2
+    if (sun + ring) % planets:
+        return (f"sun {sun:2d}, ring {ring:2d}, planet {planet:2d}: {planets} planets cannot be spaced "
+                f"evenly ((sun + ring) / {planets} = {(sun + ring) / planets:.2f})")
+    return f"sun {sun:2d}, ring {ring:2d}, planet {planet:2d}, {planets} planets: ratio {1 + ring / sun:.3f} : 1"
+
+
+def cycloidal(pins):
+    lobes = pins - 1
+    return f"{pins} ring pins, {lobes} lobes: ratio {lobes / (pins - lobes):.0f} : 1, output turns the opposite way"
+
+
+def stack(ratios, efficiency_per_stage=0.9):
+    total = math.prod(ratios)
+    eff = efficiency_per_stage ** len(ratios)
+    return total, eff
+
+
+if __name__ == "__main__":
+    print("-- planetary stages")
+    print(planetary(12, 48, 3))
+    print(planetary(12, 46, 3))
+    print(planetary(13, 47, 3))
+    print(planetary(14, 46, 4))
+    print(planetary(12, 45, 3))
+
+    print("-- cycloidal stages")
+    print(cycloidal(10))
+    print(cycloidal(16))
+
+    print("-- two 5:1 planetary stages, 90 % per stage (a guess for printed gears; measure yours)")
+    total, eff = stack([5, 5])
+    motor_torque, motor_rpm = 0.05, 6000           # N*m and rpm of a small brushless motor
+    print(f"ratio {total}:1, efficiency {eff * 100:.0f} %: output {motor_torque * total * eff:.2f} N*m "
+          f"at {motor_rpm / total:.0f} rpm (motor: {motor_torque} N*m at {motor_rpm} rpm)")
+
+    print("-- turning the output by hand (backdriving), relative to a 147:1 gearbox")
+    for n in (147, 191, 345):                      # the STS3215 ratios in the SO-101 leader arm
+        print(f"{n:3d}:1  friction felt x{n / 147:4.2f}   rotor inertia felt x{(n / 147) ** 2:4.2f}")
+
+    print("-- backlash at the joint -> error at the tip of a 0.30 m arm")
+    for deg in (0.5, 1.0, 2.0):
+        print(f"{deg:3.1f} deg -> {0.30 * math.radians(deg) * 1000:4.1f} mm")
+```
+
+Real output:
+
+```text
+$ python3 gear_calc.py
+-- planetary stages
+sun 12, ring 48, planet 18, 3 planets: ratio 5.000 : 1
+sun 12, ring 46, planet 17: 3 planets cannot be spaced evenly ((sun + ring) / 3 = 19.33)
+sun 13, ring 47, planet 17, 3 planets: ratio 4.615 : 1
+sun 14, ring 46, planet 16, 4 planets: ratio 4.286 : 1
+sun 12, ring 45: no whole planet size (16.5 teeth) -> will not mesh
+-- cycloidal stages
+10 ring pins, 9 lobes: ratio 9 : 1, output turns the opposite way
+16 ring pins, 15 lobes: ratio 15 : 1, output turns the opposite way
+-- two 5:1 planetary stages, 90 % per stage (a guess for printed gears; measure yours)
+ratio 25:1, efficiency 81 %: output 1.01 N*m at 240 rpm (motor: 0.05 N*m at 6000 rpm)
+-- turning the output by hand (backdriving), relative to a 147:1 gearbox
+147:1  friction felt x1.00   rotor inertia felt x1.00
+191:1  friction felt x1.30   rotor inertia felt x1.69
+345:1  friction felt x2.35   rotor inertia felt x5.51
+-- backlash at the joint -> error at the tip of a 0.30 m arm
+0.5 deg ->  2.6 mm
+1.0 deg ->  5.2 mm
+2.0 deg -> 10.5 mm
+```
+
+Walk through the planetary lines with the arithmetic. For sun 12 and ring 48, the gap is 48 − 12 = 36, so the planet size is 36 / 2 = 18 teeth, a whole number. The spacing test is (12 + 48) / 3 = 20, also whole, so three planets can be spaced evenly. The ratio is 1 + 48 / 12 = 1 + 4 = 5.000 : 1. For sun 12 and ring 46, the planet size is (46 − 12) / 2 = 17, which is fine, but the spacing test fails: (12 + 46) / 3 = 58 / 3 = 19.33, so three planets cannot be equally spaced. For sun 13 and ring 47, the planet is (47 − 13) / 2 = 17 teeth and (13 + 47) / 3 = 60 / 3 = 20, so it assembles, with ratio 1 + 47 / 13 = 1 + 3.615 = 4.615 : 1. For sun 14, ring 46 and four planets, the planet is (46 − 14) / 2 = 16 and 60 / 4 = 15, so it assembles with ratio 1 + 46 / 14 = 4.286 : 1. For sun 12 and ring 45, the gap is 45 − 12 = 33, which is odd, so the planet would need 16.5 teeth; the stage will not mesh at all.
+
+The cycloidal lines are shorter because the arithmetic is simpler. Ten ring pins give nine lobes and a ratio of 9 : 1; sixteen pins give fifteen lobes and 15 : 1. Both outputs turn the opposite way to the input. If you want a different ratio, change the pin count, but remember that the ratio is always N − 1 with this construction, so you cannot get any ratio you like from a single disc. Getting a wider range usually means stacking a second stage or adding a planetary in front.
+
+<Quiz id="q2" question="Sun 15 teeth, ring 45 teeth, ring held still. What is the ratio (n:1, give n)?" answer={4} explanation="ratio = 1 + ring / sun = 1 + 45 / 15 = 1 + 3 = 4, so 4:1. Check the assembly rules too: planet = (45 − 15) / 2 = 15 teeth, and (15 + 45) / 3 = 20, so three planets would work." />
+
+<Quiz id="q3" question="Which planetary stage cannot be assembled with 3 equally spaced planets?" options={["sun 12, ring 48", "sun 15, ring 45", "sun 10, ring 41", "sun 18, ring 54"]} answer={2} explanation="The spacing rule is (sun + ring) / 3 must be a whole number. For sun 10, ring 41, the gap 41 − 10 = 31 is odd, so the planet would need 15.5 teeth, and the stage fails before spacing even matters. The other three give whole planets 18, 15 and 18, and (sun + ring) / 3 = 20, 20 and 24." />
+
+## Belts, gears or direct drive
+
+Once you know the ratio you want, you still have to choose how to get it. Each option has a different balance of compactness, cost, backlash and backdrivability. A short comparison:
+
+| Drive | Good at | Costs you |
+| --- | --- | --- |
+| Spur gear stage | Simple, cheap to print, any ratio in steps | Backlash at every mesh, noise |
+| Planetary | High ratio in a small diameter, load shared by several planets | Backlash adds up over stages, printed planets wear |
+| Cycloidal | Stiff, shock tolerant, low backlash | More parts, the eccentric must be balanced, accurate pins needed |
+| Belt (for example GT2, 2 mm pitch: a 20-tooth pulley driving a 60-tooth one gives 3:1) | Almost no backlash, quiet, lets you put the motor far from the joint | The belt stretches (a springy joint), needs tensioning, ratio per stage is limited by pulley size |
+| Direct drive (motor on the joint, no reduction) | No backlash at all, perfectly backdrivable, the joint can feel force | Needs a big, heavy, expensive motor for the same torque |
+
+A spur gear stage is the simplest thing you can print and the easiest to reason about. It is also the noisiest and the loosest, because every mesh contributes its own backlash, and a train of several spur pairs accumulates all of it at the output. Planetary stages pack a high ratio into a small diameter, at the cost of more meshes and planets that wear; printed planets are usually the first parts to show slop. Cycloidal drives are the stiff, low-backlash option, but they are the hardest to get right because the eccentric and the pins must be accurate.
+
+Belts occupy a different point on the map. A GT2 belt with a 2 mm pitch, with a 20-tooth pulley driving a 60-tooth pulley, gives 3:1. A belt has almost no backlash, runs quietly, and lets you put the motor away from the joint, which is a gift when the joint is small and the motor is not. The cost is stretch: a belt is a spring, so the joint has some compliance, and it needs tensioning. The ratio per stage is also limited by how large a pulley you can fit, so a belt alone rarely gives the hundreds-to-one of a servo gearbox.
+
+Direct drive is the cleanest answer and the most expensive. Mount the motor directly on the joint with no reduction at all and you get no backlash, perfect backdrivability, and a joint that can feel the force applied to it. The catch is torque density: to get the same torque as a small motor with a gearbox, a direct-drive motor must be physically large, heavy and costly. For a small educational arm, direct drive is usually out of reach for the shoulder and elbow, and often used only on a wrist where the load is small.
+
+### Backdriving
+
+Backdriving is what happens when you push the output of a gearbox by hand and the input turns. The faster you can push the output by hand, the safer and more teachable the arm is: you can move it out of the way, and you can guide it through a motion by hand while the controller records. Through an n:1 gearbox you feel two things the motor contributes, both amplified by the reduction. You feel the motor's friction multiplied by n, and you feel the motor rotor's inertia multiplied by n², because the rotor spins n times faster than the output. A high ratio buys torque and costs backdrivability, and the inertia penalty is the square, so it grows faster than the friction penalty.
+
+That is why the SO-101 leader arm, the one you move by hand in Lesson 5, uses STS3215 servos with lower ratios than the follower. The follower uses 1/345 everywhere. The leader uses 1/191 and 1/147 on several joints, and 1/345 only on the shoulder lift, which carries most of the arm's own weight, so the leader can hold itself up there. The last part of the program prints exactly this comparison against 1/147: 345:1 against 147:1 gives friction ×345 / 147 = ×2.35 and inertia ×2.35² = ×5.51. The 191:1 row shows the middle ground, ×1.30 friction and ×1.69 inertia.
+
+<Quiz id="q4" question="You swap a 100:1 gearbox for a 300:1 one with the same motor. How many times larger is the rotor inertia you feel when you push the output by hand?" answer={9} explanation="Felt rotor inertia scales with the square of the ratio. The ratio changes by 300 / 100 = 3, so the inertia becomes 3² = 9 times larger. Friction, by contrast, would only scale by 3." />
+
+## Backlash
+
+Backlash is the free play between meshing teeth. Turn the input back and forth by a small amount and the output does not move at all: the teeth have to cross a gap before they touch on the other side. Every mesh in a train adds its share, and what matters is the total measured at the output, because that is what the arm feels. A small angle at the joint is a large distance at the tip, and the relationship is simple:
+
+```text
+arc = reach × angle in radians
+```
+
+A worked example makes the size of the problem obvious. One degree is π / 180 = 0.01745 radians, and a 0.30 m arm multiplies that into millimetres:
+
+```text
+1° = π / 180 = 0.01745 rad
+arc = 0.30 m × 0.01745 = 0.00524 m = 5.2 mm
+```
+
+The last lines of the program show the pattern: 0.5° → 2.6 mm, 1° → 5.2 mm, 2° → 10.5 mm. Backlash that sounds small in degrees is millimetres at the tool, and millimetres are what decide whether a gripper closes on a part or a pen lands on a line.
+
+Backlash creates two different errors depending on where the encoder sits. If the encoder is on the motor, before the gears, as in most hobby servos, the controller knows the motor angle and is therefore sure the arm is on target, while the arm can hang anywhere on the far side of the gap. The controller sees no error at all, so it does not correct, and the arm rests at an angle that depends on the load. If the encoder is on the arm, after the gears, the controller sees the error and tries to fix it, but it has to cross the dead zone to do so. With no load holding the teeth together, it overshoots, reverses, crosses the gap again and keeps hunting back and forth in a small limit cycle. Software cannot fully fix this, because inside the gap the motor has no grip on the arm at all: no control law can push on a load that is not connected to the actuator.
+
+<CodeSource path="tools/sim/models/backlash_sim.py" />
+
+```python
+"""backlash_sim.py: what gear backlash does to a position loop, and why gravity hides it.
+
+Toy model of one joint: motor -> gearbox -> arm. The gearbox has a dead zone (backlash)
+of BACKLASH degrees at the output: inside it the motor turns without moving the arm.
+A PID loop at 200 Hz moves the arm to a target. We read either the motor's encoder
+(angle seen before the gears) or an encoder on the arm itself (after the gears).
+"""
+import math
+
+DT = 0.005               # 200 Hz control loop
+JM, BM = 0.002, 0.03     # motor side (referred to the output): inertia, friction
+JA, BA = 0.004, 0.02     # arm side: inertia, friction
+STIFF, DAMP = 40.0, 0.2  # gear teeth once in contact: N*m/rad, N*m*s/rad
+GRAV = 0.4               # N*m of gravity with the arm horizontal (0 deg)
+MAX_TORQUE = 1.0
+STICTION = 0.03         # N*m of dry friction in the motor and first gear stage
+
+
+def run(backlash_deg, sensor, target, preload=0.0, kp=0.1, ki=0.2, kd=0.004, seconds=4.0):
+    """preload: N*m from a spring that always pulls the arm the same way."""
+    half = math.radians(backlash_deg) / 2
+    qm = wm = qa = wa = 0.0
+    integral, prev, t = 0.0, None, 0.0
+    tail = []
+    while t < seconds:
+        meas = math.degrees(qm if sensor == "motor" else qa)
+        prev = meas if prev is None else prev
+        error = target - meas
+        unclipped = kp * error + ki * integral - kd * (meas - prev) / DT
+        prev = meas
+        torque = max(-MAX_TORQUE, min(MAX_TORQUE, unclipped))
+        if torque == unclipped:
+            integral += error * DT
+        for _ in range(10):                                  # physics at 0.5 ms
+            gap = qm - qa
+            if abs(gap) > half:                              # teeth touching
+                push = STIFF * (gap - math.copysign(half, gap)) + DAMP * (wm - wa)
+            else:
+                push = 0.0
+            wm += (torque - BM * wm - STICTION * math.tanh(wm / 0.02) - push) / JM * 0.0005
+            wa += (push - BA * wa - GRAV * math.cos(qa) - preload) / JA * 0.0005
+            qm += wm * 0.0005
+            qa += wa * 0.0005
+        t += DT
+        if t > seconds - 1.0:
+            tail.append(math.degrees(qa))
+    swing = max(tail) - min(tail)
+    return f"arm at {math.degrees(qa):6.2f} deg (target {target}), swinging {swing:4.2f} deg peak to peak in the last second"
+
+
+if __name__ == "__main__":
+    for target in (20, 90):
+        where = "gravity loads the teeth" if target == 20 else "arm straight up, no gravity load"
+        print(f"target {target} deg ({where}):")
+        print("  no backlash, arm encoder:       ", run(0.0, "arm", target))
+        print("  2 deg backlash, motor encoder:  ", run(2.0, "motor", target))
+        print("  2 deg backlash, arm encoder:    ", run(2.0, "arm", target))
+    print("  ...same, plus a spring preload: ", run(2.0, "arm", 90, preload=0.1))
+```
+
+<SimOutput source="model">
+
+```text
+$ python3 tools/sim/models/backlash_sim.py
+target 20 deg (gravity loads the teeth):
+  no backlash, arm encoder:        arm at  20.00 deg (target 20), swinging 0.01 deg peak to peak in the last second
+  2 deg backlash, motor encoder:   arm at  18.45 deg (target 20), swinging 0.01 deg peak to peak in the last second
+  2 deg backlash, arm encoder:     arm at  20.00 deg (target 20), swinging 0.01 deg peak to peak in the last second
+target 90 deg (arm straight up, no gravity load):
+  no backlash, arm encoder:        arm at  90.00 deg (target 90), swinging 0.01 deg peak to peak in the last second
+  2 deg backlash, motor encoder:   arm at  91.01 deg (target 90), swinging 0.01 deg peak to peak in the last second
+  2 deg backlash, arm encoder:     arm at  89.82 deg (target 90), swinging 1.16 deg peak to peak in the last second
+  ...same, plus a spring preload:  arm at  90.00 deg (target 90), swinging 0.01 deg peak to peak in the last second
+```
+
+</SimOutput>
+
+Walk through the output. At a target of 20°, gravity presses the teeth together on one side, so the joint is loaded. With the motor encoder the arm sags to 18.45° instead of 20.00°. That 1.55° of error has two parts. Half the 2° gap is 1°, and the teeth themselves bend under the load: gravity torque is 0.4 × cos 20° = 0.376 N·m, and dividing by a contact stiffness of 40 N·m/rad gives 0.0094 rad, which is about 0.54°. Together that is 1.54°, which is the difference between 20 and 18.45. With the arm encoder the loop fixes it, reaching 20.00° and staying still, because gravity keeps the teeth in contact and the loop can trust what it measures. This is the good case: a load that always pushes one way hides the backlash.
+
+At a target of 90° the arm points straight up and gravity no longer loads the teeth. With the motor encoder the arm floats somewhere inside the gap, here 91.01°, but it could be anywhere within about ±1° depending on friction and history. With the arm encoder the loop hunts: it sees the arm angle, corrects, crosses the dead zone, loses contact, and swings 1.16° peak to peak forever. Add a spring that always pulls the arm one way, with a preload of 0.1 N·m, and the teeth are held in contact again: 90.00°, still. That is the trick real designs use, in one of several forms: a preload spring, gravity itself, a gear split into two halves pushed apart so they straddle the gap, or an anti-backlash nut on a lead screw.
+
+The numbers above come from a toy model whose stiffness, friction and controller gains were chosen by the editor. They show a pattern rather than a measurement: an unloaded joint with an output encoder hunts, a loaded joint does not, and preload restores contact. Do not read the decimals as properties of a real gearbox. Build one and measure it.
+
+<Quiz id="q5" question="A joint has 1.5° of backlash and the arm is 0.40 m long. How far can the tip move with the motor held still (mm)?" answer={10.5} unit="mm" tolerance={0.2} explanation="Convert to radians: 1.5° = 1.5 × π / 180 = 0.02618 rad. Then arc = reach × angle = 0.40 × 0.02618 = 0.01047 m = 10.5 mm. The gap appears on both sides of the teeth, but the full free travel is the full backlash angle." />
+
+<Quiz id="q6" question="The encoder is on the arm and the arm points straight up. Why does the joint keep hunting?" options={["The encoder is read too slowly", "Each correction has to cross the dead zone, so the motor loses and regains its grip on the arm", "Gravity pulls the arm back down", "The integral term is switched off"]} answer={1} explanation="With the encoder on the arm the loop can see the error, but to correct it the motor must first cross the backlash gap. It overshoots, reverses, crosses the gap again, and repeats: a limit cycle. Gravity is not pulling the arm down here (the arm points straight up), the encoder is not too slow, and the integral term is working; it cannot help because the motor has no grip inside the gap." />
+
+## Bearings and preload
+
+A bearing lets a shaft turn while it carries load. A robot joint puts three kinds of load on its bearings. Radial load pushes sideways against the shaft. Axial load pushes along the shaft. A tipping moment tries to tilt the shaft out of line, and it is usually the one that kills a joint with only one bearing. A deep-groove ball bearing handles radial load and some axial load, and two common sizes are cheap and everywhere: the 608, which is 8 × 22 × 7 mm and is the skateboard bearing, and the 625, which is 5 × 16 × 5 mm.
+
+One bearing lets the shaft tilt: it can pivot around the bearing, so the far end of the shaft wobbles. Two bearings spaced apart turn the tipping moment into two opposite radial forces, one at each bearing, and the farther apart the bearings are, the smaller those forces and the less the shaft wobbles. When you design a joint, space the bearings along the shaft as far as the geometry allows instead of stacking them next to each other.
+
+Preload is the second half of the bearing problem. Squeezing the bearings axially with a nut, a wave washer or a printed spring removes their internal play, exactly the same idea as the spring that removed backlash in the model above. Preload makes the shaft stiff and removes the small free movements that show up as wobble at the tool. Too much preload is a problem too: the bearings drag, run hot and wear out quickly, so preload is a small, controlled squeeze, not a crush. Angular-contact and tapered bearings are made to be preloaded; ordinary deep-groove bearings accept a light preload but are not designed for heavy axial loads.
+
+Printed bearing seats follow the same rules as the fits in Lesson 2. Use your press-fit clearance from the tolerance gauge, and remember that a bearing seat is usually a small negative or near-zero per-side number, not the sliding clearance you would use for a shaft that must turn. Add a chamfer to the entry so the bearing starts square, and never hammer a bearing in through its balls: press on the ring you are fitting, which is the outer ring for a seat in a housing and the inner ring for a shaft.
+
+### Why servo gears fail first
+
+In a cheap hobby servo the last gear stage carries the full output torque on small plastic teeth. That is already the hardest-working part of the gearbox, and a crash, a dropped arm or a joint stalled against a hard stop turns it into the part that takes the shock. A sudden stop puts the whole load on one or two teeth at the output stage, and plastic softens as the motor heats up, so the teeth get weaker just as the load peaks. That is why the gearset is usually the first thing to fail on an arm, long before the motor or the electronics.
+
+Three things help. Metal-gear servos, such as the MG996R used in the EEZYbotARM, replace the plastic teeth with metal and survive far more abuse. Servos with a smarter controller that limits current reduce the load a stall can apply to the teeth. And keeping the arm short and light lowers the torque every joint has to carry, which lowers the load on the last stage. If you are choosing servos for a build, this is the reason the specification that matters is not only the torque number but also the gear material.
+
+<Quiz id="q7" question="You need a joint with as little wobble as possible under a sideways load. Which layout?" options={["one wide bearing in the middle", "two bearings close together", "two bearings far apart, lightly preloaded", "no bearing, a tight printed hole"]} answer={2} explanation="Two bearings spaced far apart turn the tipping moment into smaller opposite radial forces and reduce wobble; a light preload removes internal play. One bearing allows the shaft to tilt, two bearings close together still allow a large tilt, and a printed hole with no bearing wears and has no rolling contact." />
+
+## Practice: a printed reducer
+
+Your practice task for this lesson is to design and print a simple planetary or cycloidal reducer for a NEMA 17 stepper or a hobby motor. Expect the first one to be bad. That is not pessimism; it is how printed gearboxes work, because every tooth is a small part and small parts come out with the errors you measured in Lesson 2. Print it, measure its backlash by holding the input still and rocking the output, then redesign to reduce it. Reference geometries for both types are on Instructables and Hackaday; OpenCycloid, linked above, is a complete printed cycloidal actuator worth studying before you design one. Use gear_calc.py to choose tooth counts that assemble before you draw anything, so you do not spend an evening on a planetary with 16.5 teeth.
+
+### Measure the backlash
+
+To measure backlash, hold the input still and rock the output through its free travel. If the input is a stepper, power it so it holds; if it is a DC motor, clamp or lock the shaft. Fix a long pointer to the output, such as a printed arm or a ruler taped on, and let the tip sweep across a piece of paper. Rock the output gently both ways until it stops, and mark the two end points of the tip. The angle comes from the tip travel and the pointer length:
+
+```text
+pointer length 150 mm, marks 4.0 mm apart
+angle = 4.0 / 150 = 0.0267 rad
+angle in degrees = 0.0267 × 57.3 = 1.53°
+```
+
+Write that number in your print log next to the clearance and the material you used, because it is the measurement that tells you whether your redesign worked. A longer pointer gives a more accurate result: the same gearbox with a 300 mm pointer would move the tip twice as far, and the arithmetic divides the extra distance back out.
+
+### Make it tighter
+
+Redesign is a loop of one change at a time, and each change has a reason. Try these in small steps and record what each one does:
+
+- Reduce the centre-distance clearance or the per-side clearance on the gear teeth in small steps, about 0.05 mm at a time, and change one thing per print. Reason: moving the gears closer together removes free play between the teeth, but going too tight adds friction and heat and the teeth may not turn at all.
+- Add more planets, or use a cycloidal disc, so more contact points share the load and the play. Reason: the load is spread over several contacts instead of one, so each contact can be made tighter without jamming.
+- Use herringbone teeth so the gears cannot slide apart along the shaft. Reason: the two opposing helixes cancel the axial force, keeping the teeth aligned and reducing play under load.
+- Preload the output with a spring or a bearing nut. Reason: a constant force keeps the teeth on one flank, exactly as the preload did in the backlash model above.
+- Print the gears in the material and orientation from Lesson 2, PETG or nylon, with the teeth lying in the layer plane. Reason: layer adhesion and wear resistance decide how long the teeth stay tight, and teeth that delaminate get loose quickly.
+- Put the encoder on the output if you can. Lesson 4 uses an encoder on the wheel for the same reason: measuring after the gears measures the real angle instead of the motor angle, and the controller can then correct the error that backlash creates.
+
+The editor has not printed one of these reducers or measured its backlash. Your first measurement is the result, and it belongs in your log.
+
+<Callout type="tip" title="Run it in first">
+Run the gearbox in for a few minutes under light load before you measure the backlash. New printed teeth wear in, the surfaces polish each other, and the backlash changes from the number you measured straight off the printer. Then measure, and write down the worn-in number.
+</Callout>
+
+Lesson 4 puts this to work. PID and cascade control are what make a joint follow a position or a trajectory, and the loop you will tune there has to live with the backlash you just measured. The cleaner your reducer, the easier that tuning becomes: reduction, backlash and torque density are the mechanical foundations the controller stands on.

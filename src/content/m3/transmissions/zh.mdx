@@ -1,0 +1,358 @@
+## 用速度换扭矩
+
+小型电机和大多数机器人关节想要的正好相反。电机转得飞快，但轴上的扭矩很小；关节却要转得慢、还要有足够的力去托住手臂、抬起负载、挨得住一次碰撞。传动（transmission）就是用来完成这个交换的。能一次拍进视频的机器人，和每次都能正常工作的机器人，中间往往隔着三件事：减速比（reduction ratio）、回差（backlash）和扭矩密度（torque density）。
+
+所谓 n:1 的减速，就是输入转 n 圈、输出才转 1 圈。先不管摩擦，扭矩会被乘以 n，转速会被除以 n。功率并没有被创造出来，只是被交换了：同一份功率，换成了更大的扭矩和更低的转速。用符号写就是 `P = τ × ω`，转速 ω 降为原来的 1/n，扭矩 τ 升为原来的 n 倍，乘积不变。真实的齿轮组有摩擦，所以输出扭矩总会比理想的“输入扭矩乘 n”小一些，差掉的那部分，就是效率（efficiency）这个数在描述的东西。
+
+有三条关系值得写在设计文件旁边，因为后面会反复用到：
+
+```text
+输出扭矩 = 电机扭矩 × n × 效率
+输出转速 = 电机转速 / n
+多级相乘：减速比相乘，效率也相乘
+```
+
+最后一条尤其重要，因为几乎没有哪个好用的关节是单级齿轮。一个两级减速器，第一级 5:1、第二级 5:1，总减速比就是 25:1。每一级都会因摩擦损失一点扭矩，所以两级各 90% 之后，剩下的是 0.9 × 0.9 = 0.81，而不是 0.9。下面这个算例可以自己手算核对：
+
+```text
+电机：0.05 N·m，6000 rpm
+两级 5:1 → n = 5 × 5 = 25
+效率 = 0.9 × 0.9 = 0.81
+输出扭矩 = 0.05 × 25 × 0.81 = 1.0125 ≈ 1.01 N·m
+输出转速 = 6000 / 25 = 240 rpm
+```
+
+电机给出的是 0.05 N·m、6000 rpm；减速器输出大约是 1.01 N·m、240 rpm。注意这里没有发生的事：减速器并没有凭空造出能量，它只是把“快而弱”换成了“慢而强”，摩擦在路上吃掉了一小部分功率。如果打印齿轮的实际效率比 90% 差，输出扭矩会更低；如果更好，就会更高。每级 90% 只是对打印齿轮的一个猜测，不是实测值。等你真正打出一个减速器之后，应该用自己测出来的数字替换它；本课最后的练习会给出测量方法。
+
+机器人手臂之所以这样做，原因就是扭矩密度。扭矩密度指执行器每公斤能输出多少牛·米，而“小电机 + 好的减速”在这一项上能打败“大而慢的电机”：一个大到足以直接托住手臂的直驱电机，又重又贵；同样的活交给小电机加减速器，更轻、更便宜、也更容易塞进结构里。第 5 课的 SO-101 机械臂用六只 Feetech STS3215 总线舵机，每一只相对它的输出扭矩都算小，原因就是里面有整套齿轮。它并不是一台扭矩巨大的电机，而是一台普通电机加一个减速比。
+
+<Quiz id="q1" question="某电机输出 0.1 N·m，接一个 10:1、效率 90% 的减速器。输出扭矩是多少 N·m？" answer={0.9} unit="N·m" tolerance={0.01} explanation="输出扭矩 = 电机扭矩 × n × 效率 = 0.1 × 10 × 0.9 = 0.9 N·m。如果没有摩擦会是 1.0 N·m，但 10% 在齿轮箱里损失掉了。" />
+
+## 行星与摆线
+
+小型机器人关节最常用的两种减速结构是行星减速（planetary）和摆线减速（cycloidal）。它们长相不同，但解决的是同一个问题：在很小的体积里拿到很大的减速比，而且不把全部载荷压在一对小小的齿上。
+
+### 行星减速
+
+一级行星减速有四个部分。太阳轮（sun gear）在中间；若干行星轮（planet gear）绕着它转；齿圈（ring gear）是外面那一圈带齿的环；行星架（carrier）是固定行星轮、跟着一起转的板。选择哪一部分固定、哪一部分做输入、哪一部分做输出，会得到不同的减速比；机器人关节里最常见的是齿圈固定、太阳轮输入、行星架输出。这种配置下：
+
+```text
+减速比 = 1 + 齿圈齿数 / 太阳轮齿数
+```
+
+这个“+1”是怎么来的，值得想清楚。先把行星架按住不动：这时它就是一组普通齿轮，齿圈（反向）转一圈，太阳轮就转“齿圈齿数 / 太阳轮齿数”圈。再把整个减速级当成一块整体，正向转一圈：包括太阳轮在内的每个零件都多转一圈，而齿圈刚好回到原位，相当于一直没动。把两段运动加起来：行星架转了一圈，太阳轮转了 1 + 齿圈 / 太阳轮 圈。正因为白送了这一圈，行星减速才能在很短的轴向尺寸里给出可观的减速比。
+
+几何还给出两条装配规则，动笔画图之前必须先在纸上满足。第一，行星轮要正好填满太阳轮和齿圈之间的空隙，所以它的齿数必须是整数：
+
+```text
+行星轮齿数 = (齿圈 − 太阳轮) / 2，必须是整数
+```
+
+如果齿圈减太阳轮是奇数，行星轮就需要半颗齿，这级根本啮合不上。第二，如果想让 N 个行星轮等距分布，太阳轮和齿圈的齿数之和必须能被这个 N 整除：
+
+```text
+(太阳轮 + 齿圈) / N 必须是整数
+```
+
+除不尽时，行星轮就不能等分；分布不均会让这一级失去平衡，既振动，各个行星轮的受力也不均匀。两条规则都满足时，好几个行星轮同时分担载荷，这正是行星减速在同等直径下又紧凑又有力的原因：同一份扭矩由三组或四组齿同时传递，而不是压在一对齿上。
+
+### 摆线减速
+
+摆线减速靠的是“滚动”，而不是普通的啮合。偏心轴（eccentric input shaft）带着一个带波浪齿廓的摆线盘（lobed disc）转动，盘在由一圈针齿（ring pins）围成的环里滚动。因为盘上的齿瓣比针齿少一个，所以输入每转一圈，盘就往后错开一个齿瓣。若有 N 个针齿、N − 1 个齿瓣，减速比就是 N − 1 : 1，并且输出转向与输入相反：
+
+```text
+减速比 = N − 1 : 1，输出反向
+```
+
+同时接触针齿的齿瓣很多，这正是摆线减速名声的来源：刚性好、抗冲击、回差小，因为载荷分布在很多个接触点上，而不是落在一两颗齿上。代价在细节里：偏心质量必须做平衡，否则执行器会振动；输出端的销或孔必须做得准确，否则它们的松动会变成输出端的间隙。摆线减速比行星减速更难设计，但需要又薄又刚的关节时，它常常是更好的答案。
+
+<Resource id="opencycloid" />
+
+下面这段程序只是编辑在自己的电脑上用 Python 3 跑的普通算术，不是对机构的仿真，而是前面那些齿数、减速比以及后面几节会用到的一些数字的计算器。打开 CAD 之前，先用你自己的数字跑一遍。
+
+<CodeSource path="examples/month-3/transmissions/gear_calc.py" />
+
+```python
+"""gear_calc.py: the arithmetic behind a gearbox, before you print one.
+
+1. Planetary stage (ring fixed, sun in, carrier out): ratio = 1 + ring / sun.
+   It only assembles if planet = (ring - sun) / 2 is a whole number of teeth and
+   (sun + ring) / planets is a whole number (equally spaced planets).
+2. Cycloidal stage with N ring pins and N - 1 lobes: ratio N - 1, output turns backwards.
+3. What a ratio n does: torque x n (minus losses), speed / n, and what you feel when you
+   turn the output by hand: friction x n and rotor inertia x n^2.
+4. Backlash at the joint becomes a position error at the tip: arc = reach x angle.
+"""
+import math
+
+
+def planetary(sun, ring, planets):
+    gap = ring - sun
+    if gap % 2:
+        return f"sun {sun:2d}, ring {ring:2d}: no whole planet size ({gap / 2} teeth) -> will not mesh"
+    planet = gap // 2
+    if (sun + ring) % planets:
+        return (f"sun {sun:2d}, ring {ring:2d}, planet {planet:2d}: {planets} planets cannot be spaced "
+                f"evenly ((sun + ring) / {planets} = {(sun + ring) / planets:.2f})")
+    return f"sun {sun:2d}, ring {ring:2d}, planet {planet:2d}, {planets} planets: ratio {1 + ring / sun:.3f} : 1"
+
+
+def cycloidal(pins):
+    lobes = pins - 1
+    return f"{pins} ring pins, {lobes} lobes: ratio {lobes / (pins - lobes):.0f} : 1, output turns the opposite way"
+
+
+def stack(ratios, efficiency_per_stage=0.9):
+    total = math.prod(ratios)
+    eff = efficiency_per_stage ** len(ratios)
+    return total, eff
+
+
+if __name__ == "__main__":
+    print("-- planetary stages")
+    print(planetary(12, 48, 3))
+    print(planetary(12, 46, 3))
+    print(planetary(13, 47, 3))
+    print(planetary(14, 46, 4))
+    print(planetary(12, 45, 3))
+
+    print("-- cycloidal stages")
+    print(cycloidal(10))
+    print(cycloidal(16))
+
+    print("-- two 5:1 planetary stages, 90 % per stage (a guess for printed gears; measure yours)")
+    total, eff = stack([5, 5])
+    motor_torque, motor_rpm = 0.05, 6000           # N*m and rpm of a small brushless motor
+    print(f"ratio {total}:1, efficiency {eff * 100:.0f} %: output {motor_torque * total * eff:.2f} N*m "
+          f"at {motor_rpm / total:.0f} rpm (motor: {motor_torque} N*m at {motor_rpm} rpm)")
+
+    print("-- turning the output by hand (backdriving), relative to a 147:1 gearbox")
+    for n in (147, 191, 345):                      # the STS3215 ratios in the SO-101 leader arm
+        print(f"{n:3d}:1  friction felt x{n / 147:4.2f}   rotor inertia felt x{(n / 147) ** 2:4.2f}")
+
+    print("-- backlash at the joint -> error at the tip of a 0.30 m arm")
+    for deg in (0.5, 1.0, 2.0):
+        print(f"{deg:3.1f} deg -> {0.30 * math.radians(deg) * 1000:4.1f} mm")
+```
+
+真实输出：
+
+```text
+$ python3 gear_calc.py
+-- planetary stages
+sun 12, ring 48, planet 18, 3 planets: ratio 5.000 : 1
+sun 12, ring 46, planet 17: 3 planets cannot be spaced evenly ((sun + ring) / 3 = 19.33)
+sun 13, ring 47, planet 17, 3 planets: ratio 4.615 : 1
+sun 14, ring 46, planet 16, 4 planets: ratio 4.286 : 1
+sun 12, ring 45: no whole planet size (16.5 teeth) -> will not mesh
+-- cycloidal stages
+10 ring pins, 9 lobes: ratio 9 : 1, output turns the opposite way
+16 ring pins, 15 lobes: ratio 15 : 1, output turns the opposite way
+-- two 5:1 planetary stages, 90 % per stage (a guess for printed gears; measure yours)
+ratio 25:1, efficiency 81 %: output 1.01 N*m at 240 rpm (motor: 0.05 N*m at 6000 rpm)
+-- turning the output by hand (backdriving), relative to a 147:1 gearbox
+147:1  friction felt x1.00   rotor inertia felt x1.00
+191:1  friction felt x1.30   rotor inertia felt x1.69
+345:1  friction felt x2.35   rotor inertia felt x5.51
+-- backlash at the joint -> error at the tip of a 0.30 m arm
+0.5 deg ->  2.6 mm
+1.0 deg ->  5.2 mm
+2.0 deg -> 10.5 mm
+```
+
+逐行看行星那几行。太阳轮 12 齿、齿圈 48 齿时，间隙是 48 − 12 = 36，行星轮就是 36 / 2 = 18 齿，整数。等距检验是 (12 + 48) / 3 = 20，也是整数，所以三个行星轮可以等分。减速比是 1 + 48 / 12 = 1 + 4 = 5.000 : 1。太阳轮 12、齿圈 46 时，行星轮是 (46 − 12) / 2 = 17 齿，本身没问题，但等距检验不通过：(12 + 46) / 3 = 58 / 3 = 19.33，三个行星轮分不均匀。太阳轮 13、齿圈 47 时，行星轮是 (47 − 13) / 2 = 17 齿，(13 + 47) / 3 = 60 / 3 = 20，于是能装，减速比是 1 + 47 / 13 = 1 + 3.615 = 4.615 : 1。太阳轮 14、齿圈 46、四个行星轮时，行星轮是 (46 − 14) / 2 = 16 齿，60 / 4 = 15，能装，减速比 1 + 46 / 14 = 4.286 : 1。太阳轮 12、齿圈 45 时，间隙 45 − 12 = 33 是奇数，行星轮需要 16.5 齿，这级根本无法啮合。
+
+摆线那两行更短，因为算术更简单。10 个针齿配 9 个齿瓣，减速比 9 : 1；16 个针齿配 15 个齿瓣，减速比 15 : 1。两种输出的转向都和输入相反。想要别的减速比就改针齿数，但要记住，这种构造下减速比永远是 N − 1，所以单个盘给不出任意比例；要更宽的范围，通常是再叠一级，或者在前面加一级行星减速。
+
+<Quiz id="q2" question="太阳轮 15 齿，齿圈 45 齿，齿圈固定。减速比是多少（n:1，填 n）？" answer={4} explanation="减速比 = 1 + 齿圈 / 太阳轮 = 1 + 45 / 15 = 1 + 3 = 4，也就是 4:1。顺便验算装配规则：行星轮 = (45 − 15) / 2 = 15 齿，(15 + 45) / 3 = 20，三个行星轮也能装。" />
+
+<Quiz id="q3" question="下面哪一级行星减速无法装下 3 个等距分布的行星轮？" options={["太阳轮 12，齿圈 48", "太阳轮 15，齿圈 45", "太阳轮 10，齿圈 41", "太阳轮 18，齿圈 54"]} answer={2} explanation="等距规则是 (太阳轮 + 齿圈) / 3 必须为整数。太阳轮 10、齿圈 41 时，间隙 41 − 10 = 31 是奇数，行星轮需要 15.5 齿，还没轮到等距就已经失败。其余三个的行星轮分别是 18、15、18 齿，且 (太阳轮 + 齿圈) / 3 分别为 20、20、24。" />
+
+## 皮带、齿轮还是直驱
+
+知道了想要的减速比之后，还要选择用什么方式得到它。每一种方案在紧凑程度、成本、回差和可反向拖动性上的取舍都不同。简要对比如下：
+
+| 传动方式 | 擅长 | 代价 |
+| --- | --- | --- |
+| 直齿轮级（spur gear stage） | 简单、打印便宜、减速比可以按齿数逐级取 | 每个啮合点都有回差、噪声大 |
+| 行星减速（planetary） | 小直径里做出高减速比、多个行星轮分担载荷 | 多级叠加后回差累积、打印行星轮会磨损 |
+| 摆线减速（cycloidal） | 刚性好、抗冲击、回差小 | 零件更多、偏心必须平衡、针齿加工要准 |
+| 皮带（belt，例如 GT2、2 mm 齿距：20 齿带轮带 60 齿带轮约 3:1） | 几乎没有回差、安静、能把电机放到远离关节的地方 | 皮带会拉伸（关节有弹性）、需要张紧、单级减速比受带轮尺寸限制 |
+| 直驱（direct drive，电机直接装在关节上，不减速） | 完全没有回差、可完美反向拖动、关节能感知外力 | 要得到同样的扭矩，电机必须又大又重又贵 |
+
+直齿轮级是你能打印出来的最简单结构，也最容易推算。它同时是最吵、最松的一种，因为每个啮合点都有自己的回差，几对直齿轮串起来，所有回差都会累加到输出端。行星减速能把高减速比塞进很小的直径里，代价是啮合点更多、行星轮容易磨损；打印出来的行星轮通常是最先出现间隙的零件。摆线减速是刚性最好、回差最小的选择，但也是最难做对的一种，偏心轴和针齿都必须准确。
+
+皮带处在另一条路线上。GT2 皮带齿距 2 mm，20 齿轮带 60 齿轮，得到 3:1。皮带几乎没有回差，运转安静，还能让电机远离关节——当关节很小、电机却不小时，这一点非常宝贵。代价是拉伸：皮带本身是一根弹簧，所以关节会有一些柔性，而且需要张紧。单级减速比也受限于你能塞下多大的带轮，所以光靠皮带，很少能做到舵机齿轮箱那种几百比一。
+
+直驱是最干净的答案，也是最贵的。电机直接装在关节上，完全不减速，就没有回差、可以完美反向拖动，关节还能感知作用在它上面的力。问题在扭矩密度：要得到和“小电机 + 减速器”相同的扭矩，直驱电机必须又大又重又贵。对小型教学机械臂来说，肩、肘这类关节通常用不起直驱，只有在负载很小的腕部才可能用。
+
+### 反向拖动
+
+反向拖动（backdriving）指的是你用手去推减速器的输出端，输入端跟着转。输出端越容易被你推动，机械臂就越安全、越好示教：你可以把它拨开，也可以用手引导它走一段轨迹，让控制器记录下来。经过 n:1 的齿轮箱，你会感受到电机贡献的两样东西，而且都被减速比放大：电机自身的摩擦被乘以 n，电机转子的惯性（inertia）被乘以 n²，因为转子比输出端快 n 倍。高减速比换来扭矩，代价是反向拖动性变差；而惯性惩罚是平方关系，所以它比摩擦惩罚增长得更快。
+
+这就是为什么 SO-101 的主臂（leader，第 5 课里你用手去带动的那条）用的 STS3215 舵机减速比，比从臂（follower）低。从臂每个关节都用 1/345；主臂则在好几个关节上用 1/191 和 1/147，只在肩部举升上用 1/345——这个关节承担了手臂大部分自重，主臂要靠它把自己撑住。程序最后一部分正是拿 1/147 做基准打印这个对比：345:1 相对 147:1，摩擦 ×345 / 147 = ×2.35，惯性 ×2.35² = ×5.51。191:1 那一行则是中间值，摩擦 ×1.30、惯性 ×1.69。
+
+<Quiz id="q4" question="同一台电机，把 100:1 的减速器换成 300:1，你用手推动输出端时感受到的转子惯性变成原来的几倍？" answer={9} explanation="感受到的转子惯性按减速比的平方放大。减速比变化是 300 / 100 = 3，所以惯性变成 3² = 9 倍。相比之下，摩擦只放大 3 倍。" />
+
+## 回差
+
+回差（backlash）就是啮合齿之间的自由间隙。把输入端来回小幅度地转，输出端可以完全不动：齿必须先跨过这段空隙，才能碰到另一侧的齿面。传动链上每一个啮合点都会贡献自己的一份，而真正重要的是在输出端量到的总和，因为那才是机械臂实际感受到的。关节上的一个小角度，到末端就是一段大距离，关系很简单：
+
+```text
+弧长 = 臂长 × 角度（弧度）
+```
+
+一个算例就足以说明问题有多大。1° 等于 π / 180 = 0.01745 弧度，再乘上 0.30 m 的手臂：
+
+```text
+1° = π / 180 = 0.01745 rad
+弧长 = 0.30 m × 0.01745 = 0.00524 m = 5.2 mm
+```
+
+程序最后几行给出的正是这个规律：0.5° → 2.6 mm，1° → 5.2 mm，2° → 10.5 mm。用角度听起来很小的回差，到了工具末端就是毫米，而毫米恰恰决定了夹爪能不能夹住零件、笔尖能不能落在线上。
+
+根据编码器（encoder）装在哪里，回差会变成两种不同的错误。如果编码器装在电机上、在齿轮之前（大多数业余舵机就是如此），控制器知道的是电机角度，于是它确信机械臂已经到位，而机械臂实际上可能挂在间隙的另一侧。控制器看不到任何误差，也就不会去修正，手臂最终停在哪个角度取决于负载。如果编码器装在机械臂上、在齿轮之后，控制器能看到误差，也想把它修掉，但它必须先跨过这段死区（dead zone）才能施加力。如果没有负载把齿压在一起，它就会冲过头、反向、再跨一次间隙，来来回回不停搜索，形成一个小幅极限环（limit cycle）。软件无法彻底解决这个问题，因为在间隙内部，电机对机械臂根本没有抓握力：任何控制律都没法去推一个还没和自己连上的负载。
+
+<CodeSource path="tools/sim/models/backlash_sim.py" />
+
+```python
+"""backlash_sim.py: what gear backlash does to a position loop, and why gravity hides it.
+
+Toy model of one joint: motor -> gearbox -> arm. The gearbox has a dead zone (backlash)
+of BACKLASH degrees at the output: inside it the motor turns without moving the arm.
+A PID loop at 200 Hz moves the arm to a target. We read either the motor's encoder
+(angle seen before the gears) or an encoder on the arm itself (after the gears).
+"""
+import math
+
+DT = 0.005               # 200 Hz control loop
+JM, BM = 0.002, 0.03     # motor side (referred to the output): inertia, friction
+JA, BA = 0.004, 0.02     # arm side: inertia, friction
+STIFF, DAMP = 40.0, 0.2  # gear teeth once in contact: N*m/rad, N*m*s/rad
+GRAV = 0.4               # N*m of gravity with the arm horizontal (0 deg)
+MAX_TORQUE = 1.0
+STICTION = 0.03         # N*m of dry friction in the motor and first gear stage
+
+
+def run(backlash_deg, sensor, target, preload=0.0, kp=0.1, ki=0.2, kd=0.004, seconds=4.0):
+    """preload: N*m from a spring that always pulls the arm the same way."""
+    half = math.radians(backlash_deg) / 2
+    qm = wm = qa = wa = 0.0
+    integral, prev, t = 0.0, None, 0.0
+    tail = []
+    while t < seconds:
+        meas = math.degrees(qm if sensor == "motor" else qa)
+        prev = meas if prev is None else prev
+        error = target - meas
+        unclipped = kp * error + ki * integral - kd * (meas - prev) / DT
+        prev = meas
+        torque = max(-MAX_TORQUE, min(MAX_TORQUE, unclipped))
+        if torque == unclipped:
+            integral += error * DT
+        for _ in range(10):                                  # physics at 0.5 ms
+            gap = qm - qa
+            if abs(gap) > half:                              # teeth touching
+                push = STIFF * (gap - math.copysign(half, gap)) + DAMP * (wm - wa)
+            else:
+                push = 0.0
+            wm += (torque - BM * wm - STICTION * math.tanh(wm / 0.02) - push) / JM * 0.0005
+            wa += (push - BA * wa - GRAV * math.cos(qa) - preload) / JA * 0.0005
+            qm += wm * 0.0005
+            qa += wa * 0.0005
+        t += DT
+        if t > seconds - 1.0:
+            tail.append(math.degrees(qa))
+    swing = max(tail) - min(tail)
+    return f"arm at {math.degrees(qa):6.2f} deg (target {target}), swinging {swing:4.2f} deg peak to peak in the last second"
+
+
+if __name__ == "__main__":
+    for target in (20, 90):
+        where = "gravity loads the teeth" if target == 20 else "arm straight up, no gravity load"
+        print(f"target {target} deg ({where}):")
+        print("  no backlash, arm encoder:       ", run(0.0, "arm", target))
+        print("  2 deg backlash, motor encoder:  ", run(2.0, "motor", target))
+        print("  2 deg backlash, arm encoder:    ", run(2.0, "arm", target))
+    print("  ...same, plus a spring preload: ", run(2.0, "arm", 90, preload=0.1))
+```
+
+<SimOutput source="model">
+
+```text
+$ python3 tools/sim/models/backlash_sim.py
+target 20 deg (gravity loads the teeth):
+  no backlash, arm encoder:        arm at  20.00 deg (target 20), swinging 0.01 deg peak to peak in the last second
+  2 deg backlash, motor encoder:   arm at  18.45 deg (target 20), swinging 0.01 deg peak to peak in the last second
+  2 deg backlash, arm encoder:     arm at  20.00 deg (target 20), swinging 0.01 deg peak to peak in the last second
+target 90 deg (arm straight up, no gravity load):
+  no backlash, arm encoder:        arm at  90.00 deg (target 90), swinging 0.01 deg peak to peak in the last second
+  2 deg backlash, motor encoder:   arm at  91.01 deg (target 90), swinging 0.01 deg peak to peak in the last second
+  2 deg backlash, arm encoder:     arm at  89.82 deg (target 90), swinging 1.16 deg peak to peak in the last second
+  ...same, plus a spring preload:  arm at  90.00 deg (target 90), swinging 0.01 deg peak to peak in the last second
+```
+
+</SimOutput>
+
+逐行看这份输出。目标 20° 时，重力把齿压向一侧，关节是受载的。用电机编码器时，手臂塌到 18.45°，而不是 20.00°。这 1.55° 的误差由两部分组成。2° 间隙的一半是 1°；齿本身在载荷下还会弯，重力扭矩是 0.4 × cos 20° = 0.376 N·m，除以 40 N·m/rad 的接触刚度，得到 0.0094 rad，大约是 0.54°。两部分加起来是 1.54°，正好是 20 与 18.45 之差。换用机械臂编码器，控制环把它修正到 20.00° 并保持不动，因为重力一直让齿保持接触，控制环可以相信它量到的角度。这是好的情况：一个方向恒定的负载，把回差藏了起来。
+
+目标 90° 时，手臂竖直向上，重力不再给齿加载。用电机编码器，手臂就停在间隙里的某个位置，这里是 91.01°，但理论上它可以在大约 ±1° 的范围内任意取值，取决于摩擦和之前的运动历史。用机械臂编码器时，控制环开始来回搜索：看到角度误差就修正，修正又要跨过死区，一跨过去就失去接触，于是永远以 1.16° 的峰峰值来回摆动。给手臂加一根始终向同一方向拉的弹簧，预载 0.1 N·m，齿重新保持接触：90.00°，静止。这正是真实设计用的办法，形式有几种：预载弹簧、重力本身、把一个齿轮做成两半互相推开以跨过间隙，或者丝杠上的消隙螺母（anti-backlash nut）。
+
+上面这些数字来自一个玩具模型，它的刚度、摩擦和控制增益都是本站编者选的。它们展示的是规律，而不是测量值：空载且编码器在输出端时关节会来回搜索，受载时不会，加上预载又能恢复接触。不要把小数点后的数字当成真实齿轮箱的性质。自己做一个，然后去量它。
+
+<Quiz id="q5" question="某关节回差 1.5°，手臂长 0.40 m。电机保持不动时，末端最多能移动多少 mm？" answer={10.5} unit="mm" tolerance={0.2} explanation="先换成弧度：1.5° = 1.5 × π / 180 = 0.02618 rad。再算弧长：arc = 手臂长度 × 角度 = 0.40 × 0.02618 = 0.01047 m = 10.5 mm。齿两侧都有间隙，但自由行程的完整角度就是全部回差。" />
+
+<Quiz id="q6" question="编码器装在机械臂上，手臂竖直向上，为什么关节会一直来回搜索？" options={["编码器读取太慢", "每次修正都必须跨过死区，于是电机反复失去又重获对机械臂的抓握", "重力把手臂拉回去了", "积分项被关掉了"]} answer={1} explanation="编码器在机械臂上时，控制环能看到误差，但要修正就必须先跨过回差间隙。它冲过头、反向、再跨一次，如此反复，形成极限环。这里重力并没有把手臂拉下去（手臂竖直向上），编码器也不慢，积分项也在工作；它帮不上忙，是因为在间隙内部电机对机械臂没有抓握力。" />
+
+## 轴承与预紧
+
+轴承（bearing）让轴在承载的同时还能转动。机器人关节会给轴承施加三种载荷。径向载荷（radial load）从侧面压向轴；轴向载荷（axial load）沿着轴的方向推；倾覆力矩（tipping moment）试图把轴扳歪，通常是它把只有一个轴承的关节搞坏。深沟球轴承（deep-groove ball bearing）能承受径向载荷和一部分轴向载荷，有两种常见尺寸便宜又容易买到：608，8 × 22 × 7 mm，就是滑板轴承；625，5 × 16 × 5 mm。
+
+只用一个轴承，轴可以绕着轴承摆动，轴的另一端就会晃。两个轴承拉开距离安装，就把倾覆力矩变成两个方向相反的径向力，一边一个；两个轴承离得越远，这两个力越小，轴晃得也越少。设计关节时，在几何允许的范围内让两个轴承沿轴尽量分开，而不是把它们紧挨着堆在一起。
+
+预紧（preload）是轴承问题的另一半。用螺母、波簧（wave washer）或打印弹簧沿轴向把轴承轻轻压紧，就能消掉轴承内部的游隙，这和前面模型里用弹簧消除回差是同一个思路。预紧让轴更刚，也消掉了会在末端表现为晃动的微小自由行程。预紧过头同样是问题：轴承会发涩、发热、很快磨损，所以预紧是受到控制的小小一挤，不是死压。角接触轴承（angular-contact bearing）和锥轴承（tapered bearing）本来就是为预紧设计的；普通深沟球轴承可以承受一点轻预紧，但不是为重轴向载荷准备的。
+
+打印轴承座要遵守和第 2 课配合间隙相同的规则。用你从公差测试件上量到的压配间隙（press-fit clearance），并记住轴承座通常是每侧一个很小的负数或接近零的值，不是让轴自由转动的滑配间隙。入口处加一个倒角，让轴承能正着进去；千万不要隔着滚珠把轴承砸进去，压的时候要压在你要配合的那个圈上：往轴承座里装就压外圈，往轴上装就压内圈。
+
+### 为什么舵机齿轮最先坏
+
+在便宜的业余舵机里，最后一级齿轮承担了全部输出扭矩，而齿是塑料的，又小。那本来就是齿轮箱里最吃力的地方，而一次碰撞、一次掉臂、或者关节顶在硬限位（hard stop）上堵转，都会把冲击集中到最后一两级齿上。突然停住，整份载荷压在一两颗齿上；同时电机发热会让塑料变软，于是在载荷最大的时刻齿反而最弱。所以机械臂上最先坏的通常就是齿轮组，而不是电机或电路。
+
+有三个办法能帮忙。金属齿轮舵机，例如 EEZYbotARM 用的 MG996R，把塑料齿换成金属齿，抗折腾得多。带有更聪明控制器、能限制电流的舵机，可以减小堵转时施加到齿上的载荷。把手臂做短、做轻，也会降低每个关节要承担的扭矩，从而减轻最后一级的负担。如果你在为某个作品选舵机，这就是为什么真正重要的规格不只是扭矩数字，还包括齿轮材料。
+
+<Quiz id="q7" question="你需要一个在侧向载荷下晃动尽可能小的关节，用哪种布局？" options={["中间放一个很宽的轴承", "两个轴承靠得很近", "两个轴承隔得很远，并轻微预紧", "不用轴承，用一个很紧的打印孔"]} answer={2} explanation="两个轴承隔得远，会把倾覆力矩变成更小的反向径向力，从而减小晃动；轻微预紧还能消掉内部游隙。单个轴承允许轴倾斜，两个靠得近的轴承仍允许较大倾斜，而不用轴承、只靠打印孔则没有滚动接触，还会很快磨损。" />
+
+## 练习：打印一个减速器
+
+本课的练习任务是：为一只 NEMA 17 步进电机或一只普通电机，设计并打印一个简单的行星或摆线减速器。第一个大概会做得很差。这不是悲观，而是打印齿轮箱的常态，因为每颗齿都是一个小零件，而小零件会带着你在第 2 课量到的那些误差出来。把它打出来，固定住输入端、来回晃输出端，测出回差，然后重新设计去减小它。两种结构的参考几何在 Instructables 和 Hackaday 上都能找到；上面链接的 OpenCycloid 就是一个完整的打印摆线执行器，设计自己的之前值得研究。动笔之前先用 gear_calc.py 选出能装上的齿数，免得花一晚上画一个需要 16.5 颗齿的行星轮。
+
+### 测量回差
+
+测量回差的办法是：固定输入轴，让输出端在自由行程内来回晃。如果输入是步进电机，就通电让它保持位置；如果是直流电机，就夹住或锁住轴。在输出端固定一根长指针，可以用打印的手臂，也可以把一把尺子贴上去，让针尖在纸上扫过。轻轻地左右晃输出端直到它停下，标出针尖的两个端点。角度由针尖行程和指针长度算出：
+
+```text
+指针长 150 mm，两个记号相距 4.0 mm
+角度 = 4.0 / 150 = 0.0267 rad
+换成度 = 0.0267 × 57.3 = 1.53°
+```
+
+把这个数写进打印日志，和当时用的间隙、材料放在一起，因为它就是判断你重新设计有没有起作用的那次测量。指针越长，结果越准：同一台减速器用 300 mm 的指针，针尖会走动两倍的距离，算术再把多出来的距离除回去。
+
+### 让它更紧
+
+重新设计就是一次只改一个变量的循环，每个改动都要有理由。下面这些可以小步尝试，并记录每次改动的效果：
+
+- 把中心距（centre distance）间隙或齿侧每侧间隙按约 0.05 mm 的小步减小，每次打印只改一个数。理由：让齿轮靠得更近，能消掉齿与齿之间的自由行程，但太紧会增加摩擦和发热，甚至根本转不动。
+- 增加行星轮数量，或者改用摆线盘，让更多接触点分担载荷和游隙。理由：载荷分散到多个接触点，每个接触点就可以做得更紧而不会卡死。
+- 用人字齿（herringbone），让齿轮不会沿轴滑开。理由：两组相反的螺旋角互相抵消轴向力，使齿保持对齐，减小受载时的游隙。
+- 用弹簧或轴承螺母给输出端加预紧。理由：恒定方向的力把齿始终压在同一侧齿面上，和前面回差模型里的预紧完全一样。
+- 用第 2 课讲的材料和摆放方向打印齿轮，PETG 或尼龙，让齿躺在层平面内。理由：层间结合强度和耐磨性决定了齿能紧多久，层间分层的齿很快就松了。
+- 如果可能，把编码器装在输出端。第 4 课在轮子上装编码器也是同样的理由：在齿轮之后测量，量到的是真实角度而不是电机角度，控制器才能修正回差造成的误差。
+
+本站编者没有打印过这种减速器，也没有测过它的回差。你的第一次测量就是结果，记得写进日志。
+
+<Callout type="tip" title="先跑合再测量">
+测量回差之前，让减速器在轻载下跑几分钟。新的打印齿会互相磨合、表面被抛光，回差会和你刚下打印机时量到的数字不同。跑合之后再测，记下磨合后的数字。
+</Callout>
+
+第 4 课会把这一切用起来。PID 与串级控制（cascade control）决定了一个关节能不能跟上位置或轨迹，而你要在那里整定的控制环，必须和你刚刚测出的回差共处。减速器做得越干净，整定就越容易：减速比、回差和扭矩密度，是控制器站上去的那几块机械地基。
+
