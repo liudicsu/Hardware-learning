@@ -1,0 +1,7 @@
+# Odometry calibration for m4bot, found with spin_check.py. Loaded on top of Lesson 5's
+# controllers.yaml through control.launch.py's drive_params argument.
+diff_drive_controller:
+  ros__parameters:
+    # odometry and commands use wheel_separation x multiplier = 0.28 x 0.896 = 0.251 m:
+    # the separation the simulated wheels really behave as if they had
+    wheel_separation_multiplier: 0.896
