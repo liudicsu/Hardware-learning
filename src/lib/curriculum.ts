@@ -424,6 +424,22 @@ const month5Lessons: Lesson[] = [
       { id: "verify", text: { zh: "在时域里验证这个预测：取略低和略高于临界值的 kp，记录振荡是衰减还是增长，以及振荡频率", en: "Check the prediction in the time domain: one kp just below and one just above the limit, noting whether the ringing decays or grows and at what frequency" } },
     ],
   },
+  {
+    slug: "state-space-lqr",
+    title: { zh: "状态空间、LQR 与 MPC", en: "State space, LQR and MPC" },
+    summary: {
+      zh: "把关节和倒立摆小车写成状态空间形式，用离散 Riccati 方程算出 LQR 增益，调 Q 和 R 看取舍，再放到完整的非线性模型上检验；最后用一个小 MPC 在力矩限制下移动关节，和输出被削顶的 LQR 比一比。",
+      en: "Write the joint and a cart-pole in state space, get LQR gains from the discrete Riccati equation, trade Q against R and test the result on the full nonlinear model; then move the joint under a torque limit with a small MPC and compare it with LQR whose output is clipped.",
+    },
+    minutes: 240,
+    resources: ["underactuated-lqr", "mathworks-state-space"],
+    tasks: [
+      { id: "state-space", text: { zh: "自己推导倒立摆小车线性化后的 A 和 B，与 lqr_sim.py 打印的数值逐项核对", en: "Derive the cart-pole's linearised A and B yourself and check every entry against what lqr_sim.py prints" } },
+      { id: "lqr", text: { zh: "运行 lqr_sim.py，至少再试两组自己的 Q 和 R，记录增益、峰值力和 4 s 后小车的位置", en: "Run lqr_sim.py and try at least two Q and R choices of your own; log the gains, the peak force and where the cart is after 4 s" } },
+      { id: "nonlinear", text: { zh: "找出你的增益在非线性模型上还能救回的最大起始角，并解释它为什么比线性模型预测的小", en: "Find the largest start angle your gains still recover from on the nonlinear model, and explain why the linear model cannot tell you this" } },
+      { id: "mpc", text: { zh: "改变 MPC 的预测步数（例如 10、20、80），比较超调、进入 1° 的时间和每步的计算量", en: "Change the MPC horizon (e.g. 10, 20, 80 steps) and compare overshoot, time to within 1° and the computation per step" } },
+    ],
+  },
 ];
 
 export const months: Month[] = [

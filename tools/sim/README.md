@@ -6,7 +6,7 @@ Every output in the lessons that is labelled **Simulated output / 仿真输出**
 | Path / 路径 | What / 内容 |
 | --- | --- |
 | `avrrun/avrrun.c` | A small [simavr](https://github.com/buserror/simavr) harness: runs an ATmega328P (Uno) ELF, prints its serial output and injects pin or ADC events. Optional simulated parts: a TB6612FNG + gearmotor + quadrature encoder (`MOTOR`) and an MPU-6050 (`MPU`). / 基于 simavr 的小工具：运行 Uno 固件、打印串口输出、注入引脚/ADC 事件；可选模拟电机与编码器、MPU-6050 |
-| `models/*.py` | Python toy models quoted in the lessons. Month 2: debounce, one revolution, complementary filter, line follower, balancer. Month 3: backlash, PID on one arm joint, balancer cascade. Month 5: the arm joint modelled and read in the frequency domain. Standard library only. / 课程中引用的 Python 玩具模型（第 2 个月：消抖、一圈、互补滤波、循线、平衡车；第 3 个月：回差、单关节 PID、平衡车串级；第 5 个月：关节建模与频域分析），只用标准库 |
+| `models/*.py` | Python toy models quoted in the lessons. Month 2: debounce, one revolution, complementary filter, line follower, balancer. Month 3: backlash, PID on one arm joint, balancer cascade. Month 5: the arm joint modelled and read in the frequency domain, state space with LQR and MPC. Standard library only. / 课程中引用的 Python 玩具模型（第 2 个月：消抖、一圈、互补滤波、循线、平衡车；第 3 个月：回差、单关节 PID、平衡车串级；第 5 个月：关节建模与频域分析、状态空间与 LQR、MPC），只用标准库 |
 | `expected/*.txt` | The exact outputs quoted in the lessons. / 课程中引用的原样输出 |
 | `reproduce.sh` | Builds the harness, compiles the sketches in `examples/month-2/` and `examples/month-3/`, runs everything and diffs against `expected/`. / 一键编译、运行并与 `expected/` 比对 |
 
@@ -31,7 +31,7 @@ From a clean checkout / 在全新克隆的仓库中:
 ```bash
 git clone https://github.com/liudicsu/Hardware-learning.git
 cd Hardware-learning
-tools/sim/reproduce.sh                  # about 1 min; prints "same <file>" for each of the 20 outputs
+tools/sim/reproduce.sh                  # about 1 min; prints "same <file>" for each of the 21 outputs
 tools/sim/reproduce.sh --compile-only-too   # also compiles the ESP32 and line-follower sketches
 ```
 

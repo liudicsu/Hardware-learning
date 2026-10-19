@@ -1,0 +1,298 @@
+上一课用传递函数描述机械臂关节：一个输入、一个输出。状态空间（state space）把每个内部状态都放进向量 x，写成 `x' = A x + B u` 这样的矩阵方程。平衡车恰好需要这样：位置、速度、角度、角速度必须同时考虑。这里的对象先从[第 1 课](/zh/month/month-5/control-modelling)的关节开始，再换成第 2 个月的平衡车简化成的小车倒立摆（cart-pole）。
+
+## 两个对象，一种形式
+
+对关节取 x = [q, w]，q 是角度，w = q'，力矩是唯一的输入 u。代入 J = 0.004 kg·m²、B = 0.05 N·m/(rad/s)，方程 J q'' + B q' = u 就变成两行状态方程。第一行是 q' = w。第二行是 w' = −(B/J) w + (1/J) u = −12.5 w + 250 u，所以 A = [[0, 1], [0, −12.5]]，B = [[0], [250]]。一个方程现在同时带着角度和速度。
+
+<Formula label="状态空间：把所有状态装进一个向量">x' = A x + B u</Formula>
+
+小车倒立摆是第 2 个月平衡车（balancer）的极简版：M = 0.5 kg 的小车，m = 0.2 kg 的质点挂在 L = 0.3 m 处，输入是水平力 F。取 x = [position, speed, angle, rate]，在直立位置附近线性化，模型打印：
+
+<SimOutput source="model">
+
+```text
+Cart-pole, x = [position, speed, angle, rate], 100 Hz
+  A (continuous) rows: [0.00, 1.00, 0.00, 0.00]  [0.00, 0.00, -3.92, 0.00]  [0.00, 0.00, 0.00, 1.00]  [0.00, 0.00, 45.78, 0.00]
+  B (continuous):      [0.00, 2.00, 0.00, -6.67]
+```
+
+</SimOutput>
+
+按行读成方程。第二行是速度：p'' = −(m g / M) θ + (1/M) F。−3.92 来自 −m g / M = −0.2 × 9.81 / 0.5；正的角度会让小车向后加速。2.00 是 1/M = 1/0.5，表示每牛顿推力带来多少加速度。第四行是角度：θ'' = ((M + m) g / (M L)) θ − (1 / (M L)) F。45.78 是 (0.7 × 9.81) / (0.5 × 0.3)，是让直立位置失稳的重力项。−6.67 是 −1 / (0.5 × 0.3)：正的力会把杆往负方向推。上面的 A、B 是连续模型；控制器以 100 Hz 运行，所以模型用 0.01 s 的零阶保持（zero-order hold）。
+
+<Quiz id="q1" question="M = 0.5 kg 时，1/M 是多少？" answer={2.00} unit="1/kg" explanation="1 / 0.5 = 2.00。它是 B 的第二项：1 N 的力给小车 2 m/s² 的加速度。" />
+
+<Quiz id="q2" question="M = 0.5 kg、m = 0.2 kg、L = 0.3 m 时，(M + m) g / (M L) 是多少？" answer={45.78} unit="1/s²" explanation="(0.5 + 0.2) × 9.81 / (0.5 × 0.3) = 6.867 / 0.15 = 45.78 1/s²。它是 A 的第四行第三列。" />
+
+<CodeSource path="tools/sim/models/lqr_sim.py" />
+
+```python
+"""lqr_sim.py: state space, LQR on a cart-pole, and a small MPC on the Month 3 arm joint.
+
+Part 1 writes a cart-pole (the Month 2 balancer reduced to its essentials: a cart that is
+pushed by a force and a pole balanced on it) in state space, x = [position, speed, angle,
+angular rate], linearised about upright, discretised at 100 Hz. LQR gains come from
+iterating the discrete Riccati equation. The gains are then tested on the full nonlinear
+cart-pole, with the force limited to 10 N.
+Part 2 moves the arm joint from lesson 1 (J = 0.004, B = 0.05, gravity cancelled by
+feedforward) through 1 rad with a torque limit, comparing LQR whose output is simply
+clipped with an MPC that knows the limit. Standard library only.
+"""
+import math
+
+# ---------------------------------------------------------------- small matrix helpers
+def mul(a, b):
+    return [[sum(a[i][k] * b[k][j] for k in range(len(b))) for j in range(len(b[0]))] for i in range(len(a))]
+
+
+def add(a, b, s=1.0):
+    return [[a[i][j] + s * b[i][j] for j in range(len(a[0]))] for i in range(len(a))]
+
+
+def tr(a):
+    return [list(r) for r in zip(*a)]
+
+
+def eye(n, v=1.0):
+    return [[v if i == j else 0.0 for j in range(n)] for i in range(n)]
+
+
+def discretise(a, b, dt):
+    """Zero-order-hold discretisation by a Taylor series of the matrix exponential."""
+    n = len(a)
+    phi, gam, term = eye(n), [[dt * x[0]] for x in b], eye(n)
+    for k in range(1, 25):
+        term = [[v * dt / k for v in r] for r in mul(term, a)]           # (A dt)^k / k!
+        phi = add(phi, term)
+        gam = add(gam, [[v * dt / (k + 1)] for v in [r[0] for r in mul(term, b)]])
+    return phi, gam
+
+
+def lqr(phi, gam, q, r, iters=5000):
+    """Iterate P = Q + A'PA - A'PB (R + B'PB)^-1 B'PA; return K for u = -K x."""
+    p = q
+    for _ in range(iters):
+        bp = mul(tr(gam), p)
+        s = r + mul(bp, gam)[0][0]
+        k = [[v / s for v in mul(bp, phi)[0]]]
+        p = add(q, mul(tr(phi), mul(p, add(phi, mul(gam, k), -1.0))))
+    return k[0]
+
+
+# ---------------------------------------------------------------- part 1: cart-pole
+M, m, L, G, DT, FMAX = 0.5, 0.2, 0.3, 9.81, 0.01, 10.0
+A_CP = [[0, 1, 0, 0], [0, 0, -m * G / M, 0], [0, 0, 0, 1], [0, 0, (M + m) * G / (M * L), 0]]
+B_CP = [[0], [1 / M], [0], [-1 / (M * L)]]
+
+
+def cartpole(x, f, dt=0.001):
+    """Full nonlinear cart-pole (point mass m at distance L), angle from upright."""
+    p, v, th, w = x
+    s, c = math.sin(th), math.cos(th)
+    acc = (f + m * L * w * w * s - m * G * s * c) / (M + m - m * c * c)
+    alpha = (G * s - acc * c) / L
+    return [p + v * dt, v + acc * dt, th + w * dt, w + alpha * dt]
+
+
+def balance(k, deg, seconds=4.0, show=False):
+    x = [0.0, 0.0, math.radians(deg), 0.0]
+    fpeak = 0.0
+    for i in range(int(seconds / DT)):
+        f = max(-FMAX, min(FMAX, -sum(ki * xi for ki, xi in zip(k, x))))
+        fpeak = max(fpeak, abs(f))
+        if show and i % 50 == 0:
+            print(f"  t = {i * DT:3.1f} s  x = {x[0]:6.3f} m  angle = {math.degrees(x[2]):6.2f} deg  force = {f:6.2f} N")
+        for _ in range(10):
+            x = cartpole(x, f)
+        if abs(x[2]) > math.pi / 2:
+            return None, fpeak
+    return x, fpeak
+
+
+def part1():
+    phi, gam = discretise(A_CP, B_CP, DT)
+    print("Cart-pole, x = [position, speed, angle, rate], 100 Hz")
+    print("  A (continuous) rows:", "  ".join("[" + ", ".join(f"{v:.2f}" for v in r) + "]" for r in A_CP))
+    print("  B (continuous):     ", "[" + ", ".join(f"{r[0]:.2f}" for r in B_CP) + "]")
+    for name, qd, r in (("Q = diag(1, 1, 10, 1), R = 1   ", (1, 1, 10, 1), 1.0),
+                        ("Q = diag(100, 1, 10, 1), R = 1 ", (100, 1, 10, 1), 1.0),
+                        ("Q = diag(1, 1, 10, 1), R = 0.01", (1, 1, 10, 1), 0.01)):
+        q = [[qd[i] if i == j else 0.0 for j in range(4)] for i in range(4)]
+        k = lqr(phi, gam, q, r)
+        print(f"{name}  K = [" + ", ".join(f"{v:7.2f}" for v in k) + "]")
+        if name.startswith("Q = diag(1, 1, 10, 1), R = 1 "):
+            k_first = k
+        x, fpeak = balance(k, 10)
+        print(f"    from 10 deg: after 4 s x = {x[0]:6.3f} m, angle = {math.degrees(x[2]):5.2f} deg, peak force {fpeak:5.2f} N")
+    print("Nonlinear run with the first K, starting 10 deg off upright:")
+    balance(k_first, 10, seconds=3.0, show=True)
+    biggest = max(d for d in range(1, 90) if balance(k_first, d, seconds=6.0)[0] is not None
+                  and abs(balance(k_first, d, seconds=6.0)[0][2]) < 0.01)
+    print(f"  largest start angle it still recovers from (force limit {FMAX:.0f} N): {biggest} deg")
+
+
+# ---------------------------------------------------------------- part 2: MPC on the joint
+J, BV, T, UMAX, N = 0.004, 0.05, 0.005, 0.6, 40
+PHI_J, GAM_J = discretise([[0, 1], [0, -BV / J]], [[0], [1 / J]], T)
+
+
+def jstep(x, u):
+    return [PHI_J[0][0] * x[0] + PHI_J[0][1] * x[1] + GAM_J[0][0] * u,
+            PHI_J[1][0] * x[0] + PHI_J[1][1] * x[1] + GAM_J[1][0] * u]
+
+
+def mpc(x, target, kq, warm):
+    """Minimise sum over N steps of kq*(q-target)^2 + 0.01*w^2 + u^2, |u| <= UMAX,
+    by projected gradient descent on the N future torques; return them all."""
+    u = warm[1:] + warm[-1:]
+    lr = 2e-4
+    for _ in range(150):
+        xs = [x]
+        for uk in u:
+            xs.append(jstep(xs[-1], uk))
+        lam = [0.0, 0.0]                  # backward pass: gradient of the cost wrt each u
+        grad = [0.0] * N
+        for k in range(N - 1, -1, -1):
+            q, w = xs[k + 1]
+            lam = [2 * kq * (q - target) + PHI_J[0][0] * lam[0] + PHI_J[1][0] * lam[1],
+                   2 * 0.01 * w + PHI_J[0][1] * lam[0] + PHI_J[1][1] * lam[1]]
+            grad[k] = 2 * u[k] + GAM_J[0][0] * lam[0] + GAM_J[1][0] * lam[1]
+        u = [max(-UMAX, min(UMAX, uk - lr * g)) for uk, g in zip(u, grad)]
+    return u
+
+
+def move(kind, seconds=1.0):
+    k = lqr(PHI_J, GAM_J, [[400.0, 0], [0, 0.01]], 1.0)
+    x, target, peak, settle = [0.0, 0.0], 1.0, 0.0, None
+    plan = [0.0] * N
+    sat = 0
+    for i in range(int(seconds / T)):
+        if kind == "lqr":
+            u = max(-UMAX, min(UMAX, -(k[0] * (x[0] - target) + k[1] * x[1])))
+        else:
+            plan = mpc(x, target, 400.0, plan)
+            u = plan[0]
+        sat += abs(u) >= UMAX - 1e-9
+        x = jstep(x, u)
+        peak = max(peak, x[0])
+        if abs(x[0] - target) > math.radians(1):
+            settle = None
+        elif settle is None:
+            settle = (i + 1) * T
+    return k, peak, settle, sat * T
+
+
+def part2():
+    print(f"Arm joint, 1 rad move, |torque| <= {UMAX} N*m (on top of gravity feedforward), 200 Hz")
+    for kind, label in (("lqr", "LQR, output clipped"), ("mpc", f"MPC, horizon {N} steps")):
+        k, peak, settle, sat = move(kind)
+        if kind == "lqr":
+            print(f"  LQR gains: K = [{k[0]:.2f}, {k[1]:.3f}]  (kp in N*m/rad, kd in N*m/(rad/s))")
+        s = f"{settle:.3f} s" if settle else "never"
+        print(f"  {label:22s} overshoot {math.degrees(peak - 1.0):5.2f} deg, within 1 deg from {s}, at the limit for {sat:.3f} s")
+
+
+if __name__ == "__main__":
+    part1()
+    print()
+    part2()
+```
+
+```bash
+python3 tools/sim/models/lqr_sim.py
+```
+
+## 一行增益，四个状态
+
+线性二次调节器（LQR，linear quadratic regulator）要的是让整段运行代价最小的输入序列：
+
+<Formula label="LQR 代价：状态误差加控制用力">J = Σ (xᵀ Q x + uᵀ R u)</Formula>
+
+Q 是 4 × 4 矩阵，惩罚状态误差；R 是正标量，惩罚力。单位要一致：位置以 m² 进入，角度以 rad² 进入，力的平方以 N² 进入。增益来自反复迭代离散 Riccati 方程（这里的 A、B 是零阶保持后的矩阵），直到 P 不再变化：
+
+<Formula label="离散 Riccati 迭代和它给出的增益">P ← Q + Aᵀ P A − Aᵀ P B (R + Bᵀ P B)⁻¹ Bᵀ P A,   K = (R + Bᵀ P B)⁻¹ Bᵀ P A</Formula>
+
+控制律是 u = −K x。K 每个状态一项，所以同一行同时用位置、速度、角度和角速度。第 3 个月的串级（cascade）用了两个先后调好的回路：内环管俯仰角，外环管轮速，并通过移动内环的设定值来起作用。LQR 用一行增益取代两者，让 Q 和 R 决定取舍。
+
+<Quiz id="q3" question="K = [−0.92, −1.75, −18.76, −3.03]，u = −K x，其他状态为零时，0.1 rad 的倾斜会命令多大的力？" answer={1.88} unit="N" explanation="只有角度项起作用：u = −(−18.76 × 0.1) = 1.876 N，约 1.88 N。正的力把小车推到倾斜的杆下面。" />
+
+<Resource id="underactuated-lqr" />
+
+MIT 这一章推导了连续和离散形式的 Riccati 方程；同一本书讲 Acrobot 与小车倒立摆的那一章，正是把 LQR 用在这个对象上。跑完模型再去精读。
+
+## 调 Q 和 R
+
+三组运行展示取舍。都从直立偏 10° 开始，力上限都是 10 N。Q = diag(1, 1, 10, 1)、R = 1 是基线。把位置权重提高到 100，相当于要求小车回到原点：最终位置从 0.028 m 降到 0.000 m，峰值力却从 3.28 N 升到 5.19 N。把 R 降到 0.01 则让所有增益变大，峰值力达到 10.00 N，正好顶到上限。
+
+<SimOutput source="model">
+
+```text
+Q = diag(1, 1, 10, 1), R = 1     K = [  -0.92,   -1.75,  -18.76,   -3.03]
+    from 10 deg: after 4 s x =  0.028 m, angle =  0.18 deg, peak force  3.28 N
+Q = diag(100, 1, 10, 1), R = 1   K = [  -9.01,   -6.54,  -29.74,   -4.91]
+    from 10 deg: after 4 s x =  0.000 m, angle =  0.00 deg, peak force  5.19 N
+Q = diag(1, 1, 10, 1), R = 0.01  K = [  -6.86,  -10.95,  -59.07,  -11.51]
+    from 10 deg: after 4 s x =  0.008 m, angle =  0.06 deg, peak force 10.00 N
+```
+
+</SimOutput>
+
+K 的四个数依次是位置、速度、角度、角速度。基线 K 是 [−0.92, −1.75, −18.76, −3.03]；R = 0.01 时变成 [−6.86, −10.95, −59.07, −11.51]。三组里角度项都最大，因为很小的角度误差会迅速变大。
+
+再看那个看起来不对的符号。位置增益是负的，和角度增益同号。按 u = −K x，正的位置误差（小车在目标右侧）会命令正的力，把它继续往右推。这是故意的：控制器先让杆向左倒，再向左追过去。小车倒立摆在位置上是非最小相位（non-minimum phase）的，直接朝目标推反而会把杆推向错误的一侧。
+
+想用更小的力，就增大 R 或减小状态权重。反过来，增大 Q 里的位置权重会换回更紧的定位，也多花力。
+
+<Quiz id="q4" question="哪种改动会让控制器用更小的力？" options={["增大 R", "增大 Q 里的位置权重", "增大 Q 里的角度权重", "缩短时域"]} answer={0} explanation="R 乘的是 u²，R 越大，力就越“贵”：增益变小，峰值力下降，代价是回得更慢或定位更松。增大 Q 的效果相反。" />
+
+## 走出线性模型
+
+上面的增益来自线性的 A、B。测试运行用的是完整非线性小车倒立摆，以 1 ms 步长积分，力上限仍是 10 N，控制器仍以 100 Hz 运行。从直立偏 10° 开始：
+
+<SimOutput source="model">
+
+```text
+Nonlinear run with the first K, starting 10 deg off upright:
+  t = 0.0 s  x =  0.000 m  angle =  10.00 deg  force =   3.28 N
+  t = 0.5 s  x =  0.177 m  angle =  -2.23 deg  force =  -0.42 N
+  t = 1.0 s  x =  0.248 m  angle =  -2.05 deg  force =  -0.25 N
+  t = 1.5 s  x =  0.227 m  angle =  -0.73 deg  force =  -0.08 N
+  t = 2.0 s  x =  0.175 m  angle =  -0.04 deg  force =   0.00 N
+  t = 2.5 s  x =  0.122 m  angle =   0.23 deg  force =   0.03 N
+  largest start angle it still recovers from (force limit 10 N): 53 deg
+```
+
+</SimOutput>
+
+0.5 s 时小车在 0.177 m，杆已经越过竖直 2.23°。小车 1 s 时在 0.248 m，2.5 s 回到 0.122 m；到 1.5 s 角度已经落在 0.73° 以内。最后一行最重要：按整度数测试，同一组增益最多能从 53° 救回来，再大就不行。线性模型只是直立附近的局部近似，离 0° 越远越不准。真实平衡车还有电机限幅、轮子打滑和传感器延迟。
+
+<Callout type="warn" title="53° 只是仿真结果">电机限幅、轮子打滑和传感器延迟都会改变这个数。上真机时用手接住，别把仿真极限当成保证。</Callout>
+
+## MPC 与滚动时域
+
+第 2 部分让机械臂关节转过 1 rad，力矩上限 0.6 N·m（重力前馈之外），频率 200 Hz，即 T = 5 ms。LQR 用同一套代价，但输出只是被削到上限。模型预测控制（MPC，model predictive control）向前预测 N = 40 步，40 × 5 ms = 0.2 s，在 `|u| ≤ 0.6 N·m` 的约束下优化未来 40 个力矩，只施加第一个，然后重复。这就是滚动时域（receding horizon）。模型用投影梯度下降（projected gradient descent）求解：每个控制周期 150 步，并用上一周期的计划平移一步作为热启动（warm start）。
+
+<SimOutput source="model">
+
+```text
+Arm joint, 1 rad move, |torque| <= 0.6 N*m (on top of gravity feedforward), 200 Hz
+  LQR gains: K = [15.93, 0.323]  (kp in N*m/rad, kd in N*m/(rad/s))
+  LQR, output clipped    overshoot  2.24 deg, within 1 deg from 0.210 s, at the limit for 0.175 s
+  MPC, horizon 40 steps  overshoot  0.86 deg, within 1 deg from 0.160 s, at the limit for 0.165 s
+```
+
+</SimOutput>
+
+LQR 增益是 K = [15.93, 0.323]，比第 1 课的 PD 增益 2.86 N·m/rad 和 0.115 N·m/(rad/s) 大得多，因为 Q = diag(400, 0.01)、R = 1 把 1 rad 的误差看得比 1 N·m 的力矩贵得多。增益这么大，动作的大部分时间都顶在上限上，而这恰恰是普通 LQR 不再“知道自己在做什么”的地方。输出被削平后，LQR 超调 2.24°，0.210 s 起进入 1° 以内；MPC 超调 0.86°，0.160 s 起进入 1° 以内。MPC 在极限上待了 0.165 s，LQR 是 0.175 s。改善是真的，但不算巨大；更大的差别在计算量。
+
+MPC 每步的计算量大得多：每个 5 ms 周期要跑 150 次梯度迭代，每次都要沿 40 步做一遍前向推演（rollout）和一遍反向传递，合计约 12,000 次小的状态更新；LQR 只是两次乘法和一次加法。单片机上的 5 ms 截止时间不会变。MPC 算不完，就只能缩短时域、降低控制频率，或者换更快的芯片。降低频率会增加延迟，而延迟会吃掉相位裕度，第 1 课已经看过这件事。
+
+<Quiz id="q5" question="MPC 每步 5 ms，向前预测 40 步，它看多远？" answer={0.2} unit="s" explanation="40 × 0.005 = 0.2 s。它就在这段时间里优化未来的力矩。" />
+
+## 常见错误
+
+- <strong>Q 和 R 的单位不一致。</strong>把位置从米换成厘米，该状态就乘了 100，同样的 Q 项会多惩罚 10,000 倍。状态保持 SI，单位一改就重新调。
+- <strong>把线性模型用到远离工作点的地方。</strong>45.78 这一项是直立附近的线性化。到了 53°，真实动力学已经不同；在 10° 好用的增益，不能证明那么远也成立。
+- <strong>设计 LQR 时忽略执行器上限。</strong>不削平的 LQR 假设任何力都出得来。R = 0.01 那组峰值达到 10 N 上限；仿真里要包含饱和，或者改用 MPC 设计。
+- <strong>忘了状态的符号约定。</strong>x = [position, speed, angle, rate]，角度从竖直方向量起。把角度符号弄反，控制器就会把杆推倒。调参前先写清正方向。
+- <strong>以为 MPC 总是更好。</strong>MPC 每个周期都要模型和求解器。如果约束没被激活、线性模型又足够准，LQR 用少得多的代码和时间就能做到同样的事。

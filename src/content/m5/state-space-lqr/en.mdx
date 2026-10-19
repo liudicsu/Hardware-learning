@@ -1,0 +1,298 @@
+The last lesson described the arm joint with a transfer function: one input, one output. State space keeps every internal state in a vector x and writes the dynamics as `x' = A x + B u`. That is exactly what a balancer needs, because position, speed, angle and angular rate all matter at once. The plant here starts as the joint from [Lesson 1](/en/month/month-5/control-modelling), then becomes the cart-pole from Month 2.
+
+## Two plants, one form
+
+For the joint, let x = [q, w], where q is the angle and w = q'. The torque is the single input u. With J = 0.004 kg·m² and B = 0.05 N·m per rad/s, the equation J q'' + B q' = u becomes a two-row state equation. The first row is q' = w. The second row is w' = −(B/J) w + (1/J) u = −12.5 w + 250 u, so A = [[0, 1], [0, −12.5]] and B = [[0], [250]]. One equation now carries both the angle and the speed.
+
+<Formula label="State space: every state in one vector">x' = A x + B u</Formula>
+
+The cart-pole is Month 2's balancer cut down to a cart of M = 0.5 kg and a point mass m = 0.2 kg at L = 0.3 m. The input is a horizontal force F. With x = [position, speed, angle, rate], linearised about upright, the model prints:
+
+<SimOutput source="model">
+
+```text
+Cart-pole, x = [position, speed, angle, rate], 100 Hz
+  A (continuous) rows: [0.00, 1.00, 0.00, 0.00]  [0.00, 0.00, -3.92, 0.00]  [0.00, 0.00, 0.00, 1.00]  [0.00, 0.00, 45.78, 0.00]
+  B (continuous):      [0.00, 2.00, 0.00, -6.67]
+```
+
+</SimOutput>
+
+Read the rows as equations. The second row is speed: p'' = −(m g / M) θ + (1/M) F. The number −3.92 is −m g / M = −0.2 × 9.81 / 0.5; a positive lean pushes the cart backwards. The number 2.00 is 1/M = 1/0.5, the acceleration per newton. The fourth row is angle: θ'' = ((M + m) g / (M L)) θ − (1 / (M L)) F. The number 45.78 is (0.7 × 9.81) / (0.5 × 0.3), the gravity term that makes upright unstable. The number −6.67 is −1 / (0.5 × 0.3): a positive force tips the pole negative. A and B above are continuous; the controller runs at 100 Hz, so the model applies a zero-order hold over 0.01 s.
+
+<Quiz id="q1" question="What is 1/M for the 0.5 kg cart?" answer={2.00} unit="1/kg" explanation="1 / 0.5 = 2.00. This is the second entry of B: one newton gives 2 m/s² of cart acceleration." />
+
+<Quiz id="q2" question="What is (M + m) g / (M L) for M = 0.5 kg, m = 0.2 kg and L = 0.3 m?" answer={45.78} unit="1/s²" explanation="(0.5 + 0.2) × 9.81 / (0.5 × 0.3) = 6.867 / 0.15 = 45.78 1/s². That is the fourth row, column three of A." />
+
+<CodeSource path="tools/sim/models/lqr_sim.py" />
+
+```python
+"""lqr_sim.py: state space, LQR on a cart-pole, and a small MPC on the Month 3 arm joint.
+
+Part 1 writes a cart-pole (the Month 2 balancer reduced to its essentials: a cart that is
+pushed by a force and a pole balanced on it) in state space, x = [position, speed, angle,
+angular rate], linearised about upright, discretised at 100 Hz. LQR gains come from
+iterating the discrete Riccati equation. The gains are then tested on the full nonlinear
+cart-pole, with the force limited to 10 N.
+Part 2 moves the arm joint from lesson 1 (J = 0.004, B = 0.05, gravity cancelled by
+feedforward) through 1 rad with a torque limit, comparing LQR whose output is simply
+clipped with an MPC that knows the limit. Standard library only.
+"""
+import math
+
+# ---------------------------------------------------------------- small matrix helpers
+def mul(a, b):
+    return [[sum(a[i][k] * b[k][j] for k in range(len(b))) for j in range(len(b[0]))] for i in range(len(a))]
+
+
+def add(a, b, s=1.0):
+    return [[a[i][j] + s * b[i][j] for j in range(len(a[0]))] for i in range(len(a))]
+
+
+def tr(a):
+    return [list(r) for r in zip(*a)]
+
+
+def eye(n, v=1.0):
+    return [[v if i == j else 0.0 for j in range(n)] for i in range(n)]
+
+
+def discretise(a, b, dt):
+    """Zero-order-hold discretisation by a Taylor series of the matrix exponential."""
+    n = len(a)
+    phi, gam, term = eye(n), [[dt * x[0]] for x in b], eye(n)
+    for k in range(1, 25):
+        term = [[v * dt / k for v in r] for r in mul(term, a)]           # (A dt)^k / k!
+        phi = add(phi, term)
+        gam = add(gam, [[v * dt / (k + 1)] for v in [r[0] for r in mul(term, b)]])
+    return phi, gam
+
+
+def lqr(phi, gam, q, r, iters=5000):
+    """Iterate P = Q + A'PA - A'PB (R + B'PB)^-1 B'PA; return K for u = -K x."""
+    p = q
+    for _ in range(iters):
+        bp = mul(tr(gam), p)
+        s = r + mul(bp, gam)[0][0]
+        k = [[v / s for v in mul(bp, phi)[0]]]
+        p = add(q, mul(tr(phi), mul(p, add(phi, mul(gam, k), -1.0))))
+    return k[0]
+
+
+# ---------------------------------------------------------------- part 1: cart-pole
+M, m, L, G, DT, FMAX = 0.5, 0.2, 0.3, 9.81, 0.01, 10.0
+A_CP = [[0, 1, 0, 0], [0, 0, -m * G / M, 0], [0, 0, 0, 1], [0, 0, (M + m) * G / (M * L), 0]]
+B_CP = [[0], [1 / M], [0], [-1 / (M * L)]]
+
+
+def cartpole(x, f, dt=0.001):
+    """Full nonlinear cart-pole (point mass m at distance L), angle from upright."""
+    p, v, th, w = x
+    s, c = math.sin(th), math.cos(th)
+    acc = (f + m * L * w * w * s - m * G * s * c) / (M + m - m * c * c)
+    alpha = (G * s - acc * c) / L
+    return [p + v * dt, v + acc * dt, th + w * dt, w + alpha * dt]
+
+
+def balance(k, deg, seconds=4.0, show=False):
+    x = [0.0, 0.0, math.radians(deg), 0.0]
+    fpeak = 0.0
+    for i in range(int(seconds / DT)):
+        f = max(-FMAX, min(FMAX, -sum(ki * xi for ki, xi in zip(k, x))))
+        fpeak = max(fpeak, abs(f))
+        if show and i % 50 == 0:
+            print(f"  t = {i * DT:3.1f} s  x = {x[0]:6.3f} m  angle = {math.degrees(x[2]):6.2f} deg  force = {f:6.2f} N")
+        for _ in range(10):
+            x = cartpole(x, f)
+        if abs(x[2]) > math.pi / 2:
+            return None, fpeak
+    return x, fpeak
+
+
+def part1():
+    phi, gam = discretise(A_CP, B_CP, DT)
+    print("Cart-pole, x = [position, speed, angle, rate], 100 Hz")
+    print("  A (continuous) rows:", "  ".join("[" + ", ".join(f"{v:.2f}" for v in r) + "]" for r in A_CP))
+    print("  B (continuous):     ", "[" + ", ".join(f"{r[0]:.2f}" for r in B_CP) + "]")
+    for name, qd, r in (("Q = diag(1, 1, 10, 1), R = 1   ", (1, 1, 10, 1), 1.0),
+                        ("Q = diag(100, 1, 10, 1), R = 1 ", (100, 1, 10, 1), 1.0),
+                        ("Q = diag(1, 1, 10, 1), R = 0.01", (1, 1, 10, 1), 0.01)):
+        q = [[qd[i] if i == j else 0.0 for j in range(4)] for i in range(4)]
+        k = lqr(phi, gam, q, r)
+        print(f"{name}  K = [" + ", ".join(f"{v:7.2f}" for v in k) + "]")
+        if name.startswith("Q = diag(1, 1, 10, 1), R = 1 "):
+            k_first = k
+        x, fpeak = balance(k, 10)
+        print(f"    from 10 deg: after 4 s x = {x[0]:6.3f} m, angle = {math.degrees(x[2]):5.2f} deg, peak force {fpeak:5.2f} N")
+    print("Nonlinear run with the first K, starting 10 deg off upright:")
+    balance(k_first, 10, seconds=3.0, show=True)
+    biggest = max(d for d in range(1, 90) if balance(k_first, d, seconds=6.0)[0] is not None
+                  and abs(balance(k_first, d, seconds=6.0)[0][2]) < 0.01)
+    print(f"  largest start angle it still recovers from (force limit {FMAX:.0f} N): {biggest} deg")
+
+
+# ---------------------------------------------------------------- part 2: MPC on the joint
+J, BV, T, UMAX, N = 0.004, 0.05, 0.005, 0.6, 40
+PHI_J, GAM_J = discretise([[0, 1], [0, -BV / J]], [[0], [1 / J]], T)
+
+
+def jstep(x, u):
+    return [PHI_J[0][0] * x[0] + PHI_J[0][1] * x[1] + GAM_J[0][0] * u,
+            PHI_J[1][0] * x[0] + PHI_J[1][1] * x[1] + GAM_J[1][0] * u]
+
+
+def mpc(x, target, kq, warm):
+    """Minimise sum over N steps of kq*(q-target)^2 + 0.01*w^2 + u^2, |u| <= UMAX,
+    by projected gradient descent on the N future torques; return them all."""
+    u = warm[1:] + warm[-1:]
+    lr = 2e-4
+    for _ in range(150):
+        xs = [x]
+        for uk in u:
+            xs.append(jstep(xs[-1], uk))
+        lam = [0.0, 0.0]                  # backward pass: gradient of the cost wrt each u
+        grad = [0.0] * N
+        for k in range(N - 1, -1, -1):
+            q, w = xs[k + 1]
+            lam = [2 * kq * (q - target) + PHI_J[0][0] * lam[0] + PHI_J[1][0] * lam[1],
+                   2 * 0.01 * w + PHI_J[0][1] * lam[0] + PHI_J[1][1] * lam[1]]
+            grad[k] = 2 * u[k] + GAM_J[0][0] * lam[0] + GAM_J[1][0] * lam[1]
+        u = [max(-UMAX, min(UMAX, uk - lr * g)) for uk, g in zip(u, grad)]
+    return u
+
+
+def move(kind, seconds=1.0):
+    k = lqr(PHI_J, GAM_J, [[400.0, 0], [0, 0.01]], 1.0)
+    x, target, peak, settle = [0.0, 0.0], 1.0, 0.0, None
+    plan = [0.0] * N
+    sat = 0
+    for i in range(int(seconds / T)):
+        if kind == "lqr":
+            u = max(-UMAX, min(UMAX, -(k[0] * (x[0] - target) + k[1] * x[1])))
+        else:
+            plan = mpc(x, target, 400.0, plan)
+            u = plan[0]
+        sat += abs(u) >= UMAX - 1e-9
+        x = jstep(x, u)
+        peak = max(peak, x[0])
+        if abs(x[0] - target) > math.radians(1):
+            settle = None
+        elif settle is None:
+            settle = (i + 1) * T
+    return k, peak, settle, sat * T
+
+
+def part2():
+    print(f"Arm joint, 1 rad move, |torque| <= {UMAX} N*m (on top of gravity feedforward), 200 Hz")
+    for kind, label in (("lqr", "LQR, output clipped"), ("mpc", f"MPC, horizon {N} steps")):
+        k, peak, settle, sat = move(kind)
+        if kind == "lqr":
+            print(f"  LQR gains: K = [{k[0]:.2f}, {k[1]:.3f}]  (kp in N*m/rad, kd in N*m/(rad/s))")
+        s = f"{settle:.3f} s" if settle else "never"
+        print(f"  {label:22s} overshoot {math.degrees(peak - 1.0):5.2f} deg, within 1 deg from {s}, at the limit for {sat:.3f} s")
+
+
+if __name__ == "__main__":
+    part1()
+    print()
+    part2()
+```
+
+```bash
+python3 tools/sim/models/lqr_sim.py
+```
+
+## One gain row, four states
+
+LQR asks for the input sequence that minimises a cost over the whole run:
+
+<Formula label="LQR cost: state error plus control effort">J = Σ (xᵀ Q x + uᵀ R u)</Formula>
+
+Q is a 4 × 4 matrix that penalises state error; R is a positive scalar that penalises force. Units matter: position enters in m², angle in rad², force squared in N². The gains come from iterating the discrete Riccati equation (A and B here are the zero-order-hold matrices) until P stops changing:
+
+<Formula label="Discrete Riccati iteration and the gain it gives">P ← Q + Aᵀ P A − Aᵀ P B (R + Bᵀ P B)⁻¹ Bᵀ P A,   K = (R + Bᵀ P B)⁻¹ Bᵀ P A</Formula>
+
+The control law is u = −K x. K has one entry per state, so the same row uses position, speed, angle and rate together. Month 3's cascade used two loops tuned one after the other: an inner loop on the pitch angle and an outer loop on wheel speed that moved the inner loop's setpoint. LQR replaces both with one gain row and lets Q and R decide the balance.
+
+<Quiz id="q3" question="With K = [−0.92, −1.75, −18.76, −3.03] and u = −K x, what force does a 0.1 rad lean command when the other states are zero?" answer={1.88} unit="N" explanation="Only the angle term acts: u = −(−18.76 × 0.1) = 1.876 N, about 1.88 N. The positive force pushes the cart under the leaning pole." />
+
+<Resource id="underactuated-lqr" />
+
+The MIT chapter derives the Riccati equation in continuous and discrete time; the same book's chapter on acrobots and cart-poles applies LQR to this very plant. Read them after you have run the model.
+
+## Tuning Q and R
+
+Three runs show the trade-off. All start 10° off upright and use the same 10 N force limit. Q = diag(1, 1, 10, 1), R = 1 is the baseline. Raising the position weight to 100 asks for the cart to return: the final position falls from 0.028 m to 0.000 m, but peak force rises from 3.28 N to 5.19 N. Lowering R to 0.01 instead makes every gain larger, and the peak force reaches 10.00 N, the limit.
+
+<SimOutput source="model">
+
+```text
+Q = diag(1, 1, 10, 1), R = 1     K = [  -0.92,   -1.75,  -18.76,   -3.03]
+    from 10 deg: after 4 s x =  0.028 m, angle =  0.18 deg, peak force  3.28 N
+Q = diag(100, 1, 10, 1), R = 1   K = [  -9.01,   -6.54,  -29.74,   -4.91]
+    from 10 deg: after 4 s x =  0.000 m, angle =  0.00 deg, peak force  5.19 N
+Q = diag(1, 1, 10, 1), R = 0.01  K = [  -6.86,  -10.95,  -59.07,  -11.51]
+    from 10 deg: after 4 s x =  0.008 m, angle =  0.06 deg, peak force 10.00 N
+```
+
+</SimOutput>
+
+Read K as four numbers: position, speed, angle, rate. The baseline K is [−0.92, −1.75, −18.76, −3.03]; with R = 0.01 it becomes [−6.86, −10.95, −59.07, −11.51]. The angle entry is the largest in all three runs, because a small angle error grows quickly.
+
+Now the sign that looks wrong. The position gain is negative, like the angle gain. With u = −K x, a positive position error, meaning the cart is to the right of the target, commands a positive force and pushes it further right. That is deliberate: the controller first tips the pole left, then drives left to catch it. A cart-pole is non-minimum phase in position, so an immediate push toward the target would lean the pole the wrong way.
+
+To use less force, raise R or lower the state weights. Raising the position weight in Q instead buys a tighter return and spends more force.
+
+<Quiz id="q4" question="Which change makes the controller use less force?" options={["Increase R", "Increase the position weight in Q", "Increase the angle weight in Q", "Shorten the horizon"]} answer={0} explanation="R multiplies u², so a larger R makes force expensive: the gains shrink and peak force falls, at the cost of a slower or less accurate return. Raising Q does the opposite." />
+
+## Beyond the linear model
+
+The gains above were computed from the linear A and B. The test run uses the full nonlinear cart-pole, integrated in 1 ms steps with the same 10 N limit, while the controller still runs at 100 Hz. Starting 10° off upright:
+
+<SimOutput source="model">
+
+```text
+Nonlinear run with the first K, starting 10 deg off upright:
+  t = 0.0 s  x =  0.000 m  angle =  10.00 deg  force =   3.28 N
+  t = 0.5 s  x =  0.177 m  angle =  -2.23 deg  force =  -0.42 N
+  t = 1.0 s  x =  0.248 m  angle =  -2.05 deg  force =  -0.25 N
+  t = 1.5 s  x =  0.227 m  angle =  -0.73 deg  force =  -0.08 N
+  t = 2.0 s  x =  0.175 m  angle =  -0.04 deg  force =   0.00 N
+  t = 2.5 s  x =  0.122 m  angle =   0.23 deg  force =   0.03 N
+  largest start angle it still recovers from (force limit 10 N): 53 deg
+```
+
+</SimOutput>
+
+At 0.5 s the cart is at 0.177 m and the pole is already 2.23° past vertical. The cart is at 0.248 m at 1 s and back to 0.122 m at 2.5 s, while the angle is within 0.73° by 1.5 s. The last line is the important one: tested in whole degrees, the same gains recover from up to 53° and no further. The linear model is a local approximation around upright, so its prediction is good near 0° and increasingly wrong as the angle grows. A real balancer adds motor limits, wheel slip and sensor delay.
+
+<Callout type="warn" title="53° is a simulation result">Motor limits, wheel slip and sensor delay will move that number. Test on the real robot with a soft catch, and do not treat the simulated limit as a guarantee.</Callout>
+
+## MPC and the receding horizon
+
+Part 2 moves the arm joint through 1 rad with a torque limit of 0.6 N·m on top of gravity feedforward, at 200 Hz, so T = 5 ms. LQR uses the same cost but its output is simply clipped at the limit. MPC predicts N = 40 steps ahead, 40 × 5 ms = 0.2 s, optimises all 40 future torques subject to `|u| ≤ 0.6 N·m`, applies only the first, then repeats. That is the receding horizon. The model solves it by projected gradient descent: 150 steps per control period, warm-started with the previous plan shifted by one.
+
+<SimOutput source="model">
+
+```text
+Arm joint, 1 rad move, |torque| <= 0.6 N*m (on top of gravity feedforward), 200 Hz
+  LQR gains: K = [15.93, 0.323]  (kp in N*m/rad, kd in N*m/(rad/s))
+  LQR, output clipped    overshoot  2.24 deg, within 1 deg from 0.210 s, at the limit for 0.175 s
+  MPC, horizon 40 steps  overshoot  0.86 deg, within 1 deg from 0.160 s, at the limit for 0.165 s
+```
+
+</SimOutput>
+
+The LQR gains are K = [15.93, 0.323], much larger than lesson 1's PD gains 2.86 N·m/rad and 0.115 N·m/(rad/s), because Q = diag(400, 0.01) with R = 1 prices a 1 rad error far above 1 N·m of torque. Gains that large spend most of the move pinned at the limit, which is exactly where plain LQR stops knowing what it is doing. With clipping, LQR overshoots 2.24° and is within 1° from 0.210 s. MPC overshoots 0.86° and is within 1° from 0.160 s. It is at the limit for 0.165 s, LQR for 0.175 s. The improvement is real but not enormous; the bigger difference is computation.
+
+MPC costs far more computation per step: every 5 ms period it runs 150 gradient steps, each a forward pass and a backward pass over 40 steps, about 12,000 small state updates, while LQR is two multiplications and an addition. On a microcontroller the 5 ms deadline is fixed. If the MPC does not finish in time, you must shorten the horizon, lower the control rate, or move to a faster chip. A lower rate adds delay, and delay eats phase margin, as lesson 1 showed.
+
+<Quiz id="q5" question="MPC predicts 40 steps at 5 ms per step. How far ahead does it look?" answer={0.2} unit="s" explanation="40 × 0.005 = 0.2 s. That is the horizon over which it optimises the future torques." />
+
+## Common mistakes
+
+- <strong>Q and R in inconsistent units.</strong> Changing position from metres to centimetres multiplies that state by 100, so the same Q entry penalises 10,000 times more. Keep states in SI and re-tune after a unit change.
+- <strong>Using the linear model far from upright.</strong> The 45.78 term is a linearisation about upright. At 53° the true dynamics are different; a gain that works at 10° is not a proof that far out.
+- <strong>Ignoring actuator limits in the LQR design.</strong> An unclipped LQR assumes it can deliver any force. The R = 0.01 run reaches the 10 N limit; include saturation in the simulation, or design with MPC.
+- <strong>Forgetting the sign conventions of the state.</strong> x = [position, speed, angle, rate] with angle measured from upright. Flip the angle sign and the controller pushes the pole over. Write the positive direction down before tuning.
+- <strong>Believing MPC is always better.</strong> MPC needs a model and a solver every period. If the limit is not active and the linear model is good, LQR can match it with a fraction of the code and time.
