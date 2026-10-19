@@ -960,8 +960,8 @@ export const resources: Record<string, Resource> = {
     kind: "hardware",
     cost: { zh: "约 $349（2026 年 10 月页面）", en: "≈ $349 (store page, Oct 2026)" },
     summary: {
-      zh: "主从两臂、打印件和舵机都在一盒里，从美国特拉华州发货。",
-      en: "Leader and follower arms with printed parts and servos in one box, shipping from Delaware.",
+      zh: "一盒装齐主从两臂（打印件，需自己组装）、12 个 STS3215 舵机、驱动板、电源和摄像头；运费结账时计算。",
+      en: "Leader and follower arms (printed parts, unassembled), 12 STS3215 servos, driver boards, power adapters and a camera in one box; delivery priced at checkout.",
     },
     license: { zh: "商品链接，价格以官网为准", en: "Product link; check the store for current price" },
   },

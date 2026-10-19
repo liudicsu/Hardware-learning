@@ -223,6 +223,22 @@ const month3Lessons: Lesson[] = [
       { id: "bracket", text: { zh: "按数据手册和实测尺寸建一个参数化舵机支架，导出 STEP 和 STL", en: "Model a parametric servo bracket from the datasheet and your measurements; export STEP and STL" } },
     ],
   },
+  {
+    slug: "fdm-printing",
+    title: { zh: "3D 打印：材料、校准与公差", en: "3D printing: materials, calibration & tolerances" },
+    summary: {
+      zh: "选打印机和耗材，按顺序校准，测出你机器的真实间隙，再为 FDM 设计零件：方向、悬垂、层间结合和能反复扣合的卡扣。",
+      en: "Choose a printer and filament, calibrate in the right order, measure your machine's real clearances, then design for FDM: orientation, overhangs, layer adhesion and snap-fits that click.",
+    },
+    minutes: 180,
+    resources: ["ender3-v3-se", "bambu-a1-mini", "bambu-a1", "creality-k1c", "bambu-p1s", "orca-calibration", "teachingtech-calibration", "cnc-kitchen", "tolerance-gauge", "hubs-dfam", "fablabs", "library-makerspace", "craftcloud", "jlc3dp"],
+    tasks: [
+      { id: "calibrate", text: { zh: "按 OrcaSlicer 的顺序完成温度、流量和回抽校准，把结果记在打印日志里", en: "Run temperature, flow and retraction calibration in OrcaSlicer's order and record the results in a print log" } },
+      { id: "gauge", text: { zh: "打印公差测试件，写下你机器的滑配和压配间隙", en: "Print the tolerance gauge and write down your machine's sliding-fit and press-fit clearances" } },
+      { id: "snap-calc", text: { zh: "用本课的卡扣公式检查一根悬臂卡扣，再打印一根测试臂扣 20 次", en: "Check a cantilever snap arm with this lesson's formula, then print a test arm and snap it 20 times" } },
+      { id: "enclosure", text: { zh: "设计并打印一个不用胶水就能扣紧的两件式 ESP32 外壳，反复迭代直到扣合清脆", en: "Design and print a two-part ESP32 enclosure that closes without glue; iterate until it clicks properly" } },
+    ],
+  },
 ];
 
 export const months: Month[] = [

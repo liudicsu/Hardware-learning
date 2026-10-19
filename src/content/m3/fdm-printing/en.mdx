@@ -1,0 +1,358 @@
+## Choose a printer
+
+In Lesson 1 you built a parametric servo bracket in OpenSCAD and checked the exported STL with `stl_info.py`. A CAD model is a promise: it says what the part should be, not what your machine can make. The next step is choosing the machine — or deciding not to buy one yet.
+
+The table below is the course's shortlist. Prices are the course author's figures, checked in September 2026; treat them as approximate and check the store before ordering.
+
+| Printer | Price (course, Sept 2026) | Why pick it |
+| --- | --- | --- |
+| Creality Ender-3 V3 SE | $199 | Cheapest; open frame; more hands-on tuning; fine for PLA/PETG |
+| Bambu Lab A1 mini | $219.99 | Works out of the box, automatic calibration, 180 mm bed |
+| Bambu Lab A1 | $299.99 | Same, with the 256 mm bed you will want for larger brackets |
+| Creality K1C | $369 | Enclosed and with a hardened nozzle for carbon-fibre filaments |
+| Bambu Lab P1S | $799 | Enclosed CoreXY for ABS and ASA |
+
+The Ender-3 V3 SE is the cheapest way in. It has an open frame and less automation than the Bambu machines, so you will still check the bed, adjust the Z offset and learn what a first layer should look like. That is either a cost or a feature, depending on your temperament: after a month you will understand your printer, because you will have fixed it.
+
+The Bambu Lab A1 mini is the opposite trade. It works out of the box, calibrates itself, and its 180 mm bed fits most brackets and gripper fingers. The A1 is the same machine with a 256 mm bed, which matters when you print a chassis plate or a bracket that must stay in one piece. If your budget allows one printer and you would rather design than tinker, the A1 is a reasonable pick.
+
+The Creality K1C adds an enclosure and a hardened nozzle, so carbon-fibre-filled filaments are usable without changing hardware. The Bambu Lab P1S is the enclosed CoreXY option for ABS and ASA. Enclosures are not a status symbol: they keep hot air around the part so large ABS prints do not split, and they keep fumes away from the room. For this course, an open-frame printer that prints PLA, PETG and TPU reliably is enough; buy an enclosure only when you actually need ABS or ASA. The money is better spent on filament, calipers and a spare nozzle.
+
+A practical warning: a printer is a hobby inside a hobby. It needs space, a stable table, and occasional maintenance. Do not buy a 300 mm machine for a hypothetical project you have not started; the parts in this course are small on purpose.
+
+### No printer?
+
+You do not need to own a printer to finish this lesson. Fab Labs are digital-fabrication workshops, about 2,875 of them worldwide, and the directory is searchable by country. Many public-library makerspaces in the US have 3D printers that are free or near-free; you usually pay only for filament. For a one-off part, a service is often the rational choice: Craftcloud compares quotes across a network spanning 95 countries and routes the job to a manufacturer near you, which makes it the right choice outside the US and EU. JLC3DP offers MJF nylon and FDM from $1.00 per part, with builds around three days.
+
+The catch with services is the loop. Every revision becomes an order, a wait and a shipping cost, and you cannot check a fit the same afternoon. Use a service for a final part in a material you cannot print, not for the ten iterations that get you there.
+
+### The honest economics
+
+A full SO-101 arm needs roughly 1 kg of PLA+. On your own machine that is about $20 to $25 of filament; a ready-printed set costs $30.99. On those numbers alone, a printer does not pay for itself on one build. It pays for itself on iteration: the tenth revision of a gripper finger costs 40 cents and 25 minutes at home, against about $8 and a week from a service.
+
+```text
+10 revisions at home = 10 × $0.40 = $4.00 and 10 × 25 min ≈ 4.2 h
+by service = 10 × $8 = $80 and about 10 weeks if you wait for each one
+```
+
+That is $4.00 of filament and about 4.2 hours of printing at home, against $80 and roughly ten weeks if you wait for each service order. The time difference is the real argument. A printer turns a design change into an afternoon; a service turns it into a project.
+
+Do the break-even honestly: at $7.60 saved per revision, a $219.99 printer needs about 29 revisions before the hardware is paid for. Few people reach that on one project, and almost everyone reaches it across a year of small brackets, mounts and repairs. Add failed prints, electricity and your own time, and the case is not "printing is cheap"; it is "iterating at home is cheap".
+
+<Quiz id="q1" question="A service charges $8 per revision and your own printer costs $0.40 per revision. How much do you save over 25 revisions, in dollars?" answer={190} unit="USD" explanation="Each revision saves $8.00 − $0.40 = $7.60. Over 25 revisions: 25 × $7.60 = $190.00. Equivalently, 25 × $8 = $200 for the service against 25 × $0.40 = $10 at home." />
+
+## Pick the filament
+
+Filament is not ink. Each polymer trades stiffness, toughness, heat resistance and printability, and the right choice depends on what the part must survive, not on what colour looks good.
+
+| Material | Use it for | Watch out for |
+| --- | --- | --- |
+| PLA and PLA+ | Prototype brackets, jigs, and the SO-101 arm itself: the SO-ARM100 repo specifies PLA+, 15 % infill, 0.2 mm layers with a 0.4 mm nozzle | Stiffest of the easy materials, but it creeps under sustained load and softens around 55–60 °C (a car dashboard in summer, a part touching a hot motor) |
+| PETG | The default real robot part: chassis plates, gearbox housings, servo mounts, anything that must survive a drop | Tough, with much better layer adhesion than PLA; strings, and sticks very well to some beds (use glue stick as a release layer on smooth PEI) |
+| ABS and ASA | Parts near hot motors; outdoor rovers (ASA resists UV) | Warp badly without an enclosure; fumes, so ventilate |
+| Nylon | Gears and cable guides | Absorbs water from the air, must be dried; easier to order (JLC3DP's MJF nylon) than to print |
+| Carbon-fibre filled (PLA-CF, PETG-CF, PA-CF) | Stiff structural links | Abrasive: needs a hardened nozzle (a brass nozzle wears out); slightly more brittle |
+| TPU | Feet, bumpers, compliant gripper fingers (Lesson 6) | Print slowly, direct-drive extruder strongly preferred, little or no retraction |
+
+PLA and PLA+ are the easiest starting point: stiff, dimensionally predictable and cheap. The SO-ARM100 repository specifies PLA+, 15 % infill and 0.2 mm layers with a 0.4 mm nozzle for its printed parts, which is a sensible default for a first robot arm. The limit is creep and heat. PLA creeps under a sustained load — a screw boss or a cantilever that stays loaded will slowly change shape — and it softens around 55–60 °C. A part that lives on a car dashboard in summer, or touches a motor that runs hot, is the wrong place for it. PLA+ is tougher than plain PLA but has the same heat limit.
+
+PETG is the course's default for real robot parts: chassis plates, gearbox housings, servo mounts, anything that must survive a drop. It is less stiff than PLA but much tougher, and its layer adhesion is better, so a part is less likely to split along a layer line. It also strings, and it sticks very well to some beds; on a smooth PEI sheet use a glue stick as a release layer, or you may take a piece of the sheet with the part.
+
+ABS and ASA are for parts near hot motors and for outdoor rovers; ASA resists UV better. Both warp badly without an enclosure, especially on large flat parts, and both produce fumes, so ventilate the room. Do not choose ABS because it sounds more "engineering" than PLA; choose it because the part will get hot or sit in the sun.
+
+Nylon is for gears and cable guides: tough, slippery and fatigue-resistant. It also absorbs water from the air, so it must be dried before printing and kept dry while printing; wet nylon prints with bubbles and weak layers. For many people the practical route is to order MJF nylon from a service rather than fight it at home.
+
+Carbon-fibre-filled filaments (PLA-CF, PETG-CF, PA-CF) are for stiff structural links. They are abrasive: a brass nozzle wears out, so you need a hardened nozzle. They are also slightly more brittle than the unfilled polymer, so "carbon fibre" does not mean "unbreakable".
+
+TPU is for feet, bumpers and the compliant gripper fingers in Lesson 6. Print it slowly, use a direct-drive extruder if you have one, and keep retraction small or off; TPU buckles inside a long Bowden tube.
+
+A rule of thumb: start in PLA to check fit, then make the real part in PETG unless heat or flexibility says otherwise. Buy small spools while you learn, store them with desiccant, and dry PETG and nylon if you live somewhere humid. A spool that has been open for a year is not the same material as the one you calibrated.
+
+<Quiz id="q2" question="A motor mount sits against a motor that reaches 70 °C. Which material?" options={["PLA+", "TPU", "ABS or ASA", "PLA-CF with a brass nozzle"]} answer={2} explanation="PLA softens around 55–60 °C, so it is the wrong choice next to a 70 °C motor. ABS and ASA are the course's pick for parts near hot motors. PETG is a reasonable second choice — its glass transition is around 80 °C, close to 70 °C, so check the margin. TPU is flexible rather than heat-resistant, and carbon fibre does not fix PLA's heat limit; it also needs a hardened nozzle." />
+
+## Calibrate, then measure
+
+A printer that assembles and homes is not calibrated. Dimensional accuracy is a chain: extruder steps, flow, temperature, pressure advance, retraction, cooling and shrinkage all affect the final size. OrcaSlicer's calibration wiki gives a recommended running order: temperature → flow rate → pressure advance → retraction → tolerance. The order is not arbitrary. Each test assumes the earlier ones are right. A wrong temperature changes how the plastic flows, so a flow test run at the wrong temperature gives a wrong number. Wrong flow makes every wall thicker and every hole smaller, which corrupts a tolerance test. Pressure advance affects corners and seams; retraction affects strings and surface finish. Tolerance comes last because it depends on all of them.
+
+Teaching Tech's interactive calibration covers the same ground for any printer and generates the test prints for you. Use one of the two; do not invent your own sequence.
+
+<Resource id="tolerance-gauge" />
+
+### The tolerance gauge
+
+Print the Clearance and Tolerance 3D Printer Gauge once, in the material and orientation you will use for the real part. Try each gap with your fingers. Write down the smallest gap that turns or slides freely — that is your sliding fit — and the gap that pushes together firmly and holds — that is your press fit. Do this before you design anything that must fit.
+
+Read the model page carefully: do its numbers mean the gap on each side, or the total difference in size? The clearance parameter in Lesson 1's bracket and in this lesson's case is per side. If you copy a total-difference number into a per-side parameter, every gap comes out twice as big as you measured: a sliding fit gets sloppy and a press fit stops holding.
+
+A worked example:
+
+```text
+your gauge says parts with 0.3 mm total difference slide freely and 0.1 mm total press together
+→ per side: sliding 0.3 / 2 = 0.15 mm, press 0.1 / 2 = 0.05 mm
+a 3 mm pin that must turn freely gets a hole of 3 + 2 × 0.15 = 3.3 mm
+```
+
+The last line is the one to remember: a hole that must clear a shaft gets the shaft diameter plus twice the per-side clearance, because the gap appears on both sides. A 3 mm pin with 0.15 mm per side needs a 3.3 mm hole. If you draw 3.15 mm, the pin fits on one side and interferes on the other.
+
+### Why holes come out small
+
+A slicer turns a circle into many short straight segments. The nozzle has a round tip, so it cannot follow a sharp inside corner; it rounds it. Molten plastic is also squeezed slightly outward as it is laid down. The result is a pattern: inner sizes (holes, slots) shrink, outer sizes grow. The first layer is squashed wider still — the "elephant's foot" — which closes the bottom of a hole and makes a part sit proud. Add a small chamfer, about 0.4–0.5 mm, to bottom edges that must fit, and the squashed bead has somewhere to go.
+
+This is why you measure the printed part, not just the CAD model. Keep a print log: printer, nozzle, material and brand, temperature, layer height, sliding and press clearances per side. When a part fits, you can repeat it; when it does not, the log tells you which number changed.
+
+<Quiz id="q3" question="Your sliding clearance is 0.2 mm per side. What diameter do you draw for the hole of a 5 mm shaft that must turn freely (mm)?" answer={5.4} unit="mm" explanation="The gap appears on both sides, so the hole diameter is 5 + 2 × 0.2 = 5.4 mm. Drawing 5.2 mm leaves only 0.1 mm per side." />
+
+## Design for FDM
+
+The milestone for this lesson is to design a part specifically for FDM, not a CAD shape that happens to export. Three things decide whether a printed part is strong and easy to make: orientation, overhangs and layer adhesion. FDM parts are anisotropic: they are a stack of welded lines, and the bond between layers is weaker than the plastic inside a layer.
+
+- **Orientation.** A print is weakest between layers, so lay the part so the main load runs along the layers, not across them. A hook printed standing up snaps at a layer line; the same hook printed lying down bends. Decide the orientation before you model, because it changes where you put chamfers and which face touches the bed.
+- **Overhangs.** Up to about 45° from vertical usually prints without support; beyond that, add a chamfer instead of a sharp overhang, or plan support. The 45° number is a starting point, not a law: cooling, nozzle size and layer height change it.
+- **Bridges.** A short horizontal span, a few centimetres depending on the printer, can bridge between two supports. Anchor both ends, cool the bridge well, and do not ask it to carry a load.
+- **Horizontal holes.** A round hole lying on its side droops at the top. A teardrop or a flat-topped hole avoids support and keeps the top of the hole usable. For a precision bore, print undersize and drill or ream it.
+- **Walls.** Make thin walls a whole number of extrusion widths: with a 0.4 mm nozzle, use 0.8, 1.2 or 1.6 mm. Strength comes mostly from walls (perimeters), not infill. For most brackets, adding a wall or two is a cheaper way to gain strength than adding infill.
+- **Fasteners.** Use heat-set brass inserts for threads you will open more than a few times. Printed threads are fine for coarse, rarely used parts, but they wear and strip. Size the insert hole from the insert datasheet and test one.
+- **Supports.** Supports cost time, leave rough surfaces and weaken the part where they touch. A design that needs none is usually a better design: chamfer the overhang, split the part, or choose a different orientation.
+
+CNC Kitchen publishes instrumented, repeatable strength tests of infill, walls, heat-set inserts and orientation. Use those tests instead of folklore.
+
+Design for FDM also means designing for your machine's error. The clearance numbers from the gauge belong in the model as parameters, not in a note to yourself to "sand it later". Put fillets on inside corners, where stress concentrates, and avoid features thinner than two extrusion widths, because the slicer will either skip them or print them badly.
+
+<Resource id="hubs-dfam" />
+
+<Quiz id="q4" question="A long, thin snap hook must bend many times. How should it lie on the bed?" options={["standing up, so the layers stack along its length", "lying flat, so it bends along its layers", "it does not matter with 100 % infill", "at 45° with supports"]} answer={1} explanation="A printed part is weakest between layers. Lying flat puts the bending load along the layers, so the hook bends instead of splitting at a layer line. Standing up makes the layers run across the bend, which is exactly where a snap hook cracks; 100 % infill does not fix weak layer bonds." />
+
+## Snap-fits that click
+
+A cantilever snap-fit is a small beam with a hook at its tip. Pushing the parts together, the hook's lead-in presses against the other part and bends the beam sideways by the hook depth. Once the hook passes the catch, the beam springs back and the catch face holds the parts together. It is a spring, not a clamp, and it has two failure modes: the arm breaks at the root, or the force needed to close it is too high to be useful.
+
+For a rectangular cantilever, the classic straight-beam formulas from snap-fit design guides are:
+
+```text
+strain at the root ε = 1.5 × y × t / L²
+force to bend it P = b × t² × E × ε / (6 × L)
+push-on force W = P × (μ + tan α) / (1 − μ × tan α)
+```
+
+Here y is the hook depth, t the arm thickness, L the arm length, b the arm width, E the material stiffness, α the lead-in angle and μ the friction coefficient. Strain tells you whether the plastic survives; push-on force tells you whether a person can close the case.
+
+Worked example for the case's arm:
+
+```text
+L = 10, t = 1.2, y = 0.8 → ε = 1.5 × 0.8 × 1.2 / 10² = 1.44 / 100 = 0.0144 = 1.44 %
+```
+
+The key insight is the square: strain grows with 1/L², so halving the length quadruples the strain. A short, thick arm is the design people draw first, and it is usually the one that cracks. Making the arm thinner lowers the strain; making the hook shallower lowers it too. Making the arm longer helps a lot, but it takes space inside the case.
+
+<CodeSource path="examples/month-3/fdm-printing/snap_fit.py" />
+
+```python
+"""snap_fit.py: will a printed cantilever snap-fit arm bend or break?
+
+Classic straight-beam formulas for a rectangular cantilever arm with a hook at its tip
+(as in the Bayer/Covestro snap-fit design guide):
+    strain at the root   eps = 1.5 * y * t / L^2
+    force to deflect it  P   = b * t^2 * E * eps / (6 * L)
+    force to push it on  W   = P * (mu + tan a) / (1 - mu * tan a)
+y = hook depth (how far the arm must bend), t = arm thickness, L = arm length,
+b = arm width, E = stiffness of the plastic, a = lead-in angle of the hook, mu = friction.
+The strain limits below are our cautious rules of thumb for FDM parts, not datasheet
+values: a printed arm is weakest when it bends across its layers. Print a test arm before
+you trust any of this.
+"""
+import math
+
+MATERIALS = {             # E (MPa), strain we allow for a snap that is used many times
+    "PLA":  (3500, 0.015),
+    "PETG": (2000, 0.025),
+}
+
+
+def snap(L, t, y, b=6.0, material="PLA", lead_deg=30.0, mu=0.3):
+    E, allowed = MATERIALS[material]
+    eps = 1.5 * y * t / L ** 2
+    P = b * t ** 2 * E * eps / (6 * L)
+    tan_a = math.tan(math.radians(lead_deg))
+    W = P * (mu + tan_a) / (1 - mu * tan_a)
+    verdict = "ok" if eps <= allowed else f"too much (limit {allowed * 100:.1f} %)"
+    return (f"L {L:4.1f}  t {t:.1f}  hook {y:.1f} mm, {material + ",":5s} lead-in {lead_deg:2.0f} deg: "
+            f"strain {eps * 100:4.2f} % {verdict:22s} push-on {W:5.1f} N")
+
+
+if __name__ == "__main__":
+    print(snap(5, 1.5, 1.0))                   # short and thick: the first design people draw
+    print(snap(10, 1.5, 1.0))
+    print(snap(10, 1.2, 0.8))                  # the arm used in esp32_case.scad
+    print(snap(10, 1.2, 0.8, material="PETG"))
+    print(snap(10, 1.2, 0.8, lead_deg=60))     # steep lead-in: hard to push on
+```
+
+Real output:
+
+```text
+$ python3 snap_fit.py
+L  5.0  t 1.5  hook 1.0 mm, PLA,  lead-in 30 deg: strain 9.00 % too much (limit 1.5 %) push-on 150.4 N
+L 10.0  t 1.5  hook 1.0 mm, PLA,  lead-in 30 deg: strain 2.25 % too much (limit 1.5 %) push-on  18.8 N
+L 10.0  t 1.2  hook 0.8 mm, PLA,  lead-in 30 deg: strain 1.44 % ok                     push-on   7.7 N
+L 10.0  t 1.2  hook 0.8 mm, PETG, lead-in 30 deg: strain 1.44 % ok                     push-on   4.4 N
+L 10.0  t 1.2  hook 0.8 mm, PLA,  lead-in 60 deg: strain 1.44 % ok                     push-on  30.7 N
+```
+
+Walk through each line. The short thick arm, L = 5, is the first design people draw; it strains 9 % and would crack. Doubling the length cuts the strain to 2.25 %, still above the limit. The thinner arm with a shallower hook gets to 1.44 %, inside the 1.5 % we allow for PLA. PETG is less stiff, so the same arm pushes on with less force, 4.4 N against 7.7 N. A steep 60° lead-in quadruples the push-on force to 30.7 N — that is how you make a snap that is hard to close.
+
+The limits in the script, 1.5 % for PLA and 2.5 % for PETG, are the editor's cautious rules of thumb for printed parts, not datasheet values. A printed arm is weakest when it bends across its layers, and a real part has a fillet, layer lines and friction that the formula ignores. Print one test arm and snap it 20 times before you trust it in a case.
+
+Practical details: put a fillet at the root where the arm meets the body, because that is where stress concentrates. Keep the catch face around 0.4 mm so it holds but can be released. A 30° lead-in closes easily; a 60° lead-in is hard to push on, which may be what you want for a part that should not open by accident. Give the user a place to press the arm when opening the case.
+
+<Quiz id="q5" question="An arm has L = 12 mm, t = 1.0 mm and a 0.8 mm hook. What is the strain in percent?" answer={0.83} unit="%" tolerance={0.05} explanation="ε = 1.5 × y × t / L² = 1.5 × 0.8 × 1.0 / 12² = 1.2 / 144 = 0.00833 = 0.83 %." />
+
+## Practice: an ESP32 case
+
+Your practice task is to print the tolerance gauge, write down your machine's real clearance numbers, then design and print a two-part snap-fit enclosure for your ESP32 that closes without glue. Iterate until it clicks properly: too tight, loosen one number; too loose, tighten it. That loop — model, print, measure, change one number, repeat — is what all mechanical design is made of.
+
+The file below is the editor's example, not a required design. Use it as a reference to compare against, or print it first if you want to see a working snap before you draw your own.
+
+<CodeSource path="examples/month-3/fdm-printing/esp32_case.scad" />
+
+```scad
+// esp32_case.scad: a two-part snap-fit case for an ESP32-S3-DevKitC-1 (headers pins down).
+// Board size from Espressif's v1.1 drawing (62.74 x 25.40 mm); measure your own board,
+// clones differ. The snap arms use the numbers checked by snap_fit.py (L 10, t 1.2, hook 0.8).
+//   Render both parts:  openscad -o esp32_case.stl esp32_case.scad
+//   Only one part:      openscad -D 'part="base"' -o base.stl esp32_case.scad
+//   Interference check: openscad -D 'part="clash"' -o clash.stl esp32_case.scad
+//                       (closes the lid on the base; "top level object is empty" = no clash)
+
+part      = "both";   // "base", "lid", "both" (side by side for printing) or "clash"
+
+// --- the board ---
+board_l   = 62.74;
+board_w   = 25.40;
+pins_h    = 9.0;      // header pins below the board, plus a little air
+above_h   = 6.0;      // tallest part on top (buttons, module shield) plus air
+usb_w     = 12.0;     // opening at one end for the USB cable(s)
+usb_h     = 7.0;
+
+// --- the printer ---
+clearance = 0.3;      // board-to-wall gap on each side: use your tolerance-gauge result
+fit       = 0.2;      // gap between the snap arm and the base wall
+
+// --- the case ---
+wall      = 2.0;
+floor_t   = 2.0;
+lid_t     = 2.0;
+ledge     = 2.5;      // the board rests on two ledges at the short ends (pins are on the long edges)
+arm_L     = 10.0;     // snap arm length  } keep these in step with snap_fit.py
+arm_t     = 1.2;      // snap arm thickness }
+hook      = 0.8;      // hook depth        }
+arm_b     = 6.0;      // snap arm width
+
+in_l  = board_l + 2 * clearance;
+in_w  = board_w + 2 * clearance;
+in_h  = pins_h + 1.6 + above_h;           // 1.6 mm board
+out_l = in_l + 2 * wall;
+out_w = in_w + 2 * wall;
+out_h = floor_t + in_h;
+win_z = out_h - arm_L - 0.2;              // window in the base wall that the hook clicks into
+
+echo("inside (mm)", in_l, "x", in_w, "x", in_h);
+echo("outside, closed (mm)", out_l, "x", out_w, "x", out_h + lid_t);
+assert(hook < wall, "the hook must be shallower than the wall it clicks into");
+
+module base() {
+  difference() {
+    cube([out_l, out_w, out_h]);
+    translate([wall, wall, floor_t]) cube([in_l, in_w, in_h + 1]);
+    translate([-1, (out_w - usb_w) / 2, floor_t + pins_h]) cube([wall + 2, usb_w, usb_h]);
+    for (y = [-1, out_w - wall - 1])                       // windows for the two hooks
+      translate([(out_l - arm_b - 1) / 2, y, win_z]) cube([arm_b + 1, wall + 2, 2.2]);
+  }
+  for (x = [wall, out_l - wall - ledge])                   // ledges at the short ends
+    translate([x, wall, floor_t]) cube([ledge, in_w, pins_h]);
+}
+
+module lid() {
+  cube([out_l, out_w, lid_t]);
+  translate([wall + fit, wall + fit, lid_t]) difference() {   // locating lip
+    cube([in_l - 2 * fit, in_w - 2 * fit, 1.5]);
+    translate([1.2, 1.2, -1]) cube([in_l - 2 * fit - 2.4, in_w - 2 * fit - 2.4, 4]);
+  }
+}
+
+// The lid prints flat with the arms standing up, so they bend ACROSS the layers (the weak
+// direction). If an arm snaps, print the lid on its side or switch to PETG (see the lesson).
+module lid_with_arms() {                                  // modelled upside down, as it prints
+  lid();
+  x0 = (out_l - arm_b) / 2;
+  translate([x0, wall + fit, lid_t]) mirror([0, 1, 0]) translate([0, -arm_t, 0]) snap_arm_up();
+  translate([x0, out_w - wall - fit - arm_t, lid_t]) snap_arm_up();
+}
+
+module snap_arm_up() {                                    // arm along +z, hook on the +y face at the tip
+  cube([arm_b, arm_t, arm_L]);
+  // hook: 0.4 mm catch face, then a 30 degree lead-in (0.8 / tan 30 = 1.4 mm) down to the tip
+  translate([0, arm_t, arm_L - 1.8])
+    rotate([90, 0, 90]) linear_extrude(arm_b) polygon([[0, 0], [hook, 0.4], [0, 1.8]]);
+}
+
+if (part == "base" || part == "both") base();
+if (part == "lid") lid_with_arms();
+if (part == "both") translate([0, out_w + 8, 0]) lid_with_arms();
+if (part == "clash") intersection() {                     // what the closed lid and base share
+  base();
+  translate([0, out_w, out_h + lid_t]) rotate([180, 0, 0]) lid_with_arms();
+}
+```
+
+The board size comes from Espressif's v1.1 drawing: 62.74 × 25.40 mm. Clones differ, so measure your own board before you trust those numbers. The board sits pins-down on two ledges at the short ends, because the header pins run along the long edges; the ledges leave the pins in the air and support the board by its ends. One end has a 12 × 7 mm opening for the USB cable. The lid has a locating lip that drops inside the walls and two snap arms; their L, t and hook values match `snap_fit.py`. The windows in the base walls are where the hooks click in. Each hook has a 0.4 mm catch face and a 30° lead-in, as the comment in the file explains.
+
+The comment above the lid module is the important one: the lid prints flat with the arms standing up, so the arms bend across the layers — the weak direction from the previous section. That is why the arm strain is kept at 1.44 %, below the cautious 1.5 % limit for PLA. If an arm snaps, print the lid on its side or switch to PETG; do not simply make the arm thicker, because that raises both the strain and the push-on force.
+
+![The ESP32 case rendered from esp32_case.scad: the base with the USB opening, two ledges and a hook window in each long wall, and the lid with its lip and two snap arms](/m3/esp32_case.png)
+
+Render it and check the numbers:
+
+```text
+$ openscad -o esp32_case.stl esp32_case.scad 2>&1 | grep ECHO
+ECHO: "inside (mm)", 63.34, "x", 26, "x", 16.6
+ECHO: "outside, closed (mm)", 67.34, "x", 30, "x", 20.6
+$ python3 stl_info.py esp32_case.stl
+size: 67.3 x 68.0 x 18.6 mm
+triangles: 204, edges not shared by exactly 2: 0  (watertight)
+volume: 15.66 cm^3, solid mass at 1.24 g/cm^3: 19.4 g
+```
+
+The arithmetic is visible. Inside length = 62.74 + 2 × 0.3 = 63.34 mm; inside height = 9.0 pins + 1.6 board + 6.0 above = 16.6 mm; outside closed height = 2.0 floor + 16.6 + 2.0 lid = 20.6 mm. The STL is 67.3 × 68.0 × 18.6 mm because the "both" layout prints the base and the lid side by side: the Y size is the case width plus a gap plus the lid, and the Z size is the taller of the two parts. The mass, 19.4 g, is for a 100 % solid part; with walls and infill the slicer will use less.
+
+The editor did not print this case or the tolerance gauge. Both were rendered and checked in software only; the printed fit is for you to find out.
+
+### Check the fit before you print
+
+The "clash" part closes the lid on the base in software and keeps only the volume that both parts share. If the result is empty, nothing overlaps with the designed gaps:
+
+```text
+$ openscad -D 'part="clash"' -o clash.stl esp32_case.scad 2>&1 | grep empty
+Current top level object is empty.
+$ openscad -D 'part="clash"' -D fit=-0.1 -o clash.stl esp32_case.scad
+$ python3 stl_info.py clash.stl
+size: 63.5 x 26.2 x 8.0 mm
+triangles: 84, edges not shared by exactly 2: 0  (watertight)
+volume: 0.03 cm^3, solid mass at 1.24 g/cm^3: 0.0 g
+```
+
+The first command is the good result: empty means no overlap. The second run makes one fit wrong on purpose; `fit = -0.1` makes the lid's lip and arms 0.1 mm too big, so a thin ring of overlap appears, 63.5 × 26.2 mm around the inside of the walls, 0.03 cm³. That is exactly the kind of mistake that makes a lid impossible to close. This is the same interference check that GUI CAD tools offer in assemblies, which you met in Lesson 1; here it is a command you can run before every print.
+
+An iteration checklist:
+
+- Set clearance and fit from your gauge, not from a number in a lesson.
+- Print the base and lid.
+- Does the board drop in without force?
+- Does the lid close with a click and stay closed when you shake it?
+- Can you open it again without breaking an arm?
+- Change one number at a time and write the change in your log.
+
+<Callout type="tip" title="Print the small test first">
+Print just the lid's arm region, or a single test arm, before the whole case. It takes about 10 minutes instead of 2 hours and tells you whether the snap works.
+</Callout>
+
+Lesson 3 takes the same idea further: gears and backlash. A gearbox is a stack of fits, and every loose fit becomes position error at the output. The gauge numbers you write down here are the numbers you will use there.

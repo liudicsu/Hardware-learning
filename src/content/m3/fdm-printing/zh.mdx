@@ -1,0 +1,358 @@
+## 选一台打印机
+
+第 1 课里，你用 OpenSCAD 画出参数化舵机支架，又用 `stl_info.py` 检查导出的 STL。CAD 模型只是一个承诺：它说明零件应该是什么样，不说明你的机器能把它做成什么样。下一步是选一台打印机——或者先决定暂时不买。
+
+下表是课程的短名单。价格是课程作者在 2026 年 9 月核实的数字，只能算近似值，下单前请以商店页面为准。
+
+| 打印机 | 价格（课程核实，2026 年 9 月） | 为什么选它 |
+| --- | --- | --- |
+| Creality Ender-3 V3 SE | $199 | 最便宜；开放式框架；需要更多手动调校；打 PLA/PETG 够用 |
+| Bambu Lab A1 mini | $219.99 | 开箱即用，自动校准，180 mm 热床 |
+| Bambu Lab A1 | $299.99 | 同样的易用性，256 mm 热床，打较大支架更从容 |
+| Creality K1C | $369 | 封闭机箱，带硬化喷嘴，可打碳纤维耗材 |
+| Bambu Lab P1S | $799 | 封闭式 CoreXY，面向 ABS 和 ASA |
+
+Ender-3 V3 SE 是最便宜的入门选择。它采用开放式框架，自动化程度比 Bambu 机器低，所以你仍要检查热床、调 Z 偏移，并学会判断第一层该是什么样子。这既可能是成本，也可能是收获：一个月后你会真正理解自己的打印机，因为你亲手修过它。
+
+Bambu Lab A1 mini 是相反的取舍。开箱即用，自动校准，180 mm 的热床放得下大多数支架和夹爪手指。A1 是同一套体验加上 256 mm 热床，打底盘板或不能拆开的大支架时，这多出来的尺寸很关键。如果预算只够一台，而你更想设计而不是折腾机器，A1 是值得优先考虑的选择。
+
+Creality K1C 多了封闭机箱和硬化喷嘴，不用换硬件就能打碳纤维填充耗材。Bambu Lab P1S 是封闭式 CoreXY，面向 ABS 和 ASA。机箱不是身份象征：它把热空气留在零件周围，让大件 ABS 不至于开裂，也把气味挡在房间里。对本课程来说，一台能稳定打印 PLA、PETG 和 TPU 的开放式打印机就足够了；只有当你确实需要 ABS 或 ASA 时，才去买带机箱的机器。省下的钱买耗材、卡尺和备用喷嘴更实在。
+
+一句实话：打印机是“爱好里的爱好”。它占地方，需要平稳的桌子，还要偶尔维护。不要为一个还没开始的假设项目去买 300 mm 的大机器；本课程的零件故意做得不大。
+
+### 没有打印机？
+
+没有打印机也能完成这一课。Fab Lab 是数字制造工坊，全球大约 2,875 个，目录可以按国家搜索。美国很多公共图书馆的创客空间里有 3D 打印机，免费或接近免费，通常只收耗材费。只做一件零件时，打印服务往往更理性：Craftcloud 能比较覆盖 95 个国家的服务网络报价，并把订单交给离你近的厂家，在美国和欧盟以外尤其合适。JLC3DP 提供 MJF 尼龙和 FDM，每件 $1.00 起，工期约 3 天。
+
+服务的代价在迭代。每一次修改都变成下单、等待和运费，你没法当天下午就试装。把服务留给“最终件”或家里打不了的材料，不要用它跑完十轮修改。
+
+### 算一笔实在账
+
+一整套 SO-101 机械臂大约需要 1 kg PLA+。在自己机器上，这是 $20 到 $25 的耗材；直接买打印好的整套件是 $30.99。只算一次，打印机当然回不了本。它靠迭代回本：夹爪手指改到第十版，在家里是 40 美分和 25 分钟，找服务大约是 $8 和一周。
+
+```text
+在家改 10 轮 = 10 × $0.40 = $4.00，时间 10 × 25 min ≈ 4.2 h
+找服务改 10 轮 = 10 × $8 = $80，每轮都等上一单的话大约 10 周
+```
+
+也就是 $4.00 耗材和约 4.2 小时打印，对 $80 和大约十周——前提还是你每次都等上一单做完。真正的差别是时间：打印机把一次设计修改变成一下午，服务把它变成一个项目。
+
+盈亏平衡也可以老实算：每轮省 $7.60，一台 $219.99 的机器要大约 29 轮才回本。单个项目很少达到，但一年里做各种小支架、安装座和修理件，几乎人人都会超过。再把失败打印、电费和你的时间算进去，结论不是“打印很便宜”，而是“在家迭代很便宜”。
+
+<Quiz id="q1" question="某打印服务每轮修改收 $8，你自己的打印机每轮成本 $0.40。改 25 轮能省多少美元？" answer={190} unit="USD" explanation="每轮省 $8.00 − $0.40 = $7.60。25 轮就是 25 × $7.60 = $190.00。也可以这么看：服务要 25 × $8 = $200，自己打只要 25 × $0.40 = $10。" />
+
+## 选耗材
+
+耗材不是墨水。每种聚合物都在刚度、韧性、耐热和可打印性之间做取舍，正确的选择取决于零件要承受什么，而不是哪种颜色好看。
+
+| 材料 | 用来做什么 | 要注意什么 |
+| --- | --- | --- |
+| PLA 和 PLA+ | 原型支架、夹具，以及 SO-101 机械臂本身：SO-ARM100 仓库规定用 PLA+、15% 填充、0.2 mm 层高、0.4 mm 喷嘴 | 易打印材料里最刚，但在持续载荷下会蠕变，约 55–60 °C 开始软化（夏天车内仪表台、贴着热电机的零件） |
+| PETG | 真正机器人零件的默认材料：底盘板、齿轮箱外壳、舵机安装座，任何必须经得起摔的零件 | 韧，层间结合比 PLA 好得多；会拉丝，对某些热床粘得非常牢（光滑 PEI 板上用胶棒做隔离层） |
+| ABS 和 ASA | 靠近热电机的零件；户外小车（ASA 更抗紫外线） | 没有机箱会严重翘边；有气味，要通风 |
+| 尼龙 | 齿轮和线缆导槽 | 会从空气里吸水，必须烘干；订货（JLC3DP 的 MJF 尼龙）比在家打印容易 |
+| 碳纤维填充（PLA-CF、PETG-CF、PA-CF） | 需要刚度的结构连杆 | 有磨蚀性：需要硬化喷嘴（黄铜喷嘴会磨损）；也比未填充材料更脆 |
+| TPU | 脚垫、防撞块、柔性夹爪手指（第 6 课） | 慢速打印，最好有直驱挤出机，回抽要小或关掉 |
+
+PLA 和 PLA+ 是最容易的起点：刚、尺寸稳定、便宜。SO-ARM100 仓库明确要求用 PLA+、15% 填充、0.2 mm 层高和 0.4 mm 喷嘴打印结构件，这对第一台机械臂是合理的默认值。它的限制在蠕变和温度。PLA 在持续载荷下会慢慢变形——长期受力的螺柱或悬臂会悄悄改变形状——并且在大约 55–60 °C 开始软化。夏天放在汽车仪表台上，或者紧贴发热电机的零件，都不适合用 PLA。PLA+ 比普通 PLA 更韧，但耐热上限一样。
+
+PETG 是课程里“真正机器人零件”的默认材料：底盘板、齿轮箱外壳、舵机安装座，以及任何必须经得起摔的零件。它比 PLA 软一些，但韧得多，层间结合也更好，所以不容易沿层线裂开。它会拉丝，而且对某些热床粘得非常牢；在光滑 PEI 板上要涂胶棒做隔离层，否则可能连板皮一起撕下来。
+
+ABS 和 ASA 用于靠近热电机的零件和户外小车，ASA 更抗紫外线。两者没有机箱都很容易翘边，尤其是大平面件，而且都有气味，房间要通风。不要因为 ABS 听起来更“工程”就选它；选它是因为零件真的会热，或者真的要晒在太阳下。
+
+尼龙用于齿轮和线缆导槽：韧、滑、抗疲劳。它会从空气里吸水，所以打印前必须干燥，打印时也要保持干燥；受潮的尼龙会打出气泡和弱层。很多人更实际的做法，是直接向服务商订 MJF 尼龙，而不是在家里和它较劲。
+
+碳纤维填充耗材（PLA-CF、PETG-CF、PA-CF）用于需要刚度的结构连杆。它有磨蚀性：黄铜喷嘴会磨损，所以需要硬化喷嘴。它也比未填充的聚合物更脆一些，所以“碳纤维”不等于“打不坏”。
+
+TPU 用于脚垫、防撞块，以及第 6 课的柔性夹爪手指。慢速打印，有直驱挤出机最好，回抽要小或干脆关掉；TPU 在长长的 Bowden 管里会弯折卡住。
+
+一条经验法则：先用 PLA 验证配合，再用 PETG 做真正的零件，除非零件需要耐热或需要柔性。刚开始学时买小卷，和干燥剂一起存放；如果你住在潮湿地区，PETG 和尼龙用前要烘干。开了一年的一卷料，已经不是你校准时的那卷材料了。
+
+<Quiz id="q2" question="一个电机安装座紧贴着温度会到 70 °C 的电机，该用什么材料？" options={["PLA+", "TPU", "ABS 或 ASA", "配黄铜喷嘴的 PLA-CF"]} answer={2} explanation="PLA 在约 55–60 °C 就开始软化，放在 70 °C 的电机旁边是错误选择。ABS 和 ASA 是课程为贴近热电机零件挑的材料。PETG 是不错的第二选择——它的玻璃化转变温度约 80 °C，离 70 °C 不远，所以要留够余量。TPU 是柔性的，不是耐热的；碳纤维也解决不了 PLA 的耐热问题，而且它需要硬化喷嘴。" />
+
+## 先校准，再实测
+
+能组装、能回零，不等于校准好了。尺寸精度是一条链：挤出机步进、流量、温度、压力提前（pressure advance）、回抽、冷却和收缩都会影响最终尺寸。OrcaSlicer 的校准 wiki 给出推荐顺序：温度 → 流量 → 压力提前 → 回抽 → 公差。这个顺序不是随意的，每一项测试都假设前一项已经正确。温度不对，塑料的流动就变了，流量测试得到的数字也是错的；流量不对，每一面墙都会偏厚、每个孔都会偏小，公差测试就失去意义。压力提前影响拐角和接缝，回抽影响拉丝和表面。公差放在最后，因为它依赖前面所有结果。
+
+Teaching Tech 的交互式校准对任何打印机都适用，还会替你生成测试件。选其中一套照做，不要自己发明顺序。
+
+<Resource id="tolerance-gauge" />
+
+### 公差测试件
+
+把 Clearance and Tolerance 3D Printer Gauge 打印一次，用的材料和摆放方向要和你真正要做的零件一致。逐个试每个缝隙：记下能自由转动或滑动的最小间隙，这就是你的**滑配**（sliding fit）；再记下需要用力压进去、压进去后能保持住的间隙，这就是你的**压配**（press fit）。在画任何需要配合的零件之前，先做这件事。
+
+看清模型页面上的数字含义：它说的是每侧间隙，还是尺寸的总差值？第 1 课支架和本课外壳里的 clearance 参数都是每侧（per side）。如果把“总差值”直接填进“每侧”参数，每条缝都会变成你测到的两倍：滑配变得松垮，压配压不住。
+
+算例：
+
+```text
+测试件显示：总差 0.3 mm 的一对能自由滑动，总差 0.1 mm 的一对压进去能保持住
+→ 每侧：滑配 0.3 / 2 = 0.15 mm，压配 0.1 / 2 = 0.05 mm
+一根要自由转动的 3 mm 销，孔径 = 3 + 2 × 0.15 = 3.3 mm
+```
+
+最后一行要记住：要让轴自由转动的孔，直径等于轴径加两倍的每侧间隙，因为两侧各有一条缝。3 mm 的轴、每侧 0.15 mm，就需要 3.3 mm 的孔。画成 3.15 mm，轴会在一侧贴上、另一侧干涉。
+
+### 为什么孔总是偏小
+
+切片软件把圆变成许多短直线段；喷嘴尖端是圆的，走不出尖锐的内角，会把角磨圆；熔化的塑料被挤出来时还会略微向外摊。结果就是规律：内尺寸（孔、槽）缩小，外尺寸变大。第一层被压得更宽，形成“象脚”（elephant's foot），会把孔底封小，也让零件底部凸起。需要在底部配合的边缘，加一个约 0.4–0.5 mm 的倒角，给压扁的料一条出路。
+
+这就是为什么你要量打印出来的零件，而不是只看 CAD 模型。建一份打印日志：打印机、喷嘴、材料与品牌、温度、层高、滑配和压配的每侧间隙。零件装上了，你能复现；装不上，日志告诉你哪个数字变了。
+
+<Quiz id="q3" question="你的滑配间隙是每侧 0.2 mm。要让一根 5 mm 的轴自由转动，孔要画多大直径（mm）？" answer={5.4} unit="mm" explanation="两侧各有一条缝，所以孔径 = 5 + 2 × 0.2 = 5.4 mm。画成 5.2 mm 就只剩每侧 0.1 mm。" />
+
+## 面向 FDM 设计
+
+这一课的里程碑，是专门为 FDM 设计一个零件，而不是画一个“碰巧能导出”的 CAD 形状。决定打印件强不强、好不好做的，是三件事：摆放方向、悬垂和层间结合。FDM 零件是各向异性的：它是一层层焊在一起的线，层与层之间的结合弱于层内塑料。
+
+- **摆放方向**：打印件最弱的地方在层与层之间，所以要让主要载荷沿着层走，而不是横跨层。一个钩子竖着打，会在层线处断；同样一个钩子躺着打，会弯曲。建模前就决定方向，因为它决定倒角放哪、哪个面贴床。
+- **悬垂**：与竖直方向成大约 45° 以内的悬垂通常不用支撑；超过这个角度，把尖悬垂改成倒角，或者计划支撑。45° 只是起点，不是定律：冷却、喷嘴尺寸和层高都会改变它。
+- **桥接**：短的横跨——几厘米，具体看机器——可以在两个支点之间直接桥接。两端要有锚点，桥面要吹足风，不要让桥去承重。
+- **水平孔**：侧躺的圆孔顶部会下垂。水滴形孔或平顶孔可以避免支撑，并保住孔顶形状。要精确的孔，先打小一点，再钻或铰。
+- **壁厚**：薄壁取挤出宽度的整数倍：0.4 mm 喷嘴就用 0.8、1.2 或 1.6 mm。强度主要来自外墙（perimeter），不是填充。对大多数支架来说，多加一两道墙比加填充更省料地提高强度。
+- **紧固件**：要反复拆装的螺纹，用热熔黄铜螺母（heat-set insert）。打印螺纹只适合粗牙、很少拆的场合，它会磨损、滑牙。螺母孔的尺寸按螺母数据表来，并先试一个。
+- **支撑**：支撑费时间，接触面粗糙，还会在接触处削弱零件。不需要支撑的设计通常更好：把悬垂改成倒角、把零件拆开，或者换一个摆放方向。
+
+CNC Kitchen 发布的是用仪器做的、可重复的强度测试，覆盖填充、壁数、热熔螺母和打印方向。用这些测试代替口口相传的经验。
+
+面向 FDM 设计，也意味着把你的机器误差设计进去。测试件量出的间隙数字要作为参数写进模型，而不是写成一句“以后打磨一下”。在应力集中的内角加圆角，并且避免做比两倍挤出宽度还薄的特征，否则切片软件要么跳过它，要么把它打得很糟。
+
+<Resource id="hubs-dfam" />
+
+<Quiz id="q4" question="一根细长的卡扣钩要反复弯很多次，它应该怎么躺在热床上？" options={["竖着放，让层沿着长度方向叠起来", "平躺着放，让它在层内方向上弯曲", "100% 填充时怎么放都无所谓", "斜 45° 并加支撑"]} answer={1} explanation="打印件最弱的地方在层与层之间。平躺时弯曲载荷沿着层走，钩子会弯而不是在层线处裂开；竖着放会让层横跨弯曲方向，正是卡扣断裂的位置。100% 填充也救不了薄弱的层间结合。" />
+
+## 能扣响的卡扣
+
+悬臂卡扣（cantilever snap-fit）是一根小梁，末端带一个钩子。把两个零件压在一起时，钩子的导入斜面顶住对方，把梁压弯一个钩深；钩子越过卡台后，梁弹回去，卡面就把两个零件锁住。它是一个弹簧，不是夹子，失败方式有两种：臂在根部断掉，或者需要的关闭力太大，根本不好用。
+
+对于矩形悬臂，塑料件卡扣设计指南里的经典直梁公式是：
+
+```text
+根部应变   ε = 1.5 × y × t / L²
+压弯所需力 P = b × t² × E × ε / (6 × L)
+压入力量   W = P × (μ + tan α) / (1 − μ × tan α)
+```
+
+其中 y 是钩深，t 是臂厚，L 是臂长，b 是臂宽，E 是材料刚度，α 是导入角，μ 是摩擦系数。应变（strain）决定塑料会不会断，压入力量决定人能不能把外壳扣上。
+
+本课外壳的臂的算例：
+
+```text
+L = 10, t = 1.2, y = 0.8 → ε = 1.5 × 0.8 × 1.2 / 10² = 1.44 / 100 = 0.0144 = 1.44 %
+```
+
+关键在平方：应变随 1/L² 增长，臂长减半，应变变成四倍。又短又厚的臂，正是大多数人第一版会画的样子，也通常是最先裂的那个。把臂做薄能降低应变，把钩做浅也能；把臂加长帮助最大，但外壳里要留出空间。
+
+<CodeSource path="examples/month-3/fdm-printing/snap_fit.py" />
+
+```python
+"""snap_fit.py: will a printed cantilever snap-fit arm bend or break?
+
+Classic straight-beam formulas for a rectangular cantilever arm with a hook at its tip
+(as in the Bayer/Covestro snap-fit design guide):
+    strain at the root   eps = 1.5 * y * t / L^2
+    force to deflect it  P   = b * t^2 * E * eps / (6 * L)
+    force to push it on  W   = P * (mu + tan a) / (1 - mu * tan a)
+y = hook depth (how far the arm must bend), t = arm thickness, L = arm length,
+b = arm width, E = stiffness of the plastic, a = lead-in angle of the hook, mu = friction.
+The strain limits below are our cautious rules of thumb for FDM parts, not datasheet
+values: a printed arm is weakest when it bends across its layers. Print a test arm before
+you trust any of this.
+"""
+import math
+
+MATERIALS = {             # E (MPa), strain we allow for a snap that is used many times
+    "PLA":  (3500, 0.015),
+    "PETG": (2000, 0.025),
+}
+
+
+def snap(L, t, y, b=6.0, material="PLA", lead_deg=30.0, mu=0.3):
+    E, allowed = MATERIALS[material]
+    eps = 1.5 * y * t / L ** 2
+    P = b * t ** 2 * E * eps / (6 * L)
+    tan_a = math.tan(math.radians(lead_deg))
+    W = P * (mu + tan_a) / (1 - mu * tan_a)
+    verdict = "ok" if eps <= allowed else f"too much (limit {allowed * 100:.1f} %)"
+    return (f"L {L:4.1f}  t {t:.1f}  hook {y:.1f} mm, {material + ",":5s} lead-in {lead_deg:2.0f} deg: "
+            f"strain {eps * 100:4.2f} % {verdict:22s} push-on {W:5.1f} N")
+
+
+if __name__ == "__main__":
+    print(snap(5, 1.5, 1.0))                   # short and thick: the first design people draw
+    print(snap(10, 1.5, 1.0))
+    print(snap(10, 1.2, 0.8))                  # the arm used in esp32_case.scad
+    print(snap(10, 1.2, 0.8, material="PETG"))
+    print(snap(10, 1.2, 0.8, lead_deg=60))     # steep lead-in: hard to push on
+```
+
+真实输出：
+
+```text
+$ python3 snap_fit.py
+L  5.0  t 1.5  hook 1.0 mm, PLA,  lead-in 30 deg: strain 9.00 % too much (limit 1.5 %) push-on 150.4 N
+L 10.0  t 1.5  hook 1.0 mm, PLA,  lead-in 30 deg: strain 2.25 % too much (limit 1.5 %) push-on  18.8 N
+L 10.0  t 1.2  hook 0.8 mm, PLA,  lead-in 30 deg: strain 1.44 % ok                     push-on   7.7 N
+L 10.0  t 1.2  hook 0.8 mm, PETG, lead-in 30 deg: strain 1.44 % ok                     push-on   4.4 N
+L 10.0  t 1.2  hook 0.8 mm, PLA,  lead-in 60 deg: strain 1.44 % ok                     push-on  30.7 N
+```
+
+逐行来看。又短又厚的 L = 5 臂，正是大多数人第一版会画的样子；应变 9%，会裂。长度加倍后应变降到 2.25%，依然超标。把臂减薄、钩变浅，得到 1.44%，落进我们为 PLA 留的 1.5% 以内。PETG 刚度低，同样的臂压入力量更小，4.4 N 对 7.7 N。60° 的陡导入角把压入力量提高到四倍（30.7 N）——这就是把卡扣做得“很难关”的方法。
+
+脚本里的限值，PLA 1.5%、PETG 2.5%，是本站编者为打印件定的保守经验值，不是材料数据表上的数值。打印臂在横跨层的方向弯曲时最弱，而真实零件还有圆角、层线和摩擦，公式都没有算。先打一根测试臂，扣它 20 次，再把它用到外壳上。
+
+实用细节：在臂与主体的根部加圆角，因为应力集中在那里。卡面留大约 0.4 mm，既能扣住又便于拆开。30° 导入角容易关；60° 导入角很难压进去，如果你不想让零件意外打开，可以这样设计。还要给人留一个按臂的位置，否则外壳扣上就打不开了。
+
+<Quiz id="q5" question="一根臂 L = 12 mm、t = 1.0 mm，钩深 0.8 mm，应变是多少百分比？" answer={0.83} unit="%" tolerance={0.05} explanation="ε = 1.5 × y × t / L² = 1.5 × 0.8 × 1.0 / 12² = 1.2 / 144 = 0.00833 = 0.83%。" />
+
+## 练习：ESP32 外壳
+
+你的练习是：打印公差测试件，记下你这台机器真实的间隙数字，然后为你的 ESP32 设计并打印一个不用胶水就能扣上的两件式卡扣外壳。反复迭代，直到它扣得合适：太紧就松一个数，太松就紧一个数。这个“建模—打印—测量—只改一个数—再来”的循环，就是所有机械设计的日常。
+
+下面的文件是本站编者的示例，不是必须照抄的答案。把它当作对照参考；如果你想先看看能用的卡扣长什么样，也可以先打它。
+
+<CodeSource path="examples/month-3/fdm-printing/esp32_case.scad" />
+
+```scad
+// esp32_case.scad: a two-part snap-fit case for an ESP32-S3-DevKitC-1 (headers pins down).
+// Board size from Espressif's v1.1 drawing (62.74 x 25.40 mm); measure your own board,
+// clones differ. The snap arms use the numbers checked by snap_fit.py (L 10, t 1.2, hook 0.8).
+//   Render both parts:  openscad -o esp32_case.stl esp32_case.scad
+//   Only one part:      openscad -D 'part="base"' -o base.stl esp32_case.scad
+//   Interference check: openscad -D 'part="clash"' -o clash.stl esp32_case.scad
+//                       (closes the lid on the base; "top level object is empty" = no clash)
+
+part      = "both";   // "base", "lid", "both" (side by side for printing) or "clash"
+
+// --- the board ---
+board_l   = 62.74;
+board_w   = 25.40;
+pins_h    = 9.0;      // header pins below the board, plus a little air
+above_h   = 6.0;      // tallest part on top (buttons, module shield) plus air
+usb_w     = 12.0;     // opening at one end for the USB cable(s)
+usb_h     = 7.0;
+
+// --- the printer ---
+clearance = 0.3;      // board-to-wall gap on each side: use your tolerance-gauge result
+fit       = 0.2;      // gap between the snap arm and the base wall
+
+// --- the case ---
+wall      = 2.0;
+floor_t   = 2.0;
+lid_t     = 2.0;
+ledge     = 2.5;      // the board rests on two ledges at the short ends (pins are on the long edges)
+arm_L     = 10.0;     // snap arm length  } keep these in step with snap_fit.py
+arm_t     = 1.2;      // snap arm thickness }
+hook      = 0.8;      // hook depth        }
+arm_b     = 6.0;      // snap arm width
+
+in_l  = board_l + 2 * clearance;
+in_w  = board_w + 2 * clearance;
+in_h  = pins_h + 1.6 + above_h;           // 1.6 mm board
+out_l = in_l + 2 * wall;
+out_w = in_w + 2 * wall;
+out_h = floor_t + in_h;
+win_z = out_h - arm_L - 0.2;              // window in the base wall that the hook clicks into
+
+echo("inside (mm)", in_l, "x", in_w, "x", in_h);
+echo("outside, closed (mm)", out_l, "x", out_w, "x", out_h + lid_t);
+assert(hook < wall, "the hook must be shallower than the wall it clicks into");
+
+module base() {
+  difference() {
+    cube([out_l, out_w, out_h]);
+    translate([wall, wall, floor_t]) cube([in_l, in_w, in_h + 1]);
+    translate([-1, (out_w - usb_w) / 2, floor_t + pins_h]) cube([wall + 2, usb_w, usb_h]);
+    for (y = [-1, out_w - wall - 1])                       // windows for the two hooks
+      translate([(out_l - arm_b - 1) / 2, y, win_z]) cube([arm_b + 1, wall + 2, 2.2]);
+  }
+  for (x = [wall, out_l - wall - ledge])                   // ledges at the short ends
+    translate([x, wall, floor_t]) cube([ledge, in_w, pins_h]);
+}
+
+module lid() {
+  cube([out_l, out_w, lid_t]);
+  translate([wall + fit, wall + fit, lid_t]) difference() {   // locating lip
+    cube([in_l - 2 * fit, in_w - 2 * fit, 1.5]);
+    translate([1.2, 1.2, -1]) cube([in_l - 2 * fit - 2.4, in_w - 2 * fit - 2.4, 4]);
+  }
+}
+
+// The lid prints flat with the arms standing up, so they bend ACROSS the layers (the weak
+// direction). If an arm snaps, print the lid on its side or switch to PETG (see the lesson).
+module lid_with_arms() {                                  // modelled upside down, as it prints
+  lid();
+  x0 = (out_l - arm_b) / 2;
+  translate([x0, wall + fit, lid_t]) mirror([0, 1, 0]) translate([0, -arm_t, 0]) snap_arm_up();
+  translate([x0, out_w - wall - fit - arm_t, lid_t]) snap_arm_up();
+}
+
+module snap_arm_up() {                                    // arm along +z, hook on the +y face at the tip
+  cube([arm_b, arm_t, arm_L]);
+  // hook: 0.4 mm catch face, then a 30 degree lead-in (0.8 / tan 30 = 1.4 mm) down to the tip
+  translate([0, arm_t, arm_L - 1.8])
+    rotate([90, 0, 90]) linear_extrude(arm_b) polygon([[0, 0], [hook, 0.4], [0, 1.8]]);
+}
+
+if (part == "base" || part == "both") base();
+if (part == "lid") lid_with_arms();
+if (part == "both") translate([0, out_w + 8, 0]) lid_with_arms();
+if (part == "clash") intersection() {                     // what the closed lid and base share
+  base();
+  translate([0, out_w, out_h + lid_t]) rotate([180, 0, 0]) lid_with_arms();
+}
+```
+
+板子尺寸来自 Espressif 的 v1.1 图纸：62.74 × 25.40 mm。克隆板会有差异，所以用之前先量自己的板。板子以排针朝下的方式，搁在短边两侧的两条托台（ledge）上，因为排针沿长边排列；托台让排针悬空，只托住板子两端。一端留有 12 × 7 mm 的 USB 开口。盖子有一圈定位唇（lip）落在外壳内壁里，还有两条卡扣臂；它们的 L、t 和钩深与 `snap_fit.py` 一致。外壳侧壁上的窗口，就是钩子扣进去的地方。每个钩子有 0.4 mm 的卡面和 30° 导入角，文件注释里写得很清楚。
+
+盖子模块上方那段注释最重要：盖子平放打印，卡扣臂竖着，所以臂是横跨层弯曲的——正是上一节说的弱方向。这就是为什么臂的应变被控制在 1.44%，低于 PLA 保守的 1.5% 上限。如果臂断了，把盖子侧着打，或者换 PETG；不要简单地把臂加厚，因为那会同时提高应变和压入力量。
+
+![esp32_case.scad 渲染出的 ESP32 外壳：底壳带 USB 开口、两条托台，两侧长壁上各有一个卡扣窗口；盖子带定位唇和两条卡扣臂](/m3/esp32_case.png)
+
+渲染并检查数字：
+
+```text
+$ openscad -o esp32_case.stl esp32_case.scad 2>&1 | grep ECHO
+ECHO: "inside (mm)", 63.34, "x", 26, "x", 16.6
+ECHO: "outside, closed (mm)", 67.34, "x", 30, "x", 20.6
+$ python3 stl_info.py esp32_case.stl
+size: 67.3 x 68.0 x 18.6 mm
+triangles: 204, edges not shared by exactly 2: 0  (watertight)
+volume: 15.66 cm^3, solid mass at 1.24 g/cm^3: 19.4 g
+```
+
+算术是看得见的。内长 = 62.74 + 2 × 0.3 = 63.34 mm；内高 = 9.0 排针 + 1.6 板厚 + 6.0 上方空间 = 16.6 mm；闭合外高 = 2.0 底 + 16.6 + 2.0 盖 = 20.6 mm。STL 是 67.3 × 68.0 × 18.6 mm，因为“both”布局把底壳和盖子并排打印：Y 方向是外壳宽度加间隔再加盖子，Z 方向取两者中较高的那个。19.4 g 是按 100% 实心算的；有墙和填充时，切片软件会用得更少。
+
+本站编者没有打印过这个外壳，也没有打印过公差测试件。两者都只在软件里渲染和检查；实际打印能否配合，要由你来试。
+
+### 打印前先检查干涉
+
+“clash”零件在软件里把盖子合到底壳上，只保留两个零件共有的体积。如果结果为空，说明在设计的间隙下没有任何重叠：
+
+```text
+$ openscad -D 'part="clash"' -o clash.stl esp32_case.scad 2>&1 | grep empty
+Current top level object is empty.
+$ openscad -D 'part="clash"' -D fit=-0.1 -o clash.stl esp32_case.scad
+$ python3 stl_info.py clash.stl
+size: 63.5 x 26.2 x 8.0 mm
+triangles: 84, edges not shared by exactly 2: 0  (watertight)
+volume: 0.03 cm^3, solid mass at 1.24 g/cm^3: 0.0 g
+```
+
+第一条命令是好结果：为空表示没有重叠。第二次运行故意把一个配合改错；`fit = -0.1` 让盖子的定位唇和卡扣臂大了 0.1 mm，于是出现一圈很薄的干涉：内壁周围 63.5 × 26.2 mm，体积 0.03 cm³。这正是那种“盖子怎么都合不上”的错误。它和第 1 课在图形界面 CAD 装配里做的干涉检查是同一件事；在这里，它变成一条每次打印前都能跑的命令。
+
+迭代清单：
+
+- 用你的测试件结果设置 clearance 和 fit，不要照抄课程里的数字。
+- 打印底壳和盖子。
+- 板子能不能不用力就放进去？
+- 盖子能不能“咔”一声扣上，晃动时还保持闭合？
+- 能不能再次打开而不弄断卡扣臂？
+- 每次只改一个数字，并写进日志。
+
+<Callout type="tip" title="先打小测试件">
+先只打盖子卡扣臂那一小块，或者单独打一根测试臂，再打整个外壳。它只要约 10 分钟，而不是 2 小时，却能告诉你卡扣行不行。
+</Callout>
+
+第 3 课会把同样的思路推到齿轮和回差（backlash）：齿轮箱是一串配合的叠加，每一条松动的缝隙都会变成输出端的位置误差。你在这里记下的测试件数字，到那里还会用上。
