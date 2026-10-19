@@ -407,6 +407,25 @@ const month4Lessons: Lesson[] = [
   },
 ];
 
+const month5Lessons: Lesson[] = [
+  {
+    slug: "control-modelling",
+    title: { zh: "控制理论：先建模，再看频域", en: "Control theory: model the plant, then read the loop" },
+    summary: {
+      zh: "PID 的基础在第 3 个月已经讲过，这里往深处走：给第 3 个月的机械臂关节建一个模型，用阶跃数据辨识出它的参数，写出传递函数；再用伯德图读出增益裕度和相位裕度，并在仿真里验证它们能预测超调和失稳。",
+      en: "PID basics were Month 3; this goes deeper. Model Month 3's arm joint, identify its parameters from step data and write its transfer function; then read gain and phase margins off the loop's Bode data and check in simulation that they predict overshoot and instability.",
+    },
+    minutes: 240,
+    resources: ["ctms-frequency", "mathworks-control-practice"],
+    tasks: [
+      { id: "identify", text: { zh: "对一个真实电机（或本课模型）做开环阶跃，用终值和 63% 时间求出 B 和 J，写出它的传递函数", en: "Run an open-loop step on a real motor (or the lesson's model), get B and J from the final value and the 63 % time, and write its transfer function" } },
+      { id: "units", text: { zh: "把你第 3 个月的 PID 增益换算成 SI 单位（每弧度），并说出每个增益的物理意义", en: "Convert your Month 3 PID gains to SI units (per radian) and say what each gain means physically" } },
+      { id: "margins", text: { zh: "运行 joint_freq.py，读出相位裕度和增益裕度，并用增益裕度预测失稳的 kp", en: "Run joint_freq.py, read the phase and gain margins, and predict from the gain margin the kp at which the loop goes unstable" } },
+      { id: "verify", text: { zh: "在时域里验证这个预测：取略低和略高于临界值的 kp，记录振荡是衰减还是增长，以及振荡频率", en: "Check the prediction in the time domain: one kp just below and one just above the limit, noting whether the ringing decays or grows and at what frequency" } },
+    ],
+  },
+];
+
 export const months: Month[] = [
   {
     id: 1,
@@ -537,7 +556,7 @@ export const months: Month[] = [
       { zh: "标定相机，把像素转换成三维位置", en: "Calibrate a camera and turn a pixel into a 3D position" },
       { zh: "在 MoveIt 2 中规划并执行无碰撞抓放", en: "Plan and execute a collision-free pick and place in MoveIt 2" },
     ],
-    lessons: [],
+    lessons: month5Lessons,
   },
   {
     id: 6,

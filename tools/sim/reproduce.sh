@@ -91,6 +91,9 @@ while t < 5500:
 print(' '.join(ev))")
 MPU=1 avr "$ELF" 8000 $ROLL > "$OUT/m3-balancer_cascade.txt"
 
+# Month 5 / Lesson 1: the arm joint modelled, identified and read in the frequency domain
+python3 "$SIM/models/joint_freq.py" > "$OUT/m5-joint_freq.txt"
+
 if [[ "${1:-}" == "--compile-only-too" ]]; then
   echo "== compile-only sketches"
   for d in "$EX/arduino-io/blink_custom" "$EX/arduino-io/button_pullup" "$EX/first-robots/line_follower"; do

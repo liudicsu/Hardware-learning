@@ -1,0 +1,33 @@
+Open-loop step: 0.2 N*m from rest, speed logged at 200 Hz
+  t = 0.00 s   speed  0.00 rad/s
+  t = 0.04 s   speed  1.57 rad/s
+  t = 0.08 s   speed  2.53 rad/s
+  t = 0.12 s   speed  3.11 rad/s
+  t = 0.16 s   speed  3.46 rad/s
+  t = 0.20 s   speed  3.67 rad/s
+  t = 0.24 s   speed  3.80 rad/s
+  t = 0.28 s   speed  3.88 rad/s
+  final speed 3.99 rad/s -> B = 0.2 / 3.99 = 0.050 N*m per rad/s
+  63 % of it at t = 0.080 s -> J = B x tau = 0.0040 kg*m^2
+
+Loop gain, kp = 2.86 N*m/rad, kd = 0.115 N*m/(rad/s)
+   w (rad/s)  |L| (dB)  phase (deg)
+          1      35.1        -92.7
+          3      25.4        -97.9
+         10      13.7       -111.3
+         30       1.5       -122.5
+        100     -10.3       -153.1
+        300     -21.7       -263.0
+  gain crossover 34.6 rad/s, phase margin 56 deg
+  phase crossover 150.8 rad/s, gain margin 14.2 dB (x 5.1)
+
+P only, kp = 1.0: gain margin 16.6 dB, so the loop should ring at 40.2 rad/s
+and turn unstable near kp = 1.0 x 6.79 = 6.79. Check it on 0.1 rad steps:
+     kp     kd   PM (deg)  overshoot  swing 0.5-1 s  swing 1.5-2 s  ringing at
+   0.50  0.000        53       15 %       5.27 mrad       0.01 mrad  -
+   1.00  0.000        37       33 %       8.81 mrad       0.05 mrad  -
+   2.00  0.000        22       54 %      12.68 mrad       0.18 mrad  -
+   2.86  0.000        15       66 %      28.11 mrad       0.69 mrad  26.2 rad/s
+   6.50  0.000         1       98 %     172.47 mrad     137.12 mrad  39.3 rad/s
+   7.00  0.000        -1     grows     236.89 mrad     285.66 mrad  40.5 rad/s
+   2.86  0.115        56        2 %       0.00 mrad       0.00 mrad  -

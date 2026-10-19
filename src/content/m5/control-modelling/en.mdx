@@ -1,0 +1,243 @@
+Month 3 left you with a working PID loop on one arm joint. [Review Month 3 PID](/en/month/month-3/pid-control) if you need the P/I/D terms, integral windup or the tuning procedure; none of that is repeated here. This lesson goes deeper: model the plant, write its transfer function, read the loop on a Bode plot, and judge stability from the gain and phase margins. State space and LQR are the next lesson.
+
+## Why model the joint
+
+The joint is the same one from Month 3: J = 0.004 kg·m², B = 0.05 N·m per rad/s, and gravity 0.4 N·m × cos(q). Gravity feedforward computes the gravity torque from the measured angle and adds it to the command; when the model is right, it cancels gravity, so the remaining dynamics are linear: torque u drives J q'' + B q'. Transfer functions and Bode plots describe linear plants, and keeping the test steps small is what keeps the real joint close to that linear picture.
+
+<Formula label="Plant with gravity feedforward: angle per unit torque">G(s) = 1 / (J s² + B s) = 1 / (s (J s + B))</Formula>
+
+With J = 0.004 kg·m² and B = 0.05 N·m per rad/s, the denominator is s(J s + B). One pole sits at s = 0, the free integrator that turns torque into speed. The other sits at s = −B/J = −12.5 1/s, a first-order lag with time constant J/B = 0.004 / 0.05 = 0.08 s. After a torque step, speed reaches 63 % of its final value in 0.08 s.
+
+Month 3 expressed the gains in degrees: 0.05 N·m/deg and 0.002 N·m per deg/s. Multiply by 180/π to get SI: 0.05 × 180/π = 2.86 N·m/rad, and 0.002 × 180/π = 0.115 N·m/(rad/s). The model below uses those converted gains, so its results describe the loop you tuned by hand.
+
+<Quiz id="q1" question="What is the time constant J/B of this joint?" answer={0.08} unit="s" explanation="J = 0.004 kg·m² and B = 0.05 N·m per rad/s, so J/B = 0.004 / 0.05 = 0.08 s. That is the time for speed to reach 63 % of its final value after a torque step." />
+
+<Quiz id="q2" question="Month 3's 0.05 N·m/deg is how many N·m/rad?" answer={2.86} unit="N·m/rad" explanation="Multiply by 180/π: 0.05 × 180/π = 2.86 N·m/rad. The same gain is about 57 times larger in radian units; putting 0.05 directly into a model in radians makes the loop far too weak." />
+
+## Identify the model from data
+
+Before trusting a margin, check that the model matches the motor. The simplest test is an open-loop torque step: hold a constant torque u with gravity feedforward on, let the joint accelerate from rest, and log speed. For this first-order speed response the final speed is u/B and the 63 % time is tau = J/B. With u = 0.2 N·m and B = 0.05 N·m per rad/s, the final speed should be 0.2 / 0.05 = 4 rad/s; the log stops at 0.5 s, about six time constants, when the speed is still 0.2 % short, so it reads 3.99 rad/s. The 63 % point lands at 0.080 s, so J = B × tau = 0.05 × 0.080 = 0.0040 kg·m².
+
+<CodeSource path="tools/sim/models/joint_freq.py" />
+
+```python
+"""joint_freq.py: model the Month 3 arm joint, then read its loop in the frequency domain.
+
+The joint is the one from pid_sim.py (J = 0.004 kg*m^2, B = 0.05 N*m per rad/s, gravity
+0.4 N*m * cos(angle)), with gravity cancelled by a feedforward term so that what is left
+is linear: torque -> J*q'' + B*q'. The controller runs at 200 Hz, holds its torque for one
+period (zero-order hold) and, like most real firmware, applies the torque computed from a
+reading one period later (one sample of delay). Units are SI: angles in rad, gains in
+N*m per rad and N*m per rad/s (Month 3's 0.05 N*m per degree is 2.86 N*m per rad).
+"""
+import cmath
+import math
+
+J, B, GRAV, T = 0.004, 0.05, 0.4, 0.005
+A = B / J                                    # 12.5 1/s, so the time constant J/B is 0.08 s
+E = math.exp(-A * T)
+# exact discretisation of J*q'' + B*q' = u with the torque held over each period
+PHI = ((1.0, (1 - E) / A), (0.0, E))
+GAM = ((T - (1 - E) / A) / (A * J), (1 - E) / (A * J))
+
+
+def step(q, w, u):
+    return (q + PHI[0][1] * w + GAM[0] * u, E * w + GAM[1] * u)
+
+
+def identify():
+    """Open-loop test: hold 0.2 N*m (plus gravity feedforward) and log the speed."""
+    print("Open-loop step: 0.2 N*m from rest, speed logged at 200 Hz")
+    q, w, log = 0.0, 0.0, []
+    for k in range(101):
+        log.append((k * T, w))
+        q, w = step(q, w, 0.2)
+    for t, s in log[::8][:8]:
+        print(f"  t = {t:4.2f} s   speed {s:5.2f} rad/s")
+    final = log[-1][1]
+    t63 = next(t for t, s in log if s >= 0.632 * final)
+    b = 0.2 / final
+    print(f"  final speed {final:.2f} rad/s -> B = 0.2 / {final:.2f} = {b:.3f} N*m per rad/s")
+    print(f"  63 % of it at t = {t63:.3f} s -> J = B x tau = {b * t63:.4f} kg*m^2")
+
+
+def loop(kp, kd, w):
+    """Loop gain L = C * P at angular frequency w (rad/s), with z = e^(jwT)."""
+    z = cmath.exp(1j * w * T)
+    det = (z - PHI[0][0]) * (z - PHI[1][1]) - PHI[0][1] * PHI[1][0]
+    plant = ((z - PHI[1][1]) * GAM[0] + PHI[0][1] * GAM[1]) / det   # angle / torque
+    pd = kp + kd * (1 - 1 / z) / T
+    return pd * plant / z                                           # one sample of delay
+
+
+def margins(kp, kd):
+    """Gain and phase margins from a fine logarithmic sweep up to the Nyquist frequency."""
+    ws = [10 ** (k / 2000) for k in range(-2000, int(2000 * math.log10(math.pi / T)))]
+    wc = pm = wpc = gm = None
+    last_ph, unwrap, prev = None, 0.0, None
+    for w in ws:
+        l = loop(kp, kd, w)
+        ph = math.degrees(cmath.phase(l))
+        if last_ph is not None and ph - last_ph > 180:
+            unwrap -= 360                     # keep the phase continuous
+        last_ph = ph
+        ph += unwrap
+        if prev is not None:
+            if wc is None and abs(prev[1]) >= 1 > abs(l):
+                wc, pm = w, 180 + ph
+            if wpc is None and prev[2] > -180 >= ph:
+                wpc, gm = w, -20 * math.log10(abs(l))
+        prev = (w, l, ph)
+    return wc, pm, wpc, gm
+
+
+def bode(kp, kd):
+    print(f"Loop gain, kp = {kp} N*m/rad, kd = {kd} N*m/(rad/s)")
+    print("   w (rad/s)  |L| (dB)  phase (deg)")
+    for w in (1, 3, 10, 30, 100, 300):
+        l = loop(kp, kd, w)
+        ph = math.degrees(cmath.phase(l))
+        ph = ph - 360 if ph > 0 else ph
+        print(f"  {w:9.0f}  {20 * math.log10(abs(l)):8.1f}  {ph:11.1f}")
+    wc, pm, wpc, gm = margins(kp, kd)
+    print(f"  gain crossover {wc:.1f} rad/s, phase margin {pm:.0f} deg")
+    print(f"  phase crossover {wpc:.1f} rad/s, gain margin {gm:.1f} dB (x {10 ** (gm / 20):.1f})")
+
+
+def closed(kp, kd, target=0.1, seconds=2.0):
+    """Closed-loop step of 0.1 rad (about 6 degrees), small enough to stay linear."""
+    q, w, u, prev = 0.0, 0.0, 0.0, 0.0
+    peak, hist = 0.0, []
+    for k in range(int(seconds / T)):
+        rate = (q - prev) / T
+        prev = q
+        nxt = kp * (target - q) - kd * rate      # computed now, applied next period
+        q, w = step(q, w, u)
+        u = nxt
+        peak = max(peak, q)
+        hist.append(q - target)
+    early, late = hist[100:200], hist[-100:]     # 0.5-1.0 s and the last 0.5 s
+    size = lambda h: max(h) - min(h)
+    ups = [k for k in range(len(hist) - 100, len(hist) - 1) if hist[k] < 0 <= hist[k + 1]]
+    freq = 2 * math.pi * (len(ups) - 1) / ((ups[-1] - ups[0]) * T) if len(ups) > 2 else None
+    return 100 * max(0.0, peak - target) / target, size(early), size(late), freq
+
+
+def sweep():
+    _, _, wpc, gm = margins(1.0, 0.0)
+    print(f"P only, kp = 1.0: gain margin {gm:.1f} dB, so the loop should ring at {wpc:.1f} rad/s")
+    print(f"and turn unstable near kp = 1.0 x {10 ** (gm / 20):.2f} = {10 ** (gm / 20):.2f}. Check it on 0.1 rad steps:")
+    print("     kp     kd   PM (deg)  overshoot  swing 0.5-1 s  swing 1.5-2 s  ringing at")
+    for kp, kd in ((0.5, 0), (1.0, 0), (2.0, 0), (2.86, 0), (6.5, 0), (7.0, 0), (2.86, 0.115)):
+        _, pm, _, _ = margins(kp, kd)
+        over, early, late, freq = closed(kp, kd)
+        f = f"{freq:.1f} rad/s" if freq and late > 1e-4 else "-"
+        o = f"{over:6.0f} %" if late < early else "  grows"
+        print(f"  {kp:5.2f}  {kd:5.3f}  {pm:8.0f}   {o}   {1000 * early:8.2f} mrad  {1000 * late:9.2f} mrad  {f}")
+
+
+if __name__ == "__main__":
+    identify()
+    print()
+    bode(2.86, 0.115)
+    print()
+    sweep()
+```
+
+```bash
+python3 tools/sim/models/joint_freq.py
+```
+
+<SimOutput source="model">
+
+```text
+Open-loop step: 0.2 N*m from rest, speed logged at 200 Hz
+  t = 0.00 s   speed  0.00 rad/s
+  t = 0.04 s   speed  1.57 rad/s
+  t = 0.08 s   speed  2.53 rad/s
+  t = 0.12 s   speed  3.11 rad/s
+  t = 0.16 s   speed  3.46 rad/s
+  t = 0.20 s   speed  3.67 rad/s
+  t = 0.24 s   speed  3.80 rad/s
+  t = 0.28 s   speed  3.88 rad/s
+  final speed 3.99 rad/s -> B = 0.2 / 3.99 = 0.050 N*m per rad/s
+  63 % of it at t = 0.080 s -> J = B x tau = 0.0040 kg*m^2
+```
+
+</SimOutput>
+
+On a real motor, log the same run: apply a small constant torque, keep gravity feedforward on or hold the joint in a fixed pose, record speed at the control rate, and read the final value and the 63 % time. If the final speed implies a different B, or the rise implies a different J, use the measured numbers. A frequency-domain analysis built on an unverified J and B is just arithmetic.
+
+<Callout type="tip" title="Check the model before the margins">A margin from a model that has never been compared with a torque step is a guess. One open-loop step costs a few seconds and catches wrong units, a wrong sign, and a load that is not the one you modelled.</Callout>
+
+<Quiz id="q3" question="Open loop with u = 0.2 N·m and B = 0.05 N·m per rad/s, what is the ideal final speed u/B?" answer={4} unit="rad/s" explanation="0.2 / 0.05 = 4 rad/s. The log ends at 0.5 s, about six time constants, so it reads 3.99 rad/s, still 0.2 % short; 0.2 / 3.99 still recovers B = 0.050 N·m per rad/s." />
+
+## Read the loop in the frequency domain
+
+Write the controller as C and the plant as P; the loop gain is L = C × P. Magnitude is plotted in decibels, 20 log10 |L|, so 0 dB means |L| = 1. Phase is the lag from the command around the loop and back to the summing point. The gain crossover is the frequency where |L| = 1 (0 dB). The phase crossover is the frequency where the phase reaches −180°.
+
+<Formula label="Gain margin: how much more gain the loop can take at the phase crossover before |L| reaches 1">GM = 1 / |L(jω_pc)|, in dB: GM_dB = −20 log10 |L(jω_pc)|</Formula>
+
+<Formula label="Phase margin: how much more phase lag the loop can take at the gain crossover before reaching −180°">PM = 180° + ∠L(jω_c)</Formula>
+
+With the Month 3 gains, kp = 2.86 N·m/rad and kd = 0.115 N·m/(rad/s), the model gives the table below. |L| crosses 0 dB at 34.6 rad/s with a phase margin of 56°. The phase reaches −180° at 150.8 rad/s, where the gain margin is 14.2 dB, a factor of 5.1. The 300 rad/s row is already at −263°, well past −180°; the margin is read at the first crossing.
+
+<SimOutput source="model">
+
+```text
+Loop gain, kp = 2.86 N*m/rad, kd = 0.115 N*m/(rad/s)
+   w (rad/s)  |L| (dB)  phase (deg)
+          1      35.1        -92.7
+          3      25.4        -97.9
+         10      13.7       -111.3
+         30       1.5       -122.5
+        100     -10.3       -153.1
+        300     -21.7       -263.0
+  gain crossover 34.6 rad/s, phase margin 56 deg
+  phase crossover 150.8 rad/s, gain margin 14.2 dB (x 5.1)
+```
+
+</SimOutput>
+
+These numbers already include two lags that a continuous C × P sketch leaves out. The controller holds its torque for one period (zero-order hold), and the firmware applies the torque computed from a reading one period late. At 200 Hz each sample is 5 ms. A delay of T seconds costs ω × T radians of phase, more at higher frequency: at the 34.6 rad/s crossover one sample costs 34.6 × 0.005 = 0.17 rad, about 10°, and the hold, which acts like half a sample, about 5° more. That is 15° of margin a delay-free Bode plot would promise but the real loop does not have.
+
+<Resource id="ctms-frequency" />
+
+The Michigan tutorial reads gain and phase margins off Bode plots step by step and checks them against step responses, the same exercise as the next section; its code is MATLAB, but every idea maps onto `joint_freq.py`.
+
+<Quiz id="q4" question="What is true at the gain crossover?" options={["The phase is −180°", "|L| = 0 dB, that is |L| = 1", "The loop gain is zero", "The motor is saturated"]} answer={1} explanation="Gain crossover is defined as the frequency where |L| = 1, or 0 dB. Phase margin is read there: PM = 180° + the phase at that frequency. The frequency where the phase reaches −180° is the phase crossover, where gain margin is read." />
+
+## From margins to step response
+
+Margins are not decoration: they predict how the closed loop will move. With kd = 0, raising kp raises |L| at every frequency, so the gain crossover moves right into a region with more phase lag. PM falls, and overshoot rises.
+
+At kp = 1.0 with P only, the gain margin is 16.6 dB, a gain ratio of 10^(16.6/20) = 6.8. The same margin says the loop should ring at the phase crossover, 40.2 rad/s, and turn unstable near kp = 6.79. The sweep agrees: as kp goes 0.5, 1, 2, 2.86, PM falls 53°, 37°, 22°, 15°, and overshoot rises 15 %, 33 %, 54 %, 66 %. At kp = 6.5, PM is 1°, overshoot is 98 %, and the 39.3 rad/s ringing decays slowly, with the swing falling only from 172.47 to 137.12 mrad between the two windows. At kp = 7.0, PM is −1°, the ringing grows from 236.89 to 285.66 mrad, and its frequency is 40.5 rad/s. Prediction and step response line up.
+
+<SimOutput source="model">
+
+```text
+P only, kp = 1.0: gain margin 16.6 dB, so the loop should ring at 40.2 rad/s
+and turn unstable near kp = 1.0 x 6.79 = 6.79. Check it on 0.1 rad steps:
+     kp     kd   PM (deg)  overshoot  swing 0.5-1 s  swing 1.5-2 s  ringing at
+   0.50  0.000        53       15 %       5.27 mrad       0.01 mrad  -
+   1.00  0.000        37       33 %       8.81 mrad       0.05 mrad  -
+   2.00  0.000        22       54 %      12.68 mrad       0.18 mrad  -
+   2.86  0.000        15       66 %      28.11 mrad       0.69 mrad  26.2 rad/s
+   6.50  0.000         1       98 %     172.47 mrad     137.12 mrad  39.3 rad/s
+   7.00  0.000        -1     grows     236.89 mrad     285.66 mrad  40.5 rad/s
+   2.86  0.115        56        2 %       0.00 mrad       0.00 mrad  -
+```
+
+</SimOutput>
+
+Derivative changes the picture. Month 3's kd = 0.115 N·m/(rad/s), together with kp = 2.86, lifts PM from 15° to 56° and cuts overshoot from 66 % to 2 %. D adds phase lead near the crossover, exactly where the loop needs it. That is the frequency-domain reason D calms the approach: it does not remove steady error, but it buys phase margin.
+
+<Quiz id="q5" question="A gain margin of 16.6 dB corresponds to how many times more gain?" answer={6.8} unit="times" explanation="Convert decibels to a ratio: 10^(16.6/20) = 6.8. With P only and kp = 1.0, about 6.8 times more gain drives the loop unstable near the phase crossover; the model puts the critical kp at 6.79." />
+
+## Common mistakes
+
+- **Degrees in a radian model.** Month 3's 0.05 N·m/deg is 2.86 N·m/rad. Using 0.05 in a model that works in radians makes the loop about 57 times too weak, so the margins mean nothing.
+- **Forgetting the hold and the delay.** A continuous C × P Bode plot has no sampling. The real loop holds torque for 5 ms and applies it one sample late; both add phase lag (about 15° at this crossover), so leave them out and your predicted PM is too optimistic.
+- **Reading margins from an unchecked model.** If the open-loop step misses the measured final speed or 63 % time, fix B and J first. Margins from wrong parameters are fiction.
+- **Ignoring saturation.** Linear analysis assumes the commanded torque is actually delivered. If the motor clips, the loop gain is no longer that L; keep test steps small, and sweep gains only where the command stays inside the limit.
+- **Identifying with a different load.** Gravity feedforward cancels the gravity you modelled, not a new payload or a spring. Measure tau and B in the pose and load the joint will run with; a different load changes J and B and moves both margins.
