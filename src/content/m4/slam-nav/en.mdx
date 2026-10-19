@@ -512,7 +512,7 @@ green block  at (-1.5, +1.5): found (49 occupied cells)
 
 </SimOutput>
 
-Every object is where it should be. The cell counts differ from run to run, by tens of cells on the walls, because the scans and the loop closure never come out exactly the same; what matters is that nothing is missing and that the unknown share is small. The 7 % of unknown cells are mostly behind the obstacles and outside the walls, where the lidar cannot see. On a real robot you would compare against a tape measure instead: pick two walls, measure the distance, and count the cells between them.
+Every object is where it should be. The cell counts differ from run to run — a wall can get half as many cells in the next run, and the map can come out one row smaller — because the scans and the loop closure never come out exactly the same; what matters is that nothing is missing and that the unknown share is small. The 7 % of unknown cells are mostly behind the obstacles and outside the walls, where the lidar cannot see. On a real robot you would compare against a tape measure instead: pick two walls, measure the distance, and count the cells between them.
 
 <Quiz id="q3" question="How many cells has a map of a 6 m × 6 m room at a resolution of 0.05 m?" answer={14400} unit="cells" explanation="6 / 0.05 = 120 cells per side, and 120 × 120 = 14,400 cells." />
 
