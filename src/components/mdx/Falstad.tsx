@@ -54,8 +54,9 @@ export function Falstad({ title, circuit, startCircuit, cct, height = 420 }: Fal
     const el = boxRef.current;
     if (!el) return;
     if (typeof IntersectionObserver === "undefined") {
-      setVisible(true);
-      return;
+      // Very old browsers: mount on the next frame instead of observing.
+      const id = requestAnimationFrame(() => setVisible(true));
+      return () => cancelAnimationFrame(id);
     }
     const io = new IntersectionObserver(
       (entries) => {
