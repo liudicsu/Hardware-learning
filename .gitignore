@@ -48,3 +48,5 @@ tools/sim/build/
 tools/sim/out/
 # written by examples/month-1/python-terminal/log.py
 examples/**/measurements.json
+# the ESP32 core also exports binaries into <sketch>/build/
+examples/**/build/
