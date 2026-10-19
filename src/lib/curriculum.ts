@@ -440,6 +440,22 @@ const month5Lessons: Lesson[] = [
       { id: "mpc", text: { zh: "改变 MPC 的预测步数（例如 10、20、80），比较超调、进入 1° 的时间和每步的计算量", en: "Change the MPC horizon (e.g. 10, 20, 80 steps) and compare overshoot, time to within 1° and the computation per step" } },
     ],
   },
+  {
+    slug: "kinematics-ik",
+    title: { zh: "运动学：正解、数值逆解与奇异点", en: "Kinematics: forward, numerical IK and singularities" },
+    summary: {
+      zh: "用齐次变换链和手算两种方式求出机械臂末端的位置；用数值雅可比和阻尼最小二乘把目标点反解成关节角，看清多解和够不着的情况；最后找到奇异点：行列式归零、关节速度爆炸，以及阻尼如何用精度换来安全。",
+      en: "Find where the arm's tip is, both with a chain of homogeneous transforms and by hand; turn a target point back into joint angles with a numerical Jacobian and damped least squares, including multiple solutions and targets out of reach; then find the singularities, where the determinant vanishes, joint speeds explode and damping trades accuracy for safety.",
+    },
+    minutes: 240,
+    resources: ["modern-robotics"],
+    tasks: [
+      { id: "fk-hand", text: { zh: "手算 q = [30, 45, −60]° 时末端的位置，再用 kinematics.py 的变换链核对到 0.1 mm", en: "Work out the tip position for q = [30, 45, −60]° by hand and check it against kinematics.py's transform chain to 0.1 mm" } },
+      { id: "ik", text: { zh: "给数值逆解选三个自己的目标点（其中一个够不着），从两个不同的初值出发，记录迭代次数和得到的解", en: "Pick three targets of your own for the numerical IK (one out of reach), start from two different initial guesses, and log the iterations and the solutions" } },
+      { id: "fk-check", text: { zh: "把每个逆解结果再代回正运动学，确认误差小于 0.1 mm", en: "Feed every IK result back through forward kinematics and confirm the error is under 0.1 mm" } },
+      { id: "singular", text: { zh: "在你的机械臂（或模型）上把手臂伸直，演示奇异点：说明哪个方向动不了，以及雅可比行列式为什么归零", en: "Show a singularity on your arm (or the model) by stretching it straight: say which direction it cannot move in and why the Jacobian's determinant goes to zero" } },
+    ],
+  },
 ];
 
 export const months: Month[] = [

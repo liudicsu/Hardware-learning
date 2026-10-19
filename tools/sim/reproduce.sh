@@ -95,6 +95,8 @@ MPU=1 avr "$ELF" 8000 $ROLL > "$OUT/m3-balancer_cascade.txt"
 python3 "$SIM/models/joint_freq.py" > "$OUT/m5-joint_freq.txt"
 # Lesson 2: state space, LQR on a cart-pole, MPC on the arm joint
 python3 "$SIM/models/lqr_sim.py" > "$OUT/m5-lqr_sim.txt"
+# Lesson 3: forward kinematics, numerical IK, singularities
+python3 "$SIM/models/kinematics.py" > "$OUT/m5-kinematics.txt"
 
 if [[ "${1:-}" == "--compile-only-too" ]]; then
   echo "== compile-only sketches"

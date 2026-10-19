@@ -1340,6 +1340,20 @@ export const resources: Record<string, Resource> = {
     license: { zh: "© MathWorks，仅提供外链", en: "© MathWorks; external link only" },
     extra: true,
   },
+  "modern-robotics": {
+    id: "modern-robotics",
+    url: "https://hades.mech.northwestern.edu/index.php/Modern_Robotics",
+    title: { zh: "《现代机器人学》（Modern Robotics）书与视频", en: "Modern Robotics: the book and videos" },
+    author: "Kevin M. Lynch and Frank C. Park / Northwestern University",
+    kind: "textbook",
+    cost: { zh: "预印本 PDF 与视频免费", en: "Free preprint PDF and videos" },
+    summary: {
+      zh: "机械臂运动学的标准教材之一：刚体运动、正运动学、速度运动学与雅可比、逆运动学和奇异性，每节配短视频和配套代码库。也有中文版可以购买。",
+      en: "One of the standard texts on arm kinematics: rigid-body motion, forward kinematics, velocity kinematics and the Jacobian, inverse kinematics and singularities, with a short video for each section and a companion code library.",
+    },
+    license: { zh: "© Lynch 与 Park，剑桥大学出版社；作者网站提供免费预印本", en: "© Lynch and Park, Cambridge University Press; free preprint on the authors' site" },
+    extra: true,
+  },
   "nav2-docs": {
     id: "nav2-docs",
     url: "https://docs.nav2.org/",

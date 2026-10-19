@@ -1,0 +1,305 @@
+[第 3 个月的 SO-101 机械臂](/zh/month/month-3/so101-arm)有六个电机（五个关节加一个夹爪），但到目前为止每个控制器一次只动一个关节。要把夹爪（gripper）放到空间中的某个位置，需要关节角到夹爪位置的映射。本课为这种 SO-101 布局的前三个关节建立这个映射：底座偏航（base yaw）q0、肩（shoulder）q1 和肘（elbow）q2。模型采用整数化的连杆长度 H = 0.05 m、L1 = 0.12 m、L2 = 0.14 m，关节布局与前三个关节相同，但不是 SO-101 的真实尺寸。
+
+## 正运动学
+
+正运动学（forward kinematics）把关节角变成末端位置。每个关节都是一次旋转加一个固定偏移。把从底座到末端的 4 × 4 齐次变换（homogeneous transform）按顺序乘起来：`rot_z(q0) * trans(0, 0, H) * rot_y(q1) * trans(L1, 0, 0) * rot_y(q2) * trans(L2, 0, 0)`。乘积的最后一列是末端位置，左上角 3 × 3 块是它的姿态。
+
+在机械臂的竖直平面里手算，结果相同：
+
+<Formula label="机械臂平面内的正运动学">r = L1 cos q1 + L2 cos(q1 + q2),   z = H + L1 sin q1 + L2 sin(q1 + q2),   x = r cos q0,   y = r sin q0</Formula>
+
+取 `q = [30, 45, -60]` deg。此时 q1 + q2 = -15 deg，前臂略微指向水平线下方。模型打印：
+
+<SimOutput source="model">
+
+```text
+Forward kinematics, q = [30, 45, -60] deg
+  by hand: reach r = 0.2201 m, height z = 0.0986 m, x = r cos 30 = 0.1906, y = r sin 30 = 0.1100
+  transforms: tip = (0.1906, 0.1100, 0.0986) m
+```
+
+</SimOutput>
+
+手算核对：r = 0.12 × 0.7071 + 0.14 × 0.9659 = 0.08485 + 0.13523 = 0.2201 m，z = 0.05 + 0.12 × 0.7071 + 0.14 × (-0.2588) = 0.05 + 0.08485 - 0.03623 = 0.0986 m。底座再把这个点转起来：x = 0.2201 × 0.8660 = 0.1906 m，y = 0.2201 × 0.5 = 0.1100 m。变换连乘给出同样的 (0.1906, 0.1100, 0.0986) m。
+
+<Quiz id="q1" question="q1 = 0、q2 = 0 时，末端离底座的竖直轴多远？" answer={0.26} unit="m" explanation="r = L1 cos 0 + L2 cos 0 = 0.12 + 0.14 = 0.26 m。机械臂完全伸直，这就是它最大的水平可达距离（reach）。" />
+
+在求导之前，再看一个构型。取 `q = [0, 90, -90]` deg：上臂竖直向上，前臂水平向外。
+
+<Quiz id="q2" question="q = [0, 90, -90] deg 时 r 是多少？" answer={0.14} unit="m" explanation="r = 0.12 cos 90 + 0.14 cos 0 = 0 + 0.14 = 0.14 m。同一构型的 z = 0.05 + 0.12 sin 90 + 0.14 sin 0 = 0.17 m，所以末端向外 0.14 m、向上 0.17 m。" />
+
+<CodeSource path="tools/sim/models/kinematics.py" />
+
+```python
+"""kinematics.py: forward kinematics, numerical inverse kinematics and singularities.
+
+A three-joint arm laid out like the first three joints of an SO-101 (base yaw q0 about the
+vertical axis, then a shoulder q1 and an elbow q2 that both pitch in the arm's vertical
+plane), with round-number link lengths rather than the SO-101's real ones. Upper arm L1 = 0.12 m, forearm L2 = 0.14 m,
+shoulder H = 0.05 m above the base. Angles in radians, q1 = q2 = 0 means the arm points
+straight out horizontally. Standard library only.
+"""
+import math
+
+H, L1, L2 = 0.05, 0.12, 0.14
+
+
+def rot_z(a):
+    c, s = math.cos(a), math.sin(a)
+    return [[c, -s, 0, 0], [s, c, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+
+
+def rot_y(a):          # positive a pitches the arm up (rotation about -y)
+    c, s = math.cos(a), math.sin(a)
+    return [[c, 0, -s, 0], [0, 1, 0, 0], [s, 0, c, 0], [0, 0, 0, 1]]
+
+
+def trans(x, y, z):
+    return [[1, 0, 0, x], [0, 1, 0, y], [0, 0, 1, z], [0, 0, 0, 1]]
+
+
+def mul(a, b):
+    return [[sum(a[i][k] * b[k][j] for k in range(4)) for j in range(4)] for i in range(4)]
+
+
+def fk(q):
+    """Chain of transforms base -> shoulder -> elbow -> tip; returns the tip position."""
+    t = mul(rot_z(q[0]), trans(0, 0, H))
+    t = mul(t, mul(rot_y(q[1]), trans(L1, 0, 0)))
+    t = mul(t, mul(rot_y(q[2]), trans(L2, 0, 0)))
+    return [t[0][3], t[1][3], t[2][3]]
+
+
+def jacobian(q, h=1e-6):
+    """Numerical Jacobian: how the tip moves per radian of each joint (3 x 3)."""
+    p = fk(q)
+    cols = []
+    for i in range(3):
+        dq = list(q)
+        dq[i] += h
+        cols.append([(a - b) / h for a, b in zip(fk(dq), p)])
+    return [[cols[j][i] for j in range(3)] for i in range(3)]
+
+
+def det3(m):
+    return (m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
+            - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+            + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]))
+
+
+def solve3(a, b):
+    """Solve a x = b by Cramer's rule (3 x 3)."""
+    d = det3(a)
+    out = []
+    for i in range(3):
+        m = [row[:] for row in a]
+        for r in range(3):
+            m[r][i] = b[r]
+        out.append(det3(m) / d)
+    return out
+
+
+def dls_step(q, err, lam):
+    """Damped least squares: dq = J' (J J' + lam^2 I)^-1 err."""
+    j = jacobian(q)
+    jjt = [[sum(j[r][k] * j[c][k] for k in range(3)) + (lam * lam if r == c else 0) for c in range(3)] for r in range(3)]
+    y = solve3(jjt, err)
+    return [sum(j[k][i] * y[k] for k in range(3)) for i in range(3)]
+
+
+def wrap(a):
+    return math.atan2(math.sin(a), math.cos(a))        # back into -180 .. 180 degrees
+
+
+def ik(target, q, lam=0.03, tol=1e-5, max_step=0.02, show=False):
+    """Repeat small damped least-squares steps; each step aims at most max_step metres."""
+    for it in range(200):
+        p = fk(q)
+        err = [t - c for t, c in zip(target, p)]
+        dist = math.sqrt(sum(e * e for e in err))
+        if show:
+            print(f"  iter {it:2d}  q = [{', '.join(f'{math.degrees(v):7.2f}' for v in q)}] deg  error {1000 * dist:8.3f} mm")
+        if dist < tol:
+            break
+        scale = min(1.0, max_step / dist)
+        q = [wrap(a + b) for a, b in zip(q, dls_step(q, [e * scale for e in err], lam))]
+    return q, it, dist
+
+
+def show_fk():
+    q = [math.radians(30), math.radians(45), math.radians(-60)]
+    p = fk(q)
+    r = L1 * math.cos(q[1]) + L2 * math.cos(q[1] + q[2])
+    z = H + L1 * math.sin(q[1]) + L2 * math.sin(q[1] + q[2])
+    print("Forward kinematics, q = [30, 45, -60] deg")
+    print(f"  by hand: reach r = {r:.4f} m, height z = {z:.4f} m, x = r cos 30 = {r * math.cos(q[0]):.4f}, y = r sin 30 = {r * math.sin(q[0]):.4f}")
+    print(f"  transforms: tip = ({p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}) m")
+
+
+def show_ik():
+    target = [0.10, 0.15, 0.12]
+    print(f"Numerical IK to ({target[0]:.2f}, {target[1]:.2f}, {target[2]:.2f}) m from q = [0, 30, -30] deg")
+    q, it, dist = ik(target, [0.0, math.radians(30), math.radians(-30)], show=True)
+    p = fk(q)
+    print(f"  check with FK: ({p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}) m")
+    q2, it2, _ = ik(target, [0.0, math.radians(90), math.radians(60)])
+    print(f"  from q = [0, 90, 60] deg instead: q = [{', '.join(f'{math.degrees(v):.2f}' for v in q2)}] deg after {it2} iterations (base turned round, reaching back over the top)")
+    far = [0.20, 0.20, 0.10]
+    q3, it3, d3 = ik(far, [0.0, math.radians(30), math.radians(-30)])
+    out = math.sqrt(0.20 ** 2 + 0.20 ** 2 + (0.10 - H) ** 2)
+    print(f"  to (0.20, 0.20, 0.10) m, {out:.3f} m from the shoulder but L1 + L2 = {L1 + L2:.2f} m: "
+          f"stops {1000 * d3:.1f} mm short, elbow {round(math.degrees(q3[2]), 2) + 0.0:.2f} deg")
+    q4, it4, d4 = ik(far, [0.0, math.radians(30), math.radians(-30)], lam=0.01)
+    print(f"  same with lambda = 0.01: after {it4 + 1} iterations still {1000 * d4:.1f} mm short, elbow {math.degrees(q4[2]):.2f} deg (it never settles)")
+
+
+def show_singular():
+    print("Singularity: the elbow straightening, shoulder at 20 deg, base at 0")
+    print("  elbow (deg)  det J (m^3)  joint speed for 0.05 m/s straight out (deg/s)")
+    print("                            exact inverse        damped, lambda = 0.03")
+    for e in (-60, -30, -10, -3, -1, -0.3):
+        q = [0.0, math.radians(20), math.radians(e)]
+        j = jacobian(q)
+        d = det3(j)
+        p = fk(q)
+        r = math.hypot(p[0], p[1])
+        v = [0.05 * p[0] / r, 0.05 * p[1] / r, 0.0]          # radial, horizontal
+        exact = max(abs(math.degrees(x)) for x in solve3(j, v))
+        damped = max(abs(math.degrees(x)) for x in dls_step(q, v, 0.03))
+        print(f"  {e:10.1f}  {d:11.2e}  {exact:18.1f}  {damped:22.1f}")
+    print("  formula: |det J| = L1 x L2 x r x |sin(elbow)|, r = the tip's horizontal reach")
+
+
+if __name__ == "__main__":
+    show_fk()
+    print()
+    show_ik()
+    print()
+    show_singular()
+```
+
+```bash
+python3 tools/sim/models/kinematics.py
+```
+
+## 雅可比矩阵
+
+雅可比矩阵（Jacobian）回答一个局部问题：某个关节动一点点，末端怎么动？对这个机械臂，J 是 3 × 3，每个关节一列。第 i 列是末端位置对 q_i 的导数，单位 m/rad。模型不做符号求导：先算 q 处的 FK，再把第 i 个关节加 1e-6 rad 算一次，两个位置相减再除以 1e-6。这就是数值雅可比。
+
+底座偏航那一列性质不同。转 q0 会让整条臂绕竖直轴摆动，所以这一列是切向的，大小随 r 增大。肩和肘两列在机械臂平面内。每一列都随 q 变化，所以 IK 每一步都要重算 J。
+
+J 也把关节速度换成末端速度：v = J q'。接近奇异点（singularity）时 J 降秩，这就是接下来两节的内容。
+
+## 数值逆运动学
+
+逆运动学（inverse kinematics, IK）是反方向：给定目标位置 p*，求 q。有些机械臂有解析解，但数值求解器对任何连杆链都适用。这个模型用阻尼最小二乘（damped least squares, DLS），更新式是：
+
+<Formula label="阻尼最小二乘 IK 步">dq = Jᵀ (J Jᵀ + λ² I)⁻¹ e,   λ = 0.03</Formula>
+
+其中 e = p* - p 是位置误差。阻尼项 λ² I 让矩阵在奇异点附近仍然可逆，代价是不能完全沿着请求的方向走。每一步限幅 2 cm：误差更大时，求解器先把 e 缩小，使这一步最多朝目标走 2 cm。误差小于 1e-5 m 或迭代 200 次后停止。
+
+从 q = [0, 30, -30] deg 到 (0.10, 0.15, 0.12) m，日志是：
+
+<SimOutput source="model">
+
+```text
+Numerical IK to (0.10, 0.15, 0.12) m from q = [0, 30, -30] deg
+  iter  0  q = [   0.00,   30.00,  -30.00] deg  error  208.120 mm
+  iter  1  q = [   3.34,   36.77,  -40.90] deg  error  192.262 mm
+  iter  2  q = [   6.92,   43.11,  -50.92] deg  error  175.094 mm
+  iter  3  q = [  10.81,   48.78,  -59.63] deg  error  157.206 mm
+  iter  4  q = [  15.05,   53.79,  -67.04] deg  error  138.903 mm
+  iter  5  q = [  19.69,   58.15,  -73.24] deg  error  120.331 mm
+  iter  6  q = [  24.73,   61.87,  -78.30] deg  error  101.562 mm
+  iter  7  q = [  30.18,   64.91,  -82.24] deg  error   82.629 mm
+  iter  8  q = [  35.99,   67.19,  -85.05] deg  error   63.547 mm
+  iter  9  q = [  42.10,   68.64,  -86.66] deg  error   44.326 mm
+  iter 10  q = [  48.39,   69.12,  -87.00] deg  error   24.988 mm
+  iter 11  q = [  54.68,   68.41,  -85.79] deg  error    5.690 mm
+  iter 12  q = [  56.29,   67.48,  -84.47] deg  error    0.431 mm
+  iter 13  q = [  56.31,   67.32,  -84.23] deg  error    0.061 mm
+  iter 14  q = [  56.31,   67.30,  -84.20] deg  error    0.009 mm
+```
+
+</SimOutput>
+
+误差从 208.120 mm 降到 0.009 mm，用了 14 次迭代。误差大于 2 cm 时，每一步都被限幅，误差每次大约减少 16 到 20 mm；进入 2 cm 以内后，完整的一步就能落到位，最后几次迭代只是打磨。脚本随后用正运动学检查答案，而不是直接相信关节角：
+
+<SimOutput source="model">
+
+```text
+  check with FK: (0.1000, 0.1500, 0.1200) m
+  from q = [0, 90, 60] deg instead: q = [-123.69, 112.71, 84.20] deg after 20 iterations (base turned round, reaching back over the top)
+```
+
+</SimOutput>
+
+FK 正好回到目标，所以解是有效的。第二次从 q = [0, 90, 60] deg 出发，得到另一个有效解：底座 -123.69 deg、肩 112.71 deg、肘 84.20 deg。底座相对第一个解的 56.31 deg 转了 180 deg，机械臂从另一侧、越过顶部去够同一个点。IK 有多个解，起点决定落在哪个分支上。
+
+够不到的目标也能平稳处理。目标 (0.20, 0.20, 0.10) m 离肩 0.287 m，而 L1 + L2 = 0.26 m。求解器到不了，就把臂伸直（肘 0.00 deg）然后停下：
+
+<SimOutput source="model">
+
+```text
+  to (0.20, 0.20, 0.10) m, 0.287 m from the shoulder but L1 + L2 = 0.26 m: stops 27.2 mm short, elbow 0.00 deg
+  same with lambda = 0.01: after 200 iterations still 37.1 mm short, elbow -2.34 deg (it never settles)
+```
+
+</SimOutput>
+
+差 0.027 m，正好是 0.287 - 0.26。把阻尼降到 λ = 0.01 反而更糟：在伸直这个奇异构型附近步长变大，关节角来回抖，200 次迭代后仍差 37.1 mm，肘停在 -2.34 deg。正是足够的阻尼，让求解器能停在离目标最近的可达点；阻尼太小，它就永远停不下来。
+
+<Quiz id="q3" question="目标离肩 0.287 m，两段连杆加起来 0.26 m。完全伸直的机械臂还差多少？" answer={0.027} unit="m" explanation="0.287 - 0.26 = 0.027 m。这是末端沿肩到目标方向能到的最近位置。" />
+
+## 奇异点
+
+奇异点（singularity）是雅可比矩阵降秩的构型：某个末端方向需要无穷大的关节速度，或者根本没有关节能产生这个方向。对这个机械臂，|det J| 衡量离奇异点有多近。肘逐渐伸直时，det J 趋于零：
+
+<SimOutput source="model">
+
+```text
+Singularity: the elbow straightening, shoulder at 20 deg, base at 0
+  elbow (deg)  det J (m^3)  joint speed for 0.05 m/s straight out (deg/s)
+                            exact inverse        damped, lambda = 0.03
+       -60.0     3.20e-03                43.3                    34.1
+       -30.0     2.11e-03                85.5                    41.8
+       -10.0     7.31e-04               246.1                    23.3
+        -3.0     2.17e-04               803.6                     6.9
+        -1.0     7.19e-05              2395.2                     4.2
+        -0.3     2.15e-05              7965.0                     3.3
+  formula: |det J| = L1 x L2 x r x |sin(elbow)|, r = the tip's horizontal reach
+```
+
+</SimOutput>
+
+前两列是肘角和 det J。后两列是让末端沿径向向外以 0.05 m/s 运动时所需的最大关节速度，先看精确求逆，再看阻尼最小二乘。肘 -60 deg 时精确求逆要 43.3 deg/s，还算合理。到 -0.3 deg 时要 7965.0 deg/s，没有电机做得到。阻尼求解器保持在 3.3 deg/s，但它没有交出要求的 0.05 m/s：它放弃了那个动不了的方向。
+
+公式同时解释表格和第二个奇异点：
+
+<Formula label="三关节机械臂的雅可比行列式">|det J| = L1 L2 r |sin(elbow)|</Formula>
+
+验算一行。肩在 20 deg、肘 -60 deg 时，r = 0.12 cos 20 + 0.14 cos(-40) = 0.2200 m。于是 L1 L2 r sin 60 = 0.12 × 0.14 × 0.2200 × 0.8660 = 0.0032 m³，与 3.20e-03 吻合。肘 = 0 时 sin elbow = 0，行列式为零。另一个因子是 r：末端落在底座竖直轴上时 r = 0，底座偏航不再改变末端位置。这就是第二个奇异点。
+
+在真机上，第一个奇异点可以用手找到：把臂完全伸直，再试着把夹爪往外推。肩和肘已经共线，没有任何关节能再增加可达距离（reach）；让底座帮忙，夹爪只会横向摆。这就是奇异点的手感。
+
+<Quiz id="q4" question="用 |det J| = L1 L2 r |sin(elbow)|，取 L1 = 0.12 m、L2 = 0.14 m、r = 0.2200 m、elbow = 60 deg，|det J| 是多少？" answer={0.0032} unit="m³" explanation="0.12 × 0.14 × 0.2200 × sin 60 = 0.0168 × 0.2200 × 0.8660 = 0.0032 m³，就是表格里的 3.20e-03。" />
+
+<Quiz id="q5" question="肘完全伸直（elbow = 0 deg）时 |det J| 是多少？" answer={0} unit="m³" explanation="sin 0 = 0，所以行列式为零。机械臂无法再把末端往外推，精确求逆会要求无穷大的关节速度。" />
+
+<Callout type="warn" title="阻尼只是遮住问题，不是解决问题">阻尼求解器在奇异点会返回有限的关节速度，数字看起来很健康，但末端仍然无法沿缺失的方向移动。检查剩余误差，并在规划时让机械臂避开肘完全伸直的构型。</Callout>
+
+## 真实机械臂多了什么
+
+这个模型是刻意做小的。真实的 SO-101 还有关节限位（joint limits）：q0、q1、q2 不能无限转，腕部关节还会加更多约束。机械臂的自由度（degrees of freedom, DOF）不止三个：5 或 6 自由度的臂还能设定夹爪的部分或全部姿态，而不只是位置，于是雅可比变成 6 × n，IK 要同时满足位置和姿态。冗余（redundancy）还会带来更多解。
+
+<Resource id="modern-robotics" />
+
+真实的软件栈不会为每台机器人手写 IK。MoveIt 使用 KDL、TRAC-IK 这类插件；接下来的课就用 MoveIt 2。这些插件会遵守关节限位，求解失败时从随机初值重试，MoveIt 还能剔除会发生碰撞的解。规划还会尽量避开奇异点：经过伸直肘部的路径在数学上可能成立，但需要不可能的关节速度。留出余量，并在发给电机之前用 FK 检查每一个 IK 结果。
+
+## 常见错误
+
+- <strong>角度和弧度混用。</strong>公式用弧度，模型只是为了好读才打印角度。把 30 直接交给 `math.cos`，得到的是 30 rad 的余弦，不是 30 deg。在边界处换算，求解器内部只保留一种单位。
+- <strong>俯仰角的符号约定弄反。</strong>这里 q1、q2 为正时机械臂向上抬，因为 `rot_y` 绕的是负 y 轴。符号一翻，机械臂会在你以为要抬的时候往下扎，所有 IK 结果也都成了镜像。把约定写在模型旁边。
+- <strong>IK 解跳到另一个分支。</strong>第二个起点得到的是底座 -123.69 deg，而不是 56.31 deg。两个解都能到目标。如果不在它们之间做规划，机械臂可能扫过桌面；要么约束起点，要么加中间点。
+- <strong>奇异点附近阻尼太小。</strong>λ = 0.01 在伸直臂上抖动，始终不收敛；λ = 0.03 稳定，但会放弃动不了的方向。根据预期的条件数选阻尼，并检查剩余误差。
+- <strong>不做 FK 检查就相信 IK。</strong>求解器可能停在局部极小，或者 200 次迭代后还差很多。先用返回的 q 算一遍 FK，和目标比较，再命令电机运动。

@@ -1,0 +1,305 @@
+The arm from [Month 3, SO-101 arm](/en/month/month-3/so101-arm) has six motors, five joints and a gripper, but every controller so far moved a single joint. To put the gripper somewhere in space you need the map from joint angles to the gripper's position. This lesson builds that map for the first three joints of an SO-101-style arm: base yaw q0, shoulder q1 and elbow q2. The model uses round-number link lengths H = 0.05 m, L1 = 0.12 m and L2 = 0.14 m with the same layout as those first three joints; these are not the real SO-101 dimensions.
+
+## Forward kinematics
+
+Each joint is a rotation plus a fixed offset. Multiply the 4 × 4 homogeneous transforms from the base to the tip in order: `rot_z(q0) * trans(0, 0, H) * rot_y(q1) * trans(L1, 0, 0) * rot_y(q2) * trans(L2, 0, 0)`. The last column of the product is the tip position, and the upper-left 3 × 3 block is its orientation.
+
+The same result by hand in the arm's vertical plane:
+
+<Formula label="Forward kinematics in the arm's plane">r = L1 cos q1 + L2 cos(q1 + q2),   z = H + L1 sin q1 + L2 sin(q1 + q2),   x = r cos q0,   y = r sin q0</Formula>
+
+Take `q = [30, 45, -60]` deg. Then q1 + q2 = -15 deg, so the forearm points slightly below horizontal. The model prints:
+
+<SimOutput source="model">
+
+```text
+Forward kinematics, q = [30, 45, -60] deg
+  by hand: reach r = 0.2201 m, height z = 0.0986 m, x = r cos 30 = 0.1906, y = r sin 30 = 0.1100
+  transforms: tip = (0.1906, 0.1100, 0.0986) m
+```
+
+</SimOutput>
+
+Check the numbers by hand: r = 0.12 × 0.7071 + 0.14 × 0.9659 = 0.08485 + 0.13523 = 0.2201 m, and z = 0.05 + 0.12 × 0.7071 + 0.14 × (-0.2588) = 0.05 + 0.08485 - 0.03623 = 0.0986 m. The base then rotates that point: x = 0.2201 × 0.8660 = 0.1906 m and y = 0.2201 × 0.5 = 0.1100 m. The transform product gives the same (0.1906, 0.1100, 0.0986) m.
+
+<Quiz id="q1" question="With q1 = 0 and q2 = 0, how far is the tip from the base's vertical axis?" answer={0.26} unit="m" explanation="r = L1 cos 0 + L2 cos 0 = 0.12 + 0.14 = 0.26 m. The arm is straight out, which is its maximum horizontal reach." />
+
+One more configuration is worth doing before differentiating. Take `q = [0, 90, -90]` deg: the upper arm points straight up and the forearm points horizontally outward.
+
+<Quiz id="q2" question="What is r for q = [0, 90, -90] deg?" answer={0.14} unit="m" explanation="r = 0.12 cos 90 + 0.14 cos 0 = 0 + 0.14 = 0.14 m. The same configuration has z = 0.05 + 0.12 sin 90 + 0.14 sin 0 = 0.17 m, so the tip is 0.14 m out and 0.17 m up." />
+
+<CodeSource path="tools/sim/models/kinematics.py" />
+
+```python
+"""kinematics.py: forward kinematics, numerical inverse kinematics and singularities.
+
+A three-joint arm laid out like the first three joints of an SO-101 (base yaw q0 about the
+vertical axis, then a shoulder q1 and an elbow q2 that both pitch in the arm's vertical
+plane), with round-number link lengths rather than the SO-101's real ones. Upper arm L1 = 0.12 m, forearm L2 = 0.14 m,
+shoulder H = 0.05 m above the base. Angles in radians, q1 = q2 = 0 means the arm points
+straight out horizontally. Standard library only.
+"""
+import math
+
+H, L1, L2 = 0.05, 0.12, 0.14
+
+
+def rot_z(a):
+    c, s = math.cos(a), math.sin(a)
+    return [[c, -s, 0, 0], [s, c, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+
+
+def rot_y(a):          # positive a pitches the arm up (rotation about -y)
+    c, s = math.cos(a), math.sin(a)
+    return [[c, 0, -s, 0], [0, 1, 0, 0], [s, 0, c, 0], [0, 0, 0, 1]]
+
+
+def trans(x, y, z):
+    return [[1, 0, 0, x], [0, 1, 0, y], [0, 0, 1, z], [0, 0, 0, 1]]
+
+
+def mul(a, b):
+    return [[sum(a[i][k] * b[k][j] for k in range(4)) for j in range(4)] for i in range(4)]
+
+
+def fk(q):
+    """Chain of transforms base -> shoulder -> elbow -> tip; returns the tip position."""
+    t = mul(rot_z(q[0]), trans(0, 0, H))
+    t = mul(t, mul(rot_y(q[1]), trans(L1, 0, 0)))
+    t = mul(t, mul(rot_y(q[2]), trans(L2, 0, 0)))
+    return [t[0][3], t[1][3], t[2][3]]
+
+
+def jacobian(q, h=1e-6):
+    """Numerical Jacobian: how the tip moves per radian of each joint (3 x 3)."""
+    p = fk(q)
+    cols = []
+    for i in range(3):
+        dq = list(q)
+        dq[i] += h
+        cols.append([(a - b) / h for a, b in zip(fk(dq), p)])
+    return [[cols[j][i] for j in range(3)] for i in range(3)]
+
+
+def det3(m):
+    return (m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
+            - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+            + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]))
+
+
+def solve3(a, b):
+    """Solve a x = b by Cramer's rule (3 x 3)."""
+    d = det3(a)
+    out = []
+    for i in range(3):
+        m = [row[:] for row in a]
+        for r in range(3):
+            m[r][i] = b[r]
+        out.append(det3(m) / d)
+    return out
+
+
+def dls_step(q, err, lam):
+    """Damped least squares: dq = J' (J J' + lam^2 I)^-1 err."""
+    j = jacobian(q)
+    jjt = [[sum(j[r][k] * j[c][k] for k in range(3)) + (lam * lam if r == c else 0) for c in range(3)] for r in range(3)]
+    y = solve3(jjt, err)
+    return [sum(j[k][i] * y[k] for k in range(3)) for i in range(3)]
+
+
+def wrap(a):
+    return math.atan2(math.sin(a), math.cos(a))        # back into -180 .. 180 degrees
+
+
+def ik(target, q, lam=0.03, tol=1e-5, max_step=0.02, show=False):
+    """Repeat small damped least-squares steps; each step aims at most max_step metres."""
+    for it in range(200):
+        p = fk(q)
+        err = [t - c for t, c in zip(target, p)]
+        dist = math.sqrt(sum(e * e for e in err))
+        if show:
+            print(f"  iter {it:2d}  q = [{', '.join(f'{math.degrees(v):7.2f}' for v in q)}] deg  error {1000 * dist:8.3f} mm")
+        if dist < tol:
+            break
+        scale = min(1.0, max_step / dist)
+        q = [wrap(a + b) for a, b in zip(q, dls_step(q, [e * scale for e in err], lam))]
+    return q, it, dist
+
+
+def show_fk():
+    q = [math.radians(30), math.radians(45), math.radians(-60)]
+    p = fk(q)
+    r = L1 * math.cos(q[1]) + L2 * math.cos(q[1] + q[2])
+    z = H + L1 * math.sin(q[1]) + L2 * math.sin(q[1] + q[2])
+    print("Forward kinematics, q = [30, 45, -60] deg")
+    print(f"  by hand: reach r = {r:.4f} m, height z = {z:.4f} m, x = r cos 30 = {r * math.cos(q[0]):.4f}, y = r sin 30 = {r * math.sin(q[0]):.4f}")
+    print(f"  transforms: tip = ({p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}) m")
+
+
+def show_ik():
+    target = [0.10, 0.15, 0.12]
+    print(f"Numerical IK to ({target[0]:.2f}, {target[1]:.2f}, {target[2]:.2f}) m from q = [0, 30, -30] deg")
+    q, it, dist = ik(target, [0.0, math.radians(30), math.radians(-30)], show=True)
+    p = fk(q)
+    print(f"  check with FK: ({p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}) m")
+    q2, it2, _ = ik(target, [0.0, math.radians(90), math.radians(60)])
+    print(f"  from q = [0, 90, 60] deg instead: q = [{', '.join(f'{math.degrees(v):.2f}' for v in q2)}] deg after {it2} iterations (base turned round, reaching back over the top)")
+    far = [0.20, 0.20, 0.10]
+    q3, it3, d3 = ik(far, [0.0, math.radians(30), math.radians(-30)])
+    out = math.sqrt(0.20 ** 2 + 0.20 ** 2 + (0.10 - H) ** 2)
+    print(f"  to (0.20, 0.20, 0.10) m, {out:.3f} m from the shoulder but L1 + L2 = {L1 + L2:.2f} m: "
+          f"stops {1000 * d3:.1f} mm short, elbow {round(math.degrees(q3[2]), 2) + 0.0:.2f} deg")
+    q4, it4, d4 = ik(far, [0.0, math.radians(30), math.radians(-30)], lam=0.01)
+    print(f"  same with lambda = 0.01: after {it4 + 1} iterations still {1000 * d4:.1f} mm short, elbow {math.degrees(q4[2]):.2f} deg (it never settles)")
+
+
+def show_singular():
+    print("Singularity: the elbow straightening, shoulder at 20 deg, base at 0")
+    print("  elbow (deg)  det J (m^3)  joint speed for 0.05 m/s straight out (deg/s)")
+    print("                            exact inverse        damped, lambda = 0.03")
+    for e in (-60, -30, -10, -3, -1, -0.3):
+        q = [0.0, math.radians(20), math.radians(e)]
+        j = jacobian(q)
+        d = det3(j)
+        p = fk(q)
+        r = math.hypot(p[0], p[1])
+        v = [0.05 * p[0] / r, 0.05 * p[1] / r, 0.0]          # radial, horizontal
+        exact = max(abs(math.degrees(x)) for x in solve3(j, v))
+        damped = max(abs(math.degrees(x)) for x in dls_step(q, v, 0.03))
+        print(f"  {e:10.1f}  {d:11.2e}  {exact:18.1f}  {damped:22.1f}")
+    print("  formula: |det J| = L1 x L2 x r x |sin(elbow)|, r = the tip's horizontal reach")
+
+
+if __name__ == "__main__":
+    show_fk()
+    print()
+    show_ik()
+    print()
+    show_singular()
+```
+
+```bash
+python3 tools/sim/models/kinematics.py
+```
+
+## The Jacobian
+
+The Jacobian answers a local question: if one joint moves by a tiny amount, how does the tip move? For this arm J is 3 × 3, with one column per joint. Column i is the derivative of the tip position with respect to q_i, in m/rad. The model does not differentiate symbolically: it evaluates FK at q, evaluates FK again with q_i nudged by 1e-6 rad, subtracts the positions and divides by 1e-6. That is a numerical Jacobian.
+
+The base-yaw column is different in kind. Turning q0 swings the whole arm around the vertical axis, so that column is tangential and grows with r. The shoulder and elbow columns lie in the arm's plane. Every column depends on q, so J must be recomputed at each IK step.
+
+J also turns joint speed into tip speed: v = J q'. Near a singularity J loses rank, which is what the next two sections are about.
+
+## Numerical inverse kinematics
+
+IK is the reverse problem: given a target tip position p*, find q. Closed-form solutions exist for some arms, but a numerical solver works for any chain. This model uses damped least squares (DLS):
+
+<Formula label="Damped least-squares IK step">dq = Jᵀ (J Jᵀ + λ² I)⁻¹ e,   λ = 0.03</Formula>
+
+Here e = p* - p is the position error. The damping term λ² I keeps the matrix invertible near a singularity, at the price of not following the requested direction exactly. Each step is limited to 2 cm: if the error is larger, the solver scales e down so the step aims at most 2 cm. It stops when the error is below 1e-5 m or after 200 iterations.
+
+From q = [0, 30, -30] deg to (0.10, 0.15, 0.12) m, the log is:
+
+<SimOutput source="model">
+
+```text
+Numerical IK to (0.10, 0.15, 0.12) m from q = [0, 30, -30] deg
+  iter  0  q = [   0.00,   30.00,  -30.00] deg  error  208.120 mm
+  iter  1  q = [   3.34,   36.77,  -40.90] deg  error  192.262 mm
+  iter  2  q = [   6.92,   43.11,  -50.92] deg  error  175.094 mm
+  iter  3  q = [  10.81,   48.78,  -59.63] deg  error  157.206 mm
+  iter  4  q = [  15.05,   53.79,  -67.04] deg  error  138.903 mm
+  iter  5  q = [  19.69,   58.15,  -73.24] deg  error  120.331 mm
+  iter  6  q = [  24.73,   61.87,  -78.30] deg  error  101.562 mm
+  iter  7  q = [  30.18,   64.91,  -82.24] deg  error   82.629 mm
+  iter  8  q = [  35.99,   67.19,  -85.05] deg  error   63.547 mm
+  iter  9  q = [  42.10,   68.64,  -86.66] deg  error   44.326 mm
+  iter 10  q = [  48.39,   69.12,  -87.00] deg  error   24.988 mm
+  iter 11  q = [  54.68,   68.41,  -85.79] deg  error    5.690 mm
+  iter 12  q = [  56.29,   67.48,  -84.47] deg  error    0.431 mm
+  iter 13  q = [  56.31,   67.32,  -84.23] deg  error    0.061 mm
+  iter 14  q = [  56.31,   67.30,  -84.20] deg  error    0.009 mm
+```
+
+</SimOutput>
+
+The error falls from 208.120 mm to 0.009 mm in 14 iterations. While the error is larger than 2 cm, each step is capped and the error falls by roughly 16 to 20 mm per iteration; once inside 2 cm a full step lands and the last iterations only polish. The script then checks the answer with forward kinematics instead of trusting the joint angles:
+
+<SimOutput source="model">
+
+```text
+  check with FK: (0.1000, 0.1500, 0.1200) m
+  from q = [0, 90, 60] deg instead: q = [-123.69, 112.71, 84.20] deg after 20 iterations (base turned round, reaching back over the top)
+```
+
+</SimOutput>
+
+FK returns exactly the target, so the solution is valid. A second run starts from q = [0, 90, 60] deg and finds a different valid solution: base -123.69 deg, shoulder 112.71 deg, elbow 84.20 deg. The base is turned 180 deg from the first solution's 56.31 deg, so the arm reaches the same point from the other side, back over the top. IK has several solutions; the start decides which branch you get.
+
+An unreachable target is handled just as calmly. The target (0.20, 0.20, 0.10) m is 0.287 m from the shoulder, while L1 + L2 = 0.26 m. The solver straightens the arm (elbow 0.00 deg) and stops:
+
+<SimOutput source="model">
+
+```text
+  to (0.20, 0.20, 0.10) m, 0.287 m from the shoulder but L1 + L2 = 0.26 m: stops 27.2 mm short, elbow 0.00 deg
+  same with lambda = 0.01: after 200 iterations still 37.1 mm short, elbow -2.34 deg (it never settles)
+```
+
+</SimOutput>
+
+The gap is 0.027 m, exactly 0.287 - 0.26. Lowering the damping to λ = 0.01 makes things worse, not better: near the straight-arm singularity the steps get larger, the joint angles chatter, and after 200 iterations it is still 37.1 mm short with the elbow at -2.34 deg. Enough damping is what lets the solver settle at the closest reachable point; too little and it never settles.
+
+<Quiz id="q3" question="The target is 0.287 m from the shoulder and the links add up to 0.26 m. How far short must the fully stretched arm stop?" answer={0.027} unit="m" explanation="0.287 - 0.26 = 0.027 m. That is the closest the tip can get along the line from the shoulder to the target." />
+
+## Singularities
+
+A singularity is a configuration where the Jacobian loses rank: some tip direction needs infinite joint speed, or no joint can produce it. For this arm |det J| measures how close that is. As the elbow straightens, det J goes to zero:
+
+<SimOutput source="model">
+
+```text
+Singularity: the elbow straightening, shoulder at 20 deg, base at 0
+  elbow (deg)  det J (m^3)  joint speed for 0.05 m/s straight out (deg/s)
+                            exact inverse        damped, lambda = 0.03
+       -60.0     3.20e-03                43.3                    34.1
+       -30.0     2.11e-03                85.5                    41.8
+       -10.0     7.31e-04               246.1                    23.3
+        -3.0     2.17e-04               803.6                     6.9
+        -1.0     7.19e-05              2395.2                     4.2
+        -0.3     2.15e-05              7965.0                     3.3
+  formula: |det J| = L1 x L2 x r x |sin(elbow)|, r = the tip's horizontal reach
+```
+
+</SimOutput>
+
+The first two columns are the elbow angle and det J. The last two are the largest joint speed needed to move the tip radially outward at 0.05 m/s, first with an exact inverse and then with damped least squares. At elbow -60 deg the exact inverse needs 43.3 deg/s, which is reasonable. At -0.3 deg it needs 7965.0 deg/s, which no motor can deliver. The damped solver stays at 3.3 deg/s, but then it does not deliver the requested 0.05 m/s: it gives up on the direction it cannot move in.
+
+The formula explains both the table and the second singularity:
+
+<Formula label="Jacobian determinant for the three-joint arm">|det J| = L1 L2 r |sin(elbow)|</Formula>
+
+Check one row. At elbow -60 deg with the shoulder at 20 deg, r = 0.12 cos 20 + 0.14 cos(-40) = 0.2200 m. Then L1 L2 r sin 60 = 0.12 × 0.14 × 0.2200 × 0.8660 = 0.0032 m³, matching 3.20e-03. When elbow = 0, sin elbow = 0 and the determinant is zero. The other factor is r: when the tip is on the base's vertical axis, r = 0, so the base yaw no longer changes the tip position. That is the second singularity.
+
+On a real arm you can point at the first one. Stretch the arm straight out, then try to push the gripper further outward. The shoulder and elbow are already collinear, so no joint can add reach; asking the base for help only swings the gripper sideways. That is what a singularity feels like.
+
+<Quiz id="q4" question="Using |det J| = L1 L2 r |sin(elbow)| with L1 = 0.12 m, L2 = 0.14 m, r = 0.2200 m and elbow = 60 deg, what is |det J|?" answer={0.0032} unit="m³" explanation="0.12 × 0.14 × 0.2200 × sin 60 = 0.0168 × 0.2200 × 0.8660 = 0.0032 m³, which is the 3.20e-03 in the table." />
+
+<Quiz id="q5" question="What is |det J| when the elbow is completely straight (elbow = 0 deg)?" answer={0} unit="m³" explanation="sin 0 = 0, so the determinant vanishes. The arm cannot move the tip further outward, and an exact inverse asks for infinite joint speed." />
+
+<Callout type="warn" title="Damping hides the problem, it does not remove it">A damped solver returns finite joint speeds at a singularity, so the numbers look healthy. The tip still cannot move in the missing direction. Check the residual error and keep the arm away from straight-elbow configurations in planning.</Callout>
+
+## What real arms add
+
+The model is deliberately small. A real SO-101 also has joint limits: q0, q1 and q2 cannot turn forever, and the wrist joints add more constraints. The arm has more than three degrees of freedom (DOF): a 5- or 6-DOF arm can also set some or all of the gripper's orientation, not just its position, so the Jacobian becomes 6 × n and IK must match both position and orientation. Redundancy means even more solutions.
+
+<Resource id="modern-robotics" />
+
+Real stacks do not write their own IK for every robot. MoveIt uses plug-ins such as KDL and TRAC-IK; the next lessons use MoveIt 2. These plug-ins respect joint limits and retry from random starting points when one fails, and MoveIt can reject solutions that collide. Planning also prefers configurations away from singularities: a path through a straight elbow may be mathematically valid but needs impossible joint speeds. Keep a margin, and check every IK result with FK before sending it to the motors.
+
+## Common mistakes
+
+- <strong>Degrees vs radians.</strong> The formulas use radians; the model prints degrees only for readability. Feeding 30 to `math.cos` gives the cosine of 30 rad, not 30 deg. Convert at the boundary and keep one unit inside the solver.
+- <strong>Wrong sign convention for pitch.</strong> Here positive q1 and q2 pitch the arm up, because `rot_y` rotates about the negative y axis. Flip that sign and the arm dives when you expect it to lift, and every IK answer comes out mirrored. Write the convention down next to the model.
+- <strong>An IK solution that jumps to another branch.</strong> The second start produced base -123.69 deg instead of 56.31 deg. Both reach the target. If the path between them is not planned, the arm can swing through the table; constrain the start or add a via-point.
+- <strong>Too little damping near singularities.</strong> λ = 0.01 chattered at the straight arm and never settled. λ = 0.03 is stable but gives up on the unreachable direction. Choose damping against the expected conditioning, and check the residual.
+- <strong>Trusting IK without an FK check.</strong> A solver can stop on a local minimum or after 200 iterations with a large error. Compute FK at the returned q and compare with the target before commanding motion.
