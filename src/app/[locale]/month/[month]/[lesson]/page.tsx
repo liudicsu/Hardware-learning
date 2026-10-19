@@ -17,6 +17,9 @@ import { Quiz } from "@/components/mdx/Quiz";
 import { Falstad } from "@/components/mdx/Falstad";
 import { Callout } from "@/components/mdx/Callout";
 import { Formula } from "@/components/mdx/Formula";
+import { H2 } from "@/components/lesson/Heading";
+import { Toc } from "@/components/lesson/Toc";
+import { lessonToc } from "@/lib/toc";
 
 export const dynamicParams = false;
 
@@ -60,12 +63,14 @@ export default async function LessonPage({ params }: Params) {
   const tr_ = await getTranslations("resource");
   const Content = await loadContent(month.id, lesson.slug, loc);
   if (!Content) notFound();
+  const toc = await lessonToc(month.id, lesson.slug, loc);
 
   const components: MDXComponents = {
     Quiz: (props: Omit<ComponentProps<typeof Quiz>, "lessonKey">) => <Quiz lessonKey={key} {...props} />,
     Falstad,
     Callout,
     Formula,
+    h2: H2,
     Resource: ({ id }: { id: string }) => (
       <div className="not-prose my-6">
       <ResourceCard
@@ -100,6 +105,8 @@ export default async function LessonPage({ params }: Params) {
         <p className="mt-3 text-xs text-zinc-500">
           {tm("minutes", { n: lesson.minutes })} · {lesson.tasks.length} {t("tasks")}
         </p>
+
+        <Toc items={toc} title={t("onThisPage")} variant="inline" />
 
         <div className="prose-lesson mt-10">
           <Content components={components} />
@@ -174,7 +181,7 @@ export default async function LessonPage({ params }: Params) {
       </article>
 
       <aside className="mt-16 lg:mt-0">
-        <div className="space-y-5 lg:sticky lg:top-20">
+        <div className="space-y-5 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pb-8">
           <Link href={`/month/${month.slug}`} className="block text-xs text-zinc-500 hover:text-zinc-300">
             {tm("label", { n: month.id })} · {tr(month.title, locale)}
           </Link>
@@ -202,6 +209,9 @@ export default async function LessonPage({ params }: Params) {
               );
             })}
           </ol>
+          <div className="hidden border-t border-white/[0.06] pt-4 lg:block">
+            <Toc items={toc} title={t("onThisPage")} variant="side" />
+          </div>
           <div className="space-y-1 border-t border-white/[0.06] pt-4 text-xs">
             <a href="#tasks" className="block text-zinc-500 hover:text-zinc-300">↓ {t("tasks")}</a>
             <a href="#resources" className="block text-zinc-500 hover:text-zinc-300">↓ {t("resources")}</a>

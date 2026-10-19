@@ -52,3 +52,7 @@ types: `info`, `tip`, `warn`, `danger`.
 `Resource` renders an inline resource card; ids are in `src/lib/resources.ts`.
 Use at most 1–2 inline cards per lesson, where the reader should open it right
 now (the full list is already shown at the end of the page).
+
+## In-page table of contents
+
+Every `## ` heading (outside code fences) becomes an entry in the lesson's "In this lesson / 本课内容" table of contents and gets an anchor id derived from its text. Keep h2 titles short and unique within a lesson; use `###` for sub-sections that should not appear in the TOC.
