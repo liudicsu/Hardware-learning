@@ -634,8 +634,8 @@ export const resources: Record<string, Resource> = {
     kind: "software",
     cost: { zh: "个人非商业用途免费（年收入低于 $1,000）", en: "Free for personal, non-commercial use (under $1,000 revenue a year)" },
     summary: {
-      zh: "功能完整的桌面参数化 CAD，以后还能接 CAM 和 3D 打印。个人版有限制：可导入导出的文件类型较少，许可需要定期续期。",
-      en: "Full desktop parametric CAD with a path to CAM and 3D printing later. The personal licence is limited: fewer import/export file types, and it has to be renewed.",
+      zh: "功能完整的桌面参数化 CAD，以后还能接 CAM 和 3D 打印。个人版有限制：可导入导出的文件类型较少，许可期 1 年，到期可续期（以注册时官网为准）。",
+      en: "Full desktop parametric CAD with a path to CAM and 3D printing later. The personal licence is limited: fewer import/export file types, and a 1-year licence term that you renew (check the official site when you sign up).",
     },
     license: { zh: "© Autodesk，仅提供外链", en: "© Autodesk; external link only" },
   },
