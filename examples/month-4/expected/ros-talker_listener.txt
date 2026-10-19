@@ -1,0 +1,6 @@
+[INFO] [1792442648.482925386] [listener]: I heard: [Hello World: 1]
+[INFO] [1792442649.473299676] [listener]: I heard: [Hello World: 2]
+[INFO] [1792442650.473267190] [listener]: I heard: [Hello World: 3]
+[INFO] [1792442648.472128078] [talker]: Publishing: 'Hello World: 1'
+[INFO] [1792442649.472144075] [talker]: Publishing: 'Hello World: 2'
+[INFO] [1792442650.472084888] [talker]: Publishing: 'Hello World: 3'

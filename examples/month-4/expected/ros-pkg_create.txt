@@ -1,0 +1,37 @@
+going to create a new package
+package name: m4_hello
+destination directory: /home/you/ros2_ws/src
+package format: 3
+version: 0.0.0
+description: Month 4 lesson 1: a first ROS 2 node
+maintainer: ['Your Name <you@example.com>']
+licenses: ['TODO: License declaration']
+build type: ament_python
+dependencies: ['rclpy', 'std_msgs']
+node_name: hello_node
+creating folder ./m4_hello
+creating ./m4_hello/package.xml
+creating source folder
+creating folder ./m4_hello/m4_hello
+creating ./m4_hello/setup.py
+creating ./m4_hello/setup.cfg
+creating folder ./m4_hello/resource
+creating ./m4_hello/resource/m4_hello
+creating ./m4_hello/m4_hello/__init__.py
+creating folder ./m4_hello/test
+creating ./m4_hello/test/test_copyright.py
+creating ./m4_hello/test/test_flake8.py
+creating ./m4_hello/test/test_pep257.py
+creating ./m4_hello/m4_hello/hello_node.py
+
+[WARNING]: Unknown license 'TODO: License declaration'.  This has been set in the package.xml, but no LICENSE file has been created.
+It is recommended to use one of the ament license identifiers:
+Apache-2.0
+BSL-1.0
+BSD-2.0
+BSD-2-Clause
+BSD-3-Clause
+GPL-3.0-only
+LGPL-3.0-only
+MIT
+MIT-0

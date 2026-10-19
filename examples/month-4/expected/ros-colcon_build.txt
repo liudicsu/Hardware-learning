@@ -1,0 +1,4 @@
+Starting >>> m4_hello
+Finished <<< m4_hello [0.71s]
+
+Summary: 1 package finished [0.78s]

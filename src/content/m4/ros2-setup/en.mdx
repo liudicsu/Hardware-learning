@@ -1,0 +1,407 @@
+Month 4 is where a robot stops being a single program and becomes a system. By the end of it you will have built a robot in ROS 2, simulated it, and taught it to map a room and drive to a goal on its own.
+
+Two facts shape everything that follows. The first is that ROS 2 is how industry builds robots, and it is the skill that appears most often in robotics job listings; learning it is not academic preparation, it is the thing employers ask for. The second is that this whole month needs no hardware at all. A normal laptop is enough — no NVIDIA GPU, no robot arm, no lidar. The belief that robotics requires expensive equipment is the main reason people never start; for the next six lessons, the expensive equipment is the computer you already own.
+
+Months 1–3 were your way. You wrote one program, it ran one loop on a microcontroller, and the board did exactly what that loop said. ROS 2 has a different shape. It runs on a computer — your laptop now, a Raspberry Pi or a small x86 machine on a real robot later — and its job is to connect many programs that each do one thing. One program reads the lidar, another turns readings into a map, a third decides where to drive, a fourth talks to the motors. They exchange messages over named channels instead of calling each other directly, which is why you can replace one of them without rewriting the rest.
+
+The month builds in order. Lesson 2, "Nodes, topics, services and actions", gives you the vocabulary. Lesson 3, "URDF and TF: describing a robot", gives the robot a body. Lesson 4, "Simulation with Gazebo", puts that body in a world. Lesson 5, "ros2_control: drive through a controller", makes the wheels turn. Lesson 6, "SLAM and Nav2: map and navigate", closes the loop with a map and a destination. This lesson is the floor: choose a version, install it, and get one node of your own running.
+
+A note on the outputs below. Every command output quoted here is a real run of ROS 2 Jazzy, not a simulation. The site editor ran them on Debian 13, with Jazzy installed from RoboStack's conda packages through pixi — not on Ubuntu. The Ubuntu apt commands in the install section are copied from the official Jazzy install page, checked in October 2026. Timestamps in the logs will differ on your machine, and so will paths that contain a home folder. Distro dates come from the official ROS 2 releases page, also checked in October 2026.
+
+## Pick a distro
+
+ROS 2 ships a new release every May. Each release is called a distribution, or distro, and the names run alphabetically through turtles: Humble, Iron, Jazzy, Kilted, Lyrical. The alphabetical order is not decoration — it tells you which release is newer, and the first letter is often the fastest way to place a tutorial in time.
+
+The release cadence has a pattern worth memorising. Even years are LTS (long-term support) releases and get five years of support. Odd years are ordinary releases supported for about 18 months. That single rule explains almost every version question you will have for the next few years.
+
+| Distro | Released | End of life | Ubuntu | Verdict |
+| --- | --- | --- | --- | --- |
+| Lyrical Luth | May 2026 | May 2031 | 26.04 | The newest LTS; what you would pick for a brand-new production project |
+| Kilted Kaiju | May 2025 | December 2026 | 24.04 | Non-LTS, support ends in about two months: do not start here |
+| Jazzy Jalisco | May 2024 | May 2029 | 24.04 | LTS: start here |
+| Humble Hawksbill | May 2022 | May 2027 | 22.04 | Legacy; you will meet it on older robots and in older courses |
+
+Read the table with a calendar, not with a vague sense of "newer is better". Kilted was released in May 2025 and dies in December 2026, which is 19 months — the "about 18 months" figure in practice. Jazzy was released in May 2024 and gets until May 2029, exactly five years. The end-of-life date is not the day the code stops running; it is the day fixes, security updates and new binary packages stop; from then on you are on your own when something breaks, and new tutorials and packages move to newer distros.
+
+Here is the calculation you will repeat for any distro. Say it is October 2026 and you want to know how much support Lyrical has left:
+
+```text
+October 2026 → October 2030     4 years
+October 2030 → May 2031         7 months
+7 / 12                          ≈ 0.58 year
+4 + 0.58                        ≈ 4.6 years
+```
+
+The same sum for Jazzy gives the answer to the quiz below.
+
+So why start on Jazzy rather than the newest LTS? Because almost every course, book and video series still targets Jazzy. It has more than two and a half years of support left, which is plenty of runway to learn on. And when a tutorial and your install are the same distro, you fight the topic instead of version differences: the package names match, the launch syntax matches, and error messages you find online were written about the code you are running. Move to Lyrical when the tutorial stack you rely on catches up; the concepts transfer almost unchanged, so that move will be a week of adjustment, not a restart.
+
+One more piece of vocabulary from the releases page: each distro is built against one Ubuntu LTS as its Tier 1 platform. Jazzy and Kilted target Ubuntu 24.04; Humble targets 22.04; Lyrical targets 26.04. Other operating systems are supported at lower tiers, which means fewer prebuilt binaries and fewer tested combinations. That is why the install instructions care so much about the exact Ubuntu version, and why the alternatives in this lesson exist at all.
+
+Practical habit: write your distro at the top of your notes, and read it in the first command of every tutorial before spending time on the rest.
+
+<Quiz id="q1" question="You start learning in October 2026. Jazzy is supported until May 2029. About how many years of support are left?" answer={2.6} unit="years" tolerance={0.05} explanation="October 2026 → May 2029 is 2 years and 7 months; 7 / 12 ≈ 0.58, so about 2.6 years." />
+
+## Spot ROS 1
+
+ROS 1 is finished. Its last release, Noetic, reached end of life on 31 May 2025, and there is no successor: the project moved to ROS 2, which is a different set of libraries with different commands, not a version bump. A huge amount of highly ranked tutorial content online is still ROS 1, so the useful skill is to recognise it in seconds and close the tab.
+
+| If you see… | It is ROS 1 because… | The ROS 2 way |
+| --- | --- | --- |
+| `catkin_make` or `catkin build` | the ROS 1 build tool | `colcon build` |
+| `roscore` | ROS 1 needs a central master | nothing: ROS 2 nodes find each other automatically (DDS discovery), no master |
+| `rosrun pkg node` | ROS 1 runner | `ros2 run pkg node` |
+| `import rospy` | ROS 1 Python library | `import rclpy` |
+| `roslaunch` with a `.launch` XML file | ROS 1 launch | `ros2 launch` with a Python `.launch.py` file (ROS 2 can also read XML and YAML launch files, but the documentation and this site use Python) |
+
+The pattern behind the table is that ROS 1 was built around a central master process. Every node registered with it, and `roscore` had to be running before anything else worked. ROS 2 removed the master: nodes discover each other over DDS, so starting order stops mattering and there is no single process to restart when the graph misbehaves. The Python library changed name from `rospy` to `rclpy`, and the build system changed from catkin to ament with colcon on top.
+
+Paths give it away too. If the tutorial says `/opt/ros/noetic`, `melodic` or `kinetic`, those are ROS 1 installations; ROS 2 lives in `/opt/ros/jazzy`, `/opt/ros/humble` and so on. You will also see `source /opt/ros/noetic/setup.bash` in old setup instructions — the shape is familiar, but everything it loads is ROS 1.
+
+Practical tip: before reading any tutorial, look at the publication date and at the first command. A page from 2019 about "ROS" is almost certainly ROS 1 unless it explicitly says otherwise. Be careful with old Gazebo commands as well, because the Gazebo integration was renamed and restructured between generations; Lesson 4 covers which commands belong to which. Do not throw away old material entirely — the concepts of topics, services and coordinate frames carry over — but do not copy its commands into a Jazzy terminal and then wonder why nothing exists.
+
+<Quiz id="q2" question="Which line tells you a tutorial is written for ROS 1?" options={["colcon build --symlink-install", "rosrun turtlesim turtlesim_node", "ros2 launch my_robot robot.launch.py", "source /opt/ros/jazzy/setup.bash"]} answer={1} explanation="rosrun is the ROS 1 command; ROS 2 uses ros2 run. The other three are all ROS 2." />
+
+## Install it
+
+There are four sane routes. They all end in the same place — a terminal where `ros2` works and the talker and listener can find each other — so pick the one that matches your operating system and your patience, not the one that sounds most professional.
+
+| Route | Works on | Cost | Good for | Watch out |
+| --- | --- | --- | --- | --- |
+| Ubuntu 24.04 + official apt packages | Ubuntu 24.04 (native or dual-boot) | free | the reference setup every tutorial assumes; Gazebo and RViz run natively | needs Ubuntu 24.04 exactly |
+| Windows: WSL2 with Ubuntu 24.04 | Windows 10/11 | free | then follow the Ubuntu route inside WSL | GUI programs (RViz, Gazebo) run through WSLg and are slower; USB devices need extra steps |
+| The Construct | any browser | free tier; paid from €39.97/month | zero install: ROS environments with simulated robots in the browser, three complete courses on the free tier | you depend on their servers and plans |
+| RoboStack (conda packages, installed with pixi) | other Linux distributions, macOS, Windows | free | a self-contained environment that does not touch the system; how this site's examples were run (on Debian 13) | community-built; a few packages lag behind apt |
+
+If you are on Windows and want the closest experience to the tutorials, install WSL2 with Ubuntu 24.04 and work inside it. If you are on macOS, on Debian, or on an Ubuntu that is not 24.04, use pixi. If you cannot install anything at all, use The Construct for the first weeks; the commands are the same, they just run on someone else's machine.
+
+<Resource id="the-construct" />
+
+### Ubuntu 24.04
+
+This is the reference setup: Ubuntu 24.04, native or dual-boot, with the official apt packages. Most books, university courses and video series assume exactly this, so problems you hit are problems someone else has already solved.
+
+The steps below are from the official Jazzy install page, checked in October 2026.
+
+```bash
+sudo apt install software-properties-common
+sudo add-apt-repository universe
+sudo apt update && sudo apt install curl -y
+export ROS_APT_SOURCE_VERSION=$(curl -s https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F "tag_name" | awk -F'"' '{print $4}')
+curl -L -o /tmp/ros2-apt-source.deb "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ROS_APT_SOURCE_VERSION}/ros2-apt-source_${ROS_APT_SOURCE_VERSION}.$(. /etc/os-release && echo ${UBUNTU_CODENAME:-${VERSION_CODENAME}})_all.deb"
+sudo dpkg -i /tmp/ros2-apt-source.deb
+sudo apt update && sudo apt install ros-dev-tools
+sudo apt install ros-jazzy-desktop
+```
+
+The first lines enable Ubuntu's universe repository and install the package that adds the ROS 2 apt repository and its signing key. The `ROS_APT_SOURCE_VERSION` line asks GitHub for the newest release tag of the apt-source package, and the `curl` line downloads the `.deb` built for your Ubuntu codename — on 24.04 that is `noble`. Installing it tells apt where the ROS 2 packages live; without it, `apt install ros-jazzy-desktop` would simply find nothing.
+
+`ros-dev-tools` brings colcon and the other build tools you need from Lesson 2 onward. `ros-jazzy-desktop` is ROS 2 plus RViz, the demos and the tutorials. There is also `ros-jazzy-ros-base`, the bare-bones version without GUI tools, which is what you would put on a robot with no monitor. For learning, take the desktop package.
+
+These commands change over time — repository URLs, package names and supported Ubuntu versions all move. If a step fails, compare it with the official page rather than with a blog post from 2024. After installation, every terminal needs the environment loaded, which is the first thing in the next section.
+
+### Other systems with pixi
+
+RoboStack packages ROS 2 for conda, the cross-platform package manager. pixi is a small tool that reads one project file and installs a complete environment from it, without root and without touching your system libraries. This repository has such a file for Month 4, so the whole toolchain — ROS 2, Gazebo, colcon and everything the lessons use — arrives with a handful of commands.
+
+```bash
+curl -fsSL https://pixi.sh/install.sh | bash
+git clone https://github.com/liudicsu/Hardware-learning.git
+cd Hardware-learning/examples/month-4
+pixi install
+pixi shell
+```
+
+`pixi install` downloads ROS 2 Jazzy, Gazebo, colcon and the rest into the project folder — about 2 GB — without touching the system. `pixi shell` opens a shell where `ros2`, `colcon` and `gz` work. You can also run a single command with `pixi run ros2 topic list` without entering the shell. When you delete the folder, the environment is gone; nothing is left behind in `/usr`.
+
+<Resource id="robostack" />
+
+The trade-off is honest: RoboStack is community-built and a few packages lag behind the apt versions. For learning, that rarely matters. This repository's file is set up and tested for 64-bit Linux only; on macOS or Windows, follow RoboStack's own getting-started page and add the packages you need. On Windows, WSL2 remains the smoother path if you want to follow Linux tutorials literally.
+
+## First nodes
+
+### Source, then test
+
+ROS 2 finds its programs through environment variables: where the executables are, where the Python modules are, where the package index lives. A freshly opened terminal knows none of that, so every new terminal needs the environment loaded:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+```
+
+Many people add that line to `~/.bashrc` so it happens automatically. That is convenient, but be aware that it then applies to every terminal you open, including ones where you meant to test another distro. If you later install a second ROS 2 version, an old line in `~/.bashrc` becomes a source of confusing errors; keep it in mind when things behave strangely.
+
+The official installation check uses two demo programs: a C++ talker and a Python listener. Run them in two terminals.
+
+```bash
+# terminal 1
+ros2 run demo_nodes_cpp talker
+# terminal 2
+ros2 run demo_nodes_py listener
+```
+
+Real output, listener first and then talker:
+
+```text
+[INFO] [1792442648.482925386] [listener]: I heard: [Hello World: 1]
+[INFO] [1792442649.473299676] [listener]: I heard: [Hello World: 2]
+[INFO] [1792442650.473267190] [listener]: I heard: [Hello World: 3]
+[INFO] [1792442648.472128078] [talker]: Publishing: 'Hello World: 1'
+[INFO] [1792442649.472144075] [talker]: Publishing: 'Hello World: 2'
+[INFO] [1792442650.472084888] [talker]: Publishing: 'Hello World: 3'
+```
+
+The listener heard every message, so both language bindings work and they talk to each other with no master and no configuration. That is the whole point of the check: if these two see each other, your installation and your network discovery are fine.
+
+The long number in brackets is the time in seconds since 1970, with nanoseconds after the decimal point. Yours will differ, and that is expected. Compare the listener and talker lines with similar counts: message 1 is published at 1792442648.472 and heard at 1792442648.482, about 10 ms later.
+
+Notice that both start at message 1: the C++ talker counts from 1. Had you started the listener a few seconds late, it would simply have begun at a later number. Topics deliver what is published while you are listening; there is no history waiting for you unless a publisher is configured to keep one. Lesson 2 goes into that in detail.
+
+### Look at the graph
+
+A running ROS 2 system is a graph: nodes are programs, topics are named streams of messages, and the edges are publishers and subscribers. The `ros2` command can inspect this graph from any terminal, including one that is not running any node.
+
+```bash
+ros2 node list                  # every node currently running
+ros2 topic list                 # every topic currently alive
+ros2 topic echo /hello --once   # print one message, then exit
+ros2 topic hz /hello            # measure the publish rate (Ctrl+C to stop)
+```
+
+The output below comes from this lesson's own node, which you build in the next section — not from the demo talker.
+
+```text
+$ ros2 node list
+/hello_node
+$ ros2 topic list
+/hello
+/parameter_events
+/rosout
+$ ros2 topic echo /hello --once
+data: 'hello #7'
+---
+$ ros2 topic hz /hello
+average rate: 2.000
+```
+
+One node is running: ours. `/hello` is the topic we created; `/parameter_events` and `/rosout` exist in every ROS 2 system, carrying parameter changes and log messages respectively, which is why they appear even though you never wrote them. `echo --once` printed one message and exited, and the `---` separates messages when more than one is printed. `hz` measured two messages per second, which matches the 0.5 s timer in the code. It keeps printing until you press Ctrl+C; only its first line is shown here.
+
+Two details worth noticing. The node name begins with a slash because it is in the root namespace; topic names work the same way. And `hz` is a measurement, not a setting: it counts arrivals over a window, so the first line can be slightly off if you start it mid-stream. A steady 2.000 on a 0.5 s timer is exactly what correct looks like.
+
+## A workspace and a package
+
+A workspace is a folder with a `src/` subfolder for source packages. You run `colcon build` from the workspace root, and it creates `build/`, `install/` and `log/` next to `src/`. A package is the unit of code you build, share and depend on: one folder with a `package.xml`, its source, and instructions for installing it.
+
+Create the workspace and a Python package:
+
+```bash
+mkdir -p ~/ros2_ws/src
+cd ~/ros2_ws/src
+ros2 pkg create m4_hello \
+  --build-type ament_python --dependencies rclpy std_msgs --node-name hello_node \
+  --description 'Month 4 lesson 1: a first ROS 2 node' --maintainer-name 'Your Name' --maintainer-email you@example.com
+```
+
+Real output — the site editor ran this in a temporary folder, printed here as `/home/you/ros2_ws`. Yours shows your own home folder.
+
+```text
+going to create a new package
+package name: m4_hello
+destination directory: /home/you/ros2_ws/src
+package format: 3
+version: 0.0.0
+description: Month 4 lesson 1: a first ROS 2 node
+maintainer: ['Your Name <you@example.com>']
+licenses: ['TODO: License declaration']
+build type: ament_python
+dependencies: ['rclpy', 'std_msgs']
+node_name: hello_node
+creating folder ./m4_hello
+creating ./m4_hello/package.xml
+creating source folder
+creating folder ./m4_hello/m4_hello
+creating ./m4_hello/setup.py
+creating ./m4_hello/setup.cfg
+creating folder ./m4_hello/resource
+creating ./m4_hello/resource/m4_hello
+creating ./m4_hello/m4_hello/__init__.py
+creating folder ./m4_hello/test
+creating ./m4_hello/test/test_copyright.py
+creating ./m4_hello/test/test_flake8.py
+creating ./m4_hello/test/test_pep257.py
+creating ./m4_hello/m4_hello/hello_node.py
+
+[WARNING]: Unknown license 'TODO: License declaration'.  This has been set in the package.xml, but no LICENSE file has been created.
+It is recommended to use one of the ament license identifiers:
+Apache-2.0
+BSL-1.0
+BSD-2.0
+BSD-2-Clause
+BSD-3-Clause
+GPL-3.0-only
+LGPL-3.0-only
+MIT
+MIT-0
+```
+
+`ament_python` means a pure Python package; `ament_cmake` is the C++ one, and Lesson 2 uses it. The warning is about the licence: the generator cannot choose one for you, so it writes a placeholder. Pick a licence and pass it explicitly, for example `--license Apache-2.0` or `--license MIT`; the site leaves the placeholder so it does not choose a licence for your code. The generated tests are optional, and this site's copy removed them.
+
+The layout after generation looks like this:
+
+```text
+ros2_ws/
+├── src/
+│   └── m4_hello/
+│       ├── package.xml          name, version, dependencies
+│       ├── setup.py             how to install it, and which commands it provides
+│       ├── setup.cfg
+│       ├── resource/m4_hello    marker file so ROS can find the package
+│       └── m4_hello/
+│           ├── __init__.py
+│           └── hello_node.py    the node
+├── build/                       created by colcon build
+├── install/                     created by colcon build: what you source
+└── log/
+```
+
+### The node
+
+<CodeSource path="examples/month-4/ros2-setup/m4_hello/m4_hello/hello_node.py" />
+
+```python
+"""A first ROS 2 node: publish a counter on /hello twice a second."""
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String
+
+
+class HelloNode(Node):
+    def __init__(self):
+        super().__init__('hello_node')            # the name shown by `ros2 node list`
+        self.pub = self.create_publisher(String, 'hello', 10)   # topic, queue depth
+        self.count = 0
+        self.timer = self.create_timer(0.5, self.tick)          # call tick() every 0.5 s
+
+    def tick(self):
+        msg = String()
+        msg.data = f'hello #{self.count}'
+        self.pub.publish(msg)
+        self.get_logger().info(f'published "{msg.data}"')
+        self.count += 1
+
+
+def main():
+    rclpy.init()
+    node = HelloNode()
+    try:
+        rclpy.spin(node)                          # run callbacks until Ctrl+C
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.try_shutdown()
+
+
+if __name__ == '__main__':
+    main()
+```
+
+A node is a class that inherits from `Node`. The string passed to `super().__init__` is the name you see in `ros2 node list`; change it and the graph changes.
+
+`create_publisher(String, 'hello', 10)` takes the message type, the topic name and the queue depth. The queue depth is how many messages may wait if a subscriber is slower than the publisher; ten is the usual starting value and has nothing to do with frequency. The topic name has no leading slash, which makes it relative: in the default namespace it resolves to `/hello`.
+
+`create_timer(0.5, self.tick)` asks ROS to call `tick` every 0.5 seconds. Inside `tick` you build a `String` message, fill `.data`, publish it, log a line and increment the counter.
+
+`rclpy.spin(node)` runs callbacks until Ctrl+C. This is the ROS 2 equivalent of Month 2's non-blocking `millis()` loop, except that the timer and the message delivery are handled for you: you never write the loop, you write functions that the executor calls. The `finally` block cleans up the node and shuts the library down even when you interrupt it.
+
+The entry point that turns this file into the command `hello_node` lives in `setup.py`:
+
+<CodeSource path="examples/month-4/ros2-setup/m4_hello/setup.py" />
+
+```python
+from setuptools import find_packages, setup
+
+package_name = 'm4_hello'
+
+setup(
+    name=package_name,
+    version='0.0.0',
+    packages=find_packages(exclude=['test']),
+    data_files=[
+        ('share/ament_index/resource_index/packages',
+            ['resource/' + package_name]),
+        ('share/' + package_name, ['package.xml']),
+    ],
+    install_requires=['setuptools'],
+    zip_safe=True,
+    maintainer='Your Name',
+    maintainer_email='you@example.com',
+    description='Month 4 lesson 1: a first ROS 2 node',
+    license='TODO: License declaration',
+    entry_points={
+        'console_scripts': [
+            'hello_node = m4_hello.hello_node:main'
+        ],
+    },
+)
+```
+
+The important line is `'hello_node = m4_hello.hello_node:main'` in `entry_points`. The left side is the command name; the right side is the module path and the function to call, separated by a colon. That is why `ros2 run m4_hello hello_node` works: ROS finds the package, then the console script, then the `main` function.
+
+### Build and run
+
+```bash
+cd ~/ros2_ws
+colcon build
+source install/setup.bash
+ros2 run m4_hello hello_node
+```
+
+Real output of `colcon build`:
+
+```text
+Starting >>> m4_hello
+Finished <<< m4_hello [0.71s]
+
+Summary: 1 package finished [0.78s]
+```
+
+Real output of the node, first four lines, then Ctrl+C:
+
+```text
+[INFO] [1792442653.507764525] [hello_node]: published "hello #0"
+[INFO] [1792442653.998275036] [hello_node]: published "hello #1"
+[INFO] [1792442654.498256801] [hello_node]: published "hello #2"
+[INFO] [1792442654.998344307] [hello_node]: published "hello #3"
+```
+
+The 0.5 s spacing is visible in the timestamps: 653.507, 653.998, 654.498, 654.998. The first gap is 0.491 s, then 0.500 and 0.500. The first callback ran a few milliseconds late while the node was still starting up; the timer schedules against its own start time, so one late call does not push the following ones back. ROS timers are not real-time guarantees, but on an idle computer they keep to the grid well.
+
+Now the two words that explain most workspace confusion. `/opt/ros/jazzy` is the underlay: the installed ROS 2, which you sourced earlier. Your workspace's `install/setup.bash` is the overlay: it adds your packages on top of the underlay without modifying it. Source the underlay first, then the overlay, because the overlay's script extends what is already loaded. In a new terminal you need both, in that order.
+
+`colcon build --symlink-install` links Python files instead of copying them, so edits take effect without rebuilding. Use it once you are editing often. New files and changes to `setup.py` still need a rebuild, because those change what gets installed, not just the contents of an installed file.
+
+<Quiz id="q3" question="A timer is created with create_timer(0.2, self.tick). How many messages per second will ros2 topic hz report?" answer={5} unit="Hz" explanation="One call every 0.2 s → 1 / 0.2 = 5 per second." />
+
+## When it breaks
+
+Nearly every setup failure in the first week is one of four mistakes.
+
+- **Not sourced.** A new terminal does not know your workspace. Real output of `ros2 run m4_hello hello_node` in a terminal where only ROS itself is sourced:
+
+  ```text
+  Package 'm4_hello' not found
+  ```
+
+  Fix: `source ~/ros2_ws/install/setup.bash` (after the ROS underlay). The package is not missing; the terminal simply has not been told where to look.
+
+- **Building in the wrong folder.** Run `colcon build` from the workspace root, never inside `src/`. If you build inside `src/`, you get `build/` and `install/` folders inside your source tree and a confusing second workspace that competes with the first. If that happens, delete the stray folders and rebuild from the root.
+
+- **Mixing distros.** Sourcing Humble and Jazzy in the same terminal — often from an old `~/.bashrc` line — gives errors that look like broken packages, missing symbols or Python import failures. Check with `printenv ROS_DISTRO` and make sure it says `jazzy`. Then look at what your shell startup files source.
+
+- **Nodes that cannot see each other, or see too much.** ROS 2 discovers every node on the same network with the same `ROS_DOMAIN_ID`, which defaults to 0. On a shared network (university, office), you will see strangers' nodes and they will see yours. Set your own domain, for example `export ROS_DOMAIN_ID=42` (any number from 0 to 101 is safe), or stay on your computer with `export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST`. Two terminals with different domain IDs will never hear each other, so when a topic "publishes but nothing receives", check this first. Lesson 2 covers the other cause, QoS.
+
+<Quiz id="q4" question="In a new terminal, ros2 run m4_hello hello_node prints: Package 'm4_hello' not found. The package built without errors. What do you do?" options={["rebuild with colcon build --symlink-install", "source install/setup.bash from the workspace in this terminal", "reinstall ROS 2 Jazzy", "start roscore first"]} answer={1} explanation="Each terminal must source the workspace overlay; roscore is ROS 1 and does not exist in ROS 2." />
+
+The task list below is the actual work of this lesson: install one route, check the demo talker and listener, test three top-ranked tutorials against the ROS 1 table, create the workspace, and inspect your node with all four commands. Do them in that order — each one depends on the previous.
+
+One node publishing a counter is the start. Lesson 2 turns that into a whole graph, with services, actions, parameters, launch files and bags.

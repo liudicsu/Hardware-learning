@@ -1059,6 +1059,47 @@ export const resources: Record<string, Resource> = {
     license: { zh: "© Brett Beauregard，仅提供外链", en: "© Brett Beauregard; external link only" },
     extra: true,
   },
+  // ---- Month 4 ----
+  "ros2-tutorials": {
+    id: "ros2-tutorials",
+    url: "https://docs.ros.org/en/jazzy/Tutorials.html",
+    title: { zh: "ROS 2 官方教程（Jazzy）", en: "Official ROS 2 Tutorials (Jazzy)" },
+    author: "Open Robotics / ROS 2 documentation contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "权威参考：节点、话题、服务、动作、参数、launch、tf2 和 URDF 都按顺序覆盖。更像参考手册而不是课程，适合配合视频一起看。",
+      en: "The canonical reference, laid out around nodes, topics, services, actions, parameters, launch files, tf2 and URDF. Reference-grade rather than a course, so pair it with a video series.",
+    },
+    license: { zh: "文档以 CC BY 4.0 发布，© Open Robotics；仅提供外链", en: "Docs under CC BY 4.0, © Open Robotics; external link only" },
+  },
+  "the-construct": {
+    id: "the-construct",
+    url: "https://www.theconstruct.ai/",
+    title: { zh: "The Construct（浏览器里的 ROS 环境）", en: "The Construct (ROS in the browser)" },
+    author: "The Construct",
+    kind: "service",
+    cost: { zh: "有免费档，付费从 €39.97/月起（2026 年 10 月官网价）", en: "Free tier; paid from €39.97/month (site price, October 2026)" },
+    summary: {
+      zh: "整个 ROS 环境和仿真机器人都跑在浏览器里：不用装 Ubuntu 双系统、不用花一个周末装环境、也不需要显卡。免费档包含三门完整课程。",
+      en: "A whole ROS environment with simulated robots in the browser: no Ubuntu dual-boot, no install weekend, no GPU. The free tier includes three complete courses.",
+    },
+    license: { zh: "© The Construct，仅提供外链", en: "© The Construct; external link only" },
+  },
+  robostack: {
+    id: "robostack",
+    url: "https://robostack.github.io/",
+    title: { zh: "RoboStack：用 conda/pixi 安装 ROS", en: "RoboStack: ROS through conda / pixi" },
+    author: "RoboStack contributors",
+    kind: "software",
+    cost: { zh: "免费 · 开源", en: "Free · open source" },
+    summary: {
+      zh: "把 ROS 2 打包成 conda 包，可以在非 Ubuntu 的 Linux、macOS 和 Windows 上装进一个独立环境，不碰系统。本站第 4 个月的示例就是在 Debian 13 上用它跑的。",
+      en: "ROS 2 as conda packages, installed into a self-contained environment on non-Ubuntu Linux, macOS or Windows without touching the system. This site's Month 4 examples were run with it on Debian 13.",
+    },
+    license: { zh: "开源（MIT），© RoboStack 贡献者", en: "Open source (MIT), © RoboStack contributors" },
+    extra: true,
+  },
 };
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

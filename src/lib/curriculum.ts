@@ -304,6 +304,25 @@ const month3Lessons: Lesson[] = [
   },
 ];
 
+const month4Lessons: Lesson[] = [
+  {
+    slug: "ros2-setup",
+    title: { zh: "选哪个 ROS 2，搭好第一个工作空间", en: "Which ROS 2, and your first workspace" },
+    summary: {
+      zh: "为什么从 Jazzy 开始、怎样一眼认出过时的 ROS 1 教程、四种安装方式，然后用 colcon 构建并运行你的第一个 ROS 2 包。",
+      en: "Why to start on Jazzy, how to spot an outdated ROS 1 tutorial at a glance, four ways to install, then build and run your first ROS 2 package with colcon.",
+    },
+    minutes: 150,
+    resources: ["ros2-tutorials", "the-construct", "robostack"],
+    tasks: [
+      { id: "install", text: { zh: "装好 ROS 2 Jazzy（任选一种方式），跑通 C++ talker 和 Python listener", en: "Install ROS 2 Jazzy (any route) and get the C++ talker and Python listener talking" } },
+      { id: "spot-ros1", text: { zh: "找三篇搜索排名靠前的 ROS 教程，按本课的特征判断哪些是 ROS 1，记下线索", en: "Find three top-ranked ROS tutorials, decide which are ROS 1 using this lesson's tell-tale signs, and note the clue" } },
+      { id: "workspace", text: { zh: "创建 ~/ros2_ws，用 ros2 pkg create 生成一个 Python 包，写一个用定时器发布消息的节点", en: "Create ~/ros2_ws, generate a Python package with ros2 pkg create, and write a node that publishes on a timer" } },
+      { id: "inspect", text: { zh: "用 ros2 node list、topic list、topic echo 和 topic hz 检查你的节点，确认发布频率", en: "Inspect your node with ros2 node list, topic list, topic echo and topic hz, and confirm its rate" } },
+    ],
+  },
+];
+
 export const months: Month[] = [
   {
     id: 1,
@@ -391,7 +410,7 @@ export const months: Month[] = [
       zh: "用 ROS 2 构建机器人并仿真，让它建图并自主导航。",
       en: "Build a robot in ROS 2, simulate it, and make it map a room and navigate autonomously.",
     },
-    status: "outline",
+    status: "ready",
     topics: [
       { zh: "选择 ROS 2 发行版，避开 ROS 1 陷阱", en: "Choosing a ROS 2 distro and avoiding the ROS 1 trap" },
       { zh: "ROS 2 核心概念：节点、话题、服务、动作", en: "ROS 2 core concepts: nodes, topics, services, actions" },
@@ -408,7 +427,7 @@ export const months: Month[] = [
       { zh: "用 SLAM Toolbox 建图，用 Nav2 自主导航", en: "Map with SLAM Toolbox and navigate with Nav2" },
       { zh: "诊断损坏的 TF 树", en: "Diagnose a broken TF tree" },
     ],
-    lessons: [],
+    lessons: month4Lessons,
   },
   {
     id: 5,
