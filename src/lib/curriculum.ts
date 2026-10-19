@@ -389,6 +389,22 @@ const month4Lessons: Lesson[] = [
       { id: "action", text: { zh: "写一个开指定距离的动作服务器：周期反馈进度、支持取消，结果报告机器人实际走了多远，并用里程计核对", en: "Write an action server that drives a commanded distance: progress feedback, cancellation, and a result that reports how far the robot really went, checked against odometry" } },
     ],
   },
+  {
+    slug: "slam-nav",
+    title: { zh: "SLAM 与导航：SLAM Toolbox 和 Nav2", en: "SLAM and navigation: SLAM Toolbox and Nav2" },
+    summary: {
+      zh: "先用激光雷达检查里程计转弯是否准确并校准它；再用 SLAM Toolbox 边走边给房间建图、保存地图；最后在保存的地图里定位，让 Nav2 规划路径、绕开障碍、自己开到目标点，并学会从 TF 和代价地图里找出导航失败的原因。",
+      en: "First use the lidar to check how well odometry measures turns, and calibrate it; then map the room with SLAM Toolbox while driving and save the map; finally localize in the saved map and let Nav2 plan a path, avoid obstacles and drive itself to a goal, and learn to find why navigation fails from TF and the costmaps.",
+    },
+    minutes: 240,
+    resources: ["slam-toolbox", "nav2-docs", "articulated-slam", "articulated-nav2"],
+    tasks: [
+      { id: "odom", text: { zh: "用 spin_check.py 让机器人按里程计原地转一整圈，用激光雷达测出真实转角，并校准 wheel_separation_multiplier，直到误差小于 1%", en: "Use spin_check.py to turn the robot one full turn by odometry, measure the real angle with the lidar, and calibrate wheel_separation_multiplier until the error is under 1%" } },
+      { id: "map", text: { zh: "用 SLAM Toolbox 给房间建图，把所有障碍物都扫到，并同时保存位姿图（.posegraph）和栅格地图（.pgm + .yaml）", en: "Map the room with SLAM Toolbox until every obstacle shows, and save both the pose graph (.posegraph) and the occupancy grid (.pgm + .yaml)" } },
+      { id: "nav", text: { zh: "在保存的地图里定位并启动 Nav2，从 RViz 或命令行发出目标点，让机器人绕过障碍物自己开过去", en: "Localize in the saved map, start Nav2 and send a goal from RViz or the command line; the robot must drive around the obstacles to it on its own" } },
+      { id: "debug", text: { zh: "故意制造一次导航失败（如把目标放进障碍物，或停掉激光雷达），从日志、TF 和代价地图找出原因", en: "Make navigation fail on purpose (a goal inside an obstacle, or the lidar stopped) and find the cause from the logs, TF and the costmaps" } },
+    ],
+  },
 ];
 
 export const months: Month[] = [
