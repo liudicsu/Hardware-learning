@@ -1,0 +1,128 @@
+{
+  "site": {
+    "name": "Hardware Learning",
+    "tagline": "Become a robotics engineer in 6 months · bilingual study hub",
+    "description": "A bilingual study site built on @DeRonin_'s “How to become a Robotics Engineer in 6 months”: original lessons, hands-on exercises, resource cards and local progress tracking."
+  },
+  "nav": {
+    "home": "Home",
+    "roadmap": "Roadmap",
+    "resources": "Resources",
+    "about": "About & credits",
+    "language": "Language",
+    "switchTo": "中文",
+    "skip": "Skip to content"
+  },
+  "home": {
+    "eyebrow": "Open · Free · Bilingual",
+    "title": "Zero to robotics engineer in 6 months",
+    "lead": "Start by reading a schematic, end with ROS 2, control, perception and robot learning. Every lesson has an original explanation, hands-on tasks and curated resources — and your progress stays in your own browser.",
+    "start": "Start Month 1",
+    "continue": "Continue learning",
+    "roadmap": "The six-month roadmap",
+    "statusReady": "Ready",
+    "statusOutline": "Outline · coming soon",
+    "lessons": "{count} lessons",
+    "howTitle": "How to use this site",
+    "how1Title": "Read",
+    "how1": "Each lesson opens with an original bilingual explanation: concepts, formulas and common mistakes on one page.",
+    "how2Title": "Do",
+    "how2": "Build circuits in the embedded Falstad simulator, answer quizzes and tick off the task list.",
+    "how3Title": "Go deeper",
+    "how3": "Resource cards link straight to the original courses, books and tools. Copyright stays with their authors.",
+    "progressTitle": "Your progress",
+    "progressLocal": "Progress is stored only in this browser (localStorage) and never uploaded."
+  },
+  "month": {
+    "label": "Month {n}",
+    "goal": "Goal this month",
+    "lessons": "Lessons",
+    "milestones": "Month milestone",
+    "milestonesLead": "By the end of the month you should be able to:",
+    "topics": "Topic outline",
+    "outlineNotice": "This month is being written. Below are the outline and milestones from the original course; full lessons will follow once Month 1 has been reviewed.",
+    "progress": "Month progress",
+    "minutes": "≈ {n} min",
+    "back": "Back to roadmap",
+    "start": "Start this month"
+  },
+  "lesson": {
+    "lesson": "Lesson {n}",
+    "of": "of {total}",
+    "tasks": "Hands-on tasks",
+    "resources": "Go deeper",
+    "markDone": "Mark lesson as done",
+    "done": "Lesson done",
+    "prev": "Previous",
+    "next": "Next",
+    "backToMonth": "Back to month overview",
+    "finishMonth": "See the month milestone",
+    "onThisPage": "In this lesson",
+    "statusDone": "done",
+    "statusTodo": "not done"
+  },
+  "resource": {
+    "open": "Open",
+    "external": "External link",
+    "supplement": "Supplement",
+    "kind": {
+      "simulator": "Simulator",
+      "textbook": "Textbook",
+      "video": "Video",
+      "course": "Course",
+      "interactive": "Interactive",
+      "guide": "Guide",
+      "book": "Book",
+      "hardware": "Hardware"
+    },
+    "allTitle": "Resource library",
+    "allLead": "Every external resource referenced in the course. Copyright stays with each author; this site only provides original summaries and links. Items marked “Supplement” are our own additions, not in the original course list.",
+    "usedIn": "Used in:"
+  },
+  "falstad": {
+    "title": "Falstad circuit simulator",
+    "loading": "Loading simulator…",
+    "openNew": "Open in new window",
+    "fallback": "Simulator not loading? Open the same circuit in a new window.",
+    "hint": "Click a switch to toggle it; double-click a part to edit its value; hover to read voltage and current.",
+    "credit": "Simulator by falstad.com (Paul Falstad / Iain Sharp, GPLv2); this site only embeds the official page."
+  },
+  "quiz": {
+    "check": "Check",
+    "correct": "Correct!",
+    "incorrect": "Not quite.",
+    "retry": "Try again",
+    "showAnswer": "Show answer",
+    "answer": "Answer: ",
+    "yourAnswer": "Your answer",
+    "unit": "Unit"
+  },
+  "progress": {
+    "reset": "Reset progress",
+    "confirmReset": "Clear all learning progress saved in this browser? This cannot be undone.",
+    "overall": "Overall progress"
+  },
+  "footer": {
+    "course": "Course structure: ",
+    "courseBy": "“How to become a Robotics Engineer in 6 months” by @DeRonin_",
+    "copyright": "Resources belong to their respective authors; lesson text on this site is original.",
+    "repo": "Source on GitHub"
+  },
+  "about": {
+    "title": "About & credits",
+    "lead": "A study site built for actually learning — not a link dump.",
+    "sourceTitle": "Course source",
+    "source": "The six-month structure, monthly goals, milestones and resource list come from @DeRonin_'s September 2026 article “How to become a Robotics Engineer in 6 months (RESOURCES)”. On top of that we wrote original explanations and exercises, and added a few resources (marked as supplements).",
+    "copyrightTitle": "Copyright",
+    "copyright": "All external resources (courses, textbooks, videos, tools) belong to their authors or institutions. This site does not mirror or republish them; it only provides original summaries and links. The Falstad simulator is embedded from its official page via iframe.",
+    "privacyTitle": "Privacy",
+    "privacy": "No login, no tracking. Your progress lives only in your browser's localStorage.",
+    "safetyTitle": "Safety",
+    "safety": "This course involves soldering irons, lithium batteries and other potentially dangerous tools. Solder in a ventilated space, wear eye protection, and never leave a LiPo charging unattended.",
+    "openSource": "The site is open source on GitHub — issues and PRs welcome."
+  },
+  "notFound": {
+    "title": "Page not found",
+    "back": "Back home"
+  }
+}

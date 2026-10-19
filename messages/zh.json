@@ -1,0 +1,128 @@
+{
+  "site": {
+    "name": "硬件学习",
+    "tagline": "6 个月成为机器人工程师 · 中英双语学习站",
+    "description": "基于 @DeRonin_ 的《How to become a Robotics Engineer in 6 months》课程整理的双语学习网站：原创讲解、可执行练习、资源卡片与本地进度追踪。"
+  },
+  "nav": {
+    "home": "首页",
+    "roadmap": "路线图",
+    "resources": "资源库",
+    "about": "关于与致谢",
+    "language": "语言",
+    "switchTo": "English",
+    "skip": "跳到正文"
+  },
+  "home": {
+    "eyebrow": "开源 · 免费 · 双语",
+    "title": "6 个月，从零到机器人工程师",
+    "lead": "从读懂原理图开始，到 ROS 2、控制、感知与机器人学习。每节课都有原创讲解、动手任务和精选资源，进度只保存在你自己的浏览器里。",
+    "start": "从第 1 个月开始",
+    "continue": "继续学习",
+    "roadmap": "六个月路线",
+    "statusReady": "可学习",
+    "statusOutline": "大纲 · 即将推出",
+    "lessons": "{count} 节课",
+    "howTitle": "怎么用这个网站",
+    "how1Title": "读讲解",
+    "how1": "每节课先给出原创的中英双语讲解，概念、公式与常见误区一页读完。",
+    "how2Title": "动手做",
+    "how2": "在内嵌的 Falstad 模拟器里搭电路、做小测验、完成任务清单。",
+    "how3Title": "深入学",
+    "how3": "资源卡片直达原作者的课程、教材与工具，版权归原作者。",
+    "progressTitle": "你的进度",
+    "progressLocal": "进度仅保存在本浏览器（localStorage），不会上传。"
+  },
+  "month": {
+    "label": "第 {n} 个月",
+    "goal": "本月目标",
+    "lessons": "课程",
+    "milestones": "本月里程碑",
+    "milestonesLead": "月底你应该能做到：",
+    "topics": "主题大纲",
+    "outlineNotice": "本月内容正在编写中。以下是根据原课程整理的大纲与里程碑，完整课程将在第 1 个月审核通过后陆续上线。",
+    "progress": "本月进度",
+    "minutes": "约 {n} 分钟",
+    "back": "返回路线图",
+    "start": "开始本月"
+  },
+  "lesson": {
+    "lesson": "第 {n} 课",
+    "of": "共 {total} 课",
+    "tasks": "动手任务",
+    "resources": "延伸资源",
+    "markDone": "标记本课为已完成",
+    "done": "本课已完成",
+    "prev": "上一课",
+    "next": "下一课",
+    "backToMonth": "返回本月概览",
+    "finishMonth": "查看本月里程碑",
+    "onThisPage": "本课内容",
+    "statusDone": "已完成",
+    "statusTodo": "未完成"
+  },
+  "resource": {
+    "open": "打开",
+    "external": "外部链接",
+    "supplement": "补充资源",
+    "kind": {
+      "simulator": "模拟器",
+      "textbook": "教材",
+      "video": "视频",
+      "course": "课程",
+      "interactive": "交互练习",
+      "guide": "指南",
+      "book": "书籍",
+      "hardware": "硬件"
+    },
+    "allTitle": "资源库",
+    "allLead": "课程中引用的所有外部资源。版权归各自作者，本站只提供原创摘要与链接。标注“补充资源”的是本站额外推荐，不在原课程清单中。",
+    "usedIn": "用于："
+  },
+  "falstad": {
+    "title": "Falstad 电路模拟器",
+    "loading": "正在加载模拟器…",
+    "openNew": "在新窗口打开",
+    "fallback": "模拟器加载不出来？点这里在新窗口打开同一个电路。",
+    "hint": "点击开关可切换状态；双击元件可修改数值；右上角可查看电压与电流。",
+    "credit": "模拟器来自 falstad.com（Paul Falstad / Iain Sharp，GPLv2），本站仅嵌入官方页面。"
+  },
+  "quiz": {
+    "check": "检查答案",
+    "correct": "正确！",
+    "incorrect": "再想想。",
+    "retry": "重试",
+    "showAnswer": "看答案",
+    "answer": "答案：",
+    "yourAnswer": "你的答案",
+    "unit": "单位"
+  },
+  "progress": {
+    "reset": "清空进度",
+    "confirmReset": "确定要清空本浏览器中保存的全部学习进度吗？此操作不可撤销。",
+    "overall": "总体进度"
+  },
+  "footer": {
+    "course": "课程结构来源：",
+    "courseBy": "@DeRonin_ 的《How to become a Robotics Engineer in 6 months》",
+    "copyright": "各资源版权归原作者所有；本站讲解为原创内容。",
+    "repo": "GitHub 源码"
+  },
+  "about": {
+    "title": "关于与致谢",
+    "lead": "这是一个为了真正学会而做的学习网站，不是资源搬运站。",
+    "sourceTitle": "课程来源",
+    "source": "六个月的整体结构、每月目标、里程碑与资源清单来自 @DeRonin_ 于 2026 年 9 月发布的长文《How to become a Robotics Engineer in 6 months (RESOURCES)》。本站在此基础上用自己的话写了讲解和练习，并补充了少量资源（已标注）。",
+    "copyrightTitle": "版权说明",
+    "copyright": "所有外部资源（课程、教材、视频、工具）版权归各自作者或机构所有。本站不镜像、不转载这些内容，只提供原创摘要与外链。Falstad 模拟器以 iframe 形式嵌入其官方页面。",
+    "privacyTitle": "隐私",
+    "privacy": "本站不需要登录，不收集任何数据。学习进度只保存在你浏览器的 localStorage 中。",
+    "safetyTitle": "安全提示",
+    "safety": "本课程涉及烙铁、锂电池等有潜在危险的工具与材料。请在通风处焊接，佩戴护目镜，永远不要让锂电池在无人看管时充电。",
+    "openSource": "本站源码开源于 GitHub，欢迎提 issue 与 PR。"
+  },
+  "notFound": {
+    "title": "页面不存在",
+    "back": "回到首页"
+  }
+}
