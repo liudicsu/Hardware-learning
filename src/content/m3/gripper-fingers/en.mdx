@@ -1,0 +1,294 @@
+## How hard to squeeze
+
+A two-finger gripper does not hold an object by clamping it "hard". It holds it with **friction**. Each of the two fingers presses on the object with a force F, and because there are two contact faces, the friction that resists the object sliding out is **2 × μ × F**, where μ (mu) is the coefficient of friction between the finger material and the object. If whatever pulls on the object is larger than that, the object slips — however tight the grip felt to your hand.
+
+Three things pull on a held object. Its own weight is m × g. When the arm accelerates the object at a, the object resists with an extra force m × a that the grip has to carry. And a safety factor S sits in front of both, because you never want to work right at the edge of slipping. Requiring the friction to cover all of it gives the minimum squeeze per finger:
+
+```text
+2 × μ × F ≥ S × m × (g + a)
+
+solve for F:
+
+F = S × m × (g + a) / (2 × μ)
+```
+
+The consequence lives in the denominator: μ matters exactly as much as force. A grippy material cuts the squeeze you need: with the guesses below, TPU needs well under half of what PLA needs, and that is exactly what you want when the object is an egg. "Just squeeze harder" is not a strategy; it is how you crack a shell, crush a can, or leave a servo buzzing and hot.
+
+The short program below runs this arithmetic for three objects and two finger materials. It is ordinary Python doing ordinary arithmetic — not a simulation, and it has never been near a robot. The μ values inside it are rough guesses, and this lesson will ask you to measure your own and put them in.
+
+<CodeSource path="examples/month-3/gripper-fingers/grip_force.py" />
+
+```python
+"""grip_force.py: how hard must a two-finger gripper squeeze so the object does not slip?
+
+With two flat fingers squeezing with force F each, friction can hold up to 2 * mu * F.
+To hold weight m * g while the arm also accelerates the object (a), with a safety factor S:
+    F = S * m * (g + a) / (2 * mu)
+mu is the friction coefficient between the finger and the object. Hard PLA on smooth
+objects is low; soft TPU is much higher. The mu values below are rough guesses: measure
+your own (tilt a board until the object slides: mu = tan(angle)).
+"""
+G = 9.81
+SAFETY = 2.0
+ARM_ACCEL = 3.0          # m/s^2: a brisk move of the arm
+
+OBJECTS = [              # name, mass (kg)
+    ("egg", 0.060),
+    ("full 330 ml can", 0.350),
+    ("AA battery", 0.023),
+]
+FINGERS = [("PLA", 0.3), ("TPU", 0.8)]
+
+
+def squeeze(mass, mu):
+    return SAFETY * mass * (G + ARM_ACCEL) / (2 * mu)
+
+
+if __name__ == "__main__":
+    print(f"safety factor {SAFETY}, arm acceleration {ARM_ACCEL} m/s^2")
+    for name, mass in OBJECTS:
+        row = ", ".join(f"{f} (mu {mu}): {squeeze(mass, mu):4.1f} N" for f, mu in FINGERS)
+        print(f"{name:16s} {mass * 1000:4.0f} g  ->  {row}")
+```
+
+Real output:
+
+```text
+$ python3 grip_force.py
+safety factor 2.0, arm acceleration 3.0 m/s^2
+egg                60 g  ->  PLA (mu 0.3):  2.6 N, TPU (mu 0.8):  1.0 N
+full 330 ml can   350 g  ->  PLA (mu 0.3): 14.9 N, TPU (mu 0.8):  5.6 N
+AA battery         23 g  ->  PLA (mu 0.3):  1.0 N, TPU (mu 0.8):  0.4 N
+```
+
+Take the egg with PLA fingers. The mass is 0.060 kg, g is 9.81 m/s², the arm accelerates at 3.0 m/s², the safety factor is 2, and PLA on a smooth shell is about μ = 0.3:
+
+```text
+F = 2 × 0.060 × (9.81 + 3.0) / (2 × 0.3)
+  = 2 × 0.060 × 12.81 / 0.6
+  = 1.537 / 0.6
+  = 2.56 ≈ 2.6 N
+```
+
+Swap to TPU fingers and only μ changes, to about 0.8:
+
+```text
+F = 2 × 0.060 × 12.81 / (2 × 0.8)
+  = 1.537 / 1.6
+  = 0.96 ≈ 1.0 N
+```
+
+The numerator 2 × 0.060 × 12.81 = 1.537 is identical in both; only the denominator moved. The full 330 ml can shows the gap more sharply. Its mass is 0.350 kg, so the numerator is 2 × 0.350 × 12.81 = 8.967, and the answer is 8.967 / 0.6 = 14.9 N with PLA but 8.967 / 1.6 = 5.6 N with TPU. Fifteen newtons is a firm squeeze; five or six newtons is gentle. The AA battery, at 0.023 kg, needs only 1.0 N and 0.4 N, comfortably within reach of a small servo.
+
+Force alone is not the whole story with fragile things. The same total force spread over a soft finger that wraps around the object is gentler than the same force concentrated on two hard points, because pressure is force divided by area. That is the motivation for the rest of the lesson: a finger that conforms spreads the load, and a load spread over a larger area needs less force to hold on.
+
+<Quiz id="q1" question="A 200 g object, μ = 0.5, safety factor 2, arm acceleration 3.0 m/s². What squeeze force does each finger need (N)?" answer={5.12} unit="N" tolerance={0.05} explanation="F = S × m × (g + a) / (2 × μ) = 2 × 0.200 × (9.81 + 3.0) / (2 × 0.5) = 2 × 0.200 × 12.81 / 1.0 = 5.124 ≈ 5.12 N." />
+
+## Measure the friction
+
+The formula is only as good as the μ you feed it, and most tables you find online describe clean lab surfaces that are nothing like your printed finger on a real object. Measure it yourself with a tilted-board test.
+
+Put the object on a flat piece of the finger material — a small printed test plate is ideal, but a scrap of your filament works too. Tilt the board slowly and steadily until the object just begins to slide, and read the angle at that instant. The friction coefficient is the tangent of that angle:
+
+```text
+μ = tan(angle)
+```
+
+Why? At the moment sliding starts, gravity pulls the object down the slope with a force m × g × sin θ, and friction resists it with μ × m × g × cos θ. The two are equal right at that instant:
+
+```text
+m × g × sin θ = μ × m × g × cos θ
+divide both sides by m × g × cos θ:
+μ = sin θ / cos θ = tan θ
+```
+
+The mass cancels out completely, which is a gift: the same object on the same material gives the same angle however heavy it is.
+
+Two worked readings:
+
+```text
+object starts to slide at 35°:  μ = tan 35° = 0.70
+object starts to slide at 17°:  μ = tan 17° = 0.31
+```
+
+A few habits make the number trustworthy. Repeat the test three times and write down the lowest angle: the low angle is the pessimistic one, and the pessimistic case is the one that drops your object. Test on the real objects you plan to grasp — an eggshell, a painted can and a battery wrapper each friction differently, and a smooth can is much more slippery than a cardboard box. Clean both surfaces first, because grease and dust change the answer. You do not need a protractor: a phone's level or angle app reads the board's tilt accurately enough for this.
+
+Then go back to `grip_force.py`, replace the guessed mu values with your measured ones, and rerun it. Now the numbers describe your gripper and your objects rather than a textbook's.
+
+<Quiz id="q2" question="An object starts to slide when the board is at 31°. What is μ (2 decimals)?" answer={0.6} tolerance={0.02} explanation="μ = tan 31° = 0.6009 ≈ 0.60." />
+
+## The fin-ray idea
+
+A stiff finger, the kind you would draw as a straight bar, touches a round object at one or two points. When the object is curved, those two contact points act like a wedge: push a little harder and the round object squeezes out between them. That is why a rigid gripper is bad at eggs and good at boxes.
+
+A fin-ray finger solves this by deforming on purpose. Picture a triangle standing on its base: two thin walls, called flanks, run up and meet at the tip, and a set of thin ribs bridges the gap between them. Press the front flank against an object, and the finger does not simply bend away. The ribs pass the push across to the back flank, the triangle bends toward the push, and the whole finger curls around the object like a closing hand. Contact spreads from two points to a long arc, so the pressure on the object is lower and the hold is more secure.
+
+The principle is named after the way fish fins bend: a fin pushed from the front curls toward the push instead of folding away. The name "Fin Ray Effect" is a trademark of Festo, who developed grippers built on it; the underlying geometry is free to use, and it is what this lesson borrows.
+
+Three parameters decide how a fin-ray finger behaves:
+
+- **Flank thickness.** Thinner flanks are softer and curl more easily; thick ones behave more like a rigid finger.
+- **Rib count and thickness.** More or thicker ribs stiffen the finger; fewer, thinner ribs let it flex.
+- **Rib tilt.** Ribs leaning toward the base make the tip wrap further around the object; ribs perpendicular to the flanks keep the finger straighter.
+
+The finger below is written in OpenSCAD so every one of those is a one-line change. Like the bracket in Lesson 1 ("CAD: pick a tool, then design with parameters"), it is a parametric file: measure the jaw it bolts to, and change the mount parameters.
+
+<CodeSource path="examples/month-3/gripper-fingers/finray_finger.scad" />
+
+```scad
+// finray_finger.scad: a parametric fin-ray style finger to print in TPU.
+// Two thin flanks meet at the tip; thin ribs join them. Press the front flank and the
+// ribs make the finger curl AROUND the object instead of pushing it away.
+//   Render:  openscad -o finray_finger.stl finray_finger.scad
+// The mounting base is generic: measure the jaw you bolt it to and change mount_*.
+
+length     = 60;     // base to tip, mm
+base_w     = 22;     // finger depth at the base (front flank to back flank), mm
+height     = 18;     // extrusion = finger width across the object, mm
+flank      = 1.2;    // flank thickness: thinner = softer
+ribs       = 6;      // number of internal ribs
+rib_t      = 0.9;    // rib thickness
+rib_tilt   = 10;     // deg: ribs leaning toward the base make the tip wrap more
+
+base_t     = 5;      // solid mounting block, mm
+mount_d    = 3.2;    // M3 holes
+mount_pitch= 10;     // distance between the two holes: MEASURE YOUR JAW
+
+echo("finger (mm)", length + base_t, "x", base_w, "x", height);
+assert(flank >= 0.8, "flanks thinner than two 0.4 mm lines will not print cleanly");
+assert(mount_pitch + mount_d < height, "mount holes do not fit across the finger width");
+
+// front flank runs from (0,0) to the tip (length, 0); back flank from (0, base_w) to the tip
+function back_y(x) = base_w * (1 - x / length);
+
+module outline() {
+  polygon([[0, 0], [length, 0], [0, base_w]]);
+}
+
+module hollow() {                        // the triangle minus its insides = two flanks
+  difference() {
+    outline();
+    offset(delta = -flank) outline();
+  }
+}
+
+module rib(i) {                          // a rib from the front flank to the back flank
+  x = length * i / (ribs + 1);
+  dx = back_y(x) * tan(rib_tilt);        // lean toward the base
+  hull() {
+    translate([x, 0]) square([rib_t, 0.01]);
+    translate([max(0, x - dx), back_y(max(0, x - dx)) - 0.01]) square([rib_t, 0.01]);
+  }
+}
+
+linear_extrude(height) {
+  hollow();
+  intersection() {
+    outline();
+    union() for (i = [1 : ribs]) rib(i);
+  }
+}
+difference() {                           // mounting block behind the base of the finger
+  translate([-base_t, 0, 0]) cube([base_t, base_w, height]);
+  for (s = [-1, 1])
+    translate([-base_t - 1, base_w / 2, height / 2 + s * mount_pitch / 2])
+      rotate([0, 90, 0]) cylinder(d = mount_d, h = base_t + 2, $fn = 24);
+}
+```
+
+![The fin-ray finger rendered from finray_finger.scad: a triangular finger with two thin flanks, six tilted ribs and a mounting block with two M3 holes](/m3/finray_finger.png)
+
+Render it and read the numbers it prints:
+
+```text
+$ openscad -o finray_finger.stl finray_finger.scad 2>&1 | grep ECHO
+ECHO: "finger (mm)", 65, "x", 22, "x", 18
+$ python3 ../cad-parametric/stl_info.py finray_finger.stl 1.21
+size: 65.0 x 22.0 x 18.0 mm
+triangles: 340, edges not shared by exactly 2: 0  (watertight)
+volume: 5.72 cm^3, solid mass at 1.21 g/cm^3: 6.9 g
+```
+
+Walk through the result. The 65 mm length is the 60 mm finger plus the 5 mm mounting block behind it, and the 22 × 18 mm cross-section matches `base_w` and `height`. "Watertight" means every triangle edge is shared by exactly two triangles, so the slicer can tell inside from outside and will not complain or leave holes. A typical TPU measures about 1.21 g/cm³, so the 5.72 cm³ finger weighs roughly 6.9 g — light enough that it does not load the gripper servo much.
+
+The file also carries two guardrails. The first `assert` stops the render if the flank is thinner than two 0.4 mm extrusion lines, because a wall thinner than that will not print cleanly; the second stops it if the mounting holes would not fit across the finger's width. A failed assert costs you a second; a failed print costs you an evening.
+
+Finally, the mounting block is generic. `mount_pitch = 10` is a placeholder, not a measurement of your arm. This is Lesson 1's rule again: start from the real part, measure the jaw you are actually going to bolt to, and change the number before you print.
+
+<Quiz id="q3" question="You press the middle of a fin-ray finger's front flank. What does the tip do?" options={["bends away from the object", "stays still", "curls toward the object", "snaps off at the base"]} answer={2} explanation="The ribs pass the push across to the back flank, so the triangle bends toward the push and the finger curls around the object instead of folding away. That curl is the whole point of the fin-ray geometry." />
+
+## Printing TPU
+
+TPU is a flexible filament, and 95A (Shore hardness 95A) is the grade most people print. Softer grades, 85A and below, are much harder to push through a printer, so start with 95A. Flexible filament behaves differently from PLA, and these are the settings that matter most.
+
+- **Print slowly and steadily, within the filament maker's temperature range.** Fast moves drag the soft filament and leave blobs; start at the slow end and do not run hotter than the maker's range hoping for better flow.
+- **A direct-drive extruder is strongly preferred.** A long Bowden tube lets the soft filament buckle instead of feeding; with the drive gears right above the nozzle, TPU feeds far more reliably.
+- **Use little or no retraction.** Retraction yanks the soft filament back, where it can jam or grind; turn it down or off and accept a few strings.
+- **Dry the filament if it pops or strings.** TPU absorbs moisture, and wet filament spits and strings; dry it before a long print.
+- **Lay the finger so its triangular profile is on the bed.** Then the flanks and ribs are walls built up layer by layer, and the finger bends within each layer rather than across the layer lines. This is Lesson 2's orientation rule: layer lines are the weak direction, so never put the bending load across them.
+- **Infill hardly matters.** The flanks and ribs are the structure; keep infill low and let the walls do the work.
+- **Make flanks and ribs at least two extrusion widths.** At a 0.4 mm nozzle that is 0.8 mm and up, so they print as clean walls instead of a thin, ragged web.
+
+One bench note: TPU sticks to a PEI sheet very well — sometimes too well. Let the part cool completely before you remove it, or you will pull the first layer off the sheet.
+
+<Callout type="tip" title="Print a short test first">
+Before committing an hour to the full finger, set `length = 30` and render a short one. It checks the rib pattern, the wall thickness and how your material behaves in about twenty minutes. Fix the geometry on the small part, then print the real one.
+</Callout>
+
+<Quiz id="q4" question="How should the fin-ray finger lie on the bed?" options={["standing on its tip", "standing on its mounting block, ribs stacked as layers", "lying on its triangular side, ribs built up as walls", "it does not matter for TPU"]} answer={2} explanation="On its triangular side the flanks and ribs print as vertical walls and the finger flexes within a layer. Standing it up makes the bending load cross the layer lines, the weak direction." />
+
+## Fit it to the SO-101
+
+Do not guess the mounting geometry. The SO-ARM100 repository publishes STEP files for the SO-101, kept in `STEP/SO101/` — for example `Moving_Jaw_SO101.step`, the moving half of the stock gripper. Import that file into your CAD tool and measure the mounting face and its holes directly. STEP is the right format for this, exactly as Lesson 1 explained: it keeps exact surfaces and dimensions you can measure and edit, while an STL is only a mesh of triangles with no precise geometry to dimension against. Change the `mount_*` parameters in `finray_finger.scad` to match, or, if you want the finger to be part of the jaw itself, redesign the jaw around your finger shape.
+
+The same repository also ships an optional compliant gripper designed for TPU 95A by Zach Tabor and Caitlin Freeman, from a June 2025 hackathon. Its outside shape matches the stock gripper, so it is a drop-in swap, and it is worth studying before you design your own: look at how its ribs are laid out and how it mounts to the arm.
+
+<Resource id="so101-compliant-gripper" />
+
+Before you mount anything, run two checks. First, does the gripper still close fully without the two fingers hitting each other or the jaw? A finger a few millimetres too long collides in the middle of the travel. Second, does the open width still clear your largest object? Measure the gap when the gripper is fully open and compare it with the widest thing you plan to grasp.
+
+The gripper is servo ID 6, and it drives its output through a position loop: you send a goal, and the servo keeps pushing until its encoder says it has arrived. When the fingers close on an object, the servo keeps pushing toward that goal and settles with a steady error — the same steady-state behaviour from Lesson 4 (PID & control). There is a useful side effect: because a soft TPU finger deflects, it absorbs some of that force and treats the object gently. But do not leave the servo stalled against a hard stop for long, because it draws current and heats up. In teleoperation, open the leader's gripper as soon as you have put the object down, so the follower's gripper is not straining for nothing.
+
+<Quiz id="q5" question="Why start from the SO-101's STEP file rather than its STL?" options={["STL files are larger", "STEP keeps exact surfaces and dimensions you can measure and edit; STL is only triangles", "STL cannot be printed in TPU", "STEP files already contain your finger"]} answer={1} explanation="STEP is exact, editable geometry you can import and measure the mounting face and holes from; an STL is a triangle mesh with no precise geometry to dimension against. Both can be sliced and printed, so that is not the difference." />
+
+## Practice: three objects
+
+Your task for this lesson is the course's practice task, in your own hands: design your own gripper fingers, print them in TPU, fit them to the arm, and test them on three objects of different shapes — for example something round and fragile like an egg, something heavy and smooth like a full can, and something small and thin like a battery or a pen. These fingers are the part that proves you can design as well as assemble. Anyone can bolt together a kit; a working custom gripper is your own work.
+
+A test protocol, so the result actually means something:
+
+1. Do 10 grasps per object, for each finger set — the stock fingers and yours.
+2. Start the arm from the same position every time, so the only thing that changes is the grasp.
+3. Score a success only if the grasp picks the object up, lifts it 10 cm, holds it for 5 s, and puts it down without dropping or damaging it.
+4. Log every try, not just the successes.
+
+Then compare the two sets. A worked example:
+
+```text
+egg:  stock fingers 6 / 10 = 60 %
+      my fingers    9 / 10 = 90 %
+```
+
+A difference of three successes in ten tries is a hint, not proof. If the two sets come out close, repeat the test with more tries before you conclude anything. Record your runs in a table like this:
+
+| Object | Mass (g) | μ measured | Stock fingers | My fingers | Notes |
+| --- | --- | --- | --- | --- | --- |
+| egg | – | – | – / 10 | – / 10 | |
+| full can | – | – | – / 10 | – / 10 | |
+| battery | – | – | – / 10 | – / 10 | |
+
+The last step is the one people skip: change **one** parameter — the rib count or the flank thickness — print again, and rerun the test. If the change helps, you have learned something about your design; if it does not, you have learned that too. That single-parameter loop is the design loop from Lesson 2, and it is the whole method.
+
+### Month 3 checklist
+
+You have reached the end of the month. Here is what you should be able to point to:
+
+- A part modelled from a datasheet, with fully constrained sketches (Lesson 1).
+- Your printer's real clearance numbers, from a printed tolerance gauge (Lesson 2).
+- A part designed for FDM printing, with the flex load running within its layers (Lesson 2).
+- A material choice you can justify, not just copy (Lessons 2 and 6).
+- Backlash explained and, where you could, measured (Lesson 3).
+- The balancer cascade understood (Lesson 4, site supplement).
+- An SO-101 assembled, calibrated and modified with your own printed fingers (Lessons 5 and 6).
+
+Month 4 moves to ROS 2 and simulation: the same robot described in software, so the arm and its code can be shared and tested without a bench.

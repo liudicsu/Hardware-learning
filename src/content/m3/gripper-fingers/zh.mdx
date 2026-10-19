@@ -1,0 +1,294 @@
+## 要夹多紧
+
+两指夹爪不是靠“死命夹”抓住物体的，它靠的是**摩擦**。两根手指各自用 F 的力压在物体上，两个接触面，能阻止物体滑脱的摩擦力上限就是 **2 × μ × F**，其中 μ（摩擦系数）是手指材料与物体之间的摩擦系数。只要想拽走物体的力超过这个上限，无论手感上夹得多紧，物体都会滑掉。
+
+被抓住的物体上作用着三股力。其一是自身重量 m × g；其二是手臂以加速度 a 移动物体时，物体“反抗”出来的额外力 m × a，也得由夹爪来承担；其三是安全系数 S，因为你绝不想让工作时正好卡在打滑的临界点上。要求摩擦力把这三者统统覆盖，就能解出每根手指至少要施加多大的力：
+
+```text
+2 × μ × F ≥ S × m × (g + a)
+
+解出 F：
+
+F = S × m × (g + a) / (2 × μ)
+```
+
+关键结论就在分母里：**μ 和力一样重要**。抓地好的材料能大大降低所需夹持力：按下面的估计值，TPU 需要的力不到 PLA 的一半，而这正是夹鸡蛋时你想要的效果。“夹得更用力”不是策略，它只会让你夹碎蛋壳、捏扁易拉罐，或者让舵机一直嗡嗡响、发热。
+
+下面这段小程序就是对三种物体、两种手指材料做这道算术。它只是一段做普通算术的普通 Python 程序，不是仿真，也从没碰过机器人。里面的 μ 值是粗略的猜测，本课后面会要求你测出自己的数值，替换进去。
+
+<CodeSource path="examples/month-3/gripper-fingers/grip_force.py" />
+
+```python
+"""grip_force.py: how hard must a two-finger gripper squeeze so the object does not slip?
+
+With two flat fingers squeezing with force F each, friction can hold up to 2 * mu * F.
+To hold weight m * g while the arm also accelerates the object (a), with a safety factor S:
+    F = S * m * (g + a) / (2 * mu)
+mu is the friction coefficient between the finger and the object. Hard PLA on smooth
+objects is low; soft TPU is much higher. The mu values below are rough guesses: measure
+your own (tilt a board until the object slides: mu = tan(angle)).
+"""
+G = 9.81
+SAFETY = 2.0
+ARM_ACCEL = 3.0          # m/s^2: a brisk move of the arm
+
+OBJECTS = [              # name, mass (kg)
+    ("egg", 0.060),
+    ("full 330 ml can", 0.350),
+    ("AA battery", 0.023),
+]
+FINGERS = [("PLA", 0.3), ("TPU", 0.8)]
+
+
+def squeeze(mass, mu):
+    return SAFETY * mass * (G + ARM_ACCEL) / (2 * mu)
+
+
+if __name__ == "__main__":
+    print(f"safety factor {SAFETY}, arm acceleration {ARM_ACCEL} m/s^2")
+    for name, mass in OBJECTS:
+        row = ", ".join(f"{f} (mu {mu}): {squeeze(mass, mu):4.1f} N" for f, mu in FINGERS)
+        print(f"{name:16s} {mass * 1000:4.0f} g  ->  {row}")
+```
+
+真实输出：
+
+```text
+$ python3 grip_force.py
+safety factor 2.0, arm acceleration 3.0 m/s^2
+egg                60 g  ->  PLA (mu 0.3):  2.6 N, TPU (mu 0.8):  1.0 N
+full 330 ml can   350 g  ->  PLA (mu 0.3): 14.9 N, TPU (mu 0.8):  5.6 N
+AA battery         23 g  ->  PLA (mu 0.3):  1.0 N, TPU (mu 0.8):  0.4 N
+```
+
+拿 PLA 手指夹鸡蛋来看：质量 0.060 kg，g 取 9.81 m/s²，手臂加速度 3.0 m/s²，安全系数 2，PLA 在光滑蛋壳上的 μ 约为 0.3：
+
+```text
+F = 2 × 0.060 × (9.81 + 3.0) / (2 × 0.3)
+  = 2 × 0.060 × 12.81 / 0.6
+  = 1.537 / 0.6
+  = 2.56 ≈ 2.6 N
+```
+
+换成 TPU 手指，只有 μ 变了，约为 0.8：
+
+```text
+F = 2 × 0.060 × 12.81 / (2 × 0.8)
+  = 1.537 / 1.6
+  = 0.96 ≈ 1.0 N
+```
+
+两次的分子 2 × 0.060 × 12.81 = 1.537 完全一样，变的只有分母。满罐 330 ml 易拉罐把差距拉得更开：质量 0.350 kg，分子是 2 × 0.350 × 12.81 = 8.967，PLA 下是 8.967 / 0.6 = 14.9 N，TPU 下是 8.967 / 1.6 = 5.6 N。十五牛是很用力的一夹；五六牛则很温柔。AA 电池只有 0.023 kg，分别只需要 1.0 N 和 0.4 N，小舵机轻松就能做到。
+
+对于易碎的东西，光看总力还不够。同样的总力，摊在一根会包裹住物体的软手指上，比集中在两个硬点上更轻柔——因为压强是力除以面积。这正是本课后半程的动机：会贴合的手指能把载荷摊开，而摊在大面积上的载荷，只需要更小的力就能握住。
+
+<Quiz id="q1" question="一个 200 g 的物体，μ = 0.5，安全系数 2，手臂加速度 3.0 m/s²。每根手指需要多大的夹持力（N）？" answer={5.12} unit="N" tolerance={0.05} explanation="F = S × m × (g + a) / (2 × μ) = 2 × 0.200 × (9.81 + 3.0) / (2 × 0.5) = 2 × 0.200 × 12.81 / 1.0 = 5.124 ≈ 5.12 N。" />
+
+## 测摩擦系数
+
+公式再准，也得看你喂给它的 μ 准不准；而网上大多数表格描述的是干净的实验台表面，和你打印出来的手指压在真实物体上完全是两回事。自己测，用倾斜木板法。
+
+把物体放在一小块手指材料上——最好的是一小块打印出来的测试板，用一段耗材废料也行。慢慢、平稳地抬高板子，直到物体刚开始滑动，在那一瞬间读出倾斜角。摩擦系数就是这个角的正切：
+
+```text
+μ = tan(角度)
+```
+
+为什么是这样？在刚要滑动的那一刻，重力沿斜面拉物体的力是 m × g × sin θ，摩擦阻力是 μ × m × g × cos θ，两者恰好相等：
+
+```text
+m × g × sin θ = μ × m × g × cos θ
+两边同除以 m × g × cos θ：
+μ = sin θ / cos θ = tan θ
+```
+
+质量被完全约掉了，这是个好消息：同一物体、同一材料，不管它多重，滑动的角度都一样。
+
+两组示例读数：
+
+```text
+物体在 35° 开始滑动：μ = tan 35° = 0.70
+物体在 17° 开始滑动：μ = tan 17° = 0.31
+```
+
+几个习惯能让这个数更可信。重复测三次，取其中最小的角度：角度越小越悲观，而悲观的情况才是会让物体掉下来的情况。要在你真正打算抓的物体上测——蛋壳、喷漆的罐身、电池外皮，摩擦都不一样，光滑的罐子比纸盒滑得多。先把两个表面擦干净，油污和灰尘都会改变结果。你不需要量角器：手机上的水平仪或角度 App 读板子倾角，精度足够了。
+
+然后回到 `grip_force.py`，把猜的 mu 换成你测出的值，重新运行。这时算出来的数字描述的就是你的夹爪和你的物体，而不是教科书上的。
+
+<Quiz id="q2" question="木板升到 31° 时物体开始滑动，μ 是多少（保留两位小数）？" answer={0.6} tolerance={0.02} explanation="μ = tan 31° = 0.6009 ≈ 0.60。" />
+
+## 鳍条效应
+
+硬手指——就是你想画成直条的那种——和圆形物体只有一两个接触点。物体是弧面时，这两个接触点就像一对楔子：稍微多用点力，圆物就从中间被挤出去。这就是刚性夹爪夹不好鸡蛋、却夹得稳方盒子的原因。
+
+鳍条（fin-ray）手指的办法是“故意变形”。想象一个立在底座上的三角形：两片薄壁（flank，侧壁）向上延伸、在尖端汇合，中间有一排细肋（rib）把两片侧壁连起来。把前侧壁压向物体，手指不会直接往外弯，而是肋条把推力传到后侧壁，三角形朝推力的方向弯过去，整根手指像一只正在合拢的手那样**卷住**物体。接触从两个点扩展成一段长弧，物体上的压强更低，抓得反而更牢。
+
+这个原理得名于鱼鳍弯曲的方式：从前方推鱼鳍，它朝受力的方向卷，而不是朝反方向折。Fin Ray Effect（鳍条效应）这个名字是 Festo 的商标，他们基于它做出了夹爪；底层的几何是自由可用的，本课借用的正是它。
+
+三个参数决定鳍条手指的行为：
+
+- **侧壁厚度**：越薄越软、越容易卷曲；越厚越接近刚性手指。
+- **肋条数量与厚度**：肋多或厚度大，手指更硬；肋少而细，手指更易弯曲。
+- **肋条倾角**：肋条朝根部倾斜，指尖卷得更多；肋条与侧壁垂直，手指就更直。
+
+下面这根手指用 OpenSCAD 写成，上面每一项都只需改一行。和第 1 课《CAD：选一个工具，然后参数化设计》里的支架一样，它是一个参数化文件：量出你要安装的那个夹爪，改掉安装参数。
+
+<CodeSource path="examples/month-3/gripper-fingers/finray_finger.scad" />
+
+```scad
+// finray_finger.scad: a parametric fin-ray style finger to print in TPU.
+// Two thin flanks meet at the tip; thin ribs join them. Press the front flank and the
+// ribs make the finger curl AROUND the object instead of pushing it away.
+//   Render:  openscad -o finray_finger.stl finray_finger.scad
+// The mounting base is generic: measure the jaw you bolt it to and change mount_*.
+
+length     = 60;     // base to tip, mm
+base_w     = 22;     // finger depth at the base (front flank to back flank), mm
+height     = 18;     // extrusion = finger width across the object, mm
+flank      = 1.2;    // flank thickness: thinner = softer
+ribs       = 6;      // number of internal ribs
+rib_t      = 0.9;    // rib thickness
+rib_tilt   = 10;     // deg: ribs leaning toward the base make the tip wrap more
+
+base_t     = 5;      // solid mounting block, mm
+mount_d    = 3.2;    // M3 holes
+mount_pitch= 10;     // distance between the two holes: MEASURE YOUR JAW
+
+echo("finger (mm)", length + base_t, "x", base_w, "x", height);
+assert(flank >= 0.8, "flanks thinner than two 0.4 mm lines will not print cleanly");
+assert(mount_pitch + mount_d < height, "mount holes do not fit across the finger width");
+
+// front flank runs from (0,0) to the tip (length, 0); back flank from (0, base_w) to the tip
+function back_y(x) = base_w * (1 - x / length);
+
+module outline() {
+  polygon([[0, 0], [length, 0], [0, base_w]]);
+}
+
+module hollow() {                        // the triangle minus its insides = two flanks
+  difference() {
+    outline();
+    offset(delta = -flank) outline();
+  }
+}
+
+module rib(i) {                          // a rib from the front flank to the back flank
+  x = length * i / (ribs + 1);
+  dx = back_y(x) * tan(rib_tilt);        // lean toward the base
+  hull() {
+    translate([x, 0]) square([rib_t, 0.01]);
+    translate([max(0, x - dx), back_y(max(0, x - dx)) - 0.01]) square([rib_t, 0.01]);
+  }
+}
+
+linear_extrude(height) {
+  hollow();
+  intersection() {
+    outline();
+    union() for (i = [1 : ribs]) rib(i);
+  }
+}
+difference() {                           // mounting block behind the base of the finger
+  translate([-base_t, 0, 0]) cube([base_t, base_w, height]);
+  for (s = [-1, 1])
+    translate([-base_t - 1, base_w / 2, height / 2 + s * mount_pitch / 2])
+      rotate([0, 90, 0]) cylinder(d = mount_d, h = base_t + 2, $fn = 24);
+}
+```
+
+![由 finray_finger.scad 渲染出的鳍条手指：一个带两片薄侧壁、六根倾斜肋条和一个带两个 M3 孔的安装块的三角形手指](/m3/finray_finger.png)
+
+把它渲染出来，读一读它打印的数字：
+
+```text
+$ openscad -o finray_finger.stl finray_finger.scad 2>&1 | grep ECHO
+ECHO: "finger (mm)", 65, "x", 22, "x", 18
+$ python3 ../cad-parametric/stl_info.py finray_finger.stl 1.21
+size: 65.0 x 22.0 x 18.0 mm
+triangles: 340, edges not shared by exactly 2: 0  (watertight)
+volume: 5.72 cm^3, solid mass at 1.21 g/cm^3: 6.9 g
+```
+
+逐项看结果。65 mm 的长度，是 60 mm 手指加上后面 5 mm 的安装块；22 × 18 mm 的截面正好对应 `base_w` 和 `height`。“watertight（水密）”意味着每条三角形的边都恰好被两个三角形共享，切片软件因此能分清内外，不会报错也不会留下破洞。常见的 TPU 密度约为 1.21 g/cm³，所以这个 5.72 cm³ 的手指大约重 6.9 g——轻到几乎不给夹爪舵机增加负担。
+
+文件里还带了两道护栏。第一个 `assert` 在侧壁薄于两条 0.4 mm 挤出线时报错停下，因为比这更薄的壁打印不干净；第二个在安装孔放不进手指宽度时报错。一句 assert 失败只花你一秒钟，一次打印失败要花你一个晚上。
+
+最后，安装块是通用的。`mount_pitch = 10` 只是占位数字，不是你机械臂的实测值。这又是第 1 课的规矩：从真实零件出发，量出你真正要拧上去的那个夹爪，改完数字再打印。
+
+<Quiz id="q3" question="你按压鳍条手指前侧壁的中部，指尖会怎样？" options={["向远离物体的方向弯折", "保持不动", "向物体的方向卷曲", "从根部折断"]} answer={2} explanation="肋条把推力传到后侧壁，三角形朝推力方向弯，于是手指卷住物体而不是往外折。这个卷曲正是鳍条几何的意义所在。" />
+
+## 打印 TPU
+
+TPU 是柔性耗材，95A（邵氏硬度 95A）是多数人打印的牌号。更软的牌号（85A 及以下）很难挤过打印机，先从 95A 开始。柔性耗材和 PLA 表现不同，下面这些设置最关键。
+
+- **在耗材厂商给的温度区间内，慢而稳地打印**。 走得太快会拖着软料拉出疙瘩；从温度区间的低端起步，不要为了“更好的流动”而超过厂商给的上限。
+- **强烈建议用近程挤出（direct-drive）**。 长长的 Bowden 管会让软料在管内打弯而不是进料；驱动齿轮就在喷嘴正上方时，TPU 进料可靠得多。
+- **尽量不用或极少回抽**。 回抽会把软料往回拽，容易堵料或磨料；把回抽调小或关掉，接受几根拉丝。
+- **料一爆响或拉丝就烘干**。 TPU 会吸潮，受潮的料会“啪啪”放气、疯狂拉丝；长时间打印前先烘干。
+- **让手指以三角形侧面躺在平台上**。 这样两片侧壁和肋条都是逐层堆起来的“墙”，手指是在每一层内部弯曲，而不是跨过层线弯。这就是第 2 课的方向规则：层线是最弱方向，绝不要让弯曲载荷横跨层线。
+- **填充率基本无所谓**。 侧壁和肋条就是结构本身；填充调低，让壁来承担。
+- **让侧壁和肋条至少有两条挤出线的宽度**。 0.4 mm 喷嘴下就是 0.8 mm 起步，这样它们才会打印成干净的实心壁，而不是又薄又破的一层网。
+
+一条实操经验：TPU 在 PEI 平台贴得很牢——有时太牢。取件前一定要彻底冷却，否则你会把第一层从平台上撕下来。
+
+<Callout type="tip" title="先打一个短的测试件">
+在花一整小时打完整根手指之前，先设 `length = 30` 渲染一根短的。它能在二十分钟左右检查肋条布局、壁厚，以及你的材料表现如何。在小件上把几何改好，再打真件。
+</Callout>
+
+<Quiz id="q4" question="鳍条手指应该怎样摆在打印平台上？" options={["用指尖立起来", "用安装块立起来，肋条堆叠成层", "用三角形侧面平放，肋条逐层打印成壁", "TPU 打印无所谓"]} answer={2} explanation="以三角形侧面平放时，侧壁和肋条打印成竖直的墙，手指在单层之内弯曲。立起来会让弯曲载荷横跨层线，也就是最弱的方向。" />
+
+## 装到 SO-101 上
+
+安装几何不要靠猜。SO-ARM100 仓库公开了 SO-101 的 STEP 文件，放在 `STEP/SO101/` 目录下——例如 `Moving_Jaw_SO101.step`，也就是原装夹爪的活动那半边。把这个文件导入你的 CAD 工具，直接量出安装面和它的孔位。这正是第 1 课讲的格式选择：STEP 保留精确的曲面和尺寸，你可以测量、可以编辑；而 STL 只是一堆三角形网格，没有能用来标注的精确几何。据此修改 `finray_finger.scad` 里的 `mount_*` 参数；如果你想让手指直接长在夹爪上，那就围绕你的手指形状重新设计这个夹爪。
+
+同一个仓库还附带一个可选的柔性夹爪，由 Zach Tabor 和 Caitlin Freeman 在 2025 年 6 月的一次黑客松上设计，专门给 TPU 95A 用。它的外形和原装夹爪一致，可以即插即用地替换；在你动手设计自己的之前，值得先研究它：看它怎么布置肋条、怎么装到机械臂上。
+
+<Resource id="so101-compliant-gripper" />
+
+上机之前先做两项检查。第一，夹爪还能完全闭合、两根手指和夹爪本体不会互相撞上吗？手指长了几毫米，就会在行程中段打在一起。第二，张开宽度还放得下你最大的物体吗？把夹爪完全张开时的间隙量出来，和你打算抓的最宽的东西比一比。
+
+夹爪是 ID 6 的舵机，它通过位置环驱动输出：你发一个目标位置，舵机就一直推，直到编码器报告到位。当手指夹住物体时，舵机依然朝目标推，最终停在一个稳态误差上——这正是第 4 课《PID 与控制》里的稳态行为。这里有个有利的副作用：软的 TPU 手指会变形，从而吸收一部分力，对物体更温柔。但也别让舵机长时间顶死在硬限位上，它会持续吃电流、发热。遥操作时，物体一放下就把主臂的夹爪松开，别让从臂的夹爪白白憋着劲。
+
+<Quiz id="q5" question="为什么要从 SO-101 的 STEP 文件开始，而不是它的 STL？" options={["STL 文件更大", "STEP 保留可以测量和编辑的精确曲面与尺寸；STL 只有三角形", "STL 不能用 TPU 打印", "STEP 文件里已经包含你的手指"]} answer={1} explanation="STEP 是精确、可编辑的几何，可以导入并量出安装面和孔位；STL 是三角形网格，没有能标注的精确几何。两者都能切片打印，这不是区别所在。" />
+
+## 练习：三种物体
+
+本课的练习就是课程的总任务，交到你手上：设计你自己的夹爪手指，用 TPU 打印出来，装到机械臂上，再在三种形状不同的物体上测试——比如一个又圆又脆的鸡蛋，一个又重又滑的满罐饮料，一个又小又薄的电池或笔。手指是那个能证明你既会装配、也会设计的零件。谁都会把套件拧起来，而一个能用的自定义夹爪是你自己的作品。
+
+一份测试流程，让结果真正有意义：
+
+1. 每个物体、每套手指各做 10 次抓取——原装手指和你的手指各一轮。
+2. 每次都从同一个起始位置开始，这样唯一变化的就是抓取本身。
+3. 只有做到以下全部才算成功：抓起物体、抬高 10 cm、保持 5 s、放下时不掉落也不损坏。
+4. 每一次都记录，不只是成功的那些。
+
+然后比较两套结果。示例：
+
+```text
+鸡蛋：原装手指 6 / 10 = 60 %
+      我的手指 9 / 10 = 90 %
+```
+
+十次里差三次，只能算一个提示，不算证据。如果两套结果很接近，就先加大次数重测，再下结论。把你的记录填进这样的表格：
+
+| 物体 | 质量 (g) | 实测 μ | 原装手指 | 我的手指 | 备注 |
+| --- | --- | --- | --- | --- | --- |
+| 鸡蛋 | – | – | – / 10 | – / 10 | |
+| 满罐 | – | – | – / 10 | – / 10 | |
+| 电池 | – | – | – / 10 | – / 10 | |
+
+最后一步是大家最爱跳过的：只改**一个**参数——肋条数量或侧壁厚度——重新打印，再重跑测试。如果这个改动有帮助，你就对自己的设计多懂了一点；如果没帮助，同样也是收获。这个一次只改一个变量的循环，就是第 2 课里的设计循环，也是全部方法。
+
+### 第 3 个月检查清单
+
+你已经走到这个月的尾声。下面这些，你应该都能指出来：
+
+- 一个照数据手册建模、草图完全约束（fully constrained）的零件（第 1 课）。
+- 你的打印机真实的配合间隙数值，来自一块打印好的公差测试件（第 2 课）。
+- 一个为 FDM 打印而设计的零件，弯曲载荷走在层内（第 2 课）。
+- 一个你能讲清理由、而不只是照抄的材料选择（第 2、6 课）。
+- 解释得出、并尽可能测量过的回差（backlash）（第 3 课）。
+- 理解平衡车串级（cascade）回路（第 4 课，本站补充内容）。
+- 一台组装好、校准好，并换上你自己打印的手指的 SO-101（第 5、6 课）。
+
+第 4 个月转向 ROS 2 与仿真：同一台机器人，用软件描述出来，于是机械臂和它的代码可以在没有实验台的情况下被共享和测试。

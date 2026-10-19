@@ -286,6 +286,22 @@ const month3Lessons: Lesson[] = [
       { id: "teleop", text: { zh: "用 lerobot-teleoperate 让从臂跟随主臂，录一段视频", en: "Teleoperate the follower from the leader with lerobot-teleoperate and film it" } },
     ],
   },
+  {
+    slug: "gripper-fingers",
+    title: { zh: "设计你自己的夹爪手指（TPU）", en: "Design your own gripper fingers (TPU)" },
+    summary: {
+      zh: "用摩擦力算出夹多紧才够，用鳍条结构让手指包住物体，用 TPU 打印并在三种不同形状的物体上测试，最后完成本月的机械臂改造。",
+      en: "Work out how hard to squeeze from friction, use a fin-ray structure so fingers wrap around objects, print them in TPU and test them on three differently shaped objects, finishing the month's arm modification.",
+    },
+    minutes: 180,
+    resources: ["so101-compliant-gripper", "so-arm100", "cnc-kitchen"],
+    tasks: [
+      { id: "friction", text: { zh: "用斜板法测出 PLA 和 TPU 在你的物体上的摩擦系数，算出需要的夹紧力", en: "Measure PLA and TPU friction on your objects with a tilted board and work out the squeeze force needed" } },
+      { id: "test-finger", text: { zh: "打印本课的参数化鳍条手指，改一个参数（肋数或壁厚）再打一次，比较它们怎样弯", en: "Print the lesson's parametric fin-ray finger, change one parameter (rib count or flank) and compare how they bend" } },
+      { id: "own-fingers", text: { zh: "基于 SO-101 的 STEP 文件设计你自己的 TPU 手指并装上机械臂", en: "Design your own TPU fingers from the SO-101 STEP files and fit them to the arm" } },
+      { id: "three-objects", text: { zh: "在三种不同形状的物体上测试（各 10 次），记录成功率并和原装夹爪对比", en: "Test on three differently shaped objects (10 tries each), log the success rate and compare with the stock gripper" } },
+    ],
+  },
 ];
 
 export const months: Month[] = [
