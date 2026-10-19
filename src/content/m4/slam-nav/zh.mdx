@@ -654,9 +654,12 @@ $ ros2 run tf2_ros tf2_echo map base_footprint --ros-args -p use_sim_time:=true
 | 日志里出现 “Lookup would require extrapolation” 或 “frame does not exist” | 某个节点用的是挂钟时间（wall time），而其他节点用仿真器时钟（`use_sim_time`） | 在每个节点上运行 `ros2 param get <node> use_sim_time` |
 | 目标被接受，但什么都不动 | 速度发到了没人监听的话题，或者普通的 `Twist` 发给了需要 `TwistStamped` 的控制器 | `ros2 topic info -v /diff_drive_controller/cmd_vel` |
 | 规划立刻失败 | 目标或机器人本身位于障碍物或其禁区内；或者定位没有启动，地图坐标系根本不存在 | RViz 里的全局代价地图；`ros2 run tf2_tools view_frames` |
+| 目标放在障碍物里，却仍然返回 SUCCEEDED | 可能是规划器的 `tolerance`（NavFn 会规划到目标附近该距离内最近的空闲格子），也可能是目标检查器的 `xy_goal_tolerance`（停在该半径内就算到达）；只看状态无法判断是哪一个 | 自己把最终位姿和目标比一比：`tf2_echo map base_footprint`，再算出它到你所发目标的距离 |
 | 机器人莫名其妙地停下 | 激光雷达停止发布，代价地图因此让传感器超时，碰撞监视器也收不到数据 | `ros2 topic hz /scan` |
 | 地图糊了，或者机器人在 RViz 里跳来跳去 | 里程计校准很差，或者 `map_start_pose` 离真实起始位姿太远 | `spin_check.py`；起始位姿 |
 | 机器人过不去一扇明显足够宽的门 | footprint 或 `inflation_radius` 相对于缝隙太大 | RViz 里的代价地图 |
+
+新加的那一行值得多说一句：SUCCEEDED 的意思是“停在了规划器和目标检查器所认定的终点的容差之内”，而不是“到了你要的那个点”。按本课的 `nav2.yaml`，NavFn 的 `tolerance: 0.5` 允许规划器在目标不可达时，把路径终点放在离目标最多 0.5 m 的空闲格子上；随后 `xy_goal_tolerance: 0.10` 又接受停在路径终点 0.10 m 以内。让一个放在柱子里的目标变成“成功”的，可能是其中之一，也可能是两者共同作用。不要去猜是哪一个；每个目标结束后，自己读出最终位姿（`tf2_echo map base_footprint`，加上 `use_sim_time:=true`），算出它到你所发目标的距离，距离大于 `xy_goal_tolerance` 时就当作失败，由你自己的代码来捕获。
 
 先从 TF 开始，因为每个服务器都需要 `map → odom → base_footprint` 这条链完整且是最新的。`ros2 run tf2_tools view_frames` 会把树画出来（第 3 课那套坏树诊断在这里原样适用）；`ros2 run tf2_ros tf2_echo map base_footprint --ros-args -p use_sim_time:=true` 则显示机器人在图里到底有没有位姿。注意那个 `use_sim_time:=true`：不加它，`tf2_echo` 会按电脑的时间去要变换，而其他一切都在 Gazebo 的时钟上，于是它只会报外推错误——也就是表格第一行的缩影。
 
