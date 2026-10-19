@@ -106,6 +106,25 @@ const month1Lessons: Lesson[] = [
   },
 ];
 
+const month2Lessons: Lesson[] = [
+  {
+    slug: "arduino-io",
+    title: { zh: "Arduino 入门：数字/模拟 IO、PWM 与串口调试", en: "Arduino basics: digital & analog IO, PWM and serial debugging" },
+    summary: {
+      zh: "看懂 setup/loop，会读按键和电位器、用 PWM 调亮度，并把串口打印当成主要的调试工具。",
+      en: "Understand setup/loop, read buttons and potentiometers, dim an LED with PWM, and make serial printing your main debugging tool.",
+    },
+    minutes: 150,
+    resources: ["mcwhorter", "arduino-examples", "arduino-docs", "wokwi", "tinkercad"],
+    tasks: [
+      { id: "blink-sim", text: { zh: "在 Wokwi 或真板上跑通 Blink，并把闪烁周期改成 200 ms 亮 / 800 ms 灭", en: "Run Blink in Wokwi or on a real board, then change it to 200 ms on / 800 ms off" } },
+      { id: "button-pullup", text: { zh: "用 INPUT_PULLUP 接一个按键，按下时点亮 LED，并在串口打印状态变化", en: "Wire a button with INPUT_PULLUP, light the LED while pressed and print each state change to serial" } },
+      { id: "pot-pwm", text: { zh: "用电位器（analogRead）控制 LED 亮度（analogWrite），在串口绘图器里看曲线", en: "Control LED brightness (analogWrite) from a potentiometer (analogRead) and watch it in the Serial Plotter" } },
+      { id: "falstad-pwm", text: { zh: "在本页 Falstad 中改变 PWM 占空比，确认平均电压 = 占空比 × 5 V", en: "Change the PWM duty in the Falstad embed and confirm average voltage = duty × 5 V" } },
+    ],
+  },
+];
+
 export const months: Month[] = [
   {
     id: 1,
@@ -140,7 +159,7 @@ export const months: Month[] = [
       zh: "做出一台能移动、能感知环境、能自我纠正的机器人。",
       en: "Build a robot that moves, senses its environment and corrects itself.",
     },
-    status: "outline",
+    status: "ready",
     topics: [
       { zh: "Arduino：IO、PWM、中断、I2C/SPI、串口调试、非阻塞计时", en: "Arduino: IO, PWM, interrupts, I2C/SPI, serial debugging, non-blocking timing" },
       { zh: "ESP32：Wi-Fi/蓝牙、ESP-IDF 与 Arduino 内核", en: "ESP32: Wi-Fi/Bluetooth, ESP-IDF and the Arduino core" },
@@ -156,7 +175,7 @@ export const months: Month[] = [
       { zh: "通过描述机器人的表现来解释 P、I、D 各自的作用", en: "Explain P, I and D by describing what your robot did when you changed them" },
       { zh: "在 GitHub 上展示两台能工作的机器人及其故障记录", en: "Show two working robots on GitHub with a write-up of what broke" },
     ],
-    lessons: [],
+    lessons: month2Lessons,
   },
   {
     id: 3,

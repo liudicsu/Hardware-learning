@@ -1,0 +1,381 @@
+## What you are programming
+
+### A whole computer on one chip
+
+A microcontroller is a complete small computer built onto a single chip: a processor, memory, and the circuits that talk to pins, timers and serial ports. It differs from the computer on your desk in one important way. It runs exactly one program — the one you flashed into it — starting the instant power arrives and continuing until power disappears. There is no desktop, no login, no operating system scheduling other applications. That simplicity is exactly why a microcontroller can react to a sensor in microseconds and keep doing it for years.
+
+The board in this course is the classic Arduino Uno, and its brain is the ATmega328P. The numbers worth memorising:
+
+- **16 MHz** clock — the chip executes roughly one simple instruction per clock tick, so time is measured in microseconds.
+- **32 KB flash** for the program itself. Your compiled sketch lives here and survives a power cycle.
+- **2 KB RAM** for variables, buffers and the stack. This is tiny. Every character of a string costs one byte, so a single 100-character message already uses 5 % of the available RAM.
+- **5 V logic** — a HIGH output is approximately 5 V, a LOW output approximately 0 V.
+
+A useful picture: flash is the recipe book, RAM is the kitchen counter. The book is large and permanent; the counter is small and cleared on every reset. Keeping a constant string in RAM when it could stay in flash is like leaving every ingredient on the counter — the serial section below shows the fix.
+
+### The Uno's hardware map
+
+Around the edge of the board you will find three groups of pins:
+
+- **Digital pins D0–D13.** Each can be an input or an output, reading or writing either HIGH or LOW. Most of the sensors and actuators in this course connect here.
+- **Analog inputs A0–A5.** These feed a 10-bit analog-to-digital converter. They can also be used as ordinary digital pins if you run out.
+- **PWM-capable pins, marked with `~`: 3, 5, 6, 9, 10 and 11.** These can produce a fast square wave whose average voltage you control. The PWM section below is entirely about them.
+
+There are also power pins: **5 V**, **3.3 V** (only a small current — do not power motors from it), **GND**, **Vin** and **RESET**. Every external circuit must share a GND with the board, a point the common-mistakes list returns to.
+
+One warning before you wire anything: **D0 and D1 are the serial link to the USB chip**. The Uno uses them to talk to your computer, which is how uploading and the Serial Monitor work. Leave them free for now. If you need a second serial port later, use other pins with a software serial library, or move to a board with more hardware UARTs.
+
+### From source to flash: what Upload actually does
+
+The workflow is short, but every step matters:
+
+1. Install **Arduino IDE 2** from arduino.cc.
+2. Plug the Uno in with a USB cable. The board should appear as a new serial port.
+3. In **Tools → Board**, choose **Arduino Uno**. In **Tools → Port**, choose the port that appeared (something like `COM5` on Windows, `/dev/cu.usbmodem...` on macOS, `/dev/ttyACM0` on Linux).
+4. Press **Upload**. The IDE compiles your sketch into machine code, resets the board, and a small bootloader in the chip writes the program into flash.
+
+Compile errors and upload errors are different animals. A compile error means the code never reached the board — read the first red message, not the last. An upload error usually means the wrong port, a busy port, or a cable that only carries power. If no port appears at all, try a different USB cable before reinstalling anything; charge-only cables are extremely common and produce exactly this symptom.
+
+### Starting without a board
+
+<Resource id="wokwi" />
+
+You do not need hardware to follow this lesson. Wokwi runs real Uno code in your browser, with LEDs, buttons, a potentiometer and a serial monitor. Tinkercad Circuits simulates the Uno too and is a good second opinion when you want a virtual breadboard and multimeter.
+
+<Callout type="tip" title="Everything here works in Wokwi">
+Every sketch in this lesson can be pasted into a Wokwi Uno project and run unchanged. Add the parts from the component menu, wire them to the same pins, open the serial monitor, and you will see the same numbers. Use the simulator to make your mistakes for free.
+</Callout>
+
+## Anatomy of a sketch
+
+### setup() and loop()
+
+Every Arduino program, called a sketch, has the same skeleton. After a reset, the bootloader hands control to your program, which calls `setup()` exactly once. Then it calls `loop()` again and again, forever, until the board loses power or is reset. There is no automatic exit and no "end of program".
+
+That shape fits hardware naturally. `setup()` is where you configure pins, start serial communication, and initialise libraries — things that should happen once. `loop()` is the main behaviour: read inputs, decide, drive outputs, repeat. If you put a long blocking operation in `loop()`, everything else stops responding for that duration. The sketch below demonstrates both the shape and that problem.
+
+### Reading the sketch line by line
+
+```cpp
+// Blink with an uneven rhythm: 200 ms on, 800 ms off.
+const int LED_PIN = LED_BUILTIN;  // pin 13 on an Uno
+
+void setup() {
+  pinMode(LED_PIN, OUTPUT);
+}
+
+void loop() {
+  digitalWrite(LED_PIN, HIGH);
+  delay(200);
+  digitalWrite(LED_PIN, LOW);
+  delay(800);
+}
+```
+
+- The first line is a comment; the compiler ignores it. Comments are for the next human, who is usually you in three weeks.
+- `const int LED_PIN = LED_BUILTIN;` gives a name to a pin number. `LED_BUILTIN` is a constant defined for each board and equals 13 on the Uno. Naming pins makes wiring changes a one-line edit instead of a hunt through the file.
+- `pinMode(LED_PIN, OUTPUT)` changes the pin's hardware configuration from a high-impedance input into an output that can actively drive a line. This is not optional: an output command sent to a pin still configured as an input does almost nothing visible, a mistake explained in the common-mistakes list at the end.
+- `digitalWrite(LED_PIN, HIGH)` connects the pin internally to the 5 V rail; `LOW` connects it to ground. The built-in LED and its resistor are already on the board, so no external parts are needed.
+- `delay(200)` does not mean "wait in the background". It freezes the whole program for 200 milliseconds. No inputs are read, no serial data is handled, and no other output changes. For a blinking LED that is fine; for a robot that must notice a button or an obstacle, it is a problem. The next lesson replaces `delay()` with a non-blocking timer based on `millis()`.
+
+Notice also the punctuation: every statement ends with a semicolon, and C++ is case-sensitive. `digitalWrite` works; `digitalwrite` does not.
+
+### Period, frequency and duty
+
+The LED is on for 200 ms and off for 800 ms. One complete on-off cycle therefore takes 1000 ms. That gives us three useful numbers:
+
+```text
+period      = 200 ms + 800 ms = 1000 ms = 1 s
+frequency   = 1 / period = 1 / 1 s = 1 Hz
+blinks/min  = 1 blink/s × 60 s/min = 60 blinks/min
+duty cycle  = on-time / period = 200 ms / 1000 ms = 0.20 = 20 %
+```
+
+Frequency is the reciprocal of the period: a 1 s period means one cycle per second, or 1 Hz. Duty cycle is the fraction of each period spent in the HIGH state. It is a ratio and has no unit; multiplying by 100 gives percent. The LED spends only one fifth of its time on, so it looks dimmer than one that is on continuously.
+
+<Quiz id="q1" question="You change the sketch to delay(150) on and delay(350) off. How many blinks per minute?" answer={120} unit="blinks/min" explanation="Period = 150 ms + 350 ms = 500 ms = 0.5 s, so 2 blinks per second. 2 × 60 = 120 blinks per minute." />
+
+## Digital inputs and the pull-up
+
+### Why an unconnected pin is not zero
+
+A digital input is not a voltmeter with a default reading of 0 V. It is a high-impedance amplifier that decides whether the voltage on the pin is closer to 5 V or to 0 V. With nothing connected, the pin has no defined voltage at all: it acts like a small antenna and picks up stray charge from your hand, nearby wires and the mains wiring in the wall. `digitalRead()` then returns HIGH and LOW at random.
+
+This is called a **floating** input, and it is the cause of the classic "it works until I touch the board" bug. The rule is absolute: every digital input must be connected to a defined level, either directly or through a resistor.
+
+### The internal pull-up
+
+The ATmega328P contains a switchable pull-up resistor on every digital pin, roughly 20–50 kΩ to 5 V. Selecting `INPUT_PULLUP` in `pinMode()` connects it. Now the pin is gently held at 5 V when nothing else drives it.
+
+Wire a button between the pin and GND and the logic becomes:
+
+- Button **not pressed**: the pull-up wins, the pin sits at 5 V and reads HIGH.
+- Button **pressed**: the switch is a near-zero-ohm path to GND, which easily overpowers the pull-up, so the pin sits at 0 V and reads LOW.
+
+This arrangement is called **active low** because the active (pressed) state is the low voltage. It is the normal way buttons are wired, and it has a safety consequence: with `INPUT_PULLUP`, the other side of the button must go to **GND**, never to 5 V. A button from the pin to 5 V would short the supply to ground when pressed.
+
+When the button is pressed, the pull-up current is about 5 V / 30 kΩ ≈ 0.17 mA — negligible. An external 10 kΩ resistor works the same way, but the internal one saves parts and wiring.
+
+### Printing only when something changes
+
+```cpp
+// Button between pin 2 and GND, internal pull-up enabled.
+// Pressed = LOW. Print only when the state changes.
+const int BUTTON_PIN = 2;
+const int LED_PIN = LED_BUILTIN;
+
+int lastState = HIGH;  // not pressed
+
+void setup() {
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  pinMode(LED_PIN, OUTPUT);
+  Serial.begin(115200);
+  Serial.println("ready");
+}
+
+void loop() {
+  int state = digitalRead(BUTTON_PIN);
+  digitalWrite(LED_PIN, state == LOW ? HIGH : LOW);
+  if (state != lastState) {
+    Serial.println(state == LOW ? "pressed" : "released");
+    lastState = state;
+  }
+}
+```
+
+`Serial.begin(115200)` starts the serial link at 115200 bits per second, and `Serial.println("ready")` sends one line so you can see that the board reset and reached `setup()`. The ternary expression `state == LOW ? HIGH : LOW` is a compact if-else: if the button is pressed, drive the LED HIGH, otherwise LOW. The built-in LED therefore follows the button.
+
+The important idea is the `if (state != lastState)` block. Without it, the program would print the button state thousands of times per second, filling the monitor with identical lines and hiding the moment that actually matters. By storing the previous state, we print one line per **change**.
+
+You may see two or three lines for a single press. A real mechanical button does not close cleanly: its metal contacts bounce against each other for a few milliseconds, producing several rapid HIGH/LOW transitions. The sketch is reporting them honestly. The next lesson adds debouncing so one press produces exactly one event.
+
+<Quiz id="q2" question="With pinMode(2, INPUT_PULLUP) and a button from pin 2 to GND, what does digitalRead(2) return while the button is NOT pressed?" options={["LOW", "HIGH", "It changes randomly"]} answer={1} explanation="The internal pull-up resistor holds the pin near 5 V when the button is open, so it reads HIGH. Pressing the button connects the pin to GND and makes it LOW." />
+
+## Analog input: the ADC
+
+### A 10-bit ADC
+
+The world is analog: temperature, light, position and sound vary continuously. The Uno's analog-to-digital converter (ADC) turns a voltage into a number your program can use. It is a **10-bit** converter, which means it produces 2^10 = 1024 possible values, numbered 0 to 1023.
+
+- `analogRead(A0)` returns a number from **0 to 1023**.
+- 0 corresponds to 0 V; 1023 corresponds to the reference voltage, which is 5 V by default on the Uno.
+- The conversion takes roughly 100 µs, so reading one channel in a tight loop is possible but not instant.
+- Only A0–A5 are connected to the ADC. Applying more than 5 V (or a negative voltage) to an analog pin can damage the chip, so use a divider when measuring a higher voltage.
+
+### From raw to volts
+
+The conversion is a simple proportion:
+
+<Formula label="ADC to volts (Uno)">V = raw × 5.0 / 1023</Formula>
+
+The divisor is 1023 rather than 1024 because the Arduino convention maps the maximum code 1023 exactly to the full-scale voltage. The tiny difference from an ideal converter is far below the accuracy of the reference anyway.
+
+A worked example:
+
+```text
+raw = 512
+V = 512 × 5.0 / 1023
+  = 2560 / 1023
+  = 2.502 V ≈ 2.50 V
+
+one step = 5 V / 1023 = 0.00489 V ≈ 4.9 mV
+```
+
+Halfway up the range is therefore about 2.5 V, and each count represents about 4.9 mV. That step size is the smallest change the Uno can see with a 5 V reference. If you need to detect a 1 mV change, the Uno's ADC cannot do it without amplification or a smaller reference.
+
+### The integer maths trap
+
+This is the single most common bug in beginner sensor code. On the Uno, `int` is a **16-bit** signed type, so its maximum value is 32767. Consider these two attempts:
+
+```text
+int raw = analogRead(A0);
+
+raw * 5 / 1023        // integer maths: 512 × 5 = 2560, / 1023 = 2, so the result is only 0..5
+raw * 1000 / 1023     // 1023 × 1000 = 1 023 000, which overflows a 16-bit int
+```
+
+In the first line, every operation is integer arithmetic. The fractional part is discarded at each division, so the answer collapses to whole volts. In the second, the multiplication overflows before the division, producing a meaningless (often negative) result. The cure is to make one operand a floating-point number:
+
+```text
+float volts = raw * 5.0 / 1023.0;   // 5.0 forces floating-point maths
+```
+
+An alternative is to reorder the operations as `raw * 5000L / 1023` and work in millivolts with a `long`, but `5.0` is clearer. Remember that `Serial.println(volts)` prints only two decimal places by default; `Serial.println(volts, 3)` asks for three.
+
+### A potentiometer is a voltage divider
+
+A potentiometer (pot) is a resistor with a sliding contact called the wiper. Wire its two ends to 5 V and GND, and connect the wiper to A0. The pot now forms the voltage divider from Month 1: the wiper voltage is proportional to how far the knob has turned, from 0 V at one end to 5 V at the other. `analogRead()` turns that voltage into 0–1023.
+
+This is the standard knob circuit, and it is worth appreciating how much it reuses: the same divider equation, the same 5 V rail, just a sensor instead of two fixed resistors. If the reading jumps around near the ends, check that the wiper is actually connected; a floating ADC input behaves much like a floating digital input.
+
+A preview for later: the ESP32's ADC is **12-bit**, returning 0–4095, and its reference is about 3.3 V instead of 5 V. It is also noticeably less linear near the ends of its range, so the simple formula above is only a starting point on that chip.
+
+<Quiz id="q3" question="On a 5 V Uno analogRead(A0) returns 307. What voltage is on the pin?" answer={1.5} unit="V" explanation="V = 307 × 5 / 1023 = 1535 / 1023 = 1.500 V." />
+
+## PWM: analogWrite is not analog
+
+### Duty cycle
+
+The Uno has no true analog output. There is no digital-to-analog converter that can hold 2.51 V on a pin. What it has is **pulse-width modulation (PWM)**: a pin that switches rapidly between 0 V and 5 V, with the fraction of time spent HIGH controlled by your program. That fraction is the **duty cycle**.
+
+`analogWrite(pin, value)` accepts a value from 0 to 255:
+
+- 0 means always LOW (0 % duty).
+- 255 means always HIGH (100 % duty).
+- 128 means HIGH for about half of every period.
+
+The PWM frequency on the Uno is fixed by the timers: about **490 Hz** on pins 3, 9, 10 and 11, and about **980 Hz** on pins 5 and 6. The period is therefore roughly 2 ms or 1 ms. Only the pins marked `~` can do this. Calling `analogWrite()` on a non-PWM pin does not give you a proportional output.
+
+### Average voltage
+
+If a load responds slower than the PWM period, it sees the average:
+
+<Formula label="PWM average">V_avg = (value / 255) × 5 V</Formula>
+
+A worked example:
+
+```text
+value = 128
+duty  = 128 / 255 = 0.50196 ≈ 50.2 %
+V_avg = 0.50196 × 5 V = 2.510 V ≈ 2.51 V
+```
+
+An LED is far too fast to follow a 490 Hz square wave. Your eye integrates the flashes and sees a dimmer light, roughly as if the pin were at 2.51 V. A DC motor's rotor has inertia and responds to the average too, which is why the same function controls speed in Lesson 4. But a speaker would reproduce the 490 Hz tone, and a fast logic input would see individual pulses — the signal is still digital, only its average is analog-like.
+
+### Seeing the average with an RC filter
+
+<Falstad title="PWM averaged by an RC filter" circuit="pwmAverage" height={460} />
+
+In this circuit the square-wave source is a 490 Hz, 0–5 V PWM signal at 25 % duty. The 1 kΩ resistor and 10 µF capacitor form a low-pass filter with τ = R × C = 1 kΩ × 10 µF = 10 ms. Since one PWM period is only about 2 ms, the filter averages several cycles at once. The right-hand scope and the voltage label settle near 0.25 × 5 V = **1.25 V**, with a small ripple because the capacitor still charges and discharges a little each cycle.
+
+Try this:
+
+1. Run the circuit and watch the trace settle. Compare the label with the predicted 1.25 V.
+2. Double-click the source and set **Duty Cycle** to 0.75. The average should climb to about 0.75 × 5 V = **3.75 V**.
+3. Change the capacitor to a much smaller value, say 100 nF, and watch the ripple grow. The filter is no longer averaging well.
+
+The important caveat: **the Arduino does not contain this capacitor**. The RC filter is a measurement tool that makes the average visible. The LED or motor responds to the same average through its own physical inertia, not through a capacitor.
+
+<Quiz id="q4" question="analogWrite(9, 64): what is the duty cycle in percent?" answer={25.1} unit="%" explanation="Duty = 64 / 255 = 0.25098 ≈ 25.1 %." />
+
+<Quiz id="q5" question="analogWrite(9, 191) on a 5 V Uno: average output voltage?" answer={3.75} unit="V" explanation="Duty = 191 / 255 = 0.74902. V_avg = 0.74902 × 5 V = 3.745 V ≈ 3.75 V." />
+
+## Knob to brightness: a complete program
+
+### Mapping 0–1023 to 0–255
+
+The ADC produces 0–1023; `analogWrite()` wants 0–255. The quickest conversion is integer division by four: `raw / 4`. Because both values are integers, the fractional part is thrown away. At the top of the range, 1023 / 4 = 255.75 becomes 255, which is exactly the maximum PWM value. The exact scaling would be raw × 255 / 1023; for raw = 818 that gives 203.9 against the 204 from `raw / 4`. The two never differ by more than one PWM step, which no LED will reveal.
+
+The general-purpose `map(raw, 0, 1023, 0, 255)` function does the same job with a little more arithmetic and is easier to read when the ranges are unusual.
+
+### The sketch
+
+```cpp
+// Potentiometer wiper on A0 sets the brightness of an LED on pin 9 (PWM).
+const int POT_PIN = A0;
+const int LED_PIN = 9;  // a pin marked ~ on the Uno
+
+void setup() {
+  pinMode(LED_PIN, OUTPUT);
+  Serial.begin(115200);
+}
+
+void loop() {
+  int raw = analogRead(POT_PIN);       // 0..1023
+  int duty = raw / 4;                  // 0..255 for analogWrite
+  float volts = raw * 5.0 / 1023.0;    // what the pin actually saw
+  analogWrite(LED_PIN, duty);
+
+  // "name:value" pairs separated by commas -> one line per trace in the Serial Plotter
+  Serial.print("raw:");
+  Serial.print(raw);
+  Serial.print(",duty:");
+  Serial.print(duty);
+  Serial.print(",volts:");
+  Serial.println(volts, 2);
+  delay(20);  // ~50 lines per second is plenty for a human
+}
+```
+
+`pinMode(LED_PIN, OUTPUT)` is still required even though `analogWrite()` controls the pin; it configures the output driver. `delay(20)` limits the loop to about 50 iterations per second. Without it, the Uno would print thousands of lines per second, the monitor would scroll too fast to read, and the serial link would become the bottleneck. Humans do not need 50 samples per second, and neither does a plot of a hand-turned knob.
+
+Printing both the raw value and the converted values is deliberate. The raw number tells you what the ADC saw and is the best tool for debugging wiring; the duty and voltage tell you what the rest of the program will do. When a reading looks wrong, you can immediately see whether the fault is in the sensor or in the conversion.
+
+### Reading the exact output
+
+We compiled this sketch for the Uno and ran it in the simavr AVR simulator, with no knob attached: instead, the simulator put 0 V, 1.0 V, 2.5 V, 4.0 V and 5.0 V on pin A0, one after another. This is the exact serial output (repeated identical lines removed):
+
+```text
+raw:0,duty:0,volts:0.00
+raw:204,duty:51,volts:1.00
+raw:511,duty:127,volts:2.50
+raw:818,duty:204,volts:4.00
+raw:1023,duty:255,volts:5.00
+```
+
+Check one line by hand. Take `raw:818`:
+
+```text
+duty  = 818 / 4 = 204.5 -> 204   (integer division truncates)
+volts = 818 × 5.0 / 1023 = 4090 / 1023 = 3.998 V -> 4.00 with 2 decimals
+```
+
+Both numbers match the output. Now look at the 2.5 V line: the exact code would be 2.5 × 1023 / 5 = 511.5, and the ADC truncates it to 511, so the duty is 511 / 4 = 127.75 → 127 rather than the 128 you might expect. Truncation like this is everywhere in embedded code. It is not a bug, just one step of resolution: 127 and 128 differ by about 20 mV of average voltage, which no LED will reveal.
+
+The format of each line is the key to the Serial Plotter. Pairs of `name:value` separated by commas tell the Plotter to draw one labelled trace per name. `raw`, `duty` and `volts` have very different ranges, so the Plotter scales each trace independently; the shapes will match, which is exactly what you want to see when turning the knob.
+
+## Serial: your main debugging tool
+
+### The baud rate must match
+
+An Arduino has no screen. Apart from a single LED, the only way it can tell you what it is thinking is the serial link back to your computer. You will use it for months, so learn it properly.
+
+`Serial.begin(115200)` sets the transmission speed to 115200 bits per second. The Serial Monitor must be set to the same rate. If it is not, the receiver samples the incoming bits at the wrong moments and every byte is misinterpreted: you see rows of garbage characters instead of your text. This is not a broken board or a broken cable. When the output looks like `⸮⸮⸮`, check the baud menu first. 9600 is the old default and still appears in many tutorials; 115200 is faster and is what this course uses.
+
+A related bench surprise: opening the Serial Monitor asserts the Uno's reset line, so the board restarts and `setup()` runs again. That is why `ready` appears every time you open the window. It is normal, but it means you cannot use the monitor to observe what happened before the reset.
+
+### What to print
+
+Good serial output answers a question. Follow these habits:
+
+- **Label every value.** A bare `512` could be a pin, a time, a count or a voltage. `raw:512` is unambiguous.
+- **Print the raw reading and the converted value.** They diagnose different problems.
+- **Add timestamps when timing matters.** `millis()` returns milliseconds since reset; printing it lets you measure how long a section of code really takes.
+- **Print on change or at a sane rate.** Fifty lines per second is readable; five thousand is not, and it can slow the program down.
+- **Use the Plotter for trends.** The same `name:value` lines that fill the monitor become scrolling graphs in the Serial Plotter, which is far easier for spotting noise or a sticky potentiometer.
+
+### The hidden cost of printing
+
+Serial output is not free. At 115200 baud, each byte is sent as 10 bits on the wire: one start bit, eight data bits and one stop bit, with no parity. That gives:
+
+```text
+one character = 10 bits / 115 200 bit/s = 86.8 µs ≈ 87 µs
+40 characters = 40 × 86.8 µs = 3472 µs ≈ 3.5 ms
+```
+
+A 40-character line therefore takes about 3.5 ms to leave the board. That sounds trivial, and for a once-per-second message it is. But the Uno has only a **64-byte transmit buffer**. `Serial.print()` copies your text into that buffer and returns immediately while the hardware drains it. Once the buffer is full, the next call **blocks** until space appears. A loop that prints a 40-character line a thousand times per second is asking for 3.5 seconds of transmission every second; the program will spend most of its time waiting for the serial port, and every other task will stutter.
+
+There is also a RAM cost. String literals normally live in RAM on the Uno, and you only have 2 KB. Wrapping constant text in the `F()` macro, as in `Serial.println(F("pressed"))`, leaves the string in flash and copies it out as needed, freeing precious RAM. It is a small habit that becomes essential once you add libraries and buffers.
+
+<Quiz id="q6" question="The Serial Monitor shows random symbols like ⸮⸮⸮ instead of your text. Most likely cause?" options={["The USB cable is broken", "The monitor's baud rate does not match Serial.begin()", "The sketch is too large"]} answer={1} explanation="Garbled characters are the classic symptom of a baud-rate mismatch: the receiver samples each bit at the wrong time. Check that the monitor and Serial.begin() use the same rate, here 115200." />
+
+## Common mistakes and a checklist
+
+These are the failures you will actually meet, roughly in order of frequency:
+
+- **Forgetting `pinMode(pin, OUTPUT)`.** A pin defaults to input. `digitalWrite(pin, HIGH)` then enables the internal pull-up instead of driving the pin hard, so an LED gets only a fraction of a milliamp and glows faintly, if at all. If an output "does nothing", check its pin mode first.
+- **Driving a load straight from a pin.** A pin can safely source or sink about **20 mA**; **40 mA is the absolute maximum**, and the whole chip has a total limit as well. Motors, relays and LED strips need hundreds of milliamps. Use a transistor or MOSFET and a separate supply, as in Month 1.
+- **Leaving inputs floating.** An unconnected button pin reads random values. Use `INPUT_PULLUP` or an external resistor, and remember that the button then goes to GND.
+- **Using D0 and D1.** They are the USB serial link. An external circuit on those pins fights the upload and the Serial Monitor. Move the circuit to another pin.
+- **Integer overflow.** On the Uno an `int` stops at 32767. `raw * 1000` with a 10-bit reading overflows. Use `long` or floating point before multiplying.
+- **Integer division in conversions.** `raw * 5 / 1023` gives whole volts only, and `raw / 1023` gives zero for every reading. Write `5.0` or `1023.0` to force floating point.
+- **Wrong board or port selected.** The code compiles for a different chip, or the upload goes to a different device. If uploading fails, confirm "Arduino Uno" and the port that appeared when you plugged the board in.
+- **No shared ground.** The Arduino and the external circuit must connect their GNDs. Without a common reference, voltages are meaningless and signals behave unpredictably, even if every other wire is correct.
+
+Before you move on, you should be able to say yes to all of these:
+
+- I can explain what `setup()` and `loop()` do and why one runs once while the other repeats.
+- I can wire a button to a pin with `INPUT_PULLUP`, without looking it up, and say what it reads when pressed and released.
+- I can convert a raw ADC reading to volts and explain why `5.0` matters.
+- I can explain duty cycle and calculate the average voltage of a PWM output.
+- I can read a line of serial output, understand each field, and plot it in the Serial Plotter.

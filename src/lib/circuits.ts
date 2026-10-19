@@ -41,6 +41,19 @@ r 272 160 272 256 0 1000
 w 272 256 336 256 0
 g 96 400 96 432 0`,
   },
+  /** Practice: a 490 Hz, 25 % duty PWM signal averaged by an RC low-pass (1 kΩ, 10 µF). */
+  pwmAverage: {
+    cct: `$ 1 0.000005 10 50 5 50
+v 96 352 96 96 0 2 490 2.5 2.5 0 0.25
+w 96 96 240 96 0
+r 240 96 384 96 0 1000
+c 384 96 384 352 0 0.00001 0
+w 96 352 384 352 0
+O 384 96 496 96 1
+g 96 352 96 384 0
+o 0 64 0 34 5 0.05 0 -1
+o 3 64 0 34 5 0.05 1 -1`,
+  },
   /** Falstad built-in: RC charging from a square wave. */
   capac: { startCircuit: "capac.txt" },
   /** Falstad built-in: transistor used as a switch. */
