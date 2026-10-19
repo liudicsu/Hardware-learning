@@ -54,6 +54,19 @@ g 96 352 96 384 0
 o 0 64 0 34 5 0.05 0 -1
 o 3 64 0 34 5 0.05 1 -1`,
   },
+  /** Practice: a 5 V logic signal divided down to ≈3.3 V for an ESP32 input (1 kΩ over 2 kΩ). */
+  levelDivider: {
+    cct: `$ 1 0.000005 10 50 5 50
+v 96 352 96 96 0 2 2 2.5 2.5 0 0.5
+w 96 96 288 96 0
+r 288 96 288 224 0 1000
+r 288 224 288 352 0 2000
+w 96 352 288 352 0
+O 288 224 416 224 1
+g 96 352 96 384 0
+o 0 64 0 34 5 0.05 0 -1
+o 5 64 0 34 5 0.05 1 -1`,
+  },
   /** Falstad built-in: RC charging from a square wave. */
   capac: { startCircuit: "capac.txt" },
   /** Falstad built-in: transistor used as a switch. */

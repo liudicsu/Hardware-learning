@@ -1,0 +1,473 @@
+## 为什么 delay() 会毁掉机器人
+
+机器人从来不会一次只做一件事。行驶时它还要盯着避障传感器、以固定频率跑控制环、让状态 LED 闪烁、随时接收串口指令。Arduino 只有一颗小 CPU 和一个 `loop()`，任何让 `loop()` 停下的东西，都会把这些工作一起停掉。
+
+`delay(1000)` 就是典型例子。它的意思不是“亮着 LED 同时继续干别的”，而是“整个程序在这里停一秒”。这一秒里不读传感器、不看按键、不更新电机、也不处理串口字节。闪灯是人的时间尺度，机器人不是。
+
+算一笔小机器人以 0.5 m/s 行驶的账：
+
+```text
+机器人速度：      0.5 m/s
+delay() 时长：    1000 ms = 1 s
+行驶距离：        0.5 m/s × 1 s = 0.5 m
+换算成厘米：      0.5 m × 100 = 50 cm
+```
+
+五十厘米的“盲开”。常见避障传感器也许只看 20–40 cm，机器人很容易在这段盲区里撞上桌腿；等 delay 结束再读，拿到的也是 50 cm 前的旧世界。按键同样：一次在 delay 里开始又结束的按下，程序根本不知道。串口缓冲区也会被塞满，字符丢失。控制环还会忽快忽慢。
+
+所以主循环的原则是：永远不等。每一轮只问“现在有什么事到期？”，看一眼时钟，做完就返回。状态 LED 要每 250 ms 翻转，不需要占用 CPU 250 ms，只需要一个时间戳和一次比较。
+
+<Quiz id="q1" question="机器人以 0.3 m/s 行驶，循环里有 delay(500)。两次传感器读数之间它最多能走多少厘米？" answer={15} unit="cm" explanation="500 ms = 0.5 s。距离 = 0.3 m/s × 0.5 s = 0.15 m，再乘 100 得 15 cm。" />
+
+## millis() 计时模式
+
+`millis()` 返回复位以来的毫秒数，类型是 `unsigned long`，Uno 上为 32 位。它不阻塞：只是读一个由硬件定时器在后台累加的计数器，然后立刻返回。这是非阻塞计时（non-blocking timing）的基础。
+
+模式分三步：在 `loop()` 开头取一次时钟；用当前时间减去上次执行的时间戳，与周期比较；到期就推进时间戳并执行任务：
+
+```text
+if (now - last >= PERIOD) {
+  last += PERIOD;
+  ...do the thing...
+}
+```
+
+`last` 和 `now` 都是 `unsigned long` 时间戳。减法得到经过的时间，比较是在问“是否至少过去一个完整周期”。没到期就跳过，继续往下走。
+
+下面这个完整程序让两颗 LED 以不同频率闪烁：
+
+```cpp
+// Two LEDs blinking at different rates, no delay() anywhere.
+const int LED_A = 8;
+const int LED_B = 9;
+const unsigned long PERIOD_A = 250;  // ms between toggles
+const unsigned long PERIOD_B = 400;
+
+unsigned long lastA = 0;
+unsigned long lastB = 0;
+bool stateA = false;
+bool stateB = false;
+
+void setup() {
+  pinMode(LED_A, OUTPUT);
+  pinMode(LED_B, OUTPUT);
+  Serial.begin(115200);
+}
+
+void loop() {
+  unsigned long now = millis();
+
+  if (now - lastA >= PERIOD_A) {
+    lastA += PERIOD_A;          // keep a steady rhythm
+    stateA = !stateA;
+    digitalWrite(LED_A, stateA);
+    Serial.print(now);
+    Serial.println(" A");
+  }
+
+  if (now - lastB >= PERIOD_B) {
+    lastB += PERIOD_B;
+    stateB = !stateB;
+    digitalWrite(LED_B, stateB);
+    Serial.print(now);
+    Serial.println(" B");
+  }
+
+  // ...room for reading sensors, here, every pass through loop()
+}
+```
+
+我们在 simavr AVR 仿真器里运行了 1.25 s，下面是完全一致的串口输出：
+
+```text
+250 A
+400 B
+500 A
+750 A
+800 B
+1000 A
+1200 B
+```
+
+看时间戳就分开了：A 在 250、500、750、1000 ms 翻转，B 在 400、800、1200 ms 翻转；A 的下一次 1250 ms 正好是仿真终点。两者互不拖慢。两条打印之间 `loop()` 已空转几千次，这些轮次正是读传感器、更新电机的地方。
+
+`lastA` 从 0 开始，所以第一次翻转在 250 ms 而不是 0 ms，通常正合适。若某任务要立刻执行一次，可把时间戳初始化成 `millis() - PERIOD`，或在 `setup()` 里先调用一次。
+
+### last += PERIOD 与 last = now 的区别
+
+两种写法都能闪灯，但 `loop()` 迟到时行为不同。迟到很常见：慢速串口打印、传感器转换、耗时库函数。问题是：这点迟到被忘掉，还是加到之后每个周期上。
+
+假设周期是 250 ms，每次翻转都被晚了 3 ms 才处理：
+
+```text
+周期 = 250 ms，每次翻转都晚 3 ms 才被处理
+
+last = now：
+  第 1 次翻转在 250 + 3 = 253 ms，last = 253
+  第 2 次在 253 + 250 + 3 = 506 ms，last = 506
+  ……
+  第 10 次在 10 × 253 = 2530 ms
+
+last += PERIOD：
+  第 1 次在 253 ms，但 last = 250
+  第 2 次应在 500 ms，实际 503 ms，last = 500
+  ……
+  第 10 次在 2500 + 3 = 2503 ms
+```
+
+用 `last = now`，每个周期实际变成 253 ms，误差会累积：100 次后慢 300 ms，1000 次后慢 3 s。控制环频率会慢慢变化，比固定偏移更糟。用 `last += PERIOD`，时间表锚定在 250 ms 的整数倍上；每次仍晚 3 ms，但不累积，长期平均精确为 250 ms。
+
+注意：若任务耗时超过一个周期，`last += PERIOD` 更新后可能仍在过去，下一轮会立刻补跑。这通常正是时间表想要的；若宁愿丢掉漏掉的节拍，就用 `last = now` 或把时间戳向前钳位。
+
+<Quiz id="q2" question="你的 10 ms 控制环用 'if (now - last >= 10) { last = now; ... }'，有时会晚 2 ms。一分钟后会发生什么？" options={["什么也不会发生，millis() 会自动纠正", "循环一分钟内少于 6000 次，因为每次迟到都被加到下一个周期上", "循环会多于 6000 次"]} answer={1} explanation="用 last = now 时，每次迟到都会把那个周期拉长到 12 ms，丢掉的 2 ms 再也补不回来，所以次数会少于 6000。最坏情况下每次都迟到，就是 60 / 0.012 = 5000 次。改用 last += 10，节拍会自己追上，保持 6000 次。" />
+
+## millis() 溢出，以及为什么减法是安全的
+
+Uno 的 `unsigned long` 是 32 位，`millis()` 数到 4 294 967 295 后回到 0。总共 2^32 ms：
+
+```text
+2^32 ms = 4 294 967 296 ms
+        = 4 294 967.296 s
+        ≈ 49.7 天
+```
+
+连续运行约七周后归零。听起来遥远，直到设备要跑几个月。
+
+标准写法能穿过回绕。C/C++ 无符号减法按 2^32 取模，所以即使 `now` 是回绕后的小数、`last` 是回绕前的大数，`now - last` 仍是真实经过时间（间隔小于 49.7 天）。
+
+比较式 `now > last + PERIOD` 活不过回绕，因为它比的是绝对时刻。下面这个 PC 小程序用同样的 32 位无符号运算：
+
+```c
+#include <stdio.h>
+#include <stdint.h>
+int main(void) {
+  uint32_t last = 4294967000u;   // 296 ms before millis() wraps
+  uint32_t now  = 200u;          // 200 ms after the wrap
+  printf("now - last  = %lu ms\n", (unsigned long)(uint32_t)(now - last));
+  printf("now > last + 250 ? %s\n", (now > last + 250u) ? "yes" : "no");
+  printf("wrap after  = %.1f days\n", 4294967296.0 / 1000 / 60 / 60 / 24);
+  return 0;
+}
+```
+
+以及它完全一致的输出：
+
+```text
+now - last  = 496 ms
+now > last + 250 ? no
+wrap after  = 49.7 days
+```
+
+`last` 在回绕前 296 ms，`now` 在回绕后 200 ms，真实经过 296 + 200 = 496 ms，减法如实给出。比较版拿 200 和 `last + 250` = 4 294 967 250 比，得到“不大于”，于是认为周期未到；它会一直这么认为约 49.7 天，直到 `now` 自己回绕。带这个 bug 的机器人会卡表七周。
+
+规则：永远比较经过的时间 `now - start >= interval`，绝不比较绝对时刻。时间戳用 `unsigned long`，不用 `int` 或 `long`。Uno 的 `int` 只有 16 位，约 32 秒就溢出；有符号溢出在 C++ 里还是未定义行为。
+
+<Quiz id="q3" question="32 位 millis() 计数器大约多少天回绕一次？（保留一位小数）" answer={49.7} unit="days" explanation="2^32 = 4 294 967 296 ms。依次除以 1000、60、60、24，得到 49.71 天，保留一位小数就是 49.7。" />
+
+## 状态机
+
+新手常把行为写成一串脚本：前进两秒、左转一秒、再前进三秒。中间用 `delay()`，机器人在这段时间里对任何事都没反应，撞墙也继续推。状态机（state machine）换了个模型：机器人始终处于少数几个状态之一，并有明确规则决定何时离开、进入另一个状态。每轮 `loop()` 检查状态、输入和时钟，决定是否转换（transition）。
+
+`enum` 给状态起名，`switch` 决定每个状态做什么。本课游戏有 `WAITING`、`LIT`、`SHOW_RESULT` 三个状态：
+
+```text
+WAITING --(random 2–5 s elapsed)--> LIT
+WAITING --(button pressed)--> SHOW_RESULT ("Foul!")
+LIT --(button pressed)--> SHOW_RESULT (print reaction time)
+SHOW_RESULT --(2 s elapsed)--> WAITING
+```
+
+每条箭头都有条件，没有一条叫“等一会儿”。`WAITING` 只检查：随机时间到了吗？按键按下了吗？`LIT` 只检查按键；`SHOW_RESULT` 只检查两秒到了吗。每项检查只要几微秒，所以循环始终有响应。
+
+两个习惯：随机值在进入状态时决定，不要每轮重抽，否则等待会不断重置；进入动作放在转换里，比如设置 `state = LIT` 时点亮 LED 并记下 `litAt`，状态本身就不必记住灯是否已亮。
+
+以后加功能也容易：灯亮时响蜂鸣器，就加到进入 `LIT` 的转换；出结果后 500 ms 内忽略按键，就加一个时间戳和条件。原则只有一条：每个状态都要快速判断完，内部绝不等待。
+
+## 中断
+
+中断（interrupt）让硬件事件打断正常流程：CPU 执行完当前指令，保存位置，跳到中断服务程序（interrupt service routine, ISR），执行完再回到 `loop()` 原处。Uno 上的响应延迟通常只有几微秒，所以能抓住几十微秒的编码器脉冲。
+
+Arduino Uno 上只有 2 号和 3 号引脚支持外部中断，分别叫 INT0 和 INT1。调用形式是：
+
+```text
+attachInterrupt(digitalPinToInterrupt(pin), isr, mode);
+```
+
+`digitalPinToInterrupt(pin)` 把引脚号换成硬件中断号；跳过它在编号不一致的板子上会静默失败。`isr` 是函数名，`mode` 取 `LOW`、`CHANGE`、`RISING`、`FALLING`。`RISING` 低变高触发，`FALLING` 高变低触发，`CHANGE` 两边都触发。`LOW` 是电平触发，只要保持低就可能反复触发，不适合按键。
+
+### ISR 的规矩
+
+ISR 是 CPU 家里的客人：
+
+- **保持短小**。只设标志、存时间戳、加计数，活留给 `loop()`。
+- **不用 `delay()`，不用 `Serial`**。`Serial.print()` 很慢且可能依赖中断，在 ISR 里可能卡死；`delay()` 同样依赖中断。
+- **`millis()` 可读，但在 ISR 执行期间不前进**。更新它的定时器中断要等你返回；ISR 太长会丢时间。
+- **共享变量加 `volatile`**。它告诉编译器值随时可能变，每次都要重新读内存，不能缓存。
+- **多字节变量原子复制**。8 位 CPU 读 4 字节 `unsigned long` 要几条指令；中途被 ISR 改动会读到新旧混合值。用 `noInterrupts()` / `interrupts()` 包住，临界区只放几条指令。
+
+最后一条最易低估：源码里一个变量，机器码里是四次字节读取。不要长时间关中断，而是快速复制到局部变量，之后只用副本：
+
+```text
+noInterrupts();
+bool gotPress = pressed;
+unsigned long t = pressedAt;
+pressed = false;
+interrupts();
+```
+
+忘了 `volatile`，编译器可能只读一次 `pressed`，发现是 false 就永远用这份缓存。ISR 设了 true，`loop()` 却看不见。典型症状：加一句调试打印就正常，删掉又坏，因为打印迫使它重新读内存。
+
+什么时候用中断？事件太短或太频繁、轮询（polling）抓不住时：第 4 课的编码器脉冲、传感器短脉冲、反应计时需要精确时间戳的按键。普通按键在快速循环里轮询加消抖，通常更简单。中断也不能救阻塞的循环：`loop()` 卡在 `delay()` 里，ISR 只能置标志，响应仍要等。
+
+<Quiz id="q4" question="为什么在 ISR 中写入、在 loop() 中读取的变量必须声明为 volatile？" options={["它能让 ISR 跑得更快", "它告诉编译器这个值随时可能改变，必须重新从内存读取，而不能使用缓存的副本", "它会在 loop() 运行期间阻止中断发生"]} answer={1} explanation="没有 volatile 时，编译器可能把值缓存在寄存器里，永远看不到 ISR 的修改。volatile 强制每次访问都重新读内存；它不会改变中断的时机，也不会提高速度。" />
+
+## 触点弹跳与消抖
+
+按键内部是两块会互相撞击的金属。撞上时不会立刻稳定，而是在几毫秒内弹开、接触、再弹开；松开也一样。快速采样的单片机会看到一串 HIGH/LOW 跳变。接上拉时松开为高，按下拉到 GND，弹跳表现为一串快速脉冲，最后才稳定为低。
+
+数每个下降沿，一次按下可能变成五次、十次；每次按下都启动动作，动作就会重复。硬件解法是 RC 低通加施密特触发输入（如 74HC14）：RC 让电压变化变慢，施密特把缓慢噪声边沿整形成一次干净跳变。常见 10 kΩ + 100 nF，τ = 1 ms。
+
+软件解法是时间型消抖（time-based debounce）：输入一变化就记时刻，只有稳定保持 N 毫秒才接受新状态。N 通常 10–50 ms；太短弹跳会漏进来，太长会吞掉快速点按。
+
+下面这段 Python 仿真模拟每次边沿抖动几毫秒的按键，比较“数边沿”和“时间消抖”：
+
+```python
+"""debounce_sim.py: why one button press can look like several, and how a time-based debounce fixes it."""
+import random
+
+STEP_MS = 0.1  # simulate in 0.1 ms steps
+
+
+def bouncy_button(presses, seed=1):
+    """Return a list of (time_ms, level) samples. 1 = released (pull-up), 0 = pressed."""
+    rng = random.Random(seed)
+    events = []  # (time_ms, new_level)
+    for start, hold in presses:
+        for edge_time, final in ((start, 0), (start + hold, 1)):
+            t = edge_time
+            level = final
+            # contacts chatter for up to ~8 ms before settling
+            while t < edge_time + rng.uniform(3, 8):
+                events.append((t, level))
+                level = 1 - level
+                t += rng.uniform(0.2, 3.0)
+            events.append((t, final))
+    samples, level, i = [], 1, 0
+    t = 0.0
+    end = max(e[0] for e in events) + 50
+    while t < end:
+        while i < len(events) and events[i][0] <= t:
+            level = events[i][1]
+            i += 1
+        samples.append((round(t, 1), level))
+        t += STEP_MS
+    return samples
+
+
+def naive_presses(samples):
+    """Count every HIGH->LOW transition."""
+    count, last = 0, 1
+    for _, level in samples:
+        if last == 1 and level == 0:
+            count += 1
+        last = level
+    return count
+
+
+def debounced_presses(samples, debounce_ms):
+    """Accept a new state only after the raw input has been stable for debounce_ms."""
+    count, stable, last_raw, changed_at = 0, 1, 1, 0.0
+    for t, level in samples:
+        if level != last_raw:
+            last_raw, changed_at = level, t
+        if last_raw != stable and t - changed_at >= debounce_ms:
+            stable = last_raw
+            if stable == 0:
+                count += 1
+    return count
+
+
+if __name__ == "__main__":
+    presses = [(100, 300), (700, 150), (1200, 400), (2000, 80), (2500, 250)]  # (start ms, hold ms)
+    samples = bouncy_button(presses)
+    print(f"real presses:        {len(presses)}")
+    print(f"naive edge count:    {naive_presses(samples)}")
+    for d in (2, 10, 20, 50):
+        print(f"debounced, {d:>2} ms:   {debounced_presses(samples, d)}")
+```
+
+以及它完全一致的输出：
+
+```text
+real presses:        5
+naive edge count:    19
+debounced,  2 ms:   9
+debounced, 10 ms:   5
+debounced, 20 ms:   5
+debounced, 50 ms:   5
+```
+
+模型有五次真实按下，持续 300、150、400、80、250 ms。每个按下和松开边沿都随机抖动 3–8 ms，弹跳间隔 0.2–3 ms。种子固定，输出可复现；采样每 0.1 ms 一次，比 Arduino 快得多，但能看清弹跳。
+
+`naive_presses()` 数每次 HIGH→LOW：按下和松开都弹跳，每簇又有很多跳变，五次按下变成 19 个下降沿。这正是把中断设成 `FALLING` 后直接加计数的结果。
+
+`debounced_presses()` 记住原始电平和变化时刻，只有原始电平保持不变达到阈值，才接受新状态。2 ms 时得到 9，因为有些弹跳间隔超过 2 ms：线路看似稳定了一下又被接受；10、20、50 ms 都长于所有间隙，所以每次真实按下只计一次。
+
+### 如何选择消抖时间
+
+普通轻触按键取 10–30 ms；长导线、嘈杂环境或老旧按键可取 50 ms。消抖时间必须短于最短的真实按下。仿真里 80 ms 的按下接近 50 ms 上限，仍能检测；若只按 40 ms，50 ms 消抖就会吞掉它。反应游戏里手快的人可能只按 30–50 ms，所以 30 ms 更合适。
+
+反应时间程序还用了“安静线路”规则：按下的第一个边沿，如果线路此前已安静至少 30 ms，就立刻接受；随后几毫秒的弹跳边沿因距第一个边沿不足 30 ms 而被拒绝。这样只计一次，又不会给测量增加 30 ms 延迟。轮询式消抖通常会加这段延迟。
+
+<Quiz id="q5" question="仿真里 2 ms 消抖把 5 次真实按下报成了 9 次，为什么？" options={["Python 采样引脚太慢", "有些弹跳间隔超过 2 ms，于是一次弹跳被当成了稳定的新状态", "按键真的被按了 9 次"]} answer={1} explanation="弹跳间隔最大可到 3 ms。2 ms 的窗口短于部分间隔，所以弹跳会被接受为新的真实状态；10 ms 及以上能覆盖所有间隔，计数就正确了。" />
+
+## 项目：反应时间小游戏
+
+本月的实践任务：做一个小游戏测反应速度。LED 先灭，随机等 2–5 秒后亮；尽快按键，反应时间以毫秒打印到串口。灯亮前按算犯规，该轮作废；程序记住最好成绩。
+
+接线：LED 用 13 号引脚（Uno 板载），无需外接灯和电阻；按键一端接 2 号引脚、一端接 GND。2 号是 INT0；`INPUT_PULLUP` 让松开读 HIGH、按下读 LOW。
+
+```cpp
+// Reaction-timer game.
+// LED on pin 13 lights after a random 2-5 s wait; press the button (pin 2 to GND)
+// as fast as you can. Pressing before the LED lights is a foul.
+const int LED_PIN = 13;
+const int BUTTON_PIN = 2;               // pin 2 = external interrupt INT0 on the Uno
+const unsigned long DEBOUNCE_MS = 30;
+
+enum State { WAITING, LIT, SHOW_RESULT };
+State state = WAITING;
+
+volatile unsigned long pressedAt = 0;   // written by the ISR, read by loop()
+volatile bool pressed = false;
+
+unsigned long waitStart = 0;
+unsigned long waitTime = 0;
+unsigned long litAt = 0;
+unsigned long best = 0;
+unsigned long resultAt = 0;
+
+void onButton() {                       // interrupt service routine: keep it tiny
+  unsigned long t = millis();
+  static unsigned long lastEdge = 0;
+  bool isDown = digitalRead(BUTTON_PIN) == LOW;
+  if (isDown && t - lastEdge > DEBOUNCE_MS) {  // a quiet line that just went LOW = real press
+    pressedAt = t;
+    pressed = true;
+  }
+  lastEdge = t;                         // every edge, including bounces, restarts the quiet timer
+}
+
+void startRound() {
+  digitalWrite(LED_PIN, LOW);
+  waitTime = random(2000, 5001);
+  waitStart = millis();
+  noInterrupts();
+  pressed = false;
+  interrupts();
+  state = WAITING;
+  Serial.println(F("Get ready..."));
+}
+
+void setup() {
+  pinMode(LED_PIN, OUTPUT);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  Serial.begin(115200);
+  randomSeed(analogRead(A0));           // floating analog pin = noisy seed
+  attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), onButton, CHANGE);
+  startRound();
+}
+
+void loop() {
+  unsigned long now = millis();
+
+  noInterrupts();                       // copy shared variables atomically
+  bool gotPress = pressed;
+  unsigned long t = pressedAt;
+  pressed = false;
+  interrupts();
+
+  switch (state) {
+    case WAITING:
+      if (gotPress) {
+        Serial.println(F("Foul! You pressed too early."));
+        resultAt = now;
+        state = SHOW_RESULT;
+      } else if (now - waitStart >= waitTime) {
+        digitalWrite(LED_PIN, HIGH);
+        litAt = millis();
+        state = LIT;
+      }
+      break;
+
+    case LIT:
+      if (gotPress) {
+        unsigned long reaction = t - litAt;
+        digitalWrite(LED_PIN, LOW);
+        Serial.print(F("Reaction: "));
+        Serial.print(reaction);
+        Serial.print(F(" ms"));
+        if (best == 0 || reaction < best) {
+          best = reaction;
+          Serial.print(F("  (new best!)"));
+        }
+        Serial.println();
+        resultAt = now;
+        state = SHOW_RESULT;
+      }
+      break;
+
+    case SHOW_RESULT:
+      if (now - resultAt >= 2000) startRound();   // next round after 2 s
+      break;
+  }
+}
+```
+
+程序照着状态图写。`startRound()` 灭灯、抽随机等待、清按下标志、进入 `WAITING`。中断在 2 号引脚每个边沿运行：每个边沿记入 `lastEdge`；只有引脚为低、且距上个边沿超过 30 ms 才算按下。干净按下的第一个下降沿前面通常安静很久，所以立刻被接受；随后几毫秒的弹跳被拒绝。松开边沿读高，不会算按下，但同样重置计时器。
+
+`loop()` 在临界区复制共享变量。`volatile` 只保证重新读内存，不保证四字节读取原子；关中断确保 ISR 不会改到一半。标志也在同一临界区清除，复制期间来的按下不会丢。
+
+反应时间是 `t - litAt`：`t` 是 ISR 抓到的边沿时刻，`litAt` 是灯亮时刻，不是 `loop()` 发现按下的时刻。循环若正在打印，发现可能晚好几毫秒；用电边沿时间戳，测量才不受影响。
+
+`random(2000, 5001)` 返回 2000–5000（上界不含）。`randomSeed(analogRead(A0))` 用悬空模拟引脚的噪声作种子；真板每次复位序列不同，仿真器里引脚可能读到常数，序列会重复。`F()` 把字符串留在 Flash，节省 Uno 的 SRAM。
+
+我们在 simavr 中运行，并用测试脚本驱动 2 号引脚：先提前按一次，再在约 243、198、310 ms 后各按一次，含几毫秒弹跳。串口输出：
+
+```text
+Get ready...
+Foul! You pressed too early.
+Get ready...
+Reaction: 242 ms  (new best!)
+Get ready...
+Reaction: 197 ms  (new best!)
+Get ready...
+Reaction: 310 ms
+Get ready...
+```
+
+犯规行来自 `WAITING` 期间的提前按下。前两轮比脚本值低 1 ms，因为 `millis()` 只数整毫秒：灯亮和按下都落在毫秒中间，截断后相减可能少 1；310 ms 恰好落在边界，原样打印。这远小于人与人的反应差异。
+
+扩展：显示最近五轮平均值；在 3 号引脚加第二个按键做双人对战；加蜂鸣器在灯亮和刷新纪录时响。按课程要求录 15 秒视频，把代码和视频链接推到 GitHub。
+
+## 常见错误与检查清单
+
+本课最容易让人困惑的错误：
+
+- `delay()` 藏在库或辅助函数里。调用点不一定直接出现在 `loop()` 中，所以要顺着 `loop()` 调用的每个函数查一遍。
+- 比较绝对时刻（`now > last + PERIOD`），而不是经过的时间（`now - last >= PERIOD`）。它可能正常工作几周，然后在回绕时失效。
+- 时间戳用 `int` 或有符号 `long`，而不是 `unsigned long`。Uno 上的 `int` 大约 32 秒就溢出了。
+- 与 ISR 共享的变量忘了 `volatile`。循环会一直读缓存的旧值。
+- 在 ISR 里调用 `Serial.print()` 或 `delay()`。两者都可能卡住板子或丢失时间。
+- 把中断挂到不支持外部中断的引脚上。Uno 上只有 2 号和 3 号可用。
+- 消抖时间比最短的真实按下还长。快速点按会消失。
+- 读取多字节共享变量时没有关中断。读到的值可能混着新旧字节。
+
+进入下一课之前，下面这些你能都答“是”吗？
+
+- 我能用行驶距离的例子解释 `delay()` 为什么对机器人有害。
+- 我能凭记忆写出 `millis()` 模式，包括 `last += PERIOD` 的更新。
+- 我能解释 `millis()` 溢出后 `now - last` 为什么仍然有效，以及绝对时刻比较为什么会失效。
+- 我能画出一个状态机，写清状态、转换条件和进入动作。
+- 我记得 ISR 的规矩：短小、不用 `delay()`、不用 `Serial`、加 `volatile`、原子复制。
+- 我能解释触点弹跳，并为一个具体按键选择合适的消抖时间。

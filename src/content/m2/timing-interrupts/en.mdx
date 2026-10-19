@@ -1,0 +1,473 @@
+## Why delay() ruins robots
+
+A robot is never doing just one thing. While it drives, it has to watch an obstacle sensor, keep a control loop running at a steady rate, blink a status LED so you know it is alive, and listen for commands on the serial port. The Arduino has one small CPU and one `loop()`. Anything that stops `loop()` stops all of those jobs at the same time.
+
+`delay(1000)` is the clearest example. It does not mean "keep the LED on for a second while the rest of the program continues". It means "stop the entire program here for one second, then move on". No sensor is read, no button is checked, no motor command is updated, and no serial byte is processed during that second. The LED blink feels harmless because a blink is a human-scale event. The robot, unfortunately, lives at a different timescale.
+
+Here is the arithmetic for a small robot moving at half a metre per second:
+
+```text
+Robot speed:        0.5 m/s
+delay() duration:   1000 ms = 1 s
+Distance travelled: 0.5 m/s × 1 s = 0.5 m
+In centimetres:     0.5 m × 100 = 50 cm
+```
+
+Fifty centimetres of blind travel. A typical obstacle sensor looks maybe 20–40 cm ahead, so the robot can easily reach a chair leg before the program looks again; even a reading taken right after the delay describes a world 50 cm old. A button press that begins and ends inside the delay is never seen. Serial input has a small buffer that can overflow, and the control loop becomes uneven because every delay adds dead time to one iteration.
+
+So the main loop should never wait. Each pass asks one question: what is due now? It checks the clock, does that work, and returns so the next pass can check again. A status LED that blinks every 250 ms needs a timestamp and a comparison, not 250 ms of CPU.
+
+<Quiz id="q1" question="A robot drives at 0.3 m/s and its loop contains delay(500). How far (in cm) can it travel between two sensor readings?" answer={15} unit="cm" explanation="500 ms = 0.5 s. Distance = 0.3 m/s × 0.5 s = 0.15 m, and 0.15 m × 100 = 15 cm." />
+
+## The millis() pattern
+
+`millis()` returns how many milliseconds have passed since the board was reset. The return type is `unsigned long`, which is 32 bits on the Uno, and calling it does not block: it reads a counter that the hardware timer has been incrementing in the background and returns immediately. That makes it the basic tool for non-blocking timing.
+
+The pattern has three parts. First, take one snapshot of the clock at the top of `loop()`. Second, subtract the timestamp of the last time the job ran and compare the result with the period. Third, when the job is due, advance the timestamp and do the work:
+
+```text
+if (now - last >= PERIOD) {
+  last += PERIOD;
+  ...do the thing...
+}
+```
+
+`last` is a timestamp stored in an `unsigned long`. `now` is the current timestamp. The subtraction produces the elapsed time, and the comparison asks whether at least one full period has passed. Nothing waits: if the job is not due, the `if` body is skipped and `loop()` continues.
+
+Here is a complete sketch with two LEDs running at different rates:
+
+```cpp
+// Two LEDs blinking at different rates, no delay() anywhere.
+const int LED_A = 8;
+const int LED_B = 9;
+const unsigned long PERIOD_A = 250;  // ms between toggles
+const unsigned long PERIOD_B = 400;
+
+unsigned long lastA = 0;
+unsigned long lastB = 0;
+bool stateA = false;
+bool stateB = false;
+
+void setup() {
+  pinMode(LED_A, OUTPUT);
+  pinMode(LED_B, OUTPUT);
+  Serial.begin(115200);
+}
+
+void loop() {
+  unsigned long now = millis();
+
+  if (now - lastA >= PERIOD_A) {
+    lastA += PERIOD_A;          // keep a steady rhythm
+    stateA = !stateA;
+    digitalWrite(LED_A, stateA);
+    Serial.print(now);
+    Serial.println(" A");
+  }
+
+  if (now - lastB >= PERIOD_B) {
+    lastB += PERIOD_B;
+    stateB = !stateB;
+    digitalWrite(LED_B, stateB);
+    Serial.print(now);
+    Serial.println(" B");
+  }
+
+  // ...room for reading sensors, here, every pass through loop()
+}
+```
+
+We ran it in the simavr AVR simulator for 1.25 s; this is the exact serial output:
+
+```text
+250 A
+400 B
+500 A
+750 A
+800 B
+1000 A
+1200 B
+```
+
+Read the timestamps: the two rhythms separate cleanly. LED A toggles at 250, 500, 750 and 1000 ms; LED B at 400, 800 and 1200 ms. The next A toggle would be at 1250 ms, just as the 1.25 s run ends, which is why it is not in the output. Neither LED delays the other. Between two printed lines, `loop()` runs thousands of times checking two comparisons; in a real robot those empty passes are where the sensor reads and motor updates go.
+
+One practical detail: `lastA` starts at 0, so the first A toggle happens 250 ms after reset rather than at time zero. That is usually what you want, because it gives the hardware and the sensors a moment to settle. If a job should run once immediately, either initialise the timestamp to `millis() - PERIOD` or call the job once in `setup()`.
+
+### last += PERIOD versus last = now
+
+Both versions make the LED blink, but they behave differently when a pass through `loop()` is late—because of a slow print, a sensor conversion or a long library call. The question is whether that lateness is forgotten or added to every future period.
+
+Suppose the period is 250 ms and every toggle is noticed 3 ms late:
+
+```text
+period = 250 ms, each toggle noticed 3 ms late
+
+last = now:
+  toggle 1 at 250 + 3 = 253 ms, then last = 253
+  toggle 2 at 253 + 250 + 3 = 506 ms, then last = 506
+  ...
+  toggle 10 at 10 × 253 = 2530 ms
+
+last += PERIOD:
+  toggle 1 at 253 ms, but last = 250
+  toggle 2 due at 500, done at 503 ms, last = 500
+  ...
+  toggle 10 at 2500 + 3 = 2503 ms
+```
+
+With `last = now`, every period effectively becomes 253 ms. The error is small per toggle but accumulates: after 100 toggles the LED is 300 ms behind, after 1000 toggles 3 s. In a control loop this drift is worse than a constant offset because the loop rate slowly changes. With `last += PERIOD`, the schedule stays anchored to multiples of 250 ms: the code still runs 3 ms late each time, but the lateness does not accumulate, so the long-run average is exactly 250 ms.
+
+One consequence: if a task ever takes longer than a full period, `last += PERIOD` may still be in the past, so the next pass fires again immediately, catching up on missed ticks. That is usually right for a schedule; if you would rather skip missed ticks, use `last = now` or clamp the timestamp forward.
+
+<Quiz id="q2" question="Your 10 ms control loop uses 'if (now - last >= 10) { last = now; ... }' and sometimes runs 2 ms late. What happens over a minute?" options={["Nothing, millis() corrects it automatically", "The loop runs fewer than 6000 times because each lateness is added to the next period", "The loop runs more than 6000 times"]} answer={1} explanation="With last = now, every late pass stretches that period to 12 ms and the lost 2 ms are never made up, so the count falls below 6000. In the worst case, late every time, it is 60 / 0.012 = 5000 iterations. With last += 10 the schedule catches up and stays at 6000." />
+
+## millis() overflow, and why subtraction is safe
+
+An `unsigned long` on the Uno is 32 bits, so `millis()` counts from 0 to 4 294 967 295 and then wraps back to 0. That is 2^32 milliseconds in total. Converted to days:
+
+```text
+2^32 ms = 4 294 967 296 ms
+        = 4 294 967.296 s
+        ≈ 49.7 days
+```
+
+So after about seven weeks of continuous uptime, the counter returns to zero. That sounds like a distant problem until you build something that runs for months, or until a robot is switched on and never reset.
+
+The good news is that the standard pattern survives the wrap. Unsigned arithmetic in C and C++ is modular: subtraction is performed modulo 2^32, so `now - last` still gives the true elapsed time even when `now` is a small number after the wrap and `last` is a large number from before it. The result is not "a huge negative number"; it is exactly the number of milliseconds that actually passed, as long as the interval is less than 49.7 days.
+
+The comparison style `now > last + PERIOD` does not survive, because it compares absolute times instead of elapsed time. Here is a small C program that uses the same 32-bit unsigned maths, run on a PC:
+
+```c
+#include <stdio.h>
+#include <stdint.h>
+int main(void) {
+  uint32_t last = 4294967000u;   // 296 ms before millis() wraps
+  uint32_t now  = 200u;          // 200 ms after the wrap
+  printf("now - last  = %lu ms\n", (unsigned long)(uint32_t)(now - last));
+  printf("now > last + 250 ? %s\n", (now > last + 250u) ? "yes" : "no");
+  printf("wrap after  = %.1f days\n", 4294967296.0 / 1000 / 60 / 60 / 24);
+  return 0;
+}
+```
+
+and its exact output:
+
+```text
+now - last  = 496 ms
+now > last + 250 ? no
+wrap after  = 49.7 days
+```
+
+`last` is 296 ms before the wrap and `now` is 200 ms after it, so the real elapsed time is 296 + 200 = 496 ms. The unsigned subtraction reports exactly that. The comparison version compares 200 with `last + 250` = 4 294 967 250, gets no, and believes the 250 ms period has not elapsed. It would keep believing that for about 49.7 days, until `now` itself wraps. A robot with that bug would freeze its timing for seven weeks and then mysteriously start working again.
+
+The rule: always compare elapsed times, `now - start >= interval`, never absolute times. Store timestamps in `unsigned long`, not `int` or signed `long`: on the Uno an `int` is only 16 bits (about 32 seconds), and signed overflow is undefined behaviour in C++.
+
+<Quiz id="q3" question="After how many days does a 32-bit millis() counter wrap around? (one decimal)" answer={49.7} unit="days" explanation="2^32 = 4 294 967 296 ms. Dividing by 1000, 60, 60 and 24 gives 49.71 days, so 49.7 to one decimal place." />
+
+## State machines
+
+A beginner's first robot behaviour is often written as a script: drive forward for two seconds, turn left for one second, drive forward for three seconds. With `delay()` between the steps, the robot cannot react to anything during a step. Bump into a wall and it keeps pushing until the delay ends. A state machine replaces the script with a different mental model: the robot is always in one of a small number of states, and there are clear rules for leaving one state and entering another. Each pass through `loop()` checks the current state, the inputs and the clock, and decides whether a transition should happen.
+
+An `enum` gives the states readable names, and a `switch` selects what to do in each one. The states for the reaction-timer game in this lesson are `WAITING`, `LIT` and `SHOW_RESULT`. The diagram is the whole design:
+
+```text
+WAITING --(random 2–5 s elapsed)--> LIT
+WAITING --(button pressed)--> SHOW_RESULT ("Foul!")
+LIT --(button pressed)--> SHOW_RESULT (print reaction time)
+SHOW_RESULT --(2 s elapsed)--> WAITING
+```
+
+Every arrow has a condition; none says "wait here". `WAITING` checks two things: has the random wait expired, and has the button been pressed? `LIT` checks only the button. `SHOW_RESULT` checks only whether two seconds have passed. Each check takes microseconds, so the loop keeps spinning.
+
+Two habits help. First, choose random or one-time values when you enter a state, not on every pass; if `waitTime` were re-rolled every iteration, the wait would restart forever. Second, put entry actions in the transition: turn the LED on when you set `state = LIT`, and record `litAt` at the same moment.
+
+Later features stay easy: a buzzer tone goes in the transition into `LIT`; ignoring the button for 500 ms after a result needs one timestamp and one condition. Behaviour grows by adding states and rules, not by inserting more delays. The one rule: every state must be quick to evaluate, and nothing inside a state may wait.
+
+## Interrupts
+
+An interrupt lets a hardware event interrupt the normal flow of the program. When the event occurs, the CPU finishes the current instruction, saves its place, jumps to a short function called an interrupt service routine (ISR), runs it, and then resumes `loop()` exactly where it left off. The delay between the event and the first instruction of the ISR is tiny, typically a few microseconds on an Uno. This is how a robot can catch an encoder pulse that lasts only tens of microseconds while the main loop is busy doing something else.
+
+On the Arduino Uno, only pins 2 and 3 have external interrupts. They are labelled INT0 and INT1. The call is:
+
+```text
+attachInterrupt(digitalPinToInterrupt(pin), isr, mode);
+```
+
+`digitalPinToInterrupt(pin)` converts a pin number into the interrupt number the hardware expects; passing the pin number directly fails silently on boards where the two differ. `isr` is your function, and `mode` is one of `LOW`, `CHANGE`, `RISING` or `FALLING`. `RISING` fires when the pin goes from LOW to HIGH, `FALLING` when it goes from HIGH to LOW, and `CHANGE` on either edge. `LOW` is level-triggered: it can keep firing while the pin stays low, so it is rarely right for a button.
+
+### Rules for ISRs
+
+An ISR is a guest in the CPU's house, and it should behave like one:
+
+- **Keep it tiny.** Set a flag, store a timestamp, increment a counter. Do the real work in `loop()`.
+- **No `delay()` and no `Serial`.** `Serial.print()` is slow and may rely on interrupts, so calling it from an ISR can hang the board; `delay()` also relies on interrupts. Neither belongs in an ISR.
+- **`millis()` can be read, but it does not advance while the ISR runs.** The timer overflow interrupt that updates it cannot run until your ISR returns. A long ISR therefore loses time and makes every timestamp slightly late.
+- **Any variable shared with `loop()` must be `volatile`.** This tells the compiler the value can change at any moment, so it must re-read it from memory instead of caching it in a register.
+- **Copy multi-byte variables atomically.** On an 8-bit CPU, a 4-byte `unsigned long` is read in several instructions. If the ISR changes it between those instructions, `loop()` can see a mixture of old and new bytes. Disable interrupts around the copy with `noInterrupts()` and `interrupts()`, and keep that critical section to a few instructions.
+
+The last rule is easy to underestimate: one source variable is four separate byte reads in the machine code. The fix is not a long interrupt lock, but a quick copy into a local variable:
+
+```text
+noInterrupts();
+bool gotPress = pressed;
+unsigned long t = pressedAt;
+pressed = false;
+interrupts();
+```
+
+If you forget `volatile`, the compiler is allowed to read `pressed` once, see that it is false, and reuse that cached value forever. The ISR does set it, but `loop()` never notices. This produces the classic symptom: the interrupt works when you add a debug print, because the print forces a fresh read, and stops working when you remove the print.
+
+Use interrupts when the event is too short or too frequent for polling: encoder pulses in Lesson 4, a pulse from a sensor, or the precise timestamp of a button press in a reaction timer. For an ordinary button, polling with a debounce in a fast loop is usually simpler. An interrupt is not a repair for a loop that blocks; if `loop()` spends a second inside `delay()`, an interrupt can set a flag, but the response is still delayed until the delay ends.
+
+<Quiz id="q4" question="Why must a variable written in an ISR and read in loop() be declared volatile?" options={["It makes the ISR run faster", "It tells the compiler the value can change at any moment, so it must re-read it from memory instead of keeping a cached copy", "It stops interrupts from happening while loop() runs"]} answer={1} explanation="Without volatile, the compiler may cache the value in a register and never see the ISR's update. volatile forces a fresh memory read on every access; it does not change interrupt timing or speed." />
+
+## Contact bounce and debouncing
+
+A push button looks like a simple switch, but inside are pieces of metal that hit each other. They do not settle instantly: they bounce, separate and reconnect several times within a few milliseconds, on release as well as press. A fast-sampling MCU sees a burst of HIGH/LOW transitions for one press. With a pull-up, the line sits HIGH when released; pressing pulls it to GND, and the bounce appears as a rapid train of pulses before it settles LOW.
+
+Counting every falling edge can turn one press into five or ten counts, and an action started on every press can repeat. The hardware cure is an RC low-pass filter followed by a Schmitt-trigger input such as a 74HC14: the RC slows the voltage change and the Schmitt trigger turns the slow, noisy edge into one clean transition. A typical pair is 10 kΩ and 100 nF (τ = 1 ms).
+
+The software cure is time-based debouncing. You watch the raw input; when it changes, you note the time; and you accept the new state only after the input has stayed stable for a chosen number of milliseconds. Ten to fifty milliseconds is the usual range. Too short and bounce still gets through; too long and a genuinely quick tap is ignored, because the button is released before the new state has been accepted.
+
+The following Python simulation makes the problem visible. It models a button whose contacts chatter for a few milliseconds at every edge, then compares naive edge counting with a time-based debounce:
+
+```python
+"""debounce_sim.py: why one button press can look like several, and how a time-based debounce fixes it."""
+import random
+
+STEP_MS = 0.1  # simulate in 0.1 ms steps
+
+
+def bouncy_button(presses, seed=1):
+    """Return a list of (time_ms, level) samples. 1 = released (pull-up), 0 = pressed."""
+    rng = random.Random(seed)
+    events = []  # (time_ms, new_level)
+    for start, hold in presses:
+        for edge_time, final in ((start, 0), (start + hold, 1)):
+            t = edge_time
+            level = final
+            # contacts chatter for up to ~8 ms before settling
+            while t < edge_time + rng.uniform(3, 8):
+                events.append((t, level))
+                level = 1 - level
+                t += rng.uniform(0.2, 3.0)
+            events.append((t, final))
+    samples, level, i = [], 1, 0
+    t = 0.0
+    end = max(e[0] for e in events) + 50
+    while t < end:
+        while i < len(events) and events[i][0] <= t:
+            level = events[i][1]
+            i += 1
+        samples.append((round(t, 1), level))
+        t += STEP_MS
+    return samples
+
+
+def naive_presses(samples):
+    """Count every HIGH->LOW transition."""
+    count, last = 0, 1
+    for _, level in samples:
+        if last == 1 and level == 0:
+            count += 1
+        last = level
+    return count
+
+
+def debounced_presses(samples, debounce_ms):
+    """Accept a new state only after the raw input has been stable for debounce_ms."""
+    count, stable, last_raw, changed_at = 0, 1, 1, 0.0
+    for t, level in samples:
+        if level != last_raw:
+            last_raw, changed_at = level, t
+        if last_raw != stable and t - changed_at >= debounce_ms:
+            stable = last_raw
+            if stable == 0:
+                count += 1
+    return count
+
+
+if __name__ == "__main__":
+    presses = [(100, 300), (700, 150), (1200, 400), (2000, 80), (2500, 250)]  # (start ms, hold ms)
+    samples = bouncy_button(presses)
+    print(f"real presses:        {len(presses)}")
+    print(f"naive edge count:    {naive_presses(samples)}")
+    for d in (2, 10, 20, 50):
+        print(f"debounced, {d:>2} ms:   {debounced_presses(samples, d)}")
+```
+
+and its exact output:
+
+```text
+real presses:        5
+naive edge count:    19
+debounced,  2 ms:   9
+debounced, 10 ms:   5
+debounced, 20 ms:   5
+debounced, 50 ms:   5
+```
+
+The model uses five real presses lasting 300, 150, 400, 80 and 250 ms. Every press and release edge chatters for a random 3–8 ms, with gaps of 0.2–3 ms. The generator is seeded, so the output repeats. The sampler reads every 0.1 ms—far faster than an Arduino loop, but it makes the bounce visible.
+
+`naive_presses()` counts every HIGH-to-LOW transition. Because both the press and the release produce bounce, and because each bounce cluster contains many transitions, five real presses become 19 falling edges. That is exactly the behaviour you get if you attach an interrupt to `FALLING` and increment a counter without debouncing.
+
+`debounced_presses()` is more patient: it remembers the last raw level and when it changed, and accepts a new state only after the raw level has stayed unchanged for the threshold. With a 2 ms threshold the count is 9, because some bounce gaps are longer than 2 ms: the line looks stable long enough to be accepted, then chatters again. With 10, 20 or 50 ms, every cluster is shorter than the window, so each real press is counted once.
+
+### Choosing a debounce time
+
+For a normal tactile button, 10–30 ms is a sensible default; use closer to 50 ms on a long wire, in a noisy environment, or with a worn button. The debounce time must be shorter than the shortest real press you care about. In the simulation the 80 ms press is close to the 50 ms limit: it is still detected because the contact stays low for 80 ms, but a 40 ms tap would be missed. For a reaction-time game, where a fast player may tap for only 30–50 ms, 30 ms is a better compromise than 50 ms.
+
+The reaction-timer sketch below uses a "quiet line" rule instead. The first edge of a press is accepted immediately if the line has been quiet for at least 30 ms, and the bounces that follow are rejected because they arrive less than 30 ms later. This gives clean single counts without adding 30 ms of latency to the measured reaction time; polling debouncers usually do add that latency, because they wait for a stable input before reporting it.
+
+<Quiz id="q5" question="In the simulation a 2 ms debounce reports 9 presses for 5 real ones. Why?" options={["Python is too slow to sample the pin", "Some gaps between bounces are longer than 2 ms, so a bounce looks like a stable new state", "The button was pressed 9 times"]} answer={1} explanation="The chatter gaps can reach 3 ms. A 2 ms window is shorter than some of those gaps, so a bounce is accepted as a real new state. At 10 ms and above every gap is covered and the count is correct." />
+
+## Project: the reaction-timer game
+
+This is the practice task for the month: a game that measures how fast you react. The LED stays off for a random 2–5 seconds, then lights up. You press as quickly as possible, and the reaction time in milliseconds prints to the serial monitor. Pressing before the LED lights is a foul and the round is lost; the best time is remembered across rounds.
+
+Wiring: the LED is the built-in one on pin 13, so no external LED or resistor is needed; the button goes between pin 2 and GND. Pin 2 is INT0, and `INPUT_PULLUP` makes the pin read HIGH when released and LOW when pressed.
+
+```cpp
+// Reaction-timer game.
+// LED on pin 13 lights after a random 2-5 s wait; press the button (pin 2 to GND)
+// as fast as you can. Pressing before the LED lights is a foul.
+const int LED_PIN = 13;
+const int BUTTON_PIN = 2;               // pin 2 = external interrupt INT0 on the Uno
+const unsigned long DEBOUNCE_MS = 30;
+
+enum State { WAITING, LIT, SHOW_RESULT };
+State state = WAITING;
+
+volatile unsigned long pressedAt = 0;   // written by the ISR, read by loop()
+volatile bool pressed = false;
+
+unsigned long waitStart = 0;
+unsigned long waitTime = 0;
+unsigned long litAt = 0;
+unsigned long best = 0;
+unsigned long resultAt = 0;
+
+void onButton() {                       // interrupt service routine: keep it tiny
+  unsigned long t = millis();
+  static unsigned long lastEdge = 0;
+  bool isDown = digitalRead(BUTTON_PIN) == LOW;
+  if (isDown && t - lastEdge > DEBOUNCE_MS) {  // a quiet line that just went LOW = real press
+    pressedAt = t;
+    pressed = true;
+  }
+  lastEdge = t;                         // every edge, including bounces, restarts the quiet timer
+}
+
+void startRound() {
+  digitalWrite(LED_PIN, LOW);
+  waitTime = random(2000, 5001);
+  waitStart = millis();
+  noInterrupts();
+  pressed = false;
+  interrupts();
+  state = WAITING;
+  Serial.println(F("Get ready..."));
+}
+
+void setup() {
+  pinMode(LED_PIN, OUTPUT);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  Serial.begin(115200);
+  randomSeed(analogRead(A0));           // floating analog pin = noisy seed
+  attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), onButton, CHANGE);
+  startRound();
+}
+
+void loop() {
+  unsigned long now = millis();
+
+  noInterrupts();                       // copy shared variables atomically
+  bool gotPress = pressed;
+  unsigned long t = pressedAt;
+  pressed = false;
+  interrupts();
+
+  switch (state) {
+    case WAITING:
+      if (gotPress) {
+        Serial.println(F("Foul! You pressed too early."));
+        resultAt = now;
+        state = SHOW_RESULT;
+      } else if (now - waitStart >= waitTime) {
+        digitalWrite(LED_PIN, HIGH);
+        litAt = millis();
+        state = LIT;
+      }
+      break;
+
+    case LIT:
+      if (gotPress) {
+        unsigned long reaction = t - litAt;
+        digitalWrite(LED_PIN, LOW);
+        Serial.print(F("Reaction: "));
+        Serial.print(reaction);
+        Serial.print(F(" ms"));
+        if (best == 0 || reaction < best) {
+          best = reaction;
+          Serial.print(F("  (new best!)"));
+        }
+        Serial.println();
+        resultAt = now;
+        state = SHOW_RESULT;
+      }
+      break;
+
+    case SHOW_RESULT:
+      if (now - resultAt >= 2000) startRound();   // next round after 2 s
+      break;
+  }
+}
+```
+
+The sketch follows the state diagram directly. `startRound()` turns the LED off, picks a new random wait, clears the press flag and sets the state to `WAITING`. The interrupt handler runs on every edge of pin 2, from a real press, a release or a bounce, and records the time in `lastEdge`. A press is accepted only when the pin is LOW and more than 30 ms have passed since the previous edge. The first falling edge of a clean press normally follows a long quiet period, so it is accepted at once; the bounce edges that follow are rejected. Release edges read HIGH, so they never count, but they still reset the quiet timer for the next press.
+
+`loop()` copies the shared variables inside a critical section. `pressed` and `pressedAt` are both `volatile`, but that only guarantees fresh reads; it does not make a four-byte read atomic. Disabling interrupts for the three statements ensures that the ISR cannot change the pair halfway through the copy. The flag is cleared inside the same critical section, so a press that arrives during the copy is not lost.
+
+The reaction time is `t - litAt`, where `t` is the ISR timestamp and `litAt` is when the LED turned on—not when `loop()` noticed the press. If the loop were busy printing, the notice could be several milliseconds late and every measurement inflated. The interrupt timestamp is taken at the electrical edge, as close as the hardware allows.
+
+`random(2000, 5001)` returns 2000 to 5000 inclusive, because the upper bound is exclusive. `randomSeed(analogRead(A0))` uses the noise on a floating analog pin as the seed; on a real board each reset gives a different sequence, while in a simulator the pin may read a constant and the sequence can repeat. The `F()` macro keeps string literals in flash instead of copying them into the Uno's small SRAM.
+
+We ran this sketch in the simavr AVR simulator, driving pin 2 from a test script that pressed early once, then reacted after about 243 ms, 198 ms and 310 ms, including a few milliseconds of simulated bounce. This is the exact serial output:
+
+```text
+Get ready...
+Foul! You pressed too early.
+Get ready...
+Reaction: 242 ms  (new best!)
+Get ready...
+Reaction: 197 ms  (new best!)
+Get ready...
+Reaction: 310 ms
+Get ready...
+```
+
+The foul line appears because the test script pressed once during `WAITING`. The next three rounds show the measured reactions. The first two print 1 ms lower than the scripted 243 and 198 ms because `millis()` counts whole milliseconds: the LED and the press both fall somewhere inside a millisecond, and the difference of the truncated timestamps can be one count short. The 310 ms round happened to land on a boundary and printed 310. This is normal for millisecond timing and is well below human reaction-time differences.
+
+Three extensions are worth trying: average the last five rounds instead of keeping only the best; add a second button on pin 3 for two players; add a buzzer that beeps when the LED lights and after a new best. For the course, record a 15-second video of the game running, and push the code plus the video link to GitHub.
+
+## Common mistakes and a checklist
+
+The mistakes that cause the most confusion in this lesson:
+
+- A `delay()` hidden inside a library or a helper function. The call is not always visible in `loop()`, so trace every function that runs there.
+- Comparing absolute times (`now > last + PERIOD`) instead of elapsed time (`now - last >= PERIOD`). It works for a few weeks and then fails at the wrap.
+- Using `int` or signed `long` for timestamps instead of `unsigned long`. On the Uno, `int` overflows after about 32 seconds.
+- Forgetting `volatile` on a variable shared with an ISR. The loop keeps reading a stale cached copy.
+- Calling `Serial.print()` or `delay()` inside an ISR. Both can hang the board or lose time.
+- Attaching an interrupt to a pin without external-interrupt support. On the Uno only pins 2 and 3 work.
+- Choosing a debounce time longer than the shortest real press. Fast taps disappear.
+- Reading a multi-byte shared variable without disabling interrupts. A torn value can mix old and new bytes.
+
+Before you move on, you should be able to say yes to all of these:
+
+- I can explain why `delay()` is harmful in a robot, using the distance travelled as an example.
+- I can write the `millis()` pattern from memory, including the `last += PERIOD` update.
+- I can explain why `now - last` still works after `millis()` overflows, and why an absolute comparison does not.
+- I can sketch a state machine with states, transition conditions and entry actions.
+- I know the ISR rules: short, no `delay()`, no `Serial`, `volatile`, and atomic copies.
+- I can explain contact bounce and choose a sensible debounce time for a given button.

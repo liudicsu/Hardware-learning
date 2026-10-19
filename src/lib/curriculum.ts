@@ -123,6 +123,22 @@ const month2Lessons: Lesson[] = [
       { id: "falstad-pwm", text: { zh: "在本页 Falstad 中改变 PWM 占空比，确认平均电压 = 占空比 × 5 V", en: "Change the PWM duty in the Falstad embed and confirm average voltage = duty × 5 V" } },
     ],
   },
+  {
+    slug: "timing-interrupts",
+    title: { zh: "非阻塞计时、中断与按键消抖", en: "Non-blocking timing, interrupts & debouncing" },
+    summary: {
+      zh: "用 millis() 代替 delay() 同时做好几件事，学会中断和消抖，做出一个反应时间小游戏。",
+      en: "Replace delay() with millis() so one loop does many things, learn interrupts and debouncing, and build a reaction-timer game.",
+    },
+    minutes: 180,
+    resources: ["arduino-docs", "wokwi", "mcwhorter"],
+    tasks: [
+      { id: "two-blinks", text: { zh: "只用 millis()，让两个 LED 分别以 250 ms 和 400 ms 的周期独立闪烁", en: "Using only millis(), blink two LEDs independently at 250 ms and 400 ms periods" } },
+      { id: "debounce-py", text: { zh: "运行本课的 Python 消抖模拟，把消抖时间改成 2 ms，观察误触发次数", en: "Run the lesson's Python debounce simulation, change the debounce time to 2 ms and count the false presses" } },
+      { id: "reaction-timer", text: { zh: "完成反应时间游戏（随机延时、中断按键、串口输出毫秒数、抢按判犯规）", en: "Build the reaction-timer game (random delay, interrupt button, milliseconds to serial, early press = foul)" } },
+      { id: "reaction-video", text: { zh: "录一段 15 秒的演示视频，连同代码推送到 GitHub", en: "Record a 15-second demo video and push it with the code to GitHub" } },
+    ],
+  },
 ];
 
 export const months: Month[] = [
