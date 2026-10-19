@@ -73,7 +73,10 @@
       "interactive": "交互练习",
       "guide": "指南",
       "book": "书籍",
-      "hardware": "硬件"
+      "hardware": "硬件",
+      "software": "软件",
+      "service": "服务",
+      "model": "3D 模型"
     },
     "allTitle": "资源库",
     "allLead": "课程中引用的所有外部资源。版权归各自作者，本站只提供原创摘要与链接。标注“补充资源”的是本站额外推荐，不在原课程清单中。",

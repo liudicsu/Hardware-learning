@@ -6,9 +6,9 @@ Every output in the lessons that is labelled **Simulated output / 仿真输出**
 | Path / 路径 | What / 内容 |
 | --- | --- |
 | `avrrun/avrrun.c` | A small [simavr](https://github.com/buserror/simavr) harness: runs an ATmega328P (Uno) ELF, prints its serial output and injects pin or ADC events. Optional simulated parts: a TB6612FNG + gearmotor + quadrature encoder (`MOTOR`) and an MPU-6050 (`MPU`). / 基于 simavr 的小工具：运行 Uno 固件、打印串口输出、注入引脚/ADC 事件；可选模拟电机与编码器、MPU-6050 |
-| `models/*.py` | Python toy models quoted in the lessons (debounce, one revolution, complementary filter, line follower, balancer). Standard library only. / 课程中引用的 Python 玩具模型，只用标准库 |
+| `models/*.py` | Python toy models quoted in the lessons. Month 2: debounce, one revolution, complementary filter, line follower, balancer. Month 3: backlash, PID on one arm joint, balancer cascade. Standard library only. / 课程中引用的 Python 玩具模型（第 2 个月：消抖、一圈、互补滤波、循线、平衡车；第 3 个月：回差、单关节 PID、平衡车串级），只用标准库 |
 | `expected/*.txt` | The exact outputs quoted in the lessons. / 课程中引用的原样输出 |
-| `reproduce.sh` | Builds the harness, compiles the sketches in `examples/month-2/`, runs everything and diffs against `expected/`. / 一键编译、运行并与 `expected/` 比对 |
+| `reproduce.sh` | Builds the harness, compiles the sketches in `examples/month-2/` and `examples/month-3/`, runs everything and diffs against `expected/`. / 一键编译、运行并与 `expected/` 比对 |
 
 ## Prerequisites / 依赖
 
@@ -31,7 +31,7 @@ From a clean checkout / 在全新克隆的仓库中:
 ```bash
 git clone https://github.com/liudicsu/Hardware-learning.git
 cd Hardware-learning
-tools/sim/reproduce.sh                  # about 30 s; prints "same <file>" for each of the 15 outputs
+tools/sim/reproduce.sh                  # about 1 min; prints "same <file>" for each of the 19 outputs
 tools/sim/reproduce.sh --compile-only-too   # also compiles the ESP32 and line-follower sketches
 ```
 
@@ -55,6 +55,10 @@ python3 tools/sim/models/line_sim.py
 - `MOTOR=<battery volts>`: TB6612FNG on PWMA = D5, AIN1 = D7, AIN2 = D8 driving a toy gearmotor (0.8 V dead band, 260 counts/s per volt, time constant 50 ms, 10 ms when short-braking) with a quadrature encoder on D2/D3. / 玩具电机 + 编码器模型
 - `MPU=1`: MPU-6050 at 0x68: flat, tilted to 30° between 3 and 4 s, held, flat again between 7 and 8 s; gyro bias +1.5 °/s; deterministic noise; I2C bus time is not modelled. / 模拟 MPU-6050，脚本化倾斜，陀螺仪零偏 +1.5 °/s；不模拟 I2C 总线耗时
 - VCC, AVCC and AREF are 5.0 V. / 电源与参考电压均为 5.0 V
+- Pins with the internal pull-up on read high unless an event drives them; that is why the Month 3 cascade run only pulses the A channels (D2, D3) and the B channels (D10 = B2, D11 = B3) stay high, which the sketch counts as rolling backwards. / 开了内部上拉的引脚在没有事件驱动时读为高电平，所以第 3 个月串级程序的运行只给 A 相（D2、D3）发脉冲，B 相保持高电平，程序把它当作向后滚动
+
+The real (non-simulated) Month 3 outputs, from OpenSCAD and Python calculators, are checked by `examples/month-3/check.sh` instead.
+第 3 个月中非仿真的输出（OpenSCAD 与 Python 计算脚本）由 `examples/month-3/check.sh` 检查。
 
 ## Adding a new month / 新增月份时
 

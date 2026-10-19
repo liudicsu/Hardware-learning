@@ -7,6 +7,7 @@ Every program quoted in a lesson lives here, byte for byte the same as the code 
 | --- | --- | --- |
 | [`month-1/`](month-1/) | Python command-line tools (Lesson: Python & the terminal) / Python 命令行小工具 | Run on a computer; `month-1/check.sh` compares with the lesson / 在电脑上直接运行，`month-1/check.sh` 与课程输出对比 |
 | [`month-2/`](month-2/) | Arduino Uno and ESP32 sketches, one folder per lesson / Arduino Uno 与 ESP32 程序，每课一个目录 | Uno sketches run in the simavr simulator, ESP32 and line-follower sketches compiled only; see [`../tools/sim/`](../tools/sim/) / Uno 程序在 simavr 模拟器中运行；ESP32 与循线程序只编译 |
+| [`month-3/`](month-3/) | OpenSCAD parts, Python calculators and the balancer cascade sketch, one folder per lesson / OpenSCAD 零件、Python 计算脚本和平衡车串级程序，每课一个目录 | Parts and calculators run on a computer, `month-3/check.sh` compares with the lessons; the control models and the sketch go through `tools/sim/reproduce.sh` / 零件和计算脚本在电脑上运行，由 `month-3/check.sh` 比对；控制模型与程序由 `tools/sim/reproduce.sh` 复现 |
 
 **The standard for every month / 每个月都遵循的规范**
 - `examples/month-N/<lesson-slug>/` holds the code of that lesson, with a `README.md` (hardware, wiring, how to build).

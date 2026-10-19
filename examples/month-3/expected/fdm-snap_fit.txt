@@ -1,0 +1,5 @@
+L  5.0  t 1.5  hook 1.0 mm, PLA,  lead-in 30 deg: strain 9.00 % too much (limit 1.5 %) push-on 150.4 N
+L 10.0  t 1.5  hook 1.0 mm, PLA,  lead-in 30 deg: strain 2.25 % too much (limit 1.5 %) push-on  18.8 N
+L 10.0  t 1.2  hook 0.8 mm, PLA,  lead-in 30 deg: strain 1.44 % ok                     push-on   7.7 N
+L 10.0  t 1.2  hook 0.8 mm, PETG, lead-in 30 deg: strain 1.44 % ok                     push-on   4.4 N
+L 10.0  t 1.2  hook 0.8 mm, PLA,  lead-in 60 deg: strain 1.44 % ok                     push-on  30.7 N

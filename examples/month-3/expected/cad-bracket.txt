@@ -1,0 +1,6 @@
+ECHO: "cut-out (mm)", 22.8, "x", 12.4
+ECHO: "plate (mm)", 40.2, "x", 20.4, "x", 3
+ECHO: "screw pitch (mm)", 27.5, "tab overhang each side (mm)", 5
+size: 40.2 x 26.0 x 20.4 mm
+triangles: 580, edges not shared by exactly 2: 0  (watertight)
+volume: 4.95 cm^3, solid mass at 1.24 g/cm^3: 6.1 g

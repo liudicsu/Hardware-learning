@@ -73,6 +73,24 @@ python3 "$SIM/models/balance_sim.py" > "$OUT/m2-balance_sim.txt"
 ELF=$(compile "$EX/first-robots/balancer")
 MPU=1 avr "$ELF" 10000 > "$OUT/m2-balancer.txt"
 
+# Month 3 / Lesson 3: backlash toy model
+python3 "$SIM/models/backlash_sim.py" > "$OUT/m3-backlash_sim.txt"
+
+# Lesson 4: PID on one arm joint, the balancer cascade model, and the cascade firmware in simavr
+# with the simulated MPU-6050 and encoder pulses on D2/D3 as if the robot rolled backwards at
+# 0.1 m/s from 1.5 s to 5.5 s (the B channels stay high on their pull-ups = backwards)
+python3 "$SIM/models/pid_sim.py" > "$OUT/m3-pid_sim.txt"
+python3 "$SIM/models/cascade_sim.py" > "$OUT/m3-cascade_sim.txt"
+ELF=$(compile "$ROOT/examples/month-3/pid-control/balancer_cascade")
+ROLL=$(python3 -c "
+dt = 3.14159 * 0.065 / 90 / 0.1 * 1000      # ms between encoder counts at 0.1 m/s
+t, ev = 1500.0, []
+while t < 5500:
+    ev += [f'{t:.1f}:D2=1', f'{t + 2:.1f}:D2=0', f'{t + 5:.1f}:D3=1', f'{t + 7:.1f}:D3=0']
+    t += dt
+print(' '.join(ev))")
+MPU=1 avr "$ELF" 8000 $ROLL > "$OUT/m3-balancer_cascade.txt"
+
 if [[ "${1:-}" == "--compile-only-too" ]]; then
   echo "== compile-only sketches"
   for d in "$EX/arduino-io/blink_custom" "$EX/arduino-io/button_pullup" "$EX/first-robots/line_follower"; do

@@ -1,0 +1,335 @@
+## 选一个 CAD 工具
+
+第三个月的目标，是做出一个能真正装到别的东西上的实体零件：舵机、螺丝、轴承，或者另一块打印件。第一个决定不是某个功能，而是工具。课程的建议很直接：选一个 CAD 软件，然后深入用下去。四个都试一遍看起来很勤奋，但每个软件对草图、约束、装配的叫法都不同，换来换去消耗的正是你最需要的东西——画图的时间。目标不是收集软件，而是把零件做完。
+
+没有完美的选择，工具之间的差别也没有网上说的那么大。在下面四个工具中的任何一个投入大约 20 小时之后，学习曲线会趋同，工具本身远没有“把零件做完”重要。选一个最符合你处境和约束条件的，然后停止逛街。
+
+| 工具 | 费用 | 适合你的情况 | 代价 |
+| --- | --- | --- | --- |
+| Onshape 免费版 | 免费，浏览器内 | 你不在意设计公开；任何电脑都能跑，Chromebook 也行；装配和配合（mate）的行为像真实机器人关节 | 免费版的所有文档都是公开的 |
+| Fusion 个人版 | 个人非商业用途免费（年收入低于 $1,000） | 你以后想用 CAM 和 3D 打印集成 | 可导入导出的文件类型受限；许可需要续期。Autodesk 页面目前写的是 1 年，课程描述的是可续期的 3 年——注册时自己确认 |
+| FreeCAD | 免费、开源 | 不能用云 CAD 或不便用银行卡付款，或者你介意许可被收回；1.1 版（2026 年 3 月）之后真正好用了 | 学习曲线更陡，精良教程更少 |
+| SOLIDWORKS for Makers | $48/年 | 你想用工业界标准工具 | 原生文件带水印，商业版 SOLIDWORKS 打不开 |
+
+如果你的电脑很弱，或者你平时用 Chromebook，Onshape 是最省事的选择，因为繁重的计算发生在别人的服务器上。它的代价不是钱，而是隐私：免费版里的每一份文档都是公开的，不要把任何机密内容放进去。它的学习中心是一套结构完整的免费课程；如果你选这条路，下面这张卡片就是起点。
+
+<Resource id="onshape-learn" />
+
+本站的示例零件用 OpenSCAD 写成。它免费、开源，用代码描述零件。这个选择是为了可复现，而不是在告诉你“应该学哪个工具”。文本文件可以被任何人从仓库里 diff、review、重新运行；每个尺寸都看得见，改一个数就是一行 diff，而不是一个没有历史的二进制文件。OpenSCAD 不能替代基于草图的工具，它也不会像 Onshape、Fusion、FreeCAD 或 SOLIDWORKS 那样教你用约束思考。所以练习任务仍然要用上面四个工具中的一个来做。
+
+<Resource id="openscad" />
+
+<Callout type="tip" title="一分钟选型">
+Chromebook 或弱笔记本 → Onshape；以后要用 CAM/CNC → Fusion；不想注册账号、要离线、担心许可 → FreeCAD；公司或学校用 SOLIDWORKS → SOLIDWORKS for Makers。大约 20 小时后，学习曲线会趋同；工具远没有把零件做完重要。
+</Callout>
+
+## 草图与约束
+
+参数化 CAD 是一个循环：先画 2D 草图，把它变成特征——拉伸（extrude）、旋转（revolve）、切除（cut）、圆角（fillet）——再在结果上画下一张草图。顺序记录在历史里，通常叫特征树（feature tree）。修改早期草图，后面的特征会依次重建。这就是它全部的承诺：模型是一组指令，而不是一个冻住的形状。
+
+草图有自由度（degree of freedom, DOF）。2D 里一个自由点有 2 个自由度：x 和 y。一条线更多，因为两端都能动。约束（水平、竖直、重合、相等、相切、固定）消除自由度；尺寸也消除自由度，因为它固定了一段距离或一个角度。草图的自由度为 0 时，就是全约束（fully constrained）。多数工具用颜色表示这一点——Onshape、FreeCAD、Fusion 里线条会变黑——或者显示一个降到 0 的计数器。
+
+为什么要这么较真？因为欠约束的草图会在你以后修改别的东西时自己移动，毁掉你的一天。你改一个孔的位置，某条从没标注过的线悄悄滑到一边，支架就变成了废件。约束显示不是装饰，它是“可以安全编辑的模型”和“会自己改自己的模型”之间的分界线。
+
+### 从零到全约束
+
+画一个由四条线组成的矩形，端点已经连好。端点连好后，它是一个闭合环，有四个角点；每个角点可以在 x、y 方向移动，所以起始是 8 DOF。然后一条一条加约束：
+
+```text
+4 个角点 × 每个 2 DOF = 8 DOF
+2 个水平约束           = −2 → 6 DOF
+2 个竖直约束           = −2 → 4 DOF
+一个角点与原点重合      = −2 → 2 DOF
+宽度尺寸 40.2 mm       = −1 → 1 DOF
+高度尺寸 20.4 mm       = −1 → 0 DOF（全约束）
+```
+
+与原点重合去掉两个自由度，因为它同时固定 x 和 y。宽度和高度各去掉一个，因为每个只固定一段距离。40.2 和 20.4 不是随便写的：它们就是本课后面那块支架板的长度和高度。草图全约束之后，改任何一个尺寸都只会改变一件确定的事。
+
+一个圆有 3 DOF：圆心 x、圆心 y 和半径。所以放一个螺丝孔需要 2 个位置尺寸加 1 个直径。如果孔在中心线上，可以用对称约束省掉一个位置尺寸，但计数思路不变。这也是为什么“看起来位置对了”的孔还没有完成：没有直径和两个位置，它仍然可以移动或改变大小。
+
+几条实战习惯，都是吃过亏换来的：
+
+- 从基准（datum）标注——原点、中心线、一条参考边——不要边到边串联尺寸。串联尺寸会累积误差，一次修改会沿着链条一路传下去。
+- 舵机支架这类零件，用关于中心线的对称约束。一个尺寸控制两边，改尺寸后仍然对称。
+- 不要用眼睛把线“看”成水平，要约束它。偏 0.2° 在屏幕上完全看不出来，做出来的支架却是歪的。
+
+反过来是过约束（over-constrained）：两条约束互相打架，工具变红或直接拒绝，你怎么改都不满意。正确的做法是删掉一条约束，而不是把数字挪来挪去直到警告消失。互相矛盾的尺寸不是更精确，只是坏得更隐蔽。
+
+<Quiz id="q1" question="一张草图里有一个完全没约束的圆，外加一个全约束的矩形。还剩多少 DOF？" answer={3} unit="DOF" explanation="自由的圆有圆心 x、圆心 y 和半径 3 个自由度；矩形已经全约束，贡献 0。所以 3 + 0 = 3。" />
+
+<Quiz id="q2" question="你给一排五个孔标尺寸，每个孔距前一个孔 10 mm。第一个孔移动了 0.5 mm，最后一个孔会怎样？" options={["原地不动", "也跟着移动 0.5 mm", "移动 2.5 mm", "草图变成过约束"]} answer={1} explanation="串联尺寸会把变化一路带下去：每个孔都相对前一个定义，第一个移动多少，后面的孔就跟着移动多少。如果每个孔都该待在固定位置，就要从同一个基准分别标注。" />
+
+## 用参数驱动零件
+
+参数化设计真正有用，是当零件由变量驱动，而不是每个特征里手敲数字。改一个尺寸，整个零件更新。在图形界面里，这些叫法不同：Onshape 叫 variables，Fusion 叫 Change Parameters，FreeCAD 用 spreadsheet 或 VarSet。名字不同，思路完全一样。
+
+凡是依赖硬件的尺寸（舵机体、螺丝大小）或依赖打印机的尺寸（间隙），都做成命名参数。派生尺寸写成表达式，绝不重新敲一遍。比如切口长度是 `cut_l = servo_l + 2 * clearance`，而不是另一个需要你手动保持同步的数字。表达式本身就是文档：它说明了这个数为什么是这个数。第 2 课的卡扣外壳和第 6 课的夹爪手指，每个尺寸也都是这样由参数驱动的。
+
+### 拆开支架文件
+
+<CodeSource path="examples/month-3/cad-parametric/servo_bracket.scad" />
+
+```scad
+// servo_bracket.scad: a parametric L-bracket for an SG90-class micro servo.
+// Every size is a named parameter. Measure YOUR servo with calipers and change
+// the numbers at the top; never trust one datasheet drawing.
+//   Render:  openscad -o servo_bracket.stl servo_bracket.scad
+//   Change one value from the command line:  openscad -D clearance=0.4 -o b.stl servo_bracket.scad
+
+// --- the servo (common SG90 drawing: body 22.2 x 11.8 mm, 32.2 mm across the tabs) ---
+servo_l      = 22.2;   // body length, mm
+servo_w      = 11.8;   // body width, mm
+tab_span     = 32.2;   // length across both mounting tabs, mm
+hole_pitch   = 27.5;   // tab screw spacing: not on that drawing; sources say 27-28, measure it
+hole_d       = 2.0;    // tab hole for an M2 / self-tapping screw, mm
+
+// --- the printer and the bracket ---
+clearance    = 0.3;    // gap on each side of the body (from your tolerance gauge, Lesson 2)
+wall         = 3.0;    // plate thickness, mm
+margin       = 4.0;    // material left around the cut-out, mm
+base_depth   = 26.0;   // how far the foot sticks out, mm (servo body hangs ~16 mm behind the plate)
+mount_d      = 3.4;    // foot holes for M3 screws (3 mm + clearance), mm
+
+// --- derived sizes: computed, never typed in twice ---
+cut_l   = servo_l + 2 * clearance;
+cut_w   = servo_w + 2 * clearance;
+plate_l = tab_span + 2 * margin;
+plate_h = cut_w + 2 * margin;
+
+echo("cut-out (mm)", cut_l, "x", cut_w);
+echo("plate (mm)", plate_l, "x", plate_h, "x", wall);
+echo("screw pitch (mm)", hole_pitch, "tab overhang each side (mm)", (tab_span - servo_l) / 2);
+assert(hole_pitch > cut_l + hole_d, "screw holes would cut into the body opening");
+assert(hole_pitch < tab_span - hole_d, "screw holes would fall off the tabs");
+
+$fn = 32;
+
+module plate() {                       // upright plate that the servo tabs screw onto
+  difference() {
+    cube([plate_l, wall, plate_h]);
+    translate([(plate_l - cut_l) / 2, -1, margin])
+      cube([cut_l, wall + 2, cut_w]);
+    for (s = [-1, 1])
+      translate([plate_l / 2 + s * hole_pitch / 2, -1, plate_h / 2])
+        rotate([-90, 0, 0]) cylinder(d = hole_d, h = wall + 2);
+  }
+}
+
+module foot() {                        // horizontal foot that bolts to the robot
+  difference() {
+    cube([plate_l, base_depth, wall]);
+    for (s = [-1, 1])
+      translate([plate_l / 2 + s * 10, base_depth - 5, -1])   // in front of the servo body
+        cylinder(d = mount_d, h = wall + 2);
+  }
+}
+
+module gusset() {                      // triangular rib: stops the plate flexing
+  rotate([90, 0, 90]) linear_extrude(wall)
+    polygon([[wall, wall], [base_depth, wall], [wall, plate_h * 0.6]]);
+}
+
+plate();
+foot();
+gusset();
+translate([plate_l - wall, 0, 0]) gusset();
+```
+
+文件里的参数分三组。第一组描述舵机：机身长、机身宽、两片安装耳的总跨度、安装耳孔距和孔径。注释说明了数字的出处，也标出了哪一个不确定。第二组描述打印机和支架：间隙、板厚、切口周围的材料余量、底脚深度和底脚螺丝直径。第三组是派生尺寸：`cut_l`、`cut_w`、`plate_l`、`plate_h` 都由前两组算出来。
+
+`echo()` 打印派生尺寸，让你看到模型实际建成了什么，而不是你以为自己敲了什么。两个 `assert()` 是护栏。第一个在安装耳孔会切进机身开口时停止渲染；第二个在孔会掉出安装耳时停止渲染。断言失败比打印失败便宜得多。
+
+剩下的部分是形状。`plate()` 是立板，带舵机开口和两个安装耳孔。`foot()` 是水平底脚，带两个 M3 孔。`gusset()` 是三角形加强筋，放了两块，一边一块；舵机拉立板时，就是这条筋阻止立板弯曲。`difference()` 从实体块里减掉开口和孔；切割体多伸出的 `-1` 偏移让刀具完全穿过去，而不是留下一层薄皮。`$fn = 32` 控制圆的分段数。
+
+渲染出来，看看数字：
+
+```text
+$ openscad -o servo_bracket.stl servo_bracket.scad 2>&1 | grep ECHO
+ECHO: "cut-out (mm)", 22.8, "x", 12.4
+ECHO: "plate (mm)", 40.2, "x", 20.4, "x", 3
+ECHO: "screw pitch (mm)", 27.5, "tab overhang each side (mm)", 5
+```
+
+![由 servo_bracket.scad 渲染出的舵机支架：带舵机开口和两个安装耳孔的立板、带两个 M3 孔的底脚，以及两块三角形加强筋](/m3/servo_bracket.png)
+
+上图是 OpenSCAD 用上面的文件渲染出来的，脚本在 `examples/month-3/render_previews.sh`。它只在软件里渲染和检查过：本站编者没有把它打印出来，也没有装到舵机上试配。这是 CAD 模型在制造前的诚实状态——渲染只能证明几何自洽，不能证明公差正确。
+
+现在从命令行改一个参数：
+
+```text
+$ openscad -D clearance=0.15 -o b.stl servo_bracket.scad 2>&1 | grep cut-out
+ECHO: "cut-out (mm)", 22.5, "x", 12.1
+```
+
+算术就在输出里。长度是 22.2 + 2 × 0.15 = 22.5 mm，宽度是 11.8 + 2 × 0.15 = 12.1 mm。板长仍然是 40.2 mm，因为它只依赖 `tab_span` 和 `margin`：32.2 + 2 × 4.0 = 40.2。凡是依赖切口的尺寸（比如板高）会跟着切口变；不用间隙的尺寸则不动。这就是派生尺寸的意义：改一个输入，只有依赖它的量移动。
+
+<Quiz id="q3" question="当 servo_l = 22.2、clearance = 0.4 时，切口长度是多少毫米？" answer={23} unit="mm" explanation="cut_l = servo_l + 2 × clearance = 22.2 + 0.8 = 23.0 mm。" />
+
+## 从数据手册出发
+
+课程的规则很简单：围绕你真正拥有的硬件设计，从数据手册的图出发，而不是凭眼睛。数据手册图不是建议，它是厂家描述的、你必须装进去的外形包络。但它也不是一份完整的制造图，缺的那几个数正是新手翻车的地方。
+
+常见的 TowerPro 风格 SG90 图给出：机身 22.2 × 11.8 mm，两片安装耳总跨度 32.2 mm，总高 31 mm，从底部到安装耳下表面 16 mm。规格表把尺寸四舍五入成“约 22.2 × 11.8 × 31 mm”。这些足够排立板和开口，但它没有给安装耳孔距。
+
+其他来源对这一点并不一致。27.5 mm 是引用最多的数字，某个卖家写 28 mm，还有网站给出 23 × 32 mm 的“孔位图”——而 22.2 mm 的机身、32.2 mm 的耳跨根本装不下这样的孔位。最后这个例子提醒你：网上抄来抄去的数字，需要做一次常识检查。安装耳总共才跨 32.2 mm，机身才 22.2 mm 宽，一个 23 × 32 的图案描述的不是这只舵机。
+
+只看图也能估：每片耳伸出 (32.2 − 22.2) / 2 = 5 mm。孔开在耳中间，就得到 22.2 + 5 = 27.2 mm，接近 27.5。这是一个合理的起点，不是测量值。所以：从图出发，把所有找不到出处的数字在注释里标成估计值——`servo_bracket.scad` 就是这么做的——然后在打印前用卡尺量自己的舵机。
+
+### 用卡尺测量
+
+先把卡尺归零，测三次，取中间值。孔距的算法是：两孔外到外减去一个孔径，或者两孔内到内加上一个孔径。两种都对，因为外到外包含的是两个半孔，合起来正好一个完整直径。
+
+```text
+外到外 29.5 mm，孔径 2.0 mm
+孔距 = 29.5 − 2.0 = 27.5 mm
+```
+
+这组示例读数恰好得到 27.5 mm，也就是引用最多的那个数；你的舵机不一定是这个数。如果你的量出 28.1 mm，就把参数改成 28.1，并把这次测量写进装配记录（fit log）。不要把自己的测量和网站上的数字取平均；要平均，也只平均自己的三次读数。
+
+间隙是图纸给不了的另一个数。图纸是名义尺寸；打印出来的孔通常偏小，外形通常偏大，所以切口每边都要留间隙。这里的 0.3 mm 是占位值，等第 2 课的公差测试件（tolerance gauge）给出你打印机的真实数字后再替换。调得好的机器可能接近这个值；过挤出或象脚明显的机器，0.3 mm 可能远远不够。
+
+输出轴间隙和机身间隙是两回事。支架不能碰到输出轴，也不能碰到转动的舵机臂。矩形切口只避开了机身，但舵机臂会扫过一个圆，螺丝头或加强筋可能正好坐在这个圆里。要在装配里检查运动包络，不能只看静态配合。
+
+断言能提前抓住一类坏数字。把孔距设成 24 mm：
+
+```text
+$ openscad -D hole_pitch=24 -o b.stl servo_bracket.scad 2>&1 | grep ERROR
+ERROR: Assertion '(hole_pitch > (cut_l + hole_d))' failed: "screw holes would cut into the body opening" in file servo_bracket.scad, line 30
+```
+
+24 mm 小于 `cut_l + hole_d` = 22.8 + 2.0 = 24.8 mm，所以孔会破进开口，而不是落在实心的安装耳材料里。断言把沉默的坏零件变成响亮的错误，避免你浪费耗材。它不能证明设计正确，只检查了作者想到的那两个关系。该量的还是得量。
+
+<Quiz id="q4" question="卡尺跨两个 2.2 mm 的孔量到外到外 30.1 mm，孔距是多少？" options={["30.1 mm", "32.3 mm", "27.9 mm", "28.0 mm，因为某个卖家这么写"]} answer={2} explanation="外到外包含一个完整孔径，所以孔距 = 30.1 − 2.2 = 27.9 mm。32.3 mm 是把直径加上去而不是减掉；28.0 mm 是别人的舵机，不是你的测量。" />
+
+## 装配与配合
+
+装配把零件按相对位置放在一起。空间里的自由刚体有 6 个自由度：3 个平移加 3 个旋转。配合（mate）去掉其中一部分，留下其余部分。真实关节也正是这样工作的，所以一个好的装配不只是为了出图。
+
+| 配合 | 剩余 DOF | 真实关节 | 机器人上的例子 |
+| --- | --- | --- | --- |
+| 固定（fixed） | 0 | 螺栓或焊接接头 | 支架用螺栓固定在底盘上 |
+| 转动（revolute） | 1 个旋转 | 铰链、舵机输出 | SO-101 的一节臂 |
+| 滑动（slider） | 1 个平移 | 直线导轨、抽屉 | 导轨上的相机滑座 |
+
+装配要照真实运动方式来做，这样你才能拖动整个行程、看见碰撞。舵机要作为真实零件加入，不要凭眼睛画一个盒子。很多卖家和 SO-101 仓库都发布舵机的 STEP 模型；第 5 课用的就是这些已发布模型。外形尺寸正确的盒子能装进支架，却看不出舵机臂扫到哪里、线从哪里出来。
+
+干涉检查是装配的第二个任务。多数工具能显示两个零件在哪里重叠，有些还能沿运动路径检查碰撞。第 2 课在 OpenSCAD 里用闭合盖子和底座求交，做的也是同一件事：交集只要有体积，就是干涉。在软件里发现只要几分钟；打印完再发现，就是一卷耗材和一个下午。
+
+<Quiz id="q5" question="一个零件用一个转动（revolute）配合连接，还剩多少 DOF？" answer={1} unit="DOF" explanation="自由刚体原本有 6 个自由度。转动配合去掉三个平移和两个旋转，只留下绕关节轴的一个旋转。" />
+
+## STEP、STL 与 3MF
+
+三种格式几乎覆盖了业余机器人所需的全部情况，而混淆它们会带来很多不必要的痛苦。
+
+STEP 是精确几何：真正的圆柱、平面和边，以实体模型保存。任何 CAD 工具都能编辑它，是分享设计、找加工店做零件的格式。如果朋友想改你的孔径，就发 STEP。
+
+STL 只是三角网格。它没有单位，也没有真正的圆：一个 2 mm 的孔会变成有限个平面的多边形。切片器吃 STL，所以它到处都是，但它是编辑的死胡同。不要把 STL 当成母版文件。
+
+3MF 也是网格，但一个文件里带单位、颜色、多个零件和打印设置。它越来越成为更好的切片格式，尤其当一次打印有多个实体或需要特定摆放方向时。它仍然是输出格式，不是 CAD 模型的替代品。
+
+规则是：保留 CAD 文件，并导出 STEP，作为母版。STL 和 3MF 是随时可以重新生成的一次性输出。只留 STL，等于留下复印件、扔掉原件。
+
+切片前还要注意孔的边数。OpenSCAD 的 `$fn` 决定一个圆有多少条边；支架用 `$fn = 32`。在这个尺度下，M2 或 M3 的孔够用了，但压配或轴承座可能需要更多。边越多，圆越光滑，文件也越大；边太少，拧螺丝时能感觉到孔是“棱”的。切片前检查网格。
+
+### 切片前检查网格
+
+<CodeSource path="examples/month-3/cad-parametric/stl_info.py" />
+
+```python
+"""stl_info.py: check an exported STL before you slice it.
+
+Prints the bounding box, the triangle count, whether every edge is shared by exactly two
+triangles (a "watertight" mesh that slicers can fill), the volume, and the mass of a solid
+print. Reads ASCII or binary STL. No packages needed.
+Usage: python3 stl_info.py part.stl [density g/cm^3, default 1.24 for PLA]
+"""
+import struct
+import sys
+from collections import Counter
+
+
+def load(path):
+    data = open(path, "rb").read()
+    if data[:5] == b"solid" and b"facet" in data[:400]:          # ASCII STL
+        nums = [tuple(map(float, line.split()[1:4]))
+                for line in data.decode().splitlines() if line.strip().startswith("vertex")]
+        return [nums[i:i + 3] for i in range(0, len(nums), 3)]
+    (count,) = struct.unpack_from("<I", data, 80)                 # binary STL
+    tris = []
+    for i in range(count):
+        v = struct.unpack_from("<12f", data, 84 + 50 * i)
+        tris.append([v[3:6], v[6:9], v[9:12]])
+    return tris
+
+
+def volume(tris):
+    """Sum of signed tetrahedra from the origin: exact for a closed mesh."""
+    total = 0.0
+    for a, b, c in tris:
+        total += (a[0] * (b[1] * c[2] - b[2] * c[1])
+                  - a[1] * (b[0] * c[2] - b[2] * c[0])
+                  + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6.0
+    return abs(total)
+
+
+def main():
+    path = sys.argv[1]
+    density = float(sys.argv[2]) if len(sys.argv) > 2 else 1.24
+    tris = load(path)
+    pts = [p for t in tris for p in t]
+    lo = [min(p[i] for p in pts) for i in range(3)]
+    hi = [max(p[i] for p in pts) for i in range(3)]
+    edges = Counter()
+    for t in tris:
+        for i in range(3):
+            edges[tuple(sorted((t[i], t[(i + 1) % 3])))] += 1
+    open_edges = sum(1 for n in edges.values() if n != 2)
+    vol = volume(tris) / 1000.0                                   # mm^3 -> cm^3
+    print(f"size: {hi[0] - lo[0]:.1f} x {hi[1] - lo[1]:.1f} x {hi[2] - lo[2]:.1f} mm")
+    print(f"triangles: {len(tris)}, edges not shared by exactly 2: {open_edges}"
+          + ("  (watertight)" if open_edges == 0 else "  (NOT watertight: fix before slicing)"))
+    print(f"volume: {vol:.2f} cm^3, solid mass at {density} g/cm^3: {vol * density:.1f} g")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+拿导出的支架跑一遍：
+
+```text
+$ python3 stl_info.py servo_bracket.stl
+size: 40.2 x 26.0 x 20.4 mm
+triangles: 580, edges not shared by exactly 2: 0  (watertight)
+volume: 4.95 cm^3, solid mass at 1.24 g/cm^3: 6.1 g
+```
+
+尺寸对应板长 40.2 mm、底脚深度 26.0 mm、板高 20.4 mm。watertight 表示每条三角形边正好被两个三角形共享，切片器能分清内外并正确填充。体积技巧是把有符号四面体从原点加起来；对闭合网格来说，外面的符号会互相抵消，剩下真实体积。6.1 g 是 100% 实心零件的质量；切片器按壁厚和 15–20% 填充估算会更低。
+
+不同 OpenSCAD 版本写出的三角形数量不同，你的数量可能不是 580。尺寸和 watertight 结果应当一致，体积应当接近。如果“未被恰好两个三角形共享的边”不为 0，先停下来修网格再切片；不封闭的模型可能缺壁，或者切片器直接拒绝。
+
+<Quiz id="q6" question="你想让朋友在他们自己的 CAD 里改支架的孔径，应该发哪个文件？" options={["STL", "3MF", "G-code", "STEP"]} answer={3} explanation="STEP 保存精确、可编辑的几何。STL 和 3MF 是网格，G-code 是已经为某台打印机切好的指令；后三者都不是 CAD 源文件。" />
+
+## 练习：舵机支架
+
+练习任务是这样的：给你真正买到的那只舵机做一个支架，螺丝孔尺寸正确，输出轴有间隙，依据厂家的数据手册图，而不是凭眼睛。然后把它打印出来，看它装不装得上。第一次多半装不上，而这个失败就是课程的一部分。差 0.4 mm 的支架比碰巧能用的支架教得更多，因为它逼你找出到底是哪个数错了。
+
+如果你在第 2 个月的 ESP32 课里用过一个小舵机（通常就是 SG90），就用它。画之前先量。数据手册让你接近，卡尺告诉你手里这个到底是什么。
+
+模型完成之前，对照这张清单：
+
+- 所有草图全约束（处处 0 DOF）。
+- 每个硬件尺寸和间隙都是命名参数。
+- 尺寸从基准标注，不串联。
+- 估计值明确标成估计值。
+- 保留 STEP 母版，并导出 STL/3MF。
+- 一份简短的 fit log：量了什么、改了什么、改了多少。
+
+本课的 OpenSCAD 文件只用来核对你的数字，不要代替你在选定工具里画图。如果你的支架算出 40.2 mm，示例也是 40.2 mm，那是值得复核的巧合，不是跳过草图的理由。数字不同，先弄懂为什么，再改。
+
+<Callout type="warn" title="先量舵机">
+没量过的舵机，不要打印支架。数据手册是起点，卡尺才是事实。打出来紧 0.5 mm 不是公差问题，是你跳过了一次测量。
+</Callout>
+
+下一步是第 2 课。打印一个公差测试件，找到你打印机的真实间隙，把本课里的 0.3 mm 占位值换成属于你这台机器的数字。支架在屏幕上看着对不算完成；装得上才算完成。

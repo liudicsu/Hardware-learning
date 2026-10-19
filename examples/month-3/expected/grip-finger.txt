@@ -1,0 +1,4 @@
+ECHO: "finger (mm)", 65, "x", 22, "x", 18
+size: 65.0 x 22.0 x 18.0 mm
+triangles: 340, edges not shared by exactly 2: 0  (watertight)
+volume: 5.72 cm^3, solid mass at 1.21 g/cm^3: 6.9 g

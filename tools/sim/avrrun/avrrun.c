@@ -110,11 +110,12 @@ int main(int argc, char **argv) {
     avr_raise_irq(avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('D'), 2), 0);
     avr_raise_irq(avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('D'), 3), 0);
   }
-  int state = cpu_Running;
+  int state = cpu_Running, first = 0;      // events before `first` have all been applied
   while (state != cpu_Done && state != cpu_Crashed) {
     double now = avr->cycle / 16000.0;
     if (now >= end) break;
-    for (int i = 0; i < n; i++) if (!ev[i].done && now >= ev[i].ms) {
+    while (first < n && ev[first].done) first++;
+    for (int i = first; i < n; i++) if (!ev[i].done && now >= ev[i].ms) {
       ev[i].done = 1;
       if (ev[i].kind == 'A') avr_raise_irq(avr_io_getirq(avr, AVR_IOCTL_ADC_GETIRQ, ADC_IRQ_ADC0 + ev[i].bit), ev[i].val);
       else avr_raise_irq(avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ(ev[i].port), ev[i].bit), ev[i].val);

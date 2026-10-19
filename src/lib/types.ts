@@ -9,7 +9,10 @@ export type ResourceKind =
   | "interactive"
   | "guide"
   | "book"
-  | "hardware";
+  | "hardware"
+  | "software"
+  | "service"
+  | "model";
 
 export interface Resource {
   id: string;

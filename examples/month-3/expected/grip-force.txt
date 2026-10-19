@@ -1,0 +1,4 @@
+safety factor 2.0, arm acceleration 3.0 m/s^2
+egg                60 g  ->  PLA (mu 0.3):  2.6 N, TPU (mu 0.8):  1.0 N
+full 330 ml can   350 g  ->  PLA (mu 0.3): 14.9 N, TPU (mu 0.8):  5.6 N
+AA battery         23 g  ->  PLA (mu 0.3):  1.0 N, TPU (mu 0.8):  0.4 N

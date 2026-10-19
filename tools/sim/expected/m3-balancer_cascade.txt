@@ -1,0 +1,8 @@
+gyro bias (deg/s): 1.54
+pitch -1.4  setpoint 0.00  speed 0.000  worst loop us 840
+pitch -0.2  setpoint 0.35  speed -0.057  worst loop us 900
+pitch 3.6  setpoint 0.65  speed -0.057  worst loop us 920
+pitch 30.0  setpoint 0.95  speed -0.057  worst loop us 904
+pitch 29.8  setpoint 1.43  speed -0.113  worst loop us 900
+pitch 30.1  setpoint 1.20  speed 0.000  worst loop us 900
+pitch 26.2  setpoint 1.20  speed 0.000  worst loop us 844

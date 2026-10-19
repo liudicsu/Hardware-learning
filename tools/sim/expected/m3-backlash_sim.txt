@@ -1,0 +1,9 @@
+target 20 deg (gravity loads the teeth):
+  no backlash, arm encoder:        arm at  20.00 deg (target 20), swinging 0.01 deg peak to peak in the last second
+  2 deg backlash, motor encoder:   arm at  18.45 deg (target 20), swinging 0.01 deg peak to peak in the last second
+  2 deg backlash, arm encoder:     arm at  20.00 deg (target 20), swinging 0.01 deg peak to peak in the last second
+target 90 deg (arm straight up, no gravity load):
+  no backlash, arm encoder:        arm at  90.00 deg (target 90), swinging 0.01 deg peak to peak in the last second
+  2 deg backlash, motor encoder:   arm at  91.01 deg (target 90), swinging 0.01 deg peak to peak in the last second
+  2 deg backlash, arm encoder:     arm at  89.82 deg (target 90), swinging 1.16 deg peak to peak in the last second
+  ...same, plus a spring preload:  arm at  90.00 deg (target 90), swinging 0.01 deg peak to peak in the last second

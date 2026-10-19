@@ -206,6 +206,25 @@ const month2Lessons: Lesson[] = [
   },
 ];
 
+const month3Lessons: Lesson[] = [
+  {
+    slug: "cad-parametric",
+    title: { zh: "CAD：选好工具，用参数设计", en: "CAD: pick a tool, then design with parameters" },
+    summary: {
+      zh: "选一个 CAD 工具深入下去：完全约束的草图、参数驱动的尺寸、照数据手册建模，以及 STEP 和 STL 的区别。",
+      en: "Pick one CAD tool and go deep: fully constrained sketches, parameters that drive every size, modelling from the datasheet, and STEP versus STL.",
+    },
+    minutes: 150,
+    resources: ["onshape-free", "onshape-learn", "fusion-personal", "pdo-fusion30", "freecad", "mangojelly", "solidworks-makers", "openscad"],
+    tasks: [
+      { id: "pick-tool", text: { zh: "选定一个 CAD 工具，完成它的入门课程（Onshape 基础课或 30 天 Fusion 的前 5 天）", en: "Pick one CAD tool and finish its starter course (Onshape Fundamentals or the first 5 days of Fusion in 30 Days)" } },
+      { id: "constrained", text: { zh: "画一个完全约束（0 自由度）的草图，尺寸都从基准标注", en: "Draw a fully constrained (0 DOF) sketch with every dimension taken from a datum" } },
+      { id: "measure-servo", text: { zh: "用卡尺测量你自己的舵机（机身、安装耳宽度、孔距），和数据手册对比并记录差异", en: "Measure your own servo with calipers (body, tab span, hole spacing), compare with the datasheet and log the differences" } },
+      { id: "bracket", text: { zh: "按数据手册和实测尺寸建一个参数化舵机支架，导出 STEP 和 STL", en: "Model a parametric servo bracket from the datasheet and your measurements; export STEP and STL" } },
+    ],
+  },
+];
+
 export const months: Month[] = [
   {
     id: 1,
@@ -266,12 +285,13 @@ export const months: Month[] = [
       zh: "在 CAD 中设计一个零件，把它制造出来，并且装得上。",
       en: "Design a part in CAD, manufacture it, and have it fit.",
     },
-    status: "outline",
+    status: "ready",
     topics: [
       { zh: "CAD：Onshape / Fusion / FreeCAD / SOLIDWORKS 选型与参数化建模", en: "CAD: choosing Onshape / Fusion / FreeCAD / SOLIDWORKS; parametric modelling" },
       { zh: "3D 打印：校准、公差与面向 FDM 的设计", en: "3D printing: calibration, tolerances and design for FDM" },
       { zh: "执行器、传动与回差", en: "Actuators, transmissions and backlash" },
       { zh: "组装并改造一台真实的机械臂", en: "Build and modify a real robot arm" },
+      { zh: "控制：PID、积分饱和与串级回路（本站补充）", en: "Control: PID, windup and cascade loops (site supplement)" },
     ],
     milestones: [
       { zh: "根据数据手册用完全约束的草图建模零件", en: "Model a part from a datasheet with fully constrained sketches" },
@@ -280,8 +300,9 @@ export const months: Month[] = [
       { zh: "为零件选择 PLA/PETG/ABS/TPU 并说明理由", en: "Choose PLA, PETG, ABS or TPU for a part and justify it" },
       { zh: "解释并演示回差", en: "Explain and demonstrate backlash" },
       { zh: "展示一台你组装、校准并用自制零件改造过的机械臂", en: "Show a robot arm you assembled, calibrated and modified with your own parts" },
+      { zh: "让第 2 个月的平衡车靠串级外环在 60 秒内停在原地（本站补充）", en: "Keep Month 2's balancer in place for 60 s with a cascade outer loop (site supplement)" },
     ],
-    lessons: [],
+    lessons: month3Lessons,
   },
   {
     id: 4,
