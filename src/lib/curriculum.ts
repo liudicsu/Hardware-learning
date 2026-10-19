@@ -155,6 +155,22 @@ const month2Lessons: Lesson[] = [
       { id: "pin-audit", text: { zh: "为你的板子列一张引脚表：哪些是启动绑定引脚、哪些 ADC 在 Wi-Fi 下不能用", en: "Write a pin table for your board: which pins are strapping pins and which ADC pins stop working with Wi-Fi" } },
     ],
   },
+  {
+    slug: "motors-drivers",
+    title: { zh: "电机、驱动器与编码器闭环", en: "Motors, drivers & your first encoder loop" },
+    summary: {
+      zh: "认识四类执行器，理解 H 桥与续流二极管，选对驱动芯片，并用编码器让车轮精确转一整圈。",
+      en: "Meet the four actuator types, understand H-bridges and flyback diodes, pick the right driver, and use an encoder to turn a wheel exactly one revolution.",
+    },
+    minutes: 210,
+    resources: ["dronebot-l298n", "sparkfun-tb6612", "dronebot-stepper", "simplefoc", "drv8833", "tb6612-breakout", "romi-gearmotor-encoder", "a4988", "sts3215"],
+    tasks: [
+      { id: "falstad-kick", text: { zh: "在 Falstad 中对比有无续流二极管时，断开电感瞬间的电压尖峰", en: "In Falstad, compare the voltage spike when an inductor is switched off with and without a flyback diode" } },
+      { id: "five-speeds", text: { zh: "用 PWM 让一个直流电机正反转、各跑五档速度，记录每档的实际转速", en: "Drive a DC motor forward and back at five PWM speeds and record the actual speed at each" } },
+      { id: "loop-sim", text: { zh: "运行本课的 Python 闭环模拟，比较开环定时和编码器闭环在不同电池电压下的结果", en: "Run the lesson's Python loop simulation and compare timed open loop vs encoder closed loop at different battery voltages" } },
+      { id: "one-rev", text: { zh: "在真车轮上实现“恰好转一圈”函数，并在两种电池电压下验证", en: "Implement “turn exactly one revolution” on a real wheel and check it at two battery voltages" } },
+    ],
+  },
 ];
 
 export const months: Month[] = [
