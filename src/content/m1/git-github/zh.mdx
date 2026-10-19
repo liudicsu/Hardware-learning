@@ -1,0 +1,394 @@
+## 为什么从今往后的机器人项目都要放进仓库
+
+从这一课开始，每个项目都要有一个 Git 仓库（repository，简称 repo）。仓库不只是文件夹：它保存项目的完整历史——每一个存过的版本、谁改的、什么时候改的、为什么改。历史本身就是价值。机器人某次“只改了一点点”之后不工作了，你可以把它和最后一个能工作的版本对比，看清到底哪几行变了；实在不行就退回去。没有版本控制，你最后只会得到一堆 `robot_final_v3_really`。
+
+Git 是版本控制工具，GitHub 是托管 Git 仓库的网站。Git 在本地离线也能用；GitHub 让项目被看见——公开的仓库列表就是作品集，招聘方和队友往往先读 README，再看代码。机器人项目里混杂着 Python 脚本、Arduino 程序、接线笔记、标定数据和照片，仓库把它们放在一起，还带时间。本课的第一个仓库会装下第一个月的 `ohm.py` 和 `log.py`。
+
+## 心智模型：快照、三个区域和一个会移动的标签
+
+**提交（commit）** 是项目在某一刻的完整快照，加上一条说明、作者、时间，以及指向上一个提交（父提交，parent）的指针。Git 主要存的不是“差异”，而是快照；需要时才计算差异。所以任何一次提交都对应一个完整、可返回的状态。
+
+要分清三个区域：
+
+- **工作区（working directory）**：磁盘上此刻的文件，包括还没暂存的修改。
+- **暂存区（staging area / index）**：下一次提交的草稿。`git add` 把文件当前的内容复制进去。
+- **仓库（repository）**：`.git` 目录，提交永久存放在这里。
+
+`git commit` 把暂存区里的内容做成新提交；改了但没暂存的内容留在工作区，不会进去。这是 Git 最有用的一个概念：**每一次快照里放什么，由你决定。**
+
+**分支（branch）** 是一个指向某个提交的可移动标签。`main` 是默认分支。在分支上提交，标签自动向前移动。分支不是文件夹的副本，只是一个名字，所以创建几乎瞬间完成。**HEAD** 表示“你现在在哪”：通常它指向一个分支，分支再指向提交；如果 HEAD 直接指向某个提交，就是分离头指针状态（detached HEAD）。
+
+```text
+working directory ──git add──▶ staging area ──git commit──▶ repository
+   (your edits)                    (index)                   (.git)
+
+main     A ───── B ───── C
+                          ╲
+feature                    D ───── E
+                                   ▲
+                                  HEAD
+```
+
+图中 A、B、C 在 `main` 上。`feature` 从 C 分出去，多了 D、E 两个提交。HEAD 现在指向 `feature`，所以磁盘上的文件是快照 E。切回 `main`，文件变成快照 C；D、E 没消失，因为 `feature` 标签还指着它们。
+
+## 一次性配置
+
+从 git-scm.com 或系统包管理器安装 Git，然后检查 `git --version`。建议 2.30 以上；本课用的 `git switch` 和 `git restore` 从 2.23 开始提供。Windows 装 Git for Windows，会自带 Git Bash；macOS 通常执行 `xcode-select --install` 就够。
+
+每台机器配置一次身份：
+
+```bash
+git config --global user.name "Your Name"
+git config --global user.email "you@example.com"
+git config --global init.defaultBranch main
+```
+
+`--global` 表示对这台电脑上的所有仓库生效；在某个仓库里去掉它，就能给那个项目单独设置身份。邮箱填 GitHub 账号绑定的地址，或者用 GitHub 提供的 noreply 地址。第三行让新仓库默认从 `main` 开始，而不是旧版的 `master`。
+
+注册 GitHub 账号，然后选一种认证方式。最省事的是 GitHub CLI：
+
+```bash
+gh auth login
+```
+
+依次选择 GitHub.com、SSH 或 HTTPS，在浏览器里完成登录。
+
+也可以走经典的 SSH 密钥：
+
+```bash
+ssh-keygen -t ed25519 -C "you@example.com"
+```
+
+路径直接回车用默认值，然后设置一个口令（passphrase）。`id_ed25519` 是私钥，永远不要发给别人；`id_ed25519.pub` 是公钥。用 `cat ~/.ssh/id_ed25519.pub` 查看并复制，打开 GitHub 的 Settings → SSH and GPG keys → New SSH key，粘贴保存。测试：
+
+```bash
+ssh -T git@github.com
+```
+
+第一次连接会问是否信任主机，输入 `yes`。看到类似 `Hi <username>! You've successfully authenticated, but GitHub does not provide shell access.` 就成功了，最后一句“不提供 shell”是正常现象。
+
+## 日常循环：改、暂存、提交
+
+假设 `ohm.py` 和 `log.py` 已经在当前目录。建项目目录并初始化：
+
+```bash
+mkdir month1-tools
+cd month1-tools
+git init
+```
+
+`git init` 会打印 `Initialized empty Git repository in .../.git/`。隐藏的 `.git` 目录就是全部历史，不要手动改或删。如果不小心在主目录执行了 `git init`，先把那里的 `.git` 删掉，免得它把整个家目录都纳入版本控制。
+
+第一次提交前先写 `.gitignore`：
+
+```text
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+```
+
+`.venv/` 里是跟机器相关的虚拟环境文件，`__pycache__/` 和 `*.pyc` 是 Python 自动生成的字节码，`.DS_Store` 是 macOS 访达的元数据。结尾的 `/` 匹配目录，`*` 匹配任意字符。忽略规则只对**未跟踪**的文件生效；已经提交过的文件要先 `git rm -r --cached <路径>` 从索引里移除。
+
+把两个脚本复制进来，然后看状态：
+
+```text
+On branch main
+
+No commits yet
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+        .gitignore
+        log.py
+        ohm.py
+
+nothing added to commit but untracked files present (use "git add" to track)
+```
+
+“未跟踪（untracked）”表示 Git 看见了文件，但还没开始跟踪。只暂存你真正想提交的文件：
+
+```bash
+git add ohm.py log.py .gitignore
+```
+
+三个文件现在都在暂存区。提交：
+
+```bash
+git commit -m "Add Ohm's law calculator and measurement log"
+```
+
+```text
+[main (root-commit) 9f2c1ab] Add Ohm's law calculator and measurement log
+ 3 files changed, 84 insertions(+)
+ create mode 100644 .gitignore
+ create mode 100644 log.py
+ create mode 100644 ohm.py
+```
+
+`9f2c1ab` 是短哈希（short hash）。`root-commit` 表示这是第一个提交，没有父提交。看历史：
+
+```bash
+git log --oneline
+```
+
+```text
+9f2c1ab (HEAD -> main) Add Ohm's law calculator and measurement log
+```
+
+HEAD 和 `main` 都指向这里。之后用 `git log --oneline --graph --all` 可以把分支画成线。
+
+### 两种 diff
+
+`git diff` 比较**工作区和暂存区**，显示你改了但还没暂存的内容。`git diff --staged` 比较**暂存区和最后一次提交**，也就是下一次提交真正会加进去的东西。改 `ohm.py` 里一行：
+
+```bash
+git diff
+```
+
+```text
+diff --git a/ohm.py b/ohm.py
+index 3b1c2d4..8e9f0a1 100644
+--- a/ohm.py
++++ b/ohm.py
+@@ -12,7 +12,7 @@ def ohms_law(voltage, resistance):
+-    print(f"current = {current:.3f} A")
++    print(f"current = {current:.4f} A")
+```
+
+`-` 是旧行，`+` 是新行。此时还没暂存，所以 `git diff --staged` 是空的。执行 `git add ohm.py` 之后，`git diff` 变空，`git diff --staged` 显示同一行改动。养成习惯：**每次提交前先读 `git diff --staged`**。看到密码、巨大的数据文件或无关的实验，就把它撤出暂存区。
+
+<Quiz id="q1" question="哪条命令把改动放进暂存区？" options={["git commit", "git add", "git push"]} answer={1} explanation="git add 把文件当前的内容复制进暂存区。它不会创建提交，也不会上传任何东西；git commit 和 git push 是后面两步。" />
+
+## 把仓库放到 GitHub 上
+
+先在 github.com 上建一个空仓库：名字叫 `month1-tools`，作品集项目选 Public。如果本地已经有提交，**不要**勾选添加 README、`.gitignore` 或 license。每勾一项，GitHub 都会创建一个你本地没有的提交，第一次推送就会因为 non-fast-forward 被拒绝。
+
+用 GitHub CLI 一条命令搞定：
+
+```bash
+gh repo create month1-tools --public --source=. --push
+```
+
+`--source=.` 表示使用当前目录的仓库，`--push` 会立刻把 `main` 推上去。
+
+手动方式：
+
+```bash
+git remote add origin git@github.com:<you>/month1-tools.git
+git push -u origin main
+```
+
+把 `<you>` 换成你的用户名。`origin` 只是给远程地址起的惯用昵称。`-u` 设置上游分支，之后直接 `git push`、`git pull` 就知道对应 `origin/main`。用 HTTPS 的话地址是 `https://github.com/<you>/month1-tools.git`；Git 会要凭据，用个人访问令牌（personal access token）比账号密码安全。
+
+用 `git remote -v` 检查。地址打错就 `git remote set-url origin <正确地址>`。如果推送报 `src refspec main does not match any`，要么还没有提交，要么本地分支还叫 `master`；执行 `git branch -M main` 再推。如果远程仓库带了 README，先 `git pull --rebase origin main` 把它的历史接上，再推。
+
+之后记住节奏：**开始干活前先 pull，告一段落就 push**。`git pull` 取回并整合远程提交，`git push` 上传你的提交。两者都不能替代“把工作提交到本地”。
+
+## 分支与合并
+
+分支让你在不碰 `main` 的情况下试新东西：
+
+```bash
+git switch -c feature/json-log
+```
+
+`-c` 是 create。`git branch` 会在当前分支前标 `*`，`git status` 也会显示 `On branch feature/json-log`。改 `log.py`，让每条测量写成一行 JSON，测试通过后提交：
+
+```bash
+git add log.py
+git commit -m "Write measurements as JSON lines"
+```
+
+提交落在 `feature/json-log` 上，`main` 没动。`git switch main` 后，JSON 改动从文件里消失，但它没丢：feature 标签还指着它。合并：
+
+```bash
+git merge feature/json-log
+```
+
+如果 `main` 从建分支后一直没动，Git 会做**快进合并（fast-forward）**：直接把 `main` 标签滑到前面，不产生合并提交。如果两边都有新提交，Git 会创建一个有两个父提交的**合并提交（merge commit）**。`git log --oneline --graph --all` 能看到结果。合并完删除标签：
+
+```bash
+git branch -d feature/json-log
+```
+
+`-d` 对未合并的分支会拒绝删除，这是有用的保护；`-D` 强制删除。
+
+### 合并冲突长什么样
+
+两个分支改了同一批行，或者一边删了文件另一边还在改，就会冲突。Git 会停下合并，并在文件里做标记：
+
+```text
+<<<<<<< HEAD
+data = {"voltage": voltage, "current": current}
+=======
+data = {"v": voltage, "i": current}
+>>>>>>> feature/json-log
+```
+
+上面那段是当前分支（`HEAD`，这里是 `main`）的版本，下面是合进来的分支。**手动编辑文件**，留下你真正想要的代码，把三行标记（`<<<<<<<`、`=======`、`>>>>>>>`）全部删掉，然后：
+
+```bash
+git add log.py
+git commit
+```
+
+`git add` 告诉 Git 冲突已解决，`git commit` 记录这次合并（Git 会预填合并说明）。如果发现搞不定，`git merge --abort` 可以回到合并前的状态。小分支、勤合并，冲突就少；一个分支挂三周、每个文件都改，冲突会很痛苦。
+
+现在就去 Learn Git Branching 做 **Introduction Sequence** 和 **Ramping Up**，亲手画一遍分支：
+
+<Resource id="learn-git-branching" />
+
+<Quiz id="q2" question="在 Git 里，分支是什么？" options={["项目文件夹的一份完整副本", "指向某个提交的可移动指针", "GitHub 上的一份备份"]} answer={1} explanation="分支只是一个指向提交的可移动标签。它不是文件夹副本，而且在你推送之前只存在于本地。创建分支几乎瞬间完成，因为新增的只是一个名字。" />
+
+## 写一份别人能照着做的 README
+
+在 GitHub 上，README 会直接渲染在文件列表下面。访客最先看到它，招聘方有时也只读它。一张照片、一句清楚的描述、一张接线表，比三段背景介绍有用。它也是写给未来的你——那时你已经不记得哪根线接哪个引脚了。
+
+下面是一个小型硬件项目的完整模板，内容换成你的，章节顺序保留。
+
+```markdown
+# 台式记录仪 — 5 V 电源监测
+
+一块面包板数据记录器：每秒记录一次电压和电流，通过 USB 按行输出 JSON。
+
+![接好 INA219 和 LCD 的台式记录仪](docs/photo.jpg)
+
+## 它做什么
+
+Arduino Uno 每秒读取一次 INA219 电压/电流传感器，把最新数值显示在 16×2 I2C LCD 上，并向串口发送一行 JSON。主机脚本 `host/log.py` 把这些行保存到 `measurements.jsonl`，重启后数据还在。
+
+## 元件清单
+
+| 数量 | 元件 | 备注 |
+| --- | --- | --- |
+| 1 | Arduino Uno R3 | Uno 兼容板都可以 |
+| 1 | INA219 模块 | I2C 地址 0x40 |
+| 1 | 16×2 I2C LCD | I2C 地址 0x27 |
+| 1 | 面包板 | 半尺寸够用 |
+| — | 杜邦线 | I2C 线尽量短 |
+| 1 | 5 V 负载 | 测试时用了一支 USB 小灯 |
+
+## 接线
+
+| 从 | 到 | 说明 |
+| --- | --- | --- |
+| Uno 5V | INA219 VCC | 供电 |
+| Uno GND | INA219 GND | 共地 |
+| Uno A4 | INA219 SDA | I2C 数据 |
+| Uno A5 | INA219 SCL | I2C 时钟 |
+| Uno 5V | LCD VCC | 供电 |
+| Uno GND | LCD GND | 共地 |
+| Uno A4 | LCD SDA | 与 INA219 共用总线 |
+| Uno A5 | LCD SCL | 与 INA219 共用总线 |
+| INA219 VIN+ | 5 V 电源 + | 电流从这里流入 |
+| INA219 VIN− | 负载 + | |
+| 负载 − | 5 V 电源 − | 回流路径 |
+
+INA219 与负载串联。LCD 和传感器共用一条 I2C 总线。
+
+## 怎么运行
+
+1. 安装 Arduino 库 `Adafruit INA219` 和 `LiquidCrystal I2C`。
+2. 烧录 `firmware/bench_logger/bench_logger.ino`。
+3. 在主机上：
+
+       python -m venv .venv
+       source .venv/bin/activate
+       pip install -r requirements.txt
+       python host/log.py --port /dev/ttyACM0 --baud 115200
+
+   Windows 上串口类似 `COM5`，激活命令是 `.venv\Scripts\activate`。
+
+## 出了什么问题，我怎么修好的
+
+第一版每隔几秒就打印一次 `nan`。INA219 和 LCD 共用一条 I2C 总线，而我用了 30 cm 杜邦线、没有外部上拉，还把总线跑在 400 kHz。我把线缩到 10 cm，在 SDA、SCL 到 5 V 之间各加了一只 4.7 kΩ 上拉电阻，并把时钟降到 100 kHz，`nan` 就不出现了。之后仍会每几小时出现一个坏样本，所以记录器现在连读三次取中位数。这是权宜之计，不是完美修复；写在这里，是为了让下一个人知道它的极限。
+
+## 下一步
+
+- 用台式万用表在 100 mA 和 1 A 两点校准 INA219。
+- 改成写 SD 卡，不再依赖电脑。
+- 用 2S LiPo 加 5 V buck 供电。
+- 打印一个外壳，避免板子在桌上短路。
+```
+
+**“出了什么问题”这一段**，是让项目看起来像工程记录、而不是教程的关键。教程只会说“把 A 接到 B，就能工作”；工程师会记下现象（`nan`）、怀疑的原因（线太长、没上拉、400 kHz）、做了哪些改动，以及还剩什么局限。这一段证明你亲手测过、理解了失败，而且对不完美的地方诚实。面试里被问“讲一个你修过的 bug”，这一段比背稿子好用。
+
+照片要拍得有用：从上方拍，接线看得见，压缩到 1 MB 以下，存成 `docs/photo.jpg`。一个糊掉的闭合盒子照片教不了任何人。
+
+## 好的提交说明
+
+提交说明是写给半年后翻日志的人看的，那个人通常是你自己。用**祈使句（imperative）**：补全“如果应用这个提交，它会___”。Git 自己生成的说明就是这么写的（`Merge branch ...`、`Revert ...`），日志读起来像一串动作。
+
+写具体：
+
+```text
+Fix divider calculation when R2 is zero
+Add JSON output to log.py
+Clamp the ADC reading to 0–1023 before scaling
+Move serial parsing into read_sample()
+```
+
+不要这样：
+
+```text
+update
+stuff
+final final v2
+fixed bug
+```
+
+第一行控制在 50 个字符以内。要解释**为什么**，空一行再写正文，每行约 72 个字符；diff 已经说明了“改了什么”。
+
+小步、频繁地提交，一个提交只做一件事：修一个 bug、加一个功能、改一个名字。脚本能跑、测试能过就提交；做有风险的重构之前也先提交，给自己留一个干净的回退点。不要把格式化改动和行为改动混在一起，否则 diff 没法读，`git bisect` 也找不到罪魁祸首。一百个小提交，比一个叫 `big update` 的 3000 行提交好懂得多。
+
+## 撤销速查表
+
+犯错很正常，重要的是选一个不会让情况更糟的撤销方式。
+
+| 情况 | 命令 |
+| --- | --- |
+| 丢弃某个文件未暂存的修改 | `git restore <file>` |
+| 取消暂存，但保留修改 | `git restore --staged <file>` |
+| 改最后一次提交说明（还没推送） | `git commit --amend` |
+| 查看旧版本 | `git switch --detach <hash>` 或 `git show <hash>:file` |
+| 安全地撤销已经推送的提交 | `git revert <hash>` |
+
+- `git restore` 是破坏性操作；不确定就先复制文件。
+- `git commit --amend` 会改变哈希。只在推送前用；共享分支上优先用 `git revert`。如果一定要改写自己已推送的分支，用 `git push --force-with-lease`，永远不要强推 `main`。
+- `git switch --detach <hash>` 只是只读查看；用 `git switch main` 回来。`git show <hash>:ohm.py > /tmp/ohm-old.py` 可以把旧文件存一份。
+- `git revert <hash>` 是公开撤销：新建一个提交把改动反做回去，队友正常 pull 即可。撤销合并提交时，Git 可能要求用 `-m 1` 指定父提交。
+- `git reflog` 记录 HEAD 去过哪里，能救回丢失的本地提交；但它是本地的、临时的。
+
+<Callout type="warn" title="永远不要提交密钥">
+密码、API key、Wi-Fi 账号密码、token 和私钥都不能进提交。一旦推送，就要当作已经泄露：之后删掉文件并不会把它从历史里抹去，别人克隆过的仓库里可能还有。先轮换（rotate）凭据，再用 `git filter-repo` 或 BFG 清理历史。密钥放在 `.env` 或 `secrets.h` 里，写进 `.gitignore`，每次提交前看 `git diff --staged`。
+</Callout>
+
+<Callout type="tip" title="不要提交大二进制文件">
+Git 会保存每个文件的每个版本，所以一个 100 MB 的视频即使后来删掉，仍留在仓库里，每次克隆都要下载。视频放 YouTube 或网盘，给链接。确实需要进仓库的大文件用 Git LFS；照片先压缩。
+</Callout>
+
+## 常见错误与进入下一课前的自查
+
+<Quiz id="q3" question="你推送了一个把项目弄坏的提交，队友已经 pull 过了。最安全的撤销方式是？" options={["git reset --hard 然后强推", "git revert <hash> 然后推送", "把仓库删掉"]} answer={1} explanation="git revert 会新建一个提交，把坏提交的改动反做回去，已经 pull 过的队友再 pull 一次就能安全同步。git reset --hard 会改写共享历史，强推会破坏队友的克隆。" />
+
+新手常踩的坑：
+
+- 在错误的目录执行 `git init`。用 `git rev-parse --show-toplevel` 检查，删掉多余的 `.git`。
+- 提交了 `.venv` 之后才加 `.gitignore`；忽略规则对已跟踪文件无效。用 `git rm -r --cached .venv`。
+- 不读 `git diff --staged` 就 `git add .`，结果把密钥或 200 MB 视频也暂存了。
+- 直接在 `main` 上做危险实验，然后用强推收拾。
+- 有未提交改动就 pull，导致合并报错。先提交，或者 `git stash push -m "wip"` 再 `git stash pop`。
+- 提交冲突标记、写 `update` 当说明，或者仓库里没有 README。
+- 把 GitHub 当备份，或者在仓库里再克隆一个仓库，套出嵌套的 `.git`。
+
+进入下一课之前，下面这些你能都答“是”吗？
+
+- Git 已安装，姓名、邮箱和默认分支 `main` 都配置好了。
+- 我建了 `month1-tools`，加了 `.gitignore`，暂存脚本并完成了提交。
+- 我能说清工作区、暂存区、仓库三者的区别，以及两种 diff 各比较什么。
+- 我推送了仓库，也知道 `git push -u origin main` 做了什么。
+- 我建过分支，合并回 `main`，再删掉分支。
+- 我手动解决过一次冲突，知道为什么先 `git add` 再 `git commit`。
+- 我的 README 有照片、元件清单、接线表、运行命令，以及诚实的“出了什么问题”一段。
+- 我能选对撤销命令，也知道密钥为什么要轮换、大视频为什么不进 Git。

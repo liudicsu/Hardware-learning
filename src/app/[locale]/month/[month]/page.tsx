@@ -9,6 +9,7 @@ import { StatusPill } from "@/components/course/MonthBadge";
 import { MonthProgress } from "@/components/progress/MonthProgress";
 import { LessonStatusDot } from "@/components/progress/LessonStatusDot";
 import { MonthTabs } from "@/components/course/MonthTabs";
+import { TaskChecklist } from "@/components/progress/TaskChecklist";
 
 export const dynamicParams = false;
 
@@ -110,16 +111,29 @@ export default async function MonthPage({ params }: PageProps<"/[locale]/month/[
       )}
 
       <section id="milestone" className="max-w-3xl scroll-mt-20">
-        <h2 className="text-sm font-medium text-zinc-400">{t("milestones")}</h2>
-        <p className="mt-2 text-sm text-zinc-500">{t("milestonesLead")}</p>
-        <ul className="mt-4 space-y-2">
-          {month.milestones.map((m, i) => (
-            <li key={i} className="flex gap-3 text-sm leading-relaxed text-zinc-300">
-              <span aria-hidden className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-400/70" />
-              {tr(m, locale)}
-            </li>
-          ))}
-        </ul>
+        {ready ? (
+          <>
+            <p className="mb-3 text-sm text-zinc-500">{t("milestonesLead")}</p>
+            <TaskChecklist
+              lessonKey={`m${month.id}/milestone`}
+              title={t("milestones")}
+              tasks={month.milestones.map((m, i) => ({ id: `ms${i + 1}`, text: tr(m, locale) }))}
+            />
+          </>
+        ) : (
+          <>
+            <h2 className="text-sm font-medium text-zinc-400">{t("milestones")}</h2>
+            <p className="mt-2 text-sm text-zinc-500">{t("milestonesLead")}</p>
+            <ul className="mt-4 space-y-2">
+              {month.milestones.map((m, i) => (
+                <li key={i} className="flex gap-3 text-sm leading-relaxed text-zinc-300">
+                  <span aria-hidden className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-400/70" />
+                  {tr(m, locale)}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </section>
     </div>
   );
