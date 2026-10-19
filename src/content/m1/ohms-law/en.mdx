@@ -1,0 +1,150 @@
+## A mental model: water in pipes
+
+Electricity is invisible, so use a picture. The classic one is water in a closed loop of pipes driven by a pump. It is imperfect, but useful.
+
+- **Voltage** is the pressure difference that pushes charge, measured in volts (V). A 9 V battery holds about 9 V between its terminals. Voltage is always between two points.
+- **Current** is the flow rate: charge passing a point each second. Its unit is the ampere (A), and 1 A means 1 coulomb per second. Small circuits use milliamps (mA).
+- **Resistance** is how hard the path is to push through. Its unit is the ohm (Ω). A resistance of 1 Ω carries 1 A when 1 V is across it.
+
+| Quantity | Symbol | Unit | Typical in a small robot |
+| --- | --- | --- | --- |
+| Voltage | V | volt (V) | 3.3 V, 5 V, 12 V |
+| Current | I | ampere (A) | 5 mA to 2 A |
+| Resistance | R | ohm (Ω) | 100 Ω to 1 MΩ |
+
+| Prefix | Meaning | Example |
+| --- | --- | --- |
+| m (milli) | 10^-3 | 20 mA = 0.020 A |
+| k (kilo) | 10^3 | 4.7 kΩ = 4700 Ω |
+| M (mega) | 10^6 | 1 MΩ = 1,000,000 Ω |
+
+Current only flows around a **closed loop**. Break the path and it stops, though voltage remains across the break; a battery on a table has voltage but no current. We draw **conventional current** leaving the positive terminal and returning to the negative one; electrons drift the other way. Schematics use it too.
+
+The analogy breaks down. Electrons fill the wire and respond almost instantly; water has inertia. A resistor turns energy into heat rather than merely narrowing a pipe, and voltage can exist with no current. Use it for intuition, then trust the equations.
+
+## Ohm's law
+
+One simple law ties them together:
+
+<Formula label="Ohm's law">V = I × R</Formula>
+
+With volts and ohms, current comes out in amps. Rearranged, `I = V / R` and `R = V / I`: know any two quantities and you can find the third. For fixed resistance, doubling the voltage doubles the current; for fixed voltage, doubling the resistance halves it. Large resistance is nearly an open circuit, small resistance nearly a short.
+
+**Worked example.** A 9 V battery is connected across a 1 kΩ resistor. How much current flows?
+
+1. Convert first: 1 kΩ = 1000 Ω.
+2. Apply the law: I = 9 V / 1000 Ω.
+3. Divide: I = 0.009 A.
+4. Convert: 0.009 A × 1000 = 9 mA.
+
+Reverse check: 0.009 × 1000 = 9 V. Make that a bench habit.
+
+<Falstad title="Ohm's law: 100 Ω and 1 kΩ on the same 5 V source" circuit="ohms" />
+
+Predict before reading the numbers. Both resistors see 5 V, so the 100 Ω one carries 5 / 100 = 0.05 A = 50 mA, and the 1 kΩ one carries 5 / 1000 = 0.005 A = 5 mA: ten times the resistance, one tenth the current. Hover to check, then double-click, change the value, and predict again.
+
+<Quiz id="q1" question="5 V across 220 Ω — what is the current in mA?" answer={22.7} unit="mA" explanation="I = V / R = 5 / 220 = 0.0227 A. Multiply by 1000 to get 22.7 mA. The same number in amps would be a factor-of-1000 mistake." />
+
+## Power: heat is the price of resistance
+
+Current through resistance does work, which in a resistor becomes heat. Power is energy per second, in watts (W):
+
+<Formula label="Power in a resistor">P = V × I = I² × R = V² / R</Formula>
+
+Substitute V = I × R into P = V × I to get I² × R, or substitute I = V / R to get V² / R. Use the form you know.
+
+Every resistor has a **power rating**, the maximum it can dissipate safely. Kits commonly contain 1/4 W through-hole parts; 1/8, 1/2, 1 and 2 W also exist. The rating is a limit, not a target.
+
+**Worked example.** A 100 Ω resistor has 5 V across it. The current is I = 5 / 100 = 0.05 A = 50 mA, so P = 5 × 0.05 = 0.25 W. The V² / R form agrees: 25 / 100 = 0.25 W.
+
+That is exactly the 1/4 W rating. At 100% it runs very hot and ages quickly. Use at most about 50%, so fit a 1/2 W part here: 0.25 / 0.5 = 50%. In a closed box, go one size larger.
+
+<Quiz id="q2" question="12 V across 470 Ω dissipates about how much power, and which resistor rating would you pick?" options={["≈0.03 W → 1/8 W is fine", "≈0.31 W → use a 1/2 W resistor", "≈3.1 W → needs a 5 W resistor"]} answer={1} explanation="P = V² / R = 12² / 470 = 144 / 470 = 0.306 W. A 1/4 W part would be over its rating, so pick at least 1/2 W and keep some margin." />
+
+## Series and parallel
+
+**Series** means one path. The same current flows through every part, the voltages add, and the resistances add:
+
+R(total) = R1 + R2 + R3 + ...
+
+For example, 220 Ω + 330 Ω = 550 Ω; on 5 V the current is 5 / 550 = 0.00909 A ≈ 9.1 mA.
+
+**Parallel** means every component shares two nodes. All see the same voltage and the current splits. Resistances combine as reciprocals:
+
+1 / R(total) = 1 / R1 + 1 / R2 + 1 / R3 + ...
+
+For two resistors, R = R1 × R2 / (R1 + R2). Two equal resistors give half, so 10 kΩ in parallel with 10 kΩ is 5 kΩ. Check: 1 / R = 1 / 10000 + 1 / 10000 = 2 / 10000, so R = 5000 Ω.
+
+Sanity checks: a parallel result is always smaller than the smallest resistor, and a series result always larger than the largest. If not, you inverted the wrong thing.
+
+<Falstad title="Series and parallel resistors with switches" circuit="resistors" />
+
+Click the switches to change the combination and watch the total current. Series resistance should lower it; a parallel path should raise it. Before each click, say what you expect and why. Prediction is the real practice.
+
+<Quiz id="q3" question="10 kΩ in parallel with 10 kΩ equals how many kΩ?" answer={5} unit="kΩ" explanation="Two equal resistors in parallel give half the value: 10 / 2 = 5 kΩ. The reciprocal calculation gives 1/R = 1/10 + 1/10 = 2/10, so R = 5 kΩ." />
+
+<Quiz id="q4" question="220 Ω + 330 Ω in series equals how many Ω?" answer={550} unit="Ω" explanation="In series the resistances add: 220 + 330 = 550 Ω. The current is the same through both, but the voltages across them add." />
+
+## The voltage divider
+
+A voltage divider uses two resistors to scale a voltage down. R1 goes from the input to the output node, R2 from the output to ground, and the output is across R2:
+
+<Formula label="Voltage divider">Vout = Vin × R2 / (R1 + R2)</Formula>
+
+It follows from series rules in three lines, since both resistors carry the same current:
+
+1. I = Vin / (R1 + R2)
+2. Vout = I × R2, because the output is the voltage across R2
+3. Substitute I: Vout = Vin × R2 / (R1 + R2)
+
+Check the extremes: R2 = 0 Ω gives Vout = 0 V, a very large R2 passes almost all of Vin, and equal resistors give half. The formula agrees.
+
+**The practice task.** Take Vin = 5 V, R1 = 10 kΩ on top, R2 = 4.7 kΩ to ground. Compute by hand first.
+
+1. Add them: R1 + R2 = 10 kΩ + 4.7 kΩ = 14.7 kΩ.
+2. Find the current: I = 5 V / 14,700 Ω = 0.0003401 A.
+3. Multiply by R2: Vout = 0.0003401 A × 4700 Ω = 1.5986 V.
+4. Round: Vout ≈ 1.6 V.
+
+<Falstad title="Voltage divider practice: 5 V, 10 kΩ and 4.7 kΩ" circuit="dividerPractice" />
+
+The output probe should read about 1.6 V. Then double-click R2 and change it to 10 kΩ. Predict first: equal resistors give half of 5 V, or 2.5 V. Check afterwards. If you were wrong, redo the calculation instead of nudging the value until it looks right.
+
+<Quiz id="q5" question="5 V, R1 = 10 kΩ and R2 = 4.7 kΩ: what is Vout in V?" answer={1.6} unit="V" explanation="Vout = 5 × 4.7 / (10 + 4.7) = 23.5 / 14.7 = 1.5986 V, which rounds to 1.6 V." />
+
+Dividers are everywhere in robotics. A 12 V battery often feeds an ADC that accepts only 5 V or 3.3 V, so a divider scales it down, and a 5 V sensor signal may need shifting to 3.3 V. A potentiometer is a divider with a moving wiper: its ends sit across the supply, and the wiper voltage reports shaft angle — the basis of many joysticks and position sensors.
+
+<Quiz id="q6" question="You need ≈3.3 V from a 5 V signal for a 3.3 V microcontroller pin. Which R1 (top) and R2 (bottom) pair?" options={["R1 = 2 kΩ, R2 = 1 kΩ", "R1 = 1 kΩ, R2 = 2 kΩ", "R1 = 10 kΩ, R2 = 10 kΩ"]} answer={1} explanation="Vout = 5 × R2 / (R1 + R2). For R1 = 1 kΩ and R2 = 2 kΩ: 5 × 2 / 3 = 3.33 V. The first pair gives 1.67 V and the third gives 2.5 V." />
+
+## Loading: a divider is not a power supply
+
+The formula assumes nothing is connected to the output. A real load draws current and sits in parallel with R2, making the effective bottom resistance smaller than R2. A smaller bottom resistance takes a smaller share of the input, so Vout drops.
+
+Take the previous divider and add a 10 kΩ load across R2. The bottom becomes 4.7 kΩ in parallel with 10 kΩ: (4.7 × 10) / (4.7 + 10) = 47 / 14.7 = 3.197 kΩ ≈ 3.2 kΩ. Recalculate: Vout = 5 × 3.2 / 13.2 = 1.212 V. Instead of 1.6 V you get about 1.2 V, a 25% drop. A motor would pull far more and collapse the output completely.
+
+As a rule of thumb, keep the load at least 10× R2; even then the output sags slightly. For a stiff voltage, use a lower-resistance divider, or better, a regulator.
+
+<Callout type="warn" title="Never power a load from a divider">
+A divider is a **signal**, not a supply. It cannot deliver current without its output collapsing. Do not power a motor, relay, LED strip or microcontroller from one — use a linear regulator or a buck converter. If a divider feeds an ADC, check the loaded voltage, not just the open-circuit value.
+</Callout>
+
+## Kirchhoff in brief
+
+**Kirchhoff's voltage law (KVL)** says the signed voltages around any closed loop add to zero: every rise is balanced by drops. Around the divider loop, Vin − I × R1 − I × R2 = 0, which rearranges to I = Vin / (R1 + R2). That is where the divider formula comes from.
+
+**Kirchhoff's current law (KCL)** says current into a node equals current out; charge does not pile up. At the divider output, the current arriving through R1 splits between R2 and any load: I(R1) = I(R2) + I(load). Add a load and it takes a share, which is the loading effect in one sentence.
+
+## Common mistakes
+
+- **Mixing mA and A, or kΩ and Ω.** 5 V across 220 Ω is 0.0227 A = 22.7 mA, not 22.7 A. Write units every step and convert prefixes before dividing.
+- **Swapping R1 and R2.** R1 is the top resistor from Vin to the output; R2 is the bottom one to ground. A larger R2 gives a higher Vout; check R2 = 0 and R2 huge to see whether the formula is the right way up.
+- **Forgetting the power rating.** A resistance value does not tell you whether a resistor survives; calculate P and choose at least twice the dissipation.
+- **Using a divider as a supply.** Fine for an ADC input or a reference, not for anything drawing real current.
+- **Blaming the simulator.** Check for a missing ground, an open switch, a wrong value or a unit error before doubting the tool; most big discrepancies come from the wiring.
+
+### Checklist before moving on
+
+- Convert between A and mA and between Ω, kΩ and MΩ without losing a factor of 1000.
+- Use Ohm's law, the power forms, series and parallel rules, and the divider formula to predict a circuit on paper.
+- Explain why a divider output falls under load, and when a regulator is the right choice instead.
+- Treat the simulator as a check on your reasoning, not a replacement for it.
