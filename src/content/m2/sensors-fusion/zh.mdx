@@ -1,0 +1,434 @@
+## 机器人能感知什么
+
+没有传感器的机器人，只是一台按预设动作“盲走”的机器：它执行计划，然后祈祷世界按计划变化。有了传感器，它才能把“我以为发生了什么”和“实际发生了什么”放在一起比较。停车、走直线、保持平衡、循线、发现轮子打滑，所有这些行为都从这次比较开始。
+
+每种传感器只回答一个很窄的问题。下面这张表不是购物清单，而是一张“小车通常要问哪些问题”的地图。
+
+| 传感器 | 测量什么 | 典型用途 | 注意什么 |
+| --- | --- | --- | --- |
+| 轮式编码器（wheel encoder） | 轮子转过的计数，通常还有方向 | 里程计、速度、走了多远（第 4 课） | 它只知道轮子转了多少；打滑或轮径填错，结果就会悄悄失真 |
+| IMU（加速度计 + 陀螺仪，如 MPU-6050） | 含重力的加速度、角速度 | 倾角、平衡、判断转向 | 有噪声、会漂移，必须做融合；它不是指南针 |
+| 超声波 HC-SR04 | 用回声时间测距离 | 便宜的避障 | 波束宽，软表面会吸声；5 V 回波接 ESP32 要分压 |
+| 飞行时间激光 VL53L0X | 用光的飞行时间测距离，I2C 接口 | 精确的近距离测距（最远约 2 m）；视场较窄（ST 标称约 25°），不会被超声回声搞混 | 深色、反光或透明目标以及强阳光都会缩短可用量程 |
+| 反射式传感器（QTR、TCRT5000） | 有多少红外光被反射回来 | 循线（第 6 课） | 对安装高度、环境光和地面颜色很敏感；要在真实赛道上标定 |
+| 二维激光雷达（如 RPLIDAR C1） | 一圈 360° 的距离 | 建图，后面几个月会用到 | 有转动部件，功耗和数据量更大，而且只看到同一高度的二维切片 |
+
+其中编码器和 IMU 测的是机器人自己，其余几种测的是外部世界。这个区别在出故障时很有用：编码器出错，说明你对自身运动的模型不对；超声波出错，说明你对世界的描述不对，两者的修法完全不同。
+
+价格只是大概，因为同一颗芯片在不同卖家手里能差好几倍：HC-SR04 约 $4，VL53L0X 约 $15，MPU-6050 模块约 $13，BNO085 约 $30。不要只按价格选，要选一种“它的失效方式你能接受”的传感器。
+
+超声波传感器适合做第一个算例，因为算术简单，而且能看清“往返”这件事。室温下声速约 343 m/s，也就是 34 300 cm/s，即每微秒 0.0343 cm。HC-SR04 发出一小段超声，然后测量回声返回所需的时间。声音先到物体再返回，路程是距离的两倍，所以距离只取总路程的一半。
+
+```text
+Speed of sound ≈ 343 m/s = 0.0343 cm/µs
+Echo time = 1166 µs (there and back)
+Distance = 1166 µs × 0.0343 cm/µs / 2
+         = 39.99 cm / 2
+         = 20.0 cm
+```
+
+声速会随温度变化（大约每升高 1 °C 增加 0.6 m/s），所以 20.0 cm 是估计值，不是实验室级测量。对“前面是不是有把椅子”这种判断，它足够好用。
+
+<Quiz id="q1" question="HC-SR04 的回波脉冲持续 2915 µs，距离是多少厘米？" answer={50} unit="cm" explanation="2915 µs × 0.0343 cm/µs = 99.98 cm，这是往返路程；除以 2，单程距离约 49.99 cm ≈ 50 cm。" />
+
+## 一页讲清 I2C
+
+I2C（Inter-Integrated Circuit，通常读作“I-squared-C”）是一根只有两条线的总线：SDA 传数据，SCL 传时钟，另外两块板必须共地。微控制器是控制器（controller），负责产生时钟；每个外设都有一个 7 位地址。每次通信开始时，控制器先发出“地址 + 读/写位”，只有认出这个地址的器件才会应答。
+
+真正巧妙的是电气结构。每个器件的输出级都是开漏（open-drain）：它可以把线拉低，却不能主动把线推高。高电平由上拉电阻（pull-up resistor）提供，典型值是 4.7–10 kΩ，很多模块板上已经自带。正因如此，两个器件永远不会“打架”：如果它们同时把线拉低，那只是把同一个节点都接到地，线仍然是 0 V，不存在“一个输出高、一个输出低”的短路。
+
+<Falstad title="开漏 I2C 总线与上拉电阻" circuit="i2cPullup" height={420} />
+
+4.7 kΩ 上拉电阻在没有器件拉低时把线维持在 3.3 V。每个开关代表一个器件内部的输出晶体管。点一下任一开关，线被拉到 0 V；两个都点，仍然是 0 V，没有短路，也不会烧坏谁。这就是 I2C 允许许多器件共用总线的根本原因：谁都能说话，谁也打不起来。
+
+I2C 的标准速率是 100 kHz 和 400 kHz。它不是长距离总线：线要短，地要共，尽量不要把 I2C 线沿着电机线拉过整个车架。Arduino Uno 上 SDA 是 A4，SCL 是 A5。ESP32 上几乎任意 GPIO 都能用作 I2C，经典默认是 SDA 21、SCL 22，也可以在 `Wire.begin(sda, scl)` 里传入你选的引脚。
+
+地址冲突是最常见的实际问题。两个一模一样的传感器通常共用一个地址，不能直接挂在同一条总线上。很多芯片专门留了地址引脚：MPU-6050 的 AD0 接低电平是 0x68，接高电平是 0x69。如果模块没有地址引脚，就需要第二条总线或一个 I2C 多路复用器。
+
+I2C 也不是你会遇到的唯一总线。SPI 用四根线——SCK、COPI（很多人仍叫它 MOSI）、CIPO（MISO），以及每个从设备一根片选 CS——没有地址，速度快得多，常见于显示屏、SD 卡和部分 IMU。UART（也就是串口）是点对点、异步的，只有 TX 和 RX，适合接 GPS 或做调试终端，但它不是共享总线。大多数机器人最后三种都会用到。
+
+<Quiz id="q2" question="你要在同一条 I2C 总线上接两个 MPU-6050，该怎么办？" options={["什么都不用做，I2C 会自己处理", "把其中一块板的 AD0 拉高，让它用 0x69 地址应答", "把第二块的 SDA 和 SCL 对调"]} answer={1} explanation="两颗芯片上电后都默认是 0x68，会同时应答。AD0 改变地址的最低位，让其中一块换成 0x69；对调 SDA 和 SCL 只会把总线弄坏。" />
+
+## 先找到它：I2C 扫描器
+
+拿到任何新的 I2C 器件，第一个要跑的程序不是驱动，而是扫描器。它遍历 7 位地址空间，逐个问“这个地址有没有人”，然后把应答的地址打印出来。这几十行代码省下的时间，比任何库都多。
+
+```cpp
+// I2C scanner: try every 7-bit address and report the ones that answer.
+#include <Wire.h>
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin();
+  Serial.println(F("Scanning..."));
+  int found = 0;
+  for (uint8_t addr = 1; addr < 127; addr++) {
+    Wire.beginTransmission(addr);
+    if (Wire.endTransmission() == 0) {      // 0 = the device acknowledged
+      Serial.print(F("Found device at 0x"));
+      if (addr < 16) Serial.print('0');
+      Serial.println(addr, HEX);
+      found++;
+    }
+  }
+  Serial.print(found);
+  Serial.println(F(" device(s) found"));
+}
+
+void loop() {}
+```
+
+`beginTransmission(address)` 只是把地址装进 Wire 库的缓冲区，`endTransmission()` 才真正把这次传输发出去并返回状态。中间没有写任何数据，所以这次传输本质上就是“这个地址有人吗？”返回 0 表示器件应答了（ACK），返回 2 表示地址没有得到应答。扫描器暂时不关心其他返回值；先分清 0 和非 0 就够了。
+
+下面这两段输出来自本课后面使用的同一套模拟环境，而不是真实电路板：编译后的 Arduino Uno 固件运行在 simavr AVR 模拟器里，并接有一个模拟的 MPU-6050。
+
+```text
+Scanning...
+Found device at 0x68
+1 device(s) found
+```
+
+什么也不接时，同一个程序打印：
+
+```text
+Scanning...
+0 device(s) found
+```
+
+扫描器只能告诉你“有人应答”，不能告诉你“对方是谁”；另一个芯片完全可能用同一个地址。要确认身份，得读 WHO_AM_I 寄存器，后面很快就会讲到。
+
+什么都没找到时，按这个顺序检查：传感器有没有供电和接地；SDA、SCL 有没有接反；`Wire.begin()` 或接线有没有用错引脚；模块有没有上拉电阻（有些裸模块没有）；3.3 V-only 的模块有没有接到错误的电源轨。如果扫描器不是打印结果而是卡住，很可能有一条线被持续拉低——常见原因是接线短路，或者某个器件把总线占住了。断电、检查接线，再重新上电。
+
+## 读数据手册，而不是教程
+
+这个月的里程碑不是“我抄了一个库的示例”，而是：给我一个传感器、一份数据手册和一块单片机，我能自己接线、自己读出数据。教程适合用来建立方向感，但它们会过时，会把寄存器操作藏起来，而且很少告诉你它假设了哪种配置。
+
+MPU-6050 的厂商 InvenSense 发布两份文档：一份产品规格书（product specification），一份单独的寄存器映射（register map）。前者告诉你芯片能做什么、引脚是什么、每个量程有多灵敏；后者告诉你该读写哪个字节。两份都要看。
+
+本课用到的寄存器如下：
+
+| 寄存器 | 地址 | 作用 |
+| --- | --- | --- |
+| WHO_AM_I | 0x75 | 固定读出 0x68——证明你在和正确的芯片说话 |
+| PWR_MGMT_1 | 0x6B | 上电时第 6 位 SLEEP 是置位的——写 0x00 唤醒芯片，否则所有读数都是 0 |
+| ACCEL_XOUT_H … | 0x3B–0x40 | 加速度 X、Y、Z，各 16 位 |
+| TEMP_OUT | 0x41–0x42 | 温度 |
+| GYRO_XOUT_H … | 0x43–0x48 | 陀螺仪 X、Y、Z |
+
+WHO_AM_I 是嵌入式开发里最便宜的一次“验明正身”。从 0x75 读一个字节，期望值是 0x68。读到 0xFF，通常是总线没接好或器件没应答；读到别的值，说明你在和另一颗芯片说话。
+
+睡眠位是经典陷阱。复位后 PWR_MGMT_1 的第 6 位置位，芯片处于睡眠状态。这时你可以读一整天的寄存器，读到的全是 0。往 0x6B 写 0x00，稍等片刻，传感器才开始出数据。
+
+数据是有符号 16 位、大端（big-endian）排列：高字节在前。从 0x3B 开始一次连读 14 个字节，依次得到加速度 X、Y、Z，温度，以及陀螺仪 X、Y、Z。连读还有一个好处：这些值属于同一次采样；如果一个寄存器一个寄存器地读，几毫秒的间隔可能把两个不同瞬间的数据拼在一起，机器人一动就会出错。
+
+在默认量程下，灵敏度是固定且简单的：加速度计设为 ±2 g，即 16384 LSB/g；陀螺仪设为 ±250 °/s，即 131 LSB/(°/s)。这些常数不是永远成立。改了 AFS_SEL 或 FS_SEL，常数也会变，所以一定要确认代码配置的是哪个量程。
+
+```text
+raw az = 16384  →  16384 / 16384 = 1.00 g
+raw gy = −262   →  −262 / 131 = −2.0 °/s
+```
+
+第一行是板子平放时竖直轴上应该看到的数：1 g 重力。第二行是每秒 2 度的反向慢转。如果把原始字节存进无符号 16 位变量，负数会变成一个巨大的正数；要用 `int16_t`，并且按正确的字节顺序拼接。
+
+<Quiz id="q3" question="在 ±2 g 量程下，raw ax = 8192，加速度是多少 g？" answer={0.5} unit="g" explanation="8192 / 16384 = 0.5 g。默认 ±2 g 量程的灵敏度是 16384 LSB/g。" />
+
+<Quiz id="q4" question="在 ±250 °/s 量程下，raw gyro = 655，角速度是多少 °/s？" answer={5} unit="°/s" explanation="655 / 131 = 5.0 °/s。±250 °/s 量程的灵敏度是 131 LSB/(°/s)。" />
+
+## 两个都不完美的传感器
+
+加速度计和陀螺仪的失效方式正好相反，这正是它们值得一起用的原因。
+
+加速度计测量加速度，而重力也算加速度。静止时，它感受到的唯一加速度就是竖直向下的 1 g 重力。如果板子绕 Y 轴倾斜了 θ 角，重力就会分解到 X、Z 两个轴上：`ax = g × sin θ`，`az = g × cos θ`。于是：
+
+```text
+θ = atan2(ax, az)
+```
+
+`atan2` 返回的是弧度，打印成角度前要乘 `180 / PI`。这个估计“平均而言”是对的，因为重力是绝对参考，误差不会累积。但它有噪声——每个采样都在抖——而且任何真实加速度都会污染它。振动、电机猛的一下、撞到桌子、机器人加速前进，都会叠加到重力上，加速度计分不清哪个是重力、哪个是运动。急加速时，它给出的“倾角”可能错得很离谱。
+
+陀螺仪测的是角速度，不是角度。要得到角度就得积分：每个循环加上 `rate × dt`。结果平滑、响应快，对真实转动反应立刻。但它是相对的：它只知道“从开始到现在转了多少”。一个很小的零偏（bias），比如 1.5 °/s，积分起来就会变成无限增长的误差。
+
+<Formula label="陀螺仪漂移">角度误差 = 零偏 × 时间</Formula>
+
+```text
+bias = 1.5 °/s
+after 10 s: 1.5 °/s × 10 s = 15°
+after 60 s: 1.5 °/s × 60 s = 90°
+```
+
+一分钟后，纯陀螺仪角度会错 90°，哪怕机器人根本没动。陀螺仪内部没有任何参考能发现这件事；它只是在忠实地积分自己的偏移。
+
+<Quiz id="q5" question="陀螺仪的零偏是 0.5 °/s，积分 60 s 后角度误差有多大？" answer={30} unit="°" explanation="误差 = 零偏 × 时间 = 0.5 °/s × 60 s = 30°。" />
+
+## 互补滤波
+
+互补滤波（complementary filter）是把两者结合的最简单方法，也是在碰卡尔曼滤波之前应该先写出来的东西。核心就是一行：
+
+<Formula label="互补滤波">angle = α × (angle + rate × dt) + (1 − α) × accelAngle</Formula>
+
+α 接近 1，典型值是 0.98。第一项拿上一时刻的估计，加上陀螺仪的预测；第二项把这个预测往加速度计角度那边拉。因为 α 接近 1，短时间尺度上陀螺仪说了算；因为 1 − α 虽小但不为零，长时间尺度上加速度计会赢。它相当于对陀螺仪做高通、对加速度计做低通，两个权重加起来正好是 1。
+
+时间常数（time constant）描述加速度计多快能把陀螺仪拉回来：
+
+```text
+τ = α × dt / (1 − α)
+  = 0.98 × 0.01 s / 0.02
+  = 0.49 s
+```
+
+在 100 Hz（dt = 0.01 s）、α = 0.98 时，修正时间常数约为半秒。τ 越大越平滑但越慢；τ 越小响应越快，但放进来的加速度计噪声也越多。
+
+下面这段 Python 在接线之前先把问题模拟一遍。板子先平放，在 t = 3 s 到 4 s 之间倾斜到 30°，保持到 7 s，然后在 7 s 到 8 s 之间放平。模拟陀螺仪读数偏高 1.5 °/s，加速度计带噪声。
+
+```python
+"""filter_sim.py: gyro drift, accelerometer noise, and the complementary filter.
+
+The board lies flat, is tilted to 30 degrees between t = 3 s and 4 s, held there,
+and laid flat again between 7 s and 8 s. The gyro reads 1.5 deg/s too high (bias);
+the accelerometer angle is noisy. Sample rate: 100 Hz.
+"""
+import math
+import random
+
+DT = 0.01
+GYRO_BIAS = 1.5      # deg/s
+GYRO_NOISE = 0.3     # deg/s, standard deviation
+ACCEL_NOISE = 0.02   # g, standard deviation per axis
+
+
+def true_pitch(t):
+    if t < 3:
+        return 0.0
+    if t < 4:
+        return 30.0 * (t - 3)
+    if t < 7:
+        return 30.0
+    if t < 8:
+        return 30.0 * (8 - t)
+    return 0.0
+
+
+def simulate(alpha, seconds=12.0, seed=7):
+    rng = random.Random(seed)
+    gyro_only = fused = 0.0
+    rows = []
+    for i in range(1, int(seconds / DT) + 1):
+        t = i * DT
+        rate = (true_pitch(t) - true_pitch(t - DT)) / DT
+        gyro = rate + GYRO_BIAS + rng.gauss(0, GYRO_NOISE)
+        th = math.radians(true_pitch(t))
+        ax = math.sin(th) + rng.gauss(0, ACCEL_NOISE)
+        az = math.cos(th) + rng.gauss(0, ACCEL_NOISE)
+        accel = math.degrees(math.atan2(ax, az))
+        gyro_only += gyro * DT
+        fused = alpha * (fused + gyro * DT) + (1 - alpha) * accel
+        rows.append((t, true_pitch(t), gyro_only, accel, fused))
+    return rows
+
+
+def summary(rows):
+    """Error of the fused angle: mean and spread while flat (t > 10 s), and the worst error overall."""
+    flat = [r[4] - r[1] for r in rows if r[0] > 10]
+    mean = sum(flat) / len(flat)
+    spread = math.sqrt(sum((e - mean) ** 2 for e in flat) / len(flat))
+    worst = max(abs(r[4] - r[1]) for r in rows)
+    return mean, spread, worst
+
+
+if __name__ == "__main__":
+    rows = simulate(alpha=0.98)
+    print(" t_s  true  gyro_only  accel_only  fused")
+    for t, true, g, a, f in rows:
+        if abs(t - round(t)) < 1e-9 and round(t) in (1, 3, 4, 7, 8, 12):
+            print(f"{t:4.0f} {true:5.1f} {g:10.1f} {a:11.1f} {f:6.1f}")
+    print()
+    print("alpha  offset_flat  noise_flat  worst_error")
+    for alpha in (0.90, 0.98, 0.995):
+        mean, spread, worst = summary(simulate(alpha))
+        print(f"{alpha:<6} {mean:10.2f}  {spread:10.2f}  {worst:11.1f}")
+```
+
+运行后输出：
+
+```text
+ t_s  true  gyro_only  accel_only  fused
+   1   0.0        1.5         0.5    0.6
+   3   0.0        4.6        -1.0    0.7
+   4  30.0       36.0        31.3   30.8
+   7  30.0       40.6        30.3   30.8
+   8   0.0       12.0         0.0    0.8
+  12   0.0       18.0        -1.3    0.9
+
+alpha  offset_flat  noise_flat  worst_error
+0.9          0.13        0.24          0.9
+0.98         0.72        0.07          1.0
+0.995        2.96        0.02          3.0
+```
+
+把第一张表读成三种“世界观”。纯陀螺仪那一列每秒稳定爬升 1.5°：板子还平放着的 t = 3 s 已经到 4.6°；真实角度是 30° 的 t = 7 s 到 40.6°；板子已经放平的 t = 12 s 还有 18.0°。倾斜时它永远是“30° 附近再加漂移”，放平后也回不到零。
+
+纯加速度计那一列平均而言是对的，但很跳：t = 1 s 是 0.5°，t = 3 s 是 −1.0°，t = 4 s 是 31.3°，t = 12 s 是 −1.3°。单个采样能偏出一度以上，足够让平衡车抖起来。
+
+融合那一列跟着真实倾角走，保持倾斜时稳定在 30.8° 左右，放平后回到 0.8° 左右，整段最大误差只有 1.0°。这就是重点：两个传感器单拎出来都不够好，合在一起才够用。
+
+第二张表是 α 的权衡，同样来自这个模拟：
+
+| α | 平稳段偏移 | 平稳段离散度 | 最大误差 |
+| --- | --- | --- | --- |
+| 0.90 | 0.13° | 0.24° | 0.9° |
+| 0.98 | 0.72° | 0.07° | 1.0° |
+| 0.995 | 2.96° | 0.02° | 3.0° |
+
+α 小，放进来的加速度计噪声多，但压陀螺零偏压得快；α 大，输出更平滑，却会留下更大的固定偏移，因为陀螺零偏漏进来了。稳态偏移近似为：
+
+```text
+offset ≈ α / (1 − α) × bias × dt
+       = 0.98 / 0.02 × 1.5 °/s × 0.01 s
+       = 0.735°
+```
+
+这和表中测到的 0.72° 对得上（小差别来自噪声和四舍五入）。这个公式也解释了另外两行：α = 0.90 约为 0.135°，α = 0.995 约为 2.985°。
+
+正确的修法不是把 α 调小，而是从源头去掉零偏。让机器人静止，把陀螺仪平均 1–2 s——100 Hz 下就是 100–200 个采样——把这个平均值叫作 `bias`，之后每次积分前先减掉它。不要在机器人运动时标定，否则你会把真实转动也平均进零偏里。机器人发热或搬到温度差很多的房间时，零偏会变；开机时快速重标一次，成本很低。
+
+<Quiz id="q6" question="互补滤波在 100 Hz（dt = 0.01 s）、α = 0.98 时，时间常数 τ 是多少秒？" answer={0.49} unit="s" explanation="τ = α × dt / (1 − α) = 0.98 × 0.01 / 0.02 = 0.49 s。" />
+
+## 放到真芯片上
+
+把常见的 GY-521 模块接到 Uno 上，接线很短：VCC 接 5 V（模块上有 3.3 V 稳压器），GND 接 GND，SDA 接 A4，SCL 接 A5，AD0 悬空即为地址 0x68。多数 GY-521 在 I2C 线上已经有 3.3 V 上拉；但要看清你手里是哪一版，有些裸 MPU-6050 模块只支持 3.3 V，也没有稳压器。同一份代码可以跑在 ESP32 上，只是 I2C 引脚不同——用 `Wire.begin(sda, scl)` 传入你选的引脚，经典默认是 21 和 22——但 ESP32 是 3.3 V 逻辑，未经确认不要把 5 V 信号送进去。
+
+```cpp
+// MPU-6050 pitch angle three ways: gyro only, accelerometer only, complementary filter.
+// Wiring (Uno): VCC -> 5V (the common GY-521 breakout has a regulator), GND -> GND,
+// SDA -> A4, SCL -> A5. AD0 left unconnected -> address 0x68.
+#include <Wire.h>
+
+const uint8_t MPU = 0x68;
+const uint8_t REG_PWR_MGMT_1 = 0x6B;
+const uint8_t REG_ACCEL_XOUT_H = 0x3B;
+const uint8_t REG_WHO_AM_I = 0x75;
+
+const float ACCEL_LSB_PER_G = 16384.0;   // +-2 g range (datasheet, default)
+const float GYRO_LSB_PER_DPS = 131.0;    // +-250 deg/s range (datasheet, default)
+const float ALPHA = 0.98;                // complementary filter weight on the gyro
+const unsigned long PERIOD_MS = 10;      // 100 Hz loop
+
+float gyroOnly = 0, fused = 0;
+unsigned long last = 0, lastPrint = 0;
+
+void writeReg(uint8_t reg, uint8_t value) {
+  Wire.beginTransmission(MPU);
+  Wire.write(reg);
+  Wire.write(value);
+  Wire.endTransmission();
+}
+
+uint8_t readReg(uint8_t reg) {
+  Wire.beginTransmission(MPU);
+  Wire.write(reg);
+  Wire.endTransmission(false);           // repeated start: keep the bus
+  Wire.requestFrom(MPU, (uint8_t)1);
+  return Wire.read();
+}
+
+int16_t read16() {                       // registers are big-endian: high byte first
+  int16_t hi = Wire.read();
+  return (hi << 8) | Wire.read();
+}
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin();
+  writeReg(REG_PWR_MGMT_1, 0x00);        // the chip powers up asleep: clear SLEEP
+  Serial.print(F("WHO_AM_I = 0x"));
+  Serial.println(readReg(REG_WHO_AM_I), HEX);
+  Serial.println(F("t_s,gyro_only,accel_only,fused"));
+  last = millis();
+}
+
+void loop() {
+  unsigned long now = millis();
+  if (now - last < PERIOD_MS) return;
+  float dt = (now - last) / 1000.0;
+  last = now;
+
+  Wire.beginTransmission(MPU);
+  Wire.write(REG_ACCEL_XOUT_H);
+  Wire.endTransmission(false);
+  Wire.requestFrom(MPU, (uint8_t)14);    // accel XYZ, temperature, gyro XYZ
+  int16_t ax = read16(), ay = read16(), az = read16();
+  read16();                              // temperature, unused
+  read16();                              // gyro X, unused
+  int16_t gy = read16();
+  read16();                              // gyro Z, unused
+
+  float accelPitch = atan2(ax / ACCEL_LSB_PER_G, az / ACCEL_LSB_PER_G) * 180.0 / PI;
+  float rate = gy / GYRO_LSB_PER_DPS;    // deg/s around the Y axis
+
+  gyroOnly += rate * dt;                                       // drifts
+  fused = ALPHA * (fused + rate * dt) + (1 - ALPHA) * accelPitch;  // does not
+
+  if (now - lastPrint >= 1000) {         // one line per second
+    lastPrint = now;
+    Serial.print(now / 1000.0, 1);
+    Serial.print(',');
+    Serial.print(gyroOnly, 1);
+    Serial.print(',');
+    Serial.print(accelPitch, 1);
+    Serial.print(',');
+    Serial.println(fused, 1);
+  }
+}
+```
+
+逐段看一遍，每一行都在教东西。`writeReg(REG_PWR_MGMT_1, 0x00)` 先把睡眠位清掉。读 WHO_AM_I 像一张收据：它证明地址、接线和总线都通了。`endTransmission(false)` 发出重复起始（repeated start）而不是释放总线，这样 MPU-6050 会保留寄存器指针，后面的 `requestFrom` 就从你刚选中的寄存器开始读。一次 14 字节的连读，把整组数据在同一个瞬间取回。
+
+循环用的是第 2 课（定时与中断）里的 `millis()` 模式，但它测量 `dt`，而不是假设 `dt` 一定是 10 ms。这一点很重要：一次串口打印、一次慢的 I2C 传输、一个中断，都可能把循环拉长；滤波器必须用真实流逝的时间积分，而不是你希望的时间。这个安装方向下，陀螺仪的 Y 轴对应俯仰角；慢慢倾斜板子，确认 gyro-only 和 accel-only 朝同一个方向变化。如果方向相反，就把 rate 取负。
+
+下面的输出不是来自真实电路板。它来自在 simavr AVR 模拟器中运行编译后的 Uno 固件，并接上一个由本站编辑编写的模拟 MPU-6050 模型：板子先平放，在 t = 3 s 到 4 s 之间倾斜到 30°，保持，然后在 7 s 到 8 s 之间放平；模拟陀螺仪读数偏高 1.5 °/s，加速度计带噪声。请把这些具体数字当作行为演示，而不是你自己传感器的校准结果。
+
+```text
+WHO_AM_I = 0x68
+t_s,gyro_only,accel_only,fused
+1.0,1.6,1.3,0.6
+2.0,3.1,-0.6,0.7
+3.0,5.2,-1.2,1.3
+4.0,36.3,29.0,30.6
+5.0,37.7,32.4,30.7
+6.0,39.3,29.4,30.7
+7.0,39.8,28.2,29.8
+8.0,12.4,0.6,1.1
+9.0,14.0,-0.7,0.6
+10.0,15.5,0.4,0.6
+11.0,17.0,-1.1,0.8
+12.0,18.5,2.4,0.8
+```
+
+三种行为和 Python 模型完全一致。gyro-only 在板子平放时也每秒爬约 1.5°，倾斜发生时跳约 30°，保持倾斜期间继续爬，板子放平后落到 12.4°，然后继续爬到 18.5°。accel-only 平均而言始终离真值不远，但一直在飘：t = 3 s 是 −1.2°，t = 5 s 是 32.4°，t = 12 s 是 2.4°。fused 在保持倾斜时停在 30.6–30.7°，放平后在 0.6–1.1° 附近，离真值约一度以内。具体数字和 Python 那次不同，因为噪声采样和时序不一样，但故事完全相同。
+
+这个练习值得在真实硬件上做一遍：把 IMU 放在桌上，启动程序，手不要碰。gyro-only 仍然会往一个方向爬，因为陀螺仪有零偏；fused 却基本不动，因为加速度计一直把它往回拉。这个对比就是状态估计里最重要的一课：平滑的传感器也可能一直是错的，而嘈杂的传感器平均下来也可能是对的。
+
+接下来学什么？卡尔曼滤波是自然的下一步：<Resource id="labbe-kalman" /> 是一本免费、可运行的书，从 g-h 滤波一路讲到完整的卡尔曼滤波。想在数学之前先建立概念，可以看 MathWorks 的传感器融合视频系列，画面和直觉都很好。如果你根本不想自己实现融合，像 BNO085 这种片上完成融合的 IMU 会直接给你姿态角——花钱绕过数学，代价是更贵。
+
+## 常见错误与检查清单
+
+下面这些坑，最消耗新手的时间：
+
+- 忘了唤醒 MPU-6050：不写 PWR_MGMT_1，所有读数都是零。
+- 地址不对：AD0 被拉高，或者 0x68 已经被另一个器件占用。
+- SDA 和 SCL 接反，或者忘了有些裸模块根本没有上拉电阻。
+- I2C 线又长又松，还贴着电机线走，然后怪传感器。
+- 把一个值的两个字节当成无符号数读，或者字节顺序反了，于是小的负数变成巨大的正数。
+- 角度和弧度混用：`atan2` 返回弧度，忘了换算，结果会差大约 57 倍。
+- 直接假设 `dt`，而不是测量它，尤其是串口打印或其他工作把循环拉长之后。
+- 陀螺仪的轴或符号和加速度计角度对不上，两个修正互相打架。
+- IMU 装得松松垮垮，或者紧贴振动电机，于是加速度计测到的是车架振动而不是重力。
+- 把 5 V 的 HC-SR04 回波直接送进 ESP32 输入；要分压。
+
+进入下一课之前，下面这些你能都答“是”吗？
+
+- 我能用扫描器找到新的 I2C 器件，并解释返回 0 是什么意思。
+- 我能按数据手册的灵敏度，把 MPU-6050 的原始寄存器值换算成 g 和 °/s。
+- 我能各用一句话解释陀螺仪为什么漂移、加速度计为什么有噪声。
+- 我能凭记忆写出互补滤波，并针对给定采样率选择 α。
+- 我知道怎么在开机时测量并减去陀螺仪零偏。

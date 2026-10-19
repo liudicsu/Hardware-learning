@@ -1,0 +1,346 @@
+## Why move to the ESP32
+
+The two Uno lessons gave you the core loop of every robot: read an input, decide, drive an output, and report what happened over serial. You also learned to replace `delay()` with `millis()` and to keep an interrupt handler short. That foundation does not change when you change boards. What changes is how much the board can do at once, and what it can connect to without extra hardware.
+
+The usual reasons to move up are concrete. You want the robot to join Wi-Fi so you can watch it from a phone. You want Bluetooth for a gamepad or a configuration app. You want a faster clock for control maths, more RAM for buffers and web pages, or a second core so networking does not compete with motor control. And, perhaps surprisingly, an ESP32 board often costs less than an Uno clone while offering all of that.
+
+There are several ESP32 variants, and they are not interchangeable in every detail. The three you will meet most often are:
+
+| Chip | CPU | RAM | Radio | Notes |
+| --- | --- | --- | --- | --- |
+| Classic ESP32 | Dual-core Xtensa LX6, up to 240 MHz | 520 KB SRAM | Wi-Fi 2.4 GHz + Bluetooth Classic + BLE | What most older tutorials target |
+| ESP32-S3 | Dual-core Xtensa LX7, up to 240 MHz | 512 KB SRAM | Wi-Fi 2.4 GHz + BLE 5 (no Bluetooth Classic) | Native USB; the course's recommended main board |
+| ESP32-C3 | Single-core RISC-V, up to 160 MHz | 400 KB SRAM | Wi-Fi + BLE 5 | Tiny and cheap, e.g. the Seeed XIAO ESP32-C3 |
+
+The names hide a real split. The S3 is the newer, more capable chip, but it dropped Bluetooth Classic. The C3 is small and inexpensive, and its single RISC-V core is fine for sensors and Wi-Fi, but it has less headroom for heavy control work. The classic ESP32 is the middle ground that the largest number of existing tutorials were written for.
+
+The course's buying advice follows from that: get an ESP32-S3 development board as your main board, and get one classic ESP32 as well. The S3 gives you native USB, more modern peripherals and room to grow. The classic board costs little and lets old tutorial code run unmodified when you follow a project written before the S3 existed.
+
+<Resource id="esp32-s3-devkit" />
+
+The speed difference from an Uno is easy to underestimate. Compare an ESP32-S3 with an Arduino Uno (ATmega328P):
+
+```text
+clock:  240 MHz / 16 MHz = 15×
+SRAM:   512 KB / 2 KB   = 256×
+width:  32-bit vs 8-bit
+```
+
+(The classic ESP32 has slightly more, 520 KB.) Fifteen times the clock does not mean fifteen times faster in real code, because memory accesses, Wi-Fi work and library overhead all take their share. It does mean you can afford floating-point maths, JSON strings and a web server without the board gasping. The RAM figure matters even more: 256 times the working memory is the difference between "I can hold this page in a string" and "I need to stream it in pieces". A 32-bit processor also handles pointers and addresses in one operation, where an 8-bit core needs several.
+
+The trade-off is the logic level. The Uno is a 5 V board; the ESP32 is a 3.3 V board, and its pins are not 5 V tolerant. The 3.3 V section below covers what that means at the bench. For now, remember that "more capable" also means "less forgiving".
+
+<Quiz id="q1" question="You need Bluetooth Classic (e.g. an old serial Bluetooth gamepad). Which chip?" options={["ESP32-S3", "Classic ESP32", "ESP32-C3"]} answer={1} explanation="The classic ESP32 includes Bluetooth Classic as well as BLE. The S3 and C3 support BLE only, so a device that needs Classic will not pair with them." />
+
+## Setting up and the first upload
+
+You can reuse the Arduino IDE you installed for the Uno, but it does not know about ESP32 boards until you tell it where to look. The steps are the same on Windows, macOS and Linux, with only the menu names shifting slightly between IDE versions.
+
+1. Open **Preferences** (or **Settings**) and find the field for additional board manager URLs.
+2. Paste this address:
+
+```text
+https://espressif.github.io/arduino-esp32/package_esp32_index.json
+```
+
+3. Open **Tools → Board → Boards Manager**, search for `esp32`, and install **esp32 by Espressif Systems**. The download is large; let it finish.
+4. Select **ESP32 Dev Module** for a classic board or **ESP32S3 Dev Module** for an S3. If you use a named board such as a XIAO, choose its exact entry instead.
+5. Select the serial port that appeared when you plugged the board in.
+
+The S3 has a detail that catches almost everyone. Many S3 boards have two USB sockets: one connected to the chip's native USB peripheral and one connected to a separate USB-to-serial chip. If you use the native USB port, open **Tools** and set **USB CDC On Boot: Enabled**. Without it the sketch runs but `Serial` output goes nowhere, and you conclude the upload failed when it did not. If your board has only one port, still check the setting; some boards ship with it disabled.
+
+Upload failures are usually connection failures, not code failures. The reliable recovery is manual: hold the **BOOT** button, tap **RESET** (sometimes labelled **EN**), release **BOOT**, then press Upload again. That puts the chip into its download mode. Also try the board's other USB socket and a different cable. A charge-only cable has no data wires, and it will power the board and fail every upload, which looks exactly like a broken board.
+
+Here is the first sketch. It blinks an LED and reports the chip's identity:
+
+```cpp
+// Blink the on-board LED and report which chip this is.
+// Set LED_PIN to your board's LED (many classic DevKits: 2; check your board's pinout).
+const int LED_PIN = 2;
+
+void setup() {
+  Serial.begin(115200);
+  delay(1000);  // give the USB serial port a moment to appear
+  pinMode(LED_PIN, OUTPUT);
+  Serial.printf("Chip: %s rev %d, %d core(s), %lu MHz\n",
+                ESP.getChipModel(), ESP.getChipRevision(),
+                ESP.getChipCores(), (unsigned long)ESP.getCpuFreqMHz());
+  Serial.printf("Flash: %lu bytes\n", (unsigned long)ESP.getFlashChipSize());
+}
+
+void loop() {
+  digitalWrite(LED_PIN, HIGH);
+  delay(200);
+  digitalWrite(LED_PIN, LOW);
+  delay(800);
+}
+```
+
+Two things in this sketch do not exist on the Uno. `Serial.printf()` is a formatted print, inherited from C: `%s` means a string, `%d` an integer, `%lu` an unsigned long. It saves you from five separate `Serial.print()` calls and a forest of separators. The `ESP` object is the second addition: `ESP.getChipModel()` returns the chip name, `getChipRevision()` the revision, `getChipCores()` the core count and `getCpuFreqMHz()` the clock. `getFlashChipSize()` reports the flash size in bytes.
+
+Open the serial monitor at **115200 baud** after the upload. You should see two lines in words: one beginning `Chip:` with the model name, revision, number of cores and clock, and one beginning `Flash:` with the flash size in bytes. The exact values depend on your board, so read them rather than expecting a fixed string. The LED should blink for 200 ms on and 800 ms off. These sketches were compiled for both the classic ESP32 and the S3 but were not run on hardware here, so no captured output is shown; your board supplies the real numbers.
+
+The LED is the part most likely to disappoint you. On many classic DevKit boards the on-board LED is on GPIO 2, but not all. Many S3 DevKitC boards use an addressable RGB LED instead of a plain LED, and some use a different GPIO entirely. Check your board's pinout and set `LED_PIN` accordingly. If nothing blinks, the serial report still proves that the upload worked and the chip is running; the LED is a wiring detail, not a verdict on your toolchain.
+
+<Callout type="tip" title="Try before the board arrives">
+Wokwi also simulates the ESP32, including the serial monitor and an on-screen LED. You can run this sketch in the browser while your board is still in the post, and you will already know the upload steps when it arrives.
+</Callout>
+
+## 3.3 V logic and the pin traps
+
+The ESP32 runs from 3.3 V. Its GPIOs are not 5 V tolerant: the datasheet's absolute maximum is around 3.6 V, and a 5 V signal pushed into a pin can damage the input stage even if the board seems to survive for a while. The usual 5 V offenders are an HC-SR04 echo pin, a 5 V Arduino output, and some older sensor modules with pull-ups to 5 V.
+
+There are two standard fixes. A **level shifter** is a small module built for the job, and it works for bidirectional buses such as I2C. A **resistor divider** is the cheap one-way fix: two resistors drop the 5 V signal to a safe level before it reaches the pin. Take 1 kΩ on top and 2 kΩ to ground:
+
+```text
+Rtop = 1 kΩ, Rbottom = 2 kΩ, Vin = 5 V
+Rtotal = 1 kΩ + 2 kΩ = 3 kΩ
+I = Vin / Rtotal = 5 V / 3 kΩ = 1.667 mA
+Vout = I × Rbottom = 1.667 mA × 2 kΩ = 3.333 V
+check: 5 V × 2 / (1 + 2) = 10 / 3 = 3.333 V
+```
+
+The current through the divider is only about 1.7 mA, which is harmless. The output is 3.333 V, just under the 3.6 V limit, and safely above the level the ESP32 reads as HIGH. This is the same divider arithmetic from Month 1, now with a safety purpose.
+
+<Falstad title="Dividing a 5 V signal down for a 3.3 V input" circuit="levelDivider" height={440} />
+
+How to use the simulation:
+
+1. The square-wave source on the left is a 5 V logic signal switching slowly. The probe at the midpoint shows 3.333 V while the signal is high and 0 V while it is low.
+2. Double-click the 2 kΩ resistor and change it to 3.3 kΩ. Predict the new high level before you run it.
+3. The new value is 5 V × 3.3 / (1 + 3.3) = 16.5 / 4.3 = 3.837 V, about 3.84 V. That is too high for a 3.3 V pin. The ratio matters more than the absolute resistor values: 1 kΩ and 2 kΩ divide by three, while 1 kΩ and 3.3 kΩ divide by only about 1.3.
+
+A divider is fine for a one-way signal that is not too fast, such as a push-button, a low-frequency sensor output or a slow serial line. It is not the right tool for I2C or a fast bus: the resistors and the capacitance of the wire form a low-pass filter, the edges become sluggish, and the bus starts failing intermittently. Use a proper bidirectional level shifter there.
+
+Current is the other half of the 3.3 V story. Keep a GPIO well below the Uno's limit; aim for 20 mA or less, and check the datasheet for the total across all pins. Motors, servos, relays and LED strips never connect directly to a pin. Drive them through a transistor or MOSFET from their own supply, exactly as the Month 1 transistor lesson showed.
+
+<Quiz id="q2" question="A 5 V sensor output feeds an ESP32 through 2.2 kΩ (top) and 3.3 kΩ (to GND). What voltage reaches the pin when the output is high?" answer={3} unit="V" explanation="Vout = 5 V × 3.3 / (2.2 + 3.3) = 16.5 / 5.5 = 3.0 V. That is safe for a 3.3 V input." />
+
+### Pins to avoid on a classic ESP32
+
+Most GPIOs are yours to use, but a handful are reserved or have surprising behaviour. Learn this list before you wire anything, because the failures look like software bugs.
+
+- **GPIO 6–11** are wired to the flash chip. Never use them. On many modules they are not even brought out to the header.
+- **GPIO 34–39** are input-only. They have no output drivers and no internal pull-ups, so `INPUT_PULLUP` does nothing useful on them. They are, however, part of ADC1, which makes them valuable for analog sensors in Wi-Fi projects.
+- **Strapping pins GPIO 0, 2, 5, 12 and 15** are read at boot to choose the boot mode and the flash voltage. A pull-up, a pull-down or a connected part on one of them can stop the board from booting. The classic trap is **GPIO 12 high at boot**: the chip then selects the wrong flash voltage and the sketch never starts. If a board boots fine alone but not with your sensor attached, suspect a strapping pin.
+- **ADC2 pins cannot be read while Wi-Fi is active.** The Wi-Fi driver owns that converter. Use ADC1, GPIO 32–39, for analog inputs in any Wi-Fi project.
+
+The S3 has its own list. Its strapping pins are **GPIO 0, 3, 45 and 46**, and its ADC1 pins are **GPIO 1–10**. Depending on the module, some GPIOs are taken by flash or PSRAM, and the exact set changes between modules with different memory options. Read your module's datasheet or pinout diagram rather than assuming that every pin on the header is free.
+
+<Quiz id="q3" question="On a classic ESP32 with Wi-Fi running, which pin should the potentiometer use?" options={["GPIO 4 (ADC2)", "GPIO 34 (ADC1)", "GPIO 9"]} answer={1} explanation="ADC2 is unavailable while Wi-Fi is active, and GPIO 9 is connected to the flash chip. GPIO 34 is on ADC1, so it still works with Wi-Fi on." />
+
+## The ESP32 ADC
+
+The ESP32's analog-to-digital converter (ADC) is 12-bit. That means it produces 4096 distinct codes, numbered 0 to 4095, where 0 is the bottom of its range and 4095 is the top. More bits than the Uno's 10-bit converter sounds like a straight upgrade, but the ESP32 ADC has quirks that the Uno's does not.
+
+With the default attenuation, the usable input range is roughly 0 to 3.1 V, not the full 3.3 V. A voltage above that saturates at 4095 and tells you nothing more. The converter is also noticeably non-linear near both ends of its range. In the middle it behaves reasonably; close to 0 V and close to the top, the same voltage step produces a different code change than it does in the centre. Do not expect the datasheet's ideal straight line.
+
+The practical answer is `analogReadMilliVolts(pin)`. It returns millivolts and applies the chip's factory calibration data, which corrects much of the non-linearity and the gain error. Use it instead of scaling `analogRead()` yourself. The raw function is still useful when you want the code value, but for a voltage, take the calibrated one.
+
+Here is why the naive conversion is not enough. Take a raw reading of 2048, halfway up the 12-bit scale, and assume a 3.3 V reference:
+
+```text
+2048 × 3.3 V / 4095 = 6758.4 / 4095 = 1.6504 V ≈ 1.65 V
+```
+
+A calibrated reading of the same input may differ by tens of millivolts, and that difference is exactly the error the factory calibration removes. Trust `analogReadMilliVolts()`, and average several readings to reduce noise: eight or sixteen samples, summed and divided, is a good habit. Keep the readings on ADC1 if Wi-Fi is running, and remember that the ADC measures against its own reference, not against a perfect 3.3 V.
+
+<Quiz id="q4" question="A 12-bit ADC: how many distinct codes does it have?" answer={4096} explanation="A 12-bit converter has 2^12 = 4096 codes, numbered 0 to 4095." />
+
+## Arduino, ESP-IDF or MicroPython?
+
+Once you leave the Uno, you will meet three ways to program the same chip. They are not equally good at everything, and the choice is about the job, not about which one is "real programming".
+
+| Framework | Choose it when | Watch out |
+| --- | --- | --- |
+| Arduino core | You want the fastest route to a working robot, the largest library ecosystem and the style this course uses | It hides some FreeRTOS detail, and some lower-level features are exposed late |
+| ESP-IDF | You need real control over FreeRTOS tasks, which core runs what, power modes and precise timing | Steeper setup, more boilerplate, more concepts before the first blink |
+| MicroPython | You want quick sensor experiments and a REPL where you can try things line by line | Garbage-collection pauses wreck hard timing; it is a poor fit for a balancing loop |
+
+The important idea is that these are a spectrum, not a fork. The Arduino core for ESP32 is built on top of ESP-IDF and FreeRTOS. When you write `setup()` and `loop()`, the core creates a FreeRTOS task for you and calls them from it. On a classic ESP32 that task normally runs on one core while the Wi-Fi stack mostly runs on the other, which is why networking does not automatically stall your control code. You can call ESP-IDF functions from an Arduino sketch, create your own tasks with `xTaskCreatePinnedToCore()`, and mix the two styles in one project.
+
+That layering is why the course starts with Arduino. You get the fast path now, and the lower layers remain available when you need them. If you later find yourself fighting the Arduino API for timer control or task priorities, the move to ESP-IDF is a step down the stack, not a restart.
+
+<Resource id="arduino-esp32" />
+
+MicroPython deserves its own warning. It is excellent for reading a sensor, plotting a value and trying an idea in five minutes. It is a poor choice for a control loop that must run at a fixed rate, because the garbage collector can pause execution at the worst possible moment. A self-balancing robot at 200 Hz cannot afford a pause of a few milliseconds. Use MicroPython to explore, and move the final loop to C++ when timing matters.
+
+<Quiz id="q5" question="Your self-balancing robot needs a steady 200 Hz control loop. Which choice from the table is the worst fit?" options={["Arduino core", "ESP-IDF", "MicroPython"]} answer={2} explanation="MicroPython's garbage-collection pauses make a fixed high-rate control loop unreliable. Arduino or ESP-IDF both give you deterministic C++ timing." />
+
+## Servo signals and the LEDC peripheral
+
+A hobby servo does not take an angle as a number. It expects a pulse every 20 ms, which is a 50 Hz frame, and the width of that pulse sets the angle. The common convention is 1.0 ms for 0°, 1.5 ms for 90° and 2.0 ms for 180°. Many servos actually accept something wider, roughly 0.5 ms to 2.5 ms, but the safe habit is to stay within the range your servo's datasheet gives. Driving past an end stop makes the motor push against a mechanical limit, draw a stall current, heat up and eventually strip a gear.
+
+The ESP32 generates this signal with its **LEDC** peripheral, a PWM block with hardware timers and channels. In Arduino-ESP32 core 3.x the API is compact: call `ledcAttach(pin, frequency, resolutionBits)` once, then `ledcWrite(pin, duty)` whenever you want a new pulse width. The resolution is in bits, so 14 bits gives duty values from 0 to 16383.
+
+<Formula label="LEDC duty for a pulse">duty = pulse / period × (2^bits − 1)</Formula>
+
+At 50 Hz the period is 1 / 50 = 0.02 s = 20 ms. With 14 bits, the maximum duty is 2^14 − 1 = 16383. For a 1.5 ms pulse:
+
+```text
+pulse / period = 1.5 ms / 20 ms = 0.075
+duty = 0.075 × 16383 = 1228.725
+integer result: 1228
+```
+
+The sketch in the project below uses the same integer maths inside `angleToDuty()`. It first converts the angle to microseconds, then scales that to duty. Run on a PC, the function produced exactly this table:
+
+```text
+angle   0 -> duty 819
+angle  45 -> duty 1023
+angle  90 -> duty 1228
+angle 135 -> duty 1433
+angle 180 -> duty 1638
+```
+
+Notice that the values are not perfectly evenly spaced: 819, 1023, 1228, 1433, 1638. The steps are 204, 205, 205, 205. That is normal. The conversion divides integers and throws away the remainder at each stage, so a half-count here and there disappears. At 14 bits one duty step is 20 ms / 16384 ≈ 1.22 µs, which is far finer than a hobby servo can resolve, so the truncation does not matter in practice.
+
+Power is where servos punish beginners. A small servo draws hundreds of milliamps while moving and around 1 A or more when stalled. The dev board's 3.3 V regulator cannot supply that, and trying will cause brownout resets or damage. Power the servo from a separate 5–6 V supply, connect its ground to the ESP32's ground, and feed only the signal wire from the GPIO. The 3.3 V signal is usually accepted by a 5 V servo as a logic high, but check the datasheet if the servo is an unusual one.
+
+<Quiz id="q6" question="50 Hz, 14-bit LEDC: what duty value (integer, rounded down) gives a 2.0 ms pulse?" answer={1638} explanation="duty = 2.0 / 20 × 16383 = 0.1 × 16383 = 1638.3, rounded down to 1638." />
+
+## Project: a phone-controlled servo
+
+This is the practice task for the lesson, and it is deliberately something an Uno cannot do without extra hardware: the ESP32 serves a small web page, shows a live sensor reading, and moves a servo when you press a button on your phone. Both devices must be on the same network.
+
+Wiring:
+
+- Servo signal → GPIO 18.
+- Servo + → external 5 V supply.
+- Servo − → GND, shared with the ESP32.
+- Potentiometer ends → 3.3 V and GND.
+- Potentiometer wiper → GPIO 34 on a classic ESP32, or GPIO 4 on an S3.
+
+```cpp
+// ESP32 web servo: a phone on the same Wi-Fi sees a live reading
+// and moves a hobby servo with three buttons.
+#include <WiFi.h>
+#include <WebServer.h>
+
+const char *WIFI_SSID = "your-network";
+const char *WIFI_PASS = "your-password";
+
+const int SERVO_PIN = 18;
+const int POT_PIN = 34;        // classic ESP32: GPIO 34 is on ADC1 (works with Wi-Fi on). ESP32-S3: use GPIO 4.
+const int SERVO_HZ = 50;       // standard hobby servo frame: 20 ms
+const int SERVO_BITS = 14;     // duty resolution: 0..16383
+
+WebServer server(80);
+int servoAngle = 90;
+
+// 0..180 degrees -> 1000..2000 us pulse -> LEDC duty value
+uint32_t angleToDuty(int angle) {
+  uint32_t us = 1000 + (uint32_t)angle * 1000 / 180;
+  return us * ((1UL << SERVO_BITS) - 1) / 20000;
+}
+
+void setServo(int angle) {
+  servoAngle = constrain(angle, 0, 180);
+  ledcWrite(SERVO_PIN, angleToDuty(servoAngle));
+}
+
+const char PAGE[] = R"HTML(<!doctype html>
+<html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ESP32 servo</title></head>
+<body style="font-family:sans-serif;text-align:center">
+<h1>ESP32 servo</h1>
+<p>Knob: <b id="mv">-</b> mV &middot; Servo: <b id="deg">-</b>&deg;</p>
+<p><button onclick="go(0)">0&deg;</button>
+<button onclick="go(90)">90&deg;</button>
+<button onclick="go(180)">180&deg;</button></p>
+<script>
+function go(a){fetch('/servo?angle='+a);}
+async function poll(){
+  try{const r=await fetch('/reading');const j=await r.json();
+  document.getElementById('mv').textContent=j.mv;
+  document.getElementById('deg').textContent=j.angle;}catch(e){}
+  setTimeout(poll,500);}
+poll();
+</script></body></html>)HTML";
+
+void handleRoot() { server.send(200, "text/html", PAGE); }
+
+void handleReading() {
+  char json[48];
+  snprintf(json, sizeof json, "{\"mv\":%lu,\"angle\":%d}",
+           (unsigned long)analogReadMilliVolts(POT_PIN), servoAngle);
+  server.send(200, "application/json", json);
+}
+
+void handleServo() {
+  if (!server.hasArg("angle")) { server.send(400, "text/plain", "missing angle"); return; }
+  setServo(server.arg("angle").toInt());
+  server.send(200, "text/plain", "ok");
+}
+
+void setup() {
+  Serial.begin(115200);
+  ledcAttach(SERVO_PIN, SERVO_HZ, SERVO_BITS);   // Arduino-ESP32 core 3.x API
+  setServo(90);
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  Serial.print("Connecting");
+  while (WiFi.status() != WL_CONNECTED) {         // fine in setup(); never do this in loop()
+    delay(250);
+    Serial.print('.');
+  }
+  Serial.println();
+  Serial.print("Open http://");
+  Serial.println(WiFi.localIP());
+
+  server.on("/", handleRoot);
+  server.on("/reading", handleReading);
+  server.on("/servo", handleServo);
+  server.begin();
+}
+
+void loop() {
+  server.handleClient();   // non-blocking: answers any waiting request and returns
+}
+```
+
+Read the sketch in the order it runs. `setup()` starts serial, attaches the servo pin with `ledcAttach()`, and sets the servo to 90°. Then it puts Wi-Fi into station mode, the mode where the ESP32 joins an existing network rather than creating its own, and calls `WiFi.begin()` with your credentials. The `while` loop prints dots until the connection succeeds. Blocking like that is acceptable in `setup()` because nothing else needs to run yet. It is not acceptable in `loop()`, where it would freeze your robot.
+
+When the connection succeeds, `WiFi.localIP()` returns the address the router assigned. That address is printed over serial, and it is what you type into your phone's browser, including the `http://`. If you see dots forever, the credentials are wrong or the network is out of range.
+
+Three routes are registered. `/` returns the HTML page stored in `PAGE`. `/reading` builds a small JSON string with `snprintf()` containing the calibrated millivolt reading and the current servo angle. `/servo?angle=...` reads the query argument, clamps it and moves the servo. The page's JavaScript polls `/reading` every 500 ms and writes the numbers into the two labelled spans. The three buttons call `go(0)`, `go(90)` and `go(180)`, which fetch the matching servo URL.
+
+`loop()` contains one line: `server.handleClient()`. It checks for a waiting request, answers it and returns immediately. That non-blocking design is why you can add your own sensor reading and control code later using the `millis()` pattern from the timing lesson. The web server does not own the CPU; it just gets a slice of every loop.
+
+`constrain(angle, 0, 180)` is a small but important guard. A malformed request, a phone autocomplete or a curious friend could send `angle=900`. Without the clamp, the pulse width would go far beyond the servo's mechanical range and the servo would grind against its stop. With it, the worst case is simply 180°.
+
+One network detail catches people: **ESP32 Wi-Fi is 2.4 GHz only**. If your phone is on a 5 GHz-only network, the board will never appear, no matter how correct the password is. Most home routers publish both bands under one name and choose for you; if yours has separate names, join the 2.4 GHz one on your phone while testing.
+
+<Callout type="warn" title="Keep the password out of Git">
+Do not commit your real Wi-Fi name and password to GitHub. Put `WIFI_SSID` and `WIFI_PASS` in a separate `secrets.h` file, add that file to `.gitignore`, and commit only a `secrets.example.h` with placeholder text. The [Git and GitHub lesson](/en/month/month-1/git-github) covers the ignore file and why history keeps a secret even after you delete it.
+</Callout>
+
+Extensions to try once the basic version works:
+
+- Replace the three buttons with a range slider that sends any angle between 0 and 180.
+- Add mDNS so the page opens at `http://robot.local` instead of a changing IP address.
+- Add reconnect logic in `loop()`: if `WiFi.status()` is no longer connected, retry without rebooting the board.
+- Show the potentiometer value as a number and use it to command the servo directly, then compare the knob position with the commanded angle.
+
+## Common mistakes and a checklist
+
+The failures below account for most of the help questions about this lesson. Read them before you debug at midnight.
+
+- Feeding 5 V into a GPIO. It may work for a while and then kill the pin; use a divider or a level shifter.
+- Using GPIO 6–11, or loading a strapping pin, and then wondering why the board will not boot. A sensor pull-up on GPIO 12 is the classic version.
+- Reading an analog sensor on ADC2 while Wi-Fi is on. The reading is invalid; move the sensor to ADC1.
+- Powering a servo or motor from the board's 3.3 V regulator. The rail collapses, the board resets, and the serial monitor shows `Brownout detector was triggered`.
+- Forgetting the shared ground between the servo supply and the ESP32. The signal has no reference, and the servo twitches or ignores commands.
+- Using a charge-only USB cable, or forgetting the BOOT button when an upload fails.
+- Testing on a 5 GHz-only network, then concluding that the Wi-Fi code is broken.
+- Copying an old `ledcSetup()` / `ledcAttachPin()` example written for core 2.x. Core 3.x replaced them with `ledcAttach()` and `ledcWrite()`.
+
+Before you move on, you should be able to say yes to all of these:
+
+- I can choose an ESP32 variant for a project and explain why the S3 is the course's main board while a classic board is still worth owning.
+- I can name the classic pins to avoid and say what goes wrong on each.
+- I can make a 5 V signal safe for a 3.3 V pin with a divider and show the arithmetic.
+- I can calculate an LEDC duty value for a given pulse width and resolution.
+- I can explain when to use the Arduino core, ESP-IDF or MicroPython.
+- I have the web servo working from my phone, with the servo on its own supply and a shared ground.

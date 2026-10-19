@@ -1,0 +1,387 @@
+## Four kinds of actuators
+
+An actuator turns electrical energy into motion. Almost every robot you will build this year uses one of four families, and they differ less in "power" than in how you command them and what they can tell you back.
+
+| Type | How you control it | Feedback | Typical use |
+| --- | --- | --- | --- |
+| Brushed DC gearmotor | PWM through an H-bridge driver | None unless you add an encoder | The default for a first rover |
+| Hobby servo | A 50 Hz pulse whose width sets the angle (Lesson 3) | Internal loop only, nothing comes back to you | Steering, small arms, about 180° of travel |
+| Smart serial bus servo (e.g. FeeTech STS3215) | Commands over a daisy-chained serial bus | Reports position, speed, load and more; a 12-bit magnetic encoder means 4096 positions per turn | Low-cost robot arms such as the open-source SO-101 |
+| Stepper motor | Step and direction pulses to a driver | None (open loop) but holds position with high torque | 3D printers, precise positioning |
+
+The brushed DC gearmotor is the honest workhorse. Give it voltage and it spins; reverse the voltage and it spins the other way. It is cheap, easy to mount and forgiving of clumsy control, which is why nearly every first rover uses two of them. What it lacks is a sense of its own position. Without an encoder it will happily spin forever and never know it has gone too far.
+
+A hobby servo hides a small DC motor, a gearbox, a position sensor and a control circuit inside one box. You do not command voltage; you send a pulse about every 20 ms and the width of that pulse asks for an angle. The servo's internal loop does the rest. That convenience has a price: the feedback stays inside the case, so your program knows the angle it requested, not the angle the servo actually reached. A stalled servo fighting a wall will keep trying, get hot and eventually strip its gears.
+
+A smart serial bus servo is the modern answer for arms. Each servo has an ID, and many of them share one serial line in a daisy chain. You send a command to an ID and the servo sends back its position, speed, load and other status. A 12-bit magnetic encoder gives 4096 positions per revolution, which is far finer than a hobby servo's internal potentiometer. This feedback is exactly why open-source arms such as the SO-101 can be built from low-cost parts and still behave repeatably.
+
+A stepper motor moves in fixed increments. It has no brushes and no internal feedback, but its rotor locks to a magnetic field, so it holds position strongly when stopped. That makes it perfect for 3D printers and other machines that need repeatable positioning without a closed loop. The catch is that "open loop" also means it will not notice when it is overloaded.
+
+<Callout type="info" title="The rule for this month">
+By the end of the month you should understand all four: what you send to each one, what comes back, and when the extra cost of feedback is worth it. You do not need to master every driver chip, but you should be able to look at a mechanism and say which family fits and why.
+</Callout>
+
+Brushless DC motors (BLDC) are the next level. They have no brushes to wear out and can be very efficient, but they need electronic commutation and usually field-oriented control (FOC) to run smoothly. FOC is a genuinely interesting topic, not a beginner requirement. When you are ready, the SimpleFOC project is the clearest free on-ramp. <Resource id="simplefoc" />
+
+## DC motors, gearboxes and why duty is not speed
+
+A brushed DC motor is roughly a resistor, an inductor and a generator sharing one shaft. Spin the shaft and it generates a voltage, called back-EMF, that opposes the supply. That is why a motor does not draw a huge current while running freely: the back-EMF cancels most of the applied voltage. Speed settles roughly in proportion to the voltage that remains after losses, and torque settles roughly in proportion to the current.
+
+Two consequences matter on a bench. First, **speed is roughly proportional to voltage**, not to the PWM number on your serial monitor. Second, **torque is roughly proportional to current**, and current rises when the load rises. A motor moving a light robot on a smooth floor draws little; the same motor pushing against a carpet draws much more.
+
+The worst case is stall: the shaft is held still, so there is no back-EMF at all. The winding looks like a small resistance and the motor draws its **stall current**, the largest current it will ever ask for. That number is often five to ten times the running current and can be several amps for a small geared motor. Size the driver and the battery for stall current, not for the tidy number you measured while the robot was rolling. Month 1 showed how that surge, flowing through battery and wire resistance, can sag the supply and reset the microcontroller.
+
+A gearbox trades speed for torque. A 120:1 gearbox means the motor turns 120 times for every one turn of the output shaft. The output is 120 times slower and, ignoring friction, about 120 times stronger. This is why a tiny motor can move a robot: it spins fast and weak, and the gearbox converts that into slow and strong. It also means you must be careful about which side of the gearbox an encoder sits on. Counts measured at the motor shaft multiply by the gear ratio when you convert them to wheel motion.
+
+Now the important distinction. PWM does not set speed; it sets the **average voltage** delivered to the motor. Lesson 1 explained that a fast switch, on for part of each period, produces an average: 60 % duty on a 7.4 V pack is 4.44 V on average. The motor's speed then depends on that average voltage, the battery's actual voltage, friction, and the load.
+
+**Worked example.** A 2S LiPo is 7.4 V nominal but 8.4 V when fully charged. At 60 % duty:
+
+```text
+nominal pack:   0.60 × 7.4 V = 4.44 V average
+charged pack:   0.60 × 8.4 V = 5.04 V average
+speed ratio:    5.04 / 4.44 = 1.135 → about 14 % faster
+```
+
+Same code, same duty, same robot, but about 14 % more speed simply because the battery is fresher. Send the same robot uphill and the same 4.44 V produces less speed again, because the motor now needs more torque and draws more current, and the extra losses leave less voltage to drive the spin. This is the month's milestone: **know the difference between PWM duty and actual RPM**. Duty is a command; RPM is a result.
+
+<Quiz id="q1" question="You command 45 % duty from a 6.0 V battery. Average motor voltage?" answer={2.7} unit="V" explanation="Average voltage = duty × supply = 0.45 × 6.0 V = 2.7 V. The actual speed also depends on load and battery condition." />
+
+## The H-bridge and choosing a driver
+
+A DC motor needs current in either direction, and a microcontroller pin cannot supply that current or reverse it. The circuit that solves both problems is the **H-bridge**: four switches arranged around the motor, named after the shape of the schematic.
+
+```text
+            +V (motor supply)
+             |
+      +------+------+
+      |             |
+     S1            S3
+      |             |
+      +--- MOTOR ---+
+      |             |
+     S2            S4
+      |             |
+      +------+------+
+             |
+            GND
+```
+
+Close S1 and S4 and current flows from +V through the motor to GND: forward. Close S2 and S3 instead and current flows the other way: reverse. Close both low-side switches, S2 and S4, and the motor terminals are connected together through ground: the motor is shorted and brakes hard. The forbidden state is closing S1 and S2 at the same time, or S3 and S4 at the same time. That puts a direct path from +V to GND through two switches — **shoot-through** — and the resulting current can destroy the bridge in microseconds. Real driver chips include logic and dead time to make that state impossible, which is one good reason to use a chip instead of building four discrete MOSFETs on a breadboard.
+
+The L298N appears in almost every tutorial. It works, and you should recognise it, but it is an old bipolar-transistor design. Its output stage drops roughly 2 V or more, so a 7.4 V battery delivers only about 5.4 V to the motor. The missing voltage becomes heat inside the driver. At 1 A that is about 2 W inside the driver, which is why L298N boards get hot and why they waste battery so quickly. Learn it because tutorials use it, then choose a MOSFET driver for your own robot.
+
+Two good choices are the TB6612FNG and the DRV8833. The TB6612FNG gives about 1.2 A continuous per channel, accepts a motor supply up to about 13.5 V, and its logic side runs from 2.7 V to 5.5 V. The DRV8833 also gives about 1.2 A per channel, with a motor supply range of 2.7 V to 10.8 V. These are headline numbers; always check the datasheet for your exact breakout board, because connectors, copper area and cooling change what is realistic.
+
+The TB6612FNG has a simple control table. Each channel has two direction inputs and one PWM input, plus a shared standby pin.
+
+| IN1 | IN2 | PWM | Result |
+| --- | --- | --- | --- |
+| H | L | PWM | Forward at that duty |
+| L | H | PWM | Reverse |
+| H | H | any | Short brake (fast stop) |
+| L | L | any | Stop (coast) |
+
+STBY must be HIGH or the outputs stay disabled and nothing moves. That pin catches almost everyone once: the code looks perfect, the motor is silent, and the only problem is a floating standby input. Tie it HIGH deliberately, or drive it from a pin so you can disable the driver in software. <Resource id="sparkfun-tb6612" />
+
+**Worked example.** A 7.4 V pack, an L298N with a 2 V output drop:
+
+```text
+voltage at the motor: 7.4 V − 2.0 V = 5.4 V
+fraction lost as heat: 2.0 V / 7.4 V = 0.27 → 27 %
+heat at 1 A:           2.0 V × 1 A = 2.0 W
+```
+
+More than a quarter of your battery energy is heating the driver instead of turning the wheel. A MOSFET driver with a drop of a few tens of millivolts changes that arithmetic dramatically.
+
+<Quiz id="q2" question="A 7.4 V pack drives a motor through an L298N that drops 2.2 V. What voltage reaches the motor?" answer={5.2} unit="V" explanation="7.4 V − 2.2 V = 5.2 V. The missing 2.2 V appears as heat in the driver." />
+
+## Inductive kickback and the flyback diode
+
+A motor winding is an inductor. Inductors resist changes in current, described by:
+
+<Formula label="Inductor voltage">V = L × di/dt</Formula>
+
+If the current is steady, di/dt is zero and the inductor behaves like a piece of wire. If you try to stop the current instantly, di/dt is enormous, so the inductor generates whatever voltage is needed to keep the current flowing. That voltage can be tens or hundreds of volts — far above your 5 V supply. It can punch through a switching transistor, arc across a mechanical switch, or travel back into the supply and reset the microcontroller.
+
+<Falstad title="Inductive kickback" circuit="inductkick" height={420} />
+
+This is Falstad's built-in example: a 5 V supply drives current through a 1 H inductor, a 100 Ω resistor and a closed switch (the white bar at the bottom). The small 500 pF capacitor across the switch stands in for the switch's own capacitance. Click the switch to open it and watch the capacitor's scope at the bottom, which is the voltage across the switch: it spikes far above the 5 V supply. That spike is the inductor insisting that its current continue.
+
+<Falstad title="Kickback blocked by a flyback diode" circuit="inductkickBlock" height={420} />
+
+Now the same circuit has a diode across the inductor. Open the switch again. The current can no longer flow through the switch, so it circulates through the diode instead, loses energy in the winding resistance and dies away. The spike is gone. The diode is **reverse-biased** in normal operation, so it does nothing until the switch opens; then it becomes the path that saves the transistor.
+
+The rule is simple: **put a diode reverse-biased across every motor, relay coil or solenoid that you switch with a transistor**, with the cathode on the positive side. Choose a diode whose current rating covers the coil current and whose reverse voltage rating comfortably exceeds the supply. H-bridge driver chips already contain these clamp diodes internally, which is another reason not to build your own bridge from bare transistors. Month 1 previewed this diode in the transistor-switching lesson; with a motor, it stops being optional.
+
+Two smaller habits from Month 1 still apply. Solder a **100 nF ceramic capacitor across the motor terminals** to absorb brush noise before it travels down the wires. Put a **bulk electrolytic capacitor near the driver**, so the surge when the motor starts comes from a local reservoir rather than from the far end of a thin battery lead. Neither replaces a flyback diode on a transistor-switched coil; they solve different problems.
+
+<Quiz id="q3" question="You drive a relay coil from an NPN transistor. How is the flyback diode connected?" options={["In series with the coil", "Across the coil, cathode to the + supply side, so it does not conduct normally", "Across the coil, anode to the + supply side"]} answer={1} explanation="The diode sits across the coil, reverse-biased during normal operation. When the transistor turns off, the coil current circulates through the diode instead of producing a destructive voltage spike." />
+
+## Servos, steppers and smart servos
+
+Hobby servos were covered in Lesson 3, so here is only the part that matters around motors. A servo expects a 50 Hz pulse train, and the pulse width, usually between about 1 ms and 2 ms, sets the commanded angle. The internal control loop moves the output shaft until its position sensor matches the command. Power the servo from a separate supply that can deliver its stall current, tie the grounds together, and never drive it into its mechanical end stops. A servo pushing against a stop draws a lot of current, heats up and can strip its plastic gears. The signal wire carries almost no current; the power wire carries the surge.
+
+Stepper motors are different. A typical stepper moves 1.8° per full step, which is 360° / 1.8° = 200 full steps per revolution. The "NEMA 17" label describes the 1.7-inch faceplate mounting pattern, not the motor's strength; two NEMA 17 motors can have very different torque and current ratings. A driver such as the A4988 takes two logic inputs, STEP and DIR: each pulse on STEP advances one step, and the level on DIR chooses the direction. Microstepping divides each full step further. At 1/16 microstepping, one revolution needs 200 × 16 = 3200 microsteps, and therefore 3200 STEP pulses.
+
+Before you connect a stepper, set the driver's current limit. On an A4988 this is the small potentiometer that sets Vref, and the formula depends on the sense resistor on your particular board. Too high and the motor and driver overheat; too low and the motor buzzes and skips. Set it with the motor disconnected from the driver, measure Vref, then connect and test at low speed. And remember the fundamental limitation: a stepper is open loop. If the load is too high, it silently skips steps and does not know. The print or the robot arm simply ends up somewhere else, with no error message.
+
+Smart bus servos combine the convenience of a servo with the feedback of an encoder. One serial line daisy-chains many servos, each with its own ID, so a six-servo arm needs one cable instead of six PWM cables. You send a command to an ID and read back position, speed, load, voltage and temperature. The 12-bit magnetic encoder inside a servo such as the STS3215 gives 4096 positions per turn. That feedback is why modern low-cost arms can repeat positions and detect when they are pushing too hard, instead of blindly driving into a stall.
+
+<Quiz id="q4" question="A 200-step stepper on an A4988 set to 1/8 microstepping: how many STEP pulses per revolution?" answer={1600} explanation="200 full steps × 8 microsteps per full step = 1600 STEP pulses per revolution." />
+
+## Encoders: counting rotation
+
+An encoder turns rotation into countable electrical edges. A **quadrature encoder** has two outputs, A and B, that are 90° out of phase. Each output is a square wave, but the pair carries more information than either alone: the order in which the edges arrive tells you the direction of rotation.
+
+```text
+forward:  AB = 00 → 10 → 11 → 01 → 00 → ...
+reverse:  AB = 00 → 01 → 11 → 10 → 00 → ...
+```
+
+If you watch only A, you can count how fast the shaft turns but not which way. Watching both channels and the order of their edges gives you direction as well. Counting every edge on both channels, a technique called four-times decoding, extracts the most counts from the same encoder. That is how a small magnetic encoder whose channels each pulse only 3 times per motor turn is rated at 12 counts per revolution: 3 pulses × 2 edges × 2 channels = 12.
+
+The Pololu Romi gearmotor in this lesson's resource cards has a 12 CPR encoder on the motor shaft and a 120:1 gearbox. Counts at the wheel are therefore:
+
+```text
+counts per wheel revolution = 12 × 120 = 1440
+```
+
+If the wheel is 70 mm in diameter, one wheel revolution covers π × 70 mm, and each count corresponds to a small slice of that distance:
+
+```text
+circumference = π × 70 mm = 219.91 mm
+distance per count = 219.91 mm / 1440 = 0.1527 mm ≈ 0.153 mm
+```
+
+So one count is about a seventh of a millimetre. That is the resolution your closed loop works with: coarse enough that a simple controller can handle it, fine enough to stop a small robot within a few millimetres.
+
+Two practical details. Encoder outputs are often **open-drain**, meaning they can pull the line low but cannot drive it high. Enable the microcontroller's internal pull-ups with `INPUT_PULLUP`, or fit external 10 kΩ pull-ups to the encoder supply. Without them the signal floats and the count becomes random. And counting cannot be done with slow polling: edges arrive quickly and can be missed while the rest of the program runs. Use interrupts, as in Lesson 2, and keep the interrupt routine short. Read multi-byte counters atomically, with interrupts briefly disabled, so the main program never sees half of an update.
+
+<Quiz id="q5" question="An encoder gives 12 counts per motor-shaft revolution and the gearbox is 50:1. Counts per wheel revolution?" answer={600} explanation="12 counts × 50 gear ratio = 600 counts per wheel revolution. The gearbox multiplies both torque and count resolution." />
+
+## Project: exactly one revolution
+
+The practice task for this lesson is deliberately small and deliberately real. First drive a motor forward and backward at five different speeds, so you feel what PWM does. Then write a function that turns the wheel exactly one revolution, regardless of whether the battery is fresh or tired. That function is your first genuine closed loop: a sensor, a target, an error and a command that reacts to the error.
+
+Start with a toy model in Python. The model is not a hardware measurement. It is a simplified simulation written for this lesson, with a motor that responds to voltage, a dead band below which friction wins, and an encoder that counts 1440 times per wheel turn. The output below comes from running the given model exactly as printed.
+
+```python
+"""one_rev_sim.py: turn a wheel exactly one revolution, open loop vs encoder feedback.
+
+Toy model of a small 120:1 gearmotor with a 12 CPR encoder (1440 counts per wheel turn).
+"""
+COUNTS_PER_REV = 12 * 120          # encoder counts per motor turn x gear ratio
+DT = 0.001                         # 1 ms simulation step
+K_SPEED = 260.0                    # counts/s per volt at the motor, once moving
+TAU = 0.05                         # motor + wheel time constant, s
+DEADBAND_V = 0.8                   # below this the motor does not overcome friction
+
+
+def step(speed, volts_at_motor):
+    """Advance the motor speed (counts/s) by one time step."""
+    drive = 0.0 if abs(volts_at_motor) < DEADBAND_V else volts_at_motor
+    target = K_SPEED * drive
+    return speed + (target - speed) * DT / TAU
+
+
+def open_loop(battery_v, run_time_s, duty=0.6):
+    """Run at a fixed duty for a fixed time, then cut power and let it coast."""
+    speed, pos, t = 0.0, 0.0, 0.0
+    while t < run_time_s + 0.5:
+        v = battery_v * duty if t < run_time_s else 0.0
+        speed = step(speed, v)
+        pos += speed * DT
+        t += DT
+    return round(pos)
+
+
+def closed_loop(battery_v, kp=0.004, max_duty=0.6, min_duty=0.0, tolerance=2):
+    """P control on encoder counts: duty proportional to the remaining distance.
+
+    min_duty, if set, is the smallest duty used while the error is outside the tolerance,
+    so the motor never stalls just short of the target.
+    """
+    speed, pos, t = 0.0, 0.0, 0.0
+    while t < 3.0:
+        error = COUNTS_PER_REV - pos
+        duty = max(-max_duty, min(max_duty, kp * error))
+        if abs(error) <= tolerance:
+            duty = 0.0
+        elif abs(duty) < min_duty:
+            duty = min_duty if error > 0 else -min_duty
+        speed = step(speed, battery_v * duty)
+        pos += speed * DT
+        t += DT
+    return round(pos)
+
+
+if __name__ == "__main__":
+    # Calibrate the open-loop run time on a full 8.4 V battery (2S LiPo, fully charged)
+    run_time = COUNTS_PER_REV / (K_SPEED * 8.4 * 0.6)
+    print(f"counts per wheel revolution: {COUNTS_PER_REV}")
+    print(f"open-loop run time (tuned at 8.4 V): {run_time:.3f} s")
+    for battery in (8.4, 7.4, 6.6):
+        print(f"battery {battery:.1f} V | open loop: {open_loop(battery, run_time):5d}"
+              f" | P only: {closed_loop(battery):5d}"
+              f" | P + min duty: {closed_loop(battery, min_duty=0.15):5d}")
+```
+
+```text
+counts per wheel revolution: 1440
+open-loop run time (tuned at 8.4 V): 1.099 s
+battery 8.4 V | open loop:  1440 | P only:  1443 | P + min duty:  1441
+battery 7.4 V | open loop:  1269 | P only:  1435 | P + min duty:  1441
+battery 6.6 V | open loop:  1132 | P only:  1430 | P + min duty:  1440
+```
+
+Read the first block carefully. The open-loop time is calibrated on a fully charged 8.4 V pack. At that voltage it hits 1440 counts almost exactly. At 7.4 V it reaches only 1269 counts, and at 6.6 V only 1132. The tired pack falls short by 308 counts, which is 308 / 1440 × 360° ≈ 77°. The code did exactly what it was told: same duty, same time. The motor, however, had less voltage, so it turned more slowly and covered less ground. This is the open-loop trap in one table.
+
+The P controller fixes most of it. It measures the remaining error, 1440 minus the current count, and makes the duty proportional to that error with a gain `kp`. Near the target the duty becomes small, so the wheel slows down instead of overshooting. At 7.4 V it ends at 1435 and at 6.6 V at 1430: much better, but still a few counts short. The reason is friction. Below about 0.8 V at the motor the wheel does not move at all, so a small remaining error produces a duty that cannot overcome the dead band. The wheel stops just before the target.
+
+The third column adds a minimum duty. While the error is outside the tolerance, the controller never commands less than 15 % duty in the direction of travel. That is enough to keep the wheel creeping, so the error can actually reach the tolerance. At 8.4 V and 7.4 V the result is 1441 counts; at 6.6 V it is exactly 1440. Notice that this is still a P controller: the minimum duty is a patch for stiction, not an integral term. A full PID controller adds an integral term that accumulates small errors over time and a derivative term that anticipates overshoot. That is Lesson 6. For now, the lesson is that a feedback loop is only as good as its ability to keep moving when the error is small.
+
+Now the same idea on the Uno. The sketch below is the compiled firmware used for the output that follows. The output is not a hardware measurement: it comes from running this firmware in the simavr AVR simulator, connected to the same toy motor and encoder model used by the Python script. Treat it as a check of the logic and the arithmetic, not as a promise about your bench.
+
+```cpp
+// Turn a wheel exactly one revolution using a quadrature encoder.
+// Driver: TB6612FNG channel A. Encoder: Pololu-style 12 CPR, 120:1 gearbox.
+const int PWMA = 5;      // speed (PWM pin)
+const int AIN1 = 7;      // direction
+const int AIN2 = 8;
+const int STBY = 9;      // HIGH = driver enabled
+const int ENC_A = 2;     // both encoder channels on interrupt pins
+const int ENC_B = 3;
+
+const long COUNTS_PER_REV = 1440;   // 12 counts per motor turn x 120:1
+const float KP = 0.4;               // PWM steps per count of error
+const int MIN_PWM = 40;             // smallest PWM that still moves the wheel
+const int MAX_PWM = 150;
+const long TOLERANCE = 2;           // counts
+
+volatile long encoderCount = 0;
+volatile uint8_t lastAB = 0;
+
+// Quadrature decoding: every edge on A or B moves the count by +1 or -1.
+// Index = previous AB (2 bits) followed by new AB (2 bits).
+const int8_t QDEC[16] = {0, -1, +1, 0, +1, 0, 0, -1, -1, 0, 0, +1, 0, +1, -1, 0};
+
+void onEncoder() {
+  uint8_t ab = (digitalRead(ENC_A) << 1) | digitalRead(ENC_B);
+  encoderCount += QDEC[(lastAB << 2) | ab];
+  lastAB = ab;
+}
+
+long readCount() {
+  noInterrupts();
+  long c = encoderCount;
+  interrupts();
+  return c;
+}
+
+void drive(int pwm) {                 // -255..255, sign = direction
+  digitalWrite(AIN1, pwm > 0);
+  digitalWrite(AIN2, pwm < 0);
+  analogWrite(PWMA, abs(pwm));
+}
+
+void brake() {                        // TB6612: IN1 = IN2 = HIGH shorts the motor -> fast stop
+  digitalWrite(AIN1, HIGH);
+  digitalWrite(AIN2, HIGH);
+}
+
+bool turnCounts(long target, unsigned long timeoutMs) {
+  noInterrupts();
+  encoderCount = 0;
+  interrupts();
+  unsigned long start = millis();
+  while (millis() - start < timeoutMs) {
+    long error = target - readCount();
+    if (abs(error) <= TOLERANCE) {
+      brake();
+      return true;
+    }
+    int pwm = constrain((int)(KP * error), -MAX_PWM, MAX_PWM);
+    if (abs(pwm) < MIN_PWM) pwm = (error > 0) ? MIN_PWM : -MIN_PWM;
+    drive(pwm);
+  }
+  drive(0);                           // never leave a motor running after a timeout
+  return false;
+}
+
+void setup() {
+  pinMode(PWMA, OUTPUT);
+  pinMode(AIN1, OUTPUT);
+  pinMode(AIN2, OUTPUT);
+  pinMode(STBY, OUTPUT);
+  pinMode(ENC_A, INPUT_PULLUP);       // the encoder outputs are open-drain
+  pinMode(ENC_B, INPUT_PULLUP);
+  lastAB = (digitalRead(ENC_A) << 1) | digitalRead(ENC_B);
+  attachInterrupt(digitalPinToInterrupt(ENC_A), onEncoder, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(ENC_B), onEncoder, CHANGE);
+  digitalWrite(STBY, HIGH);
+  Serial.begin(115200);
+
+  bool ok = turnCounts(COUNTS_PER_REV, 5000);
+  delay(300);                         // let the wheel settle, then report
+  Serial.print(ok ? F("done, count = ") : F("timeout, count = "));
+  Serial.println(readCount());
+}
+
+void loop() {}
+```
+
+The wiring, using channel A of a TB6612FNG breakout:
+
+- PWMA to D5, AIN1 to D7, AIN2 to D8, STBY to D9.
+- VM to the motor battery positive, VCC to 5 V, and every ground common: battery, driver and Uno.
+- Encoder A to D2, encoder B to D3, encoder VCC to 5 V, encoder GND to the common ground.
+
+The QDEC table is the heart of the decoder. The index is four bits: the previous A and B states followed by the new A and B states. For a valid single edge the table returns +1 or −1; for an impossible or unchanged transition it returns 0. When A and B both change at once — which should not happen on a clean encoder — the table returns 0 rather than inventing a direction. The `onEncoder` interrupt reads both pins, forms the same four-bit index, adds the result to the count and stores the new state.
+
+`readCount()` disables interrupts for the few instructions needed to copy a four-byte `long`. Without that, the main program could read the low byte before an interrupt and the high byte after, producing a nonsensical value. `turnCounts()` resets the count, records the start time, and then runs a P controller. The error is the target minus the current count. The commanded PWM is `KP` times the error, clamped to ±`MAX_PWM`. If the magnitude is below `MIN_PWM`, it is raised to `MIN_PWM` in the direction of the error, so friction cannot freeze the wheel just short of the target. The timeout is not decoration: if the encoder is unplugged or the robot is stuck, the loop exits and calls `drive(0)` so the motor does not run forever.
+
+`brake()` and `drive(0)` are not the same thing. `drive(0)` sets both direction inputs low, which lets the motor coast. `brake()` sets both direction inputs high, which shorts the motor terminals inside the driver and stops it quickly. At the target, braking matters because the wheel has momentum. We ran the firmware three times in the simulator, once per battery voltage. The sketch itself prints only `done, count = …`; the battery label in front of each line is ours. With `brake()` at the target:
+
+```text
+battery 8.4 V: done, count = 1441
+battery 7.4 V: done, count = 1441
+battery 6.6 V: done, count = 1440
+```
+
+If the sketch stops with `drive(0)` instead of `brake()`, the coasting wheel carries past the target:
+
+```text
+battery 8.4 V: done, count = 1455
+battery 7.4 V: done, count = 1453
+battery 6.6 V: done, count = 1451
+```
+
+The difference is 11 to 15 counts, about 3° of wheel rotation. On a real robot expect less tidy numbers: gearbox backlash, a heavier wheel, a slightly different floor and a different motor will all move the result. Tune `MIN_PWM` by finding the smallest PWM that reliably starts your wheel from rest, then add a small margin. Tune `KP` by raising it until the wheel overshoots or buzzes around the target, then backing off. Do this at two battery voltages, because a setting that is perfect on a full pack may be too weak on a tired one.
+
+<Quiz id="q6" question="Why does the open-loop version (fixed run time) turn less than a revolution on a lower battery?" options={["The encoder misses counts at low voltage", "Same duty and same time but lower voltage means lower speed, so less distance", "PWM frequency drops with the battery"]} answer={1} explanation="The open-loop code holds duty and time constant. A lower battery gives a lower average voltage, so the motor runs slower and covers less distance. The encoder is not the problem; there is no feedback at all." />
+
+## Common mistakes and a checklist
+
+The beginner pits for this lesson, in no particular order:
+
+- Powering a motor from the Arduino's 5 V pin. The regulator cannot supply the current, and the board will brown out or overheat.
+- No common ground between the battery, the driver and the microcontroller. The signal has no reference, so the driver behaves randomly or not at all.
+- STBY left floating. The driver stays disabled and the motor never moves.
+- PWM on a pin without a `~` mark. `analogWrite()` compiles, but the pin just switches fully on (values of 128 and up) or fully off; there is no PWM.
+- Stall current above the driver's rating. Check the motor's stall current before choosing a driver, not after the magic smoke.
+- No bulk capacitor near the driver. The start-up surge sags the rail and resets the MCU, exactly as in Month 1.
+- No flyback diode on a transistor-switched coil. The transistor dies at the moment you switch off, which makes the failure confusing.
+- Leaving a motor running after a timeout or an error path. Every exit from a control loop should stop the motor.
+- Encoder outputs without pull-ups. Open-drain outputs float, and the count becomes noise.
+- Counts going the wrong way. Swap A and B, or swap the motor leads, then check the sign again.
+- The L298N getting hot. That is not a feature; it is wasted battery and a driver that may thermally shut down.
+
+Before you move on, you should be able to say yes to all of these:
+
+- I can explain why PWM duty is not speed, and what else changes the RPM.
+- I can draw an H-bridge and name its four useful states, including brake and coast.
+- I can choose a driver for a given motor and battery, and explain why the L298N is a poor default.
+- I can explain inductive kickback and place a flyback diode correctly.
+- I can compute counts per revolution from encoder CPR and gear ratio.
+- I have a wheel turning exactly one revolution at two different battery voltages, and I can explain what the encoder contributed.

@@ -1,0 +1,346 @@
+## 为什么换到 ESP32
+
+两节 Uno 课已经给你搭好了机器人程序的基本骨架：读输入、做判断、驱动输出，再把发生的事通过串口讲给你听。你也学会了用 `millis()` 取代 `delay()`，以及让中断服务函数尽量短。换一块板子，这些思路一点都不会浪费；真正变化的是板子能同时做多少事，以及不用外接模块就能连上什么。
+
+换板的理由通常很具体。你想让机器人连上 Wi-Fi，用手机就能看到它的状态；你想用蓝牙接一只手柄或一个配置 App；你需要更快的时钟来跑控制运算，需要更大的内存来放缓冲区和网页，或者需要第二个核心，让联网不再和电机控制抢时间。还有一点可能出乎意料：具备这些能力的 ESP32 开发板，常常比一块 Uno 兼容板还便宜。
+
+ESP32 是一个系列，不同型号并非每个细节都能互换。你最先会遇到的三种是：
+
+| 芯片 | CPU | 内存 | 无线 | 备注 |
+| --- | --- | --- | --- | --- |
+| 经典 ESP32 | 双核 Xtensa LX6，最高 240 MHz | 520 KB SRAM | Wi-Fi 2.4 GHz + 蓝牙经典 + BLE | 网上大多数旧教程针对的就是它 |
+| ESP32-S3 | 双核 Xtensa LX7，最高 240 MHz | 512 KB SRAM | Wi-Fi 2.4 GHz + BLE 5（没有蓝牙经典） | 原生 USB；本课程推荐的主力板 |
+| ESP32-C3 | 单核 RISC-V，最高 160 MHz | 400 KB SRAM | Wi-Fi + BLE 5 | 体积小、价格低，例如 Seeed XIAO ESP32-C3 |
+
+型号名字背后有一个关键区别：S3 更新、更强，但砍掉了蓝牙经典（Bluetooth Classic）；C3 小巧便宜，单核 RISC-V 跑传感器和 Wi-Fi 足够，但留给复杂控制运算的余量不多；经典 ESP32 则处在中间，也是现存教程覆盖最广的一颗。
+
+所以本课程的购买建议很直接：主力买一块 ESP32-S3 开发板，再备一块经典 ESP32。S3 给你原生 USB、较新的外设和继续折腾的空间；经典板花不了多少钱，却能让你在照抄 S3 出现之前的旧教程时，代码一行不改就跑起来。
+
+<Resource id="esp32-s3-devkit" />
+
+和 Uno 相比，速度差距很容易被低估。拿 ESP32-S3 和 Arduino Uno（ATmega328P）对照：
+
+```text
+时钟:  240 MHz / 16 MHz = 15×
+内存:  512 KB / 2 KB   = 256×
+位宽:  32 位 vs 8 位
+```
+
+（经典 ESP32 还略多一点，有 520 KB。）时钟快 15 倍，不等于实际代码快 15 倍——访存、Wi-Fi 协议栈和库的开销都要分走一部分。但它意味着你可以放心使用浮点运算、JSON 字符串和网页服务，而不必让板子一路喘气。内存的差距更要紧：256 倍的工作内存，决定了你是“能把整个网页放进一个字符串”，还是“只能分块往外吐”。32 位处理器还能一次处理一个指针或地址，8 位核心则要拆成好几次。
+
+代价在逻辑电平上。Uno 是 5 V 板，ESP32 是 3.3 V 板，而且它的引脚不耐 5 V。下文“3.3 V 逻辑”一节会讲这在实验台上具体意味着什么。现在先记住一句话：能力更强，也意味着更不容错。
+
+<Quiz id="q1" question="你需要蓝牙经典（Bluetooth Classic），例如一只老式串口蓝牙手柄。该选哪颗芯片？" options={["ESP32-S3", "经典 ESP32", "ESP32-C3"]} answer={1} explanation="经典 ESP32 同时支持蓝牙经典和 BLE；S3 与 C3 只支持 BLE，需要蓝牙经典的设备连不上。" />
+
+## 环境搭建与第一次上传
+
+为 Uno 装好的 Arduino IDE 可以继续用，但它原本不认识 ESP32，必须先告诉它去哪里找板子定义。Windows、macOS 和 Linux 的步骤一样，只是不同版本的菜单名称略有出入。
+
+1. 打开 **Preferences**（或 **Settings**），找到“附加开发板管理器网址”一栏。
+2. 粘贴下面这个地址：
+
+```text
+https://espressif.github.io/arduino-esp32/package_esp32_index.json
+```
+
+3. 打开 **Tools → Board → Boards Manager**，搜索 `esp32`，安装 **esp32 by Espressif Systems**。下载量不小，耐心等它装完。
+4. 经典板选 **ESP32 Dev Module**，S3 选 **ESP32S3 Dev Module**。如果你用的是 XIAO 这类有名字的板子，就选与它完全对应的条目。
+5. 选中插上板子后出现的那个串口。
+
+S3 有一个几乎人人都会踩的细节。很多 S3 板有两个 USB 口：一个直接连芯片的原生 USB，另一个连独立的 USB 转串口芯片。如果你用原生 USB 口，要到 **Tools** 里把 **USB CDC On Boot** 设为 **Enabled**。不设的话，程序照常运行，但 `Serial` 的输出哪儿也不去，你会误以为上传失败，其实并没有。只有一个 USB 口的板子也要检查这个选项，有些出厂就是关的。
+
+上传失败，多数是连接问题而不是代码问题。最可靠的恢复办法是手动进下载模式：按住 **BOOT**，点一下 **RESET**（有的板标 **EN**），松开 **BOOT**，再点上传。也可以换板上的另一个 USB 口、换一根线。只能充电的 USB 线没有数据线芯，插上板子会亮、上传却永远失败，症状和板子坏了几乎一样。
+
+下面是第一个程序，它让板载 LED 闪烁，并报告自己是什么芯片：
+
+```cpp
+// Blink the on-board LED and report which chip this is.
+// Set LED_PIN to your board's LED (many classic DevKits: 2; check your board's pinout).
+const int LED_PIN = 2;
+
+void setup() {
+  Serial.begin(115200);
+  delay(1000);  // give the USB serial port a moment to appear
+  pinMode(LED_PIN, OUTPUT);
+  Serial.printf("Chip: %s rev %d, %d core(s), %lu MHz\n",
+                ESP.getChipModel(), ESP.getChipRevision(),
+                ESP.getChipCores(), (unsigned long)ESP.getCpuFreqMHz());
+  Serial.printf("Flash: %lu bytes\n", (unsigned long)ESP.getFlashChipSize());
+}
+
+void loop() {
+  digitalWrite(LED_PIN, HIGH);
+  delay(200);
+  digitalWrite(LED_PIN, LOW);
+  delay(800);
+}
+```
+
+这段代码里有两样东西是 Uno 上没有的。第一是 `Serial.printf()`，它来自 C 语言的格式化输出：`%s` 代表字符串，`%d` 代表整数，`%lu` 代表无符号长整数。它省掉了五六次 `Serial.print()` 和一串分隔符。第二是 `ESP` 对象：`ESP.getChipModel()` 返回芯片型号，`getChipRevision()` 返回版本，`getChipCores()` 返回核心数，`getCpuFreqMHz()` 返回主频，`getFlashChipSize()` 返回 Flash 容量（字节）。
+
+上传完成后，把串口监视器开到 **115200 baud**。你应该能用文字看出两行信息：一行以 `Chip:` 开头，后面是型号、版本、核心数和主频；另一行以 `Flash:` 开头，后面是 Flash 的字节数。具体数值取决于你手上的板子，所以要照着读，而不是背一个固定答案。LED 应该亮 200 ms、灭 800 ms。这两个程序都为经典 ESP32 和 S3 编译过，但没有在真实硬件上运行，因此这里不展示任何串口输出；真实数字由你的板子给出。
+
+最容易让人失望的是那颗 LED。很多经典 DevKit 的板载 LED 接在 GPIO 2，但并非全部如此。不少 S3 DevKitC 用的是可寻址 RGB 灯，根本不是普通 LED，还有一些把 LED 放在别的 GPIO 上。查你板子的引脚图，再改 `LED_PIN`。就算完全不亮，串口里那份芯片报告仍然证明上传成功、芯片在运行——LED 只是接线细节，不是对你工具链的判决。
+
+<Callout type="tip" title="板子还没到也能练">
+Wokwi 也能模拟 ESP32，包括串口监视器和屏幕上的 LED。板子还在路上时，你就可以在浏览器里跑这个程序；等它到货，上传步骤你已经熟了。
+</Callout>
+
+## 3.3 V 逻辑与引脚陷阱
+
+ESP32 用 3.3 V 供电。它的 GPIO **不耐 5 V**：数据手册给出的绝对最大值大约在 3.6 V，把 5 V 信号硬灌进引脚，可能当场损坏输入级，也可能“暂时还能用”，让你误以为没事。常见的 5 V 来源包括 HC-SR04 的 echo 引脚、5 V Arduino 的输出，以及一些上拉到 5 V 的老传感器模块。
+
+标准解法有两种。**电平转换器（level shifter）** 是一块专做这件事的小模块，双向总线（例如 I2C）就该用它。**分压器（voltage divider）** 则是便宜的单向方案：两只电阻把 5 V 信号先降到安全范围，再送进引脚。取上电阻 1 kΩ、下电阻 2 kΩ：
+
+```text
+R上 = 1 kΩ，R下 = 2 kΩ，Vin = 5 V
+R总 = 1 kΩ + 2 kΩ = 3 kΩ
+I = Vin / R总 = 5 V / 3 kΩ = 1.667 mA
+Vout = I × R下 = 1.667 mA × 2 kΩ = 3.333 V
+验算: 5 V × 2 / (1 + 2) = 10 / 3 = 3.333 V
+```
+
+分压器里只流过约 1.7 mA，完全无害；输出 3.333 V，刚好低于 3.6 V 的上限，又稳稳高于 ESP32 判为高电平的门槛。这就是第一个月学过的分压算术，只是这次它的用途是保护引脚。
+
+<Falstad title="把 5 V 信号分压到 3.3 V 输入" circuit="levelDivider" height={440} />
+
+用法如下：
+
+1. 左边的方波源就是一路缓慢切换的 5 V 逻辑信号。信号为高时，中点的探针读 3.333 V；为低时读 0 V。
+2. 双击 2 kΩ 电阻，把它改成 3.3 kΩ。先写下你的预测，再按运行。
+3. 新电平是 5 V × 3.3 / (1 + 3.3) = 16.5 / 4.3 = 3.837 V，约 3.84 V，对 3.3 V 引脚来说太高了。关键在比例而不是电阻的绝对值：1 kΩ 配 2 kΩ 是三分之一，1 kΩ 配 3.3 kΩ 只降到约 1.3 分之一。
+
+分压器适合单向、不太快的信号，例如按键、低频传感器输出或慢速串口。它不适合 I2C 或高速总线：电阻和导线电容构成低通滤波器，边沿被拖慢，总线就会时好时坏。那种场合请用真正的双向电平转换器。
+
+电流是 3.3 V 故事的另一半。GPIO 的电流要留足余量，目标放在 20 mA 以下，并查数据手册确认所有引脚加起来的总限额。电机、舵机、继电器和 LED 灯带永远不要直接接引脚，而是像第一个月那节晶体管课讲的那样，用三极管或 MOSFET 从独立电源驱动。
+
+<Quiz id="q2" question="一个 5 V 传感器输出经 2.2 kΩ（上）与 3.3 kΩ（下，接 GND）接到 ESP32。输出为高时，引脚上得到多少伏？" answer={3} unit="V" explanation="Vout = 5 V × 3.3 / (2.2 + 3.3) = 16.5 / 5.5 = 3.0 V，对 3.3 V 输入是安全的。" />
+
+### 经典 ESP32 上要避开的引脚
+
+大多数 GPIO 都可以自由使用，但有一小撮被占用，或者行为出人意料。动手接线之前先记住这份清单，因为它们的故障看起来都像软件 bug。
+
+- **GPIO 6–11** 接在 Flash 芯片上，永远不要用。很多模块甚至没有把它们引到排针。
+- **GPIO 34–39** 只能输入，没有输出驱动，也没有内部上拉，写 `INPUT_PULLUP` 在它们身上不起作用。不过它们属于 ADC1，在 Wi-Fi 项目里做模拟输入反而很宝贵。
+- **Strapping 引脚 GPIO 0、2、5、12、15** 会在启动瞬间被读取，用来决定启动模式和 Flash 电压。这些脚上的上拉、下拉或外接器件都可能让板子起不来。经典陷阱是 **GPIO 12 在启动时为高**：芯片会选错 Flash 电压，程序根本不会开始跑。如果板子单独上电正常、一接传感器就不启动，先怀疑 strapping 引脚。
+- **Wi-Fi 开启时，ADC2 的引脚读不了**：Wi-Fi 驱动占用了那个转换器。Wi-Fi 项目里的模拟输入请用 ADC1，也就是 GPIO 32–39。
+
+S3 有自己的一份名单。它的 strapping 引脚是 **GPIO 0、3、45、46**，ADC1 是 **GPIO 1–10**。视模块而定，有些 GPIO 被 Flash 或 PSRAM 占用，而且不同内存配置的模块占用的引脚还不一样。别假设排针上印着的每个脚都空闲，去读你那块模块的数据手册或引脚图。
+
+<Quiz id="q3" question="经典 ESP32 开着 Wi-Fi 时，电位器应该接哪个引脚？" options={["GPIO 4（ADC2）", "GPIO 34（ADC1）", "GPIO 9"]} answer={1} explanation="Wi-Fi 工作时 ADC2 不可用，GPIO 9 又接在 Flash 芯片上。GPIO 34 属于 ADC1，开着 Wi-Fi 也能读。" />
+
+## ESP32 的 ADC
+
+ESP32 的模数转换器（ADC）是 12 位的，也就是能给出 4096 个不同的编码值，编号 0 到 4095：0 代表量程底部，4095 代表顶部。位数比 Uno 的 10 位多，听起来是纯升级，但 ESP32 的 ADC 有几个 Uno 没有的脾气。
+
+在默认衰减下，可用输入范围大约是 0 到 3.1 V，而不是完整的 3.3 V。超过这个范围只会停在 4095，再也说明不了什么。转换器在量程两端还有明显的非线性：中间一段还算老实，靠近 0 V 和靠近顶部时，同样的电压变化给出的编码变化和中间不一样。别指望它是一条理想直线。
+
+实用的答案是 `analogReadMilliVolts(pin)`。它直接返回毫伏，并应用芯片出厂时写入的校准数据，能修掉大部分非线性和增益误差。不要自己拿 `analogRead()` 去缩放，需要电压就用这个校准过的函数。想要原始编码值时 `analogRead()` 仍然有用，但那是另一种需求。
+
+为什么“自己换算”不够？取一个位于 12 位量程中点的原始值 2048，并假设参考电压是 3.3 V：
+
+```text
+2048 × 3.3 V / 4095 = 6758.4 / 4095 = 1.6504 V ≈ 1.65 V
+```
+
+同一个输入，校准后的读数可能相差几十毫伏，而这点差别正是出厂校准要消掉的东西。相信 `analogReadMilliVolts()`，并且多读几次取平均来压噪声：采样 8 次或 16 次，求和再除，是个好习惯。Wi-Fi 开着时坚持用 ADC1，同时记住 ADC 是拿自己的参考电压在量，而不是拿一个完美的 3.3 V 在量。
+
+<Quiz id="q4" question="12 位 ADC 一共有多少个不同的编码值？" answer={4096} explanation="12 位转换器有 2^12 = 4096 个编码，编号从 0 到 4095。" />
+
+## Arduino、ESP-IDF 还是 MicroPython？
+
+离开 Uno 之后，你会遇到三种给同一颗芯片编程的方式。它们并非在所有任务上一样好，选择取决于要做的事，而不是哪种“更专业”。
+
+| 框架 | 什么时候选它 | 要注意什么 |
+| --- | --- | --- |
+| Arduino 核心 | 想最快做出能跑的机器人，想要最大的库生态，本课程就用它 | 隐藏了一部分 FreeRTOS 细节，一些底层功能开放得较晚 |
+| ESP-IDF | 需要真正控制 FreeRTOS 任务、哪个核心跑什么、功耗模式和精确时序 | 上手更陡，样板代码更多，第一个闪灯之前要学更多概念 |
+| MicroPython | 想快速试传感器，喜欢在 REPL 里一行一行试 | 垃圾回收（GC）的停顿会毁掉硬时序，不适合自平衡环 |
+
+关键认识是：这三者是一条连续谱，而不是一次分叉（fork）。ESP32 的 Arduino 核心本身就架在 ESP-IDF 和 FreeRTOS 之上。你写 `setup()` 和 `loop()` 时，核心已经替你建好一个 FreeRTOS 任务，并从那里调用它们。经典 ESP32 上，这个任务通常跑在一个核心，Wi-Fi 协议栈大部分跑在另一个核心，所以联网不会自动把控制代码卡死。你也可以在 Arduino 程序里调用 ESP-IDF 的函数，用 `xTaskCreatePinnedToCore()` 建自己的任务，把两种风格混在同一个项目里。
+
+正是这种分层让课程从 Arduino 起步：现在走快路，需要时下层仍然够得着。如果以后你发现自己在和 Arduino API 较劲，想要更细的定时器控制或任务优先级，转向 ESP-IDF 是往栈的下一层走，而不是推倒重来。
+
+<Resource id="arduino-esp32" />
+
+MicroPython 值得单独提醒。它非常适合读一个传感器、画一条曲线、五分钟验证一个想法；但它不适合必须固定频率运行的控制环，因为垃圾回收可能偏偏在最要命的时刻暂停执行。200 Hz 的自平衡机器人承受不起几毫秒的停顿。用 MicroPython 探索，等时序变得要紧时，把最终的控制环换成 C++。
+
+<Quiz id="q5" question="自平衡机器人需要稳定的 200 Hz 控制循环。表里哪个选择最不合适？" options={["Arduino 核心", "ESP-IDF", "MicroPython"]} answer={2} explanation="MicroPython 的垃圾回收停顿会让固定高频控制环不可靠；Arduino 和 ESP-IDF 都能提供确定性的 C++ 时序。" />
+
+## 舵机信号与 LEDC 外设
+
+普通舵机（hobby servo）并不接受一个“角度数字”。它期待每 20 ms 收到一个脉冲，也就是 50 Hz 的帧，而脉冲宽度决定角度。常见约定是 1.0 ms 对应 0°，1.5 ms 对应 90°，2.0 ms 对应 180°。很多舵机实际接受更宽的范围，大约 0.5–2.5 ms，但稳妥的做法是守着你那颗舵机数据手册给的范围。把舵机往机械限位之外驱，电机会顶着限位堵转、电流上升、发热，最后扫齿。
+
+ESP32 用 **LEDC** 外设产生这个信号。它是一块带硬件定时器和通道的 PWM 模块。Arduino-ESP32 核心 3.x 的 API 很简洁：先调一次 `ledcAttach(pin, frequency, resolutionBits)`，之后每次要改脉宽就调 `ledcWrite(pin, duty)`。分辨率以位为单位，14 位对应 0 到 16383 的 duty 值。
+
+<Formula label="脉冲对应的 LEDC duty">duty = pulse / period × (2^bits − 1)</Formula>
+
+50 Hz 时周期是 1 / 50 = 0.02 s = 20 ms。14 位时最大 duty 是 2^14 − 1 = 16383。要产生 1.5 ms 的脉冲：
+
+```text
+pulse / period = 1.5 ms / 20 ms = 0.075
+duty = 0.075 × 16383 = 1228.725
+取整数: 1228
+```
+
+下面项目里的程序，在 `angleToDuty()` 中用的就是同一套整数运算：先把角度换算成微秒，再缩放到 duty。在电脑上运行这个函数，得到的正是下面这张表：
+
+```text
+angle   0 -> duty 819
+angle  45 -> duty 1023
+angle  90 -> duty 1228
+angle 135 -> duty 1433
+angle 180 -> duty 1638
+```
+
+注意这些值并不是完全等距的：819、1023、1228、1433、1638，相邻差分别是 204、205、205、205。这很正常。换算过程中每一步都是整数除法，余数被丢掉，于是这里少半格、那里少半格。14 位下一个 duty 步进是 20 ms / 16384 ≈ 1.22 µs，远高于普通舵机能分辨的精度，所以这点截断在实际使用中无关紧要。
+
+供电才是舵机给新手上的课。小舵机转动时就要几百毫安，堵转时大约 1 A 甚至更多。开发板的 3.3 V 稳压器供不起，硬供的结果是欠压复位，或者把稳压器烧掉。正确做法是用独立的 5–6 V 电源给舵机供电，把它的地接到 ESP32 的地，只把信号线接到 GPIO。3.3 V 的信号通常能被 5 V 舵机认成高电平，如果舵机比较特殊，查一下数据手册。
+
+<Quiz id="q6" question="50 Hz、14 位 LEDC：要得到 2.0 ms 的脉冲，duty 取多少（整数，向下取整）？" answer={1638} explanation="duty = 2.0 / 20 × 16383 = 0.1 × 16383 = 1638.3，向下取整为 1638。" />
+
+## 项目：用手机控制舵机
+
+这是本课的练习任务，而且它故意选了 Uno 不做额外扩展就办不到的事：ESP32 提供一个很小的网页，实时显示传感器读数，你在手机上按按钮，舵机就动。手机和板子必须在同一个网络里。
+
+接线：
+
+- 舵机信号 → GPIO 18。
+- 舵机 + → 外部 5 V 电源。
+- 舵机 − → GND，与 ESP32 共地。
+- 电位器两端 → 3.3 V 和 GND。
+- 电位器中间抽头 → 经典 ESP32 用 GPIO 34，S3 用 GPIO 4。
+
+```cpp
+// ESP32 web servo: a phone on the same Wi-Fi sees a live reading
+// and moves a hobby servo with three buttons.
+#include <WiFi.h>
+#include <WebServer.h>
+
+const char *WIFI_SSID = "your-network";
+const char *WIFI_PASS = "your-password";
+
+const int SERVO_PIN = 18;
+const int POT_PIN = 34;        // classic ESP32: GPIO 34 is on ADC1 (works with Wi-Fi on). ESP32-S3: use GPIO 4.
+const int SERVO_HZ = 50;       // standard hobby servo frame: 20 ms
+const int SERVO_BITS = 14;     // duty resolution: 0..16383
+
+WebServer server(80);
+int servoAngle = 90;
+
+// 0..180 degrees -> 1000..2000 us pulse -> LEDC duty value
+uint32_t angleToDuty(int angle) {
+  uint32_t us = 1000 + (uint32_t)angle * 1000 / 180;
+  return us * ((1UL << SERVO_BITS) - 1) / 20000;
+}
+
+void setServo(int angle) {
+  servoAngle = constrain(angle, 0, 180);
+  ledcWrite(SERVO_PIN, angleToDuty(servoAngle));
+}
+
+const char PAGE[] = R"HTML(<!doctype html>
+<html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ESP32 servo</title></head>
+<body style="font-family:sans-serif;text-align:center">
+<h1>ESP32 servo</h1>
+<p>Knob: <b id="mv">-</b> mV &middot; Servo: <b id="deg">-</b>&deg;</p>
+<p><button onclick="go(0)">0&deg;</button>
+<button onclick="go(90)">90&deg;</button>
+<button onclick="go(180)">180&deg;</button></p>
+<script>
+function go(a){fetch('/servo?angle='+a);}
+async function poll(){
+  try{const r=await fetch('/reading');const j=await r.json();
+  document.getElementById('mv').textContent=j.mv;
+  document.getElementById('deg').textContent=j.angle;}catch(e){}
+  setTimeout(poll,500);}
+poll();
+</script></body></html>)HTML";
+
+void handleRoot() { server.send(200, "text/html", PAGE); }
+
+void handleReading() {
+  char json[48];
+  snprintf(json, sizeof json, "{\"mv\":%lu,\"angle\":%d}",
+           (unsigned long)analogReadMilliVolts(POT_PIN), servoAngle);
+  server.send(200, "application/json", json);
+}
+
+void handleServo() {
+  if (!server.hasArg("angle")) { server.send(400, "text/plain", "missing angle"); return; }
+  setServo(server.arg("angle").toInt());
+  server.send(200, "text/plain", "ok");
+}
+
+void setup() {
+  Serial.begin(115200);
+  ledcAttach(SERVO_PIN, SERVO_HZ, SERVO_BITS);   // Arduino-ESP32 core 3.x API
+  setServo(90);
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  Serial.print("Connecting");
+  while (WiFi.status() != WL_CONNECTED) {         // fine in setup(); never do this in loop()
+    delay(250);
+    Serial.print('.');
+  }
+  Serial.println();
+  Serial.print("Open http://");
+  Serial.println(WiFi.localIP());
+
+  server.on("/", handleRoot);
+  server.on("/reading", handleReading);
+  server.on("/servo", handleServo);
+  server.begin();
+}
+
+void loop() {
+  server.handleClient();   // non-blocking: answers any waiting request and returns
+}
+```
+
+按程序实际执行的顺序读一遍。`setup()` 先启动串口，用 `ledcAttach()` 把舵机引脚挂到 LEDC 上，再把舵机转到 90°。接着把 Wi-Fi 切到 station 模式——也就是让 ESP32 加入一个已有网络，而不是自己建热点——再用账号密码调用 `WiFi.begin()`。连接成功之前，`while` 循环一直打印小圆点。这种阻塞写法放在 `setup()` 里没问题，因为此时还没有别的事要干；放到 `loop()` 里就不行，那会把机器人整个冻住。
+
+连上之后，`WiFi.localIP()` 返回路由器分配到的地址。串口会把这个地址打出来，你在手机浏览器里输入的就是它，别忘了前面的 `http://`。如果小圆点一直打下去，说明账号密码不对，或者网络不在覆盖范围内。
+
+程序注册了三条路由。`/` 返回存在 `PAGE` 里的 HTML 页面；`/reading` 用 `snprintf()` 拼出一小段 JSON，里面有校准后的毫伏读数和当前舵机角度；`/servo?angle=...` 读取查询参数，限幅后转动舵机。网页里的 JavaScript 每 500 ms 请求一次 `/reading`，把数字写进两个带 id 的标签。三个按钮分别调用 `go(0)`、`go(90)`、`go(180)`，向对应的舵机地址发请求。
+
+`loop()` 里只有一行 `server.handleClient()`。它检查有没有等待处理的请求，有就回应，然后立刻返回。正是这种非阻塞设计，让你之后还能用计时课上的 `millis()` 模式加入自己的传感器读取和控制代码。网页服务器不霸占 CPU，它只是每轮循环来取一小片时间。
+
+`constrain(angle, 0, 180)` 是一道很小但很重要的护栏。一个格式错误的请求、手机输入法的自动补全，或者一位好奇的朋友，都可能发来 `angle=900`。没有限幅，脉宽会远远超出舵机的机械范围，舵机就会顶着限位咔咔作响。有了它，最坏情况也不过是 180°。
+
+还有一个网络细节经常卡住人：**ESP32 的 Wi-Fi 只支持 2.4 GHz**。如果你的手机只连在 5 GHz 网络上，板子永远不会出现，密码再对也没用。多数家用路由器把两个频段用同一个名字发布、由路由器替你选；如果你家路由器把两个名字分开了，测试时让手机连 2.4 GHz 那个。
+
+<Callout type="warn" title="别把 Wi-Fi 密码提交到 Git">
+不要把真实的 Wi-Fi 名称和密码提交到 GitHub。把 `WIFI_SSID` 和 `WIFI_PASS` 放进单独的 `secrets.h`，把这个文件写进 `.gitignore`，仓库里只提交一个填着占位符的 `secrets.example.h`。[Git 与 GitHub 那一课](/zh/month/month-1/git-github)讲过忽略文件的作用，也讲过为什么即使后来删掉，历史记录里仍然留着秘密。
+</Callout>
+
+基础版本跑通之后，可以试这些扩展：
+
+- 把三个按钮换成一个范围滑块，可以发送 0 到 180 之间的任意角度。
+- 加上 mDNS，让页面用 `http://robot.local` 打开，不必记会变的 IP。
+- 在 `loop()` 里加断线重连：发现 `WiFi.status()` 不再等于已连接，就重试，而不是重启整块板。
+- 把电位器读数显示成数字，并用它直接控制舵机，再对比旋钮位置和命令角度是否一致。
+
+## 常见错误与检查清单
+
+下面这些故障，占了本课求助问题的大多数。半夜调试之前先读一遍。
+
+- 把 5 V 送进 GPIO。它可能撑一阵子才坏，也可能当场报废；用分压器或电平转换器。
+- 用了 GPIO 6–11，或者让 strapping 引脚带了负载，然后纳闷板子为什么起不来。GPIO 12 上被传感器上拉就是经典版本。
+- 开着 Wi-Fi 还在 ADC2 上读模拟量。读数无效；把传感器换到 ADC1。
+- 用板子的 3.3 V 稳压器给舵机或电机供电。电压轨塌陷、板子复位，串口监视器打出 `Brownout detector was triggered`。
+- 舵机电源和 ESP32 之间忘了共地。信号没有参考点，舵机乱抖或者干脆不理命令。
+- 用了只能充电的 USB 线，或者上传失败时忘了按 BOOT。
+- 在只有 5 GHz 的网络上测试，然后断定 Wi-Fi 代码写错了。
+- 照抄核心 2.x 时代的 `ledcSetup()` / `ledcAttachPin()` 示例。3.x 已经用 `ledcAttach()` 和 `ledcWrite()` 取代了它们。
+
+进入下一课之前，下面这些你应该都能答“是”：
+
+- 我能为项目挑一个 ESP32 型号，并说出为什么课程主力是 S3、同时经典板仍值得备一块。
+- 我能说出经典 ESP32 上要避开的引脚，以及每个引脚会出什么问题。
+- 我能用分压器把 5 V 信号变成 3.3 V 引脚能接受的电平，并写出计算过程。
+- 我能为给定的脉宽和分辨率算出 LEDC 的 duty 值。
+- 我能解释什么时候用 Arduino 核心、ESP-IDF 或 MicroPython。
+- 我已经让网页舵机在手机上工作，舵机独立供电，并且与 ESP32 共地。

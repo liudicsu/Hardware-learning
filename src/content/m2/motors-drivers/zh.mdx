@@ -1,0 +1,387 @@
+## 四类执行器
+
+执行器（actuator）把电能变成运动。你这一年要做的机器人，几乎所有运动都出自下面四类。它们的差别不只是“力气大小”，更在于你怎么给它下命令，以及它能回传什么。
+
+| 类型 | 怎么控制 | 反馈 | 典型用途 |
+| --- | --- | --- | --- |
+| 有刷直流减速电机 | 经 H 桥驱动器用 PWM 控制 | 不加编码器就没有反馈 | 第一台小车的默认选择 |
+| 航模舵机 | 50 Hz 脉冲，脉宽决定角度（第 3 课） | 只有内部闭环，不回传给你 | 转向、小机械臂，行程约 180° |
+| 智能总线舵机（如飞特 STS3215） | 通过菊花链串行总线发命令 | 回读位置、速度、负载等；12 位磁编码器意味着一圈 4096 个位置 | 低成本机械臂，如开源 SO-101 |
+| 步进电机 | 给驱动器发送步进与方向脉冲 | 无反馈（开环），但保持力矩大 | 3D 打印机、精确定位 |
+
+有刷直流减速电机是老实肯干的劳力。给它电压它就转，反接电压它就反转。它便宜、好固定，也能容忍粗糙的控制，所以几乎每台入门小车都用两只。它缺的是“自知之明”：不加编码器，它只会一直转，永远不知道自己转过了头。
+
+航模舵机把一个小直流电机、减速箱、位置传感器和控制电路塞进同一个盒子。你不需要给电压，而是每 20 ms 左右发一个脉冲，用脉冲宽度“请求”一个角度，剩下的由舵机内部闭环完成。方便是有代价的：反馈留在盒子里，你的程序只知道“我请求了多少度”，不知道“它实际到了多少度”。如果舵机顶着墙继续用力，它会持续发热，最后可能扫齿。
+
+智能总线舵机是机械臂的现代答案。每个舵机有独立 ID，许多舵机挂在同一条串行总线上，首尾相连。你向某个 ID 发命令，它回传位置、速度、负载等状态。12 位磁编码器每圈给出 4096 个位置，比航模舵机内部的电位器细得多。正是这种反馈，让 SO-101 这类开源机械臂能用低成本零件做出可重复的动作。
+
+步进电机按固定步距前进。它没有电刷，也没有内部反馈，但转子会被磁场“锁”住，停下时保持力矩很强。因此 3D 打印机这类需要可重复定位、又不想加闭环的设备特别爱用它。代价同样是“开环”：负载太大时，它悄悄丢步，自己并不知道。
+
+<Callout type="info" title="本月的标准">
+到这个月底，四类执行器你都应该看懂：每类要发什么命令、会回传什么、什么时候值得为反馈多花钱。你不需要背下每一种驱动芯片，但看到一个机构，应该能说出它适合哪一类、为什么。
+</Callout>
+
+无刷直流电机（BLDC）是下一层。它没有电刷磨损，效率可以很高，但需要电子换相，通常还要磁场定向控制（FOC）才能转得平顺。FOC 很有意思，但不是入门必修。等你准备好了，SimpleFOC 项目是最好的免费入口。<Resource id="simplefoc" />
+
+## 直流电机、减速箱，以及为什么占空比不等于转速
+
+有刷直流电机大致可以看成三样东西共轴：一个电阻、一个电感，还有一台发电机。轴一转，它就发电，这个电压叫反电动势（back-EMF），方向与供电相反。这就是电机空转时电流不大的原因：反电动势抵消了大部分外加电压。转速大致正比于扣掉损耗后剩下的电压，扭矩则大致正比于电流。
+
+工作台上有两个直接后果。第一，**转速大致正比于电压**，而不是正比于你在串口监视器里写下的 PWM 数字。第二，**扭矩大致正比于电流**，负载一重，电流就上去。轻车走在光滑地面上电流很小；同一台车压在地毯上，电流立刻大得多。
+
+最极端的情况是堵转（stall）：轴被完全卡住，反电动势为零。此时绕组只剩很小的电阻，电机会抽取它一生中最大的电流，也就是**堵转电流（stall current）**。这个数往往是正常运行电流的 5–10 倍，小型减速电机也可能达到数安培。选驱动器和电池要按堵转电流算，而不是按小车顺利滚动时那个好看的读数算。第一个月已经算过：这股浪涌流过电池内阻和导线电阻，会把供电轨拉塌，让单片机复位。
+
+减速箱用转速换扭矩。120:1 的意思是电机转 120 圈，输出轴才转 1 圈。输出慢 120 倍，忽略摩擦的话力矩大约强 120 倍。小电机能推动机器人，靠的就是这个交换。也正因如此，你要注意编码器装在哪一侧：装在电机轴上的计数，换算成轮子运动时要乘上减速比。
+
+接下来是本课最关键的区分。PWM 设定的不是转速，而是加到电机上的**平均电压**。第 1 课讲过：快速开关按一定比例导通，效果就是平均。7.4 V 电池、60 % 占空比，平均电压就是 4.44 V。真正决定转速的，是这平均电压、电池当前电压、摩擦和负载。
+
+**算例**：2S 锂电池标称 7.4 V，充满是 8.4 V。都取 60 % 占空比：
+
+```text
+标称电池：0.60 × 7.4 V = 4.44 V 平均电压
+满电电池：0.60 × 8.4 V = 5.04 V 平均电压
+转速比：  5.04 / 4.44 = 1.135 → 约快 14 %
+```
+
+同一份代码、同一个占空比、同一台车，只因为电池更新鲜，速度就快了约 14 %。再让同一台车上坡，4.44 V 能换来的转速还会更低：电机需要更大扭矩，电流上升，损耗吃掉更多电压，留给旋转的部分就更少。这就是本月的里程碑：**分得清 PWM 占空比和实际转速**。占空比是命令，转速是结果。
+
+<Quiz id="q1" question="6.0 V 电池、45 % 占空比，电机平均电压是多少伏？" answer={2.7} unit="V" explanation="平均电压 = 占空比 × 电源电压 = 0.45 × 6.0 V = 2.7 V。实际转速还会受负载和电池状态影响。" />
+
+## H 桥与驱动芯片的选择
+
+直流电机需要两个方向的电流，单片机引脚既供不起这个电流，也没法让它反转。同时解决这两个问题的电路叫 **H 桥（H-bridge）**：四只开关围着电机，画出来的形状像个字母 H。
+
+```text
+            +V (motor supply)
+             |
+      +------+------+
+      |             |
+     S1            S3
+      |             |
+      +--- MOTOR ---+
+      |             |
+     S2            S4
+      |             |
+      +------+------+
+             |
+            GND
+```
+
+闭合 S1 和 S4，电流从 +V 穿过电机流向 GND，这是正转。改闭合 S2 和 S3，电流反向，这是反转。同时闭合 S2 和 S4，电机两端通过地被短接，电机被强行刹车，这是**短路刹车（brake）**。绝对不能做的是同时闭合 S1 和 S2，或者 S3 和 S4：那会在 +V 与 GND 之间造出一条只经过两只开关的通路，叫**直通（shoot-through）**，电流能在几微秒内烧掉整个桥。真正的驱动芯片内部有逻辑和死区时间，从根上禁止这种状态；这也是“别用四只分立 MOSFET 在面包板上搭 H 桥”的充分理由。
+
+L298N 几乎出现在所有教程里。它能用，你也应该认识它，但它是老式的双极型晶体管设计。输出级要吃掉大约 2 V 甚至更多，所以 7.4 V 电池只有约 5.4 V 到得了电机，剩下的电压全变成驱动器的热量。1 A 电流时，就是约 2 W 闷在驱动器里。L298N 模块发烫、费电，原因就在这里。因为教程都用它，所以先学会；自己造机器人时，换 MOSFET 驱动器。
+
+两个好选择是 TB6612FNG 和 DRV8833。TB6612FNG 每通道连续约 1.2 A，电机电源最高约 13.5 V，逻辑侧 2.7–5.5 V。DRV8833 也是每通道约 1.2 A，电机电源 2.7–10.8 V。这些只是标称值；一定按你手上那块具体板子的数据手册核对，因为接插件、铺铜面积和散热都会改变实际能力。
+
+TB6612FNG 的控制表很简单。每个通道有两个方向输入、一个 PWM 输入，另有一根共用的待机引脚。
+
+| IN1 | IN2 | PWM | 结果 |
+| --- | --- | --- | --- |
+| H | L | PWM | 以该占空比正转 |
+| L | H | PWM | 反转 |
+| H | H | 任意 | 短路刹车（快速停下） |
+| L | L | 任意 | 停止（滑行） |
+
+STBY 必须是高电平，否则输出一直关着，电机一动不动。这个引脚几乎人人都会踩一次坑：代码看起来完美，电机就是不响，最后发现待机脚悬空。要么明确把它接高，要么用一根引脚控制，方便在软件里整体关断驱动器。<Resource id="sparkfun-tb6612" />
+
+**算例**：7.4 V 电池，L298N 输出压降 2 V：
+
+```text
+电机得到的电压：7.4 V − 2.0 V = 5.4 V
+变成热的比例：  2.0 V / 7.4 V = 0.27 → 27 %
+1 A 时的热量：  2.0 V × 1 A = 2.0 W
+```
+
+超过四分之一的电池能量没有去转轮子，而是去加热驱动芯片。换成压降只有几十毫伏的 MOSFET 驱动器，这笔账会完全不同。
+
+<Quiz id="q2" question="7.4 V 电池经 L298N 驱动电机，L298N 压降 2.2 V，电机两端电压是多少伏？" answer={5.2} unit="V" explanation="7.4 V − 2.2 V = 5.2 V。少掉的 2.2 V 变成驱动器里的热量。" />
+
+## 电感反冲与续流二极管
+
+电机绕组本质上是电感。电感抵抗电流变化，关系式是：
+
+<Formula label="电感电压">V = L × di/dt</Formula>
+
+电流稳定时 di/dt 为零，电感就像一段导线。可你要是想让电流瞬间归零，di/dt 就会非常大，电感会生成任意大的电压来维持电流。这个电压可以达到几十甚至几百伏，远远高于 5 V 电源。它可能击穿开关管、在机械开关上拉出电弧，或者顺着电源回到单片机，把它复位。
+
+<Falstad title="电感反冲" circuit="inductkick" height={420} />
+
+这是 Falstad 自带的示例：5 V 电源让电流流过一个 1 H 电感、一个 100 Ω 电阻和一个闭合的开关（底部那根白色短杆）。开关两端那只 500 pF 的小电容，代表开关自身的寄生电容。点击开关把它断开，看底部电容那一格示波器，也就是开关两端的电压：它会冲到远高于 5 V 的位置。这个尖峰就是电感在坚持“我的电流不能停”。
+
+<Falstad title="续流二极管挡住反冲" circuit="inductkickBlock" height={420} />
+
+同一个电路，在电感两端加了一只二极管。再断开开关：电流不能走开关了，就改从二极管里绕圈，能量消耗在绕组电阻上，慢慢衰减。尖峰消失了。正常工作时，这只二极管是**反向偏置**的，所以它什么都不做；开关一断，它才变成救命的通路。
+
+规则很简单：**每当你用晶体管开关电机、继电器线圈或电磁铁，都要在线圈两端反向并联一只二极管**，阴极接正电源一侧。二极管的电流额定值要覆盖线圈电流，反向耐压要明显高于电源电压。H 桥驱动芯片内部已经包含这些钳位二极管，这也是不要用裸晶体管自己搭桥的又一个理由。第一个月讲晶体管开关时只是埋下伏笔，到了电机这里，它不再是可选件。
+
+第一个月的两个小习惯仍然适用。电机两端焊一只 **100 nF 陶瓷电容**，把电刷噪声就地吸收，别让它顺着导线乱跑。驱动器旁边放一只**大容量电解电容**，让电机启动时的浪涌由本地水库供应，而不是从细长的电池线远端去取。它们都不能代替晶体管开关线圈上的续流二极管，因为解决的问题不同。
+
+<Quiz id="q3" question="用 NPN 三极管驱动继电器线圈，续流二极管应该怎么接？" options={["与线圈串联", "并联在线圈两端，阴极接正电源一侧，正常时不导通", "并联在线圈两端，阳极接正电源一侧"]} answer={1} explanation="二极管反向并联在线圈两端，正常工作时截止；三极管关断瞬间，线圈电流改从二极管续流，不会产生毁坏性的电压尖峰。" />
+
+## 舵机、步进电机与智能舵机
+
+航模舵机在第 3 课已经讲过，这里只留下与电机相关的部分。舵机期待 50 Hz 的脉冲串，脉宽通常在 1–2 ms 之间，宽度对应指令角度。内部闭环会转动输出轴，直到位置传感器与指令一致。舵机要用能提供堵转电流的独立电源供电，地线共在一起，并且千万不要硬顶机械限位。舵机顶着限位持续用力，会吃大电流、发热，还可能扫掉塑料齿轮。信号线几乎不走电流，电源线才是浪涌的通道。
+
+步进电机是另一套逻辑。常见步进电机整步为 1.8°，所以一圈是 360° / 1.8° = 200 个整步。“NEMA 17”说的是 1.7 英寸的安装面尺寸，不是力气大小；同样是 NEMA 17，扭矩和电流可以差很多。A4988 这类驱动器只有两根逻辑输入：STEP 和 DIR。STEP 每来一个脉冲前进一步，DIR 的电平决定方向。微步（microstepping）把每个整步再细分。设成 1/16 微步时，一圈需要 200 × 16 = 3200 个微步，也就是 3200 个 STEP 脉冲。
+
+接电机之前，先设好驱动器的限流。A4988 上那个小电位器调的是 Vref，具体公式取决于你板子上的采样电阻。限流太高，电机和驱动器一起发烫；太低，电机嗡嗡响、走不动。正确做法是先不接电机，量好 Vref，再接线低速试转。还要记住步进电机的根本限制：它是开环的。负载太大时它悄悄丢步，自己不知道。打印件或机械臂最后停在错误的位置，却不会报错。
+
+智能总线舵机把舵机的方便和编码器的反馈合在一起。一条串行总线菊花链挂很多舵机，每个有自己的 ID，六轴机械臂只需要一根线，而不是六根 PWM 线。你向某个 ID 发命令，读回位置、速度、负载、电压和温度。STS3215 这类舵机内部的 12 位磁编码器每圈给出 4096 个位置。正是这种反馈，让现代低成本机械臂既能重复定位，也能察觉自己推得太用力，而不是闭着眼一直顶到堵转。
+
+<Quiz id="q4" question="200 步的步进电机，A4988 设为 1/8 微步，一圈需要多少个 STEP 脉冲？" answer={1600} explanation="200 个整步 × 每步 8 个微步 = 1600 个 STEP 脉冲。" />
+
+## 编码器：数转动
+
+编码器把旋转变成可数的电边沿。<strong>正交编码器（quadrature encoder）</strong>有两路输出 A 和 B，相位相差 90°。单独看每一路都是方波，但两路合起来携带的信息更多：边沿到来的先后顺序，告诉你轴往哪个方向转。
+
+```text
+正转：AB = 00 → 10 → 11 → 01 → 00 → ...
+反转：AB = 00 → 01 → 11 → 10 → 00 → ...
+```
+
+只看 A，你能数出转得多快，却不知道往哪转。同时看两路、看边沿顺序，方向也就有了。把两路的每个边沿都计数（四倍频解码），能从同一只编码器里榨出最多的计数。这就是为什么一只每路信号在电机每转里只出 3 个脉冲的小磁编码器，标称却是“每转 12 个计数”：3 个脉冲 × 2 个边沿 × 2 路 = 12。
+
+本课资源卡片里的 Pololu Romi 减速电机，电机轴上是 12 CPR 编码器，减速比 120:1。换算到轮子：
+
+```text
+每转车轮的计数 = 12 × 120 = 1440
+```
+
+轮子直径 70 mm，转一圈走过的距离是 π × 70 mm，每个计数对应其中一小段：
+
+```text
+周长 = π × 70 mm = 219.91 mm
+每计数距离 = 219.91 mm / 1440 = 0.1527 mm ≈ 0.153 mm
+```
+
+一个计数大约七分之一毫米。这就是闭环的分辨率：不算太细，简单控制器能处理；也不算太粗，足以让小车停在几毫米以内。
+
+两个实战细节。编码器输出常常是<strong>开漏（open-drain）</strong>的：它能把线拉低，却不能主动拉高。用单片机的内部上拉（`INPUT_PULLUP`），或者在编码器电源上接外部 10 kΩ 上拉。没有上拉，信号悬空，计数就变成随机数。另外，编码器不能靠慢速轮询来数：边沿来得又快又密，程序忙着干别的就会漏掉。用第 2 课的中断，并让中断服务程序尽量短。读取多字节计数器时要原子操作：短暂关中断再读，避免主程序读到“更新了一半”的值。
+
+<Quiz id="q5" question="编码器电机轴每转 12 个计数，减速比 50:1，车轮每转多少个计数？" answer={600} explanation="12 个计数 × 50 减速比 = 每转车轮 600 个计数。减速箱同时放大了扭矩和计数分辨率。" />
+
+## 项目：精确转一圈
+
+本课的练习任务很小，但很真实。先让电机以五种不同速度正转、反转，感受 PWM 到底做了什么；然后写一个函数，让轮子不管电池是满的还是旧的，都精确转一圈。这个函数就是你第一个真正的闭环：传感器、目标、误差，以及一个会对误差作出反应的控制量。
+
+先用 Python 玩具模型把思路跑一遍。模型不是硬件测量，而是为本课写的简化仿真：电机对电压作出反应，低于某个死区时摩擦取胜，编码器每转车轮计 1440 次。下面的输出，就是按原样运行这段模型得到的。
+
+```python
+"""one_rev_sim.py: turn a wheel exactly one revolution, open loop vs encoder feedback.
+
+Toy model of a small 120:1 gearmotor with a 12 CPR encoder (1440 counts per wheel turn).
+"""
+COUNTS_PER_REV = 12 * 120          # encoder counts per motor turn x gear ratio
+DT = 0.001                         # 1 ms simulation step
+K_SPEED = 260.0                    # counts/s per volt at the motor, once moving
+TAU = 0.05                         # motor + wheel time constant, s
+DEADBAND_V = 0.8                   # below this the motor does not overcome friction
+
+
+def step(speed, volts_at_motor):
+    """Advance the motor speed (counts/s) by one time step."""
+    drive = 0.0 if abs(volts_at_motor) < DEADBAND_V else volts_at_motor
+    target = K_SPEED * drive
+    return speed + (target - speed) * DT / TAU
+
+
+def open_loop(battery_v, run_time_s, duty=0.6):
+    """Run at a fixed duty for a fixed time, then cut power and let it coast."""
+    speed, pos, t = 0.0, 0.0, 0.0
+    while t < run_time_s + 0.5:
+        v = battery_v * duty if t < run_time_s else 0.0
+        speed = step(speed, v)
+        pos += speed * DT
+        t += DT
+    return round(pos)
+
+
+def closed_loop(battery_v, kp=0.004, max_duty=0.6, min_duty=0.0, tolerance=2):
+    """P control on encoder counts: duty proportional to the remaining distance.
+
+    min_duty, if set, is the smallest duty used while the error is outside the tolerance,
+    so the motor never stalls just short of the target.
+    """
+    speed, pos, t = 0.0, 0.0, 0.0
+    while t < 3.0:
+        error = COUNTS_PER_REV - pos
+        duty = max(-max_duty, min(max_duty, kp * error))
+        if abs(error) <= tolerance:
+            duty = 0.0
+        elif abs(duty) < min_duty:
+            duty = min_duty if error > 0 else -min_duty
+        speed = step(speed, battery_v * duty)
+        pos += speed * DT
+        t += DT
+    return round(pos)
+
+
+if __name__ == "__main__":
+    # Calibrate the open-loop run time on a full 8.4 V battery (2S LiPo, fully charged)
+    run_time = COUNTS_PER_REV / (K_SPEED * 8.4 * 0.6)
+    print(f"counts per wheel revolution: {COUNTS_PER_REV}")
+    print(f"open-loop run time (tuned at 8.4 V): {run_time:.3f} s")
+    for battery in (8.4, 7.4, 6.6):
+        print(f"battery {battery:.1f} V | open loop: {open_loop(battery, run_time):5d}"
+              f" | P only: {closed_loop(battery):5d}"
+              f" | P + min duty: {closed_loop(battery, min_duty=0.15):5d}")
+```
+
+```text
+counts per wheel revolution: 1440
+open-loop run time (tuned at 8.4 V): 1.099 s
+battery 8.4 V | open loop:  1440 | P only:  1443 | P + min duty:  1441
+battery 7.4 V | open loop:  1269 | P only:  1435 | P + min duty:  1441
+battery 6.6 V | open loop:  1132 | P only:  1430 | P + min duty:  1440
+```
+
+先看第一组数。开环运行时间是在满电 8.4 V 下标定的，所以在这个电压下它几乎正好走到 1440。换到 7.4 V，只走到 1269；换到 6.6 V，只走到 1132。旧电池少了 308 个计数，也就是 308 / 1440 × 360° ≈ 77°。代码完全照命令执行了：同样的占空比，同样的时间。但电压低了，电机转得慢，走的路就短。一张表就把开环的陷阱说清楚了。
+
+P 控制器能修掉大部分。它测量剩余误差，也就是 1440 减去当前计数，再让占空比与误差成正比，比例系数是 `kp`。接近目标时占空比自动变小，轮子会减速，而不是冲过头。7.4 V 时它停在 1435，6.6 V 时停在 1430：好多了，但仍差几个计数。原因是摩擦。电机电压低于约 0.8 V 时轮子根本不动，于是最后一点误差算出来的占空比跨不过死区，轮子就停在目标前一点点。
+
+第三列加了最小占空比。只要误差还在容差之外，控制器就至少给出 15 % 的占空比，方向朝着目标。这点占空比足以让轮子继续蠕动，误差才有可能进入容差。8.4 V 和 7.4 V 下结果是 1441，6.6 V 下正好 1440。注意它仍然是 P 控制器：最小占空比只是对付静摩擦的补丁，不是积分项。完整的 PID 还会加积分项，把长期的小误差累积起来；再加微分项，提前预判过冲。那是第 6 课的内容。现在要记住的是：反馈回路能不能收敛，取决于它在误差很小时还有没有办法让机构继续动。
+
+现在把同样的思路搬到 Uno 上。下面的 Arduino 程序就是产生后续输出的那份已编译固件。输出不是硬件测量：它来自在 simavr AVR 模拟器里运行这份固件，并接上 Python 脚本所用的同一套玩具电机与编码器模型。把它当作对逻辑和算术的检查，不要当成对你工作台的承诺。
+
+```cpp
+// Turn a wheel exactly one revolution using a quadrature encoder.
+// Driver: TB6612FNG channel A. Encoder: Pololu-style 12 CPR, 120:1 gearbox.
+const int PWMA = 5;      // speed (PWM pin)
+const int AIN1 = 7;      // direction
+const int AIN2 = 8;
+const int STBY = 9;      // HIGH = driver enabled
+const int ENC_A = 2;     // both encoder channels on interrupt pins
+const int ENC_B = 3;
+
+const long COUNTS_PER_REV = 1440;   // 12 counts per motor turn x 120:1
+const float KP = 0.4;               // PWM steps per count of error
+const int MIN_PWM = 40;             // smallest PWM that still moves the wheel
+const int MAX_PWM = 150;
+const long TOLERANCE = 2;           // counts
+
+volatile long encoderCount = 0;
+volatile uint8_t lastAB = 0;
+
+// Quadrature decoding: every edge on A or B moves the count by +1 or -1.
+// Index = previous AB (2 bits) followed by new AB (2 bits).
+const int8_t QDEC[16] = {0, -1, +1, 0, +1, 0, 0, -1, -1, 0, 0, +1, 0, +1, -1, 0};
+
+void onEncoder() {
+  uint8_t ab = (digitalRead(ENC_A) << 1) | digitalRead(ENC_B);
+  encoderCount += QDEC[(lastAB << 2) | ab];
+  lastAB = ab;
+}
+
+long readCount() {
+  noInterrupts();
+  long c = encoderCount;
+  interrupts();
+  return c;
+}
+
+void drive(int pwm) {                 // -255..255, sign = direction
+  digitalWrite(AIN1, pwm > 0);
+  digitalWrite(AIN2, pwm < 0);
+  analogWrite(PWMA, abs(pwm));
+}
+
+void brake() {                        // TB6612: IN1 = IN2 = HIGH shorts the motor -> fast stop
+  digitalWrite(AIN1, HIGH);
+  digitalWrite(AIN2, HIGH);
+}
+
+bool turnCounts(long target, unsigned long timeoutMs) {
+  noInterrupts();
+  encoderCount = 0;
+  interrupts();
+  unsigned long start = millis();
+  while (millis() - start < timeoutMs) {
+    long error = target - readCount();
+    if (abs(error) <= TOLERANCE) {
+      brake();
+      return true;
+    }
+    int pwm = constrain((int)(KP * error), -MAX_PWM, MAX_PWM);
+    if (abs(pwm) < MIN_PWM) pwm = (error > 0) ? MIN_PWM : -MIN_PWM;
+    drive(pwm);
+  }
+  drive(0);                           // never leave a motor running after a timeout
+  return false;
+}
+
+void setup() {
+  pinMode(PWMA, OUTPUT);
+  pinMode(AIN1, OUTPUT);
+  pinMode(AIN2, OUTPUT);
+  pinMode(STBY, OUTPUT);
+  pinMode(ENC_A, INPUT_PULLUP);       // the encoder outputs are open-drain
+  pinMode(ENC_B, INPUT_PULLUP);
+  lastAB = (digitalRead(ENC_A) << 1) | digitalRead(ENC_B);
+  attachInterrupt(digitalPinToInterrupt(ENC_A), onEncoder, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(ENC_B), onEncoder, CHANGE);
+  digitalWrite(STBY, HIGH);
+  Serial.begin(115200);
+
+  bool ok = turnCounts(COUNTS_PER_REV, 5000);
+  delay(300);                         // let the wheel settle, then report
+  Serial.print(ok ? F("done, count = ") : F("timeout, count = "));
+  Serial.println(readCount());
+}
+
+void loop() {}
+```
+
+接线清单（TB6612FNG 的 A 通道）：
+
+- PWMA 接 D5，AIN1 接 D7，AIN2 接 D8，STBY 接 D9。
+- VM 接电机电池正极，VCC 接 5 V，电池、驱动器和 Uno 的所有地线共在一起。
+- 编码器 A 接 D2，B 接 D3，编码器 VCC 接 5 V，GND 接公共地。
+
+QDEC 查表是解码的核心。索引是四位：前一次的 A、B 状态，后面接新的 A、B 状态。合法的一次边沿会让表返回 +1 或 −1；不可能或没变化的组合返回 0。如果 A、B 同时变化——干净的编码器上不该发生——表返回 0，而不是凭空编一个方向。`onEncoder` 中断读两个引脚，拼出同样的四位索引，把结果加到计数上，再记住新状态。
+
+`readCount()` 在复制四字节 `long` 的那几条指令期间关中断。否则主程序可能先读到低字节，被中断打断，再读到高字节，拼出一个荒唐的数。`turnCounts()` 先清零计数、记下起始时间，然后跑 P 控制器。误差是目标减当前计数，PWM 等于 `KP` 乘误差，再限制在 ±`MAX_PWM` 之内。如果绝对值小于 `MIN_PWM`，就按误差方向抬到 `MIN_PWM`，免得摩擦把轮子卡在目标前。超时不是装饰：编码器掉了，或者机器人被卡住，循环必须退出并调用 `drive(0)`，不能让电机一直转下去。
+
+`brake()` 和 `drive(0)` 不是一回事。`drive(0)` 把两个方向输入都拉低，电机滑行。`brake()` 把两个方向输入都拉高，驱动器内部把电机两端短接，轮子快速停下。到达目标时，刹车之所以重要，是因为轮子有惯性。我们在模拟器里把固件跑了三次，每种电池电压各一次。程序本身只打印 `done, count = …`，每行前面的电池电压标签是我们加的。在目标处使用 `brake()`：
+
+```text
+battery 8.4 V: done, count = 1441
+battery 7.4 V: done, count = 1441
+battery 6.6 V: done, count = 1440
+```
+
+如果程序在目标处改用 `drive(0)` 滑行，轮子会冲过目标：
+
+```text
+battery 8.4 V: done, count = 1455
+battery 7.4 V: done, count = 1453
+battery 6.6 V: done, count = 1451
+```
+
+差了 11–15 个计数，大约 3° 的轮子转角。真实机器人上的数字不会这么整齐：减速箱回差、更重的轮子、不同的地面、不同的电机，都会让结果漂移。调 `MIN_PWM` 时，找出能让轮子从静止可靠起步的最小 PWM，再留一点余量。调 `KP` 时，先往上加，直到轮子过冲或在目标附近来回抖，再往回收。要在两种电池电压下都试，因为满电时刚好的参数，旧电池上可能就太弱了。
+
+<Quiz id="q6" question="为什么开环版本（固定运行时间）在低电压电池上转不满一圈？" options={["低电压时编码器会漏计数", "同样的占空比和同样的时间，电压更低意味着转速更低，所以走得更短", "PWM 频率会随电池电压下降"]} answer={1} explanation="开环代码固定了占空比和时间。电池电压低，平均电压就低，电机转得慢，走过的距离自然短。问题不在编码器，因为开环根本没有用反馈。" />
+
+## 常见错误与检查清单
+
+本课新手最常踩的坑，不分先后：
+
+- 用 Arduino 的 5 V 引脚给电机供电。稳压器供不起那个电流，板子会欠压重启或过热。
+- 电池、驱动器、单片机之间没有共地。信号没有参考点，驱动器行为随机，或者干脆不动。
+- STBY 悬空。驱动器一直关着，电机永远不转。
+- 把 PWM 接在没有 `~` 标记的引脚上。`analogWrite()` 能编译，但那个引脚只会全开（数值 128 及以上）或全关，没有 PWM。
+- 堵转电流超过驱动器额定值。选驱动器之前查电机堵转电流，而不是等冒烟之后。
+- 驱动器旁边没有大电容。启动浪涌把供电轨拉塌，单片机复位，和第一个月讲的一模一样。
+- 晶体管开关的线圈上没有续流二极管。关断的一瞬间晶体管就坏了，故障现象还特别让人迷惑。
+- 超时或错误分支之后电机还在转。控制循环的每一条退出路径都应该停电机。
+- 编码器输出没上拉。开漏输出悬空，计数变成噪声。
+- 计数方向反了。交换 A/B，或者交换电机两根线，然后再确认符号。
+- L298N 发烫。那不是特性，是浪费的电池能量，也是随时可能热关断的驱动器。
+
+进入下一课之前，下面这些你能都答“是”吗？
+
+- 我能解释为什么占空比不等于转速，还知道哪些因素会改变实际 RPM。
+- 我能画出 H 桥，说出它的四个有用状态，包括刹车和滑行。
+- 我能为给定的电机和电池选驱动器，并说清 L298N 为什么不是好默认值。
+- 我能解释电感反冲，并把续流二极管接对。
+- 我能用编码器 CPR 和减速比算出每转多少计数。
+- 我有一只能在两种电池电压下都精确转一圈的轮子，并能说清编码器起了什么作用。

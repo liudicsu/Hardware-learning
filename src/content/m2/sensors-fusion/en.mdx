@@ -1,0 +1,434 @@
+## What a robot can sense
+
+A robot without sensors is a machine that executes a plan and hopes. A robot with sensors can compare what it expected with what actually happened, and that comparison is the beginning of every useful behaviour: stopping before a wall, driving straight, balancing, following a line, or knowing that a wheel is slipping.
+
+Every sensor answers one narrow question. The table below is not a shopping list; it is a map of the questions a small robot usually needs to ask.
+
+| Sensor | Measures | Typical use | Watch out |
+| --- | --- | --- | --- |
+| Wheel encoder | Rotation counts, and usually direction | Odometry, speed, distance travelled (Lesson 4) | It only knows how far the wheel turned; slipping or a wrong wheel diameter quietly corrupts the result |
+| IMU (accelerometer + gyroscope, e.g. MPU-6050) | Acceleration including gravity, and rotation rate | Tilt, balancing, detecting turns | Noisy and drift-prone, so it needs fusion; it is not a compass |
+| Ultrasonic HC-SR04 | Distance from the echo time | Cheap obstacle detection | Wide cone, soft surfaces absorb sound, and the 5 V echo needs a divider on an ESP32 |
+| Time-of-flight laser VL53L0X | Distance from the travel time of light, over I2C | Precise short-range distance (up to about 2 m); a narrower field of view (ST specifies about 25°) and no ultrasonic echo confusion | Dark, reflective or transparent targets and strong sunlight reduce the usable range |
+| Reflectance sensors (QTR, TCRT5000) | How much infrared light bounces back | Line following (Lesson 6) | Very sensitive to mounting height, ambient light and surface colour; calibrate on the actual track |
+| 2D lidar (e.g. RPLIDAR C1) | A 360° ring of distances | Mapping, in later months | Moving parts, more power and data, and still only one horizontal slice of the world |
+
+Two of these measure the robot itself — the encoder and the IMU — while the rest measure the world. That distinction is useful when something goes wrong. An encoder error means your model of your own motion is wrong; an ultrasonic error means your picture of the world is wrong, and the fixes are different.
+
+Prices are rough, because the same chip costs very different amounts from different sellers: an HC-SR04 is about $4, a VL53L0X about $15, an MPU-6050 breakout about $13, and a BNO085 about $30. Do not choose by price alone; choose the sensor whose failure mode you can live with.
+
+The ultrasonic sensor is a good first worked example because the arithmetic is simple and it shows why the round trip matters. Sound travels at about 343 m/s at room temperature, which is 34 300 cm/s, or 0.0343 cm per microsecond. The HC-SR04 sends a short burst, then measures how long the echo takes to come back. The sound went to the object and returned, so the distance is only half of the travelled path.
+
+```text
+Speed of sound ≈ 343 m/s = 0.0343 cm/µs
+Echo time = 1166 µs (there and back)
+Distance = 1166 µs × 0.0343 cm/µs / 2
+         = 39.99 cm / 2
+         = 20.0 cm
+```
+
+The speed of sound changes with temperature (about 0.6 m/s per °C), so 20.0 cm is an estimate, not a laboratory measurement. For a robot deciding whether a chair is close, that is plenty.
+
+<Quiz id="q1" question="An HC-SR04 echo pulse lasts 2915 µs. Distance in cm?" answer={50} unit="cm" explanation="2915 µs × 0.0343 cm/µs = 99.98 cm for the round trip; divide by 2 and the one-way distance is 49.99 cm ≈ 50 cm." />
+
+## I2C in one page
+
+I2C (Inter-Integrated Circuit, usually said as I-squared-C) is a two-wire bus: SDA carries data, SCL carries the clock, and both boards must share a ground. The microcontroller is the controller and generates the clock. Each peripheral has a 7-bit address. Every transaction begins with the controller sending that address plus a read/write bit, and only the device that recognises the address answers.
+
+The clever part is the electrical design. The output stage of each device is open-drain: it can pull a line LOW, but it cannot drive it HIGH. A pull-up resistor from the line to the supply does the high side. Typical values are 4.7–10 kΩ, and many breakout boards already include them. Because every device can only pull low, two devices can never fight each other: if both pull low at once, they are simply connecting the same node to ground, and the line is still at 0 V. There is no high driver to short against.
+
+<Falstad title="Open-drain I2C line with a pull-up" circuit="i2cPullup" height={420} />
+
+The 4.7 kΩ resistor holds the line at 3.3 V when nobody is pulling it down. Each switch is the output transistor inside a device. Click either switch and the line goes to 0 V; click both and it is still just 0 V, with no short and no damage. That is why any device on the bus can talk, and none of them can ruin the party.
+
+I2C has standard speeds of 100 kHz and 400 kHz. It is not a long-distance bus. Keep the wires short, keep the ground shared, and do not run I2C across a robot chassis next to a motor cable if you can avoid it. On an Arduino Uno, SDA is A4 and SCL is A5. On an ESP32 almost any GPIO can be used; the classic default is 21 for SDA and 22 for SCL, and you can pass your chosen pins to `Wire.begin(sda, scl)`.
+
+Address conflicts are the usual practical problem. Two identical sensors usually share one address, so they cannot simply sit on the same bus. Many chips have an address pin for exactly this reason: on the MPU-6050, AD0 LOW gives 0x68 and AD0 HIGH gives 0x69. If a board has no address pin, you need a second bus or an I2C multiplexer.
+
+I2C is not the only bus you will meet. SPI uses four wires — SCK, COPI (often still called MOSI), CIPO (MISO), and one chip-select per device — with no addresses and much higher speed; it is common for displays, SD cards and some IMUs. UART, the Serial port, is point-to-point and asynchronous, with TX and RX; it is excellent for a GPS or a debug console, but it is not a shared bus. Most robots end up using all three.
+
+<Quiz id="q2" question="You need two MPU-6050s on one I2C bus. What do you do?" options={["Nothing, I2C sorts it out", "Tie AD0 HIGH on one board so it answers at 0x69", "Swap SDA and SCL on the second board"]} answer={1} explanation="Both chips come up at 0x68, so they would answer at the same time. AD0 changes the low bit of the address on one board; swapping SDA and SCL just breaks the bus." />
+
+## Find it: the I2C scanner
+
+The first program to run with any new I2C device is not a driver. It is a scanner. It walks the 7-bit address range, asks each address whether anyone is there, and prints the ones that answer. This one short sketch saves more time than any library.
+
+```cpp
+// I2C scanner: try every 7-bit address and report the ones that answer.
+#include <Wire.h>
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin();
+  Serial.println(F("Scanning..."));
+  int found = 0;
+  for (uint8_t addr = 1; addr < 127; addr++) {
+    Wire.beginTransmission(addr);
+    if (Wire.endTransmission() == 0) {      // 0 = the device acknowledged
+      Serial.print(F("Found device at 0x"));
+      if (addr < 16) Serial.print('0');
+      Serial.println(addr, HEX);
+      found++;
+    }
+  }
+  Serial.print(found);
+  Serial.println(F(" device(s) found"));
+}
+
+void loop() {}
+```
+
+`beginTransmission(address)` loads the address into the Wire library's buffer. `endTransmission()` actually sends it and returns a status. With no data written in between, the transaction is just the address: it asks "is anyone at this address?" A return value of 0 means the device acknowledged (ACK). A return value of 2 means the address was not acknowledged. The scanner ignores every other value for now; the important distinction is 0 versus everything else.
+
+These lines come from the same simulated setup used later in the lesson, not from a physical board: an Arduino Uno firmware running under the simavr AVR simulator with a simulated MPU-6050 attached.
+
+```text
+Scanning...
+Found device at 0x68
+1 device(s) found
+```
+
+With nothing attached, the same sketch prints:
+
+```text
+Scanning...
+0 device(s) found
+```
+
+A scanner can only tell you that something answered. It cannot tell you what the device is; another chip could share the same address. That is what the WHO_AM_I register is for, a few paragraphs from here.
+
+When nothing is found, check in this order: power and ground on the sensor, SDA and SCL swapped, the wrong pins in `Wire.begin()` or in the wiring, missing pull-ups (some bare modules have none), and a 3.3 V-only module powered from the wrong rail. If the scanner hangs instead of printing, one of the lines is probably stuck LOW — often a wiring short or a device holding the bus. Power everything off, fix the wiring, and try again.
+
+## Read the datasheet, not a tutorial
+
+The milestone for this month is not "I copied a library example". It is: give me a sensor, its datasheet, and a microcontroller, and I can wire it and read it myself. Tutorials are useful for orientation, but they go stale, they hide the register writes, and they rarely tell you which configuration they assumed.
+
+For the MPU-6050, InvenSense publishes a product specification and a separate register map. The product specification tells you what the chip can do, what the pins mean, and how sensitive each range is. The register map tells you which byte to read or write. You need both.
+
+These are the registers this lesson uses:
+
+| Register | Address | What it does |
+| --- | --- | --- |
+| WHO_AM_I | 0x75 | Always reads 0x68 — proves you are talking to the right chip |
+| PWR_MGMT_1 | 0x6B | Bit 6 SLEEP is set at power-up — write 0x00 to wake the chip, otherwise every reading is 0 |
+| ACCEL_XOUT_H … | 0x3B–0x40 | Accelerometer X, Y and Z, each 16-bit |
+| TEMP_OUT | 0x41–0x42 | Temperature |
+| GYRO_XOUT_H … | 0x43–0x48 | Gyroscope X, Y and Z |
+
+WHO_AM_I is the cheapest sanity check in embedded work. Read one byte from 0x75 and expect 0x68. If you get 0xFF, the bus is probably not connected or the device is not answering. If you get a different value, you are talking to something else.
+
+The sleep bit is the classic trap. Out of reset, PWR_MGMT_1 has bit 6 set, and the chip is asleep. You can read registers all day and get zeros. Write 0x00 to 0x6B, give it a moment, and the sensor starts producing data.
+
+The data are signed 16-bit numbers in big-endian order: high byte first. One burst read of 14 bytes starting at 0x3B returns accelerometer X, Y, Z, temperature, and gyroscope X, Y, Z in that order. A burst read also means all the values belong to the same sample. Reading one register at a time over several milliseconds can mix two different moments, which is exactly what you do not want when the robot is moving.
+
+At the default ranges, the sensitivity is fixed and simple: the accelerometer is set to ±2 g, which gives 16384 LSB per g; the gyroscope is set to ±250 °/s, which gives 131 LSB per °/s. These constants are not universal. Change AFS_SEL or FS_SEL and they change too, so always check which range your code configured.
+
+```text
+raw az = 16384  →  16384 / 16384 = 1.00 g
+raw gy = −262   →  −262 / 131 = −2.0 °/s
+```
+
+The first line is what a board lying flat should show on the vertical axis: one g of gravity. The second is a slow rotation of two degrees per second in the negative direction. If you store the raw bytes in an unsigned 16-bit variable, the negative value turns into a huge positive number; use `int16_t` and combine the bytes in the right order.
+
+<Quiz id="q3" question="At ±2 g, raw ax = 8192. Acceleration in g?" answer={0.5} unit="g" explanation="8192 / 16384 = 0.5 g. The default ±2 g range gives 16384 LSB per g." />
+
+<Quiz id="q4" question="At ±250 °/s, raw gyro = 655. Rotation rate in °/s?" answer={5} unit="°/s" explanation="655 / 131 = 5.0 °/s. At ±250 °/s the sensitivity is 131 LSB per °/s." />
+
+## Two imperfect sensors
+
+The accelerometer and the gyroscope fail in opposite ways, which is exactly why they are useful together.
+
+An accelerometer measures acceleration, and gravity counts as acceleration. At rest, the only acceleration it feels is gravity, pointing down at 1 g. If the board is pitched by an angle θ around the Y axis, gravity appears on the X and Z axes as `ax = g × sin θ` and `az = g × cos θ`. Therefore:
+
+```text
+θ = atan2(ax, az)
+```
+
+`atan2` returns radians, so convert with `× 180 / PI` before printing degrees. This estimate is correct on average because gravity is an absolute reference: it never accumulates error. But it is noisy — every sample wobbles — and any real acceleration corrupts it. Vibration, a motor jerk, a bump against the table, or the robot driving forward all add to gravity, and the accelerometer cannot tell the difference. During a hard acceleration the "tilt" reading can be badly wrong.
+
+A gyroscope measures angular rate, not angle. To get angle you integrate: add `rate × dt` every loop. The result is smooth and fast, and it responds immediately to a real rotation. But it is relative: it only knows how much it has turned since you started. A small constant bias — say 1.5 °/s — integrates into an error that grows without limit.
+
+<Formula label="Gyro drift">angle error = bias × time</Formula>
+
+```text
+bias = 1.5 °/s
+after 10 s: 1.5 °/s × 10 s = 15°
+after 60 s: 1.5 °/s × 60 s = 90°
+```
+
+After one minute the gyro-only angle is 90° wrong, even if the robot has not moved at all. The gyro has no internal reference to notice this; it is faithfully integrating its own offset.
+
+<Quiz id="q5" question="A gyro has a 0.5 °/s bias. After 60 s of integrating, how large is the angle error?" answer={30} unit="°" explanation="error = bias × time = 0.5 °/s × 60 s = 30°." />
+
+## The complementary filter
+
+The complementary filter is the simplest way to combine the two sensors, and it is the one to write before you touch a Kalman filter. The idea is one line:
+
+<Formula label="Complementary filter">angle = α × (angle + rate × dt) + (1 − α) × accelAngle</Formula>
+
+α is close to 1, typically 0.98. The first term takes the previous estimate and adds the gyro's prediction. The second term pulls that prediction toward the accelerometer angle. Because α is close to 1, the gyro dominates over short intervals; because 1 − α is small but nonzero, the accelerometer wins in the long run. It is a high-pass filter on the gyro and a low-pass filter on the accelerometer, and the two weights add up to 1.
+
+The time constant tells you how fast the accelerometer can correct the gyro:
+
+```text
+τ = α × dt / (1 − α)
+  = 0.98 × 0.01 s / 0.02
+  = 0.49 s
+```
+
+At 100 Hz (dt = 0.01 s) and α = 0.98, the correction time constant is about half a second. A larger τ is smoother but slower; a smaller τ is faster but lets more accelerometer noise through.
+
+The Python script below simulates the problem before you wire anything. The board lies flat, is tilted to 30° between t = 3 s and 4 s, held there, and laid flat again between 7 s and 8 s. The simulated gyro reads 1.5 °/s too high, and the accelerometer has noise.
+
+```python
+"""filter_sim.py: gyro drift, accelerometer noise, and the complementary filter.
+
+The board lies flat, is tilted to 30 degrees between t = 3 s and 4 s, held there,
+and laid flat again between 7 s and 8 s. The gyro reads 1.5 deg/s too high (bias);
+the accelerometer angle is noisy. Sample rate: 100 Hz.
+"""
+import math
+import random
+
+DT = 0.01
+GYRO_BIAS = 1.5      # deg/s
+GYRO_NOISE = 0.3     # deg/s, standard deviation
+ACCEL_NOISE = 0.02   # g, standard deviation per axis
+
+
+def true_pitch(t):
+    if t < 3:
+        return 0.0
+    if t < 4:
+        return 30.0 * (t - 3)
+    if t < 7:
+        return 30.0
+    if t < 8:
+        return 30.0 * (8 - t)
+    return 0.0
+
+
+def simulate(alpha, seconds=12.0, seed=7):
+    rng = random.Random(seed)
+    gyro_only = fused = 0.0
+    rows = []
+    for i in range(1, int(seconds / DT) + 1):
+        t = i * DT
+        rate = (true_pitch(t) - true_pitch(t - DT)) / DT
+        gyro = rate + GYRO_BIAS + rng.gauss(0, GYRO_NOISE)
+        th = math.radians(true_pitch(t))
+        ax = math.sin(th) + rng.gauss(0, ACCEL_NOISE)
+        az = math.cos(th) + rng.gauss(0, ACCEL_NOISE)
+        accel = math.degrees(math.atan2(ax, az))
+        gyro_only += gyro * DT
+        fused = alpha * (fused + gyro * DT) + (1 - alpha) * accel
+        rows.append((t, true_pitch(t), gyro_only, accel, fused))
+    return rows
+
+
+def summary(rows):
+    """Error of the fused angle: mean and spread while flat (t > 10 s), and the worst error overall."""
+    flat = [r[4] - r[1] for r in rows if r[0] > 10]
+    mean = sum(flat) / len(flat)
+    spread = math.sqrt(sum((e - mean) ** 2 for e in flat) / len(flat))
+    worst = max(abs(r[4] - r[1]) for r in rows)
+    return mean, spread, worst
+
+
+if __name__ == "__main__":
+    rows = simulate(alpha=0.98)
+    print(" t_s  true  gyro_only  accel_only  fused")
+    for t, true, g, a, f in rows:
+        if abs(t - round(t)) < 1e-9 and round(t) in (1, 3, 4, 7, 8, 12):
+            print(f"{t:4.0f} {true:5.1f} {g:10.1f} {a:11.1f} {f:6.1f}")
+    print()
+    print("alpha  offset_flat  noise_flat  worst_error")
+    for alpha in (0.90, 0.98, 0.995):
+        mean, spread, worst = summary(simulate(alpha))
+        print(f"{alpha:<6} {mean:10.2f}  {spread:10.2f}  {worst:11.1f}")
+```
+
+Running it prints:
+
+```text
+ t_s  true  gyro_only  accel_only  fused
+   1   0.0        1.5         0.5    0.6
+   3   0.0        4.6        -1.0    0.7
+   4  30.0       36.0        31.3   30.8
+   7  30.0       40.6        30.3   30.8
+   8   0.0       12.0         0.0    0.8
+  12   0.0       18.0        -1.3    0.9
+
+alpha  offset_flat  noise_flat  worst_error
+0.9          0.13        0.24          0.9
+0.98         0.72        0.07          1.0
+0.995        2.96        0.02          3.0
+```
+
+Read the first table as three different philosophies. The gyro-only column climbs by 1.5 °/s forever: 4.6° at t = 3 s while the board is still flat, 40.6° at t = 7 s while the true angle is 30°, and 18.0° at t = 12 s after the board has returned to flat. It is always "30°-ish plus drift" while tilted, and it never comes back to zero.
+
+The accelerometer-only column is right on average but jumpy: 0.5° at t = 1 s, −1.0° at t = 3 s, 31.3° at t = 4 s, and −1.3° at t = 12 s. Individual samples wander by a degree or more, which is enough to make a balancing robot twitch.
+
+The fused column follows the real tilt, settles around 30.8° while the board is held, and returns to about 0.8° when it is flat again. Its worst error over the whole run is 1.0°. That is the whole point: neither sensor is good enough alone, but together they are.
+
+The second table is the α trade-off, from the same simulation:
+
+| α | Offset while flat | Spread while flat | Worst error |
+| --- | --- | --- | --- |
+| 0.90 | 0.13° | 0.24° | 0.9° |
+| 0.98 | 0.72° | 0.07° | 1.0° |
+| 0.995 | 2.96° | 0.02° | 3.0° |
+
+A small α lets more accelerometer noise through, but it suppresses the gyro bias quickly. A large α is smoother but leaves a bigger constant offset, because the gyro bias leaks into the estimate. The steady-state offset is approximately:
+
+```text
+offset ≈ α / (1 − α) × bias × dt
+       = 0.98 / 0.02 × 1.5 °/s × 0.01 s
+       = 0.735°
+```
+
+That matches the measured 0.72° in the table (the small difference is noise and rounding). The formula also explains the other rows: α = 0.90 gives about 0.135°, and α = 0.995 gives about 2.985°.
+
+The proper fix is not a smaller α; it is to remove the bias at the source. With the robot stationary, average the gyro for 1–2 s — at 100 Hz that is 100–200 samples — call the average `bias`, and subtract it from every reading before integrating. Do not calibrate while the robot is moving, or you will average real motion into the bias. If the robot heats up or moves to a much colder room, the bias can change; a quick recalibration at startup is cheap.
+
+<Quiz id="q6" question="Complementary filter at 100 Hz (dt = 0.01 s) with α = 0.98: time constant τ in seconds?" answer={0.49} unit="s" explanation="τ = α × dt / (1 − α) = 0.98 × 0.01 / 0.02 = 0.49 s." />
+
+## On the real chip
+
+Wiring the common GY-521 breakout to an Uno is short: VCC to 5 V (the board has a 3.3 V regulator), GND to GND, SDA to A4, SCL to A5, and AD0 left unconnected for address 0x68. The same breakout has 3.3 V pull-ups on the I2C lines; check your particular board, because some bare MPU-6050 modules are 3.3 V only and have no regulator. The same sketch runs on an ESP32 with different I2C pins — call `Wire.begin(sda, scl)` with the pins you chose, classic default 21 and 22 — but the ESP32 is 3.3 V logic, so never feed it 5 V signals without checking.
+
+```cpp
+// MPU-6050 pitch angle three ways: gyro only, accelerometer only, complementary filter.
+// Wiring (Uno): VCC -> 5V (the common GY-521 breakout has a regulator), GND -> GND,
+// SDA -> A4, SCL -> A5. AD0 left unconnected -> address 0x68.
+#include <Wire.h>
+
+const uint8_t MPU = 0x68;
+const uint8_t REG_PWR_MGMT_1 = 0x6B;
+const uint8_t REG_ACCEL_XOUT_H = 0x3B;
+const uint8_t REG_WHO_AM_I = 0x75;
+
+const float ACCEL_LSB_PER_G = 16384.0;   // +-2 g range (datasheet, default)
+const float GYRO_LSB_PER_DPS = 131.0;    // +-250 deg/s range (datasheet, default)
+const float ALPHA = 0.98;                // complementary filter weight on the gyro
+const unsigned long PERIOD_MS = 10;      // 100 Hz loop
+
+float gyroOnly = 0, fused = 0;
+unsigned long last = 0, lastPrint = 0;
+
+void writeReg(uint8_t reg, uint8_t value) {
+  Wire.beginTransmission(MPU);
+  Wire.write(reg);
+  Wire.write(value);
+  Wire.endTransmission();
+}
+
+uint8_t readReg(uint8_t reg) {
+  Wire.beginTransmission(MPU);
+  Wire.write(reg);
+  Wire.endTransmission(false);           // repeated start: keep the bus
+  Wire.requestFrom(MPU, (uint8_t)1);
+  return Wire.read();
+}
+
+int16_t read16() {                       // registers are big-endian: high byte first
+  int16_t hi = Wire.read();
+  return (hi << 8) | Wire.read();
+}
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin();
+  writeReg(REG_PWR_MGMT_1, 0x00);        // the chip powers up asleep: clear SLEEP
+  Serial.print(F("WHO_AM_I = 0x"));
+  Serial.println(readReg(REG_WHO_AM_I), HEX);
+  Serial.println(F("t_s,gyro_only,accel_only,fused"));
+  last = millis();
+}
+
+void loop() {
+  unsigned long now = millis();
+  if (now - last < PERIOD_MS) return;
+  float dt = (now - last) / 1000.0;
+  last = now;
+
+  Wire.beginTransmission(MPU);
+  Wire.write(REG_ACCEL_XOUT_H);
+  Wire.endTransmission(false);
+  Wire.requestFrom(MPU, (uint8_t)14);    // accel XYZ, temperature, gyro XYZ
+  int16_t ax = read16(), ay = read16(), az = read16();
+  read16();                              // temperature, unused
+  read16();                              // gyro X, unused
+  int16_t gy = read16();
+  read16();                              // gyro Z, unused
+
+  float accelPitch = atan2(ax / ACCEL_LSB_PER_G, az / ACCEL_LSB_PER_G) * 180.0 / PI;
+  float rate = gy / GYRO_LSB_PER_DPS;    // deg/s around the Y axis
+
+  gyroOnly += rate * dt;                                       // drifts
+  fused = ALPHA * (fused + rate * dt) + (1 - ALPHA) * accelPitch;  // does not
+
+  if (now - lastPrint >= 1000) {         // one line per second
+    lastPrint = now;
+    Serial.print(now / 1000.0, 1);
+    Serial.print(',');
+    Serial.print(gyroOnly, 1);
+    Serial.print(',');
+    Serial.print(accelPitch, 1);
+    Serial.print(',');
+    Serial.println(fused, 1);
+  }
+}
+```
+
+Walk through it once, because every line is a lesson. `writeReg(REG_PWR_MGMT_1, 0x00)` clears the sleep bit before anything else. The WHO_AM_I read is a receipt: it proves the address, the wiring and the bus are all working. `endTransmission(false)` sends a repeated start instead of releasing the bus, so the MPU-6050 keeps its register pointer and the following `requestFrom` reads from the register you just selected. The single 14-byte burst gets the whole sample at one instant.
+
+The loop uses the `millis()` pattern from Lesson 2 (timing and interrupts), but it measures `dt` instead of assuming it. That matters: a Serial print, a slow I2C transaction, or an interrupt can stretch a loop, and the filter must integrate with the real elapsed time, not the time you hoped for. The gyro Y axis is the one that matches pitch in this mounting; check the sign by tilting the board slowly and confirming that gyro-only and accel-only move in the same direction. If they move in opposite directions, negate the rate.
+
+The output below is not from a physical board. It comes from running the compiled Uno firmware in the simavr AVR simulator with a simulated MPU-6050 model written by the site editor: the board lies flat, is tilted to 30° between t = 3 s and 4 s, held, and laid flat again between 7 s and 8 s. The simulated gyro reads 1.5 °/s too high and the accelerometer has noise. Treat the exact digits as a demonstration of behaviour, not as a calibration of your own sensor.
+
+```text
+WHO_AM_I = 0x68
+t_s,gyro_only,accel_only,fused
+1.0,1.6,1.3,0.6
+2.0,3.1,-0.6,0.7
+3.0,5.2,-1.2,1.3
+4.0,36.3,29.0,30.6
+5.0,37.7,32.4,30.7
+6.0,39.3,29.4,30.7
+7.0,39.8,28.2,29.8
+8.0,12.4,0.6,1.1
+9.0,14.0,-0.7,0.6
+10.0,15.5,0.4,0.6
+11.0,17.0,-1.1,0.8
+12.0,18.5,2.4,0.8
+```
+
+The three behaviours are exactly the ones from the Python model. The gyro-only column climbs about 1.5° per second even while the board is flat, jumps by roughly 30° when the tilt happens, keeps climbing while the board is held, and lands at 12.4° when the board is flat again — then keeps going to 18.5°. The accelerometer-only column is never far from the truth on average, but it wanders: −1.2° at t = 3 s, 32.4° at t = 5 s, 2.4° at t = 12 s. The fused column sits at 30.6–30.7° during the hold and near 0.6–1.1° when flat, within about one degree of the truth. The exact digits differ from the Python run because the noise samples and the timing are different, but the story is identical.
+
+The practice task is worth doing on real hardware. Put the IMU on the table, start the sketch, and do not touch it. The gyro-only column will still climb, because the gyro has a bias. The fused column will stay put, because the accelerometer keeps pulling it back. That contrast is the single most important lesson in state estimation: a smooth sensor can still be wrong, and a noisy sensor can still be right on average.
+
+Where next? Kalman filters are the natural sequel: <Resource id="labbe-kalman" /> is a free, runnable book that starts from the g-h filter and builds up to the full Kalman filter. For the concepts before the mathematics, the MathWorks sensor-fusion video series is a clear, visual introduction. If you would rather not implement fusion at all, an IMU with on-chip fusion such as the BNO085 hands you an orientation directly — buying your way out of the maths, at a higher price.
+
+## Common mistakes and a checklist
+
+The failures below are the ones that cost beginners the most time:
+
+- Never waking the MPU-6050: forget the PWR_MGMT_1 write and every reading is zero.
+- Using the wrong address because AD0 is tied high, or because another device already owns 0x68.
+- Swapping SDA and SCL, or forgetting that some bare modules have no pull-ups.
+- Running I2C over long, loose wires next to motor cables, then blaming the sensor.
+- Reading the two bytes of a value as unsigned, or in the wrong order, so a small negative number becomes a huge positive one.
+- Mixing degrees and radians: `atan2` returns radians, and forgetting the conversion gives an angle that is wrong by a factor of about 57.
+- Assuming `dt` instead of measuring it, especially once Serial prints or other work stretches the loop.
+- Using a gyro axis or sign that does not match the accelerometer angle, so the two corrections fight.
+- Mounting the IMU loosely, or right next to a vibrating motor, so the accelerometer measures the frame, not gravity.
+- Feeding a 5 V HC-SR04 echo straight into an ESP32 input; use a divider.
+
+Before you move on, you should be able to answer "yes" to these:
+
+- I can find a new I2C device with the scanner and explain what a return value of 0 means.
+- I can convert raw MPU-6050 registers to g and °/s using the datasheet sensitivity.
+- I can explain why the gyro drifts and why the accelerometer is noisy, in one sentence each.
+- I can write the complementary filter from memory and choose α for a given sample rate.
+- I know how to measure and subtract the gyro bias at startup.
