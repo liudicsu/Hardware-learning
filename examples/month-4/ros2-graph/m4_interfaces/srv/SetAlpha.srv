@@ -1,0 +1,5 @@
+# Ask the configuration node to change the filter's smoothing factor.
+float64 alpha    # 0 < alpha <= 1; smaller = smoother but slower
+---
+bool accepted
+string message

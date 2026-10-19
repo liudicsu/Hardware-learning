@@ -1,0 +1,12 @@
+$ python3 drive_client.py -1.0 0.2 2.0
+goal accepted: -1.0 m at 0.2 m/s
+feedback: travelled 0.096 m, remaining 0.904 m
+feedback: travelled 0.204 m, remaining 0.796 m
+cancelling after 2.0 s
+feedback: travelled 0.320 m, remaining 0.680 m
+result: CANCELED, travelled 0.348 m, reached False
+$ ros2 topic echo --once --no-lost-messages /diff_drive_controller/odom --field pose.pose.position
+x: 0.7488106075467207
+y: -5.862183682662473e-15
+z: 0.0
+---

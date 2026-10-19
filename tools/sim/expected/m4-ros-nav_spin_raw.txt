@@ -1,0 +1,4 @@
+$ python3 spin_check.py
+odometry says: 360.0 deg
+lidar says:    403.1 deg  (scans rotated by +43.1 deg)
+odometry / real = 0.893

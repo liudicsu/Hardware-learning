@@ -1,0 +1,14 @@
+$ ros2 topic echo --once --no-lost-messages /odom --field pose.pose.position
+x: -2.315490468450792e-19
+y: 3.441733634253394e-38
+z: 0.0
+---
+$ ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}"   # then wait 4 s
+$ ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist "{}"
+$ ros2 topic echo --once --no-lost-messages /odom --field pose.pose.position
+x: 0.9497999999999838
+y: 1.6561290378733758e-20
+z: 0.0
+---
+$ python3 scan_probe.py | grep ahead
+straight ahead (0.0 deg): 0.73 m

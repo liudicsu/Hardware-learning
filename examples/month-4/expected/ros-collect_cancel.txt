@@ -1,0 +1,5 @@
+feedback: 1/20, latest 21.41
+feedback: 2/20, latest 21.33
+feedback: 3/20, latest 21.31
+requesting cancel
+canceled: 3 readings, mean 21.35

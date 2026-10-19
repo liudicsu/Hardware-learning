@@ -1,0 +1,741 @@
+`ros2_control` 是站在“想让机器人动的程序”和“真正让轮子转的电子硬件”之间的一层。到目前为止，你都是把速度指令直接发到某个话题上，再让仿真插件替你完成剩下的工作。这能跑通，但只是机器人技术的浅水区：一旦机器人变成实物，就必须有东西把车体速度换算成两个电机的转速、数编码器脉冲、发布里程计，还要阻止两个程序同时抢同一个电机。`ros2_control` 就是这个问题在 ROS 2 里的标准答案，也是几乎所有专业 ROS 2 机器人都会用的一层。
+
+这是第 4 个月的第五课。第 4 课里，你把 m4bot 放进障碍物世界，让 Gazebo 的 DiffDrive 插件订阅 `/cmd_vel`，再用 `ros_gz_bridge` 把激光雷达和相机接进 ROS。第 6 课中，SLAM Toolbox 和 Nav2 会让这台机器人在地图里自主移动。今天，我们用一层在仿真、mock 硬件和真机上都完全一样的控制器，替换掉那个插件。
+
+课程说，这是自学候选人最常完全没碰过的主题，因此也是让你脱颖而出的最快方式。会发一个 `Twist` 的人很多；能讲清楚哪个控制器占用了哪个命令接口、为什么一个被取消的动作仍然要报告机器人真正走过的距离的人，要少得多。学完这一课，这两件事你都能解释。
+
+课程的练习任务正是本课用 m4bot 做的事：给机器人加上 `<ros2_control>` 标签，用 YAML 配置 `diff_drive_controller` 和 `joint_state_broadcaster`，在 Gazebo 里用键盘遥控驱动机器人；然后写一个动作服务器，驱动指定距离、报告进度，并支持反馈和取消。本月的里程碑是**配置 ros2_control，通过控制器而不是原始指令驱动机器人**。
+
+## 为什么要 ros2_control
+
+第 4 课里，轮子是由一个叫 DiffDrive 的 Gazebo 插件驱动的。它确实能用：订阅 `/cmd_vel`、转动轮子关节、发布里程计。但它只能在 Gazebo 里用。真机上没有这个插件，你只能为电机另写一套程序：话题名不同、编码器计数方式不同、bug 也不同，而且在仿真里测过的代码一行都带不过去。更麻烦的是，一旦有第二个程序也想驱动轮子——比如遥控节点和导航栈——你就得自己发明一条“谁说了算”的规则。`ros2_control` 把这个问题拆成三部分。
+
+1. <strong>硬件接口（hardware interface）</strong>是一个和硬件对话的插件。它的 `read()` 把传感器值——轮子编码器的位置和速度——复制进状态接口；它的 `write()` 把命令接口，在我们的例子里是轮子速度，送给电机。除此之外，系统里没有任何部分需要知道这些电机是在 Gazebo 里、在实验台上，还是在火星车上。
+2. <strong>控制器（controllers）</strong>只看见这些接口。`diff_drive_controller` 把车体速度（linear x、angular z）换算成两个轮子的速度，再把轮子位置积分成里程计。`joint_state_broadcaster` 把所有关节位置发布到 `/joint_states`，供 `robot_state_publisher` 使用，这样 RViz 里的机器人模型才能和现实保持一致。
+3. <strong>控制器管理器（controller manager）</strong>负责加载控制器，并以固定频率跑循环：读硬件、更新所有控制器、写命令。
+
+这个循环小到可以背下来：
+
+```text
+every 20 ms (update_rate: 50):
+  read()     hardware  -> state interfaces     wheel positions, velocities
+  update()   controllers: state + cmd_vel   -> command interfaces (wheel rad/s)
+  write()    command interfaces -> hardware    motor speeds
+```
+
+50 Hz 意味着整套动作每 20 ms 重复一次，机器人动或不动都一样。控制器管理器不关心里面 `update()` 具体做了什么，只要求这一轮按时结束。所以一个跑得太慢的控制器，表现出来的往往不是“机器人行为诡异”，而是日志里关于错过更新周期的警告。
+
+拆成三部分的意义在于可移植性。控制器和它们的 YAML 在 Gazebo 里、在 mock 硬件上、在真机上都一样，只有硬件接口插件会换——在 xacro 里只是一行。你的遥控节点、动作服务器，以及后面的 Nav2，仍然往同样的话题发同样的消息，控制器仍然用同样的方式换算。
+
+现在把两个词固定下来。<strong>命令接口（command interface）</strong>是控制器可以写入的东西，写成 `joint/interface`，例如 `left_wheel_joint/velocity`。<strong>状态接口（state interface）</strong>是控制器可以读取的东西，例如 `left_wheel_joint/position`。每个命令接口同一时刻只能被一个控制器占用（claim），这条规则正是 `ros2_control` 防止两个控制器抢同一个电机的方式。状态接口不一样：多个控制器可以同时读同一个状态，因为读不会改变任何东西。
+
+<Quiz id="q1" question="你把 m4bot 从 Gazebo 搬到一台用 ESP32 电机板的真机上。ros2_control 配置里哪一部分必须改变？" options={["diff_drive_controller 及其 YAML", "在 ros2_control 标签里指定的硬件接口插件", "joint_state_broadcaster", "每一个发布 cmd_vel 的节点"]} answer={1} explanation="控制器只看得见命令接口和状态接口；硬件接口是唯一知道如何与电机对话的部分，所以要换的正是它。" />
+
+## ros2_control 标签
+
+第 4 课的 xacro 现在拆开了。摩擦、激光雷达和相机放在 `m4_gazebo` 的 `sensors.gazebo.xacro` 里，这样本课可以只引入传感器，而不再把 DiffDrive 插件带进来。机器人描述长这样：
+
+<CodeSource path="examples/month-4/ros2-control/m4_control/urdf/m4bot_control.urdf.xacro" />
+
+```xml
+<?xml version="1.0"?>
+<!-- m4bot driven through ros2_control. Two ways to run the same description:
+       hardware:=gazebo  the simulated robot in Gazebo (gz_ros2_control)
+       hardware:=mock    no simulator at all: mock_components echo every command back as state
+     On a real robot only the <plugin> line changes: it names your motor driver's hardware interface. -->
+<robot name="m4bot" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:arg name="hardware" default="gazebo"/>
+  <xacro:property name="hardware" value="$(arg hardware)"/>
+
+  <xacro:include filename="$(find m4_description)/urdf/robot.urdf.xacro"/>
+  <xacro:if value="${hardware == 'gazebo'}">
+    <xacro:include filename="$(find m4_gazebo)/urdf/sensors.gazebo.xacro"/>
+  </xacro:if>
+
+  <ros2_control name="m4bot" type="system">
+    <hardware>
+      <xacro:if value="${hardware == 'gazebo'}">
+        <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+      </xacro:if>
+      <xacro:if value="${hardware == 'mock'}">
+        <plugin>mock_components/GenericSystem</plugin>
+        <param name="calculate_dynamics">true</param>   <!-- integrate velocity into position -->
+      </xacro:if>
+    </hardware>
+    <!-- wheels: commanded by velocity (rad/s), report position and velocity -->
+    <joint name="left_wheel_joint">
+      <command_interface name="velocity">
+        <param name="min">-10</param>
+        <param name="max">10</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="right_wheel_joint">
+      <command_interface name="velocity">
+        <param name="min">-10</param>
+        <param name="max">10</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <!-- pan-tilt head: commanded by position (rad) -->
+    <joint name="pan_joint">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+    </joint>
+    <joint name="tilt_joint">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+    </joint>
+  </ros2_control>
+
+  <xacro:if value="${hardware == 'gazebo'}">
+    <gazebo>
+      <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+        <parameters>$(find m4_control)/config/controllers.yaml</parameters>
+      </plugin>
+    </gazebo>
+  </xacro:if>
+
+</robot>
+```
+
+分三块来读。
+
+1. **`hardware` 参数在 xacro 运行时决定硬件接口**。选 `gazebo` 时，插件是 `gz_ros2_control/GazeboSimSystem`：Gazebo 的关节变成 ros2_control 的状态接口和命令接口，物理引擎负责真正让机器人动起来。选 `mock` 时，插件是 `mock_components/GenericSystem`，它把收到的每条命令原样回显成状态——你要 2 rad/s，状态接口立刻报告 2 rad/s。加上 `calculate_dynamics` 后，它还会把速度命令积分成位置，所以即使完全没有仿真器，里程计也会动。这是 xacro 阶段的选择，不是运行时开关：`ros2 launch ... hardware:=mock` 通过 launch 文件把值传给 xacro，生成的 URDF 里只会保留选中的那个插件。
+2. **每个关节列出控制器可以命令什么、读取什么**。轮子接收 rad/s 的速度命令，并限制在 ±10 以内，同时报告位置和速度。云台 pan 和 tilt 接收弧度位置命令，报告位置。关节名必须和 URDF 里的关节名一字不差——是 `left_wheel_joint`，不是 `left_wheel`——因为 ros2_control 靠名字匹配接口。写错一个，控制器管理器在加载控制器时就会抱怨某个关节不存在。
+3. **Gazebo 块加载 `gz_ros2_control` 系统插件**。这个插件在 Gazebo 进程内部启动控制器管理器，并把 `controllers.yaml` 交给它，所以不需要另外启动管理器节点。用真机或 mock 硬件时没有 Gazebo，控制器管理器就以独立节点 `ros2_control_node` 的形式运行，由 launch 文件启动。
+
+传感器只在 Gazebo 模式下引入，因为 mock 硬件没有传感器。mock 插件里没有激光雷达，也没有相机：mock 硬件是用来测试控制通路的，不是用来测试感知通路的。第 6 课里 SLAM 需要扫描数据，那时你要跑的是 Gazebo。
+
+## 用 YAML 配置控制器
+
+控制器管理器由同一个文件配置，这份文件在 Gazebo 和 mock 硬件下都适用：
+
+<CodeSource path="examples/month-4/ros2-control/m4_control/config/controllers.yaml" />
+
+```yaml
+# The controller manager and its three controllers. One file for Gazebo and for mock hardware.
+controller_manager:
+  ros__parameters:
+    update_rate: 50   # Hz: read the hardware, update every controller, write commands
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+    diff_drive_controller:
+      type: diff_drive_controller/DiffDriveController
+    head_controller:
+      type: position_controllers/JointGroupPositionController
+
+diff_drive_controller:
+  ros__parameters:
+    left_wheel_names: ["left_wheel_joint"]
+    right_wheel_names: ["right_wheel_joint"]
+    wheel_separation: 0.28   # must match the URDF, or every turn comes out wrong
+    wheel_radius: 0.05
+    base_frame_id: base_footprint
+    odom_frame_id: odom
+    enable_odom_tf: true
+    publish_rate: 50.0
+    cmd_vel_timeout: 0.5     # s: no command for this long and the robot stops
+    linear.x.max_velocity: 0.5
+    linear.x.min_velocity: -0.5
+    angular.z.max_velocity: 2.0
+    angular.z.min_velocity: -2.0
+
+head_controller:
+  ros__parameters:
+    joints: ["pan_joint", "tilt_joint"]
+```
+
+`controller_manager` 块里写了三个控制器和它们的类型。这些类型字符串就是插件名，每一个都必须对应一个真正安装了的插件；类型拼错是 spawner 失败最常见的原因。随后每个控制器都有自己的参数块，块名和上面登记的名字相同。
+
+对 `diff_drive_controller` 来说，轮子名字就是关节名。`wheel_separation` 是 0.28 m，`wheel_radius` 是 0.05 m，它们必须和 URDF 一致——也就是第 3 课里用的属性、建模时的同一组数字。YAML 读不到 xacro 属性，所以这些数要写两遍：一遍在 xacro，一遍在这里。不一致是经典 bug，而且症状很有辨识度：半径错，所有距离都按比例偏大或偏小，机器人会多走或少走 10%；轮距错，直线看起来完全正常，但每个转弯都不对。控制器不会去读你的 CAD 文件，它只是拿你给的数字做算术。
+
+`base_frame_id` 和 `odom_frame_id` 是 TF 坐标系。`enable_odom_tf` 负责发布 `odom` → `base_footprint` 这条变换，也就是第 4 课插件曾经发布的那条，所以 RViz 和后面的 Nav2 看到的坐标树和以前一样。`cmd_vel_timeout` 是 0.5 s：如果半秒内没有新命令，控制器就刹车。这是安全特性，第 5 节你会亲眼看到它生效。速度上限则限制了任何人能要求的最大速度：不管遥控节点或导航栈发布什么，前进都不会超过 0.5 m/s，旋转都不会超过 2.0 rad/s。
+
+`head_controller` 是一个 `JointGroupPositionController`：它在 `/head_controller/commands` 上接收一个位置数组，每个关节一个值，单位是弧度。发送 `[0.5, -0.2]` 表示 pan 转到 0.5 rad、tilt 转到 −0.2 rad。它正好演示了第二个控制器占用不同接口：轮子是速度控制，云台是位置控制，两者由同一个管理器管理。
+
+**算例：从车体速度到轮子速度**。差速驱动有两个轮子，轮距为 b，轮半径为 r。控制器做的就是这套算术：
+
+```text
+v_left  = v − ω × b/2
+v_right = v + ω × b/2
+wheel speed (rad/s) = v_wheel / r
+```
+
+直行，v = 0.2 m/s，ω = 0：
+
+```text
+v_left  = 0.2 − 0 × 0.14 = 0.2 m/s
+v_right = 0.2 + 0 × 0.14 = 0.2 m/s
+wheel speed = 0.2 / 0.05 = 4.0 rad/s on both wheels
+```
+
+原地转，ω = 1.0 rad/s，v = 0：
+
+```text
+b/2 = 0.28 / 2 = 0.14 m
+v_left  = 0 − 1.0 × 0.14 = −0.14 m/s  →  −0.14 / 0.05 = −2.8 rad/s
+v_right = 0 + 1.0 × 0.14 = +0.14 m/s  →  +0.14 / 0.05 = +2.8 rad/s
+```
+
+两个轮子以相同速度反向转，这正是机器人原地打转的样子。计算时顺手检查单位：米每秒除以米得到弧度每秒，因为轮子转过一弧度，轮缘正好走过一个半径的长度。
+
+<Quiz id="q2" question="m4bot 以 0.3 m/s 直行。wheel_radius 为 0.05 m 时，diff_drive_controller 给每个轮子命令多大的速度（rad/s）？" answer={6} unit="rad/s" explanation="0.3 / 0.05 = 6.0 rad/s；不旋转时两个轮子的速度相同。" />
+
+<Quiz id="q3" question="直线走得对，但每个 90° 转弯只转了约 75°。最可能的原因是什么？" options={["wheel_radius 写错了", "YAML 里的 wheel_separation 与机器人实际轮距不一致", "cmd_vel_timeout 太短", "激光雷达的坐标系写错了"]} answer={1} explanation="直行只取决于轮半径；转角还取决于两轮之间的距离，所以 wheel_separation 写错只会表现在转弯上。" />
+
+## 启动与检查
+
+所有东西在一个 launch 文件里汇合。它像第 4 课一样启动 `robot_state_publisher`、Gazebo 和 spawner，然后加载三个控制器和动作服务器：
+
+<CodeSource path="examples/month-4/ros2-control/m4_control/launch/control.launch.py" />
+
+```python
+"""m4bot through ros2_control: controller manager, three controllers, the DriveDistance server.
+
+ros2 launch m4_control control.launch.py                          # Gazebo window and RViz
+ros2 launch m4_control control.launch.py headless:=true           # Gazebo, no windows
+ros2 launch m4_control control.launch.py hardware:=mock headless:=true   # no simulator"""
+import os
+
+from ament_index_python.packages import get_package_share_directory
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.conditions import IfCondition, UnlessCondition
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import (Command, EqualsSubstitution, LaunchConfiguration,
+                                  NotEqualsSubstitution, PythonExpression)
+from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
+
+
+def generate_launch_description():
+    share = get_package_share_directory('m4_control')
+    world = os.path.join(get_package_share_directory('m4_gazebo'), 'worlds', 'obstacles.sdf')
+    controllers = os.path.join(share, 'config', 'controllers.yaml')
+    sim_rviz = os.path.join(get_package_share_directory('m4_gazebo'), 'rviz', 'sim.rviz')
+    hardware = LaunchConfiguration('hardware')
+    headless = LaunchConfiguration('headless')
+    in_gazebo = EqualsSubstitution(hardware, 'gazebo')
+    sim_time = ParameterValue(in_gazebo, value_type=bool)   # Gazebo has its own clock
+    robot_description = ParameterValue(
+        Command(['xacro ', os.path.join(share, 'urdf', 'm4bot_control.urdf.xacro'),
+                 ' hardware:=', hardware]), value_type=str)
+    gz_args = [PythonExpression(["'-s -r --headless-rendering ' if '", headless,
+                                 "' == 'true' else '-r '"]), world]
+
+    def spawner(name, *args):
+        return Node(package='controller_manager', executable='spawner', arguments=[name, *args])
+
+    return LaunchDescription([
+        DeclareLaunchArgument('hardware', default_value='gazebo', description='gazebo or mock'),
+        DeclareLaunchArgument('headless', default_value='false', description='true = no windows'),
+        DeclareLaunchArgument('rviz_config', default_value=sim_rviz, description='RViz view'),
+        DeclareLaunchArgument('drive_params', default_value=controllers,
+                              description='more diff_drive_controller parameters (Lesson 6)'),
+        # robot_state_publisher: the same node as in Lessons 3 and 4
+        Node(package='robot_state_publisher', executable='robot_state_publisher',
+             parameters=[{'robot_description': robot_description, 'use_sim_time': sim_time}]),
+        # Gazebo: the controller manager runs inside Gazebo, started by gz_ros2_control
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(os.path.join(
+                get_package_share_directory('ros_gz_sim'), 'launch', 'gz_sim.launch.py')),
+            launch_arguments={'gz_args': gz_args}.items(), condition=IfCondition(in_gazebo)),
+        Node(package='ros_gz_sim', executable='create', condition=IfCondition(in_gazebo),
+             arguments=['-topic', 'robot_description', '-name', 'm4bot', '-z', '0.01']),
+        Node(package='ros_gz_bridge', executable='parameter_bridge',
+             condition=IfCondition(in_gazebo),
+             parameters=[{'config_file': os.path.join(share, 'config', 'bridge.yaml'),
+                          'use_sim_time': True}]),
+        # mock hardware: the controller manager runs as its own node
+        Node(package='controller_manager', executable='ros2_control_node',
+             parameters=[controllers], remappings=[('~/robot_description', '/robot_description')],
+             condition=IfCondition(NotEqualsSubstitution(hardware, 'gazebo'))),
+        # load and start the three controllers named in controllers.yaml
+        spawner('joint_state_broadcaster'),
+        spawner('diff_drive_controller', '--param-file', LaunchConfiguration('drive_params')),
+        spawner('head_controller'),
+        # RViz, by default with Lesson 4's view: the robot, the laser points and the camera image
+        Node(package='rviz2', executable='rviz2', condition=UnlessCondition(headless),
+             arguments=['-d', LaunchConfiguration('rviz_config')],
+             parameters=[{'use_sim_time': sim_time}]),
+        # the DriveDistance action server from this lesson
+        Node(package='m4_control', executable='drive_distance',
+             parameters=[{'use_sim_time': sim_time}]),
+    ])
+```
+
+结构是有意重复第 4 课的：同一个 `robot_state_publisher`、同样的 Gazebo 启动、同样的 `create` 节点。新东西是那两个条件分支。Gazebo 模式下，URDF 里的 `gz_ros2_control` 插件会启动管理器，所以 launch 文件不再启动管理器节点。mock 模式下根本没有 Gazebo，于是启动 `ros2_control_node`，直接把 `controllers.yaml` 交给它；通过那条 remap，它还能从话题上拿到 `robot_description`。每个 `spawner` 都是一个小节点，它通过服务请求控制器管理器按名字加载并激活一个控制器。这就是为什么 YAML 里登记控制器，而 launch 文件只负责点名字：每个控制器是什么写在 YAML 里，启动哪些写在 launch 文件里。另外两个参数是给第 6 课准备的：`rviz_config` 换一个 RViz 视图，`drive_params` 在 `controllers.yaml` 之上再给差速控制器的 spawner 加一个参数文件。保持默认值时它们什么也不改变。
+
+`use_sim_time` 值得单独说一句。只有在 Gazebo 运行时它才是 `true`，因为 Gazebo 发布 `/clock`，每个给消息打时间戳的节点都必须用这个时钟。mock 硬件没有 `/clock`，若还使用仿真时间，所有时间戳都会冻在零。第 6 节的动作服务器也在这里启动，用同一个开关，所以它在 Gazebo 里的反馈和超时都走仿真时钟。
+
+桥接配置现在很短，因为里程计、TF 和关节状态都由控制器自己发布：
+
+<CodeSource path="examples/month-4/ros2-control/m4_control/config/bridge.yaml" />
+
+```yaml
+# With ros2_control, the controllers publish odometry, TF and joint states themselves;
+# only the clock and the sensors still come over the bridge.
+- ros_topic_name: clock
+  gz_topic_name: clock
+  ros_type_name: rosgraph_msgs/msg/Clock
+  gz_type_name: gz.msgs.Clock
+  direction: GZ_TO_ROS
+- ros_topic_name: scan
+  gz_topic_name: scan
+  ros_type_name: sensor_msgs/msg/LaserScan
+  gz_type_name: gz.msgs.LaserScan
+  direction: GZ_TO_ROS
+- ros_topic_name: camera/image_raw
+  gz_topic_name: camera/image_raw
+  ros_type_name: sensor_msgs/msg/Image
+  gz_type_name: gz.msgs.Image
+  direction: GZ_TO_ROS
+- ros_topic_name: camera/camera_info
+  gz_topic_name: camera/camera_info
+  ros_type_name: sensor_msgs/msg/CameraInfo
+  gz_type_name: gz.msgs.CameraInfo
+  direction: GZ_TO_ROS
+```
+
+编译四个包并启动机器人：
+
+```bash
+cp -r m4_description m4_gazebo m4_control m4_drive_interfaces ~/ros2_ws/src/
+cd ~/ros2_ws && colcon build && source install/setup.bash
+ros2 launch m4_control control.launch.py          # add headless:=true on a machine without a screen
+```
+
+两条命令回答“ros2_control 工作了吗”。第一条列出控制器：
+
+<SimOutput source="ros">
+
+```text
+$ ros2 control list_controllers
+head_controller         position_controllers/JointGroupPositionController  active
+joint_state_broadcaster joint_state_broadcaster/JointStateBroadcaster      active
+diff_drive_controller   diff_drive_controller/DiffDriveController          active
+```
+
+</SimOutput>
+
+第二条显示硬件接口，以及它们被谁占用：
+
+<SimOutput source="ros">
+
+```text
+$ ros2 control list_hardware_interfaces
+command interfaces
+	diff_drive_controller/angular/velocity [available] [unclaimed]
+	diff_drive_controller/linear/velocity [available] [unclaimed]
+	left_wheel_joint/velocity [available] [claimed]
+	pan_joint/position [available] [claimed]
+	right_wheel_joint/velocity [available] [claimed]
+	tilt_joint/position [available] [claimed]
+state interfaces
+	left_wheel_joint/position
+	left_wheel_joint/velocity
+	pan_joint/position
+	right_wheel_joint/position
+	right_wheel_joint/velocity
+	tilt_joint/position
+```
+
+</SimOutput>
+
+把两条一起读。三个控制器全部 `active`。spawner 是并行启动的，所以顺序每次运行都可能不同，不必过度解读。每个轮子和云台的命令接口都是 `[claimed]`：差速控制器占着两个轮子，云台控制器占着 pan 和 tilt。多出来的两个命令接口 `diff_drive_controller/linear/velocity` 和 `angular/velocity`，是控制器为了串联而导出的自身输入——另一个控制器可以直接喂给它，而不必通过话题。这里没有人占用它们，所以显示 `[unclaimed]`。
+
+如果某个控制器不见了或者没激活，先看 launch 日志里的 spawner 行。YAML 里类型名拼错、URDF 里根本没有这个关节名、插件包没装，是最常见的三种原因，而 spawner 在放弃之前会把真正的错误打印出来。`ros2 control list_controllers` 是判断一个控制器处于 `active`、`inactive` 还是压根不存在的最快方式。
+
+<Quiz id="q4" question="你又启动了一个控制器，它也想占用 left_wheel_joint/velocity。会发生什么？" options={["两个控制器共享它，命令取平均值", "控制器管理器拒绝激活第二个，因为这个接口已经被占用", "第二个控制器悄悄获胜", "Gazebo 崩溃"]} answer={1} explanation="一个命令接口同一时刻只能被一个处于活动状态的控制器占用；这条规则正是为了防止两个控制器争抢同一个电机。" />
+
+## 用键盘遥控
+
+这里是和前面讲过的第 4 课相比，第一个会让你踩坑的区别。在 Jazzy 里，`diff_drive_controller` 监听 `/diff_drive_controller/cmd_vel`，并且要求 `geometry_msgs/msg/TwistStamped`——也就是 `Twist` 再加上一个带时间戳和坐标系的 header——而不是第 4 课插件接收的普通 `Twist`。header 很重要，因为控制器要把它的时间戳和自己的时钟比较，判断这条命令是否还新鲜。普通 `Twist` 没有时间戳，控制器就做不了这个比较。
+
+`teleop_twist_keyboard` 能发这种带时间戳的消息。用三个设置启动它：
+
+```bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args \
+    -p stamped:=true -p use_sim_time:=true -r cmd_vel:=/diff_drive_controller/cmd_vel
+```
+
+一个参数一个参数看。`stamped:=true` 让节点发布 `TwistStamped` 而不是 `Twist`；不加它，节点发布的是普通 `Twist`，而 ROS 2 从不把类型不同的发布者和订阅者连起来，控制器什么也收不到。`use_sim_time:=true` 让消息使用仿真器的时钟打时间戳，因为在 Gazebo 里控制器的时钟是仿真时间，不是墙上时间。漏掉这个，时间戳就是墙上时间，可能看起来远在未来或远在过去，超时逻辑就会失常。第三部分是 `-r` 重映射：`teleop_twist_keyboard` 默认发布到 `cmd_vel`，这条重映射把这个名字解析到控制器的话题上。
+
+编辑在 Gazebo 里这样检查过：在两秒左右按了二十次 `i`，m4bot 以遥控默认的 0.5 m/s 走了大约 1.15 m，并在最后一次按键后大约半秒停下。没有人发停止命令——是 `cmd_vel_timeout` 干的。这次是检查，不是抓取的输出，所以你机器上的具体距离会不同。
+
+想单独看超时，只发一条命令，然后什么都不发：
+
+<SimOutput source="ros">
+
+```text
+$ ros2 topic pub --once /diff_drive_controller/cmd_vel geometry_msgs/msg/TwistStamped "{twist: {linear: {x: 0.2}}}"
+$ ros2 topic echo --once --no-lost-messages /diff_drive_controller/odom --field pose.pose.position
+x: 0.10000000000000037
+y: -3.3216239550434035e-20
+z: 0.0
+---
+```
+
+</SimOutput>
+
+控制器的日志几乎在同一时刻说：
+
+<SimOutput source="ros">
+
+```text
+[diff_drive_controller]: Velocity command timed out. Braking.
+```
+
+</SimOutput>
+
+算术很短。命令要求 0.2 m/s，超时是 0.5 s，所以机器人应该走 0.2 m/s × 0.5 s = 0.10 m。里程计报告的 x 正是 0.100 m。那个极小的 y 值是物理引擎的数值噪声，不是真的横向漂移；1e-20 量级的东西一律当作零。
+
+和第 4 课对比：同样的单次命令，在那里会让机器人一直滚到收到停止消息为止。插件没有超时，控制器有。真机上这一点很重要：如果发命令的笔记本死机，或者 Wi-Fi 在转弯中途断掉，机器人会在半秒内自己停下，而不是一头撞墙。这也意味着任何驱动机器人的程序都必须持续发布，至少每 0.5 s 一次，按住键时的遥控正是这样。以后自己写驱动节点时要记住：一条消息是“请移动半秒”，不是一个会永远保持的速度设定。
+
+<Quiz id="q5" question="一条 linear.x = 0.4 m/s 的 TwistStamped 到达后，再无消息。cmd_vel_timeout 为 0.5 s，m4bot 会滚出多少米？" answer={0.2} unit="m" tolerance={0.05} explanation="0.4 m/s × 0.5 s = 0.20 m；之后控制器刹车。" />
+
+## 开指定距离的动作
+
+现在做练习任务的另一半。“向前开一米”听起来像一条话题指令，但它不是：它要花几秒钟，调用者想知道进展，而且必须能中途停下。第 2 课给过规则：带反馈和取消的长时间任务用动作（action）。话题无法报告进度，服务在运行中无法取消。
+
+接口还是常见的三段：
+
+<CodeSource path="examples/month-4/ros2-control/m4_drive_interfaces/action/DriveDistance.action" />
+
+```text
+# goal: drive straight for this many metres (negative = backwards) at this speed (m/s, > 0)
+float64 distance
+float64 speed
+---
+# result: how far the robot really went, and whether it got all the way
+float64 travelled
+bool reached
+---
+# feedback: progress so far
+float64 travelled
+float64 remaining
+```
+
+服务器就是一个普通的 ROS 2 节点，里面装着一个动作服务器：
+
+<CodeSource path="examples/month-4/ros2-control/m4_control/m4_control/drive_distance.py" />
+
+```python
+"""DriveDistance action server: drive straight for a commanded distance, using odometry.
+
+control.launch.py starts it (on the simulator's clock in Gazebo). Send it a goal with
+    python3 drive_client.py 1.0 0.2
+or  ros2 action send_goal --feedback /drive_distance m4_drive_interfaces/action/DriveDistance \\
+        "{distance: 1.0, speed: 0.2}"
+Commands go to the diff_drive_controller as TwistStamped; progress comes from its odometry."""
+import math
+import threading
+
+import rclpy
+from geometry_msgs.msg import TwistStamped
+from m4_drive_interfaces.action import DriveDistance
+from nav_msgs.msg import Odometry
+from rclpy.action import ActionServer, CancelResponse, GoalResponse
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.duration import Duration
+from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
+from rclpy.node import Node
+
+TOLERANCE = 0.005   # m: close enough to count as reached
+
+
+class DriveDistanceServer(Node):
+    def __init__(self):
+        super().__init__('drive_distance')
+        group = ReentrantCallbackGroup()   # odometry keeps arriving while a goal runs
+        self.cmd = self.create_publisher(TwistStamped, 'diff_drive_controller/cmd_vel', 10)
+        # queue depth 1: always act on the newest odometry, never on a backlog of old messages
+        self.create_subscription(Odometry, 'diff_drive_controller/odom', self.on_odom, 1,
+                                 callback_group=group)
+        self.position = None
+        self.velocity = 0.0
+        self.new_odom = threading.Event()
+        ActionServer(self, DriveDistance, 'drive_distance', self.execute,
+                     goal_callback=self.on_goal, cancel_callback=lambda _: CancelResponse.ACCEPT,
+                     callback_group=group)
+        self.get_logger().info('waiting for odometry')
+
+    def on_odom(self, msg):
+        if self.position is None:
+            self.get_logger().info('odometry received: accepting goals')
+        self.position = (msg.pose.pose.position.x, msg.pose.pose.position.y)
+        self.velocity = msg.twist.twist.linear.x
+        self.new_odom.set()
+
+    def next_odom(self):
+        self.new_odom.clear()
+        self.new_odom.wait(timeout=0.5)
+
+    def on_goal(self, goal):
+        ok = goal.speed > 0.0 and self.position is not None
+        return GoalResponse.ACCEPT if ok else GoalResponse.REJECT
+
+    def send(self, speed):
+        msg = TwistStamped()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = 'base_footprint'
+        msg.twist.linear.x = speed
+        self.cmd.publish(msg)
+
+    def execute(self, goal_handle):
+        target = abs(goal_handle.request.distance)
+        speed = math.copysign(goal_handle.request.speed, goal_handle.request.distance)
+        start = self.position
+        feedback = DriveDistance.Feedback()
+        result = DriveDistance.Result()
+        last_feedback = self.get_clock().now()
+        while rclpy.ok() and not goal_handle.is_cancel_requested:
+            travelled = math.dist(start, self.position)
+            remaining = target - travelled
+            if remaining <= TOLERANCE:
+                break
+            # near the end, slow down: command the remaining distance as a speed (0.1 m -> 0.1 m/s),
+            # never more than the goal's speed and never less than 0.02 m/s
+            self.send(math.copysign(max(0.02, min(abs(speed), remaining)), speed))
+            now = self.get_clock().now()
+            if now - last_feedback >= Duration(seconds=0.5):   # feedback twice a second
+                feedback.travelled, feedback.remaining = travelled, remaining
+                goal_handle.publish_feedback(feedback)
+                last_feedback = now
+            self.next_odom()
+        # stop, and wait until odometry says the robot is standing still (at most 1 s)
+        self.send(0.0)
+        for _ in range(50):
+            self.next_odom()
+            if abs(self.velocity) < 0.001:
+                break
+        # report where the robot really ended up, not where it was when we decided to stop
+        result.travelled = math.dist(start, self.position)
+        result.reached = target - result.travelled <= TOLERANCE
+        if goal_handle.is_cancel_requested:
+            goal_handle.canceled()
+        else:
+            goal_handle.succeed()
+        return result
+
+
+def main():
+    rclpy.init()
+    node = DriveDistanceServer()
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
+    try:
+        executor.spin()
+    except (KeyboardInterrupt, ExternalShutdownException):
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.try_shutdown()
+
+
+if __name__ == '__main__':
+    main()
+```
+
+有六点值得说明。
+
+1. **它向控制器发布 `TwistStamped`，并读取控制器的里程计**。它从不碰轮子，不调用 Gazebo 服务，也不知道自己面对的是什么硬件。同一个节点在 Gazebo、mock 和真机上都工作，因为它使用的接口——话题和里程计——正是 ros2_control 保持不变的那部分。
+2. **`execute` 要运行好几秒，而里程计一直在到达**。单线程执行器一次只跑一个回调；如果 `execute` 霸占着动作回调，里程计回调就永远轮不到，`self.position` 也就冻住了。所以节点使用 `MultiThreadedExecutor`，并把动作服务器和订阅放进同一个 `ReentrantCallbackGroup`，允许它们并发运行。这是新手写动作服务器时最常见的 bug。
+3. **如果速度不是正数，或者还没有收到任何里程计，目标会被拒绝**。早拒绝比接受一个注定失败的目标更友好：客户端立刻收到清楚的 `goal rejected`，而不是等到超时。距离的符号单独处理，所以负距离表示“倒车”，速度仍然保持为正。
+4. **循环测量相对起点的直线距离，在接近终点时减速，并按 ROS 时间每秒发布两次反馈**。它把剩余距离直接当作速度来命令——还剩 0.1 m 就发 0.1 m/s——但不会超过目标速度，也不会低于 0.02 m/s，免得机器人在最后几毫米上爬个没完。每一轮都发一条新命令，这也让 `cmd_vel_timeout` 不会在目标执行期间刹车。
+5. **循环结束后先停车，等里程计确认机器人已经站住，然后才测量结果**。这就是为什么结果报告的是机器人真正停下的位置，而不是循环决定“够近了”时的位置。刹车需要时间；在机器人停下之前测量，会少报距离。
+6. **订阅的队列深度是 1**。编辑的第一版用了深度 10，取消一个目标时报告走了 0.336 m，而里程计显示机器人实际移动了 0.412 m。Python 处理回调的速度比 50 Hz 的里程计到达得慢，节点于是在一堆旧消息里排队处理，它心里的位置就落后于真实位置。深度 1 保证它永远处理最新的一条。对里程计这种“只关心最新状态”的话题，就该用深度 1。
+
+客户端故意写得很小：发一个目标、收到反馈就打印、可以按计时器取消。
+
+<CodeSource path="examples/month-4/ros2-control/drive_client.py" />
+
+```python
+#!/usr/bin/env python3
+"""Send one DriveDistance goal, print its feedback and result; optionally cancel it part-way.
+
+usage: python3 drive_client.py <distance m> <speed m/s> [cancel after s]
+       python3 drive_client.py 1.0 0.2          drive 1 m forward at 0.2 m/s
+       python3 drive_client.py -1.0 0.2 2.0     drive backwards, cancel after 2 s"""
+import sys
+import time
+
+import rclpy
+from action_msgs.msg import GoalStatus
+from m4_drive_interfaces.action import DriveDistance
+from rclpy.action import ActionClient
+from rclpy.node import Node
+
+
+def main():
+    distance, speed = float(sys.argv[1]), float(sys.argv[2])
+    cancel_after = float(sys.argv[3]) if len(sys.argv) > 3 else None
+    rclpy.init()
+    node = Node('drive_client')
+    client = ActionClient(node, DriveDistance, 'drive_distance')
+    client.wait_for_server()
+
+    def on_feedback(msg):
+        fb = msg.feedback
+        print(f'feedback: travelled {fb.travelled:.3f} m, remaining {fb.remaining:.3f} m')
+
+    t0 = time.monotonic()
+    future = client.send_goal_async(DriveDistance.Goal(distance=distance, speed=speed),
+                                    feedback_callback=on_feedback)
+    rclpy.spin_until_future_complete(node, future)
+    handle = future.result()
+    if not handle.accepted:
+        print('goal rejected')
+        return
+    print(f'goal accepted: {distance} m at {speed} m/s')
+    result_future = handle.get_result_async()
+    while not result_future.done():
+        rclpy.spin_once(node, timeout_sec=0.1)
+        if cancel_after is not None and time.monotonic() - t0 > cancel_after:
+            print(f'cancelling after {cancel_after} s')
+            rclpy.spin_until_future_complete(node, handle.cancel_goal_async())
+            cancel_after = None
+    res = result_future.result()
+    status = {GoalStatus.STATUS_SUCCEEDED: 'SUCCEEDED', GoalStatus.STATUS_CANCELED: 'CANCELED',
+              GoalStatus.STATUS_ABORTED: 'ABORTED'}.get(res.status, str(res.status))
+    print(f'result: {status}, travelled {res.result.travelled:.3f} m, reached {res.result.reached}')
+    node.destroy_node()
+    rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
+```
+
+开一米。这次运行之前的里程计读到 x = 0.10 m，是第 5 节超时测试留下的：
+
+<SimOutput source="ros">
+
+```text
+$ python3 drive_client.py 1.0 0.2
+goal accepted: 1.0 m at 0.2 m/s
+feedback: travelled 0.100 m, remaining 0.900 m
+feedback: travelled 0.208 m, remaining 0.792 m
+feedback: travelled 0.308 m, remaining 0.692 m
+feedback: travelled 0.408 m, remaining 0.592 m
+feedback: travelled 0.536 m, remaining 0.464 m
+feedback: travelled 0.636 m, remaining 0.364 m
+feedback: travelled 0.736 m, remaining 0.264 m
+feedback: travelled 0.867 m, remaining 0.133 m
+feedback: travelled 0.937 m, remaining 0.063 m
+feedback: travelled 0.965 m, remaining 0.035 m
+feedback: travelled 0.980 m, remaining 0.020 m
+feedback: travelled 0.990 m, remaining 0.010 m
+result: SUCCEEDED, travelled 0.997 m, reached True
+$ ros2 topic echo --once --no-lost-messages /diff_drive_controller/odom --field pose.pose.position
+x: 1.0968106075555677
+y: -4.5895355511242945e-14
+z: 0.0
+---
+```
+
+</SimOutput>
+
+把结果和里程计对一下：
+
+```text
+odometry before: 0.100 m
+odometry after:  1.097 m
+difference:      1.097 − 0.100 = 0.997 m
+result:          0.997 m
+goal:            1.000 m
+shortfall:       0.003 m = 3 mm, inside the 0.005 m tolerance
+```
+
+两个数字一致，是因为动作服务器测量的就是你能看到的同一份里程计。比目标少 3 mm，在 5 mm 容差之内，所以 `reached` 为真。全速时反馈间隔约 0.1 m——0.2 m/s × 0.5 s = 0.1 m——接近终点时它们变密，因为机器人在减速。这个“变密”正是减速规则在起作用：还剩 0.035 m 时，它命令 0.035 m/s，而不是 0.2 m/s。
+
+同一个客户端也可以倒车，并在两秒后取消：
+
+<SimOutput source="ros">
+
+```text
+$ python3 drive_client.py -1.0 0.2 2.0
+goal accepted: -1.0 m at 0.2 m/s
+feedback: travelled 0.096 m, remaining 0.904 m
+feedback: travelled 0.204 m, remaining 0.796 m
+cancelling after 2.0 s
+feedback: travelled 0.320 m, remaining 0.680 m
+result: CANCELED, travelled 0.348 m, reached False
+$ ros2 topic echo --once --no-lost-messages /diff_drive_controller/odom --field pose.pose.position
+x: 0.7488106075467207
+y: -5.862183682662473e-15
+z: 0.0
+---
+```
+
+</SimOutput>
+
+再对一次：
+
+```text
+odometry before: 1.097 m
+odometry after:  0.749 m
+difference:      1.097 − 0.749 = 0.348 m
+result:          0.348 m
+```
+
+在 “cancelling” 之后还来了一条反馈：取消请求需要一点时间才能到达服务器，机器人也需要一点时间才能停住。这正是结果要等机器人站住之后才测量的原因。状态是 `CANCELED`，`reached` 为 false，调用者因此清楚知道发生了什么：机器人走了 0.348 m，没有到达要求的一米。取消不是失败，而是对部分结果的诚实报告。
+
+`ros2 action send_goal --feedback /drive_distance m4_drive_interfaces/action/DriveDistance "{distance: 1.0, speed: 0.2}"` 也可以用来做快速测试。编辑使用那个小 Python 客户端，是因为它每条反馈打印一行，并且能按计时器取消，这样上面两次运行才可复现。
+
+## 走向真实硬件
+
+现在用同一个 launch 文件，但完全不启动仿真器：
+
+<SimOutput source="ros">
+
+```text
+$ ros2 control list_hardware_components
+Hardware Component 1
+	name: m4bot
+	type: system
+	plugin name: mock_components/GenericSystem
+	state: id=3 label=active
+$ ros2 topic pub -r 20 -t 40 /diff_drive_controller/cmd_vel geometry_msgs/msg/TwistStamped "{twist: {linear: {x: 0.2}}}"
+$ ros2 topic echo --once --no-lost-messages /diff_drive_controller/odom --field pose.pose.position
+x: 0.48799728360000005
+y: 0.0
+z: 0.0
+---
+```
+
+</SimOutput>
+
+硬件组件现在变成了 `mock_components/GenericSystem`，驱动的还是同样的三个控制器。`ros2 topic pub -r 20 -t 40` 以 20 Hz 发 40 条命令，所以最后一条比第一条晚 39/20 = 1.95 s。控制器会把最后一条命令保持 0.5 s 的超时，然后刹车，因此机器人以 0.2 m/s 运动 1.95 + 0.5 = 2.45 s，即 0.49 m。里程计报告 0.492 m：`ros2 topic pub` 的发送时刻和控制器 20 ms 的周期都不会精确到毫秒，差几毫米是正常的。没有物理，没有轮子，没有激光雷达——只有以 50 Hz 运转的控制循环。
+
+mock 硬件是你在 CI 里或没有仿真器的笔记本上测试控制器、launch 文件和动作服务器的方式：完美的轮子、没有物理、瞬间启动。它也是找 YAML 拼写错误、缺失插件或坏掉的动作服务器的最快方式，因为此时没有别的东西可以背锅。机器人会心安理得地“穿过”墙壁，因为根本没有墙。
+
+在真机上，有三件事会变。
+
+1. **`<plugin>` 那行改成你的硬件接口**，也就是一个实现 `hardware_interface::SystemInterface` 的 C++ 类。`on_init` 读取 `<ros2_control>` 标签里的参数——串口、波特率、每转编码器计数；`on_activate` 打开连接；`read()` 向电机板询问编码器计数，并换算成弧度和弧度每秒；`write()` 把命令的 rad/s 换算成板子能理解的东西，对第 2 个月的 ESP32 来说，可以就是 USB 串口上的一行文本。这一行之上的所有东西——控制器管理器、控制器、YAML——都不变。
+2. **控制器管理器以 `ros2_control_node` 运行**，和这个 launch 文件的 mock 分支完全一样，因为没有 Gazebo 进程来托管它。launch 文件里已经有这个分支；接真机时，给 `hardware` 参数加第三个取值，让它对应的插件行写上你的硬件接口。
+3. **`use_sim_time` 变成 false，也不需要桥接**。激光雷达驱动自己发布 `/scan`，相机驱动自己发布图像，时钟就是电脑的时钟。控制器用到的话题名一个都不用改。
+
+这就是整套抽象带来的回报：`controllers.yaml`、动作服务器以及它们之上的所有东西原封不动。为一台新机器人写的部分只有硬件接口，而它也是唯一需要知道“电机是什么”的部分。
+
+<Resource id="ros2-control-docs" />
+
+现在用你自己的机器人做练习任务。按这份清单逐条过：
+
+1. 给机器人加上 `<ros2_control>` 标签，在轮子关节上配置速度命令接口，以及位置、速度状态接口。
+2. 写一份 `controllers.yaml`，其中 `wheel_separation` 和 `wheel_radius` 与 URDF 完全一致。
+3. `ros2 control list_controllers` 显示所有控制器都是 active。
+4. 带 `stamped:=true` 的遥控能在 Gazebo 里驱动机器人，松开按键后它会停下。
+5. 动作服务器能在容差内到达指定距离，发送反馈，可以被取消，结果与里程计一致。
+6. 同一个 launch 文件用 mock 硬件也能跑。
+
+`examples/month-4/ros2-control` 目录里有这两个包和客户端；编辑的运行由 `tools/sim/ros/run.sh` 复现。
+
+<Resource id="articulated-ros2-control-real" />
+
+第 6 课会给这台机器人一张地图。SLAM Toolbox 用激光雷达和这个控制器发布的里程计建图，Nav2 则通过同一个 `diff_drive_controller` 驱动机器人——不需要新的电机代码，不需要新的话题，只是多了一个发布 `TwistStamped` 的节点。这才是现在就学 ros2_control 的真正理由：你在它之上搭建的一切，都继承了同一套接口。

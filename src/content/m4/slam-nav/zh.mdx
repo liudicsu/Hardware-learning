@@ -1,0 +1,695 @@
+一台知道自己在哪里、又有一张“要去哪儿”的地图的机器人，能做一些真正有用的事：你在平面图上点一个点，它就自己开过去，绕开家具，不用你操控。这需要同时做到两件事。要建图，机器人必须知道它看到每一面墙时自己在哪里。要知道自己在哪里，它又必须把看到的景象和地图做比较。<strong>SLAM</strong>（simultaneous localization and mapping，同时定位与建图）把这两件事放在一起解决，而 <strong>Nav2</strong> 把“我在哪里”和“我想去哪里”变成轮子指令。
+
+这是第 4 个月的第六课，也是最后一课。需要的东西都已就位：第 3 课的 m4bot，第 4 课的障碍物世界和激光雷达，以及第 5 课的 `diff_drive_controller`——它发布里程计（odometry），并接收 `TwistStamped` 指令。今天我们再加入三个每个 ROS 2 移动机器人都要用的包——负责建图的 SLAM Toolbox、负责驾驶的 Nav2，以及负责保存地图的 `nav2_map_server`——外加一个能省下好几个小时的习惯：在相信任何基于里程计建出的地图之前，先检查里程计。
+
+练习任务的顺序和在真实机器人上一样：用激光雷达校准里程计，给房间建图并保存地图，在保存的地图里导航，然后故意把导航弄坏，找出原因。本月的里程碑是<strong>用 SLAM Toolbox 给房间建图，并用 Nav2 自主导航</strong>。
+
+## 一张图看懂 SLAM
+
+只靠里程计不够。`diff_drive_controller` 把轮子的转动积分成一个位姿（pose），而每一个小误差——轮子打滑、半径差了半毫米、某一次转身多转了一度——都会被永远累加下去。开几分钟之后，里程计可能已经偏离真实值几十厘米、好几度，而它自己毫无察觉。激光雷达（lidar）则直接看见墙壁，但单次扫描并不能说明机器人在哪里，除非你手里已经有一张地图可以对照。
+
+SLAM Toolbox 把两者合在一起。它维护一张<strong>位姿图（pose graph）</strong>：机器人每移动 0.2 m 或转过 0.2 rad，它就把当前扫描连同采集时的位姿一起存下来。每一帧新扫描都会和最近的几帧做匹配（scan matching，扫描匹配），在里程计的小误差刚出现时就把它纠正。当机器人回到以前见过的地方，SLAM Toolbox 会认出这帧扫描（也就是一次<strong>回环检测（loop closure）</strong>），并调整整张图，让新旧视角对得上。然后，地图就按修正后的位姿，用所有扫描画出来。
+
+结果在 TF 里表现为多出一个坐标系。从地图到机器人的链是：
+
+```text
+map ──► odom ──► base_footprint ──► base_link ──► laser_link ...
+    │         │                   │
+    │         │                   └ robot_state_publisher（URDF，第 3 课）
+    │         └ diff_drive_controller（轮式里程计，第 5 课）：平滑，但缓慢漂移
+    └ SLAM Toolbox：每当扫描匹配纠正漂移时，就会轻微跳一下
+```
+
+SLAM Toolbox 不会覆盖里程计。它发布 `map → odom`，也就是让整条链落到正确位置的那个修正。对需要连续信号的控制器来说，里程计依然平滑；对规划来说，地图坐标系也依然正确。当 SLAM Toolbox 纠正漂移时，动的只有 `map → odom`。
+
+<Quiz id="q1" question="m4bot 建图时，哪个节点发布 map → odom 变换？" options={["diff_drive_controller", "robot_state_publisher", "SLAM Toolbox", "Nav2 的 bt_navigator"]} answer={2} explanation="diff_drive_controller 发布 odom → base_footprint，robot_state_publisher 发布机器人自身的各连杆；SLAM Toolbox 发布 map → odom，也就是对里程计漂移的修正。" />
+
+## 先检查里程计
+
+SLAM Toolbox 把里程计当作每次扫描匹配的初始猜测。里程计只是稍微偏一点，扫描匹配能把它修好。如果偏得很厉害——比如每个转弯都少转百分之十——初始猜测就会落在离真实值很远的地方，匹配可能锁到错误的墙上，地图会糊成一片或者出现重影。所以在建图之前，先量一量里程计到底有多准。
+
+对差速驱动机器人来说，最干净的测试是原地转一整圈。转弯正是里程计最弱的地方，因为转角取决于轮距（wheel separation），而真正的轮距是轮胎接触地面的位置，不是 CAD 图纸上标的位置。整圈还有一个自带的参照：正好转过 360° 之后，房间看起来和之前一模一样。`spin_check.py` 让机器人一直转到里程计说 360°，然后比较转之前和转之后的激光扫描。如果机器人实际转了 365°，每面墙看起来就会多转 5°，脚本会找出能把两帧扫描对齐的那个旋转量。
+
+<CodeSource path="examples/month-4/slam-nav/spin_check.py" />
+
+```python
+#!/usr/bin/env python3
+"""Check odometry's heading against the lidar: spin m4bot one full turn by odometry, then ask the
+lidar how far it really turned.
+
+usage: python3 spin_check.py        (with control.launch.py or slam.launch.py running)
+If odometry is right, the room looks the same to the lidar before and after one turn. If not, the
+two scans are rotated against each other, and the rotation is the odometry's heading error."""
+import math
+
+import rclpy
+from geometry_msgs.msg import TwistStamped
+from nav_msgs.msg import Odometry
+from rclpy.node import Node
+from rclpy.parameter import Parameter
+from rclpy.qos import qos_profile_sensor_data
+from sensor_msgs.msg import LaserScan
+
+
+class SpinCheck(Node):
+    def __init__(self):
+        super().__init__('spin_check', parameter_overrides=[Parameter('use_sim_time', value=True)])
+        self.cmd = self.create_publisher(TwistStamped, 'diff_drive_controller/cmd_vel', 10)
+        self.create_subscription(Odometry, 'diff_drive_controller/odom', self.on_odom, 1)
+        self.scans = []
+        self.create_subscription(LaserScan, 'scan', self.scans.append, qos_profile_sensor_data)
+        self.yaw = None
+
+    def on_odom(self, msg):
+        q = msg.pose.pose.orientation
+        self.yaw = math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
+
+    def send(self, w):
+        msg = TwistStamped()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.twist.angular.z = w
+        self.cmd.publish(msg)
+
+    def average_scan(self, count=5):
+        """Mean of the next `count` scans; beams without a hit count as the lidar's maximum range."""
+        self.scans.clear()
+        while len(self.scans) < count:
+            rclpy.spin_once(self, timeout_sec=0.1)
+        top = self.scans[0].range_max
+        return [sum(min(s.ranges[i], top) for s in self.scans) / count
+                for i in range(len(self.scans[0].ranges))]
+
+    def settle(self, seconds):
+        end = self.get_clock().now().nanoseconds + seconds * 1e9
+        while self.get_clock().now().nanoseconds < end:
+            self.send(0.0)
+            rclpy.spin_once(self, timeout_sec=0.05)
+
+    def run(self):
+        while self.yaw is None:
+            rclpy.spin_once(self, timeout_sec=0.1)
+        before = self.average_scan()
+        turned, last = 0.0, self.yaw
+        while turned < 2 * math.pi - 0.002:              # one full turn, counted by odometry
+            remaining = 2 * math.pi - turned
+            self.send(max(0.05, min(0.5, 2.0 * remaining)))
+            rclpy.spin_once(self, timeout_sec=0.05)
+            step = math.atan2(math.sin(self.yaw - last), math.cos(self.yaw - last))
+            turned, last = turned + step, self.yaw
+        self.settle(1.0)
+        after = self.average_scan()
+        turned += math.atan2(math.sin(self.yaw - last), math.cos(self.yaw - last))
+        error = best_shift(before, after)
+        odom_deg, real_deg = math.degrees(turned), math.degrees(turned) + error
+        print(f'odometry says: {odom_deg:.1f} deg')
+        print(f'lidar says:    {real_deg:.1f} deg  (scans rotated by {error:+.1f} deg)')
+        print(f'odometry / real = {odom_deg / real_deg:.3f}')
+
+
+def best_shift(before, after, step=0.1, limit=60.0):
+    """The angle (deg) that turns the `before` scan into the `after` one, to `step` degrees.
+
+    A robot that turned d degrees too far sees every wall d degrees further clockwise, so
+    after(theta) = before(theta + d). Beams are 1 degree apart; in between we interpolate."""
+    n = len(before)
+
+    def at(scan, deg):
+        i = math.floor(deg) % n
+        f = deg - math.floor(deg)
+        return scan[i] * (1 - f) + scan[(i + 1) % n] * f
+
+    def cost(d):
+        return sum(abs(after[i] - at(before, i + d)) for i in range(n))
+
+    shifts = [k * step - limit for k in range(int(2 * limit / step) + 1)]
+    return min(shifts, key=cost)
+
+
+def main():
+    rclpy.init()
+    node = SpinCheck()
+    node.run()
+    node.destroy_node()
+    rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
+```
+
+激光雷达有 360 束，每度一束；`best_shift` 在束与束之间做插值，把旋转估计到 0.1°。前后各平均五帧扫描，能去掉大部分激光雷达噪声。用第 5 课的 launch 文件运行它，这个文件加载的控制器和第 5 课结束时一模一样：
+
+<SimOutput source="ros">
+
+```text
+$ python3 spin_check.py
+odometry says: 360.0 deg
+lidar says:    403.1 deg  (scans rotated by +43.1 deg)
+odometry / real = 0.893
+```
+
+</SimOutput>
+
+这个误差很大。里程计以为自己转了 360°，可机器人实际转了大约 403°，多了 12 %。第 5 课里直线走得很好（开指定距离的动作在 3 mm 以内停下），所以轮半径是对的，错的是轮距。在这个仿真里，轮子与地面的接触让 0.28 m 的轮距表现得像一个更窄的轮距；在真机上，原因通常是轮胎比图纸上更宽或更软。不管哪种，修法都一样，因为 `diff_drive_controller` 有一个专门的参数：
+
+<Formula label="轮距校准">新倍率 = 旧倍率 × 里程计角度 ÷ 真实角度</Formula>
+
+在这里就是 1.0 × 360 ÷ 403.1 = 0.893。本站编者第一次校准运行得到 0.896，`odom_calibration.yaml` 用的就是这个值；0.003 的差别来自接触模型每次运行的波动，完全在这个方法能测量的误差范围之内。
+
+<CodeSource path="examples/month-4/slam-nav/m4_nav/config/odom_calibration.yaml" />
+
+```yaml
+# Odometry calibration for m4bot, found with spin_check.py. Loaded on top of Lesson 5's
+# controllers.yaml through control.launch.py's drive_params argument.
+diff_drive_controller:
+  ros__parameters:
+    # odometry and commands use wheel_separation x multiplier = 0.28 x 0.896 = 0.251 m:
+    # the separation the simulated wheels really behave as if they had
+    wheel_separation_multiplier: 0.896
+```
+
+`wheel_separation_multiplier` 会同时在两个方向上缩放轮距：在里程计里（轮子运动到车体运动），以及在指令里（车体速度到轮速）。所以校准它之后，命令要求 1 rad/s 的转速，实际也会转出 1 rad/s。第 5 课的 launch 文件通过自己的 `drive_params` 参数接收这份文件，今天的两个 launch 文件都会把它传进去。在加载了校准的 `slam.launch.py` 下再跑一次检查：
+
+<SimOutput source="ros">
+
+```text
+$ python3 spin_check.py
+odometry says: 360.0 deg
+lidar says:    361.0 deg  (scans rotated by +1.0 deg)
+odometry / real = 0.997
+```
+
+</SimOutput>
+
+整圈差一度，误差是 0.3 %，小到扫描匹配可以轻松纠正。在真机上，要在机器人实际会行驶的地面上做这项检查，并且两个方向都重复一遍；如果机器人向左转和向右转的表现不同，那它左右轮的半径也不一样。
+
+<Quiz id="q2" question="你的机器人 wheel_separation_multiplier 为 1.0。spin_check.py 报告里程计 360.0 deg、激光雷达 400.0 deg。新的倍率应该是多少？" answer={0.9} tolerance={0.01} explanation="new = 1.0 × 360 / 400 = 0.90。机器人实际转过的角度比里程计以为的更多，所以里程计必须假设一个更窄的轮距。" />
+
+## 给房间建图
+
+SLAM Toolbox 的默认值已经不错；`slam.yaml` 只设置了坐标系、话题，以及少数几个取决于我们这台机器人的值。
+
+<CodeSource path="examples/month-4/slam-nav/m4_nav/config/slam.yaml" />
+
+```yaml
+# SLAM Toolbox for m4bot. Everything not listed keeps SLAM Toolbox's default.
+slam_toolbox:
+  ros__parameters:
+    mode: mapping                 # mapping: build a new map; localization: use a saved one
+    odom_frame: odom              # published by diff_drive_controller (Lesson 5)
+    map_frame: map                # SLAM Toolbox publishes map -> odom
+    base_frame: base_footprint
+    scan_topic: /scan
+    resolution: 0.05              # m per map cell
+    max_laser_range: 8.0          # the lidar's range in Lesson 4's xacro
+    minimum_travel_distance: 0.2  # add a new scan to the graph after 0.2 m ...
+    minimum_travel_heading: 0.2   # ... or 0.2 rad of turning
+    map_update_interval: 2.0      # s between /map updates
+```
+
+`max_laser_range` 与第 4 课 xacro 里激光雷达的 8 m 量程一致，所以不会有任何读数被丢掉。`resolution` 为 0.05 m，意味着每个地图栅格（cell）是 5 cm 见方，这是室内机器人的常见选择：细到能看见一条椅子腿，粗到一间房只有几千个栅格。这份 launch 文件复用了第 5 课的 launch 文件，换成校准后的里程计和另一个 RViz 视图，并加入 SLAM Toolbox 自己的 launch 文件：
+
+<CodeSource path="examples/month-4/slam-nav/m4_nav/launch/slam.launch.py" />
+
+```python
+"""Map the room: m4bot through ros2_control in Gazebo (Lesson 5) plus SLAM Toolbox in mapping mode.
+
+ros2 launch m4_nav slam.launch.py                  # Gazebo window and RViz
+ros2 launch m4_nav slam.launch.py headless:=true   # no windows"""
+import os
+
+from ament_index_python.packages import get_package_share_directory
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration
+
+
+def generate_launch_description():
+    share = get_package_share_directory('m4_nav')
+
+    def include(package, launch_file, **args):
+        path = os.path.join(get_package_share_directory(package), 'launch', launch_file)
+        return IncludeLaunchDescription(PythonLaunchDescriptionSource(path),
+                                        launch_arguments=args.items())
+
+    return LaunchDescription([
+        DeclareLaunchArgument('headless', default_value='false'),
+        # the robot, its controllers and the sensors from Lesson 5, with calibrated odometry
+        include('m4_control', 'control.launch.py', headless=LaunchConfiguration('headless'),
+                rviz_config=os.path.join(share, 'rviz', 'nav.rviz'),
+                drive_params=os.path.join(share, 'config', 'odom_calibration.yaml')),
+        # SLAM Toolbox's own launch file, with our parameters
+        include('slam_toolbox', 'online_async_launch.py', use_sim_time='true',
+                slam_params_file=os.path.join(share, 'config', 'slam.yaml')),
+    ])
+```
+
+SLAM Toolbox 有几种节点变体。`online_async_launch.py` 启动的是异步版本：它准备好时处理最新的一帧扫描，如果跟不上就跳过一些扫描，这样即使电脑很慢，地图也能保持最新。同步版本会处理每一帧扫描，因此可能落后于机器人。
+
+### 带着机器人走一圈
+
+现在驱动机器人四处走，直到每一面墙和每一个障碍物都从不止一个方向被看到。用键盘的话，你会像第 5 课那样运行 `ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -p stamped:=true -p use_sim_time:=true -r cmd_vel:=/diff_drive_controller/cmd_vel`。为了让结果可重复，本站编者用了一个做同样事情的脚本：原地转一圈，然后开到两个相对的角落再回来。
+
+<CodeSource path="examples/month-4/slam-nav/tour.py" />
+
+```python
+#!/usr/bin/env python3
+"""Drive m4bot along a fixed tour of the obstacles room, so SLAM Toolbox sees every corner.
+
+usage: python3 tour.py        (with slam.launch.py running)
+The same thing you would do with teleop_twist_keyboard, but repeatable: it turns on the spot and
+drives between waypoints, steering by odometry. It prints the odometry pose at each waypoint."""
+import math
+
+import rclpy
+from geometry_msgs.msg import TwistStamped
+from nav_msgs.msg import Odometry
+from rclpy.node import Node
+from rclpy.parameter import Parameter
+
+# (x, y) in the odom frame, which starts where the robot was spawned: the room's centre
+WAYPOINTS = [(1.4, 1.4), (-1.2, -1.2), (0.0, 0.0)]
+
+
+class Tour(Node):
+    def __init__(self):
+        # stamp commands with the simulator's clock, like every node in a simulation
+        super().__init__('tour', parameter_overrides=[Parameter('use_sim_time', value=True)])
+        self.cmd = self.create_publisher(TwistStamped, 'diff_drive_controller/cmd_vel', 10)
+        self.create_subscription(Odometry, 'diff_drive_controller/odom', self.on_odom, 1)
+        self.pose = None
+
+    def on_odom(self, msg):
+        p, q = msg.pose.pose.position, msg.pose.pose.orientation
+        yaw = math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
+        self.pose = (p.x, p.y, yaw)
+
+    def send(self, v, w):
+        msg = TwistStamped()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.twist.linear.x, msg.twist.angular.z = v, w
+        self.cmd.publish(msg)
+
+    def step(self):
+        rclpy.spin_once(self, timeout_sec=0.05)
+
+    def turn_to(self, target):
+        while True:
+            self.step()
+            err = math.atan2(math.sin(target - self.pose[2]), math.cos(target - self.pose[2]))
+            if abs(err) < 0.02:
+                break
+            self.send(0.0, max(-0.6, min(0.6, 2.0 * err)))   # slow turns keep the scans sharp
+        self.send(0.0, 0.0)
+
+    def drive_to(self, x, y):
+        while True:
+            self.step()
+            dx, dy = x - self.pose[0], y - self.pose[1]
+            if math.hypot(dx, dy) < 0.05:
+                break
+            err = math.atan2(dy, dx) - self.pose[2]
+            err = math.atan2(math.sin(err), math.cos(err))
+            self.send(min(0.25, math.hypot(dx, dy)), 2.0 * err)
+        self.send(0.0, 0.0)
+
+    def run(self):
+        while self.pose is None:
+            self.step()
+        print('spin once on the spot')
+        for target in (math.pi / 2, math.pi, -math.pi / 2, 0.0):
+            self.turn_to(target)
+        for x, y in WAYPOINTS:
+            self.turn_to(math.atan2(y - self.pose[1], x - self.pose[0]))
+            self.drive_to(x, y)
+            print(f'at waypoint ({x:.1f}, {y:.1f}): odom x {self.pose[0]:.2f} y {self.pose[1]:.2f}')
+        self.turn_to(0.0)
+        print(f'done, facing +x again: yaw {math.degrees(self.pose[2]):.0f} deg')
+
+
+def main():
+    rclpy.init()
+    node = Tour()
+    node.run()
+    node.destroy_node()
+    rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
+```
+
+<SimOutput source="ros">
+
+```text
+$ python3 tour.py
+spin once on the spot
+at waypoint (1.4, 1.4): odom x 1.37 y 1.37
+at waypoint (-1.2, -1.2): odom x -1.16 y -1.16
+at waypoint (0.0, 0.0): odom x -0.04 y -0.04
+done, facing +x again: yaw 1 deg
+```
+
+</SimOutput>
+
+脚本会在每个途经点 5 cm 以内停下，所以里程计记录的位姿会比途经点短几厘米。有两个习惯比具体走哪条路线更重要：开慢一点，尤其是转弯时（转得太快会把一帧扫描抹花，因为激光雷达扫一圈的过程中机器人还在移动）；以及回到起点，好让 SLAM Toolbox 有机会完成回环检测。在 RViz 里你能看着地图长大；灰色是未知，白色是空闲，黑色是占据。
+
+### 保存地图
+
+有两种格式，面向两种不同的使用者。SLAM Toolbox 的<strong>位姿图</strong>（`.posegraph` 加 `.data`）包含每一帧扫描和每一个位姿，所以 SLAM Toolbox 以后可以把它加载回来、在其中定位，甚至继续扩展它。<strong>占据栅格（occupancy grid）</strong>（`.pgm` 图像加 `.yaml`）就是那张图，Nav2 的地图服务器、其他工具和人可以读。趁 `slam.launch.py` 还在运行，把两者都保存下来：
+
+<SimOutput source="ros">
+
+```text
+$ ros2 service call /slam_toolbox/serialize_map slam_toolbox/srv/SerializePoseGraph "{filename: '/home/you/maps/room'}"
+waiting for service to become available...
+requester: making request: slam_toolbox.srv.SerializePoseGraph_Request(filename='/home/you/maps/room')
+
+response:
+slam_toolbox.srv.SerializePoseGraph_Response(result=0)
+
+$ ros2 run nav2_map_server map_saver_cli -f ~/maps/room --ros-args -p use_sim_time:=true
+[INFO] [1792451180.539218586] [map_saver]: 
+	map_saver lifecycle node launched. 
+	Waiting on external lifecycle transitions to activate
+	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[INFO] [1792451180.539273614] [map_saver]: Creating
+[INFO] [1792451180.539326203] [map_saver]: Configuring
+[INFO] [1792451180.544049221] [map_saver]: Saving map from 'map' topic to '/home/you/maps/room' file
+[WARN] [1792451180.544074518] [map_saver]: Free threshold unspecified. Setting it to default value: 0.250000
+[WARN] [1792451180.544079626] [map_saver]: Occupied threshold unspecified. Setting it to default value: 0.650000
+[WARN] [1792451180.720973669] [map_io]: Image format unspecified. Setting it to: pgm
+[INFO] [1792451180.721083605] [map_io]: Received a 120 X 120 map @ 0.05 m/pix
+[INFO] [1792451180.737619110] [map_io]: Writing map occupancy data to /home/you/maps/room.pgm
+[INFO] [1792451180.738094889] [map_io]: Writing map metadata to /home/you/maps/room.yaml
+[INFO] [1792451180.738179644] [map_io]: Map saved
+[INFO] [1792451180.738186115] [map_saver]: Map saved successfully
+[INFO] [1792451180.738779121] [map_saver]: Destroying
+$ ls ~/maps
+room.data
+room.pgm
+room.posegraph
+room.yaml
+$ cat ~/maps/room.yaml
+image: room.pgm
+mode: trinary
+resolution: 0.050
+origin: [-2.989, -3.002, 0]
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.196
+```
+
+</SimOutput>
+
+`result=0` 表示位姿图已经写出。地图是 120 × 120 个 0.05 m 的栅格，也就是 6.0 m × 6.0 m，正好是房间的大小。`origin` 是左下角栅格在地图坐标系中的位置：地图坐标系的原点设在 SLAM 启动时机器人所在的位置，也就是房间中央，所以那个角在两个方向上都离原点大约 3 m。在这张三值 PGM 里，占据栅格是黑色（0），空闲栅格是白色（254），未知栅格是灰色（205）。
+
+一张在 RViz 里看起来没问题的地图，也可能差了几个栅格，所以要拿它和它来源的那个世界对照检查。`map_check.py` 只使用 Python 标准库读取保存下来的文件，并检查第 4 课世界文件里放置墙壁和障碍物的位置是否确实有占据栅格：
+
+<CodeSource path="examples/month-4/slam-nav/map_check.py" />
+
+```python
+#!/usr/bin/env python3
+"""Check a saved map against the world it came from: are the walls and obstacles where the
+obstacles world (Lesson 4) put them?
+
+usage: python3 map_check.py ~/maps/room.yaml
+Reads the .yaml and .pgm written by nav2_map_server's map_saver_cli. Only the Python standard
+library is needed. The map frame starts where the robot was spawned, the centre of the room."""
+import os
+import sys
+
+# what is really in the obstacles world, in the map frame (centre x, centre y, half x, half y)
+OBJECTS = {
+    'north wall': (3.0, 0.0, 0.05, 3.0),
+    'south wall': (-3.0, 0.0, 0.05, 3.0),
+    'west wall': (0.0, 3.0, 3.05, 0.05),
+    'east wall': (0.0, -3.0, 3.05, 0.05),
+    'red box': (2.0, 0.0, 0.2, 0.2),
+    'blue pillar': (1.0, -1.2, 0.15, 0.15),
+    'green block': (-1.5, 1.5, 0.6, 0.6),   # 1.2 x 0.3 m turned 0.6 rad: check its bounding square
+}
+
+
+def read_yaml(path):
+    """The few keys map_saver writes, without needing PyYAML."""
+    meta = {}
+    for line in open(path):
+        key, _, value = line.partition(':')
+        meta[key.strip()] = value.strip()
+    origin = [float(v) for v in meta['origin'].strip('[]').split(',')]
+    return meta['image'], float(meta['resolution']), origin
+
+
+def read_pgm(path):
+    """A binary (P5) PGM: returns width, height and the rows, top row first."""
+    data = open(path, 'rb').read()
+    fields, pos = [], 0
+    while len(fields) < 4:                    # magic, width, height, maxval
+        while data[pos:pos + 1].isspace():
+            pos += 1
+        if data[pos:pos + 1] == b'#':         # comment line
+            pos = data.index(b'\n', pos)
+            continue
+        end = pos
+        while not data[end:end + 1].isspace():
+            end += 1
+        fields.append(data[pos:end])
+        pos = end
+    width, height = int(fields[1]), int(fields[2])
+    pixels = data[pos + 1:]
+    return width, height, [pixels[r * width:(r + 1) * width] for r in range(height)]
+
+
+def main():
+    yaml_path = sys.argv[1]
+    image, res, origin = read_yaml(yaml_path)
+    width, height, rows = read_pgm(os.path.join(os.path.dirname(yaml_path), image))
+    print(f'map: {width} x {height} cells of {res:.2f} m = {width * res:.1f} m x {height * res:.1f} m')
+    counts = {0: 0, 254: 0, 205: 0}           # occupied, free, unknown in a trinary map
+    for row in rows:
+        for v in row:
+            counts[v] = counts.get(v, 0) + 1
+    total = width * height
+    print(f'occupied {counts[0]} ({100 * counts[0] / total:.0f} %), free {counts[254]} '
+          f'({100 * counts[254] / total:.0f} %), unknown {counts[205]} ({100 * counts[205] / total:.0f} %)')
+
+    def cell(x, y):                           # map coordinates -> pixel value (row 0 = top = max y)
+        col = int((x - origin[0]) / res)
+        row = height - 1 - int((y - origin[1]) / res)
+        return rows[row][col] if 0 <= col < width and 0 <= row < height else None
+
+    for name, (cx, cy, hx, hy) in OBJECTS.items():
+        # look for occupied cells in the object's footprint plus one cell all round
+        found = 0
+        steps_x, steps_y = int(2 * (hx + res) / res) + 1, int(2 * (hy + res) / res) + 1
+        for i in range(steps_x):
+            for j in range(steps_y):
+                if cell(cx - hx - res + i * res, cy - hy - res + j * res) == 0:
+                    found += 1
+        print(f'{name:12s} at ({cx:+.1f}, {cy:+.1f}): {"found" if found else "MISSING"} ({found} occupied cells)')
+
+
+if __name__ == '__main__':
+    main()
+```
+
+<SimOutput source="ros">
+
+```text
+$ python3 map_check.py ~/maps/room.yaml
+map: 120 x 120 cells of 0.05 m = 6.0 m x 6.0 m
+occupied 664 (5 %), free 12691 (88 %), unknown 1045 (7 %)
+north wall   at (+3.0, +0.0): found (158 occupied cells)
+south wall   at (-3.0, +0.0): found (187 occupied cells)
+west wall    at (+0.0, +3.0): found (118 occupied cells)
+east wall    at (+0.0, -3.0): found (157 occupied cells)
+red box      at (+2.0, +0.0): found (25 occupied cells)
+blue pillar  at (+1.0, -1.2): found (16 occupied cells)
+green block  at (-1.5, +1.5): found (49 occupied cells)
+```
+
+</SimOutput>
+
+每个物体都在它该在的地方。栅格数量每次运行都会不同——下一次运行里某面墙的栅格数可能只剩一半，地图也可能少一行——因为扫描和回环检测永远不会完全一样；真正重要的是没有东西缺失，而且未知部分所占的比例很小。那 7 % 的未知栅格大多在障碍物后面和墙外，是激光雷达看不到的地方。在真机上，你会改用卷尺来对照：挑两面墙，量出距离，再数一数它们之间有多少栅格。
+
+<Quiz id="q3" question="分辨率为 0.05 m 时，一张 6 m × 6 m 房间的地图有多少个栅格？" answer={14400} unit="个" explanation="6 / 0.05 = 120，每边 120 个栅格，120 × 120 = 14,400 个栅格。" />
+
+## 用 Nav2 导航
+
+导航需要地图，也需要机器人在图中的位姿。Nav2 的经典方案是 `map_server` 加 AMCL，也就是粒子滤波器（particle filter）；而用 SLAM Toolbox，你可以改为在<strong>定位模式（localization mode）</strong>下加载保存的位姿图，它会把当前扫描与存下来的扫描做匹配，并发布和之前一样的 `map → odom` 变换。这样，建图和定位就共用同一个工具。
+
+<CodeSource path="examples/month-4/slam-nav/m4_nav/config/slam_localization.yaml" />
+
+```yaml
+# SLAM Toolbox in localization mode: load the saved pose graph and only track the robot in it.
+slam_toolbox:
+  ros__parameters:
+    mode: localization
+    odom_frame: odom
+    map_frame: map
+    base_frame: base_footprint
+    scan_topic: /scan
+    resolution: 0.05
+    max_laser_range: 8.0
+    minimum_travel_distance: 0.2
+    minimum_travel_heading: 0.2
+    map_update_interval: 2.0
+    map_start_pose: [0.0, 0.0, 0.0]   # where the robot is in the saved map at start (x, y, yaw)
+```
+
+`map_start_pose` 告诉 SLAM Toolbox，机器人启动时位于保存地图中的哪个位置。在这里，机器人生成的位置就是当初开始建图的位置，所以这个位姿就是原点。如果你让机器人在别处启动，要么把它设成正确的位姿，要么先给个粗略值，让扫描匹配把它拉过去——后者只在小误差下有效。
+
+<CodeSource path="examples/month-4/slam-nav/m4_nav/launch/nav.launch.py" />
+
+```python
+"""Navigate in a saved map: Lesson 5's robot, SLAM Toolbox in localization mode, and Nav2.
+
+ros2 launch m4_nav nav.launch.py map:=$HOME/maps/room                  # Gazebo window and RViz
+ros2 launch m4_nav nav.launch.py map:=$HOME/maps/room headless:=true   # no windows
+map: the pose graph saved with /slam_toolbox/serialize_map, without the .posegraph extension"""
+import os
+
+from ament_index_python.packages import get_package_share_directory
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration
+from nav2_common.launch import RewrittenYaml
+
+
+def generate_launch_description():
+    share = get_package_share_directory('m4_nav')
+
+    def include(package, launch_file, **args):
+        path = os.path.join(get_package_share_directory(package), 'launch', launch_file)
+        return IncludeLaunchDescription(PythonLaunchDescriptionSource(path),
+                                        launch_arguments=args.items())
+
+    # put the map given on the command line into SLAM Toolbox's parameters
+    slam_params = RewrittenYaml(
+        source_file=os.path.join(share, 'config', 'slam_localization.yaml'),
+        param_rewrites={'map_file_name': LaunchConfiguration('map')}, convert_types=True)
+
+    return LaunchDescription([
+        DeclareLaunchArgument('map', description='saved pose graph, without .posegraph'),
+        DeclareLaunchArgument('headless', default_value='false'),
+        include('m4_control', 'control.launch.py', headless=LaunchConfiguration('headless'),
+                rviz_config=os.path.join(share, 'rviz', 'nav.rviz'),
+                drive_params=os.path.join(share, 'config', 'odom_calibration.yaml')),
+        include('slam_toolbox', 'localization_launch.py', use_sim_time='true',
+                slam_params_file=slam_params),
+        # Nav2's planner, controller, behaviours and BT navigator, with m4bot's parameters
+        include('nav2_bringup', 'navigation_launch.py', use_sim_time='true',
+                params_file=os.path.join(share, 'config', 'nav2.yaml')),
+    ])
+```
+
+`RewrittenYaml`（来自 `nav2_common`）把命令行给出的地图路径写进 SLAM Toolbox 的参数里，所以 YAML 文件里永远不会出现你电脑上的路径。第三个 include 是 Nav2 自带的 `navigation_launch.py`，配的是我们的参数文件。
+
+### Nav2 里跑着什么
+
+Nav2 是一组由行为树（behaviour tree）协调的服务器。参数文件 [`m4_nav/config/nav2.yaml`](https://github.com/liudicsu/Hardware-learning/blob/main/examples/month-4/slam-nav/m4_nav/config/nav2.yaml) 基于 `nav2_bringup` 自带的那份，为 m4bot 改动过的行都标了 `# m4bot`。跟着一个目标把这条链走一遍：
+
+1. **`bt_navigator`** 接收 `NavigateToPose` 目标，并运行一棵行为树：规划、跟随，失败时先尝试恢复动作（清空代价地图、原地转、等待、后退），实在不行再放弃。
+2. **`planner_server`** 在<strong>全局代价地图（global costmap）</strong>上规划路径，这张图由保存的地图（静态层）、激光雷达当前看到的障碍物，以及膨胀层（inflation layer）叠加而成。规划器是 NavFn，一种栅格搜索。
+3. **`controller_server`** 用 Regulated Pure Pursuit 跟随路径，最高 0.25 m/s，转向时依据<strong>局部代价地图（local costmap）</strong>——一个以机器人为中心、3 m × 3 m 的窗口，只用激光雷达构建。当路径方向与机器人朝向相差超过 0.785 rad（45°）时，它会先原地转向。
+4. **`velocity_smoother`** 限制加速度，<strong>`collision_monitor`</strong> 则在激光雷达看到即将撞上的东西时让机器人减速或停下。它的输出 `cmd_vel_out_topic: "/diff_drive_controller/cmd_vel"`，是唯一一条把 Nav2 和第 5 课控制器连起来的配置。因为那个控制器要求 `TwistStamped`，每个发布速度的服务器都设置了 `enable_stamped_cmd_vel: true`。
+
+机器人的形状通过 `footprint` 进入规划，这是一个围绕 `base_footprint` 的矩形：向后 0.11 m、向前 0.21 m、两侧各 0.16 m。<strong>膨胀层（inflation layer）</strong>会在每个障碍物周围加上一层代价，代价随距离向外衰减，一直延伸到 `inflation_radius: 0.45` m。footprint 会碰到的栅格是禁区；膨胀过的栅格允许通过，但代价很高，所以规划器能留余量时就留，只有不得已时才从窄缝里挤过去。目标落在 `xy_goal_tolerance` 0.10 m 与 `yaw_goal_tolerance` 0.15 rad（约 9°）之内，就算到达。
+
+### 发送目标
+
+带着保存好的地图启动 `nav.launch.py`，等生命周期管理器（lifecycle manager）打印出 “Managed nodes are active”。在 RViz 里，<strong>Nav2 Goal</strong> 按钮可以让你点一个目标，再拖动它的朝向。从终端里，发一个 `NavigateToPose` 目标，然后问 TF 机器人最后到了哪里：
+
+<SimOutput source="ros">
+
+```text
+$ ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose "{pose: {header: {frame_id: map}, pose: {position: {x: 2.0, y: -2.0}, orientation: {w: 1.0}}}}"
+Waiting for an action server to become available...
+Sending goal:
+     pose:
+  header:
+    stamp:
+      sec: 0
+      nanosec: 0
+    frame_id: map
+  pose:
+    position:
+      x: 2.0
+      y: -2.0
+      z: 0.0
+    orientation:
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 1.0
+behavior_tree: ''
+
+Goal accepted with ID: b2d49f3aba82495a8972eaee49b62a2b
+
+Result:
+    error_code: 0
+error_msg: ''
+
+Goal finished with status: SUCCEEDED
+$ ros2 run tf2_ros tf2_echo map base_footprint --ros-args -p use_sim_time:=true
+- Translation: [1.970, -1.909, 0.000]
+- Rotation: in RPY (degree) [0.000, 0.000, -7.994]
+```
+
+</SimOutput>
+
+目标 (2.0, −2.0) 在远处那个蓝色柱子后面的角落里，离起点大约 2.8 m。机器人停在了 (1.97, −1.91)，离目标 0.09 m，在 0.10 m 的容差之内；朝向和要求的方向差约 8°，也在 9° 之内。“成功”的含义正是这样：落在容差内，而不必精确落在点上。路径绕着柱子走，从不穿过它，因为柱子占用的栅格以及它们的膨胀让直线变得很贵。
+
+<Quiz id="q4" question="从起点到 (2.0, −2.0) 的直线会经过蓝色柱子 (1.0, −1.2) 附近。为什么 Nav2 的路径要绕开它，而不是贴着它的边缘走？" options={["激光雷达看不见那根柱子", "膨胀层让柱子附近的栅格代价很高，所以规划器更偏好留出更大余量的路径", "Regulated Pure Pursuit 无法走直线", "SLAM Toolbox 在地图里移动了柱子"]} answer={1} explanation="膨胀层在每个障碍物周围铺开一层逐渐衰减的代价，范围到 inflation_radius 为止；规划器最小化总代价，所以愿意用稍微长一点的路径来换取更大的安全余量。" />
+
+## 导航失败的时候
+
+从外面看，Nav2 的失败都长得很像：机器人不动，或者原地转一阵然后放弃。原因几乎总是下面几种之一，而每一种都会留下你能找到的痕迹。
+
+| 症状 | 可能的原因 | 到哪里查 |
+| --- | --- | --- |
+| 日志里出现 “Lookup would require extrapolation” 或 “frame does not exist” | 某个节点用的是挂钟时间（wall time），而其他节点用仿真器时钟（`use_sim_time`） | 在每个节点上运行 `ros2 param get <node> use_sim_time` |
+| 目标被接受，但什么都不动 | 速度发到了没人监听的话题，或者普通的 `Twist` 发给了需要 `TwistStamped` 的控制器 | `ros2 topic info -v /diff_drive_controller/cmd_vel` |
+| 规划立刻失败 | 目标或机器人本身位于障碍物或其禁区内；或者定位没有启动，地图坐标系根本不存在 | RViz 里的全局代价地图；`ros2 run tf2_tools view_frames` |
+| 机器人莫名其妙地停下 | 激光雷达停止发布，代价地图因此让传感器超时，碰撞监视器也收不到数据 | `ros2 topic hz /scan` |
+| 地图糊了，或者机器人在 RViz 里跳来跳去 | 里程计校准很差，或者 `map_start_pose` 离真实起始位姿太远 | `spin_check.py`；起始位姿 |
+| 机器人过不去一扇明显足够宽的门 | footprint 或 `inflation_radius` 相对于缝隙太大 | RViz 里的代价地图 |
+
+先从 TF 开始，因为每个服务器都需要 `map → odom → base_footprint` 这条链完整且是最新的。`ros2 run tf2_tools view_frames` 会把树画出来（第 3 课那套坏树诊断在这里原样适用）；`ros2 run tf2_ros tf2_echo map base_footprint --ros-args -p use_sim_time:=true` 则显示机器人在图里到底有没有位姿。注意那个 `use_sim_time:=true`：不加它，`tf2_echo` 会按电脑的时间去要变换，而其他一切都在 Gazebo 的时钟上，于是它只会报外推错误——也就是表格第一行的缩影。
+
+然后看代价地图。在 RViz 里，给 `/global_costmap/costmap` 加一个 Map 显示，再给 `/local_costmap/costmap` 加一个。目标如果落在障碍物周围那条明亮的禁区带里，不管其他部分配得多好都到不了；一扇门如果两侧的膨胀边缘相接，在规划器看来这扇门就是关着的。调低 `inflation_radius` 能把它打开；把 footprint 设得比真实机器人小也能打开，而机器人刮蹭门框往往就是这么来的。先修 footprint，再调膨胀。
+
+<Callout type="tip" title="从日志开头读起">Nav2 在最终报告失败之前，会按顺序打印它执行的恢复动作（“Running spin”“Running backup”……）。在它们之前的第一条警告通常就点出了真正的问题，比如代价地图的传感器超时，或者一次变换失败。直接滚到最后一行，你只知道它放弃了。</Callout>
+
+<Quiz id="q5" question="Nav2 接受了一个目标，随后日志里出现代价地图警告，说扫描没有更新，机器人一直不动。你先检查什么？" options={["行为树的 XML", "用 ros2 topic hz /scan 看 /scan 是否还在发布", "规划器的容差", "目标的朝向"]} answer={1} explanation="代价地图和碰撞监视器需要最新的激光雷达数据；一旦 /scan 停了（驱动崩溃、桥接断掉、QoS 不匹配），它们就把机器人当成瞎子，于是它原地不动。" />
+
+<Resource id="nav2-docs" />
+
+## 第 4 个月小结
+
+你现在有了一套完整的 ROS 2 机器人技术栈，而且它的每一层都是专业机器人同样在用的那一层。本月的各个里程碑分别落在哪一课，对应关系如下：
+
+| 里程碑 | 你是在哪里做的 |
+| --- | --- |
+| 用 Python 和 C++ 写 ROS 2 节点，使用话题、服务和动作 | 第 1 课（第一个工作空间）和第 2 课（四节点图） |
+| 用 xacro 描述机器人，坐标系、惯量和碰撞体都正确 | 第 3 课（m4bot、`inertia_check.py`） |
+| 在 Gazebo 里仿真它，让激光雷达和相机都能工作 | 第 4 课（障碍物世界、`ros_gz_bridge`） |
+| 配置 ros2_control，通过控制器驱动机器人 | 第 5 课（`diff_drive_controller`、开指定距离的动作） |
+| 用 SLAM Toolbox 建图，用 Nav2 导航 | 本课 |
+| 诊断损坏的 TF 树 | 第 3 课，以及今天：导航失败时总是先在 TF 上出问题 |
+
+现在，用你自己的机器人完成练习任务：
+
+1. 运行 `spin_check.py`（改一下话题名），校准 `wheel_separation_multiplier`，两个转向方向都检查，直到误差低于 1 %。
+2. 给你的房间建图，把位姿图和 PGM 都保存下来。拿地图和现实对照：量两段已知距离，再用栅格数去核对。
+3. 在保存的地图里启动 Nav2，发送三个目标：一个在空地上，一个在障碍物后面，一个要穿过你那里最窄的缝隙。
+4. 故意把它弄坏一次——停掉激光雷达、给一个落在障碍物内部的目标，或者启动某个节点时不加 `use_sim_time`——然后在动手修复之前，从日志、TF 和代价地图里找出原因。
+
+`examples/month-4/slam-nav` 目录里有这个包和三个脚本；本课引用的每一次运行都可以用 `tools/sim/ros/run.sh` 复现。
+
+<Resource id="articulated-slam" />
+
+第 5 个月会往下走，深入到你这段时间所用东西的底层。Nav2 的控制器、第 3 个月的 PID 回路和平衡车，都建立在控制理论之上；规划器和第 3 个月的机械臂，建立在运动学（kinematics）之上；你仿真过的相机，则在等着标定（calibration）和感知（perception）。下个月讲的，就是让这些部件真正运转起来的数学。

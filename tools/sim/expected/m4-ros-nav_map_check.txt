@@ -1,0 +1,10 @@
+$ python3 map_check.py ~/maps/room.yaml
+map: 120 x 120 cells of 0.05 m = 6.0 m x 6.0 m
+occupied 664 (5 %), free 12691 (88 %), unknown 1045 (7 %)
+north wall   at (+3.0, +0.0): found (158 occupied cells)
+south wall   at (-3.0, +0.0): found (187 occupied cells)
+west wall    at (+0.0, +3.0): found (118 occupied cells)
+east wall    at (+0.0, -3.0): found (157 occupied cells)
+red box      at (+2.0, +0.0): found (25 occupied cells)
+blue pillar  at (+1.0, -1.2): found (16 occupied cells)
+green block  at (-1.5, +1.5): found (49 occupied cells)

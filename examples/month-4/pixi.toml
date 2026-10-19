@@ -1,0 +1,48 @@
+# ROS 2 Jazzy for the Month 4 examples, on any Linux (or macOS) without touching the system.
+# Uses RoboStack's conda packages: https://robostack.github.io/
+#   pixi install                      # once, about 2 GB
+#   pixi run check                    # examples/month-4/check.sh
+#   pixi run sim                      # the Gazebo and mock-hardware runs (tools/sim/ros/run.sh)
+#   pixi shell                        # a shell with ros2, colcon and gz on the PATH
+# On Ubuntu 24.04 you can use the official apt packages instead (see README.md).
+[workspace]
+name = "hardware-learning-month-4"
+channels = ["https://prefix.dev/robostack-jazzy", "https://prefix.dev/conda-forge"]
+platforms = ["linux-64"]
+
+[tasks]
+check = "bash check.sh"
+sim = "bash ../../tools/sim/ros/run.sh"
+
+[activation.env]
+ROS_AUTOMATIC_DISCOVERY_RANGE = "LOCALHOST"
+
+[dependencies]
+python = "3.12.*"
+compilers = "*"
+cmake = "*"
+pkg-config = "*"
+make = "*"
+ninja = "*"
+colcon-common-extensions = "*"
+ros-jazzy-ros-base = "*"
+ros-jazzy-demo-nodes-cpp = "*"
+ros-jazzy-demo-nodes-py = "*"
+ros-jazzy-example-interfaces = "*"
+ros-jazzy-rosbag2 = "*"
+ros-jazzy-rosbag2-storage-mcap = "*"
+ros-jazzy-xacro = "*"
+ros-jazzy-urdfdom = "*"
+ros-jazzy-robot-state-publisher = "*"
+ros-jazzy-joint-state-publisher = "*"
+ros-jazzy-joint-state-publisher-gui = "*"
+ros-jazzy-rviz2 = "*"
+ros-jazzy-tf2-ros = "*"
+ros-jazzy-tf2-tools = "*"
+ros-jazzy-ros2-control = "*"
+ros-jazzy-ros2-controllers = "*"
+ros-jazzy-ros-gz = "*"
+ros-jazzy-gz-ros2-control = "*"
+ros-jazzy-slam-toolbox = "*"
+ros-jazzy-nav2-bringup = "*"
+ros-jazzy-teleop-twist-keyboard = "*"

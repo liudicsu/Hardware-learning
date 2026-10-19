@@ -1,0 +1,62 @@
+<?xml version="1.0"?>
+<!-- m4bot driven through ros2_control. Two ways to run the same description:
+       hardware:=gazebo  the simulated robot in Gazebo (gz_ros2_control)
+       hardware:=mock    no simulator at all: mock_components echo every command back as state
+     On a real robot only the <plugin> line changes: it names your motor driver's hardware interface. -->
+<robot name="m4bot" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:arg name="hardware" default="gazebo"/>
+  <xacro:property name="hardware" value="$(arg hardware)"/>
+
+  <xacro:include filename="$(find m4_description)/urdf/robot.urdf.xacro"/>
+  <xacro:if value="${hardware == 'gazebo'}">
+    <xacro:include filename="$(find m4_gazebo)/urdf/sensors.gazebo.xacro"/>
+  </xacro:if>
+
+  <ros2_control name="m4bot" type="system">
+    <hardware>
+      <xacro:if value="${hardware == 'gazebo'}">
+        <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+      </xacro:if>
+      <xacro:if value="${hardware == 'mock'}">
+        <plugin>mock_components/GenericSystem</plugin>
+        <param name="calculate_dynamics">true</param>   <!-- integrate velocity into position -->
+      </xacro:if>
+    </hardware>
+    <!-- wheels: commanded by velocity (rad/s), report position and velocity -->
+    <joint name="left_wheel_joint">
+      <command_interface name="velocity">
+        <param name="min">-10</param>
+        <param name="max">10</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="right_wheel_joint">
+      <command_interface name="velocity">
+        <param name="min">-10</param>
+        <param name="max">10</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <!-- pan-tilt head: commanded by position (rad) -->
+    <joint name="pan_joint">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+    </joint>
+    <joint name="tilt_joint">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+    </joint>
+  </ros2_control>
+
+  <xacro:if value="${hardware == 'gazebo'}">
+    <gazebo>
+      <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+        <parameters>$(find m4_control)/config/controllers.yaml</parameters>
+      </plugin>
+    </gazebo>
+  </xacro:if>
+
+</robot>

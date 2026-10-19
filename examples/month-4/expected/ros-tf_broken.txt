@@ -1,0 +1,10 @@
+$ ros2 run tf2_ros tf2_echo base_link camera_link
+[INFO] [1792444928.258559294] [tf2_echo]: Waiting for transform base_link ->  camera_link: Could not find a connection between 'base_link' and 'camera_link' because they are not part of the same tree.Tf has two or more unconnected trees.
+$ ros2 run tf2_ros tf2_echo base_link laser
+[INFO] [1792444932.407209955] [tf2_echo]: Waiting for transform base_link ->  laser: Invalid frame ID "laser" passed to canTransform argument source_frame - frame does not exist
+$ ros2 run tf2_ros tf2_echo base_link lidar_link
+At time 0.0
+- Translation: [0.120, 0.000, 0.090]
+- Rotation: in Quaternion (xyzw) [0.000, 0.000, 0.000, 1.000]
+- Rotation: in RPY (radian) [0.000, -0.000, 0.000]
+- Rotation: in RPY (degree) [0.000, -0.000, 0.000]

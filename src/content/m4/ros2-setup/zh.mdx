@@ -1,0 +1,407 @@
+第 4 个月开始，机器人不再是一个程序，而是一套系统。到这个月结束时，你会用 ROS 2 搭出一台机器人、把它放进仿真，并让它自己给房间建图、自主导航到目标点。
+
+有两件事决定了接下来的所有内容。第一，ROS 2 就是工业界造机器人的方式，也是机器人招聘启事里出现频率最高的技能；学它不是“为将来做准备”，而是雇主直接点名要的东西。第二，这个月完全不需要硬件。一台普通笔记本就够——不需要 NVIDIA 显卡，不需要机械臂，也不需要激光雷达。很多人始终没开始，最大的原因就是相信“搞机器人要很贵的设备”；接下来六课里，那台“很贵的设备”就是你手边这台电脑。
+
+第 1–3 个月走的是“你自己的路”：写一个程序，让它在单片机上跑一个循环，板子严格按这个循环行事。ROS 2 的形状不一样。它运行在一台计算机上——现在是你的笔记本，将来是机器人上的树莓派或小型 x86 主机——它的职责是把许多各干一件事的程序连接起来。一个程序读激光雷达，一个把读数变成地图，一个决定往哪走，一个和电机打交道。它们通过有名字的通道交换消息，而不是直接互相调用；所以你可以换掉其中一个，而不必重写其余部分。
+
+这个月按顺序搭起来：第 2 课“节点、话题、服务与动作”给你词汇；第 3 课“URDF 与 TF：描述一台机器人”给机器人一副身体；第 4 课“用 Gazebo 仿真”把这副身体放进世界；第 5 课“ros2_control：通过控制器驱动”让轮子转起来；第 6 课“SLAM 与 Nav2：建图与导航”用地图和目的地闭合整个循环。本课是地板：选一个版本，装好，然后让你自己的第一个节点跑起来。
+
+关于下面出现的输出，需要说明一次。这里引用的每一段命令输出都是 ROS 2 Jazzy 的真实运行，不是仿真。本站编者是在 Debian 13 上跑的，Jazzy 来自 RoboStack 的 conda 包、用 pixi 安装——不是 Ubuntu。安装一节里的 Ubuntu apt 命令抄自 Jazzy 官方安装页，2026 年 10 月核对过。你机器上的时间戳会不同，含主目录的路径也会不同。发行版日期来自 ROS 2 官方发布页，同样在 2026 年 10 月核对过。
+
+## 选发行版
+
+ROS 2 每年 5 月发布一个新版本。每个版本叫一个发行版（distribution，简称 distro），代号按字母顺序用乌龟名字排下去：Humble、Iron、Jazzy、Kilted、Lyrical。字母顺序不是装饰，它直接告诉你谁更新；记住首字母，往往就能把一篇教程放回正确的时间位置。
+
+发布节奏有条规律，值得背下来：偶数年是 LTS（long-term support，长期支持）版本，支持 5 年；奇数年是普通版本，支持约 18 个月。这一条几乎能回答你未来几年遇到的每一个版本问题。
+
+| 发行版 | 发布时间 | 支持结束 | Ubuntu | 结论 |
+| --- | --- | --- | --- | --- |
+| Lyrical Luth | 2026 年 5 月 | 2031 年 5 月 | 26.04 | 最新的 LTS；全新的量产项目该选它 |
+| Kilted Kaiju | 2025 年 5 月 | 2026 年 12 月 | 24.04 | 非 LTS，支持只剩约两个月：不要从它开始 |
+| Jazzy Jalisco | 2024 年 5 月 | 2029 年 5 月 | 24.04 | LTS：从这里开始 |
+| Humble Hawksbill | 2022 年 5 月 | 2027 年 5 月 | 22.04 | 老版本；会在旧机器人和旧课程里遇到 |
+
+看这张表要对着日历，而不是凭“越新越好”的感觉。Kilted 2025 年 5 月发布，2026 年 12 月停止支持，中间 19 个月——这就是“约 18 个月”的实际样子。Jazzy 2024 年 5 月发布，支持到 2029 年 5 月，正好 5 年。支持结束（end of life）不等于代码某天突然跑不动，而是修复、安全更新和新的二进制包停止发布；从那以后出了问题只能靠自己，新的教程和软件包也都转向更新的发行版。
+
+下面这个算法，你以后对任何发行版都会重复。假设现在是 2026 年 10 月，想知道 Lyrical 还剩多少支持：
+
+```text
+2026 年 10 月 → 2030 年 10 月     4 年
+2030 年 10 月 → 2031 年 5 月      7 个月
+7 / 12                            ≈ 0.58 年
+4 + 0.58                          ≈ 4.6 年
+```
+
+同样的算法用在 Jazzy 上，就是下面这道题。
+
+那么，既然 Lyrical 是最新的 LTS，为什么本课从 Jazzy 开始？因为几乎所有课程、书和视频系列目前仍以 Jazzy 为目标；Jazzy 还剩两年半以上的支持，足够你学完；更关键的是，当教程和你的安装是同一个发行版时，你是在和知识点较劲，而不是在和版本差异较劲——包名对得上，launch 语法对得上，搜到的报错就是针对你手上这份代码的。等你要依赖的教程生态跟上 Lyrical 再迁移；概念几乎不变，那会是一周的适应，而不是从头再来。
+
+发布页上还有一个词值得知道：每个发行版都有一个作为 Tier 1 的 Ubuntu LTS。Jazzy 和 Kilted 对应 24.04，Humble 对应 22.04，Lyrical 对应 26.04。其他操作系统属于更低的层级，意味着预编译包更少、验证过的组合也更少。这解释了为什么安装说明如此在意 Ubuntu 的具体版本，也解释了本课为什么还要给出替代方案。
+
+习惯：把你的发行版写在笔记最上面；读任何教程，先看第一条命令里写的是哪个发行版，再决定要不要花时间。
+
+<Quiz id="q1" question="你在 2026 年 10 月开始学习。Jazzy 的支持到 2029 年 5 月，大约还剩多少年支持？" answer={2.6} unit="年" tolerance={0.05} explanation="2026 年 10 月到 2029 年 5 月是 2 年 7 个月；7 / 12 ≈ 0.58，所以约 2.6 年。" />
+
+## 认出 ROS 1
+
+ROS 1 已经结束。最后一个版本 Noetic 在 2025 年 5 月 31 日停止支持，而且没有后继版本：项目整体转到了 ROS 2。ROS 2 不是“ROS 1 的版本号加一”，而是另一套库、另一套命令。网上搜索排名很高的大量教程仍然是 ROS 1，所以你要练出一个本事：几秒钟认出来，然后关掉标签页。
+
+| 如果你看到…… | 它属于 ROS 1，因为…… | ROS 2 的写法 |
+| --- | --- | --- |
+| `catkin_make` 或 `catkin build` | ROS 1 的构建工具 | `colcon build` |
+| `roscore` | ROS 1 需要中央 master | 什么都不用：ROS 2 节点通过 DDS 自动发现彼此，没有 master |
+| `rosrun pkg node` | ROS 1 的运行命令 | `ros2 run pkg node` |
+| `import rospy` | ROS 1 的 Python 库 | `import rclpy` |
+| `roslaunch` 配 `.launch` XML 文件 | ROS 1 的启动方式 | `ros2 launch` 配 Python 的 `.launch.py` 文件（ROS 2 也能读 XML 和 YAML launch 文件，但文档和本站都用 Python） |
+
+这张表背后的规律是：ROS 1 围绕一个中央 master 进程设计。每个节点都要向它注册，必须先启动 roscore，其他东西才能工作。ROS 2 去掉了 master：节点通过 DDS 互相发现，于是启动顺序不再重要，也没有一个“重启一下 master”的万能按钮。Python 库从 rospy 改名为 rclpy，构建系统从 catkin 换成 ament，外面再套 colcon。
+
+路径也藏不住。教程里写 `/opt/ros/noetic`、`melodic`、`kinetic`，那些都是 ROS 1；ROS 2 在 `/opt/ros/jazzy`、`/opt/ros/humble` 这类目录。看到 `source /opt/ros/noetic/setup.bash`，形式很熟，但它加载的全是 ROS 1。
+
+实战建议：读教程前先看发布日期和第一条命令。2019 年写的“ROS 教程”，除非它明确说明，否则几乎肯定是 ROS 1。旧 Gazebo 命令也要小心，Gazebo 集成在两代之间改过名字和结构，第 4 课会讲哪些命令属于哪一代。旧材料不必全丢——话题、服务、坐标变换这些概念是相通的——但别把它的命令粘进 Jazzy 终端，再纳闷为什么“包不存在”。
+
+<Quiz id="q2" question="哪一行说明这篇教程是给 ROS 1 写的？" options={["colcon build --symlink-install", "rosrun turtlesim turtlesim_node", "ros2 launch my_robot robot.launch.py", "source /opt/ros/jazzy/setup.bash"]} answer={1} explanation="rosrun 是 ROS 1 的命令；ROS 2 用 ros2 run。其余三个都是 ROS 2。" />
+
+## 安装
+
+有四种正经路线。它们的终点一样——终端里 `ros2` 能用，talker 和 listener 能互相看见——所以按你的操作系统和耐心来选，而不是按“听起来最专业”来选。
+
+| 方式 | 适用系统 | 费用 | 适合 | 注意 |
+| --- | --- | --- | --- | --- |
+| Ubuntu 24.04 + 官方 apt 包 | Ubuntu 24.04（原生或双系统） | 免费 | 所有教程默认的参考环境；Gazebo 和 RViz 原生运行 | 必须正好是 Ubuntu 24.04 |
+| Windows：WSL2 + Ubuntu 24.04 | Windows 10/11 | 免费 | 然后在 WSL 里照 Ubuntu 方式装 | 图形程序（RViz、Gazebo）走 WSLg，较慢；USB 设备要多做几步 |
+| The Construct | 任意浏览器 | 免费档；付费从 €39.97/月起 | 零安装：浏览器里的 ROS 环境和仿真机器人，免费档含三门完整课程 | 依赖它的服务器和套餐 |
+| RoboStack（conda 包，用 pixi 安装） | 其他 Linux 发行版、macOS、Windows | 免费 | 独立环境，不碰系统；本站示例就是这样做出来的（Debian 13） | 社区维护；少数包比 apt 慢一点 |
+
+如果你在 Windows 上，又想最贴近教程，就装 WSL2 + Ubuntu 24.04，在 WSL 里工作。如果你用 macOS、Debian，或者不是 24.04 的 Ubuntu，用 pixi。如果完全不能装东西，先用 The Construct 撑过头几周；命令是一样的，只是跑在别人的机器上。
+
+<Resource id="the-construct" />
+
+### Ubuntu 24.04
+
+这是参考环境：Ubuntu 24.04，原生或双系统，装官方 apt 包。大多数书、大学课程和视频系列都默认它，所以你遇到的问题，别人多半已经遇到并写下来了。
+
+下面的步骤来自 Jazzy 官方安装页，2026 年 10 月核对过。
+
+```bash
+sudo apt install software-properties-common
+sudo add-apt-repository universe
+sudo apt update && sudo apt install curl -y
+export ROS_APT_SOURCE_VERSION=$(curl -s https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F "tag_name" | awk -F'"' '{print $4}')
+curl -L -o /tmp/ros2-apt-source.deb "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ROS_APT_SOURCE_VERSION}/ros2-apt-source_${ROS_APT_SOURCE_VERSION}.$(. /etc/os-release && echo ${UBUNTU_CODENAME:-${VERSION_CODENAME}})_all.deb"
+sudo dpkg -i /tmp/ros2-apt-source.deb
+sudo apt update && sudo apt install ros-dev-tools
+sudo apt install ros-jazzy-desktop
+```
+
+前几行启用 Ubuntu 的 universe 仓库，并安装“添加 ROS 2 apt 仓库及其签名密钥”的那个包。`ROS_APT_SOURCE_VERSION` 那行向 GitHub 查询 apt-source 包的最新发布标签；`curl` 那行按你的 Ubuntu 代号（24.04 是 noble）下载对应的 `.deb`。装上它，apt 才知道 ROS 2 的包在哪里；没有它，`apt install ros-jazzy-desktop` 只会告诉你找不到包。
+
+`ros-dev-tools` 带来 colcon 和后面要用的其他构建工具。`ros-jazzy-desktop` 是 ROS 2 加上 RViz、示例和教程。还有一个 `ros-jazzy-ros-base`，是不带图形工具的精简版，装在没显示器的机器人上——学习阶段用 desktop。
+
+这些命令会随时间变化：仓库地址、包名、支持的 Ubuntu 版本都会变。哪一步失败，就去和官方页面比对，而不是照 2024 年的博客继续硬改。安装完成后，每个终端都要加载环境，这就是下一节的第一件事。
+
+### 其他系统：用 pixi
+
+RoboStack 把 ROS 2 打包成 conda 包，conda 是跨平台的包管理器。pixi 是个小工具：它读一个项目文件，就能据此装出完整环境，不需要 root，也不碰系统库。本仓库为第 4 个月准备了这样一份文件，所以整套工具链——ROS 2、Gazebo、colcon 和这个月要用的所有东西——几条命令就能到位。
+
+```bash
+curl -fsSL https://pixi.sh/install.sh | bash
+git clone https://github.com/liudicsu/Hardware-learning.git
+cd Hardware-learning/examples/month-4
+pixi install
+pixi shell
+```
+
+`pixi install` 把 ROS 2 Jazzy、Gazebo、colcon 等下载到项目文件夹里（约 2 GB），不碰系统。`pixi shell` 打开一个 `ros2`、`colcon`、`gz` 都能用的 shell。也可以不进 shell，直接用 `pixi run ros2 topic list` 跑单条命令。把文件夹删掉，环境就没了，`/usr` 里什么都不留。
+
+<Resource id="robostack" />
+
+代价要说清楚：RoboStack 是社区维护的，少数包会比 apt 版本慢一点。学习阶段这很少成为问题。本仓库的这份文件只在 64 位 Linux 上配置和测试过；macOS 或 Windows 请按 RoboStack 自己的入门页操作，再加上需要的包。在 Windows 上，想一字不差地照 Linux 教程做，WSL2 更顺。
+
+## 第一批节点
+
+### 先 source，再测试
+
+ROS 2 靠环境变量找到自己的程序：可执行文件在哪、Python 模块在哪、包索引在哪。新开的终端对这些一无所知，所以每个新终端都要加载环境：
+
+```bash
+source /opt/ros/jazzy/setup.bash
+```
+
+很多人把这一行写进 `~/.bashrc`，让它自动执行。这很方便，但要注意：它从此作用于你打开的每一个终端，包括你本想用来测试另一个发行版的那个。以后装第二个 ROS 2 版本时，`~/.bashrc` 里的旧行就会变成一堆莫名其妙报错的来源；出怪问题时，记得先想到它。
+
+官方安装检查用两个示例程序：C++ 的 talker 和 Python 的 listener。开两个终端。
+
+```bash
+# terminal 1
+ros2 run demo_nodes_cpp talker
+# terminal 2
+ros2 run demo_nodes_py listener
+```
+
+真实输出，先 listener 后 talker：
+
+```text
+[INFO] [1792442648.482925386] [listener]: I heard: [Hello World: 1]
+[INFO] [1792442649.473299676] [listener]: I heard: [Hello World: 2]
+[INFO] [1792442650.473267190] [listener]: I heard: [Hello World: 3]
+[INFO] [1792442648.472128078] [talker]: Publishing: 'Hello World: 1'
+[INFO] [1792442649.472144075] [talker]: Publishing: 'Hello World: 2'
+[INFO] [1792442650.472084888] [talker]: Publishing: 'Hello World: 3'
+```
+
+listener 收到了每一条消息，说明两种语言的库都正常，而且它们不用 master、不用任何配置就能对话。这就是这项检查的意义：这两个能互相看见，你的安装和网络发现就没问题。
+
+方括号里那串长数字是 1970 年以来的秒数，小数点后是纳秒。你的数字会不同，这是正常的。对照两边计数相同的行：1 号消息在 1792442648.472 发出，1792442648.482 被听到，相差约 10 ms。
+
+注意两边都从 1 号消息开始：C++ 的 talker 从 1 开始计数。如果你晚几秒才启动 listener，它只会从更大的编号开始收。话题只投递“你在听的时候”发布的内容；除非发布者配置了历史缓存，否则没有旧消息在等你。第 2 课会仔细讲这件事。
+
+### 查看计算图
+
+一个运行中的 ROS 2 系统就是一张图（graph）：节点是程序，话题是命名的消息流，边是发布者和订阅者。`ros2` 命令可以从任何终端检查这张图，包括一个没有运行任何节点的终端。
+
+```bash
+ros2 node list                  # every node currently running
+ros2 topic list                 # every topic currently alive
+ros2 topic echo /hello --once   # print one message, then exit
+ros2 topic hz /hello            # measure the publish rate (Ctrl+C to stop)
+```
+
+下面的输出来自本课自己的节点——下一节才写——不是 demo talker。
+
+```text
+$ ros2 node list
+/hello_node
+$ ros2 topic list
+/hello
+/parameter_events
+/rosout
+$ ros2 topic echo /hello --once
+data: 'hello #7'
+---
+$ ros2 topic hz /hello
+average rate: 2.000
+```
+
+只有一个节点在运行：我们的。`/hello` 是我们建的话题；`/parameter_events` 和 `/rosout` 在每个 ROS 2 系统里都有，分别承载参数变更和日志，所以你没写过它们也会出现。`echo --once` 打印一条消息就退出；打印多条时，`---` 用作分隔。`hz` 测到每秒两条，正好对应代码里的 0.5 s 定时器。它会一直打印到 Ctrl+C；这里只截了第一行。
+
+两个值得注意的细节。节点名以斜杠开头，因为它位于根命名空间；话题名同理。另外 `hz` 是测量，不是设置：它统计一个时间窗口内到达的消息数，所以从消息流中间启动时第一行可能略有偏差。0.5 s 定时器稳定跑出 2.000，就是“正确”的样子。
+
+## 工作空间和包
+
+工作空间（workspace）是一个文件夹，里面有 `src/` 子目录放源码包。你在工作空间根目录运行 `colcon build`，它会在 `src/` 旁边生成 `build/`、`install/` 和 `log/`。包（package）是你构建、分享和依赖的基本单位：一个文件夹，含 `package.xml`、源码，以及“怎么安装自己”的说明。
+
+创建工作空间和一个 Python 包：
+
+```bash
+mkdir -p ~/ros2_ws/src
+cd ~/ros2_ws/src
+ros2 pkg create m4_hello \
+  --build-type ament_python --dependencies rclpy std_msgs --node-name hello_node \
+  --description 'Month 4 lesson 1: a first ROS 2 node' --maintainer-name 'Your Name' --maintainer-email you@example.com
+```
+
+真实输出——本站编者在临时目录里运行，这里按 `/home/you/ros2_ws` 打印；你的会显示自己的主目录。
+
+```text
+going to create a new package
+package name: m4_hello
+destination directory: /home/you/ros2_ws/src
+package format: 3
+version: 0.0.0
+description: Month 4 lesson 1: a first ROS 2 node
+maintainer: ['Your Name <you@example.com>']
+licenses: ['TODO: License declaration']
+build type: ament_python
+dependencies: ['rclpy', 'std_msgs']
+node_name: hello_node
+creating folder ./m4_hello
+creating ./m4_hello/package.xml
+creating source folder
+creating folder ./m4_hello/m4_hello
+creating ./m4_hello/setup.py
+creating ./m4_hello/setup.cfg
+creating folder ./m4_hello/resource
+creating ./m4_hello/resource/m4_hello
+creating ./m4_hello/m4_hello/__init__.py
+creating folder ./m4_hello/test
+creating ./m4_hello/test/test_copyright.py
+creating ./m4_hello/test/test_flake8.py
+creating ./m4_hello/test/test_pep257.py
+creating ./m4_hello/m4_hello/hello_node.py
+
+[WARNING]: Unknown license 'TODO: License declaration'.  This has been set in the package.xml, but no LICENSE file has been created.
+It is recommended to use one of the ament license identifiers:
+Apache-2.0
+BSL-1.0
+BSD-2.0
+BSD-2-Clause
+BSD-3-Clause
+GPL-3.0-only
+LGPL-3.0-only
+MIT
+MIT-0
+```
+
+`ament_python` 表示纯 Python 包；`ament_cmake` 是 C++ 的，第 2 课会用到。那条警告是关于许可证的：生成器不能替你选，于是写了占位符。选一个并显式传入，例如 `--license Apache-2.0` 或 `--license MIT`；本站保留占位符，是为了不替你的代码做决定。生成的测试是可选的，本站这份副本把它们删掉了。
+
+生成后的目录结构是这样：
+
+```text
+ros2_ws/
+├── src/
+│   └── m4_hello/
+│       ├── package.xml          name, version, dependencies
+│       ├── setup.py             how to install it, and which commands it provides
+│       ├── setup.cfg
+│       ├── resource/m4_hello    marker file so ROS can find the package
+│       └── m4_hello/
+│           ├── __init__.py
+│           └── hello_node.py    the node
+├── build/                       created by colcon build
+├── install/                     created by colcon build: what you source
+└── log/
+```
+
+### 节点代码
+
+<CodeSource path="examples/month-4/ros2-setup/m4_hello/m4_hello/hello_node.py" />
+
+```python
+"""A first ROS 2 node: publish a counter on /hello twice a second."""
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String
+
+
+class HelloNode(Node):
+    def __init__(self):
+        super().__init__('hello_node')            # the name shown by `ros2 node list`
+        self.pub = self.create_publisher(String, 'hello', 10)   # topic, queue depth
+        self.count = 0
+        self.timer = self.create_timer(0.5, self.tick)          # call tick() every 0.5 s
+
+    def tick(self):
+        msg = String()
+        msg.data = f'hello #{self.count}'
+        self.pub.publish(msg)
+        self.get_logger().info(f'published "{msg.data}"')
+        self.count += 1
+
+
+def main():
+    rclpy.init()
+    node = HelloNode()
+    try:
+        rclpy.spin(node)                          # run callbacks until Ctrl+C
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.try_shutdown()
+
+
+if __name__ == '__main__':
+    main()
+```
+
+节点就是一个继承 `Node` 的类。传给 `super().__init__` 的字符串，就是你会在 `ros2 node list` 里看到的节点名；改掉它，图里的名字就跟着变。
+
+`create_publisher(String, 'hello', 10)` 三个参数分别是消息类型、话题名和队列深度。队列深度是“订阅者处理不过来时最多积压几条”，初学用 10，和发布频率没有关系。话题名没有前导斜杠，因此是相对名：在默认命名空间里解析为 `/hello`。
+
+`create_timer(0.5, self.tick)` 让 ROS 每 0.5 秒调用一次 `tick`。`tick` 里构造 `String` 消息、填 `.data`、发布、写日志、计数加一。
+
+`rclpy.spin(node)` 一直运行回调，直到 Ctrl+C。这就是第 2 个月那个非阻塞 `millis()` 循环在 ROS 2 里的对应物，区别是定时和消息投递都由框架负责：你不写循环，只写“被调用时做什么”的函数。`finally` 块保证即使你中断，节点也会销毁、库也会关闭。
+
+把文件变成 `hello_node` 这条命令的入口在 `setup.py` 里：
+
+<CodeSource path="examples/month-4/ros2-setup/m4_hello/setup.py" />
+
+```python
+from setuptools import find_packages, setup
+
+package_name = 'm4_hello'
+
+setup(
+    name=package_name,
+    version='0.0.0',
+    packages=find_packages(exclude=['test']),
+    data_files=[
+        ('share/ament_index/resource_index/packages',
+            ['resource/' + package_name]),
+        ('share/' + package_name, ['package.xml']),
+    ],
+    install_requires=['setuptools'],
+    zip_safe=True,
+    maintainer='Your Name',
+    maintainer_email='you@example.com',
+    description='Month 4 lesson 1: a first ROS 2 node',
+    license='TODO: License declaration',
+    entry_points={
+        'console_scripts': [
+            'hello_node = m4_hello.hello_node:main'
+        ],
+    },
+)
+```
+
+关键一行是 `entry_points` 里的 `'hello_node = m4_hello.hello_node:main'`。等号左边是命令名，右边是“模块路径:函数名”。所以 `ros2 run m4_hello hello_node` 能找到它：先找到包，再找到 console script，最后调用 `main`。
+
+### 构建并运行
+
+```bash
+cd ~/ros2_ws
+colcon build
+source install/setup.bash
+ros2 run m4_hello hello_node
+```
+
+`colcon build` 的真实输出：
+
+```text
+Starting >>> m4_hello
+Finished <<< m4_hello [0.71s]
+
+Summary: 1 package finished [0.78s]
+```
+
+节点的真实输出，前四行，然后 Ctrl+C：
+
+```text
+[INFO] [1792442653.507764525] [hello_node]: published "hello #0"
+[INFO] [1792442653.998275036] [hello_node]: published "hello #1"
+[INFO] [1792442654.498256801] [hello_node]: published "hello #2"
+[INFO] [1792442654.998344307] [hello_node]: published "hello #3"
+```
+
+0.5 s 的间隔在时间戳里看得见：653.507、653.998、654.498、654.998。第一个间隔是 0.491 s，后面是 0.500 和 0.500。第一次回调在节点启动期间晚了几毫秒；定时器按自己的起始时间排程，所以一次迟到不会把后面的调用往后推。ROS 定时器不提供实时保证，但在空闲的电脑上它能很好地守住节拍。
+
+现在讲两个能解释大部分工作空间混乱的词。`/opt/ros/jazzy` 是 underlay（底层）：你之前 source 的已安装 ROS 2。工作空间的 `install/setup.bash` 是 overlay（覆盖层）：它在 underlay 之上叠加你的包，而不修改它。先 source underlay，再 source overlay，因为 overlay 的脚本是在已加载的内容上扩展的。新终端里两条都要，而且顺序如此。
+
+`colcon build --symlink-install` 用符号链接代替复制 Python 文件，改代码后不用重新构建就生效。经常改代码时用它。新增文件和修改 `setup.py` 仍然要重新构建，因为那改变的是“装什么”，而不只是已装文件的内容。
+
+<Quiz id="q3" question="用 create_timer(0.2, self.tick) 创建定时器，ros2 topic hz 会报告每秒多少条消息？" answer={5} unit="Hz" explanation="每 0.2 s 调用一次 → 1 / 0.2 = 每秒 5 次。" />
+
+## 出错时
+
+第一周几乎所有的安装失败，都是下面四个错误之一。
+
+- **没有 source**：新终端不知道你的工作空间。在只 source 了 ROS 本身的终端里运行 `ros2 run m4_hello hello_node`，真实输出是：
+
+  ```text
+  Package 'm4_hello' not found
+  ```
+
+  修法：`source ~/ros2_ws/install/setup.bash`（在 ROS underlay 之后）。包没有丢，只是终端没被告知去哪里找。
+
+- **在错误的目录里构建**：`colcon build` 要在工作空间根目录运行，绝不要进 `src/` 里运行。在 `src/` 里构建，`build/` 和 `install/` 就会长在源码树里面，形成第二个令人困惑、还会和第一个打架的工作空间。真发生了，删掉这些乱跑的文件夹，回到根目录重新构建。
+
+- **混用发行版**：在同一个终端里 source 了 Humble 和 Jazzy（常常来自 `~/.bashrc` 的旧行），会得到看起来像“包坏了”的错误：缺符号、Python 导入失败、明明装了却说找不到。用 `printenv ROS_DISTRO` 检查，确认它输出 `jazzy`；再看看你的 shell 启动文件都 source 了什么。
+
+- **节点互相看不见，或者看见太多**：ROS 2 会发现同一网络、同一 `ROS_DOMAIN_ID` 上的所有节点，默认是 0。在共享网络（学校、办公室）里，你会看到陌生人的节点，他们也会看到你的。把自己的域设成 `export ROS_DOMAIN_ID=42`（0–101 之间任何数字都安全），或者用 `export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` 只留在本机；两个终端域号不同，就永远听不见对方——所以“话题在发但收不到”时先查这个。另一个原因（QoS）在第 2 课。
+
+<Quiz id="q4" question="在新终端里运行 ros2 run m4_hello hello_node，输出：Package 'm4_hello' not found。这个包之前构建时没有任何报错。你该怎么做？" options={["用 colcon build --symlink-install 重新构建", "在当前终端里 source 工作空间的 install/setup.bash", "重装 ROS 2 Jazzy", "先启动 roscore"]} answer={1} explanation="每个终端都要 source 工作空间的 overlay；roscore 是 ROS 1 的东西，ROS 2 里不存在。" />
+
+页末的任务清单就是本课实际要做的事：选一条路线装好、跑通 demo 的 talker 与 listener、拿三篇排名靠前的教程对照 ROS 1 特征表、建好工作空间、用四条命令检查自己的节点。按这个顺序做，每一步都建立在上一步之上。
+
+一个节点在发布计数器，只是起点。第 2 课会把它扩展成完整的图：服务、动作、参数、launch 文件和 bag。

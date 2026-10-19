@@ -4,8 +4,11 @@ import { useTranslations } from "next-intl";
 const REPO = "https://github.com/liudicsu/Hardware-learning/blob/main";
 
 export interface SimOutputProps {
-  /** "avr": firmware run in the simavr simulator with simulated parts; "model": a Python toy model. */
-  source: "avr" | "model";
+  /**
+   * "avr": firmware run in the simavr simulator with simulated parts; "model": a Python toy model;
+   * "ros": real ROS 2 software driving a simulated robot (Gazebo or ros2_control mock hardware).
+   */
+  source: "avr" | "model" | "ros";
   children: ReactNode;
 }
 

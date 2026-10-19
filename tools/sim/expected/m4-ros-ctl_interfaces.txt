@@ -1,0 +1,15 @@
+$ ros2 control list_hardware_interfaces
+command interfaces
+	diff_drive_controller/angular/velocity [available] [unclaimed]
+	diff_drive_controller/linear/velocity [available] [unclaimed]
+	left_wheel_joint/velocity [available] [claimed]
+	pan_joint/position [available] [claimed]
+	right_wheel_joint/velocity [available] [claimed]
+	tilt_joint/position [available] [claimed]
+state interfaces
+	left_wheel_joint/position
+	left_wheel_joint/velocity
+	pan_joint/position
+	right_wheel_joint/position
+	right_wheel_joint/velocity
+	tilt_joint/position

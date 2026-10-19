@@ -1,0 +1,11 @@
+$ ros2 node list
+/hello_node
+$ ros2 topic list
+/hello
+/parameter_events
+/rosout
+$ ros2 topic echo /hello --once
+data: 'hello #7'
+---
+$ ros2 topic hz /hello
+average rate: 2.000

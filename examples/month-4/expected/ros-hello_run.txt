@@ -1,0 +1,4 @@
+[INFO] [1792442653.507764525] [hello_node]: published "hello #0"
+[INFO] [1792442653.998275036] [hello_node]: published "hello #1"
+[INFO] [1792442654.498256801] [hello_node]: published "hello #2"
+[INFO] [1792442654.998344307] [hello_node]: published "hello #3"

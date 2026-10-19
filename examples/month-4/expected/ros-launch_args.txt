@@ -1,0 +1,9 @@
+Arguments (pass arguments as '<name>:=<value>'):
+
+    'rate':
+        sensor rate in Hz
+        (default: '5.0')
+
+    'summary_topic':
+        where the aggregator publishes
+        (default: 'summary')

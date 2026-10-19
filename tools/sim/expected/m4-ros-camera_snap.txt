@@ -1,0 +1,2 @@
+frame_id: camera_optical_link, 640 x 480, encoding rgb8
+saved camera.png

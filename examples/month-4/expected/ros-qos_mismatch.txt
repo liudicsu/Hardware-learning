@@ -1,0 +1,5 @@
+$ ros2 topic echo --qos-reliability reliable /qos_demo std_msgs/msg/String
+[WARN] [1792444212.682225980] [_ros2cli_440298]: New publisher discovered on topic '/qos_demo', offering incompatible QoS. No messages will be received from it. Last incompatible policy: RELIABILITY
+$ ros2 topic echo --qos-reliability best_effort /qos_demo std_msgs/msg/String
+data: hi
+---

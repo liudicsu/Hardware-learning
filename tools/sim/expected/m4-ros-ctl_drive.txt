@@ -1,0 +1,20 @@
+$ python3 drive_client.py 1.0 0.2
+goal accepted: 1.0 m at 0.2 m/s
+feedback: travelled 0.100 m, remaining 0.900 m
+feedback: travelled 0.208 m, remaining 0.792 m
+feedback: travelled 0.308 m, remaining 0.692 m
+feedback: travelled 0.408 m, remaining 0.592 m
+feedback: travelled 0.536 m, remaining 0.464 m
+feedback: travelled 0.636 m, remaining 0.364 m
+feedback: travelled 0.736 m, remaining 0.264 m
+feedback: travelled 0.867 m, remaining 0.133 m
+feedback: travelled 0.937 m, remaining 0.063 m
+feedback: travelled 0.965 m, remaining 0.035 m
+feedback: travelled 0.980 m, remaining 0.020 m
+feedback: travelled 0.990 m, remaining 0.010 m
+result: SUCCEEDED, travelled 0.997 m, reached True
+$ ros2 topic echo --once --no-lost-messages /diff_drive_controller/odom --field pose.pose.position
+x: 1.0968106075555677
+y: -4.5895355511242945e-14
+z: 0.0
+---

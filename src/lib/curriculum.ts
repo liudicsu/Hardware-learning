@@ -304,6 +304,109 @@ const month3Lessons: Lesson[] = [
   },
 ];
 
+const month4Lessons: Lesson[] = [
+  {
+    slug: "ros2-setup",
+    title: { zh: "选哪个 ROS 2，搭好第一个工作空间", en: "Which ROS 2, and your first workspace" },
+    summary: {
+      zh: "为什么从 Jazzy 开始、怎样一眼认出过时的 ROS 1 教程、四种安装方式，然后用 colcon 构建并运行你的第一个 ROS 2 包。",
+      en: "Why to start on Jazzy, how to spot an outdated ROS 1 tutorial at a glance, four ways to install, then build and run your first ROS 2 package with colcon.",
+    },
+    minutes: 150,
+    resources: ["ros2-tutorials", "the-construct", "robostack"],
+    tasks: [
+      { id: "install", text: { zh: "装好 ROS 2 Jazzy（任选一种方式），跑通 C++ talker 和 Python listener", en: "Install ROS 2 Jazzy (any route) and get the C++ talker and Python listener talking" } },
+      { id: "spot-ros1", text: { zh: "找三篇搜索排名靠前的 ROS 教程，按本课的特征判断哪些是 ROS 1，记下线索", en: "Find three top-ranked ROS tutorials, decide which are ROS 1 using this lesson's tell-tale signs, and note the clue" } },
+      { id: "workspace", text: { zh: "创建 ~/ros2_ws，用 ros2 pkg create 生成一个 Python 包，写一个用定时器发布消息的节点", en: "Create ~/ros2_ws, generate a Python package with ros2 pkg create, and write a node that publishes on a timer" } },
+      { id: "inspect", text: { zh: "用 ros2 node list、topic list、topic echo 和 topic hz 检查你的节点，确认发布频率", en: "Inspect your node with ros2 node list, topic list, topic echo and topic hz, and confirm its rate" } },
+    ],
+  },
+  {
+    slug: "ros2-graph",
+    title: { zh: "节点、话题、服务与动作", en: "Nodes, topics, services and actions" },
+    summary: {
+      zh: "不用机器人、不用仿真器，搭一个完整的多节点系统：自定义 msg/srv/action、Python 和 C++ 节点、参数与 YAML、带参数的 launch 文件、ros2 bag 录制回放，以及“发了却收不到”的 QoS 问题。",
+      en: "A complete multi-node system with no robot and no simulator: your own msg/srv/action, Python and C++ nodes, parameters and YAML, a launch file with arguments, recording and replaying with ros2 bag, and the QoS mismatch behind “it publishes but nothing receives”.",
+    },
+    minutes: 240,
+    resources: ["ros2-tutorials", "renard-ros2-l1", "articulated-robotics", "mogi-ros", "automatic-addison", "ros2-qos"],
+    tasks: [
+      { id: "pick-pipe", text: { zh: "为你设想的机器人列出 6 种数据流，每种判断该用话题、服务还是动作，写下理由", en: "List six data flows for a robot you have in mind and decide topic, service or action for each, with the reason" } },
+      { id: "interfaces", text: { zh: "建一个接口包，至少包含一个自定义 .msg 和一个 .srv，用 ros2 interface show 检查", en: "Create an interfaces package with at least one custom .msg and one .srv, and check them with ros2 interface show" } },
+      { id: "graph", text: { zh: "搭出本课的四节点系统（传感器、处理、配置服务、带参数的汇总），其中至少一个节点用 C++", en: "Build this lesson's four-node system (sensor, processing, configuration service, parameterised aggregator), with at least one node in C++" } },
+      { id: "launch", text: { zh: "写一个带参数的 Python launch 文件，用参数改变频率并重映射一个话题", en: "Write a Python launch file with arguments; use them to change a rate and remap a topic" } },
+      { id: "bag", text: { zh: "用 ros2 bag 录一段数据，再把它回放给单独运行的处理节点", en: "Record a run with ros2 bag and replay it into the processing node running on its own" } },
+      { id: "qos", text: { zh: "故意制造一次 QoS 不兼容，读懂警告，再修好它", en: "Cause a QoS mismatch on purpose, read the warning, then fix it" } },
+    ],
+  },
+  {
+    slug: "urdf-tf",
+    title: { zh: "URDF 与 TF：描述一台机器人", en: "URDF and TF: describing a robot" },
+    summary: {
+      zh: "用 xacro 写出自己的机器人：差速底盘、传感器桅杆和二自由度云台，惯量正确，视觉与碰撞几何分开；再用 robot_state_publisher、RViz 和 tf2 工具看懂并诊断 TF 树。",
+      en: "Write your own robot in xacro: a differential-drive base, a sensor mast and a two-DOF pan-tilt head, with correct inertias and separate visual and collision geometry; then read and diagnose its TF tree with robot_state_publisher, RViz and the tf2 tools.",
+    },
+    minutes: 240,
+    resources: ["ar-transforms", "renard-ros2-l2", "urdf-rsp-tutorial"],
+    tasks: [
+      { id: "xacro", text: { zh: "用 xacro 写出你自己的机器人（不是 TurtleBot）：差速底盘、桅杆、云台，尺寸都用 property，轮子用宏", en: "Write your own robot in xacro (not TurtleBot): a differential-drive base, a mast and a pan-tilt head, with dimensions as properties and the wheels as a macro" } },
+      { id: "inertia", text: { zh: "给每个有质量的连杆加上 inertial，并用 inertia_check.py 或手算核对至少一个", en: "Give every link with mass an inertial, and check at least one by hand or with inertia_check.py" } },
+      { id: "sliders", text: { zh: "用 joint_state_publisher_gui 拖动云台关节，在 RViz 里看 TF 跟着动，截一张图", en: "Drive the pan-tilt joints with joint_state_publisher_gui, watch the TF move in RViz, and take a screenshot" } },
+      { id: "tf-math", text: { zh: "手算云台转 30° 时 base_link → camera_link 的平移，再用 tf2_echo 核对", en: "Work out the base_link → camera_link translation with the head panned 30° by hand, then check it with tf2_echo" } },
+      { id: "broken", text: { zh: "故意弄断 TF 树（不发 joint_states、用错 frame 名），读懂报错，再修好", en: "Break the TF tree on purpose (no joint_states, a wrong frame name), read the errors, then fix them" } },
+    ],
+  },
+  {
+    slug: "gazebo-sim",
+    title: { zh: "仿真：把机器人放进 Gazebo", en: "Simulation: your robot in Gazebo" },
+    summary: {
+      zh: "理清 Gazebo 的命名历史和版本配对，选对仿真器（Gazebo、MuJoCo、Isaac Sim）；然后写一个带障碍物的 SDF 世界，把上一课的 xacro 机器人放进去，加上激光雷达和相机，通过 ros_gz_bridge 在 ROS 2 和 RViz 里看到传感器数据。",
+      en: "Untangle Gazebo's naming history and version pairing and pick the right simulator (Gazebo, MuJoCo, Isaac Sim); then write an SDF world with obstacles, put last lesson's xacro robot into it with a lidar and a camera, and see the sensor data in ROS 2 and RViz through ros_gz_bridge.",
+    },
+    minutes: 240,
+    resources: ["gazebo-docs", "mujoco-sim", "isaac-sim"],
+    tasks: [
+      { id: "versions", text: { zh: "确认你的 ROS 2 发行版配哪个 Gazebo 版本，并找一篇用 gazebo_ros 或 ign gazebo 的过时教程", en: "Confirm which Gazebo release pairs with your ROS 2 distro, and find one outdated tutorial that uses gazebo_ros or ign gazebo" } },
+      { id: "world", text: { zh: "写一个自己的 SDF 世界：地面、光照、四面墙和至少三个障碍物，不依赖在线模型", en: "Write your own SDF world: ground, light, four walls and at least three obstacles, with no downloaded models" } },
+      { id: "sensors", text: { zh: "给你的 xacro 机器人加上激光雷达和相机插件，frame_id 用你 URDF 里的连杆名", en: "Add a lidar and a camera to your xacro robot, with frame_ids that are link names from your URDF" } },
+      { id: "bridge", text: { zh: "用 ros_gz_bridge 把 /scan、/camera/image_raw、/odom、/cmd_vel 接进 ROS 2，在 RViz 里同时看到激光点和相机画面", en: "Bridge /scan, /camera/image_raw, /odom and /cmd_vel into ROS 2 and see the laser points and the camera image together in RViz" } },
+      { id: "check", text: { zh: "手算机器人到正前方障碍物的距离，再用 scan_probe.py 核对；开一段距离后，用里程计和激光读数互相印证", en: "Work out the distance to the obstacle straight ahead by hand and check it with scan_probe.py; drive forward and check odometry and lidar against each other" } },
+    ],
+  },
+  {
+    slug: "ros2-control",
+    title: { zh: "ros2_control：通过控制器驱动机器人", en: "ros2_control: driving through a controller" },
+    summary: {
+      zh: "把上一课的 Gazebo 驱动插件换成 ros2_control：在 xacro 里写 <ros2_control> 标签，用 YAML 配置 diff_drive_controller 和 joint_state_broadcaster，用键盘遥控；再写一个“开指定距离”的动作服务器，带反馈和取消；最后用 mock 硬件看清换成真机时到底换掉什么。",
+      en: "Replace last lesson's Gazebo drive plugin with ros2_control: <ros2_control> tags in the xacro, diff_drive_controller and joint_state_broadcaster configured in YAML, keyboard teleop; then an action server that drives a commanded distance with feedback and cancellation; and mock hardware to see exactly what changes on a real robot.",
+    },
+    minutes: 240,
+    resources: ["ros2-control-docs", "articulated-ros2-control-real", "articulated-robotics"],
+    tasks: [
+      { id: "tags", text: { zh: "给你的 xacro 机器人加上 <ros2_control> 标签：轮子用速度命令接口，并报告位置和速度状态接口", en: "Add <ros2_control> tags to your xacro robot: velocity command interfaces for the wheels, reporting position and velocity state interfaces" } },
+      { id: "yaml", text: { zh: "用 YAML 配置 diff_drive_controller 和 joint_state_broadcaster，确认 list_controllers 里都是 active，轮距和轮半径与 URDF 一致", en: "Configure diff_drive_controller and joint_state_broadcaster in YAML; check that list_controllers shows them active and that wheel separation and radius match the URDF" } },
+      { id: "teleop", text: { zh: "在 Gazebo 里用 teleop_twist_keyboard（stamped:=true）开车，松开按键后观察 cmd_vel_timeout 让机器人停下", en: "Drive in Gazebo with teleop_twist_keyboard (stamped:=true) and watch cmd_vel_timeout stop the robot when you let go" } },
+      { id: "action", text: { zh: "写一个开指定距离的动作服务器：周期反馈进度、支持取消，结果报告机器人实际走了多远，并用里程计核对", en: "Write an action server that drives a commanded distance: progress feedback, cancellation, and a result that reports how far the robot really went, checked against odometry" } },
+    ],
+  },
+  {
+    slug: "slam-nav",
+    title: { zh: "SLAM 与导航：SLAM Toolbox 和 Nav2", en: "SLAM and navigation: SLAM Toolbox and Nav2" },
+    summary: {
+      zh: "先用激光雷达检查里程计转弯是否准确并校准它；再用 SLAM Toolbox 边走边给房间建图、保存地图；最后在保存的地图里定位，让 Nav2 规划路径、绕开障碍、自己开到目标点，并学会从 TF 和代价地图里找出导航失败的原因。",
+      en: "First use the lidar to check how well odometry measures turns, and calibrate it; then map the room with SLAM Toolbox while driving and save the map; finally localize in the saved map and let Nav2 plan a path, avoid obstacles and drive itself to a goal, and learn to find why navigation fails from TF and the costmaps.",
+    },
+    minutes: 240,
+    resources: ["slam-toolbox", "nav2-docs", "articulated-slam", "articulated-nav2"],
+    tasks: [
+      { id: "odom", text: { zh: "用 spin_check.py 让机器人按里程计原地转一整圈，用激光雷达测出真实转角，并校准 wheel_separation_multiplier，直到误差小于 1%", en: "Use spin_check.py to turn the robot one full turn by odometry, measure the real angle with the lidar, and calibrate wheel_separation_multiplier until the error is under 1%" } },
+      { id: "map", text: { zh: "用 SLAM Toolbox 给房间建图，把所有障碍物都扫到，并同时保存位姿图（.posegraph）和栅格地图（.pgm + .yaml）", en: "Map the room with SLAM Toolbox until every obstacle shows, and save both the pose graph (.posegraph) and the occupancy grid (.pgm + .yaml)" } },
+      { id: "nav", text: { zh: "在保存的地图里定位并启动 Nav2，从 RViz 或命令行发出目标点，让机器人绕过障碍物自己开过去", en: "Localize in the saved map, start Nav2 and send a goal from RViz or the command line; the robot must drive around the obstacles to it on its own" } },
+      { id: "debug", text: { zh: "故意制造一次导航失败（如把目标放进障碍物，或停掉激光雷达），从日志、TF 和代价地图找出原因", en: "Make navigation fail on purpose (a goal inside an obstacle, or the lidar stopped) and find the cause from the logs, TF and the costmaps" } },
+    ],
+  },
+];
+
 export const months: Month[] = [
   {
     id: 1,
@@ -391,7 +494,7 @@ export const months: Month[] = [
       zh: "用 ROS 2 构建机器人并仿真，让它建图并自主导航。",
       en: "Build a robot in ROS 2, simulate it, and make it map a room and navigate autonomously.",
     },
-    status: "outline",
+    status: "ready",
     topics: [
       { zh: "选择 ROS 2 发行版，避开 ROS 1 陷阱", en: "Choosing a ROS 2 distro and avoiding the ROS 1 trap" },
       { zh: "ROS 2 核心概念：节点、话题、服务、动作", en: "ROS 2 core concepts: nodes, topics, services, actions" },
@@ -408,7 +511,7 @@ export const months: Month[] = [
       { zh: "用 SLAM Toolbox 建图，用 Nav2 自主导航", en: "Map with SLAM Toolbox and navigate with Nav2" },
       { zh: "诊断损坏的 TF 树", en: "Diagnose a broken TF tree" },
     ],
-    lessons: [],
+    lessons: month4Lessons,
   },
   {
     id: 5,

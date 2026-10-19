@@ -1,0 +1,13 @@
+# SLAM Toolbox for m4bot. Everything not listed keeps SLAM Toolbox's default.
+slam_toolbox:
+  ros__parameters:
+    mode: mapping                 # mapping: build a new map; localization: use a saved one
+    odom_frame: odom              # published by diff_drive_controller (Lesson 5)
+    map_frame: map                # SLAM Toolbox publishes map -> odom
+    base_frame: base_footprint
+    scan_topic: /scan
+    resolution: 0.05              # m per map cell
+    max_laser_range: 8.0          # the lidar's range in Lesson 4's xacro
+    minimum_travel_distance: 0.2  # add a new scan to the graph after 0.2 m ...
+    minimum_travel_heading: 0.2   # ... or 0.2 rad of turning
+    map_update_interval: 2.0      # s between /map updates

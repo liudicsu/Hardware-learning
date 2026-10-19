@@ -1,0 +1,33 @@
+$ ros2 node list
+/aggregator_node
+/config_node
+/filter_node
+/sensor_node
+$ ros2 topic list -t
+/filtered [m4_interfaces/msg/Reading]
+/parameter_events [rcl_interfaces/msg/ParameterEvent]
+/raw [m4_interfaces/msg/Reading]
+/rosout [rcl_interfaces/msg/Log]
+/summary [m4_interfaces/msg/Summary]
+$ ros2 node info /aggregator_node
+/aggregator_node
+  Subscribers:
+    /filtered: m4_interfaces/msg/Reading
+  Publishers:
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /rosout: rcl_interfaces/msg/Log
+    /summary: m4_interfaces/msg/Summary
+  Service Servers:
+    /aggregator_node/describe_parameters: rcl_interfaces/srv/DescribeParameters
+    /aggregator_node/get_parameter_types: rcl_interfaces/srv/GetParameterTypes
+    /aggregator_node/get_parameters: rcl_interfaces/srv/GetParameters
+    /aggregator_node/get_type_description: type_description_interfaces/srv/GetTypeDescription
+    /aggregator_node/list_parameters: rcl_interfaces/srv/ListParameters
+    /aggregator_node/set_parameters: rcl_interfaces/srv/SetParameters
+    /aggregator_node/set_parameters_atomically: rcl_interfaces/srv/SetParametersAtomically
+  Service Clients:
+
+  Action Servers:
+    /collect: m4_interfaces/action/Collect
+  Action Clients:
+
