@@ -139,6 +139,22 @@ const month2Lessons: Lesson[] = [
       { id: "reaction-video", text: { zh: "录一段 15 秒的演示视频，连同代码推送到 GitHub", en: "Record a 15-second demo video and push it with the code to GitHub" } },
     ],
   },
+  {
+    slug: "esp32",
+    title: { zh: "ESP32：Wi-Fi、3.3 V 逻辑与框架选择", en: "ESP32: Wi-Fi, 3.3 V logic & choosing a framework" },
+    summary: {
+      zh: "从 Uno 迁移到 ESP32：选对型号、避开引脚陷阱，在 Arduino / ESP-IDF / MicroPython 之间做选择，并用手机网页控制舵机。",
+      en: "Move from the Uno to the ESP32: pick a variant, avoid the pin traps, choose between Arduino, ESP-IDF and MicroPython, and drive a servo from a phone web page.",
+    },
+    minutes: 180,
+    resources: ["rnt-esp32", "arduino-esp32", "esp-idf", "dronebot-esp32", "esp32-s3-devkit", "esp32-classic", "wokwi"],
+    tasks: [
+      { id: "esp32-blink", text: { zh: "安装 ESP32 开发板支持包，上传 Blink，并在串口看到芯片型号", en: "Install the ESP32 board package, upload Blink and print the chip model to serial" } },
+      { id: "servo-duty", text: { zh: "手算 50 Hz、14 位 LEDC 下 1.0 / 1.5 / 2.0 ms 脉宽对应的占空比数值", en: "Calculate the LEDC duty values for 1.0 / 1.5 / 2.0 ms pulses at 50 Hz and 14-bit resolution" } },
+      { id: "web-servo", text: { zh: "完成网页舵机控制：手机打开 ESP32 网页，看到实时读数，并用按钮转动舵机", en: "Finish the web servo: open the ESP32 page on your phone, see the live reading and move the servo with buttons" } },
+      { id: "pin-audit", text: { zh: "为你的板子列一张引脚表：哪些是启动绑定引脚、哪些 ADC 在 Wi-Fi 下不能用", en: "Write a pin table for your board: which pins are strapping pins and which ADC pins stop working with Wi-Fi" } },
+    ],
+  },
 ];
 
 export const months: Month[] = [

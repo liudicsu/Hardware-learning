@@ -67,6 +67,25 @@ g 96 352 96 384 0
 o 0 64 0 34 5 0.05 0 -1
 o 5 64 0 34 5 0.05 1 -1`,
   },
+  /** Practice: an open-drain I2C line — 4.7 kΩ pull-up to 3.3 V, two devices that can only pull it low. */
+  i2cPullup: {
+    cct: `$ 1 0.000005 10 50 5 50
+v 96 352 96 96 0 0 40 3.3 0 0 0.5
+w 96 96 224 96 0
+r 224 96 224 192 0 4700
+w 224 192 320 192 0
+w 320 192 448 192 0
+O 448 192 528 192 1
+s 320 192 320 352 0 1 true
+s 448 192 448 352 0 1 true
+w 96 352 320 352 0
+w 320 352 448 352 0
+g 96 352 96 384 0`,
+  },
+  /** Falstad built-in: inductive kickback when a switch opens an inductor's circuit. */
+  inductkick: { startCircuit: "inductkick.txt" },
+  /** Falstad built-in: the same circuit with a flyback diode across the inductor. */
+  inductkickBlock: { startCircuit: "inductkick-block.txt" },
   /** Falstad built-in: RC charging from a square wave. */
   capac: { startCircuit: "capac.txt" },
   /** Falstad built-in: transistor used as a switch. */
