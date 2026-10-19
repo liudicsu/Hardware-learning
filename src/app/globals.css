@@ -1,0 +1,135 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0a0a0b;
+  --foreground: #e4e4e7;
+  --card: #111113;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas,
+    monospace;
+}
+
+html {
+  color-scheme: dark;
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgb(56 189 248 / 0.3);
+}
+
+/* Long-form lesson typography (MDX output). */
+.prose-lesson {
+  color: rgb(212 212 216);
+  line-height: 1.8;
+  font-size: 1rem;
+}
+.prose-lesson > * + * {
+  margin-top: 1.1em;
+}
+.prose-lesson h2:not(.not-prose *) {
+  margin-top: 2.6em;
+  padding-top: 0.2em;
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: rgb(244 244 245);
+  letter-spacing: -0.01em;
+  scroll-margin-top: 5rem;
+}
+.prose-lesson h3:not(.not-prose *) {
+  margin-top: 1.8em;
+  font-size: 1.08rem;
+  font-weight: 600;
+  color: rgb(244 244 245);
+  scroll-margin-top: 5rem;
+}
+.prose-lesson a:not(.not-prose *) {
+  color: rgb(125 211 252);
+  text-decoration: underline;
+  text-decoration-color: rgb(125 211 252 / 0.35);
+  text-underline-offset: 3px;
+}
+.prose-lesson a:hover:not(.not-prose *) {
+  text-decoration-color: rgb(125 211 252);
+}
+.prose-lesson strong:not(.not-prose *) {
+  color: rgb(244 244 245);
+  font-weight: 600;
+}
+.prose-lesson ul:not(.not-prose *),
+.prose-lesson ol:not(.not-prose *) {
+  padding-left: 1.4em;
+}
+.prose-lesson ul:not(.not-prose *) {
+  list-style: disc;
+}
+.prose-lesson ol:not(.not-prose *) {
+  list-style: decimal;
+}
+.prose-lesson li + li:not(.not-prose *) {
+  margin-top: 0.35em;
+}
+.prose-lesson li:not(.not-prose *)::marker {
+  color: rgb(113 113 122);
+}
+.prose-lesson :not(pre) > code:not(.not-prose *) {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  background: rgb(255 255 255 / 0.06);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 0.35rem;
+  padding: 0.1em 0.35em;
+  color: rgb(228 228 231);
+}
+.prose-lesson pre:not(.not-prose *) {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.65;
+  background: #0f0f11;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 0.75rem;
+  padding: 1rem 1.1rem;
+  overflow-x: auto;
+}
+.prose-lesson blockquote:not(.not-prose *) {
+  border-left: 2px solid rgb(255 255 255 / 0.15);
+  padding-left: 1rem;
+  color: rgb(161 161 170);
+}
+.prose-lesson table:not(.not-prose *) {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  display: block;
+  overflow-x: auto;
+}
+.prose-lesson th:not(.not-prose *),
+.prose-lesson td:not(.not-prose *) {
+  border: 1px solid rgb(255 255 255 / 0.1);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+}
+.prose-lesson th:not(.not-prose *) {
+  background: rgb(255 255 255 / 0.04);
+  color: rgb(244 244 245);
+  font-weight: 600;
+}
+.prose-lesson hr:not(.not-prose *) {
+  border-color: rgb(255 255 255 / 0.1);
+  margin: 2.5em 0;
+}

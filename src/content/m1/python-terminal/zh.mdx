@@ -1,0 +1,530 @@
+## 为什么机器人离不开终端
+
+一台 ROS 2 机器人不是“一个程序”，而是一群叫节点（node）的小程序：一个读摄像头，一个把轮速指令变成电机电压，一个发布电池状态。它们通常从终端启动，日志打在终端里，出问题时也是你在终端里把某一个节点停掉。测试脚本、标定脚本、数据记录脚本，都是普通的 Python 文件，用 `python3` 运行。机器人上的计算机——树莓派（Raspberry Pi）、Jetson 或迷你主机——通常跑 Linux，而且常常没有接显示器；你通过 `ssh` 登进去，看文字、敲命令。
+
+所以终端不是“老派”，而是机器人趴在地上、你只剩一个提示符时唯一可用的界面。你不需要背一百条命令，只需要一小套词汇。学完这一课，你会有三个能跑的脚本：欧姆定律计算器、电阻类、以及把测量结果写成 JSON 的记录器；也会知道怎样安装依赖而不弄坏整台机器。
+
+## 准备：一个终端，一个 Python
+
+macOS 打开“终端”（应用程序 → 实用工具）。Linux 打开发行版自带的终端，Bash 和 Zsh 都可以。Windows 有两条路：
+
+- **WSL2 + Ubuntu（推荐）**：WSL2 在 Windows 里跑真正的 Linux 内核。ROS 2 官方支持 Ubuntu，多数机器人教程也假设 Linux 路径。用管理员权限打开 PowerShell，运行 `wsl --install`，需要时重启，然后从开始菜单打开 **Ubuntu**。
+- **Git Bash**：更轻量，提供 Bash 风格和常用 Unix 命令。本课够用，但它不是以后跑 ROS 2 的真正 Linux 环境。
+
+检查解释器：
+
+```bash
+python3 --version
+```
+
+需要 **3.10 或更高**。Windows 原生环境通常用 `py`：
+
+```bash
+py --version
+```
+
+macOS 上的 `python3` 可能来自 Xcode Command Line Tools；如果没有，去 python.org 安装。还要记住：`python` 和 `python3` 不一定是同一个程序。很多 Linux 系统根本没有 `python`，有些系统的 `python` 还是 Python 2。macOS/Linux 用 `python3`，Windows 用 `python` 或 `py`，并且保持一致。
+
+## 终端必备命令
+
+下面这些命令，去一个临时目录里逐条试。
+
+| 命令 | 作用 | 例子 |
+| --- | --- | --- |
+| `pwd` | 打印当前目录 | `pwd` |
+| `ls -la` | 列出所有文件（含隐藏文件）及详情 | `ls -la` |
+| `cd` | 切换目录；`cd ..` 回上一级 | `cd ~/robotics` |
+| `mkdir -p` | 创建目录，并自动创建缺失的父目录 | `mkdir -p ~/robotics/month1` |
+| `touch` | 创建空文件，或更新文件时间戳 | `touch notes.txt` |
+| `cat` | 把整个文件打印到屏幕 | `cat notes.txt` |
+| `less` | 分页查看文件，按 `q` 退出 | `less notes.txt` |
+| `cp` | 复制文件 | `cp notes.txt notes-backup.txt` |
+| `mv` | 移动或重命名文件 | `mv notes-backup.txt archive.txt` |
+| `rm` | 永久删除文件 | `rm archive.txt` |
+| `grep -n` | 查找匹配行并显示行号 | `grep -n "resistor" notes.txt` |
+| `\|`（管道） | 把左边命令的输出送给右边命令 | `ls -la \| grep notes` |
+| `>` 与 `>>` | 重定向输出；`>` 覆盖，`>>` 追加 | `echo "new" >> notes.txt` |
+| `echo $HOME` | 打印环境变量 | `echo $HOME` |
+| `export VAR=value` | 为当前 shell 及其子进程设置变量 | `export ROBOT_NAME=rover1` |
+| `which python3` | 显示实际会运行哪个可执行文件 | `which python3` |
+| `Ctrl+C` | 停止前台正在运行的程序 | 在终端里按下 |
+| `↑` | 调出上一条命令，连按可继续往前 | 在终端里按下 |
+| `Tab` | 自动补全文件名和命令名 | 输入 `cd ~/rob` 后按 Tab |
+| `ssh user@host` | 登录另一台机器并打开 shell | `ssh pi@192.168.1.42` |
+
+抓住三个概念，表就活了。**路径是位置**：`/` 是文件系统根目录，`~` 是主目录；以 `/` 开头的是绝对路径，其余相对于“你现在在哪”。**管道连接程序**：`ls -la | grep notes` 先列目录，再只保留含 `notes` 的行。**重定向把输出写进文件**：`echo "hello" > notes.txt` 会覆盖原文件，`echo "world" >> notes.txt` 才是追加。把 `>>` 写成 `>`，旧内容就无声无息地没了。
+
+<Callout type="warn" title="rm 没有回收站">
+`rm` 立即删除，没有废纸篓。对 `rm -r`（递归删除目录）和 `rm *.py` 这类通配符尤其要小心。按回车前先跑 `pwd` 和 `ls`，把命令里的路径大声读一遍。
+</Callout>
+
+下面是终端练习。一行一行输入，看清每条命令的结果：
+
+```bash
+mkdir -p ~/robotics/month1
+cd ~/robotics/month1
+echo "first note: check resistor values" > notes.txt
+echo "second note: log every measurement" >> notes.txt
+grep -n "resistor" notes.txt
+wc -l notes.txt
+export ROBOT_NAME=rover1
+echo "$ROBOT_NAME"
+env | grep ROBOT
+```
+
+`mkdir -p` 让 `cd` 成功进入一个原本连父目录都不存在的路径。`grep -n` 打出匹配行及行号。`wc -l` 输出 `2 notes.txt`：两行，因为你用了追加。`export` 让 `ROBOT_NAME` 对从这个 shell 启动的程序可见，所以 `echo "$ROBOT_NAME"` 打出 `rover1`，`env | grep ROBOT` 也能在环境变量列表里找到它。
+
+环境变量是机器人软件的实际配置方式：启动文件可能读取 `ROBOT_NAME`，ROS 2 会话则需要 `source /opt/ros/.../setup.bash` 把命令加进路径。`export` 只影响当前 shell 和它的子进程，关掉终端就没了。`ssh pi@192.168.1.42` 会登录那台树莓派；之后你敲的命令都跑在派上，本课所有内容在那边同样适用。
+
+## 虚拟环境与 pip
+
+一个 Python 安装自带一套共享的第三方包。如果每个项目都往里装，两个项目需要同一个库的不同版本就会打架，一次随手的升级还可能弄坏昨天还好用的脚本。**虚拟环境（virtual environment，venv）** 是一个私有目录，里面有属于自己的 Python 链接和包目录。激活后，这个 shell 里的 `python` 和 `pip` 都指向私有副本。
+
+```bash
+cd ~/robotics/month1
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+Windows 原生环境（PowerShell 或 cmd）的激活命令是：
+
+```text
+.venv\Scripts\activate
+```
+
+提示符前面会出现 `(.venv)`。这个标记不是装饰：它告诉你下一条 `pip install` 会装到哪里。接着升级 pip、装一个包：
+
+```bash
+python -m pip install --upgrade pip
+pip install rich
+```
+
+`python -m pip` 保证 pip 属于你刚调用的那个 Python，能避开“我明明装了，Python 却找不到”的经典问题。`rich` 是让终端输出更好看的小库；`numpy` 是以后会用到的数值计算主力。把当前依赖固定下来，才能复现：
+
+```bash
+pip freeze > requirements.txt
+pip install -r requirements.txt
+deactivate
+```
+
+第一条把包名和版本写进文本文件；第二条在另一台机器或新建的 venv 里照单重装；`deactivate` 退出环境，`(.venv)` 消失。
+
+两条铁律：**绝不把 `.venv` 提交到 Git**——它含二进制和绝对路径、体积大，而且用 `requirements.txt` 就能重建；把 `.venv/` 写进 `.gitignore`。**不要因为嫌激活麻烦就全局安装项目依赖**，那正是“一次无关升级搞坏机器人脚本”的常见原因。
+
+<Quiz id="q1" question="激活虚拟环境做了什么？" options={["安装 Python", "让当前终端里的 python 和 pip 指向这个项目独立的虚拟环境", "把包上传到 PyPI"]} answer={1} explanation="激活修改了 shell 的 PATH，使 python 和 pip 解析到项目目录里的副本。它既不安装 Python，也不发布任何东西。" />
+
+## 用 Python 造一个工具：ohm.py
+
+这个脚本从电压和电阻算电流，也算两个电阻分压后的输出电压。它用 `argparse` 做两个子命令。新建 `ohm.py`：
+
+```python
+"""ohm.py — command-line Ohm's law and voltage divider calculator."""
+
+import argparse
+import sys
+
+
+def current(volts: float, ohms: float) -> float:
+    """Return the current, in amps, through a resistance at a given voltage."""
+    if ohms <= 0:
+        raise ValueError("ohms must be positive")
+    return volts / ohms
+
+
+def divider(vin: float, r1: float, r2: float) -> float:
+    """Return the output voltage of a two-resistor divider, in volts."""
+    if r1 <= 0 or r2 <= 0:
+        raise ValueError("resistances must be positive")
+    return vin * r2 / (r1 + r2)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Ohm's law and voltage divider calculator"
+    )
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p_current = sub.add_parser("current", help="I = V / R, printed in mA")
+    p_current.add_argument("--volts", type=float, required=True)
+    p_current.add_argument("--ohms", type=float, required=True)
+
+    p_divider = sub.add_parser("divider", help="Vout = Vin * R2 / (R1 + R2)")
+    p_divider.add_argument("--vin", type=float, required=True)
+    p_divider.add_argument("--r1", type=float, required=True)
+    p_divider.add_argument("--r2", type=float, required=True)
+
+    args = parser.parse_args()
+
+    if args.command == "current":
+        ma = current(args.volts, args.ohms) * 1000
+        print(f"{ma:.1f} mA")
+    elif args.command == "divider":
+        v = divider(args.vin, args.r1, args.r2)
+        print(f"{v:.3f} V")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except ValueError as e:
+        print(f"error: {e}", file=sys.stderr)
+        sys.exit(1)
+```
+
+运行两个例子：
+
+```bash
+python ohm.py current --volts 5 --ohms 220
+```
+
+```text
+22.7 mA
+```
+
+```bash
+python ohm.py divider --vin 5 --r1 10000 --r2 4700
+```
+
+```text
+1.599 V
+```
+
+手算核对。第一条：
+
+```text
+I = V / R = 5 V / 220 Ω = 0.022727... A
+0.022727... A × 1000 = 22.727... mA
+```
+
+`{ma:.1f}` 保留一位小数，所以打印 `22.7 mA`。分压：
+
+```text
+Vout = Vin × R2 / (R1 + R2)
+     = 5 V × 4700 Ω / (10 000 Ω + 4700 Ω)
+     = 5 × 4700 / 14 700 V
+     = 23 500 / 14 700 V
+     = 1.598639... V
+```
+
+`{v:.3f}` 保留三位小数，得到 `1.599 V`。这就是组件那一课 Falstad 练习里的分压器，只是现在不打开浏览器也能算。
+
+代码各部分的作用：
+
+- **函数是“有名字的计算”**。`current(volts, ohms)` 收两个浮点数、返回一个浮点数。类型标注是给人看、给编辑器提示的，Python 运行时并不强制；文档字符串（docstring）就是 `help(current)` 显示的内容。
+- **计算里 return，程序边缘才 print**。返回数字，测试、图形界面或另一个脚本都能复用；只在 `main()` 里打印一次，计算才保持可复用。
+- **在边界做校验**。电阻为零或负数在这里没有物理意义，`raise ValueError` 用清楚的报错停下，而不是返回无穷大。
+- **`argparse` 负责接口**。`add_subparsers(..., required=True)` 让 `current` 或 `divider` 必填；`type=float, required=True` 把文本转成浮点数，缺参数时给出提示。试试 `python ohm.py --help` 和 `python ohm.py divider --help`。
+- **`if __name__ == "__main__":`** 只在文件被直接执行时运行命令行部分。别的脚本写 `from ohm import divider` 时，函数能用，`main()` 不会自己跑。
+- **最外层 `try`/`except`** 把故意的报错变成一句短消息，并以退出码 1 结束：
+
+```text
+$ python ohm.py current --volts 5 --ohms 0
+error: ohms must be positive
+```
+
+`$` 是 shell 提示符，不是命令的一部分。退出码 1 告诉脚本或 CI：这条命令失败了。在加上 shebang 和可执行权限之前，用 `python ohm.py` 而不是 `./ohm.py`；显式指定解释器能消掉一大类“跑错 Python”的问题。
+
+## 类：一个知道自己误差的电阻
+
+类（class）把数据和属于数据的操作绑在一起。电阻有标称值和误差，还能给出合理范围。Python 的 `@dataclass` 替我们省掉大量样板代码：
+
+```python
+"""resistors.py — dataclass Resistor, series/parallel helpers."""
+
+from dataclasses import dataclass
+
+
+@dataclass
+class Resistor:
+    """A resistor with a nominal value and a tolerance (0.05 = 5 %)."""
+
+    ohms: float
+    tolerance: float = 0.05
+
+    def min(self) -> float:
+        """Lowest value within tolerance."""
+        return self.ohms * (1 - self.tolerance)
+
+    def max(self) -> float:
+        """Highest value within tolerance."""
+        return self.ohms * (1 + self.tolerance)
+
+
+def series(*rs: Resistor) -> Resistor:
+    """Resistors in series: values add up, tolerances add too."""
+    if not rs:
+        raise ValueError("series() needs at least one resistor")
+    tolerance = sum(r.tolerance for r in rs)
+    return Resistor(ohms=sum(r.ohms for r in rs), tolerance=tolerance)
+
+
+def parallel(*rs: Resistor) -> Resistor:
+    """Resistors in parallel: conductances add up."""
+    if not rs:
+        raise ValueError("parallel() needs at least one resistor")
+    conductance = sum(1 / r.ohms for r in rs)
+    return Resistor(ohms=1 / conductance)
+
+
+if __name__ == "__main__":
+    r2k2 = Resistor(2_200)
+    print(r2k2)
+    print(f"range: {r2k2.min():.0f}–{r2k2.max():.0f} Ω")
+
+    result = parallel(Resistor(10_000), Resistor(10_000))
+    print(f"parallel: {result.ohms:.0f} Ω")
+
+    chain = series(Resistor(1_000), Resistor(4_700))
+    print(f"series: {chain.ohms:.0f} Ω")
+```
+
+运行 `python resistors.py`：
+
+```text
+Resistor(ohms=2200, tolerance=0.05)
+range: 2090–2310 Ω
+parallel: 5000 Ω
+series: 5700 Ω
+```
+
+第一行是 `@dataclass` 自动生成的 `__repr__`。`Resistor(2_200)` 调用自动生成的初始化方法，`ohms` 是 2200，`tolerance` 取默认 0.05。范围来自 ±5% 的定义：
+
+```text
+min = 2200 Ω × (1 − 0.05) = 2200 Ω × 0.95 = 2090 Ω
+max = 2200 Ω × (1 + 0.05) = 2200 Ω × 1.05 = 2310 Ω
+```
+
+金环电阻就是 ±5% 的元件；用万用表实测，读数通常应落在这个窗口里。方法返回数字，所以能用在比较和测试里，而不只是打印给人看。
+
+`*rs` 把任意多个参数收成一个元组。`series` 把阻值相加，也把误差相加——这是保守的极端估计：两个 ±5% 的电阻都偏低时，总阻值可能偏低 10%。`parallel` 用电导相加：
+
+```text
+1 / Rtotal = 1 / R1 + 1 / R2
+```
+
+两个 10 kΩ 并联：
+
+```text
+1 / Rtotal = 1 / 10 000 Ω + 1 / 10 000 Ω
+           = 0.0001 + 0.0001 S
+           = 0.0002 S
+Rtotal = 1 / 0.0002 Ω = 5000 Ω
+```
+
+两个等值电阻并联，结果是一半——5 kΩ，不是 20 kΩ。注意代码里的 `parallel` 返回默认 5% 误差，并没有合并输入误差；做最坏情况设计时要分别算上下限。
+
+<Quiz id="q2" question="parallel(Resistor(10_000), Resistor(10_000)).ohms 的结果是多少？" answer={5000} unit="Ω" explanation="电导相加：1/R = 1/10 000 + 1/10 000 = 0.0002 S，所以 R = 1/0.0002 = 5000 Ω。两个等值电阻并联，阻值减半。" />
+
+## 文件与 JSON：测量日志
+
+万用表那一课要求你测 5 个电阻，并与色环读数比较。用脚本记录更好：带时间戳、可重复使用。JSON 是一种表示嵌套数据的文本格式——带字符串键的对象、数组、数字、字符串、布尔值和 null——几乎能直接对应 Python 的列表和字典。一条测量正好是字典，整个日志就是字典的列表。
+
+```python
+"""log.py — append a measurement to measurements.json and check tolerance."""
+
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+
+LOG_FILE = Path("measurements.json")
+
+
+def load_measurements() -> list[dict]:
+    """Read the log if it exists, else start with an empty list."""
+    if LOG_FILE.exists():
+        text = LOG_FILE.read_text(encoding="utf-8")
+        return json.loads(text)
+    return []
+
+
+def save_measurements(measurements: list[dict]) -> None:
+    """Write the whole list back, pretty-printed."""
+    LOG_FILE.write_text(
+        json.dumps(measurements, indent=2), encoding="utf-8"
+    )
+
+
+def record(part: str, expected_ohms: float, measured_ohms: float) -> dict:
+    """Append one measurement and return that entry."""
+    entry = {
+        "part": part,
+        "expected_ohms": expected_ohms,
+        "measured_ohms": measured_ohms,
+        "time": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    }
+    measurements = load_measurements()
+    measurements.append(entry)
+    save_measurements(measurements)
+    return entry
+
+
+def report_out_of_tolerance(measurements: list[dict], limit: float = 0.05) -> None:
+    """Print every measurement that misses its nominal value by more than limit."""
+    bad = 0
+    for m in measurements:
+        expected = m["expected_ohms"]
+        measured = m["measured_ohms"]
+        if expected == 0:
+            continue
+        error = abs(measured - expected) / expected
+        if error > limit:
+            bad += 1
+            print(
+                f"{m['part']}: expected {expected:.0f} Ω, "
+                f"measured {measured:.0f} Ω → off by {error * 100:.1f} %"
+            )
+    print(f"{bad} of {len(measurements)} measurements out of {limit * 100:.0f} % tolerance")
+
+
+if __name__ == "__main__":
+    record("R1", 4700, 4688)
+    print("Logged 1 measurement.")
+    report_out_of_tolerance(load_measurements())
+```
+
+在空目录里运行 `python log.py`：
+
+```text
+Logged 1 measurement.
+0 of 1 measurements out of 5 % tolerance
+```
+
+`measurements.json` 里现在是一个列表，含一个对象：
+
+```json
+[
+  {
+    "part": "R1",
+    "expected_ohms": 4700,
+    "measured_ohms": 4688,
+    "time": "2026-05-04T09:14:07+00:00"
+  }
+]
+```
+
+你的时间戳会不同；`datetime.now(timezone.utc)` 读时钟，`isoformat(timespec="seconds")` 写成可排序、带 UTC 偏移的标准格式。4688 Ω 只比标称值低 12 Ω：
+
+```text
+error = |4688 − 4700| / 4700 = 12 / 4700 = 0.002553...
+0.002553... × 100 = 0.255... %
+```
+
+约 0.3%，远在 ±5% 之内。把调用改成 `record("R1", 4700, 4400)` 再运行，文件会保留两条记录，报告会抓出坏的那条：
+
+```text
+Logged 1 measurement.
+R1: expected 4700 Ω, measured 4400 Ω → off by 6.4 %
+1 of 2 measurements out of 5 % tolerance
+```
+
+判断式是 `abs(measured - expected) / expected > 0.05`，因为 5% 的元件允许往高或往低偏 5%，通常以标称值作分母。
+
+代码为什么这样写：
+
+- **`Path("measurements.json")`** 是路径对象，有 `.exists()`、`.read_text()`、`.write_text()`，不用手工拼字符串，在 Windows 和 Linux 上行为也更可靠。
+- **显式指定编码**。`encoding="utf-8"` 保证各平台读写一致；依赖系统默认编码，是出现莫名其妙的 Unicode 错误的常见原因。
+- **读—改—写**。JSON 没有“追加一行”这种操作。脚本读出整个列表，追加一个字典，再用 `indent=2` 写回，人也能在 Git 里读。
+- **`with open(...)` 是经典写法**。`Path.read_text()` / `write_text()` 会替你打开和关闭文件；需要更细的控制（逐行读取、往文本日志末尾追加）时，用 `with` 代码块——即使块内抛出异常，文件也会被自动关闭：
+
+```python
+with open("notes.txt", "a", encoding="utf-8") as f:
+    f.write("R1 measured 4688 ohms\n")
+```
+- **时间戳让记录有用**：几个月后比较电阻漂移，或把日志和当时的工作台照片对上，都靠它。
+
+做 5 个电阻的任务时，每个元件调用一次 `record`，第一个参数是色环标称值，第三个是万用表读数：
+
+```python
+if __name__ == "__main__":
+    record("R1", 4700, 4688)
+    record("R2", 1000, 996)
+    record("R3", 220, 221)
+    record("R4", 10_000, 10_120)
+    record("R5", 47, 46)
+    report_out_of_tolerance(load_measurements())
+```
+
+用你自己的读数，别抄这里的数字。习惯是：测量、记录、比较，再问为什么某个超差。读数为 0 Ω 是短路或档位不对；显示 `1` 往往表示开路，不是 1 Ω。
+
+<Quiz id="q3" question="打开文件时为什么要用 with 语句？" options={["这样更快", "即使中途出错，文件也会被自动关闭", "JSON 必须这样写"]} answer={1} explanation="with 是上下文管理器：离开代码块时会关闭文件，包括抛出异常的情况。它和速度、JSON 语法都无关。" />
+
+## 报错与调试
+
+错误回溯（traceback）其实是一张地图。要**从下往上读**：
+
+```text
+Traceback (most recent call last):
+  File "divide.py", line 4, in <module>
+    print(10 / 0)
+ZeroDivisionError: division by zero
+```
+
+先看最后一行：错误类型和信息。再往上找属于你的那一行。底部告诉你“什么坏了”，中间告诉你“在哪里”。遇到没写过的库代码就跳过。
+
+新手常见错误：
+
+- `ModuleNotFoundError`——包装到了另一个 Python，或忘了激活 venv。看提示符有没有 `(.venv)`，再运行 `which python3` 和 `python -m pip --version`。
+- `FileNotFoundError`——目录不对或文件名打错。先 `pwd`、`ls`。
+- `IndentationError` / `TabError`——Tab 和空格混用。把编辑器设成四个空格，整块重新缩进。
+- `SyntaxError`——通常是**上一行**少了冒号、引号或右括号，别只盯着报错那一行。
+
+对预期的坏输入，抓具体的异常：
+
+```python
+from ohm import current
+
+try:
+    print(current(5, 0))
+except ValueError as error:
+    print(f"bad input: {error}")
+```
+
+```text
+bad input: ohms must be positive
+```
+
+`except Exception` 会把变量名拼错这类编程错误也一起吞掉。只抓你预期的错误，其余的在开发阶段让它响一声。想边跑边看，用 `python -i`：脚本跑完后留在交互提示符，模块还加载着：
+
+```bash
+python -i ohm.py current --volts 5 --ohms 220
+```
+
+```text
+22.7 mA
+>>> current(12, 1000)
+0.012
+```
+
+现在可以不改文件就调用函数、试修法。`print()` 调试也不丢人：在行为和预期分叉的地方打印值和类型，`print(f"{r=}")` 能同时看到变量名和值。弄明白后把调试打印删掉。
+
+## 学习路线
+
+先学 **CS50P**：第 0–6 周覆盖函数、条件、循环、异常、库、单元测试和文件读写，讲座短、习题集逼你真的写代码，而不是看别人写。具体周次以课程当前页面为准。习题一定要做——只看讲座很“充实”，学到的东西却少得多。
+
+<Resource id="cs50p" />
+
+如果 CS50P 太陡，先用 **Python for Everybody** 缓一缓，再回来。终端部分看 MIT **The Missing Semester** 的前两讲：第一讲讲 shell，第二讲讲 shell 工具与脚本。多数编程课跳过的命令行，正是机器人开发每天要用的部分。把脚本放在 `~/robotics/month1`，下一课把这个目录纳入 Git；每天 30–45 分钟，比偶尔熬夜更有效。
+
+## 常见错误与过关清单
+
+几乎人人都会踩的坑：
+
+- **`python` 与 `python3` 混用**：同一个脚本在一个终端能跑、另一个不能，因为指向不同解释器。
+- **忘了激活 venv**：装完包却报 `ModuleNotFoundError`。安装和运行前都看 `(.venv)`。
+- **Tab 和空格混用**：Python 3 禁止含糊的缩进。编辑器设四个空格，绝不混用。
+- **把 `.venv` 提交进 Git**：把 `.venv/` 写进 `.gitignore`，提交 `requirements.txt`。
+- **文件名和模块同名**：当前目录的 `json.py`、`random.py`、`email.py` 会遮住标准库，导入报错莫名其妙。改名。
+- **该用 `>>` 时用了 `>`**：旧日志没了，无法撤销。
+- **没检查路径就 `rm -r`**：先 `pwd`、`ls`。
+
+进入下一课之前，下面这些都能答“是”吗？
+
+- 我能用 `pwd`、`ls`、`cd` 找路，并创建目录和文件。
+- 我完成了终端练习，包括 `export ROBOT_NAME` 并用 `env` 找到它。
+- 我能创建并激活 venv、安装包、冻结到 `requirements.txt`，再退出。
+- 我用两个子命令运行过 `ohm.py`，并手算核对过结果。
+- 我能解释 `if __name__ == "__main__":` 防止了什么。
+- 我运行过 `resistors.py`，能推出为什么两个 10 kΩ 并联是 5 kΩ。
+- 我运行过 `log.py`，看过 `measurements.json`，能解释误差判断。
+- 我能从下往上读 traceback，说出 `ValueError`、`ModuleNotFoundError`、`IndentationError` 各是什么意思。
+- 我知道为什么 `.venv` 不能提交，并计划好怎么完成 CS50P 的习题。

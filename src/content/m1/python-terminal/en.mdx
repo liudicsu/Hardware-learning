@@ -1,0 +1,530 @@
+## Why this matters in robotics
+
+A ROS 2 robot is not one program but a crowd of small programs called nodes: one reads the camera, one turns wheel commands into motor voltages, one publishes the battery state. You start them from a terminal, watch their log output, and stop the one that misbehaves. Test scripts and data loggers are ordinary Python files run with `python3`. The robot computer — a Raspberry Pi, a Jetson or a mini PC — usually runs Linux with no monitor attached, so you reach it over `ssh` and read text.
+
+The terminal is the interface you use when the robot is on the floor and only a prompt is available. You need a small vocabulary, not a hundred commands. By the end of this lesson you will have three working scripts — an Ohm's-law calculator, a resistor class and a JSON logger — installed without breaking the rest of your machine.
+
+## Setting up: one terminal, one Python
+
+On macOS, open **Terminal** from Applications → Utilities. On Linux, open your distribution's terminal; Bash and Zsh both work. On Windows you have two options:
+
+- **WSL2 with Ubuntu (recommended).** WSL2 runs a real Linux kernel inside Windows. ROS 2 targets Ubuntu, and most robotics tutorials assume Linux paths. Install it from an Administrator PowerShell with `wsl --install`, reboot if asked, then open **Ubuntu** from the Start menu.
+- **Git Bash.** A lighter Bash-like shell with common Unix commands. Fine for this lesson, but it is not a real Linux environment for ROS 2 later.
+
+Check your interpreter:
+
+```bash
+python3 --version
+```
+
+You want **3.10 or newer**. On native Windows the launcher is usually `py`:
+
+```bash
+py --version
+```
+
+On macOS, `python3` may come from the Xcode Command Line Tools; if it is missing, install Python from python.org. Remember that `python` and `python3` are not always the same program. On many Linux systems `python` does not exist, and on some it is an old Python 2. Use `python3` on macOS/Linux and `python` or `py` on Windows, consistently.
+
+## Terminal essentials
+
+Try each of these in a scratch folder.
+
+| Command | What it does | Example |
+| --- | --- | --- |
+| `pwd` | Prints the current directory | `pwd` |
+| `ls -la` | Lists all files, including hidden ones, with details | `ls -la` |
+| `cd` | Changes directory; `cd ..` goes up one level | `cd ~/robotics` |
+| `mkdir -p` | Creates a directory and any missing parents | `mkdir -p ~/robotics/month1` |
+| `touch` | Creates an empty file or updates its timestamp | `touch notes.txt` |
+| `cat` | Prints a whole file | `cat notes.txt` |
+| `less` | Pages through a file; press `q` to quit | `less notes.txt` |
+| `cp` | Copies a file | `cp notes.txt notes-backup.txt` |
+| `mv` | Moves or renames a file | `mv notes-backup.txt archive.txt` |
+| `rm` | Deletes a file permanently | `rm archive.txt` |
+| `grep -n` | Finds matching lines with line numbers | `grep -n "resistor" notes.txt` |
+| `\|` (pipe) | Sends one command's output into another | `ls -la \| grep notes` |
+| `>` and `>>` | Redirect output; `>` replaces, `>>` appends | `echo "new" >> notes.txt` |
+| `echo $HOME` | Prints an environment variable | `echo $HOME` |
+| `export VAR=value` | Sets a variable for this shell and its children | `export ROBOT_NAME=rover1` |
+| `which python3` | Shows which executable would run | `which python3` |
+| `Ctrl+C` | Stops the foreground program | press it in the terminal |
+| `↑` | Recalls previous commands | press it in the terminal |
+| `Tab` | Completes file and command names | type `cd ~/rob` then Tab |
+| `ssh user@host` | Opens a shell on another machine | `ssh pi@192.168.1.42` |
+
+Three ideas make the table click. **Paths are places:** `/` is the filesystem root, `~` is your home directory, and a path starting with `/` is absolute while anything else is relative to where you are now. **A pipe connects programs:** `ls -la | grep notes` lists files, then keeps only lines containing `notes`. **Redirection writes output somewhere:** `echo "hello" > notes.txt` overwrites the file; `echo "world" >> notes.txt` adds a line. Using `>` when you meant `>>` silently destroys data.
+
+<Callout type="warn" title="rm has no recycle bin">
+`rm` deletes immediately; there is no Trash folder. Be especially careful with `rm -r` (recursive, for folders) and wildcards such as `rm *.py`. Before pressing Enter, run `pwd` and `ls`, and read the path in the command out loud.
+</Callout>
+
+Now the drill. Type these lines one at a time and watch each result:
+
+```bash
+mkdir -p ~/robotics/month1
+cd ~/robotics/month1
+echo "first note: check resistor values" > notes.txt
+echo "second note: log every measurement" >> notes.txt
+grep -n "resistor" notes.txt
+wc -l notes.txt
+export ROBOT_NAME=rover1
+echo "$ROBOT_NAME"
+env | grep ROBOT
+```
+
+After `mkdir -p`, `cd` succeeds even though the parent folder did not exist. `grep -n` prints the matching line with a number. `wc -l` prints `2 notes.txt`: two lines, because you appended. `export` makes `ROBOT_NAME` visible to programs started from this shell, so `echo "$ROBOT_NAME"` prints `rover1` and `env | grep ROBOT` finds it in the environment list.
+
+Environment variables configure robot software in practice: a launch file may read `ROBOT_NAME`, and a ROS 2 session needs `source /opt/ros/.../setup.bash` to put commands on the path. `export` affects only the current shell and its children, so it disappears when you close the terminal. `ssh pi@192.168.1.42` opens a shell on the Pi, where everything here works the same.
+
+## Virtual environments and pip
+
+A Python installation comes with a shared set of packages. If every project installed into that shared set, two projects needing different versions would fight, and one careless upgrade could break a working tool. A **virtual environment** is a private folder with its own Python link and package directory. Activate it, and `python` and `pip` in that shell resolve to the private copy.
+
+```bash
+cd ~/robotics/month1
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+On native Windows (PowerShell or cmd) the activation command is:
+
+```text
+.venv\Scripts\activate
+```
+
+Your prompt should now start with `(.venv)`. That marker tells you which environment the next `pip install` will modify. Upgrade pip and install one package:
+
+```bash
+python -m pip install --upgrade pip
+pip install rich
+```
+
+`python -m pip` guarantees that pip belongs to the Python you just invoked, avoiding the classic "I installed it but Python cannot find it" confusion. `rich` is a small library for terminal output; `numpy` is the numerical workhorse you will meet later. Record what you installed so it is reproducible:
+
+```bash
+pip freeze > requirements.txt
+pip install -r requirements.txt
+deactivate
+```
+
+The first command writes package names and versions to a text file; the second recreates that set on another machine or in a fresh venv. `deactivate` removes the `(.venv)` marker.
+
+Two rules. **Never commit `.venv` to Git**: it contains binaries and absolute paths, is large, and can be rebuilt from `requirements.txt`. Add `.venv/` to `.gitignore`. **Do not install project packages globally** just because activation was inconvenient; that is how an unrelated upgrade breaks a robot script.
+
+<Quiz id="q1" question="What does activating a venv do?" options={["Installs Python", "Makes python and pip in this shell point to the project's isolated environment", "Uploads packages to PyPI"]} answer={1} explanation="Activation changes the shell's PATH so python and pip resolve inside the project folder. It does not install Python, and it does not publish anything." />
+
+## Python by building a tool: ohm.py
+
+This script computes current from voltage and resistance, and the output of a two-resistor divider. It uses `argparse` with two subcommands. Create `ohm.py`:
+
+```python
+"""ohm.py — command-line Ohm's law and voltage divider calculator."""
+
+import argparse
+import sys
+
+
+def current(volts: float, ohms: float) -> float:
+    """Return the current, in amps, through a resistance at a given voltage."""
+    if ohms <= 0:
+        raise ValueError("ohms must be positive")
+    return volts / ohms
+
+
+def divider(vin: float, r1: float, r2: float) -> float:
+    """Return the output voltage of a two-resistor divider, in volts."""
+    if r1 <= 0 or r2 <= 0:
+        raise ValueError("resistances must be positive")
+    return vin * r2 / (r1 + r2)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Ohm's law and voltage divider calculator"
+    )
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p_current = sub.add_parser("current", help="I = V / R, printed in mA")
+    p_current.add_argument("--volts", type=float, required=True)
+    p_current.add_argument("--ohms", type=float, required=True)
+
+    p_divider = sub.add_parser("divider", help="Vout = Vin * R2 / (R1 + R2)")
+    p_divider.add_argument("--vin", type=float, required=True)
+    p_divider.add_argument("--r1", type=float, required=True)
+    p_divider.add_argument("--r2", type=float, required=True)
+
+    args = parser.parse_args()
+
+    if args.command == "current":
+        ma = current(args.volts, args.ohms) * 1000
+        print(f"{ma:.1f} mA")
+    elif args.command == "divider":
+        v = divider(args.vin, args.r1, args.r2)
+        print(f"{v:.3f} V")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except ValueError as e:
+        print(f"error: {e}", file=sys.stderr)
+        sys.exit(1)
+```
+
+Run both examples:
+
+```bash
+python ohm.py current --volts 5 --ohms 220
+```
+
+```text
+22.7 mA
+```
+
+```bash
+python ohm.py divider --vin 5 --r1 10000 --r2 4700
+```
+
+```text
+1.599 V
+```
+
+Check the arithmetic by hand:
+
+```text
+I = V / R = 5 V / 220 Ω = 0.022727... A
+0.022727... A × 1000 = 22.727... mA
+```
+
+`{ma:.1f}` rounds to one decimal, so the output is `22.7 mA`. For the divider:
+
+```text
+Vout = Vin × R2 / (R1 + R2)
+     = 5 V × 4700 Ω / (10 000 Ω + 4700 Ω)
+     = 5 × 4700 / 14 700 V
+     = 23 500 / 14 700 V
+     = 1.598639... V
+```
+
+`{v:.3f}` prints three decimals, giving `1.599 V`.
+
+How the pieces fit:
+
+- **A function is a named calculation.** `current(volts, ohms)` takes two floats and returns a float. Type hints document intent; Python does not enforce them at runtime. The docstring is what `help(current)` shows.
+- **Return inside, print at the edge.** Returning a number lets a test, a GUI or another script reuse the function. Printing once in `main()` keeps the calculation reusable.
+- **Validate at the boundary.** Zero or negative resistance is meaningless here, so `raise ValueError` stops with a clear message instead of returning infinity.
+- **`argparse` builds the interface.** `add_subparsers(..., required=True)` makes `current` or `divider` mandatory; `type=float, required=True` converts text and errors helpfully when a flag is missing. Try `python ohm.py --help` and `python ohm.py divider --help`.
+- **The `if __name__ == "__main__":` guard** runs only when the file is executed directly. If another script does `from ohm import divider`, the functions are available and `main()` does not run.
+- **The `try`/`except` at the bottom** turns our deliberate error into a short message and exit code 1:
+
+```text
+$ python ohm.py current --volts 5 --ohms 0
+error: ohms must be positive
+```
+
+The `$` is a shell prompt, not part of the command. Exit code 1 tells a shell script or CI job that the command failed. Use `python ohm.py` rather than `./ohm.py` until you add a shebang and executable permission; naming the interpreter removes the "wrong Python" problem.
+
+## Classes: a Resistor that knows its tolerance
+
+A class bundles data with its operations. A resistor has a nominal value and a tolerance, and can report its plausible range. Python's `@dataclass` removes most of the boilerplate:
+
+```python
+"""resistors.py — dataclass Resistor, series/parallel helpers."""
+
+from dataclasses import dataclass
+
+
+@dataclass
+class Resistor:
+    """A resistor with a nominal value and a tolerance (0.05 = 5 %)."""
+
+    ohms: float
+    tolerance: float = 0.05
+
+    def min(self) -> float:
+        """Lowest value within tolerance."""
+        return self.ohms * (1 - self.tolerance)
+
+    def max(self) -> float:
+        """Highest value within tolerance."""
+        return self.ohms * (1 + self.tolerance)
+
+
+def series(*rs: Resistor) -> Resistor:
+    """Resistors in series: values add up, tolerances add too."""
+    if not rs:
+        raise ValueError("series() needs at least one resistor")
+    tolerance = sum(r.tolerance for r in rs)
+    return Resistor(ohms=sum(r.ohms for r in rs), tolerance=tolerance)
+
+
+def parallel(*rs: Resistor) -> Resistor:
+    """Resistors in parallel: conductances add up."""
+    if not rs:
+        raise ValueError("parallel() needs at least one resistor")
+    conductance = sum(1 / r.ohms for r in rs)
+    return Resistor(ohms=1 / conductance)
+
+
+if __name__ == "__main__":
+    r2k2 = Resistor(2_200)
+    print(r2k2)
+    print(f"range: {r2k2.min():.0f}–{r2k2.max():.0f} Ω")
+
+    result = parallel(Resistor(10_000), Resistor(10_000))
+    print(f"parallel: {result.ohms:.0f} Ω")
+
+    chain = series(Resistor(1_000), Resistor(4_700))
+    print(f"series: {chain.ohms:.0f} Ω")
+```
+
+`python resistors.py` prints:
+
+```text
+Resistor(ohms=2200, tolerance=0.05)
+range: 2090–2310 Ω
+parallel: 5000 Ω
+series: 5700 Ω
+```
+
+The first line is the `__repr__` generated by `@dataclass`. `Resistor(2_200)` calls the generated initialiser, so `ohms` is 2200 and `tolerance` defaults to 0.05. The range follows from the meaning of a ±5 % part:
+
+```text
+min = 2200 Ω × (1 − 0.05) = 2200 Ω × 0.95 = 2090 Ω
+max = 2200 Ω × (1 + 0.05) = 2200 Ω × 1.05 = 2310 Ω
+```
+
+A gold-band resistor is a ±5 % part; a multimeter reading should land in that window. The methods return numbers, so they are useful in tests, not just in printed text.
+
+`*rs` collects any number of arguments into a tuple. `series` adds the values and the tolerances, a conservative worst case: two ±5 % parts at their low ends can total 10 % low. `parallel` adds conductances:
+
+```text
+1 / Rtotal = 1 / R1 + 1 / R2
+```
+
+For two equal 10 kΩ resistors:
+
+```text
+1 / Rtotal = 1 / 10 000 Ω + 1 / 10 000 Ω
+           = 0.0001 + 0.0001 S
+           = 0.0002 S
+Rtotal = 1 / 0.0002 Ω = 5000 Ω
+```
+
+Two equal resistors in parallel give half the value — 5 kΩ, not 20 kΩ. Note that `parallel` returns the default 5 % tolerance rather than combining the inputs; a worst-case design would evaluate the extremes.
+
+<Quiz id="q2" question="What does parallel(Resistor(10_000), Resistor(10_000)).ohms evaluate to?" answer={5000} unit="Ω" explanation="Conductances add: 1/R = 1/10 000 + 1/10 000 = 0.0002 S, so R = 1/0.0002 = 5000 Ω. Two equal resistors in parallel give half the value." />
+
+## Files and JSON: a measurement log
+
+The multimeter lesson asks you to measure five resistors and compare them with their colour bands. A script makes that record timestamped and reusable. JSON is a text format for nested data — objects with string keys, arrays, numbers, strings, booleans and null — and it maps almost directly onto Python lists and dictionaries. A measurement is naturally a dict; the log is a list of them.
+
+```python
+"""log.py — append a measurement to measurements.json and check tolerance."""
+
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+
+LOG_FILE = Path("measurements.json")
+
+
+def load_measurements() -> list[dict]:
+    """Read the log if it exists, else start with an empty list."""
+    if LOG_FILE.exists():
+        text = LOG_FILE.read_text(encoding="utf-8")
+        return json.loads(text)
+    return []
+
+
+def save_measurements(measurements: list[dict]) -> None:
+    """Write the whole list back, pretty-printed."""
+    LOG_FILE.write_text(
+        json.dumps(measurements, indent=2), encoding="utf-8"
+    )
+
+
+def record(part: str, expected_ohms: float, measured_ohms: float) -> dict:
+    """Append one measurement and return that entry."""
+    entry = {
+        "part": part,
+        "expected_ohms": expected_ohms,
+        "measured_ohms": measured_ohms,
+        "time": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    }
+    measurements = load_measurements()
+    measurements.append(entry)
+    save_measurements(measurements)
+    return entry
+
+
+def report_out_of_tolerance(measurements: list[dict], limit: float = 0.05) -> None:
+    """Print every measurement that misses its nominal value by more than limit."""
+    bad = 0
+    for m in measurements:
+        expected = m["expected_ohms"]
+        measured = m["measured_ohms"]
+        if expected == 0:
+            continue
+        error = abs(measured - expected) / expected
+        if error > limit:
+            bad += 1
+            print(
+                f"{m['part']}: expected {expected:.0f} Ω, "
+                f"measured {measured:.0f} Ω → off by {error * 100:.1f} %"
+            )
+    print(f"{bad} of {len(measurements)} measurements out of {limit * 100:.0f} % tolerance")
+
+
+if __name__ == "__main__":
+    record("R1", 4700, 4688)
+    print("Logged 1 measurement.")
+    report_out_of_tolerance(load_measurements())
+```
+
+On a fresh folder, `python log.py` gives:
+
+```text
+Logged 1 measurement.
+0 of 1 measurements out of 5 % tolerance
+```
+
+`measurements.json` now holds one object in a list:
+
+```json
+[
+  {
+    "part": "R1",
+    "expected_ohms": 4700,
+    "measured_ohms": 4688,
+    "time": "2026-05-04T09:14:07+00:00"
+  }
+]
+```
+
+Your timestamp will differ; `datetime.now(timezone.utc)` reads the clock and `isoformat(timespec="seconds")` writes a sortable UTC timestamp. The reading 4688 Ω is only 12 Ω below nominal:
+
+```text
+error = |4688 − 4700| / 4700 = 12 / 4700 = 0.002553...
+0.002553... × 100 = 0.255... %
+```
+
+About 0.3 %, comfortably inside ±5 %. If you change the call to `record("R1", 4700, 4400)` and run again, the file keeps both entries and the report finds the bad one:
+
+```text
+Logged 1 measurement.
+R1: expected 4700 Ω, measured 4400 Ω → off by 6.4 %
+1 of 2 measurements out of 5 % tolerance
+```
+
+The check uses the expected value as the denominator, because a 5 % part may miss nominal by 5 % in either direction.
+
+Why the code is shaped this way:
+
+- **`Path("measurements.json")`** is a path object with `.exists()`, `.read_text()` and `.write_text()`, so there is no manual string concatenation and it behaves on Windows and Linux.
+- **Encoding is explicit.** `encoding="utf-8"` keeps the file readable everywhere; relying on the platform default is how unexpected Unicode errors appear.
+- **Read, modify, write.** JSON has no append operation. The script loads the list, appends one dict, and writes it back with `indent=2` so a human can still read it in Git.
+- **`with open(...)` is the classic form.** `Path.read_text()` and `write_text()` open and close the file for you. When you need more control (reading line by line, appending to a text log), use a `with` block, which closes the file automatically even if an exception is raised inside it:
+
+```python
+with open("notes.txt", "a", encoding="utf-8") as f:
+    f.write("R1 measured 4688 ohms\n")
+```
+- **Timestamps make the record useful** when you compare drift over months or match a log line to a photo of the bench.
+
+For the five-resistor task, call `record` once per part, using the colour-band value and the meter reading:
+
+```python
+if __name__ == "__main__":
+    record("R1", 4700, 4688)
+    record("R2", 1000, 996)
+    record("R3", 220, 221)
+    record("R4", 10_000, 10_120)
+    record("R5", 47, 46)
+    report_out_of_tolerance(load_measurements())
+```
+
+Use your own measurements, not these. The habit is measure, log, compare, then ask why an outlier is outside its band. A resistor reading 0 Ω is a short or the wrong meter range, and a display showing `1` often means open circuit, not 1 Ω.
+
+<Quiz id="q3" question="Why use a with block when opening a file?" options={["It is faster", "The file is closed automatically even if an error happens", "It is required for JSON"]} answer={1} explanation="A with block is a context manager: it closes the file on the way out, including when an exception is raised. Speed and JSON syntax are unrelated." />
+
+## Errors and debugging
+
+A traceback is a map. Read it **bottom-up**:
+
+```text
+Traceback (most recent call last):
+  File "divide.py", line 4, in <module>
+    print(10 / 0)
+ZeroDivisionError: division by zero
+```
+
+Start with the last line: the error type and message. Then walk up to find your line. The bottom tells you *what* failed; the frames tell you *where*. Skip frames from code you did not write.
+
+Common beginner errors:
+
+- `ModuleNotFoundError` — you installed into a different Python, or forgot to activate the venv. Check the `(.venv)` marker, then `which python3` and `python -m pip --version`.
+- `FileNotFoundError` — wrong directory or a typo in the name. Run `pwd` and `ls`.
+- `IndentationError` / `TabError` — tabs and spaces are mixed. Set your editor to four spaces and re-indent.
+- `SyntaxError` — usually a missing colon, quote or closing parenthesis on the line *before* the one reported.
+
+Catch expected bad input specifically:
+
+```python
+from ohm import current
+
+try:
+    print(current(5, 0))
+except ValueError as error:
+    print(f"bad input: {error}")
+```
+
+```text
+bad input: ohms must be positive
+```
+
+`except Exception` would also hide programming mistakes such as a misspelled variable. Catch what you expect and let the rest crash loudly during development. For inspection, `python -i` runs the script and leaves you at a prompt with the module loaded:
+
+```bash
+python -i ohm.py current --volts 5 --ohms 220
+```
+
+```text
+22.7 mA
+>>> current(12, 1000)
+0.012
+```
+
+You can now call functions and try fixes without editing the file. Plain `print()` debugging is fine too; print the value and its type where behaviour diverges from expectation, and use `print(f"{r=}")` to see a name and value together. Remove the prints once the bug is understood.
+
+## Learning path
+
+Start with **CS50P**; its Weeks 0–6 cover functions, conditionals, loops, exceptions, libraries, unit tests and file I/O, with short lectures and problem sets that make you write code instead of watching someone else write it. Check the current course page for the exact week list. Do the problem sets — lectures alone feel productive and teach much less.
+
+<Resource id="cs50p" />
+
+If CS50P feels too steep, use **Python for Everybody** for a gentler pace, then come back. For the terminal, watch the first two lectures of MIT's **The Missing Semester**: lecture 1 covers the shell, lecture 2 covers shell tools and scripting. That course fills the gap most programming courses leave — the command line robot work actually runs on. Keep your scripts in `~/robotics/month1`, put the folder under Git in the next lesson, and work in 30–45 minute sessions rather than marathons.
+
+## Common mistakes and a before-you-move-on checklist
+
+The traps that catch almost everyone:
+
+- **`python` vs `python3`.** A command that works in one shell fails in another because they point at different interpreters.
+- **Forgetting to activate the venv.** You install a package, then get `ModuleNotFoundError`. Look for `(.venv)` before installing or running.
+- **Mixing tabs and spaces.** Python 3 forbids ambiguous indentation. Set four spaces and never mix.
+- **Committing `.venv`.** Add `.venv/` to `.gitignore`; commit `requirements.txt` instead.
+- **Naming a file after a module.** `json.py`, `random.py` or `email.py` in the current folder shadows the standard library and causes confusing import failures. Rename the file.
+- **Using `>` when you meant `>>`.** The old log is gone; there is no undo.
+- **Running `rm -r` on a path you did not check.** Run `pwd` and `ls` first.
+
+Before moving on, you should be able to answer "yes" to all of these:
+
+- I can navigate with `pwd`, `ls` and `cd`, and create a folder and a file.
+- I completed the terminal drill, including exporting `ROBOT_NAME` and finding it with `env`.
+- I can create and activate a venv, install a package, freeze it to `requirements.txt`, and deactivate.
+- I ran `ohm.py` with both subcommands and checked the arithmetic by hand.
+- I can explain what `if __name__ == "__main__":` prevents.
+- I ran `resistors.py` and can derive why two 10 kΩ resistors in parallel give 5 kΩ.
+- I ran `log.py`, looked inside `measurements.json`, and can explain the tolerance check.
+- I can read a traceback bottom-up and say what `ValueError`, `ModuleNotFoundError` and `IndentationError` mean.
+- I know why `.venv` must never be committed, and I have a plan for the CS50P problem sets.
