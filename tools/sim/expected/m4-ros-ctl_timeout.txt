@@ -1,0 +1,6 @@
+$ ros2 topic pub --once /diff_drive_controller/cmd_vel geometry_msgs/msg/TwistStamped "{twist: {linear: {x: 0.2}}}"
+$ ros2 topic echo --once --no-lost-messages /diff_drive_controller/odom --field pose.pose.position
+x: 0.10000000000000037
+y: -3.3216239550434035e-20
+z: 0.0
+---

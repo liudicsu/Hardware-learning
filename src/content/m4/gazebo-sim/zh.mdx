@@ -173,17 +173,15 @@ URDF 为 ROS 描述一台机器人：连杆、关节、惯量、坐标系。SDF�
 
 ## 给机器人装上传感器
 
-第 3 课的描述原封不动。第二个 xacro 引用它，只添加仿真需要的东西，这样只给 RViz 用的包继续照常工作。这种分离不是为了整洁好看：等真实机器人到货时，你会希望同一份 URDF 继续负责 TF，而 Gazebo 用另一个变体；混在一起会让两边都更难查。
+第 3 课的描述原封不动。两个新文件只添加仿真需要的东西，这样只给 RViz 用的包继续照常工作。第一个文件放的是每台仿真 m4bot 都需要的东西，不管由谁来驱动轮子：摩擦、激光雷达和相机。第 5 课会原样复用它。这种分离不是为了整洁好看：等真实机器人到货时，你会希望同一份 URDF 继续负责 TF，而 Gazebo 用另一个变体；混在一起会让两边都更难查。
 
-<CodeSource path="examples/month-4/gazebo-sim/m4_gazebo/urdf/m4bot_gz.urdf.xacro" />
+<CodeSource path="examples/month-4/gazebo-sim/m4_gazebo/urdf/sensors.gazebo.xacro" />
 
 ```xml
 <?xml version="1.0"?>
-<!-- m4bot for Gazebo: the Lesson 3 description plus what only a simulator needs:
-     friction, a lidar, a camera, a diff-drive plugin and joint plugins. -->
-<robot name="m4bot" xmlns:xacro="http://www.ros.org/wiki/xacro">
-
-  <xacro:include filename="$(find m4_description)/urdf/robot.urdf.xacro"/>
+<!-- What every simulated m4bot needs, whoever drives the wheels: friction, a lidar and a camera.
+     Included by m4bot_gz.urdf.xacro (this lesson) and by Lesson 5's ros2_control description. -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
   <!-- the caster ball should slide, the wheels should grip -->
   <gazebo reference="caster_link">
@@ -251,6 +249,22 @@ URDF 为 ROS 描述一台机器人：连杆、关节、惯量、坐标系。SDF�
     </sensor>
   </gazebo>
 
+</robot>
+```
+
+第二个文件是 Gazebo 真正加载的描述。它引用第 3 课的机器人和上面的传感器文件，再加上 Gazebo 自己驱动轮子和关节的插件：
+
+<CodeSource path="examples/month-4/gazebo-sim/m4_gazebo/urdf/m4bot_gz.urdf.xacro" />
+
+```xml
+<?xml version="1.0"?>
+<!-- m4bot for Gazebo: the Lesson 3 description, the simulated sensors, and Gazebo's own
+     plugins for driving the wheels and reporting and holding the joints. -->
+<robot name="m4bot" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:include filename="$(find m4_description)/urdf/robot.urdf.xacro"/>
+  <xacro:include filename="$(find m4_gazebo)/urdf/sensors.gazebo.xacro"/>
+
   <gazebo>
     <!-- drive: listens on cmd_vel, publishes odom and the odom -> base_footprint transform.
          Lesson 5 replaces this plugin with ros2_control. -->
@@ -288,7 +302,7 @@ URDF 为 ROS 描述一台机器人：连杆、关节、惯量、坐标系。SDF�
 </robot>
 ```
 
-文件里有六个细节值得弄懂，因为它们也正是别人机器人坏掉的六个地方：
+这两个文件里有六个细节值得弄懂，因为它们也正是别人机器人坏掉的六个地方：
 
 1. `$(find m4_description)` 在 xacro 运行时（这里是每次启动 launch 文件时）定位另一个包。描述包和 Gazebo 包保持分离，所以第 3 课那套只用 RViz 的流程不必安装 Gazebo，这个包也不必复制机器人的几何。
 2. `<gazebo reference="link">` 给指定连杆添加仅仿真使用的属性。这里是摩擦系数 `mu1` 和 `mu2`：轮子抓地取 1.0，万向球滑动取 0.001。没有这个差别，万向球会拖地，机器人会跑偏，而你会花一个小时去怪差速驱动插件，其实问题在摩擦。
@@ -660,14 +674,14 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard
 <SimOutput source="ros">
 
 ```text
-$ ros2 topic echo --once /odom --field pose.pose.position
+$ ros2 topic echo --once --no-lost-messages /odom --field pose.pose.position
 x: -2.315490468450792e-19
 y: 3.441733634253394e-38
 z: 0.0
 ---
 $ ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}"   # then wait 4 s
 $ ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist "{}"
-$ ros2 topic echo --once /odom --field pose.pose.position
+$ ros2 topic echo --once --no-lost-messages /odom --field pose.pose.position
 x: 0.9497999999999838
 y: 1.6561290378733758e-20
 z: 0.0
@@ -678,7 +692,7 @@ straight ahead (0.0 deg): 0.73 m
 
 </SimOutput>
 
-慢慢读。里程计说机器人从 x ≈ 0 走到了 0.95 m；那些 e-19、e-38 的小数字是浮点舍入噪声，也就是零。以 0.2 m/s 走 4 s，本该是 0.80 m，但每条 `ros2` 命令启动都要一点时间，停止命令到得比四秒晚。命令行不是实时工具，多出来的 0.15 m 就是启动延迟。
+慢慢读。（`--no-lost-messages` 只是关掉一条无害的“A message was lost!!!”警告：`echo` 中途加入一个繁忙的话题时可能会打印它。）里程计说机器人从 x ≈ 0 走到了 0.95 m；那些 e-19、e-38 的小数字是浮点舍入噪声，也就是零。以 0.2 m/s 走 4 s，本该是 0.80 m，但每条 `ros2` 命令启动都要一点时间，停止命令到得比四秒晚。命令行不是实时工具，多出来的 0.15 m 就是启动延迟。这个延迟取决于电脑有多忙：在一次负载较高的运行里，编辑看到的是 1.30 m，激光雷达读数 0.38 m，所以下面的对账照样加起来是 1.68 m。
 
 再和激光雷达对账。它现在读到的方块距离是 0.73 m，里程计说机器人走了 0.95 m。相加：0.95 + 0.73 = 1.68 m，而开始时测得 1.67 m（手算 1.68 m）。里程计和激光雷达在 1 cm 的传感器噪声范围内一致。在仿真里这种一致太容易了，因为轮子永不打滑，里程计完美无缺。真实机器人上里程计会漂移，而漂移正是第 6 课 SLAM 用激光雷达去修正的东西。
 

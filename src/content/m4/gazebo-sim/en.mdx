@@ -173,17 +173,15 @@ The screenshot was captured on a virtual screen, with no monitor attached, and r
 
 ## Sensors on the robot
 
-Lesson 3's description stays untouched. A second xacro includes it and adds only what a simulator needs, so the RViz-only package keeps working exactly as before. That separation is not tidiness for its own sake: when your real robot arrives, you will want the same URDF for TF and a simulator variant for Gazebo, and mixing the two makes both harder to debug.
+Lesson 3's description stays untouched. Two new files add only what a simulator needs, so the RViz-only package keeps working exactly as before. The first holds what every simulated m4bot needs, whoever drives its wheels: friction, the lidar and the camera. Lesson 5 reuses it unchanged. That separation is not tidiness for its own sake: when your real robot arrives, you will want the same URDF for TF and a simulator variant for Gazebo, and mixing the two makes both harder to debug.
 
-<CodeSource path="examples/month-4/gazebo-sim/m4_gazebo/urdf/m4bot_gz.urdf.xacro" />
+<CodeSource path="examples/month-4/gazebo-sim/m4_gazebo/urdf/sensors.gazebo.xacro" />
 
 ```xml
 <?xml version="1.0"?>
-<!-- m4bot for Gazebo: the Lesson 3 description plus what only a simulator needs:
-     friction, a lidar, a camera, a diff-drive plugin and joint plugins. -->
-<robot name="m4bot" xmlns:xacro="http://www.ros.org/wiki/xacro">
-
-  <xacro:include filename="$(find m4_description)/urdf/robot.urdf.xacro"/>
+<!-- What every simulated m4bot needs, whoever drives the wheels: friction, a lidar and a camera.
+     Included by m4bot_gz.urdf.xacro (this lesson) and by Lesson 5's ros2_control description. -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
   <!-- the caster ball should slide, the wheels should grip -->
   <gazebo reference="caster_link">
@@ -251,6 +249,22 @@ Lesson 3's description stays untouched. A second xacro includes it and adds only
     </sensor>
   </gazebo>
 
+</robot>
+```
+
+The second is the description Gazebo actually loads. It includes the Lesson 3 robot and the sensor file, then adds Gazebo's own plugins for the wheels and the joints:
+
+<CodeSource path="examples/month-4/gazebo-sim/m4_gazebo/urdf/m4bot_gz.urdf.xacro" />
+
+```xml
+<?xml version="1.0"?>
+<!-- m4bot for Gazebo: the Lesson 3 description, the simulated sensors, and Gazebo's own
+     plugins for driving the wheels and reporting and holding the joints. -->
+<robot name="m4bot" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:include filename="$(find m4_description)/urdf/robot.urdf.xacro"/>
+  <xacro:include filename="$(find m4_gazebo)/urdf/sensors.gazebo.xacro"/>
+
   <gazebo>
     <!-- drive: listens on cmd_vel, publishes odom and the odom -> base_footprint transform.
          Lesson 5 replaces this plugin with ros2_control. -->
@@ -288,7 +302,7 @@ Lesson 3's description stays untouched. A second xacro includes it and adds only
 </robot>
 ```
 
-Six details in that file are worth understanding, because they are the same six that break other people's robots:
+Six details in these two files are worth understanding, because they are the same six that break other people's robots:
 
 1. `$(find m4_description)` locates the other package when xacro runs (here, every time the launch file starts). The description package and the Gazebo package stay separate, so the RViz-only workflow from Lesson 3 does not need Gazebo installed, and this package does not duplicate the robot's geometry.
 2. `<gazebo reference="link">` adds simulator-only properties to a named link. Here it is friction, `mu1` and `mu2`: the wheels grip with 1.0, the caster ball slides with 0.001. Without that difference the caster drags, the robot veers to one side, and you spend an hour blaming the diff-drive plugin for a friction problem.
@@ -660,14 +674,14 @@ For a repeatable test, the editor sent one command, waited about four seconds, s
 <SimOutput source="ros">
 
 ```text
-$ ros2 topic echo --once /odom --field pose.pose.position
+$ ros2 topic echo --once --no-lost-messages /odom --field pose.pose.position
 x: -2.315490468450792e-19
 y: 3.441733634253394e-38
 z: 0.0
 ---
 $ ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}"   # then wait 4 s
 $ ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist "{}"
-$ ros2 topic echo --once /odom --field pose.pose.position
+$ ros2 topic echo --once --no-lost-messages /odom --field pose.pose.position
 x: 0.9497999999999838
 y: 1.6561290378733758e-20
 z: 0.0
@@ -678,7 +692,7 @@ straight ahead (0.0 deg): 0.73 m
 
 </SimOutput>
 
-Read it slowly. Odometry says the robot went from x ≈ 0 to 0.95 m; the tiny e-19 and e-38 numbers are floating-point rounding noise, which is to say zero. At 0.2 m/s for 4 s you would expect 0.80 m, but each `ros2` command takes a moment to start, so the stop arrived later than four seconds. The command line is not a real-time tool, and the extra 0.15 m is the delay.
+Read it slowly. (`--no-lost-messages` only hides a harmless "A message was lost!!!" warning that `echo` can print when it joins a busy topic mid-stream.) Odometry says the robot went from x ≈ 0 to 0.95 m; the tiny e-19 and e-38 numbers are floating-point rounding noise, which is to say zero. At 0.2 m/s for 4 s you would expect 0.80 m, but each `ros2` command takes a moment to start, so the stop arrived later than four seconds. The command line is not a real-time tool, and the extra 0.15 m is the delay. That delay depends on how busy the computer is: on a loaded run the editor saw 1.30 m, with the lidar reading 0.38 m, so the cross-check below still added up to the same 1.68 m.
 
 Cross-check the lidar. It now reads 0.73 m to the box, and odometry says the robot moved 0.95 m. Add them: 0.95 + 0.73 = 1.68 m, against 1.67 m measured at the start (1.68 m by hand). Odometry and lidar agree to within the 1 cm sensor noise. In simulation that agreement is almost too easy, because the wheels never slip and odometry is perfect. On a real robot odometry drifts, and that drift is exactly what SLAM (Lesson 6) corrects with the lidar.
 

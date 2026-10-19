@@ -1245,6 +1245,32 @@ export const resources: Record<string, Resource> = {
     license: { zh: "© NVIDIA，仅提供外链", en: "© NVIDIA; external link only" },
     extra: true,
   },
+  "ros2-control-docs": {
+    id: "ros2-control-docs",
+    url: "https://control.ros.org/jazzy/index.html",
+    title: { zh: "ros2_control 官方文档", en: "ros2_control documentation" },
+    author: "ros2_control maintainers",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "URDF 与执行器的交汇处：硬件接口、控制器管理器，以及写进 xacro 的 <ros2_control> 标签；还有 diff_drive_controller 等现成控制器的参数说明。左上角的版本选 Jazzy。",
+      en: "Where URDF meets actuation: hardware interfaces, the controller manager and the <ros2_control> tags that go in your xacro, plus the parameter pages of ready-made controllers such as diff_drive_controller. Pick Jazzy in the version menu.",
+    },
+    license: { zh: "文档以 Apache-2.0 发布；仅提供外链", en: "Docs under Apache-2.0; external link only" },
+  },
+  "articulated-ros2-control-real": {
+    id: "articulated-ros2-control-real",
+    url: "https://articulatedrobotics.xyz/tutorials/mobile-robot/applications/ros2_control-real/",
+    title: { zh: "Articulated Robotics：真实机器人上的 ros2_control", en: "Articulated Robotics: ros2_control on the real robot" },
+    author: "Josh Newans",
+    kind: "guide",
+    cost: { zh: "免费（文章 + 视频）", en: "Free (article + video)" },
+    summary: {
+      zh: "把仿真里的 ros2_control 搬到真机上：同样的 diff_drive_controller，换成自己写的硬件接口插件，通过串口和电机控制板通信。少有的把“仿真到真机”这一步讲清楚的资源。",
+      en: "Moving ros2_control from simulation to a real robot: the same diff_drive_controller, with your own hardware interface plugin talking to the motor controller over serial. One of the few resources that walks the simulation-to-hardware step properly.",
+    },
+    license: { zh: "© Josh Newans，仅提供外链", en: "© Josh Newans; external link only" },
+  },
 };
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

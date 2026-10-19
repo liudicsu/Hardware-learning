@@ -373,6 +373,22 @@ const month4Lessons: Lesson[] = [
       { id: "check", text: { zh: "手算机器人到正前方障碍物的距离，再用 scan_probe.py 核对；开一段距离后，用里程计和激光读数互相印证", en: "Work out the distance to the obstacle straight ahead by hand and check it with scan_probe.py; drive forward and check odometry and lidar against each other" } },
     ],
   },
+  {
+    slug: "ros2-control",
+    title: { zh: "ros2_control：通过控制器驱动机器人", en: "ros2_control: driving through a controller" },
+    summary: {
+      zh: "把上一课的 Gazebo 驱动插件换成 ros2_control：在 xacro 里写 <ros2_control> 标签，用 YAML 配置 diff_drive_controller 和 joint_state_broadcaster，用键盘遥控；再写一个“开指定距离”的动作服务器，带反馈和取消；最后用 mock 硬件看清换成真机时到底换掉什么。",
+      en: "Replace last lesson's Gazebo drive plugin with ros2_control: <ros2_control> tags in the xacro, diff_drive_controller and joint_state_broadcaster configured in YAML, keyboard teleop; then an action server that drives a commanded distance with feedback and cancellation; and mock hardware to see exactly what changes on a real robot.",
+    },
+    minutes: 240,
+    resources: ["ros2-control-docs", "articulated-ros2-control-real", "articulated-robotics"],
+    tasks: [
+      { id: "tags", text: { zh: "给你的 xacro 机器人加上 <ros2_control> 标签：轮子用速度命令接口，并报告位置和速度状态接口", en: "Add <ros2_control> tags to your xacro robot: velocity command interfaces for the wheels, reporting position and velocity state interfaces" } },
+      { id: "yaml", text: { zh: "用 YAML 配置 diff_drive_controller 和 joint_state_broadcaster，确认 list_controllers 里都是 active，轮距和轮半径与 URDF 一致", en: "Configure diff_drive_controller and joint_state_broadcaster in YAML; check that list_controllers shows them active and that wheel separation and radius match the URDF" } },
+      { id: "teleop", text: { zh: "在 Gazebo 里用 teleop_twist_keyboard（stamped:=true）开车，松开按键后观察 cmd_vel_timeout 让机器人停下", en: "Drive in Gazebo with teleop_twist_keyboard (stamped:=true) and watch cmd_vel_timeout stop the robot when you let go" } },
+      { id: "action", text: { zh: "写一个开指定距离的动作服务器：周期反馈进度、支持取消，结果报告机器人实际走了多远，并用里程计核对", en: "Write an action server that drives a commanded distance: progress feedback, cancellation, and a result that reports how far the robot really went, checked against odometry" } },
+    ],
+  },
 ];
 
 export const months: Month[] = [

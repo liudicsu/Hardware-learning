@@ -1,0 +1,12 @@
+$ ros2 control list_hardware_components
+Hardware Component 1
+	name: m4bot
+	type: system
+	plugin name: mock_components/GenericSystem
+	state: id=3 label=active
+$ ros2 topic pub -r 20 -t 40 /diff_drive_controller/cmd_vel geometry_msgs/msg/TwistStamped "{twist: {linear: {x: 0.2}}}"
+$ ros2 topic echo --once --no-lost-messages /diff_drive_controller/odom --field pose.pose.position
+x: 0.48799728360000005
+y: 0.0
+z: 0.0
+---

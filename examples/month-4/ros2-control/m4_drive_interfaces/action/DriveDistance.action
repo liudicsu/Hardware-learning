@@ -1,0 +1,11 @@
+# goal: drive straight for this many metres (negative = backwards) at this speed (m/s, > 0)
+float64 distance
+float64 speed
+---
+# result: how far the robot really went, and whether it got all the way
+float64 travelled
+bool reached
+---
+# feedback: progress so far
+float64 travelled
+float64 remaining

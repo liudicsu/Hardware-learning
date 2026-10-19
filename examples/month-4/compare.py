@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Compare a ROS 2 run with the output a lesson quotes, ignoring what changes from run to run.
 
-usage: compare.py EXPECTED ACTUAL [--tol T] [--mask REGEX]... [--sort 1]
+usage: compare.py EXPECTED ACTUAL [--tol T] [--mask REGEX]... [--drop REGEX]... [--sort 1]
 Masked before comparing: log timestamps, colcon timings, launch process numbers and pids,
 DDS GIDs. With --tol, two numbers count as equal if they differ by at most T (absolute) or
 T as a fraction of the expected value, whichever is larger: simulated runs are not bit-exact.
 --mask REGEX hides one more pattern that legitimately changes between runs.
+--drop REGEX leaves out whole lines that match, on both sides: e.g. action feedback, whose
+number of lines depends on timing.
 --sort 1 compares the lines in sorted order: several processes log in parallel, so their
 lines can interleave differently on every run.
 Prints "same" or a diff; exit code 1 on a difference."""
@@ -35,16 +37,20 @@ def close(a, b, tol):
 
 def main():
     exp, act = open(sys.argv[1]).read(), open(sys.argv[2]).read()
-    tol, extra, sort, args = 0.0, [], False, sys.argv[3:]
+    tol, extra, drop, sort, args = 0.0, [], [], False, sys.argv[3:]
     while args:
         opt, val, args = args[0], args[1], args[2:]
         if opt == '--tol':
             tol = float(val)
         elif opt == '--mask':
             extra.append(val)
+        elif opt == '--drop':
+            drop.append(re.compile(val))
         elif opt == '--sort':
             sort = val == '1'
     e, a = mask(exp, extra).splitlines(), mask(act, extra).splitlines()
+    e = [l for l in e if not any(rx.search(l) for rx in drop)]
+    a = [l for l in a if not any(rx.search(l) for rx in drop)]
     if sort:
         e, a = sorted(e), sorted(a)
     if len(e) == len(a) and all(x == y or (tol and close(x, y, tol)) for x, y in zip(e, a)):
