@@ -270,6 +270,22 @@ const month3Lessons: Lesson[] = [
       { id: "tuning-log", text: { zh: "在调参日志里分开记录内环和外环的增益，并用自己的话解释串级", en: "Log the inner and outer gains separately and explain the cascade in your own words" } },
     ],
   },
+  {
+    slug: "so101-arm",
+    title: { zh: "组装 SO-101 机械臂：校准与遥操作", en: "Build the SO-101 arm: calibrate and teleoperate" },
+    summary: {
+      zh: "选购买方式，组装主从两只臂，读懂总线舵机的数据包，按 LeRobot 的步骤设置 ID、校准，再用主臂遥控从臂。",
+      en: "Choose how to buy it, build the leader and follower arms, read the bus-servo packets, then set IDs, calibrate and teleoperate with LeRobot.",
+    },
+    minutes: 240,
+    resources: ["so-arm100", "lerobot-so101", "seeed-so101-pro", "seeed-so101-printed", "robonine-so101", "wowrobo-so101", "eezybotarm", "xarm-1s", "mujoco", "sts3215"],
+    tasks: [
+      { id: "buy-plan", text: { zh: "按你的预算选一条路线（MuJoCo、单从臂、整套主从），写下总价和理由", en: "Choose a route for your budget (MuJoCo, single follower, full pair) and write down the total and why" } },
+      { id: "packets", text: { zh: "运行本课的数据包脚本，手算一个校验和并和输出对照", en: "Run the lesson's packet script and work out one checksum by hand to match it" } },
+      { id: "build-calibrate", text: { zh: "组装两只臂，设置舵机 ID 1–6，用 lerobot-calibrate 校准主臂和从臂", en: "Build both arms, set servo IDs 1–6, and calibrate leader and follower with lerobot-calibrate" } },
+      { id: "teleop", text: { zh: "用 lerobot-teleoperate 让从臂跟随主臂，录一段视频", en: "Teleoperate the follower from the leader with lerobot-teleoperate and film it" } },
+    ],
+  },
 ];
 
 export const months: Month[] = [
