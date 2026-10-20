@@ -2,7 +2,7 @@
 """Check a saved map against the world it came from: are the walls and obstacles where the
 obstacles world (Lesson 4) put them?
 
-usage: python3 map_check.py ~/maps/room.yaml
+usage: python3 map_check.py ~/maps/room.yaml      (exit code 1 if an object is missing or the map is too empty)
 Reads the .yaml and .pgm written by nav2_map_server's map_saver_cli. Only the Python standard
 library is needed. The map frame starts where the robot was spawned, the centre of the room."""
 import os
@@ -18,6 +18,20 @@ OBJECTS = {
     'blue pillar': (1.0, -1.2, 0.15, 0.15),
     'green block': (-1.5, 1.5, 0.6, 0.6),   # 1.2 x 0.3 m turned 0.6 rad: check its bounding square
 }
+# The fewest occupied cells that still count as "found", and the fewest occupied and free cells
+# in the whole map: about half the smaller count seen in two real runs of tools/sim/ros/run.sh
+# (2026-10-20), so the normal run-to-run spread passes but a blank map or a missing object fails.
+MIN_CELLS = {                    # seen in run 1 / run 2
+    'north wall':    40,       # 190 /  81
+    'south wall':   125,       # 250 / 275
+    'west wall':     66,       # 133 / 152
+    'east wall':     97,       # 195 / 242
+    'red box':       12,       #  24 /  26
+    'blue pillar':    6,       #  12 /  12
+    'green block':   24,       #  48 /  48
+}
+MIN_OCCUPIED = 347               # 747 / 694
+MIN_FREE = 6329                  # 12659 / 12730
 
 
 def read_yaml(path):
@@ -62,6 +76,11 @@ def main():
     total = width * height
     print(f'occupied {counts[0]} ({100 * counts[0] / total:.0f} %), free {counts[254]} '
           f'({100 * counts[254] / total:.0f} %), unknown {counts[205]} ({100 * counts[205] / total:.0f} %)')
+    failed = []
+    if counts[0] < MIN_OCCUPIED:
+        failed.append(f'only {counts[0]} occupied cells in the map, need {MIN_OCCUPIED}')
+    if counts[254] < MIN_FREE:
+        failed.append(f'only {counts[254]} free cells in the map, need {MIN_FREE}')
 
     def cell(x, y):                           # map coordinates -> pixel value (row 0 = top = max y)
         col = int((x - origin[0]) / res)
@@ -76,8 +95,14 @@ def main():
             for j in range(steps_y):
                 if cell(cx - hx - res + i * res, cy - hy - res + j * res) == 0:
                     found += 1
-        print(f'{name:12s} at ({cx:+.1f}, {cy:+.1f}): {"found" if found else "MISSING"} ({found} occupied cells)')
+        verdict = 'found' if found >= MIN_CELLS[name] else 'TOO FEW' if found else 'MISSING'
+        print(f'{name:12s} at ({cx:+.1f}, {cy:+.1f}): {verdict} ({found} occupied cells)')
+        if verdict != 'found':
+            failed.append(f'{name}: {found} occupied cells, need {MIN_CELLS[name]}')
+    for reason in failed:
+        print('FAIL: ' + reason)
+    return 1 if failed else 0              # exit code 1: the map does not match the world
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

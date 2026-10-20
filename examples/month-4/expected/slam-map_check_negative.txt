@@ -1,0 +1,35 @@
+ok   saved map: map_check exit 0 (want pass)
+ok   blank map, all unknown: map_check exit 1 (want fail)
+        FAIL: only 0 occupied cells in the map, need 347
+        FAIL: only 0 free cells in the map, need 6329
+        FAIL: north wall: 0 occupied cells, need 40
+        FAIL: south wall: 0 occupied cells, need 125
+        FAIL: west wall: 0 occupied cells, need 66
+        FAIL: east wall: 0 occupied cells, need 97
+        FAIL: red box: 0 occupied cells, need 12
+        FAIL: blue pillar: 0 occupied cells, need 6
+        FAIL: green block: 0 occupied cells, need 24
+ok   blank map, all free: map_check exit 1 (want fail)
+        FAIL: only 0 occupied cells in the map, need 347
+        FAIL: north wall: 0 occupied cells, need 40
+        FAIL: south wall: 0 occupied cells, need 125
+        FAIL: west wall: 0 occupied cells, need 66
+        FAIL: east wall: 0 occupied cells, need 97
+        FAIL: red box: 0 occupied cells, need 12
+        FAIL: blue pillar: 0 occupied cells, need 6
+        FAIL: green block: 0 occupied cells, need 24
+ok   north wall erased: map_check exit 1 (want fail)
+        FAIL: north wall: 0 occupied cells, need 40
+ok   south wall erased: map_check exit 1 (want fail)
+        FAIL: south wall: 0 occupied cells, need 125
+ok   west wall erased: map_check exit 1 (want fail)
+        FAIL: west wall: 0 occupied cells, need 66
+ok   east wall erased: map_check exit 1 (want fail)
+        FAIL: east wall: 0 occupied cells, need 97
+ok   red box erased: map_check exit 1 (want fail)
+        FAIL: red box: 0 occupied cells, need 12
+ok   blue pillar erased: map_check exit 1 (want fail)
+        FAIL: blue pillar: 0 occupied cells, need 6
+ok   green block erased: map_check exit 1 (want fail)
+        FAIL: green block: 0 occupied cells, need 24
+10 cases, 0 wrong

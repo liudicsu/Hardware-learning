@@ -147,7 +147,17 @@ save_map() {
 check m4-ros-nav_save.txt --tol 0.01 save_map
 # what must hold: the map is the room's size and every object is found; how many cells a wall
 # gets depends on the scans and the loop closure (it can halve between runs), so counts are masked
+# here and map_check.py itself enforces the minimums (MIN_CELLS, MIN_OCCUPIED, MIN_FREE): a map
+# below them prints FAIL lines, which are not masked
 check m4-ros-nav_map_check.txt --tol 0.2 --mask '\(\d+ occupied cells\)' --mask '(?m)^occupied .*$' --mask '\d+ x \d+ cells' bash -c "echo '\$ python3 map_check.py ~/maps/room.yaml'; python3 '$NAV/map_check.py' '$MAPS/room.yaml'"
+# keep the saved map (tools/sim/out/maps/) and check that map_check rejects a blank map and a
+# map with one object erased (examples/month-4/slam-nav/map_check_test.py)
+mkdir -p "$OUT/maps"; cp "$MAPS/room.yaml" "$MAPS/room.pgm" "$OUT/maps/"
+if python3 "$NAV/map_check_test.py" "$MAPS/room.yaml" > "$OUT/m4-ros-nav_map_check_negative.log" 2>&1; then
+  echo "same  map_check negative tests (blank map and erased object rejected)"
+else
+  echo "DIFF  map_check negative tests (see $OUT/m4-ros-nav_map_check_negative.log)"; fail=1
+fi
 pkill -INT -f 'ros2 launch m4_nav'; wait
 
 timeout -s INT 300 ros2 launch m4_nav nav.launch.py map:="$MAPS/room" headless:=true > "$TMP/nav" 2>&1 &
