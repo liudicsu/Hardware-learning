@@ -25,3 +25,29 @@ example folder, lesson entry with tasks in `month6Lessons` in curriculum.ts, res
 (official pages only, external links). Month 6 `status` stays `"outline"` until all five lessons exist, then `"ready"`.
 Verification per lesson: `npx tsc --noEmit`, `npx eslint .`, `npm run build`, `examples/month-6/check.sh`,
 `python3 tools/check_quotes.py`; commit and push after each lesson.
+
+## Status (2026-10-20, UTC+8)
+
+All five lessons built and pushed on `opencode/month-6`; Month 6 `status` is now `"ready"`. PR not opened yet.
+
+| lesson | commit |
+|---|---|
+| 1 `behaviour-cloning` | 75e94c0 (wording fix on seeds: e52530e) |
+| 2 `act-diffusion` | ed41329 (wording fix on seeds: e52530e) |
+| 3 `vla-models` | ef30048 |
+| 4 `policy-evaluation` | 537ee3a |
+| 5 `specialisation-portfolio` | 24fd29d |
+
+Changes from the plan above:
+- Lesson 2: the nearest-neighbour toy shows the averaging failure (67/100 vs 99/100 for sampling) and the open-loop
+  cost of long chunks (chunk 16: 80/100), but not chunking's benefits (the position already tells the policy which
+  side it is on; variants with smaller steps and with a pause at the fork did not show it either). The lesson says so
+  and explains the benefits (fewer decisions, consistency, pauses, temporal ensembling) in prose only.
+- Lessons 1-2 evaluate every policy from one shared seed, which does not give identical per-trial conditions once
+  policies take different numbers of steps; the text now says this, and lesson 4 uses per-trial seeds.
+- Lesson 4 imports lesson 1's model (no separate episode-log file); lesson 5's sample READMEs live in
+  `examples/month-6/specialisation-portfolio/samples/`, and its output is a real run (unlabelled), checked by
+  check.sh against expected/ and against the text quoted in both MDX files.
+- VLA licence facts were checked on 2026-10-20 against the Hugging Face model cards/API (OpenVLA MIT, Octo MIT,
+  SmolVLA Apache-2.0, lerobot/pi05_base Gemma, GR00T N1.6 NVIDIA research licence, GR00T N1.7 NVIDIA Open Model
+  License) and the openpi README (code Apache-2.0).
