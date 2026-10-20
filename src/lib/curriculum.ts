@@ -407,6 +407,89 @@ const month4Lessons: Lesson[] = [
   },
 ];
 
+const month5Lessons: Lesson[] = [
+  {
+    slug: "control-modelling",
+    title: { zh: "控制理论：先建模，再看频域", en: "Control theory: model the plant, then read the loop" },
+    summary: {
+      zh: "PID 的基础在第 3 个月已经讲过，这里往深处走：给第 3 个月的机械臂关节建一个模型，用阶跃数据辨识出它的参数，写出传递函数；再用伯德图读出增益裕度和相位裕度，并在仿真里验证它们能预测超调和失稳。",
+      en: "PID basics were Month 3; this goes deeper. Model Month 3's arm joint, identify its parameters from step data and write its transfer function; then read gain and phase margins off the loop's Bode data and check in simulation that they predict overshoot and instability.",
+    },
+    minutes: 240,
+    resources: ["ctms-frequency", "mathworks-control-practice"],
+    tasks: [
+      { id: "identify", text: { zh: "对一个真实电机（或本课模型）做开环阶跃，用终值和 63% 时间求出 B 和 J，写出它的传递函数", en: "Run an open-loop step on a real motor (or the lesson's model), get B and J from the final value and the 63 % time, and write its transfer function" } },
+      { id: "units", text: { zh: "把你第 3 个月的 PID 增益换算成 SI 单位（每弧度），并说出每个增益的物理意义", en: "Convert your Month 3 PID gains to SI units (per radian) and say what each gain means physically" } },
+      { id: "margins", text: { zh: "运行 joint_freq.py，读出相位裕度和增益裕度，并用增益裕度预测失稳的 kp", en: "Run joint_freq.py, read the phase and gain margins, and predict from the gain margin the kp at which the loop goes unstable" } },
+      { id: "verify", text: { zh: "在时域里验证这个预测：取略低和略高于临界值的 kp，记录振荡是衰减还是增长，以及振荡频率", en: "Check the prediction in the time domain: one kp just below and one just above the limit, noting whether the ringing decays or grows and at what frequency" } },
+    ],
+  },
+  {
+    slug: "state-space-lqr",
+    title: { zh: "状态空间、LQR 与 MPC", en: "State space, LQR and MPC" },
+    summary: {
+      zh: "把关节和倒立摆小车写成状态空间形式，用离散 Riccati 方程算出 LQR 增益，调 Q 和 R 看取舍，再放到完整的非线性模型上检验；最后用一个小 MPC 在力矩限制下移动关节，和输出被削顶的 LQR 比一比。",
+      en: "Write the joint and a cart-pole in state space, get LQR gains from the discrete Riccati equation, trade Q against R and test the result on the full nonlinear model; then move the joint under a torque limit with a small MPC and compare it with LQR whose output is clipped.",
+    },
+    minutes: 240,
+    resources: ["underactuated-lqr", "mathworks-state-space"],
+    tasks: [
+      { id: "state-space", text: { zh: "自己推导倒立摆小车线性化后的 A 和 B，与 lqr_sim.py 打印的数值逐项核对", en: "Derive the cart-pole's linearised A and B yourself and check every entry against what lqr_sim.py prints" } },
+      { id: "lqr", text: { zh: "运行 lqr_sim.py，至少再试两组自己的 Q 和 R，记录增益、峰值力和 4 s 后小车的位置", en: "Run lqr_sim.py and try at least two Q and R choices of your own; log the gains, the peak force and where the cart is after 4 s" } },
+      { id: "nonlinear", text: { zh: "找出你的增益在非线性模型上还能救回的最大起始角，并解释它为什么比线性模型预测的小", en: "Find the largest start angle your gains still recover from on the nonlinear model, and explain why the linear model cannot tell you this" } },
+      { id: "mpc", text: { zh: "改变 MPC 的预测步数（例如 10、20、80），比较超调、进入 1° 的时间和每步的计算量", en: "Change the MPC horizon (e.g. 10, 20, 80 steps) and compare overshoot, time to within 1° and the computation per step" } },
+    ],
+  },
+  {
+    slug: "kinematics-ik",
+    title: { zh: "运动学：正解、数值逆解与奇异点", en: "Kinematics: forward, numerical IK and singularities" },
+    summary: {
+      zh: "用齐次变换链和手算两种方式求出机械臂末端的位置；用数值雅可比和阻尼最小二乘把目标点反解成关节角，看清多解和够不着的情况；最后找到奇异点：行列式归零、关节速度爆炸，以及阻尼如何用精度换来安全。",
+      en: "Find where the arm's tip is, both with a chain of homogeneous transforms and by hand; turn a target point back into joint angles with a numerical Jacobian and damped least squares, including multiple solutions and targets out of reach; then find the singularities, where the determinant vanishes, joint speeds explode and damping trades accuracy for safety.",
+    },
+    minutes: 240,
+    resources: ["modern-robotics"],
+    tasks: [
+      { id: "fk-hand", text: { zh: "手算 q = [30, 45, −60]° 时末端的位置，再用 kinematics.py 的变换链核对到 0.1 mm", en: "Work out the tip position for q = [30, 45, −60]° by hand and check it against kinematics.py's transform chain to 0.1 mm" } },
+      { id: "ik", text: { zh: "给数值逆解选三个自己的目标点（其中一个够不着），从两个不同的初值出发，记录迭代次数和得到的解", en: "Pick three targets of your own for the numerical IK (one out of reach), start from two different initial guesses, and log the iterations and the solutions" } },
+      { id: "fk-check", text: { zh: "把每个逆解结果再代回正运动学，确认误差小于 0.1 mm", en: "Feed every IK result back through forward kinematics and confirm the error is under 0.1 mm" } },
+      { id: "singular", text: { zh: "在你的机械臂（或模型）上把手臂伸直，演示奇异点：说明哪个方向动不了，以及雅可比行列式为什么归零", en: "Show a singularity on your arm (or the model) by stretching it straight: say which direction it cannot move in and why the Jacobian's determinant goes to zero" } },
+    ],
+  },
+  {
+    slug: "camera-calibration",
+    title: { zh: "相机标定：内参、畸变与像素到三维", en: "Camera calibration: intrinsics, distortion and pixel to 3D" },
+    summary: {
+      zh: "从针孔模型和径向畸变讲起，用 OpenCV 在已知真值的合成棋盘格照片上标定相机，对比有无畸变项的结果；再用 solvePnP 找到桌面，把像素变成桌面上的三维点，看清跳过去畸变在画面角上会差出多少。",
+      en: "Start from the pinhole model and radial distortion, calibrate a camera with OpenCV on synthetic checkerboard photos whose true values are known, and compare fits with and without distortion; then find the table with solvePnP, turn pixels into 3D points on it, and see how much skipping undistortion costs at the image corners.",
+    },
+    minutes: 240,
+    resources: ["opencv-calibration", "ros-camera-calibration"],
+    tasks: [
+      { id: "run", text: { zh: "依次运行 make_views.py、calibrate.py 和 pixel_to_table.py，把恢复出的 fx、fy、cx、cy、k1、k2 和真值逐项比较", en: "Run make_views.py, calibrate.py and pixel_to_table.py in turn, and compare the recovered fx, fy, cx, cy, k1 and k2 with the true values one by one" } },
+      { id: "own-camera", text: { zh: "打印一张 9 × 6 内角点的棋盘格，用你自己的摄像头拍 15 到 20 张照片并标定，记录 RMS 重投影误差", en: "Print a 9 × 6 inner-corner checkerboard, take 15 to 20 photos with your own camera, calibrate it and record the RMS reprojection error" } },
+      { id: "centre-only", text: { zh: "只用画面中央的照片再标定一次，比较 k1、k2 和主点的变化，并解释原因", en: "Calibrate again using only photos with the board in the centre of the frame, compare k1, k2 and the principal point, and explain the difference" } },
+      { id: "measure", text: { zh: "把棋盘格平放在桌上，用 pixel_to_table.py 的方法求两个像素之间的距离，再用尺子量，比较两者", en: "Lay the board flat on a table, use pixel_to_table.py's method to find the distance between two pixels, measure it with a ruler, and compare" } },
+    ],
+  },
+  {
+    slug: "moveit-pick-place",
+    title: { zh: "MoveIt 2：运动规划与无碰撞抓放", en: "MoveIt 2: motion planning and a collision-free pick and place" },
+    summary: {
+      zh: "从逆运动学走到运动规划：构型空间、碰撞检测、随机采样规划器 RRTConnect 和走直线的 Pilz LIN。在 ros2_control mock 硬件上的 Panda 机械臂上，用 MoveItPy 搭好规划场景，抓起方块、把它附着到手上、越过一堵墙放下，再看一个墙里的目标为什么规划不出来。",
+      en: "Go from inverse kinematics to motion planning: configuration space, collision checking, the random sampling planner RRTConnect and Pilz LIN for straight lines. On a Panda arm on ros2_control mock hardware, build a planning scene with MoveItPy, pick up a block, attach it to the hand, carry it over a wall and set it down, then see why a goal inside the wall cannot be planned.",
+    },
+    minutes: 300,
+    resources: ["moveit-docs"],
+    tasks: [
+      { id: "run", text: { zh: "运行 bringup.launch.py 和 pick_place.py，把你的输出和课程里的输出对比，指出哪些行每次都一样、哪些会变，以及为什么", en: "Run bringup.launch.py and pick_place.py, compare your output with the lesson's, and say which lines stay the same every run, which change, and why" } },
+      { id: "taller-wall", text: { zh: "把墙加高到 0.35 m 再运行，记录搬运路径怎么走、碰撞检查是否仍然 valid", en: "Raise the wall to 0.35 m, run again, and record the carry's route and whether the collision check is still valid" } },
+      { id: "long-wall", text: { zh: "把墙加长到 0.80 m，让手臂没法从墙的两端绕过去，运行五次，记录每次的路径和方块底部高出墙顶多少", en: "Make the wall 0.80 m long so the arm cannot go around its ends, run five times, and record each route and how far the block's bottom stays above the wall top" } },
+      { id: "real-arm", text: { zh: "为你自己的机械臂写一份从 mock 硬件到真机的检查清单：控制器、夹爪力与抓取检测、速度缩放、急停，以及用第 4 课的相机定位方块", en: "Write a checklist for moving this to your own arm: controllers, gripper force and grasp detection, speed scaling, the emergency stop, and locating the block with the camera from Lesson 4" } },
+    ],
+  },
+];
+
 export const months: Month[] = [
   {
     id: 1,
@@ -521,23 +604,23 @@ export const months: Month[] = [
       zh: "理解并实现你已用过的控制与感知背后的原理。",
       en: "Understand and implement the control and perception underneath everything you've built.",
     },
-    status: "outline",
+    status: "ready",
     topics: [
-      { zh: "控制理论：从 PID 开始", en: "Control theory, starting with PID" },
+      { zh: "控制理论：从 PID 走向建模与频域", en: "Control theory: from PID to models and the frequency domain" },
       { zh: "状态空间、LQR 与 MPC", en: "State space, LQR and MPC" },
       { zh: "运动学：正解与数值逆解、奇异点", en: "Kinematics: forward, numerical IK, singularities" },
       { zh: "相机标定与视觉感知", en: "Camera calibration and perception" },
       { zh: "MoveIt 2 运动规划与抓取", en: "Motion planning and pick-and-place with MoveIt 2" },
     ],
     milestones: [
-      { zh: "实现并整定 PID，用实测数据解释每一项", en: "Implement and tune PID and explain every term from measured data" },
+      { zh: "从实测数据辨识关节模型，并在频域里读出 PID 整定的相位裕度与增益裕度", en: "Identify a joint model from measured data and read a PID tuning's phase and gain margins in the frequency domain" },
       { zh: "用状态空间描述系统，并在仿真对象上实现 LQR", en: "Describe a system in state space and implement LQR on a simulated plant" },
       { zh: "手算正运动学，数值求解逆运动学", en: "Compute forward kinematics by hand and solve IK numerically" },
       { zh: "指着机器人解释什么是奇异点", en: "Explain a singularity by pointing at a robot doing it" },
       { zh: "标定相机，把像素转换成三维位置", en: "Calibrate a camera and turn a pixel into a 3D position" },
       { zh: "在 MoveIt 2 中规划并执行无碰撞抓放", en: "Plan and execute a collision-free pick and place in MoveIt 2" },
     ],
-    lessons: [],
+    lessons: month5Lessons,
   },
   {
     id: 6,

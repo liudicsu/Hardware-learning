@@ -1,0 +1,22 @@
+Cart-pole, x = [position, speed, angle, rate], 100 Hz
+  A (continuous) rows: [0.00, 1.00, 0.00, 0.00]  [0.00, 0.00, -3.92, 0.00]  [0.00, 0.00, 0.00, 1.00]  [0.00, 0.00, 45.78, 0.00]
+  B (continuous):      [0.00, 2.00, 0.00, -6.67]
+Q = diag(1, 1, 10, 1), R = 1     K = [  -0.92,   -1.75,  -18.76,   -3.03]
+    from 10 deg: after 4 s x =  0.028 m, angle =  0.18 deg, peak force  3.28 N
+Q = diag(100, 1, 10, 1), R = 1   K = [  -9.01,   -6.54,  -29.74,   -4.91]
+    from 10 deg: after 4 s x =  0.000 m, angle =  0.00 deg, peak force  5.19 N
+Q = diag(1, 1, 10, 1), R = 0.01  K = [  -6.86,  -10.95,  -59.07,  -11.51]
+    from 10 deg: after 4 s x =  0.008 m, angle =  0.06 deg, peak force 10.00 N
+Nonlinear run with the first K, starting 10 deg off upright:
+  t = 0.0 s  x =  0.000 m  angle =  10.00 deg  force =   3.28 N
+  t = 0.5 s  x =  0.177 m  angle =  -2.23 deg  force =  -0.42 N
+  t = 1.0 s  x =  0.248 m  angle =  -2.05 deg  force =  -0.25 N
+  t = 1.5 s  x =  0.227 m  angle =  -0.73 deg  force =  -0.08 N
+  t = 2.0 s  x =  0.175 m  angle =  -0.04 deg  force =   0.00 N
+  t = 2.5 s  x =  0.122 m  angle =   0.23 deg  force =   0.03 N
+  largest start angle it still recovers from (force limit 10 N): 53 deg
+
+Arm joint, 1 rad move, |torque| <= 0.6 N*m (on top of gravity feedforward), 200 Hz
+  LQR gains: K = [15.93, 0.323]  (kp in N*m/rad, kd in N*m/(rad/s))
+  LQR, output clipped    overshoot  2.24 deg, within 1 deg from 0.210 s, at the limit for 0.175 s
+  MPC, horizon 40 steps  overshoot  0.86 deg, within 1 deg from 0.160 s, at the limit for 0.165 s

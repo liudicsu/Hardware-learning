@@ -1,0 +1,315 @@
+Month 4 put a camera on the Gazebo robot and saved a picture from it, but a pixel in that picture is not yet a position. A real camera does not come with that mapping: a pixel becomes a position only after you know its intrinsics (focal length in pixels and principal point) and its lens distortion. This lesson calibrates a camera and then uses the result to turn a pixel into a point on a table.
+
+The photos here are synthetic, and that is deliberate. `make_views.py` renders them through a known camera: fx = fy = 500 px, cx = 320, cy = 240, k1 = -0.12, k2 = 0.03, a 640 × 480 sensor, a 9 × 6 inner-corner checkerboard with 25 mm squares, 15 views and sensor noise. Because the true values are known, we can compare what calibration recovers with them. Nothing in `calibrate.py` depends on the generator; the same script works on photos from your own camera.
+
+## The pinhole model
+
+A pinhole camera projects a 3D point (x, y, z) in the camera frame onto the image plane by dividing by depth. The camera frame here is x right, y down, z forward, the same convention OpenCV uses. In pixels:
+
+<Formula label="Pinhole projection">u = fx x/z + cx,   v = fy y/z + cy</Formula>
+
+`fx` and `fy` are in pixels, not millimetres. They are the focal length divided by the width of one pixel: a 1.5 mm lens on 3 µm pixels gives fx = 1.5 mm / 0.003 mm = 500 px. `cx` and `cy` are the principal point, where the optical axis meets the sensor; on an ideal 640 × 480 camera it would sit at (320, 240).
+
+The same projection as a matrix is the intrinsic matrix, `K = [[fx, 0, cx], [0, fy, cy], [0, 0, 1]]`. K has no rotation or translation; it describes the camera alone. Where the board sits and how it is tilted is a separate rigid transform.
+
+Real lenses bend straight lines. OpenCV's radial model takes the undistorted normalized coordinates (x, y), with r² = x² + y², and moves them outward or inward:
+
+<Formula label="Radial distortion">x_d = x (1 + k1 r² + k2 r⁴),   y_d = y (1 + k1 r² + k2 r⁴)</Formula>
+
+The distorted coordinates are then converted to pixels with K. A negative k1, as in this camera (-0.12), pulls points toward the centre: straight lines bow outward like a barrel. The correction grows quickly with r, so the centre is almost untouched and the image corners are worst. That is why calibration photos must include the corners, not just the middle.
+
+<Quiz id="q1" question="A camera has fx = 500 px and each pixel is 3 µm wide. What is its focal length?" answer={1.5} unit="mm" explanation="Focal length = fx × pixel width = 500 × 3 µm = 1500 µm = 1.5 mm. fx is in pixels precisely because the pixel size has already been multiplied in." />
+
+## Making the photos
+
+`make_views.py` renders each view by inverting the projection, not by drawing a board and distorting it. For every pixel it takes the pixel coordinate, applies the inverse of the distortion and K to get a direction, casts that ray onto the board plane, and reads whether the hit point is on a white or black square. Each pixel is sampled at four offsets (4× supersampling) and Gaussian sensor noise is added afterwards.
+
+Fifteen poses at 0.27 to 0.40 m, with tilts up to 35 deg, give the solver a range of views. `table.png` is a separate photo of the same board lying flat on a table, 0.45 m from the camera and tilted 40 deg; the section on turning a pixel into 3D uses it.
+
+<CodeSource path="examples/month-5/camera-calibration/make_views.py" />
+
+```python
+"""make_views.py: render synthetic photos of a checkerboard through a known, distorted camera.
+
+The "true" camera is a 640 x 480 webcam-like pinhole: fx = fy = 500 px, centre (320, 240),
+radial distortion k1 = -0.12, k2 = 0.03. The board has 9 x 6 inner corners on 25 mm
+squares. Fifteen views at different distances and tilts, plus table.png: the board lying
+flat on a table, seen from 0.45 m above at an angle. Usage: python3 make_views.py <dir>
+"""
+import json
+import math
+import os
+import sys
+
+import cv2
+import numpy as np
+
+W, H = 640, 480
+K = np.array([[500.0, 0, 320], [0, 500.0, 240], [0, 0, 1]])
+DIST = np.array([-0.12, 0.03, 0.0, 0.0, 0.0])
+COLS, ROWS, SQ = 9, 6, 0.025                    # inner corners, square size in m
+
+
+def render(rvec, tvec, rng):
+    """For every pixel: undo the lens, cast the ray onto the board plane, read the colour."""
+    u, v = np.meshgrid(np.arange(W, dtype=np.float64), np.arange(H, dtype=np.float64))
+    img = np.zeros((H, W))
+    rot, _ = cv2.Rodrigues(rvec)
+    h_inv = np.linalg.inv(np.column_stack([rot[:, 0], rot[:, 1], tvec]))
+    for du, dv in ((-0.25, -0.25), (0.25, -0.25), (-0.25, 0.25), (0.25, 0.25)):   # 4x supersampling
+        pts = np.stack([(u + du).ravel(), (v + dv).ravel()], axis=1).reshape(-1, 1, 2)
+        n = cv2.undistortPoints(pts, K, DIST).reshape(-1, 2)
+        b = h_inv @ np.vstack([n.T, np.ones(len(n))])
+        x, y = b[0] / b[2], b[1] / b[2]                                            # metres on the board
+        i, j = np.floor(x / SQ) + 1, np.floor(y / SQ) + 1
+        on = (i >= 0) & (i <= COLS) & (j >= 0) & (j <= ROWS)
+        white = ((i + j) % 2 == 0) | ~on
+        img += np.where(white, 230.0, 25.0).reshape(H, W) / 4
+    img += rng.normal(0, 2.0, img.shape)                                           # sensor noise
+    return np.clip(img, 0, 255).astype(np.uint8)
+
+
+def pose(tilt_x, tilt_y, dist, shift_x, shift_y):
+    """Board centred in front of the camera at `dist` m, tilted by the given degrees."""
+    rot = cv2.Rodrigues(np.array([math.radians(tilt_x), 0, 0]))[0] @ cv2.Rodrigues(np.array([0, math.radians(tilt_y), 0]))[0]
+    centre = np.array([(COLS - 1) * SQ / 2, (ROWS - 1) * SQ / 2, 0])
+    tvec = np.array([shift_x, shift_y, dist]) - rot @ centre
+    return cv2.Rodrigues(rot)[0].ravel(), tvec
+
+
+def main(out):
+    os.makedirs(out, exist_ok=True)
+    rng = np.random.default_rng(5)
+    views = [(0, 0, 0.30, 0, 0), (25, 0, 0.32, 0, 0), (-25, 0, 0.32, 0, 0), (0, 25, 0.32, 0, 0),
+             (0, -25, 0.32, 0, 0), (20, 20, 0.35, 0.05, 0.03), (-20, 20, 0.35, -0.05, 0.03),
+             (20, -20, 0.35, 0.05, -0.03), (-20, -20, 0.35, -0.05, -0.03), (10, 0, 0.27, 0.07, 0.05),
+             (-10, 0, 0.30, -0.04, -0.03), (0, 10, 0.30, 0.04, -0.03), (0, -10, 0.30, -0.04, 0.03),
+             (35, 10, 0.40, 0, 0), (-10, 35, 0.40, 0, 0)]
+    for k, v in enumerate(views):
+        rvec, tvec = pose(*v)
+        cv2.imwrite(os.path.join(out, f"view_{k:02d}.png"), render(rvec, tvec, rng))
+    rvec, tvec = pose(40, 0, 0.45, 0, 0)            # the board flat on the table, camera above
+    cv2.imwrite(os.path.join(out, "table.png"), render(rvec, tvec, rng))
+    with open(os.path.join(out, "truth.json"), "w") as f:
+        json.dump({"K": K.tolist(), "dist": DIST.tolist(), "table_rvec": rvec.tolist(), "table_tvec": tvec.tolist()}, f)
+    print(f"wrote {len(views)} views, table.png and truth.json to {out}")
+
+
+if __name__ == "__main__":
+    main(sys.argv[1] if len(sys.argv) > 1 else "views")
+```
+
+<SimOutput source="synthetic">
+
+```text
+wrote 15 views, table.png and truth.json to views
+```
+
+</SimOutput>
+
+## Calibrating the camera
+
+Calibration needs correspondences: where a known 3D point appears in each image. The board supplies them. `findChessboardCorners` finds the inner corners of the 9 × 6 grid, `cornerSubPix` refines each one to sub-pixel accuracy, and `calibrateCamera` then fits K, the distortion coefficients and one pose per view, minimising the reprojection error—the distance between where a corner should land and where it was detected.
+
+<CodeSource path="examples/month-5/camera-calibration/calibrate.py" />
+
+```python
+"""calibrate.py: calibrate a camera from photos of a 9 x 6 checkerboard with 25 mm squares.
+
+Works on your own photos as well as on the synthetic ones from make_views.py.
+Usage: python3 calibrate.py <folder with view_*.png>      writes <folder>/camera.json
+"""
+import glob
+import json
+import os
+import sys
+
+import cv2
+import numpy as np
+
+COLS, ROWS, SQ = 9, 6, 0.025
+
+folder = sys.argv[1] if len(sys.argv) > 1 else "views"
+board = np.zeros((ROWS * COLS, 3), np.float32)
+board[:, :2] = np.mgrid[0:COLS, 0:ROWS].T.reshape(-1, 2) * SQ          # corner positions in m
+obj_pts, img_pts, size = [], [], None
+for name in sorted(glob.glob(os.path.join(folder, "view_*.png"))):
+    gray = cv2.imread(name, cv2.IMREAD_GRAYSCALE)
+    size = gray.shape[::-1]
+    found, corners = cv2.findChessboardCorners(gray, (COLS, ROWS))
+    if not found:
+        print(f"  {os.path.basename(name)}: board not found, skipped")
+        continue
+    corners = cv2.cornerSubPix(gray, corners, (5, 5), (-1, -1),
+                               (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001))
+    obj_pts.append(board)
+    img_pts.append(corners)
+print(f"board found in {len(img_pts)} images of {size[0]} x {size[1]} px")
+
+for label, flags in (("no distortion model", cv2.CALIB_FIX_K1 | cv2.CALIB_FIX_K2 | cv2.CALIB_FIX_K3 | cv2.CALIB_ZERO_TANGENT_DIST),
+                     ("k1, k2 (radial)", cv2.CALIB_FIX_K3 | cv2.CALIB_ZERO_TANGENT_DIST)):
+    rms, k, dist, _, _ = cv2.calibrateCamera(obj_pts, img_pts, size, None, None, flags=flags)
+    print(f"{label}:")
+    print(f"  reprojection error (RMS) {rms:.3f} px")
+    print(f"  fx = {k[0, 0]:.1f}  fy = {k[1, 1]:.1f}  cx = {k[0, 2]:.1f}  cy = {k[1, 2]:.1f} px")
+    print(f"  k1 = {dist[0, 0]:+.4f}  k2 = {dist[0, 1]:+.4f}")
+with open(os.path.join(folder, "camera.json"), "w") as f:
+    json.dump({"K": k.tolist(), "dist": dist.ravel().tolist(), "size": list(size)}, f)
+print(f"saved {os.path.join(folder, 'camera.json')}")
+```
+
+<SimOutput source="synthetic">
+
+```text
+board found in 15 images of 640 x 480 px
+no distortion model:
+  reprojection error (RMS) 0.702 px
+  fx = 507.1  fy = 509.2  cx = 320.4  cy = 239.8 px
+  k1 = +0.0000  k2 = +0.0000
+k1, k2 (radial):
+  reprojection error (RMS) 0.189 px
+  fx = 499.8  fy = 499.9  cx = 319.8  cy = 239.6 px
+  k1 = -0.1212  k2 = +0.0310
+saved views/camera.json
+```
+
+</SimOutput>
+
+The first run fixes k1 = k2 = 0 and leaves only a pinhole. Its RMS error is 0.702 px. The second run allows k1 and k2 and drops to 0.189 px; the no-distortion error is about 3.7 times larger. With 15 views and 54 corners there are 810 points, so 0.189 px is a tight fit, not a lucky one.
+
+The recovered intrinsics are close to the truth: fx = 499.8 vs 500, fy = 499.9 vs 500, cx = 319.8 vs 320, cy = 239.6 vs 240, k1 = -0.1212 vs -0.12, k2 = +0.0310 vs 0.03. The no-distortion fit is not merely a worse version of the same answer: it reports fx = 507.1 and fy = 509.2. A pinhole cannot bend, so the optimizer moves the focal length and principal point to absorb the average bending, and every pixel-to-ray conversion inherits that error.
+
+Notice what the RMS does and does not say. It says the chosen model fits the detected corners; it does not say the model matches the lens. A low RMS with the wrong model can still be wrong between the corners. Here the distortion run wins on both counts, so the comparison is unambiguous.
+
+<Quiz id="q2" question="Without distortion the RMS is 0.702 px; with k1 and k2 it is 0.189 px. Roughly how many times larger is the no-distortion error?" options={["1.9×", "3.7×", "7.4×"]} answer={1} explanation="0.702 / 0.189 ≈ 3.7. The error is about 3.7 times larger without the distortion terms, not just slightly worse." />
+
+## From a pixel to 3D
+
+One image cannot recover depth by itself: every pixel defines a ray, and the 3D point is wherever that ray hits the scene. If the scene is a known plane—the table—the intersection is unique. `pixel_to_table.py` uses `table.png`, finds the board, and calls `solvePnP` to get the board's pose in the camera. That pose defines the plane z = 0 in board coordinates. The script reports the camera 0.502 m from the board origin.
+
+For each pixel: undistort it (the inverse of the radial model), turn it into a ray, transform the ray into board coordinates, intersect with z = 0, and transform the hit back into the camera frame.
+
+<Formula label="Ray-plane intersection in the board frame">d = Rᵀ [x_n, y_n, 1]ᵀ,   o = -Rᵀ t,   s = -o_z / d_z,   P = R (o + s d) + t</Formula>
+
+Here (x_n, y_n) is the undistorted normalized pixel, R and t map board coordinates to camera coordinates, o is the camera centre in the board frame, d is the ray direction, s is the ray parameter, and P is the hit in the camera frame. Points are reported in the camera frame (x right, y down, z forward), in mm.
+
+Worked example with no distortion: fx = 500 px, cx = 320, u = 420 at depth z = 0.5 m. Then x = (u - cx) z / fx = (420 - 320) / 500 × 0.5 = 0.2 × 0.5 = 0.1 m.
+
+<Quiz id="q3" question="With fx = 500 px, cx = 320 and no distortion, a pixel at u = 420 sees a point at depth z = 0.5 m. What is x?" answer={0.1} unit="m" explanation="x = (u - cx) z / fx = (420 - 320) / 500 × 0.5 = 0.2 × 0.5 = 0.1 m. Depth is what turns a pixel offset into a distance." />
+
+<CodeSource path="examples/month-5/camera-calibration/pixel_to_table.py" />
+
+```python
+"""pixel_to_table.py: turn a pixel into a 3D point on the table.
+
+Uses camera.json from calibrate.py and a photo of the same checkerboard lying flat on the
+table (table.png). solvePnP gives the board's pose, i.e. where the table plane is; each
+pixel is then undistorted, turned into a ray and intersected with that plane. Points are
+given in the camera frame (x right, y down, z forward, in mm). If truth.json
+from make_views.py is there, the answers are compared with the exact ones.
+Usage: python3 pixel_to_table.py <folder> [u,v ...]
+"""
+import json
+import os
+import sys
+
+import cv2
+import numpy as np
+
+COLS, ROWS, SQ = 9, 6, 0.025
+
+
+def to_plane(pixels, k, dist, rvec, tvec):
+    """Pixels -> 3D points on the board plane (z = 0), in camera coordinates (m)."""
+    n = cv2.undistortPoints(np.array(pixels, np.float64).reshape(-1, 1, 2), k, dist).reshape(-1, 2)
+    rot, _ = cv2.Rodrigues(np.asarray(rvec, np.float64))
+    t = np.asarray(tvec, np.float64).ravel()
+    out = []
+    for x, y in n:
+        ray = rot.T @ np.array([x, y, 1.0])            # ray direction in board coordinates
+        origin = -rot.T @ t                            # camera centre in board coordinates
+        s = -origin[2] / ray[2]                        # where the ray reaches z = 0
+        out.append(rot @ (origin + s * ray) + t)        # back into camera coordinates
+    return np.array(out), np.linalg.norm(origin)
+
+
+folder = sys.argv[1] if len(sys.argv) > 1 else "views"
+pixels = [tuple(map(float, a.split(","))) for a in sys.argv[2:]] or [(320, 240), (420, 300), (600, 440)]
+cam = json.load(open(os.path.join(folder, "camera.json")))
+k, dist = np.array(cam["K"]), np.array(cam["dist"])
+gray = cv2.imread(os.path.join(folder, "table.png"), cv2.IMREAD_GRAYSCALE)
+found, corners = cv2.findChessboardCorners(gray, (COLS, ROWS))
+corners = cv2.cornerSubPix(gray, corners, (5, 5), (-1, -1), (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001))
+board = np.zeros((ROWS * COLS, 3), np.float32)
+board[:, :2] = np.mgrid[0:COLS, 0:ROWS].T.reshape(-1, 2) * SQ
+_, rvec, tvec = cv2.solvePnP(board, corners, k, dist)
+pts, cam_dist = to_plane(pixels, k, dist, rvec, tvec)
+flat, _ = to_plane(pixels, k, np.zeros(5), *cv2.solvePnP(board, corners, k, np.zeros(5))[1:])
+truth_path = os.path.join(folder, "truth.json")
+truth = json.load(open(truth_path)) if os.path.exists(truth_path) else None
+if truth:
+    exact, _ = to_plane(pixels, np.array(truth["K"]), np.array(truth["dist"]), truth["table_rvec"], truth["table_tvec"])
+print(f"table plane from solvePnP: camera {cam_dist:.3f} m from the board origin")
+print("   pixel (u, v)   3D point, camera frame (mm)    exact (mm)               error    ignoring distortion")
+for i, (u, v) in enumerate(pixels):
+    p = "(" + ", ".join(f"{1000 * c:6.1f}" for c in pts[i]) + ")"
+    ex = "(" + ", ".join(f"{1000 * c:6.1f}" for c in exact[i]) + ")" if truth else "-"
+    err = f"{1000 * np.linalg.norm(pts[i] - exact[i]):4.1f} mm" if truth else "-"
+    off = f"{1000 * np.linalg.norm(flat[i] - exact[i]):5.1f} mm off" if truth else "-"
+    print(f"  ({u:4.0f}, {v:4.0f})   {p}   {ex}   {err}   {off}")
+```
+
+<SimOutput source="synthetic">
+
+```text
+table plane from solvePnP: camera 0.502 m from the board origin
+   pixel (u, v)   3D point, camera frame (mm)    exact (mm)               error    ignoring distortion
+  ( 320,  240)   (   0.2,    0.3,  449.8)   (   0.0,    0.0,  450.0)    0.4 mm     2.2 mm off
+  ( 420,  300)   ( 101.0,   60.8,  500.5)   ( 100.8,   60.5,  500.8)    0.5 mm     1.8 mm off
+  ( 600,  440)   ( 414.3,  296.2,  697.7)   ( 413.7,  295.5,  698.0)    0.9 mm    44.7 mm off
+```
+
+</SimOutput>
+
+The three pixels land within 0.4, 0.5 and 0.9 mm of the exact points. That is the whole pipeline working: calibration, pose, undistortion, ray, plane. The last column shows what happens if you skip undistortion: 2.2 and 1.8 mm near the centre, but 44.7 mm at the corner pixel (600, 440). At the centre the distortion is small; at the corner it is not, and a robot reaching for an object there would miss by almost 4.5 cm.
+
+<Quiz id="q4" question="With the squares typed as 25 mm, the script reports z = 500.5 mm for pixel (420, 300). If you had typed 50 mm for the same photos, what z would it report?" answer={1001.0} unit="mm" explanation="Every board coordinate and every translation scales with the square size. 50 / 25 = 2, so 500.5 mm × 2 = 1001.0 mm. The intrinsics do not change, but the board, and with it every distance, is now twice as big." />
+
+<Quiz id="q5" question="Ignoring distortion costs 2.2 mm at (320, 240) and 44.7 mm at (600, 440). How many times larger is the corner error?" answer={20.3} explanation="44.7 / 2.2 ≈ 20.3. The correction grows quickly with r, so the corner pays for what the centre hardly notices." />
+
+To rerun all three steps you need OpenCV and NumPy; `cd examples/month-5 && pixi shell` gives you both (see the folder's README):
+
+```bash
+cd examples/month-5/camera-calibration
+python3 make_views.py views
+python3 calibrate.py views
+python3 pixel_to_table.py views
+```
+
+## Calibrating a real camera
+
+The same script works on your own photos, with a few practical rules.
+
+Take 15 to 20 sharp photos. Move and tilt the board so the corners cover the whole frame: centre-only photos constrain the principal point and distortion poorly. Tilt the board up to about 40 deg in different directions; a flat frontal view alone does not separate focal length from distance. Keep the camera still and the board flat and rigid—a board that bends changes the 3D points you claim to know. Print the board on rigid material or glue it flat.
+
+Lock focus and resolution for both calibration and use. A calibration is valid only for the focus setting and image size it was made at; autofocus that hunts between shots moves the focal length, and downscaling after calibration changes fx, fy, cx and cy. Measure the square size with a ruler or calipers and type it in metres (25 mm = 0.025 m).
+
+Check the RMS. Well under 1 px is normal for a good calibration of a normal camera; much more means bad corner detection, motion blur, a board that is not flat, or focus that moved during the set. Do not chase a low number by deleting views that look fine—look at per-view errors, because one bad view can be hidden by fourteen good ones.
+
+Save the result and reuse it. `calibrate.py` writes `camera.json`; in a ROS 2 system the `camera_calibration` package does the same job interactively and hands the result to the camera driver, which then publishes it on `camera_info` for image pipelines and `image_geometry` to undistort and project with. The numbers belong with the camera, not with one program.
+
+<Callout type="warn" title="One calibration, one focus and one resolution">A calibration is a snapshot of the lens at one focus setting and one image size. Resize the image and fx, fy, cx and cy change; refocus or zoom and the distortion changes too. After any of these, scale K to match or calibrate again.</Callout>
+
+<Resource id="opencv-calibration" />
+
+<Resource id="ros-camera-calibration" />
+
+## Common mistakes
+
+- <strong>Calibrating at one resolution and using another.</strong> fx, fy, cx and cy are in pixels; scaling the image scales all four, while the distortion coefficients, which work in normalised coordinates, stay the same; cropping moves cx and cy. Keep the original resolution, or scale K to match.
+- <strong>Autofocus on.</strong> Focus moving between shots is effectively a different lens. The focal length drifts during the set, and the RMS can still look acceptable while the parameters are wrong.
+- <strong>A board that is not flat.</strong> If the board bends or is not glued flat, the real 3D corners are not the points you typed in. Use a rigid board or mount the printed sheet on something flat.
+- <strong>All photos in the centre.</strong> Distortion is small near the middle, so centred photos barely constrain k1 and k2, and they constrain the principal point poorly. Put corners in all four image corners and along the edges.
+- <strong>Wrong square size.</strong> Every distance scales with it: type 50 mm instead of 25 mm and every recovered distance doubles; type 25 instead of 50 and they halve. Measure with calipers rather than trusting the size printed on the package.
+- <strong>Forgetting to undistort before the ray.</strong> In the table example that costs 44.7 mm at the corner pixel. The `undistortPoints` step is not optional.
+- <strong>Mixing the board frame with the camera frame.</strong> `solvePnP`'s R and t map board coordinates to camera coordinates, and the plane is z = 0 in the board frame. Using camera-frame axes for a board-frame plane silently intersects the wrong surface.

@@ -1,0 +1,21 @@
+scene: table, wall 0.25 m high at y = 0, block at (0.50, -0.25) -> place at (0.50, +0.25)
+ok   ready                    ompl_rrtc    1 waypoints, execution SUCCEEDED
+ok   open gripper             ompl_rrtc   11 waypoints, execution SUCCEEDED
+ok   above the block          ompl_rrtc   22 waypoints, execution SUCCEEDED
+ok   straight down to it      pilz_lin    12 waypoints, execution SUCCEEDED
+     fingertips at (0.500, -0.250, 0.060) m
+ok   close on the block       ompl_rrtc    7 waypoints, execution SUCCEEDED
+     block attached to panda_hand
+ok   straight up              pilz_lin    12 waypoints, execution SUCCEEDED
+ok   over the wall            ompl_rrtc   24 waypoints, execution SUCCEEDED
+ok   straight down to place   pilz_lin    12 waypoints, execution SUCCEEDED
+     fingertips at (0.500, +0.250, 0.062) m
+ok   open gripper             ompl_rrtc    7 waypoints, execution SUCCEEDED
+     block detached, left in the scene
+ok   straight up              pilz_lin    12 waypoints, execution SUCCEEDED
+ok   ready                    ompl_rrtc   22 waypoints, execution SUCCEEDED
+carry move, block attached: MoveIt collision check of all 24 waypoints: valid
+     route: over the wall, block bottom at least 0.304 m up (wall top 0.25 m)
+block now at (0.500, +0.250, 0.042) m
+and a goal inside the wall:
+FAIL fingertips inside the wall: no plan (ompl_rrtc, 3 tries)

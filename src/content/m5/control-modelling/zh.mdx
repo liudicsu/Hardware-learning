@@ -1,0 +1,243 @@
+第 3 个月结束时，你已经在同一个机械臂关节上跑通了 PID。[复习第 3 个月的 PID](/zh/month/month-3/pid-control) 可以找回 P、I、D、积分饱和和调参步骤；这些内容本课不再重复。这一课往深处走：给被控对象（plant）建模，写出传递函数，用 Bode 图看回路，再用增益裕度和相位裕度判断稳定性。状态空间和 LQR 是下一课。
+
+## 为什么要给关节建模
+
+还是第 3 个月的那个关节：J = 0.004 kg·m²，B = 0.05 N·m/(rad/s)，重力力矩为 0.4 N·m × cos(q)。重力前馈（gravity feedforward）根据测到的角度算出重力力矩并加到指令上；模型准确时，它正好抵消重力，剩下的就是线性关系：力矩 u 对应 J q'' + B q'。传递函数和 Bode 图描述的都是线性对象，而测试时把阶跃取得很小，就是为了让真实关节尽量留在这幅线性图景里。
+
+<Formula label="带重力前馈的对象：单位力矩对应的角度">G(s) = 1 / (J s² + B s) = 1 / (s (J s + B))</Formula>
+
+代入 J = 0.004 kg·m²、B = 0.05 N·m/(rad/s)，分母可以写成 s(J s + B)。一个极点在 s = 0，它是把力矩变成速度的自由积分器；另一个极点在 s = −B/J = −12.5 1/s，是一阶惯性环节，时间常数 J/B = 0.004 / 0.05 = 0.08 s。力矩阶跃之后，速度在 0.08 s 达到最终值的 63 %。
+
+第 3 个月的增益是按角度给的：0.05 N·m/度、0.002 N·m/(度/秒)。乘以 180/π 换成 SI：0.05 × 180/π = 2.86 N·m/rad，0.002 × 180/π = 0.115 N·m/(rad/s)。下面的模型就用这两个换算后的增益，所以它描述的就是你手调过的那条回路。
+
+<Quiz id="q1" question="这个关节的时间常数 J/B 是多少？" answer={0.08} unit="s" explanation="J = 0.004 kg·m²，B = 0.05 N·m/(rad/s)，所以 J/B = 0.004 / 0.05 = 0.08 s。力矩阶跃后，速度在 0.08 s 达到最终值的 63 %。" />
+
+<Quiz id="q2" question="第 3 个月的 0.05 N·m/度，换成 N·m/rad 是多少？" answer={2.86} unit="N·m/rad" explanation="乘以 180/π：0.05 × 180/π = 2.86 N·m/rad。同一个增益换成弧度单位后数值约为原来的 57 倍；直接把 0.05 写进以弧度计算的模型，回路会弱得离谱。" />
+
+## 用实测数据识别模型
+
+在相信任何裕度之前，先确认模型和电机对得上。最简单的试验是开环力矩阶跃：保持一个恒定的力矩 u（重力前馈仍然打开），让关节从静止开始加速，同时记录速度。速度是一阶响应，最终速度是 u/B，达到 63 % 的时间是 tau = J/B。取 u = 0.2 N·m、B = 0.05 N·m/(rad/s)，最终速度应为 0.2 / 0.05 = 4 rad/s；记录在 0.5 s 结束，大约是六个时间常数，这时速度还差 0.2 %，所以读数是 3.99 rad/s。63 % 点在 0.080 s，于是 J = B × tau = 0.05 × 0.080 = 0.0040 kg·m²。
+
+<CodeSource path="tools/sim/models/joint_freq.py" />
+
+```python
+"""joint_freq.py: model the Month 3 arm joint, then read its loop in the frequency domain.
+
+The joint is the one from pid_sim.py (J = 0.004 kg*m^2, B = 0.05 N*m per rad/s, gravity
+0.4 N*m * cos(angle)), with gravity cancelled by a feedforward term so that what is left
+is linear: torque -> J*q'' + B*q'. The controller runs at 200 Hz, holds its torque for one
+period (zero-order hold) and, like most real firmware, applies the torque computed from a
+reading one period later (one sample of delay). Units are SI: angles in rad, gains in
+N*m per rad and N*m per rad/s (Month 3's 0.05 N*m per degree is 2.86 N*m per rad).
+"""
+import cmath
+import math
+
+J, B, GRAV, T = 0.004, 0.05, 0.4, 0.005
+A = B / J                                    # 12.5 1/s, so the time constant J/B is 0.08 s
+E = math.exp(-A * T)
+# exact discretisation of J*q'' + B*q' = u with the torque held over each period
+PHI = ((1.0, (1 - E) / A), (0.0, E))
+GAM = ((T - (1 - E) / A) / (A * J), (1 - E) / (A * J))
+
+
+def step(q, w, u):
+    return (q + PHI[0][1] * w + GAM[0] * u, E * w + GAM[1] * u)
+
+
+def identify():
+    """Open-loop test: hold 0.2 N*m (plus gravity feedforward) and log the speed."""
+    print("Open-loop step: 0.2 N*m from rest, speed logged at 200 Hz")
+    q, w, log = 0.0, 0.0, []
+    for k in range(101):
+        log.append((k * T, w))
+        q, w = step(q, w, 0.2)
+    for t, s in log[::8][:8]:
+        print(f"  t = {t:4.2f} s   speed {s:5.2f} rad/s")
+    final = log[-1][1]
+    t63 = next(t for t, s in log if s >= 0.632 * final)
+    b = 0.2 / final
+    print(f"  final speed {final:.2f} rad/s -> B = 0.2 / {final:.2f} = {b:.3f} N*m per rad/s")
+    print(f"  63 % of it at t = {t63:.3f} s -> J = B x tau = {b * t63:.4f} kg*m^2")
+
+
+def loop(kp, kd, w):
+    """Loop gain L = C * P at angular frequency w (rad/s), with z = e^(jwT)."""
+    z = cmath.exp(1j * w * T)
+    det = (z - PHI[0][0]) * (z - PHI[1][1]) - PHI[0][1] * PHI[1][0]
+    plant = ((z - PHI[1][1]) * GAM[0] + PHI[0][1] * GAM[1]) / det   # angle / torque
+    pd = kp + kd * (1 - 1 / z) / T
+    return pd * plant / z                                           # one sample of delay
+
+
+def margins(kp, kd):
+    """Gain and phase margins from a fine logarithmic sweep up to the Nyquist frequency."""
+    ws = [10 ** (k / 2000) for k in range(-2000, int(2000 * math.log10(math.pi / T)))]
+    wc = pm = wpc = gm = None
+    last_ph, unwrap, prev = None, 0.0, None
+    for w in ws:
+        l = loop(kp, kd, w)
+        ph = math.degrees(cmath.phase(l))
+        if last_ph is not None and ph - last_ph > 180:
+            unwrap -= 360                     # keep the phase continuous
+        last_ph = ph
+        ph += unwrap
+        if prev is not None:
+            if wc is None and abs(prev[1]) >= 1 > abs(l):
+                wc, pm = w, 180 + ph
+            if wpc is None and prev[2] > -180 >= ph:
+                wpc, gm = w, -20 * math.log10(abs(l))
+        prev = (w, l, ph)
+    return wc, pm, wpc, gm
+
+
+def bode(kp, kd):
+    print(f"Loop gain, kp = {kp} N*m/rad, kd = {kd} N*m/(rad/s)")
+    print("   w (rad/s)  |L| (dB)  phase (deg)")
+    for w in (1, 3, 10, 30, 100, 300):
+        l = loop(kp, kd, w)
+        ph = math.degrees(cmath.phase(l))
+        ph = ph - 360 if ph > 0 else ph
+        print(f"  {w:9.0f}  {20 * math.log10(abs(l)):8.1f}  {ph:11.1f}")
+    wc, pm, wpc, gm = margins(kp, kd)
+    print(f"  gain crossover {wc:.1f} rad/s, phase margin {pm:.0f} deg")
+    print(f"  phase crossover {wpc:.1f} rad/s, gain margin {gm:.1f} dB (x {10 ** (gm / 20):.1f})")
+
+
+def closed(kp, kd, target=0.1, seconds=2.0):
+    """Closed-loop step of 0.1 rad (about 6 degrees), small enough to stay linear."""
+    q, w, u, prev = 0.0, 0.0, 0.0, 0.0
+    peak, hist = 0.0, []
+    for k in range(int(seconds / T)):
+        rate = (q - prev) / T
+        prev = q
+        nxt = kp * (target - q) - kd * rate      # computed now, applied next period
+        q, w = step(q, w, u)
+        u = nxt
+        peak = max(peak, q)
+        hist.append(q - target)
+    early, late = hist[100:200], hist[-100:]     # 0.5-1.0 s and the last 0.5 s
+    size = lambda h: max(h) - min(h)
+    ups = [k for k in range(len(hist) - 100, len(hist) - 1) if hist[k] < 0 <= hist[k + 1]]
+    freq = 2 * math.pi * (len(ups) - 1) / ((ups[-1] - ups[0]) * T) if len(ups) > 2 else None
+    return 100 * max(0.0, peak - target) / target, size(early), size(late), freq
+
+
+def sweep():
+    _, _, wpc, gm = margins(1.0, 0.0)
+    print(f"P only, kp = 1.0: gain margin {gm:.1f} dB, so the loop should ring at {wpc:.1f} rad/s")
+    print(f"and turn unstable near kp = 1.0 x {10 ** (gm / 20):.2f} = {10 ** (gm / 20):.2f}. Check it on 0.1 rad steps:")
+    print("     kp     kd   PM (deg)  overshoot  swing 0.5-1 s  swing 1.5-2 s  ringing at")
+    for kp, kd in ((0.5, 0), (1.0, 0), (2.0, 0), (2.86, 0), (6.5, 0), (7.0, 0), (2.86, 0.115)):
+        _, pm, _, _ = margins(kp, kd)
+        over, early, late, freq = closed(kp, kd)
+        f = f"{freq:.1f} rad/s" if freq and late > 1e-4 else "-"
+        o = f"{over:6.0f} %" if late < early else "  grows"
+        print(f"  {kp:5.2f}  {kd:5.3f}  {pm:8.0f}   {o}   {1000 * early:8.2f} mrad  {1000 * late:9.2f} mrad  {f}")
+
+
+if __name__ == "__main__":
+    identify()
+    print()
+    bode(2.86, 0.115)
+    print()
+    sweep()
+```
+
+```bash
+python3 tools/sim/models/joint_freq.py
+```
+
+<SimOutput source="model">
+
+```text
+Open-loop step: 0.2 N*m from rest, speed logged at 200 Hz
+  t = 0.00 s   speed  0.00 rad/s
+  t = 0.04 s   speed  1.57 rad/s
+  t = 0.08 s   speed  2.53 rad/s
+  t = 0.12 s   speed  3.11 rad/s
+  t = 0.16 s   speed  3.46 rad/s
+  t = 0.20 s   speed  3.67 rad/s
+  t = 0.24 s   speed  3.80 rad/s
+  t = 0.28 s   speed  3.88 rad/s
+  final speed 3.99 rad/s -> B = 0.2 / 3.99 = 0.050 N*m per rad/s
+  63 % of it at t = 0.080 s -> J = B x tau = 0.0040 kg*m^2
+```
+
+</SimOutput>
+
+在真电机上照做一遍：加一个小的恒定力矩，仍然开着重力前馈，或者把关节固定在某个姿态；按控制频率记录速度，读出最终值和 63 % 时间。如果最终速度对应的 B 不一样，或者上升快慢对应的 J 不一样，就用实测值。拿没核对过的 J、B 去做频域分析，只是在做算术。
+
+<Callout type="tip" title="先核对模型，再看裕度">没有和力矩阶跃对比过的模型，给出的裕度只是猜测。做一次开环阶跃只要几秒钟，却能抓出单位错误、符号错误，以及“负载根本不是你建模的那个”这种问题。</Callout>
+
+<Quiz id="q3" question="开环加 u = 0.2 N·m，B = 0.05 N·m/(rad/s)，理想的最终速度 u/B 是多少？" answer={4} unit="rad/s" explanation="0.2 / 0.05 = 4 rad/s。记录在 0.5 s（约六个时间常数）结束，速度还差 0.2 %，所以读数是 3.99 rad/s；用 0.2 / 3.99 反推，B 仍然是 0.050 N·m/(rad/s)。" />
+
+## 在频域里读回路
+
+把控制器写成 C，把对象写成 P，回路增益就是 L = C × P。幅值用分贝表示：20 log10 |L|，所以 0 dB 就是 |L| = 1。相位表示指令绕回路一圈回到相加点时的滞后。两个关键频率：增益穿越频率（gain crossover）是 |L| = 1（0 dB）的地方；相位穿越频率（phase crossover）是相位到达 −180° 的地方。
+
+<Formula label="增益裕度：在相位穿越频率处，回路还能把增益放大多少倍才让 |L| 到 1">GM = 1 / |L(jω_pc)|，换算成分贝：GM_dB = −20 log10 |L(jω_pc)|</Formula>
+
+<Formula label="相位裕度：在增益穿越频率处，相位还能再滞后多少度才到 −180°">PM = 180° + ∠L(jω_c)</Formula>
+
+用第 3 个月的增益 kp = 2.86 N·m/rad、kd = 0.115 N·m/(rad/s)，模型给出下表。|L| 在 34.6 rad/s 穿过 0 dB，相位裕度 56°；相位在 150.8 rad/s 到达 −180°，增益裕度 14.2 dB，也就是 5.1 倍。300 rad/s 那一行相位已经是 −263°，早过了 −180°；裕度读的是第一次穿越。
+
+<SimOutput source="model">
+
+```text
+Loop gain, kp = 2.86 N*m/rad, kd = 0.115 N*m/(rad/s)
+   w (rad/s)  |L| (dB)  phase (deg)
+          1      35.1        -92.7
+          3      25.4        -97.9
+         10      13.7       -111.3
+         30       1.5       -122.5
+        100     -10.3       -153.1
+        300     -21.7       -263.0
+  gain crossover 34.6 rad/s, phase margin 56 deg
+  phase crossover 150.8 rad/s, gain margin 14.2 dB (x 5.1)
+```
+
+</SimOutput>
+
+这些数字已经包含了两处连续的 C × P 草图会漏掉的滞后。控制器在一个周期内保持力矩不变（零阶保持，zero-order hold），而固件施加的力矩是根据上一拍的读数算出来的，相当于晚了一个采样周期。200 Hz 下每个采样是 5 ms。T 秒的延迟会带来 ω × T 弧度的相位滞后，频率越高越多：在 34.6 rad/s 的穿越频率处，一个采样的延迟就是 34.6 × 0.005 = 0.17 rad，约 10°；零阶保持相当于半个采样，再多约 5°。这 15° 的裕度，没有延迟的 Bode 图会许诺给你，真实回路却没有。
+
+<Resource id="ctms-frequency" />
+
+密歇根大学的这篇教程一步步从 Bode 图上读增益裕度和相位裕度，再拿阶跃响应来核对，和下一节做的是同一件事；代码是 MATLAB，但每个概念都能对应到 `joint_freq.py`。
+
+<Quiz id="q4" question="增益穿越频率（gain crossover）处满足什么？" options={["相位为 −180°", "|L| = 0 dB，也就是 |L| = 1", "回路增益为零", "电机刚好饱和"]} answer={1} explanation="增益穿越按定义就是 |L| = 1，即 0 dB 的频率。相位裕度在这里读：PM = 180° + 该频率处的相位。相位到 −180° 的地方叫相位穿越，那里读的是增益裕度。" />
+
+## 从裕度预测阶跃响应
+
+裕度不是装饰，它直接预测闭环会怎么动。kd = 0 时，加大 kp 会把每个频率上的 |L| 都抬高，增益穿越点右移，进入相位滞后更大的区域。PM 下降，阶跃响应的超调就上升。
+
+kp = 1.0、只用 P 时，增益裕度是 16.6 dB，也就是 10^(16.6/20) = 6.8 倍的增益。同一个裕度还预言：回路会在相位穿越频率 40.2 rad/s 附近振荡，并在 kp 接近 6.79 时失稳。扫描结果和它一致：kp 取 0.5、1、2、2.86 时，PM 依次是 53°、37°、22°、15°，超调依次是 15 %、33 %、54 %、66 %。kp = 6.5 时 PM 只有 1°，超调 98 %，39.3 rad/s 的振荡衰减得很慢，两个时间窗的摆幅只从 172.47 mrad 降到 137.12 mrad。kp = 7.0 时 PM 是 −1°，40.5 rad/s 的振荡从 236.89 mrad 增长到 285.66 mrad。预测和阶跃响应对上了。
+
+<SimOutput source="model">
+
+```text
+P only, kp = 1.0: gain margin 16.6 dB, so the loop should ring at 40.2 rad/s
+and turn unstable near kp = 1.0 x 6.79 = 6.79. Check it on 0.1 rad steps:
+     kp     kd   PM (deg)  overshoot  swing 0.5-1 s  swing 1.5-2 s  ringing at
+   0.50  0.000        53       15 %       5.27 mrad       0.01 mrad  -
+   1.00  0.000        37       33 %       8.81 mrad       0.05 mrad  -
+   2.00  0.000        22       54 %      12.68 mrad       0.18 mrad  -
+   2.86  0.000        15       66 %      28.11 mrad       0.69 mrad  26.2 rad/s
+   6.50  0.000         1       98 %     172.47 mrad     137.12 mrad  39.3 rad/s
+   7.00  0.000        -1     grows     236.89 mrad     285.66 mrad  40.5 rad/s
+   2.86  0.115        56        2 %       0.00 mrad       0.00 mrad  -
+```
+
+</SimOutput>
+
+微分项会改变这幅图。第 3 个月的 kd = 0.115 N·m/(rad/s) 配上 kp = 2.86，把 PM 从 15° 抬到 56°，超调从 66 % 压到 2 %。D 在穿越频率附近提供相位超前，正好补上最需要的那一段。这就是 D 能让接近过程变稳的频域原因：它不消除稳态误差，但买来了相位裕度。
+
+<Quiz id="q5" question="增益裕度 16.6 dB 对应多少倍的增益？" answer={6.8} unit="倍" explanation="分贝换倍数：10^(16.6/20) = 6.8。只用 P、kp = 1.0 时，增益再大约 6.8 倍，回路就会在相位穿越频率附近失稳；模型给出的临界 kp 是 6.79。" />
+
+## 常见错误
+
+- <strong>在弧度模型里塞进角度增益。</strong>第 3 个月的 0.05 N·m/度等于 2.86 N·m/rad。在以弧度计算的模型里直接用 0.05，回路会弱大约 57 倍，裕度就没有意义了。
+- <strong>忘了保持和延迟。</strong>连续的 C × P Bode 图里没有采样。真实回路把力矩保持 5 ms，还会晚一个采样才作用；两者都增加相位滞后（在这个穿越频率处约 15°），漏掉它们，预测的 PM 就会过于乐观。
+- <strong>拿没和实测对过的模型读裕度。</strong>如果开环阶跃的最终速度或 63 % 时间对不上，先修 B 和 J。参数错了，裕度只是虚构。
+- <strong>忽略饱和。</strong>线性分析假设要求的力矩真的输出去了。电机一旦削顶，回路增益就不再是那个 L；测试阶跃要小，只在指令没有饱和的范围内扫增益。
+- <strong>识别时换了负载。</strong>重力前馈抵消的是你建模的那部分重力，不是新加的负载或弹簧。要在关节实际工作的姿态和负载下测 tau 和 B；负载一变，J、B 和两个裕度都会动。

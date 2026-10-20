@@ -1,0 +1,10 @@
+board found in 15 images of 640 x 480 px
+no distortion model:
+  reprojection error (RMS) 0.702 px
+  fx = 507.1  fy = 509.2  cx = 320.4  cy = 239.8 px
+  k1 = +0.0000  k2 = +0.0000
+k1, k2 (radial):
+  reprojection error (RMS) 0.189 px
+  fx = 499.8  fy = 499.9  cx = 319.8  cy = 239.6 px
+  k1 = -0.1212  k2 = +0.0310
+saved views/camera.json

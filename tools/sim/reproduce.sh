@@ -91,6 +91,13 @@ while t < 5500:
 print(' '.join(ev))")
 MPU=1 avr "$ELF" 8000 $ROLL > "$OUT/m3-balancer_cascade.txt"
 
+# Month 5 / Lesson 1: the arm joint modelled, identified and read in the frequency domain
+python3 "$SIM/models/joint_freq.py" > "$OUT/m5-joint_freq.txt"
+# Lesson 2: state space, LQR on a cart-pole, MPC on the arm joint
+python3 "$SIM/models/lqr_sim.py" > "$OUT/m5-lqr_sim.txt"
+# Lesson 3: forward kinematics, numerical IK, singularities
+python3 "$SIM/models/kinematics.py" > "$OUT/m5-kinematics.txt"
+
 if [[ "${1:-}" == "--compile-only-too" ]]; then
   echo "== compile-only sketches"
   for d in "$EX/arduino-io/blink_custom" "$EX/arduino-io/button_pullup" "$EX/first-robots/line_follower"; do
@@ -105,7 +112,7 @@ echo "== comparing with expected/"
 fail=0
 for f in "$SIM"/expected/*.txt; do
   n="$(basename "$f")"
-  [[ "$n" == m4-ros-* ]] && continue   # compared by ros/run.sh below, with a tolerance
+  [[ "$n" == m4-ros-* || "$n" == m5-cam_* || "$n" == m5-moveit_* ]] && continue   # compared by ros/run.sh and m5/run.sh below
   if diff -u "$f" "$OUT/$n" > "$OUT/$n.diff"; then echo "same  $n"; rm "$OUT/$n.diff"; else echo "DIFF  $n (see $OUT/$n.diff)"; fail=1; fi
 done
 
@@ -113,4 +120,9 @@ done
 # message when ROS 2 Jazzy is not sourced
 echo "== Month 4 ROS 2 runs (tools/sim/ros/run.sh)"
 "$SIM/ros/run.sh" || fail=1
+
+# Month 5: runs that need OpenCV/NumPy or MoveIt 2 (examples/month-5/pixi.toml); skipped with a
+# message when they are not installed
+echo "== Month 5 OpenCV and MoveIt 2 runs (tools/sim/m5/run.sh)"
+"$SIM/m5/run.sh" || fail=1
 exit $fail
