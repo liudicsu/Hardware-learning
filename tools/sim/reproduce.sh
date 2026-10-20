@@ -116,6 +116,10 @@ for f in "$SIM"/expected/*.txt; do
   if diff -u "$f" "$OUT/$n" > "$OUT/$n.diff"; then echo "same  $n"; rm "$OUT/$n.diff"; else echo "DIFF  $n (see $OUT/$n.diff)"; fail=1; fi
 done
 
+# every code block and simulated output quoted in the lessons must match the repo
+echo "== lesson quotes vs repo files (tools/check_quotes.py)"
+python3 "$ROOT/tools/check_quotes.py" || fail=1
+
 # Month 4: real ROS 2 software driving a simulated robot (Gazebo, mock hardware); skipped with a
 # message when ROS 2 Jazzy is not sourced
 echo "== Month 4 ROS 2 runs (tools/sim/ros/run.sh)"

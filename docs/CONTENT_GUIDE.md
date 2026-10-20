@@ -85,6 +85,13 @@ Every `## ` heading (outside code fences) becomes an entry in the lesson's "In t
   Outputs from real runs on a computer (e.g. Month 1 Python, `overflow.c`) are not labelled.
 - **Reproducibility:** add every simulated run to `tools/sim/reproduce.sh` and its quoted output to `tools/sim/expected/`;
   real computer runs go into a `check.sh` next to the examples (see `examples/month-1/check.sh`). Both must pass from a clean checkout.
+- **Comparing quotes with the repo (`python3 tools/check_quotes.py`, also run by `tools/sim/reproduce.sh`):**
+  every block under a `<CodeSource>` must be byte-for-byte its file, and every block inside a `<SimOutput>` must appear
+  byte-for-byte, on whole lines, in a file in `tools/sim/expected/` or `examples/month-N/expected/`.
+  **The one exception: shell command lines at the start of a block are not compared.** Leading lines that begin with
+  `$ ` (dollar, space), up to the first line that does not, are left out on the lesson side, so a quote may show the
+  `$ python3 …` prompt whether or not the expected file records it. Everything else, including a `$ ` line further
+  down the block, still compares byte-for-byte; a block made only of `$ ` lines is an error.
 - **Long code blocks fold automatically:** any fenced block over 30 lines shows its first 15 lines with an
   "Expand all / 展开全部" button. Every block has a Copy button. Nothing to do in MDX; just don't split code to avoid folding.
 
