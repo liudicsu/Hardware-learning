@@ -186,7 +186,7 @@ def main():
         bins = [sum(1 for v in dx if lo <= v < hi or (hi == edges[-1] and v == hi)) for lo, hi in zip(edges, edges[1:])]
         print(f'  {label:<14}' + ''.join(f'{c:>9}' for c in bins))
 
-    print('\nRollouts: 100 each with 0.5 cm actuator noise, same seeds for every policy')
+    print('\nRollouts: 100 each with 0.5 cm actuator noise, same seed for every policy')
     evaluate('average', lambda r: average_policy(demos))
     evaluate('sample', lambda r: chunk_policy(demos, 1, r))
     for n in (4, 8, 16):
@@ -223,12 +223,12 @@ Sideways part dx of the first action just past the fork, at (0, 0.23), 200 draws
 
 ## 取平均与采样
 
-现在跑完整任务，每个策略 100 次，种子相同：
+现在跑完整任务，每个策略 100 次，每次评估都从同一个种子开始：
 
 <SimOutput source="model">
 
 ```text
-Rollouts: 100 each with 0.5 cm actuator noise, same seeds for every policy
+Rollouts: 100 each with 0.5 cm actuator noise, same seed for every policy
 average          success  67/100   hit block  33   timeout   0   mean steps to goal 25.6
 sample           success  99/100   hit block   1   timeout   0   mean steps to goal 24.6
 ```
@@ -301,6 +301,6 @@ lerobot-train --dataset.repo_id=${HF_USER}/pick_cube --policy.type=diffusion \
 
 - <strong>在不知不觉中对多个模式取平均。</strong>如果策略慢慢往两个选项的中间挪，或者犹豫不决，检查一下你的示范里是否有两种做法。要么始终用同一种方式示范，要么用能采样的策略。
 - <strong>以为分块没有代价。</strong>动作块在下一次决策之前是开环运行的。余量很小、物体在动或抓取在打滑时，策略需要更早地重新观察；调整每次决策执行的动作数，并测量效果。
-- <strong>在不同数据或种子上比较策略。</strong>上面每一行都用同样的 40 条示范和同样的 100 组初始条件，所以差别来自策略本身。在硬件上也要保持这一点。
+- <strong>在不同数据或种子上比较策略。</strong>上面每一行都用同样的 40 条示范、同一个种子和同样的运行次数。第 4 课更进一步，给每次运行单独设种子，让每个策略遇到完全相同的初始条件；在硬件上，这意味着每个策略都用同一份起始位置清单。
 - <strong>把只会记忆的策略当成好策略。</strong>这里的扩散策略只能重放示范。在宣称策略能泛化之前，先在数据集里没有的起始位置上测试。
 - <strong>混淆训练成本和推理成本。</strong>扩散策略每个动作块需要多次通过网络，所以要在真正运行它的那台电脑上确认推理跟得上控制频率，而不只是在训练用的 GPU 上。

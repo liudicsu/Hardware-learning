@@ -186,7 +186,7 @@ def main():
         bins = [sum(1 for v in dx if lo <= v < hi or (hi == edges[-1] and v == hi)) for lo, hi in zip(edges, edges[1:])]
         print(f'  {label:<14}' + ''.join(f'{c:>9}' for c in bins))
 
-    print('\nRollouts: 100 each with 0.5 cm actuator noise, same seeds for every policy')
+    print('\nRollouts: 100 each with 0.5 cm actuator noise, same seed for every policy')
     evaluate('average', lambda r: average_policy(demos))
     evaluate('sample', lambda r: chunk_policy(demos, 1, r))
     for n in (4, 8, 16):
@@ -223,12 +223,12 @@ The demonstrations at this spot are 7 left and 3 right, each about 4.2 cm sidewa
 
 ## Averaging versus sampling
 
-Now the whole task, 100 runs per policy with the same seeds:
+Now the whole task, 100 runs per policy, each evaluation starting from the same seed:
 
 <SimOutput source="model">
 
 ```text
-Rollouts: 100 each with 0.5 cm actuator noise, same seeds for every policy
+Rollouts: 100 each with 0.5 cm actuator noise, same seed for every policy
 average          success  67/100   hit block  33   timeout   0   mean steps to goal 25.6
 sample           success  99/100   hit block   1   timeout   0   mean steps to goal 24.6
 ```
@@ -301,6 +301,6 @@ Compare them the way the toy model does: the same fixed set of start positions f
 
 - **Averaging over modes without noticing.** If a policy creeps slowly towards the middle of two options, or hesitates, check whether your demonstrations contain two ways of doing the task. Either demonstrate one way consistently or use a policy that can sample.
 - **Thinking chunking is free.** A chunk runs open loop until the next decision. Tight clearances, a moving object or a slipping grasp need the policy to look again sooner; tune how many actions to execute per decision and measure it.
-- **Comparing policies on different data or seeds.** Every line above uses the same 40 demonstrations and the same 100 starting conditions, so the differences are the policy's. Keep it that way on hardware.
+- **Comparing policies on different data or seeds.** Every line above uses the same 40 demonstrations, the same seed and the same number of runs. Lesson 4 goes one step further and gives every run its own seed, so that each policy meets exactly the same starting conditions; on hardware, that means the same list of start positions for every policy.
 - **Calling a memorising policy a good one.** The diffusion policy here can only replay demonstrations. Test on start positions that are not in the dataset before claiming a policy generalises.
 - **Mixing up training and inference cost.** A diffusion policy needs several network passes per chunk, so check that inference keeps up with your control rate on the computer that will run it, not only on the training GPU.

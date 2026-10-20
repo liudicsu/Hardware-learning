@@ -7,7 +7,7 @@ Sideways part dx of the first action just past the fork, at (0, 0.23), 200 draws
   sample              139        0        0        0       61
   diffusion           144        0        0        0       56
 
-Rollouts: 100 each with 0.5 cm actuator noise, same seeds for every policy
+Rollouts: 100 each with 0.5 cm actuator noise, same seed for every policy
 average          success  67/100   hit block  33   timeout   0   mean steps to goal 25.6
 sample           success  99/100   hit block   1   timeout   0   mean steps to goal 24.6
 chunk 4          success  98/100   hit block   0   timeout   2   mean steps to goal 24.8

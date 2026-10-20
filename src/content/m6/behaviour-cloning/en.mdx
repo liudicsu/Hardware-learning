@@ -154,7 +154,7 @@ def main():
                     f.write(f'{ep},{t},{p[0]:.4f},{p[1]:.4f},{a[0]:.4f},{a[1]:.4f}\n')
         print(f'wrote the first 20 episodes to {sys.argv[1]}')
 
-    print('\nEvaluation: 100 rollouts each, actuator noise 1 cm per step, same seeds for every policy')
+    print('\nEvaluation: 100 rollouts each, actuator noise 1 cm per step, same seed for every policy')
     report('expert', [], expert)
     for n in (5, 20, 80):
         frames = [f for f in demos if f[0] < n]
@@ -204,12 +204,12 @@ Episode 0 starts 1.8 cm right and 1.9 cm above the start point. The expert moves
 
 ## Covariate shift
 
-Now run every policy 100 times with the actuator noise switched on. The seeds are the same for every policy, so each line sees the same starting points and the same noise draws:
+Now run every policy 100 times with the actuator noise switched on. Every policy's evaluation starts from the same random seed. Only the first run of each sees exactly the same start and noise, because policies that take different numbers of steps use up the random numbers at different rates; lesson 4 shows how to seed each run so that every policy meets identical conditions:
 
 <SimOutput source="model">
 
 ```text
-Evaluation: 100 rollouts each, actuator noise 1 cm per step, same seeds for every policy
+Evaluation: 100 rollouts each, actuator noise 1 cm per step, same seed for every policy
 expert                   0 frames   success 100/100   wall   0   timeout   0   median worst offset 3.5 cm
 BC, 5 demos            190 frames   success  61/100   wall  39   timeout   0   median worst offset 7.2 cm
                      wall hits at: leg 1 4, corner 0, leg 2 6, goal end 29
@@ -229,7 +229,7 @@ The "wall hits at" line shows where it goes wrong. Most failures are at the goal
 
 <Quiz id="q2" question="If nothing ever corrects it, how far (one standard deviation, in cm) does 1 cm of independent noise per step drift one axis after 38 steps?" answer={6.2} unit="cm" explanation="Independent errors add in quadrature: 1 cm × √38 = 6.2 cm. That is more than half the corridor's 10 cm half-width, so a policy that does not steer back has a real chance of touching a wall even before compounding makes it worse." />
 
-<Quiz id="q3" question="Why did 80 demonstrations not do better than 20 here?" options={["The nearest-neighbour policy cannot use more than 766 frames", "The extra demos cover the same states on the centre line, not the off-path states the policy reaches under noise", "The evaluation seeds were different for the 80-demo run"]} answer={1} explanation="More data only helps if it covers the states the policy actually visits. The noise-free expert never leaves the centre line, so its demos never show recovery. The seeds are the same for every line, so the comparison is fair." />
+<Quiz id="q3" question="Why did 80 demonstrations not do better than 20 here?" options={["The nearest-neighbour policy cannot use more than 766 frames", "The extra demos cover the same states on the centre line, not the off-path states the policy reaches under noise", "The evaluation seeds were different for the 80-demo run"]} answer={1} explanation="More data only helps if it covers the states the policy actually visits. The noise-free expert never leaves the centre line, so its demos never show recovery. Every line uses the same seed and 100 runs, and the gap between 67 and 100 for DAgger is far larger than run-to-run luck." />
 
 ## Two fixes: noisy demonstrations and DAgger
 
@@ -287,6 +287,6 @@ What the corridor teaches carries straight over. Vary the cube's position across
 
 - **Recording only perfect demonstrations.** A dataset with no mistakes in it has no recoveries in it, and the policy will meet states the expert never showed it. Demonstrate the recovery from a small slip on purpose.
 - **Judging a policy from one run.** One clip proves the policy *can* succeed, not how often. Use a fixed set of starting conditions and count, as the evaluation above does with 100 seeded runs; lesson 4 of this month shows how many trials you need.
-- **Changing several things between runs.** The model keeps the seeds the same for every line so that the only difference is the policy. On hardware, keep the objects, lighting and start positions fixed while you compare two policies.
+- **Changing several things between runs.** The model evaluates every policy with the same seed, number of runs and noise, so that the policy is the main difference. On hardware, keep the objects, lighting and start positions fixed while you compare two policies.
 - **Adding more of the same data.** If a policy fails in one place, look at where (like the "wall hits at" line), then record or relabel data there. 80 demos of the same thing did not beat 20.
 - **Training on what the robot did instead of what was commanded.** The action column must be the command (the leader arm's joint targets), not the follower's measured position one frame later, or the policy learns to lag.

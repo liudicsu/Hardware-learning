@@ -6,7 +6,7 @@ episode_index frame_index  observation.state   action
 episode length: 38 to 39 frames
 wrote the first 20 episodes to demos.csv
 
-Evaluation: 100 rollouts each, actuator noise 1 cm per step, same seeds for every policy
+Evaluation: 100 rollouts each, actuator noise 1 cm per step, same seed for every policy
 expert                   0 frames   success 100/100   wall   0   timeout   0   median worst offset 3.5 cm
 BC, 5 demos            190 frames   success  61/100   wall  39   timeout   0   median worst offset 7.2 cm
                      wall hits at: leg 1 4, corner 0, leg 2 6, goal end 29

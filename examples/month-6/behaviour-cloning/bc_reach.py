@@ -135,7 +135,7 @@ def main():
                     f.write(f'{ep},{t},{p[0]:.4f},{p[1]:.4f},{a[0]:.4f},{a[1]:.4f}\n')
         print(f'wrote the first 20 episodes to {sys.argv[1]}')
 
-    print('\nEvaluation: 100 rollouts each, actuator noise 1 cm per step, same seeds for every policy')
+    print('\nEvaluation: 100 rollouts each, actuator noise 1 cm per step, same seed for every policy')
     report('expert', [], expert)
     for n in (5, 20, 80):
         frames = [f for f in demos if f[0] < n]

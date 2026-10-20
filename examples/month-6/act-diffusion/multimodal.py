@@ -167,7 +167,7 @@ def main():
         bins = [sum(1 for v in dx if lo <= v < hi or (hi == edges[-1] and v == hi)) for lo, hi in zip(edges, edges[1:])]
         print(f'  {label:<14}' + ''.join(f'{c:>9}' for c in bins))
 
-    print('\nRollouts: 100 each with 0.5 cm actuator noise, same seeds for every policy')
+    print('\nRollouts: 100 each with 0.5 cm actuator noise, same seed for every policy')
     evaluate('average', lambda r: average_policy(demos))
     evaluate('sample', lambda r: chunk_policy(demos, 1, r))
     for n in (4, 8, 16):
