@@ -152,8 +152,13 @@ pixi run sim          # tools/sim/m5/run.sh: camera calibration on synthetic pho
 runs differ slightly from run to run, so `examples/month-4/compare.py` compares their numbers with a tolerance and
 masks timestamps. A few lines of `examples/month-4/check.sh` (`ros2 topic hz`, `ros2 bag info` counts, the first
 `tf2_echo` line) depend on startup timing: on a busy machine one of them can show a `DIFF`; run it again on an idle
-machine before treating it as a real difference. `pixi install` writes `.pixi/` and `pixi.lock` next to the
-`pixi.toml`; both are git-ignored (and ignored by ESLint and TypeScript). On Ubuntu 24.04 you can use the official apt packages instead
+machine before treating it as a real difference. `pixi install` writes `.pixi/` next to the `pixi.toml`
+(git-ignored, and ignored by ESLint and TypeScript); the `pixi.lock` files (`examples/month-4/pixi.lock`,
+`examples/month-5/pixi.lock`) are committed for reproducibility, so `pixi install` installs the same package versions as the environments
+the quoted outputs were produced with (pixi 0.82.0, linux-64; in Month 4 only `ros-jazzy-rviz2` and
+`ros-jazzy-joint-state-publisher-gui`, added to `pixi.toml` later, were solved on top of that environment). Use `pixi install --locked`
+to fail instead of re-solving if the lock is out of date with `pixi.toml`, and `pixi update` only when you
+deliberately want newer packages. On Ubuntu 24.04 you can use the official apt packages instead
 (see [examples/month-4/README.md](examples/month-4/README.md)).
 
 ## Writing or changing a lesson / 编写课程

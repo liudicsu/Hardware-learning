@@ -55,6 +55,5 @@ examples/**/build/
 __pycache__/
 *.pyc
 
-# pixi environments (examples/month-4, examples/month-5: `pixi install`); the lock files are not committed
+# pixi environments (examples/month-4, examples/month-5: `pixi install`); .pixi/ is ignored, but the pixi.lock files are committed for reproducibility
 .pixi/
-examples/**/pixi.lock
