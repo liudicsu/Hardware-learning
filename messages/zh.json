@@ -20,18 +20,17 @@
     "start": "从第 1 个月开始",
     "continue": "继续学习",
     "roadmap": "六个月路线",
-    "statusReady": "可学习",
-    "statusOutline": "大纲 · 即将推出",
     "lessons": "{count} 节课",
     "howTitle": "怎么用这个网站",
     "how1Title": "读讲解",
     "how1": "每节课先给出原创的中英双语讲解，概念、公式与常见误区一页读完。",
     "how2Title": "动手做",
-    "how2": "在内嵌的 Falstad 模拟器里搭电路、做小测验、完成任务清单。",
+    "how2": "在内嵌的 Falstad 模拟器里搭电路，运行仓库里的示例代码，做小测验、完成任务清单。",
     "how3Title": "深入学",
     "how3": "资源卡片直达原作者的课程、教材与工具，版权归原作者。",
     "progressTitle": "你的进度",
-    "progressLocal": "进度仅保存在本浏览器（localStorage），不会上传。"
+    "progressLocal": "进度仅保存在本浏览器（localStorage），不会上传。",
+    "hours": "约 {n} 小时"
   },
   "month": {
     "label": "第 {n} 个月",
@@ -39,12 +38,12 @@
     "lessons": "课程",
     "milestones": "本月里程碑",
     "milestonesLead": "月底你应该能做到：",
-    "topics": "主题大纲",
-    "outlineNotice": "本月内容正在编写中。以下是根据原课程整理的大纲与里程碑，完整课程将在第 1 个月审核通过后陆续上线。",
+    "topics": "本月主题",
     "progress": "本月进度",
     "minutes": "约 {n} 分钟",
     "back": "返回路线图",
-    "start": "开始本月"
+    "start": "开始本月",
+    "stats": "{lessons} 节课 · 约 {hours} 小时 · {tasks} 个动手任务"
   },
   "lesson": {
     "lesson": "第 {n} 课",

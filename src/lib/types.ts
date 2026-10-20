@@ -52,7 +52,6 @@ export interface Month {
   slug: string;
   title: L10n;
   goal: L10n;
-  status: "ready" | "outline";
   topics: L10n[];
   milestones: L10n[];
   lessons: Lesson[];

@@ -583,7 +583,6 @@ export const months: Month[] = [
       zh: "能读懂原理图、搭出能工作的电路，并在电路不工作时找到故障。",
       en: "Read a schematic, build a circuit that works, and find the fault when it doesn't.",
     },
-    status: "ready",
     topics: [
       { zh: "电子学基础", en: "Electronics fundamentals" },
       { zh: "工作台、工具与预算", en: "The bench, tools and budget" },
@@ -608,7 +607,6 @@ export const months: Month[] = [
       zh: "做出一台能移动、能感知环境、能自我纠正的机器人。",
       en: "Build a robot that moves, senses its environment and corrects itself.",
     },
-    status: "ready",
     topics: [
       { zh: "Arduino：IO、PWM、中断、I2C/SPI、串口调试、非阻塞计时", en: "Arduino: IO, PWM, interrupts, I2C/SPI, serial debugging, non-blocking timing" },
       { zh: "ESP32：Wi-Fi/蓝牙、ESP-IDF 与 Arduino 内核", en: "ESP32: Wi-Fi/Bluetooth, ESP-IDF and the Arduino core" },
@@ -634,7 +632,6 @@ export const months: Month[] = [
       zh: "在 CAD 中设计一个零件，把它制造出来，并且装得上。",
       en: "Design a part in CAD, manufacture it, and have it fit.",
     },
-    status: "ready",
     topics: [
       { zh: "CAD：Onshape / Fusion / FreeCAD / SOLIDWORKS 选型与参数化建模", en: "CAD: choosing Onshape / Fusion / FreeCAD / SOLIDWORKS; parametric modelling" },
       { zh: "3D 打印：校准、公差与面向 FDM 的设计", en: "3D printing: calibration, tolerances and design for FDM" },
@@ -661,7 +658,6 @@ export const months: Month[] = [
       zh: "用 ROS 2 构建机器人并仿真，让它建图并自主导航。",
       en: "Build a robot in ROS 2, simulate it, and make it map a room and navigate autonomously.",
     },
-    status: "ready",
     topics: [
       { zh: "选择 ROS 2 发行版，避开 ROS 1 陷阱", en: "Choosing a ROS 2 distro and avoiding the ROS 1 trap" },
       { zh: "ROS 2 核心概念：节点、话题、服务、动作", en: "ROS 2 core concepts: nodes, topics, services, actions" },
@@ -688,7 +684,6 @@ export const months: Month[] = [
       zh: "理解并实现你已用过的控制与感知背后的原理。",
       en: "Understand and implement the control and perception underneath everything you've built.",
     },
-    status: "ready",
     topics: [
       { zh: "控制理论：从 PID 走向建模与频域", en: "Control theory: from PID to models and the frequency domain" },
       { zh: "状态空间、LQR 与 MPC", en: "State space, LQR and MPC" },
@@ -714,7 +709,6 @@ export const months: Month[] = [
       zh: "选定一个方向，做出代表作，并开始投递。",
       en: "Pick one direction, build a portfolio piece in it, and start applying.",
     },
-    status: "ready",
     topics: [
       { zh: "模仿学习：行为克隆、ACT、扩散策略", en: "Imitation learning: behaviour cloning, ACT, diffusion policy" },
       { zh: "VLA 模型：哪些开放权重", en: "VLA models and which have open weights" },
@@ -732,6 +726,17 @@ export const months: Month[] = [
     lessons: month6Lessons,
   },
 ];
+
+/** Totals shown on the home page and month overview. */
+export function monthStats(month: Month) {
+  const minutes = month.lessons.reduce((sum, l) => sum + l.minutes, 0);
+  return {
+    lessons: month.lessons.length,
+    tasks: month.lessons.reduce((sum, l) => sum + l.tasks.length, 0),
+    /** Reading and exercise time, rounded to the nearest half hour. */
+    hours: Math.round(minutes / 30) / 2,
+  };
+}
 
 export function getMonth(slug: string): Month | undefined {
   return months.find((m) => m.slug === slug);

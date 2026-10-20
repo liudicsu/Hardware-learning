@@ -20,18 +20,17 @@
     "start": "Start Month 1",
     "continue": "Continue learning",
     "roadmap": "The six-month roadmap",
-    "statusReady": "Ready",
-    "statusOutline": "Outline · coming soon",
     "lessons": "{count} lessons",
     "howTitle": "How to use this site",
     "how1Title": "Read",
     "how1": "Each lesson opens with an original bilingual explanation: concepts, formulas and common mistakes on one page.",
     "how2Title": "Do",
-    "how2": "Build circuits in the embedded Falstad simulator, answer quizzes and tick off the task list.",
+    "how2": "Build circuits in the embedded Falstad simulator, run the example code from the repository, answer quizzes and tick off the task list.",
     "how3Title": "Go deeper",
     "how3": "Resource cards link straight to the original courses, books and tools. Copyright stays with their authors.",
     "progressTitle": "Your progress",
-    "progressLocal": "Progress is stored only in this browser (localStorage) and never uploaded."
+    "progressLocal": "Progress is stored only in this browser (localStorage) and never uploaded.",
+    "hours": "≈ {n} h"
   },
   "month": {
     "label": "Month {n}",
@@ -39,12 +38,12 @@
     "lessons": "Lessons",
     "milestones": "Month milestone",
     "milestonesLead": "By the end of the month you should be able to:",
-    "topics": "Topic outline",
-    "outlineNotice": "This month is being written. Below are the outline and milestones from the original course; full lessons will follow once Month 1 has been reviewed.",
+    "topics": "Topics this month",
     "progress": "Month progress",
     "minutes": "≈ {n} min",
     "back": "Back to roadmap",
-    "start": "Start this month"
+    "start": "Start this month",
+    "stats": "{lessons} lessons · ≈ {hours} h · {tasks} hands-on tasks"
   },
   "lesson": {
     "lesson": "Lesson {n}",
