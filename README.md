@@ -69,7 +69,7 @@ cp -R out/. /tmp/pages-preview/Hardware-learning/
 
 `.github/workflows/pages.yml` deploys every push to `main` to <https://liudicsu.github.io/Hardware-learning/>.
 
-Code checks: `npx tsc --noEmit` and `npm run lint` (ESLint). There is no CI in this repository; run them locally.
+Code checks: `npx tsc --noEmit` and `npm run lint` (ESLint). `.github/workflows/ci.yml` runs `npm run lint`, `npx tsc --noEmit` and `npm run build` on every pull request and push to `main`.
 
 ## Reproduce the lesson outputs / 复现课程中的输出
 
