@@ -1,0 +1,207 @@
+前两课的策略都是针对一台机器人上的一个任务从零训练的。视觉-语言-动作模型（vision-language-action model，VLA）则从一个视觉-语言模型出发——这个网络已经在海量图像和文字上训练过——再在来自许多机器人的示范数据上继续训练，让它把一张相机图像加一句指令（比如“把红色方块放进盒子”）映射成机器人的动作。你很少需要自己从头训练一个；你下载一个，然后用几十条任务示范对它做<strong>微调</strong>（fine-tune）。本课讲动作如何进出这种模型、哪些模型真的能下载，以及它们用什么许可证。
+
+## VLA 是什么
+
+三个部分。<strong>视觉编码器</strong>把每张相机图像变成一串特征向量。<strong>语言模型</strong>把这些特征和分词后的指令一起读入（多数模型还会读入机器人的关节状态）。<strong>动作输出</strong>把语言模型的结果变成给电机的数字。前两部分来自预训练好的视觉-语言模型；与机器人相关的学习主要发生在第三部分和微调中。
+
+动作输出有两种做法，它们在很大程度上决定了模型的行为：
+
+- <strong>把动作当成词元（token）。</strong>给语言模型的词表加上动作词元，让它像写字一样一个接一个地写出动作。RT-2 和 OpenVLA 是这样做的；π0-FAST 也是，只是用了更好的分词器。
+- <strong>单独的动作头。</strong>把语言模型的特征送进一个较小的网络，由它通过扩散或流匹配（flow matching，与[上一课](/zh/month/month-6/act-diffusion)的扩散是近亲）生成一整块连续动作。Octo、π0、π0.5、SmolVLA 和 GR00T 是这样做的。
+
+第一种做法可以原封不动地复用语言模型，但必须决定怎样把动作写成词元。这正是不用 GPU 也能运行和查看的部分。
+
+## 把动作写成词元：256 个区间
+
+RT-2 和 OpenVLA 给每个动作维度 256 个词元。对每个维度，用数据集的第 1 和第 99 百分位数确定范围，把范围等分成 256 个区间（bin），一个数值就变成它所在区间的编号。超出百分位数的值被截断到两端的区间，这样一个罕见的极端值不会把所有区间都撑宽。
+
+<Formula label="单个动作值的区间词元">token = floor(256 × (clip(a, p1, p99) − p1) / (p99 − p1)),   from 0 to 255</Formula>
+
+下面的程序生成一个形状类似 SO-101 遥操作的数据集：50 个回合、6 个关节目标（单位度）、30 Hz。然后用两种方法给一个新回合里 1 秒长的动作块分词：
+
+<CodeSource path="examples/month-6/vla-models/action_tokens.py" />
+
+```python
+"""action_tokens.py: how a VLA turns robot actions into tokens, per-step bins versus a DCT of the whole chunk.
+
+A language model outputs tokens, so an autoregressive VLA needs a way to write actions as tokens. Two schemes:
+  bins  (RT-2, OpenVLA): each action dimension at each step becomes one of 256 tokens, bins spread evenly
+        between that dimension's 1st and 99th percentile over the dataset.
+  DCT   (the idea behind FAST, used by pi0-FAST): normalise each dimension to -1..1 with the same percentiles,
+        take a discrete cosine transform of each dimension over the chunk, multiply by a scale and round.
+        Smooth motion puts almost everything into a few low-frequency coefficients; the rest round to zero.
+        (FAST then compresses the integers with byte-pair encoding; this program counts nonzero coefficients.)
+The actions are synthetic but shaped like a teleoperated SO-101: 6 joint targets in degrees at 30 Hz, chunks of
+1 s (30 steps). Standard library only, fixed seeds.
+"""
+import math
+import random
+
+HZ, CHUNK, JOINTS, BINS = 30, 30, 6, 256
+
+
+def episode(rng, seconds=10):
+    """Smooth joint targets: a few slow sine components per joint, like a person moving a leader arm."""
+    comps = [[(rng.uniform(5, 40), rng.uniform(0.1, 0.8), rng.uniform(0, 2 * math.pi)) for _ in range(3)]
+             for _ in range(JOINTS)]
+    offset = [rng.uniform(-30, 30) for _ in range(JOINTS)]
+    return [[offset[j] + sum(a * math.sin(2 * math.pi * f * t / HZ + ph) for a, f, ph in comps[j])
+             for j in range(JOINTS)] for t in range(seconds * HZ)]
+
+
+def percentile(values, q):
+    v = sorted(values)
+    k = (len(v) - 1) * q
+    lo = int(k)
+    return v[lo] + (v[min(lo + 1, len(v) - 1)] - v[lo]) * (k - lo)
+
+
+def to_bins(x, lo, hi):
+    u = (min(max(x, lo), hi) - lo) / (hi - lo)
+    return min(int(u * BINS), BINS - 1)
+
+
+def from_bins(token, lo, hi):
+    return lo + (token + 0.5) * (hi - lo) / BINS
+
+
+def dct(x):
+    """DCT-II with orthonormal scaling."""
+    n = len(x)
+    return [math.sqrt((1 if k == 0 else 2) / n) * sum(x[i] * math.cos(math.pi * k * (2 * i + 1) / (2 * n))
+                                                      for i in range(n)) for k in range(n)]
+
+
+def idct(c):
+    n = len(c)
+    return [sum(math.sqrt((1 if k == 0 else 2) / n) * c[k] * math.cos(math.pi * k * (2 * i + 1) / (2 * n))
+                for k in range(n)) for i in range(n)]
+
+
+def errors(chunk, rebuilt):
+    diffs = [abs(a - b) for row, rrow in zip(chunk, rebuilt) for a, b in zip(row, rrow)]
+    return math.sqrt(sum(d * d for d in diffs) / len(diffs)), max(diffs)
+
+
+def main():
+    rng = random.Random(6)
+    data = [episode(rng) for _ in range(50)]
+    lo = [percentile([s[j] for ep in data for s in ep], 0.01) for j in range(JOINTS)]
+    hi = [percentile([s[j] for ep in data for s in ep], 0.99) for j in range(JOINTS)]
+    print(f'Dataset: 50 episodes of 10 s, {JOINTS} joints at {HZ} Hz; 1st..99th percentile per joint (deg):')
+    print('  ' + '  '.join(f'j{j} {lo[j]:+.0f}..{hi[j]:+.0f}' for j in range(JOINTS)))
+    print(f'  bin width = range / {BINS}: ' + ', '.join(f'{(hi[j] - lo[j]) / BINS:.2f}' for j in range(JOINTS)) + ' deg')
+
+    chunk = episode(random.Random(99))[:CHUNK]          # a new episode, not in the dataset
+    print(f'\nOne {CHUNK}-step chunk (1 s) from a new episode: {CHUNK} x {JOINTS} = {CHUNK * JOINTS} numbers')
+
+    tokens = [[to_bins(chunk[t][j], lo[j], hi[j]) for j in range(JOINTS)] for t in range(CHUNK)]
+    rebuilt = [[from_bins(tokens[t][j], lo[j], hi[j]) for j in range(JOINTS)] for t in range(CHUNK)]
+    rms, worst = errors(chunk, rebuilt)
+    clipped = sum(1 for t in range(CHUNK) for j in range(JOINTS) if not lo[j] <= chunk[t][j] <= hi[j])
+    print(f'bins: {CHUNK * JOINTS} tokens, error rms {rms:.3f} deg, max {worst:.3f} deg '
+          f'({clipped} values outside the 1st..99th percentile, clipped)')
+    print('  joint 0 tokens, first 12 steps: ' + ' '.join(str(tokens[t][0]) for t in range(12)))
+    same = sum(1 for t in range(1, CHUNK) for j in range(JOINTS) if tokens[t][j] == tokens[t - 1][j])
+    near = sum(1 for t in range(1, CHUNK) for j in range(JOINTS) if abs(tokens[t][j] - tokens[t - 1][j]) <= 2)
+    total = (CHUNK - 1) * JOINTS
+    print(f'  token equal to the previous step: {same}/{total}; within 2 of it: {near}/{total}')
+
+    print('\nDCT of each joint over the chunk, normalised to -1..1, then scale and round:')
+    norm = [[2 * (chunk[t][j] - lo[j]) / (hi[j] - lo[j]) - 1 for j in range(JOINTS)] for t in range(CHUNK)]
+    coeffs = [dct([norm[t][j] for t in range(CHUNK)]) for j in range(JOINTS)]
+    for scale in (5, 10, 30, 100):
+        q = [[round(c * scale) for c in coeffs[j]] for j in range(JOINTS)]
+        nonzero = sum(1 for j in range(JOINTS) for v in q[j] if v != 0)
+        back = [idct([v / scale for v in q[j]]) for j in range(JOINTS)]
+        rebuilt = [[(back[j][t] + 1) / 2 * (hi[j] - lo[j]) + lo[j] for j in range(JOINTS)] for t in range(CHUNK)]
+        rms, worst = errors(chunk, rebuilt)
+        print(f'  scale {scale:>3}: {nonzero:>3} nonzero coefficients of {CHUNK * JOINTS}, '
+              f'error rms {rms:.3f} deg, max {worst:.3f} deg')
+    q = [round(c * 10) for c in coeffs[0]]
+    print('  joint 0 at scale 10: ' + ' '.join(str(v) for v in q))
+
+
+if __name__ == '__main__':
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+$ python3 action_tokens.py
+Dataset: 50 episodes of 10 s, 6 joints at 30 Hz; 1st..99th percentile per joint (deg):
+  j0 -84..+77  j1 -85..+73  j2 -78..+80  j3 -77..+86  j4 -75..+82  j5 -69..+78
+  bin width = range / 256: 0.63, 0.62, 0.62, 0.64, 0.61, 0.57 deg
+
+One 30-step chunk (1 s) from a new episode: 30 x 6 = 180 numbers
+bins: 180 tokens, error rms 0.892 deg, max 6.194 deg (6 values outside the 1st..99th percentile, clipped)
+  joint 0 tokens, first 12 steps: 158 155 152 149 145 141 137 134 130 126 123 120
+  token equal to the previous step: 21/174; within 2 of it: 102/174
+```
+
+</SimOutput>
+
+每个区间大约 0.6 度宽，所以范围内的值最多差半个区间，即 0.3 度。6.2 度的最大误差来自这个新回合里 6 个超出数据集百分位数、被截断的值：分词器根本无法表达比构建它时见过的更大的运动。代价是长度：一台 6 关节机械臂的 1 秒动作就是 180 个词元，而模型必须一个一个地生成它们。
+
+关节 0 的词元序列显示了另一个问题。在 30 Hz 下相邻动作很接近，所以每个词元只比上一个变一点点；174 次相邻变化中有 102 次不超过 2 个区间。一个被训练去预测下一个词元的模型，只要照抄上一个就能得到不错的分数，但这几乎什么也没教会它。采样频率越高，这个问题越严重。
+
+<Quiz id="q1" question="某个关节的第 1 到第 99 百分位数范围是 −84 到 +77 度。256 个区间中每个有多宽（度）？" answer={0.63} unit="度" explanation="(77 − (−84)) / 256 = 161 / 256 = 0.63 度。范围内的值能还原到它的一半以内，即 0.31 度。" />
+
+<Quiz id="q2" question="ALOHA 的两条手臂共有 14 个动作维度，以 50 Hz 运行。1 秒的动作是多少个区间词元？" answer={700} unit="个" explanation="14 个维度 × 50 步 = 700 个词元，而且要一个接一个地生成。这就是为什么逐步分区间的方法对快速、多关节的机器人不实用。" />
+
+## 用 DCT 压缩一个动作块
+
+FAST 是 π0-FAST 背后的分词器，它一次给整个动作块分词。它用同样的百分位数把每个维度归一化到 −1..1，对每个维度在整个动作块上做离散余弦变换（discrete cosine transform，DCT），乘上一个缩放系数再取整。平滑的运动主要是低频，所以大多数高频系数取整后变成零；FAST 再用字节对编码（byte-pair encoding）压缩这串整数。程序用非零系数的个数来近似最终的词元数：
+
+<SimOutput source="model">
+
+```text
+DCT of each joint over the chunk, normalised to -1..1, then scale and round:
+  scale   5:  19 nonzero coefficients of 180, error rms 2.028 deg, max 5.008 deg
+  scale  10:  28 nonzero coefficients of 180, error rms 1.103 deg, max 3.535 deg
+  scale  30:  41 nonzero coefficients of 180, error rms 0.499 deg, max 1.350 deg
+  scale 100:  70 nonzero coefficients of 180, error rms 0.181 deg, max 0.592 deg
+  joint 0 at scale 10: -1 4 5 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+```
+
+</SimOutput>
+
+关节 0 整整 1 秒的运动只是五个小整数加一串零。缩放系数是长度与精度之间的旋钮：缩放 10 时，这个动作块只需 28 个数而不是 180 个（少 6.4 倍），rms 误差约 1.1 度；缩放 100 时需要 70 个，误差 0.18 度。而且每个系数描述的是整个动作块的形状而不是某一时刻，所以预测它是一个真正的决策，而不是照抄上一个词元。
+
+<Quiz id="q3" question="缩放 30 时，DCT 需要 41 个非零系数。这比 180 个区间词元少几倍？" answer={4.4} explanation="180 / 41 = 4.4。它的 rms 误差是 0.50 度，比区间法的 0.89 度还小，因为 DCT 没有截断，并把取整误差分散到整个动作块上。" />
+
+## 哪些 VLA 可以下载
+
+“开放”对代码和对权重意味着不同的东西，而权重的许可证决定了你能拿微调后的模型做什么。截至 2026 年 10 月：
+
+| 模型 | 来自 | 动作怎么输出 | 权重 |
+|---|---|---|---|
+| OpenVLA (7B) | 斯坦福、伯克利、TRI 等 | 256 区间词元，7 维末端位姿增量 | MIT，在 Hugging Face 上 |
+| Octo | 伯克利等 | 小型 Transformer 加扩散动作头 | MIT，在 Hugging Face 上 |
+| π0, π0-FAST, π0.5 | Physical Intelligence（openpi） | 流匹配动作专家；π0-FAST 用 FAST 词元 | 代码 Apache-2.0；基础检查点可下载；基于 PaliGemma，LeRobot 上的副本标注 Gemma 许可证 |
+| SmolVLA (450M) | Hugging Face（LeRobot） | 流匹配动作专家，输出动作块 | Apache-2.0，在 Hugging Face 上 |
+| GR00T N1.6 (3B) | NVIDIA | 扩散 Transformer 动作头 | 可下载；NVIDIA 许可证，仅限研究与非商业用途 |
+| GR00T N1.7 (3B) | NVIDIA | 同 N1.6，面向人形机器人 | NVIDIA Open Model License，允许商用（抢先体验版，2026 年 4 月） |
+| RT-2, Gemini Robotics | Google DeepMind | （闭源） | 没有开放权重 |
+
+许可证会随新版本变化，以你下载当天的模型卡为准。最适合初学者 SO-101 的是 SmolVLA：它小到能在一张消费级 GPU 上微调，预训练只用了 LeRobot 社区公开分享的数据集，并在 SO-100 和 SO-101 上做过评估，而且 LeRobot 微调它用的数据集格式和 ACT 一样。它的文档建议大约 50 个回合（文档里是 5 个方块位置各 10 个），并给出在一张 A100 上 20,000 步约 4 小时。本页没有运行下面的命令：
+
+```bash
+lerobot-train --policy.path=lerobot/smolvla_base --dataset.repo_id=${HF_USER}/pick_cube \
+  --batch_size=64 --steps=20000 --output_dir=outputs/train/smolvla_pick_cube --policy.device=cuda
+```
+
+<Resource id="lerobot-smolvla" />
+
+## VLA 替你做不了的事
+
+VLA 并没有免除前几课的工作，只是把它挪了个地方。你仍然需要一个关于你自己机器人的好数据集，包含你希望它应对的变化和恢复动作。你仍然需要在一组固定条件下评估它。“零样本”（zero-shot）的说法只对与预训练数据相似的机器人和场景成立：OpenVLA 自己的模型卡就写明，不经微调它无法泛化到没见过的机器人形态。你得到的是语言条件（一个模型、多种指令）和一个更好的起点，于是每个任务需要的示范更少。
+
+## 常见错误
+
+- <strong>把“开源”当成“开放权重”，再当成“可以免费商用”。</strong>要看权重的许可证，不只是代码的。GR00T N1.6 的代码是 Apache-2.0，权重却仅限研究用途。
+- <strong>忘了归一化统计量。</strong>VLA 输出的是归一化后的动作。把它们还原需要它所微调的数据集的第 1/第 99 百分位数（或均值和标准差）；统计量用错，形状对了，幅度却错了。
+- <strong>指望在你的机械臂上零样本运行。</strong>不在你的机器人上微调，VLA 学到的关节或末端约定、相机位置和夹爪都可能和你的不一样。按大约 50 条示范来做计划。
+- <strong>忽略推理时间。</strong>一个 7B 模型需要大显存 GPU 才能跑得够快。在真正驱动机器人的那台电脑上测量每秒能出多少个动作；跟不上时，选更小的模型或按动作块执行。
+- <strong>不看范围就用区间法。</strong>如果你的任务里有比数据集中任何动作都大的运动，区间分词会把它截断，就像上面 6.2 度的误差那样。

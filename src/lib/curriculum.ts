@@ -523,6 +523,22 @@ const month6Lessons: Lesson[] = [
       { id: "train-real", text: { zh: "（有 GPU 和数据集时）用 LeRobot 在同一数据集上训练 ACT 和 Diffusion Policy，在同样 10 个起始位置上各测 10 次，记录成功率和每个动作块的推理时间", en: "(With a GPU and a dataset) train ACT and Diffusion Policy on the same LeRobot dataset, test each 10 times at the same 10 start positions, and record success and inference time per chunk" } },
     ],
   },
+  {
+    slug: "vla-models",
+    title: { zh: "VLA 模型：动作如何变成词元，哪些开放权重", en: "VLA models: how actions become tokens, and which have open weights" },
+    summary: {
+      zh: "视觉-语言-动作模型由视觉编码器、语言模型和动作输出组成。在一个类似 SO-101 遥操作的数据集上，比较 RT-2/OpenVLA 式的 256 区间分词和 FAST 式的 DCT 压缩：词元数、截断误差、相邻词元几乎相同的问题；再逐一核对 OpenVLA、Octo、π0/π0.5、SmolVLA、GR00T 的权重许可证，并给出在 SO-101 上微调 SmolVLA 的命令。",
+      en: "A vision-language-action model is a vision encoder, a language model and an action output. On a dataset shaped like SO-101 teleoperation, compare RT-2/OpenVLA-style 256-bin tokens with FAST-style DCT compression: token counts, clipping error and nearly identical consecutive tokens; then check the weight licences of OpenVLA, Octo, π0/π0.5, SmolVLA and GR00T one by one, with the command for fine-tuning SmolVLA on an SO-101.",
+    },
+    minutes: 180,
+    resources: ["lerobot-smolvla", "openvla", "openpi"],
+    tasks: [
+      { id: "run", text: { zh: "运行 action_tokens.py，手算关节 0 的区间宽度，并解释 6.2 度的最大误差从哪里来", en: "Run action_tokens.py, work out joint 0's bin width by hand, and explain where the 6.2-degree maximum error comes from" } },
+      { id: "rate", text: { zh: "把 HZ 改成 50 和 10（CHUNK 同步改成 1 秒），比较区间词元数、“与上一步相同”的比例和 DCT 缩放 10 时的非零系数个数", en: "Change HZ to 50 and to 10 (and CHUNK to match 1 s), and compare the bin token count, the share of tokens equal to the previous step, and the nonzero DCT coefficients at scale 10" } },
+      { id: "licences", text: { zh: "为表中每个模型打开模型卡，记下今天的权重许可证、参数量和是否允许商用，与课程表格对比", en: "Open the model card of every model in the table, write down today's weight licence, parameter count and whether commercial use is allowed, and compare with the lesson's table" } },
+      { id: "smolvla", text: { zh: "（有 GPU 和数据集时）在你第 1 课录的数据集上微调 SmolVLA，与同一数据集上的 ACT 在同样 10 个起始位置上比较成功率", en: "(With a GPU and a dataset) fine-tune SmolVLA on the dataset from lesson 1 and compare its success with ACT on the same data at the same 10 start positions" } },
+    ],
+  },
 ];
 
 export const months: Month[] = [

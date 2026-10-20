@@ -1,0 +1,15 @@
+Dataset: 50 episodes of 10 s, 6 joints at 30 Hz; 1st..99th percentile per joint (deg):
+  j0 -84..+77  j1 -85..+73  j2 -78..+80  j3 -77..+86  j4 -75..+82  j5 -69..+78
+  bin width = range / 256: 0.63, 0.62, 0.62, 0.64, 0.61, 0.57 deg
+
+One 30-step chunk (1 s) from a new episode: 30 x 6 = 180 numbers
+bins: 180 tokens, error rms 0.892 deg, max 6.194 deg (6 values outside the 1st..99th percentile, clipped)
+  joint 0 tokens, first 12 steps: 158 155 152 149 145 141 137 134 130 126 123 120
+  token equal to the previous step: 21/174; within 2 of it: 102/174
+
+DCT of each joint over the chunk, normalised to -1..1, then scale and round:
+  scale   5:  19 nonzero coefficients of 180, error rms 2.028 deg, max 5.008 deg
+  scale  10:  28 nonzero coefficients of 180, error rms 1.103 deg, max 3.535 deg
+  scale  30:  41 nonzero coefficients of 180, error rms 0.499 deg, max 1.350 deg
+  scale 100:  70 nonzero coefficients of 180, error rms 0.181 deg, max 0.592 deg
+  joint 0 at scale 10: -1 4 5 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0

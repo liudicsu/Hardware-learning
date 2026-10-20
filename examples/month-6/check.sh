@@ -21,4 +21,7 @@ check bc_demos_head.txt head -4 demos.csv
 
 # ---- Lesson 2: multimodal demonstrations, action chunks and diffusion ------------------------------
 check multimodal.txt python3 "$M6/act-diffusion/multimodal.py"
+
+# ---- Lesson 3: VLA action tokens, per-step bins versus a DCT of the chunk -------------------------
+check action_tokens.txt python3 "$M6/vla-models/action_tokens.py"
 exit $fail

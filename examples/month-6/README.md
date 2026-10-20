@@ -12,5 +12,6 @@ UPDATE=1 examples/month-6/check.sh   # rewrite expected/ after an intentional ch
 |---|---|---|
 | 1. Imitation learning I: behaviour cloning and DAgger | `behaviour-cloning/` | `bc_reach.py` |
 | 2. Imitation learning II: multimodal demos, ACT and diffusion policy | `act-diffusion/` | `multimodal.py` |
+| 3. VLA models: action tokens and open weights | `vla-models/` | `action_tokens.py` |
 
 Plan for the remaining lessons: `docs/notes/month-6-plan.md`.
