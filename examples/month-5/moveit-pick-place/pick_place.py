@@ -21,7 +21,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 FINGER = 0.1034            # panda_hand origin to the fingertips, m
 BLOCK = (0.04, 0.04, 0.08)
 PICK, PLACE = (0.5, -0.25), (0.5, 0.25)
-WALL_TOP = 0.25
+WALL = (0.30, 0.02, 0.25)   # length along x, thickness along y, height; centred at x = 0.5, y = 0
 
 
 def box(name, size, xyz, op=CollisionObject.ADD):
@@ -104,7 +104,8 @@ class Robot:
             state = traj[i]
             state.update()                       # compute the link poses for this waypoint
             t = state.get_global_link_transform("panda_hand")
-            above = abs(t[0, 3] - 0.5) < 0.15 + 0.02 and abs(t[1, 3]) < 0.01 + 0.02   # block overlaps the wall
+            above = (abs(t[0, 3] - 0.5) < (WALL[0] + BLOCK[0]) / 2 and       # block overlaps the wall
+                     abs(t[1, 3]) < (WALL[1] + BLOCK[1]) / 2)
             if above:
                 z = t[2, 3] - FINGER - grip_z    # fingertips are grip_z above the block's bottom
                 lowest = z if lowest is None else min(lowest, z)
@@ -116,11 +117,11 @@ def main():
     r = Robot()
     with r.scene.read_write() as scene:
         for obj in (box("table", (1.2, 1.2, 0.04), (0.4, 0.0, -0.03)),
-                    box("wall", (0.30, 0.02, WALL_TOP), (0.5, 0.0, WALL_TOP / 2)),
+                    box("wall", WALL, (0.5, 0.0, WALL[2] / 2)),
                     box("block", BLOCK, (PICK[0], PICK[1], BLOCK[2] / 2))):
             scene.apply_collision_object(obj)
         scene.current_state.update()
-    print("scene: table, wall 0.25 m high at y = 0, block at (0.50, -0.25) -> place at (0.50, +0.25)")
+    print(f"scene: table, wall {WALL[2]:.2f} m high at y = 0, block at ({PICK[0]:.2f}, {PICK[1]:+.2f}) -> place at ({PLACE[0]:.2f}, {PLACE[1]:+.2f})")
     grip_z = BLOCK[2] - 0.02          # fingertips 2 cm below the block top: the palm stays clear of it
     r.run("ready", r.arm, "ompl_rrtc", configuration_name="ready")
     r.gripper("open gripper", 0.08)
@@ -154,7 +155,7 @@ def main():
     if low is None:
         print("     route: around the end of the wall")
     else:
-        print(f"     route: over the wall, block bottom at least {low:.3f} m up (wall top {WALL_TOP:.2f} m)")
+        print(f"     route: over the wall, block bottom at least {low:.3f} m up (wall top {WALL[2]:.2f} m)")
     with r.scene.read_only() as scene:
         b = scene.get_frame_transform("block")
     print(f"block now at ({b[0, 3]:.3f}, {b[1, 3]:+.3f}, {b[2, 3]:.3f}) m")

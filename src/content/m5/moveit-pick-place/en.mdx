@@ -1,0 +1,385 @@
+Month 5, lesson 3 moved a three-joint arm to a point by solving IK with a Jacobian. That works in empty space. Here the arm shares its workspace with a table, a 0.25 m wall and a block, and a joint-space solution can pass straight through any of them. This lesson plans the motion instead: MoveIt 2, through its Python API MoveItPy, plans a collision-free path for the Franka Panda from `moveit_resources`, executes it on ros2_control mock hardware, and carries a block over the wall. It is not the SO-101. [Month 4, lesson 5](/en/month/month-4/ros2-control) set up ros2_control, and [this month's IK lesson](/en/month/month-5/kinematics-ik) solved IK by hand.
+
+## From IK to planning
+
+An IK solver returns one set of joint angles for one pose. It does not say how to move there, and it does not know what is in the way. Motion planning works in configuration space (C-space): one axis per joint. The Panda has seven joints, so a configuration is a point in seven dimensions, and every point can be tested for collision. A planner searches this space for a connected sequence of collision-free configurations, then turns it into a timed joint trajectory.
+
+Two planners share the work here. OMPL's RRTConnect grows two random trees, one from the start and one from the goal, until they meet. It is probabilistically complete: if a path exists, the chance of finding it approaches 1 as the planning time grows. It does not promise the shortest path, and the tree it grows is different on every run. The Pilz industrial motion planner's LIN moves the tool along a straight Cartesian line between two poses; it is predictable, but the line itself must be collision-free. The script uses OMPL for free moves and LIN for the approach, the lift and the retreat.
+
+<Quiz id="q1" question="Which planner should make the tool move straight down from 0.12 m above the block to the grasp height?" options={["OMPL RRTConnect", "Pilz LIN", "Neither: pure IK"]} answer={1} explanation="A straight Cartesian descent is exactly what Pilz LIN does. OMPL would find a path, but not necessarily a straight one; IK alone gives a goal, not a path." />
+
+## Setup and the scene
+
+### Mock hardware
+
+The robot runs on `mock_components/GenericSystem`. It is a ros2_control hardware interface that copies commands straight to the joint states: a position command becomes the measured joint position. There is no physics, no motor, no gravity and no contact force. MoveIt still plans and collision-checks in its own planning scene, but the simulated arm follows any trajectory exactly, and a released block does not fall. That last detail is why the placed block floats 2 mm at the end.
+
+<Callout type="warn" title="Mock hardware obeys, it does not simulate">GenericSystem copies commands to joint states. It has no dynamics, no gravity and no contact model. A grasp is only what the script tells MoveIt; the block will not drop, slip or be pushed. Use it to test planning and interfaces, not physics.</Callout>
+
+### The launch file
+
+`bringup.launch.py` starts everything except the planner. It builds the Panda description from `moveit_resources_panda` with the mock hardware mapping, starts a static `world` to `panda_link0` transform and `robot_state_publisher`, starts the controller manager with the Panda's `ros2_controllers.yaml`, and spawns the joint state broadcaster, the arm controller and the hand controller. There is no RViz and no `move_group`: the script brings its own MoveItPy.
+
+<CodeSource path="examples/month-5/moveit-pick-place/bringup.launch.py" />
+
+```python
+"""bringup.launch.py: the Panda arm from moveit_resources on ros2_control mock hardware.
+
+Starts robot_state_publisher, the controller manager with mock_components/GenericSystem
+(commands are copied straight to the joint states: no physics, no motors) and the arm and
+hand controllers. No RViz and no move_group: pick_place.py brings its own MoveIt (MoveItPy).
+Usage: ros2 launch bringup.launch.py
+"""
+import os
+
+from ament_index_python.packages import get_package_share_directory
+from launch import LaunchDescription
+from launch_ros.actions import Node
+from moveit_configs_utils import MoveItConfigsBuilder
+
+
+def generate_launch_description():
+    config = (MoveItConfigsBuilder("moveit_resources_panda")
+              .robot_description(file_path="config/panda.urdf.xacro",
+                                 mappings={"ros2_control_hardware_type": "mock_components"})
+              .to_moveit_configs())
+    controllers = os.path.join(get_package_share_directory("moveit_resources_panda_moveit_config"),
+                               "config", "ros2_controllers.yaml")
+    spawn = lambda name: Node(package="controller_manager", executable="spawner",
+                              arguments=[name, "--controller-manager", "/controller_manager"])
+    return LaunchDescription([
+        Node(package="tf2_ros", executable="static_transform_publisher",
+             arguments=["--frame-id", "world", "--child-frame-id", "panda_link0"]),
+        Node(package="robot_state_publisher", executable="robot_state_publisher",
+             parameters=[config.robot_description]),
+        Node(package="controller_manager", executable="ros2_control_node",
+             parameters=[controllers],
+             remappings=[("/controller_manager/robot_description", "/robot_description")]),
+        spawn("joint_state_broadcaster"), spawn("panda_arm_controller"), spawn("panda_hand_controller"),
+    ])
+```
+
+### The MoveItPy settings
+
+`moveit_py.yaml` tells MoveItPy where the state comes from and which planners to load. The planning scene monitor listens to `/joint_states`; both OMPL and Pilz are loaded. The default request uses OMPL at full speed, but the script does not use it: it builds two named parameter sets. `ompl_rrtc` is RRTConnect with one planning attempt, a 2 s planning time and 0.5 velocity and acceleration scaling. `pilz_lin` is LIN with 0.2 scaling. The lower LIN factor keeps the moves close to the block slow, which is what you want near objects on a real arm.
+
+<CodeSource path="examples/month-5/moveit-pick-place/moveit_py.yaml" />
+
+```yaml
+# MoveItPy settings for pick_place.py: where to read the robot state, which planners to load.
+planning_scene_monitor_options:
+  name: "planning_scene_monitor"
+  robot_description: "robot_description"
+  joint_state_topic: "/joint_states"
+  attached_collision_object_topic: "/moveit_cpp/planning_scene_monitor"
+  publish_planning_scene_topic: "/moveit_cpp/publish_planning_scene"
+  monitored_planning_scene_topic: "/moveit_cpp/monitored_planning_scene"
+  wait_for_initial_state_timeout: 10.0
+
+planning_pipelines:
+  pipeline_names: ["ompl", "pilz_industrial_motion_planner"]
+
+plan_request_params:              # default: OMPL, full speed
+  planning_attempts: 1
+  planning_pipeline: ompl
+  planner_id: "RRTConnectkConfigDefault"
+  planning_time: 2.0
+  max_velocity_scaling_factor: 1.0
+  max_acceleration_scaling_factor: 1.0
+
+ompl_rrtc:
+  plan_request_params:
+    planning_attempts: 1
+    planning_pipeline: ompl
+    planner_id: "RRTConnectkConfigDefault"
+    planning_time: 2.0
+    max_velocity_scaling_factor: 0.5
+    max_acceleration_scaling_factor: 0.5
+
+pilz_lin:                         # straight lines for the approach and the retreat
+  plan_request_params:
+    planning_attempts: 1
+    planning_pipeline: pilz_industrial_motion_planner
+    planner_id: "LIN"
+    planning_time: 2.0
+    max_velocity_scaling_factor: 0.2
+    max_acceleration_scaling_factor: 0.2
+```
+
+The script retries an OMPL plan up to three times; Pilz gets one attempt. The attempt and time limits are per request; the retry loop lives in `run()`.
+
+### The scene and the grasp pose
+
+`pick_place.py` adds three collision boxes to the planning scene, all in `panda_link0`: a 1.2 x 1.2 x 0.04 m table, a 0.30 x 0.02 x 0.25 m wall at y = 0, and a 0.04 x 0.04 x 0.08 m block at (0.50, -0.25). The pick is at (0.50, -0.25) and the place at (0.50, +0.25), on opposite sides of the wall. The wall spans x 0.35 to 0.65, so the direct line between pick and place crosses it.
+
+The hand is commanded by pose. `hand_pose(x, y, z)` builds a `PoseStamped` whose fingertips are at (x, y, z): the hand origin sits 0.1034 m above them, and the orientation points the fingers straight down. Its quaternion is (x, y, z, w) = (0.9238795, -0.3826834, 0, 0). This is a good place to be careful: `geometry_msgs/Quaternion` initialises w to 1, and with w = 1 next to that x and y the quaternion is not even of unit length, let alone the rotation you meant, so the code sets all four components.
+
+<Formula label="From fingertips to the hand origin">z_hand = z_fingertips + 0.1034 m,   grip_z = 0.08 m - 0.02 m = 0.06 m</Formula>
+
+The grasp height is `grip_z = 0.06 m`: 2 cm below the block's top. That leaves the palm clear of the block while the fingers close around its upper part.
+
+While the block is carried it is attached to `panda_hand` with `touch_links` `panda_hand`, `panda_leftfinger` and `panda_rightfinger`. Attaching tells MoveIt that the block moves with the hand; the touch links say those three links are allowed to touch it. Every other link, and the block against the wall, is still checked. Without the attachment the planner would keep only the arm clear and could scrape the block through the wall.
+
+<Resource id="moveit-docs" />
+
+## Pick and place, step by step
+
+<CodeSource path="examples/month-5/moveit-pick-place/pick_place.py" />
+
+```python
+"""pick_place.py: a collision-free pick and place with MoveIt 2 (MoveItPy) on the Panda arm.
+
+The scene: a table, a 4 x 4 x 8 cm block on the right, and a 25 cm wall between it and the
+place position on the left. Free moves are planned by OMPL (RRTConnect), the approach and
+retreat as straight lines by Pilz LIN. The block is attached to the hand while it is
+carried, so MoveIt keeps the block, not just the arm, clear of the wall. Needs bringup.launch.py
+running. Usage: python3 pick_place.py
+"""
+import os
+import time
+
+import rclpy
+from geometry_msgs.msg import Pose, PoseStamped
+from moveit.core.robot_state import RobotState
+from moveit.planning import MoveItPy, PlanRequestParameters
+from moveit_configs_utils import MoveItConfigsBuilder
+from moveit_msgs.msg import AttachedCollisionObject, CollisionObject
+from shape_msgs.msg import SolidPrimitive
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+FINGER = 0.1034            # panda_hand origin to the fingertips, m
+BLOCK = (0.04, 0.04, 0.08)
+PICK, PLACE = (0.5, -0.25), (0.5, 0.25)
+WALL = (0.30, 0.02, 0.25)   # length along x, thickness along y, height; centred at x = 0.5, y = 0
+
+
+def box(name, size, xyz, op=CollisionObject.ADD):
+    obj = CollisionObject()
+    obj.id, obj.header.frame_id, obj.operation = name, "panda_link0", op
+    prim = SolidPrimitive(type=SolidPrimitive.BOX, dimensions=list(size))
+    pose = Pose()
+    pose.position.x, pose.position.y, pose.position.z = xyz
+    pose.orientation.w = 1.0
+    obj.primitives, obj.primitive_poses = [prim], [pose]
+    return obj
+
+
+def hand_pose(x, y, z):
+    """panda_hand pointing straight down with the fingertips at (x, y, z)."""
+    p = PoseStamped()
+    p.header.frame_id = "panda_link0"
+    p.pose.position.x, p.pose.position.y, p.pose.position.z = x, y, z + FINGER
+    q = p.pose.orientation
+    q.x, q.y, q.z, q.w = 0.9238795, -0.3826834, 0.0, 0.0     # down (w defaults to 1: set it)
+    return p
+
+
+class Robot:
+    def __init__(self):
+        config = (MoveItConfigsBuilder("moveit_resources_panda")
+                  .robot_description(file_path="config/panda.urdf.xacro",
+                                     mappings={"ros2_control_hardware_type": "mock_components"})
+                  .robot_description_semantic(file_path="config/panda.srdf")
+                  .trajectory_execution(file_path="config/gripper_moveit_controllers.yaml")
+                  .planning_pipelines(pipelines=["ompl", "pilz_industrial_motion_planner"])
+                  .moveit_cpp(file_path=os.path.join(HERE, "moveit_py.yaml"))
+                  .to_moveit_configs()).to_dict()
+        self.moveit = MoveItPy(node_name="pick_place", config_dict=config)
+        self.arm = self.moveit.get_planning_component("panda_arm")
+        self.hand = self.moveit.get_planning_component("hand")
+        self.scene = self.moveit.get_planning_scene_monitor()
+        self.params = {k: PlanRequestParameters(self.moveit, k) for k in ("ompl_rrtc", "pilz_lin")}
+        time.sleep(3.0)          # let MoveItPy's action clients connect to the controllers
+
+    def run(self, label, group, planner, may_fail=False, **goal):
+        tries = 3 if planner == "ompl_rrtc" else 1      # RRTConnect is random: try again if one search fails
+        for _ in range(tries):
+            group.set_start_state_to_current_state()
+            group.set_goal_state(**goal)
+            plan = group.plan(single_plan_parameters=self.params[planner])
+            if plan:
+                break
+        if not plan:
+            print(f"FAIL {label}: no plan ({planner}, {tries} tries)")
+            if may_fail:
+                return None
+            raise SystemExit(1)
+        traj = plan.trajectory
+        status = self.moveit.execute(traj, controllers=[])
+        if not status:
+            print(f"FAIL {label}: execution {status.status}")
+            raise SystemExit(1)
+        print(f"ok   {label:24s} {planner:9s}  {len(traj):3d} waypoints, execution {status.status}")
+        return traj
+
+    def fingertips(self):
+        with self.scene.read_only() as scene:
+            scene.current_state.update()
+            t = scene.current_state.get_global_link_transform("panda_hand")
+        return t[0, 3], t[1, 3], t[2, 3] - FINGER
+
+    def gripper(self, label, width):
+        state = RobotState(self.moveit.get_robot_model())
+        state.set_joint_group_positions("hand", [width / 2])
+        return self.run(label, self.hand, "ompl_rrtc", robot_state=state)
+
+    def carry_report(self, traj, grip_z):
+        """Check the carry move twice: MoveIt's own collision check of every waypoint (with the
+        block attached), and the lowest point of the block wherever it was above the wall."""
+        with self.scene.read_only() as scene:
+            valid = scene.is_path_valid(traj, "panda_arm", False, [])
+        lowest = None
+        for i in range(len(traj)):
+            state = traj[i]
+            state.update()                       # compute the link poses for this waypoint
+            t = state.get_global_link_transform("panda_hand")
+            above = (abs(t[0, 3] - 0.5) < (WALL[0] + BLOCK[0]) / 2 and       # block overlaps the wall
+                     abs(t[1, 3]) < (WALL[1] + BLOCK[1]) / 2)
+            if above:
+                z = t[2, 3] - FINGER - grip_z    # fingertips are grip_z above the block's bottom
+                lowest = z if lowest is None else min(lowest, z)
+        return valid, lowest
+
+
+def main():
+    rclpy.init()
+    r = Robot()
+    with r.scene.read_write() as scene:
+        for obj in (box("table", (1.2, 1.2, 0.04), (0.4, 0.0, -0.03)),
+                    box("wall", WALL, (0.5, 0.0, WALL[2] / 2)),
+                    box("block", BLOCK, (PICK[0], PICK[1], BLOCK[2] / 2))):
+            scene.apply_collision_object(obj)
+        scene.current_state.update()
+    print(f"scene: table, wall {WALL[2]:.2f} m high at y = 0, block at ({PICK[0]:.2f}, {PICK[1]:+.2f}) -> place at ({PLACE[0]:.2f}, {PLACE[1]:+.2f})")
+    grip_z = BLOCK[2] - 0.02          # fingertips 2 cm below the block top: the palm stays clear of it
+    r.run("ready", r.arm, "ompl_rrtc", configuration_name="ready")
+    r.gripper("open gripper", 0.08)
+    r.run("above the block", r.arm, "ompl_rrtc", pose_stamped_msg=hand_pose(*PICK, grip_z + 0.12), pose_link="panda_hand")
+    r.run("straight down to it", r.arm, "pilz_lin", pose_stamped_msg=hand_pose(*PICK, grip_z), pose_link="panda_hand")
+    print("     fingertips at (%.3f, %+.3f, %.3f) m" % r.fingertips())
+    aco = AttachedCollisionObject(link_name="panda_hand", object=box("block", BLOCK, (0, 0, 0)),
+                                  touch_links=["panda_hand", "panda_leftfinger", "panda_rightfinger"])
+    aco.object.header.frame_id = "panda_link0"
+    aco.object.primitive_poses[0].position.x, aco.object.primitive_poses[0].position.y = PICK
+    aco.object.primitive_poses[0].position.z = BLOCK[2] / 2       # where the block really is
+    with r.scene.read_write() as scene:
+        scene.process_attached_collision_object(aco)
+        scene.current_state.update()
+    r.gripper("close on the block", BLOCK[0])
+    print("     block attached to panda_hand")
+    r.run("straight up", r.arm, "pilz_lin", pose_stamped_msg=hand_pose(*PICK, grip_z + 0.12), pose_link="panda_hand")
+    carry = r.run("over the wall", r.arm, "ompl_rrtc", pose_stamped_msg=hand_pose(*PLACE, grip_z + 0.12), pose_link="panda_hand")
+    valid, low = r.carry_report(carry, grip_z)     # checked now, while the block is still attached
+    r.run("straight down to place", r.arm, "pilz_lin", pose_stamped_msg=hand_pose(*PLACE, grip_z + 0.002), pose_link="panda_hand")
+    print("     fingertips at (%.3f, %+.3f, %.3f) m" % r.fingertips())
+    r.gripper("open gripper", 0.08)
+    aco.object.operation = CollisionObject.REMOVE
+    with r.scene.read_write() as scene:
+        scene.process_attached_collision_object(aco)
+        scene.current_state.update()
+    print("     block detached, left in the scene")
+    r.run("straight up", r.arm, "pilz_lin", pose_stamped_msg=hand_pose(*PLACE, grip_z + 0.12), pose_link="panda_hand")
+    r.run("ready", r.arm, "ompl_rrtc", configuration_name="ready")
+    print(f"carry move, block attached: MoveIt collision check of all {len(carry)} waypoints: {'valid' if valid else 'IN COLLISION'}")
+    if low is None:
+        print("     route: around the end of the wall")
+    else:
+        print(f"     route: over the wall, block bottom at least {low:.3f} m up (wall top {WALL[2]:.2f} m)")
+    with r.scene.read_only() as scene:
+        b = scene.get_frame_transform("block")
+    print(f"block now at ({b[0, 3]:.3f}, {b[1, 3]:+.3f}, {b[2, 3]:.3f}) m")
+    print("and a goal inside the wall:")
+    r.run("fingertips inside the wall", r.arm, "ompl_rrtc", may_fail=True,
+          pose_stamped_msg=hand_pose(0.5, 0.0, 0.10), pose_link="panda_hand")
+    rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()
+```
+
+To run the checked version, go to `examples/month-5` and run `pixi run sim`; that calls `tools/sim/m5/run.sh`, which starts the launch file, runs the script and compares the output. To do it by hand, use two terminals in `examples/month-5/moveit-pick-place`: start `ros2 launch bringup.launch.py` in the first, wait until the three controllers report that they are configured and active, then run `python3 pick_place.py` in the second.
+
+<SimOutput source="ros">
+
+```text
+scene: table, wall 0.25 m high at y = 0, block at (0.50, -0.25) -> place at (0.50, +0.25)
+ok   ready                    ompl_rrtc    1 waypoints, execution SUCCEEDED
+ok   open gripper             ompl_rrtc   11 waypoints, execution SUCCEEDED
+ok   above the block          ompl_rrtc   22 waypoints, execution SUCCEEDED
+ok   straight down to it      pilz_lin    12 waypoints, execution SUCCEEDED
+     fingertips at (0.500, -0.250, 0.060) m
+ok   close on the block       ompl_rrtc    7 waypoints, execution SUCCEEDED
+     block attached to panda_hand
+ok   straight up              pilz_lin    12 waypoints, execution SUCCEEDED
+ok   over the wall            ompl_rrtc   24 waypoints, execution SUCCEEDED
+ok   straight down to place   pilz_lin    12 waypoints, execution SUCCEEDED
+     fingertips at (0.500, +0.250, 0.062) m
+ok   open gripper             ompl_rrtc    7 waypoints, execution SUCCEEDED
+     block detached, left in the scene
+ok   straight up              pilz_lin    12 waypoints, execution SUCCEEDED
+ok   ready                    ompl_rrtc   22 waypoints, execution SUCCEEDED
+carry move, block attached: MoveIt collision check of all 24 waypoints: valid
+     route: over the wall, block bottom at least 0.304 m up (wall top 0.25 m)
+block now at (0.500, +0.250, 0.042) m
+and a goal inside the wall:
+FAIL fingertips inside the wall: no plan (ompl_rrtc, 3 tries)
+```
+
+</SimOutput>
+
+The script starts with the named `ready` configuration, opens the gripper, and moves above the pick. The descent is LIN to fingertips z = 0.060 m: the block top is at 0.08 m, so the fingers are 2 cm below it and still 6 cm above the block's bottom. The printout confirms the fingertips at (0.500, -0.250, 0.060) m.
+
+Then the block is attached, the gripper closes to 0.04 m, and the arm lifts straight up with LIN. The carry to the other side is OMPL, because the wall is in the way. `carry_report` asks MoveIt to check every waypoint of that carry with the block still attached, and also tracks the block's lowest point wherever the block overlaps the wall's footprint (treating the block as hanging upright below the fingers). In this run the block bottom stayed at least 0.304 m up, 5.4 cm above the wall top.
+
+The place descent stops at fingertips z = 0.062 m, 2 mm above the grasp height. The gripper opens, the block is detached and stays in the scene, and the arm retreats and returns to `ready`. The block's centre is now at (0.500, +0.250, 0.042) m. A block 0.08 m tall with its centre at 0.042 m has its bottom at 0.002 m; at 0.040 m it would be resting on the table. The 2 mm gap is the 2 mm the hand stopped above the grasp height, and nothing in this setup pulls the block down: mock hardware has no gravity, and MoveIt leaves a detached object where it was. A real block would drop the 2 mm.
+
+<Quiz id="q2" question="The grasp height puts the fingertips at 0.060 m. Where is the panda_hand origin?" answer={0.1634} unit="m" explanation="The fingertips are 0.1034 m below the hand origin: 0.060 + 0.1034 = 0.1634 m. The script sends this value in the PoseStamped and keeps the fingertip offset separate." />
+
+<Quiz id="q3" question="The placed block's centre ends at z = 0.042 m and the block is 0.08 m tall. If 0.040 m would rest on the table, how far above the table is the block's bottom?" answer={0.002} unit="m" explanation="The bottom is 0.042 - 0.08 / 2 = 0.002 m. A resting block would have its centre at 0.040 m, so the 2 mm is the gap left by stopping 2 mm high and by mock hardware having no gravity." />
+
+## Same run, different routes
+
+OMPL is random. The run quoted above went over the wall with the block bottom at least 0.304 m up. Three later runs found different routes: block bottom at least 0.554 m up, 0.315 m up, and once around the end of the wall. The waypoint counts in the OMPL lines changed too. Pilz LIN gave 12 waypoints every time. Every one of those runs passed MoveIt's collision check and every execution returned SUCCEEDED.
+
+`tools/sim/m5/run.sh` does not expect a byte-for-byte repeat. Before comparing with `examples/month-4/compare.py`, it masks three things: the number after `ompl_rrtc` and before `waypoints`, the whole `route:` line, and the `all N waypoints` count in the carry report. Everything else is compared: the Pilz `12 waypoints`, the fingertip positions, the final block pose and the failure line. That is the right balance. Masking every waypoint count would hide a broken Pilz plan; masking none would fail on every run. The script also picks a random `ROS_DOMAIN_ID`, so parallel runs do not see each other.
+
+<Quiz id="q4" question="The check masks the OMPL waypoint counts and the route line. Which of these is still compared exactly?" options={["The 12 waypoints of each Pilz move", "The OMPL waypoint counts", "The route line"]} answer={0} explanation="Pilz LIN is deterministic here and gives 12 waypoints on every run, so a different number would be a real problem. The OMPL counts and the route are the two things that legitimately change." />
+
+## A goal inside the wall
+
+The last command asks for fingertips at (0.50, 0.00, 0.10), which is inside the wall. The wall occupies x 0.35 to 0.65, y -0.01 to 0.01 and z 0 to 0.25. The pose is reachable in free space in principle, but the goal state itself is in collision, so it is not a valid goal. OMPL cannot grow a goal tree from invalid states.
+
+`run()` tries OMPL three times. All three fail, and because `may_fail=True` the script prints the FAIL line and returns instead of exiting. MoveIt explains why on stderr, once per try; the check keeps each distinct line once, sorted:
+
+<SimOutput source="ros">
+
+```text
+Planner 'OMPL' failed with error code GOAL_STATE_INVALID
+Unable to sample any valid states for goal tree
+```
+
+</SimOutput>
+
+One line names the planner and the error code; the other says what went wrong. `GOAL_STATE_INVALID` means the goal configuration is in collision or outside the robot's bounds; it is not a planner timeout. Retrying a random planner cannot fix it, because the problem is the goal, not the search. An IK solver may well produce joint angles for a pose with the fingertips in the wall, but that is only a set of numbers until the goal state passes collision checking.
+
+<Quiz id="q5" question="Why does the third OMPL try not succeed either?" options={["The third try uses a different planner", "The goal itself is in collision, so no valid goal state exists", "The controller was not spawned"]} answer={1} explanation="RRTConnect is random, but randomness cannot create a collision-free goal inside a solid wall. The failure is GOAL_STATE_INVALID, not a timeout, so more attempts do not help." />
+
+## On a real arm
+
+On a real Panda the plan structure stays the same, but three things change. First, point the `<ros2_control>` block of the robot description at the real hardware interface (for a Panda, the one from `franka_ros2`) instead of `mock_components`, and start the real controllers. MoveItPy still sends joint trajectories, but now a controller closes the loop on encoders instead of copying commands. Second, the gripper is no longer a position command that succeeds by definition. A real gripper needs a force or current limit and grasp detection: close until the fingers stop on the block, check the position or effort, and attach the collision object only after a confirmed grasp. Third, the block's pose should come from perception, not a constant. Lesson 4's camera calibration turns a pixel into a point on the table; that point plus the hand-eye transform gives the pick pose, and the same idea gives the place pose.
+
+Keep the speed scaling conservative. The file uses 0.5 for OMPL and 0.2 for LIN; on a real arm start lower and raise it only after the paths and the grasp are reliable. Test the same script on mock hardware first. It catches a wrong frame, an unreachable pose, a missing `touch_links` or a goal inside the wall without risking the arm. Then run on the real robot with the emergency stop in reach and the workspace clear. The mock run cannot tell you whether the grasp holds, because it has no gravity and no contact.
+
+Pilz LIN can fail in a real cell where OMPL succeeds: a straight line that looked clear in the planning scene may cross a cable or a fixture that is not modelled. Keep the scene honest, and re-plan when the real world differs from it.
+
+## Common mistakes
+
+- <strong>Leaving the quaternion's w at 1.</strong> The orientation is (0.9238795, -0.3826834, 0, 0) with w set explicitly. With the default w = 1 the hand is not pointing down, and the 0.1034 m fingertip offset no longer applies in the direction you expect.
+- <strong>Planning the carry without attaching the block.</strong> MoveIt then keeps only the arm clear of the wall, and the block can pass through it. Attach the block to `panda_hand` before the carry and detach it after the release.
+- <strong>Using the wrong touch links.</strong> The fingers must be allowed to touch the block while the rest of the arm and the block stay clear. Leaving them out makes the grasp state invalid; adding too many links hides real collisions.
+- <strong>Expecting OMPL to be repeatable.</strong> RRTConnect is random. Waypoint counts and the route over or around the wall change between runs, while the Pilz moves stay at 12 waypoints.
+- <strong>Masking every waypoint count in the check.</strong> Mask only what is random: the OMPL counts and the route. A different Pilz count or a different fingertip position is a real failure.
+- <strong>Retrying a goal that is in collision.</strong> Three tries help when a random search misses a path. They cannot help when the goal state itself is invalid, as with fingertips at (0.50, 0.00, 0.10) inside the wall.
+- <strong>Treating mock hardware as physics.</strong> GenericSystem copies commands to joint states. It has no gravity, so the released block floats 2 mm; a real robot would let it settle.
+- <strong>Treating a gripper width command as a grasp.</strong> On real hardware, 0.04 m is a target, not proof that the block is held. Check force or position and attach only after a confirmed grasp.

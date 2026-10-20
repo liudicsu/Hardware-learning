@@ -9,6 +9,7 @@ One folder per lesson; each folder's README lists what it contains and how to ru
 | 2 State space, LQR and MPC / 状态空间、LQR 与 MPC | [`state-space-lqr/`](state-space-lqr/) | `lqr_sim.py` (in `tools/sim/models/`): cart-pole LQR, MPC on the arm joint / 小车倒立摆 LQR、关节 MPC | `tools/sim/reproduce.sh` (toy model / 玩具模型) |
 | 3 Kinematics: FK, numerical IK, singularities / 运动学：正解、数值逆解、奇异点 | [`kinematics-ik/`](kinematics-ik/) | `kinematics.py` (in `tools/sim/models/`) / 正运动学、阻尼最小二乘逆解、奇异点 | `tools/sim/reproduce.sh` (toy model / 玩具模型) |
 | 4 Camera calibration and pixel to 3D / 相机标定与像素到三维 | [`camera-calibration/`](camera-calibration/) | `make_views.py`, `calibrate.py`, `pixel_to_table.py`: synthetic photos, OpenCV calibration, ray-plane intersection / 合成照片、OpenCV 标定、射线与平面求交 | `tools/sim/m5/run.sh` (synthetic images, real OpenCV / 合成图像、真实 OpenCV) |
+| 5 Pick and place with MoveIt 2 / 用 MoveIt 2 做抓放 | [`moveit-pick-place/`](moveit-pick-place/) | `bringup.launch.py`, `moveit_py.yaml`, `pick_place.py`: the Panda on mock hardware, OMPL and Pilz, attached collision objects / mock 硬件上的 Panda、OMPL 与 Pilz、附着碰撞体 | `tools/sim/m5/run.sh` (real MoveIt 2 on mock hardware / mock 硬件上的真实 MoveIt 2) |
 
 ## Install for Lessons 4 and 5 / 第 4、5 课的安装
 

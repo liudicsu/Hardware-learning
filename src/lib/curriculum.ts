@@ -472,6 +472,22 @@ const month5Lessons: Lesson[] = [
       { id: "measure", text: { zh: "把棋盘格平放在桌上，用 pixel_to_table.py 的方法求两个像素之间的距离，再用尺子量，比较两者", en: "Lay the board flat on a table, use pixel_to_table.py's method to find the distance between two pixels, measure it with a ruler, and compare" } },
     ],
   },
+  {
+    slug: "moveit-pick-place",
+    title: { zh: "MoveIt 2：运动规划与无碰撞抓放", en: "MoveIt 2: motion planning and a collision-free pick and place" },
+    summary: {
+      zh: "从逆运动学走到运动规划：构型空间、碰撞检测、随机采样规划器 RRTConnect 和走直线的 Pilz LIN。在 ros2_control mock 硬件上的 Panda 机械臂上，用 MoveItPy 搭好规划场景，抓起方块、把它附着到手上、越过一堵墙放下，再看一个墙里的目标为什么规划不出来。",
+      en: "Go from inverse kinematics to motion planning: configuration space, collision checking, the random sampling planner RRTConnect and Pilz LIN for straight lines. On a Panda arm on ros2_control mock hardware, build a planning scene with MoveItPy, pick up a block, attach it to the hand, carry it over a wall and set it down, then see why a goal inside the wall cannot be planned.",
+    },
+    minutes: 300,
+    resources: ["moveit-docs"],
+    tasks: [
+      { id: "run", text: { zh: "运行 bringup.launch.py 和 pick_place.py，把你的输出和课程里的输出对比，指出哪些行每次都一样、哪些会变，以及为什么", en: "Run bringup.launch.py and pick_place.py, compare your output with the lesson's, and say which lines stay the same every run, which change, and why" } },
+      { id: "taller-wall", text: { zh: "把墙加高到 0.35 m 再运行，记录搬运路径怎么走、碰撞检查是否仍然 valid", en: "Raise the wall to 0.35 m, run again, and record the carry's route and whether the collision check is still valid" } },
+      { id: "long-wall", text: { zh: "把墙加长到 0.80 m，让手臂没法从墙的两端绕过去，运行五次，记录每次的路径和方块底部高出墙顶多少", en: "Make the wall 0.80 m long so the arm cannot go around its ends, run five times, and record each route and how far the block's bottom stays above the wall top" } },
+      { id: "real-arm", text: { zh: "为你自己的机械臂写一份从 mock 硬件到真机的检查清单：控制器、夹爪力与抓取检测、速度缩放、急停，以及用第 4 课的相机定位方块", en: "Write a checklist for moving this to your own arm: controllers, gripper force and grasp detection, speed scaling, the emergency stop, and locating the block with the camera from Lesson 4" } },
+    ],
+  },
 ];
 
 export const months: Month[] = [
@@ -588,16 +604,16 @@ export const months: Month[] = [
       zh: "理解并实现你已用过的控制与感知背后的原理。",
       en: "Understand and implement the control and perception underneath everything you've built.",
     },
-    status: "outline",
+    status: "ready",
     topics: [
-      { zh: "控制理论：从 PID 开始", en: "Control theory, starting with PID" },
+      { zh: "控制理论：从 PID 走向建模与频域", en: "Control theory: from PID to models and the frequency domain" },
       { zh: "状态空间、LQR 与 MPC", en: "State space, LQR and MPC" },
       { zh: "运动学：正解与数值逆解、奇异点", en: "Kinematics: forward, numerical IK, singularities" },
       { zh: "相机标定与视觉感知", en: "Camera calibration and perception" },
       { zh: "MoveIt 2 运动规划与抓取", en: "Motion planning and pick-and-place with MoveIt 2" },
     ],
     milestones: [
-      { zh: "实现并整定 PID，用实测数据解释每一项", en: "Implement and tune PID and explain every term from measured data" },
+      { zh: "从实测数据辨识关节模型，并在频域里读出 PID 整定的相位裕度与增益裕度", en: "Identify a joint model from measured data and read a PID tuning's phase and gain margins in the frequency domain" },
       { zh: "用状态空间描述系统，并在仿真对象上实现 LQR", en: "Describe a system in state space and implement LQR on a simulated plant" },
       { zh: "手算正运动学，数值求解逆运动学", en: "Compute forward kinematics by hand and solve IK numerically" },
       { zh: "指着机器人解释什么是奇异点", en: "Explain a singularity by pointing at a robot doing it" },

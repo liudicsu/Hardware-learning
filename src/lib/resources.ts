@@ -1382,6 +1382,20 @@ export const resources: Record<string, Resource> = {
     license: { zh: "ROS 文档，BSD 许可的 image_pipeline 项目", en: "ROS documentation for the BSD-licensed image_pipeline project" },
     extra: true,
   },
+  "moveit-docs": {
+    id: "moveit-docs",
+    url: "https://moveit.picknik.ai/main/doc/examples/motion_planning_python_api/motion_planning_python_api_tutorial.html",
+    title: { zh: "MoveIt 2 官方教程：运动规划 Python API（MoveItPy）", en: "MoveIt 2 tutorial: the motion planning Python API (MoveItPy)" },
+    author: "PickNik Robotics and MoveIt contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "本课用到的同一套 API：MoveItPy、规划组件、PlanRequestParameters、多个规划管道和规划场景；文档首页还有 Pilz、OMPL 和抓放的其他教程。",
+      en: "The same API this lesson uses: MoveItPy, planning components, PlanRequestParameters, several planning pipelines and the planning scene; the documentation home has further tutorials on Pilz, OMPL and pick and place.",
+    },
+    license: { zh: "MoveIt 教程，BSD-3-Clause 许可，© PickNik 与贡献者；仅提供外链", en: "MoveIt tutorials, BSD-3-Clause, © PickNik and contributors; external link only" },
+    extra: true,
+  },
   "nav2-docs": {
     id: "nav2-docs",
     url: "https://docs.nav2.org/",
