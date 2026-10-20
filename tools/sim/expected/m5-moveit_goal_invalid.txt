@@ -1,0 +1,2 @@
+Planner 'OMPL' failed with error code GOAL_STATE_INVALID
+Unable to sample any valid states for goal tree

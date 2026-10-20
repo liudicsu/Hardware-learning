@@ -112,7 +112,7 @@ echo "== comparing with expected/"
 fail=0
 for f in "$SIM"/expected/*.txt; do
   n="$(basename "$f")"
-  [[ "$n" == m4-ros-* ]] && continue   # compared by ros/run.sh below, with a tolerance
+  [[ "$n" == m4-ros-* || "$n" == m5-cam_* || "$n" == m5-moveit_* ]] && continue   # compared by ros/run.sh and m5/run.sh below
   if diff -u "$f" "$OUT/$n" > "$OUT/$n.diff"; then echo "same  $n"; rm "$OUT/$n.diff"; else echo "DIFF  $n (see $OUT/$n.diff)"; fail=1; fi
 done
 
@@ -120,4 +120,9 @@ done
 # message when ROS 2 Jazzy is not sourced
 echo "== Month 4 ROS 2 runs (tools/sim/ros/run.sh)"
 "$SIM/ros/run.sh" || fail=1
+
+# Month 5: runs that need OpenCV/NumPy or MoveIt 2 (examples/month-5/pixi.toml); skipped with a
+# message when they are not installed
+echo "== Month 5 OpenCV and MoveIt 2 runs (tools/sim/m5/run.sh)"
+"$SIM/m5/run.sh" || fail=1
 exit $fail
