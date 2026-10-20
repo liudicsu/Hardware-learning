@@ -36,6 +36,11 @@ check() {     # check <name> [--tol T] [--mask REGEX]... [--drop REGEX]... [--so
     echo "DIFF  $name (see $OUT/$name.diff)"; fail=1
   fi
 }
+stop() {      # stop <pattern>: SIGINT the launch, then SIGKILL it if it has not exited after 20 s
+  pkill -INT -f "$1"                # (ros2 launch can hang on exit after all its nodes are gone)
+  for _ in $(seq 40); do pgrep -f "$1" > /dev/null || break; sleep 0.5; done
+  pkill -KILL -f "$1" 2>/dev/null; wait
+}
 wait_for() {  # wait_for <file> <regex> [tries]: poll a log until a line appears
   for _ in $(seq "${3:-100}"); do grep -q -E "$2" "$1" && return 0; sleep 0.3; done; return 1
 }
@@ -79,7 +84,7 @@ print(f"{'same ' if ok else 'DIFF '} m4-ros-gz_drive.txt odometry + lidar: {x:.2
 sys.exit(0 if ok else 1)
 PY
 check m4-ros-gz_frame_warning.txt bash -c "grep -o 'XML Element\[gz_frame_id\].*' '$TMP/sim' | head -1"
-pkill -INT -f 'ros2 launch m4_gazebo'; wait
+stop 'ros2 launch m4_gazebo'
 
 # ---- Lesson 5: the same robot through ros2_control (Gazebo, then mock hardware) -----------
 ctl_ready() { for _ in $(seq 120); do ros2 control list_controllers 2>/dev/null | grep -q 'head_controller.*active' && return 0; sleep 0.5; done; return 1; }
@@ -106,7 +111,7 @@ drive_demo() {   # drive_demo <distance> <speed> [cancel after s]
 }
 check m4-ros-ctl_drive.txt --tol 0.25 --drop '^feedback:' drive_demo 1.0 0.2
 check m4-ros-ctl_cancel.txt --tol 0.25 --drop '^feedback:' drive_demo -1.0 0.2 2.0
-pkill -INT -f 'ros2 launch m4_control'; wait
+stop 'ros2 launch m4_control'
 
 timeout -s INT 60 ros2 launch m4_control control.launch.py hardware:=mock headless:=true > "$TMP/mock" 2>&1 &
 ctl_ready || { tail -30 "$TMP/mock"; exit 1; }
@@ -120,7 +125,7 @@ mock_demo() {
   ros2 topic echo --once --no-lost-messages /diff_drive_controller/odom --field pose.pose.position
 }
 check m4-ros-ctl_mock.txt --tol 0.1 mock_demo
-pkill -INT -f 'ros2 launch m4_control'; wait
+stop 'ros2 launch m4_control'
 
 # ---- Lesson 6: odometry check, mapping with SLAM Toolbox, navigation with Nav2 -------------
 NAV="$M4/slam-nav"; MAPS="$TMP/maps"; mkdir -p "$MAPS"
@@ -128,7 +133,7 @@ NAV="$M4/slam-nav"; MAPS="$TMP/maps"; mkdir -p "$MAPS"
 timeout -s INT 90 ros2 launch m4_control control.launch.py headless:=true > "$TMP/ctl6" 2>&1 &
 ctl_ready || { tail -30 "$TMP/ctl6"; exit 1; }
 check m4-ros-nav_spin_raw.txt --tol 0.03 bash -c "echo '\$ python3 spin_check.py'; python3 '$NAV/spin_check.py'"
-pkill -INT -f 'ros2 launch m4_control'; wait
+stop 'ros2 launch m4_control'
 
 timeout -s INT 400 ros2 launch m4_nav slam.launch.py headless:=true > "$TMP/slam" 2>&1 &
 ctl_ready || { tail -30 "$TMP/slam"; exit 1; }
@@ -139,7 +144,13 @@ save_map() {
   echo "\$ ros2 service call /slam_toolbox/serialize_map slam_toolbox/srv/SerializePoseGraph \"{filename: '/home/you/maps/room'}\""
   ros2 service call /slam_toolbox/serialize_map slam_toolbox/srv/SerializePoseGraph "{filename: '$MAPS/room'}" | sed "s|$MAPS|/home/you/maps|"
   echo '$ ros2 run nav2_map_server map_saver_cli -f ~/maps/room --ros-args -p use_sim_time:=true'
-  ros2 run nav2_map_server map_saver_cli -f "$MAPS/room" --ros-args -p use_sim_time:=true 2>&1 | sed "s|$MAPS|/home/you/maps|"
+  # map_saver gives up if /map has not arrived within 2 s ("Failed to spin map subscription"),
+  # which happens now and then on a loaded machine: try up to 3 times, show the last attempt
+  for _ in 1 2 3; do
+    ros2 run nav2_map_server map_saver_cli -f "$MAPS/room" --ros-args -p use_sim_time:=true > "$TMP/saver" 2>&1 && break
+    sleep 2
+  done
+  sed "s|$MAPS|/home/you/maps|" "$TMP/saver"
   echo '$ ls ~/maps'; ls "$MAPS"
   echo '$ cat ~/maps/room.yaml'; cat "$MAPS/room.yaml"; echo   # map_saver ends the file without a newline
 }
@@ -158,7 +169,7 @@ if python3 "$NAV/map_check_test.py" "$MAPS/room.yaml" > "$OUT/m4-ros-nav_map_che
 else
   echo "DIFF  map_check negative tests (see $OUT/m4-ros-nav_map_check_negative.log)"; fail=1
 fi
-pkill -INT -f 'ros2 launch m4_nav'; wait
+stop 'ros2 launch m4_nav'
 
 timeout -s INT 300 ros2 launch m4_nav nav.launch.py map:="$MAPS/room" headless:=true > "$TMP/nav" 2>&1 &
 wait_for "$TMP/nav" 'Managed nodes are active' 300 || { tail -30 "$TMP/nav"; exit 1; }
@@ -177,6 +188,6 @@ goal() {      # goal <x> <y>: one NavigateToPose goal from the command line, the
 # Nav2 stops anywhere within its goal tolerance (0.10 m, 0.15 rad in nav2.yaml): heading masked
 check m4-ros-nav_goal.txt --tol 0.1 --mask 'ID: [0-9a-f]+' --mask 'degree\) \[.*\]' goal 2.0 -2.0
 cp "$TMP/nav" "$OUT/m4-ros-nav_log.txt"
-pkill -INT -f 'ros2 launch m4_nav'; wait
+stop 'ros2 launch m4_nav'
 
 exit $fail
