@@ -1408,7 +1408,6 @@ export const resources: Record<string, Resource> = {
       en: "The official steps and commands for recording a dataset with SO-101 leader and follower arms, training a policy such as ACT, and running and evaluating it on the arm (lerobot-record, lerobot-train, lerobot-rollout), with advice on collecting data. Take the commands from this page for your version.",
     },
     license: { zh: "开源项目文档（Apache-2.0），© Hugging Face；仅提供外链", en: "Open-source project docs (Apache-2.0), © Hugging Face; external link only" },
-    extra: true,
   },
   "dagger-paper": {
     id: "dagger-paper",
@@ -1464,7 +1463,6 @@ export const resources: Record<string, Resource> = {
       en: "Installing the 450M-parameter SmolVLA, dataset advice (about 50 episodes, several per variation), the command for fine-tuning from smolvla_base and the command for running it on the arm.",
     },
     license: { zh: "开源项目文档（Apache-2.0），© Hugging Face；仅提供外链", en: "Open-source project docs (Apache-2.0), © Hugging Face; external link only" },
-    extra: true,
   },
   openvla: {
     id: "openvla",
@@ -1478,7 +1476,6 @@ export const resources: Record<string, Resource> = {
       en: "An open 7B-parameter VLA trained on 970k episodes from Open X-Embodiment that writes 7-D end-effector actions as 256-bin tokens, with the paper, code, weights and fine-tuning instructions.",
     },
     license: { zh: "代码与权重 MIT 许可，© 作者；仅提供外链", en: "Code and weights under MIT, © the authors; external link only" },
-    extra: true,
   },
   openpi: {
     id: "openpi",
@@ -1492,7 +1489,6 @@ export const resources: Record<string, Resource> = {
       en: "Code and base checkpoints for π0 (flow matching), π0-FAST (FAST tokens, autoregressive) and π0.5, pretrained on more than 10k hours of robot data, with inference and fine-tuning examples. Check the repository and model cards for the terms of the weights.",
     },
     license: { zh: "代码 Apache-2.0，© Physical Intelligence；仅提供外链", en: "Code under Apache-2.0, © Physical Intelligence; external link only" },
-    extra: true,
   },
   "nav2-docs": {
     id: "nav2-docs",
