@@ -17,7 +17,7 @@ One folder per lesson. Each folder's README lists what you need and how to run i
 ```bash
 sudo apt install openscad python3        # tested with OpenSCAD 2021.01 / 测试版本 OpenSCAD 2021.01
 examples/month-3/check.sh                # real runs: prints "same <file>" for each quoted output
-pip install feetech-servo-sdk            # optional: also compares packets with Feetech's SDK / 可选
+pip install -r examples/month-3/requirements.txt   # pinned feetech-servo-sdk==1.0.0: check.sh then also compares packets with Feetech's SDK (12 same instead of 11 + 1 skip) / 安装固定版本的飞特 SDK 后 check.sh 也会与官方 SDK 对比
 tools/sim/reproduce.sh                   # simulated outputs (Month 2 and Month 3) / 全部仿真输出
 examples/month-3/render_previews.sh      # re-renders the pictures in public/m3/ / 重新渲染课程配图
 ```

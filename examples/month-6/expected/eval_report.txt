@@ -1,0 +1,28 @@
+1. Success with a Wilson 95 % interval
+   61/100   61.0 %   95 % interval  51.2 ..  70.0 %
+   67/100   67.0 %   95 % interval  57.3 ..  75.4 %
+   99/100   99.0 %   95 % interval  94.6 ..  99.8 %
+  100/100  100.0 %   95 % interval  96.3 .. 100.0 %
+    8/10    80.0 %   95 % interval  49.0 ..  94.3 %
+   10/10   100.0 %   95 % interval  72.2 .. 100.0 %
+
+2. BC on 20 demos, ten separate sessions of 10 trials each (different seeds per session)
+  successes out of 10: 5 7 5 6 4 7 7 4 4 9   (lowest 4, highest 9)
+
+3. Paired comparison over the same 100 trials (seeds 5000..5099)
+  BC, 20 demos          65/100   95 % interval  55.3 ..  73.6 %
+  BC, 20 noisy demos   100/100   95 % interval  96.3 .. 100.0 %
+  both succeed 65, only the first 0, only the second 35, both fail 0
+  McNemar exact test on the 35 disagreements: p = 5.8e-11
+
+4. Trials per policy to tell two success rates apart (5 % test, 80 % power)
+  67 % vs 99 %:   21 trials each
+  60 % vs 80 %:   82 trials each
+  80 % vs 90 %:  199 trials each
+  90 % vs 95 %:  435 trials each
+
+5. Failures of BC on 20 demos in those 100 trials
+  failure            count   share  mean step
+  wall, goal end        26     74%       41.3
+  wall, leg 2            8     23%       30.8
+  wall, leg 1            1      3%       15.0

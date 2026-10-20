@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // pixi environments created by `pixi install` in examples/month-4 and month-5
+    "**/.pixi/**",
   ]),
 ]);
 

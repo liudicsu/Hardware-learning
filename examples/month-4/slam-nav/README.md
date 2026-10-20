@@ -5,7 +5,8 @@
   导航包：里程计校准参数、SLAM Toolbox 建图与定位两种模式的参数、m4bot 的 Nav2 参数（专门为 m4bot 改的行已标注）、建图 launch 文件和导航 launch 文件（参数 `map:=<不带 .posegraph 的位姿图路径>`），以及 RViz 配置。
 - **`spin_check.py`**: turns the robot one full turn by odometry and measures the real angle with the lidar. 按里程计原地转一整圈，再用激光雷达测出真实转了多少。
 - **`tour.py`**: drives a fixed tour of the obstacles room so SLAM Toolbox sees every corner (a repeatable stand-in for teleop). 按固定路线开遍障碍物房间，让 SLAM Toolbox 扫到每个角落（可重复的遥控替代品）。
-- **`map_check.py <map.yaml>`**: reads a saved map (standard library only) and checks the walls and obstacles are where the world put them. 读取保存的地图（只用标准库），检查墙和障碍物是否在世界文件里的位置。
+- **`map_check.py <map.yaml>`**: reads a saved map (standard library only) and checks the walls and obstacles are where the world put them, with a minimum number of occupied cells per object and minimum occupied and free totals for the whole map (exit code 1 if one is not met). 读取保存的地图（只用标准库），检查墙和障碍物是否在世界文件里的位置；每个物体和整张地图都有最少栅格数要求，不满足时退出码为 1。
+- **`map_check_test.py [map.yaml]`**: negative tests for `map_check.py`: the saved map must pass, a blank map and the map with any one object erased must fail. Defaults to `test/room.*`, a map saved by a real run of `tools/sim/ros/run.sh`; `examples/month-4/check.sh` runs it, and `run.sh` repeats it on every new map. 对 `map_check.py` 的反向测试：保存的地图必须通过，空白地图以及擦掉任意一个物体的地图必须失败。默认使用 `test/room.*`（由 `tools/sim/ros/run.sh` 真实运行保存）。
 
 ```bash
 cp -r ../urdf-tf/m4_description ../gazebo-sim/m4_gazebo ../ros2-control/m4_control \

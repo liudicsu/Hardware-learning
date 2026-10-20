@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Run the Month 3 examples exactly as the lessons do and compare with the outputs they quote
 # (stored in expected/). These are ordinary programs on your computer, not simulations.
-# Needs: python3 (3.9+), OpenSCAD (tested with 2021.01). Optional: feetech-servo-sdk
-# (pip install feetech-servo-sdk) for the SDK comparison; it is skipped if missing.
+# Needs: python3 (3.9+), OpenSCAD (tested with 2021.01), and the pinned packages in
+# requirements.txt (feetech-servo-sdk==1.0.0) for the SDK comparison:
+#   python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
+# Without them arm-compare_sdk is skipped (and reported as such).
 # The simulated outputs (backlash, PID, cascade) are checked by tools/sim/reproduce.sh.
 # Usage: examples/month-3/check.sh
 set -euo pipefail
@@ -46,7 +48,7 @@ check arm-sts_packet.txt      python3 "$M3/so101-arm/sts_packet.py"
 if python3 -c "import scservo_sdk" 2>/dev/null; then
   check arm-compare_sdk.txt   bash -c "cd '$M3/so101-arm' && python3 compare_sdk.py"
 else
-  echo "skip  arm-compare_sdk.txt (pip install feetech-servo-sdk to run it)"
+  echo "skip  arm-compare_sdk.txt (pip install -r examples/month-3/requirements.txt to run it)"
 fi
 # Lesson 6
 DENSITY=1.21 check grip-finger.txt scad "$M3/gripper-fingers/finray_finger.scad"

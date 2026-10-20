@@ -1,0 +1,292 @@
+到目前为止的每个月，控制器都是你自己写的：PID 回路、LQR 增益、MoveIt 目标。模仿学习（imitation learning，也叫示范学习 learning from demonstration）反过来：你把任务做给机器人看几十遍，通常是你动主臂、从臂跟着动，再由程序学出一个<strong>策略</strong>（policy），也就是从“机器人观测到什么”到“下一步该做什么”的函数。本课在一个每个数字都能核对的玩具任务上实现最简单的版本——行为克隆，并展示所有学习型策略都要面对的失败：机器人一旦漂到示范从没去过的地方，就不知道该怎么办了。
+
+## 示范数据就是一张表
+
+示范数据集就是一张表，每个控制步一行（一<strong>帧</strong>，frame）。每行记录它属于哪个回合（episode）、在回合里的第几帧、机器人观测到了什么、操作者做了什么动作。第 3 个月和 SO-101 一起见过的 LeRobot 正是按这些列存数据的（`episode_index`、`frame_index`、`observation.state`、`action`，另外还有相机图像和任务描述）。在 SO-101 上，状态是六个关节的位置，动作是主臂要求的六个关节目标位置，按每秒 30 帧录制。
+
+行为克隆（behaviour cloning，BC）把这张表当成普通的监督学习问题：输入是观测，标签是动作，拟合一个函数，结束。训练这一步完全不知道这些行来自一台随时间运动的机器人。这正是 BC 容易上手的原因，也是它会以一种特定方式失败的原因。
+
+<Formula label="行为克隆">policy = argmin over π of Σ over frames ‖π(observation) − action‖²</Formula>
+
+## 走廊任务
+
+本课的模型是一个在 L 形走廊里移动的点状夹爪，走廊宽 0.2 m：从 (0, 0) 沿 x 走到拐角 (1, 0)，再沿 y 走到目标 (1, 1)。每一步策略命令一次最多 0.05 m 的位移，夹爪实际移动的是这个位移<strong>再加上执行器噪声</strong>，每个轴 1 cm（舵机从来不会精确停在命令的位置）。在 80 步之内到达目标 5 cm 以内且没有碰墙，就算成功。
+
+专家是一个脚本控制器，永远瞄准中心线上前方 0.15 m 的点，它扮演拿着主臂的你。录示范时没有执行器噪声，像一个慢慢操作、非常仔细的人。策略用最简单的学习器：1 最近邻 BC，找到观测与当前最接近的那一帧，重放它的动作。按上面公式训练的神经网络在这里的关键行为是一样的：离开训练数据，它只能外推。
+
+<CodeSource path="examples/month-6/behaviour-cloning/bc_reach.py" />
+
+```python
+"""bc_reach.py: behaviour cloning, covariate shift and DAgger on a point gripper in an L-shaped corridor.
+
+The gripper moves in a plane (metres). The corridor runs from START (0, 0) along +x to the corner (1, 0),
+then along +y to GOAL (1, 1); it is 0.2 m wide (walls 0.1 m either side of the centre line). Each step the
+policy commands a displacement (dx, dy) of at most 0.05 m; the gripper moves by that plus actuator noise
+(Gaussian, 0.01 m per axis). Success: within 0.05 m of GOAL inside 80 steps without touching a wall.
+
+The expert is a scripted controller (pure pursuit of a point 0.15 m ahead on the centre line). Demonstrations
+are recorded like a teleoperated dataset: one row per frame with episode_index, frame_index, the observation
+(x, y) and the action (dx, dy). The learned policy is 1-nearest-neighbour behaviour cloning: look up the
+recorded frame whose (x, y) is closest and replay its action. Standard library only, fixed seeds.
+usage: python3 bc_reach.py [demos.csv]      (writes the 20-demo dataset to demos.csv if a name is given)
+"""
+import math
+import random
+import sys
+
+START, CORNER, GOAL = (0.0, 0.0), (1.0, 0.0), (1.0, 1.0)
+HALF_WIDTH, STEP, NOISE, MAX_STEPS = 0.10, 0.05, 0.01, 80
+
+
+def path_s(p):
+    """Distance along the centre line of the point on it nearest p, and p's distance from the line."""
+    x, y = p
+    cx = min(max(x, 0.0), 1.0)                       # nearest point on the first leg, (cx, 0)
+    cy = min(max(y, 0.0), 1.0)                       # nearest point on the second leg, (1, cy)
+    d1, d2 = math.hypot(x - cx, y), math.hypot(x - 1.0, y - cy)
+    return (cx, d1) if d1 < d2 else (1.0 + cy, d2)
+
+
+def point_at(s):
+    s = min(max(s, 0.0), 2.0)
+    return (s, 0.0) if s <= 1.0 else (1.0, s - 1.0)
+
+
+def in_corridor(p):
+    x, y = p
+    leg1 = -0.1 <= x <= 1.0 + HALF_WIDTH and abs(y) <= HALF_WIDTH
+    leg2 = abs(x - 1.0) <= HALF_WIDTH and -HALF_WIDTH <= y <= 1.0 + HALF_WIDTH
+    return leg1 or leg2
+
+
+def expert(p):
+    """Pure pursuit: aim at the centre-line point 0.15 m ahead of where we are, at most STEP per step."""
+    s, _ = path_s(p)
+    tx, ty = point_at(s + 0.15) if s < 1.85 else GOAL
+    dx, dy = tx - p[0], ty - p[1]
+    d = math.hypot(dx, dy)
+    k = min(1.0, STEP / d) if d > 0 else 0.0
+    return dx * k, dy * k
+
+
+def rollout(policy, rng, noise=NOISE, record=None):
+    """Run one episode. Returns (result, steps, worst distance from the centre line, final position)."""
+    p = (START[0] + rng.uniform(-0.03, 0.03), START[1] + rng.uniform(-0.03, 0.03))
+    worst = 0.0
+    for t in range(MAX_STEPS):
+        a = policy(p)
+        if record is not None:
+            record.append((t, p, a))
+        p = (p[0] + a[0] + rng.gauss(0, noise), p[1] + a[1] + rng.gauss(0, noise))
+        worst = max(worst, path_s(p)[1])
+        if not in_corridor(p):
+            return 'wall', t + 1, worst, p
+        if math.hypot(p[0] - GOAL[0], p[1] - GOAL[1]) < 0.05:
+            return 'success', t + 1, worst, p
+    return 'timeout', MAX_STEPS, worst, p
+
+
+def record_demos(n, rng, noise=0.0):
+    """Expert demonstrations; by default executed without actuator noise (a careful operator)."""
+    frames = []
+    for ep in range(n):
+        rows = []
+        rollout(expert, rng, noise=noise, record=rows)
+        frames += [(ep, t, p, a) for t, p, a in rows]
+    return frames
+
+
+def nn_policy(frames):
+    """1-nearest-neighbour behaviour cloning: replay the action of the closest recorded observation."""
+    obs = [(f[2], f[3]) for f in frames]
+
+    def policy(p):
+        best = min(obs, key=lambda o: (o[0][0] - p[0]) ** 2 + (o[0][1] - p[1]) ** 2)
+        return best[1]
+    return policy
+
+
+def place(p):
+    """Where along the corridor a wall was hit."""
+    s, _ = path_s(p)
+    return 'leg 1' if s < 0.85 else 'corner' if s < 1.15 else 'leg 2' if s < 1.9 else 'goal end'
+
+
+def evaluate(policy, seed, n=100):
+    rng = random.Random(seed)
+    counts = {'success': 0, 'wall': 0, 'timeout': 0}
+    walls = {'leg 1': 0, 'corner': 0, 'leg 2': 0, 'goal end': 0}
+    worst = []
+    for _ in range(n):
+        result, _, w, p = rollout(policy, rng)
+        counts[result] += 1
+        worst.append(w)
+        if result == 'wall':
+            walls[place(p)] += 1
+    worst.sort()
+    return counts, worst[n // 2], walls
+
+
+def report(label, frames, policy):
+    c, med, walls = evaluate(policy, seed=2026)
+    print(f'{label:<20} {len(frames):>5} frames   success {c["success"]:>3}/100   wall {c["wall"]:>3}   '
+          f'timeout {c["timeout"]:>3}   median worst offset {med * 100:.1f} cm')
+    if c['wall']:
+        print(' ' * 21 + 'wall hits at: ' + ', '.join(f'{k} {v}' for k, v in walls.items()))
+
+
+def main():
+    rng = random.Random(6)
+    demos = record_demos(80, rng)
+    print('Recorded 80 expert demos (no actuator noise), first frames of episode 0:')
+    print('episode_index frame_index  observation.state   action')
+    for ep, t, p, a in demos[:3]:
+        print(f'{ep:>13} {t:>11}  ({p[0]:+.3f}, {p[1]:+.3f})  ({a[0]:+.3f}, {a[1]:+.3f})')
+    lengths = {}
+    for ep, *_ in demos:
+        lengths[ep] = lengths.get(ep, 0) + 1
+    print(f'episode length: {min(lengths.values())} to {max(lengths.values())} frames')
+    if len(sys.argv) > 1:
+        with open(sys.argv[1], 'w') as f:
+            f.write('episode_index,frame_index,x,y,dx,dy\n')
+            for ep, t, p, a in demos:
+                if ep < 20:
+                    f.write(f'{ep},{t},{p[0]:.4f},{p[1]:.4f},{a[0]:.4f},{a[1]:.4f}\n')
+        print(f'wrote the first 20 episodes to {sys.argv[1]}')
+
+    print('\nEvaluation: 100 rollouts each, actuator noise 1 cm per step, same seed for every policy')
+    report('expert', [], expert)
+    for n in (5, 20, 80):
+        frames = [f for f in demos if f[0] < n]
+        report(f'BC, {n} demos', frames, nn_policy(frames))
+    noisy = record_demos(20, random.Random(8), noise=NOISE)      # the expert corrects its own noise
+    report('BC, 20 noisy demos', noisy, nn_policy(noisy))
+
+    print('\nDAgger: start from BC on 5 demos; each round runs the current policy 10 times with noise,')
+    print('asks the expert what it would have done in every visited state, and adds those frames')
+    frames = [f for f in demos if f[0] < 5]
+    drng = random.Random(7)
+    for k in range(1, 4):
+        policy = nn_policy(frames)
+        new = []
+        for ep in range(10):
+            rows = []
+            rollout(policy, drng, record=rows)
+            new += [(1000 * k + ep, t, p, expert(p)) for t, p, _ in rows]
+        frames = frames + new
+        report(f'DAgger round {k}', frames, nn_policy(frames))
+
+
+if __name__ == '__main__':
+    main()
+```
+
+它只用 Python 标准库并固定随机种子，所以你运行会得到同样的数字。第一部分录 80 条示范，并把前 20 条按 LeRobot 数据集的列布局写进 CSV 文件：
+
+<SimOutput source="model">
+
+```text
+$ python3 bc_reach.py demos.csv
+Recorded 80 expert demos (no actuator noise), first frames of episode 0:
+episode_index frame_index  observation.state   action
+            0           0  (+0.018, +0.019)  (+0.050, -0.006)
+            0           1  (+0.067, +0.013)  (+0.050, -0.004)
+            0           2  (+0.117, +0.009)  (+0.050, -0.003)
+episode length: 38 to 39 frames
+wrote the first 20 episodes to demos.csv
+```
+
+</SimOutput>
+
+第 0 回合从起点右侧 1.8 cm、上方 1.9 cm 出发。专家沿 x 全速前进（每步 0.050 m），同时用一个小的负 y 分量把自己拉回中心线，偏差越小这个分量也越小。路径长 2 m，回合在离目标 5 cm 处结束，每步最多 0.05 m，所以一个回合大约需要 (2 − 0.05) / 0.05 = 39 步；随机起点和专家在拐角处略微抄近路，让它变成 38 或 39 帧。
+
+<Quiz id="q1" question="20 条示范，每条 38 或 39 帧，大约一共多少帧？（下面的输出给出准确数）" answer={770} unit="帧" tolerance={0.02} explanation="20 × 38.5 = 770。准确数是 766，也就是 20 条里 14 条 38 帧、6 条 39 帧（14 × 38 + 6 × 39 = 532 + 234 = 766）。" />
+
+## 协变量偏移
+
+现在打开执行器噪声，每个策略各跑 100 次。每个策略的评估都从同一个随机种子开始。只有每个策略的第一次运行看到的起点和噪声完全相同，因为走的步数不同的策略消耗随机数的速度也不同；第 4 课会讲怎样给每次运行单独设种子，让每个策略遇到完全相同的条件：
+
+<SimOutput source="model">
+
+```text
+Evaluation: 100 rollouts each, actuator noise 1 cm per step, same seed for every policy
+expert                   0 frames   success 100/100   wall   0   timeout   0   median worst offset 3.5 cm
+BC, 5 demos            190 frames   success  61/100   wall  39   timeout   0   median worst offset 7.2 cm
+                     wall hits at: leg 1 4, corner 0, leg 2 6, goal end 29
+BC, 20 demos           766 frames   success  67/100   wall  33   timeout   0   median worst offset 5.9 cm
+                     wall hits at: leg 1 1, corner 2, leg 2 10, goal end 20
+BC, 80 demos          3061 frames   success  67/100   wall  33   timeout   0   median worst offset 5.9 cm
+                     wall hits at: leg 1 3, corner 1, leg 2 5, goal end 24
+```
+
+</SimOutput>
+
+专家每次都成功：它根据自己真实所在的位置计算动作，所以能纠正噪声。克隆出来的策略失败三分之一甚至更多，而且从 20 条示范加到 80 条毫无变化，两次都是 67/100。“median worst offset” 是 100 次运行里“每次离中心线最远的距离”的中位数；克隆策略偏离的距离几乎是专家的两倍。
+
+原因叫<strong>协变量偏移</strong>（covariate shift）：策略在测试时访问的状态，不是它训练时见过的状态。无噪声的示范几步之内就全部收拢到中心线上，数据集里几乎没有偏离中心线 3 cm 以上的帧。当噪声把夹爪推到侧面 5 cm 时，最近的录制帧是中心线上的一帧，它的动作是“直走”，而不是“回来”。每个小误差都让策略离数据更远，那里它的下一个动作更差，于是误差不断累积，而不是相互抵消。再加同一种示范只会在中心线上加更多帧，所以 80 条并不比 20 条好。
+
+“wall hits at” 这一行显示了哪里出了问题。大多数失败发生在目标端：专家一进入目标 5 cm 范围，示范就结束了，所以数据里没有一帧告诉策略“偏了几厘米到达目标附近时该怎么办”。策略继续往 +y 走，撞上了尽头的墙。真实数据集也有同样的空洞：操作者刚完成任务之后的时刻，以及抓取失败之后的状态——好的操作者从来不会示范这些。
+
+<Quiz id="q2" question="如果没有任何纠正，每步 1 cm 的独立噪声在 38 步之后，让一个轴漂移多少（一个标准差，单位 cm）？" answer={6.2} unit="cm" explanation="独立误差按平方和开根号相加：1 cm × √38 = 6.2 cm。这已经超过走廊半宽 10 cm 的一半，所以一个不会往回拉的策略即使不考虑误差累积，也有不小的概率碰墙。" />
+
+<Quiz id="q3" question="为什么这里 80 条示范并不比 20 条好？" options={["最近邻策略最多只能用 766 帧", "多出来的示范覆盖的仍是中心线上的状态，而不是策略在噪声下会到达的偏离状态", "80 条示范那一行用的评估种子不同"]} answer={1} explanation="更多数据只有覆盖了策略真正会访问的状态才有用。无噪声的专家从不离开中心线，它的示范里没有恢复动作。每一行都用同一个种子、跑 100 次，而 67 与 DAgger 的 100 之间的差距远大于运气造成的波动。" />
+
+## 两种修复：带噪声的示范与 DAgger
+
+解决办法是把<strong>恢复</strong>放进数据里：来自偏离路径位置的帧，标签是把机器人带回来的动作。常用的有两种做法。
+
+第一种是录示范时就开着噪声，让专家不断纠正自己的漂移（DART 方法的思路）。在真机上，这意味着以正常速度、在自然的扰动下录制，而不是慢慢地、完美地做，并且有意识地示范恢复动作。第二种是 <strong>DAgger</strong>（dataset aggregation，数据集聚合）：运行当前策略，让专家给策略访问过的每个状态标注“专家在这里会怎么做”，把这些帧加进数据集，重新训练，重复。这样收集到的数据恰好在学习者出错的地方。模型从最弱的策略开始 DAgger，也就是只用 5 条示范的 BC：
+
+<SimOutput source="model">
+
+```text
+BC, 20 noisy demos     776 frames   success  99/100   wall   1   timeout   0   median worst offset 3.8 cm
+                     wall hits at: leg 1 0, corner 0, leg 2 0, goal end 1
+
+DAgger: start from BC on 5 demos; each round runs the current policy 10 times with noise,
+asks the expert what it would have done in every visited state, and adds those frames
+DAgger round 1         581 frames   success 100/100   wall   0   timeout   0   median worst offset 3.7 cm
+DAgger round 2         963 frames   success 100/100   wall   0   timeout   0   median worst offset 3.7 cm
+DAgger round 3        1343 frames   success 100/100   wall   0   timeout   0   median worst offset 3.6 cm
+```
+
+</SimOutput>
+
+20 条带噪声的示范（776 帧）达到 99/100，而 3061 帧无噪声数据只有 67/100。一轮 DAgger，也就是把 5 条示范策略的 10 次运行交给专家重新标注，就让这个策略从 61/100 变成 100/100，总共只有 581 帧。数据的多少远不如它是否覆盖了策略将会处于的状态重要。
+
+<Quiz id="q4" question="DAgger 第 1 轮有 581 帧，起点是 190 帧。这 10 次重新标注的运行平均每次加了多少帧？" answer={39.1} unit="帧" explanation="(581 − 190) / 10 = 39.1 帧/次。每次运行把它访问过的每个状态（直到成功或碰墙为止）都加进来，标签是专家的动作。" />
+
+在真机上，DAgger 里的专家就是你，所以流程是：让策略自己运行，开始出错时用主臂接管，保留纠正后的帧。LeRobot 的 `lerobot-rollout` 有一个 `dagger` 策略（strategy），专门用来做这种人在回路中的数据收集。
+
+## 在你的 SO-101 上用 LeRobot
+
+本课的真实版本就是第 6 个月的第一个里程碑：用你自己的主臂和从臂录一个数据集，训练出能在它们上面运行的策略。下面的命令来自 LeRobot 的模仿学习指南；本页没有运行它们（需要机械臂、相机，训练还需要 GPU），而且参数会随 LeRobot 版本变化，请按你所用版本的官方指南复制：
+
+```bash
+# 1. record 50 episodes of one task with the leader arm (ports and ids from your Month 3 calibration)
+lerobot-record --robot.type=so101_follower --robot.port=/dev/ttyACM0 --robot.id=my_follower \
+  --teleop.type=so101_leader --teleop.port=/dev/ttyACM1 --teleop.id=my_leader \
+  --robot.cameras="{ front: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 30}}" \
+  --dataset.repo_id=${HF_USER}/pick_cube --dataset.num_episodes=50 \
+  --dataset.single_task="Pick up the cube and put it in the bin"
+# 2. train a policy on it (ACT, the next lesson; several hours on one GPU)
+lerobot-train --dataset.repo_id=${HF_USER}/pick_cube --policy.type=act \
+  --output_dir=outputs/train/act_pick_cube --policy.device=cuda
+# 3. run it on the arm
+lerobot-rollout --strategy.type=base --policy.path=outputs/train/act_pick_cube/checkpoints/last/pretrained_model \
+  --robot.type=so101_follower --robot.port=/dev/ttyACM0 --robot.id=my_follower \
+  --robot.cameras="{ front: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 30}}" \
+  --task="Pick up the cube and put it in the bin" --duration=60
+```
+
+<Resource id="lerobot-il-robots" />
+
+走廊教给你的东西可以直接搬过去。在不同回合里改变方块的位置（指南建议 5 个位置、每个位置 10 个回合），相机保持固定，加入几次恢复动作（比如打滑后重新抓），并在一组固定的测试位置上数成功次数，而不是凭一段好看的视频下结论。
+
+## 常见错误
+
+- <strong>只录完美的示范。</strong>没有失误的数据集里也就没有恢复动作，而策略一定会遇到专家从没展示过的状态。有意示范从小失误中恢复。
+- <strong>凭一次运行评价策略。</strong>一段视频只能证明策略<em>能</em>成功，不能说明它多常成功。用一组固定的初始条件来数，就像上面用 100 次固定种子的运行那样；本月第 4 课会讲需要多少次试验。
+- <strong>两次运行之间改了好几样东西。</strong>模型对每个策略用同样的种子、同样的运行次数和噪声，让策略成为主要的区别。在硬件上比较两个策略时，保持物体、光照和起始位置不变。
+- <strong>一味加同样的数据。</strong>策略在某处失败时，先看是哪里（就像 “wall hits at” 那一行），再在那里录制或重新标注数据。同样的 80 条示范没有赢过 20 条。
+- <strong>用机器人实际做了什么来训练，而不是命令了什么。</strong>动作列必须是命令（主臂的关节目标），而不是从臂下一帧测到的位置，否则策略会学会滞后。

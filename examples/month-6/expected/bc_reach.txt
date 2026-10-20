@@ -1,0 +1,24 @@
+Recorded 80 expert demos (no actuator noise), first frames of episode 0:
+episode_index frame_index  observation.state   action
+            0           0  (+0.018, +0.019)  (+0.050, -0.006)
+            0           1  (+0.067, +0.013)  (+0.050, -0.004)
+            0           2  (+0.117, +0.009)  (+0.050, -0.003)
+episode length: 38 to 39 frames
+wrote the first 20 episodes to demos.csv
+
+Evaluation: 100 rollouts each, actuator noise 1 cm per step, same seed for every policy
+expert                   0 frames   success 100/100   wall   0   timeout   0   median worst offset 3.5 cm
+BC, 5 demos            190 frames   success  61/100   wall  39   timeout   0   median worst offset 7.2 cm
+                     wall hits at: leg 1 4, corner 0, leg 2 6, goal end 29
+BC, 20 demos           766 frames   success  67/100   wall  33   timeout   0   median worst offset 5.9 cm
+                     wall hits at: leg 1 1, corner 2, leg 2 10, goal end 20
+BC, 80 demos          3061 frames   success  67/100   wall  33   timeout   0   median worst offset 5.9 cm
+                     wall hits at: leg 1 3, corner 1, leg 2 5, goal end 24
+BC, 20 noisy demos     776 frames   success  99/100   wall   1   timeout   0   median worst offset 3.8 cm
+                     wall hits at: leg 1 0, corner 0, leg 2 0, goal end 1
+
+DAgger: start from BC on 5 demos; each round runs the current policy 10 times with noise,
+asks the expert what it would have done in every visited state, and adds those frames
+DAgger round 1         581 frames   success 100/100   wall   0   timeout   0   median worst offset 3.7 cm
+DAgger round 2         963 frames   success 100/100   wall   0   timeout   0   median worst offset 3.7 cm
+DAgger round 3        1343 frames   success 100/100   wall   0   timeout   0   median worst offset 3.6 cm

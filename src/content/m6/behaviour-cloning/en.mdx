@@ -1,0 +1,292 @@
+Every month so far, you wrote the controller: a PID loop, an LQR gain, a MoveIt goal. Imitation learning (also called learning from demonstration) turns that around. You show the robot the task a few dozen times, usually by moving a leader arm while the follower arm copies it, and a program learns a **policy**, a function from what the robot observes to what it should do next. This lesson builds the simplest version, behaviour cloning, on a toy task where every number can be checked, and shows the failure that every learned policy has to deal with: once the robot drifts somewhere the demonstrations never went, it has no idea what to do.
+
+## Demonstrations are a table
+
+A demonstration dataset is just a table with one row per control step (a **frame**). Each row stores which episode it belongs to, its position in that episode, what the robot observed and what action the operator took. LeRobot, the library you met in Month 3 with the SO-101, stores exactly these columns (`episode_index`, `frame_index`, `observation.state`, `action`, plus camera images and a task string). On an SO-101 the state is six joint positions and the action is the six joint positions the leader arm asked for, recorded at 30 frames per second.
+
+Behaviour cloning (BC) treats this table as an ordinary supervised learning problem: inputs are the observations, labels are the actions, fit a function, done. Nothing in the training step knows that the rows came from a robot moving through time. That is both why BC is so easy to start with and why it fails in a specific way.
+
+<Formula label="Behaviour cloning">policy = argmin over π of Σ over frames ‖π(observation) − action‖²</Formula>
+
+## The corridor task
+
+The model in this lesson is a point gripper in an L-shaped corridor 0.2 m wide: from (0, 0) along x to the corner at (1, 0), then along y to the goal at (1, 1). Each step the policy commands a move of at most 0.05 m, and the gripper moves by that **plus actuator noise** of 1 cm per axis (servos never land exactly where they were told). An episode succeeds when the gripper is within 5 cm of the goal inside 80 steps without touching a wall.
+
+The expert is a scripted controller that always aims at a point 0.15 m ahead on the centre line. It plays the role of you with the leader arm. The demonstrations are recorded with no actuator noise, like a careful operator moving slowly. The policy is the simplest possible learner: 1-nearest-neighbour BC, which finds the recorded frame whose observation is closest to the current one and replays its action. A neural network trained with the formula above behaves the same way where it matters here: away from its training data it can only extrapolate.
+
+<CodeSource path="examples/month-6/behaviour-cloning/bc_reach.py" />
+
+```python
+"""bc_reach.py: behaviour cloning, covariate shift and DAgger on a point gripper in an L-shaped corridor.
+
+The gripper moves in a plane (metres). The corridor runs from START (0, 0) along +x to the corner (1, 0),
+then along +y to GOAL (1, 1); it is 0.2 m wide (walls 0.1 m either side of the centre line). Each step the
+policy commands a displacement (dx, dy) of at most 0.05 m; the gripper moves by that plus actuator noise
+(Gaussian, 0.01 m per axis). Success: within 0.05 m of GOAL inside 80 steps without touching a wall.
+
+The expert is a scripted controller (pure pursuit of a point 0.15 m ahead on the centre line). Demonstrations
+are recorded like a teleoperated dataset: one row per frame with episode_index, frame_index, the observation
+(x, y) and the action (dx, dy). The learned policy is 1-nearest-neighbour behaviour cloning: look up the
+recorded frame whose (x, y) is closest and replay its action. Standard library only, fixed seeds.
+usage: python3 bc_reach.py [demos.csv]      (writes the 20-demo dataset to demos.csv if a name is given)
+"""
+import math
+import random
+import sys
+
+START, CORNER, GOAL = (0.0, 0.0), (1.0, 0.0), (1.0, 1.0)
+HALF_WIDTH, STEP, NOISE, MAX_STEPS = 0.10, 0.05, 0.01, 80
+
+
+def path_s(p):
+    """Distance along the centre line of the point on it nearest p, and p's distance from the line."""
+    x, y = p
+    cx = min(max(x, 0.0), 1.0)                       # nearest point on the first leg, (cx, 0)
+    cy = min(max(y, 0.0), 1.0)                       # nearest point on the second leg, (1, cy)
+    d1, d2 = math.hypot(x - cx, y), math.hypot(x - 1.0, y - cy)
+    return (cx, d1) if d1 < d2 else (1.0 + cy, d2)
+
+
+def point_at(s):
+    s = min(max(s, 0.0), 2.0)
+    return (s, 0.0) if s <= 1.0 else (1.0, s - 1.0)
+
+
+def in_corridor(p):
+    x, y = p
+    leg1 = -0.1 <= x <= 1.0 + HALF_WIDTH and abs(y) <= HALF_WIDTH
+    leg2 = abs(x - 1.0) <= HALF_WIDTH and -HALF_WIDTH <= y <= 1.0 + HALF_WIDTH
+    return leg1 or leg2
+
+
+def expert(p):
+    """Pure pursuit: aim at the centre-line point 0.15 m ahead of where we are, at most STEP per step."""
+    s, _ = path_s(p)
+    tx, ty = point_at(s + 0.15) if s < 1.85 else GOAL
+    dx, dy = tx - p[0], ty - p[1]
+    d = math.hypot(dx, dy)
+    k = min(1.0, STEP / d) if d > 0 else 0.0
+    return dx * k, dy * k
+
+
+def rollout(policy, rng, noise=NOISE, record=None):
+    """Run one episode. Returns (result, steps, worst distance from the centre line, final position)."""
+    p = (START[0] + rng.uniform(-0.03, 0.03), START[1] + rng.uniform(-0.03, 0.03))
+    worst = 0.0
+    for t in range(MAX_STEPS):
+        a = policy(p)
+        if record is not None:
+            record.append((t, p, a))
+        p = (p[0] + a[0] + rng.gauss(0, noise), p[1] + a[1] + rng.gauss(0, noise))
+        worst = max(worst, path_s(p)[1])
+        if not in_corridor(p):
+            return 'wall', t + 1, worst, p
+        if math.hypot(p[0] - GOAL[0], p[1] - GOAL[1]) < 0.05:
+            return 'success', t + 1, worst, p
+    return 'timeout', MAX_STEPS, worst, p
+
+
+def record_demos(n, rng, noise=0.0):
+    """Expert demonstrations; by default executed without actuator noise (a careful operator)."""
+    frames = []
+    for ep in range(n):
+        rows = []
+        rollout(expert, rng, noise=noise, record=rows)
+        frames += [(ep, t, p, a) for t, p, a in rows]
+    return frames
+
+
+def nn_policy(frames):
+    """1-nearest-neighbour behaviour cloning: replay the action of the closest recorded observation."""
+    obs = [(f[2], f[3]) for f in frames]
+
+    def policy(p):
+        best = min(obs, key=lambda o: (o[0][0] - p[0]) ** 2 + (o[0][1] - p[1]) ** 2)
+        return best[1]
+    return policy
+
+
+def place(p):
+    """Where along the corridor a wall was hit."""
+    s, _ = path_s(p)
+    return 'leg 1' if s < 0.85 else 'corner' if s < 1.15 else 'leg 2' if s < 1.9 else 'goal end'
+
+
+def evaluate(policy, seed, n=100):
+    rng = random.Random(seed)
+    counts = {'success': 0, 'wall': 0, 'timeout': 0}
+    walls = {'leg 1': 0, 'corner': 0, 'leg 2': 0, 'goal end': 0}
+    worst = []
+    for _ in range(n):
+        result, _, w, p = rollout(policy, rng)
+        counts[result] += 1
+        worst.append(w)
+        if result == 'wall':
+            walls[place(p)] += 1
+    worst.sort()
+    return counts, worst[n // 2], walls
+
+
+def report(label, frames, policy):
+    c, med, walls = evaluate(policy, seed=2026)
+    print(f'{label:<20} {len(frames):>5} frames   success {c["success"]:>3}/100   wall {c["wall"]:>3}   '
+          f'timeout {c["timeout"]:>3}   median worst offset {med * 100:.1f} cm')
+    if c['wall']:
+        print(' ' * 21 + 'wall hits at: ' + ', '.join(f'{k} {v}' for k, v in walls.items()))
+
+
+def main():
+    rng = random.Random(6)
+    demos = record_demos(80, rng)
+    print('Recorded 80 expert demos (no actuator noise), first frames of episode 0:')
+    print('episode_index frame_index  observation.state   action')
+    for ep, t, p, a in demos[:3]:
+        print(f'{ep:>13} {t:>11}  ({p[0]:+.3f}, {p[1]:+.3f})  ({a[0]:+.3f}, {a[1]:+.3f})')
+    lengths = {}
+    for ep, *_ in demos:
+        lengths[ep] = lengths.get(ep, 0) + 1
+    print(f'episode length: {min(lengths.values())} to {max(lengths.values())} frames')
+    if len(sys.argv) > 1:
+        with open(sys.argv[1], 'w') as f:
+            f.write('episode_index,frame_index,x,y,dx,dy\n')
+            for ep, t, p, a in demos:
+                if ep < 20:
+                    f.write(f'{ep},{t},{p[0]:.4f},{p[1]:.4f},{a[0]:.4f},{a[1]:.4f}\n')
+        print(f'wrote the first 20 episodes to {sys.argv[1]}')
+
+    print('\nEvaluation: 100 rollouts each, actuator noise 1 cm per step, same seed for every policy')
+    report('expert', [], expert)
+    for n in (5, 20, 80):
+        frames = [f for f in demos if f[0] < n]
+        report(f'BC, {n} demos', frames, nn_policy(frames))
+    noisy = record_demos(20, random.Random(8), noise=NOISE)      # the expert corrects its own noise
+    report('BC, 20 noisy demos', noisy, nn_policy(noisy))
+
+    print('\nDAgger: start from BC on 5 demos; each round runs the current policy 10 times with noise,')
+    print('asks the expert what it would have done in every visited state, and adds those frames')
+    frames = [f for f in demos if f[0] < 5]
+    drng = random.Random(7)
+    for k in range(1, 4):
+        policy = nn_policy(frames)
+        new = []
+        for ep in range(10):
+            rows = []
+            rollout(policy, drng, record=rows)
+            new += [(1000 * k + ep, t, p, expert(p)) for t, p, _ in rows]
+        frames = frames + new
+        report(f'DAgger round {k}', frames, nn_policy(frames))
+
+
+if __name__ == '__main__':
+    main()
+```
+
+It uses only the Python standard library and fixed seeds, so your run prints the same numbers. The first part records 80 demonstrations and writes the first 20 to a CSV file in the same column layout as a LeRobot dataset:
+
+<SimOutput source="model">
+
+```text
+$ python3 bc_reach.py demos.csv
+Recorded 80 expert demos (no actuator noise), first frames of episode 0:
+episode_index frame_index  observation.state   action
+            0           0  (+0.018, +0.019)  (+0.050, -0.006)
+            0           1  (+0.067, +0.013)  (+0.050, -0.004)
+            0           2  (+0.117, +0.009)  (+0.050, -0.003)
+episode length: 38 to 39 frames
+wrote the first 20 episodes to demos.csv
+```
+
+</SimOutput>
+
+Episode 0 starts 1.8 cm right and 1.9 cm above the start point. The expert moves at full speed (0.050 m per step) along x and steers back towards the centre line with a small negative y component that shrinks as the offset shrinks. The path is 2 m long, the episode ends 5 cm before the goal and each step covers at most 0.05 m, so an episode takes about (2 − 0.05) / 0.05 = 39 steps; the random start and the expert cutting the corner slightly make it 38 or 39.
+
+<Quiz id="q1" question="20 demonstrations of 38 or 39 frames each: about how many frames is that? (The output below gives the exact count.)" answer={770} unit="frames" tolerance={0.02} explanation="20 × 38.5 = 770. The exact count is 766, so 14 of the 20 episodes have 38 frames and 6 have 39 (14 × 38 + 6 × 39 = 532 + 234 = 766)." />
+
+## Covariate shift
+
+Now run every policy 100 times with the actuator noise switched on. Every policy's evaluation starts from the same random seed. Only the first run of each sees exactly the same start and noise, because policies that take different numbers of steps use up the random numbers at different rates; lesson 4 shows how to seed each run so that every policy meets identical conditions:
+
+<SimOutput source="model">
+
+```text
+Evaluation: 100 rollouts each, actuator noise 1 cm per step, same seed for every policy
+expert                   0 frames   success 100/100   wall   0   timeout   0   median worst offset 3.5 cm
+BC, 5 demos            190 frames   success  61/100   wall  39   timeout   0   median worst offset 7.2 cm
+                     wall hits at: leg 1 4, corner 0, leg 2 6, goal end 29
+BC, 20 demos           766 frames   success  67/100   wall  33   timeout   0   median worst offset 5.9 cm
+                     wall hits at: leg 1 1, corner 2, leg 2 10, goal end 20
+BC, 80 demos          3061 frames   success  67/100   wall  33   timeout   0   median worst offset 5.9 cm
+                     wall hits at: leg 1 3, corner 1, leg 2 5, goal end 24
+```
+
+</SimOutput>
+
+The expert succeeds every time; it corrects the noise because it computes its action from wherever it really is. The cloned policies fail a third of the time or more, and going from 20 to 80 demonstrations changes nothing: 67 out of 100 both times. "Median worst offset" is the median, over the 100 runs, of how far each run strayed from the centre line; the cloned policy wanders almost twice as far as the expert.
+
+The reason is called **covariate shift**: the states the policy visits at test time are not the states it was trained on. The noise-free demonstrations all collapse onto the centre line within a few steps, so the dataset contains almost nothing more than 3 cm off it. When noise pushes the gripper 5 cm to the side, the nearest recorded frame is a centre-line frame whose action says "go straight", not "come back". Each small error moves the policy further from its data, where its next action is worse, so errors compound instead of averaging out. Adding more demonstrations of the same kind adds more frames on the centre line, which is why 80 demos are no better than 20.
+
+The "wall hits at" line shows where it goes wrong. Most failures are at the goal end: the demonstrations stop as soon as the expert is within 5 cm of the goal, so there is not a single frame that says what to do near the goal if you arrive a few centimetres off. The policy keeps going in +y and drives into the end wall. Real datasets have the same holes, at the moments right after the operator finished the task, and after a failed grasp, which a good operator never demonstrates.
+
+<Quiz id="q2" question="If nothing ever corrects it, how far (one standard deviation, in cm) does 1 cm of independent noise per step drift one axis after 38 steps?" answer={6.2} unit="cm" explanation="Independent errors add in quadrature: 1 cm × √38 = 6.2 cm. That is more than half the corridor's 10 cm half-width, so a policy that does not steer back has a real chance of touching a wall even before compounding makes it worse." />
+
+<Quiz id="q3" question="Why did 80 demonstrations not do better than 20 here?" options={["The nearest-neighbour policy cannot use more than 766 frames", "The extra demos cover the same states on the centre line, not the off-path states the policy reaches under noise", "The evaluation seeds were different for the 80-demo run"]} answer={1} explanation="More data only helps if it covers the states the policy actually visits. The noise-free expert never leaves the centre line, so its demos never show recovery. Every line uses the same seed and 100 runs, and the gap between 67 and 100 for DAgger is far larger than run-to-run luck." />
+
+## Two fixes: noisy demonstrations and DAgger
+
+The cure is to put **recovery** into the data: frames from off the path, labelled with the action that brings the robot back. There are two common ways to get them.
+
+The first is to record the demonstrations with the noise on, so the expert keeps correcting its own drift (the idea behind the DART method). On a real robot that means recording at normal speed with natural disturbances rather than slowly and perfectly, and deliberately demonstrating recoveries. The second is **DAgger** (dataset aggregation): run the current policy, let the expert label every state the policy visited with what the expert would have done there, add those frames to the dataset, retrain and repeat. This collects data exactly where the learner goes wrong. The model starts DAgger from the weakest policy, BC on 5 demos:
+
+<SimOutput source="model">
+
+```text
+BC, 20 noisy demos     776 frames   success  99/100   wall   1   timeout   0   median worst offset 3.8 cm
+                     wall hits at: leg 1 0, corner 0, leg 2 0, goal end 1
+
+DAgger: start from BC on 5 demos; each round runs the current policy 10 times with noise,
+asks the expert what it would have done in every visited state, and adds those frames
+DAgger round 1         581 frames   success 100/100   wall   0   timeout   0   median worst offset 3.7 cm
+DAgger round 2         963 frames   success 100/100   wall   0   timeout   0   median worst offset 3.7 cm
+DAgger round 3        1343 frames   success 100/100   wall   0   timeout   0   median worst offset 3.6 cm
+```
+
+</SimOutput>
+
+Twenty noisy demonstrations (776 frames) reach 99/100, against 67/100 for 3061 noise-free frames. One DAgger round, 10 runs of the 5-demo policy relabelled by the expert, takes the 5-demo policy from 61 to 100 out of 100 with 581 frames in total. The quantity of data matters much less than whether it covers the states the policy will be in.
+
+<Quiz id="q4" question="DAgger round 1 has 581 frames and started from 190. How many frames per run did the 10 relabelled runs add on average?" answer={39.1} unit="frames" explanation="(581 − 190) / 10 = 39.1 frames per run. Each run adds every state it visited, up to the moment it succeeded or hit a wall, labelled with the expert's action." />
+
+On a real arm the expert in DAgger is you, so the loop is: let the policy run, take over with the leader arm when it starts going wrong, and keep the corrected frames. LeRobot's `lerobot-rollout` has a `dagger` strategy for exactly this human-in-the-loop collection.
+
+## On your SO-101 with LeRobot
+
+The real version of this lesson is the first Month 6 milestone: record a dataset with your own leader and follower arms and train a policy that runs on them. The commands below are from the LeRobot imitation learning guide; they were not run for this page (they need the arms, a camera and, for training, a GPU), and the flags change between LeRobot releases, so copy them from the official guide for your version:
+
+```bash
+# 1. record 50 episodes of one task with the leader arm (ports and ids from your Month 3 calibration)
+lerobot-record --robot.type=so101_follower --robot.port=/dev/ttyACM0 --robot.id=my_follower \
+  --teleop.type=so101_leader --teleop.port=/dev/ttyACM1 --teleop.id=my_leader \
+  --robot.cameras="{ front: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 30}}" \
+  --dataset.repo_id=${HF_USER}/pick_cube --dataset.num_episodes=50 \
+  --dataset.single_task="Pick up the cube and put it in the bin"
+# 2. train a policy on it (ACT, the next lesson; several hours on one GPU)
+lerobot-train --dataset.repo_id=${HF_USER}/pick_cube --policy.type=act \
+  --output_dir=outputs/train/act_pick_cube --policy.device=cuda
+# 3. run it on the arm
+lerobot-rollout --strategy.type=base --policy.path=outputs/train/act_pick_cube/checkpoints/last/pretrained_model \
+  --robot.type=so101_follower --robot.port=/dev/ttyACM0 --robot.id=my_follower \
+  --robot.cameras="{ front: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 30}}" \
+  --task="Pick up the cube and put it in the bin" --duration=60
+```
+
+<Resource id="lerobot-il-robots" />
+
+What the corridor teaches carries straight over. Vary the cube's position across the episodes (the guide suggests 10 episodes at each of 5 places), keep the cameras fixed, include a few recoveries such as a re-grasp after a slip, and count successes over a fixed set of test positions instead of judging from one good video.
+
+## Common mistakes
+
+- **Recording only perfect demonstrations.** A dataset with no mistakes in it has no recoveries in it, and the policy will meet states the expert never showed it. Demonstrate the recovery from a small slip on purpose.
+- **Judging a policy from one run.** One clip proves the policy *can* succeed, not how often. Use a fixed set of starting conditions and count, as the evaluation above does with 100 seeded runs; lesson 4 of this month shows how many trials you need.
+- **Changing several things between runs.** The model evaluates every policy with the same seed, number of runs and noise, so that the policy is the main difference. On hardware, keep the objects, lighting and start positions fixed while you compare two policies.
+- **Adding more of the same data.** If a policy fails in one place, look at where (like the "wall hits at" line), then record or relabel data there. 80 demos of the same thing did not beat 20.
+- **Training on what the robot did instead of what was commanded.** The action column must be the command (the leader arm's joint targets), not the follower's measured position one frame later, or the policy learns to lag.

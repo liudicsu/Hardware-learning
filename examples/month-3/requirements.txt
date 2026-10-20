@@ -1,0 +1,5 @@
+# Optional Python packages for check.sh (no CI in this repo: install them locally).
+# feetech-servo-sdk lets check.sh run arm-compare_sdk (so101-arm/compare_sdk.py) instead of skipping it.
+#   python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
+feetech-servo-sdk==1.0.0
+pyserial==3.5        # pulled in by feetech-servo-sdk; pinned too

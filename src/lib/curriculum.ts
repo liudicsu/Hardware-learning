@@ -490,6 +490,90 @@ const month5Lessons: Lesson[] = [
   },
 ];
 
+const month6Lessons: Lesson[] = [
+  {
+    slug: "behaviour-cloning",
+    title: { zh: "模仿学习（一）：示范数据、行为克隆与 DAgger", en: "Imitation learning I: demonstrations, behaviour cloning and DAgger" },
+    summary: {
+      zh: "把示范数据看成一张按帧记录的表，用最近邻行为克隆在 L 形走廊里学会专家的动作；在执行器噪声下看清协变量偏移：示范越多也不见好，失败集中在示范从没去过的地方；再用带噪声的示范和 DAgger 把恢复动作放进数据，最后对照 LeRobot 在 SO-101 上的录制、训练和运行命令。",
+      en: "Treat a demonstration dataset as a table of frames, clone an expert in an L-shaped corridor with nearest-neighbour behaviour cloning, and watch covariate shift under actuator noise: more demos do not help and the failures sit where the demos never went; then put recoveries into the data with noisy demos and DAgger, and map it all onto LeRobot's record, train and rollout commands for the SO-101.",
+    },
+    minutes: 240,
+    resources: ["lerobot-il-robots", "dagger-paper"],
+    tasks: [
+      { id: "run", text: { zh: "运行 bc_reach.py，打开 demos.csv，确认每列对应 LeRobot 数据集的哪一列，并用 √n 估算无纠正时的漂移", en: "Run bc_reach.py, open demos.csv, match each column to a LeRobot dataset column, and estimate the uncorrected drift with √n" } },
+      { id: "noise", text: { zh: "把 NOISE 改成 0.005 和 0.02 再运行，记录 BC（20 条示范）和 DAgger 第 1 轮的成功率，解释变化", en: "Change NOISE to 0.005 and 0.02, run again, record the success of BC on 20 demos and of DAgger round 1, and explain the change" } },
+      { id: "goal-end", text: { zh: "修复“目标端”的空洞：让示范在到达目标后再多录几帧原地不动的动作，比较 BC 的失败位置", en: "Fix the goal-end hole: make the demos record a few extra frames of holding still at the goal, and compare where BC now fails" } },
+      { id: "real-dataset", text: { zh: "（有硬件时）用 lerobot-record 录 50 个回合：5 个方块位置各 10 个，至少包含 5 次有意的恢复动作", en: "(With hardware) record 50 episodes with lerobot-record: 10 at each of 5 cube positions, including at least 5 deliberate recoveries" } },
+    ],
+  },
+  {
+    slug: "act-diffusion",
+    title: { zh: "模仿学习（二）：多模态示范、动作分块（ACT）与扩散策略", en: "Imitation learning II: multimodal demos, action chunking (ACT) and diffusion policy" },
+    summary: {
+      zh: "示范里有两个都对的答案时，平方误差损失学到的是它们的平均——一个谁也没做过、还会撞上障碍物的动作。在方块任务上比较取平均、采样、不同长度的动作块和用精确去噪器的 DDPM 采样，看清 ACT 分块的好处与开环代价、扩散策略为什么能保留多个模式，再对照 LeRobot 训练 ACT 和 Diffusion Policy 的命令。",
+      en: "When the demonstrations contain two right answers, a squared-error loss learns their average: a move nobody made, straight into the obstacle. On a block task, compare averaging, sampling, action chunks of different lengths and DDPM sampling with the exact denoiser, see what ACT's chunking buys and what running open loop costs, why a diffusion policy keeps several modes, and map it onto LeRobot's commands for training ACT and Diffusion Policy.",
+    },
+    minutes: 240,
+    resources: ["act-paper", "diffusion-policy", "lerobot-il-robots"],
+    tasks: [
+      { id: "run", text: { zh: "运行 multimodal.py，用 7 : 3 的近邻比例手算均值策略在岔口的横向动作，与输出的 −0.017 m 核对", en: "Run multimodal.py and work out by hand, from the 7 : 3 neighbours, the averaging policy's sideways move at the fork; check it against the −0.017 m it prints" } },
+      { id: "one-side", text: { zh: "让专家只从左边绕（side 固定为 −1），再比较 average 和 sample 的成功率，解释为什么差距消失", en: "Make the expert always pass on the left (side fixed at −1), compare average and sample again, and explain why the gap disappears" } },
+      { id: "chunk-length", text: { zh: "把方块的 HALF 改成 0.12，再跑 chunk 4、8、16，画出成功率随块长的变化", en: "Change the block's HALF to 0.12, run chunk 4, 8 and 16 again, and plot success against chunk length" } },
+      { id: "train-real", text: { zh: "（有 GPU 和数据集时）用 LeRobot 在同一数据集上训练 ACT 和 Diffusion Policy，在同样 10 个起始位置上各测 10 次，记录成功率和每个动作块的推理时间", en: "(With a GPU and a dataset) train ACT and Diffusion Policy on the same LeRobot dataset, test each 10 times at the same 10 start positions, and record success and inference time per chunk" } },
+    ],
+  },
+  {
+    slug: "vla-models",
+    title: { zh: "VLA 模型：动作如何变成词元，哪些开放权重", en: "VLA models: how actions become tokens, and which have open weights" },
+    summary: {
+      zh: "视觉-语言-动作模型由视觉编码器、语言模型和动作输出组成。在一个类似 SO-101 遥操作的数据集上，比较 RT-2/OpenVLA 式的 256 区间分词和 FAST 式的 DCT 压缩：词元数、截断误差、相邻词元几乎相同的问题；再逐一核对 OpenVLA、Octo、π0/π0.5、SmolVLA、GR00T 的权重许可证，并给出在 SO-101 上微调 SmolVLA 的命令。",
+      en: "A vision-language-action model is a vision encoder, a language model and an action output. On a dataset shaped like SO-101 teleoperation, compare RT-2/OpenVLA-style 256-bin tokens with FAST-style DCT compression: token counts, clipping error and nearly identical consecutive tokens; then check the weight licences of OpenVLA, Octo, π0/π0.5, SmolVLA and GR00T one by one, with the command for fine-tuning SmolVLA on an SO-101.",
+    },
+    minutes: 180,
+    resources: ["lerobot-smolvla", "openvla", "openpi"],
+    tasks: [
+      { id: "run", text: { zh: "运行 action_tokens.py，手算关节 0 的区间宽度，并解释 6.2 度的最大误差从哪里来", en: "Run action_tokens.py, work out joint 0's bin width by hand, and explain where the 6.2-degree maximum error comes from" } },
+      { id: "rate", text: { zh: "把 HZ 改成 50 和 10（CHUNK 同步改成 1 秒），比较区间词元数、“与上一步相同”的比例和 DCT 缩放 10 时的非零系数个数", en: "Change HZ to 50 and to 10 (and CHUNK to match 1 s), and compare the bin token count, the share of tokens equal to the previous step, and the nonzero DCT coefficients at scale 10" } },
+      { id: "licences", text: { zh: "为表中每个模型打开模型卡，记下今天的权重许可证、参数量和是否允许商用，与课程表格对比", en: "Open the model card of every model in the table, write down today's weight licence, parameter count and whether commercial use is allowed, and compare with the lesson's table" } },
+      { id: "smolvla", text: { zh: "（有 GPU 和数据集时）在你第 1 课录的数据集上微调 SmolVLA，与同一数据集上的 ACT 在同样 10 个起始位置上比较成功率", en: "(With a GPU and a dataset) fine-tune SmolVLA on the dataset from lesson 1 and compare its success with ACT on the same data at the same 10 start positions" } },
+    ],
+  },
+  {
+    slug: "policy-evaluation",
+    title: { zh: "评估一个策略：置信区间、配对试验与失败分析", en: "Evaluating a policy: intervals, paired trials and failure analysis" },
+    summary: {
+      zh: "从少量试验里得到诚实的数字：用 Wilson 区间看清 10/10 只说明成功率大概高于 72 %，同一策略十组 10 次试验从 4 到 9 不等；用逐次固定种子（真机上是固定的起始位置清单）做配对比较和 McNemar 检验，算出区分两个成功率要多少次试验，再用失败表找出下一步该修什么，最后为你的机械臂写一份评估规程。",
+      en: "Get honest numbers out of few trials: Wilson intervals show that 10/10 only means the rate is probably above 72 %, and ten 10-trial sessions of one policy range from 4 to 9; compare policies trial by trial with per-trial seeds (a fixed list of start positions on hardware) and McNemar's test, work out how many trials a comparison needs, use a failure table to find what to fix next, and write an evaluation protocol for your arm.",
+    },
+    minutes: 180,
+    resources: ["lerobot-il-robots"],
+    tasks: [
+      { id: "run", text: { zh: "运行 eval_report.py，手算 8/10 的 Wilson 区间并与输出核对", en: "Run eval_report.py and work out the Wilson interval for 8/10 by hand; check it against the output" } },
+      { id: "dagger", text: { zh: "在第 3 部分把第二个策略换成第 1 课的 DAgger 第 1 轮策略，记录配对表和 McNemar p 值", en: "In part 3, replace the second policy with lesson 1's DAgger round-1 policy and record the paired table and McNemar's p" } },
+      { id: "sessions", text: { zh: "把第 2 部分改成每组 30 次试验，比较十组结果的最低与最高值，并解释为什么范围变窄", en: "Change part 2 to 30 trials per session, compare the lowest and highest of the ten sessions, and explain why the range narrows" } },
+      { id: "protocol", text: { zh: "为你的机械臂任务写一份评估规程：成功标准、20 个起始位置（其中 5 个不在训练数据里）、固定项、记录项和报告格式", en: "Write an evaluation protocol for your arm's task: success criterion, 20 start positions (5 of them not in the training data), what stays fixed, what is recorded and the report format" } },
+    ],
+  },
+  {
+    slug: "specialisation-portfolio",
+    title: { zh: "选择方向、作品集与求职", en: "Choosing a specialisation, the portfolio and getting hired" },
+    summary: {
+      zh: "用三个问题（你会主动回头看哪些课、你已经能拿出什么、你想去的地方招什么人）在五个方向里选定一个；挑三个带视频、指标和失败分析的作品集项目；用 portfolio_check.py 检查 README 是否有评审要看的八个部分；在一行代码上练习三层追问；最后是简历、申请信息和边做边投。",
+      en: "Pick one of five directions with three questions (which lessons you went back to, what you can already show, who is hiring where you want to work); choose three portfolio projects with video, metrics and failure analysis; check a README for the eight parts a reviewer looks for with portfolio_check.py; practise three levels of follow-up questions on one line of code; then the CV, the application message and applying while you build.",
+    },
+    minutes: 180,
+    resources: ["beauregard-pid", "slam-toolbox", "lerobot-il-robots"],
+    tasks: [
+      { id: "direction", text: { zh: "读 20 份真实招聘启事，统计技能要求，写下你选的方向和一句理由", en: "Read 20 real job adverts, tally the skills they ask for, and write down your direction with a one-sentence reason" } },
+      { id: "readme", text: { zh: "对你最好的一个项目运行 portfolio_check.py，把缺的部分补齐，直到 8 项都在", en: "Run portfolio_check.py on your best project and add the missing parts until all 8 are present" } },
+      { id: "three-projects", text: { zh: "列出你的三个作品集项目：每个写一个指标、一种失败和一处超出教程的改动", en: "List your three portfolio projects: for each, one metric, one failure and one change beyond the tutorial" } },
+      { id: "follow-ups", text: { zh: "从每个项目里挑一行关键代码，写下三层追问的答案；答不出的那一层就是下周要学的", en: "Pick one key line from each project and write the answers to three levels of follow-up questions; any level you cannot answer is next week's study" } },
+      { id: "apply", text: { zh: "写一页简历（项目在前，每个附一个数字和链接），投出前五份申请并开始记日志", en: "Write a one-page CV (projects first, each with a number and a link), send your first five applications and start the log" } },
+    ],
+  },
+];
+
 export const months: Month[] = [
   {
     id: 1,
@@ -499,7 +583,6 @@ export const months: Month[] = [
       zh: "能读懂原理图、搭出能工作的电路，并在电路不工作时找到故障。",
       en: "Read a schematic, build a circuit that works, and find the fault when it doesn't.",
     },
-    status: "ready",
     topics: [
       { zh: "电子学基础", en: "Electronics fundamentals" },
       { zh: "工作台、工具与预算", en: "The bench, tools and budget" },
@@ -524,7 +607,6 @@ export const months: Month[] = [
       zh: "做出一台能移动、能感知环境、能自我纠正的机器人。",
       en: "Build a robot that moves, senses its environment and corrects itself.",
     },
-    status: "ready",
     topics: [
       { zh: "Arduino：IO、PWM、中断、I2C/SPI、串口调试、非阻塞计时", en: "Arduino: IO, PWM, interrupts, I2C/SPI, serial debugging, non-blocking timing" },
       { zh: "ESP32：Wi-Fi/蓝牙、ESP-IDF 与 Arduino 内核", en: "ESP32: Wi-Fi/Bluetooth, ESP-IDF and the Arduino core" },
@@ -550,7 +632,6 @@ export const months: Month[] = [
       zh: "在 CAD 中设计一个零件，把它制造出来，并且装得上。",
       en: "Design a part in CAD, manufacture it, and have it fit.",
     },
-    status: "ready",
     topics: [
       { zh: "CAD：Onshape / Fusion / FreeCAD / SOLIDWORKS 选型与参数化建模", en: "CAD: choosing Onshape / Fusion / FreeCAD / SOLIDWORKS; parametric modelling" },
       { zh: "3D 打印：校准、公差与面向 FDM 的设计", en: "3D printing: calibration, tolerances and design for FDM" },
@@ -577,7 +658,6 @@ export const months: Month[] = [
       zh: "用 ROS 2 构建机器人并仿真，让它建图并自主导航。",
       en: "Build a robot in ROS 2, simulate it, and make it map a room and navigate autonomously.",
     },
-    status: "ready",
     topics: [
       { zh: "选择 ROS 2 发行版，避开 ROS 1 陷阱", en: "Choosing a ROS 2 distro and avoiding the ROS 1 trap" },
       { zh: "ROS 2 核心概念：节点、话题、服务、动作", en: "ROS 2 core concepts: nodes, topics, services, actions" },
@@ -604,7 +684,6 @@ export const months: Month[] = [
       zh: "理解并实现你已用过的控制与感知背后的原理。",
       en: "Understand and implement the control and perception underneath everything you've built.",
     },
-    status: "ready",
     topics: [
       { zh: "控制理论：从 PID 走向建模与频域", en: "Control theory: from PID to models and the frequency domain" },
       { zh: "状态空间、LQR 与 MPC", en: "State space, LQR and MPC" },
@@ -630,7 +709,6 @@ export const months: Month[] = [
       zh: "选定一个方向，做出代表作，并开始投递。",
       en: "Pick one direction, build a portfolio piece in it, and start applying.",
     },
-    status: "outline",
     topics: [
       { zh: "模仿学习：行为克隆、ACT、扩散策略", en: "Imitation learning: behaviour cloning, ACT, diffusion policy" },
       { zh: "VLA 模型：哪些开放权重", en: "VLA models and which have open weights" },
@@ -645,9 +723,20 @@ export const months: Month[] = [
       { zh: "展示三个附带视频、指标与失败分析的作品", en: "Show three portfolio projects with video, metrics and failure analysis" },
       { zh: "能回答关于你代码任意一行的三层追问", en: "Answer three levels of follow-up questions about any line of your code" },
     ],
-    lessons: [],
+    lessons: month6Lessons,
   },
 ];
+
+/** Totals shown on the home page and month overview. */
+export function monthStats(month: Month) {
+  const minutes = month.lessons.reduce((sum, l) => sum + l.minutes, 0);
+  return {
+    lessons: month.lessons.length,
+    tasks: month.lessons.reduce((sum, l) => sum + l.tasks.length, 0),
+    /** Reading and exercise time, rounded to the nearest half hour. */
+    hours: Math.round(minutes / 30) / 2,
+  };
+}
 
 export function getMonth(slug: string): Month | undefined {
   return months.find((m) => m.slug === slug);

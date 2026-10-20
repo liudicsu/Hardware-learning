@@ -164,4 +164,9 @@ sleep 2
 check ros-tf_laser_alias.txt bash -c "echo_tf base_link laser 3"
 stop_display
 
+# ---- Lesson 6: map_check.py must reject a blank map and a map with one object erased ---------
+# (plain Python on a map saved by a real run, slam-nav/test/room.*; tools/sim/ros/run.sh repeats
+# it on every freshly saved map)
+check slam-map_check_negative.txt python3 "$M4/slam-nav/map_check_test.py"
+
 exit $fail

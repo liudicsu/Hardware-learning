@@ -414,7 +414,7 @@ free_thresh: 0.196
 """Check a saved map against the world it came from: are the walls and obstacles where the
 obstacles world (Lesson 4) put them?
 
-usage: python3 map_check.py ~/maps/room.yaml
+usage: python3 map_check.py ~/maps/room.yaml      (exit code 1 if an object is missing or the map is too empty)
 Reads the .yaml and .pgm written by nav2_map_server's map_saver_cli. Only the Python standard
 library is needed. The map frame starts where the robot was spawned, the centre of the room."""
 import os
@@ -430,6 +430,20 @@ OBJECTS = {
     'blue pillar': (1.0, -1.2, 0.15, 0.15),
     'green block': (-1.5, 1.5, 0.6, 0.6),   # 1.2 x 0.3 m turned 0.6 rad: check its bounding square
 }
+# The fewest occupied cells that still count as "found", and the fewest occupied and free cells
+# in the whole map: about half the smaller count seen in two real runs of tools/sim/ros/run.sh
+# (2026-10-20), so the normal run-to-run spread passes but a blank map or a missing object fails.
+MIN_CELLS = {                    # seen in run 1 / run 2
+    'north wall':    40,       # 190 /  81
+    'south wall':   125,       # 250 / 275
+    'west wall':     66,       # 133 / 152
+    'east wall':     97,       # 195 / 242
+    'red box':       12,       #  24 /  26
+    'blue pillar':    6,       #  12 /  12
+    'green block':   24,       #  48 /  48
+}
+MIN_OCCUPIED = 347               # 747 / 694
+MIN_FREE = 6329                  # 12659 / 12730
 
 
 def read_yaml(path):
@@ -474,6 +488,11 @@ def main():
     total = width * height
     print(f'occupied {counts[0]} ({100 * counts[0] / total:.0f} %), free {counts[254]} '
           f'({100 * counts[254] / total:.0f} %), unknown {counts[205]} ({100 * counts[205] / total:.0f} %)')
+    failed = []
+    if counts[0] < MIN_OCCUPIED:
+        failed.append(f'only {counts[0]} occupied cells in the map, need {MIN_OCCUPIED}')
+    if counts[254] < MIN_FREE:
+        failed.append(f'only {counts[254]} free cells in the map, need {MIN_FREE}')
 
     def cell(x, y):                           # map coordinates -> pixel value (row 0 = top = max y)
         col = int((x - origin[0]) / res)
@@ -488,11 +507,17 @@ def main():
             for j in range(steps_y):
                 if cell(cx - hx - res + i * res, cy - hy - res + j * res) == 0:
                     found += 1
-        print(f'{name:12s} at ({cx:+.1f}, {cy:+.1f}): {"found" if found else "MISSING"} ({found} occupied cells)')
+        verdict = 'found' if found >= MIN_CELLS[name] else 'TOO FEW' if found else 'MISSING'
+        print(f'{name:12s} at ({cx:+.1f}, {cy:+.1f}): {verdict} ({found} occupied cells)')
+        if verdict != 'found':
+            failed.append(f'{name}: {found} occupied cells, need {MIN_CELLS[name]}')
+    for reason in failed:
+        print('FAIL: ' + reason)
+    return 1 if failed else 0              # exit code 1: the map does not match the world
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
 ```
 
 <SimOutput source="ros">
@@ -512,7 +537,7 @@ green block  at (-1.5, +1.5): found (49 occupied cells)
 
 </SimOutput>
 
-每个物体都在它该在的地方。栅格数量每次运行都会不同——下一次运行里某面墙的栅格数可能只剩一半，地图也可能少一行——因为扫描和回环检测永远不会完全一样；真正重要的是没有东西缺失，而且未知部分所占的比例很小。那 7 % 的未知栅格大多在障碍物后面和墙外，是激光雷达看不到的地方。在真机上，你会改用卷尺来对照：挑两面墙，量出距离，再数一数它们之间有多少栅格。
+每个物体都在它该在的地方。栅格数量每次运行都会不同——下一次运行里某面墙的栅格数可能只剩一半，地图也可能少一行——因为扫描和回环检测永远不会完全一样；真正重要的是没有东西缺失，而且未知部分所占的比例很小。所以 `MIN_CELLS`、`MIN_OCCUPIED` 和 `MIN_FREE` 都取两次真实运行中较小值的一半左右：宽到能容下正常的波动，又严到一张空白地图、或者少了一个物体的地图都会打印 `FAIL` 行并以退出码 1 结束，脚本可以据此停下来。那 7 % 的未知栅格大多在障碍物后面和墙外，是激光雷达看不到的地方。在真机上，你会改用卷尺来对照：挑两面墙，量出距离，再数一数它们之间有多少栅格。
 
 <Quiz id="q3" question="分辨率为 0.05 m 时，一张 6 m × 6 m 房间的地图有多少个栅格？" answer={14400} unit="个" explanation="6 / 0.05 = 120，每边 120 个栅格，120 × 120 = 14,400 个栅格。" />
 

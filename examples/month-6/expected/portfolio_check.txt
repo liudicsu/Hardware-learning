@@ -1,0 +1,22 @@
+arm-pick-place: README.md, 335 words, 7 headings
+  ok      video         a video or GIF of it working
+  ok      result        a results table with k/n or measured numbers
+  ok      trials        how many trials or conditions were tested
+  ok      failures      a failure analysis section
+  ok      reproduce     how to reproduce it, with commands
+  ok      hardware      the hardware or bill of materials
+  ok      contribution  what you built yourself versus reused
+  ok      next          limitations or next steps
+  8 of 8 present
+
+line-follower: README.md, 69 words, 4 headings
+  ok      video         a video or GIF of it working
+  MISSING result        a results table with k/n or measured numbers
+  MISSING trials        how many trials or conditions were tested
+  MISSING failures      a failure analysis section
+  MISSING reproduce     how to reproduce it, with commands
+  ok      hardware      the hardware or bill of materials
+  MISSING contribution  what you built yourself versus reused
+  MISSING next          limitations or next steps
+  2 of 8 present
+exit code 1

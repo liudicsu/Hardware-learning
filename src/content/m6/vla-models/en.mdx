@@ -1,0 +1,207 @@
+The policies in the last two lessons were trained from scratch for one task on one robot. A vision-language-action model (VLA) starts instead from a vision-language model, a network already trained on huge amounts of images and text, and is trained further on robot demonstrations from many robots, so that it maps a camera image plus an instruction such as "put the red cube in the bin" to robot actions. You rarely train one yourself; you download one and **fine-tune** it on a few dozen demonstrations of your task. This lesson covers how actions get in and out of such a model, which models you can actually download, and under what licence.
+
+## What a VLA is
+
+Three parts. A **vision encoder** turns each camera image into a sequence of feature vectors. A **language model** reads those together with the tokenised instruction (and, in most models, the robot's joint state). An **action output** turns the language model's result into numbers for the motors. The first two come from a pretrained vision-language model; the robot-specific learning is mostly in the third and in the fine-tuning.
+
+There are two ways to build the action output, and they decide much of a model's behaviour:
+
+- **Actions as tokens.** Extend the language model's vocabulary with action tokens and let it write actions the way it writes words, one token after another. RT-2 and OpenVLA work like this; π0-FAST does too, with a better tokeniser.
+- **A separate action head.** Feed the language model's features into a smaller network that produces a whole chunk of continuous actions, by diffusion or flow matching (a close relative of the diffusion you met in the [previous lesson](/en/month/month-6/act-diffusion)). Octo, π0, π0.5, SmolVLA and GR00T work like this.
+
+The first approach reuses the language model unchanged but has to decide how to write actions as tokens. That is the part you can run and inspect without a GPU.
+
+## Actions as tokens: 256 bins
+
+RT-2 and OpenVLA give each action dimension 256 tokens. For each dimension, the dataset's 1st and 99th percentile set the range, the range is cut into 256 equal bins, and a value becomes the index of its bin. Values beyond the percentiles are clipped to the end bins, so a rare extreme value does not stretch every bin.
+
+<Formula label="Bin token for one action value">token = floor(256 × (clip(a, p1, p99) − p1) / (p99 − p1)),   from 0 to 255</Formula>
+
+The program below makes a dataset shaped like teleoperation of an SO-101: 50 episodes of 6 joint targets in degrees at 30 Hz. It then tokenises a 1-second chunk from a new episode both ways:
+
+<CodeSource path="examples/month-6/vla-models/action_tokens.py" />
+
+```python
+"""action_tokens.py: how a VLA turns robot actions into tokens, per-step bins versus a DCT of the whole chunk.
+
+A language model outputs tokens, so an autoregressive VLA needs a way to write actions as tokens. Two schemes:
+  bins  (RT-2, OpenVLA): each action dimension at each step becomes one of 256 tokens, bins spread evenly
+        between that dimension's 1st and 99th percentile over the dataset.
+  DCT   (the idea behind FAST, used by pi0-FAST): normalise each dimension to -1..1 with the same percentiles,
+        take a discrete cosine transform of each dimension over the chunk, multiply by a scale and round.
+        Smooth motion puts almost everything into a few low-frequency coefficients; the rest round to zero.
+        (FAST then compresses the integers with byte-pair encoding; this program counts nonzero coefficients.)
+The actions are synthetic but shaped like a teleoperated SO-101: 6 joint targets in degrees at 30 Hz, chunks of
+1 s (30 steps). Standard library only, fixed seeds.
+"""
+import math
+import random
+
+HZ, CHUNK, JOINTS, BINS = 30, 30, 6, 256
+
+
+def episode(rng, seconds=10):
+    """Smooth joint targets: a few slow sine components per joint, like a person moving a leader arm."""
+    comps = [[(rng.uniform(5, 40), rng.uniform(0.1, 0.8), rng.uniform(0, 2 * math.pi)) for _ in range(3)]
+             for _ in range(JOINTS)]
+    offset = [rng.uniform(-30, 30) for _ in range(JOINTS)]
+    return [[offset[j] + sum(a * math.sin(2 * math.pi * f * t / HZ + ph) for a, f, ph in comps[j])
+             for j in range(JOINTS)] for t in range(seconds * HZ)]
+
+
+def percentile(values, q):
+    v = sorted(values)
+    k = (len(v) - 1) * q
+    lo = int(k)
+    return v[lo] + (v[min(lo + 1, len(v) - 1)] - v[lo]) * (k - lo)
+
+
+def to_bins(x, lo, hi):
+    u = (min(max(x, lo), hi) - lo) / (hi - lo)
+    return min(int(u * BINS), BINS - 1)
+
+
+def from_bins(token, lo, hi):
+    return lo + (token + 0.5) * (hi - lo) / BINS
+
+
+def dct(x):
+    """DCT-II with orthonormal scaling."""
+    n = len(x)
+    return [math.sqrt((1 if k == 0 else 2) / n) * sum(x[i] * math.cos(math.pi * k * (2 * i + 1) / (2 * n))
+                                                      for i in range(n)) for k in range(n)]
+
+
+def idct(c):
+    n = len(c)
+    return [sum(math.sqrt((1 if k == 0 else 2) / n) * c[k] * math.cos(math.pi * k * (2 * i + 1) / (2 * n))
+                for k in range(n)) for i in range(n)]
+
+
+def errors(chunk, rebuilt):
+    diffs = [abs(a - b) for row, rrow in zip(chunk, rebuilt) for a, b in zip(row, rrow)]
+    return math.sqrt(sum(d * d for d in diffs) / len(diffs)), max(diffs)
+
+
+def main():
+    rng = random.Random(6)
+    data = [episode(rng) for _ in range(50)]
+    lo = [percentile([s[j] for ep in data for s in ep], 0.01) for j in range(JOINTS)]
+    hi = [percentile([s[j] for ep in data for s in ep], 0.99) for j in range(JOINTS)]
+    print(f'Dataset: 50 episodes of 10 s, {JOINTS} joints at {HZ} Hz; 1st..99th percentile per joint (deg):')
+    print('  ' + '  '.join(f'j{j} {lo[j]:+.0f}..{hi[j]:+.0f}' for j in range(JOINTS)))
+    print(f'  bin width = range / {BINS}: ' + ', '.join(f'{(hi[j] - lo[j]) / BINS:.2f}' for j in range(JOINTS)) + ' deg')
+
+    chunk = episode(random.Random(99))[:CHUNK]          # a new episode, not in the dataset
+    print(f'\nOne {CHUNK}-step chunk (1 s) from a new episode: {CHUNK} x {JOINTS} = {CHUNK * JOINTS} numbers')
+
+    tokens = [[to_bins(chunk[t][j], lo[j], hi[j]) for j in range(JOINTS)] for t in range(CHUNK)]
+    rebuilt = [[from_bins(tokens[t][j], lo[j], hi[j]) for j in range(JOINTS)] for t in range(CHUNK)]
+    rms, worst = errors(chunk, rebuilt)
+    clipped = sum(1 for t in range(CHUNK) for j in range(JOINTS) if not lo[j] <= chunk[t][j] <= hi[j])
+    print(f'bins: {CHUNK * JOINTS} tokens, error rms {rms:.3f} deg, max {worst:.3f} deg '
+          f'({clipped} values outside the 1st..99th percentile, clipped)')
+    print('  joint 0 tokens, first 12 steps: ' + ' '.join(str(tokens[t][0]) for t in range(12)))
+    same = sum(1 for t in range(1, CHUNK) for j in range(JOINTS) if tokens[t][j] == tokens[t - 1][j])
+    near = sum(1 for t in range(1, CHUNK) for j in range(JOINTS) if abs(tokens[t][j] - tokens[t - 1][j]) <= 2)
+    total = (CHUNK - 1) * JOINTS
+    print(f'  token equal to the previous step: {same}/{total}; within 2 of it: {near}/{total}')
+
+    print('\nDCT of each joint over the chunk, normalised to -1..1, then scale and round:')
+    norm = [[2 * (chunk[t][j] - lo[j]) / (hi[j] - lo[j]) - 1 for j in range(JOINTS)] for t in range(CHUNK)]
+    coeffs = [dct([norm[t][j] for t in range(CHUNK)]) for j in range(JOINTS)]
+    for scale in (5, 10, 30, 100):
+        q = [[round(c * scale) for c in coeffs[j]] for j in range(JOINTS)]
+        nonzero = sum(1 for j in range(JOINTS) for v in q[j] if v != 0)
+        back = [idct([v / scale for v in q[j]]) for j in range(JOINTS)]
+        rebuilt = [[(back[j][t] + 1) / 2 * (hi[j] - lo[j]) + lo[j] for j in range(JOINTS)] for t in range(CHUNK)]
+        rms, worst = errors(chunk, rebuilt)
+        print(f'  scale {scale:>3}: {nonzero:>3} nonzero coefficients of {CHUNK * JOINTS}, '
+              f'error rms {rms:.3f} deg, max {worst:.3f} deg')
+    q = [round(c * 10) for c in coeffs[0]]
+    print('  joint 0 at scale 10: ' + ' '.join(str(v) for v in q))
+
+
+if __name__ == '__main__':
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+$ python3 action_tokens.py
+Dataset: 50 episodes of 10 s, 6 joints at 30 Hz; 1st..99th percentile per joint (deg):
+  j0 -84..+77  j1 -85..+73  j2 -78..+80  j3 -77..+86  j4 -75..+82  j5 -69..+78
+  bin width = range / 256: 0.63, 0.62, 0.62, 0.64, 0.61, 0.57 deg
+
+One 30-step chunk (1 s) from a new episode: 30 x 6 = 180 numbers
+bins: 180 tokens, error rms 0.892 deg, max 6.194 deg (6 values outside the 1st..99th percentile, clipped)
+  joint 0 tokens, first 12 steps: 158 155 152 149 145 141 137 134 130 126 123 120
+  token equal to the previous step: 21/174; within 2 of it: 102/174
+```
+
+</SimOutput>
+
+Each bin is about 0.6 degrees wide, so a value inside the range is off by at most half a bin, 0.3 degrees. The maximum error of 6.2 degrees comes from the 6 values in this new episode that lie outside the dataset's percentiles and were clipped: the tokeniser simply cannot express a motion bigger than the ones it was built from. The cost is length: one second of a 6-joint arm is 180 tokens, and the model has to generate them one at a time.
+
+The token row for joint 0 shows the other problem. At 30 Hz consecutive actions are close, so each token is a small step from the last; 102 of the 174 step-to-step changes are 2 bins or less. A model trained to predict the next token can score well by copying the previous one, which teaches it very little. The faster you sample, the worse this gets.
+
+<Quiz id="q1" question="A joint's 1st..99th percentile range is −84 to +77 degrees. How wide is each of the 256 bins, in degrees?" answer={0.63} unit="deg" explanation="(77 − (−84)) / 256 = 161 / 256 = 0.63 degrees. A value inside the range is reconstructed to within half of that, 0.31 degrees." />
+
+<Quiz id="q2" question="ALOHA's two arms have 14 action dimensions and run at 50 Hz. How many bin tokens is one second of actions?" answer={700} unit="tokens" explanation="14 dimensions × 50 steps = 700 tokens, generated one after another. That is why per-step binning becomes impractical for fast, many-jointed robots." />
+
+## Compressing a chunk with the DCT
+
+FAST, the tokeniser behind π0-FAST, tokenises the whole chunk at once. It normalises each dimension to −1..1 with the same percentiles, takes a discrete cosine transform (DCT) of each dimension over the chunk, multiplies by a scale and rounds to integers. Smooth motion is mostly low frequencies, so most high-frequency coefficients round to zero; FAST then compresses the integer sequence with byte-pair encoding. The program counts the nonzero coefficients as a stand-in for the final tokens:
+
+<SimOutput source="model">
+
+```text
+DCT of each joint over the chunk, normalised to -1..1, then scale and round:
+  scale   5:  19 nonzero coefficients of 180, error rms 2.028 deg, max 5.008 deg
+  scale  10:  28 nonzero coefficients of 180, error rms 1.103 deg, max 3.535 deg
+  scale  30:  41 nonzero coefficients of 180, error rms 0.499 deg, max 1.350 deg
+  scale 100:  70 nonzero coefficients of 180, error rms 0.181 deg, max 0.592 deg
+  joint 0 at scale 10: -1 4 5 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+```
+
+</SimOutput>
+
+Joint 0's whole second of motion is five small integers followed by zeros. The scale is the knob between length and accuracy: at scale 10 the chunk needs 28 numbers instead of 180 (6.4 times fewer) for about 1.1 degrees rms error; at scale 100 it needs 70 for 0.18 degrees. Each coefficient also describes the shape of the whole chunk rather than one moment, so predicting it is a real decision, not a copy of the previous token.
+
+<Quiz id="q3" question="At scale 30 the DCT needs 41 nonzero coefficients for the chunk. How many times fewer numbers is that than the 180 bin tokens?" answer={4.4} explanation="180 / 41 = 4.4. The rms error is 0.50 degrees, smaller than the bins' 0.89 degrees, because the DCT has no clipping and spreads the rounding error over the chunk." />
+
+## Which VLAs you can download
+
+"Open" means different things for code and for weights, and the licence of the weights decides what you may do with a fine-tuned model. As of October 2026:
+
+| model | from | how it outputs actions | weights |
+|---|---|---|---|
+| OpenVLA (7B) | Stanford, Berkeley, TRI and others | 256-bin tokens, 7-D end-effector deltas | MIT, on Hugging Face |
+| Octo | Berkeley and others | small transformer with a diffusion head | MIT, on Hugging Face |
+| π0, π0-FAST, π0.5 | Physical Intelligence (openpi) | flow-matching action expert; π0-FAST uses FAST tokens | code Apache-2.0; base checkpoints downloadable; built on PaliGemma, LeRobot's copies carry the Gemma licence |
+| SmolVLA (450M) | Hugging Face (LeRobot) | flow-matching action expert, action chunks | Apache-2.0, on Hugging Face |
+| GR00T N1.6 (3B) | NVIDIA | diffusion transformer action head | downloadable; NVIDIA licence, research and non-commercial use only |
+| GR00T N1.7 (3B) | NVIDIA | as N1.6, aimed at humanoids | NVIDIA Open Model License, commercial use allowed (early access, April 2026) |
+| RT-2, Gemini Robotics | Google DeepMind | (closed) | no open weights |
+
+Licences change with new releases; check the model card on the day you download. The model that fits a beginner's SO-101 best is SmolVLA: it is small enough to fine-tune on one consumer GPU, it was pretrained on open community datasets shared with LeRobot and evaluated on SO-100 and SO-101 arms, and LeRobot fine-tunes it with the same dataset format as ACT. Its documentation suggests about 50 episodes (it used 10 at each of 5 cube positions) and reports roughly 4 hours for 20,000 steps on one A100. These commands were not run for this page:
+
+```bash
+lerobot-train --policy.path=lerobot/smolvla_base --dataset.repo_id=${HF_USER}/pick_cube \
+  --batch_size=64 --steps=20000 --output_dir=outputs/train/smolvla_pick_cube --policy.device=cuda
+```
+
+<Resource id="lerobot-smolvla" />
+
+## What a VLA does not do for you
+
+A VLA does not remove the work from the previous lessons; it moves it. You still need a good dataset of your robot, with the variation and recoveries you want it to handle. You still need to evaluate it on a fixed set of conditions. And "zero-shot" claims only hold for robots and scenes like those in the pretraining data: OpenVLA's own model card says it does not generalise to unseen robot embodiments without fine-tuning. What you gain is language conditioning (one model, many instructions) and a better starting point, so fewer demonstrations per task.
+
+## Common mistakes
+
+- **Treating "open source" as "open weights" as "free to use commercially".** Read the licence of the weights, not only of the code. GR00T N1.6's code is Apache-2.0 while its weights are research-only.
+- **Forgetting the normalisation statistics.** A VLA outputs normalised actions. Converting them back needs the 1st/99th percentiles (or mean and standard deviation) of the dataset it was fine-tuned on; the wrong statistics give the right shape at the wrong size.
+- **Expecting zero-shot on your arm.** Without fine-tuning on your robot, a VLA's joint or end-effector conventions, camera position and gripper may all differ from what it learned. Plan for about 50 demonstrations.
+- **Ignoring inference time.** A 7B model needs a large GPU to run fast enough. Measure actions per second on the computer that will drive the robot, and pick a smaller model or chunked execution if it cannot keep up.
+- **Picking bins without looking at the range.** If your task includes motions bigger than anything in the dataset, bin tokenisation clips them, as the 6.2-degree error above shows.

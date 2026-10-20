@@ -1,0 +1,306 @@
+The [previous lesson](/en/month/month-6/behaviour-cloning) cloned an expert that always did the same thing in the same place. People don't. Asked to move a cup past an obstacle, one operator goes left, another goes right, and the same operator does both on different days. Both are correct. A policy trained to predict "the" action has to cope with data that contains two right answers, and the simplest training loss gets this badly wrong. This lesson shows the failure on a toy task and then looks at the two ideas that today's most used imitation policies are built on: action chunking (ACT) and diffusion (Diffusion Policy).
+
+## Two right answers
+
+Behaviour cloning with a squared-error loss picks, for each observation, the action that minimises the average squared distance to the recorded actions. That is their **mean**. If 7 demos at a spot swerve left by 4.2 cm and 3 swerve right by 4.2 cm, the mean is (−7 + 3) / 10 × 4.2 = −1.7 cm: a gentle drift left that none of the demonstrators made, and one that may be exactly the wrong thing, straight into the obstacle the demonstrators were avoiding.
+
+<Formula label="What a squared-error loss learns">π(o) = mean of the recorded actions at o, which is not one of them when the actions form two groups</Formula>
+
+The fix is to learn a policy that represents the whole distribution of actions and can **sample** one of them, so it picks left or right rather than a blend. ACT does this with a conditional variational autoencoder over chunks of actions; Diffusion Policy does it with a denoising diffusion model over chunks of actions. Both also predict a **chunk** of future actions at once instead of one.
+
+## The block task
+
+The model is a point gripper starting near (0, 0) that must reach (0, 1). A 0.3 m square block sits in between, centred at (0, 0.5). The expert drives straight up to a fork at (0, 0.2), then heads for a waypoint at (−0.3, 0.4) or (+0.3, 0.4), chosen 50/50 per demonstration, and then for the goal. Each step moves at most 5 cm, plus 0.5 cm of actuator noise per axis.
+
+All the policies look at the same thing: the 10 recorded frames nearest the current position. They differ only in what they do with them, which is exactly the difference between the training losses of real policies. `average` takes the mean of their actions (a squared-error network). `sample` replays one of them chosen at random. `chunk N` picks one at random and plays the next N actions of that demonstration before looking again. `diffusion` runs a real DDPM sampler; where a trained network would predict the clean action, it uses the exact answer for these 10 frames.
+
+<CodeSource path="examples/month-6/act-diffusion/multimodal.py" />
+
+```python
+"""multimodal.py: why averaging fails on multimodal demonstrations, and what action chunks and diffusion change.
+
+A point gripper starts near (0, 0) and must reach GOAL (0, 1). A square block of side 0.3 m sits in the way,
+centred at (0, 0.5). The expert drives straight up to a fork at (0, 0.2) and then passes it on the left or on the right, 50/50, chosen at the start of each
+demonstration: both are equally good, so the demonstrations are multimodal. Each step moves at most 0.05 m
+plus 0.5 cm of actuator noise per axis. Success: within 0.05 m of GOAL inside 60 steps without touching the block.
+
+Policies (all look at the K = 10 recorded frames nearest the current position):
+  average    the mean of their actions; this is what a network trained with a squared-error loss predicts
+  sample     the action of one of them, chosen at random, every step
+  chunk N    pick one of them at random and play the next N actions of its episode, then look again
+             (action chunking, the core idea of ACT; ACT also blends overlapping chunks)
+  diffusion  start from Gaussian noise and denoise a chunk of 8 actions in 20 DDPM steps, using the exact
+             denoiser for the demonstration set (the function a diffusion policy's network is trained to
+             approximate), then play the chunk and look again
+Standard library only, fixed seeds.
+"""
+import math
+import random
+
+GOAL, BLOCK_Y, HALF, FORK_Y = (0.0, 1.0), 0.5, 0.15, 0.2
+STEP, NOISE, MAX_STEPS, K = 0.05, 0.005, 60, 10
+
+
+def hits_block(p):
+    return abs(p[0]) <= HALF and abs(p[1] - BLOCK_Y) <= HALF
+
+
+def toward(p, target):
+    dx, dy = target[0] - p[0], target[1] - p[1]
+    d = math.hypot(dx, dy)
+    k = min(1.0, STEP / d) if d > 0 else 0.0
+    return dx * k, dy * k
+
+
+def expert(p, side):
+    """Straight up to the fork at (0, 0.2), then to a waypoint beside the block, then to the goal.
+    side is -1 (left) or +1 (right); before the fork both kinds of demo look the same."""
+    if p[1] < FORK_Y and abs(p[0]) < 0.05:
+        return toward(p, (0.0, FORK_Y + 0.05))
+    if p[1] < 0.4 and abs(p[0]) < 0.28:
+        return toward(p, (0.3 * side, 0.4))
+    return toward(p, GOAL)
+
+
+def run(choose, rng, record=None):
+    """choose(p, t) returns a list of actions to play before asking again."""
+    p = (rng.uniform(-0.03, 0.03), rng.uniform(-0.03, 0.03))
+    plan, t = [], 0
+    while t < MAX_STEPS:
+        if not plan:
+            plan = list(choose(p, t))
+        a = plan.pop(0)
+        if record is not None:
+            record.append((p, a))
+        p = (p[0] + a[0] + rng.gauss(0, NOISE), p[1] + a[1] + rng.gauss(0, NOISE))
+        t += 1
+        if hits_block(p):
+            return 'block', t
+        if math.hypot(p[0] - GOAL[0], p[1] - GOAL[1]) < 0.05:
+            return 'success', t
+    return 'timeout', t
+
+
+def record_demos(n, rng):
+    episodes = []
+    for _ in range(n):
+        side = rng.choice((-1, 1))
+        rows = []
+        run(lambda p, t: [expert(p, side)], rng, record=rows)
+        episodes.append(rows)
+    return episodes
+
+
+class Demos:
+    def __init__(self, episodes):
+        self.frames = [(e, i, rows[i][0]) for e, rows in enumerate(episodes) for i in range(len(rows))]
+        self.episodes = episodes
+
+    def nearest(self, p, k=K):
+        return sorted(self.frames, key=lambda f: (f[2][0] - p[0]) ** 2 + (f[2][1] - p[1]) ** 2)[:k]
+
+    def chunk(self, frame, n):
+        """The next n actions of that frame's episode, padded with zero moves at the end."""
+        e, i, _ = frame
+        acts = [a for _, a in self.episodes[e][i:i + n]]
+        return acts + [(0.0, 0.0)] * (n - len(acts))
+
+
+def average_policy(demos):
+    def choose(p, t):
+        near = demos.nearest(p)
+        return [(sum(demos.chunk(f, 1)[0][0] for f in near) / K, sum(demos.chunk(f, 1)[0][1] for f in near) / K)]
+    return choose
+
+
+def chunk_policy(demos, n, rng):
+    def choose(p, t):
+        return demos.chunk(rng.choice(demos.nearest(p)), n)
+    return choose
+
+
+def diffusion_policy(demos, n, rng, steps=20):
+    """DDPM sampling of an n-step action chunk with the exact denoiser of the K nearest demo chunks."""
+    betas = [1e-4 + (0.2 - 1e-4) * s / (steps - 1) for s in range(steps)]
+    alphas = [1 - b for b in betas]
+    abar, prod = [], 1.0
+    for a in alphas:
+        prod *= a
+        abar.append(prod)
+    scale = 1 / STEP                     # work in units of one full step so the noise schedule fits
+
+    def choose(p, t):
+        data = [[v * scale for a in demos.chunk(f, n) for v in a] for f in demos.nearest(p)]
+        dim = len(data[0])
+        x = [rng.gauss(0, 1) for _ in range(dim)]
+        for s in reversed(range(steps)):
+            # exact denoiser: E[x0 | xs] for x0 drawn uniformly from data, xs = sqrt(abar) x0 + sqrt(1 - abar) noise
+            logw = [-sum((xi - math.sqrt(abar[s]) * di) ** 2 for xi, di in zip(x, d)) / (2 * (1 - abar[s]))
+                    for d in data]
+            m = max(logw)
+            w = [math.exp(v - m) for v in logw]
+            x0 = [sum(wi * d[j] for wi, d in zip(w, data)) / sum(w) for j in range(dim)]
+            if s == 0:
+                x = x0
+                break
+            # DDPM posterior mean of x_{s-1} given xs and the predicted x0, plus its noise
+            c0 = math.sqrt(abar[s - 1]) * betas[s] / (1 - abar[s])
+            cs = math.sqrt(alphas[s]) * (1 - abar[s - 1]) / (1 - abar[s])
+            sd = math.sqrt(betas[s] * (1 - abar[s - 1]) / (1 - abar[s]))
+            x = [c0 * a0 + cs * xs + sd * rng.gauss(0, 1) for a0, xs in zip(x0, x)]
+        return [(x[2 * j] / scale, x[2 * j + 1] / scale) for j in range(n)]
+    return choose
+
+
+def evaluate(label, make, n=100):
+    rng = random.Random(2026)
+    choose = make(random.Random(11))
+    counts = {'success': 0, 'block': 0, 'timeout': 0}
+    steps = []
+    for _ in range(n):
+        result, t = run(choose, rng)
+        counts[result] += 1
+        if result == 'success':
+            steps.append(t)
+    mean = f'{sum(steps) / len(steps):.1f}' if steps else '-'
+    print(f'{label:<16} success {counts["success"]:>3}/100   hit block {counts["block"]:>3}   '
+          f'timeout {counts["timeout"]:>3}   mean steps to goal {mean}')
+
+
+def main():
+    episodes = record_demos(40, random.Random(5))
+    lefts = sum(1 for rows in episodes if min(p[0] for p, _ in rows) < -0.1)
+    demos = Demos(episodes)
+    print(f'40 expert demos: {lefts} pass on the left, {40 - lefts} on the right, {len(demos.frames)} frames')
+
+    print('\nSideways part dx of the first action just past the fork, at (0, 0.23), 200 draws per policy')
+    edges = [-0.05, -0.03, -0.01, 0.01, 0.03, 0.05]
+    print('  dx bin (cm)  ' + ''.join(f'{100 * lo:+.0f}..{100 * hi:+.0f}'.rjust(9) for lo, hi in zip(edges, edges[1:])))
+    rng = random.Random(3)
+    near = [demos.chunk(f, 1)[0][0] for f in demos.nearest((0.0, 0.23))]
+    rows = [('10 demo frames', near)]
+    for label, choose in [('average', average_policy(demos)), ('sample', chunk_policy(demos, 1, rng)),
+                          ('diffusion', diffusion_policy(demos, 1, rng))]:
+        rows.append((label, [choose((0.0, 0.23), 0)[0][0] for _ in range(200)]))
+    for label, dx in rows:
+        bins = [sum(1 for v in dx if lo <= v < hi or (hi == edges[-1] and v == hi)) for lo, hi in zip(edges, edges[1:])]
+        print(f'  {label:<14}' + ''.join(f'{c:>9}' for c in bins))
+
+    print('\nRollouts: 100 each with 0.5 cm actuator noise, same seed for every policy')
+    evaluate('average', lambda r: average_policy(demos))
+    evaluate('sample', lambda r: chunk_policy(demos, 1, r))
+    for n in (4, 8, 16):
+        evaluate(f'chunk {n}', lambda r, n=n: chunk_policy(demos, n, r))
+    evaluate('diffusion 1', lambda r: diffusion_policy(demos, 1, r))
+    evaluate('diffusion 8', lambda r: diffusion_policy(demos, 8, r))
+
+
+if __name__ == '__main__':
+    main()
+```
+
+First look at a single decision, just past the fork at (0, 0.23). The 10 nearest demonstration frames and 200 draws from each policy, sorted by the sideways part of the action:
+
+<SimOutput source="model">
+
+```text
+$ python3 multimodal.py
+40 expert demos: 19 pass on the left, 21 on the right, 976 frames
+
+Sideways part dx of the first action just past the fork, at (0, 0.23), 200 draws per policy
+  dx bin (cm)     -5..-3   -3..-1   -1..+1   +1..+3   +3..+5
+  10 demo frames        7        0        0        0        3
+  average               0      200        0        0        0
+  sample              139        0        0        0       61
+  diffusion           144        0        0        0       56
+```
+
+</SimOutput>
+
+The demonstrations at this spot are 7 left and 3 right, each about 4.2 cm sideways, with nothing in between. The average lands every time in the −3 to −1 cm bin, a move no demonstration made. Sampling and diffusion reproduce the two groups in about the right ratio (139 : 61 and 144 : 56 against 7 : 3) and never produce the in-between move.
+
+<Quiz id="q1" question="Leaving the fork towards the waypoint (−0.3, 0.4) at full speed, the step is 5 cm along the direction (−0.3, 0.2). How many cm sideways is that?" answer={4.16} unit="cm" explanation="The direction has length √(0.3² + 0.2²) = √0.13 = 0.361, so the sideways part is 5 × 0.3 / 0.361 = 4.16 cm. Averaging 7 of those to the left with 3 to the right gives (−7 + 3) / 10 × 4.16 = −1.66 cm, the −0.017 m the averaging policy actually takes." />
+
+## Averaging versus sampling
+
+Now the whole task, 100 runs per policy, each evaluation starting from the same seed:
+
+<SimOutput source="model">
+
+```text
+Rollouts: 100 each with 0.5 cm actuator noise, same seed for every policy
+average          success  67/100   hit block  33   timeout   0   mean steps to goal 25.6
+sample           success  99/100   hit block   1   timeout   0   mean steps to goal 24.6
+```
+
+</SimOutput>
+
+A third of the averaged runs drive into the block. The ones that survive do so because noise or a lopsided set of neighbours pushes them far enough to one side that all 10 nearest frames come from the same side; from then on the average and the demonstrations agree. Sampling commits to a side at the fork and succeeds 99 times out of 100. Nothing about the data changed; only the way the policy turns 10 recorded actions into one.
+
+This is the same failure you will see on a real arm as a gripper that hesitates halfway between two grasps, or a mobile robot that drives at the middle of a pillar it was taught to go around. If your demonstrations contain more than one way to do the task, the policy class has to be able to represent more than one answer.
+
+## Action chunks: what ACT adds
+
+ACT (Action Chunking with Transformers, from the ALOHA bimanual robot work) predicts the next k actions at once, k = 100 at 50 Hz in the paper, which is 2 seconds. Chunking helps in three ways. The policy makes k times fewer decisions, so errors have fewer chances to compound. A chunk is internally consistent: it cannot switch from "go left" to "go right" halfway through. And it copes with demonstrations in which the observation does not say what comes next, such as a person pausing before they act, because the chunk carries the timing. To keep motion smooth, ACT also queries the policy every step and blends all chunks that cover the current step with exponential weights (temporal ensembling).
+
+Chunks have a cost, and the toy model shows it clearly. Between decisions the chunk plays **open loop**:
+
+<SimOutput source="model">
+
+```text
+chunk 4          success  98/100   hit block   0   timeout   2   mean steps to goal 24.8
+chunk 8          success  88/100   hit block  10   timeout   2   mean steps to goal 25.0
+chunk 16         success  80/100   hit block  19   timeout   1   mean steps to goal 26.1
+```
+
+</SimOutput>
+
+Longer chunks hit the block more. The return leg from the waypoint (±0.3, 0.4) to the goal passes the block's top corner with only 2.5 cm to spare, and a chunk copied from a demonstration that started a few centimetres away, plus noise that nothing corrects for 16 steps (0.5 cm × √16 = 2 cm), is enough to clip it. In this toy the position already tells the policy which side it is on, so the benefits of chunking do not show and only its cost does. On a real robot both are real, which is why the chunk length (ACT's `chunk_size`, how many steps to execute before asking again) is something you tune and measure, not a constant.
+
+<Quiz id="q2" question="The line from (0.3, 0.4) to (0, 1) crosses the block's top edge y = 0.65 at what x (in m)? The block's edge is at x = 0.15." answer={0.175} unit="m" explanation="The line drops 0.3 m in x over 0.6 m in y. At y = 0.65 it has gone 0.25 m, so x = 0.3 − 0.3 × 0.25 / 0.6 = 0.175 m: 2.5 cm from the block's edge at 0.15 m." />
+
+## Diffusion policy
+
+A diffusion model generates a sample by starting from pure Gaussian noise and removing noise in many small steps. Training adds noise to a recorded action chunk, x_s = √ᾱ_s x_0 + √(1 − ᾱ_s) ε, and teaches a network to predict the noise ε (equivalently the clean chunk x_0) from x_s, the step s and the observation. Sampling runs that the other way: from noise, predict x_0, step to a slightly less noisy x, repeat. Because each sample starts from different noise, the result lands in one mode or another; it does not average them. Diffusion Policy (Chi et al.) predicts chunks of 16 actions this way and executes the first 8 before planning again.
+
+<Formula label="Forward noising, step s">x_s = √ᾱ_s · x_0 + √(1 − ᾱ_s) · ε,   ε ~ N(0, I)</Formula>
+
+The model here skips the network. For a fixed set of data points, the best possible prediction of x_0 from x_s has a closed form: a weighted average of the data points, each weighted by how likely it is to have produced x_s. That is the function the network is trained towards, so `diffusion_policy` runs a real 20-step DDPM sampler with the perfect denoiser for the 10 nearest frames:
+
+<SimOutput source="model">
+
+```text
+diffusion 1      success  96/100   hit block   4   timeout   0   mean steps to goal 24.7
+diffusion 8      success  93/100   hit block   7   timeout   0   mean steps to goal 24.9
+```
+
+</SimOutput>
+
+It behaves like sampling (96 and 93 against 99 for `sample` and 88 for `chunk 8`) because, with the perfect denoiser and only 10 points, diffusion can only reproduce those points: it has memorised them. A trained network is not perfect, and that is useful: it smooths between demonstrations and produces chunks no single demonstration contained but which still lie in one mode. Its costs are inference time (several denoising passes through a network for each chunk) and a lot of training compute, which is why diffusion and ACT training runs take hours on a GPU while the policies in this lesson take two seconds on a laptop.
+
+<Quiz id="q3" question="Which statement about this lesson's diffusion policy is correct?" options={["It averages the 10 nearest actions, like the average policy, but more slowly", "It samples a chunk that matches one of the 10 nearest demonstrations, because it uses the exact denoiser for them instead of a trained network", "It needs a GPU to run"]} answer={1} explanation="With the exact denoiser of a few data points, DDPM sampling converges on one of them, which is why its histogram has two groups and nothing in between. A trained network approximates that denoiser and generalises between the demonstrations." />
+
+## Training ACT and Diffusion Policy with LeRobot
+
+LeRobot implements both. With the dataset from the [previous lesson](/en/month/month-6/behaviour-cloning) the policy is chosen by one flag; these commands were not run for this page, and option names change between releases, so check them against the docs for your version:
+
+```bash
+# ACT: chunk_size is how many actions it predicts, n_action_steps how many it plays before asking again
+lerobot-train --dataset.repo_id=${HF_USER}/pick_cube --policy.type=act \
+  --output_dir=outputs/train/act_pick_cube --policy.device=cuda
+# Diffusion Policy on the same data
+lerobot-train --dataset.repo_id=${HF_USER}/pick_cube --policy.type=diffusion \
+  --output_dir=outputs/train/diffusion_pick_cube --policy.device=cuda
+```
+
+<Resource id="act-paper" />
+
+Compare them the way the toy model does: the same fixed set of start positions for both, success counted over all of them, and failures sorted by where they happen.
+
+## Common mistakes
+
+- **Averaging over modes without noticing.** If a policy creeps slowly towards the middle of two options, or hesitates, check whether your demonstrations contain two ways of doing the task. Either demonstrate one way consistently or use a policy that can sample.
+- **Thinking chunking is free.** A chunk runs open loop until the next decision. Tight clearances, a moving object or a slipping grasp need the policy to look again sooner; tune how many actions to execute per decision and measure it.
+- **Comparing policies on different data or seeds.** Every line above uses the same 40 demonstrations, the same seed and the same number of runs. Lesson 4 goes one step further and gives every run its own seed, so that each policy meets exactly the same starting conditions; on hardware, that means the same list of start positions for every policy.
+- **Calling a memorising policy a good one.** The diffusion policy here can only replay demonstrations. Test on start positions that are not in the dataset before claiming a policy generalises.
+- **Mixing up training and inference cost.** A diffusion policy needs several network passes per chunk, so check that inference keeps up with your control rate on the computer that will run it, not only on the training GPU.

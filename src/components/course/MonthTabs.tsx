@@ -12,9 +12,7 @@ export function MonthTabs({ current, labelFor }: { current: number; labelFor: (n
           className={`shrink-0 rounded-lg px-3 py-1.5 text-sm transition-colors ${
             m.id === current
               ? "bg-white/10 text-white"
-              : m.status === "ready"
-                ? "text-zinc-300 hover:bg-white/5"
-                : "text-zinc-500 hover:bg-white/5 hover:text-zinc-300"
+              : "text-zinc-300 hover:bg-white/5"
           }`}
         >
           {labelFor(m.id)}
