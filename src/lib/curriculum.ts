@@ -490,6 +490,25 @@ const month5Lessons: Lesson[] = [
   },
 ];
 
+const month6Lessons: Lesson[] = [
+  {
+    slug: "behaviour-cloning",
+    title: { zh: "模仿学习（一）：示范数据、行为克隆与 DAgger", en: "Imitation learning I: demonstrations, behaviour cloning and DAgger" },
+    summary: {
+      zh: "把示范数据看成一张按帧记录的表，用最近邻行为克隆在 L 形走廊里学会专家的动作；在执行器噪声下看清协变量偏移：示范越多也不见好，失败集中在示范从没去过的地方；再用带噪声的示范和 DAgger 把恢复动作放进数据，最后对照 LeRobot 在 SO-101 上的录制、训练和运行命令。",
+      en: "Treat a demonstration dataset as a table of frames, clone an expert in an L-shaped corridor with nearest-neighbour behaviour cloning, and watch covariate shift under actuator noise: more demos do not help and the failures sit where the demos never went; then put recoveries into the data with noisy demos and DAgger, and map it all onto LeRobot's record, train and rollout commands for the SO-101.",
+    },
+    minutes: 240,
+    resources: ["lerobot-il-robots", "dagger-paper"],
+    tasks: [
+      { id: "run", text: { zh: "运行 bc_reach.py，打开 demos.csv，确认每列对应 LeRobot 数据集的哪一列，并用 √n 估算无纠正时的漂移", en: "Run bc_reach.py, open demos.csv, match each column to a LeRobot dataset column, and estimate the uncorrected drift with √n" } },
+      { id: "noise", text: { zh: "把 NOISE 改成 0.005 和 0.02 再运行，记录 BC（20 条示范）和 DAgger 第 1 轮的成功率，解释变化", en: "Change NOISE to 0.005 and 0.02, run again, record the success of BC on 20 demos and of DAgger round 1, and explain the change" } },
+      { id: "goal-end", text: { zh: "修复“目标端”的空洞：让示范在到达目标后再多录几帧原地不动的动作，比较 BC 的失败位置", en: "Fix the goal-end hole: make the demos record a few extra frames of holding still at the goal, and compare where BC now fails" } },
+      { id: "real-dataset", text: { zh: "（有硬件时）用 lerobot-record 录 50 个回合：5 个方块位置各 10 个，至少包含 5 次有意的恢复动作", en: "(With hardware) record 50 episodes with lerobot-record: 10 at each of 5 cube positions, including at least 5 deliberate recoveries" } },
+    ],
+  },
+];
+
 export const months: Month[] = [
   {
     id: 1,
@@ -645,7 +664,7 @@ export const months: Month[] = [
       { zh: "展示三个附带视频、指标与失败分析的作品", en: "Show three portfolio projects with video, metrics and failure analysis" },
       { zh: "能回答关于你代码任意一行的三层追问", en: "Answer three levels of follow-up questions about any line of your code" },
     ],
-    lessons: [],
+    lessons: month6Lessons,
   },
 ];
 
