@@ -48,6 +48,27 @@ npm run build       # prerenders every page (2 locales × home, about, resources
 npm start           # serves the build on http://localhost:3000 (npm start -- -p 3100 for another port)
 ```
 
+### Static export for GitHub Pages / GitHub Pages 静态导出
+
+The static export is only enabled when `PAGES_BASE_PATH` is set at build time, so the commands above are unchanged.
+
+```bash
+PAGES_BASE_PATH=/Hardware-learning npm run build   # writes out/
+```
+
+This builds the site under `/Hardware-learning` as static HTML. The next-intl proxy is not used; `/` is served by
+`public/index.html`, which redirects to `/zh/`, and `out/404.html` comes from `src/app/global-not-found.tsx`.
+To preview it, copy `out/` into a folder named `Hardware-learning` inside a temporary directory, serve that
+directory, and open <http://localhost:8000/Hardware-learning/>:
+
+```bash
+mkdir -p /tmp/pages-preview/Hardware-learning
+cp -R out/. /tmp/pages-preview/Hardware-learning/
+(cd /tmp/pages-preview && python3 -m http.server 8000)
+```
+
+`.github/workflows/pages.yml` deploys every push to `main` to <https://liudicsu.github.io/Hardware-learning/>.
+
 Code checks: `npx tsc --noEmit` and `npm run lint` (ESLint). There is no CI in this repository; run them locally.
 
 ## Reproduce the lesson outputs / 复现课程中的输出
