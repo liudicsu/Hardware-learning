@@ -507,6 +507,22 @@ const month6Lessons: Lesson[] = [
       { id: "real-dataset", text: { zh: "（有硬件时）用 lerobot-record 录 50 个回合：5 个方块位置各 10 个，至少包含 5 次有意的恢复动作", en: "(With hardware) record 50 episodes with lerobot-record: 10 at each of 5 cube positions, including at least 5 deliberate recoveries" } },
     ],
   },
+  {
+    slug: "act-diffusion",
+    title: { zh: "模仿学习（二）：多模态示范、动作分块（ACT）与扩散策略", en: "Imitation learning II: multimodal demos, action chunking (ACT) and diffusion policy" },
+    summary: {
+      zh: "示范里有两个都对的答案时，平方误差损失学到的是它们的平均——一个谁也没做过、还会撞上障碍物的动作。在方块任务上比较取平均、采样、不同长度的动作块和用精确去噪器的 DDPM 采样，看清 ACT 分块的好处与开环代价、扩散策略为什么能保留多个模式，再对照 LeRobot 训练 ACT 和 Diffusion Policy 的命令。",
+      en: "When the demonstrations contain two right answers, a squared-error loss learns their average: a move nobody made, straight into the obstacle. On a block task, compare averaging, sampling, action chunks of different lengths and DDPM sampling with the exact denoiser, see what ACT's chunking buys and what running open loop costs, why a diffusion policy keeps several modes, and map it onto LeRobot's commands for training ACT and Diffusion Policy.",
+    },
+    minutes: 240,
+    resources: ["act-paper", "diffusion-policy", "lerobot-il-robots"],
+    tasks: [
+      { id: "run", text: { zh: "运行 multimodal.py，用 7 : 3 的近邻比例手算均值策略在岔口的横向动作，与输出的 −0.017 m 核对", en: "Run multimodal.py and work out by hand, from the 7 : 3 neighbours, the averaging policy's sideways move at the fork; check it against the −0.017 m it prints" } },
+      { id: "one-side", text: { zh: "让专家只从左边绕（side 固定为 −1），再比较 average 和 sample 的成功率，解释为什么差距消失", en: "Make the expert always pass on the left (side fixed at −1), compare average and sample again, and explain why the gap disappears" } },
+      { id: "chunk-length", text: { zh: "把方块的 HALF 改成 0.12，再跑 chunk 4、8、16，画出成功率随块长的变化", en: "Change the block's HALF to 0.12, run chunk 4, 8 and 16 again, and plot success against chunk length" } },
+      { id: "train-real", text: { zh: "（有 GPU 和数据集时）用 LeRobot 在同一数据集上训练 ACT 和 Diffusion Policy，在同样 10 个起始位置上各测 10 次，记录成功率和每个动作块的推理时间", en: "(With a GPU and a dataset) train ACT and Diffusion Policy on the same LeRobot dataset, test each 10 times at the same 10 start positions, and record success and inference time per chunk" } },
+    ],
+  },
 ];
 
 export const months: Month[] = [

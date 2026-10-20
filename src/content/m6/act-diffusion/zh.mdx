@@ -1,0 +1,306 @@
+[上一课](/zh/month/month-6/behaviour-cloning)克隆的专家在同一个地方总是做同一件事。人不是这样。让人把杯子从障碍物旁边移过去，有人从左边绕，有人从右边绕，同一个人不同的日子也会两种都做。两种都对。一个被训练去预测“那个”动作的策略，必须面对含有两个正确答案的数据，而最简单的训练损失在这里会错得很厉害。本课先在玩具任务上展示这种失败，再看当今最常用的模仿学习策略所依赖的两个想法：动作分块（ACT）和扩散（Diffusion Policy）。
+
+## 两个正确答案
+
+用平方误差损失训练的行为克隆，对每个观测选出让它与所有录制动作的平均平方距离最小的那个动作，也就是它们的<strong>均值</strong>。如果某处有 7 条示范向左偏 4.2 cm、3 条向右偏 4.2 cm，均值就是 (−7 + 3) / 10 × 4.2 = −1.7 cm：一个轻微向左的漂移，没有任何示范者这么做过，而且它可能恰好是最糟的选择——直直撞向示范者们正在绕开的障碍物。
+
+<Formula label="平方误差损失学到的东西">π(o) = mean of the recorded actions at o, which is not one of them when the actions form two groups</Formula>
+
+解决办法是学一个能表示整个动作分布、并能从中<strong>采样</strong>的策略，这样它会选左或选右，而不是两者的混合。ACT 用条件变分自编码器（conditional variational autoencoder，CVAE）对动作块建模；Diffusion Policy 用去噪扩散模型对动作块建模。两者还都一次预测未来的一<strong>块</strong>动作（chunk），而不是一个。
+
+## 方块任务
+
+模型是一个从 (0, 0) 附近出发、要到达 (0, 1) 的点状夹爪。中间放着一个边长 0.3 m 的方块，中心在 (0, 0.5)。专家先直行到 (0, 0.2) 的岔口，然后驶向 (−0.3, 0.4) 或 (+0.3, 0.4) 的路点（每条示范 50/50 随机选），再驶向目标。每一步最多移动 5 cm，外加每轴 0.5 cm 的执行器噪声。
+
+所有策略看的东西都一样：离当前位置最近的 10 个录制帧。它们只在“怎么用这 10 帧”上不同，这恰好对应真实策略训练损失之间的区别。`average` 取它们动作的均值（相当于平方误差训练的网络）。`sample` 随机重放其中一个。`chunk N` 随机选一个，播放那条示范接下来的 N 个动作，再重新看。`diffusion` 运行真正的 DDPM 采样器；训练好的网络本该预测干净动作的地方，它直接用这 10 帧的精确答案。
+
+<CodeSource path="examples/month-6/act-diffusion/multimodal.py" />
+
+```python
+"""multimodal.py: why averaging fails on multimodal demonstrations, and what action chunks and diffusion change.
+
+A point gripper starts near (0, 0) and must reach GOAL (0, 1). A square block of side 0.3 m sits in the way,
+centred at (0, 0.5). The expert drives straight up to a fork at (0, 0.2) and then passes it on the left or on the right, 50/50, chosen at the start of each
+demonstration: both are equally good, so the demonstrations are multimodal. Each step moves at most 0.05 m
+plus 0.5 cm of actuator noise per axis. Success: within 0.05 m of GOAL inside 60 steps without touching the block.
+
+Policies (all look at the K = 10 recorded frames nearest the current position):
+  average    the mean of their actions; this is what a network trained with a squared-error loss predicts
+  sample     the action of one of them, chosen at random, every step
+  chunk N    pick one of them at random and play the next N actions of its episode, then look again
+             (action chunking, the core idea of ACT; ACT also blends overlapping chunks)
+  diffusion  start from Gaussian noise and denoise a chunk of 8 actions in 20 DDPM steps, using the exact
+             denoiser for the demonstration set (the function a diffusion policy's network is trained to
+             approximate), then play the chunk and look again
+Standard library only, fixed seeds.
+"""
+import math
+import random
+
+GOAL, BLOCK_Y, HALF, FORK_Y = (0.0, 1.0), 0.5, 0.15, 0.2
+STEP, NOISE, MAX_STEPS, K = 0.05, 0.005, 60, 10
+
+
+def hits_block(p):
+    return abs(p[0]) <= HALF and abs(p[1] - BLOCK_Y) <= HALF
+
+
+def toward(p, target):
+    dx, dy = target[0] - p[0], target[1] - p[1]
+    d = math.hypot(dx, dy)
+    k = min(1.0, STEP / d) if d > 0 else 0.0
+    return dx * k, dy * k
+
+
+def expert(p, side):
+    """Straight up to the fork at (0, 0.2), then to a waypoint beside the block, then to the goal.
+    side is -1 (left) or +1 (right); before the fork both kinds of demo look the same."""
+    if p[1] < FORK_Y and abs(p[0]) < 0.05:
+        return toward(p, (0.0, FORK_Y + 0.05))
+    if p[1] < 0.4 and abs(p[0]) < 0.28:
+        return toward(p, (0.3 * side, 0.4))
+    return toward(p, GOAL)
+
+
+def run(choose, rng, record=None):
+    """choose(p, t) returns a list of actions to play before asking again."""
+    p = (rng.uniform(-0.03, 0.03), rng.uniform(-0.03, 0.03))
+    plan, t = [], 0
+    while t < MAX_STEPS:
+        if not plan:
+            plan = list(choose(p, t))
+        a = plan.pop(0)
+        if record is not None:
+            record.append((p, a))
+        p = (p[0] + a[0] + rng.gauss(0, NOISE), p[1] + a[1] + rng.gauss(0, NOISE))
+        t += 1
+        if hits_block(p):
+            return 'block', t
+        if math.hypot(p[0] - GOAL[0], p[1] - GOAL[1]) < 0.05:
+            return 'success', t
+    return 'timeout', t
+
+
+def record_demos(n, rng):
+    episodes = []
+    for _ in range(n):
+        side = rng.choice((-1, 1))
+        rows = []
+        run(lambda p, t: [expert(p, side)], rng, record=rows)
+        episodes.append(rows)
+    return episodes
+
+
+class Demos:
+    def __init__(self, episodes):
+        self.frames = [(e, i, rows[i][0]) for e, rows in enumerate(episodes) for i in range(len(rows))]
+        self.episodes = episodes
+
+    def nearest(self, p, k=K):
+        return sorted(self.frames, key=lambda f: (f[2][0] - p[0]) ** 2 + (f[2][1] - p[1]) ** 2)[:k]
+
+    def chunk(self, frame, n):
+        """The next n actions of that frame's episode, padded with zero moves at the end."""
+        e, i, _ = frame
+        acts = [a for _, a in self.episodes[e][i:i + n]]
+        return acts + [(0.0, 0.0)] * (n - len(acts))
+
+
+def average_policy(demos):
+    def choose(p, t):
+        near = demos.nearest(p)
+        return [(sum(demos.chunk(f, 1)[0][0] for f in near) / K, sum(demos.chunk(f, 1)[0][1] for f in near) / K)]
+    return choose
+
+
+def chunk_policy(demos, n, rng):
+    def choose(p, t):
+        return demos.chunk(rng.choice(demos.nearest(p)), n)
+    return choose
+
+
+def diffusion_policy(demos, n, rng, steps=20):
+    """DDPM sampling of an n-step action chunk with the exact denoiser of the K nearest demo chunks."""
+    betas = [1e-4 + (0.2 - 1e-4) * s / (steps - 1) for s in range(steps)]
+    alphas = [1 - b for b in betas]
+    abar, prod = [], 1.0
+    for a in alphas:
+        prod *= a
+        abar.append(prod)
+    scale = 1 / STEP                     # work in units of one full step so the noise schedule fits
+
+    def choose(p, t):
+        data = [[v * scale for a in demos.chunk(f, n) for v in a] for f in demos.nearest(p)]
+        dim = len(data[0])
+        x = [rng.gauss(0, 1) for _ in range(dim)]
+        for s in reversed(range(steps)):
+            # exact denoiser: E[x0 | xs] for x0 drawn uniformly from data, xs = sqrt(abar) x0 + sqrt(1 - abar) noise
+            logw = [-sum((xi - math.sqrt(abar[s]) * di) ** 2 for xi, di in zip(x, d)) / (2 * (1 - abar[s]))
+                    for d in data]
+            m = max(logw)
+            w = [math.exp(v - m) for v in logw]
+            x0 = [sum(wi * d[j] for wi, d in zip(w, data)) / sum(w) for j in range(dim)]
+            if s == 0:
+                x = x0
+                break
+            # DDPM posterior mean of x_{s-1} given xs and the predicted x0, plus its noise
+            c0 = math.sqrt(abar[s - 1]) * betas[s] / (1 - abar[s])
+            cs = math.sqrt(alphas[s]) * (1 - abar[s - 1]) / (1 - abar[s])
+            sd = math.sqrt(betas[s] * (1 - abar[s - 1]) / (1 - abar[s]))
+            x = [c0 * a0 + cs * xs + sd * rng.gauss(0, 1) for a0, xs in zip(x0, x)]
+        return [(x[2 * j] / scale, x[2 * j + 1] / scale) for j in range(n)]
+    return choose
+
+
+def evaluate(label, make, n=100):
+    rng = random.Random(2026)
+    choose = make(random.Random(11))
+    counts = {'success': 0, 'block': 0, 'timeout': 0}
+    steps = []
+    for _ in range(n):
+        result, t = run(choose, rng)
+        counts[result] += 1
+        if result == 'success':
+            steps.append(t)
+    mean = f'{sum(steps) / len(steps):.1f}' if steps else '-'
+    print(f'{label:<16} success {counts["success"]:>3}/100   hit block {counts["block"]:>3}   '
+          f'timeout {counts["timeout"]:>3}   mean steps to goal {mean}')
+
+
+def main():
+    episodes = record_demos(40, random.Random(5))
+    lefts = sum(1 for rows in episodes if min(p[0] for p, _ in rows) < -0.1)
+    demos = Demos(episodes)
+    print(f'40 expert demos: {lefts} pass on the left, {40 - lefts} on the right, {len(demos.frames)} frames')
+
+    print('\nSideways part dx of the first action just past the fork, at (0, 0.23), 200 draws per policy')
+    edges = [-0.05, -0.03, -0.01, 0.01, 0.03, 0.05]
+    print('  dx bin (cm)  ' + ''.join(f'{100 * lo:+.0f}..{100 * hi:+.0f}'.rjust(9) for lo, hi in zip(edges, edges[1:])))
+    rng = random.Random(3)
+    near = [demos.chunk(f, 1)[0][0] for f in demos.nearest((0.0, 0.23))]
+    rows = [('10 demo frames', near)]
+    for label, choose in [('average', average_policy(demos)), ('sample', chunk_policy(demos, 1, rng)),
+                          ('diffusion', diffusion_policy(demos, 1, rng))]:
+        rows.append((label, [choose((0.0, 0.23), 0)[0][0] for _ in range(200)]))
+    for label, dx in rows:
+        bins = [sum(1 for v in dx if lo <= v < hi or (hi == edges[-1] and v == hi)) for lo, hi in zip(edges, edges[1:])]
+        print(f'  {label:<14}' + ''.join(f'{c:>9}' for c in bins))
+
+    print('\nRollouts: 100 each with 0.5 cm actuator noise, same seeds for every policy')
+    evaluate('average', lambda r: average_policy(demos))
+    evaluate('sample', lambda r: chunk_policy(demos, 1, r))
+    for n in (4, 8, 16):
+        evaluate(f'chunk {n}', lambda r, n=n: chunk_policy(demos, n, r))
+    evaluate('diffusion 1', lambda r: diffusion_policy(demos, 1, r))
+    evaluate('diffusion 8', lambda r: diffusion_policy(demos, 8, r))
+
+
+if __name__ == '__main__':
+    main()
+```
+
+先只看一次决策，就在岔口之后的 (0, 0.23)。下面是最近的 10 个示范帧，以及每个策略抽 200 次的结果，按动作的横向分量分组：
+
+<SimOutput source="model">
+
+```text
+$ python3 multimodal.py
+40 expert demos: 19 pass on the left, 21 on the right, 976 frames
+
+Sideways part dx of the first action just past the fork, at (0, 0.23), 200 draws per policy
+  dx bin (cm)     -5..-3   -3..-1   -1..+1   +1..+3   +3..+5
+  10 demo frames        7        0        0        0        3
+  average               0      200        0        0        0
+  sample              139        0        0        0       61
+  diffusion           144        0        0        0       56
+```
+
+</SimOutput>
+
+这里的示范是 7 条向左、3 条向右，每条横向大约 4.2 cm，中间什么都没有。均值策略每次都落在 −3 到 −1 cm 这一格，这是没有任何示范做过的动作。采样和扩散按大致正确的比例重现了两组（139 : 61 和 144 : 56，对比 7 : 3），而且从不产生中间的动作。
+
+<Quiz id="q1" question="从岔口全速驶向路点 (−0.3, 0.4)，这一步沿方向 (−0.3, 0.2) 走 5 cm。横向是多少 cm？" answer={4.16} unit="cm" explanation="方向向量长度为 √(0.3² + 0.2²) = √0.13 = 0.361，所以横向分量是 5 × 0.3 / 0.361 = 4.16 cm。7 个向左和 3 个向右取平均得 (−7 + 3) / 10 × 4.16 = −1.66 cm，正是均值策略实际走的 −0.017 m。" />
+
+## 取平均与采样
+
+现在跑完整任务，每个策略 100 次，种子相同：
+
+<SimOutput source="model">
+
+```text
+Rollouts: 100 each with 0.5 cm actuator noise, same seeds for every policy
+average          success  67/100   hit block  33   timeout   0   mean steps to goal 25.6
+sample           success  99/100   hit block   1   timeout   0   mean steps to goal 24.6
+```
+
+</SimOutput>
+
+取平均的运行有三分之一撞上了方块。活下来的那些，是因为噪声或一组偏向一侧的近邻把它推到足够靠一边，使最近的 10 帧全部来自同一侧；从那以后，均值和示范就一致了。采样在岔口就选定一侧，100 次里成功 99 次。数据一点没变，变的只是策略把 10 个录制动作变成一个动作的方式。
+
+在真实机械臂上你会看到同样的失败：夹爪在两种抓法中间犹豫不决，或者移动机器人被教会绕开柱子，却直冲柱子中间。如果你的示范里有不止一种完成任务的方式，策略的形式就必须能表示不止一个答案。
+
+## 动作分块：ACT 多了什么
+
+ACT（Action Chunking with Transformers，来自 ALOHA 双臂机器人的工作）一次预测接下来的 k 个动作，论文里在 50 Hz 下取 k = 100，也就是 2 秒。分块有三方面好处。策略做的决策少了 k 倍，误差累积的机会就少了。一个动作块内部是一致的：它不会在中途从“往左”变成“往右”。它还能处理观测无法说明下一步的示范，比如人在动手前停顿了一下，因为动作块本身带着时间信息。为了让运动平滑，ACT 每一步都查询一次策略，并把所有覆盖当前步的动作块用指数权重混合（temporal ensembling，时间集成）。
+
+动作块也有代价，玩具模型把它展示得很清楚。两次决策之间，动作块是<strong>开环</strong>执行的：
+
+<SimOutput source="model">
+
+```text
+chunk 4          success  98/100   hit block   0   timeout   2   mean steps to goal 24.8
+chunk 8          success  88/100   hit block  10   timeout   2   mean steps to goal 25.0
+chunk 16         success  80/100   hit block  19   timeout   1   mean steps to goal 26.1
+```
+
+</SimOutput>
+
+块越长，撞上方块越多。从路点 (±0.3, 0.4) 返回目标的那段路，离方块的上角只有 2.5 cm 的余量；一个从几厘米外出发的示范里复制来的动作块，加上 16 步里没人纠正的噪声（0.5 cm × √16 = 2 cm），足以擦到方块。在这个玩具里，位置本身就告诉了策略它在哪一侧，所以分块的好处显不出来，只显出了代价。在真机上两者都真实存在，所以块长（ACT 的 `chunk_size`，以及每次决策执行多少步）是需要调、需要测的量，而不是常数。
+
+<Quiz id="q2" question="从 (0.3, 0.4) 到 (0, 1) 的直线，在方块上边 y = 0.65 处的 x 是多少（m）？方块的边在 x = 0.15。" answer={0.175} unit="m" explanation="这条线在 y 方向走 0.6 m 时 x 减少 0.3 m。到 y = 0.65 时走了 0.25 m，所以 x = 0.3 − 0.3 × 0.25 / 0.6 = 0.175 m，离方块 0.15 m 的边只有 2.5 cm。" />
+
+## 扩散策略
+
+扩散模型生成样本的方式是：从纯高斯噪声出发，分很多小步把噪声去掉。训练时给录制的动作块加噪声，x_s = √ᾱ_s x_0 + √(1 − ᾱ_s) ε，并训练一个网络根据 x_s、步数 s 和观测去预测噪声 ε（等价于预测干净的动作块 x_0）。采样时反过来：从噪声出发，预测 x_0，走到噪声稍少的 x，重复。因为每次采样从不同的噪声出发，结果会落进某一个模式里，而不是把它们平均。Diffusion Policy（Chi 等人）用这种方式预测 16 个动作的块，执行前 8 个后再重新规划。
+
+<Formula label="前向加噪，第 s 步">x_s = √ᾱ_s · x_0 + √(1 − ᾱ_s) · ε,   ε ~ N(0, I)</Formula>
+
+这里的模型省掉了网络。对一组固定的数据点，从 x_s 预测 x_0 的最佳答案有解析形式：数据点的加权平均，权重是每个点产生出 x_s 的可能性。这正是网络训练所逼近的函数，所以 `diffusion_policy` 用这 10 个最近帧的完美去噪器运行真正的 20 步 DDPM 采样器：
+
+<SimOutput source="model">
+
+```text
+diffusion 1      success  96/100   hit block   4   timeout   0   mean steps to goal 24.7
+diffusion 8      success  93/100   hit block   7   timeout   0   mean steps to goal 24.9
+```
+
+</SimOutput>
+
+它的表现和采样差不多（96 和 93，对比 `sample` 的 99 和 `chunk 8` 的 88），因为用完美去噪器、只有 10 个点时，扩散只能重现这些点：它把它们记住了。训练出来的网络并不完美，而这恰好有用：它会在示范之间做平滑，生成没有哪条示范单独包含、但仍处在某一个模式里的动作块。它的代价是推理时间（每个动作块要多次通过网络去噪）和大量训练算力，所以 ACT 和扩散策略的训练要在 GPU 上跑好几个小时，而本课的策略在笔记本上两秒就跑完了。
+
+<Quiz id="q3" question="关于本课的扩散策略，哪一句是对的？" options={["它像均值策略一样平均最近的 10 个动作，只是更慢", "它采样出的动作块与最近 10 条示范之一相符，因为它用的是这些点的精确去噪器而不是训练出的网络", "它需要 GPU 才能运行"]} answer={1} explanation="用少量数据点的精确去噪器时，DDPM 采样会收敛到其中某一个点，所以它的直方图有两组、中间为空。训练出的网络逼近这个去噪器，并能在示范之间泛化。" />
+
+## 用 LeRobot 训练 ACT 和扩散策略
+
+LeRobot 两者都实现了。用[上一课](/zh/month/month-6/behaviour-cloning)的数据集，换策略只需改一个参数；本页没有运行这些命令，而且选项名会随版本变化，请对照你所用版本的文档：
+
+```bash
+# ACT: chunk_size is how many actions it predicts, n_action_steps how many it plays before asking again
+lerobot-train --dataset.repo_id=${HF_USER}/pick_cube --policy.type=act \
+  --output_dir=outputs/train/act_pick_cube --policy.device=cuda
+# Diffusion Policy on the same data
+lerobot-train --dataset.repo_id=${HF_USER}/pick_cube --policy.type=diffusion \
+  --output_dir=outputs/train/diffusion_pick_cube --policy.device=cuda
+```
+
+<Resource id="act-paper" />
+
+像玩具模型那样比较它们：两者用同一组固定的起始位置，在所有位置上数成功次数，并按失败发生的位置分类。
+
+## 常见错误
+
+- <strong>在不知不觉中对多个模式取平均。</strong>如果策略慢慢往两个选项的中间挪，或者犹豫不决，检查一下你的示范里是否有两种做法。要么始终用同一种方式示范，要么用能采样的策略。
+- <strong>以为分块没有代价。</strong>动作块在下一次决策之前是开环运行的。余量很小、物体在动或抓取在打滑时，策略需要更早地重新观察；调整每次决策执行的动作数，并测量效果。
+- <strong>在不同数据或种子上比较策略。</strong>上面每一行都用同样的 40 条示范和同样的 100 组初始条件，所以差别来自策略本身。在硬件上也要保持这一点。
+- <strong>把只会记忆的策略当成好策略。</strong>这里的扩散策略只能重放示范。在宣称策略能泛化之前，先在数据集里没有的起始位置上测试。
+- <strong>混淆训练成本和推理成本。</strong>扩散策略每个动作块需要多次通过网络，所以要在真正运行它的那台电脑上确认推理跟得上控制频率，而不只是在训练用的 GPU 上。

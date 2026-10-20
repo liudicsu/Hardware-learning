@@ -130,7 +130,7 @@ echo "== Month 4 ROS 2 runs (tools/sim/ros/run.sh)"
 echo "== Month 5 OpenCV and MoveIt 2 runs (tools/sim/m5/run.sh)"
 "$SIM/m5/run.sh" || fail=1
 
-# Month 6: standard-library toy models (imitation learning), compared with examples/month-6/expected/
+# Month 6: standard-library toy models (imitation learning: BC, DAgger, ACT chunks, diffusion), compared with examples/month-6/expected/
 echo "== Month 6 toy models (examples/month-6/check.sh)"
 "$ROOT/examples/month-6/check.sh" || fail=1
 exit $fail

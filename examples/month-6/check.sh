@@ -18,4 +18,7 @@ check() {   # check <name> <command...>: run in $TMP, compare with expected/<nam
 # ---- Lesson 1: behaviour cloning, covariate shift and DAgger --------------------------------------
 check bc_reach.txt python3 "$M6/behaviour-cloning/bc_reach.py" demos.csv
 check bc_demos_head.txt head -4 demos.csv
+
+# ---- Lesson 2: multimodal demonstrations, action chunks and diffusion ------------------------------
+check multimodal.txt python3 "$M6/act-diffusion/multimodal.py"
 exit $fail
