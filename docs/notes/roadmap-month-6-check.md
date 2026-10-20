@@ -11,20 +11,21 @@ the section "Month 6: Robot learning, specialisation, and becoming hireable".
 
 | Post section | Resource (link in the post) | On the site |
 |---|---|---|
-| 1. LeRobot | LeRobot documentation (`huggingface.co/docs/lerobot/index`) | `lerobot-il-robots` is a page of these docs → **no longer `extra`** |
+| 1. LeRobot | LeRobot documentation (`huggingface.co/docs/lerobot/index`) | `lerobot-il-robots` links a different docs page → stays `extra` (strict URL matching, reviewer decision) |
 | 1. LeRobot | LeRobot repository (`github.com/huggingface/lerobot`) | no card |
 | 1. LeRobot | Hugging Face Robotics Course (`huggingface.co/learn/robotics-course/unit0/1`) | no card |
 | 1. LeRobot | SO-101 setup guide (`huggingface.co/docs/lerobot/so101`) | already a Month 3 card (not extra) |
 | 2. VLA models | openpi: π0, π0-FAST, π0.5 (`github.com/Physical-Intelligence/openpi`) | `openpi`, same URL → **no longer `extra`** |
 | 2. VLA models | OpenVLA (`openvla.github.io`) | `openvla`, same URL → **no longer `extra`** |
 | 2. VLA models | GR00T N1.7 (`github.com/Nvidia/Isaac-GR00T`) | named in the lesson 3 licence table, no card |
-| 2. VLA models | SmolVLA (`huggingface.co/lerobot/smolvla_base`) | `lerobot-smolvla` links the LeRobot SmolVLA docs page for the same model → **no longer `extra`** |
+| 2. VLA models | SmolVLA (`huggingface.co/lerobot/smolvla_base`) | `lerobot-smolvla` links the LeRobot SmolVLA docs page, not the model page in the post → stays `extra` (strict URL matching, reviewer decision) |
 | 2. VLA models | RT-2 (no link; no public weights) | mentioned in lesson 3 |
 | 3. RL for robotics | MuJoCo Playground, NVIDIA Isaac Lab, CS 285 (Berkeley) | no cards (Month 6 has no RL lesson) |
 | 5. Interviews | Glassdoor robotics engineer interview questions | no card |
 
-Still `extra` (our supplements, not in the post): `dagger-paper`, `act-paper`, `diffusion-policy`.
+Still `extra` (our supplements, not in the post): `dagger-paper`, `act-paper`, `diffusion-policy`, `lerobot-il-robots`, `lerobot-smolvla`.
 The post discusses ACT and Diffusion Policy as topics but links no paper or project page for them.
+Rule: only links that appear verbatim in the post lose `extra`; a different page of the same docs or a docs page about the same model stays `extra`.
 Cards reused from earlier months (`beauregard-pid`, `slam-toolbox`) keep the flag they already had.
 
 Possible follow-up (not done here): cards for the LeRobot repository, the Hugging Face Robotics Course,

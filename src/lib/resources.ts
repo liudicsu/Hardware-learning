@@ -1408,6 +1408,7 @@ export const resources: Record<string, Resource> = {
       en: "The official steps and commands for recording a dataset with SO-101 leader and follower arms, training a policy such as ACT, and running and evaluating it on the arm (lerobot-record, lerobot-train, lerobot-rollout), with advice on collecting data. Take the commands from this page for your version.",
     },
     license: { zh: "开源项目文档（Apache-2.0），© Hugging Face；仅提供外链", en: "Open-source project docs (Apache-2.0), © Hugging Face; external link only" },
+    extra: true,
   },
   "dagger-paper": {
     id: "dagger-paper",
@@ -1463,6 +1464,7 @@ export const resources: Record<string, Resource> = {
       en: "Installing the 450M-parameter SmolVLA, dataset advice (about 50 episodes, several per variation), the command for fine-tuning from smolvla_base and the command for running it on the arm.",
     },
     license: { zh: "开源项目文档（Apache-2.0），© Hugging Face；仅提供外链", en: "Open-source project docs (Apache-2.0), © Hugging Face; external link only" },
+    extra: true,
   },
   openvla: {
     id: "openvla",

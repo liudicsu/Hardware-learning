@@ -48,7 +48,28 @@ npm run build       # prerenders every page (2 locales × home, about, resources
 npm start           # serves the build on http://localhost:3000 (npm start -- -p 3100 for another port)
 ```
 
-Code checks: `npx tsc --noEmit` and `npm run lint` (ESLint). There is no CI in this repository; run them locally.
+### Static export for GitHub Pages / GitHub Pages 静态导出
+
+The static export is only enabled when `PAGES_BASE_PATH` is set at build time, so the commands above are unchanged.
+
+```bash
+PAGES_BASE_PATH=/Hardware-learning npm run build   # writes out/
+```
+
+This builds the site under `/Hardware-learning` as static HTML. The next-intl proxy is not used; `/` is served by
+`public/index.html`, which redirects to `/zh/`, and `out/404.html` comes from `src/app/global-not-found.tsx`.
+To preview it, copy `out/` into a folder named `Hardware-learning` inside a temporary directory, serve that
+directory, and open <http://localhost:8000/Hardware-learning/>:
+
+```bash
+mkdir -p /tmp/pages-preview/Hardware-learning
+cp -R out/. /tmp/pages-preview/Hardware-learning/
+(cd /tmp/pages-preview && python3 -m http.server 8000)
+```
+
+`.github/workflows/pages.yml` deploys every push to `main` to <https://liudicsu.github.io/Hardware-learning/>.
+
+Code checks: `npx tsc --noEmit` and `npm run lint` (ESLint). `.github/workflows/ci.yml` runs `npm run lint`, `npx tsc --noEmit` and `npm run build` on every pull request and push to `main`.
 
 ## Reproduce the lesson outputs / 复现课程中的输出
 
@@ -131,8 +152,13 @@ pixi run sim          # tools/sim/m5/run.sh: camera calibration on synthetic pho
 runs differ slightly from run to run, so `examples/month-4/compare.py` compares their numbers with a tolerance and
 masks timestamps. A few lines of `examples/month-4/check.sh` (`ros2 topic hz`, `ros2 bag info` counts, the first
 `tf2_echo` line) depend on startup timing: on a busy machine one of them can show a `DIFF`; run it again on an idle
-machine before treating it as a real difference. `pixi install` writes `.pixi/` and `pixi.lock` next to the
-`pixi.toml`; both are git-ignored (and ignored by ESLint and TypeScript). On Ubuntu 24.04 you can use the official apt packages instead
+machine before treating it as a real difference. `pixi install` writes `.pixi/` next to the `pixi.toml`
+(git-ignored, and ignored by ESLint and TypeScript); the `pixi.lock` files (`examples/month-4/pixi.lock`,
+`examples/month-5/pixi.lock`) are committed for reproducibility, so `pixi install` installs the same package versions as the environments
+the quoted outputs were produced with (pixi 0.82.0, linux-64; in Month 4 only `ros-jazzy-rviz2` and
+`ros-jazzy-joint-state-publisher-gui`, added to `pixi.toml` later, were solved on top of that environment). Use `pixi install --locked`
+to fail instead of re-solving if the lock is out of date with `pixi.toml`, and `pixi update` only when you
+deliberately want newer packages. On Ubuntu 24.04 you can use the official apt packages instead
 (see [examples/month-4/README.md](examples/month-4/README.md)).
 
 ## Writing or changing a lesson / 编写课程

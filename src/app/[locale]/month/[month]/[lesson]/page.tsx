@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
+import { withBasePath } from "@/lib/basePath";
 import { getLesson, lessonKey, months } from "@/lib/curriculum";
 import { asLocale, tr } from "@/lib/l10n";
 import { getResource } from "@/lib/resources";
@@ -77,6 +78,10 @@ export default async function LessonPage({ params }: Params) {
     pre: CodeBlock,
     SimOutput,
     CodeSource,
+    img: ({ src, alt, ...rest }: ComponentProps<"img">) => (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={typeof src === "string" ? withBasePath(src) : src} alt={alt ?? ""} loading="lazy" {...rest} />
+    ),
     Resource: ({ id }: { id: string }) => (
       <div className="not-prose my-6">
       <ResourceCard
