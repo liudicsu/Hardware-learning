@@ -1,5 +1,7 @@
 # Deployment proposal (not deployed)
 
+**Status (2026-10-20, UTC+8): option B was chosen and implemented on branch opencode/pages-deploy.** The static export is enabled only when `PAGES_BASE_PATH` is set (`next.config.ts`), so `npm run dev` / `npm start` and the proxy are unchanged; `public/index.html` redirects to `zh/`; Markdown images get the base path through the `img` entry in the lesson page MDX components (`src/lib/basePath.ts`); the 404 page is now styled and bilingual via `src/app/global-not-found.tsx` (`experimental.globalNotFound`), which also replaces the default 404 for unknown URLs in dev/start; `.github/workflows/pages.yml` deploys `main` to <https://liudicsu.github.io/Hardware-learning/> after merge; the rest of this note is the original proposal, kept for the record.
+
 Written 2026-10-20 (UTC+8) on branch `opencode/month-6`. Nothing has been deployed and no deployment config is
 committed; this note is for the reviewer to decide.
 
