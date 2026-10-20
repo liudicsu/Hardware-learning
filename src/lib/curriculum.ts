@@ -555,6 +555,23 @@ const month6Lessons: Lesson[] = [
       { id: "protocol", text: { zh: "为你的机械臂任务写一份评估规程：成功标准、20 个起始位置（其中 5 个不在训练数据里）、固定项、记录项和报告格式", en: "Write an evaluation protocol for your arm's task: success criterion, 20 start positions (5 of them not in the training data), what stays fixed, what is recorded and the report format" } },
     ],
   },
+  {
+    slug: "specialisation-portfolio",
+    title: { zh: "选择方向、作品集与求职", en: "Choosing a specialisation, the portfolio and getting hired" },
+    summary: {
+      zh: "用三个问题（你会主动回头看哪些课、你已经能拿出什么、你想去的地方招什么人）在五个方向里选定一个；挑三个带视频、指标和失败分析的作品集项目；用 portfolio_check.py 检查 README 是否有评审要看的八个部分；在一行代码上练习三层追问；最后是简历、申请信息和边做边投。",
+      en: "Pick one of five directions with three questions (which lessons you went back to, what you can already show, who is hiring where you want to work); choose three portfolio projects with video, metrics and failure analysis; check a README for the eight parts a reviewer looks for with portfolio_check.py; practise three levels of follow-up questions on one line of code; then the CV, the application message and applying while you build.",
+    },
+    minutes: 180,
+    resources: ["beauregard-pid", "slam-toolbox", "lerobot-il-robots"],
+    tasks: [
+      { id: "direction", text: { zh: "读 20 份真实招聘启事，统计技能要求，写下你选的方向和一句理由", en: "Read 20 real job adverts, tally the skills they ask for, and write down your direction with a one-sentence reason" } },
+      { id: "readme", text: { zh: "对你最好的一个项目运行 portfolio_check.py，把缺的部分补齐，直到 8 项都在", en: "Run portfolio_check.py on your best project and add the missing parts until all 8 are present" } },
+      { id: "three-projects", text: { zh: "列出你的三个作品集项目：每个写一个指标、一种失败和一处超出教程的改动", en: "List your three portfolio projects: for each, one metric, one failure and one change beyond the tutorial" } },
+      { id: "follow-ups", text: { zh: "从每个项目里挑一行关键代码，写下三层追问的答案；答不出的那一层就是下周要学的", en: "Pick one key line from each project and write the answers to three levels of follow-up questions; any level you cannot answer is next week's study" } },
+      { id: "apply", text: { zh: "写一页简历（项目在前，每个附一个数字和链接），投出前五份申请并开始记日志", en: "Write a one-page CV (projects first, each with a number and a link), send your first five applications and start the log" } },
+    ],
+  },
 ];
 
 export const months: Month[] = [
@@ -697,7 +714,7 @@ export const months: Month[] = [
       zh: "选定一个方向，做出代表作，并开始投递。",
       en: "Pick one direction, build a portfolio piece in it, and start applying.",
     },
-    status: "outline",
+    status: "ready",
     topics: [
       { zh: "模仿学习：行为克隆、ACT、扩散策略", en: "Imitation learning: behaviour cloning, ACT, diffusion policy" },
       { zh: "VLA 模型：哪些开放权重", en: "VLA models and which have open weights" },

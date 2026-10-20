@@ -1,0 +1,167 @@
+五个半月前，这门课从欧姆定律开始。之后你搭过电路、写过固件、设计并打印过零件、组装过机械臂、在仿真里运行过 ROS 2 机器人、啃过控制与运动学的数学，还从示范中训练过策略。这是一个很宽的基础，而“宽”并不是让你被录用的东西。路线图最后的里程碑是：<strong>选定一个方向</strong>，在这个方向上做出作品，并开始投递。本课讲怎样有意识地做好这三件事。
+
+## 选择方向
+
+机器人相关的工作大致集中在几个方向上。每个方向都对应着这门课里你已经做过的部分，而那正是判断你是否喜欢它的最好证据：
+
+| 方向 | 日常工作 | 在本课程中的位置 |
+|---|---|---|
+| 嵌入式与控制 | 固件、电机控制、传感器驱动、实时回路、调参 | 第 2 个月（Arduino、电机、传感器）、第 3 个月 PID、第 5 个月控制与 LQR |
+| 机械与硬件设计 | CAD、机构、公差、原型、面向制造的设计 | 第 3 个月（CAD、FDM 打印、传动、夹爪） |
+| 机器人软件与导航 | ROS 2 系统、建图、定位、规划、集成 | 第 4 个月（ROS 2、URDF、Gazebo、ros2_control、SLAM 与 Nav2） |
+| 操作与运动规划 | 运动学、抓取、MoveIt、标定、用于抓取的感知 | 第 5 个月（运动学、相机标定、MoveIt） |
+| 机器人学习 | 数据集、模仿学习、VLA、评估、仿真到真机 | 第 6 个月（第 1 到 4 课） |
+
+有三个问题，比任何“哪个领域最火”的排名都更能帮你做决定。<strong>哪些课你没人要求也会回头再看？</strong>能熬过枯燥部分的兴趣，才能支撑你做完一个难项目。<strong>你现在已经能拿出什么？</strong>已经有一个能跑的项目的方向，比一个都没有的方向近好几个月。<strong>你想去的地方有哪些岗位？</strong>读 20 份你所在地区或远程的真实招聘启事，数一数它们要求哪些技能；这个统计比任何文章都可靠。把你的答案写成一句话，例如“嵌入式与控制，因为我在平衡车上花的额外时间最多，而且本地的机器人公司在招固件工程师”，放在你看得见的地方。
+
+<Quiz id="q1" question="你最喜欢第 4 个月，有一台在仿真中能跑 Nav2 的机器人，而你统计的大多数招聘启事要求 ROS 2 和 C++。哪个方向最合适？" options={["机械与硬件设计", "机器人软件与导航", "机器人学习"]} answer={1} explanation="三个问题都指向同一个方向：兴趣（第 4 个月）、能拿出的东西（Nav2 机器人）和需求（ROS 2 与 C++）。当它们不一致时，招聘启事的统计和你已经能拿出的东西，通常比单纯的热情更重要。" />
+
+## 三个作品集项目
+
+里程碑要求三个项目，每个都附<strong>视频、指标和失败分析</strong>。选题时要让它们合起来体现你方向上的深度，外加一项相邻的技能。从这门课出发，好的起点有：
+
+- 带串级回路的自平衡车（[第 3 个月，PID](/zh/month/month-3/pid-control)）：指标可以是它在起点 5 cm 以内保持多久、被推一下后怎样恢复；
+- 建图并导航的房间（[第 4 个月，SLAM 与 Nav2](/zh/month/month-4/slam-nav)）：指标可以是发出的目标中到达了多少、地图与已知房间相比的精度；
+- 在你的 SO-101 上做学习型抓放（本月第 1 到 4 课）：在固定的起始位置清单上的成功次数，以及失败表。
+
+把每个项目都往课程之外再推一步。评审见过太多次教程版本了；他们要找的是你自己做决定的那部分：换一个物体、更难的条件、一个没人要求你做的测量、对你发现的一个失败的修复。
+
+## 评审会读的 README
+
+评审给一个项目大约两分钟。这段时间里，他们想看到它在工作、看到它工作得多好、看到你知道它怎样失败、看到哪些是你自己做的。`portfolio_check.py` 检查项目 README 里是否有回答这些问题的八个部分。它按简单的文本规则工作，所以只能告诉你缺了什么，不能判断写得好不好：
+
+<CodeSource path="examples/month-6/specialisation-portfolio/portfolio_check.py" />
+
+```python
+"""portfolio_check.py: check a project README for what a reviewer looks for in the first two minutes.
+
+usage: python3 portfolio_check.py PROJECT_DIR [PROJECT_DIR ...]      (exit code 1 if anything is missing)
+
+It reads PROJECT_DIR/README.md and looks for eight things, by simple text rules (it cannot judge quality,
+only whether the part is there):
+  video         a link to a video or animation (YouTube, Bilibili, Vimeo, .mp4, .gif, .webm)
+  result        a success count written as k/n, or a measured number with a unit, in a table row
+  trials        the number of trials or test conditions stated in words ("20 trials", "10 positions")
+  failures      a section on failures (heading containing "failure" or "失败")
+  reproduce     a section on reproducing it (heading with "reproduce", "how to run" or "复现") with a code block
+  hardware      a section listing the hardware (heading with "hardware", "bill of materials", "BOM" or "硬件")
+  contribution  what you did yourself versus reused (heading with "my part", "what I built", "credits" or "贡献")
+  next          limitations or next steps (heading with "limitation", "next step" or "局限", "下一步")
+Standard library only.
+"""
+import os
+import re
+import sys
+
+UNIT = r'(?:mm|cm|m|s|ms|Hz|deg|°|%|N|g|kg|V|A|mA)'
+CHECKS = [
+    ('video', 'a video or GIF of it working',
+     lambda t, h: re.search(r'(youtube\.com|youtu\.be|bilibili\.com|vimeo\.com|\.mp4|\.gif|\.webm)', t, re.I)),
+    ('result', 'a results table with k/n or measured numbers',
+     lambda t, h: re.search(r'^\|.*(\b\d+\s*/\s*\d+\b|\d(?:\.\d+)?\s*' + UNIT + r'\b).*\|\s*$', t, re.M)),
+    ('trials', 'how many trials or conditions were tested',
+     lambda t, h: re.search(r'\b\d+\s+(trials|runs|attempts|positions|episodes)\b|\d+\s*(次试验|次运行|个位置)', t, re.I)),
+    ('failures', 'a failure analysis section',
+     lambda t, h: any(re.search(r'failure|失败', x, re.I) for x in h)),
+    ('reproduce', 'how to reproduce it, with commands',
+     lambda t, h: any(re.search(r'reproduce|how to run|复现', x, re.I) for x in h) and '```' in t),
+    ('hardware', 'the hardware or bill of materials',
+     lambda t, h: any(re.search(r'hardware|bill of materials|\bBOM\b|硬件', x, re.I) for x in h)),
+    ('contribution', 'what you built yourself versus reused',
+     lambda t, h: any(re.search(r'my part|what i built|credits|贡献', x, re.I) for x in h)),
+    ('next', 'limitations or next steps',
+     lambda t, h: any(re.search(r'limitation|next step|局限|下一步', x, re.I) for x in h)),
+]
+
+
+def check(project):
+    path = os.path.join(project, 'README.md')
+    with open(path, encoding='utf-8') as f:
+        text = f.read()
+    headings = [line.lstrip('#').strip() for line in text.splitlines() if line.startswith('#')]
+    words = len(re.findall(r'\w+', text))
+    print(f'{os.path.basename(os.path.normpath(project))}: README.md, {words} words, {len(headings)} headings')
+    missing = 0
+    for name, what, rule in CHECKS:
+        ok = bool(rule(text, headings))
+        missing += not ok
+        print(f'  {"ok     " if ok else "MISSING"} {name:<13} {what}')
+    print(f'  {len(CHECKS) - missing} of {len(CHECKS)} present')
+    return missing
+
+
+def main():
+    if len(sys.argv) < 2:
+        sys.exit(__doc__.strip().splitlines()[2])
+    missing = 0
+    for i, project in enumerate(sys.argv[1:]):
+        if i:
+            print()
+        missing += check(project)
+    sys.exit(1 if missing else 0)
+
+
+if __name__ == '__main__':
+    main()
+```
+
+文件夹里有两份示例 README：一份是完整的 SO-101 抓放项目（只示范格式，其中的数字是示意），一份是典型的循线小车初稿。对两者运行：
+
+```text
+$ python3 portfolio_check.py samples/arm-pick-place samples/line-follower
+arm-pick-place: README.md, 335 words, 7 headings
+  ok      video         a video or GIF of it working
+  ok      result        a results table with k/n or measured numbers
+  ok      trials        how many trials or conditions were tested
+  ok      failures      a failure analysis section
+  ok      reproduce     how to reproduce it, with commands
+  ok      hardware      the hardware or bill of materials
+  ok      contribution  what you built yourself versus reused
+  ok      next          limitations or next steps
+  8 of 8 present
+
+line-follower: README.md, 69 words, 4 headings
+  ok      video         a video or GIF of it working
+  MISSING result        a results table with k/n or measured numbers
+  MISSING trials        how many trials or conditions were tested
+  MISSING failures      a failure analysis section
+  MISSING reproduce     how to reproduce it, with commands
+  ok      hardware      the hardware or bill of materials
+  MISSING contribution  what you built yourself versus reused
+  MISSING next          limitations or next steps
+  2 of 8 present
+```
+
+循线小车也许比机械臂做得更好，但它的 README 让谁都没法知道：“works really well and is very fast”没有任何数字，没法复现，调参那一节还藏起了最有意思的部分（在 kp = 0.8 能用之前发生了什么）。重写它只要一个晚上：拍 10 圈，把单圈时间和 10 圈中跑完了几圈写进表格，列出它冲出赛道的三种方式，再加上上传命令。
+
+<Quiz id="q2" question="示例机械臂 README 里第一个策略是 14/20。它的 Wilson 95 % 区间下限是多少（取整到百分数）？（用第 4 课的公式或程序。）" answer={48} unit="%" explanation="14/20 的 Wilson 区间是 48.1 % 到 85.5 %，示例里取整为 48 .. 85 %。只有 20 次试验时，即使 70 % 的策略区间也很宽，所以示例里写明了试验是怎样选的。" />
+
+## 三层追问
+
+最后一个里程碑是：能回答关于你代码任意一行的三层追问。面试官是故意这样做的：挑一行，不停地问“为什么”，直到找到你理解的边界。在你自己的代码上练习。拿[第 1 课](/zh/month/month-6/behaviour-cloning) `bc_reach.py` 里的这一行来说：
+
+```python
+best = min(obs, key=lambda o: (o[0][0] - p[0]) ** 2 + (o[0][1] - p[1]) ** 2)
+```
+
+- <strong>它做什么？</strong>按欧氏距离的平方，找出观测离当前位置最近的录制帧，让策略重放那一帧的动作。
+- <strong>为什么这样做？</strong>距离平方和距离找到的最近帧相同，又省掉了开方。最近邻是能完全拟合数据的最简单策略，让协变量偏移一眼就能看出来；换成神经网络，这个现象会被各种训练选择掩盖。
+- <strong>什么情况下会出问题，你会怎么改？</strong>它每一步都扫描所有帧，所以耗时随数据集增长（3061 帧没问题，一百万帧就不行了；用 k-d 树可以解决）。它假定 x 和 y 的尺度相同，如果观测里混着米和弧度就错了，所以要先对每个维度做归一化。而且它只能重放见过的动作，这正是它在目标附近失败的原因。
+
+如果你答不出某一行的第三层，那一行就是你接下来要学的东西。对每个作品集项目的关键代码都这样过一遍，是最好的面试准备。
+
+## 投递
+
+- <strong>一页简历，项目放最前面。</strong>每个项目：一行说明它做什么，一个来自结果表的数字，一个链接。没有证据的技能清单会被跳过。
+- <strong>每份申请附一段短信息。</strong>两三句话：你的哪个项目和他们做的东西对得上，以及证明它能用的那个数字。指向视频。
+- <strong>边做边投。</strong>不要等第三个项目完美了再开始。从与你方向匹配的岗位投起，包括实习，以及能让你待在机器人旁边的技术员或测试岗位。
+- <strong>公开展示你的工作。</strong>推送仓库，保持 README 最新，项目到达里程碑时写一篇短文。评审如果看到一段持续、真实的工作记录，就已经被说服了一半。
+- <strong>记日志。</strong>记下每一次申请、回复，以及每一个你没答上来的面试问题，然后去学它们。
+
+## 常见错误
+
+- <strong>一直保持“宽”。</strong>“我什么都会一点”是课程毕业生的默认状态。一个方向上三个有深度的项目，比六个浅尝辄止的项目更有说服力。
+- <strong>项目没有数字。</strong>“效果很好”只会引来“有多好？”。给出成功次数/试验次数、时间、以毫米计的误差。
+- <strong>藏起失败。</strong>失败表说明你理解这个系统；一段没有失败的完美视频，看起来像是很多次里挑出的那一次。
+- <strong>原样照搬教程项目。</strong>评审认得出标准教程。展示你改了什么、为什么改。
+- <strong>解释不了的代码。</strong>如果代码是复制或生成的，而你答不出第三层的问题，要么把它学懂，要么在 README 的致谢部分老实说明它是复用的。
