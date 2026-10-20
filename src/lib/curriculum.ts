@@ -456,6 +456,22 @@ const month5Lessons: Lesson[] = [
       { id: "singular", text: { zh: "在你的机械臂（或模型）上把手臂伸直，演示奇异点：说明哪个方向动不了，以及雅可比行列式为什么归零", en: "Show a singularity on your arm (or the model) by stretching it straight: say which direction it cannot move in and why the Jacobian's determinant goes to zero" } },
     ],
   },
+  {
+    slug: "camera-calibration",
+    title: { zh: "相机标定：内参、畸变与像素到三维", en: "Camera calibration: intrinsics, distortion and pixel to 3D" },
+    summary: {
+      zh: "从针孔模型和径向畸变讲起，用 OpenCV 在已知真值的合成棋盘格照片上标定相机，对比有无畸变项的结果；再用 solvePnP 找到桌面，把像素变成桌面上的三维点，看清跳过去畸变在画面角上会差出多少。",
+      en: "Start from the pinhole model and radial distortion, calibrate a camera with OpenCV on synthetic checkerboard photos whose true values are known, and compare fits with and without distortion; then find the table with solvePnP, turn pixels into 3D points on it, and see how much skipping undistortion costs at the image corners.",
+    },
+    minutes: 240,
+    resources: ["opencv-calibration", "ros-camera-calibration"],
+    tasks: [
+      { id: "run", text: { zh: "依次运行 make_views.py、calibrate.py 和 pixel_to_table.py，把恢复出的 fx、fy、cx、cy、k1、k2 和真值逐项比较", en: "Run make_views.py, calibrate.py and pixel_to_table.py in turn, and compare the recovered fx, fy, cx, cy, k1 and k2 with the true values one by one" } },
+      { id: "own-camera", text: { zh: "打印一张 9 × 6 内角点的棋盘格，用你自己的摄像头拍 15 到 20 张照片并标定，记录 RMS 重投影误差", en: "Print a 9 × 6 inner-corner checkerboard, take 15 to 20 photos with your own camera, calibrate it and record the RMS reprojection error" } },
+      { id: "centre-only", text: { zh: "只用画面中央的照片再标定一次，比较 k1、k2 和主点的变化，并解释原因", en: "Calibrate again using only photos with the board in the centre of the frame, compare k1, k2 and the principal point, and explain the difference" } },
+      { id: "measure", text: { zh: "把棋盘格平放在桌上，用 pixel_to_table.py 的方法求两个像素之间的距离，再用尺子量，比较两者", en: "Lay the board flat on a table, use pixel_to_table.py's method to find the distance between two pixels, measure it with a ruler, and compare" } },
+    ],
+  },
 ];
 
 export const months: Month[] = [

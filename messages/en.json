@@ -139,6 +139,7 @@
     "label": "Simulated output",
     "avr": "Firmware run in the simavr simulator with simulated parts.",
     "model": "Output of a Python toy model.",
+    "synthetic": "Real OpenCV code run on synthetic images rendered through a known camera.",
     "ros": "Real ROS 2 software driving a simulated robot (Gazebo or mock hardware).",
     "note": "Real hardware values will differ.",
     "reproduce": "How to reproduce"

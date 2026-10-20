@@ -1,0 +1,5 @@
+table plane from solvePnP: camera 0.502 m from the board origin
+   pixel (u, v)   3D point, camera frame (mm)    exact (mm)               error    ignoring distortion
+  ( 320,  240)   (   0.2,    0.3,  449.8)   (   0.0,    0.0,  450.0)    0.4 mm     2.2 mm off
+  ( 420,  300)   ( 101.0,   60.8,  500.5)   ( 100.8,   60.5,  500.8)    0.5 mm     1.8 mm off
+  ( 600,  440)   ( 414.3,  296.2,  697.7)   ( 413.7,  295.5,  698.0)    0.9 mm    44.7 mm off

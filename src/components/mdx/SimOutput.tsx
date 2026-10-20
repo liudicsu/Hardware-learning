@@ -6,9 +6,10 @@ const REPO = "https://github.com/liudicsu/Hardware-learning/blob/main";
 export interface SimOutputProps {
   /**
    * "avr": firmware run in the simavr simulator with simulated parts; "model": a Python toy model;
-   * "ros": real ROS 2 software driving a simulated robot (Gazebo or ros2_control mock hardware).
+   * "ros": real ROS 2 software driving a simulated robot (Gazebo or ros2_control mock hardware);
+   * "synthetic": real OpenCV code run on synthetic images rendered through a known camera.
    */
-  source: "avr" | "model" | "ros";
+  source: "avr" | "model" | "ros" | "synthetic";
   children: ReactNode;
 }
 

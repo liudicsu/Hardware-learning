@@ -294,7 +294,7 @@ Singularity: the elbow straightening, shoulder at 20 deg, base at 0
 
 <Resource id="modern-robotics" />
 
-真实的软件栈不会为每台机器人手写 IK。MoveIt 使用 KDL、TRAC-IK 这类插件；接下来的课就用 MoveIt 2。这些插件会遵守关节限位，求解失败时从随机初值重试，MoveIt 还能剔除会发生碰撞的解。规划还会尽量避开奇异点：经过伸直肘部的路径在数学上可能成立，但需要不可能的关节速度。留出余量，并在发给电机之前用 FK 检查每一个 IK 结果。
+真实的软件栈不会为每台机器人手写 IK。MoveIt 使用 KDL、TRAC-IK 这类插件；本月第 5 课就用 MoveIt 2。这些插件会遵守关节限位，求解失败时从随机初值重试，MoveIt 还能剔除会发生碰撞的解。规划还会尽量避开奇异点：经过伸直肘部的路径在数学上可能成立，但需要不可能的关节速度。留出余量，并在发给电机之前用 FK 检查每一个 IK 结果。
 
 ## 常见错误
 

@@ -1,0 +1,28 @@
+# Month 5 examples that need more than the Python standard library: OpenCV for camera
+# calibration (Lesson 4) and MoveIt 2 on ROS 2 Jazzy (Lesson 5). Uses RoboStack's conda
+# packages (https://robostack.github.io/), on any 64-bit Linux without touching the system.
+#   pixi install          # once
+#   pixi run sim          # tools/sim/m5/run.sh: the OpenCV and MoveIt 2 runs
+#   pixi shell            # a shell with python (numpy, cv2), ros2 and MoveIt 2
+[workspace]
+name = "hardware-learning-month-5"
+channels = ["https://prefix.dev/robostack-jazzy", "https://prefix.dev/conda-forge"]
+platforms = ["linux-64"]
+
+[tasks]
+sim = "bash ../../tools/sim/m5/run.sh"
+
+[activation.env]
+ROS_AUTOMATIC_DISCOVERY_RANGE = "LOCALHOST"
+
+[dependencies]
+python = "3.12.*"
+numpy = "*"
+py-opencv = "*"
+ros-jazzy-ros-base = "*"
+ros-jazzy-moveit = "*"
+ros-jazzy-moveit-py = "*"
+ros-jazzy-moveit-resources-panda-moveit-config = "*"
+ros-jazzy-ros2-control = "*"
+ros-jazzy-ros2-controllers = "*"
+ros-jazzy-xacro = "*"

@@ -294,7 +294,7 @@ The model is deliberately small. A real SO-101 also has joint limits: q0, q1 and
 
 <Resource id="modern-robotics" />
 
-Real stacks do not write their own IK for every robot. MoveIt uses plug-ins such as KDL and TRAC-IK; the next lessons use MoveIt 2. These plug-ins respect joint limits and retry from random starting points when one fails, and MoveIt can reject solutions that collide. Planning also prefers configurations away from singularities: a path through a straight elbow may be mathematically valid but needs impossible joint speeds. Keep a margin, and check every IK result with FK before sending it to the motors.
+Real stacks do not write their own IK for every robot. MoveIt uses plug-ins such as KDL and TRAC-IK; lesson 5 of this month uses MoveIt 2. These plug-ins respect joint limits and retry from random starting points when one fails, and MoveIt can reject solutions that collide. Planning also prefers configurations away from singularities: a path through a straight elbow may be mathematically valid but needs impossible joint speeds. Keep a margin, and check every IK result with FK before sending it to the motors.
 
 ## Common mistakes
 

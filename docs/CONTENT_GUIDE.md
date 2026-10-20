@@ -78,6 +78,7 @@ Every `## ` heading (outside code fences) becomes an entry in the lesson's "In t
 
   `source="avr"` = firmware run in simavr with simulated parts; `source="model"` = a Python toy model.
   `source="ros"` = real ROS 2 software driving a simulated robot (Gazebo, or ros2_control mock hardware).
+  `source="synthetic"` = real OpenCV code run on synthetic images rendered through a known camera (Month 5).
   Output of ROS 2 programs that need no robot at all (e.g. `ros2 topic list`, a bag of your own nodes) is a
   real run and is not labelled; it is checked by `examples/month-4/check.sh`.
   The component shows "Simulated output / 仿真输出" and the note that real hardware values will differ.
