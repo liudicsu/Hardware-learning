@@ -1,0 +1,219 @@
+本月每一课都以类似“success 67/100”的一行结束。在真实机械臂上，100 次试验不是白来的：每次都要手动复位场景，一组 20 次的试验可能要一个小时。本课讲怎样从少量试验里得到诚实的数字：成功率有多不确定、怎样公平地比较两个策略、一次比较需要多少次试验，以及怎样把失败变成下一步要修的东西。这也是作品集项目里评审最先看的部分。
+
+## 一个数字不够
+
+n 次试验得到的成功率只是一个估计。它的 95 % 范围默认用 <strong>Wilson 区间</strong>：和教科书上的“p ± 1.96 √(p(1−p)/n)”不同，它不会超出 0..100 %，在 0 次或 n 次成功时也照样可用。程序用的是[第 1 课](/zh/month/month-6/behaviour-cloning)的走廊和策略：
+
+<CodeSource path="examples/month-6/policy-evaluation/eval_report.py" />
+
+```python
+"""eval_report.py: how to measure a policy, on the behaviour-cloning corridor from lesson 1.
+
+1. Success rates with Wilson 95 % intervals: what "67/100" and "8/10" can and cannot tell you.
+2. How much a 10-trial evaluation of the same policy moves around between sessions.
+3. A paired comparison: every policy runs from the same list of per-trial seeds (same start, same noise),
+   so trials can be compared one by one, with McNemar's exact test on the trials where they disagree.
+4. How many trials you need to tell two success rates apart.
+5. A failure table: where and when the failures happen.
+Standard library only; imports the corridor, expert and policies from ../behaviour-cloning/bc_reach.py.
+"""
+import math
+import os
+import random
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'behaviour-cloning'))
+import bc_reach  # noqa: E402
+
+Z95, Z80 = 1.959964, 0.841621          # two-sided 95 % confidence; 80 % power
+
+
+def wilson(k, n, z=Z95):
+    p = k / n
+    centre = (p + z * z / (2 * n)) / (1 + z * z / n)
+    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / (1 + z * z / n)
+    return centre - half, centre + half
+
+
+def trials(policy, seeds):
+    """One rollout per seed; each trial gets its own random generator, so its start and noise are fixed."""
+    return [bc_reach.rollout(policy, random.Random(s)) for s in seeds]
+
+
+def mcnemar_p(b, c):
+    """Exact two-sided McNemar test: under 'no difference' each disagreement is a fair coin."""
+    n = b + c
+    if n == 0:
+        return 1.0
+    tail = sum(math.comb(n, k) for k in range(min(b, c) + 1)) / 2 ** n
+    return min(1.0, 2 * tail)
+
+
+def trials_needed(p1, p2):
+    """Trials per policy for a two-sided 5 % test with 80 % power (normal approximation)."""
+    pbar = (p1 + p2) / 2
+    num = Z95 * math.sqrt(2 * pbar * (1 - pbar)) + Z80 * math.sqrt(p1 * (1 - p1) + p2 * (1 - p2))
+    return math.ceil(num * num / (p1 - p2) ** 2)
+
+
+def main():
+    print('1. Success with a Wilson 95 % interval')
+    for k, n in ((61, 100), (67, 100), (99, 100), (100, 100), (8, 10), (10, 10)):
+        lo, hi = wilson(k, n)
+        print(f'  {k:>3}/{n:<3}  {100 * k / n:5.1f} %   95 % interval {100 * lo:5.1f} .. {100 * hi:5.1f} %')
+
+    demos = bc_reach.record_demos(80, random.Random(6))
+    bc20 = bc_reach.nn_policy([f for f in demos if f[0] < 20])
+    noisy = bc_reach.record_demos(20, random.Random(8), noise=bc_reach.NOISE)
+    bc_noisy = bc_reach.nn_policy(noisy)
+
+    print('\n2. BC on 20 demos, ten separate sessions of 10 trials each (different seeds per session)')
+    scores = [sum(r[0] == 'success' for r in trials(bc20, range(100 * s, 100 * s + 10))) for s in range(10)]
+    print('  successes out of 10: ' + ' '.join(str(v) for v in scores) + f'   (lowest {min(scores)}, highest {max(scores)})')
+
+    print('\n3. Paired comparison over the same 100 trials (seeds 5000..5099)')
+    seeds = range(5000, 5100)
+    a = trials(bc20, seeds)
+    b = trials(bc_noisy, seeds)
+    sa, sb = [r[0] == 'success' for r in a], [r[0] == 'success' for r in b]
+    both = sum(x and y for x, y in zip(sa, sb))
+    only_a = sum(x and not y for x, y in zip(sa, sb))
+    only_b = sum(y and not x for x, y in zip(sa, sb))
+    neither = sum(not x and not y for x, y in zip(sa, sb))
+    for label, s in (('BC, 20 demos', sa), ('BC, 20 noisy demos', sb)):
+        lo, hi = wilson(sum(s), len(s))
+        print(f'  {label:<20} {sum(s):>3}/100   95 % interval {100 * lo:5.1f} .. {100 * hi:5.1f} %')
+    print(f'  both succeed {both}, only the first {only_a}, only the second {only_b}, both fail {neither}')
+    print(f'  McNemar exact test on the {only_a + only_b} disagreements: p = {mcnemar_p(only_a, only_b):.2g}')
+
+    print('\n4. Trials per policy to tell two success rates apart (5 % test, 80 % power)')
+    for p1, p2 in ((0.67, 0.99), (0.60, 0.80), (0.80, 0.90), (0.90, 0.95)):
+        print(f'  {100 * p1:.0f} % vs {100 * p2:.0f} %: {trials_needed(p1, p2):>4} trials each')
+
+    print('\n5. Failures of BC on 20 demos in those 100 trials')
+    fails = [r for r in a if r[0] != 'success']
+    places = {}
+    for result, steps, worst, p in fails:
+        key = result if result != 'wall' else 'wall, ' + bc_reach.place(p)
+        places.setdefault(key, []).append(steps)
+    print(f'  {"failure":<18} {"count":>5} {"share":>7} {"mean step":>10}')
+    for key in sorted(places, key=lambda k: -len(places[k])):
+        v = places[key]
+        print(f'  {key:<18} {len(v):>5} {100 * len(v) / len(fails):>6.0f}% {sum(v) / len(v):>10.1f}')
+
+
+if __name__ == '__main__':
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+$ python3 eval_report.py
+1. Success with a Wilson 95 % interval
+   61/100   61.0 %   95 % interval  51.2 ..  70.0 %
+   67/100   67.0 %   95 % interval  57.3 ..  75.4 %
+   99/100   99.0 %   95 % interval  94.6 ..  99.8 %
+  100/100  100.0 %   95 % interval  96.3 .. 100.0 %
+    8/10    80.0 %   95 % interval  49.0 ..  94.3 %
+   10/10   100.0 %   95 % interval  72.2 .. 100.0 %
+```
+
+</SimOutput>
+
+第 1 课的 61/100（5 条示范）和 67/100（20 条示范）区间重叠，分别是 51–70 % 和 57–75 %：这 100 次试验分不出两者，所以“20 条示范稍好一点”从来就没有依据。99/100 和 100/100 明显高于两者。而对硬件测试最重要的是这一行：<strong>10 次成功 10 次，只说明真实成功率大概高于 72 %</strong>。一段完美的短演示视频是很弱的证据。
+
+<Formula label="Wilson 95 % 区间，p = k / n，z = 1.96">(p + z²/2n ± z √(p(1−p)/n + z²/4n²)) / (1 + z²/n)</Formula>
+
+<Quiz id="q1" question="零失败时有个捷径（三法则）：n 次试验 0 次失败，失败率的 95 % 上界约为 3/n。50 次试验时是多少（%）？" answer={6} unit="%" explanation="3 / 50 = 0.06 = 6 %。所以 50 次全部成功说明策略的失败率大概低于 6 %；10 次全部成功只能说明低于大约 30 %。" />
+
+## 同一个策略，不同的日子
+
+把 20 条示范的 BC 跑十组，每组 10 次，每组的随机条件都是新的，就像在十个不同的下午测试它：
+
+<SimOutput source="model">
+
+```text
+2. BC on 20 demos, ten separate sessions of 10 trials each (different seeds per session)
+  successes out of 10: 5 7 5 6 4 7 7 4 4 9   (lowest 4, highest 9)
+```
+
+</SimOutput>
+
+策略一点没变，一组说 40 %，另一组说 90 %。如果你恰好在其中两组之间改了点什么，不管结果往哪边走，你都会相信是那个改动起了作用。所以单单一组 10 次试验，不足以判断一个改动有没有用。
+
+## 在同样的试验上比较
+
+办法是让条件完全相同，逐次比较。模型里每次试验有自己的种子（种子 s 用 `random.Random(s)`），所以第 5000 次试验对每个策略都有同样的起点和同样的噪声。这比前几课更严格：前几课每次评估从一个共享种子开始，而两个策略一旦走的步数不同，共享的随机数流就会错开。在硬件上，同样的思路就是一份固定的起始位置（和物体摆放）清单，在测试前写好，每个策略按同样的顺序跑。
+
+<SimOutput source="model">
+
+```text
+3. Paired comparison over the same 100 trials (seeds 5000..5099)
+  BC, 20 demos          65/100   95 % interval  55.3 ..  73.6 %
+  BC, 20 noisy demos   100/100   95 % interval  96.3 .. 100.0 %
+  both succeed 65, only the first 0, only the second 35, both fail 0
+  McNemar exact test on the 35 disagreements: p = 5.8e-11
+```
+
+</SimOutput>
+
+两个策略都成功或都失败的试验，说明不了哪个更好，只有结果不一致的试验才说明问题。<strong>McNemar 检验</strong>问的是：如果两个策略一样好，每次不一致都像抛硬币；出现这么一边倒的结果有多大可能？这里 35 次全部偏向同一边，p = 2 × 0.5³⁵ = 5.8 × 10⁻¹¹，所以带噪声示范的策略毫无疑问更好。还要注意“only the first”是 0：凡是另一个策略成功的试验，带噪声示范的策略也都成功了，这比单看两个成功率说明的更多。
+
+<Quiz id="q2" question="两个策略在同样 40 个起始位置上运行。30 次两者都成功，4 次都失败，5 次只有 B 成功，1 次只有 A 成功。对 McNemar 检验有信息量的试验有几次？" answer={6} unit="次" explanation="只有 5 + 1 = 6 次不一致。两者一致的 34 次，无论哪个策略更好看起来都一样。5 : 1 本身还不够有说服力（精确 p = 0.22），需要更多试验。" />
+
+## 需要多少次试验
+
+需要多少次试验取决于两个策略有多接近。程序用的是比较两个比例的标准公式，检验水平 5 %，发现真实差异的把握为 80 %：
+
+<SimOutput source="model">
+
+```text
+4. Trials per policy to tell two success rates apart (5 % test, 80 % power)
+  67 % vs 99 %:   21 trials each
+  60 % vs 80 %:   82 trials each
+  80 % vs 90 %:  199 trials each
+  90 % vs 95 %:  435 trials each
+```
+
+</SimOutput>
+
+像第 1 课 67 % 对 99 % 这样大的差别，大约 20 次试验就能看出来。在一个已经不错的策略上提高 10 个百分点（80 % 到 90 %），每个策略需要大约 200 次试验，也就是好几天的手动复位。两个实际结论：把精力放在大到能测出来的改动上；用配对试验，当两个策略在大多数试验上结果一致时，它需要的次数比这个非配对公式少。
+
+<Quiz id="q3" question="想要检测的差异减半时，需要的试验次数大致怎样变化？" options={["翻倍", "大约变成四倍", "不变"]} answer={1} explanation="差异在分母上是平方，所以差异减半大约需要四倍的试验。60 % 对 80 %（差 20 个点）需要 82 次；80 % 对 90 %（差 10 个点）需要 199 次，比两倍还多，因为成功率本身也变了。" />
+
+## 失败分析
+
+成功率告诉你多常成功；失败表告诉你该修什么。把每次失败按发生的位置和时间分类：
+
+<SimOutput source="model">
+
+```text
+5. Failures of BC on 20 demos in those 100 trials
+  failure            count   share  mean step
+  wall, goal end        26     74%       41.3
+  wall, leg 2            8     23%       30.8
+  wall, leg 1            1      3%       15.0
+```
+
+</SimOutput>
+
+四分之三的失败在目标端，大约第 41 步，也就是示范结束之后的地方。这直接指向了修法（录下目标附近该怎么做，或者用 DAgger 重新标注这些状态），也说明第一段不值得花力气。在真实机械臂上，分类会是“没抓到”“抓到了又掉了”“碰撞”“超时”“抓错物体”这样的项目，每一项都附上试验编号和视频链接。
+
+## 给你的机械臂定一份评估规程
+
+在测试之前写下来，而不是之后：
+
+- <strong>成功标准</strong>，用陌生人也能照着判断的话写（“方块完全在盒子里、夹爪张开、30 s 以内”）。
+- <strong>试验清单</strong>：起始位置和物体摆放，包括一些训练数据里没有的，每个策略按同样顺序跑。
+- <strong>保持不变的东西</strong>：光照、相机位置、物体、机器人的起始姿态、每个策略的代码版本和检查点。
+- <strong>要记录的东西</strong>：每次试验一段视频、结果、失败类别和用时。
+- <strong>报告</strong>：成功次数/试验次数加 Wilson 区间；比较策略时给出配对表；以及失败表。
+
+## 常见错误
+
+- <strong>只报告最好的一组。</strong>如果你跑了三组，就报告全部三组或它们的总和。挑最好的一组，就是 40 % 变成 90 % 的方式。
+- <strong>事后才定成功标准。</strong>“差一点就成了”在这一组算成功、下一组算失败，数字就没有意义了。
+- <strong>只在训练过的地方测试。</strong>加入数据集里没有的起始位置并单独报告；策略之间的差别多半就出在那里。
+- <strong>把区间重叠当成打平，或把区间分开当成证明。</strong>区间只是快速检查；两个策略在同样试验上比较时，用配对比较。
+- <strong>在两个策略之间改了场景。</strong>在两个策略的测试之间挪了相机或盒子，你的比较就变成了比较场景。

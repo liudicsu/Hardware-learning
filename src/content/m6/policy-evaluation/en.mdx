@@ -1,0 +1,219 @@
+Every lesson this month ended with a line like "success 67/100". On a real arm you will not get 100 trials for free: each one means resetting the scene by hand, and a session of 20 trials can take an hour. This lesson is about getting honest numbers out of few trials: how uncertain a success rate is, how to compare two policies fairly, how many trials a comparison needs, and how to turn failures into the next thing to fix. It is also the part of a portfolio project that reviewers look at first.
+
+## One number is not enough
+
+A success rate from n trials is an estimate. The **Wilson interval** is a good default for its 95 % range: unlike the textbook "p ± 1.96 √(p(1−p)/n)", it stays inside 0..100 % and still works at 0 or n successes. The program uses the corridor and policies from [lesson 1](/en/month/month-6/behaviour-cloning):
+
+<CodeSource path="examples/month-6/policy-evaluation/eval_report.py" />
+
+```python
+"""eval_report.py: how to measure a policy, on the behaviour-cloning corridor from lesson 1.
+
+1. Success rates with Wilson 95 % intervals: what "67/100" and "8/10" can and cannot tell you.
+2. How much a 10-trial evaluation of the same policy moves around between sessions.
+3. A paired comparison: every policy runs from the same list of per-trial seeds (same start, same noise),
+   so trials can be compared one by one, with McNemar's exact test on the trials where they disagree.
+4. How many trials you need to tell two success rates apart.
+5. A failure table: where and when the failures happen.
+Standard library only; imports the corridor, expert and policies from ../behaviour-cloning/bc_reach.py.
+"""
+import math
+import os
+import random
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'behaviour-cloning'))
+import bc_reach  # noqa: E402
+
+Z95, Z80 = 1.959964, 0.841621          # two-sided 95 % confidence; 80 % power
+
+
+def wilson(k, n, z=Z95):
+    p = k / n
+    centre = (p + z * z / (2 * n)) / (1 + z * z / n)
+    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / (1 + z * z / n)
+    return centre - half, centre + half
+
+
+def trials(policy, seeds):
+    """One rollout per seed; each trial gets its own random generator, so its start and noise are fixed."""
+    return [bc_reach.rollout(policy, random.Random(s)) for s in seeds]
+
+
+def mcnemar_p(b, c):
+    """Exact two-sided McNemar test: under 'no difference' each disagreement is a fair coin."""
+    n = b + c
+    if n == 0:
+        return 1.0
+    tail = sum(math.comb(n, k) for k in range(min(b, c) + 1)) / 2 ** n
+    return min(1.0, 2 * tail)
+
+
+def trials_needed(p1, p2):
+    """Trials per policy for a two-sided 5 % test with 80 % power (normal approximation)."""
+    pbar = (p1 + p2) / 2
+    num = Z95 * math.sqrt(2 * pbar * (1 - pbar)) + Z80 * math.sqrt(p1 * (1 - p1) + p2 * (1 - p2))
+    return math.ceil(num * num / (p1 - p2) ** 2)
+
+
+def main():
+    print('1. Success with a Wilson 95 % interval')
+    for k, n in ((61, 100), (67, 100), (99, 100), (100, 100), (8, 10), (10, 10)):
+        lo, hi = wilson(k, n)
+        print(f'  {k:>3}/{n:<3}  {100 * k / n:5.1f} %   95 % interval {100 * lo:5.1f} .. {100 * hi:5.1f} %')
+
+    demos = bc_reach.record_demos(80, random.Random(6))
+    bc20 = bc_reach.nn_policy([f for f in demos if f[0] < 20])
+    noisy = bc_reach.record_demos(20, random.Random(8), noise=bc_reach.NOISE)
+    bc_noisy = bc_reach.nn_policy(noisy)
+
+    print('\n2. BC on 20 demos, ten separate sessions of 10 trials each (different seeds per session)')
+    scores = [sum(r[0] == 'success' for r in trials(bc20, range(100 * s, 100 * s + 10))) for s in range(10)]
+    print('  successes out of 10: ' + ' '.join(str(v) for v in scores) + f'   (lowest {min(scores)}, highest {max(scores)})')
+
+    print('\n3. Paired comparison over the same 100 trials (seeds 5000..5099)')
+    seeds = range(5000, 5100)
+    a = trials(bc20, seeds)
+    b = trials(bc_noisy, seeds)
+    sa, sb = [r[0] == 'success' for r in a], [r[0] == 'success' for r in b]
+    both = sum(x and y for x, y in zip(sa, sb))
+    only_a = sum(x and not y for x, y in zip(sa, sb))
+    only_b = sum(y and not x for x, y in zip(sa, sb))
+    neither = sum(not x and not y for x, y in zip(sa, sb))
+    for label, s in (('BC, 20 demos', sa), ('BC, 20 noisy demos', sb)):
+        lo, hi = wilson(sum(s), len(s))
+        print(f'  {label:<20} {sum(s):>3}/100   95 % interval {100 * lo:5.1f} .. {100 * hi:5.1f} %')
+    print(f'  both succeed {both}, only the first {only_a}, only the second {only_b}, both fail {neither}')
+    print(f'  McNemar exact test on the {only_a + only_b} disagreements: p = {mcnemar_p(only_a, only_b):.2g}')
+
+    print('\n4. Trials per policy to tell two success rates apart (5 % test, 80 % power)')
+    for p1, p2 in ((0.67, 0.99), (0.60, 0.80), (0.80, 0.90), (0.90, 0.95)):
+        print(f'  {100 * p1:.0f} % vs {100 * p2:.0f} %: {trials_needed(p1, p2):>4} trials each')
+
+    print('\n5. Failures of BC on 20 demos in those 100 trials')
+    fails = [r for r in a if r[0] != 'success']
+    places = {}
+    for result, steps, worst, p in fails:
+        key = result if result != 'wall' else 'wall, ' + bc_reach.place(p)
+        places.setdefault(key, []).append(steps)
+    print(f'  {"failure":<18} {"count":>5} {"share":>7} {"mean step":>10}')
+    for key in sorted(places, key=lambda k: -len(places[k])):
+        v = places[key]
+        print(f'  {key:<18} {len(v):>5} {100 * len(v) / len(fails):>6.0f}% {sum(v) / len(v):>10.1f}')
+
+
+if __name__ == '__main__':
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+$ python3 eval_report.py
+1. Success with a Wilson 95 % interval
+   61/100   61.0 %   95 % interval  51.2 ..  70.0 %
+   67/100   67.0 %   95 % interval  57.3 ..  75.4 %
+   99/100   99.0 %   95 % interval  94.6 ..  99.8 %
+  100/100  100.0 %   95 % interval  96.3 .. 100.0 %
+    8/10    80.0 %   95 % interval  49.0 ..  94.3 %
+   10/10   100.0 %   95 % interval  72.2 .. 100.0 %
+```
+
+</SimOutput>
+
+Lesson 1's 61/100 (5 demos) and 67/100 (20 demos) have overlapping intervals, 51–70 % and 57–75 %: those 100 trials cannot tell the two apart, so "20 demos were a bit better" was never supported. 99/100 and 100/100 are clearly above both. And the line that matters for a hardware session: **10 out of 10 only shows that the true rate is probably above 72 %**. A perfect short demo video is weak evidence.
+
+<Formula label="Wilson 95 % interval, p = k / n, z = 1.96">(p + z²/2n ± z √(p(1−p)/n + z²/4n²)) / (1 + z²/n)</Formula>
+
+<Quiz id="q1" question="A shortcut for zero failures (the rule of three): with 0 failures in n trials, the 95 % upper bound on the failure rate is about 3/n. What is it for 50 trials, in percent?" answer={6} unit="%" explanation="3 / 50 = 0.06 = 6 %. So 50 clean trials say the policy fails less than about 6 % of the time; 10 clean trials only say less than about 30 %." />
+
+## The same policy on different days
+
+Run BC on 20 demos ten times, 10 trials per session, with fresh random conditions each session, as if you tested it on ten different afternoons:
+
+<SimOutput source="model">
+
+```text
+2. BC on 20 demos, ten separate sessions of 10 trials each (different seeds per session)
+  successes out of 10: 5 7 5 6 4 7 7 4 4 9   (lowest 4, highest 9)
+```
+
+</SimOutput>
+
+The policy never changed, yet one session says 40 % and another 90 %. If you changed something between two of those sessions you would be convinced it mattered either way. This is why a single 10-trial session is not enough to decide whether a change helped.
+
+## Compare on the same trials
+
+The fix is to make the conditions identical and compare trial by trial. In the model, each trial gets its own seed (`random.Random(s)` for seed s), so trial 5000 has the same start and the same noise for every policy. That is stricter than the earlier lessons, which started each evaluation from one shared seed: once two policies take different numbers of steps, a shared random stream drifts apart. On hardware the same idea is a fixed list of start positions (and object placements), written down before the session and run in the same order for every policy.
+
+<SimOutput source="model">
+
+```text
+3. Paired comparison over the same 100 trials (seeds 5000..5099)
+  BC, 20 demos          65/100   95 % interval  55.3 ..  73.6 %
+  BC, 20 noisy demos   100/100   95 % interval  96.3 .. 100.0 %
+  both succeed 65, only the first 0, only the second 35, both fail 0
+  McNemar exact test on the 35 disagreements: p = 5.8e-11
+```
+
+</SimOutput>
+
+The trials where both policies succeed or both fail say nothing about which is better. Only the disagreements do. **McNemar's test** asks: if the two policies were equally good, each disagreement would be a coin flip; how likely is a split this lopsided? Here all 35 go the same way, p = 2 × 0.5³⁵ = 5.8 × 10⁻¹¹, so the noisy-demo policy is better beyond doubt. Note also that "only the first" is 0: the noisy-demo policy succeeded on every trial where the other one did, a stronger statement than the two success rates alone.
+
+<Quiz id="q2" question="Two policies run on the same 40 start positions. 30 trials: both succeed. 4: both fail. 5: only B succeeds. 1: only A succeeds. How many trials carry information for McNemar's test?" answer={6} unit="trials" explanation="Only the 5 + 1 = 6 disagreements. The 34 trials where they agree would look the same whichever policy is better. A 5 : 1 split is not convincing on its own (exact p = 0.22); you would need more trials." />
+
+## How many trials
+
+How many trials you need depends on how close the two policies are. The program uses the standard formula for comparing two proportions with a 5 % test and an 80 % chance of detecting a real difference:
+
+<SimOutput source="model">
+
+```text
+4. Trials per policy to tell two success rates apart (5 % test, 80 % power)
+  67 % vs 99 %:   21 trials each
+  60 % vs 80 %:   82 trials each
+  80 % vs 90 %:  199 trials each
+  90 % vs 95 %:  435 trials each
+```
+
+</SimOutput>
+
+A big difference such as lesson 1's 67 % against 99 % shows up in about 20 trials. A 10-point improvement on an already good policy, 80 % to 90 %, needs about 200 trials per policy, which is days of resetting by hand. Two practical consequences: aim your effort at changes big enough to measure, and use paired trials, which need fewer trials than this unpaired formula when the policies agree on most of them.
+
+<Quiz id="q3" question="Roughly how does the number of trials needed change when the difference you want to detect is halved?" options={["It doubles", "It roughly quadruples", "It stays the same"]} answer={1} explanation="The difference appears squared in the denominator, so half the difference needs about four times the trials. 60 % vs 80 % (20 points) needs 82; 80 % vs 90 % (10 points) needs 199, more than double because the rates also moved." />
+
+## Failure analysis
+
+A success rate tells you how often; a failure table tells you what to fix. Sort every failure by where it happened and when:
+
+<SimOutput source="model">
+
+```text
+5. Failures of BC on 20 demos in those 100 trials
+  failure            count   share  mean step
+  wall, goal end        26     74%       41.3
+  wall, leg 2            8     23%       30.8
+  wall, leg 1            1      3%       15.0
+```
+
+</SimOutput>
+
+Three quarters of the failures are at the goal end, around step 41, after the point where the demonstrations stop. That points straight at the fix (record what to do near the goal, or relabel those states with DAgger) and says that the first leg is not worth working on. On a real arm the categories are things like "missed the grasp", "grasped but dropped", "collided", "timed out", "wrong object", each with the trial number and a link to its video.
+
+## An evaluation protocol for your arm
+
+Write this down before the session, not after:
+
+- **The success criterion**, in words a stranger could apply ("cube entirely inside the bin, gripper open, within 30 s").
+- **The trial list**: start positions and object placements, including some that are not in the training data, run in the same order for every policy.
+- **What stays fixed**: lighting, camera positions, objects, the robot's start pose, the code version and checkpoint of each policy.
+- **What gets recorded**: one video per trial, the outcome, the failure category, and the time taken.
+- **The report**: successes out of trials with the Wilson interval, the paired table if you compare policies, and the failure table.
+
+## Common mistakes
+
+- **Reporting the best session.** If you ran three sessions, report all three or their total. Picking the best one is how 40 % becomes 90 %.
+- **Deciding the criterion afterwards.** "It nearly got it" counted as success in one session and failure in the next makes the numbers meaningless.
+- **Only testing where you trained.** Include start positions that are not in the dataset and report them separately; that is where policies differ most.
+- **Treating overlapping intervals as a tie or separate intervals as proof.** Intervals are a quick check; for two policies on the same trials, use the paired comparison.
+- **Changing the scene between policies.** Moving the camera or the bin between two policies' sessions turns your comparison into a comparison of scenes.

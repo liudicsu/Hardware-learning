@@ -6,6 +6,7 @@
 set -uo pipefail
 M6="$(cd "$(dirname "$0")" && pwd)"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+export PYTHONDONTWRITEBYTECODE=1   # eval_report.py imports bc_reach.py; keep __pycache__ out of the tree
 fail=0
 check() {   # check <name> <command...>: run in $TMP, compare with expected/<name>
   local name="$1"; shift
@@ -24,4 +25,7 @@ check multimodal.txt python3 "$M6/act-diffusion/multimodal.py"
 
 # ---- Lesson 3: VLA action tokens, per-step bins versus a DCT of the chunk -------------------------
 check action_tokens.txt python3 "$M6/vla-models/action_tokens.py"
+
+# ---- Lesson 4: evaluating a policy (Wilson intervals, paired trials, trials needed, failure table) -
+check eval_report.txt python3 "$M6/policy-evaluation/eval_report.py"
 exit $fail

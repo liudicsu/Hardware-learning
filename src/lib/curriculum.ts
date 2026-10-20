@@ -539,6 +539,22 @@ const month6Lessons: Lesson[] = [
       { id: "smolvla", text: { zh: "（有 GPU 和数据集时）在你第 1 课录的数据集上微调 SmolVLA，与同一数据集上的 ACT 在同样 10 个起始位置上比较成功率", en: "(With a GPU and a dataset) fine-tune SmolVLA on the dataset from lesson 1 and compare its success with ACT on the same data at the same 10 start positions" } },
     ],
   },
+  {
+    slug: "policy-evaluation",
+    title: { zh: "评估一个策略：置信区间、配对试验与失败分析", en: "Evaluating a policy: intervals, paired trials and failure analysis" },
+    summary: {
+      zh: "从少量试验里得到诚实的数字：用 Wilson 区间看清 10/10 只说明成功率大概高于 72 %，同一策略十组 10 次试验从 4 到 9 不等；用逐次固定种子（真机上是固定的起始位置清单）做配对比较和 McNemar 检验，算出区分两个成功率要多少次试验，再用失败表找出下一步该修什么，最后为你的机械臂写一份评估规程。",
+      en: "Get honest numbers out of few trials: Wilson intervals show that 10/10 only means the rate is probably above 72 %, and ten 10-trial sessions of one policy range from 4 to 9; compare policies trial by trial with per-trial seeds (a fixed list of start positions on hardware) and McNemar's test, work out how many trials a comparison needs, use a failure table to find what to fix next, and write an evaluation protocol for your arm.",
+    },
+    minutes: 180,
+    resources: ["lerobot-il-robots"],
+    tasks: [
+      { id: "run", text: { zh: "运行 eval_report.py，手算 8/10 的 Wilson 区间并与输出核对", en: "Run eval_report.py and work out the Wilson interval for 8/10 by hand; check it against the output" } },
+      { id: "dagger", text: { zh: "在第 3 部分把第二个策略换成第 1 课的 DAgger 第 1 轮策略，记录配对表和 McNemar p 值", en: "In part 3, replace the second policy with lesson 1's DAgger round-1 policy and record the paired table and McNemar's p" } },
+      { id: "sessions", text: { zh: "把第 2 部分改成每组 30 次试验，比较十组结果的最低与最高值，并解释为什么范围变窄", en: "Change part 2 to 30 trials per session, compare the lowest and highest of the ten sessions, and explain why the range narrows" } },
+      { id: "protocol", text: { zh: "为你的机械臂任务写一份评估规程：成功标准、20 个起始位置（其中 5 个不在训练数据里）、固定项、记录项和报告格式", en: "Write an evaluation protocol for your arm's task: success criterion, 20 start positions (5 of them not in the training data), what stays fixed, what is recorded and the report format" } },
+    ],
+  },
 ];
 
 export const months: Month[] = [
