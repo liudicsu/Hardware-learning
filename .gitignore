@@ -54,3 +54,7 @@ examples/**/build/
 # Python caches
 __pycache__/
 *.pyc
+
+# pixi environments (examples/month-4, examples/month-5: `pixi install`); the lock files are not committed
+.pixi/
+examples/**/pixi.lock
