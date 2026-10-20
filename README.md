@@ -29,6 +29,21 @@ npm run dev      # http://localhost:3000 → redirects to /zh
 npm run build && npm start
 ```
 
+## Checks (local; there is no CI)
+
+The repository has no CI workflow, so the example checks run locally. Each month's
+`examples/month-N/check.sh` re-runs the quoted real outputs, `tools/sim/reproduce.sh` the
+simulated ones, and `python3 tools/check_quotes.py` checks that every quoted code block and
+simulated output in the lessons matches its file in the repo. Pinned extra dependencies:
+
+| Check | Install | Pinned |
+| --- | --- | --- |
+| `examples/month-3/check.sh` (`arm-compare_sdk`) | `pip install -r examples/month-3/requirements.txt` | `feetech-servo-sdk==1.0.0`, `pyserial==3.5` |
+| Months 4–5 ROS 2 / OpenCV / MoveIt runs | `pixi install` in `examples/month-4/` or `examples/month-5/` | see `pixi.toml` |
+
+Without feetech-servo-sdk, `examples/month-3/check.sh` reports `skip  arm-compare_sdk.txt`;
+with it, all 12 outputs are compared.
+
 ## Project layout
 
 | Path | What |

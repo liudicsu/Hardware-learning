@@ -7,8 +7,8 @@
 python3 sts_packet.py
 ```
 
-**`compare_sdk.py`**: sends the same packets through Feetech's own Python SDK into a fake serial port and checks that the bytes are identical. Needs `pip install feetech-servo-sdk` (tested with 1.0.0).
-用飞特官方 Python SDK 把同样的数据包写进一个假串口，检查字节完全一致。需要 `pip install feetech-servo-sdk`（测试版本 1.0.0）。
+**`compare_sdk.py`**: sends the same packets through Feetech's own Python SDK into a fake serial port and checks that the bytes are identical. Needs `pip install -r ../requirements.txt` (pins feetech-servo-sdk 1.0.0).
+用飞特官方 Python SDK 把同样的数据包写进一个假串口，检查字节完全一致。需要 `pip install -r ../requirements.txt`（固定 feetech-servo-sdk 1.0.0）。
 
 ```bash
 python3 compare_sdk.py
