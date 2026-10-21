@@ -235,5 +235,15 @@ const actionTokens = await loadModel("actionTokens");
   want.forEach((line, i) => { if (line) compare("actionTokens", `line ${i + 1}`, line, got[i]); });
 }
 
+const jointFreq = await loadModel("jointFreq");
+{
+  // m5-joint_freq.txt: whole file and every line, byte for byte
+  const want = readFileSync(join(root, "tools/sim/expected/m5-joint_freq.txt"), "utf8");
+  const got = jointFreq.report().join("\n") + "\n";
+  compare("jointFreq", "whole file", want, got);
+  const wl = want.split("\n"), gl = got.split("\n");
+  wl.forEach((line, i) => { if (line) compare("jointFreq", `line ${i + 1}`, line, gl[i]); });
+}
+
 console.log(`widgets: ${checks} checks, ${failed} failed`);
 process.exitCode = failed === 0 ? 0 : 1;

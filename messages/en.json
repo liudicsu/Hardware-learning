@@ -273,6 +273,15 @@
     "tokToken": "Token",
     "tokBack": "Decoded (bin centre)",
     "tokClipped": "Outside the 1st..99th percentile: clipped to the edge first, so the error is large.",
-    "tokAngle": "joint target"
+    "tokAngle": "joint target",
+    "bodeTitle": "Bode plot and margins of the joint loop",
+    "bodeW": "ω (rad/s, log scale, up to Nyquist)",
+    "bodePhase": "Phase (°)",
+    "bodeWc": "Gain crossover",
+    "bodePm": "Phase margin",
+    "bodeWpc": "Phase crossover",
+    "bodeGm": "Gain margin",
+    "bodeOvershoot": "Overshoot on a 0.1 rad step",
+    "bodeGrows": "oscillation grows (unstable)"
   }
 }

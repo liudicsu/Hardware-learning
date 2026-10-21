@@ -273,6 +273,15 @@
     "tokToken": "词元",
     "tokBack": "还原（区间中心）",
     "tokClipped": "超出第 1..99 百分位：先被截到边界，误差会很大。",
-    "tokAngle": "关节目标角"
+    "tokAngle": "关节目标角",
+    "bodeTitle": "关节回路的 Bode 图与稳定裕度",
+    "bodeW": "ω (rad/s，对数坐标，到奈奎斯特频率)",
+    "bodePhase": "相位 (°)",
+    "bodeWc": "增益穿越",
+    "bodePm": "相位裕度",
+    "bodeWpc": "相位穿越",
+    "bodeGm": "增益裕度",
+    "bodeOvershoot": "0.1 rad 阶跃超调",
+    "bodeGrows": "振荡增大（不稳定）"
   }
 }
