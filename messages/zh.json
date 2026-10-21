@@ -250,6 +250,13 @@
     "stsNoHeader": "没有 0xFF 0xFF 包头",
     "stsBadChecksum": "校验和不对：字节在线上被改坏了",
     "stsReplyPos": "舵机 {id}，错误 {err}，位置 {steps} = {deg}°",
-    "stsReplyOk": "舵机 {id}，错误 {err}，校验和正确"
+    "stsReplyOk": "舵机 {id}，错误 {err}，校验和正确",
+    "gripTitle": "两指夹爪：每根手指要夹多紧",
+    "gripForce": "每根手指的夹紧力",
+    "gripTilt": "对应的滑动倾角 atan(μ)",
+    "gripMass": "物体质量",
+    "gripAccel": "手臂加速度 a",
+    "gripSafety": "安全系数 S",
+    "gripMuNote": "μ 是脚本里的粗略估计（PLA 0.3、TPU 0.8）；自己测：把板子慢慢抬起，物体开始滑时 μ = tan(倾角)。"
   }
 }

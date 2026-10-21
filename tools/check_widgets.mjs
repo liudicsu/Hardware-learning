@@ -191,5 +191,15 @@ const stsPacket = await loadModel("stsPacket");
   wl.forEach((line, i) => { if (line) compare("stsPacket", `line ${i + 1}`, line, gl[i]); });
 }
 
+const gripForce = await loadModel("gripForce");
+{
+  // grip-force.txt: whole file and every line, byte for byte
+  const want = readFileSync(join(root, "examples/month-3/expected/grip-force.txt"), "utf8");
+  const got = gripForce.report().join("\n") + "\n";
+  compare("gripForce", "whole file", want, got);
+  const wl = want.split("\n"), gl = got.split("\n");
+  wl.forEach((line, i) => { if (line) compare("gripForce", `line ${i + 1}`, line, gl[i]); });
+}
+
 console.log(`widgets: ${checks} checks, ${failed} failed`);
 process.exitCode = failed === 0 ? 0 : 1;

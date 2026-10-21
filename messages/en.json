@@ -250,6 +250,13 @@
     "stsNoHeader": "no 0xFF 0xFF header",
     "stsBadChecksum": "bad checksum: the bytes were corrupted on the wire",
     "stsReplyPos": "servo {id}, error {err}, position {steps} = {deg}°",
-    "stsReplyOk": "servo {id}, error {err}, checksum ok"
+    "stsReplyOk": "servo {id}, error {err}, checksum ok",
+    "gripTitle": "Two-finger gripper: how hard each finger must squeeze",
+    "gripForce": "Squeeze per finger",
+    "gripTilt": "Matching slide angle atan(μ)",
+    "gripMass": "object mass",
+    "gripAccel": "arm acceleration a",
+    "gripSafety": "safety factor S",
+    "gripMuNote": "μ values in the script are rough guesses (PLA 0.3, TPU 0.8); measure yours: tilt a board until the object slides, μ = tan(angle)."
   }
 }

@@ -104,6 +104,7 @@ quote. Put them on their own line with blank lines around, and add no `import`:
 <SnapFitWidget />
 <GearWidget />
 <StsPacketWidget />
+<GripForceWidget />
 ```
 
 - `PidWidget` mirrors `tools/sim/models/pid_sim.py` (PID step response, 0 → 60°).
@@ -125,6 +126,8 @@ quote. Put them on their own line with blank lines around, and add no `import`:
   tooth-count checks and ratio, backlash → tip error).
 - `StsPacketWidget` mirrors `examples/month-3/so101-arm/sts_packet.py` (STS3215
   bus-servo packet bytes and checksum, reply parsing).
+- `GripForceWidget` mirrors `examples/month-3/gripper-fingers/grip_force.py`
+  (squeeze force for a two-finger friction grip).
 
 Rules:
 

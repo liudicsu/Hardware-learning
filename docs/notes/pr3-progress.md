@@ -12,7 +12,7 @@ Resume from git: each finished item is its own commit. Checks run before every p
 | 3 | m3 fdm snap-fit | done | `snapFit.ts` + `SnapFitWidget`; whole `fdm-snap_fit.txt` byte-matched (6 checks); hand-written |
 | 4 | m3 transmissions planetary/backlash | done | `gears.ts` + `GearWidget`; whole `tr-gear_calc.txt` byte-matched (20 checks); hand-written |
 | 5 | m3 so101 STS packet | done | `stsPacket.ts` + `StsPacketWidget`; whole `arm-sts_packet.txt` byte-matched (7 checks); hand-written |
-| 6 | m3 gripper force | todo | |
+| 6 | m3 gripper force | done | `gripForce.ts` + `GripForceWidget`; whole `grip-force.txt` byte-matched (5 checks); hand-written |
 | 7 | m4 urdf-tf pan/tilt | todo | |
 | 8 | m4 ros2-control diff drive | todo | |
 | 9 | m5 control-modelling Bode | todo | |
@@ -28,3 +28,4 @@ Resume from git: each finished item is its own commit. Checks run before every p
 - Item 3: hand-written (opencode rate-limited; a 90 s probe got no reply).
 - Item 4: hand-written (opencode rate-limited).
 - Item 5: hand-written (opencode rate-limited).
+- Item 6: hand-written (opencode rate-limited).

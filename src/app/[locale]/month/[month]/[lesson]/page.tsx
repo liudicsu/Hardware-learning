@@ -26,6 +26,7 @@ import { Wokwi } from "@/components/mdx/Wokwi";
 import { PidWidget } from "@/components/widgets/PidWidget";
 import { IkWidget } from "@/components/widgets/IkWidget";
 import { CameraWidget } from "@/components/widgets/CameraWidget";
+import { GripForceWidget } from "@/components/widgets/GripForceWidget";
 import { StsPacketWidget } from "@/components/widgets/StsPacketWidget";
 import { GearWidget } from "@/components/widgets/GearWidget";
 import { SnapFitWidget } from "@/components/widgets/SnapFitWidget";
@@ -91,6 +92,7 @@ export default async function LessonPage({ params }: Params) {
     PidWidget,
     IkWidget,
     CameraWidget,
+    GripForceWidget,
     StsPacketWidget,
     GearWidget,
     SnapFitWidget,
