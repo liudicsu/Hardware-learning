@@ -65,7 +65,6 @@ export function CameraWidget() {
   const distorted = project(point, cam, false);
   const ideal = project(point, cam, true);
   const error = Math.hypot(distorted[0] - ideal[0], distorted[1] - ideal[1]);
-  const shown = ignore ? ideal : distorted;
   const answer = ignore ? ideal : distorted;
   const other = ignore ? distorted : ideal;
 
@@ -98,18 +97,18 @@ export function CameraWidget() {
             </clipPath>
           </defs>
           <g clipPath="url(#camera-image-clip)">
-            <path d={grid.ideal} fill="none" stroke="#71717a" strokeOpacity="0.16" strokeWidth="0.6" />
-            <path d={grid.distorted} fill="none" stroke="#38bdf8" strokeOpacity="0.24" strokeWidth="0.8" />
+            <path d={grid.ideal} fill="none" stroke="#a1a1aa" strokeOpacity="0.3" strokeWidth="1" />
+            <path d={grid.distorted} fill="none" stroke="#38bdf8" strokeOpacity="0.6" strokeWidth="1.4" />
             <line
               x1={distorted[0]}
               y1={distorted[1]}
               x2={ideal[0]}
               y2={ideal[1]}
               stroke="#f59e0b"
-              strokeWidth="1"
+              strokeWidth="2"
             />
-            <circle cx={other[0]} cy={other[1]} r="3" fill="none" stroke="#f59e0b" strokeWidth="1.2" />
-            <circle cx={answer[0]} cy={answer[1]} r="4" fill="#38bdf8" stroke="#0a0a0b" strokeWidth="1" />
+            <circle cx={other[0]} cy={other[1]} r="7" fill="none" stroke="#f59e0b" strokeWidth="2" />
+            <circle cx={answer[0]} cy={answer[1]} r="7" fill="#38bdf8" stroke="#0a0a0b" strokeWidth="1" />
           </g>
         </svg>
       </div>
@@ -118,7 +117,7 @@ export function CameraWidget() {
         <p className="text-zinc-400">
           {t("pixel")}{" "}
           <span data-testid="cam-pixel" className="font-mono text-zinc-100">
-            ({fixed(shown[0], 1)}, {fixed(shown[1], 1)})
+            ({fixed(distorted[0], 1)}, {fixed(distorted[1], 1)})
           </span>
         </p>
         <p className="text-zinc-400">

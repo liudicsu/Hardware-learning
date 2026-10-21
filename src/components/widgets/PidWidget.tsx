@@ -9,10 +9,10 @@ import { WidgetShell } from "./WidgetShell";
 
 const W = 600;
 const H = 260;
-const LEFT = 44;
+const LEFT = 48;
 const RIGHT = 16;
 const TOP = 14;
-const BOTTOM = 32;
+const BOTTOM = 40;
 const PLOT_W = W - LEFT - RIGHT;
 const PLOT_H = H - TOP - BOTTOM;
 const SECONDS = 3;
@@ -69,7 +69,7 @@ export function PidWidget() {
                 y2={y(tick)}
                 stroke="rgba(255,255,255,0.06)"
               />
-              <text x={LEFT - 6} y={y(tick) + 3} textAnchor="end" fontSize="10" fill="#71717a">
+              <text x={LEFT - 6} y={y(tick) + 3} textAnchor="end" fontSize="13" fill="#71717a">
                 {fixed(tick, 0)}
               </text>
             </g>
@@ -83,7 +83,7 @@ export function PidWidget() {
                 y2={TOP + PLOT_H}
                 stroke="rgba(255,255,255,0.06)"
               />
-              <text x={x(tick)} y={TOP + PLOT_H + 14} textAnchor="middle" fontSize="10" fill="#71717a">
+              <text x={x(tick)} y={TOP + PLOT_H + 17} textAnchor="middle" fontSize="13" fill="#71717a">
                 {fixed(tick, 1)}
               </text>
             </g>
@@ -99,14 +99,14 @@ export function PidWidget() {
             strokeDasharray="5 4"
           />
           <polyline points={points} fill="none" stroke="#38bdf8" strokeWidth="2" />
-          <text x={LEFT + PLOT_W / 2} y={H - 4} textAnchor="middle" fontSize="10" fill="#71717a">
+          <text x={LEFT + PLOT_W / 2} y={H - 4} textAnchor="middle" fontSize="13" fill="#71717a">
             {t("time")}
           </text>
           <text
             x={12}
             y={TOP + PLOT_H / 2}
             textAnchor="middle"
-            fontSize="10"
+            fontSize="13"
             fill="#71717a"
             transform={`rotate(-90 12 ${TOP + PLOT_H / 2})`}
           >

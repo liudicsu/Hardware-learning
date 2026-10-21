@@ -4,7 +4,7 @@ import type { MouseEvent } from "react";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { exp, fixed } from "@/lib/models/format";
-import { detJ, fk, H, ik, L1 } from "@/lib/models/kinematics";
+import { detJ, fk, H, ik, L1, L2 } from "@/lib/models/kinematics";
 import { Slider } from "./Slider";
 import { WidgetShell } from "./WidgetShell";
 
@@ -23,6 +23,7 @@ const SIDE = {
   right: 12,
   top: 12,
   bottom: 28,
+  rMin: -0.3,
   rMax: 0.35,
   zMin: -0.25,
   zMax: 0.35,
@@ -57,7 +58,7 @@ export function IkWidget() {
 
   const sidePlotW = SIDE.w - SIDE.left - SIDE.right;
   const sidePlotH = SIDE.h - SIDE.top - SIDE.bottom;
-  const sideX = (value: number) => SIDE.left + (value / SIDE.rMax) * sidePlotW;
+  const sideX = (value: number) => SIDE.left + ((value - SIDE.rMin) / (SIDE.rMax - SIDE.rMin)) * sidePlotW;
   const sideY = (value: number) => SIDE.top + (1 - (value - SIDE.zMin) / (SIDE.zMax - SIDE.zMin)) * sidePlotH;
 
   const topPlotW = TOP.w - TOP.left - TOP.right;
@@ -65,14 +66,19 @@ export function IkWidget() {
   const topX = (value: number) => TOP.left + ((value - TOP.min) / (TOP.max - TOP.min)) * topPlotW;
   const topY = (value: number) => TOP.top + (1 - (value - TOP.min) / (TOP.max - TOP.min)) * topPlotH;
 
+  // Side view = the arm's own vertical plane, so the reach is signed (negative when the arm
+  // reaches back over the base), as r = L1 cos q1 + L2 cos(q1 + q2) in kinematics.py.
+  const reach = (qq: number[]) => L1 * Math.cos(qq[1]) + L2 * Math.cos(qq[1] + qq[2]);
+  const armR = reach(q);
   const elbowR = L1 * Math.cos(q[1]);
   const elbowZ = H + L1 * Math.sin(q[1]);
-  const targetR = Math.hypot(target[0], target[1]);
+  // the target projected onto the arm's plane (azimuth q0)
+  const targetR = target[0] * Math.cos(q[0]) + target[1] * Math.sin(q[0]);
   const targetZ = target[2];
 
   const sidePath = result?.path.map((step) => {
     const p = fk(step.q);
-    return [sideX(Math.hypot(p[0], p[1])), sideY(p[2])] as const;
+    return [sideX(reach(step.q)), sideY(p[2])] as const;
   });
   const topPath = result?.path.map((step) => {
     const p = fk(step.q);
@@ -113,13 +119,13 @@ export function IkWidget() {
     const matrix = event.currentTarget.getScreenCTM();
     if (!matrix) return;
     const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
-    const nextR = clamp(((point.x - SIDE.left) / sidePlotW) * SIDE.rMax, 0, SIDE.rMax);
+    const nextR = clamp(SIDE.rMin + ((point.x - SIDE.left) / sidePlotW) * (SIDE.rMax - SIDE.rMin), SIDE.rMin, SIDE.rMax);
     const nextZ = clamp(
       SIDE.zMin + (1 - (point.y - SIDE.top) / sidePlotH) * (SIDE.zMax - SIDE.zMin),
       SIDE.zMin,
       SIDE.zMax,
     );
-    const azimuth = Math.atan2(target[1], target[0]);
+    const azimuth = q[0];
     const next: Vec3 = [nextR * Math.cos(azimuth), nextR * Math.sin(azimuth), nextZ];
     setTarget(next);
     solveFor(next);
@@ -171,7 +177,7 @@ export function IkWidget() {
             <line
               x1={sideX(elbowR)}
               y1={sideY(elbowZ)}
-              x2={sideX(r)}
+              x2={sideX(armR)}
               y2={sideY(tip[2])}
               stroke="#a1a1aa"
               strokeWidth="4"
@@ -193,7 +199,7 @@ export function IkWidget() {
               </>
             )}
             <circle cx={sideX(elbowR)} cy={sideY(elbowZ)} r="3.5" fill="#38bdf8" />
-            <circle cx={sideX(r)} cy={sideY(tip[2])} r="3.5" fill="#38bdf8" />
+            <circle cx={sideX(armR)} cy={sideY(tip[2])} r="3.5" fill="#38bdf8" />
             <circle
               cx={sideX(targetR)}
               cy={sideY(targetZ)}
