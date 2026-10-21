@@ -188,6 +188,98 @@ v_right = 0 + 1.0 × 0.14 = +0.14 m/s  →  +0.14 / 0.05 = +2.8 rad/s
 
 <Quiz id="q3" question="直线走得对，但每个 90° 转弯只转了约 75°。最可能的原因是什么？" options={["wheel_radius 写错了", "YAML 里的 wheel_separation 与机器人实际轮距不一致", "cmd_vel_timeout 太短", "激光雷达的坐标系写错了"]} answer={1} explanation="直行只取决于轮半径；转角还取决于两轮之间的距离，所以 wheel_separation 写错只会表现在转弯上。" />
 
+**把同样的算术写成脚本**。`diff_drive.py` 对几条命令做这套计算：上面两个算例和测验那一题都在里面，另外还有弧线和倒车转弯。b 和 r 是直接写在脚本里的，所以它先读一遍 `controllers.yaml`，告诉你两边是否还一致。它只是普通的 Python 做普通的算术——不用 ROS，也不用仿真器。
+
+<CodeSource path="examples/month-4/ros2-control/diff_drive.py" />
+
+```python
+"""diff_drive.py: the arithmetic diff_drive_controller does for m4bot, by hand.
+
+A differential drive has two wheels a distance b apart (wheel_separation), each of
+radius r (wheel_radius). For a body velocity v (m/s, forward) and w (rad/s,
+counter-clockwise seen from above):
+    v_left  = v - w * b/2
+    v_right = v + w * b/2
+    wheel speed (rad/s) = v_wheel / r
+The turn radius is v / w: the centre of the turn lies that far to the robot's left (a
+negative value: to its right); there is none when w = 0 (straight) and it is 0 when v = 0
+(spinning in place).
+b and r are the numbers in m4_control/config/controllers.yaml; the script checks that the
+file next to it still says so. Plain Python, no ROS needed.
+"""
+import pathlib
+import re
+
+B = 0.28   # m, wheel_separation
+R = 0.05   # m, wheel_radius
+
+CASES = [  # name, v (m/s), w (rad/s)
+    ("straight", 0.2, 0.0),
+    ("straight, quiz", 0.3, 0.0),
+    ("spin left", 0.0, 1.0),
+    ("arc left", 0.2, 0.5),
+    ("arc right", 0.3, -1.0),
+    ("spin right, max", 0.0, -2.0),
+    ("reverse, yaw left", -0.2, 0.5),
+]
+
+
+def wheels(v, w):
+    """Left and right wheel speeds in rad/s."""
+    v_left = v - w * B / 2
+    v_right = v + w * B / 2
+    return v_left / R, v_right / R
+
+
+def yaml_values():
+    """wheel_separation and wheel_radius as written in controllers.yaml (None if missing)."""
+    path = pathlib.Path(__file__).parent / "m4_control/config/controllers.yaml"
+    if not path.is_file():
+        return None
+    text = path.read_text()
+    sep = re.search(r"^\s*wheel_separation:\s*([0-9.]+)", text, re.M)
+    rad = re.search(r"^\s*wheel_radius:\s*([0-9.]+)", text, re.M)
+    return float(sep.group(1)), float(rad.group(1))
+
+
+if __name__ == "__main__":
+    found = yaml_values()
+    if found is None:
+        print("controllers.yaml not found: using b and r from this script")
+    elif found == (B, R):
+        print(f"controllers.yaml: wheel_separation {found[0]} m, wheel_radius {found[1]} m (same as this script)")
+    else:
+        print(f"WARNING: controllers.yaml says {found}, this script uses {(B, R)}")
+    print(f"b/2 = {B / 2:.2f} m")
+    print(f"{'case':17s} {'v m/s':>6s} {'w rad/s':>7s}  {'left rad/s':>10s} {'right rad/s':>11s}  turn radius")
+    for name, v, w in CASES:
+        left, right = wheels(v, w)
+        radius = "none (straight)" if w == 0 else "0 (in place)" if v == 0 else f"{v / w:.2f} m"
+        print(f"{name:17s} {v:6.2f} {w:7.2f}  {left:10.1f} {right:11.1f}  {radius}")
+```
+
+真实输出：
+
+```text
+$ python3 diff_drive.py
+controllers.yaml: wheel_separation 0.28 m, wheel_radius 0.05 m (same as this script)
+b/2 = 0.14 m
+case               v m/s w rad/s  left rad/s right rad/s  turn radius
+straight            0.20    0.00         4.0         4.0  none (straight)
+straight, quiz      0.30    0.00         6.0         6.0  none (straight)
+spin left           0.00    1.00        -2.8         2.8  0 (in place)
+arc left            0.20    0.50         2.6         5.4  0.40 m
+arc right           0.30   -1.00         8.8         3.2  -0.30 m
+spin right, max     0.00   -2.00         5.6        -5.6  0 (in place)
+reverse, yaw left  -0.20    0.50        -5.4        -2.6  -0.40 m
+```
+
+对照上面的算例来读：以 0.2 m/s 直行时两轮都是 4.0 rad/s，测验里的 0.3 m/s 是 6.0 rad/s，以 1.0 rad/s 向左原地转是 −2.8 和 +2.8。弧线就是直行加上旋转：0.2 m/s、0.5 rad/s 时，内侧（左）轮减速到 2.6 rad/s，外侧轮加速到 5.4 rad/s，机器人绕着左侧 0.40 m 处的一点转圈。ω 为负是向右转，所以转弯半径是负数：圆心在右边。控制器允许的最快旋转 2.0 rad/s 需要每个轮子 5.6 rad/s，远在 `<ros2_control>` 标签允许的 ±10 rad/s 以内。
+
+<DiffDriveWidget />
+
+在小部件里试试第 3 题的错误：只改 `wheel_separation`，所有直行的结果都不变，而每一次转弯都变了。
+
 ## 启动与检查
 
 所有东西在一个 launch 文件里汇合。它像第 4 课一样启动 `robot_state_publisher`、Gazebo 和 spawner，然后加载三个控制器和动作服务器：

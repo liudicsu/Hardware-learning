@@ -255,5 +255,22 @@ const lqrModel = await loadModel("lqr");
   want.forEach((line, i) => compare("lqr", `line ${i + 1}`, line, got[i]));
 }
 
+const diffDrive = await loadModel("diffDrive");
+{
+  // ctl-diff_drive.txt (examples/month-4/ros2-control/diff_drive.py): whole file and every
+  // line, byte for byte. The script's first line depends on what controllers.yaml says, so
+  // read it here with the same regular expressions and hand the numbers to the port.
+  const yaml = readFileSync(join(root, "examples/month-4/ros2-control/m4_control/config/controllers.yaml"), "utf8");
+  const sep = yaml.match(/^\s*wheel_separation:\s*([0-9.]+)/m), rad = yaml.match(/^\s*wheel_radius:\s*([0-9.]+)/m);
+  const want = readFileSync(join(root, "examples/month-4/expected/ctl-diff_drive.txt"), "utf8");
+  const got = diffDrive.report([Number(sep[1]), Number(rad[1])]).join("\n") + "\n";
+  compare("diffDrive", "whole file", want, got);
+  const wl = want.split("\n"), gl = got.split("\n");
+  wl.forEach((line, i) => { if (line) compare("diffDrive", `line ${i + 1}`, line, gl[i]); });
+  // the widget's defaults are the lesson's worked example (spin left, 1.0 rad/s); the quiz is 0.3 m/s straight
+  compare("diffDrive", "worked example: spin left 1.0 rad/s", "-2.8 2.8", diffDrive.wheels(0, 1).map((x) => fixed(x, 1)).join(" "));
+  compare("diffDrive", "quiz: 0.3 m/s straight", "6.0 6.0", diffDrive.wheels(0.3, 0).map((x) => fixed(x, 1)).join(" "));
+}
+
 console.log(`widgets: ${checks} checks, ${failed} failed`);
 process.exitCode = failed === 0 ? 0 : 1;

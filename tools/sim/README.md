@@ -36,7 +36,7 @@ From a clean checkout / 在全新克隆的仓库中:
 ```bash
 git clone https://github.com/liudicsu/Hardware-learning.git
 cd Hardware-learning
-tools/sim/reproduce.sh                  # about 1 min; prints "same <file>" for each of the 22 outputs
+tools/sim/reproduce.sh                  # about 1 min; prints "same <file>" for each of the 23 outputs
 tools/sim/reproduce.sh --compile-only-too   # also compiles the ESP32 and line-follower sketches
 ```
 

@@ -98,6 +98,10 @@ python3 "$SIM/models/lqr_sim.py" > "$OUT/m5-lqr_sim.txt"
 # Lesson 3: forward kinematics, numerical IK, singularities
 python3 "$SIM/models/kinematics.py" > "$OUT/m5-kinematics.txt"
 
+# Month 4 / Lesson 5: diff_drive.py, plain Python (no ROS), compared below with
+# examples/month-4/expected/ctl-diff_drive.txt (the file examples/month-4/check.sh also uses)
+python3 "$ROOT/examples/month-4/ros2-control/diff_drive.py" > "$OUT/m4-ctl-diff_drive.txt"
+
 if [[ "${1:-}" == "--compile-only-too" ]]; then
   echo "== compile-only sketches"
   for d in "$EX/arduino-io/blink_custom" "$EX/arduino-io/button_pullup" "$EX/first-robots/line_follower"; do
@@ -115,6 +119,8 @@ for f in "$SIM"/expected/*.txt; do
   [[ "$n" == m4-ros-* || "$n" == m5-cam_* || "$n" == m5-moveit_* ]] && continue   # compared by ros/run.sh and m5/run.sh below
   if diff -u "$f" "$OUT/$n" > "$OUT/$n.diff"; then echo "same  $n"; rm "$OUT/$n.diff"; else echo "DIFF  $n (see $OUT/$n.diff)"; fail=1; fi
 done
+n=m4-ctl-diff_drive.txt
+if diff -u "$ROOT/examples/month-4/expected/ctl-diff_drive.txt" "$OUT/$n" > "$OUT/$n.diff"; then echo "same  $n"; rm "$OUT/$n.diff"; else echo "DIFF  $n (see $OUT/$n.diff)"; fail=1; fi
 
 # every code block and simulated output quoted in the lessons must match the repo
 echo "== lesson quotes vs repo files (tools/check_quotes.py)"

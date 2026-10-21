@@ -164,6 +164,10 @@ sleep 2
 check ros-tf_laser_alias.txt bash -c "echo_tf base_link laser 3"
 stop_display
 
+# ---- Lesson 5: diff_drive.py, the wheel-speed arithmetic of diff_drive_controller ----------
+# (plain Python, no ROS needed; tools/sim/reproduce.sh runs it too, without ROS)
+check ctl-diff_drive.txt python3 "$M4/ros2-control/diff_drive.py"
+
 # ---- Lesson 6: map_check.py must reject a blank map and a map with one object erased ---------
 # (plain Python on a map saved by a real run, slam-nav/test/room.*; tools/sim/ros/run.sh repeats
 # it on every freshly saved map)
