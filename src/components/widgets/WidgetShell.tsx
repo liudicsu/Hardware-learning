@@ -11,10 +11,12 @@ export interface WidgetShellProps {
   script: string;
   onReset: () => void;
   children: ReactNode;
+  /** Replaces "Line-by-line port of the Python script:" when the source is not a Python script. */
+  sourceLabel?: string;
 }
 
 /** Shared frame for the small, interactive ports of the Python lesson models. */
-export function WidgetShell({ title, script, onReset, children }: WidgetShellProps) {
+export function WidgetShell({ title, script, onReset, children, sourceLabel }: WidgetShellProps) {
   const t = useTranslations("widget");
   return (
     <figure className="not-prose my-6 max-w-full overflow-hidden rounded-xl border border-amber-400/25 bg-amber-400/[0.03]">
@@ -34,7 +36,7 @@ export function WidgetShell({ title, script, onReset, children }: WidgetShellPro
         </div>
         <div className="mt-1.5 space-y-1 text-zinc-500">
           <p className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1">
-            <span>{t("mirrors")}</span>
+            <span>{sourceLabel ?? t("mirrors")}</span>
             <a
               href={`${REPO}/${script}`}
               target="_blank"

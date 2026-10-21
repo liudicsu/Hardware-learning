@@ -257,6 +257,11 @@
     "gripMass": "物体质量",
     "gripAccel": "手臂加速度 a",
     "gripSafety": "安全系数 S",
-    "gripMuNote": "μ 是脚本里的粗略估计（PLA 0.3、TPU 0.8）；自己测：把板子慢慢抬起，物体开始滑时 μ = tan(倾角)。"
+    "gripMuNote": "μ 是脚本里的粗略估计（PLA 0.3、TPU 0.8）；自己测：把板子慢慢抬起，物体开始滑时 μ = tan(倾角)。",
+    "tfTitle": "云台 TF 链：base_link → camera_link",
+    "tfSource": "由 URDF 的关节原点和轴计算（本课没有 Python 脚本），输出格式同 tf2_echo：",
+    "tfPan": "pan_joint（绕 z）",
+    "tfTilt": "tilt_joint（绕 y）",
+    "tfNote": "链：mast_joint (−0.06, 0, 0.07) → pan_joint (0, 0, 0.20) 绕 z 转 → tilt_joint (0, 0, 0.035) 绕 y 转 → camera_joint (0.02, 0, 0)。pan 30°、tilt 0 时和上面的 tf2_echo 输出逐字一致（不含时间戳）。"
   }
 }

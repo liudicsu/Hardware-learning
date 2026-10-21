@@ -201,5 +201,16 @@ const gripForce = await loadModel("gripForce");
   wl.forEach((line, i) => { if (line) compare("gripForce", `line ${i + 1}`, line, gl[i]); });
 }
 
+const panTilt = await loadModel("panTilt");
+{
+  // tf2_echo base_link camera_link at pan 30 deg (examples/month-4/check.sh). Line 1 is
+  // "At time <stamp>", masked like check.sh does; every other line byte for byte.
+  const want = readFileSync(join(root, "examples/month-4/expected/ros-tf_pan30.txt"), "utf8").split("\n");
+  const got = panTilt.report();
+  compare("panTilt", "line 1 (time stamp masked)", want[0].replace(/At time [0-9.]+/, "At time #"), "At time #");
+  compare("panTilt", "lines 2..end", want.slice(1).join("\n"), got.join("\n") + "\n");
+  want.slice(1).forEach((line, i) => { if (line) compare("panTilt", `line ${i + 2}`, line, got[i]); });
+}
+
 console.log(`widgets: ${checks} checks, ${failed} failed`);
 process.exitCode = failed === 0 ? 0 : 1;

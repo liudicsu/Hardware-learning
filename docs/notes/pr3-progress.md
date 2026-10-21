@@ -13,7 +13,7 @@ Resume from git: each finished item is its own commit. Checks run before every p
 | 4 | m3 transmissions planetary/backlash | done | `gears.ts` + `GearWidget`; whole `tr-gear_calc.txt` byte-matched (20 checks); hand-written |
 | 5 | m3 so101 STS packet | done | `stsPacket.ts` + `StsPacketWidget`; whole `arm-sts_packet.txt` byte-matched (7 checks); hand-written |
 | 6 | m3 gripper force | done | `gripForce.ts` + `GripForceWidget`; whole `grip-force.txt` byte-matched (5 checks); hand-written |
-| 7 | m4 urdf-tf pan/tilt | todo | |
+| 7 | m4 urdf-tf pan/tilt | done | `panTilt.ts` + `PanTiltWidget`; no Python script exists, so the model is the URDF joint chain composed like TF and printed like tf2_echo; `ros-tf_pan30.txt` lines 2-10 byte-matched, time stamp masked as in check.sh (11 checks); `WidgetShell` got an optional `sourceLabel`; hand-written |
 | 8 | m4 ros2-control diff drive | todo | |
 | 9 | m5 control-modelling Bode | todo | |
 | 10 | m5 state-space LQR | todo | |
@@ -29,3 +29,4 @@ Resume from git: each finished item is its own commit. Checks run before every p
 - Item 4: hand-written (opencode rate-limited).
 - Item 5: hand-written (opencode rate-limited).
 - Item 6: hand-written (opencode rate-limited).
+- Item 7: hand-written (opencode rate-limited).

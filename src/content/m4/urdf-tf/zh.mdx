@@ -603,6 +603,8 @@ tilt_link -> camera_link: 平移 (0.02, 0, 0)
 
 四舍五入到毫米，正好就是 `tf2_echo` 给出的 `[-0.043, 0.010, 0.305]`。这份串联正是 TF 每秒替你做成千上万次的事，也是为什么链上任何一处 origin 写错，都会把下面的一切挪走：`mast_joint` 一错，整个云台连同相机都会跟着偏。
 
+<PanTiltWidget />
+
 <Resource id="ar-transforms" />
 
 <Quiz id="q4" question="还是这条链，把云台转到 90°（tilt 0°）。camera_link 在 base_link 里的 y 平移是多少米？" answer={0.02} tolerance={0.001} explanation="把 (0.02, 0, 0.035) 绕 z 转 90° 得到 (0, 0.02, 0.035)；转的只有相机那 2 cm 的前向偏移，所以 y = 0.02 m。" />

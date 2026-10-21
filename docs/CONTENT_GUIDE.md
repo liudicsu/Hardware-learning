@@ -105,6 +105,7 @@ quote. Put them on their own line with blank lines around, and add no `import`:
 <GearWidget />
 <StsPacketWidget />
 <GripForceWidget />
+<PanTiltWidget />
 ```
 
 - `PidWidget` mirrors `tools/sim/models/pid_sim.py` (PID step response, 0 → 60°).
@@ -128,6 +129,12 @@ quote. Put them on their own line with blank lines around, and add no `import`:
   bus-servo packet bytes and checksum, reply parsing).
 - `GripForceWidget` mirrors `examples/month-3/gripper-fingers/grip_force.py`
   (squeeze force for a two-finger friction grip).
+- `PanTiltWidget` has no Python script behind it: it composes the joint origins
+  and axes of `examples/month-4/urdf-tf/m4_description/urdf/robot.urdf.xacro`
+  like TF does and prints like `tf2_echo`; at pan 30° it matches
+  `examples/month-4/expected/ros-tf_pan30.txt` byte for byte except the masked
+  time stamp. `WidgetShell`'s `sourceLabel` says so instead of "port of the
+  Python script".
 
 Rules:
 

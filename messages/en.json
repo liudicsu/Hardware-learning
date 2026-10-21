@@ -257,6 +257,11 @@
     "gripMass": "object mass",
     "gripAccel": "arm acceleration a",
     "gripSafety": "safety factor S",
-    "gripMuNote": "μ values in the script are rough guesses (PLA 0.3, TPU 0.8); measure yours: tilt a board until the object slides, μ = tan(angle)."
+    "gripMuNote": "μ values in the script are rough guesses (PLA 0.3, TPU 0.8); measure yours: tilt a board until the object slides, μ = tan(angle).",
+    "tfTitle": "Pan/tilt TF chain: base_link → camera_link",
+    "tfSource": "Computed from the URDF's joint origins and axes (this lesson has no Python script), printed like tf2_echo:",
+    "tfPan": "pan_joint (about z)",
+    "tfTilt": "tilt_joint (about y)",
+    "tfNote": "Chain: mast_joint (−0.06, 0, 0.07) → pan_joint (0, 0, 0.20), rotate about z → tilt_joint (0, 0, 0.035), rotate about y → camera_joint (0.02, 0, 0). At pan 30°, tilt 0 it matches the tf2_echo output above character for character (except the time stamp)."
   }
 }
