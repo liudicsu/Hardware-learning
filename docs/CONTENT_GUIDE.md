@@ -21,17 +21,54 @@ final task list, no resource list at the end).
 - Units: use Ω, kΩ, µF, mA, V with a normal space between number and unit
   (`4.7 kΩ`). Use `×` for multiplication in prose.
 - Code blocks use fenced code with a language (```python, ```bash, ```text).
-- No raw HTML; no images (we have none yet); no `import` statements.
+- No raw HTML; no `import` statements.
+- Images live under `public/m<N>/...` and are referenced with a normal Markdown image:
+  `![alt text](/m3/servo_bracket.png)`. The site adds the base path, so the path starts with `/m<N>/`.
+  Alt text is required and describes what the image shows; zh and en use the same image.
 - MDX gotchas: `{` `}` `<` `>` in prose must be escaped or put in inline code
   (`` `a < b` ``). Write "less than" or use `&lt;` if needed.
 
 ## Components available in MDX (no import needed)
 
+### Falstad
+
 ```mdx
 <Falstad title="Voltage divider" circuit="dividerPractice" height={420} />
 ```
 `circuit` is a key from `src/lib/circuits.ts`: `ohms`, `voltdivide`,
-`dividerPractice`, `resistors`, `transistorLed`, `capac`, `transswitch`.
+`dividerPractice`, `loadedDivider`, `ledLimit`, `pullupButton`,
+`ammeterSeriesParallel`, `hBridge`, `resistors`, `transistorLed`, `pwmAverage`,
+`levelDivider`, `i2cPullup`, `inductkick`, `inductkickBlock`, `capac`,
+`transswitch`.
+
+New circuits are `cct` text in `src/lib/circuits.ts` with a comment stating every
+component value. Every reading quoted in lesson text must be measured in the real
+CircuitJS (see `docs/notes/falstad-measure.cjs` and
+`docs/notes/falstad-measurements.md`), then quoted with sensible rounding
+(`约 9.8 mA`, not the raw `9.752 mA`).
+
+### Wokwi
+
+```mdx
+<Wokwi
+  board="uno"
+  files={[
+    "examples/month-2/arduino-io/blink_custom/blink_custom.ino",
+    "examples/month-2/arduino-io/blink_custom/diagram.json",
+  ]}
+>
+Optional note shown under the steps.
+</Wokwi>
+```
+`board` is `uno` or `esp32-s3`; `files` are repo paths. Convention:
+Wokwi is linked, never embedded in an iframe. The `diagram.json` lives next to
+the sketch in `examples/`, and the `.ino` stays the repo file byte-for-byte (the
+reader pastes both into a new Wokwi project). Part types and pins must come from
+docs.wokwi.com (see `docs/notes/wokwi-parts-check.md`);
+`tools/check_wokwi.py` validates the diagrams and the cards. Use `projectId` only
+once a public project exists on the owner's account. Keep the default button
+bounce (do not add `bounce: "0"`). The mainland-China network note is built into
+the component, so do not repeat it in the lesson text.
 
 ```mdx
 <Quiz id="q1" question="..." answer={1.6} unit="V" explanation="..." />

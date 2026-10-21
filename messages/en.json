@@ -89,6 +89,23 @@
     "hint": "Click a switch to toggle it; double-click a part to edit its value; hover to read voltage and current.",
     "credit": "Simulator by falstad.com (Paul Falstad / Iain Sharp, GPLv2); this site only embeds the official page."
   },
+  "wokwi": {
+    "title": "Run it online in Wokwi",
+    "board": {
+      "uno": "Arduino Uno",
+      "esp32-s3": "ESP32-S3-DevKitC-1"
+    },
+    "files": "The two files you need:",
+    "openProject": "Open the project in Wokwi (new tab)",
+    "step1": "Create a new project on wokwi.com:",
+    "newProject": {
+      "uno": "new Arduino Uno project",
+      "esp32-s3": "new ESP32-S3 project"
+    },
+    "step2": "Paste the .ino file above into the editor's sketch.ino tab and diagram.json into the diagram.json tab (replace what is there).",
+    "step3": "Press the green ▶ to start the simulation and watch the Serial Monitor below; no sign-in needed.",
+    "network": "Wokwi is hosted outside mainland China and may be slow or unreachable from there; if it will not load, use this lesson's local simavr output instead (where there is one), or run it on real hardware."
+  },
   "quiz": {
     "check": "Check",
     "correct": "Correct!",

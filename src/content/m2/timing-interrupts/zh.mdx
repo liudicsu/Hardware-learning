@@ -95,6 +95,8 @@ void loop() {
 
 </SimOutput>
 
+<Wokwi board="uno" files={["examples/month-2/timing-interrupts/two_blinks/two_blinks.ino", "examples/month-2/timing-interrupts/two_blinks/diagram.json"]} />
+
 看时间戳就分开了：A 在 250、500、750、1000 ms 翻转，B 在 400、800、1200 ms 翻转；A 的下一次 1250 ms 正好是仿真终点。两者互不拖慢。两条打印之间 `loop()` 已空转几千次，这些轮次正是读传感器、更新电机的地方。
 
 `lastA` 从 0 开始，所以第一次翻转在 250 ms 而不是 0 ms，通常正合适。若某任务要立刻执行一次，可把时间戳初始化成 `millis() - PERIOD`，或在 `setup()` 里先调用一次。
@@ -465,6 +467,10 @@ Get ready...
 ```
 
 </SimOutput>
+
+<Wokwi board="uno" files={["examples/month-2/timing-interrupts/reaction_timer/reaction_timer.ino", "examples/month-2/timing-interrupts/reaction_timer/diagram.json"]}>
+  Wokwi 的按键默认会模拟触点弹跳（diagram.json 里没有关掉）。把程序里的 DEBOUNCE_MS 改成 0 再试，看看一次按下会不会被算成好几次。Wokwi 的弹跳模型和本课的玩具模型不同，次数不必一致。
+</Wokwi>
 
 犯规行来自 `WAITING` 期间的提前按下。前两轮比脚本值低 1 ms，因为 `millis()` 只数整毫秒：灯亮和按下都落在毫秒中间，截断后相减可能少 1；310 ms 恰好落在边界，原样打印。这远小于人与人的反应差异。
 

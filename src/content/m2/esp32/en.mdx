@@ -78,6 +78,10 @@ void loop() {
 }
 ```
 
+<Wokwi board="esp32-s3" files={["examples/month-2/esp32/chip_info/chip_info.ino", "examples/month-2/esp32/chip_info/diagram.json"]}>
+  The diagram puts an LED on GPIO 2 (LED_PIN = 2 in the sketch); the Serial Monitor prints the chip model and flash size. There is no Wokwi version of web_servo: reaching the simulated ESP32's web server from a browser needs Wokwi's paid gateway.
+</Wokwi>
+
 Two things in this sketch do not exist on the Uno. `Serial.printf()` is a formatted print, inherited from C: `%s` means a string, `%d` an integer, `%lu` an unsigned long. It saves you from five separate `Serial.print()` calls and a forest of separators. The `ESP` object is the second addition: `ESP.getChipModel()` returns the chip name, `getChipRevision()` the revision, `getChipCores()` the core count and `getCpuFreqMHz()` the clock. `getFlashChipSize()` reports the flash size in bytes.
 
 Open the serial monitor at **115200 baud** after the upload. You should see two lines in words: one beginning `Chip:` with the model name, revision, number of cores and clock, and one beginning `Flash:` with the flash size in bytes. The exact values depend on your board, so read them rather than expecting a fixed string. The LED should blink for 200 ms on and 800 ms off. These sketches were compiled for both the classic ESP32 and the S3 but were not run on hardware here, so no captured output is shown; your board supplies the real numbers.

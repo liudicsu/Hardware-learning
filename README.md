@@ -32,7 +32,7 @@ labelled “Simulated output / 仿真输出” on the site; nothing in the repos
 
 ## Run the site locally / 本地运行
 
-Prerequisites: **Node.js 20.9 or newer** (Next.js 16 requires it; tested with Node 20.19 and npm 11) and npm.
+Prerequisites: **Node.js 22 LTS** (CI and Pages build use Node 22; Next.js 16 needs 20.9 or newer) and npm.
 
 ```bash
 git clone https://github.com/liudicsu/Hardware-learning.git

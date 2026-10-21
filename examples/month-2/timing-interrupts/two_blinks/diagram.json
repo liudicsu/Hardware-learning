@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "author": "Hardware-learning",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-arduino-uno",
+      "id": "uno",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led1",
+      "top": 0,
+      "left": 300,
+      "attrs": {
+        "color": "red"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r1",
+      "top": 100,
+      "left": 320,
+      "attrs": {
+        "value": "220"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led2",
+      "top": 200,
+      "left": 300,
+      "attrs": {
+        "color": "green"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r2",
+      "top": 300,
+      "left": 320,
+      "attrs": {
+        "value": "220"
+      }
+    }
+  ],
+  "connections": [
+    [
+      "uno:8",
+      "r1:1",
+      "orange",
+      []
+    ],
+    [
+      "r1:2",
+      "led1:A",
+      "orange",
+      []
+    ],
+    [
+      "led1:C",
+      "uno:GND.1",
+      "black",
+      []
+    ],
+    [
+      "uno:9",
+      "r2:1",
+      "orange",
+      []
+    ],
+    [
+      "r2:2",
+      "led2:A",
+      "orange",
+      []
+    ],
+    [
+      "led2:C",
+      "uno:GND.1",
+      "black",
+      []
+    ]
+  ],
+  "dependencies": {}
+}

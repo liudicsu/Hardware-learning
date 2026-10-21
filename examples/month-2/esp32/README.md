@@ -15,3 +15,5 @@ arduino-cli compile -b esp32:esp32:esp32s3 examples/month-2/esp32/web_servo    #
 Before flashing `web_servo`, replace `your-network` / `your-password`, and **do not commit your real Wi-Fi password**.
 烧录 `web_servo` 前替换 Wi-Fi 名称和密码，**不要把真实密码提交到 Git**。
 These sketches were compiled, not run; the lesson quotes no output for them. / 这些程序只做了编译，课程里没有引用它们的输出。
+
+Wokwi: `chip_info/` also has a `diagram.json` for the online simulator at [wokwi.com](https://wokwi.com); create a new ESP32-S3 project there, paste the sketch's `.ino` into the editor's `sketch.ino` tab and this `diagram.json` into the `diagram.json` tab, then start the simulation. `web_servo/` has no Wokwi diagram because reaching the ESP32's web server from a browser needs Wokwi's paid Private IoT Gateway. / Wokwi：`chip_info/` 目录里另有供在线模拟器 [wokwi.com](https://wokwi.com) 使用的 `diagram.json`；在网站上新建一个 ESP32-S3 项目，把程序的 `.ino` 内容粘进编辑器的 `sketch.ino` 标签页，把这里的 `diagram.json` 粘进 `diagram.json` 标签页，再点运行。`web_servo/` 没有 Wokwi 图，因为要从浏览器访问 ESP32 的网页服务器需要 Wokwi 付费的 Private IoT Gateway。

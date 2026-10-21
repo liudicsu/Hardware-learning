@@ -15,3 +15,5 @@ cc -o overflow examples/month-2/timing-interrupts/overflow.c && ./overflow
 
 The debounce toy model is [`tools/sim/models/debounce_sim.py`](../../../tools/sim/models/debounce_sim.py).
 The `two_blinks` and `reaction_timer` outputs in the lesson come from simavr with scripted button presses (**simulated output / 仿真输出**); `overflow.c` is a real run on a computer.
+
+Wokwi: `two_blinks/` and `reaction_timer/` each also have a `diagram.json` for the online simulator at [wokwi.com](https://wokwi.com); create a new Uno project there, paste the sketch's `.ino` into the editor's `sketch.ino` tab and this `diagram.json` into the `diagram.json` tab, then start the simulation. / Wokwi：`two_blinks/` 和 `reaction_timer/` 每个程序目录里另有供在线模拟器 [wokwi.com](https://wokwi.com) 使用的 `diagram.json`；在网站上新建一个 Uno 项目，把程序的 `.ino` 内容粘进编辑器的 `sketch.ino` 标签页，把这里的 `diagram.json` 粘进 `diagram.json` 标签页，再点运行。
