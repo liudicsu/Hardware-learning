@@ -144,5 +144,22 @@ const lineFollow = await loadModel("lineFollow");
   wl.forEach((line, i) => { if (line) compare("lineFollow", `line ${i + 1}`, line, gl[i]); });
 }
 
+const complementary = await loadModel("complementary");
+{
+  // NOT byte for byte: filter_sim.py adds seeded Gaussian noise (Python's Mersenne Twister),
+  // which the widget does not reproduce. The widget uses the analytic steady-state offset
+  // alpha / (1 - alpha) * bias * dt; the reviewer accepted it on the condition that it agrees
+  // with the script's offset_flat column to 1 decimal place, and the lesson says so.
+  const rows = readFileSync(join(root, "tools/sim/expected/m2-filter_sim.txt"), "utf8")
+    .split("\n")
+    .filter((line) => /^0\.\d+ +-?\d/.test(line));
+  const got = complementary.offsetTable();
+  compare("complementary", "alpha rows", "3", String(rows.length));
+  rows.forEach((line, i) => {
+    const [alpha, offset] = line.trim().split(/\s+/);
+    compare("complementary", `alpha ${alpha} offset to 1 decimal place`, fixed(Number(offset), 1), got[i]);
+  });
+}
+
 console.log(`widgets: ${checks} checks, ${failed} failed`);
 process.exitCode = failed === 0 ? 0 : 1;

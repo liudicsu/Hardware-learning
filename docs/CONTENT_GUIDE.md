@@ -100,6 +100,7 @@ quote. Put them on their own line with blank lines around, and add no `import`:
 <IkWidget />
 <CameraWidget />
 <LineFollowWidget />
+<ComplementaryWidget />
 ```
 
 - `PidWidget` mirrors `tools/sim/models/pid_sim.py` (PID step response, 0 → 60°).
@@ -110,6 +111,11 @@ quote. Put them on their own line with blank lines around, and add no `import`:
   radial distortion).
 - `LineFollowWidget` mirrors `tools/sim/models/line_sim.py` (line follower,
   P and PD on 8 reflectance sensors).
+- `ComplementaryWidget` is the one widget that is **not** a line-by-line port:
+  `tools/sim/models/filter_sim.py` adds seeded random noise, so the widget uses the
+  analytic steady-state offset α/(1−α)·bias·dt. It agrees with the script's
+  `offset_flat` column to 1 decimal place, the check tests exactly that, and the
+  widget says so on the page in zh and en.
 
 Rules:
 

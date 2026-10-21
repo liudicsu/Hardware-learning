@@ -206,6 +206,10 @@
     "lineTitle": "循线 P/PD：从偏离 20 mm 开始",
     "lineOffset": "偏离线 (mm)",
     "lineCrossings": "穿线次数",
-    "lineSettle": "进入 ±2 mm 的时刻"
+    "lineSettle": "进入 ±2 mm 的时刻",
+    "cfTitle": "互补滤波：α、时间常数与陀螺零偏造成的静差",
+    "cfApprox": "注意：这个小部件不是逐行移植。脚本里加了随机噪声（Python 的 random，种子 7），浏览器里不复现；这里用同一个滤波公式在恒定零偏下的稳态解析近似 静差 ≈ α/(1−α)·bias·dt。它和脚本 offset_flat 那一列只在保留 1 位小数时一致（0.1 / 0.7 / 3.0°），测试也只检查到 1 位小数。",
+    "cfOffsetAxis": "静差 (°)",
+    "cfOffset": "零偏 {bias} °/s 造成的静差"
   }
 }
