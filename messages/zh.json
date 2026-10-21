@@ -89,6 +89,23 @@
     "hint": "点击开关可切换状态；双击元件可修改数值；右上角可查看电压与电流。",
     "credit": "模拟器来自 falstad.com（Paul Falstad / Iain Sharp，GPLv2），本站仅嵌入官方页面。"
   },
+  "wokwi": {
+    "title": "在 Wokwi 里在线运行",
+    "board": {
+      "uno": "Arduino Uno",
+      "esp32-s3": "ESP32-S3-DevKitC-1"
+    },
+    "files": "需要的两个文件：",
+    "openProject": "在 Wokwi 中打开项目（新标签页）",
+    "step1": "在 wokwi.com 新建项目：",
+    "newProject": {
+      "uno": "新建 Arduino Uno 项目",
+      "esp32-s3": "新建 ESP32-S3 项目"
+    },
+    "step2": "把上面 .ino 文件的内容粘贴到编辑器的 sketch.ino 标签页，把 diagram.json 的内容粘贴到 diagram.json 标签页（整体替换原有内容）。",
+    "step3": "点击绿色的 ▶ 开始仿真，在下方的串口监视器里看输出；不需要登录。",
+    "network": "Wokwi 是境外网站，中国大陆网络访问可能不稳定或较慢；打不开时，可以改看本课用本地 simavr 仿真得到的输出（如有），或直接在实物上运行。"
+  },
   "quiz": {
     "check": "检查答案",
     "correct": "正确！",

@@ -105,6 +105,10 @@ Scanning...
 
 </SimOutput>
 
+<Wokwi board="uno" files={["examples/month-2/sensors-fusion/i2c_scanner/i2c_scanner.ino", "examples/month-2/sensors-fusion/i2c_scanner/diagram.json"]}>
+  扫描结果应该在 0x68 找到 MPU6050（AD0 未接）。
+</Wokwi>
+
 扫描器只能告诉你“有人应答”，不能告诉你“对方是谁”；另一个芯片完全可能用同一个地址。要确认身份，得读 WHO_AM_I 寄存器，后面很快就会讲到。
 
 什么都没找到时，按这个顺序检查：传感器有没有供电和接地；SDA、SCL 有没有接反；`Wire.begin()` 或接线有没有用错引脚；模块有没有上拉电阻（有些裸模块没有）；3.3 V-only 的模块有没有接到错误的电源轨。如果扫描器不是打印结果而是卡住，很可能有一条线被持续拉低——常见原因是接线短路，或者某个器件把总线占住了。断电、检查接线，再重新上电。
@@ -425,6 +429,10 @@ t_s,gyro_only,accel_only,fused
 ```
 
 </SimOutput>
+
+<Wokwi board="uno" files={["examples/month-2/sensors-fusion/imu_pitch/imu_pitch.ino", "examples/month-2/sensors-fusion/imu_pitch/diagram.json"]}>
+  运行时点击 MPU6050，可以改它的加速度和角速度。注意 Wokwi 的 MPU6050 是理想传感器：没有零偏、没有噪声，也就看不到陀螺积分的漂移；想看漂移，请对照本课上面的 simavr 输出（加了 +1.5 °/s 零偏）。
+</Wokwi>
 
 三种行为和 Python 模型完全一致。gyro-only 在板子平放时也每秒爬约 1.5°，倾斜发生时跳约 30°，保持倾斜期间继续爬，板子放平后落到 12.4°，然后继续爬到 18.5°。accel-only 平均而言始终离真值不远，但一直在飘：t = 3 s 是 −1.2°，t = 5 s 是 32.4°，t = 12 s 是 2.4°。fused 在保持倾斜时停在 30.6–30.7°，放平后在 0.6–1.1° 附近，离真值约一度以内。具体数字和 Python 那次不同，因为噪声采样和时序不一样，但故事完全相同。
 

@@ -95,6 +95,8 @@ We ran it in the simavr AVR simulator for 1.25 s; this is the exact serial outpu
 
 </SimOutput>
 
+<Wokwi board="uno" files={["examples/month-2/timing-interrupts/two_blinks/two_blinks.ino", "examples/month-2/timing-interrupts/two_blinks/diagram.json"]} />
+
 Read the timestamps: the two rhythms separate cleanly. LED A toggles at 250, 500, 750 and 1000 ms; LED B at 400, 800 and 1200 ms. The next A toggle would be at 1250 ms, just as the 1.25 s run ends, which is why it is not in the output. Neither LED delays the other. Between two printed lines, `loop()` runs thousands of times checking two comparisons; in a real robot those empty passes are where the sensor reads and motor updates go.
 
 One practical detail: `lastA` starts at 0, so the first A toggle happens 250 ms after reset rather than at time zero. That is usually what you want, because it gives the hardware and the sensors a moment to settle. If a job should run once immediately, either initialise the timestamp to `millis() - PERIOD` or call the job once in `setup()`.
@@ -465,6 +467,10 @@ Get ready...
 ```
 
 </SimOutput>
+
+<Wokwi board="uno" files={["examples/month-2/timing-interrupts/reaction_timer/reaction_timer.ino", "examples/month-2/timing-interrupts/reaction_timer/diagram.json"]}>
+  Wokwi's push button simulates contact bounce by default (the diagram leaves it on). Set DEBOUNCE_MS to 0 in the sketch and try again to see whether one press counts more than once. Wokwi's bounce model differs from this lesson's toy model, so the counts will not match.
+</Wokwi>
 
 The foul line appears because the test script pressed once during `WAITING`. The next three rounds show the measured reactions. The first two print 1 ms lower than the scripted 243 and 198 ms because `millis()` counts whole milliseconds: the LED and the press both fall somewhere inside a millisecond, and the difference of the truncated timestamps can be one count short. The 310 ms round happened to land on a boundary and printed 310. This is normal for millisecond timing and is well below human reaction-time differences.
 

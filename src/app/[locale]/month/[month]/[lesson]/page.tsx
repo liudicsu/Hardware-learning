@@ -22,6 +22,7 @@ import { H2 } from "@/components/lesson/Heading";
 import { CodeBlock } from "@/components/mdx/CodeBlock";
 import { SimOutput } from "@/components/mdx/SimOutput";
 import { CodeSource } from "@/components/mdx/CodeSource";
+import { Wokwi } from "@/components/mdx/Wokwi";
 import { Toc } from "@/components/lesson/Toc";
 import { lessonToc } from "@/lib/toc";
 
@@ -78,6 +79,7 @@ export default async function LessonPage({ params }: Params) {
     pre: CodeBlock,
     SimOutput,
     CodeSource,
+    Wokwi,
     img: ({ src, alt, ...rest }: ComponentProps<"img">) => (
       // eslint-disable-next-line @next/next/no-img-element
       <img src={typeof src === "string" ? withBasePath(src) : src} alt={alt ?? ""} loading="lazy" {...rest} />

@@ -78,6 +78,10 @@ void loop() {
 }
 ```
 
+<Wokwi board="esp32-s3" files={["examples/month-2/esp32/chip_info/chip_info.ino", "examples/month-2/esp32/chip_info/diagram.json"]}>
+  diagram.json 在 GPIO 2 上接了一只 LED（对应程序里的 LED_PIN = 2），串口监视器会打印芯片型号和 Flash 大小。web_servo 不做 Wokwi 版：从浏览器访问仿真 ESP32 的网页服务器需要 Wokwi 的付费网关。
+</Wokwi>
+
 这段代码里有两样东西是 Uno 上没有的。第一是 `Serial.printf()`，它来自 C 语言的格式化输出：`%s` 代表字符串，`%d` 代表整数，`%lu` 代表无符号长整数。它省掉了五六次 `Serial.print()` 和一串分隔符。第二是 `ESP` 对象：`ESP.getChipModel()` 返回芯片型号，`getChipRevision()` 返回版本，`getChipCores()` 返回核心数，`getCpuFreqMHz()` 返回主频，`getFlashChipSize()` 返回 Flash 容量（字节）。
 
 上传完成后，把串口监视器开到 **115200 baud**。你应该能用文字看出两行信息：一行以 `Chip:` 开头，后面是型号、版本、核心数和主频；另一行以 `Flash:` 开头，后面是 Flash 的字节数。具体数值取决于你手上的板子，所以要照着读，而不是背一个固定答案。LED 应该亮 200 ms、灭 800 ms。这两个程序都为经典 ESP32 和 S3 编译过，但没有在真实硬件上运行，因此这里不展示任何串口输出；真实数字由你的板子给出。

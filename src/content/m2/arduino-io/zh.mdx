@@ -74,6 +74,8 @@ void loop() {
 }
 ```
 
+<Wokwi board="uno" files={["examples/month-2/arduino-io/blink_custom/blink_custom.ino", "examples/month-2/arduino-io/blink_custom/diagram.json"]} />
+
 - 第一行是注释，编译器直接忽略。注释是写给下一个人的，而那个人通常是三周后的你自己。
 - `const int LED_PIN = LED_BUILTIN;` 给引脚编号起了个名字。`LED_BUILTIN` 是各开发板预定义的常量，在 Uno 上等于 13。给引脚起名字，以后改接线只要改一行，不用在文件里翻找。
 - `pinMode(LED_PIN, OUTPUT)` 把引脚从高阻态输入改成能主动驱动线路的输出。这一步不能省：对一个仍是输入模式的引脚发输出指令，几乎看不到任何效果——课末的“常见错误”会解释这个错误。
@@ -146,6 +148,8 @@ void loop() {
   }
 }
 ```
+
+<Wokwi board="uno" files={["examples/month-2/arduino-io/button_pullup/button_pullup.ino", "examples/month-2/arduino-io/button_pullup/diagram.json"]} />
 
 `Serial.begin(115200)` 以每秒 115200 比特启动串口，`Serial.println("ready")` 先发一行，用来确认板子复位并跑到了 `setup()`。三元表达式 `state == LOW ? HIGH : LOW` 是精简版 if-else：按下就让 LED 亮，否则灭。于是板载 LED 跟着按键走。
 
@@ -322,6 +326,10 @@ raw:1023,duty:255,volts:5.00
 ```
 
 </SimOutput>
+
+<Wokwi board="uno" files={["examples/month-2/arduino-io/pot_pwm/pot_pwm.ino", "examples/month-2/arduino-io/pot_pwm/diagram.json"]}>
+  转动电位器，串口里的 raw 值和 LED 亮度会一起变；diagram.json 里还接了一台逻辑分析仪（D0 接 9 号脚），停止仿真后会下载 .vcd 文件，可以看 PWM 波形。Wokwi 的读数随旋钮位置变化，是仿真结果。
+</Wokwi>
 
 随手验算一行，取 `raw:818`：
 

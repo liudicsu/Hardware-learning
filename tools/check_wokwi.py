@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Check every examples/**/diagram.json against the Wokwi diagram format.
+"""Check every examples/**/diagram.json and every <Wokwi> card in the lessons.
 
-Standard library only. Exits 1 when any diagram has a problem.
+Standard library only. Exits 1 when any diagram or card has a problem.
 """
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -153,6 +154,74 @@ def check_diagram(path):
     return problems
 
 
+CARD_RE = re.compile(r"<Wokwi\b[^>]*?\bfiles\s*=\s*\{([^}]*)\}", re.DOTALL)
+STRING_RE = re.compile(r"[\"']([^\"']+)[\"']")
+
+
+def scan_cards():
+    """Return {mdx path: [file list of each <Wokwi> card in it]}."""
+    cards = {}
+    for path in sorted((ROOT / "src" / "content").rglob("*.mdx")):
+        text = path.read_text(encoding="utf-8")
+        lists = [STRING_RE.findall(m.group(1)) for m in CARD_RE.finditer(text)]
+        if lists:
+            cards[path] = lists
+    return cards
+
+
+def check_card(files):
+    problems = []
+
+    if not files:
+        problems.append("lists no files")
+
+    for file in files:
+        if not (ROOT / file).exists():
+            problems.append(f"file does not exist: {file}")
+
+    diagrams = [file for file in files if file.endswith("diagram.json")]
+    sketches = [file for file in files if file.endswith(".ino")]
+
+    if not diagrams:
+        problems.append("lists no diagram.json")
+
+    sketch_dirs = {Path(file).parent for file in sketches}
+    diagram_dirs = {Path(file).parent for file in diagrams}
+
+    for diagram in diagrams:
+        if Path(diagram).parent not in sketch_dirs:
+            problems.append(f"no .ino in the same folder as {diagram}")
+    for sketch in sketches:
+        if Path(sketch).parent not in diagram_dirs:
+            problems.append(f"no diagram.json in the same folder as {sketch}")
+
+    return problems
+
+
+def check_card_languages(cards):
+    problems = []
+    lessons = set()
+
+    for path in cards:
+        lessons.add(path.parent)
+
+    for path in (ROOT / "src" / "content").rglob("zh.mdx"):
+        if (path.parent / "en.mdx").exists():
+            lessons.add(path.parent)
+
+    for lesson in sorted(lessons):
+        zh = lesson / "zh.mdx"
+        en = lesson / "en.mdx"
+        if not zh.exists() or not en.exists():
+            continue
+        if cards.get(zh, []) != cards.get(en, []):
+            problems.append(
+                f"{lesson.relative_to(ROOT)}: zh.mdx and en.mdx list different Wokwi files"
+            )
+
+    return problems
+
+
 def main():
     paths = sorted((ROOT / "examples").rglob("diagram.json"))
 
@@ -172,7 +241,29 @@ def main():
         else:
             print(f"ok {relative}")
 
-    print(f"{len(paths)} diagrams checked, {total_problems} problems")
+    cards = scan_cards()
+    card_count = sum(len(lists) for lists in cards.values())
+
+    for path, lists in cards.items():
+        relative = path.relative_to(ROOT)
+        for index, files in enumerate(lists, 1):
+            problems = check_card(files)
+            if problems:
+                total_problems += len(problems)
+                print(f"FAIL {relative} (Wokwi card {index})")
+                for problem in problems:
+                    print(f"  {problem}")
+
+    language_problems = check_card_languages(cards)
+    if language_problems:
+        total_problems += len(language_problems)
+        for problem in language_problems:
+            print(f"FAIL {problem}")
+
+    print(
+        f"{len(paths)} diagrams and {card_count} Wokwi cards checked, "
+        f"{total_problems} problems"
+    )
     return 1 if total_problems else 0
 
 

@@ -74,6 +74,8 @@ void loop() {
 }
 ```
 
+<Wokwi board="uno" files={["examples/month-2/arduino-io/blink_custom/blink_custom.ino", "examples/month-2/arduino-io/blink_custom/diagram.json"]} />
+
 - The first line is a comment; the compiler ignores it. Comments are for the next human, who is usually you in three weeks.
 - `const int LED_PIN = LED_BUILTIN;` gives a name to a pin number. `LED_BUILTIN` is a constant defined for each board and equals 13 on the Uno. Naming pins makes wiring changes a one-line edit instead of a hunt through the file.
 - `pinMode(LED_PIN, OUTPUT)` changes the pin's hardware configuration from a high-impedance input into an output that can actively drive a line. This is not optional: an output command sent to a pin still configured as an input does almost nothing visible, a mistake explained in the common-mistakes list at the end.
@@ -146,6 +148,8 @@ void loop() {
   }
 }
 ```
+
+<Wokwi board="uno" files={["examples/month-2/arduino-io/button_pullup/button_pullup.ino", "examples/month-2/arduino-io/button_pullup/diagram.json"]} />
 
 `Serial.begin(115200)` starts the serial link at 115200 bits per second, and `Serial.println("ready")` sends one line so you can see that the board reset and reached `setup()`. The ternary expression `state == LOW ? HIGH : LOW` is a compact if-else: if the button is pressed, drive the LED HIGH, otherwise LOW. The built-in LED therefore follows the button.
 
@@ -322,6 +326,10 @@ raw:1023,duty:255,volts:5.00
 ```
 
 </SimOutput>
+
+<Wokwi board="uno" files={["examples/month-2/arduino-io/pot_pwm/pot_pwm.ino", "examples/month-2/arduino-io/pot_pwm/diagram.json"]}>
+  Turn the potentiometer and the raw value in the Serial Monitor and the LED brightness change together. The diagram also has a logic analyzer on pin 9 (D0); when you stop the simulation it downloads a .vcd file with the PWM waveform. The numbers depend on the knob position and are simulated.
+</Wokwi>
 
 Check one line by hand. Take `raw:818`:
 
