@@ -167,6 +167,8 @@ invert: 0xFF − 0x3B = 0xC4 → matches the last byte
 reply params 2C 0C → 0x0C2C = 3116 steps → 3116 × 360 / 4096 = 273.9°
 ```
 
+<StsPacketWidget />
+
 The reply line decodes the same way. Its LENGTH is 4, because it carries two data bytes plus the error byte and the checksum. The error byte is 0, so the servo is happy. The parameters 2C 0C are little-endian: 0x0C2C = 3116, and 3116 / 4096 of a turn is 273.9°. The final line flips one bit in the low data byte, 0C becomes 0D, and the checksum catches it before anyone can mistake 0x0D2C for a real position. That is the point of a checksum: it does not repair the message, it refuses it.
 
 <Quiz id="q2" question="What is the checksum of a ping to servo 2 (FF FF 02 02 01 ?)?" options={["FA", "FB", "05", "FD"]} answer={0} explanation="Add the bytes covered by the checksum: 02 + 02 + 01 = 05. Invert the low byte: 0xFF − 0x05 = 0xFA." />

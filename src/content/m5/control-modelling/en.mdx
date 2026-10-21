@@ -201,6 +201,8 @@ Loop gain, kp = 2.86 N*m/rad, kd = 0.115 N*m/(rad/s)
 
 These numbers already include two lags that a continuous C × P sketch leaves out. The controller holds its torque for one period (zero-order hold), and the firmware applies the torque computed from a reading one period late. At 200 Hz each sample is 5 ms. A delay of T seconds costs ω × T radians of phase, more at higher frequency: at the 34.6 rad/s crossover one sample costs 34.6 × 0.005 = 0.17 rad, about 10°, and the hold, which acts like half a sample, about 5° more. That is 15° of margin a delay-free Bode plot would promise but the real loop does not have.
 
+<BodeWidget />
+
 <Resource id="ctms-frequency" />
 
 The Michigan tutorial reads gain and phase margins off Bode plots step by step and checks them against step responses, the same exercise as the next section; its code is MATLAB, but every idea maps onto `joint_freq.py`.

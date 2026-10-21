@@ -309,6 +309,8 @@ offset ≈ α / (1 − α) × bias × dt
 
 That matches the measured 0.72° in the table (the small difference is noise and rounding). The formula also explains the other rows: α = 0.90 gives about 0.135°, and α = 0.995 gives about 2.985°.
 
+<ComplementaryWidget />
+
 The proper fix is not a smaller α; it is to remove the bias at the source. With the robot stationary, average the gyro for 1–2 s — at 100 Hz that is 100–200 samples — call the average `bias`, and subtract it from every reading before integrating. Do not calibrate while the robot is moving, or you will average real motion into the bias. If the robot heats up or moves to a much colder room, the bias can change; a quick recalibration at startup is cheap.
 
 <Quiz id="q6" question="Complementary filter at 100 Hz (dt = 0.01 s) with α = 0.98: time constant τ in seconds?" answer={0.49} unit="s" explanation="τ = α × dt / (1 − α) = 0.98 × 0.01 / 0.02 = 0.49 s." />

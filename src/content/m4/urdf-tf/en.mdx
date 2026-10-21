@@ -603,6 +603,8 @@ Add the part that the pan rotation leaves untouched:
 
 Rounded to millimetres, that is exactly `tf2_echo`'s `[-0.043, 0.010, 0.305]`. This chaining is what TF does for you thousands of times a second, and it is also why a wrong origin anywhere up the chain moves everything below it: get `mast_joint` wrong and the whole head, camera included, moves with it.
 
+<PanTiltWidget />
+
 <Resource id="ar-transforms" />
 
 <Quiz id="q4" question="Using the same chain, pan the head to 90° (tilt 0°). What is the y translation of camera_link in base_link, in metres?" answer={0.02} tolerance={0.001} explanation="Rotating (0.02, 0, 0.035) by 90° about z gives (0, 0.02, 0.035); only the camera's 2 cm forward offset turns, so y = 0.02 m." />

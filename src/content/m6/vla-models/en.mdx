@@ -148,6 +148,8 @@ The token row for joint 0 shows the other problem. At 30 Hz consecutive actions 
 
 <Quiz id="q1" question="A joint's 1st..99th percentile range is −84 to +77 degrees. How wide is each of the 256 bins, in degrees?" answer={0.63} unit="deg" explanation="(77 − (−84)) / 256 = 161 / 256 = 0.63 degrees. A value inside the range is reconstructed to within half of that, 0.31 degrees." />
 
+<ActionTokenWidget />
+
 <Quiz id="q2" question="ALOHA's two arms have 14 action dimensions and run at 50 Hz. How many bin tokens is one second of actions?" answer={700} unit="tokens" explanation="14 dimensions × 50 steps = 700 tokens, generated one after another. That is why per-step binning becomes impractical for fast, many-jointed robots." />
 
 ## Compressing a chunk with the DCT

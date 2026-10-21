@@ -27,10 +27,14 @@ function dataUrl(source) {
 }
 
 const formatUrl = dataUrl(transpile(readFileSync(join(models, "format.ts"), "utf8")));
+const pyfmtUrl = dataUrl(transpile(readFileSync(join(models, "pyfmt.ts"), "utf8")));
+const pyRandomUrl = dataUrl(transpile(readFileSync(join(models, "pyRandom.ts"), "utf8")));
 
 async function loadModel(name) {
   let source = transpile(readFileSync(join(models, name + ".ts"), "utf8"));
   source = source.replace(/from\s+["']\.\/format["']/g, "from " + JSON.stringify(formatUrl));
+  source = source.replace(/from\s+["']\.\/pyfmt["']/g, "from " + JSON.stringify(pyfmtUrl));
+  source = source.replace(/from\s+["']\.\/pyRandom["']/g, "from " + JSON.stringify(pyRandomUrl));
   return import(dataUrl(source));
 }
 
@@ -71,6 +75,9 @@ const kinematics = await loadModel("kinematics");
   // differs from glibc's by 1 ulp on some inputs, so no port can match it byte for
   // byte. For that line we check the text up to the numbers and that the TS run also
   // fails to settle (all 200 iterations used, still more than 20 mm short).
+  // Why only qualitatively: the run is chaotic and V8 and glibc trig differ by 1 ulp,
+  // so byte-matching it is impossible, not merely hard. The lesson prints this line
+  // only to show that a too-small lambda does not converge, and that is what we test.
   const CHAOTIC = "  same with lambda = 0.01: after ";
   const want = readFileSync(join(expectedDir, "m5-kinematics.txt"), "utf8").split("\n");
   const got = (kinematics.report().join("\n") + "\n").split("\n");
@@ -127,6 +134,125 @@ const camera = await loadModel("camera");
       show(camera.project(point, camera.TRUE_CAMERA, true)),
     );
   });
+}
+
+const lineFollow = await loadModel("lineFollow");
+{
+  // line_sim.py: whole file and every line, byte for byte
+  const want = readFileSync(join(expectedDir, "m2-line_sim.txt"), "utf8");
+  const got = lineFollow.report().join("\n") + "\n";
+  compare("lineFollow", "whole file", want, got);
+  const wl = want.split("\n"), gl = got.split("\n");
+  wl.forEach((line, i) => { if (line) compare("lineFollow", `line ${i + 1}`, line, gl[i]); });
+}
+
+const complementary = await loadModel("complementary");
+{
+  // NOT byte for byte: filter_sim.py adds seeded Gaussian noise (Python's Mersenne Twister),
+  // which the widget does not reproduce. The widget uses the analytic steady-state offset
+  // alpha / (1 - alpha) * bias * dt; the reviewer accepted it on the condition that it agrees
+  // with the script's offset_flat column to 1 decimal place, and the lesson says so.
+  const rows = readFileSync(join(root, "tools/sim/expected/m2-filter_sim.txt"), "utf8")
+    .split("\n")
+    .filter((line) => /^0\.\d+ +-?\d/.test(line));
+  const got = complementary.offsetTable();
+  compare("complementary", "alpha rows", "3", String(rows.length));
+  rows.forEach((line, i) => {
+    const [alpha, offset] = line.trim().split(/\s+/);
+    compare("complementary", `alpha ${alpha} offset to 1 decimal place`, fixed(Number(offset), 1), got[i]);
+  });
+}
+
+const snapFit = await loadModel("snapFit");
+{
+  // fdm-snap_fit.txt: whole file and every line, byte for byte
+  const want = readFileSync(join(root, "examples/month-3/expected/fdm-snap_fit.txt"), "utf8");
+  const got = snapFit.report().join("\n") + "\n";
+  compare("snapFit", "whole file", want, got);
+  const wl = want.split("\n"), gl = got.split("\n");
+  wl.forEach((line, i) => { if (line) compare("snapFit", `line ${i + 1}`, line, gl[i]); });
+}
+
+const gears = await loadModel("gears");
+{
+  // tr-gear_calc.txt: whole file and every line, byte for byte
+  const want = readFileSync(join(root, "examples/month-3/expected/tr-gear_calc.txt"), "utf8");
+  const got = gears.report().join("\n") + "\n";
+  compare("gears", "whole file", want, got);
+  const wl = want.split("\n"), gl = got.split("\n");
+  wl.forEach((line, i) => { if (line) compare("gears", `line ${i + 1}`, line, gl[i]); });
+}
+
+const stsPacket = await loadModel("stsPacket");
+{
+  // arm-sts_packet.txt: whole file and every line, byte for byte
+  const want = readFileSync(join(root, "examples/month-3/expected/arm-sts_packet.txt"), "utf8");
+  const got = stsPacket.report().join("\n") + "\n";
+  compare("stsPacket", "whole file", want, got);
+  const wl = want.split("\n"), gl = got.split("\n");
+  wl.forEach((line, i) => { if (line) compare("stsPacket", `line ${i + 1}`, line, gl[i]); });
+}
+
+const gripForce = await loadModel("gripForce");
+{
+  // grip-force.txt: whole file and every line, byte for byte
+  const want = readFileSync(join(root, "examples/month-3/expected/grip-force.txt"), "utf8");
+  const got = gripForce.report().join("\n") + "\n";
+  compare("gripForce", "whole file", want, got);
+  const wl = want.split("\n"), gl = got.split("\n");
+  wl.forEach((line, i) => { if (line) compare("gripForce", `line ${i + 1}`, line, gl[i]); });
+}
+
+const panTilt = await loadModel("panTilt");
+{
+  // tf2_echo base_link camera_link at pan 30 deg (examples/month-4/check.sh). Line 1 is
+  // "At time <stamp>", masked like check.sh does; every other line byte for byte.
+  const want = readFileSync(join(root, "examples/month-4/expected/ros-tf_pan30.txt"), "utf8").split("\n");
+  const got = panTilt.report();
+  compare("panTilt", "line 1 (time stamp masked)", want[0].replace(/At time [0-9.]+/, "At time #"), "At time #");
+  compare("panTilt", "lines 2..end", want.slice(1).join("\n"), got.join("\n") + "\n");
+  want.slice(1).forEach((line, i) => { if (line) compare("panTilt", `line ${i + 2}`, line, got[i]); });
+}
+
+const wilson = await loadModel("wilson");
+{
+  // eval_report.py section 1 only (the Wilson intervals), byte for byte; the rest of that
+  // script needs the behaviour-cloning rollouts and is not part of the widget.
+  const want = readFileSync(join(root, "examples/month-6/expected/eval_report.txt"), "utf8").split("\n").slice(0, 7);
+  const got = wilson.report();
+  compare("wilson", "section 1 (7 lines)", want.join("\n"), got.join("\n"));
+  want.forEach((line, i) => compare("wilson", `line ${i + 1}`, line, got[i]));
+}
+
+const actionTokens = await loadModel("actionTokens");
+{
+  // action_tokens.py lines 1-8 (dataset percentiles and per-step bins), byte for byte.
+  // The data come from Python's random.Random(6) and (99), replayed by pyRandom.ts (MT19937).
+  // The DCT half of the script (lines 9-) is not part of the widget and is not ported.
+  const want = readFileSync(join(root, "examples/month-6/expected/action_tokens.txt"), "utf8").split("\n").slice(0, 8);
+  const got = actionTokens.report();
+  compare("actionTokens", "lines 1-8", want.join("\n"), got.join("\n"));
+  want.forEach((line, i) => { if (line) compare("actionTokens", `line ${i + 1}`, line, got[i]); });
+}
+
+const jointFreq = await loadModel("jointFreq");
+{
+  // m5-joint_freq.txt: whole file and every line, byte for byte
+  const want = readFileSync(join(root, "tools/sim/expected/m5-joint_freq.txt"), "utf8");
+  const got = jointFreq.report().join("\n") + "\n";
+  compare("jointFreq", "whole file", want, got);
+  const wl = want.split("\n"), gl = got.split("\n");
+  wl.forEach((line, i) => { if (line) compare("jointFreq", `line ${i + 1}`, line, gl[i]); });
+}
+
+const lqrModel = await loadModel("lqr");
+{
+  // lqr_sim.py part 1 (cart-pole, 17 lines), byte for byte. Part 2 (MPC on the arm
+  // joint) is not part of the widget and is not ported.
+  const want = readFileSync(join(expectedDir, "m5-lqr_sim.txt"), "utf8").split("\n").slice(0, 17);
+  const got = lqrModel.report();
+  compare("lqr", "part 1 (17 lines)", want.join("\n"), got.join("\n"));
+  want.forEach((line, i) => compare("lqr", `line ${i + 1}`, line, got[i]));
 }
 
 console.log(`widgets: ${checks} checks, ${failed} failed`);

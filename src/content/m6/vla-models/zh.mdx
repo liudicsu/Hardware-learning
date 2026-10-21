@@ -148,6 +148,8 @@ bins: 180 tokens, error rms 0.892 deg, max 6.194 deg (6 values outside the 1st..
 
 <Quiz id="q1" question="某个关节的第 1 到第 99 百分位数范围是 −84 到 +77 度。256 个区间中每个有多宽（度）？" answer={0.63} unit="度" explanation="(77 − (−84)) / 256 = 161 / 256 = 0.63 度。范围内的值能还原到它的一半以内，即 0.31 度。" />
 
+<ActionTokenWidget />
+
 <Quiz id="q2" question="ALOHA 的两条手臂共有 14 个动作维度，以 50 Hz 运行。1 秒的动作是多少个区间词元？" answer={700} unit="个" explanation="14 个维度 × 50 步 = 700 个词元，而且要一个接一个地生成。这就是为什么逐步分区间的方法对快速、多关节的机器人不实用。" />
 
 ## 用 DCT 压缩一个动作块

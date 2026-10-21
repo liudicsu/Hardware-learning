@@ -92,13 +92,24 @@ now (the full list is already shown at the end of the page).
 
 ### Formula widgets (simplified model)
 
-Three interactive widgets replay the Python toy models that lessons already
+These interactive widgets replay the Python toy models that lessons already
 quote. Put them on their own line with blank lines around, and add no `import`:
 
 ```mdx
 <PidWidget />
 <IkWidget />
 <CameraWidget />
+<LineFollowWidget />
+<ComplementaryWidget />
+<SnapFitWidget />
+<GearWidget />
+<StsPacketWidget />
+<GripForceWidget />
+<PanTiltWidget />
+<WilsonWidget />
+<ActionTokenWidget />
+<BodeWidget />
+<LqrWidget />
 ```
 
 - `PidWidget` mirrors `tools/sim/models/pid_sim.py` (PID step response, 0 → 60°).
@@ -107,6 +118,39 @@ quote. Put them on their own line with blank lines around, and add no `import`:
 - `CameraWidget` mirrors
   `examples/month-5/camera-calibration/make_views.py` (pinhole projection and
   radial distortion).
+- `LineFollowWidget` mirrors `tools/sim/models/line_sim.py` (line follower,
+  P and PD on 8 reflectance sensors).
+- `ComplementaryWidget` is the one widget that is **not** a line-by-line port:
+  `tools/sim/models/filter_sim.py` adds seeded random noise, so the widget uses the
+  analytic steady-state offset α/(1−α)·bias·dt. It agrees with the script's
+  `offset_flat` column to 1 decimal place, the check tests exactly that, and the
+  widget says so on the page in zh and en.
+- `SnapFitWidget` mirrors `examples/month-3/fdm-printing/snap_fit.py` (cantilever
+  snap-fit strain and push-on force).
+- `GearWidget` mirrors `examples/month-3/transmissions/gear_calc.py` (planetary
+  tooth-count checks and ratio, backlash → tip error).
+- `StsPacketWidget` mirrors `examples/month-3/so101-arm/sts_packet.py` (STS3215
+  bus-servo packet bytes and checksum, reply parsing).
+- `GripForceWidget` mirrors `examples/month-3/gripper-fingers/grip_force.py`
+  (squeeze force for a two-finger friction grip).
+- `PanTiltWidget` has no Python script behind it: it composes the joint origins
+  and axes of `examples/month-4/urdf-tf/m4_description/urdf/robot.urdf.xacro`
+  like TF does and prints like `tf2_echo`; at pan 30° it matches
+  `examples/month-4/expected/ros-tf_pan30.txt` byte for byte except the masked
+  time stamp. `WidgetShell`'s `sourceLabel` says so instead of "port of the
+  Python script".
+- `WilsonWidget` mirrors `wilson()` in
+  `examples/month-6/policy-evaluation/eval_report.py` (section 1 of its output
+  only; the "trials needed" section is not part of the widget).
+- `ActionTokenWidget` mirrors the dataset and per-step-bins half of
+  `examples/month-6/vla-models/action_tokens.py` (lines 1-8 of its output; the DCT
+  half is not ported). Its data come from `random.Random(6)`/`(99)`, replayed by
+  `src/lib/models/pyRandom.ts` (MT19937 + `uniform()`), and sums use Python 3.12+'s
+  compensated float `sum()`, so the expected file must come from Python ≥ 3.12.
+- `BodeWidget` mirrors `loop()`, `margins()` and `closed()` in
+  `tools/sim/models/joint_freq.py` (loop gain, margins, closed-loop step).
+- `LqrWidget` mirrors part 1 (cart-pole LQR) of `tools/sim/models/lqr_sim.py`
+  (its first 17 output lines; the MPC part 2 is not ported).
 
 Rules:
 
@@ -118,6 +162,12 @@ Rules:
   formatted exactly like the expected file and compares it byte for byte with
   the lines in `tools/sim/expected/`. It runs in CI and from
   `tools/sim/reproduce.sh`.
+- The one exception to byte-for-byte checks is the kinematics "same with
+  lambda = 0.01" line. That run never converges and is chaotic, and JavaScript
+  and glibc trig functions differ by 1 ulp, so no port can byte-match it;
+  `tools/check_widgets.mjs` checks it only qualitatively (same wording, and the
+  TS run also fails to settle). The line is in the lesson only to show
+  non-convergence.
 - Every widget uses `WidgetShell`: the amber “简化模型 / Simplified model”
   label, a link to the script it mirrors, the note that real hardware values
   differ, and a reset button.

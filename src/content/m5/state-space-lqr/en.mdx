@@ -239,6 +239,8 @@ Q = diag(1, 1, 10, 1), R = 0.01  K = [  -6.86,  -10.95,  -59.07,  -11.51]
 
 Read K as four numbers: position, speed, angle, rate. The baseline K is [−0.92, −1.75, −18.76, −3.03]; with R = 0.01 it becomes [−6.86, −10.95, −59.07, −11.51]. The angle entry is the largest in all three runs, because a small angle error grows quickly.
 
+<LqrWidget />
+
 Now the sign that looks wrong. The position gain is negative, like the angle gain. With u = −K x, a positive position error, meaning the cart is to the right of the target, commands a positive force and pushes it further right. That is deliberate: the controller first tips the pole left, then drives left to catch it. A cart-pole is non-minimum phase in position, so an immediate push toward the target would lean the pole the wrong way.
 
 To use less force, raise R or lower the state weights. Raising the position weight in Q instead buys a tighter return and spends more force.
