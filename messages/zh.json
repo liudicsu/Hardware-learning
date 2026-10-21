@@ -210,6 +210,17 @@
     "cfTitle": "互补滤波：α、时间常数与陀螺零偏造成的静差",
     "cfApprox": "注意：这个小部件不是逐行移植。脚本里加了随机噪声（Python 的 random，种子 7），浏览器里不复现；这里用同一个滤波公式在恒定零偏下的稳态解析近似 静差 ≈ α/(1−α)·bias·dt。它和脚本 offset_flat 那一列只在保留 1 位小数时一致（0.1 / 0.7 / 3.0°），测试也只检查到 1 位小数。",
     "cfOffsetAxis": "静差 (°)",
-    "cfOffset": "零偏 {bias} °/s 造成的静差"
+    "cfOffset": "零偏 {bias} °/s 造成的静差",
+    "snapTitle": "卡扣臂：应变与压入力",
+    "snapStrain": "根部应变",
+    "snapOk": "在限值内",
+    "snapTooMuch": "超标（限值 {limit} %）",
+    "snapPush": "压入力",
+    "snapLocks": "自锁（μ·tan a ≥ 1，推不进去）",
+    "snapL": "臂长 L",
+    "snapT": "厚度 t",
+    "snapY": "钩深 y",
+    "snapLead": "导入角 a",
+    "snapFixed": "臂宽 b = 6 mm、摩擦系数 μ = 0.3，与脚本默认值相同。"
   }
 }

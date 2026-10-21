@@ -26,6 +26,7 @@ import { Wokwi } from "@/components/mdx/Wokwi";
 import { PidWidget } from "@/components/widgets/PidWidget";
 import { IkWidget } from "@/components/widgets/IkWidget";
 import { CameraWidget } from "@/components/widgets/CameraWidget";
+import { SnapFitWidget } from "@/components/widgets/SnapFitWidget";
 import { ComplementaryWidget } from "@/components/widgets/ComplementaryWidget";
 import { LineFollowWidget } from "@/components/widgets/LineFollowWidget";
 import { Toc } from "@/components/lesson/Toc";
@@ -88,6 +89,7 @@ export default async function LessonPage({ params }: Params) {
     PidWidget,
     IkWidget,
     CameraWidget,
+    SnapFitWidget,
     ComplementaryWidget,
     LineFollowWidget,
     img: ({ src, alt, ...rest }: ComponentProps<"img">) => (

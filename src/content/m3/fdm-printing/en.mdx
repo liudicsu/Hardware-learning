@@ -198,6 +198,8 @@ L 10.0  t 1.2  hook 0.8 mm, PETG, lead-in 30 deg: strain 1.44 % ok              
 L 10.0  t 1.2  hook 0.8 mm, PLA,  lead-in 60 deg: strain 1.44 % ok                     push-on  30.7 N
 ```
 
+<SnapFitWidget />
+
 Walk through each line. The short thick arm, L = 5, is the first design people draw; it strains 9 % and would crack. Doubling the length cuts the strain to 2.25 %, still above the limit. The thinner arm with a shallower hook gets to 1.44 %, inside the 1.5 % we allow for PLA. PETG is less stiff, so the same arm pushes on with less force, 4.4 N against 7.7 N. A steep 60° lead-in quadruples the push-on force to 30.7 N — that is how you make a snap that is hard to close.
 
 The limits in the script, 1.5 % for PLA and 2.5 % for PETG, are the editor's cautious rules of thumb for printed parts, not datasheet values. A printed arm is weakest when it bends across its layers, and a real part has a fillet, layer lines and friction that the formula ignores. Print one test arm and snap it 20 times before you trust it in a case.

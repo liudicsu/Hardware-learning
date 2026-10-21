@@ -210,6 +210,17 @@
     "cfTitle": "Complementary filter: α, time constant and the offset from gyro bias",
     "cfApprox": "Note: this widget is not a line-by-line port. The script adds random noise (Python's random, seed 7), which is not reproduced in the browser; this uses the analytic steady-state approximation of the same filter equation with a constant bias, offset ≈ α/(1−α)·bias·dt. It agrees with the script's offset_flat column only to 1 decimal place (0.1 / 0.7 / 3.0°), and the test checks agreement to 1 decimal place only.",
     "cfOffsetAxis": "Offset (°)",
-    "cfOffset": "Offset from a {bias} °/s bias"
+    "cfOffset": "Offset from a {bias} °/s bias",
+    "snapTitle": "Snap-fit arm: strain and push-on force",
+    "snapStrain": "Root strain",
+    "snapOk": "within the limit",
+    "snapTooMuch": "too much (limit {limit} %)",
+    "snapPush": "Push-on force",
+    "snapLocks": "self-locking (μ·tan a ≥ 1, cannot be pushed on)",
+    "snapL": "arm length L",
+    "snapT": "thickness t",
+    "snapY": "hook depth y",
+    "snapLead": "lead-in angle a",
+    "snapFixed": "Arm width b = 6 mm and friction μ = 0.3, the script's defaults."
   }
 }

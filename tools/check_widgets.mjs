@@ -161,5 +161,15 @@ const complementary = await loadModel("complementary");
   });
 }
 
+const snapFit = await loadModel("snapFit");
+{
+  // fdm-snap_fit.txt: whole file and every line, byte for byte
+  const want = readFileSync(join(root, "examples/month-3/expected/fdm-snap_fit.txt"), "utf8");
+  const got = snapFit.report().join("\n") + "\n";
+  compare("snapFit", "whole file", want, got);
+  const wl = want.split("\n"), gl = got.split("\n");
+  wl.forEach((line, i) => { if (line) compare("snapFit", `line ${i + 1}`, line, gl[i]); });
+}
+
 console.log(`widgets: ${checks} checks, ${failed} failed`);
 process.exitCode = failed === 0 ? 0 : 1;

@@ -92,7 +92,7 @@ now (the full list is already shown at the end of the page).
 
 ### Formula widgets (simplified model)
 
-Three interactive widgets replay the Python toy models that lessons already
+These interactive widgets replay the Python toy models that lessons already
 quote. Put them on their own line with blank lines around, and add no `import`:
 
 ```mdx
@@ -101,6 +101,7 @@ quote. Put them on their own line with blank lines around, and add no `import`:
 <CameraWidget />
 <LineFollowWidget />
 <ComplementaryWidget />
+<SnapFitWidget />
 ```
 
 - `PidWidget` mirrors `tools/sim/models/pid_sim.py` (PID step response, 0 → 60°).
@@ -116,6 +117,8 @@ quote. Put them on their own line with blank lines around, and add no `import`:
   analytic steady-state offset α/(1−α)·bias·dt. It agrees with the script's
   `offset_flat` column to 1 decimal place, the check tests exactly that, and the
   widget says so on the page in zh and en.
+- `SnapFitWidget` mirrors `examples/month-3/fdm-printing/snap_fit.py` (cantilever
+  snap-fit strain and push-on force).
 
 Rules:
 
