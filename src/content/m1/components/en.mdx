@@ -95,6 +95,10 @@ R = (5 V − 2 V) / 10 mA = 3 V / 0.01 A = 300 Ω
 
 300 Ω is not an E12 standard value (…270, 330, 390…), so pick **up** to the nearest: **330 Ω**. Err large, never small: a bigger resistor only dims the LED; a smaller one over-currents it and shortens its life until it dies.
 
+<Falstad title="LED current limiting: 5 V, 330 Ω, red LED" circuit="ledLimit" height={380} />
+
+The ammeter in series reads about 9.8 mA. Falstad's default LED model drops about 1.78 V rather than the 2 V used in the worked example, so the current is a little higher than the 9.1 mA you get from (5 − 2) / 330. That difference is normal — real LEDs vary too, which is why we design with margin. Try it: double-click the resistor, change 330 Ω to 100 Ω, predict the new current before looking, and notice how quickly the current rises.
+
 <Quiz id="q3" question="A 3.3 V supply, a red LED with Vf = 2.0 V, target 5 mA: what resistor, in Ω?" answer={260} unit="Ω" tolerance={0.05} explanation="R = (3.3 V − 2.0 V) / 5 mA = 1.3 V / 0.005 A = 260 Ω. Up to the next E12 value you'd pick 270 Ω." />
 
 One more "invisible but lifesaving" diode job: the **flyback diode**. Motors and relays are inductive loads; the instant you switch them off, the inductor — which refuses to change its current abruptly — throws a high-voltage spike (tens of volts are common) that can punch through the driving transistor. Wire a diode anti-parallel across the load and it shorts the spike away. Month 2 puts this to work on motors; file the concept now.
@@ -144,6 +148,10 @@ The cure: with a large resistor (10 kΩ is the habit) pin the input to a known l
 Why 10 kΩ? The resistor only needs to hold the level, not supply current. Too large and noise can push the pin around; too small and pressing the button wastes current for nothing. 10 kΩ is the decades-old compromise.
 
 Good news: many MCUs have configurable internal pull-ups, usable with one setting (`INPUT_PULLUP` on Arduino), and then the external resistor can go — but note this automatically means "pressed reads LOW".
+
+<Falstad title="Pull-up plus push button: 5 V released, 0 V pressed" circuit="pullupButton" height={380} />
+
+While the button is released the pin probe shows 5 V: no current flows, so the 10 kΩ drops nothing. Hold the button (it is momentary: press and hold with the mouse) and the pin reads 0 V while 5 V / 10 kΩ = 0.5 mA flows through the resistor. That small current is the price of a pull-up, and why 10 kΩ rather than 100 Ω.
 
 <Quiz id="q5" question="Button between the pin and GND, with a 10 kΩ pull-up to 3.3 V. What does the pin read when the button is pressed?" options={["HIGH", "LOW", "Random"]} answer={1} explanation="Classic active-low wiring: the pull-up holds HIGH at rest; pressed, the pin is tied directly to GND and reads LOW." />
 

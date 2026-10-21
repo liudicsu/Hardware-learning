@@ -122,6 +122,10 @@ The formula assumes nothing is connected to the output. A real load draws curren
 
 Take the previous divider and add a 10 kΩ load across R2. The bottom becomes 4.7 kΩ in parallel with 10 kΩ: (4.7 × 10) / (4.7 + 10) = 47 / 14.7 = 3.197 kΩ ≈ 3.2 kΩ. Recalculate: Vout = 5 × 3.2 / 13.2 = 1.212 V. Instead of 1.6 V you get about 1.2 V, a 25% drop. A motor would pull far more and collapse the output completely.
 
+<Falstad title="Loaded divider: a switch adds a 10 kΩ load" circuit="loadedDivider" height={420} />
+
+The same 5 V, 10 kΩ over 4.7 kΩ divider as above. With switch S open the probe reads 1.60 V; click S to connect the 10 kΩ load RL and the probe drops to about 1.21 V, matching the hand calculation of 1.212 V. The simulator also shows the current through R1 now splitting: about 0.26 mA through R2 and 0.12 mA through RL — KCL, which the next section explains. Try it: double-click RL and change it to 100 kΩ, but predict first. It should drop much less, the 10× rule.
+
 As a rule of thumb, keep the load at least 10× R2; even then the output sags slightly. For a stiff voltage, use a lower-resistance divider, or better, a regulator.
 
 <Callout type="warn" title="Never power a load from a divider">
