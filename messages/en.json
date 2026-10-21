@@ -221,6 +221,19 @@
     "snapT": "thickness t",
     "snapY": "hook depth y",
     "snapLead": "lead-in angle a",
-    "snapFixed": "Arm width b = 6 mm and friction μ = 0.3, the script's defaults."
+    "snapFixed": "Arm width b = 6 mm and friction μ = 0.3, the script's defaults.",
+    "gearTitle": "Planetary tooth counts and backlash",
+    "gearPlanetary": "Planetary stage (ring fixed, sun in, carrier out)",
+    "gearPlanet": "Planet teeth",
+    "gearNoMesh": "The planet would need {teeth} teeth, not a whole number: will not mesh",
+    "gearNoSpace": "{n} planets cannot be spaced evenly ((sun + ring) / {n} = {q})",
+    "gearOk": "Assembles, ratio {ratio} : 1",
+    "gearSun": "sun teeth",
+    "gearRing": "ring teeth",
+    "gearPlanets": "planets",
+    "gearBacklash": "Backlash at the joint → error at the tip",
+    "gearTipError": "Tip error = reach × angle (rad)",
+    "gearReach": "arm reach",
+    "gearBacklashDeg": "backlash"
   }
 }

@@ -221,6 +221,19 @@
     "snapT": "厚度 t",
     "snapY": "钩深 y",
     "snapLead": "导入角 a",
-    "snapFixed": "臂宽 b = 6 mm、摩擦系数 μ = 0.3，与脚本默认值相同。"
+    "snapFixed": "臂宽 b = 6 mm、摩擦系数 μ = 0.3，与脚本默认值相同。",
+    "gearTitle": "行星齿轮配齿检查与回差",
+    "gearPlanetary": "行星级（齿圈固定、太阳轮输入、行星架输出）",
+    "gearPlanet": "行星轮齿数",
+    "gearNoMesh": "行星轮要 {teeth} 齿，不是整数：无法啮合",
+    "gearNoSpace": "{n} 个行星轮无法均布（(太阳 + 齿圈) / {n} = {q}）",
+    "gearOk": "能装配，减速比 {ratio} : 1",
+    "gearSun": "太阳轮齿数",
+    "gearRing": "齿圈齿数",
+    "gearPlanets": "行星轮个数",
+    "gearBacklash": "关节回差 → 末端误差",
+    "gearTipError": "末端误差 = 臂长 × 角度(rad)",
+    "gearReach": "臂长",
+    "gearBacklashDeg": "回差"
   }
 }

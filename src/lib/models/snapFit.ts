@@ -23,7 +23,7 @@ export function snap(L: number, t: number, y: number, b = 6.0, material: Materia
   const [E, allowed] = MATERIALS[material];
   const eps = (1.5 * y * t) / L ** 2;
   const P = (b * t ** 2 * E * eps) / (6 * L);
-  const tanA = Math.tan((leadDeg * Math.PI) / 180);
+  const tanA = Math.tan(leadDeg * (Math.PI / 180)); // math.radians
   const W = (P * (mu + tanA)) / (1 - mu * tanA);
   const ok = eps <= allowed;
   const verdict = ok ? "ok" : `too much (limit ${fixed(allowed * 100, 1)} %)`;

@@ -10,7 +10,7 @@ Resume from git: each finished item is its own commit. Checks run before every p
 | 1 | m2 first-robots line-follow PD | done | `lineFollow.ts` + `LineFollowWidget`; whole `m2-line_sim.txt` byte-matched (15 checks); hand-written (opencode rate-limited) |
 | 2 | m2 sensors-fusion alpha | done | `complementary.ts` + `ComplementaryWidget`; analytic approximation (script uses seeded random noise), checked to 1 decimal place against `offset_flat` (4 checks); page says so in zh/en; hand-written |
 | 3 | m3 fdm snap-fit | done | `snapFit.ts` + `SnapFitWidget`; whole `fdm-snap_fit.txt` byte-matched (6 checks); hand-written |
-| 4 | m3 transmissions planetary/backlash | todo | |
+| 4 | m3 transmissions planetary/backlash | done | `gears.ts` + `GearWidget`; whole `tr-gear_calc.txt` byte-matched (20 checks); hand-written |
 | 5 | m3 so101 STS packet | todo | |
 | 6 | m3 gripper force | todo | |
 | 7 | m4 urdf-tf pan/tilt | todo | |
@@ -26,3 +26,4 @@ Resume from git: each finished item is its own commit. Checks run before every p
 - Item 1: opencode tried with both models (rate-limited before any edit); model, widget, shared `Chart.tsx`, `pyfmt.ts` and wiring hand-written.
 - Item 2: hand-written (opencode still rate-limited).
 - Item 3: hand-written (opencode rate-limited; a 90 s probe got no reply).
+- Item 4: hand-written (opencode rate-limited).
