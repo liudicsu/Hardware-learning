@@ -106,6 +106,7 @@ quote. Put them on their own line with blank lines around, and add no `import`:
 <StsPacketWidget />
 <GripForceWidget />
 <PanTiltWidget />
+<WilsonWidget />
 ```
 
 - `PidWidget` mirrors `tools/sim/models/pid_sim.py` (PID step response, 0 → 60°).
@@ -135,6 +136,9 @@ quote. Put them on their own line with blank lines around, and add no `import`:
   `examples/month-4/expected/ros-tf_pan30.txt` byte for byte except the masked
   time stamp. `WidgetShell`'s `sourceLabel` says so instead of "port of the
   Python script".
+- `WilsonWidget` mirrors `wilson()` in
+  `examples/month-6/policy-evaluation/eval_report.py` (section 1 of its output
+  only; the "trials needed" section is not part of the widget).
 
 Rules:
 

@@ -262,6 +262,11 @@
     "tfSource": "由 URDF 的关节原点和轴计算（本课没有 Python 脚本），输出格式同 tf2_echo：",
     "tfPan": "pan_joint（绕 z）",
     "tfTilt": "tilt_joint（绕 y）",
-    "tfNote": "链：mast_joint (−0.06, 0, 0.07) → pan_joint (0, 0, 0.20) 绕 z 转 → tilt_joint (0, 0, 0.035) 绕 y 转 → camera_joint (0.02, 0, 0)。pan 30°、tilt 0 时和上面的 tf2_echo 输出逐字一致（不含时间戳）。"
+    "tfNote": "链：mast_joint (−0.06, 0, 0.07) → pan_joint (0, 0, 0.20) 绕 z 转 → tilt_joint (0, 0, 0.035) 绕 y 转 → camera_joint (0.02, 0, 0)。pan 30°、tilt 0 时和上面的 tf2_echo 输出逐字一致（不含时间戳）。",
+    "wilsonTitle": "成功率的 Wilson 95 % 区间",
+    "wilsonRate": "成功率",
+    "wilsonInterval": "95 % 区间",
+    "wilsonN": "试验次数 n",
+    "wilsonK": "成功次数 k"
   }
 }

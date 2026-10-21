@@ -212,5 +212,15 @@ const panTilt = await loadModel("panTilt");
   want.slice(1).forEach((line, i) => { if (line) compare("panTilt", `line ${i + 2}`, line, got[i]); });
 }
 
+const wilson = await loadModel("wilson");
+{
+  // eval_report.py section 1 only (the Wilson intervals), byte for byte; the rest of that
+  // script needs the behaviour-cloning rollouts and is not part of the widget.
+  const want = readFileSync(join(root, "examples/month-6/expected/eval_report.txt"), "utf8").split("\n").slice(0, 7);
+  const got = wilson.report();
+  compare("wilson", "section 1 (7 lines)", want.join("\n"), got.join("\n"));
+  want.forEach((line, i) => compare("wilson", `line ${i + 1}`, line, got[i]));
+}
+
 console.log(`widgets: ${checks} checks, ${failed} failed`);
 process.exitCode = failed === 0 ? 0 : 1;
