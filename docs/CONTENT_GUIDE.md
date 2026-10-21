@@ -109,6 +109,7 @@ quote. Put them on their own line with blank lines around, and add no `import`:
 <WilsonWidget />
 <ActionTokenWidget />
 <BodeWidget />
+<LqrWidget />
 ```
 
 - `PidWidget` mirrors `tools/sim/models/pid_sim.py` (PID step response, 0 → 60°).
@@ -148,6 +149,8 @@ quote. Put them on their own line with blank lines around, and add no `import`:
   compensated float `sum()`, so the expected file must come from Python ≥ 3.12.
 - `BodeWidget` mirrors `loop()`, `margins()` and `closed()` in
   `tools/sim/models/joint_freq.py` (loop gain, margins, closed-loop step).
+- `LqrWidget` mirrors part 1 (cart-pole LQR) of `tools/sim/models/lqr_sim.py`
+  (its first 17 output lines; the MPC part 2 is not ported).
 
 Rules:
 

@@ -245,5 +245,15 @@ const jointFreq = await loadModel("jointFreq");
   wl.forEach((line, i) => { if (line) compare("jointFreq", `line ${i + 1}`, line, gl[i]); });
 }
 
+const lqrModel = await loadModel("lqr");
+{
+  // lqr_sim.py part 1 (cart-pole, 17 lines), byte for byte. Part 2 (MPC on the arm
+  // joint) is not part of the widget and is not ported.
+  const want = readFileSync(join(expectedDir, "m5-lqr_sim.txt"), "utf8").split("\n").slice(0, 17);
+  const got = lqrModel.report();
+  compare("lqr", "part 1 (17 lines)", want.join("\n"), got.join("\n"));
+  want.forEach((line, i) => compare("lqr", `line ${i + 1}`, line, got[i]));
+}
+
 console.log(`widgets: ${checks} checks, ${failed} failed`);
 process.exitCode = failed === 0 ? 0 : 1;

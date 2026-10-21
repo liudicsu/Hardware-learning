@@ -1,25 +1,13 @@
 // Line-by-line port of the dataset and per-step-bins part of
 // examples/month-6/vla-models/action_tokens.py (the DCT half is not part of the widget).
 import { fixed } from "./format";
+import { pySum } from "./pyfmt";
 import { PyRandom } from "./pyRandom";
 
 export const HZ = 30;
 export const CHUNK = 30;
 export const JOINTS = 6;
 export const BINS = 256;
-
-// Python >= 3.12 sum() of floats: Neumaier compensated summation (CPython builtin_sum_impl).
-export function pySum(xs: number[]): number {
-  let f = 0.0;
-  let c = 0.0;
-  for (const x of xs) {
-    const t = f + x;
-    if (Math.abs(f) >= Math.abs(x)) c += f - t + x;
-    else c += x - t + f;
-    f = t;
-  }
-  return c !== 0 && Number.isFinite(c) ? f + c : f;
-}
 
 /** Smooth joint targets: a few slow sine components per joint, like a person moving a leader arm. */
 export function episode(rng: PyRandom, seconds = 10): number[][] {

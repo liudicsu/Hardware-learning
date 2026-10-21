@@ -282,6 +282,16 @@
     "bodeWpc": "相位穿越",
     "bodeGm": "增益裕度",
     "bodeOvershoot": "0.1 rad 阶跃超调",
-    "bodeGrows": "振荡增大（不稳定）"
+    "bodeGrows": "振荡增大（不稳定）",
+    "lqrTitle": "倒立摆 LQR：权重 → 增益 K → 从 10° 回正",
+    "lqrAxis": "角度 (°) / 位置 (cm)",
+    "lqrAngle": "摆角 (°)",
+    "lqrPos": "小车位置 (cm)",
+    "lqrPeak": "峰值力",
+    "lqrAtLimit": "（碰到 10 N 上限）",
+    "lqrFell": "摆倒了（超过 90°）",
+    "lqrQ1": "Q₁ 位置权重",
+    "lqrQ3": "Q₃ 角度权重",
+    "lqrNote": "Q = diag(Q₁, 1, Q₃, 1)；K 由 5000 次 Riccati 迭代得到，曲线是完整非线性倒立摆、力限 10 N，与脚本相同。"
   }
 }

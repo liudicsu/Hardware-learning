@@ -16,7 +16,7 @@ Resume from git: each finished item is its own commit. Checks run before every p
 | 7 | m4 urdf-tf pan/tilt | done | `panTilt.ts` + `PanTiltWidget`; no Python script exists, so the model is the URDF joint chain composed like TF and printed like tf2_echo; `ros-tf_pan30.txt` lines 2-10 byte-matched, time stamp masked as in check.sh (11 checks); `WidgetShell` got an optional `sourceLabel`; hand-written |
 | 8 | m4 ros2-control diff drive | skipped (needs a decision) | No Python script and no expected-output file with wheel speeds: the formula lives in the C++ `diff_drive_controller`, and the only numbers in the lesson are quiz q2 (0.3 m/s → 6.0 rad/s) and the qualitative q3 (90° → ~75°). A widget could only be checked against quiz answers, not byte-compared with a script output, so per the rules it is not built. Options: add a tiny `diff_drive.py` + expected file to the lesson first, or accept a quiz-value check. |
 | 9 | m5 control-modelling Bode | done | `jointFreq.ts` (CPython complex arithmetic: Smith division, hypot, atan2) + `BodeWidget`; whole `m5-joint_freq.txt` byte-matched (31 checks); hand-written |
-| 10 | m5 state-space LQR | todo | |
+| 10 | m5 state-space LQR | done | `lqr.ts` + `LqrWidget`; part 1 (cart-pole: discretise, Riccati LQR, nonlinear balance, recovery-angle search) of `m5-lqr_sim.txt` byte-matched (18 checks); MPC part 2 not ported; hand-written |
 | 11 | m6 vla-models action tokens | done | `actionTokens.ts` + `pyRandom.ts` (MT19937 replay of `random.Random`) + `ActionTokenWidget`; lines 1-8 of `action_tokens.txt` byte-matched (8 checks); DCT half not ported (not in the widget); relies on Python ≥ 3.12 compensated `sum()`; hand-written |
 | 12 | m6 policy-evaluation Wilson | done | `wilson.ts` + `WilsonWidget`; Wilson interval only (no trials-needed); section 1 of `eval_report.txt` byte-matched (8 checks); hand-written |
 
@@ -33,3 +33,4 @@ Resume from git: each finished item is its own commit. Checks run before every p
 - Item 12: hand-written (opencode rate-limited).
 - Item 11: hand-written (opencode rate-limited).
 - Item 9: hand-written (opencode rate-limited).
+- Item 10: hand-written (opencode rate-limited). `pySum` (Python 3.12+ compensated float sum) lives in `pyfmt.ts`, shared with item 11.

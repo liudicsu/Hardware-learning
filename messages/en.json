@@ -282,6 +282,16 @@
     "bodeWpc": "Phase crossover",
     "bodeGm": "Gain margin",
     "bodeOvershoot": "Overshoot on a 0.1 rad step",
-    "bodeGrows": "oscillation grows (unstable)"
+    "bodeGrows": "oscillation grows (unstable)",
+    "lqrTitle": "Cart-pole LQR: weights → gain K → recovery from 10°",
+    "lqrAxis": "Angle (°) / position (cm)",
+    "lqrAngle": "pole angle (°)",
+    "lqrPos": "cart position (cm)",
+    "lqrPeak": "Peak force",
+    "lqrAtLimit": "(at the 10 N limit)",
+    "lqrFell": "the pole fell (past 90°)",
+    "lqrQ1": "Q₁ position weight",
+    "lqrQ3": "Q₃ angle weight",
+    "lqrNote": "Q = diag(Q₁, 1, Q₃, 1); K comes from 5000 Riccati iterations, and the curves are the full nonlinear cart-pole with a 10 N force limit, as in the script."
   }
 }
