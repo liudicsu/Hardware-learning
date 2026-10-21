@@ -275,6 +275,10 @@ The three pixels land within 0.4, 0.5 and 0.9 mm of the exact points. That is th
 
 <Quiz id="q4" question="With the squares typed as 25 mm, the script reports z = 500.5 mm for pixel (420, 300). If you had typed 50 mm for the same photos, what z would it report?" answer={1001.0} unit="mm" explanation="Every board coordinate and every translation scales with the square size. 50 / 25 = 2, so 500.5 mm × 2 = 1001.0 mm. The intrinsics do not change, but the board, and with it every distance, is now twice as big." />
 
+Try it: move the point toward the corner (for example 413.7, 295.5, 698.0 mm → (600.0, 440.0) px) and toggle “ignore distortion” to see (616.3, 451.7).
+
+<CameraWidget />
+
 <Quiz id="q5" question="Ignoring distortion costs 2.2 mm at (320, 240) and 44.7 mm at (600, 440). How many times larger is the corner error?" answer={20.3} explanation="44.7 / 2.2 ≈ 20.3. The correction grows quickly with r, so the corner pays for what the centre hardly notices." />
 
 To rerun all three steps you need OpenCV and NumPy; `cd examples/month-5 && pixi shell` gives you both (see the folder's README):

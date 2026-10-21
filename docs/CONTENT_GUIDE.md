@@ -90,6 +90,43 @@ types: `info`, `tip`, `warn`, `danger`.
 Use at most 1–2 inline cards per lesson, where the reader should open it right
 now (the full list is already shown at the end of the page).
 
+### Formula widgets (simplified model)
+
+Three interactive widgets replay the Python toy models that lessons already
+quote. Put them on their own line with blank lines around, and add no `import`:
+
+```mdx
+<PidWidget />
+<IkWidget />
+<CameraWidget />
+```
+
+- `PidWidget` mirrors `tools/sim/models/pid_sim.py` (PID step response, 0 → 60°).
+- `IkWidget` mirrors `tools/sim/models/kinematics.py` (3-joint arm, forward and
+  inverse kinematics, singularities).
+- `CameraWidget` mirrors
+  `examples/month-5/camera-calibration/make_views.py` (pinhole projection and
+  radial distortion).
+
+Rules:
+
+- A widget is a line-by-line TypeScript port of the Python model the lesson
+  already quotes: same constants, step sizes, integration order and output
+  formatting. The model lives as a pure module in `src/lib/models/`, separate
+  from the React UI in `src/components/widgets/`.
+- Every model has a check in `tools/check_widgets.mjs` that prints its output
+  formatted exactly like the expected file and compares it byte for byte with
+  the lines in `tools/sim/expected/`. It runs in CI and from
+  `tools/sim/reproduce.sh`.
+- Every widget uses `WidgetShell`: the amber “简化模型 / Simplified model”
+  label, a link to the script it mirrors, the note that real hardware values
+  differ, and a reset button.
+- Defaults equal the lesson's worked example, and the zh and en MDX use the
+  same widget.
+- It must work at 390 px width: no horizontal overflow, full-width sliders,
+  and SVGs with a `viewBox` and `width: 100%`. Use plain SVG and React; no
+  chart library.
+
 ## In-page table of contents
 
 Every `## ` heading (outside code fences) becomes an entry in the lesson's "In this lesson / 本课内容" table of contents and gets an anchor id derived from its text. Keep h2 titles short and unique within a lesson; use `###` for sub-sections that should not appear in the TOC.

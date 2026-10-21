@@ -282,6 +282,10 @@ Singularity: the elbow straightening, shoulder at 20 deg, base at 0
 
 在真机上，第一个奇异点可以用手找到：把臂完全伸直，再试着把夹爪往外推。肩和肘已经共线，没有任何关节能再增加可达距离（reach）；让底座帮忙，夹爪只会横向摆。这就是奇异点的手感。
 
+动手试一下：把肘角拖到 0° 附近，看 |det J| 变红；再把目标设成 (0.10, 0.15, 0.12)，点“求逆解”，观察 14 次迭代。
+
+<IkWidget />
+
 <Quiz id="q4" question="用 |det J| = L1 L2 r |sin(elbow)|，取 L1 = 0.12 m、L2 = 0.14 m、r = 0.2200 m、elbow = 60 deg，|det J| 是多少？" answer={0.0032} unit="m³" explanation="0.12 × 0.14 × 0.2200 × sin 60 = 0.0168 × 0.2200 × 0.8660 = 0.0032 m³，就是表格里的 3.20e-03。" />
 
 <Quiz id="q5" question="肘完全伸直（elbow = 0 deg）时 |det J| 是多少？" answer={0} unit="m³" explanation="sin 0 = 0，所以行列式为零。机械臂无法再把末端往外推，精确求逆会要求无穷大的关节速度。" />

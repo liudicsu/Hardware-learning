@@ -8,7 +8,7 @@ export function CodeSource({ path }: { path: string }) {
   return (
     <p className="not-prose -mb-3 mt-5 flex items-center gap-2 text-xs text-zinc-500">
       <span>{t("source")}</span>
-      <a href={`${REPO}/${path}`} target="_blank" rel="noreferrer" className="font-mono text-sky-400 hover:text-sky-300">
+      <a href={`${REPO}/${path}`} target="_blank" rel="noreferrer" className="min-w-0 break-all font-mono text-sky-400 hover:text-sky-300">
         {path} ↗
       </a>
     </p>
