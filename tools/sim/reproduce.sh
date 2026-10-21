@@ -120,6 +120,9 @@ done
 echo "== lesson quotes vs repo files (tools/check_quotes.py)"
 python3 "$ROOT/tools/check_quotes.py" || fail=1
 
+# every Wokwi diagram must use known parts/pins and sit next to its sketch
+python3 "$ROOT/tools/check_wokwi.py" || fail=1
+
 # Month 4: real ROS 2 software driving a simulated robot (Gazebo, mock hardware); skipped with a
 # message when ROS 2 Jazzy is not sourced
 echo "== Month 4 ROS 2 runs (tools/sim/ros/run.sh)"
