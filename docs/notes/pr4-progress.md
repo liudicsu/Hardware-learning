@@ -12,3 +12,6 @@ Step A (live check of PR-3 deploy): done, see /workspace/hl-audit/pr3-live-check
 ## opencode
 - 21:51 and 21:53 (UTC+8): deepseek-v4.1-flash-free and glm-5.3-flash-free both "Rate limit exceeded" (opencode log); runs produced nothing.
 - ~21:58 (UTC+8): deepseek retry for item 2 (diff_drive.py draft) sat at the prompt for 400 s with no output; killed. Everything in this PR is hand-written.
+
+## PR
+https://github.com/liudicsu/Hardware-learning/pull/13 (open, not merged). CI green on c80ecf9. Overflow re-scan after item 2: 86 pages, 0 overflow, 0 console-error pages.
