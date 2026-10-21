@@ -147,6 +147,10 @@ quote. Put them on their own line with blank lines around, and add no `import`:
   half is not ported). Its data come from `random.Random(6)`/`(99)`, replayed by
   `src/lib/models/pyRandom.ts` (MT19937 + `uniform()`), and sums use Python 3.12+'s
   compensated float `sum()`, so the expected file must come from Python ≥ 3.12.
+- `DiffDriveWidget` mirrors `wheels()` in
+  `examples/month-4/ros2-control/diff_drive.py` (`src/lib/models/diffDrive.ts`; the whole
+  output, `examples/month-4/expected/ctl-diff_drive.txt`, is byte-compared, with the
+  `controllers.yaml` values read the same way the script reads them).
 - `BodeWidget` mirrors `loop()`, `margins()` and `closed()` in
   `tools/sim/models/joint_freq.py` (loop gain, margins, closed-loop step).
 - `LqrWidget` mirrors part 1 (cart-pole LQR) of `tools/sim/models/lqr_sim.py`

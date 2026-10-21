@@ -6,6 +6,7 @@
   `urdf/m4bot_control.urdf.xacro` (the `<ros2_control>` tags, argument `hardware:=gazebo|mock`), `config/controllers.yaml` (controller manager, `diff_drive_controller`, `joint_state_broadcaster`, `head_controller`), `config/bridge.yaml` (only the clock and the sensors now), `launch/control.launch.py` (arguments `hardware:=gazebo|mock`, `headless:=true|false`, and for Lesson 6 `rviz_config:=<file>` and `drive_params:=<extra diff_drive_controller parameter file>`) and the `drive_distance` action server.
   ros2_control 包：带 `<ros2_control>` 标签的 xacro、控制器 YAML、只剩时钟和传感器的桥接配置、launch 文件（第 6 课还会用到 `rviz_config` 和 `drive_params` 两个参数），以及 `drive_distance` 动作服务器。
 - **`drive_client.py <distance> <speed> [cancel after s]`**: sends one goal, prints feedback and result, optionally cancels. 发送一个目标，打印反馈和结果，可选在中途取消。
+- **`diff_drive.py`**: the wheel-speed arithmetic of `diff_drive_controller` (b = 0.28 m, r = 0.05 m, checked against `m4_control/config/controllers.yaml`), plain Python, no ROS; output in `../expected/ctl-diff_drive.txt`. `diff_drive_controller` 的轮速算术（b = 0.28 m、r = 0.05 m，并与 controllers.yaml 核对），普通 Python，不需要 ROS；输出见 `../expected/ctl-diff_drive.txt`。
 
 ```bash
 cp -r ../urdf-tf/m4_description ../gazebo-sim/m4_gazebo m4_control m4_drive_interfaces ~/ros2_ws/src/

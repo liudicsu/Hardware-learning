@@ -292,6 +292,19 @@
     "lqrFell": "摆倒了（超过 90°）",
     "lqrQ1": "Q₁ 位置权重",
     "lqrQ3": "Q₃ 角度权重",
-    "lqrNote": "Q = diag(Q₁, 1, Q₃, 1)；K 由 5000 次 Riccati 迭代得到，曲线是完整非线性倒立摆、力限 10 N，与脚本相同。"
+    "lqrNote": "Q = diag(Q₁, 1, Q₃, 1)；K 由 5000 次 Riccati 迭代得到，曲线是完整非线性倒立摆、力限 10 N，与脚本相同。",
+    "ddTitle": "差速驱动：从 (v, ω) 到轮子转速",
+    "ddLeft": "左轮",
+    "ddRight": "右轮",
+    "ddRadius": "转弯半径",
+    "ddStraight": "无（直行）",
+    "ddInPlace": "0（原地转）",
+    "ddCentre": "转弯中心",
+    "ddClamped": "超出 ±{limit} rad/s：ros2_control 会限幅这个轮子的命令，机器人不会精确按要求的 (v, ω) 运动。",
+    "ddV": "前进速度 v",
+    "ddW": "旋转 ω（+ 为向左）",
+    "ddB": "wheel_separation b",
+    "ddR": "wheel_radius r",
+    "ddNote": "默认值是本课的算例（以 1.0 rad/s 原地转），b = 0.28 m、r = 0.05 m 取自 controllers.yaml。v 和 ω 的范围就是控制器的速度上限。只改 b：直行不变，每次转弯都变——这正是第 3 题里的错误。"
   }
 }

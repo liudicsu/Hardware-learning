@@ -31,6 +31,7 @@ import { BodeWidget } from "@/components/widgets/BodeWidget";
 import { ActionTokenWidget } from "@/components/widgets/ActionTokenWidget";
 import { WilsonWidget } from "@/components/widgets/WilsonWidget";
 import { PanTiltWidget } from "@/components/widgets/PanTiltWidget";
+import { DiffDriveWidget } from "@/components/widgets/DiffDriveWidget";
 import { GripForceWidget } from "@/components/widgets/GripForceWidget";
 import { StsPacketWidget } from "@/components/widgets/StsPacketWidget";
 import { GearWidget } from "@/components/widgets/GearWidget";
@@ -102,6 +103,7 @@ export default async function LessonPage({ params }: Params) {
     ActionTokenWidget,
     WilsonWidget,
     PanTiltWidget,
+    DiffDriveWidget,
     GripForceWidget,
     StsPacketWidget,
     GearWidget,

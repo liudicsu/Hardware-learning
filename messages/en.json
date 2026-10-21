@@ -292,6 +292,19 @@
     "lqrFell": "the pole fell (past 90°)",
     "lqrQ1": "Q₁ position weight",
     "lqrQ3": "Q₃ angle weight",
-    "lqrNote": "Q = diag(Q₁, 1, Q₃, 1); K comes from 5000 Riccati iterations, and the curves are the full nonlinear cart-pole with a 10 N force limit, as in the script."
+    "lqrNote": "Q = diag(Q₁, 1, Q₃, 1); K comes from 5000 Riccati iterations, and the curves are the full nonlinear cart-pole with a 10 N force limit, as in the script.",
+    "ddTitle": "Differential drive: from (v, ω) to wheel speeds",
+    "ddLeft": "left wheel",
+    "ddRight": "right wheel",
+    "ddRadius": "turn radius",
+    "ddStraight": "none (straight)",
+    "ddInPlace": "0 (in place)",
+    "ddCentre": "turn centre",
+    "ddClamped": "Beyond ±{limit} rad/s: ros2_control clamps this wheel command, so the robot will not follow the requested (v, ω) exactly.",
+    "ddV": "forward speed v",
+    "ddW": "rotation ω (+ = left)",
+    "ddB": "wheel_separation b",
+    "ddR": "wheel_radius r",
+    "ddNote": "Defaults are the lesson's worked example (spinning on the spot at 1.0 rad/s) with controllers.yaml's b = 0.28 m and r = 0.05 m. The v and ω ranges are the controller's velocity limits. Change b alone and straight driving stays the same while every turn changes: that is quiz 3's bug."
   }
 }

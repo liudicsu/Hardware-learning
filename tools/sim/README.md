@@ -26,6 +26,9 @@ arduino-cli core install esp32:esp32          # tested with 3.3.12
 arduino-cli lib install QTRSensors            # tested with 4.0.0
 ```
 
+**Python 3.12 or later is required to generate (or regenerate) the expected files.** Python 3.12 changed the built-in `sum()` of floats to compensated (Neumaier) summation, so older versions can print a different last digit. Several formula widgets (`src/lib/models/`, checked byte for byte by `tools/check_widgets.mjs`) port that 3.12+ summation (`pySum` in `pyfmt.ts`): `lqr_sim.py`, `kinematics.py` and `examples/month-6/vla-models/action_tokens.py` only match it on 3.12+. Check with `python3 --version`.
+**生成（或重新生成）expected 文件必须使用 Python 3.12 或更高版本。** Python 3.12 把内置 `sum()` 对浮点数的求和改成了补偿（Neumaier）求和，旧版本可能在最后一位打印出不同的数字。有几个公式小部件（`src/lib/models/`，由 `tools/check_widgets.mjs` 逐字节检查）移植的正是 3.12+ 的求和方式（`pyfmt.ts` 中的 `pySum`）：`lqr_sim.py`、`kinematics.py` 和 `examples/month-6/vla-models/action_tokens.py` 只有在 3.12+ 下才与之一致。可用 `python3 --version` 查看版本。
+
 ## Reproduce everything / 一键复现
 
 From a clean checkout / 在全新克隆的仓库中:
@@ -33,7 +36,7 @@ From a clean checkout / 在全新克隆的仓库中:
 ```bash
 git clone https://github.com/liudicsu/Hardware-learning.git
 cd Hardware-learning
-tools/sim/reproduce.sh                  # about 1 min; prints "same <file>" for each of the 22 outputs
+tools/sim/reproduce.sh                  # about 1 min; prints "same <file>" for each of the 23 outputs
 tools/sim/reproduce.sh --compile-only-too   # also compiles the ESP32 and line-follower sketches
 ```
 
