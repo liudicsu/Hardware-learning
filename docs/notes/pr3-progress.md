@@ -11,7 +11,7 @@ Resume from git: each finished item is its own commit. Checks run before every p
 | 2 | m2 sensors-fusion alpha | done | `complementary.ts` + `ComplementaryWidget`; analytic approximation (script uses seeded random noise), checked to 1 decimal place against `offset_flat` (4 checks); page says so in zh/en; hand-written |
 | 3 | m3 fdm snap-fit | done | `snapFit.ts` + `SnapFitWidget`; whole `fdm-snap_fit.txt` byte-matched (6 checks); hand-written |
 | 4 | m3 transmissions planetary/backlash | done | `gears.ts` + `GearWidget`; whole `tr-gear_calc.txt` byte-matched (20 checks); hand-written |
-| 5 | m3 so101 STS packet | todo | |
+| 5 | m3 so101 STS packet | done | `stsPacket.ts` + `StsPacketWidget`; whole `arm-sts_packet.txt` byte-matched (7 checks); hand-written |
 | 6 | m3 gripper force | todo | |
 | 7 | m4 urdf-tf pan/tilt | todo | |
 | 8 | m4 ros2-control diff drive | todo | |
@@ -27,3 +27,4 @@ Resume from git: each finished item is its own commit. Checks run before every p
 - Item 2: hand-written (opencode still rate-limited).
 - Item 3: hand-written (opencode rate-limited; a 90 s probe got no reply).
 - Item 4: hand-written (opencode rate-limited).
+- Item 5: hand-written (opencode rate-limited).

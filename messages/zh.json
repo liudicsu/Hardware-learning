@@ -234,6 +234,22 @@
     "gearBacklash": "关节回差 → 末端误差",
     "gearTipError": "末端误差 = 臂长 × 角度(rad)",
     "gearReach": "臂长",
-    "gearBacklashDeg": "回差"
+    "gearBacklashDeg": "回差",
+    "stsTitle": "STS3215 总线舵机数据包",
+    "sts_ping": "ping",
+    "sts_torque": "开/关扭矩",
+    "sts_goal": "目标位置",
+    "sts_read": "读当前位置",
+    "stsLayout": "0xFF 0xFF  ID  LENGTH  指令  参数…  校验和 = ~(ID + LENGTH + 指令 + 参数) & 0xFF",
+    "stsId": "舵机 ID",
+    "stsGoal": "目标位置（步）",
+    "stsTorque": "扭矩 0 = 关，1 = 开",
+    "stsReply": "粘贴舵机的回复（十六进制字节）",
+    "stsNotHex": "不是一串十六进制字节",
+    "stsShort": "字节太少，不是完整的回复包",
+    "stsNoHeader": "没有 0xFF 0xFF 包头",
+    "stsBadChecksum": "校验和不对：字节在线上被改坏了",
+    "stsReplyPos": "舵机 {id}，错误 {err}，位置 {steps} = {deg}°",
+    "stsReplyOk": "舵机 {id}，错误 {err}，校验和正确"
   }
 }

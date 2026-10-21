@@ -181,5 +181,15 @@ const gears = await loadModel("gears");
   wl.forEach((line, i) => { if (line) compare("gears", `line ${i + 1}`, line, gl[i]); });
 }
 
+const stsPacket = await loadModel("stsPacket");
+{
+  // arm-sts_packet.txt: whole file and every line, byte for byte
+  const want = readFileSync(join(root, "examples/month-3/expected/arm-sts_packet.txt"), "utf8");
+  const got = stsPacket.report().join("\n") + "\n";
+  compare("stsPacket", "whole file", want, got);
+  const wl = want.split("\n"), gl = got.split("\n");
+  wl.forEach((line, i) => { if (line) compare("stsPacket", `line ${i + 1}`, line, gl[i]); });
+}
+
 console.log(`widgets: ${checks} checks, ${failed} failed`);
 process.exitCode = failed === 0 ? 0 : 1;

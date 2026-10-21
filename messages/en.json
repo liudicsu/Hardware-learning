@@ -234,6 +234,22 @@
     "gearBacklash": "Backlash at the joint → error at the tip",
     "gearTipError": "Tip error = reach × angle (rad)",
     "gearReach": "arm reach",
-    "gearBacklashDeg": "backlash"
+    "gearBacklashDeg": "backlash",
+    "stsTitle": "STS3215 bus-servo packets",
+    "sts_ping": "ping",
+    "sts_torque": "torque on/off",
+    "sts_goal": "goal position",
+    "sts_read": "read present position",
+    "stsLayout": "0xFF 0xFF  ID  LENGTH  INSTRUCTION  PARAMS…  CHECKSUM = ~(ID + LENGTH + INSTRUCTION + PARAMS) & 0xFF",
+    "stsId": "servo ID",
+    "stsGoal": "goal position (steps)",
+    "stsTorque": "torque 0 = off, 1 = on",
+    "stsReply": "Paste a servo reply (hex bytes)",
+    "stsNotHex": "not a list of hex bytes",
+    "stsShort": "too few bytes for a complete reply",
+    "stsNoHeader": "no 0xFF 0xFF header",
+    "stsBadChecksum": "bad checksum: the bytes were corrupted on the wire",
+    "stsReplyPos": "servo {id}, error {err}, position {steps} = {deg}°",
+    "stsReplyOk": "servo {id}, error {err}, checksum ok"
   }
 }

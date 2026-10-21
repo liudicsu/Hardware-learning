@@ -103,6 +103,7 @@ quote. Put them on their own line with blank lines around, and add no `import`:
 <ComplementaryWidget />
 <SnapFitWidget />
 <GearWidget />
+<StsPacketWidget />
 ```
 
 - `PidWidget` mirrors `tools/sim/models/pid_sim.py` (PID step response, 0 → 60°).
@@ -122,6 +123,8 @@ quote. Put them on their own line with blank lines around, and add no `import`:
   snap-fit strain and push-on force).
 - `GearWidget` mirrors `examples/month-3/transmissions/gear_calc.py` (planetary
   tooth-count checks and ratio, backlash → tip error).
+- `StsPacketWidget` mirrors `examples/month-3/so101-arm/sts_packet.py` (STS3215
+  bus-servo packet bytes and checksum, reply parsing).
 
 Rules:
 
