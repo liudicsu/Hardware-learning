@@ -267,6 +267,12 @@
     "wilsonRate": "Success rate",
     "wilsonInterval": "95 % interval",
     "wilsonN": "trials n",
-    "wilsonK": "successes k"
+    "wilsonK": "successes k",
+    "tokTitle": "Action → one of 256 bin tokens",
+    "tokRange": "Dataset 1st..99th percentile: {lo}° .. {hi}°, bin width = range / 256 = {w}°",
+    "tokToken": "Token",
+    "tokBack": "Decoded (bin centre)",
+    "tokClipped": "Outside the 1st..99th percentile: clipped to the edge first, so the error is large.",
+    "tokAngle": "joint target"
   }
 }

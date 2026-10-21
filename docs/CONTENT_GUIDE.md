@@ -107,6 +107,7 @@ quote. Put them on their own line with blank lines around, and add no `import`:
 <GripForceWidget />
 <PanTiltWidget />
 <WilsonWidget />
+<ActionTokenWidget />
 ```
 
 - `PidWidget` mirrors `tools/sim/models/pid_sim.py` (PID step response, 0 → 60°).
@@ -139,6 +140,11 @@ quote. Put them on their own line with blank lines around, and add no `import`:
 - `WilsonWidget` mirrors `wilson()` in
   `examples/month-6/policy-evaluation/eval_report.py` (section 1 of its output
   only; the "trials needed" section is not part of the widget).
+- `ActionTokenWidget` mirrors the dataset and per-step-bins half of
+  `examples/month-6/vla-models/action_tokens.py` (lines 1-8 of its output; the DCT
+  half is not ported). Its data come from `random.Random(6)`/`(99)`, replayed by
+  `src/lib/models/pyRandom.ts` (MT19937 + `uniform()`), and sums use Python 3.12+'s
+  compensated float `sum()`, so the expected file must come from Python ≥ 3.12.
 
 Rules:
 

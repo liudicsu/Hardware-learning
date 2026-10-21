@@ -267,6 +267,12 @@
     "wilsonRate": "成功率",
     "wilsonInterval": "95 % 区间",
     "wilsonN": "试验次数 n",
-    "wilsonK": "成功次数 k"
+    "wilsonK": "成功次数 k",
+    "tokTitle": "动作 → 256 个区间词元",
+    "tokRange": "数据集第 1..99 百分位：{lo}° .. {hi}°，区间宽度 = 范围 / 256 = {w}°",
+    "tokToken": "词元",
+    "tokBack": "还原（区间中心）",
+    "tokClipped": "超出第 1..99 百分位：先被截到边界，误差会很大。",
+    "tokAngle": "关节目标角"
   }
 }

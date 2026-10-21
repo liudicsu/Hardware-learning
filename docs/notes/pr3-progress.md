@@ -17,7 +17,7 @@ Resume from git: each finished item is its own commit. Checks run before every p
 | 8 | m4 ros2-control diff drive | skipped (needs a decision) | No Python script and no expected-output file with wheel speeds: the formula lives in the C++ `diff_drive_controller`, and the only numbers in the lesson are quiz q2 (0.3 m/s → 6.0 rad/s) and the qualitative q3 (90° → ~75°). A widget could only be checked against quiz answers, not byte-compared with a script output, so per the rules it is not built. Options: add a tiny `diff_drive.py` + expected file to the lesson first, or accept a quiz-value check. |
 | 9 | m5 control-modelling Bode | todo | |
 | 10 | m5 state-space LQR | todo | |
-| 11 | m6 vla-models action tokens | todo | |
+| 11 | m6 vla-models action tokens | done | `actionTokens.ts` + `pyRandom.ts` (MT19937 replay of `random.Random`) + `ActionTokenWidget`; lines 1-8 of `action_tokens.txt` byte-matched (8 checks); DCT half not ported (not in the widget); relies on Python ≥ 3.12 compensated `sum()`; hand-written |
 | 12 | m6 policy-evaluation Wilson | done | `wilson.ts` + `WilsonWidget`; Wilson interval only (no trials-needed); section 1 of `eval_report.txt` byte-matched (8 checks); hand-written |
 
 ## opencode vs hand log
@@ -31,3 +31,4 @@ Resume from git: each finished item is its own commit. Checks run before every p
 - Item 6: hand-written (opencode rate-limited).
 - Item 7: hand-written (opencode rate-limited).
 - Item 12: hand-written (opencode rate-limited).
+- Item 11: hand-written (opencode rate-limited).

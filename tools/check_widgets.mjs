@@ -28,11 +28,13 @@ function dataUrl(source) {
 
 const formatUrl = dataUrl(transpile(readFileSync(join(models, "format.ts"), "utf8")));
 const pyfmtUrl = dataUrl(transpile(readFileSync(join(models, "pyfmt.ts"), "utf8")));
+const pyRandomUrl = dataUrl(transpile(readFileSync(join(models, "pyRandom.ts"), "utf8")));
 
 async function loadModel(name) {
   let source = transpile(readFileSync(join(models, name + ".ts"), "utf8"));
   source = source.replace(/from\s+["']\.\/format["']/g, "from " + JSON.stringify(formatUrl));
   source = source.replace(/from\s+["']\.\/pyfmt["']/g, "from " + JSON.stringify(pyfmtUrl));
+  source = source.replace(/from\s+["']\.\/pyRandom["']/g, "from " + JSON.stringify(pyRandomUrl));
   return import(dataUrl(source));
 }
 
@@ -220,6 +222,17 @@ const wilson = await loadModel("wilson");
   const got = wilson.report();
   compare("wilson", "section 1 (7 lines)", want.join("\n"), got.join("\n"));
   want.forEach((line, i) => compare("wilson", `line ${i + 1}`, line, got[i]));
+}
+
+const actionTokens = await loadModel("actionTokens");
+{
+  // action_tokens.py lines 1-8 (dataset percentiles and per-step bins), byte for byte.
+  // The data come from Python's random.Random(6) and (99), replayed by pyRandom.ts (MT19937).
+  // The DCT half of the script (lines 9-) is not part of the widget and is not ported.
+  const want = readFileSync(join(root, "examples/month-6/expected/action_tokens.txt"), "utf8").split("\n").slice(0, 8);
+  const got = actionTokens.report();
+  compare("actionTokens", "lines 1-8", want.join("\n"), got.join("\n"));
+  want.forEach((line, i) => { if (line) compare("actionTokens", `line ${i + 1}`, line, got[i]); });
 }
 
 console.log(`widgets: ${checks} checks, ${failed} failed`);
