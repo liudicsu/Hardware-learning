@@ -40,7 +40,7 @@ export function CodeBlock({ children, style, ...rest }: ComponentProps<"pre">) {
   };
 
   return (
-    <div className="code-block group relative my-5" data-lines={lines} data-collapsed={collapsed || undefined}>
+    <div className="code-block group relative my-5 min-w-0 max-w-full" data-lines={lines} data-collapsed={collapsed || undefined}>
       <pre
         {...rest}
         style={{

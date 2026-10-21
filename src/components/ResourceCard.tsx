@@ -43,9 +43,9 @@ export function ResourceCard({ id, locale, labels }: ResourceCardProps) {
       target="_blank"
       rel="noopener noreferrer"
       aria-label={`${labels.open}: ${resource.title[locale]}`}
-      className="group block rounded-xl border border-white/10 bg-[#111113] p-5 transition-colors hover:border-white/20 hover:bg-white/[0.02]"
+      className="group block min-w-0 rounded-xl border border-white/10 bg-[#111113] p-5 transition-colors hover:border-white/20 hover:bg-white/[0.02]"
     >
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <span className="rounded-full border border-white/10 px-2 py-0.5 text-xs text-zinc-400">
           {labels.kind}
         </span>
@@ -54,7 +54,7 @@ export function ResourceCard({ id, locale, labels }: ResourceCardProps) {
             {labels.supplement}
           </span>
         )}
-        <span className="ml-auto shrink-0 text-xs text-zinc-500">
+        <span className="ml-auto min-w-0 max-w-full text-right text-xs text-zinc-500 [overflow-wrap:anywhere]">
           {resource.cost[locale]}
         </span>
       </div>
