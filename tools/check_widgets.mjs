@@ -53,16 +53,38 @@ function compare(name, label, want, got) {
 
 const pid = await loadModel("pid");
 {
+  // all 8 lines of the expected file, byte for byte (and nothing extra)
   const want = readFileSync(join(expectedDir, "m3-pid_sim.txt"), "utf8");
   const got = pid.report().join("\n") + "\n";
-  compare("pid", "report", want, got);
+  compare("pid", "whole file", want, got);
+  const wl = want.split("\n"), gl = got.split("\n");
+  wl.forEach((line, i) => { if (line) compare("pid", `line ${i + 1}`, line, gl[i]); });
 }
 
 const kinematics = await loadModel("kinematics");
 {
-  const want = readFileSync(join(expectedDir, "m5-kinematics.txt"), "utf8");
-  const got = kinematics.report().join("\n") + "\n";
-  compare("kinematics", "report", want, got);
+  // Every line of the expected file is compared byte for byte, except ONE: the
+  // "same with lambda = 0.01" line. That run never converges: 200 DLS steps bounce
+  // around the unreachable target, so its final numbers depend on the last bit of
+  // every sin/cos/atan2 call. Shifting the start pose by 1e-16 rad in Python alone
+  // changes it from "37.1 mm, elbow -2.34" to "42.9 mm, elbow 15.81", and V8's libm
+  // differs from glibc's by 1 ulp on some inputs, so no port can match it byte for
+  // byte. For that line we check the text up to the numbers and that the TS run also
+  // fails to settle (all 200 iterations used, still more than 20 mm short).
+  const CHAOTIC = "  same with lambda = 0.01: after ";
+  const want = readFileSync(join(expectedDir, "m5-kinematics.txt"), "utf8").split("\n");
+  const got = (kinematics.report().join("\n") + "\n").split("\n");
+  compare("kinematics", "line count", String(want.length), String(got.length));
+  want.forEach((line, i) => {
+    if (line.startsWith(CHAOTIC)) {
+      const shape = (s) => s.replace(/-?\d+(\.\d+)?/g, "#");
+      compare("kinematics", `line ${i + 1} (chaotic lambda = 0.01 run: wording only)`, shape(line), shape(got[i] ?? ""));
+      return;
+    }
+    compare("kinematics", `line ${i + 1}`, line, got[i]);
+  });
+  const far = kinematics.ik([0.2, 0.2, 0.1], [0, (30 * Math.PI) / 180, (-30 * Math.PI) / 180], 0.01);
+  compare("kinematics", "lambda = 0.01 never settles (200 iterations, > 20 mm short)", "true", String(far.it === 199 && far.dist > 0.02));
 }
 
 const camera = await loadModel("camera");

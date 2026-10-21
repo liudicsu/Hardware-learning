@@ -100,7 +100,11 @@ export function rotY(deg: number): number[][] {
   return rodrigues([0, deg * DEG_TO_RAD, 0]);
 }
 
-// numpy evaluates these dot products with a fused multiply-add; reproduce that exactly.
+// The expected file was made with numpy's `@`, whose BLAS kernels on x86-64 round each
+// multiply-add once (fused multiply-add). Plain JS `sum += a * b` rounds twice, which only
+// changes the 1e-17 m rounding noise of the image-centre point, but that is enough to print
+// "-0.0" instead of "0.0". fma() below is an exact (BigInt) fused multiply-add so the port
+// reproduces the expected line byte for byte; it is used only by pose() and toPlane().
 const BIG0 = BigInt(0);
 const BIG1 = BigInt(1);
 const BIG52 = BigInt(52);
