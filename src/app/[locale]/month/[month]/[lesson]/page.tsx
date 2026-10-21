@@ -23,6 +23,9 @@ import { CodeBlock } from "@/components/mdx/CodeBlock";
 import { SimOutput } from "@/components/mdx/SimOutput";
 import { CodeSource } from "@/components/mdx/CodeSource";
 import { Wokwi } from "@/components/mdx/Wokwi";
+import { PidWidget } from "@/components/widgets/PidWidget";
+import { IkWidget } from "@/components/widgets/IkWidget";
+import { CameraWidget } from "@/components/widgets/CameraWidget";
 import { Toc } from "@/components/lesson/Toc";
 import { lessonToc } from "@/lib/toc";
 
@@ -80,6 +83,9 @@ export default async function LessonPage({ params }: Params) {
     SimOutput,
     CodeSource,
     Wokwi,
+    PidWidget,
+    IkWidget,
+    CameraWidget,
     img: ({ src, alt, ...rest }: ComponentProps<"img">) => (
       // eslint-disable-next-line @next/next/no-img-element
       <img src={typeof src === "string" ? withBasePath(src) : src} alt={alt ?? ""} loading="lazy" {...rest} />

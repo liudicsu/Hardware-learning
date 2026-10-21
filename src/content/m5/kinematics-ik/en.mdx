@@ -282,6 +282,10 @@ Check one row. At elbow -60 deg with the shoulder at 20 deg, r = 0.12 cos 20 + 0
 
 On a real arm you can point at the first one. Stretch the arm straight out, then try to push the gripper further outward. The shoulder and elbow are already collinear, so no joint can add reach; asking the base for help only swings the gripper sideways. That is what a singularity feels like.
 
+Try it: drag the elbow toward 0° and watch |det J| turn red; then solve IK for (0.10, 0.15, 0.12) to see the 14 iterations.
+
+<IkWidget />
+
 <Quiz id="q4" question="Using |det J| = L1 L2 r |sin(elbow)| with L1 = 0.12 m, L2 = 0.14 m, r = 0.2200 m and elbow = 60 deg, what is |det J|?" answer={0.0032} unit="m³" explanation="0.12 × 0.14 × 0.2200 × sin 60 = 0.0168 × 0.2200 × 0.8660 = 0.0032 m³, which is the 3.20e-03 in the table." />
 
 <Quiz id="q5" question="What is |det J| when the elbow is completely straight (elbow = 0 deg)?" answer={0} unit="m³" explanation="sin 0 = 0, so the determinant vanishes. The arm cannot move the tip further outward, and an exact inverse asks for infinite joint speed." />

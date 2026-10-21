@@ -57,3 +57,4 @@ __pycache__/
 
 # pixi environments (examples/month-4, examples/month-5: `pixi install`); .pixi/ is ignored, but the pixi.lock files are committed for reproducibility
 .pixi/
+/.oc
