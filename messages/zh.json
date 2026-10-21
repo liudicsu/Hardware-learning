@@ -202,6 +202,10 @@
     "pixelIdeal": "无畸变像素",
     "pixelDiff": "偏差",
     "ignoreError": "已忽略畸变，像素会偏 {err} px。",
-    "imagePlane": "图像平面"
+    "imagePlane": "图像平面",
+    "lineTitle": "循线 P/PD：从偏离 20 mm 开始",
+    "lineOffset": "偏离线 (mm)",
+    "lineCrossings": "穿线次数",
+    "lineSettle": "进入 ±2 mm 的时刻"
   }
 }

@@ -99,6 +99,7 @@ quote. Put them on their own line with blank lines around, and add no `import`:
 <PidWidget />
 <IkWidget />
 <CameraWidget />
+<LineFollowWidget />
 ```
 
 - `PidWidget` mirrors `tools/sim/models/pid_sim.py` (PID step response, 0 → 60°).
@@ -107,6 +108,8 @@ quote. Put them on their own line with blank lines around, and add no `import`:
 - `CameraWidget` mirrors
   `examples/month-5/camera-calibration/make_views.py` (pinhole projection and
   radial distortion).
+- `LineFollowWidget` mirrors `tools/sim/models/line_sim.py` (line follower,
+  P and PD on 8 reflectance sensors).
 
 Rules:
 

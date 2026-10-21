@@ -27,10 +27,12 @@ function dataUrl(source) {
 }
 
 const formatUrl = dataUrl(transpile(readFileSync(join(models, "format.ts"), "utf8")));
+const pyfmtUrl = dataUrl(transpile(readFileSync(join(models, "pyfmt.ts"), "utf8")));
 
 async function loadModel(name) {
   let source = transpile(readFileSync(join(models, name + ".ts"), "utf8"));
   source = source.replace(/from\s+["']\.\/format["']/g, "from " + JSON.stringify(formatUrl));
+  source = source.replace(/from\s+["']\.\/pyfmt["']/g, "from " + JSON.stringify(pyfmtUrl));
   return import(dataUrl(source));
 }
 
@@ -130,6 +132,16 @@ const camera = await loadModel("camera");
       show(camera.project(point, camera.TRUE_CAMERA, true)),
     );
   });
+}
+
+const lineFollow = await loadModel("lineFollow");
+{
+  // line_sim.py: whole file and every line, byte for byte
+  const want = readFileSync(join(expectedDir, "m2-line_sim.txt"), "utf8");
+  const got = lineFollow.report().join("\n") + "\n";
+  compare("lineFollow", "whole file", want, got);
+  const wl = want.split("\n"), gl = got.split("\n");
+  wl.forEach((line, i) => { if (line) compare("lineFollow", `line ${i + 1}`, line, gl[i]); });
 }
 
 console.log(`widgets: ${checks} checks, ${failed} failed`);

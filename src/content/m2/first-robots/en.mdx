@@ -204,6 +204,8 @@ P + D       kp=0.0003 kd=0.0002: overshoot  0.0 mm, 0 line crossings, within 2 m
 
 </SimOutput>
 
+<LineFollowWidget />
+
 All three runs start 20 mm to one side and all three turn toward the line. **P only** reaches the line quickly — by 0.5 s the offset is down to 4.1 mm — but it does not stop turning there. The wheels need about 80 ms to reach a new turn rate, so by the time the robot knows it has arrived its heading is still pointing across the line, and it overshoots. The sign of the offset then flips, then flips back, and the swings grow wider each time: at 3.5 s it is 61.9 mm off, and the summary says it is **never** within 2 mm. That is a system dominated by delay, exactly what P-alone does.
 
 **A small D (0.0001)** changes almost everything. It cuts the overshoot from 62.3 mm to **4.8 mm** and settles within 2 mm by **1.47 s**. The D term is braking the correction as the error shrinks, which is precisely the damping promised in the PID discussion above. **D = 0.0002** does better still: it approaches the line without crossing it even once and is within 2 mm from **1.30 s**.

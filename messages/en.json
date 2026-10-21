@@ -202,6 +202,10 @@
     "pixelIdeal": "Pixel without distortion",
     "pixelDiff": "Difference",
     "ignoreError": "Distortion is being ignored; the pixel is off by {err} px.",
-    "imagePlane": "Image plane"
+    "imagePlane": "Image plane",
+    "lineTitle": "Line follower P/PD: starting 20 mm off the line",
+    "lineOffset": "Offset (mm)",
+    "lineCrossings": "Line crossings",
+    "lineSettle": "Within 2 mm from"
   }
 }
