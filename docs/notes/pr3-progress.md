@@ -34,3 +34,13 @@ Resume from git: each finished item is its own commit. Checks run before every p
 - Item 11: hand-written (opencode rate-limited).
 - Item 9: hand-written (opencode rate-limited).
 - Item 10: hand-written (opencode rate-limited). `pySum` (Python 3.12+ compensated float sum) lives in `pyfmt.ts`, shared with item 11.
+- Review fixes after the static-export check (hand): chart ticks printed "-0.0" (fixed with `+ 0`), Bode phase/magnitude axes widened so the curves are not clipped near Nyquist, "56 °" → "56°".
+
+## Static-export spot-check (PAGES_BASE_PATH=/Hardware-learning, served from /workspace/pages-test)
+
+Script `/workspace/pwtest/pr3check.js`: 11 widget pages × zh/en, desktop 1280 px and mobile 390 px:
+130 of 134 checks pass (defaults equal the worked examples, slider/radio/text interactions reproduce the
+script's other rows, 0 console errors, 0 hydration warnings, 0 4xx; every widget figure is 358 px wide at 390 px).
+The 4 failures are page-level horizontal overflow on m3 so101-arm and gripper-fingers (zh scrollWidth 456,
+en 577) that already exists on main and the live site (lesson header cost line and long code blocks), not
+caused by the widgets; left for a separate fix.

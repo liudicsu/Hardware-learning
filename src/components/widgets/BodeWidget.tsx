@@ -51,7 +51,7 @@ export function BodeWidget() {
         series={[{ points: mag, color: "#38bdf8" }]}
         xMin={0}
         xMax={Math.log10(NYQUIST)}
-        yMin={-40}
+        yMin={-60}
         yMax={60}
         xStep={1}
         yStep={20}
@@ -65,7 +65,7 @@ export function BodeWidget() {
         series={[{ points: ph, color: "#f59e0b" }]}
         xMin={0}
         xMax={Math.log10(NYQUIST)}
-        yMin={-360}
+        yMin={-480}
         yMax={-60}
         xStep={1}
         yStep={60}
@@ -77,7 +77,7 @@ export function BodeWidget() {
       />
       <div className="mt-3 grid gap-x-5 gap-y-2 text-xs sm:grid-cols-2">
         <Readout label={t("bodeWc")} value={dash(m.wc, 1, "rad/s")} testId="bode-wc" />
-        <Readout label={t("bodePm")} value={dash(m.pm, 0, "°")} testId="bode-pm" />
+        <Readout label={t("bodePm")} value={m.pm === null ? "—" : `${fixed(m.pm, 0)}°`} testId="bode-pm" />
         <Readout label={t("bodeWpc")} value={dash(m.wpc, 1, "rad/s")} testId="bode-wpc" />
         <Readout
           label={t("bodeGm")}

@@ -42,9 +42,9 @@ export function Chart(props: ChartProps) {
   const x = (v: number) => LEFT + ((v - xMin) / (xMax - xMin)) * PW;
   const y = (v: number) => TOP + (1 - (Math.min(yMax, Math.max(yMin, v)) - yMin) / (yMax - yMin)) * PH;
   const xt: number[] = [];
-  for (let k = Math.ceil(xMin / xStep - 1e-9); k * xStep <= xMax + 1e-9; k++) xt.push(k * xStep);
+  for (let k = Math.ceil(xMin / xStep - 1e-9); k * xStep <= xMax + 1e-9; k++) xt.push(k * xStep + 0); // + 0 turns -0 into 0
   const yt: number[] = [];
-  for (let k = Math.ceil(yMin / yStep - 1e-9); k * yStep <= yMax + 1e-9; k++) yt.push(k * yStep);
+  for (let k = Math.ceil(yMin / yStep - 1e-9); k * yStep <= yMax + 1e-9; k++) yt.push(k * yStep + 0);
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label={ariaLabel}>
       {yt.map((v) => (
