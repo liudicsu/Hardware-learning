@@ -71,6 +71,9 @@ const kinematics = await loadModel("kinematics");
   // differs from glibc's by 1 ulp on some inputs, so no port can match it byte for
   // byte. For that line we check the text up to the numbers and that the TS run also
   // fails to settle (all 200 iterations used, still more than 20 mm short).
+  // Why only qualitatively: the run is chaotic and V8 and glibc trig differ by 1 ulp,
+  // so byte-matching it is impossible, not merely hard. The lesson prints this line
+  // only to show that a too-small lambda does not converge, and that is what we test.
   const CHAOTIC = "  same with lambda = 0.01: after ";
   const want = readFileSync(join(expectedDir, "m5-kinematics.txt"), "utf8").split("\n");
   const got = (kinematics.report().join("\n") + "\n").split("\n");

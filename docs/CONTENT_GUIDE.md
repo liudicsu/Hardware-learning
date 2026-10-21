@@ -118,6 +118,12 @@ Rules:
   formatted exactly like the expected file and compares it byte for byte with
   the lines in `tools/sim/expected/`. It runs in CI and from
   `tools/sim/reproduce.sh`.
+- The one exception to byte-for-byte checks is the kinematics "same with
+  lambda = 0.01" line. That run never converges and is chaotic, and JavaScript
+  and glibc trig functions differ by 1 ulp, so no port can byte-match it;
+  `tools/check_widgets.mjs` checks it only qualitatively (same wording, and the
+  TS run also fails to settle). The line is in the lesson only to show
+  non-convergence.
 - Every widget uses `WidgetShell`: the amber “简化模型 / Simplified model”
   label, a link to the script it mirrors, the note that real hardware values
   differ, and a reset button.
