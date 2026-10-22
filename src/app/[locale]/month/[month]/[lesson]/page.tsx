@@ -91,7 +91,6 @@ export default async function LessonPage({ params }: Params) {
   const tn = await getTranslations("nav");
   const tr_ = await getTranslations("resource");
   const tg = await getTranslations("glossary");
-  const td = await getTranslations("diagram");
   const Content = await loadContent(month.id, lesson.slug, loc);
   if (!Content) notFound();
   const toc = await lessonToc(month.id, lesson.slug, loc);
@@ -99,14 +98,10 @@ export default async function LessonPage({ params }: Params) {
   const components: MDXComponents = {
     Quiz: (props: Omit<ComponentProps<typeof Quiz>, "lessonKey">) => <Quiz lessonKey={key} {...props} />,
     Falstad,
-    QuadratureTiming: (p: Omit<QuadratureTimingProps, "prevLabel" | "nextLabel" | "positionLabel">) => (
-      <QuadratureTiming {...p} prevLabel={td("prev")} nextLabel={td("next")} positionLabel={td("position")} />
-    ),
+    QuadratureTiming: (p: Omit<QuadratureTimingProps, "locale">) => <QuadratureTiming {...p} locale={loc} />,
     EncoderDisc,
     Timing,
-    TimingStepper: (p: Omit<TimingStepperProps, "prevLabel" | "nextLabel" | "positionLabel">) => (
-      <TimingStepper {...p} prevLabel={td("prev")} nextLabel={td("next")} positionLabel={td("position")} />
-    ),
+    TimingStepper: (p: Omit<TimingStepperProps, "locale">) => <TimingStepper {...p} locale={loc} />,
     Callout,
     Formula,
     h2: H2,

@@ -328,10 +328,5 @@
     "example": "Worked example from the course",
     "usedIn": "Used in",
     "read": "Read more (free textbooks)"
-  },
-  "diagram": {
-    "prev": "Previous",
-    "next": "Next",
-    "position": "state {i} / {n}"
   }
 }

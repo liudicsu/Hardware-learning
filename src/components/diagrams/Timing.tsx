@@ -62,7 +62,8 @@ export interface TimingProps {
   id?: string;
 }
 
-const PALETTE = ["#38bdf8", "#f59e0b", "#a78bfa", "#34d399", "#f472b6"];
+// Theme tokens from globals.css (--dg-*), shared with <BlockDiagram>.
+const PALETTE = ["var(--dg-a)", "var(--dg-b)", "var(--dg-ok)", "var(--dg-danger)", "var(--dg-ink)"];
 const LEFT = 64;
 const COL = 48; // width of an average column, viewBox units
 const TRACE_H = 30;
@@ -145,8 +146,8 @@ export function TimingSvg({ signals, rows = [], spans = [], columns, axisLabel, 
     const tick = down ? 6 : -6;
     return (
       <g key={`span-${k}`}>
-        <path d={`M${x0},${y + tick}L${x0},${y}L${x1},${y}L${x1},${y + tick}`} fill="none" stroke="#a1a1aa" strokeWidth={1.5} />
-        <text x={(x0 + x1) / 2} y={down ? y - 5 : y + 17} fill="#d4d4d8" fontSize={14} textAnchor="middle">
+        <path d={`M${x0},${y + tick}L${x0},${y}L${x1},${y}L${x1},${y + tick}`} fill="none" style={{ stroke: "var(--dg-muted)" }} strokeWidth={1.5} />
+        <text x={(x0 + x1) / 2} y={down ? y - 5 : y + 17} style={{ fill: "var(--dg-ink)" }} fontSize={14} textAnchor="middle">
           {s.label}
         </text>
       </g>
@@ -162,10 +163,10 @@ export function TimingSvg({ signals, rows = [], spans = [], columns, axisLabel, 
       aria-label={title}
     >
       {highlight !== undefined && highlight >= 0 && highlight < n && (
-        <rect x={edges[highlight]} y={top - 6} width={edges[highlight + 1] - edges[highlight]} height={rowsBottom - top + 6} fill="#38bdf8" fillOpacity={0.12} rx={3} />
+        <rect x={edges[highlight]} y={top - 6} width={edges[highlight + 1] - edges[highlight]} height={rowsBottom - top + 6} style={{ fill: "var(--dg-a)" }} fillOpacity={0.12} rx={3} />
       )}
       {edges.map((x, i) => (
-        <line key={i} x1={x} x2={x} y1={top - 4} y2={rowsBottom} stroke="#3f3f46" strokeDasharray="3 3" />
+        <line key={i} x1={x} x2={x} y1={top - 4} y2={rowsBottom} style={{ stroke: "var(--dg-grid)" }} strokeDasharray="3 3" />
       ))}
       {topSpans.map((s, k) => bracket(s, top - 10, true, k))}
       {signals.map((s, k) => {
@@ -173,7 +174,7 @@ export function TimingSvg({ signals, rows = [], spans = [], columns, axisLabel, 
         const color = s.color ?? PALETTE[k % PALETTE.length];
         return (
           <g key={`${s.name}-${k}`}>
-            <text x={8} y={yTop + TRACE_H / 2 + 6} fill={color} fontSize={18} fontWeight={600}>
+            <text x={8} y={yTop + TRACE_H / 2 + 6} style={{ fill: color }} fontSize={18} fontWeight={600}>
               {s.name}
             </text>
             {s.kind === "bus"
@@ -187,13 +188,12 @@ export function TimingSvg({ signals, rows = [], spans = [], columns, axisLabel, 
                     <g key={j}>
                       <path
                         d={`M${b.x0},${yMid}L${b.x0 + e},${yHi}L${b.x1 - e},${yHi}L${b.x1},${yMid}L${b.x1 - e},${yLo}L${b.x0 + e},${yLo}Z`}
-                        fill={unknown ? "#27272a" : color}
+                        style={{ fill: unknown ? "var(--dg-card)" : color, stroke: color }}
                         fillOpacity={unknown ? 1 : 0.14}
-                        stroke={color}
                         strokeWidth={2}
                       />
                       {!unknown && (
-                        <text x={(b.x0 + b.x1) / 2} y={yMid + 6} fill="#e4e4e7" fontSize={16} textAnchor="middle" fontFamily="ui-monospace, monospace">
+                        <text x={(b.x0 + b.x1) / 2} y={yMid + 6} style={{ fill: "var(--dg-ink)" }} fontSize={16} textAnchor="middle" fontFamily="ui-monospace, monospace">
                           {b.value}
                         </text>
                       )}
@@ -201,7 +201,7 @@ export function TimingSvg({ signals, rows = [], spans = [], columns, axisLabel, 
                   );
                 })
               : digitalPath(s.levels ?? [], edges, yTop).map((p, j) => (
-                  <path key={j} d={p.d} fill="none" stroke={color} strokeWidth={p.dashed ? 1.5 : 3} strokeDasharray={p.dashed ? "4 3" : undefined} strokeLinejoin="round" />
+                  <path key={j} d={p.d} fill="none" style={{ stroke: color }} strokeWidth={p.dashed ? 1.5 : 3} strokeDasharray={p.dashed ? "4 3" : undefined} strokeLinejoin="round" />
                 ))}
           </g>
         );
@@ -211,7 +211,7 @@ export function TimingSvg({ signals, rows = [], spans = [], columns, axisLabel, 
         const mono = r.mono ?? true;
         return (
           <g key={`${r.name}-${k}`}>
-            <text x={8} y={y} fill="#a1a1aa" fontSize={15}>
+            <text x={8} y={y} style={{ fill: "var(--dg-muted)" }} fontSize={15}>
               {r.name}
             </text>
             {r.cells.map((c, i) => (
@@ -219,7 +219,7 @@ export function TimingSvg({ signals, rows = [], spans = [], columns, axisLabel, 
                 key={i}
                 x={(edges[i] + edges[i + 1]) / 2}
                 y={y}
-                fill={mono ? "#e4e4e7" : "#a1a1aa"}
+                style={{ fill: mono ? "var(--dg-ink)" : "var(--dg-muted)" }}
                 fontSize={17}
                 textAnchor="middle"
                 fontFamily={mono ? "ui-monospace, monospace" : undefined}
@@ -232,7 +232,7 @@ export function TimingSvg({ signals, rows = [], spans = [], columns, axisLabel, 
       })}
       {bottomSpans.map((s, k) => bracket(s, rowsBottom + 6, false, k))}
       {axisLabel && (
-        <text x={(edges[0] + edges[n]) / 2} y={height - 8} fill="#71717a" fontSize={14} textAnchor="middle">
+        <text x={(edges[0] + edges[n]) / 2} y={height - 8} style={{ fill: "var(--dg-faint)" }} fontSize={14} textAnchor="middle">
           {axisLabel}
         </text>
       )}
@@ -243,11 +243,11 @@ export function TimingSvg({ signals, rows = [], spans = [], columns, axisLabel, 
 /** Static timing diagram with a caption. */
 export function Timing({ id, title, ...rest }: TimingProps) {
   return (
-    <figure className="not-prose my-6" data-timing={id ?? ""}>
+    <figure className="not-prose my-6 max-w-full overflow-hidden rounded-xl border border-zinc-800 bg-[var(--dg-card)] px-3 py-3 sm:px-4" data-timing={id ?? ""}>
+      <figcaption className="mb-2 text-sm font-medium text-zinc-200">{title}</figcaption>
       <div className="max-w-2xl overflow-x-auto">
         <TimingSvg title={title} {...rest} />
       </div>
-      <figcaption className="mt-2 text-sm text-zinc-400">{title}</figcaption>
     </figure>
   );
 }

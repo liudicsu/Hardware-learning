@@ -1,3 +1,4 @@
+import type { Locale } from "@/lib/diagrams/types";
 import { TimingStepper } from "./TimingStepper";
 import { diagramColumns, OFFSET_DEG, POLES } from "@/lib/models/encoder";
 
@@ -7,13 +8,12 @@ export interface QuadratureTimingProps {
   countLabel: string;
   stateLabel: string;
   axisLabel: string;
-  prevLabel: string;
-  nextLabel: string;
-  positionLabel: string;
+  /** Supplied by the lesson page. */
+  locale: Locale;
 }
 
 /** Encoder A/B timing diagram with a stepper; columns come from src/lib/models/encoder.ts. */
-export function QuadratureTiming({ direction, title, countLabel, stateLabel, axisLabel, prevLabel, nextLabel, positionLabel }: QuadratureTimingProps) {
+export function QuadratureTiming({ direction, title, countLabel, stateLabel, axisLabel, locale }: QuadratureTimingProps) {
   const cols = diagramColumns(direction, 8);
   const sgn = (d: number) => (d > 0 ? `+${d}` : d < 0 ? `−${-d}` : "0"); // typographic minus, as in the text
   return (
@@ -22,8 +22,8 @@ export function QuadratureTiming({ direction, title, countLabel, stateLabel, axi
       title={title}
       axisLabel={axisLabel}
       signals={[
-        { name: "A", levels: cols.map((c) => c.a), color: "#38bdf8" },
-        { name: "B", levels: cols.map((c) => c.b), color: "#f59e0b" },
+        { name: "A", levels: cols.map((c) => c.a), color: "var(--dg-a)" },
+        { name: "B", levels: cols.map((c) => c.b), color: "var(--dg-b)" },
       ]}
       rows={[
         { name: stateLabel, cells: cols.map((c) => c.ab) },
@@ -34,9 +34,7 @@ export function QuadratureTiming({ direction, title, countLabel, stateLabel, axi
           ? `AB ${c.ab}, ${countLabel} 0`
           : `AB ${cols[i - 1].ab} → ${c.ab}: ${sgn(c.delta)}, ${countLabel} ${sgn(c.count)}`,
       )}
-      prevLabel={prevLabel}
-      nextLabel={nextLabel}
-      positionLabel={positionLabel}
+      locale={locale}
     />
   );
 }
@@ -75,17 +73,17 @@ export function EncoderDisc({ title, sensorA, sensorB }: EncoderDiscProps) {
     );
   };
   return (
-    <figure className="not-prose my-6">
+    <figure className="not-prose my-6 max-w-full overflow-hidden rounded-xl border border-zinc-800 bg-[var(--dg-card)] px-3 py-3 sm:px-4">
       <svg viewBox="0 0 220 250" className="mx-auto w-full max-w-[16rem]" role="img" aria-label={title}>
         {sectors.map((s, i) => (
           <g key={i}>
-            <path d={s.d} fill={s.north ? "#7f1d1d" : "#1e3a8a"} stroke="#18181b" />
-            <text x={s.lx} y={s.ly + 5} fill="#e4e4e7" fontSize={15} textAnchor="middle">{s.north ? "N" : "S"}</text>
+            <path d={s.d} fill={s.north ? "#7f1d1d" : "#1e3a8a"} style={{ stroke: "var(--dg-card)" }} />
+            <text x={s.lx} y={s.ly + 5} style={{ fill: "var(--dg-ink)" }} fontSize={15} textAnchor="middle">{s.north ? "N" : "S"}</text>
           </g>
         ))}
-        <circle cx={cx} cy={cy} r={8} fill="#a1a1aa" />
-        {sensor(0, sensorA, "#38bdf8")}
-        {sensor(OFFSET_DEG, sensorB, "#f59e0b")}
+        <circle cx={cx} cy={cy} r={8} style={{ fill: "var(--dg-muted)" }} />
+        {sensor(0, sensorA, "var(--dg-a)")}
+        {sensor(OFFSET_DEG, sensorB, "var(--dg-b)")}
       </svg>
       <figcaption className="mt-2 text-center text-sm text-zinc-400">{title}</figcaption>
     </figure>

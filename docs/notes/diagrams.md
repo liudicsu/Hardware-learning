@@ -29,8 +29,14 @@ SDA `bus` with address/ACK bands, "z" for the released line), servo pulses (1.0â
 
 ## `<TimingStepper>` (client)
 
-Same props plus `stepText: string[]` (one line per column). Previous/Next buttons move the highlight; the
-lesson page injects the localized button labels from `messages/*.json` â†’ `diagram`.
+Same props plus `stepText: string[]` (one line per column). Uses the shared `<StepControls>` from the diagram
+foundation (#18): Previous / All / Next, labels from `src/lib/diagrams/ui.ts`; the lesson page injects `locale`.
+Colours use the `--dg-*` tokens from `globals.css`, the frame matches `<Diagram>`.
+
+Not yet in the `<Diagram id>` registry: the registry's `DiagramSpec` is the block/state-machine type checked by
+`tools/check_diagrams.mjs`. A follow-up can add a `kind: "timing"` spec (signals/rows/spans + `facts`) so timing
+diagrams get the same bilingual-label and fact checks; until then a timing diagram that depicts script output
+must be generated from a model in `src/lib/models` and checked in `tools/check_widgets.mjs`, as the encoder one is.
 
 ## Consistency with scripts
 
