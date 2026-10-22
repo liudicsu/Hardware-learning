@@ -652,7 +652,7 @@ for (const { file, name, spec } of specs) {
   else {
     const nodeIds = new Set(spec.nodes.map((n) => n.id));
     const edgeIds = new Set(spec.edges.map((e) => e.id));
-    for (const n of spec.nodes) { checkText(`${tag} node ${n.id}`, n.label, n); checkText(`${tag} node ${n.id} sub`, n.sub); }
+    for (const n of spec.nodes) { checkText(`${tag} node ${n.id}`, n.label, n); checkText(`${tag} node ${n.id} sub`, n.sub, { mono: n.subMono }); }
     for (const e of spec.edges) checkText(`${tag} edge ${e.id}`, e.label, e);
     for (const [k, s] of (spec.steps ?? []).entries()) {
       checkText(`${tag} step ${k + 1}`, s.label);

@@ -26,6 +26,8 @@ export interface DiagramNode {
   tone?: Tone;
   /** Draw the label in the monospace font (node names, topics, files). */
   mono?: boolean;
+  /** The sub lines are identifiers too (e.g. a topic list): monospace, and may be one string for both languages. */
+  subMono?: boolean;
 }
 
 export interface DiagramEdge {

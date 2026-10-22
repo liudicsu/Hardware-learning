@@ -25,8 +25,6 @@ const TYPE_PAIRS: [string, string, "<-" | "->", string][] = [
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
 const line = (t: string) => `(^|\\n)${esc(t)}(\\n|$)`;
 const short = (t: string) => t.split(/[/.]/).pop();
-/** Identifier lists read the same in both languages. */
-const both = (t: string) => ({ zh: t, en: t });
 
 const wide: Layout = {
   w: 750,
@@ -72,10 +70,10 @@ export const gzBridge: BlockDiagramSpec = {
   },
   sources: [BRIDGE, SCRIPT],
   nodes: [
-    { id: "gz", label: { zh: "Gazebo（gz-sim）", en: "Gazebo (gz-sim)" }, sub: { zh: "传感器 · DiffDrive\n关节插件", en: "sensors · DiffDrive\njoint plugins" } },
-    { id: "out", label: { zh: "桥接：GZ_TO_ROS", en: "bridge: GZ_TO_ROS" }, sub: both(GZ_TO_ROS.join("\n")), tone: "a", mono: true },
-    { id: "in", label: { zh: "桥接：ROS_TO_GZ", en: "bridge: ROS_TO_GZ" }, sub: both(ROS_TO_GZ.join("\n")), tone: "c", mono: true },
-    { id: "ros", label: "ROS 2", sub: both("rviz2 · teleop\nrobot_state_publisher") },
+    { id: "gz", label: { zh: "Gazebo 仿真器", en: "Gazebo (gz-sim)" }, sub: { zh: "传感器 · DiffDrive\n关节插件", en: "sensors · DiffDrive\njoint plugins" } },
+    { id: "out", label: { zh: "桥接：GZ_TO_ROS", en: "bridge: GZ_TO_ROS" }, sub: GZ_TO_ROS.join("\n"), subMono: true, tone: "a", mono: true },
+    { id: "in", label: { zh: "桥接：ROS_TO_GZ", en: "bridge: ROS_TO_GZ" }, sub: ROS_TO_GZ.join("\n"), subMono: true, tone: "c", mono: true },
+    { id: "ros", label: "ROS 2", sub: "rviz2 · teleop\nrobot_state_publisher", subMono: true },
   ],
   edges: [
     { id: "gzOut", label: { zh: "传感器、状态", en: "sensors, state" }, tone: "a" },
