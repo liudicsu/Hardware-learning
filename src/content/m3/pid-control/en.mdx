@@ -158,12 +158,7 @@ The MathWorks series is a good next watch: it is light on algebra and heavy on t
 
 A <Term id="cascade-control">cascade</Term> is two feedback loops nested, one inside the other. The inner loop is fast and controls something quick, such as pitch. The outer loop is slower and controls something slower, such as wheel speed, by changing the inner loop's target. The outer loop does not drive the motors directly; it only moves the <Term id="setpoint">setpoint</Term> that the inner loop is trying to hold.
 
-```text
-target speed ──► [ outer PI, 25 Hz ] ──► setpoint (±3°) ──► [ inner PD, 200 Hz ] ──► motors
-      ▲                                                       ▲                       │
-      │                                                       └──── pitch (IMU) ◄──────┤
-      └────────────── wheel speed (encoders) ◄────────────────────────────────────────┘
-```
+<Diagram id="pid-cascade" />
 
 The rule is that the outer loop must run clearly slower than the inner one. Here the inner loop is 200 Hz and the outer loop is 25 Hz, eight times slower. The outer loop's output is also clamped to ±3° of lean. Both rules serve the same purpose: a mistake in the outer loop must not be able to knock the robot over. The inner loop still has authority over balance; the outer loop only suggests a small lean.
 
