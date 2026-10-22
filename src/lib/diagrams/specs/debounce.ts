@@ -2,7 +2,7 @@ import type { TimingSpec } from "../types";
 import bounce from "../data/debounce-bounce.json";
 
 /*
- * m2/timing-interrupts: the "quiet line" debounce of reaction_timer.ino applied to real model data.
+ * m2/timing-interrupts: the "quiet line" debounce of reaction_timer.ino applied to the simulated bounce of debounce_sim.py.
  * The edges come from debounce_sim.py (seed 1, 0.1 ms sampler) through tools/sim/models/debounce_export.py
  * into data/debounce-bounce.json; check_diagrams re-runs the exporter and requires an identical file.
  * Line 1 is the first press (100 ms), line 2 its release (400 ms); both lines share one time scale
@@ -26,7 +26,7 @@ const lastOf = (es: Edge[]) => es[es.length - 1][0];
 
 /** Column boundaries of one line: window start, every edge, the end of the quiet window, window end. */
 const line = (from: number, es: Edge[], to: number) => [from, ...es.map(([t]) => t), quietFrom(lastOf(es)), to];
-const B1 = line(START - 4, pressEdges, quietFrom(lastOf(pressEdges)) + 7);
+const B1 = line(START - 6, pressEdges, quietFrom(lastOf(pressEdges)) + 7);
 const B2 = line(RELEASE - 4, releaseEdges, quietFrom(lastOf(releaseEdges)) + 3);
 const starts = [...B1.slice(0, -1), ...B2.slice(0, -1)];
 const columns = [...B1.slice(1).map((t, i) => +(t - B1[i]).toFixed(1)), ...B2.slice(1).map((t, i) => +(t - B2[i]).toFixed(1))];
@@ -64,8 +64,8 @@ export const debounceQuiet: TimingSpec = {
   id: "debounce-quiet-line",
   title: { zh: `“安静线路”消抖：DEBOUNCE_MS = ${QUIET}`, en: `"Quiet line" debounce: DEBOUNCE_MS = ${QUIET}` },
   caption: {
-    zh: `D2 是 debounce_sim.py（种子 1，每 0.1 ms 采样）里第一次按下（${START} ms）和松开（${RELEASE} ms）的真实弹跳边沿，两行时间比例相同。“安静”在距上一个边沿超过 ${QUIET} ms 时为高；“计数”是 reaction_timer.ino 中断规则接受的按下次数。`,
-    en: `D2 shows the real bounce edges of the first press (${START} ms) and its release (${RELEASE} ms) in debounce_sim.py (seed 1, sampled every 0.1 ms); both lines use the same time scale. "idle" (the quiet line) is HIGH once more than ${QUIET} ms have passed since the previous edge; "n" is the number of presses the reaction_timer.ino ISR rule accepts.`,
+    zh: `D2 是 debounce_sim.py（种子 1，每 0.1 ms 采样）里第一次按下（${START} ms）和松开（${RELEASE} ms）时模型给出的弹跳边沿，两行时间比例相同。“安静”在距上一个边沿超过 ${QUIET} ms 时为高；“计数”是 reaction_timer.ino 中断规则接受的按下次数。`,
+    en: `D2 shows the simulated bounce edges of the first press (${START} ms) and its release (${RELEASE} ms) in debounce_sim.py (seed 1, sampled every 0.1 ms); both lines use the same time scale. "idle" (the quiet line) is HIGH once more than ${QUIET} ms have passed since the previous edge; "n" is the number of presses the reaction_timer.ino ISR rule accepts.`,
   },
   sources: [INO, SIM, EXPORT, EN, ZH],
   columns,
