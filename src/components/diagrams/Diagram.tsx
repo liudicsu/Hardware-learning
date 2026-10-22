@@ -5,6 +5,7 @@ import { DIAGRAMS } from "@/lib/diagrams";
 import { tx, type BlockDiagramSpec, type DiagramSpec, type Locale } from "@/lib/diagrams/types";
 import { DIAGRAM_UI } from "@/lib/diagrams/ui";
 import { BlockDiagramSvg } from "./BlockDiagram";
+import { ByteFields } from "./ByteFields";
 import { CircuitDiagram } from "./CircuitDiagram";
 import { StepControls } from "./StepControls";
 import { TimingDiagram } from "./TimingDiagram";
@@ -33,6 +34,8 @@ export function Diagram({ id, locale }: DiagramProps) {
         <CircuitDiagram spec={spec} locale={locale} />
       ) : spec.kind === "timing" ? (
         <TimingDiagram spec={spec} locale={locale} />
+      ) : spec.kind === "bytes" ? (
+        <ByteFields spec={spec} locale={locale} />
       ) : (
         <BlockBody spec={spec} locale={locale} />
       )}

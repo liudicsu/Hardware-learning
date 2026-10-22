@@ -62,6 +62,18 @@ The encoder diagrams stay `<QuadratureTiming>`: their columns are computed at re
 plain data loaded by `check_diagrams.mjs` without a bundler, so moving them would mean copying the model's output
 into the spec (two sources of truth) or adding a bundling step to the check.
 
+### In the registry: `kind: "bytes"` (D-6)
+
+`BytesSpec` draws protocol packets byte by byte with `ByteFields.tsx` (client): one button per packet, a strip of
+cells coloured by field (`fields: { key: { label, tone } }`), brackets above (`side: "top"`, e.g. a little-endian
+value) and below (`side: "bottom"`, e.g. the checksum range), and an HTML table (#, byte, field, meaning) that wraps
+on phones. A byte with `bad: true` is drawn in the danger tone. The strip uses the longest packet's width so cells
+keep their size when switching. Optional `script: { run, lines }`: check_diagrams runs `python3 run` from the
+script's folder and requires every line in its output, so the drawn bytes are the script's bytes.
+check_diagrams also checks field keys, byte ranges, notes in both languages, bracket ranges and label widths,
+non-overlapping brackets per side, hex text inside a cell, and >= 12 px labels at 390 px (constants read from
+`ByteFields.tsx`). First user: `sts-packet-fields` (so101-arm, `sts_packet.py`).
+
 ## Consistency with scripts
 
 If a diagram depicts the output of a lesson script, generate its columns from a TS port in `src/lib/models`

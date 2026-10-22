@@ -86,3 +86,9 @@ numbers, cart-pole direction, TB6612 OUT1) go into the PR that touches each less
   - I2C columns are weighted by field (bytes 1.4, ACK 1.2, one-letter fields 0.9) with `columnScale` 42.
   - The debounce line 1 window starts 2 ms earlier, so the "0" band fits.
   - All hand-written.
+- D-6 (branch diagrams/d6-sts-bytes from e20ae6e, main a53581a merged in): new `kind: "bytes"` (ByteFields.tsx + checkBytes) and
+  `sts-packet-fields` in so101-arm: the six packets printed by sts_packet.py (ping, torque on, goal 2048, read,
+  reply 3116 = 273.9 deg, broken checksum). check_diagrams runs the script and requires each drawn line in its
+  output. New tone `c` (--dg-c, violet) for the checksum. Lesson fix: the bit flip is in the high data byte
+  (0C -> 0D), zh and en. All hand-written.
+- Next: D-7 slam-nav pose-graph frames.
