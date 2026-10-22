@@ -6,7 +6,7 @@ episode two ways: OpenVLA-style 256 bins per dimension between the 1st and 99th 
 joint over the chunk, scaled and rounded (the idea behind FAST; FAST's byte-pair encoding step is left out and the
 nonzero coefficients are counted instead).
 `action_tokens.py` 只用 Python 标准库并固定随机种子。它生成一个形状类似 SO-101 遥操作的合成数据集（50 个回合，6 个关节
-目标，单位度，30 Hz），用两种方法给一个新回合里 1 秒的动作块分词：RT-2/OpenVLA 式在第 1 与第 99 百分位数之间每维 256
+目标，单位度，30 Hz），用两种方法给一个新回合里 1 秒的动作块分词：OpenVLA 式在第 1 与第 99 百分位数之间每维 256
 个区间，以及对每个关节做 DCT 再缩放取整（FAST 的思路；省略了 FAST 的字节对编码，改为统计非零系数个数）。
 
 ```bash

@@ -7,7 +7,7 @@ Three parts. A **vision encoder** turns each camera image into a sequence of fea
 There are two ways to build the action output, and they decide much of a model's behaviour:
 
 - **Actions as tokens.** Extend the language model's vocabulary with action tokens and let it generate action tokens autoregressively, one token after another. RT-2 and OpenVLA work like this, one action step per call (8 and 7 tokens); π0-FAST does too, but its tokeniser, FAST, compresses a whole chunk first (see below).
-- **A separate action head.** Feed the language model's features into a smaller network that produces a whole chunk of continuous actions, by diffusion or flow matching (a close relative of the diffusion you met in the [previous lesson](/en/month/month-6/act-diffusion)). π0, SmolVLA and GR00T work like this. π0.5 is pretrained with FAST tokens, gets a flow-matching action expert in post-training and uses that expert at run time. Octo also has a diffusion head but no vision-language model: it is a small transformer trained from scratch, with a frozen T5 text encoder.
+- **A separate action head.** Feed the language model's features into a smaller network that produces a whole chunk of continuous actions, by diffusion or flow matching (a close relative of the diffusion you met in the [previous lesson](/en/month/month-6/act-diffusion)). π0, SmolVLA and GR00T work like this. π0.5 is pretrained on FAST tokens only, gets a flow-matching action expert in post-training and uses that expert at run time. Octo also has a diffusion head but no vision-language model: it is a small transformer trained from scratch, with a frozen T5 text encoder.
 
 <Diagram id="vla-dataflow" />
 
@@ -191,7 +191,7 @@ Joint 0's whole second of motion is five small integers followed by zeros. The s
 |---|---|---|---|
 | OpenVLA (7B) | Stanford, Berkeley, TRI and others | 256-bin tokens, 7-D end-effector deltas | MIT, on Hugging Face |
 | Octo | Berkeley and others | small transformer trained from scratch (no vision-language model) with a diffusion head | MIT, on Hugging Face |
-| π0, π0-FAST, π0.5 | Physical Intelligence (openpi) | flow-matching action expert; π0-FAST uses FAST tokens; π0.5 is pretrained with FAST tokens and adds the action expert in post-training | code Apache-2.0; base checkpoints downloadable; built on PaliGemma, LeRobot's copies carry the Gemma licence |
+| π0, π0-FAST, π0.5 | Physical Intelligence (openpi) | flow-matching action expert; π0-FAST uses FAST tokens; π0.5 is pretrained on FAST tokens only and adds the action expert in post-training | code Apache-2.0; base checkpoints downloadable; built on PaliGemma, LeRobot's copies carry the Gemma licence |
 | SmolVLA (450M) | Hugging Face (LeRobot) | flow-matching action expert, action chunks | Apache-2.0, on Hugging Face |
 | GR00T N1.6 (3B) | NVIDIA | diffusion transformer action head | downloadable; NVIDIA licence, research and non-commercial use only |
 | GR00T N1.7 (3B) | NVIDIA | as N1.6, aimed at humanoids | NVIDIA Open Model License, commercial use allowed (early access, April 2026) |

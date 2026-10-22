@@ -33,6 +33,19 @@ const HEAD_MODELS = ["π0", "SmolVLA", "GR00T"] as const; // VLM + flow-matching
 const LATE_HEAD = "π0.5"; // FAST tokens in pretraining, action expert from post-training on
 const NO_VLM = "Octo"; // diffusion head, no VLM
 const MOST = { zh: "多数模型", en: "most models" };
+// Where the joint state goes (pi0-FAST 2501.09747 App. C and pi0.5 §IV-A: as text tokens; SmolVLA §3.1: into the VLM;
+// pi0 §3 and GR00T §2.1: into the action expert / DiT; RT-2, OpenVLA and the released Octo: not used).
+const STATE_IN_LM = [FAST_MODEL, LATE_HEAD, "SmolVLA"] as const;
+const STATE_IN_HEAD = ["π0", "GR00T"] as const;
+const NO_STATE = ["RT-2", "OpenVLA", NO_VLM] as const;
+// Tokens per call: RT-2 8 integers (2307.15818 §3.2), OpenVLA 7-D (2406.09246 §3.3); FAST about 30 per arm per 1 s
+// chunk (2501.09747 §VI-B). The lesson's token bullet is a fact with the same numbers.
+const STEP_TOKENS = [8, 7] as const;
+const FAST_PER_ARM = 30;
+// pi0.5's qualifier in the head box and the step: FAST tokens only in pretraining, head added in post-training.
+const LATE_NOTE = { zh: "（后训练才加此头）", en: " (head added\nin post-training)" };
+const andList = (xs: readonly string[]) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
+const zhList = (xs: readonly string[]) => xs.join("、");
 const esc = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // "π0" alone, not the start of π0-FAST or π0.5
 const bare = (t: string) => `${esc(t)}(?![-.\\w])`;
@@ -102,8 +115,8 @@ export const vlaDataflow: BlockDiagramSpec = {
   id: "vla-dataflow",
   title: { zh: "VLA 的三个部分与两种动作输出", en: "The three parts of a VLA and its two action outputs" },
   caption: {
-    zh: `示意图，不对应某个具体模型的层数或尺寸。关节状态在 ${FAST_MODEL}、${LATE_HEAD}、${SMOLVLA} 里进语言模型，在 ${PI0}、${GR00T} 里进动作头；${RT2}、${OPENVLA} 和发布版 ${NO_VLM} 不读关节状态。${BINS} 个区间和 ${TOKENS} 个词元来自本课的 action_tokens.py（6 关节、${HZ} Hz、1 秒一块）。`,
-    en: `A sketch, not the layers or sizes of any one model. The joint state goes into the language model in ${FAST_MODEL}, ${LATE_HEAD} and ${SMOLVLA}, and into the action head in ${PI0} and ${GR00T}; ${RT2}, ${OPENVLA} and the released ${NO_VLM} do not read it. The ${BINS} bins and ${TOKENS} tokens come from this lesson's action_tokens.py (6 joints, ${HZ} Hz, 1 s chunks).`,
+    zh: `示意图，不对应某个具体模型的层数或尺寸。关节状态在 ${zhList(STATE_IN_LM)} 里进语言模型，在 ${zhList(STATE_IN_HEAD)} 里进动作头；${zhList(NO_STATE.slice(0, -1))} 和发布版 ${NO_VLM} 不读关节状态。${BINS} 个区间和 ${TOKENS} 个词元来自本课的 action_tokens.py（6 关节、${HZ} Hz、1 秒一块）。`,
+    en: `A sketch, not the layers or sizes of any one model. The joint state goes into the language model in ${andList(STATE_IN_LM)}, and into the action head in ${andList(STATE_IN_HEAD)}; ${NO_STATE.slice(0, -1).join(", ")} and the released ${NO_VLM} do not read it. The ${BINS} bins and ${TOKENS} tokens come from this lesson's action_tokens.py (6 joints, ${HZ} Hz, 1 s chunks).`,
   },
   sources: [SCRIPT],
   nodes: [
@@ -131,8 +144,8 @@ export const vlaDataflow: BlockDiagramSpec = {
       id: "head",
       label: { zh: "② 动作头", en: "② action head" },
       sub: {
-        zh: `扩散或流匹配\n一次一整块\n${PI0}、${SMOLVLA}、${GR00T}\n${LATE_HEAD}（后训练加上）\n${NO_VLM}（不基于 VLM）`,
-        en: `diffusion or flow\nmatching, one chunk\n${PI0}, ${SMOLVLA}, ${GR00T}\n${LATE_HEAD} (post-trained)\n${NO_VLM} (no VLM)`,
+        zh: `扩散或流匹配\n一次一整块\n${PI0}、${SMOLVLA}、${GR00T}\n${LATE_HEAD}${LATE_NOTE.zh}\n${NO_VLM}（不基于 VLM）`,
+        en: `diffusion or flow\nmatching, one chunk\n${PI0}, ${SMOLVLA}, ${GR00T}\n${LATE_HEAD}${LATE_NOTE.en}\n${NO_VLM} (no VLM)`,
       },
       tone: "c",
     },
@@ -160,22 +173,22 @@ export const vlaDataflow: BlockDiagramSpec = {
     },
     {
       label: {
-        zh: `语言模型把这些一起读入。视觉编码器和语言模型来自预训练的视觉-语言模型（${NO_VLM} 例外：它从零训练，文字由冻结的 T5 编码器处理）；与机器人相关的学习主要在动作输出和微调里。`,
-        en: `The language model reads them all together. The vision encoder and the language model come from a pretrained vision-language model (${NO_VLM} is the exception: it is trained from scratch, with a frozen T5 text encoder); the robot-specific learning is mostly in the action output and the fine-tuning.`,
+        zh: `语言模型读入图像特征和文字词元（关节状态只在 ${zhList(STATE_IN_LM)} 里进语言模型）。视觉编码器和语言模型来自预训练的视觉-语言模型（${NO_VLM} 例外：它从零训练，文字由冻结的 T5 编码器处理）；与机器人相关的学习主要在动作输出和微调里。`,
+        en: `The language model reads the image features and the text tokens (the joint state too, but only in ${andList(STATE_IN_LM)}). The vision encoder and the language model come from a pretrained vision-language model (${NO_VLM} is the exception: it is trained from scratch, with a frozen T5 text encoder); the robot-specific learning is mostly in the action output and the fine-tuning.`,
       },
       highlight: ["encoder", "feat", "tok", "text", "joint", "state", "lm"],
     },
     {
       label: {
-        zh: `做法 ①：语言模型一个接一个地生成动作词元。${RT2} 和 ${OPENVLA} 每次只输出一步（8 个和 7 个词元），每个动作维度 ${BINS} 个区间。${FAST_MODEL} 先用 DCT + BPE 把一整块压缩，每条手臂每秒约 30 个词元。本课自己的例子里，按区间编码的 1 秒（${CHUNK} 步 × ${JOINTS} 个关节）是 ${TOKENS} 个词元。`,
-        en: `Way ①: the language model generates action tokens one after another. ${RT2} and ${OPENVLA} output one step per call (8 and 7 tokens), ${BINS} bins per action dimension. ${FAST_MODEL} first compresses a whole chunk with DCT + BPE, about 30 tokens per arm per second. In this lesson's own example, ${SECONDS} s of binned actions (${CHUNK} steps × ${JOINTS} joints) is ${TOKENS} tokens.`,
+        zh: `做法 ①：语言模型一个接一个地生成动作词元。${RT2} 和 ${OPENVLA} 每次只输出一步（${STEP_TOKENS[0]} 个和 ${STEP_TOKENS[1]} 个词元），每个动作维度 ${BINS} 个区间。${FAST_MODEL} 先用 DCT + BPE 把一整块压缩，每条手臂每秒约 ${FAST_PER_ARM} 个词元。本课自己的例子里，按区间编码的 1 秒（${CHUNK} 步 × ${JOINTS} 个关节）是 ${TOKENS} 个词元。`,
+        en: `Way ①: the language model generates action tokens one after another. ${RT2} and ${OPENVLA} output one step per call (${STEP_TOKENS.join(" and ")} tokens), ${BINS} bins per action dimension. ${FAST_MODEL} first compresses a whole chunk with DCT + BPE, about ${FAST_PER_ARM} tokens per arm per second. In this lesson's own example, ${SECONDS} s of binned actions (${CHUNK} steps × ${JOINTS} joints) is ${TOKENS} tokens.`,
       },
       highlight: ["lm", "lmTok", "tokens", "tokMot", "motors"],
     },
     {
       label: {
-        zh: `做法 ②：语言模型的特征送进一个较小的网络，用扩散或流匹配一次生成一整块连续动作（${PI0}、${SMOLVLA}、${GR00T}）。${LATE_HEAD} 预训练时用 FAST 词元，后训练加上流匹配动作专家，运行时用它。${NO_VLM} 也有扩散头，但不基于视觉-语言模型。`,
-        en: `Way ②: the language model's features go into a smaller network that produces a whole chunk of continuous actions by diffusion or flow matching (${PI0}, ${SMOLVLA}, ${GR00T}). ${LATE_HEAD} is pretrained with FAST tokens and runs the flow-matching action expert added in post-training. ${NO_VLM} also has a diffusion head, but no vision-language model.`,
+        zh: `做法 ②：语言模型的特征送进一个较小的网络，用扩散或流匹配一次生成一整块连续动作（${PI0}、${SMOLVLA}、${GR00T}）。${LATE_HEAD} 预训练时只用 FAST 词元，运行时用后训练才加上的流匹配动作专家。${NO_VLM} 也有扩散头，但不基于视觉-语言模型。`,
+        en: `Way ②: the language model's features go into a smaller network that produces a whole chunk of continuous actions by diffusion or flow matching (${PI0}, ${SMOLVLA}, ${GR00T}). ${LATE_HEAD} uses FAST tokens only in pretraining and runs the flow-matching action expert added in post-training. ${NO_VLM} also has a diffusion head, but no vision-language model.`,
       },
       highlight: ["lm", "lmHead", "head", "headMot", "motors"],
     },
@@ -197,6 +210,37 @@ export const vlaDataflow: BlockDiagramSpec = {
     { node: "joint", has: [{ zh: esc(MOST.zh), en: esc(MOST.en) }], note: "joint state: only most models (lesson)" },
     { node: "lm", has: [{ zh: "预训练", en: "pretrained" }], note: "language model from a pretrained VLM" },
     { edge: "state", dashed: true, note: "joint state is optional, so its arrow is dashed" },
+    {
+      node: "head",
+      has: [{ zh: `${esc(LATE_HEAD)}${esc(LATE_NOTE.zh)}`, en: `${esc(LATE_HEAD)}${esc(LATE_NOTE.en)}` }],
+      note: "π0.5: action head only from post-training on",
+    },
+    {
+      step: 2,
+      has: [{ zh: `关节状态只在 ${zhList(STATE_IN_LM).replace(/\./g, "\\.")} 里进语言模型`, en: `only in ${esc(andList(STATE_IN_LM))}` }],
+      note: "step 2: the language model reads the joint state only in some models",
+    },
+    {
+      step: 3,
+      has: [
+        { zh: `${STEP_TOKENS[0]} 个和 ${STEP_TOKENS[1]} 个词元`, en: `\\(${STEP_TOKENS.join(" and ")} tokens\\)` },
+        { zh: `约 ${FAST_PER_ARM} 个词元`, en: `about ${FAST_PER_ARM} tokens per arm` },
+      ],
+      note: "step 3: tokens per call (RT-2 8, OpenVLA 7) and FAST's ~30 per arm",
+    },
+    {
+      step: 4,
+      has: [{ zh: `${esc(LATE_HEAD)} 预训练时只用 FAST 词元`, en: `${esc(LATE_HEAD)} uses FAST tokens only in pretraining` }],
+      note: "step 4: π0.5 qualifier",
+    },
+    {
+      caption: true,
+      has: [
+        { zh: `在 ${zhList(STATE_IN_LM).replace(/\./g, "\\.")} 里进语言模型，在 ${zhList(STATE_IN_HEAD)} 里进动作头`, en: `into the language model in ${esc(andList(STATE_IN_LM))}, and into the action head in ${esc(andList(STATE_IN_HEAD))}` },
+        { zh: `${NO_STATE.slice(0, -1).join("、")} 和发布版 ${NO_VLM} 不读`, en: `${NO_STATE.slice(0, -1).join(", ")} and the released ${NO_VLM} do not read it` },
+      ],
+      note: "caption: where the joint state goes",
+    },
   ],
   facts: [
     { file: SCRIPT, pattern: `^HZ, CHUNK, JOINTS, BINS = ${HZ}, ${CHUNK}, ${JOINTS}, ${BINS}$`, note: "constants match action_tokens.py" },
@@ -210,15 +254,15 @@ export const vlaDataflow: BlockDiagramSpec = {
     { file: ZH, pattern: `（${esc(MOST.zh)}还会读入机器人的关节状态）`, note: "zh: joint state in most models" },
     { file: EN, pattern: `The first two come from a pretrained vision-language model \\(in every model below except ${NO_VLM}\\)`, note: "en: encoder + LM pretrained, except Octo" },
     { file: ZH, pattern: `前两部分来自预训练好的视觉-语言模型（下面除 ${NO_VLM} 外的模型都是如此）`, note: "zh: encoder + LM pretrained, except Octo" },
-    { file: EN, pattern: `${RT2} and ${OPENVLA} work like this, one action step per call \\(8 and 7 tokens\\); ${esc(FAST_MODEL)} does too, but its tokeniser, FAST, compresses a whole chunk first`, note: "en: token models, π0-FAST on whole chunks" },
-    { file: ZH, pattern: `${RT2} 和 ${OPENVLA} 是这样做的，每次调用输出一步动作（分别是 8 个和 7 个词元）；${esc(FAST_MODEL)} 也是，但它的分词器 FAST 会先把一整块动作压缩`, note: "zh: token models, π0-FAST on whole chunks" },
-    { file: EN, pattern: `by diffusion or flow matching[^\\n]*${HEAD_MODELS.slice(0, -1).map(esc).join(", ")} and ${GR00T} work like this\\. ${esc(LATE_HEAD)} is pretrained with FAST tokens, gets a flow-matching action expert in post-training`, note: "en: action-head models, π0.5 qualified" },
-    { file: ZH, pattern: `通过扩散或流匹配[^\\n]*${HEAD_MODELS.slice(0, -1).map(esc).join("、")} 和 ${GR00T} 是这样做的。${esc(LATE_HEAD)} 预训练时用 FAST 词元，后训练时加上流匹配动作专家`, note: "zh: action-head models, π0.5 qualified" },
+    { file: EN, pattern: `${RT2} and ${OPENVLA} work like this, one action step per call \\(${STEP_TOKENS.join(" and ")} tokens\\); ${esc(FAST_MODEL)} does too, but its tokeniser, FAST, compresses a whole chunk first`, note: "en: token models, π0-FAST on whole chunks" },
+    { file: ZH, pattern: `${RT2} 和 ${OPENVLA} 是这样做的，每次调用输出一步动作（分别是 ${STEP_TOKENS[0]} 个和 ${STEP_TOKENS[1]} 个词元）；${esc(FAST_MODEL)} 也是，但它的分词器 FAST 会先把一整块动作压缩`, note: "zh: token models, π0-FAST on whole chunks" },
+    { file: EN, pattern: `by diffusion or flow matching[^\\n]*${HEAD_MODELS.slice(0, -1).map(esc).join(", ")} and ${GR00T} work like this\\. ${esc(LATE_HEAD)} is pretrained on FAST tokens only, gets a flow-matching action expert in post-training`, note: "en: action-head models, π0.5 qualified" },
+    { file: ZH, pattern: `通过扩散或流匹配[^\\n]*${HEAD_MODELS.slice(0, -1).map(esc).join("、")} 和 ${GR00T} 是这样做的。${esc(LATE_HEAD)} 预训练时只用 FAST 词元，后训练时加上流匹配动作专家`, note: "zh: action-head models, π0.5 qualified" },
     { file: EN, pattern: `${NO_VLM} also has a diffusion head but no vision-language model: it is a small transformer trained from scratch, with a frozen T5 text encoder`, note: "en: Octo has no VLM" },
     { file: ZH, pattern: `${NO_VLM} 也有扩散动作头，但没有视觉-语言模型：它是一个从零训练的小型 Transformer，文字由冻结的 T5 编码器处理`, note: "zh: Octo has no VLM" },
     { file: EN, pattern: `\\| ${NO_VLM} \\| [^|]*\\| small transformer trained from scratch \\(no vision-language model\\)`, note: "en table: Octo has no VLM" },
     { file: ZH, pattern: `\\| ${NO_VLM} \\| [^|]*\\| 从零训练的小型 Transformer（没有视觉-语言模型）`, note: "zh table: Octo has no VLM" },
-    { file: EN, pattern: `${esc(LATE_HEAD)} is pretrained with FAST tokens and adds the action expert in post-training \\|`, note: "en table: π0.5 qualified" },
-    { file: ZH, pattern: `${esc(LATE_HEAD)} 预训练用 FAST 词元，后训练加上动作专家 \\|`, note: "zh table: π0.5 qualified" },
+    { file: EN, pattern: `${esc(LATE_HEAD)} is pretrained on FAST tokens only and adds the action expert in post-training \\|`, note: "en table: π0.5 qualified" },
+    { file: ZH, pattern: `${esc(LATE_HEAD)} 预训练只用 FAST 词元，后训练加上动作专家 \\|`, note: "zh table: π0.5 qualified" },
   ],
 };
