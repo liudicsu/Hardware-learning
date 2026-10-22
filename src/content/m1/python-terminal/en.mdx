@@ -74,7 +74,7 @@ env | grep ROBOT
 
 After `mkdir -p`, `cd` succeeds even though the parent folder did not exist. `grep -n` prints the matching line with a number. `wc -l` prints `2 notes.txt`: two lines, because you appended. `export` makes `ROBOT_NAME` visible to programs started from this shell, so `echo "$ROBOT_NAME"` prints `rover1` and `env | grep ROBOT` finds it in the environment list.
 
-Environment variables configure robot software in practice: a launch file may read `ROBOT_NAME`, and a ROS 2 session needs `source /opt/ros/.../setup.bash` to put commands on the path. `export` affects only the current shell and its children, so it disappears when you close the terminal. `ssh pi@192.168.1.42` opens a shell on the Pi, where everything here works the same.
+Environment variables configure robot software in practice: a launch file may read `ROBOT_NAME`, and a ROS 2 session needs `source /opt/ros/.../setup.bash` to put commands on the <Term id="path">path</Term>. `export` affects only the current shell and its children, so it disappears when you close the terminal. `ssh pi@192.168.1.42` opens a shell on the Pi, where everything here works the same.
 
 ## Virtual environments and pip
 
@@ -113,9 +113,97 @@ Two rules. **Never commit `.venv` to Git**: it contains binaries and absolute pa
 
 <Quiz id="q1" question="What does activating a venv do?" options={["Installs Python", "Makes python and pip in this shell point to the project's isolated environment", "Uploads packages to PyPI"]} answer={1} explanation="Activation changes the shell's PATH so python and pip resolve inside the project folder. It does not install Python, and it does not publish anything." />
 
+## Python in ten minutes
+
+These six snippets use the values from this lesson's scripts, so you can run each one and compare the output with the explanation.
+
+**Variables and the four basic types.** A <Term id="variable-type">variable</Term> is a name bound to a value; `nominal = 4700` is an int, `volts = 5.0` a float, `part = "R1"` a str and `ok = True` a bool.
+
+```python
+nominal = 4700
+volts = 5.0
+part = "R1"
+ok = True
+print(type(nominal))
+```
+
+```text
+<class 'int'>
+```
+
+**Arithmetic and f-strings.** The 5 V across 220 Ω from ohm.py gives 22.7 mA:
+
+```python
+volts = 5.0
+ma = volts / 220 * 1000
+print(f"{ma:.1f} mA")
+```
+
+```text
+22.7 mA
+```
+
+**Lists and a for loop.** The two log.py runs measure R1 at 4688 Ω and then at 4400 Ω; the relative error of each is:
+
+```python
+nominal = 4700
+measured = [4688, 4400]
+for m in measured:
+    print(f"{abs(m - nominal) / nominal:.3%}")
+```
+
+```text
+0.255%
+6.383%
+```
+
+**if/else.** The 5 % tolerance flags each measurement:
+
+```python
+nominal = 4700
+measured = [4688, 4400]
+for m in measured:
+    error = abs(m - nominal) / nominal
+    if error > 0.05:
+        print(f"{m} OUT")
+    else:
+        print(f"{m} OK")
+```
+
+```text
+4688 OK
+4400 OUT
+```
+
+**Dictionaries.** A dict holds one measurement by name:
+
+```python
+r = {"part": "R1", "nominal": 4700, "measured": 4688}
+print(r["measured"])
+```
+
+```text
+4688
+```
+
+**Functions.** `*ohms` collects the arguments and `sum` adds them:
+
+```python
+def series(*ohms):
+    return sum(ohms)
+
+print(series(1000, 4700))
+```
+
+```text
+5700
+```
+
+The [Python syntax used in this course](#python-syntax-used-in-this-course) table at the end of the lesson maps each construct to a script, and the official [Python Tutorial](https://docs.python.org/3/tutorial/) covers the same material in more depth.
+
 ## A command-line tool in Python: ohm.py
 
-This script computes current from voltage and resistance, and the output of a two-resistor divider. It uses `argparse` with two subcommands. Create `ohm.py`:
+This script computes current from voltage and resistance, and the output of a two-resistor divider. It uses <Term id="argparse">`argparse`</Term> with two subcommands. Create `ohm.py`:
 
 <CodeSource path="examples/month-1/python-terminal/ohm.py" />
 
@@ -575,3 +663,19 @@ Before moving on, you should be able to answer "yes" to all of these:
 - I ran `log.py`, looked inside `measurements.json`, and can explain the tolerance check.
 - I can read a traceback bottom-up and say what `ValueError`, `ModuleNotFoundError` and `IndentationError` mean.
 - I know why `.venv` must never be committed, and I have a plan for the CS50P problem sets.
+
+<Summary>
+
+**Key points**
+
+- A venv is a private folder with its own Python link and packages: activate it, install with `python -m pip`, freeze to `requirements.txt`, and never commit `.venv`.
+- `ohm.py current --volts 5 --ohms 220` prints `22.7 mA`, and `ohm.py divider --vin 5 --r1 10000 --r2 4700` prints `1.599 V`.
+- `resistors.py` shows that 1 kΩ ±5 % and 4.7 kΩ ±5 % in series give 5415–5985 Ω, and that two 10 kΩ resistors in parallel give 5 kΩ.
+- `log.py` records R1 at 4700 Ω nominal and 4688 Ω measured, checks the 5 % tolerance, and reports 4400 Ω as out of tolerance.
+- Read a traceback bottom-up: the last line names the error and the frames show where it happened.
+
+**Used next**
+
+- The next lesson, **Git & GitHub**, puts the month-1 scripts in a repository and tracks every change.
+
+</Summary>

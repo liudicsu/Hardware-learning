@@ -116,6 +116,10 @@ Memorise this table; you will use it every time you put the iron down.
 | Lifted pad | The copper pad has peeled off the board | Overheating, or prying while hot | Wire the lead to the trace |
 | Disturbed joint | Torn, smeared surface | Moved as the solder set | Reheat until it flows, then hold still |
 
+![Cross-sections of seven solder joints: 1 good concave fillet, 2 cold grainy joint, 3 too much solder hiding the lead, 4 too little solder with a bare pad, 5 bridge joining two pads and leads, 6 lifted pad with its outer edge off the board, 7 disturbed torn joint with a crack](/m1/solder-joints-en.svg)
+
+Cross-sections of the seven joints in the table (drawing for this course). Simplified: through-hole plating and solder inside the hole are not drawn.
+
 Two points to note when judging a joint. **Lead-free joints look slightly duller naturally** — judge a SAC305 joint by its smooth concave shape before its shine. Also, **most problems beginners attribute to the iron are solved by flux**: a grey, grainy joint needs a dab of flux and a second pass, not a hotter dial.
 
 <Quiz id="q2" question="A joint is dull, grainy and lumpy. Most likely?" options={["Cold joint — reheat with a little flux", "Perfect lead-free joint", "Solder bridge"]} answer={0} explanation="Dull, grainy and lumpy is the classic cold joint: the solder never fully wet the surfaces. Reheat for 2–3 s with flux. A bridge is a smooth bar spanning two pads." />
@@ -137,6 +141,27 @@ The right practice task: headers are cheap, a breakout gives you a row of identi
 No beep on a pin-to-pad test means a cold joint, a lifted pad or a forgotten pin; a beep between neighbours means a bridge — the next question.
 
 <Quiz id="q3" question="Two adjacent header pins beep in continuity mode and they should not be connected. What happened?" options={["The meter is broken", "A solder bridge between them", "Cold joint"]} answer={1} explanation="Two nets that beep together are physically joined — that is a solder bridge. Drag a clean, tinned tip through flux across the gap, or lift the excess with braid, then test again." />
+
+## Wires and motor leads
+
+Wire choice follows how the wire is used. **Solid-core wire** suits breadboards and plated through-holes, where it holds its shape and seats in a contact. **Stranded wire** suits every place that moves or flexes, such as the robot arm or a wheel module, because stranded wire is much more flexible than solid wire of the same size.
+
+Wire gauge sets current capacity: thicker wire carries more current, so motor and battery leads are thicker than signal leads. The SparkFun [Working with Wire](https://learn.sparkfun.com/tutorials/working-with-wire/all) tutorial uses 22 AWG for prototyping.
+
+Soldering a lead to a Month 2 gearmotor terminal tab:
+
+1. **Strip about 6 mm (1/4 in)** with the stripper notch that matches the gauge. A nicked or cut strand weakens the wire; cut it off and strip again.
+2. **Twist the strands and tin the end.**
+3. **Slide heat-shrink onto the wire before soldering**, away from the joint.
+4. **Heat the tab and the tinned wire together**, feed solder, and hold still while it sets.
+5. **Slide the heat-shrink over the joint and shrink it.**
+6. **Run a continuity test** from the wire end to the tab (The bench, tool budget & the multimeter), and check that no strand touches the neighbouring tab.
+
+<Callout type="warn" title="Strain relief on stranded leads">
+A solder joint at the end of a tinned stranded wire is rigid and can fracture under repeated bending and thermal cycling. Add strain relief, fixing the cable close to the joint, on anything that moves.
+</Callout>
+
+Month 2 (Motors, drivers & your first encoder loop) also solders a 100 nF capacitor across the motor terminals.
 
 ## Desoldering and rework
 
@@ -169,3 +194,20 @@ Common mistakes that produce bad boards:
 - Leaving the iron on a joint for ten seconds, which easily lifts the pad.
 - Skipping the tinning routine, after which the tip oxidises and turns black.
 - Trusting your eyes alone: inspect under a light and confirm with the meter before powering up.
+
+<Summary>
+
+**Key points**
+
+- A working tip sits at about 350 °C: set ≈ 320–350 °C for 63/37 leaded solder, which melts at 183 °C, and ≈ 350–380 °C for SAC305 lead-free solder, which melts at 217–220 °C.
+- Heat the pad and lead together for 1–2 s, feed solder into the joint, remove the solder, remove the iron and hold still while the joint sets.
+- A good joint is a small concave fillet that wets the pad and climbs the lead; compare every result with the seven rows of the joint table.
+- Solid-core wire suits breadboards and plated through-holes; stranded wire suits anything that flexes, and motor leads need heat-shrink and strain relief.
+- Trim leads flush, inspect under a light, and continuity-test each pin to its own pad and against its neighbours.
+
+**Used next**
+
+- The next lesson, **Python & the terminal**, turns the measurements and calculations from the bench into scripts.
+- Month 2 solders motor leads and adds a 100 nF capacitor across the motor terminals.
+
+</Summary>

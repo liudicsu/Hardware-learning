@@ -6,11 +6,11 @@ Git is the version-control tool; GitHub is a website that hosts Git repositories
 
 ## The mental model: snapshots, three areas, and a moving label
 
-A **commit** is a snapshot of the whole project at one moment, plus a message, an author, a timestamp and a pointer to its parent. Git stores snapshots and computes differences when you ask, so you can always return to a complete working state.
+A **<Term id="commit">commit</Term>** is a snapshot of the whole project at one moment, plus a message, an author, a timestamp and a pointer to its parent. Git stores snapshots and computes differences when you ask, so you can always return to a complete working state.
 
-Three areas matter: the **working directory** (files on disk, including unstaged edits), the **staging area** or index (a draft of the next commit, filled by `git add`), and the **repository** (the `.git` folder, where commits live). `git commit` turns whatever is staged into a new commit; unstaged edits stay out. That is the most useful idea in Git: **you choose what goes into each snapshot.**
+Three areas matter: the **working directory** (files on disk, including unstaged edits), the **<Term id="staging-area">staging area</Term>** or index (a draft of the next commit, filled by `git add`), and the **repository** (the `.git` folder, where commits live). `git commit` turns whatever is staged into a new commit; unstaged edits stay out. That is the most useful idea in Git: **you choose what goes into each snapshot.**
 
-A **branch** is a movable label pointing at one commit. `main` is the default. Committing on a branch moves its label forward. A branch is not a folder copy; it is a name, which is why creating one is instant. **HEAD** means where you are: normally it points to a branch, which points to a commit. If HEAD points directly at a commit, you are in detached HEAD state.
+A **<Term id="branch">branch</Term>** is a movable label pointing at one commit. `main` is the default. Committing on a branch moves its label forward. A branch is not a folder copy; it is a name, which is why creating one is instant. **HEAD** means where you are: normally it points to a branch, which points to a commit. If HEAD points directly at a commit, you are in detached HEAD state.
 
 <Diagram id="git-areas" />
 
@@ -53,6 +53,22 @@ ssh -T git@github.com
 ```
 
 The first connection asks whether to trust the host; type `yes`. A reply like `Hi <username>! You've successfully authenticated, but GitHub does not provide shell access.` is a success; the last part is normal.
+
+## Cloning the course repository
+
+The course repository holds every script quoted in Months 1–6. Clone it once, then run the scripts from `examples/`:
+
+```bash
+git clone https://github.com/liudicsu/Hardware-learning.git
+cd Hardware-learning/examples/month-1
+git log --oneline -5
+```
+
+The command creates a folder named `Hardware-learning` with the full history. `git log --oneline -5` shows the latest five commits; the output differs from day to day, so it is not reproduced here. Later, `git pull` fetches and merges new commits from the <Term id="remote">remote</Term>.
+
+Keep your own work in your own repository (the next sections), not inside the <Term id="clone">clone</Term>.
+
+For the background, read Pro Git §2.1, [Getting a Git Repository](https://git-scm.com/book/en/v2/Git-Basics-Getting-a-Git-Repository).
 
 ## The everyday loop: edit, stage, commit
 
@@ -383,3 +399,21 @@ Before moving on, can you answer "yes" to all of these?
 - I resolved a conflict by hand and know why `git add` comes before `git commit`.
 - My README has a photo, parts list, wiring table, run commands and a factual "what broke" paragraph.
 - I can choose the right undo, and I know why secrets are rotated and videos do not belong in Git.
+
+<Summary>
+
+**Key points**
+
+- A repository is a project folder plus its full history; a commit is a snapshot of the whole project with a message, author, timestamp and parent.
+- The three areas are the working directory, the staging area (index) and the repository; `git add` fills the staging area and `git commit` records it.
+- `git push -u origin main` uploads `main` and sets `origin/main` as its upstream; `git pull` fetches and integrates remote commits.
+- A branch is a movable label; merging a branch that `main` has not outgrown is a fast-forward, and both branches with new commits produce a merge commit.
+- A conflict is marked with `<<<<<<<`, `=======` and `>>>>>>>`; edit the file, delete the markers, then `git add` and `git commit`.
+- The undo table covers `git restore`, `git restore --staged`, `git commit --amend`, `git switch --detach`, `git revert` and `git reflog`.
+- `git clone https://github.com/liudicsu/Hardware-learning.git` copies the course repository with the full history, and every Month 1–6 script runs from its `examples/` folder.
+
+**Used next**
+
+- Month 2, Arduino basics: digital & analog IO, PWM and serial debugging, keeps every sketch in a repository, so each change is a commit you can compare and revert.
+
+</Summary>

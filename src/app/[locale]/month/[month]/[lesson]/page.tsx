@@ -140,7 +140,7 @@ export default async function LessonPage({ params }: Params) {
           alt={term.term[loc === "zh" ? "en" : "zh"]}
           def={tr(term.def, locale)}
           lessonHref={lessonHref(term.lesson)}
-          lessonLabel={tg("taughtIn", { lesson: taught ? tr(taught.lesson.title, locale) : term.lesson })}
+          lessonLabel={tg(term.firstExplained ? "firstExplainedIn" : "taughtIn", { lesson: taught ? tr(taught.lesson.title, locale) : term.lesson })}
           glossaryLabel={tg("title")}
           closeLabel={tg("close")}
         >

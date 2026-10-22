@@ -2,7 +2,8 @@ import type { L10n } from "./types";
 
 /**
  * Course glossary. One entry per term; `lesson` is the slug of the lesson where the term is used or explained
- * (linked from the popover and the /glossary page as the related lesson).
+ * (linked from the popover and the /glossary page as the related lesson). `firstExplained: true` marks entries whose
+ * `lesson` has been checked to be the lesson that first explains the term; their popover reads "First explained in".
  * zh and en names here are the canonical translations used across the site.
  * Definitions are short, precise and use the course's own hardware (SO-101, Uno, ESP32-S3, m4bot).
  */
@@ -11,6 +12,7 @@ export interface GlossaryEntry {
   term: L10n;
   def: L10n;
   lesson: string;
+  firstExplained?: boolean;
 }
 
 export const glossary: GlossaryEntry[] = [
@@ -121,6 +123,7 @@ export const glossary: GlossaryEntry[] = [
       en: "A component that stores energy in a magnetic field and resists changes in current according to V = L × di/dt. A motor winding is an inductor, and interrupting its current produces a kickback spike far above the supply voltage.",
     },
     lesson: "components",
+    firstExplained: true,
   },
   {
     id: "diode",
@@ -202,6 +205,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The parasitic resistance in series with a capacitor; ripple current through it causes voltage drop and heating. Ceramic decoupling capacitors have very low ESR, while the bulk electrolytic near a motor driver has higher ESR, so the two are not interchangeable.",
     },
     lesson: "components",
+    firstExplained: true,
   },
   {
     id: "pull-up-pull-down",
@@ -229,6 +233,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The impedance an instrument presents at its input; a voltmeter's input impedance is very high, so measuring in parallel draws almost no current and barely disturbs the circuit. A current range is the opposite, using a low-resistance shunt and requiring a series connection.",
     },
     lesson: "bench-multimeter",
+    firstExplained: true,
   },
   {
     id: "cat-rating",
@@ -238,6 +243,7 @@ export const glossary: GlossaryEntry[] = [
       en: "A safety classification of a multimeter by the transient overvoltage at its measurement location (CAT II, CAT III, CAT IV and so on), separate from its range. Measuring mains or distribution circuits requires the matching category, including probes and fuses rated for it.",
     },
     lesson: "bench-multimeter",
+    firstExplained: true,
   },
   {
     id: "rms",
@@ -390,7 +396,8 @@ export const glossary: GlossaryEntry[] = [
       zh: "数字输入判定高、低电平的电压门限：高于 VIH 读为高，低于 VIL 读为低，两者之间没有定义。阈值随芯片电源而变，所以 5 V 器件输出不能直接送进不耐 5 V 的 ESP32-S3 输入。",
       en: "The voltage limits at which a digital input decides high or low: above VIH it reads high, below VIL it reads low, and between them the result is undefined. The thresholds follow the chip's supply, so a 5 V output cannot drive a 5 V-intolerant ESP32-S3 input directly.",
     },
-    lesson: "arduino-io",
+    lesson: "components",
+    firstExplained: true,
   },
   {
     id: "high-impedance",
@@ -616,6 +623,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The signed-integer encoding in which the most significant bit has negative weight, so the same bits represent both positive and negative values. MPU-6050 readings are signed 16-bit and must be received as int16_t, otherwise −262 becomes a huge positive number.",
     },
     lesson: "sensors-fusion",
+    firstExplained: true,
   },
   {
     id: "gyro-bias",

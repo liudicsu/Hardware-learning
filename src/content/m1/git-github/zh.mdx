@@ -6,17 +6,17 @@ Git 是版本控制工具，GitHub 是托管 Git 仓库的网站。Git 在本地
 
 ## 心智模型：快照、三个区域和一个会移动的标签
 
-**提交（commit）** 是项目在某一刻的完整快照，加上一条说明、作者、时间，以及指向上一个提交（父提交，parent）的指针。Git 主要存的不是“差异”，而是快照；需要时才计算差异。所以任何一次提交都对应一个完整、可返回的状态。
+**<Term id="commit">提交（commit）</Term>** 是项目在某一刻的完整快照，加上一条说明、作者、时间，以及指向上一个提交（父提交，parent）的指针。Git 主要存的不是“差异”，而是快照；需要时才计算差异。所以任何一次提交都对应一个完整、可返回的状态。
 
 要分清三个区域：
 
 - **工作区（working directory）**：磁盘上此刻的文件，包括还没暂存的修改。
-- **暂存区（staging area / index）**：下一次提交的草稿。`git add` 把文件当前的内容复制进去。
+- **<Term id="staging-area">暂存区</Term>（staging area / index）**：下一次提交的草稿。`git add` 把文件当前的内容复制进去。
 - **仓库（repository）**：`.git` 目录，提交永久存放在这里。
 
 `git commit` 把暂存区里的内容做成新提交；改了但没暂存的内容留在工作区，不会进去。这是 Git 最有用的一个概念：**每一次快照里放什么，由你决定。**
 
-**分支（branch）** 是一个指向某个提交的可移动标签。`main` 是默认分支。在分支上提交，标签自动向前移动。分支不是文件夹的副本，只是一个名字，所以创建几乎瞬间完成。**HEAD** 表示“你现在在哪”：通常它指向一个分支，分支再指向提交；如果 HEAD 直接指向某个提交，就是分离头指针状态（detached HEAD）。
+**<Term id="branch">分支（branch）</Term>** 是一个指向某个提交的可移动标签。`main` 是默认分支。在分支上提交，标签自动向前移动。分支不是文件夹的副本，只是一个名字，所以创建几乎瞬间完成。**HEAD** 表示“你现在在哪”：通常它指向一个分支，分支再指向提交；如果 HEAD 直接指向某个提交，就是分离头指针状态（detached HEAD）。
 
 <Diagram id="git-areas" />
 
@@ -59,6 +59,22 @@ ssh -T git@github.com
 ```
 
 第一次连接会问是否信任主机，输入 `yes`。看到类似 `Hi <username>! You've successfully authenticated, but GitHub does not provide shell access.` 就成功了，最后一句“不提供 shell”是正常现象。
+
+## 克隆课程仓库
+
+课程仓库保存了第 1–6 个月引用的每个脚本。克隆一次，然后从 `examples/` 里运行：
+
+```bash
+git clone https://github.com/liudicsu/Hardware-learning.git
+cd Hardware-learning/examples/month-1
+git log --oneline -5
+```
+
+这条命令会创建名为 `Hardware-learning` 的文件夹，里面带完整历史。`git log --oneline -5` 显示最近五个提交；输出每天都会不同，所以这里不贴结果。之后 `git pull` 会从<Term id="remote">远程仓库</Term>取回并合并新的提交。
+
+你自己的作品放在自己的仓库里（接下来几节），不要放进<Term id="clone">克隆</Term>下来的副本。
+
+背景阅读：Pro Git 第 2.1 节，[Getting a Git Repository](https://git-scm.com/book/en/v2/Git-Basics-Getting-a-Git-Repository)。
 
 ## 日常循环：改、暂存、提交
 
@@ -391,3 +407,21 @@ Git 会保存每个文件的每个版本，所以一个 100 MB 的视频即使�
 - 我手动解决过一次冲突，知道为什么先 `git add` 再 `git commit`。
 - 我的 README 有照片、元件清单、接线表、运行命令，以及如实的“出了什么问题”一段。
 - 我能选对撤销命令，也知道密钥为什么要轮换、大视频为什么不进 Git。
+
+<Summary>
+
+**本课要点**
+
+- 仓库是项目文件夹加上完整历史；提交是项目在某一刻的完整快照，带说明、作者、时间和父提交。
+- 三个区域是工作区、暂存区（索引）和仓库；`git add` 填充暂存区，`git commit` 把暂存区记录成提交。
+- `git push -u origin main` 上传 `main` 并把 `origin/main` 设为上游；`git pull` 取回并整合远程提交。
+- 分支是指向提交的可移动标签；`main` 没有前进时合并是快进，两边都有新提交时产生合并提交。
+- 冲突用 `<<<<<<<`、`=======`、`>>>>>>>` 标记；手动编辑文件、删掉标记，再 `git add` 和 `git commit`。
+- 撤销速查表覆盖 `git restore`、`git restore --staged`、`git commit --amend`、`git switch --detach`、`git revert` 和 `git reflog`。
+- `git clone https://github.com/liudicsu/Hardware-learning.git` 复制课程仓库及完整历史，第 1–6 个月的每个脚本都从它的 `examples/` 目录运行。
+
+**下一课会用到**
+
+- 第 2 个月的 Arduino 入门：数字/模拟 IO、PWM 与串口调试把每份 sketch 都放进仓库，每次改动都是一个可以对比和撤销的提交。
+
+</Summary>

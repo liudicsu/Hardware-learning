@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 370" width="480" height="370" role="img" aria-labelledby="title desc">
+  <title id="title">七种焊点的横截面</title>
+  <desc id="desc">七个简化横截面：1 好，凹形焊脚；2 冷焊，颗粒状锡团；3 锡过多，凸起的锡球；4 锡过少，焊盘露出；5 桥连，一团锡连接两个焊盘和引脚；6 焊盘翘起，焊盘外缘脱离板面；7 扰动焊点，表面撕裂并有裂纹。未画出孔壁镀层和孔内焊料。</desc>
+  <rect width="480" height="370" fill="#ffffff"/>
+  <g transform="translate(60,-74)">
+    <rect x="-55" y="148" width="110" height="57" fill="#d4d4d8" stroke="#52525b" stroke-width="1.5"/>
+    <rect x="-8" y="148" width="16" height="57" fill="#a1a1aa" stroke="#52525b" stroke-width="1"/>
+    <rect x="-42" y="140" width="84" height="8" rx="2" fill="#f59e0b" stroke="#b45309" stroke-width="1"/>
+    <rect x="-5" y="85" width="10" height="125" fill="#3f3f46" stroke="#27272a" stroke-width="1"/>
+    <path d="M -34 140 C -18 139 -6 130 -5 108 L -5 140 Z" fill="#cbd5e1" stroke="#64748b" stroke-width="1"/>
+    <path d="M 5 140 L 5 108 C 6 130 18 139 34 140 Z" fill="#cbd5e1" stroke="#64748b" stroke-width="1"/>
+    <text x="0" y="232" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#18181b">1 好</text>
+  </g>
+  <g transform="translate(180,-74)">
+    <rect x="-55" y="148" width="110" height="57" fill="#d4d4d8" stroke="#52525b" stroke-width="1.5"/>
+    <rect x="-8" y="148" width="16" height="57" fill="#a1a1aa" stroke="#52525b" stroke-width="1"/>
+    <rect x="-42" y="140" width="84" height="8" rx="2" fill="#f59e0b" stroke="#b45309" stroke-width="1"/>
+    <rect x="-5" y="85" width="10" height="125" fill="#3f3f46" stroke="#27272a" stroke-width="1"/>
+    <path d="M -23 140 C -22 132 -18 134 -16 127 C -13 120 -9 126 -6 118 C -3 111 1 117 4 112 C 8 118 11 113 14 121 C 17 127 20 131 23 140 Z" fill="#cbd5e1" stroke="#64748b" stroke-width="1.2" stroke-dasharray="3 2"/>
+    <circle cx="-11" cy="132" r="1.1" fill="#64748b"/>
+    <circle cx="8" cy="134" r="1" fill="#64748b"/>
+    <circle cx="-2" cy="126" r="0.9" fill="#64748b"/>
+    <text x="0" y="232" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#18181b">2 冷焊</text>
+  </g>
+  <g transform="translate(300,-74)">
+    <rect x="-55" y="148" width="110" height="57" fill="#d4d4d8" stroke="#52525b" stroke-width="1.5"/>
+    <rect x="-8" y="148" width="16" height="57" fill="#a1a1aa" stroke="#52525b" stroke-width="1"/>
+    <rect x="-42" y="140" width="84" height="8" rx="2" fill="#f59e0b" stroke="#b45309" stroke-width="1"/>
+    <rect x="-5" y="85" width="10" height="125" fill="#3f3f46" stroke="#27272a" stroke-width="1"/>
+    <path d="M -40 140 C -44 112 -30 82 -16 80 C -8 79 8 79 16 80 C 30 82 44 112 40 140 Z" fill="#cbd5e1" stroke="#64748b" stroke-width="1"/>
+    <text x="0" y="232" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#18181b">3 锡过多</text>
+  </g>
+  <g transform="translate(420,-74)">
+    <rect x="-55" y="148" width="110" height="57" fill="#d4d4d8" stroke="#52525b" stroke-width="1.5"/>
+    <rect x="-8" y="148" width="16" height="57" fill="#a1a1aa" stroke="#52525b" stroke-width="1"/>
+    <rect x="-42" y="140" width="84" height="8" rx="2" fill="#f59e0b" stroke="#b45309" stroke-width="1"/>
+    <rect x="-5" y="85" width="10" height="125" fill="#3f3f46" stroke="#27272a" stroke-width="1"/>
+    <path d="M -14 140 C -12 133 -8 129 -5 127 L -5 140 Z" fill="#cbd5e1" stroke="#64748b" stroke-width="1"/>
+    <path d="M 5 140 L 5 127 C 8 129 12 133 14 140 Z" fill="#cbd5e1" stroke="#64748b" stroke-width="1"/>
+    <text x="0" y="232" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#18181b">4 锡过少</text>
+  </g>
+  <g transform="translate(120,111)">
+    <rect x="-55" y="148" width="110" height="57" fill="#d4d4d8" stroke="#52525b" stroke-width="1.5"/>
+    <rect x="-35" y="148" width="16" height="57" fill="#a1a1aa" stroke="#52525b" stroke-width="1"/>
+    <rect x="19" y="148" width="16" height="57" fill="#a1a1aa" stroke="#52525b" stroke-width="1"/>
+    <rect x="-50" y="140" width="46" height="8" rx="2" fill="#f59e0b" stroke="#b45309" stroke-width="1"/>
+    <rect x="4" y="140" width="46" height="8" rx="2" fill="#f59e0b" stroke="#b45309" stroke-width="1"/>
+    <rect x="-32" y="85" width="10" height="125" fill="#3f3f46" stroke="#27272a" stroke-width="1"/>
+    <rect x="22" y="85" width="10" height="125" fill="#3f3f46" stroke="#27272a" stroke-width="1"/>
+    <path d="M -48 140 C -46 122 -38 112 -28 112 C -12 112 -8 122 0 122 C 8 122 12 112 28 112 C 38 112 46 122 48 140 Z" fill="#cbd5e1" stroke="#64748b" stroke-width="1"/>
+    <text x="0" y="232" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#18181b">5 桥连</text>
+  </g>
+  <g transform="translate(240,111)">
+    <rect x="-55" y="148" width="110" height="57" fill="#d4d4d8" stroke="#52525b" stroke-width="1.5"/>
+    <rect x="-8" y="148" width="16" height="57" fill="#a1a1aa" stroke="#52525b" stroke-width="1"/>
+    <rect x="-42" y="140" width="37" height="8" rx="2" fill="#f59e0b" stroke="#b45309" stroke-width="1"/>
+    <path d="M 5 140 L 42 126 L 42 134 L 5 148 Z" fill="#f59e0b" stroke="#b45309" stroke-width="1" stroke-linejoin="round"/>
+    <rect x="-5" y="85" width="10" height="125" fill="#3f3f46" stroke="#27272a" stroke-width="1"/>
+    <path d="M -34 140 C -18 139 -6 130 -5 108 L -5 140 Z" fill="#cbd5e1" stroke="#64748b" stroke-width="1"/>
+    <path d="M 5 140 L 5 108 C 6 124 14 131 28 131.3 Z" fill="#cbd5e1" stroke="#64748b" stroke-width="1"/>
+    <text x="0" y="232" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#18181b">6 焊盘翘起</text>
+  </g>
+  <g transform="translate(360,111)">
+    <rect x="-55" y="148" width="110" height="57" fill="#d4d4d8" stroke="#52525b" stroke-width="1.5"/>
+    <rect x="-8" y="148" width="16" height="57" fill="#a1a1aa" stroke="#52525b" stroke-width="1"/>
+    <rect x="-42" y="140" width="84" height="8" rx="2" fill="#f59e0b" stroke="#b45309" stroke-width="1"/>
+    <rect x="-5" y="85" width="10" height="125" fill="#3f3f46" stroke="#27272a" stroke-width="1"/>
+    <path d="M -32 140 L -30 128 C -26 126 -24 134 -20 126 L -16 134 L -12 120 L -8 130 L -4 114 L 0 128 L 4 118 L 8 132 L 12 121 C 16 127 18 134 22 126 C 26 130 29 135 32 140 Z" fill="#cbd5e1" stroke="#64748b" stroke-width="1"/>
+    <path d="M -8 138 L -4 128 L 1 135 L 5 123" fill="none" stroke="#334155" stroke-width="1.5" stroke-linecap="round"/>
+    <text x="0" y="232" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#18181b">7 扰动焊点</text>
+  </g>
+</svg>

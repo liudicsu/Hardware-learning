@@ -1,6 +1,6 @@
 ## The budget ladder: spend only what the next step requires
 
-Beginners rarely stop because the material is too difficult; more often they lose the budget to equipment they cannot use yet, or they delay while waiting for a complete bench. The solution is to spend in stages: each tier below is complete in itself and corresponds to a specific next step. Tier 0 requires no spending and can start today; move to the next tier only when the current one limits the next step.
+Beginners rarely stop because the material is too difficult; more often they lose the budget to equipment they cannot use yet, or they postpone hands-on work while waiting for a complete bench. The solution is to spend in stages: each tier below is complete in itself and corresponds to a specific next step. Tier 0 requires no spending and can start today; move to the next tier only when the current one limits the next step.
 
 | Tier | Roughly | What you get | When |
 |------|---------|--------------|------|
@@ -31,15 +31,15 @@ No store is best at everything. These vendors trade off price, delivery speed an
 Skip the stores above for your first kit: 淘宝/天猫 and 立创商城（LCSC）are the local fast-and-cheap equivalents — LCSC is also one of the big international component distributors, with genuine datasheets for every part. Buy the starter kit from a well-reviewed seller (look at the review count, not the price), and replacement passives from LCSC directly.
 </Callout>
 
-One piece of advice overrides the rest: for your **first** order, pay a little more for speed and a reputable seller, so you can start within days instead of waiting a month. Initial motivation declines over time; a kit that arrives on time turns Tier 0 theory into practice. Once you know which parts you regularly damage, optimize for price.
+One piece of advice overrides the rest: for your **first** order, pay a little more for speed and a reputable seller, so you can start within days instead of waiting a month. Until the parts arrive, the Tier 0 theory cannot be tried on hardware; a kit that arrives on time lets it be practised on real parts. Once you know which parts you regularly damage, optimize for price.
 
 ## Anatomy of a multimeter: the jacks, the dial, the ranges
 
 Before you measure anything, understand the three reusable parts. The meter is not one instrument — it is a sensitive voltage meter surrounded by a switchable network of shunts and resistors, and the jacks and dial decide which network your electricity passes through.
 
-**The jacks.** There are usually three or four sockets at the bottom. The black lead stays in `COM` — it is the reference point every measurement is compared against. The red lead goes in `VΩ` (sometimes labelled `VΩmA`) for the vast majority of measurements: volts, ohms, continuity, diodes, and small currents on some meters. The `mA` and `10A`/`20A` jacks are for current only, and they are wired very differently inside — through low-value shunt resistors that route the current through the meter. Two rules follow: the red lead must move when you measure current, and it must move **back** to `VΩ` afterwards (forgetting this is a common way beginners blow meter fuses — more on that below).
+**The jacks.** There are usually three or four sockets at the bottom. The black lead stays in `COM` — it is the reference point every measurement is compared against. The red lead goes in `VΩ` (sometimes labelled `VΩmA`) for the vast majority of measurements: volts, ohms, <Term id="continuity">continuity</Term>, diodes, and small currents on some meters. The `mA` and `10A`/`20A` jacks are for current only, and they are wired very differently inside — through low-value shunt resistors that route the current through the meter. Two rules follow: the red lead must move when you measure current, and it must move **back** to `VΩ` afterwards (forgetting this is a common way beginners blow meter fuses — more on that below).
 
-**The dial.** Each position selects what the meter connects and how it interprets the incoming signal: `V⎓` for DC volts (batteries, USB power, logic rails), `V~` for AC volts (wall power and its adapters), `Ω` for resistance, the 🔊-marked position for continuity, one position for diode tests, and `A`/`mA` positions for current. When in doubt, a template: volts for "is there power here?", ohms for "is this connection closed?", amps for "how much is flowing?".
+**The dial.** Each position selects what the meter connects and how it interprets the incoming signal: `V⎓` for DC volts (batteries, USB power, logic rails), `V~` for AC volts (wall power and its adapters), `Ω` for resistance, the 🔊-marked position for continuity, one position for <Term id="diode-test">diode tests</Term>, and `A`/`mA` positions for current. When in doubt, a template: volts for "is there power here?", ohms for "is this connection closed?", amps for "how much is flowing?".
 
 **Ranges: auto or manual.** Auto-range meters (the norm today) pick the decimal point for you and show the `kΩ`/`MΩ`/`mV` prefix on the screen — reading the digits without the unit is a common misreading: a display showing `0.47` in `MΩ` means 470 kΩ, not 0.47 Ω, so always read the unit *with* the digits. Manual-range meters ask *you* to pick the next range **above** what you expect: measuring a 9 V battery, set the 20 V range, not the 2 V (which overflows) and not the 200 V (where 9 V shows only a single digit with one decimal place). Rule of thumb: expect the reading before you dial the range, then narrow down.
 
@@ -47,9 +47,21 @@ The single best resource on all of this:
 
 <Resource id="sparkfun-multimeter" />
 
+**Measurement category (CAT).** Meters are rated to IEC 61010 in <Term id="cat-rating">measurement categories</Term> with a voltage, e.g. "CAT III 600 V". CAT II: circuits plugged into a mains socket (appliances, the bench supply's input); CAT III: the building installation (distribution boards, fixed wiring); CAT IV: the supply at the origin of the installation (service entrance, utility meter). The number states the transient overvoltage the meter and leads survive in that environment, so a higher category is safer. Everything in this course runs from batteries, USB or a bench supply at 12.6 V or less, below the mains categories. Never measure mains with a meter or leads that carry no CAT rating; the rating of the test leads counts as well. Source: [Fluke multimeter guide](https://www.fluke.com/en-us/learn/blog/safety/multimeter-guide).
+
 ## Measuring voltage: in parallel, never interrupted
 
 Voltage is the potential difference between two points, so measuring it must not change the circuit: touch the two points from outside, in **parallel** with what you measure. The meter's internal resistance is high, typically in the MΩ range, so the current it draws is small and its effect on the circuit is negligible. This principle underlies everything that follows: a voltage measurement keeps the circuit intact and does not interrupt it.
+
+**When the meter's input impedance matters.** A digital multimeter typically has 10 MΩ <Term id="input-impedance">input impedance</Term> on its voltage ranges; it is in parallel with whatever you measure.
+
+```text
+5 V across 1 MΩ / 1 MΩ: ideal 2.50 V; the source behind the midpoint is 1 MΩ ∥ 1 MΩ = 500 kΩ
+reading = 2.50 × 10 MΩ / (10 MΩ + 0.5 MΩ) = 2.38 V   (−4.8 %)
+5 V across 10 kΩ / 10 kΩ: source 5 kΩ, reading = 2.50 × 10 MΩ / 10.005 MΩ = 2.499 V
+```
+
+The meter is harmless when the circuit's own resistance is far below 10 MΩ (the loading rule from the ohms-law lesson).
 
 Procedure: black lead to `COM`, red lead to `VΩ`, dial to `V⎓` for anything battery- or logic-powered. Touch red to the point you believe is higher, black to the lower. On DC meters a negative reading simply means your leads are swapped — it is harmless and sometimes useful, because "the reading is negative" is itself information about which point is higher. Use `V~` only when the thing you measure is genuinely alternating (wall outlets, transformer secondaries).
 
@@ -66,6 +78,12 @@ The fine print: open-circuit voltage overestimates tired cells. A battery is int
 ## Measuring resistance and the colour code
 
 Resistance is measured with the circuit **powered off** — the meter drives its own tiny test current through the component and measures the voltage that this current produces, and any external voltage corrupts the math (and can damage the meter's ohms range). The second rule is subtler and is often overlooked: measure the component **out of circuit** whenever practical. In a soldered circuit, a resistor is never alone — everything around it is another path, and parallel paths make the meter read *lower* than the true value. Two resistors that are "1 kΩ each" inside a wired circuit can measure 500 Ω between their ends, and the meter is right: it cannot know the current also flows through the parallel path.
+
+```text
+two 1 kΩ in parallel: 1 / (1/1000 + 1/1000) = 500 Ω
+```
+
+The meter measures the whole network between its probes, so lift one lead of the resistor to measure it alone.
 
 When you do measure a loose resistor, the reading comes with a bonus lesson: the colour code. Small through-hole resistors print their value as 4 (or 5) coloured bands; memorising it means identifying hundreds of loose parts without touching the meter:
 
@@ -138,13 +156,23 @@ The arithmetic behind these readings: the meter path is the 0.1 Ω shunt plus th
 
 A practical note: because breaking the circuit is inconvenient, you will not measure current often. On breadboards, plan ahead with a breakable loop in the branch you care about, or cross-check with the voltage-based route: measure the voltage across a known resistor and compute I = V ÷ R, which usually answers the same question without breaking the circuit. Save true in-series ammeter work for the times it genuinely matters, e.g. measuring a motor's operating current.
 
+## First measurements on the course boards
+
+| Measure | Black lead | Red lead | Expect | If not: |
+| --- | --- | --- | --- | --- |
+| Uno on USB, 5V pin | GND | 5V | close to 5 V; USB allows 4.75–5.25 V at the port, and the Uno's fuse and switch drop a little | 0 V: no power or COM in the wrong jack; well below 4.75 V: overloaded port, long cable or a short on the 5 V rail |
+| Uno, 3.3V pin | GND | 3.3V | about 3.3 V from the on-board regulator | about 5 V: you are on the 5V pin |
+| ESP32-S3-DevKitC-1 on USB, 3V3 pin | GND | 3V3 | about 3.3 V from the board's regulator | 0 V: board not powered, or the USB port used supplies no power |
+
+Write each reading in your log with the meter range used; the next lessons compare against these values. USB 2.0 specifies 4.75–5.25 V at the port; the [Uno Rev3 page](https://docs.arduino.cc/hardware/uno-rev3/) documents the 5V and 3.3V pins.
+
 ## A troubleshooting routine that actually finds faults
 
 When a circuit misbehaves, random probing can take hours while a structured procedure locates the fault in minutes. A random prober and an experienced engineer may use the same multimeter; the difference is the procedure. This six-step sequence summarises the order used in practical troubleshooting:
 
 1. **Visual check first.** Power off and look: around a breadboard, wires in the wrong hole, swapped components, a pin not in the expected position. A surprising fraction of failed circuits are found at this stage.
 2. **Power off, continuity from power to ground.** Probe across the supply and ground rails looking for an unexpected beep — i.e. a short. Finding it now avoids damaging components when power is applied.
-3. **Power on, verify the supply rail at the chip — not at the battery.** A 5 V rail can read 5 V at the battery and 3 V at the far chip, because every wire and connector in between drops voltage when current flows. Measure at the chip's supply pin.
+3. **Power on, verify the supply rail at the chip — not at the battery.** A 5 V rail can read 5 V at the battery and 3 V at the far chip, because every wire and connector in between drops voltage when current flows. For example, 1 A through a loose connector and thin wires totalling 2 Ω drops 1 A × 2 Ω = 2 V. Measure at the chip's supply pin.
 4. **Follow the signal, input to output.** Measure voltages one point at a time along the path you designed, checking each stage against the value you expect there.
 5. **Compare against your own calculation.** Measured 4.7 V where you had computed 4.7 V? That stage is fine — move on. Measured 0 V where you predicted 2.4 V? The fault is between the two probes. Comparing numbers localises the fault stage by stage.
 6. **Change one thing at a time.** Every change is an experiment; two changes at once destroy the information about which one mattered. Change, re-test, log, repeat.
@@ -162,7 +190,7 @@ Common mistakes follow:
 - Leaving the red lead in the `mA`/`10A` jack after a current measurement, then measuring voltage — the fuse will blow.
 - Putting the meter in current mode across supply and ground; see the previous line (they often occur together).
 - Forgetting the continuity check between power and ground before powering a freshly wired board.
-- Waiting weeks for the absolute cheapest first kit, then losing the motivation to continue.
+- Waiting weeks for the absolute cheapest first kit, which delays the first measurements on real parts and leaves the techniques in this lesson unpractised until it arrives.
 
 Before moving on, you should be able to answer "yes" to all of these:
 
@@ -172,4 +200,19 @@ Before moving on, you should be able to answer "yes" to all of these:
 - I know resistance is measured powered-off and out-of-circuit, and why fingers affect high-value readings.
 - I have used continuity to find a dead wire, and I check power-to-ground for shorts before powering anything.
 - I can walk the six-step troubleshooting routine from memory, and I have (at least) run it in Tinkercad.
-- My first kit — or my plan for it — is ordered from a reliable source so that it arrives while I still have the motivation to start.
+- My first kit — or my plan for it — is ordered from a reliable source so that it arrives in time to practise these measurements on real parts.
+
+<Summary>
+
+**Key points**
+
+- A digital multimeter's voltage ranges have about 10 MΩ input impedance; across a 1 MΩ / 1 MΩ divider the 2.50 V ideal reading becomes 2.38 V.
+- Voltage is measured in parallel, current in series through a broken circuit.
+- Colour code: yellow-violet-red is 47 × 10² = 4700 Ω, with gold for ±5 %.
+- CAT rating: never measure mains with a meter or leads that carry no CAT rating.
+
+**Used next**
+
+- Month 1 · Soldering uses these measurements and checks on the circuits you build.
+
+</Summary>
