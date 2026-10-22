@@ -47,6 +47,87 @@ function checkText(where, text, { mono = false } = {}) {
 }
 const variants = (t) => (t === undefined ? [] : typeof t === "string" ? [t] : [t.zh, t.en]);
 
+// ---------- circuit diagrams ----------
+const TWO_TERMINAL = new Set(["switch", "button", "resistor", "motor"]);
+function terminals(p) {
+  const half = (p.len ?? 36) / 2;
+  const [x, y] = p.at;
+  return p.dir === "h" ? [[x - half, y], [x + half, y]] : [[x, y - half], [x, y + half]];
+}
+function distToSeg([px, py], [ax, ay], [bx, by]) {
+  const dx = bx - ax, dy = by - ay;
+  const l2 = dx * dx + dy * dy;
+  const t = l2 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2)) : 0;
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+function textBox(text, at, anchor, size) {
+  const ls = lines(text);
+  const w = Math.max(...ls.map((l) => textWidth(l, size)));
+  const x0 = anchor === "start" ? at[0] : anchor === "end" ? at[0] - w : at[0] - w / 2;
+  return [x0, at[1] - size, x0 + w, at[1] + 3 + (ls.length - 1) * (SUB + 3)];
+}
+function checkCircuit(spec, tag) {
+  ok(spec.w <= NARROW_MAX, `${tag}: width ${spec.w} > ${NARROW_MAX}`);
+  const inside = (x, y, what) => ok(x >= 0 && y >= 0 && x <= spec.w && y <= spec.h, `${tag}: ${what} at (${x.toFixed(0)}, ${y.toFixed(0)}) is outside ${spec.w}x${spec.h}`);
+  const ids = new Map();
+  for (const p of spec.parts) { ok(!ids.has(p.id), `${tag}: duplicate part/wire id ${p.id}`); ids.set(p.id, p); }
+  for (const w of spec.wires) { ok(!ids.has(w.id), `${tag}: duplicate part/wire id ${w.id}`); ids.set(w.id, w); }
+  for (const p of spec.parts) {
+    checkText(`${tag} part ${p.id}`, p.label, p);
+    inside(p.at[0], p.at[1], `part ${p.id}`);
+    if (TWO_TERMINAL.has(p.type)) for (const t of terminals(p)) inside(t[0], t[1], `part ${p.id} terminal`);
+    if (p.type === "box") inside(p.at[0] + p.size[0], p.at[1] + p.size[1], `box ${p.id}`);
+    if (p.label) {
+      ok(p.labelAt, `${tag}: part ${p.id} label has no position`);
+      if (p.labelAt) for (const t of variants(p.label)) {
+        const [x0, y0, x1, y1] = textBox(t, p.labelAt, p.anchor ?? "middle", p.type === "text" ? SUB : FONT);
+        inside(x0, y0, `part ${p.id} label "${t}"`); inside(x1, y1, `part ${p.id} label "${t}"`);
+      }
+    }
+  }
+  for (const w of spec.wires) for (const [x, y] of w.pts) inside(x, y, `wire ${w.id} point`);
+  for (const n of spec.numbers ?? []) {
+    const hit = Math.abs(n.value - n.expect) <= n.tol;
+    ok(hit, `${tag}: number ${n.note}: computed ${n.value} vs lesson ${n.expect} (tol ${n.tol})`);
+    if (hit) console.log(`calc  ${spec.id}: ${n.note}: ${+n.value.toFixed(4)} ≈ ${+n.expect.toFixed(4)}`);
+  }
+  ok(spec.states.length > 0, `${tag}: no states`);
+  for (const st of spec.states) {
+    const sw = `${tag} state ${st.id}`;
+    checkText(`${sw} label`, st.label); checkText(`${sw} text`, st.text); checkText(`${sw} readout`, st.readout);
+    for (const c of st.closed) ok(["switch", "button"].includes(ids.get(c)?.type), `${sw}: closed "${c}" is not a switch or button`);
+    for (const h of st.hidden ?? []) ok(ids.has(h), `${sw}: hidden "${h}" does not exist`);
+    if (st.readout) {
+      ok(spec.readoutAt, `${tag}: readout without readoutAt`);
+      if (spec.readoutAt) for (const t of variants(st.readout)) {
+        const ls = lines(t), w = Math.max(...ls.map((l) => textWidth(l, FONT)));
+        inside(spec.readoutAt[0] - w / 2, spec.readoutAt[1] - FONT, `${st.id} readout "${t}"`);
+        inside(spec.readoutAt[0] + w / 2, spec.readoutAt[1] + 3 + (ls.length - 1) * (FONT + 3), `${st.id} readout "${t}"`);
+      }
+    }
+    if (!st.flow) continue;
+    // the current path may only run over drawn wires, resistors/motors, and closed switches/buttons
+    const hidden = new Set(st.hidden ?? []), closed = new Set(st.closed);
+    const segs = [];
+    for (const w of spec.wires) if (!hidden.has(w.id)) for (let i = 1; i < w.pts.length; i++) segs.push([w.pts[i - 1], w.pts[i]]);
+    for (const p of spec.parts) {
+      if (hidden.has(p.id) || !TWO_TERMINAL.has(p.type)) continue;
+      if ((p.type === "switch" || p.type === "button") && !closed.has(p.id)) continue;
+      segs.push(terminals(p));
+    }
+    let bad = null;
+    for (let i = 1; i < st.flow.length && !bad; i++) {
+      const [a, b] = [st.flow[i - 1], st.flow[i]];
+      const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1])));
+      for (let k = 0; k <= n; k++) {
+        const pt = [a[0] + ((b[0] - a[0]) * k) / n, a[1] + ((b[1] - a[1]) * k) / n];
+        if (!segs.some(([s0, s1]) => distToSeg(pt, s0, s1) <= 0.6)) { bad = pt; break; }
+      }
+    }
+    ok(!bad, `${sw}: current path leaves the circuit (or crosses an open switch) at (${bad?.map((v) => v.toFixed(1)).join(", ")})`);
+  }
+}
+
 const specs = [];
 for (const f of readdirSync(specDir).filter((f) => f.endsWith(".ts"))) {
   const mod = await import(dataUrl(transpile(readFileSync(join(specDir, f), "utf8"))));
@@ -62,59 +143,62 @@ for (const { file, name, spec } of specs) {
   ok(new RegExp(`\\[${name}\\.id\\]: ${name}`).test(index), `${tag}: not registered in src/lib/diagrams/index.ts`);
   checkText(`${tag} title`, spec.title);
   checkText(`${tag} caption`, spec.caption);
-  const nodeIds = new Set(spec.nodes.map((n) => n.id));
-  const edgeIds = new Set(spec.edges.map((e) => e.id));
-  for (const n of spec.nodes) { checkText(`${tag} node ${n.id}`, n.label, n); checkText(`${tag} node ${n.id} sub`, n.sub); }
-  for (const e of spec.edges) checkText(`${tag} edge ${e.id}`, e.label, e);
-  for (const [k, s] of (spec.steps ?? []).entries()) {
-    checkText(`${tag} step ${k + 1}`, s.label);
-    for (const h of s.highlight) ok(nodeIds.has(h) || edgeIds.has(h), `${tag} step ${k + 1}: unknown id "${h}"`);
-  }
-  if (spec.kind === "stateMachine") ok(nodeIds.has(spec.initial), `${tag}: initial state "${spec.initial}" missing`);
   for (const src of spec.sources) ok(existsSync(join(root, src)), `${tag}: source ${src} does not exist`);
+  if (spec.kind === "circuit") checkCircuit(spec, tag);
+  else {
+    const nodeIds = new Set(spec.nodes.map((n) => n.id));
+    const edgeIds = new Set(spec.edges.map((e) => e.id));
+    for (const n of spec.nodes) { checkText(`${tag} node ${n.id}`, n.label, n); checkText(`${tag} node ${n.id} sub`, n.sub); }
+    for (const e of spec.edges) checkText(`${tag} edge ${e.id}`, e.label, e);
+    for (const [k, s] of (spec.steps ?? []).entries()) {
+      checkText(`${tag} step ${k + 1}`, s.label);
+      for (const h of s.highlight) ok(nodeIds.has(h) || edgeIds.has(h), `${tag} step ${k + 1}: unknown id "${h}"`);
+    }
+    if (spec.kind === "stateMachine") ok(nodeIds.has(spec.initial), `${tag}: initial state "${spec.initial}" missing`);
 
-  for (const which of ["wide", "narrow"]) {
-    const L = spec.layouts[which];
-    const lt = `${tag} ${which}`;
-    if (which === "narrow") ok(L.w <= NARROW_MAX, `${lt}: width ${L.w} > ${NARROW_MAX}`);
-    const inside = (x, y, what) => ok(x >= 0 && y >= 0 && x <= L.w && y <= L.h, `${lt}: ${what} at (${x}, ${y}) is outside ${L.w}x${L.h}`);
-    for (const n of spec.nodes) {
-      const r = L.nodes[n.id];
-      ok(r, `${lt}: node ${n.id} has no position`);
-      if (!r) continue;
-      const [x, y, w, h] = r;
-      inside(x, y, `node ${n.id}`); inside(x + w, y + h, `node ${n.id}`);
-      const shape = n.shape ?? (spec.kind === "stateMachine" ? "state" : "box");
-      const room = shape === "state" ? w - h / 2 : shape === "text" ? w + 4 : w - 8;
-      for (const t of variants(n.label)) ok(textWidth(t, FONT) <= room, `${lt}: node ${n.id} label "${t}" (${textWidth(t, FONT).toFixed(0)}) wider than ${room}`);
-      for (const t of variants(n.sub)) {
-        for (const line of lines(t)) ok(textWidth(line, SUB) <= room, `${lt}: node ${n.id} sub "${line}" (${textWidth(line, SUB).toFixed(0)}) wider than ${room}`);
-        // same vertical placement as BlockDiagram.tsx: label baseline, then sub lines below it
-        if (shape === "box" || shape === "state") {
-          const extra = (lines(t).length - 1) * (SUB + 2.5);
-          const ly = y + h / 2 - 2 - extra / 2;
-          const lastBase = ly + SUB + 3 + extra;
-          ok(ly - FONT * 0.8 >= y && lastBase + 3 <= y + h, `${lt}: node ${n.id} label + ${lines(t).length} sub line(s) do not fit height ${h}`);
+    for (const which of ["wide", "narrow"]) {
+      const L = spec.layouts[which];
+      const lt = `${tag} ${which}`;
+      if (which === "narrow") ok(L.w <= NARROW_MAX, `${lt}: width ${L.w} > ${NARROW_MAX}`);
+      const inside = (x, y, what) => ok(x >= 0 && y >= 0 && x <= L.w && y <= L.h, `${lt}: ${what} at (${x}, ${y}) is outside ${L.w}x${L.h}`);
+      for (const n of spec.nodes) {
+        const r = L.nodes[n.id];
+        ok(r, `${lt}: node ${n.id} has no position`);
+        if (!r) continue;
+        const [x, y, w, h] = r;
+        inside(x, y, `node ${n.id}`); inside(x + w, y + h, `node ${n.id}`);
+        const shape = n.shape ?? (spec.kind === "stateMachine" ? "state" : "box");
+        const room = shape === "state" ? w - h / 2 : shape === "text" ? w + 4 : w - 8;
+        for (const t of variants(n.label)) ok(textWidth(t, FONT) <= room, `${lt}: node ${n.id} label "${t}" (${textWidth(t, FONT).toFixed(0)}) wider than ${room}`);
+        for (const t of variants(n.sub)) {
+          for (const line of lines(t)) ok(textWidth(line, SUB) <= room, `${lt}: node ${n.id} sub "${line}" (${textWidth(line, SUB).toFixed(0)}) wider than ${room}`);
+          // same vertical placement as BlockDiagram.tsx: label baseline, then sub lines below it
+          if (shape === "box" || shape === "state" || shape === "file") {
+            const extra = (lines(t).length - 1) * (SUB + 2.5);
+            const ly = y + h / 2 - 2 - extra / 2;
+            const lastBase = ly + SUB + 3 + extra;
+            ok(ly - FONT * 0.8 >= y && lastBase + 3 <= y + h, `${lt}: node ${n.id} label + ${lines(t).length} sub line(s) do not fit height ${h}`);
+          }
         }
       }
-    }
-    for (const e of spec.edges) {
-      const g = L.edges[e.id];
-      ok(g, `${lt}: edge ${e.id} has no geometry`);
-      if (!g) continue;
-      for (const [x, y] of g.pts) inside(x, y, `edge ${e.id} point`);
-      if (e.label) {
-        ok(g.label, `${lt}: edge ${e.id} label has no position`);
-        if (!g.label) continue;
-        for (const t of variants(e.label)) {
-          lines(t).forEach((line, k) => {
-            const w = textWidth(line, SUB);
-            const a = g.anchor ?? "middle";
-            const x0 = a === "start" ? g.label[0] : a === "end" ? g.label[0] - w : g.label[0] - w / 2;
-            const yb = g.label[1] + k * (SUB + 2.5);
-            inside(Math.floor(x0), Math.floor(yb - SUB), `edge ${e.id} label "${line}"`);
-            inside(Math.ceil(x0 + w), Math.ceil(yb + 3), `edge ${e.id} label "${line}"`);
-          });
+      for (const e of spec.edges) {
+        const g = L.edges[e.id];
+        ok(g, `${lt}: edge ${e.id} has no geometry`);
+        if (!g) continue;
+        for (const [x, y] of g.pts) inside(x, y, `edge ${e.id} point`);
+        if (e.label) {
+          ok(g.label, `${lt}: edge ${e.id} label has no position`);
+          if (!g.label) continue;
+          for (const t of variants(e.label)) {
+            lines(t).forEach((line, k) => {
+              const w = textWidth(line, SUB);
+              const a = g.anchor ?? "middle";
+              const x0 = a === "start" ? g.label[0] : a === "end" ? g.label[0] - w : g.label[0] - w / 2;
+              const yb = g.label[1] + k * (SUB + 2.5);
+              inside(Math.floor(x0), Math.floor(yb - SUB), `edge ${e.id} label "${line}"`);
+              inside(Math.ceil(x0 + w), Math.ceil(yb + 3), `edge ${e.id} label "${line}"`);
+            });
+          }
         }
       }
     }

@@ -151,3 +151,18 @@ body {
   border-color: rgb(255 255 255 / 0.1);
   margin: 2.5em 0;
 }
+
+/* current path in <CircuitDiagram>: dashes move in the direction of conventional current */
+.dg-flow {
+  animation: dg-flow 0.9s linear infinite;
+}
+@keyframes dg-flow {
+  to {
+    stroke-dashoffset: -14;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dg-flow {
+    animation: none;
+  }
+}

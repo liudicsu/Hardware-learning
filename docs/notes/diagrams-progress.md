@@ -44,3 +44,11 @@ numbers, cart-pole direction, TB6612 OUT1) go into the PR that touches each less
   Node `sub` may now have several lines ("\n"); check_diagrams checks width per line and height.
   ros2-workspace-tree drafted by opencode (deepseek-v4.1-flash-free), reviewed and fixed by hand; the rest hand-written.
   Next after D-2: Top 10, starting with H-bridge CurrentPath + INPUT_PULLUP.
+- D-2 merged as f34b529 (#20). Live check of #17 (encoder) and #20 lessons: /workspace/hl-audit/encoder-live-check.md, all pass.
+- D-3 (branch diagrams/d3-hbridge-pullup from f34b529): `kind: "circuit"` specs + CircuitDiagram (state buttons,
+  animated conventional-current path); check_diagrams verifies the path only runs over wires, resistors/motors and
+  closed switches, and compares computed numbers (`numbers`) with the lesson. Diagrams: hbridge-current-path
+  (motors-drivers, AO1/OUT1 = left half-bridge, lesson sentence added), pullup-internal (arduino-io),
+  pullup-external (components; same generator). Reviewer nits from #20 fixed (file-node height check, tree
+  connectors at name height, set_parameters label next to its arrow). All hand-written.
+- Next: D-4 PWM duty + average voltage on Timing, `kind: "timing"` in the registry and check_diagrams.
