@@ -12,6 +12,9 @@ export interface QuadratureTimingProps {
   locale: Locale;
 }
 
+/** viewBox units per column of <QuadratureTiming> (8 columns). */
+export const QUAD_COL = 39;
+
 /** Encoder A/B timing diagram with a stepper; columns come from src/lib/models/encoder.ts. */
 export function QuadratureTiming({ direction, title, countLabel, stateLabel, axisLabel, locale }: QuadratureTimingProps) {
   const cols = diagramColumns(direction, 8);
@@ -20,6 +23,9 @@ export function QuadratureTiming({ direction, title, countLabel, stateLabel, axi
     <TimingStepper
       id={`quadrature-${direction}`}
       title={title}
+      // 64 + 8 × 39 + 8 = 384 units, so the 14-unit axis label renders at 14 × 332 / 384 ≈ 12.1 px in the
+      // 332 px box of a 390 px phone (checked by tools/check_diagrams.mjs)
+      columnScale={QUAD_COL}
       axisLabel={axisLabel}
       signals={[
         { name: "A", levels: cols.map((c) => c.a), color: "var(--dg-a)" },

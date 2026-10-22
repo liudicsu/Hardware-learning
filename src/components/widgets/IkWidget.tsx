@@ -210,8 +210,8 @@ export function IkWidget() {
             />
             <line x1={sideX(targetR) - 9} y1={sideY(targetZ)} x2={sideX(targetR) + 9} y2={sideY(targetZ)} stroke="#f59e0b" />
             <line x1={sideX(targetR)} y1={sideY(targetZ) - 9} x2={sideX(targetR)} y2={sideY(targetZ) + 9} stroke="#f59e0b" />
-            <text x={SIDE.left + sidePlotW - 4} y={sideY(0) - 6} textAnchor="end" fontSize="10" fill="#71717a">r</text>
-            <text x={sideX(0) + 6} y={SIDE.top + 10} fontSize="10" fill="#71717a">z</text>
+            <text x={SIDE.left + sidePlotW - 4} y={sideY(0) - 6} textAnchor="end" fontSize="15" fill="#71717a">r</text>
+            <text x={sideX(0) + 6} y={SIDE.top + 12} fontSize="15" fill="#71717a">z</text>
           </svg>
         </div>
 
@@ -261,8 +261,8 @@ export function IkWidget() {
             />
             <line x1={topX(target[0]) - 9} y1={topY(target[1])} x2={topX(target[0]) + 9} y2={topY(target[1])} stroke="#f59e0b" />
             <line x1={topX(target[0])} y1={topY(target[1]) - 9} x2={topX(target[0])} y2={topY(target[1]) + 9} stroke="#f59e0b" />
-            <text x={TOP.left + topPlotW - 4} y={topY(0) - 5} textAnchor="end" fontSize="10" fill="#71717a">x</text>
-            <text x={topX(0) + 6} y={TOP.top + 10} fontSize="10" fill="#71717a">y</text>
+            <text x={TOP.left + topPlotW - 4} y={topY(0) - 5} textAnchor="end" fontSize="15" fill="#71717a">x</text>
+            <text x={topX(0) + 6} y={TOP.top + 12} fontSize="15" fill="#71717a">y</text>
           </svg>
         </div>
       </div>

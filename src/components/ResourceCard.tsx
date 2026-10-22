@@ -66,7 +66,7 @@ export function ResourceCard({ id, locale, labels }: ResourceCardProps) {
       <p className="mt-0.5 text-xs text-zinc-500">{resource.author}</p>
       <p className="mt-2 text-sm text-zinc-400">{resource.summary[locale]}</p>
 
-      <p className="mt-3 text-[11px] text-zinc-600">
+      <p className="mt-3 text-xs text-zinc-600">
         {license.includes("©") ? license : `© ${license}`}
       </p>
       <p className="mt-1 text-xs text-sky-400/80">{hostnameOf(url)}</p>

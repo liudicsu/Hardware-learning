@@ -53,8 +53,8 @@ function BlockBody({ spec, locale }: { spec: BlockDiagramSpec; locale: Locale })
   return (
     <>
       <div className="min-w-0">
-        <BlockDiagramSvg spec={spec} layout={spec.layouts.narrow} locale={locale} highlight={highlight} className="mx-auto block sm:hidden" />
-        <BlockDiagramSvg spec={spec} layout={spec.layouts.wide} locale={locale} highlight={highlight} className="mx-auto hidden sm:block" />
+        <BlockDiagramSvg spec={spec} layout={spec.layouts.narrow} locale={locale} highlight={highlight} className="mx-auto block xl:hidden" />
+        <BlockDiagramSvg spec={spec} layout={spec.layouts.wide} locale={locale} highlight={highlight} className="mx-auto hidden xl:block" />
       </div>
       {steps.length > 0 && (
         <StepControls locale={locale} n={steps.length} i={step} onChange={setStep} text={step >= 0 ? tx(steps[step].label, locale) : undefined} />
