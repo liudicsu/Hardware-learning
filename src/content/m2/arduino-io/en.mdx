@@ -18,8 +18,8 @@ A useful picture: flash is the recipe book, RAM is the kitchen counter. The book
 Around the edge of the board you will find three groups of pins:
 
 - **Digital pins D0–D13.** Each can be an input or an output, reading or writing either HIGH or LOW. Most of the sensors and actuators in this course connect here.
-- **Analog inputs A0–A5.** These feed a 10-bit analog-to-digital converter. They can also be used as ordinary digital pins if you run out.
-- **PWM-capable pins, marked with `~`: 3, 5, 6, 9, 10 and 11.** These can produce a fast square wave whose average voltage you control. The PWM section below is entirely about them.
+- **Analog inputs A0–A5.** These feed a 10-bit <Term id="adc">analog-to-digital converter</Term>. They can also be used as ordinary digital pins if you run out.
+- **PWM-capable pins, marked with `~`: 3, 5, 6, 9, 10 and 11.** These can produce a fast square wave whose average voltage you control. The <Term id="pwm">PWM</Term> section below is entirely about them.
 
 There are also power pins: **5 V**, **3.3 V** (only a small current — do not power motors from it), **GND**, **Vin** and **RESET**. Every external circuit must share a GND with the board, a point the common-mistakes list returns to.
 
@@ -78,7 +78,7 @@ void loop() {
 
 - The first line is a comment; the compiler ignores it. Comments are for the next human, who is usually you in three weeks.
 - `const int LED_PIN = LED_BUILTIN;` gives a name to a pin number. `LED_BUILTIN` is a constant defined for each board and equals 13 on the Uno. Naming pins makes wiring changes a one-line edit instead of a hunt through the file.
-- `pinMode(LED_PIN, OUTPUT)` changes the pin's hardware configuration from a high-impedance input into an output that can actively drive a line. This is not optional: an output command sent to a pin still configured as an input does almost nothing visible, a mistake explained in the common-mistakes list at the end.
+- `pinMode(LED_PIN, OUTPUT)` changes the pin's hardware configuration from a <Term id="high-impedance">high-impedance</Term> input into an output that can actively drive a line. This is not optional: an output command sent to a pin still configured as an input does almost nothing visible, a mistake explained in the common-mistakes list at the end.
 - `digitalWrite(LED_PIN, HIGH)` connects the pin internally to the 5 V rail; `LOW` connects it to ground. The built-in LED and its resistor are already on the board, so no external parts are needed.
 - `delay(200)` does not mean "wait in the background". It freezes the whole program for 200 milliseconds. No inputs are read, no serial data is handled, and no other output changes. For a blinking LED that is fine; for a robot that must notice a button or an obstacle, it is a problem. The next lesson replaces `delay()` with a non-blocking timer based on `millis()`.
 
@@ -109,7 +109,7 @@ This is called a **floating** input, and it is the cause of the classic "it work
 
 ### The internal pull-up
 
-The ATmega328P contains a switchable pull-up resistor on every digital pin, roughly 20–50 kΩ to 5 V. Selecting `INPUT_PULLUP` in `pinMode()` connects it. Now the pin is gently held at 5 V when nothing else drives it.
+The ATmega328P contains a switchable <Term id="pull-up-pull-down">pull-up resistor</Term> on every digital pin, roughly 20–50 kΩ to 5 V. Selecting `INPUT_PULLUP` in `pinMode()` connects it. Now the pin is gently held at 5 V when nothing else drives it.
 
 Wire a button between the pin and GND and the logic becomes:
 
@@ -189,7 +189,7 @@ V = 512 × 5.0 / 1023
 one step = 5 V / 1023 = 0.00489 V ≈ 4.9 mV
 ```
 
-Halfway up the range is therefore about 2.5 V, and each count represents about 4.9 mV. That step size is the smallest change the Uno can see with a 5 V reference. If you need to detect a 1 mV change, the Uno's ADC cannot do it without amplification or a smaller reference.
+Halfway up the range is therefore about 2.5 V, and each count represents about 4.9 mV. That <Term id="lsb">step size</Term> is the smallest change the Uno can see with a 5 V reference. If you need to detect a 1 mV change, the Uno's ADC cannot do it without amplification or a smaller reference.
 
 ### The integer maths trap
 
@@ -202,7 +202,7 @@ raw * 5 / 1023        // integer maths: 512 × 5 = 2560, / 1023 = 2, so the resu
 raw * 1000 / 1023     // 1023 × 1000 = 1 023 000, which overflows a 16-bit int
 ```
 
-In the first line, every operation is integer arithmetic. The fractional part is discarded at each division, so the answer collapses to whole volts. In the second, the multiplication overflows before the division, producing a meaningless (often negative) result. The cure is to make one operand a floating-point number:
+In the first line, every operation is integer arithmetic. The fractional part is discarded at each division, so the answer collapses to whole volts. In the second, the multiplication <Term id="integer-overflow">overflows</Term> before the division, producing a meaningless (often negative) result. The cure is to make one operand a floating-point number:
 
 ```text
 float volts = raw * 5.0 / 1023.0;   // 5.0 forces floating-point maths
@@ -348,7 +348,7 @@ The format of each line is the key to the Serial Plotter. Pairs of `name:value` 
 
 An Arduino has no screen. Apart from a single LED, the only way it can tell you what it is thinking is the serial link back to your computer. You will use it for months, so learn it properly.
 
-`Serial.begin(115200)` sets the transmission speed to 115200 bits per second. The Serial Monitor must be set to the same rate. If it is not, the receiver samples the incoming bits at the wrong moments and every byte is misinterpreted: you see rows of garbage characters instead of your text. This is not a broken board or a broken cable. When the output looks like `⸮⸮⸮`, check the baud menu first. 9600 is the old default and still appears in many tutorials; 115200 is faster and is what this course uses.
+`Serial.begin(115200)` sets the transmission speed to 115200 bits per second. The Serial Monitor must be set to the same rate. If it is not, the receiver samples the incoming bits at the wrong moments and every byte is misinterpreted: you see rows of garbage characters instead of your text. This is not a broken board or a broken cable. When the output looks like `⸮⸮⸮`, check the <Term id="baud-rate">baud</Term> menu first. 9600 is the old default and still appears in many tutorials; 115200 is faster and is what this course uses.
 
 A related bench surprise: opening the Serial Monitor asserts the Uno's reset line, so the board restarts and `setup()` runs again. That is why `ready` appears every time you open the window. It is normal, but it means you cannot use the monitor to observe what happened before the reset.
 

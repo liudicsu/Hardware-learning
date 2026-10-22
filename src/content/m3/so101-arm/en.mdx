@@ -1,8 +1,8 @@
 ## Why the SO-101
 
-This is the capstone of Month 3: after four lessons of CAD, printing, gearboxes and control loops, the pieces become a robot. The SO-101 is an open-source robot arm from TheRobotStudio and Hugging Face, released under the Apache-2.0 licence. It has five degrees of freedom plus a gripper, driven by six small serial servos, and it is designed as a leader and follower pair: you move the leader by hand, and the follower copies the motion. The five degrees of freedom are the axes that position the tool: base pan, shoulder lift, elbow flex, and the two wrist motions. The gripper is the sixth motor, not a positioning axis; it holds what the arm reaches. The follower does the work, while the leader is the input device, mechanically similar but geared to be pushed by hand. The course's buying guide ranks it as the most worthwhile hardware purchase in the entire roadmap, and this lesson is where that ranking has to prove itself.
+This is the capstone of Month 3: after four lessons of CAD, printing, gearboxes and control loops, the pieces become a robot. The SO-101 is an open-source robot arm from TheRobotStudio and Hugging Face, released under the Apache-2.0 licence. It has five <Term id="degrees-of-freedom">degrees of freedom</Term> plus a gripper, driven by six small serial servos, and it is designed as a <Term id="leader-follower">leader and follower pair</Term>: you move the leader by hand, and the follower copies the motion. The five degrees of freedom are the axes that position the tool: base pan, shoulder lift, elbow flex, and the two wrist motions. The gripper is the sixth motor, not a positioning axis; it holds what the arm reaches. The follower does the work, while the leader is the input device, mechanically similar but geared to be pushed by hand. The course's buying guide ranks it as the most worthwhile hardware purchase in the entire roadmap, and this lesson is where that ranking has to prove itself.
 
-That copying is called teleoperation, and it is not a demo trick. Moving the leader by hand while the follower repeats the motion is how you record demonstrations: the leader gives the motion, the follower gives the robot's own joint readings, and the pair together produce the data that Month 6 is built on. The arm is the platform for Months 5 and 6, and Month 6 records its demonstrations with it. It is not a one-off project, so the time you spend on a clean build and an honest calibration is time you get back later.
+That copying is called <Term id="teleoperation">teleoperation</Term>, and it is not a demo trick. Moving the leader by hand while the follower repeats the motion is how you record demonstrations: the leader gives the motion, the follower gives the robot's own joint readings, and the pair together produce the data that Month 6 is built on. The arm is the platform for Months 5 and 6, and Month 6 records its demonstrations with it. It is not a one-off project, so the time you spend on a clean build and an honest calibration is time you get back later.
 
 One honest note before the shopping list: the editor has not built or run an SO-101. The steps below follow the official LeRobot SO-101 documentation, v0.6.x, checked in October 2026. The command-line tools change between versions, so re-check the commands on that page before you run them; where this lesson and the current docs disagree, the docs win.
 
@@ -19,7 +19,7 @@ The repository and LeRobot use the same six joint names and motor IDs. Learn the
 - **5 `wrist_roll`**: rotates the hand around the forearm axis.
 - **6 `gripper`**: opens and closes the two fingers.
 
-The numbering runs from the base out to the tool, while the wiring runs the other way: the serial line daisy-chains from the gripper back to the base, and the shoulder_pan motor (ID 1) plugs into the controller board. Keep that picture in your head during assembly; it explains why the setup script starts at the gripper and walks back to the base.
+The numbering runs from the base out to the tool, while the wiring runs the other way: the serial line <Term id="daisy-chain">daisy-chains</Term> from the gripper back to the base, and the shoulder_pan motor (ID 1) plugs into the controller board. Keep that picture in your head during assembly; it explains why the setup script starts at the gripper and walks back to the base.
 
 ## Choose your route
 
@@ -53,9 +53,9 @@ If you own a printer, the kit-plus-own-print route is the cheapest full pair wit
 
 ## Bus servos and packets
 
-A hobby servo from Month 2 takes a PWM pulse and holds an angle. It has no name on the bus, no way to say "I am here", and no way to report what it is doing. The SO-101 uses six Feetech STS3215 bus servos per arm, and each one is a small closed-loop actuator. It has an ID, a 12-bit magnetic encoder with 4096 steps per turn, and its own position loop inside the case. That loop is the same idea as the PID loops in Lesson 4 (PID & control: windup and cascade loops), except it runs in the servo rather than on your microcontroller: you send a goal, and the servo drives its motor until the encoder says it has arrived. That 4096 is the encoder's resolution, not the arm's accuracy: backlash, horn mounting and flex in the printed parts all add error after the encoder.
+A hobby servo from Month 2 takes a PWM pulse and holds an angle. It has no name on the bus, no way to say "I am here", and no way to report what it is doing. The SO-101 uses six Feetech STS3215 <Term id="bus-servo">bus servos</Term> per arm, and each one is a small closed-loop actuator. It has an ID, a 12-bit magnetic encoder with 4096 steps per turn, and its own position loop inside the case. That loop is the same idea as the PID loops in Lesson 4 (PID & control: windup and cascade loops), except it runs in the servo rather than on your microcontroller: you send a goal, and the servo drives its motor until the encoder says it has arrived. That 4096 is the encoder's resolution, not the arm's accuracy: backlash, horn mounting and flex in the printed parts all add error after the encoder.
 
-The six servos share one half-duplex serial line, daisy-chained from motor to motor; LeRobot runs that line at 1 Mbit/s. Half-duplex means one pair of wires carries traffic in both directions, but not at the same time: the controller talks, then listens. It is a walkie-talkie, not a telephone. The ID in every packet is roll call, and the checksum exists because one corrupted bit can turn a safe goal into a collision. Every servo hears every packet, and only the servo whose ID matches the packet answers. A servo can also be asked for its position, speed, load, voltage and temperature, which is why a bus servo can tell you it is straining or getting hot instead of silently stalling.
+The six servos share one <Term id="half-duplex">half-duplex</Term> serial line, daisy-chained from motor to motor; LeRobot runs that line at 1 Mbit/s. Half-duplex means one pair of wires carries traffic in both directions, but not at the same time: the controller talks, then listens. It is a walkie-talkie, not a telephone. The ID in every packet is roll call, and the <Term id="checksum">checksum</Term> exists because one corrupted bit can turn a safe goal into a collision. Every servo hears every packet, and only the servo whose ID matches the packet answers. A servo can also be asked for its position, speed, load, voltage and temperature, which is why a bus servo can tell you it is straining or getting hot instead of silently stalling.
 
 The servo comes in different gear ratios, and the two arms do not use the same set. The follower uses 1/345 on all six joints. The leader mixes ratios so that it holds its own weight where it must, yet moves easily by hand everywhere else:
 
@@ -68,7 +68,7 @@ The servo comes in different gear ratios, and the two arms do not use the same s
 | wrist_roll | 1/147 |
 | gripper | 1/147 |
 
-This is the backdriving arithmetic from Lesson 3 (Transmissions & backlash: gears, belts and bearings) in hardware form. Through a reduction n, the friction you feel at the output scales with n, and the rotor inertia scales with n². Compare the wrist's 1/147 with the follower's 1/345: 345 / 147 = 2.35, so the follower's 345:1 joint feels about 2.35 times more friction, and its rotor inertia feels (345/147)² ≈ 5.51 times larger. The leader's wrist is therefore much lighter to push, while the shoulder_lift keeps the 1/345 ratio because that joint has to hold the arm up. The leader is not a weaker arm; it is an arm geared for being moved by a human.
+This is the backdriving arithmetic from Lesson 3 (Transmissions & backlash: gears, belts and bearings) in hardware form. Through a reduction n, the friction you feel at the output scales with n, and the <Term id="moment-of-inertia">rotor inertia</Term> scales with n². Compare the wrist's 1/147 with the follower's 1/345: 345 / 147 = 2.35, so the follower's 345:1 joint feels about 2.35 times more friction, and its rotor inertia feels (345/147)² ≈ 5.51 times larger. The leader's wrist is therefore much lighter to push, while the shoulder_lift keeps the 1/345 ratio because that joint has to hold the arm up. The leader is not a weaker arm; it is an arm geared for being moved by a human.
 
 The wire protocol is simple enough to read by eye. Every message is a packet:
 
@@ -79,7 +79,7 @@ CHECKSUM = ~(ID + LENGTH + INSTRUCTION + PARAMS) & 0xFF   (the low byte of the s
 two-byte values are little-endian (low byte first)
 ```
 
-The registers used in this lesson are from the STS control table LeRobot uses: Torque_Enable 40, Goal_Position 42 and Present_Position 56. Torque_Enable is one byte; the two position registers are two bytes each, which is where little-endian matters. The program below builds packets by hand and checks a reply. It is an ordinary Python program on your computer, not a simulation and not a servo: no hardware is connected, and it only prints bytes.
+The registers used in this lesson are from the STS control table LeRobot uses: Torque_Enable 40, Goal_Position 42 and Present_Position 56. Torque_Enable is one byte; the two position registers are two bytes each, which is where <Term id="little-endian">little-endian</Term> matters. The program below builds packets by hand and checks a reply. It is an ordinary Python program on your computer, not a simulation and not a servo: no hardware is connected, and it only prints bytes.
 
 <CodeSource path="examples/month-3/so101-arm/sts_packet.py" />
 
@@ -283,7 +283,7 @@ The tool lists the serial ports, asks you to unplug one board and press Enter, a
 
 ### One motor at a time
 
-New servos all come with ID 1. If you connect two of them at once, both will answer to the same packets, and the setup script cannot tell them apart. That is why the official procedure connects exactly one motor at a time. The ID and the bus baud rate are written to the servo's EEPROM once, and they stay there until you change them. A replacement motor arrives as ID 1 again, so keep a note of which servo sits at which joint.
+New servos all come with ID 1. If you connect two of them at once, both will answer to the same packets, and the setup script cannot tell them apart. That is why the official procedure connects exactly one motor at a time. The ID and the bus baud rate are written to the servo's <Term id="eeprom">EEPROM</Term> once, and they stay there until you change them. A replacement motor arrives as ID 1 again, so keep a note of which servo sits at which joint.
 
 ```bash
 lerobot-setup-motors \

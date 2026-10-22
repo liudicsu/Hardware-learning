@@ -1,6 +1,6 @@
 ## Pick one CAD tool
 
-Month 3 is about making a physical part that fits something else: a servo, a screw, a bearing, another printed piece. The first decision is not a feature or a workbench setting, it is a tool. The course's advice is blunt: pick one CAD program and go deep. Trying four programs feels productive, but every one has its own names for sketches, constraints and assemblies, and switching costs you the thing you actually need — hours of drawing. The goal is not to collect software; it is to finish parts.
+Month 3 is about making a physical part that fits something else: a servo, a screw, a bearing, another printed piece. The first decision is not a feature or a workbench setting, it is a tool. The course's advice is blunt: pick one CAD program and go deep. Trying four programs feels productive, but every one has its own names for sketches, <Term id="constraint">constraints</Term> and assemblies, and switching costs you the thing you actually need — hours of drawing. The goal is not to collect software; it is to finish parts.
 
 There is no perfect choice, and the differences matter less than the internet suggests. After roughly 20 hours in any of the four tools below, the learning curves converge, and the tool matters much less than finishing parts. Pick the one whose constraints match your situation, then stop shopping.
 
@@ -27,7 +27,7 @@ Chromebook or weak laptop → Onshape. You will want CAM or CNC later → Fusion
 
 Parametric CAD is a loop. You draw a 2D sketch, turn it into a feature — extrude, revolve, cut, fillet — and then draw the next sketch on the result. The order is recorded in a history, usually called the feature tree. Change an early sketch and everything downstream rebuilds. That is the whole promise: the model is a set of instructions, not a frozen shape.
 
-A sketch has degrees of freedom (DOF). A free point in 2D has two, x and y. A line has more because both ends can move. Constraints remove DOF: horizontal, vertical, coincident, equal, tangent, fixed. Dimensions also remove DOF, because they fix a distance or an angle. A sketch is fully constrained when zero DOF remain. Most tools show this by colour — lines turn black in Onshape, FreeCAD and Fusion — or by a counter that drops to zero.
+A sketch has <Term id="degrees-of-freedom">degrees of freedom</Term> (DOF). A free point in 2D has two, x and y. A line has more because both ends can move. Constraints remove DOF: horizontal, vertical, coincident, equal, tangent, fixed. Dimensions also remove DOF, because they fix a distance or an angle. A sketch is fully constrained when zero DOF remain. Most tools show this by colour — lines turn black in Onshape, FreeCAD and Fusion — or by a counter that drops to zero.
 
 Why make such a fuss? Because an under-constrained sketch will move when you edit something later and ruin your day. You change a hole position, and a line you never dimensioned slides sideways, turning a bracket into a scrap part. The constraint display is not decoration; it is the difference between a model you can edit and a model that edits itself.
 
@@ -50,7 +50,7 @@ A circle has 3 DOF: centre x, centre y and radius. Placing a screw hole therefor
 
 Practical habits, learned the hard way:
 
-- Dimension from a datum — the origin, a centre line, one reference edge — rather than chaining dimensions edge to edge. Chained dimensions accumulate errors, and an edit ripples through every link.
+- Dimension from a <Term id="datum">datum</Term> — the origin, a centre line, one reference edge — rather than chaining dimensions edge to edge. Chained dimensions accumulate errors, and an edit ripples through every link.
 - Use symmetry constraints about a centre line for parts like a servo bracket. One dimension then controls both sides, and the part stays symmetric when you change it.
 - Never “eyeball” a line to look horizontal. Constrain it. A line that is 0.2° off looks fine on screen and makes a bracket that sits crooked.
 
@@ -153,7 +153,7 @@ ECHO: "screw pitch (mm)", 27.5, "tab overhang each side (mm)", 5
 
 ![The servo bracket rendered from servo_bracket.scad: an upright plate with the servo opening and two tab holes, a foot with two M3 holes, and two triangular gussets](/m3/servo_bracket.png)
 
-The picture above was rendered by OpenSCAD from the file above, using the script at `examples/month-3/render_previews.sh`. It has only been checked in software: the site editor has not printed it or test-fitted it to a servo. That is the honest state of a CAD model before manufacturing — the render proves the geometry is coherent, not that the tolerances are right.
+The picture above was rendered by OpenSCAD from the file above, using the script at `examples/month-3/render_previews.sh`. It has only been checked in software: the site editor has not printed it or test-fitted it to a servo. That is the honest state of a CAD model before manufacturing — the render proves the geometry is coherent, not that the <Term id="tolerance">tolerances</Term> are right.
 
 Now change one parameter from the command line:
 

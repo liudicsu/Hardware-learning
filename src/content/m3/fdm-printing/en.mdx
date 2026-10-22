@@ -54,7 +54,7 @@ Filament is not ink. Each polymer trades stiffness, toughness, heat resistance a
 | Carbon-fibre filled (PLA-CF, PETG-CF, PA-CF) | Stiff structural links | Abrasive: needs a hardened nozzle (a brass nozzle wears out); slightly more brittle |
 | TPU | Feet, bumpers, compliant gripper fingers (Lesson 6) | Print slowly, direct-drive extruder strongly preferred, little or no retraction |
 
-PLA and PLA+ are the easiest starting point: stiff, dimensionally predictable and cheap. The SO-ARM100 repository specifies PLA+, 15 % infill and 0.2 mm layers with a 0.4 mm nozzle for its printed parts, which is a sensible default for a first robot arm. The limit is creep and heat. PLA creeps under a sustained load — a screw boss or a cantilever that stays loaded will slowly change shape — and it softens around 55–60 °C. A part that lives on a car dashboard in summer, or touches a motor that runs hot, is the wrong place for it. PLA+ is tougher than plain PLA but has the same heat limit.
+PLA and PLA+ are the easiest starting point: stiff, dimensionally predictable and cheap. The SO-ARM100 repository specifies PLA+, 15 % <Term id="infill">infill</Term> and 0.2 mm <Term id="layer-height">layers</Term> with a 0.4 mm nozzle for its printed parts, which is a sensible default for a first robot arm. The limit is <Term id="creep">creep</Term> and heat. PLA creeps under a sustained load — a screw boss or a cantilever that stays loaded will slowly change shape — and it softens around 55–60 °C. A part that lives on a car dashboard in summer, or touches a motor that runs hot, is the wrong place for it. PLA+ is tougher than plain PLA but has the same heat limit.
 
 PETG is the course's default for real robot parts: chassis plates, gearbox housings, servo mounts, anything that must survive a drop. It is less stiff than PLA but much tougher, and its layer adhesion is better, so a part is less likely to split along a layer line. It also strings, and it sticks very well to some beds; on a smooth PEI sheet use a glue stick as a release layer, or you may take a piece of the sheet with the part.
 
@@ -72,7 +72,7 @@ A rule of thumb: start in PLA to check fit, then make the real part in PETG unle
 
 ## Calibrate, then measure
 
-A printer that assembles and homes is not calibrated. Dimensional accuracy is a chain: extruder steps, flow, temperature, pressure advance, retraction, cooling and shrinkage all affect the final size. OrcaSlicer's calibration wiki gives a recommended running order: temperature → flow rate → pressure advance → retraction → tolerance. The order is not arbitrary. Each test assumes the earlier ones are right. A wrong temperature changes how the plastic flows, so a flow test run at the wrong temperature gives a wrong number. Wrong flow makes every wall thicker and every hole smaller, which corrupts a tolerance test. Pressure advance affects corners and seams; retraction affects strings and surface finish. Tolerance comes last because it depends on all of them.
+A printer that assembles and homes is not calibrated. Dimensional accuracy is a chain: extruder steps, flow, temperature, pressure advance, retraction, cooling and shrinkage all affect the final size. OrcaSlicer's calibration wiki gives a recommended running order: temperature → flow rate → pressure advance → retraction → <Term id="tolerance">tolerance</Term>. The order is not arbitrary. Each test assumes the earlier ones are right. A wrong temperature changes how the plastic flows, so a flow test run at the wrong temperature gives a wrong number. Wrong flow makes every wall thicker and every hole smaller, which corrupts a tolerance test. Pressure advance affects corners and seams; retraction affects strings and surface finish. Tolerance comes last because it depends on all of them.
 
 Teaching Tech's interactive calibration covers the same ground for any printer and generates the test prints for you. Use one of the two; do not invent your own sequence.
 
@@ -104,19 +104,19 @@ This is why you measure the printed part, not just the CAD model. Keep a print l
 
 ## Design for FDM
 
-The milestone for this lesson is to design a part specifically for FDM, not a CAD shape that happens to export. Three things decide whether a printed part is strong and easy to make: orientation, overhangs and layer adhesion. FDM parts are anisotropic: they are a stack of welded lines, and the bond between layers is weaker than the plastic inside a layer.
+The milestone for this lesson is to design a part specifically for FDM, not a CAD shape that happens to export. Three things decide whether a printed part is strong and easy to make: orientation, overhangs and layer adhesion. FDM parts are <Term id="anisotropy">anisotropic</Term>: they are a stack of welded lines, and the bond between layers is weaker than the plastic inside a layer.
 
 - **Orientation.** A print is weakest between layers, so lay the part so the main load runs along the layers, not across them. A hook printed standing up snaps at a layer line; the same hook printed lying down bends. Decide the orientation before you model, because it changes where you put chamfers and which face touches the bed.
 - **Overhangs.** Up to about 45° from vertical usually prints without support; beyond that, add a chamfer instead of a sharp overhang, or plan support. The 45° number is a starting point, not a law: cooling, nozzle size and layer height change it.
 - **Bridges.** A short horizontal span, a few centimetres depending on the printer, can bridge between two supports. Anchor both ends, cool the bridge well, and do not ask it to carry a load.
 - **Horizontal holes.** A round hole lying on its side droops at the top. A teardrop or a flat-topped hole avoids support and keeps the top of the hole usable. For a precision bore, print undersize and drill or ream it.
-- **Walls.** Make thin walls a whole number of extrusion widths: with a 0.4 mm nozzle, use 0.8, 1.2 or 1.6 mm. Strength comes mostly from walls (perimeters), not infill. For most brackets, adding a wall or two is a cheaper way to gain strength than adding infill.
+- **Walls.** Make thin walls a whole number of extrusion widths: with a 0.4 mm nozzle, use 0.8, 1.2 or 1.6 mm. Strength comes mostly from walls (<Term id="perimeter-wall">perimeters</Term>), not infill. For most brackets, adding a wall or two is a cheaper way to gain strength than adding infill.
 - **Fasteners.** Use heat-set brass inserts for threads you will open more than a few times. Printed threads are fine for coarse, rarely used parts, but they wear and strip. Size the insert hole from the insert datasheet and test one.
 - **Supports.** Supports cost time, leave rough surfaces and weaken the part where they touch. A design that needs none is usually a better design: chamfer the overhang, split the part, or choose a different orientation.
 
 CNC Kitchen publishes instrumented, repeatable strength tests of infill, walls, heat-set inserts and orientation. Use those tests instead of folklore.
 
-Design for FDM also means designing for your machine's error. The clearance numbers from the gauge belong in the model as parameters, not in a note to yourself to "sand it later". Put fillets on inside corners, where stress concentrates, and avoid features thinner than two extrusion widths, because the slicer will either skip them or print them badly.
+Design for FDM also means designing for your machine's error. The clearance numbers from the gauge belong in the model as parameters, not in a note to yourself to "sand it later". Put fillets on inside corners, where <Term id="stress">stress</Term> concentrates, and avoid features thinner than two extrusion widths, because the slicer will either skip them or print them badly.
 
 <Resource id="hubs-dfam" />
 
@@ -134,7 +134,7 @@ force to bend it P = b × t² × E × ε / (6 × L)
 push-on force W = P × (μ + tan α) / (1 − μ × tan α)
 ```
 
-Here y is the hook depth, t the arm thickness, L the arm length, b the arm width, E the material stiffness, α the lead-in angle and μ the friction coefficient. Strain tells you whether the plastic survives; push-on force tells you whether a person can close the case.
+Here y is the hook depth, t the arm thickness, L the arm length, b the arm width, E the material stiffness, α the lead-in angle and μ the friction coefficient. <Term id="strain">Strain</Term> tells you whether the plastic survives; push-on force tells you whether a person can close the case.
 
 Worked example for the case's arm:
 

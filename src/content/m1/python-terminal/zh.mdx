@@ -2,7 +2,7 @@
 
 一台 ROS 2 机器人不是“一个程序”，而是一群叫节点（node）的小程序：一个读摄像头，一个把轮速指令变成电机电压，一个发布电池状态。它们通常从终端启动，日志打在终端里，出问题时也是你在终端里把某一个节点停掉。测试脚本、标定脚本、数据记录脚本，都是普通的 Python 文件，用 `python3` 运行。机器人上的计算机——树莓派（Raspberry Pi）、Jetson 或迷你主机——通常跑 Linux，而且常常没有接显示器；你通过 `ssh` 登进去，看文字、敲命令。
 
-所以终端不是“老派”，而是机器人趴在地上、你只剩一个提示符时唯一可用的界面。你不需要背一百条命令，只需要一小套词汇。学完这一课，你会有三个能跑的脚本：欧姆定律计算器、电阻类、以及把测量结果写成 JSON 的记录器；也会知道怎样安装依赖而不弄坏整台机器。
+所以终端不是“老派”，而是机器人趴在地上、你只剩一个提示符时唯一可用的界面。你不需要背一百条命令，只需要一小套词汇。学完这一课，你会有三个能跑的脚本：欧姆定律计算器、电阻类、以及把测量结果写成 <Term id="json">JSON</Term> 的记录器；也会知道怎样安装依赖而不弄坏整台机器。
 
 ## 准备：一个终端，一个 Python
 
@@ -92,7 +92,7 @@ Windows 原生环境（PowerShell 或 cmd）的激活命令是：
 .venv\Scripts\activate
 ```
 
-提示符前面会出现 `(.venv)`。这个标记不是装饰：它告诉你下一条 `pip install` 会装到哪里。接着升级 pip、装一个包：
+提示符前面会出现 `(.venv)`。这个标记不是装饰：它告诉你下一条 `pip install` 会装到哪里。接着升级 <Term id="pip">pip</Term>、装一个包：
 
 ```bash
 python -m pip install --upgrade pip
@@ -107,7 +107,7 @@ pip install -r requirements.txt
 deactivate
 ```
 
-第一条把包名和版本写进文本文件；第二条在另一台机器或新建的 venv 里照单重装；`deactivate` 退出环境，`(.venv)` 消失。
+第一条把包名和版本写进文本文件；第二条在另一台机器或新建的 <Term id="venv">venv</Term> 里照单重装；`deactivate` 退出环境，`(.venv)` 消失。
 
 两条铁律：**绝不把 `.venv` 提交到 Git**——它含二进制和绝对路径、体积大，而且用 `requirements.txt` 就能重建；把 `.venv/` 写进 `.gitignore`。**不要因为嫌激活麻烦就全局安装项目依赖**，那正是“一次无关升级搞坏机器人脚本”的常见原因。
 
@@ -216,7 +216,7 @@ Vout = Vin × R2 / (R1 + R2)
 - **计算里 return，程序边缘才 print**。返回数字，测试、图形界面或另一个脚本都能复用；只在 `main()` 里打印一次，计算才保持可复用。
 - **在边界做校验**。电阻为零或负数在这里没有物理意义，`raise ValueError` 用清楚的报错停下，而不是返回无穷大。
 - **`argparse` 负责接口**。`add_subparsers(..., required=True)` 让 `current` 或 `divider` 必填；`type=float, required=True` 把文本转成浮点数，缺参数时给出提示。试试 `python ohm.py --help` 和 `python ohm.py divider --help`。
-- **`if __name__ == "__main__":`** 只在文件被直接执行时运行命令行部分。别的脚本写 `from ohm import divider` 时，函数能用，`main()` 不会自己跑。
+- **`if __name__ == "__main__":`** 只在文件被直接执行时运行命令行部分。别的脚本写 `from ohm import divider` 时，<Term id="function">函数</Term>能用，`main()` 不会自己跑。
 - **最外层 `try`/`except`** 把故意的报错变成一句短消息，并以退出码 1 结束：
 
 ```text
@@ -559,7 +559,7 @@ python -i ohm.py current --volts 5 --ohms 220
 - **`python` 与 `python3` 混用**：同一个脚本在一个终端能跑、另一个不能，因为指向不同解释器。
 - **忘了激活 venv**：装完包却报 `ModuleNotFoundError`。安装和运行前都看 `(.venv)`。
 - **Tab 和空格混用**：Python 3 禁止含糊的缩进。编辑器设四个空格，绝不混用。
-- **把 `.venv` 提交进 Git**：把 `.venv/` 写进 `.gitignore`，提交 `requirements.txt`。
+- **把 `.venv` 提交进 Git**：把 `.venv/` 写进 `.gitignore`，<Term id="commit">提交</Term> `requirements.txt`。
 - **文件名和模块同名**：当前目录的 `json.py`、`random.py`、`email.py` 会遮住标准库，导入报错莫名其妙。改名。
 - **该用 `>>` 时用了 `>`**：旧日志没了，无法撤销。
 - **没检查路径就 `rm -r`**：先 `pwd`、`ls`。

@@ -18,7 +18,7 @@ Electricity is invisible, so use a picture. The classic one is water in a closed
 | k (kilo) | 10^3 | 4.7 kΩ = 4700 Ω |
 | M (mega) | 10^6 | 1 MΩ = 1,000,000 Ω |
 
-Current only flows around a **closed loop**. Break the path and it stops, though voltage remains across the break; a battery on a table has voltage but no current. We draw **conventional current** leaving the positive terminal and returning to the negative one; electrons drift the other way. Schematics use it too.
+<Term id="current">Current</Term> only flows around a **closed loop**. Break the path and it stops, though <Term id="voltage">voltage</Term> remains across the break; a battery on a table has voltage but no current. We draw **conventional current** leaving the positive terminal and returning to the negative one; electrons drift the other way. Schematics use it too.
 
 The analogy breaks down. Electrons fill the wire and respond almost instantly; water has inertia. A resistor turns energy into heat rather than merely narrowing a pipe, and voltage can exist with no current. Use it for intuition, then trust the equations.
 
@@ -28,7 +28,7 @@ One simple law ties them together:
 
 <Formula label="Ohm's law">V = I × R</Formula>
 
-With volts and ohms, current comes out in amps. Rearranged, `I = V / R` and `R = V / I`: know any two quantities and you can find the third. For fixed resistance, doubling the voltage doubles the current; for fixed voltage, doubling the resistance halves it. Large resistance is nearly an open circuit, small resistance nearly a short.
+With volts and ohms, current comes out in amps. Rearranged, `I = V / R` and `R = V / I`: know any two quantities and you can find the third. For fixed <Term id="resistance">resistance</Term>, doubling the voltage doubles the current; for fixed voltage, doubling the resistance halves it. Large resistance is nearly an open circuit, small resistance nearly a short.
 
 **Worked example.** A 9 V battery is connected across a 1 kΩ resistor. How much current flows?
 
@@ -47,7 +47,7 @@ Predict before reading the numbers. Both resistors see 5 V, so the 100 Ω one ca
 
 ## Power: heat is the price of resistance
 
-Current through resistance does work, which in a resistor becomes heat. Power is energy per second, in watts (W):
+Current through resistance does work, which in a resistor becomes heat. <Term id="power">Power</Term> is energy per second, in watts (W):
 
 <Formula label="Power in a resistor">P = V × I = I² × R = V² / R</Formula>
 
@@ -87,7 +87,7 @@ Click the switches to change the combination and watch the total current. Series
 
 ## The voltage divider
 
-A voltage divider uses two resistors to scale a voltage down. R1 goes from the input to the output node, R2 from the output to ground, and the output is across R2:
+A <Term id="voltage-divider">voltage divider</Term> uses two resistors to scale a voltage down. R1 goes from the input to the output node, R2 from the output to <Term id="gnd">ground</Term>, and the output is across R2:
 
 <Formula label="Voltage divider">Vout = Vin × R2 / (R1 + R2)</Formula>
 
@@ -112,7 +112,7 @@ The output probe should read about 1.6 V. Then double-click R2 and change it to 
 
 <Quiz id="q5" question="5 V, R1 = 10 kΩ and R2 = 4.7 kΩ: what is Vout in V?" answer={1.6} unit="V" explanation="Vout = 5 × 4.7 / (10 + 4.7) = 23.5 / 14.7 = 1.5986 V, which rounds to 1.6 V." />
 
-Dividers are everywhere in robotics. A 12 V battery often feeds an ADC that accepts only 5 V or 3.3 V, so a divider scales it down, and a 5 V sensor signal may need shifting to 3.3 V. A potentiometer is a divider with a moving wiper: its ends sit across the supply, and the wiper voltage reports shaft angle — the basis of many joysticks and position sensors.
+Dividers are everywhere in robotics. A 12 V battery often feeds an <Term id="adc">ADC</Term> that accepts only 5 V or 3.3 V, so a divider scales it down, and a 5 V sensor signal may need shifting to 3.3 V. A potentiometer is a divider with a moving wiper: its ends sit across the supply, and the wiper voltage reports shaft angle — the basis of many joysticks and position sensors.
 
 <Quiz id="q6" question="You need ≈3.3 V from a 5 V signal for a 3.3 V microcontroller pin. Which R1 (top) and R2 (bottom) pair?" options={["R1 = 2 kΩ, R2 = 1 kΩ", "R1 = 1 kΩ, R2 = 2 kΩ", "R1 = 10 kΩ, R2 = 10 kΩ"]} answer={1} explanation="Vout = 5 × R2 / (R1 + R2). For R1 = 1 kΩ and R2 = 2 kΩ: 5 × 2 / 3 = 3.33 V. The first pair gives 1.67 V and the third gives 2.5 V." />
 
