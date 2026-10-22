@@ -516,6 +516,7 @@ export const glossary: GlossaryEntry[] = [
       en: "Pins sampled at the instant an ESP32 powers up to choose the boot mode and flash voltage: GPIO 0, 2, 5, 12 and 15 on the classic ESP32, and GPIO 0, 3, 45 and 46 on the ESP32-S3. External pull-ups, pull-downs or loads on them can stop the board booting; a high GPIO 12 at boot selects the wrong flash voltage.",
     },
     lesson: "esp32",
+    firstExplained: true,
   },
   {
     id: "ledc",
@@ -525,6 +526,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The ESP32's hardware PWM peripheral, with timers and channels, used for servo pulses or dimming. Arduino-ESP32 3.x configures it with ledcAttach(pin, frequency, resolutionBits) and changes the pulse with ledcWrite(pin, duty); at 50 Hz and 14 bits, duty runs from 0 to 16383.",
     },
     lesson: "esp32",
+    firstExplained: true,
   },
   {
     id: "freertos-task",
@@ -534,6 +536,7 @@ export const glossary: GlossaryEntry[] = [
       en: "An independently scheduled unit of execution in FreeRTOS with its own stack and priority. The ESP32 Arduino core runs setup() and loop() inside one task while most of the Wi-Fi stack runs on the other core, and xTaskCreatePinnedToCore() creates your own task.",
     },
     lesson: "esp32",
+    firstExplained: true,
   },
   {
     id: "3v3-logic",
@@ -543,6 +546,7 @@ export const glossary: GlossaryEntry[] = [
       en: "A device family that uses 3.3 V for both supply and logic high; the ESP32-S3 is one, and its pins are not 5 V tolerant. The datasheet's absolute maximum is about 3.6 V, so a 5 V signal must be divided down before it reaches an input.",
     },
     lesson: "esp32",
+    firstExplained: true,
   },
   {
     id: "h-bridge",
@@ -606,6 +610,7 @@ export const glossary: GlossaryEntry[] = [
       en: "A two-wire synchronous bus with SDA for data and SCL for clock; the controller generates the clock and each peripheral answers to a 7-bit address. Standard rates are 100 kHz and 400 kHz; the Uno uses A4/A5 for SDA/SCL and the classic ESP32 defaults to GPIO 21/22.",
     },
     lesson: "sensors-fusion",
+    firstExplained: true,
   },
   {
     id: "open-drain",
@@ -614,7 +619,8 @@ export const glossary: GlossaryEntry[] = [
       zh: "输出级只能把线拉低、不能主动推高的结构，高电平必须由上拉电阻提供。多个开漏器件共线时不会互相短路，这正是 I2C 能让许多器件共享总线的原因，典型上拉为 4.7–10 kΩ。",
       en: "An output stage that can pull a line low but cannot drive it high, so a pull-up resistor supplies the high level. Several open-drain devices can share a line without contention, which is why I2C supports many devices; typical pull-ups are 4.7–10 kΩ.",
     },
-    lesson: "sensors-fusion",
+    lesson: "motors-drivers",
+    firstExplained: true,
   },
   {
     id: "register",
@@ -624,6 +630,7 @@ export const glossary: GlossaryEntry[] = [
       en: "An addressable byte or word inside a chip, used to configure functions or read data. On the MPU-6050, WHO_AM_I is at 0x75 and always returns 0x68, while PWR_MGMT_1 at 0x6B has its SLEEP bit set at power-up and must be cleared to wake the chip.",
     },
     lesson: "sensors-fusion",
+    firstExplained: true,
   },
   {
     id: "twos-complement",
@@ -643,6 +650,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The non-zero rate a gyroscope reports while stationary; integrating it produces an angle error that grows without bound, error = bias × time. A 1.5 °/s bias gives 90° of error after 60 s, so average it while still at startup and subtract it before every integration.",
     },
     lesson: "sensors-fusion",
+    firstExplained: true,
   },
   {
     id: "complementary-filter",
@@ -652,6 +660,7 @@ export const glossary: GlossaryEntry[] = [
       en: "A one-line fusion of the integrated gyro angle with the accelerometer angle: angle = α × (angle + rate × dt) + (1 − α) × accelAngle. α is close to 1, typically 0.98; at 100 Hz the time constant is τ = 0.98 × 0.01 / 0.02 = 0.49 s.",
     },
     lesson: "sensors-fusion",
+    firstExplained: true,
   },
   {
     id: "low-high-pass-filter",
