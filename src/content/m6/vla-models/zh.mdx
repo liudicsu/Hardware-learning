@@ -7,7 +7,7 @@
 动作输出有两种做法，它们在很大程度上决定了模型的行为：
 
 - <strong>把动作当成词元（token）。</strong>给语言模型的词表加上动作词元，让它以自回归方式逐个生成动作词元。RT-2 和 OpenVLA 是这样做的，每次调用输出一步动作（分别是 8 个和 7 个词元）；π0-FAST 也是，但它的分词器 FAST 会先把一整块动作压缩（见下文）。
-- <strong>单独的动作头。</strong>把语言模型的特征送进一个较小的网络，由它通过扩散或流匹配（flow matching，与[上一课](/zh/month/month-6/act-diffusion)的扩散是近亲）生成一整块连续动作。π0、SmolVLA 和 GR00T 是这样做的。π0.5 预训练时用 FAST 词元，后训练时加上流匹配动作专家，运行时用的就是这个动作专家。Octo 也有扩散动作头，但没有视觉-语言模型：它是一个从零训练的小型 Transformer，文字由冻结的 T5 编码器处理。
+- <strong>单独的动作头。</strong>把语言模型的特征送进一个较小的网络，由它通过扩散或流匹配（flow matching，与[上一课](/zh/month/month-6/act-diffusion)的扩散是近亲）生成一整块连续动作。π0、SmolVLA 和 GR00T 是这样做的。π0.5 预训练时只用 FAST 词元，后训练时加上流匹配动作专家，运行时用的就是这个动作专家。Octo 也有扩散动作头，但没有视觉-语言模型：它是一个从零训练的小型 Transformer，文字由冻结的 T5 编码器处理。
 
 <Diagram id="vla-dataflow" />
 
@@ -191,7 +191,7 @@ DCT of each joint over the chunk, normalised to -1..1, then scale and round:
 |---|---|---|---|
 | OpenVLA (7B) | 斯坦福、伯克利、TRI 等 | 256 区间词元，7 维末端位姿增量 | MIT，在 Hugging Face 上 |
 | Octo | 伯克利等 | 从零训练的小型 Transformer（没有视觉-语言模型）加扩散动作头 | MIT，在 Hugging Face 上 |
-| π0, π0-FAST, π0.5 | Physical Intelligence（openpi） | 流匹配动作专家；π0-FAST 用 FAST 词元；π0.5 预训练用 FAST 词元，后训练加上动作专家 | 代码 Apache-2.0；基础检查点可下载；基于 PaliGemma，LeRobot 上的副本标注 Gemma 许可证 |
+| π0, π0-FAST, π0.5 | Physical Intelligence（openpi） | 流匹配动作专家；π0-FAST 用 FAST 词元；π0.5 预训练只用 FAST 词元，后训练加上动作专家 | 代码 Apache-2.0；基础检查点可下载；基于 PaliGemma，LeRobot 上的副本标注 Gemma 许可证 |
 | SmolVLA (450M) | Hugging Face（LeRobot） | 流匹配动作专家，输出动作块 | Apache-2.0，在 Hugging Face 上 |
 | GR00T N1.6 (3B) | NVIDIA | 扩散 Transformer 动作头 | 可下载；NVIDIA 许可证，仅限研究与非商业用途 |
 | GR00T N1.7 (3B) | NVIDIA | 同 N1.6，面向人形机器人 | NVIDIA Open Model License，允许商用（抢先体验版，2026 年 4 月） |

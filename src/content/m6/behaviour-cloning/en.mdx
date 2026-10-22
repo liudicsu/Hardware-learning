@@ -227,6 +227,8 @@ The reason is called **covariate shift**: the states the policy visits at test t
 
 The "wall hits at" line shows where it goes wrong. Most failures are at the goal end: the demonstrations stop as soon as the expert is within 5 cm of the goal, so there is not a single frame that says what to do near the goal if you arrive a few centimetres off. The policy keeps going in +y and drives into the end wall. Real datasets have the same holes, at the moments right after the operator finished the task, and after a failed grasp, which a good operator never demonstrates.
 
+<Diagram id="bc-corridor" />
+
 <Quiz id="q2" question="If nothing ever corrects it, how far (one standard deviation, in cm) does 1 cm of independent noise per step drift one axis after 38 steps?" answer={6.2} unit="cm" explanation="Independent errors add in quadrature: 1 cm × √38 = 6.2 cm. That is more than half the corridor's 10 cm half-width, so a policy that does not steer back has a real chance of touching a wall even before compounding makes it worse." />
 
 <Quiz id="q3" question="Why did 80 demonstrations not do better than 20 here?" options={["The nearest-neighbour policy cannot use more than 766 frames", "The extra demos cover the same states on the centre line, not the off-path states the policy reaches under noise", "The evaluation seeds were different for the 80-demo run"]} answer={1} explanation="More data only helps if it covers the states the policy actually visits. The noise-free expert never leaves the centre line, so its demos never show recovery. Every line uses the same seed and 100 runs, and the gap between 67 and 100 for DAgger is far larger than run-to-run luck." />

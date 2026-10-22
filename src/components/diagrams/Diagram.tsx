@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { DIAGRAMS } from "@/lib/diagrams";
-import { tx, type BlockDiagramSpec, type DiagramSpec, type Locale } from "@/lib/diagrams/types";
+import { tx, type BlockDiagramSpec, type DiagramSpec, type GeoSpec, type Locale } from "@/lib/diagrams/types";
 import { DIAGRAM_UI } from "@/lib/diagrams/ui";
 import { BlockDiagramSvg } from "./BlockDiagram";
 import { ByteFields } from "./ByteFields";
@@ -39,7 +39,7 @@ export function Diagram({ id, locale }: DiagramProps) {
       ) : spec.kind === "poseGraph" ? (
         <PoseGraph spec={spec} locale={locale} />
       ) : spec.kind === "geo" ? (
-        <Geo2D spec={spec} locale={locale} />
+        <GeoBody spec={spec} locale={locale} />
       ) : spec.kind === "bytes" ? (
         <ByteFields spec={spec} locale={locale} />
       ) : (
@@ -59,6 +59,19 @@ function BlockBody({ spec, locale }: { spec: BlockDiagramSpec; locale: Locale })
         <BlockDiagramSvg spec={spec} layout={spec.layouts.narrow} locale={locale} highlight={highlight} className="mx-auto block xl:hidden" />
         <BlockDiagramSvg spec={spec} layout={spec.layouts.wide} locale={locale} highlight={highlight} className="mx-auto hidden xl:block" />
       </div>
+      {steps.length > 0 && (
+        <StepControls locale={locale} n={steps.length} i={step} onChange={setStep} text={step >= 0 ? tx(steps[step].label, locale) : undefined} />
+      )}
+    </>
+  );
+}
+
+function GeoBody({ spec, locale }: { spec: GeoSpec; locale: Locale }) {
+  const [step, setStep] = useState(-1);
+  const steps = spec.steps ?? [];
+  return (
+    <>
+      <Geo2D spec={spec} locale={locale} highlight={step >= 0 ? steps[step].highlight : undefined} />
       {steps.length > 0 && (
         <StepControls locale={locale} n={steps.length} i={step} onChange={setStep} text={step >= 0 ? tx(steps[step].label, locale) : undefined} />
       )}

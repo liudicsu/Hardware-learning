@@ -149,6 +149,15 @@ numbers, cart-pole direction, TB6612 OUT1) go into the PR that touches each less
   - check_diagrams: script failures are FAIL lines, and block bindings tie the drawn model lists to the facts.
   - cartpole-signs: the axis ends at x 304 and "+x" starts at x 311, clear of the arrowhead.
   - All hand-written.
+- D113 (branch diagrams/d113-bc-corridor from 5b1e38f): `bc-corridor` in behaviour-cloning "Covariate shift", a
+  stepped Geo2D figure of bc_reach.py's L-shaped corridor to scale (0.2 m wide, goal (1, 1), dashed 5 cm success
+  circle). tools/sim/models/bc_corridor_export.py imports bc_reach.py and writes the first 5 noise-free demos
+  (Random(6); 190 frames, 2 more than 3 cm off the centre line) and BC-5's evaluation exactly as evaluate() runs it
+  (seed 2026: 61 successes, 39 wall hits, 29 at the goal end, matching the lesson). Drawn: run 1 (reaches the goal,
+  worst 7.5 cm) and run 7 (6.9 cm right of the line in leg 2; the nearest recorded frame is on the centre line with
+  action (0, +0.05); never within 7.5 cm of the goal; exits through the end wall). Steps: demos -> run 1 -> run 7 and
+  the nearest frame -> the 100-run counts. Geo2D gained polyline, dashed circles, groups and steps; check_diagrams
+  gained checkCorridor. All hand-written.
 - D115 (branch diagrams/d115-act-block from 5b1e38f): `act-block-task` in act-diffusion after the fork table, a
   static Geo2D figure of multimodal.py's block task to scale (0.3 m block at (0, 0.5), fork (0, 0.2), waypoints
   (±0.3, 0.4), goal (0, 1) with its 5 cm radius) and the decision at (0, 0.23): the 10 nearest recorded frames'

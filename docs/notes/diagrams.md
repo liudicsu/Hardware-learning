@@ -134,6 +134,16 @@ optional arrow) and `text` (13 units, so >= 12 px at 390 px). check_diagrams kee
 the viewBox. `cartPole` names the axis, force, pole and theta-arc shapes; their directions must agree with the
 signs of `cartpole()` in tools/sim/models/lqr_sim.py, which the check runs. First user: `cartpole-signs`.
 
+D113 added `polyline` (points, optional dashed), `dashed` circles, and optional `steps` (`{ label, highlight }`, the
+same step controls as block diagrams). Every shape can carry an `id` and/or a `group`; a step keeps the listed ids
+and groups bright and dims the rest to 0.15, and shapes with neither are never dimmed. check_diagrams requires every
+highlighted name to exist. `corridor` (bc-corridor) names the walls, success and fail polylines and the metre-to-unit
+`map`: the check imports bc_reach.py for the corridor constants, rebuilds the outline, and requires the success run to
+stay inside and end within the success radius and the failed run to stay inside until it leaves through the
+goal-end wall, never within the success radius. Random trajectories come from a fixed-seed exporter
+(tools/sim/models/bc_corridor_export.py -> src/lib/diagrams/data/bc-corridor.json, re-run and compared) and the
+caption says which runs they are.
+
 `blockTask` (act-block-task, D115) names the block rect, goal/start/fork/waypoint circles, the demo-action arrows, the
 mean arrow and its ray, with the metre-to-unit `map`. The check imports multimodal.py (GOAL, BLOCK_Y, HALF, FORK_Y,
 STEP and the waypoint in `expert()`), requires each shape at its place, every demo arrow to start within 2 cm of
