@@ -643,11 +643,11 @@ function checkCorridor(spec, tag, byId) {
   if (bad.length) {
     const out = bad.slice(0, -1).filter((p) => !inC(p));
     ok(out.length === 0, `${tag}: failed run leaves the corridor early at ${JSON.stringify(out[0])}`);
-    const end = bad.at(-1);
+    const end = bad.at(-1), before = failed;
     ok(!inC(end) && end[1] > gy + hw && Math.abs(end[0] - gx) <= hw + 0.05, `${tag}: failed run should end past the goal-end wall, ends at ${JSON.stringify(end.map((v) => +v.toFixed(3)))}`);
     const closest = Math.min(...bad.map(dGoal));
     ok(closest > c.goalRadius, `${tag}: failed run comes within ${(closest * 100).toFixed(1)} cm of the goal, which would be a success`);
-    console.log(`model ${spec.id}: walls from bc_reach.py; success run inside, ends ${(dGoal(okp.at(-1)) * 100).toFixed(1)} cm from goal; failed run exits the end wall, closest ${(closest * 100).toFixed(1)} cm`);
+    if (failed === before) console.log(`model ${spec.id}: walls from bc_reach.py; success run inside, ends ${(dGoal(okp.at(-1)) * 100).toFixed(1)} cm from goal; failed run exits the end wall, closest ${(closest * 100).toFixed(1)} cm`);
   }
 }
 
