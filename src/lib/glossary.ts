@@ -539,8 +539,8 @@ export const glossary: GlossaryEntry[] = [
     id: "h-bridge",
     term: { zh: "H 桥", en: "H-bridge" },
     def: {
-      zh: "四只开关围着电机、形似字母 H 的电路，可让直流电机正转、反转、短路刹车或滑行。TB6612FNG 与 DRV8833 每通道约 1.2 A，芯片内部已含体二极管和死区逻辑。",
-      en: "Four switches around a motor, drawn like the letter H, that let a DC motor run forward, reverse, brake or coast. The TB6612FNG and DRV8833 handle about 1.2 A per channel and include body diodes and dead-time logic.",
+      zh: "四只开关围着电机、形似字母 H 的电路，可让直流电机正转、反转、短路刹车或滑行。TB6612FNG 每通道 1.0 A（绝对最大值 1.2 A），DRV8833 每通道约 1.2 A，芯片内部已含体二极管和死区逻辑。",
+      en: "Four switches around a motor, drawn like the letter H, that let a DC motor run forward, reverse, brake or coast. The TB6612FNG handles 1.0 A per channel (1.2 A absolute maximum) and the DRV8833 about 1.2 A, and they include body diodes and dead-time logic.",
     },
     lesson: "motors-drivers",
     firstExplained: true,

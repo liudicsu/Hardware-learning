@@ -46,7 +46,7 @@ def run(loop_hz, kp, kd, use_filter=True, seconds=5.0, seed=3):
             n += 1
         t += 0.001
         worst = max(worst, abs(math.degrees(theta)))
-        if worst > 45:
+        if worst > 40:
             return f"fell over after {t:.2f} s"
     return f"upright, wobble {math.sqrt(sq / n):.2f} deg rms, worst tilt {worst:.1f} deg"
 

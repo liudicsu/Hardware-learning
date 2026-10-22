@@ -4,7 +4,7 @@ An actuator turns electrical energy into motion. Almost every robot you will bui
 
 | Type | How you control it | Feedback | Typical use |
 | --- | --- | --- | --- |
-| Brushed DC gearmotor | PWM through an H-bridge driver | None unless you add an encoder | The default for a first rover |
+| Brushed DC gearmotor | PWM through an <Term id="h-bridge">H-bridge</Term> driver | None unless you add an encoder | The default for a first rover |
 | Hobby servo | A 50 Hz pulse whose width sets the angle (Lesson 3) | Internal loop only, nothing comes back to you | Steering, small arms, about 180° of travel |
 | Smart serial bus servo (e.g. FeeTech STS3215) | Commands over a daisy-chained serial bus | Reports position, speed, load and more; a 12-bit magnetic encoder means 4096 positions per turn | Low-cost robot arms such as the open-source SO-101 |
 | Stepper motor | Step and direction pulses to a driver | None (open loop) but holds position with high torque | 3D printers, precise positioning |
@@ -48,7 +48,7 @@ stall / free-run current = 1.25 A / 0.13 A ≈ 9.6
 
 Two consequences matter on a bench. First, **speed is roughly proportional to voltage**, not to the PWM number on your serial monitor. Second, **torque is roughly proportional to current**, and current rises when the load rises. A motor moving a light robot on a smooth floor draws little; the same motor pushing against a carpet draws much more.
 
-The worst case is stall: the shaft is held still, so there is no back-EMF at all. The winding looks like a small resistance and the motor draws its <Term id="stall-current">**stall current**</Term>, the largest current it will ever ask for. For the Romi motor that is 1.25 A at 4.5 V, about 9.6 times its 130 mA free-run current. With the same 3.6 Ω on a 7.4 V 2S pack, the stall current is 7.4 V / 3.6 Ω ≈ 2.1 A per motor, above the 1.2 A continuous rating per channel of the TB6612FNG introduced below. Size the driver and the battery for stall current, not for the running current measured while the robot was rolling. Month 1 showed how that surge, flowing through battery and wire resistance, can sag the supply and reset the microcontroller.
+The worst case is stall: the shaft is held still, so there is no back-EMF at all. The winding looks like a small resistance and the motor draws its <Term id="stall-current">**stall current**</Term>, the largest current it will ever ask for. For the Romi motor that is 1.25 A at 4.5 V, about 9.6 times its 130 mA free-run current. With the same 3.6 Ω on a 7.4 V 2S pack, the stall current is 7.4 V / 3.6 Ω ≈ 2.1 A per motor, above the TB6612FNG's 1.0 A maximum operating current per channel (introduced below) and even above the 2 A it allows for repeated 20 ms pulses. A fully charged 2S pack is 8.4 V, which raises the stall current to 8.4 V / 3.6 Ω ≈ 2.3 A. Size the driver and the battery for stall current, not for the running current measured while the robot was rolling. Month 1 showed how that surge, flowing through battery and wire resistance, can sag the supply and reset the microcontroller.
 
 A gearbox trades speed for torque. A 120:1 gearbox means the motor turns 120 times for every one turn of the output shaft. The output is 120 times slower and, ignoring friction, about 120 times stronger. This is why a tiny motor can move a robot: it spins fast and weak, and the gearbox converts that into slow and strong. It also means you must be careful about which side of the gearbox an encoder sits on. Counts measured at the motor shaft multiply by the gear ratio when you convert them to wheel motion.
 
@@ -68,7 +68,7 @@ Same code, same duty, same robot, but about 14 % more speed simply because the b
 
 ## The H-bridge and choosing a driver
 
-A DC motor needs current in either direction, and a microcontroller pin cannot supply that current or reverse it. The circuit that solves both problems is the <Term id="h-bridge">**H-bridge**</Term>: four switches arranged around the motor, named after the shape of the schematic.
+A DC motor needs current in either direction, and a microcontroller pin cannot supply that current or reverse it. The circuit that solves both problems is the **H-bridge**: four switches arranged around the motor, named after the shape of the schematic.
 
 <Diagram id="hbridge-current-path" />
 
@@ -84,7 +84,7 @@ Note: this toy model has no diodes and no dead time, so opening a switch while c
 
 The L298N appears in almost every tutorial. It works, and you should recognise it, but it is an old bipolar-transistor design. Its output stage drops roughly 2 V or more, so a 7.4 V battery delivers only about 5.4 V to the motor. The missing voltage becomes heat inside the driver. At 1 A that is about 2 W inside the driver, which is why L298N boards get hot and why they waste battery so quickly. Learn it because tutorials use it, then choose a MOSFET driver for your own robot.
 
-Two good choices are the TB6612FNG and the DRV8833. The TB6612FNG gives about 1.2 A continuous per channel, accepts a motor supply up to about 13.5 V, and its logic side runs from 2.7 V to 5.5 V. The DRV8833 also gives about 1.2 A per channel, with a motor supply range of 2.7 V to 10.8 V. These are headline numbers; always check the datasheet for your exact breakout board, because connectors, copper area and cooling change what is realistic.
+Two good choices are the TB6612FNG and the DRV8833. The TB6612FNG is specified for at most 1.0 A per channel in operation; 1.2 A is its absolute maximum, and pulses of 2 A are allowed for 20 ms at a duty of at most 20 % ([Toshiba TB6612FNG datasheet](https://www.pololu.com/file/0J86/TB6612FNG.pdf); Pololu's carrier [#713](https://www.pololu.com/product/713) quotes 1 A continuous, 3 A peak). It accepts a motor supply up to about 13.5 V, and its logic side runs from 2.7 V to 5.5 V. The DRV8833 also gives about 1.2 A per channel, with a motor supply range of 2.7 V to 10.8 V. These are headline numbers; always check the datasheet for your exact breakout board, because connectors, copper area and cooling change what is realistic.
 
 The TB6612FNG has a simple control table. Each channel has two direction inputs and one PWM input, plus a shared standby pin.
 
@@ -141,7 +141,7 @@ Hobby servos were covered in Lesson 3, so here is only the part that matters aro
 
 Stepper motors are different. A typical stepper moves 1.8° per full step, which is 360° / 1.8° = 200 full steps per revolution. The "NEMA 17" label describes the 1.7-inch faceplate mounting pattern, not the motor's strength; two NEMA 17 motors can have very different torque and current ratings. A driver such as the A4988 takes two logic inputs, STEP and DIR: each pulse on STEP advances one step, and the level on DIR chooses the direction. Microstepping divides each full step further. At 1/16 microstepping, one revolution needs 200 × 16 = 3200 microsteps, and therefore 3200 STEP pulses.
 
-Before you connect a stepper, set the driver's current limit. On an A4988 carrier the small potentiometer sets a reference voltage, Vref, and Pololu gives the relation I_max = Vref / (8 × R_CS), where R_CS is the current-sense resistor on the board: 0.068 Ω on Pololu units made since 2017 and 0.050 Ω on earlier ones ([Pololu #1182](https://www.pololu.com/product/1182)). For a 1 A limit on a current board, Vref = 8 × 1 A × 0.068 Ω = 0.544 V, which Pololu rounds to 540 mV. Read R_CS from the resistor marking on your own board, because other manufacturers' boards use other values. Too high and the motor and driver overheat; too low and the motor buzzes and skips. Set it with the motor disconnected from the driver, measure Vref, then connect and test at low speed. And remember the fundamental limitation: a stepper is open loop. If the load is too high, it silently skips steps and does not know. The print or the robot arm simply ends up somewhere else, with no error message.
+Before you connect a stepper, set the driver's current limit. On an A4988 carrier the small potentiometer sets a reference voltage, Vref, and Pololu gives the relation I_max = Vref / (8 × R_CS), where R_CS is the current-sense resistor on the board: 0.068 Ω on Pololu units made since 2017 and 0.050 Ω on earlier ones ([Pololu #1182](https://www.pololu.com/product/1182)). For a 1 A limit on a current board, Vref = 8 × 1 A × 0.068 Ω = 0.544 V, which Pololu rounds to 540 mV. Read R_CS from the resistor marking on your own board, because other manufacturers' boards use other values. Too high and the motor and driver overheat; too low and the motor buzzes and skips. Set it with the motor disconnected from the driver and measure Vref; then switch the power off before you connect the motor, because Pololu warns that connecting or disconnecting a stepper while the driver is powered can destroy the driver, and test at low speed. And remember the fundamental limitation: a stepper is open loop. If the load is too high, it silently skips steps and does not know. The print or the robot arm simply ends up somewhere else, with no error message.
 
 Smart bus servos combine the convenience of a servo with the feedback of an encoder. One serial line daisy-chains many servos, each with its own ID, so a six-servo arm needs one cable instead of six PWM cables. You send a command to an ID and read back position, speed, load, voltage and temperature. The 12-bit magnetic encoder inside a servo such as the STS3215 gives 4096 positions per turn. That feedback is why modern low-cost arms can repeat positions and detect when they are pushing too hard, instead of continuing into a stall without noticing.
 
@@ -522,7 +522,7 @@ Before you move on, you should be able to say yes to all of these:
 - Brushed DC motor: V = I × R + k_e × ω; at stall ω = 0 and I_stall = V / R. The Romi 120:1 at 4.5 V: R = 3.6 Ω, 130 mA free-run, 1.25 A stall.
 - PWM sets the average voltage, not the speed: 60 % duty is 4.44 V from 7.4 V and 5.04 V from 8.4 V, about 14 % faster.
 - H-bridge: S1 + S4 forward, S2 + S3 reverse, S2 + S4 brake; S1 + S2 is shoot-through (about 12 A in the model).
-- An L298N drops about 2 V (27 % of 7.4 V); the TB6612FNG and DRV8833 give about 1.2 A per channel with a far smaller drop.
+- An L298N drops about 2 V (27 % of 7.4 V); the TB6612FNG (1.0 A per channel, 1.2 A absolute maximum) and the DRV8833 (about 1.2 A per channel) drop far less.
 - Every transistor-switched coil needs a flyback diode across it, cathode to the positive side; driver chips contain them.
 - A4988 current limit: I_max = Vref / (8 × R_CS); 1 A with 0.068 Ω needs Vref = 0.544 V.
 - Romi encoder: 12 counts per motor turn (×4) × 119.76 ≈ 1440 counts per wheel turn, 0.153 mm per count on a 70 mm wheel.
