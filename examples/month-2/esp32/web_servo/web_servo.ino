@@ -9,7 +9,7 @@ const char *WIFI_PASS = "your-password";
 const int SERVO_PIN = 18;
 const int POT_PIN = 34;        // classic ESP32: GPIO 34 is on ADC1 (works with Wi-Fi on). ESP32-S3: use GPIO 4.
 const int SERVO_HZ = 50;       // standard hobby servo frame: 20 ms
-const int SERVO_BITS = 14;     // duty resolution: 0..16384
+const int SERVO_BITS = 14;     // duty 0..2^14; S3 max: 16384 (100 %) not settable
 
 WebServer server(80);
 int servoAngle = 90;

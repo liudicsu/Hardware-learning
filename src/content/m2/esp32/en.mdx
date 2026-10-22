@@ -172,7 +172,7 @@ Here is why the naive conversion is not enough. Take a raw reading of 2048, half
 2048 × 3.3 V / 4095 = 6758.4 / 4095 = 1.6504 V ≈ 1.65 V
 ```
 
-A calibrated reading of the same input can differ by about 0.1 V. With the default 12 dB attenuation the ESP32-S3 ADC nominally measures 0 to 3.1 V, not 0 to 3.3 V (ESP-IDF ADC documentation), so a raw 2048 is nearer 2048 × 3.1 V / 4096 ≈ 1.55 V, and each chip's internal reference (nominally 1.1 V, between 1.0 and 1.2 V from chip to chip) shifts the result further. That difference is exactly the error the factory calibration removes. Trust `analogReadMilliVolts()`, and average several readings to reduce noise: eight or sixteen samples, summed and divided, is a good habit. Keep the readings on ADC1 if Wi-Fi is running, and remember that the ADC measures against its own reference, not against a perfect 3.3 V.
+A calibrated reading of the same input can differ by about 0.1 V. With the default 12 dB attenuation (ADC_ATTEN_DB_12 in ESP-IDF 5.x, the same setting the Arduino core calls `ADC_11db`) the ESP32-S3 ADC nominally measures 0 to 3.1 V, not 0 to 3.3 V (Arduino-ESP32 ADC documentation; the ESP32-S3 datasheet v2.2, Table 5-6, specifies calibrated readings to ±50 mV only from 0 to 2.9 V at this attenuation, so readings above 2.9 V are unreliable), so a raw 2048 is nearer 2048 × 3.1 V / 4096 ≈ 1.55 V, and each chip's internal reference (nominally 1.1 V, between 1.0 and 1.2 V from chip to chip) shifts the result further. That difference is exactly the error the factory calibration removes. Trust `analogReadMilliVolts()`, and average several readings to reduce noise: eight or sixteen samples, summed and divided, is a good habit. Keep the readings on ADC1 if Wi-Fi is running, and remember that the ADC measures against its own reference, not against a perfect 3.3 V.
 
 <Quiz id="q4" question="A 12-bit ADC: how many distinct codes does it have?" answer={4096} explanation="A 12-bit converter has 2^12 = 4096 codes, numbered 0 to 4095." />
 
@@ -200,11 +200,11 @@ MicroPython deserves its own warning. It is excellent for reading a sensor, plot
 
 A hobby servo does not take an angle as a number. It expects a pulse every 20 ms, which is a 50 Hz frame, and the width of that pulse sets the angle. The common convention is 1.0 ms for 0°, 1.5 ms for 90° and 2.0 ms for 180°. Many servos actually accept something wider, roughly 0.5 ms to 2.5 ms, but the safe habit is to stay within the range your servo's datasheet gives. Driving past an end stop makes the motor push against a mechanical limit, draw a stall current, heat up and eventually strip a gear.
 
-The ESP32 generates this signal with its <Term id="ledc">**LEDC**</Term> peripheral, a PWM block with hardware timers and channels. In Arduino-ESP32 core 3.x the API is compact: call `ledcAttach(pin, frequency, resolutionBits)` once, then `ledcWrite(pin, duty)` whenever you want a new pulse width. The resolution is in bits, so 14 bits gives duty values from 0 to 16384 (2^14).
+The ESP32 generates this signal with its <Term id="ledc">**LEDC**</Term> peripheral, a PWM block with hardware timers and channels. In Arduino-ESP32 core 3.x the API is compact: call `ledcAttach(pin, frequency, resolutionBits)` once, then `ledcWrite(pin, duty)` whenever you want a new pulse width. The resolution is in bits: with n bits the duty generally runs from 0 to 2^n, so 14 bits gives 0 to 16384 (2^14).
 
 <Formula label="LEDC duty for a pulse">duty = pulse / period × 2^bits</Formula>
 
-At 50 Hz the period is 1 / 50 = 0.02 s = 20 ms. With 14 bits, the duty runs from 0 to 2^14 = 16384, and 16384 means the output stays high for the whole period (ESP-IDF LEDC driver). For a 1.5 ms pulse:
+At 50 Hz the period is 1 / 50 = 0.02 s = 20 ms. In general a duty of 2^bits keeps the output high for the whole period (ESP-IDF LEDC driver). The ESP32-S3 is an exception at its top resolution: its LEDC timers are at most 14 bits wide, and the ESP-IDF LEDC documentation warns that when a timer uses its maximum resolution the duty cannot be set to 2^bits, because the hardware duty counter overflows. Arduino-ESP32's `ledcWrite()` rewrites any value of 2^bits − 1 or more to 2^bits, so on the S3 at 14 bits `ledcWrite(pin, 16383)` runs into the same problem. A 100 % output is therefore not available at 14 bits on the S3; choose 13 bits or fewer if you need a fully-high output. The servo signal is unaffected, because it only uses duties of 5–10 % (819 to 1638). For a 1.5 ms pulse:
 
 ```text
 pulse / period = 1.5 ms / 20 ms = 0.075
@@ -254,7 +254,7 @@ const char *WIFI_PASS = "your-password";
 const int SERVO_PIN = 18;
 const int POT_PIN = 34;        // classic ESP32: GPIO 34 is on ADC1 (works with Wi-Fi on). ESP32-S3: use GPIO 4.
 const int SERVO_HZ = 50;       // standard hobby servo frame: 20 ms
-const int SERVO_BITS = 14;     // duty resolution: 0..16384
+const int SERVO_BITS = 14;     // duty 0..2^14; S3 max: 16384 (100 %) not settable
 
 WebServer server(80);
 int servoAngle = 90;

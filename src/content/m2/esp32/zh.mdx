@@ -172,7 +172,7 @@ ESP32 的模数转换器（ADC）是 12 位的，也就是能给出 4096 个不�
 2048 × 3.3 V / 4095 = 6758.4 / 4095 = 1.6504 V ≈ 1.65 V
 ```
 
-同一个输入，校准后的读数可能相差约 0.1 V。在默认的 12 dB 衰减下，ESP32-S3 的 ADC 标称量程是 0 到 3.1 V，而不是 0 到 3.3 V（ESP-IDF ADC 文档），所以原始值 2048 更接近 2048 × 3.1 V / 4096 ≈ 1.55 V；每颗芯片的内部参考电压（标称 1.1 V，不同芯片在 1.0 到 1.2 V 之间）还会让结果再偏一些。这点差别正是出厂校准要消掉的东西。相信 `analogReadMilliVolts()`，并且多读几次取平均来压噪声：采样 8 次或 16 次，求和再除，是个好习惯。Wi-Fi 开着时坚持用 ADC1，同时记住 ADC 是拿自己的参考电压在量，而不是拿一个完美的 3.3 V 在量。
+同一个输入，校准后的读数可能相差约 0.1 V。在默认的 12 dB 衰减下（ESP-IDF 5.x 中为 ADC_ATTEN_DB_12，也就是 Arduino 核心所说的 `ADC_11db`），ESP32-S3 的 ADC 标称量程是 0 到 3.1 V，而不是 0 到 3.3 V（Arduino-ESP32 ADC 文档；ESP32-S3 数据手册 v2.2 表 5-6 在这一衰减下只对 0 到 2.9 V 的校准读数给出 ±50 mV 的精度，所以高于 2.9 V 的读数不可靠），所以原始值 2048 更接近 2048 × 3.1 V / 4096 ≈ 1.55 V；每颗芯片的内部参考电压（标称 1.1 V，不同芯片在 1.0 到 1.2 V 之间）还会让结果再偏一些。这点差别正是出厂校准要消掉的东西。相信 `analogReadMilliVolts()`，并且多读几次取平均来压噪声：采样 8 次或 16 次，求和再除，是个好习惯。Wi-Fi 开着时坚持用 ADC1，同时记住 ADC 是拿自己的参考电压在量，而不是拿一个完美的 3.3 V 在量。
 
 <Quiz id="q4" question="12 位 ADC 一共有多少个不同的编码值？" answer={4096} explanation="12 位转换器有 2^12 = 4096 个编码，编号从 0 到 4095。" />
 
@@ -200,11 +200,11 @@ MicroPython 值得单独提醒。它非常适合读一个传感器、画一条�
 
 普通舵机（hobby servo）并不接受一个“角度数字”。它期待每 20 ms 收到一个脉冲，也就是 50 Hz 的帧，而脉冲宽度决定角度。常见约定是 1.0 ms 对应 0°，1.5 ms 对应 90°，2.0 ms 对应 180°。很多舵机实际接受更宽的范围，大约 0.5–2.5 ms，但稳妥的做法是守着你那颗舵机数据手册给的范围。把舵机往机械限位之外驱，电机会顶着限位堵转、电流上升、发热，最后扫齿。
 
-ESP32 用 <Term id="ledc">**LEDC**</Term> 外设产生这个信号。它是一块带硬件定时器和通道的 PWM 模块。Arduino-ESP32 核心 3.x 的 API 很简洁：先调一次 `ledcAttach(pin, frequency, resolutionBits)`，之后每次要改脉宽就调 `ledcWrite(pin, duty)`。分辨率以位为单位，14 位对应 0 到 16384（2^14）的 duty 值。
+ESP32 用 <Term id="ledc">**LEDC**</Term> 外设产生这个信号。它是一块带硬件定时器和通道的 PWM 模块。Arduino-ESP32 核心 3.x 的 API 很简洁：先调一次 `ledcAttach(pin, frequency, resolutionBits)`，之后每次要改脉宽就调 `ledcWrite(pin, duty)`。分辨率以位为单位：n 位时 duty 一般取 0 到 2^n，所以 14 位对应 0 到 16384（2^14）。
 
 <Formula label="脉冲对应的 LEDC duty">duty = pulse / period × 2^bits</Formula>
 
-50 Hz 时周期是 1 / 50 = 0.02 s = 20 ms。14 位时 duty 的范围是 0 到 2^14 = 16384，取 16384 表示整个周期都输出高电平（ESP-IDF LEDC 驱动）。要产生 1.5 ms 的脉冲：
+50 Hz 时周期是 1 / 50 = 0.02 s = 20 ms。一般来说，duty 取 2^bits 时整个周期都输出高电平（ESP-IDF LEDC 驱动）。ESP32-S3 在最高分辨率下是例外：它的 LEDC 定时器最多 14 位，ESP-IDF 的 LEDC 文档警告，定时器使用最大分辨率时 duty 不能设为 2^bits，否则硬件里的 duty 计数器会溢出。Arduino-ESP32 的 `ledcWrite()` 会把 2^bits − 1 及以上的值改写成 2^bits，所以在 S3 上用 14 位时，`ledcWrite(pin, 16383)` 也会碰到同样的问题。因此 S3 在 14 位下得不到 100 % 输出；需要一直高电平时，请选 13 位或更低。舵机信号不受影响，因为它只用到 5–10 % 的 duty（819 到 1638）。要产生 1.5 ms 的脉冲：
 
 ```text
 pulse / period = 1.5 ms / 20 ms = 0.075
@@ -254,7 +254,7 @@ const char *WIFI_PASS = "your-password";
 const int SERVO_PIN = 18;
 const int POT_PIN = 34;        // classic ESP32: GPIO 34 is on ADC1 (works with Wi-Fi on). ESP32-S3: use GPIO 4.
 const int SERVO_HZ = 50;       // standard hobby servo frame: 20 ms
-const int SERVO_BITS = 14;     // duty resolution: 0..16384
+const int SERVO_BITS = 14;     // duty 0..2^14; S3 max: 16384 (100 %) not settable
 
 WebServer server(80);
 int servoAngle = 90;
