@@ -13,7 +13,7 @@ export function NavLink({ match, className = "", ...props }: Props) {
     <Link
       {...props}
       aria-current={active ? "page" : undefined}
-      className={`rounded-md px-2.5 py-1.5 text-sm transition-colors ${
+      className={`shrink-0 whitespace-nowrap rounded-md px-2.5 py-1.5 text-sm transition-colors ${
         active ? "text-white" : "text-zinc-400 hover:text-zinc-100"
       } ${className}`}
     />
