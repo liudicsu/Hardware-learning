@@ -783,15 +783,17 @@ for (const f of existsSync(dataDir) ? readdirSync(dataDir).filter((f) => f.endsW
     const angles = [0, 45, 90, 135, 180];
     const want = angles.map(duty);
     const steps = want.slice(1).map((d, i) => d - want[i]);
-    for (const [lang, stepRe, sep] of [["en", /The steps are ([\d, ]+)\./, ", "], ["zh", /相邻差分别是 ?([\d、]+)/, "、"]]) {
+    for (const [lang, stepRe, listRe, sep] of [["en", /The steps are ([\d, ]+)\./, /evenly spaced: ([\d, ]+)\./, ", "], ["zh", /相邻差分别是 ?([\d、]+)/, /完全等距的：([\d、]+)，/, "、"]]) {
       const text = readFileSync(join(root, `src/content/m2/esp32/${lang}.mdx`), "utf8");
       const rows = [...text.matchAll(/^angle +(\d+) -> duty (\d+)$/gm)].map((m) => [Number(m[1]), Number(m[2])]);
       ok(rows.length === angles.length, `esp32 ${lang}: expected ${angles.length} "angle N -> duty D" rows, found ${rows.length}`);
       for (const [a, d] of rows) ok(angles.includes(a) && d === duty(a), `esp32 ${lang}: table says angle ${a} -> duty ${d}; angleToDuty(${a}) = ${duty(a)}`);
       const s = text.match(stepRe);
       ok(s && s[1].trim() === steps.join(sep), `esp32 ${lang}: step list ${s ? s[1] : "(not found)"} != ${steps.join(sep)}`);
+      const l = text.match(listRe);
+      ok(l && l[1].trim() === want.join(sep), `esp32 ${lang}: value list ${l ? l[1] : "(not found)"} != ${want.join(sep)}`);
     }
-    console.log(`calc  esp32: angleToDuty at ${bits[1]} bits = ${want.join(", ")} (steps ${steps.join(", ")}), bound to the table in en/zh`);
+    console.log(`calc  esp32: angleToDuty at ${bits[1]} bits = ${want.join(", ")} (steps ${steps.join(", ")}), bound to the table, value list and step list in en/zh`);
   }
 }
 

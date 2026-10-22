@@ -142,14 +142,19 @@ and 1280 px: 156 pages, 0 problems (no text under 12 px, no horizontal overflow)
 
 ## Review follow-up after 6be12b3
 
-- esp32 ADC range: ESP-IDF's ADC docs give no S3 range of their own (they point to the datasheet; the 2800 mV limit
-  in adc_calibration.rst is for the ESP32-C2 only). The 0–3100 mV figure for ADC_11db on the ESP32-S3 is from the
-  Arduino-ESP32 ADC documentation (docs/en/api/adc.rst, checked at 0b70aff), so the lesson now cites that.
-  The lesson names the setting as 12 dB (ADC_ATTEN_DB_12 in ESP-IDF 5.x, ADC_11db in Arduino), cites the
-  datasheet's 2.9 V calibrated limit and says readings above 2.9 V are unreliable.
+- esp32 ADC range: ESP-IDF's ADC docs give no S3 range of their own (they point to the datasheet; the 2800 mV
+  limit in adc_calibration.rst is for the ESP32-C2 only). The 0–3100 mV figure for ADC_11db on the ESP32-S3 is
+  from the Arduino-ESP32 ADC documentation (docs/en/api/adc.rst, checked at 0b70aff), so the lesson now cites
+  that. The attenuator paragraph (en/zh line 165) carries the sources (Arduino docs 0–3100 mV, datasheet v2.2
+  Table 5-6 0–2900 mV ±50 mV); line 175 only names the setting (12 dB = ADC_ATTEN_DB_12 in ESP-IDF v5.2+
+  (hal/adc_types.h; v5.0 and v5.1 have only ADC_ATTEN_DB_11, the rename was backported to v5.0.5 and v5.1.3) =
+  ADC_11db in Arduino) and says readings above 2.9 V are unreliable.
 - esp32 LEDC: the lesson, glossary and web_servo.ino no longer say 16384 is fully high at 14 bits. Duty is
   generally 0 to 2^bits, but the ESP32-S3 (14-bit timers) cannot take 2^bits at its maximum resolution (ESP-IDF
-  LEDC docs warning), and Arduino's ledcWrite() maps 16383 to 16384, so a 100 % output needs 13 bits or fewer. The
-  servo uses 5–10 % duty and is unaffected. The angle -> duty table and its steps are now bound to angleToDuty()
-  in tools/check_diagrams.mjs (mutation-tested: 1024 -> 1023 in the table fails).
-- next.config.ts: CI="false" no longer switches on the Pages export; only CI=1 or CI=true does.
+  LEDC docs warning), and Arduino's ledcWrite() maps 16383 to 16384, so a 100 % output needs 13 bits or fewer.
+  The servo uses 5–10 % duty and is unaffected. The angle -> duty table, the prose value list and the steps are
+  now bound to angleToDuty() in tools/check_diagrams.mjs (mutation-tested: 1024 -> 1023 in the table and
+  1228 -> 1229 in the prose list both fail).
+- CI flag: next.config.ts and tools/postbuild.mjs both use tools/is-ci.mjs, so only CI=1 or CI=true
+  (case-insensitive, so CI=TRUE counts too) selects the Pages export and its base-path check; CI unset or
+  CI=false builds and checks the root-path site.
