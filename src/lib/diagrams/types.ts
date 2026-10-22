@@ -347,7 +347,15 @@ export interface GeoSpec {
   w: number;
   h: number;
   shapes: GeoShape[];
-  cartPole?: { axis: string; force: string; pivot: Point; pole: string; theta: string };
+  cartPole?: {
+    axis: string;
+    force: string;
+    pivot: Point;
+    pole: string;
+    theta: string;
+    /** Text shapes that name the positive directions ("+x", "+F", "+θ"); checked to sit at their shapes. */
+    labels: { axis: string; force: string; theta: string };
+  };
   numbers?: DiagramNumber[];
   facts: DiagramFact[];
 }

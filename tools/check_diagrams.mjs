@@ -528,6 +528,18 @@ function checkGeo(spec, tag) {
       ok(theta.at[0] === cp.pivot[0] && theta.at[1] === cp.pivot[1] && theta.from === 0 && Math.sign(theta.to) === sx && theta.arrow, `${tag}: the theta arc must start at upright and turn towards +x`);
       const deg = (Math.atan2(pole.to[0] - pole.from[0], pole.from[1] - pole.to[1]) * 180) / Math.PI;
       ok(Math.abs(deg - theta.to) < 0.5, `${tag}: theta arc ends at ${theta.to} deg, the pole leans ${deg.toFixed(1)} deg`);
+      // the labels that name the positive directions: exactly "+x", "+F", "+θ" in both languages, at their shapes
+      const near = (id, want, [px, py], maxD) => {
+        const t = byId[id];
+        ok(t && t.type === "text", `${tag}: cartPole label ${id} missing`);
+        if (!t) return;
+        for (const v of variants(t.label)) ok(v === want, `${tag}: label ${id} reads "${v}"; the model's positive direction is "${want}"`);
+        const d = Math.hypot(t.at[0] - px, t.at[1] - py);
+        ok(d <= maxD, `${tag}: label ${id} is ${d.toFixed(0)} units from its shape (max ${maxD})`);
+      };
+      near(cp.labels.axis, "+x", axis.to, 20);
+      near(cp.labels.force, "+F", [(force.from[0] + force.to[0]) / 2, force.from[1]], 20);
+      near(cp.labels.theta, "+θ", geoPolar(theta.at, theta.r, theta.to / 2), 30);
       if (r.forceTheta < 0) console.log(`model ${spec.id}: +1 N for 0.1 s -> cart ${r.forceCart.toFixed(3)} m/s, theta ${r.forceTheta.toFixed(4)} rad; drawn +theta leans to +x`);
     }
   }

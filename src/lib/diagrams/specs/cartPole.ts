@@ -35,11 +35,11 @@ const shapes: GeoShape[] = [
   { type: "text", at: [TIP[0] + 14, TIP[1] + 4], label: "m = 0.2 kg", anchor: "start" },
   { type: "text", at: [at(THETA, 38)[0] + 10, at(THETA, 38)[1] + 8], label: "L = 0.3 m", anchor: "start", tone: "muted" },
   { id: "theta", type: "arc", at: PIVOT, r: 56, from: 0, to: THETA, tone: "b", arrow: true },
-  { type: "text", at: [at(THETA / 2, 74)[0], at(THETA / 2, 74)[1] + 4], label: "+θ", tone: "b", bold: true },
+  { id: "thetaLabel", type: "text", at: [at(THETA / 2, 74)[0], at(THETA / 2, 74)[1] + 4], label: "+θ", tone: "b", bold: true },
   { id: "force", type: "line", from: [24, 170], to: [106, 170], tone: "ok", width: 2.5, arrow: true },
-  { type: "text", at: [62, 162], label: "+F", tone: "ok", bold: true },
+  { id: "forceLabel", type: "text", at: [62, 162], label: "+F", tone: "ok", bold: true },
   { id: "axis", type: "line", from: [24, 230], to: [316, 230], tone: "muted", width: 1.5, arrow: true },
-  { type: "text", at: [330, 235], label: "+x", anchor: "end", tone: "muted", bold: true },
+  { id: "axisLabel", type: "text", at: [330, 235], label: "+x", anchor: "end", tone: "muted", bold: true },
   { type: "text", at: [24, 222], label: { zh: "位置 x、速度", en: "position x, speed" }, anchor: "start", tone: "muted" },
 ];
 
@@ -48,14 +48,21 @@ export const cartPoleSigns: GeoSpec = {
   id: "cartpole-signs",
   title: { zh: "小车倒立摆的正方向约定", en: "Cart-pole sign convention" },
   caption: {
-    zh: "x、速度和力 F 都以向右为正；θ 从竖直量起，向 +x 倾为正。所以 B 的第 2 项 +1/M = +2.00（正力让小车向右加速），第 4 项 −1/(ML) = −6.67（正力让摆角变负，摆向左倒）；A 中 −3.92 表示正的倾角把小车往回推。",
-    en: "x, speed and the force F are positive to the right; θ is measured from upright and is positive leaning towards +x. So B's second entry +1/M = +2.00 (a positive force accelerates the cart right) and its fourth −1/(ML) = −6.67 (a positive force makes the angle negative, tipping the pole left); A's −3.92 means a positive lean pushes the cart back.",
+    zh: "x、速度和力 F 都以向右为正；θ 从竖直量起，向 +x 倾为正。所以 B 的第 2 项 +1/M = +2.00（正力让小车向右加速），第 4 项 −1/(ML) = −6.67（正力让摆角变负，摆向左倒）；A 中 −3.92 表示正的倾角把小车向 −x（向左）推。",
+    en: "x, speed and the force F are positive to the right; θ is measured from upright and is positive leaning towards +x. So B's second entry +1/M = +2.00 (a positive force accelerates the cart right) and its fourth −1/(ML) = −6.67 (a positive force makes the angle negative, tipping the pole left); A's −3.92 means a positive lean pushes the cart towards −x (to the left).",
   },
   sources: [LQR],
   w: 340,
   h: 244,
   shapes,
-  cartPole: { axis: "axis", force: "force", pivot: PIVOT, pole: "pole", theta: "theta" },
+  cartPole: {
+    axis: "axis",
+    force: "force",
+    pivot: PIVOT,
+    pole: "pole",
+    theta: "theta",
+    labels: { axis: "axisLabel", force: "forceLabel", theta: "thetaLabel" },
+  },
   numbers: [
     { note: "B[1] = 1/M", value: 1 / M, expect: 2.0, tol: 0.005 },
     { note: "B[3] = -1/(M L)", value: -1 / (M * L), expect: -6.67, tol: 0.005 },
@@ -68,5 +75,7 @@ export const cartPoleSigns: GeoSpec = {
     { file: LQR, pattern: "alpha = \\(G \\* s - acc \\* c\\) / L", note: "angle from upright; cart acceleration tips it negative" },
     { file: "src/content/m5/state-space-lqr/en.mdx", pattern: "a positive force tips the pole negative", note: "lesson text matches" },
     { file: "src/content/m5/state-space-lqr/en.mdx", pattern: "a positive lean pushes the cart backwards", note: "lesson text matches" },
+    { file: "src/content/m5/state-space-lqr/zh.mdx", pattern: "正的力会把杆往负方向推", note: "zh lesson text matches: a positive force tips the pole negative" },
+    { file: "src/content/m5/state-space-lqr/zh.mdx", pattern: "正的角度会让小车向后加速", note: "zh lesson text matches: a positive lean pushes the cart backwards" },
   ],
 };
