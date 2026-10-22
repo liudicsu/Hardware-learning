@@ -9,4 +9,4 @@ Branch: `opencode/prb-glossary` (from origin/main 3d6a68d). Task 1 (PR #14 live 
 | c) /math quick reference | done (21 entries) | opencode minimax drafted; fixed atan2 def, 2τ/3τ, eigenvalue ±6.766, GM 16.6 dB context, parallel-axis example, links (fbswiki pages 500 → site root) |
 | d) `<Summary>` in 6 lessons | done | ohms-law, cad-parametric, fdm-printing, transmissions, pid-control, so101-arm |
 | e) Python syntax (python-terminal), C/C++ syntax (arduino-io) | done | opencode deepseek; all examples verified verbatim in cited files |
-| 390 px check, CI, PR | todo | |
+| 390 px check, CI, PR | PR #16 opened; 390 px + Term tap checks pass locally; objectives data pending | |
