@@ -20,6 +20,23 @@ cnt = 12 * 120
 d = math.radians(360 / cnt)
 print(cnt, 360 / cnt, f"{d:.6f} rad", f"{35*d:.4f} mm", f"{math.pi*70:.2f} mm", f"{math.pi*70/cnt:.4f} mm")
 # rate / accumulation
-print("dt", 1 / 200, "I:", 60 * 0.1, 0.1 * 6, 0.4 * 6, "m/count", round(math.pi * 0.065 / 90, 5), "v", round(0.00227 / 0.04, 3), "window", 1 / 25)
+print("dt", 1 / 200, "m/count", round(math.pi * 0.065 / 90, 5), "v", round(0.00227 / 0.04, 3), "window", 1 / 25)
 # stddev / RMS
 print("rms gyro", round(math.hypot(1.5, 0.3), 3), "mean of 100", 0.3 / math.sqrt(100), "rms err", round(math.hypot(0.72, 0.07), 2))
+
+# windup with anti-windup disabled: pid_sim.run(0.05, ki=0.4, kd=0.002, anti_windup=False), stopped at t = 0.1 s
+import sys
+sys.path.insert(0, "tools/sim/models")
+import pid_sim as P
+for aw in (False, True):
+    q = w = integral = t = 0.0; prev = q; sat = 0
+    while t < 0.1 - 1e-12:
+        e = 60 - math.degrees(q); rate = (math.degrees(q) - math.degrees(prev)) / P.DT; prev = q
+        u = 0.05 * e + 0.4 * integral - 0.002 * rate; tq = max(-P.MAX_TORQUE, min(P.MAX_TORQUE, u))
+        if not aw or tq == u: integral += e * P.DT
+        sat += tq != u
+        for _ in range(5):
+            a = (tq - P.B * w - P.GRAV * math.cos(q)) / P.J; w += a * 0.001; q += w * 0.001
+        t += P.DT
+    print(f"anti_windup={aw}: angle {math.degrees(q):.2f} deg, error {60 - math.degrees(q):.2f}, integral {integral:.2f} deg*s, I term {0.4 * integral:.2f} N*m, saturated {sat * P.DT:.3f} s")
+print(P.run(0.05, ki=0.4, kd=0.002, anti_windup=False), "|", P.run(0.05, ki=0.4, kd=0.002))

@@ -20,3 +20,13 @@ with Months 1–3 examples, and `radians-trig` keeps its Month 5 example.
 
 ## Link checker
 `tools/check_links.py` is new and was reviewed line by line. My notes do not record whether opencode drafted it, so count it as hand-written. It is documented in the README and its run is recorded in `links-check.md`.
+
+## Review fixes
+- `trig-components`: the cos θ comes from the horizontal lever arm l cos θ, or equivalently from the component of gravity perpendicular to the arm. The wrong "vertical component" wording is removed in both zh and en.
+- `rate-accumulation`: the windup numbers now come from `pid_sim.run(0.05, ki=0.4, kd=0.002, anti_windup=False)` stopped at t = 0.1 s:
+  - integral 4.97 °·s and I term 1.99 N·m, with the motor saturated the whole time;
+  - with anti-windup the integral is 0.52 °·s;
+  - overshoot is 39.0° without anti-windup and 8.9° with it.
+
+  `docs/notes/math-m1-3-verify.py` recomputes these numbers.
+- `radians` and `trig-components` cross-link with `radians-trig` in both directions. They were not merged into one entry, because #19 edits the `radians-trig` example.
