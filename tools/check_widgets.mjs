@@ -131,7 +131,7 @@ const kinematics = await loadModel("kinematics");
     ];
     const block = (loc) => {
       const text = readFileSync(join(root, "src/content/m5/kinematics-ik", loc + ".mdx"), "utf8").replace(/\u2212/g, "-");
-      const marker = loc === "zh" ? "**动手实验。**" : "**Guided experiment.**";
+      const marker = loc === "zh" ? "<strong>动手实验。</strong>" : "**Guided experiment.**";
       const i = text.indexOf(marker);
       return i < 0 ? "" : text.slice(i, text.indexOf("\n\n<", i));
     };
