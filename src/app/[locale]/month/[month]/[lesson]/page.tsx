@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
-import { withBasePath } from "@/lib/basePath";
+import { withBasePath, withPageSlash } from "@/lib/basePath";
 import { getLesson, lessonKey, months } from "@/lib/curriculum";
 import { asLocale, tr } from "@/lib/l10n";
 import { getResource } from "@/lib/resources";
@@ -126,7 +126,9 @@ export default async function LessonPage({ params }: Params) {
     LineFollowWidget,
     Diagram: ({ id }: { id: string }) => <Diagram id={id} locale={loc} />,
     // Markdown links render as plain <a> tags, so the Pages basePath must be added here, as for images.
-    a: ({ href, ...rest }: ComponentProps<"a">) => <a href={typeof href === "string" ? withBasePath(href) : href} {...rest} />,
+    a: ({ href, ...rest }: ComponentProps<"a">) => (
+      <a href={typeof href === "string" ? withPageSlash(withBasePath(href)) : href} {...rest} />
+    ),
     img: ({ src, alt, ...rest }: ComponentProps<"img">) => (
       // eslint-disable-next-line @next/next/no-img-element
       <img src={typeof src === "string" ? withBasePath(src) : src} alt={alt ?? ""} loading="lazy" {...rest} />

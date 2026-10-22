@@ -2,7 +2,8 @@ import type { NextConfig } from "next";
 import createMDX from "@next/mdx";
 import createNextIntlPlugin from "next-intl/plugin";
 
-const basePath = process.env.PAGES_BASE_PATH ?? "";
+// CI (GitHub Actions sets CI=true) builds the Pages export once, so the postbuild check can scan out/ without a second build; set PAGES_BASE_PATH="" to opt out.
+const basePath = process.env.PAGES_BASE_PATH ?? (process.env.CI ? "/Hardware-learning" : "");
 const isPages = basePath !== "";
 
 const nextConfig: NextConfig = {
