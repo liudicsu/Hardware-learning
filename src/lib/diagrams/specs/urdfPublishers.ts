@@ -30,18 +30,18 @@ export const urdfTwoPublishers: BlockDiagramSpec = {
   ],
   layouts: {
     wide: {
-      w: 740,
+      w: 760,
       h: 140,
       nodes: {
         desc: [0, 0, 200, 46],
         jsp: [0, 90, 200, 46],
         rsp: [300, 90, 190, 46],
-        users: [600, 90, 140, 46],
+        users: [620, 90, 140, 46],
       },
       edges: {
         param: { pts: [[200, 23], [395, 23], [395, 88]], label: [401, 60], anchor: "start" },
         js: { pts: [[200, 113], [298, 113]], label: [249, 106] },
-        tf: { pts: [[490, 113], [598, 113]], label: [544, 106] },
+        tf: { pts: [[490, 113], [618, 113]], label: [554, 106] },
       },
     },
     narrow: {

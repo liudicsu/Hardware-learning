@@ -1,5 +1,6 @@
 import type { DiagramSpec } from "./types";
 import { firstRobotsCascade, pidCascade } from "./specs/cascade";
+import { gitAreas, gitBranches } from "./specs/gitModel";
 import { reactionTimerStates } from "./specs/reactionTimer";
 import { ros2GraphSystem } from "./specs/ros2Graph";
 import { ros2WorkspaceTree } from "./specs/ros2Workspace";
@@ -15,4 +16,6 @@ export const DIAGRAMS: Record<string, DiagramSpec> = {
   [ros2WorkspaceTree.id]: ros2WorkspaceTree,
   [slamTfChain.id]: slamTfChain,
   [urdfTwoPublishers.id]: urdfTwoPublishers,
+  [gitAreas.id]: gitAreas,
+  [gitBranches.id]: gitBranches,
 };
