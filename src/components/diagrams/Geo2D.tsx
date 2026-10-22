@@ -20,6 +20,18 @@ function arrowHead(tip: [number, number], from: [number, number], colour: string
 function shape(s: GeoShape, k: number, locale: Locale) {
   const c = TONE[s.tone ?? "ink"];
   switch (s.type) {
+    case "polyline":
+      return (
+        <polyline
+          key={k}
+          points={s.pts.map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ")}
+          fill="none"
+          style={{ stroke: c }}
+          strokeWidth={s.width ?? 2}
+          strokeLinejoin="round"
+          strokeDasharray={s.dashed ? "5 4" : undefined}
+        />
+      );
     case "line":
       return (
         <g key={k}>
@@ -30,7 +42,7 @@ function shape(s: GeoShape, k: number, locale: Locale) {
     case "rect":
       return <rect key={k} x={s.at[0]} y={s.at[1]} width={s.size[0]} height={s.size[1]} rx={s.rx ?? 4} style={{ stroke: c, fill: "var(--dg-card)" }} strokeWidth={2} />;
     case "circle":
-      return <circle key={k} cx={s.at[0]} cy={s.at[1]} r={s.r} style={{ stroke: c, fill: s.fill ? c : "var(--dg-card)" }} strokeWidth={2} />;
+      return <circle key={k} cx={s.at[0]} cy={s.at[1]} r={s.r} style={{ stroke: c, fill: s.fill ? c : s.dashed ? "none" : "var(--dg-card)" }} strokeWidth={2} strokeDasharray={s.dashed ? "4 3" : undefined} />;
     case "arc": {
       const p0 = geoPolar(s.at, s.r, s.from);
       const p1 = geoPolar(s.at, s.r, s.to);
@@ -53,11 +65,20 @@ function shape(s: GeoShape, k: number, locale: Locale) {
   }
 }
 
-/** Static figure drawn from the spec's shapes (cart-pole sign convention, and later other geometry). */
-export function Geo2D({ spec, locale }: { spec: GeoSpec; locale: Locale }) {
+/**
+ * Figure drawn from the spec's shapes (cart-pole sign convention, BC corridor). With `highlight`, shapes whose id or
+ * group is not listed are dimmed; shapes with neither id nor group always stay bright.
+ */
+export function Geo2D({ spec, locale, highlight }: { spec: GeoSpec; locale: Locale; highlight?: string[] }) {
+  const dim = (s: GeoShape) =>
+    highlight && (s.id !== undefined || s.group !== undefined) && !highlight.includes(s.id ?? "") && !highlight.includes(s.group ?? "") ? 0.15 : 1;
   return (
     <svg viewBox={`0 0 ${spec.w} ${spec.h}`} width="100%" role="img" aria-label={tx(spec.title, locale)} className="mx-auto block" style={{ maxWidth: spec.w * GEO_MAX_SCALE, height: "auto" }}>
-      {spec.shapes.map((s, k) => shape(s, k, locale))}
+      {spec.shapes.map((s, k) => (
+        <g key={k} opacity={dim(s)}>
+          {shape(s, k, locale)}
+        </g>
+      ))}
     </svg>
   );
 }

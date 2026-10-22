@@ -338,8 +338,8 @@ function checkScript(spec, tag) {
 }
 
 /**
- * Block diagrams, optional `bindings`: the drawn text of a node (label and sub, both languages) must match every
- * regular expression in `has` and none in `lacks`; an edge can be required to be dashed. Specs build these from the
+ * Block diagrams, optional `bindings`: the text of a node (label and sub), a step or the caption, in both languages,
+ * must match every regular expression in `has` and none in `lacks`; an edge can be required to be dashed. Specs build these from the
  * same constants as their facts, so the drawing cannot drift from the lesson.
  */
 function checkBindings(spec, tag, nodeIds, edgeIds) {
@@ -350,22 +350,37 @@ function checkBindings(spec, tag, nodeIds, edgeIds) {
       if (e && b.dashed !== undefined) ok(!!e.dashed === b.dashed, `${tag}: edge ${b.edge} must be ${b.dashed ? "dashed" : "solid"} (${b.note})`);
       continue;
     }
-    ok(nodeIds.has(b.node), `${tag}: binding for unknown node "${b.node}"`);
-    const n = spec.nodes.find((x) => x.id === b.node);
-    if (!n) continue;
+    // what the binding looks at: a node's label + sub, a step's text (1-based) or the caption
+    let where, get;
+    if (b.node) {
+      ok(nodeIds.has(b.node), `${tag}: binding for unknown node "${b.node}"`);
+      const n = spec.nodes.find((x) => x.id === b.node);
+      if (!n) continue;
+      where = `node ${b.node}`;
+      get = (pick) => `${pick(n.label)}\n${pick(n.sub)}`;
+    } else if (b.step) {
+      const st = (spec.steps ?? [])[b.step - 1];
+      ok(st, `${tag}: binding for unknown step ${b.step}`);
+      if (!st) continue;
+      where = `step ${b.step}`;
+      get = (pick) => pick(st.label);
+    } else if (b.caption) {
+      where = "caption";
+      get = (pick) => pick(spec.caption);
+    } else { fail(`${tag}: binding names no node, edge, step or caption`); continue; }
     for (const loc of ["zh", "en"]) {
       const pick = (t) => (t === undefined ? "" : typeof t === "string" ? t : t[loc]);
-      const text = `${pick(n.label)}\n${pick(n.sub)}`;
+      const text = get(pick);
       for (const h of b.has ?? []) {
         const re = pick(h);
-        ok(new RegExp(re).test(text), `${tag}: node ${b.node} (${loc}) must show /${re}/ (${b.note})`);
+        ok(new RegExp(re).test(text), `${tag}: ${where} (${loc}) must show /${re}/ (${b.note})`);
       }
       for (const l of b.lacks ?? []) {
         const re = pick(l);
-        ok(!new RegExp(re).test(text), `${tag}: node ${b.node} (${loc}) must not show /${re}/ (${b.note})`);
+        ok(!new RegExp(re).test(text), `${tag}: ${where} (${loc}) must not show /${re}/ (${b.note})`);
       }
     }
-    if (!(b.has ?? []).length && !(b.lacks ?? []).length) fail(`${tag}: binding for ${b.node} checks nothing`);
+    if (!(b.has ?? []).length && !(b.lacks ?? []).length) fail(`${tag}: binding for ${where} checks nothing`);
   }
 }
 
@@ -553,6 +568,7 @@ function checkGeo(spec, tag) {
     const what = `shape ${s.id ?? k} (${s.type})`;
     if (s.id) { ok(!byId[s.id], `${tag}: duplicate shape id ${s.id}`); byId[s.id] = s; }
     if (s.type === "line") { inside(...s.from, what); inside(...s.to, what); }
+    else if (s.type === "polyline") { ok(s.pts.length >= 2, `${tag}: ${what} needs 2+ points`); for (const p of s.pts) inside(...p, what); }
     else if (s.type === "rect") { inside(...s.at, what); inside(s.at[0] + s.size[0], s.at[1] + s.size[1], what); }
     else if (s.type === "circle") { inside(s.at[0] - s.r, s.at[1] - s.r, what); inside(s.at[0] + s.r, s.at[1] + s.r, what); }
     else if (s.type === "arc") for (let d = Math.min(s.from, s.to); d <= Math.max(s.from, s.to); d += 1) inside(...geoPolar(s.at, s.r, d), what);
@@ -566,6 +582,14 @@ function checkGeo(spec, tag) {
       }
     }
   }
+  const groups = new Set(spec.shapes.map((s) => s.group).filter(Boolean));
+  for (const [k, st] of (spec.steps ?? []).entries()) {
+    checkText(`${tag} step ${k + 1}`, st.label);
+    ok(st.highlight.length > 0, `${tag} step ${k + 1}: highlights nothing`);
+    for (const h of st.highlight) ok(byId[h] || groups.has(h), `${tag} step ${k + 1}: unknown shape id or group "${h}"`);
+  }
+  if (spec.corridor) checkCorridor(spec, tag, byId);
+  if (spec.blockTask) checkBlockTask(spec, tag, byId);
   if (spec.cartPole) {
     const cp = spec.cartPole;
     const [axis, force, pole, theta] = [cp.axis, cp.force, cp.pole, cp.theta].map((id) => byId[id]);
@@ -611,6 +635,104 @@ function checkGeo(spec, tag) {
     }
   }
   checkNumbers(spec, tag);
+}
+
+/**
+ * Behaviour-cloning corridor (bc_reach.py): the corridor constants must be bc_reach's, the walls polyline must be the
+ * corridor outline drawn through `map`, the success run must stay inside and end within the success radius, and the
+ * failed run must stay inside until it leaves through the goal-end wall, never within the success radius.
+ */
+function checkCorridor(spec, tag, byId) {
+  const c = spec.corridor, { x0, y0, s } = c.map;
+  const py = [
+    "import json, sys",
+    `sys.path.insert(0, ${JSON.stringify(join(root, "examples/month-6/behaviour-cloning"))})`,
+    "import bc_reach as b",
+    "print(json.dumps({'corner': b.CORNER, 'goal': b.GOAL, 'hw': b.HALF_WIDTH, 'start': b.START}))",
+  ].join("\n");
+  const m = JSON.parse(execFileSync("python3", ["-c", py], { encoding: "utf8" }));
+  const same = (a, b) => a[0] === b[0] && a[1] === b[1];
+  ok(same(c.corner, m.corner) && same(c.goal, m.goal) && c.halfWidth === m.hw && same(m.start, [0, 0]),
+    `${tag}: corridor ${JSON.stringify([c.corner, c.goal, c.halfWidth])} is not bc_reach.py's ${JSON.stringify([m.corner, m.goal, m.hw])}`);
+  const hw = m.hw, [cx] = m.corner, [gx, gy] = m.goal;
+  const toM = ([X, Y]) => [(X - x0) / s, (y0 - Y) / s];
+  const toV = ([x, y]) => [x0 + s * x, y0 - s * y];
+  const E = 0.001; // drawn points are rounded to 0.1 units (< 0.5 mm)
+  // bc_reach.in_corridor, rebuilt here
+  const inC = ([x, y]) => (x >= -hw - E && x <= cx + hw + E && Math.abs(y) <= hw + E) || (Math.abs(x - gx) <= hw + E && y >= -hw - E && y <= gy + hw + E);
+  const walls = byId[c.walls], want = [[-hw, -hw], [cx + hw, -hw], [gx + hw, gy + hw], [gx - hw, gy + hw], [cx - hw, hw], [-hw, hw], [-hw, -hw]].map(toV);
+  ok(walls && walls.type === "polyline" && walls.pts.length === want.length && walls.pts.every((p, i) => Math.hypot(p[0] - want[i][0], p[1] - want[i][1]) < 0.06),
+    `${tag}: walls ${JSON.stringify(walls?.pts)} are not the corridor outline ${JSON.stringify(want.map((p) => p.map((v) => +v.toFixed(1))))}`);
+  const run = (id) => { const r = byId[id]; ok(r && r.type === "polyline", `${tag}: corridor run ${id} missing`); return r ? r.pts.map(toM) : []; };
+  const dGoal = (p) => Math.hypot(p[0] - gx, p[1] - gy);
+  const okp = run(c.success);
+  if (okp.length) {
+    const out = okp.filter((p) => !inC(p));
+    ok(out.length === 0, `${tag}: success run leaves the corridor at ${JSON.stringify(out[0])}`);
+    ok(dGoal(okp.at(-1)) <= c.goalRadius + E, `${tag}: success run ends ${(dGoal(okp.at(-1)) * 100).toFixed(1)} cm from the goal (needs ${c.goalRadius * 100} cm)`);
+  }
+  const bad = run(c.fail);
+  if (bad.length) {
+    const out = bad.slice(0, -1).filter((p) => !inC(p));
+    ok(out.length === 0, `${tag}: failed run leaves the corridor early at ${JSON.stringify(out[0])}`);
+    const end = bad.at(-1), before = failed;
+    ok(!inC(end) && end[1] > gy + hw && Math.abs(end[0] - gx) <= hw + 0.05, `${tag}: failed run should end past the goal-end wall, ends at ${JSON.stringify(end.map((v) => +v.toFixed(3)))}`);
+    const closest = Math.min(...bad.map(dGoal));
+    ok(closest > c.goalRadius, `${tag}: failed run comes within ${(closest * 100).toFixed(1)} cm of the goal, which would be a success`);
+    if (failed === before) console.log(`model ${spec.id}: walls from bc_reach.py; success run inside, ends ${(dGoal(okp.at(-1)) * 100).toFixed(1)} cm from goal; failed run exits the end wall, closest ${(closest * 100).toFixed(1)} cm`);
+  }
+}
+
+/**
+ * multimodal.py's block task: block, goal, start, fork and waypoints must be where multimodal.py puts them; the 10
+ * demo arrows must start near `at`; the drawn mean arrow must be the mean of the drawn demo arrows (the averaging
+ * policy) and its ray must continue straight on to the block's near face, between its corners.
+ */
+function checkBlockTask(spec, tag, byId) {
+  const b = spec.blockTask, { x0, y0, s } = b.map;
+  const py = [
+    "import json, re, sys",
+    `sys.path.insert(0, ${JSON.stringify(join(root, "examples/month-6/act-diffusion"))})`,
+    "import inspect, multimodal as m",
+    "w = re.search(r'toward\\(p, \\(([\\d.]+) \\* side, ([\\d.]+)\\)\\)', inspect.getsource(m.expert))",
+    "print(json.dumps({'goal': m.GOAL, 'by': m.BLOCK_Y, 'half': m.HALF, 'fork': m.FORK_Y, 'step': m.STEP, 'way': [float(w[1]), float(w[2])]}))",
+  ].join("\n");
+  const m = JSON.parse(execFileSync("python3", ["-c", py], { encoding: "utf8" }));
+  const V = ([x, y]) => [x0 + s * x, y0 - s * y];
+  const near = (p, q, tol = 0.06) => Math.hypot(p[0] - q[0], p[1] - q[1]) <= tol;
+  const get = (id, type) => { const sh = byId[id]; ok(sh && sh.type === type, `${tag}: blockTask ${id} must be a ${type}`); return sh && sh.type === type ? sh : null; };
+  const before = failed;
+  const blk = get(b.block, "rect");
+  if (blk) {
+    ok(near(blk.at, V([-m.half, m.by + m.half])) && Math.abs(blk.size[0] - 2 * m.half * s) <= 0.06 && Math.abs(blk.size[1] - 2 * m.half * s) <= 0.06,
+      `${tag}: block drawn at ${JSON.stringify(blk.at)} size ${JSON.stringify(blk.size)}, multimodal.py's is centre (0, ${m.by}) side ${2 * m.half} m`);
+  }
+  const g = get(b.goal, "circle");
+  if (g) ok(near(g.at, V(m.goal)) && Math.abs(g.r - 0.05 * s) <= 0.06, `${tag}: goal circle is not GOAL with the 0.05 m success radius`);
+  const st = get(b.start, "circle"), fk = get(b.fork, "circle");
+  if (st) ok(near(st.at, V([0, 0])), `${tag}: start is not at (0, 0)`);
+  if (fk) ok(near(fk.at, V([0, m.fork])), `${tag}: fork is not at (0, FORK_Y = ${m.fork})`);
+  b.waypoints.forEach((id, k) => { const w = get(id, "circle"); if (w) ok(near(w.at, V([(k ? 1 : -1) * m.way[0], m.way[1]])), `${tag}: waypoint ${id} is not expert()'s (${k ? "+" : "-"}${m.way[0]}, ${m.way[1]})`); });
+  const arrows = b.demos.map((id) => get(id, "line")).filter(Boolean);
+  ok(arrows.length === b.demos.length && arrows.every((a) => a.arrow && near(a.from, V(b.at), 0.02 * s)), `${tag}: demo arrows must be arrows starting within 2 cm of (${b.at})`);
+  for (const a of arrows) {
+    const len = Math.hypot(a.to[0] - a.from[0], a.to[1] - a.from[1]) / s / b.arrowScale;
+    ok(len <= m.step + 0.001, `${tag}: a demo arrow is ${(len * 100).toFixed(1)} cm long, more than STEP`);
+  }
+  const mean = get(b.mean, "line"), ray = get(b.meanRay, "line");
+  if (mean && arrows.length) {
+    const avg = [0, 1].map((i) => arrows.reduce((t, a) => t + (a.to[i] - a.from[i]), 0) / arrows.length);
+    const d = [mean.to[0] - mean.from[0], mean.to[1] - mean.from[1]];
+    ok(mean.arrow && near(mean.from, V(b.at)) && near(d, avg, 0.3), `${tag}: mean arrow ${JSON.stringify(d.map((v) => +v.toFixed(1)))} is not the mean of the demo arrows ${JSON.stringify(avg.map((v) => +v.toFixed(1)))}`);
+    if (ray) {
+      const cross = (ray.to[0] - mean.from[0]) * d[1] - (ray.to[1] - mean.from[1]) * d[0];
+      const off = Math.abs(cross) / Math.hypot(...d);
+      ok(near(ray.from, mean.to) && off <= 0.5, `${tag}: mean ray does not continue the mean arrow (${off.toFixed(1)} units off its line)`);
+      const [hx, hy] = [(ray.to[0] - x0) / s, (y0 - ray.to[1]) / s];
+      ok(Math.abs(hy - (m.by - m.half)) <= 0.001 && Math.abs(hx) < m.half, `${tag}: mean ray ends at (${hx.toFixed(3)}, ${hy.toFixed(3)}), not on the block's near face`);
+      if (failed === before) console.log(`model ${spec.id}: block, goal, fork, waypoints from multimodal.py; mean of ${arrows.length} demo arrows meets the block face at x = ${(hx * 100).toFixed(1)} cm`);
+    }
+  }
 }
 
 // Spec files are plain data; the only imports allowed are types and JSON data files, inlined here.

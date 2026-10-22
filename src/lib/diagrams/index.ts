@@ -1,4 +1,6 @@
 import type { DiagramSpec } from "./types";
+import { actBlockTask } from "./specs/actBlockTask";
+import { bcCorridor } from "./specs/bcCorridor";
 import { cartPoleSigns } from "./specs/cartPole";
 import { gzBridge } from "./specs/gzBridge";
 import { firstRobotsCascade, pidCascade } from "./specs/cascade";
@@ -38,6 +40,8 @@ export const DIAGRAMS: Record<string, DiagramSpec> = {
   [i2cWhoAmI.id]: i2cWhoAmI,
   [debounceQuiet.id]: debounceQuiet,
   [stsPackets.id]: stsPackets,
+  [bcCorridor.id]: bcCorridor,
+  [actBlockTask.id]: actBlockTask,
   [cartPoleSigns.id]: cartPoleSigns,
   [gzBridge.id]: gzBridge,
   [vlaDataflow.id]: vlaDataflow,
