@@ -398,9 +398,17 @@ function guided(widget, lesson, rows) {
   for (const loc of ["en", "zh"]) compare("guided " + widget, `${loc} list present`, "yes", blocks[loc] ? "yes" : "no");
   for (const [label, want, got] of rows) {
     compare("guided " + widget, label, want, got);
+    const escaped = want.replace(/\u2212/g, "-").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const token = new RegExp(`(?<![\\d.\\-A-Za-z])${escaped}(?!\\d|\\.\\d)`);
     for (const loc of ["en", "zh"]) {
       if (!blocks[loc]) continue;
-      compare("guided " + widget, `${loc} states ${want}`, "yes", blocks[loc].includes(want.replace(/\u2212/g, "-")) ? "yes" : "no");
+      const steps = [];
+      for (const line of blocks[loc].split("\n")) {
+        if (/^\d+\.\s/.test(line)) steps.push(line);
+        else if (steps.length) steps[steps.length - 1] += "\n" + line;
+      }
+      const hit = steps.some((step) => token.test(step));
+      compare("guided " + widget, `${loc} states ${want}`, "yes", hit ? "yes" : "no");
     }
   }
 }

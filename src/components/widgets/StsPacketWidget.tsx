@@ -77,7 +77,7 @@ export function StsPacketWidget() {
               name="sts-kind"
               checked={kind === k}
               onChange={() => setKind(k)}
-              data-testid={`sts-${k}`}
+              data-testid={`sts-kind-${k}`}
               className="h-5 w-5 cursor-pointer accent-sky-400"
             />
             {t(`sts_${k}`)}
