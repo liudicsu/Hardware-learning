@@ -78,3 +78,12 @@ numbers, cart-pole direction, TB6612 OUT1) go into the PR that touches each less
   - Lesson wording fixed to match the firmware: "quiet for more than 30 ms", each bounce measured from the
     previous edge.
   - All hand-written.
+- D-5 merged (#25, squash e20ae6e, on top of #22 7293e6f). Main CI and Pages green; live check 24/24 OK
+  (hl-audit/prc-live-check.md). D-5 reviewer nits in #26 (branch diagrams/d5-nits): "simulated" caption,
+  I2C sender sequence pinned to the datasheet, bus/row padding checks.
+- D-6 (branch diagrams/d6-sts-bytes from e20ae6e): new `kind: "bytes"` (ByteFields.tsx + checkBytes) and
+  `sts-packet-fields` in so101-arm: the six packets printed by sts_packet.py (ping, torque on, goal 2048, read,
+  reply 3116 = 273.9 deg, broken checksum). check_diagrams runs the script and requires each drawn line in its
+  output. New tone `c` (--dg-c, violet) for the checksum. Lesson fix: the bit flip is in the high data byte
+  (0C -> 0D), zh and en. All hand-written.
+- Next: D-7 slam-nav pose-graph frames.

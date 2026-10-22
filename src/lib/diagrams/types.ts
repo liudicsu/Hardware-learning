@@ -14,7 +14,7 @@ export type L10n = string | { zh: string; en: string };
 export type Locale = "zh" | "en";
 
 /** Colour roles; mapped to the --dg-* CSS variables in globals.css. */
-export type Tone = "ink" | "muted" | "a" | "b" | "ok" | "danger";
+export type Tone = "ink" | "muted" | "a" | "b" | "c" | "ok" | "danger";
 
 export interface DiagramNode {
   id: string;
@@ -211,7 +211,44 @@ export interface TimingSpec {
   facts: DiagramFact[];
 }
 
-export type DiagramSpec = BlockDiagramSpec | CircuitSpec | TimingSpec;
+export interface BytesSpecByte {
+  /** Byte value 0..255. */
+  v: number;
+  /** Key into BytesSpec.fields (colour and field name). */
+  field: string;
+  /** What this byte means in this packet, e.g. "ID = 1". */
+  note: L10n;
+  /** Drawn in the danger colour (e.g. a corrupted byte). */
+  bad?: boolean;
+}
+
+export interface BytesSpecPacket {
+  id: string;
+  /** Button label. */
+  label: L10n;
+  bytes: BytesSpecByte[];
+  /** Brackets over (top) or under (bottom) a byte range, e.g. "00 08 → 0x0800 = 2048". */
+  groups?: { from: number; to: number; label: L10n; side?: "top" | "bottom" }[];
+  /** One or two sentences under the table. */
+  summary: L10n;
+}
+
+/** A row of bytes coloured by field, with a per-byte table; one packet per button. */
+export interface BytesSpec {
+  kind: "bytes";
+  id: string;
+  title: L10n;
+  caption?: L10n;
+  sources: string[];
+  fields: Record<string, { label: L10n; tone: Tone }>;
+  packets: BytesSpecPacket[];
+  /** check_diagrams runs `python3 <run>` and requires every line in `lines` to appear in its output. */
+  script?: { run: string; lines: string[] };
+  numbers?: DiagramNumber[];
+  facts: DiagramFact[];
+}
+
+export type DiagramSpec = BlockDiagramSpec | CircuitSpec | TimingSpec | BytesSpec;
 
 export function tx(text: L10n | undefined, locale: Locale): string {
   if (text === undefined) return "";
