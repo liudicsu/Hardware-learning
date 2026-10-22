@@ -149,3 +149,10 @@ numbers, cart-pole direction, TB6612 OUT1) go into the PR that touches each less
   - check_diagrams: script failures are FAIL lines, and block bindings tie the drawn model lists to the facts.
   - cartpole-signs: the axis ends at x 304 and "+x" starts at x 311, clear of the arrowhead.
   - All hand-written.
+- D086 (branch diagrams/d086-gz-bridge from 5b1e38f): `gz-bridge` in gazebo-sim "Launch and bridge", a block
+  diagram of ros_gz_bridge's two directions: Gazebo -> GZ_TO_ROS (clock, scan, camera/image_raw,
+  camera/camera_info, joint_states, odom, tf) -> ROS 2, and ROS 2 -> ROS_TO_GZ (cmd_vel, pan_cmd, tilt_cmd) ->
+  Gazebo. tools/diagrams/bridge_topics.py reads bridge.yaml and prints the topics per direction and the four entries
+  whose type names differ (joint_states <- gz.msgs.Model, tf <- gz.msgs.Pose_V, pan_cmd/tilt_cmd Float64 ->
+  gz.msgs.Double), which the spec's script lines, bindings and caption are built from; `flows` checks the arrows'
+  direction; every topic is also checked in the lesson's ros2 topic list (zh and en). All hand-written.
