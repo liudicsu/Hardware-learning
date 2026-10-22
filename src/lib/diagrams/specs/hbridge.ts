@@ -16,10 +16,12 @@ const LM = 0.01; // motor inductance, H
 const I_RUN = V / (RM + RS); // 0.571 A
 const I_SHOOT = V / RS; // 12 A
 const TAU_MS = (LM / RM) * 1000; // 1 ms
+const DECAY_1MS = Math.exp(-1 / TAU_MS); // 0.368 of the current left after 1 ms
 const fmt = (x: number, d: number) => x.toFixed(d);
 
 const CIRCUITS = "src/lib/circuits.ts";
 const EN = "src/content/m2/motors-drivers/en.mdx";
+const ZH = "src/content/m2/motors-drivers/zh.mdx";
 const ONE_REV = "examples/month-2/motors-drivers/one_rev/one_rev.ino";
 
 // geometry: top rail y 44, motor y 154, bottom rail y 264; left leg x 90, right leg x 250
@@ -34,7 +36,7 @@ export const hbridgeCurrentPath: CircuitSpec = {
     zh: `开关位置与课文和 Falstad 电路一致（S1 左上、S2 左下、S3 右上、S4 右下）；电源 ${V} V，电源与导线电阻 ${RS} Ω，电机 ${RM} Ω + ${LM * 1000} mH。TB6612FNG 的 AO1（OUT1）是左桥臂（S1/S2），AO2 是右桥臂（S3/S4），按这个对应关系，驱动芯片的真值表正好对上这里的状态。彩色虚线是常规电流（从 + 到 −）。`,
     en: `Switch positions as in the lesson and the Falstad circuit (S1 top-left, S2 bottom-left, S3 top-right, S4 bottom-right); ${V} V supply, ${RS} Ω supply and wiring resistance, motor ${RM} Ω + ${LM * 1000} mH. On the TB6612FNG, AO1 (OUT1) is the left half-bridge (S1/S2) and AO2 the right one (S3/S4); with that mapping the driver's truth table matches these states. The coloured dashes show conventional current (+ to −).`,
   },
-  sources: [CIRCUITS, EN, ONE_REV],
+  sources: [CIRCUITS, EN, ZH, ONE_REV],
   w: 340,
   h: 312,
   readoutAt: [170, 204],
@@ -115,10 +117,11 @@ export const hbridgeCurrentPath: CircuitSpec = {
       closed: ["S2", "S4"],
       tone: "ok",
       flow: [[90, 154], [250, 154], [250, 264], [90, 264], [90, 154]],
+      loopReason: "brake: the current circulates in the lower loop S2–motor–S4 and never passes the supply; the loop is closed (first point = last point)",
       readout: { zh: "从静止开始：0 A", en: "from rest: 0 A" },
       text: {
-        zh: `电机两端都接到 GND。从静止开始电流为 0；刚从正转切过来时，电流沿图中的下方回路继续环流并衰减，τ = L / R = ${LM * 1000} mH / ${RM} Ω = ${fmt(TAU_MS, 0)} ms。TB6612：IN1 = H、IN2 = H → 短路刹车（两个输出都为低），即 one_rev.ino 的 brake()。`,
-        en: `Both motor terminals are tied to GND. From rest the current is 0; right after forward driving it keeps circulating around this lower loop and dies away, τ = L / R = ${LM * 1000} mH / ${RM} Ω = ${fmt(TAU_MS, 0)} ms. TB6612: IN1 = H, IN2 = H → short brake (both outputs low), as brake() in one_rev.ino.`,
+        zh: `电机两端都接到 GND，从静止开始电流为 0。在这个模型（${RM} Ω + ${LM * 1000} mH）里，刚从正转切过来时，电流按箭头方向沿下方回路继续环流并衰减，τ = L / R = ${fmt(TAU_MS, 0)} ms，1 ms 后约剩 ${fmt(DECAY_1MS * 100, 0)} %（比三分之一稍多）。真实电机如果还在转，反电动势会在同一回路里驱动一股反向电流，让电机制动直到停下。TB6612：IN1 = H、IN2 = H → 短路刹车（两个输出都为低），即 one_rev.ino 的 brake()。`,
+        en: `Both motor terminals are tied to GND; from rest the current is 0. In this model (${RM} Ω + ${LM * 1000} mH), right after forward driving the current keeps circulating around this lower loop in the direction of the arrows and dies away, τ = L / R = ${fmt(TAU_MS, 0)} ms, about ${fmt(DECAY_1MS * 100, 0)} % (slightly more than a third) after 1 ms. A real motor that is still turning works as a generator: its back-EMF drives a reverse current around the same loop, and that current brakes it until it stops. TB6612: IN1 = H, IN2 = H → short brake (both outputs low), as brake() in one_rev.ino.`,
       },
     },
     {
@@ -137,7 +140,7 @@ export const hbridgeCurrentPath: CircuitSpec = {
   numbers: [
     { note: "forward/reverse current 6 V / 10.5 Ω (lesson: about 0.57 A)", value: I_RUN, expect: 0.57, tol: 0.005 },
     { note: "shoot-through current 6 V / 0.5 Ω (lesson: about 12 A)", value: I_SHOOT, expect: 12, tol: 0.01 },
-    { note: "brake decay: after 1 ms, e^(-1 ms / τ) (lesson: about a third)", value: Math.exp(-1 / TAU_MS), expect: 1 / 3, tol: 0.04 },
+    { note: "brake decay: after 1 ms, e^(-1 ms / τ) (lesson: about 37 %, slightly more than a third)", value: DECAY_1MS, expect: 0.37, tol: 0.005 },
   ],
   facts: [
     { file: CIRCUITS, pattern: "v 96 400 96 64 0 0 40 6 0 0 0\\.5\\nw 96 64 128 64 0\\nr 128 64 224 64 0 0\\.5", note: "Falstad hBridge: 6 V supply and 0.5 Ω supply/wiring resistance" },
@@ -149,6 +152,15 @@ export const hbridgeCurrentPath: CircuitSpec = {
     { file: EN, pattern: "about 12 A flows straight from \\+V to GND", note: "lesson: 12 A shoot-through" },
     { file: EN, pattern: "\\| H \\| L \\| PWM \\| Forward at that duty \\|\\n\\| L \\| H \\| PWM \\| Reverse \\|\\n\\| H \\| H \\| any \\| Short brake \\(fast stop\\) \\|\\n\\| L \\| L \\| any \\| Stop \\(coast\\) \\|", note: "lesson TB6612 table" },
     { file: ONE_REV, pattern: "void brake\\(\\) \\{\\s*// TB6612: IN1 = IN2 = HIGH shorts the motor", note: "one_rev.ino brake() = IN1 = IN2 = HIGH" },
+    { file: ZH, pattern: "S1 在左上，S2 在左下，S3 在右上，S4 在右下", note: "zh lesson switch positions" },
+    { file: ZH, pattern: "电流表读数约 \\+0\\.57 A", note: "zh lesson: +0.57 A forward" },
+    { file: ZH, pattern: "约 12 A 直接从 \\+V 流到 GND", note: "zh lesson: 12 A shoot-through" },
+    { file: ZH, pattern: "\\| H \\| L \\| PWM \\| 以该占空比正转 \\|\\n\\| L \\| H \\| PWM \\| 反转 \\|\\n\\| H \\| H \\| 任意 \\| 短路刹车（快速停下） \\|\\n\\| L \\| L \\| 任意 \\| 停止（滑行） \\|", note: "zh lesson TB6612 table" },
+    { file: ZH, pattern: "AO1 就是上面 H 桥图里的左桥臂（S1/S2）", note: "zh lesson: AO1 (OUT1) = left half-bridge" },
+    { file: EN, pattern: "in this model it falls to about 37 %, slightly more than a third, in 1 ms", note: "lesson: 37 % after 1 ms" },
+    { file: ZH, pattern: "1 ms 时大约还剩 37 %，比三分之一稍多", note: "zh lesson: 37 % after 1 ms" },
+    { file: EN, pattern: "its back-EMF drives a current the other way round the same loop", note: "lesson: back-EMF drives a reverse braking current" },
+    { file: ZH, pattern: "反电动势会在同一个回路里驱动一股反向电流", note: "zh lesson: back-EMF drives a reverse braking current" },
     { file: EN, pattern: "AO1 is the left half-bridge of the H-bridge diagram above \\(S1/S2\\)", note: "lesson: AO1 (OUT1) = left half-bridge" },
     { file: "examples/month-2/motors-drivers/README.md", pattern: "\\| AO1 / AO2 \\| motor leads", note: "the motor is on AO1/AO2" },
   ],

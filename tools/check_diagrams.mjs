@@ -4,6 +4,8 @@
 //  - every label exists in both languages and the Chinese label contains Chinese text;
 //  - both layouts place every node and edge inside the viewBox, the narrow layout is at most
 //    360 units wide (one unit is about one pixel on a 390 px phone), and labels fit their boxes;
+//  - timing specs (kind "timing"): equal column counts, label widths, and the diagram fits a 390 px phone
+//    at Timing.tsx's minimum text scale; "numbers" computed in a spec must match the lesson's values;
 //  - every "fact" (a regular expression) is found in the repository file it names, so the
 //    numbers, pins and names drawn in a diagram are tied to the lesson scripts.
 import { readFileSync, readdirSync, existsSync } from "node:fs";
@@ -86,11 +88,7 @@ function checkCircuit(spec, tag) {
     }
   }
   for (const w of spec.wires) for (const [x, y] of w.pts) inside(x, y, `wire ${w.id} point`);
-  for (const n of spec.numbers ?? []) {
-    const hit = Math.abs(n.value - n.expect) <= n.tol;
-    ok(hit, `${tag}: number ${n.note}: computed ${n.value} vs lesson ${n.expect} (tol ${n.tol})`);
-    if (hit) console.log(`calc  ${spec.id}: ${n.note}: ${+n.value.toFixed(4)} ≈ ${+n.expect.toFixed(4)}`);
-  }
+  checkNumbers(spec, tag);
   ok(spec.states.length > 0, `${tag}: no states`);
   for (const st of spec.states) {
     const sw = `${tag} state ${st.id}`;
@@ -125,7 +123,90 @@ function checkCircuit(spec, tag) {
       }
     }
     ok(!bad, `${sw}: current path leaves the circuit (or crosses an open switch) at (${bad?.map((v) => v.toFixed(1)).join(", ")})`);
+    // where the path starts and ends: supply → ground, or (with a stated reason) a closed loop away from the supplies
+    const same = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]) <= 0.6;
+    const onFlow = (pt) => st.flow.some((q, i) => i > 0 && distToSeg(pt, st.flow[i - 1], q) <= 0.6);
+    const supplies = spec.parts.filter((p) => p.type === "supply" && !hidden.has(p.id));
+    const grounds = spec.parts.filter((p) => p.type === "ground" && !hidden.has(p.id));
+    const first = st.flow[0], last = st.flow[st.flow.length - 1];
+    if (st.loopReason) {
+      ok(same(first, last), `${sw}: loop path (loopReason) must end where it starts`);
+      ok(!supplies.some((p) => onFlow(p.at)), `${sw}: loop path (loopReason) must not touch a supply`);
+    } else {
+      ok(supplies.some((p) => same(p.at, first)), `${sw}: current path must start at a supply`);
+      ok(grounds.some((p) => same(p.at, last)), `${sw}: current path must end at a ground`);
+    }
+    // every closed switch or button carries the current: both terminals lie on the path
+    for (const c of st.closed) {
+      const p = ids.get(c);
+      if (p && TWO_TERMINAL.has(p.type)) ok(terminals(p).every(onFlow), `${sw}: closed ${c} is not on the current path`);
+    }
   }
+}
+
+// ---------- timing diagrams (drawn by TimingSvg; layout constants read from Timing.tsx) ----------
+const timingSrc = readFileSync(join(root, "src/components/diagrams/Timing.tsx"), "utf8");
+const tconst = (name) => Number(timingSrc.match(new RegExp(`const ${name} = ([\\d.]+)`))[1]);
+const T = { LEFT: tconst("LEFT"), COL: tconst("COL"), AVG_PAD: tconst("AVG_PAD"), MIN_SCALE: tconst("MIN_SCALE") };
+// inner width of a diagram box on a 390 px phone (page and figure padding), measured with Playwright
+const PHONE_BOX = 332;
+function checkNumbers(spec, tag) {
+  for (const n of spec.numbers ?? []) {
+    const hit = Math.abs(n.value - n.expect) <= n.tol;
+    ok(hit, `${tag}: number ${n.note}: computed ${n.value} vs lesson ${n.expect} (tol ${n.tol})`);
+    if (hit) console.log(`calc  ${spec.id}: ${n.note}: ${+n.value.toFixed(4)} ≈ ${+n.expect.toFixed(4)}`);
+  }
+}
+function checkTiming(spec, tag) {
+  const lens = [
+    ...(spec.columns ? [spec.columns.length] : []),
+    ...spec.signals.map((s) => (s.kind === "bus" ? s.values?.length ?? 0 : s.levels?.length ?? 0)),
+    ...(spec.rows ?? []).map((r) => r.cells.length),
+  ];
+  const n = Math.max(1, ...lens);
+  ok(lens.every((l) => l === n), `${tag}: columns, levels/values and row cells must all have ${n} entries (got ${lens.join(", ")})`);
+  for (const w of spec.columns ?? []) ok(w > 0, `${tag}: column width ${w} must be > 0`);
+  const hasAvg = spec.signals.some((s) => s.average);
+  const width = T.LEFT + n * T.COL + 8 + (hasAvg ? T.AVG_PAD : 0);
+  ok(width * T.MIN_SCALE <= PHONE_BOX, `${tag}: ${width} units need ${Math.round(width * T.MIN_SCALE)} px at the minimum text scale; only ${PHONE_BOX} px fit at 390 px (it would scroll)`);
+  for (const [k, s] of spec.signals.entries()) {
+    const st = `${tag} signal ${k}`;
+    checkText(`${st} name`, s.name, { mono: true });
+    for (const t of variants(s.name)) ok(textWidth(t, 18) <= T.LEFT - 12, `${st}: name "${t}" wider than the label column`);
+    if (s.kind === "bus") for (const v of s.values ?? []) checkText(`${st} value`, v, { mono: true });
+    else for (const lv of s.levels ?? []) ok(typeof lv === "number" || lv === "x" || lv === "z", `${st}: bad level ${lv}`);
+    if (s.average) {
+      ok(s.kind !== "bus", `${st}: average on a bus signal`);
+      ok(s.average.level >= 0 && s.average.level <= 1, `${st}: average level ${s.average.level} outside 0..1`);
+      checkText(`${st} average`, s.average.label, { mono: true });
+      for (const t of variants(s.average.label)) ok(textWidth(t, 14) <= T.AVG_PAD - 4, `${st}: average label "${t}" wider than ${T.AVG_PAD - 4}`);
+    }
+  }
+  for (const r of spec.rows ?? []) {
+    checkText(`${tag} row name`, r.name, { mono: true });
+    for (const c of r.cells) checkText(`${tag} row cell`, c, { mono: true });
+  }
+  for (const sp of spec.spans ?? []) {
+    ok(sp.from >= 0 && sp.to < n && sp.from <= sp.to, `${tag}: span ${sp.from}..${sp.to} outside 0..${n - 1}`);
+    checkText(`${tag} span`, sp.label);
+    const cw = spec.columns ? spec.columns.map((w) => (w / spec.columns.reduce((a, b) => a + b, 0)) * n * T.COL) : Array(n).fill(T.COL);
+    const x0 = T.LEFT + cw.slice(0, sp.from).reduce((a, b) => a + b, 0);
+    const x1 = x0 + cw.slice(sp.from, sp.to + 1).reduce((a, b) => a + b, 0);
+    for (const t of variants(sp.label)) {
+      const w = textWidth(t, 14);
+      ok((x0 + x1) / 2 - w / 2 >= 0 && (x0 + x1) / 2 + w / 2 <= width, `${tag}: span label "${t}" (${w.toFixed(0)}) runs outside the ${width}-unit diagram`);
+    }
+  }
+  if (spec.axisLabel) {
+    checkText(`${tag} axis label`, spec.axisLabel);
+    for (const t of variants(spec.axisLabel)) ok(textWidth(t, 14) <= n * T.COL, `${tag}: axis label "${t}" wider than the time axis`);
+  }
+  for (const [k, st] of (spec.steps ?? []).entries()) {
+    checkText(`${tag} step ${k + 1}`, st.label);
+    if (st.column !== undefined) ok(st.column >= 0 && st.column < n, `${tag} step ${k + 1}: column ${st.column} outside 0..${n - 1}`);
+    for (const i of st.signals ?? []) ok(i >= 0 && i < spec.signals.length, `${tag} step ${k + 1}: signal ${i} does not exist`);
+  }
+  checkNumbers(spec, tag);
 }
 
 const specs = [];
@@ -145,6 +226,7 @@ for (const { file, name, spec } of specs) {
   checkText(`${tag} caption`, spec.caption);
   for (const src of spec.sources) ok(existsSync(join(root, src)), `${tag}: source ${src} does not exist`);
   if (spec.kind === "circuit") checkCircuit(spec, tag);
+  else if (spec.kind === "timing") checkTiming(spec, tag);
   else {
     const nodeIds = new Set(spec.nodes.map((n) => n.id));
     const edgeIds = new Set(spec.edges.map((e) => e.id));

@@ -26,6 +26,8 @@ export interface TimingSignal {
   values?: string[];
   /** Stroke colour; defaults cycle through a dark-theme palette. */
   color?: string;
+  /** digital only: a dashed line at this fraction of the trace height (0 = low, 1 = high), labelled at the right, e.g. a PWM average. */
+  average?: { level: number; label: string };
 }
 
 export interface TimingRow {
@@ -58,6 +60,8 @@ export interface TimingProps {
   title: string;
   /** Column to highlight (used by <TimingStepper>). */
   highlight?: number;
+  /** Signal indices drawn at full strength; the other signals are dimmed. Default: all. */
+  activeSignals?: number[];
   /** Value of the data-timing attribute, for tests and anchors. */
   id?: string;
 }
@@ -72,6 +76,7 @@ const ROW_H = 26;
 const SPAN_H = 28;
 const SLOPE = 5; // bus band edge slant
 const MIN_SCALE = 0.62; // smallest px per viewBox unit before the diagram scrolls horizontally
+const AVG_PAD = 60; // room at the right for average labels
 
 export function columnCount(p: Pick<TimingProps, "signals" | "rows" | "columns">): number {
   const lens = [
@@ -128,10 +133,16 @@ function busBands(values: string[], edges: number[]) {
   return bands.map((b) => ({ ...b, x0: edges[b.from], x1: edges[b.to + 1] }));
 }
 
-export function TimingSvg({ signals, rows = [], spans = [], columns, axisLabel, title, highlight }: Omit<TimingProps, "id">) {
+/** viewBox width of a diagram (exported for tools/check_diagrams.mjs-style size checks and tests). */
+export function timingWidth(p: Pick<TimingProps, "signals" | "rows" | "columns">): number {
+  const n = columnCount(p);
+  return columnEdges(n, p.columns)[n] + 8 + (p.signals.some((s) => s.average) ? AVG_PAD : 0);
+}
+
+export function TimingSvg({ signals, rows = [], spans = [], columns, axisLabel, title, highlight, activeSignals }: Omit<TimingProps, "id">) {
   const n = columnCount({ signals, rows, columns });
   const edges = columnEdges(n, columns);
-  const width = edges[n] + 8;
+  const width = timingWidth({ signals, rows, columns });
   const topSpans = spans.filter((s) => (s.side ?? "top") === "top");
   const bottomSpans = spans.filter((s) => s.side === "bottom");
   const top = 10 + (topSpans.length ? SPAN_H : 0);
@@ -172,8 +183,9 @@ export function TimingSvg({ signals, rows = [], spans = [], columns, axisLabel, 
       {signals.map((s, k) => {
         const yTop = top + k * (TRACE_H + TRACE_GAP);
         const color = s.color ?? PALETTE[k % PALETTE.length];
+        const dimmed = activeSignals !== undefined && !activeSignals.includes(k);
         return (
-          <g key={`${s.name}-${k}`}>
+          <g key={`${s.name}-${k}`} opacity={dimmed ? 0.25 : 1} data-signal={k}>
             <text x={8} y={yTop + TRACE_H / 2 + 6} style={{ fill: color }} fontSize={18} fontWeight={600}>
               {s.name}
             </text>
@@ -203,6 +215,17 @@ export function TimingSvg({ signals, rows = [], spans = [], columns, axisLabel, 
               : digitalPath(s.levels ?? [], edges, yTop).map((p, j) => (
                   <path key={j} d={p.d} fill="none" style={{ stroke: color }} strokeWidth={p.dashed ? 1.5 : 3} strokeDasharray={p.dashed ? "4 3" : undefined} strokeLinejoin="round" />
                 ))}
+            {s.kind !== "bus" && s.average && (() => {
+              const y = yTop + TRACE_H * (1 - Math.min(1, Math.max(0, s.average.level)));
+              return (
+                <g data-average>
+                  <line x1={edges[0]} x2={edges[n] + 4} y1={y} y2={y} style={{ stroke: "var(--dg-ink)" }} strokeWidth={1.5} strokeDasharray="6 4" />
+                  <text x={edges[n] + 8} y={y + 5} style={{ fill: "var(--dg-ink)" }} fontSize={14} fontWeight={600}>
+                    {s.average.label}
+                  </text>
+                </g>
+              );
+            })()}
           </g>
         );
       })}

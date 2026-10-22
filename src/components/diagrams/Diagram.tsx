@@ -7,6 +7,7 @@ import { DIAGRAM_UI } from "@/lib/diagrams/ui";
 import { BlockDiagramSvg } from "./BlockDiagram";
 import { CircuitDiagram } from "./CircuitDiagram";
 import { StepControls } from "./StepControls";
+import { TimingDiagram } from "./TimingDiagram";
 
 const REPO = "https://github.com/liudicsu/Hardware-learning/blob/main";
 
@@ -20,14 +21,21 @@ export interface DiagramProps {
  * Registry entry point used from MDX as <Diagram id="..." />. The lesson page supplies the
  * locale, so zh.mdx and en.mdx contain the identical tag and the labels come from the spec.
  * Block diagrams show the narrow layout below 640 px and the wide one above it; circuits have
- * one layout of at most 360 units. Nothing scrolls sideways.
+ * one layout of at most 360 units; timing diagrams scale with the width and are checked to fit a
+ * 390 px screen. Nothing scrolls sideways.
  */
 export function Diagram({ id, locale }: DiagramProps) {
   const spec = DIAGRAMS[id];
   if (!spec) throw new Error(`Unknown diagram id "${id}"`);
   return (
     <DiagramFrame spec={spec} locale={locale}>
-      {spec.kind === "circuit" ? <CircuitDiagram spec={spec} locale={locale} /> : <BlockBody spec={spec} locale={locale} />}
+      {spec.kind === "circuit" ? (
+        <CircuitDiagram spec={spec} locale={locale} />
+      ) : spec.kind === "timing" ? (
+        <TimingDiagram spec={spec} locale={locale} />
+      ) : (
+        <BlockBody spec={spec} locale={locale} />
+      )}
     </DiagramFrame>
   );
 }

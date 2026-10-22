@@ -250,6 +250,8 @@ duty  = 128 / 255 = 0.50196 ≈ 50.2 %
 V_avg = 0.50196 × 5 V = 2.510 V ≈ 2.51 V
 ```
 
+<Diagram id="pwm-duty-average" />
+
 An LED is far too fast to follow a 490 Hz square wave. Your eye integrates the flashes and sees a dimmer light, roughly as if the pin were at 2.51 V. A DC motor's rotor has inertia and responds to the average too, which is why the same function controls speed in Lesson 4. But a speaker would reproduce the 490 Hz tone, and a fast logic input would see individual pulses — the signal is still digital, only its average is analog-like.
 
 ### Seeing the average with an RC filter
