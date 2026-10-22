@@ -78,3 +78,11 @@ numbers, cart-pole direction, TB6612 OUT1) go into the PR that touches each less
   - Lesson wording fixed to match the firmware: "quiet for more than 30 ms", each bounce measured from the
     previous edge.
   - All hand-written.
+- D-5 merged (#25, squash e20ae6e, on top of #22 7293e6f). Live check: 24/24 OK (hl-audit/prc-live-check.md).
+- D-5 nits (branch diagrams/d5-nits):
+  - The debounce caption now says "simulated" / 模型给出的 bounce edges.
+  - check_diagrams pins the I2C field and sender sequences (`PINNED`, datasheet §9.3).
+  - Bus values need 4 units of padding inside the flat part of their band, and row cells 2 units on each side.
+  - I2C columns are weighted by field (bytes 1.4, ACK 1.2, one-letter fields 0.9) with `columnScale` 42.
+  - The debounce line 1 window starts 2 ms earlier, so the "0" band fits.
+  - All hand-written.
