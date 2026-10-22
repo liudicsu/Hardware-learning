@@ -28,7 +28,7 @@ width:  32-bit vs 8-bit
 
 (The classic ESP32 has slightly more, 520 KB.) Fifteen times the clock does not mean fifteen times faster in real code, because memory accesses, Wi-Fi work and library overhead all take their share. It does mean you can afford floating-point maths, JSON strings and a web server without running into the performance ceiling. The RAM figure matters even more: 256 times the working memory is the difference between "I can hold this page in a string" and "I need to stream it in pieces". A 32-bit processor also handles pointers and addresses in one operation, where an 8-bit core needs several.
 
-The trade-off is the logic level. The Uno is a 5 V board; the ESP32 is a 3.3 V board, and its pins are not 5 V tolerant. The 3.3 V section below covers what that means at the bench. For now, remember that "more capable" also means "less forgiving".
+The trade-off is the logic level. The Uno is a 5 V board; the ESP32 is a <Term id="3v3-logic">3.3 V</Term> board, and its pins are not 5 V tolerant. The 3.3 V section below covers what that means at the bench. For now, remember that "more capable" also means "less forgiving".
 
 <Quiz id="q1" question="You need Bluetooth Classic (e.g. an old serial Bluetooth gamepad). Which chip?" options={["ESP32-S3", "Classic ESP32", "ESP32-C3"]} answer={1} explanation="The classic ESP32 includes Bluetooth Classic as well as BLE. The S3 and C3 support BLE only, so a device that needs Classic will not pair with them." />
 
@@ -118,7 +118,7 @@ Vout = I × Rbottom = 1.667 mA × 2 kΩ = 3.333 V
 check: 5 V × 2 / (1 + 2) = 10 / 3 = 3.333 V
 ```
 
-The current through the divider is only about 1.7 mA, which is harmless. The output is 3.333 V, just under the 3.6 V limit, and safely above the level the ESP32 reads as HIGH. This is the same divider arithmetic from Month 1, now with a safety purpose.
+The current through the divider is only about 1.7 mA, which is harmless. The output is 3.333 V, just under the 3.6 V limit, and 0.86 V above the ESP32-S3's high-level input threshold: the [ESP32-S3 datasheet](https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf) v2.2 (Table 5-4) gives <Term id="logic-thresholds">VIH</Term> = 0.75 × 3.3 V = 2.475 V and VIL = 0.25 × 3.3 V = 0.825 V. The 0.86 V margin is a nominal figure: it assumes an ideal 5.000 V signal and VDD = 3.3 V. At VDD = 3.6 V, VIH = 0.75 × 3.6 V = 2.7 V and the margin is 0.63 V. If the Uno's output sits at its datasheet minimum, VOH = 4.2 V at 20 mA, the divider gives 2.8 V and the margin is 0.325 V; at the divider's 1.7 mA the real output is close to 5 V. This is the same divider arithmetic from Month 1, now with a safety purpose.
 
 <Falstad title="Dividing a 5 V signal down for a 3.3 V input" circuit="levelDivider" height={440} />
 
@@ -140,10 +140,21 @@ Most GPIOs are available for general use, but a few are reserved or behave in su
 
 - **GPIO 6–11** are wired to the flash chip. Never use them. On many modules they are not even brought out to the header.
 - **GPIO 34–39** are input-only. They have no output drivers and no internal pull-ups, so `INPUT_PULLUP` does nothing useful on them. They are, however, part of ADC1, which makes them valuable for analog sensors in Wi-Fi projects.
-- **Strapping pins GPIO 0, 2, 5, 12 and 15** are read at boot to choose the boot mode and the flash voltage. A pull-up, a pull-down or a connected part on one of them can stop the board from booting. The classic trap is **GPIO 12 high at boot**: the chip then selects the wrong flash voltage and the sketch never starts. If a board boots fine alone but not with your sensor attached, suspect a strapping pin.
+- **<Term id="strapping-pin">Strapping pins</Term> GPIO 0, 2, 5, 12 and 15** are read at boot to choose the boot mode and the flash voltage. A pull-up, a pull-down or a connected part on one of them can stop the board from booting. The classic trap is **GPIO 12 high at boot**: the chip then selects the wrong flash voltage and the sketch never starts. If a board boots fine alone but not with your sensor attached, suspect a strapping pin.
 - **ADC2 pins cannot be read while Wi-Fi is active.** The Wi-Fi driver owns that converter. Use ADC1, GPIO 32–39, for analog inputs in any Wi-Fi project.
 
-The S3 has its own list. Its strapping pins are **GPIO 0, 3, 45 and 46**, and its ADC1 pins are **GPIO 1–10**. Depending on the module, some GPIOs are taken by flash or PSRAM, and the exact set changes between modules with different memory options. Read your module's datasheet or pinout diagram rather than assuming that every pin on the header is free.
+### Pins to watch on the ESP32-S3
+
+The S3 is the course's main board, so it gets its own list, taken from the ESP32-S3 datasheet v2.2 (section 2.3.4, Restrictions for GPIOs and RTC_GPIOs) and the [ESP32-S3-WROOM-1 module datasheet](https://www.espressif.com/sites/default/files/documentation/esp32-s3-wroom-1_wroom-1u_datasheet_en.pdf):
+
+- **Strapping pins GPIO 0, 3, 45 and 46** are sampled at reset to select the boot mode and other start-up options; GPIO 0 is the BOOT button on the DevKitC-1. Keep external pull-ups, pull-downs and loads off them.
+- **GPIO 19 and 20** are USB D− and D+ of the native USB Serial/JTAG interface. Using them as GPIO disconnects the native USB port.
+- **GPIO 43 and 44** are UART0 TX and RX, the port the DevKitC-1's USB-to-UART bridge uses for uploads and the Serial Monitor.
+- **GPIO 26–32** connect to the module's flash and PSRAM and are not free GPIOs (on the WROOM-1 the flash is a separate chip on the module board). On modules with octal (8-line) PSRAM, such as the WROOM-1 N8R8 and N16R8, GPIO 35–37 are also connected to the PSRAM and are not available for other uses.
+- **GPIO 39–42** carry the external JTAG interface; they are ordinary GPIOs when you do not debug with an external JTAG probe.
+- **ADC1 is GPIO 1–10** and ADC2 is GPIO 11–20. ADC2 is shared with the Wi-Fi driver, as on the classic chip, so use ADC1 for analog inputs in a Wi-Fi project.
+
+Look up the flash and PSRAM option printed on your module before you assign pins.
 
 <Quiz id="q3" question="On a classic ESP32 with Wi-Fi running, which pin should the potentiometer use?" options={["GPIO 4 (ADC2)", "GPIO 34 (ADC1)", "GPIO 9"]} answer={1} explanation="ADC2 is unavailable while Wi-Fi is active, and GPIO 9 is connected to the flash chip. GPIO 34 is on ADC1, so it still works with Wi-Fi on." />
 
@@ -151,7 +162,7 @@ The S3 has its own list. Its strapping pins are **GPIO 0, 3, 45 and 46**, and it
 
 The ESP32's analog-to-digital converter (ADC) is 12-bit. That means it produces 4096 distinct codes, numbered 0 to 4095, where 0 is the bottom of its range and 4095 is the top. More bits than the Uno's 10-bit converter sounds like a straight upgrade, but the ESP32 ADC has quirks that the Uno's does not.
 
-With the default attenuation, the usable input range is roughly 0 to 3.1 V, not the full 3.3 V. A voltage above that saturates at 4095 and tells you nothing more. The converter is also noticeably non-linear near both ends of its range. In the middle it behaves reasonably; close to 0 V and close to the top, the same voltage step produces a different code change than it does in the centre. Do not expect the datasheet's ideal straight line.
+An attenuator in front of the converter sets the input range, and the Arduino core selects the largest setting, `ADC_11db`, by default. The [Arduino-ESP32 ADC documentation](https://docs.espressif.com/projects/arduino-esp32/en/latest/api/adc.html) gives the measurable range at that setting as 0–3100 mV on the ESP32-S3 (150–3100 mV on the classic ESP32), and the ESP32-S3 datasheet v2.2 (Table 5-6) characterises calibrated readings only up to 2900 mV, with a total error of ±50 mV. The usable range is therefore about 0–3.1 V, not the full 3.3 V: a pin at 3.2 V and a pin at 3.3 V both read 4095, which says only that the input is at or above the top of the range. Divide a signal that can reach 3.3 V down to below 2.9 V before it reaches the pin. The converter is also noticeably non-linear near both ends of its range. In the middle it behaves reasonably; close to 0 V and close to the top, the same voltage step produces a different code change than it does in the centre. Do not expect the datasheet's ideal straight line.
 
 The practical answer is `analogReadMilliVolts(pin)`. It returns millivolts and applies the chip's factory calibration data, which corrects much of the non-linearity and the gain error. Use it instead of scaling `analogRead()` yourself. The raw function is still useful when you want the code value, but for a voltage, take the calibrated one.
 
@@ -175,7 +186,7 @@ Once you leave the Uno, you will meet three ways to program the same chip. They 
 | ESP-IDF | You need real control over FreeRTOS tasks, which core runs what, power modes and precise timing | Steeper setup, more boilerplate, more concepts before the first blink |
 | MicroPython | You want quick sensor experiments and a REPL where you can try things line by line | Garbage-collection pauses wreck hard timing; it is a poor fit for a balancing loop |
 
-The important idea is that these are a spectrum, not a fork. The Arduino core for ESP32 is built on top of ESP-IDF and FreeRTOS. When you write `setup()` and `loop()`, the core creates a FreeRTOS task for you and calls them from it. On a classic ESP32 that task normally runs on one core while the Wi-Fi stack mostly runs on the other, which is why networking does not automatically stall your control code. You can call ESP-IDF functions from an Arduino sketch, create your own tasks with `xTaskCreatePinnedToCore()`, and mix the two styles in one project.
+The important idea is that these are a spectrum, not a fork. The Arduino core for ESP32 is built on top of ESP-IDF and FreeRTOS. When you write `setup()` and `loop()`, the core creates a FreeRTOS task for you and calls them from it. A <Term id="freertos-task">FreeRTOS task</Term> is a function with its own stack and priority that the FreeRTOS scheduler starts, pauses and resumes, so several tasks share the CPU cores without one blocking the others. On a classic ESP32 that task normally runs on one core while the Wi-Fi stack mostly runs on the other, which is why networking does not automatically stall your control code. You can call ESP-IDF functions from an Arduino sketch, create your own tasks with `xTaskCreatePinnedToCore()`, and mix the two styles in one project.
 
 That layering is why the course starts with Arduino. You get the fast path now, and the lower layers remain available when you need them. If you later need finer timer control or task priorities than the Arduino API exposes, the move to ESP-IDF is a step down the stack, not a restart.
 
@@ -189,7 +200,7 @@ MicroPython deserves its own warning. It is excellent for reading a sensor, plot
 
 A hobby servo does not take an angle as a number. It expects a pulse every 20 ms, which is a 50 Hz frame, and the width of that pulse sets the angle. The common convention is 1.0 ms for 0°, 1.5 ms for 90° and 2.0 ms for 180°. Many servos actually accept something wider, roughly 0.5 ms to 2.5 ms, but the safe habit is to stay within the range your servo's datasheet gives. Driving past an end stop makes the motor push against a mechanical limit, draw a stall current, heat up and eventually strip a gear.
 
-The ESP32 generates this signal with its **LEDC** peripheral, a PWM block with hardware timers and channels. In Arduino-ESP32 core 3.x the API is compact: call `ledcAttach(pin, frequency, resolutionBits)` once, then `ledcWrite(pin, duty)` whenever you want a new pulse width. The resolution is in bits, so 14 bits gives duty values from 0 to 16383.
+The ESP32 generates this signal with its <Term id="ledc">**LEDC**</Term> peripheral, a PWM block with hardware timers and channels. In Arduino-ESP32 core 3.x the API is compact: call `ledcAttach(pin, frequency, resolutionBits)` once, then `ledcWrite(pin, duty)` whenever you want a new pulse width. The resolution is in bits, so 14 bits gives duty values from 0 to 16383.
 
 <Formula label="LEDC duty for a pulse">duty = pulse / period × (2^bits − 1)</Formula>
 
@@ -213,7 +224,7 @@ angle 180 -> duty 1638
 
 Notice that the values are not perfectly evenly spaced: 819, 1023, 1228, 1433, 1638. The steps are 204, 205, 205, 205. That is normal. The conversion divides integers and throws away the remainder at each stage, so a half-count here and there disappears. At 14 bits one duty step is 20 ms / 16384 ≈ 1.22 µs, which is far finer than a hobby servo can resolve, so the truncation does not matter in practice.
 
-Powering the servo is where beginners most often make mistakes. A small servo draws hundreds of milliamps while moving and around 1 A or more when stalled. The dev board's 3.3 V regulator cannot supply that, and trying will cause brownout resets or damage. Power the servo from a separate 5–6 V supply, connect its ground to the ESP32's ground, and feed only the signal wire from the GPIO. The 3.3 V signal is usually accepted by a 5 V servo as a logic high, but check the datasheet if the servo is an unusual one.
+Powering the servo is where beginners most often make mistakes. Hobby-servo listings rarely state a stall current, so measure your own: put the multimeter on its 10 A range in series with the servo's power lead (Month 1, The bench), command an angle, and read the current while the servo moves, while it holds still, and, for no more than a second or two, while you hold the horn so it cannot reach the angle (the stall case). Compare the stall reading with what the supply can deliver. A computer's USB 2.0 port is specified for 500 mA, and the dev board's 3.3 V regulator also supplies the ESP32, so neither can carry a servo's stall current: the rail sags and the ESP32 resets on brownout. Power the servo from a separate 5–6 V supply, connect its ground to the ESP32's ground, and feed only the signal wire from the GPIO. The 3.3 V signal is usually accepted by a 5 V servo as a logic high, but check the datasheet if the servo is an unusual one.
 
 <Quiz id="q6" question="50 Hz, 14-bit LEDC: what duty value (integer, rounded down) gives a 2.0 ms pulse?" answer={1638} explanation="duty = 2.0 / 20 × 16383 = 0.1 × 16383 = 1638.3, rounded down to 1638." />
 
@@ -364,3 +375,23 @@ Before you move on, you should be able to say yes to all of these:
 - I can calculate an LEDC duty value for a given pulse width and resolution.
 - I can explain when to use the Arduino core, ESP-IDF or MicroPython.
 - I have the web servo working from my phone, with the servo on its own supply and a shared ground.
+
+<Summary>
+
+**Key points**
+
+- ESP32-S3: dual-core Xtensa LX7 at 240 MHz, 512 KB SRAM, Wi-Fi and BLE 5 without Bluetooth Classic, native USB: 15× the Uno's clock and 256× its RAM.
+- Upload: add the board-manager URL, select ESP32S3 Dev Module, enable USB CDC On Boot for `Serial` on the native port, and use BOOT + RESET when the upload cannot connect.
+- The DevKitC-1 has only an addressable RGB LED, on GPIO 38 (v1.1) or GPIO 48 (v1.0), driven with `rgbLedWrite()`.
+- 3.3 V logic, not 5 V tolerant: a 1 kΩ / 2 kΩ divider gives 3.333 V, nominally 0.86 V above VIH = 2.475 V.
+- ESP32-S3 pins to keep free: strapping 0, 3, 45, 46; USB 19, 20; UART0 43, 44; flash and PSRAM 26–32 (and 35–37 with octal PSRAM); ADC1 is GPIO 1–10.
+- ADC: 12 bits, default `ADC_11db` range about 0–3.1 V; read volts with `analogReadMilliVolts()`.
+- LEDC servo pulse: duty = pulse / period × (2^bits − 1); 1.5 ms at 50 Hz and 14 bits gives 1228.
+- Power servos from a separate 5–6 V supply with a common ground, and measure their stall current.
+
+**Used next**
+
+- Month 2 · Motors, drivers & your first encoder loop drives DC motors through an H-bridge from the same PWM and logic levels.
+- Month 2 · Your first two robots: line follower & self-balancer: the self-balancer runs on an ESP32.
+
+</Summary>
