@@ -368,6 +368,25 @@ export interface GeoSpec {
     /** Text shapes that name the positive directions ("+x", "+F", "+θ"); checked to sit at their shapes. */
     labels: { axis: string; force: string; theta: string };
   };
+  /**
+   * multimodal.py's block task (act-diffusion): shapes drawn in metres through `map` (viewBox x = x0 + s * x,
+   * y = y0 - s * y). check_diagrams rebuilds the block, goal, start, fork and waypoints from multimodal.py and checks
+   * that `mean` is the mean of the `demos` arrows (all drawn from `at`'s neighbours at `arrowScale`) and that
+   * `meanRay` continues it to the block's near face.
+   */
+  blockTask?: {
+    map: { x0: number; y0: number; s: number };
+    block: string;
+    goal: string;
+    start: string;
+    fork: string;
+    waypoints: [string, string];
+    at: Point;
+    demos: string[];
+    mean: string;
+    meanRay: string;
+    arrowScale: number;
+  };
   numbers?: DiagramNumber[];
   facts: DiagramFact[];
 }

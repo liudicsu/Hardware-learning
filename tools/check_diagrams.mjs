@@ -550,6 +550,7 @@ function checkGeo(spec, tag) {
       }
     }
   }
+  if (spec.blockTask) checkBlockTask(spec, tag, byId);
   if (spec.cartPole) {
     const cp = spec.cartPole;
     const [axis, force, pole, theta] = [cp.axis, cp.force, cp.pole, cp.theta].map((id) => byId[id]);
@@ -595,6 +596,58 @@ function checkGeo(spec, tag) {
     }
   }
   checkNumbers(spec, tag);
+}
+
+/**
+ * multimodal.py's block task: block, goal, start, fork and waypoints must be where multimodal.py puts them; the 10
+ * demo arrows must start near `at`; the drawn mean arrow must be the mean of the drawn demo arrows (the averaging
+ * policy) and its ray must continue straight on to the block's near face, between its corners.
+ */
+function checkBlockTask(spec, tag, byId) {
+  const b = spec.blockTask, { x0, y0, s } = b.map;
+  const py = [
+    "import json, re, sys",
+    `sys.path.insert(0, ${JSON.stringify(join(root, "examples/month-6/act-diffusion"))})`,
+    "import inspect, multimodal as m",
+    "w = re.search(r'toward\\(p, \\(([\\d.]+) \\* side, ([\\d.]+)\\)\\)', inspect.getsource(m.expert))",
+    "print(json.dumps({'goal': m.GOAL, 'by': m.BLOCK_Y, 'half': m.HALF, 'fork': m.FORK_Y, 'step': m.STEP, 'way': [float(w[1]), float(w[2])]}))",
+  ].join("\n");
+  const m = JSON.parse(execFileSync("python3", ["-c", py], { encoding: "utf8" }));
+  const V = ([x, y]) => [x0 + s * x, y0 - s * y];
+  const near = (p, q, tol = 0.06) => Math.hypot(p[0] - q[0], p[1] - q[1]) <= tol;
+  const get = (id, type) => { const sh = byId[id]; ok(sh && sh.type === type, `${tag}: blockTask ${id} must be a ${type}`); return sh && sh.type === type ? sh : null; };
+  const before = failed;
+  const blk = get(b.block, "rect");
+  if (blk) {
+    ok(near(blk.at, V([-m.half, m.by + m.half])) && Math.abs(blk.size[0] - 2 * m.half * s) <= 0.06 && Math.abs(blk.size[1] - 2 * m.half * s) <= 0.06,
+      `${tag}: block drawn at ${JSON.stringify(blk.at)} size ${JSON.stringify(blk.size)}, multimodal.py's is centre (0, ${m.by}) side ${2 * m.half} m`);
+  }
+  const g = get(b.goal, "circle");
+  if (g) ok(near(g.at, V(m.goal)) && Math.abs(g.r - 0.05 * s) <= 0.06, `${tag}: goal circle is not GOAL with the 0.05 m success radius`);
+  const st = get(b.start, "circle"), fk = get(b.fork, "circle");
+  if (st) ok(near(st.at, V([0, 0])), `${tag}: start is not at (0, 0)`);
+  if (fk) ok(near(fk.at, V([0, m.fork])), `${tag}: fork is not at (0, FORK_Y = ${m.fork})`);
+  b.waypoints.forEach((id, k) => { const w = get(id, "circle"); if (w) ok(near(w.at, V([(k ? 1 : -1) * m.way[0], m.way[1]])), `${tag}: waypoint ${id} is not expert()'s (${k ? "+" : "-"}${m.way[0]}, ${m.way[1]})`); });
+  const arrows = b.demos.map((id) => get(id, "line")).filter(Boolean);
+  ok(arrows.length === b.demos.length && arrows.every((a) => a.arrow && near(a.from, V(b.at), 0.02 * s)), `${tag}: demo arrows must be arrows starting within 2 cm of (${b.at})`);
+  for (const a of arrows) {
+    const len = Math.hypot(a.to[0] - a.from[0], a.to[1] - a.from[1]) / s / b.arrowScale;
+    ok(len <= m.step + 0.001, `${tag}: a demo arrow is ${(len * 100).toFixed(1)} cm long, more than STEP`);
+  }
+  const mean = get(b.mean, "line"), ray = get(b.meanRay, "line");
+  if (mean && arrows.length) {
+    const avg = [0, 1].map((i) => arrows.reduce((t, a) => t + (a.to[i] - a.from[i]), 0) / arrows.length);
+    const d = [mean.to[0] - mean.from[0], mean.to[1] - mean.from[1]];
+    ok(mean.arrow && near(mean.from, V(b.at)) && near(d, avg, 0.3), `${tag}: mean arrow ${JSON.stringify(d.map((v) => +v.toFixed(1)))} is not the mean of the demo arrows ${JSON.stringify(avg.map((v) => +v.toFixed(1)))}`);
+    if (ray) {
+      const cross = (ray.to[0] - mean.from[0]) * d[1] - (ray.to[1] - mean.from[1]) * d[0];
+      const off = Math.abs(cross) / Math.hypot(...d);
+      ok(near(ray.from, mean.to) && off <= 0.5, `${tag}: mean ray does not continue the mean arrow (${off.toFixed(1)} units off its line)`);
+      const [hx, hy] = [(ray.to[0] - x0) / s, (y0 - ray.to[1]) / s];
+      ok(Math.abs(hy - (m.by - m.half)) <= 0.001 && Math.abs(hx) < m.half, `${tag}: mean ray ends at (${hx.toFixed(3)}, ${hy.toFixed(3)}), not on the block's near face`);
+      if (failed === before) console.log(`model ${spec.id}: block, goal, fork, waypoints from multimodal.py; mean of ${arrows.length} demo arrows meets the block face at x = ${(hx * 100).toFixed(1)} cm`);
+    }
+  }
 }
 
 // Spec files are plain data; the only imports allowed are types and JSON data files, inlined here.
