@@ -338,12 +338,15 @@ export interface PoseGraphSpec {
 /* ---------- 2-D geometry figures (rendered by src/components/diagrams/Geo2D.tsx) ---------- */
 
 /** Angles in degrees measured from straight up, clockwise on screen positive. */
-export type GeoShape =
-  | { id?: string; type: "line"; from: Point; to: Point; tone?: Tone; width?: number; dashed?: boolean; arrow?: boolean }
-  | { id?: string; type: "rect"; at: Point; size: [number, number]; tone?: Tone; rx?: number }
-  | { id?: string; type: "circle"; at: Point; r: number; tone?: Tone; fill?: boolean }
-  | { id?: string; type: "arc"; at: Point; r: number; from: number; to: number; tone?: Tone; arrow?: boolean }
-  | { id?: string; type: "text"; at: Point; label: L10n; anchor?: "start" | "middle" | "end"; tone?: Tone; mono?: boolean; bold?: boolean };
+/** `group` names shapes that a step highlights together; shapes with neither id nor group are never dimmed. */
+export type GeoShape = (
+  | { type: "line"; from: Point; to: Point; tone?: Tone; width?: number; dashed?: boolean; arrow?: boolean }
+  | { type: "polyline"; pts: Point[]; tone?: Tone; width?: number; dashed?: boolean }
+  | { type: "rect"; at: Point; size: [number, number]; tone?: Tone; rx?: number }
+  | { type: "circle"; at: Point; r: number; tone?: Tone; fill?: boolean; dashed?: boolean }
+  | { type: "arc"; at: Point; r: number; from: number; to: number; tone?: Tone; arrow?: boolean }
+  | { type: "text"; at: Point; label: L10n; anchor?: "start" | "middle" | "end"; tone?: Tone; mono?: boolean; bold?: boolean }
+) & { id?: string; group?: string };
 
 /**
  * A static figure drawn from shapes in one viewBox of at most 340 units (one layout for every width).
@@ -368,6 +371,22 @@ export interface GeoSpec {
     /** Text shapes that name the positive directions ("+x", "+F", "+θ"); checked to sit at their shapes. */
     labels: { axis: string; force: string; theta: string };
   };
+  /**
+   * The behaviour-cloning corridor (bc_reach.py): shapes drawn in metres through `map` (viewBox x = x0 + s * x,
+   * y = y0 - s * y). check_diagrams rebuilds the walls from the corridor constants and checks both runs against them.
+   */
+  corridor?: {
+    map: { x0: number; y0: number; s: number };
+    corner: Point;
+    goal: Point;
+    halfWidth: number;
+    goalRadius: number;
+    walls: string;
+    success: string;
+    fail: string;
+  };
+  /** Optional steps: each highlights shape ids or groups and dims the others (shapes without id/group stay). */
+  steps?: DiagramStep[];
   numbers?: DiagramNumber[];
   facts: DiagramFact[];
 }
