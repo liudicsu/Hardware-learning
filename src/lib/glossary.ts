@@ -407,6 +407,7 @@ export const glossary: GlossaryEntry[] = [
       en: "A state in which an input or disabled output presents a very high impedance and draws almost no current. A high-Z input with no defined level couples noise from nearby wiring through stray capacitance and reads randomly, so it needs a pull-up or pull-down.",
     },
     lesson: "arduino-io",
+    firstExplained: true,
   },
   {
     id: "bit-byte-hex",
@@ -425,6 +426,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The lowest-weight bit in a binary number, and by extension the smallest step a converter can resolve. The Uno's 10-bit ADC has one LSB of about 4.9 mV over 5 V, and the MPU-6050 at ±2 g has 16384 LSB/g.",
     },
     lesson: "arduino-io",
+    firstExplained: true,
   },
   {
     id: "integer-overflow",
@@ -434,6 +436,7 @@ export const glossary: GlossaryEntry[] = [
       en: "When an arithmetic result exceeds the range of its type, causing wraparound or undefined behaviour. On the Uno, int is a 16-bit signed type with a maximum of 32767, so a 10-bit raw × 1000 overflows before the division.",
     },
     lesson: "arduino-io",
+    firstExplained: true,
   },
   {
     id: "baud-rate",
@@ -443,6 +446,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The number of symbols a serial link transfers per second; both ends must use the same value, and this course uses 115200. Each byte occupies 10 bit times on the wire (start bit, eight data bits, stop bit), so one character takes about 87 µs.",
     },
     lesson: "arduino-io",
+    firstExplained: true,
   },
   {
     id: "hardware-timer",
@@ -452,6 +456,7 @@ export const glossary: GlossaryEntry[] = [
       en: "A counting peripheral that runs independently of the main program and can generate timer interrupts or PWM; the counter behind millis() is one. It keeps time independent of how long loop() takes, which is the basis of non-blocking timing.",
     },
     lesson: "timing-interrupts",
+    firstExplained: true,
   },
   {
     id: "isr",
@@ -461,6 +466,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The function run when a hardware event interrupts normal execution; the CPU saves its place, enters the ISR and returns to the same point in loop(). An ISR must be short, must not call delay() or Serial, and should share data with the main program only through volatile variables.",
     },
     lesson: "timing-interrupts",
+    firstExplained: true,
   },
   {
     id: "volatile",
@@ -470,6 +476,7 @@ export const glossary: GlossaryEntry[] = [
       en: "Tells the compiler that a variable may change asynchronously, for example in an ISR, so every access must re-read memory instead of using a cached copy. It guarantees re-reading, not atomicity; a four-byte value still needs a critical section to copy.",
     },
     lesson: "timing-interrupts",
+    firstExplained: true,
   },
   {
     id: "wraparound",
@@ -479,6 +486,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The return of an unsigned counter to zero after its maximum; the Uno's 32-bit millis() wraps about every 49.7 days. The correct pattern compares elapsed time with now - last >= interval, because unsigned subtraction still gives the true interval across the wrap.",
     },
     lesson: "timing-interrupts",
+    firstExplained: true,
   },
   {
     id: "debouncing",
@@ -488,6 +496,7 @@ export const glossary: GlossaryEntry[] = [
       en: "Filtering the rapid contact bounce when a mechanical switch closes so one press produces one event. Time-based debouncing accepts a new state only after the input has been stable for N milliseconds, typically 10–50 ms for a small tactile button.",
     },
     lesson: "timing-interrupts",
+    firstExplained: true,
   },
   {
     id: "state-machine",
@@ -497,6 +506,7 @@ export const glossary: GlossaryEntry[] = [
       en: "A way to describe behaviour as a small set of states plus transitions decided by inputs and time; each pass of loop() checks the state and decides whether to change it. It avoids blocking delay() calls, so the robot keeps responding to other events.",
     },
     lesson: "timing-interrupts",
+    firstExplained: true,
   },
   {
     id: "strapping-pin",
