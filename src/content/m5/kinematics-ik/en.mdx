@@ -289,9 +289,15 @@ Check one row. At elbow -60 deg with the shoulder at 20 deg, r = 0.1160 cos 20 +
 
 On a real arm you can point at the first one. Stretch the arm straight out, then try to push the gripper further outward. The shoulder and elbow are already collinear, so no joint can add reach; asking the base for help only swings the gripper sideways. That is the physical signature of the singularity: the outward direction is no longer in the range of J.
 
-Try it: drag the elbow toward 0° and watch |det J| turn red; then solve IK for (0.10, 0.15, 0.12) to see the 15 iterations.
-
 <IkWidget />
+
+**Guided experiment.** The widget runs the same forward kinematics, Jacobian determinant and damped IK as `kinematics.py`, with the SO-101 link lengths.
+
+1. Leave base q0 = 30°, shoulder q1 = 45° and elbow q2 = −60°. Read Tip = (0.1840, 0.1062, 0.1637) m, r = 0.2124 m and |det J| = 2.88e-03 m³, the values of the FK example and the determinant table.
+2. Set base q0 = 0°. The tip becomes (0.2124, 0.0000, 0.1637) m: r and z do not change, because the base only turns the plane in which the shoulder and elbow move.
+3. Set shoulder q1 = 0° and elbow q2 = −10°: |det J| = 6.77e-04 m³. At elbow q2 = −5° it falls to 3.42e-04 m³, below the widget's 5e-04 threshold, and turns red. At elbow q2 = 0° the tip is (0.2510, 0.0000, 0.1166) m, r = 0.2510 m = L1 + L2, and |det J| = 2.65e-13 m³, zero up to rounding: |det J| = L1 L2 r |sin q2| vanishes with sin q2.
+4. Enter the IK target (0.10, 0.15, 0.12) and press Solve IK. The result is 15 iterations → [56.31, 49.54, −88.48], error 0.00 mm, the converged solution of the script.
+5. Enter (0.20, 0.20, 0.10) and press Solve IK. The solver stops after 200 iterations with the elbow at 0.00° and an error of 32.33 mm: the target is 0.283 m from the shoulder, the straight arm reaches 0.251 m, and the solver returns the closest reachable point.
 
 <Quiz id="q4" question="Using |det J| = L1 L2 r |sin(elbow)| with L1 = 0.1160 m, L2 = 0.1350 m, r = 0.2124 m and elbow = 60 deg, what is |det J|?" answer={0.00288} unit="m³" explanation="0.1160 × 0.1350 × 0.2124 × sin 60 = 0.01566 × 0.2124 × 0.8660 = 0.00288 m³, which is the 2.88e-03 in the table." />
 

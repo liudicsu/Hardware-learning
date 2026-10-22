@@ -108,6 +108,40 @@ const kinematics = await loadModel("kinematics");
   });
   const far = kinematics.ik([0.2, 0.2, 0.1], [0, (30 * Math.PI) / 180, (-30 * Math.PI) / 180], 0.01);
   compare("kinematics", "lambda = 0.01 never settles (200 iterations, > 20 mm short)", "true", String(far.it === 199 && far.dist > 0.02));
+  // IkWidget guided experiment (kinematics-ik, both languages): every number the list tells the
+  // reader to expect, computed with the widget's own calls and formatting.
+  {
+    const R = Math.PI / 180;
+    const tip = (q) => "(" + kinematics.fk(q.map((v) => v * R)).map((v) => fixed(v, 4)).join(", ") + ")";
+    const rr = (q) => { const t = kinematics.fk(q.map((v) => v * R)); return fixed(Math.hypot(t[0], t[1]), 4); };
+    const det = (q) => format.exp(Math.abs(kinematics.detJ(q.map((v) => v * R))), 2);
+    const solve = (t) => {
+      const r = kinematics.ik(t, [0, 30 * R, -30 * R]);
+      const n = r.dist < 1e-5 ? r.it : r.it + 1; // as IkWidget shows it
+      return [`${n} iterations`, "[" + r.q.map((v) => fixed(v / R, 2)).join(", ") + "]", fixed(r.dist * 1000, 2) + " mm"];
+    };
+    const a = solve([0.1, 0.15, 0.12]), b = solve([0.2, 0.2, 0.1]);
+    const rows = [
+      ["default tip", "(0.1840, 0.1062, 0.1637)", tip([30, 45, -60])], ["default r", "0.2124", rr([30, 45, -60])], ["default det", "2.88e-03", det([30, 45, -60])],
+      ["base 0 tip", "(0.2124, 0.0000, 0.1637)", tip([0, 45, -60])],
+      ["elbow -10 det", "6.77e-04", det([0, 0, -10])], ["elbow -5 det", "3.42e-04", det([0, 0, -5])],
+      ["straight tip", "(0.2510, 0.0000, 0.1166)", tip([0, 0, 0])], ["straight r", "0.2510", rr([0, 0, 0])], ["straight det", "2.65e-13", det([0, 0, 0])],
+      ["solve near", "15 iterations", a[0]], ["solve near q", "[56.31, 49.54, -88.48]", a[1]], ["solve near error", "0.00 mm", a[2]],
+      ["solve far", "200 iterations", b[0]], ["solve far error", "32.33 mm", b[2]],
+    ];
+    const block = (loc) => {
+      const text = readFileSync(join(root, "src/content/m5/kinematics-ik", loc + ".mdx"), "utf8").replace(/\u2212/g, "-");
+      const marker = loc === "zh" ? "**动手实验。**" : "**Guided experiment.**";
+      const i = text.indexOf(marker);
+      return i < 0 ? "" : text.slice(i, text.indexOf("\n\n<", i));
+    };
+    const zhSteps = (s) => s.replace(/(\d+) iterations/, "$1 次迭代");
+    for (const [label, want, got] of rows) {
+      compare("guided Ik", label, want, got);
+      compare("guided Ik", `en states ${want}`, "yes", block("en").includes(want) ? "yes" : "no");
+      compare("guided Ik", `zh states ${want}`, "yes", block("zh").includes(zhSteps(want)) ? "yes" : "no");
+    }
+  }
 }
 
 const camera = await loadModel("camera");
