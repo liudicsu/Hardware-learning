@@ -24,7 +24,7 @@ const wide: Layout = {
     e3: { pts: [[408, 45], [424, 45]] },
     e4: { pts: [[598, 45], [614, 45]] },
     pitch: { pts: [[660, 68], [660, 110], [512, 110], [512, 70]], label: [586, 104] },
-    speed: { pts: [[716, 68], [716, 160], [204, 160], [204, 70]], label: [460, 154] },
+    speed: { pts: [[716, 68], [716, 160], [204, 160], [204, 70]], label: [460, 140] },
   },
 };
 
@@ -44,7 +44,7 @@ const narrow: Layout = {
     e3: { pts: [[101, 138], [101, 154]] },
     e4: { pts: [[101, 200], [101, 220]] },
     pitch: { pts: [[187, 240], [222, 240], [222, 178], [189, 178]], label: [228, 213], anchor: "start" },
-    speed: { pts: [[187, 250], [325, 250], [325, 64], [189, 64]], label: [256, 58] },
+    speed: { pts: [[187, 250], [325, 250], [325, 64], [189, 64]], label: [256, 42] },
   },
 };
 
@@ -110,7 +110,7 @@ export const pidCascade = cascade(
     inner: "200 Hz",
     motors: { zh: "电机", en: "motors" },
     pitch: { zh: "俯仰角（IMU）", en: "pitch (IMU)" },
-    speed: { zh: "轮速（编码器）", en: "wheel speed (encoders)" },
+    speed: { zh: "轮速（编码器）", en: "wheel speed\n(encoders)" },
   },
   {
     sources: [CASCADE_INO, "tools/sim/models/cascade_sim.py"],
@@ -135,7 +135,7 @@ export const firstRobotsCascade = cascade(
     inner: { zh: "角度误差 · 200 Hz", en: "angle error · 200 Hz" },
     motors: { zh: "电机 PWM", en: "motor PWM" },
     pitch: { zh: "滤波后的俯仰角", en: "pitch from\nthe filter" },
-    speed: { zh: "轮速（编码器）", en: "wheel speed (encoders)" },
+    speed: { zh: "轮速（编码器）", en: "wheel speed\n(encoders)" },
   },
   {
     sources: ["examples/month-2/first-robots/balancer/balancer.ino", CASCADE_INO],

@@ -55,8 +55,8 @@ export const urdfTwoPublishers: BlockDiagramSpec = {
       },
       edges: {
         param: { pts: [[110, 25], [30, 25], [30, 169], [113, 169]], label: [36, 100], anchor: "start" },
-        js: { pts: [[220, 118], [220, 146]], label: [226, 136], anchor: "start" },
-        tf: { pts: [[220, 190], [220, 232]], label: [226, 215], anchor: "start" },
+        js: { pts: [[210, 118], [210, 146]], label: [216, 136], anchor: "start" },
+        tf: { pts: [[210, 190], [210, 232]], label: [216, 215], anchor: "start" },
       },
     },
   },
