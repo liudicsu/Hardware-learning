@@ -51,7 +51,7 @@ const shapes: GeoShape[] = [
   { type: "text", at: [20, 320], label: { zh: "起点 (0, 0)", en: "start (0, 0)" }, anchor: "start", tone: "muted" },
   { type: "text", at: [296, 320], label: { zh: "拐角 (1, 0)", en: "corner (1, 0)" }, anchor: "end", tone: "muted" },
   { type: "text", at: [P(d.goal)[0] - 30, P(d.goal)[1] + 5], label: { zh: "目标 (1, 1)", en: "goal (1, 1)" }, anchor: "end", tone: "ok" },
-  { type: "text", at: [P([cx - hw, 0.5])[0] - 6, P([0, 0.5])[1]], label: { zh: "宽 0.2 m", en: "0.2 m wide" }, anchor: "end", tone: "muted" },
+  { type: "text", at: [P([cx - hw, 0.3])[0] - 6, P([0, 0.3])[1]], label: { zh: "宽 0.2 m", en: "0.2 m wide" }, anchor: "end", tone: "muted" },
   ...legend(110, "demo", "b", { zh: "5 条示范（无噪声）", en: "5 demos (no noise)" }),
   ...legend(132, "ok", "ok", { zh: `BC 第 ${ok.run + 1} 次：到达目标`, en: `BC run ${ok.run + 1}: reaches goal` }),
   ...legend(154, "bad", "danger", { zh: `BC 第 ${bad.run + 1} 次：撞端墙`, en: `BC run ${bad.run + 1}: hits end wall` }),
