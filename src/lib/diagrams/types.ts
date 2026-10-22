@@ -128,6 +128,11 @@ export interface CircuitState {
   hidden?: string[];
   /** Conventional current, drawn along these points; check_diagrams verifies it only runs over wires and conducting parts. */
   flow?: Point[];
+  /**
+   * A path normally starts at a supply and ends at a ground. A current that only circulates in a closed loop
+   * (e.g. an H-bridge brake) sets this to the reason; the path must then be closed and must not touch a supply.
+   */
+  loopReason?: string;
   tone?: Tone;
   /** Short reading drawn at the spec's readoutAt (current, pin level). */
   readout?: L10n;

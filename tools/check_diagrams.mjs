@@ -123,6 +123,24 @@ function checkCircuit(spec, tag) {
       }
     }
     ok(!bad, `${sw}: current path leaves the circuit (or crosses an open switch) at (${bad?.map((v) => v.toFixed(1)).join(", ")})`);
+    // where the path starts and ends: supply → ground, or (with a stated reason) a closed loop away from the supplies
+    const same = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]) <= 0.6;
+    const onFlow = (pt) => st.flow.some((q, i) => i > 0 && distToSeg(pt, st.flow[i - 1], q) <= 0.6);
+    const supplies = spec.parts.filter((p) => p.type === "supply" && !hidden.has(p.id));
+    const grounds = spec.parts.filter((p) => p.type === "ground" && !hidden.has(p.id));
+    const first = st.flow[0], last = st.flow[st.flow.length - 1];
+    if (st.loopReason) {
+      ok(same(first, last), `${sw}: loop path (loopReason) must end where it starts`);
+      ok(!supplies.some((p) => onFlow(p.at)), `${sw}: loop path (loopReason) must not touch a supply`);
+    } else {
+      ok(supplies.some((p) => same(p.at, first)), `${sw}: current path must start at a supply`);
+      ok(grounds.some((p) => same(p.at, last)), `${sw}: current path must end at a ground`);
+    }
+    // every closed switch or button carries the current: both terminals lie on the path
+    for (const c of st.closed) {
+      const p = ids.get(c);
+      if (p && TWO_TERMINAL.has(p.type)) ok(terminals(p).every(onFlow), `${sw}: closed ${c} is not on the current path`);
+    }
   }
 }
 

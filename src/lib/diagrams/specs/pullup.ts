@@ -49,7 +49,7 @@ function pullup(v: Variant): CircuitSpec {
     parts.push(
       { id: "chip", type: "box", at: [10, 44], size: [210, 162] },
       { id: "chipLabel", type: "text", at: [20, 62], label: "ATmega328P", labelAt: [20, 62], anchor: "start", mono: true, tone: "muted" },
-      { id: "Spu", type: "switch", at: [150, 70], label: "INPUT_PULLUP", labelAt: [138, 74], anchor: "end", mono: true, tone: "b" },
+      { id: "Spu", type: "switch", at: [150, 70], label: "INPUT_PULLUP", labelAt: [138, 78], anchor: "end", mono: true, tone: "b" },
       { id: "read", type: "text", at: [20, 196], label: "digitalRead(2)", labelAt: [20, 196], anchor: "start", mono: true, tone: "muted" },
     );
     wires.push({ id: "wV", pts: [[150, 30], [150, 52]] }, { id: "wSR", pts: [[150, 88], [150, 100]] });
@@ -95,8 +95,10 @@ function pullup(v: Variant): CircuitSpec {
 }
 
 const IO_EN = "src/content/m2/arduino-io/en.mdx";
+const IO_ZH = "src/content/m2/arduino-io/zh.mdx";
 const BUTTON = "examples/month-2/arduino-io/button_pullup/button_pullup.ino";
 const COMP_EN = "src/content/m1/components/en.mdx";
+const COMP_ZH = "src/content/m1/components/zh.mdx";
 const CIRCUITS = "src/lib/circuits.ts";
 
 export const pullupInternal = pullup({
@@ -110,7 +112,7 @@ export const pullupInternal = pullup({
     zh: "按钮一端接 D2，另一端必须接 GND。按下时的电流按内部上拉约 30 kΩ（20–50 kΩ 的中间值）计算。",
     en: "The button goes from D2 to GND, never to 5 V. The pressed current uses about 30 kΩ, the middle of the 20–50 kΩ range.",
   },
-  sources: [BUTTON, IO_EN],
+  sources: [BUTTON, IO_EN, IO_ZH],
   floating: {
     label: { zh: "INPUT：悬空", en: "INPUT: floating" },
     text: {
@@ -139,6 +141,9 @@ export const pullupInternal = pullup({
     { file: IO_EN, pattern: "roughly 20–50 kΩ to 5 V", note: "lesson: internal pull-up 20–50 kΩ" },
     { file: IO_EN, pattern: "about 5 V / 30 kΩ ≈ 0\\.17 mA", note: "lesson: pressed current 0.17 mA" },
     { file: IO_EN, pattern: "the other side of the button must go to \\*\\*GND\\*\\*", note: "lesson: button to GND" },
+    { file: IO_ZH, pattern: "大约 20–50 kΩ 接到 5 V", note: "zh lesson: internal pull-up 20–50 kΩ" },
+    { file: IO_ZH, pattern: "按下时上拉电流约 5 V / 30 kΩ ≈ 0\\.17 mA", note: "zh lesson: pressed current 0.17 mA" },
+    { file: IO_ZH, pattern: "按键另一端必须接 \\*\\*GND\\*\\*", note: "zh lesson: button to GND" },
   ],
 });
 
@@ -153,7 +158,7 @@ export const pullupExternal = pullup({
     zh: "与下方 Falstad 电路相同：5 V、10 kΩ 上拉、按钮接 GND。Arduino 的 INPUT_PULLUP 用芯片内部的电阻代替这只 10 kΩ。",
     en: "Same circuit as the Falstad simulation below: 5 V, 10 kΩ pull-up, button to GND. Arduino's INPUT_PULLUP replaces this 10 kΩ with a resistor inside the chip.",
   },
-  sources: [CIRCUITS, COMP_EN],
+  sources: [CIRCUITS, COMP_EN, COMP_ZH],
   floating: {
     label: { zh: "无上拉：悬空", en: "no pull-up: floating" },
     text: {
@@ -181,6 +186,8 @@ export const pullupExternal = pullup({
     { file: CIRCUITS, pattern: "s 400 192 400 320 0 1 true", note: "Falstad pullupButton: momentary button from pin to GND" },
     { file: COMP_EN, pattern: "5 V / 10 kΩ = 0\\.5 mA", note: "lesson: 0.5 mA when pressed" },
     { file: COMP_EN, pattern: "\\*\\*Pull-up\\*\\*: 10 kΩ from the pin to VCC", note: "lesson: 10 kΩ pull-up" },
+    { file: COMP_ZH, pattern: "5 V / 10 kΩ = 0\\.5 mA", note: "zh lesson: 0.5 mA when pressed" },
+    { file: COMP_ZH, pattern: "\\*\\*上拉电阻（pull-up）\\*\\*：10 kΩ 从引脚拉到 VCC", note: "zh lesson: 10 kΩ pull-up" },
   ],
 });
 
