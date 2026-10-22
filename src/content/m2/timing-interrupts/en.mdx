@@ -101,6 +101,18 @@ Read the timestamps: the two rhythms separate cleanly. LED A toggles at 250, 500
 
 One practical detail: `lastA` starts at 0, so the first A toggle happens 250 ms after reset rather than at time zero. That is usually what you want, because it gives the hardware and the sensors a moment to settle. If a job should run once immediately, either initialise the timestamp to `millis() - PERIOD` or call the job once in `setup()`.
 
+### The hardware timer behind millis()
+
+The counter behind `millis()` is Timer0, one of the ATmega328P's three <Term id="hardware-timer">hardware timers</Term>. The Arduino core sets its prescaler to 64, so Timer0 advances once every 64 clock cycles, and its 8-bit counter overflows every 256 counts. Each overflow triggers an interrupt whose handler (`TIMER0_OVF_vect` in the core's `wiring.c`) updates the millisecond count:
+
+```text
+one count      = 64 / 16 MHz = 4 µs
+one overflow   = 256 × 4 µs = 1024 µs = 1.024 ms
+per second     = 1 s / 1.024 ms = 976.5625 overflows
+```
+
+An overflow is 1.024 ms, not 1 ms. The handler therefore adds 1 ms per overflow and accumulates the extra 24 µs in a fraction counter; each time the fraction reaches a whole millisecond it adds 1 ms more. The first correction comes on the 42nd overflow, at 43.008 ms, where `millis()` steps from 41 straight to 43, and about 23 corrections occur per second, so 976 + 24 = 1000 increments per second on average. `millis()` is accurate on average but resolves only 1 ms and occasionally skips a value, so never test `millis() == target`. `micros()` reads the same counter and resolves 4 µs. Timer0 is also the timer that produces the 976.6 Hz PWM on pins 5 and 6 in Lesson 1.
+
 ### last += PERIOD versus last = now
 
 Both versions make the LED blink, but they behave differently when a pass through `loop()` is late—because of a slow print, a sensor conversion or a long library call. The question is whether that lateness is forgotten or added to every future period.
@@ -131,7 +143,7 @@ One consequence: if a task ever takes longer than a full period, `last += PERIOD
 
 ## millis() overflow, and why subtraction is safe
 
-An `unsigned long` on the Uno is 32 bits, so `millis()` counts from 0 to 4 294 967 295 and then wraps back to 0. That is 2^32 milliseconds in total. Converted to days:
+An `unsigned long` on the Uno is 32 bits, so `millis()` counts from 0 to 4 294 967 295 and then <Term id="wraparound">wraps back to 0</Term>. That is 2^32 milliseconds in total. Converted to days:
 
 ```text
 2^32 ms = 4 294 967 296 ms
@@ -176,7 +188,7 @@ The rule: always compare elapsed times, `now - start >= interval`, never absolut
 
 ## State machines
 
-A beginner's first robot behaviour is often written as a script: drive forward for two seconds, turn left for one second, drive forward for three seconds. With `delay()` between the steps, the robot cannot react to anything during a step. Bump into a wall and it keeps pushing until the delay ends. A state machine replaces the script with a different mental model: the robot is always in one of a small number of states, and there are clear rules for leaving one state and entering another. Each pass through `loop()` checks the current state, the inputs and the clock, and decides whether a transition should happen.
+A beginner's first robot behaviour is often written as a script: drive forward for two seconds, turn left for one second, drive forward for three seconds. With `delay()` between the steps, the robot cannot react to anything during a step. Bump into a wall and it keeps pushing until the delay ends. A <Term id="state-machine">state machine</Term> replaces the script with a different mental model: the robot is always in one of a small number of states, and there are clear rules for leaving one state and entering another. Each pass through `loop()` checks the current state, the inputs and the clock, and decides whether a transition should happen.
 
 An `enum` gives the states readable names, and a `switch` selects what to do in each one. The states for the reaction-timer game in this lesson are `WAITING`, `LIT` and `SHOW_RESULT`. The diagram is the whole design:
 
@@ -190,7 +202,18 @@ Later features stay easy: a buzzer tone goes in the transition into `LIT`; ignor
 
 ## Interrupts
 
-An interrupt lets a hardware event interrupt the normal flow of the program. When the event occurs, the CPU finishes the current instruction, saves its place, jumps to a short function called an interrupt service routine (ISR), runs it, and then resumes `loop()` exactly where it left off. The delay between the event and the first instruction of the ISR is tiny, typically a few microseconds on an Uno. This is how a robot can catch an encoder pulse that lasts only tens of microseconds while the main loop is busy doing something else.
+An interrupt lets a hardware event interrupt the normal flow of the program. When the event occurs, the CPU finishes the current instruction, saves its place, jumps to a short function called an <Term id="isr">interrupt service routine (ISR)</Term>, runs it, and then resumes `loop()` exactly where it left off.
+
+The delay between the event and the first line of your function can be counted. The ATmega328P datasheet (section 7.7.1, Interrupt Response Time) gives 4 clock cycles for the CPU to push the return address and 3 more for the jump in the vector table. `attachInterrupt()` then runs the Arduino core's dispatch routine, which saves the registers a C function may change and calls your function through a pointer; in the disassembly of an Uno sketch built with arduino:avr 1.8.8 that routine takes 39 cycles before the call:
+
+```text
+hardware response    4 cycles
+vector jump          3 cycles
+core dispatch       39 cycles  (15 register pushes × 2, in + eor, 2 × lds, icall)
+total               46 cycles / 16 MHz = 2.9 µs
+```
+
+If the event arrives during a multi-cycle instruction, that instruction completes first, and if another interrupt, such as the Timer0 overflow behind `millis()`, is already being handled, yours waits until that handler returns. About 3 µs is short enough to catch an encoder pulse that lasts tens of microseconds while the main loop is busy doing something else.
 
 On the Arduino Uno, only pins 2 and 3 have external interrupts. They are labelled INT0 and INT1. The call is:
 
@@ -220,7 +243,7 @@ pressed = false;
 interrupts();
 ```
 
-If you forget `volatile`, the compiler is allowed to read `pressed` once, see that it is false, and reuse that cached value forever. The ISR does set it, but `loop()` never notices. This produces the classic symptom: the interrupt works when you add a debug print, because the print forces a fresh read, and stops working when you remove the print.
+If you forget <Term id="volatile">`volatile`</Term>, the compiler is allowed to read `pressed` once, see that it is false, and reuse that cached value forever. The ISR does set it, but `loop()` never notices. This produces the classic symptom: the interrupt works when you add a debug print, because the print forces a fresh read, and stops working when you remove the print.
 
 Use interrupts when the event is too short or too frequent for polling: encoder pulses in Lesson 4, a pulse from a sensor, or the precise timestamp of a button press in a reaction timer. For an ordinary button, polling with a debounce in a fast loop is usually simpler. An interrupt is not a repair for a loop that blocks; if `loop()` spends a second inside `delay()`, an interrupt can set a flag, but the response is still delayed until the delay ends.
 
@@ -232,7 +255,7 @@ A push button looks like a simple switch, but inside are pieces of metal that hi
 
 Counting every falling edge can turn one press into five or ten counts, and an action started on every press can repeat. The hardware cure is an RC low-pass filter followed by a Schmitt-trigger input such as a 74HC14: the RC slows the voltage change and the Schmitt trigger turns the slow, noisy edge into one clean transition. A typical pair is 10 kΩ and 100 nF (τ = 1 ms).
 
-The software cure is time-based debouncing. You watch the raw input; when it changes, you note the time; and you accept the new state only after the input has stayed stable for a chosen number of milliseconds. Ten to fifty milliseconds is the usual range. Too short and bounce still gets through; too long and a genuinely quick tap is ignored, because the button is released before the new state has been accepted.
+The software cure is <Term id="debouncing">time-based debouncing</Term>. You watch the raw input; when it changes, you note the time; and you accept the new state only after the input has stayed stable for a chosen number of milliseconds. Ten to fifty milliseconds is the usual range. Too short and bounce still gets through; too long and a genuinely quick tap is ignored, because the button is released before the new state has been accepted.
 
 The following Python simulation makes the problem visible. It models a button whose contacts chatter for a few milliseconds at every edge, then compares naive edge counting with a time-based debounce:
 
@@ -494,3 +517,22 @@ Before you move on, you should be able to say yes to all of these:
 - I can sketch a state machine with states, transition conditions and entry actions.
 - I know the ISR rules: short, no `delay()`, no `Serial`, `volatile`, and atomic copies.
 - I can explain contact bounce and choose a sensible debounce time for a given button.
+
+<Summary>
+
+**Key points**
+
+- `delay()` blocks the whole program: at 0.5 m/s, `delay(1000)` is 50 cm of travel without a sensor reading.
+- Non-blocking pattern: `if (now - last >= PERIOD) { last += PERIOD; ... }`; `last += PERIOD` keeps the long-run rate exact, `last = now` adds every lateness to the schedule.
+- `millis()` comes from Timer0: prescaler 64, overflow every 1.024 ms, about 23 corrections per second, 1 ms resolution; `micros()` resolves 4 µs.
+- The 32-bit `millis()` wraps after 2^32 ms ≈ 49.7 days; `now - last` stays correct across the wrap, `now > last + PERIOD` does not.
+- Interrupt latency on the Uno through `attachInterrupt()`: 4 + 3 + 39 = 46 cycles ≈ 2.9 µs to the first line of your function.
+- ISR rules: keep it short, no `delay()` or `Serial`, share data through `volatile`, copy multi-byte values with interrupts disabled.
+- Debouncing: a time-based debouncer accepts a new state after 10–50 ms of stable input; the reaction timer instead accepts the first edge after 30 ms of quiet and rejects the bounces that follow.
+
+**Used next**
+
+- Month 2 · ESP32: Wi-Fi, 3.3 V logic & choosing a framework keeps the same `millis()` scheduling and ISR rules on a 240 MHz dual-core chip.
+- Month 2 · Motors, drivers & your first encoder loop counts encoder edges in an ISR.
+
+</Summary>
