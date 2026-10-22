@@ -1124,8 +1124,8 @@ export const glossary: GlossaryEntry[] = [
     id: "safety-factor",
     term: { zh: "安全系数", en: "safety factor" },
     def: {
-      zh: "让设计能力比必须承受的载荷大出的倍数，使正常的波动不会把它推到极限。夹爪一课取 S = 2：F = S × m × (g + a) / (2 × μ)，60 g 的鸡蛋用 PLA 手指时每指需要 2.6 N。",
-      en: "The factor by which a design's capacity is made larger than the load it has to carry, so that normal variation does not take it to the limit. The gripper lesson uses S = 2: F = S × m × (g + a) / (2 × μ) gives 2.6 N per PLA finger for a 60 g egg.",
+      zh: "让设计能力比必须承受的载荷大出的倍数，使正常的波动不会把它推到极限。夹爪一课取 S = 2：F = S × m × (g + a) / (2 × μ)，在 a = 3.0 m/s²、PLA 的 μ ≈ 0.3（两者都是示例假设）的条件下，60 g 的鸡蛋用 PLA 手指时每指需要 2.6 N。",
+      en: "The factor by which a design's capacity is made larger than the load it has to carry, so that normal variation does not take it to the limit. The gripper lesson uses S = 2: F = S × m × (g + a) / (2 × μ) gives 2.6 N per PLA finger for a 60 g egg, at a = 3.0 m/s² and PLA μ ≈ 0.3 (both example assumptions).",
     },
     lesson: "gripper-fingers",
     firstExplained: true,
@@ -1134,8 +1134,8 @@ export const glossary: GlossaryEntry[] = [
     id: "fin-ray",
     term: { zh: "鳍条手指（fin-ray）", en: "fin-ray finger" },
     def: {
-      zh: "由两片在尖端汇合的薄侧壁和连接它们的细肋组成的三角形柔性手指。压它的前侧壁时，肋条把推力传到后侧壁，手指朝物体卷曲，接触从两个点扩展成一段弧。“Fin Ray Effect”是 Festo 的商标，这种几何本身可以自由使用。",
-      en: "A compliant finger shaped as a triangle: two thin flanks meet at the tip and thin ribs bridge them. Pressed on its front flank, the ribs pass the push to the back flank and the finger curls toward the object, spreading contact from two points to an arc. \"Fin Ray Effect\" is a Festo trademark; the geometry itself is free to use.",
+      zh: "由两片在尖端汇合的薄侧壁和连接它们的细肋组成的三角形柔性手指。压它的前侧壁时，肋条把推力传到后侧壁，手指朝物体卷曲，接触从两个点扩展成一段弧。这一效应由生物学家 Leif Kniese 于 1997 年在研究鱼类尾鳍时描述；“Fin Ray Effect®”是 EvoLogics GmbH 的商标，Festo 在其夹爪产品中使用了这一效应。",
+      en: "A compliant finger shaped as a triangle: two thin flanks meet at the tip and thin ribs bridge them. Pressed on its front flank, the ribs pass the push to the back flank and the finger curls toward the object, spreading contact from two points to an arc. The biologist Leif Kniese described the effect in 1997 from studies of fish tail fins; \"Fin Ray Effect®\" is a trademark of EvoLogics GmbH, and Festo uses the effect in its gripper products.",
     },
     lesson: "gripper-fingers",
     firstExplained: true,

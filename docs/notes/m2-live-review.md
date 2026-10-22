@@ -147,12 +147,14 @@ and 1280 px: 156 pages, 0 problems (no text under 12 px, no horizontal overflow)
   from the Arduino-ESP32 ADC documentation (docs/en/api/adc.rst, checked at 0b70aff), so the lesson now cites
   that. The attenuator paragraph (en/zh line 165) carries the sources (Arduino docs 0–3100 mV, datasheet v2.2
   Table 5-6 0–2900 mV ±50 mV); line 175 only names the setting (12 dB = ADC_ATTEN_DB_12 in ESP-IDF, old name
-  ADC_ATTEN_DB_11, renamed in v4.4.7/v5.0.5/v5.1.3/v5.2, a deprecated alias in v4.4.7+ / v5.x, removed in v6.0;
+  ADC_ATTEN_DB_11, a deprecated alias in v4.4.7–v4.4.8, v5.0.5+, v5.1.3+ and v5.2–v5.5, the only (official) name in
+  earlier v4.4/v5.0/v5.1 releases, removed in v6.0;
   = ADC_11db in Arduino) and says readings above 2.9 V are unreliable. The wording follows the header source.
-  Checked in components/hal/include/hal/adc_types.h at the tags: only ADC_ATTEN_DB_11 in v4.4.5, v4.4.6,
-  v5.0.4 and v5.1.2; ADC_ATTEN_DB_12 plus the deprecated ADC_ATTEN_DB_11 alias (`ADC_ATTEN_DB_11
+  Checked in components/hal/include/hal/adc_types.h at the tags: only ADC_ATTEN_DB_11 in v4.4, v4.4.5, v4.4.6,
+  v5.0, v5.0.4, v5.1, v5.1.1 and v5.1.2; ADC_ATTEN_DB_12 plus the deprecated ADC_ATTEN_DB_11 alias (`ADC_ATTEN_DB_11
   __attribute__((deprecated)) = ADC_ATTEN_DB_12`) in v4.4.7, v4.4.8 (the last v4.4 tag), v5.0.5, v5.0.7, v5.1.3,
-  v5.1.6, v5.2 and v5.5. From v6.0 the file is components/esp_hal_ana_conv/include/hal/adc_types.h (code still writes
+  v5.1.6, v5.2 and v5.5, and (round-8 re-check) also in v5.0.9, v5.1.7, v5.2.8, v5.3, v5.3.6, v5.4, v5.4.4 and
+  v5.5.6. From v6.0 the file is components/esp_hal_ana_conv/include/hal/adc_types.h (code still writes
   `#include "hal/adc_types.h"`); at v6.0, v6.0.3, v6.1 and master it defines only ADC_ATTEN_DB_12, with no
   ADC_ATTEN_DB_11: https://raw.githubusercontent.com/espressif/esp-idf/v6.0/components/esp_hal_ana_conv/include/hal/adc_types.h
 - esp32 LEDC: the lesson, glossary and web_servo.ino no longer say 16384 is fully high at 14 bits. Duty is

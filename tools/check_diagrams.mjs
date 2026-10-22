@@ -825,6 +825,112 @@ for (const f of existsSync(dataDir) ? readdirSync(dataDir).filter((f) => f.endsW
   }
 }
 
+{
+  // gripper-fingers: every force, friction, mass, Shore and fin-ray model number in the lesson is recomputed here
+  // from grip_force.py, finray_finger.scad, the committed STL output and the ASTM D2240 point size, then required
+  // verbatim in en and zh (code blocks are identical in both; prose numbers are matched per language).
+  const py = readFileSync(join(root, "examples/month-3/gripper-fingers/grip_force.py"), "utf8");
+  const scad = readFileSync(join(root, "examples/month-3/gripper-fingers/finray_finger.scad"), "utf8");
+  const stlOut = readFileSync(join(root, "examples/month-3/expected/grip-finger.txt"), "utf8");
+  const pyNum = (name) => { const m = py.match(new RegExp(`^${name} = ([\\d.]+)`, "m")); ok(m, `gripper: ${name} not found in grip_force.py`); return m ? Number(m[1]) : NaN; };
+  const scNum = (name) => { const m = scad.match(new RegExp(`^${name}\\s*= ([\\d.]+);`, "m")); ok(m, `gripper: ${name} not found in finray_finger.scad`); return m ? Number(m[1]) : NaN; };
+  const G = pyNum("G"), S = pyNum("SAFETY"), A = pyNum("ARM_ACCEL");
+  const objBlock = (py.match(/OBJECTS = \[[^\]]*\]/) || [""])[0];
+  const objects = [...objBlock.matchAll(/\("([^"]+)", ([\d.]+)\),/g)].map((m) => [m[1], Number(m[2])]);
+  const fm = py.match(/FINGERS = \[\("PLA", ([\d.]+)\), \("TPU", ([\d.]+)\)\]/);
+  ok(objects.length === 3 && fm, "gripper: OBJECTS / FINGERS not parsed from grip_force.py");
+  const [muP, muT] = fm ? [Number(fm[1]), Number(fm[2])] : [NaN, NaN];
+  const F = (m, mu, a = A, s = S) => (s * m * (G + a)) / (2 * mu);
+  const f1 = (x) => x.toFixed(1), f2 = (x) => x.toFixed(2), f3 = (x) => x.toFixed(3);
+  const pad = (s, n) => s.padStart(n);
+  const out = [`safety factor ${S.toFixed(1)}, arm acceleration ${A.toFixed(1)} m/s^2`, ...objects.map(([n, m]) =>
+    `${n.padEnd(16)} ${pad((m * 1000).toFixed(0), 4)} g  ->  PLA (mu ${muP}): ${pad(f1(F(m, muP)), 4)} N, TPU (mu ${muT}): ${pad(f1(F(m, muT)), 4)} N`)].join("\n");
+  const [egg, can, aa] = objects.map((o) => o[1]);
+  const num = (m) => S * m * (G + A);
+  const exP = `F = ${S} × ${f3(egg)} × (${G} + ${A.toFixed(1)}) / (2 × ${muP})\n  = ${S} × ${f3(egg)} × ${f2(G + A)} / ${2 * muP}\n  = ${f3(num(egg))} / ${2 * muP}\n  = ${f2(F(egg, muP))} ≈ ${f1(F(egg, muP))} N\n`;
+  const exT = `F = ${S} × ${f3(egg)} × ${f2(G + A)} / (2 × ${muT})\n  = ${f3(num(egg))} / ${2 * muT}\n  = ${f2(F(egg, muT))} ≈ ${f1(F(egg, muT))} N\n`;
+  const deg = (x) => (Math.atan(x) * 180) / Math.PI;
+  const tan = (d) => Math.tan((d * Math.PI) / 180);
+  const q1 = F(0.2, 0.5);
+  // fin-ray first-order beam model from the SCAD parameters
+  const L = scNum("length"), W = scNum("base_w"), H = scNum("height"), T = scNum("flank"), N = scNum("ribs");
+  const I1 = (H * T ** 3) / 12, Af = H * T, Ib = 2 * Af * (W / 2) ** 2, Ih = 2 * Af * (W / 4) ** 2, span = L / (N + 1);
+  const model = `one flank bending on its own (a strip ${H} mm wide, ${T} mm thick):\n  I = b × t³ / 12 = ${H} × ${T}³ / 12 = ${f3(I1)} mm⁴\n` +
+    `the two flanks working together through the ribs (each flank A = ${H} × ${T} = ${f1(Af)} mm²):\n  I ≈ 2 × A × (d / 2)²\n` +
+    `  at the base, d = ${W} mm:   2 × ${f1(Af)} × ${W / 2}² = ${Ib.toFixed(0)} mm⁴\n  halfway up,  d = ${W / 2} mm:   2 × ${f1(Af)} × ${W / 4}² = ${Ih.toFixed(0)} mm⁴\n` +
+    `flank span between ribs:    ${L} / (${N} + 1) = ${f2(span)} mm\n`;
+  const thin = 0.8, span4 = L / 5;
+  const loc = f2((thin / T) ** 3), tru = f2(thin / T), sp4 = f2((Number(f2(span)) / span4) ** 3);
+  const vol = stlOut.match(/volume: ([\d.]+) cm\^3, solid mass at ([\d.]+) g\/cm\^3: ([\d.]+) g/);
+  ok(vol && Number(vol[3]) === Number(f1(Number(vol[1]) * Number(vol[2]))), `gripper: expected/grip-finger.txt mass ${vol && vol[3]} != volume × density`);
+  const [V, rho, mass] = vol ? [vol[1], vol[2], f1(Number(vol[1]) * Number(vol[2]))] : ["?", "?", "?"];
+  const shore = 100 - 95, astmPt = 0.025;
+  const common = [out, exP, exT, model, stlOut.trim().split("\n").pop() + "\n",
+    `${f3(num(egg))}`, `${S} × ${f3(can)} × ${f2(G + A)} = ${f3(num(can))}`, `${f3(num(can))} / ${2 * muP} = ${f1(F(can, muP))} N`, `${f3(num(can))} / ${2 * muT} = ${f1(F(can, muT))} N`,
+    `μ = tan 35° = ${f2(tan(35))}`, `μ = tan 17° = ${f2(tan(17))}`, `= ${q1.toFixed(3)} ≈ ${f2(q1)} N`, `μ = tan 31° = ${tan(31).toFixed(4)}`,
+    `(${thin} / ${T})³ = ${loc}`, `${thin} / ${T} = ${tru}`, `${L} / 5 = ${span4} mm`, `(${f2(span)} / ${span4})³ = ${sp4}`,
+    `2 × ${f3(I1)} = ${f3(2 * I1)} mm⁴`, `${V} × ${rho} = ${mass} g`, `${shore} × ${astmPt} = ${(shore * astmPt).toFixed(3)} mm`, `0.100 × ${G} = ${f2(0.1 * G)} N`, `2 × 0.4 = 0.8 mm`];
+  const steps = {
+    en: [`read Squeeze per finger = ${f1(F(egg, 0.3))} N and Matching slide angle atan(μ) = ${deg(0.3).toFixed(0)}°`, `read Squeeze per finger = ${f1(F(egg, 0.6))} N and Matching slide angle atan(μ) = ${deg(0.6).toFixed(0)}°`,
+      `read Squeeze per finger = ${f1(F(egg, 0.3, 0))} N.`, `read Squeeze per finger = ${f1(F(can, 0.3))} N; then set μ = 0.80 and read ${f1(F(can, 0.8))} N`, `from ${f1(F(egg, 0.3))} N to ${f1(F(egg, 0.6))} N`,
+      `needs only ${f1(F(aa, muP))} N and ${f1(F(aa, muT))} N`, `a 60 g egg needs ${f1(F(egg, muP))} N per finger with PLA (μ ≈ ${muP}) and ${f1(F(egg, muT))} N with TPU (μ ≈ ${muT}); a 350 g can needs ${f1(F(can, muP))} N and ${f1(F(can, muT))} N`,
+      `(17° gives ${f2(tan(17))}, 35° gives ${f2(tan(35))})`, `the 350 g can needs ${f1(F(can, muP))} N per PLA finger but ${f1(F(can, muT))} N per TPU finger`, `(${f2(q1)} N per finger)`,
+      `I rises to ${Ib.toFixed(0)} mm⁴, about ${(Ib / (2 * I1) / 1000).toFixed(0)}000 times`, `divisors ${2 * muP} and ${2 * muT} are 2 × μ`],
+    zh: [`读取每根手指的夹紧力 = ${f1(F(egg, 0.3))} N、对应的滑动倾角 atan(μ) = ${deg(0.3).toFixed(0)}°`, `读取每根手指的夹紧力 = ${f1(F(egg, 0.6))} N、对应的滑动倾角 atan(μ) = ${deg(0.6).toFixed(0)}°`,
+      `读取每根手指的夹紧力 = ${f1(F(egg, 0.3, 0))} N。`, `读取每根手指的夹紧力 = ${f1(F(can, 0.3))} N；再将 μ 设为 0.80，读取 ${f1(F(can, 0.8))} N`, `从 ${f1(F(egg, 0.3))} N 减半到 ${f1(F(egg, 0.6))} N`,
+      `分别只需要 ${f1(F(aa, muP))} N 和 ${f1(F(aa, muT))} N`, `60 g 的鸡蛋用 PLA 手指（μ ≈ ${muP}）每指需要 ${f1(F(egg, muP))} N，用 TPU 手指（μ ≈ ${muT}）需要 ${f1(F(egg, muT))} N；350 g 的罐子分别需要 ${f1(F(can, muP))} N 和 ${f1(F(can, muT))} N`,
+      `（17° 对应 ${f2(tan(17))}，35° 对应 ${f2(tan(35))}）`, `350 g 的罐子用 PLA 手指每指要 ${f1(F(can, muP))} N，用 TPU 手指只要 ${f1(F(can, muT))} N`, `（${f2(q1)} N）`,
+      `根部的 I 升到 ${Ib.toFixed(0)} mm⁴，约为前者的 ${(Ib / (2 * I1) / 1000).toFixed(0)}000 倍`, `除数 ${2 * muP} 和 ${2 * muT} 是 2 × μ`],
+  };
+  for (const lang of ["en", "zh"]) {
+    const text = readFileSync(join(root, `src/content/m3/gripper-fingers/${lang}.mdx`), "utf8");
+    for (const q of [...common, ...steps[lang]]) ok(text.includes(q), `gripper-fingers ${lang}: expected ${JSON.stringify(q)} (recomputed from grip_force.py / finray_finger.scad)`);
+    const qz = text.match(/<Quiz id="q1"[^>]*answer=\{([\d.]+)\}/), qz2 = text.match(/<Quiz id="q2"[^>]*answer=\{([\d.]+)\}/);
+    ok(qz && Number(qz[1]) === Number(f2(q1)), `gripper-fingers ${lang}: Quiz q1 answer ${qz && qz[1]} != ${f2(q1)}`);
+    ok(qz2 && Math.abs(Number(qz2[1]) - tan(31)) < 0.01, `gripper-fingers ${lang}: Quiz q2 answer ${qz2 && qz2[1]} != tan 31° = ${f2(tan(31))}`);
+  }
+  const gl = readFileSync(join(root, "src/lib/glossary.ts"), "utf8");
+  for (const q of [`gives ${f1(F(egg, muP))} N per PLA finger for a 60 g egg, at a = ${A.toFixed(1)} m/s² and PLA μ ≈ ${muP}`, `a = ${A.toFixed(1)} m/s²、PLA 的 μ ≈ ${muP}（两者都是示例假设）的条件下，60 g 的鸡蛋用 PLA 手指时每指需要 ${f1(F(egg, muP))} N`])
+    ok(gl.includes(q), `glossary safety-factor: expected ${JSON.stringify(q)}`);
+  console.log(`calc  gripper-fingers: grip_force.py output, worked examples, widget steps, q1 ${f2(q1)} / q2 ${f2(tan(31))}, tilt readings, summary, fin-ray model (I ${f3(I1)} / ${Ib.toFixed(0)} / ${Ih.toFixed(0)} mm⁴), mass ${mass} g and Shore ${(shore * astmPt).toFixed(3)} mm bound in en/zh and the glossary`);
+}
+{
+  // so101-arm: the two BOM totals are rebuilt from the README line items (pinned a758567, US prices), and the error
+  // budget, current budget, horn refit and filament upper bound are recomputed from the Feetech spec numbers quoted.
+  const servo = 13.89, board = 10.6, usb = 7, psu = 10;
+  const pairServos = [7, 2, 3], pairOther = [usb, 2 * psu, 9, 6], folOther = [board, usb, psu, 5, 6];
+  const d = (x) => `$${x.toFixed(2)}`;
+  const nPair = pairServos.reduce((a, b) => a + b, 0), sPair = nPair * servo, bPair = 2 * board, oPair = pairOther.reduce((a, b) => a + b, 0);
+  const pair = sPair + bPair + oPair, sFol = 6 * servo, oFol = folOther.reduce((a, b) => a + b, 0), fol = sFol + oFol;
+  const bom = "```text\nParts for two arms (SO-ARM100 README, US unit prices):\n" +
+    `  servos   ${nPair} x ${d(servo)} = ${d(sPair)}   (${pairServos[0]} x C001 1/345 + ${pairServos[1]} x C044 1/191 + ${pairServos[2]} x C046 1/147)\n` +
+    `  boards    2 x ${d(board)} = ${d(bPair)}\n  other    $${usb} USB-C cables + 2 x $${psu} power supplies + $9 clamps + $6 screwdrivers = ${d(oPair)}\n` +
+    `  total    ${d(sPair)} + ${d(bPair)} + ${d(oPair)} = ${d(pair)}\nParts for one follower arm:\n  servos    6 x ${d(servo)} = ${d(sFol)}    (6 x C001 1/345)\n` +
+    `  other    ${d(board)} board + $${usb} USB-C cables + $${psu} power supply + $5 clamps + $6 screwdrivers = ${d(oFol)}\n  total    ${d(sFol)} + ${d(oFol)} = ${d(fol)}\n\`\`\``;
+  const step = 360 / 4096, r = 200, rad = Math.PI / 180;
+  const err = `encoder resolution (C001 spec, 7-8):  360 / 4096 = ${step.toFixed(3)} deg per step\ngear backlash (C001 and C018 spec, 6-11):  <= 0.5 deg\n` +
+    `at an example radius of ${r} mm from the joint axis:\n  one step:  ${r} x ${step.toFixed(3)} x pi / 180 = ${(r * step * rad).toFixed(2)} mm\n  backlash:  ${r} x 0.5   x pi / 180 = ${(r * 0.5 * rad).toFixed(2)} mm\n`;
+  const cur = `  rated   6 x 0.9 A = ${(6 * 0.9).toFixed(1)} A\n  stall   6 x 2.7 A = ${(6 * 2.7).toFixed(1)} A\n` +
+    `5 V follower, six ST-3215-C001 (C001 spec, 5-9, rated current given at 6 V):\n  rated   6 x 0.5 A = ${(6 * 0.5).toFixed(1)} A\n`;
+  const tooth = 360 / 25, vols = [571.3, 614.6], vsum = vols[0] + vols[1];
+  const quiz = pair + 22;
+  const common = [bom, err, cur, `360° / 25 = ${tooth}°`, `${tooth} / ${step.toFixed(3)} = ${(tooth / step).toFixed(2)}`, `${vols[0]} + ${vols[1]} = ${vsum.toFixed(1)} cm³`,
+    `1.24 g/cm³`, `${(vsum * 1.24 / 1000).toFixed(2)} kg`, `${(6 * 0.9).toFixed(1)} A`, `345 / 147 = ${(345 / 147).toFixed(2)}`, `(345/147)² ≈ ${((345 / 147) ** 2).toFixed(2)}`,
+    `${d(pair)} + $22.00 = ${d(quiz)}`, `answer={${quiz.toFixed(2)}}`, `| ${d(pair)} + `];
+  const per = { en: [`the BOM pair (${d(pair)})`, `comes to ${d(pair)} for a leader and follower pair, or ${d(fol)} for one follower`, `the BOM pair costs ${d(pair)} (one follower ${d(fol)})`, `by a factor of about ${Math.round(0.5 / step)}`],
+    zh: [`主从一对（${d(pair)}）`, `主从一对 ${d(pair)}，单个从臂 ${d(fol)}`, `物料清单一对 ${d(pair)}（单从臂 ${d(fol)}）`, `大约是编码器一步的 ${Math.round(0.5 / step)} 倍`] };
+  for (const lang of ["en", "zh"]) {
+    const text = readFileSync(join(root, `src/content/m3/so101-arm/${lang}.mdx`), "utf8");
+    for (const q of [...common, ...per[lang]]) ok(text.includes(q), `so101-arm ${lang}: expected ${JSON.stringify(q)} (recomputed from the README BOM / Feetech specs)`);
+    // every quoted friction / inertia ratio (the backdrive paragraph, its prose repeat and the summary) must be the computed one
+    const r1 = (345 / 147).toFixed(2), r2 = ((345 / 147) ** 2).toFixed(2);
+    const got = [...text.matchAll(/345 \/ 147 = ([\d.]+)|(?:约为 |about )([\d.]+) (?:times more friction|倍)|\(345\/147\)² ≈ ([\d.]+)/g)];
+    ok(got.length >= 5, `so101-arm ${lang}: expected at least 5 quoted gear-ratio results, found ${got.length}`);
+    for (const m of got) ok((m[1] ?? m[2] ?? r1) === r1 && (m[3] ?? r2) === r2, `so101-arm ${lang}: ratio quote "${m[0]}" != 345 / 147 = ${r1}, (345/147)² = ${r2}`);
+  }
+  console.log(`calc  so101-arm: BOM pair ${d(pair)} and follower ${d(fol)} rebuilt from line items, q1 ${d(quiz)}, error budget ${(r * step * rad).toFixed(2)} / ${(r * 0.5 * rad).toFixed(2)} mm, current ${(6 * 0.9).toFixed(1)} / ${(6 * 2.7).toFixed(1)} / ${(6 * 0.5).toFixed(1)} A, horn ${tooth}° = ${(tooth / step).toFixed(2)} steps, filament bound ${(vsum * 1.24 / 1000).toFixed(2)} kg, bound in en/zh`);
+}
+
 const specs = [];
 for (const f of readdirSync(specDir).filter((f) => f.endsWith(".ts"))) {
   const mod = await import(dataUrl(transpile(inlineJson(readFileSync(join(specDir, f), "utf8")))));
