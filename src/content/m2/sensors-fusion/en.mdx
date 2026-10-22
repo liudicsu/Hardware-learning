@@ -7,7 +7,7 @@ Every sensor answers one narrow question. The table below is not a shopping list
 | Sensor | Measures | Typical use | Watch out |
 | --- | --- | --- | --- |
 | Wheel encoder | Rotation counts, and usually direction | Odometry, speed, distance travelled (Lesson 4) | It only knows how far the wheel turned; slipping or a wrong wheel diameter quietly corrupts the result |
-| IMU (accelerometer + gyroscope, e.g. MPU-6050) | Acceleration including gravity, and rotation rate | Tilt, balancing, detecting turns | Noisy and drift-prone, so it needs fusion; it is not a compass |
+| IMU (accelerometer + gyroscope, e.g. MPU-6050) | Acceleration including gravity, and <Term id="angular-velocity">rotation rate</Term> | Tilt, balancing, detecting turns | Noisy and drift-prone, so it needs fusion; it is not a compass |
 | Ultrasonic HC-SR04 | Distance from the echo time | Cheap obstacle detection | Wide cone, soft surfaces absorb sound, and the 5 V echo needs a divider on an ESP32 |
 | Time-of-flight laser VL53L0X | Distance from the travel time of light, over I2C | Precise short-range distance (up to about 2 m); a narrower field of view (ST specifies about 25°) and no ultrasonic echo confusion | Dark, reflective or transparent targets and strong sunlight reduce the usable range |
 | Reflectance sensors (QTR, TCRT5000) | How much infrared light bounces back | Line following (Lesson 6) | Very sensitive to mounting height, ambient light and surface colour; calibrate on the actual track |

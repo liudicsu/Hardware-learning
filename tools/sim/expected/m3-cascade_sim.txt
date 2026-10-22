@@ -1,4 +1,4 @@
-inner loop only:          fell over after 6.9 s, -1.97 m from the start
+inner loop only:          fell over after 6.9 s, -1.96 m from the start
 outer P   (12):           upright, farthest 22.99 wheel turns from the start; push moved it 11.17 turns, 1.54 turns off 5 s later; wobble 0.3 deg rms
 outer PI  (12, 12):       upright, farthest 0.51 wheel turns from the start; push moved it 0.16 turns, 0.08 turns off 5 s later; wobble 0.3 deg rms
 outer PI  (60, 60):       upright, farthest 6.84 wheel turns from the start; push moved it 3.35 turns, 0.53 turns off 5 s later; wobble 3.3 deg rms

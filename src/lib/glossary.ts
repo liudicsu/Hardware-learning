@@ -705,7 +705,7 @@ export const glossary: GlossaryEntry[] = [
     id: "pd-control",
     term: { zh: "PD 控制", en: "PD control" },
     def: {
-      zh: "输出由比例项与微分项相加的控制器：P 按误差大小推，D 按误差变化速度制动，抑制过冲。循线小车先调 P 再加入 D，可把 62.3 mm 的过冲降到 4.8 mm。",
+      zh: "输出由比例项与微分项相加的控制器：P 按误差大小推，D 按误差变化速度制动，抑制超调。循线小车先调 P 再加入 D，可把 62.3 mm 的超调降到 4.8 mm。",
       en: "A controller whose output adds a proportional term to a derivative term: P pushes in proportion to error and D brakes in proportion to how fast it changes, damping overshoot. On the line follower, adding D after tuning P cut overshoot from 62.3 mm to 4.8 mm.",
     },
     lesson: "first-robots",
@@ -729,6 +729,7 @@ export const glossary: GlossaryEntry[] = [
       en: "A geometric or dimensional relation in a CAD sketch that removes degrees of freedom, such as horizontal, vertical, coincident, tangent, symmetric or a dimension. Enough constraints bring the sketch to 0 DOF so it cannot move on its own when another dimension changes.",
     },
     lesson: "cad-parametric",
+    firstExplained: true,
   },
   {
     id: "degrees-of-freedom",
@@ -738,6 +739,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The number of independent ways a system can move. In 2D a free point has 2 DOF and a circle has 3, a rigid body in space has 6, and a fully constrained sketch has 0.",
     },
     lesson: "cad-parametric",
+    firstExplained: true,
   },
   {
     id: "datum",
@@ -747,6 +749,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The origin, centreline, reference plane or reference edge from which dimensions are taken, with every dimension measured from the same datum. Datum-based dimensions avoid chained dimensions that pass error along to the last feature.",
     },
     lesson: "cad-parametric",
+    firstExplained: true,
   },
   {
     id: "tolerance",
@@ -756,6 +759,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The permitted range of deviation from a nominal dimension, part of the specification rather than a defect. FDM holes usually print small and outer shapes large, so measure your own machine's real clearances with a tolerance gauge instead of copying the lesson's numbers.",
     },
     lesson: "cad-parametric",
+    firstExplained: true,
   },
   {
     id: "fit",
@@ -944,7 +948,8 @@ export const glossary: GlossaryEntry[] = [
       zh: "PID 中与当前误差成正比的一项，输出为 Kp × error；误差越大推得越狠。只有 P 时，顶住恒定重力需要保留一个稳态误差，例如 0.227 N·m / 0.05 N·m/度 = 4.5°。",
       en: "The PID term proportional to the present error, Kp × error, pushing harder the farther away the target is. With P alone, holding a constant gravity load requires a steady-state error, for example 0.227 N·m / 0.05 N·m per degree = 4.5°.",
     },
-    lesson: "pid-control",
+    lesson: "first-robots",
+    firstExplained: true,
   },
   {
     id: "integral-term",
@@ -953,25 +958,28 @@ export const glossary: GlossaryEntry[] = [
       zh: "PID 中与误差随时间的累积成正比的一项，输出为 Ki × ∫error dt；它能在误差为零时继续输出力矩，从而消除稳态误差。代价是响应最慢，并且输出饱和时容易积分饱和。",
       en: "The PID term proportional to the accumulated error over time, Ki × ∫error dt; it can keep producing torque at zero error, which removes steady-state error. The cost is the slowest response and a tendency to wind up when the output saturates.",
     },
-    lesson: "pid-control",
+    lesson: "first-robots",
+    firstExplained: true,
   },
   {
     id: "derivative-term",
     term: { zh: "微分项（D）", en: "derivative term (D)" },
     def: {
-      zh: "PID 中与误差或测量值变化速度成正比的一项，作用像阻尼器，在接近目标时制动以抑制过冲。工程上通常对测量值求导以避免目标跳变引起的微分冲击，但它也会放大传感器噪声。",
+      zh: "PID 中与误差或测量值变化速度成正比的一项，作用像阻尼器，在接近目标时制动以抑制超调。工程上通常对测量值求导以避免目标跳变引起的微分冲击，但它也会放大传感器噪声。",
       en: "The PID term proportional to how fast the error or measurement changes; it acts like a damper, braking on approach to reduce overshoot. Practice differentiates the measurement to avoid derivative kick from a setpoint step, but this also amplifies sensor noise.",
     },
-    lesson: "pid-control",
+    lesson: "first-robots",
+    firstExplained: true,
   },
   {
     id: "overshoot",
     term: { zh: "超调", en: "overshoot" },
     def: {
-      zh: "响应第一次越过设定值的最大量，通常以角度或百分比表示。课程关节模型中，完整 PID 的超调为 0.1°，而同一组增益关闭抗积分饱和后增大到 8.8°。",
-      en: "The maximum amount by which a response first passes beyond the setpoint, usually in degrees or percent. In the lesson's joint model, a full PID overshoots by 0.1°, while the same gains without anti-windup overshoot by 8.8°.",
+      zh: "响应第一次越过设定值的最大量，通常以角度或百分比表示。第 3 个月 PID 课的关节模型中，完整 PID 的超调为 0.1°，而同一组增益关闭抗积分饱和后增大到 8.8°。",
+      en: "The maximum amount by which a response first passes beyond the setpoint, usually in degrees or percent. In the joint model of the Month 3 PID lesson, a full PID overshoots by 0.1°, while the same gains without anti-windup overshoot by 8.8°.",
     },
-    lesson: "pid-control",
+    lesson: "first-robots",
+    firstExplained: true,
   },
   {
     id: "settling-time",
@@ -981,6 +989,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The time a response takes to enter and remain inside a chosen error band around the setpoint. The lesson uses a 1° band: the full PID enters it in 0.24 s, while PI alone needs 0.92 s.",
     },
     lesson: "pid-control",
+    firstExplained: true,
   },
   {
     id: "steady-state-error",
@@ -990,6 +999,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The difference between setpoint and measurement that remains after the system has settled. The P-only joint stops 4.5° short of its 60° target; adding the integral term brings it to 60.0° and removes the steady-state error.",
     },
     lesson: "pid-control",
+    firstExplained: true,
   },
   {
     id: "integral-windup",
@@ -998,7 +1008,8 @@ export const glossary: GlossaryEntry[] = [
       zh: "输出已经达到执行器上限时，积分项仍继续累加误差，存下一大团暂时无法实现的指令，导致脱困后大幅超调。修法是只在未饱和时积分、限制积分范围，或在目标跳变时清零积分。",
       en: "When the output is already at the actuator limit and the integral keeps accumulating error, it stores a large command that cannot be delivered and causes a big overshoot on release. Fix it by integrating only while unsaturated, clamping the integral, or resetting it on a setpoint step.",
     },
-    lesson: "pid-control",
+    lesson: "first-robots",
+    firstExplained: true,
   },
   {
     id: "feedforward",
@@ -1016,7 +1027,8 @@ export const glossary: GlossaryEntry[] = [
       zh: "两个反馈回路嵌套，外环较慢，通过修改内环的设定值来间接控制慢变量；内环较快，直接驱动执行器。平衡车的外环以 25 Hz 控制轮速并把倾角设定值限制在 ±3°，内环以 200 Hz 维持倾角。",
       en: "Two nested feedback loops: a slower outer loop controls a slow variable by changing the inner loop's setpoint, while the faster inner loop drives the actuator directly. The balancer's outer loop runs at 25 Hz on wheel speed and limits the tilt setpoint to ±3°, while the inner loop holds tilt at 200 Hz.",
     },
-    lesson: "pid-control",
+    lesson: "first-robots",
+    firstExplained: true,
   },
   {
     id: "bus-servo",
