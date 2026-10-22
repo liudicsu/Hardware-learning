@@ -119,6 +119,12 @@ numbers, cart-pole direction, TB6612 OUT1) go into the PR that touches each less
   collision_monitor -> /diff_drive_controller/cmd_vel (TwistStamped). Values checked against nav2.yaml (11 facts);
   cmd_vel_nav is nav2_bringup navigation_launch.py 1.3.13's remapping (L137, L215), named in the caption.
   behavior_server's recoveries are left out (caption). All hand-written.
+- D098 (branch diagrams/d098-cartpole-signs from 6b0559d): new `kind: "geo"` (Geo2D.tsx: line, rect, circle, arc,
+  text; one viewBox <= 340 units; checkGeo) and `cartpole-signs` in state-space-lqr "Two plants, one form": x, speed
+  and F positive to the right, theta from upright and positive towards +x. check_diagrams runs lqr_sim.cartpole()
+  (+1 N for 0.1 s -> cart +0.204 m/s, theta -0.034 rad; +0.05 rad lean grows and pushes the cart -x) and requires the
+  drawn axis, force, pole and theta arc to agree; B = [0, +2.00, 0, -6.67] and A's -3.92 / 45.78 recomputed.
+  All hand-written.
 - #38 follow-up (branch diagrams/d118-vla-dataflow from a83e16e): nav2-pipeline also checks the zh lesson sentence
   (相差超过 0.785 rad（45°）), not only the en one.
 - D118 (same branch): `vla-dataflow` in vla-models "What a VLA is", a block diagram in 4 steps. The inputs are camera

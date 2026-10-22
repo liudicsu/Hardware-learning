@@ -7,6 +7,7 @@ import { DIAGRAM_UI } from "@/lib/diagrams/ui";
 import { BlockDiagramSvg } from "./BlockDiagram";
 import { ByteFields } from "./ByteFields";
 import { CircuitDiagram } from "./CircuitDiagram";
+import { Geo2D } from "./Geo2D";
 import { PoseGraph } from "./PoseGraph";
 import { StepControls } from "./StepControls";
 import { TimingDiagram } from "./TimingDiagram";
@@ -37,6 +38,8 @@ export function Diagram({ id, locale }: DiagramProps) {
         <TimingDiagram spec={spec} locale={locale} />
       ) : spec.kind === "poseGraph" ? (
         <PoseGraph spec={spec} locale={locale} />
+      ) : spec.kind === "geo" ? (
+        <Geo2D spec={spec} locale={locale} />
       ) : spec.kind === "bytes" ? (
         <ByteFields spec={spec} locale={locale} />
       ) : (

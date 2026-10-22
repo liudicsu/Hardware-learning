@@ -118,3 +118,12 @@ Block diagrams and state machines also take the optional `script: { run, lines }
 `python3 run` from the script's folder and requires each line in its output. `vla-dataflow` builds that line and its
 step text from the same constants as action_tokens.py (30 steps x 6 joints = 180 tokens, 256 bins), so a change to
 the script fails the check.
+
+## `kind: "geo"` (static 2-D figures) — `src/components/diagrams/Geo2D.tsx`
+
+A spec lists shapes in one viewBox of at most 340 units (the same figure at every width, capped at 1.3 px per
+unit): `line` (optional arrow, dashed), `rect`, `circle`, `arc` (degrees from straight up, clockwise positive,
+optional arrow) and `text` (13 units, so >= 12 px at 390 px). check_diagrams keeps every shape and text inside
+the viewBox. `cartPole` names the axis, force, pole and theta-arc shapes; their directions must agree with the
+signs of `cartpole()` in tools/sim/models/lqr_sim.py, which the check runs. First user: `cartpole-signs`.
+
