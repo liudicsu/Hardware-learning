@@ -373,6 +373,40 @@ Unable to sample any valid states for goal tree
 
 Pilz LIN 在真实工作单元里可能失败，而 OMPL 能成功：规划场景里看着笔直的线，可能穿过没有建模的线缆或夹具。要让规划场景与真实工作单元保持一致；两者不符时就重新规划。
 
+## 换到 SO-101 上
+
+本节描述把同一个抓放任务换到 SO-101 时需要改动的地方。本课程没有把它作为 SO-101 的 MoveIt 配置实际跑过，因此没有对应的 SimOutput。
+
+### 两台机械臂
+
+这一课里的 Panda 由 `moveit_resources_panda` 描述（`config/panda.srdf`）。规划组 `panda_arm` 包含 `panda_joint1` 到 `panda_joint7` 七个旋转关节。另有 `hand` 组，含两个移动手指：`panda_finger_joint1`，`panda_finger_joint2` 随动。位姿链接是 `panda_hand`，touch links 是 `panda_hand`、`panda_leftfinger` 和 `panda_rightfinger`。七个自由度多出一个冗余自由度：任意可达的六维位姿（位置加姿态）都对应一族单参数逆解。
+
+SO-101 由 TheRobotStudio/SO-ARM100 在 a758567 上的 `so101_new_calib.urdf` 描述（`Simulation/SO101/so101_new_calib.urdf`）。手臂有五个旋转关节：`shoulder_pan`、`shoulder_lift`、`elbow_flex`、`wrist_flex`、`wrist_roll`。另有一个旋转夹爪关节 `gripper`，限位为 −0.174533 到 1.74533 rad。它的链接有 `base_link`、`shoulder_link`、`upper_arm_link`、`lower_arm_link`、`wrist_link`、`gripper_link`、`gripper_frame_link`（固定，位于夹爪尖端，距 `gripper_link` 约 0.098 m）和 `moving_jaw_so101_v1_link`。关节限位写在 URDF 里，例如 `shoulder_pan` ±1.91986 rad（±110°），`elbow_flex` ±1.69 rad。
+
+### 五个自由度
+
+五个自由度少于六个，所以手臂到不了任意的六维位姿。`shoulder_pan` 转动的是 `shoulder_lift`、`elbow_flex`、`wrist_flex` 所在的竖直平面；目标在 (x, y) 时，这个平面由 atan2(y, x) 决定（URDF 中肩部还有一个小的侧向偏移，因此是近似）。`wrist_flex` 决定夹爪在该平面内的俯仰。`wrist_roll` 让 `gripper_link` 绕自身 z 轴转动，而 `gripper_frame_link` 就位于这条轴上 0.098 m 处，所以它使夹爪绕接近方向滚转。因此夹爪的指向必须（近似）落在经过基座轴和目标的平面内，绕指向的滚转是自由的。自上而下的抓取在每个这样的平面内，所以它绕竖直轴的偏航由 `wrist_roll` 设定，在关节限位（−2.74385 … 2.84121 rad）内是自由的。接近方向离开该平面的位姿目标没有精确解。因此位姿目标要么让接近方向落在这个平面内，要么改用纯位置逆解。MoveIt 的 KDL 运动学插件有参数 `position_only_ik`（bool，默认 false）：“position_only_ik overrules orientation_vs_position. If true, sets orientation_vs_position weight to 0.0”（moveit2，`moveit_kinematics/kdl_kinematics_plugin/src/kdl_kinematics_parameters.yaml`）。
+
+### 可达范围
+
+SO-101 的轴距为 L1 = 0.116 m（shoulder_lift 到 elbow_flex）和 L2 = 0.135 m（elbow_flex 到 wrist_flex）。肩轴在 `base_link` 上方 0.117 m；运动学那一课用的就是这些值。Panda 的场景放不下：积木在 x = 0.5 m，墙高 0.25 m，都超出可达范围，必须按 SO-101 缩小，落进它约 0.25 m 的可达范围。
+
+### 配置和脚本的改动
+
+| 项目 | Panda（这一课） | SO-101 |
+|------|-----------------|--------|
+| 机器人描述 | 带模拟 ros2_control 的 `moveit_resources_panda` URDF | 带 `<ros2_control>` 块的 `so101_new_calib.urdf`；先用 `mock_components/GenericSystem`，之后换成 Feetech STS3215 总线硬件接口 |
+| SRDF 规划组 | `panda_arm`（7 个关节）、`hand` | 例如 `arm` = 从 `base_link` 到 `gripper_frame_link` 的链（5 个关节），`gripper` = 关节 `gripper`；用 MoveIt Setup Assistant 生成，它同时写入禁用碰撞对 |
+| `kinematics.yaml` | `panda_arm` 用 KDL | `arm` 用 KDL，`position_only_ik: true`（或让目标姿态与平面一致） |
+| `joint_limits.yaml` | Panda 的限位 | 从 SO-101 的 URDF 限位复制；速度与加速度缩放先取小值 |
+| 控制器（`moveit_controllers.yaml` 和 `ros2_controllers.yaml`） | `panda_arm_controller`、`panda_hand_controller` | 5 个手臂关节用一个 `JointTrajectoryController`，单个 `gripper` 关节用一个控制器 |
+| 脚本 | `get_planning_component("panda_arm")`、`pose_link="panda_hand"`、`FINGER = 0.1034`、手爪组宽度 / 2 | `get_planning_component("arm")`、`pose_link="gripper_frame_link"`（本身就在夹爪尖端，因此不需要 `FINGER` 偏移）、夹爪命令是弧度制的夹爪角度、touch links 为 `gripper_link` 和 `moving_jaw_so101_v1_link` |
+| 场景 | 积木 (0.5, ±0.25)，墙高 0.25 m | 位置和墙高都按 SO-101 约 0.25 m 的可达范围缩小 |
+
+### 不变的部分
+
+MoveItPy 的结构不变，规划场景和碰撞对象、附着与解除、搬运用的 OMPL、直线接近用的 Pilz LIN，以及先上模拟硬件的工作流，也都不变。
+
 ## 常见错误
 
 - <strong>四元数的 w 留在 1。</strong>姿态是 (0.9238795, -0.3826834, 0, 0)，w 要显式写出来。用默认的 w = 1，手爪根本不朝下，0.1034 m 的指尖偏移也不再按你预期的方向作用。
