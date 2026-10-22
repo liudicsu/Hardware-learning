@@ -74,7 +74,7 @@ env | grep ROBOT
 
 `mkdir -p` 让 `cd` 成功进入一个原本连父目录都不存在的路径。`grep -n` 打出匹配行及行号。`wc -l` 输出 `2 notes.txt`：两行，因为你用了追加。`export` 让 `ROBOT_NAME` 对从这个 shell 启动的程序可见，所以 `echo "$ROBOT_NAME"` 打出 `rover1`，`env | grep ROBOT` 也能在环境变量列表里找到它。
 
-环境变量是机器人软件的实际配置方式：启动文件可能读取 `ROBOT_NAME`，ROS 2 会话则需要 `source /opt/ros/.../setup.bash` 把命令加进路径。`export` 只影响当前 shell 和它的子进程，关闭终端后失效。`ssh pi@192.168.1.42` 会登录那台树莓派；之后你敲的命令都跑在派上，本课所有内容在那边同样适用。
+环境变量是机器人软件的实际配置方式：启动文件可能读取 `ROBOT_NAME`，ROS 2 会话则需要 `source /opt/ros/.../setup.bash` 把命令加进<Term id="path">路径</Term>。`export` 只影响当前 shell 和它的子进程，关闭终端后失效。`ssh pi@192.168.1.42` 会登录那台树莓派；之后你敲的命令都跑在派上，本课所有内容在那边同样适用。
 
 ## 虚拟环境与 pip
 
@@ -113,9 +113,97 @@ deactivate
 
 <Quiz id="q1" question="激活虚拟环境做了什么？" options={["安装 Python", "让当前终端里的 python 和 pip 指向这个项目独立的虚拟环境", "把包上传到 PyPI"]} answer={1} explanation="激活修改了 shell 的 PATH，使 python 和 pip 解析到项目目录里的副本。它既不安装 Python，也不发布任何东西。" />
 
+## 十分钟 Python
+
+下面六段代码都用本课脚本里的数值，运行后可以对照输出。
+
+**变量与四种基本类型。** <Term id="variable-type">变量</Term>是绑定到值的名字；`nominal = 4700` 是 int，`volts = 5.0` 是 float，`part = "R1"` 是 str，`ok = True` 是 bool。
+
+```python
+nominal = 4700
+volts = 5.0
+part = "R1"
+ok = True
+print(type(nominal))
+```
+
+```text
+<class 'int'>
+```
+
+**算术与 f-string。** ohm.py 里 5 V 加在 220 Ω 上得到 22.7 mA：
+
+```python
+volts = 5.0
+ma = volts / 220 * 1000
+print(f"{ma:.1f} mA")
+```
+
+```text
+22.7 mA
+```
+
+**列表与 for 循环。** log.py 的两次测量把 R1 记为 4688 Ω 和 4400 Ω，各自的相对误差是：
+
+```python
+nominal = 4700
+measured = [4688, 4400]
+for m in measured:
+    print(f"{abs(m - nominal) / nominal:.3%}")
+```
+
+```text
+0.255%
+6.383%
+```
+
+**if/else。** 5% 误差范围会标记每条测量：
+
+```python
+nominal = 4700
+measured = [4688, 4400]
+for m in measured:
+    error = abs(m - nominal) / nominal
+    if error > 0.05:
+        print(f"{m} OUT")
+    else:
+        print(f"{m} OK")
+```
+
+```text
+4688 OK
+4400 OUT
+```
+
+**字典。** 字典按名字保存一条测量：
+
+```python
+r = {"part": "R1", "nominal": 4700, "measured": 4688}
+print(r["measured"])
+```
+
+```text
+4688
+```
+
+**函数。** `*ohms` 收集参数，`sum` 求和：
+
+```python
+def series(*ohms):
+    return sum(ohms)
+
+print(series(1000, 4700))
+```
+
+```text
+5700
+```
+
+本课末尾的 [本课程实际用到的 Python 语法](#本课程实际用到的-python-语法) 表把每个结构对应到脚本，官方 [Python 教程](https://docs.python.org/zh-cn/3/tutorial/) 讲得更完整。
+
 ## 用 Python 实现命令行工具：ohm.py
 
-这个脚本从电压和电阻算电流，也算两个电阻分压后的输出电压。它用 `argparse` 做两个子命令。新建 `ohm.py`：
+这个脚本从电压和电阻算电流，也算两个电阻分压后的输出电压。它用 <Term id="argparse">`argparse`</Term> 做两个子命令。新建 `ohm.py`：
 
 <CodeSource path="examples/month-1/python-terminal/ohm.py" />
 
@@ -575,3 +663,33 @@ python -i ohm.py current --volts 5 --ohms 220
 - 我运行过 `log.py`，看过 `measurements.json`，能解释误差判断。
 - 我能从下往上读 traceback，说出 `ValueError`、`ModuleNotFoundError`、`IndentationError` 各是什么意思。
 - 我知道为什么 `.venv` 不能提交，并计划好怎么完成 CS50P 的习题。
+
+<Summary>
+
+**本课要点**
+
+- venv 是一个带独立 Python 链接和包的私有目录：激活它，用 `python -m pip` 安装，冻结到 `requirements.txt`，绝不提交 `.venv`。
+- `ohm.py current --volts 5 --ohms 220` 打印 `22.7 mA`，`ohm.py divider --vin 5 --r1 10000 --r2 4700` 打印 `1.599 V`。
+- `resistors.py` 说明 1 kΩ ±5% 与 4.7 kΩ ±5% 串联得到 5415–5985 Ω，两个 10 kΩ 并联得到 5 kΩ。
+- `log.py` 记录 R1 标称 4700 Ω、实测 4688 Ω，检查 5% 误差，并把 4400 Ω 报为超差。
+- traceback 从下往上读：最后一行是错误类型和信息，中间的帧说明出错位置。
+
+**常见错误**
+
+- 把 `python` 与 `python3` 混用，或安装前忘了激活 venv。
+- 混用 Tab 和空格，或用标准库模块名给文件命名。
+- 把 `.venv` 提交进 Git，或该用 `>>` 时用了 `>` 覆盖日志。
+- 没检查路径就运行 `rm -r`。
+
+**自检**
+
+- 你能创建并激活 venv、安装包，再冻结到 `requirements.txt` 吗？
+- 你能运行 `ohm.py` 的两个子命令并手算核对结果吗？
+- 你能解释为什么两个 10 kΩ 电阻并联得到 5 kΩ 吗？
+- 你能读懂 `measurements.json`，并解释 4688 Ω 为什么通过、4400 Ω 为什么未通过 5% 检查吗？
+
+**下一课会用到**
+
+- 下一课 **Git 与 GitHub** 会把第一个月的脚本放进仓库，并跟踪每一次改动。
+
+</Summary>
