@@ -56,7 +56,7 @@ export default async function MathPage({ params }: PageProps<"/[locale]/math">) 
           <h3 className="mt-4 text-xs font-medium uppercase tracking-wider text-zinc-500">{t("read")}</h3>
           <ul className="mt-1 space-y-1 text-sm">
             {e.links.map((l) => (
-              <li key={l.url}>
+              <li key={l.label}>
                 <a href={l.url} target="_blank" rel="noopener noreferrer" className="break-words text-zinc-300 underline decoration-white/20 underline-offset-2 hover:decoration-white/60">
                   {l.label} ↗
                 </a>
