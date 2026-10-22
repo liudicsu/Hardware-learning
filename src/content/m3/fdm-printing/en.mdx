@@ -68,6 +68,20 @@ TPU is for feet, bumpers and the compliant gripper fingers in Lesson 6. Print it
 
 A rule of thumb: start in PLA to check fit, then make the real part in PETG unless heat or flexibility says otherwise. Buy small spools while you learn, store them with desiccant, and dry PETG and nylon if you live somewhere humid. A spool that has been open for a year is not the same material as the one you calibrated.
 
+### Why the materials behave this way
+
+The table compresses a few mechanisms. Knowing them lets you reason about a material that is not in the table.
+
+**Heat: the glass transition.** PLA, PETG, ABS and ASA, as printed, are mostly amorphous: their long polymer chains are tangled and frozen in place. Below the <Term id="glass-transition-tg">glass transition temperature (Tg)</Term> the chains cannot slide past one another and the part is stiff; through Tg the material turns soft and rubbery over a few degrees. Tg is not the melting point, and it is the number that limits a printed part in service. NatureWorks lists Tg = 55–60 °C for Ingeo 4043D, a common PLA filament resin, and a heat deflection temperature of 55 °C under a 0.45 MPa load. Eastman gives Tg ≈ 80 °C for Eastar 6763, a PETG copolyester. ABS has a Tg of about 105 °C and ASA about 100 °C. A part should run well below its material's Tg: next to a 70 °C motor, PLA is above its Tg and PETG only about 10 °C below it.
+
+**Creep.** Even below Tg the chains rearrange slowly under a sustained <Term id="stress">stress</Term>, so a loaded part keeps deforming over hours and weeks. The rate rises steeply as the temperature approaches Tg, which is why PLA, with the lowest Tg of the group, creeps the most in a warm robot: a screw boss on a motor mount loosens and a cantilever that holds a sensor sags.
+
+**Moisture.** Nylon's amide groups bind water from the air. BASF's datasheet for Ultramid B3S, a PA6, lists 2.6–3.4 % water at equilibrium in 23 °C air at 50 % relative humidity and 9–10 % at saturation in water, and the absorbed water changes the material: the tensile modulus falls from 3500 MPa dry to 1200 MPa conditioned. In the hot end the water boils, which is where the bubbles and weak layers of wet nylon come from. PETG absorbs much less (Eastman lists 0.13 % for 6763 after 24 h in water), but enough to string and pop, so it is dried as well.
+
+**UV.** ABS gets its toughness from particles of butadiene rubber, whose carbon–carbon double bonds are attacked by ultraviolet light and oxygen: the surface yellows and becomes brittle. ASA replaces the butadiene with an acrylate rubber that has no such double bonds, so it keeps its toughness outdoors.
+
+**Layer adhesion.** Two printed layers bond only where the heat of the new bead lets polymer chains diffuse across the interface before it cools below Tg. The bond is therefore weaker than the material inside a line, and it depends on how wide the weld between the beads is and how long the interface stays hot. Anything that shortens that time weakens the bond for every material: a part-cooling fan at full speed, a lower nozzle temperature, a cold room.
+
 <Quiz id="q2" question="A motor mount sits against a motor that reaches 70 °C. Which material?" options={["PLA+", "TPU", "ABS or ASA", "PLA-CF with a brass nozzle"]} answer={2} explanation="PLA softens around 55–60 °C, so it is the wrong choice next to a 70 °C motor. ABS and ASA are the course's pick for parts near hot motors. PETG is a reasonable second choice — its glass transition is around 80 °C, close to 70 °C, so check the margin. TPU is flexible rather than heat-resistant, and carbon fibre does not fix PLA's heat limit; it also needs a hardened nozzle." />
 
 ## Calibrate, then measure
@@ -80,7 +94,7 @@ Teaching Tech's interactive calibration covers the same ground for any printer a
 
 ### The tolerance gauge
 
-Print the Clearance and Tolerance 3D Printer Gauge once, in the material and orientation you will use for the real part. Try each gap with your fingers. Write down the smallest gap that turns or slides freely — that is your sliding fit — and the gap that pushes together firmly and holds — that is your press fit. Do this before you design anything that must fit.
+Print the Clearance and Tolerance 3D Printer Gauge once, in the material and orientation you will use for the real part. Try each gap with your fingers. Write down the smallest gap that turns or slides freely — that is your sliding <Term id="fit">fit</Term> — and the gap that pushes together firmly and holds — that is your press fit. Do this before you design anything that must fit.
 
 Read the model page carefully: do its numbers mean the gap on each side, or the total difference in size? The clearance parameter in Lesson 1's bracket and in this lesson's case is per side. If you copy a total-difference number into a per-side parameter, every gap comes out twice as big as you measured: a sliding fit gets sloppy and a press fit stops holding.
 
@@ -114,9 +128,26 @@ The milestone for this lesson is to design a part specifically for FDM, not a CA
 - **Fasteners.** Use heat-set brass inserts for threads you will open more than a few times. Printed threads are fine for coarse, rarely used parts, but they wear and strip. Size the insert hole from the insert datasheet and test one.
 - **Supports.** Supports cost time, leave rough surfaces and weaken the part where they touch. A design that needs none is usually a better design: chamfer the overhang, split the part, or choose a different orientation.
 
+### Where the 45° and two-width rules come from
+
+Both rules come from the geometry of a bead. Each new line is supported only where it rests on the line below it. If a wall leans out from vertical by an angle θ, every layer of height h steps outward by h × tan θ. A common working limit is that each bead must rest on at least half of the bead below, that is, a step of no more than half the extrusion width w:
+
+```text
+h × tan θ ≤ w / 2   →   tan θ ≤ w / (2 × h)
+0.4 mm line, 0.2 mm layer:  tan θ ≤ 1.0  →  θ ≤ 45°
+0.4 mm line, 0.1 mm layer:  tan θ ≤ 2.0  →  θ ≤ 63°
+0.6 mm line, 0.2 mm layer:  tan θ ≤ 1.5  →  θ ≤ 56°
+```
+
+That is where the 45° figure comes from for the course's default 0.4 mm nozzle and 0.2 mm layers, and why thinner layers and wider lines tolerate steeper overhangs. Cooling decides whether the unsupported half of each bead freezes before it droops, so the same geometry prints cleaner with strong part cooling; PLA, which is printed with the fan on, typically handles overhangs better than ABS, which is printed with little or no fan. Print the overhang test from your calibration tool to find your own limit.
+
+The two-width minimum comes from how the slicer builds a wall. A wall is printed as perimeters, at least one on each face, with infill or more perimeters between them. A wall exactly two extrusion widths thick, 0.8 mm with a 0.4 mm nozzle, gets one full perimeter on each face, bonded to each other along their length. Anything thinner leaves room for one line only. OrcaSlicer's default wall generator (Arachne) then prints a single line of variable width: features narrower than the minimum feature size, 25 % of the nozzle diameter (0.1 mm for a 0.4 mm nozzle), are skipped entirely, and features between that and the minimum wall width, 85 % of the nozzle diameter (0.34 mm), are widened to 0.34 mm, so the printed wall no longer matches the CAD. A single line has no neighbour to bond to, so it is weak across its width and its edges come out ragged. Check the slicer preview: a thin feature that shows one line, or none, will not be the part you drew.
+
+<Quiz id="q6" question="With a 0.4 mm line and 0.15 mm layers, what is the steepest overhang from vertical that the half-bead rule allows (degrees)?" answer={53.1} unit="°" tolerance={0.5} explanation="tan θ ≤ w / (2 × h) = 0.4 / (2 × 0.15) = 1.333, so θ ≤ arctan 1.333 = 53.1°. Thinner layers allow steeper overhangs because each layer steps out less." />
+
 CNC Kitchen publishes instrumented, repeatable strength tests of infill, walls, heat-set inserts and orientation. Use those tests instead of folklore.
 
-Design for FDM also means designing for your machine's error. The clearance numbers from the gauge belong in the model as parameters, not in a note to yourself to "sand it later". Put fillets on inside corners, where <Term id="stress">stress</Term> concentrates, and avoid features thinner than two extrusion widths, because the slicer will either skip them or print them badly.
+Design for FDM also means designing for your machine's error. The clearance numbers from the gauge belong in the model as parameters, not in a note to yourself to "sand it later". Put fillets on inside corners, where stress concentrates, and avoid features thinner than two extrusion widths, because the slicer will either skip them or print them badly.
 
 <Resource id="hubs-dfam" />
 
@@ -134,7 +165,7 @@ force to bend it P = b × t² × E × ε / (6 × L)
 push-on force W = P × (μ + tan α) / (1 − μ × tan α)
 ```
 
-Here y is the hook depth, t the arm thickness, L the arm length, b the arm width, E the material stiffness, α the lead-in angle and μ the friction coefficient. <Term id="strain">Strain</Term> tells you whether the plastic survives; push-on force tells you whether a person can close the case.
+Here y is the hook depth, t the arm thickness, L the arm length, b the arm width, E the material's <Term id="youngs-modulus">Young's modulus</Term>, its stiffness (stress divided by strain in the elastic range), α the lead-in angle and μ the friction coefficient. <Term id="strain">Strain</Term> tells you whether the plastic survives; push-on force tells you whether a person can close the case.
 
 Worked example for the case's arm:
 
@@ -374,6 +405,7 @@ Lesson 3 takes the same idea further: gears and backlash. A gearbox is a stack o
 - Calibration order: temperature → flow → pressure advance → retraction → tolerance; each test assumes the earlier ones are right.
 - Hole = shaft + 2 × per-side clearance: a 5 mm shaft with 0.2 mm per side needs a 5.4 mm hole.
 - Overhangs up to about 45° from vertical usually print without support.
+- Overhang limit from bead geometry: tan θ ≤ w / (2 × h), which gives 45° for a 0.4 mm line on 0.2 mm layers; Tg, not the melting point, limits a part in service (PLA 55–60 °C, PETG about 80 °C).
 - Snap strain ε = 1.5 × y × t / L²: with L = 10 mm, t = 1.2 mm and y = 0.8 mm it gives 1.44 %, inside the 1.5 % PLA limit.
 - Break-even: $7.60 saved per revision, so a $219.99 printer needs about 29 revisions to pay for itself.
 
