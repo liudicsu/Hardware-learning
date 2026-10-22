@@ -1,18 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { tx, type Locale, type TimingSpec, type Tone } from "@/lib/diagrams/types";
+import { tx, type Locale, type TimingSpec } from "@/lib/diagrams/types";
+import { TONE } from "./BlockDiagram";
 import { StepControls } from "./StepControls";
 import { TimingSvg } from "./Timing";
 
-const TONE: Record<Tone, string> = {
-  ink: "var(--dg-ink)",
-  muted: "var(--dg-muted)",
-  a: "var(--dg-a)",
-  b: "var(--dg-b)",
-  ok: "var(--dg-ok)",
-  danger: "var(--dg-danger)",
-};
 
 /** A registry timing spec (kind "timing") drawn with <TimingSvg>, with optional steps. */
 export function TimingDiagram({ spec, locale }: { spec: TimingSpec; locale: Locale }) {

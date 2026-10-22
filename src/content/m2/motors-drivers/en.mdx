@@ -53,21 +53,7 @@ Same code, same duty, same robot, but about 14 % more speed simply because the b
 
 A DC motor needs current in either direction, and a microcontroller pin cannot supply that current or reverse it. The circuit that solves both problems is the **H-bridge**: four switches arranged around the motor, named after the shape of the schematic.
 
-```text
-            +V (motor supply)
-             |
-      +------+------+
-      |             |
-     S1            S3
-      |             |
-      +--- MOTOR ---+
-      |             |
-     S2            S4
-      |             |
-      +------+------+
-             |
-            GND
-```
+<Diagram id="hbridge-current-path" />
 
 Close S1 and S4 and current flows from +V through the motor to GND: forward. Close S2 and S3 instead and current flows the other way: reverse. Close both low-side switches, S2 and S4, and the motor terminals are connected together through ground: the motor is shorted and brakes hard. The forbidden state is closing S1 and S2 at the same time, or S3 and S4 at the same time. That puts a direct path from +V to GND through two switches — **shoot-through** — and the resulting current can destroy the bridge in microseconds. Real driver chips include logic and dead time to make that state impossible, which is one good reason to use a chip instead of building four discrete MOSFETs on a breadboard.
 
@@ -91,6 +77,8 @@ The TB6612FNG has a simple control table. Each channel has two direction inputs 
 | L | H | PWM | Reverse |
 | H | H | any | Short brake (fast stop) |
 | L | L | any | Stop (coast) |
+
+On the TB6612FNG the two motor outputs are AO1 and AO2 (often written OUT1 and OUT2). AO1 is the left half-bridge of the H-bridge diagram above (S1/S2) and AO2 the right one (S3/S4). IN1/IN2 = H/L drives AO1 high and AO2 low, which is S1 + S4: forward. H/H pulls both outputs low, which is S2 + S4: the short brake.
 
 STBY must be HIGH or the outputs stay disabled and nothing moves. That pin catches almost everyone once: the code looks perfect, the motor is silent, and the only problem is a floating standby input. Tie it HIGH deliberately, or drive it from a pin so you can disable the driver in software.
 
