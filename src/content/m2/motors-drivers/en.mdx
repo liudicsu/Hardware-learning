@@ -27,11 +27,28 @@ Brushless DC motors (BLDC) are the next level. They have no brushes to wear out 
 
 ## DC motors, gearboxes and why duty is not speed
 
-A brushed DC motor is roughly a resistor, an inductor and a generator sharing one shaft. Spin the shaft and it generates a voltage, called back-EMF, that opposes the supply. That is why a motor does not draw a huge current while running freely: the back-EMF cancels most of the applied voltage. Speed settles roughly in proportion to the voltage that remains after losses, and torque settles roughly in proportion to the current.
+A brushed DC motor is roughly a resistor, an inductor and a generator sharing one shaft. Spin the shaft and it generates a voltage, called <Term id="back-emf">back-EMF</Term>, that opposes the supply. That is why a motor does not draw a huge current while running freely: the back-EMF cancels most of the applied voltage. Speed settles roughly in proportion to the voltage that remains after losses, and torque settles roughly in proportion to the current.
+
+In equation form, with R the winding resistance, I the current, ω the shaft speed, and two motor constants, k_e (back-EMF per unit of speed) and k_t (torque per unit of current):
+
+```text
+V      = I × R + k_e × ω      supply = resistive drop + back-EMF
+torque = k_t × I
+stall (ω = 0):  I_stall = V / R
+```
+
+The course's Romi gearmotor (Pololu #1520, 120:1) shows the size of these terms. Pololu specifies it at 4.5 V with 130 mA free-run current and 1.25 A stall current (extrapolated):
+
+```text
+R              = 4.5 V / 1.25 A = 3.6 Ω
+free run:  I × R = 0.13 A × 3.6 Ω = 0.47 V
+back-EMF       = 4.5 V − 0.47 V = 4.03 V, about 90 % of the supply
+stall / free-run current = 1.25 A / 0.13 A ≈ 9.6
+```
 
 Two consequences matter on a bench. First, **speed is roughly proportional to voltage**, not to the PWM number on your serial monitor. Second, **torque is roughly proportional to current**, and current rises when the load rises. A motor moving a light robot on a smooth floor draws little; the same motor pushing against a carpet draws much more.
 
-The worst case is stall: the shaft is held still, so there is no back-EMF at all. The winding looks like a small resistance and the motor draws its **stall current**, the largest current it will ever ask for. That number is often five to ten times the running current and can be several amps for a small geared motor. Size the driver and the battery for stall current, not for the running current measured while the robot was rolling. Month 1 showed how that surge, flowing through battery and wire resistance, can sag the supply and reset the microcontroller.
+The worst case is stall: the shaft is held still, so there is no back-EMF at all. The winding looks like a small resistance and the motor draws its <Term id="stall-current">**stall current**</Term>, the largest current it will ever ask for. For the Romi motor that is 1.25 A at 4.5 V, about 9.6 times its 130 mA free-run current. With the same 3.6 Ω on a 7.4 V 2S pack, the stall current is 7.4 V / 3.6 Ω ≈ 2.1 A per motor, above the 1.2 A continuous rating per channel of the TB6612FNG introduced below. Size the driver and the battery for stall current, not for the running current measured while the robot was rolling. Month 1 showed how that surge, flowing through battery and wire resistance, can sag the supply and reset the microcontroller.
 
 A gearbox trades speed for torque. A 120:1 gearbox means the motor turns 120 times for every one turn of the output shaft. The output is 120 times slower and, ignoring friction, about 120 times stronger. This is why a tiny motor can move a robot: it spins fast and weak, and the gearbox converts that into slow and strong. It also means you must be careful about which side of the gearbox an encoder sits on. Counts measured at the motor shaft multiply by the gear ratio when you convert them to wheel motion.
 
@@ -51,11 +68,11 @@ Same code, same duty, same robot, but about 14 % more speed simply because the b
 
 ## The H-bridge and choosing a driver
 
-A DC motor needs current in either direction, and a microcontroller pin cannot supply that current or reverse it. The circuit that solves both problems is the **H-bridge**: four switches arranged around the motor, named after the shape of the schematic.
+A DC motor needs current in either direction, and a microcontroller pin cannot supply that current or reverse it. The circuit that solves both problems is the <Term id="h-bridge">**H-bridge**</Term>: four switches arranged around the motor, named after the shape of the schematic.
 
 <Diagram id="hbridge-current-path" />
 
-Close S1 and S4 and current flows from +V through the motor to GND: forward. Close S2 and S3 instead and current flows the other way: reverse. Close both low-side switches, S2 and S4, and the motor terminals are connected together through ground: the motor is shorted and brakes hard. The forbidden state is closing S1 and S2 at the same time, or S3 and S4 at the same time. That puts a direct path from +V to GND through two switches — **shoot-through** — and the resulting current can destroy the bridge in microseconds. Real driver chips include logic and dead time to make that state impossible, which is one good reason to use a chip instead of building four discrete MOSFETs on a breadboard.
+Close S1 and S4 and current flows from +V through the motor to GND: forward. Close S2 and S3 instead and current flows the other way: reverse. Close both low-side switches, S2 and S4, and the motor terminals are connected together through ground: the motor is shorted and brakes hard. The forbidden state is closing S1 and S2 at the same time, or S3 and S4 at the same time. That puts a direct path from +V to GND through two switches — <Term id="shoot-through">**shoot-through**</Term> — and the resulting current can destroy the bridge in microseconds. Real driver chips include logic and dead time to make that state impossible, which is one good reason to use a chip instead of building four discrete MOSFETs on a breadboard.
 
 <Falstad title="H-bridge: four switches S1–S4 and a motor" circuit="hBridge" height={460} />
 
@@ -124,7 +141,7 @@ Hobby servos were covered in Lesson 3, so here is only the part that matters aro
 
 Stepper motors are different. A typical stepper moves 1.8° per full step, which is 360° / 1.8° = 200 full steps per revolution. The "NEMA 17" label describes the 1.7-inch faceplate mounting pattern, not the motor's strength; two NEMA 17 motors can have very different torque and current ratings. A driver such as the A4988 takes two logic inputs, STEP and DIR: each pulse on STEP advances one step, and the level on DIR chooses the direction. Microstepping divides each full step further. At 1/16 microstepping, one revolution needs 200 × 16 = 3200 microsteps, and therefore 3200 STEP pulses.
 
-Before you connect a stepper, set the driver's current limit. On an A4988 this is the small potentiometer that sets Vref, and the formula depends on the sense resistor on your particular board. Too high and the motor and driver overheat; too low and the motor buzzes and skips. Set it with the motor disconnected from the driver, measure Vref, then connect and test at low speed. And remember the fundamental limitation: a stepper is open loop. If the load is too high, it silently skips steps and does not know. The print or the robot arm simply ends up somewhere else, with no error message.
+Before you connect a stepper, set the driver's current limit. On an A4988 carrier the small potentiometer sets a reference voltage, Vref, and Pololu gives the relation I_max = Vref / (8 × R_CS), where R_CS is the current-sense resistor on the board: 0.068 Ω on Pololu units made since 2017 and 0.050 Ω on earlier ones ([Pololu #1182](https://www.pololu.com/product/1182)). For a 1 A limit on a current board, Vref = 8 × 1 A × 0.068 Ω = 0.544 V, which Pololu rounds to 540 mV. Read R_CS from the resistor marking on your own board, because other manufacturers' boards use other values. Too high and the motor and driver overheat; too low and the motor buzzes and skips. Set it with the motor disconnected from the driver, measure Vref, then connect and test at low speed. And remember the fundamental limitation: a stepper is open loop. If the load is too high, it silently skips steps and does not know. The print or the robot arm simply ends up somewhere else, with no error message.
 
 Smart bus servos combine the convenience of a servo with the feedback of an encoder. One serial line daisy-chains many servos, each with its own ID, so a six-servo arm needs one cable instead of six PWM cables. You send a command to an ID and read back position, speed, load, voltage and temperature. The 12-bit magnetic encoder inside a servo such as the STS3215 gives 4096 positions per turn. That feedback is why modern low-cost arms can repeat positions and detect when they are pushing too hard, instead of continuing into a stall without noticing.
 
@@ -184,7 +201,7 @@ Build the number step by step. Six poles give 3 pulses per channel per turn. Eac
 | ×2 | both edges of A | 6 | 720 | 0.305 mm |
 | ×4 | both edges of A and B | 12 | 1440 | 0.153 mm |
 
-Pololu's "12 CPR" (counts per revolution) is the ×4 figure. Direction needs B in all three modes: in ×1 and ×2 the level of B at each A edge tells which way the shaft turned. ×1 is what this course's balancer cascade sketch (Month 3, pid-control) uses: 3 × 30:1 = 90 counts per wheel turn, and a 65 mm wheel gives 2.27 mm per count.
+Pololu's "12 CPR" (<Term id="encoder-cpr">counts per revolution</Term>) is the ×4 figure. Direction needs B in all three modes: in ×1 and ×2 the level of B at each A edge tells which way the shaft turned. ×1 is what this course's balancer cascade sketch (Month 3, pid-control) uses: 3 × 30:1 = 90 counts per wheel turn, and a 65 mm wheel gives 2.27 mm per count.
 
 ### Motor shaft or output shaft?
 
@@ -247,7 +264,7 @@ Two practical details. Encoder outputs are often **open-drain**, meaning they ca
 
 The practice task for this lesson is deliberately small and deliberately real. First drive a motor forward and backward at five different speeds, so you feel what PWM does. Then write a function that turns the wheel exactly one revolution, regardless of whether the battery is fresh or tired. That function is your first genuine closed loop: a sensor, a target, an error and a command that reacts to the error.
 
-Start with a toy model in Python. The model is not a hardware measurement. It is a simplified simulation written for this lesson, with a motor that responds to voltage, a dead band below which friction wins, and an encoder that counts 1440 times per wheel turn. The output below comes from running the given model exactly as printed.
+Start with a toy model in Python. The model is not a hardware measurement. It is a simplified simulation written for this lesson, with a motor that responds to voltage, a <Term id="dead-band">dead band</Term> below which friction wins, and an encoder that counts 1440 times per wheel turn. The output below comes from running the given model exactly as printed.
 
 <CodeSource path="tools/sim/models/one_rev_sim.py" />
 
@@ -497,3 +514,24 @@ Before you move on, you should be able to say yes to all of these:
 - I can explain inductive kickback and place a flyback diode correctly.
 - I can compute counts per revolution from encoder CPR and gear ratio.
 - I have a wheel turning exactly one revolution at two different battery voltages, and I can explain what the encoder contributed.
+
+<Summary>
+
+**Key points**
+
+- Brushed DC motor: V = I × R + k_e × ω; at stall ω = 0 and I_stall = V / R. The Romi 120:1 at 4.5 V: R = 3.6 Ω, 130 mA free-run, 1.25 A stall.
+- PWM sets the average voltage, not the speed: 60 % duty is 4.44 V from 7.4 V and 5.04 V from 8.4 V, about 14 % faster.
+- H-bridge: S1 + S4 forward, S2 + S3 reverse, S2 + S4 brake; S1 + S2 is shoot-through (about 12 A in the model).
+- An L298N drops about 2 V (27 % of 7.4 V); the TB6612FNG and DRV8833 give about 1.2 A per channel with a far smaller drop.
+- Every transistor-switched coil needs a flyback diode across it, cathode to the positive side; driver chips contain them.
+- A4988 current limit: I_max = Vref / (8 × R_CS); 1 A with 0.068 Ω needs Vref = 0.544 V.
+- Romi encoder: 12 counts per motor turn (×4) × 119.76 ≈ 1440 counts per wheel turn, 0.153 mm per count on a 70 mm wheel.
+- A minimum duty overcomes the 0.8 V dead band only if it is sized for the lowest battery voltage: 0.8 V / 5.0 V = 0.16.
+
+**Used next**
+
+- Month 2 · Sensors, I2C & the complementary filter adds the IMU the self-balancer needs.
+- Month 2 · Your first two robots: line follower & self-balancer drives two of these motors through a TB6612FNG.
+
+</Summary>
+

@@ -169,6 +169,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The voltage a spinning motor generates as a generator, opposing the supply. It cancels most of the applied voltage while the motor turns, falls to zero at stall, and that is why stall current is much larger than running current.",
     },
     lesson: "components",
+    firstExplained: true,
   },
   {
     id: "ldo",
@@ -542,6 +543,7 @@ export const glossary: GlossaryEntry[] = [
       en: "Four switches around a motor, drawn like the letter H, that let a DC motor run forward, reverse, brake or coast. The TB6612FNG and DRV8833 handle about 1.2 A per channel and include body diodes and dead-time logic.",
     },
     lesson: "motors-drivers",
+    firstExplained: true,
   },
   {
     id: "shoot-through",
@@ -551,6 +553,7 @@ export const glossary: GlossaryEntry[] = [
       en: "Both switches on one side of an H-bridge conducting at once, creating a low-resistance path from supply to ground through only the switches. In the lesson model, closing S1 and S2 together passes about 12 A; real driver chips prevent it with dead time.",
     },
     lesson: "motors-drivers",
+    firstExplained: true,
   },
   {
     id: "flyback-diode",
@@ -559,7 +562,8 @@ export const glossary: GlossaryEntry[] = [
       zh: "反向并联在感性负载两端、阴极接正电源一侧的二极管，正常工作时截止。断电瞬间它为电感电流提供回路，把原本会击穿开关管的高压尖峰泄掉。",
       en: "A diode connected anti-parallel across an inductive load with its cathode on the positive supply, reverse-biased in normal operation. When the switch opens it gives the inductor current a path, clamping the high-voltage spike that would otherwise destroy the switch.",
     },
-    lesson: "motors-drivers",
+    lesson: "components",
+    firstExplained: true,
   },
   {
     id: "encoder-cpr",
@@ -569,15 +573,17 @@ export const glossary: GlossaryEntry[] = [
       en: "CPR is the number of counts an encoder produces per revolution; a quadrature encoder has A and B 90° apart, and counting every edge on both gives ×4 decoding. An encoder with 3 pulses per channel per turn therefore yields 12 counts per turn, and with a 120:1 gearbox, 1440 counts per wheel turn.",
     },
     lesson: "motors-drivers",
+    firstExplained: true,
   },
   {
     id: "stall-current",
     term: { zh: "堵转电流", en: "stall current" },
     def: {
-      zh: "电机轴被完全卡住、反电动势为零时抽取的最大电流，通常是正常运行电流的 5–10 倍，小型减速电机也可达数安培。驱动器和电池必须按堵转电流选型，而不是按平稳行驶时的读数。",
-      en: "The maximum current a motor draws when its shaft is held still and back-EMF is zero, typically 5–10× the running current and several amps even for a small geared motor. Size the driver and battery for stall current, not for the tidy reading while rolling.",
+      zh: "电机轴被完全卡住、反电动势为零时抽取的最大电流，通常是正常运行电流的 5–10 倍；课程用的 Romi 减速电机（Pololu #1520）在 4.5 V 下堵转电流为 1.25 A，是其 130 mA 空载电流的 9.6 倍。驱动器和电池必须按堵转电流选型，而不是按平稳行驶时的读数。",
+      en: "The maximum current a motor draws when its shaft is held still and back-EMF is zero, typically 5–10× the running current; the course's Romi gearmotor (Pololu #1520) stalls at 1.25 A at 4.5 V, 9.6× its 130 mA free-run current. Size the driver and battery for stall current, not for the tidy reading while rolling.",
     },
-    lesson: "motors-drivers",
+    lesson: "components",
+    firstExplained: true,
   },
   {
     id: "dead-band",
@@ -587,6 +593,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The range of command too small to overcome static friction, where the mechanism does not move. The one-revolution model uses 0.8 V, so on a 5 V supply the minimum duty must be at least 0.8 / 5.0 = 16%, otherwise the wheel stops short of the target.",
     },
     lesson: "motors-drivers",
+    firstExplained: true,
   },
   {
     id: "i2c",
@@ -660,6 +667,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The target value a controller wants the measured quantity to reach. The line follower's setpoint is the centre of the sensor array, 3500, and the balancer's is level, 0°; an outer loop can also shift the inner loop's setpoint slightly.",
     },
     lesson: "first-robots",
+    firstExplained: true,
   },
   {
     id: "error",
@@ -669,6 +677,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The setpoint minus the measurement, error = setpoint − measurement, and the only quantity a feedback controller acts on directly. For line following, error = 3500 − position; for balancing, error = 0° − pitch.",
     },
     lesson: "first-robots",
+    firstExplained: true,
   },
   {
     id: "pd-control",
@@ -678,15 +687,17 @@ export const glossary: GlossaryEntry[] = [
       en: "A controller whose output adds a proportional term to a derivative term: P pushes in proportion to error and D brakes in proportion to how fast it changes, damping overshoot. On the line follower, adding D after tuning P cut overshoot from 62.3 mm to 4.8 mm.",
     },
     lesson: "first-robots",
+    firstExplained: true,
   },
   {
     id: "inverted-pendulum",
     term: { zh: "倒立摆", en: "inverted pendulum" },
     def: {
-      zh: "质心位于支点上方的不稳定系统，静止时任何小扰动都会让它倒下。自平衡车就是倒立摆，控制器必须在毫秒级把轮子移到质心下方，而不是等它慢慢漂移。",
-      en: "An unstable system whose centre of mass sits above its pivot, so any small disturbance makes it fall. A self-balancer is an inverted pendulum, and its controller must move the wheels under the centre of mass within milliseconds rather than wait for a slow drift.",
+      zh: "质心位于支点上方的不稳定系统，任何小扰动都会让它倒下。质心高出车轴 0.10 m 时，倾角按时间常数 √(L/g) ≈ 0.10 s 增长，因此自平衡车的控制器必须每隔几毫秒修正一次。",
+      en: "An unstable system whose centre of mass sits above its pivot, so any small disturbance makes it fall. For a centre of mass 0.10 m above the axle the tilt grows with the time constant √(L/g) ≈ 0.10 s, so a self-balancer's controller must correct every few milliseconds.",
     },
     lesson: "first-robots",
+    firstExplained: true,
   },
   {
     id: "constraint",

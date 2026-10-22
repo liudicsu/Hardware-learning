@@ -22,11 +22,11 @@ There is one difference in temperament, and it decides the order you build in. T
 
 ## PID in one page
 
-Every controller in this lesson is a PID controller, so let us compress the whole idea into one page. Define the error first, because everything else is built on it:
+Every controller in this lesson is a PID controller, so let us compress the whole idea into one page. Define the <Term id="error">error</Term> first, because everything else is built on it:
 
 error = setpoint − measurement
 
-For the line follower the setpoint is the centre of the array, `3500`, and the measurement is whatever the sensors report, so `error = 3500 − position`. For the balancer the setpoint is "level", `0` degrees, and the measurement is the pitch the filter estimates. Once you have one meaningful number like this, the controller is almost trivial.
+For the line follower the <Term id="setpoint">setpoint</Term> is the centre of the array, `3500`, and the measurement is whatever the sensors report, so `error = 3500 − position`. For the balancer the setpoint is "level", `0` degrees, and the measurement is the pitch the filter estimates. Once you have one meaningful number like this, the controller is almost trivial.
 
 The balancer's code writes `KP × (pitch − SETPOINT) + KD × rate`; with `error = SETPOINT − pitch` this equals `−KP × error + KD × rate`. The minus sign comes from the actuator direction: tilting forward makes the error negative, and the wheels must then drive forward, i.e. positive PWM. The D term uses the gyro rate in °/s, the derivative of the measurement, which already contains the division by time.
 
@@ -303,7 +303,7 @@ Tuning is a procedure, not a guess. Follow it in order:
 2. Set `KD = 0` and a low `BASE_PWM` (about 80). Raise `KP` until the robot follows the line but wiggles.
 3. **Film it.** This is your "P only" clip.
 4. Add `KD` in small steps until the wiggle dies. If the motors buzz or twitch, `KD` is too high — it amplifies sensor noise.
-5. **Film it again.** This is your "PD" clip.
+5. **Film it again.** This is your "<Term id="pd-control">PD</Term>" clip.
 6. Raise `BASE_PWM` and repeat. Faster needs more D; the faster you go, the sooner delay bites.
 7. Write every attempt in a tuning log: `KP`, `KD`, `BASE_PWM`, and what happened.
 
@@ -315,7 +315,18 @@ The oscillation you see with P only is not a bug — it is the exact thing you a
 
 ## Self-balancer: why it is hard
 
-A self-balancer is an **inverted pendulum**: the axle is below the centre of mass, so the torque from gravity grows with the tilt angle and points in the direction of the fall rather than the recovery — an unstable equilibrium. Left alone, it does not drift slowly; it falls in well under a second. That has a hard consequence: the controller must react within milliseconds, and it must do so **every few milliseconds**, not once in a while. On top of that it needs an angle estimate that is both fast and non-drifting, which is exactly the job of the complementary filter from Lesson 5 — the gyro gives a fast but drifting angle, the accelerometer a slow but absolute one, and the filter fuses them so you get a number good enough to act on. The wheels then move under the centre of mass to catch the fall: the robot is not balancing statically, it is continuously driving itself back under its own centre of gravity.
+A self-balancer is an <Term id="inverted-pendulum">**inverted pendulum**</Term>: the axle is below the centre of mass, so the torque from gravity grows with the tilt angle and points in the direction of the fall rather than the recovery — an unstable equilibrium. Left alone, it does not drift slowly. The model below computes the angular acceleration as θ̈ = (g × sin θ − a × cos θ) / L (the `alpha` line of the script), with L = 0.10 m from the axle to the centre of mass and a the wheel acceleration. With the wheels still (a = 0) and a small angle (sin θ ≈ θ in radians), this is θ̈ = (g / L) × θ, and the tilt grows from rest with the time constant T = √(L / g):
+
+```text
+T      = √(0.10 m / 9.81 m/s²) = 0.101 s
+θ(t)   = θ0 × cosh(t / T)          from rest at θ0
+3° → 6°:    cosh(t / T) = 2      →  t = 1.317 × T = 0.13 s
+3° → 40°:   cosh(t / T) = 13.3   →  t = 3.28 × T = 0.33 s
+```
+
+Integrating the full sin θ equation numerically gives the same 0.13 s and 0.33 s. An uncorrected 3° tilt therefore reaches the 40° cut-off in a third of a second, in which a 10 Hz loop makes only three corrections and a 200 Hz loop makes 66. The controller must act **every few milliseconds**, not once in a while.
+
+On top of that it needs an angle estimate that is both fast and non-drifting, which is exactly the job of the complementary filter from Lesson 5 — the gyro gives a fast but drifting angle, the accelerometer a slow but absolute one, and the filter fuses them so you get a number good enough to act on. The wheels then move under the centre of mass to catch the fall: the robot is not balancing statically, it is continuously driving itself back under its own centre of gravity.
 
 The parts, again approximate figures from the course author:
 
@@ -609,7 +620,7 @@ A self-balancer can lunge suddenly at full power, with no warning. Hold it by th
 This part is optional. The balancer above stays upright, but it slowly drifts away, because nothing in it cares where the wheels are going. A balancer that stays in one place needs a second controller wrapped around the first one. Control engineers call this a **cascade**.
 
 - The **inner loop** is the one you already have. It runs at 200 Hz, reads the pitch, and drives the motors so the robot holds a requested angle, `SETPOINT`.
-- The **outer loop** is new. It runs about 5–10 times slower (every 4th to 8th tick, so 25–50 Hz). It reads the wheel speed from the encoders (Lesson 4) and changes `SETPOINT` a little, to slow the robot down.
+- The **outer loop** is new. It runs about 4–8 times slower (every 4th to 8th tick, so 25–50 Hz). The ratio comes from timescale separation, the usual rule for cascade loops: the outer loop treats the inner loop as if it reached each new `SETPOINT` immediately, which holds only approximately, and only if the inner loop has largely settled before the outer loop acts again. With 4–8 inner corrections between two outer updates, the outer loop sees mostly the settled result; at similar rates it would react to the inner loop's transients as if they were speed errors, and the two loops would interact. It reads the wheel speed from the encoders (Lesson 4) and changes `SETPOINT` a little, to slow the robot down.
 
 <Diagram id="first-robots-cascade" />
 
@@ -685,3 +696,21 @@ Finally, the Month 2 wrap-up. By the end of this month you should be able to:
 - Put two robots on GitHub with a write-up of what broke (this lesson).
 
 When you are ready, check the milestone checklist on the month page — both robots and a repo that tells their story is the whole thing.
+
+<Summary>
+
+**Key points**
+
+- error = setpoint − measurement; for the line follower, error = 3500 − position.
+- Discrete PID: output = KP × e + KI × Σ(e × dt) + KD × (e − e_prev) / dt; with a fixed dt the gains absorb it (KD_loop = 0.003 / 0.01 = 0.3).
+- Line-follower model: P only overshoots 62.3 mm and never settles within 2 mm; kd 0.0001 cuts it to 4.8 mm, within 2 mm from 1.47 s; kd 0.0002 does not cross the line.
+- Inverted pendulum: θ̈ ≈ (g / L) × θ with T = √(L / g) = 0.10 s for L = 0.10 m; an uncorrected 3° tilt reaches 40° in 0.33 s.
+- The balancer needs both the filtered angle and a fast, steady loop: at 200 Hz it stays up, at 10 Hz the model falls after 1.23 s.
+- Cascade: an outer speed loop every 4th–8th tick (25–50 Hz) shifts SETPOINT within a ±3° clamp, leaning against the direction of motion.
+
+**Used next**
+
+- Month 3 · PID & control: windup and cascade loops returns to this balancer and completes the outer loop with anti-windup.
+
+</Summary>
+
