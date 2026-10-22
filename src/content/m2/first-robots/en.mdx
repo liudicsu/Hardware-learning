@@ -210,7 +210,7 @@ P + D       kp=0.0003 kd=0.0002: overshoot  0.0 mm, 0 line crossings, within 2 m
 
 <LineFollowWidget />
 
-**Guided experiment.** This experiment shows how derivative action damps the steering correction, trading overshoot and line crossings against the time needed to enter the ±2 mm band.
+**Guided experiment.** This experiment shows how derivative action damps the steering correction: overshoot falls as kd grows, but the number of line crossings does not fall step by step (3 at kd = 0, 4 small crossings at kd = 0.0001, and 0 from kd = 0.0002), and too much D lengthens the time needed to enter the ±2 mm band.
 
 1. Leave kp = 0.00030 and kd = 0.00020 and read Overshoot = 0.0 mm, Line crossings = 0, Within 2 mm from = 1.30 s.
 2. Set kd = 0 with kp = 0.00030 and read Overshoot = 62.3 mm, Line crossings = 3, Within 2 mm from = never.
