@@ -125,8 +125,6 @@ export default async function LessonPage({ params }: Params) {
     ComplementaryWidget,
     LineFollowWidget,
     Diagram: ({ id }: { id: string }) => <Diagram id={id} locale={loc} />,
-    // Markdown links render as plain <a> tags, so the Pages basePath must be added here, as for images.
-    a: ({ href, ...rest }: ComponentProps<"a">) => <a href={typeof href === "string" ? withBasePath(href) : href} {...rest} />,
     img: ({ src, alt, ...rest }: ComponentProps<"img">) => (
       // eslint-disable-next-line @next/next/no-img-element
       <img src={typeof src === "string" ? withBasePath(src) : src} alt={alt ?? ""} loading="lazy" {...rest} />
