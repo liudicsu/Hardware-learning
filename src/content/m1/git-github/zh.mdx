@@ -420,20 +420,6 @@ Git 会保存每个文件的每个版本，所以一个 100 MB 的视频即使�
 - 撤销速查表覆盖 `git restore`、`git restore --staged`、`git commit --amend`、`git switch --detach`、`git revert` 和 `git reflog`。
 - `git clone https://github.com/liudicsu/Hardware-learning.git` 复制课程仓库及完整历史，第 1–6 个月的每个脚本都从它的 `examples/` 目录运行。
 
-**常见错误**
-
-- 在错误的目录执行 `git init`，或在提交 `.venv` 之后才加 `.gitignore`。
-- 不读 `git diff --staged` 就 `git add .`。
-- 提交密钥、冲突标记，或把说明写成 `update`。
-- 强推 `main`，而不是用 `git revert`。
-
-**自检**
-
-- 你能说清工作区、暂存区、仓库三者的区别，以及两种 diff 各比较什么吗？
-- 你能建分支、合并回 `main`、删除分支，并手动解决一次冲突吗？
-- 你能为本地修改、未推送的提交和已推送的提交分别选对撤销命令吗？
-- 你能克隆课程仓库，并从 `examples/month-1` 运行一个脚本吗？
-
 **下一课会用到**
 
 - 第 2 个月的 Arduino 入门：数字/模拟 IO、PWM 与串口调试把每份 sketch 都放进仓库，每次改动都是一个可以对比和撤销的提交。

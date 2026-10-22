@@ -412,20 +412,6 @@ Before moving on, can you answer "yes" to all of these?
 - The undo table covers `git restore`, `git restore --staged`, `git commit --amend`, `git switch --detach`, `git revert` and `git reflog`.
 - `git clone https://github.com/liudicsu/Hardware-learning.git` copies the course repository with the full history, and every Month 1–6 script runs from its `examples/` folder.
 
-**Common mistakes**
-
-- Running `git init` in the wrong folder, or adding `.gitignore` after committing `.venv`.
-- Staging with `git add .` without reading `git diff --staged`.
-- Committing secrets, conflict markers, or a message such as `update`.
-- Force-pushing `main` instead of using `git revert`.
-
-**Self-check**
-
-- Can you explain the working directory, staging area and repository, and what each diff compares?
-- Can you create a branch, merge it into `main`, delete it and resolve a conflict by hand?
-- Can you choose the right undo for a local edit, an unpushed commit and a pushed commit?
-- Can you clone the course repository and run a script from `examples/month-1`?
-
 **Used next**
 
 - Month 2, Arduino basics: digital & analog IO, PWM and serial debugging, keeps every sketch in a repository, so each change is a commit you can compare and revert.

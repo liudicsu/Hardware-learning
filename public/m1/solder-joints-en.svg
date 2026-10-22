@@ -1,80 +1,75 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 300" width="980" height="300" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 370" width="480" height="370" role="img" aria-labelledby="title desc">
   <title id="title">Cross-sections of seven solder joints</title>
-  <desc id="desc">Seven cross-section panels: 1 good concave fillet, 2 cold joint with a grainy lump, 3 too much solder as a convex ball, 4 too little solder with a bare pad, 5 bridge joining two pads and leads, 6 lifted pad tilted off the board, 7 disturbed joint with a torn surface and a crack.</desc>
-  <rect width="980" height="300" fill="#ffffff"/>
-
-  <g transform="translate(70,0)">
-    <rect x="-55" y="150" width="110" height="55" fill="#d4d4d8" stroke="#52525b" stroke-width="1.5"/>
-    <rect x="-8" y="150" width="16" height="55" fill="#a1a1aa" stroke="#52525b" stroke-width="1"/>
+  <desc id="desc">Seven simplified cross-sections: 1 good concave fillet, 2 cold joint with a grainy lump, 3 too much solder as a convex ball, 4 too little solder with a bare pad, 5 bridge joining two pads and leads, 6 lifted pad whose outer edge has come off the board, 7 disturbed joint with a torn surface and a crack. Through-hole plating and solder inside the hole are not drawn.</desc>
+  <rect width="480" height="370" fill="#ffffff"/>
+  <g transform="translate(60,-74)">
+    <rect x="-55" y="148" width="110" height="57" fill="#d4d4d8" stroke="#52525b" stroke-width="1.5"/>
+    <rect x="-8" y="148" width="16" height="57" fill="#a1a1aa" stroke="#52525b" stroke-width="1"/>
     <rect x="-42" y="140" width="84" height="8" rx="2" fill="#f59e0b" stroke="#b45309" stroke-width="1"/>
     <rect x="-5" y="85" width="10" height="125" fill="#3f3f46" stroke="#27272a" stroke-width="1"/>
     <path d="M -34 140 C -18 139 -6 130 -5 108 L -5 140 Z" fill="#cbd5e1" stroke="#64748b" stroke-width="1"/>
     <path d="M 5 140 L 5 108 C 6 130 18 139 34 140 Z" fill="#cbd5e1" stroke="#64748b" stroke-width="1"/>
-    <text x="0" y="280" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#18181b">1 Good</text>
+    <text x="0" y="232" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#18181b">1 Good</text>
   </g>
-
-  <g transform="translate(210,0)">
-    <rect x="-55" y="150" width="110" height="55" fill="#d4d4d8" stroke="#52525b" stroke-width="1.5"/>
-    <rect x="-8" y="150" width="16" height="55" fill="#a1a1aa" stroke="#52525b" stroke-width="1"/>
+  <g transform="translate(180,-74)">
+    <rect x="-55" y="148" width="110" height="57" fill="#d4d4d8" stroke="#52525b" stroke-width="1.5"/>
+    <rect x="-8" y="148" width="16" height="57" fill="#a1a1aa" stroke="#52525b" stroke-width="1"/>
     <rect x="-42" y="140" width="84" height="8" rx="2" fill="#f59e0b" stroke="#b45309" stroke-width="1"/>
     <rect x="-5" y="85" width="10" height="125" fill="#3f3f46" stroke="#27272a" stroke-width="1"/>
     <path d="M -23 140 C -22 132 -18 134 -16 127 C -13 120 -9 126 -6 118 C -3 111 1 117 4 112 C 8 118 11 113 14 121 C 17 127 20 131 23 140 Z" fill="#cbd5e1" stroke="#64748b" stroke-width="1.2" stroke-dasharray="3 2"/>
     <circle cx="-11" cy="132" r="1.1" fill="#64748b"/>
     <circle cx="8" cy="134" r="1" fill="#64748b"/>
     <circle cx="-2" cy="126" r="0.9" fill="#64748b"/>
-    <text x="0" y="280" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#18181b">2 Cold joint</text>
+    <text x="0" y="232" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#18181b">2 Cold joint</text>
   </g>
-
-  <g transform="translate(350,0)">
-    <rect x="-55" y="150" width="110" height="55" fill="#d4d4d8" stroke="#52525b" stroke-width="1.5"/>
-    <rect x="-8" y="150" width="16" height="55" fill="#a1a1aa" stroke="#52525b" stroke-width="1"/>
+  <g transform="translate(300,-74)">
+    <rect x="-55" y="148" width="110" height="57" fill="#d4d4d8" stroke="#52525b" stroke-width="1.5"/>
+    <rect x="-8" y="148" width="16" height="57" fill="#a1a1aa" stroke="#52525b" stroke-width="1"/>
     <rect x="-42" y="140" width="84" height="8" rx="2" fill="#f59e0b" stroke="#b45309" stroke-width="1"/>
     <rect x="-5" y="85" width="10" height="125" fill="#3f3f46" stroke="#27272a" stroke-width="1"/>
     <path d="M -40 140 C -44 112 -30 82 -16 80 C -8 79 8 79 16 80 C 30 82 44 112 40 140 Z" fill="#cbd5e1" stroke="#64748b" stroke-width="1"/>
-    <text x="0" y="280" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#18181b">3 Too much solder</text>
+    <text x="0" y="232" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#18181b">3 Too much</text>
+    <text x="0" y="252" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#18181b">solder</text>
   </g>
-
-  <g transform="translate(490,0)">
-    <rect x="-55" y="150" width="110" height="55" fill="#d4d4d8" stroke="#52525b" stroke-width="1.5"/>
-    <rect x="-8" y="150" width="16" height="55" fill="#a1a1aa" stroke="#52525b" stroke-width="1"/>
+  <g transform="translate(420,-74)">
+    <rect x="-55" y="148" width="110" height="57" fill="#d4d4d8" stroke="#52525b" stroke-width="1.5"/>
+    <rect x="-8" y="148" width="16" height="57" fill="#a1a1aa" stroke="#52525b" stroke-width="1"/>
     <rect x="-42" y="140" width="84" height="8" rx="2" fill="#f59e0b" stroke="#b45309" stroke-width="1"/>
     <rect x="-5" y="85" width="10" height="125" fill="#3f3f46" stroke="#27272a" stroke-width="1"/>
     <path d="M -14 140 C -12 133 -8 129 -5 127 L -5 140 Z" fill="#cbd5e1" stroke="#64748b" stroke-width="1"/>
     <path d="M 5 140 L 5 127 C 8 129 12 133 14 140 Z" fill="#cbd5e1" stroke="#64748b" stroke-width="1"/>
-    <text x="0" y="280" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#18181b">4 Too little solder</text>
+    <text x="0" y="232" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#18181b">4 Too little</text>
+    <text x="0" y="252" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#18181b">solder</text>
   </g>
-
-  <g transform="translate(630,0)">
-    <rect x="-55" y="150" width="110" height="55" fill="#d4d4d8" stroke="#52525b" stroke-width="1.5"/>
-    <rect x="-35" y="150" width="16" height="55" fill="#a1a1aa" stroke="#52525b" stroke-width="1"/>
-    <rect x="19" y="150" width="16" height="55" fill="#a1a1aa" stroke="#52525b" stroke-width="1"/>
+  <g transform="translate(120,111)">
+    <rect x="-55" y="148" width="110" height="57" fill="#d4d4d8" stroke="#52525b" stroke-width="1.5"/>
+    <rect x="-35" y="148" width="16" height="57" fill="#a1a1aa" stroke="#52525b" stroke-width="1"/>
+    <rect x="19" y="148" width="16" height="57" fill="#a1a1aa" stroke="#52525b" stroke-width="1"/>
     <rect x="-50" y="140" width="46" height="8" rx="2" fill="#f59e0b" stroke="#b45309" stroke-width="1"/>
     <rect x="4" y="140" width="46" height="8" rx="2" fill="#f59e0b" stroke="#b45309" stroke-width="1"/>
     <rect x="-32" y="85" width="10" height="125" fill="#3f3f46" stroke="#27272a" stroke-width="1"/>
     <rect x="22" y="85" width="10" height="125" fill="#3f3f46" stroke="#27272a" stroke-width="1"/>
     <path d="M -48 140 C -46 122 -38 112 -28 112 C -12 112 -8 122 0 122 C 8 122 12 112 28 112 C 38 112 46 122 48 140 Z" fill="#cbd5e1" stroke="#64748b" stroke-width="1"/>
-    <text x="0" y="280" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#18181b">5 Bridge</text>
+    <text x="0" y="232" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#18181b">5 Bridge</text>
   </g>
-
-  <g transform="translate(770,0)">
-    <rect x="-55" y="150" width="110" height="55" fill="#d4d4d8" stroke="#52525b" stroke-width="1.5"/>
-    <rect x="-8" y="150" width="16" height="55" fill="#a1a1aa" stroke="#52525b" stroke-width="1"/>
+  <g transform="translate(240,111)">
+    <rect x="-55" y="148" width="110" height="57" fill="#d4d4d8" stroke="#52525b" stroke-width="1.5"/>
+    <rect x="-8" y="148" width="16" height="57" fill="#a1a1aa" stroke="#52525b" stroke-width="1"/>
+    <rect x="-42" y="140" width="37" height="8" rx="2" fill="#f59e0b" stroke="#b45309" stroke-width="1"/>
+    <path d="M 5 140 L 42 126 L 42 134 L 5 148 Z" fill="#f59e0b" stroke="#b45309" stroke-width="1" stroke-linejoin="round"/>
     <rect x="-5" y="85" width="10" height="125" fill="#3f3f46" stroke="#27272a" stroke-width="1"/>
-    <g transform="rotate(-14 -42 140)">
-      <rect x="-42" y="140" width="84" height="8" rx="2" fill="#f59e0b" stroke="#b45309" stroke-width="1"/>
-      <path d="M -34 140 C -30 126 -14 119 -5 114 L -5 140 Z" fill="#cbd5e1" stroke="#64748b" stroke-width="1"/>
-      <path d="M 5 140 L 5 114 C 14 119 30 126 34 140 Z" fill="#cbd5e1" stroke="#64748b" stroke-width="1"/>
-    </g>
-    <text x="0" y="280" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#18181b">6 Lifted pad</text>
+    <path d="M -34 140 C -18 139 -6 130 -5 108 L -5 140 Z" fill="#cbd5e1" stroke="#64748b" stroke-width="1"/>
+    <path d="M 5 140 L 5 108 C 6 124 14 131 28 131.3 Z" fill="#cbd5e1" stroke="#64748b" stroke-width="1"/>
+    <text x="0" y="232" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#18181b">6 Lifted pad</text>
   </g>
-
-  <g transform="translate(910,0)">
-    <rect x="-55" y="150" width="110" height="55" fill="#d4d4d8" stroke="#52525b" stroke-width="1.5"/>
-    <rect x="-8" y="150" width="16" height="55" fill="#a1a1aa" stroke="#52525b" stroke-width="1"/>
+  <g transform="translate(360,111)">
+    <rect x="-55" y="148" width="110" height="57" fill="#d4d4d8" stroke="#52525b" stroke-width="1.5"/>
+    <rect x="-8" y="148" width="16" height="57" fill="#a1a1aa" stroke="#52525b" stroke-width="1"/>
     <rect x="-42" y="140" width="84" height="8" rx="2" fill="#f59e0b" stroke="#b45309" stroke-width="1"/>
     <rect x="-5" y="85" width="10" height="125" fill="#3f3f46" stroke="#27272a" stroke-width="1"/>
     <path d="M -32 140 L -30 128 C -26 126 -24 134 -20 126 L -16 134 L -12 120 L -8 130 L -4 114 L 0 128 L 4 118 L 8 132 L 12 121 C 16 127 18 134 22 126 C 26 130 29 135 32 140 Z" fill="#cbd5e1" stroke="#64748b" stroke-width="1"/>
     <path d="M -8 138 L -4 128 L 1 135 L 5 123" fill="none" stroke="#334155" stroke-width="1.5" stroke-linecap="round"/>
-    <text x="0" y="280" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#18181b">7 Disturbed joint</text>
+    <text x="0" y="232" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#18181b">7 Disturbed</text>
+    <text x="0" y="252" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#18181b">joint</text>
   </g>
 </svg>

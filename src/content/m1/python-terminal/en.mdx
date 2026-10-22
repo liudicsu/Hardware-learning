@@ -674,20 +674,6 @@ Before moving on, you should be able to answer "yes" to all of these:
 - `log.py` records R1 at 4700 Ω nominal and 4688 Ω measured, checks the 5 % tolerance, and reports 4400 Ω as out of tolerance.
 - Read a traceback bottom-up: the last line names the error and the frames show where it happened.
 
-**Common mistakes**
-
-- Mixing `python` with `python3`, or forgetting to activate the venv before installing.
-- Mixing tabs and spaces, or naming a file after a standard-library module.
-- Committing `.venv`, or overwriting a log with `>` when `>>` was meant.
-- Running `rm -r` on a path that was not checked first.
-
-**Self-check**
-
-- Can you create and activate a venv, install a package and freeze it to `requirements.txt`?
-- Can you run both `ohm.py` subcommands and check the arithmetic by hand?
-- Can you explain why two 10 kΩ resistors in parallel give 5 kΩ?
-- Can you read `measurements.json` and explain why 4688 Ω passes and 4400 Ω fails the 5 % check?
-
 **Used next**
 
 - The next lesson, **Git & GitHub**, puts the month-1 scripts in a repository and tracks every change.
