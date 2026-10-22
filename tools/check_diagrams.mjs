@@ -153,6 +153,32 @@ const tconst = (name) => Number(timingSrc.match(new RegExp(`const ${name} = ([\\
 const T = { LEFT: tconst("LEFT"), COL: tconst("COL"), AVG_PAD: tconst("AVG_PAD"), MIN_SCALE: tconst("MIN_SCALE"), SLOPE: tconst("SLOPE") };
 // inner width of a diagram box on a 390 px phone (page and figure padding), measured with Playwright
 const PHONE_BOX = 332;
+const CELL_PAD = 2; // clear space on each side of a row cell, viewBox units
+const BUS_PAD = 4; // clear space between a bus value and its hexagon's edges, viewBox units
+
+// Sequences pinned to an external reference that the repository cannot hold, compared field by field.
+const PINNED = {
+  // MPU-6000/MPU-6050 Product Specification rev 3.4, §9.3 "Single-Byte Read Sequence":
+  //   master: S AD+W     RA     S AD+R          NACK P
+  //   slave:          ACK    ACK          ACK DATA
+  // (AD+W and AD+R are drawn as the address and the R/W bit in separate columns; Sr is the repeated S.)
+  "i2c-read-who-am-i": {
+    SDA: ["S", "0x68", "W", "ACK", "0x75", "ACK", "Sr", "0x68", "R", "ACK", "0x68", "NACK", "P"],
+    from: ["Uno", "Uno", "Uno", "MPU", "Uno", "MPU", "Uno", "Uno", "Uno", "MPU", "MPU", "Uno", "Uno"],
+  },
+};
+function checkPinned(spec, tag) {
+  const pin = PINNED[spec.id];
+  if (!pin) return;
+  const en = (t) => (typeof t === "string" ? t : t.en);
+  for (const [name, want] of Object.entries(pin)) {
+    const sig = spec.signals.find((s) => en(s.name) === name);
+    const row = (spec.rows ?? []).find((r) => en(r.name) === name);
+    const got = sig ? (sig.values ?? sig.levels).map(en) : row ? row.cells.map(en) : null;
+    ok(got !== null, `${tag}: pinned signal/row "${name}" missing`);
+    if (got) ok(JSON.stringify(got) === JSON.stringify(want), `${tag}: "${name}" is ${JSON.stringify(got)}, the reference says ${JSON.stringify(want)}`);
+  }
+}
 function checkNumbers(spec, tag) {
   for (const n of spec.numbers ?? []) {
     const hit = Math.abs(n.value - n.expect) <= n.tol;
@@ -230,15 +256,16 @@ function checkTiming(spec, tag) {
             let j = i;
             while (j + 1 < vals.length && vals[j + 1] === vals[i]) j++;
             const bw = sum(cw.slice(i, j + 1));
-            const room = bw - Math.min(T.SLOPE, bw / 4);
-            if (vals[i] && vals[i] !== "x") ok(textWidth(vals[i], 16) <= room, `${tag} ${setName} ${JSON.stringify(r)} signal ${k}: "${vals[i]}" (${textWidth(vals[i], 16).toFixed(0)}) wider than its ${room.toFixed(0)}-unit band`);
+            // the flat top of the band minus BUS_PAD on each side
+            const room = bw - 2 * Math.min(T.SLOPE, bw / 4) - 2 * BUS_PAD;
+            if (vals[i] && vals[i] !== "x") ok(textWidth(vals[i], 16) <= room, `${tag} ${setName} ${JSON.stringify(r)} signal ${k}: "${vals[i]}" (${textWidth(vals[i], 16).toFixed(0)}) wider than the ${room.toFixed(0)} units inside its band (padding ${BUS_PAD})`);
             i = j + 1;
           }
         }
       }
       for (const row of spec.rows ?? [])
         for (let i = r[0]; i <= r[1]; i++)
-          for (const t of variants(row.cells[i])) ok(textWidth(t, 17) <= cw[i - r[0]] + 2, `${tag} ${setName}: row cell "${t}" wider than its ${cw[i - r[0]].toFixed(0)}-unit column`);
+          for (const t of variants(row.cells[i])) ok(textWidth(t, 17) <= cw[i - r[0]] - 2 * CELL_PAD, `${tag} ${setName}: row cell "${t}" needs more than its ${cw[i - r[0]].toFixed(0)}-unit column minus ${CELL_PAD} on each side`);
       if (spec.axisLabel) for (const t of variants(spec.axisLabel)) ok(textWidth(t, 14) <= sum(cw), `${tag} ${setName}: axis label "${t}" wider than the time axis`);
       for (const sp of spec.spans ?? []) {
         if (sp.from < r[0] || sp.to > r[1]) continue;
@@ -268,6 +295,7 @@ function checkTiming(spec, tag) {
     for (const i of st.signals ?? []) ok(i >= 0 && i < spec.signals.length, `${tag} step ${k + 1}: signal ${i} does not exist`);
   }
   checkNumbers(spec, tag);
+  checkPinned(spec, tag);
 }
 
 // Spec files are plain data; the only imports allowed are types and JSON data files, inlined here.

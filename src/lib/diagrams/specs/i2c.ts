@@ -20,21 +20,21 @@ const AD_R = (ADDR << 1) | 1;
 
 const UNO = "Uno";
 const MPU = "MPU";
-// one column per field
-const FIELDS: { v: string; from: string }[] = [
-  { v: "S", from: UNO },
-  { v: hex(ADDR), from: UNO },
-  { v: "W", from: UNO },
-  { v: "ACK", from: MPU },
-  { v: hex(REG), from: UNO },
-  { v: "ACK", from: MPU },
-  { v: "Sr", from: UNO },
-  { v: hex(ADDR), from: UNO },
-  { v: "R", from: UNO },
-  { v: "ACK", from: MPU },
-  { v: hex(WHO), from: MPU },
-  { v: "NACK", from: UNO },
-  { v: "P", from: UNO },
+// one column per field; w = relative width (byte fields wider, one-letter fields narrower)
+const FIELDS: { v: string; from: string; w?: number }[] = [
+  { v: "S", from: UNO, w: 0.9 },
+  { v: hex(ADDR), from: UNO, w: 1.4 },
+  { v: "W", from: UNO, w: 0.9 },
+  { v: "ACK", from: MPU, w: 1.2 },
+  { v: hex(REG), from: UNO, w: 1.4 },
+  { v: "ACK", from: MPU, w: 1.2 },
+  { v: "Sr", from: UNO, w: 0.9 },
+  { v: hex(ADDR), from: UNO, w: 1.4 },
+  { v: "R", from: UNO, w: 0.9 },
+  { v: "ACK", from: MPU, w: 1.2 },
+  { v: hex(WHO), from: MPU, w: 1.4 },
+  { v: "NACK", from: UNO, w: 1.4 },
+  { v: "P", from: UNO, w: 0.9 },
 ];
 
 const INO = "examples/month-2/sensors-fusion/imu_pitch/imu_pitch.ino";
@@ -50,6 +50,8 @@ export const i2cWhoAmI: TimingSpec = {
     en: `Each column is one field on SDA. S, Sr and P are SDA edges while SCL is HIGH; an address takes 7 clocks plus the read/write bit on clock 8; the register and data bytes take 8 clocks each; ACK/NACK is clock 9, given by the receiver. The order is the "Single-Byte Read Sequence" of the MPU-6050 Product Specification (rev 3.4) §9.3; the address b110100X is in §9.2 and WHO_AM_I (${hex(REG)}, reset value ${hex(WHO)}) in the Register Map (rev 4.2) §4.32.`,
   },
   sources: [INO, EN, ZH],
+  columns: FIELDS.map((f) => f.w ?? 1),
+  columnScale: 42,
   signals: [{ name: "SDA", kind: "bus", values: FIELDS.map((f) => f.v), tone: "a" }],
   rows: [{ name: { zh: "发送方", en: "from" }, cells: FIELDS.map((f) => f.from) }],
   spans: [
