@@ -438,10 +438,14 @@ function guided(widget, lesson, rows) {
   guided("LineFollow", "m2/first-robots", [
     ["default overshoot", "0.0 mm", fixed(a.overshoot, 1) + " mm", 1],
     ["default settle", "1.30 s", st(a), 1],
+    ["default crossings", "0", String(a.crossings), 1],
     ["kd 0 overshoot", "62.3 mm", fixed(b.overshoot, 1) + " mm", 2],
     ["kd 0 crossings", "3", String(b.crossings), 2],
     ["kd 0.0001 overshoot", "4.8 mm", fixed(e.overshoot, 1) + " mm", 3],
     ["kd 0.0001 settle", "1.47 s", st(e), 3],
+    ["kd 0.0001 crossings", "4", String(e.crossings), 3],
+    ["kd 0.0004 overshoot", "0.0 mm", fixed(f.overshoot, 1) + " mm", 4],
+    ["kd 0.0004 crossings", "0", String(f.crossings), 4],
     ["kd 0.0004 settle", "2.97 s", st(f), 4],
   ]);
   compare("guided LineFollow", "kd 0 never settles", "never", st(b));
