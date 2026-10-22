@@ -18,6 +18,8 @@ Cart-pole, x = [position, speed, angle, rate], 100 Hz
 
 </SimOutput>
 
+<Diagram id="cartpole-signs" />
+
 Read the rows as equations. The second row is speed: p'' = −(m g / M) θ + (1/M) F. The number −3.92 is −m g / M = −0.2 × 9.81 / 0.5; a positive lean pushes the cart backwards. The number 2.00 is 1/M = 1/0.5, the acceleration per newton. The fourth row is angle: θ'' = ((M + m) g / (M L)) θ − (1 / (M L)) F. The number 45.78 is (0.7 × 9.81) / (0.5 × 0.3), the gravity term that makes upright unstable. The number −6.67 is −1 / (0.5 × 0.3): a positive force tips the pole negative. A and B above are continuous; the controller runs at 100 Hz, so the model applies a zero-order hold over 0.01 s.
 
 <Quiz id="q1" question="What is 1/M for the 0.5 kg cart?" answer={2.00} unit="1/kg" explanation="1 / 0.5 = 2.00. This is the second entry of B: one newton gives 2 m/s² of cart acceleration." />
