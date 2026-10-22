@@ -180,12 +180,7 @@ wrap after  = 49.7 days
 
 `enum` 给状态起名，`switch` 决定每个状态做什么。本课游戏有 `WAITING`、`LIT`、`SHOW_RESULT` 三个状态：
 
-```text
-WAITING --(random 2–5 s elapsed)--> LIT
-WAITING --(button pressed)--> SHOW_RESULT ("Foul!")
-LIT --(button pressed)--> SHOW_RESULT (print reaction time)
-SHOW_RESULT --(2 s elapsed)--> WAITING
-```
+<Diagram id="reaction-timer-states" />
 
 每条箭头都有条件，没有一条叫“等一会儿”。`WAITING` 只检查：随机时间到了吗？按键按下了吗？`LIT` 只检查按键；`SHOW_RESULT` 只检查两秒到了吗。每项检查只要几微秒，所以循环始终有响应。
 

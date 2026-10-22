@@ -4,6 +4,16 @@
   --background: #0a0a0b;
   --foreground: #e4e4e7;
   --card: #111113;
+  /* Diagram tokens (src/components/diagrams): text, grid and the two signal accents. */
+  --dg-ink: #e4e4e7;
+  --dg-muted: #a1a1aa;
+  --dg-faint: #71717a;
+  --dg-grid: #3f3f46;
+  --dg-card: #111113;
+  --dg-a: #38bdf8;
+  --dg-b: #f59e0b;
+  --dg-ok: #34d399;
+  --dg-danger: #f87171;
 }
 
 @theme inline {
