@@ -625,6 +625,8 @@ def generate_launch_description():
 
 Nav2 is a set of servers coordinated by a behaviour tree. The parameter file [`m4_nav/config/nav2.yaml`](https://github.com/liudicsu/Hardware-learning/blob/main/examples/month-4/slam-nav/m4_nav/config/nav2.yaml) is based on the one shipped with `nav2_bringup`, and the lines changed for m4bot are marked `# m4bot`. Follow one goal through it:
 
+<Diagram id="nav2-pipeline" />
+
 1. **`bt_navigator`** receives the `NavigateToPose` goal and runs a behaviour tree: plan, follow, and on failure try recoveries (clear the costmaps, spin, wait, back up) before giving up.
 2. **`planner_server`** plans a path on the **global costmap**, which is the saved map (the static layer) plus obstacles currently seen by the lidar, plus inflation. The planner is NavFn, a grid search.
 3. **`controller_server`** follows the path with Regulated Pure Pursuit at up to 0.25 m/s, steering on the **local costmap**, a 3 m × 3 m window around the robot built from the lidar alone. It turns on the spot first when the path points more than 0.785 rad (45°) away from the robot's heading.
