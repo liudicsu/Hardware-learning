@@ -31,7 +31,8 @@ function walk(current, files) {
   return files;
 }
 
-const attrRe = /(?:^|[\s"'<>])(href|src)\s*=\s*(["'])([\s\S]*?)\2/gi;
+// Unquoted attribute values (href=/x) are not scanned; Next.js always quotes them.
+const attrRe = /(?:^|[\s"'<>])(href|src|srcset|imagesrcset)\s*=\s*(["'])([\s\S]*?)\2/gi;
 const failures = [];
 const files = walk(dir, []);
 
@@ -41,13 +42,22 @@ for (const file of files) {
   for (const match of text.matchAll(attrRe)) {
     const attr = match[1].toLowerCase();
     const value = match[3];
-    if (!value.startsWith("/") || value.startsWith("//")) continue;
-    if (basePath && value.startsWith(basePath + basePath)) {
-      failures.push({ file: shown, attr, value });
-      continue;
+    const urls =
+      attr === "srcset" || attr === "imagesrcset"
+        ? value
+            .split(",")
+            .map((candidate) => candidate.trim().split(/\s+/)[0])
+            .filter(Boolean)
+        : [value];
+    for (const url of urls) {
+      if (!url.startsWith("/") || url.startsWith("//")) continue;
+      if (basePath && url.startsWith(basePath + basePath)) {
+        failures.push({ file: shown, attr, value: url });
+        continue;
+      }
+      if (url.startsWith(basePath) && (url.length === basePath.length || "/#?".includes(url[basePath.length]))) continue;
+      failures.push({ file: shown, attr, value: url });
     }
-    if (value === basePath || value.startsWith(basePath + "/")) continue;
-    failures.push({ file: shown, attr, value });
   }
 }
 
