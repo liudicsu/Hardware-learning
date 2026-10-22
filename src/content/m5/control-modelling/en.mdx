@@ -203,6 +203,14 @@ These numbers already include two lags that a continuous C × P sketch leaves ou
 
 <BodeWidget />
 
+**Guided experiment.** This experiment shows how the derivative gain and proportional gain move the phase margin of the joint loop, and how the resulting phase margin predicts overshoot.
+
+1. Leave kp = 2.86 and kd = 0.115 and read gain crossover = 34.6 rad/s, phase margin = 56°, phase crossover = 150.8 rad/s, gain margin = 14.2 dB (× 5.1) and overshoot on a 0.1 rad step = 2 %.
+2. Set kd = 0.000 and read phase margin = 15°, gain margin = 7.5 dB (× 2.4) and overshoot = 66 %.
+3. Set kd = 0.115 and kp = 5.00 and read phase margin = 40° and overshoot = 16 %.
+4. Set kp = 8.00 and read phase margin = 26° and overshoot = 38 %.
+5. Conclusion: a smaller phase margin gives a larger overshoot, from 56° and 2 % at the default to 40° and 16 % and 26° and 38 %; kd adds phase lead near crossover, and the 5 ms sample-and-hold delay costs ω·T rad of phase.
+
 <Resource id="ctms-frequency" />
 
 The Michigan tutorial reads gain and phase margins off Bode plots step by step and checks them against step responses, the same exercise as the next section; its code is MATLAB, but every idea maps onto `joint_freq.py`.

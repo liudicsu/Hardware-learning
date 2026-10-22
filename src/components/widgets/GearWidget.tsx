@@ -21,7 +21,9 @@ export function GearWidget() {
   const gap = ring - sun;
   let status: string;
   if (gap % 2) status = t("gearNoMesh", { teeth: fixed(gap / 2, 1) });
-  else if (!p.ok) status = t("gearNoSpace", { n: planets, q: fixed((sun + ring) / planets, 2) });
+  else if ((sun + ring) % planets) status = t("gearNoSpace", { n: planets, q: fixed((sun + ring) / planets, 2) });
+  else if (!p.ok)
+    status = t("gearCollide", { n: planets, s: fixed((sun + p.planet!) * Math.sin(Math.PI / planets), 2), d: p.planet! + 2 });
   else status = t("gearOk", { ratio: fixed(p.ratio!, 3) });
   return (
     <WidgetShell

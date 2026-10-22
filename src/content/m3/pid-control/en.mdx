@@ -126,9 +126,15 @@ The motor limit is where the integral term gets into trouble. At the start the e
 
 The last four lines of the output show the size of the problem. With Ki = 0.1 and anti-windup, the PID overshoots 0.1°; without anti-windup it overshoots 8.8°. With Ki = 0.4, anti-windup gives 8.9° and no anti-windup gives 39.0°. The higher the integral gain, the faster it accumulates and the worse the overshoot.
 
-Try it: set Ki to 0.4 and toggle anti-windup to compare 8.9° against 39.0° overshoot, then set Ki = 0 to see the steady error.
-
 <PidWidget />
+
+**Guided experiment.** This experiment shows how integral gain and anti-windup change overshoot and settling in a gravity-loaded joint, and how proportional gain alone leaves a steady error.
+
+1. Leave Kp = 0.050, Ki = 0.10, Kd = 0.0020 and anti-windup on, then read final angle = 60.0°, overshoot = 0.1° and Within 1° from = 0.24 s.
+2. Set Ki = 0.40 and read overshoot = 8.9° and Within 1° from = 0.56 s.
+3. Turn anti-windup off and read overshoot = 39.0° and Within 1° from = 0.64 s.
+4. Turn anti-windup on and set Ki = 0.00, then read final angle = 55.5° and Within 1° from = never.
+5. Set Ki = 0.10 and Kd = 0.0000 and read overshoot = 11.5° and Within 1° from = 0.92 s. Conclusion: with Ki = 0 the steady error is the gravity torque divided by Kp: 0.4 N·m × cos 55.5° = 0.227 N·m, 0.227 / 0.05 = 4.5°, so 60° − 4.5° = 55.5°; anti-windup stops the integral accumulating while the torque is saturated at 1 N·m.
 
 The fix in the model is one condition: only integrate while the output is not saturated. In code, that is the line `if not anti_windup or torque == unclipped:`. When the requested torque is larger than the limit, `torque` and `unclipped` differ, so the integral is frozen; it starts accumulating only after the arm is close enough that P alone no longer saturates the motor. Other fixes work on the same principle. Clamp the integral to a range, as the balancer's outer loop does. Or reset the integral when the target jumps, so old error from a previous move does not leak into the new one. Any of them is better than letting the integral run while the motor is flat out.
 

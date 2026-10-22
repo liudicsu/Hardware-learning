@@ -241,6 +241,14 @@ Read K as four numbers: position, speed, angle, rate. The baseline K is [−0.92
 
 <LqrWidget />
 
+**Guided experiment.** This experiment shows how the LQR weights trade state error against control force, with the peak force approaching the 10 N limit as R shrinks.
+
+1. Leave Q1 = 1.0, Q3 = 10 and R = 1.0 and read K = [−0.92, −1.75, −18.76, −3.03] and peak force = 3.28 N.
+2. Set R = 0.01 and read K = [−6.86, −10.95, −59.07, −11.51] and peak force = 10.00 N (at the 10 N limit).
+3. Set R = 1.0 and Q1 = 100, keep Q3 = 10, and read K = [−9.01, −6.54, −29.74, −4.91] and peak force = 5.19 N.
+4. Set Q1 = 1.0 and R = 10 and read K = [−0.29, −0.78, −15.51, −2.37] and peak force = 2.71 N.
+5. Conclusion: LQR trades state error against force; a smaller R makes force cheap so all gains grow until the force saturates (R = 0.01 reaches 10.00 N at the 10 N limit against 3.28 N at R = 1.0), and a larger Q1 tightens the position return (Q1 = 100 raises peak force to 5.19 N).
+
 Note the sign of the position gain. The position gain is negative, like the angle gain. With u = −K x, a positive position error, meaning the cart is to the right of the target, commands a positive force and pushes it further right. That is deliberate: the controller first tips the pole left, then drives left to catch it. A cart-pole is non-minimum phase in position, so an immediate push toward the target would lean the pole the wrong way.
 
 To use less force, raise R or lower the state weights. Raising the position weight in Q instead gives a tighter return and spends more force.

@@ -150,6 +150,14 @@ The token row for joint 0 shows the other problem. At 30 Hz consecutive actions 
 
 <ActionTokenWidget />
 
+**Guided experiment.** This experiment shows how a continuous joint angle is quantised into one of 256 bin tokens, and how clipping at the dataset percentile limits produces a large error outside the range.
+
+1. Set the joint selector to joint 0 and read the range −83.73° .. 77.37°; the bin width is 161.10 / 256 = 0.629°.
+2. Set angle = 16.3° and read Token = 158, Decoded (bin centre) = 16.02° and error = 0.28°.
+3. Set angle = 0.0° and read Token = 133, Decoded (bin centre) = 0.28° and error = 0.28°.
+4. Set angle = 100.0° and read Token = 255, Decoded (bin centre) = 77.06° and error = 22.94°, and the note that the value was clipped to the range.
+5. Conclusion: inside the range the error is at most half a bin (0.31°); outside the 1st..99th percentile the value is clipped to the edge bin first, which is why 100.0° gives Token 255 and error 22.94°.
+
 <Quiz id="q2" question="ALOHA's two arms have 14 action dimensions and run at 50 Hz. How many bin tokens is one second of actions?" answer={700} unit="tokens" explanation="14 dimensions × 50 steps = 700 tokens, generated one after another. That is why per-step binning becomes impractical for fast, many-jointed robots." />
 
 ## Compressing a chunk with the DCT

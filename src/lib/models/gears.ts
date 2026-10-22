@@ -27,6 +27,17 @@ export function planetary(sun: number, ring: number, planets: number): Planetary
         `evenly ((sun + ring) / ${planets} = ${fixed((sun + ring) / planets, 2)})`,
     };
   }
+  const spacing = (sun + planet) * Math.sin(Math.PI / planets); // planet centre to centre, in modules
+  if (spacing <= planet + 2) {
+    return {
+      ok: false,
+      planet,
+      ratio: null,
+      line:
+        `sun ${int(sun, 2)}, ring ${int(ring, 2)}, planet ${int(planet, 2)}: ${planets} planets collide ` +
+        `(centre spacing ${fixed(spacing, 2)} <= tip diameter ${planet + 2})`,
+    };
+  }
   const ratio = 1 + ring / sun;
   return { ok: true, planet, ratio, line: `sun ${int(sun, 2)}, ring ${int(ring, 2)}, planet ${int(planet, 2)}, ${planets} planets: ratio ${fixed(ratio, 3)} : 1` };
 }

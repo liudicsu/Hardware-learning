@@ -169,7 +169,7 @@ The world is analog: temperature, light, position and sound vary continuously. T
 
 - `analogRead(A0)` returns a number from **0 to 1023**.
 - 0 corresponds to 0 V; 1023 corresponds to the reference voltage, which is 5 V by default on the Uno.
-- The conversion takes roughly 100 µs, so reading one channel in a tight loop is possible but not instant.
+- The conversion takes roughly 100 µs, so reading one channel in a tight loop is possible but not instant. The ATmega328P datasheet specifies 13 ADC clock cycles per conversion (25 for the first one after the ADC is enabled), and the Arduino core sets the ADC clock to 16 MHz / 128 = 125 kHz: 13 / 125 kHz = 104 µs.
 - Only A0–A5 are connected to the ADC. Applying more than 5 V (or a negative voltage) to an analog pin can damage the chip, so use a divider when measuring a higher voltage.
 
 ### From raw to volts
@@ -234,7 +234,7 @@ The Uno has no true analog output. There is no digital-to-analog converter that 
 - 255 means always HIGH (100 % duty).
 - 128 means HIGH for about half of every period.
 
-The PWM frequency on the Uno is fixed by the timers: about **490 Hz** on pins 3, 9, 10 and 11, and about **980 Hz** on pins 5 and 6. The period is therefore roughly 2 ms or 1 ms. Only the pins marked `~` can do this. Calling `analogWrite()` on a non-PWM pin does not give you a proportional output.
+The PWM frequency on the Uno is fixed by the timers: about **490 Hz** on pins 3, 9, 10 and 11, and about **980 Hz** on pins 5 and 6. The period is therefore roughly 2 ms or 1 ms. Both come from the timer settings of the Arduino core: every timer runs from 16 MHz / 64 = 250 kHz. Timer0 (pins 5 and 6) uses fast PWM and counts 0 … 255, so 250 kHz / 256 = 976.6 Hz. Timer1 (pins 9, 10) and Timer2 (pins 3, 11) use phase-correct PWM, which counts up to 255 and back down, 510 steps per period: 250 kHz / 510 = 490.2 Hz. Only the pins marked `~` can do this. Calling `analogWrite()` on a non-PWM pin does not give you a proportional output.
 
 ### Average voltage
 

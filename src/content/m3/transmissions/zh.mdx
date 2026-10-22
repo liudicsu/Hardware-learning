@@ -42,7 +42,7 @@
 
 这个“+1”是怎么来的，值得想清楚。先把行星架按住不动：这时它就是一组普通齿轮，齿圈（反向）转一圈，太阳轮就转“齿圈齿数 / 太阳轮齿数”圈。再把整个减速级当成一块整体，正向转一圈：包括太阳轮在内的每个零件都多转一圈，而齿圈刚好回到原位，相当于一直没动。把两段运动加起来：行星架转了一圈，太阳轮转了 1 + 齿圈 / 太阳轮 圈。正因为白送了这一圈，行星减速才能在很短的轴向尺寸里给出可观的减速比。
 
-几何还给出两条装配规则，动笔画图之前必须先在纸上满足。第一，行星轮要正好填满太阳轮和齿圈之间的空隙，所以它的齿数必须是整数：
+几何还给出三条装配规则，动笔画图之前必须先在纸上满足。第一，行星轮要正好填满太阳轮和齿圈之间的空隙，所以它的齿数必须是整数：
 
 ```text
 行星轮齿数 = (齿圈 − 太阳轮) / 2，必须是整数
@@ -54,7 +54,13 @@
 (太阳轮 + 齿圈) / N 必须是整数
 ```
 
-除不尽时，行星轮就不能等分；分布不均会让这一级失去平衡，既振动，各个行星轮的受力也不均匀。两条规则都满足时，好几个行星轮同时分担载荷，这正是行星减速在同等直径下又紧凑又有力的原因：同一份扭矩由三组或四组齿同时传递，而不是压在一对齿上。
+除不尽时，行星轮就不能等分；分布不均会让这一级失去平衡，既振动，各个行星轮的受力也不均匀。第三，相邻的行星轮不能相碰。设模数为 m，每个行星轮的中心到太阳轮轴线的距离是 (太阳轮 + 行星轮) × m / 2，所以 N 个行星轮中相邻两个的中心距是 (太阳轮 + 行星轮) × m × sin(180° / N)。标准齿轮的齿顶圆直径是 (齿数 + 2) × m，因此只有满足下式，行星轮之间才有间隙：
+
+```text
+(太阳轮 + 行星轮) × sin(180° / N) > 行星轮 + 2
+```
+
+以太阳轮 12、齿圈 48（行星轮 18）为例：三个行星轮时 30 × sin 60° = 25.98 > 20，四个时 30 × sin 45° = 21.21 > 20，但五个时 30 × sin 36° = 17.63 < 20：(12 + 48) / 5 = 12 满足等分规则，五个行星轮却会互相重叠。三条规则都满足时，好几个行星轮同时分担载荷，这正是行星减速在同等直径下又紧凑又有力的原因：同一份扭矩由三组或四组齿同时传递，而不是压在一对齿上。
 
 ### 摆线减速
 
@@ -77,7 +83,8 @@
 
 1. Planetary stage (ring fixed, sun in, carrier out): ratio = 1 + ring / sun.
    It only assembles if planet = (ring - sun) / 2 is a whole number of teeth and
-   (sun + ring) / planets is a whole number (equally spaced planets).
+   (sun + ring) / planets is a whole number (equally spaced planets), and neighbouring
+   planets do not touch: (sun + planet) x sin(180 deg / planets) > planet + 2.
 2. Cycloidal stage with N ring pins and N - 1 lobes: ratio N - 1, output turns backwards.
 3. What a ratio n does: torque x n (minus losses), speed / n, and what you feel when you
    turn the output by hand: friction x n and rotor inertia x n^2.
@@ -94,6 +101,10 @@ def planetary(sun, ring, planets):
     if (sun + ring) % planets:
         return (f"sun {sun:2d}, ring {ring:2d}, planet {planet:2d}: {planets} planets cannot be spaced "
                 f"evenly ((sun + ring) / {planets} = {(sun + ring) / planets:.2f})")
+    spacing = (sun + planet) * math.sin(math.pi / planets)   # planet centre to centre, in modules
+    if spacing <= planet + 2:                                # planet tip diameter, in modules
+        return (f"sun {sun:2d}, ring {ring:2d}, planet {planet:2d}: {planets} planets collide "
+                f"(centre spacing {spacing:.2f} <= tip diameter {planet + 2})")
     return f"sun {sun:2d}, ring {ring:2d}, planet {planet:2d}, {planets} planets: ratio {1 + ring / sun:.3f} : 1"
 
 
@@ -163,6 +174,14 @@ ratio 25:1, efficiency 81 %: output 1.01 N*m at 240 rpm (motor: 0.05 N*m at 6000
 逐行看行星那几行。太阳轮 12 齿、齿圈 48 齿时，间隙是 48 − 12 = 36，行星轮就是 36 / 2 = 18 齿，整数。等距检验是 (12 + 48) / 3 = 20，也是整数，所以三个行星轮可以等分。减速比是 1 + 48 / 12 = 1 + 4 = 5.000 : 1。太阳轮 12、齿圈 46 时，行星轮是 (46 − 12) / 2 = 17 齿，本身没问题，但等距检验不通过：(12 + 46) / 3 = 58 / 3 = 19.33，三个行星轮分不均匀。太阳轮 13、齿圈 47 时，行星轮是 (47 − 13) / 2 = 17 齿，(13 + 47) / 3 = 60 / 3 = 20，于是能装，减速比是 1 + 47 / 13 = 1 + 3.615 = 4.615 : 1。太阳轮 14、齿圈 46、四个行星轮时，行星轮是 (46 − 14) / 2 = 16 齿，60 / 4 = 15，能装，减速比 1 + 46 / 14 = 4.286 : 1。太阳轮 12、齿圈 45 时，间隙 45 − 12 = 33 是奇数，行星轮需要 16.5 齿，这级根本无法啮合。
 
 <GearWidget />
+
+<strong>动手实验。</strong>本实验展示齿数与行星轮个数如何决定行星级能否装配，以及回差与臂长如何把关节间隙转化为末端误差。
+
+1. 保持太阳轮齿数 sun = 12、齿圈齿数 ring = 48、行星轮个数 planets = 3，读取行星轮齿数 = 18、状态行 = “能装配，减速比 5.000 : 1”。
+2. 将齿圈齿数 ring 设为 46，读取状态行 = “3 个行星轮无法均布（(太阳 + 齿圈) / 3 = 19.33）”。
+3. 将齿圈齿数 ring 设为 47，读取状态行 = “行星轮要 17.5 齿，不是整数：无法啮合”。
+4. 将齿圈齿数 ring 设为 48、行星轮个数 planets 设为 4，读取状态行 = “能装配，减速比 5.000 : 1”；再将行星轮个数 planets 设为 5，读取状态行 = “5 个行星轮会相碰：中心距 17.63 ≤ 行星轮齿顶圆直径 20（以模数为单位）”。
+5. 设置臂长 = 0.30 m、回差 = 2.0°，读取末端误差 = 10.5 mm；将回差设为 0.5°，读取 2.6 mm；在回差 = 2.0° 下将臂长设为 0.60 m，读取 20.9 mm。结论：末端误差 = 臂长 × 角度(rad)（0.30 × 2.0° × π/180 = 0.0105 m）；5 个行星轮满足均布条件（60/5 = 12），但相邻行星轮会重叠。
 
 摆线那两行更短，因为算术更简单。10 个针齿配 9 个齿瓣，减速比 9 : 1；16 个针齿配 15 个齿瓣，减速比 15 : 1。两种输出的转向都和输入相反。想要别的减速比就改针齿数，但要记住，这种构造下减速比永远是 N − 1，所以单个盘给不出任意比例；要更宽的范围，通常是再叠一级，或者在前面加一级行星减速。
 

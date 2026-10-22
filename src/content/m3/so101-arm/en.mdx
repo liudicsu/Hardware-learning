@@ -169,6 +169,14 @@ reply params 2C 0C → 0x0C2C = 3116 steps → 3116 × 360 / 4096 = 273.9°
 
 <StsPacketWidget />
 
+**Guided experiment.** This experiment shows how the STS3215 packet encodes ID, instruction and parameters, and how the checksum detects a corrupted byte.
+
+1. Select the goal packet, set servo ID = 1 and goal position = 2048, then read the packet bytes = FF FF 01 05 03 2A 00 08 C4.
+2. Set goal position = 1024 and read the packet bytes = FF FF 01 05 03 2A 00 04 C8 (0x0400 little-endian = 00 04; checksum = ~(sum) low byte).
+3. Set servo ID = 2 and goal position = 2048, then read the packet bytes = FF FF 02 05 03 2A 00 08 C3.
+4. Paste the reply FF FF 06 04 00 2C 0C BD into the reply box and read the parsed reply "servo 6, error 0, position 3116 = 273.9°".
+5. Change 0C to 0D in the reply and read "bad checksum: the bytes were corrupted on the wire". Conclusion: checksum = 0xFF − (sum of ID…last parameter & 0xFF); one bit flipped makes it mismatch.
+
 The reply line decodes the same way. Its LENGTH is 4, because it carries two data bytes plus the error byte and the checksum. The error byte is 0, so the servo is happy. The parameters 2C 0C are little-endian: 0x0C2C = 3116, and 3116 / 4096 of a turn is 273.9°. The final line flips one bit in the low data byte, 0C becomes 0D, and the checksum catches it before anyone can mistake 0x0D2C for a real position. That is the point of a checksum: it does not repair the message, it refuses it.
 
 <Quiz id="q2" question="What is the checksum of a ping to servo 2 (FF FF 02 02 01 ?)?" options={["FA", "FB", "05", "FD"]} answer={0} explanation="Add the bytes covered by the checksum: 02 + 02 + 01 = 05. Invert the low byte: 0xFF − 0x05 = 0xFA." />
