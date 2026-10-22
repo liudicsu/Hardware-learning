@@ -605,6 +605,13 @@ tilt_link -> camera_link: 平移 (0.02, 0, 0)
 
 <PanTiltWidget />
 
+**动手实验。**本实验展示 pan 与 tilt 关节旋转如何只移动 0.02 m 的相机偏移，从而改变 camera_link 在 base_link 中的平移。
+
+1. 保持 pan = 30°、tilt = 0°，读取 Translation = [−0.043, 0.010, 0.305]。
+2. 将 pan 设为 0°，读取 Translation = [−0.040, 0.000, 0.305]。
+3. 将 pan 设为 0°、tilt 设为 30°，读取 Translation = [−0.043, 0.000, 0.295]；再将 tilt 设为 −30°，读取 Translation = [−0.043, 0.000, 0.315]。
+4. 结论：只有关节之后的 0.02 m 相机偏移在移动；pan 绕 z 旋转该偏移，tilt 绕 y 旋转该偏移（x：−0.060 + 0.02 × cos 30° = −0.060 + 0.017 = −0.043；0.02 × sin 30° = 0.010，pan 时进入 y，tilt 时进入 z）。
+
 <Resource id="ar-transforms" />
 
 <Quiz id="q4" question="还是这条链，把云台转到 90°（tilt 0°）。camera_link 在 base_link 里的 y 平移是多少米？" answer={0.02} tolerance={0.001} explanation="把 (0.02, 0, 0.035) 绕 z 转 90° 得到 (0, 0.02, 0.035)；转的只有相机那 2 cm 的前向偏移，所以 y = 0.02 m。" />

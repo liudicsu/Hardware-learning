@@ -127,6 +127,14 @@ Lesson 1's 61/100 (5 demos) and 67/100 (20 demos) have overlapping intervals, 51
 
 <WilsonWidget />
 
+**Guided experiment.** This experiment shows how the Wilson 95 % interval narrows with the number of trials, and why an extreme result such as 10/10 still leaves a wide interval.
+
+1. Leave trials n = 100 and successes k = 61 and read success rate = 61.0 % and 95 % interval = 51.2 .. 70.0 %.
+2. Set trials n = 200 and successes k = 122 and read success rate = 61.0 % and 95 % interval = 54.1 .. 67.5 %.
+3. Set trials n = 10 and successes k = 10 and read success rate = 100.0 % and 95 % interval = 72.2 .. 100.0 %.
+4. Set successes k = 9 and read success rate = 90.0 % and 95 % interval = 59.6 .. 98.2 %.
+5. Set trials n = 50 and successes k = 50 and read 95 % interval = 92.9 .. 100.0 %. Conclusion: the interval narrows roughly with 1/√n (width 18.8 points at n = 100, 13.4 at n = 200, ratio 1.40 ≈ √2); 10/10 only shows the rate is probably above 72.2 %.
+
 <Quiz id="q1" question="A shortcut for zero failures (the rule of three): with 0 failures in n trials, the 95 % upper bound on the failure rate is about 3/n. What is it for 50 trials, in percent?" answer={6} unit="%" explanation="3 / 50 = 0.06 = 6 %. So 50 clean trials say the policy fails less than about 6 % of the time; 10 clean trials only say less than about 30 %." />
 
 ## The same policy on different days
@@ -179,6 +187,8 @@ How many trials you need depends on how close the two policies are. The program 
 ```
 
 </SimOutput>
+
+Worked through for 80 % vs 90 %: the pooled rate is p̄ = (0.80 + 0.90) / 2 = 0.85. The first term is z95 × √(2 p̄ (1 − p̄)) = 1.959964 × √0.255 = 0.9897; the second is z80 × √(p1(1 − p1) + p2(1 − p2)) = 0.841621 × √(0.16 + 0.09) = 0.4208. Their sum is 1.4105, squared 1.9896, divided by the squared difference 0.10² = 0.01: 198.96, rounded up to 199 trials.
 
 A big difference such as lesson 1's 67 % against 99 % shows up in about 20 trials. A 10-point improvement on an already good policy, 80 % to 90 %, needs about 200 trials per policy, which is days of resetting by hand. Two practical consequences: aim your effort at changes big enough to measure, and use paired trials, which need fewer trials than this unpaired formula when the policies agree on most of them.
 

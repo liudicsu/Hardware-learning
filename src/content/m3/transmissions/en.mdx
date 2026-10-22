@@ -42,7 +42,7 @@ ratio = 1 + ring / sun
 
 It is worth seeing where the plus one comes from. First hold the carrier still: the gears become an ordinary train, and turning the ring once (backwards) turns the sun ring / sun times. Now turn the whole stage once forwards as a solid block: every part, sun included, gains one turn, and the ring is back where it started, so it has in effect been held still. Add the two motions: the carrier made one turn while the sun made 1 + ring / sun turns. That free extra turn is why a planetary gives a useful ratio in a very short package.
 
-Geometry imposes two assembly rules that you must satisfy on paper before you print anything. First, the planets must fill the gap between the sun and the ring, so the planet tooth count must be a whole number:
+Geometry imposes three assembly rules that you must satisfy on paper before you print anything. First, the planets must fill the gap between the sun and the ring, so the planet tooth count must be a whole number:
 
 ```text
 planet = (ring − sun) / 2 must be a whole number of teeth
@@ -54,7 +54,13 @@ If ring minus sun is odd, the planets would need half a tooth and the stage will
 (sun + ring) / N must be a whole number
 ```
 
-If it is not, the planets cannot be spaced equally, and unequal spacing leaves the stage unbalanced, so it vibrates and loads the planets unevenly. When both rules are satisfied, several planets share the load, which is why a planetary is compact and strong for its diameter: the same torque passes through three or four sets of teeth at once instead of one.
+If it is not, the planets cannot be spaced equally, and unequal spacing leaves the stage unbalanced, so it vibrates and loads the planets unevenly. Third, neighbouring planets must not touch. With module m, each planet centre sits at (sun + planet) × m / 2 from the sun's axis, so two neighbours of N planets are (sun + planet) × m × sin(180° / N) apart, centre to centre. A standard gear's tip diameter is (teeth + 2) × m, so the planets clear each other only if:
+
+```text
+(sun + planet) × sin(180° / N) > planet + 2
+```
+
+For sun 12 and ring 48 (planet 18), three planets give 30 × sin 60° = 25.98 > 20 and four give 30 × sin 45° = 21.21 > 20, but five give 30 × sin 36° = 17.63, less than 20: (12 + 48) / 5 = 12 passes the spacing rule, yet the five planets overlap. When all three rules are satisfied, several planets share the load, which is why a planetary is compact and strong for its diameter: the same torque passes through three or four sets of teeth at once instead of one.
 
 ### Cycloidal
 
@@ -77,7 +83,8 @@ The program below is ordinary arithmetic run on the editor's computer with Pytho
 
 1. Planetary stage (ring fixed, sun in, carrier out): ratio = 1 + ring / sun.
    It only assembles if planet = (ring - sun) / 2 is a whole number of teeth and
-   (sun + ring) / planets is a whole number (equally spaced planets).
+   (sun + ring) / planets is a whole number (equally spaced planets), and neighbouring
+   planets do not touch: (sun + planet) x sin(180 deg / planets) > planet + 2.
 2. Cycloidal stage with N ring pins and N - 1 lobes: ratio N - 1, output turns backwards.
 3. What a ratio n does: torque x n (minus losses), speed / n, and what you feel when you
    turn the output by hand: friction x n and rotor inertia x n^2.
@@ -94,6 +101,10 @@ def planetary(sun, ring, planets):
     if (sun + ring) % planets:
         return (f"sun {sun:2d}, ring {ring:2d}, planet {planet:2d}: {planets} planets cannot be spaced "
                 f"evenly ((sun + ring) / {planets} = {(sun + ring) / planets:.2f})")
+    spacing = (sun + planet) * math.sin(math.pi / planets)   # planet centre to centre, in modules
+    if spacing <= planet + 2:                                # planet tip diameter, in modules
+        return (f"sun {sun:2d}, ring {ring:2d}, planet {planet:2d}: {planets} planets collide "
+                f"(centre spacing {spacing:.2f} <= tip diameter {planet + 2})")
     return f"sun {sun:2d}, ring {ring:2d}, planet {planet:2d}, {planets} planets: ratio {1 + ring / sun:.3f} : 1"
 
 
@@ -163,6 +174,14 @@ ratio 25:1, efficiency 81 %: output 1.01 N*m at 240 rpm (motor: 0.05 N*m at 6000
 Walk through the planetary lines with the arithmetic. For sun 12 and ring 48, the gap is 48 − 12 = 36, so the planet size is 36 / 2 = 18 teeth, a whole number. The spacing test is (12 + 48) / 3 = 20, also whole, so three planets can be spaced evenly. The ratio is 1 + 48 / 12 = 1 + 4 = 5.000 : 1. For sun 12 and ring 46, the planet size is (46 − 12) / 2 = 17, which is fine, but the spacing test fails: (12 + 46) / 3 = 58 / 3 = 19.33, so three planets cannot be equally spaced. For sun 13 and ring 47, the planet is (47 − 13) / 2 = 17 teeth and (13 + 47) / 3 = 60 / 3 = 20, so it assembles, with ratio 1 + 47 / 13 = 1 + 3.615 = 4.615 : 1. For sun 14, ring 46 and four planets, the planet is (46 − 14) / 2 = 16 and 60 / 4 = 15, so it assembles with ratio 1 + 46 / 14 = 4.286 : 1. For sun 12 and ring 45, the gap is 45 − 12 = 33, which is odd, so the planet would need 16.5 teeth; the stage will not mesh at all.
 
 <GearWidget />
+
+**Guided experiment.** This experiment shows how tooth counts and planet count determine whether a planetary stage assembles, and how backlash and reach turn joint play into tip error.
+
+1. Leave sun teeth = 12, ring teeth = 48 and planets = 3 and read planet teeth = 18 and status line = "Assembles, ratio 5.000 : 1".
+2. Set ring teeth = 46 and read status line = "3 planets cannot be spaced evenly ((sun + ring) / 3 = 19.33)".
+3. Set ring teeth = 47 and read status line = "The planet would need 17.5 teeth, not a whole number: will not mesh".
+4. Set ring teeth = 48 and planets = 4 and read status line = "Assembles, ratio 5.000 : 1"; then set planets = 5 and read status line = "5 planets collide: centre spacing 17.63 ≤ planet tip diameter 20 (in modules)".
+5. Set arm reach = 0.30 m and backlash = 2.0° and read tip error = 10.5 mm; set backlash = 0.5° and read 2.6 mm; set arm reach = 0.60 m with backlash = 2.0° and read 20.9 mm. Conclusion: tip error = arm reach × angle in rad (0.30 × 2.0° × π/180 = 0.0105 m); 5 planets pass the spacing rule (60/5 = 12) but neighbouring planets overlap.
 
 The cycloidal lines are shorter because the arithmetic is simpler. Ten ring pins give nine lobes and a ratio of 9 : 1; sixteen pins give fifteen lobes and 15 : 1. Both outputs turn the opposite way to the input. If you want a different ratio, change the pin count, but remember that the ratio is always N − 1 with this construction, so you cannot get any ratio you like from a single disc. Getting a wider range usually means stacking a second stage or adding a planetary in front.
 

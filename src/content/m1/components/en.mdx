@@ -39,6 +39,8 @@ Rules of thumb (charging from zero):
 - After **1 τ** the capacitor reaches **≈ 63 %** of its target voltage;
 - After **5 τ** it reaches **≈ 99 %** — engineering-wise, "charged".
 
+Both numbers come from the charging curve V(t) = V_final × (1 − e^(−t/τ)). At t = τ the fraction is 1 − e^(−1) = 0.632; at t = 5τ it is 1 − e^(−5) = 0.993.
+
 **Worked example**: the embedded Falstad RC example uses R = 180 Ω and C = 33 µF.
 
 ```text

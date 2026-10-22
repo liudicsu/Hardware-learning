@@ -200,6 +200,14 @@ L 10.0  t 1.2  hook 0.8 mm, PLA,  lead-in 60 deg: strain 1.44 % ok              
 
 <SnapFitWidget />
 
+**Guided experiment.** This experiment shows how the snap-fit geometry sets root strain, and how material and lead-in angle change the push-on force at the same strain.
+
+1. Set L = 10.0 mm, t = 1.2 mm, hook depth y = 0.8 mm, material PLA and lead-in angle 30°, then read Root strain = 1.44 % and Push-on force = 7.7 N.
+2. Set L = 5.0 mm, t = 1.5 mm and y = 1.0 mm, then read Root strain = 9.00 % and Push-on force = 150.4 N.
+3. Set L = 10.0 mm, keep t = 1.5 mm and y = 1.0 mm, then read Root strain = 2.25 % and Push-on force = 18.8 N.
+4. Return to L = 10.0 mm, t = 1.2 mm and y = 0.8 mm with PLA, set lead-in angle 60° and read Root strain = 1.44 % and Push-on force = 30.7 N; then set lead-in angle 30° and material PETG and read Root strain = 1.44 % and Push-on force = 4.4 N.
+5. Conclusion: strain ε = 1.5·t·y/L² depends only on geometry (1.5 × 1.2 × 0.8 / 10² = 0.0144, shown as 1.44 %); the force also depends on the material's modulus and the lead-in angle, and the allowed strain is 1.5 % for PLA in this lesson.
+
 Walk through each line. The short thick arm, L = 5, is the first design people draw; it strains 9 % and would crack. Doubling the length cuts the strain to 2.25 %, still above the limit. The thinner arm with a shallower hook gets to 1.44 %, inside the 1.5 % we allow for PLA. PETG is less stiff, so the same arm pushes on with less force, 4.4 N against 7.7 N. A steep 60° lead-in quadruples the push-on force to 30.7 N — that is how you make a snap that is hard to close.
 
 The limits in the script, 1.5 % for PLA and 2.5 % for PETG, are the editor's cautious rules of thumb for printed parts, not datasheet values. A printed arm is weakest when it bends across its layers, and a real part has a fillet, layer lines and friction that the formula ignores. Print one test arm and snap it 20 times before you trust it in a case.

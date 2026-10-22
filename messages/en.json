@@ -234,6 +234,7 @@
     "gearPlanet": "Planet teeth",
     "gearNoMesh": "The planet would need {teeth} teeth, not a whole number: will not mesh",
     "gearNoSpace": "{n} planets cannot be spaced evenly ((sun + ring) / {n} = {q})",
+    "gearCollide": "{n} planets collide: centre spacing {s} ≤ planet tip diameter {d} (in modules)",
     "gearOk": "Assembles, ratio {ratio} : 1",
     "gearSun": "sun teeth",
     "gearRing": "ring teeth",

@@ -278,7 +278,13 @@ Read the rows against the worked examples: straight at 0.2 m/s is 4.0 rad/s on b
 
 <DiffDriveWidget />
 
-Try the quiz 3 bug in the widget: change only `wheel_separation` and every straight row stays the same while every turn changes.
+**Guided experiment.** This experiment shows how the differential-drive inverse kinematics maps v and ω to wheel speeds, and how wheel radius, separation and the ±10 rad/s limit modify the result.
+
+1. Leave v = 0.00 m/s, ω = 1.0 rad/s, b = 0.28 m and r = 0.050 m and read left wheel = −2.8 rad/s, right wheel = 2.8 rad/s, turn radius = 0 (in place).
+2. Set v = 0.20 m/s and ω = 0.0 rad/s and read left wheel = 4.0 rad/s, right wheel = 4.0 rad/s, turn radius = none (straight).
+3. Set v = 0.20 m/s and ω = 0.5 rad/s and read left wheel = 2.6 rad/s, right wheel = 5.4 rad/s, turn radius = 0.40 m.
+4. With v = 0.20 m/s and ω = 0.5 rad/s, set b = 0.34 m and read left wheel = 2.3 rad/s and right wheel = 5.7 rad/s; set ω = 0.0 rad/s and read left wheel = 4.0 rad/s and right wheel = 4.0 rad/s, so separation only affects turns.
+5. Set b = 0.28 m and r = 0.040 m with v = 0.20 m/s and ω = 0.5 rad/s and read left wheel = 3.3 rad/s and right wheel = 6.8 rad/s; then set v = 0.50 m/s, ω = 2.0 rad/s and r = 0.050 m and read left wheel = 4.4 rad/s and right wheel = 15.6 rad/s, beyond ±10 rad/s, where ros2_control clamps the wheel command. Conclusion: ω_left = (v − ω·b/2)/r, ω_right = (v + ω·b/2)/r; radius = v/ω.
 
 ## Launch and inspect
 
