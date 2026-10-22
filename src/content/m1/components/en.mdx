@@ -25,12 +25,12 @@ Bench tip: don't try to swallow the whole sheet at once. Pick one net (say GND o
 
 ## Capacitors: storing charge, resisting sudden change
 
-A capacitor is two metal plates placed very close together; charge "sits" between them. Two behaviours are enough to carry with you:
+A <Term id="capacitor">capacitor</Term> is two metal plates placed very close together; charge "sits" between them. Two behaviours are enough to carry with you:
 
 - It **resists sudden voltage change**: to jump the voltage across a capacitor instantly you would need an infinite current. More current charges it faster, but "instant" is impossible.
 - Hence the classic motto: **block DC, pass changes**. A steady DC eventually cannot get through, while fast changes pass. It sounds abstract until you run it once in the simulator.
 
-How fast it charges or discharges is set by the time constant (τ), the product of the resistance and the capacitance:
+How fast it charges or discharges is set by the <Term id="rc-time-constant">time constant</Term> (τ), the product of the resistance and the capacitance:
 
 <Formula label="RC time constant">τ = R × C</Formula>
 
@@ -65,10 +65,12 @@ The aluminium electrolytic (the metal can) is **polarised**: a stripe or − mar
 
 Inside a digital IC, gates switch extremely fast, and every switch redraws a sudden gulp of current from the supply (a current spike). If that gulp must travel from a distant power source, supply-trace resistance and inductance dip the voltage right at the chip's pins — supply noise lands straight on the die. Symptoms range from glitchy behaviour to resets.
 
-The fix is almost mechanical: **give every IC a 100 nF ceramic capacitor (decoupling capacitor) directly across its supply pin (VCC) and GND, as physically close to the chip as possible**. It is the little water tower beside the chip: it stores charge locally and supplies a spike on the spot, so the rail doesn't sag. Hobby boards and volume production alike are wired this way.
+The fix is almost mechanical: **give every IC a 100 nF ceramic capacitor (<Term id="decoupling-capacitor">decoupling capacitor</Term>) directly across its supply pin (VCC) and GND, as physically close to the chip as possible**. It is the little water tower beside the chip: it stores charge locally and supplies a spike on the spot, so the rail doesn't sag. Hobby boards and volume production alike are wired this way.
 
 - **100 nF ceramic**: one per chip, hugging its supply pins. If the board has multiple supply domains (say 3.3 V and 5 V coexisting), each domain needs its own.
 - **Bulk electrolytic (100–470 µF)**: placed near motor drivers and other loads that gulp big currents, acting as the board-wide reservoir.
+
+A real capacitor is not ideal: in series with its capacitance it has a small resistance, the <Term id="esr">equivalent series resistance (ESR)</Term>. When the capacitor supplies a current pulse I, the ESR alone drops ΔV = I × ESR, before any charge has been used. Multilayer ceramic capacitors have a much lower ESR than aluminium electrolytics, which is one reason the 100 nF next to each chip is ceramic, while the electrolytic provides the bulk charge. Capacitor datasheets list ESR (or the dissipation factor from which it follows); for a motor driver, multiply it by the current step you expect, for example the stall current from the brownout section below.
 
 A phrase worth knowing: 100 nF is often quoted as “0.1 µF” — when a veteran says “just add a 0.1”, that is what they mean.
 
@@ -76,7 +78,7 @@ A phrase worth knowing: 100 nF is often quoted as “0.1 µF” — when a veter
 
 ## Diodes and LEDs: a one-way valve and a lamp that must be current-limited
 
-A diode is a one-way valve: current flows from the anode to the cathode, the bar in the symbol is the cathode. Before current flows, it charges a toll — the forward voltage (Vf):
+A <Term id="diode">diode</Term> is a one-way valve: current flows from the anode to the cathode, the bar in the symbol is the cathode. Before current flows, it charges a toll — the <Term id="led-forward-voltage">forward voltage (Vf)</Term>:
 
 - Ordinary silicon diode: **≈ 0.6–0.7 V**;
 - An LED's Vf depends on colour: **red ≈ 1.8–2.2 V**, **green/blue/white ≈ 2.8–3.3 V**.
@@ -101,6 +103,24 @@ The ammeter in series reads about 9.8 mA. Falstad's default LED model drops abou
 
 <Quiz id="q3" question="A 3.3 V supply, a red LED with Vf = 2.0 V, target 5 mA: what resistor, in Ω?" answer={260} unit="Ω" tolerance={0.05} explanation="R = (3.3 V − 2.0 V) / 5 mA = 1.3 V / 0.005 A = 260 Ω. Up to the next E12 value you'd pick 270 Ω." />
 
+### Inductors: why switching off a coil produces a spike
+
+An <Term id="inductor">inductor</Term> (a coil; every motor and relay winding is one) opposes changes in its current. Its voltage is
+
+<Formula label="Inductor voltage">V = L × dI/dt</Formula>
+
+L in henries (H), dI/dt in amperes per second. Opening a switch tries to make the current fall to zero almost instantly, so dI/dt is huge and so is V.
+
+The Falstad built-in example:
+
+<Falstad title="Inductive kick (official Falstad example)" circuit="inductkick" height={400} />
+
+Facts of that circuit (verified from its file): 5 V source, 1 H inductor, 100 Ω resistor, a switch with 0.5 nF across it. With the switch closed the current is 5 V / 100 Ω = 50 mA. Steps: 1) close the switch and wait for the current to settle at 50 mA; 2) open it and watch the voltage across the switch: the 50 mA has nowhere to go but into the 0.5 nF, and the peak is about I × √(L/C) = 0.05 × √(1 / 0.5e-9) ≈ 2.24 kV; 3) open the second example, the same circuit with a diode across the inductor: the current now circulates through the diode and the switch sees only the 5 V supply plus one diode drop.
+
+<Falstad title="Inductive kick with a flyback diode (official Falstad example)" circuit="inductkickBlock" height={400} />
+
+This is what the flyback diode below does for motors and relays.
+
 One more "invisible but lifesaving" diode job: the **flyback diode**. Motors and relays are inductive loads; the instant you switch them off, the inductor — which refuses to change its current abruptly — throws a high-voltage spike (tens of volts are common) that can punch through the driving transistor. Wire a diode anti-parallel across the load and it shorts the spike away. Month 2 puts this to work on motors; file the concept now.
 
 ## The transistor as a switch: small current steers big current
@@ -109,7 +129,7 @@ Why a transistor? A microcontroller GPIO pin can **safely source only about 10�
 
 The most common arrangement is the NPN low-side switch: the load sits between the supply and the collector, the emitter goes to ground, and the GPIO feeds a small current into the base through a base resistor. Transistor on, load circuit complete.
 
-Sizing the base resistor: say target collector current Ic = 20 mA (lighting a small LED strip), and your NPN's current gain β (hFE) ≈ 100.
+Sizing the base resistor: say target collector current Ic = 20 mA (lighting a small LED strip), and your NPN's current gain <Term id="beta-hfe">β (hFE)</Term> ≈ 100.
 
 ```text
 Minimum base current: Ib(min) = Ic / β = 20 mA / 100 = 0.2 mA
@@ -122,7 +142,26 @@ Ib ≈ 10 × 0.2 mA = 2 mA
 Rb = (Vgpio − Vbe) / Ib = (3.3 V − 0.7 V) / 2 mA ≈ 1.3 kΩ
 ```
 
-1.3 kΩ isn't standard either, so go **down** to 1 kΩ: a bit more base current, deeper saturation, safer margin. Direction matters: when sizing the base resistor, err small (more saturation), not large.
+1.3 kΩ isn't standard either, so go **down** to 1 kΩ: a bit more base current, deeper <Term id="transistor-saturation">saturation</Term>, safer margin. Direction matters: when sizing the base resistor, err small (more saturation), not large.
+
+**The same switch from a 5 V Uno pin.**
+
+```text
+Ib ≈ 2 mA (same Ic = 20 mA, β = 100, ×10 overdrive)
+Rb = (5 V − 0.7 V) / 2 mA = 2.15 kΩ
+```
+
+Going down to the next E12 value gives 1.8 kΩ, Ib = 4.3 V / 1.8 kΩ = 2.4 mA.
+
+**Operating regions of an NPN**
+
+| Region | Condition | Vce | Power in the transistor P = Vce × Ic |
+| --- | --- | --- | --- |
+| Cut-off | Vbe below about 0.6 V, Ib ≈ 0 | close to the supply | ≈ 0 (Ic ≈ 0) |
+| Active (linear) | Ic = β × Ib, less than the load needs | several volts | large: Vce × Ic |
+| Saturation | Ib well above Ic / β | about 0.2 V | small: at 20 mA, 0.2 V × 20 mA = 4 mW |
+
+A switch must sit in cut-off or saturation; the 100 kΩ experiment above leaves it in the active region.
 
 <Falstad title="Transistor switch driving an LED (practice circuit)" circuit="transistorLed" height={420} />
 
@@ -142,10 +181,22 @@ An input pin with nothing attached is floating: like an antenna, it picks up str
 
 The cure: with a large resistor (10 kΩ is the habit) pin the input to a known level —
 
-- **Pull-up**: 10 kΩ from the pin to VCC; it reads HIGH at rest. Add a button from the pin to GND: **pressed**, the pin is dragged straight to GND and reads LOW; released, the pull-up restores HIGH. This "reads low when pressed" wiring is called **active low**.
+- **<Term id="pull-up-pull-down">Pull-up</Term>**: 10 kΩ from the pin to VCC; it reads HIGH at rest. Add a button from the pin to GND: **pressed**, the pin is dragged straight to GND and reads LOW; released, the pull-up restores HIGH. This "reads low when pressed" wiring is called **active low**.
 - **Pull-down**: the mirror image. 10 kΩ from the pin to GND; it reads LOW at rest; a button from the pin to VCC makes it read HIGH when pressed.
 
 Why 10 kΩ? The resistor only needs to hold the level, not supply current. Too large and noise can push the pin around; too small and pressing the button wastes current for nothing. 10 kΩ is the decades-old compromise.
+
+A digital input does not read every voltage as a clean 0 or 1. The datasheet gives two <Term id="logic-thresholds">logic thresholds</Term>: VIH, the lowest voltage guaranteed to read HIGH, and VIL, the highest voltage guaranteed to read LOW. Between them the result is undefined, and a floating pin can sit there.
+
+```text
+ATmega328P (Uno), VCC = 5 V:   VIH = 0.6 × VCC = 3.0 V   VIL = 0.3 × VCC = 1.5 V
+ESP32-S3, VDD = 3.3 V:          VIH = 0.75 × VDD = 2.475 V   VIL = 0.25 × VDD = 0.825 V
+ESP32-S3 output HIGH (3.3 V) into an Uno input: 3.3 − 3.0 = 0.3 V of margin
+```
+
+The pull-up's other job is to keep the pin far from that band. With an input leakage of at most 1 µA, a 10 kΩ pull-up drops only 1 µA × 10 kΩ = 10 mV, so the pin sits at 3.29 V on a 3.3 V rail; pressing the button costs 3.3 V / 10 kΩ = 0.33 mA. A 1 MΩ pull-up would drop up to 1 V with the same leakage and leave little margin.
+
+Sources: ATmega328P datasheet, DC characteristics; ESP32-S3 datasheet, DC characteristics.
 
 Good news: many MCUs have configurable internal pull-ups, usable with one setting (`INPUT_PULLUP` on Arduino), and then the external resistor can go — but note this automatically means "pressed reads LOW".
 
@@ -176,7 +227,7 @@ The lithium-polymer (LiPo) packs powering DIY robots come with parameters and ru
 
 The classic script: the robot snags a wall corner, the motor stalls, and in that instant the MCU resets and the program starts over. Not bad luck — circuit arithmetic.
 
-**Step 1: how big is the stall current?** While spinning, a motor generates back-EMF that cancels part of the applied voltage, so current stays moderate. Stall the rotor completely and back-EMF vanishes; the motor becomes a small resistance and draws its **stall current — often several amps, 5–10× normal**.
+**Step 1: how big is the stall current?** While spinning, a motor generates <Term id="back-emf">back-EMF</Term> that cancels part of the applied voltage, so current stays moderate. Stall the rotor completely and back-EMF vanishes; the motor becomes a small resistance and draws its **stall current — often several amps, 5–10× normal**.
 
 **Step 2: how does that collapse the rail?** The battery has internal resistance; wires and connectors add more; all of it sits **in series** with the motor in the same loop. Ohm's law is unsentimental: V = I × R — whatever voltage those resistances swallow is voltage your devices never see.
 
@@ -192,11 +243,11 @@ A nominal 5 V rail sags to 4 V in that instant. If the 3.3 V regulator's input i
 
 **Fixes (roughly in order of effectiveness):**
 
-1. Give the logic its **own regulated supply**: the MCU runs off its own LDO or buck, not the motor's dirty rail.
+1. Give the logic its **own regulated supply**: the MCU runs off its own <Term id="ldo">LDO</Term> or buck, not the motor's dirty rail.
 2. **Bulk electrolytic near the motor driver** (say 220–470 µF): absorbs the surge locally and buys the regulator time.
 3. **Thicker, shorter power wires**: shrink that series resistance R directly.
 4. **Common ground**: digital ground and power ground must meet at one point — but don't route motor current through the logic ground path.
-5. **Soft-start / current limiting**: ramp PWM from zero or cap current in software, avoiding the shock at its source.
+5. **Soft-start / current limiting**: ramp <Term id="pwm">PWM</Term> from zero or cap current in software, avoiding the shock at its source.
 
 <Quiz id="q7" question="Stall current 3 A, total series resistance 0.4 Ω: how many volts does the rail drop?" answer={1.2} unit="V" explanation="V = I × R = 3 A × 0.4 Ω = 1.2 V." />
 
