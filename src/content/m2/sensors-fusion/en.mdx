@@ -33,9 +33,9 @@ The speed of sound changes with temperature (about 0.6 m/s per °C), so 20.0 cm 
 
 ## I2C in one page
 
-I2C (Inter-Integrated Circuit, usually said as I-squared-C) is a two-wire bus: SDA carries data, SCL carries the clock, and both boards must share a ground. The microcontroller is the controller and generates the clock. Each peripheral has a 7-bit address. Every transaction begins with the controller sending that address plus a read/write bit, and only the device that recognises the address answers.
+<Term id="i2c">I2C</Term> (Inter-Integrated Circuit, usually said as I-squared-C) is a two-wire bus: SDA carries data, SCL carries the clock, and both boards must share a ground. The microcontroller is the controller and generates the clock. Each peripheral has a 7-bit address. Every transaction begins with the controller sending that address plus a read/write bit, and only the device that recognises the address answers.
 
-The clever part is the electrical design. The output stage of each device is open-drain: it can pull a line LOW, but it cannot drive it HIGH. A pull-up resistor from the line to the supply does the high side. Typical values are 4.7–10 kΩ, and many breakout boards already include them. Because every device can only pull low, two devices can never conflict: if both pull low at once, they are simply connecting the same node to ground, and the line is still at 0 V. There is no high driver to short against.
+The clever part is the electrical design. The output stage of each device is <Term id="open-drain">open-drain</Term>: it can pull a line LOW, but it cannot drive it HIGH. A pull-up resistor from the line to the supply does the high side. Typical values are 4.7–10 kΩ, and many breakout boards already include them. Because every device can only pull low, two devices can never conflict: if both pull low at once, they are simply connecting the same node to ground, and the line is still at 0 V. There is no high driver to short against.
 
 <Falstad title="Open-drain I2C line with a pull-up" circuit="i2cPullup" height={420} />
 
@@ -115,7 +115,7 @@ When nothing is found, check in this order: power and ground on the sensor, SDA 
 
 ## Read the datasheet, not a tutorial
 
-The milestone for this month is not "I copied a library example". It is: give me a sensor, its datasheet, and a microcontroller, and I can wire it and read it myself. Tutorials are useful for orientation, but they go stale, they hide the register writes, and they rarely tell you which configuration they assumed.
+The milestone for this month is not "I copied a library example". It is: give me a sensor, its datasheet, and a microcontroller, and I can wire it and read it myself. Tutorials are useful for orientation, but they go stale, they hide the <Term id="register">register</Term> writes, and they rarely tell you which configuration they assumed.
 
 For the MPU-6050, InvenSense publishes a product specification and a separate register map. The product specification tells you what the chip can do, what the pins mean, and how sensitive each range is. The register map tells you which byte to read or write. You need both.
 
@@ -128,6 +128,8 @@ These are the registers this lesson uses:
 | ACCEL_XOUT_H … | 0x3B–0x40 | Accelerometer X, Y and Z, each 16-bit |
 | TEMP_OUT | 0x41–0x42 | Temperature |
 | GYRO_XOUT_H … | 0x43–0x48 | Gyroscope X, Y and Z |
+
+Register addresses and values are written in hexadecimal; the [math reference page](/en/math#hex) works through 0x68 = 0b01101000 = 104 bit by bit.
 
 WHO_AM_I is the simplest self-check in embedded work. Read one byte from 0x75 and expect 0x68. If you get 0xFF, the bus is probably not connected or the device is not answering. If you get a different value, you are talking to something else.
 
@@ -162,6 +164,8 @@ high byte 0xFE, low byte 0xFA:  (int16_t)((0xFE << 8) | 0xFA) = −262
 
 The accelerometer and the gyroscope fail in opposite ways, which is exactly why they are useful together.
 
+The maths in this section is collected on the [math reference page](/en/math): [sine and cosine components](/en/math#trig-components), [radians](/en/math#radians), [accumulating rate × dt](/en/math#rate-accumulation), and [standard deviation](/en/math#stddev-rms) for the noise figures in the script.
+
 An accelerometer measures acceleration, and gravity counts as acceleration. At rest, the only acceleration it feels is gravity, pointing down at 1 g. If the board is pitched by an angle θ around the Y axis, gravity appears on the X and Z axes as `ax = g × sin θ` and `az = g × cos θ`. Therefore:
 
 ```text
@@ -170,7 +174,7 @@ An accelerometer measures acceleration, and gravity counts as acceleration. At r
 
 `atan2` returns radians, so convert with `× 180 / PI` before printing degrees. This estimate is correct on average because gravity is an absolute reference: it never accumulates error. But it is noisy — every sample wobbles — and any real acceleration corrupts it. Vibration, a motor jerk, a bump against the table, or the robot driving forward all add to gravity, and the accelerometer cannot tell the difference. During a hard acceleration the "tilt" reading can be badly wrong.
 
-A gyroscope measures angular rate, not angle. To get angle you integrate: add `rate × dt` every loop. The result is smooth and fast, and it responds immediately to a real rotation. But it is relative: it only knows how much it has turned since you started. A small constant bias — say 1.5 °/s — integrates into an error that grows without limit.
+A gyroscope measures angular rate, not angle. To get angle you integrate: add `rate × dt` every loop. The result is smooth and fast, and it responds immediately to a real rotation. But it is relative: it only knows how much it has turned since you started. A small constant <Term id="gyro-bias">bias</Term> — say 1.5 °/s — integrates into an error that grows without limit.
 
 <Formula label="Gyro drift">angle error = bias × time</Formula>
 
@@ -186,11 +190,11 @@ After one minute the gyro-only angle is 90° wrong, even if the robot has not mo
 
 ## The complementary filter
 
-The complementary filter is the simplest way to combine the two sensors, and it is the one to write before you touch a Kalman filter. The idea is one line:
+The <Term id="complementary-filter">complementary filter</Term> is the simplest way to combine the two sensors, and it is the one to write before you touch a Kalman filter. The idea is one line:
 
 <Formula label="Complementary filter">angle = α × (angle + rate × dt) + (1 − α) × accelAngle</Formula>
 
-α is close to 1, typically 0.98. The first term takes the previous estimate and adds the gyro's prediction. The second term pulls that prediction toward the accelerometer angle. Because α is close to 1, the gyro dominates over short intervals; because 1 − α is small but nonzero, the accelerometer wins in the long run. It is a high-pass filter on the gyro and a low-pass filter on the accelerometer, and the two weights add up to 1.
+α is close to 1, typically 0.98. The first term takes the previous estimate and adds the gyro's prediction. The second term pulls that prediction toward the accelerometer angle. Because α is close to 1, the gyro dominates over short intervals; because 1 − α is small but nonzero, the accelerometer wins in the long run. It is a <Term id="low-high-pass-filter">high-pass filter</Term> on the gyro and a low-pass filter on the accelerometer, and the two weights add up to 1.
 
 The time constant tells you how fast the accelerometer can correct the gyro:
 
@@ -199,6 +203,15 @@ The time constant tells you how fast the accelerometer can correct the gyro:
   = 0.98 × 0.01 s / 0.02
   = 0.49 s
 ```
+
+Where the formula comes from: leave the accelerometer term aside for a moment. Each step keeps a fraction α of the previous estimate, so after n steps a fraction αⁿ of an old error remains. The time constant is the time for that fraction to fall to 1/e:
+
+```text
+αⁿ = e^(−1)  →  n = −1 / ln α = −1 / ln 0.98 = 49.5 steps
+τ = n × dt = 49.5 × 0.01 s = 0.495 s
+```
+
+For α close to 1, −ln α ≈ 1 − α, so τ ≈ dt / (1 − α) = 0.50 s; α × dt / (1 − α) = 0.49 s is the same approximation, and the three values agree to within about 2 %.
 
 At 100 Hz (dt = 0.01 s) and α = 0.98, the correction time constant is about half a second. A larger τ is smoother but slower; a smaller τ is faster but lets more accelerometer noise through.
 
@@ -315,6 +328,14 @@ A small α lets more accelerometer noise through, but it suppresses the gyro bia
 offset ≈ α / (1 − α) × bias × dt
        = 0.98 / 0.02 × 1.5 °/s × 0.01 s
        = 0.735°
+```
+
+The formula follows from the filter equation itself. With the board flat, the accelerometer angle averages 0°, and in the steady state the estimate no longer changes, so the same value `angle` appears on both sides:
+
+```text
+angle = α × (angle + bias × dt) + (1 − α) × 0
+angle × (1 − α) = α × bias × dt
+angle = α × bias × dt / (1 − α) = 0.98 × 1.5 °/s × 0.01 s / 0.02 = 0.735°
 ```
 
 That matches the measured 0.72° in the table (the small difference is noise and rounding). The formula also explains the other rows: α = 0.90 gives about 0.135°, and α = 0.995 gives about 2.985°.
@@ -485,3 +506,21 @@ Before you move on, you should be able to answer "yes" to these:
 - I can explain why the gyro drifts and why the accelerometer is noisy, in one sentence each.
 - I can write the complementary filter from memory and choose α for a given sample rate.
 - I know how to measure and subtract the gyro bias at startup.
+
+<Summary>
+
+**Key points**
+
+- I2C: SDA and SCL, 7-bit addresses, open-drain lines with 4.7–10 kΩ pull-ups, 100 or 400 kHz; on the Uno SDA is A4 and SCL is A5.
+- MPU-6050 at 0x68 (0x69 with AD0 high): WHO_AM_I (0x75) reads 0x68, and writing 0x00 to PWR_MGMT_1 (0x6B) wakes it.
+- Raw data are signed 16-bit two's complement, high byte first: ±2 g gives 32768 / 2 = 16384 LSB/g, ±250 °/s gives 32768 / 250 ≈ 131 LSB/(°/s).
+- Accelerometer pitch θ = atan2(ax, az) is absolute but noisy; the integrated gyro is smooth but drifts by bias × time (1.5 °/s → 90° in 60 s).
+- Complementary filter: angle = α × (angle + rate × dt) + (1 − α) × accelAngle; α = 0.98 at 100 Hz gives τ ≈ 0.49 s and a 0.735° offset from a 1.5 °/s bias.
+- Remove the bias at the source: average the gyro for 1–2 s at rest and subtract it before integrating.
+
+**Used next**
+
+- Month 2 · Your first two robots: line follower & self-balancer: the self-balancer feeds the filtered pitch into its 200 Hz control loop.
+- Month 3 · PID & control: windup and cascade loops returns to the same balancer and adds the outer speed loop.
+
+</Summary>
