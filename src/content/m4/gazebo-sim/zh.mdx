@@ -331,6 +331,8 @@ XML Element[gz_frame_id], child of element[sensor], not defined in SDF. Copying[
 
 Gazebo 和 ROS 2 是两套独立系统，各有各的传输层。Gazebo 用自己的消息类型往自己的话题上发布；在某个东西把选定的话题复制过来并转换类型之前，ROS 2 节点根本看不见它们。这个东西就是 `ros_gz_bridge`。桥接故意做得很显式：你列出每个话题、它在两边的类型以及方向，除此之外什么也不过来。这听起来麻烦，直到你有一台四十个话题的机器人，想知道到底哪十个进了 ROS 2。
 
+<Diagram id="gz-bridge" />
+
 <CodeSource path="examples/month-4/gazebo-sim/m4_gazebo/config/bridge.yaml" />
 
 ```yaml
