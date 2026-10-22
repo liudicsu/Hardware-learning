@@ -25,8 +25,8 @@ const SIDE = {
   bottom: 28,
   rMin: -0.3,
   rMax: 0.35,
-  zMin: -0.25,
-  zMax: 0.35,
+  zMin: -0.2,
+  zMax: 0.4,
 };
 
 const TOP = {
@@ -357,7 +357,9 @@ export function IkWidget() {
           <p className="mt-2 text-xs text-zinc-400">
             <span data-testid="ik-result" className="font-mono text-zinc-100">
               {t("iterations", {
-                n: result.it,
+                // update steps taken: `it` is the index of the last iteration, which made no
+                // step when it converged; as in kinematics.py ("after {it4 + 1} iterations")
+                n: result.dist < 1e-5 ? result.it : result.it + 1,
                 q: `[${result.q.map((value) => fixed(toDeg(value), 2)).join(", ")}]`,
               })}
             </span>

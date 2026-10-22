@@ -1,8 +1,9 @@
 import { exp, fixed, int } from "./format";
 
-export const H = 0.05;
-export const L1 = 0.12;
-export const L2 = 0.14;
+// SO-101 axis-to-axis distances, SO-ARM100 @ a758567, Simulation/SO101/so101_new_calib.urdf (see kinematics.py)
+export const H = 0.1166;
+export const L1 = 0.1160;
+export const L2 = 0.1350;
 
 const DEG_TO_RAD = Math.PI / 180;
 const RAD_TO_DEG = 180 / Math.PI;

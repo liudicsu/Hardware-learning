@@ -30,8 +30,8 @@ export const mathEntries: MathEntry[] = [
       en: "A radian is the angle for which the arc length equals the radius: a full turn is 2π rad, so 1 rad = 180/π ≈ 57.3°. sin and cos map an angle to [−1, 1], and robot code always feeds them radians. atan2(y, x) is the quadrant-aware arctangent: it returns radians in (−π, π] so it gives the direction of the vector (x, y), whose length is √(x² + y²).",
     },
     example: {
-      zh: "第 5 个月《运动学：正解、数值逆解与奇异点》\nq = [30, 45, −60]°，于是 q1 + q2 = −15°。\nr = 0.12 × cos 45° + 0.14 × cos(−15°) = 0.12 × 0.7071 + 0.14 × 0.9659 = 0.2201 m\nx = 0.2201 × cos 30° = 0.1906 m，y = 0.2201 × sin 30° = 0.1100 m",
-      en: "Month 5 · Kinematics: forward, numerical IK and singularities\nQ = [30, 45, −60]°, so q1 + q2 = −15°.\nr = 0.12 × cos 45° + 0.14 × cos(−15°) = 0.12 × 0.7071 + 0.14 × 0.9659 = 0.2201 m\nx = 0.2201 × cos 30° = 0.1906 m, y = 0.2201 × sin 30° = 0.1100 m",
+      zh: "第 5 个月《运动学：正解、数值逆解与奇异点》\nq = [30, 45, −60]°，于是 q1 + q2 = −15°。\nr = 0.1160 × cos 45° + 0.1350 × cos(−15°) = 0.1160 × 0.7071 + 0.1350 × 0.9659 = 0.2124 m\nx = 0.2124 × cos 30° = 0.1840 m，y = 0.2124 × sin 30° = 0.1062 m",
+      en: "Month 5 · Kinematics: forward, numerical IK and singularities\nq = [30, 45, −60]°, so q1 + q2 = −15°.\nr = 0.1160 × cos 45° + 0.1350 × cos(−15°) = 0.1160 × 0.7071 + 0.1350 × 0.9659 = 0.2124 m\nx = 0.2124 × cos 30° = 0.1840 m, y = 0.2124 × sin 30° = 0.1062 m",
     },
     lessons: ["kinematics-ik", "sensors-fusion", "control-modelling", "urdf-tf"],
     links: [
@@ -145,8 +145,8 @@ export const mathEntries: MathEntry[] = [
       en: "The determinant of a square matrix is a scalar: det A = 0 exactly when A is singular (not invertible), which means A squashes some directions to zero. The rank is the number of linearly independent rows (or columns), so a rank-deficient matrix has lost directions the system can neither control nor observe. For a Jacobian the determinant says how close a configuration is to a singularity: |det J| → 0 means some tip direction would need infinite joint speed. The condition number κ(A) measures how much A amplifies a small perturbation; a large κ means the matrix is close to singular.",
     },
     example: {
-      zh: "第 5 个月《运动学：正解、数值逆解与奇异点》\n|det J| = L1 L2 r |sin(肘角)|，肩在 20°、肘 −60° 时 r = 0.2200 m。\n0.12 × 0.14 × 0.2200 × 0.8660 = 0.0032 m³，正是表里的 3.20e-03；肘角 = 0 时行列式归零。\n此时精确求逆要 7965.0 °/s，阻尼最小二乘只给 3.3 °/s，但末端在那个方向上根本动不了。",
-      en: "Month 5 · Kinematics: forward, numerical IK and singularities: |det J| = L1 L2 r |sin(elbow)|; with the shoulder at 20° and the elbow at −60°, r = 0.2200 m.\n0.12 × 0.14 × 0.2200 × 0.8660 = 0.0032 m³, exactly the 3.20e-03 in the table; at elbow = 0 the determinant vanishes.\nThere the exact inverse asks for 7965.0 °/s while the damped solver returns 3.3 °/s — and the tip still cannot move in that direction.",
+      zh: "第 5 个月《运动学：正解、数值逆解与奇异点》\n|det J| = L1 L2 r |sin(肘角)|，肩在 20°、肘 −60° 时 r = 0.2124 m。\n0.1160 × 0.1350 × 0.2124 × 0.8660 = 0.00288 m³，正是表里的 2.88e-03；肘角 = 0 时行列式归零。\n此时精确求逆要 8249.1 °/s，阻尼最小二乘只给 3.4 °/s，但末端在那个方向上根本动不了。",
+      en: "Month 5 · Kinematics: forward, numerical IK and singularities: |det J| = L1 L2 r |sin(elbow)|; with the shoulder at 20° and the elbow at −60°, r = 0.2124 m.\n0.1160 × 0.1350 × 0.2124 × 0.8660 = 0.00288 m³, exactly the 2.88e-03 in the table; at elbow = 0 the determinant vanishes.\nThere the exact inverse asks for 8249.1 °/s while the damped solver returns 3.4 °/s — and the tip still cannot move in that direction.",
     },
     lessons: ["kinematics-ik", "moveit-pick-place"],
     links: [
@@ -191,8 +191,8 @@ export const mathEntries: MathEntry[] = [
       en: "q′ is the derivative of position with respect to time (velocity) and q″ is the acceleration; in code they are approximated by differences, (q[k] − q[k−1]) / dt. Differentiating one variable of a multivariable function and holding the others fixed gives a partial derivative ∂f/∂x_i; collecting all of them into a matrix gives the Jacobian J = ∂p/∂q. On a robot the Jacobian converts joint rates into tip velocity, v = J q′, and it also decides whether a direction in task space can be produced by the joints at all.",
     },
     example: {
-      zh: "第 5 个月《运动学：正解、数值逆解与奇异点》\n脚本不做符号微分，而是数值求雅可比——算一次 FK(q)，再把 q_i 加 1e-6 rad 算一次 FK，两者相减除以 1e-6。\n从 q = [0, 30, −30]° 到目标 (0.10, 0.15, 0.12) m，误差从 208.120 mm 用 14 次迭代降到 0.009 mm。",
-      en: "Month 5 · Kinematics: forward, numerical IK and singularities\nThe script does not differentiate symbolically — it computes a numerical Jacobian by evaluating FK(q), evaluating FK again with q_i nudged by 1e-6 rad, then subtracting and dividing by 1e-6.\nFrom q = [0, 30, −30]° towards (0.10, 0.15, 0.12) m the error falls from 208.120 mm to 0.009 mm in 14 iterations.",
+      zh: "第 5 个月《运动学：正解、数值逆解与奇异点》\n脚本不做符号微分，而是数值求雅可比——算一次 FK(q)，再把 q_i 加 1e-6 rad 算一次 FK，两者相减除以 1e-6。\n从 q = [0, 30, −30]° 到目标 (0.10, 0.15, 0.12) m，误差从 209.357 mm 用 15 次迭代降到 0.002 mm。",
+      en: "Month 5 · Kinematics: forward, numerical IK and singularities\nThe script does not differentiate symbolically — it computes a numerical Jacobian by evaluating FK(q), evaluating FK again with q_i nudged by 1e-6 rad, then subtracting and dividing by 1e-6.\nFrom q = [0, 30, −30]° towards (0.10, 0.15, 0.12) m the error falls from 209.357 mm to 0.002 mm in 15 iterations.",
     },
     lessons: ["kinematics-ik", "sensors-fusion", "pid-control"],
     links: [

@@ -33,7 +33,7 @@ The balancer's code writes `KP × (pitch − SETPOINT) + KD × rate`; with `erro
 The three terms:
 
 - **P (proportional)** — the output is proportional to the error, so the further off you are, the harder it pushes back. On its own, with any delay anywhere in the system, P overshoots and oscillates: it is still pushing hard as you arrive back at the setpoint, so you sail straight past it. Every real system has delay — a motor cannot change speed instantly — which is why P alone almost always rings.
-- **D (derivative)** — proportional to how fast the error is changing. It behaves like a damper. As you approach the target the error is shrinking, so D produces an output that opposes the motion and brakes the correction. This is the term that kills the overshoot.
+- **D (derivative)** — proportional to how fast the error is changing. It provides damping, equivalent to the damper term of a mass–spring–damper model. As the error shrinks on approach, D produces an output opposing that rate of change, which limits the motion past the setpoint. This is the term that removes the overshoot.
 - **I (integral)** — proportional to the accumulated error over time. It removes a steady offset, for example one motor being weaker than the other, that P alone would leave behind. It can also **wind up**: while the robot is stuck against a wall, or its output is saturated, the accumulated error grows enormous, and the moment it frees itself that stored-up number flings it across the line. Clamp the integral, and leave it out entirely until P and D work.
 
 The standard discrete form includes `dt`:
@@ -108,7 +108,7 @@ Mounting matters. Put the array **ahead of the wheels** and about **3 mm above t
 
 ## P vs PD in a simulation
 
-Before you touch a single wire, run this toy model and watch P and D fight it out. It is a Python program written by the site editor, not robot code — a simplified picture of a line follower that starts 20 mm off the line and is tuned with P only, then with two different values of D. The output below is exactly what this file prints.
+Before you touch a single wire, run this simplified simulation and see what P alone does and how the behaviour changes when D is added. It is a Python program written by the site editor, not robot code — a simplified picture of a line follower that starts 20 mm off the line and is tuned with P only, then with two different values of D. The output below is exactly what this file prints.
 
 <CodeSource path="tools/sim/models/line_sim.py" />
 
@@ -307,7 +307,7 @@ The oscillation you see with P only is not a bug — it is the exact thing you a
 
 ## Self-balancer: why it is hard
 
-A self-balancer is an **inverted pendulum** — the same problem as balancing a broom upright on your hand. Left alone, it does not drift slowly; it falls in well under a second. That has a hard consequence: the controller must react within milliseconds, and it must do so **every few milliseconds**, not once in a while. On top of that it needs an angle estimate that is both fast and non-drifting, which is exactly the job of the complementary filter from Lesson 5 — the gyro gives a fast but drifting angle, the accelerometer a slow but absolute one, and the filter fuses them so you get a number good enough to act on. The wheels then move under the centre of mass to catch the fall: the robot is not balancing statically, it is continuously driving itself back under its own centre of gravity.
+A self-balancer is an **inverted pendulum**: the axle is below the centre of mass, so the torque from gravity grows with the tilt angle and points in the direction of the fall rather than the recovery — an unstable equilibrium. Left alone, it does not drift slowly; it falls in well under a second. That has a hard consequence: the controller must react within milliseconds, and it must do so **every few milliseconds**, not once in a while. On top of that it needs an angle estimate that is both fast and non-drifting, which is exactly the job of the complementary filter from Lesson 5 — the gyro gives a fast but drifting angle, the accelerometer a slow but absolute one, and the filter fuses them so you get a number good enough to act on. The wheels then move under the centre of mass to catch the fall: the robot is not balancing statically, it is continuously driving itself back under its own centre of gravity.
 
 The parts, again approximate figures from the course author:
 
@@ -420,7 +420,7 @@ Here is the arithmetic behind that last point. Loop period is just one over the 
 
 Five milliseconds is a short time for something that falls in about a second; a hundred milliseconds is twenty times longer than the fast loop and simply too late.
 
-Be honest about what this model is. Its own docstring says it: there is **no outer speed loop**, so it ignores the fact that a real balancer slowly rolls away and needs the wheel encoders (Lesson 4) to fix that. And the gains `kp = 0.8`, `kd = 0.04` are in the model's own units, not PWM per degree — they are not values you can paste into firmware. The model shows you *why* each requirement exists, not the numbers to ship.
+State the limits of this model clearly; its docstring lists them: there is **no outer speed loop**, so it ignores the fact that a real balancer slowly rolls away and needs the wheel encoders (Lesson 4) to fix that. And the gains `kp = 0.8`, `kd = 0.04` are in the model's own units, not PWM per degree — they are not values you can paste into firmware. The model shows you *why* each requirement exists, not the numbers to ship.
 
 When the complementary filter is no longer enough — when you want a principled way to blend the sensors and to handle the gyro bias properly — the standard next step is a Kalman filter. The book below is the usual recommendation, and it runs as notebooks you can actually execute.
 
@@ -628,7 +628,7 @@ Do not worry if this does not work yet. [Month 3, Lesson 4 (PID & control)](/en/
 
 ## Show your work on GitHub
 
-The month's final milestone is two working robots on GitHub, with wiring, code and an honest written account of what broke. If Git and GitHub still feel shaky, revisit the Month 1 Git & GitHub lesson before you start. A clean, boring repo layout works best:
+The month's final milestone is two working robots on GitHub, with wiring, code and a written account of what broke. If Git and GitHub are still unfamiliar, revisit the Month 1 Git & GitHub lesson before you start. A clean, boring repo layout works best:
 
 ```text
 README.md
@@ -663,7 +663,7 @@ That tuning log is worth formatting as a table. The one below is an example — 
 | 2 | 0.06 | 0.3 | 80 | smooth, no wiggle |
 | 3 | 0.06 | 0.3 | 150 | runs wide on the tight curves |
 
-Then the "what broke" section — and be honest in it. The brownout, the reversed motor, the forgotten `STBY` that kept everything dead: that section is what convinces a reader you actually built the robot rather than copied a tutorial. A polished repo with no failures in it reads as fiction.
+Then the "what broke" section. The brownout, the reversed motor, the forgotten `STBY` that kept everything dead: the recorded real failures in that section are the clearest evidence that the work was actually done. A polished repo with no failures recorded cannot demonstrate that you built the robot yourself.
 
 One rule you already met in Lesson 3: **do not commit secrets.** Wi-Fi passwords and API keys belong in a separate file that you add to `.gitignore`, never in the sketch itself.
 

@@ -1,4 +1,4 @@
-The [previous lesson](/en/month/month-6/behaviour-cloning) cloned an expert that always did the same thing in the same place. People don't. Asked to move a cup past an obstacle, one operator goes left, another goes right, and the same operator does both on different days. Both are correct. A policy trained to predict "the" action has to cope with data that contains two right answers, and the simplest training loss gets this badly wrong. This lesson shows the failure on a toy task and then looks at the two ideas that today's most used imitation policies are built on: action chunking (ACT) and diffusion (Diffusion Policy).
+The [previous lesson](/en/month/month-6/behaviour-cloning) cloned an expert that always did the same thing in the same place. Human operators do not. Asked to move a cup past an obstacle, one operator goes left, another goes right, and the same operator does both on different days. Both are correct. A policy trained to predict "the" action has to cope with data that contains two right answers, and the simplest training loss fails in a systematic way. This lesson shows the failure on a toy task and then looks at the two ideas that today's most used imitation policies are built on: action chunking (ACT) and diffusion (Diffusion Policy).
 
 ## Two right answers
 
@@ -235,9 +235,9 @@ sample           success  99/100   hit block   1   timeout   0   mean steps to g
 
 </SimOutput>
 
-A third of the averaged runs drive into the block. The ones that survive do so because noise or a lopsided set of neighbours pushes them far enough to one side that all 10 nearest frames come from the same side; from then on the average and the demonstrations agree. Sampling commits to a side at the fork and succeeds 99 times out of 100. Nothing about the data changed; only the way the policy turns 10 recorded actions into one.
+A third of the averaged runs drive into the block. The remaining runs succeed because noise or a lopsided set of neighbours pushes them far enough to one side that all 10 nearest frames come from the same side; from then on the average and the demonstrations agree. Sampling commits to a side at the fork and succeeds 99 times out of 100. Nothing about the data changed; only the way the policy turns 10 recorded actions into one.
 
-This is the same failure you will see on a real arm as a gripper that hesitates halfway between two grasps, or a mobile robot that drives at the middle of a pillar it was taught to go around. If your demonstrations contain more than one way to do the task, the policy class has to be able to represent more than one answer.
+This is the same failure you will see on a real arm as a gripper that stops at an intermediate pose halfway between two grasps, or a mobile robot that drives at the middle of a pillar it was taught to go around. If your demonstrations contain more than one way to do the task, the policy class has to be able to represent more than one answer.
 
 ## Action chunks: what ACT adds
 
@@ -299,7 +299,7 @@ Compare them the way the toy model does: the same fixed set of start positions f
 
 ## Common mistakes
 
-- **Averaging over modes without noticing.** If a policy creeps slowly towards the middle of two options, or hesitates, check whether your demonstrations contain two ways of doing the task. Either demonstrate one way consistently or use a policy that can sample.
+- **Averaging over modes without noticing.** If a policy moves gradually towards the middle of two options, or stalls between them, check whether your demonstrations contain two ways of doing the task. Either demonstrate one way consistently or use a policy that can sample.
 - **Thinking chunking is free.** A chunk runs open loop until the next decision. Tight clearances, a moving object or a slipping grasp need the policy to look again sooner; tune how many actions to execute per decision and measure it.
 - **Comparing policies on different data or seeds.** Every line above uses the same 40 demonstrations, the same seed and the same number of runs. Lesson 4 goes one step further and gives every run its own seed, so that each policy meets exactly the same starting conditions; on hardware, that means the same list of start positions for every policy.
 - **Calling a memorising policy a good one.** The diffusion policy here can only replay demonstrations. Test on start positions that are not in the dataset before claiming a policy generalises.
