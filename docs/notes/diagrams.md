@@ -114,6 +114,18 @@ and check it in `tools/check_widgets.mjs`. First example: `QuadratureTiming` (mo
 `diagramColumns()` from `src/lib/models/encoder.ts`, a port of `tools/sim/models/encoder_sim.py`; the check
 compares the decoder lines of `m2-encoder_sim.txt` byte for byte and the forward/reverse state order.
 
+Block diagrams and state machines also take the optional `script: { run, lines }` (D118): check_diagrams runs
+`python3 run` from the script's folder and requires each line in its output. `vla-dataflow` builds that line and its
+step text from the same constants as action_tokens.py (30 steps x 6 joints = 180 tokens, 256 bins), so a change to
+the script fails the check.
+A missing script, or one that exits with an error, is reported as a FAIL line rather than a crash.
+
+Block diagrams can also take `bindings` (D118 review). For a node, the drawn label and sub must match every regular
+expression in `has` and none in `lacks`, in both languages; for an edge, they fix it as dashed or solid. Build them
+from the same constants as the facts. `vla-dataflow` does this for the model lists (RT-2, OpenVLA and π0-FAST in the
+token box; π0, SmolVLA, GR00T, π0.5 and Octo in the head box), for "most models" on the joint state, for the 256 bins
+and for the dashed state arrow.
+
 ## `kind: "geo"` (static 2-D figures) — `src/components/diagrams/Geo2D.tsx`
 
 A spec lists shapes in one viewBox of at most 340 units (the same figure at every width, capped at 1.3 px per

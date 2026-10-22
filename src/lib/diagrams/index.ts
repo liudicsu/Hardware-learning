@@ -15,6 +15,7 @@ import { slamPoseGraph } from "./specs/slamPoseGraph";
 import { stsPackets } from "./specs/sts";
 import { slamTfChain } from "./specs/slamTf";
 import { urdfTwoPublishers } from "./specs/urdfPublishers";
+import { vlaDataflow } from "./specs/vlaDataflow";
 
 /** Every diagram that MDX can show with <Diagram id="..." />. tools/check_diagrams.mjs validates each entry. */
 export const DIAGRAMS: Record<string, DiagramSpec> = {
@@ -37,4 +38,5 @@ export const DIAGRAMS: Record<string, DiagramSpec> = {
   [debounceQuiet.id]: debounceQuiet,
   [stsPackets.id]: stsPackets,
   [cartPoleSigns.id]: cartPoleSigns,
+  [vlaDataflow.id]: vlaDataflow,
 };
