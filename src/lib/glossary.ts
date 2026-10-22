@@ -526,8 +526,8 @@ export const glossary: GlossaryEntry[] = [
     id: "ledc",
     term: { zh: "LED PWM 控制器（LEDC）", en: "LED PWM controller (LEDC)" },
     def: {
-      zh: "ESP32 内部带硬件定时器和通道的 PWM 外设，用来产生舵机脉冲或调光。Arduino-ESP32 3.x 用 ledcAttach(pin, frequency, resolutionBits) 配置、ledcWrite(pin, duty) 改脉宽；50 Hz、14 位时 duty 范围为 0–16384（16384 表示整个周期都是高电平）。",
-      en: "The ESP32's hardware PWM peripheral, with timers and channels, used for servo pulses or dimming. Arduino-ESP32 3.x configures it with ledcAttach(pin, frequency, resolutionBits) and changes the pulse with ledcWrite(pin, duty); at 50 Hz and 14 bits, duty runs from 0 to 16384 (16384 keeps the output high for the whole period).",
+      zh: "ESP32 内部带硬件定时器和通道的 PWM 外设，用来产生舵机脉冲或调光。Arduino-ESP32 3.x 用 ledcAttach(pin, frequency, resolutionBits) 配置、ledcWrite(pin, duty) 改脉宽；n 位时 duty 一般为 0–2^n（2^n 表示整个周期都是高电平），但 ESP32-S3 的定时器最多 14 位，在 14 位下不能写入 2^14，因此得不到 100 % 输出；需要一直高电平时用 13 位或更低。",
+      en: "The ESP32's hardware PWM peripheral, with timers and channels, used for servo pulses or dimming. Arduino-ESP32 3.x configures it with ledcAttach(pin, frequency, resolutionBits) and changes the pulse with ledcWrite(pin, duty); with n bits the duty generally runs from 0 to 2^n (2^n keeps the output high for the whole period), but the ESP32-S3's timers are at most 14 bits wide and at 14 bits 2^14 cannot be written, so a 100 % output needs 13 bits or fewer.",
     },
     lesson: "esp32",
     firstExplained: true,
@@ -898,7 +898,7 @@ export const glossary: GlossaryEntry[] = [
       zh: "输入转 n 圈、输出转 1 圈的比值，记作 n:1；忽略摩擦时扭矩乘 n、转速除以 n，功率不变。行星级在齿圈固定、太阳轮输入、行星架输出时，减速比 = 1 + 齿圈齿数 / 太阳轮齿数。",
       en: "The ratio n:1 meaning n input turns for one output turn; ignoring friction, torque is multiplied by n and speed divided by n at constant power. For a planetary stage with the ring fixed, sun input and carrier output, the ratio is 1 + ring teeth / sun teeth.",
     },
-    lesson: "transmissions",
+    lesson: "motors-drivers",
     firstExplained: true,
   },
   {

@@ -5,6 +5,7 @@
 //   PAGES_BASE_PATH=/Hardware-learning npm run build   (check that export)
 //   CI=1 npm run build                                 (build and check the Pages export)
 import { spawnSync } from "node:child_process";
+import { isCI, pagesBasePath } from "./is-ci.mjs";
 
 const CHECKER = "tools/check_basepath_links.mjs";
 
@@ -20,7 +21,7 @@ function run(command, args, options = {}) {
 
 const quotes = run("python3", ["tools/check_quotes.py"]);
 if (quotes.notFound) {
-  if (process.env.CI) {
+  if (isCI()) {
     console.error("python3 not found; tools/check_quotes.py is required on CI.");
     process.exit(127);
   }
@@ -29,8 +30,7 @@ if (quotes.notFound) {
   process.exit(quotes.status);
 }
 
-const rawBasePath = process.env.PAGES_BASE_PATH;
-const basePath = rawBasePath !== undefined ? rawBasePath.trim() : process.env.CI ? "/Hardware-learning" : "";
+const basePath = pagesBasePath();
 
 if (basePath !== "") {
   const check = run(process.execPath, [CHECKER, "out", basePath]);

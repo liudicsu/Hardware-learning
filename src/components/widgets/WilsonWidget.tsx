@@ -15,11 +15,12 @@ const DEFAULTS = { k: 61, n: 100 };
 // The viewBox follows the box width (up to 600 units), so the 12-unit tick labels render at 12 px on a phone.
 function Bar({ lo, hi, p }: { lo: number; hi: number; p: number }) {
   const [box, boxW] = useBoxWidth<HTMLDivElement>();
-  const W = boxW ? Math.max(240, Math.min(600, Math.round(boxW))) : 600;
+  // Before the box is measured (server HTML, first paint, JS disabled) draw at the minimum width, so the labels can only scale up.
+  const W = boxW ? Math.max(240, Math.min(600, Math.round(boxW))) : 240;
   const M = 22; // room for half of a "100 %" label at each end
   const x = (v: number) => M + v * (W - 2 * M);
   return (
-    <div ref={box} className="w-full">
+    <div ref={box} className="w-full" data-widget="wilson-bar">
       <svg viewBox={`0 0 ${W} 44`} className="h-auto w-full" role="img" aria-label={`${fixed(lo * 100, 1)} .. ${fixed(hi * 100, 1)} %`}>
         <line x1={M} y1={18} x2={W - M} y2={18} stroke="#3f3f46" strokeWidth="2" />
         <rect x={x(lo)} y={10} width={Math.max(1, x(hi) - x(lo))} height={16} rx={3} fill="rgba(56,189,248,0.35)" stroke="#38bdf8" />

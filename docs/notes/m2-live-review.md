@@ -87,18 +87,25 @@ esp32 (divider already confirmed):
   GPIO 0, 3, 45, 46; USB 19/20; UART0 43/44; flash/PSRAM 26–32 and 35–37 with octal PSRAM; JTAG 39–42; ADC1 GPIO
   1–10, ADC2 11–20. Classic ESP32: flash GPIO 6–11, input-only 34–39, strapping 0, 2, 5, 12, 15, ADC1 GPIO
   32–39. LEDC: 1.0/1.25/1.5/1.75/2.0 ms at 50 Hz and 14 bits → 819, 1024, 1228, 1433, 1638.
-  Correction (fix PR after 23ea9f0): this line first said 1023 and was marked Checked, but the lesson's formula used
-  2^bits − 1. ESP-IDF's LEDC driver uses duty / 2^bits with duty from 0 to 2^bits (espressif/esp-idf PR #11516), so
-  1.25 ms is 0.0625 × 16384 = 1024. The lesson, curriculum, glossary and web_servo.ino now use 2^bits.
+  Correction (fix PR after 23ea9f0): this line first said 1023 and was marked Checked, but the lesson's formula
+  used 2^bits − 1. ESP-IDF's LEDC driver uses duty / 2^bits with duty from 0 to 2^bits
+  (components/esp_driver_ledc/include/driver/ledc.h, e.g. ledc_set_duty: "the range of duty setting is [0,
+  (2**duty_resolution)]", checked at espressif/esp-idf caaa5e1, and docs/en/api-reference/peripherals/ledc.rst. The
+  same LEDC docs warn that on the ESP32-S3, whose timers are at most 14 bits (soc_caps.h SOC_LEDC_TIMER_BIT_WIDTH),
+  a timer at its maximum resolution cannot take duty 2^bits; Arduino-ESP32's ledcWrite() in esp32-hal-ledc.c,
+  checked at 8667595, rewrites duty >= 2^bits − 1 to 2^bits, so 16383 hits this too), so 1.25 ms is
+  0.0625 × 16384 = 1024. The lesson, curriculum, glossary and web_servo.ino now use 2^bits.
 
 motors-drivers:
 - Checked: Romi 120:1 (Pololu #1520) 130 mA free run and 1.25 A stall at 4.5 V (R = 3.6 Ω, as in #48);
   12 CPR × 120 = 1440 counts per wheel turn, 0.25° per count; 8.4 / 7.4 = 1.135 (about 14 % faster); TB6612FNG
   1.0 A per channel, 1.2 A absolute maximum, 2 A for 20 ms pulses, VM up to 13.5 V (as in #48); A4988
   I_max = Vref / (8 × R_CS) with 0.068 Ω (since 2017) or 0.050 Ω; stepper 1.8° → 200 steps.
-- Note, no change: "the DRV8833 also gives about 1.2 A per channel" is Pololu's continuous rating for its carrier
-  (#2130); TI's datasheet (SLVSAR1E) rates 1.5 A RMS (2 A peak) per H-bridge only for the PWP and RTY packages, at VM = 5 V and 25 °C (its recommended-operating table lists 1.5 A for RTY at VM = 5 V), and 500 mA RMS (2 A peak) for the PW package and Pololu measured that 1.2–1.3 A is what the chip
-  sustains without thermal shutdown. "About 1.2 A" is the realistic number for a beginner. The sentence already
+- Changed (fix PR after 23ea9f0): "the DRV8833 also gives about 1.2 A per channel" now says that 1.2 A is Pololu's
+  continuous rating for its carrier (#2130); TI's datasheet (SLVSAR1E) rates 1.5 A RMS (2 A peak) per H-bridge
+  only for the PWP and RTY packages, at VM = 5 V and 25 °C (its recommended-operating table lists 1.5 A for RTY at
+  VM = 5 V), and 500 mA RMS (2 A peak) for the PW package. Pololu measured that 1.2–1.3 A is what the chip
+  sustains without thermal shutdown. "About 1.2 A" is the realistic number for a beginner, and the lesson still
   tells readers to check their own breakout.
 
 sensors-fusion:
@@ -123,10 +130,31 @@ differences are numbers written out as words in en ("five thousand", "42nd", "ei
   actual move is −1.74 cm. That figure was recomputed from the 10 nearest frames of the 40 Random(5) demos: mean
   (−1.738, +2.461) cm. This matches the wording of the sentence above the fork table. A stray leading space in
   en.mdx was removed.
-- curriculum.ts, act-diffusion "run" task: "check it against the −0.017 m it prints" now says to check that the
-  hand result falls in the −3 to −1 cm bin, where the script counts all 200 averaging moves (zh and en).
+- curriculum.ts, act-diffusion "run" task: "check it against the −0.017 m it prints" now has the reader work out
+  −1.66 cm at the fork by hand, then run a one-line command that prints the averaging policy's move at (0, 0.23)
+  and confirm it is −1.74 cm, the value in the Quiz q1 explanation (zh and en). tools/check_diagrams.mjs binds both
+  quotes and Quiz q1 to act-fork.json's mean.
 
 ## Retest after 23ea9f0 (2026-10-22)
 
 tools/check_text_size.mjs was re-run against the deployed site (deploy of main 23ea9f0, CI-built export) at 390 px
 and 1280 px: 156 pages, 0 problems (no text under 12 px, no horizontal overflow).
+
+## Review follow-up after 6be12b3
+
+- esp32 ADC range: ESP-IDF's ADC docs give no S3 range of their own (they point to the datasheet; the 2800 mV
+  limit in adc_calibration.rst is for the ESP32-C2 only). The 0–3100 mV figure for ADC_11db on the ESP32-S3 is
+  from the Arduino-ESP32 ADC documentation (docs/en/api/adc.rst, checked at 0b70aff), so the lesson now cites
+  that. The attenuator paragraph (en/zh line 165) carries the sources (Arduino docs 0–3100 mV, datasheet v2.2
+  Table 5-6 0–2900 mV ±50 mV); line 175 only names the setting (12 dB = ADC_ATTEN_DB_12 in ESP-IDF v5.2+
+  (hal/adc_types.h; v5.0 and v5.1 have only ADC_ATTEN_DB_11, the rename was backported to v5.0.5 and v5.1.3) =
+  ADC_11db in Arduino) and says readings above 2.9 V are unreliable.
+- esp32 LEDC: the lesson, glossary and web_servo.ino no longer say 16384 is fully high at 14 bits. Duty is
+  generally 0 to 2^bits, but the ESP32-S3 (14-bit timers) cannot take 2^bits at its maximum resolution (ESP-IDF
+  LEDC docs warning), and Arduino's ledcWrite() maps 16383 to 16384, so a 100 % output needs 13 bits or fewer.
+  The servo uses 5–10 % duty and is unaffected. The angle -> duty table, the prose value list and the steps are
+  now bound to angleToDuty() in tools/check_diagrams.mjs (mutation-tested: 1024 -> 1023 in the table and
+  1228 -> 1229 in the prose list both fail).
+- CI flag: next.config.ts and tools/postbuild.mjs both use tools/is-ci.mjs, so only CI=1 or CI=true
+  (case-insensitive, so CI=TRUE counts too) selects the Pages export and its base-path check; CI unset or
+  CI=false builds and checks the root-path site.
