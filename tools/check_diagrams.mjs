@@ -552,6 +552,7 @@ function checkGeo(spec, tag) {
     const what = `shape ${s.id ?? k} (${s.type})`;
     if (s.id) { ok(!byId[s.id], `${tag}: duplicate shape id ${s.id}`); byId[s.id] = s; }
     if (s.type === "line") { inside(...s.from, what); inside(...s.to, what); }
+    else if (s.type === "polyline") { ok(s.pts.length >= 2, `${tag}: ${what} needs 2+ points`); for (const p of s.pts) inside(...p, what); }
     else if (s.type === "rect") { inside(...s.at, what); inside(s.at[0] + s.size[0], s.at[1] + s.size[1], what); }
     else if (s.type === "circle") { inside(s.at[0] - s.r, s.at[1] - s.r, what); inside(s.at[0] + s.r, s.at[1] + s.r, what); }
     else if (s.type === "arc") for (let d = Math.min(s.from, s.to); d <= Math.max(s.from, s.to); d += 1) inside(...geoPolar(s.at, s.r, d), what);
@@ -565,6 +566,13 @@ function checkGeo(spec, tag) {
       }
     }
   }
+  const groups = new Set(spec.shapes.map((s) => s.group).filter(Boolean));
+  for (const [k, st] of (spec.steps ?? []).entries()) {
+    checkText(`${tag} step ${k + 1}`, st.label);
+    ok(st.highlight.length > 0, `${tag} step ${k + 1}: highlights nothing`);
+    for (const h of st.highlight) ok(byId[h] || groups.has(h), `${tag} step ${k + 1}: unknown shape id or group "${h}"`);
+  }
+  if (spec.corridor) checkCorridor(spec, tag, byId);
   if (spec.cartPole) {
     const cp = spec.cartPole;
     const [axis, force, pole, theta] = [cp.axis, cp.force, cp.pole, cp.theta].map((id) => byId[id]);
@@ -610,6 +618,52 @@ function checkGeo(spec, tag) {
     }
   }
   checkNumbers(spec, tag);
+}
+
+/**
+ * Behaviour-cloning corridor (bc_reach.py): the corridor constants must be bc_reach's, the walls polyline must be the
+ * corridor outline drawn through `map`, the success run must stay inside and end within the success radius, and the
+ * failed run must stay inside until it leaves through the goal-end wall, never within the success radius.
+ */
+function checkCorridor(spec, tag, byId) {
+  const c = spec.corridor, { x0, y0, s } = c.map;
+  const py = [
+    "import json, sys",
+    `sys.path.insert(0, ${JSON.stringify(join(root, "examples/month-6/behaviour-cloning"))})`,
+    "import bc_reach as b",
+    "print(json.dumps({'corner': b.CORNER, 'goal': b.GOAL, 'hw': b.HALF_WIDTH, 'start': b.START}))",
+  ].join("\n");
+  const m = JSON.parse(execFileSync("python3", ["-c", py], { encoding: "utf8" }));
+  const same = (a, b) => a[0] === b[0] && a[1] === b[1];
+  ok(same(c.corner, m.corner) && same(c.goal, m.goal) && c.halfWidth === m.hw && same(m.start, [0, 0]),
+    `${tag}: corridor ${JSON.stringify([c.corner, c.goal, c.halfWidth])} is not bc_reach.py's ${JSON.stringify([m.corner, m.goal, m.hw])}`);
+  const hw = m.hw, [cx] = m.corner, [gx, gy] = m.goal;
+  const toM = ([X, Y]) => [(X - x0) / s, (y0 - Y) / s];
+  const toV = ([x, y]) => [x0 + s * x, y0 - s * y];
+  const E = 0.001; // drawn points are rounded to 0.1 units (< 0.5 mm)
+  // bc_reach.in_corridor, rebuilt here
+  const inC = ([x, y]) => (x >= -hw - E && x <= cx + hw + E && Math.abs(y) <= hw + E) || (Math.abs(x - gx) <= hw + E && y >= -hw - E && y <= gy + hw + E);
+  const walls = byId[c.walls], want = [[-hw, -hw], [cx + hw, -hw], [gx + hw, gy + hw], [gx - hw, gy + hw], [cx - hw, hw], [-hw, hw], [-hw, -hw]].map(toV);
+  ok(walls && walls.type === "polyline" && walls.pts.length === want.length && walls.pts.every((p, i) => Math.hypot(p[0] - want[i][0], p[1] - want[i][1]) < 0.06),
+    `${tag}: walls ${JSON.stringify(walls?.pts)} are not the corridor outline ${JSON.stringify(want.map((p) => p.map((v) => +v.toFixed(1))))}`);
+  const run = (id) => { const r = byId[id]; ok(r && r.type === "polyline", `${tag}: corridor run ${id} missing`); return r ? r.pts.map(toM) : []; };
+  const dGoal = (p) => Math.hypot(p[0] - gx, p[1] - gy);
+  const okp = run(c.success);
+  if (okp.length) {
+    const out = okp.filter((p) => !inC(p));
+    ok(out.length === 0, `${tag}: success run leaves the corridor at ${JSON.stringify(out[0])}`);
+    ok(dGoal(okp.at(-1)) <= c.goalRadius + E, `${tag}: success run ends ${(dGoal(okp.at(-1)) * 100).toFixed(1)} cm from the goal (needs ${c.goalRadius * 100} cm)`);
+  }
+  const bad = run(c.fail);
+  if (bad.length) {
+    const out = bad.slice(0, -1).filter((p) => !inC(p));
+    ok(out.length === 0, `${tag}: failed run leaves the corridor early at ${JSON.stringify(out[0])}`);
+    const end = bad.at(-1), before = failed;
+    ok(!inC(end) && end[1] > gy + hw && Math.abs(end[0] - gx) <= hw + 0.05, `${tag}: failed run should end past the goal-end wall, ends at ${JSON.stringify(end.map((v) => +v.toFixed(3)))}`);
+    const closest = Math.min(...bad.map(dGoal));
+    ok(closest > c.goalRadius, `${tag}: failed run comes within ${(closest * 100).toFixed(1)} cm of the goal, which would be a success`);
+    if (failed === before) console.log(`model ${spec.id}: walls from bc_reach.py; success run inside, ends ${(dGoal(okp.at(-1)) * 100).toFixed(1)} cm from goal; failed run exits the end wall, closest ${(closest * 100).toFixed(1)} cm`);
+  }
 }
 
 // Spec files are plain data; the only imports allowed are types and JSON data files, inlined here.
