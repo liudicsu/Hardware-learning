@@ -1,5 +1,6 @@
 counts per wheel revolution: 1440
 open-loop run time (tuned at 8.4 V): 1.099 s
-battery 8.4 V | open loop:  1440 | P only:  1443 | P + min duty:  1441
-battery 7.4 V | open loop:  1269 | P only:  1435 | P + min duty:  1441
-battery 6.6 V | open loop:  1132 | P only:  1430 | P + min duty:  1440
+battery 8.4 V | open loop:  1440 | P only:  1443 | min 0.15:  1441 | min 0.20:  1439
+battery 7.4 V | open loop:  1269 | P only:  1435 | min 0.15:  1441 | min 0.20:  1441
+battery 6.6 V | open loop:  1132 | P only:  1430 | min 0.15:  1440 | min 0.20:  1442
+battery 5.0 V | open loop:   857 | P only:  1416 | min 0.15:  1416 | min 0.20:  1440

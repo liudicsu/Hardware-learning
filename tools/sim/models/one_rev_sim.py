@@ -52,7 +52,8 @@ if __name__ == "__main__":
     run_time = COUNTS_PER_REV / (K_SPEED * 8.4 * 0.6)
     print(f"counts per wheel revolution: {COUNTS_PER_REV}")
     print(f"open-loop run time (tuned at 8.4 V): {run_time:.3f} s")
-    for battery in (8.4, 7.4, 6.6):
+    for battery in (8.4, 7.4, 6.6, 5.0):
         print(f"battery {battery:.1f} V | open loop: {open_loop(battery, run_time):5d}"
               f" | P only: {closed_loop(battery):5d}"
-              f" | P + min duty: {closed_loop(battery, min_duty=0.15):5d}")
+              f" | min 0.15: {closed_loop(battery, min_duty=0.15):5d}"
+              f" | min 0.20: {closed_loop(battery, min_duty=0.20):5d}")
