@@ -140,7 +140,7 @@ HEAD 和 `main` 都指向这里。之后用 `git log --oneline --graph --all` �
 
 ### 两种 diff
 
-`git diff` 比较**工作区和暂存区**，显示你改了但还没暂存的内容。`git diff --staged` 比较**暂存区和最后一次提交**，也就是下一次提交真正会加进去的东西。改 `ohm.py` 里一行：
+`git diff` 比较**工作区和暂存区**，显示你改了但还没暂存的内容。`git diff --staged` 比较**暂存区和最后一次提交**，也就是下一次提交真正会加进去的东西。把 `ohm.py` 中 `current` 子命令的输出格式从 `{ma:.1f}` 改成 `{ma:.2f}`（保留两位小数），然后运行：
 
 ```bash
 git diff
@@ -148,15 +148,21 @@ git diff
 
 ```text
 diff --git a/ohm.py b/ohm.py
-index 3b1c2d4..8e9f0a1 100644
+index bd6542e..ac31ca1 100644
 --- a/ohm.py
 +++ b/ohm.py
-@@ -12,7 +12,7 @@ def ohms_law(voltage, resistance):
--    print(f"current = {current:.3f} A")
-+    print(f"current = {current:.4f} A")
+@@ -37,7 +37,7 @@ def main() -> None:
+ 
+     if args.command == "current":
+         ma = current(args.volts, args.ohms) * 1000
+-        print(f"{ma:.1f} mA")
++        print(f"{ma:.2f} mA")
+     elif args.command == "divider":
+         v = divider(args.vin, args.r1, args.r2)
+         print(f"{v:.3f} V")
 ```
 
-`-` 是旧行，`+` 是新行。此时还没暂存，所以 `git diff --staged` 是空的。执行 `git add ohm.py` 之后，`git diff` 变空，`git diff --staged` 显示同一行改动。养成习惯：**每次提交前先读 `git diff --staged`**。看到密码、巨大的数据文件或无关的实验，就把它撤出暂存区。
+`@@ -37,7 +37,7 @@` 表示这段改动从第 37 行开始，前后版本各显示 7 行；没有 `-`/`+` 前缀的行是上下文，`@@` 后面的 `def main() -> None:` 是改动所在的函数。改完后 `python ohm.py current --volts 5 --ohms 220` 输出 `22.73 mA`，而不是 `22.7 mA`。`-` 是旧行，`+` 是新行。此时还没暂存，所以 `git diff --staged` 是空的。执行 `git add ohm.py` 之后，`git diff` 变空，`git diff --staged` 显示同一行改动。养成习惯：**每次提交前先读 `git diff --staged`**。看到密码、巨大的数据文件或无关的实验，就把它撤出暂存区。
 
 <Quiz id="q1" question="哪条命令把改动放进暂存区？" options={["git commit", "git add", "git push"]} answer={1} explanation="git add 把文件当前的内容复制进暂存区。它不会创建提交，也不会上传任何东西；git commit 和 git push 是后面两步。" />
 

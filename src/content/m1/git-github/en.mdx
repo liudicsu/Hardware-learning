@@ -134,7 +134,7 @@ Both HEAD and `main` point here. Later, `git log --oneline --graph --all` draws 
 
 ### The two diffs
 
-`git diff` compares the **working directory with the staging area**: what you changed but have not staged. `git diff --staged` compares the **staging area with the last commit**: exactly what the next commit will add. Change one line in `ohm.py` and run:
+`git diff` compares the **working directory with the staging area**: what you changed but have not staged. `git diff --staged` compares the **staging area with the last commit**: exactly what the next commit will add. Change the `current` subcommand's output format in `ohm.py` from `{ma:.1f}` to `{ma:.2f}` (two decimal places) and run:
 
 ```bash
 git diff
@@ -142,15 +142,21 @@ git diff
 
 ```text
 diff --git a/ohm.py b/ohm.py
-index 3b1c2d4..8e9f0a1 100644
+index bd6542e..ac31ca1 100644
 --- a/ohm.py
 +++ b/ohm.py
-@@ -12,7 +12,7 @@ def ohms_law(voltage, resistance):
--    print(f"current = {current:.3f} A")
-+    print(f"current = {current:.4f} A")
+@@ -37,7 +37,7 @@ def main() -> None:
+ 
+     if args.command == "current":
+         ma = current(args.volts, args.ohms) * 1000
+-        print(f"{ma:.1f} mA")
++        print(f"{ma:.2f} mA")
+     elif args.command == "divider":
+         v = divider(args.vin, args.r1, args.r2)
+         print(f"{v:.3f} V")
 ```
 
-The `-` line is old, the `+` line is new. Nothing is staged, so `git diff --staged` is empty. After `git add ohm.py`, `git diff` is empty and `git diff --staged` shows the same line. Read `git diff --staged` before every commit: a password, a huge data file or an unrelated experiment should be unstaged, not committed.
+`@@ -37,7 +37,7 @@` means the hunk starts at line 37 and shows 7 lines of both versions; lines without a `-` or `+` prefix are context, and `def main() -> None:` after the `@@` names the enclosing function. After the change, `python ohm.py current --volts 5 --ohms 220` prints `22.73 mA` instead of `22.7 mA`. The `-` line is old, the `+` line is new. Nothing is staged, so `git diff --staged` is empty. After `git add ohm.py`, `git diff` is empty and `git diff --staged` shows the same line. Read `git diff --staged` before every commit: a password, a huge data file or an unrelated experiment should be unstaged, not committed.
 
 <Quiz id="q1" question="Which command moves changes into the staging area?" options={["git commit", "git add", "git push"]} answer={1} explanation="git add copies the current content into the staging area. It does not create a commit, and it does not upload anything; git commit and git push are separate steps." />
 
