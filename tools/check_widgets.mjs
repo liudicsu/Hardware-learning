@@ -293,10 +293,10 @@ const diffDrive = await loadModel("diffDrive");
 // Guided experiments: every number the lesson's "Guided experiment" list tells the reader to
 // expect is recomputed here from the same model call and formatting the widget uses, and must
 // appear in that list in both languages (the list starts at **Guided experiment.** /
-// **动手实验。** and ends at the first paragraph that is not a numbered step).
+// <strong>动手实验。</strong> and ends at the first paragraph that is not a numbered step).
 function guidedBlock(lesson, locale) {
   const text = readFileSync(join(root, "src/content", lesson, locale + ".mdx"), "utf8");
-  const marker = locale === "zh" ? "**动手实验。**" : "**Guided experiment.**";
+  const marker = locale === "zh" ? "<strong>动手实验。</strong>" : "**Guided experiment.**";
   const start = text.indexOf(marker);
   if (start < 0) return null;
   const lines = text.slice(start).split("\n");
