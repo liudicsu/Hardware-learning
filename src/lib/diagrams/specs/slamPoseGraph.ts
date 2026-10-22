@@ -5,11 +5,16 @@ import type { PoseGraphPose, PoseGraphScan, PoseGraphSpec } from "../types";
  * driven like tour.py: straight at 0.25 m/s, turns on the spot at 0.6 rad/s), the odometry error (every turn
  * 3 % short) and the linear spreading of the correction. Not assumed: which scans become nodes. That follows
  * SLAM Toolbox 2.8.5 (the version in examples/month-4/pixi.lock) with this lesson's slam.yaml:
- *  1. SlamToolbox::shouldProcessScan (src/slam_toolbox_common.cpp:756-817): with
+ *  1. SlamToolbox::shouldProcessScan (src/slam_toolbox_common.cpp:756-817, tag 2.8.5 = commit ec8f763): with
  *     check_min_dist_and_heading_precisely false (default, :413), a scan is dropped when the base pose's
  *     squared straight-line distance from the last scan that passed is < 0.8 * minimum_travel_distance^2
  *     (:807), i.e. closer than sqrt(0.8) * 0.2 = 0.179 m; heading is not looked at here. It is also dropped
- *     within minimum_time_interval (default 0.5 s, :400-411) and for the first 5 callbacks (:793-796).
+ *     within minimum_time_interval (default 0.5 s, :400-411). The first callback passes via the first_measurement_
+ *     branch; callbacks 2-4 are dropped (第 1 次回调走 first_measurement_ 分支直接通过，第 2–4 次被丢弃): scan_ctr++ (:769) comes
+ *     before the scan_ctr < 5 test (:795), and callback 1 has already returned true through the
+ *     first_measurement_ branch (:771-777), which comes before the pause, throttle, time, scan_ctr and distance
+ *     checks and sets last_pose to the first pose. So node 0 is the first scan, at the start (Karto accepts a
+ *     sensor's first scan: HasMovedEnough returns true without a last scan, Mapper.cpp:3150-3152).
  *  2. Karto Mapper::HasMovedEnough (lib/karto_sdk/src/Mapper.cpp:3147-3178) then keeps it as a node if the
  *     lidar pose has turned >= minimum_travel_heading or moved >= minimum_travel_distance since the last node
  *     (its time escape, MinimumTimeInterval, defaults to 3600 s, :2108-2118, and slam_toolbox never sets it).
@@ -65,11 +70,11 @@ const lidar = (p: PoseGraphPose) => ({ x: p.x + LIDAR_X * Math.cos(p.th), y: p.y
 const d2 = (a: { x: number; y: number }, b: { x: number; y: number }) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
 
 function selectNodes(): number[] {
-  const nodes = [0]; // the first scan always passes
+  const nodes = [0]; // the first scan passes (first_measurement_, :771-777) and Karto keeps it (:3150-3152)
   let passed = scans[0];
   for (let k = 1; k < scans.length; k++) {
     const s = scans[k];
-    if (k + 1 < 5) continue; // initial stabilisation: scan_ctr < 5
+    if (k + 1 < 5) continue; // scan_ctr = k + 1 after the increment; < 5 drops callbacks 2-4 (k = 1..3)
     if (s.t - passed.t < MIN_INTERVAL) continue;
     if (d2(s.odom, passed.odom) < FACTOR * DISTANCE * DISTANCE) continue; // straight-line distance only
     passed = s;

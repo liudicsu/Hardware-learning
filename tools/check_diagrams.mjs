@@ -283,13 +283,17 @@ function checkPoseGraph(spec, tag) {
   ok(C.length === E.length && T.length === E.length, `${tag}: estimate, corrected and truth need the same length`);
   ok(E[0].x === 0 && E[0].y === 0 && E[0].th === 0, `${tag}: node 0 must be the origin`);
   // Which scans become nodes: SLAM Toolbox 2.8.5 (pinned in examples/month-4/pixi.lock), defaults for every
-  // parameter slam.yaml does not set. Source lines (github.com/SteveMacenski/slam_toolbox, tag 2.8.5):
+  // parameter slam.yaml does not set. Source lines (github.com/SteveMacenski/slam_toolbox, tag 2.8.5, commit ec8f763):
   //  - src/slam_toolbox_common.cpp:413 check_min_dist_and_heading_precisely defaults to false;
   //    :807 then a scan is dropped when dist^2 < 0.8 * minimum_travel_distance^2 (base pose, straight line);
-  //    :400-411 minimum_time_interval defaults to transform_timeout's 0.5 s; :793-796 the first 5 callbacks are dropped.
+  //    :400-411 minimum_time_interval defaults to transform_timeout's 0.5 s. The first callback passes via the
+  //    first_measurement_ branch; callbacks 2-4 are dropped (第 1 次回调走 first_measurement_ 分支直接通过，第 2–4 次被丢弃):
+  //    :769 scan_ctr++ runs before :795
+  //    scan_ctr < 5, so callbacks 2-4 are dropped; callback 1 already passed via first_measurement_ (:771-777, before
+  //    every other test, sets last_pose), so node 0 is the first scan. Karto keeps it: no last scan (Mapper.cpp:3150).
   //  - lib/karto_sdk/src/Mapper.cpp:3147-3178 HasMovedEnough: lidar pose turned >= minimum_travel_heading or moved
   //    >= minimum_travel_distance (minus KT_TOLERANCE 1e-6) since the last node; its time escape is 3600 s (:2118).
-  const SLAM_TOOLBOX = { version: "2.8.5", factor: 0.8, minInterval: 0.5, warmup: 5, tolerance: 1e-6 };
+  const SLAM_TOOLBOX = { version: "2.8.5", factor: 0.8, minInterval: 0.5, warmup: 5 /* scan_ctr < 5 */, tolerance: 1e-6 };
   const rd = (f) => readFileSync(join(root, f), "utf8");
   const num = (text, re, what) => { const m = text.match(re); ok(m, `${tag}: ${what} not found`); return m ? Number(m[1]) : NaN; };
   const yaml = rd("examples/month-4/slam-nav/m4_nav/config/slam.yaml");
@@ -333,6 +337,21 @@ function checkPoseGraph(spec, tag) {
   ok(JSON.stringify(spec.nodes) === JSON.stringify(expected), `${tag}: nodes ${JSON.stringify(spec.nodes)} differ from SLAM Toolbox's rule ${JSON.stringify(expected)}`);
   ok(spec.nodes.every((k, i) => E[i] === S[k].odom || JSON.stringify(E[i]) === JSON.stringify(S[k].odom)), `${tag}: estimate is not the odometry pose of each node's scan`);
   ok(spec.nodes.every((k, i) => JSON.stringify(T[i]) === JSON.stringify(S[k].truth)), `${tag}: truth is not the true pose of each node's scan`);
+  // Fixed expectations, computed by hand (catches a logic error shared by the spec and the rule above):
+  //  node 0 = scan 0: the first callback passes (first_measurement_) -> (0, 0, 0).
+  //  node 1 = scan 8: scans 1-3 dropped (scan_ctr 2-4), scan 4 is 0.4 s after scan 0 (< 0.5 s); scan 7 is
+  //    7 x 0.025 = 0.175 m out, 0.175^2 = 0.030625 < 0.8 x 0.2^2 = 0.032 -> dropped; scan 8 is 0.200 m out,
+  //    0.04 >= 0.032 passes, and 0.04 >= 0.2^2 - 1e-6 for Karto -> (0.200, 0, 0).
+  //  nodes 1-12 = scans 8, 16, ..., 96: the 2.4 m side takes 9.6 s = 96 scans, so node 12 is at the corner (2.4, 0).
+  //  node 13 = scan 130: the turn on the spot (base does not move, every scan dropped) takes (pi/2) / 0.6 =
+  //    2.61799 s and ends at t = 12.21799 s; scan 129 (t = 12.9) is 0.25 x 0.68201 = 0.17050 m from the corner
+  //    (< 0.17889, dropped); scan 130 (t = 13.0) is d = 0.25 x 0.78201 = 0.19550 m out and passes; Karto keeps it
+  //    because odometry turned th = 0.97 x pi/2 = 1.52367 rad >= 0.2. Position x = 2.4 + d cos th = 2.40921,
+  //    y = d sin th = 0.19528.
+  const HAND = [[0, 0, 0, 0], [1, 8, 0.2, 0], [12, 96, 2.4, 0], [13, 130, 2.40921, 0.19528]];
+  for (const [i, k, x, y] of HAND)
+    ok(spec.nodes[i] === k && Math.abs(E[i].x - x) < 5e-6 && Math.abs(E[i].y - y) < 5e-6,
+      `${tag}: node ${i} should be scan ${k} at (${x}, ${y}) by hand; got scan ${spec.nodes[i]} at (${E[i]?.x.toFixed(5)}, ${E[i]?.y.toFixed(5)})`);
   console.log(`calc  ${spec.id}: ${S.length} scans -> ${expected.length} nodes by SLAM Toolbox ${SLAM_TOOLBOX.version}'s rule (drop < sqrt(${want.factor}) x ${want.distance} = ${(Math.sqrt(want.factor) * want.distance).toFixed(3)} m, then ${want.distance} m or ${want.heading} rad)`);
   // the view: one layout of at most 360 units; text >= 12 px on a phone, inside the viewBox
   const ps = [...E, ...C];

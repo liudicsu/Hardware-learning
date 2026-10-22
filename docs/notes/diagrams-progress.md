@@ -80,7 +80,7 @@ numbers, cart-pole direction, TB6612 OUT1) go into the PR that touches each less
   - All hand-written.
 - D-5 merged (#25, squash e20ae6e, on top of #22 7293e6f). Main CI and Pages green; live check 24/24 OK
   (hl-audit/prc-live-check.md). D-5 nits in #26; D-6 STS ByteFields in #28 (`kind: "bytes"`).
-- D-7 (branch diagrams/d7-slam-pose-graph from e20ae6e, parallel to #26/#28): `kind: "poseGraph"`
+- (已废弃 / obsolete: the "0.2 m / 0.2 rad" node rule below was replaced by the review fix that follows) D-7 (branch diagrams/d7-slam-pose-graph from e20ae6e, parallel to #26/#28): `kind: "poseGraph"`
   (PoseGraph.tsx + checkPoseGraph) and `slam-pose-graph` in slam-nav (D091 part 2; the TF chain is D-2's
   slam-tf-chain): 4 frames — a node every 0.2 m / 0.2 rad, scan matching, drift gap after one lap (0.28 m),
   loop closure with the corrected graph. Node spacing checked against slam.yaml node by node; route, 3 % turn
@@ -89,3 +89,6 @@ numbers, cart-pole direction, TB6612 OUT1) go into the PR that touches each less
   sqrt(0.8) x 0.2 = 0.179 m filter, heading ignored there; then Karto's 0.2 m / 0.2 rad). Route now turns on the
   spot like tour.py (turns add no nodes); lesson L11 and the slam.yaml comments fixed in zh and en; caption: rolling
   scan buffer (10 scans / 10 m), Ceres solver; loop-closure step: loop_search_maximum_distance 3 m, chain >= 10.
+- D-7 second review (#29): node 0 is the first scan (first_measurement_ branch, slam_toolbox_common.cpp:771-777,
+  before every other test), 41 nodes; "first 5" comments fixed (callbacks 2-4 are dropped: scan_ctr++ at :769
+  before scan_ctr < 5 at :795); hand-computed nodes 0, 1, 12, 13 pinned in check_diagrams.
