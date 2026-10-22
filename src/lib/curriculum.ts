@@ -16,6 +16,13 @@ const month1Lessons: Lesson[] = [
       en: "Build an intuition for electricity and make Ohm's law, power and voltage dividers automatic.",
     },
     minutes: 90,
+    objectives: [
+      { zh: "能在 A 与 mA、Ω 与 kΩ、MΩ 之间换算，且不丢 1000 倍。", en: "Convert between A and mA and between Ω, kΩ and MΩ without losing a factor of 1000." },
+      { zh: "能用欧姆定律 V = I × R 和功率公式 P = V × I = I² × R = V² / R 在纸上计算电路。", en: "Use Ohm's law V = I × R and the power forms P = V × I = I² × R = V² / R to calculate a circuit on paper." },
+      { zh: "能计算串并联电阻（220 Ω + 330 Ω = 550 Ω，两个 10 kΩ 并联为 5 kΩ），并应用 Vout = Vin × R2 / (R1 + R2)。", en: "Combine series and parallel resistances (220 Ω + 330 Ω = 550 Ω; two 10 kΩ in parallel = 5 kΩ) and apply Vout = Vin × R2 / (R1 + R2)." },
+      { zh: "能解释 10 kΩ 负载为何使 1.6 V 分压输出降到约 1.2 V，以及何时应改用稳压器。", en: "Explain why a 10 kΩ load drops the 1.6 V divider output to about 1.2 V, and when to use a regulator." },
+    ],
+    prereqs: [],
     resources: ["falstad", "aac", "afrotechmods"],
     tasks: [
       { id: "falstad-ohms", text: { zh: "在 Falstad 中打开欧姆定律示例，改变电阻值并观察电流变化", en: "Open the Ohm's-law example in Falstad, change the resistor and watch the current change" } },
@@ -32,6 +39,13 @@ const month1Lessons: Lesson[] = [
       en: "Meet resistors, capacitors, diodes/LEDs and transistors, read schematics, and understand pull-ups, decoupling and battery safety.",
     },
     minutes: 120,
+    objectives: [
+      { zh: "能识别电阻、电容、二极管、LED、NPN 三极管和 GND 的符号，并读懂连接点、交叉无点和同名网络标号。", en: "Read resistor, capacitor, diode, LED, NPN transistor and GND symbols, junction dots, dot-less crossings and same-net labels." },
+      { zh: "能计算 τ = R × C 并掌握 63 % 与 99 % 两个节点，会在每个 IC 的 VCC 与 GND 之间放置 100 nF 去耦电容。", en: "Calculate τ = R × C with the 63 % and 99 % milestones, and place a 100 nF decoupling capacitor at each IC's VCC and GND." },
+      { zh: "能用 R = (Vsupply − Vf) / I 计算 LED 限流电阻，并解释 Rb = 100 kΩ 为何使三极管无法饱和。", en: "Size an LED resistor with R = (Vsupply − Vf) / I, and explain why Rb = 100 kΩ keeps the transistor out of saturation." },
+      { zh: "能解释悬空输入与 INPUT_PULLUP、LiPo 的 3.7 V/4.2 V 限制和 C 数，以及用 V = I × R 解释堵转导致的欠压复位。", en: "Explain floating inputs and INPUT_PULLUP, LiPo 3.7 V/4.2 V limits and C ratings, and stall brownout with V = I × R." },
+    ],
+    prereqs: ["ohms-law"],
     resources: ["falstad", "tinkercad", "aac", "make-electronics"],
     tasks: [
       { id: "led-resistor", text: { zh: "为 5V 驱动的红色 LED（2V，10mA）计算限流电阻", en: "Calculate the current-limiting resistor for a red LED (2 V, 10 mA) on 5 V" } },
@@ -48,6 +62,13 @@ const month1Lessons: Lesson[] = [
       en: "Equip your bench in budget tiers and learn to measure voltage, resistance, continuity and current — the skill that saves the most hours later.",
     },
     minutes: 90,
+    objectives: [
+      { zh: "能说出 COM、VΩ、mA、10A 各插孔的用途，以及测电流时与测完后红表笔的位置。", en: "Identify the COM, VΩ, mA and 10A jacks, and state where the red lead goes during and after a current measurement." },
+      { zh: "能并联测电压、串联测电流，并解释各自为什么。", en: "Measure voltage in parallel and current in series, and explain why each method is required." },
+      { zh: "能手读 4 环色环阻值（含倍率与误差），并在断电、离路条件下测量电阻。", en: "Read 4-band resistor colour codes including multiplier and tolerance, and measure resistance powered off and out of circuit." },
+      { zh: "能用通断档查找断线并在上电前检查电源对地短路，能背出六步排障流程。", en: "Use continuity to find a dead wire and check supply to ground for shorts, and walk the six-step troubleshooting routine." },
+    ],
+    prereqs: ["ohms-law", "components"],
     resources: ["sparkfun-multimeter", "sparkfun-resistors", "adafruit-dmm", "elegoo-super", "elegoo-basic", "sparkfun-sik", "tinkercad"],
     tasks: [
       { id: "battery", text: { zh: "测量一节电池的电压（新电池与旧电池各一节更好）", en: "Measure the voltage of a battery (ideally one new and one used)" } },
@@ -64,6 +85,13 @@ const month1Lessons: Lesson[] = [
       en: "Make clean through-hole joints safely, recognise cold joints, and learn to desolder and rework.",
     },
     minutes: 120,
+    objectives: [
+      { zh: "能把恒温烙铁设为有铅 63/37 的 320–350 °C 或无铅 SAC305 的 350–380 °C，并正确上锡与存放烙铁头。", en: "Set a temperature-controlled iron to 320–350 °C for 63/37 leaded or 350–380 °C for SAC305, and tin and store the tip correctly." },
+      { zh: "能在 2–4 s 内完成通孔焊点：同时加热焊盘与引脚，把焊锡送入焊点。", en: "Make a through-hole joint in 2–4 s by heating the pad and lead together and feeding solder into the joint." },
+      { zh: "能识别冷焊、桥连、锡过多和扰动焊点，并用助焊剂、重新加热、吸锡带或吸锡器修正。", en: "Identify cold, bridged, excess-solder and disturbed joints, and correct them with flux, reheat, braid or a pump." },
+      { zh: "能焊完排针并用通断档确认每根针到自己的焊盘导通、相邻针不响。", en: "Solder a header and verify with continuity that each pin reaches its own pad and adjacent pins do not beep." },
+    ],
+    prereqs: ["bench-multimeter"],
     resources: ["adafruit-soldering", "sparkfun-multimeter", "pinecil"],
     tasks: [
       { id: "tin-tip", text: { zh: "给烙铁头上锡，并练习保持清洁", en: "Tin the iron tip and practise keeping it clean" } },
@@ -80,6 +108,13 @@ const month1Lessons: Lesson[] = [
       en: "Get comfortable with functions, classes, file I/O, JSON, virtual environments and pip — and run it all from the terminal.",
     },
     minutes: 180,
+    objectives: [
+      { zh: "能用 pwd、ls、cd 导航，创建文件和目录，并使用管道、重定向与 export ROBOT_NAME。", en: "Navigate with pwd, ls and cd, create files and folders, and use pipes, redirection and export ROBOT_NAME." },
+      { zh: "能创建并激活 venv、安装包、冻结到 requirements.txt、退出环境，并绝不提交 .venv。", en: "Create and activate a venv, install a package, freeze it to requirements.txt, deactivate, and never commit .venv." },
+      { zh: "能运行 ohm.py 的 current 与 divider 子命令：5 V 加在 220 Ω 上输出 22.7 mA，5 V 配 10 kΩ/4.7 kΩ 输出 1.599 V。", en: "Run ohm.py current and divider subcommands: 5 V across 220 Ω prints 22.7 mA, and 5 V with 10 kΩ/4.7 kΩ prints 1.599 V." },
+      { zh: "能定义 @dataclass Resistor 和 JSON 记录器，并从下往上读 traceback，识别 ValueError、ModuleNotFoundError 与 IndentationError。", en: "Define a @dataclass Resistor and a JSON logger, and read tracebacks bottom-up to identify ValueError, ModuleNotFoundError and IndentationError." },
+    ],
+    prereqs: ["ohms-law"],
     resources: ["cs50p", "py4e", "missing-semester", "python-tutorial"],
     tasks: [
       { id: "venv", text: { zh: "创建虚拟环境并用 pip 安装一个包", en: "Create a virtual environment and pip-install a package" } },
@@ -96,6 +131,13 @@ const month1Lessons: Lesson[] = [
       en: "Put every project under Git — init, add, commit, push, branches — with a README someone else can follow.",
     },
     minutes: 120,
+    objectives: [
+      { zh: "能配置 user.name、user.email 和 init.defaultBranch main，并用 gh auth login 或 SSH 密钥完成认证。", en: "Configure Git with user.name, user.email and init.defaultBranch main, and authenticate via gh auth login or an SSH key." },
+      { zh: "能解释工作区、暂存区和仓库，并用祈使句提交 ohm.py 与 log.py。", en: "Explain the working directory, staging area and repository, then stage and commit ohm.py and log.py with an imperative message." },
+      { zh: "能创建分支、合并回 main，并通过删除冲突标记、执行 git add 与 git commit 手动解决冲突。", en: "Create a branch, merge it into main, and resolve a conflict by editing the markers, then running git add and git commit." },
+      { zh: "能写包含照片、元件清单、接线表、运行命令和“出了什么问题”一节的 README，并用 .gitignore 排除 .venv。", en: "Write a README with photo, parts list, wiring table, run commands and a what-broke section, and exclude .venv via .gitignore." },
+    ],
+    prereqs: ["python-terminal"],
     resources: ["learn-git-branching", "missing-semester", "pro-git"],
     tasks: [
       { id: "lgb-intro", text: { zh: "完成 Learn Git Branching 的 “Introduction Sequence” 关卡", en: "Finish the Learn Git Branching “Introduction Sequence”" } },
@@ -115,6 +157,13 @@ const month2Lessons: Lesson[] = [
       en: "Understand setup/loop, read buttons and potentiometers, dim an LED with PWM, and make serial printing your main debugging tool.",
     },
     minutes: 150,
+    objectives: [
+      { zh: "能说清 setup() 与 loop() 各自做什么，以及一个只跑一次、另一个反复跑的原因。", en: "Explain what setup() and loop() do and why one runs once while the other repeats." },
+      { zh: "能不看资料用 INPUT_PULLUP 接好按键，并说出按下与松开时 digitalRead() 分别返回 LOW 还是 HIGH。", en: "Wire a button with INPUT_PULLUP and state what digitalRead() returns when pressed and released." },
+      { zh: "能用 V = raw × 5.0 / 1023 把 ADC 原始值换算成电压，并解释为什么必须写成 5.0。", en: "Convert a raw ADC reading to volts with V = raw × 5.0 / 1023 and explain why 5.0 is required." },
+      { zh: "能计算 PWM 的占空比与平均电压（例如 analogWrite(9, 191) 得到 3.75 V），并在串口绘图器里画出一行 name:value 输出。", en: "Calculate PWM duty cycle and average voltage, e.g. analogWrite(9, 191) giving 3.75 V, and plot a serial line in the Serial Plotter." },
+    ],
+    prereqs: ["ohms-law", "components"],
     resources: ["mcwhorter", "arduino-examples", "arduino-docs", "wokwi", "tinkercad"],
     tasks: [
       { id: "blink-sim", text: { zh: "在 Wokwi 或真板上跑通 Blink，并把闪烁周期改成 200 ms 亮 / 800 ms 灭", en: "Run Blink in Wokwi or on a real board, then change it to 200 ms on / 800 ms off" } },
@@ -131,6 +180,13 @@ const month2Lessons: Lesson[] = [
       en: "Replace delay() with millis() so one loop does many things, learn interrupts and debouncing, and build a reaction-timer game.",
     },
     minutes: 180,
+    objectives: [
+      { zh: "能用 0.5 m/s 行驶时 delay(1000) 让机器人盲开 50 cm 的例子，解释 delay() 为什么对机器人有害。", en: "Explain why delay() harms a robot, using the example of 0.5 m/s speed and 1000 ms of delay costing 50 cm." },
+      { zh: "能凭记忆写出 millis() 模式（含 last += PERIOD），并解释 49.7 天回绕后 now - last 为什么仍然正确。", en: "Write the millis() pattern from memory with last += PERIOD, and explain why now - last survives the 49.7-day wrap." },
+      { zh: "能解释触点弹跳，并为一个具体按键选出合理的消抖时间（如轻触按键 10–30 ms）。", en: "Explain contact bounce and choose a sensible debounce time for a given button, such as 10–30 ms." },
+      { zh: "能把中断挂到 2 号引脚，并遵守 ISR 规矩：短小、不用 delay()、不用 Serial、共享变量加 volatile 并原子复制。", en: "Attach an interrupt to pin 2 and apply the ISR rules: short handler, no delay(), no Serial, volatile shared variables, atomic copies." },
+    ],
+    prereqs: ["arduino-io", "python-terminal"],
     resources: ["arduino-docs", "wokwi", "mcwhorter"],
     tasks: [
       { id: "two-blinks", text: { zh: "只用 millis()，让两个 LED 分别以 250 ms 和 400 ms 的周期独立闪烁", en: "Using only millis(), blink two LEDs independently at 250 ms and 400 ms periods" } },
@@ -147,6 +203,13 @@ const month2Lessons: Lesson[] = [
       en: "Move from the Uno to the ESP32: pick a variant, avoid the pin traps, choose between Arduino, ESP-IDF and MicroPython, and drive a servo from a phone web page.",
     },
     minutes: 180,
+    objectives: [
+      { zh: "能为项目挑选 ESP32 型号，并说明为什么课程主力是 S3、同时经典板仍值得备一块。", en: "Choose an ESP32 variant for a project and explain why the S3 is the main board while a classic board is still worth owning." },
+      { zh: "能用上 1 kΩ、下 2 kΩ 的分压器把 5 V 信号降到 3.333 V，接进不耐 5 V 的 3.3 V 引脚。", en: "Make a 5 V signal safe for a 3.3 V pin with a 1 kΩ / 2 kΩ divider giving 3.333 V." },
+      { zh: "能按 duty = pulse / period × (2^bits − 1) 算出 LEDC 占空比：50 Hz、14 位下 1.5 ms 脉冲对应 1228。", en: "Calculate an LEDC duty value with duty = pulse / period × (2^bits − 1): 1.5 ms at 50 Hz and 14 bits gives 1228." },
+      { zh: "能说出经典 ESP32 上要避开的引脚（GPIO 6–11、strapping 引脚 GPIO 0/2/5/12/15、开 Wi-Fi 时的 ADC2），并说明各自会出什么问题。", en: "Name the classic ESP32 pins to avoid — GPIO 6–11, strapping GPIO 0/2/5/12/15, ADC2 under Wi-Fi — and what each causes." },
+    ],
+    prereqs: ["arduino-io", "timing-interrupts"],
     resources: ["rnt-esp32", "arduino-esp32", "esp-idf", "dronebot-esp32", "esp32-s3-devkit", "esp32-classic", "wokwi"],
     tasks: [
       { id: "esp32-blink", text: { zh: "安装 ESP32 开发板支持包，上传 Blink，并在串口看到芯片型号", en: "Install the ESP32 board package, upload Blink and print the chip model to serial" } },
@@ -163,6 +226,13 @@ const month2Lessons: Lesson[] = [
       en: "Meet the four actuator types, understand H-bridges and flyback diodes, pick the right driver, and use an encoder to turn a wheel exactly one revolution.",
     },
     minutes: 210,
+    objectives: [
+      { zh: "能解释占空比不等于转速，并算出 60 % 占空比在 7.4 V 电池上给出 0.60 × 7.4 V = 4.44 V 平均电压。", en: "Explain why PWM duty is not speed, and calculate 0.60 × 7.4 V = 4.44 V average at 60 % duty." },
+      { zh: "能画出 H 桥的四个状态（含刹车与滑行），并说明为什么弃用 L298N：它 2 V 的压降在 1 A 时变成 2.0 W 的热量。", en: "Draw the H-bridge's four states including brake and coast, and reject the L298N whose 2 V drop wastes 2.0 W as heat at 1 A." },
+      { zh: "能解释电感反冲，并把续流二极管反向并联在线圈两端，阴极接正电源一侧。", en: "Explain inductive kickback and connect a flyback diode across a switched coil, cathode to the positive supply." },
+      { zh: "能用编码器 CPR 与减速比算出每转车轮的计数（12 × 120 = 1440），并用 P 控制器把车轮转到恰好一圈。", en: "Compute counts per wheel revolution from CPR and gear ratio (12 × 120 = 1440) and turn a wheel exactly one revolution with a P controller." },
+    ],
+    prereqs: ["arduino-io", "timing-interrupts", "components"],
     resources: ["dronebot-l298n", "sparkfun-tb6612", "dronebot-stepper", "simplefoc", "drv8833", "tb6612-breakout", "romi-gearmotor-encoder", "a4988", "sts3215"],
     tasks: [
       { id: "falstad-kick", text: { zh: "在 Falstad 中对比有无续流二极管时，断开电感瞬间的电压尖峰", en: "In Falstad, compare the voltage spike when an inductor is switched off with and without a flyback diode" } },
@@ -179,6 +249,13 @@ const month2Lessons: Lesson[] = [
       en: "Wire and read an I2C sensor from its datasheet, understand gyro drift and accelerometer noise, and get a stable tilt angle from a four-line complementary filter.",
     },
     minutes: 210,
+    objectives: [
+      { zh: "能用 I2C 扫描器找到新器件，并解释返回 0 表示器件已经应答。", en: "Find an I2C device with the scanner and explain that a return value of 0 means the device acknowledged." },
+      { zh: "能按数据手册灵敏度把 MPU-6050 原始寄存器换算成 g 与 °/s：16384 LSB/g、131 LSB/(°/s)。", en: "Convert raw MPU-6050 registers to g and °/s using the datasheet sensitivity of 16384 LSB/g and 131 LSB per °/s." },
+      { zh: "能凭记忆写出互补滤波，并为给定采样率选择 α，用 τ = α × dt / (1 − α) = 0.49 s（100 Hz、α = 0.98）核算时间常数。", en: "Write the complementary filter from memory and pick α for a sample rate, using τ = α × dt / (1 − α) = 0.49 s at 100 Hz." },
+      { zh: "能在开机时静止平均 100–200 个采样测出陀螺仪零偏，并在积分前把它减掉。", en: "Measure the gyro bias at startup by averaging 100–200 stationary samples and subtract it before integrating." },
+    ],
+    prereqs: ["arduino-io", "timing-interrupts"],
     resources: ["arduino-docs", "labbe-kalman", "mathworks-fusion", "adafruit-bno085", "wokwi"],
     tasks: [
       { id: "i2c-scan", text: { zh: "运行 I2C 扫描程序，找到你的 IMU 地址，并读出 WHO_AM_I 寄存器", en: "Run the I2C scanner, find your IMU's address and read its WHO_AM_I register" } },
@@ -195,6 +272,13 @@ const month2Lessons: Lesson[] = [
       en: "Put the first five lessons into one closed loop: tune a line follower with P then D, then take on a balancer that only stands when both the filter and the loop timing are right.",
     },
     minutes: 240,
+    objectives: [
+      { zh: "能以 error = setpoint − measurement 为基础，用机器人实际表现讲清 P、I、D 三个项各自的作用。", en: "Explain P, I and D from what the robot actually did when you changed each gain, starting from error = setpoint − measurement." },
+      { zh: "能先用纯 P 调好循线小车，再加入 D，并为每次尝试记录 KP、KD 与 BASE_PWM。", en: "Tune the line follower with P only, then add D, and log KP, KD and BASE_PWM for every attempt." },
+      { zh: "能用 micros() 把自平衡车的控制循环固定在 200 Hz，配互补滤波与 40° 倾角断电保护。", en: "Run the balancer at a fixed 200 Hz using micros(), with a complementary filter and a 40° cut-off that stops the motors." },
+      { zh: "能把两台机器人放到 GitHub，并写上 README、调参日志以及出过的故障的诚实记录。", en: "Put both robots on GitHub with a README, a tuning log and an honest account of what broke." },
+    ],
+    prereqs: ["sensors-fusion", "motors-drivers"],
     resources: ["romi-chassis", "qtr-8rc", "tb6612-breakout", "drv8833", "romi-gearmotor-encoder", "esp32-s3-devkit", "labbe-kalman"],
     tasks: [
       { id: "pd-sim", text: { zh: "运行本课的循线 Python 模拟，比较 P 和 PD 的过冲与振荡", en: "Run the lesson's line-follower Python simulation and compare overshoot and oscillation for P vs PD" } },
@@ -215,6 +299,13 @@ const month3Lessons: Lesson[] = [
       en: "Pick one CAD tool and go deep: fully constrained sketches, parameters that drive every size, modelling from the datasheet, and STEP versus STL.",
     },
     minutes: 150,
+    objectives: [
+      { zh: "能用 cut_l = servo_l + 2 * clearance 计算派生切口尺寸（22.2 mm + 2 * 0.4 mm = 23.0 mm）。", en: "Compute a derived cut-out with cut_l = servo_l + 2 * clearance (22.2 mm + 2 * 0.4 mm = 23.0 mm)." },
+      { zh: "能把四条线组成的矩形草图约束到 0 DOF，从 8 DOF 起逐步加约束与尺寸。", en: "Constrain a four-line rectangle sketch to 0 DOF, counting down from 8 DOF with constraints and dimensions." },
+      { zh: "能用卡尺测孔距：外到外减一个孔径（29.5 mm − 2.0 mm = 27.5 mm）。", en: "Measure hole spacing from calipers as outside-to-outside minus one hole diameter (29.5 mm − 2.0 mm = 27.5 mm)." },
+      { zh: "能解释为什么需要修改孔径的协作者必须拿到 STEP 文件，而 STL 只是不可再参数化的三角网格。", en: "Explain why a collaborator who must change a hole size needs the STEP file, while STL is a triangle mesh with no editable features." },
+    ],
+    prereqs: [],
     resources: ["onshape-free", "onshape-learn", "fusion-personal", "pdo-fusion30", "freecad", "mangojelly", "solidworks-makers", "openscad"],
     tasks: [
       { id: "pick-tool", text: { zh: "选定一个 CAD 工具，完成它的入门课程（Onshape 基础课或 30 天 Fusion 的前 5 天）", en: "Pick one CAD tool and finish its starter course (Onshape Fundamentals or the first 5 days of Fusion in 30 Days)" } },
@@ -231,6 +322,13 @@ const month3Lessons: Lesson[] = [
       en: "Choose a printer and filament, calibrate in the right order, measure your machine's real clearances, then design for FDM: orientation, overhangs, layer adhesion and snap-fits that click.",
     },
     minutes: 180,
+    objectives: [
+      { zh: "能把测试件的总差值换算成每侧间隙（0.3 mm / 2 = 0.15 mm），再填入 CAD 参数。", en: "Convert a gauge's total difference into per-side clearance (0.3 mm / 2 = 0.15 mm) before setting CAD parameters." },
+      { zh: "能算出自由转动孔的孔径：轴径加两倍每侧间隙（5 mm + 2 × 0.2 mm = 5.4 mm）。", en: "Compute a free-turning hole as shaft diameter plus twice the per-side clearance (5 mm + 2 × 0.2 mm = 5.4 mm)." },
+      { zh: "能用 ε = 1.5 × y × t / L² 评估悬臂卡扣应变（L = 10、t = 1.2、y = 0.8 mm 得 1.44 %）。", en: "Evaluate cantilever snap strain with ε = 1.5 × y × t / L² (L = 10, t = 1.2, y = 0.8 mm gives 1.44 %)." },
+      { zh: "能按载荷与温度选材料：PLA 约 55–60 °C 软化，贴 70 °C 电机的安装座应选 ABS 或 ASA。", en: "Choose filament from load and heat: PLA softens around 55–60 °C, so a 70 °C motor mount needs ABS or ASA." },
+    ],
+    prereqs: ["cad-parametric"],
     resources: ["ender3-v3-se", "bambu-a1-mini", "bambu-a1", "creality-k1c", "bambu-p1s", "orca-calibration", "teachingtech-calibration", "cnc-kitchen", "tolerance-gauge", "hubs-dfam", "fablabs", "library-makerspace", "craftcloud", "jlc3dp"],
     tasks: [
       { id: "calibrate", text: { zh: "按 OrcaSlicer 的顺序完成温度、流量和回抽校准，把结果记在打印日志里", en: "Run temperature, flow and retraction calibration in OrcaSlicer's order and record the results in a print log" } },
@@ -247,6 +345,13 @@ const month3Lessons: Lesson[] = [
       en: "How a gear ratio trades speed for torque, why backlash ruins position accuracy in a way software cannot fully fix, and choosing bearings, preload, belts or direct drive.",
     },
     minutes: 150,
+    objectives: [
+      { zh: "能计算输出扭矩 = 电机扭矩 × n × 效率（0.1 N·m × 10 × 0.9 = 0.9 N·m）。", en: "Calculate output torque as motor torque × n × efficiency (0.1 N·m × 10 × 0.9 = 0.9 N·m)." },
+      { zh: "能验算行星装配规则：行星轮 = (齿圈 − 太阳轮)/2 为整数齿数，且 (太阳轮 + 齿圈)/N 为整数。", en: "Check planetary assembly rules: planet = (ring − sun)/2 is a whole tooth count and (sun + ring)/N is a whole number." },
+      { zh: "能把关节回差换算成末端误差：弧长 = 臂长 × 角度弧度（0.40 m 臂上 1.5° = 10.5 mm）。", en: "Convert joint backlash to tip error with arc = reach × angle in radians (1.5° on a 0.40 m arm = 10.5 mm)." },
+      { zh: "能解释反向拖动：摩擦按 n、转子惯量按 n² 放大，345:1 的惯量感是 147:1 的 5.51 倍。", en: "Explain backdriving: friction scales with n and rotor inertia with n², so 345:1 feels 5.51× the inertia of 147:1." },
+    ],
+    prereqs: ["fdm-printing"],
     resources: ["opencycloid", "sts3215"],
     tasks: [
       { id: "ratio-calc", text: { zh: "用本课的脚本设计一个能装配的行星级（齿数、行星数、减速比）", en: "Use the lesson's script to design a planetary stage that assembles (teeth, planet count, ratio)" } },
@@ -262,6 +367,13 @@ const month3Lessons: Lesson[] = [
       en: "Finish PID properly: I for steady error, D for damping, windup and anti-windup; then add a cascade outer loop that keeps Month 2's balancer in one place.",
     },
     minutes: 180,
+    objectives: [
+      { zh: "能预测纯 P 的稳态误差 = 负载 / Kp（0.227 N·m / 0.05 N·m 每度 = 4.5°）。", en: "Predict P-only steady error as load divided by Kp (0.227 N·m / 0.05 N·m per degree = 4.5°)." },
+      { zh: "能通过只在输出未饱和时积分来防止积分饱和（Ki 0.4 超调：8.9° 对 39.0°）。", en: "Prevent integral windup by integrating only while the output is unsaturated (Ki 0.4 overshoot: 8.9° vs 39.0°)." },
+      { zh: "能对测量值而不是误差求微分，避免目标阶跃产生微分冲击。", en: "Differentiate the measurement rather than the error to avoid a derivative kick when the target steps." },
+      { zh: "能配置串级回路：内环 200 Hz PD、外环 25 Hz PI，设定点限制在 ±3°。", en: "Configure a cascade with inner 200 Hz PD, outer 25 Hz PI and the setpoint clamped to ±3°." },
+    ],
+    prereqs: ["first-robots", "transmissions", "timing-interrupts"],
     resources: ["mathworks-pid", "beauregard-pid"],
     tasks: [
       { id: "pid-sim", text: { zh: "运行本课的关节 PID 模型，自己改增益，找出有/无抗饱和时超调的差别", en: "Run the lesson's joint PID model, change the gains yourself and find the overshoot difference with and without anti-windup" } },
@@ -278,6 +390,13 @@ const month3Lessons: Lesson[] = [
       en: "Choose how to buy it, build the leader and follower arms, read the bus-servo packets, then set IDs, calibrate and teleoperate with LeRobot.",
     },
     minutes: 240,
+    objectives: [
+      { zh: "能构造 STS 数据包并用 CHECKSUM = ~(ID + LENGTH + INSTRUCTION + PARAMS) & 0xFF 校验。", en: "Build an STS packet and verify its checksum with CHECKSUM = ~(ID + LENGTH + INSTRUCTION + PARAMS) & 0xFF." },
+      { zh: "能把舵机回报的步数换算成角度：编码器每圈 4096 步（1024 步 = 90°）。", en: "Convert a reported position in steps to degrees with the 4096-step encoder (1024 steps = 90°)." },
+      { zh: "能逐个连接舵机并设置 ID 1–6，因为每只新舵机出厂都响应 ID 1。", en: "Set servo IDs 1–6 one motor at a time because every new servo answers to ID 1." },
+      { zh: "能用 lerobot-calibrate 校准两条臂，并用 lerobot-teleoperate 遥操作从臂跟随主臂。", en: "Calibrate both arms with lerobot-calibrate and teleoperate the follower with lerobot-teleoperate." },
+    ],
+    prereqs: ["python-terminal", "git-github", "transmissions"],
     resources: ["so-arm100", "lerobot-so101", "seeed-so101-pro", "seeed-so101-printed", "robonine-so101", "wowrobo-so101", "eezybotarm", "xarm-1s", "mujoco", "sts3215"],
     tasks: [
       { id: "buy-plan", text: { zh: "按你的预算选一条路线（MuJoCo、单从臂、整套主从），写下总价和理由", en: "Choose a route for your budget (MuJoCo, single follower, full pair) and write down the total and why" } },
@@ -294,6 +413,13 @@ const month3Lessons: Lesson[] = [
       en: "Work out how hard to squeeze from friction, use a fin-ray structure so fingers wrap around objects, print them in TPU and test them on three differently shaped objects, finishing the month's arm modification.",
     },
     minutes: 180,
+    objectives: [
+      { zh: "能用 F = S × m × (g + a) / (2 × μ) 计算最小夹持力（60 g 鸡蛋配 TPU ≈ 1.0 N）。", en: "Calculate minimum squeeze force with F = S × m × (g + a) / (2 × μ) (60 g egg on TPU ≈ 1.0 N)." },
+      { zh: "能用倾斜木板法测摩擦系数：物体刚开始滑动时 μ = tan(角度)。", en: "Measure the friction coefficient with a tilted board until the object slides, using μ = tan(angle)." },
+      { zh: "能用 OpenSCAD 参数化设计鳍条手指，调整侧壁厚度、肋条数量与肋条倾角。", en: "Design a parametric fin-ray finger in OpenSCAD, varying flank thickness, rib count and rib tilt." },
+      { zh: "能按三物体测试流程评估抓取：每种 10 次，抬起 10 cm 并保持 5 s 才算成功。", en: "Run the three-object grasp test: 10 grasps each, success only if lifted 10 cm and held 5 s." },
+    ],
+    prereqs: ["cad-parametric", "fdm-printing", "so101-arm"],
     resources: ["so101-compliant-gripper", "so-arm100", "cnc-kitchen"],
     tasks: [
       { id: "friction", text: { zh: "用斜板法测出 PLA 和 TPU 在你的物体上的摩擦系数，算出需要的夹紧力", en: "Measure PLA and TPU friction on your objects with a tilted board and work out the squeeze force needed" } },
@@ -313,6 +439,13 @@ const month4Lessons: Lesson[] = [
       en: "Why to start on Jazzy, how to spot an outdated ROS 1 tutorial at a glance, four ways to install, then build and run your first ROS 2 package with colcon.",
     },
     minutes: 150,
+    objectives: [
+      { zh: "能解释为何从 Jazzy 开始（LTS 支持到 2029 年 5 月），并识别 roscore、catkin_make 等 ROS 1 命令。", en: "Explain why Jazzy is the starting distro (LTS until May 2029) and recognise ROS 1 commands such as roscore and catkin_make." },
+      { zh: "能用任一受支持的路线安装 ROS 2 Jazzy，并通过运行 C++ talker 与 Python listener 验证安装。", en: "Install ROS 2 Jazzy by one supported route and verify it by running the C++ talker and Python listener." },
+      { zh: "能创建 m4_hello 包，用 colcon 构建，运行 2 Hz 的 hello_node，并用 ros2 node/topic 命令检查它。", en: "Create the m4_hello package, build it with colcon, run hello_node at 2 Hz, and inspect it with ros2 node and topic commands." },
+      { zh: "能诊断四类常见安装错误：未 source、在 src/ 内构建、混用发行版、ROS_DOMAIN_ID 不一致。", en: "Diagnose four common setup failures: missing source, building inside src/, mixed distros and mismatched ROS_DOMAIN_ID." },
+    ],
+    prereqs: [],
     resources: ["ros2-tutorials", "the-construct", "robostack"],
     tasks: [
       { id: "install", text: { zh: "装好 ROS 2 Jazzy（任选一种方式），跑通 C++ talker 和 Python listener", en: "Install ROS 2 Jazzy (any route) and get the C++ talker and Python listener talking" } },
@@ -329,6 +462,13 @@ const month4Lessons: Lesson[] = [
       en: "A complete multi-node system with no robot and no simulator: your own msg/srv/action, Python and C++ nodes, parameters and YAML, a launch file with arguments, recording and replaying with ros2 bag, and the QoS mismatch behind “it publishes but nothing receives”.",
     },
     minutes: 240,
+    objectives: [
+      { zh: "能为连续数据选择 topic、为即时请求选择 service、为需要反馈或取消的任务选择 action。", en: "Choose a topic for continuous data, a service for an immediate request, and an action for work needing feedback or cancellation." },
+      { zh: "能编写 .msg、.srv、.action 文件，并用 rosidl_generate_interfaces 生成 C++ 与 Python 代码。", en: "Write .msg, .srv and .action files and generate C++ and Python code with rosidl_generate_interfaces." },
+      { zh: "能实现指数滑动平均 y ← y + α(x − y)，并在参数回调中拒绝 (0, 1] 之外的 α。", en: "Implement an exponential moving average y ← y + α(x − y), and reject α outside (0, 1] in a parameter callback." },
+      { zh: "能用参数与重映射启动整张图，用 ros2 bag 录制并回放 /raw 与 /filtered，并诊断 QoS 不兼容。", en: "Launch the graph with arguments and remappings, record and replay /raw and /filtered with ros2 bag, and diagnose QoS mismatches." },
+    ],
+    prereqs: ["ros2-setup"],
     resources: ["ros2-tutorials", "renard-ros2-l1", "articulated-robotics", "mogi-ros", "automatic-addison", "ros2-qos"],
     tasks: [
       { id: "pick-pipe", text: { zh: "为你设想的机器人列出 6 种数据流，每种判断该用话题、服务还是动作，写下理由", en: "List six data flows for a robot you have in mind and decide topic, service or action for each, with the reason" } },
@@ -347,6 +487,13 @@ const month4Lessons: Lesson[] = [
       en: "Write your own robot in xacro: a differential-drive base, a sensor mast and a two-DOF pan-tilt head, with correct inertias and separate visual and collision geometry; then read and diagnose its TF tree with robot_state_publisher, RViz and the tf2 tools.",
     },
     minutes: 240,
+    objectives: [
+      { zh: "能写出带命名属性与轮子宏的 xacro 描述，并正确使用 fixed、continuous、revolute 关节。", en: "Write a xacro description with named properties and a wheel macro, using fixed, continuous and revolute joints." },
+      { zh: "能计算长方体、圆柱、球体的惯量（底盘 Ixx = 0.010667 kg·m²），并用 inertia_check.py 验证。", en: "Calculate box, cylinder and sphere inertias (chassis Ixx = 0.010667 kg·m²) and verify them with inertia_check.py." },
+      { zh: "能解释 robot_state_publisher 如何把 /joint_states 与 URDF 变成 /tf，并用 joints:=none 启动模型。", en: "Explain how robot_state_publisher turns /joint_states and the URDF into /tf, and launch the model with joints:=none." },
+      { zh: "能算出 pan 30° 时 base_link→camera_link 为 [-0.043, 0.010, 0.305]，并用 tf2_echo 与 view_frames 诊断 TF 树断裂。", en: "Calculate base_link→camera_link at pan 30° as [-0.043, 0.010, 0.305], and diagnose TF tree breaks with tf2_echo and view_frames." },
+    ],
+    prereqs: ["ros2-setup", "ros2-graph"],
     resources: ["ar-transforms", "renard-ros2-l2", "urdf-rsp-tutorial"],
     tasks: [
       { id: "xacro", text: { zh: "用 xacro 写出你自己的机器人（不是 TurtleBot）：差速底盘、桅杆、云台，尺寸都用 property，轮子用宏", en: "Write your own robot in xacro (not TurtleBot): a differential-drive base, a mast and a pan-tilt head, with dimensions as properties and the wheels as a macro" } },
@@ -364,6 +511,13 @@ const month4Lessons: Lesson[] = [
       en: "Untangle Gazebo's naming history and version pairing and pick the right simulator (Gazebo, MuJoCo, Isaac Sim); then write an SDF world with obstacles, put last lesson's xacro robot into it with a lidar and a camera, and see the sensor data in ROS 2 and RViz through ros_gz_bridge.",
     },
     minutes: 240,
+    objectives: [
+      { zh: "能为 ROS 2 Jazzy 选择 Gazebo Harmonic，并识别 ign 或 gazebo_ros_pkgs 这类过时教程。", en: "Select Gazebo Harmonic for ROS 2 Jazzy and identify outdated ign or gazebo_ros_pkgs tutorials." },
+      { zh: "能搭建带四个系统插件和静态障碍物的 SDF 世界，并算出红色方块前表面 1.80 m、墙内表面 2.95 m。", en: "Build an SDF world with the four system plugins and static obstacles, and compute the red-box face at 1.80 m and walls at 2.95 m." },
+      { zh: "能配置 360 束、10 Hz 的 gpu_lidar 和 640×480 相机，把 gz_frame_id 设为 lidar_link 与 camera_optical_link，并用 ros_gz_bridge 桥接。", en: "Configure a 360-beam, 10 Hz gpu_lidar and a 640×480 camera with gz_frame_id lidar_link and camera_optical_link, then bridge them with ros_gz_bridge." },
+      { zh: "能用 1.80 − 0.12 = 1.68 m 核对正前方扫描，并把相机图像与世界文件对照。", en: "Cross-check the straight-ahead scan with 1.80 − 0.12 = 1.68 m and compare the camera image against the world file." },
+    ],
+    prereqs: ["ros2-graph", "urdf-tf"],
     resources: ["gazebo-docs", "mujoco-sim", "isaac-sim"],
     tasks: [
       { id: "versions", text: { zh: "确认你的 ROS 2 发行版配哪个 Gazebo 版本，并找一篇用 gazebo_ros 或 ign gazebo 的过时教程", en: "Confirm which Gazebo release pairs with your ROS 2 distro, and find one outdated tutorial that uses gazebo_ros or ign gazebo" } },
@@ -381,6 +535,13 @@ const month4Lessons: Lesson[] = [
       en: "Replace last lesson's Gazebo drive plugin with ros2_control: <ros2_control> tags in the xacro, diff_drive_controller and joint_state_broadcaster configured in YAML, keyboard teleop; then an action server that drives a commanded distance with feedback and cancellation; and mock hardware to see exactly what changes on a real robot.",
     },
     minutes: 240,
+    objectives: [
+      { zh: "能解释 update_rate 50 下每 20 ms 一次的 read-update-write 循环，以及为什么一个命令接口只能被一个控制器占用。", en: "Explain the read-update-write loop at update_rate 50 (every 20 ms) and why a command interface is claimed by one controller." },
+      { zh: "能添加 <ros2_control> 标签和 controllers.yaml，使 wheel_separation 0.28 m 与 wheel_radius 0.05 m 和 URDF 一致。", en: "Add <ros2_control> tags and a controllers.yaml whose wheel_separation 0.28 m and wheel_radius 0.05 m match the URDF." },
+      { zh: "能计算差速轮速：0.2 m/s 直行时两轮 4.0 rad/s，ω = 1.0 rad/s 时为 −2.8/+2.8 rad/s。", en: "Calculate differential-drive wheel speeds: 0.2 m/s straight gives 4.0 rad/s, and ω = 1.0 rad/s gives −2.8/+2.8 rad/s." },
+      { zh: "能运行带反馈与取消的 DriveDistance 动作，把 0.997 m 的结果与里程计对照，并在 mock 硬件上重复。", en: "Run the DriveDistance action with feedback and cancellation, compare its 0.997 m result with odometry, and repeat on mock hardware." },
+    ],
+    prereqs: ["ros2-graph", "urdf-tf", "gazebo-sim"],
     resources: ["ros2-control-docs", "articulated-ros2-control-real", "articulated-robotics"],
     tasks: [
       { id: "tags", text: { zh: "给你的 xacro 机器人加上 <ros2_control> 标签：轮子用速度命令接口，并报告位置和速度状态接口", en: "Add <ros2_control> tags to your xacro robot: velocity command interfaces for the wheels, reporting position and velocity state interfaces" } },
@@ -397,6 +558,13 @@ const month4Lessons: Lesson[] = [
       en: "First use the lidar to check how well odometry measures turns, and calibrate it; then map the room with SLAM Toolbox while driving and save the map; finally localize in the saved map and let Nav2 plan a path, avoid obstacles and drive itself to a goal, and learn to find why navigation fails from TF and the costmaps.",
     },
     minutes: 240,
+    objectives: [
+      { zh: "能解释 map→odom→base_footprint 链：SLAM Toolbox 发布 map→odom，diff_drive_controller 发布轮式里程计。", en: "Explain the map→odom→base_footprint chain, with SLAM Toolbox publishing map→odom and diff_drive_controller publishing wheel odometry." },
+      { zh: "能用 spin_check.py 校准里程计，按新倍率 = 旧倍率 × 里程计角度 ÷ 实际角度（1.0 × 360 ÷ 403.1 = 0.893）计算。", en: "Calibrate odometry with spin_check.py using new multiplier = old × odometry angle ÷ real angle (1.0 × 360 ÷ 403.1 = 0.893)." },
+      { zh: "能按 0.05 m 分辨率配置 SLAM Toolbox，保存位姿图与 PGM，并用 map_check.py 核对地图。", en: "Configure SLAM Toolbox at 0.05 m resolution, save the pose graph and PGM, and verify the map with map_check.py." },
+      { zh: "能发送 NavigateToPose 目标，按 xy_goal_tolerance 0.10 m 检查到达，并从 TF、代价地图与 /scan 诊断故障。", en: "Send a NavigateToPose goal, check arrival within xy_goal_tolerance 0.10 m, and diagnose failures from TF, costmaps and /scan." },
+    ],
+    prereqs: ["urdf-tf", "gazebo-sim", "ros2-control"],
     resources: ["slam-toolbox", "nav2-docs", "articulated-slam", "articulated-nav2"],
     tasks: [
       { id: "odom", text: { zh: "用 spin_check.py 让机器人按里程计原地转一整圈，用激光雷达测出真实转角，并校准 wheel_separation_multiplier，直到误差小于 1%", en: "Use spin_check.py to turn the robot one full turn by odometry, measure the real angle with the lidar, and calibrate wheel_separation_multiplier until the error is under 1%" } },
@@ -416,6 +584,13 @@ const month5Lessons: Lesson[] = [
       en: "PID basics were Month 3; this goes deeper. Model Month 3's arm joint, identify its parameters from step data and write its transfer function; then read gain and phase margins off the loop's Bode data and check in simulation that they predict overshoot and instability.",
     },
     minutes: 240,
+    objectives: [
+      { zh: "能推出带重力前馈的传递函数 G(s) = 1/(J s² + B s)，指出极点 s = 0 与 −12.5 1/s，并算出时间常数 J/B = 0.08 s。", en: "Derive the gravity-feedforward plant G(s) = 1/(J s² + B s), its poles at s = 0 and −12.5 1/s, and the time constant J/B = 0.08 s." },
+      { zh: "能把第 3 个月的增益换算成 SI 单位：0.05 N·m/度 变成 2.86 N·m/rad，0.002 N·m/(度/秒) 变成 0.115 N·m/(rad/s)。", en: "Convert Month 3's gains to SI: 0.05 N·m/deg becomes 2.86 N·m/rad and 0.002 N·m per deg/s becomes 0.115 N·m/(rad/s)." },
+      { zh: "能用 0.2 N·m 的开环力矩阶跃辨识参数：B = 0.050 N·m/(rad/s)，J = 0.0040 kg·m²。", en: "Identify B and J from an open-loop 0.2 N·m torque step: B = 0.050 N·m per rad/s and J = 0.0040 kg·m²." },
+      { zh: "能从 joint_freq.py 读出 34.6 rad/s 处的相位裕度 56° 与增益裕度 14.2 dB，并预测只用 P 时临界 kp ≈ 6.79。", en: "Read phase margin 56° at 34.6 rad/s and gain margin 14.2 dB from joint_freq.py, then predict the P-only loop's critical kp ≈ 6.79." },
+    ],
+    prereqs: ["pid-control", "so101-arm"],
     resources: ["ctms-frequency", "mathworks-control-practice"],
     tasks: [
       { id: "identify", text: { zh: "对一个真实电机（或本课模型）做开环阶跃，用终值和 63% 时间求出 B 和 J，写出它的传递函数", en: "Run an open-loop step on a real motor (or the lesson's model), get B and J from the final value and the 63 % time, and write its transfer function" } },
@@ -432,6 +607,13 @@ const month5Lessons: Lesson[] = [
       en: "Write the joint and a cart-pole in state space, get LQR gains from the discrete Riccati equation, trade Q against R and test the result on the full nonlinear model; then move the joint under a torque limit with a small MPC and compare it with LQR whose output is clipped.",
     },
     minutes: 240,
+    objectives: [
+      { zh: "能把关节和小车倒立摆写成状态空间 x' = A x + B u，为关节推出 A = [[0, 1], [0, −12.5]]、B = [[0], [250]]。", en: "Write the joint and cart-pole in state space x' = A x + B u, deriving A = [[0, 1], [0, −12.5]] and B = [[0], [250]] for the joint." },
+      { zh: "能迭代离散 Riccati 方程求出 LQR 增益，并用 u = −K x、K = [−0.92, −1.75, −18.76, −3.03] 控制倒立摆。", en: "Compute LQR gains by iterating the discrete Riccati equation and apply u = −K x with K = [−0.92, −1.75, −18.76, −3.03]." },
+      { zh: "能调整 Q 和 R 并解释取舍：把位置权重提到 100，最终位置降到 0.000 m，但峰值力升到 5.19 N。", en: "Tune Q and R and explain the trade-off: raising the position weight to 100 drops the final position to 0.000 m but raises peak force to 5.19 N." },
+      { zh: "能在 0.6 N·m 力矩上限下对比削顶 LQR 与 MPC：超调 2.24° 对 0.86°，而 MPC 每步约需 12,000 次状态更新。", en: "Compare LQR with clipped output against MPC on the 0.6 N·m joint limit: overshoot 2.24° versus 0.86°, at about 12,000 state updates per step." },
+    ],
+    prereqs: ["control-modelling", "first-robots"],
     resources: ["underactuated-lqr", "mathworks-state-space"],
     tasks: [
       { id: "state-space", text: { zh: "自己推导倒立摆小车线性化后的 A 和 B，与 lqr_sim.py 打印的数值逐项核对", en: "Derive the cart-pole's linearised A and B yourself and check every entry against what lqr_sim.py prints" } },
@@ -448,6 +630,13 @@ const month5Lessons: Lesson[] = [
       en: "Find where the arm's tip is, both with a chain of homogeneous transforms and by hand; turn a target point back into joint angles with a numerical Jacobian and damped least squares, including multiple solutions and targets out of reach; then find the singularities, where the determinant vanishes, joint speeds explode and damping trades accuracy for safety.",
     },
     minutes: 240,
+    objectives: [
+      { zh: "能用变换连乘和手算两种方式求 q = [30, 45, −60]° 的末端位置，得到 (0.1906, 0.1100, 0.0986) m。", en: "Compute the tip position with the transform chain and by hand for q = [30, 45, −60]°, getting (0.1906, 0.1100, 0.0986) m." },
+      { zh: "能用阻尼最小二乘（λ = 0.03）解逆运动学，把 208.120 mm 的误差在 14 次迭代内降到 0.009 mm。", en: "Solve inverse kinematics with damped least squares at λ = 0.03, cutting a 208.120 mm error to 0.009 mm in 14 iterations." },
+      { zh: "能识别够不到的目标和多解分支：0.287 m 的目标停在差 27.2 mm 处，换一个初值得到底座 −123.69°。", en: "Recognise unreachable targets and multiple branches: a 0.287 m target stops 27.2 mm short, and a different start gives base −123.69°." },
+      { zh: "能用 |det J| = L1 L2 r |sin(elbow)| 判断奇异点，并解释肘角 −0.3° 时精确求逆为何要求 7965.0 deg/s。", en: "Detect singularities with |det J| = L1 L2 r |sin(elbow)| and explain why the exact inverse demands 7965.0 deg/s at elbow −0.3°." },
+    ],
+    prereqs: ["so101-arm"],
     resources: ["modern-robotics"],
     tasks: [
       { id: "fk-hand", text: { zh: "手算 q = [30, 45, −60]° 时末端的位置，再用 kinematics.py 的变换链核对到 0.1 mm", en: "Work out the tip position for q = [30, 45, −60]° by hand and check it against kinematics.py's transform chain to 0.1 mm" } },
@@ -464,6 +653,13 @@ const month5Lessons: Lesson[] = [
       en: "Start from the pinhole model and radial distortion, calibrate a camera with OpenCV on synthetic checkerboard photos whose true values are known, and compare fits with and without distortion; then find the table with solvePnP, turn pixels into 3D points on it, and see how much skipping undistortion costs at the image corners.",
     },
     minutes: 240,
+    objectives: [
+      { zh: "能由内参算出焦距：fx = 500 px 配 3 µm 的像素对应 1.5 mm 的镜头。", en: "Compute the focal length from the intrinsics: fx = 500 px with 3 µm pixels gives a 1.5 mm lens." },
+      { zh: "能用 OpenCV 在棋盘格照片上标定并比较拟合：无畸变 RMS 0.702 px，带 k1、k2 时 0.189 px。", en: "Calibrate with OpenCV on checkerboard photos and compare the fits: RMS 0.702 px without distortion against 0.189 px with k1 and k2." },
+      { zh: "能读出标定结果 fx = 499.8、fy = 499.9、cx = 319.8、cy = 239.6、k1 = −0.1212、k2 = +0.0310，并与真值逐项比较。", en: "Read off fx = 499.8, fy = 499.9, cx = 319.8, cy = 239.6, k1 = −0.1212 and k2 = +0.0310, and compare them with the true values." },
+      { zh: "能用 solvePnP 与 undistortPoints 把像素变成桌面上的三维点，并算清跳过去畸变在画面角上要付 44.7 mm 的代价。", en: "Turn a pixel into a 3D point on the table with solvePnP and undistortPoints, and price skipping undistortion at 44.7 mm in the corner." },
+    ],
+    prereqs: ["gazebo-sim", "ros2-graph"],
     resources: ["opencv-calibration", "ros-camera-calibration"],
     tasks: [
       { id: "run", text: { zh: "依次运行 make_views.py、calibrate.py 和 pixel_to_table.py，把恢复出的 fx、fy、cx、cy、k1、k2 和真值逐项比较", en: "Run make_views.py, calibrate.py and pixel_to_table.py in turn, and compare the recovered fx, fy, cx, cy, k1 and k2 with the true values one by one" } },
@@ -480,6 +676,13 @@ const month5Lessons: Lesson[] = [
       en: "Go from inverse kinematics to motion planning: configuration space, collision checking, the random sampling planner RRTConnect and Pilz LIN for straight lines. On a Panda arm on ros2_control mock hardware, build a planning scene with MoveItPy, pick up a block, attach it to the hand, carry it over a wall and set it down, then see why a goal inside the wall cannot be planned.",
     },
     minutes: 300,
+    objectives: [
+      { zh: "能区分 OMPL RRTConnect 与 Pilz LIN：随机搜索的无碰撞移动，与接近、撤退用的笛卡尔直线。", en: "Distinguish OMPL RRTConnect from Pilz LIN: random collision-free moves versus straight Cartesian lines for the approach and retreat." },
+      { zh: "能在规划场景里放入 0.25 m 高的墙和 0.04 × 0.04 × 0.08 m 的积木，并用 touch_links 把积木附到 panda_hand。", en: "Build the planning scene with a 0.25 m wall and a 0.04 × 0.04 × 0.08 m block, then attach the block to panda_hand with touch_links." },
+      { zh: "能在 ros2_control 模拟硬件上完成抓放：指尖到达 (0.500, −0.250, 0.060) m，搬运段每个路点都通过碰撞检查。", en: "Execute the pick and place on ros2_control mock hardware: fingertips reach (0.500, −0.250, 0.060) m and every carry waypoint passes the collision check." },
+      { zh: "能把墙内的目标判为 GOAL_STATE_INVALID 而非规划超时，并列出从模拟到真机要改的地方：抓取检测、速度缩放、急停。", en: "Diagnose a goal inside the wall as GOAL_STATE_INVALID, not a planner timeout, and list the mock-to-real changes: grasp detection, speed scaling, emergency stop." },
+    ],
+    prereqs: ["ros2-control", "kinematics-ik", "camera-calibration"],
     resources: ["moveit-docs"],
     tasks: [
       { id: "run", text: { zh: "运行 bringup.launch.py 和 pick_place.py，把你的输出和课程里的输出对比，指出哪些行每次都一样、哪些会变，以及为什么", en: "Run bringup.launch.py and pick_place.py, compare your output with the lesson's, and say which lines stay the same every run, which change, and why" } },
@@ -499,6 +702,13 @@ const month6Lessons: Lesson[] = [
       en: "Treat a demonstration dataset as a table of frames, clone an expert in an L-shaped corridor with nearest-neighbour behaviour cloning, and watch covariate shift under actuator noise: more demos do not help and the failures sit where the demos never went; then put recoveries into the data with noisy demos and DAgger, and map it all onto LeRobot's record, train and rollout commands for the SO-101.",
     },
     minutes: 240,
+    objectives: [
+      { zh: "能把示范数据集读成按帧记录的表，说明 LeRobot 数据集里 episode_index、frame_index、observation.state、action 各列的含义，以及 SO-101 上 30 帧/秒的六个关节位置。", en: "Read a demonstration dataset as a table of frames, name what episode_index, frame_index, observation.state and action hold in a LeRobot dataset, and note the 30 fps six-joint recording on SO-101." },
+      { zh: "能写出行为克隆的平方误差目标，并能解释 1 最近邻策略与训练好的神经网络在离开训练数据时都只能外推。", en: "Write the squared-error behaviour cloning objective, and explain that both a 1-nearest-neighbour policy and a trained network can only extrapolate off their training data." },
+      { zh: "能解释协变量偏移：20 条与 80 条无噪声示范都是 67/100，失败集中在示范从未记录的目标端，并能手算 1 cm × √38 = 6.2 cm 的漂移。", en: "Explain covariate shift: 20 and 80 noise-free demos both score 67/100, failures sit at the goal end where nothing was recorded, and the drift computes as 1 cm × √38 = 6.2 cm." },
+      { zh: "能说明带噪声示范（776 帧，99/100）与一轮 DAgger（581 帧，61/100 提升到 100/100）如何把恢复动作放进数据，并在 SO-101 上用 lerobot-record、lerobot-train、lerobot-rollout 跑通流程。", en: "Explain how noisy demos (776 frames, 99/100) and one DAgger round (581 frames, 61/100 to 100/100) add recoveries, and run lerobot-record, lerobot-train and lerobot-rollout on the SO-101." },
+    ],
+    prereqs: ["so101-arm", "python-terminal"],
     resources: ["lerobot-il-robots", "dagger-paper"],
     tasks: [
       { id: "run", text: { zh: "运行 bc_reach.py，打开 demos.csv，确认每列对应 LeRobot 数据集的哪一列，并用 √n 估算无纠正时的漂移", en: "Run bc_reach.py, open demos.csv, match each column to a LeRobot dataset column, and estimate the uncorrected drift with √n" } },
@@ -515,6 +725,13 @@ const month6Lessons: Lesson[] = [
       en: "When the demonstrations contain two right answers, a squared-error loss learns their average: a move nobody made, straight into the obstacle. On a block task, compare averaging, sampling, action chunks of different lengths and DDPM sampling with the exact denoiser, see what ACT's chunking buys and what running open loop costs, why a diffusion policy keeps several modes, and map it onto LeRobot's commands for training ACT and Diffusion Policy.",
     },
     minutes: 240,
+    objectives: [
+      { zh: "能手算均值策略在岔口的横向动作 (−7 + 3) / 10 × 4.16 = −1.66 cm（即 −0.017 m），并解释它为什么撞上方块、成功率只有 67/100，而采样是 99/100。", en: "Compute the averaging policy's sideways move as (−7 + 3) / 10 × 4.16 = −1.66 cm (−0.017 m), and explain its 67/100 success against 99/100 for sampling." },
+      { zh: "能说明 ACT 一次预测 k = 100 个动作（50 Hz 下 2 秒）并用时间集成混合动作块，也能解释开环代价：块长 4、8、16 的成功率依次是 98/100、88/100、80/100。", en: "Explain how ACT predicts k = 100 actions at 50 Hz (2 s) and blends chunks by temporal ensembling, and why longer chunks cost success: 4, 8 and 16 give 98/100, 88/100 and 80/100." },
+      { zh: "能写出扩散的前向加噪 x_s = √ᾱ_s · x_0 + √(1 − ᾱ_s) · ε，并说明 Diffusion Policy 预测 16 个动作、执行前 8 个，以及每个动作块要多次通过网络、推理时间有代价。", en: "Write the forward noising x_s = √ᾱ_s · x_0 + √(1 − ᾱ_s) · ε, and explain that Diffusion Policy predicts 16 actions, executes the first 8, and needs repeated network passes per chunk." },
+      { zh: "能在同一份 LeRobot 数据集上分别用 --policy.type=act 与 --policy.type=diffusion 训练，并用同一组固定起始位置比较成功率和失败发生的位置。", en: "Train --policy.type=act and --policy.type=diffusion on the same LeRobot dataset, then compare success and failure locations over one fixed set of start positions." },
+    ],
+    prereqs: ["behaviour-cloning", "so101-arm"],
     resources: ["act-paper", "diffusion-policy", "lerobot-il-robots"],
     tasks: [
       { id: "run", text: { zh: "运行 multimodal.py，用 7 : 3 的近邻比例手算均值策略在岔口的横向动作，与输出的 −0.017 m 核对", en: "Run multimodal.py and work out by hand, from the 7 : 3 neighbours, the averaging policy's sideways move at the fork; check it against the −0.017 m it prints" } },
@@ -531,6 +748,13 @@ const month6Lessons: Lesson[] = [
       en: "A vision-language-action model is a vision encoder, a language model and an action output. On a dataset shaped like SO-101 teleoperation, compare RT-2/OpenVLA-style 256-bin tokens with FAST-style DCT compression: token counts, clipping error and nearly identical consecutive tokens; then check the weight licences of OpenVLA, Octo, π0/π0.5, SmolVLA and GR00T one by one, with the command for fine-tuning SmolVLA on an SO-101.",
     },
     minutes: 180,
+    objectives: [
+      { zh: "能说出 VLA 的三部分（视觉编码器、语言模型、动作输出），并区分 RT-2、OpenVLA、π0-FAST 的动作词元做法与 Octo、π0、SmolVLA、GR00T 的独立动作头做法。", en: "Name the three parts of a VLA (vision encoder, language model, action output) and distinguish RT-2, OpenVLA and π0-FAST action tokens from the separate action head used by Octo, π0, SmolVLA and GR00T." },
+      { zh: "能手算 256 个区间的宽度 (77 − (−84)) / 256 = 0.63 度，解释 6.2 度的最大误差来自 6 个超出第 1 到第 99 百分位数而被截断的值，并指出 174 次相邻词元变化中有 102 次不超过 2 个区间。", en: "Compute the 256-bin width as (77 − (−84)) / 256 = 0.63 degrees, explain the 6.2-degree error from 6 clipped values, and note that 102 of 174 consecutive tokens differ by 2 bins or fewer." },
+      { zh: "能说明 FAST 用 DCT 压缩动作块：缩放 30 时 41 个非零系数替代 180 个区间词元（少 4.4 倍），缩放 10 时 28 个数、rms 误差约 1.1 度，再用字节对编码压缩。", en: "Explain FAST's DCT compression: scale 30 needs 41 nonzero coefficients instead of 180 bin tokens (4.4 times fewer), scale 10 needs 28 numbers at 1.1 deg rms error, then byte-pair encoding." },
+      { zh: "能逐个说出 OpenVLA（MIT）、Octo（MIT）、SmolVLA（Apache-2.0）、GR00T N1.6（仅限研究与非商业）与 GR00T N1.7（允许商用）的权重许可证，并用 lerobot-train 在 SO-101 上微调 SmolVLA。", en: "State the weight licences for OpenVLA (MIT), Octo (MIT), SmolVLA (Apache-2.0), GR00T N1.6 (research and non-commercial only) and GR00T N1.7 (commercial allowed), and fine-tune SmolVLA with lerobot-train." },
+    ],
+    prereqs: ["act-diffusion", "behaviour-cloning", "so101-arm"],
     resources: ["lerobot-smolvla", "openvla", "openpi"],
     tasks: [
       { id: "run", text: { zh: "运行 action_tokens.py，手算关节 0 的区间宽度，并解释 6.2 度的最大误差从哪里来", en: "Run action_tokens.py, work out joint 0's bin width by hand, and explain where the 6.2-degree maximum error comes from" } },
@@ -547,6 +771,13 @@ const month6Lessons: Lesson[] = [
       en: "Get honest numbers out of few trials: Wilson intervals show that 10/10 only means the rate is probably above 72 %, and ten 10-trial sessions of one policy range from 4 to 9; compare policies trial by trial with per-trial seeds (a fixed list of start positions on hardware) and McNemar's test, work out how many trials a comparison needs, use a failure table to find what to fix next, and write an evaluation protocol for your arm.",
     },
     minutes: 180,
+    objectives: [
+      { zh: "能算出成功率 k/n 的 Wilson 95 % 区间（例如 8/10 是 49.0 .. 94.3 %），并说明 10 次全成功只说明真实成功率大概高于 72 %。", en: "Compute the Wilson 95 % interval for k/n (8/10 gives 49.0 .. 94.3 %) and explain that 10 out of 10 only shows a true rate probably above 72 %." },
+      { zh: "能解释同一策略十组 10 次试验从 4 次到 9 次不等意味着什么，并规定报告全部试验组而不是最好的一组。", en: "Explain what it means that one policy ranges from 4 to 9 successes across ten 10-trial sessions, and report every session instead of the best one." },
+      { zh: "能用逐次固定种子做配对比较，只对不一致的试验做 McNemar 精确检验（35 次全部偏向一边时 p = 5.8e-11）。", en: "Compare two policies trial by trial with per-trial seeds, and apply McNemar's exact test to the disagreements (35 all one way gives p = 5.8e-11)." },
+      { zh: "能算出区分两个成功率所需的试验次数（67 % 对 99 % 是 21 次），并用失败表定位该修什么（74 % 的失败在目标端），最后写出评估规程。", en: "Compute the trials needed to separate two success rates (21 for 67 % vs 99 %), find what to fix in a failure table (74 % at the goal end), and write an evaluation protocol." },
+    ],
+    prereqs: ["behaviour-cloning"],
     resources: ["lerobot-il-robots"],
     tasks: [
       { id: "run", text: { zh: "运行 eval_report.py，手算 8/10 的 Wilson 区间并与输出核对", en: "Run eval_report.py and work out the Wilson interval for 8/10 by hand; check it against the output" } },
@@ -563,6 +794,13 @@ const month6Lessons: Lesson[] = [
       en: "Pick one of five directions with three questions (which lessons you went back to, what you can already show, who is hiring where you want to work); choose three portfolio projects with video, metrics and failure analysis; check a README for the eight parts a reviewer looks for with portfolio_check.py; practise three levels of follow-up questions on one line of code; then the CV, the application message and applying while you build.",
     },
     minutes: 180,
+    objectives: [
+      { zh: "能用三个问题（你会主动回头看哪些课、你已经能拿出什么、你统计的 20 份招聘启事要什么技能）在五个方向中选定一个，并把它写成一句话。", en: "Choose one of five directions using three questions (lessons you revisited, work you can already show, skills in 20 job adverts) and write the answer as one sentence." },
+      { zh: "能选出三个作品集项目，每个都附视频、指标和失败分析，并让每个项目比教程版本多走一步（换物体、更难条件、多做一次测量或修复一个失败）。", en: "Pick three portfolio projects, each with video, metrics and failure analysis, and move each one step beyond the tutorial (different object, harder condition, extra measurement, fixed failure)." },
+      { zh: "能运行 portfolio_check.py 检查项目 README，并把视频、结果、试验次数、失败分析、复现、硬件、本人贡献、局限与下一步这八项补齐。", en: "Run portfolio_check.py on a project README and add the missing parts until all eight are present: video, result, trials, failures, reproduce, hardware, contribution and next steps." },
+      { zh: "能对一行关键代码回答三层追问（它做什么、为什么这样做、什么会坏以及你会怎么改，例如用 k-d 树代替逐帧扫描），并写一页项目在前的简历，每个项目附一个数字和一个链接。", en: "Answer three levels of follow-up questions about one key line of code (what it does, why this way, what breaks and what you would change), and write a one-page CV with projects first." },
+    ],
+    prereqs: ["behaviour-cloning", "policy-evaluation", "slam-nav"],
     resources: ["beauregard-pid", "slam-toolbox", "lerobot-il-robots"],
     tasks: [
       { id: "direction", text: { zh: "读 20 份真实招聘启事，统计技能要求，写下你选的方向和一句理由", en: "Read 20 real job adverts, tally the skills they ask for, and write down your direction with a one-sentence reason" } },
