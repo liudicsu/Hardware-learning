@@ -87,7 +87,78 @@ export interface BlockDiagramSpec {
   facts: DiagramFact[];
 }
 
-export type DiagramSpec = BlockDiagramSpec;
+/* ---------- circuit (current path) diagrams ---------- */
+
+/**
+ * Two-terminal parts (switch, button, resistor, motor) sit at `at`, run along `dir` and have their
+ * terminals at at ± len/2. A switch or button conducts only in the states that list it in `closed`.
+ */
+export type CircuitPartType = "switch" | "button" | "resistor" | "motor" | "supply" | "ground" | "node" | "box" | "text";
+
+export interface CircuitPart {
+  id: string;
+  type: CircuitPartType;
+  at: Point;
+  dir?: "v" | "h";
+  /** Terminal-to-terminal length of a two-terminal part (default 36). */
+  len?: number;
+  /** box only: width and height, with `at` as the top-left corner. */
+  size?: [number, number];
+  label?: L10n;
+  labelAt?: Point;
+  anchor?: "start" | "middle" | "end";
+  mono?: boolean;
+  tone?: Tone;
+}
+
+export interface CircuitWire {
+  id: string;
+  pts: Point[];
+}
+
+export interface CircuitState {
+  id: string;
+  /** Short name on the state button. */
+  label: L10n;
+  /** One or two sentences shown under the diagram for this state. */
+  text: L10n;
+  /** Switch and button ids that are closed (all others are open). */
+  closed: string[];
+  /** Parts and wires not drawn in this state (e.g. a resistor that is not fitted). */
+  hidden?: string[];
+  /** Conventional current, drawn along these points; check_diagrams verifies it only runs over wires and conducting parts. */
+  flow?: Point[];
+  tone?: Tone;
+  /** Short reading drawn at the spec's readoutAt (current, pin level). */
+  readout?: L10n;
+}
+
+/** A number drawn in a diagram, computed in the spec from the circuit values and compared with the lesson. */
+export interface DiagramNumber {
+  note: string;
+  value: number;
+  expect: number;
+  tol: number;
+}
+
+export interface CircuitSpec {
+  kind: "circuit";
+  id: string;
+  title: L10n;
+  caption?: L10n;
+  sources: string[];
+  /** One layout for every screen width; at most 360 units wide so it reads at 390 px. */
+  w: number;
+  h: number;
+  parts: CircuitPart[];
+  wires: CircuitWire[];
+  states: CircuitState[];
+  readoutAt?: Point;
+  numbers?: DiagramNumber[];
+  facts: DiagramFact[];
+}
+
+export type DiagramSpec = BlockDiagramSpec | CircuitSpec;
 
 export function tx(text: L10n | undefined, locale: Locale): string {
   if (text === undefined) return "";

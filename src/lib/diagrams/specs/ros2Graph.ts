@@ -77,9 +77,9 @@ export const ros2GraphSystem: BlockDiagramSpec = {
       edges: {
         raw: { pts: [[85, 48], [85, 86]], label: [91, 71], anchor: "start" },
         filtered: { pts: [[85, 128], [85, 166]], label: [91, 151], anchor: "start" },
-        summary: { pts: [[160, 188], [332, 188]], label: [246, 181] },
+        summary: { pts: [[160, 188], [332, 188]], label: [246, 202] },
         setAlpha: { pts: [[260, 48], [260, 86]], label: [266, 63], anchor: "start" },
-        setParams: { pts: [[190, 108], [162, 108]], label: [168, 146], anchor: "start" },
+        setParams: { pts: [[260, 128], [260, 140], [176, 140], [176, 118], [162, 118]], label: [182, 153], anchor: "start" },
         collect: { pts: [[85, 266], [85, 210]], label: [91, 236], anchor: "start" },
       },
     },
