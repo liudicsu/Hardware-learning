@@ -11,6 +11,7 @@
 //  - every "fact" (a regular expression) is found in the repository file it names, so the
 //    numbers, pins and names drawn in a diagram are tied to the lesson scripts.
 import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -213,6 +214,7 @@ function checkTiming(spec, tag) {
   }
   for (const r of spec.rows ?? []) {
     checkText(`${tag} row name`, r.name, { mono: true });
+    for (const t of variants(r.name)) ok(textWidth(t, 15) <= T.LEFT - 12, `${tag}: row name "${t}" wider than the label column`);
     for (const c of r.cells) checkText(`${tag} row cell`, c, { mono: true });
   }
   // per drawn line: bus values fit their bands, row cells their columns, spans and axis label the line
@@ -268,9 +270,24 @@ function checkTiming(spec, tag) {
   checkNumbers(spec, tag);
 }
 
+// Spec files are plain data; the only imports allowed are types and JSON data files, inlined here.
+const inlineJson = (src) =>
+  src.replace(/^import (\w+) from "(\.\.?\/[^"]+\.json)";$/gm, (_, name, rel) => `const ${name} = ${readFileSync(join(specDir, rel), "utf8")};`);
+
+// Data files: each JSON under src/lib/diagrams/data names the script that writes it; re-run and compare.
+const dataDir = join(root, "src/lib/diagrams/data");
+for (const f of existsSync(dataDir) ? readdirSync(dataDir).filter((f) => f.endsWith(".json")) : []) {
+  const text = readFileSync(join(dataDir, f), "utf8");
+  const script = JSON.parse(text).source;
+  ok(typeof script === "string" && existsSync(join(root, script)), `data/${f}: "source" must name the script that writes it`);
+  if (!script) continue;
+  const out = execFileSync("python3", [join(root, script)], { encoding: "utf8" });
+  ok(out === text, `data/${f} differs from the output of ${script} (re-run: python3 ${script} > src/lib/diagrams/data/${f})`);
+}
+
 const specs = [];
 for (const f of readdirSync(specDir).filter((f) => f.endsWith(".ts"))) {
-  const mod = await import(dataUrl(transpile(readFileSync(join(specDir, f), "utf8"))));
+  const mod = await import(dataUrl(transpile(inlineJson(readFileSync(join(specDir, f), "utf8")))));
   for (const [name, v] of Object.entries(mod)) if (v && typeof v === "object" && v.kind) specs.push({ file: f, name, spec: v });
 }
 const index = readFileSync(join(root, "src/lib/diagrams/index.ts"), "utf8");

@@ -328,7 +328,9 @@ The model uses five real presses lasting 300, 150, 400, 80 and 250 ms. Every pre
 
 For a normal tactile button, 10–30 ms is a sensible default; use closer to 50 ms on a long wire, in a noisy environment, or with a worn button. The debounce time must be shorter than the shortest real press you care about. In the simulation the 80 ms press is close to the 50 ms limit: it is still detected because the contact stays low for 80 ms, but a 40 ms tap would be missed. For a reaction-time game, where a fast player may tap for only 30–50 ms, 30 ms is a better compromise than 50 ms.
 
-The reaction-timer sketch below uses a "quiet line" rule instead. The first edge of a press is accepted immediately if the line has been quiet for at least 30 ms, and the bounces that follow are rejected because they arrive less than 30 ms later. This gives clean single counts without adding 30 ms of latency to the measured reaction time; polling debouncers usually do add that latency, because they wait for a stable input before reporting it.
+The reaction-timer sketch below uses a "quiet line" rule instead. The first edge of a press is accepted immediately if the line has been quiet for more than 30 ms, and the bounces that follow are rejected because each arrives no more than 30 ms after the previous edge. This gives clean single counts without adding 30 ms of latency to the measured reaction time; polling debouncers usually do add that latency, because they wait for a stable input before reporting it.
+
+<Diagram id="debounce-quiet-line" />
 
 <Quiz id="q5" question="In the simulation a 2 ms debounce reports 9 presses for 5 real ones. Why?" options={["Python is too slow to sample the pin", "Some gaps between bounces are longer than 2 ms, so a bounce looks like a stable new state", "The button was pressed 9 times"]} answer={1} explanation="The chatter gaps can reach 3 ms. A 2 ms window is shorter than some of those gaps, so a bounce is accepted as a real new state. At 10 ms and above every gap is covered and the count is correct." />
 

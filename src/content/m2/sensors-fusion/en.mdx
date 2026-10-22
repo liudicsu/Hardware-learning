@@ -407,6 +407,8 @@ void loop() {
 
 Walk through it once, because every line is a lesson. `writeReg(REG_PWR_MGMT_1, 0x00)` clears the sleep bit before anything else. The WHO_AM_I read is a receipt: it proves the address, the wiring and the bus are all working. `endTransmission(false)` sends a repeated start instead of releasing the bus, so the MPU-6050 keeps its register pointer and the following `requestFrom` reads from the register you just selected. The single 14-byte burst gets the whole sample at one instant.
 
+<Diagram id="i2c-read-who-am-i" />
+
 The loop uses the `millis()` pattern from Lesson 2 (timing and interrupts), but it measures `dt` instead of assuming it. That matters: a Serial print, a slow I2C transaction, or an interrupt can stretch a loop, and the filter must integrate with the real elapsed time, not the time you hoped for. The gyro Y axis is the one that matches pitch in this mounting; check the sign by tilting the board slowly and confirming that gyro-only and accel-only move in the same direction. If they move in opposite directions, negate the rate.
 
 The output below is not from a physical board. It comes from running the compiled Uno firmware in the simavr AVR simulator with a simulated MPU-6050 model written by the site editor: the board lies flat, is tilted to 30° between t = 3 s and 4 s, held, and laid flat again between 7 s and 8 s. The simulated gyro reads 1.5 °/s too high and the accelerometer has noise. Treat the exact digits as a demonstration of behaviour, not as a calibration of your own sensor.
