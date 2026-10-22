@@ -11,6 +11,8 @@ There are two ways to build the action output, and they decide much of a model's
 
 <Diagram id="vla-dataflow" />
 
+Where the figure's numbers and arrows come from. RT-2 writes each action step as 8 integers ([arXiv:2307.15818](https://arxiv.org/abs/2307.15818), §3.2) and OpenVLA as 7 ([arXiv:2406.09246](https://arxiv.org/abs/2406.09246), §3.3). The FAST paper counts 20 to 29 tokens per 1-second chunk for single 7-D arms (BridgeV2, DROID, table bussing) and 53 for a two-arm, 14-D T-shirt-folding task, so about 30 or fewer per arm ([arXiv:2501.09747](https://arxiv.org/abs/2501.09747), Table I). The joint state goes to different places. SmolVLA projects it into one token that joins the image and text tokens in the language model ([arXiv:2506.01844](https://arxiv.org/abs/2506.01844), §3.1). π0 gives it to the action expert's weights together with the noisy actions ([arXiv:2410.24164](https://arxiv.org/abs/2410.24164), §IV). GR00T N1 encodes it and passes it with the language model's features to its diffusion transformer ([arXiv:2503.14734](https://arxiv.org/abs/2503.14734), §2.1). Octo's authors found that adding proprioceptive inputs made policies worse ([arXiv:2405.12213](https://arxiv.org/abs/2405.12213), Appendix E), and the released Octo checkpoints take only camera images and the instruction ([octo-base-1.5 model card](https://huggingface.co/rail-berkeley/octo-base-1.5)).
+
 The first approach reuses the language model unchanged but has to decide how to write actions as tokens. That is the part you can run and inspect without a GPU.
 
 ## Actions as tokens: 256 bins

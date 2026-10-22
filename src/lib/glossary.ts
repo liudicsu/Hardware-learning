@@ -95,7 +95,8 @@ export const glossary: GlossaryEntry[] = [
       zh: "把连续电压转换成离散数字量的外设。Uno 的 ADC 是 10 位，在 0–5 V 范围内输出 0–1023，一个最低有效位约为 5 V / 1023 ≈ 4.9 mV。",
       en: "A peripheral that converts a continuous voltage into a discrete number. The Uno's ADC is 10-bit, producing 0–1023 over 0–5 V, so one least-significant bit is about 5 V / 1023 ≈ 4.9 mV.",
     },
-    lesson: "ohms-law",
+    lesson: "arduino-io",
+    firstExplained: true,
   },
   {
     id: "internal-resistance",
@@ -187,7 +188,8 @@ export const glossary: GlossaryEntry[] = [
       zh: "引脚在高低电平之间快速切换，用占空比控制平均电压；Uno 的 PWM 引脚为 3、5、6、9、10、11，频率约 490 Hz 或 980 Hz，analogWrite 取 0–255。负载响应比周期慢时，看到的就是平均电压。",
       en: "A pin switching rapidly between high and low, with duty cycle setting the average voltage; Uno PWM pins are 3, 5, 6, 9, 10 and 11 at about 490 Hz or 980 Hz, with analogWrite taking 0–255. A load slower than the period responds to the average.",
     },
-    lesson: "components",
+    lesson: "arduino-io",
+    firstExplained: true,
   },
   {
     id: "decoupling-capacitor",
@@ -216,6 +218,7 @@ export const glossary: GlossaryEntry[] = [
       en: "A resistor that holds an input at a known level when nothing drives it: pull-up to VCC, pull-down to GND, commonly 10 kΩ. The ATmega328P's internal pull-up is about 20–50 kΩ; with INPUT_PULLUP the button goes to GND and reads LOW when pressed.",
     },
     lesson: "components",
+    firstExplained: true,
   },
   {
     id: "rc-time-constant",
