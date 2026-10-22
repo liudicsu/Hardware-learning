@@ -625,6 +625,8 @@ def generate_launch_description():
 
 Nav2 是一组由行为树（behaviour tree）协调的服务器。参数文件 [`m4_nav/config/nav2.yaml`](https://github.com/liudicsu/Hardware-learning/blob/main/examples/month-4/slam-nav/m4_nav/config/nav2.yaml) 基于 `nav2_bringup` 自带的那份，为 m4bot 改动过的行都标了 `# m4bot`。跟着一个目标把这条链走一遍：
 
+<Diagram id="nav2-pipeline" />
+
 1. **`bt_navigator`** 接收 `NavigateToPose` 目标，并运行一棵行为树：规划、跟随，失败时先尝试恢复动作（清空代价地图、原地转、等待、后退），实在不行再放弃。
 2. **`planner_server`** 在<strong>全局代价地图（global costmap）</strong>上规划路径，这张图由保存的地图（静态层）、激光雷达当前看到的障碍物，以及膨胀层（inflation layer）叠加而成。规划器是 NavFn，一种栅格搜索。
 3. **`controller_server`** 用 Regulated Pure Pursuit 跟随路径，最高 0.25 m/s，转向时依据<strong>局部代价地图（local costmap）</strong>——一个以机器人为中心、3 m × 3 m 的窗口，只用激光雷达构建。当路径方向与机器人朝向相差超过 0.785 rad（45°）时，它会先原地转向。
