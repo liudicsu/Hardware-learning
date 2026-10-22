@@ -377,6 +377,37 @@ There is also a RAM cost. String literals normally live in RAM on the Uno, and y
 
 <Quiz id="q6" question="The Serial Monitor shows random symbols like ⸮⸮⸮ instead of your text. Most likely cause?" options={["The USB cable is broken", "The monitor's baud rate does not match Serial.begin()", "The sketch is too large"]} answer={1} explanation="Garbled characters are the classic symptom of a baud-rate mismatch: the receiver samples each bit at the wrong time. Check that the monitor and Serial.begin() use the same rate, here 115200." />
 
+## C/C++ syntax used in this course
+
+Arduino sketches are C++ compiled by the board's GCC toolchain (avr-g++ on the Uno, Xtensa or RISC-V GCC on ESP32); the table lists only syntax that appears in the course's sketches (`examples/month-2/**/*.ino`, `examples/month-3/**/*.ino`) plus a few rows for the Month 4 ROS 2 C++ node (`examples/month-4/ros2-graph/m4_graph_cpp/src`).
+
+| Construct | Example from the course | Where it appears |
+| --- | --- | --- |
+| Preprocessor include | `#include <WiFi.h>` | ESP32: Wi-Fi, 3.3 V logic & choosing a framework, `examples/month-2/esp32/web_servo/web_servo.ino` |
+| `const int` pin constants | `const int BUTTON_PIN = 2;` | Arduino basics: digital & analog IO, PWM and serial debugging, `examples/month-2/arduino-io/button_pullup/button_pullup.ino` |
+| Integer types `int`/`long`/`unsigned long` and fixed-width `uint8_t`/`int16_t`/`int32_t` | `unsigned long lastA = 0;` | Non-blocking timing, interrupts & debouncing, `examples/month-2/timing-interrupts/two_blinks/two_blinks.ino` |
+| `float` and the integer-division trap | `float volts = raw * 5.0 / 1023.0;` | Arduino basics: digital & analog IO, PWM and serial debugging, `examples/month-2/arduino-io/pot_pwm/pot_pwm.ino` |
+| Casts such as `(long)` or `(float)` | `if ((long)(micros() - nextTick) < 0) return;` | Your first two robots: line follower & self-balancer, `examples/month-2/first-robots/balancer/balancer.ino` |
+| Arithmetic and compound assignment `+=`, `++` and `%` | `if (++tick % OUTER_EVERY == 0) outerLoop();` | PID & control: windup and cascade loops, `examples/month-3/pid-control/balancer_cascade/balancer_cascade.ino` |
+| Comparison and logical AND/OR (`&&`, `\|\|`) | `if (isDown && t - lastEdge > DEBOUNCE_MS) {` | Non-blocking timing, interrupts & debouncing, `examples/month-2/timing-interrupts/reaction_timer/reaction_timer.ino` |
+| `if`/`else` and the ternary `?:` | `digitalWrite(LED_PIN, state == LOW ? HIGH : LOW);` | Arduino basics: digital & analog IO, PWM and serial debugging, `examples/month-2/arduino-io/button_pullup/button_pullup.ino` |
+| `for`/`while` loops | `for (uint8_t addr = 1; addr < 127; addr++) {` | Sensors, I2C & the complementary filter, `examples/month-2/sensors-fusion/i2c_scanner/i2c_scanner.ino` |
+| Functions with return types (`void`, `bool`, `long`) | `bool turnCounts(long target, unsigned long timeoutMs) {` | Motors, drivers & your first encoder loop, `examples/month-2/motors-drivers/one_rev/one_rev.ino` |
+| Arrays | `int16_t v[7];` | Your first two robots: line follower & self-balancer, `examples/month-2/first-robots/balancer/balancer.ino` |
+| Bitwise AND/OR/shift/complement (`&`, `\|`, `<<`, `~`; building an I2C 16-bit value) | `return (hi << 8) \| Wire.read();` | Sensors, I2C & the complementary filter, `examples/month-2/sensors-fusion/imu_pitch/imu_pitch.ino` |
+| `volatile` shared with an ISR | `volatile bool pressed = false;` | Non-blocking timing, interrupts & debouncing, `examples/month-2/timing-interrupts/reaction_timer/reaction_timer.ino` |
+| `attachInterrupt` and `noInterrupts()`/`interrupts()` | `attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), onButton, CHANGE);` | Non-blocking timing, interrupts & debouncing, `examples/month-2/timing-interrupts/reaction_timer/reaction_timer.ino` |
+| `enum` + `switch`/`case` state machine | `enum State { WAITING, LIT, SHOW_RESULT };` | Non-blocking timing, interrupts & debouncing, `examples/month-2/timing-interrupts/reaction_timer/reaction_timer.ino` |
+| `static` local variables | `static unsigned long lastEdge = 0;` | Non-blocking timing, interrupts & debouncing, `examples/month-2/timing-interrupts/reaction_timer/reaction_timer.ino` |
+| `millis()`/`micros()` timing with unsigned subtraction | `if (now - lastA >= PERIOD_A) {` | Non-blocking timing, interrupts & debouncing, `examples/month-2/timing-interrupts/two_blinks/two_blinks.ino` |
+| `Serial.print`/`Serial.println` | `Serial.println("ready");` | Arduino basics: digital & analog IO, PWM and serial debugging, `examples/month-2/arduino-io/button_pullup/button_pullup.ino` |
+| Month 4 C++: class deriving `rclcpp::Node` | `class FilterNode : public rclcpp::Node` | Nodes, topics, services and actions, `examples/month-4/ros2-graph/m4_graph_cpp/src/filter_node.cpp` |
+| `std::` types | `rclcpp::spin(std::make_shared<FilterNode>());` | Nodes, topics, services and actions, `examples/month-4/ros2-graph/m4_graph_cpp/src/filter_node.cpp` |
+| `auto` | `for (const auto & p : params) {` | Nodes, topics, services and actions, `examples/month-4/ros2-graph/m4_graph_cpp/src/filter_node.cpp` |
+| `->` member access on pointers | `pub_->publish(out);` | Nodes, topics, services and actions, `examples/month-4/ros2-graph/m4_graph_cpp/src/filter_node.cpp` |
+
+References: [Arduino language reference](https://docs.arduino.cc/language-reference/), [cppreference: C++ language](https://en.cppreference.com/w/cpp/language), [cppreference: fundamental types](https://en.cppreference.com/w/cpp/language/types) and [cppreference: fixed-width integers](https://en.cppreference.com/w/cpp/types/integer). On the Uno, GCC AVR makes `int` 16 bits wide.
+
 ## Common mistakes and a checklist
 
 These are the failures you will actually meet, roughly in order of frequency:

@@ -377,6 +377,37 @@ one character = 10 bits / 115 200 bit/s = 86.8 µs ≈ 87 µs
 
 <Quiz id="q6" question="串口监视器显示的是 ⸮⸮⸮ 这种乱码，而不是你的文字。最可能的原因是什么？" options={["USB 线坏了", "监视器的波特率与 Serial.begin() 不一致", "程序太大了"]} answer={1} explanation="乱码是波特率不匹配的典型症状：接收方在错误的时刻采样每一位。确认监视器和 Serial.begin() 用的是同一个速率，这里是 115200。" />
 
+## 本课程实际用到的 C/C++ 语法
+
+Arduino 程序（sketch）是 C++，由对应开发板的 GCC 工具链编译（Uno 上是 avr-g++，ESP32 上是 Xtensa 或 RISC-V GCC）；下表只列出课程 sketch（`examples/month-2/**/*.ino`、`examples/month-3/**/*.ino`）以及第 4 个月 ROS 2 C++ 节点（`examples/month-4/ros2-graph/m4_graph_cpp/src`）中实际出现的语法。
+
+| 语法结构 | 课程中的示例 | 出现位置 |
+| --- | --- | --- |
+| 预处理器包含 | `#include <WiFi.h>` | ESP32：Wi-Fi、3.3 V 逻辑与框架选择，`examples/month-2/esp32/web_servo/web_servo.ino` |
+| `const int` 引脚常量 | `const int BUTTON_PIN = 2;` | Arduino 入门：数字/模拟 IO、PWM 与串口调试，`examples/month-2/arduino-io/button_pullup/button_pullup.ino` |
+| 整数类型 `int`/`long`/`unsigned long` 与定宽 `uint8_t`/`int16_t`/`int32_t` | `unsigned long lastA = 0;` | 非阻塞计时、中断与按键消抖，`examples/month-2/timing-interrupts/two_blinks/two_blinks.ino` |
+| `float` 与整数除法陷阱 | `float volts = raw * 5.0 / 1023.0;` | Arduino 入门：数字/模拟 IO、PWM 与串口调试，`examples/month-2/arduino-io/pot_pwm/pot_pwm.ino` |
+| `(long)` 或 `(float)` 等强制类型转换 | `if ((long)(micros() - nextTick) < 0) return;` | 你的前两台机器人：循线小车与自平衡车，`examples/month-2/first-robots/balancer/balancer.ino` |
+| 算术运算与复合赋值 `+=`、`++`、`%` | `if (++tick % OUTER_EVERY == 0) outerLoop();` | PID 与控制：积分饱和与串级回路，`examples/month-3/pid-control/balancer_cascade/balancer_cascade.ino` |
+| 比较与逻辑与/或（`&&`、`\|\|`） | `if (isDown && t - lastEdge > DEBOUNCE_MS) {` | 非阻塞计时、中断与按键消抖，`examples/month-2/timing-interrupts/reaction_timer/reaction_timer.ino` |
+| `if`/`else` 与三元运算符 `?:` | `digitalWrite(LED_PIN, state == LOW ? HIGH : LOW);` | Arduino 入门：数字/模拟 IO、PWM 与串口调试，`examples/month-2/arduino-io/button_pullup/button_pullup.ino` |
+| `for`/`while` 循环 | `for (uint8_t addr = 1; addr < 127; addr++) {` | 传感器、I2C 与互补滤波，`examples/month-2/sensors-fusion/i2c_scanner/i2c_scanner.ino` |
+| 带返回类型的函数（`void`、`bool`、`long`） | `bool turnCounts(long target, unsigned long timeoutMs) {` | 电机、驱动器与编码器闭环，`examples/month-2/motors-drivers/one_rev/one_rev.ino` |
+| 数组 | `int16_t v[7];` | 你的前两台机器人：循线小车与自平衡车，`examples/month-2/first-robots/balancer/balancer.ino` |
+| 按位与/或/移位/取反（`&`、`\|`、`<<`、`~`；拼出 I2C 16 位值） | `return (hi << 8) \| Wire.read();` | 传感器、I2C 与互补滤波，`examples/month-2/sensors-fusion/imu_pitch/imu_pitch.ino` |
+| 与 ISR 共享的 `volatile` 变量 | `volatile bool pressed = false;` | 非阻塞计时、中断与按键消抖，`examples/month-2/timing-interrupts/reaction_timer/reaction_timer.ino` |
+| `attachInterrupt` 与 `noInterrupts()`/`interrupts()` | `attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), onButton, CHANGE);` | 非阻塞计时、中断与按键消抖，`examples/month-2/timing-interrupts/reaction_timer/reaction_timer.ino` |
+| `enum` + `switch`/`case` 状态机 | `enum State { WAITING, LIT, SHOW_RESULT };` | 非阻塞计时、中断与按键消抖，`examples/month-2/timing-interrupts/reaction_timer/reaction_timer.ino` |
+| `static` 局部变量 | `static unsigned long lastEdge = 0;` | 非阻塞计时、中断与按键消抖，`examples/month-2/timing-interrupts/reaction_timer/reaction_timer.ino` |
+| `millis()`/`micros()` 计时与无符号减法 | `if (now - lastA >= PERIOD_A) {` | 非阻塞计时、中断与按键消抖，`examples/month-2/timing-interrupts/two_blinks/two_blinks.ino` |
+| `Serial.print`/`Serial.println` | `Serial.println("ready");` | Arduino 入门：数字/模拟 IO、PWM 与串口调试，`examples/month-2/arduino-io/button_pullup/button_pullup.ino` |
+| 第 4 个月 C++：派生自 `rclcpp::Node` 的类 | `class FilterNode : public rclcpp::Node` | 节点、话题、服务与动作，`examples/month-4/ros2-graph/m4_graph_cpp/src/filter_node.cpp` |
+| `std::` 类型 | `rclcpp::spin(std::make_shared<FilterNode>());` | 节点、话题、服务与动作，`examples/month-4/ros2-graph/m4_graph_cpp/src/filter_node.cpp` |
+| `auto` | `for (const auto & p : params) {` | 节点、话题、服务与动作，`examples/month-4/ros2-graph/m4_graph_cpp/src/filter_node.cpp` |
+| 指针的 `->` 成员访问 | `pub_->publish(out);` | 节点、话题、服务与动作，`examples/month-4/ros2-graph/m4_graph_cpp/src/filter_node.cpp` |
+
+参考：[Arduino 语言参考](https://docs.arduino.cc/language-reference/)、[cppreference：C++ 语言](https://en.cppreference.com/w/cpp/language)、[cppreference：基本类型](https://en.cppreference.com/w/cpp/language/types) 与 [cppreference：定宽整数](https://en.cppreference.com/w/cpp/types/integer)。在 Uno 上，GCC AVR 的 `int` 为 16 位。
+
 ## 常见错误与检查清单
 
 下面这些是你真的会遇到的坑，大致按出现频率排列：

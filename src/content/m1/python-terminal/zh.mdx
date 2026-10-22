@@ -513,6 +513,37 @@ python -i ohm.py current --volts 5 --ohms 220
 
 现在可以不改文件就调用函数、试修法。`print()` 调试也不丢人：在行为和预期分叉的地方打印值和类型，`print(f"{r=}")` 能同时看到变量名和值。弄明白后把调试打印删掉。
 
+## 本课程实际用到的 Python 语法
+
+下表只列出本课程 Python 脚本（`examples/**/*.py` 与 `tools/sim/models/*.py`）中实际出现的语法，用来确认你能读懂后面每一个脚本。
+
+| 语法结构 | 课程中的示例 | 出现位置 |
+| --- | --- | --- |
+| 变量与赋值 | `text = LOG_FILE.read_text(encoding="utf-8")` | Python 与终端，`examples/month-1/python-terminal/log.py` |
+| `int` / `float` / `str` / `bool` 标量类型 | `bad = 0` | Python 与终端，`examples/month-1/python-terminal/log.py` |
+| 算术运算，含 `**`、`//` 与 `%` | `planet = gap // 2` | 传动与回差：齿轮、皮带与轴承，`examples/month-3/transmissions/gear_calc.py` |
+| 带格式说明符的 f-string | `print(f"{v:.3f} V")` | Python 与终端，`examples/month-1/python-terminal/ohm.py` |
+| 列表、索引与切片 | `params = data[5:5 + length - 2]` | 组装 SO-101 机械臂：校准与遥操作，`examples/month-3/so101-arm/sts_packet.py` |
+| 元组与解包 | `for start, hold in presses:` | 非阻塞计时、中断与按键消抖，`tools/sim/models/debounce_sim.py` |
+| 字典 | `entry = {` | Python 与终端，`examples/month-1/python-terminal/log.py` |
+| `if`/`elif`/`else` 与条件表达式 `a if c else b` | `density = float(sys.argv[2]) if len(sys.argv) > 2 else 1.24` | CAD：选好工具，用参数设计，`examples/month-3/cad-parametric/stl_info.py` |
+| `for` + `range`/`zip`/`enumerate` | `for i in range(1, int(seconds / DT) + 1):` | 传感器、I2C 与互补滤波，`tools/sim/models/filter_sim.py` |
+| `while`/`break`/`continue` | `while t < end:` | 非阻塞计时、中断与按键消抖，`tools/sim/models/debounce_sim.py` |
+| 带默认参数与类型标注的 `def` | `def report_out_of_tolerance(measurements: list[dict], limit: float = 0.05) -> None:` | Python 与终端，`examples/month-1/python-terminal/log.py` |
+| 返回多个值 | `return mean, spread, worst` | 传感器、I2C 与互补滤波，`tools/sim/models/filter_sim.py` |
+| 列表推导式与带 `sum()`/`max()` 的生成器表达式 | `ranges = [sum(s.ranges[i] for s in scans) / len(scans) for i in range(n)]` | 仿真：把机器人放进 Gazebo，`examples/month-4/gazebo-sim/scan_probe.py` |
+| `lambda`（例如作为排序键） | `ahead = min(range(n), key=lambda i: abs(angle(i)))` | 仿真：把机器人放进 Gazebo，`examples/month-4/gazebo-sim/scan_probe.py` |
+| `import` / `from … import`（`math`、`random`、`json`、`sys`、`argparse`） | `import argparse` | Python 与终端，`examples/month-1/python-terminal/ohm.py` |
+| 带 `__init__` 和方法的类 | `class FakePort:` | 组装 SO-101 机械臂：校准与遥操作，`examples/month-3/so101-arm/compare_sdk.py` |
+| `@dataclass` | `@dataclass` | Python 与终端，`examples/month-1/python-terminal/resistors.py` |
+| `with open(...) as f` | `with open(os.path.join(folder, "camera.json"), "w") as f:` | 相机标定：内参、畸变与像素到三维，`examples/month-5/camera-calibration/calibrate.py` |
+| `try`/`except`/`raise ValueError` | `raise ValueError("ohms must be positive")` | Python 与终端，`examples/month-1/python-terminal/ohm.py` |
+| `if __name__ == "__main__":` | `if __name__ == "__main__":` | Python 与终端，`examples/month-1/python-terminal/ohm.py` |
+| NumPy `@` 矩阵乘法（第 5 个月） | `b = h_inv @ np.vstack([n.T, np.ones(len(n))])` | 相机标定：内参、畸变与像素到三维，`examples/month-5/camera-calibration/make_views.py` |
+| `rclpy` `Node` 子类与 `super().__init__`（第 4 个月） | `super().__init__('hello_node')` | 选哪个 ROS 2，搭好第一个工作空间，`examples/month-4/ros2-setup/m4_hello/m4_hello/hello_node.py` |
+
+官方参考：[The Python Tutorial](https://docs.python.org/zh-cn/3/tutorial/) — [§3 非正式介绍](https://docs.python.org/zh-cn/3/tutorial/introduction.html)、[§4 更多控制流工具](https://docs.python.org/zh-cn/3/tutorial/controlflow.html)、[§5 数据结构](https://docs.python.org/zh-cn/3/tutorial/datastructures.html)、[§6 模块](https://docs.python.org/zh-cn/3/tutorial/modules.html)、[§7.2 读写文件](https://docs.python.org/zh-cn/3/tutorial/inputoutput.html#reading-and-writing-files)、[§8 错误与异常](https://docs.python.org/zh-cn/3/tutorial/errors.html)、[§9 类](https://docs.python.org/zh-cn/3/tutorial/classes.html)、[dataclasses](https://docs.python.org/zh-cn/3/library/dataclasses.html) 与 [NumPy：Absolute Beginners](https://numpy.org/doc/stable/user/absolute_beginners.html)。
+
 ## 学习路线
 
 先学 **CS50P**：第 0–6 周覆盖函数、条件、循环、异常、库、单元测试和文件读写，讲座短、习题集逼你真的写代码，而不是看别人写。具体周次以课程当前页面为准。习题一定要做——只看讲座很“充实”，学到的东西却少得多。
