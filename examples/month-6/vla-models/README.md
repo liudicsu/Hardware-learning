@@ -2,7 +2,7 @@
 
 `action_tokens.py` uses only the Python standard library and fixed seeds. It builds a dataset shaped like SO-101
 teleoperation (50 episodes of 6 joint targets in degrees at 30 Hz, synthetic) and tokenises a 1 s chunk from a new
-episode two ways: RT-2/OpenVLA-style 256 bins per dimension between the 1st and 99th percentile, and a DCT of each
+episode two ways: OpenVLA-style 256 bins per dimension between the 1st and 99th percentile, and a DCT of each
 joint over the chunk, scaled and rounded (the idea behind FAST; FAST's byte-pair encoding step is left out and the
 nonzero coefficients are counted instead).
 `action_tokens.py` 只用 Python 标准库并固定随机种子。它生成一个形状类似 SO-101 遥操作的合成数据集（50 个回合，6 个关节
