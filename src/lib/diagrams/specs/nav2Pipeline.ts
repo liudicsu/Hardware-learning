@@ -146,6 +146,7 @@ export const nav2Pipeline: BlockDiagramSpec = {
     { file: NAV2, pattern: 'cmd_vel_out_topic: "/diff_drive_controller/cmd_vel"', note: "collision_monitor feeds Lesson 5's controller" },
     { file: NAV2, pattern: "velocity_smoother:\\s*\\n\\s*ros__parameters:\\s*\\n\\s*enable_stamped_cmd_vel: true", note: "TwistStamped through the chain" },
     { file: LAUNCH, pattern: "include\\('nav2_bringup', 'navigation_launch\\.py'", note: "Nav2 started from nav2_bringup's navigation_launch.py" },
-    { file: "src/content/m4/slam-nav/en.mdx", pattern: "more than 0\\.785 rad \\(45°\\)", note: "lesson text matches" },
+    { file: "src/content/m4/slam-nav/en.mdx", pattern: "more than 0\\.785 rad \\(45°\\)", note: "en lesson text matches" },
+    { file: "src/content/m4/slam-nav/zh.mdx", pattern: "相差超过 0\\.785 rad（45°）", note: "zh lesson text matches" },
   ],
 };

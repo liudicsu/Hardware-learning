@@ -1,8 +1,8 @@
 """action_tokens.py: how a VLA turns robot actions into tokens, per-step bins versus a DCT of the whole chunk.
 
 A language model outputs tokens, so an autoregressive VLA needs a way to write actions as tokens. Two schemes:
-  bins  (RT-2, OpenVLA): each action dimension at each step becomes one of 256 tokens, bins spread evenly
-        between that dimension's 1st and 99th percentile over the dataset.
+  bins  (OpenVLA): each action dimension at each step becomes one of 256 tokens, bins spread evenly
+        between that dimension's 1st and 99th percentile over the dataset (RT-2 spreads them over the full range).
   DCT   (the idea behind FAST, used by pi0-FAST): normalise each dimension to -1..1 with the same percentiles,
         take a discrete cosine transform of each dimension over the chunk, multiply by a scale and round.
         Smooth motion puts almost everything into a few low-frequency coefficients; the rest round to zero.

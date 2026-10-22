@@ -38,8 +38,8 @@ const shapes: GeoShape[] = [
   { id: "thetaLabel", type: "text", at: [at(THETA / 2, 74)[0], at(THETA / 2, 74)[1] + 4], label: "+θ", tone: "b", bold: true },
   { id: "force", type: "line", from: [24, 170], to: [106, 170], tone: "ok", width: 2.5, arrow: true },
   { id: "forceLabel", type: "text", at: [62, 162], label: "+F", tone: "ok", bold: true },
-  { id: "axis", type: "line", from: [24, 230], to: [316, 230], tone: "muted", width: 1.5, arrow: true },
-  { id: "axisLabel", type: "text", at: [330, 235], label: "+x", anchor: "end", tone: "muted", bold: true },
+  { id: "axis", type: "line", from: [24, 230], to: [304, 230], tone: "muted", width: 1.5, arrow: true },
+  { id: "axisLabel", type: "text", at: [311, 235], label: "+x", anchor: "start", tone: "muted", bold: true },
   { type: "text", at: [24, 222], label: { zh: "位置 x、速度", en: "position x, speed" }, anchor: "start", tone: "muted" },
 ];
 
