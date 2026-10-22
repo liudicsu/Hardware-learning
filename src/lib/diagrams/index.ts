@@ -1,4 +1,5 @@
 import type { DiagramSpec } from "./types";
+import { actBlockTask } from "./specs/actBlockTask";
 import { bcCorridor } from "./specs/bcCorridor";
 import { cartPoleSigns } from "./specs/cartPole";
 import { firstRobotsCascade, pidCascade } from "./specs/cascade";
@@ -39,6 +40,7 @@ export const DIAGRAMS: Record<string, DiagramSpec> = {
   [debounceQuiet.id]: debounceQuiet,
   [stsPackets.id]: stsPackets,
   [bcCorridor.id]: bcCorridor,
+  [actBlockTask.id]: actBlockTask,
   [cartPoleSigns.id]: cartPoleSigns,
   [vlaDataflow.id]: vlaDataflow,
 };

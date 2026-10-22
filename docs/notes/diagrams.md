@@ -144,3 +144,10 @@ goal-end wall, never within the success radius. Random trajectories come from a 
 (tools/sim/models/bc_corridor_export.py -> src/lib/diagrams/data/bc-corridor.json, re-run and compared) and the
 caption says which runs they are.
 
+`blockTask` (act-block-task, D115) names the block rect, goal/start/fork/waypoint circles, the demo-action arrows, the
+mean arrow and its ray, with the metre-to-unit `map`. The check imports multimodal.py (GOAL, BLOCK_Y, HALF, FORK_Y,
+STEP and the waypoint in `expert()`), requires each shape at its place, every demo arrow to start within 2 cm of
+`at` and be at most STEP long (at `arrowScale`), the mean arrow to be the mean of the drawn demo arrows, and its ray
+to continue it straight to the block's near face between the corners. The data come from a fixed-seed exporter
+(tools/sim/models/act_fork_export.py -> src/lib/diagrams/data/act-fork.json, re-run and compared).
+

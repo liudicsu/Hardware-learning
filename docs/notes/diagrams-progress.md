@@ -158,3 +158,10 @@ numbers, cart-pole direction, TB6612 OUT1) go into the PR that touches each less
   action (0, +0.05); never within 7.5 cm of the goal; exits through the end wall). Steps: demos -> run 1 -> run 7 and
   the nearest frame -> the 100-run counts. Geo2D gained polyline, dashed circles, groups and steps; check_diagrams
   gained checkCorridor. All hand-written.
+- D115 (branch diagrams/d115-act-block from 5b1e38f): `act-block-task` in act-diffusion after the fork table, a
+  static Geo2D figure of multimodal.py's block task to scale (0.3 m block at (0, 0.5), fork (0, 0.2), waypoints
+  (±0.3, 0.4), goal (0, 1) with its 5 cm radius) and the decision at (0, 0.23): the 10 nearest recorded frames'
+  actions (7 left, 3 right, 4.3–4.4 cm sideways; from the 40 demos of Random(5)) and their mean (−1.7, +2.5) cm,
+  whose ray meets the block's near face at x = −8.5 cm. The lesson sentence "each about 4.2 cm sideways" now says
+  4.3 to 4.4 cm (the 4.2 cm is at the fork itself; from (0, 0.23) the waypoint is 0.17 m ahead), zh and en.
+  check_diagrams gained checkBlockTask. All hand-written.
