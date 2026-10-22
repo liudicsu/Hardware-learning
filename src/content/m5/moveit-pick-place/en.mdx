@@ -389,7 +389,7 @@ Five DOF are fewer than six, so the arm cannot reach an arbitrary 6-D pose. `sho
 
 ### Reach
 
-The SO-101 axis distances are L1 = 0.116 m (shoulder_lift to elbow_flex) and L2 = 0.135 m (elbow_flex to wrist_flex). The shoulder axis sits 0.117 m above `base_link`; the kinematics lesson uses these values. The Panda's scene does not fit: the block at x = 0.5 m and the 0.25 m wall are out of reach and must be scaled down for the SO-101, into its approximately 0.25 m reach.
+The SO-101 axis distances are L1 = 0.116 m (shoulder_lift to elbow_flex) and L2 = 0.135 m (elbow_flex to wrist_flex). The shoulder axis sits 0.117 m above `base_link`; the kinematics lesson uses these values. The Panda's scene does not fit: the block at x = 0.5 m and the 0.25 m wall are out of reach and must be scaled down for the SO-101, into its reach: with the arm stretched out, the wrist axis is at most L1 + L2 = 0.116 + 0.135 = 0.251 m from the shoulder axis, half the 0.5 m to the Panda block, before the gripper length is added.
 
 ### What changes in the config and the script
 

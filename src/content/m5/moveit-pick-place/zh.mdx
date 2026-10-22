@@ -389,7 +389,7 @@ SO-101 由 TheRobotStudio/SO-ARM100 在 a758567 上的 `so101_new_calib.urdf` �
 
 ### 可达范围
 
-SO-101 的轴距为 L1 = 0.116 m（shoulder_lift 到 elbow_flex）和 L2 = 0.135 m（elbow_flex 到 wrist_flex）。肩轴在 `base_link` 上方 0.117 m；运动学那一课用的就是这些值。Panda 的场景放不下：积木在 x = 0.5 m，墙高 0.25 m，都超出可达范围，必须按 SO-101 缩小，落进它约 0.25 m 的可达范围。
+SO-101 的轴距为 L1 = 0.116 m（shoulder_lift 到 elbow_flex）和 L2 = 0.135 m（elbow_flex 到 wrist_flex）。肩轴在 `base_link` 上方 0.117 m；运动学那一课用的就是这些值。Panda 的场景放不下：积木在 x = 0.5 m，墙高 0.25 m，都超出可达范围，必须按 SO-101 缩小，落进它的可达范围：手臂伸直时，腕轴离肩轴最多 L1 + L2 = 0.116 + 0.135 = 0.251 m，只有到 Panda 积木 0.5 m 的一半，夹爪长度还要另算。
 
 ### 配置和脚本的改动
 
