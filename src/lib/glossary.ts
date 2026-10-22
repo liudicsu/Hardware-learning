@@ -705,7 +705,7 @@ export const glossary: GlossaryEntry[] = [
     id: "pd-control",
     term: { zh: "PD 控制", en: "PD control" },
     def: {
-      zh: "输出由比例项与微分项相加的控制器：P 按误差大小推，D 按误差变化速度制动，抑制过冲。循线小车先调 P 再加入 D，可把 62.3 mm 的过冲降到 4.8 mm。",
+      zh: "输出由比例项与微分项相加的控制器：P 按误差大小推，D 按误差变化速度制动，抑制超调。循线小车先调 P 再加入 D，可把 62.3 mm 的超调降到 4.8 mm。",
       en: "A controller whose output adds a proportional term to a derivative term: P pushes in proportion to error and D brakes in proportion to how fast it changes, damping overshoot. On the line follower, adding D after tuning P cut overshoot from 62.3 mm to 4.8 mm.",
     },
     lesson: "first-robots",
@@ -965,7 +965,7 @@ export const glossary: GlossaryEntry[] = [
     id: "derivative-term",
     term: { zh: "微分项（D）", en: "derivative term (D)" },
     def: {
-      zh: "PID 中与误差或测量值变化速度成正比的一项，作用像阻尼器，在接近目标时制动以抑制过冲。工程上通常对测量值求导以避免目标跳变引起的微分冲击，但它也会放大传感器噪声。",
+      zh: "PID 中与误差或测量值变化速度成正比的一项，作用像阻尼器，在接近目标时制动以抑制超调。工程上通常对测量值求导以避免目标跳变引起的微分冲击，但它也会放大传感器噪声。",
       en: "The PID term proportional to how fast the error or measurement changes; it acts like a damper, braking on approach to reduce overshoot. Practice differentiates the measurement to avoid derivative kick from a setpoint step, but this also amplifies sensor noise.",
     },
     lesson: "first-robots",
