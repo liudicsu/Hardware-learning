@@ -20,7 +20,7 @@ export function TimingStepper({ id, title, stepText, prevLabel, nextLabel, posit
     "rounded-md border border-zinc-700 px-3 py-1.5 text-sm text-zinc-200 hover:border-sky-400 disabled:cursor-not-allowed disabled:opacity-40";
   return (
     <figure className="not-prose my-6" data-timing={id ?? ""} data-timing-step={i}>
-      <div className="max-w-2xl">
+      <div className="max-w-2xl overflow-x-auto">
         <TimingSvg title={title} highlight={i} {...rest} />
       </div>
       <div className="mt-2 flex max-w-2xl flex-wrap items-center gap-2">

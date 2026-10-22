@@ -4,20 +4,28 @@ Diagrams that only explain (no live computation) are drawn by us as SVG in the p
 open-source diagram exists. Dark theme, zh/en labels passed as props, readable at 390 px
 (SVG scales with `w-full`; text is 14–18 viewBox units on a ~450–500-unit-wide box, ≈ 12 px at 390 px).
 
-## `<Timing>` (server-safe, no hooks)
+## `<Timing>` (server-safe, no hooks) — `src/components/diagrams/Timing.tsx`
 
 ```tsx
 <Timing
   title="caption and accessible name"
-  axisLabel="each column = …"            // optional, under the axis
-  signals={[{ name: "A", levels: [0, 1, 1, 0] }, { name: "B", levels: [0, 0, 1, 1], color: "#f59e0b" }]}
-  rows={[{ name: "AB", cells: ["00", "10", "11", "01"] }]}   // optional label rows, one cell per column
-  highlight={2}                          // optional column highlight
+  axisLabel="time →"                         // optional, under the axis
+  columns={[1, 3, 1, 3]}                      // optional relative widths (e.g. µs); default equal
+  signals={[
+    { name: "PWM", levels: [1, 0, 1, 0] },                    // digital: 0 low, other numbers high,
+    { name: "SDA", kind: "bus", values: ["", "0x68", "ACK"] }, //   "x" unknown, "z" released (mid line)
+  ]}                                          // bus: data bands, equal neighbours merge, "" / "x" = unknown
+  rows={[{ name: "bit", cells: ["S", "0", "1"] }]}            // optional text rows, one cell per column
+  spans={[{ from: 0, to: 0, label: "0.5 ms" }, { from: 0, to: 1, label: "period 2.0 ms", side: "bottom" }]}
+  highlight={2}                               // optional column highlight
 />
 ```
 
-Equal-width columns; one logic level per signal per column. Intended reuse: PWM (duty as columns high/low),
-UART frames (start/data/stop bits as rows), I²C (SCL/SDA with START/ACK rows), servo pulses.
+Column edges come from `columnEdges(n, columns)`. Text is 14–18 viewBox units; the SVG never scales below
+0.62 px per unit (≈ 10 px text) — a long frame (e.g. a 12-bit UART frame) scrolls horizontally inside its
+own box rather than overflowing the page. Intended reuse: PWM (`columns` = high/low durations, `spans` for
+pulse width and period), UART (start/data/stop bits as a digital signal plus a `bit` row), I²C (SCL digital,
+SDA `bus` with address/ACK bands, "z" for the released line), servo pulses (1.0–2.0 ms `spans` in a 20 ms frame).
 
 ## `<TimingStepper>` (client)
 
