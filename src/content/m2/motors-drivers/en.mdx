@@ -487,7 +487,7 @@ The beginner pits for this lesson, in no particular order:
 - Leaving a motor running after a timeout or an error path. Every exit from a control loop should stop the motor.
 - Encoder outputs without pull-ups. Open-drain outputs float, and the count becomes noise.
 - Counts going the wrong way. Swap A and B, or swap the motor leads, then check the sign again.
-- The L298N getting hot. That is wasted battery energy and a driver that may thermally shut down; it is not an acceptable loss.
+- The L298N getting hot. The heat is battery energy lost in the driver, and the driver may go into thermal shutdown.
 
 Before you move on, you should be able to say yes to all of these:
 

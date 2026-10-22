@@ -241,7 +241,20 @@ The error falls from 209.357 mm to 0.002 mm in 15 iterations. While the error is
 
 </SimOutput>
 
-FK returns exactly the target, so the solution is valid. A second run starts from q = [0, 90, 60] deg and finds a different valid solution: base -123.69 deg, shoulder 130.46 deg, elbow 88.48 deg. The base is turned 180 deg from the first solution's 56.31 deg, so the arm reaches the same point from the other side, back over the top. IK has several solutions; the start decides which branch you get. This model has no joint limits, so both count as solutions here; on the real SO-101 the second one is not allowed, because `shoulder_lift` is limited to ±1.74533 rad (±100 deg) in the URDF, and a solver with joint limits would reject it.
+FK returns exactly the target, so the solution is valid. A second run starts from q = [0, 90, 60] deg and finds a different valid solution: base -123.69 deg, shoulder 130.46 deg, elbow 88.48 deg. The base is turned 180 deg from the first solution's 56.31 deg, so the arm reaches the same point from the other side, back over the top. IK has several solutions; the start decides which branch you get. This model has no joint limits, so both count as solutions here. To check them against the real SO-101, convert them to URDF joint angles. The model's zero pose differs from the real arm's (see the comment at the top of `kinematics.py`). Forward kinematics of the URDF gives the offsets. At `shoulder_lift` = 0 the upper arm points 76.03 deg above horizontal. At `elbow_flex` = 0 the forearm is at −73.82 deg relative to the upper arm. A positive `shoulder_pan` turns the arm the opposite way to a positive q0. Both pitch joints also turn opposite to q1 and q2:
+
+```text
+shoulder_pan  = −q0                limit ±1.91986 rad = ±110.00 deg
+shoulder_lift = 76.03 deg − q1     limit ±1.74533 rad = ±100.00 deg
+elbow_flex    = −73.82 deg − q2    limit ±1.69 rad    = ±96.83 deg
+
+first  q = [56.31, 49.54, −88.48]   ->  pan −56.31, lift 26.49, elbow 14.66      all within the limits
+second q = [−123.69, 130.46, 88.48] ->  pan 123.69, lift −54.43, elbow −162.31   pan and elbow outside
+```
+
+The converted angles are computed from the unrounded offsets and solutions, so the last digit can differ by 0.01 from hand arithmetic with the rounded values.
+
+The real SO-101 cannot use the second solution. `shoulder_pan` would need 123.69 deg against its ±110 deg limit, and `elbow_flex` would need −162.31 deg against ±96.83 deg. `shoulder_lift` at −54.43 deg would be within its range. A solver with joint limits rejects this branch and keeps the first.
 
 An unreachable target converges to the closest reachable position instead. The target (0.20, 0.20, 0.10) m is 0.283 m from the shoulder, while L1 + L2 = 0.251 m (the script prints it rounded to 0.25). The solver straightens the arm (elbow 0.00 deg) and stops:
 

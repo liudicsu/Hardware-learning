@@ -385,7 +385,7 @@ SO-101 由 TheRobotStudio/SO-ARM100 在 a758567 上的 `so101_new_calib.urdf` �
 
 ### 五个自由度
 
-五个自由度少于六个，所以手臂到不了任意的六维位姿。`shoulder_pan` 转动的是 `shoulder_lift`、`elbow_flex`、`wrist_flex` 所在的竖直平面；目标在 (x, y) 时，这个平面由 atan2(y, x) 决定（URDF 中肩部还有一个小的侧向偏移，因此是近似）。`wrist_flex` 决定夹爪在该平面内的俯仰。`wrist_roll` 让 `gripper_link` 绕自身 z 轴转动，而 `gripper_frame_link` 就位于这条轴上 0.098 m 处，所以它使夹爪绕接近方向滚转。因此夹爪的指向必须（近似）落在经过基座轴和目标的平面内，绕指向的滚转是自由的。自上而下的抓取在每个这样的平面内，所以它绕竖直轴的偏航由 `wrist_roll` 设定，在关节限位（−2.74385 … 2.84121 rad）内是自由的。接近方向离开该平面的位姿目标没有精确解。因此位姿目标要么让接近方向落在这个平面内，要么改用纯位置逆解。MoveIt 的 KDL 运动学插件有参数 `position_only_ik`（bool，默认 false）：“position_only_ik overrules orientation_vs_position. If true, sets orientation_vs_position weight to 0.0”（moveit2，`moveit_kinematics/kdl_kinematics_plugin/src/kdl_kinematics_parameters.yaml`）。
+五个自由度少于六个，所以手臂到不了任意的六维位姿。`shoulder_pan` 转动的是 `shoulder_lift`、`elbow_flex`、`wrist_flex` 所在的竖直平面；目标在 (x, y) 时，这个平面由 atan2(y, x) 决定（URDF 中肩部还有一个小的侧向偏移，因此是近似）。`wrist_flex` 决定夹爪在该平面内的俯仰。`wrist_roll` 让 `gripper_link` 绕自身 z 轴转动，而 `gripper_frame_link` 大致沿这条轴、距关节 0.098 m（偏离轴线 7.9 mm），所以它使夹爪绕接近方向滚转。因此夹爪的指向必须（近似）落在经过基座轴和目标的平面内，绕指向的滚转是自由的。自上而下的抓取在每个这样的平面内，所以它绕竖直轴的偏航由 `wrist_roll` 设定，在关节限位（−2.74385 … 2.84121 rad）内是自由的。接近方向离开该平面的位姿目标没有精确解。因此位姿目标要么让接近方向落在这个平面内，要么改用纯位置逆解。MoveIt 的 KDL 运动学插件有参数 `position_only_ik`（bool，默认 false）：“position_only_ik overrules orientation_vs_position. If true, sets orientation_vs_position weight to 0.0”（moveit2，`moveit_kinematics/kdl_kinematics_plugin/src/kdl_kinematics_parameters.yaml`）。
 
 ### 可达范围
 
