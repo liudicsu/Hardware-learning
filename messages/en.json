@@ -316,8 +316,8 @@
   },
   "glossary": {
     "title": "Glossary",
-    "lead": "Terms that recur throughout the course. Each entry gives the canonical Chinese and English names, a one-line definition, and the lesson that first explains it. In the lessons, terms with a dotted underline show their definition on hover, focus or tap.",
-    "taughtIn": "First explained in: {lesson}",
+    "lead": "Terms that recur throughout the course. Each entry gives the canonical Chinese and English names, a one-line definition, and the related lesson. In the lessons, terms with a dotted underline show their definition on hover, focus or tap.",
+    "taughtIn": "Related lesson: {lesson}",
     "close": "Close",
     "count": "{n} terms"
   },

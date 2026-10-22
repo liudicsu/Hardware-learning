@@ -333,3 +333,32 @@ Do not print a bracket for a servo you have not measured. The datasheet is the s
 </Callout>
 
 The next step is Lesson 2. Print a tolerance gauge, find your printer's real clearance, and replace the 0.3 mm placeholder in this design with a number that belongs to your machine. The bracket is not finished when it looks right on screen; it is finished when it fits.
+
+<Summary>
+
+**Key points**
+
+- A fully constrained sketch has 0 DOF: four corner points start at 8 DOF and reach 0 with the 40.2 mm width and 20.4 mm height dimensions.
+- Derived sizes are expressions, not retyped numbers: `cut_l = servo_l + 2 * clearance`, so servo_l = 22.2 mm with clearance = 0.15 mm gives 22.5 mm.
+- Hole spacing from calipers = outside-to-outside − one hole diameter: 29.5 mm − 2.0 mm = 27.5 mm.
+- A free rigid body in space has 6 DOF, and one revolute mate leaves 1 DOF.
+- STEP is the master and STL is a throw-away mesh: the bracket STL is 40.2 × 26.0 × 20.4 mm and watertight.
+
+**Common mistakes**
+
+- Chaining dimensions edge to edge, so one edit ripples through every link; dimension from a datum instead.
+- Leaving a sketch under-constrained, so a line you never dimensioned slides when you move a hole; the opposite failure is over-constraining and nudging numbers until the warning disappears.
+- Copying a hole pitch from a website instead of measuring your own servo: 27.5 mm is only the most quoted figure.
+- Keeping the STL as the master file instead of the CAD file plus a STEP export.
+
+**Self-check**
+
+- Can you count the DOF of a free circle and say how many a fully constrained rectangle has left?
+- Can you compute `cut_l` for servo_l = 22.2 mm and clearance = 0.4 mm?
+- Can you explain why a friend who wants to change your hole size must receive the STEP file?
+
+**Used next**
+
+- The next lesson, **3D printing: materials, calibration & tolerances**, reuses the 0.3 mm clearance placeholder and the bracket's parameters to replace them with your printer's measured numbers.
+
+</Summary>

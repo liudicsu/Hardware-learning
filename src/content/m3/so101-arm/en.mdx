@@ -386,3 +386,32 @@ The follower is strong enough to pinch fingers and knock things off a desk. Keep
 </Callout>
 
 Lesson 6 takes the next step: gripper fingers. They are small, they are cheap to iterate, and they are the part that proves you can design as well as assemble. A working arm with a gripper you designed for it is a much better answer to "can you build a robot?" than a kit that only runs the manufacturer's demo.
+
+<Summary>
+
+**Key points**
+
+- Six STS3215 bus servos per arm, each with a 12-bit encoder of 4096 steps per turn: 1024 steps is 90°.
+- Every packet is `0xFF 0xFF ID LENGTH INSTRUCTION PARAMS CHECKSUM` with CHECKSUM = ~(sum) & 0xFF; a ping to servo 1 is FF FF 01 02 01 FB, and to servo 2 the checksum is FA.
+- The half-duplex bus runs at 1 Mbit/s, daisy-chained from the gripper back to the base, and the setup script gives the gripper ID 6 first, then walks back to shoulder_pan = 1.
+- Ratios: the follower is 1/345 on all six joints while the leader mixes 1/191, 1/147 and 1/345, so 345 / 147 = 2.35 times the friction and (345/147)² ≈ 5.51 times the rotor inertia.
+- Power and cost: the standard build uses 5 V inside the 4–7.4 V range, the BOM pair costs $229.88 (one follower $121.94), and the prints are about 1 kg of PLA+ at 15 % infill and 0.2 mm layers.
+
+**Common mistakes**
+
+- Connecting two new servos at once: both ship as ID 1, so the setup script cannot tell them apart.
+- Mixing the leader's 1/147 servos into the follower, which moves but lacks the torque the follower was designed with.
+- Connecting a 12 V supply to 7.4 V servos, far outside the 4–7.4 V input range.
+- Editing the teleoperation command when a joint is offset or reversed; the mapping is wrong, so recalibrate that arm instead.
+
+**Self-check**
+
+- Can you work out the checksum of a ping to servo 2?
+- Can you convert a reported position of 1024 steps into degrees?
+- Can you say why each new servo must be connected alone while you set its ID?
+
+**Used next**
+
+- The next lesson, **Design your own gripper fingers (TPU)**, reuses this calibrated arm and the teleoperation video as its test platform.
+
+</Summary>

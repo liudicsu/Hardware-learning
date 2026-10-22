@@ -357,3 +357,32 @@ Run the gearbox in for a few minutes under light load before you measure the bac
 </Callout>
 
 Lesson 4 puts this to work. PID and cascade control are what make a joint follow a position or a trajectory, and the loop you will tune there has to live with the backlash you just measured. The cleaner your reducer, the easier that tuning becomes: reduction, backlash and torque density are the mechanical foundations the controller stands on.
+
+<Summary>
+
+**Key points**
+
+- Output torque = motor torque × n × efficiency: 0.05 N·m at 6000 rpm through two 5:1 stages at 90 % each gives 0.05 × 25 × 0.81 = 1.01 N·m at 240 rpm.
+- Planetary ratio = 1 + ring / sun, with planet = (ring − sun)/2 a whole number: sun 12 with ring 48 gives 5.000 : 1, while sun 12 with ring 45 needs 16.5 teeth and will not mesh.
+- Cycloidal: N pins with N − 1 lobes gives N − 1 : 1 and the output turns the opposite way (10 pins → 9 : 1).
+- arc = reach × angle in radians: 1° on a 0.30 m arm is 0.30 × 0.01745 = 5.2 mm at the tip.
+- Backdriving: friction scales with n and rotor inertia with n², so 345:1 against 147:1 is ×2.35 friction and ×5.51 rotor inertia.
+
+**Common mistakes**
+
+- Multiplying efficiencies as if they were one stage: two stages at 90 % leave 0.9 × 0.9 = 0.81, not 0.9.
+- Drawing a planetary stage that fails the assembly rules, such as sun 12 with ring 45 (16.5 teeth), instead of checking planet size and spacing on paper first.
+- Believing software can fix backlash: with the encoder after the gears and no load, the model hunts 1.16° peak to peak forever.
+- Reading backlash in degrees and ignoring the arm: 2° on a 0.30 m arm is 10.5 mm at the tip.
+
+**Self-check**
+
+- Can you compute the output torque of a 0.1 N·m motor through a 10:1 gearbox that is 90 % efficient?
+- Can you check that sun 15 with ring 45 assembles with 3 planets and gives 4 : 1?
+- Can you convert 1.5° of backlash on a 0.40 m arm into millimetres at the tip?
+
+**Used next**
+
+- The next lesson, **PID & control: windup and cascade loops**, reuses the backlash you measure, since it limits how high Kp and Ki can go.
+
+</Summary>

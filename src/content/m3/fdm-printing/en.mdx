@@ -358,3 +358,32 @@ Print just the lid's arm region, or a single test arm, before the whole case. It
 </Callout>
 
 Lesson 3 takes the same idea further: gears and backlash. A gearbox is a stack of fits, and every loose fit becomes position error at the output. The gauge numbers you write down here are the numbers you will use there.
+
+<Summary>
+
+**Key points**
+
+- Calibration order: temperature → flow → pressure advance → retraction → tolerance; each test assumes the earlier ones are right.
+- Hole = shaft + 2 × per-side clearance: a 5 mm shaft with 0.2 mm per side needs a 5.4 mm hole.
+- Overhangs up to about 45° from vertical usually print without support.
+- Snap strain ε = 1.5 × y × t / L²: with L = 10 mm, t = 1.2 mm and y = 0.8 mm it gives 1.44 %, inside the 1.5 % PLA limit.
+- Break-even: $7.60 saved per revision, so a $219.99 printer needs about 29 revisions to pay for itself.
+
+**Common mistakes**
+
+- Copying a total-difference gauge number into a per-side clearance parameter, which makes every gap twice as big as measured.
+- Drawing the hole as shaft + clearance only once: 5.2 mm instead of 5.4 mm leaves just 0.1 mm per side.
+- Drawing a short thick snap arm: at L = 5 mm the strain is 9.00 % and the part cracks, while making the arm thicker raises both strain and push-on force.
+- Choosing PLA for a part pressed against a 70 °C motor, when PLA softens around 55–60 °C.
+
+**Self-check**
+
+- Can you convert a 0.3 mm total gauge difference into 0.15 mm per side?
+- Can you compute the hole diameter for a 5 mm shaft that must turn freely with 0.2 mm clearance per side?
+- Can you say why the snap arm's strain quadruples when its length halves?
+
+**Used next**
+
+- The next lesson, **Transmissions & backlash: gears, belts and bearings**, reuses these gauge clearances for printed gear teeth and bearing seats.
+
+</Summary>
