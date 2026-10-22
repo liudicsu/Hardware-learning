@@ -115,7 +115,7 @@ export function BlockDiagramSvg({ spec, layout, locale, highlight, className }: 
               {label}
             </text>
             {sub && (
-              <text x={cx} y={ly + DG_SUB_FONT + 3} textAnchor={anchor} style={{ fill: TONE.muted, fontSize: DG_SUB_FONT }}>
+              <text x={cx} y={ly + DG_SUB_FONT + 3} textAnchor={anchor} style={{ fill: TONE.muted, fontSize: DG_SUB_FONT, fontFamily: n.subMono ? MONO : undefined }}>
                 {subLines.map((line, k) => (
                   <tspan key={k} x={cx} dy={k === 0 ? 0 : DG_SUB_FONT + 2.5}>
                     {line}

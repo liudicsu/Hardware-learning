@@ -384,6 +384,22 @@ function checkBindings(spec, tag, nodeIds, edgeIds) {
   }
 }
 
+/** Block diagrams, optional `flows`: in both layouts the edge starts on `from`'s box and its arrowhead ends on `to`'s. */
+function checkFlows(spec, tag) {
+  const onBox = ([x, y], [bx, by, bw, bh]) => x >= bx - 3 && x <= bx + bw + 3 && y >= by - 3 && y <= by + bh + 3;
+  for (const f of spec.flows ?? []) {
+    const e = spec.edges.find((x) => x.id === f.edge);
+    ok(e && e.arrow !== false, `${tag}: flow edge ${f.edge} missing or has no arrowhead`);
+    for (const which of ["wide", "narrow"]) {
+      const L = spec.layouts[which], g = L.edges[f.edge], a = L.nodes[f.from], b = L.nodes[f.to];
+      ok(g && a && b, `${tag} ${which}: flow ${f.edge} ${f.from} -> ${f.to} names a missing edge or node`);
+      if (!(g && a && b)) continue;
+      ok(onBox(g.pts[0], a) && onBox(g.pts.at(-1), b) && !onBox(g.pts.at(-1), a),
+        `${tag} ${which}: edge ${f.edge} must run from ${f.from} to ${f.to} (${f.note}), runs ${JSON.stringify(g.pts[0])} -> ${JSON.stringify(g.pts.at(-1))}`);
+    }
+  }
+}
+
 // ---------- byte-field diagrams ----------
 const bfSrc = readFileSync(join(root, "src/components/diagrams/ByteFields.tsx"), "utf8");
 const bconst = (name) => Number(bfSrc.match(new RegExp(`export const ${name} = ([\\d.]+)`))[1]);
@@ -758,7 +774,7 @@ for (const { file, name, spec } of specs) {
   else {
     const nodeIds = new Set(spec.nodes.map((n) => n.id));
     const edgeIds = new Set(spec.edges.map((e) => e.id));
-    for (const n of spec.nodes) { checkText(`${tag} node ${n.id}`, n.label, n); checkText(`${tag} node ${n.id} sub`, n.sub); }
+    for (const n of spec.nodes) { checkText(`${tag} node ${n.id}`, n.label, n); checkText(`${tag} node ${n.id} sub`, n.sub, { mono: n.subMono }); }
     for (const e of spec.edges) checkText(`${tag} edge ${e.id}`, e.label, e);
     for (const [k, s] of (spec.steps ?? []).entries()) {
       checkText(`${tag} step ${k + 1}`, s.label);
@@ -767,6 +783,7 @@ for (const { file, name, spec } of specs) {
     if (spec.kind === "stateMachine") ok(nodeIds.has(spec.initial), `${tag}: initial state "${spec.initial}" missing`);
     checkScript(spec, tag);
     checkBindings(spec, tag, nodeIds, edgeIds);
+    checkFlows(spec, tag);
 
     for (const which of ["wide", "narrow"]) {
       const L = spec.layouts[which];

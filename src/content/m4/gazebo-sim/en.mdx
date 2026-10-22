@@ -331,6 +331,8 @@ It is harmless. The URDF-to-SDF converter does not know the element, so it copie
 
 Gazebo and ROS 2 are separate systems with separate transport. Gazebo publishes on its own topics with its own message types; ROS 2 nodes cannot see them until something copies selected topics across and converts the types. That something is `ros_gz_bridge`. The bridge is deliberately explicit: you list each topic, its type on both sides and the direction, and nothing else crosses. That sounds tedious until you have a robot with forty topics and want to know exactly which ten reach ROS 2.
 
+<Diagram id="gz-bridge" />
+
 <CodeSource path="examples/month-4/gazebo-sim/m4_gazebo/config/bridge.yaml" />
 
 ```yaml

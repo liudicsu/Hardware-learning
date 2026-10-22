@@ -120,6 +120,10 @@ step text from the same constants as action_tokens.py (30 steps x 6 joints = 180
 the script fails the check.
 A missing script, or one that exits with an error, is reported as a FAIL line rather than a crash.
 
+Block diagrams can also take `flows` (D086): `{ edge, from, to }` requires, in both layouts, the edge's first point
+on `from`'s box and its arrowhead on `to`'s, so the drawn direction of data cannot be flipped silently. A node with
+`subMono: true` draws its sub lines in monospace and may give them as one string for both languages (topic lists).
+
 Block diagrams can also take `bindings` (D118 review). For a node, the drawn label and sub must match every regular
 expression in `has` and none in `lacks`, in both languages; for an edge, they fix it as dashed or solid. Build them
 from the same constants as the facts. `vla-dataflow` does this for the model lists (RT-2, OpenVLA and π0-FAST in the

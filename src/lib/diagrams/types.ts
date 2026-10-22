@@ -26,6 +26,8 @@ export interface DiagramNode {
   tone?: Tone;
   /** Draw the label in the monospace font (node names, topics, files). */
   mono?: boolean;
+  /** The sub lines are identifiers too (e.g. a topic list): monospace, and may be one string for both languages. */
+  subMono?: boolean;
 }
 
 export interface DiagramEdge {
@@ -88,6 +90,8 @@ export interface BlockDiagramSpec {
   script?: { run: string; lines: string[] };
   /** Ties drawn text and edge styles to the constants the facts use (see BlockBinding). */
   bindings?: BlockBinding[];
+  /** Edges that must run from one node to another (first point on `from`, arrowhead on `to`) in both layouts. */
+  flows?: { edge: string; from: string; to: string; note: string }[];
   facts: DiagramFact[];
 }
 

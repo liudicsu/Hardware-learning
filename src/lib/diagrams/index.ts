@@ -2,6 +2,7 @@ import type { DiagramSpec } from "./types";
 import { actBlockTask } from "./specs/actBlockTask";
 import { bcCorridor } from "./specs/bcCorridor";
 import { cartPoleSigns } from "./specs/cartPole";
+import { gzBridge } from "./specs/gzBridge";
 import { firstRobotsCascade, pidCascade } from "./specs/cascade";
 import { debounceQuiet } from "./specs/debounce";
 import { gitAreas, gitBranches } from "./specs/gitModel";
@@ -42,5 +43,6 @@ export const DIAGRAMS: Record<string, DiagramSpec> = {
   [bcCorridor.id]: bcCorridor,
   [actBlockTask.id]: actBlockTask,
   [cartPoleSigns.id]: cartPoleSigns,
+  [gzBridge.id]: gzBridge,
   [vlaDataflow.id]: vlaDataflow,
 };
