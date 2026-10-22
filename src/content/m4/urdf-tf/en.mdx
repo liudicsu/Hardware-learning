@@ -437,10 +437,7 @@ This is the first of the course's common issues, and it is worth being blunt abo
 
 `joint_state_publisher`, and its slider version `joint_state_publisher_gui`, does the opposite: it **invents** joint positions, out of nothing, and publishes them as `/joint_states`. On a real robot, or in Gazebo, the hardware driver or the simulator publishes `/joint_states` instead, and you simply stop running `joint_state_publisher`. The two programs sit on opposite ends of the same pipe, which is why they have such similar names and why people mix them up.
 
-```text
-robot_description (URDF) ------------------> robot_state_publisher
-joint_state_publisher_gui --/joint_states--> robot_state_publisher --/tf, /tf_static--> RViz, tf2_echo, every other node
-```
+<Diagram id="urdf-two-publishers" />
 
 The launch file wires this up and adds RViz, with an argument that decides where the joint positions come from:
 
