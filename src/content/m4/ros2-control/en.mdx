@@ -782,7 +782,7 @@ difference:      1.097 − 0.749 = 0.348 m
 result:          0.348 m
 ```
 
-One more feedback line arrived after "cancelling": the cancel request takes a moment to reach the server, and the robot needs a moment to stop. That is exactly why the result is measured after the robot stands still. The status is `CANCELED` and `reached` is false, so the caller knows precisely what happened: the robot moved 0.348 m and did not reach the requested one metre. A cancel is not a failure; it is an honest report of a partial result.
+One more feedback line arrived after "cancelling": the cancel request takes a moment to reach the server, and the robot needs a moment to stop. That is exactly why the result is measured after the robot stands still. The status is `CANCELED` and `reached` is false, so the caller knows precisely what happened: the robot moved 0.348 m and did not reach the requested one metre. A cancel is not a failure: the action server returns the partial result up to the moment of cancellation.
 
 `ros2 action send_goal --feedback /drive_distance m4_drive_interfaces/action/DriveDistance "{distance: 1.0, speed: 0.2}"` also works for a quick test. The editor used the small Python client because it prints one clean line per feedback and can cancel on a timer, which makes the two runs above reproducible.
 

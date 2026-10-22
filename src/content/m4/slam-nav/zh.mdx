@@ -12,13 +12,7 @@ SLAM Toolbox 把两者合在一起。它维护一张<strong>位姿图（pose gra
 
 结果在 TF 里表现为多出一个坐标系。从地图到机器人的链是：
 
-```text
-map ──► odom ──► base_footprint ──► base_link ──► laser_link ...
-    │         │                   │
-    │         │                   └ robot_state_publisher（URDF，第 3 课）
-    │         └ diff_drive_controller（轮式里程计，第 5 课）：平滑，但缓慢漂移
-    └ SLAM Toolbox：每当扫描匹配纠正漂移时，就会轻微跳一下
-```
+<Diagram id="slam-tf-chain" />
 
 SLAM Toolbox 不会覆盖里程计。它发布 `map → odom`，也就是让整条链落到正确位置的那个修正。对需要连续信号的控制器来说，里程计依然平滑；对规划来说，地图坐标系也依然正确。当 SLAM Toolbox 纠正漂移时，动的只有 `map → odom`。
 

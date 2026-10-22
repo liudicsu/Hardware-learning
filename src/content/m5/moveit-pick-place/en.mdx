@@ -14,7 +14,7 @@ Two planners share the work here. OMPL's RRTConnect grows two random trees, one 
 
 The robot runs on `mock_components/GenericSystem`. It is a ros2_control hardware interface that copies commands straight to the joint states: a position command becomes the measured joint position. There is no physics, no motor, no gravity and no contact force. MoveIt still plans and collision-checks in its own planning scene, but the simulated arm follows any trajectory exactly, and a released block does not fall. That last detail is why the placed block floats 2 mm at the end.
 
-<Callout type="warn" title="Mock hardware obeys, it does not simulate">GenericSystem copies commands to joint states. It has no dynamics, no gravity and no contact model. A grasp is only what the script tells MoveIt; the block will not drop, slip or be pushed. Use it to test planning and interfaces, not physics.</Callout>
+<Callout type="warn" title="Mock hardware copies commands; it does not simulate physics">GenericSystem copies commands to joint states. It has no dynamics, no gravity and no contact model. A grasp is only what the script tells MoveIt; the block will not drop, slip or be pushed. Use it to test planning and interfaces, not physics.</Callout>
 
 ### The launch file
 
@@ -118,7 +118,7 @@ The hand is commanded by pose. `hand_pose(x, y, z)` builds a `PoseStamped` whose
 
 The grasp height is `grip_z = 0.06 m`: 2 cm below the block's top. That leaves the palm clear of the block while the fingers close around its upper part.
 
-While the block is carried it is attached to `panda_hand` with `touch_links` `panda_hand`, `panda_leftfinger` and `panda_rightfinger`. Attaching tells MoveIt that the block moves with the hand; the touch links say those three links are allowed to touch it. Every other link, and the block against the wall, is still checked. Without the attachment the planner would keep only the arm clear and could scrape the block through the wall.
+While the block is carried it is attached to `panda_hand` with `touch_links` `panda_hand`, `panda_leftfinger` and `panda_rightfinger`. Attaching tells MoveIt that the block moves with the hand; the touch links say those three links are allowed to touch it. Every other link, and the block against the wall, is still checked. Without the attachment the planner would keep only the arm clear and could let the block intersect the wall.
 
 <Resource id="moveit-docs" />
 
@@ -332,7 +332,7 @@ The script starts with the named `ready` configuration, opens the gripper, and m
 
 Then the block is attached, the gripper closes to 0.04 m, and the arm lifts straight up with LIN. The carry to the other side is OMPL, because the wall is in the way. `carry_report` asks MoveIt to check every waypoint of that carry with the block still attached, and also tracks the block's lowest point wherever the block overlaps the wall's footprint (treating the block as hanging upright below the fingers). In this run the block bottom stayed at least 0.304 m up, 5.4 cm above the wall top.
 
-The place descent stops at fingertips z = 0.062 m, 2 mm above the grasp height. The gripper opens, the block is detached and stays in the scene, and the arm retreats and returns to `ready`. The block's centre is now at (0.500, +0.250, 0.042) m. A block 0.08 m tall with its centre at 0.042 m has its bottom at 0.002 m; at 0.040 m it would be resting on the table. The 2 mm gap is the 2 mm the hand stopped above the grasp height, and nothing in this setup pulls the block down: mock hardware has no gravity, and MoveIt leaves a detached object where it was. A real block would drop the 2 mm.
+The place descent stops at fingertips z = 0.062 m, 2 mm above the grasp height. The gripper opens, the block is detached and stays in the scene, and the arm retreats and returns to `ready`. The block's centre is now at (0.500, +0.250, 0.042) m. A block 0.08 m tall with its centre at 0.042 m has its bottom at 0.002 m; at 0.040 m it would be resting on the table. The 2 mm gap is the 2 mm the hand stopped above the grasp height, and no gravity acts on the block in this setup: mock hardware has no gravity, and MoveIt leaves a detached object where it was. A real block would drop the 2 mm.
 
 <Quiz id="q2" question="The grasp height puts the fingertips at 0.060 m. Where is the panda_hand origin?" answer={0.1634} unit="m" explanation="The fingertips are 0.1034 m below the hand origin: 0.060 + 0.1034 = 0.1634 m. The script sends this value in the PoseStamped and keeps the fingertip offset separate." />
 
@@ -371,7 +371,41 @@ On a real Panda the plan structure stays the same, but three things change. Firs
 
 Keep the speed scaling conservative. The file uses 0.5 for OMPL and 0.2 for LIN; on a real arm start lower and raise it only after the paths and the grasp are reliable. Test the same script on mock hardware first. It catches a wrong frame, an unreachable pose, a missing `touch_links` or a goal inside the wall without risking the arm. Then run on the real robot with the emergency stop in reach and the workspace clear. The mock run cannot tell you whether the grasp holds, because it has no gravity and no contact.
 
-Pilz LIN can fail in a real cell where OMPL succeeds: a straight line that looked clear in the planning scene may cross a cable or a fixture that is not modelled. Keep the scene honest, and re-plan when the real world differs from it.
+Pilz LIN can fail in a real cell where OMPL succeeds: a straight line that looked clear in the planning scene may cross a cable or a fixture that is not modelled. Keep the planning scene consistent with the real cell, and re-plan when the two differ.
+
+## Mapping this to the SO-101
+
+This section describes what changes when the same pick-and-place task is moved to the SO-101. It was not run as an SO-101 MoveIt configuration in this course, so there is no SimOutput for it.
+
+### The two arms
+
+In this lesson the Panda is described by `moveit_resources_panda` (`config/panda.srdf`). The planning group `panda_arm` contains seven revolute joints, `panda_joint1` to `panda_joint7`. There is also a `hand` group with two prismatic fingers: `panda_finger_joint1`, with `panda_finger_joint2` mimicking it. The pose link is `panda_hand`, and the touch links are `panda_hand`, `panda_leftfinger` and `panda_rightfinger`. Seven DOF leave one redundant DOF: every reachable 6-D pose, position and orientation, has a one-parameter family of IK solutions.
+
+The SO-101 is described by `so101_new_calib.urdf` from TheRobotStudio/SO-ARM100 at a758567 (`Simulation/SO101/so101_new_calib.urdf`). The arm has five revolute joints: `shoulder_pan`, `shoulder_lift`, `elbow_flex`, `wrist_flex` and `wrist_roll`. A revolute jaw joint, `gripper`, is separate, with limits from −0.174533 to 1.74533 rad. Its links are `base_link`, `shoulder_link`, `upper_arm_link`, `lower_arm_link`, `wrist_link`, `gripper_link`, `gripper_frame_link` (fixed at the jaw tip, about 0.098 m from `gripper_link`) and `moving_jaw_so101_v1_link`. Joint limits are in the URDF, for example `shoulder_pan` ±1.91986 rad (±110°) and `elbow_flex` ±1.69 rad.
+
+### Five degrees of freedom
+
+Five DOF are fewer than six, so the arm cannot reach an arbitrary 6-D pose. `shoulder_pan` turns the vertical plane in which `shoulder_lift`, `elbow_flex` and `wrist_flex` move; for a target at (x, y) that plane is set by atan2(y, x) (up to the small lateral shoulder offset in the URDF). `wrist_flex` sets the pitch of the gripper within that plane. `wrist_roll` turns `gripper_link` about its own z axis, and `gripper_frame_link` sits approximately along that axis, 0.098 m from the joint (7.9 mm to the side of it), so it rolls the gripper about the approach direction. The direction the gripper points must therefore lie (approximately) in the plane through the base axis and the target; the roll about it is free. A top-down grasp lies in every such plane, so its yaw about the vertical is set by `wrist_roll` and is free within the joint limits (−2.74385 … 2.84121 rad). A pose goal whose approach direction leaves that plane has no exact solution. A pose goal therefore either has an approach direction in that plane, or the IK is run position-only. MoveIt's KDL kinematics plugin has the parameter `position_only_ik` (bool, default false): "position_only_ik overrules orientation_vs_position. If true, sets orientation_vs_position weight to 0.0" (moveit2, `moveit_kinematics/kdl_kinematics_plugin/src/kdl_kinematics_parameters.yaml`).
+
+### Reach
+
+The SO-101 axis distances are L1 = 0.116 m (shoulder_lift to elbow_flex) and L2 = 0.135 m (elbow_flex to wrist_flex). The shoulder axis sits 0.117 m above `base_link`; the kinematics lesson uses these values. The Panda's scene does not fit: the block at x = 0.5 m and the 0.25 m wall are out of reach and must be scaled down for the SO-101, into its reach: with the arm stretched out, the wrist axis is at most L1 + L2 = 0.116 + 0.135 = 0.251 m from the shoulder axis, half the 0.5 m to the Panda block, before the gripper length is added.
+
+### What changes in the config and the script
+
+| Item | Panda (this lesson) | SO-101 |
+|------|---------------------|--------|
+| Robot description | `moveit_resources_panda` URDF with mock ros2_control | `so101_new_calib.urdf` with a `<ros2_control>` block; `mock_components/GenericSystem` first, later the Feetech STS3215 bus hardware interface |
+| SRDF planning groups | `panda_arm` (7 joints), `hand` | e.g. `arm` = chain `base_link` to `gripper_frame_link` (5 joints), `gripper` = joint `gripper`; generate with the MoveIt Setup Assistant, which also writes the disabled-collision pairs |
+| `kinematics.yaml` | KDL for `panda_arm` | KDL for `arm` with `position_only_ik: true` (or orientation-consistent goals) |
+| `joint_limits.yaml` | Panda limits | copy from the SO-101 URDF limits; start with low velocity and acceleration scaling |
+| Controllers (`moveit_controllers.yaml` and `ros2_controllers.yaml`) | `panda_arm_controller`, `panda_hand_controller` | a `JointTrajectoryController` for the 5 arm joints and a controller for the single `gripper` joint |
+| Script | `get_planning_component("panda_arm")`, `pose_link="panda_hand"`, `FINGER = 0.1034`, hand group width / 2 | `get_planning_component("arm")`, `pose_link="gripper_frame_link"` (already at the jaw tip, so no `FINGER` offset), gripper command is a jaw angle in rad, touch links `gripper_link` and `moving_jaw_so101_v1_link` |
+| Scene | block (0.5, ±0.25), wall 0.25 m | positions and wall height scaled into the SO-101's approximately 0.25 m reach |
+
+### What stays the same
+
+The MoveItPy structure stays the same, as do the planning scene and collision objects, attach and detach, OMPL for the carry, Pilz LIN for the straight approach, and the mock-hardware-first workflow.
 
 ## Common mistakes
 

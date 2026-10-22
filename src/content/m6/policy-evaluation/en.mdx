@@ -1,4 +1,4 @@
-Every lesson this month ended with a line like "success 67/100". On a real arm you will not get 100 trials for free: each one means resetting the scene by hand, and a session of 20 trials can take an hour. This lesson is about getting honest numbers out of few trials: how uncertain a success rate is, how to compare two policies fairly, how many trials a comparison needs, and how to turn failures into the next thing to fix. It is also the part of a portfolio project that reviewers look at first.
+Every lesson this month ended with a line like "success 67/100". On a real arm, 100 trials are not without cost: each one means resetting the scene by hand, and a session of 20 trials can take an hour. This lesson is about getting reliable estimates from few trials: how uncertain a success rate is, how to compare two policies fairly, how many trials a comparison needs, and how to turn failures into the next thing to fix. It is also the part of a portfolio project that reviewers look at first.
 
 ## One number is not enough
 
@@ -137,9 +137,9 @@ Lesson 1's 61/100 (5 demos) and 67/100 (20 demos) have overlapping intervals, 51
 
 <Quiz id="q1" question="A shortcut for zero failures (the rule of three): with 0 failures in n trials, the 95 % upper bound on the failure rate is about 3/n. What is it for 50 trials, in percent?" answer={6} unit="%" explanation="3 / 50 = 0.06 = 6 %. So 50 clean trials say the policy fails less than about 6 % of the time; 10 clean trials only say less than about 30 %." />
 
-## The same policy on different days
+## The same policy across sessions
 
-Run BC on 20 demos ten times, 10 trials per session, with fresh random conditions each session, as if you tested it on ten different afternoons:
+Run BC on 20 demos ten times, 10 trials per session, with fresh random conditions each session, i.e. ten independent evaluation sessions:
 
 <SimOutput source="model">
 
@@ -150,7 +150,7 @@ Run BC on 20 demos ten times, 10 trials per session, with fresh random condition
 
 </SimOutput>
 
-The policy never changed, yet one session says 40 % and another 90 %. If you changed something between two of those sessions you would be convinced it mattered either way. This is why a single 10-trial session is not enough to decide whether a change helped.
+The policy did not change, yet one session reports 40 % and another 90 %. If you made a change between two sessions, you would attribute the difference to it whichever way the result moved. A single 10-trial session is therefore not enough to decide whether a change helped.
 
 ## Compare on the same trials
 
@@ -168,7 +168,7 @@ The fix is to make the conditions identical and compare trial by trial. In the m
 
 </SimOutput>
 
-The trials where both policies succeed or both fail say nothing about which is better. Only the disagreements do. **McNemar's test** asks: if the two policies were equally good, each disagreement would be a coin flip; how likely is a split this lopsided? Here all 35 go the same way, p = 2 × 0.5³⁵ = 5.8 × 10⁻¹¹, so the noisy-demo policy is better beyond doubt. Note also that "only the first" is 0: the noisy-demo policy succeeded on every trial where the other one did, a stronger statement than the two success rates alone.
+The trials where both policies succeed or both fail say nothing about which is better. Only the disagreements do. **McNemar's test** asks: if the two policies were equally good, each disagreement would be independent and equally likely to favour either one; how likely is a split this asymmetric? Here all 35 go the same way, p = 2 × 0.5³⁵ = 5.8 × 10⁻¹¹, so the noisy-demo policy is significantly better. Note also that "only the first" is 0: the noisy-demo policy succeeded on every trial where the other one did, a stronger statement than the two success rates alone.
 
 <Quiz id="q2" question="Two policies run on the same 40 start positions. 30 trials: both succeed. 4: both fail. 5: only B succeeds. 1: only A succeeds. How many trials carry information for McNemar's test?" answer={6} unit="trials" explanation="Only the 5 + 1 = 6 disagreements. The 34 trials where they agree would look the same whichever policy is better. A 5 : 1 split is not convincing on its own (exact p = 0.22); you would need more trials." />
 
@@ -190,7 +190,7 @@ How many trials you need depends on how close the two policies are. The program 
 
 Worked through for 80 % vs 90 %: the pooled rate is p̄ = (0.80 + 0.90) / 2 = 0.85. The first term is z95 × √(2 p̄ (1 − p̄)) = 1.959964 × √0.255 = 0.9897; the second is z80 × √(p1(1 − p1) + p2(1 − p2)) = 0.841621 × √(0.16 + 0.09) = 0.4208. Their sum is 1.4105, squared 1.9896, divided by the squared difference 0.10² = 0.01: 198.96, rounded up to 199 trials.
 
-A big difference such as lesson 1's 67 % against 99 % shows up in about 20 trials. A 10-point improvement on an already good policy, 80 % to 90 %, needs about 200 trials per policy, which is days of resetting by hand. Two practical consequences: aim your effort at changes big enough to measure, and use paired trials, which need fewer trials than this unpaired formula when the policies agree on most of them.
+A difference as large as lesson 1's 67 % against 99 % is detectable with about 20 trials. A 10-point improvement on an already good policy, 80 % to 90 %, needs about 200 trials per policy, i.e. several days of manual resets. Two practical consequences: aim your effort at changes big enough to measure, and use paired trials, which need fewer trials than this unpaired formula when the policies agree on most of them.
 
 <Quiz id="q3" question="Roughly how does the number of trials needed change when the difference you want to detect is halved?" options={["It doubles", "It roughly quadruples", "It stays the same"]} answer={1} explanation="The difference appears squared in the denominator, so half the difference needs about four times the trials. 60 % vs 80 % (20 points) needs 82; 80 % vs 90 % (10 points) needs 199, more than double because the rates also moved." />
 
@@ -216,7 +216,7 @@ Three quarters of the failures are at the goal end, around step 41, after the po
 
 Write this down before the session, not after:
 
-- **The success criterion**, in words a stranger could apply ("cube entirely inside the bin, gripper open, within 30 s").
+- **The success criterion**, as an operational criterion another person can apply without knowing the implementation ("cube entirely inside the bin, gripper open, within 30 s").
 - **The trial list**: start positions and object placements, including some that are not in the training data, run in the same order for every policy.
 - **What stays fixed**: lighting, camera positions, objects, the robot's start pose, the code version and checkpoint of each policy.
 - **What gets recorded**: one video per trial, the outcome, the failure category, and the time taken.
@@ -225,7 +225,7 @@ Write this down before the session, not after:
 ## Common mistakes
 
 - **Reporting the best session.** If you ran three sessions, report all three or their total. Picking the best one is how 40 % becomes 90 %.
-- **Deciding the criterion afterwards.** "It nearly got it" counted as success in one session and failure in the next makes the numbers meaningless.
+- **Deciding the criterion afterwards.** If the same near-miss counts as success in one session and failure in the next, the numbers are meaningless.
 - **Only testing where you trained.** Include start positions that are not in the dataset and report them separately; that is where policies differ most.
 - **Treating overlapping intervals as a tie or separate intervals as proof.** Intervals are a quick check; for two policies on the same trials, use the paired comparison.
 - **Changing the scene between policies.** Moving the camera or the bin between two policies' sessions turns your comparison into a comparison of scenes.

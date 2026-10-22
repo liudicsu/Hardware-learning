@@ -1,8 +1,8 @@
 ## How hard to squeeze
 
-A two-finger gripper does not hold an object by clamping it "hard". It holds it with **friction**. Each of the two fingers presses on the object with a force F, and because there are two contact faces, the friction that resists the object sliding out is **2 × μ × F**, where μ (mu) is the coefficient of friction between the finger material and the object. If whatever pulls on the object is larger than that, the object slips — however tight the grip felt to your hand.
+A two-finger gripper holds an object with **friction**, not by clamping harder. Each of the two fingers presses on the object with a force F, and because there are two contact faces, the friction that resists the object sliding out is **2 × μ × F**, where μ (mu) is the coefficient of friction between the finger material and the object. If whatever pulls on the object is larger than that, the object slips — however tight the grip felt to your hand.
 
-Three things pull on a held object. Its own weight is m × g. When the arm accelerates the object at a, the object resists with an extra force m × a that the grip has to carry. And a safety factor S sits in front of both, because you never want to work right at the edge of slipping. Requiring the friction to cover all of it gives the minimum squeeze per finger:
+Three things pull on a held object. Its own weight is m × g. When the arm accelerates the object at a, the object's inertia produces an opposing force m × a that the grip has to carry. And a safety factor S sits in front of both, because you never want to work right at the edge of slipping. Requiring the friction to cover all of it gives the minimum squeeze per finger:
 
 ```text
 2 × μ × F ≥ S × m × (g + a)
@@ -121,7 +121,7 @@ object starts to slide at 35°:  μ = tan 35° = 0.70
 object starts to slide at 17°:  μ = tan 17° = 0.31
 ```
 
-A few habits make the number trustworthy. Repeat the test three times and write down the lowest angle: the low angle is the pessimistic one, and the pessimistic case is the one that drops your object. Test on the real objects you plan to grasp — an eggshell, a painted can and a battery wrapper each friction differently, and a smooth can is much more slippery than a cardboard box. Clean both surfaces first, because grease and dust change the answer. You do not need a protractor: a phone's level or angle app reads the board's tilt accurately enough for this.
+A few habits make the number trustworthy. Repeat the test three times and write down the lowest angle: the lowest angle gives the lowest friction coefficient, and the lowest coefficient is the one that lets the object slip. Test on the real objects you plan to grasp — an eggshell, a painted can and a battery wrapper each friction differently, and a smooth can is much more slippery than a cardboard box. Clean both surfaces first, because grease and dust change the answer. You do not need a protractor: a phone's level or angle app reads the board's tilt accurately enough for this.
 
 Then go back to `grip_force.py`, replace the guessed mu values with your measured ones, and rerun it. Now the numbers describe your gripper and your objects rather than a textbook's.
 
@@ -129,9 +129,9 @@ Then go back to `grip_force.py`, replace the guessed mu values with your measure
 
 ## The fin-ray idea
 
-A stiff finger, the kind you would draw as a straight bar, touches a round object at one or two points. When the object is curved, those two contact points act like a wedge: push a little harder and the round object squeezes out between them. That is why a rigid gripper is bad at eggs and good at boxes.
+A stiff finger, the kind you would draw as a straight bar, touches a round object at one or two points. When the object is curved, two point contacts form a wedge: the normal force at each contact has a component along the object's centre line, so a little more push squeezes the round object out between them. That is why a rigid gripper is bad at eggs and good at boxes.
 
-A fin-ray finger solves this by deforming on purpose. Picture a triangle standing on its base: two thin walls, called flanks, run up and meet at the tip, and a set of thin ribs bridges the gap between them. Press the front flank against an object, and the finger does not simply bend away. The ribs pass the push across to the back flank, the triangle bends toward the push, and the whole finger curls around the object like a closing hand. Contact spreads from two points to a long arc, so the pressure on the object is lower and the hold is more secure.
+A fin-ray finger solves this by deforming on purpose. Picture a triangle standing on its base: two thin walls, called flanks, run up and meet at the tip, and a set of thin ribs bridges the gap between them. Press the front flank against an object, and the finger does not simply bend away. The ribs pass the push across to the back flank, the triangle bends toward the push, and the triangular section changes shape so that the two flanks wrap around the object instead of folding away from it. Contact spreads from two points to a long arc, so the pressure on the object is lower and the hold is more secure.
 
 The principle is named after the way fish fins bend: a fin pushed from the front curls toward the push instead of folding away. The name "Fin Ray Effect" is a trademark of Festo, who developed grippers built on it; the underlying geometry is free to use, and it is what this lesson borrows.
 
@@ -257,13 +257,13 @@ The same repository also ships an optional compliant gripper designed for TPU 95
 
 Before you mount anything, run two checks. First, does the gripper still close fully without the two fingers hitting each other or the jaw? A finger a few millimetres too long collides in the middle of the travel. Second, does the open width still clear your largest object? Measure the gap when the gripper is fully open and compare it with the widest thing you plan to grasp.
 
-The gripper is servo ID 6, and it drives its output through a position loop: you send a goal, and the servo keeps pushing until its encoder says it has arrived. When the fingers close on an object, the servo keeps pushing toward that goal and settles with a steady error — the same steady-state behaviour from Lesson 4 (PID & control). There is a useful side effect: because a soft TPU finger deflects, it absorbs some of that force and treats the object gently. But do not leave the servo stalled against a hard stop for long, because it draws current and heats up. In teleoperation, open the leader's gripper as soon as you have put the object down, so the follower's gripper is not straining for nothing.
+The gripper is servo ID 6, and it drives its output through a position loop: you send a goal, and the servo keeps pushing until its encoder says it has arrived. When the fingers close on an object, the servo keeps pushing toward that goal and settles with a steady error — the same steady-state behaviour from Lesson 4 (PID & control). There is a useful side effect: because a soft TPU finger deflects, it absorbs some of that force and treats the object gently. But do not leave the servo stalled against a hard stop for long, because it draws current and heats up. In teleoperation, open the leader's gripper as soon as you have put the object down, otherwise the follower's gripper keeps driving against its position-loop target with nothing to hold.
 
 <Quiz id="q5" question="Why start from the SO-101's STEP file rather than its STL?" options={["STL files are larger", "STEP keeps exact surfaces and dimensions you can measure and edit; STL is only triangles", "STL cannot be printed in TPU", "STEP files already contain your finger"]} answer={1} explanation="STEP is exact, editable geometry you can import and measure the mounting face and holes from; an STL is a triangle mesh with no precise geometry to dimension against. Both can be sliced and printed, so that is not the difference." />
 
 ## Practice: three objects
 
-Your task for this lesson is the course's practice task, in your own hands: design your own gripper fingers, print them in TPU, fit them to the arm, and test them on three objects of different shapes — for example something round and fragile like an egg, something heavy and smooth like a full can, and something small and thin like a battery or a pen. These fingers are the part that proves you can design as well as assemble. Anyone can bolt together a kit; a working custom gripper is your own work.
+Your task for this lesson is the course's practice task, in your own hands: design your own gripper fingers, print them in TPU, fit them to the arm, and test them on three objects of different shapes — for example something round and fragile like an egg, something heavy and smooth like a full can, and something small and thin like a battery or a pen. These fingers are the part that proves you can design as well as assemble. Bolting a kit together needs only the instructions; a working custom gripper is your own design.
 
 A test protocol, so the result actually means something:
 
@@ -287,7 +287,7 @@ A difference of three successes in ten tries is a hint, not proof. If the two se
 | full can | – | – | – / 10 | – / 10 | |
 | battery | – | – | – / 10 | – / 10 | |
 
-The last step is the one people skip: change **one** parameter — the rib count or the flank thickness — print again, and rerun the test. If the change helps, you have learned something about your design; if it does not, you have learned that too. That single-parameter loop is the design loop from Lesson 2, and it is the whole method.
+The last step is the easiest to skip: change **one** parameter — the rib count or the flank thickness — print again, and rerun the test. If the change helps, you have learned something about your design; if it does not, you have learned that too. That single-parameter loop is the design loop from Lesson 2, and it is the whole method.
 
 ### Month 3 checklist
 

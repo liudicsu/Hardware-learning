@@ -14,7 +14,7 @@
 
 **URDF**（Unified Robot Description Format，统一机器人描述格式）就是你把上面这棵树写进去的那份 XML 文件。它只是一份描述，仅此而已：里面没有代码、没有行为，只是一句静态的声明，说明有哪些零件、它们怎么连接。**TF** 则是机器人在运行时，持续发布每个坐标系相对其父坐标系位置的系统，每条回答都盖上时间戳，于是任何节点都能问一句「此刻相机相对底盘在哪里？」，并拿到可信的答案。第二课里每条消息都带着的 `frame_id`——那个指向虚无的名字——无非就是这套系统里某个坐标系的名称。从这一课开始，它能指向真实的东西了。
 
-有两条约定能让你不必自己发明一套、事后再后悔。**ROS REP 103** 规定了单位和坐标轴方向：米、千克、弧度（不是厘米、不是克、不是度），x 向前、y 向左、z 向上，构成右手系。**ROS REP 105** 规定了移动平台的坐标系：`base_link` 固定在机器人本体上，`base_footprint` 是它正下方地面上的那个点。之所以要分成两个，是因为机器人压过台阶时会俯仰、侧倾；导航想要一个始终贴地的坐标系，`base_footprint` 就是它。
+有两条约定统一了这些选择，让所有软件包使用同一套规定。**ROS REP 103** 规定了单位和坐标轴方向：米、千克、弧度（不是厘米、不是克、不是度），x 向前、y 向左、z 向上，构成右手系。**ROS REP 105** 规定了移动平台的坐标系：`base_link` 固定在机器人本体上，`base_footprint` 是它正下方地面上的那个点。之所以要分成两个，是因为机器人压过台阶时会俯仰、侧倾；导航想要一个始终贴地的坐标系，`base_footprint` 就是它。
 
 关节由类型定义。入门阶段你只会遇到四种：
 
@@ -25,7 +25,7 @@
 | revolute（转动） | 在限位内旋转 | pan 和 tilt |
 | prismatic（滑动） | 沿轴滑动 | （本例没有；升降台或直线模组） |
 
-要把 `continuous` 和 `revolute` 分清楚，这一对最容易让人栽跟头：两者都绕一根轴旋转，但 continuous 关节能永远转下去（被驱动的轮子），revolute 关节会在上下限处停下（舵机臂）。prismatic 关节是滑动版，像升降台或直线模组；m4bot 没有，但你做第一个上下运动的机构时就会遇到它。
+要仔细区分 `continuous` 和 `revolute`：两者都绕一根轴旋转，但 continuous 关节能永远转下去（被驱动的轮子），revolute 关节会在上下限处停下（舵机臂）。prismatic 关节是滑动版，像升降台或直线模组；m4bot 没有，但你做第一个上下运动的机构时就会遇到它。
 
 **m4bot** 的布局是这样的。底盘是一个长 0.30 m、宽 0.24 m、高 0.08 m 的盒子。两个半径 5 cm 的轮子分列车轴两侧，前方一个万向球提供第三个接触点。甲板前部放一个小激光雷达，后部一根 20 cm 的桅杆托着云台相机。用 `tf2_tools` 里的 `view_frames` 画出来，它的树长这样：
 
@@ -435,12 +435,9 @@ total mass 2.750 kg, 0 problem(s)
 
 `robot_state_publisher` 才是关键的那个。它读取 URDF（通过 `robot_description` 参数传进来），然后对它从 `/joint_states` 听到的每一个关节位置，算出并发布对应的变换到 `/tf` 上。那些永不移动的关节——固定关节——它只在 `/tf_static` 上发布一次。它不发明任何东西；它只是把关节位置加上 URDF 变成变换。
 
-`joint_state_publisher` 以及它的滑块版 `joint_state_publisher_gui` 正好相反：它**凭空发明**关节位置，作为 `/joint_states` 发出去。在真机上、或在 Gazebo 里，是硬件驱动或仿真器在发布 `/joint_states`，这时你就别再跑 `joint_state_publisher` 了。这两个程序坐在同一根管道的两端，这正是它们名字如此相似、人们又总搞混的原因。
+`joint_state_publisher` 以及它的滑块版 `joint_state_publisher_gui` 正好相反：它不读取任何传感器，**自行生成**关节位置，作为 `/joint_states` 发出去。在真机上、或在 Gazebo 里，是硬件驱动或仿真器在发布 `/joint_states`，这时你就别再跑 `joint_state_publisher` 了。这两个程序坐在同一根管道的两端，这正是它们名字如此相似、人们又总搞混的原因。
 
-```text
-robot_description (URDF) ------------------> robot_state_publisher
-joint_state_publisher_gui --/joint_states--> robot_state_publisher --/tf, /tf_static--> RViz、tf2_echo 以及其他所有节点
-```
+<Diagram id="urdf-two-publishers" />
 
 launch 文件把它们接起来，并加上 RViz，用一个参数决定关节位置从哪来：
 

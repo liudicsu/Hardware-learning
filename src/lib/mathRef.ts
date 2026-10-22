@@ -23,15 +23,176 @@ export interface MathEntry {
 
 export const mathEntries: MathEntry[] = [
   {
+    id: "hex",
+    title: { zh: "十六进制：0x 与字节", en: "Hexadecimal: 0x and bytes" },
+    definition: {
+      zh: "十六进制是 16 进位记数法：数字为 0–9 加 A–F（A = 10 … F = 15），代码里用 0x 前缀标记。一位十六进制数正好编码 4 个二进制位，所以一个字节写成两位，一个地址也是两位。寄存器偏移、I2C 地址和报文字节本来就是按位组织的东西，固件因此用十六进制书写它们；读一个十六进制数，只需按半字节拆回二进制。",
+      en: "Hexadecimal is base-16 notation: digits 0–9 plus A–F (A = 10 … F = 15), written with a 0x prefix in code. One hex digit encodes exactly 4 bits, so a byte is two hex digits and an address is likewise two. Register offsets, I2C addresses and packet bytes are bit-organised things in the first place, which is why firmware writes them in hex; reading a hex number is just splitting it back into nibbles.",
+    },
+    example: {
+      zh: "第 2 个月《传感器、I2C 与互补滤波》\nMPU-6050 的 I2C 地址按半字节拆开：0x6 = 0b0110、0x8 = 0b1000，因此 0x68 = 0b01101000 = 64 + 32 + 8 = 104。\n扫描器打印 Found device at 0x68；读 WHO_AM_I（寄存器 0x75）也返回 0x68。\nAD0 接高电平后地址变成 0x69 = 0b01101001：最低半字节只是从 8 加到 9，也就是一个位从 0 变 1。",
+      en: "Month 2 · Sensors, I2C & the complementary filter\nSplit the MPU-6050's I2C address into nibbles: 0x6 = 0b0110, 0x8 = 0b1000, so 0x68 = 0b01101000 = 64 + 32 + 8 = 104.\nThe scanner prints Found device at 0x68, and reading WHO_AM_I (register 0x75) also returns 0x68.\nWith AD0 pulled high the address becomes 0x69 = 0b01101001: the low nibble merely steps from 8 to 9, one bit going from 0 to 1.",
+    },
+    lessons: ["sensors-fusion", "so101-arm"],
+    links: [
+      {
+        label: "Python 3 docs · Lexical analysis · Integer literals",
+        url: "https://docs.python.org/3/reference/lexical_analysis.html#integer-literals",
+      },
+      {
+        label: "cppreference · C++ integer literals",
+        url: "https://en.cppreference.com/w/cpp/language/integer_literal",
+      },
+    ],
+  },
+  {
+    id: "twos-complement",
+    title: { zh: "二进制补码与有符号整数", en: "Two's complement and signed integers" },
+    definition: {
+      zh: "有符号整数按二进制补码存储：N 位能表示 −2^(N−1) … 2^(N−1) − 1，最高位不是符号标记，而是一枚带负权的位（16 位时权重 −32768）。求负 = 全部位取反再加 1。越界不做声张：16 位数从 32767 再加 1 直接绕回 −32768。传感器原始读数几乎都是补码，要拼进 int16_t 这类有符号类型；若按无符号类型解释，一个小负数会变成一个大正数。",
+      en: "Signed integers are stored in two's complement: N bits represent −2^(N−1) … 2^(N−1) − 1, and the top bit is not a sign flag but a bit carrying a negative weight (−32768 at 16 bits). Negating is invert-all-bits then add 1. Overflow is silent: starting from 32767, adding 1 to a 16-bit number wraps straight to −32768. Raw sensor readings are almost always two's complement — they must be assembled into a signed type such as int16_t; interpret the same bytes as unsigned and a small negative number turns into a large positive one.",
+    },
+    example: {
+      zh: "第 2 个月《传感器、I2C 与互补滤波》\nMPU-6050 的原始值是有符号 16 位：raw gy = −262，(−262) / 131 = −2.0 °/s。\n−262 的 16 位补码是 1111 1110 1111 1010 = 0xFEFA：最高位为 1，它的位权是 −32768。\n同一个数按无符号读就变成 0xFEFA = 65274 = 65536 − 262，不再是传感器读数，而是一个无意义的大数。",
+      en: "Month 2 · Sensors, I2C & the complementary filter\nThe MPU-6050's raw values are 16-bit signed: raw gy = −262, and (−262) / 131 = −2.0 °/s.\n−262 as a 16-bit two's-complement pattern is 1111 1110 1111 1010 = 0xFEFA: the top bit carries the negative weight −32768.\nRead the same pattern unsigned and it becomes 0xFEFA = 65274 = 65536 − 262 — no longer the sensor's reading but a meaningless large number.",
+    },
+    lessons: ["sensors-fusion", "arduino-io"],
+    links: [
+      {
+        label: "cppreference · C++ arithmetic operators (overflow, unary −)",
+        url: "https://en.cppreference.com/w/cpp/language/operator_arithmetic",
+      },
+      {
+        label: "Python 3 docs · Built-in types · Bitwise operations on integer types",
+        url: "https://docs.python.org/3/library/stdtypes.html#bitwise-operations-on-integer-types",
+      },
+    ],
+  },
+  {
+    id: "bitwise",
+    title: { zh: "位运算：AND、OR、XOR、取反、移位与掩码", en: "Bitwise AND, OR, XOR, NOT, shifts and masks" },
+    definition: {
+      zh: "位运算逐位进行：& 两位全 1 才是 1（读第 n 位：(x >> n) & 1）；| 任一位为 1 就是 1（置第 n 位：x |= 1 << n）；^ 两位相异为 1；~ 逐位取反；<< 左移一位相当于乘以 2。掩码（如 & 0xFF）把数值限制在一个字节的宽度里；移位加 | 把两个小来源的位拼成一个更大的整数。这些操作在单片机上都是一条整数指令。",
+      en: "Bitwise operations work one bit position at a time: & gives 1 only where both bits are 1 (read bit n: (x >> n) & 1); | gives 1 where either bit is 1 (set bit n: x |= 1 << n); ^ where the bits differ; ~ inverts every bit; << shifts left, multiplying by 2 per bit. A mask (e.g. & 0xFF) clamps a value to one byte's width, and shifts plus | combine bits from two small sources into a larger integer. On a microcontroller each of these is a single integer instruction.",
+    },
+    example: {
+      zh: "第 2 个月《电机、驱动器与编码器闭环》\n本课 one_rev.ino 的正交解码只用移位和 |：ab = (digitalRead(ENC_A) << 1) | digitalRead(ENC_B) 把 A 拼到高位、B 拼到低位。\n再查表：encoderCount += QDEC[(lastAB << 2) | ab]，索引是「上次 AB 左移两位后接上本次 AB」，即上次 AB × 4 + 本次 AB；两个位各两种取值，共 4 × 4 = 16 种索引，QDEC 表把每种组合译成 +1、−1 或 0。",
+      en: "Month 2 · Motors, drivers & your first encoder loop\nThe lesson's one_rev.ino decodes quadrature with only a shift and |: ab = (digitalRead(ENC_A) << 1) | digitalRead(ENC_B) places A in the high bit and B in the low bit.\nThen the table lookup: encoderCount += QDEC[(lastAB << 2) | ab] — the index is the previous AB shifted two bits up with the new AB appended, i.e. previous AB × 4 + new AB; two bits with two values each give 4 × 4 = 16 indices, and the QDEC table translates each combination into +1, −1 or 0.",
+    },
+    lessons: ["motors-drivers", "sensors-fusion", "so101-arm"],
+    links: [
+      {
+        label: "cppreference · C++ arithmetic operators (bit-wise, shift operators)",
+        url: "https://en.cppreference.com/w/cpp/language/operator_arithmetic",
+      },
+      {
+        label: "Python 3 docs · Built-in types · Bitwise operations on integer types",
+        url: "https://docs.python.org/3/library/stdtypes.html#bitwise-operations-on-integer-types",
+      },
+    ],
+  },
+  {
+    id: "trig-components",
+    title: { zh: "正弦与余弦：向量的两个分量与 atan2", en: "Sine and cosine: two components of a vector, and atan2" },
+    definition: {
+      zh: "直角三角形里，长 r 的斜边被 θ 角拆到两条互相垂直的直角边上：邻边 r cos θ，对边 r sin θ，且 cos² θ + sin² θ = 1。反过来，给出两个分量 (x, y)，atan2(y, x) 求出它们所属向量的方向角，返回弧度、范围 (−π, π]。机器人代码里的投影与反投影几乎全用这一对关系：长 l 的手臂抬起 θ 角后，重量 mg 的水平力臂是 l cos θ，所以重力力矩是 mg · l cos θ（等价地，重力垂直于手臂的分量是 mg cos θ）；加速度计读数是重力向量在两条机体轴上的分解（θ = atan2(ax, az)）。第 5 个月的同类关系与运动学例子见「弧度、三角函数与 atan2」一条。",
+      en: "In a right triangle, a hypotenuse of length r is split by the angle θ onto two perpendicular legs: the adjacent r cos θ and the opposite r sin θ, with cos² θ + sin² θ = 1. Going the other way, given two components (x, y), atan2(y, x) returns the direction angle of their vector, in radians over (−π, π]. Nearly every projection and back-projection on a robot uses this pair. An arm of length l raised by θ holds its weight mg on a horizontal lever arm of l cos θ, so the gravity torque is mg · l cos θ (equivalently, the component of gravity perpendicular to the arm is mg cos θ). Accelerometer readings are the gravity vector split onto the body's two axes (θ = atan2(ax, az)). The same relations with a Month 5 kinematics example are in the entry \"Radians, sin/cos and atan2\".",
+    },
+    example: {
+      zh: "第 3 个月《PID 与控制：积分饱和与串级回路》\n手臂水平时重力力矩最大，为 0.4 N·m；抬到 θ 角时，重量的水平力臂缩短为原来的 cos θ 倍，重力力矩变为 0.4 N·m × cos θ。\n只用 P 控制、Kp = 0.2 N·m/° 时，关节停在电机力矩与重力力矩相等处：0.2 × (60 − θ) = 0.4 × cos θ，解得 θ = 58.97°，脚本打印为 59.0°。\n验算：0.2 × 1.03 = 0.206 N·m，0.4 × cos 58.97° = 0.4 × 0.5155 = 0.206 N·m。",
+      en: "Month 3 · PID & control: windup and cascade loops\nThe gravity torque on the arm is largest, 0.4 N·m, when the arm is horizontal; raised to angle θ, the weight's horizontal lever arm shrinks by cos θ, so the gravity torque is 0.4 N·m × cos θ.\nWith P only and Kp = 0.2 N·m/°, the joint stops where the motor torque equals the gravity torque: 0.2 × (60 − θ) = 0.4 × cos θ, which gives θ = 58.97°, printed by the script as 59.0°.\nCheck: 0.2 × 1.03 = 0.206 N·m and 0.4 × cos 58.97° = 0.4 × 0.5155 = 0.206 N·m.",
+    },
+    lessons: ["pid-control", "sensors-fusion"],
+    links: [
+      {
+        label: "OpenStax · Algebra and Trigonometry 2e · 7.2 Right Triangle Trigonometry",
+        url: "https://openstax.org/books/algebra-and-trigonometry-2e/pages/7-2-right-triangle-trigonometry",
+      },
+      {
+        label: "OpenStax · Algebra and Trigonometry 2e · 8.3 Inverse Trigonometric Functions",
+        url: "https://openstax.org/books/algebra-and-trigonometry-2e/pages/8-3-inverse-trigonometric-functions",
+      },
+    ],
+  },
+  {
+    id: "radians",
+    title: { zh: "弧度：rad ↔ deg、角速度与弧长 s = r θ", en: "Radians: rad ↔ deg, angular speed and arc length s = r θ" },
+    definition: {
+      zh: "弧度用弧长量角度（第 1–3 个月版本；第 5 个月的例子见「弧度、三角函数与 atan2」）：弧长等于半径时的圆心角是 1 rad，一整圈是 2π rad，所以 180° = π rad。换算是乘 π/180 或 180/π。角速度也以弧度计量：rad/s 除以 2π 再乘 60 就是 rpm。弧长公式 s = r θ 把一段角换回沿圆周走过的距离；代码里喂给 sin、cos 的一律是弧度。",
+      en: "A radian measures an angle by arc length (Months 1–3 version; the Month 5 example is in \"Radians, sin/cos and atan2\"): the angle is 1 rad when the arc equals the radius, and a full turn is 2π rad, so 180° = π rad. Converting is ×π/180 one way and ×180/π the other. Angular speed is measured in radians too: divide rad/s by 2π and multiply by 60 to get rpm. The arc formula s = r θ converts an angle back into the distance travelled along the circle; whatever goes into sin or cos must be radians.",
+    },
+    example: {
+      zh: "第 2 个月《电机、驱动器与编码器闭环》\n12 CPR 编码器配 120:1 减速箱：一个车轮 12 × 120 = 1440 个计数。\n一个计数 = 360° / 1440 = 0.25°，换成弧度：0.25 × π / 180 = 0.004363 rad。\n70 mm 轮的半径 r = 35 mm，弧长 s = r θ = 35 × 0.004363 = 0.1527 mm——正是课文按整圈算的 π × 70 mm / 1440 = 219.91 / 1440。",
+      en: "Month 2 · Motors, drivers & your first encoder loop\nA 12 CPR encoder behind a 120:1 gearbox gives 12 × 120 = 1440 counts per wheel revolution.\nOne count = 360° / 1440 = 0.25°, which is 0.25 × π / 180 = 0.004363 rad.\nThe 70 mm wheel has r = 35 mm, so the arc is s = r θ = 35 × 0.004363 = 0.1527 mm — exactly the lesson's per-full-circle π × 70 mm / 1440 = 219.91 / 1440.",
+    },
+    lessons: ["motors-drivers", "sensors-fusion", "pid-control"],
+    links: [
+      {
+        label: "OpenStax · Algebra and Trigonometry 2e · 7.1 Angles",
+        url: "https://openstax.org/books/algebra-and-trigonometry-2e/pages/7-1-angles",
+      },
+      {
+        label: "OpenStax · University Physics Volume 1 · 10.3 Relating Angular and Translational Quantities",
+        url: "https://openstax.org/books/university-physics-volume-1/pages/10-3-relating-angular-and-translational-quantities",
+      },
+    ],
+  },
+  {
+    id: "rate-accumulation",
+    title: { zh: "变化率与累积：导数与积分的直觉", en: "Rate of change and accumulation: derivative and integral intuition" },
+    definition: {
+      zh: "导数的直觉版：一个量在小窗口 dt 里的平均变化率 (x[t+dt] − x[t]) / dt，窗口越小越接近真实变化率。积分是反向操作：把瞬时值 × dt 一遍遍加起来，得到累积量。每个控制循环都在同时做这两件事：编码器先累积计数，再除以时间窗变成速度；PID 的 D 项用变化率、I 项用累积；互补滤波里 rate × dt 那一步就是对陀螺仪积分。形式化的导数记号见「导数记号 q′、q″ 与偏导（雅可比）」一条。",
+      en: "The intuition behind the derivative: the average rate of change of a quantity over a small window dt, (x[t+dt] − x[t]) / dt — the smaller the window, the closer to the true rate. The integral is the reverse operation: repeatedly adding value × dt to get an accumulated quantity. Every control loop does both at once — an encoder accumulates counts first, and dividing by the window turns them into speed; PID's D term uses a rate and its I term an accumulation; the complementary filter's rate × dt step integrates the gyro. The formal derivative notation has its own entry, q′, q″, partial derivatives (Jacobian).",
+    },
+    example: {
+      zh: "第 3 个月《PID 与控制：积分饱和与串级回路》\nD 项是变化率：rate = (测量 − 上次测量) / dt，200 Hz 循环下 dt = 0.005 s。\nI 项是累积：integral += error × dt。pid_sim.py 默认 anti_windup=True，饱和时停止积分；关闭抗饱和后（「...same, no anti-windup」两行，run(0.05, ki=0.4, kd=0.002, anti_windup=False)），前 0.1 s 电机一直饱和在 1 N·m，到 t = 0.1 s 时关节到了 30.15°（误差从 60° 降到 29.85°），积分累积到 4.97 °·s，I 项 = 0.4 × 4.97 = 1.99 N·m；开启抗饱和时同一时刻只有 0.52 °·s。电机输出不了这部分力矩，积分却保留着它，这就是积分饱和：超调 39.0°，而开启抗饱和时为 8.9°。\n编码器测速也是变化率：串级平衡车每计数 0.00227 m，外环 25 Hz 的 40 ms 窗口里多一个计数，速度就多 0.00227 / 0.04 = 0.057 m/s；位置本身就是计数的累积。",
+      en: "Month 3 · PID & control: windup and cascade loops\nThe D term is a rate: rate = (measurement − previous measurement) / dt, with dt = 0.005 s in the 200 Hz loop.\nThe I term is an accumulation: integral += error × dt. pid_sim.py defaults to anti_windup=True, which stops integrating while the motor is saturated. With anti-windup disabled (the two \"...same, no anti-windup\" lines, run(0.05, ki=0.4, kd=0.002, anti_windup=False)), the motor stays saturated at 1 N·m for the first 0.1 s while the joint rises to 30.15° at t = 0.1 s (the error falls from 60° to 29.85°). Over that time the integral grows to 4.97 °·s, an I term of 0.4 × 4.97 = 1.99 N·m; with anti-windup it is only 0.52 °·s at the same moment. The motor cannot deliver that torque, yet the integral keeps it; that is windup, and the overshoot is 39.0° instead of 8.9° with anti-windup.\nEncoder speed is a rate as well: the cascade balancer moves 0.00227 m per count, so one extra count in the 40 ms window of the 25 Hz outer loop adds 0.00227 / 0.04 = 0.057 m/s; position itself is the accumulated count.",
+    },
+    lessons: ["pid-control", "motors-drivers", "sensors-fusion"],
+    links: [
+      {
+        label: "OpenStax · Calculus Volume 1 · 3.1 Defining the Derivative",
+        url: "https://openstax.org/books/calculus-volume-1/pages/3-1-defining-the-derivative",
+      },
+      {
+        label: "OpenStax · Calculus Volume 1 · 5.1 Approximating Areas",
+        url: "https://openstax.org/books/calculus-volume-1/pages/5-1-approximating-areas",
+      },
+    ],
+  },
+  {
+    id: "stddev-rms",
+    title: { zh: "均值、标准差与 RMS", en: "Mean, standard deviation and RMS" },
+    definition: {
+      zh: "均值 = Σx / n，是数据的中心。样本标准差 = √(Σ(x − x̄)² / (n − 1))，描述围绕均值的典型偏差，分母 n − 1 是小样本修正。RMS = √(Σx² / n) 不减均值：对零均值信号，RMS 就是标准差；正弦信号的 RMS 是峰值的 1/√2 ≈ 0.707。均值说「整体偏多少」，标准差说「散得多开」，RMS 说「幅度多大」。",
+      en: "The mean is Σx / n, the centre of the data. The sample standard deviation is √(Σ(x − x̄)² / (n − 1)), the typical deviation about the mean, with the denominator n − 1 correcting for small samples. RMS = √(Σx² / n) skips the mean: for a zero-mean signal the RMS is its standard deviation, and the RMS of a sine is peak/√2 ≈ 0.707 of the peak. The mean says how far the whole batch is biased, the standard deviation how widely it scatters, the RMS how large the amplitude is.",
+    },
+    example: {
+      zh: "第 2 个月《传感器、I2C 与互补滤波》\nfilter_sim.py 里陀螺仪静止读数 = 偏置 1.5 °/s + 标准差 0.3 °/s 的零均值噪声：均值 1.5 °/s，标准差 0.3 °/s，RMS = √(1.5² + 0.3²) = 1.530 °/s。\n噪声部分单独看是零均值，所以它的 RMS 就是标准差 0.3 °/s。\n静止时平均 100 个样本来估计偏置，均值的标准差降到 0.3 / √100 = 0.03 °/s。\nα = 0.98 那一行：平放时误差的均值（offset_flat）0.72°，离散度（noise_flat，脚本按 n 计算）0.07°，误差的 RMS = √(0.72² + 0.07²) = 0.72°，几乎全部来自偏移。",
+      en: "Month 2 · Sensors, I2C & the complementary filter\nIn filter_sim.py the gyro at rest reads a 1.5 °/s bias plus zero-mean noise with a 0.3 °/s standard deviation: mean 1.5 °/s, standard deviation 0.3 °/s, RMS = √(1.5² + 0.3²) = 1.530 °/s.\nThe noise part alone has zero mean, so its RMS is its standard deviation, 0.3 °/s.\nAveraging 100 samples at rest to estimate the bias brings the standard deviation of that mean down to 0.3 / √100 = 0.03 °/s.\nThe α = 0.98 row: while flat the error has mean (offset_flat) 0.72° and spread (noise_flat, computed by the script with n) 0.07°, so the RMS error is √(0.72² + 0.07²) = 0.72°, almost all of it offset.",
+    },
+    lessons: ["sensors-fusion"],
+    links: [
+      {
+        label: "OpenStax · Introductory Statistics 2e · 2.7 Measures of the Spread of the Data",
+        url: "https://openstax.org/books/introductory-statistics-2e/pages/2-7-measures-of-the-spread-of-the-data",
+      },
+      {
+        label: "OpenStax · Introductory Statistics 2e · 2.3 Measures of the Location of the Data",
+        url: "https://openstax.org/books/introductory-statistics-2e/pages/2-3-measures-of-the-location-of-the-data",
+      },
+    ],
+  },
+  {
     id: "radians-trig",
     title: { zh: "弧度、三角函数与 atan2", en: "Radians, sin/cos and atan2" },
     definition: {
-      zh: "弧度是角度的国际单位：弧长等于半径时对应的角是 1 rad，转一整圈是 2π rad，所以 1 rad = 180/π ≈ 57.3°。sin、cos 把角度映到 [−1, 1]，在机器人代码里输入的一律是弧度。atan2(y, x) 是带象限的反正切，返回弧度、范围 (−π, π]，它给出向量 (x, y) 的方向角，向量的长度则是 √(x² + y²)。",
-      en: "A radian is the angle for which the arc length equals the radius: a full turn is 2π rad, so 1 rad = 180/π ≈ 57.3°. sin and cos map an angle to [−1, 1], and robot code always feeds them radians. atan2(y, x) is the quadrant-aware arctangent: it returns radians in (−π, π] so it gives the direction of the vector (x, y), whose length is √(x² + y²).",
+      zh: "弧度是角度的国际单位：弧长等于半径时对应的角是 1 rad，转一整圈是 2π rad，所以 1 rad = 180/π ≈ 57.3°。sin、cos 把角度映到 [−1, 1]，在机器人代码里输入的一律是弧度。atan2(y, x) 是带象限的反正切，返回弧度、范围 (−π, π]，它给出向量 (x, y) 的方向角，向量的长度则是 √(x² + y²)。第 1–3 个月的入门版本见「弧度：rad ↔ deg、角速度与弧长 s = r θ」和「正弦与余弦：向量的两个分量与 atan2」。",
+      en: "A radian is the angle for which the arc length equals the radius: a full turn is 2π rad, so 1 rad = 180/π ≈ 57.3°. sin and cos map an angle to [−1, 1], and robot code always feeds them radians. atan2(y, x) is the quadrant-aware arctangent: it returns radians in (−π, π] so it gives the direction of the vector (x, y), whose length is √(x² + y²). The Months 1–3 primers are \"Radians: rad ↔ deg, angular speed and arc length s = r θ\" and \"Sine and cosine: two components of a vector, and atan2\".",
     },
     example: {
-      zh: "第 5 个月《运动学：正解、数值逆解与奇异点》\nq = [30, 45, −60]°，于是 q1 + q2 = −15°。\nr = 0.12 × cos 45° + 0.14 × cos(−15°) = 0.12 × 0.7071 + 0.14 × 0.9659 = 0.2201 m\nx = 0.2201 × cos 30° = 0.1906 m，y = 0.2201 × sin 30° = 0.1100 m",
-      en: "Month 5 · Kinematics: forward, numerical IK and singularities\nQ = [30, 45, −60]°, so q1 + q2 = −15°.\nr = 0.12 × cos 45° + 0.14 × cos(−15°) = 0.12 × 0.7071 + 0.14 × 0.9659 = 0.2201 m\nx = 0.2201 × cos 30° = 0.1906 m, y = 0.2201 × sin 30° = 0.1100 m",
+      zh: "第 5 个月《运动学：正解、数值逆解与奇异点》\nq = [30, 45, −60]°，于是 q1 + q2 = −15°。\nr = 0.1160 × cos 45° + 0.1350 × cos(−15°) = 0.1160 × 0.7071 + 0.1350 × 0.9659 = 0.2124 m\nx = 0.2124 × cos 30° = 0.1840 m，y = 0.2124 × sin 30° = 0.1062 m",
+      en: "Month 5 · Kinematics: forward, numerical IK and singularities\nq = [30, 45, −60]°, so q1 + q2 = −15°.\nr = 0.1160 × cos 45° + 0.1350 × cos(−15°) = 0.1160 × 0.7071 + 0.1350 × 0.9659 = 0.2124 m\nx = 0.2124 × cos 30° = 0.1840 m, y = 0.2124 × sin 30° = 0.1062 m",
     },
     lessons: ["kinematics-ik", "sensors-fusion", "control-modelling", "urdf-tf"],
     links: [
@@ -145,8 +306,8 @@ export const mathEntries: MathEntry[] = [
       en: "The determinant of a square matrix is a scalar: det A = 0 exactly when A is singular (not invertible), which means A squashes some directions to zero. The rank is the number of linearly independent rows (or columns), so a rank-deficient matrix has lost directions the system can neither control nor observe. For a Jacobian the determinant says how close a configuration is to a singularity: |det J| → 0 means some tip direction would need infinite joint speed. The condition number κ(A) measures how much A amplifies a small perturbation; a large κ means the matrix is close to singular.",
     },
     example: {
-      zh: "第 5 个月《运动学：正解、数值逆解与奇异点》\n|det J| = L1 L2 r |sin(肘角)|，肩在 20°、肘 −60° 时 r = 0.2200 m。\n0.12 × 0.14 × 0.2200 × 0.8660 = 0.0032 m³，正是表里的 3.20e-03；肘角 = 0 时行列式归零。\n此时精确求逆要 7965.0 °/s，阻尼最小二乘只给 3.3 °/s，但末端在那个方向上根本动不了。",
-      en: "Month 5 · Kinematics: forward, numerical IK and singularities: |det J| = L1 L2 r |sin(elbow)|; with the shoulder at 20° and the elbow at −60°, r = 0.2200 m.\n0.12 × 0.14 × 0.2200 × 0.8660 = 0.0032 m³, exactly the 3.20e-03 in the table; at elbow = 0 the determinant vanishes.\nThere the exact inverse asks for 7965.0 °/s while the damped solver returns 3.3 °/s — and the tip still cannot move in that direction.",
+      zh: "第 5 个月《运动学：正解、数值逆解与奇异点》\n|det J| = L1 L2 r |sin(肘角)|，肩在 20°、肘 −60° 时 r = 0.2124 m。\n0.1160 × 0.1350 × 0.2124 × 0.8660 = 0.00288 m³，正是表里的 2.88e-03；肘角 = 0 时行列式归零。\n此时精确求逆要 8249.1 °/s，阻尼最小二乘只给 3.4 °/s，但末端在那个方向上根本动不了。",
+      en: "Month 5 · Kinematics: forward, numerical IK and singularities: |det J| = L1 L2 r |sin(elbow)|; with the shoulder at 20° and the elbow at −60°, r = 0.2124 m.\n0.1160 × 0.1350 × 0.2124 × 0.8660 = 0.00288 m³, exactly the 2.88e-03 in the table; at elbow = 0 the determinant vanishes.\nThere the exact inverse asks for 8249.1 °/s while the damped solver returns 3.4 °/s — and the tip still cannot move in that direction.",
     },
     lessons: ["kinematics-ik", "moveit-pick-place"],
     links: [
@@ -191,8 +352,8 @@ export const mathEntries: MathEntry[] = [
       en: "q′ is the derivative of position with respect to time (velocity) and q″ is the acceleration; in code they are approximated by differences, (q[k] − q[k−1]) / dt. Differentiating one variable of a multivariable function and holding the others fixed gives a partial derivative ∂f/∂x_i; collecting all of them into a matrix gives the Jacobian J = ∂p/∂q. On a robot the Jacobian converts joint rates into tip velocity, v = J q′, and it also decides whether a direction in task space can be produced by the joints at all.",
     },
     example: {
-      zh: "第 5 个月《运动学：正解、数值逆解与奇异点》\n脚本不做符号微分，而是数值求雅可比——算一次 FK(q)，再把 q_i 加 1e-6 rad 算一次 FK，两者相减除以 1e-6。\n从 q = [0, 30, −30]° 到目标 (0.10, 0.15, 0.12) m，误差从 208.120 mm 用 14 次迭代降到 0.009 mm。",
-      en: "Month 5 · Kinematics: forward, numerical IK and singularities\nThe script does not differentiate symbolically — it computes a numerical Jacobian by evaluating FK(q), evaluating FK again with q_i nudged by 1e-6 rad, then subtracting and dividing by 1e-6.\nFrom q = [0, 30, −30]° towards (0.10, 0.15, 0.12) m the error falls from 208.120 mm to 0.009 mm in 14 iterations.",
+      zh: "第 5 个月《运动学：正解、数值逆解与奇异点》\n脚本不做符号微分，而是数值求雅可比——算一次 FK(q)，再把 q_i 加 1e-6 rad 算一次 FK，两者相减除以 1e-6。\n从 q = [0, 30, −30]° 到目标 (0.10, 0.15, 0.12) m，误差从 209.357 mm 用 15 次迭代降到 0.002 mm。",
+      en: "Month 5 · Kinematics: forward, numerical IK and singularities\nThe script does not differentiate symbolically — it computes a numerical Jacobian by evaluating FK(q), evaluating FK again with q_i nudged by 1e-6 rad, then subtracting and dividing by 1e-6.\nFrom q = [0, 30, −30]° towards (0.10, 0.15, 0.12) m the error falls from 209.357 mm to 0.002 mm in 15 iterations.",
     },
     lessons: ["kinematics-ik", "sensors-fusion", "pid-control"],
     links: [

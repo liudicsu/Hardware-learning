@@ -35,11 +35,11 @@ The speed of sound changes with temperature (about 0.6 m/s per °C), so 20.0 cm 
 
 I2C (Inter-Integrated Circuit, usually said as I-squared-C) is a two-wire bus: SDA carries data, SCL carries the clock, and both boards must share a ground. The microcontroller is the controller and generates the clock. Each peripheral has a 7-bit address. Every transaction begins with the controller sending that address plus a read/write bit, and only the device that recognises the address answers.
 
-The clever part is the electrical design. The output stage of each device is open-drain: it can pull a line LOW, but it cannot drive it HIGH. A pull-up resistor from the line to the supply does the high side. Typical values are 4.7–10 kΩ, and many breakout boards already include them. Because every device can only pull low, two devices can never fight each other: if both pull low at once, they are simply connecting the same node to ground, and the line is still at 0 V. There is no high driver to short against.
+The clever part is the electrical design. The output stage of each device is open-drain: it can pull a line LOW, but it cannot drive it HIGH. A pull-up resistor from the line to the supply does the high side. Typical values are 4.7–10 kΩ, and many breakout boards already include them. Because every device can only pull low, two devices can never conflict: if both pull low at once, they are simply connecting the same node to ground, and the line is still at 0 V. There is no high driver to short against.
 
 <Falstad title="Open-drain I2C line with a pull-up" circuit="i2cPullup" height={420} />
 
-The 4.7 kΩ resistor holds the line at 3.3 V when nobody is pulling it down. Each switch is the output transistor inside a device. Click either switch and the line goes to 0 V; click both and it is still just 0 V, with no short and no damage. That is why any device on the bus can talk, and none of them can ruin the party.
+The 4.7 kΩ resistor holds the line at 3.3 V when nobody is pulling it down. Each switch is the output transistor inside a device. Click either switch and the line goes to 0 V; click both and it is still just 0 V, with no short and no damage. That is why any device on the bus can talk without damaging any other device on it.
 
 I2C has standard speeds of 100 kHz and 400 kHz. It is not a long-distance bus. Keep the wires short, keep the ground shared, and do not run I2C across a robot chassis next to a motor cable if you can avoid it. On an Arduino Uno, SDA is A4 and SCL is A5. On an ESP32 almost any GPIO can be used; the classic default is 21 for SDA and 22 for SCL, and you can pass your chosen pins to `Wire.begin(sda, scl)`.
 
@@ -129,7 +129,7 @@ These are the registers this lesson uses:
 | TEMP_OUT | 0x41–0x42 | Temperature |
 | GYRO_XOUT_H … | 0x43–0x48 | Gyroscope X, Y and Z |
 
-WHO_AM_I is the cheapest sanity check in embedded work. Read one byte from 0x75 and expect 0x68. If you get 0xFF, the bus is probably not connected or the device is not answering. If you get a different value, you are talking to something else.
+WHO_AM_I is the simplest self-check in embedded work. Read one byte from 0x75 and expect 0x68. If you get 0xFF, the bus is probably not connected or the device is not answering. If you get a different value, you are talking to something else.
 
 The sleep bit is the classic trap. Out of reset, PWR_MGMT_1 has bit 6 set, and the chip is asleep. You can read registers all day and get zeros. Write 0x00 to 0x6B, give it a moment, and the sensor starts producing data.
 
@@ -285,7 +285,7 @@ alpha  offset_flat  noise_flat  worst_error
 
 </SimOutput>
 
-Read the first table as three different philosophies. The gyro-only column climbs by 1.5 °/s forever: 4.6° at t = 3 s while the board is still flat, 40.6° at t = 7 s while the true angle is 30°, and 18.0° at t = 12 s after the board has returned to flat. It is always "30°-ish plus drift" while tilted, and it never comes back to zero.
+The first table shows three different estimation behaviours. The gyro-only column climbs by 1.5 °/s forever: 4.6° at t = 3 s while the board is still flat, 40.6° at t = 7 s while the true angle is 30°, and 18.0° at t = 12 s after the board has returned to flat. It is always "30°-ish plus drift" while tilted, and it never comes back to zero.
 
 The accelerometer-only column is right on average but jumpy: 0.5° at t = 1 s, −1.0° at t = 3 s, 31.3° at t = 4 s, and −1.3° at t = 12 s. Individual samples wander by a degree or more, which is enough to make a balancing robot twitch.
 
@@ -412,7 +412,7 @@ void loop() {
 }
 ```
 
-Walk through it once, because every line is a lesson. `writeReg(REG_PWR_MGMT_1, 0x00)` clears the sleep bit before anything else. The WHO_AM_I read is a receipt: it proves the address, the wiring and the bus are all working. `endTransmission(false)` sends a repeated start instead of releasing the bus, so the MPU-6050 keeps its register pointer and the following `requestFrom` reads from the register you just selected. The single 14-byte burst gets the whole sample at one instant.
+Walk through it once, because every line is a lesson. `writeReg(REG_PWR_MGMT_1, 0x00)` clears the sleep bit before anything else. The WHO_AM_I read verifies that the address, the wiring and the bus are all working. `endTransmission(false)` sends a repeated start instead of releasing the bus, so the MPU-6050 keeps its register pointer and the following `requestFrom` reads from the register you just selected. The single 14-byte burst gets the whole sample at one instant.
 
 The loop uses the `millis()` pattern from Lesson 2 (timing and interrupts), but it measures `dt` instead of assuming it. That matters: a Serial print, a slow I2C transaction, or an interrupt can stretch a loop, and the filter must integrate with the real elapsed time, not the time you hoped for. The gyro Y axis is the one that matches pitch in this mounting; check the sign by tilting the board slowly and confirming that gyro-only and accel-only move in the same direction. If they move in opposite directions, negate the rate.
 
@@ -447,7 +447,7 @@ The three behaviours are exactly the ones from the Python model. The gyro-only c
 
 The practice task is worth doing on real hardware. Put the IMU on the table, start the sketch, and do not touch it. The gyro-only column will still climb, because the gyro has a bias. The fused column will stay put, because the accelerometer keeps pulling it back. That contrast is the single most important lesson in state estimation: a smooth sensor can still be wrong, and a noisy sensor can still be right on average.
 
-Where next? Kalman filters are the natural sequel: Roger Labbe's *Kalman and Bayesian Filters in Python* is a free, runnable book that starts from the g-h filter and builds up to the full Kalman filter. For the concepts before the mathematics, the MathWorks sensor-fusion video series is a clear, visual introduction. If you would rather not implement fusion at all, an IMU with on-chip fusion such as the BNO085 hands you an orientation directly — buying your way out of the maths, at a higher price.
+Where next? Kalman filters are the natural sequel: Roger Labbe's *Kalman and Bayesian Filters in Python* is a free, runnable book that starts from the g-h filter and builds up to the full Kalman filter. For the concepts before the mathematics, the MathWorks sensor-fusion video series is a clear, visual introduction. If you would rather not implement fusion at all, an IMU with on-chip fusion such as the BNO085 outputs the orientation directly, at a higher price.
 
 <Resource id="labbe-kalman" />
 
@@ -462,7 +462,7 @@ The failures below are the ones that cost beginners the most time:
 - Reading the two bytes of a value as unsigned, or in the wrong order, so a small negative number becomes a huge positive one.
 - Mixing degrees and radians: `atan2` returns radians, and forgetting the conversion gives an angle that is wrong by a factor of about 57.
 - Assuming `dt` instead of measuring it, especially once Serial prints or other work stretches the loop.
-- Using a gyro axis or sign that does not match the accelerometer angle, so the two corrections fight.
+- Using a gyro axis or sign that does not match the accelerometer angle, so the two corrections point opposite ways.
 - Mounting the IMU loosely, or right next to a vibrating motor, so the accelerometer measures the frame, not gravity.
 - Feeding a 5 V HC-SR04 echo straight into an ESP32 input; use a divider.
 

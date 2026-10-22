@@ -1,14 +1,20 @@
 """kinematics.py: forward kinematics, numerical inverse kinematics and singularities.
 
-A three-joint arm laid out like the first three joints of an SO-101 (base yaw q0 about the
-vertical axis, then a shoulder q1 and an elbow q2 that both pitch in the arm's vertical
-plane), with round-number link lengths rather than the SO-101's real ones. Upper arm L1 = 0.12 m, forearm L2 = 0.14 m,
-shoulder H = 0.05 m above the base. Angles in radians, q1 = q2 = 0 means the arm points
-straight out horizontally. Standard library only.
+A three-joint arm with the first three joints of an SO-101 (base yaw q0 = shoulder_pan about the
+vertical axis, then a shoulder q1 = shoulder_lift and an elbow q2 = elbow_flex that both pitch in the
+arm's vertical plane), with the SO-101's axis-to-axis distances from the SO-ARM100 URDF
+(TheRobotStudio/SO-ARM100 @ a758567, Simulation/SO101/so101_new_calib.urdf):
+  L1 = |(-0.11257, -0.028)|  = 0.1160 m, shoulder_lift -> elbow_flex (elbow_flex origin, line 395)
+  L2 = |(-0.1349, 0.0052)|   = 0.1350 m, elbow_flex -> wrist_flex (wrist_flex origin, line 374)
+  H  = 0.0624 + 0.0542       = 0.1166 m, base_link origin -> shoulder_lift axis (lines 435 and 415)
+The tip is the wrist_flex axis. Left out: the shoulder axis sits 30.4 mm forward of and 18.3 mm beside
+the base axis, the upper arm is bent by atan(0.028 / 0.11257) = 14.0 deg, and the joint zeros differ
+from the real arm's. Angles in radians, q1 = q2 = 0 means the arm points straight out horizontally.
+Standard library only.
 """
 import math
 
-H, L1, L2 = 0.05, 0.12, 0.14
+H, L1, L2 = 0.1166, 0.1160, 0.1350
 
 
 def rot_z(a):

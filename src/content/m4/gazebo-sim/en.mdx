@@ -38,7 +38,7 @@ The package name is a small history lesson of its own: `gazebo_ros_pkgs` connect
 
 ## Choosing a simulator
 
-ROS 2 can talk to more than one simulator, and the honest answer to "which one should I learn" is "the one that matches what you are learning right now". The course's decision framework is short enough to keep in your head. Gazebo first, because it is the only simulator wired natively into ROS 2; MuJoCo when contact dynamics and learning are the point; Isaac Sim only when you have the hardware and a concrete reason.
+ROS 2 can talk to more than one simulator, and the practical answer to "which one should I learn" is "the one that matches what you are learning right now". The course's decision framework has three rules. Gazebo first, because it is the only simulator wired natively into ROS 2; MuJoCo when contact dynamics and learning are the point; Isaac Sim only when you have the hardware and a concrete reason.
 
 | Simulator | Cost and hardware | Strength | When to use it |
 | --- | --- | --- | --- |
@@ -50,9 +50,9 @@ Gazebo's advantage is not that it has the prettiest physics. It is that the whol
 
 MuJoCo wins where contacts dominate: a foot hitting the ground, a gripper closing on an object, a hand manipulating a tool. It is CPU-first, so you do not need a graphics card, and it is the default in robot-learning papers. If your interest is reinforcement learning or legged robots, you will end up there anyway. It is not, however, the natural place to learn how ROS 2 topics and TF fit together.
 
-Isaac Sim and Isaac Lab are the photoreal option, and they are honest about their price: the download is free, but the minimum is an RTX 4080 with 16 GB of VRAM and 32 GB of RAM. Data-centre cards such as the A100 and H100 are not supported at all, because they lack RT cores; paying more for a compute card does not help. Synthetic-data generation, a warehouse full of photoreal pallets, or a camera-based policy trained in simulation are good reasons. "It looks impressive in a video" is not.
+Isaac Sim and Isaac Lab are the photoreal option, and their hardware requirements are published: the download is free, but the minimum is an RTX 4080 with 16 GB of VRAM and 32 GB of RAM. Data-centre cards such as the A100 and H100 are not supported at all, because they lack RT cores; paying more for a compute card does not help. Synthetic-data generation, a warehouse full of photoreal pallets, or a camera-based policy trained in simulation are good reasons. "It looks impressive in a video" is not.
 
-Two more names come up often, and the honest update matters more than the original verdict. PyBullet: the course says skip it, and its older justification was that there had been no release since 2022. That specific claim is now slightly out of date. PyPI shows version 3.2.6 in November 2023 and 3.2.7 in January 2025, so the project is not dead. The advice still stands, though: occasional maintenance releases are not the same as active development, and PyBullet is not where new robotics work is happening. Learn it only if an existing codebase forces you to.
+Two more names come up often, and the current status of each matters more than the original verdict. PyBullet: the course says skip it, and its older justification was that there had been no release since 2022. That specific claim is now slightly out of date. PyPI shows version 3.2.6 in November 2023 and 3.2.7 in January 2025, so the project is not dead. The advice still stands, though: occasional maintenance releases are not the same as active development, and PyBullet is not where new robotics work is happening. Learn it only if an existing codebase forces you to.
 
 Genesis is the opposite case. The course says watch it but do not build a portfolio on it yet, because version 1.0 was fresh and it had no ROS 2 integration. It has moved fast since then: version 1.4.0 appeared on PyPI in September 2026, and 1.4.4 followed in October. Fast movement cuts both ways; features arrive quickly, and so do API changes. Check its current ROS 2 support before you rely on it, and keep the project small until the integration is proven.
 

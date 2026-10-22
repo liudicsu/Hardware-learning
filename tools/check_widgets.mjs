@@ -108,6 +108,90 @@ const kinematics = await loadModel("kinematics");
   });
   const far = kinematics.ik([0.2, 0.2, 0.1], [0, (30 * Math.PI) / 180, (-30 * Math.PI) / 180], 0.01);
   compare("kinematics", "lambda = 0.01 never settles (200 iterations, > 20 mm short)", "true", String(far.it === 199 && far.dist > 0.02));
+  // IkWidget guided experiment (kinematics-ik, both languages): every number the list tells the
+  // reader to expect, computed with the widget's own calls and formatting.
+  {
+    const R = Math.PI / 180;
+    const tip = (q) => "(" + kinematics.fk(q.map((v) => v * R)).map((v) => fixed(v, 4)).join(", ") + ")";
+    const rr = (q) => { const t = kinematics.fk(q.map((v) => v * R)); return fixed(Math.hypot(t[0], t[1]), 4); };
+    const det = (q) => format.exp(Math.abs(kinematics.detJ(q.map((v) => v * R))), 2);
+    const solve = (t) => {
+      const r = kinematics.ik(t, [0, 30 * R, -30 * R]);
+      const n = r.dist < 1e-5 ? r.it : r.it + 1; // as IkWidget shows it
+      return [`${n} iterations`, "[" + r.q.map((v) => fixed(v / R, 2)).join(", ") + "]", fixed(r.dist * 1000, 2) + " mm"];
+    };
+    const a = solve([0.1, 0.15, 0.12]), b = solve([0.2, 0.2, 0.1]);
+    const rows = [
+      ["default tip", "(0.1840, 0.1062, 0.1637)", tip([30, 45, -60])], ["default r", "0.2124", rr([30, 45, -60])], ["default det", "2.88e-03", det([30, 45, -60])],
+      ["base 0 tip", "(0.2124, 0.0000, 0.1637)", tip([0, 45, -60])],
+      ["elbow -10 det", "6.77e-04", det([0, 0, -10])], ["elbow -5 det", "3.42e-04", det([0, 0, -5])],
+      ["straight tip", "(0.2510, 0.0000, 0.1166)", tip([0, 0, 0])], ["straight r", "0.2510", rr([0, 0, 0])], ["straight det", "2.65e-13", det([0, 0, 0])],
+      ["solve near", "15 iterations", a[0]], ["solve near q", "[56.31, 49.54, -88.48]", a[1]], ["solve near error", "0.00 mm", a[2]],
+      ["solve far", "200 iterations", b[0]], ["solve far error", "32.33 mm", b[2]],
+    ];
+    const block = (loc) => {
+      const text = readFileSync(join(root, "src/content/m5/kinematics-ik", loc + ".mdx"), "utf8").replace(/\u2212/g, "-");
+      const marker = loc === "zh" ? "<strong>动手实验。</strong>" : "**Guided experiment.**";
+      const i = text.indexOf(marker);
+      return i < 0 ? "" : text.slice(i, text.indexOf("\n\n<", i));
+    };
+    const zhSteps = (s) => s.replace(/(\d+) iterations/, "$1 次迭代");
+    for (const [label, want, got] of rows) {
+      compare("guided Ik", label, want, got);
+      compare("guided Ik", `en states ${want}`, "yes", block("en").includes(want) ? "yes" : "no");
+      compare("guided Ik", `zh states ${want}`, "yes", block("zh").includes(zhSteps(want)) ? "yes" : "no");
+    }
+  }
+  // Model angles -> real SO-101 joint angles (kinematics-ik, both languages). Forward kinematics of
+  // the URDF (SO-ARM100 @ a758567, Simulation/SO101/so101_new_calib.urdf: shoulder_pan line 435,
+  // shoulder_lift 415, elbow_flex 395, wrist_flex 374; limits 439, 419, 399) gives the zero offsets;
+  // the two IK branches converted with them must match the lesson's table and the limit verdicts.
+  {
+    const D = 180 / Math.PI;
+    const mul = (A, B) => A.map((r, i) => B[0].map((_, j) => r.reduce((s, _, k) => s + A[i][k] * B[k][j], 0)));
+    const rpy = (r, p, y) => {
+      const [cr, sr, cp, sp, cy, sy] = [Math.cos(r), Math.sin(r), Math.cos(p), Math.sin(p), Math.cos(y), Math.sin(y)];
+      return mul(mul([[cy, -sy, 0], [sy, cy, 0], [0, 0, 1]], [[cp, 0, sp], [0, 1, 0], [-sp, 0, cp]]), [[1, 0, 0], [0, cr, -sr], [0, sr, cr]]);
+    };
+    const tf = (xyz, r, q) => {
+      const R = mul(rpy(...r), [[Math.cos(q), -Math.sin(q), 0], [Math.sin(q), Math.cos(q), 0], [0, 0, 1]]);
+      return [[...R[0], xyz[0]], [...R[1], xyz[1]], [...R[2], xyz[2]], [0, 0, 0, 1]];
+    };
+    const J = [
+      [[0.0388353, -8.97657e-9, 0.0624], [3.14159, 4.18253e-17, -3.14159]], // shoulder_pan
+      [[-0.0303992, -0.0182778, -0.0542], [-1.5708, -1.5708, 0]], // shoulder_lift
+      [[-0.11257, -0.028, 1.73763e-16], [-3.63608e-16, 8.74301e-16, 1.5708]], // elbow_flex
+      [[-0.1349, 0.0052, 3.62355e-17], [4.02456e-15, 8.67362e-16, -1.5708]], // wrist_flex
+    ];
+    const lim = { pan: 1.91986 * D, lift: 1.74533 * D, elbow: 1.69 * D };
+    const pts = (q) => { let M = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]; return J.map(([x, r], i) => (M = mul(M, tf(x, r, (q[i] ?? 0) / D)), [M[0][3], M[1][3], M[2][3]])); };
+    const elev = (a, b) => Math.atan2(b[2] - a[2], Math.hypot(b[0] - a[0], b[1] - a[1])) * D;
+    const p0 = pts([0, 0, 0]);
+    const liftOff = elev(p0[1], p0[2]), elbowOff = elev(p0[2], p0[3]) - liftOff;
+    const p1 = pts([0, 10, 0]), p2 = pts([0, 0, 10]), p3 = pts([10, 0, 0]);
+    const az = (p) => Math.atan2(p[2][1] - p[1][1], p[2][0] - p[1][0]) * D;
+    compare("SO-101 map", "lift zero offset", "76.03", fixed(liftOff, 2));
+    compare("SO-101 map", "elbow zero offset", "-73.82", fixed(elbowOff, 2));
+    compare("SO-101 map", "signs (lift, elbow, pan opposite to q1, q2, q0)", "-10.00 -10.00 -10.00",
+      [elev(p1[1], p1[2]) - liftOff, elev(p2[2], p2[3]) - elev(p2[1], p2[2]) - elbowOff, az(p3) - az(p0)].map((v) => fixed(v, 2)).join(" "));
+    const R = Math.PI / 180;
+    const first = kinematics.ik([0.1, 0.15, 0.12], [0, 30 * R, -30 * R]).q.map((v) => v / R);
+    const second = kinematics.ik([0.1, 0.15, 0.12], [0, 90 * R, 60 * R]).q.map((v) => v / R);
+    const conv = (q) => [-q[0], liftOff - q[1], elbowOff - q[2]];
+    const within = (c) => [Math.abs(c[0]) <= lim.pan, Math.abs(c[1]) <= lim.lift, Math.abs(c[2]) <= lim.elbow].map(String).join(" ");
+    const line = (q) => { const c = conv(q); return `pan ${fixed(c[0], 2)}, lift ${fixed(c[1], 2)}, elbow ${fixed(c[2], 2)}`; };
+    compare("SO-101 map", "first branch", "pan -56.31, lift 26.49, elbow 14.66", line(first));
+    compare("SO-101 map", "first branch within limits", "true true true", within(conv(first)));
+    compare("SO-101 map", "second branch", "pan 123.69, lift -54.43, elbow -162.31", line(second));
+    compare("SO-101 map", "second branch: pan and elbow outside", "false true false", within(conv(second)));
+    compare("SO-101 map", "limits deg", "110.00 100.00 96.83", [lim.pan, lim.lift, lim.elbow].map((v) => fixed(v, 2)).join(" "));
+    for (const loc of ["en", "zh"]) {
+      const text = readFileSync(join(root, "src/content/m5/kinematics-ik", loc + ".mdx"), "utf8").replace(/\u2212/g, "-");
+      for (const want of ["76.03 deg - q1", "-73.82 deg - q2", "±110.00 deg", "±100.00 deg", "±96.83 deg",
+        line(first).replace(/, /g, loc === "zh" ? "，" : ", "), line(second).replace(/, /g, loc === "zh" ? "，" : ", ")])
+        compare("SO-101 map", `${loc} states ${want}`, "yes", text.includes(want) ? "yes" : "no");
+    }
+  }
 }
 
 const camera = await loadModel("camera");

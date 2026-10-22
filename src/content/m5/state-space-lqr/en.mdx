@@ -249,9 +249,9 @@ Read K as four numbers: position, speed, angle, rate. The baseline K is [−0.92
 4. Set Q1 = 1.0 and R = 10 and read K = [−0.29, −0.78, −15.51, −2.37] and peak force = 2.71 N.
 5. Conclusion: LQR trades state error against force; a smaller R makes force cheap so all gains grow until the force saturates (R = 0.01 reaches 10.00 N at the 10 N limit against 3.28 N at R = 1.0), and a larger Q1 tightens the position return (Q1 = 100 raises peak force to 5.19 N).
 
-Now the sign that looks wrong. The position gain is negative, like the angle gain. With u = −K x, a positive position error, meaning the cart is to the right of the target, commands a positive force and pushes it further right. That is deliberate: the controller first tips the pole left, then drives left to catch it. A cart-pole is non-minimum phase in position, so an immediate push toward the target would lean the pole the wrong way.
+Note the sign of the position gain. The position gain is negative, like the angle gain. With u = −K x, a positive position error, meaning the cart is to the right of the target, commands a positive force and pushes it further right. That is deliberate: the controller first tips the pole left, then drives left to catch it. A cart-pole is non-minimum phase in position, so an immediate push toward the target would lean the pole the wrong way.
 
-To use less force, raise R or lower the state weights. Raising the position weight in Q instead buys a tighter return and spends more force.
+To use less force, raise R or lower the state weights. Raising the position weight in Q instead gives a tighter return and spends more force.
 
 <Quiz id="q4" question="Which change makes the controller use less force?" options={["Increase R", "Increase the position weight in Q", "Increase the angle weight in Q", "Shorten the horizon"]} answer={0} explanation="R multiplies u², so a larger R makes force expensive: the gains shrink and peak force falls, at the cost of a slower or less accurate return. Raising Q does the opposite." />
 
@@ -274,9 +274,9 @@ Nonlinear run with the first K, starting 10 deg off upright:
 
 </SimOutput>
 
-At 0.5 s the cart is at 0.177 m and the pole is already 2.23° past vertical. The cart is at 0.248 m at 1 s and back to 0.122 m at 2.5 s, while the angle is within 0.73° by 1.5 s. The last line is the important one: tested in whole degrees, the same gains recover from up to 53° and no further. The linear model is a local approximation around upright, so its prediction is good near 0° and increasingly wrong as the angle grows. A real balancer adds motor limits, wheel slip and sensor delay.
+At 0.5 s the cart is at 0.177 m and the pole is already 2.23° past vertical. The cart is at 0.248 m at 1 s and back to 0.122 m at 2.5 s, while the angle is within 0.73° by 1.5 s. The last line is the important one: tested in whole degrees, the same gains recover from an initial angle of up to 53° and no further. The linear model is a local approximation around upright, so its prediction is good near 0° and increasingly wrong as the angle grows. A real balancer adds motor limits, wheel slip and sensor delay.
 
-<Callout type="warn" title="53° is a simulation result">Motor limits, wheel slip and sensor delay will move that number. Test on the real robot with a soft catch, and do not treat the simulated limit as a guarantee.</Callout>
+<Callout type="warn" title="53° is a simulation result">Motor limits, wheel slip and sensor delay will move that number. Test on the real robot with a hand ready to catch the pole, and do not treat the simulated limit as a guarantee.</Callout>
 
 ## MPC and the receding horizon
 
@@ -293,7 +293,7 @@ Arm joint, 1 rad move, |torque| <= 0.6 N*m (on top of gravity feedforward), 200 
 
 </SimOutput>
 
-The LQR gains are K = [15.93, 0.323], much larger than lesson 1's PD gains 2.86 N·m/rad and 0.115 N·m/(rad/s), because Q = diag(400, 0.01) with R = 1 prices a 1 rad error far above 1 N·m of torque. Gains that large spend most of the move pinned at the limit, which is exactly where plain LQR stops knowing what it is doing. With clipping, LQR overshoots 2.24° and is within 1° from 0.210 s. MPC overshoots 0.86° and is within 1° from 0.160 s. It is at the limit for 0.165 s, LQR for 0.175 s. The improvement is real but not enormous; the bigger difference is computation.
+The LQR gains are K = [15.93, 0.323], much larger than lesson 1's PD gains 2.86 N·m/rad and 0.115 N·m/(rad/s), because Q = diag(400, 0.01) with R = 1 prices a 1 rad error far above 1 N·m of torque. Gains that large spend most of the move pinned at the limit, which is exactly where plain LQR stops holding: K is computed for an unclipped output, and once the command is clipped the effective loop gain is no longer the designed one. With clipping, LQR overshoots 2.24° and is within 1° from 0.210 s. MPC overshoots 0.86° and is within 1° from 0.160 s. It is at the limit for 0.165 s, LQR for 0.175 s. The improvement exists but is limited; the bigger difference is computation.
 
 MPC costs far more computation per step: every 5 ms period it runs 150 gradient steps, each a forward pass and a backward pass over 40 steps, about 12,000 small state updates, while LQR is two multiplications and an addition. On a microcontroller the 5 ms deadline is fixed. If the MPC does not finish in time, you must shorten the horizon, lower the control rate, or move to a faster chip. A lower rate adds delay, and delay eats phase margin, as lesson 1 showed.
 

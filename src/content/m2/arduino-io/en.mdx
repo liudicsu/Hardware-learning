@@ -11,7 +11,7 @@ The board in this course is the classic Arduino Uno, and its brain is the ATmega
 - **2 KB RAM** for variables, buffers and the stack. This is tiny. Every character of a string costs one byte, so a single 100-character message already uses 5 % of the available RAM.
 - **5 V logic** — a HIGH output is approximately 5 V, a LOW output approximately 0 V.
 
-A useful picture: flash is the recipe book, RAM is the kitchen counter. The book is large and permanent; the counter is small and cleared on every reset. Keeping a constant string in RAM when it could stay in flash is like leaving every ingredient on the counter — the serial section below shows the fix.
+Flash and RAM differ by physical mechanism, not just size. Flash is non-volatile program storage: its contents survive a power cycle, and the CPU reads from it directly with dedicated instructions. RAM is volatile working memory: the 2 KB here is cleared on every reset. Keeping a constant string in RAM occupies the scarcest memory; the serial section below shows how the `F()` macro leaves such strings in flash.
 
 ### The Uno's hardware map
 
@@ -43,7 +43,7 @@ Compile errors and upload errors are different animals. A compile error means th
 You do not need hardware to follow this lesson. Wokwi runs real Uno code in your browser, with LEDs, buttons, a potentiometer and a serial monitor. Tinkercad Circuits simulates the Uno too and is a good second opinion when you want a virtual breadboard and multimeter.
 
 <Callout type="tip" title="Everything here works in Wokwi">
-Every sketch in this lesson can be pasted into a Wokwi Uno project and run unchanged. Add the parts from the component menu, wire them to the same pins, open the serial monitor, and you will see the same numbers. Use the simulator to make your mistakes for free.
+Every sketch in this lesson can be pasted into a Wokwi Uno project and run unchanged. Add the parts from the component menu, wire them to the same pins, open the serial monitor, and you will see the same numbers. Use the simulator to make those mistakes before they can cost hardware.
 </Callout>
 
 ## Anatomy of a sketch
@@ -103,7 +103,7 @@ Frequency is the reciprocal of the period: a 1 s period means one cycle per seco
 
 ### Why an unconnected pin is not zero
 
-A digital input is not a voltmeter with a default reading of 0 V. It is a high-impedance amplifier that decides whether the voltage on the pin is closer to 5 V or to 0 V. With nothing connected, the pin has no defined voltage at all: it acts like a small antenna and picks up stray charge from your hand, nearby wires and the mains wiring in the wall. `digitalRead()` then returns HIGH and LOW at random.
+A digital input is not a voltmeter with a default reading of 0 V. It is a high-impedance amplifier that decides whether the voltage on the pin is closer to 5 V or to 0 V. With nothing connected, the pin has no defined voltage at all: the input stage has almost no resistive path to hold that voltage in place, so a small amount of charge capacitively coupled from your hand, nearby wires or the mains wiring moves the pin voltage across the VIH/VIL thresholds, and `digitalRead()` returns HIGH and LOW at random.
 
 This is called a **floating** input, and it is the cause of the classic "it works until I touch the board" bug. The rule is absolute: every digital input must be connected to a defined level, either directly or through a resistor.
 
@@ -115,6 +115,8 @@ Wire a button between the pin and GND and the logic becomes:
 
 - Button **not pressed**: the pull-up wins, the pin sits at 5 V and reads HIGH.
 - Button **pressed**: the switch is a near-zero-ohm path to GND, which easily overpowers the pull-up, so the pin sits at 0 V and reads LOW.
+
+<Diagram id="pullup-internal" />
 
 This arrangement is called **active low** because the active (pressed) state is the low voltage. It is the normal way buttons are wired, and it has a safety consequence: with `INPUT_PULLUP`, the other side of the button must go to **GND**, never to 5 V. A button from the pin to 5 V would short the supply to ground when pressed.
 
@@ -155,7 +157,7 @@ void loop() {
 
 The important idea is the `if (state != lastState)` block. Without it, the program would print the button state thousands of times per second, filling the monitor with identical lines and hiding the moment that actually matters. By storing the previous state, we print one line per **change**.
 
-You may see two or three lines for a single press. A real mechanical button does not close cleanly: its metal contacts bounce against each other for a few milliseconds, producing several rapid HIGH/LOW transitions. The sketch is reporting them honestly. The next lesson adds debouncing so one press produces exactly one event.
+You may see two or three lines for a single press. A real mechanical button does not close cleanly: its metal contacts bounce against each other for a few milliseconds, producing several rapid HIGH/LOW transitions. The sketch prints every one of those level changes. The next lesson adds debouncing so one press produces exactly one event.
 
 <Quiz id="q2" question="With pinMode(2, INPUT_PULLUP) and a button from pin 2 to GND, what does digitalRead(2) return while the button is NOT pressed?" options={["LOW", "HIGH", "It changes randomly"]} answer={1} explanation="The internal pull-up resistor holds the pin near 5 V when the button is open, so it reads HIGH. Pressing the button connects the pin to GND and makes it LOW." />
 
@@ -247,6 +249,8 @@ value = 128
 duty  = 128 / 255 = 0.50196 ≈ 50.2 %
 V_avg = 0.50196 × 5 V = 2.510 V ≈ 2.51 V
 ```
+
+<Diagram id="pwm-duty-average" />
 
 An LED is far too fast to follow a 490 Hz square wave. Your eye integrates the flashes and sees a dimmer light, roughly as if the pin were at 2.51 V. A DC motor's rotor has inertia and responds to the average too, which is why the same function controls speed in Lesson 4. But a speaker would reproduce the 490 Hz tone, and a fast logic input would see individual pulses — the signal is still digital, only its average is analog-like.
 
@@ -415,7 +419,7 @@ These are the failures you will actually meet, roughly in order of frequency:
 - **Forgetting `pinMode(pin, OUTPUT)`.** A pin defaults to input. `digitalWrite(pin, HIGH)` then enables the internal pull-up instead of driving the pin hard, so an LED gets only a fraction of a milliamp and glows faintly, if at all. If an output "does nothing", check its pin mode first.
 - **Driving a load straight from a pin.** A pin can safely source or sink about **20 mA**; **40 mA is the absolute maximum**, and the whole chip has a total limit as well. Motors, relays and LED strips need hundreds of milliamps. Use a transistor or MOSFET and a separate supply, as in Month 1.
 - **Leaving inputs floating.** An unconnected button pin reads random values. Use `INPUT_PULLUP` or an external resistor, and remember that the button then goes to GND.
-- **Using D0 and D1.** They are the USB serial link. An external circuit on those pins fights the upload and the Serial Monitor. Move the circuit to another pin.
+- **Using D0 and D1.** They are the USB serial link. An external circuit on those pins interferes with the upload and the Serial Monitor. Move the circuit to another pin.
 - **Integer overflow.** On the Uno an `int` stops at 32767. `raw * 1000` with a 10-bit reading overflows. Use `long` or floating point before multiplying.
 - **Integer division in conversions.** `raw * 5 / 1023` gives whole volts only, and `raw / 1023` gives zero for every reading. Write `5.0` or `1023.0` to force floating point.
 - **Wrong board or port selected.** The code compiles for a different chip, or the upload goes to a different device. If uploading fails, confirm "Arduino Uno" and the port that appeared when you plugged the board in.

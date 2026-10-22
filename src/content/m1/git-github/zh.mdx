@@ -18,16 +18,9 @@ Git 是版本控制工具，GitHub 是托管 Git 仓库的网站。Git 在本地
 
 **分支（branch）** 是一个指向某个提交的可移动标签。`main` 是默认分支。在分支上提交，标签自动向前移动。分支不是文件夹的副本，只是一个名字，所以创建几乎瞬间完成。**HEAD** 表示“你现在在哪”：通常它指向一个分支，分支再指向提交；如果 HEAD 直接指向某个提交，就是分离头指针状态（detached HEAD）。
 
-```text
-working directory ──git add──▶ staging area ──git commit──▶ repository
-   (your edits)                    (index)                   (.git)
+<Diagram id="git-areas" />
 
-main     A ───── B ───── C
-                          ╲
-feature                    D ───── E
-                                   ▲
-                                  HEAD
-```
+<Diagram id="git-branches" />
 
 图中 A、B、C 在 `main` 上。`feature` 从 C 分出去，多了 D、E 两个提交。HEAD 现在指向 `feature`，所以磁盘上的文件是快照 E。切回 `main`，文件变成快照 C；D、E 没消失，因为 `feature` 标签还指着它们。
 
@@ -77,7 +70,7 @@ cd month1-tools
 git init
 ```
 
-`git init` 会打印 `Initialized empty Git repository in .../.git/`。隐藏的 `.git` 目录就是全部历史，不要手动改或删。如果不小心在主目录执行了 `git init`，先把那里的 `.git` 删掉，免得它把整个家目录都纳入版本控制。
+`git init` 会打印 `Initialized empty Git repository in .../.git/`。隐藏的 `.git` 目录就是全部历史，不要手动改或删。如果不小心在主目录执行了 `git init`，先把那里的 `.git` 删掉，避免它把整个家目录纳入版本控制。
 
 第一次提交前先写 `.gitignore`：
 
@@ -170,7 +163,7 @@ index bd6542e..ac31ca1 100644
 
 先在 github.com 上建一个空仓库：名字叫 `month1-tools`，作品集项目选 Public。如果本地已经有提交，**不要**勾选添加 README、`.gitignore` 或 license。每勾一项，GitHub 都会创建一个你本地没有的提交，第一次推送就会因为 non-fast-forward 被拒绝。
 
-用 GitHub CLI 一条命令搞定：
+用 GitHub CLI 一条命令完成：
 
 ```bash
 gh repo create month1-tools --public --source=. --push
@@ -189,7 +182,7 @@ git push -u origin main
 
 用 `git remote -v` 检查。地址打错就 `git remote set-url origin <正确地址>`。如果推送报 `src refspec main does not match any`，要么还没有提交，要么本地分支还叫 `master`；执行 `git branch -M main` 再推。如果远程仓库带了 README，先 `git pull --rebase origin main` 把它的历史接上，再推。
 
-之后记住节奏：**开始干活前先 pull，告一段落就 push**。`git pull` 取回并整合远程提交，`git push` 上传你的提交。两者都不能替代“把工作提交到本地”。
+之后保持这个顺序：**开始工作前先 pull，完成一组改动后 push**。`git pull` 取回并整合远程提交，`git push` 上传你的提交。两者都不能替代“把工作提交到本地”。
 
 ## 分支与合并
 
@@ -220,7 +213,7 @@ git branch -d feature/json-log
 
 `-d` 对未合并的分支会拒绝删除，这是有用的保护；`-D` 强制删除。
 
-### 合并冲突长什么样
+### 合并冲突的标记结构
 
 两个分支改了同一批行，或者一边删了文件另一边还在改，就会冲突。Git 会停下合并，并在文件里做标记：
 
@@ -239,7 +232,7 @@ git add log.py
 git commit
 ```
 
-`git add` 告诉 Git 冲突已解决，`git commit` 记录这次合并（Git 会预填合并说明）。如果发现搞不定，`git merge --abort` 可以回到合并前的状态。小分支、勤合并，冲突就少；一个分支挂三周、每个文件都改，冲突会很痛苦。
+`git add` 告诉 Git 冲突已解决，`git commit` 记录这次合并（Git 会预填合并说明）。如果无法解决，`git merge --abort` 可以回到合并前的状态。小分支、勤合并，冲突就少；一个分支存在三周、每个文件都改，冲突会显著增加。
 
 现在就去 Learn Git Branching 做 **Introduction Sequence** 和 **Ramping Up**，亲手画一遍分支：
 
@@ -318,9 +311,9 @@ INA219 与负载串联。LCD 和传感器共用一条 I2C 总线。
 - 打印一个外壳，避免板子在桌上短路。
 ```
 
-**“出了什么问题”这一段**，是让项目看起来像工程记录、而不是教程的关键。教程只会说“把 A 接到 B，就能工作”；工程师会记下现象（`nan`）、怀疑的原因（线太长、没上拉、400 kHz）、做了哪些改动，以及还剩什么局限。这一段证明你亲手测过、理解了失败，而且对不完美的地方诚实。面试里被问“讲一个你修过的 bug”，这一段比背稿子好用。
+**“出了什么问题”这一段**，是让项目看起来像工程记录、而不是教程的关键。教程只会说“把 A 接到 B，就能工作”；工程师会记下现象（`nan`）、怀疑的原因（线太长、没上拉、400 kHz）、做了哪些改动，以及还剩什么局限。这一段说明了测试过程、对失败的分析，以及对局限的如实记录。面试中被问到“讲一个你修过的 bug”时，这一段比预先准备的答案更有说服力。
 
-照片要拍得有用：从上方拍，接线看得见，压缩到 1 MB 以下，存成 `docs/photo.jpg`。一个糊掉的闭合盒子照片教不了任何人。
+照片要拍得有用：从上方拍，接线看得见，压缩到 1 MB 以下，存成 `docs/photo.jpg`。一张模糊的闭合盒子照片没有参考价值。
 
 ## 好的提交说明
 
@@ -346,7 +339,7 @@ fixed bug
 
 第一行控制在 50 个字符以内。要解释**为什么**，空一行再写正文，每行约 72 个字符；diff 已经说明了“改了什么”。
 
-小步、频繁地提交，一个提交只做一件事：修一个 bug、加一个功能、改一个名字。脚本能跑、测试能过就提交；做有风险的重构之前也先提交，给自己留一个干净的回退点。不要把格式化改动和行为改动混在一起，否则 diff 没法读，`git bisect` 也找不到罪魁祸首。一百个小提交，比一个叫 `big update` 的 3000 行提交好懂得多。
+小步、频繁地提交，一个提交只做一件事：修一个 bug、加一个功能、改一个名字。脚本能跑、测试能过就提交；做有风险的重构之前也先提交，给自己留一个干净的回退点。不要把格式化改动和行为改动混在一起，否则 diff 无法阅读，`git bisect` 也无法定位引入问题的提交。一百个小提交，比一个叫 `big update` 的 3000 行提交好懂得多。
 
 ## 撤销速查表
 
@@ -364,7 +357,7 @@ fixed bug
 - `git commit --amend` 会改变哈希。只在推送前用；共享分支上优先用 `git revert`。如果一定要改写自己已推送的分支，用 `git push --force-with-lease`，永远不要强推 `main`。
 - `git switch --detach <hash>` 只是只读查看；用 `git switch main` 回来。`git show <hash>:ohm.py > /tmp/ohm-old.py` 可以把旧文件存一份。
 - `git revert <hash>` 是公开撤销：新建一个提交把改动反做回去，队友正常 pull 即可。撤销合并提交时，Git 可能要求用 `-m 1` 指定父提交。
-- `git reflog` 记录 HEAD 去过哪里，能救回丢失的本地提交；但它是本地的、临时的。
+- `git reflog` 记录 HEAD 的移动历史，可以恢复丢失的本地提交；但记录仅保存在本地，且会过期。
 
 <Callout type="warn" title="永远不要提交密钥">
 密码、API key、Wi-Fi 账号密码、token 和私钥都不能进提交。一旦推送，就要当作已经泄露：之后删掉文件并不会把它从历史里抹去，别人克隆过的仓库里可能还有。先轮换（rotate）凭据，再用 `git filter-repo` 或 BFG 清理历史。密钥放在 `.env` 或 `secrets.h` 里，写进 `.gitignore`，每次提交前看 `git diff --staged`。
@@ -378,12 +371,12 @@ Git 会保存每个文件的每个版本，所以一个 100 MB 的视频即使�
 
 <Quiz id="q3" question="你推送了一个把项目弄坏的提交，队友已经 pull 过了。最安全的撤销方式是？" options={["git reset --hard 然后强推", "git revert <hash> 然后推送", "把仓库删掉"]} answer={1} explanation="git revert 会新建一个提交，把坏提交的改动反做回去，已经 pull 过的队友再 pull 一次就能安全同步。git reset --hard 会改写共享历史，强推会破坏队友的克隆。" />
 
-新手常踩的坑：
+常见错误：
 
 - 在错误的目录执行 `git init`。用 `git rev-parse --show-toplevel` 检查，删掉多余的 `.git`。
 - 提交了 `.venv` 之后才加 `.gitignore`；忽略规则对已跟踪文件无效。用 `git rm -r --cached .venv`。
 - 不读 `git diff --staged` 就 `git add .`，结果把密钥或 200 MB 视频也暂存了。
-- 直接在 `main` 上做危险实验，然后用强推收拾。
+- 直接在 `main` 上进行高风险修改，然后用强推改写已发布历史。
 - 有未提交改动就 pull，导致合并报错。先提交，或者 `git stash push -m "wip"` 再 `git stash pop`。
 - 提交冲突标记、写 `update` 当说明，或者仓库里没有 README。
 - 把 GitHub 当备份，或者在仓库里再克隆一个仓库，套出嵌套的 `.git`。
@@ -396,5 +389,5 @@ Git 会保存每个文件的每个版本，所以一个 100 MB 的视频即使�
 - 我推送了仓库，也知道 `git push -u origin main` 做了什么。
 - 我建过分支，合并回 `main`，再删掉分支。
 - 我手动解决过一次冲突，知道为什么先 `git add` 再 `git commit`。
-- 我的 README 有照片、元件清单、接线表、运行命令，以及诚实的“出了什么问题”一段。
+- 我的 README 有照片、元件清单、接线表、运行命令，以及如实的“出了什么问题”一段。
 - 我能选对撤销命令，也知道密钥为什么要轮换、大视频为什么不进 Git。

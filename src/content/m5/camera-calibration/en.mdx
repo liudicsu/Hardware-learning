@@ -16,13 +16,13 @@ Real lenses bend straight lines. OpenCV's radial model takes the undistorted nor
 
 <Formula label="Radial distortion">x_d = x (1 + k1 r² + k2 r⁴),   y_d = y (1 + k1 r² + k2 r⁴)</Formula>
 
-The distorted coordinates are then converted to pixels with K. A negative k1, as in this camera (-0.12), pulls points toward the centre: straight lines bow outward like a barrel. The correction grows quickly with r, so the centre is almost untouched and the image corners are worst. That is why calibration photos must include the corners, not just the middle.
+The distorted coordinates are then converted to pixels with K. A negative k1, as in this camera (-0.12), pulls points toward the centre: straight lines bow outward, forming barrel distortion. The correction grows quickly with r, so the centre is almost untouched and the image corners are worst. That is why calibration photos must include the corners, not just the middle.
 
 <Quiz id="q1" question="A camera has fx = 500 px and each pixel is 3 µm wide. What is its focal length?" answer={1.5} unit="mm" explanation="Focal length = fx × pixel width = 500 × 3 µm = 1500 µm = 1.5 mm. fx is in pixels precisely because the pixel size has already been multiplied in." />
 
 ## Making the photos
 
-`make_views.py` renders each view by inverting the projection, not by drawing a board and distorting it. For every pixel it takes the pixel coordinate, applies the inverse of the distortion and K to get a direction, casts that ray onto the board plane, and reads whether the hit point is on a white or black square. Each pixel is sampled at four offsets (4× supersampling) and Gaussian sensor noise is added afterwards.
+`make_views.py` renders each view by inverting the projection, not by rendering a board and distorting the image. For every pixel it takes the pixel coordinate, applies the inverse of the distortion and K to get a direction, casts that ray onto the board plane, and reads whether the hit point is on a white or black square. Each pixel is sampled at four offsets (4× supersampling) and Gaussian sensor noise is added afterwards.
 
 Fifteen poses at 0.27 to 0.40 m, with tilts up to 35 deg, give the solver a range of views. `table.png` is a separate photo of the same board lying flat on a table, 0.45 m from the camera and tilted 40 deg; the section on turning a pixel into 3D uses it.
 

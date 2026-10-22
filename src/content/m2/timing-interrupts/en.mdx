@@ -139,9 +139,9 @@ An `unsigned long` on the Uno is 32 bits, so `millis()` counts from 0 to 4 294 9
         ≈ 49.7 days
 ```
 
-So after about seven weeks of continuous uptime, the counter returns to zero. That sounds like a distant problem until you build something that runs for months, or until a robot is switched on and never reset.
+So after about seven weeks of continuous uptime, the counter returns to zero. That matters for any device that is expected to run for months without a reset.
 
-The good news is that the standard pattern survives the wrap. Unsigned arithmetic in C and C++ is modular: subtraction is performed modulo 2^32, so `now - last` still gives the true elapsed time even when `now` is a small number after the wrap and `last` is a large number from before it. The result is not "a huge negative number"; it is exactly the number of milliseconds that actually passed, as long as the interval is less than 49.7 days.
+The standard pattern survives the wrap. Unsigned arithmetic in C and C++ is modular: subtraction is performed modulo 2^32, so `now - last` still gives the true elapsed time even when `now` is a small number after the wrap and `last` is a large number from before it. The result is not "a huge negative number"; it is exactly the number of milliseconds that actually passed, as long as the interval is less than 49.7 days.
 
 The comparison style `now > last + PERIOD` does not survive, because it compares absolute times instead of elapsed time. Here is a small C program that uses the same 32-bit unsigned maths, run on a PC:
 
@@ -168,7 +168,7 @@ now > last + 250 ? no
 wrap after  = 49.7 days
 ```
 
-`last` is 296 ms before the wrap and `now` is 200 ms after it, so the real elapsed time is 296 + 200 = 496 ms. The unsigned subtraction reports exactly that. The comparison version compares 200 with `last + 250` = 4 294 967 250, gets no, and believes the 250 ms period has not elapsed. It would keep believing that for about 49.7 days, until `now` itself wraps. A robot with that bug would freeze its timing for seven weeks and then mysteriously start working again.
+`last` is 296 ms before the wrap and `now` is 200 ms after it, so the real elapsed time is 296 + 200 = 496 ms. The unsigned subtraction reports exactly that. The comparison version compares 200 with `last + 250` = 4 294 967 250, gets no, and believes the 250 ms period has not elapsed. It would keep believing that for about 49.7 days, until `now` itself wraps. A robot with that bug would freeze its timing for seven weeks and only recover after `now` itself wrapped.
 
 The rule: always compare elapsed times, `now - start >= interval`, never absolute times. Store timestamps in `unsigned long`, not `int` or signed `long`: on the Uno an `int` is only 16 bits (about 32 seconds), and signed overflow is undefined behaviour in C++.
 
@@ -202,7 +202,7 @@ attachInterrupt(digitalPinToInterrupt(pin), isr, mode);
 
 ### Rules for ISRs
 
-An ISR is a guest in the CPU's house, and it should behave like one:
+An ISR preempts the running program wherever it happens to be, so it must obey these rules:
 
 - **Keep it tiny.** Set a flag, store a timestamp, increment a counter. Do the real work in `loop()`.
 - **No `delay()` and no `Serial`.** `Serial.print()` is slow and may rely on interrupts, so calling it from an ISR can hang the board; `delay()` also relies on interrupts. Neither belongs in an ISR.
@@ -322,7 +322,7 @@ The model uses five real presses lasting 300, 150, 400, 80 and 250 ms. Every pre
 
 `naive_presses()` counts every HIGH-to-LOW transition. Because both the press and the release produce bounce, and because each bounce cluster contains many transitions, five real presses become 19 falling edges. That is exactly the behaviour you get if you attach an interrupt to `FALLING` and increment a counter without debouncing.
 
-`debounced_presses()` is more patient: it remembers the last raw level and when it changed, and accepts a new state only after the raw level has stayed unchanged for the threshold. With a 2 ms threshold the count is 9, because some bounce gaps are longer than 2 ms: the line looks stable long enough to be accepted, then chatters again. With 10, 20 or 50 ms, every cluster is shorter than the window, so each real press is counted once.
+`debounced_presses()` applies the threshold strictly: it remembers the last raw level and when it changed, and accepts a new state only after the raw level has stayed unchanged for the threshold. With a 2 ms threshold the count is 9, because some bounce gaps are longer than 2 ms: the line looks stable long enough to be accepted, then chatters again. With 10, 20 or 50 ms, every cluster is shorter than the window, so each real press is counted once.
 
 ### Choosing a debounce time
 

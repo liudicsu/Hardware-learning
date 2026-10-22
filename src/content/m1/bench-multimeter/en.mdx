@@ -1,6 +1,6 @@
 ## The budget ladder: spend only what the next step requires
 
-Beginners rarely quit because the material is too hard; they quit because they blow the budget on gear they cannot use yet, or they stall waiting for the "perfect" bench. The fix is a ladder: every tier on this list is complete in itself, and each one unlocks a concrete next step. Start at Tier 0 today even if you never spend a cent, and only climb when you actually hit the wall of the tier you are on.
+Beginners rarely stop because the material is too difficult; more often they lose the budget to equipment they cannot use yet, or they delay while waiting for a complete bench. The solution is to spend in stages: each tier below is complete in itself and corresponds to a specific next step. Tier 0 requires no spending and can start today; move to the next tier only when the current one limits the next step.
 
 | Tier | Roughly | What you get | When |
 |------|---------|--------------|------|
@@ -9,17 +9,17 @@ Beginners rarely quit because the material is too hard; they quit because they b
 | Tier 2 | ≈ $110–160 | Add soldering iron, solder, flush cutters, wire strippers, helping hands, perfboard, extra passives | You're ready for permanent circuits |
 | Tier 3 | ≈ $200–300 | Bench power supply, better meter, desoldering pump, storage drawers, robot chassis kit | You want a proper bench |
 
-A few words on what each tier actually buys you. Tier 0 costs nothing because the three tools it names — the Falstad simulator, Tinkercad Circuits and the All About Circuits textbook — are enough to learn circuit reading, Ohm's law and the multimeter's logic (Tinkercad even has a virtual meter). Tier 1 is the "hands arrive" moment: a solderless breadboard kit such as the Elegoo Super Starter covers every project in this month, and a meter covers every measurement below. Tier 2 is when circuits stop being temporary: soldering lets you build things that survive being carried around. Tier 3 is comfort and capability — a bench power supply, stable and adjustable, ends the "is it the battery or my code?" doubt, and a chassis starts real robot work.
+A few words on what each tier actually buys you. Tier 0 costs nothing because the three tools it names — the Falstad simulator, Tinkercad Circuits and the All About Circuits textbook — are enough to learn circuit reading, Ohm's law and the multimeter's logic (Tinkercad even has a virtual meter). Tier 1 is where building starts: a solderless breadboard kit such as the Elegoo Super Starter covers every project in this month, and a meter covers every measurement below. Tier 2 is when circuits stop being temporary: soldering lets you build things that survive being carried around. Tier 3 improves working conditions and capability — a bench power supply, stable and adjustable, removes the "is it the battery or my code?" uncertainty, and a chassis enables actual robot projects.
 
 Prices are approximate, from the course materials (Sep 2026); stores change them constantly, so check the shop before ordering.
 
 <Resource id="elegoo-super" />
 
-## Where to buy: the honest trade-offs
+## Where to buy: price, delivery and support
 
-No store is best at everything. Each of these vendors trades one of three things — price, speed, and support — and knowing which is which saves both money and frustration:
+No store is best at everything. These vendors trade off price, delivery speed and support:
 
-- **AliExpress** is the cheapest anywhere, but shipping stretches to 2–6 weeks and there is effectively no support. Fine for cheap passives you can wait for; painful for your first kit, where a wrong or missing item means a month of waiting.
+- **AliExpress** is the cheapest anywhere, but shipping stretches to 2–6 weeks and there is effectively no support. Fine for cheap passives you can wait for; risky for your first kit, where a wrong or missing item means a month of waiting.
 - **Amazon** sits in the middle: mid-range prices, fast delivery, decent returns. It is the sensible place for the first kit if you are outside mainland China.
 - **Elegoo direct** ships from regional warehouses, so delivery is often around a week, and the price stays near its floor.
 - **Adafruit and SparkFun** cost more per part, but every product page carries a tutorial, a wiring diagram and a real support engineer. When you are stuck, that matters more than the extra dollars. (Note: these are the sites writing the canonical guides we link to, such as the multimeter one below.)
@@ -31,17 +31,17 @@ No store is best at everything. Each of these vendors trades one of three things
 Skip the stores above for your first kit: 淘宝/天猫 and 立创商城（LCSC）are the local fast-and-cheap equivalents — LCSC is also one of the big international component distributors, with genuine datasheets for every part. Buy the starter kit from a well-reviewed seller (look at the review count, not the price), and replacement passives from LCSC directly.
 </Callout>
 
-And one piece of advice that overrides the rest: for your **first** order, pay a little more for speed and a reputable seller, so you are building within days rather than waiting a month for the cheapest possible kit. Enthusiasm decays fast; a kit that arrives in time is what turns Tier 0 theory into a soldering habit. Once you know exactly which parts you burn through regularly, optimize price by all means.
+One piece of advice overrides the rest: for your **first** order, pay a little more for speed and a reputable seller, so you can start within days instead of waiting a month. Initial motivation declines over time; a kit that arrives on time turns Tier 0 theory into practice. Once you know which parts you regularly damage, optimize for price.
 
 ## Anatomy of a multimeter: the jacks, the dial, the ranges
 
 Before you measure anything, understand the three reusable parts. The meter is not one instrument — it is a sensitive voltage meter surrounded by a switchable network of shunts and resistors, and the jacks and dial decide which network your electricity passes through.
 
-**The jacks.** There are usually three or four sockets at the bottom. `COM` is the black lead's home at all times — it is the reference point every measurement is compared against. `VΩ` (sometimes labelled `VΩmA`) is the red lead's home for the vast majority of measurements: volts, ohms, continuity, diodes, and small currents on some meters. The `mA` and `10A`/`20A` jacks are for current only, and they are wired very differently inside — through low-value shunt resistors that route the current through the meter. Two rules follow: the red lead's home moves when you measure current, and it moves **back** to `VΩ` afterwards (forgetting this is the classic way beginners blow meter fuses — more on that below).
+**The jacks.** There are usually three or four sockets at the bottom. The black lead stays in `COM` — it is the reference point every measurement is compared against. The red lead goes in `VΩ` (sometimes labelled `VΩmA`) for the vast majority of measurements: volts, ohms, continuity, diodes, and small currents on some meters. The `mA` and `10A`/`20A` jacks are for current only, and they are wired very differently inside — through low-value shunt resistors that route the current through the meter. Two rules follow: the red lead must move when you measure current, and it must move **back** to `VΩ` afterwards (forgetting this is a common way beginners blow meter fuses — more on that below).
 
 **The dial.** Each position selects what the meter connects and how it interprets the incoming signal: `V⎓` for DC volts (batteries, USB power, logic rails), `V~` for AC volts (wall power and its adapters), `Ω` for resistance, the 🔊-marked position for continuity, one position for diode tests, and `A`/`mA` positions for current. When in doubt, a template: volts for "is there power here?", ohms for "is this connection closed?", amps for "how much is flowing?".
 
-**Ranges: auto or manual.** Auto-range meters (the norm today) pick the decimal point for you and show the `kΩ`/`MΩ`/`mV` prefix on the screen — which is itself a beginner trap to read lazily: a display showing `0.47` in `MΩ` means 470 kΩ, not 0.47 Ω, so always read the unit *with* the digits. Manual-range meters ask *you* to pick the next range **above** what you expect: measuring a 9 V battery, set the 20 V range, not the 2 V (which overflows) and not the 200 V (where 9 V becomes a lazy single digit with one decimal place). Rule of thumb: expect the reading before you dial the range, then narrow down.
+**Ranges: auto or manual.** Auto-range meters (the norm today) pick the decimal point for you and show the `kΩ`/`MΩ`/`mV` prefix on the screen — reading the digits without the unit is a common misreading: a display showing `0.47` in `MΩ` means 470 kΩ, not 0.47 Ω, so always read the unit *with* the digits. Manual-range meters ask *you* to pick the next range **above** what you expect: measuring a 9 V battery, set the 20 V range, not the 2 V (which overflows) and not the 200 V (where 9 V shows only a single digit with one decimal place). Rule of thumb: expect the reading before you dial the range, then narrow down.
 
 The single best resource on all of this:
 
@@ -49,7 +49,7 @@ The single best resource on all of this:
 
 ## Measuring voltage: in parallel, never interrupted
 
-Voltage is a *difference between two points*, so the meter must not disturb the circuit it asks about: you touch the two points from outside, in **parallel** with what you measure, and the meter's very high internal resistance lets it look in without changing anything. This is worth saying twice because it is the mental habit everything else builds on: measuring voltage is *peeking*, never *interrupting*.
+Voltage is the potential difference between two points, so measuring it must not change the circuit: touch the two points from outside, in **parallel** with what you measure. The meter's internal resistance is high, typically in the MΩ range, so the current it draws is small and its effect on the circuit is negligible. This principle underlies everything that follows: a voltage measurement keeps the circuit intact and does not interrupt it.
 
 Procedure: black lead to `COM`, red lead to `VΩ`, dial to `V⎓` for anything battery- or logic-powered. Touch red to the point you believe is higher, black to the lower. On DC meters a negative reading simply means your leads are swapped — it is harmless and sometimes useful, because "the reading is negative" is itself information about which point is higher. Use `V~` only when the thing you measure is genuinely alternating (wall outlets, transformer secondaries).
 
@@ -61,11 +61,11 @@ Used/worn cell:   usually 1.3 V or below, while being capable of cranking much l
 9 V battery:      ≈ 9 V or a little above; below ≈ 8.5 V it is nearly dead
 ```
 
-The fine print: open-circuit voltage flatters tired cells. A battery is internally a perfect voltage source in series with a growing internal resistance; when almost no current is drawn, that resistance drops nothing, so even a dying cell can read 1.4 V. The honest test is measuring *under load* — put the battery in the actual device (or across a resistor sized to draw a normal current) and measure while it works. A cell that reads 1.55 V alone but collapses to 1.1 V with a motor attached is finished, even though both readings looked fine in isolation.
+The fine print: open-circuit voltage overestimates tired cells. A battery is internally a perfect voltage source in series with a growing internal resistance; when almost no current is drawn, that resistance drops nothing, so even a nearly dead cell can read 1.4 V. The meaningful test is measuring *under load* — put the battery in the actual device (or across a resistor sized to draw a normal current) and measure while it works. A cell that reads 1.55 V alone but collapses to 1.1 V with a motor attached is finished, even though both readings looked fine in isolation.
 
 ## Measuring resistance and the colour code
 
-Resistance is measured with the circuit **powered off** — the meter drives its own tiny test current through the component and measures the voltage that this current produces, and any external voltage corrupts the math (and can damage the meter's ohms range). The second rule is subtler and bites even experienced builders: measure the component **out of circuit** whenever practical. In a soldered circuit, a resistor is never alone — everything around it is another path, and parallel paths make the meter read *lower* than the true value. Two resistors that are "1 kΩ each" inside a wired circuit will happily measure 500 Ω between their ends, and the meter is right: it cannot know the current is sneaking through the neighbour.
+Resistance is measured with the circuit **powered off** — the meter drives its own tiny test current through the component and measures the voltage that this current produces, and any external voltage corrupts the math (and can damage the meter's ohms range). The second rule is subtler and is often overlooked: measure the component **out of circuit** whenever practical. In a soldered circuit, a resistor is never alone — everything around it is another path, and parallel paths make the meter read *lower* than the true value. Two resistors that are "1 kΩ each" inside a wired circuit can measure 500 Ω between their ends, and the meter is right: it cannot know the current also flows through the parallel path.
 
 When you do measure a loose resistor, the reading comes with a bonus lesson: the colour code. Small through-hole resistors print their value as 4 (or 5) coloured bands; memorising it means identifying hundreds of loose parts without touching the meter:
 
@@ -98,78 +98,78 @@ And one question about what the measurement actually promises:
 
 <Quiz id="q3" question="A resistor marked 1 kΩ ±5 % measures 1.03 kΩ on your meter. Is it OK?" options={["Yes, within tolerance (950–1050 Ω)", "No, it is broken", "Only if the meter is calibrated"]} answer={0} explanation="±5 % of 1000 Ω is ±50 Ω, so anything between 950 and 1050 Ω is doing exactly what it promised. 1030 Ω is well inside that window." />
 
-One last laboratory-honesty note: when you measure a high resistance (say above ≈ 100 kΩ), do not touch both probe tips with your fingers. Your body is a resistor of a few hundred kΩ to a few MΩ, and by touching both tips you put it **in parallel** with the part — the meter then reads the parallel combination, which is always smaller. The higher the real value, the more your hands lie. Rest the resistor on the desk and touch the probes to its leads, or hold only one lead at a time.
+When you measure a high resistance (say above ≈ 100 kΩ), do not touch both probe tips with your fingers. Your body is a resistor of a few hundred kΩ to a few MΩ, and by touching both tips you put it **in parallel** with the part — the meter then reads the parallel combination, which is always smaller. The higher the real value, the greater the effect of your fingers. Rest the resistor on the desk and touch the probes to its leads, or hold only one lead at a time.
 
-## Continuity mode: the meter as a lie detector for connections
+## Continuity mode: checking whether a connection conducts
 
 Turn the dial to the 🔊 (continuity) position and the meter turns into a connection tester: when the two probe tips touch each other — or the ends of a wire you are holding one probe to each end of — it emits an audible beep to announce that a low-resistance path exists. Most meters beep below roughly a few tens of ohms and stay silent above that, which is exactly the discrimination you want: a real connection should be far below, and even a faint accidental one is far above.
 
-What makes continuity mode the workhorse of real troubleshooting is that it works with **no power applied**, so it is the tool for questions like "is this wire actually connected inside?". Its four core uses, in rough order of frequency:
+What makes continuity mode the most used function in real troubleshooting is that it works with **no power applied**, so it is the tool for questions like "is this wire actually connected inside?". Its four core uses, in rough order of frequency:
 
-- **Finding broken wires**: jumper wires die invisibly all the time — the plastic looks perfect while the copper inside is fractured. Beep from end to end to pass judgment.
+- **Finding broken wires**: jumper wires often fail without external signs — the plastic looks perfect while the copper inside is fractured. Check continuity from end to end to decide.
 - **Checking a solder joint**: probe both ends of the trace you soldered; a joint that does not beep is not made yet.
 - **Confirming a connection before you trust it**: probe point A and point B you believe are on the same net.
-- **The pre-power ritual**: probe across your board's power input and its ground. It must **not** beep (an unexpected beep there means a short circuit between supply and ground, and powering up would be an incident). This one check has saved more beginners' boards than any other habit.
+- **The pre-power check**: probe across your board's power input and its ground. It must **not** beep (an unexpected beep there means a short circuit between supply and ground, and powering up would cause a short). This habit has prevented damage to more boards than any other.
 
-A practice exercise ahead of any real repair: make your own broken jumper deliberately. Take a sacrificial wire, cut through the copper with flush cutters while *leaving the insulation intact*, then continuity-test a handful of jumpers including this one. The one that looks perfect but refuses to beep is your fault line — and after one round you will never fully trust appearance over a beep again.
+A practice exercise ahead of any real repair: make your own broken jumper deliberately. Take a sacrificial wire, cut through the copper with flush cutters while *leaving the insulation intact*, then continuity-test a handful of jumpers including this one. The one that looks perfect but does not beep is the break you made — and after one round you will not judge a connection by appearance alone.
 
-## Measuring current: in series, and with respect
+## Measuring current: in series, and protecting the meter
 
 Current is the opposite question from voltage: not "how much potential is here?" but "how much charge passes **through** this wire?". There is exactly one way to count everything passing through a wire: break the wire and route it through the meter. So the meter goes **in series** — you literally open the circuit at the point of interest and let the meter complete it. Inside, the current-mode meter is a nearly-zero-ohm path (a shunt), because a measuring device must not reduce what it measures.
 
 Procedure, in the order that protects the meter:
 
 1. Move the **red lead out of `VΩ` and into `mA`** (small currents) or the `10A`/`20A` jack (anything that might exceed a few hundred mA, e.g. a motor branch).
-2. Set the dial to the current range — on a manual meter, start on the **highest range**, then narrow down; the cheap meter fuse is precious.
+2. Set the dial to the current range — on a manual meter, start on the **highest range**, then narrow down; the fuse is not resettable.
 3. Power the circuit off, break it at the measurement point, insert the meter in series (current flows in the red lead, out the black, back into the circuit).
 4. Power on, read, and immediately return the red lead to `VΩ` — see the warning below.
 
-<Callout type="danger" title="Never in parallel with a source — this is the meter killer">
-An ammeter is almost a short circuit. If you put the meter, in current mode, **across a battery or power supply** (red tip on +, black on −), the supply will see only the shunt's near-zero resistance and push as much current as it can — the meter fuse blows instantly, and a meter without a proper fuse can burn or even destroy the source. This is the single most common way beginners wreck a multimeter. The habit that saves you: after ANY current measurement, move the red lead back to `VΩ` while thinking out loud — current done, lead back. Meters that survived years all belong to people with this reflex.
+<Callout type="danger" title="Never in parallel with a source — this damages the meter">
+An ammeter is almost a short circuit. If you put the meter, in current mode, **across a battery or power supply** (red tip on +, black on −), the supply will see only the shunt's near-zero resistance and deliver current limited only by its internal resistance — the meter fuse blows instantly, and a meter without a proper fuse can burn or even destroy the source. This is the single most common way beginners wreck a multimeter. The habit to build: after ANY current measurement, move the red lead back to `VΩ` while thinking out loud — current done, lead back. This habit prevents damage to the meter.
 </Callout>
 
 <Falstad title="Ammeter in series vs across the battery" circuit="ammeterSeriesParallel" height={420} />
 
-On its current range the meter is modelled as a 0.1 Ω shunt plus a fuse. With switch Sser closed it is in series with a 220 Ω load on a 9 V battery and reads about 41 mA, and the shunt drops only about 4 mV, so it barely disturbs the circuit. Now open Sser and close Spar so the same meter sits across the battery: the battery sees only about 0.15 Ω, about 60 A flows in this ideal simulation, and the fuse blows in about 0.15 ms (a real 9 V battery has internal resistance, so the current is lower, but still hundreds of times beyond any mA range). Reload the page to replace the fuse — you cannot do that so cheaply on a real meter.
+On its current range the meter is modelled as a 0.1 Ω shunt plus a fuse. With switch Sser closed it is in series with a 220 Ω load on a 9 V battery and reads about 41 mA, and the shunt drops only about 4 mV, so it barely disturbs the circuit. Now open Sser and close Spar so the same meter sits across the battery: the battery sees only about 0.15 Ω, about 60 A flows in this ideal simulation, and the fuse blows in about 0.15 ms (a real 9 V battery has internal resistance, so the current is lower, but still hundreds of times beyond any mA range). Reload the page to reset the simulation; a real meter's fuse must be replaced.
 
 The arithmetic behind these readings: the meter path is the 0.1 Ω shunt plus the 0.05 Ω fuse of the model, 0.15 Ω in total. In series, I = 9 V / (220 Ω + 0.15 Ω) = 40.9 mA, and the shunt drops 0.1 Ω × 40.9 mA = 4.1 mV. Across the battery, only the meter path is left: I = 9 V / 0.15 Ω = 60 A.
 
 <Quiz id="q4" question="To measure the current through an LED you place the meter…" options={["in parallel with the LED", "in series with the LED", "between the supply and ground"]} answer={1} explanation="Current is measured through a point, so the circuit must be broken and the meter inserted in series with the LED. In parallel you would short the LED; between supply and ground you would short the supply and blow the fuse." />
 
-A practical note: because breaking the circuit is mildly annoying, you will not measure current often. On breadboards, plan ahead with a breakable loop in the branch you care about, or cross-check with the voltage-based route: measure the voltage across a known resistor and compute I = V ÷ R, which usually answers the same question without touching the circuit. Save true in-series ammeter work for the times it genuinely matters, e.g. characterising a motor.
+A practical note: because breaking the circuit is inconvenient, you will not measure current often. On breadboards, plan ahead with a breakable loop in the branch you care about, or cross-check with the voltage-based route: measure the voltage across a known resistor and compute I = V ÷ R, which usually answers the same question without breaking the circuit. Save true in-series ammeter work for the times it genuinely matters, e.g. measuring a motor's operating current.
 
 ## A troubleshooting routine that actually finds faults
 
-When a circuit misbehaves, random probing wastes hours while structured probing finds the fault in minutes. Wandering poke-testers and bench veterans have the same multimeter; the difference is entirely in the procedure. This six-step routine is the distilled habits of people who do it for a living:
+When a circuit misbehaves, random probing can take hours while a structured procedure locates the fault in minutes. A random prober and an experienced engineer may use the same multimeter; the difference is the procedure. This six-step sequence summarises the order used in practical troubleshooting:
 
-1. **Visual check first.** Power off and look: around a breadboard, wires in the wrong hole, swapped components, a pin not where you thought it was. A surprising fraction of dead circuits confess at this stage.
-2. **Power off, continuity from power to ground.** Probe across the supply and ground rails looking for an unexpected beep — i.e. a short. Better to find it now than to watch parts die pinned to a supply.
-3. **Power on, verify the supply rail at the chip — not at the battery.** A 5 V rail can read 5 V at the battery and 3 V at the far chip, because every wire and connector in between eats voltage when current flows. Measure where the part actually lives.
+1. **Visual check first.** Power off and look: around a breadboard, wires in the wrong hole, swapped components, a pin not in the expected position. A surprising fraction of failed circuits are found at this stage.
+2. **Power off, continuity from power to ground.** Probe across the supply and ground rails looking for an unexpected beep — i.e. a short. Finding it now avoids damaging components when power is applied.
+3. **Power on, verify the supply rail at the chip — not at the battery.** A 5 V rail can read 5 V at the battery and 3 V at the far chip, because every wire and connector in between drops voltage when current flows. Measure at the chip's supply pin.
 4. **Follow the signal, input to output.** Measure voltages one point at a time along the path you designed, checking each stage against the value you expect there.
-5. **Compare against your own calculation.** Measured 4.7 V where you had computed 4.7 V? That stage is fine — move on. Measured 0 V where you predicted 2.4 V? You just localised the fault to between the two probes. Numbers make debugging arithmetic instead of archaeology.
+5. **Compare against your own calculation.** Measured 4.7 V where you had computed 4.7 V? That stage is fine — move on. Measured 0 V where you predicted 2.4 V? The fault is between the two probes. Comparing numbers localises the fault stage by stage.
 6. **Change one thing at a time.** Every change is an experiment; two changes at once destroy the information about which one mattered. Change, re-test, log, repeat.
 
-And a genuinely useful fact for this month: you do not need hardware to practise all six steps — Tinkercad Circuits has a virtual multimeter, so wire a simulated circuit, break it on purpose (a wrong-value pull-up here, a missing ground there) and run the routine against it. Practise on the simulation so that, the day real smoke is involved, the procedure is muscle memory.
+And a genuinely useful fact for this month: you do not need hardware to practise all six steps — Tinkercad Circuits has a virtual multimeter, so wire a simulated circuit, introduce a fault deliberately (for example a wrong-value pull-up or a missing ground), and run the routine against it. Practise on the simulation so that the procedure is established before a real circuit fails.
 
 ## Common mistakes, and a checklist before moving on
 
-Mistakes you will now recognise in others (and hopefully never in yourself):
+Common mistakes follow:
 
 - Measuring resistance with power on — the readings mean nothing and the ohms range can be damaged.
 - Measuring a resistor in-circuit and trusting the low reading, when parallel paths were the real cause.
 - Touching both probes with fingers on high-value measurements; your body quietly lands in parallel.
-- Trusting the open-circuit voltage of a tired battery; test under load before condemning a device.
-- Leaving the red lead in the `mA`/`10A` jack after a current measurement, then measuring voltage — that fuse is now a memory.
-- Putting the meter in current mode across supply and ground; see the previous line (they often happen as a pair).
+- Trusting the open-circuit voltage of a tired battery; test under load before deciding whether it is usable.
+- Leaving the red lead in the `mA`/`10A` jack after a current measurement, then measuring voltage — the fuse will blow.
+- Putting the meter in current mode across supply and ground; see the previous line (they often occur together).
 - Forgetting the continuity check between power and ground before powering a freshly wired board.
-- Waiting weeks for the absolute cheapest first kit, then losing the motivation weeks were meant to buy.
+- Waiting weeks for the absolute cheapest first kit, then losing the motivation to continue.
 
 Before moving on, you should be able to answer "yes" to all of these:
 
-- I can name what each jack (COM, VΩ, mA, 10A) is for, and where the red lead lives during and after a current measurement.
+- I can name what each jack (COM, VΩ, mA, 10A) is for, and which jack the red lead belongs in during and after a current measurement.
 - I know parallel for voltage, series for current — and why each is that way.
 - I can read 4-band colour codes by hand, including the multiplier and tolerance, and accept tolerance as part of spec.
-- I know resistance is measured powered-off and out-of-circuit, and why my hands skew high-value readings.
+- I know resistance is measured powered-off and out-of-circuit, and why fingers affect high-value readings.
 - I have used continuity to find a dead wire, and I check power-to-ground for shorts before powering anything.
 - I can walk the six-step troubleshooting routine from memory, and I have (at least) run it in Tinkercad.
-- My first kit — or my plan for it — is ordered from a reputable-enough source that it arrives while I still care.
+- My first kit — or my plan for it — is ordered from a reliable source so that it arrives while I still have the motivation to start.

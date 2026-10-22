@@ -6,7 +6,7 @@ Three parts. A **vision encoder** turns each camera image into a sequence of fea
 
 There are two ways to build the action output, and they decide much of a model's behaviour:
 
-- **Actions as tokens.** Extend the language model's vocabulary with action tokens and let it write actions the way it writes words, one token after another. RT-2 and OpenVLA work like this; π0-FAST does too, with a better tokeniser.
+- **Actions as tokens.** Extend the language model's vocabulary with action tokens and let it generate action tokens autoregressively, one token after another. RT-2 and OpenVLA work like this; π0-FAST does too, with a better tokeniser.
 - **A separate action head.** Feed the language model's features into a smaller network that produces a whole chunk of continuous actions, by diffusion or flow matching (a close relative of the diffusion you met in the [previous lesson](/en/month/month-6/act-diffusion)). Octo, π0, π0.5, SmolVLA and GR00T work like this.
 
 The first approach reuses the language model unchanged but has to decide how to write actions as tokens. That is the part you can run and inspect without a GPU.
@@ -142,7 +142,7 @@ bins: 180 tokens, error rms 0.892 deg, max 6.194 deg (6 values outside the 1st..
 
 </SimOutput>
 
-Each bin is about 0.6 degrees wide, so a value inside the range is off by at most half a bin, 0.3 degrees. The maximum error of 6.2 degrees comes from the 6 values in this new episode that lie outside the dataset's percentiles and were clipped: the tokeniser simply cannot express a motion bigger than the ones it was built from. The cost is length: one second of a 6-joint arm is 180 tokens, and the model has to generate them one at a time.
+Each bin is about 0.6 degrees wide, so a value inside the range is off by at most half a bin, 0.3 degrees. The maximum error of 6.2 degrees comes from the 6 values in this new episode that lie outside the dataset's percentiles and were clipped: the tokeniser cannot express a motion bigger than the ones it was built from. The cost is length: one second of a 6-joint arm is 180 tokens, and the model has to generate them one at a time.
 
 The token row for joint 0 shows the other problem. At 30 Hz consecutive actions are close, so each token is a small step from the last; 102 of the 174 step-to-step changes are 2 bins or less. A model trained to predict the next token can score well by copying the previous one, which teaches it very little. The faster you sample, the worse this gets.
 
@@ -177,7 +177,7 @@ DCT of each joint over the chunk, normalised to -1..1, then scale and round:
 
 </SimOutput>
 
-Joint 0's whole second of motion is five small integers followed by zeros. The scale is the knob between length and accuracy: at scale 10 the chunk needs 28 numbers instead of 180 (6.4 times fewer) for about 1.1 degrees rms error; at scale 100 it needs 70 for 0.18 degrees. Each coefficient also describes the shape of the whole chunk rather than one moment, so predicting it is a real decision, not a copy of the previous token.
+Joint 0's whole second of motion is five small integers followed by zeros. The scale sets the trade-off between length and accuracy: at scale 10 the chunk needs 28 numbers instead of 180 (6.4 times fewer) for about 1.1 degrees rms error; at scale 100 it needs 70 for 0.18 degrees. Each coefficient also describes the shape of the whole chunk rather than one moment, so predicting it is a real decision, not a copy of the previous token.
 
 <Quiz id="q3" question="At scale 30 the DCT needs 41 nonzero coefficients for the chunk. How many times fewer numbers is that than the 180 bin tokens?" answer={4.4} explanation="180 / 41 = 4.4. The rms error is 0.50 degrees, smaller than the bins' 0.89 degrees, because the DCT has no clipping and spreads the rounding error over the chunk." />
 
@@ -206,7 +206,7 @@ lerobot-train --policy.path=lerobot/smolvla_base --dataset.repo_id=${HF_USER}/pi
 
 ## What a VLA does not do for you
 
-A VLA does not remove the work from the previous lessons; it moves it. You still need a good dataset of your robot, with the variation and recoveries you want it to handle. You still need to evaluate it on a fixed set of conditions. And "zero-shot" claims only hold for robots and scenes like those in the pretraining data: OpenVLA's own model card says it does not generalise to unseen robot embodiments without fine-tuning. What you gain is language conditioning (one model, many instructions) and a better starting point, so fewer demonstrations per task.
+A VLA does not remove the work of the previous lessons; it relocates it. You still need a good dataset of your robot, with the variation and recoveries you want it to handle. You still need to evaluate it on a fixed set of conditions. And "zero-shot" claims only hold for robots and scenes like those in the pretraining data: OpenVLA's own model card says it does not generalise to unseen robot embodiments without fine-tuning. What you gain is language conditioning (one model, many instructions) and a better starting point, so fewer demonstrations per task.
 
 ## Common mistakes
 
