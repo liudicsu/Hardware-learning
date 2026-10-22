@@ -172,7 +172,7 @@ Here is why the naive conversion is not enough. Take a raw reading of 2048, half
 2048 × 3.3 V / 4095 = 6758.4 / 4095 = 1.6504 V ≈ 1.65 V
 ```
 
-A calibrated reading of the same input may differ by tens of millivolts, and that difference is exactly the error the factory calibration removes. Trust `analogReadMilliVolts()`, and average several readings to reduce noise: eight or sixteen samples, summed and divided, is a good habit. Keep the readings on ADC1 if Wi-Fi is running, and remember that the ADC measures against its own reference, not against a perfect 3.3 V.
+A calibrated reading of the same input can differ by about 0.1 V. With the default 12 dB attenuation the ESP32-S3 ADC nominally measures 0 to 3.1 V, not 0 to 3.3 V (ESP-IDF ADC documentation), so a raw 2048 is nearer 2048 × 3.1 V / 4096 ≈ 1.55 V, and each chip's internal reference (nominally 1.1 V, between 1.0 and 1.2 V from chip to chip) shifts the result further. That difference is exactly the error the factory calibration removes. Trust `analogReadMilliVolts()`, and average several readings to reduce noise: eight or sixteen samples, summed and divided, is a good habit. Keep the readings on ADC1 if Wi-Fi is running, and remember that the ADC measures against its own reference, not against a perfect 3.3 V.
 
 <Quiz id="q4" question="A 12-bit ADC: how many distinct codes does it have?" answer={4096} explanation="A 12-bit converter has 2^12 = 4096 codes, numbered 0 to 4095." />
 
@@ -200,15 +200,15 @@ MicroPython deserves its own warning. It is excellent for reading a sensor, plot
 
 A hobby servo does not take an angle as a number. It expects a pulse every 20 ms, which is a 50 Hz frame, and the width of that pulse sets the angle. The common convention is 1.0 ms for 0°, 1.5 ms for 90° and 2.0 ms for 180°. Many servos actually accept something wider, roughly 0.5 ms to 2.5 ms, but the safe habit is to stay within the range your servo's datasheet gives. Driving past an end stop makes the motor push against a mechanical limit, draw a stall current, heat up and eventually strip a gear.
 
-The ESP32 generates this signal with its <Term id="ledc">**LEDC**</Term> peripheral, a PWM block with hardware timers and channels. In Arduino-ESP32 core 3.x the API is compact: call `ledcAttach(pin, frequency, resolutionBits)` once, then `ledcWrite(pin, duty)` whenever you want a new pulse width. The resolution is in bits, so 14 bits gives duty values from 0 to 16383.
+The ESP32 generates this signal with its <Term id="ledc">**LEDC**</Term> peripheral, a PWM block with hardware timers and channels. In Arduino-ESP32 core 3.x the API is compact: call `ledcAttach(pin, frequency, resolutionBits)` once, then `ledcWrite(pin, duty)` whenever you want a new pulse width. The resolution is in bits, so 14 bits gives duty values from 0 to 16384 (2^14).
 
-<Formula label="LEDC duty for a pulse">duty = pulse / period × (2^bits − 1)</Formula>
+<Formula label="LEDC duty for a pulse">duty = pulse / period × 2^bits</Formula>
 
-At 50 Hz the period is 1 / 50 = 0.02 s = 20 ms. With 14 bits, the maximum duty is 2^14 − 1 = 16383. For a 1.5 ms pulse:
+At 50 Hz the period is 1 / 50 = 0.02 s = 20 ms. With 14 bits, the duty runs from 0 to 2^14 = 16384, and 16384 means the output stays high for the whole period (ESP-IDF LEDC driver). For a 1.5 ms pulse:
 
 ```text
 pulse / period = 1.5 ms / 20 ms = 0.075
-duty = 0.075 × 16383 = 1228.725
+duty = 0.075 × 16384 = 1228.8
 integer result: 1228
 ```
 
@@ -216,17 +216,17 @@ The sketch in the project below uses the same integer maths inside `angleToDuty(
 
 ```text
 angle   0 -> duty 819
-angle  45 -> duty 1023
+angle  45 -> duty 1024
 angle  90 -> duty 1228
 angle 135 -> duty 1433
 angle 180 -> duty 1638
 ```
 
-Notice that the values are not perfectly evenly spaced: 819, 1023, 1228, 1433, 1638. The steps are 204, 205, 205, 205. That is normal. The conversion divides integers and throws away the remainder at each stage, so a half-count here and there disappears. At 14 bits one duty step is 20 ms / 16384 ≈ 1.22 µs, which is far finer than a hobby servo can resolve, so the truncation does not matter in practice.
+Notice that the values are not perfectly evenly spaced: 819, 1024, 1228, 1433, 1638. The steps are 205, 204, 205, 205. That is normal. The conversion divides integers and throws away the remainder at each stage, so a half-count here and there disappears. At 14 bits one duty step is 20 ms / 16384 ≈ 1.22 µs, which is far finer than a hobby servo can resolve, so the truncation does not matter in practice.
 
 Powering the servo is where beginners most often make mistakes. Hobby-servo listings rarely state a stall current, so measure your own: put the multimeter on its 10 A range in series with the servo's power lead (Month 1, The bench), command an angle, and read the current while the servo moves, while it holds still, and, for no more than a second or two, while you hold the horn so it cannot reach the angle (the stall case). Compare the stall reading with what the supply can deliver. A computer's USB 2.0 port is specified for 500 mA, and the dev board's 3.3 V regulator also supplies the ESP32, so neither can carry a servo's stall current: the rail sags and the ESP32 resets on brownout. Power the servo from a separate 5–6 V supply, connect its ground to the ESP32's ground, and feed only the signal wire from the GPIO. The 3.3 V signal is usually accepted by a 5 V servo as a logic high, but check the datasheet if the servo is an unusual one.
 
-<Quiz id="q6" question="50 Hz, 14-bit LEDC: what duty value (integer, rounded down) gives a 2.0 ms pulse?" answer={1638} explanation="duty = 2.0 / 20 × 16383 = 0.1 × 16383 = 1638.3, rounded down to 1638." />
+<Quiz id="q6" question="50 Hz, 14-bit LEDC: what duty value (integer, rounded down) gives a 2.0 ms pulse?" answer={1638} explanation="duty = 2.0 / 20 × 16384 = 0.1 × 16384 = 1638.4, rounded down to 1638." />
 
 ## Project: a phone-controlled servo
 
@@ -254,7 +254,7 @@ const char *WIFI_PASS = "your-password";
 const int SERVO_PIN = 18;
 const int POT_PIN = 34;        // classic ESP32: GPIO 34 is on ADC1 (works with Wi-Fi on). ESP32-S3: use GPIO 4.
 const int SERVO_HZ = 50;       // standard hobby servo frame: 20 ms
-const int SERVO_BITS = 14;     // duty resolution: 0..16383
+const int SERVO_BITS = 14;     // duty resolution: 0..16384
 
 WebServer server(80);
 int servoAngle = 90;
@@ -262,7 +262,7 @@ int servoAngle = 90;
 // 0..180 degrees -> 1000..2000 us pulse -> LEDC duty value
 uint32_t angleToDuty(int angle) {
   uint32_t us = 1000 + (uint32_t)angle * 1000 / 180;
-  return us * ((1UL << SERVO_BITS) - 1) / 20000;
+  return us * (1UL << SERVO_BITS) / 20000;
 }
 
 void setServo(int angle) {
@@ -386,7 +386,7 @@ Before you move on, you should be able to say yes to all of these:
 - 3.3 V logic, not 5 V tolerant: a 1 kΩ / 2 kΩ divider gives 3.333 V, nominally 0.86 V above VIH = 2.475 V.
 - ESP32-S3 pins to keep free: strapping 0, 3, 45, 46; USB 19, 20; UART0 43, 44; flash and PSRAM 26–32 (and 35–37 with octal PSRAM); ADC1 is GPIO 1–10.
 - ADC: 12 bits, default `ADC_11db` range about 0–3.1 V; read volts with `analogReadMilliVolts()`.
-- LEDC servo pulse: duty = pulse / period × (2^bits − 1); 1.5 ms at 50 Hz and 14 bits gives 1228.
+- LEDC servo pulse: duty = pulse / period × 2^bits; 1.5 ms at 50 Hz and 14 bits gives 1228.
 - Power servos from a separate 5–6 V supply with a common ground, and measure their stall current.
 
 **Used next**
