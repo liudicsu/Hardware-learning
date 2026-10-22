@@ -92,8 +92,8 @@ export const glossary: GlossaryEntry[] = [
     id: "adc",
     term: { zh: "模数转换器（ADC）", en: "analog-to-digital converter (ADC)" },
     def: {
-      zh: "把连续电压转换成离散数字量的外设。Uno 的 ADC 是 10 位，在 0–5 V 范围内输出 0–1023，一个最低有效位约为 5 V / 1023 ≈ 4.9 mV。",
-      en: "A peripheral that converts a continuous voltage into a discrete number. The Uno's ADC is 10-bit, producing 0–1023 over 0–5 V, so one least-significant bit is about 5 V / 1023 ≈ 4.9 mV.",
+      zh: "把连续电压转换成离散数字量的外设。Uno 的 ADC 是 10 位，在 0–5 V 范围内输出 0–1023，一个最低有效位约为 5 V / 1024 ≈ 4.9 mV。",
+      en: "A peripheral that converts a continuous voltage into a discrete number. The Uno's ADC is 10-bit, producing 0–1023 over 0–5 V, so one least-significant bit is about 5 V / 1024 ≈ 4.9 mV.",
     },
     lesson: "arduino-io",
     firstExplained: true,
@@ -526,8 +526,8 @@ export const glossary: GlossaryEntry[] = [
     id: "ledc",
     term: { zh: "LED PWM 控制器（LEDC）", en: "LED PWM controller (LEDC)" },
     def: {
-      zh: "ESP32 内部带硬件定时器和通道的 PWM 外设，用来产生舵机脉冲或调光。Arduino-ESP32 3.x 用 ledcAttach(pin, frequency, resolutionBits) 配置、ledcWrite(pin, duty) 改脉宽；50 Hz、14 位时 duty 范围为 0–16383。",
-      en: "The ESP32's hardware PWM peripheral, with timers and channels, used for servo pulses or dimming. Arduino-ESP32 3.x configures it with ledcAttach(pin, frequency, resolutionBits) and changes the pulse with ledcWrite(pin, duty); at 50 Hz and 14 bits, duty runs from 0 to 16383.",
+      zh: "ESP32 内部带硬件定时器和通道的 PWM 外设，用来产生舵机脉冲或调光。Arduino-ESP32 3.x 用 ledcAttach(pin, frequency, resolutionBits) 配置、ledcWrite(pin, duty) 改脉宽；50 Hz、14 位时 duty 范围为 0–16384（16384 表示整个周期都是高电平）。",
+      en: "The ESP32's hardware PWM peripheral, with timers and channels, used for servo pulses or dimming. Arduino-ESP32 3.x configures it with ledcAttach(pin, frequency, resolutionBits) and changes the pulse with ledcWrite(pin, duty); at 50 Hz and 14 bits, duty runs from 0 to 16384 (16384 keeps the output high for the whole period).",
     },
     lesson: "esp32",
     firstExplained: true,
@@ -556,8 +556,8 @@ export const glossary: GlossaryEntry[] = [
     id: "h-bridge",
     term: { zh: "H 桥", en: "H-bridge" },
     def: {
-      zh: "四只开关围着电机、形似字母 H 的电路，可让直流电机正转、反转、短路刹车或滑行。TB6612FNG 每通道 1.0 A（绝对最大值 1.2 A），DRV8833 每通道约 1.2 A，芯片内部已含体二极管和死区逻辑。",
-      en: "Four switches around a motor, drawn like the letter H, that let a DC motor run forward, reverse, brake or coast. The TB6612FNG handles 1.0 A per channel (1.2 A absolute maximum) and the DRV8833 about 1.2 A, and they include body diodes and dead-time logic.",
+      zh: "四只开关围着电机、形似字母 H 的电路，可让直流电机正转、反转、短路刹车或滑行。TB6612FNG 每通道 1.0 A（绝对最大值 1.2 A），DRV8833 每通道约 1.2 A（Pololu #2130 模块的持续电流值），芯片内部已含体二极管和死区逻辑。",
+      en: "Four switches around a motor, drawn like the letter H, that let a DC motor run forward, reverse, brake or coast. The TB6612FNG handles 1.0 A per channel (1.2 A absolute maximum) and the DRV8833 about 1.2 A (the continuous rating of the Pololu #2130 carrier module), and they include body diodes and dead-time logic.",
     },
     lesson: "motors-drivers",
     firstExplained: true,

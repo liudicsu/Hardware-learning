@@ -36,6 +36,12 @@ OK means all of these held: HTTP 200, no response ≥ 400, 0 console errors, no 
 `/Hardware-learning` and all return 200 (this confirms the #49 fix on the live site). Every popover has its
 lesson link and glossary link.
 
+Embedded simulators: Wokwi appears only as link cards (no iframe). The first pass did not scroll through each page,
+and the Falstad iframes are mounted only when they scroll near the viewport, so their console errors were not
+counted then. A second pass (live site, deploy of 23ea9f0, 1280 px) scrolled every Month 2 lesson from top to bottom,
+zh and en, and waited 2.5 s: the four lessons with Falstad circuits (arduino-io, esp32, motors-drivers,
+sensors-fusion) loaded all their iframes, with 0 console errors, 0 page errors and 0 responses ≥ 400.
+
 ## Results: glossary and firstExplained
 
 All 35 terms used in Month 2 point to the first lesson that wraps them, and zh and en wrap the same terms in
@@ -54,6 +60,7 @@ every lesson. Problems found, all fixed in this PR:
 - Left as is: `bit-byte-hex` is assigned to arduino-io but no lesson wraps it. Hexadecimal is worked through on
   the math reference page (`/math#hex`, linked from sensors-fusion). The term only appears on /glossary. Wrapping
   it is a content decision for the Month 1/2 polish and is not needed for correctness.
+  TODO: wrap the first use of bit-byte-hex in lesson text (zh and en) and mark it firstExplained.
 
 ## Results: content and facts
 
@@ -79,7 +86,10 @@ esp32 (divider already confirmed):
   240 MHz (15× the Uno, 256× its RAM), VIH = 0.75 × 3.3 V = 2.475 V, absolute maximum about 3.6 V; strapping
   GPIO 0, 3, 45, 46; USB 19/20; UART0 43/44; flash/PSRAM 26–32 and 35–37 with octal PSRAM; JTAG 39–42; ADC1 GPIO
   1–10, ADC2 11–20. Classic ESP32: flash GPIO 6–11, input-only 34–39, strapping 0, 2, 5, 12, 15, ADC1 GPIO
-  32–39. LEDC: 1.0/1.25/1.5/1.75/2.0 ms at 50 Hz and 14 bits → 819, 1023, 1228, 1433, 1638.
+  32–39. LEDC: 1.0/1.25/1.5/1.75/2.0 ms at 50 Hz and 14 bits → 819, 1024, 1228, 1433, 1638.
+  Correction (fix PR after 23ea9f0): this line first said 1023 and was marked Checked, but the lesson's formula used
+  2^bits − 1. ESP-IDF's LEDC driver uses duty / 2^bits with duty from 0 to 2^bits (espressif/esp-idf PR #11516), so
+  1.25 ms is 0.0625 × 16384 = 1024. The lesson, curriculum, glossary and web_servo.ino now use 2^bits.
 
 motors-drivers:
 - Checked: Romi 120:1 (Pololu #1520) 130 mA free run and 1.25 A stall at 4.5 V (R = 3.6 Ω, as in #48);
@@ -87,7 +97,7 @@ motors-drivers:
   1.0 A per channel, 1.2 A absolute maximum, 2 A for 20 ms pulses, VM up to 13.5 V (as in #48); A4988
   I_max = Vref / (8 × R_CS) with 0.068 Ω (since 2017) or 0.050 Ω; stepper 1.8° → 200 steps.
 - Note, no change: "the DRV8833 also gives about 1.2 A per channel" is Pololu's continuous rating for its carrier
-  (#2130); TI's datasheet recommends at most 1.5 A per channel and Pololu measured that 1.2–1.3 A is what the chip
+  (#2130); TI's datasheet (SLVSAR1E) rates 1.5 A RMS (2 A peak) per H-bridge only for the PWP and RTY packages, at VM = 5 V and 25 °C (its recommended-operating table lists 1.5 A for RTY at VM = 5 V), and 500 mA RMS (2 A peak) for the PW package and Pololu measured that 1.2–1.3 A is what the chip
   sustains without thermal shutdown. "About 1.2 A" is the realistic number for a beginner. The sentence already
   tells readers to check their own breakout.
 
@@ -115,3 +125,8 @@ differences are numbers written out as words in en ("five thousand", "42nd", "ei
   en.mdx was removed.
 - curriculum.ts, act-diffusion "run" task: "check it against the −0.017 m it prints" now says to check that the
   hand result falls in the −3 to −1 cm bin, where the script counts all 200 averaging moves (zh and en).
+
+## Retest after 23ea9f0 (2026-10-22)
+
+tools/check_text_size.mjs was re-run against the deployed site (deploy of main 23ea9f0, CI-built export) at 390 px
+and 1280 px: 156 pages, 0 problems (no text under 12 px, no horizontal overflow).

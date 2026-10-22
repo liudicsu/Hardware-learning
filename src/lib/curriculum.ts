@@ -206,7 +206,7 @@ const month2Lessons: Lesson[] = [
     objectives: [
       { zh: "能为项目挑选 ESP32 型号，并说明为什么课程主力是 S3、同时经典板仍值得备一块。", en: "Choose an ESP32 variant for a project and explain why the S3 is the main board while a classic board is still worth owning." },
       { zh: "能用上 1 kΩ、下 2 kΩ 的分压器把 5 V 信号降到 3.333 V，接进不耐 5 V 的 3.3 V 引脚。", en: "Make a 5 V signal safe for a 3.3 V pin with a 1 kΩ / 2 kΩ divider giving 3.333 V." },
-      { zh: "能按 duty = pulse / period × (2^bits − 1) 算出 LEDC 占空比：50 Hz、14 位下 1.5 ms 脉冲对应 1228。", en: "Calculate an LEDC duty value with duty = pulse / period × (2^bits − 1): 1.5 ms at 50 Hz and 14 bits gives 1228." },
+      { zh: "能按 duty = pulse / period × 2^bits 算出 LEDC 占空比：50 Hz、14 位下 1.5 ms 脉冲对应 1228。", en: "Calculate an LEDC duty value with duty = pulse / period × 2^bits: 1.5 ms at 50 Hz and 14 bits gives 1228." },
       { zh: "能说出经典 ESP32 上要避开的引脚（GPIO 6–11、strapping 引脚 GPIO 0/2/5/12/15、开 Wi-Fi 时的 ADC2），并说明各自会出什么问题。", en: "Name the classic ESP32 pins to avoid — GPIO 6–11, strapping GPIO 0/2/5/12/15, ADC2 under Wi-Fi — and what each causes." },
     ],
     prereqs: ["arduino-io", "timing-interrupts"],
@@ -726,7 +726,7 @@ const month6Lessons: Lesson[] = [
     },
     minutes: 240,
     objectives: [
-      { zh: "能手算均值策略在岔口的横向动作 (−7 + 3) / 10 × 4.16 = −1.66 cm（即 −0.017 m），并解释它为什么撞上方块、成功率只有 67/100，而采样是 99/100。", en: "Compute the averaging policy's sideways move as (−7 + 3) / 10 × 4.16 = −1.66 cm (−0.017 m), and explain its 67/100 success against 99/100 for sampling." },
+      { zh: "能手算均值策略在岔口的横向动作 (−7 + 3) / 10 × 4.16 = −1.66 cm（即 −0.017 m），并解释它为什么撞上方块、成功率只有 67/100，而采样是 99/100。", en: "Compute the averaging policy's sideways move at the fork as (−7 + 3) / 10 × 4.16 = −1.66 cm (−0.017 m), and explain its 67/100 success against 99/100 for sampling." },
       { zh: "能说明 ACT 一次预测 k = 100 个动作（50 Hz 下 2 秒）并用时间集成混合动作块，也能解释开环代价：块长 4、8、16 的成功率依次是 98/100、88/100、80/100。", en: "Explain how ACT predicts k = 100 actions at 50 Hz (2 s) and blends chunks by temporal ensembling, and why longer chunks cost success: 4, 8 and 16 give 98/100, 88/100 and 80/100." },
       { zh: "能写出扩散的前向加噪 x_s = √ᾱ_s · x_0 + √(1 − ᾱ_s) · ε，并说明 Diffusion Policy 预测 16 个动作、执行前 8 个，以及每个动作块要多次通过网络、推理时间有代价。", en: "Write the forward noising x_s = √ᾱ_s · x_0 + √(1 − ᾱ_s) · ε, and explain that Diffusion Policy predicts 16 actions, executes the first 8, and needs repeated network passes per chunk." },
       { zh: "能在同一份 LeRobot 数据集上分别用 --policy.type=act 与 --policy.type=diffusion 训练，并用同一组固定起始位置比较成功率和失败发生的位置。", en: "Train --policy.type=act and --policy.type=diffusion on the same LeRobot dataset, then compare success and failure locations over one fixed set of start positions." },
@@ -734,7 +734,7 @@ const month6Lessons: Lesson[] = [
     prereqs: ["behaviour-cloning", "so101-arm"],
     resources: ["act-paper", "diffusion-policy", "lerobot-il-robots"],
     tasks: [
-      { id: "run", text: { zh: "运行 multimodal.py，用 7 : 3 的近邻比例手算均值策略在岔口的横向动作，确认它落在输出中均值策略 200 次全部所在的 −3 到 −1 cm 这一格", en: "Run multimodal.py and work out by hand, from the 7 : 3 neighbours, the averaging policy's sideways move at the fork; check that it falls in the −3 to −1 cm bin, where the script counts all 200 averaging moves" } },
+      { id: "run", text: { zh: "运行 multimodal.py，用 7 : 3 的近邻比例手算均值策略在岔口的横向动作（−1.66 cm）；再打印它在刚过岔口的 (0, 0.23) 处实际给出的动作：在 examples/month-6/act-diffusion 目录下运行 python3 -c 'import random, multimodal as m; d = m.Demos(m.record_demos(40, random.Random(5))); print(round(100 * m.average_policy(d)((0, 0.23), 0)[0][0], 2))'，确认它打印出 −1.74（单位 cm），与课文表格一致", en: "Run multimodal.py and work out by hand, from the 7 : 3 neighbours, the averaging policy's sideways move at the fork (−1.66 cm). Then print the move it actually makes just past the fork, at (0, 0.23): in examples/month-6/act-diffusion run python3 -c 'import random, multimodal as m; d = m.Demos(m.record_demos(40, random.Random(5))); print(round(100 * m.average_policy(d)((0, 0.23), 0)[0][0], 2))' and confirm it prints −1.74 (in cm), the value in the lesson's table" } },
       { id: "one-side", text: { zh: "让专家只从左边绕（side 固定为 −1），再比较 average 和 sample 的成功率，解释为什么差距消失", en: "Make the expert always pass on the left (side fixed at −1), compare average and sample again, and explain why the gap disappears" } },
       { id: "chunk-length", text: { zh: "把方块的 HALF 改成 0.12，再跑 chunk 4、8、16，画出成功率随块长的变化", en: "Change the block's HALF to 0.12, run chunk 4, 8 and 16 again, and plot success against chunk length" } },
       { id: "train-real", text: { zh: "（有 GPU 和数据集时）用 LeRobot 在同一数据集上训练 ACT 和 Diffusion Policy，在同样 10 个起始位置上各测 10 次，记录成功率和每个动作块的推理时间", en: "(With a GPU and a dataset) train ACT and Diffusion Policy on the same LeRobot dataset, test each 10 times at the same 10 start positions, and record success and inference time per chunk" } },
