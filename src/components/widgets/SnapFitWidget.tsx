@@ -39,7 +39,7 @@ export function SnapFitWidget() {
         </p>
         <Readout label={t("snapPush")} value={finite ? `${fixed(s.W, 1)} N` : t("snapLocks")} testId="snap-push" />
       </div>
-      <pre className="mt-3 overflow-x-auto whitespace-pre rounded-lg bg-black/30 p-2 text-[11px] text-zinc-300" data-testid="snap-line">
+      <pre className="mt-3 overflow-x-auto whitespace-pre rounded-lg bg-black/30 p-2 text-xs text-zinc-300" data-testid="snap-line">
         {s.line}
       </pre>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">

@@ -1,4 +1,60 @@
-import type { BlockDiagramSpec } from "../types";
+import type { BlockDiagramSpec, Layout } from "../types";
+
+// Tree rows top to bottom: [node id, depth, sub lines]. Rows are 30 units tall with no sub line, 34 with one and
+// 48 with two (label 12.3 + sub lines 12.3, BlockDiagram.tsx); each row is indented 18 units per level and hangs
+// from its parent's trunk (parent x + 9), which ends at the middle of the row's label.
+const ROWS: [string, number, number][] = [
+  ["root", 0, 0],
+  ["src", 1, 0],
+  ["pkg", 2, 0],
+  ["packageXml", 3, 1],
+  ["setupPy", 3, 2],
+  ["setupCfg", 3, 0],
+  ["resourceMarker", 3, 2],
+  ["module", 3, 0],
+  ["initPy", 4, 0],
+  ["helloNode", 4, 1],
+  ["build", 1, 1],
+  ["install", 1, 2],
+  ["log", 1, 0],
+];
+const PARENT: Record<string, string> = {
+  src: "root", pkg: "src", packageXml: "pkg", setupPy: "pkg", setupCfg: "pkg", resourceMarker: "pkg", module: "pkg",
+  initPy: "module", helloNode: "module", build: "root", install: "root", log: "root",
+};
+const EDGE: Record<string, string> = {
+  src: "t-src", pkg: "t-pkg", packageXml: "t-package-xml", setupPy: "t-setup-py", setupCfg: "t-setup-cfg",
+  resourceMarker: "t-resource", module: "t-module", initPy: "t-init", helloNode: "t-hello", build: "t-build",
+  install: "t-install", log: "t-log",
+};
+const ROW_H = [30, 34, 48];
+const FONT = 12.3;
+
+function tree(widths: Record<string, number>, w: number): Layout {
+  const nodes: Layout["nodes"] = {};
+  const mid: Record<string, number> = {};
+  let y = 4;
+  for (const [id, depth, subs] of ROWS) {
+    const h = ROW_H[subs];
+    nodes[id] = [depth * 18, y, widths[id], h];
+    // middle of the label line (see the label baseline in BlockDiagram.tsx)
+    mid[id] = Math.round(subs ? y + h / 2 - 2 - ((subs - 1) * (FONT + 2.5)) / 2 - FONT * 0.36 : y + h / 2);
+    y += h;
+  }
+  const edges: Layout["edges"] = {};
+  for (const [id, parent] of Object.entries(PARENT)) {
+    const [px, py, , ph] = nodes[parent];
+    const x = px + 9;
+    edges[EDGE[id]] = { pts: [[x, py + ph], [x, mid[id]], [nodes[id][0], mid[id]]] };
+  }
+  return { w, h: y + 4, nodes, edges };
+}
+
+const NARROW_W: Record<string, number> = {
+  root: 72, src: 60, pkg: 90, packageXml: 212, setupPy: 196, setupCfg: 90, resourceMarker: 196,
+  module: 90, initPy: 100, helloNode: 112, build: 184, install: 280, log: 60,
+};
+const WIDE_W = Object.fromEntries(Object.entries(NARROW_W).map(([id, v]) => [id, v + 40]));
 
 export const ros2WorkspaceTree: BlockDiagramSpec = {
   kind: "block",
@@ -22,7 +78,7 @@ export const ros2WorkspaceTree: BlockDiagramSpec = {
     {
       id: "setupPy",
       label: "setup.py",
-      sub: { zh: "安装规则和它提供的命令", en: "install rules and the commands it provides" },
+      sub: { zh: "安装规则和它提供的命令", en: "install rules and\nthe commands it provides" },
       shape: "file",
       mono: true,
     },
@@ -30,7 +86,7 @@ export const ros2WorkspaceTree: BlockDiagramSpec = {
     {
       id: "resourceMarker",
       label: "resource/m4_hello",
-      sub: { zh: "让 ROS 找到包的标记文件", en: "marker file so ROS can find the package" },
+      sub: { zh: "让 ROS 找到包的标记文件", en: "marker file so ROS\ncan find the package" },
       shape: "file",
       mono: true,
     },
@@ -54,7 +110,7 @@ export const ros2WorkspaceTree: BlockDiagramSpec = {
     {
       id: "install",
       label: "install/",
-      sub: { zh: "由 colcon build 创建：要 source 的目录", en: "created by colcon build: what you source" },
+      sub: { zh: "由 colcon build 创建：要 source 的目录", en: "created by colcon build:\nwhat you source" },
       shape: "file",
       mono: true,
       tone: "muted",
@@ -75,74 +131,7 @@ export const ros2WorkspaceTree: BlockDiagramSpec = {
     { id: "t-install", tone: "muted", arrow: false },
     { id: "t-log", tone: "muted", arrow: false },
   ],
-  layouts: {
-    narrow: {
-      w: 340,
-      h: 400,
-      nodes: {
-        root: [0, 4, 70, 30],
-        src: [18, 34, 60, 30],
-        pkg: [36, 64, 90, 30],
-        packageXml: [54, 94, 180, 30],
-        setupPy: [54, 124, 284, 30],
-        setupCfg: [54, 154, 90, 30],
-        resourceMarker: [54, 184, 284, 30],
-        module: [54, 214, 90, 30],
-        initPy: [72, 244, 90, 30],
-        helloNode: [72, 274, 110, 30],
-        build: [18, 304, 160, 30],
-        install: [18, 334, 300, 30],
-        log: [18, 364, 60, 30],
-      },
-      edges: {
-        "t-src": { pts: [[9, 34], [9, 49], [18, 49]] },
-        "t-pkg": { pts: [[27, 64], [27, 79], [36, 79]] },
-        "t-package-xml": { pts: [[45, 94], [45, 103], [54, 103]] },
-        "t-setup-py": { pts: [[45, 94], [45, 133], [54, 133]] },
-        "t-setup-cfg": { pts: [[45, 94], [45, 169], [54, 169]] },
-        "t-resource": { pts: [[45, 94], [45, 193], [54, 193]] },
-        "t-module": { pts: [[45, 94], [45, 229], [54, 229]] },
-        "t-init": { pts: [[63, 244], [63, 259], [72, 259]] },
-        "t-hello": { pts: [[63, 244], [63, 283], [72, 283]] },
-        "t-build": { pts: [[9, 34], [9, 313], [18, 313]] },
-        "t-install": { pts: [[9, 34], [9, 343], [18, 343]] },
-        "t-log": { pts: [[9, 34], [9, 379], [18, 379]] },
-      },
-    },
-    wide: {
-      w: 480,
-      h: 400,
-      nodes: {
-        root: [0, 4, 150, 30],
-        src: [18, 34, 140, 30],
-        pkg: [36, 64, 170, 30],
-        packageXml: [54, 94, 260, 30],
-        setupPy: [54, 124, 300, 30],
-        setupCfg: [54, 154, 170, 30],
-        resourceMarker: [54, 184, 320, 30],
-        module: [54, 214, 170, 30],
-        initPy: [72, 244, 170, 30],
-        helloNode: [72, 274, 190, 30],
-        build: [18, 304, 240, 30],
-        install: [18, 334, 352, 30],
-        log: [18, 364, 140, 30],
-      },
-      edges: {
-        "t-src": { pts: [[9, 34], [9, 49], [18, 49]] },
-        "t-pkg": { pts: [[27, 64], [27, 79], [36, 79]] },
-        "t-package-xml": { pts: [[45, 94], [45, 103], [54, 103]] },
-        "t-setup-py": { pts: [[45, 94], [45, 133], [54, 133]] },
-        "t-setup-cfg": { pts: [[45, 94], [45, 169], [54, 169]] },
-        "t-resource": { pts: [[45, 94], [45, 193], [54, 193]] },
-        "t-module": { pts: [[45, 94], [45, 229], [54, 229]] },
-        "t-init": { pts: [[63, 244], [63, 259], [72, 259]] },
-        "t-hello": { pts: [[63, 244], [63, 283], [72, 283]] },
-        "t-build": { pts: [[9, 34], [9, 313], [18, 313]] },
-        "t-install": { pts: [[9, 34], [9, 343], [18, 343]] },
-        "t-log": { pts: [[9, 34], [9, 379], [18, 379]] },
-      },
-    },
-  },
+  layouts: { narrow: tree(NARROW_W, 340), wide: tree(WIDE_W, 480) },
   facts: [
     {
       file: "examples/month-4/ros2-setup/m4_hello/setup.py",
