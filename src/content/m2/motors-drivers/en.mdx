@@ -53,21 +53,7 @@ Same code, same duty, same robot, but about 14 % more speed simply because the b
 
 A DC motor needs current in either direction, and a microcontroller pin cannot supply that current or reverse it. The circuit that solves both problems is the **H-bridge**: four switches arranged around the motor, named after the shape of the schematic.
 
-```text
-            +V (motor supply)
-             |
-      +------+------+
-      |             |
-     S1            S3
-      |             |
-      +--- MOTOR ---+
-      |             |
-     S2            S4
-      |             |
-      +------+------+
-             |
-            GND
-```
+<Diagram id="hbridge-current-path" />
 
 Close S1 and S4 and current flows from +V through the motor to GND: forward. Close S2 and S3 instead and current flows the other way: reverse. Close both low-side switches, S2 and S4, and the motor terminals are connected together through ground: the motor is shorted and brakes hard. The forbidden state is closing S1 and S2 at the same time, or S3 and S4 at the same time. That puts a direct path from +V to GND through two switches — **shoot-through** — and the resulting current can destroy the bridge in microseconds. Real driver chips include logic and dead time to make that state impossible, which is one good reason to use a chip instead of building four discrete MOSFETs on a breadboard.
 
@@ -75,7 +61,7 @@ Close S1 and S4 and current flows from +V through the motor to GND: forward. Clo
 
 The labels in the circuit match the diagram above: S1 is top-left, S2 bottom-left, S3 top-right, S4 bottom-right. The motor is modelled as 10 Ω + 10 mH with an ammeter, and the supply is 6 V with 0.5 Ω standing for supply and wiring resistance.
 
-It starts with S1 + S4 closed: forward, and the ammeter reads about +0.57 A. Open those two and close S2 + S3: about −0.57 A, same size, opposite sign — reverse. S2 + S4: both motor terminals tied to ground, 0 A from rest; to go from forward straight to brake, press RUN / Stop to pause, open S1 and close S2, then run again: the current keeps circulating in the lower loop and dies away within a few milliseconds (in this model it falls to about a third in 1 ms). On a phone the RUN / Stop button is in Falstad's side panel (open the menu), or do this step on a computer. A real spinning motor's back-EMF keeps driving that braking current until it stops. Then the forbidden state: close S1 and S2 together (or S3 and S4): about 12 A flows straight from +V to GND, limited only by the 0.5 Ω, and the motor gets 0 A — that is shoot-through.
+It starts with S1 + S4 closed: forward, and the ammeter reads about +0.57 A. Open those two and close S2 + S3: about −0.57 A, same size, opposite sign — reverse. S2 + S4: both motor terminals tied to ground, 0 A from rest; to go from forward straight to brake, press RUN / Stop to pause, open S1 and close S2, then run again: the current keeps circulating in the lower loop and dies away within a few milliseconds (in this model it falls to about 37 %, slightly more than a third, in 1 ms). On a phone the RUN / Stop button is in Falstad's side panel (open the menu), or do this step on a computer. A real motor that is still turning also works as a generator: its back-EMF drives a current the other way round the same loop, and that reverse current brakes the motor until it stops. Then the forbidden state: close S1 and S2 together (or S3 and S4): about 12 A flows straight from +V to GND, limited only by the 0.5 Ω, and the motor gets 0 A — that is shoot-through.
 
 Note: this toy model has no diodes and no dead time, so opening a switch while current flows also shows the inductive kickback explained in the next section; real driver chips have body diodes and dead time built in.
 
@@ -91,6 +77,8 @@ The TB6612FNG has a simple control table. Each channel has two direction inputs 
 | L | H | PWM | Reverse |
 | H | H | any | Short brake (fast stop) |
 | L | L | any | Stop (coast) |
+
+On the TB6612FNG the two motor outputs are AO1 and AO2 (often written OUT1 and OUT2). AO1 is the left half-bridge of the H-bridge diagram above (S1/S2) and AO2 the right one (S3/S4). IN1/IN2 = H/L drives AO1 high and AO2 low, which is S1 + S4: forward. H/H pulls both outputs low, which is S2 + S4: the short brake.
 
 STBY must be HIGH or the outputs stay disabled and nothing moves. That pin catches almost everyone once: the code looks perfect, the motor is silent, and the only problem is a floating standby input. Tie it HIGH deliberately, or drive it from a pin so you can disable the driver in software.
 

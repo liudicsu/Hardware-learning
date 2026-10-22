@@ -87,7 +87,122 @@ export interface BlockDiagramSpec {
   facts: DiagramFact[];
 }
 
-export type DiagramSpec = BlockDiagramSpec;
+/* ---------- circuit (current path) diagrams ---------- */
+
+/**
+ * Two-terminal parts (switch, button, resistor, motor) sit at `at`, run along `dir` and have their
+ * terminals at at ± len/2. A switch or button conducts only in the states that list it in `closed`.
+ */
+export type CircuitPartType = "switch" | "button" | "resistor" | "motor" | "supply" | "ground" | "node" | "box" | "text";
+
+export interface CircuitPart {
+  id: string;
+  type: CircuitPartType;
+  at: Point;
+  dir?: "v" | "h";
+  /** Terminal-to-terminal length of a two-terminal part (default 36). */
+  len?: number;
+  /** box only: width and height, with `at` as the top-left corner. */
+  size?: [number, number];
+  label?: L10n;
+  labelAt?: Point;
+  anchor?: "start" | "middle" | "end";
+  mono?: boolean;
+  tone?: Tone;
+}
+
+export interface CircuitWire {
+  id: string;
+  pts: Point[];
+}
+
+export interface CircuitState {
+  id: string;
+  /** Short name on the state button. */
+  label: L10n;
+  /** One or two sentences shown under the diagram for this state. */
+  text: L10n;
+  /** Switch and button ids that are closed (all others are open). */
+  closed: string[];
+  /** Parts and wires not drawn in this state (e.g. a resistor that is not fitted). */
+  hidden?: string[];
+  /** Conventional current, drawn along these points; check_diagrams verifies it only runs over wires and conducting parts. */
+  flow?: Point[];
+  /**
+   * A path normally starts at a supply and ends at a ground. A current that only circulates in a closed loop
+   * (e.g. an H-bridge brake) sets this to the reason; the path must then be closed and must not touch a supply.
+   */
+  loopReason?: string;
+  tone?: Tone;
+  /** Short reading drawn at the spec's readoutAt (current, pin level). */
+  readout?: L10n;
+}
+
+/** A number drawn in a diagram, computed in the spec from the circuit values and compared with the lesson. */
+export interface DiagramNumber {
+  note: string;
+  value: number;
+  expect: number;
+  tol: number;
+}
+
+export interface CircuitSpec {
+  kind: "circuit";
+  id: string;
+  title: L10n;
+  caption?: L10n;
+  sources: string[];
+  /** One layout for every screen width; at most 360 units wide so it reads at 390 px. */
+  w: number;
+  h: number;
+  parts: CircuitPart[];
+  wires: CircuitWire[];
+  states: CircuitState[];
+  readoutAt?: Point;
+  numbers?: DiagramNumber[];
+  facts: DiagramFact[];
+}
+
+/* ---------- timing diagrams (rendered by <TimingSvg> from src/components/diagrams/Timing.tsx) ---------- */
+
+export interface TimingSpecSignal {
+  name: L10n;
+  kind?: "digital" | "bus";
+  /** digital: 1 / 0, "x" unknown, "z" released. */
+  levels?: (number | "x" | "z")[];
+  /** bus: one value per column. */
+  values?: L10n[];
+  tone?: Tone;
+  /** Dashed line at this fraction of the trace height with a label at the right (e.g. PWM average voltage). */
+  average?: { level: number; label: L10n };
+}
+
+export interface TimingSpecStep {
+  label: L10n;
+  /** Column to highlight. */
+  column?: number;
+  /** Signals drawn at full strength in this step (others dimmed). */
+  signals?: number[];
+}
+
+export interface TimingSpec {
+  kind: "timing";
+  id: string;
+  title: L10n;
+  caption?: L10n;
+  sources: string[];
+  /** Relative column widths (e.g. durations); default equal. */
+  columns?: number[];
+  signals: TimingSpecSignal[];
+  rows?: { name: L10n; cells: L10n[]; mono?: boolean }[];
+  spans?: { from: number; to: number; label: L10n; side?: "top" | "bottom" }[];
+  axisLabel?: L10n;
+  steps?: TimingSpecStep[];
+  numbers?: DiagramNumber[];
+  facts: DiagramFact[];
+}
+
+export type DiagramSpec = BlockDiagramSpec | CircuitSpec | TimingSpec;
 
 export function tx(text: L10n | undefined, locale: Locale): string {
   if (text === undefined) return "";

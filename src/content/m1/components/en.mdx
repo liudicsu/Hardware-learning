@@ -149,6 +149,8 @@ Why 10 kΩ? The resistor only needs to hold the level, not supply current. Too l
 
 Good news: many MCUs have configurable internal pull-ups, usable with one setting (`INPUT_PULLUP` on Arduino), and then the external resistor can go — but note this automatically means "pressed reads LOW".
 
+<Diagram id="pullup-external" />
+
 <Falstad title="Pull-up plus push button: 5 V released, 0 V pressed" circuit="pullupButton" height={380} />
 
 While the button is released the pin probe shows 5 V: no current flows, so the 10 kΩ drops nothing. Hold the button (it is momentary: press and hold with the mouse) and the pin reads 0 V while 5 V / 10 kΩ = 0.5 mA flows through the resistor. That small current is the price of a pull-up, and why 10 kΩ rather than 100 Ω.

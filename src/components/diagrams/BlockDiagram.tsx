@@ -1,7 +1,7 @@
 import { useId } from "react";
 import { tx, type BlockDiagramSpec, type Layout, type Locale, type Tone } from "@/lib/diagrams/types";
 
-const TONE: Record<Tone, string> = {
+export const TONE: Record<Tone, string> = {
   ink: "var(--dg-ink)",
   muted: "var(--dg-muted)",
   a: "var(--dg-a)",
@@ -12,7 +12,7 @@ const TONE: Record<Tone, string> = {
 
 export const DG_FONT = 12;
 export const DG_SUB_FONT = 10.5;
-const MONO = "var(--font-mono)";
+export const MONO = "var(--font-mono)";
 
 export interface BlockDiagramSvgProps {
   spec: BlockDiagramSpec;
