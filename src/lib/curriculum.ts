@@ -276,7 +276,7 @@ const month2Lessons: Lesson[] = [
       { zh: "能以 error = setpoint − measurement 为基础，用机器人实际表现讲清 P、I、D 三个项各自的作用。", en: "Explain P, I and D from what the robot actually did when you changed each gain, starting from error = setpoint − measurement." },
       { zh: "能先用纯 P 调好循线小车，再加入 D，并为每次尝试记录 KP、KD 与 BASE_PWM。", en: "Tune the line follower with P only, then add D, and log KP, KD and BASE_PWM for every attempt." },
       { zh: "能用 micros() 把自平衡车的控制循环固定在 200 Hz，配互补滤波与 40° 倾角断电保护。", en: "Run the balancer at a fixed 200 Hz using micros(), with a complementary filter and a 40° cut-off that stops the motors." },
-      { zh: "能把两台机器人放到 GitHub，并写上 README、调参日志以及出过的故障的诚实记录。", en: "Put both robots on GitHub with a README, a tuning log and an honest account of what broke." },
+      { zh: "能把两台机器人放到 GitHub，并写上 README、调参日志以及出过的故障及其原因的记录。", en: "Put both robots on GitHub with a README, a tuning log and a record of each failure and its cause." },
     ],
     prereqs: ["sensors-fusion", "motors-drivers"],
     resources: ["romi-chassis", "qtr-8rc", "tb6612-breakout", "drv8833", "romi-gearmotor-encoder", "esp32-s3-devkit", "labbe-kalman"],
@@ -767,8 +767,8 @@ const month6Lessons: Lesson[] = [
     slug: "policy-evaluation",
     title: { zh: "评估一个策略：置信区间、配对试验与失败分析", en: "Evaluating a policy: intervals, paired trials and failure analysis" },
     summary: {
-      zh: "从少量试验里得到诚实的数字：用 Wilson 区间看清 10/10 只说明成功率大概高于 72 %，同一策略十组 10 次试验从 4 到 9 不等；用逐次固定种子（真机上是固定的起始位置清单）做配对比较和 McNemar 检验，算出区分两个成功率要多少次试验，再用失败表找出下一步该修什么，最后为你的机械臂写一份评估规程。",
-      en: "Get honest numbers out of few trials: Wilson intervals show that 10/10 only means the rate is probably above 72 %, and ten 10-trial sessions of one policy range from 4 to 9; compare policies trial by trial with per-trial seeds (a fixed list of start positions on hardware) and McNemar's test, work out how many trials a comparison needs, use a failure table to find what to fix next, and write an evaluation protocol for your arm.",
+      zh: "从少量试验中量化成功率的不确定性：用 Wilson 区间看清 10/10 只说明成功率大概高于 72 %，同一策略十组 10 次试验从 4 到 9 不等；用逐次固定种子（真机上是固定的起始位置清单）做配对比较和 McNemar 检验，算出区分两个成功率要多少次试验，再用失败表找出下一步该修什么，最后为你的机械臂写一份评估规程。",
+      en: "Quantify the uncertainty of a success rate from few trials: Wilson intervals show that 10/10 only means the rate is probably above 72 %, and ten 10-trial sessions of one policy range from 4 to 9; compare policies trial by trial with per-trial seeds (a fixed list of start positions on hardware) and McNemar's test, work out how many trials a comparison needs, use a failure table to find what to fix next, and write an evaluation protocol for your arm.",
     },
     minutes: 180,
     objectives: [

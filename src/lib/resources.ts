@@ -209,8 +209,8 @@ export const resources: Record<string, Resource> = {
     kind: "course",
     cost: { zh: "可免费旁听", en: "Free to audit" },
     summary: {
-      zh: "如果 CS50P 太陡，这是最温和的起点，讲师以对新手友好著称。",
-      en: "The gentlest start if CS50P feels too steep, from one of the most beginner-friendly instructors online.",
+      zh: "进度比 CS50P 慢、习题更少的 Python 入门课，适合先补基础再学 CS50P。",
+      en: "A slower-paced Python introduction with fewer exercises than CS50P, suited to building the basics before CS50P.",
     },
     license: seeSite,
   },
@@ -412,8 +412,8 @@ export const resources: Record<string, Resource> = {
     kind: "guide",
     cost: { zh: "免费", en: "Free" },
     summary: {
-      zh: "你真正应该用的那颗驱动芯片：引脚、接线、库和选择它的理由。",
-      en: "Pinout, wiring and library for the driver you should actually use, and why.",
+      zh: "本课推荐的 MOSFET 双路驱动芯片：引脚、接线、库，以及相对 L298N 的压降优势。",
+      en: "Pinout, wiring and library for the dual MOSFET driver this lesson recommends, and its voltage-drop advantage over the L298N.",
     },
     license: { zh: "CC BY-SA 4.0，© SparkFun Electronics", en: "CC BY-SA 4.0, © SparkFun Electronics" },
   },
@@ -451,8 +451,8 @@ export const resources: Record<string, Resource> = {
     kind: "guide",
     cost: { zh: "免费", en: "Free" },
     summary: {
-      zh: "片上完成传感器融合、直接输出四元数的 IMU。想“花钱绕过数学”时的选择。",
-      en: "An IMU that fuses on-chip and hands you a quaternion: the option for buying your way out of the maths.",
+      zh: "片上完成传感器融合、直接输出四元数的 IMU；用它可以不在 MCU 上运行互补滤波或卡尔曼滤波。",
+      en: "An IMU that fuses on-chip and outputs a quaternion, so the MCU does not have to run a complementary or Kalman filter.",
     },
     license: { zh: "CC BY-SA，© Adafruit Industries", en: "CC BY-SA, © Adafruit Industries" },
   },

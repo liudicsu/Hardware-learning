@@ -155,7 +155,7 @@ void loop() {
 
 The important idea is the `if (state != lastState)` block. Without it, the program would print the button state thousands of times per second, filling the monitor with identical lines and hiding the moment that actually matters. By storing the previous state, we print one line per **change**.
 
-You may see two or three lines for a single press. A real mechanical button does not close cleanly: its metal contacts bounce against each other for a few milliseconds, producing several rapid HIGH/LOW transitions. The sketch is reporting them honestly. The next lesson adds debouncing so one press produces exactly one event.
+You may see two or three lines for a single press. A real mechanical button does not close cleanly: its metal contacts bounce against each other for a few milliseconds, producing several rapid HIGH/LOW transitions. The sketch prints every one of those level changes. The next lesson adds debouncing so one press produces exactly one event.
 
 <Quiz id="q2" question="With pinMode(2, INPUT_PULLUP) and a button from pin 2 to GND, what does digitalRead(2) return while the button is NOT pressed?" options={["LOW", "HIGH", "It changes randomly"]} answer={1} explanation="The internal pull-up resistor holds the pin near 5 V when the button is open, so it reads HIGH. Pressing the button connects the pin to GND and makes it LOW." />
 
