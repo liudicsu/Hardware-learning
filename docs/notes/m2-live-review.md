@@ -146,15 +146,35 @@ and 1280 px: 156 pages, 0 problems (no text under 12 px, no horizontal overflow)
   limit in adc_calibration.rst is for the ESP32-C2 only). The 0–3100 mV figure for ADC_11db on the ESP32-S3 is
   from the Arduino-ESP32 ADC documentation (docs/en/api/adc.rst, checked at 0b70aff), so the lesson now cites
   that. The attenuator paragraph (en/zh line 165) carries the sources (Arduino docs 0–3100 mV, datasheet v2.2
-  Table 5-6 0–2900 mV ±50 mV); line 175 only names the setting (12 dB = ADC_ATTEN_DB_12 in ESP-IDF v5.2+
-  (hal/adc_types.h; v5.0 and v5.1 have only ADC_ATTEN_DB_11, the rename was backported to v5.0.5 and v5.1.3) =
-  ADC_11db in Arduino) and says readings above 2.9 V are unreliable.
+  Table 5-6 0–2900 mV ±50 mV); line 175 only names the setting (12 dB = ADC_ATTEN_DB_12 in ESP-IDF, old name
+  ADC_ATTEN_DB_11, renamed in v4.4.7/v5.0.5/v5.1.3/v5.2, a deprecated alias through v5.x, removed in v6.0;
+  = ADC_11db in Arduino) and says readings above 2.9 V are unreliable. The wording follows the header source.
+  Checked in components/hal/include/hal/adc_types.h at the tags: only ADC_ATTEN_DB_11 in v4.4.6, v5.0.4 and v5.1.2;
+  ADC_ATTEN_DB_12 plus the deprecated ADC_ATTEN_DB_11 alias in v4.4.7, v4.4.8, v5.0.5, v5.0.7, v5.1.3, v5.1.6,
+  v5.2 and v5.5. From v6.0 the file is components/esp_hal_ana_conv/include/hal/adc_types.h (code still writes
+  `#include "hal/adc_types.h"`); at v6.0, v6.0.3, v6.1 and master it defines only ADC_ATTEN_DB_12, with no
+  ADC_ATTEN_DB_11: https://raw.githubusercontent.com/espressif/esp-idf/v6.0/components/esp_hal_ana_conv/include/hal/adc_types.h
 - esp32 LEDC: the lesson, glossary and web_servo.ino no longer say 16384 is fully high at 14 bits. Duty is
   generally 0 to 2^bits, but the ESP32-S3 (14-bit timers) cannot take 2^bits at its maximum resolution (ESP-IDF
   LEDC docs warning), and Arduino's ledcWrite() maps 16383 to 16384, so a 100 % output needs 13 bits or fewer.
   The servo uses 5–10 % duty and is unaffected. The angle -> duty table, the prose value list and the steps are
   now bound to angleToDuty() in tools/check_diagrams.mjs (mutation-tested: 1024 -> 1023 in the table and
-  1228 -> 1229 in the prose list both fail).
+  1228 -> 1229 in the prose list both fail). A follow-up also binds the 1.5 ms worked example (0.075,
+  1228.8, integer 1228; en/zh lines 209-212), the 819-to-1638 duty range, the summary line "gives 1228"
+  (line 389) and the curriculum goal in src/lib/curriculum.ts.
 - CI flag: next.config.ts and tools/postbuild.mjs both use tools/is-ci.mjs, so only CI=1 or CI=true
-  (case-insensitive, so CI=TRUE counts too) selects the Pages export and its base-path check; CI unset or
-  CI=false builds and checks the root-path site.
+  (case-insensitive, so CI=TRUE counts too) selects the Pages export and its base-path check. With CI unset
+  or CI=false the build is the root-path site, and postbuild runs only tools/check_quotes.py: the base-path
+  check is skipped (PAGES_BASE_PATH=/Hardware-learning npm run build still runs it).
+
+## Review follow-up, round 6
+
+- tools/check_text_size.mjs is not in CI and cannot be added there: CI is .github/workflows/ci.yml, and the
+  token has no workflow scope. It is run by hand, once plain and once with NOJS=1 (JavaScript disabled, first
+  paint). Its wait is for the chart/wilson measurement to complete (every [data-widget="chart"] and
+  [data-widget="wilson-bar"] has its measured viewBox), not for hydration of the whole page.
+- esp32 Quiz q6 (answer 1638, 2.0 ms at 50 Hz and 14 bits) is now bound to angleToDuty(180) in
+  tools/check_diagrams.mjs, together with the 16384 and 1638.4 in its explanation.
+- `torque` and `backlash`: a beginner first meets both in motors-drivers (Month 2), which wraps them, but the
+  glossary's related lesson is transmissions (Month 3). As with `low-high-pass-filter`, the entries stay on
+  transmissions, which derives them (P = τ × ω and the gear-train torque; backlash per mesh and its tip error).

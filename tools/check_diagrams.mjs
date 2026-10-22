@@ -770,7 +770,7 @@ for (const f of existsSync(dataDir) ? readdirSync(dataDir).filter((f) => f.endsW
   console.log(`calc  act-diffusion: average_policy at (0, 0.23) = act-fork.json mean ${want} cm, quoted in curriculum (zh/en) and Quiz q1 (zh/en)`);
 }
 
-// esp32: the lesson's angle -> duty table and its step list are what web_servo.ino's angleToDuty() returns.
+// esp32: the lesson's angle -> duty table, step list, 1.5 ms example and summary are what web_servo.ino's angleToDuty() returns.
 // Recompute from the sketch's own constants with the same unsigned integer maths and bind every quoted row.
 {
   const ino = readFileSync(join(root, "examples/month-2/esp32/web_servo/web_servo.ino"), "utf8");
@@ -793,7 +793,34 @@ for (const f of existsSync(dataDir) ? readdirSync(dataDir).filter((f) => f.endsW
       const l = text.match(listRe);
       ok(l && l[1].trim() === want.join(sep), `esp32 ${lang}: value list ${l ? l[1] : "(not found)"} != ${want.join(sep)}`);
     }
-    console.log(`calc  esp32: angleToDuty at ${bits[1]} bits = ${want.join(", ")} (steps ${steps.join(", ")}), bound to the table, value list and step list in en/zh`);
+    // The 1.5 ms worked example (angle 90), the summary line, the 5-10 % duty range and the curriculum goal
+    // quote the same numbers: recompute them from the sketch and require each quoted string.
+    const hz = 1e6 / Number(dv[1]);
+    const us90 = Number(us[1]) + Math.floor((90 * Number(us[2])) / Number(us[3]));
+    const full = 2 ** Number(bits[1]);
+    const ms = (v) => String(v / 1000);
+    const ex = `pulse / period = ${ms(us90)} ms / ${ms(Number(dv[1]))} ms = ${us90 / Number(dv[1])}\nduty = ${us90 / Number(dv[1])} × ${full} = ${(us90 * full) / Number(dv[1])}\n`;
+    const curriculum = readFileSync(join(root, "src/lib/curriculum.ts"), "utf8");
+    const quotes = {
+      en: [ex + `integer result: ${duty(90)}\n`, `${ms(us90)} ms at ${hz} Hz and ${bits[1]} bits gives ${duty(90)}.`, `(${want[0]} to ${want[4]})`],
+      zh: [ex + `取整数: ${duty(90)}\n`, `${hz} Hz、${bits[1]} 位下 ${ms(us90)} ms 对应 ${duty(90)}。`, `（${want[0]} 到 ${want[4]}）`],
+    };
+    for (const [lang, list] of Object.entries(quotes)) {
+      const text = readFileSync(join(root, `src/content/m2/esp32/${lang}.mdx`), "utf8");
+      for (const q of list) ok(text.includes(q), `esp32 ${lang}: expected ${JSON.stringify(q)} (from angleToDuty(90) = ${duty(90)})`);
+    }
+    for (const q of [`${hz} Hz、${bits[1]} 位下 ${ms(us90)} ms 脉冲对应 ${duty(90)}`, `${ms(us90)} ms at ${hz} Hz and ${bits[1]} bits gives ${duty(90)}`])
+      ok(curriculum.includes(q), `curriculum.ts: expected "${q}" (from angleToDuty(90) = ${duty(90)})`);
+    // Quiz q6 (2.0 ms pulse = angle 180): the answer and the last number of its explanation are angleToDuty(180).
+    const us180 = Number(us[1]) + Math.floor((180 * Number(us[2])) / Number(us[3]));
+    for (const lang of ["en", "zh"]) {
+      const text = readFileSync(join(root, `src/content/m2/esp32/${lang}.mdx`), "utf8");
+      const q = text.match(/<Quiz id="q6"[^>]*answer=\{(\d+)\} explanation="duty = ([\d.]+) \/ ([\d.]+) × (\d+) = [\d.]+ × \d+ = ([\d.]+)[^"]*?(\d+)[.。]"/);
+      const exact = (us180 * full) / Number(dv[1]);
+      ok(q && Number(q[1]) === duty(180) && Number(q[6]) === duty(180) && Number(q[2]) === us180 / 1000 && Number(q[3]) === Number(dv[1]) / 1000 && Number(q[4]) === full && Number(q[5]) === exact,
+        `esp32 ${lang}: Quiz q6 ${q ? `answer=${q[1]}, explanation ${q[2]} / ${q[3]} × ${q[4]} = ${q[5]} -> ${q[6]}` : "(not found)"}; angleToDuty(180) = ${duty(180)} (exact ${exact})`);
+    }
+    console.log(`calc  esp32: angleToDuty at ${bits[1]} bits = ${want.join(", ")} (steps ${steps.join(", ")}), bound to the table, value list, step list, 1.5 ms example, duty range, summary and Quiz q6 in en/zh and the curriculum goal`);
   }
 }
 
