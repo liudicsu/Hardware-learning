@@ -113,3 +113,12 @@ If a diagram depicts the output of a lesson script, generate its columns from a 
 and check it in `tools/check_widgets.mjs`. First example: `QuadratureTiming` (motors-drivers) uses
 `diagramColumns()` from `src/lib/models/encoder.ts`, a port of `tools/sim/models/encoder_sim.py`; the check
 compares the decoder lines of `m2-encoder_sim.txt` byte for byte and the forward/reverse state order.
+
+## `kind: "geo"` (static 2-D figures) — `src/components/diagrams/Geo2D.tsx`
+
+A spec lists shapes in one viewBox of at most 340 units (the same figure at every width, capped at 1.3 px per
+unit): `line` (optional arrow, dashed), `rect`, `circle`, `arc` (degrees from straight up, clockwise positive,
+optional arrow) and `text` (13 units, so >= 12 px at 390 px). check_diagrams keeps every shape and text inside
+the viewBox. `cartPole` names the axis, force, pole and theta-arc shapes; their directions must agree with the
+signs of `cartpole()` in tools/sim/models/lqr_sim.py, which the check runs. First user: `cartpole-signs`.
+
