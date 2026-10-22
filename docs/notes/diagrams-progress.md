@@ -172,3 +172,4 @@ numbers, cart-pole direction, TB6612 OUT1) go into the PR that touches each less
   whose type names differ (joint_states <- gz.msgs.Model, tf <- gz.msgs.Pose_V, pan_cmd/tilt_cmd Float64 ->
   gz.msgs.Double), which the spec's script lines, bindings and caption are built from; `flows` checks the arrows'
   direction; every topic is also checked in the lesson's ros2 topic list (zh and en). All hand-written.
+  Limitation: the topic directions and message types were checked only against the repo's bridge.yaml (and the ros_gz_bridge type-mapping table); the bridge was not run in a real Gazebo session.

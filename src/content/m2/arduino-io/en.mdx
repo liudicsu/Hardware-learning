@@ -178,7 +178,7 @@ The conversion is a simple proportion:
 
 <Formula label="ADC to volts (Uno)">V = raw × 5.0 / 1023</Formula>
 
-The divisor is 1023 rather than 1024 because the Arduino convention maps the maximum code 1023 exactly to the full-scale voltage. The tiny difference from an ideal converter is far below the accuracy of the reference anyway.
+The ATmega328P datasheet defines the result as ADC = V_IN × 1024 / V_REF, so strictly the top code 1023 stands for one step below 5 V. Arduino's own examples divide by 1023 instead, so that the top code prints as exactly 5.00 V; this course follows that convention. The two divisors differ by 0.1 %, far less than the tolerance of the 5 V supply that serves as the reference.
 
 A worked example:
 
@@ -258,7 +258,7 @@ An LED is far too fast to follow a 490 Hz square wave. Your eye integrates the f
 
 <Falstad title="PWM averaged by an RC filter" circuit="pwmAverage" height={460} />
 
-In this circuit the square-wave source is a 490 Hz, 0–5 V PWM signal at 25 % duty. The 1 kΩ resistor and 10 µF capacitor form a low-pass filter with τ = R × C = 1 kΩ × 10 µF = 10 ms. Since one PWM period is only about 2 ms, the filter averages several cycles at once. The right-hand scope and the voltage label settle near 0.25 × 5 V = **1.25 V**, with a small ripple because the capacitor still charges and discharges a little each cycle.
+In this circuit the square-wave source is a 490 Hz, 0–5 V PWM signal at 25 % duty. The 1 kΩ resistor and 10 µF capacitor form a <Term id="low-high-pass-filter">low-pass filter</Term> with τ = R × C = 1 kΩ × 10 µF = 10 ms. Since one PWM period is only about 2 ms, the filter averages several cycles at once. The right-hand scope and the voltage label settle near 0.25 × 5 V = **1.25 V**, with a small ripple because the capacitor still charges and discharges a little each cycle.
 
 Try this:
 
