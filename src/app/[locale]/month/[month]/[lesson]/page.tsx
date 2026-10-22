@@ -45,6 +45,7 @@ import { TermPopover } from "@/components/mdx/TermPopover";
 import { getTerm } from "@/lib/glossary";
 import { findLessonBySlug, lessonHref } from "@/lib/lessonIndex";
 import { lessonToc } from "@/lib/toc";
+import { Diagram } from "@/components/diagrams/Diagram";
 
 export const dynamicParams = false;
 
@@ -116,6 +117,7 @@ export default async function LessonPage({ params }: Params) {
     SnapFitWidget,
     ComplementaryWidget,
     LineFollowWidget,
+    Diagram: ({ id }: { id: string }) => <Diagram id={id} locale={loc} />,
     img: ({ src, alt, ...rest }: ComponentProps<"img">) => (
       // eslint-disable-next-line @next/next/no-img-element
       <img src={typeof src === "string" ? withBasePath(src) : src} alt={alt ?? ""} loading="lazy" {...rest} />

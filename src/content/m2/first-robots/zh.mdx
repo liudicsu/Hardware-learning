@@ -603,13 +603,7 @@ pitch 0.1  worst loop us 736
 - **内环**就是你已经写好的那个。它跑 200 Hz，读取俯仰角，驱动电机，让车保持一个给定的角度 `SETPOINT`。
 - **外环**是新的。它慢 5–10 倍（每 4 到 8 个节拍一次，也就是 25–50 Hz），用编码器（第 4 课）读出轮速，再把 `SETPOINT` 改一点，让车慢下来。
 
-```text
-target speed (0) ──► [ outer PI: speed error ] ──► SETPOINT (clamped to ±3°)
-                                                       │
-                     pitch from the filter ──► [ inner PD: angle error ] ──► motor PWM
-                                                       ▲
-wheel speed from the encoders ◄────────────────────────┘ (measured every outer tick)
-```
+<Diagram id="first-robots-cascade" />
 
 最反直觉的是方向。假设车正往前溜。要停下来，它得先稍微**向后**倾，让重力把它往回拉。而为了进入这个后倾姿态，内环会先让轮子往前多转一点，然后车才减速。所以外环给出的设定倾角，和车的运动方向相反。每次都会有那么一下看起来像是做错了，这是正常的。
 
