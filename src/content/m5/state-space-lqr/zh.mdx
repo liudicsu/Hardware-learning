@@ -18,6 +18,8 @@ Cart-pole, x = [position, speed, angle, rate], 100 Hz
 
 </SimOutput>
 
+<Diagram id="cartpole-signs" />
+
 按行读成方程。第二行是速度：p'' = −(m g / M) θ + (1/M) F。−3.92 来自 −m g / M = −0.2 × 9.81 / 0.5；正的角度会让小车向后加速。2.00 是 1/M = 1/0.5，表示每牛顿推力带来多少加速度。第四行是角度：θ'' = ((M + m) g / (M L)) θ − (1 / (M L)) F。45.78 是 (0.7 × 9.81) / (0.5 × 0.3)，是让直立位置失稳的重力项。−6.67 是 −1 / (0.5 × 0.3)：正的力会把杆往负方向推。上面的 A、B 是连续模型；控制器以 100 Hz 运行，所以模型用 0.01 s 的零阶保持（zero-order hold）。
 
 <Quiz id="q1" question="M = 0.5 kg 时，1/M 是多少？" answer={2.00} unit="1/kg" explanation="1 / 0.5 = 2.00。它是 B 的第二项：1 N 的力给小车 2 m/s² 的加速度。" />

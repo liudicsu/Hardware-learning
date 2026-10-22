@@ -323,7 +323,44 @@ export interface PoseGraphSpec {
   facts: DiagramFact[];
 }
 
-export type DiagramSpec = BlockDiagramSpec | CircuitSpec | TimingSpec | BytesSpec | PoseGraphSpec;
+/* ---------- 2-D geometry figures (rendered by src/components/diagrams/Geo2D.tsx) ---------- */
+
+/** Angles in degrees measured from straight up, clockwise on screen positive. */
+export type GeoShape =
+  | { id?: string; type: "line"; from: Point; to: Point; tone?: Tone; width?: number; dashed?: boolean; arrow?: boolean }
+  | { id?: string; type: "rect"; at: Point; size: [number, number]; tone?: Tone; rx?: number }
+  | { id?: string; type: "circle"; at: Point; r: number; tone?: Tone; fill?: boolean }
+  | { id?: string; type: "arc"; at: Point; r: number; from: number; to: number; tone?: Tone; arrow?: boolean }
+  | { id?: string; type: "text"; at: Point; label: L10n; anchor?: "start" | "middle" | "end"; tone?: Tone; mono?: boolean; bold?: boolean };
+
+/**
+ * A static figure drawn from shapes in one viewBox of at most 340 units (one layout for every width).
+ * `cartPole` names the shapes that carry the cart-pole sign convention; check_diagrams compares their
+ * directions with the model in tools/sim/models/lqr_sim.py.
+ */
+export interface GeoSpec {
+  kind: "geo";
+  id: string;
+  title: L10n;
+  caption?: L10n;
+  sources: string[];
+  w: number;
+  h: number;
+  shapes: GeoShape[];
+  cartPole?: {
+    axis: string;
+    force: string;
+    pivot: Point;
+    pole: string;
+    theta: string;
+    /** Text shapes that name the positive directions ("+x", "+F", "+θ"); checked to sit at their shapes. */
+    labels: { axis: string; force: string; theta: string };
+  };
+  numbers?: DiagramNumber[];
+  facts: DiagramFact[];
+}
+
+export type DiagramSpec = BlockDiagramSpec | CircuitSpec | TimingSpec | BytesSpec | PoseGraphSpec | GeoSpec;
 
 export function tx(text: L10n | undefined, locale: Locale): string {
   if (text === undefined) return "";
