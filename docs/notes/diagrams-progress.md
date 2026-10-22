@@ -44,3 +44,9 @@ numbers, cart-pole direction, TB6612 OUT1) go into the PR that touches each less
   Node `sub` may now have several lines ("\n"); check_diagrams checks width per line and height.
   ros2-workspace-tree drafted by opencode (deepseek-v4.1-flash-free), reviewed and fixed by hand; the rest hand-written.
   Next after D-2: Top 10, starting with H-bridge CurrentPath + INPUT_PULLUP.
+- D-4 (branch diagrams/d4-pwm-timing from f34b529, parallel to #21): `kind: "timing"` registry spec
+  (TimingDiagram.tsx + checkTiming), Timing `average` line and `activeSignals`, PWM diagram pwm-duty-average
+  (arduino-io), zh full-width ：， in the encoder stepper. Encoder not migrated (model-generated columns).
+  Expected merge conflicts with #21 (types.ts, Diagram.tsx, index.ts, check_diagrams.mjs): when #21 lands,
+  merge origin/main, keep both branches (circuit + timing), and keep one DiagramNumber and one numbers check.
+  All hand-written.
