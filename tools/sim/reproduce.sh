@@ -47,6 +47,7 @@ avr "$ELF" 17000 $(press 1000) $(press 5364.1) $(press 9931.2) $(press 14693.7) 
 
 # Lesson 4: one-revolution toy model
 python3 "$SIM/models/one_rev_sim.py" > "$OUT/m2-one_rev_sim.txt"
+python3 "$SIM/models/encoder_sim.py" > "$OUT/m2-encoder_sim.txt"
 
 # Lesson 4: one_rev firmware with the simulated TB6612 + gearmotor + encoder (MOTOR=<battery volts>)
 ELF=$(compile "$EX/motors-drivers/one_rev")

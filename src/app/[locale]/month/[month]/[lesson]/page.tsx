@@ -41,6 +41,7 @@ import { LineFollowWidget } from "@/components/widgets/LineFollowWidget";
 import { Toc } from "@/components/lesson/Toc";
 import { LessonIntro } from "@/components/lesson/LessonIntro";
 import { Summary } from "@/components/mdx/Summary";
+import { QuadratureTiming, EncoderDisc } from "@/components/mdx/Quadrature";
 import { TermPopover } from "@/components/mdx/TermPopover";
 import { getTerm } from "@/lib/glossary";
 import { findLessonBySlug, lessonHref } from "@/lib/lessonIndex";
@@ -94,6 +95,8 @@ export default async function LessonPage({ params }: Params) {
   const components: MDXComponents = {
     Quiz: (props: Omit<ComponentProps<typeof Quiz>, "lessonKey">) => <Quiz lessonKey={key} {...props} />,
     Falstad,
+    QuadratureTiming,
+    EncoderDisc,
     Callout,
     Formula,
     h2: H2,

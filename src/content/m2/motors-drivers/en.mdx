@@ -144,29 +144,112 @@ Smart bus servos combine the convenience of a servo with the feedback of an enco
 
 ## Encoders: counting rotation
 
-An encoder turns rotation into countable electrical edges. A **quadrature encoder** has two outputs, A and B, that are 90° out of phase. Each output is a square wave, but the pair carries more information than either alone: the order in which the edges arrive tells you the direction of rotation.
+An encoder turns rotation into countable electrical edges. This section starts from the parts of the Romi encoder, then shows how its two signals become counts, speed and distance.
+
+### What is inside the encoder
+
+The Pololu Romi encoder (item #3542) is a **magnetic quadrature encoder**. A 6-pole magnetic disc (N S N S N S) is pressed onto the motor's rear, extended shaft. A small board with two **Hall-effect sensors** is soldered to the back of the motor. The gearbox is on the other end of the motor.
+
+A Hall-effect sensor with a digital output switches its output high or low depending on which pole faces it. The sensor compares the magnetic field with a switching threshold and has hysteresis, so its output is either fully high or fully low, never in between. The disc's field alternates N and S, so as the shaft turns the output switches between those two levels: a square wave.
+
+Six poles make three N+S pairs, so each sensor outputs three full square-wave periods per motor-shaft turn. One period is 360° / 3 = 120° of shaft rotation.
+
+The two sensors are placed a quarter of one period apart, which is 120° / 4 = 30° of shaft rotation. A quarter period of a square wave is 90° of phase, and that is where the phrase "A and B are 90° out of phase" comes from. This offset is the standard quadrature layout. Pololu's page does not give the sensor angle; the 30° figure is derived from the quarter-period placement.
+
+<EncoderDisc title="Romi encoder disc seen from the rear of the motor: 6 poles, sensor B a quarter period (30°) behind sensor A" sensorA="A" sensorB="B" />
+
+Pololu describes the kit with this line: "This kit includes two dual-channel Hall effect sensor boards and two 6-pole magnetic discs". The product page also states that the encoder "provides a resolution of 12 counts per revolution of the motor shaft when counting both edges of both channels, which corresponds to approximately 1440 counts per revolution of the Romi's wheels." ([Pololu #3542](https://www.pololu.com/product/3542)). For the gear ratio, the 120:1 gearmotor page states "Exact gear ratio: (22×38×44×26×30) / (10×11×11×22×9) ≈ 119.76" ([Pololu #1520](https://www.pololu.com/product/1520)). The chassis page states "The chassis uses 70×8mm Pololu wheels" ([Pololu #3500](https://www.pololu.com/product/3500)).
+
+### Reading A and B together
+
+<QuadratureTiming axisLabel="each column = 30° of motor-shaft rotation" direction="forward" title="Forward: A leads B by a quarter period; AB = 00 → 10 → 11 → 01, each change +1" stateLabel="AB" countLabel="count" />
+
+<QuadratureTiming axisLabel="each column = 30° of motor-shaft rotation (turning backwards)" direction="reverse" title="Reverse: B leads A; AB = 00 → 01 → 11 → 10, each change −1" stateLabel="AB" countLabel="count" />
+
+Each column of either diagram is 30° of motor-shaft rotation. Exactly one of A or B changes at each column boundary. In the forward diagram A rises first and B rises 30° later. In the reverse diagram B changes first. Watching only A gives speed but not direction.
 
 ```text
 forward:  AB = 00 → 10 → 11 → 01 → 00 → ...
 reverse:  AB = 00 → 01 → 11 → 10 → 00 → ...
 ```
 
-If you watch only A, you can count how fast the shaft turns but not which way. Watching both channels and the order of their edges gives you direction as well. Counting every edge on both channels, a technique called four-times decoding, extracts the most counts from the same encoder. That is how a small magnetic encoder whose channels each pulse only 3 times per motor turn is rated at 12 counts per revolution: 3 pulses × 2 edges × 2 channels = 12.
+### Decoding with a state table
 
-The Pololu Romi gearmotor in this lesson's resource cards has a 12 CPR encoder on the motor shaft and a 120:1 gearbox. Counts at the wheel are therefore:
+Write AB as a 2-bit number. Each time either pin changes, look up the pair (previous state, new state) in a **state table**.
+
+| previous \ new | 00 | 01 | 10 | 11 |
+| --- | --- | --- | --- | --- |
+| 00 | 0 | −1 | +1 | illegal (lost count) |
+| 01 | +1 | 0 | illegal (lost count) | −1 |
+| 10 | −1 | illegal (lost count) | 0 | +1 |
+| 11 | illegal (lost count) | +1 | −1 | 0 |
+
+An illegal jump means the decoder missed at least one edge: interrupt latency too long, sampling too slow, or noise. The direction is unknown and the count is lost. The script below shows the extreme case: reading the pins only every 60° of shaft rotation makes every step an illegal jump, and the count stays at 0 instead of +12. The `one_rev` sketch's `QDEC[16]` table, shown later in this lesson, is exactly this table flattened with `index = previous AB × 4 + new AB`, and it returns 0 for illegal jumps.
+
+### Where 12 counts per turn comes from
+
+Build the number step by step. Six poles give 3 pulses per channel per turn. Each pulse has 2 edges, a rising edge and a falling edge, so A has 6 edges per turn. Two channels give 12 edges per turn: 3 × 2 × 2 = 12.
+
+| decoding mode | what is counted | counts per motor turn | counts per output-shaft turn (×120) | wheel distance per count (70 mm wheel) |
+| --- | --- | --- | --- | --- |
+| ×1 | rising edges of A only | 3 | 360 | 0.611 mm |
+| ×2 | both edges of A | 6 | 720 | 0.305 mm |
+| ×4 | both edges of A and B | 12 | 1440 | 0.153 mm |
+
+Pololu's "12 CPR" (counts per revolution) is the ×4 figure. Direction needs B in all three modes: in ×1 and ×2 the level of B at each A edge tells which way the shaft turned. ×1 is what this course's balancer cascade sketch (Month 3, pid-control) uses: 3 × 30:1 = 90 counts per wheel turn, and a 65 mm wheel gives 2.27 mm per count.
+
+### Motor shaft or output shaft?
+
+Most count-conversion errors come from mixing up these two shafts. The encoder is on the motor shaft, before the gearbox. The wheel is on the gearbox output shaft. The motor turns 120 times per wheel turn.
+
+output-shaft CPR = motor-shaft CPR × gear ratio = 12 × 120 = 1440. This is `COUNTS_PER_REV = 1440` in `one_rev.ino` and `COUNTS_PER_REV = 12 * 120` in `one_rev_sim.py`.
+
+With the exact ratio 119.76, 12 × 119.76 = 1437.1 counts per wheel turn. A target of 1440 counts therefore turns the wheel 1.0020 turns, which is 0.45 mm too far on a 70 mm wheel. That is fine for this lesson; use the exact ratio when distance errors accumulate, as in odometry.
+
+The gearbox also multiplies resolution. One count is 360° / 1440 = 0.25° of wheel rotation.
+
+### Worked example
 
 ```text
-counts per wheel revolution = 12 × 120 = 1440
+wheel: 70 mm, circumference = π × 70 mm = 219.91 mm, distance per count = 219.91 / 1440 = 0.1527 mm
+speed: the one_rev model at 8.4 V and duty 0.6 runs at 1310.4 counts/s (K_SPEED 260 counts/s per volt × 5.04 V)
+read the count every 50 ms: 1310.4 × 0.05 = 65.52, so a window reads 65 or 66 counts; take a window that read 66
+wheel speed = 66 / 0.05 s / 1440 = 0.9167 rev/s = 55.0 rpm (motor shaft: 55.0 × 120 = 6600 rpm)
+linear speed = 0.9167 rev/s × 219.91 mm = 201.6 mm/s
+resolution: 1 count per 50 ms window = 3.05 mm/s  (so speed estimates from short windows are coarse)
+distance: the one_rev P controller with min duty 0.15 at 8.4 V stops at 1441 counts = 1.0007 turn = 220.06 mm
 ```
 
-If the wheel is 70 mm in diameter, one wheel revolution covers π × 70 mm, and each count corresponds to a small slice of that distance:
+These lines come from `tools/sim/models/encoder_sim.py`, which models the 6-pole disc and the two sensors, runs the decoder with the same `QDEC` table as `one_rev.ino`, and imports `COUNTS_PER_REV`, `K_SPEED` and `closed_loop` from `one_rev_sim.py`. Its output follows:
+
+<SimOutput source="model">
 
 ```text
-circumference = π × 70 mm = 219.91 mm
-distance per count = 219.91 mm / 1440 = 0.1527 mm ≈ 0.153 mm
+disc: 6 poles -> 3 square-wave periods per motor turn, 120 deg each; sensor B offset 30 deg = 1/4 period = 90 deg phase
+forward, first period:
+    30.0 deg  AB 10 -> 11  +1  count 1
+    60.0 deg  AB 11 -> 01  +1  count 2
+    90.0 deg  AB 01 -> 00  +1  count 3
+   120.0 deg  AB 00 -> 10  +1  count 4
+forward, one motor turn: count +12, illegal jumps 0
+reverse, first period:
+   360.0 deg  AB 10 -> 00  -1  count -1
+   330.0 deg  AB 00 -> 01  -1  count -2
+   300.0 deg  AB 01 -> 11  -1  count -3
+   270.0 deg  AB 11 -> 10  -1  count -4
+reverse, one motor turn: count -12, illegal jumps 0
+sampled every 60 deg (too slow): count +0, illegal jumps 6 (should be +12)
+counts per motor turn: x1 3, x2 6, x4 12  (3 pulses x 2 edges x 2 channels = 12)
+counts per output-shaft turn: x1 360, x2 720, x4 1440 (gear 120:1, one_rev uses 1440)
+exact gear 119.76:1 -> 1437.1 counts per wheel turn; 1440 counts = 1.0020 turn, 0.45 mm too far
+wheel 70 mm: circumference 219.91 mm, 0.1527 mm per count
+one_rev model at 8.4 V, duty 0.6: 1310.4 counts/s; in a 50 ms window 65.52 -> 66 counts
+  66 counts / 0.05 s / 1440 = 0.9167 wheel rev/s = 55.0 rpm (motor 6600 rpm) = 201.6 mm/s; 1 count per window = 3.05 mm/s
+one_rev P + min 0.15 at 8.4 V stops at 1441 counts = 1.0007 turn = 220.06 mm
+balancer cascade: x1 only, 3 x 30:1 = 90 counts per wheel turn (cascade_sim uses 90); 65 mm wheel -> 2.27 mm per count
 ```
 
-So one count is about a seventh of a millimetre. That is the resolution your closed loop works with: coarse enough that a simple controller can handle it, fine enough to stop a small robot within a few millimetres.
+</SimOutput>
 
 Two practical details. Encoder outputs are often **open-drain**, meaning they can pull the line low but cannot drive it high. Enable the microcontroller's internal pull-ups with `INPUT_PULLUP`, or fit external 10 kΩ pull-ups to the encoder supply. Without them the signal floats and the count becomes random. And counting cannot be done with slow polling: edges arrive quickly and can be missed while the rest of the program runs. Use interrupts, as in Lesson 2, and keep the interrupt routine short. Read multi-byte counters atomically, with interrupts briefly disabled, so the main program never sees half of an update.
 

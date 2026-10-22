@@ -1,0 +1,22 @@
+disc: 6 poles -> 3 square-wave periods per motor turn, 120 deg each; sensor B offset 30 deg = 1/4 period = 90 deg phase
+forward, first period:
+    30.0 deg  AB 10 -> 11  +1  count 1
+    60.0 deg  AB 11 -> 01  +1  count 2
+    90.0 deg  AB 01 -> 00  +1  count 3
+   120.0 deg  AB 00 -> 10  +1  count 4
+forward, one motor turn: count +12, illegal jumps 0
+reverse, first period:
+   360.0 deg  AB 10 -> 00  -1  count -1
+   330.0 deg  AB 00 -> 01  -1  count -2
+   300.0 deg  AB 01 -> 11  -1  count -3
+   270.0 deg  AB 11 -> 10  -1  count -4
+reverse, one motor turn: count -12, illegal jumps 0
+sampled every 60 deg (too slow): count +0, illegal jumps 6 (should be +12)
+counts per motor turn: x1 3, x2 6, x4 12  (3 pulses x 2 edges x 2 channels = 12)
+counts per output-shaft turn: x1 360, x2 720, x4 1440 (gear 120:1, one_rev uses 1440)
+exact gear 119.76:1 -> 1437.1 counts per wheel turn; 1440 counts = 1.0020 turn, 0.45 mm too far
+wheel 70 mm: circumference 219.91 mm, 0.1527 mm per count
+one_rev model at 8.4 V, duty 0.6: 1310.4 counts/s; in a 50 ms window 65.52 -> 66 counts
+  66 counts / 0.05 s / 1440 = 0.9167 wheel rev/s = 55.0 rpm (motor 6600 rpm) = 201.6 mm/s; 1 count per window = 3.05 mm/s
+one_rev P + min 0.15 at 8.4 V stops at 1441 counts = 1.0007 turn = 220.06 mm
+balancer cascade: x1 only, 3 x 30:1 = 90 counts per wheel turn (cascade_sim uses 90); 65 mm wheel -> 2.27 mm per count
