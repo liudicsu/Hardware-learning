@@ -11,7 +11,9 @@
     "about": "About & credits",
     "language": "Language",
     "switchTo": "中文",
-    "skip": "Skip to content"
+    "skip": "Skip to content",
+    "glossary": "Glossary",
+    "math": "Math reference"
   },
   "home": {
     "eyebrow": "Open · Free · Bilingual",
@@ -58,7 +60,12 @@
     "finishMonth": "See the month milestone",
     "onThisPage": "In this lesson",
     "statusDone": "done",
-    "statusTodo": "not done"
+    "statusTodo": "not done",
+    "objectives": "After this lesson you can",
+    "prereqs": "Before you start",
+    "noPrereqs": "No earlier lesson needed; start here.",
+    "mathRef": "Math reference",
+    "summary": "Lesson summary"
   },
   "resource": {
     "open": "Open",
@@ -306,5 +313,20 @@
     "ddB": "wheel_separation b",
     "ddR": "wheel_radius r",
     "ddNote": "Defaults are the lesson's worked example (spinning on the spot at 1.0 rad/s) with controllers.yaml's b = 0.28 m and r = 0.05 m. The v and ω ranges are the controller's velocity limits. Change b alone and straight driving stays the same while every turn changes: that is quiz 3's bug."
+  },
+  "glossary": {
+    "title": "Glossary",
+    "lead": "Terms that recur throughout the course. Each entry gives the canonical Chinese and English names, a one-line definition, and the lesson that first explains it. In the lessons, terms with a dotted underline show their definition on hover, focus or tap.",
+    "taughtIn": "First explained in: {lesson}",
+    "close": "Close",
+    "count": "{n} terms"
+  },
+  "math": {
+    "title": "Math quick reference",
+    "lead": "Enough and no more: the mathematics used in Months 4–6. Each entry has only a definition, one worked example from the course, the lessons that use it, and free authoritative textbooks. This is not a math course; for a systematic treatment, read the linked books.",
+    "definition": "Definition",
+    "example": "Worked example from the course",
+    "usedIn": "Used in",
+    "read": "Read more (free textbooks)"
   }
 }
