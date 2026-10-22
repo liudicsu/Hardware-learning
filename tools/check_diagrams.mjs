@@ -14,6 +14,8 @@
 //  - pose graphs (kind "poseGraph"): the nodes are re-derived from the scans with SLAM Toolbox 2.8.5's rule and
 //    the values in slam.yaml, the URDF, the Gazebo sensor and tour.py;
 //    labels fit the viewBox and render at >= 12 px on a phone;
+//  - no text below 12 px outside the registry: no text-[Npx] or literal fontSize below 12 in src, <Chart> follows
+//    its box width, <QuadratureTiming> fits a 390 px phone at 12 px;
 //  - every "fact" (a regular expression) is found in the repository file it names, so the
 //    numbers, pins and names drawn in a diagram are tied to the lesson scripts.
 import { readFileSync, readdirSync, existsSync } from "node:fs";
@@ -583,6 +585,44 @@ for (const m of readdirSync(content)) {
     ok(JSON.stringify(en) === JSON.stringify(zh), `${m}/${lesson}: zh diagrams ${JSON.stringify(zh)} differ from en ${JSON.stringify(en)}`);
     for (const id of en) ok(ids.has(id), `${m}/${lesson}: <Diagram id="${id}" /> is not registered`);
   }
+}
+
+// ---------- minimum text size outside the registry (12 px rule, docs/notes/diagrams.md) ----------
+// Static guards; the rendered check is tools/check_text_size.mjs (Playwright, run by hand).
+{
+  const walk = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)]));
+  const files = ["src/components", "src/app", "src/content"].flatMap((d) => walk(join(root, d))).filter((f) => /\.(tsx|mdx)$/.test(f));
+  const rel = (f) => f.slice(root.length + 1);
+  for (const f of files) {
+    const src = readFileSync(f, "utf8");
+    // Tailwind arbitrary sizes below 12 px (text-[11px]) in HTML or SVG
+    for (const m of src.matchAll(/text-\[(\d+(?:\.\d+)?)px\]/g)) ok(Number(m[1]) >= MIN_PX, `${rel(f)}: ${m[0]} is below ${MIN_PX} px; use text-xs or larger`);
+    // literal SVG font sizes below 12 units render below 12 px unless the SVG is scaled up
+    for (const m of src.matchAll(/fontSize=(?:"|\{)(\d+(?:\.\d+)?)(?:"|\})/g)) ok(Number(m[1]) >= MIN_PX, `${rel(f)}: fontSize ${m[1]} is below ${MIN_PX} units`);
+  }
+
+  // <Chart>: the viewBox follows the box width below W_MAX, so FONT units render at FONT px on a phone
+  const chartSrc = readFileSync(join(root, "src/components/widgets/Chart.tsx"), "utf8");
+  const chartFont = Number(chartSrc.match(/const FONT = ([\d.]+)/)?.[1]);
+  ok(chartFont >= MIN_PX, `Chart.tsx: FONT ${chartFont} < ${MIN_PX}`);
+  ok(/useBoxWidth/.test(chartSrc) && chartSrc.includes("viewBox={`0 0 ${W} ${H}`}"), "Chart.tsx: the viewBox must follow the measured box width (useBoxWidth)");
+
+  // <QuadratureTiming>: 8 columns of QUAD_COL units in TimingSvg on one line; smallest text 14 units
+  const quadSrc = readFileSync(join(root, "src/components/diagrams/Quadrature.tsx"), "utf8");
+  const quadCol = Number(quadSrc.match(/export const QUAD_COL = ([\d.]+)/)[1]);
+  const quadW = T.LEFT + 8 * quadCol + 8;
+  const quadPx = (14 * PHONE_BOX) / quadW;
+  ok(quadPx >= MIN_PX, `Quadrature.tsx: the ${quadW}-unit diagram renders 14-unit text at ${quadPx.toFixed(1)} px on a 390 px phone (< ${MIN_PX})`);
+  const centre = T.LEFT + 4 * quadCol;
+  let quads = 0;
+  for (const f of files.filter((x) => x.endsWith(".mdx"))) {
+    for (const m of readFileSync(f, "utf8").matchAll(/<QuadratureTiming[^>]*axisLabel="([^"]+)"[^>]*countLabel="([^"]+)"/g)) {
+      quads++;
+      ok(textWidth(m[1], 14) / 2 <= Math.min(centre, quadW - centre), `${rel(f)}: QuadratureTiming axisLabel "${m[1]}" wider than the diagram`);
+      ok(textWidth(m[2], 15) <= T.LEFT - 12, `${rel(f)}: QuadratureTiming countLabel "${m[2]}" wider than the label column`);
+    }
+  }
+  ok(quads > 0, "no <QuadratureTiming> found in the lessons (the size check above would test nothing)");
 }
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
