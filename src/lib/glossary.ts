@@ -1037,7 +1037,8 @@ export const glossary: GlossaryEntry[] = [
       zh: "带有 ID、经串行总线通信并能回传位置、速度、负载、电压和温度的闭环舵机。SO-101 每臂使用 6 个飞特 STS3215，12 位磁编码器每圈给出 4096 步，位置环在舵机内部运行。",
       en: "A closed-loop servo with an ID that communicates over a serial bus and reports position, speed, load, voltage and temperature. Each SO-101 arm uses six Feetech STS3215 servos, whose 12-bit magnetic encoders give 4096 steps per turn and whose position loop runs inside the servo.",
     },
-    lesson: "so101-arm",
+    lesson: "motors-drivers",
+    firstExplained: true,
   },
   {
     id: "half-duplex",
@@ -1047,6 +1048,7 @@ export const glossary: GlossaryEntry[] = [
       en: "Communication over one pair of wires in both directions but not at the same time; the controller talks, then listens. The six STS3215 servos on an SO-101 share one half-duplex bus, which LeRobot runs at 1 Mbit/s.",
     },
     lesson: "so101-arm",
+    firstExplained: true,
   },
   {
     id: "daisy-chain",
@@ -1055,7 +1057,8 @@ export const glossary: GlossaryEntry[] = [
       zh: "设备首尾相接、共用一条总线的连接方式；每个舵机有独立 ID，只有被点名的那个才应答。SO-101 的串行线从夹爪一路菊花链回底座，最后把 shoulder_pan（ID 1）接到控制板。",
       en: "A connection in which devices are linked one after another on a shared bus; each servo has its own ID and only the addressed one answers. The SO-101 serial line daisy-chains from the gripper back to the base, where shoulder_pan (ID 1) plugs into the controller.",
     },
-    lesson: "so101-arm",
+    lesson: "motors-drivers",
+    firstExplained: true,
   },
   {
     id: "eeprom",
@@ -1065,6 +1068,7 @@ export const glossary: GlossaryEntry[] = [
       en: "Non-volatile memory inside a servo that keeps settings such as its ID and bus baud rate across power cycles. It is set once in normal use, but a replacement servo arrives with the factory ID 1 and must be set again.",
     },
     lesson: "so101-arm",
+    firstExplained: true,
   },
   {
     id: "little-endian",
@@ -1074,6 +1078,7 @@ export const glossary: GlossaryEntry[] = [
       en: "A byte order in which the low byte of a multi-byte value comes first. The STS3215 goal position 2048 = 0x0800 is sent as low byte 00 then high byte 08, and the reply parameter 2C 0C assembles to 0x0C2C = 3116 steps.",
     },
     lesson: "so101-arm",
+    firstExplained: true,
   },
   {
     id: "checksum",
@@ -1083,6 +1088,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The low byte of the sum of ID, length, instruction and parameters, inverted and appended to a packet to detect transmission errors. It does not repair a message, it rejects it; flipping one data bit makes the checksum fail.",
     },
     lesson: "so101-arm",
+    firstExplained: true,
   },
   {
     id: "teleoperation",
@@ -1092,6 +1098,7 @@ export const glossary: GlossaryEntry[] = [
       en: "Operating a robot by moving a leader arm by hand while the follower reproduces the motion. It is not only a demo but the way demonstrations are recorded: the leader supplies the action and the follower its own joint readings, together forming data for Month 6 imitation learning.",
     },
     lesson: "so101-arm",
+    firstExplained: true,
   },
   {
     id: "leader-follower",
@@ -1101,6 +1108,47 @@ export const glossary: GlossaryEntry[] = [
       en: "The SO-101 pair: the leader is the hand-driven input device, and the follower executes the motion and reports its joint readings. The follower uses 1/345 on all six joints, while the leader mixes 1/147, 1/191 and 1/345 so it holds where needed and stays easy to backdrive elsewhere.",
     },
     lesson: "so101-arm",
+    firstExplained: true,
+  },
+  {
+    id: "friction-coefficient",
+    term: { zh: "摩擦系数（μ）", en: "coefficient of friction (μ)" },
+    def: {
+      zh: "两个表面之间所能产生的最大摩擦力与把它们压在一起的法向力之比。两根手指各用 F 的力夹住物体时，摩擦最多能承受 2 × μ × F；在倾斜木板上，物体刚开始滑动时的角度 θ 满足 μ = tan θ，例如 17° 对应 0.31。",
+      en: "The ratio of the largest friction force between two surfaces to the normal force pressing them together. Two fingers squeezing with F each can hold up to 2 × μ × F; on a tilted board, μ = tan θ at the angle θ where the object starts to slide, so 17° gives 0.31.",
+    },
+    lesson: "gripper-fingers",
+    firstExplained: true,
+  },
+  {
+    id: "safety-factor",
+    term: { zh: "安全系数", en: "safety factor" },
+    def: {
+      zh: "让设计能力比必须承受的载荷大出的倍数，使正常的波动不会把它推到极限。夹爪一课取 S = 2：F = S × m × (g + a) / (2 × μ)，60 g 的鸡蛋用 PLA 手指时每指需要 2.6 N。",
+      en: "The factor by which a design's capacity is made larger than the load it has to carry, so that normal variation does not take it to the limit. The gripper lesson uses S = 2: F = S × m × (g + a) / (2 × μ) gives 2.6 N per PLA finger for a 60 g egg.",
+    },
+    lesson: "gripper-fingers",
+    firstExplained: true,
+  },
+  {
+    id: "fin-ray",
+    term: { zh: "鳍条手指（fin-ray）", en: "fin-ray finger" },
+    def: {
+      zh: "由两片在尖端汇合的薄侧壁和连接它们的细肋组成的三角形柔性手指。压它的前侧壁时，肋条把推力传到后侧壁，手指朝物体卷曲，接触从两个点扩展成一段弧。“Fin Ray Effect”是 Festo 的商标，这种几何本身可以自由使用。",
+      en: "A compliant finger shaped as a triangle: two thin flanks meet at the tip and thin ribs bridge them. Pressed on its front flank, the ribs pass the push to the back flank and the finger curls toward the object, spreading contact from two points to an arc. \"Fin Ray Effect\" is a Festo trademark; the geometry itself is free to use.",
+    },
+    lesson: "gripper-fingers",
+    firstExplained: true,
+  },
+  {
+    id: "shore-hardness",
+    term: { zh: "邵氏硬度", en: "Shore hardness" },
+    def: {
+      zh: "用硬度计测得的压入硬度（ASTM D2240）。在 A 标尺上，100 表示弹簧加载的压头压不进去，压头每多压入 0.025 mm 读数少 1，压进满行程 2.5 mm 时为 0。本课用的 TPU 是 95A。",
+      en: "Indentation hardness read with a durometer (ASTM D2240). On the A scale, 100 means the spring-loaded indenter does not penetrate, and the reading falls by one for every 0.025 mm it sinks in, down to 0 at the full 2.5 mm. The lesson's TPU is grade 95A.",
+    },
+    lesson: "gripper-fingers",
+    firstExplained: true,
   },
 ];
 

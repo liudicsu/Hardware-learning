@@ -6,7 +6,7 @@ An actuator turns electrical energy into motion. Almost every robot you will bui
 | --- | --- | --- | --- |
 | Brushed DC gearmotor | PWM through an <Term id="h-bridge">H-bridge</Term> driver | None unless you add an encoder | The default for a first rover |
 | Hobby servo | A 50 Hz pulse whose width sets the angle (Lesson 3) | Internal loop only, nothing comes back to you | Steering, small arms, about 180° of travel |
-| Smart serial bus servo (e.g. FeeTech STS3215) | Commands over a daisy-chained serial bus | Reports position, speed, load and more; a 12-bit magnetic encoder means 4096 positions per turn | Low-cost robot arms such as the open-source SO-101 |
+| Smart serial <Term id="bus-servo">bus servo</Term> (e.g. FeeTech STS3215) | Commands over a <Term id="daisy-chain">daisy-chained</Term> serial bus | Reports position, speed, load and more; a 12-bit magnetic encoder means 4096 positions per turn | Low-cost robot arms such as the open-source SO-101 |
 | Stepper motor | Step and direction pulses to a driver | None (open loop) but holds position with high <Term id="torque">torque</Term> | 3D printers, precise positioning |
 
 The brushed DC gearmotor is the baseline actuator. Give it voltage and it spins; reverse the voltage and it spins the other way. It is cheap, easy to mount and tolerant of crude commands, which is why nearly every first rover uses two of them. What it lacks is position information: without an encoder it cannot know how far it has turned.
