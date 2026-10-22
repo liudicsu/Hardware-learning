@@ -204,17 +204,19 @@ Later features stay easy: a buzzer tone goes in the transition into `LIT`; ignor
 
 An interrupt lets a hardware event interrupt the normal flow of the program. When the event occurs, the CPU finishes the current instruction, saves its place, jumps to a short function called an <Term id="isr">interrupt service routine (ISR)</Term>, runs it, and then resumes `loop()` exactly where it left off.
 
-The delay between the event and the first line of your function can be counted, but it needs two pieces of CPU vocabulary first. The ATmega328P's CPU does all its arithmetic in 32 general-purpose registers, R0 to R31: small storage cells inside the CPU itself, separate from RAM and from the peripheral configuration registers that Lesson 5 reads over I2C. The stack is an area of RAM where the CPU parks values that it must restore later; storing one register value there is called a push and takes 2 clock cycles. An interrupt can arrive between any two instructions of `loop()`, so before the handler may use the registers, the values `loop()` was keeping in them are pushed onto the stack, and they are restored before `loop()` resumes. This is called saving the context.
+The delay between the event and the first line of your function can be counted, but it needs two pieces of CPU vocabulary first. The ATmega328P's CPU does all its arithmetic in 32 general-purpose registers, R0 to R31: small storage cells inside the CPU itself, separate from RAM and from the peripheral configuration registers that Lesson 5 reads over I2C. The stack is an area of RAM where the CPU parks values that it must restore later; storing one register value there is called a push and takes 2 clock cycles. An interrupt can arrive between any two instructions of `loop()`, so before the handler may use the registers, the values `loop()` was keeping in them are pushed onto the stack, and they are restored before `loop()` resumes. One more register is part of that context: the status register (SREG), which holds flags describing the result of the last arithmetic instruction, such as whether it was zero or produced a carry, and which an `if` in `loop()` may be about to test. This is called saving the context.
 
-With those terms, the timeline is as follows. The ATmega328P datasheet (section 7.7.1, Interrupt Response Time) gives 4 clock cycles for the CPU to push the return address, the place in `loop()` to come back to, and 3 more for the jump through the vector table, a fixed list in flash with one jump instruction per interrupt source. `attachInterrupt()` then runs the Arduino core's dispatch routine, which saves the context and calls your function through the address that `attachInterrupt()` stored in RAM. In the disassembly of an Uno sketch built with arduino:avr 1.8.8 that routine takes 39 cycles before the call:
+With those terms, the timeline is as follows. The ATmega328P datasheet (section 7.7.1, Interrupt Response Time) gives at least 4 clock cycles (the minimum; 4 more if the CPU was in a sleep mode) for the CPU to push the return address, the place in `loop()` to come back to, and 3 more for the jump through the vector table, a fixed list in flash with one jump instruction per interrupt source. The CPU then runs the Arduino core's dispatch routine for that pin. `attachInterrupt()` is not involved at this moment: it ran earlier, when `setup()` called it, and all it did was store your function's address in RAM. The dispatch routine saves the context and calls your function through that stored address. In the disassembly of an Uno sketch built with arduino:avr 1.8.8 the dispatch routine takes 39 cycles before the call:
 
 ```text
-hardware response     4 cycles   push the return address
-vector jump           3 cycles   jump to the core's handler for this pin
-save context         30 cycles   15 registers pushed onto the stack, 2 cycles each
-find and call         9 cycles   copy the status register for saving, clear a working register (2),
-                                 load your function's address from RAM (4), call it (3)
-total                46 cycles / 16 MHz = 2.875 µs ≈ 2.9 µs
+hardware response    4 cycles  push the return address
+vector jump          3 cycles  jump to the core's handler for this pin
+save context        30 cycles  push 15 registers, 2 cycles each
+find and call        9 cycles  copy the status register and clear a
+                               working register (2), load your
+                               function's address from RAM (4),
+                               call it (3)
+total               46 cycles / 16 MHz = 2.875 µs ≈ 2.9 µs
 ```
 
 If the event arrives during a multi-cycle instruction, that instruction completes first, and if another interrupt, such as the Timer0 overflow behind `millis()`, is already being handled, yours waits until that handler returns. About 3 µs is short enough to catch an encoder pulse that lasts tens of microseconds while the main loop is busy doing something else.
