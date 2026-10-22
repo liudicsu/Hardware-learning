@@ -167,9 +167,9 @@ Pololu describes the kit with this line: "This kit includes two dual-channel Hal
 
 ### Reading A and B together
 
-<QuadratureTiming axisLabel="each column = shaft turned 30°" direction="forward" title="Forward: A leads B by a quarter period; AB = 00 → 10 → 11 → 01, each change +1" stateLabel="AB" countLabel="count" />
+<QuadratureTiming axisLabel="each column = motor shaft turned 30°" direction="forward" title="Forward: A leads B by a quarter period; AB = 00 → 10 → 11 → 01, each change +1" stateLabel="AB" countLabel="count" />
 
-<QuadratureTiming axisLabel="each column = shaft turned back 30°" direction="reverse" title="Reverse: B leads A; AB = 00 → 01 → 11 → 10, each change −1" stateLabel="AB" countLabel="count" />
+<QuadratureTiming axisLabel="each column = motor shaft turned −30°" direction="reverse" title="Reverse: B leads A; AB = 00 → 01 → 11 → 10, each change −1" stateLabel="AB" countLabel="count" />
 
 Each column of either diagram is 30° of motor-shaft rotation. Exactly one of A or B changes at each column boundary. In the forward diagram A rises first and B rises 30° later. In the reverse diagram B changes first. Watching only A gives speed but not direction. "Forward" here means the direction in which the shaft angle, and the count, increase; it is the same convention as the script below and the `QDEC` table in `one_rev.ino`. Use **Next** and **Previous** under each diagram to step through the states: the highlighted column is the current AB state, and the line under the diagram gives the transition and whether it adds +1 or −1.
 
@@ -256,7 +256,7 @@ balancer cascade: x1 only, 3 x 30:1 = 90 counts per wheel turn (cascade_sim uses
 
 </SimOutput>
 
-Two practical details. Encoder outputs are often **open-drain**, meaning they can pull the line low but cannot drive it high. Enable the microcontroller's internal pull-ups with `INPUT_PULLUP`, or fit external 10 kΩ pull-ups to the encoder supply. Without them the signal floats and the count becomes random. And counting cannot be done with slow polling: edges arrive quickly and can be missed while the rest of the program runs. Use interrupts, as in Lesson 2, and keep the interrupt routine short. Read multi-byte counters atomically, with interrupts briefly disabled, so the main program never sees half of an update.
+Two practical details. Encoder outputs are often <Term id="open-drain">**open-drain**</Term>, meaning they can pull the line low but cannot drive it high. Enable the microcontroller's internal pull-ups with `INPUT_PULLUP`, or fit external 10 kΩ pull-ups to the encoder supply. Without them the signal floats and the count becomes random. And counting cannot be done with slow polling: edges arrive quickly and can be missed while the rest of the program runs. Use interrupts, as in Lesson 2, and keep the interrupt routine short. Read multi-byte counters atomically, with interrupts briefly disabled, so the main program never sees half of an update.
 
 <Quiz id="q5" question="An encoder gives 12 counts per motor-shaft revolution and the gearbox is 50:1. Counts per wheel revolution?" answer={600} explanation="12 counts × 50 gear ratio = 600 counts per wheel revolution. The gearbox multiplies both torque and count resolution." />
 

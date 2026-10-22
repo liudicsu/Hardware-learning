@@ -4,10 +4,10 @@
 
 A microcontroller is a complete small computer built onto a single chip: a processor, memory, and the circuits that talk to pins, timers and serial ports. It differs from the computer on your desk in one important way. It runs exactly one program — the one you flashed into it — starting the instant power arrives and continuing until power disappears. There is no desktop, no login, no operating system scheduling other applications. That simplicity is exactly why a microcontroller can react to a sensor in microseconds and keep doing it for years.
 
-The board in this course is the classic Arduino Uno, and its brain is the ATmega328P. The numbers worth memorising:
+The board in this course is the classic Arduino Uno, and its brain is the ATmega328P. The numbers worth memorising come from two primary sources, the [ATmega328P datasheet](https://ww1.microchip.com/downloads/aemDocuments/documents/MCU08/ProductDocuments/DataSheets/ATmega48A-PA-88A-PA-168A-PA-328-P-DS-DS40002061B.pdf) (memory sizes on the first page, pin limits in the DC Characteristics table) and Arduino's [Uno Rev3 technical specifications](https://store.arduino.cc/products/arduino-uno-rev3) (clock and board-level currents); check them there rather than in a tutorial:
 
 - **16 MHz** clock — the chip executes roughly one simple instruction per clock tick, so time is measured in microseconds.
-- **32 KB flash** for the program itself. Your compiled sketch lives here and survives a power cycle.
+- **32 KB flash** for the program itself. Your compiled sketch lives here and survives a power cycle. The bootloader occupies 0.5 KB of it.
 - **2 KB RAM** for variables, buffers and the stack. This is tiny. Every character of a string costs one byte, so a single 100-character message already uses 5 % of the available RAM.
 - **5 V logic** — a HIGH output is approximately 5 V, a LOW output approximately 0 V.
 
@@ -21,7 +21,7 @@ Around the edge of the board you will find three groups of pins:
 - **Analog inputs A0–A5.** These feed a 10-bit <Term id="adc">analog-to-digital converter</Term>. They can also be used as ordinary digital pins if you run out.
 - **PWM-capable pins, marked with `~`: 3, 5, 6, 9, 10 and 11.** These can produce a fast square wave whose average voltage you control. The <Term id="pwm">PWM</Term> section below is entirely about them.
 
-There are also power pins: **5 V**, **3.3 V** (only a small current — do not power motors from it), **GND**, **Vin** and **RESET**. Every external circuit must share a GND with the board, a point the common-mistakes list returns to.
+There are also power pins: **5 V**, **3.3 V** (from an on-board regulator, at most 50 mA according to the Uno Rev3 specifications: enough for a sensor module, not for a servo, motor or LED strip), **GND**, **Vin** and **RESET**. Every external circuit must share a GND with the board, a point the common-mistakes list returns to.
 
 One warning before you wire anything: **D0 and D1 are the serial link to the USB chip**. The Uno uses them to talk to your computer, which is how uploading and the Serial Monitor work. Leave them free for now. If you need a second serial port later, use other pins with a software serial library, or move to a board with more hardware UARTs.
 
@@ -103,7 +103,7 @@ Frequency is the reciprocal of the period: a 1 s period means one cycle per seco
 
 ### Why an unconnected pin is not zero
 
-A digital input is not a voltmeter with a default reading of 0 V. It is a high-impedance amplifier that decides whether the voltage on the pin is closer to 5 V or to 0 V. With nothing connected, the pin has no defined voltage at all: the input stage has almost no resistive path to hold that voltage in place, so a small amount of charge capacitively coupled from your hand, nearby wires or the mains wiring moves the pin voltage across the VIH/VIL thresholds, and `digitalRead()` returns HIGH and LOW at random.
+A digital input is not a voltmeter with a default reading of 0 V. It is a high-impedance amplifier that decides whether the voltage on the pin is closer to 5 V or to 0 V. With nothing connected, the pin has no defined voltage at all: the input stage has almost no resistive path to hold that voltage in place, so a small amount of charge capacitively coupled from your hand, nearby wires or the mains wiring moves the pin voltage across the <Term id="logic-thresholds">VIH/VIL thresholds</Term> (on the Uno at 5 V, VIH = 3.0 V and VIL = 1.5 V, from Month 1, Components), and `digitalRead()` returns HIGH and LOW at random.
 
 This is called a **floating** input, and it is the cause of the classic "it works until I touch the board" bug. The rule is absolute: every digital input must be connected to a defined level, either directly or through a resistor.
 
@@ -282,6 +282,8 @@ The general-purpose `map(raw, 0, 1023, 0, 255)` function does the same job with 
 
 ### The sketch
 
+Wiring: potentiometer ends to 5 V and GND, wiper to A0; pin 9 → 220 Ω resistor → LED anode, LED cathode → GND (the same parts as the Wokwi diagram below). The resistor sets the LED current. With a red LED of about 2.0 V forward voltage, I = (5 V − 2.0 V) / 220 Ω = 13.6 mA while the pin is HIGH, below the 20 mA recommended per pin (the pin's own output drop makes the real value slightly lower). At duty 128 the average is 128 / 255 × 13.6 mA ≈ 6.8 mA. Without the resistor, only the pin's output resistance limits the current, and the pin can be driven past its 40 mA absolute maximum.
+
 <CodeSource path="examples/month-2/arduino-io/pot_pwm/pot_pwm.ino" />
 
 ```cpp
@@ -432,3 +434,22 @@ Before you move on, you should be able to say yes to all of these:
 - I can convert a raw ADC reading to volts and explain why `5.0` matters.
 - I can explain duty cycle and calculate the average voltage of a PWM output.
 - I can read a line of serial output, understand each field, and plot it in the Serial Plotter.
+
+<Summary>
+
+**Key points**
+
+- Uno (ATmega328P): 16 MHz, 32 KB flash (0.5 KB bootloader), 2 KB RAM, 5 V logic; the 3.3 V pin supplies at most 50 mA.
+- Every digital input needs a defined level: `INPUT_PULLUP` (20–50 kΩ) with the button to GND reads HIGH released and LOW pressed.
+- 10-bit ADC: V = raw × 5.0 / 1023, one step ≈ 4.9 mV, one conversion 13 / 125 kHz = 104 µs.
+- `int` is 16 bits on the Uno (max 32767): write `5.0` or use `long` before multiplying a reading.
+- PWM: `analogWrite` sets duty = value / 255 at 490 Hz (pins 3, 9, 10, 11) or 976.6 Hz (pins 5, 6); the load sees V_avg = duty × 5 V.
+- An LED on a pin needs a series resistor: 220 Ω gives 13.6 mA for a 2.0 V red LED at 5 V.
+- At 115200 baud one character takes 86.8 µs, and a full 64-byte transmit buffer blocks `Serial.print()`.
+
+**Used next**
+
+- Month 2 · Non-blocking timing, interrupts & debouncing replaces `delay()` with `millis()` and removes the contact bounce seen in the button sketch.
+- Month 2 · Motors, drivers & your first encoder loop uses the same PWM duty to set the average motor voltage.
+
+</Summary>

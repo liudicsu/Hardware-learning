@@ -597,8 +597,14 @@ for (const m of readdirSync(content)) {
     const src = readFileSync(f, "utf8");
     // Tailwind arbitrary sizes below 12 px (text-[11px]) in HTML or SVG
     for (const m of src.matchAll(/text-\[(\d+(?:\.\d+)?)px\]/g)) ok(Number(m[1]) >= MIN_PX, `${rel(f)}: ${m[0]} is below ${MIN_PX} px; use text-xs or larger`);
-    // literal SVG font sizes below 12 units render below 12 px unless the SVG is scaled up
-    for (const m of src.matchAll(/fontSize=(?:"|\{)(\d+(?:\.\d+)?)(?:"|\})/g)) ok(Number(m[1]) >= MIN_PX, `${rel(f)}: fontSize ${m[1]} is below ${MIN_PX} units`);
+    // literal SVG font sizes (attribute or style object) below 12 units render below 12 px unless the SVG is scaled up
+    // forms: fontSize="10" / {10} / {"10px"} and style objects { fontSize: 10 } / "10px" / '10' / `10px`; a value that
+    // continues after the number (DG_FONT, 10 * k, `${n}px`) is not a literal and is skipped
+    const FS = /fontSize\s*[=:]\s*\{?\s*(?:(["'`])(\d+(?:\.\d+)?)(?:px)?\1|(\d+(?:\.\d+)?)(?:px)?\s*(?=[},]|$))/gm;
+    for (const m of src.matchAll(FS)) {
+      const v = m[2] ?? m[3];
+      ok(Number(v) >= MIN_PX, `${rel(f)}: fontSize ${v} is below ${MIN_PX} units`);
+    }
   }
 
   // <Chart>: the viewBox follows the box width below W_MAX, so FONT units render at FONT px on a phone

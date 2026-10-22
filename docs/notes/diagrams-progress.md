@@ -113,3 +113,9 @@ numbers, cart-pole direction, TB6612 OUT1) go into the PR that touches each less
   Wokwi badge, gear and snap-fit readouts, diff-drive wheel speeds); QuadratureTiming 39 units per column, en
   axis labels shortened. check_diagrams guards against small sizes; tools/check_text_size.mjs is the rendered
   check. All hand-written.
+- D093 (branch diagrams/d093-nav2-pipeline from aa8832d): `nav2-pipeline` in slam-nav "What Nav2 runs", a block
+  diagram in 4 steps: NavigateToPose goal -> bt_navigator -> planner_server (NavFn, global costmap static +
+  obstacle + inflation) and controller_server (RPP <= 0.25 m/s, 3 m x 3 m local costmap) -> velocity_smoother ->
+  collision_monitor -> /diff_drive_controller/cmd_vel (TwistStamped). Values checked against nav2.yaml (11 facts);
+  cmd_vel_nav is nav2_bringup navigation_launch.py 1.3.13's remapping (L137, L215), named in the caption.
+  behavior_server's recoveries are left out (caption). All hand-written.
