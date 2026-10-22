@@ -72,11 +72,11 @@ A rule of thumb: start in PLA to check fit, then make the real part in PETG unle
 
 The table compresses a few mechanisms. Knowing them lets you reason about a material that is not in the table.
 
-**Heat: the glass transition.** PLA, PETG, ABS and ASA, as printed, are mostly amorphous: their long polymer chains are tangled and frozen in place. Below the <Term id="glass-transition-tg">glass transition temperature (Tg)</Term> the chains cannot slide past one another and the part is stiff; through Tg the material turns soft and rubbery over a few degrees. Tg is not the melting point, and it is the number that limits a printed part in service. NatureWorks lists Tg = 55–60 °C for Ingeo 4043D, a common PLA filament resin, and a heat deflection temperature of 55 °C under a 0.45 MPa load. Eastman gives Tg ≈ 80 °C for Eastar 6763, a PETG copolyester. ABS has a Tg of about 105 °C and ASA about 100 °C. A part should run well below its material's Tg: next to a 70 °C motor, PLA is above its Tg and PETG only about 10 °C below it.
+**Heat: the glass transition.** As printed, PLA, PETG, ABS and ASA are mostly amorphous (PLA is semi-crystalline, but NatureWorks notes that grades such as 4043D come out essentially amorphous after the fast cooling of normal extrusion, and printing cools faster still): their long polymer chains are tangled and frozen in place. Below the <Term id="glass-transition-tg">glass transition temperature (Tg)</Term> the chains cannot slide past one another and the part is stiff; through Tg the material turns soft and rubbery over a few degrees. Tg is not the melting point, and it is the number that limits a printed part in service. NatureWorks lists Tg = 55–60 °C for Ingeo 4043D, a common PLA filament resin, and a heat deflection temperature of 55 °C under a 0.45 MPa load. Eastman's [data sheet for Eastar 6763](https://productcatalog.eastman.com/tds/ProdDatasheet.aspx?pn=eastar-6763-copolyester&product=71040786), a PETG copolyester, gives Tg = 80 °C (by DSC) and a heat deflection temperature of 70 °C under 0.455 MPa. ABS and ASA get their stiffness from a glassy SAN (styrene–acrylonitrile) phase, and their vendors quote softening points rather than a Tg: INEOS lists a Vicat softening temperature (B/50) of 95 °C and a heat deflection temperature of 95 °C under 0.45 MPa for [Terluran GP-35](https://eshop.ineos-styrolution.com/Product/Terluran_TERLURAN-GP-35_SKU300600120829.html), a general-purpose ABS, and 97 °C and 101 °C for [Luran S 777K](https://www.ineos-styrolution.com/Product/-_Luran-S-777K_SKU400700190193.html), a standard ASA. A part should run well below these temperatures: next to a 70 °C motor, PLA is above its Tg, and PETG is already at its heat deflection temperature even though it is 10 °C below its Tg.
 
 **Creep.** Even below Tg the chains rearrange slowly under a sustained <Term id="stress">stress</Term>, so a loaded part keeps deforming over hours and weeks. The rate rises steeply as the temperature approaches Tg, which is why PLA, with the lowest Tg of the group, creeps the most in a warm robot: a screw boss on a motor mount loosens and a cantilever that holds a sensor sags.
 
-**Moisture.** Nylon's amide groups bind water from the air. BASF's datasheet for Ultramid B3S, a PA6, lists 2.6–3.4 % water at equilibrium in 23 °C air at 50 % relative humidity and 9–10 % at saturation in water, and the absorbed water changes the material: the tensile modulus falls from 3500 MPa dry to 1200 MPa conditioned. In the hot end the water boils, which is where the bubbles and weak layers of wet nylon come from. PETG absorbs much less (Eastman lists 0.13 % for 6763 after 24 h in water), but enough to string and pop, so it is dried as well.
+**Moisture.** Nylon's amide groups bind water from the air. BASF's datasheet for Ultramid B3S, a PA6, lists 2.6–3.4 % water at equilibrium in 23 °C air at 50 % relative humidity and 9–10 % at saturation in water, and the absorbed water changes the material: the tensile modulus (<Term id="youngs-modulus">Young's modulus</Term>, its stiffness) falls from 3500 MPa dry to 1200 MPa conditioned. In the hot end the water boils, which is where the bubbles and weak layers of wet nylon come from. PETG absorbs much less (Eastman lists 0.13 % for 6763 after 24 h in water), but enough to string and pop, so it is dried as well.
 
 **UV.** ABS gets its toughness from particles of butadiene rubber, whose carbon–carbon double bonds are attacked by ultraviolet light and oxygen: the surface yellows and becomes brittle. ASA replaces the butadiene with an acrylate rubber that has no such double bonds, so it keeps its toughness outdoors.
 
@@ -165,7 +165,7 @@ force to bend it P = b × t² × E × ε / (6 × L)
 push-on force W = P × (μ + tan α) / (1 − μ × tan α)
 ```
 
-Here y is the hook depth, t the arm thickness, L the arm length, b the arm width, E the material's <Term id="youngs-modulus">Young's modulus</Term>, its stiffness (stress divided by strain in the elastic range), α the lead-in angle and μ the friction coefficient. <Term id="strain">Strain</Term> tells you whether the plastic survives; push-on force tells you whether a person can close the case.
+Here y is the hook depth, t the arm thickness, L the arm length, b the arm width, E the material's Young's modulus, its stiffness (stress divided by strain in the elastic range), α the lead-in angle and μ the friction coefficient. <Term id="strain">Strain</Term> tells you whether the plastic survives; push-on force tells you whether a person can close the case.
 
 Worked example for the case's arm:
 
@@ -396,7 +396,7 @@ An iteration checklist:
 Print just the lid's arm region, or a single test arm, before the whole case. It takes about 10 minutes instead of 2 hours and tells you whether the snap works.
 </Callout>
 
-Lesson 3 takes the same idea further: gears and backlash. A gearbox is a stack of fits, and every loose fit becomes position error at the output. The gauge numbers you write down here are the numbers you will use there.
+Lesson 3 takes the same idea further: gears and <Term id="backlash">backlash</Term>. A gearbox is a stack of fits, and every loose fit becomes position error at the output. The gauge numbers you write down here are the numbers you will use there.
 
 <Summary>
 
@@ -405,7 +405,7 @@ Lesson 3 takes the same idea further: gears and backlash. A gearbox is a stack o
 - Calibration order: temperature → flow → pressure advance → retraction → tolerance; each test assumes the earlier ones are right.
 - Hole = shaft + 2 × per-side clearance: a 5 mm shaft with 0.2 mm per side needs a 5.4 mm hole.
 - Overhangs up to about 45° from vertical usually print without support.
-- Overhang limit from bead geometry: tan θ ≤ w / (2 × h), which gives 45° for a 0.4 mm line on 0.2 mm layers; Tg, not the melting point, limits a part in service (PLA 55–60 °C, PETG about 80 °C).
+- Overhang limit from bead geometry: tan θ ≤ w / (2 × h), which gives 45° for a 0.4 mm line on 0.2 mm layers; Tg, not the melting point, limits a part in service (PLA Tg 55–60 °C, PETG Tg 80 °C but heat deflection at 70 °C under 0.455 MPa).
 - Snap strain ε = 1.5 × y × t / L²: with L = 10 mm, t = 1.2 mm and y = 0.8 mm it gives 1.44 %, inside the 1.5 % PLA limit.
 - Break-even: $7.60 saved per revision, so a $219.99 printer needs about 29 revisions to pay for itself.
 

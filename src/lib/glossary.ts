@@ -894,7 +894,7 @@ export const glossary: GlossaryEntry[] = [
       zh: "输入转 n 圈、输出转 1 圈的比值，记作 n:1；忽略摩擦时扭矩乘 n、转速除以 n，功率不变。行星级在齿圈固定、太阳轮输入、行星架输出时，减速比 = 1 + 齿圈齿数 / 太阳轮齿数。",
       en: "The ratio n:1 meaning n input turns for one output turn; ignoring friction, torque is multiplied by n and speed divided by n at constant power. For a planetary stage with the ring fixed, sun input and carrier output, the ratio is 1 + ring teeth / sun teeth.",
     },
-    lesson: "transmissions",
+    lesson: "motors-drivers",
     firstExplained: true,
   },
   {
