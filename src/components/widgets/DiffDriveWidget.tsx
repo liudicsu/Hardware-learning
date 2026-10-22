@@ -59,7 +59,7 @@ export function DiffDriveWidget() {
         <Readout label={t("ddRight")} value={`${fixed(right, 1)} rad/s`} testId="dd-right" />
         <Readout label={t("ddRadius")} value={radius} testId="dd-radius" />
       </div>
-      <p className="mt-1 font-mono text-[11px] text-zinc-500" data-testid="dd-rims">
+      <p className="mt-1 font-mono text-xs text-zinc-500" data-testid="dd-rims">
         v_left = {fixed(v - (w * b) / 2, 3)} m/s, v_right = {fixed(v + (w * b) / 2, 3)} m/s
       </p>
       {clamped && (
@@ -77,13 +77,13 @@ export function DiffDriveWidget() {
         {icr !== null && icr >= 4 && icr <= 196 && (
           <g className="fill-amber-300">
             <circle cx={icr} cy={cy} r={3} />
-            <text x={icr} y={cy + 58} textAnchor="middle" className="fill-amber-300/80 text-[9px]">
+            <text x={icr} y={cy + 58} textAnchor="middle" className="fill-amber-300/80 text-xs">
               {t("ddCentre")}
             </text>
           </g>
         )}
-        <text x={cx - half} y={cy + 44} textAnchor="middle" className="fill-zinc-500 text-[9px]">L</text>
-        <text x={cx + half} y={cy + 44} textAnchor="middle" className="fill-zinc-500 text-[9px]">R</text>
+        <text x={cx - half} y={cy + 44} textAnchor="middle" className="fill-zinc-500 text-xs">L</text>
+        <text x={cx + half} y={cy + 44} textAnchor="middle" className="fill-zinc-500 text-xs">R</text>
       </svg>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <Slider label={t("ddV")} value={v} min={-0.5} max={0.5} step={0.05} onChange={setV} format={(x) => fixed(x, 2)} unit="m/s" testId="dd-v" />
