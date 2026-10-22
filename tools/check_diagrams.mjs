@@ -338,8 +338,8 @@ function checkScript(spec, tag) {
 }
 
 /**
- * Block diagrams, optional `bindings`: the drawn text of a node (label and sub, both languages) must match every
- * regular expression in `has` and none in `lacks`; an edge can be required to be dashed. Specs build these from the
+ * Block diagrams, optional `bindings`: the text of a node (label and sub), a step or the caption, in both languages,
+ * must match every regular expression in `has` and none in `lacks`; an edge can be required to be dashed. Specs build these from the
  * same constants as their facts, so the drawing cannot drift from the lesson.
  */
 function checkBindings(spec, tag, nodeIds, edgeIds) {
@@ -350,22 +350,37 @@ function checkBindings(spec, tag, nodeIds, edgeIds) {
       if (e && b.dashed !== undefined) ok(!!e.dashed === b.dashed, `${tag}: edge ${b.edge} must be ${b.dashed ? "dashed" : "solid"} (${b.note})`);
       continue;
     }
-    ok(nodeIds.has(b.node), `${tag}: binding for unknown node "${b.node}"`);
-    const n = spec.nodes.find((x) => x.id === b.node);
-    if (!n) continue;
+    // what the binding looks at: a node's label + sub, a step's text (1-based) or the caption
+    let where, get;
+    if (b.node) {
+      ok(nodeIds.has(b.node), `${tag}: binding for unknown node "${b.node}"`);
+      const n = spec.nodes.find((x) => x.id === b.node);
+      if (!n) continue;
+      where = `node ${b.node}`;
+      get = (pick) => `${pick(n.label)}\n${pick(n.sub)}`;
+    } else if (b.step) {
+      const st = (spec.steps ?? [])[b.step - 1];
+      ok(st, `${tag}: binding for unknown step ${b.step}`);
+      if (!st) continue;
+      where = `step ${b.step}`;
+      get = (pick) => pick(st.label);
+    } else if (b.caption) {
+      where = "caption";
+      get = (pick) => pick(spec.caption);
+    } else { fail(`${tag}: binding names no node, edge, step or caption`); continue; }
     for (const loc of ["zh", "en"]) {
       const pick = (t) => (t === undefined ? "" : typeof t === "string" ? t : t[loc]);
-      const text = `${pick(n.label)}\n${pick(n.sub)}`;
+      const text = get(pick);
       for (const h of b.has ?? []) {
         const re = pick(h);
-        ok(new RegExp(re).test(text), `${tag}: node ${b.node} (${loc}) must show /${re}/ (${b.note})`);
+        ok(new RegExp(re).test(text), `${tag}: ${where} (${loc}) must show /${re}/ (${b.note})`);
       }
       for (const l of b.lacks ?? []) {
         const re = pick(l);
-        ok(!new RegExp(re).test(text), `${tag}: node ${b.node} (${loc}) must not show /${re}/ (${b.note})`);
+        ok(!new RegExp(re).test(text), `${tag}: ${where} (${loc}) must not show /${re}/ (${b.note})`);
       }
     }
-    if (!(b.has ?? []).length && !(b.lacks ?? []).length) fail(`${tag}: binding for ${b.node} checks nothing`);
+    if (!(b.has ?? []).length && !(b.lacks ?? []).length) fail(`${tag}: binding for ${where} checks nothing`);
   }
 }
 
