@@ -46,7 +46,7 @@ export function TaskChecklist({
                   onChange={() => toggleTask(`${lessonKey}#${task.id}`)}
                   className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-white/20 bg-transparent accent-sky-400 disabled:cursor-not-allowed"
                 />
-                <span>{task.text}</span>
+                <span className="min-w-0 break-words">{task.text}</span>
               </label>
             </li>
           );
