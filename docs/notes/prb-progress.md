@@ -4,9 +4,9 @@ Branch: `opencode/prb-glossary` (from origin/main 3d6a68d). Task 1 (PR #14 live 
 
 | item | status | notes |
 | --- | --- | --- |
-| a) `<Term>` + glossary data + /glossary page | in progress | |
-| b) `objectives` / `prereqs` on Lesson + block on lesson page | in progress | |
-| c) /math quick reference | in progress | source list: beginner-audit-part2 math table |
-| d) `<Summary>` in 6 lessons | in progress | ohms-law, cad-parametric, fdm-printing, transmissions, pid-control, so101-arm |
-| e) Python syntax (python-terminal), C/C++ syntax (arduino-io) | todo | |
+| a) `<Term>` + glossary data + /glossary page | component, page, 113 terms done; Term placement in lessons in progress | opencode deepseek drafted glossary.ts; reviewed, fixed antenna analogy/RMS/feedforward lesson |
+| b) `objectives` / `prereqs` on Lesson + block on lesson page | type + LessonIntro done; data for 34 lessons in progress (opencode glm) | |
+| c) /math quick reference | done (21 entries) | opencode minimax drafted; fixed atan2 def, 2τ/3τ, eigenvalue ±6.766, GM 16.6 dB context, parallel-axis example, links (fbswiki pages 500 → site root) |
+| d) `<Summary>` in 6 lessons | done | ohms-law, cad-parametric, fdm-printing, transmissions, pid-control, so101-arm |
+| e) Python syntax (python-terminal), C/C++ syntax (arduino-io) | done | opencode deepseek; all examples verified verbatim in cited files |
 | 390 px check, CI, PR | todo | |
