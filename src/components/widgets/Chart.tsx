@@ -52,7 +52,8 @@ const labelWidth = (s: string) => s.length * 0.6 * FONT;
 export function Chart(props: ChartProps) {
   const { series, xMin, xMax, yMin, yMax, xStep, yStep, xLabel, yLabel, ariaLabel } = props;
   const [box, boxW] = useBoxWidth<HTMLDivElement>();
-  const W = boxW ? Math.max(W_MIN, Math.min(W_MAX, Math.round(boxW))) : W_MAX;
+  // Before the box is measured (server HTML, first paint, JS disabled) draw at W_MIN: the browser only scales it up, so on any box at least W_MIN wide the text is not drawn below FONT px.
+  const W = boxW ? Math.max(W_MIN, Math.min(W_MAX, Math.round(boxW))) : W_MIN;
   const H = W < W_MAX ? 230 : 260;
   const PW = W - LEFT - RIGHT;
   const PH = H - TOP - BOTTOM;
@@ -70,7 +71,7 @@ export function Chart(props: ChartProps) {
   const xt = xk.map((k) => ({ v: k * xStep + 0, label: k % xm === 0 }));
   const yt = yk.map((k) => ({ v: k * yStep + 0, label: k % ym === 0 }));
   return (
-    <div ref={box} className="w-full">
+    <div ref={box} className="w-full" data-widget="chart">
       <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label={ariaLabel} data-chart-ticks={`${xm},${ym}`}>
         {props.band && (
           <rect x={LEFT} y={y(props.band[1])} width={PW} height={Math.max(0, y(props.band[0]) - y(props.band[1]))} fill="rgba(56, 189, 248, 0.08)" />
