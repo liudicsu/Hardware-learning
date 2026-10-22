@@ -47,14 +47,14 @@ Creality K1C 多了封闭机箱和硬化喷嘴，不用换硬件就能打碳纤�
 
 | 材料 | 用来做什么 | 要注意什么 |
 | --- | --- | --- |
-| PLA 和 PLA+ | 原型支架、夹具，以及 SO-101 机械臂本身：SO-ARM100 仓库规定用 PLA+、15% 填充、0.2 mm 层高、0.4 mm 喷嘴 | 易打印材料里最刚，但在持续载荷下会蠕变，约 55–60 °C 开始软化（夏天车内仪表台、贴着热电机的零件） |
+| PLA 和 PLA+ | 原型支架、夹具，以及 SO-101 机械臂本身：SO-ARM100 仓库规定用 PLA+、15% <Term id="infill">填充</Term>、0.2 mm <Term id="layer-height">层高</Term>、0.4 mm 喷嘴 | 易打印材料里最刚，但在持续载荷下会<Term id="creep">蠕变</Term>，约 55–60 °C 开始软化（夏天车内仪表台、贴着热电机的零件） |
 | PETG | 真正机器人零件的默认材料：底盘板、齿轮箱外壳、舵机安装座，任何必须经得起摔的零件 | 韧，层间结合比 PLA 好得多；会拉丝，对某些热床粘得非常牢（光滑 PEI 板上用胶棒做隔离层） |
 | ABS 和 ASA | 靠近热电机的零件；户外小车（ASA 更抗紫外线） | 没有机箱会严重翘边；有气味，要通风 |
 | 尼龙 | 齿轮和线缆导槽 | 会从空气里吸水，必须烘干；订货（JLC3DP 的 MJF 尼龙）比在家打印容易 |
 | 碳纤维填充（PLA-CF、PETG-CF、PA-CF） | 需要刚度的结构连杆 | 有磨蚀性：需要硬化喷嘴（黄铜喷嘴会磨损）；也比未填充材料更脆 |
 | TPU | 脚垫、防撞块、柔性夹爪手指（第 6 课） | 慢速打印，最好有直驱挤出机，回抽要小或关掉 |
 
-PLA 和 PLA+ 是最容易的起点：刚、尺寸稳定、便宜。SO-ARM100 仓库明确要求用 PLA+、15% <Term id="infill">填充</Term>、0.2 mm <Term id="layer-height">层高</Term>和 0.4 mm 喷嘴打印结构件，这对第一台机械臂是合理的默认值。它的限制在<Term id="creep">蠕变</Term>和温度。PLA 在持续载荷下会慢慢变形——长期受力的螺柱或悬臂会逐渐改变形状——并且在大约 55–60 °C 开始软化。夏天放在汽车仪表台上，或者紧贴发热电机的零件，都不适合用 PLA。PLA+ 比普通 PLA 更韧，但耐热上限一样。
+PLA 和 PLA+ 是最容易的起点：刚、尺寸稳定、便宜。SO-ARM100 仓库明确要求用 PLA+、15% 填充、0.2 mm 层高和 0.4 mm 喷嘴打印结构件，这对第一台机械臂是合理的默认值。它的限制在蠕变和温度。PLA 在持续载荷下会慢慢变形——长期受力的螺柱或悬臂会逐渐改变形状——并且在大约 55–60 °C 开始软化。夏天放在汽车仪表台上，或者紧贴发热电机的零件，都不适合用 PLA。PLA+ 比普通 PLA 更韧，但耐热上限一样。
 
 PETG 是课程里“真正机器人零件”的默认材料：底盘板、齿轮箱外壳、舵机安装座，以及任何必须经得起摔的零件。它比 PLA 软一些，但韧得多，层间结合也更好，所以不容易沿层线裂开。它会拉丝，而且对某些热床粘得非常牢；在光滑 PEI 板上要涂胶棒做隔离层，否则可能连板皮一起撕下来。
 
@@ -72,7 +72,7 @@ TPU 用于脚垫、防撞块，以及第 6 课的柔性夹爪手指。慢速打�
 
 上表浓缩了几个机理。理解了它们，遇到表里没有的材料也能自己推理。
 
-**耐热：玻璃化转变。** 打印出来的 PLA、PETG、ABS 和 ASA 基本都是无定形的（PLA 本身是半结晶的，但 NatureWorks 指出 4043D 这类牌号在常规挤出的快速冷却后基本是无定形的，而打印冷却得更快）：长长的高分子链缠在一起、被冻结在原位。低于<Term id="glass-transition-tg">玻璃化转变温度（Tg）</Term>时，分子链无法相互滑移，零件是硬的；经过 Tg 的几度之内，材料就变得柔软、像橡胶。Tg 不是熔点，但限制打印件使用温度的正是它。NatureWorks 给 Ingeo 4043D（一种常用的 PLA 线材原料）列出的 Tg 是 55–60 °C，0.45 MPa 载荷下的热变形温度是 55 °C；Eastman 的 [Eastar 6763 数据表](https://productcatalog.eastman.com/tds/ProdDatasheet.aspx?pn=eastar-6763-copolyester&product=71040786)（一种 PETG 共聚酯）给出 Tg = 80 °C（DSC 测定），0.455 MPa 下的热变形温度为 70 °C。ABS 和 ASA 的刚度来自其中玻璃态的 SAN（苯乙烯–丙烯腈）相，厂商给的是软化温度而不是 Tg：INEOS 给通用 ABS [Terluran GP-35](https://eshop.ineos-styrolution.com/Product/Terluran_TERLURAN-GP-35_SKU300600120829.html) 列出的维卡软化温度（B/50）是 95 °C，0.45 MPa 下的热变形温度是 95 °C；标准 ASA [Luran S 777K](https://www.ineos-styrolution.com/Product/-_Luran-S-777K_SKU400700190193.html) 分别是 97 °C 和 101 °C。零件的工作温度应当远低于这些温度：贴着 70 °C 的电机，PLA 已经高于它的 Tg；PETG 虽然比 Tg 低 10 °C，却已经到了它的热变形温度。
+**耐热：玻璃化转变。** 打印出来的 PLA、PETG、ABS 和 ASA 基本都是无定形的（PLA 本身是半结晶的，但 NatureWorks 的指南 [Crystallizing and Drying Ingeo Biopolymer](https://natureworksllc.com/getContentAsset/c31ce1f9-5412-48c8-a736-faf0faa11daf/53ffd608-340f-457b-b656-6b8cc0000bd4/ProcessingGuide_Crystallizing-and-Drying.pdf) 指出 4043D 这类牌号在常规挤出的快速冷却后基本是无定形的，而打印冷却得更快）：长长的高分子链缠在一起、被冻结在原位。低于<Term id="glass-transition-tg">玻璃化转变温度（Tg）</Term>时，分子链无法相互滑移，零件是硬的；经过 Tg 的几度之内，材料就变得柔软、像橡胶。Tg 不是熔点，但限制打印件使用温度的正是它。NatureWorks 给 Ingeo 4043D（一种常用的 PLA 线材原料）列出的 Tg 是 55–60 °C，0.45 MPa 载荷下的热变形温度是 55 °C；Eastman 的 [Eastar 6763 数据表](https://productcatalog.eastman.com/tds/ProdDatasheet.aspx?pn=eastar-6763-copolyester&product=71040786)（一种 PETG 共聚酯）给出 Tg = 80 °C（DSC 测定），0.455 MPa 下的热变形温度为 70 °C。ABS 和 ASA 的刚度来自其中玻璃态的 SAN（苯乙烯–丙烯腈）相，厂商给的是软化温度而不是 Tg：INEOS 给通用 ABS [Terluran GP-35](https://eshop.ineos-styrolution.com/INTERSHOP/web/WFS/Styrolution-Portal-Site/en_US/-/USD/ViewPDF-Print.pdf?SKU=300600120829&RenderPageType=ProductDetail&ShowISO=true) 列出的维卡软化温度（B/50）是 95 °C，0.45 MPa 下的热变形温度是 95 °C（试样先在 80 °C 退火 4 h 后测定）；标准 ASA [Luran S 777K](https://eshop.ineos-styrolution.com/INTERSHOP/web/WFS/Styrolution-Portal-Site/en_US/-/USD/ViewPDF-Print.pdf?SKU=400700190193&RenderPageType=ProductDetail&ShowISO=true) 在相同条件下分别是 97 °C 和 101 °C。这些是数据表值（ISO 75 和 ISO 306），而打印件并没有退火：INEOS 按 ASTM D648 给 Terluran GP-35 的数据是 0.45 MPa（66 psi）下退火 101 °C、未退火约 89 °C，所以打印的 ABS 零件更接近在 89 °C 左右软化。零件的工作温度应当远低于这些温度：贴着 70 °C 的电机，PLA 已经高于它的 Tg；PETG 虽然比 Tg 低 10 °C，却已经到了它的热变形温度。
 
 **蠕变。** 即使低于 Tg，分子链在持续的<Term id="stress">应力</Term>下也会缓慢重排，所以受力的零件会在几小时、几周里持续变形。温度越接近 Tg，蠕变越快；PLA 在这几种材料里 Tg 最低，所以在发热的机器人里蠕变最明显：电机座上的螺柱会松，挂传感器的悬臂会下垂。
 
