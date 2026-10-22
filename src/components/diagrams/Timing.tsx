@@ -54,6 +54,12 @@ export interface TimingProps {
   spans?: TimingSpan[];
   /** Relative column widths (e.g. durations in µs); default: all equal. */
   columns?: number[];
+  /**
+   * viewBox units per unit of `columns`. Unset: the time axis is COL units per column, whatever the
+   * proportions. Set: the axis is sum(columns) × columnScale wide, so several diagrams (or lines of one
+   * diagram) share one time scale.
+   */
+  columnScale?: number;
   /** Caption under the axis inside the SVG, e.g. "each column = 30° of motor-shaft rotation". */
   axisLabel?: string;
   /** Accessible name and the visible figure caption. */
@@ -88,11 +94,12 @@ export function columnCount(p: Pick<TimingProps, "signals" | "rows" | "columns">
 }
 
 /** x position of every column edge (n + 1 values), widths proportional to `columns`. */
-export function columnEdges(n: number, columns?: number[]): number[] {
+export function columnEdges(n: number, columns?: number[], columnScale?: number): number[] {
   const w = Array.from({ length: n }, (_, i) => Math.max(0, columns?.[i] ?? 1));
   const total = w.reduce((a, b) => a + b, 0) || n;
+  const unit = columnScale ?? (n * COL) / total;
   const edges = [LEFT];
-  for (let i = 0; i < n; i++) edges.push(edges[i] + (w[i] / total) * n * COL);
+  for (let i = 0; i < n; i++) edges.push(edges[i] + w[i] * unit);
   return edges;
 }
 
@@ -134,15 +141,15 @@ function busBands(values: string[], edges: number[]) {
 }
 
 /** viewBox width of a diagram (exported for tools/check_diagrams.mjs-style size checks and tests). */
-export function timingWidth(p: Pick<TimingProps, "signals" | "rows" | "columns">): number {
+export function timingWidth(p: Pick<TimingProps, "signals" | "rows" | "columns" | "columnScale">): number {
   const n = columnCount(p);
-  return columnEdges(n, p.columns)[n] + 8 + (p.signals.some((s) => s.average) ? AVG_PAD : 0);
+  return columnEdges(n, p.columns, p.columnScale)[n] + 8 + (p.signals.some((s) => s.average) ? AVG_PAD : 0);
 }
 
-export function TimingSvg({ signals, rows = [], spans = [], columns, axisLabel, title, highlight, activeSignals }: Omit<TimingProps, "id">) {
+export function TimingSvg({ signals, rows = [], spans = [], columns, columnScale, axisLabel, title, highlight, activeSignals }: Omit<TimingProps, "id">) {
   const n = columnCount({ signals, rows, columns });
-  const edges = columnEdges(n, columns);
-  const width = timingWidth({ signals, rows, columns });
+  const edges = columnEdges(n, columns, columnScale);
+  const width = timingWidth({ signals, rows, columns, columnScale });
   const topSpans = spans.filter((s) => (s.side ?? "top") === "top");
   const bottomSpans = spans.filter((s) => s.side === "bottom");
   const top = 10 + (topSpans.length ? SPAN_H : 0);

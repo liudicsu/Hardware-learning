@@ -120,7 +120,7 @@ export const hbridgeCurrentPath: CircuitSpec = {
       loopReason: "brake: the current circulates in the lower loop S2–motor–S4 and never passes the supply; the loop is closed (first point = last point)",
       readout: { zh: "从静止开始：0 A", en: "from rest: 0 A" },
       text: {
-        zh: `电机两端都接到 GND，从静止开始电流为 0。在这个模型（${RM} Ω + ${LM * 1000} mH）里，刚从正转切过来时，电流按箭头方向沿下方回路继续环流并衰减，τ = L / R = ${fmt(TAU_MS, 0)} ms，1 ms 后约剩 ${fmt(DECAY_1MS * 100, 0)} %（比三分之一稍多）。真实电机如果还在转，反电动势会在同一回路里驱动一股反向电流，让电机制动直到停下。TB6612：IN1 = H、IN2 = H → 短路刹车（两个输出都为低），即 one_rev.ino 的 brake()。`,
+        zh: `电机两端都接到 GND，从静止开始电流为 0。在这个模型（${RM} Ω + ${LM * 1000} mH）里，刚从正转切过来时，电流按箭头方向沿下方回路继续环流并衰减，τ = L / R = ${fmt(TAU_MS, 0)} ms，1 ms 后约剩 ${fmt(DECAY_1MS * 100, 0)} %（比三分之一稍多）。真实电机如果还在转，电机此时是一台发电机：反电动势会在同一回路里驱动一股反向电流，让电机制动直到停下。TB6612：IN1 = H、IN2 = H → 短路刹车（两个输出都为低），即 one_rev.ino 的 brake()。`,
         en: `Both motor terminals are tied to GND; from rest the current is 0. In this model (${RM} Ω + ${LM * 1000} mH), right after forward driving the current keeps circulating around this lower loop in the direction of the arrows and dies away, τ = L / R = ${fmt(TAU_MS, 0)} ms, about ${fmt(DECAY_1MS * 100, 0)} % (slightly more than a third) after 1 ms. A real motor that is still turning works as a generator: its back-EMF drives a reverse current around the same loop, and that current brakes it until it stops. TB6612: IN1 = H, IN2 = H → short brake (both outputs low), as brake() in one_rev.ino.`,
       },
     },

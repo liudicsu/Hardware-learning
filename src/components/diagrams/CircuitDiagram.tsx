@@ -130,7 +130,7 @@ export function CircuitDiagram({ spec, locale }: { spec: CircuitSpec; locale: Lo
   const btn = "rounded-md border px-2.5 py-1 text-sm transition-colors";
   return (
     <div data-circuit-state={st.id}>
-      <div className="flex flex-wrap gap-2" role="group" aria-label={`${DIAGRAM_UI[locale].states}: ${tx(spec.title, locale)}`}>
+      <div className="flex flex-wrap gap-2" role="group" aria-label={`${DIAGRAM_UI[locale].states}${locale === "zh" ? "：" : ": "}${tx(spec.title, locale)}`}>
         {spec.states.map((s, k) => (
           <button
             key={s.id}
