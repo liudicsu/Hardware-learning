@@ -8,7 +8,9 @@
 
 只靠里程计不够。`diff_drive_controller` 把轮子的转动积分成一个位姿（pose），而每一个小误差——轮子打滑、半径差了半毫米、某一次转身多转了一度——都会被永远累加下去。开几分钟之后，里程计可能已经偏离真实值几十厘米、好几度，而它自己毫无察觉。激光雷达（lidar）则直接看见墙壁，但单次扫描并不能说明机器人在哪里，除非你手里已经有一张地图可以对照。
 
-SLAM Toolbox 把两者合在一起。它维护一张<strong>位姿图（pose graph）</strong>：机器人每移动 0.2 m 或转过 0.2 rad，它就把当前扫描连同采集时的位姿一起存下来。每一帧新扫描都会和最近的几帧做匹配（scan matching，扫描匹配），在里程计的小误差刚出现时就把它纠正。当机器人回到以前见过的地方，SLAM Toolbox 会认出这帧扫描（也就是一次<strong>回环检测（loop closure）</strong>），并调整整张图，让新旧视角对得上。然后，地图就按修正后的位姿，用所有扫描画出来。
+SLAM Toolbox 把两者合在一起。它维护一张<strong>位姿图（pose graph）</strong>：机器人移动得足够远时，它就把当前扫描连同采集时的位姿一起存下来。按本课的设置，机器人离上一帧被考虑的扫描直线距离约 0.18 m（√0.8 × `minimum_travel_distance`）时，新扫描才会被考虑；它离上一次存下的扫描至少 0.2 m 或转过至少 0.2 rad，才会存下来。原地转弯不会添加节点：只有设置 `check_min_dist_and_heading_precisely: true` 时，`minimum_travel_heading` 才会单独起作用。每一帧新扫描都会和最近的几帧做匹配（scan matching，扫描匹配），在里程计的小误差刚出现时就把它纠正。当机器人回到以前见过的地方，SLAM Toolbox 会认出这帧扫描（也就是一次<strong>回环检测（loop closure）</strong>），并调整整张图，让新旧视角对得上。然后，地图就按修正后的位姿，用所有扫描画出来。
+
+<Diagram id="slam-pose-graph" />
 
 结果在 TF 里表现为多出一个坐标系。从地图到机器人的链是：
 
@@ -196,8 +198,8 @@ slam_toolbox:
     scan_topic: /scan
     resolution: 0.05              # m per map cell
     max_laser_range: 8.0          # the lidar's range in Lesson 4's xacro
-    minimum_travel_distance: 0.2  # add a new scan to the graph after 0.2 m ...
-    minimum_travel_heading: 0.2   # ... or 0.2 rad of turning
+    minimum_travel_distance: 0.2  # a scan is considered after sqrt(0.8) x 0.2 = 0.18 m (straight line), then
+    minimum_travel_heading: 0.2   # stored if 0.2 m or 0.2 rad from the last node; turning alone adds none
     map_update_interval: 2.0      # s between /map updates
 ```
 

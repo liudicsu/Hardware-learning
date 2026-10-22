@@ -248,7 +248,82 @@ export interface BytesSpec {
   facts: DiagramFact[];
 }
 
-export type DiagramSpec = BlockDiagramSpec | CircuitSpec | TimingSpec | BytesSpec;
+/* ---------- pose graphs (rendered by src/components/diagrams/PoseGraph.tsx) ---------- */
+
+/** A pose in metres and radians (x forward at the start, y to the left). */
+export interface PoseGraphPose {
+  x: number;
+  y: number;
+  th: number;
+}
+
+export interface PoseGraphFrame {
+  label: L10n;
+  /** Number of graph nodes shown (nodes 0 .. upto - 1). */
+  upto: number;
+  /** Mark the spacing between nodes 0 and 1 with the travel thresholds. */
+  spacing?: boolean;
+  /** Draw the scan-match edges from this node to the previous `matchWindow` nodes. */
+  match?: number;
+  /** Mark the gap between the newest node's estimate and its true place next to node 0. */
+  gap?: boolean;
+  /** Draw the loop-closure edge and the corrected graph (the estimate stays faint behind it). */
+  loop?: boolean;
+}
+
+/** One lidar scan: its time and the robot's pose by odometry and in truth. */
+export interface PoseGraphScan {
+  t: number;
+  odom: PoseGraphPose;
+  truth: PoseGraphPose;
+}
+
+export interface PoseGraphSpec {
+  kind: "poseGraph";
+  id: string;
+  title: L10n;
+  caption?: L10n;
+  sources: string[];
+  /** Every scan the lidar delivers along the route. */
+  scans: PoseGraphScan[];
+  /** Indices of the scans that became graph nodes. */
+  nodes: number[];
+  /** Where each node was stored, as odometry estimated it (= scans[nodes[i]].odom). */
+  estimate: PoseGraphPose[];
+  /** The same nodes after the loop closure. */
+  corrected: PoseGraphPose[];
+  /** Where each node really was (= scans[nodes[i]].truth). */
+  truth: PoseGraphPose[];
+  /**
+   * The values the node rule uses; check_diagrams compares each with its source (slam.yaml, the URDF, the
+   * Gazebo sensor, tour.py, SLAM Toolbox 2.8.5 defaults) and re-runs the rule on `scans`.
+   */
+  model: {
+    /** minimum_travel_distance (m) and minimum_travel_heading (rad), slam.yaml. */
+    distance: number;
+    heading: number;
+    /** shouldProcessScan drops a scan when dist^2 < factor * distance^2. */
+    factor: number;
+    /** minimum_time_interval (s), SLAM Toolbox default. */
+    minInterval: number;
+    /** lidar_link ahead of base_footprint (m), URDF. */
+    lidarX: number;
+    /** lidar rate (Hz), drive speed (m/s) and turn rate (rad/s). */
+    rate: number;
+    speed: number;
+    turnRate: number;
+  };
+  matchWindow: number;
+  /** SVG text drawn on the graph. */
+  text: { start: L10n; spacing: L10n; gap: L10n };
+  /** HTML legend under the graph. */
+  legend: { odom: L10n; match: L10n; loop: L10n; estimate: L10n };
+  frames: PoseGraphFrame[];
+  numbers?: DiagramNumber[];
+  facts: DiagramFact[];
+}
+
+export type DiagramSpec = BlockDiagramSpec | CircuitSpec | TimingSpec | BytesSpec | PoseGraphSpec;
 
 export function tx(text: L10n | undefined, locale: Locale): string {
   if (text === undefined) return "";

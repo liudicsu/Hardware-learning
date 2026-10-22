@@ -20,7 +20,6 @@ export function ByteFields({ spec, locale }: { spec: BytesSpec; locale: Locale }
   const [i, setI] = useState(0);
   const ui = DIAGRAM_UI[locale];
   const pk = spec.packets[i];
-  const n = pk.bytes.length;
   const top = (pk.groups ?? []).filter((g) => (g.side ?? "top") === "top");
   const bottom = (pk.groups ?? []).filter((g) => g.side === "bottom");
   // every packet uses the width of the longest one, so the cells keep their size when switching

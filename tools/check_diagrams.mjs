@@ -10,6 +10,9 @@
 //    scripts and must be identical;
 //  - byte-field specs (kind "bytes"): fields, byte values, group ranges and label widths, >= 12 px text on a
 //    390 px phone, and every listed line of the script's output is produced by running the script;
+//  - pose graphs (kind "poseGraph"): the nodes are re-derived from the scans with SLAM Toolbox 2.8.5's rule and
+//    the values in slam.yaml, the URDF, the Gazebo sensor and tour.py;
+//    labels fit the viewBox and render at >= 12 px on a phone;
 //  - every "fact" (a regular expression) is found in the repository file it names, so the
 //    numbers, pins and names drawn in a diagram are tied to the lesson scripts.
 import { readFileSync, readdirSync, existsSync } from "node:fs";
@@ -349,6 +352,114 @@ function checkBytes(spec, tag) {
   checkNumbers(spec, tag);
 }
 
+// ---------- pose graphs (kind "poseGraph", drawn by PoseGraph.tsx) ----------
+const PG_SRC = readFileSync(join(root, "src/components/diagrams/PoseGraph.tsx"), "utf8");
+const pgConst = (name) => Number(PG_SRC.match(new RegExp(`export const ${name} = ([\\d.]+)`))[1]);
+const PG = { SCALE: pgConst("PG_SCALE"), PAD: pgConst("PG_PAD"), FONT: pgConst("PG_FONT") };
+function checkPoseGraph(spec, tag) {
+  const { estimate: E, corrected: C, truth: T } = spec;
+  const n = E.length - 1;
+  ok(C.length === E.length && T.length === E.length, `${tag}: estimate, corrected and truth need the same length`);
+  ok(E[0].x === 0 && E[0].y === 0 && E[0].th === 0, `${tag}: node 0 must be the origin`);
+  // Which scans become nodes: SLAM Toolbox 2.8.5 (pinned in examples/month-4/pixi.lock), defaults for every
+  // parameter slam.yaml does not set. Source lines (github.com/SteveMacenski/slam_toolbox, tag 2.8.5, commit ec8f763):
+  //  - src/slam_toolbox_common.cpp:413 check_min_dist_and_heading_precisely defaults to false;
+  //    :807 then a scan is dropped when dist^2 < 0.8 * minimum_travel_distance^2 (base pose, straight line);
+  //    :400-411 minimum_time_interval defaults to transform_timeout's 0.5 s. The first callback passes via the
+  //    first_measurement_ branch; callbacks 2-4 are dropped (第 1 次回调走 first_measurement_ 分支直接通过，第 2–4 次被丢弃):
+  //    :769 scan_ctr++ runs before :795
+  //    scan_ctr < 5, so callbacks 2-4 are dropped; callback 1 already passed via first_measurement_ (:771-777, before
+  //    every other test, sets last_pose), so node 0 is the first scan. Karto keeps it: no last scan (Mapper.cpp:3150).
+  //  - lib/karto_sdk/src/Mapper.cpp:3147-3178 HasMovedEnough: lidar pose turned >= minimum_travel_heading or moved
+  //    >= minimum_travel_distance (minus KT_TOLERANCE 1e-6) since the last node; its time escape is 3600 s (:2118).
+  const SLAM_TOOLBOX = { version: "2.8.5", factor: 0.8, minInterval: 0.5, warmup: 5 /* scan_ctr < 5 */, tolerance: 1e-6 };
+  const rd = (f) => readFileSync(join(root, f), "utf8");
+  const num = (text, re, what) => { const m = text.match(re); ok(m, `${tag}: ${what} not found`); return m ? Number(m[1]) : NaN; };
+  const yaml = rd("examples/month-4/slam-nav/m4_nav/config/slam.yaml");
+  ok(rd("examples/month-4/pixi.lock").includes(`ros-jazzy-slam-toolbox-${SLAM_TOOLBOX.version}-`), `${tag}: pixi.lock no longer pins slam_toolbox ${SLAM_TOOLBOX.version}; re-check the source lines`);
+  for (const p of ["check_min_dist_and_heading_precisely", "minimum_time_interval", "transform_timeout", "throttle_scans"])
+    ok(!new RegExp(`^\\s*${p}:`, "m").test(yaml), `${tag}: slam.yaml sets ${p}; the node rule assumes its default`);
+  const m = spec.model;
+  const want = {
+    distance: num(yaml, /minimum_travel_distance:\s*([\d.]+)/, "slam.yaml minimum_travel_distance"),
+    heading: num(yaml, /minimum_travel_heading:\s*([\d.]+)/, "slam.yaml minimum_travel_heading"),
+    factor: SLAM_TOOLBOX.factor,
+    minInterval: SLAM_TOOLBOX.minInterval,
+    lidarX: num(rd("examples/month-4/urdf-tf/m4_description/urdf/robot.urdf.xacro"), /name="lidar_joint"[\s\S]*?<origin xyz="([-\d.]+) /, "URDF lidar_joint x"),
+    rate: num(rd("examples/month-4/gazebo-sim/m4_gazebo/urdf/sensors.gazebo.xacro"), /name="lidar"[\s\S]*?<update_rate>([\d.]+)</, "Gazebo lidar update_rate"),
+    speed: num(rd("examples/month-4/slam-nav/tour.py"), /self\.send\(min\(([\d.]+), math\.hypot/, "tour.py drive speed"),
+    turnRate: num(rd("examples/month-4/slam-nav/tour.py"), /max\(-([\d.]+), min\(\1, /, "tour.py turn rate"),
+  };
+  ok(/<origin xyz="0 0 \$\{wheel_radius\}"\/>/.test(rd("examples/month-4/urdf-tf/m4_description/urdf/robot.urdf.xacro")), `${tag}: base_joint is no longer straight above base_footprint`);
+  for (const [k, v] of Object.entries(want)) ok(m[k] === v, `${tag}: model.${k} = ${m[k]}, source says ${v}`);
+  // the scans: one per lidar period, at most speed / rate apart
+  const S = spec.scans;
+  for (let k = 1; k < S.length; k++) {
+    if (Math.abs(S[k].t - S[k - 1].t - 1 / want.rate) > 1e-9 || Math.hypot(S[k].odom.x - S[k - 1].odom.x, S[k].odom.y - S[k - 1].odom.y) > want.speed / want.rate + 1e-9) {
+      fail(`${tag}: scan ${k} is not one lidar period / ${want.speed / want.rate} m after scan ${k - 1}`); break;
+    }
+  }
+  checks++;
+  // re-run the rule
+  const norm = (x) => Math.atan2(Math.sin(x), Math.cos(x));
+  const sq = (a, b) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
+  const lid = (p) => ({ x: p.x + want.lidarX * Math.cos(p.th), y: p.y + want.lidarX * Math.sin(p.th) });
+  const expected = [0];
+  let passed = S[0];
+  for (let k = 1; k < S.length; k++) {
+    if (k + 1 < SLAM_TOOLBOX.warmup || S[k].t - passed.t < want.minInterval) continue;
+    if (sq(S[k].odom, passed.odom) < want.factor * want.distance ** 2) continue; // shouldProcessScan: distance only
+    passed = S[k];
+    const last = S[expected[expected.length - 1]].odom;
+    if (Math.abs(norm(S[k].odom.th - last.th)) >= want.heading || sq(lid(S[k].odom), lid(last)) >= want.distance ** 2 - SLAM_TOOLBOX.tolerance) expected.push(k);
+  }
+  ok(JSON.stringify(spec.nodes) === JSON.stringify(expected), `${tag}: nodes ${JSON.stringify(spec.nodes)} differ from SLAM Toolbox's rule ${JSON.stringify(expected)}`);
+  ok(spec.nodes.every((k, i) => E[i] === S[k].odom || JSON.stringify(E[i]) === JSON.stringify(S[k].odom)), `${tag}: estimate is not the odometry pose of each node's scan`);
+  ok(spec.nodes.every((k, i) => JSON.stringify(T[i]) === JSON.stringify(S[k].truth)), `${tag}: truth is not the true pose of each node's scan`);
+  // Fixed expectations, computed by hand (catches a logic error shared by the spec and the rule above):
+  //  node 0 = scan 0: the first callback passes (first_measurement_) -> (0, 0, 0).
+  //  node 1 = scan 8: scans 1-3 dropped (scan_ctr 2-4), scan 4 is 0.4 s after scan 0 (< 0.5 s); scan 7 is
+  //    7 x 0.025 = 0.175 m out, 0.175^2 = 0.030625 < 0.8 x 0.2^2 = 0.032 -> dropped; scan 8 is 0.200 m out,
+  //    0.04 >= 0.032 passes, and 0.04 >= 0.2^2 - 1e-6 for Karto -> (0.200, 0, 0).
+  //  nodes 1-12 = scans 8, 16, ..., 96: the 2.4 m side takes 9.6 s = 96 scans, so node 12 is at the corner (2.4, 0).
+  //  node 13 = scan 130: the turn on the spot (base does not move, every scan dropped) takes (pi/2) / 0.6 =
+  //    2.61799 s and ends at t = 12.21799 s; scan 129 (t = 12.9) is 0.25 x 0.68201 = 0.17050 m from the corner
+  //    (< 0.17889, dropped); scan 130 (t = 13.0) is d = 0.25 x 0.78201 = 0.19550 m out and passes; Karto keeps it
+  //    because odometry turned th = 0.97 x pi/2 = 1.52367 rad >= 0.2. Position x = 2.4 + d cos th = 2.40921,
+  //    y = d sin th = 0.19528.
+  const HAND = [[0, 0, 0, 0], [1, 8, 0.2, 0], [12, 96, 2.4, 0], [13, 130, 2.40921, 0.19528]];
+  for (const [i, k, x, y] of HAND)
+    ok(spec.nodes[i] === k && Math.abs(E[i].x - x) < 5e-6 && Math.abs(E[i].y - y) < 5e-6,
+      `${tag}: node ${i} should be scan ${k} at (${x}, ${y}) by hand; got scan ${spec.nodes[i]} at (${E[i]?.x.toFixed(5)}, ${E[i]?.y.toFixed(5)})`);
+  console.log(`calc  ${spec.id}: ${S.length} scans -> ${expected.length} nodes by SLAM Toolbox ${SLAM_TOOLBOX.version}'s rule (drop < sqrt(${want.factor}) x ${want.distance} = ${(Math.sqrt(want.factor) * want.distance).toFixed(3)} m, then ${want.distance} m or ${want.heading} rad)`);
+  // the view: one layout of at most 360 units; text >= 12 px on a phone, inside the viewBox
+  const ps = [...E, ...C];
+  const x0 = Math.min(...ps.map((p) => p.x)), x1 = Math.max(...ps.map((p) => p.x));
+  const y0 = Math.min(...ps.map((p) => p.y)), y1 = Math.max(...ps.map((p) => p.y));
+  const w = Math.ceil((x1 - x0) * PG.SCALE + 2 * PG.PAD), h = Math.ceil((y1 - y0) * PG.SCALE + 2 * PG.PAD);
+  const at = (p) => [PG.PAD + (p.x - x0) * PG.SCALE, PG.PAD + (y1 - p.y) * PG.SCALE];
+  ok(w <= NARROW_MAX, `${tag}: width ${w} > ${NARROW_MAX}`);
+  const px = PG.FONT * Math.min(1.5, PHONE_BOX / w);
+  ok(px >= 12, `${tag}: text renders at ${px.toFixed(1)} px on a 390 px phone (< 12)`);
+  const [sx, sy] = at(E[0]), [bx, by] = at(E[1]), [ex, ey] = at(E[n]), [tx0, ty0] = at(T[n]);
+  const pos = { start: [sx + 8, sy + 18, "start"], spacing: [(sx + bx) / 2, Math.min(sy, by) - 10, "middle"], gap: [(ex + tx0) / 2 + 10, (ey + ty0) / 2 + 4, "start"] };
+  for (const [key, [x, y, a]] of Object.entries(pos)) {
+    checkText(`${tag} text ${key}`, spec.text[key]);
+    for (const t of variants(spec.text[key])) {
+      const tw = textWidth(t, PG.FONT), xa = a === "start" ? x : x - tw / 2;
+      ok(xa >= 0 && xa + tw <= w && y - PG.FONT >= 0 && y + 3 <= h, `${tag}: text "${t}" at (${xa.toFixed(0)}, ${y.toFixed(0)}) leaves ${w}x${h}`);
+    }
+  }
+  for (const [key, t] of Object.entries(spec.legend)) checkText(`${tag} legend ${key}`, t);
+  for (const [k, f] of spec.frames.entries()) {
+    checkText(`${tag} frame ${k + 1}`, f.label);
+    ok(f.upto >= 2 && f.upto <= n + 1, `${tag} frame ${k + 1}: upto ${f.upto} outside 2..${n + 1}`);
+    if (f.match !== undefined) ok(f.match < f.upto && f.match >= spec.matchWindow, `${tag} frame ${k + 1}: match node ${f.match} must be shown and have ${spec.matchWindow} predecessors`);
+    if (f.gap || f.loop) ok(f.upto === n + 1, `${tag} frame ${k + 1}: the gap and the loop closure need every node`);
+  }
+  checkNumbers(spec, tag);
+}
+
 // Spec files are plain data; the only imports allowed are types and JSON data files, inlined here.
 const inlineJson = (src) =>
   src.replace(/^import (\w+) from "(\.\.?\/[^"]+\.json)";$/gm, (_, name, rel) => `const ${name} = ${readFileSync(join(specDir, rel), "utf8")};`);
@@ -383,6 +494,7 @@ for (const { file, name, spec } of specs) {
   if (spec.kind === "circuit") checkCircuit(spec, tag);
   else if (spec.kind === "timing") checkTiming(spec, tag);
   else if (spec.kind === "bytes") checkBytes(spec, tag);
+  else if (spec.kind === "poseGraph") checkPoseGraph(spec, tag);
   else {
     const nodeIds = new Set(spec.nodes.map((n) => n.id));
     const edgeIds = new Set(spec.edges.map((e) => e.id));

@@ -9,6 +9,7 @@ import { pullupExternal, pullupInternal } from "./specs/pullup";
 import { reactionTimerStates } from "./specs/reactionTimer";
 import { ros2GraphSystem } from "./specs/ros2Graph";
 import { ros2WorkspaceTree } from "./specs/ros2Workspace";
+import { slamPoseGraph } from "./specs/slamPoseGraph";
 import { stsPackets } from "./specs/sts";
 import { slamTfChain } from "./specs/slamTf";
 import { urdfTwoPublishers } from "./specs/urdfPublishers";
@@ -21,6 +22,7 @@ export const DIAGRAMS: Record<string, DiagramSpec> = {
   [ros2GraphSystem.id]: ros2GraphSystem,
   [ros2WorkspaceTree.id]: ros2WorkspaceTree,
   [slamTfChain.id]: slamTfChain,
+  [slamPoseGraph.id]: slamPoseGraph,
   [urdfTwoPublishers.id]: urdfTwoPublishers,
   [gitAreas.id]: gitAreas,
   [gitBranches.id]: gitBranches,
