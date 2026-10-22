@@ -134,3 +134,18 @@ numbers, cart-pole direction, TB6612 OUT1) go into the PR that touches each less
   GR00T). Either output becomes numbers for the motors. check_diagrams runs action_tokens.py for the chunk line,
   checks the constants line, and checks 12 lesson sentences (6 zh, 6 en). Caption: a sketch, not any one model's
   layers. All hand-written.
+- D118 review (#41), checked against arXiv:
+  - π0-FAST has its own line: a whole chunk goes through DCT + BPE, about 30 tokens per arm per second
+    (2501.09747 §V-B, Table I).
+  - Octo is marked "no VLM" in the diagram, the lessons and the table: a transformer trained from scratch, with a
+    frozen t5-base text encoder (2405.12213 §III-A).
+  - π0.5 is qualified: pretrained with FAST tokens, flow-matching action expert added in post-training
+    (2504.16054 Fig. 3, §IV-B).
+  - RT-2 and OpenVLA output one step per call (8 and 7 tokens); the 30-step chunk is this lesson's own example.
+  - The caption says where the joint state goes: into the language model in π0-FAST, π0.5 and SmolVLA; into the
+    action head in π0 and GR00T (2410.24164 §3, 2503.14734 §2.1, 2506.01844 §3.1).
+  - "per dimension" is written out in full.
+  - The lessons now say the 1st–99th percentile range is OpenVLA's; RT-2 uses the whole range (2406.09246 §3.3).
+  - check_diagrams: script failures are FAIL lines, and block bindings tie the drawn model lists to the facts.
+  - cartpole-signs: the axis ends at x 304 and "+x" starts at x 311, clear of the arrowhead.
+  - All hand-written.
