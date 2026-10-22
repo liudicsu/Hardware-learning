@@ -1,7 +1,9 @@
 import type { DiagramSpec } from "./types";
 import { firstRobotsCascade, pidCascade } from "./specs/cascade";
+import { debounceQuiet } from "./specs/debounce";
 import { gitAreas, gitBranches } from "./specs/gitModel";
 import { pwmDuty } from "./specs/pwm";
+import { i2cWhoAmI } from "./specs/i2c";
 import { hbridgeCurrentPath } from "./specs/hbridge";
 import { pullupExternal, pullupInternal } from "./specs/pullup";
 import { reactionTimerStates } from "./specs/reactionTimer";
@@ -25,4 +27,6 @@ export const DIAGRAMS: Record<string, DiagramSpec> = {
   [hbridgeCurrentPath.id]: hbridgeCurrentPath,
   [pullupInternal.id]: pullupInternal,
   [pullupExternal.id]: pullupExternal,
+  [i2cWhoAmI.id]: i2cWhoAmI,
+  [debounceQuiet.id]: debounceQuiet,
 };

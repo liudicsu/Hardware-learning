@@ -64,3 +64,17 @@ numbers, cart-pole direction, TB6612 OUT1) go into the PR that touches each less
   aria-label on the circuit state group; check_diagrams path rules (start at a supply, end at a ground, every
   closed switch on the path; closed-loop states need an explicit `loopReason`, used by the H-bridge brake).
   13 diagrams, 2305 checks. Live check of the adbfcdc circuits: 12/12 OK (hl-audit/encoder-live-check.md).
+- D-4 merged (#23, squash 7de9d0a). Live check after the deploy: PWM, brake text, encoder punctuation and the
+  pull-up label are OK (hl-audit/encoder-live-check.md). PWM at 390 px was 9 px; fixed in D-5.
+- D-5 (branch diagrams/d5-i2c-debounce from 7de9d0a):
+  - `i2c-read-who-am-i` (sensors-fusion): readReg(REG_WHO_AM_I), field by field, following the MPU-6050
+    datasheet's single-byte read (PS rev 3.4 §9.2/§9.3, RM rev 4.2 §4.32).
+  - `debounce-quiet-line` (timing-interrupts): real edges from debounce_sim.py (seed 1) via debounce_export.py
+    into a committed JSON, which check_diagrams regenerates; the 30 ms rule is the firmware's
+    `t - lastEdge > DEBOUNCE_MS`.
+  - Timing `columnScale`, `lines` / `narrowLines`, and a text-size check (>= 12 px).
+  - #23 nits: PWM zh facts, phase-correct note, one-period narrow layout; zh brake generator wording; zh aria
+    colon.
+  - Lesson wording fixed to match the firmware: "quiet for more than 30 ms", each bounce measured from the
+    previous edge.
+  - All hand-written.

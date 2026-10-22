@@ -43,6 +43,20 @@ span and label widths, and that the diagram fits a 390 px phone at the minimum t
 from `Timing.tsx`). Signals may carry `average: { level, label }`, a dashed line at that fraction of the trace height.
 First user: `pwm-duty-average` (arduino-io).
 
+Layout options (D-5):
+- `columnScale`: viewBox units per unit of `columns`. Every line then shares one time scale, e.g. the debounce
+  diagram draws a 0.9 ms bounce and the 30 ms window in proportion.
+- `lines`: column ranges drawn one under the other. They must cover all columns in order.
+- `narrowLines`: the ranges used below 640 px. They may leave columns out; PWM shows one period on phones.
+- Each line's box is sized to its own viewBox width, capped at 1.3 px per unit, so every line shares one scale.
+- check_diagrams requires the smallest SVG text (14 units) to render at >= 12 px: at 390 px, the narrow lines
+  in a 332 px box; at 640 px, the wide lines in a 582 px box. It also checks that bus values fit their bands,
+  row cells their columns, and that spans do not cross a line break.
+
+Data files: `src/lib/diagrams/data/*.json` may be imported by a spec (the check inlines them). Each file names
+the script that writes it in `"source"`; check_diagrams re-runs `python3 <source>` and requires identical
+output. First file: `debounce-bounce.json` from `tools/sim/models/debounce_export.py` (debounce_sim.py, seed 1).
+
 The encoder diagrams stay `<QuadratureTiming>`: their columns are computed at render time from
 `src/lib/models/encoder.ts`, which `check_widgets.mjs` compares with `encoder_sim.py`'s output. A registry spec is
 plain data loaded by `check_diagrams.mjs` without a bundler, so moving them would mean copying the model's output
