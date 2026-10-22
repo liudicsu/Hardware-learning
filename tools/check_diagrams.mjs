@@ -770,6 +770,33 @@ for (const f of existsSync(dataDir) ? readdirSync(dataDir).filter((f) => f.endsW
   console.log(`calc  act-diffusion: average_policy at (0, 0.23) = act-fork.json mean ${want} cm, quoted in curriculum (zh/en) and Quiz q1 (zh/en)`);
 }
 
+// esp32: the lesson's angle -> duty table and its step list are what web_servo.ino's angleToDuty() returns.
+// Recompute from the sketch's own constants with the same unsigned integer maths and bind every quoted row.
+{
+  const ino = readFileSync(join(root, "examples/month-2/esp32/web_servo/web_servo.ino"), "utf8");
+  const bits = ino.match(/const int SERVO_BITS = (\d+);/);
+  const us = ino.match(/uint32_t us = (\d+) \+ \(uint32_t\)angle \* (\d+) \/ (\d+);/);
+  const dv = ino.match(/return us \* \(1UL << SERVO_BITS\) \/ (\d+);/);
+  ok(bits && us && dv, "web_servo.ino: angleToDuty() no longer has the form the esp32 duty check parses");
+  if (bits && us && dv) {
+    const duty = (a) => Math.floor((Number(us[1]) + Math.floor((a * Number(us[2])) / Number(us[3]))) * 2 ** Number(bits[1]) / Number(dv[1]));
+    const angles = [0, 45, 90, 135, 180];
+    const want = angles.map(duty);
+    const steps = want.slice(1).map((d, i) => d - want[i]);
+    for (const [lang, stepRe, listRe, sep] of [["en", /The steps are ([\d, ]+)\./, /evenly spaced: ([\d, ]+)\./, ", "], ["zh", /相邻差分别是 ?([\d、]+)/, /完全等距的：([\d、]+)，/, "、"]]) {
+      const text = readFileSync(join(root, `src/content/m2/esp32/${lang}.mdx`), "utf8");
+      const rows = [...text.matchAll(/^angle +(\d+) -> duty (\d+)$/gm)].map((m) => [Number(m[1]), Number(m[2])]);
+      ok(rows.length === angles.length, `esp32 ${lang}: expected ${angles.length} "angle N -> duty D" rows, found ${rows.length}`);
+      for (const [a, d] of rows) ok(angles.includes(a) && d === duty(a), `esp32 ${lang}: table says angle ${a} -> duty ${d}; angleToDuty(${a}) = ${duty(a)}`);
+      const s = text.match(stepRe);
+      ok(s && s[1].trim() === steps.join(sep), `esp32 ${lang}: step list ${s ? s[1] : "(not found)"} != ${steps.join(sep)}`);
+      const l = text.match(listRe);
+      ok(l && l[1].trim() === want.join(sep), `esp32 ${lang}: value list ${l ? l[1] : "(not found)"} != ${want.join(sep)}`);
+    }
+    console.log(`calc  esp32: angleToDuty at ${bits[1]} bits = ${want.join(", ")} (steps ${steps.join(", ")}), bound to the table, value list and step list in en/zh`);
+  }
+}
+
 const specs = [];
 for (const f of readdirSync(specDir).filter((f) => f.endsWith(".ts"))) {
   const mod = await import(dataUrl(transpile(inlineJson(readFileSync(join(specDir, f), "utf8")))));
