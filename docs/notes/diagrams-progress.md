@@ -85,3 +85,7 @@ numbers, cart-pole direction, TB6612 OUT1) go into the PR that touches each less
   slam-tf-chain): 4 frames — a node every 0.2 m / 0.2 rad, scan matching, drift gap after one lap (0.28 m),
   loop closure with the corrected graph. Node spacing checked against slam.yaml node by node; route, 3 % turn
   error and linear correction marked illustrative. All hand-written.
+- D-7 review fix (#29): the node rule follows SLAM Toolbox 2.8.5 (shouldProcessScan's straight-line
+  sqrt(0.8) x 0.2 = 0.179 m filter, heading ignored there; then Karto's 0.2 m / 0.2 rad). Route now turns on the
+  spot like tour.py (turns add no nodes); lesson L11 and the slam.yaml comments fixed in zh and en; caption: rolling
+  scan buffer (10 scans / 10 m), Ceres solver; loop-closure step: loop_search_maximum_distance 3 m, chain >= 10.

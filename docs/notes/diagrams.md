@@ -68,11 +68,15 @@ into the spec (two sources of truth) or adding a bundling step to the check.
 stored, as odometry saw it), `corrected` (after the loop closure) and `truth`, plus `frames` that show the first
 `upto` nodes, the spacing label, scan-match edges from one node to the previous `matchWindow`, the drift gap, or the
 loop closure with the corrected graph over the faint estimate. "All" shows the final state. One viewBox for every
-frame (100 units per metre, at most 360 wide). check_diagrams reads `minimum_travel_distance` /
-`minimum_travel_heading` from slam.yaml and requires every node to be stored once either is reached (and not more
-than one integration step later); labels must fit the viewBox and render at >= 12 px on a 390 px phone. First user:
-`slam-pose-graph` (slam-nav); the route, the 3 % turn error and the linear correction are illustrative and the
-caption says so.
+frame (100 units per metre, at most 360 wide). The spec also carries every lidar scan (`scans`, odometry and true
+pose) and the indices that became nodes. check_diagrams re-derives the nodes with SLAM Toolbox 2.8.5's rule
+(shouldProcessScan: drop a scan closer than sqrt(0.8) x minimum_travel_distance in a straight line from the last
+scan that passed, heading ignored; then Karto HasMovedEnough: 0.2 m or 0.2 rad from the last node), with the
+values read from slam.yaml, the URDF lidar offset, the Gazebo lidar rate and tour.py's speeds, and the 2.8.5
+defaults (factor 0.8, minimum_time_interval 0.5 s) written in the check with their source lines. It fails if
+pixi.lock stops pinning 2.8.5 or slam.yaml starts setting a parameter the rule assumes at its default. Labels must
+fit the viewBox and render at >= 12 px on a 390 px phone. First user: `slam-pose-graph` (slam-nav); the route, the
+3 % turn error, the 3 matching edges and the linear correction are illustrative and the caption says so.
 
 ## Consistency with scripts
 

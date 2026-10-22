@@ -8,7 +8,7 @@ The practice task follows the order you would use on a real robot: calibrate odo
 
 Odometry alone is not enough. `diff_drive_controller` integrates wheel rotations into a pose, and every small error — a wheel that slips, a radius that is half a millimetre off, a turn that comes out one degree long — is added up forever. After a few minutes of driving, odometry can be tens of centimetres and several degrees away from the truth, and it never notices. The lidar, on the other hand, sees the walls directly, but a single scan does not say where the robot is unless you already have a map to compare it with.
 
-SLAM Toolbox combines the two. It keeps a **pose graph**: every time the robot has moved 0.2 m or turned 0.2 rad, it stores the current scan together with the pose where it was taken. Each new scan is matched against the recent ones (scan matching), which corrects the small odometry errors as they happen. When the robot comes back to a place it has seen before, SLAM Toolbox recognises the scan (a **loop closure**) and adjusts the whole graph so that the old and new views agree. The map is then drawn from all the scans at their corrected poses.
+SLAM Toolbox combines the two. It keeps a **pose graph**: whenever the robot has moved far enough, it stores the current scan together with the pose where it was taken. With this lesson's settings, a scan is only considered once the robot is about 0.18 m in a straight line from the last scan considered (√0.8 × `minimum_travel_distance`), and it is stored if it is at least 0.2 m or 0.2 rad from the last stored scan. Turning on the spot adds nothing: `minimum_travel_heading` only counts on its own with `check_min_dist_and_heading_precisely: true`. Each new scan is matched against the recent ones (scan matching), which corrects the small odometry errors as they happen. When the robot comes back to a place it has seen before, SLAM Toolbox recognises the scan (a **loop closure**) and adjusts the whole graph so that the old and new views agree. The map is then drawn from all the scans at their corrected poses.
 
 <Diagram id="slam-pose-graph" />
 
@@ -198,8 +198,8 @@ slam_toolbox:
     scan_topic: /scan
     resolution: 0.05              # m per map cell
     max_laser_range: 8.0          # the lidar's range in Lesson 4's xacro
-    minimum_travel_distance: 0.2  # add a new scan to the graph after 0.2 m ...
-    minimum_travel_heading: 0.2   # ... or 0.2 rad of turning
+    minimum_travel_distance: 0.2  # a scan is considered after sqrt(0.8) x 0.2 = 0.18 m (straight line), then
+    minimum_travel_heading: 0.2   # stored if 0.2 m or 0.2 rad from the last node; turning alone adds none
     map_update_interval: 2.0      # s between /map updates
 ```
 

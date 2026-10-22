@@ -234,22 +234,48 @@ export interface PoseGraphFrame {
   loop?: boolean;
 }
 
+/** One lidar scan: its time and the robot's pose by odometry and in truth. */
+export interface PoseGraphScan {
+  t: number;
+  odom: PoseGraphPose;
+  truth: PoseGraphPose;
+}
+
 export interface PoseGraphSpec {
   kind: "poseGraph";
   id: string;
   title: L10n;
   caption?: L10n;
   sources: string[];
-  /** Where each node was stored, as odometry estimated it. */
+  /** Every scan the lidar delivers along the route. */
+  scans: PoseGraphScan[];
+  /** Indices of the scans that became graph nodes. */
+  nodes: number[];
+  /** Where each node was stored, as odometry estimated it (= scans[nodes[i]].odom). */
   estimate: PoseGraphPose[];
   /** The same nodes after the loop closure. */
   corrected: PoseGraphPose[];
-  /** Where each node really was (used for the gap and the checks). */
+  /** Where each node really was (= scans[nodes[i]].truth). */
   truth: PoseGraphPose[];
-  /** A new node after this distance (m) or heading change (rad), as in slam.yaml. */
-  travel: { distance: number; heading: number };
-  /** Integration step of the model (m); the checks allow one step past a threshold. */
-  step: number;
+  /**
+   * The values the node rule uses; check_diagrams compares each with its source (slam.yaml, the URDF, the
+   * Gazebo sensor, tour.py, SLAM Toolbox 2.8.5 defaults) and re-runs the rule on `scans`.
+   */
+  model: {
+    /** minimum_travel_distance (m) and minimum_travel_heading (rad), slam.yaml. */
+    distance: number;
+    heading: number;
+    /** shouldProcessScan drops a scan when dist^2 < factor * distance^2. */
+    factor: number;
+    /** minimum_time_interval (s), SLAM Toolbox default. */
+    minInterval: number;
+    /** lidar_link ahead of base_footprint (m), URDF. */
+    lidarX: number;
+    /** lidar rate (Hz), drive speed (m/s) and turn rate (rad/s). */
+    rate: number;
+    speed: number;
+    turnRate: number;
+  };
   matchWindow: number;
   /** SVG text drawn on the graph. */
   text: { start: L10n; spacing: L10n; gap: L10n };
