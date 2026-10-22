@@ -87,7 +87,54 @@ export interface BlockDiagramSpec {
   facts: DiagramFact[];
 }
 
-export type DiagramSpec = BlockDiagramSpec;
+/** A number drawn in a diagram, computed in the spec from its inputs and compared with the lesson. */
+export interface DiagramNumber {
+  note: string;
+  value: number;
+  expect: number;
+  tol: number;
+}
+
+/* ---------- timing diagrams (rendered by <TimingSvg> from src/components/diagrams/Timing.tsx) ---------- */
+
+export interface TimingSpecSignal {
+  name: L10n;
+  kind?: "digital" | "bus";
+  /** digital: 1 / 0, "x" unknown, "z" released. */
+  levels?: (number | "x" | "z")[];
+  /** bus: one value per column. */
+  values?: L10n[];
+  tone?: Tone;
+  /** Dashed line at this fraction of the trace height with a label at the right (e.g. PWM average voltage). */
+  average?: { level: number; label: L10n };
+}
+
+export interface TimingSpecStep {
+  label: L10n;
+  /** Column to highlight. */
+  column?: number;
+  /** Signals drawn at full strength in this step (others dimmed). */
+  signals?: number[];
+}
+
+export interface TimingSpec {
+  kind: "timing";
+  id: string;
+  title: L10n;
+  caption?: L10n;
+  sources: string[];
+  /** Relative column widths (e.g. durations); default equal. */
+  columns?: number[];
+  signals: TimingSpecSignal[];
+  rows?: { name: L10n; cells: L10n[]; mono?: boolean }[];
+  spans?: { from: number; to: number; label: L10n; side?: "top" | "bottom" }[];
+  axisLabel?: L10n;
+  steps?: TimingSpecStep[];
+  numbers?: DiagramNumber[];
+  facts: DiagramFact[];
+}
+
+export type DiagramSpec = BlockDiagramSpec | TimingSpec;
 
 export function tx(text: L10n | undefined, locale: Locale): string {
   if (text === undefined) return "";

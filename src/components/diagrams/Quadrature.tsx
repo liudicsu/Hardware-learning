@@ -29,11 +29,13 @@ export function QuadratureTiming({ direction, title, countLabel, stateLabel, axi
         { name: stateLabel, cells: cols.map((c) => c.ab) },
         { name: countLabel, cells: cols.map((c) => sgn(c.count)), mono: false },
       ]}
-      stepText={cols.map((c, i) =>
-        i === 0
-          ? `AB ${c.ab}, ${countLabel} 0`
-          : `AB ${cols[i - 1].ab} → ${c.ab}: ${sgn(c.delta)}, ${countLabel} ${sgn(c.count)}`,
-      )}
+      stepText={cols.map((c, i) => {
+        // full-width colon and comma in Chinese text, ASCII in English
+        const [colon, comma] = locale === "zh" ? ["：", "，"] : [": ", ", "];
+        return i === 0
+          ? `AB ${c.ab}${comma}${countLabel} 0`
+          : `AB ${cols[i - 1].ab} → ${c.ab}${colon}${sgn(c.delta)}${comma}${countLabel} ${sgn(c.count)}`;
+      })}
       locale={locale}
     />
   );
