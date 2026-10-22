@@ -403,20 +403,24 @@ function guidedSteps(block) {
   }
   return steps;
 }
-// rows: [label, want, got, step]. `want` must appear as a whole token (not inside a longer number) in step `step`
-// of both the en and zh guided lists.
+// rows: [label, want, got, step, ctx?]. `want` must appear as a whole token (not inside a longer number) in step
+// `step` of both the en and zh guided lists. The optional `ctx` is { en, zh } giving literal text that must
+// immediately precede the value in that locale's step text.
 function guided(widget, lesson, rows) {
   const blocks = { en: guidedBlock(lesson, "en"), zh: guidedBlock(lesson, "zh") };
   for (const loc of ["en", "zh"]) compare("guided " + widget, `${loc} list present`, "yes", blocks[loc] ? "yes" : "no");
   const steps = { en: blocks.en ? guidedSteps(blocks.en) : [], zh: blocks.zh ? guidedSteps(blocks.zh) : [] };
-  for (const [label, want, got, n] of rows) {
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  for (const [label, want, got, n, ctx] of rows) {
     compare("guided " + widget, label, want, got);
-    const escaped = want.replace(/\u2212/g, "-").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const token = new RegExp(`(?<![\\d.\\-A-Za-z])${escaped}(?!\\d|\\.\\d)`);
+    const escaped = esc(want.replace(/\u2212/g, "-"));
     for (const loc of ["en", "zh"]) {
       if (!blocks[loc]) continue;
       const step = steps[loc].find((s) => s.n === n);
-      compare("guided " + widget, `${loc} step ${n} states ${want}`, "yes", step && token.test(step.text) ? "yes" : "no");
+      const prefix = ctx ? esc(ctx[loc]) : "";
+      const token = new RegExp(`(?<![\\d.\\-A-Za-z])${prefix}${escaped}(?!\\d|\\.\\d)`);
+      const states = ctx ? `${ctx[loc]}${want}` : want;
+      compare("guided " + widget, `${loc} step ${n} states ${states}`, "yes", step && token.test(step.text) ? "yes" : "no");
     }
   }
 }
@@ -435,17 +439,18 @@ function guided(widget, lesson, rows) {
   const d = (kp, kd) => lineFollow.describe(lineFollow.run(kp, kd, 4.0));
   const a = d(0.0003, 0.0002), b = d(0.0003, 0), e = d(0.0003, 0.0001), f = d(0.0003, 0.0004);
   const st = (x) => (x.settled === null ? "never" : fixed(x.settled, 2) + " s");
+  const LC = { en: "Line crossings = ", zh: "穿线次数 = " };
   guided("LineFollow", "m2/first-robots", [
     ["default overshoot", "0.0 mm", fixed(a.overshoot, 1) + " mm", 1],
     ["default settle", "1.30 s", st(a), 1],
-    ["default crossings", "0", String(a.crossings), 1],
+    ["default crossings", "0", String(a.crossings), 1, LC],
     ["kd 0 overshoot", "62.3 mm", fixed(b.overshoot, 1) + " mm", 2],
-    ["kd 0 crossings", "3", String(b.crossings), 2],
+    ["kd 0 crossings", "3", String(b.crossings), 2, LC],
     ["kd 0.0001 overshoot", "4.8 mm", fixed(e.overshoot, 1) + " mm", 3],
     ["kd 0.0001 settle", "1.47 s", st(e), 3],
-    ["kd 0.0001 crossings", "4", String(e.crossings), 3],
+    ["kd 0.0001 crossings", "4", String(e.crossings), 3, LC],
     ["kd 0.0004 overshoot", "0.0 mm", fixed(f.overshoot, 1) + " mm", 4],
-    ["kd 0.0004 crossings", "0", String(f.crossings), 4],
+    ["kd 0.0004 crossings", "0", String(f.crossings), 4, LC],
     ["kd 0.0004 settle", "2.97 s", st(f), 4],
   ]);
   compare("guided LineFollow", "kd 0 never settles", "never", st(b));
