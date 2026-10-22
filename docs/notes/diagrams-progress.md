@@ -113,3 +113,9 @@ numbers, cart-pole direction, TB6612 OUT1) go into the PR that touches each less
   Wokwi badge, gear and snap-fit readouts, diff-drive wheel speeds); QuadratureTiming 39 units per column, en
   axis labels shortened. check_diagrams guards against small sizes; tools/check_text_size.mjs is the rendered
   check. All hand-written.
+- D098 (branch diagrams/d098-cartpole-signs from 6b0559d): new `kind: "geo"` (Geo2D.tsx: line, rect, circle, arc,
+  text; one viewBox <= 340 units; checkGeo) and `cartpole-signs` in state-space-lqr "Two plants, one form": x, speed
+  and F positive to the right, theta from upright and positive towards +x. check_diagrams runs lqr_sim.cartpole()
+  (+1 N for 0.1 s -> cart +0.204 m/s, theta -0.034 rad; +0.05 rad lean grows and pushes the cart -x) and requires the
+  drawn axis, force, pole and theta arc to agree; B = [0, +2.00, 0, -6.67] and A's -3.92 / 45.78 recomputed.
+  All hand-written.
