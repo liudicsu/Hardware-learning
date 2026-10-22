@@ -734,7 +734,7 @@ const month6Lessons: Lesson[] = [
     prereqs: ["behaviour-cloning", "so101-arm"],
     resources: ["act-paper", "diffusion-policy", "lerobot-il-robots"],
     tasks: [
-      { id: "run", text: { zh: "运行 multimodal.py，用 7 : 3 的近邻比例手算均值策略在岔口的横向动作，与输出的 −0.017 m 核对", en: "Run multimodal.py and work out by hand, from the 7 : 3 neighbours, the averaging policy's sideways move at the fork; check it against the −0.017 m it prints" } },
+      { id: "run", text: { zh: "运行 multimodal.py，用 7 : 3 的近邻比例手算均值策略在岔口的横向动作，确认它落在输出中均值策略 200 次全部所在的 −3 到 −1 cm 这一格", en: "Run multimodal.py and work out by hand, from the 7 : 3 neighbours, the averaging policy's sideways move at the fork; check that it falls in the −3 to −1 cm bin, where the script counts all 200 averaging moves" } },
       { id: "one-side", text: { zh: "让专家只从左边绕（side 固定为 −1），再比较 average 和 sample 的成功率，解释为什么差距消失", en: "Make the expert always pass on the left (side fixed at −1), compare average and sample again, and explain why the gap disappears" } },
       { id: "chunk-length", text: { zh: "把方块的 HALF 改成 0.12，再跑 chunk 4、8、16，画出成功率随块长的变化", en: "Change the block's HALF to 0.12, run chunk 4, 8 and 16 again, and plot success against chunk length" } },
       { id: "train-real", text: { zh: "（有 GPU 和数据集时）用 LeRobot 在同一数据集上训练 ACT 和 Diffusion Policy，在同样 10 个起始位置上各测 10 次，记录成功率和每个动作块的推理时间", en: "(With a GPU and a dataset) train ACT and Diffusion Policy on the same LeRobot dataset, test each 10 times at the same 10 start positions, and record success and inference time per chunk" } },
