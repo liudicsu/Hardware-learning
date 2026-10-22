@@ -4,7 +4,7 @@ Board / 开发板: ESP32 DevKit (classic) or ESP32-S3 DevKitC. Arduino core `esp
 
 | Sketch / 程序 | Hardware / 硬件 | Wiring / 接线 |
 | --- | --- | --- |
-| `chip_info/` | none: on-board LED (set `LED_PIN` for your board) / 无，板载 LED（按你的板子设置 `LED_PIN`） | — |
+| `chip_info/` | LED + 220 Ω resistor on GPIO 2; on the ESP32-S3-DevKitC-1 also the on-board RGB LED (GPIO 38 on v1.1, GPIO 48 on v1.0: set `RGB_PIN`) / GPIO 2 上接 LED 与 220 Ω 电阻；ESP32-S3-DevKitC-1 还会点亮板载 RGB LED（v1.1 为 GPIO 38，v1.0 为 GPIO 48，按板子设置 `RGB_PIN`） | GPIO 2 → 220 Ω → LED anode, LED cathode → GND / GPIO 2 → 220 Ω → LED 正极，LED 负极 → GND |
 | `web_servo/` | hobby servo, 10 kΩ potentiometer, separate 5 V supply for the servo / 舵机、10 kΩ 电位器、舵机独立 5 V 电源 | servo signal → GPIO 18; servo + → external 5 V; servo − → GND shared with the ESP32; pot ends → 3.3 V and GND; wiper → GPIO 34 (classic) or GPIO 4 (S3) / 舵机信号 → GPIO 18，舵机 + → 外部 5 V，舵机 − 与 ESP32 共地；电位器两端接 3.3 V 与 GND，滑动端接 GPIO 34（经典款）或 GPIO 4（S3） |
 
 ```bash

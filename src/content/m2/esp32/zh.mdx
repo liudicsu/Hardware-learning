@@ -51,14 +51,20 @@ S3 有一个几乎人人都会踩的细节。很多 S3 板有两个 USB 口：�
 
 上传失败，多数是连接问题而不是代码问题。最可靠的恢复办法是手动进下载模式：按住 **BOOT**，点一下 **RESET**（有的板标 **EN**），松开 **BOOT**，再点上传。也可以换板上的另一个 USB 口、换一根线。只能充电的 USB 线没有数据线芯，插上板子会亮、上传却永远失败，症状和板子坏了几乎一样。
 
-下面是第一个程序，它让板载 LED 闪烁，并报告自己是什么芯片：
+下面是第一个程序：它让 GPIO 2 上的外部 LED 闪烁，在 ESP32-S3 上还会让板载 RGB LED 一起闪烁，并报告自己是什么芯片：
 
 <CodeSource path="examples/month-2/esp32/chip_info/chip_info.ino" />
 
 ```cpp
-// Blink the on-board LED and report which chip this is.
-// Set LED_PIN to your board's LED (many classic DevKits: 2; check your board's pinout).
+// Blink an LED and report which chip this is.
+// LED_PIN drives an external LED through a 220 Ω resistor on GPIO 2. That works on every
+// board; on many classic ESP32 DevKits GPIO 2 is also the on-board LED.
+// The ESP32-S3-DevKitC-1 has no plain on-board LED: it has one addressable RGB LED, on
+// GPIO 38 on board v1.1 and on GPIO 48 on the initial v1.0 (Espressif user guide).
 const int LED_PIN = 2;
+#if CONFIG_IDF_TARGET_ESP32S3
+const int RGB_PIN = 38;  // DevKitC-1 v1.1; set 48 for the initial v1.0 board
+#endif
 
 void setup() {
   Serial.begin(115200);
@@ -72,21 +78,27 @@ void setup() {
 
 void loop() {
   digitalWrite(LED_PIN, HIGH);
+#if CONFIG_IDF_TARGET_ESP32S3
+  rgbLedWrite(RGB_PIN, 0, 32, 0);  // dim green
+#endif
   delay(200);
   digitalWrite(LED_PIN, LOW);
+#if CONFIG_IDF_TARGET_ESP32S3
+  rgbLedWrite(RGB_PIN, 0, 0, 0);   // off
+#endif
   delay(800);
 }
 ```
 
 <Wokwi board="esp32-s3" files={["examples/month-2/esp32/chip_info/chip_info.ino", "examples/month-2/esp32/chip_info/diagram.json"]}>
-  diagram.json 在 GPIO 2 上接了一只 LED（对应程序里的 LED_PIN = 2），串口监视器会打印芯片型号和 Flash 大小。web_servo 不做 Wokwi 版：从浏览器访问仿真 ESP32 的网页服务器需要 Wokwi 的付费网关。
+  diagram.json 在 GPIO 2 上通过一只 220 Ω 电阻接了一只 LED（对应程序里的 LED_PIN = 2）；Wokwi 的 DevKitC-1 是 v1.1 布局，板载 RGB LED 在 GPIO 38 上，所以它也会闪绿光。串口监视器会打印芯片型号和 Flash 大小。web_servo 不做 Wokwi 版：从浏览器访问仿真 ESP32 的网页服务器需要 Wokwi 的付费网关。
 </Wokwi>
 
 这段代码里有两样东西是 Uno 上没有的。第一是 `Serial.printf()`，它来自 C 语言的格式化输出：`%s` 代表字符串，`%d` 代表整数，`%lu` 代表无符号长整数。它省掉了五六次 `Serial.print()` 和一串分隔符。第二是 `ESP` 对象：`ESP.getChipModel()` 返回芯片型号，`getChipRevision()` 返回版本，`getChipCores()` 返回核心数，`getCpuFreqMHz()` 返回主频，`getFlashChipSize()` 返回 Flash 容量（字节）。
 
-上传完成后，把串口监视器开到 **115200 baud**。你应该能用文字看出两行信息：一行以 `Chip:` 开头，后面是型号、版本、核心数和主频；另一行以 `Flash:` 开头，后面是 Flash 的字节数。具体数值取决于你手上的板子，所以要照着读，而不是背一个固定答案。LED 应该亮 200 ms、灭 800 ms。这两个程序都为经典 ESP32 和 S3 编译过，但没有在真实硬件上运行，因此这里不展示任何串口输出；真实数字由你的板子给出。
+上传完成后，把串口监视器开到 **115200 baud**。你应该能用文字看出两行信息：一行以 `Chip:` 开头，后面是型号、版本、核心数和主频；另一行以 `Flash:` 开头，后面是 Flash 的字节数。具体数值取决于你手上的板子，所以要照着读，而不是背一个固定答案。外部 LED（在 S3 上还有暗绿色的板载 RGB LED）应该亮 200 ms、灭 800 ms。这两个程序都为经典 ESP32 和 S3 编译过，但没有在真实硬件上运行，因此这里不展示任何串口输出；真实数字由你的板子给出。
 
-最容易让人失望的是那颗 LED。很多经典 DevKit 的板载 LED 接在 GPIO 2，但并非全部如此。不少 S3 DevKitC 用的是可寻址 RGB 灯，根本不是普通 LED，还有一些把 LED 放在别的 GPIO 上。查你板子的引脚图，再改 `LED_PIN`。就算完全不亮，串口里那份芯片报告仍然证明上传成功、芯片在运行——LED 只是接线细节，不是对你工具链的判决。
+最容易让人失望的是那颗 LED。很多经典 DevKit 的板载 LED 是一颗接在 GPIO 2 的普通 LED，但 ESP32-S3-DevKitC-1 没有普通板载 LED，只有一颗可寻址 RGB LED。`digitalWrite` 驱动不了它：它需要一段严格定时的串行数据流，`rgbLedWrite(pin, r, g, b)` 负责发送。这块板同时有初版 v1.0 和 v1.1 在售，两者的 RGB LED 引脚不同：v1.1 用 GPIO 38，初版 v1.0 用 GPIO 48（[v1.1 用户指南](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide_v1.1.html#hardware-revision-details) 与 [v1.0 用户指南](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide_v1.0.html)）。因此程序明确写 `RGB_PIN = 38`，而不是用 `RGB_BUILTIN`：在 arduino-esp32 3.3.12 中，该宏由 `PIN_RGB_LED` 定义为 48，也就是 v1.0 的引脚，在 v1.1 板上点不亮（[pins_arduino.h](https://github.com/espressif/arduino-esp32/blob/3.3.12/variants/esp32s3/pins_arduino.h)）。如果你的 RGB LED 一直不亮，把 `RGB_PIN` 改成 48。`#if CONFIG_IDF_TARGET_ESP32S3` 让这段 RGB 代码不进入经典 ESP32 的编译。就算完全不亮，串口里那份芯片报告仍然证明上传成功、芯片在运行——LED 只是接线细节，不是对你工具链的判决。
 
 <Callout type="tip" title="板子还没到也能练">
 Wokwi 也能模拟 ESP32，包括串口监视器和屏幕上的 LED。板子还在路上时，你就可以在浏览器里跑这个程序；等它到货，上传步骤你已经熟了。
