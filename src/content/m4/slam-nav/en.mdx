@@ -405,6 +405,18 @@ free_thresh: 0.196
 
 `result=0` means the pose graph was written. The map is 120 × 120 cells of 0.05 m, which is 6.0 m × 6.0 m, the size of the room. `origin` is the position of the bottom-left cell in the map frame: the map frame starts where the robot was when SLAM started, the centre of the room, so the corner is about 3 m away in both directions. In this trinary PGM, occupied cells are black (0), free cells white (254) and unknown cells grey (205).
 
+In nav2_map_server (version 1.3.13, the Jazzy release used here), saving and loading use two different sets of thresholds, so the 0.25/0.65 in the log and the 0.196 in room.yaml are not in conflict. When saving (map_saver → map_io::saveMapToFile), 0.25 and 0.65 classify the occupancy grid cell values (0–100 %): `cell <= rint(0.25*100)=25` becomes white pixel 254 (free); `cell >= rint(0.65*100)=65` becomes black pixel 0 (occupied); everything else, along with unknown (-1), becomes grey 205. These two defaults are used when the thresholds are unspecified, as shown in [map_saver.cpp L165–178](https://github.com/ros-navigation/navigation2/blob/1.3.13/nav2_map_server/src/map_saver/map_saver.cpp#L165-L178) and [map_io.cpp L529–549](https://github.com/ros-navigation/navigation2/blob/1.3.13/nav2_map_server/src/map_io.cpp#L529-L549).
+
+The thresholds in the yaml serve a different purpose: they tell map_server how to read the PGM back. With `negate: 0`, the loader computes `p = 1 − pixel/255` and marks cells with `p >= occupied_thresh` as occupied, `p <= free_thresh` as free, and the rest as unknown in trinary mode, as shown in [map_io.cpp L256–275](https://github.com/ros-navigation/navigation2/blob/1.3.13/nav2_map_server/src/map_io.cpp#L256-L275). Because the trinary pixels are fixed at 254/205/0, saveMapToFile always writes occupied_thresh 0.65 and free_thresh 0.196 in trinary mode, regardless of the thresholds used for saving, as noted in [map_io.cpp L608–613](https://github.com/ros-navigation/navigation2/blob/1.3.13/nav2_map_server/src/map_io.cpp#L608-L613).
+
+```text
+pixel 254 → p = 1 − 254/255 = 0.0039 ≤ 0.196 → free
+pixel 205 → p = 1 − 205/255 = 0.1961 > 0.196 → unknown
+pixel   0 → p = 1 − 0/255   = 1.0    ≥ 0.65  → occupied
+```
+
+0.196 sits just below 50/255 = 0.19608, so grey stays unknown; if the yaml said 0.25, every grey unknown pixel (0.1961 ≤ 0.25) would be loaded as free space and the planner could route through unexplored areas. So do not "correct" free_thresh in a saved trinary map to 0.25.
+
 A map that looks right in RViz can still be wrong by a few cells, so check it against the world it came from. `map_check.py` reads the saved files with nothing but Python's standard library and looks for occupied cells where Lesson 4's world file put the walls and obstacles:
 
 <CodeSource path="examples/month-4/slam-nav/map_check.py" />

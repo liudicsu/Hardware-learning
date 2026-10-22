@@ -10,4 +10,4 @@ Branch: `opencode/pra-fixes` (from origin/main). Never merge, never force-push.
 | 4 | esp32 LED_PIN on S3-DevKitC-1 | todo | |
 | 5 | one_rev min_duty at 5.0 V | todo | |
 | 6 | so101-arm power section | todo | |
-| 7 | M4-L6 free_thresh 0.25 vs 0.196 | todo | |
+| 7 | M4-L6 free_thresh 0.25 vs 0.196 | done (not an error; explained with nav2_map_server 1.3.13 source) | opencode deepseek-v4.1-flash-free, restructured by hand |
