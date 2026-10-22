@@ -42,5 +42,5 @@ numbers, cart-pole direction, TB6612 OUT1) go into the PR that touches each less
   reaction-timer-states in zh/en at 390 and 1280 px: render, steps work, no overflow, no console errors.
 - D-2: branch diagrams/d2-ascii-main from b6134d8 (not stacked). Remaining 5 ASCII diagrams (6 specs).
   Node `sub` may now have several lines ("\n"); check_diagrams checks width per line and height.
-  ros2-workspace-tree drafted by opencode (glm-5.3-flash-free), reviewed and fixed by hand; the rest hand-written.
+  ros2-workspace-tree drafted by opencode (deepseek-v4.1-flash-free), reviewed and fixed by hand; the rest hand-written.
   Next after D-2: Top 10, starting with H-bridge CurrentPath + INPUT_PULLUP.
