@@ -62,6 +62,18 @@ The encoder diagrams stay `<QuadratureTiming>`: their columns are computed at re
 plain data loaded by `check_diagrams.mjs` without a bundler, so moving them would mean copying the model's output
 into the spec (two sources of truth) or adding a bundling step to the check.
 
+### In the registry: `kind: "poseGraph"` (D-7)
+
+`PoseGraphSpec` steps through a SLAM pose graph with `PoseGraph.tsx` (client): `estimate` (where each node was
+stored, as odometry saw it), `corrected` (after the loop closure) and `truth`, plus `frames` that show the first
+`upto` nodes, the spacing label, scan-match edges from one node to the previous `matchWindow`, the drift gap, or the
+loop closure with the corrected graph over the faint estimate. "All" shows the final state. One viewBox for every
+frame (100 units per metre, at most 360 wide). check_diagrams reads `minimum_travel_distance` /
+`minimum_travel_heading` from slam.yaml and requires every node to be stored once either is reached (and not more
+than one integration step later); labels must fit the viewBox and render at >= 12 px on a 390 px phone. First user:
+`slam-pose-graph` (slam-nav); the route, the 3 % turn error and the linear correction are illustrative and the
+caption says so.
+
 ## Consistency with scripts
 
 If a diagram depicts the output of a lesson script, generate its columns from a TS port in `src/lib/models`

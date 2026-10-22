@@ -211,7 +211,56 @@ export interface TimingSpec {
   facts: DiagramFact[];
 }
 
-export type DiagramSpec = BlockDiagramSpec | CircuitSpec | TimingSpec;
+/* ---------- pose graphs (rendered by src/components/diagrams/PoseGraph.tsx) ---------- */
+
+/** A pose in metres and radians (x forward at the start, y to the left). */
+export interface PoseGraphPose {
+  x: number;
+  y: number;
+  th: number;
+}
+
+export interface PoseGraphFrame {
+  label: L10n;
+  /** Number of graph nodes shown (nodes 0 .. upto - 1). */
+  upto: number;
+  /** Mark the spacing between nodes 0 and 1 with the travel thresholds. */
+  spacing?: boolean;
+  /** Draw the scan-match edges from this node to the previous `matchWindow` nodes. */
+  match?: number;
+  /** Mark the gap between the newest node's estimate and its true place next to node 0. */
+  gap?: boolean;
+  /** Draw the loop-closure edge and the corrected graph (the estimate stays faint behind it). */
+  loop?: boolean;
+}
+
+export interface PoseGraphSpec {
+  kind: "poseGraph";
+  id: string;
+  title: L10n;
+  caption?: L10n;
+  sources: string[];
+  /** Where each node was stored, as odometry estimated it. */
+  estimate: PoseGraphPose[];
+  /** The same nodes after the loop closure. */
+  corrected: PoseGraphPose[];
+  /** Where each node really was (used for the gap and the checks). */
+  truth: PoseGraphPose[];
+  /** A new node after this distance (m) or heading change (rad), as in slam.yaml. */
+  travel: { distance: number; heading: number };
+  /** Integration step of the model (m); the checks allow one step past a threshold. */
+  step: number;
+  matchWindow: number;
+  /** SVG text drawn on the graph. */
+  text: { start: L10n; spacing: L10n; gap: L10n };
+  /** HTML legend under the graph. */
+  legend: { odom: L10n; match: L10n; loop: L10n; estimate: L10n };
+  frames: PoseGraphFrame[];
+  numbers?: DiagramNumber[];
+  facts: DiagramFact[];
+}
+
+export type DiagramSpec = BlockDiagramSpec | CircuitSpec | TimingSpec | PoseGraphSpec;
 
 export function tx(text: L10n | undefined, locale: Locale): string {
   if (text === undefined) return "";

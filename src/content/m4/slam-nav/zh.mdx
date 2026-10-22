@@ -10,6 +10,8 @@
 
 SLAM Toolbox 把两者合在一起。它维护一张<strong>位姿图（pose graph）</strong>：机器人每移动 0.2 m 或转过 0.2 rad，它就把当前扫描连同采集时的位姿一起存下来。每一帧新扫描都会和最近的几帧做匹配（scan matching，扫描匹配），在里程计的小误差刚出现时就把它纠正。当机器人回到以前见过的地方，SLAM Toolbox 会认出这帧扫描（也就是一次<strong>回环检测（loop closure）</strong>），并调整整张图，让新旧视角对得上。然后，地图就按修正后的位姿，用所有扫描画出来。
 
+<Diagram id="slam-pose-graph" />
+
 结果在 TF 里表现为多出一个坐标系。从地图到机器人的链是：
 
 <Diagram id="slam-tf-chain" />

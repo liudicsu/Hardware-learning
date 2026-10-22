@@ -6,6 +6,7 @@ import { tx, type BlockDiagramSpec, type DiagramSpec, type Locale } from "@/lib/
 import { DIAGRAM_UI } from "@/lib/diagrams/ui";
 import { BlockDiagramSvg } from "./BlockDiagram";
 import { CircuitDiagram } from "./CircuitDiagram";
+import { PoseGraph } from "./PoseGraph";
 import { StepControls } from "./StepControls";
 import { TimingDiagram } from "./TimingDiagram";
 
@@ -33,6 +34,8 @@ export function Diagram({ id, locale }: DiagramProps) {
         <CircuitDiagram spec={spec} locale={locale} />
       ) : spec.kind === "timing" ? (
         <TimingDiagram spec={spec} locale={locale} />
+      ) : spec.kind === "poseGraph" ? (
+        <PoseGraph spec={spec} locale={locale} />
       ) : (
         <BlockBody spec={spec} locale={locale} />
       )}

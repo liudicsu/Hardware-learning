@@ -78,3 +78,10 @@ numbers, cart-pole direction, TB6612 OUT1) go into the PR that touches each less
   - Lesson wording fixed to match the firmware: "quiet for more than 30 ms", each bounce measured from the
     previous edge.
   - All hand-written.
+- D-5 merged (#25, squash e20ae6e, on top of #22 7293e6f). Main CI and Pages green; live check 24/24 OK
+  (hl-audit/prc-live-check.md). D-5 nits in #26; D-6 STS ByteFields in #28 (`kind: "bytes"`).
+- D-7 (branch diagrams/d7-slam-pose-graph from e20ae6e, parallel to #26/#28): `kind: "poseGraph"`
+  (PoseGraph.tsx + checkPoseGraph) and `slam-pose-graph` in slam-nav (D091 part 2; the TF chain is D-2's
+  slam-tf-chain): 4 frames — a node every 0.2 m / 0.2 rad, scan matching, drift gap after one lap (0.28 m),
+  loop closure with the corrected graph. Node spacing checked against slam.yaml node by node; route, 3 % turn
+  error and linear correction marked illustrative. All hand-written.
