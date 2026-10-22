@@ -113,3 +113,8 @@ If a diagram depicts the output of a lesson script, generate its columns from a 
 and check it in `tools/check_widgets.mjs`. First example: `QuadratureTiming` (motors-drivers) uses
 `diagramColumns()` from `src/lib/models/encoder.ts`, a port of `tools/sim/models/encoder_sim.py`; the check
 compares the decoder lines of `m2-encoder_sim.txt` byte for byte and the forward/reverse state order.
+
+Block diagrams and state machines also take the optional `script: { run, lines }` (D118): check_diagrams runs
+`python3 run` from the script's folder and requires each line in its output. `vla-dataflow` builds that line and its
+step text from the same constants as action_tokens.py (30 steps x 6 joints = 180 tokens, 256 bins), so a change to
+the script fails the check.

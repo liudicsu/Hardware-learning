@@ -119,3 +119,12 @@ numbers, cart-pole direction, TB6612 OUT1) go into the PR that touches each less
   collision_monitor -> /diff_drive_controller/cmd_vel (TwistStamped). Values checked against nav2.yaml (11 facts);
   cmd_vel_nav is nav2_bringup navigation_launch.py 1.3.13's remapping (L137, L215), named in the caption.
   behavior_server's recoveries are left out (caption). All hand-written.
+- #38 follow-up (branch diagrams/d118-vla-dataflow from a83e16e): nav2-pipeline also checks the zh lesson sentence
+  (相差超过 0.785 rad（45°）), not only the en one.
+- D118 (same branch): `vla-dataflow` in vla-models "What a VLA is", a block diagram in 4 steps. The inputs are camera
+  image -> vision encoder, instruction -> tokeniser, and joint state (most models). They feed the language model
+  (from a pretrained VLM), which drives either (1) action tokens (256 bins per dimension; 1 s = 30 x 6 = 180 tokens;
+  RT-2, OpenVLA, π0-FAST) or (2) an action head (diffusion or flow matching, one chunk; Octo, π0, π0.5, SmolVLA,
+  GR00T). Either output becomes numbers for the motors. check_diagrams runs action_tokens.py for the chunk line,
+  checks the constants line, and checks 12 lesson sentences (6 zh, 6 en). Caption: a sketch, not any one model's
+  layers. All hand-written.
