@@ -127,7 +127,7 @@ export default async function LessonPage({ params }: Params) {
     Diagram: ({ id }: { id: string }) => <Diagram id={id} locale={loc} />,
     // Markdown links render as plain <a> tags, so the Pages basePath must be added here, as for images.
     a: ({ href, ...rest }: ComponentProps<"a">) => (
-      <a href={typeof href === "string" ? withPageSlash(withBasePath(href)) : href} {...rest} />
+      <a href={typeof href === "string" ? href : href} {...rest} />
     ),
     img: ({ src, alt, ...rest }: ComponentProps<"img">) => (
       // eslint-disable-next-line @next/next/no-img-element
