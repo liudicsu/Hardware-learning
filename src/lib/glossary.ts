@@ -948,7 +948,7 @@ export const glossary: GlossaryEntry[] = [
       zh: "PID 中与当前误差成正比的一项，输出为 Kp × error；误差越大推得越狠。只有 P 时，顶住恒定重力需要保留一个稳态误差，例如 0.227 N·m / 0.05 N·m/度 = 4.5°。",
       en: "The PID term proportional to the present error, Kp × error, pushing harder the farther away the target is. With P alone, holding a constant gravity load requires a steady-state error, for example 0.227 N·m / 0.05 N·m per degree = 4.5°.",
     },
-    lesson: "pid-control",
+    lesson: "first-robots",
     firstExplained: true,
   },
   {
@@ -958,7 +958,7 @@ export const glossary: GlossaryEntry[] = [
       zh: "PID 中与误差随时间的累积成正比的一项，输出为 Ki × ∫error dt；它能在误差为零时继续输出力矩，从而消除稳态误差。代价是响应最慢，并且输出饱和时容易积分饱和。",
       en: "The PID term proportional to the accumulated error over time, Ki × ∫error dt; it can keep producing torque at zero error, which removes steady-state error. The cost is the slowest response and a tendency to wind up when the output saturates.",
     },
-    lesson: "pid-control",
+    lesson: "first-robots",
     firstExplained: true,
   },
   {
@@ -968,17 +968,17 @@ export const glossary: GlossaryEntry[] = [
       zh: "PID 中与误差或测量值变化速度成正比的一项，作用像阻尼器，在接近目标时制动以抑制过冲。工程上通常对测量值求导以避免目标跳变引起的微分冲击，但它也会放大传感器噪声。",
       en: "The PID term proportional to how fast the error or measurement changes; it acts like a damper, braking on approach to reduce overshoot. Practice differentiates the measurement to avoid derivative kick from a setpoint step, but this also amplifies sensor noise.",
     },
-    lesson: "pid-control",
+    lesson: "first-robots",
     firstExplained: true,
   },
   {
     id: "overshoot",
     term: { zh: "超调", en: "overshoot" },
     def: {
-      zh: "响应第一次越过设定值的最大量，通常以角度或百分比表示。课程关节模型中，完整 PID 的超调为 0.1°，而同一组增益关闭抗积分饱和后增大到 8.8°。",
-      en: "The maximum amount by which a response first passes beyond the setpoint, usually in degrees or percent. In the lesson's joint model, a full PID overshoots by 0.1°, while the same gains without anti-windup overshoot by 8.8°.",
+      zh: "响应第一次越过设定值的最大量，通常以角度或百分比表示。第 3 个月 PID 课的关节模型中，完整 PID 的超调为 0.1°，而同一组增益关闭抗积分饱和后增大到 8.8°。",
+      en: "The maximum amount by which a response first passes beyond the setpoint, usually in degrees or percent. In the joint model of the Month 3 PID lesson, a full PID overshoots by 0.1°, while the same gains without anti-windup overshoot by 8.8°.",
     },
-    lesson: "pid-control",
+    lesson: "first-robots",
     firstExplained: true,
   },
   {
@@ -1008,7 +1008,7 @@ export const glossary: GlossaryEntry[] = [
       zh: "输出已经达到执行器上限时，积分项仍继续累加误差，存下一大团暂时无法实现的指令，导致脱困后大幅超调。修法是只在未饱和时积分、限制积分范围，或在目标跳变时清零积分。",
       en: "When the output is already at the actuator limit and the integral keeps accumulating error, it stores a large command that cannot be delivered and causes a big overshoot on release. Fix it by integrating only while unsaturated, clamping the integral, or resetting it on a setpoint step.",
     },
-    lesson: "pid-control",
+    lesson: "first-robots",
     firstExplained: true,
   },
   {
@@ -1027,7 +1027,7 @@ export const glossary: GlossaryEntry[] = [
       zh: "两个反馈回路嵌套，外环较慢，通过修改内环的设定值来间接控制慢变量；内环较快，直接驱动执行器。平衡车的外环以 25 Hz 控制轮速并把倾角设定值限制在 ±3°，内环以 200 Hz 维持倾角。",
       en: "Two nested feedback loops: a slower outer loop controls a slow variable by changing the inner loop's setpoint, while the faster inner loop drives the actuator directly. The balancer's outer loop runs at 25 Hz on wheel speed and limits the tilt setpoint to ±3°, while the inner loop holds tilt at 200 Hz.",
     },
-    lesson: "pid-control",
+    lesson: "first-robots",
     firstExplained: true,
   },
   {
