@@ -393,34 +393,42 @@ function guidedBlock(lesson, locale) {
   }
   return out.join("\n").replace(/\u2212/g, "-");
 }
+// Numbered steps of a guided block, without their "N. " prefix (so the step number cannot match a value).
+function guidedSteps(block) {
+  const steps = [];
+  for (const line of block.split("\n")) {
+    const m = /^(\d+)\.\s+(.*)$/.exec(line);
+    if (m) steps.push({ n: Number(m[1]), text: m[2] });
+    else if (steps.length) steps[steps.length - 1].text += "\n" + line;
+  }
+  return steps;
+}
+// rows: [label, want, got, step]. `want` must appear as a whole token (not inside a longer number) in step `step`
+// of both the en and zh guided lists.
 function guided(widget, lesson, rows) {
   const blocks = { en: guidedBlock(lesson, "en"), zh: guidedBlock(lesson, "zh") };
   for (const loc of ["en", "zh"]) compare("guided " + widget, `${loc} list present`, "yes", blocks[loc] ? "yes" : "no");
-  for (const [label, want, got] of rows) {
+  const steps = { en: blocks.en ? guidedSteps(blocks.en) : [], zh: blocks.zh ? guidedSteps(blocks.zh) : [] };
+  for (const [label, want, got, n] of rows) {
     compare("guided " + widget, label, want, got);
     const escaped = want.replace(/\u2212/g, "-").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const token = new RegExp(`(?<![\\d.\\-A-Za-z])${escaped}(?!\\d|\\.\\d)`);
     for (const loc of ["en", "zh"]) {
       if (!blocks[loc]) continue;
-      const steps = [];
-      for (const line of blocks[loc].split("\n")) {
-        if (/^\d+\.\s/.test(line)) steps.push(line);
-        else if (steps.length) steps[steps.length - 1] += "\n" + line;
-      }
-      const hit = steps.some((step) => token.test(step));
-      compare("guided " + widget, `${loc} states ${want}`, "yes", hit ? "yes" : "no");
+      const step = steps[loc].find((s) => s.n === n);
+      compare("guided " + widget, `${loc} step ${n} states ${want}`, "yes", step && token.test(step.text) ? "yes" : "no");
     }
   }
 }
 {
   const c = complementary;
   guided("Complementary", "m2/sensors-fusion", [
-    ["α 0.98 τ", "0.49 s", fixed(c.timeConstant(0.98), 2) + " s"],
-    ["α 0.98 offset", "0.7°", fixed(c.biasOffset(0.98), 1) + "°"],
-    ["α 0.90 τ", "0.09 s", fixed(c.timeConstant(0.9), 2) + " s"],
-    ["α 0.90 offset", "0.1°", fixed(c.biasOffset(0.9), 1) + "°"],
-    ["α 0.995 τ", "1.99 s", fixed(c.timeConstant(0.995), 2) + " s"],
-    ["α 0.995 offset", "3.0°", fixed(c.biasOffset(0.995), 1) + "°"],
+    ["α 0.98 τ", "0.49 s", fixed(c.timeConstant(0.98), 2) + " s", 1],
+    ["α 0.98 offset", "0.7°", fixed(c.biasOffset(0.98), 1) + "°", 1],
+    ["α 0.90 τ", "0.09 s", fixed(c.timeConstant(0.9), 2) + " s", 2],
+    ["α 0.90 offset", "0.1°", fixed(c.biasOffset(0.9), 1) + "°", 2],
+    ["α 0.995 τ", "1.99 s", fixed(c.timeConstant(0.995), 2) + " s", 3],
+    ["α 0.995 offset", "3.0°", fixed(c.biasOffset(0.995), 1) + "°", 3],
   ]);
 }
 {
@@ -428,13 +436,13 @@ function guided(widget, lesson, rows) {
   const a = d(0.0003, 0.0002), b = d(0.0003, 0), e = d(0.0003, 0.0001), f = d(0.0003, 0.0004);
   const st = (x) => (x.settled === null ? "never" : fixed(x.settled, 2) + " s");
   guided("LineFollow", "m2/first-robots", [
-    ["default overshoot", "0.0 mm", fixed(a.overshoot, 1) + " mm"],
-    ["default settle", "1.30 s", st(a)],
-    ["kd 0 overshoot", "62.3 mm", fixed(b.overshoot, 1) + " mm"],
-    ["kd 0 crossings", "3", String(b.crossings)],
-    ["kd 0.0001 overshoot", "4.8 mm", fixed(e.overshoot, 1) + " mm"],
-    ["kd 0.0001 settle", "1.47 s", st(e)],
-    ["kd 0.0004 settle", "2.97 s", st(f)],
+    ["default overshoot", "0.0 mm", fixed(a.overshoot, 1) + " mm", 1],
+    ["default settle", "1.30 s", st(a), 1],
+    ["kd 0 overshoot", "62.3 mm", fixed(b.overshoot, 1) + " mm", 2],
+    ["kd 0 crossings", "3", String(b.crossings), 2],
+    ["kd 0.0001 overshoot", "4.8 mm", fixed(e.overshoot, 1) + " mm", 3],
+    ["kd 0.0001 settle", "1.47 s", st(e), 3],
+    ["kd 0.0004 settle", "2.97 s", st(f), 4],
   ]);
   compare("guided LineFollow", "kd 0 never settles", "never", st(b));
 }
@@ -444,32 +452,32 @@ function guided(widget, lesson, rows) {
   const a = sn(10, 1.2, 0.8, "PLA", 30), b = sn(5, 1.5, 1.0, "PLA", 30), c = sn(10, 1.5, 1.0, "PLA", 30);
   const d = sn(10, 1.2, 0.8, "PLA", 60), e = sn(10, 1.2, 0.8, "PETG", 30);
   guided("SnapFit", "m3/fdm-printing", [
-    ["default strain", "1.44 %", pct(a)], ["default force", "7.7 N", n(a)],
-    ["L5 strain", "9.00 %", pct(b)], ["L5 force", "150.4 N", n(b)],
-    ["L10 t1.5 strain", "2.25 %", pct(c)], ["L10 t1.5 force", "18.8 N", n(c)],
-    ["lead 60 force", "30.7 N", n(d)], ["PETG force", "4.4 N", n(e)],
+    ["default strain", "1.44 %", pct(a), 1], ["default force", "7.7 N", n(a), 1],
+    ["L5 strain", "9.00 %", pct(b), 2], ["L5 force", "150.4 N", n(b), 2],
+    ["L10 t1.5 strain", "2.25 %", pct(c), 3], ["L10 t1.5 force", "18.8 N", n(c), 3],
+    ["lead 60 force", "30.7 N", n(d), 4], ["PETG force", "4.4 N", n(e), 4],
   ]);
 }
 {
   const g = (m, mu, a, sf) => fixed(gripForce.squeeze(m / 1000, mu, sf, a), 1) + " N";
   const tilt = (mu) => fixed((Math.atan(mu) * 180) / Math.PI, 0) + "°";
   guided("GripForce", "m3/gripper-fingers", [
-    ["default force", "2.6 N", g(60, 0.3, 3, 2)], ["default tilt", "17°", tilt(0.3)],
-    ["μ 0.6 force", "1.3 N", g(60, 0.6, 3, 2)], ["μ 0.6 tilt", "31°", tilt(0.6)],
-    ["a 0 force", "2.0 N", g(60, 0.3, 0, 2)],
-    ["350 g force", "14.9 N", g(350, 0.3, 3, 2)], ["350 g μ 0.8 force", "5.6 N", g(350, 0.8, 3, 2)],
+    ["default force", "2.6 N", g(60, 0.3, 3, 2), 1], ["default tilt", "17°", tilt(0.3), 1],
+    ["μ 0.6 force", "1.3 N", g(60, 0.6, 3, 2), 2], ["μ 0.6 tilt", "31°", tilt(0.6), 2],
+    ["a 0 force", "2.0 N", g(60, 0.3, 0, 2), 3],
+    ["350 g force", "14.9 N", g(350, 0.3, 3, 2), 4], ["350 g μ 0.8 force", "5.6 N", g(350, 0.8, 3, 2), 4],
   ]);
 }
 {
   const p = (s, r, n) => gears.planetary(s, r, n);
   const tip = (r, b) => fixed(gears.tipError(r, b), 1) + " mm";
   guided("Gear", "m3/transmissions", [
-    ["default ratio", "5.000", fixed(p(12, 48, 3).ratio, 3)],
-    ["default planet", "18", String(p(12, 48, 3).planet)],
-    ["ring 46 spacing", "19.33", fixed((12 + 46) / 3, 2)],
-    ["ring 47 planet", "17.5", fixed((47 - 12) / 2, 1)],
-    ["5 planets spacing", "17.63", fixed((12 + 18) * Math.sin(Math.PI / 5), 2)],
-    ["tip 0.30 m 2°", "10.5 mm", tip(0.3, 2)], ["tip 0.30 m 0.5°", "2.6 mm", tip(0.3, 0.5)], ["tip 0.60 m 2°", "20.9 mm", tip(0.6, 2)],
+    ["default ratio", "5.000", fixed(p(12, 48, 3).ratio, 3), 1],
+    ["default planet", "18", String(p(12, 48, 3).planet), 1],
+    ["ring 46 spacing", "19.33", fixed((12 + 46) / 3, 2), 2],
+    ["ring 47 planet", "17.5", fixed((47 - 12) / 2, 1), 3],
+    ["5 planets spacing", "17.63", fixed((12 + 18) * Math.sin(Math.PI / 5), 2), 4],
+    ["tip 0.30 m 2°", "10.5 mm", tip(0.3, 2), 5], ["tip 0.30 m 0.5°", "2.6 mm", tip(0.3, 0.5), 5], ["tip 0.60 m 2°", "20.9 mm", tip(0.6, 2), 5],
   ]);
   compare("guided Gear", "4 planets assemble", "true", String(p(12, 48, 4).ok));
   compare("guided Gear", "5 planets rejected", "false", String(p(12, 48, 5).ok));
@@ -480,12 +488,12 @@ function guided(widget, lesson, rows) {
   const d = s(0.05, 0, 0.002, true), e = s(0.05, 0.1, 0, true);
   const deg = (x) => fixed(x, 1) + "°", sec = (x) => (x === null ? "never" : fixed(x, 2) + " s");
   guided("Pid", "m3/pid-control", [
-    ["default final", "60.0°", deg(a.finalDeg)], ["default overshoot", "0.1°", deg(a.overshoot)], ["default settle", "0.24 s", sec(a.settle)],
-    ["Ki 0.4 overshoot", "8.9°", deg(b.overshoot)], ["Ki 0.4 settle", "0.56 s", sec(b.settle)],
-    ["no anti-windup overshoot", "39.0°", deg(c.overshoot)], ["no anti-windup settle", "0.64 s", sec(c.settle)],
-    ["Ki 0 final", "55.5°", deg(d.finalDeg)],
-    ["Kd 0 overshoot", "11.5°", deg(e.overshoot)], ["Kd 0 settle", "0.92 s", sec(e.settle)],
-    ["Ki 0 steady error = gravity / Kp", "4.5°", deg((0.4 * Math.cos((d.finalDeg * Math.PI) / 180)) / 0.05)],
+    ["default final", "60.0°", deg(a.finalDeg), 1], ["default overshoot", "0.1°", deg(a.overshoot), 1], ["default settle", "0.24 s", sec(a.settle), 1],
+    ["Ki 0.4 overshoot", "8.9°", deg(b.overshoot), 2], ["Ki 0.4 settle", "0.56 s", sec(b.settle), 2],
+    ["no anti-windup overshoot", "39.0°", deg(c.overshoot), 3], ["no anti-windup settle", "0.64 s", sec(c.settle), 3],
+    ["Ki 0 final", "55.5°", deg(d.finalDeg), 4],
+    ["Kd 0 overshoot", "11.5°", deg(e.overshoot), 5], ["Kd 0 settle", "0.92 s", sec(e.settle), 5],
+    ["Ki 0 steady error = gravity / Kp", "4.5°", deg((0.4 * Math.cos((d.finalDeg * Math.PI) / 180)) / 0.05), 5],
   ]);
   compare("guided Pid", "Ki 0 never settles", "never", sec(d.settle));
 }
@@ -497,11 +505,11 @@ function guided(widget, lesson, rows) {
   let bad = "";
   try { m.parseStatus(m.parseHex("FF FF 06 04 00 2C 0D BD")); } catch (e) { bad = e.message; }
   guided("StsPacket", "m3/so101-arm", [
-    ["goal 2048 id 1", "FF FF 01 05 03 2A 00 08 C4", goal(1, 2048)],
-    ["goal 1024 id 1", "FF FF 01 05 03 2A 00 04 C8", goal(1, 1024)],
-    ["goal 2048 id 2", "FF FF 02 05 03 2A 00 08 C3", goal(2, 2048)],
-    ["reply position", "3116", String(steps)],
-    ["reply degrees", "273.9°", fixed(m.stepsToDeg(steps), 1) + "°"],
+    ["goal 2048 id 1", "FF FF 01 05 03 2A 00 08 C4", goal(1, 2048), 1],
+    ["goal 1024 id 1", "FF FF 01 05 03 2A 00 04 C8", goal(1, 1024), 2],
+    ["goal 2048 id 2", "FF FF 02 05 03 2A 00 08 C3", goal(2, 2048), 3],
+    ["reply position", "3116", String(steps), 4],
+    ["reply degrees", "273.9°", fixed(m.stepsToDeg(steps), 1) + "°", 4],
   ]);
   compare("guided StsPacket", "reply id/error", "6 0", `${sid} ${err}`);
   compare("guided StsPacket", "flipped bit rejected", "true", String(bad.startsWith("bad checksum")));
@@ -509,13 +517,13 @@ function guided(widget, lesson, rows) {
 {
   const w = (v, om, b, r) => diffDrive.wheels(v, om, b, r).map((x) => fixed(x, 1));
   guided("DiffDrive", "m4/ros2-control", [
-    ["spin left", "-2.8", w(0, 1, 0.28, 0.05)[0]],
-    ["straight 0.2", "4.0", w(0.2, 0, 0.28, 0.05)[1]],
-    ["arc left", "2.6", w(0.2, 0.5, 0.28, 0.05)[0]], ["arc right", "5.4", w(0.2, 0.5, 0.28, 0.05)[1]],
-    ["arc radius", "0.40 m", fixed(0.2 / 0.5, 2) + " m"],
-    ["b 0.34 arc left", "2.3", w(0.2, 0.5, 0.34, 0.05)[0]], ["b 0.34 arc right", "5.7", w(0.2, 0.5, 0.34, 0.05)[1]],
-    ["r 0.04 arc left", "3.3", w(0.2, 0.5, 0.28, 0.04)[0]], ["r 0.04 arc right", "6.8", w(0.2, 0.5, 0.28, 0.04)[1]],
-    ["0.5 m/s 2 rad/s left", "4.4", w(0.5, 2, 0.28, 0.05)[0]], ["0.5 m/s 2 rad/s right", "15.6", w(0.5, 2, 0.28, 0.05)[1]],
+    ["spin left", "-2.8", w(0, 1, 0.28, 0.05)[0], 1],
+    ["straight 0.2", "4.0", w(0.2, 0, 0.28, 0.05)[1], 2],
+    ["arc left", "2.6", w(0.2, 0.5, 0.28, 0.05)[0], 3], ["arc right", "5.4", w(0.2, 0.5, 0.28, 0.05)[1], 3],
+    ["arc radius", "0.40 m", fixed(0.2 / 0.5, 2) + " m", 3],
+    ["b 0.34 arc left", "2.3", w(0.2, 0.5, 0.34, 0.05)[0], 4], ["b 0.34 arc right", "5.7", w(0.2, 0.5, 0.34, 0.05)[1], 4],
+    ["r 0.04 arc left", "3.3", w(0.2, 0.5, 0.28, 0.04)[0], 5], ["r 0.04 arc right", "6.8", w(0.2, 0.5, 0.28, 0.04)[1], 5],
+    ["0.5 m/s 2 rad/s left", "4.4", w(0.5, 2, 0.28, 0.05)[0], 5], ["0.5 m/s 2 rad/s right", "15.6", w(0.5, 2, 0.28, 0.05)[1], 5],
   ]);
   compare("guided DiffDrive", "b 0.34 straight unchanged", "4.0 4.0", w(0.2, 0, 0.34, 0.05).join(" "));
 }
@@ -523,10 +531,10 @@ function guided(widget, lesson, rows) {
   const R = Math.PI / 180;
   const tr = (p, t) => panTilt.echo(panTilt.cameraTransform(p * R, t * R))[0].replace("- Translation: ", "");
   guided("PanTilt", "m4/urdf-tf", [
-    ["pan 30", "[-0.043, 0.010, 0.305]", tr(30, 0)],
-    ["pan 0", "[-0.040, 0.000, 0.305]", tr(0, 0)],
-    ["tilt 30", "[-0.043, 0.000, 0.295]", tr(0, 30)],
-    ["tilt -30", "[-0.043, 0.000, 0.315]", tr(0, -30)],
+    ["pan 30", "[-0.043, 0.010, 0.305]", tr(30, 0), 1],
+    ["pan 0", "[-0.040, 0.000, 0.305]", tr(0, 0), 2],
+    ["tilt 30", "[-0.043, 0.000, 0.295]", tr(0, 30), 3],
+    ["tilt -30", "[-0.043, 0.000, 0.315]", tr(0, -30), 3],
   ]);
 }
 {
@@ -538,23 +546,23 @@ function guided(widget, lesson, rows) {
   };
   const a = px(100.8, 60.5, 500.8), b = px(100.8, 60.5, 500.8, 0, 0), c = px(413.7, 295.5, 698.0), d = px(100.8, 60.5, 250.4);
   guided("Camera", "m5/camera-calibration", [
-    ["default with distortion", "(420.0, 300.0)", a.d], ["default without", "(420.6, 300.4)", a.i], ["default difference", "0.8 px", a.e],
-    ["k1 = k2 = 0 difference", "0.0 px", b.e],
-    ["corner with distortion", "(600.0, 440.0)", c.d], ["corner without", "(616.3, 451.7)", c.i], ["corner difference", "20.1 px", c.e],
-    ["Z 250.4 difference", "5.9 px", d.e],
+    ["default with distortion", "(420.0, 300.0)", a.d, 1], ["default without", "(420.6, 300.4)", a.i, 1], ["default difference", "0.8 px", a.e, 1],
+    ["k1 = k2 = 0 difference", "0.0 px", b.e, 2],
+    ["corner with distortion", "(600.0, 440.0)", c.d, 3], ["corner without", "(616.3, 451.7)", c.i, 3], ["corner difference", "20.1 px", c.e, 3],
+    ["Z 250.4 difference", "5.9 px", d.e, 5],
   ]);
 }
 {
   const b = (kp, kd) => { const m = jointFreq.margins(kp, kd), s = jointFreq.closed(kp, kd); return { m, over: fixed(s.over, 0) + " %" }; };
   const a = b(2.86, 0.115), c = b(2.86, 0), d = b(5, 0.115), e = b(8, 0.115);
   guided("Bode", "m5/control-modelling", [
-    ["default ωc", "34.6 rad/s", fixed(a.m.wc, 1) + " rad/s"], ["default PM", "56°", fixed(a.m.pm, 0) + "°"],
-    ["default phase crossover", "150.8 rad/s", fixed(a.m.wpc, 1) + " rad/s"],
-    ["default GM", "14.2 dB", fixed(a.m.gm, 1) + " dB"], ["default GM factor", "5.1", fixed(10 ** (a.m.gm / 20), 1)],
-    ["default overshoot", "2 %", a.over],
-    ["kd 0 PM", "15°", fixed(c.m.pm, 0) + "°"], ["kd 0 GM", "7.5 dB", fixed(c.m.gm, 1) + " dB"], ["kd 0 overshoot", "66 %", c.over],
-    ["kp 5 PM", "40°", fixed(d.m.pm, 0) + "°"], ["kp 5 overshoot", "16 %", d.over],
-    ["kp 8 PM", "26°", fixed(e.m.pm, 0) + "°"], ["kp 8 overshoot", "38 %", e.over],
+    ["default ωc", "34.6 rad/s", fixed(a.m.wc, 1) + " rad/s", 1], ["default PM", "56°", fixed(a.m.pm, 0) + "°", 1],
+    ["default phase crossover", "150.8 rad/s", fixed(a.m.wpc, 1) + " rad/s", 1],
+    ["default GM", "14.2 dB", fixed(a.m.gm, 1) + " dB", 1], ["default GM factor", "5.1", fixed(10 ** (a.m.gm / 20), 1), 1],
+    ["default overshoot", "2 %", a.over, 1],
+    ["kd 0 PM", "15°", fixed(c.m.pm, 0) + "°", 2], ["kd 0 GM", "7.5 dB", fixed(c.m.gm, 1) + " dB", 2], ["kd 0 overshoot", "66 %", c.over, 2],
+    ["kp 5 PM", "40°", fixed(d.m.pm, 0) + "°", 3], ["kp 5 overshoot", "16 %", d.over, 3],
+    ["kp 8 PM", "26°", fixed(e.m.pm, 0) + "°", 4], ["kp 8 overshoot", "38 %", e.over, 4],
   ]);
 }
 {
@@ -565,19 +573,19 @@ function guided(widget, lesson, rows) {
   };
   const a = run(1, 10, 1), b = run(1, 10, 0.01), c = run(100, 10, 1), d = run(1, 10, 10);
   guided("Lqr", "m5/state-space-lqr", [
-    ["default K", "[-0.92, -1.75, -18.76, -3.03]", a.k], ["default peak", "3.28 N", a.peak],
-    ["R 0.01 K", "[-6.86, -10.95, -59.07, -11.51]", b.k], ["R 0.01 peak", "10.00 N", b.peak],
-    ["Q1 100 K", "[-9.01, -6.54, -29.74, -4.91]", c.k], ["Q1 100 peak", "5.19 N", c.peak],
-    ["R 10 K", "[-0.29, -0.78, -15.51, -2.37]", d.k], ["R 10 peak", "2.71 N", d.peak],
+    ["default K", "[-0.92, -1.75, -18.76, -3.03]", a.k, 1], ["default peak", "3.28 N", a.peak, 1],
+    ["R 0.01 K", "[-6.86, -10.95, -59.07, -11.51]", b.k, 2], ["R 0.01 peak", "10.00 N", b.peak, 2],
+    ["Q1 100 K", "[-9.01, -6.54, -29.74, -4.91]", c.k, 3], ["Q1 100 peak", "5.19 N", c.peak, 3],
+    ["R 10 K", "[-0.29, -0.78, -15.51, -2.37]", d.k, 4], ["R 10 peak", "2.71 N", d.peak, 4],
   ]);
 }
 {
   const iv = (k, n) => { const [lo, hi] = wilson.wilson(k, n); return `${fixed(100 * lo, 1)} .. ${fixed(100 * hi, 1)} %`; };
   const width = (k, n) => { const [lo, hi] = wilson.wilson(k, n); return 100 * (hi - lo); };
   guided("Wilson", "m6/policy-evaluation", [
-    ["61/100", "51.2 .. 70.0 %", iv(61, 100)], ["122/200", "54.1 .. 67.5 %", iv(122, 200)],
-    ["10/10", "72.2 .. 100.0 %", iv(10, 10)], ["9/10", "59.6 .. 98.2 %", iv(9, 10)], ["50/50", "92.9 .. 100.0 %", iv(50, 50)],
-    ["width n 100", "18.8", fixed(width(61, 100), 1)], ["width n 200", "13.4", fixed(width(122, 200), 1)],
+    ["61/100", "51.2 .. 70.0 %", iv(61, 100), 1], ["122/200", "54.1 .. 67.5 %", iv(122, 200), 2],
+    ["10/10", "72.2 .. 100.0 %", iv(10, 10), 3], ["9/10", "59.6 .. 98.2 %", iv(9, 10), 4], ["50/50", "92.9 .. 100.0 %", iv(50, 50), 5],
+    ["width n 100", "18.8", fixed(width(61, 100), 1), 5], ["width n 200", "13.4", fixed(width(122, 200), 1), 5],
   ]);
 }
 {
@@ -586,12 +594,12 @@ function guided(widget, lesson, rows) {
   const start = Math.round(actionTokens.firstChunkValue() * 10) / 10;
   const a = at(start), z = at(0), c = at(100);
   guided("ActionToken", "m6/vla-models", [
-    ["joint 0 low", "-83.73°", fixed(lo[0], 2) + "°"], ["joint 0 high", "77.37°", fixed(hi[0], 2) + "°"],
-    ["bin width", "0.629°", fixed((hi[0] - lo[0]) / 256, 3) + "°"],
-    ["default angle", "16.3°", fixed(start, 1) + "°"],
-    ["16.3 token", "158", a[0]], ["16.3 decoded", "16.02°", a[1]], ["16.3 error", "0.28°", a[2]],
-    ["0 token", "133", z[0]], ["0 decoded", "0.28°", z[1]],
-    ["100 token", "255", c[0]], ["100 decoded", "77.06°", c[1]], ["100 error", "22.94°", c[2]],
+    ["joint 0 low", "-83.73°", fixed(lo[0], 2) + "°", 1], ["joint 0 high", "77.37°", fixed(hi[0], 2) + "°", 1],
+    ["bin width", "0.629°", fixed((hi[0] - lo[0]) / 256, 3) + "°", 1],
+    ["default angle", "16.3°", fixed(start, 1) + "°", 2],
+    ["16.3 token", "158", a[0], 2], ["16.3 decoded", "16.02°", a[1], 2], ["16.3 error", "0.28°", a[2], 2],
+    ["0 token", "133", z[0], 3], ["0 decoded", "0.28°", z[1], 3],
+    ["100 token", "255", c[0], 4], ["100 decoded", "77.06°", c[1], 4], ["100 error", "22.94°", c[2], 4],
   ]);
 }
 
