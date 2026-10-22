@@ -161,6 +161,18 @@ to fail instead of re-solving if the lock is out of date with `pixi.toml`, and `
 deliberately want newer packages. On Ubuntu 24.04 you can use the official apt packages instead
 (see [examples/month-4/README.md](examples/month-4/README.md)).
 
+### External links: `tools/check_links.py` (manual, not in CI)
+
+```bash
+python3 tools/check_links.py            # request every external URL, print failures
+python3 tools/check_links.py --list     # list the URLs only, no network
+```
+
+It scans the lessons, `src/lib/*.ts`, `messages/*.json` and the example READMEs and sorts each URL into OK,
+FAIL (404/410, other errors, timeouts) or BLOCKED (401/403/429, usually bot protection; open those in a browser).
+It is kept out of CI on purpose, because third-party outages and rate limits would fail unrelated PRs. Run it
+before a release. The last run is recorded in [docs/notes/links-check.md](docs/notes/links-check.md).
+
 ## Writing or changing a lesson / 编写课程
 
 Read **[docs/CONTENT_GUIDE.md](docs/CONTENT_GUIDE.md)** first; it is the binding standard (structure, zh/en parity,
@@ -182,6 +194,7 @@ MDX components, `CodeSource` / `SimOutput`, reproducibility). Decision notes and
 | `examples/month-N/` | Every program quoted in the lessons, with `check.sh` and `expected/` where there are real runs |
 | `tools/sim/` | simavr harness, toy models, ROS/MoveIt runners, `expected/` outputs, `reproduce.sh` |
 | `tools/check_quotes.py` | Lesson quotes vs. repository files |
+| `tools/check_links.py` | External link check (manual, not in CI) |
 | `docs/` | Content guide and notes |
 
 Stack: Next.js 16 (App Router, static generation) · React 19 · Tailwind CSS v4 · next-intl v4 · MDX (`@next/mdx`).
