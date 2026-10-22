@@ -811,14 +811,15 @@ for (const f of existsSync(dataDir) ? readdirSync(dataDir).filter((f) => f.endsW
     }
     for (const q of [`${hz} Hz、${bits[1]} 位下 ${ms(us90)} ms 脉冲对应 ${duty(90)}`, `${ms(us90)} ms at ${hz} Hz and ${bits[1]} bits gives ${duty(90)}`])
       ok(curriculum.includes(q), `curriculum.ts: expected "${q}" (from angleToDuty(90) = ${duty(90)})`);
-    // Quiz q6 (2.0 ms pulse = angle 180): the answer and the last number of its explanation are angleToDuty(180).
+    // Quiz q6 (2.0 ms pulse = angle 180): the answer and the last number of its explanation are angleToDuty(180); every step of
+    // the explanation (pulse / period, the ratio us180 / period, full scale, the exact product) is recomputed from the sketch.
     const us180 = Number(us[1]) + Math.floor((180 * Number(us[2])) / Number(us[3]));
     for (const lang of ["en", "zh"]) {
       const text = readFileSync(join(root, `src/content/m2/esp32/${lang}.mdx`), "utf8");
-      const q = text.match(/<Quiz id="q6"[^>]*answer=\{(\d+)\} explanation="duty = ([\d.]+) \/ ([\d.]+) × (\d+) = [\d.]+ × \d+ = ([\d.]+)[^"]*?(\d+)[.。]"/);
+      const q = text.match(/<Quiz id="q6"[^>]*answer=\{(\d+)\} explanation="duty = ([\d.]+) \/ ([\d.]+) × (\d+) = ([\d.]+) × (\d+) = ([\d.]+)[^"]*?(\d+)[.。]"/);
       const exact = (us180 * full) / Number(dv[1]);
-      ok(q && Number(q[1]) === duty(180) && Number(q[6]) === duty(180) && Number(q[2]) === us180 / 1000 && Number(q[3]) === Number(dv[1]) / 1000 && Number(q[4]) === full && Number(q[5]) === exact,
-        `esp32 ${lang}: Quiz q6 ${q ? `answer=${q[1]}, explanation ${q[2]} / ${q[3]} × ${q[4]} = ${q[5]} -> ${q[6]}` : "(not found)"}; angleToDuty(180) = ${duty(180)} (exact ${exact})`);
+      ok(q && Number(q[1]) === duty(180) && Number(q[8]) === duty(180) && Number(q[2]) === us180 / 1000 && Number(q[3]) === Number(dv[1]) / 1000 && Number(q[4]) === full && Number(q[5]) === us180 / Number(dv[1]) && Number(q[6]) === full && Number(q[7]) === exact,
+        `esp32 ${lang}: Quiz q6 ${q ? `answer=${q[1]}, explanation ${q[2]} / ${q[3]} × ${q[4]} = ${q[5]} × ${q[6]} = ${q[7]} -> ${q[8]}` : "(not found)"}; angleToDuty(180) = ${duty(180)} (exact ${exact})`);
     }
     console.log(`calc  esp32: angleToDuty at ${bits[1]} bits = ${want.join(", ")} (steps ${steps.join(", ")}), bound to the table, value list, step list, 1.5 ms example, duty range, summary and Quiz q6 in en/zh and the curriculum goal`);
   }
