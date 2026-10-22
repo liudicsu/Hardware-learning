@@ -50,12 +50,12 @@ python3 "$SIM/models/one_rev_sim.py" > "$OUT/m2-one_rev_sim.txt"
 
 # Lesson 4: one_rev firmware with the simulated TB6612 + gearmotor + encoder (MOTOR=<battery volts>)
 ELF=$(compile "$EX/motors-drivers/one_rev")
-for v in 8.4 7.4 6.6; do echo "battery $v V: $(MOTOR=$v avr "$ELF" 6000)"; done > "$OUT/m2-one_rev_brake.txt"
+for v in 8.4 7.4 6.6 5.0; do echo "battery $v V: $(MOTOR=$v avr "$ELF" 6000)"; done > "$OUT/m2-one_rev_brake.txt"
 # ...and the coast variant: stop with drive(0) instead of brake() at the target
 mkdir -p "$BUILD/src/one_rev_coast"
 sed 's/^      brake();$/      drive(0);/' "$EX/motors-drivers/one_rev/one_rev.ino" > "$BUILD/src/one_rev_coast/one_rev_coast.ino"
 ELF=$(compile "$BUILD/src/one_rev_coast")
-for v in 8.4 7.4 6.6; do echo "battery $v V: $(MOTOR=$v avr "$ELF" 6000)"; done > "$OUT/m2-one_rev_coast.txt"
+for v in 8.4 7.4 6.6 5.0; do echo "battery $v V: $(MOTOR=$v avr "$ELF" 6000)"; done > "$OUT/m2-one_rev_coast.txt"
 
 # Lesson 5: I2C scanner with and without the simulated MPU-6050 (MPU=1)
 ELF=$(compile "$EX/sensors-fusion/i2c_scanner")
