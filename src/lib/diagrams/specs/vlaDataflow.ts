@@ -115,8 +115,8 @@ export const vlaDataflow: BlockDiagramSpec = {
   id: "vla-dataflow",
   title: { zh: "VLA 的三个部分与两种动作输出", en: "The three parts of a VLA and its two action outputs" },
   caption: {
-    zh: `示意图，不对应某个具体模型的层数或尺寸。关节状态在 ${zhList(STATE_IN_LM)} 里进语言模型，在 ${zhList(STATE_IN_HEAD)} 里进动作头；${zhList(NO_STATE.slice(0, -1))} 和发布版 ${NO_VLM} 不读关节状态。${BINS} 个区间和 ${TOKENS} 个词元来自本课的 action_tokens.py（6 关节、${HZ} Hz、1 秒一块）。`,
-    en: `A sketch, not the layers or sizes of any one model. The joint state goes into the language model in ${andList(STATE_IN_LM)}, and into the action head in ${andList(STATE_IN_HEAD)}; ${NO_STATE.slice(0, -1).join(", ")} and the released ${NO_VLM} do not read it. The ${BINS} bins and ${TOKENS} tokens come from this lesson's action_tokens.py (6 joints, ${HZ} Hz, 1 s chunks).`,
+    zh: `示意图，不对应某个具体模型的层数或尺寸。关节状态在 ${zhList(STATE_IN_LM)} 里进语言模型，在 ${zhList(STATE_IN_HEAD)} 里进动作头；${zhList(NO_STATE.slice(0, -1))} 和发布版 ${NO_VLM} 不读关节状态。虚线箭头只画出进语言模型的这条路径；在 ${zhList(STATE_IN_HEAD)} 里，关节状态绕过语言模型，直接进动作头。${BINS} 个区间和 ${TOKENS} 个词元来自本课的 action_tokens.py（6 关节、${HZ} Hz、1 秒一块）。`,
+    en: `A sketch, not the layers or sizes of any one model. The joint state goes into the language model in ${andList(STATE_IN_LM)}, and into the action head in ${andList(STATE_IN_HEAD)}; ${NO_STATE.slice(0, -1).join(", ")} and the released ${NO_VLM} do not read it. The dashed arrow draws only the route into the language model; in ${andList(STATE_IN_HEAD)} the joint state bypasses the language model and goes straight to the action head. The ${BINS} bins and ${TOKENS} tokens come from this lesson's action_tokens.py (6 joints, ${HZ} Hz, 1 s chunks).`,
   },
   sources: [SCRIPT],
   nodes: [
@@ -250,8 +250,8 @@ export const vlaDataflow: BlockDiagramSpec = {
     { file: ZH, pattern: "RT-2 用数据的整个范围。OpenVLA 改用数据集的第 1 和第 99 百分位数确定范围", note: "zh: percentiles are OpenVLA's, not RT-2's" },
     { file: EN, pattern: `one second of a ${JOINTS}-joint arm is ${TOKENS} tokens`, note: "en: 1 s = 180 tokens" },
     { file: ZH, pattern: `一台 ${JOINTS} 关节机械臂的 1 秒动作就是 ${TOKENS} 个词元`, note: "zh: 1 s = 180 tokens" },
-    { file: EN, pattern: `\\(and, in ${esc(MOST.en)}, the robot's joint state\\)`, note: "en: joint state in most models" },
-    { file: ZH, pattern: `（${esc(MOST.zh)}还会读入机器人的关节状态）`, note: "zh: joint state in most models" },
+    { file: EN, pattern: `\\(and, in ${esc(MOST.en)}, the robot's joint state, fed into the language model or the action head\\)`, note: "en: joint state in most models, into the LM or the action head" },
+    { file: ZH, pattern: `（${esc(MOST.zh)}还会读入机器人的关节状态，送进语言模型或动作头）`, note: "zh: joint state in most models, into the LM or the action head" },
     { file: EN, pattern: `The first two come from a pretrained vision-language model \\(in every model below except ${NO_VLM}\\)`, note: "en: encoder + LM pretrained, except Octo" },
     { file: ZH, pattern: `前两部分来自预训练好的视觉-语言模型（下面除 ${NO_VLM} 外的模型都是如此）`, note: "zh: encoder + LM pretrained, except Octo" },
     { file: EN, pattern: `${RT2} and ${OPENVLA} work like this, one action step per call \\(${STEP_TOKENS.join(" and ")} tokens\\); ${esc(FAST_MODEL)} does too, but its tokeniser, FAST, compresses a whole chunk first`, note: "en: token models, π0-FAST on whole chunks" },

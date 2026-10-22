@@ -9,7 +9,7 @@ const char *WIFI_PASS = "your-password";
 const int SERVO_PIN = 18;
 const int POT_PIN = 34;        // classic ESP32: GPIO 34 is on ADC1 (works with Wi-Fi on). ESP32-S3: use GPIO 4.
 const int SERVO_HZ = 50;       // standard hobby servo frame: 20 ms
-const int SERVO_BITS = 14;     // duty resolution: 0..16383
+const int SERVO_BITS = 14;     // duty resolution: 0..16384
 
 WebServer server(80);
 int servoAngle = 90;
@@ -17,7 +17,7 @@ int servoAngle = 90;
 // 0..180 degrees -> 1000..2000 us pulse -> LEDC duty value
 uint32_t angleToDuty(int angle) {
   uint32_t us = 1000 + (uint32_t)angle * 1000 / 180;
-  return us * ((1UL << SERVO_BITS) - 1) / 20000;
+  return us * (1UL << SERVO_BITS) / 20000;
 }
 
 void setServo(int angle) {

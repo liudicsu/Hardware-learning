@@ -2,7 +2,10 @@ import type { NextConfig } from "next";
 import createMDX from "@next/mdx";
 import createNextIntlPlugin from "next-intl/plugin";
 
-// CI (GitHub Actions sets CI=true) builds the Pages export once, so the postbuild check can scan out/ without a second build; set PAGES_BASE_PATH="" to opt out.
+// GitHub Actions sets CI=true. CI is used as the export switch only because this repo's token cannot edit
+// .github/workflows; a dedicated variable (e.g. PAGES_EXPORT=1 set in ci.yml) would be clearer and should
+// replace this once workflow scope exists. With CI set, `npm run build` produces the Pages export once and
+// the postbuild check scans out/ without a second build; set PAGES_BASE_PATH="" to opt out.
 const basePath = process.env.PAGES_BASE_PATH ?? (process.env.CI ? "/Hardware-learning" : "");
 const isPages = basePath !== "";
 

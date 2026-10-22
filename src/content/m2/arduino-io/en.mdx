@@ -188,7 +188,7 @@ V = 512 × 5.0 / 1023
   = 2560 / 1023
   = 2.502 V ≈ 2.50 V
 
-one step = 5 V / 1023 = 0.00489 V ≈ 4.9 mV
+one step = 5 V / 1024 = 0.00488 V ≈ 4.9 mV   (the datasheet's step size)
 ```
 
 Halfway up the range is therefore about 2.5 V, and each count represents about 4.9 mV. That <Term id="lsb">step size</Term> is the smallest change the Uno can see with a 5 V reference. If you need to detect a 1 mV change, the Uno's ADC cannot do it without amplification or a smaller reference.
@@ -441,7 +441,7 @@ Before you move on, you should be able to say yes to all of these:
 
 - Uno (ATmega328P): 16 MHz, 32 KB flash (0.5 KB bootloader), 2 KB RAM, 5 V logic; the 3.3 V pin supplies at most 50 mA.
 - Every digital input needs a defined level: `INPUT_PULLUP` (20–50 kΩ) with the button to GND reads HIGH released and LOW pressed.
-- 10-bit ADC: V = raw × 5.0 / 1023, one step ≈ 4.9 mV, one conversion 13 / 125 kHz = 104 µs.
+- 10-bit ADC: V = raw × 5.0 / 1023 (the Arduino convention), one step = 5 V / 1024 ≈ 4.9 mV, one conversion 13 / 125 kHz = 104 µs.
 - `int` is 16 bits on the Uno (max 32767): write `5.0` or use `long` before multiplying a reading.
 - PWM: `analogWrite` sets duty = value / 255 at 490 Hz (pins 3, 9, 10, 11) or 976.6 Hz (pins 5, 6); the load sees V_avg = duty × 5 V.
 - An LED on a pin needs a series resistor: 220 Ω gives 13.6 mA for a 2.0 V red LED at 5 V.

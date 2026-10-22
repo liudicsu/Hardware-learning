@@ -750,6 +750,26 @@ for (const f of existsSync(dataDir) ? readdirSync(dataDir).filter((f) => f.endsW
   ok(out === text, `data/${f} differs from the output of ${script} (re-run: python3 ${script} > src/lib/diagrams/data/${f})`);
 }
 
+// act-diffusion: the curriculum's run task and the lesson's Quiz q1 quote the move average_policy makes at
+// (0, 0.23). That move is deterministic (the mean of the 10 nearest demo actions), and act-fork.json's `mean`
+// is exactly that value, written by act_fork_export.py, so bind every quote to it (in cm, 2 decimals).
+{
+  const fork = JSON.parse(readFileSync(join(dataDir, "act-fork.json"), "utf8"));
+  const want = Math.round(fork.mean[0] * 10000) / 100;
+  const num = (s) => Number(s.replace("−", "-"));
+  const quotes = [
+    ["src/lib/curriculum.ts", /confirm it prints ([−-][\d.]+) \(in cm\)/, "curriculum act-diffusion run task (en)"],
+    ["src/lib/curriculum.ts", /确认它打印出 ([−-][\d.]+)（单位 cm）/, "curriculum act-diffusion run task (zh)"],
+    ["src/content/m6/act-diffusion/en.mdx", /averaging policy's actual move is ([−-][\d.]+) cm/, "act-diffusion en Quiz q1"],
+    ["src/content/m6/act-diffusion/zh.mdx", /均值策略实际走的是 ([−-][\d.]+) cm/, "act-diffusion zh Quiz q1"],
+  ];
+  for (const [file, re, what] of quotes) {
+    const m = readFileSync(join(root, file), "utf8").match(re);
+    ok(m && num(m[1]) === want, `${what}: quotes average_policy's move at (0, 0.23) as ${m ? m[1] : "(not found)"} cm; act-fork.json's mean is ${want} cm`);
+  }
+  console.log(`calc  act-diffusion: average_policy at (0, 0.23) = act-fork.json mean ${want} cm, quoted in curriculum (zh/en) and Quiz q1 (zh/en)`);
+}
+
 const specs = [];
 for (const f of readdirSync(specDir).filter((f) => f.endsWith(".ts"))) {
   const mod = await import(dataUrl(transpile(inlineJson(readFileSync(join(specDir, f), "utf8")))));
