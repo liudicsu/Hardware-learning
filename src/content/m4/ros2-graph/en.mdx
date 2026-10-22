@@ -8,7 +8,7 @@ You arrived here from Lesson 1, where you installed ROS 2 Jazzy, created `~/ros2
 
 A note on the outputs. Every command output quoted in this lesson is a real run of ROS 2 Jazzy on the site editor's computer (Debian 13, Jazzy installed from RoboStack), not a simulation. Timestamps, process ids and the exact sensor values differ between runs: the sensor uses a fixed random seed, so its sequence of numbers repeats every time, but which readings you catch depends on when you start listening. Code comments stay in English. When your numbers differ from the ones shown here, that is the system working, not a bug.
 
-## Pick the right pipe
+## Pick the right communication pattern
 
 A node is one program with one job. The whole ROS 2 style is to give each job its own node — one reads the lidar, one filters the readings, one decides where to drive — and then let them exchange messages instead of calling each other directly. That last part is what makes a system replaceable: as long as the messages keep the same shape, you can rewrite, restart or move any node without touching the others.
 
@@ -177,7 +177,7 @@ Notice what happened to the Header in the first block: it was expanded into its 
 
 ### A publisher in Python
 
-A topic needs someone to publish and someone to subscribe. The simplest honest sensor is a node that invents its numbers, so that is what we start with.
+A topic needs someone to publish and someone to subscribe. The simplest sensor to start with is a node that generates synthetic readings: it needs no hardware, and its output is known exactly.
 
 <CodeSource path="examples/month-4/ros2-graph/m4_graph/m4_graph/sensor_node.py" />
 
@@ -329,7 +329,7 @@ where `x` is the new reading, `y` is the running estimate, and `α` (alpha) is a
 
 That is the whole arithmetic. Smaller α means the estimate moves less in one step, which is exactly what "smoother but slower" means.
 
-The parameter callback is the second idea in this node, and it has the last word on the node's own settings: `add_on_set_parameters_callback` installs a function that runs every time someone tries to change a parameter, and if it returns `successful = false` with a reason, the change is refused before it takes effect. Here any `alpha` outside `(0, 1]` is rejected. This is a real pattern you will use constantly: a node that validates its own settings so a mistyped command cannot quietly corrupt its behaviour.
+The parameter callback is the second idea in this node, and it decides whether a change to the node's own settings is accepted: `add_on_set_parameters_callback` installs a function that runs every time someone tries to change a parameter, and if it returns `successful = false` with a reason, the change is refused before it takes effect. Here any `alpha` outside `(0, 1]` is rejected. This is a real pattern you will use constantly: a node that validates its own settings so a mistyped command cannot quietly corrupt its behaviour.
 
 The subscription is the last piece. `create_subscription<Reading>("raw", 10, lambda)` says "call this function for each `Reading` on `raw`", and the lambda simply forwards to `on_reading`. Inside, `Reading out = msg;` copies the incoming message — including its header and `sensor_id` — before overwriting only `value`. That copy is deliberate: the timestamp of the original measurement now travels on with the filtered value, so a downstream node can still tell when the reading was taken, not when it was smoothed.
 
@@ -379,7 +379,7 @@ filter_node:
 
 The indentation is meaningful, as it always is in YAML. The top-level key is the node's name — `aggregator_node`, `filter_node` — and under it comes `ros__parameters`, with two underscores. That double underscore is not a typo; it is the fixed ROS 2 key, and a single underscore is not recognised. Underneath sit the parameter names and values. One file can hold the settings for several nodes, which is why both nodes appear here, and that is what makes it the natural companion to a launch file: one place for everything the graph needs.
 
-The configuration node is the clever one, because it is a service server and a service client at the same time.
+The configuration node has two roles: it is a service server and a service client at the same time.
 
 <CodeSource path="examples/month-4/ros2-graph/m4_graph/m4_graph/config_node.py" />
 
@@ -844,11 +844,11 @@ The filter cannot tell the difference between a live sensor and a recording — 
 21.103138790242603
 ```
 
-Notice what those numbers quietly tell you. This lone filter started at its default `alpha = 0.2`, but the recording was made after `/set_alpha` had already changed the filter to 0.5 — so the same input produces different output. Replaying one recording through a node while you vary its settings is exactly how you tune a node offline, with no robot and no risk, and it is worth building the habit early.
+These numbers show a second effect. This lone filter started at its default `alpha = 0.2`, but the recording was made after `/set_alpha` had already changed the filter to 0.5 — so the same input produces different output. Replaying one recording through a node while you vary its settings is exactly how you tune a node offline, with no robot and no risk, and it is worth building the habit early.
 
 ### QoS mismatches
 
-Here is an honest gap the course names. DDS and QoS are covered badly by every resource the course author could find — the topic is either skipped or buried — yet when a topic publishes but nothing receives, the answer is almost always a QoS mismatch. You will end up reading the official Concepts page, and it is worth knowing that going in.
+The course names a gap in the available material. DDS and QoS are covered badly by every resource the course author could find — the topic is either skipped or buried — yet when a topic publishes but nothing receives, the answer is almost always a QoS mismatch. You will end up reading the official Concepts page, and it is worth knowing that going in.
 
 QoS, quality of service, is a set of policies that each publisher and subscriber carries. A connection only forms if the two sides are compatible, and when they are not, the publisher keeps publishing and the subscriber silently stays empty. Three policies explain almost everything you will meet.
 
@@ -868,7 +868,7 @@ data: hi
 ---
 ```
 
-The first subscriber receives nothing and says why in plain words: the publisher offers an incompatible QoS, and the last incompatible policy was RELIABILITY. The second subscriber, matching best effort, receives the message immediately. When a topic "publishes but nothing receives", that warning is your best clue.
+The first subscriber receives nothing and the log states the reason explicitly: the publisher offers an incompatible QoS, and the last incompatible policy was RELIABILITY. The second subscriber, matching best effort, receives the message immediately. When a topic "publishes but nothing receives", that warning is your best clue.
 
 So here is the debug order, and it is short. First `ros2 topic info -v <topic>`, which lists each endpoint and its QoS — compare the publisher and subscriber configurations. Second, if the QoS looks fine, check `ROS_DOMAIN_ID` from Lesson 1: two terminals on different domains never see each other at all. Third, check the topic name and namespace, because a small typo or a missing remap produces the same silence. Work down that list before you touch your code.
 

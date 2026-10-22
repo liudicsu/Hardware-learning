@@ -42,7 +42,7 @@ ratio = 1 + ring / sun
 
 It is worth seeing where the plus one comes from. First hold the carrier still: the gears become an ordinary train, and turning the ring once (backwards) turns the sun ring / sun times. Now turn the whole stage once forwards as a solid block: every part, sun included, gains one turn, and the ring is back where it started, so it has in effect been held still. Add the two motions: the carrier made one turn while the sun made 1 + ring / sun turns. That free extra turn is why a planetary gives a useful ratio in a very short package.
 
-Geometry imposes two assembly rules that you must satisfy on paper before you print anything. First, the planets must fill the gap between the sun and the ring, so the planet tooth count must be a whole number:
+Geometry imposes three assembly rules that you must satisfy on paper before you print anything. First, the planets must fill the gap between the sun and the ring, so the planet tooth count must be a whole number:
 
 ```text
 planet = (ring − sun) / 2 must be a whole number of teeth
@@ -54,7 +54,13 @@ If ring minus sun is odd, the planets would need half a tooth and the stage will
 (sun + ring) / N must be a whole number
 ```
 
-If it is not, the planets cannot be spaced equally, and unequal spacing leaves the stage unbalanced, so it vibrates and loads the planets unevenly. When both rules are satisfied, several planets share the load, which is why a planetary is compact and strong for its diameter: the same torque passes through three or four sets of teeth at once instead of one.
+If it is not, the planets cannot be spaced equally, and unequal spacing leaves the stage unbalanced, so it vibrates and loads the planets unevenly. Third, neighbouring planets must not touch. With module m, each planet centre sits at (sun + planet) × m / 2 from the sun's axis, so two neighbours of N planets are (sun + planet) × m × sin(180° / N) apart, centre to centre. A standard gear's tip diameter is (teeth + 2) × m, so the planets clear each other only if:
+
+```text
+(sun + planet) × sin(180° / N) > planet + 2
+```
+
+For sun 12 and ring 48 (planet 18), three planets give 30 × sin 60° = 25.98 > 20 and four give 30 × sin 45° = 21.21 > 20, but five give 30 × sin 36° = 17.63, less than 20: (12 + 48) / 5 = 12 passes the spacing rule, yet the five planets overlap. When all three rules are satisfied, several planets share the load, which is why a planetary is compact and strong for its diameter: the same torque passes through three or four sets of teeth at once instead of one.
 
 ### Cycloidal
 
@@ -77,7 +83,8 @@ The program below is ordinary arithmetic run on the editor's computer with Pytho
 
 1. Planetary stage (ring fixed, sun in, carrier out): ratio = 1 + ring / sun.
    It only assembles if planet = (ring - sun) / 2 is a whole number of teeth and
-   (sun + ring) / planets is a whole number (equally spaced planets).
+   (sun + ring) / planets is a whole number (equally spaced planets), and neighbouring
+   planets do not touch: (sun + planet) x sin(180 deg / planets) > planet + 2.
 2. Cycloidal stage with N ring pins and N - 1 lobes: ratio N - 1, output turns backwards.
 3. What a ratio n does: torque x n (minus losses), speed / n, and what you feel when you
    turn the output by hand: friction x n and rotor inertia x n^2.
@@ -94,6 +101,10 @@ def planetary(sun, ring, planets):
     if (sun + ring) % planets:
         return (f"sun {sun:2d}, ring {ring:2d}, planet {planet:2d}: {planets} planets cannot be spaced "
                 f"evenly ((sun + ring) / {planets} = {(sun + ring) / planets:.2f})")
+    spacing = (sun + planet) * math.sin(math.pi / planets)   # planet centre to centre, in modules
+    if spacing <= planet + 2:                                # planet tip diameter, in modules
+        return (f"sun {sun:2d}, ring {ring:2d}, planet {planet:2d}: {planets} planets collide "
+                f"(centre spacing {spacing:.2f} <= tip diameter {planet + 2})")
     return f"sun {sun:2d}, ring {ring:2d}, planet {planet:2d}, {planets} planets: ratio {1 + ring / sun:.3f} : 1"
 
 
@@ -164,6 +175,14 @@ Walk through the planetary lines with the arithmetic. For sun 12 and ring 48, th
 
 <GearWidget />
 
+**Guided experiment.** This experiment shows how tooth counts and planet count determine whether a planetary stage assembles, and how backlash and reach turn joint play into tip error.
+
+1. Leave sun teeth = 12, ring teeth = 48 and planets = 3 and read planet teeth = 18 and status line = "Assembles, ratio 5.000 : 1".
+2. Set ring teeth = 46 and read status line = "3 planets cannot be spaced evenly ((sun + ring) / 3 = 19.33)".
+3. Set ring teeth = 47 and read status line = "The planet would need 17.5 teeth, not a whole number: will not mesh".
+4. Set ring teeth = 48 and planets = 4 and read status line = "Assembles, ratio 5.000 : 1"; then set planets = 5 and read status line = "5 planets collide: centre spacing 17.63 ≤ planet tip diameter 20 (in modules)".
+5. Set arm reach = 0.30 m and backlash = 2.0° and read tip error = 10.5 mm; set backlash = 0.5° and read 2.6 mm; set arm reach = 0.60 m with backlash = 2.0° and read 20.9 mm. Conclusion: tip error = arm reach × angle in rad (0.30 × 2.0° × π/180 = 0.0105 m); 5 planets pass the spacing rule (60/5 = 12) but neighbouring planets overlap.
+
 The cycloidal lines are shorter because the arithmetic is simpler. Ten ring pins give nine lobes and a ratio of 9 : 1; sixteen pins give fifteen lobes and 15 : 1. Both outputs turn the opposite way to the input. If you want a different ratio, change the pin count, but remember that the ratio is always N − 1 with this construction, so you cannot get any ratio you like from a single disc. Getting a wider range usually means stacking a second stage or adding a planetary in front.
 
 <Quiz id="q2" question="Sun 15 teeth, ring 45 teeth, ring held still. What is the ratio (n:1, give n)?" answer={4} explanation="ratio = 1 + ring / sun = 1 + 45 / 15 = 1 + 3 = 4, so 4:1. Check the assembly rules too: planet = (45 − 15) / 2 = 15 teeth, and (15 + 45) / 3 = 20, so three planets would work." />
@@ -179,12 +198,12 @@ Once you know the ratio you want, you still have to choose how to get it. Each o
 | Spur gear stage | Simple, cheap to print, any ratio in steps | Backlash at every mesh, noise |
 | Planetary | High ratio in a small diameter, load shared by several planets | Backlash adds up over stages, printed planets wear |
 | Cycloidal | Stiff, shock tolerant, low backlash | More parts, the eccentric must be balanced, accurate pins needed |
-| Belt (for example GT2, 2 mm pitch: a 20-tooth pulley driving a 60-tooth one gives 3:1) | Almost no backlash, quiet, lets you put the motor far from the joint | The belt stretches (a springy joint), needs tensioning, ratio per stage is limited by pulley size |
+| Belt (for example GT2, 2 mm pitch: a 20-tooth pulley driving a 60-tooth one gives 3:1) | Almost no backlash, quiet, lets you put the motor far from the joint | The belt stretches (a compliant joint), needs tensioning, ratio per stage is limited by pulley size |
 | Direct drive (motor on the joint, no reduction) | No backlash at all, perfectly backdrivable, the joint can feel force | Needs a big, heavy, expensive motor for the same torque |
 
 A spur gear stage is the simplest thing you can print and the easiest to reason about. It is also the noisiest and the loosest, because every mesh contributes its own backlash, and a train of several spur pairs accumulates all of it at the output. Planetary stages pack a high ratio into a small diameter, at the cost of more meshes and planets that wear; printed planets are usually the first parts to show slop. Cycloidal drives are the stiff, low-backlash option, but they are the hardest to get right because the eccentric and the pins must be accurate.
 
-Belts occupy a different point on the map. A GT2 belt with a 2 mm pitch, with a 20-tooth pulley driving a 60-tooth pulley, gives 3:1. A belt has almost no backlash, runs quietly, and lets you put the motor away from the joint, which is a gift when the joint is small and the motor is not. The cost is stretch: a belt is a spring, so the joint has some compliance, and it needs tensioning. The ratio per stage is also limited by how large a pulley you can fit, so a belt alone rarely gives the hundreds-to-one of a servo gearbox.
+Belts occupy a different point on the map. A GT2 belt with a 2 mm pitch, with a 20-tooth pulley driving a 60-tooth pulley, gives 3:1. A belt has almost no backlash, runs quietly, and lets you put the motor away from the joint, which is a gift when the joint is small and the motor is not. The cost is stretch: the belt is the elastic element in the drive train, storing torque while it is loaded and releasing it when the load changes, so the joint has some compliance, and it needs tensioning. The ratio per stage is also limited by how large a pulley you can fit, so a belt alone rarely gives the hundreds-to-one of a servo gearbox.
 
 Direct drive is the cleanest answer and the most expensive. Mount the motor directly on the joint with no reduction at all and you get no backlash, perfect backdrivability, and a joint that can feel the force applied to it. The catch is torque density: to get the same torque as a small motor with a gearbox, a direct-drive motor must be physically large, heavy and costly. For a small educational arm, direct drive is usually out of reach for the shoulder and elbow, and often used only on a wrist where the load is small.
 
@@ -307,11 +326,11 @@ The numbers above come from a toy model whose stiffness, friction and controller
 
 ## Bearings and preload
 
-A bearing lets a shaft turn while it carries load. A robot joint puts three kinds of load on its bearings. Radial load pushes sideways against the shaft. Axial load pushes along the shaft. A tipping moment tries to tilt the shaft out of line, and it is usually the one that kills a joint with only one bearing. A deep-groove ball bearing handles radial load and some axial load, and two common sizes are cheap and everywhere: the 608, which is 8 × 22 × 7 mm and is the skateboard bearing, and the 625, which is 5 × 16 × 5 mm.
+A bearing lets a shaft turn while it carries load. A robot joint puts three kinds of load on its bearings. Radial load pushes sideways against the shaft. Axial load pushes along the shaft. A tipping moment tries to tilt the shaft out of line, and it is usually what breaks a joint that has only one bearing. A deep-groove ball bearing handles radial load and some axial load, and two common sizes are cheap and everywhere: the 608, which is 8 × 22 × 7 mm and is the skateboard bearing, and the 625, which is 5 × 16 × 5 mm.
 
 One bearing lets the shaft tilt: it can pivot around the bearing, so the far end of the shaft wobbles. Two bearings spaced apart turn the tipping moment into two opposite radial forces, one at each bearing, and the farther apart the bearings are, the smaller those forces and the less the shaft wobbles. When you design a joint, space the bearings along the shaft as far as the geometry allows instead of stacking them next to each other.
 
-Preload is the second half of the bearing problem. Squeezing the bearings axially with a nut, a wave washer or a printed spring removes their internal play, exactly the same idea as the spring that removed backlash in the model above. Preload makes the shaft stiff and removes the small free movements that show up as wobble at the tool. Too much preload is a problem too: the bearings drag, run hot and wear out quickly, so preload is a small, controlled squeeze, not a crush. Angular-contact and tapered bearings are made to be preloaded; ordinary deep-groove bearings accept a light preload but are not designed for heavy axial loads.
+Preload is the second half of the bearing problem. Squeezing the bearings axially with a nut, a wave washer or a printed spring removes their internal play, exactly the same idea as the spring that removed backlash in the model above. Preload makes the shaft stiff and removes the small free movements that show up as wobble at the tool. Too much preload is a problem too: a large contact force between the rolling elements and the raceways raises friction and temperature, and the bearing wears out quickly, so the preload has to be sized against the bearing's rating. Angular-contact and tapered bearings are made to be preloaded; ordinary deep-groove bearings accept a light preload but are not designed for heavy axial loads.
 
 Printed bearing seats follow the same rules as the <Term id="fit">fits</Term> in Lesson 2. Use your press-fit clearance from the tolerance gauge, and remember that a bearing seat is usually a small negative or near-zero per-side number, not the sliding clearance you would use for a shaft that must turn. Add a chamfer to the entry so the bearing starts square, and never hammer a bearing in through its balls: press on the ring you are fitting, which is the outer ring for a seat in a housing and the inner ring for a shaft.
 
@@ -319,7 +338,7 @@ Printed bearing seats follow the same rules as the <Term id="fit">fits</Term> in
 
 In a cheap hobby servo the last gear stage carries the full output torque on small plastic teeth. That is already the hardest-working part of the gearbox, and a crash, a dropped arm or a joint stalled against a hard stop turns it into the part that takes the shock. A sudden stop puts the whole load on one or two teeth at the output stage, and plastic softens as the motor heats up, so the teeth get weaker just as the load peaks. That is why the gearset is usually the first thing to fail on an arm, long before the motor or the electronics.
 
-Three things help. Metal-gear servos, such as the MG996R used in the EEZYbotARM, replace the plastic teeth with metal and survive far more abuse. Servos with a smarter controller that limits current reduce the load a stall can apply to the teeth. And keeping the arm short and light lowers the torque every joint has to carry, which lowers the load on the last stage. If you are choosing servos for a build, this is the reason the specification that matters is not only the torque number but also the gear material.
+Three things help. Metal-gear servos, such as the MG996R used in the EEZYbotARM, replace the plastic teeth with metal ones, whose strength and wear resistance are higher, so they fail far less often under the same load. Servos with a smarter controller that limits current reduce the load a stall can apply to the teeth. And keeping the arm short and light lowers the torque every joint has to carry, which lowers the load on the last stage. If you are choosing servos for a build, this is the reason the specification that matters is not only the torque number but also the gear material.
 
 <Quiz id="q7" question="You need a joint with as little wobble as possible under a sideways load. Which layout?" options={["one wide bearing in the middle", "two bearings close together", "two bearings far apart, lightly preloaded", "no bearing, a tight printed hole"]} answer={2} explanation="Two bearings spaced far apart turn the tipping moment into smaller opposite radial forces and reduce wobble; a light preload removes internal play. One bearing allows the shaft to tilt, two bearings close together still allow a large tilt, and a printed hole with no bearing wears and has no rolling contact." />
 
@@ -356,7 +375,7 @@ The editor has not printed one of these reducers or measured its backlash. Your 
 Run the gearbox in for a few minutes under light load before you measure the backlash. New printed teeth wear in, the surfaces polish each other, and the backlash changes from the number you measured straight off the printer. Then measure, and write down the worn-in number.
 </Callout>
 
-Lesson 4 puts this to work. PID and cascade control are what make a joint follow a position or a trajectory, and the loop you will tune there has to live with the backlash you just measured. The cleaner your reducer, the easier that tuning becomes: reduction, backlash and torque density are the mechanical foundations the controller stands on.
+Lesson 4 puts this to work. PID and cascade control are what make a joint follow a position or a trajectory, and the loop you will tune there has to live with the backlash you just measured. The cleaner your reducer, the easier that tuning becomes: reduction, backlash and torque density set the limits on how the control loop can be tuned.
 
 <Summary>
 

@@ -2,7 +2,8 @@
 
 1. Planetary stage (ring fixed, sun in, carrier out): ratio = 1 + ring / sun.
    It only assembles if planet = (ring - sun) / 2 is a whole number of teeth and
-   (sun + ring) / planets is a whole number (equally spaced planets).
+   (sun + ring) / planets is a whole number (equally spaced planets), and neighbouring
+   planets do not touch: (sun + planet) x sin(180 deg / planets) > planet + 2.
 2. Cycloidal stage with N ring pins and N - 1 lobes: ratio N - 1, output turns backwards.
 3. What a ratio n does: torque x n (minus losses), speed / n, and what you feel when you
    turn the output by hand: friction x n and rotor inertia x n^2.
@@ -19,6 +20,10 @@ def planetary(sun, ring, planets):
     if (sun + ring) % planets:
         return (f"sun {sun:2d}, ring {ring:2d}, planet {planet:2d}: {planets} planets cannot be spaced "
                 f"evenly ((sun + ring) / {planets} = {(sun + ring) / planets:.2f})")
+    spacing = (sun + planet) * math.sin(math.pi / planets)   # planet centre to centre, in modules
+    if spacing <= planet + 2:                                # planet tip diameter, in modules
+        return (f"sun {sun:2d}, ring {ring:2d}, planet {planet:2d}: {planets} planets collide "
+                f"(centre spacing {spacing:.2f} <= tip diameter {planet + 2})")
     return f"sun {sun:2d}, ring {ring:2d}, planet {planet:2d}, {planets} planets: ratio {1 + ring / sun:.3f} : 1"
 
 

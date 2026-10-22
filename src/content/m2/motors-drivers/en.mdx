@@ -9,9 +9,9 @@ An actuator turns electrical energy into motion. Almost every robot you will bui
 | Smart serial bus servo (e.g. FeeTech STS3215) | Commands over a daisy-chained serial bus | Reports position, speed, load and more; a 12-bit magnetic encoder means 4096 positions per turn | Low-cost robot arms such as the open-source SO-101 |
 | Stepper motor | Step and direction pulses to a driver | None (open loop) but holds position with high torque | 3D printers, precise positioning |
 
-The brushed DC gearmotor is the honest workhorse. Give it voltage and it spins; reverse the voltage and it spins the other way. It is cheap, easy to mount and forgiving of clumsy control, which is why nearly every first rover uses two of them. What it lacks is a sense of its own position. Without an encoder it will happily spin forever and never know it has gone too far.
+The brushed DC gearmotor is the baseline actuator. Give it voltage and it spins; reverse the voltage and it spins the other way. It is cheap, easy to mount and tolerant of crude commands, which is why nearly every first rover uses two of them. What it lacks is position information: without an encoder it cannot know how far it has turned.
 
-A hobby servo hides a small DC motor, a gearbox, a position sensor and a control circuit inside one box. You do not command voltage; you send a pulse about every 20 ms and the width of that pulse asks for an angle. The servo's internal loop does the rest. That convenience has a price: the feedback stays inside the case, so your program knows the angle it requested, not the angle the servo actually reached. A stalled servo fighting a wall will keep trying, get hot and eventually strip its gears.
+A hobby servo puts a small DC motor, a gearbox, a position sensor and a control circuit inside one housing. You do not command voltage; you send a pulse about every 20 ms and the width of that pulse specifies an angle. The servo's internal loop does the rest. That convenience has a price: the feedback stays inside the case, so your program knows the angle it requested, not the angle the servo actually reached. A servo stalled against an obstacle keeps drawing current, heats up and eventually strips its gears.
 
 A smart serial bus servo is the modern answer for arms. Each servo has an ID, and many of them share one serial line in a daisy chain. You send a command to an ID and the servo sends back its position, speed, load and other status. A 12-bit magnetic encoder gives 4096 positions per revolution, which is far finer than a hobby servo's internal potentiometer. This feedback is exactly why open-source arms such as the SO-101 can be built from low-cost parts and still behave repeatably.
 
@@ -31,7 +31,7 @@ A brushed DC motor is roughly a resistor, an inductor and a generator sharing on
 
 Two consequences matter on a bench. First, **speed is roughly proportional to voltage**, not to the PWM number on your serial monitor. Second, **torque is roughly proportional to current**, and current rises when the load rises. A motor moving a light robot on a smooth floor draws little; the same motor pushing against a carpet draws much more.
 
-The worst case is stall: the shaft is held still, so there is no back-EMF at all. The winding looks like a small resistance and the motor draws its **stall current**, the largest current it will ever ask for. That number is often five to ten times the running current and can be several amps for a small geared motor. Size the driver and the battery for stall current, not for the tidy number you measured while the robot was rolling. Month 1 showed how that surge, flowing through battery and wire resistance, can sag the supply and reset the microcontroller.
+The worst case is stall: the shaft is held still, so there is no back-EMF at all. The winding looks like a small resistance and the motor draws its **stall current**, the largest current it will ever ask for. That number is often five to ten times the running current and can be several amps for a small geared motor. Size the driver and the battery for stall current, not for the running current measured while the robot was rolling. Month 1 showed how that surge, flowing through battery and wire resistance, can sag the supply and reset the microcontroller.
 
 A gearbox trades speed for torque. A 120:1 gearbox means the motor turns 120 times for every one turn of the output shaft. The output is 120 times slower and, ignoring friction, about 120 times stronger. This is why a tiny motor can move a robot: it spins fast and weak, and the gearbox converts that into slow and strong. It also means you must be careful about which side of the gearbox an encoder sits on. Counts measured at the motor shaft multiply by the gear ratio when you convert them to wheel motion.
 
@@ -61,7 +61,7 @@ Close S1 and S4 and current flows from +V through the motor to GND: forward. Clo
 
 The labels in the circuit match the diagram above: S1 is top-left, S2 bottom-left, S3 top-right, S4 bottom-right. The motor is modelled as 10 Ω + 10 mH with an ammeter, and the supply is 6 V with 0.5 Ω standing for supply and wiring resistance.
 
-It starts with S1 + S4 closed: forward, and the ammeter reads about +0.57 A. Open those two and close S2 + S3: about −0.57 A, same size, opposite sign — reverse. S2 + S4: both motor terminals tied to ground, 0 A from rest; to go from forward straight to brake, press RUN / Stop to pause, open S1 and close S2, then run again: the current keeps circulating in the lower loop and dies away within a few milliseconds (in this model it falls to about a third in 1 ms). On a phone the RUN / Stop button is in Falstad's side panel (open the menu), or do this step on a computer. A real spinning motor's back-EMF keeps driving that braking current until it stops. Then the forbidden state: close S1 and S2 together (or S3 and S4): about 12 A flows straight from +V to GND, limited only by the 0.5 Ω, and the motor gets 0 A — that is shoot-through.
+It starts with S1 + S4 closed: forward, and the ammeter reads about +0.57 A. Open those two and close S2 + S3: about −0.57 A, same size, opposite sign — reverse. S2 + S4: both motor terminals tied to ground, 0 A from rest; to go from forward straight to brake, press RUN / Stop to pause, open S1 and close S2, then run again: the current keeps circulating in the lower loop and dies away within a few milliseconds (in this model it falls to about 37 %, slightly more than a third, in 1 ms). On a phone the RUN / Stop button is in Falstad's side panel (open the menu), or do this step on a computer. A real motor that is still turning also works as a generator: its back-EMF drives a current the other way round the same loop, and that reverse current brakes the motor until it stops. Then the forbidden state: close S1 and S2 together (or S3 and S4): about 12 A flows straight from +V to GND, limited only by the 0.5 Ω, and the motor gets 0 A — that is shoot-through.
 
 Note: this toy model has no diodes and no dead time, so opening a switch while current flows also shows the inductive kickback explained in the next section; real driver chips have body diodes and dead time built in.
 
@@ -80,7 +80,7 @@ The TB6612FNG has a simple control table. Each channel has two direction inputs 
 
 On the TB6612FNG the two motor outputs are AO1 and AO2 (often written OUT1 and OUT2). AO1 is the left half-bridge of the H-bridge diagram above (S1/S2) and AO2 the right one (S3/S4). IN1/IN2 = H/L drives AO1 high and AO2 low, which is S1 + S4: forward. H/H pulls both outputs low, which is S2 + S4: the short brake.
 
-STBY must be HIGH or the outputs stay disabled and nothing moves. That pin catches almost everyone once: the code looks perfect, the motor is silent, and the only problem is a floating standby input. Tie it HIGH deliberately, or drive it from a pin so you can disable the driver in software.
+STBY must be HIGH or the outputs stay disabled and nothing moves. A common failure is leaving it floating: the code is correct, the motor does not respond, and the only cause is the standby pin that was never driven HIGH. Tie it HIGH deliberately, or drive it from a pin so you can disable the driver in software.
 
 <Resource id="sparkfun-tb6612" />
 
@@ -102,7 +102,7 @@ A motor winding is an inductor. Inductors resist changes in current, described b
 
 <Formula label="Inductor voltage">V = L × di/dt</Formula>
 
-If the current is steady, di/dt is zero and the inductor behaves like a piece of wire. If you try to stop the current instantly, di/dt is enormous, so the inductor generates whatever voltage is needed to keep the current flowing. That voltage can be tens or hundreds of volts — far above your 5 V supply. It can punch through a switching transistor, arc across a mechanical switch, or travel back into the supply and reset the microcontroller.
+If the current is steady, di/dt is zero, so by V = L × di/dt the voltage across the inductor is also zero and the winding presents only its own resistance to the circuit. If you try to stop the current instantly, di/dt is enormous, so the inductor generates whatever voltage is needed to keep the current flowing. That voltage can be tens or hundreds of volts — far above your 5 V supply. It can punch through a switching transistor, arc across a mechanical switch, or travel back into the supply and reset the microcontroller.
 
 <Falstad title="Inductive kickback" circuit="inductkick" height={420} />
 
@@ -114,7 +114,7 @@ Now the same circuit has a diode across the inductor. Open the switch again. The
 
 The rule is simple: **put a diode reverse-biased across every motor, relay coil or solenoid that you switch with a transistor**, with the cathode on the positive side. Choose a diode whose current rating covers the coil current and whose reverse voltage rating comfortably exceeds the supply. H-bridge driver chips already contain these clamp diodes internally, which is another reason not to build your own bridge from bare transistors. Month 1 previewed this diode in the transistor-switching lesson; with a motor, it stops being optional.
 
-Two smaller habits from Month 1 still apply. Solder a **100 nF ceramic capacitor across the motor terminals** to absorb brush noise before it travels down the wires. Put a **bulk electrolytic capacitor near the driver**, so the surge when the motor starts comes from a local reservoir rather than from the far end of a thin battery lead. Neither replaces a flyback diode on a transistor-switched coil; they solve different problems.
+Two smaller habits from Month 1 still apply. Solder a **100 nF ceramic capacitor across the motor terminals** to bypass the high-frequency brush noise right at the source, so it does not travel down the wires. Put a **bulk electrolytic capacitor near the driver**, so the start-up surge is supplied by a capacitor adjacent to the driver; a long thin battery lead has enough resistance and inductance to deepen the sag when the surge has to be drawn from the far end. Neither replaces a flyback diode on a transistor-switched coil; they solve different problems.
 
 <Quiz id="q3" question="You drive a relay coil from an NPN transistor. How is the flyback diode connected?" options={["In series with the coil", "Across the coil, cathode to the + supply side, so it does not conduct normally", "Across the coil, anode to the + supply side"]} answer={1} explanation="The diode sits across the coil, reverse-biased during normal operation. When the transistor turns off, the coil current circulates through the diode instead of producing a destructive voltage spike." />
 
@@ -126,7 +126,7 @@ Stepper motors are different. A typical stepper moves 1.8° per full step, which
 
 Before you connect a stepper, set the driver's current limit. On an A4988 this is the small potentiometer that sets Vref, and the formula depends on the sense resistor on your particular board. Too high and the motor and driver overheat; too low and the motor buzzes and skips. Set it with the motor disconnected from the driver, measure Vref, then connect and test at low speed. And remember the fundamental limitation: a stepper is open loop. If the load is too high, it silently skips steps and does not know. The print or the robot arm simply ends up somewhere else, with no error message.
 
-Smart bus servos combine the convenience of a servo with the feedback of an encoder. One serial line daisy-chains many servos, each with its own ID, so a six-servo arm needs one cable instead of six PWM cables. You send a command to an ID and read back position, speed, load, voltage and temperature. The 12-bit magnetic encoder inside a servo such as the STS3215 gives 4096 positions per turn. That feedback is why modern low-cost arms can repeat positions and detect when they are pushing too hard, instead of blindly driving into a stall.
+Smart bus servos combine the convenience of a servo with the feedback of an encoder. One serial line daisy-chains many servos, each with its own ID, so a six-servo arm needs one cable instead of six PWM cables. You send a command to an ID and read back position, speed, load, voltage and temperature. The 12-bit magnetic encoder inside a servo such as the STS3215 gives 4096 positions per turn. That feedback is why modern low-cost arms can repeat positions and detect when they are pushing too hard, instead of continuing into a stall without noticing.
 
 <Quiz id="q4" question="A 200-step stepper on an A4988 set to 1/8 microstepping: how many STEP pulses per revolution?" answer={1600} explanation="200 full steps × 8 microsteps per full step = 1600 STEP pulses per revolution." />
 
@@ -481,13 +481,13 @@ The beginner pits for this lesson, in no particular order:
 - No common ground between the battery, the driver and the microcontroller. The signal has no reference, so the driver behaves randomly or not at all.
 - STBY left floating. The driver stays disabled and the motor never moves.
 - PWM on a pin without a `~` mark. `analogWrite()` compiles, but the pin just switches fully on (values of 128 and up) or fully off; there is no PWM.
-- Stall current above the driver's rating. Check the motor's stall current before choosing a driver, not after the magic smoke.
+- Stall current above the driver's rating. Check the motor's stall current before choosing a driver, not after a component has burned out.
 - No bulk capacitor near the driver. The start-up surge sags the rail and resets the MCU, exactly as in Month 1.
 - No flyback diode on a transistor-switched coil. The transistor dies at the moment you switch off, which makes the failure confusing.
 - Leaving a motor running after a timeout or an error path. Every exit from a control loop should stop the motor.
 - Encoder outputs without pull-ups. Open-drain outputs float, and the count becomes noise.
 - Counts going the wrong way. Swap A and B, or swap the motor leads, then check the sign again.
-- The L298N getting hot. That is not a feature; it is wasted battery and a driver that may thermally shut down.
+- The L298N getting hot. The heat is battery energy lost in the driver, and the driver may go into thermal shutdown.
 
 Before you move on, you should be able to say yes to all of these:
 

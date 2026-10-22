@@ -16,13 +16,13 @@ Real lenses bend straight lines. OpenCV's radial model takes the undistorted nor
 
 <Formula label="Radial distortion">x_d = x (1 + k1 r² + k2 r⁴),   y_d = y (1 + k1 r² + k2 r⁴)</Formula>
 
-The distorted coordinates are then converted to pixels with K. A negative k1, as in this camera (-0.12), pulls points toward the centre: straight lines bow outward like a barrel. The correction grows quickly with r, so the centre is almost untouched and the image corners are worst. That is why calibration photos must include the corners, not just the middle.
+The distorted coordinates are then converted to pixels with K. A negative k1, as in this camera (-0.12), pulls points toward the centre: straight lines bow outward, forming barrel distortion. The correction grows quickly with r, so the centre is almost untouched and the image corners are worst. That is why calibration photos must include the corners, not just the middle.
 
 <Quiz id="q1" question="A camera has fx = 500 px and each pixel is 3 µm wide. What is its focal length?" answer={1.5} unit="mm" explanation="Focal length = fx × pixel width = 500 × 3 µm = 1500 µm = 1.5 mm. fx is in pixels precisely because the pixel size has already been multiplied in." />
 
 ## Making the photos
 
-`make_views.py` renders each view by inverting the projection, not by drawing a board and distorting it. For every pixel it takes the pixel coordinate, applies the inverse of the distortion and K to get a direction, casts that ray onto the board plane, and reads whether the hit point is on a white or black square. Each pixel is sampled at four offsets (4× supersampling) and Gaussian sensor noise is added afterwards.
+`make_views.py` renders each view by inverting the projection, not by rendering a board and distorting the image. For every pixel it takes the pixel coordinate, applies the inverse of the distortion and K to get a direction, casts that ray onto the board plane, and reads whether the hit point is on a white or black square. Each pixel is sampled at four offsets (4× supersampling) and Gaussian sensor noise is added afterwards.
 
 Fifteen poses at 0.27 to 0.40 m, with tilts up to 35 deg, give the solver a range of views. `table.png` is a separate photo of the same board lying flat on a table, 0.45 m from the camera and tilted 40 deg; the section on turning a pixel into 3D uses it.
 
@@ -275,9 +275,15 @@ The three pixels land within 0.4, 0.5 and 0.9 mm of the exact points. That is th
 
 <Quiz id="q4" question="With the squares typed as 25 mm, the script reports z = 500.5 mm for pixel (420, 300). If you had typed 50 mm for the same photos, what z would it report?" answer={1001.0} unit="mm" explanation="Every board coordinate and every translation scales with the square size. 50 / 25 = 2, so 500.5 mm × 2 = 1001.0 mm. The intrinsics do not change, but the board, and with it every distance, is now twice as big." />
 
-Try it: move the point toward the corner (for example 413.7, 295.5, 698.0 mm → (600.0, 440.0) px) and toggle “ignore distortion” to see (616.3, 451.7).
-
 <CameraWidget />
+
+**Guided experiment.** This experiment shows how radial distortion moves the projected pixel, with the displacement growing with the normalised image radius and with a shorter distance Z.
+
+1. Leave the point at (100.8, 60.5, 500.8) mm, fx = 500, k1 = −0.120 and k2 = 0.030, then read Pixel with distortion = (420.0, 300.0), Pixel without distortion = (420.6, 300.4) and Difference = 0.8 px.
+2. Set k1 = 0 and k2 = 0 and read both pixels as (420.6, 300.4) with Difference = 0.0 px.
+3. Reset, set the point to (413.7, 295.5, 698.0) mm and read Pixel with distortion = (600.0, 440.0), Pixel without distortion = (616.3, 451.7) and Difference = 20.1 px.
+4. Toggle "ignore distortion" and the marker in the image moves to the undistorted position (616.3, 451.7).
+5. Reset, set Z = 250.4 mm and read Difference = 5.9 px. Conclusion: radial distortion scales with r² and r⁴ of the normalised image coordinate, so a point near the image corner moves far more than one near the centre; halving Z doubles the normalised radius.
 
 <Quiz id="q5" question="Ignoring distortion costs 2.2 mm at (320, 240) and 44.7 mm at (600, 440). How many times larger is the corner error?" answer={20.3} explanation="44.7 / 2.2 ≈ 20.3. The correction grows quickly with r, so the corner pays for what the centre hardly notices." />
 

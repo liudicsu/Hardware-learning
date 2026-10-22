@@ -14,7 +14,7 @@ The branches are **joints**. A joint connects exactly one parent link to exactly
 
 **URDF** (Unified Robot Description Format) is the XML file in which you write that tree down. It is a description and nothing more: there is no code and no behaviour in it, just a static statement of what the parts are and how they are joined. **TF** is the system that, while the robot runs, publishes where every frame sits relative to its parent, each answer stamped with a time, so that any node can ask "where is the camera relative to the base right now?" and get an answer it can trust. The `frame_id` that every message carried in Lesson 2 — the one that pointed at nothing — is simply the name of a frame in this system. From here on it can point at something real.
 
-Two conventions keep you from inventing your own and regretting it later. **ROS REP 103** fixes the units and the axis directions: metres, kilograms and radians (not centimetres, not grams, not degrees), with x forward, y left and z up, in a right-handed set. **ROS REP 105** fixes the frames for a mobile platform: `base_link` is attached to the robot body, and `base_footprint` is the point on the floor directly below it. The split matters because a robot pitches and rolls as it drives over a bump; navigation wants a frame that stays flat on the ground, and `base_footprint` is that frame.
+Two conventions fix these choices so that every package agrees on them. **ROS REP 103** fixes the units and the axis directions: metres, kilograms and radians (not centimetres, not grams, not degrees), with x forward, y left and z up, in a right-handed set. **ROS REP 105** fixes the frames for a mobile platform: `base_link` is attached to the robot body, and `base_footprint` is the point on the floor directly below it. The split matters because a robot pitches and rolls as it drives over a bump; navigation wants a frame that stays flat on the ground, and `base_footprint` is that frame.
 
 A joint is defined by its type. As a beginner you will meet only four:
 
@@ -25,7 +25,7 @@ A joint is defined by its type. As a beginner you will meet only four:
 | revolute | rotates between limits | pan and tilt |
 | prismatic | slides along an axis | (none here; a lift or linear stage) |
 
-Keep `continuous` and `revolute` apart in your head, because they are the pair that trips people up: both rotate about a single axis, but a continuous joint spins forever (a driven wheel), while a revolute joint stops at a lower and an upper limit (a servo arm). A prismatic joint is the sliding version, like a lift or a linear stage; m4bot has none, but you will meet them the first time you build a mechanism that goes up and down.
+Distinguish `continuous` from `revolute` carefully: both rotate about a single axis, but a continuous joint spins forever (a driven wheel), while a revolute joint stops at a lower and an upper limit (a servo arm). A prismatic joint is the sliding version, like a lift or a linear stage; m4bot has none, but you will meet them the first time you build a mechanism that goes up and down.
 
 **m4bot** is arranged like this. The chassis is a box 0.30 m long, 0.24 m wide and 0.08 m tall. Two wheels of radius 5 cm sit on either side of the axle, and a caster ball at the front supplies the third point of contact. A lidar puck sits on the front of the deck, and a 20 cm mast at the back carries a pan-tilt camera head. Drawn by the `tf2_tools` tool `view_frames`, its tree looks like this:
 
@@ -250,7 +250,7 @@ Now walk through it, because every one of these choices will matter later.
 5. **The lidar is fixed, and its name is a promise.** `lidar_link` sits on a static transform in front of the deck. The name of the link is the `frame_id` that the lidar driver must stamp into its scans; nothing enforces this, so it is on you to get it right (Section 6 shows what happens when you do not).
 6. **Pan about z, tilt about y, both revolute.** The pan joint rotates about z with limits of ±π/2, the tilt joint about y with limits of ±0.8 rad. Both are `revolute`, and the limits written here are the ones the sliders, and later the simulator and the controllers, keep each joint inside.
 7. **Separate visual and collision.** `tilt_link` has two visuals — the camera body and a small lens cylinder — for looks, but a single plain box for collisions. A physics engine checks collisions thousands of times a second, so simple shapes are cheap and pretty shapes are not; keep the detail in the visual and the simplicity in the collision.
-8. **`camera_link` versus `camera_optical_link`.** `camera_link` follows the ROS body convention, x forward. The optical frame is rotated by `rpy="${-pi/2} 0 ${-pi/2}"`, which turns z forward, x right and y down — the frame that image drivers and OpenCV expect. Image tooling will look for the optical frame, so it is worth adding even though it is only a fixed rotation.
+8. **`camera_link` versus `camera_optical_link`.** `camera_link` follows the ROS body convention, x forward. The optical frame is rotated by `rpy="${-pi/2} 0 ${-pi/2}"`, which turns z forward, x right and y down — the frame that image drivers and OpenCV expect. URDF applies roll, then pitch, then yaw about the fixed axes, so R = Rz(−90°) · Ry(0) · Rx(−90°). Applied to the optical axes: R · (0, 0, 1) = (1, 0, 0), so optical z is body x (forward); R · (1, 0, 0) = (0, −1, 0), so optical x is body −y (right); R · (0, 1, 0) = (0, 0, −1), so optical y is body −z (down). Image tooling will look for the optical frame, so it is worth adding even though it is only a fixed rotation.
 
 Turn the xacro into plain URDF and check it before RViz ever sees it:
 
@@ -435,7 +435,7 @@ This is the first of the course's common issues, and it is worth being blunt abo
 
 `robot_state_publisher` is the one that matters. It reads the URDF (which arrives in the `robot_description` parameter) and, for every joint position it hears on `/joint_states`, computes and publishes the matching transforms on `/tf`. The joints that never move — the fixed ones — it publishes exactly once on `/tf_static`. It invents nothing; it only turns joint positions plus the URDF into transforms.
 
-`joint_state_publisher`, and its slider version `joint_state_publisher_gui`, does the opposite: it **invents** joint positions, out of nothing, and publishes them as `/joint_states`. On a real robot, or in Gazebo, the hardware driver or the simulator publishes `/joint_states` instead, and you simply stop running `joint_state_publisher`. The two programs sit on opposite ends of the same pipe, which is why they have such similar names and why people mix them up.
+`joint_state_publisher`, and its slider version `joint_state_publisher_gui`, does the opposite: it **generates** joint positions without any sensor, and publishes them as `/joint_states`. On a real robot, or in Gazebo, the hardware driver or the simulator publishes `/joint_states` instead, and you simply stop running `joint_state_publisher`. The two programs sit on opposite ends of the same pipe, which is why they have such similar names and why people mix them up.
 
 <Diagram id="urdf-two-publishers" />
 
@@ -601,6 +601,13 @@ Add the part that the pan rotation leaves untouched:
 Rounded to millimetres, that is exactly `tf2_echo`'s `[-0.043, 0.010, 0.305]`. This chaining is what TF does for you thousands of times a second, and it is also why a wrong origin anywhere up the chain moves everything below it: get `mast_joint` wrong and the whole head, camera included, moves with it.
 
 <PanTiltWidget />
+
+**Guided experiment.** This experiment shows how the pan and tilt joint rotations move only the 0.02 m camera offset, changing the translation of camera_link in base_link.
+
+1. Leave pan = 30° and tilt = 0° and read Translation = [−0.043, 0.010, 0.305].
+2. Set pan = 0° and read Translation = [−0.040, 0.000, 0.305].
+3. Set pan = 0° and tilt = 30° and read Translation = [−0.043, 0.000, 0.295]; then set tilt = −30° and read Translation = [−0.043, 0.000, 0.315].
+4. Conclusion: only the 0.02 m camera offset after the joints moves; pan rotates it about z and tilt about y (x: −0.060 + 0.02 × cos 30° = −0.060 + 0.017 = −0.043; 0.02 × sin 30° = 0.010 goes into y for pan and into z for tilt).
 
 <Resource id="ar-transforms" />
 

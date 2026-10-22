@@ -1,10 +1,10 @@
-## A mental model: water in pipes
+## Defining voltage, current and resistance
 
-Electricity is invisible, so use a picture. The classic one is water in a closed loop of pipes driven by a pump. It is imperfect, but useful.
+Electrical quantities are not directly visible, but they can be defined by measurable quantities. The three definitions below support every calculation in this lesson.
 
-- **Voltage** is the pressure difference that pushes charge, measured in volts (V). A 9 V battery holds about 9 V between its terminals. Voltage is always between two points.
-- **Current** is the flow rate: charge passing a point each second. Its unit is the ampere (A), and 1 A means 1 coulomb per second. Small circuits use milliamps (mA).
-- **Resistance** is how hard the path is to push through. Its unit is the ohm (Ω). A resistance of 1 Ω carries 1 A when 1 V is across it.
+- **Voltage** is the electric potential difference between two points, measured in volts (V). A 9 V battery maintains about 9 V between its terminals. Voltage is always between two points.
+- **Current** is the rate of charge flow: charge passing a point each second. Its unit is the ampere (A), and 1 A means 1 coulomb per second. Small circuits use milliamps (mA).
+- **Resistance** is the ratio of the voltage across a component to the current through it, measured in ohms (Ω). A resistance of 1 Ω carries 1 A when 1 V is across it.
 
 | Quantity | Symbol | Unit | Typical in a small robot |
 | --- | --- | --- | --- |
@@ -22,7 +22,7 @@ Ground (GND) is the node the circuit defines as 0 V. Every voltage in this lesso
 
 <Term id="current">Current</Term> only flows around a **closed loop**. Break the path and it stops, though <Term id="voltage">voltage</Term> remains across the break; a battery on a table has voltage but no current. We draw **conventional current** leaving the positive terminal and returning to the negative one; electrons drift the other way. Schematics use it too.
 
-The analogy breaks down. Electrons fill the wire and respond almost instantly; water has inertia. A resistor turns energy into heat rather than merely narrowing a pipe, and voltage can exist with no current. Use it for intuition, then trust the equations.
+These definitions do not depend on a mechanical model: electrons already fill the wire and the field establishes almost instantly, a <Term id="resistance">resistance</Term> converts electrical energy to heat, and voltage can exist with no current. Use the definitions and the equations directly.
 
 ## Ohm's law
 
@@ -47,7 +47,7 @@ Predict before reading the numbers. Both resistors see 5 V, so the 100 Ω one ca
 
 <Quiz id="q1" question="5 V across 220 Ω — what is the current in mA?" answer={22.7} unit="mA" explanation="I = V / R = 5 / 220 = 0.0227 A. Multiply by 1000 to get 22.7 mA. The same number in amps would be a factor-of-1000 mistake." />
 
-## Power: heat is the price of resistance
+## Power: a resistor converts electrical energy to heat
 
 Current through resistance does work, which in a resistor becomes heat. <Term id="power">Power</Term> is energy per second, in watts (W):
 

@@ -12,7 +12,7 @@ Robotics jobs cluster into a handful of specialisations. Each one maps onto part
 | Manipulation and motion planning | kinematics, grasping, MoveIt, calibration, perception for picking | Month 5 (kinematics, camera calibration, MoveIt) |
 | Robot learning | datasets, imitation learning, VLAs, evaluation, sim-to-real | Month 6 (lessons 1 to 4) |
 
-Three questions decide it better than any ranking of which field is hottest. **Which lessons did you go back to without being asked?** Interest that survives the boring parts is what keeps you going through a hard project. **What can you show already?** A direction where you have one working project is months closer than one where you have none. **Which jobs exist where you want to work?** Read 20 real job adverts in your region or remote, and count which skills they ask for; that tally is better evidence than any article. Write your answer as one sentence, for example "embedded and controls, because I spent the most extra time on the balancer and local robotics companies hire firmware engineers", and keep it where you can see it.
+Three questions decide it better than any ranking of which field is most in demand. **Which lessons did you go back to without being asked?** Interest that survives the boring parts is what keeps you going through a hard project. **What can you show already?** A direction where you have one working project is months closer than one where you have none. **Which jobs exist where you want to work?** Read 20 real job adverts in your region or remote, and count which skills they ask for; that tally is better evidence than any article. Write your answer as one sentence, for example "embedded and controls, because I spent the most extra time on the balancer and local robotics companies hire firmware engineers", and keep it where you can see it.
 
 <Quiz id="q1" question="You enjoyed Month 4 most, have a working Nav2 robot in simulation, and most adverts you counted ask for ROS 2 and C++. Which direction fits best?" options={["Mechanical and hardware design", "Robot software and navigation", "Robot learning"]} answer={1} explanation="All three questions point the same way: interest (Month 4), something to show (the Nav2 robot) and demand (ROS 2 and C++). When they disagree, the job-advert tally and what you can already show usually matter more than enthusiasm alone." />
 
@@ -132,7 +132,7 @@ line-follower: README.md, 69 words, 4 headings
   2 of 8 present
 ```
 
-The line follower may well be a better robot than the arm. Its README does not let anyone find out: "works really well and is very fast" has no number, there is no way to rebuild it, and the tuning section hides the most interesting part (what happened before kp = 0.8 worked). Rewriting it takes an evening: film 10 laps, put the lap times and the number of laps completed out of 10 in a table, list the three ways it left the line, and add the upload command.
+The line follower may well be a better robot than the arm. Its README does not let anyone find out: "works really well and is very fast" has no number, there is no way to rebuild it, and the tuning section omits the most informative part (what happened before kp = 0.8 worked). Rewriting it takes an evening: film 10 laps, put the lap times and the number of laps completed out of 10 in a table, list the three ways it left the line, and add the upload command.
 
 <Quiz id="q2" question="The sample arm README reports 14/20 for the first policy. What is the lower end of its Wilson 95 % interval, to the nearest percent? (Use lesson 4's formula or program.)" answer={48} unit="%" explanation="Wilson for 14/20 gives 48.1 % to 85.5 %, which the sample rounds to 48 .. 85 %. With 20 trials even a 70 % policy has a wide interval, which is why the sample says how the trials were chosen." />
 
@@ -154,7 +154,7 @@ If you cannot answer the third level about a line, that line is what to study ne
 
 - **One page CV, projects first.** For each project: one line on what it does, one number from its results table, and a link. Skills lists without evidence are skipped.
 - **A short message per application.** Two or three sentences: which of your projects matches what they build, and the number that shows it works. Point at the video.
-- **Apply while you build.** Do not wait for the third project to be perfect. Start with roles that match your direction, including internships and technician or test roles that put you next to the robots.
+- **Apply while you build.** Do not wait for the third project to be perfect. Start with roles that match your direction, including internships and technician or test roles that give you hands-on access to robots.
 - **Show your work in public.** Push the repositories, keep the READMEs current, and write a short post when a project hits a milestone. A reviewer who finds a steady history of real work is already halfway convinced.
 - **Keep a log.** Note every application, the reply and every interview question you could not answer, and study those.
 
@@ -162,6 +162,6 @@ If you cannot answer the third level about a line, that line is what to study ne
 
 - **Staying broad.** "I can do a bit of everything" is the default for a course graduate. One direction with three deep projects is more convincing than six shallow ones.
 - **Projects without numbers.** "Works well" invites the question "how well?". Give success out of trials, a time, an error in millimetres.
-- **Hiding failures.** A failure table shows you understand the system; a perfect video with no failures looks like the one good take out of many.
+- **Showing only successful takes.** A failure table shows you understand the system; a video with only successful takes does not show the success rate.
 - **Tutorial projects as-is.** Reviewers recognise the standard tutorials. Show what you changed and why.
 - **Code you cannot explain.** If you copied it or generated it and cannot answer the third-level question, either learn it or say plainly that it is reused, in the README's credits section.

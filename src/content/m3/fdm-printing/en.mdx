@@ -14,11 +14,11 @@ The table below is the course's shortlist. Prices are the course author's figure
 
 The Ender-3 V3 SE is the cheapest way in. It has an open frame and less automation than the Bambu machines, so you will still check the bed, adjust the Z offset and learn what a first layer should look like. That is either a cost or a feature, depending on your temperament: after a month you will understand your printer, because you will have fixed it.
 
-The Bambu Lab A1 mini is the opposite trade. It works out of the box, calibrates itself, and its 180 mm bed fits most brackets and gripper fingers. The A1 is the same machine with a 256 mm bed, which matters when you print a chassis plate or a bracket that must stay in one piece. If your budget allows one printer and you would rather design than tinker, the A1 is a reasonable pick.
+The Bambu Lab A1 mini is the opposite trade. It works out of the box, calibrates itself, and its 180 mm bed fits most brackets and gripper fingers. The A1 is the same machine with a 256 mm bed, which matters when you print a chassis plate or a bracket that must stay in one piece. If your budget allows one printer and you would rather design than adjust the machine, the A1 is a reasonable pick.
 
 The Creality K1C adds an enclosure and a hardened nozzle, so carbon-fibre-filled filaments are usable without changing hardware. The Bambu Lab P1S is the enclosed CoreXY option for ABS and ASA. Enclosures are not a status symbol: they keep hot air around the part so large ABS prints do not split, and they keep fumes away from the room. For this course, an open-frame printer that prints PLA, PETG and TPU reliably is enough; buy an enclosure only when you actually need ABS or ASA. The money is better spent on filament, calipers and a spare nozzle.
 
-A practical warning: a printer is a hobby inside a hobby. It needs space, a stable table, and occasional maintenance. Do not buy a 300 mm machine for a hypothetical project you have not started; the parts in this course are small on purpose.
+A practical warning: a printer is a machine that takes up space, needs a stable table and occasional maintenance. Do not buy a 300 mm machine for a hypothetical project you have not started; the parts in this course are small on purpose.
 
 ### No printer?
 
@@ -26,7 +26,7 @@ You do not need to own a printer to finish this lesson. Fab Labs are digital-fab
 
 The catch with services is the loop. Every revision becomes an order, a wait and a shipping cost, and you cannot check a fit the same afternoon. Use a service for a final part in a material you cannot print, not for the ten iterations that get you there.
 
-### The honest economics
+### Breaking even on a printer
 
 A full SO-101 arm needs roughly 1 kg of PLA+. On your own machine that is about $20 to $25 of filament; a ready-printed set costs $30.99. On those numbers alone, a printer does not pay for itself on one build. It pays for itself on iteration: the tenth revision of a gripper finger costs 40 cents and 25 minutes at home, against about $8 and a week from a service.
 
@@ -37,7 +37,7 @@ by service = 10 × $8 = $80 and about 10 weeks if you wait for each one
 
 That is $4.00 of filament and about 4.2 hours of printing at home, against $80 and roughly ten weeks if you wait for each service order. The time difference is the real argument. A printer turns a design change into an afternoon; a service turns it into a project.
 
-Do the break-even honestly: at $7.60 saved per revision, a $219.99 printer needs about 29 revisions before the hardware is paid for. Few people reach that on one project, and almost everyone reaches it across a year of small brackets, mounts and repairs. Add failed prints, electricity and your own time, and the case is not "printing is cheap"; it is "iterating at home is cheap".
+Do the break-even arithmetic: at $7.60 saved per revision, a $219.99 printer needs about 29 revisions before the hardware is paid for. Few people reach that on one project, and almost everyone reaches it across a year of small brackets, mounts and repairs. Add failed prints, electricity and your own time, and the case is not "printing is cheap"; it is "iterating at home is cheap".
 
 <Quiz id="q1" question="A service charges $8 per revision and your own printer costs $0.40 per revision. How much do you save over 25 revisions, in dollars?" answer={190} unit="USD" explanation="Each revision saves $8.00 − $0.40 = $7.60. Over 25 revisions: 25 × $7.60 = $190.00. Equivalently, 25 × $8 = $200 for the service against 25 × $0.40 = $10 at home." />
 
@@ -60,7 +60,7 @@ PETG is the course's default for real robot parts: chassis plates, gearbox housi
 
 ABS and ASA are for parts near hot motors and for outdoor rovers; ASA resists UV better. Both warp badly without an enclosure, especially on large flat parts, and both produce fumes, so ventilate the room. Do not choose ABS because it sounds more "engineering" than PLA; choose it because the part will get hot or sit in the sun.
 
-Nylon is for gears and cable guides: tough, slippery and fatigue-resistant. It also absorbs water from the air, so it must be dried before printing and kept dry while printing; wet nylon prints with bubbles and weak layers. For many people the practical route is to order MJF nylon from a service rather than fight it at home.
+Nylon is for gears and cable guides: tough, slippery and fatigue-resistant. It also absorbs water from the air, so it must be dried before printing and kept dry while printing; wet nylon prints with bubbles and weak layers. For many people the practical route is to order MJF nylon from a service rather than handle moisture at home.
 
 Carbon-fibre-filled filaments (PLA-CF, PETG-CF, PA-CF) are for stiff structural links. They are abrasive: a brass nozzle wears out, so you need a hardened nozzle. They are also slightly more brittle than the unfilled polymer, so "carbon fibre" does not mean "unbreakable".
 
@@ -199,6 +199,14 @@ L 10.0  t 1.2  hook 0.8 mm, PLA,  lead-in 60 deg: strain 1.44 % ok              
 ```
 
 <SnapFitWidget />
+
+**Guided experiment.** This experiment shows how the snap-fit geometry sets root strain, and how material and lead-in angle change the push-on force at the same strain.
+
+1. Set L = 10.0 mm, t = 1.2 mm, hook depth y = 0.8 mm, material PLA and lead-in angle 30°, then read Root strain = 1.44 % and Push-on force = 7.7 N.
+2. Set L = 5.0 mm, t = 1.5 mm and y = 1.0 mm, then read Root strain = 9.00 % and Push-on force = 150.4 N.
+3. Set L = 10.0 mm, keep t = 1.5 mm and y = 1.0 mm, then read Root strain = 2.25 % and Push-on force = 18.8 N.
+4. Return to L = 10.0 mm, t = 1.2 mm and y = 0.8 mm with PLA, set lead-in angle 60° and read Root strain = 1.44 % and Push-on force = 30.7 N; then set lead-in angle 30° and material PETG and read Root strain = 1.44 % and Push-on force = 4.4 N.
+5. Conclusion: strain ε = 1.5·t·y/L² depends only on geometry (1.5 × 1.2 × 0.8 / 10² = 0.0144, shown as 1.44 %); the force also depends on the material's modulus and the lead-in angle, and the allowed strain is 1.5 % for PLA in this lesson.
 
 Walk through each line. The short thick arm, L = 5, is the first design people draw; it strains 9 % and would crack. Doubling the length cuts the strain to 2.25 %, still above the limit. The thinner arm with a shallower hook gets to 1.44 %, inside the 1.5 % we allow for PLA. PETG is less stiff, so the same arm pushes on with less force, 4.4 N against 7.7 N. A steep 60° lead-in quadruples the push-on force to 30.7 N — that is how you make a snap that is hard to close.
 

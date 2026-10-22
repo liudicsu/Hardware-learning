@@ -33,10 +33,20 @@ Same props plus `stepText: string[]` (one line per column). Uses the shared `<St
 foundation (#18): Previous / All / Next, labels from `src/lib/diagrams/ui.ts`; the lesson page injects `locale`.
 Colours use the `--dg-*` tokens from `globals.css`, the frame matches `<Diagram>`.
 
-Not yet in the `<Diagram id>` registry: the registry's `DiagramSpec` is the block/state-machine type checked by
-`tools/check_diagrams.mjs`. A follow-up can add a `kind: "timing"` spec (signals/rows/spans + `facts`) so timing
-diagrams get the same bilingual-label and fact checks; until then a timing diagram that depicts script output
-must be generated from a model in `src/lib/models` and checked in `tools/check_widgets.mjs`, as the encoder one is.
+### In the registry: `kind: "timing"`
+
+A timing diagram can also be a registry spec (`TimingSpec` in `src/lib/diagrams/types.ts`), used from MDX as
+`<Diagram id="..." />` and drawn by `TimingDiagram.tsx` with `<TimingSvg>`: signals / rows / spans / axis label in
+`L10n`, optional `steps` (`column` to highlight and/or `signals` to keep bright), `numbers` (values computed in the
+spec and compared with the lesson) and `facts`. `tools/check_diagrams.mjs` checks both languages, equal column counts,
+span and label widths, and that the diagram fits a 390 px phone at the minimum text scale (layout constants are read
+from `Timing.tsx`). Signals may carry `average: { level, label }`, a dashed line at that fraction of the trace height.
+First user: `pwm-duty-average` (arduino-io).
+
+The encoder diagrams stay `<QuadratureTiming>`: their columns are computed at render time from
+`src/lib/models/encoder.ts`, which `check_widgets.mjs` compares with `encoder_sim.py`'s output. A registry spec is
+plain data loaded by `check_diagrams.mjs` without a bundler, so moving them would mean copying the model's output
+into the spec (two sources of truth) or adding a bundling step to the check.
 
 ## Consistency with scripts
 

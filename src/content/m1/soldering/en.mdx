@@ -1,22 +1,22 @@
 ## Why solder at all
 
-A breadboard holds everything by friction: jumper pins bite into spring contacts, and a firm tug pulls a wire out. On a desk that is a feature; inside a robot it is a liability, because motors vibrate and vibration undoes friction fits. A half-seated jumper does not fail cleanly — it gives an **intermittent fault**: fine on the bench, dead on the floor, alive again when you pick it up.
+A breadboard holds components by friction: jumper pins grip spring contacts, and a firm tug pulls a wire out. On a desk that is an advantage — rewiring takes seconds; inside a robot it becomes a liability, because motor vibration gradually loosens friction fits. A jumper can go from secure to half-seated; a half-seated contact does not fail completely but produces an **intermittent fault**: it works on the bench, fails under vibration, and works again when touched.
 
 Soldering replaces friction with a permanent joint. An alloy — 63/37 tin-lead, or lead-free SAC305 — is melted so it wets the pad and the lead, then solidifies into one piece with negligible resistance that cannot vibrate loose. **Solder what must not come loose.**
 
 Two families of parts, and this lesson uses only the first:
 
 - **Through-hole**: the lead passes through a hole and is soldered on the far side. The hole holds the part while you work, the joint is millimetres across and forgiving, and it can be desoldered later.
-- **Surface-mount (SMD)**: the part sits on a flat pad, held only by its own solder. Pads are smaller than a grain of rice, so this comes much later — but the heat habits transfer.
+- **Surface-mount (SMD)**: the part sits on a flat pad, held only by its own solder. Pads are very small, so this comes much later — but the heat-control habits transfer.
 
 ## Safety first
 
-One number governs this page: a working tip sits at about **350 °C**, roughly 170 °C above the melting point of leaded solder. It does not hurt you by sitting there; it hurts in the fraction of a second it takes to touch it.
+One temperature value governs the safety rules on this page: a working tip sits at about **350 °C**, roughly 170 °C above the melting point of leaded solder. An idle iron is safe, but contact with skin burns immediately.
 
 <Callout type="danger" title="Hot tip, hot smoke, lead">
 - **The tip runs at about 350 °C.** A touch burns instantly. Reach for the solder, never the metal.
 - **Always return the iron to its stand**, even for three seconds. An iron left on the bench rolls off and drags its cable.
-- **Wear eye protection.** Clipped leads shoot off the cutters like tiny bullets, and hot solder can spit.
+- **Wear eye protection.** Clipped leads can fly off at high speed, and hot solder can spit.
 - **Ventilate.** Flux smoke is the irritant — the smoke, not the metal, makes your eyes water. Use a fume extractor, or a fan pulling fumes **away** from your face.
 - **With leaded solder, wash your hands** before eating or touching your face, and never eat at the bench.
 - **Unplug when you are done.** A stand is not a switch.
@@ -24,7 +24,7 @@ One number governs this page: a working tip sits at about **350 °C**, roughly 1
 - **Mind the cable.** A cable swept off the bench edge drags the hot iron with it.
 </Callout>
 
-Ten seconds of setup — glasses on, extractor on, stand in reach — costs less than one burn.
+Ten seconds of setup — glasses on, extractor on, stand in reach — prevents burns.
 
 ## Tools & materials
 
@@ -32,12 +32,12 @@ Ten seconds of setup — glasses on, extractor on, stand in reach — costs less
 | --- | --- | --- |
 | Temperature-controlled iron | A pencil iron with a digital setpoint (Pinecil class) | Fixed-wattage irons guess; a setpoint repeats a result |
 | Tip | Chisel or bevel, about 2 mm | A flat face touches pad and lead at once, so heat flows |
-| Solder | Rosin-core 0.6–0.8 mm; 63/37 leaded (≈183 °C, easiest) or lead-free SAC305 (≈217–220 °C, more heat) | Thin wire feeds a controlled amount; the core carries flux |
+| Solder | Rosin-core 0.6–0.8 mm; 63/37 leaded (≈183 °C, easier to wet) or lead-free SAC305 (≈217–220 °C, requires more heat) | Thin wire feeds a controlled amount; the core carries flux |
 | Flux | A flux pen or paste | Prevents most wetting trouble |
 | Tip cleaner | Brass wool, plus a damp sponge | Wool cleans without chilling the tip |
 | Flush cutters | Side-cutters that cut flat | Flush lead ends, not spikes |
 | Helping hands / PCB holder | A clip stand or a small PCB vise | Holds the board so both hands stay free |
-| Desoldering tools | Desoldering braid (wick) and a solder sucker (pump) | Removal is half the skill |
+| Desoldering tools | Desoldering braid (wick) and a solder sucker (pump) | Required for correction and rework |
 
 <Resource id="pinecil" />
 
@@ -72,8 +72,8 @@ The working face of a tip is plated iron. At 350 °C, bare plating oxidises in s
 - **Wipe the hot tip** on brass wool (or a damp sponge) until the face is bright.
 - **Tin it at once**: melt a thin bead of fresh solder on the face; that film is what the air attacks.
 - **Tin before storing.** After the last joint of a session, wipe, tin generously, let it cool, then unplug.
-- **A black tip is not dead.** Clean it while hot on brass wool, add flux and fresh solder, and let it re-wet. Never file or sand it — once the thin plating is gone, the bare iron oxidises forever.
-- Never use the tip as a poker; it delivers heat, not force.
+- **A black tip can usually be recovered.** Clean it while hot on brass wool, add flux and fresh solder, and let it re-wet. Never file or sand it — once the thin plating is gone, the bare iron oxidises permanently.
+- Never apply mechanical force with the tip; its function is to transfer heat.
 
 ## Making one good through-hole joint
 
@@ -83,10 +83,10 @@ One good joint takes about **2–4 seconds** from cold metal to finished fillet.
 2. **Heat both partners.** Touch the tip so it bridges the pad and the lead together, and hold for **1–2 s**. You are heating the joint, not the solder.
 3. **Feed solder into the joint, on the far side from the tip**, so it melts because the *joint* is hot, not because the tip touches it. Feed until it wets the pad and climbs the lead into a small concave cone.
 4. **Remove the solder, then the iron**, or the wire sticks as it cools.
-5. **Hold still while it cools** (about 2 s); the surface is slush for a moment, and nudging it makes a disturbed joint.
+5. **Hold still while it cools** (about 2 s); the solder is in a solid–liquid state for a moment, and moving it forms a disturbed joint.
 6. **Trim the lead** flush with the cutters, end pointing down into a box. Offcuts fly — glasses on.
 
-A little solder already on the tip before you touch the joint is the bench trick: the molten bead bridges the microscopic air gap between tip and pad, and heat crosses metal far better than air. That is a **thermal bridge** — the difference between wetting in 2 s and never starting.
+A small amount of solder on the tip before contact fills the microscopic air gap between tip and pad; heat conducts through metal much better than through air. That is a **thermal bridge**, and it determines whether the joint wets within 2 s.
 
 **Worked example — the time budget.** A 40-pin header:
 
@@ -116,13 +116,13 @@ Memorise this table; you will use it every time you put the iron down.
 | Lifted pad | The copper pad has peeled off the board | Overheating, or prying while hot | Wire the lead to the trace |
 | Disturbed joint | Torn, smeared surface | Moved as the solder set | Reheat until it flows, then hold still |
 
-Two caveats keep beginners from trusting their eyes. **Lead-free joints look slightly duller naturally** — judge a SAC305 joint by its smooth concave shape before its shine. And **flux fixes most of what beginners blame on the iron**: a grey, grainy joint wants a dab of flux and a second pass, not a hotter dial.
+Two points to note when judging a joint. **Lead-free joints look slightly duller naturally** — judge a SAC305 joint by its smooth concave shape before its shine. Also, **most problems beginners attribute to the iron are solved by flux**: a grey, grainy joint needs a dab of flux and a second pass, not a hotter dial.
 
 <Quiz id="q2" question="A joint is dull, grainy and lumpy. Most likely?" options={["Cold joint — reheat with a little flux", "Perfect lead-free joint", "Solder bridge"]} answer={0} explanation="Dull, grainy and lumpy is the classic cold joint: the solder never fully wet the surfaces. Reheat for 2–3 s with flux. A bridge is a smooth bar spanning two pads." />
 
 ## The header-pin exercise
 
-The right practice task: headers are cheap, a breakout gives you a row of identical joints, and the meter hands down a verdict instead of your doubtful eyes.
+The right practice task: headers are cheap, a breakout gives you a row of identical joints, and the meter provides an objective continuity result.
 
 1. **Jig it in a breadboard.** Press the header straight into a row; the breadboard holds every pin upright and evenly spaced.
 2. **Place the breakout on top** so each pin comes through its hole and the board sits flat against the spacer.
@@ -132,7 +132,7 @@ The right practice task: headers are cheap, a breakout gives you a row of identi
 6. **Solder the rest**, now that the part cannot move.
 7. **Inspect with a light and a magnifier** — a lamp at a low angle shows each fillet's shape, a phone macro shot shows cracks.
 8. **Continuity-test it.** On the beeper, **each pin to its own pad or trace must beep**, and **adjacent pins to each other must not beep** — the first proves the joint conducts, the second that you joined nothing by accident.
-9. **Do the whole thing three times.** The first board teaches your hands, the second removes the hesitation, the third starts to look like workmanship.
+9. **Do the whole thing three times.** The first board is for familiarisation, the second removes the hesitation, the third should reach a consistent quality.
 
 No beep on a pin-to-pad test means a cold joint, a lifted pad or a forgotten pin; a beep between neighbours means a bridge — the next question.
 
@@ -140,32 +140,32 @@ No beep on a pin-to-pad test means a cold joint, a lifted pad or a forgotten pin
 
 ## Desoldering and rework
 
-Removing solder is how you fix the joints you will inevitably get wrong, so it is not a side skill.
+Removal is how you correct joints that are soldered incorrectly, so it is a core skill.
 
 - **Braid (wick):** flux the joint, lay the wick on it, press the tip on top and hold. The solder melts, is drawn up into the weave, and you lift wick and iron together. Peel the wick away and check the hole.
 - **Pump (solder sucker):** melt the joint, pull the iron away and trigger the pump in the same motion, so the nozzle catches the solder while it is still liquid. Two or three attempts are normal, not failure.
-- **A multi-pin header:** cut through the plastic spacer with your cutters, then heat one pin at a time and pull it out with pliers. One at a time is the only way to avoid taking the board with you.
+- **A multi-pin header:** cut through the plastic spacer with your cutters, then heat one pin at a time and pull it out with pliers. Heating one pin at a time avoids lifting pads under mechanical load.
 - **Let the board cool between attempts.** Heat builds up, the adhesive under the pads softens, and repeated cycles are what finally release a pad from the fiberglass.
-- **Too much heat or force is how beginners destroy boards.** If a joint will not give up its part in a couple of attempts, stop, let it cool, add flux, and come back.
+- **Excessive heat or mechanical force damages boards.** If a joint will not release its part in a couple of attempts, stop, let it cool, add flux, and come back.
 
 ## Inspection checklist and common mistakes
 
 Hold each finished board to the light and check every joint:
 
-- **Shape:** a concave cone or volcano, not a ball, not a crater.
+- **Shape:** a concave cone, not a ball, not a crater.
 - **Surface:** smooth and unbroken — shiny for leaded, satin for lead-free, never grainy.
 - **Wetting:** solder climbs the lead and spreads to the pad's edge, so the lead's outline still reads through the fillet.
 - **Coverage:** no bare copper left on the pad ring.
 - **Separation:** nothing bridges to a neighbouring pad or pin.
-- **Mechanical:** the pad lies flat, the lead is trimmed, nothing moves when you nudge it.
+- **Mechanical:** the pad lies flat, the lead is trimmed, and the joint does not move when you nudge it.
 - **Electrical:** continuity from each pin to its own net beeps; adjacent pins do not.
 
-Mistakes that produce nearly every bad board:
+Common mistakes that produce bad boards:
 
 - Feeding solder onto the tip instead of into the joint, so the flux burns off before it reaches the pad.
 - Cranking the temperature up to fix what flux would have fixed, and oxidising the tip instead.
-- Moving the joint while it cools, then wondering why the surface looks torn.
+- Moving the joint while it cools, which tears the surface.
 - Pressing hard with the tip — heat transfers by contact area, not by force.
-- Leaving the iron parked on a joint for ten seconds: the fastest route to a lifted pad.
-- Skipping the tinning routine, then blaming the iron when the tip goes black.
+- Leaving the iron on a joint for ten seconds, which easily lifts the pad.
+- Skipping the tinning routine, after which the tip oxidises and turns black.
 - Trusting your eyes alone: inspect under a light and confirm with the meter before powering up.
