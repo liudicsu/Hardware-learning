@@ -87,7 +87,16 @@ for (const { file, name, spec } of specs) {
       const shape = n.shape ?? (spec.kind === "stateMachine" ? "state" : "box");
       const room = shape === "state" ? w - h / 2 : shape === "text" ? w + 4 : w - 8;
       for (const t of variants(n.label)) ok(textWidth(t, FONT) <= room, `${lt}: node ${n.id} label "${t}" (${textWidth(t, FONT).toFixed(0)}) wider than ${room}`);
-      for (const t of variants(n.sub)) ok(textWidth(t, SUB) <= room, `${lt}: node ${n.id} sub "${t}" (${textWidth(t, SUB).toFixed(0)}) wider than ${room}`);
+      for (const t of variants(n.sub)) {
+        for (const line of lines(t)) ok(textWidth(line, SUB) <= room, `${lt}: node ${n.id} sub "${line}" (${textWidth(line, SUB).toFixed(0)}) wider than ${room}`);
+        // same vertical placement as BlockDiagram.tsx: label baseline, then sub lines below it
+        if (shape === "box" || shape === "state") {
+          const extra = (lines(t).length - 1) * (SUB + 2.5);
+          const ly = y + h / 2 - 2 - extra / 2;
+          const lastBase = ly + SUB + 3 + extra;
+          ok(ly - FONT * 0.8 >= y && lastBase + 3 <= y + h, `${lt}: node ${n.id} label + ${lines(t).length} sub line(s) do not fit height ${h}`);
+        }
+      }
     }
     for (const e of spec.edges) {
       const g = L.edges[e.id];

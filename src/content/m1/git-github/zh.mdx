@@ -18,16 +18,9 @@ Git 是版本控制工具，GitHub 是托管 Git 仓库的网站。Git 在本地
 
 **分支（branch）** 是一个指向某个提交的可移动标签。`main` 是默认分支。在分支上提交，标签自动向前移动。分支不是文件夹的副本，只是一个名字，所以创建几乎瞬间完成。**HEAD** 表示“你现在在哪”：通常它指向一个分支，分支再指向提交；如果 HEAD 直接指向某个提交，就是分离头指针状态（detached HEAD）。
 
-```text
-working directory ──git add──▶ staging area ──git commit──▶ repository
-   (your edits)                    (index)                   (.git)
+<Diagram id="git-areas" />
 
-main     A ───── B ───── C
-                          ╲
-feature                    D ───── E
-                                   ▲
-                                  HEAD
-```
+<Diagram id="git-branches" />
 
 图中 A、B、C 在 `main` 上。`feature` 从 C 分出去，多了 D、E 两个提交。HEAD 现在指向 `feature`，所以磁盘上的文件是快照 E。切回 `main`，文件变成快照 C；D、E 没消失，因为 `feature` 标签还指着它们。
 

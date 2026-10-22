@@ -95,7 +95,9 @@ export function BlockDiagramSvg({ spec, layout, locale, highlight, className }: 
         const sub = tx(n.sub, locale);
         const cx = shape === "file" ? x + 4 : x + w / 2;
         const anchor = shape === "file" ? "start" : "middle";
-        const ly = sub ? y + h / 2 - 2 : y + h / 2 + DG_FONT * 0.36;
+        const subLines = sub ? sub.split("\n") : [];
+        // label + sub lines are centred as a block; each extra sub line moves the block up by half a line
+        const ly = sub ? y + h / 2 - 2 - ((subLines.length - 1) * (DG_SUB_FONT + 2.5)) / 2 : y + h / 2 + DG_FONT * 0.36;
         return (
           <g key={n.id} opacity={dim(n.id)} data-node={n.id}>
             {(shape === "box" || shape === "state") && (
@@ -113,7 +115,11 @@ export function BlockDiagramSvg({ spec, layout, locale, highlight, className }: 
             </text>
             {sub && (
               <text x={cx} y={ly + DG_SUB_FONT + 3} textAnchor={anchor} style={{ fill: TONE.muted, fontSize: DG_SUB_FONT }}>
-                {sub}
+                {subLines.map((line, k) => (
+                  <tspan key={k} x={cx} dy={k === 0 ? 0 : DG_SUB_FONT + 2.5}>
+                    {line}
+                  </tspan>
+                ))}
               </text>
             )}
           </g>
