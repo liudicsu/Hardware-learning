@@ -45,7 +45,8 @@ function request(id: number, instr: number, params: BytesSpecByte[]): BytesSpecB
 const sumLabel = (bs: BytesSpecByte[], from: number, to: number, cs: number): L10n => {
   const body = bs.slice(from, to + 1).map((x) => x.v);
   const want = checksum(body);
-  const t = want === cs ? `Σ = ${sumHex(body)} → ~ = ${hex(want)}` : `Σ = ${sumHex(body)} → ~ = ${hex(want)} ≠ ${hex(cs)}`;
+  // same form as the checksum row of the table: ~0x42 & 0xFF = 0xBD, or ~0x43 & 0xFF = 0xBC ≠ 0xBD
+  const t = `~${sumHex(body)} & 0xFF = 0x${hex(want)}` + (want === cs ? "" : ` ≠ 0x${hex(cs)}`);
   return t;
 };
 
