@@ -514,6 +514,15 @@ for (const { file, name, spec } of specs) {
       for (const h of s.highlight) ok(nodeIds.has(h) || edgeIds.has(h), `${tag} step ${k + 1}: unknown id "${h}"`);
     }
     if (spec.kind === "stateMachine") ok(nodeIds.has(spec.initial), `${tag}: initial state "${spec.initial}" missing`);
+    if (spec.script) {
+      ok(existsSync(join(root, spec.script.run)), `${tag}: script ${spec.script.run} missing`);
+      const out = execFileSync("python3", [join(root, spec.script.run)], { encoding: "utf8", cwd: dirname(join(root, spec.script.run)) });
+      for (const line of spec.script.lines) {
+        const hit = out.split("\n").includes(line);
+        ok(hit, `${tag}: "${line}" is not a line of the output of ${spec.script.run}`);
+        if (hit) console.log(`run   ${spec.id}: "${line}"  [${spec.script.run}]`);
+      }
+    }
 
     for (const which of ["wide", "narrow"]) {
       const L = spec.layouts[which];

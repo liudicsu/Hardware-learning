@@ -9,6 +9,8 @@ There are two ways to build the action output, and they decide much of a model's
 - **Actions as tokens.** Extend the language model's vocabulary with action tokens and let it generate action tokens autoregressively, one token after another. RT-2 and OpenVLA work like this; π0-FAST does too, with a better tokeniser.
 - **A separate action head.** Feed the language model's features into a smaller network that produces a whole chunk of continuous actions, by diffusion or flow matching (a close relative of the diffusion you met in the [previous lesson](/en/month/month-6/act-diffusion)). Octo, π0, π0.5, SmolVLA and GR00T work like this.
 
+<Diagram id="vla-dataflow" />
+
 The first approach reuses the language model unchanged but has to decide how to write actions as tokens. That is the part you can run and inspect without a GPU.
 
 ## Actions as tokens: 256 bins

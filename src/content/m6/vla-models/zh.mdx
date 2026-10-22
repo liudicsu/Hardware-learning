@@ -9,6 +9,8 @@
 - <strong>把动作当成词元（token）。</strong>给语言模型的词表加上动作词元，让它以自回归方式逐个生成动作词元。RT-2 和 OpenVLA 是这样做的；π0-FAST 也是，只是用了更好的分词器。
 - <strong>单独的动作头。</strong>把语言模型的特征送进一个较小的网络，由它通过扩散或流匹配（flow matching，与[上一课](/zh/month/month-6/act-diffusion)的扩散是近亲）生成一整块连续动作。Octo、π0、π0.5、SmolVLA 和 GR00T 是这样做的。
 
+<Diagram id="vla-dataflow" />
+
 第一种做法可以原封不动地复用语言模型，但必须决定怎样把动作写成词元。这正是不用 GPU 也能运行和查看的部分。
 
 ## 把动作写成词元：256 个区间

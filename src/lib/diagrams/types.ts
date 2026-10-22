@@ -84,6 +84,8 @@ export interface BlockDiagramSpec {
   steps?: DiagramStep[];
   /** stateMachine only: the state that receives the initial-state arrow. */
   initial?: string;
+  /** check_diagrams runs `python3 <run>` and requires every line in `lines` to appear in its output. */
+  script?: { run: string; lines: string[] };
   facts: DiagramFact[];
 }
 
