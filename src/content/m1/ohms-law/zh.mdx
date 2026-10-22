@@ -132,7 +132,7 @@ ESP32-S3：3S LiPo 满电 12.6 V。R1 = 100 kΩ，R2 = 27 kΩ：
 Vout = 12.6 × 27 / 127 = 2.68 V；分压器消耗 12.6 V / 127 kΩ = 99 µA。
 ```
 
-Uno 的 ADC 公式 V = raw × 5 / 1023 会在第 2 个月的 Arduino I/O 用到。ESP32-S3 ADC 的可用输入范围取决于衰减（attenuation）设置，所以选 R2 之前先在 Espressif 的 ADC 文档中确认：https://docs.espressif.com/projects/esp-idf/en/stable/esp32s3/api-reference/peripherals/adc_oneshot.html
+Uno 的 ADC 公式 V = raw × 5 / 1023 会在第 2 个月的 Arduino I/O 用到。ESP32-S3 ADC 的可用输入范围取决于衰减（attenuation）设置，所以选 R2 之前先在 [Espressif 的 ADC 文档](https://docs.espressif.com/projects/esp-idf/en/stable/esp32s3/api-reference/peripherals/adc_oneshot.html)中确认。
 
 电阻越大，浪费的电池电流越少；下一节会说明为什么 ADC 输入仍然不能被重负载。
 

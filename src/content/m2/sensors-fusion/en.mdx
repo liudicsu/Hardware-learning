@@ -144,6 +144,16 @@ raw gy = −262   →  −262 / 131 = −2.0 °/s
 
 The first line is what a board lying flat should show on the vertical axis: one g of gravity. The second is a slow rotation of two degrees per second in the negative direction. If you store the raw bytes in an unsigned 16-bit variable, the negative value turns into a huge positive number; use `int16_t` and combine the bytes in the right order.
 
+**Two's complement.** A signed 16-bit number is stored in <Term id="twos-complement">two's complement</Term>: the top bit has the weight −32768 and the other 15 bits the usual +1 … +16384, so the range is −32768 … +32767. To negate a value, invert every bit and add 1.
+
+```text
+262            = 0x0106 = 0000 0001 0000 0110
+invert         = 0xFEF9 = 1111 1110 1111 1001
++ 1            = 0xFEFA = 1111 1110 1111 1010  = −262
+as unsigned    = 0xFEFA = 65274 = 65536 − 262
+high byte 0xFE, low byte 0xFA:  (int16_t)((0xFE << 8) | 0xFA) = −262
+```
+
 <Quiz id="q3" question="At ±2 g, raw ax = 8192. Acceleration in g?" answer={0.5} unit="g" explanation="8192 / 16384 = 0.5 g. The default ±2 g range gives 16384 LSB per g." />
 
 <Quiz id="q4" question="At ±250 °/s, raw gyro = 655. Rotation rate in °/s?" answer={5} unit="°/s" explanation="655 / 131 = 5.0 °/s. At ±250 °/s the sensitivity is 131 LSB per °/s." />

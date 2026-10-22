@@ -25,12 +25,12 @@ Bench tip: do not try to read the whole sheet at once. Pick one net (say GND or 
 
 ## Capacitors: storing charge, resisting sudden change
 
-A capacitor is two metal plates placed very close together; charge "sits" between them. Two behaviours are enough to carry with you:
+A <Term id="capacitor">capacitor</Term> is two metal plates placed very close together; charge "sits" between them. Two behaviours are enough to carry with you:
 
 - It **resists sudden voltage change**: to jump the voltage across a capacitor instantly you would need an infinite current. More current charges it faster, but "instant" is impossible.
 - Hence the classic motto: **block DC, pass changes**. A steady DC eventually cannot get through, while fast changes pass. Run it once in the simulator to observe it directly.
 
-How fast it charges or discharges is set by the time constant (τ), the product of the resistance and the capacitance:
+How fast it charges or discharges is set by the <Term id="rc-time-constant">time constant (τ)</Term>, the product of the resistance and the capacitance:
 
 <Formula label="RC time constant">τ = R × C</Formula>
 
@@ -67,7 +67,7 @@ The aluminium electrolytic (the metal can) is **polarised**: a stripe or − mar
 
 Inside a digital IC, gates switch extremely fast, and each switching event draws a short current pulse from the supply (a current spike). Supply traces have resistance and inductance; a changing current produces an L·di/dt drop. If the pulse must come from a distant source, the current loop is large and its inductance is high, so the voltage at the chip pins dips and can cause glitches or resets.
 
-The fix is **a 100 nF ceramic capacitor (decoupling capacitor) directly across each IC's supply pin (VCC) and GND, as physically close to the chip as possible**. The capacitor is a local charge store: the supply charges it continuously, and during a switching event the pulse flows through the capacitor and ground in a short loop with low inductance, so the L·di/dt voltage dip stays small. Hobby boards and volume production alike are wired this way.
+The fix is **a 100 nF ceramic capacitor (<Term id="decoupling-capacitor">decoupling capacitor</Term>) directly across each IC's supply pin (VCC) and GND, as physically close to the chip as possible**. The capacitor is a local charge store: the supply charges it continuously, and during a switching event the pulse flows through the capacitor and ground in a short loop with low inductance, so the L·di/dt voltage dip stays small. Hobby boards and volume production alike are wired this way.
 
 - **100 nF ceramic**: one per chip, hugging its supply pins. If the board has multiple supply domains (say 3.3 V and 5 V coexisting), each domain needs its own.
 - **Bulk electrolytic (100–470 µF)**: placed near motor drivers and other loads that draw large transient currents, providing a larger charge reserve for the whole board.
@@ -80,7 +80,7 @@ A phrase worth knowing: 100 nF is often quoted as “0.1 µF”; when a schemati
 
 ## Diodes and LEDs: one-way conduction and current limiting
 
-A diode is a PN junction: with forward bias the barrier lowers and current flows from the anode to the cathode; with reverse bias the barrier rises and only a small leakage current flows. The bar in the symbol is the cathode. Conduction begins after the forward voltage (Vf) is overcome:
+A <Term id="diode">diode</Term> is a PN junction: with forward bias the barrier lowers and current flows from the anode to the cathode; with reverse bias the barrier rises and only a small leakage current flows. The bar in the symbol is the cathode. Conduction begins after the <Term id="led-forward-voltage">forward voltage (Vf)</Term> is overcome:
 
 - Ordinary silicon diode: **≈ 0.6–0.7 V**;
 - An LED's Vf depends on colour: **red ≈ 1.8–2.2 V**, **green/blue/white ≈ 2.8–3.3 V**.
@@ -133,7 +133,7 @@ Why a transistor? A microcontroller GPIO pin can **safely source only about 10�
 
 The most common arrangement is the NPN low-side switch: the load sits between the supply and the collector, the emitter goes to ground, and the GPIO feeds a small current into the base through a base resistor. Transistor on, load circuit complete.
 
-Sizing the base resistor: say target collector current Ic = 20 mA (lighting a small LED strip), and your NPN's current gain β (hFE) ≈ 100.
+Sizing the base resistor: say target collector current Ic = 20 mA (lighting a small LED strip), and your NPN's current gain <Term id="beta-hfe">β (hFE)</Term> ≈ 100.
 
 ```text
 Minimum base current: Ib(min) = Ic / β = 20 mA / 100 = 0.2 mA
@@ -146,7 +146,7 @@ Ib ≈ 10 × 0.2 mA = 2 mA
 Rb = (Vgpio − Vbe) / Ib = (3.3 V − 0.7 V) / 2 mA ≈ 1.3 kΩ
 ```
 
-1.3 kΩ isn't standard either, so go **down** to 1 kΩ: a bit more base current, deeper saturation, safer margin. Direction matters: when sizing the base resistor, err small (more saturation), not large.
+1.3 kΩ isn't standard either, so go **down** to 1 kΩ: a bit more base current, deeper <Term id="transistor-saturation">saturation</Term>, safer margin. Direction matters: when sizing the base resistor, err small (more saturation), not large.
 
 **The same switch from a 5 V Uno pin.**
 
@@ -185,7 +185,7 @@ An input pin with nothing attached is floating: its input impedance is very high
 
 The cure: with a large resistor (10 kΩ is the habit) hold the input at a known level —
 
-- **Pull-up**: 10 kΩ from the pin to VCC; it reads HIGH at rest. Add a button from the pin to GND: **pressed**, the pin is dragged straight to GND and reads LOW; released, the pull-up restores HIGH. This "reads low when pressed" wiring is called **active low**.
+- **Pull-up**: 10 kΩ from the pin to VCC; it reads HIGH at rest. Add a button from the pin to GND: **pressed**, the pin is dragged straight to GND and reads LOW; released, the <Term id="pull-up-pull-down">pull-up</Term> restores HIGH. This "reads low when pressed" wiring is called **active low**.
 - **Pull-down**: the complementary arrangement. 10 kΩ from the pin to GND; it reads LOW at rest; a button from the pin to VCC makes it read HIGH when pressed.
 
 Why 10 kΩ? The resistor only needs to hold the level, not supply current. Too large and noise can push the pin around; too small and pressing the button wastes current for nothing. 10 kΩ is the decades-old compromise.
@@ -231,7 +231,7 @@ The lithium-polymer (LiPo) packs powering DIY robots come with parameters and ru
 
 A typical sequence: the robot catches a wall corner, the motor stalls, and in that instant the MCU resets and the program starts over. This follows directly from Ohm's law and the internal resistance of the supply.
 
-**Step 1: how big is the stall current?** While spinning, a motor generates back-EMF that cancels part of the applied voltage, so current stays moderate. Stall the rotor completely and back-EMF vanishes; the motor becomes a small resistance and draws its **stall current — often several amps, 5–10× normal**.
+**Step 1: how big is the stall current?** While spinning, a motor generates <Term id="back-emf">back-EMF</Term> that cancels part of the applied voltage, so current stays moderate. Stall the rotor completely and back-EMF vanishes; the motor becomes a small resistance and draws its **stall current — often several amps, 5–10× normal**.
 
 **Step 2: how does that collapse the rail?** The battery has internal resistance; wires and connectors add more; all of it sits **in series** with the motor in the same loop. By Ohm's law, V = I × R — whatever voltage those resistances drop is voltage your devices never receive.
 
@@ -247,11 +247,11 @@ A nominal 5 V rail sags to 4 V in that instant. If the 3.3 V regulator's input i
 
 **Fixes (roughly in order of effectiveness):**
 
-1. Give the logic its **own regulated supply**: the MCU runs off its own LDO or buck, not the motor's noisy supply rail.
+1. Give the logic its **own regulated supply**: the MCU runs off its own <Term id="ldo">LDO</Term> or buck, not the motor's noisy supply rail.
 2. **Bulk electrolytic near the motor driver** (say 220–470 µF): absorbs the surge locally and buys the regulator time.
 3. **Thicker, shorter power wires**: shrink that series resistance R directly.
 4. **Common ground**: digital ground and power ground must meet at one point — but don't route motor current through the logic ground path.
-5. **Soft-start / current limiting**: ramp PWM from zero or cap current in software, avoiding the shock at its source.
+5. **Soft-start / current limiting**: ramp <Term id="pwm">PWM</Term> from zero or cap current in software, avoiding the shock at its source.
 
 <Quiz id="q7" question="Stall current 3 A, total series resistance 0.4 Ω: how many volts does the rail drop?" answer={1.2} unit="V" explanation="V = I × R = 3 A × 0.4 Ω = 1.2 V." />
 
@@ -279,3 +279,44 @@ Before moving on, you should be able to answer "yes" to all of these:
 - I know why a floating input is dangerous and what `INPUT_PULLUP` does.
 - I can recite the LiPo voltage windows, the meaning of S and C, and the safety rules.
 - I can explain, with V = I × R, why a stall can reset the MCU.
+
+<Summary>
+
+**Key points**
+
+- RC time constant τ = R × C: 180 Ω × 33 µF ≈ 5.9 ms, so 63 % is reached after about 5.9 ms and 99 % after about 29.5 ms.
+- Decoupling: one 100 nF ceramic capacitor per chip, directly across its supply pin and GND.
+- LED resistor R = (Vsupply − Vf) / I: 5 V with a 2 V red LED at 10 mA gives 300 Ω, rounded up to 330 Ω.
+- Base resistor: 1 kΩ from a 3.3 V GPIO, 1.8 kΩ from a 5 V Uno pin, both for Ic = 20 mA at β ≈ 100.
+- Logic thresholds on a 5 V Uno: VIH = 3.0 V and VIL = 1.5 V, leaving 0.3 V of margin from a 3.3 V output.
+- V = L × dI/dt and the flyback diode: interrupting 50 mA in a 1 H coil gives a peak of about 2.24 kV without the diode.
+
+**Common mistakes**
+
+- No LED current-limiting resistor, or one chosen too small, so the LED overheats and fails.
+- Electrolytic reversed, so the case can swell and rupture.
+- Decoupling capacitor placed centimetres from the chip, leaving the trace inductance to produce the L·di/dt drop.
+- Base resistor too large, so the transistor never saturates and the load never receives its voltage.
+- Button pin left floating, so the input level changes at random.
+- 5 V signals into 3.3 V-only inputs without checking the absolute maximum ratings.
+- Logic ground and motor-supply ground not connected, so signals between the two parts have no common 0 V reference.
+- Exceeding the C rating or continuous over-discharge, so the pack overheats and is permanently damaged.
+
+**Self-check**
+
+- Can you point at each symbol and state its job?
+- Can you explain junction dots versus dot-less crossings and identical net labels?
+- Can you compute τ = R × C and recall the 63 % and 99 % milestones?
+- Can you say why the decoupling capacitor must hug the chip and what 100 nF versus bulk electrolytic each handle?
+- Can you size an LED resistor and round up to the standard value?
+- Can you explain why the LED dimmed with Rb = 100 kΩ?
+- Can you explain why a floating input is dangerous and what `INPUT_PULLUP` does?
+- Can you recite the LiPo voltage windows, S and C, and the safety rules?
+- Can you explain, with V = I × R, why a stall can reset the MCU?
+
+**Used next**
+
+- Month 1 · The bench, tool budget & the multimeter: measuring these circuits with the meter.
+- Month 2 Arduino I/O uses pull-ups and logic levels.
+
+</Summary>

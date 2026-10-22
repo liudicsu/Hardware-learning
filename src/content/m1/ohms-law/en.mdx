@@ -128,7 +128,7 @@ ESP32-S3: a 3S LiPo is 12.6 V when full. R1 = 100 kΩ, R2 = 27 kΩ:
 Vout = 12.6 × 27 / 127 = 2.68 V; the divider draws 12.6 V / 127 kΩ = 99 µA.
 ```
 
-The Uno ADC formula V = raw × 5 / 1023 is used in Month 2, Arduino I/O. The usable input range of the ESP32-S3 ADC depends on the attenuation setting, so check it in Espressif's ADC documentation before choosing R2: https://docs.espressif.com/projects/esp-idf/en/stable/esp32s3/api-reference/peripherals/adc_oneshot.html
+The Uno ADC formula V = raw × 5 / 1023 is used in Month 2, Arduino I/O. The usable input range of the ESP32-S3 ADC depends on the attenuation setting, so check it in [Espressif's ADC documentation](https://docs.espressif.com/projects/esp-idf/en/stable/esp32s3/api-reference/peripherals/adc_oneshot.html) before choosing R2.
 
 Larger resistors waste less battery current; the next section shows why the ADC input must still not be loaded heavily.
 
