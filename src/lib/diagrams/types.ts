@@ -193,6 +193,15 @@ export interface TimingSpec {
   sources: string[];
   /** Relative column widths (e.g. durations); default equal. */
   columns?: number[];
+  /** viewBox units per unit of `columns` (one time scale for every line); default: 48 units per column. */
+  columnScale?: number;
+  /**
+   * Column ranges [first, last] (inclusive), each drawn as its own line, one under the other, at one
+   * common scale. Must cover every column in order. Default: one line with all columns.
+   */
+  lines?: [number, number][];
+  /** Lines used below 640 px instead of `lines`; may leave columns out (e.g. show one PWM period). */
+  narrowLines?: [number, number][];
   signals: TimingSpecSignal[];
   rows?: { name: L10n; cells: L10n[]; mono?: boolean }[];
   spans?: { from: number; to: number; label: L10n; side?: "top" | "bottom" }[];

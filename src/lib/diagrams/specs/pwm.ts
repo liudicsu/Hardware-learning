@@ -36,6 +36,7 @@ const pct = (v: number) => (duty(v) * 100).toFixed(1);
 const volts = (v: number) => vavg(v).toFixed(2);
 
 const EN = "src/content/m2/arduino-io/en.mdx";
+const ZH = "src/content/m2/arduino-io/zh.mdx";
 const POT = "examples/month-2/arduino-io/pot_pwm/pot_pwm.ino";
 
 export const pwmDuty: TimingSpec = {
@@ -43,10 +44,10 @@ export const pwmDuty: TimingSpec = {
   id: "pwm-duty-average",
   title: { zh: "PWM：同一频率，三种占空比及其平均电压", en: "PWM: one frequency, three duty cycles and their average voltage" },
   caption: {
-    zh: `每条波形都只在 0 V 和 ${VCC} V 之间切换，变化的只是每个周期里 HIGH 所占的比例。比 PWM 周期反应慢的负载响应的是虚线所示的平均值：V_avg = value / 255 × ${VCC} V。`,
-    en: `Each trace only switches between 0 V and ${VCC} V; what changes is the fraction of every period spent HIGH. A load that responds more slowly than the PWM period follows the dashed average: V_avg = value / 255 × ${VCC} V.`,
+    zh: `三条波形是引脚 9 上的 analogWrite(9, value)，value 分别为 ${VALUES.join("、")}，宽屏显示两个周期，窄屏显示一个周期。每条波形都只在 0 V 和 ${VCC} V 之间切换，变化的只是每个周期里 HIGH 所占的比例。比 PWM 周期反应慢的负载响应的是虚线所示的平均值：V_avg = value / 255 × ${VCC} V。脉冲在周期里的位置只是示意：Uno 的引脚 3、9、10、11（定时器 2 和定时器 1）使用相位修正 PWM，脉冲居中于周期；引脚 5、6（定时器 0）使用快速 PWM。位置既不改变占空比，也不改变平均值。`,
+    en: `The traces are analogWrite(9, value) on pin 9 for value = ${VALUES.join(", ")}: two periods on wide screens, one on narrow screens. Each trace only switches between 0 V and ${VCC} V; what changes is the fraction of every period spent HIGH. A load that responds more slowly than the PWM period follows the dashed average: V_avg = value / 255 × ${VCC} V. The position of the pulse within the period is illustrative: on the Uno, pins 3, 9, 10 and 11 (timers 2 and 1) use phase-correct PWM, which centres the pulse in the period, and pins 5 and 6 (timer 0) use fast PWM. The position changes neither the duty cycle nor the average.`,
   },
-  sources: [POT, EN],
+  sources: [POT, EN, ZH],
   columns,
   signals: VALUES.map((v, k) => ({
     name: String(v),
@@ -61,7 +62,8 @@ export const pwmDuty: TimingSpec = {
       label: { zh: `周期 T = 1 / 490 Hz ≈ ${T_PIN9_MS.toFixed(2)} ms`, en: `period T = 1 / 490 Hz ≈ ${T_PIN9_MS.toFixed(2)} ms` },
     },
   ],
-  axisLabel: { zh: "引脚 9 上的 analogWrite(9, value)，两个周期", en: "analogWrite(9, value) on pin 9, two periods" },
+  // below 640 px one period is enough, and it keeps the text at full size
+  narrowLines: [[0, BOUNDS.length - 1]],
   steps: [
     ...VALUES.map((v, k) => ({
       signals: [k],
@@ -94,5 +96,10 @@ export const pwmDuty: TimingSpec = {
     { file: EN, pattern: "V_avg = 0\\.50196 × 5 V = 2\\.510 V ≈ 2\\.51 V", note: "lesson worked example 128 → 2.51 V" },
     { file: EN, pattern: "Duty = 64 / 255 = 0\\.25098 ≈ 25\\.1 %", note: "lesson quiz 64 → 25.1 %" },
     { file: EN, pattern: "V_avg = 0\\.74902 × 5 V = 3\\.745 V ≈ 3\\.75 V", note: "lesson quiz 191 → 3.75 V" },
+    { file: ZH, pattern: "引脚 3、9、10、11 大约是 \\*\\*490 Hz\\*\\*，引脚 5、6 大约是 \\*\\*980 Hz\\*\\*", note: "zh lesson PWM frequencies" },
+    { file: ZH, pattern: "V_avg = \\(value / 255\\) × 5 V", note: "zh lesson formula" },
+    { file: ZH, pattern: "V_avg = 0\\.50196 × 5 V = 2\\.510 V ≈ 2\\.51 V", note: "zh lesson worked example 128 → 2.51 V" },
+    { file: ZH, pattern: "占空比 = 64 / 255 = 0\\.25098 ≈ 25\\.1 %", note: "zh lesson quiz 64 → 25.1 %" },
+    { file: ZH, pattern: "V_avg = 0\\.74902 × 5 V = 3\\.745 V ≈ 3\\.75 V", note: "zh lesson quiz 191 → 3.75 V" },
   ],
 };
