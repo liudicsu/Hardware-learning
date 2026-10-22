@@ -18,8 +18,8 @@
 板子边缘的引脚分成三组：
 
 - **数字引脚 D0–D13**：每一个都能当输入或输出，读写 HIGH / LOW。本课大多数传感器和执行器都接在这里。
-- **模拟输入 A0–A5**：接到一个 10 位模数转换器上。引脚不够用时，它们也能当普通数字引脚。
-- **标着 `~` 的 PWM 引脚：3、5、6、9、10、11**：它们能输出快速方波，你可以控制它的平均电压。下文的 PWM 一节整节都在讲它们。
+- **模拟输入 A0–A5**：接到一个 10 位<Term id="adc">模数转换器</Term>上。引脚不够用时，它们也能当普通数字引脚。
+- **标着 `~` 的 PWM 引脚：3、5、6、9、10、11**：它们能输出快速方波，你可以控制它的平均电压。下文的 <Term id="pwm">PWM</Term> 一节整节都在讲它们。
 
 此外还有电源引脚：**5 V**、**3.3 V**（只能供很小电流，别拿它带电机）、**GND**、**Vin**、**RESET**。任何外接电路都必须与板子共地，这一点课末的“常见错误”还会强调。
 
@@ -78,7 +78,7 @@ void loop() {
 
 - 第一行是注释，编译器直接忽略。注释是写给下一个人的，而那个人通常是三周后的你自己。
 - `const int LED_PIN = LED_BUILTIN;` 给引脚编号起了个名字。`LED_BUILTIN` 是各开发板预定义的常量，在 Uno 上等于 13。给引脚起名字，以后改接线只要改一行，不用在文件里翻找。
-- `pinMode(LED_PIN, OUTPUT)` 把引脚从高阻态输入改成能主动驱动线路的输出。这一步不能省：对一个仍是输入模式的引脚发输出指令，几乎看不到任何效果——课末的“常见错误”会解释这个错误。
+- `pinMode(LED_PIN, OUTPUT)` 把引脚从<Term id="high-impedance">高阻态</Term>输入改成能主动驱动线路的输出。这一步不能省：对一个仍是输入模式的引脚发输出指令，几乎看不到任何效果——课末的“常见错误”会解释这个错误。
 - `digitalWrite(LED_PIN, HIGH)` 让引脚在内部接到 5 V；`LOW` 则接到地。板载 LED 和它的限流电阻已经在板上，不需要外接元件。
 - `delay(200)` 不是“后台等一会儿”，而是**冻结整个程序** 200 毫秒。这期间不读任何输入、不处理串口、不改任何输出。单纯闪灯无所谓，但机器人要随时注意按键或障碍物，这就成问题了。下一课会用一个基于 `millis()` 的非阻塞计时器取代 `delay()`。
 
@@ -109,7 +109,7 @@ duty cycle  = on-time / period = 200 ms / 1000 ms = 0.20 = 20 %
 
 ### 内部上拉
 
-ATmega328P 的每个数字引脚内部都有一个可开关的上拉电阻（pull-up resistor），大约 20–50 kΩ 接到 5 V。在 `pinMode()` 里选 `INPUT_PULLUP` 就把它接上了。此时只要没有别的东西驱动，引脚就被轻轻拉在 5 V。
+ATmega328P 的每个数字引脚内部都有一个可开关的<Term id="pull-up-pull-down">上拉电阻</Term>（pull-up resistor），大约 20–50 kΩ 接到 5 V。在 `pinMode()` 里选 `INPUT_PULLUP` 就把它接上了。此时只要没有别的东西驱动，引脚就被轻轻拉在 5 V。
 
 把按键接在引脚和 GND 之间，逻辑就变成：
 
@@ -189,7 +189,7 @@ V = 512 × 5.0 / 1023
 one step = 5 V / 1023 = 0.00489 V ≈ 4.9 mV
 ```
 
-所以量程中点大约是 2.5 V，每一格（一个计数）大约 4.9 mV。这个步长就是 5 V 参考下 Uno 能分辨的最小电压变化。如果你想分辨 1 mV，Uno 的 ADC 光靠自己做不到，需要放大或换更小的参考电压。
+所以量程中点大约是 2.5 V，每一格（一个计数）大约 4.9 mV。这个<Term id="lsb">步长</Term>就是 5 V 参考下 Uno 能分辨的最小电压变化。如果你想分辨 1 mV，Uno 的 ADC 光靠自己做不到，需要放大或换更小的参考电压。
 
 ### 整数运算的坑
 
@@ -202,7 +202,7 @@ raw * 5 / 1023        // 整数运算：512 × 5 = 2560，/ 1023 = 2，结果只
 raw * 1000 / 1023     // 1023 × 1000 = 1 023 000，16 位 int 直接溢出
 ```
 
-第一行全程整数运算，每一步除法都丢掉小数部分，结果塌缩成整数伏特；第二行在除法之前乘法就溢出了，得到的是毫无意义的（往往是负数）结果。解法是让其中一个操作数变成浮点数：
+第一行全程整数运算，每一步除法都丢掉小数部分，结果塌缩成整数伏特；第二行在除法之前乘法就<Term id="integer-overflow">溢出</Term>了，得到的是毫无意义的（往往是负数）结果。解法是让其中一个操作数变成浮点数：
 
 ```text
 float volts = raw * 5.0 / 1023.0;   // 5.0 强制走浮点运算
@@ -348,7 +348,7 @@ volts = 818 × 5.0 / 1023 = 4090 / 1023 = 3.998 V -> 4.00 with 2 decimals
 
 Arduino 没有屏幕。除了一颗 LED，它唯一能告诉你“自己在想什么”的方式就是串口。这个工具你会用上好几个月，所以一开始就得学对。
 
-`Serial.begin(115200)` 把传输速度设为每秒 115200 比特，串口监视器（Serial Monitor）也必须设成同一个值。不一致时，接收方在错误的时刻采样每一位，每个字节都被解错：你看到的是满屏乱码，而不是文字。这不是板子坏了，也不是线坏了。看到 `⸮⸮⸮` 这类东西，先查波特率（baud rate）菜单。9600 是老默认值，大量旧教程还在用；115200 更快，也是本课统一使用的值。
+`Serial.begin(115200)` 把传输速度设为每秒 115200 比特，串口监视器（Serial Monitor）也必须设成同一个值。不一致时，接收方在错误的时刻采样每一位，每个字节都被解错：你看到的是满屏乱码，而不是文字。这不是板子坏了，也不是线坏了。看到 `⸮⸮⸮` 这类东西，先查<Term id="baud-rate">波特率</Term>（baud rate）菜单。9600 是老默认值，大量旧教程还在用；115200 更快，也是本课统一使用的值。
 
 还有一个容易让人困惑的现象：打开串口监视器会拉低 Uno 的复位线，板子重新启动、`setup()` 再跑一遍。所以每次开窗都会看到 `ready`。这很正常，但也意味着你没法用监视器观察复位之前发生的事。
 
@@ -376,6 +376,37 @@ one character = 10 bits / 115 200 bit/s = 86.8 µs ≈ 87 µs
 还有 RAM 成本。在 Uno 上，字符串常量默认占 RAM，而你只有 2 KB。把常量文字用 `F()` 宏包起来，比如 `Serial.println(F("pressed"))`，字符串就会留在 flash 里、用到时才拷出来，省下宝贵的 RAM。这是个小习惯，但等你加上库和缓冲区之后，它会变得必不可少。
 
 <Quiz id="q6" question="串口监视器显示的是 ⸮⸮⸮ 这种乱码，而不是你的文字。最可能的原因是什么？" options={["USB 线坏了", "监视器的波特率与 Serial.begin() 不一致", "程序太大了"]} answer={1} explanation="乱码是波特率不匹配的典型症状：接收方在错误的时刻采样每一位。确认监视器和 Serial.begin() 用的是同一个速率，这里是 115200。" />
+
+## 本课程实际用到的 C/C++ 语法
+
+Arduino 程序（sketch）是 C++，由对应开发板的 GCC 工具链编译（Uno 上是 avr-g++，ESP32 上是 Xtensa 或 RISC-V GCC）；下表只列出课程 sketch（`examples/month-2/**/*.ino`、`examples/month-3/**/*.ino`）以及第 4 个月 ROS 2 C++ 节点（`examples/month-4/ros2-graph/m4_graph_cpp/src`）中实际出现的语法。
+
+| 语法结构 | 课程中的示例 | 出现位置 |
+| --- | --- | --- |
+| 预处理器包含 | `#include <WiFi.h>` | ESP32：Wi-Fi、3.3 V 逻辑与框架选择，`examples/month-2/esp32/web_servo/web_servo.ino` |
+| `const int` 引脚常量 | `const int BUTTON_PIN = 2;` | Arduino 入门：数字/模拟 IO、PWM 与串口调试，`examples/month-2/arduino-io/button_pullup/button_pullup.ino` |
+| 整数类型 `int`/`long`/`unsigned long` 与定宽 `uint8_t`/`int16_t`/`int32_t` | `unsigned long lastA = 0;` | 非阻塞计时、中断与按键消抖，`examples/month-2/timing-interrupts/two_blinks/two_blinks.ino` |
+| `float` 与整数除法陷阱 | `float volts = raw * 5.0 / 1023.0;` | Arduino 入门：数字/模拟 IO、PWM 与串口调试，`examples/month-2/arduino-io/pot_pwm/pot_pwm.ino` |
+| `(long)` 或 `(float)` 等强制类型转换 | `if ((long)(micros() - nextTick) < 0) return;` | 你的前两台机器人：循线小车与自平衡车，`examples/month-2/first-robots/balancer/balancer.ino` |
+| 算术运算与复合赋值 `+=`、`++`、`%` | `if (++tick % OUTER_EVERY == 0) outerLoop();` | PID 与控制：积分饱和与串级回路，`examples/month-3/pid-control/balancer_cascade/balancer_cascade.ino` |
+| 比较与逻辑与/或（`&&`、`\|\|`） | `if (isDown && t - lastEdge > DEBOUNCE_MS) {` | 非阻塞计时、中断与按键消抖，`examples/month-2/timing-interrupts/reaction_timer/reaction_timer.ino` |
+| `if`/`else` 与三元运算符 `?:` | `digitalWrite(LED_PIN, state == LOW ? HIGH : LOW);` | Arduino 入门：数字/模拟 IO、PWM 与串口调试，`examples/month-2/arduino-io/button_pullup/button_pullup.ino` |
+| `for`/`while` 循环 | `for (uint8_t addr = 1; addr < 127; addr++) {` | 传感器、I2C 与互补滤波，`examples/month-2/sensors-fusion/i2c_scanner/i2c_scanner.ino` |
+| 带返回类型的函数（`void`、`bool`、`long`） | `bool turnCounts(long target, unsigned long timeoutMs) {` | 电机、驱动器与编码器闭环，`examples/month-2/motors-drivers/one_rev/one_rev.ino` |
+| 数组 | `int16_t v[7];` | 你的前两台机器人：循线小车与自平衡车，`examples/month-2/first-robots/balancer/balancer.ino` |
+| 按位与/或/移位/取反（`&`、`\|`、`<<`、`~`；拼出 I2C 16 位值） | `return (hi << 8) \| Wire.read();` | 传感器、I2C 与互补滤波，`examples/month-2/sensors-fusion/imu_pitch/imu_pitch.ino` |
+| 与 ISR 共享的 `volatile` 变量 | `volatile bool pressed = false;` | 非阻塞计时、中断与按键消抖，`examples/month-2/timing-interrupts/reaction_timer/reaction_timer.ino` |
+| `attachInterrupt` 与 `noInterrupts()`/`interrupts()` | `attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), onButton, CHANGE);` | 非阻塞计时、中断与按键消抖，`examples/month-2/timing-interrupts/reaction_timer/reaction_timer.ino` |
+| `enum` + `switch`/`case` 状态机 | `enum State { WAITING, LIT, SHOW_RESULT };` | 非阻塞计时、中断与按键消抖，`examples/month-2/timing-interrupts/reaction_timer/reaction_timer.ino` |
+| `static` 局部变量 | `static unsigned long lastEdge = 0;` | 非阻塞计时、中断与按键消抖，`examples/month-2/timing-interrupts/reaction_timer/reaction_timer.ino` |
+| `millis()`/`micros()` 计时与无符号减法 | `if (now - lastA >= PERIOD_A) {` | 非阻塞计时、中断与按键消抖，`examples/month-2/timing-interrupts/two_blinks/two_blinks.ino` |
+| `Serial.print`/`Serial.println` | `Serial.println("ready");` | Arduino 入门：数字/模拟 IO、PWM 与串口调试，`examples/month-2/arduino-io/button_pullup/button_pullup.ino` |
+| 第 4 个月 C++：派生自 `rclcpp::Node` 的类 | `class FilterNode : public rclcpp::Node` | 节点、话题、服务与动作，`examples/month-4/ros2-graph/m4_graph_cpp/src/filter_node.cpp` |
+| `std::` 类型 | `rclcpp::spin(std::make_shared<FilterNode>());` | 节点、话题、服务与动作，`examples/month-4/ros2-graph/m4_graph_cpp/src/filter_node.cpp` |
+| `auto` | `for (const auto & p : params) {` | 节点、话题、服务与动作，`examples/month-4/ros2-graph/m4_graph_cpp/src/filter_node.cpp` |
+| 指针的 `->` 成员访问 | `pub_->publish(out);` | 节点、话题、服务与动作，`examples/month-4/ros2-graph/m4_graph_cpp/src/filter_node.cpp` |
+
+参考：[Arduino 语言参考](https://docs.arduino.cc/language-reference/)、[cppreference：C++ 语言](https://en.cppreference.com/w/cpp/language)、[cppreference：基本类型](https://en.cppreference.com/w/cpp/language/types) 与 [cppreference：定宽整数](https://en.cppreference.com/w/cpp/types/integer)。在 Uno 上，GCC AVR 的 `int` 为 16 位。
 
 ## 常见错误与检查清单
 

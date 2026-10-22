@@ -2,7 +2,7 @@
 
 A ROS 2 robot is not one program but a crowd of small programs called nodes: one reads the camera, one turns wheel commands into motor voltages, one publishes the battery state. You start them from a terminal, watch their log output, and stop the one that misbehaves. Test scripts and data loggers are ordinary Python files run with `python3`. The robot computer — a Raspberry Pi, a Jetson or a mini PC — usually runs Linux with no monitor attached, so you reach it over `ssh` and read text.
 
-The terminal is the interface you use when the robot is on the floor and only a prompt is available. You need a small vocabulary, not a hundred commands. By the end of this lesson you will have three working scripts — an Ohm's-law calculator, a resistor class and a JSON logger — installed without breaking the rest of your machine.
+The terminal is the interface you use when the robot is on the floor and only a prompt is available. You need a small vocabulary, not a hundred commands. By the end of this lesson you will have three working scripts — an Ohm's-law calculator, a resistor class and a <Term id="json">JSON</Term> logger — installed without breaking the rest of your machine.
 
 ## Setting up: one terminal, one Python
 
@@ -92,7 +92,7 @@ On native Windows (PowerShell or cmd) the activation command is:
 .venv\Scripts\activate
 ```
 
-Your prompt should now start with `(.venv)`. That marker tells you which environment the next `pip install` will modify. Upgrade pip and install one package:
+Your prompt should now start with `(.venv)`. That marker tells you which environment the next `pip install` will modify. Upgrade <Term id="pip">pip</Term> and install one package:
 
 ```bash
 python -m pip install --upgrade pip
@@ -107,7 +107,7 @@ pip install -r requirements.txt
 deactivate
 ```
 
-The first command writes package names and versions to a text file; the second recreates that set on another machine or in a fresh venv. `deactivate` removes the `(.venv)` marker.
+The first command writes package names and versions to a text file; the second recreates that set on another machine or in a fresh <Term id="venv">venv</Term>. `deactivate` removes the `(.venv)` marker.
 
 Two rules. **Never commit `.venv` to Git**: it contains binaries and absolute paths, is large, and can be rebuilt from `requirements.txt`. Add `.venv/` to `.gitignore`. **Do not install project packages globally** just because activation was inconvenient; that is how an unrelated upgrade breaks a robot script.
 
@@ -213,7 +213,7 @@ Vout = Vin × R2 / (R1 + R2)
 How the pieces fit:
 
 - **A function is a named calculation.** `current(volts, ohms)` takes two floats and returns a float. Type hints document intent; Python does not enforce them at runtime. The docstring is what `help(current)` shows.
-- **Return inside, print at the edge.** Returning a number lets a test, a GUI or another script reuse the function. Printing once in `main()` keeps the calculation reusable.
+- **Return inside, print at the edge.** Returning a number lets a test, a GUI or another script reuse the <Term id="function">function</Term>. Printing once in `main()` keeps the calculation reusable.
 - **Validate at the boundary.** Zero or negative resistance is meaningless here, so `raise ValueError` stops with a clear message instead of returning infinity.
 - **`argparse` builds the interface.** `add_subparsers(..., required=True)` makes `current` or `divider` mandatory; `type=float, required=True` converts text and errors helpfully when a flag is missing. Try `python ohm.py --help` and `python ohm.py divider --help`.
 - **The `if __name__ == "__main__":` guard** runs only when the file is executed directly. If another script does `from ohm import divider`, the functions are available and `main()` does not run.
@@ -513,6 +513,37 @@ python -i ohm.py current --volts 5 --ohms 220
 
 You can now call functions and try fixes without editing the file. Plain `print()` debugging is fine too; print the value and its type where behaviour diverges from expectation, and use `print(f"{r=}")` to see a name and value together. Remove the prints once the bug is understood.
 
+## Python syntax used in this course
+
+The table lists only the syntax that appears in the course's Python scripts (`examples/**/*.py` and `tools/sim/models/*.py`), so you can check that you can read every script that comes later.
+
+| Construct | Example from the course | Where it appears |
+| --- | --- | --- |
+| Variables and assignment | `text = LOG_FILE.read_text(encoding="utf-8")` | Python & the terminal, `examples/month-1/python-terminal/log.py` |
+| `int` / `float` / `str` / `bool` scalar types | `bad = 0` | Python & the terminal, `examples/month-1/python-terminal/log.py` |
+| Arithmetic including `**`, `//` and `%` | `planet = gap // 2` | Transmissions & backlash: gears, belts and bearings, `examples/month-3/transmissions/gear_calc.py` |
+| f-strings with format specs | `print(f"{v:.3f} V")` | Python & the terminal, `examples/month-1/python-terminal/ohm.py` |
+| Lists, indexing and slicing | `params = data[5:5 + length - 2]` | Build the SO-101 arm: calibrate and teleoperate, `examples/month-3/so101-arm/sts_packet.py` |
+| Tuples and unpacking | `for start, hold in presses:` | Non-blocking timing, interrupts & debouncing, `tools/sim/models/debounce_sim.py` |
+| Dicts | `entry = {` | Python & the terminal, `examples/month-1/python-terminal/log.py` |
+| `if`/`elif`/`else` and the conditional expression `a if c else b` | `density = float(sys.argv[2]) if len(sys.argv) > 2 else 1.24` | CAD: pick a tool, then design with parameters, `examples/month-3/cad-parametric/stl_info.py` |
+| `for` + `range`/`zip`/`enumerate` | `for i in range(1, int(seconds / DT) + 1):` | Sensors, I2C & the complementary filter, `tools/sim/models/filter_sim.py` |
+| `while`/`break`/`continue` | `while t < end:` | Non-blocking timing, interrupts & debouncing, `tools/sim/models/debounce_sim.py` |
+| `def` with default arguments and type hints | `def report_out_of_tolerance(measurements: list[dict], limit: float = 0.05) -> None:` | Python & the terminal, `examples/month-1/python-terminal/log.py` |
+| Returning several values | `return mean, spread, worst` | Sensors, I2C & the complementary filter, `tools/sim/models/filter_sim.py` |
+| List comprehensions and generator expressions with `sum()`/`max()` | `ranges = [sum(s.ranges[i] for s in scans) / len(scans) for i in range(n)]` | Simulation: your robot in Gazebo, `examples/month-4/gazebo-sim/scan_probe.py` |
+| `lambda` (e.g. as a sort key) | `ahead = min(range(n), key=lambda i: abs(angle(i)))` | Simulation: your robot in Gazebo, `examples/month-4/gazebo-sim/scan_probe.py` |
+| `import` / `from … import` (`math`, `random`, `json`, `sys`, `argparse`) | `import argparse` | Python & the terminal, `examples/month-1/python-terminal/ohm.py` |
+| Classes with `__init__` and methods | `class FakePort:` | Build the SO-101 arm: calibrate and teleoperate, `examples/month-3/so101-arm/compare_sdk.py` |
+| `@dataclass` | `@dataclass` | Python & the terminal, `examples/month-1/python-terminal/resistors.py` |
+| `with open(...) as f` | `with open(os.path.join(folder, "camera.json"), "w") as f:` | Camera calibration: intrinsics, distortion and pixel to 3D, `examples/month-5/camera-calibration/calibrate.py` |
+| `try`/`except`/`raise ValueError` | `raise ValueError("ohms must be positive")` | Python & the terminal, `examples/month-1/python-terminal/ohm.py` |
+| `if __name__ == "__main__":` | `if __name__ == "__main__":` | Python & the terminal, `examples/month-1/python-terminal/ohm.py` |
+| NumPy `@` matrix product (Month 5) | `b = h_inv @ np.vstack([n.T, np.ones(len(n))])` | Camera calibration: intrinsics, distortion and pixel to 3D, `examples/month-5/camera-calibration/make_views.py` |
+| `rclpy` `Node` subclass with `super().__init__` (Month 4) | `super().__init__('hello_node')` | Which ROS 2, and your first workspace, `examples/month-4/ros2-setup/m4_hello/m4_hello/hello_node.py` |
+
+Official reference: [The Python Tutorial](https://docs.python.org/3/tutorial/) — [§3 An Informal Introduction](https://docs.python.org/3/tutorial/introduction.html), [§4 More Control Flow Tools](https://docs.python.org/3/tutorial/controlflow.html), [§5 Data Structures](https://docs.python.org/3/tutorial/datastructures.html), [§6 Modules](https://docs.python.org/3/tutorial/modules.html), [§7.2 Reading and Writing Files](https://docs.python.org/3/tutorial/inputoutput.html#reading-and-writing-files), [§8 Errors and Exceptions](https://docs.python.org/3/tutorial/errors.html), [§9 Classes](https://docs.python.org/3/tutorial/classes.html), [dataclasses](https://docs.python.org/3/library/dataclasses.html) and [NumPy: Absolute Beginners](https://numpy.org/doc/stable/user/absolute_beginners.html).
+
 ## Learning path
 
 Start with **CS50P**; its Weeks 0–6 cover functions, conditionals, loops, exceptions, libraries, unit tests and file I/O, with short lectures and problem sets that make you write code instead of watching someone else write it. Check the current course page for the exact week list. Do the problem sets — lectures alone feel productive and teach much less.
@@ -528,7 +559,7 @@ The traps that catch almost everyone:
 - **`python` vs `python3`.** A command that works in one shell fails in another because they point at different interpreters.
 - **Forgetting to activate the venv.** You install a package, then get `ModuleNotFoundError`. Look for `(.venv)` before installing or running.
 - **Mixing tabs and spaces.** Python 3 forbids ambiguous indentation. Set four spaces and never mix.
-- **Committing `.venv`.** Add `.venv/` to `.gitignore`; commit `requirements.txt` instead.
+- **Committing `.venv`.** Add `.venv/` to `.gitignore`; <Term id="commit">commit</Term> `requirements.txt` instead.
 - **Naming a file after a module.** `json.py`, `random.py` or `email.py` in the current folder shadows the standard library and causes confusing import failures. Rename the file.
 - **Using `>` when you meant `>>`.** The old log is gone; there is no undo.
 - **Running `rm -r` on a path you did not check.** Run `pwd` and `ls` first.

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import type { ComponentProps, ComponentType } from "react";
+import type { ComponentProps, ComponentType, ReactNode } from "react";
 import type { MDXComponents } from "mdx/types";
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
@@ -39,6 +39,11 @@ import { SnapFitWidget } from "@/components/widgets/SnapFitWidget";
 import { ComplementaryWidget } from "@/components/widgets/ComplementaryWidget";
 import { LineFollowWidget } from "@/components/widgets/LineFollowWidget";
 import { Toc } from "@/components/lesson/Toc";
+import { LessonIntro } from "@/components/lesson/LessonIntro";
+import { Summary } from "@/components/mdx/Summary";
+import { TermPopover } from "@/components/mdx/TermPopover";
+import { getTerm } from "@/lib/glossary";
+import { findLessonBySlug, lessonHref } from "@/lib/lessonIndex";
 import { lessonToc } from "@/lib/toc";
 
 export const dynamicParams = false;
@@ -81,6 +86,7 @@ export default async function LessonPage({ params }: Params) {
   const tm = await getTranslations("month");
   const tn = await getTranslations("nav");
   const tr_ = await getTranslations("resource");
+  const tg = await getTranslations("glossary");
   const Content = await loadContent(month.id, lesson.slug, loc);
   if (!Content) notFound();
   const toc = await lessonToc(month.id, lesson.slug, loc);
@@ -114,6 +120,26 @@ export default async function LessonPage({ params }: Params) {
       // eslint-disable-next-line @next/next/no-img-element
       <img src={typeof src === "string" ? withBasePath(src) : src} alt={alt ?? ""} loading="lazy" {...rest} />
     ),
+    Term: ({ id, children }: { id: string; children: ReactNode }) => {
+      const term = getTerm(id);
+      if (!term) throw new Error(`Unknown glossary term "${id}" in ${key}`);
+      const taught = findLessonBySlug(term.lesson);
+      return (
+        <TermPopover
+          id={id}
+          title={tr(term.term, locale)}
+          alt={term.term[loc === "zh" ? "en" : "zh"]}
+          def={tr(term.def, locale)}
+          lessonHref={lessonHref(term.lesson)}
+          lessonLabel={tg("taughtIn", { lesson: taught ? tr(taught.lesson.title, locale) : term.lesson })}
+          glossaryLabel={tg("title")}
+          closeLabel={tg("close")}
+        >
+          {children}
+        </TermPopover>
+      );
+    },
+    Summary: ({ children }: { children: ReactNode }) => <Summary title={t("summary")}>{children}</Summary>,
     Resource: ({ id }: { id: string }) => (
       <div className="not-prose my-6">
       <ResourceCard
@@ -148,6 +174,25 @@ export default async function LessonPage({ params }: Params) {
         <p className="mt-3 text-xs text-zinc-500">
           {tm("minutes", { n: lesson.minutes })} · {lesson.tasks.length} {t("tasks")}
         </p>
+
+        <LessonIntro
+          objectives={(lesson.objectives ?? []).map((o) => tr(o, locale))}
+          prereqs={(lesson.prereqs ?? []).map((slug) => {
+            const found = findLessonBySlug(slug);
+            if (!found) throw new Error(`Unknown prerequisite "${slug}" in ${key}`);
+            return {
+              href: lessonHref(slug),
+              label: `${tm("label", { n: found.month.id })} · ${tr(found.lesson.title, locale)}`,
+            };
+          })}
+          labels={{
+            objectives: t("objectives"),
+            prereqs: t("prereqs"),
+            none: t("noPrereqs"),
+            math: t("mathRef"),
+            glossary: tg("title"),
+          }}
+        />
 
         <Toc items={toc} title={t("onThisPage")} variant="inline" />
 

@@ -11,7 +11,9 @@
     "about": "关于与致谢",
     "language": "语言",
     "switchTo": "English",
-    "skip": "跳到正文"
+    "skip": "跳到正文",
+    "glossary": "术语表",
+    "math": "数学速查"
   },
   "home": {
     "eyebrow": "开源 · 免费 · 双语",
@@ -58,7 +60,12 @@
     "finishMonth": "查看本月里程碑",
     "onThisPage": "本课内容",
     "statusDone": "已完成",
-    "statusTodo": "未完成"
+    "statusTodo": "未完成",
+    "objectives": "学完本课你能",
+    "prereqs": "开始前需要",
+    "noPrereqs": "无需前置课程，从这里开始。",
+    "mathRef": "数学速查",
+    "summary": "本课小结"
   },
   "resource": {
     "open": "打开",
@@ -306,5 +313,20 @@
     "ddB": "wheel_separation b",
     "ddR": "wheel_radius r",
     "ddNote": "默认值是本课的算例（以 1.0 rad/s 原地转），b = 0.28 m、r = 0.05 m 取自 controllers.yaml。v 和 ω 的范围就是控制器的速度上限。只改 b：直行不变，每次转弯都变——这正是第 3 题里的错误。"
+  },
+  "glossary": {
+    "title": "术语表",
+    "lead": "课程中反复出现的术语。每条给出统一的中英文译名、一句定义，以及相关的课程。课文中带虚线下划线的词可以悬停、聚焦或轻点查看定义。",
+    "taughtIn": "相关课程：{lesson}",
+    "close": "关闭",
+    "count": "共 {n} 条"
+  },
+  "math": {
+    "title": "数学速查",
+    "lead": "够用就好：第 4–6 个月用到的数学，每条只有定义、一个取自课程的算例、用到它的课程，以及免费的权威教材链接。这里不是数学课；要系统学习，请读链接中的教材。",
+    "definition": "定义",
+    "example": "课程中的算例",
+    "usedIn": "用到它的课程",
+    "read": "延伸阅读（免费教材）"
   }
 }

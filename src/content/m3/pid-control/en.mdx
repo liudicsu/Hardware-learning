@@ -1,4 +1,4 @@
-A joint is told to go to 60°. It goes to 55.5° and stops, holding the arm against gravity but never reaching the mark. A balancer is told to stay in one place. It balances perfectly and then rolls slowly across the floor until it hits something. Both failures have the same shape: a controller that reacts to error can be stable, smooth, and still wrong.
+A joint is told to go to 60°. It goes to 55.5° and stops, holding the arm against gravity but never reaching the mark. A balancer is told to stay in one place. It balances perfectly and then rolls slowly across the floor until it hits something. Both failures have the same shape: a controller that reacts to <Term id="error">error</Term> can be stable, smooth, and still wrong.
 
 This lesson is a site supplement. The course covers control theory properly in Month 5, "Control theory, starting with PID", with the MATLAB Tech Talks, step-response logs of P, PD and PID on the balancer, and then LQR. It sits here for two reasons: it finishes the optional speed-loop challenge from Month 2 Lesson 6, and the SO-101 arm in Lesson 5 is a stack of position loops, one per servo. Month 5 will be deeper and more formal; this is the working intuition you need now.
 
@@ -12,7 +12,7 @@ The textbook PID law is one line:
 output = Kp × error + Ki × (sum of error × dt) + Kd × (rate of change)
 ```
 
-Three terms, three jobs. The proportional term P pushes in proportion to how far off you are: double the error, double the push. The integral term I adds up error over time, so a small error that never goes away eventually becomes a large command; it is the term that keeps pushing until a steady error is gone, for example the gravity load on an arm joint. The derivative term D reacts to how fast the measurement is changing and brakes the approach: when the joint is moving toward the target quickly, D subtracts from the command so it does not sail past.
+Three terms, three jobs. The <Term id="proportional-term">proportional term</Term> P pushes in proportion to how far off you are: double the error, double the push. The <Term id="integral-term">integral term</Term> I adds up error over time, so a small error that never goes away eventually becomes a large command; it is the term that keeps pushing until a <Term id="steady-state-error">steady error</Term> is gone, for example the gravity load on an arm joint. The <Term id="derivative-term">derivative term</Term> D reacts to how fast the measurement is changing and brakes the approach: when the joint is moving toward the target quickly, D subtracts from the command so it does not sail past.
 
 In plain terms: P is the spring, D is the shock absorber, I is the patient hand that finishes the job. A spring alone bounces and can settle short. A shock absorber alone does nothing at rest. The patient hand is the one that notices the last millimetre and keeps nudging until it is gone.
 
@@ -30,7 +30,7 @@ Two practical details change a textbook PID into one that works on a robot. Firs
 
 <Resource id="beauregard-pid" />
 
-Brett Beauregard's series on improving the beginner's PID is the source of several habits used here: derivative on measurement, a fixed sample time, and anti-windup. Read it after you have seen the failure modes below; it will make more sense.
+Brett Beauregard's series on improving the beginner's PID is the source of several habits used here: derivative on measurement, a fixed sample time, and <Term id="integral-windup">anti-windup</Term>. Read it after you have seen the failure modes below; it will make more sense.
 
 <Quiz id="q1" question="A joint needs 0.3 N·m to hold against gravity. With P only and Kp = 0.1 N·m per degree, how many degrees short of the target does it stop?" answer={3} unit="°" explanation="At rest the P term must produce 0.3 N·m: 0.1 × error = 0.3, so error = 3°. The arm stops 3° short of the target." />
 
@@ -116,7 +116,7 @@ Read the output one line at a time. P with Kp = 0.05 stops at 55.5°, exactly th
 
 PD adds Kd = 0.002 and removes the overshoot completely (0.0°), but the final angle is still 55.5°. That is the important lesson about D: it acts only while something is moving. Once the arm is still, the rate is zero, D contributes zero, and the steady error is exactly where P left it. D improves the journey; it does not fix the destination.
 
-PI adds Ki = 0.1 and reaches 60.0°, with 11.5° of overshoot and within 1° from 0.92 s. The integral eventually supplies the gravity torque at zero error, so the destination is right; the cost is that the integral keeps pushing while the arm is arriving, so it overshoots. PID combines all three: Kp 0.05, Ki 0.1, Kd 0.002 reaches 60.0° with 0.1° overshoot and is within 1° from 0.24 s. For this joint it is clearly the best of the set: the integral fixes the destination, the derivative controls the arrival, and P does the bulk of the work.
+PI adds Ki = 0.1 and reaches 60.0°, with 11.5° of <Term id="overshoot">overshoot</Term> and within 1° from 0.92 s. The integral eventually supplies the gravity torque at zero error, so the destination is right; the cost is that the integral keeps pushing while the arm is arriving, so it overshoots. PID combines all three: Kp 0.05, Ki 0.1, Kd 0.002 reaches 60.0° with 0.1° overshoot and is within 1° from 0.24 s. For this joint it is clearly the best of the set: the integral fixes the destination, the derivative controls the arrival, and P does the bulk of the work.
 
 <Quiz id="q2" question="Which term removes the steady error caused by gravity?" options={["P", "D", "I", "a higher loop rate"]} answer={2} explanation="Only the integral term can produce a command at zero error. It accumulates the small remaining error until its output supplies the gravity torque, so the joint reaches the target. D is zero at rest, P needs an error to make torque, and a faster loop changes the dynamics but not the need for an integral term." />
 
@@ -156,7 +156,7 @@ The MathWorks series is a good next watch: it is light on algebra and heavy on t
 
 ## Cascade loops
 
-A cascade is two feedback loops nested, one inside the other. The inner loop is fast and controls something quick, such as pitch. The outer loop is slower and controls something slower, such as wheel speed, by changing the inner loop's target. The outer loop does not drive the motors directly; it only moves the setpoint that the inner loop is trying to hold.
+A <Term id="cascade-control">cascade</Term> is two feedback loops nested, one inside the other. The inner loop is fast and controls something quick, such as pitch. The outer loop is slower and controls something slower, such as wheel speed, by changing the inner loop's target. The outer loop does not drive the motors directly; it only moves the <Term id="setpoint">setpoint</Term> that the inner loop is trying to hold.
 
 ```text
 target speed ──► [ outer PI, 25 Hz ] ──► setpoint (±3°) ──► [ inner PD, 200 Hz ] ──► motors
@@ -308,7 +308,7 @@ Outer PI with kp_s = 12 and ki_s = 12 holds it within 0.51 wheel turns, about 10
 
 The trace at the end asks for +0.2 m/s at t = 40 s. The setpoint jumps to +3°, which means lean forward. But look at the wheels: they first go backwards, −0.04, −0.06, −0.03 m/s, and only then does the robot drive forward, reaching +0.21 m/s at 40.56 s. This is not a bug. To make the body lean forward, the inner loop must accelerate the wheels backwards, so the body rotates forward over the contact patch. Once the body is leaning, the inner loop drives the wheels forward to stay under it.
 
-Stopping works the same way in reverse: to brake, the robot first speeds up a little to get under a backward lean, and then slows down. Engineers call this non-minimum-phase behaviour. For you it means one practical rule: do not try to fix the first wrong-way movement. It is the physics of an inverted pendulum, and a controller that suppresses it will fall over.
+Stopping works the same way in reverse: to brake, the robot first speeds up a little to get under a backward lean, and then slows down. Engineers call this non-minimum-phase behaviour. For you it means one practical rule: do not try to fix the first wrong-way movement. It is the physics of an <Term id="inverted-pendulum">inverted pendulum</Term>, and a controller that suppresses it will fall over.
 
 <Quiz id="q5" question="Your balancer drifts forward slowly. Which way must the outer loop shift the setpoint to stop it?" options={["lean further forward", "lean slightly backward", "no change; increase the inner Kp", "switch the inner loop off"]} answer={1} explanation="A forward drift means a positive wheel speed. The outer loop sees a negative speed error and shifts the setpoint backwards, so gravity pulls the robot back. The inner loop then drives the wheels to stay under the new lean. Leaning further forward would speed it up, and raising the inner Kp does not remove a steady speed error." />
 
@@ -521,3 +521,32 @@ The editor has not run this cascade on a real robot. Treat the gains as a starti
 The milestone for this lesson is the balancer staying within one wheel turn of where you put it for 60 s and coming back after a gentle push.
 
 Lesson 5 is the SO-101 arm, and every one of its joints is a position loop much like section 2, with the PID running inside the STS3215 bus servo. The same questions apply: what is the steady error, what happens when the output saturates, and what does the loop do when the gears have backlash. Month 5 will give you the formal tools. For now, you have the working intuition and a balancer that stays put.
+
+<Summary>
+
+**Key points**
+
+- P alone leaves error = load / Kp: 0.227 N·m at Kp = 0.05 N·m/degree gives 4.5°, so a 60° target stops at 55.5°.
+- PID with Kp 0.05, Ki 0.1 and Kd 0.002 reaches 60.0° with 0.1° overshoot and is within 1° from 0.24 s.
+- Windup: with Ki = 0.4 the overshoot is 8.9° with anti-windup and 39.0° without it.
+- Cascade: inner loop 200 Hz, outer loop 25 Hz, setpoint clamped to ±3°; the inner loop alone falls over after 6.9 s, while the outer PI with kp_s = 12 and ki_s = 12 stays within 0.51 wheel turns over 60 s.
+- 90 counts per wheel turn on a 65 mm wheel is π × 65 / 90 = 2.27 mm per count.
+
+**Common mistakes**
+
+- Expecting P or D to remove the steady error: only I can produce torque at zero error.
+- Integrating while the motor is saturated; without anti-windup, Ki = 0.4 overshoots 39.0°.
+- Differentiating the error instead of the measurement, so a target step produces a derivative kick.
+- Starting the outer loop before the inner loop balances on its own, or leaving the setpoint pinned at +3.00 or −3.00, which means the outer loop is saturated.
+
+**Self-check**
+
+- Can you explain why P alone stops 4.5° short of a 60° target under a 0.227 N·m load?
+- Can you say why the derivative should be taken on the measurement, not on the error?
+- Can you check that the outer loop runs clearly slower than the inner one, 25 Hz against 200 Hz?
+
+**Used next**
+
+- The next lesson, **Build the SO-101 arm: calibrate and teleoperate**, reuses this position-loop intuition, because each STS3215 runs its own PID inside the servo.
+
+</Summary>

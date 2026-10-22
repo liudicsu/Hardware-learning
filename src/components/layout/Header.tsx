@@ -20,6 +20,8 @@ export async function Header() {
         <nav className="ml-2 hidden items-center gap-0.5 sm:flex">
           <NavLink href="/month/month-1" match="/month">{t("roadmap")}</NavLink>
           <NavLink href="/resources">{t("resources")}</NavLink>
+          <NavLink href="/glossary">{t("glossary")}</NavLink>
+          <NavLink href="/math">{t("math")}</NavLink>
           <NavLink href="/about">{t("about")}</NavLink>
         </nav>
         <div className="ml-auto flex items-center gap-2">
@@ -29,6 +31,8 @@ export async function Header() {
       <nav className="flex items-center gap-1 overflow-x-auto border-t border-white/[0.06] px-3 py-1.5 sm:hidden">
         <NavLink href="/month/month-1" match="/month">{t("roadmap")}</NavLink>
         <NavLink href="/resources">{t("resources")}</NavLink>
+        <NavLink href="/glossary">{t("glossary")}</NavLink>
+        <NavLink href="/math">{t("math")}</NavLink>
         <NavLink href="/about">{t("about")}</NavLink>
       </nav>
     </header>

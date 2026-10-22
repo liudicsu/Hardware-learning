@@ -45,6 +45,10 @@ export interface Lesson {
   minutes: number;
   resources: string[];
   tasks: Task[];
+  /** What the learner can do after the lesson: 3-5 checkable statements. */
+  objectives?: L10n[];
+  /** Slugs of earlier lessons this one builds on (rendered as links). */
+  prereqs?: string[];
 }
 
 export interface Month {
