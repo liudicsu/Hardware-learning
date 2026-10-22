@@ -11,8 +11,8 @@ export const TONE: Record<Tone, string> = {
   danger: "var(--dg-danger)",
 };
 
-export const DG_FONT = 12;
-export const DG_SUB_FONT = 10.5;
+export const DG_FONT = 12.3;
+export const DG_SUB_FONT = 12.3;
 export const MONO = "var(--font-mono)";
 
 export interface BlockDiagramSvgProps {
