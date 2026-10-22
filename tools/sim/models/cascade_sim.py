@@ -81,7 +81,7 @@ def run(outer=None, kp_s=0.0, ki_s=0.0, push=40.0, go=None, seconds=60.0, seed=3
         t += 0.001
         if not go:
             far = max(far, abs(x))
-        if abs(math.degrees(theta)) > 45:
+        if abs(math.degrees(theta)) > 40:
             return f"fell over after {t:.1f} s, {x:+.2f} m from the start", log
     return (f"upright, farthest {far / WHEEL_TURN:.2f} wheel turns from the start; push moved it "
             f"{push_far / WHEEL_TURN:.2f} turns, {settled / WHEEL_TURN:.2f} turns off 5 s later; "

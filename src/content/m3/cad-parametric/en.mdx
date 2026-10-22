@@ -212,9 +212,13 @@ An assembly places parts relative to each other. A free rigid body in space has 
 | Revolute | 1 rotation | Hinge, servo output | An arm link on the SO-101 |
 | Slider | 1 translation | Linear rail, drawer | A camera carriage on a rail |
 
+Each mate is a set of geometric constraints between two parts. A revolute mate makes the parts share one axis, for example the axis of a bracket's hole and the axis of a horn's shaft, which removes two translations and two rotations, and it keeps one plane of each part coincident, which removes the translation along that axis: 6 − 5 = 1 DOF, the rotation about the axis. A slider mate also makes the parts share an axis but stops rotation about it, so the one DOF left is the translation along the axis. A fixed mate removes all six. Most tools also accept limits on the DOF a mate leaves; in Onshape a revolute or slider mate can be given a minimum and a maximum, which is how the assembly learns that a joint may turn only through, say, ±90°.
+
+An ideal mate is not a servo. The ideal revolute turns with no clearance and no friction and stops exactly at its limit. A real servo output has backlash between the gear teeth (Lesson 3), so the link can move by a fraction of a degree while the motor stands still; it has friction that the controller has to overcome (Lesson 4); and its travel ends where the servo's position range or the arm's own hard stops end. Leave clearance in the model for that play, and set each mate's limits to the range the real joint will be allowed to move, not to the servo's full range.
+
 Build the assembly to mirror how the real thing moves, so you can drag the arm through its range and see collisions. Add the servo as a real part, not a box drawn by eye. Many vendors and the SO-101 repository publish STEP models of servos; Lesson 5 uses those published models. A box with the right outside dimensions will fit the bracket but will not show you where the horn sweeps or where the cable exits.
 
-Interference checks are the assembly's second job. Most tools can show where two parts overlap, and some can run a motion study and flag collisions along the path. Lesson 2 does the same check in OpenSCAD by intersecting a closed lid with its base: if the intersection has any volume, the parts clash. Finding that in software costs a few minutes; finding it after printing costs a spool of filament and an afternoon.
+Interference checks are the assembly's second job. Most tools can show where two parts overlap, and some can run a motion study and flag collisions along the path. Lesson 2 does the same check in OpenSCAD by intersecting a closed lid with its base: if the intersection has any volume, the parts clash. Finding that in software costs a few minutes; finding it after printing costs a spool of filament and an afternoon. A motion study drives the DOF that a mate leaves, for example a revolute's angle from its minimum to its maximum, moves every part attached to it, and checks for overlap at each position it steps through. On an arm with several joints, drive each joint in turn and then the poses that combine them, because two links can clash only when two joints are both near their limits.
 
 <Quiz id="q5" question="A part is attached with one revolute mate. How many DOF does it have left?" answer={1} unit="DOF" explanation="A free body starts with 6 DOF. A revolute mate removes three translations and two rotations, leaving one rotation about the joint axis." />
 
@@ -227,6 +231,54 @@ STEP is exact geometry: true cylinders, planes and edges, stored as a solid mode
 STL is a mesh of triangles only. It has no units and no exact circles: a 2 mm hole becomes a polygon with a finite number of flat sides. Slicers eat STL, which is why it is everywhere, but it is a dead end for editing. Do not treat the STL as your master file.
 
 3MF is also a mesh, but it carries units, colours, multiple parts and print settings in one file. It is increasingly the better slicer format, especially when a print has several bodies or a specific orientation. It is still an output format, not a substitute for the CAD model.
+
+### What is inside each file
+
+The differences are visible if you open the files in a text editor.
+
+A STEP file (ISO 10303-21) is plain text: a numbered list of entities, each of which refers to others by number. A 3 mm hole is stored as a surface entity with its exact radius, and the file declares its length unit once:
+
+```text
+#120 = CYLINDRICAL_SURFACE('', #121, 1.5);
+#300 = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) );
+```
+
+The cylinder has a radius of 1.5, in millimetres because of the unit entity, around the axis that entity #121 defines. A CAD tool reads it back as a true cylinder, which is why the hole is still editable after the file has been exchanged.
+
+An STL file is only a list of triangles. In the ASCII form each triangle is a facet with a normal vector, the direction that points out of the part, and three vertices. This is one triangle in the bottom face of a part:
+
+```text
+facet normal 0 0 -1
+  outer loop
+    vertex 0 0 0
+    vertex 0 10 0
+    vertex 10 0 0
+  endloop
+endfacet
+```
+
+No unit appears anywhere. Slicers assume millimetres, which is why a part exported in inches arrives 25.4 times too small. The binary form stores an 80-byte header, a 4-byte triangle count and 50 bytes per triangle (the normal and three vertices as twelve 4-byte floats, plus 2 spare bytes), so a binary STL with n triangles is 84 + 50 × n bytes: the 580-triangle bracket below would be 84 + 50 × 580 = 29,084 bytes.
+
+A 3MF file is a ZIP archive. Inside it, the file 3D/3dmodel.model is XML that declares the unit, lists each vertex once, and lists triangles by vertex index (shortened here):
+
+```text
+<model unit="millimeter" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">
+  <resources>
+    <basematerials id="1"><base name="PLA red" displaycolor="#FF0000" /></basematerials>
+    <object id="2" type="model" pid="1" pindex="0">
+      <mesh>
+        <vertices><vertex x="0" y="0" z="0" /> ...</vertices>
+        <triangles><triangle v1="0" v2="1" v3="2" /> ...</triangles>
+      </mesh>
+    </object>
+  </resources>
+  <build><item objectid="2" /></build>
+</model>
+```
+
+The unit attribute fixes the scale, the basematerials record carries the colour, and each object is a separate part. Print settings are not part of the core 3MF specification. Each slicer adds its own file to the archive (PrusaSlicer a Metadata/Slic3r_PE.config, OrcaSlicer and Bambu Studio a Metadata/project_settings.config), so the settings are read back fully only by the slicer that wrote them.
+
+<Quiz id="q7" question="How many bytes is a binary STL with 1000 triangles?" answer={50084} unit="bytes" explanation="80-byte header + 4-byte triangle count + 50 bytes per triangle: 84 + 50 × 1000 = 50,084 bytes." />
 
 The rule: keep the CAD file, and export STEP, as the master. STL and 3MF are throw-away outputs that you regenerate whenever the design changes. If you only keep the STL, you have thrown away the parametric source and are left with a mesh you cannot trace back to its dimensions.
 
@@ -343,6 +395,8 @@ The next step is Lesson 2. Print a tolerance gauge, find your printer's real cle
 - Hole spacing from calipers = outside-to-outside − one hole diameter: 29.5 mm − 2.0 mm = 27.5 mm.
 - A free rigid body in space has 6 DOF, and one revolute mate leaves 1 DOF.
 - STEP is the master and STL is a throw-away mesh: the bracket STL is 40.2 × 26.0 × 20.4 mm and watertight.
+- A revolute mate is a shared axis (removes 2 translations and 2 rotations) plus a coincident plane (removes the axial translation): 6 − 5 = 1 DOF; give it the real joint's limits.
+- STEP stores exact surfaces and a declared unit; STL stores unitless triangles (binary: 84 + 50 × n bytes); 3MF is a ZIP with an XML mesh, a unit and colours, and slicer settings in slicer-specific files.
 
 **Common mistakes**
 

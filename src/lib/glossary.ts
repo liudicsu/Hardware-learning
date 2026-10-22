@@ -729,6 +729,7 @@ export const glossary: GlossaryEntry[] = [
       en: "A geometric or dimensional relation in a CAD sketch that removes degrees of freedom, such as horizontal, vertical, coincident, tangent, symmetric or a dimension. Enough constraints bring the sketch to 0 DOF so it cannot move on its own when another dimension changes.",
     },
     lesson: "cad-parametric",
+    firstExplained: true,
   },
   {
     id: "degrees-of-freedom",
@@ -738,6 +739,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The number of independent ways a system can move. In 2D a free point has 2 DOF and a circle has 3, a rigid body in space has 6, and a fully constrained sketch has 0.",
     },
     lesson: "cad-parametric",
+    firstExplained: true,
   },
   {
     id: "datum",
@@ -747,6 +749,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The origin, centreline, reference plane or reference edge from which dimensions are taken, with every dimension measured from the same datum. Datum-based dimensions avoid chained dimensions that pass error along to the last feature.",
     },
     lesson: "cad-parametric",
+    firstExplained: true,
   },
   {
     id: "tolerance",
@@ -756,6 +759,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The permitted range of deviation from a nominal dimension, part of the specification rather than a defect. FDM holes usually print small and outer shapes large, so measure your own machine's real clearances with a tolerance gauge instead of copying the lesson's numbers.",
     },
     lesson: "cad-parametric",
+    firstExplained: true,
   },
   {
     id: "fit",
@@ -945,6 +949,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The PID term proportional to the present error, Kp × error, pushing harder the farther away the target is. With P alone, holding a constant gravity load requires a steady-state error, for example 0.227 N·m / 0.05 N·m per degree = 4.5°.",
     },
     lesson: "pid-control",
+    firstExplained: true,
   },
   {
     id: "integral-term",
@@ -954,6 +959,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The PID term proportional to the accumulated error over time, Ki × ∫error dt; it can keep producing torque at zero error, which removes steady-state error. The cost is the slowest response and a tendency to wind up when the output saturates.",
     },
     lesson: "pid-control",
+    firstExplained: true,
   },
   {
     id: "derivative-term",
@@ -963,6 +969,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The PID term proportional to how fast the error or measurement changes; it acts like a damper, braking on approach to reduce overshoot. Practice differentiates the measurement to avoid derivative kick from a setpoint step, but this also amplifies sensor noise.",
     },
     lesson: "pid-control",
+    firstExplained: true,
   },
   {
     id: "overshoot",
@@ -972,6 +979,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The maximum amount by which a response first passes beyond the setpoint, usually in degrees or percent. In the lesson's joint model, a full PID overshoots by 0.1°, while the same gains without anti-windup overshoot by 8.8°.",
     },
     lesson: "pid-control",
+    firstExplained: true,
   },
   {
     id: "settling-time",
@@ -981,6 +989,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The time a response takes to enter and remain inside a chosen error band around the setpoint. The lesson uses a 1° band: the full PID enters it in 0.24 s, while PI alone needs 0.92 s.",
     },
     lesson: "pid-control",
+    firstExplained: true,
   },
   {
     id: "steady-state-error",
@@ -990,6 +999,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The difference between setpoint and measurement that remains after the system has settled. The P-only joint stops 4.5° short of its 60° target; adding the integral term brings it to 60.0° and removes the steady-state error.",
     },
     lesson: "pid-control",
+    firstExplained: true,
   },
   {
     id: "integral-windup",
@@ -999,6 +1009,7 @@ export const glossary: GlossaryEntry[] = [
       en: "When the output is already at the actuator limit and the integral keeps accumulating error, it stores a large command that cannot be delivered and causes a big overshoot on release. Fix it by integrating only while unsaturated, clamping the integral, or resetting it on a setpoint step.",
     },
     lesson: "pid-control",
+    firstExplained: true,
   },
   {
     id: "feedforward",
@@ -1017,6 +1028,7 @@ export const glossary: GlossaryEntry[] = [
       en: "Two nested feedback loops: a slower outer loop controls a slow variable by changing the inner loop's setpoint, while the faster inner loop drives the actuator directly. The balancer's outer loop runs at 25 Hz on wheel speed and limits the tilt setpoint to ±3°, while the inner loop holds tilt at 200 Hz.",
     },
     lesson: "pid-control",
+    firstExplained: true,
   },
   {
     id: "bus-servo",
