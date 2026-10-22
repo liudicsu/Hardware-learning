@@ -16,6 +16,8 @@
 //    labels fit the viewBox and render at >= 12 px on a phone;
 //  - no text below 12 px outside the registry: no text-[Npx] or literal fontSize below 12 in src, <Chart> follows
 //    its box width, <QuadratureTiming> fits a 390 px phone at 12 px;
+//  - geometry figures (kind "geo"): every shape and text inside the viewBox, >= 12 px text at 390 px, and for the
+//    cart-pole the drawn directions agree with the signs of tools/sim/models/lqr_sim.py's cartpole();
 //  - every "fact" (a regular expression) is found in the repository file it names, so the
 //    numbers, pins and names drawn in a diagram are tied to the lesson scripts.
 import { readFileSync, readdirSync, existsSync } from "node:fs";
@@ -469,6 +471,69 @@ function checkPoseGraph(spec, tag) {
   checkNumbers(spec, tag);
 }
 
+// ---------- geometry figures (kind "geo", drawn by Geo2D.tsx) ----------
+const GEO_SRC = readFileSync(join(root, "src/components/diagrams/Geo2D.tsx"), "utf8");
+const GEO = { FONT: Number(GEO_SRC.match(/export const GEO_FONT = ([\d.]+)/)[1]), MAX: Number(GEO_SRC.match(/export const GEO_MAX_SCALE = ([\d.]+)/)[1]) };
+const geoPolar = ([cx, cy], r, deg) => [cx + r * Math.sin((deg * Math.PI) / 180), cy - r * Math.cos((deg * Math.PI) / 180)];
+function checkGeo(spec, tag) {
+  const { w, h } = spec;
+  ok(w <= NARROW_MAX, `${tag}: width ${w} > ${NARROW_MAX} (text would render below ${MIN_PX} px on a 390 px phone)`);
+  const px = GEO.FONT * Math.min(GEO.MAX, PHONE_BOX_PX / w);
+  ok(px >= MIN_PX, `${tag}: text renders at ${px.toFixed(1)} px on a 390 px phone`);
+  const inside = (x, y, what) => ok(x >= 0 && x <= w && y >= 0 && y <= h, `${tag}: ${what} at (${x.toFixed(0)}, ${y.toFixed(0)}) leaves ${w}x${h}`);
+  const byId = {};
+  for (const [k, s] of spec.shapes.entries()) {
+    const what = `shape ${s.id ?? k} (${s.type})`;
+    if (s.id) { ok(!byId[s.id], `${tag}: duplicate shape id ${s.id}`); byId[s.id] = s; }
+    if (s.type === "line") { inside(...s.from, what); inside(...s.to, what); }
+    else if (s.type === "rect") { inside(...s.at, what); inside(s.at[0] + s.size[0], s.at[1] + s.size[1], what); }
+    else if (s.type === "circle") { inside(s.at[0] - s.r, s.at[1] - s.r, what); inside(s.at[0] + s.r, s.at[1] + s.r, what); }
+    else if (s.type === "arc") for (let d = Math.min(s.from, s.to); d <= Math.max(s.from, s.to); d += 1) inside(...geoPolar(s.at, s.r, d), what);
+    else if (s.type === "text") {
+      checkText(`${tag} ${what}`, s.label, { mono: s.mono });
+      for (const t of variants(s.label)) {
+        const tw = textWidth(t, GEO.FONT), a = s.anchor ?? "middle";
+        const x0 = a === "start" ? s.at[0] : a === "end" ? s.at[0] - tw : s.at[0] - tw / 2;
+        inside(x0, s.at[1] - GEO.FONT, `${what} "${t}"`);
+        inside(x0 + tw, s.at[1] + 3, `${what} "${t}"`);
+      }
+    }
+  }
+  if (spec.cartPole) {
+    const cp = spec.cartPole;
+    const [axis, force, pole, theta] = [cp.axis, cp.force, cp.pole, cp.theta].map((id) => byId[id]);
+    ok(axis && force && pole && theta, `${tag}: cartPole names missing shapes`);
+    if (axis && force && pole && theta) {
+      // the model: run cartpole() from lqr_sim.py
+      const py = [
+        "import json, sys",
+        `sys.path.insert(0, ${JSON.stringify(join(root, "tools/sim/models"))})`,
+        "import lqr_sim as s",
+        "x = [0.0, 0.0, 0.0, 0.0]",
+        "for _ in range(100): x = s.cartpole(x, 1.0)",  // 0.1 s of +1 N from upright
+        "y = [0.0, 0.0, 0.05, 0.0]",
+        "for _ in range(10): y = s.cartpole(y, 0.0)",   // 10 ms leaning +0.05 rad, no force
+        "print(json.dumps({'forceCart': x[1], 'forceTheta': x[2], 'leanTheta': y[2] - 0.05, 'leanCart': y[1]}))",
+      ].join("\n");
+      const r = JSON.parse(execFileSync("python3", ["-c", py], { encoding: "utf8" }));
+      ok(r.forceCart > 0 && r.forceTheta < 0, `${tag}: lqr_sim.cartpole: +F should move the cart +x and make theta negative (${JSON.stringify(r)})`);
+      ok(r.leanTheta > 0 && r.leanCart < 0, `${tag}: lqr_sim.cartpole: +theta should grow under gravity and push the cart -x (${JSON.stringify(r)})`);
+      // so +theta leans to the side a positive force tips the pole away from, i.e. towards +F and +x
+      const sx = Math.sign(axis.to[0] - axis.from[0]);
+      ok(sx !== 0 && axis.to[1] === axis.from[1] && axis.arrow, `${tag}: the x axis must be a horizontal arrow`);
+      ok(Math.sign(force.to[0] - force.from[0]) === sx && force.arrow, `${tag}: +F must point along +x`);
+      const lean = Math.sign(pole.to[0] - pole.from[0]);
+      ok(pole.from[0] === cp.pivot[0] && pole.from[1] === cp.pivot[1] && pole.to[1] < pole.from[1], `${tag}: the pole must stand up from the pivot`);
+      ok(lean === sx, `${tag}: the pole is drawn leaning ${lean > 0 ? "right" : "left"}, but +theta (labelled) leans towards +x`);
+      ok(theta.at[0] === cp.pivot[0] && theta.at[1] === cp.pivot[1] && theta.from === 0 && Math.sign(theta.to) === sx && theta.arrow, `${tag}: the theta arc must start at upright and turn towards +x`);
+      const deg = (Math.atan2(pole.to[0] - pole.from[0], pole.from[1] - pole.to[1]) * 180) / Math.PI;
+      ok(Math.abs(deg - theta.to) < 0.5, `${tag}: theta arc ends at ${theta.to} deg, the pole leans ${deg.toFixed(1)} deg`);
+      if (r.forceTheta < 0) console.log(`model ${spec.id}: +1 N for 0.1 s -> cart ${r.forceCart.toFixed(3)} m/s, theta ${r.forceTheta.toFixed(4)} rad; drawn +theta leans to +x`);
+    }
+  }
+  checkNumbers(spec, tag);
+}
+
 // Spec files are plain data; the only imports allowed are types and JSON data files, inlined here.
 const inlineJson = (src) =>
   src.replace(/^import (\w+) from "(\.\.?\/[^"]+\.json)";$/gm, (_, name, rel) => `const ${name} = ${readFileSync(join(specDir, rel), "utf8")};`);
@@ -504,6 +569,7 @@ for (const { file, name, spec } of specs) {
   else if (spec.kind === "timing") checkTiming(spec, tag);
   else if (spec.kind === "bytes") checkBytes(spec, tag);
   else if (spec.kind === "poseGraph") checkPoseGraph(spec, tag);
+  else if (spec.kind === "geo") checkGeo(spec, tag);
   else {
     const nodeIds = new Set(spec.nodes.map((n) => n.id));
     const edgeIds = new Set(spec.edges.map((e) => e.id));

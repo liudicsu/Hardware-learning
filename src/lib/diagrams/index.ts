@@ -1,4 +1,5 @@
 import type { DiagramSpec } from "./types";
+import { cartPoleSigns } from "./specs/cartPole";
 import { firstRobotsCascade, pidCascade } from "./specs/cascade";
 import { debounceQuiet } from "./specs/debounce";
 import { gitAreas, gitBranches } from "./specs/gitModel";
@@ -33,4 +34,5 @@ export const DIAGRAMS: Record<string, DiagramSpec> = {
   [i2cWhoAmI.id]: i2cWhoAmI,
   [debounceQuiet.id]: debounceQuiet,
   [stsPackets.id]: stsPackets,
+  [cartPoleSigns.id]: cartPoleSigns,
 };
