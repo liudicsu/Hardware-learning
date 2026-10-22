@@ -118,7 +118,7 @@ Vout = I × Rbottom = 1.667 mA × 2 kΩ = 3.333 V
 check: 5 V × 2 / (1 + 2) = 10 / 3 = 3.333 V
 ```
 
-The current through the divider is only about 1.7 mA, which is harmless. The output is 3.333 V, just under the 3.6 V limit, and 0.86 V above the ESP32-S3's high-level input threshold: the [ESP32-S3 datasheet](https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf) v2.2 (Table 5-4) gives <Term id="logic-thresholds">VIH</Term> = 0.75 × 3.3 V = 2.475 V and VIL = 0.25 × 3.3 V = 0.825 V. The 0.86 V margin is a nominal figure: it assumes an ideal 5.000 V signal and VDD = 3.3 V. At VDD = 3.6 V, VIH = 0.75 × 3.6 V = 2.7 V and the margin is 0.63 V. If the Uno's output sits at its datasheet minimum, VOH = 4.2 V at 20 mA, the divider gives 2.8 V and the margin is 0.325 V; at the divider's 1.7 mA the real output is close to 5 V. If both worst cases occur together, the margin shrinks to 2.8 V − 2.7 V = 0.1 V. This is the same divider arithmetic from Month 1, now with a safety purpose.
+The current through the divider is only about 1.7 mA, which is harmless. The output is 3.333 V, just under the 3.6 V limit, and 0.86 V above the ESP32-S3's high-level input threshold: the [ESP32-S3 datasheet](https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf) v2.2 (Table 5-4) gives <Term id="logic-thresholds">VIH</Term> = 0.75 × 3.3 V = 2.475 V and VIL = 0.25 × 3.3 V = 0.825 V. The 0.86 V margin is a nominal figure: it assumes an ideal 5.000 V signal and VDD = 3.3 V. At VDD = 3.6 V, VIH = 0.75 × 3.6 V = 2.7 V and the margin is 0.63 V. If the Uno's output sits at its datasheet minimum, VOH = 4.2 V at 20 mA, the divider gives 2.8 V and the margin is 0.325 V; at the divider's 1.7 mA the real output is close to 5 V. If both worst cases occur together, the margin shrinks to 2.8 V − 2.7 V = 0.1 V. That figure assumes exact resistors. With ±1 % resistors the worst case (1 kΩ high, 2 kΩ low) gives 2.78 V and a margin of about 0.08 V; with ±5 % resistors it gives 2.705 V, a margin of only about 0.005 V, which is effectively zero. This is the same divider arithmetic from Month 1, now with a safety purpose.
 
 <Falstad title="Dividing a 5 V signal down for a 3.3 V input" circuit="levelDivider" height={440} />
 
@@ -126,7 +126,7 @@ How to use the simulation:
 
 1. The square-wave source on the left is a 5 V logic signal switching slowly. The probe at the midpoint shows 3.333 V while the signal is high and 0 V while it is low.
 2. Double-click the 2 kΩ resistor and change it to 3.3 kΩ. Predict the new high level before you run it.
-3. The new value is 5 V × 3.3 / (1 + 3.3) = 16.5 / 4.3 = 3.837 V, about 3.84 V. That is too high for a 3.3 V pin. The ratio matters more than the absolute resistor values: 1 kΩ and 2 kΩ divide by three, while 1 kΩ and 3.3 kΩ divide by only about 1.3.
+3. The new value is 5 V × 3.3 / (1 + 3.3) = 16.5 / 4.3 = 3.837 V, about 3.84 V. That is too high for a 3.3 V pin. The ratio matters more than the absolute resistor values: 1 kΩ and 2 kΩ pass 2/3 of the input (they divide by 1.5), while 1 kΩ and 3.3 kΩ pass 3.3/4.3 ≈ 0.77 of it (they divide by only about 1.3).
 
 A divider is fine for a one-way signal that is not too fast, such as a push-button, a low-frequency sensor output or a slow serial line. It is not the right tool for I2C or a fast bus: the resistors and the capacitance of the wire form a low-pass filter, the edges become sluggish, and the bus starts failing intermittently. Use a proper bidirectional level shifter there.
 
