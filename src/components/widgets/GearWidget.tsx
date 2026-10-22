@@ -44,7 +44,7 @@ export function GearWidget() {
           {status}
         </p>
       </div>
-      <pre className="mt-2 overflow-x-auto whitespace-pre rounded-lg bg-black/30 p-2 text-[11px] text-zinc-300" data-testid="gear-line">
+      <pre className="mt-2 overflow-x-auto whitespace-pre rounded-lg bg-black/30 p-2 text-xs text-zinc-300" data-testid="gear-line">
         {p.line}
       </pre>
       <div className="mt-3 grid gap-3 sm:grid-cols-3">

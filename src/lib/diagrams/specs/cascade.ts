@@ -9,22 +9,22 @@ import type { BlockDiagramSpec, DiagramFact, L10n, Layout } from "../types";
 const CASCADE_INO = "examples/month-3/pid-control/balancer_cascade/balancer_cascade.ino";
 
 const wide: Layout = {
-  w: 760,
+  w: 750,
   h: 172,
   nodes: {
-    target: [0, 26, 110, 38],
-    outer: [130, 22, 150, 46],
-    setpoint: [300, 26, 110, 38],
-    inner: [430, 22, 150, 46],
-    motors: [610, 22, 140, 46],
+    target: [0, 26, 100, 38],
+    outer: [118, 22, 172, 46],
+    setpoint: [308, 26, 100, 38],
+    inner: [426, 22, 172, 46],
+    motors: [616, 22, 130, 46],
   },
   edges: {
-    e1: { pts: [[110, 45], [128, 45]] },
-    e2: { pts: [[280, 45], [298, 45]] },
-    e3: { pts: [[410, 45], [428, 45]] },
-    e4: { pts: [[580, 45], [608, 45]] },
-    pitch: { pts: [[660, 68], [660, 110], [505, 110], [505, 70]], label: [582, 104] },
-    speed: { pts: [[710, 68], [710, 160], [205, 160], [205, 70]], label: [458, 154] },
+    e1: { pts: [[100, 45], [116, 45]] },
+    e2: { pts: [[290, 45], [306, 45]] },
+    e3: { pts: [[408, 45], [424, 45]] },
+    e4: { pts: [[598, 45], [614, 45]] },
+    pitch: { pts: [[660, 68], [660, 110], [512, 110], [512, 70]], label: [586, 104] },
+    speed: { pts: [[716, 68], [716, 160], [204, 160], [204, 70]], label: [460, 140] },
   },
 };
 
@@ -32,19 +32,19 @@ const narrow: Layout = {
   w: 340,
   h: 270,
   nodes: {
-    target: [15, 2, 150, 30],
-    outer: [15, 42, 150, 44],
-    setpoint: [15, 104, 150, 32],
-    inner: [15, 156, 150, 44],
-    motors: [15, 222, 150, 36],
+    target: [15, 2, 172, 30],
+    outer: [15, 42, 172, 44],
+    setpoint: [15, 104, 172, 32],
+    inner: [15, 156, 172, 44],
+    motors: [15, 222, 172, 36],
   },
   edges: {
-    e1: { pts: [[90, 32], [90, 40]] },
-    e2: { pts: [[90, 86], [90, 102]] },
-    e3: { pts: [[90, 138], [90, 154]] },
-    e4: { pts: [[90, 200], [90, 220]] },
-    pitch: { pts: [[165, 240], [210, 240], [210, 178], [167, 178]], label: [216, 213], anchor: "start" },
-    speed: { pts: [[165, 250], [325, 250], [325, 64], [167, 64]], label: [246, 58] },
+    e1: { pts: [[101, 32], [101, 40]] },
+    e2: { pts: [[101, 86], [101, 102]] },
+    e3: { pts: [[101, 138], [101, 154]] },
+    e4: { pts: [[101, 200], [101, 220]] },
+    pitch: { pts: [[187, 240], [222, 240], [222, 178], [189, 178]], label: [228, 213], anchor: "start" },
+    speed: { pts: [[187, 250], [325, 250], [325, 64], [189, 64]], label: [256, 42] },
   },
 };
 
@@ -110,7 +110,7 @@ export const pidCascade = cascade(
     inner: "200 Hz",
     motors: { zh: "电机", en: "motors" },
     pitch: { zh: "俯仰角（IMU）", en: "pitch (IMU)" },
-    speed: { zh: "轮速（编码器）", en: "wheel speed (encoders)" },
+    speed: { zh: "轮速（编码器）", en: "wheel speed\n(encoders)" },
   },
   {
     sources: [CASCADE_INO, "tools/sim/models/cascade_sim.py"],
@@ -135,7 +135,7 @@ export const firstRobotsCascade = cascade(
     inner: { zh: "角度误差 · 200 Hz", en: "angle error · 200 Hz" },
     motors: { zh: "电机 PWM", en: "motor PWM" },
     pitch: { zh: "滤波后的俯仰角", en: "pitch from\nthe filter" },
-    speed: { zh: "轮速（编码器）", en: "wheel speed (encoders)" },
+    speed: { zh: "轮速（编码器）", en: "wheel speed\n(encoders)" },
   },
   {
     sources: ["examples/month-2/first-robots/balancer/balancer.ino", CASCADE_INO],

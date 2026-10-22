@@ -104,3 +104,12 @@ numbers, cart-pole direction, TB6612 OUT1) go into the PR that touches each less
 - D-7 second review (#29): node 0 is the first scan (first_measurement_ branch, slam_toolbox_common.cpp:771-777,
   before every other test), 41 nodes; "first 5" comments fixed (callbacks 2-4 are dropped: scan_ctr++ at :769
   before scan_ctr < 5 at :795); hand-computed nodes 0, 1, 12, 13 pinned in check_diagrams.
+- D-7 merged (#29, squash 2bfb55e). Live check of #26/#28/#29: 16/16 OK (hl-audit/prc-live-check.md).
+- Text size >= 12 px (branch text-size-12px from 2bfb55e): block-diagram and circuit fonts 12.3 units; narrow
+  layouts <= 340 units, wide <= 752 units, wide layout from 1280 px (xl); cascade, slam-tf-chain,
+  urdf-two-publishers, ros2-workspace-tree (layout now generated), hbridge and pullup re-laid out. `<Chart>`
+  follows its box width and labels fewer ticks on narrow screens (PidWidget now uses Chart); the Wilson bar
+  the same; IK axis letters 15 units; diff-drive labels text-xs; text-[11px] -> text-xs (resource credits,
+  Wokwi badge, gear and snap-fit readouts, diff-drive wheel speeds); QuadratureTiming 39 units per column, en
+  axis labels shortened. check_diagrams guards against small sizes; tools/check_text_size.mjs is the rendered
+  check. All hand-written.

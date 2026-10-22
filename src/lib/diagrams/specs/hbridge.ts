@@ -38,7 +38,7 @@ export const hbridgeCurrentPath: CircuitSpec = {
   },
   sources: [CIRCUITS, EN, ZH, ONE_REV],
   w: 340,
-  h: 312,
+  h: 318,
   readoutAt: [170, 204],
   parts: [
     { id: "vplus", type: "supply", at: [170, 30], label: `+V = ${V} V`, labelAt: [184, 34], anchor: "start" },
