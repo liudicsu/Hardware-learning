@@ -542,8 +542,8 @@ export const resources: Record<string, Resource> = {
     kind: "hardware",
     cost: { zh: "约 $19.95 / 个", en: "≈ $19.95 each" },
     summary: {
-      zh: "120:1 减速电机，编码器已装好、线已焊好；每转车轮约 1440 个计数。",
-      en: "A 120:1 gearmotor with the encoder already fitted and wired; about 1440 counts per wheel revolution.",
+      zh: "已装好 Romi 霍尔编码器（6 极磁盘，电机轴每转 12 个计数）的 120:1 减速电机；本课用它学习正交解码，以及从电机轴计数换算到输出轴计数（12 × 120 = 1440）。",
+      en: "A 120:1 gearmotor with the Romi Hall-effect encoder fitted (6-pole disc, 12 counts per motor-shaft turn); this lesson uses it to learn quadrature decoding and the conversion from motor-shaft to output-shaft counts (12 × 120 = 1440).",
     },
     license: { zh: "商品链接，价格以官网为准", en: "Product link; check the store for current price" },
   },

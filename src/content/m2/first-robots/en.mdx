@@ -603,13 +603,7 @@ This part is optional. The balancer above stays upright, but it slowly drifts aw
 - The **inner loop** is the one you already have. It runs at 200 Hz, reads the pitch, and drives the motors so the robot holds a requested angle, `SETPOINT`.
 - The **outer loop** is new. It runs about 5–10 times slower (every 4th to 8th tick, so 25–50 Hz). It reads the wheel speed from the encoders (Lesson 4) and changes `SETPOINT` a little, to slow the robot down.
 
-```text
-target speed (0) ──► [ outer PI: speed error ] ──► SETPOINT (clamped to ±3°)
-                                                       │
-                     pitch from the filter ──► [ inner PD: angle error ] ──► motor PWM
-                                                       ▲
-wheel speed from the encoders ◄────────────────────────┘ (measured every outer tick)
-```
+<Diagram id="first-robots-cascade" />
 
 The surprising part is the direction. Say the robot is drifting forward. To stop, it has to lean slightly **backward**, which makes gravity pull it back. To get into that backward lean, the inner loop first drives the wheels forward a little harder, and only then does the robot slow down. So the setpoint the outer loop asks for leans the opposite way to the direction the robot is moving. Expect it to look wrong for a moment every time.
 

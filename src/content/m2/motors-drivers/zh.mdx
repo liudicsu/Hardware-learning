@@ -144,29 +144,112 @@ STBY 必须是高电平，否则输出一直关着，电机一动不动。常见
 
 ## 编码器：数转动
 
-编码器把旋转变成可数的电边沿。<strong>正交编码器（quadrature encoder）</strong>有两路输出 A 和 B，相位相差 90°。单独看每一路都是方波，但两路合起来携带的信息更多：边沿到来的先后顺序，告诉你轴往哪个方向转。
+编码器把旋转变成可数的电边沿。本节从 Romi 编码器的零件开始，再说明如何把两路信号换算成计数、速度和距离。
+
+### 编码器里面是什么
+
+Pololu Romi 编码器（item #3542）是<strong>磁式正交编码器（magnetic quadrature encoder）</strong>。一片 6 极磁环（N S N S N S）压在电机尾部的加长轴上。一块装有两个<strong>霍尔效应传感器（Hall-effect sensor）</strong>的小板焊在电机后端。减速箱在电机的另一端。
+
+数字输出的霍尔效应传感器根据其前方是哪个磁极，把输出切换为高电平或低电平。传感器把磁场与一个切换阈值比较，并带有迟滞，所以输出只有完全的高电平或完全的低电平，没有中间值。磁环磁场按 N/S 交替，所以轴转动时输出在这两个电平之间切换，形成方波。
+
+6 个磁极构成 3 对 N+S，因此每个传感器在电机轴每转一圈时输出 3 个完整方波周期。一个周期对应 360° / 3 = 120° 的轴转角。
+
+两个传感器相隔四分之一个周期，即 120° / 4 = 30° 的轴转角。方波的四分之一周期就是 90° 相位，“A 与 B 相位相差 90°”这一说法正来源于此。这个偏移是标准的正交布局。Pololu 的页面没有给出传感器角度；30° 是由四分之一周期布局推导出来的。
+
+<EncoderDisc title="从电机尾部看 Romi 编码器磁环：6 个磁极，传感器 B 落后传感器 A 四分之一周期（30°）" sensorA="A" sensorB="B" />
+
+Pololu 对套件的描述是："This kit includes two dual-channel Hall effect sensor boards and two 6-pole magnetic discs"（“本套件包含两块双通道霍尔效应传感器板和两片 6 极磁环”）。产品页还说明，编码器 "provides a resolution of 12 counts per revolution of the motor shaft when counting both edges of both channels, which corresponds to approximately 1440 counts per revolution of the Romi's wheels."（“在同时对两路信号的两个边沿计数时，电机轴每转提供 12 个计数的分辨率，对应 Romi 车轮每转约 1440 个计数。”）（[Pololu #3542](https://www.pololu.com/product/3542)）。减速比方面，120:1 减速电机页面写明 "Exact gear ratio: (22×38×44×26×30) / (10×11×11×22×9) ≈ 119.76"（“精确减速比：(22×38×44×26×30) / (10×11×11×22×9) ≈ 119.76”）（[Pololu #1520](https://www.pololu.com/product/1520)）。车轮尺寸见底盘页面："The chassis uses 70×8mm Pololu wheels"（“底盘使用 70×8 mm 的 Pololu 车轮”）（[Pololu #3500](https://www.pololu.com/product/3500)）。
+
+### 把 A、B 对齐来看
+
+<QuadratureTiming axisLabel="每列 = 电机轴转过 30°" direction="forward" title="正转：A 领先 B 四分之一周期；AB = 00 → 10 → 11 → 01，每次变化 +1" stateLabel="AB" countLabel="计数" />
+
+<QuadratureTiming axisLabel="每列 = 电机轴反向转过 30°" direction="reverse" title="反转：B 领先 A；AB = 00 → 01 → 11 → 10，每次变化 −1" stateLabel="AB" countLabel="计数" />
+
+两幅图的每一列都是 30° 的电机轴转角。在每个列边界上，A 或 B 恰好有一个发生变化。正转图中 A 先上升，B 晚 30° 上升；反转图中 B 先变化。只看 A 只能得到速度，得不到方向。这里的“正转”指轴转角和计数都增加的方向，与下面的脚本以及 `one_rev.ino` 里的 `QDEC` 表约定一致。用每幅图下方的<strong>下一步</strong>和<strong>上一步</strong>逐个查看状态：高亮的一列是当前 AB 状态，图下的一行给出这次跳变及其是 +1 还是 −1。
 
 ```text
 正转：AB = 00 → 10 → 11 → 01 → 00 → ...
 反转：AB = 00 → 01 → 11 → 10 → 00 → ...
 ```
 
-只看 A，你能数出转得多快，却不知道往哪转。同时看两路、看边沿顺序，方向也就有了。把两路的每个边沿都计数（四倍频解码），能从同一只编码器里取得最多的计数。这就是为什么一只每路信号在电机每转里只出 3 个脉冲的小磁编码器，标称却是“每转 12 个计数”：3 个脉冲 × 2 个边沿 × 2 路 = 12。
+### 用状态表解码
 
-本课资源卡片里的 Pololu Romi 减速电机，电机轴上是 12 CPR 编码器，减速比 120:1。换算到轮子：
+把 AB 写成一个 2 位数。每当任一引脚变化，就查<strong>状态表（state table）</strong>中的（前一状态，新状态）这一对。
+
+| 前一状态 \ 新状态 | 00 | 01 | 10 | 11 |
+| --- | --- | --- | --- | --- |
+| 00 | 0 | −1 | +1 | 非法（丢计数） |
+| 01 | +1 | 0 | 非法（丢计数） | −1 |
+| 10 | −1 | 非法（丢计数） | 0 | +1 |
+| 11 | 非法（丢计数） | +1 | −1 | 0 |
+
+非法跳变意味着解码器至少漏掉了一个边沿：中断延迟过长、采样过慢或噪声。此时方向未知，计数丢失。下面脚本给出极端情况：每隔 60° 轴转角才读一次引脚，每一步都是非法跳变，计数停在 0，而不是 +12。本课后面 one_rev 程序里的 `QDEC[16]` 表就是这张表的展开，索引为 `前一状态 AB × 4 + 新状态 AB`，对非法跳变返回 0。
+
+### 每转 12 个计数是怎么来的
+
+分步计算。6 个磁极给出每通道每转 3 个脉冲。每个脉冲有 2 个边沿，即上升沿和下降沿，所以 A 每转有 6 个边沿。两路合计 12 个边沿：3 × 2 × 2 = 12。
+
+| 解码方式 | 计数对象 | 电机每转计数 | 输出轴每转计数（×120） | 每个计数对应的轮子距离（70 mm 轮） |
+| --- | --- | --- | --- | --- |
+| ×1 | 仅 A 的上升沿 | 3 | 360 | 0.611 mm |
+| ×2 | A 的两个边沿 | 6 | 720 | 0.305 mm |
+| ×4 | A 和 B 的所有边沿 | 12 | 1440 | 0.153 mm |
+
+Pololu 标称的“12 CPR”（counts per revolution，每转计数）就是 ×4 的数字。三种方式都需要 B 才能得到方向：×1 和 ×2 在每个 A 边沿读取 B 的电平来判断转向。×1 是本课程平衡车级联程序（第 3 个月，pid-control）使用的方式：3 × 30:1 = 每转车轮 90 个计数，65 mm 车轮对应每个计数 2.27 mm。
+
+### 电机轴还是输出轴？
+
+计数换算出错，多数是把这两根轴混淆了。编码器在电机轴上，位于减速箱之前。车轮在减速箱输出轴上。电机转 120 圈，车轮才转 1 圈。
+
+输出轴 CPR = 电机轴 CPR × 减速比 = 12 × 120 = 1440。这就是 `one_rev.ino` 里的 `COUNTS_PER_REV = 1440`，也是 `one_rev_sim.py` 里的 `COUNTS_PER_REV = 12 * 120`。
+
+按精确减速比 119.76 计算，12 × 119.76 = 1437.1 个计数对应车轮一圈。因此 1440 个计数的目标会让车轮转 1.0020 圈，在 70 mm 车轮上多走 0.45 mm。对本课来说可以接受；当距离误差会累积时（如里程计），应使用精确减速比。
+
+减速箱同时放大分辨率：一个计数 = 360° / 1440 = 0.25° 的车轮转角。
+
+### 完整算例
 
 ```text
-每转车轮的计数 = 12 × 120 = 1440
+轮子：70 mm，周长 = π × 70 mm = 219.91 mm，每计数距离 = 219.91 / 1440 = 0.1527 mm
+速度：one_rev 模型在 8.4 V、占空比 0.6 下为 1310.4 计数/秒（K_SPEED 260 计数/秒每伏 × 5.04 V）
+每 50 ms 读一次计数：1310.4 × 0.05 = 65.52，所以一个窗口读到 65 或 66 个计数；取读到 66 的窗口
+轮速 = 66 / 0.05 s / 1440 = 0.9167 转/秒 = 55.0 rpm（电机轴：55.0 × 120 = 6600 rpm）
+线速度 = 0.9167 转/秒 × 219.91 mm = 201.6 mm/s
+分辨率：50 ms 窗口内 1 个计数 = 3.05 mm/s（所以短窗口的速度估计较粗）
+距离：one_rev 的 P 控制器在 8.4 V、最小占空比 0.15 下停在 1441 个计数 = 1.0007 圈 = 220.06 mm
 ```
 
-轮子直径 70 mm，转一圈走过的距离是 π × 70 mm，每个计数对应其中一小段：
+这些数字来自 `tools/sim/models/encoder_sim.py`：它模拟 6 极磁环和两个传感器，用与 `one_rev.ino` 相同的 `QDEC` 表解码，并从 `one_rev_sim.py` 导入 `COUNTS_PER_REV`、`K_SPEED` 和 `closed_loop`。其输出如下：
+
+<SimOutput source="model">
 
 ```text
-周长 = π × 70 mm = 219.91 mm
-每计数距离 = 219.91 mm / 1440 = 0.1527 mm ≈ 0.153 mm
+disc: 6 poles -> 3 square-wave periods per motor turn, 120 deg each; sensor B offset 30 deg = 1/4 period = 90 deg phase
+forward, first period:
+    30.0 deg  AB 10 -> 11  +1  count 1
+    60.0 deg  AB 11 -> 01  +1  count 2
+    90.0 deg  AB 01 -> 00  +1  count 3
+   120.0 deg  AB 00 -> 10  +1  count 4
+forward, one motor turn: count +12, illegal jumps 0
+reverse, first period:
+   360.0 deg  AB 10 -> 00  -1  count -1
+   330.0 deg  AB 00 -> 01  -1  count -2
+   300.0 deg  AB 01 -> 11  -1  count -3
+   270.0 deg  AB 11 -> 10  -1  count -4
+reverse, one motor turn: count -12, illegal jumps 0
+sampled every 60 deg (too slow): count +0, illegal jumps 6 (should be +12)
+counts per motor turn: x1 3, x2 6, x4 12  (3 pulses x 2 edges x 2 channels = 12)
+counts per output-shaft turn: x1 360, x2 720, x4 1440 (gear 120:1, one_rev uses 1440)
+exact gear 119.76:1 -> 1437.1 counts per wheel turn; 1440 counts = 1.0020 turn, 0.45 mm too far
+wheel 70 mm: circumference 219.91 mm, 0.1527 mm per count
+one_rev model at 8.4 V, duty 0.6: 1310.4 counts/s; in a 50 ms window 65.52 -> 66 counts
+  66 counts / 0.05 s / 1440 = 0.9167 wheel rev/s = 55.0 rpm (motor 6600 rpm) = 201.6 mm/s; 1 count per window = 3.05 mm/s
+one_rev P + min 0.15 at 8.4 V stops at 1441 counts = 1.0007 turn = 220.06 mm
+balancer cascade: x1 only, 3 x 30:1 = 90 counts per wheel turn (cascade_sim uses 90); 65 mm wheel -> 2.27 mm per count
 ```
 
-一个计数大约七分之一毫米。这就是闭环的分辨率：不算太细，简单控制器能处理；也不算太粗，足以让小车停在几毫米以内。
+</SimOutput>
 
 两个实战细节。编码器输出常常是<strong>开漏（open-drain）</strong>的：它能把线拉低，却不能主动拉高。用单片机的内部上拉（`INPUT_PULLUP`），或者在编码器电源上接外部 10 kΩ 上拉。没有上拉，信号悬空，计数就变成随机数。另外，编码器不能靠慢速轮询来数：边沿来得又快又密，程序忙着干别的就会漏掉。用第 2 课的中断，并让中断服务程序尽量短。读取多字节计数器时要原子操作：短暂关中断再读，避免主程序读到“更新了一半”的值。
 

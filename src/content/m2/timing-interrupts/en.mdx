@@ -180,12 +180,7 @@ A beginner's first robot behaviour is often written as a script: drive forward f
 
 An `enum` gives the states readable names, and a `switch` selects what to do in each one. The states for the reaction-timer game in this lesson are `WAITING`, `LIT` and `SHOW_RESULT`. The diagram is the whole design:
 
-```text
-WAITING --(random 2–5 s elapsed)--> LIT
-WAITING --(button pressed)--> SHOW_RESULT ("Foul!")
-LIT --(button pressed)--> SHOW_RESULT (print reaction time)
-SHOW_RESULT --(2 s elapsed)--> WAITING
-```
+<Diagram id="reaction-timer-states" />
 
 Every arrow has a condition; none says "wait here". `WAITING` checks two things: has the random wait expired, and has the button been pressed? `LIT` checks only the button. `SHOW_RESULT` checks only whether two seconds have passed. Each check takes microseconds, so the loop keeps spinning.
 

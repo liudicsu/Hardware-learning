@@ -1,0 +1,7 @@
+import type { Locale } from "./types";
+
+/** Interface strings of the diagram frame and step controls (kept here so specs and UI share one locale source). */
+export const DIAGRAM_UI: Record<Locale, { prev: string; next: string; all: string; step: string; source: string }> = {
+  zh: { prev: "上一步", next: "下一步", all: "全部", step: "第 {i} / {n} 步", source: "依据" },
+  en: { prev: "Previous", next: "Next", all: "All", step: "Step {i} / {n}", source: "Source" },
+};
