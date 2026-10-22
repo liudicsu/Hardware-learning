@@ -92,12 +92,14 @@ export interface BlockDiagramSpec {
 }
 
 /**
- * A node whose label + sub must match every regular expression in `has` and none in `lacks` (per language when
- * given as L10n), or an edge that must be dashed (or solid).
+ * A node (label + sub), a step (1-based) or the caption whose text must match every regular expression in `has` and
+ * none in `lacks` (per language when given as L10n), or an edge that must be dashed (or solid).
  */
 export type BlockBinding =
-  | { node: string; has?: L10n[]; lacks?: L10n[]; note: string; edge?: undefined }
-  | { edge: string; dashed: boolean; note: string; node?: undefined };
+  | { node: string; has?: L10n[]; lacks?: L10n[]; note: string; edge?: undefined; step?: undefined; caption?: undefined }
+  | { step: number; has?: L10n[]; lacks?: L10n[]; note: string; node?: undefined; edge?: undefined; caption?: undefined }
+  | { caption: true; has?: L10n[]; lacks?: L10n[]; note: string; node?: undefined; edge?: undefined; step?: undefined }
+  | { edge: string; dashed: boolean; note: string; node?: undefined; step?: undefined; caption?: undefined };
 
 /* ---------- circuit (current path) diagrams ---------- */
 
