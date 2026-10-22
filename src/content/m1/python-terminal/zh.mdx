@@ -255,11 +255,12 @@ class Resistor:
 
 
 def series(*rs: Resistor) -> Resistor:
-    """Resistors in series: values add up, tolerances add too."""
+    """Resistors in series: values add up, absolute deviations (ohms x tolerance) add too."""
     if not rs:
         raise ValueError("series() needs at least one resistor")
-    tolerance = sum(r.tolerance for r in rs)
-    return Resistor(ohms=sum(r.ohms for r in rs), tolerance=tolerance)
+    ohms = sum(r.ohms for r in rs)
+    tolerance = sum(r.ohms * r.tolerance for r in rs) / ohms
+    return Resistor(ohms=ohms, tolerance=tolerance)
 
 
 def parallel(*rs: Resistor) -> Resistor:
@@ -279,7 +280,7 @@ if __name__ == "__main__":
     print(f"parallel: {result.ohms:.0f} Ω")
 
     chain = series(Resistor(1_000), Resistor(4_700))
-    print(f"series: {chain.ohms:.0f} Ω")
+    print(f"series: {chain.ohms:.0f} Ω, range {chain.min():.0f}–{chain.max():.0f} Ω")
 ```
 
 运行 `python resistors.py`：
@@ -288,7 +289,7 @@ if __name__ == "__main__":
 Resistor(ohms=2200, tolerance=0.05)
 range: 2090–2310 Ω
 parallel: 5000 Ω
-series: 5700 Ω
+series: 5700 Ω, range 5415–5985 Ω
 ```
 
 第一行是 `@dataclass` 自动生成的 `__repr__`。`Resistor(2_200)` 调用自动生成的初始化方法，`ohms` 是 2200，`tolerance` 取默认 0.05。范围来自 ±5% 的定义：
@@ -300,7 +301,16 @@ max = 2200 Ω × (1 + 0.05) = 2200 Ω × 1.05 = 2310 Ω
 
 金环电阻就是 ±5% 的元件；用万用表实测，读数通常应落在这个窗口里。方法返回数字，所以能用在比较和测试里，而不只是打印给人看。
 
-`*rs` 把任意多个参数收成一个元组。`series` 把阻值相加，也把误差相加——这是保守的极端估计：两个 ±5% 的电阻都偏低时，总阻值可能偏低 10%。`parallel` 用电导相加：
+`*rs` 把任意多个参数收成一个元组。`series` 把阻值相加；误差不能按百分比相加，而应把绝对偏差（阻值 × 误差）相加。串联时两个 −5% 的电阻整体仍然只偏低 5%。以 1 kΩ ±5% 和 4.7 kΩ ±5% 为例：
+
+```text
+1 kΩ ±5%   → 950–1050 Ω
+4.7 kΩ ±5% → 4465–4935 Ω
+串联        → 5415–5985 Ω
+(50 + 235) / 5700 = 0.05 = ±5%
+```
+
+把两个百分比直接相加（10%，5130–6270 Ω）是错误的：相对误差相加适用于乘积和商，不适用于和。`parallel` 用电导相加：
 
 ```text
 1 / Rtotal = 1 / R1 + 1 / R2

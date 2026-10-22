@@ -20,11 +20,12 @@ class Resistor:
 
 
 def series(*rs: Resistor) -> Resistor:
-    """Resistors in series: values add up, tolerances add too."""
+    """Resistors in series: values add up, absolute deviations (ohms x tolerance) add too."""
     if not rs:
         raise ValueError("series() needs at least one resistor")
-    tolerance = sum(r.tolerance for r in rs)
-    return Resistor(ohms=sum(r.ohms for r in rs), tolerance=tolerance)
+    ohms = sum(r.ohms for r in rs)
+    tolerance = sum(r.ohms * r.tolerance for r in rs) / ohms
+    return Resistor(ohms=ohms, tolerance=tolerance)
 
 
 def parallel(*rs: Resistor) -> Resistor:
@@ -44,4 +45,4 @@ if __name__ == "__main__":
     print(f"parallel: {result.ohms:.0f} Ω")
 
     chain = series(Resistor(1_000), Resistor(4_700))
-    print(f"series: {chain.ohms:.0f} Ω")
+    print(f"series: {chain.ohms:.0f} Ω, range {chain.min():.0f}–{chain.max():.0f} Ω")
