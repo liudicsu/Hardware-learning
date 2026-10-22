@@ -118,7 +118,7 @@ Vout = I × Rbottom = 1.667 mA × 2 kΩ = 3.333 V
 check: 5 V × 2 / (1 + 2) = 10 / 3 = 3.333 V
 ```
 
-The current through the divider is only about 1.7 mA, which is harmless. The output is 3.333 V, just under the 3.6 V limit, and 0.86 V above the ESP32-S3's high-level input threshold: the [ESP32-S3 datasheet](https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf) v2.2 (Table 5-4) gives <Term id="logic-thresholds">VIH</Term> = 0.75 × 3.3 V = 2.475 V and VIL = 0.25 × 3.3 V = 0.825 V. This is the same divider arithmetic from Month 1, now with a safety purpose.
+The current through the divider is only about 1.7 mA, which is harmless. The output is 3.333 V, just under the 3.6 V limit, and 0.86 V above the ESP32-S3's high-level input threshold: the [ESP32-S3 datasheet](https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf) v2.2 (Table 5-4) gives <Term id="logic-thresholds">VIH</Term> = 0.75 × 3.3 V = 2.475 V and VIL = 0.25 × 3.3 V = 0.825 V. The 0.86 V margin is a nominal figure: it assumes an ideal 5.000 V signal and VDD = 3.3 V. At VDD = 3.6 V, VIH = 0.75 × 3.6 V = 2.7 V and the margin is 0.63 V. If the Uno's output sits at its datasheet minimum, VOH = 4.2 V at 20 mA, the divider gives 2.8 V and the margin is 0.325 V; at the divider's 1.7 mA the real output is close to 5 V. This is the same divider arithmetic from Month 1, now with a safety purpose.
 
 <Falstad title="Dividing a 5 V signal down for a 3.3 V input" circuit="levelDivider" height={440} />
 
@@ -150,7 +150,7 @@ The S3 is the course's main board, so it gets its own list, taken from the ESP32
 - **Strapping pins GPIO 0, 3, 45 and 46** are sampled at reset to select the boot mode and other start-up options; GPIO 0 is the BOOT button on the DevKitC-1. Keep external pull-ups, pull-downs and loads off them.
 - **GPIO 19 and 20** are USB D− and D+ of the native USB Serial/JTAG interface. Using them as GPIO disconnects the native USB port.
 - **GPIO 43 and 44** are UART0 TX and RX, the port the DevKitC-1's USB-to-UART bridge uses for uploads and the Serial Monitor.
-- **GPIO 26–32** connect to the in-package flash and PSRAM and are not free GPIOs. On modules with octal (8-line) PSRAM, such as the WROOM-1 N8R8 and N16R8, GPIO 35–37 are also connected to the PSRAM and are not available for other uses.
+- **GPIO 26–32** connect to the module's flash and PSRAM and are not free GPIOs (on the WROOM-1 the flash is a separate chip on the module board). On modules with octal (8-line) PSRAM, such as the WROOM-1 N8R8 and N16R8, GPIO 35–37 are also connected to the PSRAM and are not available for other uses.
 - **GPIO 39–42** carry the external JTAG interface; they are ordinary GPIOs when you do not debug with an external JTAG probe.
 - **ADC1 is GPIO 1–10** and ADC2 is GPIO 11–20. ADC2 is shared with the Wi-Fi driver, as on the classic chip, so use ADC1 for analog inputs in a Wi-Fi project.
 
@@ -383,7 +383,7 @@ Before you move on, you should be able to say yes to all of these:
 - ESP32-S3: dual-core Xtensa LX7 at 240 MHz, 512 KB SRAM, Wi-Fi and BLE 5 without Bluetooth Classic, native USB: 15× the Uno's clock and 256× its RAM.
 - Upload: add the board-manager URL, select ESP32S3 Dev Module, enable USB CDC On Boot for `Serial` on the native port, and use BOOT + RESET when the upload cannot connect.
 - The DevKitC-1 has only an addressable RGB LED, on GPIO 38 (v1.1) or GPIO 48 (v1.0), driven with `rgbLedWrite()`.
-- 3.3 V logic, not 5 V tolerant: a 1 kΩ / 2 kΩ divider gives 3.333 V, 0.86 V above VIH = 2.475 V.
+- 3.3 V logic, not 5 V tolerant: a 1 kΩ / 2 kΩ divider gives 3.333 V, nominally 0.86 V above VIH = 2.475 V.
 - ESP32-S3 pins to keep free: strapping 0, 3, 45, 46; USB 19, 20; UART0 43, 44; flash and PSRAM 26–32 (and 35–37 with octal PSRAM); ADC1 is GPIO 1–10.
 - ADC: 12 bits, default `ADC_11db` range about 0–3.1 V; read volts with `analogReadMilliVolts()`.
 - LEDC servo pulse: duty = pulse / period × (2^bits − 1); 1.5 ms at 50 Hz and 14 bits gives 1228.

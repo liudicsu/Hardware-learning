@@ -609,7 +609,7 @@ export const glossary: GlossaryEntry[] = [
       zh: "输出级只能把线拉低、不能主动推高的结构，高电平必须由上拉电阻提供。多个开漏器件共线时不会互相短路，这正是 I2C 能让许多器件共享总线的原因，典型上拉为 4.7–10 kΩ。",
       en: "An output stage that can pull a line low but cannot drive it high, so a pull-up resistor supplies the high level. Several open-drain devices can share a line without contention, which is why I2C supports many devices; typical pull-ups are 4.7–10 kΩ.",
     },
-    lesson: "sensors-fusion",
+    lesson: "motors-drivers",
     firstExplained: true,
   },
   {

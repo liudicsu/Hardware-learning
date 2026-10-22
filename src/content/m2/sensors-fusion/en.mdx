@@ -204,14 +204,14 @@ The time constant tells you how fast the accelerometer can correct the gyro:
   = 0.49 s
 ```
 
-Where the formula comes from: leave the accelerometer term aside for a moment. Each step keeps a fraction α of the previous estimate, so after n steps a fraction αⁿ of an old error remains. The time constant is the time for that fraction to fall to 1/e:
+What the time constant measures: leave the accelerometer term aside for a moment. Each step keeps a fraction α of the previous estimate, so after n steps a fraction αⁿ of an old error remains. The time constant is the time for that fraction to fall to 1/e:
 
 ```text
 αⁿ = e^(−1)  →  n = −1 / ln α = −1 / ln 0.98 = 49.5 steps
 τ = n × dt = 49.5 × 0.01 s = 0.495 s
 ```
 
-For α close to 1, −ln α ≈ 1 − α, so τ ≈ dt / (1 − α) = 0.50 s; α × dt / (1 − α) = 0.49 s is the same approximation, and the three values agree to within about 2 %.
+For α close to 1, −ln α ≈ 1 − α, so τ ≈ dt / (1 − α) = 0.50 s. The formula in the box above, τ = α × dt / (1 − α) = 0.49 s, is not a third approximation of the same decay. It comes from the usual way of choosing α for a desired time constant, α = τ / (τ + dt), which is the form the course's own simulations use (`a = 0.5 / (0.5 + dt_ctrl)` in the balancer model of Your first two robots: line follower & self-balancer); solving that definition for τ gives τ = α × dt / (1 − α). The derivation above gives the exact decay time, 0.495 s, and the boxed formula is the design convention; at α = 0.98 and 100 Hz the three values 0.49 s, 0.495 s and 0.50 s agree to within about 2 %.
 
 At 100 Hz (dt = 0.01 s) and α = 0.98, the correction time constant is about half a second. A larger τ is smoother but slower; a smaller τ is faster but lets more accelerometer noise through.
 

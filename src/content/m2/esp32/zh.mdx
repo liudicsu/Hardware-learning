@@ -118,7 +118,7 @@ Vout = I × R下 = 1.667 mA × 2 kΩ = 3.333 V
 验算: 5 V × 2 / (1 + 2) = 10 / 3 = 3.333 V
 ```
 
-分压器里只流过约 1.7 mA，完全无害；输出为 3.333 V，刚好低于 3.6 V 的上限，并比 ESP32-S3 的高电平输入阈值高 0.86 V：[ESP32-S3 数据手册](https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf) v2.2（表 5-4）给出 <Term id="logic-thresholds">VIH</Term> = 0.75 × 3.3 V = 2.475 V，VIL = 0.25 × 3.3 V = 0.825 V。这就是第一个月学过的分压算术，只是这次它的用途是保护引脚。
+分压器里只流过约 1.7 mA，完全无害；输出为 3.333 V，刚好低于 3.6 V 的上限，并比 ESP32-S3 的高电平输入阈值高 0.86 V：[ESP32-S3 数据手册](https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf) v2.2（表 5-4）给出 <Term id="logic-thresholds">VIH</Term> = 0.75 × 3.3 V = 2.475 V，VIL = 0.25 × 3.3 V = 0.825 V。0.86 V 的余量是个标称值：它假设信号是理想的 5.000 V，且 VDD = 3.3 V。当 VDD = 3.6 V 时，VIH = 0.75 × 3.6 V = 2.7 V，余量为 0.63 V。如果 Uno 的输出处于数据手册的下限，即 20 mA 时 VOH = 4.2 V，分压后得到 2.8 V，余量为 0.325 V；而在分压器 1.7 mA 的负载下，实际输出接近 5 V。这就是第一个月学过的分压算术，只是这次它的用途是保护引脚。
 
 <Falstad title="把 5 V 信号分压到 3.3 V 输入" circuit="levelDivider" height={440} />
 
@@ -150,7 +150,7 @@ S3 是本课程的主力板，因此它单独有一份名单，内容取自 ESP3
 - **启动绑定引脚（strapping pin）GPIO 0、3、45、46** 在复位时被采样，用来选择启动模式和其他启动选项；GPIO 0 是 DevKitC-1 上的 BOOT 按键。不要在这些引脚上外接上拉、下拉或负载。
 - **GPIO 19 和 20** 是原生 USB Serial/JTAG 接口的 USB D− 和 D+。把它们当 GPIO 使用会断开原生 USB 口。
 - **GPIO 43 和 44** 是 UART0 的 TX 和 RX，DevKitC-1 的 USB 转 UART 桥用它进行上传和串口监视。
-- **GPIO 26–32** 连接封装内的 Flash 和 PSRAM，不是可自由使用的 GPIO。在采用八线（octal）PSRAM 的模块上，例如 WROOM-1 N8R8 和 N16R8，GPIO 35–37 也连接到 PSRAM，不能另作他用。
+- **GPIO 26–32** 连接模块上的 Flash 和 PSRAM，不是可自由使用的 GPIO（在 WROOM-1 上，Flash 是模块板上一颗独立的芯片）。在采用八线（octal）PSRAM 的模块上，例如 WROOM-1 N8R8 和 N16R8，GPIO 35–37 也连接到 PSRAM，不能另作他用。
 - **GPIO 39–42** 承载外部 JTAG 接口；不使用外部 JTAG 调试器时，它们就是普通 GPIO。
 - **ADC1 是 GPIO 1–10**，ADC2 是 GPIO 11–20。与经典芯片一样，ADC2 与 Wi-Fi 驱动共用，因此在 Wi-Fi 项目中请用 ADC1 读取模拟输入。
 
@@ -383,7 +383,7 @@ void loop() {
 - ESP32-S3：双核 Xtensa LX7，主频 240 MHz，512 KB SRAM，Wi-Fi 与 BLE 5（无蓝牙经典），原生 USB：时钟是 Uno 的 15 倍，RAM 是 256 倍。
 - 上传：添加开发板管理器网址，选择 ESP32S3 Dev Module，为原生口的 `Serial` 启用 USB CDC On Boot，连接不上时用 BOOT + RESET。
 - DevKitC-1 只有一颗可寻址 RGB LED，位于 GPIO 38（v1.1）或 GPIO 48（v1.0），用 `rgbLedWrite()` 驱动。
-- 3.3 V 逻辑，不耐 5 V：1 kΩ / 2 kΩ 分压得到 3.333 V，比 VIH = 2.475 V 高 0.86 V。
+- 3.3 V 逻辑，不耐 5 V：1 kΩ / 2 kΩ 分压得到 3.333 V，标称比 VIH = 2.475 V 高 0.86 V。
 - ESP32-S3 要留空的引脚：strapping 0、3、45、46；USB 19、20；UART0 43、44；Flash 与 PSRAM 26–32（八线 PSRAM 还有 35–37）；ADC1 是 GPIO 1–10。
 - ADC：12 位，默认 `ADC_11db` 量程约 0–3.1 V；用 `analogReadMilliVolts()` 读电压。
 - LEDC 舵机脉冲：duty = pulse / period × (2^bits − 1)；50 Hz、14 位下 1.5 ms 对应 1228。
