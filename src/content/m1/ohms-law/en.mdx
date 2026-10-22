@@ -18,6 +18,8 @@ Electrical quantities are not directly visible, but they can be defined by measu
 | k (kilo) | 10^3 | 4.7 kΩ = 4700 Ω |
 | M (mega) | 10^6 | 1 MΩ = 1,000,000 Ω |
 
+Ground (GND) is the node the circuit defines as 0 V. Every voltage in this lesson, Vout included, is measured from GND: the meter's black (COM) lead goes on GND, the red lead on the node of interest.
+
 <Term id="current">Current</Term> only flows around a **closed loop**. Break the path and it stops, though <Term id="voltage">voltage</Term> remains across the break; a battery on a table has voltage but no current. We draw **conventional current** leaving the positive terminal and returning to the negative one; electrons drift the other way. Schematics use it too.
 
 These definitions do not depend on a mechanical model: electrons already fill the wire and the field establishes almost instantly, a <Term id="resistance">resistance</Term> converts electrical energy to heat, and voltage can exist with no current. Use the definitions and the equations directly.
@@ -114,6 +116,22 @@ The output probe should read about 1.6 V. Then double-click R2 and change it to 
 
 Dividers are everywhere in robotics. A 12 V battery often feeds an <Term id="adc">ADC</Term> that accepts only 5 V or 3.3 V, so a divider scales it down, and a 5 V sensor signal may need shifting to 3.3 V. A potentiometer is a divider with a moving wiper: its ends sit across the supply, and the wiper voltage reports shaft angle — the basis of many joysticks and position sensors.
 
+**Worked example: battery voltage into an ADC.**
+
+```text
+Uno A0, ADC reference 5 V. A 2S LiPo is 8.4 V when full. R1 = R2 = 10 kΩ:
+Vout = 8.4 × 10 / (10 + 10) = 4.20 V, below 5 V.
+The divider draws 8.4 V / 20 kΩ = 0.42 mA all the time.
+analogRead returns about 4.20 / 5 × 1023 = 859.
+
+ESP32-S3: a 3S LiPo is 12.6 V when full. R1 = 100 kΩ, R2 = 27 kΩ:
+Vout = 12.6 × 27 / 127 = 2.68 V; the divider draws 12.6 V / 127 kΩ = 99 µA.
+```
+
+The Uno ADC formula V = raw × 5 / 1023 is used in Month 2, Arduino I/O. The usable input range of the ESP32-S3 ADC depends on the attenuation setting, so check it in [Espressif's ADC documentation](https://docs.espressif.com/projects/esp-idf/en/stable/esp32s3/api-reference/peripherals/adc_oneshot.html) before choosing R2.
+
+Larger resistors waste less battery current; the next section shows why the ADC input must still not be loaded heavily.
+
 <Quiz id="q6" question="You need ≈3.3 V from a 5 V signal for a 3.3 V microcontroller pin. Which R1 (top) and R2 (bottom) pair?" options={["R1 = 2 kΩ, R2 = 1 kΩ", "R1 = 1 kΩ, R2 = 2 kΩ", "R1 = 10 kΩ, R2 = 10 kΩ"]} answer={1} explanation="Vout = 5 × R2 / (R1 + R2). For R1 = 1 kΩ and R2 = 2 kΩ: 5 × 2 / 3 = 3.33 V. The first pair gives 1.67 V and the third gives 2.5 V." />
 
 ## Loading: a divider is not a power supply
@@ -162,6 +180,7 @@ A divider is a **signal**, not a supply. It cannot deliver current without its o
 - Series resistances add (220 Ω + 330 Ω = 550 Ω) and parallel ones combine as reciprocals (10 kΩ in parallel with 10 kΩ = 5 kΩ).
 - Divider Vout = Vin × R2 / (R1 + R2): 5 V with R1 = 10 kΩ and R2 = 4.7 kΩ gives Vout ≈ 1.6 V.
 - Loading matters: a 10 kΩ load across R2 drops that output to about 1.2 V, a 25 % fall, so keep the load at least 10× R2.
+- Battery into an ADC: 8.4 V with 10 kΩ / 10 kΩ gives 4.20 V and 0.42 mA standing current.
 
 **Common mistakes**
 
