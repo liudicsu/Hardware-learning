@@ -71,7 +71,7 @@ cd month1-tools
 git init
 ```
 
-`git init` prints `Initialized empty Git repository in .../.git/`. The hidden `.git` folder is the entire history; do not edit or delete it. If you run `git init` in your home folder by mistake, delete that `.git` before it swallows everything.
+`git init` prints `Initialized empty Git repository in .../.git/`. The hidden `.git` folder is the entire history; do not edit or delete it. If you run `git init` in your home folder by mistake, delete that `.git` before it tracks your entire home directory.
 
 Create `.gitignore` before the first commit:
 
@@ -214,7 +214,7 @@ git branch -d feature/json-log
 
 `-d` refuses to delete an unmerged branch, which is a useful guard. `-D` forces it.
 
-### What a merge conflict looks like
+### Structure of a merge-conflict marker
 
 A conflict happens when both branches change the same lines, or one deletes a file the other edits. Git stops the merge and marks the file:
 
@@ -233,7 +233,7 @@ git add log.py
 git commit
 ```
 
-`git add` marks the file resolved; `git commit` records the merge, with a message Git pre-fills. If you are in over your head, `git merge --abort` restores the pre-merge state. Small branches merged often produce few conflicts; a branch that lives for weeks touching every file produces a painful one.
+`git add` marks the file resolved; `git commit` records the merge, with a message Git pre-fills. If the merge becomes unmanageable, `git merge --abort` restores the pre-merge state. Small branches merged often produce few conflicts; a branch that lives for weeks touching every file produces many conflicts.
 
 Do the **Introduction Sequence** and **Ramping Up** in Learn Git Branching now:
 
@@ -310,13 +310,13 @@ The first version printed `nan` every few seconds. The INA219 and the LCD share 
 - Print an enclosure so the boards cannot short on the bench.
 ```
 
-The **What broke** paragraph is what makes this engineering rather than a tutorial. A tutorial says "connect A to B, it works". An engineer records the symptom (`nan`), the suspected cause (long wires, no pull-ups, 400 kHz), the changes made, and the remaining limitation. That proves you tested it, understood the failure, and are honest about what is still imperfect; it also answers "tell me about a bug you fixed" better than a prepared speech.
+The **What broke** paragraph is what makes this engineering rather than a tutorial. A tutorial says "connect A to B, it works". An engineer records the symptom (`nan`), the suspected cause (long wires, no pull-ups, 400 kHz), the changes made, and the remaining limitation. That documents your testing, your analysis of the failure, and the remaining limitations; it also answers "tell me about a bug you fixed" better than a prepared answer.
 
-Shoot the photo from above with the wiring visible, compress it well under 1 MB, and commit it as `docs/photo.jpg`. A blurry photo of a closed box teaches nothing.
+Shoot the photo from above with the wiring visible, compress it well under 1 MB, and commit it as `docs/photo.jpg`. A blurry photo of a closed box provides no useful information.
 
 ## Good commit messages
 
-Write for the person reading the log six months from now, usually you. Use the **imperative mood**: complete "If applied, this commit will ___". Git's own messages do this (`Merge branch ...`, `Revert ...`), and the log reads like a list of actions.
+Write for the person who will read the log six months from now, usually you. Use the **imperative mood**: complete "If applied, this commit will ___". Git's own messages do this (`Merge branch ...`, `Revert ...`), and the log reads like a list of actions.
 
 Be specific:
 
@@ -338,9 +338,9 @@ fixed bug
 
 Keep the first line under 50 characters. To explain **why**, leave a blank line and write a body wrapped at about 72 characters; the diff already shows what changed.
 
-Commit small and often, one logical change per commit: a bug fix, a feature, a rename. Commit when the script runs or the test passes, and before a risky refactor. Do not mix formatting with behaviour; the diff becomes unreadable and `git bisect` cannot find the culprit. A hundred small commits beat one 3,000-line commit called `big update`.
+Commit small and often, one logical change per commit: a bug fix, a feature, a rename. Commit when the script runs or the test passes, and before a risky refactor. Do not mix formatting with behaviour; the diff becomes unreadable and `git bisect` cannot identify the commit that introduced the problem. A hundred small commits beat one 3,000-line commit called `big update`.
 
-## Undo cheatsheet
+## Undo reference
 
 Mistakes are normal. The skill is choosing an undo that does not make things worse.
 
@@ -388,5 +388,5 @@ Before moving on, can you answer "yes" to all of these?
 - I pushed the repo and know what `git push -u origin main` does.
 - I created a branch, merged it into `main` and deleted it.
 - I resolved a conflict by hand and know why `git add` comes before `git commit`.
-- My README has a photo, parts list, wiring table, run commands and an honest "what broke" paragraph.
+- My README has a photo, parts list, wiring table, run commands and a factual "what broke" paragraph.
 - I can choose the right undo, and I know why secrets are rotated and videos do not belong in Git.

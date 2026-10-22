@@ -2,7 +2,7 @@ Month 3 left you with a working PID loop on one arm joint. [Review Month 3 PID](
 
 ## Why model the joint
 
-The joint is the same one from Month 3: J = 0.004 kg·m², B = 0.05 N·m per rad/s, and gravity 0.4 N·m × cos(q). Gravity feedforward computes the gravity torque from the measured angle and adds it to the command; when the model is right, it cancels gravity, so the remaining dynamics are linear: torque u drives J q'' + B q'. Transfer functions and Bode plots describe linear plants, and keeping the test steps small is what keeps the real joint close to that linear picture.
+The joint is the same one from Month 3: J = 0.004 kg·m², B = 0.05 N·m per rad/s, and gravity 0.4 N·m × cos(q). Gravity feedforward computes the gravity torque from the measured angle and adds it to the command; when the model is right, it cancels gravity, so the remaining dynamics are linear: torque u drives J q'' + B q'. Transfer functions and Bode plots describe linear plants, and keeping the test steps small is what keeps the real joint inside the range where the linear model holds.
 
 <Formula label="Plant with gravity feedforward: angle per unit torque">G(s) = 1 / (J s² + B s) = 1 / (s (J s + B))</Formula>
 
@@ -168,7 +168,7 @@ Open-loop step: 0.2 N*m from rest, speed logged at 200 Hz
 
 On a real motor, log the same run: apply a small constant torque, keep gravity feedforward on or hold the joint in a fixed pose, record speed at the control rate, and read the final value and the 63 % time. If the final speed implies a different B, or the rise implies a different J, use the measured numbers. A frequency-domain analysis built on an unverified J and B is just arithmetic.
 
-<Callout type="tip" title="Check the model before the margins">A margin from a model that has never been compared with a torque step is a guess. One open-loop step costs a few seconds and catches wrong units, a wrong sign, and a load that is not the one you modelled.</Callout>
+<Callout type="tip" title="Check the model before the margins">A margin from a model that has never been compared with a torque step is a guess. One open-loop step costs a few seconds and catches wrong units, a wrong sign, and a load that does not match the one you modelled.</Callout>
 
 <Quiz id="q3" question="Open loop with u = 0.2 N·m and B = 0.05 N·m per rad/s, what is the ideal final speed u/B?" answer={4} unit="rad/s" explanation="0.2 / 0.05 = 4 rad/s. The log ends at 0.5 s, about six time constants, so it reads 3.99 rad/s, still 0.2 % short; 0.2 / 3.99 still recovers B = 0.050 N·m per rad/s." />
 
@@ -199,7 +199,7 @@ Loop gain, kp = 2.86 N*m/rad, kd = 0.115 N*m/(rad/s)
 
 </SimOutput>
 
-These numbers already include two lags that a continuous C × P sketch leaves out. The controller holds its torque for one period (zero-order hold), and the firmware applies the torque computed from a reading one period late. At 200 Hz each sample is 5 ms. A delay of T seconds costs ω × T radians of phase, more at higher frequency: at the 34.6 rad/s crossover one sample costs 34.6 × 0.005 = 0.17 rad, about 10°, and the hold, which acts like half a sample, about 5° more. That is 15° of margin a delay-free Bode plot would promise but the real loop does not have.
+These numbers already include two lags that a continuous C × P sketch leaves out. The controller holds its torque for one period (zero-order hold), and the firmware applies the torque computed from a reading one period late. At 200 Hz each sample is 5 ms. A delay of T seconds costs ω × T radians of phase, more at higher frequency: at the 34.6 rad/s crossover one sample costs 34.6 × 0.005 = 0.17 rad, about 10°, and the hold, which acts like half a sample, about 5° more. That is 15° of margin a delay-free Bode plot would report but the real loop does not have.
 
 <BodeWidget />
 
@@ -213,7 +213,7 @@ The Michigan tutorial reads gain and phase margins off Bode plots step by step a
 
 Margins are not decoration: they predict how the closed loop will move. With kd = 0, raising kp raises |L| at every frequency, so the gain crossover moves right into a region with more phase lag. PM falls, and overshoot rises.
 
-At kp = 1.0 with P only, the gain margin is 16.6 dB, a gain ratio of 10^(16.6/20) = 6.8. The same margin says the loop should ring at the phase crossover, 40.2 rad/s, and turn unstable near kp = 6.79. The sweep agrees: as kp goes 0.5, 1, 2, 2.86, PM falls 53°, 37°, 22°, 15°, and overshoot rises 15 %, 33 %, 54 %, 66 %. At kp = 6.5, PM is 1°, overshoot is 98 %, and the 39.3 rad/s ringing decays slowly, with the swing falling only from 172.47 to 137.12 mrad between the two windows. At kp = 7.0, PM is −1°, the ringing grows from 236.89 to 285.66 mrad, and its frequency is 40.5 rad/s. Prediction and step response line up.
+At kp = 1.0 with P only, the gain margin is 16.6 dB, a gain ratio of 10^(16.6/20) = 6.8. The same margin predicts that the loop should ring at the phase crossover, 40.2 rad/s, and turn unstable near kp = 6.79. The sweep agrees: as kp goes 0.5, 1, 2, 2.86, PM falls 53°, 37°, 22°, 15°, and overshoot rises 15 %, 33 %, 54 %, 66 %. At kp = 6.5, PM is 1°, overshoot is 98 %, and the 39.3 rad/s ringing decays slowly, with the swing falling only from 172.47 to 137.12 mrad between the two windows. At kp = 7.0, PM is −1°, the ringing grows from 236.89 to 285.66 mrad, and its frequency is 40.5 rad/s. Prediction and step response line up.
 
 <SimOutput source="model">
 
@@ -232,7 +232,7 @@ and turn unstable near kp = 1.0 x 6.79 = 6.79. Check it on 0.1 rad steps:
 
 </SimOutput>
 
-Derivative changes the picture. Month 3's kd = 0.115 N·m/(rad/s), together with kp = 2.86, lifts PM from 15° to 56° and cuts overshoot from 66 % to 2 %. D adds phase lead near the crossover, exactly where the loop needs it. That is the frequency-domain reason D calms the approach: it does not remove steady error, but it buys phase margin.
+Derivative changes those numbers. Month 3's kd = 0.115 N·m/(rad/s), together with kp = 2.86, lifts PM from 15° to 56° and cuts overshoot from 66 % to 2 %. D adds phase lead near the crossover, exactly where the loop needs it. That is the frequency-domain reason D calms the approach: it does not remove steady error, but it raises the phase margin.
 
 <Quiz id="q5" question="A gain margin of 16.6 dB corresponds to how many times more gain?" answer={6.8} unit="times" explanation="Convert decibels to a ratio: 10^(16.6/20) = 6.8. With P only and kp = 1.0, about 6.8 times more gain drives the loop unstable near the phase crossover; the model puts the critical kp at 6.79." />
 
@@ -240,6 +240,6 @@ Derivative changes the picture. Month 3's kd = 0.115 N·m/(rad/s), together with
 
 - **Degrees in a radian model.** Month 3's 0.05 N·m/deg is 2.86 N·m/rad. Using 0.05 in a model that works in radians makes the loop about 57 times too weak, so the margins mean nothing.
 - **Forgetting the hold and the delay.** A continuous C × P Bode plot has no sampling. The real loop holds torque for 5 ms and applies it one sample late; both add phase lag (about 15° at this crossover), so leave them out and your predicted PM is too optimistic.
-- **Reading margins from an unchecked model.** If the open-loop step misses the measured final speed or 63 % time, fix B and J first. Margins from wrong parameters are fiction.
+- **Reading margins from an unchecked model.** If the open-loop step misses the measured final speed or 63 % time, fix B and J first. Margins read from wrong parameters have no basis.
 - **Ignoring saturation.** Linear analysis assumes the commanded torque is actually delivered. If the motor clips, the loop gain is no longer that L; keep test steps small, and sweep gains only where the command stays inside the limit.
 - **Identifying with a different load.** Gravity feedforward cancels the gravity you modelled, not a new payload or a spring. Measure tau and B in the pose and load the joint will run with; a different load changes J and B and moves both margins.

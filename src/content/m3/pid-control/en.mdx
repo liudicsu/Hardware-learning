@@ -1,4 +1,4 @@
-A joint is told to go to 60°. It goes to 55.5° and stops, holding the arm against gravity but never reaching the mark. A balancer is told to stay in one place. It balances perfectly and then rolls slowly across the floor until it hits something. Both failures have the same shape: a controller that reacts to <Term id="error">error</Term> can be stable, smooth, and still wrong.
+A joint is told to go to 60°. It goes to 55.5° and stops, holding the arm against gravity but never reaching the mark. A balancer is told to stay in one place. It balances perfectly and then rolls slowly across the floor until it hits something. Both failures have the same root cause: a controller that reacts to <Term id="error">error</Term> can be stable, smooth, and still wrong.
 
 This lesson is a site supplement. The course covers control theory properly in Month 5, "Control theory, starting with PID", with the MATLAB Tech Talks, step-response logs of P, PD and PID on the balancer, and then LQR. It sits here for two reasons: it finishes the optional speed-loop challenge from Month 2 Lesson 6, and the SO-101 arm in Lesson 5 is a stack of position loops, one per servo. Month 5 will be deeper and more formal; this is the working intuition you need now.
 
@@ -14,7 +14,7 @@ output = Kp × error + Ki × (sum of error × dt) + Kd × (rate of change)
 
 Three terms, three jobs. The <Term id="proportional-term">proportional term</Term> P pushes in proportion to how far off you are: double the error, double the push. The <Term id="integral-term">integral term</Term> I adds up error over time, so a small error that never goes away eventually becomes a large command; it is the term that keeps pushing until a <Term id="steady-state-error">steady error</Term> is gone, for example the gravity load on an arm joint. The <Term id="derivative-term">derivative term</Term> D reacts to how fast the measurement is changing and brakes the approach: when the joint is moving toward the target quickly, D subtracts from the command so it does not sail past.
 
-In plain terms: P is the spring, D is the shock absorber, I is the patient hand that finishes the job. A spring alone bounces and can settle short. A shock absorber alone does nothing at rest. The patient hand is the one that notices the last millimetre and keeps nudging until it is gone.
+In the mass–spring–damper model, P is the spring (force proportional to displacement), D is the damper (force proportional to velocity), and I is a constant bias torque proportional to the accumulated error. A spring alone lets the system oscillate, and it can settle short of the target. A damper alone produces no force at rest. The integral term keeps supplying that bias torque, and the remaining steady error disappears once the accumulated torque matches the load.
 
 Why does P alone leave an error when there is a constant load? Because the controller can only make torque by having an error. If the joint needs 0.227 N·m to hold the arm against gravity, then at rest the motor must produce 0.227 N·m, and a P controller produces Kp × error. Set those equal and solve:
 
@@ -36,7 +36,7 @@ Brett Beauregard's series on improving the beginner's PID is the source of sever
 
 ## One joint, four controllers
 
-The best way to see what the terms do is to run four controllers on the same joint. The model below is one arm joint, like an SO-101 shoulder with a short arm. It starts horizontal at 0° and is asked to lift to 60°. Gravity pulls down with 0.4 N·m × cos(angle), the motor can give at most 1 N·m, there is a little viscous friction, and the controller runs at 200 Hz. The gains are in the model's own units, not PWM values to paste into firmware.
+The best way to see what the terms do is to run four controllers on the same joint. The model below is one arm joint, like an SO-101 shoulder with a short arm. It starts horizontal at 0° and is asked to lift to 60°. Gravity pulls down with 0.4 N·m × cos(angle), the motor can give at most 1 N·m, there is a little viscous friction, and the controller runs at 200 Hz. The gains are in the model's own units, not PWM values to copy into firmware.
 
 <CodeSource path="tools/sim/models/pid_sim.py" />
 
@@ -112,7 +112,7 @@ PID  kp 0.05, ki 0.4, kd 0.002 final  60.0 deg, overshoot  8.9 deg, within 1 deg
 
 </SimOutput>
 
-Read the output one line at a time. P with Kp = 0.05 stops at 55.5°, exactly the 4.5° shortfall calculated above, and overshoots 10.8° on the way: the arm has inertia, so it carries past the target before the spring pulls it back. P with Kp = 0.2 gets closer, 59.0°, because at rest its error is about 1°, where 0.2 × 1.0° = 0.2 N·m nearly matches gravity at 59°: 0.4 × cos 59° = 0.4 × 0.515 = 0.206 N·m. The two are almost equal, so the arm stops there. It never gets inside the 1° band because an error of about 1° is exactly what Kp = 0.2 needs to make 0.2 N·m; the balance point lands just outside that line. Raise Kp further and the final error shrinks, but the overshoot grows: the same spring that pulls harder also stores more energy in the approach.
+Read the output one line at a time. P with Kp = 0.05 stops at 55.5°, exactly the 4.5° shortfall calculated above, and overshoots 10.8° on the way: the arm has inertia, so it carries past the target before the proportional term pulls it back. P with Kp = 0.2 gets closer, 59.0°, because at rest its error is about 1°, where 0.2 × 1.0° = 0.2 N·m nearly matches gravity at 59°: 0.4 × cos 59° = 0.4 × 0.515 = 0.206 N·m. The two are almost equal, so the arm stops there. It never gets inside the 1° band because an error of about 1° is exactly what Kp = 0.2 needs to make 0.2 N·m; the balance point lands just outside that line. Raise Kp further and the final error shrinks, but the overshoot grows: the same proportional term that pushes harder also stores more energy in the approach.
 
 PD adds Kd = 0.002 and removes the overshoot completely (0.0°), but the final angle is still 55.5°. That is the important lesson about D: it acts only while something is moving. Once the arm is still, the rate is zero, D contributes zero, and the steady error is exactly where P left it. D improves the journey; it does not fix the destination.
 
@@ -122,7 +122,7 @@ PI adds Ki = 0.1 and reaches 60.0°, with 11.5° of <Term id="overshoot">oversho
 
 ## Integral windup
 
-The motor limit is where the integral term gets into trouble. At the start the error is 60°, and P alone asks for 0.05 × 60 = 3 N·m. The motor can give 1 N·m, so the output is clipped at 1 N·m: the controller is saturated. If the integral keeps adding error while the output is clipped, it stores a large push that has nowhere to go. In a tenth of a second at 200 Hz the integral gains about 60 × 0.1 = 6 degree-seconds; with Ki = 0.1 that is 0.1 × 6 = 0.6 N·m of command that the motor never delivered, and with Ki = 0.4 it is 0.4 × 6 = 2.4 N·m. When the arm finally arrives, that stored command is still there, so the controller drives past the target and the integral has to unwind before the arm can settle.
+The motor limit is where the integral term gets into trouble. At the start the error is 60°, and P alone asks for 0.05 × 60 = 3 N·m. The motor can give 1 N·m, so the output is clipped at 1 N·m: the controller is saturated. If the integral keeps adding error while the output is clipped, it accumulates a command far larger than the torque the motor ever delivered. In a tenth of a second at 200 Hz the integral gains about 60 × 0.1 = 6 degree-seconds; with Ki = 0.1 that is 0.1 × 6 = 0.6 N·m of command that the motor never delivered, and with Ki = 0.4 it is 0.4 × 6 = 2.4 N·m. When the arm finally arrives, that stored command is still there, so the controller drives past the target and the integral has to unwind before the arm can settle.
 
 The last four lines of the output show the size of the problem. With Ki = 0.1 and anti-windup, the PID overshoots 0.1°; without anti-windup it overshoots 8.8°. With Ki = 0.4, anti-windup gives 8.9° and no anti-windup gives 39.0°. The higher the integral gain, the faster it accumulates and the worse the overshoot.
 
@@ -136,15 +136,15 @@ The fix in the model is one condition: only integrate while the output is not sa
 
 ## Tuning step by step
 
-Tuning is not a search for magic numbers; it is a short procedure with one change at a time. The order matters because each gain depends on the ones before it.
+Tuning is not guesswork; it is a short procedure with one change at a time. The order matters because each gain depends on the ones before it.
 
-1. **Check the sign with a tiny Kp.** Give the joint a small target step and watch which way it moves. If it moves away from the target, flip the sign of the controller output (or swap the motor wires) before doing anything else. A positive-feedback loop will slam into a limit no matter how small the gain.
+1. **Check the sign with a tiny Kp.** Give the joint a small target step and watch which way it moves. If it moves away from the target, flip the sign of the controller output (or swap the motor wires) before doing anything else. A positive-feedback loop drives the output to its limit, whatever the gain.
 2. **Raise Kp until it reaches quickly and starts to oscillate, then back off to about half.** The oscillation point tells you where the loop has more gain than damping; half is a practical starting point, not a law.
 3. **Add Kd to calm the overshoot.** D amplifies sensor noise, because differentiating a noisy signal multiplies the fast wiggle by the frequency. Filter the rate, or use a rate sensor directly: the balancer uses the gyro for exactly this reason, so its D term does not differentiate a noisy angle.
 4. **Add a little Ki to remove the remaining error, with anti-windup from the start.** Take small steps; the integral is the slowest term and the easiest to wind up.
 5. **Change one gain at a time and write every try in a tuning log.** Record the gains, the overshoot, the settling time, and what you saw and heard. Month 2 asked for the same log; it is the only way to know which change helped.
 
-The loop rate must be well above how fast the system moves. A 200 Hz loop gives a correction every 5 ms, which is plenty for a balancer or a small joint. A slow loop adds delay, and delay acts like a destabilising push: by the time the controller reacts, the error has moved on. If you cannot raise the rate, lower the gains; a slow loop with high gains is a machine that oscillates.
+The loop rate must be well above how fast the system moves. A 200 Hz loop gives a correction every 5 ms, which is plenty for a balancer or a small joint. A slow loop adds delay: the command is applied to a state that has already moved on, so the loop loses phase margin and destabilises more easily. If you cannot raise the rate, lower the gains; a slow loop with high gains is a machine that oscillates.
 
 Backlash from Lesson 3 limits how high you can push Kp and Ki when the encoder is after the gears. Inside the gap the motor has no grip on the arm; a high-gain loop crosses the gap, overshoots, reverses and hunts in a small limit cycle. If the joint buzzes or hunts at standstill, backlash is one of the first things to suspect, along with derivative noise. Reducing the gain, adding preload, or moving the encoder are the real fixes; more gain makes it worse.
 

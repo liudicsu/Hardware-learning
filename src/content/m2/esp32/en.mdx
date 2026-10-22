@@ -26,7 +26,7 @@ SRAM:   512 KB / 2 KB   = 256×
 width:  32-bit vs 8-bit
 ```
 
-(The classic ESP32 has slightly more, 520 KB.) Fifteen times the clock does not mean fifteen times faster in real code, because memory accesses, Wi-Fi work and library overhead all take their share. It does mean you can afford floating-point maths, JSON strings and a web server without the board gasping. The RAM figure matters even more: 256 times the working memory is the difference between "I can hold this page in a string" and "I need to stream it in pieces". A 32-bit processor also handles pointers and addresses in one operation, where an 8-bit core needs several.
+(The classic ESP32 has slightly more, 520 KB.) Fifteen times the clock does not mean fifteen times faster in real code, because memory accesses, Wi-Fi work and library overhead all take their share. It does mean you can afford floating-point maths, JSON strings and a web server without running into the performance ceiling. The RAM figure matters even more: 256 times the working memory is the difference between "I can hold this page in a string" and "I need to stream it in pieces". A 32-bit processor also handles pointers and addresses in one operation, where an 8-bit core needs several.
 
 The trade-off is the logic level. The Uno is a 5 V board; the ESP32 is a 3.3 V board, and its pins are not 5 V tolerant. The 3.3 V section below covers what that means at the bench. For now, remember that "more capable" also means "less forgiving".
 
@@ -47,7 +47,7 @@ https://espressif.github.io/arduino-esp32/package_esp32_index.json
 4. Select **ESP32 Dev Module** for a classic board or **ESP32S3 Dev Module** for an S3. If you use a named board such as a XIAO, choose its exact entry instead.
 5. Select the serial port that appeared when you plugged the board in.
 
-The S3 has a detail that catches almost everyone. Many S3 boards have two USB sockets: one connected to the chip's native USB peripheral and one connected to a separate USB-to-serial chip. If you use the native USB port, open **Tools** and set **USB CDC On Boot: Enabled**. Without it the sketch runs but `Serial` output goes nowhere, and you conclude the upload failed when it did not. If your board has only one port, still check the setting; some boards ship with it disabled.
+The S3 has a detail that is easy to miss. Many S3 boards have two USB sockets: one connected to the chip's native USB peripheral and one connected to a separate USB-to-serial chip. If you use the native USB port, open **Tools** and set **USB CDC On Boot: Enabled**. Without it the sketch runs but `Serial` output goes nowhere, and you conclude the upload failed when it did not. If your board has only one port, still check the setting; some boards ship with it disabled.
 
 Upload failures are usually connection failures, not code failures. The reliable recovery is manual: hold the **BOOT** button, tap **RESET** (sometimes labelled **EN**), release **BOOT**, then press Upload again. That puts the chip into its download mode. Also try the board's other USB socket and a different cable. A charge-only cable has no data wires, and it will power the board and fail every upload, which looks exactly like a broken board.
 
@@ -98,7 +98,7 @@ Two things in this sketch do not exist on the Uno. `Serial.printf()` is a format
 
 Open the serial monitor at **115200 baud** after the upload. You should see two lines in words: one beginning `Chip:` with the model name, revision, number of cores and clock, and one beginning `Flash:` with the flash size in bytes. The exact values depend on your board, so read them rather than expecting a fixed string. The external LED (and, on the S3, the RGB LED in dim green) should blink for 200 ms on and 800 ms off. These sketches were compiled for both the classic ESP32 and the S3 but were not run on hardware here, so no captured output is shown; your board supplies the real numbers.
 
-The LED is the part most likely to disappoint you. On many classic DevKit boards the on-board LED is a plain LED on GPIO 2, but the ESP32-S3-DevKitC-1 has no plain on-board LED: it has only an addressable RGB LED. `digitalWrite` cannot drive it; it needs a timed serial data stream, which `rgbLedWrite(pin, r, g, b)` sends. Both the initial v1.0 and v1.1 versions of this board are on the market, and they differ in the RGB LED pin: v1.1 uses GPIO 38 while the initial v1.0 uses GPIO 48 ([v1.1 user guide](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide_v1.1.html#hardware-revision-details) and [v1.0 user guide](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide_v1.0.html)). The sketch therefore names `RGB_PIN = 38` explicitly instead of using `RGB_BUILTIN`: in arduino-esp32 3.3.12 the macro is defined from `PIN_RGB_LED` as 48, the v1.0 pin, so on a v1.1 board `RGB_BUILTIN` does not reach the LED ([pins_arduino.h](https://github.com/espressif/arduino-esp32/blob/3.3.12/variants/esp32s3/pins_arduino.h)). If your RGB LED stays dark, set `RGB_PIN` to 48. The `#if CONFIG_IDF_TARGET_ESP32S3` lines keep the RGB code out of builds for the classic ESP32. If nothing blinks, the serial report still proves that the upload worked and the chip is running; the LED is a wiring detail, not a verdict on your toolchain.
+The LED is the part most likely to disappoint you. On many classic DevKit boards the on-board LED is a plain LED on GPIO 2, but the ESP32-S3-DevKitC-1 has no plain on-board LED: it has only an addressable RGB LED. `digitalWrite` cannot drive it; it needs a timed serial data stream, which `rgbLedWrite(pin, r, g, b)` sends. Both the initial v1.0 and v1.1 versions of this board are on the market, and they differ in the RGB LED pin: v1.1 uses GPIO 38 while the initial v1.0 uses GPIO 48 ([v1.1 user guide](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide_v1.1.html#hardware-revision-details) and [v1.0 user guide](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide_v1.0.html)). The sketch therefore names `RGB_PIN = 38` explicitly instead of using `RGB_BUILTIN`: in arduino-esp32 3.3.12 the macro is defined from `PIN_RGB_LED` as 48, the v1.0 pin, so on a v1.1 board `RGB_BUILTIN` does not reach the LED ([pins_arduino.h](https://github.com/espressif/arduino-esp32/blob/3.3.12/variants/esp32s3/pins_arduino.h)). If your RGB LED stays dark, set `RGB_PIN` to 48. The `#if CONFIG_IDF_TARGET_ESP32S3` lines keep the RGB code out of builds for the classic ESP32. If nothing blinks, the serial report still proves that the upload worked and the chip is running; the LED is a wiring detail, not evidence of a failed upload.
 
 <Callout type="tip" title="Try before the board arrives">
 Wokwi also simulates the ESP32, including the serial monitor and an on-screen LED. You can run this sketch in the browser while your board is still in the post, and you will already know the upload steps when it arrives.
@@ -136,7 +136,7 @@ Current is the other half of the 3.3 V story. Keep a GPIO well below the Uno's l
 
 ### Pins to avoid on a classic ESP32
 
-Most GPIOs are yours to use, but a handful are reserved or have surprising behaviour. Learn this list before you wire anything, because the failures look like software bugs.
+Most GPIOs are available for general use, but a few are reserved or behave in surprising ways. Learn this list before you wire anything, because the failures look like software bugs.
 
 - **GPIO 6–11** are wired to the flash chip. Never use them. On many modules they are not even brought out to the header.
 - **GPIO 34–39** are input-only. They have no output drivers and no internal pull-ups, so `INPUT_PULLUP` does nothing useful on them. They are, however, part of ADC1, which makes them valuable for analog sensors in Wi-Fi projects.
@@ -177,7 +177,7 @@ Once you leave the Uno, you will meet three ways to program the same chip. They 
 
 The important idea is that these are a spectrum, not a fork. The Arduino core for ESP32 is built on top of ESP-IDF and FreeRTOS. When you write `setup()` and `loop()`, the core creates a FreeRTOS task for you and calls them from it. On a classic ESP32 that task normally runs on one core while the Wi-Fi stack mostly runs on the other, which is why networking does not automatically stall your control code. You can call ESP-IDF functions from an Arduino sketch, create your own tasks with `xTaskCreatePinnedToCore()`, and mix the two styles in one project.
 
-That layering is why the course starts with Arduino. You get the fast path now, and the lower layers remain available when you need them. If you later find yourself fighting the Arduino API for timer control or task priorities, the move to ESP-IDF is a step down the stack, not a restart.
+That layering is why the course starts with Arduino. You get the fast path now, and the lower layers remain available when you need them. If you later need finer timer control or task priorities than the Arduino API exposes, the move to ESP-IDF is a step down the stack, not a restart.
 
 <Resource id="arduino-esp32" />
 
@@ -213,7 +213,7 @@ angle 180 -> duty 1638
 
 Notice that the values are not perfectly evenly spaced: 819, 1023, 1228, 1433, 1638. The steps are 204, 205, 205, 205. That is normal. The conversion divides integers and throws away the remainder at each stage, so a half-count here and there disappears. At 14 bits one duty step is 20 ms / 16384 ≈ 1.22 µs, which is far finer than a hobby servo can resolve, so the truncation does not matter in practice.
 
-Power is where servos punish beginners. A small servo draws hundreds of milliamps while moving and around 1 A or more when stalled. The dev board's 3.3 V regulator cannot supply that, and trying will cause brownout resets or damage. Power the servo from a separate 5–6 V supply, connect its ground to the ESP32's ground, and feed only the signal wire from the GPIO. The 3.3 V signal is usually accepted by a 5 V servo as a logic high, but check the datasheet if the servo is an unusual one.
+Powering the servo is where beginners most often make mistakes. A small servo draws hundreds of milliamps while moving and around 1 A or more when stalled. The dev board's 3.3 V regulator cannot supply that, and trying will cause brownout resets or damage. Power the servo from a separate 5–6 V supply, connect its ground to the ESP32's ground, and feed only the signal wire from the GPIO. The 3.3 V signal is usually accepted by a 5 V servo as a logic high, but check the datasheet if the servo is an unusual one.
 
 <Quiz id="q6" question="50 Hz, 14-bit LEDC: what duty value (integer, rounded down) gives a 2.0 ms pulse?" answer={1638} explanation="duty = 2.0 / 20 × 16383 = 0.1 × 16383 = 1638.3, rounded down to 1638." />
 
@@ -328,7 +328,7 @@ Three routes are registered. `/` returns the HTML page stored in `PAGE`. `/readi
 
 `loop()` contains one line: `server.handleClient()`. It checks for a waiting request, answers it and returns immediately. That non-blocking design is why you can add your own sensor reading and control code later using the `millis()` pattern from the timing lesson. The web server does not own the CPU; it just gets a slice of every loop.
 
-`constrain(angle, 0, 180)` is a small but important guard. A malformed request, a phone autocomplete or a curious friend could send `angle=900`. Without the clamp, the pulse width would go far beyond the servo's mechanical range and the servo would grind against its stop. With it, the worst case is simply 180°.
+`constrain(angle, 0, 180)` is a small but important guard. A malformed request, for example a value produced by a phone autocomplete, could send `angle=900`. Without the clamp, the pulse width would go far beyond the servo's mechanical range and the servo would grind against its stop. With it, the worst case is simply 180°.
 
 One network detail catches people: **ESP32 Wi-Fi is 2.4 GHz only**. If your phone is on a 5 GHz-only network, the board will never appear, no matter how correct the password is. Most home routers publish both bands under one name and choose for you; if yours has separate names, join the 2.4 GHz one on your phone while testing.
 
@@ -345,9 +345,9 @@ Extensions to try once the basic version works:
 
 ## Common mistakes and a checklist
 
-The failures below account for most of the help questions about this lesson. Read them before you debug at midnight.
+The failures below account for most of the help questions about this lesson. Read them before you start debugging.
 
-- Feeding 5 V into a GPIO. It may work for a while and then kill the pin; use a divider or a level shifter.
+- Feeding 5 V into a GPIO. It may work for a while and then damage or destroy the pin; use a divider or a level shifter.
 - Using GPIO 6–11, or loading a strapping pin, and then wondering why the board will not boot. A sensor pull-up on GPIO 12 is the classic version.
 - Reading an analog sensor on ADC2 while Wi-Fi is on. The reading is invalid; move the sensor to ADC1.
 - Powering a servo or motor from the board's 3.3 V regulator. The rail collapses, the board resets, and the serial monitor shows `Brownout detector was triggered`.

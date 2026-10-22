@@ -6,7 +6,7 @@ There is no perfect choice, and the differences matter less than the internet su
 
 | Tool | Cost | Pick it if | The catch |
 | --- | --- | --- | --- |
-| Onshape Free | Free, in the browser | You are happy designing in public; it runs on any machine, including a Chromebook, and its assemblies and mates behave like real robot joints | Every document on the free plan is public |
+| Onshape Free | Free, in the browser | You are happy designing in public; it runs on any machine, including a Chromebook, and its mates map directly onto fixed, revolute and slider joints | Every document on the free plan is public |
 | Fusion for personal use | Free for personal, non-commercial use under $1,000/year revenue | You want CAM and 3D-printing integration later | Limited import/export file types; 1-year licence term, renewable (per Autodesk's official page); check the official site when you sign up |
 | FreeCAD | Free, open source | Cloud CAD or card payment is a problem, or you object to a licence that can be revoked; version 1.1 (March 2026) made it genuinely usable | Steeper learning curve, fewer polished tutorials |
 | SOLIDWORKS for Makers | $48/year | You want the industry-standard tool | Native files are watermarked and will not open in commercial SOLIDWORKS |
@@ -29,7 +29,7 @@ Parametric CAD is a loop. You draw a 2D sketch, turn it into a feature — extru
 
 A sketch has <Term id="degrees-of-freedom">degrees of freedom</Term> (DOF). A free point in 2D has two, x and y. A line has more because both ends can move. Constraints remove DOF: horizontal, vertical, coincident, equal, tangent, fixed. Dimensions also remove DOF, because they fix a distance or an angle. A sketch is fully constrained when zero DOF remain. Most tools show this by colour — lines turn black in Onshape, FreeCAD and Fusion — or by a counter that drops to zero.
 
-Why make such a fuss? Because an under-constrained sketch will move when you edit something later and ruin your day. You change a hole position, and a line you never dimensioned slides sideways, turning a bracket into a scrap part. The constraint display is not decoration; it is the difference between a model you can edit and a model that edits itself.
+Why make such a fuss? Because an under-constrained sketch will move on its own when you edit something later: you change a hole position, and a line you never dimensioned slides sideways, changing the size of the bracket. The constraint display is not decoration; it is the difference between a model you can edit and a model that edits itself.
 
 ### From zero to fully constrained
 
@@ -48,13 +48,13 @@ The origin coincidence is worth two because it fixes both x and y. The width and
 
 A circle has 3 DOF: centre x, centre y and radius. Placing a screw hole therefore needs 2 position dimensions plus 1 diameter. If the hole sits on a centre line, a symmetry constraint can replace one position dimension, but the counting idea is the same. This is also why a hole that “looks right” is not done: without the diameter and two positions, it can still move or resize.
 
-Practical habits, learned the hard way:
+Practical habits that pay off:
 
 - Dimension from a <Term id="datum">datum</Term> — the origin, a centre line, one reference edge — rather than chaining dimensions edge to edge. Chained dimensions accumulate errors, and an edit ripples through every link.
 - Use symmetry constraints about a centre line for parts like a servo bracket. One dimension then controls both sides, and the part stays symmetric when you change it.
 - Never “eyeball” a line to look horizontal. Constrain it. A line that is 0.2° off looks fine on screen and makes a bracket that sits crooked.
 
-Over-constrained is the opposite failure: two constraints fight each other, the tool shows red or refuses the constraint, and nothing you do makes it happy. The fix is to delete one constraint, not to nudge the numbers until the warning disappears. A model with contradictory dimensions is not more precise; it is just broken in a way that is harder to see.
+Over-constrained is the opposite failure: two constraints impose contradictory requirements on the same degree of freedom, so the tool shows red or refuses the constraint. The fix is to delete one constraint, not to nudge the numbers until the warning disappears. A model with contradictory dimensions is not more precise; it is just broken in a way that is harder to see.
 
 <Quiz id="q1" question="A sketch has a circle that is not yet constrained at all, plus a fully constrained rectangle. How many DOF are left?" answer={3} unit="DOF" explanation="A free circle has centre x, centre y and radius: 3 DOF. The rectangle contributes 0 because it is fully constrained, so 3 + 0 = 3." />
 
@@ -228,7 +228,7 @@ STL is a mesh of triangles only. It has no units and no exact circles: a 2 mm ho
 
 3MF is also a mesh, but it carries units, colours, multiple parts and print settings in one file. It is increasingly the better slicer format, especially when a print has several bodies or a specific orientation. It is still an output format, not a substitute for the CAD model.
 
-The rule: keep the CAD file, and export STEP, as the master. STL and 3MF are throw-away outputs that you regenerate whenever the design changes. If you only keep the STL, you have kept the photocopy and thrown away the document.
+The rule: keep the CAD file, and export STEP, as the master. STL and 3MF are throw-away outputs that you regenerate whenever the design changes. If you only keep the STL, you have thrown away the parametric source and are left with a mesh you cannot trace back to its dimensions.
 
 Hole facets matter before you slice. OpenSCAD's `$fn` sets how many sides a circle gets; the bracket uses `$fn = 32`. That is enough for an M2 or M3 screw hole at this scale, but a press fit or a bearing seat may want more. More facets make a smoother circle and a larger file; too few make a hole that a screw can feel. Check the mesh before slicing.
 

@@ -1,4 +1,4 @@
-[第 3 个月的 SO-101 机械臂](/zh/month/month-3/so101-arm)有六个电机（五个关节加一个夹爪），但到目前为止每个控制器一次只动一个关节。要把夹爪（gripper）放到空间中的某个位置，需要关节角到夹爪位置的映射。本课为这种 SO-101 布局的前三个关节建立这个映射：底座偏航（base yaw）q0、肩（shoulder）q1 和肘（elbow）q2。模型采用整数化的连杆长度 H = 0.05 m、L1 = 0.12 m、L2 = 0.14 m，关节布局与前三个关节相同，但不是 SO-101 的真实尺寸。
+[第 3 个月的 SO-101 机械臂](/zh/month/month-3/so101-arm)有六个电机（五个关节加一个夹爪），但到目前为止每个控制器一次只动一个关节。要把夹爪（gripper）放到空间中的某个位置，需要关节角到夹爪位置的映射。本课为这种 SO-101 布局的前三个关节建立这个映射：底座偏航（base yaw）q0、肩（shoulder）q1 和肘（elbow）q2。模型采用 SO-101 真实的轴间距离，取自该机械臂的 URDF（[TheRobotStudio/SO-ARM100 @ a758567, `Simulation/SO101/so101_new_calib.urdf`](https://github.com/TheRobotStudio/SO-ARM100/blob/a758567c3978dfeefe282ede0500085a48fe8f78/Simulation/SO101/so101_new_calib.urdf#L374-L435)）：上臂 L1 = √(0.11257² + 0.028²) = 0.1160 m，是 `shoulder_lift` 轴到 `elbow_flex` 轴的距离（`elbow_flex` 关节原点，第 395 行）；前臂 L2 = √(0.1349² + 0.0052²) = 0.1350 m，是 `elbow_flex` 到 `wrist_flex`（第 374 行）；肩轴高 H = 0.0624 + 0.0542 = 0.1166 m，在 `base_link` 之上（`shoulder_pan` 与 `shoulder_lift` 的原点，第 435 和 415 行）。末端取 `wrist_flex` 轴。为了让几何保持在一个平面内，真实机械臂的三个细节被略去：肩轴比底座轴靠前 30.4 mm、偏侧 18.3 mm；上臂有 atan(0.028 / 0.11257) = 14.0° 的弯折；关节零位也与本模型不同（本模型 q1 = q2 = 0 表示臂水平伸直）。
 
 ## 正运动学
 
@@ -14,34 +14,40 @@
 
 ```text
 Forward kinematics, q = [30, 45, -60] deg
-  by hand: reach r = 0.2201 m, height z = 0.0986 m, x = r cos 30 = 0.1906, y = r sin 30 = 0.1100
-  transforms: tip = (0.1906, 0.1100, 0.0986) m
+  by hand: reach r = 0.2124 m, height z = 0.1637 m, x = r cos 30 = 0.1840, y = r sin 30 = 0.1062
+  transforms: tip = (0.1840, 0.1062, 0.1637) m
 ```
 
 </SimOutput>
 
-手算核对：r = 0.12 × 0.7071 + 0.14 × 0.9659 = 0.08485 + 0.13523 = 0.2201 m，z = 0.05 + 0.12 × 0.7071 + 0.14 × (-0.2588) = 0.05 + 0.08485 - 0.03623 = 0.0986 m。底座再把这个点转起来：x = 0.2201 × 0.8660 = 0.1906 m，y = 0.2201 × 0.5 = 0.1100 m。变换连乘给出同样的 (0.1906, 0.1100, 0.0986) m。
+手算核对：r = 0.1160 × 0.7071 + 0.1350 × 0.9659 = 0.08202 + 0.13040 = 0.2124 m，z = 0.1166 + 0.1160 × 0.7071 + 0.1350 × (-0.2588) = 0.1166 + 0.08202 - 0.03494 = 0.1637 m。底座再把这个点转起来：x = 0.2124 × 0.8660 = 0.1840 m，y = 0.2124 × 0.5 = 0.1062 m。变换连乘给出同样的 (0.1840, 0.1062, 0.1637) m。
 
-<Quiz id="q1" question="q1 = 0、q2 = 0 时，末端离底座的竖直轴多远？" answer={0.26} unit="m" explanation="r = L1 cos 0 + L2 cos 0 = 0.12 + 0.14 = 0.26 m。机械臂完全伸直，这就是它最大的水平可达距离（reach）。" />
+<Quiz id="q1" question="q1 = 0、q2 = 0 时，末端离底座的竖直轴多远？" answer={0.251} unit="m" explanation="r = L1 cos 0 + L2 cos 0 = 0.1160 + 0.1350 = 0.251 m。机械臂完全伸直，这就是它最大的水平可达距离（reach）。" />
 
 在求导之前，再看一个构型。取 `q = [0, 90, -90]` deg：上臂竖直向上，前臂水平向外。
 
-<Quiz id="q2" question="q = [0, 90, -90] deg 时 r 是多少？" answer={0.14} unit="m" explanation="r = 0.12 cos 90 + 0.14 cos 0 = 0 + 0.14 = 0.14 m。同一构型的 z = 0.05 + 0.12 sin 90 + 0.14 sin 0 = 0.17 m，所以末端向外 0.14 m、向上 0.17 m。" />
+<Quiz id="q2" question="q = [0, 90, -90] deg 时 r 是多少？" answer={0.135} unit="m" explanation="r = 0.1160 cos 90 + 0.1350 cos 0 = 0 + 0.1350 = 0.135 m。同一构型的 z = 0.1166 + 0.1160 sin 90 + 0.1350 sin 0 = 0.2326 m，所以末端向外 0.135 m、向上 0.233 m。" />
 
 <CodeSource path="tools/sim/models/kinematics.py" />
 
 ```python
 """kinematics.py: forward kinematics, numerical inverse kinematics and singularities.
 
-A three-joint arm laid out like the first three joints of an SO-101 (base yaw q0 about the
-vertical axis, then a shoulder q1 and an elbow q2 that both pitch in the arm's vertical
-plane), with round-number link lengths rather than the SO-101's real ones. Upper arm L1 = 0.12 m, forearm L2 = 0.14 m,
-shoulder H = 0.05 m above the base. Angles in radians, q1 = q2 = 0 means the arm points
-straight out horizontally. Standard library only.
+A three-joint arm with the first three joints of an SO-101 (base yaw q0 = shoulder_pan about the
+vertical axis, then a shoulder q1 = shoulder_lift and an elbow q2 = elbow_flex that both pitch in the
+arm's vertical plane), with the SO-101's axis-to-axis distances from the SO-ARM100 URDF
+(TheRobotStudio/SO-ARM100 @ a758567, Simulation/SO101/so101_new_calib.urdf):
+  L1 = |(-0.11257, -0.028)|  = 0.1160 m, shoulder_lift -> elbow_flex (elbow_flex origin, line 395)
+  L2 = |(-0.1349, 0.0052)|   = 0.1350 m, elbow_flex -> wrist_flex (wrist_flex origin, line 374)
+  H  = 0.0624 + 0.0542       = 0.1166 m, base_link origin -> shoulder_lift axis (lines 435 and 415)
+The tip is the wrist_flex axis. Left out: the shoulder axis sits 30.4 mm forward of and 18.3 mm beside
+the base axis, the upper arm is bent by atan(0.028 / 0.11257) = 14.0 deg, and the joint zeros differ
+from the real arm's. Angles in radians, q1 = q2 = 0 means the arm points straight out horizontally.
+Standard library only.
 """
 import math
 
-H, L1, L2 = 0.05, 0.12, 0.14
+H, L1, L2 = 0.1166, 0.1160, 0.1350
 
 
 def rot_z(a):
@@ -204,52 +210,53 @@ J 也把关节速度换成末端速度：v = J q'。接近奇异点（singularit
 
 ```text
 Numerical IK to (0.10, 0.15, 0.12) m from q = [0, 30, -30] deg
-  iter  0  q = [   0.00,   30.00,  -30.00] deg  error  208.120 mm
-  iter  1  q = [   3.34,   36.77,  -40.90] deg  error  192.262 mm
-  iter  2  q = [   6.92,   43.11,  -50.92] deg  error  175.094 mm
-  iter  3  q = [  10.81,   48.78,  -59.63] deg  error  157.206 mm
-  iter  4  q = [  15.05,   53.79,  -67.04] deg  error  138.903 mm
-  iter  5  q = [  19.69,   58.15,  -73.24] deg  error  120.331 mm
-  iter  6  q = [  24.73,   61.87,  -78.30] deg  error  101.562 mm
-  iter  7  q = [  30.18,   64.91,  -82.24] deg  error   82.629 mm
-  iter  8  q = [  35.99,   67.19,  -85.05] deg  error   63.547 mm
-  iter  9  q = [  42.10,   68.64,  -86.66] deg  error   44.326 mm
-  iter 10  q = [  48.39,   69.12,  -87.00] deg  error   24.988 mm
-  iter 11  q = [  54.68,   68.41,  -85.79] deg  error    5.690 mm
-  iter 12  q = [  56.29,   67.48,  -84.47] deg  error    0.431 mm
-  iter 13  q = [  56.31,   67.32,  -84.23] deg  error    0.061 mm
-  iter 14  q = [  56.31,   67.30,  -84.20] deg  error    0.009 mm
+  iter  0  q = [   0.00,   30.00,  -30.00] deg  error  209.357 mm
+  iter  1  q = [   3.43,   35.78,  -41.71] deg  error  193.678 mm
+  iter  2  q = [   7.09,   41.02,  -52.52] deg  error  176.486 mm
+  iter  3  q = [  11.05,   45.44,  -61.93] deg  error  158.492 mm
+  iter  4  q = [  15.35,   49.03,  -69.95] deg  error  140.055 mm
+  iter  5  q = [  20.03,   51.82,  -76.70] deg  error  121.343 mm
+  iter  6  q = [  25.10,   53.83,  -82.23] deg  error  102.441 mm
+  iter  7  q = [  30.54,   55.04,  -86.56] deg  error   83.393 mm
+  iter  8  q = [  36.32,   55.43,  -89.67] deg  error   64.220 mm
+  iter  9  q = [  42.34,   54.96,  -91.47] deg  error   44.942 mm
+  iter 10  q = [  48.50,   53.58,  -91.83] deg  error   25.589 mm
+  iter 11  q = [  54.59,   51.18,  -90.46] deg  error    6.350 mm
+  iter 12  q = [  56.29,   49.77,  -88.84] deg  error    0.551 mm
+  iter 13  q = [  56.31,   49.57,  -88.53] deg  error    0.078 mm
+  iter 14  q = [  56.31,   49.54,  -88.49] deg  error    0.011 mm
+  iter 15  q = [  56.31,   49.54,  -88.48] deg  error    0.002 mm
 ```
 
 </SimOutput>
 
-误差从 208.120 mm 降到 0.009 mm，用了 14 次迭代。误差大于 2 cm 时，每一步都被限幅，误差每次大约减少 16 到 20 mm；进入 2 cm 以内后，完整的一步就能落到位，最后几次迭代只是打磨。脚本随后用正运动学检查答案，而不是直接相信关节角：
+误差从 209.357 mm 降到 0.002 mm，用了 15 次迭代。误差大于 2 cm 时，每一步都被限幅，误差每次大约减少 16 到 19 mm；进入 2 cm 以内后，完整的一步就能落到位，最后几次迭代只把残差收敛下去。脚本随后用正运动学检查答案，而不是直接相信关节角：
 
 <SimOutput source="model">
 
 ```text
   check with FK: (0.1000, 0.1500, 0.1200) m
-  from q = [0, 90, 60] deg instead: q = [-123.69, 112.71, 84.20] deg after 20 iterations (base turned round, reaching back over the top)
+  from q = [0, 90, 60] deg instead: q = [-123.69, 130.46, 88.48] deg after 22 iterations (base turned round, reaching back over the top)
 ```
 
 </SimOutput>
 
-FK 正好回到目标，所以解是有效的。第二次从 q = [0, 90, 60] deg 出发，得到另一个有效解：底座 -123.69 deg、肩 112.71 deg、肘 84.20 deg。底座相对第一个解的 56.31 deg 转了 180 deg，机械臂从另一侧、越过顶部去够同一个点。IK 有多个解，起点决定落在哪个分支上。
+FK 正好回到目标，所以解是有效的。第二次从 q = [0, 90, 60] deg 出发，得到另一个有效解：底座 -123.69 deg、肩 130.46 deg、肘 88.48 deg。底座相对第一个解的 56.31 deg 转了 180 deg，机械臂从另一侧、越过顶部去够同一个点。IK 有多个解，起点决定落在哪个分支上。本模型没有关节限位，所以这里两个都算解；在真实的 SO-101 上第二个解不被允许，因为 URDF 中 `shoulder_lift` 的限位是 ±1.74533 rad（±100 deg），带关节限位的求解器会拒绝它。
 
-够不到的目标也能平稳处理。目标 (0.20, 0.20, 0.10) m 离肩 0.287 m，而 L1 + L2 = 0.26 m。求解器到不了，就把臂伸直（肘 0.00 deg）然后停下：
+够不到的目标也能收敛到最近的可达位置。目标 (0.20, 0.20, 0.10) m 离肩 0.283 m，而 L1 + L2 = 0.251 m（脚本四舍五入打印为 0.25）。求解器到不了，就把臂伸直（肘 0.00 deg）然后停下：
 
 <SimOutput source="model">
 
 ```text
-  to (0.20, 0.20, 0.10) m, 0.287 m from the shoulder but L1 + L2 = 0.26 m: stops 27.2 mm short, elbow 0.00 deg
-  same with lambda = 0.01: after 200 iterations still 37.1 mm short, elbow -2.34 deg (it never settles)
+  to (0.20, 0.20, 0.10) m, 0.283 m from the shoulder but L1 + L2 = 0.25 m: stops 32.3 mm short, elbow 0.00 deg
+  same with lambda = 0.01: after 200 iterations still 32.8 mm short, elbow 40.03 deg (it never settles)
 ```
 
 </SimOutput>
 
-差 0.027 m，正好是 0.287 - 0.26。把阻尼降到 λ = 0.01 反而更糟：在伸直这个奇异构型附近步长变大，关节角来回抖，200 次迭代后仍差 37.1 mm，肘停在 -2.34 deg。正是足够的阻尼，让求解器能停在离目标最近的可达点；阻尼太小，它就永远停不下来。
+差 0.032 m，正好是 0.283 - 0.251。把阻尼降到 λ = 0.01 反而更糟：在伸直这个奇异构型附近步长变大，关节角出现振荡，200 次迭代后仍差 32.8 mm，肘停在 40.03 deg。正是足够的阻尼，让求解器能停在离目标最近的可达点；阻尼太小，它就永远停不下来。
 
-<Quiz id="q3" question="目标离肩 0.287 m，两段连杆加起来 0.26 m。完全伸直的机械臂还差多少？" answer={0.027} unit="m" explanation="0.287 - 0.26 = 0.027 m。这是末端沿肩到目标方向能到的最近位置。" />
+<Quiz id="q3" question="目标离肩 0.283 m，两段连杆加起来 0.251 m。完全伸直的机械臂还差多少？" answer={0.032} unit="m" explanation="0.283 - 0.251 = 0.032 m。这是末端沿肩到目标方向能到的最近位置。" />
 
 ## 奇异点
 
@@ -261,36 +268,36 @@ FK 正好回到目标，所以解是有效的。第二次从 q = [0, 90, 60] deg
 Singularity: the elbow straightening, shoulder at 20 deg, base at 0
   elbow (deg)  det J (m^3)  joint speed for 0.05 m/s straight out (deg/s)
                             exact inverse        damped, lambda = 0.03
-       -60.0     3.20e-03                43.3                    34.1
-       -30.0     2.11e-03                85.5                    41.8
-       -10.0     7.31e-04               246.1                    23.3
-        -3.0     2.17e-04               803.6                     6.9
-        -1.0     7.19e-05              2395.2                     4.2
-        -0.3     2.15e-05              7965.0                     3.3
+       -60.0     2.88e-03                44.9                    34.8
+       -30.0     1.89e-03                88.5                    41.7
+       -10.0     6.58e-04               254.9                    22.6
+        -3.0     1.95e-04               832.3                     6.8
+        -1.0     6.47e-05              2480.6                     4.3
+        -0.3     1.94e-05              8249.1                     3.4
   formula: |det J| = L1 x L2 x r x |sin(elbow)|, r = the tip's horizontal reach
 ```
 
 </SimOutput>
 
-前两列是肘角和 det J。后两列是让末端沿径向向外以 0.05 m/s 运动时所需的最大关节速度，先看精确求逆，再看阻尼最小二乘。肘 -60 deg 时精确求逆要 43.3 deg/s，还算合理。到 -0.3 deg 时要 7965.0 deg/s，没有电机做得到。阻尼求解器保持在 3.3 deg/s，但它没有交出要求的 0.05 m/s：它放弃了那个动不了的方向。
+前两列是肘角和 det J。后两列是让末端沿径向向外以 0.05 m/s 运动时所需的最大关节速度，先看精确求逆，再看阻尼最小二乘。肘 -60 deg 时精确求逆要 44.9 deg/s，还算合理。到 -0.3 deg 时要 8249.1 deg/s，没有电机做得到。阻尼求解器保持在 3.4 deg/s，但它没有交出要求的 0.05 m/s：它把请求速度投影到雅可比的值域内，缺失方向上的分量被丢弃。
 
 公式同时解释表格和第二个奇异点：
 
 <Formula label="三关节机械臂的雅可比行列式">|det J| = L1 L2 r |sin(elbow)|</Formula>
 
-验算一行。肩在 20 deg、肘 -60 deg 时，r = 0.12 cos 20 + 0.14 cos(-40) = 0.2200 m。于是 L1 L2 r sin 60 = 0.12 × 0.14 × 0.2200 × 0.8660 = 0.0032 m³，与 3.20e-03 吻合。肘 = 0 时 sin elbow = 0，行列式为零。另一个因子是 r：末端落在底座竖直轴上时 r = 0，底座偏航不再改变末端位置。这就是第二个奇异点。
+验算一行。肩在 20 deg、肘 -60 deg 时，r = 0.1160 cos 20 + 0.1350 cos(-40) = 0.2124 m。于是 L1 L2 r sin 60 = 0.1160 × 0.1350 × 0.2124 × 0.8660 = 0.00288 m³，与 2.88e-03 吻合。肘 = 0 时 sin elbow = 0，行列式为零。另一个因子是 r：末端落在底座竖直轴上时 r = 0，底座偏航不再改变末端位置。这就是第二个奇异点。
 
-在真机上，第一个奇异点可以用手找到：把臂完全伸直，再试着把夹爪往外推。肩和肘已经共线，没有任何关节能再增加可达距离（reach）；让底座帮忙，夹爪只会横向摆。这就是奇异点的手感。
+在真机上，第一个奇异点可以用手找到：把臂完全伸直，再试着把夹爪往外推。肩和肘已经共线，没有任何关节能再增加可达距离（reach）；让底座帮忙，夹爪只会横向摆。这就是奇异点的物理特征：向外这个方向已经不在雅可比的值域内。
 
-动手试一下：把肘角拖到 0° 附近，看 |det J| 变红；再把目标设成 (0.10, 0.15, 0.12)，点“求逆解”，观察 14 次迭代。
+动手试一下：把肘角拖到 0° 附近，看 |det J| 变红；再把目标设成 (0.10, 0.15, 0.12)，点“求逆解”，观察 15 次迭代。
 
 <IkWidget />
 
-<Quiz id="q4" question="用 |det J| = L1 L2 r |sin(elbow)|，取 L1 = 0.12 m、L2 = 0.14 m、r = 0.2200 m、elbow = 60 deg，|det J| 是多少？" answer={0.0032} unit="m³" explanation="0.12 × 0.14 × 0.2200 × sin 60 = 0.0168 × 0.2200 × 0.8660 = 0.0032 m³，就是表格里的 3.20e-03。" />
+<Quiz id="q4" question="用 |det J| = L1 L2 r |sin(elbow)|，取 L1 = 0.1160 m、L2 = 0.1350 m、r = 0.2124 m、elbow = 60 deg，|det J| 是多少？" answer={0.00288} unit="m³" explanation="0.1160 × 0.1350 × 0.2124 × sin 60 = 0.01566 × 0.2124 × 0.8660 = 0.00288 m³，就是表格里的 2.88e-03。" />
 
 <Quiz id="q5" question="肘完全伸直（elbow = 0 deg）时 |det J| 是多少？" answer={0} unit="m³" explanation="sin 0 = 0，所以行列式为零。机械臂无法再把末端往外推，精确求逆会要求无穷大的关节速度。" />
 
-<Callout type="warn" title="阻尼只是遮住问题，不是解决问题">阻尼求解器在奇异点会返回有限的关节速度，数字看起来很健康，但末端仍然无法沿缺失的方向移动。检查剩余误差，并在规划时让机械臂避开肘完全伸直的构型。</Callout>
+<Callout type="warn" title="阻尼让解保持有限，并不消除奇异点">阻尼求解器在奇异点会返回有限的关节速度，数值不会发散，但末端仍然无法沿缺失的方向移动。检查剩余误差，并在规划时让机械臂避开肘完全伸直的构型。</Callout>
 
 ## 真实机械臂多了什么
 
@@ -303,7 +310,7 @@ Singularity: the elbow straightening, shoulder at 20 deg, base at 0
 ## 常见错误
 
 - <strong>角度和弧度混用。</strong>公式用弧度，模型只是为了好读才打印角度。把 30 直接交给 `math.cos`，得到的是 30 rad 的余弦，不是 30 deg。在边界处换算，求解器内部只保留一种单位。
-- <strong>俯仰角的符号约定弄反。</strong>这里 q1、q2 为正时机械臂向上抬，因为 `rot_y` 绕的是负 y 轴。符号一翻，机械臂会在你以为要抬的时候往下扎，所有 IK 结果也都成了镜像。把约定写在模型旁边。
+- <strong>俯仰角的符号约定弄反。</strong>这里 q1、q2 为正时机械臂向上抬，因为 `rot_y` 绕的是负 y 轴。符号一翻，机械臂会在本应抬起的方向上向下运动，所有 IK 结果也都成了镜像。把约定写在模型旁边。
 - <strong>IK 解跳到另一个分支。</strong>第二个起点得到的是底座 -123.69 deg，而不是 56.31 deg。两个解都能到目标。如果不在它们之间做规划，机械臂可能扫过桌面；要么约束起点，要么加中间点。
 - <strong>奇异点附近阻尼太小。</strong>λ = 0.01 在伸直臂上抖动，始终不收敛；λ = 0.03 稳定，但会放弃动不了的方向。根据预期的条件数选阻尼，并检查剩余误差。
 - <strong>不做 FK 检查就相信 IK。</strong>求解器可能停在局部极小，或者 200 次迭代后还差很多。先用返回的 q 算一遍 FK，和目标比较，再命令电机运动。

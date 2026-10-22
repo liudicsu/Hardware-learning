@@ -1,6 +1,6 @@
 ## Reading a schematic: connections, not physical layout
 
-A schematic describes who connects to whom, not where parts sit on the physical board. On a real PCB parts are packed tight and traces wander across layers, but the schematic only cares about one thing: the electrical connection. So don't read it as a spatial map ("input on the left, output on the right"); read it as a list of "which pin goes to which".
+A schematic describes who connects to whom, not where parts sit on the physical board. On a real PCB parts are packed tight and traces run across several layers, but the schematic only cares about one thing: the electrical connection. So don't read it as a spatial map ("input on the left, output on the right"); read it as a list of "which pin goes to which".
 
 Learning the symbols is step one. You will meet these over and over:
 
@@ -21,14 +21,14 @@ Three reading rules; keep them handy and you avoid most misreads:
 - **Crossing without a dot = not connected**: the wires merely cross; electrically they may live on different layers.
 - **Same net label = connected**: two places marked `3V3` or `SDA` are one net even if no wire is drawn between them; big schematics stay tidy thanks to this.
 
-Bench tip: don't try to swallow the whole sheet at once. Pick one net (say GND or a signal), trace every pin on it, understand that one fully, then move to the next. Reading schematics is like reading a map — you go one road at a time.
+Bench tip: do not try to read the whole sheet at once. Pick one net (say GND or a signal), trace every pin on it, understand that one fully, then move to the next. Read a schematic one net at a time.
 
 ## Capacitors: storing charge, resisting sudden change
 
 A capacitor is two metal plates placed very close together; charge "sits" between them. Two behaviours are enough to carry with you:
 
 - It **resists sudden voltage change**: to jump the voltage across a capacitor instantly you would need an infinite current. More current charges it faster, but "instant" is impossible.
-- Hence the classic motto: **block DC, pass changes**. A steady DC eventually cannot get through, while fast changes pass. It sounds abstract until you run it once in the simulator.
+- Hence the classic motto: **block DC, pass changes**. A steady DC eventually cannot get through, while fast changes pass. Run it once in the simulator to observe it directly.
 
 How fast it charges or discharges is set by the time constant (τ), the product of the resistance and the capacitance:
 
@@ -52,7 +52,7 @@ So roughly 5.9 ms after charging starts it is at 63 %, and about 5 × 5.9 ≈ 29
 How to play with it:
 
 1. A square-wave source repeatedly charges and discharges the capacitor. Watch the scope trace: the voltage climbs and decays.
-2. Compare against the numbers above: each climb passes 63 % around 1 τ and 99 % around 5 τ — the curve is steep first, then flattens, forever "almost there".
+2. Compare against the numbers above: each climb passes 63 % around 1 τ and 99 % around 5 τ — the curve is steep at first, then flattens as the voltage approaches its final value exponentially.
 3. **Predict, then act**: double-click the capacitor and make it 10× bigger (330 µF). Write your prediction first, then run: the time constant grows 10× and charging visibly slows. A whole ×10 is chosen so the change is obvious, not a subtle shift.
 
 <Quiz id="q1" question="A 10 kΩ resistor charges a 100 µF capacitor. What is the time constant τ in seconds?" answer={1} unit="s" explanation="τ = R × C = 10 000 Ω × 0.0001 F = 1 s. ≈63% after 1 s, ≈99% after 5 s." />
@@ -61,27 +61,27 @@ How to play with it:
 The aluminium electrolytic (the metal can) is **polarised**: a stripe or − mark on the shell marks the negative lead. Reversed, it heats and vents at best; at worst it **swells and pops** — the pre-scored cross on top is the vent. And never exceed its voltage rating: a 6.3 V cap on 5 V is fine, on 12 V is self-destruction. Check polarity and rating before applying power.
 </Callout>
 
-## Decoupling capacitors: a tiny water tower for every chip
+## Decoupling capacitors: supplying transient current locally
 
-Inside a digital IC, gates switch extremely fast, and every switch redraws a sudden gulp of current from the supply (a current spike). If that gulp must travel from a distant power source, supply-trace resistance and inductance dip the voltage right at the chip's pins — supply noise lands straight on the die. Symptoms range from glitchy behaviour to resets.
+Inside a digital IC, gates switch extremely fast, and each switching event draws a short current pulse from the supply (a current spike). Supply traces have resistance and inductance; a changing current produces an L·di/dt drop. If the pulse must come from a distant source, the current loop is large and its inductance is high, so the voltage at the chip pins dips and can cause glitches or resets.
 
-The fix is almost mechanical: **give every IC a 100 nF ceramic capacitor (decoupling capacitor) directly across its supply pin (VCC) and GND, as physically close to the chip as possible**. It is the little water tower beside the chip: it stores charge locally and supplies a spike on the spot, so the rail doesn't sag. Hobby boards and volume production alike are wired this way.
+The fix is **a 100 nF ceramic capacitor (decoupling capacitor) directly across each IC's supply pin (VCC) and GND, as physically close to the chip as possible**. The capacitor is a local charge store: the supply charges it continuously, and during a switching event the pulse flows through the capacitor and ground in a short loop with low inductance, so the L·di/dt voltage dip stays small. Hobby boards and volume production alike are wired this way.
 
 - **100 nF ceramic**: one per chip, hugging its supply pins. If the board has multiple supply domains (say 3.3 V and 5 V coexisting), each domain needs its own.
-- **Bulk electrolytic (100–470 µF)**: placed near motor drivers and other loads that gulp big currents, acting as the board-wide reservoir.
+- **Bulk electrolytic (100–470 µF)**: placed near motor drivers and other loads that draw large transient currents, providing a larger charge reserve for the whole board.
 
-A phrase worth knowing: 100 nF is often quoted as “0.1 µF” — when a veteran says “just add a 0.1”, that is what they mean.
+A phrase worth knowing: 100 nF is often quoted as “0.1 µF”; when a schematic or parts list says “add a 0.1”, that is what it means.
 
-<Quiz id="q2" question="Where does a 100 nF decoupling capacitor go?" options={["Anywhere on the board", "Right next to the IC, between its VCC pin and GND", "In series with the VCC line"]} answer={1} explanation="Decoupling is about supplying spikes from the shortest path, so it must hug the protected chip's supply pins; in series it would just impede the supply and drop voltage." />
+<Quiz id="q2" question="Where does a 100 nF decoupling capacitor go?" options={["Anywhere on the board", "Right next to the IC, between its VCC pin and GND", "In series with the VCC line"]} answer={1} explanation="Decoupling is about supplying spikes from the shortest path, so it must be placed next to the protected chip's supply pins; in series it would only impede the supply and drop voltage." />
 
-## Diodes and LEDs: a one-way valve and a lamp that must be current-limited
+## Diodes and LEDs: one-way conduction and current limiting
 
-A diode is a one-way valve: current flows from the anode to the cathode, the bar in the symbol is the cathode. Before current flows, it charges a toll — the forward voltage (Vf):
+A diode is a PN junction: with forward bias the barrier lowers and current flows from the anode to the cathode; with reverse bias the barrier rises and only a small leakage current flows. The bar in the symbol is the cathode. Conduction begins after the forward voltage (Vf) is overcome:
 
 - Ordinary silicon diode: **≈ 0.6–0.7 V**;
 - An LED's Vf depends on colour: **red ≈ 1.8–2.2 V**, **green/blue/white ≈ 2.8–3.3 V**.
 
-An LED is a current-driven device: push its voltage just a little above Vf and the current shoots up steeply — a careless few millivolts can kill it. That is why **an LED must always have a series current-limiting resistor**, the number-one cause of beginner LED deaths. The resistor follows straight from Ohm's law:
+An LED is a current-driven device: push its voltage just a little above Vf and the current shoots up steeply — a few millivolts too much can destroy it. That is why **an LED must always have a series current-limiting resistor**, the number-one cause of beginner LED failures. The resistor follows straight from Ohm's law:
 
 <Formula label="LED current-limiting resistor">R = (Vsupply − Vf) / I</Formula>
 
@@ -93,7 +93,7 @@ where Vsupply is the supply voltage, Vf the LED's forward voltage, I the target 
 R = (5 V − 2 V) / 10 mA = 3 V / 0.01 A = 300 Ω
 ```
 
-300 Ω is not an E12 standard value (…270, 330, 390…), so pick **up** to the nearest: **330 Ω**. Err large, never small: a bigger resistor only dims the LED; a smaller one over-currents it and shortens its life until it dies.
+300 Ω is not an E12 standard value (…270, 330, 390…), so pick **up** to the nearest: **330 Ω**. Choose the larger value: a larger resistor only dims the LED, while a smaller one over-currents it and shortens its life until it fails.
 
 <Falstad title="LED current limiting: 5 V, 330 Ω, red LED" circuit="ledLimit" height={380} />
 
@@ -101,11 +101,11 @@ The ammeter in series reads about 9.8 mA. Falstad's default LED model drops abou
 
 <Quiz id="q3" question="A 3.3 V supply, a red LED with Vf = 2.0 V, target 5 mA: what resistor, in Ω?" answer={260} unit="Ω" tolerance={0.05} explanation="R = (3.3 V − 2.0 V) / 5 mA = 1.3 V / 0.005 A = 260 Ω. Up to the next E12 value you'd pick 270 Ω." />
 
-One more "invisible but lifesaving" diode job: the **flyback diode**. Motors and relays are inductive loads; the instant you switch them off, the inductor — which refuses to change its current abruptly — throws a high-voltage spike (tens of volts are common) that can punch through the driving transistor. Wire a diode anti-parallel across the load and it shorts the spike away. Month 2 puts this to work on motors; file the concept now.
+One more protective use: the **flyback diode**. Motors and relays are inductive loads; the instant you switch them off, the inductor — which cannot change its current abruptly — produces a high-voltage spike (tens of volts are common) that can damage the driving transistor. Wire a diode anti-parallel across the load; when the switch opens, the inductor current continues through the diode and the spike is limited to the supply voltage plus one diode forward drop. Month 2 applies this to motors.
 
-## The transistor as a switch: small current steers big current
+## The transistor as a switch: small current controls a large current
 
-Why a transistor? A microcontroller GPIO pin can **safely source only about 10–20 mA** (exact figure: read the datasheet), and its logic level is often just 3.3 V (ESP32 and most modern chips; the classic Arduino Uno is 5 V). Motors, LED strips and relays want hundreds of milliamps or more; wired straight to a pin, something burns. The idea: **the GPIO only makes the decision with a tiny current; the transistor does the heavy switching**.
+Why a transistor? A microcontroller GPIO pin can **safely source only about 10–20 mA** (exact figure: read the datasheet), and its logic level is often just 3.3 V (ESP32 and most modern chips; the classic Arduino Uno is 5 V). Motors, LED strips and relays want hundreds of milliamps or more; wired straight to a pin, the pin or the chip can be damaged. The idea: **the GPIO provides only a control signal; the transistor carries the load current**.
 
 The most common arrangement is the NPN low-side switch: the load sits between the supply and the collector, the emitter goes to ground, and the GPIO feeds a small current into the base through a base resistor. Transistor on, load circuit complete.
 
@@ -129,29 +129,29 @@ Rb = (Vgpio − Vbe) / Ib = (3.3 V − 0.7 V) / 2 mA ≈ 1.3 kΩ
 Circuit: on the left a 3.3 V source through a switch (playing the role of a GPIO output HIGH) and a 1 kΩ base resistor drive the NPN; the collector side is 5 V → 220 Ω → LED. Steps:
 
 1. **Click the switch** — the GPIO "goes HIGH" — and watch the LED light up.
-2. Note the currents the sim reports: the **base branch carries only about 2–3 mA while the collector branch carries well over 10 mA** — a small current steering a large one.
-3. **Break it**: double-click the 1 kΩ base resistor and set it to 100 kΩ. The LED dims or nearly dies. Why? Now Ib = (3.3 − 0.7) / 100 000 Ω ≈ 26 µA, so even with β = 100 the transistor can pass at most 2.6 mA — far below the 10+ mA the LED draws when fully on. The transistor **fails to saturate** and sits half-on: it drops voltage while refusing to carry the current, so the LED glows dimly. Lesson: Rb isn't "the bigger the more economical"; too large and the switch never fully closes.
+2. Note the currents the sim reports: the **base branch carries only about 2–3 mA while the collector branch carries well over 10 mA** — a small current controls a large one.
+3. **Break it**: double-click the 1 kΩ base resistor and set it to 100 kΩ. The LED dims or goes out. Why? Now Ib = (3.3 − 0.7) / 100 000 Ω ≈ 26 µA, so even with β = 100 the transistor can pass at most 2.6 mA — far below the 10+ mA the LED draws when fully on. The transistor **fails to saturate** and stays partly on: it drops voltage while carrying insufficient current, so the LED glows dimly. Conclusion: an oversized Rb limits the base current and prevents saturation.
 
-For genuinely bigger loads (real motors at hundreds of mA to amps), practice trades the BJT for a **logic-level N-channel MOSFET**: its gate draws almost no current and its on-drop is smaller. Month 2 unpacks that; plant the seed here.
+For genuinely bigger loads (real motors at hundreds of mA to amps), practice trades the BJT for a **logic-level N-channel MOSFET**: its gate draws almost no current and its on-drop is smaller. Month 2 covers that in detail.
 
 <Quiz id="q4" question="Your 3.3 V GPIO must switch a 200 mA motor. What do you do?" options={["Connect the motor directly to the pin", "Use the pin to drive a transistor/MOSFET that switches the motor from a separate supply, with a flyback diode", "Use a bigger resistor in series with the motor"]} answer={1} explanation="200 mA is far beyond the ≈10–20 mA a GPIO can give, so a transistor/MOSFET must do the switching; inductive loads also need the flyback diode. A series resistor just wastes torque." />
 
-## Pull-up and pull-down resistors: never leave a pin speechless
+## Pull-up and pull-down resistors: holding a defined level
 
-An input pin with nothing attached is floating: like an antenna, it picks up stray charge and noise and reads **random values** — high, low, high — and your program twitches along. This is the classic cause of "sometimes it works, sometimes nudging the board fixes it".
+An input pin with nothing attached is floating: its input impedance is very high and its leakage current is typically below 1 µA, so a small charge coupled from nearby signals or from a hand can move its voltage across the VIH/VIL thresholds and the reading flips at random — high, low, high — and the program behaves erratically. This is a common cause of a circuit that "sometimes works and sometimes recovers when touched".
 
-The cure: with a large resistor (10 kΩ is the habit) pin the input to a known level —
+The cure: with a large resistor (10 kΩ is the habit) hold the input at a known level —
 
 - **Pull-up**: 10 kΩ from the pin to VCC; it reads HIGH at rest. Add a button from the pin to GND: **pressed**, the pin is dragged straight to GND and reads LOW; released, the pull-up restores HIGH. This "reads low when pressed" wiring is called **active low**.
-- **Pull-down**: the mirror image. 10 kΩ from the pin to GND; it reads LOW at rest; a button from the pin to VCC makes it read HIGH when pressed.
+- **Pull-down**: the complementary arrangement. 10 kΩ from the pin to GND; it reads LOW at rest; a button from the pin to VCC makes it read HIGH when pressed.
 
 Why 10 kΩ? The resistor only needs to hold the level, not supply current. Too large and noise can push the pin around; too small and pressing the button wastes current for nothing. 10 kΩ is the decades-old compromise.
 
-Good news: many MCUs have configurable internal pull-ups, usable with one setting (`INPUT_PULLUP` on Arduino), and then the external resistor can go — but note this automatically means "pressed reads LOW".
+Many MCUs have configurable internal pull-ups, enabled with one setting (`INPUT_PULLUP` on Arduino), which removes the external resistor — but this also means "pressed reads LOW".
 
 <Falstad title="Pull-up plus push button: 5 V released, 0 V pressed" circuit="pullupButton" height={380} />
 
-While the button is released the pin probe shows 5 V: no current flows, so the 10 kΩ drops nothing. Hold the button (it is momentary: press and hold with the mouse) and the pin reads 0 V while 5 V / 10 kΩ = 0.5 mA flows through the resistor. That small current is the price of a pull-up, and why 10 kΩ rather than 100 Ω.
+While the button is released the pin probe shows 5 V: no current flows, so the 10 kΩ drops nothing. Hold the button (it is momentary: press and hold with the mouse) and the pin reads 0 V while 5 V / 10 kΩ = 0.5 mA flows through the resistor. That small current is the power cost of a pull-up, and why 10 kΩ rather than 100 Ω.
 
 <Quiz id="q5" question="Button between the pin and GND, with a 10 kΩ pull-up to 3.3 V. What does the pin read when the button is pressed?" options={["HIGH", "LOW", "Random"]} answer={1} explanation="Classic active-low wiring: the pull-up holds HIGH at rest; pressed, the pin is tied directly to GND and reads LOW." />
 
@@ -167,16 +167,16 @@ The lithium-polymer (LiPo) packs powering DIY robots come with parameters and ru
 <Quiz id="q6" question="A 1500 mAh, 20C LiPo: what is the maximum continuous current in A?" answer={30} unit="A" explanation="20 × 1500 mAh = 30 000 mA = 30 A." />
 
 <Callout type="danger" title="LiPo safety rules">
-**Never** charge unattended; only use a balance charger and charge inside a **LiPo-safe bag**. Overcharge, short circuit, puncture or mechanical damage can start a fire that arrives fast and is very hard to put out. Retire any **puffy** pack immediately — do not repair it, sell it, or push through. For long storage, hold each cell at **≈ 3.8 V** (many chargers have a one-button storage mode). These rules are not decoration; they come from people who burned a bench.
+**Never** charge unattended; only use a balance charger and charge inside a **LiPo-safe bag**. Overcharge, short circuit, puncture or mechanical damage can start a fire that is difficult to extinguish. Retire any **puffy** pack immediately — do not repair it, sell it, or continue using it. For long storage, hold each cell at **≈ 3.8 V** (many chargers have a one-button storage mode). These rules address the thermal-runaway risk of LiPo cells.
 </Callout>
 
 ## Why a stalling motor resets your microcontroller (brownout)
 
-The classic script: the robot snags a wall corner, the motor stalls, and in that instant the MCU resets and the program starts over. Not bad luck — circuit arithmetic.
+A typical sequence: the robot catches a wall corner, the motor stalls, and in that instant the MCU resets and the program starts over. This follows directly from Ohm's law and the internal resistance of the supply.
 
 **Step 1: how big is the stall current?** While spinning, a motor generates back-EMF that cancels part of the applied voltage, so current stays moderate. Stall the rotor completely and back-EMF vanishes; the motor becomes a small resistance and draws its **stall current — often several amps, 5–10× normal**.
 
-**Step 2: how does that collapse the rail?** The battery has internal resistance; wires and connectors add more; all of it sits **in series** with the motor in the same loop. Ohm's law is unsentimental: V = I × R — whatever voltage those resistances swallow is voltage your devices never see.
+**Step 2: how does that collapse the rail?** The battery has internal resistance; wires and connectors add more; all of it sits **in series** with the motor in the same loop. By Ohm's law, V = I × R — whatever voltage those resistances drop is voltage your devices never receive.
 
 **Worked example**: 2 A stall current, 0.5 Ω total series resistance (battery + wires + connectors).
 
@@ -186,11 +186,11 @@ Drop = I × R = 2 A × 0.5 Ω = 1 V
 
 A nominal 5 V rail sags to 4 V in that instant. If the 3.3 V regulator's input is already near its drop-out, its output falls right behind.
 
-**Step 3: the MCU defensively resets.** MCUs contain a **brown-out detector**: when VCC dips below a safe threshold it forces a reset rather than letting the CPU misexecute in a half-dead state. So the "reboot" you saw was the protection working. Worse is when it doesn't reset but misbehaves: drifting sensor readings, garbled serial, random freezes.
+**Step 3: the MCU defensively resets.** MCUs contain a **brown-out detector**: when VCC dips below a safe threshold it forces a reset rather than letting the CPU execute incorrectly. So the "reboot" you saw was the protection working. Worse is a case where it does not reset but executes incorrectly: drifting sensor readings, garbled serial, random freezes.
 
 **Fixes (roughly in order of effectiveness):**
 
-1. Give the logic its **own regulated supply**: the MCU runs off its own LDO or buck, not the motor's dirty rail.
+1. Give the logic its **own regulated supply**: the MCU runs off its own LDO or buck, not the motor's noisy supply rail.
 2. **Bulk electrolytic near the motor driver** (say 220–470 µF): absorbs the surge locally and buys the regulator time.
 3. **Thicker, shorter power wires**: shrink that series resistance R directly.
 4. **Common ground**: digital ground and power ground must meet at one point — but don't route motor current through the logic ground path.
@@ -200,16 +200,16 @@ A nominal 5 V rail sags to 4 V in that instant. If the 3.3 V regulator's input i
 
 ## Common mistakes and a before-you-move-on checklist
 
-The beginner pits, in no particular order:
+Common mistakes, in no particular order:
 
-- No current-limiting resistor on an LED, or one chosen too small — it dies far faster than you'd think.
-- Electrolytic reversed — swells, pops, ugly and hazardous.
-- Decoupling cap parked centimetres away — at transient frequencies, centimetres are kilometres.
+- No current-limiting resistor on an LED, or one chosen too small — it overheats and fails quickly.
+- Electrolytic reversed — the case can swell and rupture, which is hazardous.
+- Decoupling cap placed centimetres away — the trace inductance of a few centimetres already produces a significant L·di/dt drop during transients.
 - Base resistor too large; the transistor never saturates and the load voltage never arrives.
-- Button pin left floating; the input flickers and so does the program.
+- Button pin left floating; the input level changes at random and program behaviour becomes erratic.
 - 5 V signals into 3.3 V-only inputs — check the absolute maximum ratings first; "directly compatible" is not universal.
-- Digital and power grounds never tied — the loop "looks closed" and is air.
-- Abuse of the C rating, continuous over-discharge — the pack runs hotter and hotter until you regret it.
+- Digital and power grounds never tied — the circuit appears connected but has no electrical path.
+- Exceeding the C rating, continuous over-discharge — the pack keeps heating up, causing overheating and permanent damage.
 
 Before moving on, you should be able to answer "yes" to all of these:
 

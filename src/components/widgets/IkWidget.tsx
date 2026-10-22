@@ -25,8 +25,8 @@ const SIDE = {
   bottom: 28,
   rMin: -0.3,
   rMax: 0.35,
-  zMin: -0.25,
-  zMax: 0.35,
+  zMin: -0.2,
+  zMax: 0.4,
 };
 
 const TOP = {

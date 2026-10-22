@@ -14,7 +14,7 @@ Two planners share the work here. OMPL's RRTConnect grows two random trees, one 
 
 The robot runs on `mock_components/GenericSystem`. It is a ros2_control hardware interface that copies commands straight to the joint states: a position command becomes the measured joint position. There is no physics, no motor, no gravity and no contact force. MoveIt still plans and collision-checks in its own planning scene, but the simulated arm follows any trajectory exactly, and a released block does not fall. That last detail is why the placed block floats 2 mm at the end.
 
-<Callout type="warn" title="Mock hardware obeys, it does not simulate">GenericSystem copies commands to joint states. It has no dynamics, no gravity and no contact model. A grasp is only what the script tells MoveIt; the block will not drop, slip or be pushed. Use it to test planning and interfaces, not physics.</Callout>
+<Callout type="warn" title="Mock hardware copies commands; it does not simulate physics">GenericSystem copies commands to joint states. It has no dynamics, no gravity and no contact model. A grasp is only what the script tells MoveIt; the block will not drop, slip or be pushed. Use it to test planning and interfaces, not physics.</Callout>
 
 ### The launch file
 
@@ -118,7 +118,7 @@ The hand is commanded by pose. `hand_pose(x, y, z)` builds a `PoseStamped` whose
 
 The grasp height is `grip_z = 0.06 m`: 2 cm below the block's top. That leaves the palm clear of the block while the fingers close around its upper part.
 
-While the block is carried it is attached to `panda_hand` with `touch_links` `panda_hand`, `panda_leftfinger` and `panda_rightfinger`. Attaching tells MoveIt that the block moves with the hand; the touch links say those three links are allowed to touch it. Every other link, and the block against the wall, is still checked. Without the attachment the planner would keep only the arm clear and could scrape the block through the wall.
+While the block is carried it is attached to `panda_hand` with `touch_links` `panda_hand`, `panda_leftfinger` and `panda_rightfinger`. Attaching tells MoveIt that the block moves with the hand; the touch links say those three links are allowed to touch it. Every other link, and the block against the wall, is still checked. Without the attachment the planner would keep only the arm clear and could let the block intersect the wall.
 
 <Resource id="moveit-docs" />
 
@@ -332,7 +332,7 @@ The script starts with the named `ready` configuration, opens the gripper, and m
 
 Then the block is attached, the gripper closes to 0.04 m, and the arm lifts straight up with LIN. The carry to the other side is OMPL, because the wall is in the way. `carry_report` asks MoveIt to check every waypoint of that carry with the block still attached, and also tracks the block's lowest point wherever the block overlaps the wall's footprint (treating the block as hanging upright below the fingers). In this run the block bottom stayed at least 0.304 m up, 5.4 cm above the wall top.
 
-The place descent stops at fingertips z = 0.062 m, 2 mm above the grasp height. The gripper opens, the block is detached and stays in the scene, and the arm retreats and returns to `ready`. The block's centre is now at (0.500, +0.250, 0.042) m. A block 0.08 m tall with its centre at 0.042 m has its bottom at 0.002 m; at 0.040 m it would be resting on the table. The 2 mm gap is the 2 mm the hand stopped above the grasp height, and nothing in this setup pulls the block down: mock hardware has no gravity, and MoveIt leaves a detached object where it was. A real block would drop the 2 mm.
+The place descent stops at fingertips z = 0.062 m, 2 mm above the grasp height. The gripper opens, the block is detached and stays in the scene, and the arm retreats and returns to `ready`. The block's centre is now at (0.500, +0.250, 0.042) m. A block 0.08 m tall with its centre at 0.042 m has its bottom at 0.002 m; at 0.040 m it would be resting on the table. The 2 mm gap is the 2 mm the hand stopped above the grasp height, and no gravity acts on the block in this setup: mock hardware has no gravity, and MoveIt leaves a detached object where it was. A real block would drop the 2 mm.
 
 <Quiz id="q2" question="The grasp height puts the fingertips at 0.060 m. Where is the panda_hand origin?" answer={0.1634} unit="m" explanation="The fingertips are 0.1034 m below the hand origin: 0.060 + 0.1034 = 0.1634 m. The script sends this value in the PoseStamped and keeps the fingertip offset separate." />
 
@@ -371,7 +371,7 @@ On a real Panda the plan structure stays the same, but three things change. Firs
 
 Keep the speed scaling conservative. The file uses 0.5 for OMPL and 0.2 for LIN; on a real arm start lower and raise it only after the paths and the grasp are reliable. Test the same script on mock hardware first. It catches a wrong frame, an unreachable pose, a missing `touch_links` or a goal inside the wall without risking the arm. Then run on the real robot with the emergency stop in reach and the workspace clear. The mock run cannot tell you whether the grasp holds, because it has no gravity and no contact.
 
-Pilz LIN can fail in a real cell where OMPL succeeds: a straight line that looked clear in the planning scene may cross a cable or a fixture that is not modelled. Keep the scene honest, and re-plan when the real world differs from it.
+Pilz LIN can fail in a real cell where OMPL succeeds: a straight line that looked clear in the planning scene may cross a cable or a fixture that is not modelled. Keep the planning scene consistent with the real cell, and re-plan when the two differ.
 
 ## Common mistakes
 
