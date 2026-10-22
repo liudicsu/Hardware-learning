@@ -239,6 +239,22 @@ read position 6  SDK FF FF 06 04 02 38 02 B9     same
 
 Every line says `same`. Feetech's SDK, writing into the fake port, produces exactly the same bytes as the hand-built packets, which is a good sign that both the length field and the checksum are right. LeRobot uses this SDK underneath, so the packets you send through LeRobot have the same shape. You will never need to build packets by hand to use the arm, but when a servo stops answering, knowing what should be on the wire is how you decide whether the problem is power, wiring, ID or corruption.
 
+## Power
+
+Power is the step where a wrong choice damages hardware, so the supply voltage has to match the servo version. The standard SO-101 build uses a 5 V supply (source A), and 5 V lies inside the 4 V–7.4 V input range that Feetech specifies for the 7.4 V STS3215 (source B). At 5 V the torque is slightly below the 16.5 kg·cm quoted at 6 V (source A). The optional 12 V follower servos need a 12 V supply of at least 5 A instead of the 5 V one (source A), and the leader arm is always built from 7.4 V servos (source A).
+
+| Arm / servo version | Feetech model | Input voltage range (Feetech) | Supply per SO-ARM100 README | Stall torque (Feetech) |
+| --- | --- | --- | --- | --- |
+| Follower, standard 7.4 V | ST-3215-C001 | 4–7.4 V | 5 V | 16.5 kg·cm @ 6 V, 19.5 kg·cm @ 7.4 V |
+| Follower, optional 12 V | ST-3215-C018 | 4–14 V | 12 V, ≥ 5 A | 30 kg·cm @ 12 V |
+| Leader (always 7.4 V) | 7.4 V STS3215 (C001/C044/C046 per the README BOM) | 4–7.4 V (C001 spec) | 5 V | — |
+
+<Callout type="danger" title="A 12 V supply is only for 12 V servos">
+Never connect a 12 V supply to an arm with 7.4 V servos; the leader is always such an arm. 12 V is far outside the 4–7.4 V input range in Feetech's specification for the 7.4 V version. Before plugging in, compare the voltage on the servo label with the rating plate of the supply; keep 7.4 V and 12 V servos on separate arms and separate supplies, because all servos of one arm share the same supply through the daisy chain.
+</Callout>
+
+Sources: A — [SO-ARM100 README · Sourcing Parts (IMPORTANT note)](https://github.com/TheRobotStudio/SO-ARM100/blob/a758567c3978dfeefe282ede0500085a48fe8f78/README.md#L72-L73); B — [Feetech STS3215 (C001) specification, §5](https://www.feetechrc.com/Data/feetechrc/upload/file/20200611/6372749961523760249976542.pdf); C — [Feetech ST-3215-C018 product page](https://www.feetechrc.com/en/525603.html) and [specification, §5](https://www.feetechrc.com/Data/feetechrc/upload/file/20240507/6385067068652648096680943.pdf).
+
 ## Assemble and set IDs
 
 The build has two halves: the software has to be installed and able to see the boards, and the motors have to be given IDs before any of it makes sense. Do the software first, because a motor with the wrong ID is much easier to diagnose when you know the port and the tools already work.

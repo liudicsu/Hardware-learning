@@ -32,15 +32,15 @@ export function run(kp: number, kd: number, seconds = 3.0): Log {
   const log: Log = [];
   const steps = Math.trunc(seconds / DT);
   for (let step = 0; step < steps; step++) {
-    const error = readPosition(y) - 3500; // negative = line is to the left
+    const error = 3500 - readPosition(y); // setpoint − measurement
     const dError = lastError === null ? 0.0 : (error - lastError) / DT;
     lastError = error;
-    let command = kp * error + kd * dError; // rad/s of turning
+    let command = kp * error + kd * dError; // rad/s of turning, positive turns towards -y
     command = Math.max(-6.0, Math.min(6.0, command));
     for (let k = 0; k < 10; k++) {
       // robot physics at 1 ms
       turnRate += ((command - turnRate) * 0.001) / MOTOR_TAU;
-      heading += turnRate * 0.001;
+      heading -= turnRate * 0.001;
       y += SPEED * Math.sin(heading) * 0.001;
     }
     log.push([(step + 1) * DT, y]);

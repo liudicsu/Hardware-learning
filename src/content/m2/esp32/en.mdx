@@ -51,14 +51,20 @@ The S3 has a detail that catches almost everyone. Many S3 boards have two USB so
 
 Upload failures are usually connection failures, not code failures. The reliable recovery is manual: hold the **BOOT** button, tap **RESET** (sometimes labelled **EN**), release **BOOT**, then press Upload again. That puts the chip into its download mode. Also try the board's other USB socket and a different cable. A charge-only cable has no data wires, and it will power the board and fail every upload, which looks exactly like a broken board.
 
-Here is the first sketch. It blinks an LED and reports the chip's identity:
+Here is the first sketch. It blinks an external LED on GPIO 2 and, on an ESP32-S3, also the on-board RGB LED, and reports the chip's identity:
 
 <CodeSource path="examples/month-2/esp32/chip_info/chip_info.ino" />
 
 ```cpp
-// Blink the on-board LED and report which chip this is.
-// Set LED_PIN to your board's LED (many classic DevKits: 2; check your board's pinout).
+// Blink an LED and report which chip this is.
+// LED_PIN drives an external LED through a 220 Ω resistor on GPIO 2. That works on every
+// board; on many classic ESP32 DevKits GPIO 2 is also the on-board LED.
+// The ESP32-S3-DevKitC-1 has no plain on-board LED: it has one addressable RGB LED, on
+// GPIO 38 on board v1.1 and on GPIO 48 on the initial v1.0 (Espressif user guide).
 const int LED_PIN = 2;
+#if CONFIG_IDF_TARGET_ESP32S3
+const int RGB_PIN = 38;  // DevKitC-1 v1.1; set 48 for the initial v1.0 board
+#endif
 
 void setup() {
   Serial.begin(115200);
@@ -72,21 +78,27 @@ void setup() {
 
 void loop() {
   digitalWrite(LED_PIN, HIGH);
+#if CONFIG_IDF_TARGET_ESP32S3
+  rgbLedWrite(RGB_PIN, 0, 32, 0);  // dim green
+#endif
   delay(200);
   digitalWrite(LED_PIN, LOW);
+#if CONFIG_IDF_TARGET_ESP32S3
+  rgbLedWrite(RGB_PIN, 0, 0, 0);   // off
+#endif
   delay(800);
 }
 ```
 
 <Wokwi board="esp32-s3" files={["examples/month-2/esp32/chip_info/chip_info.ino", "examples/month-2/esp32/chip_info/diagram.json"]}>
-  The diagram puts an LED on GPIO 2 (LED_PIN = 2 in the sketch); the Serial Monitor prints the chip model and flash size. There is no Wokwi version of web_servo: reaching the simulated ESP32's web server from a browser needs Wokwi's paid gateway.
+  The diagram puts an LED on GPIO 2 through a 220 Ω resistor (LED_PIN = 2 in the sketch). Wokwi's DevKitC-1 uses the v1.1 layout with its RGB LED on GPIO 38, so that LED blinks green as well. The Serial Monitor prints the chip model and flash size. There is no Wokwi version of web_servo: reaching the simulated ESP32's web server from a browser needs Wokwi's paid gateway.
 </Wokwi>
 
 Two things in this sketch do not exist on the Uno. `Serial.printf()` is a formatted print, inherited from C: `%s` means a string, `%d` an integer, `%lu` an unsigned long. It saves you from five separate `Serial.print()` calls and a forest of separators. The `ESP` object is the second addition: `ESP.getChipModel()` returns the chip name, `getChipRevision()` the revision, `getChipCores()` the core count and `getCpuFreqMHz()` the clock. `getFlashChipSize()` reports the flash size in bytes.
 
-Open the serial monitor at **115200 baud** after the upload. You should see two lines in words: one beginning `Chip:` with the model name, revision, number of cores and clock, and one beginning `Flash:` with the flash size in bytes. The exact values depend on your board, so read them rather than expecting a fixed string. The LED should blink for 200 ms on and 800 ms off. These sketches were compiled for both the classic ESP32 and the S3 but were not run on hardware here, so no captured output is shown; your board supplies the real numbers.
+Open the serial monitor at **115200 baud** after the upload. You should see two lines in words: one beginning `Chip:` with the model name, revision, number of cores and clock, and one beginning `Flash:` with the flash size in bytes. The exact values depend on your board, so read them rather than expecting a fixed string. The external LED (and, on the S3, the RGB LED in dim green) should blink for 200 ms on and 800 ms off. These sketches were compiled for both the classic ESP32 and the S3 but were not run on hardware here, so no captured output is shown; your board supplies the real numbers.
 
-The LED is the part most likely to disappoint you. On many classic DevKit boards the on-board LED is on GPIO 2, but not all. Many S3 DevKitC boards use an addressable RGB LED instead of a plain LED, and some use a different GPIO entirely. Check your board's pinout and set `LED_PIN` accordingly. If nothing blinks, the serial report still proves that the upload worked and the chip is running; the LED is a wiring detail, not a verdict on your toolchain.
+The LED is the part most likely to disappoint you. On many classic DevKit boards the on-board LED is a plain LED on GPIO 2, but the ESP32-S3-DevKitC-1 has no plain on-board LED: it has only an addressable RGB LED. `digitalWrite` cannot drive it; it needs a timed serial data stream, which `rgbLedWrite(pin, r, g, b)` sends. Both the initial v1.0 and v1.1 versions of this board are on the market, and they differ in the RGB LED pin: v1.1 uses GPIO 38 while the initial v1.0 uses GPIO 48 ([v1.1 user guide](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide_v1.1.html#hardware-revision-details) and [v1.0 user guide](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide_v1.0.html)). The sketch therefore names `RGB_PIN = 38` explicitly instead of using `RGB_BUILTIN`: in arduino-esp32 3.3.12 the macro is defined from `PIN_RGB_LED` as 48, the v1.0 pin, so on a v1.1 board `RGB_BUILTIN` does not reach the LED ([pins_arduino.h](https://github.com/espressif/arduino-esp32/blob/3.3.12/variants/esp32s3/pins_arduino.h)). If your RGB LED stays dark, set `RGB_PIN` to 48. The `#if CONFIG_IDF_TARGET_ESP32S3` lines keep the RGB code out of builds for the classic ESP32. If nothing blinks, the serial report still proves that the upload worked and the chip is running; the LED is a wiring detail, not a verdict on your toolchain.
 
 <Callout type="tip" title="Try before the board arrives">
 Wokwi also simulates the ESP32, including the serial monitor and an on-screen LED. You can run this sketch in the browser while your board is still in the post, and you will already know the upload steps when it arrives.

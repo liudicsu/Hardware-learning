@@ -18,7 +18,7 @@ check "ohm.py bad input" "error: ohms must be positive"  python3 ohm.py current 
 check "resistors.py" "Resistor(ohms=2200, tolerance=0.05)
 range: 2090–2310 Ω
 parallel: 5000 Ω
-series: 5700 Ω"  python3 resistors.py
+series: 5700 Ω, range 5415–5985 Ω"  python3 resistors.py
 check "log.py, first run" "Logged 1 measurement.
 0 of 1 measurements out of 5 % tolerance"  python3 log.py
 sed -i.bak 's/record("R1", 4700, 4688)/record("R1", 4700, 4400)/' log.py   # the lesson's second run

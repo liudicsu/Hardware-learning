@@ -235,10 +235,11 @@ if __name__ == "__main__":
     run_time = COUNTS_PER_REV / (K_SPEED * 8.4 * 0.6)
     print(f"counts per wheel revolution: {COUNTS_PER_REV}")
     print(f"open-loop run time (tuned at 8.4 V): {run_time:.3f} s")
-    for battery in (8.4, 7.4, 6.6):
+    for battery in (8.4, 7.4, 6.6, 5.0):
         print(f"battery {battery:.1f} V | open loop: {open_loop(battery, run_time):5d}"
               f" | P only: {closed_loop(battery):5d}"
-              f" | P + min duty: {closed_loop(battery, min_duty=0.15):5d}")
+              f" | min 0.15: {closed_loop(battery, min_duty=0.15):5d}"
+              f" | min 0.20: {closed_loop(battery, min_duty=0.20):5d}")
 ```
 
 <SimOutput source="model">
@@ -246,9 +247,10 @@ if __name__ == "__main__":
 ```text
 counts per wheel revolution: 1440
 open-loop run time (tuned at 8.4 V): 1.099 s
-battery 8.4 V | open loop:  1440 | P only:  1443 | P + min duty:  1441
-battery 7.4 V | open loop:  1269 | P only:  1435 | P + min duty:  1441
-battery 6.6 V | open loop:  1132 | P only:  1430 | P + min duty:  1440
+battery 8.4 V | open loop:  1440 | P only:  1443 | min 0.15:  1441 | min 0.20:  1439
+battery 7.4 V | open loop:  1269 | P only:  1435 | min 0.15:  1441 | min 0.20:  1441
+battery 6.6 V | open loop:  1132 | P only:  1430 | min 0.15:  1440 | min 0.20:  1442
+battery 5.0 V | open loop:   857 | P only:  1416 | min 0.15:  1416 | min 0.20:  1440
 ```
 
 </SimOutput>
@@ -257,7 +259,16 @@ battery 6.6 V | open loop:  1132 | P only:  1430 | P + min duty:  1440
 
 P 控制器能修掉大部分。它测量剩余误差，也就是 1440 减去当前计数，再让占空比与误差成正比，比例系数是 `kp`。接近目标时占空比自动变小，轮子会减速，而不是冲过头。7.4 V 时它停在 1435，6.6 V 时停在 1430：好多了，但仍差几个计数。原因是摩擦。电机电压低于约 0.8 V 时轮子根本不动，于是最后一点误差算出来的占空比跨不过死区，轮子就停在目标前一点点。
 
-第三列加了最小占空比。只要误差还在容差之外，控制器就至少给出 15 % 的占空比，方向朝着目标。这点占空比足以让轮子继续蠕动，误差才有可能进入容差。8.4 V 和 7.4 V 下结果是 1441，6.6 V 下正好 1440。注意它仍然是 P 控制器：最小占空比只是对付静摩擦的补丁，不是积分项。完整的 PID 还会加积分项，把长期的小误差累积起来；再加微分项，提前预判过冲。那是第 6 课的内容。现在要记住的是：反馈回路能不能收敛，取决于它在误差很小时还有没有办法让机构继续动。
+`min 0.15` 列加了最小占空比。只要误差还在容差之外，控制器就至少给出 15 % 的占空比，方向朝着目标。这点占空比足以让轮子继续蠕动，误差才有可能进入容差。8.4 V、7.4 V 和 6.6 V 下结果分别是 1441、1441 和 1440。注意它仍然是 P 控制器：最小占空比只是对付静摩擦的补丁，不是积分项。完整的 PID 还会加积分项，把长期的小误差累积起来；再加微分项，提前预判过冲。那是第 6 课的内容。现在要记住的是：反馈回路能不能收敛，取决于它在误差很小时还有没有办法让机构继续动。
+
+边界情况在 5.0 V。此时 0.15 × 5.0 V = 0.75 V，低于 0.8 V 的死区，所以 `min 0.15` 列和只有 P 时一样停在 1416。最小占空比必须按最低电池电压来定：min_duty ≥ 0.8 V / 5.0 V = 0.16。`min 0.20` 列（0.20 × 5.0 V = 1.0 V）在四个电压下都停在 ±2 计数的容差之内（1439、1441、1442 和 1440）。
+
+```text
+0.15 × 5.0 V = 0.75 V < 0.8 V  → stalls
+0.20 × 5.0 V = 1.00 V > 0.8 V  → reaches the target
+```
+
+同一条规则也适用于下面的固件：MIN_PWM ≥ 255 × 0.8 V / V_min。这份程序里的 MIN_PWM = 40，在 5.0 V 下就是 40 / 255 × 5.0 V = 0.78 V，所以若最低电压是 5.0 V，它至少需要 41；51（= 0.20 × 255）则留下与模型相同的余量。
 
 现在把同样的思路搬到 Uno 上。下面的 Arduino 程序就是产生后续输出的那份已编译固件。输出不是硬件测量：它来自在 simavr AVR 模拟器里运行这份固件，并接上 Python 脚本所用的同一套玩具电机与编码器模型。把它当作对逻辑和算术的检查，不要当成对你工作台的承诺。
 

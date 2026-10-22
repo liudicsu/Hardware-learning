@@ -26,7 +26,9 @@ Every controller in this lesson is a PID controller, so let us compress the whol
 
 error = setpoint − measurement
 
-For the line follower the setpoint is the centre of the array, `3500`, and the measurement is whatever the sensors report, so `error = position − 3500`. For the balancer the setpoint is "level", `0` degrees, and the measurement is the pitch the filter estimates. Once you have one meaningful number like this, the controller is almost trivial.
+For the line follower the setpoint is the centre of the array, `3500`, and the measurement is whatever the sensors report, so `error = 3500 − position`. For the balancer the setpoint is "level", `0` degrees, and the measurement is the pitch the filter estimates. Once you have one meaningful number like this, the controller is almost trivial.
+
+The balancer's code writes `KP × (pitch − SETPOINT) + KD × rate`; with `error = SETPOINT − pitch` this equals `−KP × error + KD × rate`. The minus sign comes from the actuator direction: tilting forward makes the error negative, and the wheels must then drive forward, i.e. positive PWM. The D term uses the gyro rate in °/s, the derivative of the measurement, which already contains the division by time.
 
 The three terms:
 
@@ -34,23 +36,25 @@ The three terms:
 - **D (derivative)** — proportional to how fast the error is changing. It behaves like a damper. As you approach the target the error is shrinking, so D produces an output that opposes the motion and brakes the correction. This is the term that kills the overshoot.
 - **I (integral)** — proportional to the accumulated error over time. It removes a steady offset, for example one motor being weaker than the other, that P alone would leave behind. It can also **wind up**: while the robot is stuck against a wall, or its output is saturated, the accumulated error grows enormous, and the moment it frees itself that stored-up number flings it across the line. Clamp the integral, and leave it out entirely until P and D work.
 
-For a fixed loop period the discrete form is just three multiplications:
+The standard discrete form includes `dt`:
 
 ```text
-output = KP × error + KI × sum_of_errors + KD × (error − last_error)
+output = KP × e + KI × Σ(e × dt) + KD × (e − e_prev) / dt
 ```
 
-**Worked example.** A line follower with `KP = 0.06` and `KD = 0.3`. The sensors report position 4700, so the error is `4700 − 3500 = 1200`. The previous error was 1500, so the change is `1200 − 1500 = −300`.
+With a fixed loop period, `dt` can be folded into the gains: `KI_loop = KI × dt` and `KD_loop = KD / dt`. This is why `line_follower.ino` multiplies the per-period change `error − lastError` by `KD_loop = 0.003 / 0.01 = 0.3`, and why the firmware's `KD` (0.3) and the model's `kd` (which multiplies `(e − e_prev)/DT`, in s) are different numbers.
+
+**Worked example.** A line follower with `KP = 0.06`, `KD = 0.003 s` and `dt = 0.01 s`. The sensors report position 4700, so the error is `3500 − 4700 = −1200`. The previous error was −1500, so the change is `−1200 − (−1500) = +300`.
 
 ```text
-P term = 0.06 × 1200 = 72
-D term = 0.3 × (−300) = −90
-correction = 72 − 90 = −18
+P term = 0.06 × (−1200) = −72
+D term = 0.003 × (+300 / 0.01) = 0.003 × 30000 = +90
+correction = −72 + 90 = +18
 ```
 
-The P term alone wanted to steer hard — a correction of 72 — but the error shrank by 300 since the last pass, so the D term subtracts 90 and leaves just −18. In plain words, D says: "you are already returning fast, ease off." That correction is then added to one motor and subtracted from the other, so the left motor gets `120 + (−18) = 102` and the right motor gets `120 + 18 = 138`. The robot turns gently toward the line instead of swinging wide across it.
+The P term alone wanted −72, but the error shrank by 300 in one period, so the D term adds +90 and leaves +18. The D term opposes the rate at which the error is shrinking, which limits overshoot. That correction is subtracted from the left motor and added to the right motor (as in the code), so the left motor gets `120 − 18 = 102` and the right motor gets `120 + 18 = 138`. The robot turns gently toward the line instead of swinging wide across it.
 
-<Quiz id="q1" question="KP = 0.05, error = −800, KD = 0. What is the correction?" answer={-40} explanation="With KD = 0 only the P term acts: 0.05 × (−800) = −40. The sign just means the correction pushes the opposite way from the error." />
+<Quiz id="q1" question="KP = 0.05, error = −800, KD = 0. What is the correction?" answer={-40} explanation="With KD = 0 only the P term acts: 0.05 × (−800) = −40. The correction has the same sign as the error; the code subtracts it from the left motor and adds it to the right motor, so the left motor gets +40 and the right motor −40." />
 
 During the project you will be asked to explain P, I and D by describing what your robot actually did when you changed each one. Keep notes while you tune — one sentence per attempt is enough, and those notes become your README later.
 
@@ -141,14 +145,14 @@ def run(kp, kd, seconds=3.0):
     last_error = None
     log = []
     for step in range(int(seconds / DT)):
-        error = read_position(y) - 3500               # negative = line is to the left
+        error = 3500 - read_position(y)               # setpoint − measurement
         d_error = 0.0 if last_error is None else (error - last_error) / DT
         last_error = error
-        command = kp * error + kd * d_error            # rad/s of turning
+        command = kp * error + kd * d_error            # rad/s of turning, positive turns towards -y
         command = max(-6.0, min(6.0, command))
         for _ in range(10):                            # robot physics at 1 ms
             turn_rate += (command - turn_rate) * 0.001 / MOTOR_TAU
-            heading += turn_rate * 0.001
+            heading -= turn_rate * 0.001
             y += SPEED * math.sin(heading) * 0.001
         log.append(((step + 1) * DT, y))
     return log
@@ -210,7 +214,7 @@ All three runs start 20 mm to one side and all three turn toward the line. **P o
 
 **A small D (0.0001)** changes almost everything. It cuts the overshoot from 62.3 mm to **4.8 mm** and settles within 2 mm by **1.47 s**. The D term is braking the correction as the error shrinks, which is precisely the damping promised in the PID discussion above. **D = 0.0002** does better still: it approaches the line without crossing it even once and is within 2 mm from **1.30 s**.
 
-Notice the units. This model's output is a turn rate in rad/s, so the gains look tiny, and they are nothing like the `KP = 0.06` the sketch will use. Gains never transfer between models or between robots; only the procedure transfers. You will always have to tune on your own hardware.
+Notice the units. This model's output is a turn rate in rad/s, so the gains look tiny, and they are nothing like the `KP = 0.06` the sketch will use. Gains never transfer between models or between robots; only the procedure transfers. You will always have to tune on your own hardware. The model uses the dt form (`(e − e_prev)/DT`), while the firmware folds dt into `KD`.
 
 <Quiz id="q3" question="In the simulation, what did adding the D term change most?" options={["The robot drove faster", "The overshoot and oscillation around the line", "The sensor readings became less noisy"]} answer={1} explanation="D damps the correction, so it shrinks the overshoot and the size of the swings around the line (62.3 mm with P only, 4.8 mm and 0 mm with D). It does not change speed and it does not clean up the sensors — it actually amplifies sensor noise." />
 
@@ -235,7 +239,7 @@ QTRSensors qtr;
 uint16_t values[8];
 
 const float KP = 0.06;          // PWM per unit of position error  (start here)
-const float KD = 0.0;           // add D after P is working: try 0.3, then tune
+const float KD = 0.0;           // add D after P is working: try 0.3 (= 0.003 s / 0.01 s), then tune
 const int BASE_PWM = 120;       // straight-line speed
 const unsigned long PERIOD_MS = 10;   // 100 Hz control loop
 
@@ -271,17 +275,17 @@ void loop() {
   last += PERIOD_MS;
 
   uint16_t position = qtr.readLineBlack(values);   // 0..7000, 3500 = centred
-  int error = (int)position - 3500;
-  int derivative = error - lastError;              // per loop period (fixed 10 ms)
+  int error = 3500 - (int)position;                // setpoint − measurement
+  int derivative = error - lastError;              // per loop period (fixed 10 ms): KD here = KD_continuous / dt
   lastError = error;
 
   int correction = (int)(KP * error + KD * derivative);
-  setMotor(PWMA, AIN1, AIN2, BASE_PWM + correction);
-  setMotor(PWMB, BIN1, BIN2, BASE_PWM - correction);
+  setMotor(PWMA, AIN1, AIN2, BASE_PWM - correction);
+  setMotor(PWMB, BIN1, BIN2, BASE_PWM + correction);
 }
 ```
 
-Walk through it from the top. The loop runs at a fixed 100 Hz using `last += PERIOD_MS` rather than `last = now` (Lesson 2: advancing by a fixed step keeps the rate steady, so "derivative per loop" means the same thing every single time). In `setup()` the robot calibrates 200 times with the built-in LED lit as a visual cue — that LED is also how you know when to start sliding the robot across the line. In the loop, `readLineBlack()` returns the position, `error` is that minus the centre, and `derivative` is the change in error since the last pass. The correction is added to one motor's speed and subtracted from the other's. Finally `setMotor()` clamps the speed to −255..255 and sets the direction pins, exactly like the `drive()` helper from Lesson 4.
+Walk through it from the top. The loop runs at a fixed 100 Hz using `last += PERIOD_MS` rather than `last = now` (Lesson 2: advancing by a fixed step keeps the rate steady, so "derivative per loop" means the same thing every single time). In `setup()` the robot calibrates 200 times with the built-in LED lit as a visual cue — that LED is also how you know when to start sliding the robot across the line. In the loop, `readLineBlack()` returns the position, `error` is the centre minus the position (setpoint − measurement), and `derivative` is the change in error since the last pass. The correction is subtracted from motor A (left) and added to motor B (right). Finally `setMotor()` clamps the speed to −255..255 and sets the direction pins, exactly like the `drive()` helper from Lesson 4.
 
 One thing to check before you trust any of it: if the robot steers **away** from the line instead of toward it, the sign is wrong for your wiring. Flip the sign of `KP` and `KD` (or swap which motor gets the plus and which gets the minus). There is no universal right answer here; it depends on which side of the robot you call left.
 

@@ -235,10 +235,11 @@ if __name__ == "__main__":
     run_time = COUNTS_PER_REV / (K_SPEED * 8.4 * 0.6)
     print(f"counts per wheel revolution: {COUNTS_PER_REV}")
     print(f"open-loop run time (tuned at 8.4 V): {run_time:.3f} s")
-    for battery in (8.4, 7.4, 6.6):
+    for battery in (8.4, 7.4, 6.6, 5.0):
         print(f"battery {battery:.1f} V | open loop: {open_loop(battery, run_time):5d}"
               f" | P only: {closed_loop(battery):5d}"
-              f" | P + min duty: {closed_loop(battery, min_duty=0.15):5d}")
+              f" | min 0.15: {closed_loop(battery, min_duty=0.15):5d}"
+              f" | min 0.20: {closed_loop(battery, min_duty=0.20):5d}")
 ```
 
 <SimOutput source="model">
@@ -246,9 +247,10 @@ if __name__ == "__main__":
 ```text
 counts per wheel revolution: 1440
 open-loop run time (tuned at 8.4 V): 1.099 s
-battery 8.4 V | open loop:  1440 | P only:  1443 | P + min duty:  1441
-battery 7.4 V | open loop:  1269 | P only:  1435 | P + min duty:  1441
-battery 6.6 V | open loop:  1132 | P only:  1430 | P + min duty:  1440
+battery 8.4 V | open loop:  1440 | P only:  1443 | min 0.15:  1441 | min 0.20:  1439
+battery 7.4 V | open loop:  1269 | P only:  1435 | min 0.15:  1441 | min 0.20:  1441
+battery 6.6 V | open loop:  1132 | P only:  1430 | min 0.15:  1440 | min 0.20:  1442
+battery 5.0 V | open loop:   857 | P only:  1416 | min 0.15:  1416 | min 0.20:  1440
 ```
 
 </SimOutput>
@@ -257,7 +259,16 @@ Read the first block carefully. The open-loop time is calibrated on a fully char
 
 The P controller fixes most of it. It measures the remaining error, 1440 minus the current count, and makes the duty proportional to that error with a gain `kp`. Near the target the duty becomes small, so the wheel slows down instead of overshooting. At 7.4 V it ends at 1435 and at 6.6 V at 1430: much better, but still a few counts short. The reason is friction. Below about 0.8 V at the motor the wheel does not move at all, so a small remaining error produces a duty that cannot overcome the dead band. The wheel stops just before the target.
 
-The third column adds a minimum duty. While the error is outside the tolerance, the controller never commands less than 15 % duty in the direction of travel. That is enough to keep the wheel creeping, so the error can actually reach the tolerance. At 8.4 V and 7.4 V the result is 1441 counts; at 6.6 V it is exactly 1440. Notice that this is still a P controller: the minimum duty is a patch for stiction, not an integral term. A full PID controller adds an integral term that accumulates small errors over time and a derivative term that anticipates overshoot. That is Lesson 6. For now, the lesson is that a feedback loop is only as good as its ability to keep moving when the error is small.
+The `min 0.15` column adds a minimum duty. While the error is outside the tolerance, the controller never commands less than 15 % duty in the direction of travel. That is enough to keep the wheel creeping, so the error can actually reach the tolerance. At 8.4 V, 7.4 V and 6.6 V the result is 1441, 1441 and 1440 counts. Notice that this is still a P controller: the minimum duty is a patch for stiction, not an integral term. A full PID controller adds an integral term that accumulates small errors over time and a derivative term that anticipates overshoot. That is Lesson 6. For now, the lesson is that a feedback loop is only as good as its ability to keep moving when the error is small.
+
+The boundary case is at 5.0 V. There 0.15 × 5.0 V = 0.75 V, below the 0.8 V dead band, so the `min 0.15` column stalls at 1416, exactly like P only. The minimum duty has to be sized for the lowest battery voltage: min_duty ≥ 0.8 V / 5.0 V = 0.16. The `min 0.20` column (0.20 × 5.0 V = 1.0 V) ends within the ±2-count tolerance at all four voltages (1439, 1441, 1442 and 1440).
+
+```text
+0.15 × 5.0 V = 0.75 V < 0.8 V  → stalls
+0.20 × 5.0 V = 1.00 V > 0.8 V  → reaches the target
+```
+
+The same rule applies to the firmware's `MIN_PWM` below: MIN_PWM ≥ 255 × 0.8 V / V_min. The sketch uses MIN_PWM = 40, which is 40 / 255 × 5.0 V = 0.78 V at 5.0 V, so for a 5.0 V minimum it needs at least 41; 51 (= 0.20 × 255) leaves the same margin as the model.
 
 Now the same idea on the Uno. The sketch below is the compiled firmware used for the output that follows. The output is not a hardware measurement: it comes from running this firmware in the simavr AVR simulator, connected to the same toy motor and encoder model used by the Python script. Treat it as a check of the logic and the arithmetic, not as a promise about your bench.
 

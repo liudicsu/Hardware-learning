@@ -405,6 +405,18 @@ free_thresh: 0.196
 
 `result=0` 表示位姿图已经写出。地图是 120 × 120 个 0.05 m 的栅格，也就是 6.0 m × 6.0 m，正好是房间的大小。`origin` 是左下角栅格在地图坐标系中的位置：地图坐标系的原点设在 SLAM 启动时机器人所在的位置，也就是房间中央，所以那个角在两个方向上都离原点大约 3 m。在这张三值 PGM 里，占据栅格是黑色（0），空闲栅格是白色（254），未知栅格是灰色（205）。
 
+在 nav2_map_server（本课使用的 Jazzy 版本 1.3.13）中，保存和读取使用两套不同的阈值，所以日志中的 0.25/0.65 与 room.yaml 中的 0.196 并不矛盾。保存时（map_saver → map_io::saveMapToFile），0.25 和 0.65 负责把占据栅格的数值（0–100 %）分成三类：`cell <= rint(0.25*100)=25` 写成白色像素 254（空闲）；`cell >= rint(0.65*100)=65` 写成黑色像素 0（占据）；其余数值以及未知（-1）写成灰色 205。未指定时采用这两个默认值，见 [map_saver.cpp L165–178](https://github.com/ros-navigation/navigation2/blob/1.3.13/nav2_map_server/src/map_saver/map_saver.cpp#L165-L178) 和 [map_io.cpp L529–549](https://github.com/ros-navigation/navigation2/blob/1.3.13/nav2_map_server/src/map_io.cpp#L529-L549)。
+
+yaml 中的阈值服务于另一个目的：它们告诉 map_server 如何把 PGM 读回来。在 `negate: 0` 时，加载器先计算 `p = 1 − pixel/255`，把 `p >= occupied_thresh` 的栅格判为占据、`p <= free_thresh` 的判为空闲，其余在三值模式下判为未知，见 [map_io.cpp L256–275](https://github.com/ros-navigation/navigation2/blob/1.3.13/nav2_map_server/src/map_io.cpp#L256-L275)。由于三值像素固定为 254/205/0，trinary 模式下 saveMapToFile 总会写入 occupied_thresh 0.65 和 free_thresh 0.196，与保存时使用的阈值无关，见 [map_io.cpp L608–613](https://github.com/ros-navigation/navigation2/blob/1.3.13/nav2_map_server/src/map_io.cpp#L608-L613)。
+
+```text
+pixel 254 → p = 1 − 254/255 = 0.0039 ≤ 0.196 → free
+pixel 205 → p = 1 − 205/255 = 0.1961 > 0.196 → unknown
+pixel   0 → p = 1 − 0/255   = 1.0    ≥ 0.65  → occupied
+```
+
+0.196 略低于 50/255 = 0.19608，因此灰色像素仍保持为未知；如果 yaml 写成 0.25，每个灰色未知像素（0.1961 ≤ 0.25）都会被当作空闲区域载入，规划器就可能穿过尚未探索的区域。因此不要将已保存 trinary 地图中的 free_thresh “修正”为 0.25。
+
 一张在 RViz 里看起来没问题的地图，也可能差了几个栅格，所以要拿它和它来源的那个世界对照检查。`map_check.py` 只使用 Python 标准库读取保存下来的文件，并检查第 4 课世界文件里放置墙壁和障碍物的位置是否确实有占据栅格：
 
 <CodeSource path="examples/month-4/slam-nav/map_check.py" />
