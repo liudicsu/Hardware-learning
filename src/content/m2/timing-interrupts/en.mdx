@@ -21,7 +21,7 @@ So the main loop should never wait. Each pass asks one question: what is due now
 
 ## The millis() pattern
 
-`millis()` returns how many milliseconds have passed since the board was reset. The return type is `unsigned long`, which is 32 bits on the Uno, and calling it does not block: it reads a counter that the hardware timer has been incrementing in the background and returns immediately. That makes it the basic tool for non-blocking timing.
+`millis()` returns how many milliseconds have passed since the board was reset. The return type is `unsigned long`, which is 32 bits on the Uno, and calling it does not block: it reads a counter that the <Term id="hardware-timer">hardware timer</Term> has been incrementing in the background and returns immediately. That makes it the basic tool for non-blocking timing.
 
 The pattern has three parts. First, take one snapshot of the clock at the top of `loop()`. Second, subtract the timestamp of the last time the job ran and compare the result with the period. Third, when the job is due, advance the timestamp and do the work:
 
@@ -103,7 +103,7 @@ One practical detail: `lastA` starts at 0, so the first A toggle happens 250 ms 
 
 ### The hardware timer behind millis()
 
-The counter behind `millis()` is Timer0, one of the ATmega328P's three <Term id="hardware-timer">hardware timers</Term>. The Arduino core sets its prescaler to 64, so Timer0 advances once every 64 clock cycles, and its 8-bit counter overflows every 256 counts. Each overflow triggers an interrupt whose handler (`TIMER0_OVF_vect` in the core's `wiring.c`) updates the millisecond count:
+The counter behind `millis()` is Timer0, one of the ATmega328P's three hardware timers. The Arduino core sets its prescaler to 64, so Timer0 advances once every 64 clock cycles, and its 8-bit counter overflows every 256 counts. Each overflow triggers an interrupt whose handler (`TIMER0_OVF_vect` in the core's `wiring.c`) updates the millisecond count:
 
 ```text
 one count      = 64 / 16 MHz = 4 µs
@@ -111,7 +111,7 @@ one overflow   = 256 × 4 µs = 1024 µs = 1.024 ms
 per second     = 1 s / 1.024 ms = 976.5625 overflows
 ```
 
-An overflow is 1.024 ms, not 1 ms. The handler therefore adds 1 ms per overflow and accumulates the extra 24 µs in a fraction counter; each time the fraction reaches a whole millisecond it adds 1 ms more. The first correction comes on the 42nd overflow, at 43.008 ms, where `millis()` steps from 41 straight to 43, and about 23 corrections occur per second, so 976 + 24 = 1000 increments per second on average. `millis()` is accurate on average but resolves only 1 ms and occasionally skips a value, so never test `millis() == target`. `micros()` reads the same counter and resolves 4 µs. Timer0 is also the timer that produces the 976.6 Hz PWM on pins 5 and 6 in Lesson 1.
+An overflow is 1.024 ms, not 1 ms. The handler therefore adds 1 ms per overflow and accumulates the extra 24 µs in a fraction counter; each time the fraction reaches a whole millisecond it adds 1 ms more. The first correction comes on the 42nd overflow, at 43.008 ms, where `millis()` steps from 41 straight to 43, and on average 976.5625 × 3 / 125 = 23.4375 corrections occur per second, so 976.5625 + 23.4375 = 1000 increments per second. `millis()` is accurate on average but resolves only 1 ms and occasionally skips a value, so never test `millis() == target`. `micros()` reads the same counter and resolves 4 µs. Timer0 is also the timer that produces the 976.6 Hz PWM on pins 5 and 6 in Lesson 1.
 
 ### last += PERIOD versus last = now
 
@@ -204,13 +204,17 @@ Later features stay easy: a buzzer tone goes in the transition into `LIT`; ignor
 
 An interrupt lets a hardware event interrupt the normal flow of the program. When the event occurs, the CPU finishes the current instruction, saves its place, jumps to a short function called an <Term id="isr">interrupt service routine (ISR)</Term>, runs it, and then resumes `loop()` exactly where it left off.
 
-The delay between the event and the first line of your function can be counted. The ATmega328P datasheet (section 7.7.1, Interrupt Response Time) gives 4 clock cycles for the CPU to push the return address and 3 more for the jump in the vector table. `attachInterrupt()` then runs the Arduino core's dispatch routine, which saves the registers a C function may change and calls your function through a pointer; in the disassembly of an Uno sketch built with arduino:avr 1.8.8 that routine takes 39 cycles before the call:
+The delay between the event and the first line of your function can be counted, but it needs two pieces of CPU vocabulary first. The ATmega328P's CPU does all its arithmetic in 32 general-purpose registers, R0 to R31: small storage cells inside the CPU itself, separate from RAM and from the peripheral configuration registers that Lesson 5 reads over I2C. The stack is an area of RAM where the CPU parks values that it must restore later; storing one register value there is called a push and takes 2 clock cycles. An interrupt can arrive between any two instructions of `loop()`, so before the handler may use the registers, the values `loop()` was keeping in them are pushed onto the stack, and they are restored before `loop()` resumes. This is called saving the context.
+
+With those terms, the timeline is as follows. The ATmega328P datasheet (section 7.7.1, Interrupt Response Time) gives 4 clock cycles for the CPU to push the return address, the place in `loop()` to come back to, and 3 more for the jump through the vector table, a fixed list in flash with one jump instruction per interrupt source. `attachInterrupt()` then runs the Arduino core's dispatch routine, which saves the context and calls your function through the address that `attachInterrupt()` stored in RAM. In the disassembly of an Uno sketch built with arduino:avr 1.8.8 that routine takes 39 cycles before the call:
 
 ```text
-hardware response    4 cycles
-vector jump          3 cycles
-core dispatch       39 cycles  (15 register pushes × 2, in + eor, 2 × lds, icall)
-total               46 cycles / 16 MHz = 2.9 µs
+hardware response     4 cycles   push the return address
+vector jump           3 cycles   jump to the core's handler for this pin
+save context         30 cycles   15 registers pushed onto the stack, 2 cycles each
+find and call         9 cycles   copy the status register for saving, clear a working register (2),
+                                 load your function's address from RAM (4), call it (3)
+total                46 cycles / 16 MHz = 2.875 µs ≈ 2.9 µs
 ```
 
 If the event arrives during a multi-cycle instruction, that instruction completes first, and if another interrupt, such as the Timer0 overflow behind `millis()`, is already being handled, yours waits until that handler returns. About 3 µs is short enough to catch an encoder pulse that lasts tens of microseconds while the main loop is busy doing something else.
@@ -524,9 +528,9 @@ Before you move on, you should be able to say yes to all of these:
 
 - `delay()` blocks the whole program: at 0.5 m/s, `delay(1000)` is 50 cm of travel without a sensor reading.
 - Non-blocking pattern: `if (now - last >= PERIOD) { last += PERIOD; ... }`; `last += PERIOD` keeps the long-run rate exact, `last = now` adds every lateness to the schedule.
-- `millis()` comes from Timer0: prescaler 64, overflow every 1.024 ms, about 23 corrections per second, 1 ms resolution; `micros()` resolves 4 µs.
+- `millis()` comes from Timer0: prescaler 64, overflow every 1.024 ms, about 23.4 corrections per second, 1 ms resolution; `micros()` resolves 4 µs.
 - The 32-bit `millis()` wraps after 2^32 ms ≈ 49.7 days; `now - last` stays correct across the wrap, `now > last + PERIOD` does not.
-- Interrupt latency on the Uno through `attachInterrupt()`: 4 + 3 + 39 = 46 cycles ≈ 2.9 µs to the first line of your function.
+- Interrupt latency on the Uno through `attachInterrupt()`: 4 + 3 + 30 + 9 = 46 cycles ≈ 2.9 µs to the first line of your function.
 - ISR rules: keep it short, no `delay()` or `Serial`, share data through `volatile`, copy multi-byte values with interrupts disabled.
 - Debouncing: a time-based debouncer accepts a new state after 10–50 ms of stable input; the reaction timer instead accepts the first edge after 30 ms of quiet and rejects the bounces that follow.
 
