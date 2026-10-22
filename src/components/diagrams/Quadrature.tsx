@@ -1,0 +1,93 @@
+import { TimingStepper } from "./TimingStepper";
+import { diagramColumns, OFFSET_DEG, POLES } from "@/lib/models/encoder";
+
+export interface QuadratureTimingProps {
+  direction: "forward" | "reverse";
+  title: string;
+  countLabel: string;
+  stateLabel: string;
+  axisLabel: string;
+  prevLabel: string;
+  nextLabel: string;
+  positionLabel: string;
+}
+
+/** Encoder A/B timing diagram with a stepper; columns come from src/lib/models/encoder.ts. */
+export function QuadratureTiming({ direction, title, countLabel, stateLabel, axisLabel, prevLabel, nextLabel, positionLabel }: QuadratureTimingProps) {
+  const cols = diagramColumns(direction, 8);
+  const sgn = (d: number) => (d > 0 ? `+${d}` : d < 0 ? `−${-d}` : "0"); // typographic minus, as in the text
+  return (
+    <TimingStepper
+      id={`quadrature-${direction}`}
+      title={title}
+      axisLabel={axisLabel}
+      signals={[
+        { name: "A", levels: cols.map((c) => c.a), color: "#38bdf8" },
+        { name: "B", levels: cols.map((c) => c.b), color: "#f59e0b" },
+      ]}
+      rows={[
+        { name: stateLabel, cells: cols.map((c) => c.ab) },
+        { name: countLabel, cells: cols.map((c) => sgn(c.count)), mono: false },
+      ]}
+      stepText={cols.map((c, i) =>
+        i === 0
+          ? `AB ${c.ab}, ${countLabel} 0`
+          : `AB ${cols[i - 1].ab} → ${c.ab}: ${sgn(c.delta)}, ${countLabel} ${sgn(c.count)}`,
+      )}
+      prevLabel={prevLabel}
+      nextLabel={nextLabel}
+      positionLabel={positionLabel}
+    />
+  );
+}
+
+export interface EncoderDiscProps {
+  title: string;
+  sensorA: string;
+  sensorB: string;
+}
+
+/** The magnetic disc seen from the rear of the motor: 6 alternating poles, Hall sensors A and B a quarter period apart. */
+export function EncoderDisc({ title, sensorA, sensorB }: EncoderDiscProps) {
+  const cx = 110;
+  const cy = 126;
+  const r = 70;
+  const pt = (deg: number, rad: number) => {
+    const t = ((deg - 90) * Math.PI) / 180;
+    return [cx + rad * Math.cos(t), cy + rad * Math.sin(t)];
+  };
+  const sectors = Array.from({ length: POLES }, (_, i) => {
+    const a0 = i * (360 / POLES);
+    const a1 = a0 + 360 / POLES;
+    const [x0, y0] = pt(a0, r);
+    const [x1, y1] = pt(a1, r);
+    const [lx, ly] = pt(a0 + 180 / POLES, r * 0.62);
+    return { d: `M${cx},${cy} L${x0},${y0} A${r},${r} 0 0 1 ${x1},${y1} Z`, north: i % 2 === 0, lx, ly };
+  });
+  const sensor = (deg: number, label: string, color: string) => {
+    const [x, y] = pt(deg, r + 14);
+    const [tx, ty] = pt(deg, r + 34);
+    return (
+      <g>
+        <rect x={x - 7} y={y - 7} width={14} height={14} fill={color} transform={`rotate(${deg} ${x} ${y})`} />
+        <text x={tx} y={ty + 5} fill={color} fontSize={15} fontWeight={600} textAnchor="middle">{label}</text>
+      </g>
+    );
+  };
+  return (
+    <figure className="not-prose my-6">
+      <svg viewBox="0 0 220 250" className="mx-auto w-full max-w-[16rem]" role="img" aria-label={title}>
+        {sectors.map((s, i) => (
+          <g key={i}>
+            <path d={s.d} fill={s.north ? "#7f1d1d" : "#1e3a8a"} stroke="#18181b" />
+            <text x={s.lx} y={s.ly + 5} fill="#e4e4e7" fontSize={15} textAnchor="middle">{s.north ? "N" : "S"}</text>
+          </g>
+        ))}
+        <circle cx={cx} cy={cy} r={8} fill="#a1a1aa" />
+        {sensor(0, sensorA, "#38bdf8")}
+        {sensor(OFFSET_DEG, sensorB, "#f59e0b")}
+      </svg>
+      <figcaption className="mt-2 text-center text-sm text-zinc-400">{title}</figcaption>
+    </figure>
+  );
+}

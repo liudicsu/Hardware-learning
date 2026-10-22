@@ -166,7 +166,7 @@ Pololu 对套件的描述是："This kit includes two dual-channel Hall effect s
 
 <QuadratureTiming axisLabel="每列 = 电机轴反向转过 30°" direction="reverse" title="反转：B 领先 A；AB = 00 → 01 → 11 → 10，每次变化 −1" stateLabel="AB" countLabel="计数" />
 
-两幅图的每一列都是 30° 的电机轴转角。在每个列边界上，A 或 B 恰好有一个发生变化。正转图中 A 先上升，B 晚 30° 上升；反转图中 B 先变化。只看 A 只能得到速度，得不到方向。
+两幅图的每一列都是 30° 的电机轴转角。在每个列边界上，A 或 B 恰好有一个发生变化。正转图中 A 先上升，B 晚 30° 上升；反转图中 B 先变化。只看 A 只能得到速度，得不到方向。这里的“正转”指轴转角和计数都增加的方向，与下面的脚本以及 `one_rev.ino` 里的 `QDEC` 表约定一致。用每幅图下方的<strong>下一步</strong>和<strong>上一步</strong>逐个查看状态：高亮的一列是当前 AB 状态，图下的一行给出这次跳变及其是 +1 还是 −1。
 
 ```text
 正转：AB = 00 → 10 → 11 → 01 → 00 → ...

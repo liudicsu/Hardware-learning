@@ -55,6 +55,22 @@ function compare(name, label, want, got) {
   console.log("  got      " + JSON.stringify(got));
 }
 
+const encoder = await loadModel("encoder");
+{
+  // first 15 lines of the encoder script output (the decoder part), byte for byte
+  const want = readFileSync(join(expectedDir, "m2-encoder_sim.txt"), "utf8").split("\n").slice(0, 15);
+  const got = encoder.report();
+  compare("encoder", "decoder line count", String(want.length), String(got.length));
+  want.forEach((line, i) => compare("encoder", `line ${i + 1}`, line, got[i]));
+  // the timing-diagram columns follow the same state order and direction convention as the text
+  const fwd = encoder.diagramColumns("forward", 8);
+  const rev = encoder.diagramColumns("reverse", 8);
+  compare("encoder", "forward diagram states", "00 10 11 01 00 10 11 01", fwd.map((c) => c.ab).join(" "));
+  compare("encoder", "forward diagram counts", "0 1 2 3 4 5 6 7", fwd.map((c) => c.count).join(" "));
+  compare("encoder", "reverse diagram states", "00 01 11 10 00 01 11 10", rev.map((c) => c.ab).join(" "));
+  compare("encoder", "reverse diagram counts", "0 -1 -2 -3 -4 -5 -6 -7", rev.map((c) => c.count).join(" "));
+}
+
 const pid = await loadModel("pid");
 {
   // all 8 lines of the expected file, byte for byte (and nothing extra)

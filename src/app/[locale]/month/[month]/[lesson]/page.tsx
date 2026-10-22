@@ -41,7 +41,9 @@ import { LineFollowWidget } from "@/components/widgets/LineFollowWidget";
 import { Toc } from "@/components/lesson/Toc";
 import { LessonIntro } from "@/components/lesson/LessonIntro";
 import { Summary } from "@/components/mdx/Summary";
-import { QuadratureTiming, EncoderDisc } from "@/components/mdx/Quadrature";
+import { QuadratureTiming, EncoderDisc, type QuadratureTimingProps } from "@/components/diagrams/Quadrature";
+import { Timing } from "@/components/diagrams/Timing";
+import { TimingStepper, type TimingStepperProps } from "@/components/diagrams/TimingStepper";
 import { TermPopover } from "@/components/mdx/TermPopover";
 import { getTerm } from "@/lib/glossary";
 import { findLessonBySlug, lessonHref } from "@/lib/lessonIndex";
@@ -88,6 +90,7 @@ export default async function LessonPage({ params }: Params) {
   const tn = await getTranslations("nav");
   const tr_ = await getTranslations("resource");
   const tg = await getTranslations("glossary");
+  const td = await getTranslations("diagram");
   const Content = await loadContent(month.id, lesson.slug, loc);
   if (!Content) notFound();
   const toc = await lessonToc(month.id, lesson.slug, loc);
@@ -95,8 +98,14 @@ export default async function LessonPage({ params }: Params) {
   const components: MDXComponents = {
     Quiz: (props: Omit<ComponentProps<typeof Quiz>, "lessonKey">) => <Quiz lessonKey={key} {...props} />,
     Falstad,
-    QuadratureTiming,
+    QuadratureTiming: (p: Omit<QuadratureTimingProps, "prevLabel" | "nextLabel" | "positionLabel">) => (
+      <QuadratureTiming {...p} prevLabel={td("prev")} nextLabel={td("next")} positionLabel={td("position")} />
+    ),
     EncoderDisc,
+    Timing,
+    TimingStepper: (p: Omit<TimingStepperProps, "prevLabel" | "nextLabel" | "positionLabel">) => (
+      <TimingStepper {...p} prevLabel={td("prev")} nextLabel={td("next")} positionLabel={td("position")} />
+    ),
     Callout,
     Formula,
     h2: H2,
