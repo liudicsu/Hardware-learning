@@ -239,6 +239,22 @@ read position 6  SDK FF FF 06 04 02 38 02 B9     same
 
 每一行都是 `same`。飞特 SDK 写进假串口的字节，和手工构造的完全一致，说明长度字段和校验和都对。LeRobot 底层用的就是这个 SDK，所以通过 LeRobot 发出的包也是同样的形状。用机械臂时你永远不需要手搓数据包，但当某个舵机突然不说话时，知道线上“应该”是什么，才能判断问题出在供电、接线、ID 还是数据损坏。
 
+## 供电
+
+供电是最容易因选错而损坏硬件的一步，电源电压必须与舵机版本匹配。标准 SO-101 使用 5 V 电源（来源 A），而 5 V 落在飞特为 7.4 V 版 STS3215 规定的 4 V–7.4 V 输入电压范围之内（来源 B）。在 5 V 下，扭矩会略低于按 6 V 给出的 16.5 kg·cm（来源 A）。可选的 12 V 版从臂舵机必须改用 12 V、5 A 及以上的电源，而不是 5 V 电源（来源 A）；主臂始终使用 7.4 V 版舵机（来源 A）。
+
+| 机械臂 / 舵机版本 | Feetech 型号 | 输入电压范围（Feetech） | SO-ARM100 README 的供电 | 堵转扭矩（Feetech） |
+| --- | --- | --- | --- | --- |
+| 从臂，标准 7.4 V | ST-3215-C001 | 4–7.4 V | 5 V | 16.5 kg·cm @ 6 V，19.5 kg·cm @ 7.4 V |
+| 从臂，可选 12 V | ST-3215-C018 | 4–14 V | 12 V，≥ 5 A | 30 kg·cm @ 12 V |
+| 主臂（始终 7.4 V） | 7.4 V STS3215（按 README BOM 为 C001/C044/C046） | 4–7.4 V（C001 规格） | 5 V | — |
+
+<Callout type="danger" title="12 V 电源只能接 12 V 版舵机">
+绝不要把 12 V 电源接到装有 7.4 V 舵机的机械臂上；主臂在任何情况下都属于这一类。12 V 远高于 Feetech 对 7.4 V 版给出的 4–7.4 V 输入范围。插电前，先对照舵机标签上的电压和电源铭牌上的额定值；7.4 V 舵机和 12 V 舵机应分臂、分电源使用，因为同一条臂的所有舵机通过菊花链共用同一路电源。
+</Callout>
+
+来源：A — [SO-ARM100 README · Sourcing Parts (IMPORTANT note)](https://github.com/TheRobotStudio/SO-ARM100/blob/a758567c3978dfeefe282ede0500085a48fe8f78/README.md#L72-L73)；B — [Feetech STS3215 (C001) specification, §5](https://www.feetechrc.com/Data/feetechrc/upload/file/20200611/6372749961523760249976542.pdf)；C — [Feetech ST-3215-C018 product page](https://www.feetechrc.com/en/525603.html) 与 [specification, §5](https://www.feetechrc.com/Data/feetechrc/upload/file/20240507/6385067068652648096680943.pdf)。
+
 ## 组装并设置 ID
 
 组装分两半：软件要装好、能看见控制板；电机要先拿到各自的 ID，否则后面都无从谈起。先做软件，因为当你已经知道串口和工具都正常时，一个 ID 设错的电机要好查得多。
