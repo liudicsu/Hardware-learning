@@ -2,7 +2,9 @@
 
 A small electric motor is the opposite of what most robot joints need. It spins fast and produces very little <Term id="torque">torque</Term> at the shaft. A joint wants the other trade: slow motion and enough torque to hold the arm, lift a payload and survive a bump. A transmission is how you make that trade, and understanding <Term id="gear-ratio">gear reduction</Term>, <Term id="backlash">backlash</Term> and torque density is much of what separates a robot that works once in a video from one that works every time.
 
-A reduction of n:1 means the input turns n times for one turn of the output. Ignoring friction, that multiplies torque by n and divides speed by n. <Term id="power">Power</Term> is not created, only traded: the same power passes through with more torque and less speed. In symbols, P = τ × ω, so if ω falls by n and τ rises by n, the product is unchanged. Real gears add friction, so the output torque is always a little less than the ideal n times the input, and the difference is what the efficiency number describes.
+Three quantities describe what a joint does, and the rest of this lesson uses all three. Torque τ is a force multiplied by its distance from the axis, τ = F × r, in newton-metres (N·m): 10 N pushing at the end of a 0.1 m link is 1 N·m, and the same 1 N·m at 0.2 m pushes with only 5 N. <Term id="angular-velocity">Angular velocity</Term> ω is how fast the shaft turns, in radians per second (rad/s); motor datasheets usually give rpm, so convert with ω = rpm × 2π / 60, which makes 6000 rpm equal to 628.3 rad/s. Mechanical power in watts is the product of the two, P = τ × ω, with τ in N·m and ω in rad/s.
+
+A reduction of n:1 means the input turns n times for one turn of the output. Ignoring friction, that multiplies torque by n and divides speed by n. <Term id="power">Power</Term> is not created, only traded: the same power passes through with more torque and less speed. Because P = τ × ω, if ω falls by n and τ rises by n, the product is unchanged. Real gears add friction, so the output torque is always a little less than the ideal n times the input, and the difference is what the efficiency number describes.
 
 Three things are worth putting in a text file next to your design, because you will use them over and over:
 
@@ -24,6 +26,19 @@ output speed = 6000 / 25 = 240 rpm
 
 The motor gave 0.05 N·m at 6000 rpm; the gearbox output gives about 1.01 N·m at 240 rpm. Notice what did not happen: the gearbox did not create energy. It converted a fast, weak input into a slow, strong output, and friction ate a small part of the power along the way. If the efficiency of printed gears is worse than 90 %, the torque drops further; if it is better, the torque rises. The number 90 % per stage is a guess for printed gears, not a measurement. You should replace it with your own measurement once you print a reducer, and the practice section at the end of this lesson shows how.
 
+### Check it with a power budget
+
+The same example can be checked with power, which catches mistakes that the torque line alone hides. Convert both speeds to rad/s and multiply each by its torque:
+
+```text
+input:  ω = 6000 × 2π / 60 = 628.3 rad/s    P = 0.05 × 628.3   = 31.4 W
+output: ω = 240 × 2π / 60  = 25.13 rad/s    P = 1.0125 × 25.13 = 25.4 W
+ratio:  25.4 / 31.4 = 0.81
+lost:   31.4 − 25.4 = 6.0 W, turned into heat in the teeth and bearings
+```
+
+The output power is 81 % of the input power, exactly the efficiency used in the torque line. That is the check: a gearbox can never deliver more power than it receives, so an output power above the input power means a units or ratio mistake somewhere. The 6.0 W is not an abstraction either. It heats the gear teeth, and PLA softens at 55–60 °C (Lesson 2), so a printed reducer that runs continuously at this load needs better efficiency, a way to shed the heat, or a material with a higher glass transition temperature.
+
 Torque density is the reason robot arms are built this way. Torque density means newton-metres of output torque per kilogram of actuator, and a small high-speed motor with a good reduction beats a large slow motor on that measure. A big direct-drive motor large enough to hold an arm would weigh a lot and cost a lot; the same job done by a small motor and a gearbox is lighter, cheaper and easier to package. In Lesson 5 the SO-101 arm uses six Feetech STS3215 bus servos, and each one is small for the torque it produces because there is a gear train inside. The servo is not a powerful motor; it is a modest motor plus a ratio.
 
 <Quiz id="q1" question="A motor gives 0.1 N·m. It drives a 10:1 gearbox that is 90 % efficient. What is the output torque (N·m)?" answer={0.9} unit="N·m" tolerance={0.01} explanation="Output torque = motor torque × n × efficiency = 0.1 × 10 × 0.9 = 0.9 N·m. Without friction it would be 1.0 N·m, but 10 % is lost in the gearbox." />
@@ -41,6 +56,17 @@ ratio = 1 + ring / sun
 ```
 
 It is worth seeing where the plus one comes from. First hold the carrier still: the gears become an ordinary train, and turning the ring once (backwards) turns the sun ring / sun times. Now turn the whole stage once forwards as a solid block: every part, sun included, gains one turn, and the ring is back where it started, so it has in effect been held still. Add the two motions: the carrier made one turn while the sun made 1 + ring / sun turns. That free extra turn is why a planetary gives a useful ratio in a very short package.
+
+Tooth counts alone do not fix a gear's size; the <Term id="gear-module">module</Term> m does. The module is the pitch diameter divided by the number of teeth, in millimetres, so a gear with z teeth has a pitch diameter d = m × z. The pitch circle is the circle on which two meshing gears roll on each other without slipping. Two gears mesh only if they share the same module and the same pressure angle (20° for standard involute gears). A standard tooth reaches one module beyond the pitch circle, and the distance between the shafts of a meshing pair, the <Term id="centre-distance">centre distance</Term>, is the sum of the two pitch radii:
+
+```text
+pitch diameter       d = m × z
+tip diameter         = (z + 2) × m
+centre distance      a = m × (z1 + z2) / 2     (two external gears)
+inside a ring gear   a = m × (z_ring − z_planet) / 2
+```
+
+With module 1 the stage used in this lesson is easy to lay out. The 12-tooth sun has a 12 mm pitch diameter and a 14 mm tip diameter; each 18-tooth planet has 18 mm and 20 mm; the 48-tooth ring has a 48 mm pitch diameter. The sun-to-planet centre distance is 1 × (12 + 18) / 2 = 15 mm, and the planet-to-ring centre distance is 1 × (48 − 18) / 2 = 15 mm. The two must be equal, because the planet's centre can only be in one place; setting them equal gives ring − planet = sun + planet, which is the first assembly rule below. The planet centres therefore lie on a circle of 30 mm diameter, and with module 1 the whole stage fits inside the ring's 48 mm pitch circle plus the ring's wall.
 
 Geometry imposes three assembly rules that you must satisfy on paper before you print anything. First, the planets must fill the gap between the sun and the ring, so the planet tooth count must be a whole number:
 
@@ -189,6 +215,8 @@ The cycloidal lines are shorter because the arithmetic is simpler. Ten ring pins
 
 <Quiz id="q3" question="Which planetary stage cannot be assembled with 3 equally spaced planets?" options={["sun 12, ring 48", "sun 15, ring 45", "sun 10, ring 41", "sun 18, ring 54"]} answer={2} explanation="The spacing rule is (sun + ring) / 3 must be a whole number. For sun 10, ring 41, the gap 41 − 10 = 31 is odd, so the planet would need 15.5 teeth, and the stage fails before spacing even matters. The other three give whole planets 18, 15 and 18, and (sun + ring) / 3 = 20, 20 and 24." />
 
+<Quiz id="q8" question="Two module-1 spur gears have 12 and 18 teeth. What centre distance do you draw between their shafts (mm)?" answer={15} unit="mm" explanation="Centre distance = m × (z1 + z2) / 2 = 1 × (12 + 18) / 2 = 15 mm, the sum of the two pitch radii (6 mm and 9 mm)." />
+
 ## Belts, gears or direct drive
 
 Once you know the ratio you want, you still have to choose how to get it. Each option has a different balance of compactness, cost, backlash and backdrivability. A short comparison:
@@ -210,6 +238,8 @@ Direct drive is the cleanest answer and the most expensive. Mount the motor dire
 ### Backdriving
 
 Backdriving is what happens when you push the output of a gearbox by hand and the input turns. The faster you can push the output by hand, the safer and more teachable the arm is: you can move it out of the way, and you can guide it through a motion by hand while the controller records. Through an n:1 gearbox you feel two things the motor contributes, both amplified by the reduction. You feel the motor's friction multiplied by n, and you feel the motor rotor's <Term id="moment-of-inertia">inertia</Term> multiplied by n², because the rotor spins n times faster than the output. A high ratio buys torque and costs backdrivability, and the inertia penalty is the square, so it grows faster than the friction penalty.
+
+Both factors follow from energy. <Term id="moment-of-inertia">Moment of inertia</Term> J is the rotational counterpart of mass, J = Σ m × r² in kg·m², so mass far from the axis counts with the square of its distance. Turn the output through a small angle θ and the motor shaft turns through n × θ. If the motor and the first gear stage have a friction torque T_f, overcoming it takes the work T_f × n × θ, and the work your hand does at the output is T_out × θ; setting the two equal gives T_out = n × T_f. For the inertia, a rotor of inertia J_r spinning at n × ω stores the kinetic energy ½ × J_r × (n × ω)² = ½ × (n² × J_r) × ω², so at the output it feels like a body of inertia n² × J_r turning at ω. A real gearbox adds its own losses on top: driven from the output side, the teeth also lose power to friction, with a backdriving efficiency η_b below 1, so the torque you have to apply is n × T_f / η_b. At η_b = 0.5 that is twice the ideal value, and a gearbox whose η_b falls to zero cannot be backdriven at all, which is the self-locking behaviour of a worm drive or a fine lead screw.
 
 That is why the SO-101 leader arm, the one you move by hand in Lesson 5, uses STS3215 servos with lower ratios than the follower. The follower uses 1/345 everywhere. The leader uses 1/191 and 1/147 on several joints, and 1/345 only on the shoulder lift, which carries most of the arm's own weight, so the leader can hold itself up there. The last part of the program prints exactly this comparison against 1/147: 345:1 against 147:1 gives friction ×345 / 147 = ×2.35 and inertia ×2.35² = ×5.51. The 191:1 row shows the middle ground, ×1.30 friction and ×1.69 inertia.
 
@@ -330,13 +360,28 @@ A bearing lets a shaft turn while it carries load. A robot joint puts three kind
 
 One bearing lets the shaft tilt: it can pivot around the bearing, so the far end of the shaft wobbles. Two bearings spaced apart turn the tipping moment into two opposite radial forces, one at each bearing, and the farther apart the bearings are, the smaller those forces and the less the shaft wobbles. When you design a joint, space the bearings along the shaft as far as the geometry allows instead of stacking them next to each other.
 
+The size of those forces follows from a moment balance. Suppose the shaft carries a sideways load F at a distance L beyond the nearer bearing, and the two bearings are d apart. Taking moments about the nearer bearing, the far bearing has to push back with F × L / d, and the nearer bearing carries that force plus F itself:
+
+```text
+far bearing   R_far  = F × L / d
+near bearing  R_near = F × (L + d) / d
+```
+
+Take a 10 N sideways load, about the weight of 1 kg, acting 100 mm beyond the nearer bearing. With the bearings 10 mm apart, the far bearing carries 10 × 100 / 10 = 100 N and the near one 10 × 110 / 10 = 110 N. Space them 40 mm apart and the forces fall to 25 N and 35 N. The steel bearing is rarely the limit: SKF lists a basic static load rating of 1.37 kN and a basic dynamic load rating of 3.45 kN for the 608. The printed seat is. The 110 N load presses on a projected seat area of 22 × 7 = 154 mm² for a 608, about 0.7 MPa, far below PLA's yield strength of about 60 MPa, but a printed seat creeps under a sustained load and loosens over time, and the larger the force, the sooner that happens.
+
 Preload is the second half of the bearing problem. Squeezing the bearings axially with a nut, a wave washer or a printed spring removes their internal play, exactly the same idea as the spring that removed backlash in the model above. Preload makes the shaft stiff and removes the small free movements that show up as wobble at the tool. Too much preload is a problem too: a large contact force between the rolling elements and the raceways raises friction and temperature, and the bearing wears out quickly, so the preload has to be sized against the bearing's rating. Angular-contact and tapered bearings are made to be preloaded; ordinary deep-groove bearings accept a light preload but are not designed for heavy axial loads.
+
+The effect of preload is something to measure, not to assume, because it depends on your seat, your bearings and how hard you tighten. Clamp the housing, hang a known mass from the end of the shaft (1 kg gives 9.81 N), and read how far the shaft end moves, with a dial indicator if you have one or with a long pointer and the paper method from the practice section. The radial stiffness is the force divided by the deflection, k = F / δ, in N/mm. Measure once without preload, add the wave washer or tighten the nut, and measure again; the ratio of the two stiffnesses is what the preload bought you. The course does not quote a figure here because it has not measured one.
 
 Printed bearing seats follow the same rules as the <Term id="fit">fits</Term> in Lesson 2. Use your press-fit clearance from the tolerance gauge, and remember that a bearing seat is usually a small negative or near-zero per-side number, not the sliding clearance you would use for a shaft that must turn. Add a chamfer to the entry so the bearing starts square, and never hammer a bearing in through its balls: press on the ring you are fitting, which is the outer ring for a seat in a housing and the inner ring for a shaft.
 
 ### Why servo gears fail first
 
 In a cheap hobby servo the last gear stage carries the full output torque on small plastic teeth. That is already the hardest-working part of the gearbox, and a crash, a dropped arm or a joint stalled against a hard stop turns it into the part that takes the shock. A sudden stop puts the whole load on one or two teeth at the output stage, and plastic softens as the motor heats up, so the teeth get weaker just as the load peaks. That is why the gearset is usually the first thing to fail on an arm, long before the motor or the electronics.
+
+The numbers show where the load sits. The force on a tooth is the torque divided by the pitch radius of the gear that carries it, F = τ / r. In an n:1 train each stage carries only the output torque divided by the ratios of the stages after it, so torque and tooth force grow stage by stage toward the output. The standard SO-101 follower servo, an STS3215 at 345:1, is rated 19.5 kg·cm at 7.4 V (Lesson 5), which is 19.5 × 0.0981 = 1.91 N·m at the output. At the motor pinion that is 1.91 / 345 = 0.0055 N·m before losses, while the output gear carries the full 1.91 N·m. If the output gear's pitch radius is 10 mm (an assumed value; the gear sits inside the servo), the tooth force is 1.91 / 0.010 = 191 N, carried by one or two teeth at a time, and a crash adds the arm's momentum on top.
+
+You can watch the result on a servo you own. Fix a long pointer to the horn, keep the servo powered and holding a fixed position, and rock the pointer gently both ways, marking the tip travel on paper as in the practice section. The reading combines gear backlash with the controller's position dead band, so its absolute value is not pure backlash, but its growth is: measure when the servo is new and again after a few weeks of use, and a rising number at the same pointer length is tooth wear.
 
 Three things help. Metal-gear servos, such as the MG996R used in the EEZYbotARM, replace the plastic teeth with metal ones, whose strength and wear resistance are higher, so they fail far less often under the same load. Servos with a smarter controller that limits current reduce the load a stall can apply to the teeth. And keeping the arm short and light lowers the torque every joint has to carry, which lowers the load on the last stage. If you are choosing servos for a build, this is the reason the specification that matters is not only the torque number but also the gear material.
 
@@ -362,7 +407,7 @@ Write that number in your print log next to the clearance and the material you u
 
 Redesign is a loop of one change at a time, and each change has a reason. Try these in small steps and record what each one does:
 
-- Reduce the <Term id="centre-distance">centre-distance</Term> clearance or the per-side clearance on the gear teeth in small steps, about 0.05 mm at a time, and change one thing per print. Reason: moving the gears closer together removes free play between the teeth, but going too tight adds friction and heat and the teeth may not turn at all.
+- Reduce the centre-distance clearance or the per-side clearance on the gear teeth in small steps, about 0.05 mm at a time, and change one thing per print. Reason: moving the gears closer together removes free play between the teeth, but going too tight adds friction and heat and the teeth may not turn at all.
 - Add more planets, or use a cycloidal disc, so more contact points share the load and the play. Reason: the load is spread over several contacts instead of one, so each contact can be made tighter without jamming.
 - Use herringbone teeth so the gears cannot slide apart along the shaft. Reason: the two opposing helixes cancel the axial force, keeping the teeth aligned and reducing play under load.
 - Preload the output with a spring or a bearing nut. Reason: a constant force keeps the teeth on one flank, exactly as the preload did in the backlash model above.
@@ -382,6 +427,8 @@ Lesson 4 puts this to work. PID and cascade control are what make a joint follow
 **Key points**
 
 - Output torque = motor torque × n × efficiency: 0.05 N·m at 6000 rpm through two 5:1 stages at 90 % each gives 0.05 × 25 × 0.81 = 1.01 N·m at 240 rpm.
+- Power check: P = τ × ω with ω = rpm × 2π / 60; the example's 31.4 W in becomes 25.4 W out, 81 %, and the 6.0 W difference heats the teeth.
+- Module m: pitch diameter = m × z and centre distance = m × (z1 + z2) / 2; with m = 1, sun 12, planet 18 and ring 48 give 15 mm both sun-to-planet and planet-to-ring.
 - Planetary ratio = 1 + ring / sun, with planet = (ring − sun)/2 a whole number: sun 12 with ring 48 gives 5.000 : 1, while sun 12 with ring 45 needs 16.5 teeth and will not mesh.
 - Cycloidal: N pins with N − 1 lobes gives N − 1 : 1 and the output turns the opposite way (10 pins → 9 : 1).
 - arc = reach × angle in radians: 1° on a 0.30 m arm is 0.30 × 0.01745 = 5.2 mm at the tip.
