@@ -765,6 +765,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The dimensional relationship between two mating parts: a clearance fit slides or turns freely, while an interference fit must be pressed in and is held by friction. Clearance is per side, so a 3 mm shaft with 0.15 mm per side needs a 3.3 mm hole; 3.15 mm would interfere.",
     },
     lesson: "fdm-printing",
+    firstExplained: true,
   },
   {
     id: "layer-height",
@@ -774,6 +775,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The thickness of each layer in FDM printing; the SO-101 structural parts use the repository's 0.2 mm layer height with a 0.4 mm nozzle. A smaller layer height gives finer detail but takes longer, while a larger one changes the stair-stepping and how layers bond.",
     },
     lesson: "fdm-printing",
+    firstExplained: true,
   },
   {
     id: "perimeter-wall",
@@ -783,6 +785,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The solid paths around the outside of each sliced layer; strength comes mainly from the walls rather than the infill, so one or two extra walls usually beat more infill. Wall thickness should be a multiple of extrusion width, so a 0.4 mm nozzle gives 0.8, 1.2 or 1.6 mm.",
     },
     lesson: "fdm-printing",
+    firstExplained: true,
   },
   {
     id: "infill",
@@ -792,6 +795,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The material printed inside a part at a chosen percentage and pattern to support top surfaces and add some stiffness. The SO-101 structural parts use the repository's 15% infill, while most strength still comes from the walls.",
     },
     lesson: "fdm-printing",
+    firstExplained: true,
   },
   {
     id: "glass-transition-tg",
@@ -801,6 +805,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The temperature range where a polymer changes from a hard glassy state to a soft rubbery one, not its melting point; PLA starts to soften around 55–60 °C and PETG's Tg is about 80 °C. A mount next to a 70 °C motor needs ABS, ASA or PETG with margin, not PLA.",
     },
     lesson: "fdm-printing",
+    firstExplained: true,
   },
   {
     id: "anisotropy",
@@ -810,6 +815,7 @@ export const glossary: GlossaryEntry[] = [
       en: "Material properties that differ with direction; an FDM part is built from welded lines in layers, and the bond between layers is weaker than the plastic within a layer. Design so the main load runs along the layers rather than across them, or the part will split along a layer line.",
     },
     lesson: "fdm-printing",
+    firstExplained: true,
   },
   {
     id: "creep",
@@ -819,6 +825,7 @@ export const glossary: GlossaryEntry[] = [
       en: "Slow permanent deformation of a material under sustained load, even below its yield stress. PLA creeps in long-loaded bosses or cantilevers, which is why robot parts under continuous load often move to PETG or a more heat-resistant material.",
     },
     lesson: "fdm-printing",
+    firstExplained: true,
   },
   {
     id: "stress",
@@ -828,6 +835,7 @@ export const glossary: GlossaryEntry[] = [
       en: "Internal force per unit area, commonly in MPa or N/mm². Stress concentrates at the root of a snap-fit arm, so the design adds a fillet there and keeps the stress consistent with the actual cross-section.",
     },
     lesson: "fdm-printing",
+    firstExplained: true,
   },
   {
     id: "strain",
@@ -837,6 +845,7 @@ export const glossary: GlossaryEntry[] = [
       en: "Deformation divided by original length, dimensionless and often shown as a percentage. A cantilever snap arm's root strain is ε = 1.5 × y × t / L²; with L = 10 mm, t = 1.2 mm and a 0.8 mm hook it is 1.44%, below the cautious 1.5% limit for PLA.",
     },
     lesson: "fdm-printing",
+    firstExplained: true,
   },
   {
     id: "youngs-modulus",
@@ -846,6 +855,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The ratio of stress to strain in the elastic range, a measure of stiffness in MPa. The lesson script uses 3500 MPa for PLA and 2000 MPa for PETG, so the same snap geometry in PETG is more flexible and needs less push-on force.",
     },
     lesson: "fdm-printing",
+    firstExplained: true,
   },
   {
     id: "torque",
@@ -855,6 +865,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The moment that tends to rotate an object about an axis, in newton-metres (N·m); power is P = τ × ω. A 0.05 N·m motor through a 25:1 two-stage reduction at 81% efficiency delivers about 1.01 N·m.",
     },
     lesson: "transmissions",
+    firstExplained: true,
   },
   {
     id: "angular-velocity",
@@ -864,6 +875,7 @@ export const glossary: GlossaryEntry[] = [
       en: "Angle turned per unit time, usually in rad/s or rpm, symbol ω. A gear ratio n divides input speed by n, so a 6000 rpm motor through a 25:1 reduction turns its output at 240 rpm.",
     },
     lesson: "transmissions",
+    firstExplained: true,
   },
   {
     id: "moment-of-inertia",
@@ -873,6 +885,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The property that resists angular acceleration, in kg·m²; the lesson's joint model uses J = 0.004 kg·m². Through an n:1 gearbox, the rotor inertia felt when backdriving the output grows with n², so the follower's 345:1 joint feels about 5.51× the inertia of a 147:1 joint.",
     },
     lesson: "transmissions",
+    firstExplained: true,
   },
   {
     id: "gear-ratio",
@@ -882,6 +895,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The ratio n:1 meaning n input turns for one output turn; ignoring friction, torque is multiplied by n and speed divided by n at constant power. For a planetary stage with the ring fixed, sun input and carrier output, the ratio is 1 + ring teeth / sun teeth.",
     },
     lesson: "transmissions",
+    firstExplained: true,
   },
   {
     id: "gear-module",
@@ -891,6 +905,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The standard parameter for gear tooth size, equal to pitch diameter divided by tooth count; meshing gears must share the same module. Module and tooth counts set the centre distance: a = m × (z1 + z2) / 2.",
     },
     lesson: "transmissions",
+    firstExplained: true,
   },
   {
     id: "centre-distance",
@@ -900,6 +915,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The distance between the shafts of two meshing gears, set by module and tooth counts and realised by the bearing bores in a printed part. Slightly reducing it removes free play between teeth, but too little raises friction and heat sharply and can stop the gears turning.",
     },
     lesson: "transmissions",
+    firstExplained: true,
   },
   {
     id: "backlash",
@@ -909,6 +925,7 @@ export const glossary: GlossaryEntry[] = [
       en: "The free play between meshing teeth, within which the input can move while the output does not; every mesh in a train adds its share. At a joint, 1° of backlash produces 0.30 × π / 180 ≈ 5.2 mm of tip error on a 0.30 m arm, and software cannot push inside the gap.",
     },
     lesson: "transmissions",
+    firstExplained: true,
   },
   {
     id: "preload",
@@ -918,6 +935,7 @@ export const glossary: GlossaryEntry[] = [
       en: "A light, controlled force applied by a spring, nut or wave washer in a fixed direction to remove bearing play or gear backlash and make a shaft or joint stiffer. Preload must be controlled; too much makes bearings stiff, hot and short-lived.",
     },
     lesson: "transmissions",
+    firstExplained: true,
   },
   {
     id: "proportional-term",
