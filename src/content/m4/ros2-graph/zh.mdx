@@ -32,13 +32,7 @@
 
 下面就是本课要搭的系统。把它当成一条流水线来读：读数从左边进，统计从右边出，另外两条侧通道分别负责控制和采集。
 
-```text
-sensor_node (Python) --/raw--> filter_node (C++) --/filtered--> aggregator_node (Python) --/summary-->
-                                     ^                                  |
-                    set_parameters   |                                  +-- /collect action
-                                     |
- you --/set_alpha service--> config_node (Python)
-```
+<Diagram id="ros2-graph-system" />
 
 传感器在 `/raw` 上发布原始读数。用 C++ 写的滤波器把每条读数平滑后，重新发布到 `/filtered`。汇总节点监听 `/filtered`，把一条统计消息发到 `/summary`。配置节点待在旁边：当你调用它的 `/set_alpha` 服务时，它先校验新的平滑系数，再通过滤波器节点自己的参数服务，把值写进滤波器的 `alpha` 参数——就是图里标着 `set_parameters` 的那个箭头。汇总节点还提供了一个 `/collect` 动作，于是客户端可以让它采集若干个读数、看着反馈一条条到达、后悔了就把任务取消。四个节点、三种模式、一张图，没有任何硬件。
 

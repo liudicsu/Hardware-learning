@@ -12,13 +12,7 @@ SLAM Toolbox combines the two. It keeps a **pose graph**: every time the robot h
 
 The result appears in TF as one extra frame. The chain from the map to the robot is:
 
-```text
-map ──► odom ──► base_footprint ──► base_link ──► laser_link ...
-    │         │                   │
-    │         │                   └ robot_state_publisher (URDF, Lesson 3)
-    │         └ diff_drive_controller (wheel odometry, Lesson 5): smooth, drifts slowly
-    └ SLAM Toolbox: jumps a little whenever a scan match corrects the drift
-```
+<Diagram id="slam-tf-chain" />
 
 SLAM Toolbox does not overwrite odometry. It publishes `map → odom`, the correction that makes the whole chain land in the right place. Odometry stays smooth for the controllers that need a continuous signal, and the map frame stays right for planning. When SLAM Toolbox corrects drift, only `map → odom` moves.
 

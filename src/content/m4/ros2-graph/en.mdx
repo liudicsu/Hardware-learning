@@ -32,13 +32,7 @@ There is a fourth thing, and it is not a way to send data at all: **parameters**
 
 Here is the system this lesson builds. Read it as a pipeline: readings enter on the left, statistics leave on the right, and two side channels control and collect.
 
-```text
-sensor_node (Python) --/raw--> filter_node (C++) --/filtered--> aggregator_node (Python) --/summary-->
-                                     ^                                  |
-                    set_parameters   |                                  +-- /collect action
-                                     |
- you --/set_alpha service--> config_node (Python)
-```
+<Diagram id="ros2-graph-system" />
 
 The sensor publishes raw readings on `/raw`. The filter, written in C++, smooths each reading and republishes it on `/filtered`. The aggregator listens on `/filtered` and publishes a statistics message on `/summary`. The config node sits off to the side: when you call its `/set_alpha` service it validates the new smoothing factor and pushes it into the filter's `alpha` parameter through that node's own parameter service — the arrow labelled `set_parameters` in the diagram. The aggregator also runs a `/collect` action, so a client can ask it to gather a number of readings, watch feedback arrive, and cancel the job if it changes its mind. Four nodes, three patterns, one graph, and no hardware anywhere.
 

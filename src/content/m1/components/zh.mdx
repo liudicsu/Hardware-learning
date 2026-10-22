@@ -149,6 +149,8 @@ Rb = (Vgpio − Vbe) / Ib = (3.3 V − 0.7 V) / 2 mA ≈ 1.3 kΩ
 
 许多 MCU 内部带有可配置的上拉电阻，通过一条配置即可启用（Arduino 中写 `INPUT_PULLUP`），因此可以省去外部电阻——但这也意味着“按下读 LOW”。
 
+<Diagram id="pullup-external" />
+
 <Falstad title="上拉电阻 + 按键：松开读 5 V，按下读 0 V" circuit="pullupButton" height={380} />
 
 按键松开时，引脚探针显示 5 V——没有电流流过，10 kΩ 上也就没有压降。按住按键（它是瞬动式的：用鼠标按住不放），引脚读到 0 V，同时 5 V / 10 kΩ = 0.5 mA 流过电阻。这点小电流就是上拉电阻带来的功耗，也是为什么用 10 kΩ 而不是 100 Ω。

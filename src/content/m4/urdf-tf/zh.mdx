@@ -437,10 +437,7 @@ total mass 2.750 kg, 0 problem(s)
 
 `joint_state_publisher` 以及它的滑块版 `joint_state_publisher_gui` 正好相反：它不读取任何传感器，**自行生成**关节位置，作为 `/joint_states` 发出去。在真机上、或在 Gazebo 里，是硬件驱动或仿真器在发布 `/joint_states`，这时你就别再跑 `joint_state_publisher` 了。这两个程序坐在同一根管道的两端，这正是它们名字如此相似、人们又总搞混的原因。
 
-```text
-robot_description (URDF) ------------------> robot_state_publisher
-joint_state_publisher_gui --/joint_states--> robot_state_publisher --/tf, /tf_static--> RViz、tf2_echo 以及其他所有节点
-```
+<Diagram id="urdf-two-publishers" />
 
 launch 文件把它们接起来，并加上 RViz，用一个参数决定关节位置从哪来：
 

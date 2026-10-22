@@ -12,16 +12,9 @@ Three areas matter: the **working directory** (files on disk, including unstaged
 
 A **branch** is a movable label pointing at one commit. `main` is the default. Committing on a branch moves its label forward. A branch is not a folder copy; it is a name, which is why creating one is instant. **HEAD** means where you are: normally it points to a branch, which points to a commit. If HEAD points directly at a commit, you are in detached HEAD state.
 
-```text
-working directory ──git add──▶ staging area ──git commit──▶ repository
-   (your edits)                    (index)                   (.git)
+<Diagram id="git-areas" />
 
-main     A ───── B ───── C
-                          ╲
-feature                    D ───── E
-                                   ▲
-                                  HEAD
-```
+<Diagram id="git-branches" />
 
 A, B and C are on `main`. `feature` started at C and has two more commits, D and E. HEAD points to `feature`, so the files on disk look like snapshot E. Switch to `main` and the files become snapshot C; D and E still exist because the `feature` label still points at them.
 
