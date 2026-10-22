@@ -314,6 +314,61 @@ function checkTiming(spec, tag) {
   checkPinned(spec, tag);
 }
 
+/**
+ * Optional `script: { run, lines }`: run `python3 run` from the script's folder and require each line in its output.
+ * A missing script or one that exits with an error is a FAIL line, not a crash.
+ */
+function checkScript(spec, tag) {
+  if (!spec.script) return;
+  const path = join(root, spec.script.run);
+  if (!existsSync(path)) { fail(`${tag}: script ${spec.script.run} missing`); return; }
+  let out;
+  try {
+    out = execFileSync("python3", [path], { encoding: "utf8", cwd: dirname(path), stdio: ["ignore", "pipe", "pipe"] });
+  } catch (e) {
+    const err = String(e.stderr || e.message).trim().split("\n").pop();
+    fail(`${tag}: script ${spec.script.run} failed (exit ${e.status ?? "?"}): ${err}`);
+    return;
+  }
+  for (const line of spec.script.lines) {
+    const hit = out.split("\n").includes(line);
+    ok(hit, `${tag}: "${line}" is not a line of the output of ${spec.script.run}`);
+    if (hit) console.log(`run   ${spec.id}: "${line}"  [${spec.script.run}]`);
+  }
+}
+
+/**
+ * Block diagrams, optional `bindings`: the drawn text of a node (label and sub, both languages) must match every
+ * regular expression in `has` and none in `lacks`; an edge can be required to be dashed. Specs build these from the
+ * same constants as their facts, so the drawing cannot drift from the lesson.
+ */
+function checkBindings(spec, tag, nodeIds, edgeIds) {
+  for (const b of spec.bindings ?? []) {
+    if (b.edge) {
+      ok(edgeIds.has(b.edge), `${tag}: binding for unknown edge "${b.edge}"`);
+      const e = spec.edges.find((x) => x.id === b.edge);
+      if (e && b.dashed !== undefined) ok(!!e.dashed === b.dashed, `${tag}: edge ${b.edge} must be ${b.dashed ? "dashed" : "solid"} (${b.note})`);
+      continue;
+    }
+    ok(nodeIds.has(b.node), `${tag}: binding for unknown node "${b.node}"`);
+    const n = spec.nodes.find((x) => x.id === b.node);
+    if (!n) continue;
+    for (const loc of ["zh", "en"]) {
+      const pick = (t) => (t === undefined ? "" : typeof t === "string" ? t : t[loc]);
+      const text = `${pick(n.label)}\n${pick(n.sub)}`;
+      for (const h of b.has ?? []) {
+        const re = pick(h);
+        ok(new RegExp(re).test(text), `${tag}: node ${b.node} (${loc}) must show /${re}/ (${b.note})`);
+      }
+      for (const l of b.lacks ?? []) {
+        const re = pick(l);
+        ok(!new RegExp(re).test(text), `${tag}: node ${b.node} (${loc}) must not show /${re}/ (${b.note})`);
+      }
+    }
+    if (!(b.has ?? []).length && !(b.lacks ?? []).length) fail(`${tag}: binding for ${b.node} checks nothing`);
+  }
+}
+
 // ---------- byte-field diagrams ----------
 const bfSrc = readFileSync(join(root, "src/components/diagrams/ByteFields.tsx"), "utf8");
 const bconst = (name) => Number(bfSrc.match(new RegExp(`export const ${name} = ([\\d.]+)`))[1]);
@@ -355,11 +410,7 @@ function checkBytes(spec, tag) {
       for (let i = 1; i < gs.length; i++) ok(gs[i].from > gs[i - 1].to, `${pt}: ${side} groups overlap`);
     }
   }
-  if (spec.script) {
-    ok(existsSync(join(root, spec.script.run)), `${tag}: script ${spec.script.run} missing`);
-    const out = execFileSync("python3", [join(root, spec.script.run)], { encoding: "utf8", cwd: dirname(join(root, spec.script.run)) });
-    for (const line of spec.script.lines) ok(out.split("\n").includes(line), `${tag}: "${line}" is not a line of the output of ${spec.script.run}`);
-  }
+  checkScript(spec, tag);
   checkNumbers(spec, tag);
 }
 
@@ -592,15 +643,8 @@ for (const { file, name, spec } of specs) {
       for (const h of s.highlight) ok(nodeIds.has(h) || edgeIds.has(h), `${tag} step ${k + 1}: unknown id "${h}"`);
     }
     if (spec.kind === "stateMachine") ok(nodeIds.has(spec.initial), `${tag}: initial state "${spec.initial}" missing`);
-    if (spec.script) {
-      ok(existsSync(join(root, spec.script.run)), `${tag}: script ${spec.script.run} missing`);
-      const out = execFileSync("python3", [join(root, spec.script.run)], { encoding: "utf8", cwd: dirname(join(root, spec.script.run)) });
-      for (const line of spec.script.lines) {
-        const hit = out.split("\n").includes(line);
-        ok(hit, `${tag}: "${line}" is not a line of the output of ${spec.script.run}`);
-        if (hit) console.log(`run   ${spec.id}: "${line}"  [${spec.script.run}]`);
-      }
-    }
+    checkScript(spec, tag);
+    checkBindings(spec, tag, nodeIds, edgeIds);
 
     for (const which of ["wide", "narrow"]) {
       const L = spec.layouts[which];

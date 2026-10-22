@@ -86,8 +86,18 @@ export interface BlockDiagramSpec {
   initial?: string;
   /** check_diagrams runs `python3 <run>` and requires every line in `lines` to appear in its output. */
   script?: { run: string; lines: string[] };
+  /** Ties drawn text and edge styles to the constants the facts use (see BlockBinding). */
+  bindings?: BlockBinding[];
   facts: DiagramFact[];
 }
+
+/**
+ * A node whose label + sub must match every regular expression in `has` and none in `lacks` (per language when
+ * given as L10n), or an edge that must be dashed (or solid).
+ */
+export type BlockBinding =
+  | { node: string; has?: L10n[]; lacks?: L10n[]; note: string; edge?: undefined }
+  | { edge: string; dashed: boolean; note: string; node?: undefined };
 
 /* ---------- circuit (current path) diagrams ---------- */
 
