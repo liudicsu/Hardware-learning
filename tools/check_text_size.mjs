@@ -1,10 +1,12 @@
 // Rendered minimum-text-size check: every page, zh and en, at 390 px and 1280 px. Fails on any visible text
 // under 12 px (HTML: computed font-size; SVG <text>: font-size x screen scale) and on horizontal page overflow.
 // It also fails when a page throws (pageerror), when a request fails or a same-origin request returns 4xx/5xx
-// (a missing JS chunk means the page never hydrates), and when a chart has not been measured within 15 s (with JS disabled, blocked scripts are not failures):
-// sizes are read only after every [data-widget="chart"] and [data-widget="wilson-bar"] has its measured viewBox, so the result describes the
-// hydrated page and not the server HTML.
-// Not part of CI (it needs a browser). Run by hand against a build:
+// (a missing JS chunk means the page never hydrates), and when the chart/wilson measurement has not completed
+// within 15 s (with JS disabled, blocked scripts are not failures). Sizes are read once every [data-widget="chart"]
+// and [data-widget="wilson-bar"] has its measured viewBox; that is a wait for those widgets, not a general
+// hydration check.
+// CI does not run it: it needs a browser, and CI lives in .github/workflows, which cannot be edited from this
+// repository's token. Run it by hand before merging a layout change, once plain and once with NOJS=1, against a build:
 //   npm run build && npx next start -p 3177 &
 //   npm i --no-save playwright-core && node tools/check_text_size.mjs http://localhost:3177
 // Environment: CHROME = path of a Chrome/Chromium binary (default /usr/bin/google-chrome);
