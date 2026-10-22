@@ -8,9 +8,9 @@ import type { CircuitPart, CircuitSpec, CircuitWire, DiagramFact, L10n, Point } 
 
 const VCC = 5;
 
-// geometry: pull-up column x 150, pin node y 176, button column x 280
+// geometry: pull-up column x 150, pin node y 176, button column x 272
 const PIN: Point = [150, 176];
-const BTN_X = 280;
+const BTN_X = 272;
 
 interface Variant {
   id: string;
@@ -37,7 +37,7 @@ function pullup(v: Variant): CircuitSpec {
     { id: "R", type: "resistor", at: [150, 124], len: 48, label: v.rLabel, labelAt: [138, 128], anchor: "end" },
     { id: "pin", type: "node", at: PIN },
     { id: "pinLabel", type: "text", at: [226, 168], label: v.pinLabel, labelAt: [226, 168], anchor: "start", mono: true, tone: "a" },
-    { id: "btn", type: "button", at: [BTN_X, 206], label: { zh: "按钮", en: "button" }, labelAt: [298, 210], anchor: "start" },
+    { id: "btn", type: "button", at: [BTN_X, 206], label: { zh: "按钮", en: "button" }, labelAt: [290, 210], anchor: "start" },
     { id: "gnd", type: "ground", at: [BTN_X, 248] },
   ];
   const wires: CircuitWire[] = [
@@ -63,9 +63,9 @@ function pullup(v: Variant): CircuitSpec {
     title: v.title,
     caption: v.caption,
     sources: v.sources,
-    w: 350,
+    w: 340,
     h: 262,
-    readoutAt: [292, 150],
+    readoutAt: [284, 150],
     parts,
     wires,
     states: [

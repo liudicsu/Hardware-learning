@@ -5,25 +5,32 @@ import { useTranslations } from "next-intl";
 import { fixed } from "@/lib/models/format";
 import { wilson } from "@/lib/models/wilson";
 import { Readout } from "./Chart";
+import { useBoxWidth } from "./useBoxWidth";
 import { Slider } from "./Slider";
 import { WidgetShell } from "./WidgetShell";
 
 // The lesson's first worked example: 61 successes out of 100.
 const DEFAULTS = { k: 61, n: 100 };
 
+// The viewBox follows the box width (up to 600 units), so the 12-unit tick labels render at 12 px on a phone.
 function Bar({ lo, hi, p }: { lo: number; hi: number; p: number }) {
-  const x = (v: number) => 10 + v * 580;
+  const [box, boxW] = useBoxWidth<HTMLDivElement>();
+  const W = boxW ? Math.max(240, Math.min(600, Math.round(boxW))) : 600;
+  const M = 22; // room for half of a "100 %" label at each end
+  const x = (v: number) => M + v * (W - 2 * M);
   return (
-    <svg viewBox="0 0 600 44" className="h-auto w-full" role="img" aria-label={`${fixed(lo * 100, 1)} .. ${fixed(hi * 100, 1)} %`}>
-      <line x1={10} y1={18} x2={590} y2={18} stroke="#3f3f46" strokeWidth="2" />
-      <rect x={x(lo)} y={10} width={Math.max(1, x(hi) - x(lo))} height={16} rx={3} fill="rgba(56,189,248,0.35)" stroke="#38bdf8" />
-      <line x1={x(p)} y1={6} x2={x(p)} y2={30} stroke="#f4f4f5" strokeWidth="2" />
-      {[0, 0.25, 0.5, 0.75, 1].map((v) => (
-        <text key={v} x={x(v)} y={42} textAnchor="middle" fontSize="12" fill="#71717a">
-          {fixed(v * 100, 0)} %
-        </text>
-      ))}
-    </svg>
+    <div ref={box} className="w-full">
+      <svg viewBox={`0 0 ${W} 44`} className="h-auto w-full" role="img" aria-label={`${fixed(lo * 100, 1)} .. ${fixed(hi * 100, 1)} %`}>
+        <line x1={M} y1={18} x2={W - M} y2={18} stroke="#3f3f46" strokeWidth="2" />
+        <rect x={x(lo)} y={10} width={Math.max(1, x(hi) - x(lo))} height={16} rx={3} fill="rgba(56,189,248,0.35)" stroke="#38bdf8" />
+        <line x1={x(p)} y1={6} x2={x(p)} y2={30} stroke="#f4f4f5" strokeWidth="2" />
+        {[0, 0.25, 0.5, 0.75, 1].map((v) => (
+          <text key={v} x={x(v)} y={42} textAnchor="middle" fontSize="12" fill="#71717a">
+            {fixed(v * 100, 0)} %
+          </text>
+        ))}
+      </svg>
+    </div>
   );
 }
 

@@ -4,6 +4,24 @@ Diagrams that only explain (no live computation) are drawn by us as SVG in the p
 open-source diagram exists. Dark theme, zh/en labels passed as props, readable at 390 px
 (SVG scales with `w-full`; text is 14–18 viewBox units on a ~450–500-unit-wide box, ≈ 12 px at 390 px).
 
+## Minimum text size: 12 px
+
+Every visible text, HTML and SVG, renders at >= 12 px at 390 px and 1280 px, zh and en. Use `text-xs` (12 px)
+for the smallest HTML text; never `text-[11px]` or an SVG font size below 12 units.
+
+- Block diagrams and circuits: labels and sub-lines are 12.3 units (`DG_FONT`, `DG_SUB_FONT`). Narrow layouts
+  and circuits are at most 340 units wide (332 px box at 390 px) and are shown below 1280 px (`xl:` in
+  Diagram.tsx); wide layouts are at most 752 units (734 px box at 1280 px). check_diagrams derives both limits
+  from the fonts.
+- `<Chart>` (widgets): the viewBox is as wide as the chart's box (`useBoxWidth`, up to 600 units), so 13-unit
+  text renders at 13 px on a phone. On a narrow screen fewer axis ticks are labelled (every m-th tick, m from
+  the label width) instead of shrinking the font; grid lines stay at every tick. PidWidget uses `<Chart>`.
+- `<QuadratureTiming>`: 39 units per column (384 units in all), so the 14-unit axis label is 12.1 px at 390 px.
+- Checks: check_diagrams fails on `text-[Npx]` or a literal `fontSize` below 12 anywhere in src, and checks the
+  Chart and QuadratureTiming sizes. tools/check_text_size.mjs (Playwright, run by hand against a build; see its
+  header) renders every page, zh/en at 390/1280 px (`WIDTHS=` for others), and fails on any text under 12 px
+  or page overflow.
+
 ## `<Timing>` (server-safe, no hooks) — `src/components/diagrams/Timing.tsx`
 
 ```tsx
