@@ -234,7 +234,7 @@ The lithium-polymer (LiPo) packs powering DIY robots come with parameters and ru
 
 A typical sequence: the robot catches a wall corner, the motor stalls, and in that instant the MCU resets and the program starts over. This follows directly from Ohm's law and the internal resistance of the supply.
 
-**Step 1: how big is the stall current?** While spinning, a motor generates <Term id="back-emf">back-EMF</Term> that cancels part of the applied voltage, so current stays moderate. Stall the rotor completely and back-EMF vanishes; the motor becomes a small resistance and draws its **<Term id="stall-current">stall current</Term>, often 5–10× the running current**. The course's Romi gearmotor, for example, stalls at 1.25 A at 4.5 V, 9.6 times its 130 mA free-run current.
+**Step 1: how big is the stall current?** While spinning, a motor generates <Term id="back-emf">back-EMF</Term> that cancels part of the applied voltage, so current stays moderate. Stall the rotor completely and back-EMF vanishes; the motor becomes a small resistance and draws its **<Term id="stall-current">stall current</Term>, often 5–10× the running current**. The no-load (free-run) current is what the motor draws when its shaft turns freely with nothing attached. The course's Romi gearmotor, for example, draws 130 mA with no load at 4.5 V, and Pololu gives its stall current as 1.25 A, a value Pololu marks as an extrapolation; that is 9.6 times the no-load current.
 
 **Step 2: how does that collapse the rail?** The battery has internal resistance; wires and connectors add more; all of it sits **in series** with the motor in the same loop. By Ohm's law, V = I × R — whatever voltage those resistances drop is voltage your devices never receive.
 
