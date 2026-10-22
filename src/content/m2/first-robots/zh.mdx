@@ -26,7 +26,9 @@
 
 error = setpoint − measurement（设定值 − 测量值）
 
-对循线小车，设定值是传感器阵列的正中 `3500`，测量值是传感器报出的位置，于是 `error = position − 3500`。对自平衡车，设定值是“水平”，`0` 度，测量值是滤波器估出的俯仰角。一旦你手里有了这样一个有意义的数，控制器就几乎不剩什么了。
+对循线小车，设定值是传感器阵列的正中 `3500`，测量值是传感器报出的位置，于是 `error = 3500 − position`。对自平衡车，设定值是“水平”，`0` 度，测量值是滤波器估出的俯仰角。一旦你手里有了这样一个有意义的数，控制器就几乎不剩什么了。
+
+自平衡车的代码写的是 `KP × (pitch − SETPOINT) + KD × rate`；按 `error = SETPOINT − pitch` 展开，它等于 `−KP × error + KD × rate`：这个负号来自执行器方向——车头前倾时误差为负，此时轮子必须向前驱动，即正的 PWM——而 D 项用的是陀螺仪测得的 °/s 转速，也就是测量值的导数，其中已经包含了除以时间。
 
 三项的含义：
 
@@ -34,23 +36,25 @@ error = setpoint − measurement（设定值 − 测量值）
 - **D（微分项）**：与误差变化的速度成正比，作用像阻尼器。当你逼近目标时误差在缩小，D 就产生一个反对运动、给修正“点刹车”的输出。消掉过冲的正是它。
 - **I（积分项）**：与误差随时间的累积成正比，用来消除一个恒定的偏差，比如某个电机偏弱，这是单靠 P 留不下的。它也会**积分饱和（wind up）**：当机器人顶在墙上、或输出已经打满时，累积的误差会涨得极大，一旦脱困，这个攒下来的数会把它一把甩过线。所以要对积分限幅，并且在 P、D 调好之前干脆先不用 I。
 
-循环周期固定时，离散形式就是三次乘法：
+标准离散形式把 `dt` 也算进去：
 
 ```text
-output = KP × error + KI × sum_of_errors + KD × (error − last_error)
+output = KP × e + KI × Σ(e × dt) + KD × (e − e_prev) / dt
 ```
 
-**算例**：一台循线小车取 `KP = 0.06`、`KD = 0.3`。传感器报出位置 4700，于是误差为 `4700 − 3500 = 1200`。上一次误差是 1500，所以变化量是 `1200 − 1500 = −300`。
+循环周期固定时，可以把 `dt` 折进增益：`KI_loop = KI × dt`、`KD_loop = KD / dt`。所以 `line_follower.ino` 把每循环的变化量 `error − lastError` 乘以 `KD_loop = 0.003 / 0.01 = 0.3`；这就是为什么固件里的 `KD`（0.3）和模型里的 `kd`（乘的是 `(e − e_prev)/DT`，单位为秒）是两串不同的数。
+
+**算例**：一台循线小车取 `KP = 0.06`、`KD = 0.003 s`、`dt = 0.01 s`。传感器报出位置 4700，于是误差为 `3500 − 4700 = −1200`。上一次误差是 −1500，所以变化量是 `−1200 − (−1500) = +300`。
 
 ```text
-P term = 0.06 × 1200 = 72
-D term = 0.3 × (−300) = −90
-correction = 72 − 90 = −18
+P term = 0.06 × (−1200) = −72
+D term = 0.003 × (+300 / 0.01) = 0.003 × 30000 = +90
+correction = −72 + 90 = +18
 ```
 
-只靠 P 本想狠狠打一把方向——修正量 72——但误差比上一轮缩小了 300，于是 D 减去 90，只剩 −18。用大白话说，D 在讲：“你已经在快速回正了，松点劲。”这个修正量随后加到一侧电机、从另一侧减去：左电机得到 `120 + (−18) = 102`，右电机得到 `120 + 18 = 138`。机器人于是轻轻往线的方向转，而不是大范围摆过去。
+只靠 P 想要 −72 的修正——但误差在一个周期内缩小了 300，于是 D 加上 +90，最终只剩 +18。D 项反对误差缩小的速率，从而限制过冲。这个修正量按代码从左侧电机减去、加到右侧电机：左电机得到 `120 − 18 = 102`，右电机得到 `120 + 18 = 138`。机器人于是轻轻往线的方向转，而不是大范围摆过去。
 
-<Quiz id="q1" question="KP = 0.05，error = −800，KD = 0。修正量是多少？" answer={-40} explanation="KD = 0 时只有 P 项起作用：0.05 × (−800) = −40。负号只表示修正方向与误差相反。" />
+<Quiz id="q1" question="KP = 0.05，error = −800，KD = 0。修正量是多少？" answer={-40} explanation="KD = 0 时只有 P 项起作用：0.05 × (−800) = −40。修正量与误差同号；按本课代码，它从左电机减去、加到右电机，即左电机 +40、右电机 −40。" />
 
 在项目里，你会被要求用“你改了某一项之后机器人做了什么”来解释 P、I、D。调参时随手记笔记吧——每次尝试写一句就够，这些笔记最后会变成你的 README。
 
@@ -141,14 +145,14 @@ def run(kp, kd, seconds=3.0):
     last_error = None
     log = []
     for step in range(int(seconds / DT)):
-        error = read_position(y) - 3500               # negative = line is to the left
+        error = 3500 - read_position(y)               # setpoint − measurement
         d_error = 0.0 if last_error is None else (error - last_error) / DT
         last_error = error
-        command = kp * error + kd * d_error            # rad/s of turning
+        command = kp * error + kd * d_error            # rad/s of turning, positive turns towards -y
         command = max(-6.0, min(6.0, command))
         for _ in range(10):                            # robot physics at 1 ms
             turn_rate += (command - turn_rate) * 0.001 / MOTOR_TAU
-            heading += turn_rate * 0.001
+            heading -= turn_rate * 0.001
             y += SPEED * math.sin(heading) * 0.001
         log.append(((step + 1) * DT, y))
     return log
@@ -210,7 +214,7 @@ P + D       kp=0.0003 kd=0.0002: overshoot  0.0 mm, 0 line crossings, within 2 m
 
 **加一点 D（0.0001）** 几乎改变了全部。它把过冲从 62.3 mm 砍到 **4.8 mm**，并在 **1.47 s** 进入 2 mm，误差缩小时 D 在给修正“点刹车”，这正是前面 PID 那一节许诺的阻尼。**D = 0.0002** 更好：一次都不穿越，从 **1.30 s** 起就在 2 mm 之内。
 
-注意单位。这个模型的输出是以 rad/s 为单位的转速，所以增益看起来极小，和程序里将要用到的 `KP = 0.06` 完全不是一回事。增益从来不能在模型之间、也不能在机器人之间通用；能通用的只有调参的流程。你最终总要按自己手上的硬件去调。
+注意单位。这个模型的输出是以 rad/s 为单位的转速，所以增益看起来极小，和程序里将要用到的 `KP = 0.06` 完全不是一回事。增益从来不能在模型之间、也不能在机器人之间通用；能通用的只有调参的流程。你最终总要按自己手上的硬件去调。模型用的是带 `dt` 的形式（`(e − e_prev)/DT`），而固件把 `dt` 折进了 `KD`。
 
 <Quiz id="q3" question="在模拟里，加进 D 项改变最大的是什么？" options={["机器人跑得更快", "绕线时的过冲与振荡", "传感器读数变得不那么嘈杂"]} answer={1} explanation="D 给修正加阻尼，所以它缩小过冲和绕线摆动的幅度（只用 P 时 62.3 mm，加 D 后 4.8 mm 和 0 mm）。它不改变速度，也不会净化传感器——实际上它会放大传感器噪声。" />
 
@@ -235,7 +239,7 @@ QTRSensors qtr;
 uint16_t values[8];
 
 const float KP = 0.06;          // PWM per unit of position error  (start here)
-const float KD = 0.0;           // add D after P is working: try 0.3, then tune
+const float KD = 0.0;           // add D after P is working: try 0.3 (= 0.003 s / 0.01 s), then tune
 const int BASE_PWM = 120;       // straight-line speed
 const unsigned long PERIOD_MS = 10;   // 100 Hz control loop
 
@@ -271,17 +275,17 @@ void loop() {
   last += PERIOD_MS;
 
   uint16_t position = qtr.readLineBlack(values);   // 0..7000, 3500 = centred
-  int error = (int)position - 3500;
-  int derivative = error - lastError;              // per loop period (fixed 10 ms)
+  int error = 3500 - (int)position;                // setpoint − measurement
+  int derivative = error - lastError;              // per loop period (fixed 10 ms): KD here = KD_continuous / dt
   lastError = error;
 
   int correction = (int)(KP * error + KD * derivative);
-  setMotor(PWMA, AIN1, AIN2, BASE_PWM + correction);
-  setMotor(PWMB, BIN1, BIN2, BASE_PWM - correction);
+  setMotor(PWMA, AIN1, AIN2, BASE_PWM - correction);
+  setMotor(PWMB, BIN1, BIN2, BASE_PWM + correction);
 }
 ```
 
-从头讲一遍。循环用 `last += PERIOD_MS` 而不是 `last = now`，跑在固定的 100 Hz 上（第 2 课：以固定步长累加能保持频率稳定，于是“每循环的微分量”每次含义都相同）。`setup()` 里标定 200 次，期间点亮板载 LED 作为提示——那盏灯也是你该开始手动拖动小车扫过线的信号。循环里，`readLineBlack()` 返回位置，`error` 是它减去中心值，`derivative` 是相对上一轮的误差变化量。修正量加到一侧电机的速度、从另一侧减去。最后 `setMotor()` 把速度钳在 −255..255 并设置方向引脚，和第 4 课的 `drive()` 辅助函数完全一致。
+从头讲一遍。循环用 `last += PERIOD_MS` 而不是 `last = now`，跑在固定的 100 Hz 上（第 2 课：以固定步长累加能保持频率稳定，于是“每循环的微分量”每次含义都相同）。`setup()` 里标定 200 次，期间点亮板载 LED 作为提示——那盏灯也是你该开始手动拖动小车扫过线的信号。循环里，`readLineBlack()` 返回位置，`error` 是中心值减去位置（设定值 − 测量值），`derivative` 是相对上一轮的误差变化量。修正量从 A 电机（左）的速度中减去、加到 B 电机（右）上。最后 `setMotor()` 把速度钳在 −255..255 并设置方向引脚，和第 4 课的 `drive()` 辅助函数完全一致。
 
 在信任它之前先检查一件事：如果机器人朝着**背离**线的方向转，那说明对你这套接线来说符号反了。把 `KP` 和 `KD` 的符号翻转（或者对调哪只电机加、哪只减）。这里没有放之四海皆准的答案，它取决于你把车身哪一侧叫“左”。
 

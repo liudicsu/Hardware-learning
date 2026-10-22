@@ -12,7 +12,7 @@ QTRSensors qtr;
 uint16_t values[8];
 
 const float KP = 0.06;          // PWM per unit of position error  (start here)
-const float KD = 0.0;           // add D after P is working: try 0.3, then tune
+const float KD = 0.0;           // add D after P is working: try 0.3 (= 0.003 s / 0.01 s), then tune
 const int BASE_PWM = 120;       // straight-line speed
 const unsigned long PERIOD_MS = 10;   // 100 Hz control loop
 
@@ -48,11 +48,11 @@ void loop() {
   last += PERIOD_MS;
 
   uint16_t position = qtr.readLineBlack(values);   // 0..7000, 3500 = centred
-  int error = (int)position - 3500;
-  int derivative = error - lastError;              // per loop period (fixed 10 ms)
+  int error = 3500 - (int)position;                // setpoint − measurement
+  int derivative = error - lastError;              // per loop period (fixed 10 ms): KD here = KD_continuous / dt
   lastError = error;
 
   int correction = (int)(KP * error + KD * derivative);
-  setMotor(PWMA, AIN1, AIN2, BASE_PWM + correction);
-  setMotor(PWMB, BIN1, BIN2, BASE_PWM - correction);
+  setMotor(PWMA, AIN1, AIN2, BASE_PWM - correction);
+  setMotor(PWMB, BIN1, BIN2, BASE_PWM + correction);
 }

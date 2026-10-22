@@ -30,14 +30,14 @@ def run(kp, kd, seconds=3.0):
     last_error = None
     log = []
     for step in range(int(seconds / DT)):
-        error = read_position(y) - 3500               # negative = line is to the left
+        error = 3500 - read_position(y)               # setpoint − measurement
         d_error = 0.0 if last_error is None else (error - last_error) / DT
         last_error = error
-        command = kp * error + kd * d_error            # rad/s of turning
+        command = kp * error + kd * d_error            # rad/s of turning, positive turns towards -y
         command = max(-6.0, min(6.0, command))
         for _ in range(10):                            # robot physics at 1 ms
             turn_rate += (command - turn_rate) * 0.001 / MOTOR_TAU
-            heading += turn_rate * 0.001
+            heading -= turn_rate * 0.001
             y += SPEED * math.sin(heading) * 0.001
         log.append(((step + 1) * DT, y))
     return log
