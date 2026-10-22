@@ -52,3 +52,15 @@ numbers, cart-pole direction, TB6612 OUT1) go into the PR that touches each less
   pullup-external (components; same generator). Reviewer nits from #20 fixed (file-node height check, tree
   connectors at name height, set_parameters label next to its arrow). All hand-written.
 - Next: D-4 PWM duty + average voltage on Timing, `kind: "timing"` in the registry and check_diagrams.
+- D-4 (branch diagrams/d4-pwm-timing from f34b529, parallel to #21): `kind: "timing"` registry spec
+  (TimingDiagram.tsx + checkTiming), Timing `average` line and `activeSignals`, PWM diagram pwm-duty-average
+  (arduino-io), zh full-width ：， in the encoder stepper. Encoder not migrated (model-generated columns).
+  Expected merge conflicts with #21 (types.ts, Diagram.tsx, index.ts, check_diagrams.mjs): when #21 lands,
+  merge origin/main, keep both branches (circuit + timing), and keep one DiagramNumber and one numbers check.
+  All hand-written.
+- D-4 update: #21 squash-merged as adbfcdc and merged into D-4 (merge commit, no rebase). Reviewer nits folded in:
+  brake text "in this model" + back-EMF reverse braking current (diagram and lesson zh/en); 0.37 → "about 37 %
+  (slightly more than a third)"; INPUT_PULLUP label moved down 4 units; zh.mdx facts for hbridge and pullup;
+  aria-label on the circuit state group; check_diagrams path rules (start at a supply, end at a ground, every
+  closed switch on the path; closed-loop states need an explicit `loopReason`, used by the H-bridge brake).
+  13 diagrams, 2305 checks. Live check of the adbfcdc circuits: 12/12 OK (hl-audit/encoder-live-check.md).

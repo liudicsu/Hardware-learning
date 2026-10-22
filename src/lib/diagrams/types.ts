@@ -128,6 +128,11 @@ export interface CircuitState {
   hidden?: string[];
   /** Conventional current, drawn along these points; check_diagrams verifies it only runs over wires and conducting parts. */
   flow?: Point[];
+  /**
+   * A path normally starts at a supply and ends at a ground. A current that only circulates in a closed loop
+   * (e.g. an H-bridge brake) sets this to the reason; the path must then be closed and must not touch a supply.
+   */
+  loopReason?: string;
   tone?: Tone;
   /** Short reading drawn at the spec's readoutAt (current, pin level). */
   readout?: L10n;
@@ -158,7 +163,46 @@ export interface CircuitSpec {
   facts: DiagramFact[];
 }
 
-export type DiagramSpec = BlockDiagramSpec | CircuitSpec;
+/* ---------- timing diagrams (rendered by <TimingSvg> from src/components/diagrams/Timing.tsx) ---------- */
+
+export interface TimingSpecSignal {
+  name: L10n;
+  kind?: "digital" | "bus";
+  /** digital: 1 / 0, "x" unknown, "z" released. */
+  levels?: (number | "x" | "z")[];
+  /** bus: one value per column. */
+  values?: L10n[];
+  tone?: Tone;
+  /** Dashed line at this fraction of the trace height with a label at the right (e.g. PWM average voltage). */
+  average?: { level: number; label: L10n };
+}
+
+export interface TimingSpecStep {
+  label: L10n;
+  /** Column to highlight. */
+  column?: number;
+  /** Signals drawn at full strength in this step (others dimmed). */
+  signals?: number[];
+}
+
+export interface TimingSpec {
+  kind: "timing";
+  id: string;
+  title: L10n;
+  caption?: L10n;
+  sources: string[];
+  /** Relative column widths (e.g. durations); default equal. */
+  columns?: number[];
+  signals: TimingSpecSignal[];
+  rows?: { name: L10n; cells: L10n[]; mono?: boolean }[];
+  spans?: { from: number; to: number; label: L10n; side?: "top" | "bottom" }[];
+  axisLabel?: L10n;
+  steps?: TimingSpecStep[];
+  numbers?: DiagramNumber[];
+  facts: DiagramFact[];
+}
+
+export type DiagramSpec = BlockDiagramSpec | CircuitSpec | TimingSpec;
 
 export function tx(text: L10n | undefined, locale: Locale): string {
   if (text === undefined) return "";
