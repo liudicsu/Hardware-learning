@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "postbuild": "node tools/postbuild.mjs",
     "start": "next start",
     "lint": "eslint"
   },
