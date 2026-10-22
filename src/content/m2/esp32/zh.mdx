@@ -118,7 +118,7 @@ Vout = I × R下 = 1.667 mA × 2 kΩ = 3.333 V
 验算: 5 V × 2 / (1 + 2) = 10 / 3 = 3.333 V
 ```
 
-分压器里只流过约 1.7 mA，完全无害；输出为 3.333 V，刚好低于 3.6 V 的上限，并比 ESP32-S3 的高电平输入阈值高 0.86 V：[ESP32-S3 数据手册](https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf) v2.2（表 5-4）给出 <Term id="logic-thresholds">VIH</Term> = 0.75 × 3.3 V = 2.475 V，VIL = 0.25 × 3.3 V = 0.825 V。0.86 V 的余量是个标称值：它假设信号是理想的 5.000 V，且 VDD = 3.3 V。当 VDD = 3.6 V 时，VIH = 0.75 × 3.6 V = 2.7 V，余量为 0.63 V。如果 Uno 的输出处于数据手册的下限，即 20 mA 时 VOH = 4.2 V，分压后得到 2.8 V，余量为 0.325 V；而在分压器 1.7 mA 的负载下，实际输出接近 5 V。这就是第一个月学过的分压算术，只是这次它的用途是保护引脚。
+分压器里只流过约 1.7 mA，完全无害；输出为 3.333 V，刚好低于 3.6 V 的上限，并比 ESP32-S3 的高电平输入阈值高 0.86 V：[ESP32-S3 数据手册](https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf) v2.2（表 5-4）给出 <Term id="logic-thresholds">VIH</Term> = 0.75 × 3.3 V = 2.475 V，VIL = 0.25 × 3.3 V = 0.825 V。0.86 V 的余量是个标称值：它假设信号是理想的 5.000 V，且 VDD = 3.3 V。当 VDD = 3.6 V 时，VIH = 0.75 × 3.6 V = 2.7 V，余量为 0.63 V。如果 Uno 的输出处于数据手册的下限，即 20 mA 时 VOH = 4.2 V，分压后得到 2.8 V，余量为 0.325 V；而在分压器 1.7 mA 的负载下，实际输出接近 5 V。如果两种最坏情况同时发生，余量会缩小到 2.8 V − 2.7 V = 0.1 V。这就是第一个月学过的分压算术，只是这次它的用途是保护引脚。
 
 <Falstad title="把 5 V 信号分压到 3.3 V 输入" circuit="levelDivider" height={440} />
 
