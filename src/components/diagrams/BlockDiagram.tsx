@@ -6,6 +6,7 @@ export const TONE: Record<Tone, string> = {
   muted: "var(--dg-muted)",
   a: "var(--dg-a)",
   b: "var(--dg-b)",
+  c: "var(--dg-c)",
   ok: "var(--dg-ok)",
   danger: "var(--dg-danger)",
 };

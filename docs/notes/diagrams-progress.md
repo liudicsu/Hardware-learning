@@ -78,8 +78,20 @@ numbers, cart-pole direction, TB6612 OUT1) go into the PR that touches each less
   - Lesson wording fixed to match the firmware: "quiet for more than 30 ms", each bounce measured from the
     previous edge.
   - All hand-written.
-- D-5 merged (#25, squash e20ae6e, on top of #22 7293e6f). Main CI and Pages green; live check 24/24 OK
-  (hl-audit/prc-live-check.md). D-5 nits in #26; D-6 STS ByteFields in #28 (`kind: "bytes"`).
+- D-5 merged (#25, squash e20ae6e, on top of #22 7293e6f). Live check: 24/24 OK (hl-audit/prc-live-check.md).
+- D-5 nits (branch diagrams/d5-nits):
+  - The debounce caption now says "simulated" / 模型给出的 bounce edges.
+  - check_diagrams pins the I2C field and sender sequences (`PINNED`, datasheet §9.3).
+  - Bus values need 4 units of padding inside the flat part of their band, and row cells 2 units on each side.
+  - I2C columns are weighted by field (bytes 1.4, ACK 1.2, one-letter fields 0.9) with `columnScale` 42.
+  - The debounce line 1 window starts 2 ms earlier, so the "0" band fits.
+  - All hand-written.
+- D-6 (branch diagrams/d6-sts-bytes from e20ae6e, main a53581a merged in): new `kind: "bytes"` (ByteFields.tsx + checkBytes) and
+  `sts-packet-fields` in so101-arm: the six packets printed by sts_packet.py (ping, torque on, goal 2048, read,
+  reply 3116 = 273.9 deg, broken checksum). check_diagrams runs the script and requires each drawn line in its
+  output. New tone `c` (--dg-c, violet) for the checksum. Lesson fix: the bit flip is in the high data byte
+  (0C -> 0D), zh and en. All hand-written.
+- D-5 nits merged (#26, squash a53581a); D-6 merged (#28, squash bc5d0da), merged into D-7 (#29).
 - (已废弃 / obsolete: the "0.2 m / 0.2 rad" node rule below was replaced by the review fix that follows) D-7 (branch diagrams/d7-slam-pose-graph from e20ae6e, parallel to #26/#28): `kind: "poseGraph"`
   (PoseGraph.tsx + checkPoseGraph) and `slam-pose-graph` in slam-nav (D091 part 2; the TF chain is D-2's
   slam-tf-chain): 4 frames — a node every 0.2 m / 0.2 rad, scan matching, drift gap after one lap (0.28 m),

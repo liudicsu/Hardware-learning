@@ -10,6 +10,7 @@ import { reactionTimerStates } from "./specs/reactionTimer";
 import { ros2GraphSystem } from "./specs/ros2Graph";
 import { ros2WorkspaceTree } from "./specs/ros2Workspace";
 import { slamPoseGraph } from "./specs/slamPoseGraph";
+import { stsPackets } from "./specs/sts";
 import { slamTfChain } from "./specs/slamTf";
 import { urdfTwoPublishers } from "./specs/urdfPublishers";
 
@@ -31,4 +32,5 @@ export const DIAGRAMS: Record<string, DiagramSpec> = {
   [pullupExternal.id]: pullupExternal,
   [i2cWhoAmI.id]: i2cWhoAmI,
   [debounceQuiet.id]: debounceQuiet,
+  [stsPackets.id]: stsPackets,
 };
