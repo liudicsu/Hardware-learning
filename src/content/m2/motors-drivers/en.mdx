@@ -268,7 +268,7 @@ The boundary case is at 5.0 V. There 0.15 × 5.0 V = 0.75 V, below the 0.8 V dea
 0.20 × 5.0 V = 1.00 V > 0.8 V  → reaches the target
 ```
 
-The same rule applies to the firmware's `MIN_PWM` below: MIN_PWM ≥ 255 × 0.8 V / V_min. The sketch uses MIN_PWM = 40, which is 40 / 255 × 5.0 V = 0.78 V at 5.0 V, so for a 5.0 V minimum it needs at least 41; 51 (= 0.20 × 255) leaves the same margin as the model.
+The same rule applies to the firmware's `MIN_PWM` below: MIN_PWM ≥ 255 × 0.8 V / V_min = 255 × 0.8 / 5.0 = 40.8, so for a 5.0 V minimum it needs at least 41. The sketch uses MIN_PWM = 51 (= 0.20 × 255, i.e. 51 / 255 × 5.0 V = 1.0 V at 5.0 V), the same margin as the `min 0.20` column. The earlier value of 40 gives 40 / 255 × 5.0 V = 0.78 V, below the 0.8 V dead band: in the same simulator the 5.0 V run timed out at count 1349.
 
 Now the same idea on the Uno. The sketch below is the compiled firmware used for the output that follows. The output is not a hardware measurement: it comes from running this firmware in the simavr AVR simulator, connected to the same toy motor and encoder model used by the Python script. Treat it as a check of the logic and the arithmetic, not as a promise about your bench.
 
@@ -286,7 +286,7 @@ const int ENC_B = 3;
 
 const long COUNTS_PER_REV = 1440;   // 12 counts per motor turn x 120:1
 const float KP = 0.4;               // PWM steps per count of error
-const int MIN_PWM = 40;             // smallest PWM that still moves the wheel
+const int MIN_PWM = 51;             // smallest PWM that still moves the wheel
 const int MAX_PWM = 150;
 const long TOLERANCE = 2;           // counts
 
@@ -372,14 +372,15 @@ The QDEC table is the heart of the decoder. The index is four bits: the previous
 
 `readCount()` disables interrupts for the few instructions needed to copy a four-byte `long`. Without that, the main program could read the low byte before an interrupt and the high byte after, producing a nonsensical value. `turnCounts()` resets the count, records the start time, and then runs a P controller. The error is the target minus the current count. The commanded PWM is `KP` times the error, clamped to ±`MAX_PWM`. If the magnitude is below `MIN_PWM`, it is raised to `MIN_PWM` in the direction of the error, so friction cannot freeze the wheel just short of the target. The timeout is not decoration: if the encoder is unplugged or the robot is stuck, the loop exits and calls `drive(0)` so the motor does not run forever.
 
-`brake()` and `drive(0)` are not the same thing. `drive(0)` sets both direction inputs low, which lets the motor coast. `brake()` sets both direction inputs high, which shorts the motor terminals inside the driver and stops it quickly. At the target, braking matters because the wheel has momentum. We ran the firmware three times in the simulator, once per battery voltage. The sketch itself prints only `done, count = …`; the battery label in front of each line is ours. With `brake()` at the target:
+`brake()` and `drive(0)` are not the same thing. `drive(0)` sets both direction inputs low, which lets the motor coast. `brake()` sets both direction inputs high, which shorts the motor terminals inside the driver and stops it quickly. At the target, braking matters because the wheel has momentum. We ran the firmware four times in the simulator, once per battery voltage. The sketch itself prints only `done, count = …`; the battery label in front of each line is ours. With `brake()` at the target:
 
 <SimOutput source="avr">
 
 ```text
-battery 8.4 V: done, count = 1441
+battery 8.4 V: done, count = 1442
 battery 7.4 V: done, count = 1441
-battery 6.6 V: done, count = 1440
+battery 6.6 V: done, count = 1441
+battery 5.0 V: done, count = 1440
 ```
 
 </SimOutput>
@@ -389,14 +390,15 @@ If the sketch stops with `drive(0)` instead of `brake()`, the coasting wheel car
 <SimOutput source="avr">
 
 ```text
-battery 8.4 V: done, count = 1455
-battery 7.4 V: done, count = 1453
-battery 6.6 V: done, count = 1451
+battery 8.4 V: done, count = 1459
+battery 7.4 V: done, count = 1457
+battery 6.6 V: done, count = 1455
+battery 5.0 V: done, count = 1450
 ```
 
 </SimOutput>
 
-The difference is 11 to 15 counts, about 3° of wheel rotation. On a real robot expect less tidy numbers: gearbox backlash, a heavier wheel, a slightly different floor and a different motor will all move the result. Tune `MIN_PWM` by finding the smallest PWM that reliably starts your wheel from rest, then add a small margin. Tune `KP` by raising it until the wheel overshoots or buzzes around the target, then backing off. Do this at two battery voltages, because a setting that is perfect on a full pack may be too weak on a tired one.
+The difference is 10 to 17 counts, about 2.5° to 4.3° of wheel rotation. On a real robot expect less tidy numbers: gearbox backlash, a heavier wheel, a slightly different floor and a different motor will all move the result. Tune `MIN_PWM` by finding the smallest PWM that reliably starts your wheel from rest, then add a small margin. Tune `KP` by raising it until the wheel overshoots or buzzes around the target, then backing off. Do this at two battery voltages, because a setting that is perfect on a full pack may be too weak on a tired one.
 
 <Quiz id="q6" question="Why does the open-loop version (fixed run time) turn less than a revolution on a lower battery?" options={["The encoder misses counts at low voltage", "Same duty and same time but lower voltage means lower speed, so less distance", "PWM frequency drops with the battery"]} answer={1} explanation="The open-loop code holds duty and time constant. A lower battery gives a lower average voltage, so the motor runs slower and covers less distance. The encoder is not the problem; there is no feedback at all." />
 

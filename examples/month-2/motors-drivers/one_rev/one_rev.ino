@@ -9,7 +9,7 @@ const int ENC_B = 3;
 
 const long COUNTS_PER_REV = 1440;   // 12 counts per motor turn x 120:1
 const float KP = 0.4;               // PWM steps per count of error
-const int MIN_PWM = 40;             // smallest PWM that still moves the wheel
+const int MIN_PWM = 51;             // smallest PWM that still moves the wheel
 const int MAX_PWM = 150;
 const long TOLERANCE = 2;           // counts
 

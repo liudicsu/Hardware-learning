@@ -1,3 +1,4 @@
-battery 8.4 V: done, count = 1441
+battery 8.4 V: done, count = 1442
 battery 7.4 V: done, count = 1441
-battery 6.6 V: done, count = 1440
+battery 6.6 V: done, count = 1441
+battery 5.0 V: done, count = 1440

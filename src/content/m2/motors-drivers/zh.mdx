@@ -268,7 +268,7 @@ P 控制器能修掉大部分。它测量剩余误差，也就是 1440 减去当
 0.20 × 5.0 V = 1.00 V > 0.8 V  → reaches the target
 ```
 
-同一条规则也适用于下面的固件：MIN_PWM ≥ 255 × 0.8 V / V_min。这份程序里的 MIN_PWM = 40，在 5.0 V 下就是 40 / 255 × 5.0 V = 0.78 V，所以若最低电压是 5.0 V，它至少需要 41；51（= 0.20 × 255）则留下与模型相同的余量。
+同一条规则也适用于下面的固件：MIN_PWM ≥ 255 × 0.8 V / V_min = 255 × 0.8 / 5.0 = 40.8，所以若最低电压是 5.0 V，它至少需要 41。这份程序用 MIN_PWM = 51（= 0.20 × 255，在 5.0 V 下即 51 / 255 × 5.0 V = 1.0 V），与 `min 0.20` 列留的余量相同。若沿用早先的 40，则 40 / 255 × 5.0 V = 0.78 V，低于 0.8 V 死区：在同一模拟器中，5.0 V 的那次运行超时，停在计数 1349。
 
 现在把同样的思路搬到 Uno 上。下面的 Arduino 程序就是产生后续输出的那份已编译固件。输出不是硬件测量：它来自在 simavr AVR 模拟器里运行这份固件，并接上 Python 脚本所用的同一套玩具电机与编码器模型。把它当作对逻辑和算术的检查，不要当成对你工作台的承诺。
 
@@ -286,7 +286,7 @@ const int ENC_B = 3;
 
 const long COUNTS_PER_REV = 1440;   // 12 counts per motor turn x 120:1
 const float KP = 0.4;               // PWM steps per count of error
-const int MIN_PWM = 40;             // smallest PWM that still moves the wheel
+const int MIN_PWM = 51;             // smallest PWM that still moves the wheel
 const int MAX_PWM = 150;
 const long TOLERANCE = 2;           // counts
 
@@ -372,14 +372,15 @@ QDEC 查表是解码的核心。索引是四位：前一次的 A、B 状态，�
 
 `readCount()` 在复制四字节 `long` 的那几条指令期间关中断。否则主程序可能先读到低字节，被中断打断，再读到高字节，拼出一个荒唐的数。`turnCounts()` 先清零计数、记下起始时间，然后跑 P 控制器。误差是目标减当前计数，PWM 等于 `KP` 乘误差，再限制在 ±`MAX_PWM` 之内。如果绝对值小于 `MIN_PWM`，就按误差方向抬到 `MIN_PWM`，免得摩擦把轮子卡在目标前。超时不是装饰：编码器掉了，或者机器人被卡住，循环必须退出并调用 `drive(0)`，不能让电机一直转下去。
 
-`brake()` 和 `drive(0)` 不是一回事。`drive(0)` 把两个方向输入都拉低，电机滑行。`brake()` 把两个方向输入都拉高，驱动器内部把电机两端短接，轮子快速停下。到达目标时，刹车之所以重要，是因为轮子有惯性。我们在模拟器里把固件跑了三次，每种电池电压各一次。程序本身只打印 `done, count = …`，每行前面的电池电压标签是我们加的。在目标处使用 `brake()`：
+`brake()` 和 `drive(0)` 不是一回事。`drive(0)` 把两个方向输入都拉低，电机滑行。`brake()` 把两个方向输入都拉高，驱动器内部把电机两端短接，轮子快速停下。到达目标时，刹车之所以重要，是因为轮子有惯性。我们在模拟器里把固件跑了四次，每种电池电压各一次。程序本身只打印 `done, count = …`，每行前面的电池电压标签是我们加的。在目标处使用 `brake()`：
 
 <SimOutput source="avr">
 
 ```text
-battery 8.4 V: done, count = 1441
+battery 8.4 V: done, count = 1442
 battery 7.4 V: done, count = 1441
-battery 6.6 V: done, count = 1440
+battery 6.6 V: done, count = 1441
+battery 5.0 V: done, count = 1440
 ```
 
 </SimOutput>
@@ -389,14 +390,15 @@ battery 6.6 V: done, count = 1440
 <SimOutput source="avr">
 
 ```text
-battery 8.4 V: done, count = 1455
-battery 7.4 V: done, count = 1453
-battery 6.6 V: done, count = 1451
+battery 8.4 V: done, count = 1459
+battery 7.4 V: done, count = 1457
+battery 6.6 V: done, count = 1455
+battery 5.0 V: done, count = 1450
 ```
 
 </SimOutput>
 
-差了 11–15 个计数，大约 3° 的轮子转角。真实机器人上的数字不会这么整齐：减速箱回差、更重的轮子、不同的地面、不同的电机，都会让结果漂移。调 `MIN_PWM` 时，找出能让轮子从静止可靠起步的最小 PWM，再留一点余量。调 `KP` 时，先往上加，直到轮子过冲或在目标附近来回抖，再往回收。要在两种电池电压下都试，因为满电时刚好的参数，旧电池上可能就太弱了。
+差了 10–17 个计数，大约 2.5°–4.3° 的轮子转角。真实机器人上的数字不会这么整齐：减速箱回差、更重的轮子、不同的地面、不同的电机，都会让结果漂移。调 `MIN_PWM` 时，找出能让轮子从静止可靠起步的最小 PWM，再留一点余量。调 `KP` 时，先往上加，直到轮子过冲或在目标附近来回抖，再往回收。要在两种电池电压下都试，因为满电时刚好的参数，旧电池上可能就太弱了。
 
 <Quiz id="q6" question="为什么开环版本（固定运行时间）在低电压电池上转不满一圈？" options={["低电压时编码器会漏计数", "同样的占空比和同样的时间，电压更低意味着转速更低，所以走得更短", "PWM 频率会随电池电压下降"]} answer={1} explanation="开环代码固定了占空比和时间。电池电压低，平均电压就低，电机转得慢，走过的距离自然短。问题不在编码器，因为开环根本没有用反馈。" />
 
