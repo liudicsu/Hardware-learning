@@ -318,25 +318,41 @@ README 要求 12 V 电源至少 5 A；六个 C018 在额定电流下已经要 5.
 
 ### 安装 LeRobot
 
-按 LeRobot 的安装指南，把它装进一个独立的 Python 环境。LeRobot 会拉进一大套依赖，和系统 Python 混在一起很容易把别的东西弄坏。克隆仓库、激活环境之后，在克隆目录里安装 Feetech 扩展：
+把 LeRobot 装进一个独立的 Python 环境。LeRobot 会拉进一大套依赖，和系统 Python 混在一起很容易把别的东西弄坏。[LeRobot 安装指南](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/installation.mdx)用 conda，通过 Miniforge 安装；装好 Miniforge 之后，整个安装就是在终端里执行六条命令：
 
 ```bash
-pip install -e ".[feetech]"
+conda create -y -n lerobot python=3.12
+conda activate lerobot
+conda install ffmpeg -c conda-forge
+git clone https://github.com/huggingface/lerobot.git
+cd lerobot
+pip install -e ".[core_scripts,feetech]"
 ```
 
-`-e` 是可编辑安装，命令直接来自你的仓库副本；`[feetech]` 会装上和 STS3215 通信的串口 SDK。如果命令失败，先确认你在有 `pyproject.toml` 的那个目录，再回安装页核对当前 Python 版本和系统依赖。
+前两行创建并激活一个名为 `lerobot`、使用 Python 3.12 的环境；LeRobot 要求 Python 3.12 或更新版本（[pyproject.toml 第 32 行](https://github.com/huggingface/lerobot/blob/v0.6.1/pyproject.toml#L32)）。第三行安装 `ffmpeg`，LeRobot 默认的视频解码器需要它（[安装指南第 70–87 行](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/installation.mdx#L70-L87)）。接下来两行下载代码并进入它的目录。最后一行从这个目录安装 LeRobot：`-e` 是可编辑安装，命令直接来自你的仓库副本；`[feetech]` 扩展会装上和 STS3215 通信的串口 SDK（[pyproject.toml 第 170 行](https://github.com/huggingface/lerobot/blob/v0.6.1/pyproject.toml#L170)），`[core_scripts]` 是安装指南用于录制、回放和校准的那一组（[pyproject.toml 第 132 行](https://github.com/huggingface/lerobot/blob/v0.6.1/pyproject.toml#L132)）。本课只需要 `[feetech]`：课程自己用 v0.6.1 版测试过，只装 `.[feetech]` 就能运行 `lerobot-find-port`、`lerobot-setup-motors`、`lerobot-calibrate` 和 `lerobot-teleoperate`，但显示摄像头数据和录制数据集需要 `core_scripts` 额外加入的扩展。课程按 v0.6.1 版核对过这些命令；想用完全相同的版本，就在 `cd lerobot` 之后运行 `git checkout v0.6.1`。如果最后一条命令失败，先确认你在有 `pyproject.toml` 的那个目录，并且 `lerobot` 环境已经激活。
 
 <Resource id="lerobot-so101" />
 
 ### 找到串口
 
-每条臂有自己的控制板和 USB 口。运行：
+每条臂有自己的控制板和 USB 口。如果你的控制板是 Waveshare 总线舵机驱动板，先把两个跳线都放到 `B` 位置。在 B 位置，板子把舵机总线接到它的 USB 口；在 A 位置，它把总线接到给 ESP32 之类单片机用的 UART 引脚，这时电脑在总线上什么也看不到（[Waveshare Bus Servo Adapter (A) 维基](https://www.waveshare.com/wiki/Bus_Servo_Adapter_(A))）。LeRobot 指南给出同样的设置（[LeRobot SO-101 指南第 174 行](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L174)）。然后给两块板都接上 USB 和舵机电源，运行：
 
 ```bash
 lerobot-find-port
 ```
 
 工具会列出串口，让你拔掉一块板再按回车，然后告诉你哪个串口消失了。插回去，对另一块板重复。把哪个口是主臂、哪个是从臂记下来，写在纸上或写在要用的命令旁边。Linux 下名字像 `/dev/ttyACM0` 和 `/dev/ttyACM1`，但重新插拔后可能变，所以要查，不要猜。下面的例子用 `/dev/ttyACM0` 给从臂、`/dev/ttyACM1` 给主臂；换成你自己的。
+
+串口名取决于操作系统。macOS 上形如 `/dev/tty.usbmodem575E0032081`，这是 LeRobot 指南里的例子（[LeRobot SO-101 指南第 57–74 行](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L57-L73)）；Windows 上控制板显示为 `COM` 口，例如 `COM3`，`lerobot-find-port` 通过 pyserial 列出它们（[lerobot_find_port.py 第 36–37 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/scripts/lerobot_find_port.py#L36-L37)），编号因电脑而异；Linux 上是 `/dev/ttyACM0`、`/dev/ttyACM1` 等。照 `lerobot-find-port` 打印的名字原样使用。
+
+在 Linux 上，打开串口可能报 “Permission denied”（权限被拒绝），因为串口设备属于一个系统组，而你的用户不一定在这个组里。LeRobot 指南给了一个快速解决办法，每个串口运行一次（[LeRobot SO-101 指南第 77–82 行](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L77-L82)）：
+
+```bash
+sudo chmod 666 /dev/ttyACM0
+sudo chmod 666 /dev/ttyACM1
+```
+
+另一种常见做法是把你的用户加入拥有串口的那个组：Debian 和 Ubuntu 上是 `dialout`，它提供 “full and direct access to serial ports”（对串口的完全、直接访问；[Debian 维基：SystemGroups](https://wiki.debian.org/SystemGroups)），Arch Linux 上是 `uucp`（[ArchWiki：Users and groups](https://wiki.archlinux.org/title/Users_and_groups)）。运行 `ls -l /dev/ttyACM0` 查看串口属于哪个组，用 `sudo usermod -aG dialout $USER` 把自己加进去（把 `dialout` 换成那个组名），然后注销再重新登录；ArchWiki 说明，组的变更要重新登录后才生效。
 
 ### 一次一个舵机
 
@@ -428,7 +444,7 @@ lerobot-teleoperate \
 
 出问题时，从外往内查：
 
-- **找不到某个电机**：查供电、USB 和该电机的三针线。Waveshare 板要把两个跳线放在 B（USB）通道；通道错了，板子有电但电脑什么都看不到。
+- **找不到某个电机**：查供电、USB 和该电机的三针线，并确认 Waveshare 板的两个跳线仍在“找到串口”一节设好的 B 位置；通道错了，板子有电但电脑什么都看不到。
 - **从臂一启动就猛跳**：它是在另一个姿态或另一个 id 下校准的。用你打算使用的姿态和 id 重新校准。
 - **某个关节方向反了或有偏移**：重新校准那条臂。不要靠改命令来修；错的是映射，不是命令。
 - **舵机发热，或夹爪夹住物体后嗡嗡响**：它在顶着一个东西。位置环会保留一个稳态误差并持续出力，正是第 4 课讲的稳态行为。松开夹持或降低目标；不要让它响几分钟。

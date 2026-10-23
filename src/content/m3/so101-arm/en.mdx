@@ -318,25 +318,41 @@ The build has two halves: the software has to be installed and able to see the b
 
 ### Install LeRobot
 
-Follow the LeRobot installation guide and put it in a separate Python environment. LeRobot pulls in a large stack of packages, and mixing it with your system Python is a good way to break something else. Once the repository is cloned and the environment is active, install the Feetech extra from inside the cloned folder:
+Install LeRobot into a separate Python environment. LeRobot pulls in a large stack of packages, and mixing it with your system Python is a good way to break something else. The [LeRobot installation guide](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/installation.mdx) uses conda, installed through Miniforge; once Miniforge is installed, the whole install is six commands in a terminal:
 
 ```bash
-pip install -e ".[feetech]"
+conda create -y -n lerobot python=3.12
+conda activate lerobot
+conda install ffmpeg -c conda-forge
+git clone https://github.com/huggingface/lerobot.git
+cd lerobot
+pip install -e ".[core_scripts,feetech]"
 ```
 
-The `-e` makes the install editable, so the commands come from your checkout; the `[feetech]` extra installs the serial SDK that talks to the STS3215. If the command fails, check that you are in the folder containing `pyproject.toml`, and re-check the installation page for the current Python version and any system packages.
+The first two lines create and activate an environment named `lerobot` with Python 3.12; LeRobot requires Python 3.12 or newer ([pyproject.toml, line 32](https://github.com/huggingface/lerobot/blob/v0.6.1/pyproject.toml#L32)). The third installs `ffmpeg`, which LeRobot's default video decoder needs ([installation guide, lines 70–87](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/installation.mdx#L70-L87)). The next two download the code and enter its folder. The last line installs LeRobot from that folder: the `-e` makes the install editable, so the commands come from your checkout; the `[feetech]` extra installs the serial SDK that talks to the STS3215 ([pyproject.toml, line 170](https://github.com/huggingface/lerobot/blob/v0.6.1/pyproject.toml#L170)), and `[core_scripts]` is the set the installation guide uses for recording, replaying and calibrating ([pyproject.toml, line 132](https://github.com/huggingface/lerobot/blob/v0.6.1/pyproject.toml#L132)). This lesson needs only `[feetech]`: in the course's own test of release v0.6.1, an install with only `.[feetech]` ran `lerobot-find-port`, `lerobot-setup-motors`, `lerobot-calibrate` and `lerobot-teleoperate`, but displaying camera data and recording a dataset need the extras that `core_scripts` adds. The course checked these commands against release v0.6.1; to use exactly that version, run `git checkout v0.6.1` after `cd lerobot`. If the last command fails, check that you are in the folder containing `pyproject.toml` and that the `lerobot` environment is active.
 
 <Resource id="lerobot-so101" />
 
 ### Find the ports
 
-Each arm has its own controller board and its own USB port. Run:
+Each arm has its own controller board and its own USB port. If your boards are the Waveshare bus servo adapter, first set both jumpers to the `B` position. In position B the board connects the servo bus to its USB port; in position A it connects the bus to the UART pins for a microcontroller such as an ESP32, and the computer then sees nothing on the bus ([Waveshare Bus Servo Adapter (A) wiki](https://www.waveshare.com/wiki/Bus_Servo_Adapter_(A))). LeRobot's guide gives the same setting ([LeRobot SO-101 guide, line 174](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L174)). Then connect USB and the servo supply to both boards and run:
 
 ```bash
 lerobot-find-port
 ```
 
 The tool lists the serial ports, asks you to unplug one board and press Enter, and then tells you which port disappeared. Plug it back in and repeat for the other board. Write down which port belongs to the leader and which to the follower, on paper or in a note next to the command you will use. On Linux the names look like `/dev/ttyACM0` and `/dev/ttyACM1`, but they can change when you replug, so check rather than assume. The examples below use `/dev/ttyACM0` for the follower and `/dev/ttyACM1` for the leader; replace them with your own.
+
+Port names depend on the operating system. On macOS they look like `/dev/tty.usbmodem575E0032081`, the example in LeRobot's guide ([LeRobot SO-101 guide, lines 57–74](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L57-L73)); on Windows the boards appear as `COM` ports, such as `COM3`, which `lerobot-find-port` lists through pyserial ([lerobot_find_port.py, lines 36–37](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/scripts/lerobot_find_port.py#L36-L37)), and the number depends on the computer; on Linux they are `/dev/ttyACM0`, `/dev/ttyACM1` and so on. Use the name exactly as `lerobot-find-port` prints it.
+
+On Linux, opening the port can fail with "Permission denied", because serial devices belong to a system group that your user may not be in. LeRobot's guide gives a quick fix, run once per port ([LeRobot SO-101 guide, lines 77–82](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L77-L82)):
+
+```bash
+sudo chmod 666 /dev/ttyACM0
+sudo chmod 666 /dev/ttyACM1
+```
+
+The other common fix is to add your user to the group that owns serial ports: `dialout` on Debian and Ubuntu, which gives "full and direct access to serial ports" ([Debian wiki: SystemGroups](https://wiki.debian.org/SystemGroups)), and `uucp` on Arch Linux ([ArchWiki: Users and groups](https://wiki.archlinux.org/title/Users_and_groups)). Run `ls -l /dev/ttyACM0` to see which group owns the port, add yourself with `sudo usermod -aG dialout $USER` (replace `dialout` with that group), and then log out and back in; the ArchWiki notes that a group change takes effect only after a new login.
 
 ### One motor at a time
 
@@ -428,7 +444,7 @@ To stop teleoperation, press Ctrl+C. LeRobot then disconnects both arms ([lerobo
 
 When it misbehaves, work from the outside in:
 
-- **A motor is not found**: check power, USB and the 3-pin cable at that motor. The Waveshare board needs its two jumpers on the B (USB) channel; on the wrong channel the board is powered but the computer sees nothing.
+- **A motor is not found**: check power, USB and the 3-pin cable at that motor, and check that the Waveshare board's two jumpers are still on B, as set in "Find the ports"; on the wrong channel the board is powered but the computer sees nothing.
 - **The follower jumps on start**: it was calibrated in a different pose or under another id. Re-run calibration with the pose and the id you intend to use.
 - **A joint moves the wrong way or is offset**: recalibrate that arm. Do not fix it by editing the command; the mapping is wrong, not the command.
 - **A servo gets hot or the gripper buzzes when closed on an object**: it is pushing against something. The position loop keeps a steady error and keeps applying torque, exactly the steady-state behaviour from Lesson 4. Release the grip or lower the goal; do not let it buzz for minutes.
