@@ -1046,6 +1046,24 @@ const fdmFil = [20, 25];
   const rHex = [...rb, lo8(rb.slice(2).reduce((a, b) => a + b, 0))].map(hx).join(" "), pos = rb[5] | rb[6] << 8, pb = `${hx(rb[5])} ${hx(rb[6])}`;
   const posHex = `0x${hx(rb[6])}${hx(rb[5])}`, deg = (pos * 360 / enc).toFixed(1), flip = hx(rb[6] ^ 1), q3 = 360 * 1024 / enc;
   const tq = 1 + 4 + 3 + reg[0] + 1, gs = 1 + 5 + 3 + reg[1] + 0 + 8;
+  // packets rebuilt from sts_packet.py's instruction codes (PING / READ / WRITE) and checksum rule: the four request lines of its expected output must
+  // match, and every packet the lesson quotes (the :191 ping 0xFB, the 2048 = 0x0800 split, the widget steps for 2048 / 1024 / servo 2) is built here
+  const ins = (sp.match(/^PING, READ, WRITE = 0x([0-9A-F]{2}), 0x([0-9A-F]{2}), 0x([0-9A-F]{2})$/m) ?? []).slice(1).map((s) => parseInt(s, 16));
+  const g0 = Number(sp.match(/^ +goal = (\d+) /m)?.[1]), g1 = 1024, sum = (a) => a.reduce((x, y) => x + y, 0);
+  const pkt = (id, i, ...p) => { const b = [id, p.length + 2, i, ...p]; return [0xFF, 0xFF, ...b, lo8(sum(b))].map(hx).join(" "); };
+  const gp = (id, g) => pkt(id, ins[2], reg[1], g & 0xFF, g >> 8), le = (g) => `0x${hx(g >> 8)}${hx(g & 0xFF)}`, lb = (g) => `${hx(g & 0xFF)} ${hx(g >> 8)}`;
+  // the :191 ping (servo 1, pg = 1 + 2 + 1) and q2's ping to servo 2 (2 + 2 + 1); compare_sdk.py's real output must repeat sts_packet.py's four packets
+  const ping = [1, 2, ins[0]], pg = sum(ping), pingCk = hx(lo8(pg)), q2s = 2 + 2 + ins[0], fa = hx(lo8(q2s)), fb = pingCk, bad = [...rb, lo8(sum(rb.slice(2)))].map((b, i) => hx(i === 6 ? b ^ 1 : b)).join(" ");
+  ok(JSON.stringify(ins) === "[1,2,3]" && g0 === enc / 2 && pkt(1, ins[0]).endsWith(` ${pingCk}`) && pkt(1, ins[2], reg[0], 1).endsWith(` ${hx(lo8(tq))}`) && gp(1, g0).endsWith(` ${hx(lo8(gs))}`)
+    && [["ping servo 1:", pkt(1, ins[0])], ["torque on, servo 1:", pkt(1, ins[2], reg[0], 1)], [`goal position ${g0}, servo 1:`, gp(1, g0)], ["read present position, servo 6:", pkt(6, ins[1], reg[2], 2)]]
+      .every(([k, x]) => spOut.includes(`${k.padEnd(32)} ${x}\n`)) && spOut.includes(`reply ${bad} -> bad checksum`) && spOut.includes(`FF FF 01 02 01 ${fb}\n`) && fa !== fb,
+    `so101-arm: the packets rebuilt from sts_packet.py (instructions ${ins}, ping ${pkt(1, ins[0])}, goal ${gp(1, g0)}) no longer match its expected output`);
+  const sdkPy = readFileSync(join(root, "examples/month-3/so101-arm/compare_sdk.py"), "utf8");
+  const sdkOut = readFileSync(join(root, "examples/month-3/expected/arm-compare_sdk.txt"), "utf8");
+  const sdkB = sdkOut.trimEnd().split("\n").map((l) => l.match(/ SDK ((?:[0-9A-F]{2} )*[0-9A-F]{2}) +same$/)?.[1]), spB = spOut.split("\n").slice(0, 4).map((l) => l.slice(33));
+  ok(sdkB.length === 4 && JSON.stringify(sdkB) === JSON.stringify(spB), `so101-arm: compare_sdk.py's output ${JSON.stringify(sdkB)} no longer repeats sts_packet.py's packets ${JSON.stringify(spB)}`);
+  // LeRobot numbers the six motors 1-6 in the leader table's order (shoulder_pan = 1 ... gripper = 6); the setup script walks them in reverse
+  const jid = Object.fromEntries(Object.keys(leader).map((k, i) => [k, i + 1])), jMid = Object.keys(leader).slice(1, -1).reverse();
   ok(enc === 2 ** bits && JSON.stringify(reg) === JSON.stringify([lerobot.addr.torqueEn, lerobot.addr.goal, lerobot.addr.present]) && reg.every((a) => a >= lerobot.addr.sram)
     && rb.length === 7 && spOut.includes(`reply ${rHex} -> servo ${rb[2]}, error ${rb[4]}, position ${pos} = ${deg} deg`),
     `so101-arm: sts_packet.py (${bits}-bit / ${enc} steps, registers ${reg}, reply ${rHex}) no longer matches its output, 2^bits or the LeRobot / Feetech table`);
@@ -1109,13 +1127,13 @@ const fdmFil = [20, 25];
       `The gripper is the exception: when LeRobot configures an SO follower it writes Max_Torque_Limit ${lr.torque}, Protection_Current ${lr.cur} and Overload_Torque ${lr.ol} to the gripper servo only ([so_follower.py, lines ${lr.lines}, LeRobot ${lr.tag}](${lr.url})).`,
       `In both tables, Max_Torque_Limit (address ${lr.addr.torque}) is in units of ${lr.tUnit} %, so ${lr.torque} is ${lr.pct} % of the maximum torque; Protection_Current (address ${lr.addr.cur}) is in units of ${lr.mA} mA, so ${lr.cur} is ${lr.cur} × ${lr.mA} mA = ${lr.amps} A; and Overload_Torque (address ${lr.addr.ol}) is the load that starts the overload timer, so once the gripper's load exceeds ${lr.ol} % of its maximum torque (Feetech does not say whether this is relative to the address-${lr.addr.torque} setting or to the full locked torque; a stall exceeds it either way) for ${protS} s it enters protection.`,
       `The torque it outputs after that is set by a different register, Protective_Torque (address ${lr.addr.hold}, default ${lr.holdDef} %), which LeRobot does not write; LeRobot's code comment calls Overload_Torque the torque when overloaded, which disagrees with Feetech's tables.`,
-      `The online table gives the torque limits (addresses ${lr.addr.torque} and ${lr.addr.lim}) and Present_Load (address ${lr.addr.load}) all in units of ${lr.tUnit} % and defines address ${lr.addr.load} as the duty cycle of the output driving the motor, so the ${lr.pct} % torque limit also caps the gripper's drive duty cycle at about half.`,
+      `The online table gives the torque limits (addresses ${lr.addr.torque} and ${lr.addr.lim}) and Present_Load (address ${lr.addr.load}) all in units of ${lr.tUnit} % and defines address ${lr.addr.load} as the duty cycle of the output driving the motor, so the ${lr.pct} % torque limit, once in effect after power-up, also caps the gripper's drive duty cycle at about half.`,
       `According to both tables, however, the torque limit actually in effect is address ${lr.addr.lim}, which is loaded from address ${lr.addr.torque} only at power-up, and LeRobot ${lr.tag} writes only address ${lr.addr.torque} (never address ${lr.addr.lim}) and does not reboot the servo, so the ${lr.pct} % cap takes effect from the servo's next power-up; the author of the open [LeRobot PR #${lr.prNum}](${lr.prUrl}) likewise writes that a changed value "may need a power cycle to apply" but has not checked it on hardware.`,
       `Once the cap applies, a stalled gripper should draw about ${lr.pct / 100} × 5 V / ${rTerm} Ω ≈ ${(lr.pct / 100 * stall5v).toFixed(1)} A, below its ${lr.amps} A protection current, so the overload protection (load above ${lr.ol} % for ${protS} s) is expected to trigger first.`,
       `Before then, for example in the first use after LeRobot configures the servo, the gripper may still drive at full duty, up to about 5 V / ${rTerm} Ω ≈ ${stall5v.toFixed(1)} A, which is above ${lr.amps} A; the overload condition is met as well, and both timers default to ${protS} s (Protection_Time, address ${lr.addr.time}, and Over_Current_Protection_Time, address ${lr.addr.ocTime}, both ${lr.timeDef} × ${lr.timeMs} ms), so it is uncertain which protection acts first.`,
       `Even if registers ${lr.addr.cur} and ${lr.addr.ol} also take effect only at power-up, a full-duty stall still exceeds the factory ${olPct} % overload threshold.`,
       `Feetech has not published its firmware implementation, so all of this is an estimate.`,
-      `Both specifications also say that a new position command clears the overload and overcurrent protection flags (§7-11), and LeRobot sends Goal_Position on every send_action() ([so_follower.py, line ${lr.sendLine}](${lr.sendUrl})), so during teleoperation the next command clears the protection; you cannot count on it to guard the servo for long, so still avoid keeping the gripper stalled.`,
+      `Both specifications also say that a new position command clears the overload and overcurrent protection flags (§7-11), and LeRobot sends Goal_Position on every send_action() ([so_follower.py, line ${lr.sendLine}](${lr.sendUrl})), so during teleoperation the next command clears the protection flags (the specifications do not say whether resending the same goal position counts as a new command); you cannot count on it to guard the servo for long, so still avoid keeping the gripper stalled.`,
       `Both tables cover the STS3215 / STS series in general rather than the C001 variant, and they use the same addresses and units for these registers.`,
       `LeRobot does write other registers on every joint: Operating_Mode (position), the P/I/D coefficients ${lr.pid.join('/')} (the factory P is ${lr.pDef}; [config_so_follower.py, lines ${lr.cfgLines}](${lr.cfgUrl})), Return_Delay_Time ${lr.retDelay} and the acceleration registers ${lr.acc} ([feetech.py, lines ${lr.feLines[0]}](${lr.feUrl[0]})), bit 4 of the Phase register, which it clears on the STS3215 to select single-turn angle feedback ([feetech.py, lines ${lr.feLines[2]}](${lr.feUrl[2]})), and, at calibration, Homing_Offset and the position limits ([feetech.py, lines ${lr.feLines[1]}](${lr.feUrl[1]})).`,
       `Registers ${lr.addr.torque}, ${lr.addr.cur} and ${lr.addr.ol} sit in the EEPROM area of both tables, and LeRobot writes them with Lock (address ${lr.addr.lock}) at 0: configure() runs inside torque_disabled() ([so_follower.py, line ${lr.sfLine}](${lr.sfUrl})), which first writes Lock 0 to every motor ([feetech.py, lines ${lr.feLines[3]}](${lr.feUrl[3]})), and the online table says EEPROM values written with Lock at 0 persist after power-off.`,
@@ -1130,6 +1148,19 @@ const fdmFil = [20, 25];
       `The goal packet has three parameters, address ${reg[1]} and the two bytes of 2048. The read packet asks servo 6 for two bytes starting at register ${reg[2]}.`,
       `ID 01 + LENGTH 05 + WRITE 03 + address ${hx(reg[1])} + low byte 00 + high byte 08 = 0x${hx(gs)} (decimal 1 + 5 + 3 + ${reg[1]} + 0 + 8 = ${gs})\ninvert: 0xFF − 0x${hx(gs)} = 0x${hx(lo8(gs))} → matches the last byte`,
       `reply params ${pb} → ${posHex} = ${pos} steps → ${pos} × 360 / ${enc} = ${deg}°`,
+      `The ping is addressed to servo 1, carries no parameters, so LENGTH is ${ping[1]} (instruction plus checksum), and the checksum is ~(${ping.join(" + ")}) & 0xFF = 0x${hx(lo8(pg))}.`,
+      `<Quiz id="q2" question="What is the checksum of a ping to servo 2 (FF FF 02 02 01 ?)?" options={["${fa}", "${fb}", "${hx(q2s)}", "FD"]} answer={0} explanation="Add the bytes covered by the checksum: 02 + 02 + 01 = ${hx(q2s)}. Invert the low byte: 0xFF − 0x${hx(q2s)} = 0x${fa}." />`,
+      "- Every packet is `0xFF 0xFF ID LENGTH INSTRUCTION PARAMS CHECKSUM` with CHECKSUM = ~(sum) & 0xFF; " + `a ping to servo 1 is ${pkt(1, ins[0])}, and to servo 2 the checksum is ${fa}.`,
+      `${g0} = ${le(g0)} → low byte ${hx(g0 & 0xFF)}, high byte ${hx(g0 >> 8)}`,
+      `1. Select the goal packet, set servo ID = 1 and goal position = ${g0}, then read the packet bytes = ${gp(1, g0)}.`,
+      `2. Set goal position = ${g1} and read the packet bytes = ${gp(1, g1)} (${le(g1)} little-endian = ${lb(g1)}; checksum = ~(sum) low byte).`,
+      `3. Set servo ID = 2 and goal position = ${g0}, then read the packet bytes = ${gp(2, g0)}.`,
+      `5. Change ${hx(rb[6])} to ${flip} in the reply and read "bad checksum: the bytes were corrupted on the wire". Conclusion: checksum = 0xFF − (sum of ID…last parameter & 0xFF); one bit flipped makes it mismatch.`,
+      `the shoulder_pan motor (ID ${jid.shoulder_pan}) plugs into the controller`, `- Daisy-chain from the gripper back to the base, and plug shoulder_pan (ID ${jid.shoulder_pan}) into the board.`,
+      `Assemble the SO-101, set IDs ${jid.shoulder_pan}–${jid.gripper} on both arms`, `- IDs ${jid.shoulder_pan}–${jid.gripper} set on both arms, with the leader's geared servos kept separate.`,
+      `The script asks for the gripper motor first and sets it to ID ${jid.gripper}, then ${jMid.join(", ")} and finally shoulder_pan = ${jid.shoulder_pan}. Connect ONLY the motor it asks for to the board each time, not daisy-chained to another motor. Before every Enter, check the power and the 3-pin cable;`,
+      `- The half-duplex bus runs at 1 Mbit/s, daisy-chained from the gripper back to the base, and the setup script gives the gripper ID ${jid.gripper} first, then walks back to shoulder_pan = ${jid.shoulder_pan}.`,
+      "**Guided experiment.** This experiment shows how the STS3215 packet encodes ID, instruction and parameters, and how the checksum detects a corrupted byte.",
       `4. Paste the reply ${rHex} into the reply box and read the parsed reply "servo ${rb[2]}, error ${rb[4]}, position ${pos} = ${deg}°".`,
       `Its LENGTH is ${rb[3]}, because it carries two data bytes plus the error byte and the checksum. The error byte is ${rb[4]}, so the servo reports no error. The parameters ${pb} are little-endian: ${posHex} = ${pos}, and ${pos} / ${enc} of a turn is ${deg}°. The final line flips one bit in the high data byte, ${hx(rb[6])} becomes ${flip}, and the checksum catches it before anyone can mistake 0x${flip}${hx(rb[5])} for a real position.`,
       `answer={${q3}} unit="°" explanation="The encoder has ${enc} steps per turn, so 1024 steps is 1024 / ${enc} = 1/${enc / 1024} of a turn. 360° × 1/${enc / 1024} = ${q3}°."`,
@@ -1163,13 +1194,13 @@ const fdmFil = [20, 25];
       `夹爪是例外：LeRobot 配置 SO 从臂时，只给夹爪舵机写入 Max_Torque_Limit ${lr.torque}、Protection_Current ${lr.cur} 和 Overload_Torque ${lr.ol}（[so_follower.py 第 ${lr.lines} 行，LeRobot ${lr.tag}](${lr.url})）。`,
       `按两份表，Max_Torque_Limit（地址 ${lr.addr.torque}）的单位是 ${lr.tUnit} %，所以 ${lr.torque} 是最大扭矩的 ${lr.pct} %；Protection_Current（地址 ${lr.addr.cur}）的单位是 ${lr.mA} mA，所以 ${lr.cur} 是 ${lr.cur} × ${lr.mA} mA = ${lr.amps} A；Overload_Torque（地址 ${lr.addr.ol}）是启动过载计时的负载门限，所以夹爪的负载一旦超过最大扭矩的 ${lr.ol} %（飞特没有说明是相对地址 ${lr.addr.torque} 的设定值还是满堵转扭矩；堵转时两种理解下都会超过）并持续 ${protS} s，就进入保护。`,
       `进入保护后输出的扭矩由另一个寄存器 Protective_Torque（地址 ${lr.addr.hold}，默认 ${lr.holdDef} %）决定，LeRobot 没有写它；LeRobot 的代码注释把 Overload_Torque 说成过载时的扭矩，这与飞特的表不符。`,
-      `在线存储表把扭矩限制（地址 ${lr.addr.torque} 和 ${lr.addr.lim}）和 Present_Load（地址 ${lr.addr.load}）的单位都定为 ${lr.tUnit} %，并把地址 ${lr.addr.load} 定义为驱动电机输出的占空比，所以 ${lr.pct} % 的扭矩限制也把夹爪的驱动占空比限制在一半左右。`,
+      `在线存储表把扭矩限制（地址 ${lr.addr.torque} 和 ${lr.addr.lim}）和 Present_Load（地址 ${lr.addr.load}）的单位都定为 ${lr.tUnit} %，并把地址 ${lr.addr.load} 定义为驱动电机输出的占空比，所以 ${lr.pct} % 的扭矩限制一旦在上电后生效，也会把夹爪的驱动占空比限制在一半左右。`,
       `不过按两份表，真正生效的扭矩限制是地址 ${lr.addr.lim}，它只在上电时从地址 ${lr.addr.torque} 载入；而 LeRobot ${lr.tag} 只写地址 ${lr.addr.torque}（从不写地址 ${lr.addr.lim}），也不重启舵机，所以 ${lr.pct} % 的限制要从舵机下一次上电起才生效；开放中的 [LeRobot PR #${lr.prNum}](${lr.prUrl}) 的作者也写道，改过的值“may need a power cycle to apply”（可能要断电重启才生效），但他没有在硬件上验证过。`,
       `限制生效后，夹爪堵转时电流约为 ${lr.pct / 100} × 5 V / ${rTerm} Ω ≈ ${(lr.pct / 100 * stall5v).toFixed(1)} A，低于 ${lr.amps} A 的保护电流，所以预计过载保护（负载超过 ${lr.ol} % 并持续 ${protS} s）会先动作。`,
       `在此之前（例如 LeRobot 配置舵机后的第一次使用），夹爪仍可能以满占空比驱动，最高约 5 V / ${rTerm} Ω ≈ ${stall5v.toFixed(1)} A，高于 ${lr.amps} A；过载条件也同样满足，而两个计时的默认值都是 ${protS} s（Protection_Time，地址 ${lr.addr.time}；Over_Current_Protection_Time，地址 ${lr.addr.ocTime}；都是 ${lr.timeDef} × ${lr.timeMs} ms），所以哪个保护先动作并不确定。`,
       `即使 ${lr.addr.cur}、${lr.addr.ol} 号寄存器也要上电后才生效，满占空比堵转仍会超过出厂的 ${olPct} % 过载门限。`,
       `飞特没有公开固件实现，所以这些都只是估计。`,
-      `两份规格书还写明，重新发位置指令会清除过载和过流保护标志（§7-11），而 LeRobot 每次 send_action() 都会发送 Goal_Position（[so_follower.py 第 ${lr.sendLine} 行](${lr.sendUrl})），所以遥操作时下一条指令就会清除保护；不能指望保护长期护住舵机，仍应避免让夹爪长时间堵转。`,
+      `两份规格书还写明，重新发位置指令会清除过载和过流保护标志（§7-11），而 LeRobot 每次 send_action() 都会发送 Goal_Position（[so_follower.py 第 ${lr.sendLine} 行](${lr.sendUrl})），所以遥操作时下一条指令就会清除保护标志（规格书没有说明重发相同的目标位置是否算新指令）；不能指望保护长期护住舵机，仍应避免让夹爪长时间堵转。`,
       `两份表都针对一般的 STS3215 / STS 系列，而不是 C001 这个型号；这些寄存器的地址和单位在两份表里相同。`,
       `LeRobot 也会给每个关节写别的寄存器：Operating_Mode（位置模式）、P/I/D 系数 ${lr.pid.join('/')}（出厂 P 为 ${lr.pDef}；[config_so_follower.py 第 ${lr.cfgLines} 行](${lr.cfgUrl})）、Return_Delay_Time ${lr.retDelay} 和加速度寄存器 ${lr.acc}（[feetech.py 第 ${lr.feLines[0]} 行](${lr.feUrl[0]})）、Phase 寄存器的第 4 位（在 STS3215 上清零，选单圈角度反馈；[feetech.py 第 ${lr.feLines[2]} 行](${lr.feUrl[2]})），校准时还会写 Homing_Offset 和位置限位（[feetech.py 第 ${lr.feLines[1]} 行](${lr.feUrl[1]})）。`,
       `${lr.addr.torque}、${lr.addr.cur}、${lr.addr.ol} 号寄存器在两份表里都属于 EEPROM 区，而 LeRobot 是在 Lock（地址 ${lr.addr.lock}）为 0 时写入它们的：configure() 在 torque_disabled() 里运行（[so_follower.py 第 ${lr.sfLine} 行](${lr.sfUrl})），它先给每个电机写 Lock 0（[feetech.py 第 ${lr.feLines[3]} 行](${lr.feUrl[3]})），而在线存储表说 Lock 为 0 时写入 EEPROM 的值断电后仍会保留。`,
@@ -1184,6 +1215,19 @@ const fdmFil = [20, 25];
       `目标位置包有三个参数：地址 ${reg[1]}，以及 2048 的低字节和高字节。读位置包向 6 号舵机要寄存器 ${reg[2]} 起的两个字节。`,
       `ID 01 + LENGTH 05 + WRITE 03 + 地址 ${hx(reg[1])} + 低字节 00 + 高字节 08 = 0x${hx(gs)}（十进制 1 + 5 + 3 + ${reg[1]} + 0 + 8 = ${gs}）\n取反：0xFF − 0x${hx(gs)} = 0x${hx(lo8(gs))} → 与最后一个字节一致`,
       `回复参数 ${pb} → ${posHex} = ${pos} 步 → ${pos} × 360 / ${enc} = ${deg}°`,
+      `ping 发给 1 号舵机，不带参数，所以 LENGTH = ${ping[1]}（指令加校验和），校验和 = ~(${ping.join(" + ")}) & 0xFF = 0x${hx(lo8(pg))}。`,
+      `<Quiz id="q2" question="给 2 号舵机发 ping（FF FF 02 02 01 ?），校验和是多少？" options={["${fa}", "${fb}", "${hx(q2s)}", "FD"]} answer={0} explanation="把校验和覆盖的字节相加：02 + 02 + 01 = ${hx(q2s)}。再对低字节取反：0xFF − 0x${hx(q2s)} = 0x${fa}。" />`,
+      "- 每条消息都是 `0xFF 0xFF ID LENGTH INSTRUCTION PARAMS CHECKSUM`，CHECKSUM = ~(和) & 0xFF；" + `给 1 号舵机的 ping 是 ${pkt(1, ins[0])}，给 2 号舵机时校验和是 ${fa}。`,
+      `${g0} = ${le(g0)} → 低字节 ${hx(g0 & 0xFF)}，高字节 ${hx(g0 >> 8)}`,
+      `1. 选择 goal 数据包，将舵机 ID 设为 1、目标位置设为 ${g0}，读取数据包字节 = ${gp(1, g0)}。`,
+      `2. 将目标位置设为 ${g1}，读取数据包字节 = ${gp(1, g1)}（${le(g1)} 小端 = ${lb(g1)}；校验和 = ~(和) 的低字节）。`,
+      `3. 将舵机 ID 设为 2、目标位置设为 ${g0}，读取数据包字节 = ${gp(2, g0)}。`,
+      `5. 将回复中的 ${hx(rb[6])} 改为 ${flip}，读取“校验和不对：字节在传输中出错”。结论：校验和 = 0xFF − (ID…最后一个参数之和 & 0xFF)；翻转一位就会不匹配。`,
+      `shoulder_pan（ID ${jid.shoulder_pan}）插在控制板上`, `- 从夹爪往底座方向菊花链，最后把 shoulder_pan（ID ${jid.shoulder_pan}）插到控制板上。`,
+      `把 SO-101 装起来，给两条臂设好 ID ${jid.shoulder_pan}–${jid.gripper}，`, `- 两条臂都设好 ID ${jid.shoulder_pan}–${jid.gripper}，主臂那套不同减速比的舵机分开放。`,
+      `脚本先问夹爪电机，把它设成 ID ${jid.gripper}，然后依次是 ${jMid.join("、")}，最后 shoulder_pan = ${jid.shoulder_pan}。`,
+      `- 半双工总线跑在 1 Mbit/s，从夹爪菊花链回底座；设置脚本先把夹爪设为 ID ${jid.gripper}，再一路退回到 shoulder_pan = ${jid.shoulder_pan}。`,
+      "<strong>动手实验。</strong>本实验展示 STS3215 数据包如何编码 ID、指令与参数，以及校验和如何检测传输中出错的字节。",
       `4. 将回复 ${rHex} 粘贴到回复输入框，读取解析后的回复“舵机 ${rb[2]}，错误 ${rb[4]}，位置 ${pos} = ${deg}°”。`,
       `LENGTH 是 ${rb[3]}，因为除了校验和，还有两个数据字节和一个错误字节。错误字节为 ${rb[4]}，说明舵机没有报告错误。参数 ${pb} 是小端序：${posHex} = ${pos}，${pos} / ${enc} 圈就是 ${deg}°。最后一行把高位数据字节的一个比特翻转，${hx(rb[6])} 变成 ${flip}，校验和在有人把 0x${flip}${hx(rb[5])} 当成真实位置之前就抓住了它。`,
       `answer={${q3}} unit="°" explanation="编码器每圈 ${enc} 步，所以 1024 步是 1024 / ${enc} = 1/${enc / 1024} 圈。360° × 1/${enc / 1024} = ${q3}°。"`,
@@ -1202,8 +1246,9 @@ const fdmFil = [20, 25];
     const text = readFileSync(join(root, `src/content/m3/so101-arm/${lang}.mdx`), "utf8");
     for (const q of [...common, ...per[lang]]) ok(text.includes(q), `so101-arm ${lang}: expected ${JSON.stringify(q)} (recomputed from the README BOM / Feetech specs)`);
     // the printed program and its printed output are the committed files, byte for byte (the 12-bit / 4096 comment, registers 40 / 42 / 56, the 3116 reply)
-    ok(text.includes("```python\n" + sp + "```") && text.includes("```text\n$ python3 sts_packet.py\n" + spOut + "```"),
-      `so101-arm ${lang}: the sts_packet.py listing or its output block differs from examples/month-3/so101-arm/sts_packet.py / expected/arm-sts_packet.txt`);
+    ok(text.includes("```python\n" + sp + "```") && text.includes("```text\n$ python3 sts_packet.py\n" + spOut + "```")
+      && text.includes("```python\n" + sdkPy + "```") && text.includes("```text\n$ pip install feetech-servo-sdk\n$ python3 compare_sdk.py\n" + sdkOut + "```"),
+      `so101-arm ${lang}: the sts_packet.py / compare_sdk.py listings or their output blocks differ from examples/month-3/so101-arm/{sts_packet,compare_sdk}.py / expected/arm-{sts_packet,compare_sdk}.txt`);
     const rows = [...text.matchAll(/^\| (\w+) \| 1\/(\d+) \|$/gm)].map((m) => [m[1], Number(m[2])]);
     ok(JSON.stringify(rows) === JSON.stringify(Object.entries(leader)), `so101-arm ${lang}: leader ratio table ${JSON.stringify(rows)} != ${JSON.stringify(leader)}`);
     ok(!/\d[%％]/.test(text.replace(/\]\([^)\s]*\)/g, "]")), `so101-arm ${lang}: write percentages with a space ("${infill} %")`);
@@ -1216,6 +1261,10 @@ const fdmFil = [20, 25];
     for (const m of got) ok((m[1] ?? m[2] ?? r1) === r1 && (m[3] ?? r2) === r2, `so101-arm ${lang}: ratio quote "${m[0]}" != 345 / 147 = ${r1}, (345/147)² = ${r2}`);
   }
   const res = readFileSync(join(root, "src/lib/resources.ts"), "utf8");
+  // resources.ts sts3215 summary: the encoder width is the one sts_packet.py declares
+  const sts = res.slice(res.indexOf("\n  sts3215: {") + 1).split(/\n  "?[\w-]+"?: \{/)[0];
+  ok(res.includes("\n  sts3215: {") && sts.includes(`zh: "串行总线菊花链、${bits} 位磁编码器，可回读位置、速度、电流和负载；开源 SO-101 机械臂用的就是它。",`) && sts.includes(`en: "Daisy-chained serial bus, ${bits}-bit magnetic encoder, reports position, speed, current and load; the servo in the open-source SO-101 arm.",`),
+    `resources.ts sts3215: expected the ${bits}-bit encoder from sts_packet.py in both summaries`);
   ok(robo > quiz, `so101-arm: Robonine $${robo} is no longer more than the BOM pair + filament ${d(quiz)} ("you pay more than sourcing the BOM")`);
   for (const q of [`≈ $${robo} (verified ${vd})`, `约 $${robo}（${vd} 核实）`]) ok(res.includes(q), `resources.ts robonine-so101: expected ${JSON.stringify(q)} (same price as the lesson table)`);
   // the so101 table's store prices carry the same date in resources.ts (Seeed Pro, Seeed printed parts, Hiwonder xArm 1S; WowRobo as sale prices)
@@ -1238,28 +1287,42 @@ const fdmFil = [20, 25];
     { id: "bambu-p1s", name: "Bambu Lab P1S", p: 399, only: true },
   ];
   const combo = [549, 579], svc = 8, home = 0.4, save = svc - home, mini = pr[1].p, be = Math.round(mini / save), sale = pr.filter((r) => r.was);
+  // rev = 10 revisions of 25 min each (:31–38), the quiz's q = 25 revisions (:42); the ready-printed set is the Seeed price that resources.ts and so101-arm carry
+  const rev = 10, min = 25, q = 25, hrs = (rev * min / 60).toFixed(1), cents = Math.round(home * 100), printed = 30.99, nW = { 10: ["tenth", "ten", "十"] }[rev] ?? [];
   // break-even: a print service charges $8.00 for the part, printing it at home costs $0.40 of filament; one project is about 10 revisions
-  ok(sale.every((r) => r.p < r.was) && combo.every((c) => c > pr[4].p) && pr.every((r) => r.p >= pr[0].p) && be > 10,
+  ok(sale.every((r) => r.p < r.was) && combo.every((c) => c > pr[4].p) && pr.every((r) => r.p >= pr[0].p) && be > rev,
     `fdm-printing: sale prices must be below the regular price, the P1S combos above the printer, the Ender the cheapest, and break-even ${be} more than one project`);
   const cell = {
     en: (r) => r.was ? `$${r.p} sale (regular $${r.was})` : r.only ? `$${r.p} (printer only)` : `$${r.p}`,
     zh: (r) => r.was ? `$${r.p} 促销价（原价 $${r.was}）` : r.only ? `$${r.p}（仅打印机）` : `$${r.p}`,
   };
+  // build plates from Bambu's spec pages: A1 mini 180 × 180 × 180 mm, A1 256 × 256 × 256 mm
+  const bed = { mini: 180, a1: 256 }, bedRow = (lang, name, tail) => `| ${name} | ${cell[lang](pr.find((r) => r.name === name))} | ${tail} |`;
   const per = {
     en: [`| Printer | Price (store page, verified ${vd}) | Why pick it |`,
+      bedRow("en", "Bambu Lab A1 mini", `Works out of the box, automatic calibration, ${bed.mini} mm bed`), bedRow("en", "Bambu Lab A1", `Same, with the ${bed.a1} mm bed you will want for larger brackets`),
       `Prices are the prices on each brand's official US store page, verified ${vd}; they change often, so check the store before ordering. The ${sale.map((r) => r.short).join(" and ")} prices are sale prices, shown with the regular price.`,
       `For the P1S the table gives the printer on its own, as for the A1 mini and A1; the AMS Combo ($${combo[0]}) and AMS 2 Pro Combo ($${combo[1]}) bundles add Bambu's automatic material system for multicolour printing, which this course does not need.`,
       `Do the break-even arithmetic: at $${save.toFixed(2)} saved per revision, a $${mini} printer (the A1 mini) needs about ${be} revisions before the hardware is paid for.`,
       `Each revision saves $${svc.toFixed(2)} − $${home.toFixed(2)} = $${save.toFixed(2)}.`,
       `- Break-even: $${save.toFixed(2)} saved per revision, so a $${mini} printer needs about ${be} revisions to pay for itself.`,
-      `about $${fdmFil[0]} to $${fdmFil[1]} of filament`],
+      `about $${fdmFil[0]} to $${fdmFil[1]} of filament`,
+      `A full SO-101 arm needs roughly 1 kg of PLA+. On your own machine that is about $${fdmFil[0]} to $${fdmFil[1]} of filament; a ready-printed set costs $${printed}. On those numbers alone, a printer does not pay for itself on one build. It pays for itself on iteration: the ${nW[0]} revision of a gripper finger costs ${cents} cents and ${min} minutes at home, against about $${svc} and a week from a service.`,
+      "```text\n" + `${rev} revisions at home = ${rev} × $${home.toFixed(2)} = $${(rev * home).toFixed(2)} and ${rev} × ${min} min ≈ ${hrs} h\nby service = ${rev} × $${svc} = $${rev * svc} and about ${rev} weeks if you wait for each one\n` + "```",
+      `That is $${(rev * home).toFixed(2)} of filament and about ${hrs} hours of printing at home, against $${rev * svc} and roughly ${nW[1]} weeks if you wait for each service order.`,
+      `<Quiz id="q1" question="A service charges $${svc} per revision and your own printer costs $${home.toFixed(2)} per revision. How much do you save over ${q} revisions, in dollars?" answer={${Math.round(q * save)}} unit="USD" explanation="Each revision saves $${svc.toFixed(2)} − $${home.toFixed(2)} = $${save.toFixed(2)}. Over ${q} revisions: ${q} × $${save.toFixed(2)} = $${(q * save).toFixed(2)}. Equivalently, ${q} × $${svc} = $${q * svc} for the service against ${q} × $${home.toFixed(2)} = $${Math.round(q * home)} at home." />`],
     zh: [`| 打印机 | 价格（商店页面，${vd} 核实） | 为什么选它 |`,
+      bedRow("zh", "Bambu Lab A1 mini", `开箱即用，自动校准，${bed.mini} mm 热床`), bedRow("zh", "Bambu Lab A1", `同样的易用性，${bed.a1} mm 热床，打较大支架更从容`),
       `价格是各品牌美国官方商店页面上的价格，${vd} 核实；价格经常变动，下单前请以商店页面为准。${sale.map((r) => r.short).join(" 和 ")} 的价格是促销价，括号里是原价。`,
       `P1S 和 A1 mini、A1 一样只算打印机本身；AMS Combo（$${combo[0]}）和 AMS 2 Pro Combo（$${combo[1]}）套装多了 Bambu 的自动换料系统（AMS），用于多色打印，本课程用不到。`,
       `盈亏平衡可以这样算：每轮省 $${save.toFixed(2)}，一台 $${mini} 的机器（A1 mini）要大约 ${be} 轮才回本。`,
       `每轮省 $${svc.toFixed(2)} − $${home.toFixed(2)} = $${save.toFixed(2)}。`,
       `- 盈亏平衡：每轮省 $${save.toFixed(2)}，所以 $${mini} 的打印机约 ${be} 轮就能回本。`,
-      `这是 $${fdmFil[0]} 到 $${fdmFil[1]} 的耗材`],
+      `这是 $${fdmFil[0]} 到 $${fdmFil[1]} 的耗材`,
+      `一整套 SO-101 机械臂大约需要 1 kg PLA+。在自己机器上，这是 $${fdmFil[0]} 到 $${fdmFil[1]} 的耗材；直接买打印好的整套件是 $${printed}。只算一次，打印机当然回不了本。它靠迭代回本：夹爪手指改到第${nW[2]}版，在家里是 ${cents} 美分和 ${min} 分钟，找服务大约是 $${svc} 和一周。`,
+      "```text\n" + `在家改 ${rev} 轮 = ${rev} × $${home.toFixed(2)} = $${(rev * home).toFixed(2)}，时间 ${rev} × ${min} min ≈ ${hrs} h\n找服务改 ${rev} 轮 = ${rev} × $${svc} = $${rev * svc}，每轮都等上一单的话大约 ${rev} 周\n` + "```",
+      `也就是 $${(rev * home).toFixed(2)} 耗材和约 ${hrs} 小时打印，对 $${rev * svc} 和大约${nW[2]}周——前提还是你每次都等上一单做完。`,
+      `<Quiz id="q1" question="某打印服务每轮修改收 $${svc}，你自己的打印机每轮成本 $${home.toFixed(2)}。改 ${q} 轮能省多少美元？" answer={${Math.round(q * save)}} unit="USD" explanation="每轮省 $${svc.toFixed(2)} − $${home.toFixed(2)} = $${save.toFixed(2)}。${q} 轮就是 ${q} × $${save.toFixed(2)} = $${(q * save).toFixed(2)}。也可以这么看：服务要 ${q} × $${svc} = $${q * svc}，自己打只要 ${q} × $${home.toFixed(2)} = $${Math.round(q * home)}。" />`],
   };
   for (const lang of ["en", "zh"]) {
     const text = readFileSync(join(root, `src/content/m3/fdm-printing/${lang}.mdx`), "utf8");
@@ -1276,6 +1339,7 @@ const fdmFil = [20, 25];
     const q = `cost: { zh: "约 $${r.p}（${zh}${vd} 核实）", en: "≈ $${r.p} (${en}verified ${vd})" }`;
     ok(res.includes(`"${r.id}": {`) && blk.includes(`title: { zh: "${r.name}", en: "${r.name}" }`) && blk.includes(q), `resources.ts ${r.id}: expected ${r.name} with ${JSON.stringify(q)} (same price as the fdm-printing table)`);
   }
+  for (const t of [`≈ $${printed} (verified ${vd})`, `约 $${printed}（${vd} 核实）`]) ok(res.includes(t), `resources.ts: expected the ready-printed set at ${JSON.stringify(t)} (fdm-printing :31)`);
   ok(!/Sept 2026|2026 年 9 月/.test(res), `resources.ts: no price may still carry the September 2026 date`);
   console.log(`calc  fdm-printing: ${pr.map((r) => `${r.short ?? r.name.replace(/^\S+( Lab)? /, "")} $${r.p}`).join(", ")}; break-even $${mini} / $${save.toFixed(2)} = ${be} revisions, bound in en/zh and resources.ts`);
 }
