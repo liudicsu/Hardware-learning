@@ -330,6 +330,18 @@ Both specifications also say that a new position command clears the overload and
 
 The build has two halves: the software has to be installed and able to see the boards, and the motors have to be given IDs before any of it makes sense. Do the software first, because a motor with the wrong ID is much easier to diagnose when you know the port and the tools already work.
 
+### Tools on the bench
+
+The BOM lists the tools next to the parts ([SO-ARM100 README, lines 83–104](https://github.com/TheRobotStudio/SO-ARM100/blob/a758567c3978dfeefe282ede0500085a48fe8f78/README.md#L83-L104)). Have these ready before you start:
+
+- Phillips screwdrivers in sizes #0 and #1. The README calls them "highly recommended" for "easiest screw installation and removal"; both are standard sizes in most small screwdriver sets.
+- Table clamps to hold the arms on the table: the BOM lists 4 for a leader and follower pair, and 2 for a single follower.
+- USB-C cables, one for each control board.
+- One power supply per arm, with the voltage that matches its servos (see "Power").
+- A small screwdriver for removing support material from the printed parts; the assembly guide suggests one.
+- A multimeter, to measure the supply voltage at the board if the arm loses power under load (see the troubleshooting list below).
+- For your own fingers in Lesson 6: TPU 95A filament. The repository's compliant gripper also needs 2 additional M3 screws, and optionally 3M gripper tape for more friction ([README, line 251](https://github.com/TheRobotStudio/SO-ARM100/blob/a758567c3978dfeefe282ede0500085a48fe8f78/README.md#L251)).
+
 ### Install LeRobot
 
 Install LeRobot into a separate Python environment. LeRobot pulls in a large stack of packages, and mixing it with your system Python is a good way to break something else. The [LeRobot installation guide](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/installation.mdx) uses conda, installed through Miniforge; once Miniforge is installed, the whole install is six commands in a terminal:

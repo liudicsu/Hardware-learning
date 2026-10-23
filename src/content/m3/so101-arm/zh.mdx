@@ -330,6 +330,18 @@ README 要求 12 V 电源至少 5 A；六个 C018 在额定电流下已经要 5.
 
 组装分两半：软件要装好、能看见控制板；电机要先拿到各自的 ID，否则后面都无从谈起。先做软件，因为当你已经知道串口和工具都正常时，一个 ID 设错的电机要好查得多。
 
+### 工作台上的工具
+
+BOM 把工具和零件列在一起（[SO-ARM100 README 第 83–104 行](https://github.com/TheRobotStudio/SO-ARM100/blob/a758567c3978dfeefe282ede0500085a48fe8f78/README.md#L83-L104)）。开始之前准备好这些：
+
+- #0 和 #1 两种尺寸的十字螺丝刀。README 说“强烈推荐”（highly recommended）用它们，“装卸螺丝最省事”（easiest screw installation and removal）；这两种都是大多数小型螺丝刀套装里的标准尺寸。
+- 把机械臂固定在桌上的桌面夹具：主从一对 BOM 列了 4 个，单个从臂列了 2 个。
+- USB-C 线，每块控制板一根。
+- 每条臂一个电源，电压和它的舵机相符（见“供电”一节）。
+- 一把小螺丝刀，用来去掉打印件上的支撑；组装指南建议用它。
+- 一个万用表，臂在负载下掉电时用来测控制板上的电源电压（见下面的故障排查列表）。
+- 第 6 课做你自己的手指时：TPU 95A 耗材。仓库里的柔性夹爪还需要额外 2 颗 M3 螺丝，以及可选的 3M 夹爪胶带来增大摩擦（[README 第 251 行](https://github.com/TheRobotStudio/SO-ARM100/blob/a758567c3978dfeefe282ede0500085a48fe8f78/README.md#L251)）。
+
 ### 安装 LeRobot
 
 把 LeRobot 装进一个独立的 Python 环境。LeRobot 会拉进一大套依赖，和系统 Python 混在一起很容易把别的东西弄坏。[LeRobot 安装指南](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/installation.mdx)用 conda，通过 Miniforge 安装；装好 Miniforge 之后，整个安装就是在终端里执行六条命令：
