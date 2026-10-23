@@ -23,7 +23,7 @@
 
 ## 选你的路线
 
-买 SO-101 没有唯一正确路线，因为最贵的部分不一定是钱。仿真给你完整的软件路径，但没有手感；便宜的连杆臂教你机械，却不教本课要用的总线协议；单个从臂是真硬件，却不能录主从演示。下表列出课程考虑的几条路。价格是课程在 2026 年 9 月核实的数字，Robonine 例外，是 2026 年 10 月的商店页面；价格都会变，下单前请自己确认。
+买 SO-101 没有唯一正确路线，因为最贵的部分不一定是钱。仿真给你完整的软件路径，但没有手感；便宜的连杆臂教你机械，却不教本课要用的总线协议；单个从臂是真硬件，却不能录主从演示。下表列出课程考虑的几条路。价格是各商店页面上的价格，2026-10-23 核实；价格都会变，下单前请自己确认。
 
 | 路线 | 价格 | 你能得到 | 你会失去 |
 | --- | --- | --- | --- |
@@ -34,7 +34,7 @@
 | 按 BOM 自购 SO-101 主从一对 | $229.88 + 约 1 kg PLA+（估计） | 全部东西，但一件一件采购 | 采购由你负责 |
 | Seeed Studio SO-ARM101 Pro 舵机套件 | $277.99（没有打印机时，另加 $30.99 买 Seeed 打印件套装） | 两条臂的舵机和驱动板 | 基础套件不含打印件 |
 | WowRobo（经 OpenELAB） | $325.99 打印件加舵机 / $419.99 未组装整机套件 / $489.99 整机成品 | 两条臂，按你付的完整程度交付 | 最高档是表里最贵的；下单前确认每一档到底含什么 |
-| Robonine SO-ARM101 黑白套件 | $329（2026 年 10 月商店页面） | 两臂未组装，含 12 个舵机、驱动板、电源适配器和摄像头 | 仍然要自己组装，而且比按 BOM 自购更贵 |
+| Robonine SO-ARM101 黑白套件 | $329 | 两臂未组装，含 12 个舵机、驱动板、电源适配器和摄像头 | 仍然要自己组装，而且比按 BOM 自购更贵 |
 
 读表要看“你能得到”和“你会失去”这两列，不要只看价格。前者回答“之后我能做什么”，后者回答“我还缺什么”。短期内无法进口硬件，MuJoCo 是合适的选择：LeRobot 软件栈能在仿真里跑，以后换真机不用重学软件。EEZYbotARM 是很好的机械项目，但它的 hobby 舵机吃 PWM 脉冲，不能回报位置，所以教的是另一课。Hiwonder 的臂有智能总线舵机，技术路线对，但不是 SO-101 生态，本课的命令和文件套不上去。
 
@@ -63,7 +63,7 @@ Seeed 舵机套件 + 自己打印 ≈ $277.99 + $20–25 耗材（第 2 课）�
   合计     $83.34 + $38.60 = $121.94
 ```
 
-选哪条路线，决定了你能运行哪些 LeRobot 命令。查找串口、设置电机 ID、校准都是一次针对一条臂。遥操作和录制需要同时有两条臂：一条以 `--robot.type=so101_follower` 指定的从臂和一条以 `--teleop.type=so101_leader` 指定的主臂（[LeRobot, Imitation learning on real-world robots](https://huggingface.co/docs/lerobot/il_robots)）。所以只有一个从臂时，能完成前三步并用 Python 控制关节，但不能遥操作，也不能录制演示。表中 Hiwonder、Seeed、WowRobo 和 Robonine 的价格都是各家商店页面上的单一标价（2026 年 9 月；Robonine 为 2026 年 10 月），不是本课按逐项清单重新加出来的总价。
+选哪条路线，决定了你能运行哪些 LeRobot 命令。查找串口、设置电机 ID、校准都是一次针对一条臂。遥操作和录制需要同时有两条臂：一条以 `--robot.type=so101_follower` 指定的从臂和一条以 `--teleop.type=so101_leader` 指定的主臂（[LeRobot, Imitation learning on real-world robots](https://huggingface.co/docs/lerobot/il_robots)）。所以只有一个从臂时，能完成前三步并用 Python 控制关节，但不能遥操作，也不能录制演示。表中 Hiwonder、Seeed、WowRobo 和 Robonine 的价格都是各家商店页面上的单一价格（2026-10-23 核实），不是本课按逐项清单重新加出来的总价；其中 WowRobo 是促销价，页面上的划线原价为 $363 / $467 / $545。
 
 <Quiz id="q1" question="你按物料清单买下主从一对（$229.88），再用约 $22 的 PLA+ 自己打印结构件。总共多少美元？" answer={251.88} unit="USD" tolerance={0.01} explanation="把两项相加：$229.88 + $22.00 = $251.88。BOM 不含打印，所以耗材要单独加上。" />
 
@@ -306,7 +306,7 @@ read position 6  SDK FF FF 06 04 02 38 02 B9     same
   堵转   6 x 2.0 A = 12.0 A
 ```
 
-README 要求 12 V 电源至少 5 A；六个 C018 在额定电流下已经要 5.4 A，所以 12 V 电源要选额定值高于 5.4 A 的。堵转数字是最坏情况——所有关节同时被卡住——而且不会持续：两份规格都写明，运行电流大于 2 A 并持续 2 s 后，舵机关闭输出并进入过流保护（§7-11）。标准臂这边，飞特给出的 C001 额定电流是 6 V 下的，不是 5 V 下的，所以 3.0 A 的总数是估计值；它在 BOM 所链接 5 V 电源（Facmogu AL-0540，5 V 4 A）的 4 A 额定值之内。堵转就放不下了。C001 的堵转电流在 6 V 下是 2 A、7.4 V 下是 2.5 A（§5-5），所以六个关节同时卡住约需 6 × 2 A = 12 A（按 6 V 数据估计），是 AL-0540 的 4 A 的三倍。这里也不能指望过流保护：5 V 下每个 C001 的堵转电流 ≤ 5 V / 2.5 Ω ≈ 2.0 A（由 §5-10 的端子电阻 2.5 Ω 估算，规格书未给 5 V 数据）。作为上限，这与规格书一致：6 V 下 §5-5 的堵转电流 2 A 小于 6 V / 2.5 Ω = 2.4 A。所以“大于 2 A 并持续 2 s”的条件可能根本不会满足。真正起作用的是同一张表里紧挨着的过载（Over Load）保护：堵转超过堵转值的 80 % 并持续 2 s 后进入保护（§7-11）。80 % / 2 s 和 2 A / 2 s 这两个门限都是出厂默认值，夹爪是例外：LeRobot 配置 SO 从臂时，只给夹爪舵机写入 Max_Torque_Limit 500、Protection_Current 250 和 Overload_Torque 25（[so_follower.py 第 169–171 行，LeRobot v0.6.1](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/so_follower.py#L169-L171)）。按 LeRobot 代码注释，它们分别是最大扭矩的 50 %、最大电流的 50 % 和过载时 25 % 扭矩；飞特规格书里没有存储表，所以单位未经确认。其余五个关节保持出厂默认值，12 A 的堵转总数仍是一个保守的上限。
+README 要求 12 V 电源至少 5 A；六个 C018 在额定电流下已经要 5.4 A，所以 12 V 电源要选额定值高于 5.4 A 的。堵转数字是最坏情况——所有关节同时被卡住——而且不会持续：两份规格都写明，运行电流大于 2 A 并持续 2 s 后，舵机关闭输出并进入过流保护（§7-11）。标准臂这边，飞特给出的 C001 额定电流是 6 V 下的，不是 5 V 下的，所以 3.0 A 的总数是估计值；它在 BOM 所链接 5 V 电源（Facmogu AL-0540，5 V 4 A）的 4 A 额定值之内。堵转就放不下了。C001 的堵转电流在 6 V 下是 2 A、7.4 V 下是 2.5 A（§5-5），所以六个关节同时卡住约需 6 × 2 A = 12 A（按 6 V 数据估计），是 AL-0540 的 4 A 的三倍。这里也不能指望过流保护：5 V 下每个 C001 的堵转电流 ≤ 5 V / 2.5 Ω ≈ 2.0 A（由 §5-10 的端子电阻 2.5 Ω 估算，规格书未给 5 V 数据）。作为上限，这与规格书一致：6 V 下 §5-5 的堵转电流 2 A 小于 6 V / 2.5 Ω = 2.4 A。所以“大于 2 A 并持续 2 s”的条件可能根本不会满足。真正起作用的是同一张表里紧挨着的过载（Over Load）保护：堵转超过堵转值的 80 % 并持续 2 s 后进入保护（§7-11）。80 % / 2 s 和 2 A / 2 s 这两个门限都是出厂默认值，但飞特的两份资料在电流上并不一致：C001 规格书给的是 2 A / 2 s（§7-11），而飞特的 STS3215 存储表（[STS3215 Memory Table.xlsx，V3.6](https://github.com/matthieuvigne/STS_servos/blob/4d2278432a2b12027d04d0449e1e6f97df812d68/extras/STS3215%20Memory%20Table.xlsx)）里 Protection_Current 的默认值是 500，单位 6.5 mA，即 500 × 6.5 mA = 3.25 A；想知道你的舵机是哪个值，可以自己读 28 号寄存器。过载这一侧是一致的：存储表里 Overload_Torque（地址 36，单位 1 %）默认 80，保护时间（地址 35，单位 10 ms）默认 200 × 10 ms = 2 s。夹爪是例外：LeRobot 配置 SO 从臂时，只给夹爪舵机写入 Max_Torque_Limit 500、Protection_Current 250 和 Overload_Torque 25（[so_follower.py 第 169–171 行，LeRobot v0.6.1](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/so_follower.py#L169-L171)）。按存储表，Max_Torque_Limit（地址 16）的单位是 0.1 %，所以 500 是最大扭矩的 50 %；Protection_Current（地址 28）的单位是 6.5 mA，所以 250 是 250 × 6.5 mA = 1.625 A；Overload_Torque（地址 36）是启动过载计时的负载门限，所以夹爪的负载一旦超过最大扭矩的 25 % 并持续 2 s，就进入保护。进入保护后输出的扭矩由另一个寄存器 Protective_Torque（地址 34，默认 20 %）决定，LeRobot 没有写它；LeRobot 的代码注释把 Overload_Torque 说成过载时的扭矩，这与飞特的表不符。夹爪的 1.625 A 限值低于 5 V 下约 2.0 A 的堵转估计，所以和其他关节不同，夹爪堵转时会先碰到过流门限，过流保护会动作。这份存储表针对的是一般的 STS3215，而不是 C001 这个型号；飞特通用的[在线 STS 存储表](https://ftservo.github.io/ftservo-wiki/en/reference/parameter/memory-sts/)地址和单位相同，但 Protection_Current 的默认值写的是 511。LeRobot 也会给每个关节写别的寄存器：Operating_Mode（位置模式）、P/I/D 系数 16/0/32（出厂 P 为 32；[config_so_follower.py 第 45–47 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/config_so_follower.py#L45-L47)）、Return_Delay_Time 0 和加速度寄存器 254（[feetech.py 第 209–217 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/feetech/feetech.py#L209-L217)），校准时还会写 Homing_Offset 和位置限位（[feetech.py 第 268–273 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/feetech/feetech.py#L268-L273)）。但其余五个关节的出厂保护门限（16、28、36 号寄存器）保持不变，12 A 的堵转总数仍是一个保守的上限。
 
 ## 组装并设置 ID
 

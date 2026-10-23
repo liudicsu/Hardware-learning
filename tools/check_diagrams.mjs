@@ -825,9 +825,21 @@ for (const f of existsSync(dataDir) ? readdirSync(dataDir).filter((f) => f.endsW
   }
 }
 
-// LeRobot v0.6.1 src/lerobot/robots/so_follower/so_follower.py lines 169–171: configure() writes these to the gripper only;
-// pct are the percentages in the code comments (50% max torque, 50% max current, 25% torque when overloaded); units unconfirmed.
-const lerobot = { torque: 500, cur: 250, ol: 25, pct: [50, 50, 25], lines: "169–171", tag: "v0.6.1", url: "https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/so_follower.py#L169-L171" };
+// LeRobot v0.6.1: so_follower.py configure() lines 169–171 write these three registers to the gripper only; config_so_follower.py
+// lines 45–47 give P/I/D for every motor; feetech.py configure_motors (lines 209–217) and write_calibration (lines 268–273) write the rest.
+// Register meanings and defaults: Feetech "STS3215 Memory Table.xlsx" V3.6 (STS_servos @ 4d22784): addr 16 Maximum torque, 0.1 % units;
+// addr 28 Protection current, 6.5 mA units, default 500; addr 34 Protective torque, 1 % units, default 20; addr 35 Protection time,
+// 10 ms units, default 200; addr 36 Overload torque, 1 % units, default 80; P 32, I 0, D 32. The online ftservo STS table lists 511 for addr 28.
+const lrBase = "https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/";
+const lerobot = { torque: 500, cur: 250, ol: 25, lines: "169–171", tag: "v0.6.1", url: `${lrBase}robots/so_follower/so_follower.py#L169-L171`,
+  addr: { torque: 16, cur: 28, hold: 34, time: 35, ol: 36 }, tUnit: 0.1, oUnit: 1, mA: 6.5, curDef: 500, wikiDef: 511, olDef: 80, holdDef: 20, timeDef: 200, timeMs: 10,
+  pid: [16, 0, 32], pDef: 32, cfgLines: "45–47", cfgUrl: `${lrBase}robots/so_follower/config_so_follower.py#L45-L47`, retDelay: 0, acc: 254,
+  feLines: ["209–217", "268–273"], feUrl: [`${lrBase}motors/feetech/feetech.py#L209-L217`, `${lrBase}motors/feetech/feetech.py#L268-L273`], xlsxVer: "V3.6",
+  xlsx: "https://github.com/matthieuvigne/STS_servos/blob/4d2278432a2b12027d04d0449e1e6f97df812d68/extras/STS3215%20Memory%20Table.xlsx",
+  wiki: "https://ftservo.github.io/ftservo-wiki/en/reference/parameter/memory-sts/" };
+lerobot.pct = lerobot.torque * lerobot.tUnit;
+lerobot.amps = (lerobot.cur * lerobot.mA / 1000).toFixed(3);
+lerobot.defAmps = (lerobot.curDef * lerobot.mA / 1000).toFixed(2);
 {
   // gripper-fingers: every force, friction, mass, Shore and fin-ray model number in the lesson is recomputed here
   // from grip_force.py, finray_finger.scad, the committed STL output and the ASTM D2240 point size, then required
@@ -906,7 +918,9 @@ const lerobot = { torque: 500, cur: 250, ol: 25, pct: [50, 50, 25], lines: "169�
       `drying setting of ${dryTds} °C for ${dryH} h ([TDS V5.5](${tds})), while its product page gives ${dryPp} °C for ${dryH} h, only if the material has absorbed moisture ([product page](${pp})); the two differ by ${dryTds - dryPp} °C`,
       `Polymaker's product page says "Fan: ON" for PolyFlex TPU95 ([product page](${pp})) and its data sheet also lists the cooling fan ON`,
       `say to keep print cooling off (rule ${prusaRule} of "Important rules for successful printing with flexible filaments")`,
-      `LeRobot already limits the gripper's torque and current (it writes Max_Torque_Limit ${lr.torque}, Protection_Current ${lr.cur} and Overload_Torque ${lr.ol} to this servo, ${lr.pct[0]} %, ${lr.pct[1]} % and ${lr.pct[2]} % per its code comments; [so_follower.py, lines ${lr.lines}, LeRobot ${lr.tag}](${lr.url})), but that only softens a stall, so still do not leave it stalled for long.`,
+      `LeRobot already limits this servo: it writes Max_Torque_Limit ${lr.torque}, Protection_Current ${lr.cur} and Overload_Torque ${lr.ol} to the gripper ([so_follower.py, lines ${lr.lines}, LeRobot ${lr.tag}](${lr.url})).`,
+      `In Feetech's STS3215 memory table ([STS3215 Memory Table.xlsx, ${lr.xlsxVer}](${lr.xlsx})) that is ${lr.pct} % of the maximum torque, a protection current of ${lr.cur} × ${lr.mA} mA = ${lr.amps} A, and an overload timer that starts once the load exceeds ${lr.ol} % of the maximum torque; the SO-101 lesson has the details.`,
+      `That only softens a stall, so do not leave the servo stalled against a hard stop for long: it draws current and heats up.`,
       `LeRobot's torque and current limits on the gripper soften this, but they do not make a long stall safe.`,
       `The data sheet also gives an equilibrium water absorption of ${wAbs} % at ${wRh} % RH and ${wT} °C for PolyFlex TPU95.`,
       `Adv. Intell. Syst. ${mp.vol}(${mp.iss}), ${mp.art}, ${mp.yr}](https://doi.org/10.1002/aisy.${mp.yr - 1}${String(mp.art).slice(2)})`,
@@ -930,7 +944,9 @@ const lerobot = { torque: 500, cur: 250, ol: 25, pct: [50, 50, 25], lines: "169�
       `烘干条件是 ${dryTds} °C、${dryH} h（[TDS V5.5](${tds})），而产品页写的是 ${dryPp} °C、${dryH} h，且只在材料吸潮后才需要（[产品页](${pp})）；两处相差 ${dryTds - dryPp} °C`,
       `Polymaker 在 PolyFlex TPU95 的产品页写的是 “Fan: ON”（[产品页](${pp})），数据表里冷却风扇也是 ON`,
       `（“Important rules for successful printing with flexible filaments”第 ${prusaRule} 条）`,
-      `LeRobot 已经限制了夹爪的扭矩和电流（它给这个舵机写入 Max_Torque_Limit ${lr.torque}、Protection_Current ${lr.cur} 和 Overload_Torque ${lr.ol}，按代码注释分别是 ${lr.pct[0]} %、${lr.pct[1]} % 和 ${lr.pct[2]} %；[so_follower.py 第 ${lr.lines} 行，LeRobot ${lr.tag}](${lr.url})），但这只能减轻堵转，仍然不要让它长时间堵转。`,
+      `LeRobot 已经限制了这个舵机：它给夹爪写入 Max_Torque_Limit ${lr.torque}、Protection_Current ${lr.cur} 和 Overload_Torque ${lr.ol}（[so_follower.py 第 ${lr.lines} 行，LeRobot ${lr.tag}](${lr.url})）。`,
+      `按飞特的 STS3215 存储表（[STS3215 Memory Table.xlsx，${lr.xlsxVer}](${lr.xlsx})），这相当于最大扭矩的 ${lr.pct} %、${lr.cur} × ${lr.mA} mA = ${lr.amps} A 的保护电流，以及负载一超过最大扭矩的 ${lr.ol} % 就开始的过载计时；细节见 SO-101 一课。`,
+      `这只能减轻堵转，所以别让舵机长时间顶死在硬限位上：它会持续吃电流、发热。`,
       `LeRobot 给夹爪设的扭矩和电流限制只能减轻这种情况，不能让长时间堵转变得安全。`,
       `数据表还测得 PolyFlex TPU95 在 ${wRh} % RH、${wT} °C 下的平衡吸水率为 ${wAbs} %。`,
       `Adv. Intell. Syst. ${mp.vol}(${mp.iss}), ${mp.art}, ${mp.yr}](https://doi.org/10.1002/aisy.${mp.yr - 1}${String(mp.art).slice(2)})`,
@@ -953,7 +969,7 @@ const lerobot = { torque: 500, cur: 250, ol: 25, pct: [50, 50, 25], lines: "169�
     ok(qz2 && Number(qz2[1]) === Number(t2.toFixed(2)), `gripper-fingers ${lang}: Quiz q2 answer ${qz2 && qz2[1]} != tan ${a2}° to 2 decimals = ${t2.toFixed(2)}`);
     ok(tol2 > 0 && tol2 <= 0.02 && Math.abs(t2 - Number(qz2 && qz2[1])) <= tol2, `gripper-fingers ${lang}: Quiz q2 tolerance ${qt2 && qt2[1]} not in (0, 0.02] or does not cover tan ${a2}° = ${t2.toFixed(4)}`);
     ok(q2e.startsWith(`μ = tan ${a2}° = ${t2.toFixed(4)} ≈ ${t2.toFixed(2)}`), `gripper-fingers ${lang}: Quiz q2 explanation "${q2e}" != "μ = tan ${a2}° = ${t2.toFixed(4)} ≈ ${t2.toFixed(2)}…"`);
-    ok(!/\d%/.test(text), `gripper-fingers ${lang}: write percentages with a space ("80 %")`);
+    ok(!/\d[%％]/.test(text.replace(/\]\([^)]*\)/g, "]")), `gripper-fingers ${lang}: write percentages with a space ("80 %")`);
     // every m/s² figure in the prose must be g, the example arm acceleration A or 0.0, and A must appear in all seven places
     const accs = [...text.matchAll(/(\d+(?:\.\d+)?) m\/s²/g)].map((m) => m[1]);
     ok(accs.every((x) => [String(G), A.toFixed(1), "0.0"].includes(x)), `gripper-fingers ${lang}: m/s² figures ${JSON.stringify(accs)} must each be ${G}, ${A.toFixed(1)} or 0.0`);
@@ -1007,11 +1023,18 @@ const lerobot = { torque: 500, cur: 250, ol: 25, pct: [50, 50, 25], lines: "169�
   // Feetech C018 / C001 specs: 5-9 rated, 5-5 stall (C001 at 6 V and 7.4 V), 7-11 overcurrent (2 A for 2 s) and overload (80 % of stall for 2 s);
   // README: at least 5 A at 12 V; BOM 5 V supply Facmogu AL-0540 5 V 4 A.
   // C001 §5-10 terminal resistance 2.5 Ω: 5 V / 2.5 Ω is the course's 5 V stall estimate (Feetech gives no 5 V figure).
-  // LeRobot v0.6.1 so_follower.py lines 169–171 write the gripper's Max_Torque_Limit / Protection_Current / Overload_Torque (see lerobot above).
+  // LeRobot v0.6.1 writes the gripper's Max_Torque_Limit / Protection_Current / Overload_Torque and every joint's PID etc. (see lerobot above).
   const r18 = 0.9, s18 = 2.7, r01 = 0.5, s01 = 2, s01b = 2.5, psu12 = 5, psu5 = 4, protA = 2, protS = 2, olPct = 80, rTerm = 2.5, stall5v = 5 / rTerm;
   const lr = lerobot;
   ok(s01 < 6 / rTerm, `so101-arm: §5-5 stall ${s01} A at 6 V is no longer below 6 V / ${rTerm} Ω = ${(6 / rTerm).toFixed(1)} A, so 5 V / ${rTerm} Ω is not an upper bound`);
-  const robo = 329, roboDate = { en: "October 2026", zh: "2026 年 10 月" }, priceDate = { en: "September 2026", zh: "2026 年 9 月" };
+  const robo = 329, vd = "2026-10-23";
+  // store prices verified 2026-10-23: Hiwonder xArm 1S, Seeed SO-ARM101 Pro + printed parts (finalPrice), WowRobo sale prices (compare-at wowWas)
+  const st = { hiw: 199.99, seeed: 277.99, printed: 30.99, wow: [325.99, 419.99, 489.99], wowWas: [363, 467, 545] };
+  const bits = 12, enc = 2 ** bits, deg3116 = (3116 * 360 / enc).toFixed(1);
+  ok(st.wow.every((p, i) => p < st.wowWas[i]) && st.wow[2] > Math.max(st.hiw, st.seeed + st.printed, robo),
+    `so101-arm: WowRobo prices ${st.wow} are no longer sale prices below ${st.wowWas} or no longer the highest in the table`);
+  ok(lr.ol < lr.olDef && lr.olDef === olPct && lr.timeDef * lr.timeMs / 1000 === protS && Number(lr.amps) < stall5v && Number(lr.defAmps) > protA && lr.pid[0] !== lr.pDef,
+    `so101-arm: gripper registers no longer support the prose (overload ${lr.ol} vs default ${lr.olDef} / spec ${olPct} %, timer ${lr.timeDef} x ${lr.timeMs} ms vs ${protS} s, ${lr.amps} A vs ${stall5v} A stall, default ${lr.defAmps} A vs ${protA} A, P ${lr.pid[0]} vs ${lr.pDef})`);
   const rated12 = (6 * r18).toFixed(1), stall12 = (6 * s18).toFixed(1), rated5 = (6 * r01).toFixed(1), stall5 = 6 * s01;
   ok(6 * r18 > psu12 && 6 * r01 <= psu5 && stall5 > psu5 && s01 <= protA && stall5v <= protA && Number.isInteger(stall5 / psu5),
     `so101-arm: current budget no longer supports the prose (12 V rated ${rated12} vs ${psu12} A, 5 V rated ${rated5} / stall ${stall5} vs ${psu5} A, stall ${s01} A / 5 V estimate ${stall5v} A vs ${protA} A protection)`);
@@ -1042,10 +1065,17 @@ const lerobot = { torque: 500, cur: 250, ol: 25, pct: [50, 50, 25], lines: "169�
       `Nor can you count on the overcurrent protection here: at 5 V each C001 should stall at ≤ 5 V / ${rTerm} Ω ≈ ${stall5v.toFixed(1)} A (estimated from §5-10, the ${rTerm} Ω terminal resistance; Feetech gives no 5 V figure).`,
       `As an upper bound this agrees with the specification: at 6 V the ${s01} A stall current of §5-5 is below 6 V / ${rTerm} Ω = ${(6 / rTerm).toFixed(1)} A. So the "above ${protA} A for ${protS} s" condition may never be met.`,
       `The item that does apply is the Over Load protection next to it in the same table: a servo stalled at more than ${olPct} % of its stall value for ${protS} s enters protection (§7-11).`,
-      `Both thresholds, ${olPct} % for ${protS} s and ${protA} A for ${protS} s, are factory defaults, and the gripper is the exception: when LeRobot configures an SO follower it writes Max_Torque_Limit ${lr.torque}, Protection_Current ${lr.cur} and Overload_Torque ${lr.ol} to the gripper servo only ([so_follower.py, lines ${lr.lines}, LeRobot ${lr.tag}](${lr.url})).`,
-      `Per LeRobot's code comments these are ${lr.pct[0]} % of the maximum torque, ${lr.pct[1]} % of the maximum current and ${lr.pct[2]} % torque when overloaded; the Feetech specification has no memory table, so the units are not confirmed.`,
-      `The other five joints keep the factory defaults, and the ${stall5} A stall total stays a conservative upper bound.`,
-      `| Robonine SO-ARM101 Black & White kit | $${robo} (store page, October 2026) |`, `you pay more than sourcing the BOM |`,
+      `Both thresholds, ${olPct} % for ${protS} s and ${protA} A for ${protS} s, are factory defaults, but two Feetech documents disagree on the current: the C001 specification gives ${protA} A for ${protS} s (§7-11), while Feetech's STS3215 memory table ([STS3215 Memory Table.xlsx, ${lr.xlsxVer}](${lr.xlsx})) gives Protection_Current a default of ${lr.curDef} in units of ${lr.mA} mA, ${lr.curDef} × ${lr.mA} mA = ${lr.defAmps} A; to see which value your servo holds, read register ${lr.addr.cur} yourself.`,
+      `The overload side agrees: in the memory table Overload_Torque (address ${lr.addr.ol}, ${lr.oUnit} % units) defaults to ${lr.olDef} and the protection time (address ${lr.addr.time}, ${lr.timeMs} ms units) to ${lr.timeDef} × ${lr.timeMs} ms = ${protS} s.`,
+      `The gripper is the exception: when LeRobot configures an SO follower it writes Max_Torque_Limit ${lr.torque}, Protection_Current ${lr.cur} and Overload_Torque ${lr.ol} to the gripper servo only ([so_follower.py, lines ${lr.lines}, LeRobot ${lr.tag}](${lr.url})).`,
+      `In the memory table, Max_Torque_Limit (address ${lr.addr.torque}) is in units of ${lr.tUnit} %, so ${lr.torque} is ${lr.pct} % of the maximum torque; Protection_Current (address ${lr.addr.cur}) is in units of ${lr.mA} mA, so ${lr.cur} is ${lr.cur} × ${lr.mA} mA = ${lr.amps} A; and Overload_Torque (address ${lr.addr.ol}) is the load that starts the overload timer, so once the gripper's load exceeds ${lr.ol} % of its maximum torque for ${protS} s it enters protection.`,
+      `The torque it outputs after that is set by a different register, Protective_Torque (address ${lr.addr.hold}, default ${lr.holdDef} %), which LeRobot does not write; LeRobot's code comment calls Overload_Torque the torque when overloaded, which disagrees with Feetech's table.`,
+      `The gripper's ${lr.amps} A limit is below the ≈ ${stall5v.toFixed(1)} A stall estimate at 5 V, so, unlike the other joints, a stalled gripper reaches its overcurrent threshold first and that protection trips.`,
+      `The memory table is for the STS3215 in general rather than the C001 variant, and Feetech's generic [online STS memory table](${lr.wiki}) uses the same addresses and units but lists a Protection_Current default of ${lr.wikiDef}.`,
+      `LeRobot does write other registers on every joint: Operating_Mode (position), the P/I/D coefficients ${lr.pid.join('/')} (the factory P is ${lr.pDef}; [config_so_follower.py, lines ${lr.cfgLines}](${lr.cfgUrl})), Return_Delay_Time ${lr.retDelay} and the acceleration registers ${lr.acc} ([feetech.py, lines ${lr.feLines[0]}](${lr.feUrl[0]})), and, at calibration, Homing_Offset and the position limits ([feetech.py, lines ${lr.feLines[1]}](${lr.feUrl[1]})).`,
+      `But the other five joints keep the factory protection thresholds (registers ${lr.addr.torque}, ${lr.addr.cur} and ${lr.addr.ol} unchanged), and the ${stall5} A stall total stays a conservative upper bound.`,
+      `| Hiwonder xArm 1S | $${st.hiw} |`, `| $${st.seeed} (+ $${st.printed} for Seeed's printed parts set`, `| $${st.wow[0]} printed parts plus servos / $${st.wow[1]} unassembled full kit / $${st.wow[2]} fully assembled |`, `Seeed servo kit + Seeed printed parts = $${st.seeed} + $${st.printed} = $${(st.seeed + st.printed).toFixed(2)}`, `| Robonine SO-ARM101 Black & White kit | $${robo} | both arms unassembled with ${nPair} servos,`, `Prices are the prices on each store's page, verified ${vd}; all of them change`, `single prices from each store's page (verified ${vd}), not totals the course has rebuilt from line items; WowRobo's are sale prices, shown against struck-through prices of $${st.wowWas.join(' / $')}.`, `3116 × 360 / ${enc} = ${deg3116}°`, `3116 / ${enc} of a turn is ${deg3116}°`, `The encoder has ${enc} steps per turn, so 1024 steps is 1024 / ${enc} = 1/${enc / 1024} of a turn.`, `each with a ${bits}-bit encoder of ${enc} steps per turn: 1024 steps is ${360 * 1024 / enc}°.`, `7.4 V STS3215 (${code[hi]}/${code[mid]}/${code[lo]} per the README BOM)`,
+      `you pay more than sourcing the BOM |`,
       `M2×6 and M3×6 look similar in a pile`, `"the 1/${hi} gearing is too slow"`,
       `Feetech specifies the output shaft as ${teeth}T/OD5.9mm, a ${teeth}-tooth spline 5.9 mm across, and the horn screw as M3×6 (C001 and C018 specifications, §6-9 and §6-13)`,
       `Because the spline has ${teeth} teeth`, `Printed parts attach to the horns with M3×6 screws.`, `the top one takes an M3×6 screw`,
@@ -1065,10 +1095,17 @@ const lerobot = { torque: 500, cur: 250, ol: 25, pct: [50, 50, 25], lines: "169�
       `这里也不能指望过流保护：5 V 下每个 C001 的堵转电流 ≤ 5 V / ${rTerm} Ω ≈ ${stall5v.toFixed(1)} A（由 §5-10 的端子电阻 ${rTerm} Ω 估算，规格书未给 5 V 数据）。`,
       `作为上限，这与规格书一致：6 V 下 §5-5 的堵转电流 ${s01} A 小于 6 V / ${rTerm} Ω = ${(6 / rTerm).toFixed(1)} A。所以“大于 ${protA} A 并持续 ${protS} s”的条件可能根本不会满足。`,
       `真正起作用的是同一张表里紧挨着的过载（Over Load）保护：堵转超过堵转值的 ${olPct} % 并持续 ${protS} s 后进入保护（§7-11）。`,
-      `${olPct} % / ${protS} s 和 ${protA} A / ${protS} s 这两个门限都是出厂默认值，夹爪是例外：LeRobot 配置 SO 从臂时，只给夹爪舵机写入 Max_Torque_Limit ${lr.torque}、Protection_Current ${lr.cur} 和 Overload_Torque ${lr.ol}（[so_follower.py 第 ${lr.lines} 行，LeRobot ${lr.tag}](${lr.url})）。`,
-      `按 LeRobot 代码注释，它们分别是最大扭矩的 ${lr.pct[0]} %、最大电流的 ${lr.pct[1]} % 和过载时 ${lr.pct[2]} % 扭矩；飞特规格书里没有存储表，所以单位未经确认。`,
-      `其余五个关节保持出厂默认值，${stall5} A 的堵转总数仍是一个保守的上限。`,
-      `| Robonine SO-ARM101 黑白套件 | $${robo}（2026 年 10 月商店页面） |`, `而且比按 BOM 自购更贵 |`,
+      `${olPct} % / ${protS} s 和 ${protA} A / ${protS} s 这两个门限都是出厂默认值，但飞特的两份资料在电流上并不一致：C001 规格书给的是 ${protA} A / ${protS} s（§7-11），而飞特的 STS3215 存储表（[STS3215 Memory Table.xlsx，${lr.xlsxVer}](${lr.xlsx})）里 Protection_Current 的默认值是 ${lr.curDef}，单位 ${lr.mA} mA，即 ${lr.curDef} × ${lr.mA} mA = ${lr.defAmps} A；想知道你的舵机是哪个值，可以自己读 ${lr.addr.cur} 号寄存器。`,
+      `过载这一侧是一致的：存储表里 Overload_Torque（地址 ${lr.addr.ol}，单位 ${lr.oUnit} %）默认 ${lr.olDef}，保护时间（地址 ${lr.addr.time}，单位 ${lr.timeMs} ms）默认 ${lr.timeDef} × ${lr.timeMs} ms = ${protS} s。`,
+      `夹爪是例外：LeRobot 配置 SO 从臂时，只给夹爪舵机写入 Max_Torque_Limit ${lr.torque}、Protection_Current ${lr.cur} 和 Overload_Torque ${lr.ol}（[so_follower.py 第 ${lr.lines} 行，LeRobot ${lr.tag}](${lr.url})）。`,
+      `按存储表，Max_Torque_Limit（地址 ${lr.addr.torque}）的单位是 ${lr.tUnit} %，所以 ${lr.torque} 是最大扭矩的 ${lr.pct} %；Protection_Current（地址 ${lr.addr.cur}）的单位是 ${lr.mA} mA，所以 ${lr.cur} 是 ${lr.cur} × ${lr.mA} mA = ${lr.amps} A；Overload_Torque（地址 ${lr.addr.ol}）是启动过载计时的负载门限，所以夹爪的负载一旦超过最大扭矩的 ${lr.ol} % 并持续 ${protS} s，就进入保护。`,
+      `进入保护后输出的扭矩由另一个寄存器 Protective_Torque（地址 ${lr.addr.hold}，默认 ${lr.holdDef} %）决定，LeRobot 没有写它；LeRobot 的代码注释把 Overload_Torque 说成过载时的扭矩，这与飞特的表不符。`,
+      `夹爪的 ${lr.amps} A 限值低于 5 V 下约 ${stall5v.toFixed(1)} A 的堵转估计，所以和其他关节不同，夹爪堵转时会先碰到过流门限，过流保护会动作。`,
+      `这份存储表针对的是一般的 STS3215，而不是 C001 这个型号；飞特通用的[在线 STS 存储表](${lr.wiki})地址和单位相同，但 Protection_Current 的默认值写的是 ${lr.wikiDef}。`,
+      `LeRobot 也会给每个关节写别的寄存器：Operating_Mode（位置模式）、P/I/D 系数 ${lr.pid.join('/')}（出厂 P 为 ${lr.pDef}；[config_so_follower.py 第 ${lr.cfgLines} 行](${lr.cfgUrl})）、Return_Delay_Time ${lr.retDelay} 和加速度寄存器 ${lr.acc}（[feetech.py 第 ${lr.feLines[0]} 行](${lr.feUrl[0]})），校准时还会写 Homing_Offset 和位置限位（[feetech.py 第 ${lr.feLines[1]} 行](${lr.feUrl[1]})）。`,
+      `但其余五个关节的出厂保护门限（${lr.addr.torque}、${lr.addr.cur}、${lr.addr.ol} 号寄存器）保持不变，${stall5} A 的堵转总数仍是一个保守的上限。`,
+      `| Hiwonder xArm 1S | $${st.hiw} |`, `| $${st.seeed}（没有打印机时，另加 $${st.printed} 买 Seeed 打印件套装）`, `| $${st.wow[0]} 打印件加舵机 / $${st.wow[1]} 未组装整机套件 / $${st.wow[2]} 整机成品 |`, `Seeed 舵机套件 + Seeed 打印件 = $${st.seeed} + $${st.printed} = $${(st.seeed + st.printed).toFixed(2)}`, `| Robonine SO-ARM101 黑白套件 | $${robo} | 两臂未组装，含 ${nPair} 个舵机`, `价格是各商店页面上的价格，${vd} 核实；`, `单一价格（${vd} 核实），不是本课按逐项清单重新加出来的总价；其中 WowRobo 是促销价，页面上的划线原价为 $${st.wowWas.join(' / $')}。`, `3116 × 360 / ${enc} = ${deg3116}°`, `3116 / ${enc} 圈就是 ${deg3116}°`, `编码器每圈 ${enc} 步，所以 1024 步是 1024 / ${enc} = 1/${enc / 1024} 圈。`, `每只有 ${bits} 位、每圈 ${enc} 步的编码器：1024 步就是 ${360 * 1024 / enc}°。`, `7.4 V STS3215（按 README BOM 为 ${code[hi]}/${code[mid]}/${code[lo]}）`,
+      `而且比按 BOM 自购更贵 |`,
       `M2×6 和 M3×6 混在一堆里`, `"${`1/${hi}`} 的减速比太慢"`,
       `飞特规定输出轴为 ${teeth}T/OD5.9mm，即 ${teeth} 齿、外径 5.9 mm 的花键，舵机盘螺丝为 M3×6（C001 与 C018 规格，§6-9 和 §6-13）`,
       `花键有 ${teeth} 个齿`, `打印件用 M3×6 螺丝固定在舵机盘上。`, `上面那个用 M3×6 螺丝`,
@@ -1079,13 +1116,10 @@ const lerobot = { torque: 500, cur: 250, ol: 25, pct: [50, 50, 25], lines: "169�
     for (const q of [...common, ...per[lang]]) ok(text.includes(q), `so101-arm ${lang}: expected ${JSON.stringify(q)} (recomputed from the README BOM / Feetech specs)`);
     const rows = [...text.matchAll(/^\| (\w+) \| 1\/(\d+) \|$/gm)].map((m) => [m[1], Number(m[2])]);
     ok(JSON.stringify(rows) === JSON.stringify(Object.entries(leader)), `so101-arm ${lang}: leader ratio table ${JSON.stringify(rows)} != ${JSON.stringify(leader)}`);
-    ok(!/\d%/.test(text), `so101-arm ${lang}: write percentages with a space ("${infill} %")`);
-    // every date: docs check, price note, Robonine row and the store-price note
-    const dates = lang === "en"
-      ? [`v0.6.x, checked in ${roboDate.en}.`, `verified figures from ${priceDate.en}, except Robonine, which is the store page in ${roboDate.en};`, `$${robo} (store page, ${roboDate.en})`, `(${priceDate.en}; Robonine ${roboDate.en})`]
-      : [`（v0.6.x，${roboDate.zh}核对）`, `价格是课程在 ${priceDate.zh}核实的数字，Robonine 例外，是 ${roboDate.zh}的商店页面；`, `$${robo}（${roboDate.zh}商店页面）`, `（${priceDate.zh}；Robonine 为 ${roboDate.zh}）`];
-    for (const q of dates) ok(text.includes(q), `so101-arm ${lang}: expected date string ${JSON.stringify(q)}`);
-    ok(text.split(roboDate[lang]).length - 1 === 4, `so101-arm ${lang}: expected "${roboDate[lang]}" exactly 4 times`);
+    ok(!/\d[%％]/.test(text.replace(/\]\([^)]*\)/g, "]")), `so101-arm ${lang}: write percentages with a space ("${infill} %")`);
+    // dates: the LeRobot docs check (October 2026) and the store prices (verified ${vd}: price note and store-price note); no older price dates
+    ok(text.includes(lang === "en" ? "v0.6.x, checked in October 2026." : "（v0.6.x，2026 年 10 月核对）"), `so101-arm ${lang}: expected the LeRobot docs check date`);
+    ok(text.split(vd).length - 1 === 2 && !/September 2026|2026 年 9 月|store page, October|10 月商店页面/.test(text), `so101-arm ${lang}: expected "${vd}" exactly twice and no older price dates`);
     // every quoted friction / inertia ratio (the backdrive paragraph, its prose repeat and the summary) must be the computed one
     const got = [...text.matchAll(/345 \/ 147 = ([\d.]+)|(?:约为 |about )([\d.]+) (?:times more friction|倍)|\(345\/147\)² ≈ ([\d.]+)/g)];
     ok(got.length >= 5, `so101-arm ${lang}: expected at least 5 quoted gear-ratio results, found ${got.length}`);
@@ -1093,14 +1127,12 @@ const lerobot = { torque: 500, cur: 250, ol: 25, pct: [50, 50, 25], lines: "169�
   }
   const res = readFileSync(join(root, "src/lib/resources.ts"), "utf8");
   ok(robo > quiz, `so101-arm: Robonine $${robo} is no longer more than the BOM pair + filament ${d(quiz)} ("you pay more than sourcing the BOM")`);
-  for (const q of [`≈ $${robo} (store page, Oct 2026)`, `约 $${robo}（2026 年 10 月页面）`]) ok(res.includes(q), `resources.ts robonine-so101: expected ${JSON.stringify(q)} (same price as the lesson table)`);
-  // the so101 table's store prices are dated September 2026 in resources.ts too (Seeed Pro, Seeed printed parts, WowRobo, Hiwonder xArm 1S)
-  for (const p of ["277.99", "30.99", "325.99 / $419.99 / $489.99", "199.99"])
-    for (const q of [`≈ $${p} (course-verified, Sep 2026)`, `约 $${p}（课程 ${priceDate.zh}核实）`]) ok(res.includes(q), `resources.ts: expected dated price ${JSON.stringify(q)}`);
+  for (const q of [`≈ $${robo} (verified ${vd})`, `约 $${robo}（${vd} 核实）`]) ok(res.includes(q), `resources.ts robonine-so101: expected ${JSON.stringify(q)} (same price as the lesson table)`);
+  // the so101 table's store prices carry the same date in resources.ts (Seeed Pro, Seeed printed parts, Hiwonder xArm 1S; WowRobo as sale prices)
+  for (const p of [st.seeed, st.printed, st.hiw])
+    for (const q of [`≈ $${p} (verified ${vd})`, `约 $${p}（${vd} 核实）`]) ok(res.includes(q), `resources.ts: expected dated price ${JSON.stringify(q)}`);
+  for (const q of [`≈ $${st.wow.join(" / $")} (sale prices, verified ${vd})`, `约 $${st.wow.join(" / $")}（促销价，${vd} 核实）`]) ok(res.includes(q), `resources.ts wowrobo-so101: expected ${JSON.stringify(q)}`);
   ok(!res.includes("(course-verified)") && !res.includes("（课程核实）"), `resources.ts: every course-verified price needs a date`);
-  // the M3 printer entries (fdm-printing table) carry the same September 2026 date
-  for (const p of ["199", "219.99", "299.99", "369", "799"])
-    for (const q of [`≈ $${p} (course, checked Sept 2026)`, `约 $${p}（课程 ${priceDate.zh}核实）`]) ok(res.includes(q), `resources.ts: expected dated printer price ${JSON.stringify(q)}`);
   console.log(`calc  so101-arm: BOM pair ${d(pair)} and follower ${d(fol)} rebuilt from line items, q1 ${d(quiz)}, error budget ${(r * step * rad).toFixed(2)} / ${(r * 0.5 * rad).toFixed(2)} mm, leader ratios ${Object.values(leader).join('/')} -> pair ${pairServos.join('/')}, current ${rated12} / ${stall12} / ${rated5} / ${stall5} A, horn ${tooth}° = ${(tooth * 4096 / 360).toFixed(2)} steps, filament bound ${(vsum * 1.24 / 1000).toFixed(2)} kg, bound in en/zh`);
 }
 

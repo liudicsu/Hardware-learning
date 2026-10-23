@@ -275,7 +275,7 @@ TPU 是柔性耗材。本课用 95A（<Term id="shore-hardness">邵氏硬度</Te
 
 上机之前先做两项检查。第一，夹爪还能完全闭合、两根手指和夹爪本体不会互相撞上吗？手指长了几毫米，就会在行程中段打在一起。第二，张开宽度还放得下你最大的物体吗？把夹爪完全张开时的间隙量出来，和你打算抓的最宽的东西比一比。
 
-夹爪是 ID 6 的舵机，它通过位置环驱动输出：你发一个目标位置，舵机就一直推，直到编码器报告到位。当手指夹住物体时，舵机依然朝目标推，最终停在一个<Term id="steady-state-error">稳态误差</Term>上——这正是第 4 课《PID 与控制》里的稳态行为。这里有个有利的副作用：软的 TPU 手指会变形，从而吸收一部分力，对物体更温柔。但也别让舵机长时间顶死在硬限位上，它会持续吃电流、发热。LeRobot 已经限制了夹爪的扭矩和电流（它给这个舵机写入 Max_Torque_Limit 500、Protection_Current 250 和 Overload_Torque 25，按代码注释分别是 50 %、50 % 和 25 %；[so_follower.py 第 169–171 行，LeRobot v0.6.1](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/so_follower.py#L169-L171)），但这只能减轻堵转，仍然不要让它长时间堵转。遥操作时，物体一放下就把主臂的夹爪松开，否则从臂的夹爪会在没有负载时仍然顶着位置环的目标持续出力。
+夹爪是 ID 6 的舵机，它通过位置环驱动输出：你发一个目标位置，舵机就一直推，直到编码器报告到位。当手指夹住物体时，舵机依然朝目标推，最终停在一个<Term id="steady-state-error">稳态误差</Term>上——这正是第 4 课《PID 与控制》里的稳态行为。这里有个有利的副作用：软的 TPU 手指会变形，从而吸收一部分力，对物体更温柔。LeRobot 已经限制了这个舵机：它给夹爪写入 Max_Torque_Limit 500、Protection_Current 250 和 Overload_Torque 25（[so_follower.py 第 169–171 行，LeRobot v0.6.1](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/so_follower.py#L169-L171)）。按飞特的 STS3215 存储表（[STS3215 Memory Table.xlsx，V3.6](https://github.com/matthieuvigne/STS_servos/blob/4d2278432a2b12027d04d0449e1e6f97df812d68/extras/STS3215%20Memory%20Table.xlsx)），这相当于最大扭矩的 50 %、250 × 6.5 mA = 1.625 A 的保护电流，以及负载一超过最大扭矩的 25 % 就开始的过载计时；细节见 SO-101 一课。这只能减轻堵转，所以别让舵机长时间顶死在硬限位上：它会持续吃电流、发热。遥操作时，物体一放下就把主臂的夹爪松开，否则从臂的夹爪会在没有负载时仍然顶着位置环的目标持续出力。
 
 <Quiz id="q5" question="为什么要从 SO-101 的 STEP 文件开始，而不是它的 STL？" options={["STL 文件更大", "STEP 保留可以测量和编辑的精确曲面与尺寸；STL 只有三角形", "STL 不能用 TPU 打印", "STEP 文件里已经包含你的手指"]} answer={1} explanation="STEP 是精确、可编辑的几何，可以导入并量出安装面和孔位；STL 是三角形网格，没有能标注的精确几何。两者都能切片打印，这不是区别所在。" />
 
