@@ -1807,6 +1807,14 @@ const lessonRef = (n, slug, lang) => {
   const Rjoint = num5(lqr, /lqr\(PHI_J, GAM_J, \[\[400\.0, 0\], \[0, 0\.01\]\], ([\d.]+)/, "lqr joint R");
   const uBreak = Math.sqrt(Q0 / Rjoint);
   ok(Q0 === 400 && Rjoint === 1 && uBreak === 20, `m5 lqr: Qθθ/R break-even |u|=${uBreak} must be 20 (Q0=${Q0} R=${Rjoint})`);
+  const Umax = num5(lqr, /J, BV, T, UMAX, N = [\d.]+, [\d.]+, [\d.]+, ([\d.]+)/, "lqr UMAX");
+  const uOverLim = uBreak / Umax;
+  const kpPd = 2.86;
+  const uOverKp = uBreak / kpPd;
+  ok(Umax === 0.6 && Math.abs(uOverLim - 20 / 0.6) < 1e-12 && Math.round(uOverLim) === 33,
+    `m5 lqr: |u|/UMAX=${uOverLim} must round to 33 (not 200)`);
+  ok(Math.abs(uOverKp - 20 / 2.86) < 1e-12 && Math.round(uOverKp) === 7,
+    `m5 lqr: |u|/kp=${uOverKp} must round to 7`);
   const maxStep = num5(kin, /max_step\s*=\s*([\d.]+)/, "kin max_step");
   ok(maxStep === 0.02, `m5 kin: max_step must be 0.02 m (got ${maxStep})`);
   ok(/lam\s*=\s*0\.03/.test(kin), `m5 kin: default λ must be 0.03`);
@@ -1858,6 +1866,8 @@ const lessonRef = (n, slug, lang) => {
         "|θ(6 s)| < 0.01 rad",
         "400 × 1² = 400",
         "|u| = 20 N·m",
+        "about 33× the 0.6 N·m limit",
+        "about 7× lesson 1's 2.86 N·m/rad scale",
       ],
       "kinematics-ik": [
         "max|dq| × 180/π = 44.9 deg/s",
@@ -1895,6 +1905,8 @@ const lessonRef = (n, slug, lang) => {
         "|θ(6 s)| < 0.01 rad",
         "400 × 1² = 400",
         "|u| = 20 N·m",
+        "0.6 N·m 限幅的 33 倍",
+        "2.86 N·m/rad 量级的 7 倍",
       ],
       "kinematics-ik": [
         "max|dq| × 180/π = 44.9 deg/s",
