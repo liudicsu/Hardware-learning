@@ -1935,6 +1935,126 @@ const lessonRef = (n, slug, lang) => {
   }
   console.log(`calc  m5 gaps: cart −mg/M=${aTheta.toFixed(2)} 1/M=${bForce} (M+m)g/ML=${aAng.toFixed(2)} −1/ML=${bAng.toFixed(2)}; PD lead ${lead.toFixed(1)}°; GM×${gmFactor.toFixed(1)} kp_crit ${kpCrit.toFixed(1)}; Q/R |u|=${uBreak}; cam ${nPts}−${nParams}=${nRes}; reach ${reach} wall face ${wallFace}; grip ${handZ}/${clear.toFixed(4)}; bound in en/zh`);
 }
+{
+  // Month 6 content gaps (m6-report.md Section B): every newly stated number is recomputed or pinned here.
+  // act-diffusion: ACT temporal ensembling w_i=exp(−m·i) (Zhao et al. Alg. 2); diffusion perfect-denoiser Gaussian weights.
+  // behaviour-cloning: squared-loss mean ≡ 1-NN when locally unimodal; covariate-shift recurrence p_{t+1}=p_t+a_t+ε_t.
+  // policy-evaluation: Binomial(10,0.65) SD; mean failure step 41.3 vs demo length 38–39 / 5 cm goal (row "trials needed" already on main).
+  // specialisation-portfolio: O(N) vs O(log N), 10^6/3061≈327×; start-list sized with trials_needed (82 / 199).
+  // vla-models: 256 = Llama least-used token overlay (OpenVLA §3.2); DCT rounding threshold 1/(2·scale); third-part claim attributed.
+  const rd6 = (p) => readFileSync(join(root, p), "utf8");
+  const bc = rd6("examples/month-6/behaviour-cloning/bc_reach.py");
+  const multi = rd6("examples/month-6/act-diffusion/multimodal.py");
+  const tokens = rd6("examples/month-6/vla-models/action_tokens.py");
+  const num6 = (text, re, what) => { const m = text.match(re); ok(m, `m6: ${what} not found`); return m ? Number(m[1]) : NaN; };
+  const goalR = 0.05;
+  ok(/math\.hypot\(p\[0\] - GOAL\[0\], p\[1\] - GOAL\[1\]\) < 0\.05/.test(bc), `m6 bc: success radius must be 0.05 m`);
+  const noise = num6(bc, /HALF_WIDTH, STEP, NOISE, MAX_STEPS = [\d.]+, [\d.]+, ([\d.]+)/, "bc NOISE");
+  const maxSteps = num6(bc, /HALF_WIDTH, STEP, NOISE, MAX_STEPS = [\d.]+, [\d.]+, [\d.]+, (\d+)/, "bc MAX_STEPS");
+  ok(noise === 0.01 && maxSteps === 80, `m6 bc: NOISE=${noise} MAX_STEPS=${maxSteps}`);
+  // episode length 38–39 and 3061 frames are printed by bc_reach.py (seeded); pin the lesson figures.
+  const frames80 = 3061;
+  const demoLo = 38, demoHi = 39;
+  const factor = 1e6 / frames80;
+  ok(Math.abs(factor - 326.6906239790918) < 1e-9 && Math.round(factor) === 327,
+    `m6 portfolio: 1e6/${frames80} must round to 327 (got ${factor})`);
+  const pRate = 0.65, nSess = 10;
+  const binomSd = Math.sqrt(nSess * pRate * (1 - pRate));
+  ok(Math.abs(binomSd - 1.5083103128998356) < 1e-12 && Math.round(binomSd * 100) / 100 === 1.51,
+    `m6 eval: Binomial(10,0.65) SD=${binomSd} must be ≈1.51`);
+  // trials_needed(0.6,0.8)=82, (0.8,0.9)=199 — same formula as eval_report.py (already worked in lesson; re-pin for portfolio cite).
+  const z95 = 1.959963984540054, z80 = 0.8416212335729143;
+  const tn = (p1, p2) => {
+    const pb = (p1 + p2) / 2;
+    const num = z95 * Math.sqrt(2 * pb * (1 - pb)) + z80 * Math.sqrt(p1 * (1 - p1) + p2 * (1 - p2));
+    return Math.ceil((num * num) / ((p1 - p2) * (p1 - p2)));
+  };
+  ok(tn(0.6, 0.8) === 82 && tn(0.8, 0.9) === 199, `m6 portfolio: trials_needed 60/80→${tn(0.6,0.8)} 80/90→${tn(0.8,0.9)}`);
+  const bins = num6(tokens, /HZ, CHUNK, JOINTS, BINS = \d+, \d+, \d+, (\d+)/, "vla BINS");
+  ok(bins === 256, `m6 vla: BINS must be 256 (got ${bins})`);
+  ok(/round\(c \* scale\)/.test(tokens), `m6 vla: DCT path must round(c * scale)`);
+  // perfect-denoiser weight in multimodal.py: exp(−‖x−√ᾱ d‖² / (2(1−ᾱ)))
+  ok(/math\.exp\(/.test(multi) && /1\s*-\s*abar/.test(multi), `m6 act-diffusion: multimodal.py must compute Gaussian denoiser weights`);
+  const phrases = {
+    en: {
+      "act-diffusion": [
+        "w_i = exp(−m · i)",
+        "w_d ∝ exp(−‖x_s − √ᾱ_s d‖² / (2(1 − ᾱ_s)))",
+        "Algorithm 2",
+        "effective horizon shrinks by k",
+      ],
+      "behaviour-cloning": [
+        "`p_{t+1} = p_t + a_t + ε_t`",
+        "locally unimodal",
+        "conditional mean",
+      ],
+      "policy-evaluation": [
+        "Binomial(10, 0.65)",
+        "√(10 × 0.65 × 0.35) ≈ 1.51",
+        "38 to 39 frames",
+        "5 cm success radius",
+        "mean step 41.3",
+      ],
+      "specialisation-portfolio": [
+        "10⁶ / 3061 ≈ 327",
+        "O(N)",
+        "O(log N)",
+        "about 82 trials",
+        "about 199",
+      ],
+      "vla-models": [
+        "vocabulary budget",
+        "1/(2 · scale)",
+        "arXiv:2406.09246",
+        "arXiv:2501.09747",
+        "attributed claim",
+      ],
+    },
+    zh: {
+      "act-diffusion": [
+        "w_i = exp(−m · i)",
+        "w_d ∝ exp(−‖x_s − √ᾱ_s d‖² / (2(1 − ᾱ_s)))",
+        "算法 2",
+        "有效时域缩短为原来的 1/k",
+      ],
+      "behaviour-cloning": [
+        "`p_{t+1} = p_t + a_t + ε_t`",
+        "单峰",
+        "条件均值",
+      ],
+      "policy-evaluation": [
+        "Binomial(10, 0.65)",
+        "√(10 × 0.65 × 0.35) ≈ 1.51",
+        "38 到 39 帧",
+        "5 cm 成功半径",
+        "平均第 41.3 步",
+      ],
+      "specialisation-portfolio": [
+        "10⁶ / 3061 ≈ 327",
+        "O(N)",
+        "O(log N)",
+        "大约需要 82 次",
+        "大约需要 199 次",
+      ],
+      "vla-models": [
+        "词表预算",
+        "1/(2 · scale)",
+        "arXiv:2406.09246",
+        "arXiv:2501.09747",
+        "带出处的表述",
+      ],
+    },
+  };
+  for (const lang of ["en", "zh"]) {
+    for (const [slug, qs] of Object.entries(phrases[lang])) {
+      const text = rd6(`src/content/m6/${slug}/${lang}.mdx`);
+      for (const q of qs) ok(text.includes(q), `m6 ${slug} ${lang}: expected ${JSON.stringify(q)}`);
+    }
+  }
+  console.log(`calc  m6 gaps: binom SD=${binomSd.toFixed(2)}; 1e6/${frames80}≈${Math.round(factor)}; trials_needed 82/199; goal ${goalR} m; demo ${demoLo}–${demoHi} frames; BINS=${bins}; DCT round thresh 1/(2·scale); ACT w_i / diffusion w_d bound; attributed OpenVLA/RT-2; bound in en/zh`);
+}
+
+
 
 const specs = [];
 for (const f of readdirSync(specDir).filter((f) => f.endsWith(".ts"))) {

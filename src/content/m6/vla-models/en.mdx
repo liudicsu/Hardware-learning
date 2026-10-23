@@ -2,7 +2,7 @@ The policies in the last two lessons were trained from scratch for one task on o
 
 ## What a VLA is
 
-Three parts. A **vision encoder** turns each camera image into a sequence of feature vectors. A **language model** reads those together with the tokenised instruction (and, in most models, the robot's joint state, fed into the language model or the action head). An **action output** turns the language model's result into numbers for the motors. The first two come from a pretrained vision-language model (in every model below except Octo); the robot-specific learning is mostly in the third and in the fine-tuning.
+Three parts. A **vision encoder** turns each camera image into a sequence of feature vectors. A **language model** reads those together with the tokenised instruction (and, in most models, the robot's joint state, fed into the language model or the action head). An **action output** turns the language model's result into numbers for the motors. The first two come from a pretrained vision-language model (in every model below except Octo). OpenVLA reports that, after that initialization, most of the adaptation to robot actions happens in the action tokeniser / output path and in fine-tuning on robot trajectories rather than by training the vision-language backbone from scratch (Kim et al., arXiv:2406.09246; similarly RT-2, Brohan et al., arXiv:2307.15818). Treat "mostly in the third part and in the fine-tuning" as that attributed claim, not as a result measured in this lesson.
 
 There are two ways to build the action output, and they decide much of a model's behaviour:
 
@@ -17,7 +17,7 @@ The first approach reuses the language model unchanged but has to decide how to 
 
 ## Actions as tokens: 256 bins
 
-RT-2 and OpenVLA give each action dimension 256 tokens: the range of each dimension is cut into 256 equal bins, and a value becomes the index of its bin. RT-2 uses the whole range of the data. OpenVLA sets the range with the dataset's 1st and 99th percentile instead and clips values beyond them to the end bins, so a rare extreme value does not stretch every bin. This lesson follows OpenVLA.
+RT-2 and OpenVLA give each action dimension 256 tokens: the range of each dimension is cut into 256 equal bins, and a value becomes the index of its bin. The count 256 is a vocabulary budget, not a physics constant: OpenVLA overlays the continuous-action bins onto the 256 least-used tokens in the Llama tokenizer vocabulary so the pretrained language model keeps its text tokens (§3.2 of Kim et al., arXiv:2406.09246). RT-2 uses the whole min/max range of the data. OpenVLA instead sets the range with the dataset's 1st and 99th percentiles and clips values beyond them to the end bins. Percentiles spend the 256 bins on the mass of the data; min/max spends many of them on rare extremes and makes every ordinary step coarser. This lesson follows OpenVLA.
 
 <Formula label="Bin token for one action value">token = floor(256 × (clip(a, p1, p99) − p1) / (p99 − p1)),   from 0 to 255</Formula>
 
@@ -166,7 +166,7 @@ The token row for joint 0 shows the other problem. At 30 Hz consecutive actions 
 
 ## Compressing a chunk with the DCT
 
-FAST, the tokeniser behind π0-FAST, tokenises the whole chunk at once. It normalises each dimension to −1..1 with the same percentiles, takes a discrete cosine transform (DCT) of each dimension over the chunk, multiplies by a scale and rounds to integers. Smooth motion is mostly low frequencies, so most high-frequency coefficients round to zero; FAST then compresses the integer sequence with byte-pair encoding. The program counts the nonzero coefficients as a stand-in for the final tokens:
+FAST, the tokeniser behind π0-FAST (Pertsch et al., arXiv:2501.09747), tokenises the whole chunk at once. It normalises each dimension to −1..1 with the same percentiles, takes a discrete cosine transform (DCT) of each dimension over the chunk, multiplies by a scale and rounds to integers. Why low frequencies dominate: a teleoperated joint trajectory varies slowly from step to step, so it is well approximated by a few slow cosines; the DCT is an orthogonal change of basis onto those cosines, and energy compaction puts most of the ℓ₂ mass in the first coefficients. Rounding to integers then zeros any coefficient whose absolute value is below 1/(2 · scale) — raising the scale keeps more small coefficients and lowers reconstruction error, at the cost of a longer nonzero sequence (see the table). FAST then compresses the integer sequence with byte-pair encoding. The program counts the nonzero coefficients as a stand-in for the final tokens:
 
 <SimOutput source="model">
 
