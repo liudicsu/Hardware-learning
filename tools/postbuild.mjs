@@ -36,6 +36,10 @@ const basePath = pagesBasePath();
 const visible = run(process.execPath, ["tools/check_visible_pct.mjs", basePath !== "" ? "out" : ".next/server/app"]);
 if (visible.status !== 0) process.exit(visible.status);
 
+// rendered Markdown leak check (tools/check_visible_markdown.mjs): no literal "**" in the visible text of the same pages
+const markdown = run(process.execPath, ["tools/check_visible_markdown.mjs", basePath !== "" ? "out" : ".next/server/app"]);
+if (markdown.status !== 0) process.exit(markdown.status);
+
 if (basePath !== "") {
   const check = run(process.execPath, [CHECKER, "out", basePath]);
   process.exit(check.status);
