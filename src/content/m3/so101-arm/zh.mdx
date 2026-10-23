@@ -469,6 +469,9 @@ lerobot-teleoperate \
 出问题时，从外往内查：
 
 - **找不到某个电机**：查供电、USB 和该电机的三针线，并确认 Waveshare 板的两个跳线仍在“找到串口”一节设好的 B 位置；通道错了，板子有电但电脑什么都看不到。
+- **“Could not connect on port …”**：LeRobot 完全打不开串口时会打印这条信息（[motors_bus.py 第 536–540 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/motors_bus.py#L536-L540)）。如果它上方打印的错误里有 “Permission denied”（权限被拒绝），说明你的 Linux 用户无权打开这个串口，按“找到串口”一节的权限设置处理。否则就是串口名错了或者板子没插好：再运行一次 `lerobot-find-port`，照它打印的名字复制。
+- **“motor check failed”，并列出 “Missing motor IDs”**：串口打开了，但有些电机没有应答。LeRobot 连接时会逐个 ping 这条臂的每个 ID，并列出缺失或型号不对的 ID（[motors_bus.py 第 465–502 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/motors_bus.py#L465-L502)）。它以 1,000,000 波特和总线通信（[feetech.py 第 44 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/feetech/feetech.py#L44)），设置脚本会把这个波特率和 ID 一起写进每个电机（[motors_bus.py 第 589–595 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/motors_bus.py#L589-L595)）。设置时被跳过、或后来换上的电机仍是出厂 ID 1，所以它不会在它所在关节的 ID 上应答。在列表里找到缺失的 ID，检查通往那个电机的线；线没问题的话，再运行一次 `lerobot-setup-motors`，脚本要哪个电机就单独接哪个。
+- **几个关节同时动时，关节突然没劲，或者臂抽一下、控制板找不到电机**：电源电压可能在负载下跌落。Feetech 规格书说，舵机输入电压低于 4 V 时进入保护，电压回到正常范围后自动解除（C001 规格书 §7-11，[PDF](https://www.feetechrc.com/Data/feetechrc/upload/file/20200611/6372749961523760249976542.pdf)），而 5 V 电源离这个门限只有 1 V 的余量。标准的 5 V 4 A 电源会不会出现这种情况，是本课的估计，不是实测结果。先查电源插头和通往控制板的线，不要让关节长时间顶着限位；问题还在的话，在臂运动时用万用表测控制板输入端的电压，或者换一个额定电流更大的 5 V 电源。
 - **从臂一启动就猛跳**：它是在另一个姿态或另一个 id 下校准的。用你打算使用的姿态和 id 重新校准。
 - **某个关节方向反了或有偏移**：重新校准那条臂。不要靠改命令来修；错的是映射，不是命令。
 - **舵机发热，或夹爪夹住物体后嗡嗡响**：它在顶着一个东西。位置环会保留一个稳态误差并持续出力，正是第 4 课讲的稳态行为。松开夹持或降低目标；不要让它响几分钟。
