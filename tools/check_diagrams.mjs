@@ -825,6 +825,9 @@ for (const f of existsSync(dataDir) ? readdirSync(dataDir).filter((f) => f.endsW
   }
 }
 
+// LeRobot v0.6.1 src/lerobot/robots/so_follower/so_follower.py lines 169–171: configure() writes these to the gripper only;
+// pct are the percentages in the code comments (50% max torque, 50% max current, 25% torque when overloaded); units unconfirmed.
+const lerobot = { torque: 500, cur: 250, ol: 25, pct: [50, 50, 25], lines: "169–171", tag: "v0.6.1", url: "https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/so_follower.py#L169-L171" };
 {
   // gripper-fingers: every force, friction, mass, Shore and fin-ray model number in the lesson is recomputed here
   // from grip_force.py, finray_finger.scad, the committed STL output and the ASTM D2240 point size, then required
@@ -867,13 +870,22 @@ for (const f of existsSync(dataDir) ? readdirSync(dataDir).filter((f) => f.endsW
   const shore = 100 - 95, astmPt = 0.025;
   const common = [out, exP, exT, model, stlOut.trim().split("\n").pop() + "\n",
     `${f3(num(egg))}`, `${S} × ${f3(can)} × ${f2(G + A)} = ${f3(num(can))}`, `${f3(num(can))} / ${2 * muP} = ${f1(F(can, muP))} N`, `${f3(num(can))} / ${2 * muT} = ${f1(F(can, muT))} N`,
-    `μ = tan 35° = ${f2(tan(35))}`, `μ = tan 17° = ${f2(tan(17))}`, `= ${q1.toFixed(3)} ≈ ${f2(q1)} N`, `μ = tan 31° = ${tan(31).toFixed(4)}`,
+    `μ = tan 35° = ${f2(tan(35))}`, `μ = tan 17° = ${f2(tan(17))}`, `= ${q1.toFixed(3)} ≈ ${f2(q1)} N`,
     `(${thin} / ${T})³ = ${loc}`, `${thin} / ${T} = ${tru}`, `${L} / 5 = ${span4} mm`, `(${f2(span)} / ${span4})³ = ${sp4}`,
     `2 × ${f3(I1)} = ${f3(2 * I1)} mm⁴`, `${V} × ${rho} = ${mass} g`, `${shore} × ${astmPt} = ${(shore * astmPt).toFixed(3)} mm`, `0.100 × ${G} = ${f2(0.1 * G)} N`];
   // ASTM D2240 type A: full extension = 100 points × 0.025 mm; hang-test mass; two-extrusion-width rule; Crooks 2017 §2.3.1 FE optima
   const ext = (100 * astmPt).toFixed(2), hang = 0.1, nozzle = 0.4, twoW = `2 × ${nozzle} = ${2 * nozzle} mm`;
   const crooks = [[30, 2.3], [50, -6.4], [70, -5.8]], sg = (x) => `${x < 0 ? "−" : "+"}${Math.abs(x).toFixed(1)}°`;
   const cLo = sg(Math.min(...crooks.map((c) => c[1]))), cHi = sg(Math.max(...crooks.map((c) => c[1])));
+  // Polymaker PolyFlex TPU95: TDS V5.5 vs product page; Prusa KB "Flexible materials" rules 4 and 5
+  const tds = "https://polymaker.com/wp-content/uploads/TDS_Polymaker_PolyFlex-TPU95_V5.5_2025_12_29_EN.pdf", pp = "https://shop.polymaker.com/products/polyflex-tpu95";
+  const pis = "https://polymaker.com/wp-content/tech-docs/PolyFlex_TPU95_PIS_EN_V1.1.pdf";
+  const spdTds = [30, 50], spdPp = [20, 40], spdPrusa = 20, spdPrusaMax = [30, 40], retr = [3, 6], dryTds = 70, dryPp = 65, dryH = 8, prusaRule = 5;
+  const rng = (r) => `${r[0]}–${r[1]} mm/s`, tilts = [35, 17], g = (m) => (m * 1000).toFixed(0);
+  // TDS V5.5 water-absorption chart: "Equilibrium water absorption (%)= 0.82%" at 70% RH, 23°C
+  const wAbs = 0.82, wRh = 70, wT = 23, lr = lerobot;
+  // Manoonpong et al. (Crossref: Adv. Intell. Syst. vol 4, issue 1, article 2100133, print Jan 2022); Crooks thesis title page "May 2017"
+  const mp = { vol: 4, iss: 1, art: 2100133, yr: 2022 }, ct = { mon: "May", monZh: 5, yr: 2017 };
   const block = (text, tag) => { const m = text.match(new RegExp("```" + tag + "\n([\\s\\S]*?)\n```")); return m ? m[1] : null; };
   const steps = {
     en: [`read Squeeze per finger = ${f1(F(egg, 0.3))} N and Matching slide angle atan(μ) = ${deg(0.3).toFixed(0)}°`, `read Squeeze per finger = ${f1(F(egg, 0.6))} N and Matching slide angle atan(μ) = ${deg(0.6).toFixed(0)}°`,
@@ -883,6 +895,22 @@ for (const f of existsSync(dataDir) ? readdirSync(dataDir).filter((f) => f.endsW
       `I rises to ${Ib.toFixed(0)} mm⁴, about ${(Ib / (2 * I1) / 1000).toFixed(0)}000 times`, `divisors ${2 * muP} and ${2 * muT} are 2 × μ`,
       `doubling μ from ${f2(0.3)} to ${f2(0.6)} halves the force from ${f1(F(egg, 0.3))} N to ${f1(F(egg, 0.6))} N`, `A ${hang * 1000} g mass pulls with ${f3(hang)} × ${G} = ${f2(hang * G)} N`,
       `the standard's type A indenter extends ${ext} mm, and the reading falls by one point for every ${astmPt} mm`, `0 means the full ${ext} mm`, `At 95A the indenter sinks about ${shore} × ${astmPt}`,
+      `1. Leave object mass = ${g(egg)} g, μ = ${f2(0.3)}, arm acceleration = ${A.toFixed(1)} m/s² and safety factor = ${S.toFixed(1)} and read Squeeze per finger = ${f1(F(egg, 0.3))} N`,
+      `2. Set μ = ${f2(0.6)} and read Squeeze per finger = ${f1(F(egg, 0.6))} N`,
+      `3. Set μ = ${f2(0.3)} and arm acceleration = 0.0 m/s², keep object mass = ${g(egg)} g and safety factor = ${S.toFixed(1)}, and read Squeeze per finger = ${f1(F(egg, 0.3, 0))} N`,
+      `4. Set object mass = ${g(can)} g, μ = ${f2(0.3)}, arm acceleration = ${A.toFixed(1)} m/s² and safety factor = ${S.toFixed(1)} and read Squeeze per finger = ${f1(F(can, 0.3))} N; then set μ = ${f2(0.8)} and read ${f1(F(can, 0.8))} N`,
+      ...tilts.map((t) => `object starts to slide at ${t}°:  μ = tan ${t}° = ${f2(tan(t))}`), `Thinning the flanks from ${T} mm to ${thin} mm`,
+      `Prusa gives ${spdPrusa} mm/s as a typical speed for flexible filament and ${spdPrusaMax[0]}–${spdPrusaMax[1]} mm/s as the maximum it recommends`,
+      `Polymaker gives ${rng(spdTds)} for PolyFlex TPU95 in its data sheet ([TDS V5.5](${tds})) and ${rng(spdPp)} on its product page ([product page](${pp}))`,
+      `Polymaker gives ${retr[0]} mm on a direct-drive extruder and ${retr[1]} mm on an indirect (Bowden) one ([product page](${pp}))`,
+      `drying setting of ${dryTds} °C for ${dryH} h ([TDS V5.5](${tds})), while its product page gives ${dryPp} °C for ${dryH} h, only if the material has absorbed moisture ([product page](${pp})); the two differ by ${dryTds - dryPp} °C`,
+      `Polymaker's product page says "Fan: ON" for PolyFlex TPU95 ([product page](${pp})) and its data sheet also lists the cooling fan ON`,
+      `say to keep print cooling off (rule ${prusaRule} of "Important rules for successful printing with flexible filaments")`,
+      `LeRobot already limits the gripper's torque and current (it writes Max_Torque_Limit ${lr.torque}, Protection_Current ${lr.cur} and Overload_Torque ${lr.ol} to this servo, ${lr.pct[0]} %, ${lr.pct[1]} % and ${lr.pct[2]} % per its code comments; [so_follower.py, lines ${lr.lines}, LeRobot ${lr.tag}](${lr.url})), but that only softens a stall, so still do not leave it stalled for long.`,
+      `LeRobot's torque and current limits on the gripper soften this, but they do not make a long stall safe.`,
+      `The data sheet also gives an equilibrium water absorption of ${wAbs} % at ${wRh} % RH and ${wT} °C for PolyFlex TPU95.`,
+      `Adv. Intell. Syst. ${mp.vol}(${mp.iss}), ${mp.art}, ${mp.yr}](https://doi.org/10.1002/aisy.${mp.yr - 1}${String(mp.art).slice(2)})`,
+      `PhD thesis, Tufts University, ${ct.mon} ${ct.yr}, §2.3.1]`,
       `crossbeam angle swept from −15° to +15° in 2.5° steps`, `(${crooks.map(([d, a]) => `${sg(a)} at ${d} mm`).join(", ").replace(/, ([^,]*)$/, ", $1")}), so it lay between ${cLo} and ${cHi}`],
     zh: [`读取每根手指的夹紧力 = ${f1(F(egg, 0.3))} N、对应的滑动倾角 atan(μ) = ${deg(0.3).toFixed(0)}°`, `读取每根手指的夹紧力 = ${f1(F(egg, 0.6))} N、对应的滑动倾角 atan(μ) = ${deg(0.6).toFixed(0)}°`,
       `读取每根手指的夹紧力 = ${f1(F(egg, 0.3, 0))} N。`, `读取每根手指的夹紧力 = ${f1(F(can, 0.3))} N；再将 μ 设为 0.80，读取 ${f1(F(can, 0.8))} N`, `从 ${f1(F(egg, 0.3))} N 减半到 ${f1(F(egg, 0.6))} N`,
@@ -891,26 +919,61 @@ for (const f of existsSync(dataDir) ? readdirSync(dataDir).filter((f) => f.endsW
       `根部的 I 升到 ${Ib.toFixed(0)} mm⁴，约为前者的 ${(Ib / (2 * I1) / 1000).toFixed(0)}000 倍`, `除数 ${2 * muP} 和 ${2 * muT} 是 2 × μ`,
       `μ 从 ${f2(0.3)} 加倍到 ${f2(0.6)} 使力从 ${f1(F(egg, 0.3))} N 减半到 ${f1(F(egg, 0.6))} N`, `${hang * 1000} g 的质量拉力是 ${f3(hang)} × ${G} = ${f2(hang * G)} N`,
       `A 型压针伸出 ${ext} mm，压针每多压入 ${astmPt} mm`, `0 表示压进满行程 ${ext} mm`, `95A 时压针只压进约 ${shore} × ${astmPt}`,
+      `1. 保持物体质量 = ${g(egg)} g、μ = ${f2(0.3)}、手臂加速度 = ${A.toFixed(1)} m/s²、安全系数 = ${S.toFixed(1)}，读取每根手指的夹紧力 = ${f1(F(egg, 0.3))} N`,
+      `2. 将 μ 设为 ${f2(0.6)}，读取每根手指的夹紧力 = ${f1(F(egg, 0.6))} N`,
+      `3. 将 μ 设为 ${f2(0.3)}、手臂加速度设为 0.0 m/s²，保持物体质量 = ${g(egg)} g、安全系数 = ${S.toFixed(1)}，读取每根手指的夹紧力 = ${f1(F(egg, 0.3, 0))} N`,
+      `4. 设置物体质量 = ${g(can)} g、μ = ${f2(0.3)}、手臂加速度 = ${A.toFixed(1)} m/s²、安全系数 = ${S.toFixed(1)}，读取每根手指的夹紧力 = ${f1(F(can, 0.3))} N；再将 μ 设为 ${f2(0.8)}，读取 ${f1(F(can, 0.8))} N`,
+      ...tilts.map((t) => `物体在 ${t}° 开始滑动：μ = tan ${t}° = ${f2(tan(t))}`), `侧壁从 ${T} mm 减到 ${thin} mm`,
+      `Prusa 给出柔性耗材的典型速度是 ${spdPrusa} mm/s，推荐的最高速度在 ${spdPrusaMax[0]}–${spdPrusaMax[1]} mm/s 之间`,
+      `Polymaker 给 PolyFlex TPU95 的速度在数据表里是 ${rng(spdTds)}（[TDS V5.5](${tds})）、在产品页上是 ${rng(spdPp)}（[产品页](${pp})）`,
+      `Polymaker 给的是近程挤出 ${retr[0]} mm、远程（Bowden）${retr[1]} mm（[产品页](${pp})）`,
+      `烘干条件是 ${dryTds} °C、${dryH} h（[TDS V5.5](${tds})），而产品页写的是 ${dryPp} °C、${dryH} h，且只在材料吸潮后才需要（[产品页](${pp})）；两处相差 ${dryTds - dryPp} °C`,
+      `Polymaker 在 PolyFlex TPU95 的产品页写的是 “Fan: ON”（[产品页](${pp})），数据表里冷却风扇也是 ON`,
+      `（“Important rules for successful printing with flexible filaments”第 ${prusaRule} 条）`,
+      `LeRobot 已经限制了夹爪的扭矩和电流（它给这个舵机写入 Max_Torque_Limit ${lr.torque}、Protection_Current ${lr.cur} 和 Overload_Torque ${lr.ol}，按代码注释分别是 ${lr.pct[0]} %、${lr.pct[1]} % 和 ${lr.pct[2]} %；[so_follower.py 第 ${lr.lines} 行，LeRobot ${lr.tag}](${lr.url})），但这只能减轻堵转，仍然不要让它长时间堵转。`,
+      `LeRobot 给夹爪设的扭矩和电流限制只能减轻这种情况，不能让长时间堵转变得安全。`,
+      `数据表还测得 PolyFlex TPU95 在 ${wRh} % RH、${wT} °C 下的平衡吸水率为 ${wAbs} %。`,
+      `Adv. Intell. Syst. ${mp.vol}(${mp.iss}), ${mp.art}, ${mp.yr}](https://doi.org/10.1002/aisy.${mp.yr - 1}${String(mp.art).slice(2)})`,
+      `博士论文，Tufts University，${ct.yr} 年 ${ct.monZh} 月，§2.3.1]`,
       `横梁角度从 −15° 到 +15° 以 2.5° 为步长扫描`, `（${crooks.map(([d, a]) => `${d} mm 为 ${sg(a)}`).join("，")}），落在 ${cLo} 到 ${cHi} 之间`],
   };
+  const q2Angles = {};
   for (const lang of ["en", "zh"]) {
     const text = readFileSync(join(root, `src/content/m3/gripper-fingers/${lang}.mdx`), "utf8");
     for (const q of [...common, ...steps[lang]]) ok(text.includes(q), `gripper-fingers ${lang}: expected ${JSON.stringify(q)} (recomputed from grip_force.py / finray_finger.scad)`);
     const qz = text.match(/<Quiz id="q1"[^>]*answer=\{([\d.]+)\}/), qz2 = text.match(/<Quiz id="q2"[^>]*answer=\{([\d.]+)\}/);
     ok(qz && Number(qz[1]) === Number(f2(q1)), `gripper-fingers ${lang}: Quiz q1 answer ${qz && qz[1]} != ${f2(q1)}`);
+    // q2: the angle comes from the question text; answer, tolerance and explanation are recomputed from it
     const qt2 = text.match(/<Quiz id="q2"[^>]*tolerance=\{([\d.]+)\}/), tol2 = qt2 ? Number(qt2[1]) : NaN;
-    ok(qz2 && Number(qz2[1]) === Number(tan(31).toFixed(1)), `gripper-fingers ${lang}: Quiz q2 answer ${qz2 && qz2[1]} != tan 31° to 1 decimal = ${tan(31).toFixed(1)}`);
-    ok(tol2 > 0 && tol2 <= 0.02 && Math.abs(tan(31) - Number(qz2 && qz2[1])) <= tol2, `gripper-fingers ${lang}: Quiz q2 tolerance ${qt2 && qt2[1]} not in (0, 0.02] or does not cover tan 31° = ${tan(31).toFixed(4)}`);
+    const q2q = (text.match(/<Quiz id="q2" question="([^"]*)"/) || [, ""])[1], q2e = (text.match(/<Quiz id="q2"[^>]*explanation="([^"]*)"/) || [, ""])[1];
+    const q2a = [...q2q.matchAll(/(\d+(?:\.\d+)?)°/g)].map((m) => Number(m[1]));
+    ok(q2a.length === 1, `gripper-fingers ${lang}: Quiz q2 question should name exactly one angle, found ${JSON.stringify(q2a)}`);
+    const a2 = q2a[0], t2 = tan(a2);
+    q2Angles[lang] = a2;
+    ok(qz2 && Number(qz2[1]) === Number(t2.toFixed(2)), `gripper-fingers ${lang}: Quiz q2 answer ${qz2 && qz2[1]} != tan ${a2}° to 2 decimals = ${t2.toFixed(2)}`);
+    ok(tol2 > 0 && tol2 <= 0.02 && Math.abs(t2 - Number(qz2 && qz2[1])) <= tol2, `gripper-fingers ${lang}: Quiz q2 tolerance ${qt2 && qt2[1]} not in (0, 0.02] or does not cover tan ${a2}° = ${t2.toFixed(4)}`);
+    ok(q2e.startsWith(`μ = tan ${a2}° = ${t2.toFixed(4)} ≈ ${t2.toFixed(2)}`), `gripper-fingers ${lang}: Quiz q2 explanation "${q2e}" != "μ = tan ${a2}° = ${t2.toFixed(4)} ≈ ${t2.toFixed(2)}…"`);
+    ok(!/\d%/.test(text), `gripper-fingers ${lang}: write percentages with a space ("80 %")`);
+    // every m/s² figure in the prose must be g, the example arm acceleration A or 0.0, and A must appear in all seven places
+    const accs = [...text.matchAll(/(\d+(?:\.\d+)?) m\/s²/g)].map((m) => m[1]);
+    ok(accs.every((x) => [String(G), A.toFixed(1), "0.0"].includes(x)), `gripper-fingers ${lang}: m/s² figures ${JSON.stringify(accs)} must each be ${G}, ${A.toFixed(1)} or 0.0`);
+    ok(accs.filter((x) => x === A.toFixed(1)).length === 7, `gripper-fingers ${lang}: expected ${A.toFixed(1)} m/s² 7 times (assumption, egg example, two widget steps, quiz q1, summary, self-check), found ${accs.filter((x) => x === A.toFixed(1)).length}`);
+    // every Polymaker link must be the TDS V5.5, the product page or the older PIS V1.1, with the expected counts
+    const pmLinks = [...text.matchAll(/https:\/\/(?:shop\.)?polymaker\.com\/[^)\s]*/g)].map((m) => m[0]);
+    const pmCount = (u) => pmLinks.filter((x) => x === u).length;
+    ok(pmLinks.every((u) => [tds, pp, pis].includes(u)) && pmCount(tds) === 3 && pmCount(pp) === 5 && pmCount(pis) === 1,
+      `gripper-fingers ${lang}: Polymaker links ${JSON.stringify(pmLinks)} != 3 × TDS V5.5, 5 × product page, 1 × PIS V1.1`);
     const nExt = text.split(`${ext} mm`).length - 1, nTwo = text.split(twoW).length - 1;
     ok(nExt === 2, `gripper-fingers ${lang}: expected "${ext} mm" (100 × ${astmPt}) exactly twice, found ${nExt}`);
     ok(nTwo === 2, `gripper-fingers ${lang}: expected "${twoW}" exactly twice (printing rule and summary), found ${nTwo}`);
     ok(block(text, "scad") === scad.replace(/\n$/, ""), `gripper-fingers ${lang}: the scad code block differs from examples/month-3/gripper-fingers/finray_finger.scad`);
     ok(block(text, "python") === py.replace(/\n$/, ""), `gripper-fingers ${lang}: the python code block differs from examples/month-3/gripper-fingers/grip_force.py`);
   }
+  ok(q2Angles.en === q2Angles.zh, `gripper-fingers: Quiz q2 angle differs between en (${q2Angles.en}°) and zh (${q2Angles.zh}°)`);
   const gl = readFileSync(join(root, "src/lib/glossary.ts"), "utf8");
   for (const q of [`The gripper lesson uses S = ${S}:`, `夹爪一课取 S = ${S}：`, `gives ${f1(F(egg, muP))} N per PLA finger for a 60 g egg, at a = ${A.toFixed(1)} m/s² and PLA μ ≈ ${muP}`, `a = ${A.toFixed(1)} m/s²、PLA 的 μ ≈ ${muP}（两者都是示例假设）的条件下，60 g 的鸡蛋用 PLA 手指时每指需要 ${f1(F(egg, muP))} N`])
     ok(gl.includes(q), `glossary safety-factor: expected ${JSON.stringify(q)}`);
-  console.log(`calc  gripper-fingers: grip_force.py output, worked examples, widget steps, q1 ${f2(q1)} / q2 ${f2(tan(31))}, tilt readings, summary, fin-ray model (I ${f3(I1)} / ${Ib.toFixed(0)} / ${Ih.toFixed(0)} mm⁴), mass ${mass} g and Shore ${(shore * astmPt).toFixed(3)} mm bound in en/zh and the glossary`);
+  console.log(`calc  gripper-fingers: grip_force.py output, worked examples, widget steps, q1 ${f2(q1)} / q2 tan ${q2Angles.en}° = ${f2(tan(q2Angles.en))}, tilt readings, Polymaker/Prusa print settings, summary, fin-ray model (I ${f3(I1)} / ${Ib.toFixed(0)} / ${Ih.toFixed(0)} mm⁴), mass ${mass} g and Shore ${(shore * astmPt).toFixed(3)} mm bound in en/zh and the glossary`);
 }
 {
   // so101-arm: the two BOM totals are rebuilt from the README line items (pinned a758567, US prices), and the error
@@ -943,21 +1006,29 @@ for (const f of existsSync(dataDir) ? readdirSync(dataDir).filter((f) => f.endsW
     `at an example radius of ${r} mm from the joint axis:\n  one step:  ${r} x ${step.toFixed(3)} x pi / 180 = ${(r * step * rad).toFixed(2)} mm\n  backlash:  ${r} x 0.5   x pi / 180 = ${(r * 0.5 * rad).toFixed(2)} mm\n`;
   // Feetech C018 / C001 specs: 5-9 rated, 5-5 stall (C001 at 6 V and 7.4 V), 7-11 overcurrent (2 A for 2 s) and overload (80 % of stall for 2 s);
   // README: at least 5 A at 12 V; BOM 5 V supply Facmogu AL-0540 5 V 4 A.
-  const r18 = 0.9, s18 = 2.7, r01 = 0.5, s01 = 2, s01b = 2.5, psu12 = 5, psu5 = 4, protA = 2, protS = 2, olPct = 80;
+  // C001 §5-10 terminal resistance 2.5 Ω: 5 V / 2.5 Ω is the course's 5 V stall estimate (Feetech gives no 5 V figure).
+  // LeRobot v0.6.1 so_follower.py lines 169–171 write the gripper's Max_Torque_Limit / Protection_Current / Overload_Torque (see lerobot above).
+  const r18 = 0.9, s18 = 2.7, r01 = 0.5, s01 = 2, s01b = 2.5, psu12 = 5, psu5 = 4, protA = 2, protS = 2, olPct = 80, rTerm = 2.5, stall5v = 5 / rTerm;
+  const lr = lerobot;
+  ok(s01 < 6 / rTerm, `so101-arm: §5-5 stall ${s01} A at 6 V is no longer below 6 V / ${rTerm} Ω = ${(6 / rTerm).toFixed(1)} A, so 5 V / ${rTerm} Ω is not an upper bound`);
+  const robo = 329, roboDate = { en: "October 2026", zh: "2026 年 10 月" }, priceDate = { en: "September 2026", zh: "2026 年 9 月" };
   const rated12 = (6 * r18).toFixed(1), stall12 = (6 * s18).toFixed(1), rated5 = (6 * r01).toFixed(1), stall5 = 6 * s01;
-  ok(6 * r18 > psu12 && 6 * r01 <= psu5 && stall5 > psu5 && s01 <= protA && Number.isInteger(stall5 / psu5),
-    `so101-arm: current budget no longer supports the prose (12 V rated ${rated12} vs ${psu12} A, 5 V rated ${rated5} / stall ${stall5} vs ${psu5} A, stall ${s01} A vs ${protA} A protection)`);
+  ok(6 * r18 > psu12 && 6 * r01 <= psu5 && stall5 > psu5 && s01 <= protA && stall5v <= protA && Number.isInteger(stall5 / psu5),
+    `so101-arm: current budget no longer supports the prose (12 V rated ${rated12} vs ${psu12} A, 5 V rated ${rated5} / stall ${stall5} vs ${psu5} A, stall ${s01} A / 5 V estimate ${stall5v} A vs ${protA} A protection)`);
   const times = { en: { 2: "twice", 3: "three times", 4: "four times" }[stall5 / psu5], zh: { 2: "两倍", 3: "三倍", 4: "四倍" }[stall5 / psu5] };
-  const cur = `  rated   6 x ${r18} A = ${rated12} A\n  stall   6 x ${s18} A = ${stall12} A\n` +
-    `5 V follower, six ST-3215-C001 (C001 spec, 5-9 and 5-5, both given at 6 V):\n  rated   6 x ${r01} A = ${rated5} A\n  stall   6 x ${s01.toFixed(1)} A = ${stall5.toFixed(1)} A\n`;
+  const cur = {
+    en: `  rated   6 x ${r18} A = ${rated12} A\n  stall   6 x ${s18} A = ${stall12} A\n` +
+      `5 V follower, six ST-3215-C001 (C001 spec, 5-9 and 5-5, both given at 6 V):\n  rated   6 x ${r01} A = ${rated5} A\n  stall   6 x ${s01.toFixed(1)} A = ${stall5.toFixed(1)} A\n`,
+    zh: `  额定   6 x ${r18} A = ${rated12} A\n  堵转   6 x ${s18} A = ${stall12} A\n` +
+      `5 V 从臂，六个 ST-3215-C001（C001 规格书 5-9 和 5-5，均为 6 V 下的数据）：\n  额定   6 x ${r01} A = ${rated5} A\n  堵转   6 x ${s01.toFixed(1)} A = ${stall5.toFixed(1)} A\n` };
   const teeth = 25, tooth = 360 / teeth, vols = [571.4, 614.6], ender = 571.3, vsum = vols[0] + vols[1], infill = 15, filament = 22;
   // vols: solid volumes of Prusa_/Bambu A1 mini Follower and Leader SO101 plate STLs at a758567 (571.444, 614.587 cm³); Ender follower 571.292
   const quiz = pair + filament;
   const r1 = (hi / lo).toFixed(2), r2 = ((hi / lo) ** 2).toFixed(2);
-  const common = [err, cur, `360° / ${teeth} = ${tooth}°`, `${tooth} × 4096 / 360 = ${(tooth * 4096 / 360).toFixed(2)}`, `${vols[0]} + ${vols[1]} = ${vsum.toFixed(1)} cm³`,
+  const common = [err, `360° / ${teeth} = ${tooth}°`, `${tooth} × 4096 / 360 = ${(tooth * 4096 / 360).toFixed(2)}`, `${vols[0]} + ${vols[1]} = ${vsum.toFixed(1)} cm³`,
     `1.24 g/cm³`, `${(vsum * 1.24 / 1000).toFixed(2)} kg`, `${hi} / ${lo} = ${r1}`, `(${hi}/${lo})² ≈ ${r2}`,
     `${d(pair)} + $${filament.toFixed(2)} = ${d(quiz)}`, `answer={${quiz.toFixed(2)}}`, `| ${d(pair)} + `, `${teeth}T/OD5.9mm`];
-  const per = { en: [bom.en, `the BOM pair (${d(pair)}) and print the parts yourself with about $${filament} of PLA+`, `comes to ${d(pair)} for a leader and follower pair, or ${d(fol)} for one follower`, `the BOM pair costs ${d(pair)} (one follower ${d(fol)})`, `by a factor of about ${Math.round(0.5 / step)}`,
+  const per = { en: [cur.en, bom.en, `the BOM pair (${d(pair)}) and print the parts yourself with about $${filament} of PLA+`, `comes to ${d(pair)} for a leader and follower pair, or ${d(fol)} for one follower`, `the BOM pair costs ${d(pair)} (one follower ${d(fol)})`, `by a factor of about ${Math.round(0.5 / step)}`,
       `The follower uses 1/${hi} on all six joints.`,
       `Compare the wrist's 1/${lo} with the follower's 1/${hi}: ${hi} / ${lo} = ${r1}, so the follower's ${hi}:1 joint feels about ${r1} times more friction, and its rotor inertia feels (${hi}/${lo})² ≈ ${r2} times larger`,
       `while the shoulder_lift keeps the 1/${leader.shoulder_lift} ratio`,
@@ -966,15 +1037,21 @@ for (const f of existsSync(dataDir) ? readdirSync(dataDir).filter((f) => f.endsW
       `Mixing the leader's 1/${lo} servos into the follower`,
       `The README asks for at least ${psu12} A at 12 V; six C018 servos at their rated current already draw ${rated12} A, so choose a 12 V supply rated above ${rated12} A.`,
       `a servo whose running current stays above ${protA} A for ${protS} s switches its output off and enters overcurrent protection (§7-11)`,
-      `so the ${rated5} A total is an estimate; it sits inside the ${psu5} A rating of the 5 V supply the BOM links (Facmogu AL-0540, 5 V ${psu5} A).`,
+      `Feetech gives the C001's rated current at 6 V, not at 5 V, so the ${rated5} A total is an estimate; it sits inside the ${psu5} A rating of the 5 V supply the BOM links (Facmogu AL-0540, 5 V ${psu5} A).`,
       `The C001 stalls at ${s01} A at 6 V and ${s01b} A at 7.4 V (§5-5), so six blocked joints draw about 6 × ${s01} A = ${stall5} A, an estimate from the 6 V figure and ${times.en} the AL-0540's ${psu5} A.`,
-      `at 5 V each C001 stalls at no more than about ${s01} A, so the "above ${protA} A for ${protS} s" condition may never be met`,
-      `a servo stalled at more than ${olPct} % of its stall value for ${protS} s enters protection (§7-11)`,
+      `Nor can you count on the overcurrent protection here: at 5 V each C001 should stall at ≤ 5 V / ${rTerm} Ω ≈ ${stall5v.toFixed(1)} A (estimated from §5-10, the ${rTerm} Ω terminal resistance; Feetech gives no 5 V figure).`,
+      `As an upper bound this agrees with the specification: at 6 V the ${s01} A stall current of §5-5 is below 6 V / ${rTerm} Ω = ${(6 / rTerm).toFixed(1)} A. So the "above ${protA} A for ${protS} s" condition may never be met.`,
+      `The item that does apply is the Over Load protection next to it in the same table: a servo stalled at more than ${olPct} % of its stall value for ${protS} s enters protection (§7-11).`,
+      `Both thresholds, ${olPct} % for ${protS} s and ${protA} A for ${protS} s, are factory defaults, and the gripper is the exception: when LeRobot configures an SO follower it writes Max_Torque_Limit ${lr.torque}, Protection_Current ${lr.cur} and Overload_Torque ${lr.ol} to the gripper servo only ([so_follower.py, lines ${lr.lines}, LeRobot ${lr.tag}](${lr.url})).`,
+      `Per LeRobot's code comments these are ${lr.pct[0]} % of the maximum torque, ${lr.pct[1]} % of the maximum current and ${lr.pct[2]} % torque when overloaded; the Feetech specification has no memory table, so the units are not confirmed.`,
+      `The other five joints keep the factory defaults, and the ${stall5} A stall total stays a conservative upper bound.`,
+      `| Robonine SO-ARM101 Black & White kit | $${robo} (store page, October 2026) |`, `you pay more than sourcing the BOM |`,
+      `M2×6 and M3×6 look similar in a pile`, `"the 1/${hi} gearing is too slow"`,
       `Feetech specifies the output shaft as ${teeth}T/OD5.9mm, a ${teeth}-tooth spline 5.9 mm across, and the horn screw as M3×6 (C001 and C018 specifications, §6-9 and §6-13)`,
       `Because the spline has ${teeth} teeth`, `Printed parts attach to the horns with M3×6 screws.`, `the top one takes an M3×6 screw`,
       `solid volumes of ${vols[0]} cm³ and ${vols[1]} cm³`, `the Ender follower plate gives ${ender} cm³`,
       `PLA+, ${infill} % infill, 0.2 mm layers and a 0.4 mm nozzle`, `At ${infill} % infill most`, `PLA+, ${infill} % infill, 0.2 mm layers, 0.4 mm nozzle.`, `at ${infill} % infill and 0.2 mm layers`],
-    zh: [bom.zh, `主从一对（${d(pair)}），再用约 $${filament} 的 PLA+`, `主从一对 ${d(pair)}，单个从臂 ${d(fol)}`, `物料清单一对 ${d(pair)}（单从臂 ${d(fol)}）`, `大约是编码器一步的 ${Math.round(0.5 / step)} 倍`,
+    zh: [cur.zh, bom.zh, `主从一对（${d(pair)}），再用约 $${filament} 的 PLA+`, `主从一对 ${d(pair)}，单个从臂 ${d(fol)}`, `物料清单一对 ${d(pair)}（单从臂 ${d(fol)}）`, `大约是编码器一步的 ${Math.round(0.5 / step)} 倍`,
       `从臂 6 个关节全是 1/${hi}；`,
       `拿腕部的 1/${lo} 和从臂的 1/${hi} 比：${hi} / ${lo} = ${r1}，所以从臂的 1/${hi} 关节摩擦感约为 ${r1} 倍，转子惯量感为 (${hi}/${lo})² ≈ ${r2} 倍`,
       `shoulder_lift 保留 1/${leader.shoulder_lift}`,
@@ -983,10 +1060,16 @@ for (const f of existsSync(dataDir) ? readdirSync(dataDir).filter((f) => f.endsW
       `把主臂 1/${lo} 的舵机装进从臂`,
       `README 要求 12 V 电源至少 ${psu12} A；六个 C018 在额定电流下已经要 ${rated12} A，所以 12 V 电源要选额定值高于 ${rated12} A 的。`,
       `运行电流大于 ${protA} A 并持续 ${protS} s 后，舵机关闭输出并进入过流保护（§7-11）`,
-      `所以 ${rated5} A 的总数是估计值；它在 BOM 所链接 5 V 电源（Facmogu AL-0540，5 V ${psu5} A）的 ${psu5} A 额定值之内。`,
+      `飞特给出的 C001 额定电流是 6 V 下的，不是 5 V 下的，所以 ${rated5} A 的总数是估计值；它在 BOM 所链接 5 V 电源（Facmogu AL-0540，5 V ${psu5} A）的 ${psu5} A 额定值之内。`,
       `C001 的堵转电流在 6 V 下是 ${s01} A、7.4 V 下是 ${s01b} A（§5-5），所以六个关节同时卡住约需 6 × ${s01} A = ${stall5} A（按 6 V 数据估计），是 AL-0540 的 ${psu5} A 的${times.zh}。`,
-      `5 V 下每个 C001 的堵转电流不超过约 ${s01} A，“大于 ${protA} A 并持续 ${protS} s”的条件可能根本不会满足`,
-      `堵转超过堵转值的 ${olPct} % 并持续 ${protS} s 后进入保护（§7-11）`,
+      `这里也不能指望过流保护：5 V 下每个 C001 的堵转电流 ≤ 5 V / ${rTerm} Ω ≈ ${stall5v.toFixed(1)} A（由 §5-10 的端子电阻 ${rTerm} Ω 估算，规格书未给 5 V 数据）。`,
+      `作为上限，这与规格书一致：6 V 下 §5-5 的堵转电流 ${s01} A 小于 6 V / ${rTerm} Ω = ${(6 / rTerm).toFixed(1)} A。所以“大于 ${protA} A 并持续 ${protS} s”的条件可能根本不会满足。`,
+      `真正起作用的是同一张表里紧挨着的过载（Over Load）保护：堵转超过堵转值的 ${olPct} % 并持续 ${protS} s 后进入保护（§7-11）。`,
+      `${olPct} % / ${protS} s 和 ${protA} A / ${protS} s 这两个门限都是出厂默认值，夹爪是例外：LeRobot 配置 SO 从臂时，只给夹爪舵机写入 Max_Torque_Limit ${lr.torque}、Protection_Current ${lr.cur} 和 Overload_Torque ${lr.ol}（[so_follower.py 第 ${lr.lines} 行，LeRobot ${lr.tag}](${lr.url})）。`,
+      `按 LeRobot 代码注释，它们分别是最大扭矩的 ${lr.pct[0]} %、最大电流的 ${lr.pct[1]} % 和过载时 ${lr.pct[2]} % 扭矩；飞特规格书里没有存储表，所以单位未经确认。`,
+      `其余五个关节保持出厂默认值，${stall5} A 的堵转总数仍是一个保守的上限。`,
+      `| Robonine SO-ARM101 黑白套件 | $${robo}（2026 年 10 月商店页面） |`, `而且比按 BOM 自购更贵 |`,
+      `M2×6 和 M3×6 混在一堆里`, `"${`1/${hi}`} 的减速比太慢"`,
       `飞特规定输出轴为 ${teeth}T/OD5.9mm，即 ${teeth} 齿、外径 5.9 mm 的花键，舵机盘螺丝为 M3×6（C001 与 C018 规格，§6-9 和 §6-13）`,
       `花键有 ${teeth} 个齿`, `打印件用 M3×6 螺丝固定在舵机盘上。`, `上面那个用 M3×6 螺丝`,
       `实体体积分别是 ${vols[0]} cm³ 和 ${vols[1]} cm³`, `Ender 从臂整板为 ${ender} cm³`,
@@ -996,12 +1079,28 @@ for (const f of existsSync(dataDir) ? readdirSync(dataDir).filter((f) => f.endsW
     for (const q of [...common, ...per[lang]]) ok(text.includes(q), `so101-arm ${lang}: expected ${JSON.stringify(q)} (recomputed from the README BOM / Feetech specs)`);
     const rows = [...text.matchAll(/^\| (\w+) \| 1\/(\d+) \|$/gm)].map((m) => [m[1], Number(m[2])]);
     ok(JSON.stringify(rows) === JSON.stringify(Object.entries(leader)), `so101-arm ${lang}: leader ratio table ${JSON.stringify(rows)} != ${JSON.stringify(leader)}`);
-    ok(!/\d% /.test(text), `so101-arm ${lang}: write percentages with a space ("${infill} %")`);
+    ok(!/\d%/.test(text), `so101-arm ${lang}: write percentages with a space ("${infill} %")`);
+    // every date: docs check, price note, Robonine row and the store-price note
+    const dates = lang === "en"
+      ? [`v0.6.x, checked in ${roboDate.en}.`, `verified figures from ${priceDate.en}, except Robonine, which is the store page in ${roboDate.en};`, `$${robo} (store page, ${roboDate.en})`, `(${priceDate.en}; Robonine ${roboDate.en})`]
+      : [`（v0.6.x，${roboDate.zh}核对）`, `价格是课程在 ${priceDate.zh}核实的数字，Robonine 例外，是 ${roboDate.zh}的商店页面；`, `$${robo}（${roboDate.zh}商店页面）`, `（${priceDate.zh}；Robonine 为 ${roboDate.zh}）`];
+    for (const q of dates) ok(text.includes(q), `so101-arm ${lang}: expected date string ${JSON.stringify(q)}`);
+    ok(text.split(roboDate[lang]).length - 1 === 4, `so101-arm ${lang}: expected "${roboDate[lang]}" exactly 4 times`);
     // every quoted friction / inertia ratio (the backdrive paragraph, its prose repeat and the summary) must be the computed one
     const got = [...text.matchAll(/345 \/ 147 = ([\d.]+)|(?:约为 |about )([\d.]+) (?:times more friction|倍)|\(345\/147\)² ≈ ([\d.]+)/g)];
     ok(got.length >= 5, `so101-arm ${lang}: expected at least 5 quoted gear-ratio results, found ${got.length}`);
     for (const m of got) ok((m[1] ?? m[2] ?? r1) === r1 && (m[3] ?? r2) === r2, `so101-arm ${lang}: ratio quote "${m[0]}" != 345 / 147 = ${r1}, (345/147)² = ${r2}`);
   }
+  const res = readFileSync(join(root, "src/lib/resources.ts"), "utf8");
+  ok(robo > quiz, `so101-arm: Robonine $${robo} is no longer more than the BOM pair + filament ${d(quiz)} ("you pay more than sourcing the BOM")`);
+  for (const q of [`≈ $${robo} (store page, Oct 2026)`, `约 $${robo}（2026 年 10 月页面）`]) ok(res.includes(q), `resources.ts robonine-so101: expected ${JSON.stringify(q)} (same price as the lesson table)`);
+  // the so101 table's store prices are dated September 2026 in resources.ts too (Seeed Pro, Seeed printed parts, WowRobo, Hiwonder xArm 1S)
+  for (const p of ["277.99", "30.99", "325.99 / $419.99 / $489.99", "199.99"])
+    for (const q of [`≈ $${p} (course-verified, Sep 2026)`, `约 $${p}（课程 ${priceDate.zh}核实）`]) ok(res.includes(q), `resources.ts: expected dated price ${JSON.stringify(q)}`);
+  ok(!res.includes("(course-verified)") && !res.includes("（课程核实）"), `resources.ts: every course-verified price needs a date`);
+  // the M3 printer entries (fdm-printing table) carry the same September 2026 date
+  for (const p of ["199", "219.99", "299.99", "369", "799"])
+    for (const q of [`≈ $${p} (course, checked Sept 2026)`, `约 $${p}（课程 ${priceDate.zh}核实）`]) ok(res.includes(q), `resources.ts: expected dated printer price ${JSON.stringify(q)}`);
   console.log(`calc  so101-arm: BOM pair ${d(pair)} and follower ${d(fol)} rebuilt from line items, q1 ${d(quiz)}, error budget ${(r * step * rad).toFixed(2)} / ${(r * 0.5 * rad).toFixed(2)} mm, leader ratios ${Object.values(leader).join('/')} -> pair ${pairServos.join('/')}, current ${rated12} / ${stall12} / ${rated5} / ${stall5} A, horn ${tooth}° = ${(tooth * 4096 / 360).toFixed(2)} steps, filament bound ${(vsum * 1.24 / 1000).toFixed(2)} kg, bound in en/zh`);
 }
 

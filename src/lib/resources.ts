@@ -932,7 +932,7 @@ export const resources: Record<string, Resource> = {
     title: { zh: "Seeed Studio SO-ARM101 Pro 舵机套件", en: "Seeed Studio SO-ARM101 Pro servo kit" },
     author: "Seeed Studio",
     kind: "hardware",
-    cost: { zh: "约 $277.99（课程核实）", en: "≈ $277.99 (course-verified)" },
+    cost: { zh: "约 $277.99（课程 2026 年 9 月核实）", en: "≈ $277.99 (course-verified, Sep 2026)" },
     summary: {
       zh: "两只机械臂的舵机和控制板，不含打印件。有打印机的话，这是最省心的买法。",
       en: "Servos and control boards for both arms, without printed parts; the simplest purchase if you own a printer.",
@@ -945,7 +945,7 @@ export const resources: Record<string, Resource> = {
     title: { zh: "Seeed Studio SO-ARM101 打印件套装", en: "Seeed Studio SO-ARM101 printed parts set" },
     author: "Seeed Studio",
     kind: "hardware",
-    cost: { zh: "约 $30.99（课程核实）", en: "≈ $30.99 (course-verified)" },
+    cost: { zh: "约 $30.99（课程 2026 年 9 月核实）", en: "≈ $30.99 (course-verified, Sep 2026)" },
     summary: {
       zh: "已经打印好的整套结构件，适合没有打印机的人。",
       en: "The complete set of printed structural parts, for when you have no printer.",
@@ -958,7 +958,7 @@ export const resources: Record<string, Resource> = {
     title: { zh: "Robonine SO-ARM101 完整套件", en: "Robonine SO-ARM101 complete kit" },
     author: "Robonine",
     kind: "hardware",
-    cost: { zh: "约 $349（2026 年 10 月页面）", en: "≈ $349 (store page, Oct 2026)" },
+    cost: { zh: "约 $329（2026 年 10 月页面）", en: "≈ $329 (store page, Oct 2026)" },
     summary: {
       zh: "一盒装齐主从两臂（打印件，需自己组装）、12 个 STS3215 舵机、驱动板、电源和摄像头；运费结账时计算。",
       en: "Leader and follower arms (printed parts, unassembled), 12 STS3215 servos, driver boards, power adapters and a camera in one box; delivery priced at checkout.",
@@ -971,7 +971,7 @@ export const resources: Record<string, Resource> = {
     title: { zh: "WowRobo SO-ARM101 套件（OpenELAB）", en: "WowRobo SO-ARM101 kits (via OpenELAB)" },
     author: "WowRobo · sold by OpenELAB",
     kind: "hardware",
-    cost: { zh: "约 $325.99 / $419.99 / $489.99（课程核实）", en: "≈ $325.99 / $419.99 / $489.99 (course-verified)" },
+    cost: { zh: "约 $325.99 / $419.99 / $489.99（课程 2026 年 9 月核实）", en: "≈ $325.99 / $419.99 / $489.99 (course-verified, Sep 2026)" },
     summary: {
       zh: "三个档次：打印件加舵机、未组装的完整套件、已组装好的成品。",
       en: "Three tiers: printed parts plus servos, an unassembled full kit, or fully assembled.",
@@ -997,7 +997,7 @@ export const resources: Record<string, Resource> = {
     title: { zh: "Hiwonder xArm 1S", en: "Hiwonder xArm 1S" },
     author: "Hiwonder",
     kind: "hardware",
-    cost: { zh: "约 $199.99（课程核实）", en: "≈ $199.99 (course-verified)" },
+    cost: { zh: "约 $199.99（课程 2026 年 9 月核实）", en: "≈ $199.99 (course-verified, Sep 2026)" },
     summary: {
       zh: "能回读位置和电压的智能总线舵机机械臂里，最便宜的一款。",
       en: "The cheapest arm with intelligent bus servos that report position and voltage.",

@@ -247,7 +247,7 @@ volume: 5.72 cm^3, solid mass at 1.21 g/cm^3: 6.9 g
 
 TPU 是柔性耗材。本课用 95A（<Term id="shore-hardness">邵氏硬度</Term> 95A）：SO-ARM100 项目为它的柔性夹爪手指指定的就是这个牌号（[SO-ARM100 README](https://github.com/TheRobotStudio/SO-ARM100#6-compliant-gripper)），Polymaker 的 PolyFlex TPU95 是一种公开了数据表的 95A 耗材。邵氏 A 硬度用硬度计测量（[ASTM D2240-15(2021)](https://www.astm.org/d2240-15r21.html)）：把一个弹簧加载的压针压在材料上；标准规定 A 型压针伸出 2.50 mm，压针每多压入 0.025 mm，读数就少 1（§5.1.1.5 与 §5.1.1.8），所以 100 表示完全压不进去，0 表示压进满行程 2.50 mm。95A 时压针只压进约 5 × 0.025 = 0.125 mm；数字越小，材料越软。Prusa 的柔性耗材指南是这样说的：“the softer the filament is, the harder it is to print”（耗材越软越难打印；[Prusa 知识库，Flexible materials](https://help.prusa3d.com/article/flexible-materials_2057)），所以先从 95A 开始，不要一上来就用更软的牌号。柔性耗材和 PLA 表现不同。下面每一项设置都注明了出处和它要防止的故障。两份资料给出的数字不同时，以你买的那款耗材的厂商为准；Prusa 的数字是针对 Prusa 打印机写的。
 
-- **慢速打印**。 Prusa 给出柔性耗材的典型速度是 20 mm/s，推荐的最高速度在 30–40 mm/s 之间，因为速度再高就有“堵住喷嘴或让耗材缠进齿轮”的风险。Polymaker 给 PolyFlex TPU95 的速度在数据表里是 30–50 mm/s、在产品页上是 20–40 mm/s（[TDS V5.5](https://polymaker.com/wp-content/uploads/TDS_Polymaker_PolyFlex-TPU95_V5.5_2025_12_29_EN.pdf)）。
+- **慢速打印**。 Prusa 给出柔性耗材的典型速度是 20 mm/s，推荐的最高速度在 30–40 mm/s 之间，因为速度再高就有“堵住喷嘴或让耗材缠进齿轮”的风险。Polymaker 给 PolyFlex TPU95 的速度在数据表里是 30–50 mm/s（[TDS V5.5](https://polymaker.com/wp-content/uploads/TDS_Polymaker_PolyFlex-TPU95_V5.5_2025_12_29_EN.pdf)）、在产品页上是 20–40 mm/s（[产品页](https://shop.polymaker.com/products/polyflex-tpu95)）。
 - **温度不要超出耗材厂商给的区间**。 Prusa 给柔性耗材的通用区间是喷嘴 230–245 °C、热床 60–75 °C；Polymaker 给 PolyFlex TPU95 的是 210–230 °C 和 25–60 °C。区间随品牌和硬度而不同，所以以厂商自己的数字为准。
 - **用近程挤出（direct-drive）**。 Polymaker：“Direct extruder with a gear ratio mechanical advantage highly recommended”（强烈推荐带齿轮减速的近程挤出机），并且“any large gap between your extruder and hotend will cause printing issues”（挤出机和热端之间距离一大就会出问题；[产品页](https://shop.polymaker.com/products/polyflex-tpu95)）。Prusa 补充：把压紧轮调松，让齿轮只是轻轻推料，否则“the filament might get entangled in the gears”（耗材可能缠进齿轮）。原因是失稳。挤出机像推一根柱子那样推耗材，细长柱的欧拉公式给出它向侧面弯出的载荷 P = π² × E × I / L²，L 是没有支撑的长度。软耗材的 E 小，P 本来就低；公式还说明，无支撑长度加倍，P 变为 1/4，长度变为 10 倍，P 变为 1/100。这里的长度只是示意，不是在哪台打印机上测的：要点是从齿轮到喷嘴的路径短而有导向，软料才不会折弯。
 - **尽量不用或极少回抽**。 Prusa：“With lower retractions, there is a lower risk of clogging the nozzle or filament tangling”（回抽越小，堵喷嘴或缠料的风险越低），并说“alright to turn the retractions off completely”（可以完全关掉回抽）。如果要回抽，Polymaker 给的是近程挤出 3 mm、远程（Bowden）6 mm（[产品页](https://shop.polymaker.com/products/polyflex-tpu95)）。
@@ -275,7 +275,7 @@ TPU 是柔性耗材。本课用 95A（<Term id="shore-hardness">邵氏硬度</Te
 
 上机之前先做两项检查。第一，夹爪还能完全闭合、两根手指和夹爪本体不会互相撞上吗？手指长了几毫米，就会在行程中段打在一起。第二，张开宽度还放得下你最大的物体吗？把夹爪完全张开时的间隙量出来，和你打算抓的最宽的东西比一比。
 
-夹爪是 ID 6 的舵机，它通过位置环驱动输出：你发一个目标位置，舵机就一直推，直到编码器报告到位。当手指夹住物体时，舵机依然朝目标推，最终停在一个<Term id="steady-state-error">稳态误差</Term>上——这正是第 4 课《PID 与控制》里的稳态行为。这里有个有利的副作用：软的 TPU 手指会变形，从而吸收一部分力，对物体更温柔。但也别让舵机长时间顶死在硬限位上，它会持续吃电流、发热。遥操作时，物体一放下就把主臂的夹爪松开，否则从臂的夹爪会在没有负载时仍然顶着位置环的目标持续出力。
+夹爪是 ID 6 的舵机，它通过位置环驱动输出：你发一个目标位置，舵机就一直推，直到编码器报告到位。当手指夹住物体时，舵机依然朝目标推，最终停在一个<Term id="steady-state-error">稳态误差</Term>上——这正是第 4 课《PID 与控制》里的稳态行为。这里有个有利的副作用：软的 TPU 手指会变形，从而吸收一部分力，对物体更温柔。但也别让舵机长时间顶死在硬限位上，它会持续吃电流、发热。LeRobot 已经限制了夹爪的扭矩和电流（它给这个舵机写入 Max_Torque_Limit 500、Protection_Current 250 和 Overload_Torque 25，按代码注释分别是 50 %、50 % 和 25 %；[so_follower.py 第 169–171 行，LeRobot v0.6.1](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/so_follower.py#L169-L171)），但这只能减轻堵转，仍然不要让它长时间堵转。遥操作时，物体一放下就把主臂的夹爪松开，否则从臂的夹爪会在没有负载时仍然顶着位置环的目标持续出力。
 
 <Quiz id="q5" question="为什么要从 SO-101 的 STEP 文件开始，而不是它的 STL？" options={["STL 文件更大", "STEP 保留可以测量和编辑的精确曲面与尺寸；STL 只有三角形", "STL 不能用 TPU 打印", "STEP 文件里已经包含你的手指"]} answer={1} explanation="STEP 是精确、可编辑的几何，可以导入并量出安装面和孔位；STL 是三角形网格，没有能标注的精确几何。两者都能切片打印，这不是区别所在。" />
 
@@ -339,7 +339,7 @@ TPU 是柔性耗材。本课用 95A（<Term id="shore-hardness">邵氏硬度</Te
 - 直接用网上表格里的 μ，而不是在你自己的手指材料和物体上测。
 - 让手指的弯曲载荷横跨层线摆放。
 - 不改 `mount_pitch = 10` 就打印：它只是占位值，不是你夹爪的实测尺寸。
-- 让夹爪舵机长时间顶着物体或硬限位堵转，它会持续耗电、发热。
+- 让夹爪舵机长时间顶着物体或硬限位堵转，它会持续耗电、发热。LeRobot 给夹爪设的扭矩和电流限制只能减轻这种情况，不能让长时间堵转变得安全。
 
 **自检**
 
