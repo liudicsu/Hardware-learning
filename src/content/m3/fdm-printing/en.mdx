@@ -84,13 +84,68 @@ The table compresses a few mechanisms. Knowing them lets you reason about a mate
 
 <Quiz id="q2" question="A motor mount sits against a motor that reaches 70 °C. Which material?" options={["PLA+", "TPU", "ABS or ASA", "PLA-CF with a brass nozzle"]} answer={2} explanation="PLA softens around 55–60 °C, so it is the wrong choice next to a 70 °C motor. ABS and ASA are the course's pick for parts near hot motors. PETG is a reasonable second choice — its glass transition is around 80 °C, close to 70 °C, so check the margin. TPU is flexible rather than heat-resistant, and carbon fibre does not fix PLA's heat limit; it also needs a hardened nozzle." />
 
+## Your first print
+
+With a printer and a filament chosen, the next step is one successful print. It tests the machine before you spend time on calibration, and it is the routine you will repeat for every part. Read the safety rules first; they apply to every printer in the shortlist.
+
+<Callout type="danger" title="Hot surfaces, molten plastic, fumes">
+- **The nozzle and the bed cause burns.** The Bambu Lab A1 mini's hot end reaches up to 300 °C and its bed up to 80 °C, and Prusa's CORE One handbook warns that the print plate and heated bed may exceed 100 °C. Both stay hot after the print ends: wait until the screen shows that they have cooled, and keep your hands out of the print area while the printer is running.
+- **Clear a clog only as the manual describes.** Some unclogging steps are done with the printer switched off and the nozzle fully cooled, others with the nozzle heated above the filament's printing temperature; the manual or the manufacturer's wiki says which, and which tool to use, such as the pin or needle supplied with the printer. When the nozzle is hot, wear heat-resistant gloves and keep your face away from it: Bambu Lab warns that pressure behind a clog can make molten filament spray out suddenly.
+- **Do not leave a running printer unattended.** Thermal runaway protection is a firmware check that switches the heaters off when the measured temperature stops following the set value, for example when a temperature sensor comes loose and the heater would otherwise keep heating. It reduces the risk but does not remove it: Prusa's handbook states that misuse or an unexpected component failure can still pose a fire hazard, and tells you not to leave the printer unattended while it is on. Keep flammable material away from the printer.
+- **Ventilate.** Printing releases ultrafine particles and volatile organic compounds (VOCs). UL Chemical Insights reports that emissions depend on the printer, the material, the operating conditions and the ventilation; PLA generally emits less, while ABS and nylon, printed at higher temperatures, release significantly more. Place the printer where the room is well ventilated or where an exhaust vents to the outside, and print at the lowest nozzle temperature that gives good quality.
+- **Use the scraper away from your hand.** Let the plate cool first; many parts come off when you remove the flexible plate and bend it. If a part or a remnant stays, use the scraper or plastic spatula supplied with the printer, and push the blade away from your other hand and your body. Do not pick at remnants with your fingernails, and do not use a sharp metal tool on a sheet whose manual forbids it, as Prusa's does.
+- **The insert iron is a hot soldering iron.** Setting heat-set inserts (later in this lesson) means a tip at about 225 °C or more. Return the iron to its stand between inserts, press the insert home with a tool rather than a finger, and switch the iron off when you finish.
+</Callout>
+
+### From CAD to G-code
+
+Every print passes through the same chain:
+
+```text
+CAD model → STL or 3MF mesh → slicer → G-code → printer
+```
+
+Lesson 1 covered the first two steps and the difference between STL and 3MF. A <Term id="slicer">slicer</Term> such as OrcaSlicer, Bambu Studio or PrusaSlicer cuts the mesh into layers, plans the walls, infill, supports and travel moves, and writes G-code: a plain-text list of machine commands (move to a position, set a temperature, feed a length of filament) that the printer's firmware executes line by line. G-code contains absolute temperatures, speeds and positions for one machine, so select the printer profile that matches your printer and the filament profile that matches the spool before you slice, and do not send a file sliced for one printer model to another.
+
+### Set up and run the first print
+
+1. **Place the printer** on a stable table, with room for the bed and the print head to move through their full travel, and away from open windows and air-conditioning outlets, whose draughts cool the part unevenly.
+2. **Run the first-start routine.** Current printers run a self-test or an initial calibration the first time they are switched on; on the A1 mini, vibration and noise during this calibration are normal. Let it finish before you print.
+3. **Load the filament** with the printer's load function: it heats the nozzle to the filament's temperature, drives the filament into the extruder and purges until clean plastic of the new colour comes out. Cut the filament end at an angle to a sharp tip first, so it enters the extruder cleanly. To change material, use the unload function, which heats the nozzle before it pulls the filament back; filament cannot be pulled out cleanly while the plastic in the nozzle is solid.
+4. **Clean the plate.** Grease from fingers is enough to stop a first layer from sticking. For its sheets, Prusa recommends isopropyl alcohol (IPA) of 90 % or more on a paper towel, and warns against products that contain IPA only as one ingredient, such as hand sanitiser, because their additives can affect the surface. For its textured PEI plate, Bambu Lab recommends dish soap and warm water, because alcohol may spread oil across the textured surface instead of removing it. Do not use acetone on a textured or satin sheet, dry the plate completely, and from then on hold it by its edges.
+5. **Level the bed and set the Z offset.** These are two separate settings. Bed leveling measures the height of the bed at a grid of points, so the printer can follow the bed's shape; Bambu Lab recommends turning on "Bed leveling" when you start a print, and Prusa printers run mesh bed leveling before each print. The Z offset is the gap between the nozzle tip and the bed during the first layer. If it is too large, the filament is laid on top of the bed and does not stick; if it is too small, the plastic cannot flow out, which gives a rough layer and can clog the nozzle. Printers with automatic calibration measure the offset themselves; on others you adjust it while the first layer prints, which Prusa calls Live Adjust Z.
+6. **Print the manufacturer's test model first.** The A1 mini comes with preloaded models on its SD card, and Prusa supplies sliced sample files on a USB drive. The manufacturer prepared these files for that printer, so they test the machine on its own. Prusa's handbook draws the conclusion: if the sample files print correctly and your own model fails, the problem is most likely in your slicing.
+7. **Watch the first layer** from start to finish, and stop the print if it fails. The table below shows how to judge it.
+
+### Judging the first layer
+
+The first layer decides whether the rest of the print can succeed, and it is the cheapest point at which to stop. Prusa's first layer calibration guide describes three cases. Judge them by eye, because the correct offset value differs between printers and between print sheets.
+
+| What you see | What it means | What to do |
+| --- | --- | --- |
+| Rounded lines with gaps between them; lines that drag or come loose | Nozzle too high (Z offset too large) | Move the nozzle closer in small steps, or rerun the printer's calibration |
+| Lines squished flat with ridges between them; edges curling up; areas so thin you can see through them | Nozzle too low (Z offset too small); in the extreme it clogs the nozzle | Raise the nozzle in small steps |
+| An even surface with no gaps and no ridges | Correct | Let the print continue, and note the value in your print log |
+
+If the first layer does not stick although the offset looks correct, clean the plate again before you change anything else. The troubleshooting table later in this lesson covers the other causes.
+
 ## Calibrate, then measure
 
-A printer that assembles and homes is not calibrated. Dimensional accuracy is a chain: extruder steps, flow, temperature, pressure advance, retraction, cooling and shrinkage all affect the final size. OrcaSlicer's calibration wiki gives a recommended running order: temperature → flow rate → pressure advance → retraction → <Term id="tolerance">tolerance</Term>. The order is not arbitrary. Each test assumes the earlier ones are right. A wrong temperature changes how the plastic flows, so a flow test run at the wrong temperature gives a wrong number. Wrong flow makes every wall thicker and every hole smaller, which corrupts a tolerance test. Pressure advance affects corners and seams; retraction affects strings and surface finish. Tolerance comes last because it depends on all of them.
+A printer that assembles and homes is not calibrated. Dimensional accuracy is a chain: extruder steps, flow, temperature, pressure advance, retraction, cooling and shrinkage all affect the final size. OrcaSlicer's calibration guide assumes the extruder itself is already calibrated in the firmware (E-steps or rotation distance), and notes that most modern printers ship with this set correctly. Its recommended running order is temperature → maximum volumetric speed → <Term id="pressure-advance">pressure advance</Term> → flow ratio → <Term id="retraction">retraction</Term>, with <Term id="tolerance">tolerance</Term> last. The order is not arbitrary. Each test assumes the earlier ones are right. Temperature sets the viscosity of the plastic, so with the wrong temperature every later test measures the wrong material behaviour. Maximum volumetric speed is the largest volume of plastic per second that the hot end can melt with this filament; it sets a safe limit, so the later tests do not under-extrude or clog the nozzle. Pressure advance comes before flow because it is the value most often wrong, or never calibrated at all, while the flow ratio in most filament profiles is already close; if the flow test changes the flow ratio a lot, run a quick pressure advance test again. Retraction follows both, because both change the pressure in the nozzle. Wrong flow makes every wall thicker and every hole smaller, which corrupts a tolerance test; tolerance comes last because it depends on all of them. Many older guides put flow before pressure advance. The OrcaSlicer guide notes that the two affect each other only slightly, so either order works as long as you rerun pressure advance after a large flow change.
 
 Teaching Tech's interactive calibration covers the same ground for any printer and generates the test prints for you. Use one of the two; do not invent your own sequence.
 
 <Resource id="tolerance-gauge" />
+
+### Flow, pressure advance and retraction
+
+These three settings appear in every slicer and in most troubleshooting advice, so learn what each one does before you run its test. OrcaSlicer generates each test print from its **Calibration** menu. Run the tests with the printer, filament and nozzle you will actually use, and save each result in the filament profile.
+
+**Flow ratio** scales every extrusion in the G-code proportionally: lowering it feeds less filament than the slicer calculated, raising it feeds more. Too low, and the printer under-extrudes: gaps between lines and weak bonds between layers. Too high, and it over-extrudes: rough surfaces and parts larger than designed. OrcaSlicer recommends keeping it between 0.95 and 1.05. Its recommended test, Archimedean chords with the YOLO method, prints 11 blocks with flow modifiers from −0.05 to +0.05 in steps of 0.01. Pick the block with the smoothest top surface and no gaps between lines, and add its modifier to the old value: in the guide's example, 0.98 + 0.01 = 0.99. On Bambu Lab printers, do not also tick the printer's own "Flow calibration" option when you send the test.
+
+**<Term id="pressure-advance">Pressure advance</Term>**, called Linear Advance in Marlin firmware, compensates for the delay between the extruder motor and the plastic leaving the nozzle. Molten plastic is compressed inside the hot end, so when the print head speeds up, the pressure, and with it the flow, builds up late; when the head slows down for a corner, the remaining pressure keeps pushing plastic out. Without compensation, lines start thin and end in a blob, and corners bulge. Pressure advance feeds extra filament as the head accelerates and less as it decelerates. OrcaSlicer offers three tests, tower, pattern and line, and each comes in one version for <Term id="direct-drive">direct-drive</Term> extruders and one for <Term id="bowden">Bowden</Term> extruders; choose the version that matches your printer. The tower test does not depend on the quality of the first layer, which makes it the safest choice on a new printer; the line test does. In the tower, the value rises by one step per millimetre of height. Find the height with the sharpest corners and compute start + step × height: in the guide's example, 0 + 0.002 × 8 = 0.016. On a Marlin printer, Linear Advance must be enabled in the firmware (M900) before the test means anything.
+
+**<Term id="retraction">Retraction</Term>** pulls the filament back a short distance before a travel move, so the nozzle does not ooze and draw strings across the gap, and pushes it forward again before printing resumes. The OrcaSlicer guide notes that the default retraction values usually work well; if you calibrate them, do it after pressure advance and flow ratio, because both change the pressure in the nozzle. Too short, and strings remain; too long, and the extra movement can cause clogs or under-extrusion at the start of the next line. The retraction tower prints a notch at each length. Its defaults, 0 to 2 mm in steps of 0.1 mm, suit most direct-drive extruders; for a Bowden extruder the guide suggests 1 to 6 mm in steps of 0.2 mm. Choose the shortest length that gives a clean section: measure that section's height and find the matching `Calib_Retraction_tower` comment in the G-code preview. If the tower is clean from the bottom, 0.2 to 0.4 mm is enough. If it strings all the way to the top, dry the filament and check that the nozzle is installed without leaks before you add more retraction.
 
 ### The tolerance gauge
 
@@ -116,6 +171,18 @@ This is why you measure the printed part, not just the CAD model. Keep a print l
 
 <Quiz id="q3" question="Your sliding clearance is 0.2 mm per side. What diameter do you draw for the hole of a 5 mm shaft that must turn freely (mm)?" answer={5.4} unit="mm" explanation="The gap appears on both sides, so the hole diameter is 5 + 2 × 0.2 = 5.4 mm. Drawing 5.2 mm leaves only 0.1 mm per side." />
 
+### When a print fails
+
+Most failed prints come down to a few causes. Find the symptom in the left column and work through the checks in order; change one setting at a time and record each change in your print log. The causes and checks follow Prusa's knowledge base articles on each problem.
+
+| Symptom | Likely cause | Check and fix |
+| --- | --- | --- |
+| **Warping**: corners lift off the bed, the bottom of the part curves | The plastic shrinks as it cools from nozzle temperature to room temperature, and the upper layers pull on the lower ones; worst with high-temperature materials such as ABS, ASA and PC, and with large parts | Clean the plate; check the first layer; keep the printer away from open windows and air-conditioning; check that the part-cooling fan works for PLA and PETG; print ABS and ASA in an enclosure; add a brim; print more slowly |
+| **Stringing**: thin hairs of plastic between separate parts of the print | Nozzle temperature too high, retraction too short, or wet filament; PETG strings more than PLA | Lower the nozzle temperature in small steps; run the retraction test above; dry the filament |
+| **Under-extrusion or clog**: gaps in the walls, thin or missing layers, clicking from the extruder | Nozzle too close to the bed on the first layer, slicer settings beyond what the hot end can melt, a partly clogged nozzle, dirty extruder gears, poor hot-end cooling, or a tangled spool | Check the Z offset and the slicer profile; clear the nozzle as the manual describes, or replace it; clean the extruder gears; check that the hot-end fan runs; check that the spool unwinds freely |
+| **Layer shift**: from a certain height on, the layers are offset sideways | The print head or the bed did not follow its commanded movement: wrong belt tension, a loose pulley set screw, an obstruction in the travel path, or the nozzle hitting an overhang that curled up | Check the belt tension and the pulley set screws as the manual describes; clear the travel path; fix the curling overhang with more cooling or a different orientation |
+| **First layer does not stick** | Dirty plate, nozzle too far from the bed, or nozzle and bed temperatures that do not match the filament | Clean the plate as described above; adjust the Z offset; use the temperatures from the filament profile; add a brim; use a glue stick only where the printer's manual recommends it |
+
 ## Design for FDM
 
 The milestone for this lesson is to design a part specifically for FDM, not a CAD shape that happens to export. Three things decide whether a printed part is strong and easy to make: orientation, overhangs and layer adhesion. FDM parts are <Term id="anisotropy">anisotropic</Term>: they are a stack of welded lines, and the bond between layers is weaker than the plastic inside a layer.
@@ -125,7 +192,7 @@ The milestone for this lesson is to design a part specifically for FDM, not a CA
 - **Bridges.** A short horizontal span, a few centimetres depending on the printer, can bridge between two supports. Anchor both ends, cool the bridge well, and do not ask it to carry a load.
 - **Horizontal holes.** A round hole lying on its side droops at the top. A teardrop or a flat-topped hole avoids support and keeps the top of the hole usable. For a precision bore, print undersize and drill or ream it.
 - **Walls.** Make thin walls a whole number of extrusion widths: with a 0.4 mm nozzle, use 0.8, 1.2 or 1.6 mm. Strength comes mostly from walls (<Term id="perimeter-wall">perimeters</Term>), not infill. For most brackets, adding a wall or two is a cheaper way to gain strength than adding infill.
-- **Fasteners.** Use heat-set brass inserts for threads you will open more than a few times. Printed threads are fine for coarse, rarely used parts, but they wear and strip. Size the insert hole from the insert datasheet and test one.
+- **Fasteners.** Use heat-set brass inserts for threads you will open more than a few times. Printed threads are fine for coarse, rarely used parts, but they wear and strip. Size the insert hole from the insert datasheet and test one; the steps are in "Installing heat-set inserts" below.
 - **Supports.** Supports cost time, leave rough surfaces and weaken the part where they touch. A design that needs none is usually a better design: chamfer the overhang, split the part, or choose a different orientation.
 
 ### Where the 45° and two-width rules come from
@@ -152,6 +219,29 @@ Design for FDM also means designing for your machine's error. The clearance numb
 <Resource id="hubs-dfam" />
 
 <Quiz id="q4" question="A long, thin snap hook must bend many times. How should it lie on the bed?" options={["standing up, so the layers stack along its length", "lying flat, so it bends along its layers", "it does not matter with 100 % infill", "at 45° with supports"]} answer={1} explanation="A printed part is weakest between layers. Lying flat puts the bending load along the layers, so the hook bends instead of splitting at a layer line. Standing up makes the layers run across the bend, which is exactly where a snap hook cracks; 100 % infill does not fix weak layer bonds." />
+
+### Installing heat-set inserts
+
+A heat-set insert is a brass sleeve with a metal thread inside and knurling on the outside. You press it into a printed hole with a hot soldering iron: the brass heats the plastic around it, the plastic melts and flows into the knurls, and when it cools the insert is locked in place. A screw then threads into metal instead of plastic, so it can be tightened and removed many times. Read the safety rule on the insert iron in "Your first print" before you start.
+
+**Size the hole from the datasheet of the insert you bought.** [CNC Kitchen's insert dimensions and design guidelines](https://www.cnckitchen.com/s/CNCKitchen_Heat-Set-Insert-Dimensions-and-Design-Guidelines.pdf) give, for its M3 × 5.7 insert:
+
+```text
+M3 × 5.7 insert:  length L = 5.7 mm, outer diameter 4.6 mm
+hole diameter     4.0 mm   (straight, not tapered; normally no chamfer)
+minimum wall      1.6 mm   around the hole
+blind hole depth  ≥ L + 1 mm = 6.7 mm
+```
+
+These are nominal sizes for a hole of exactly that diameter, such as a drilled one. Printed holes come out smaller than drawn (see "Why holes come out small" above). In [CNC Kitchen's test of printed holes](https://www.cnckitchen.com/blog/are-our-heat-set-insert-datasheets-wrong), they came out about 0.25 mm undersize, and drawing the hole at 4.2 mm in CAD gave the best result for holes used as printed, at about 90 % of the highest strength in the test. Your printer will differ, so print a test block with a few hole sizes around this value, in the same material and with the same wall and infill settings as the real part, and install one insert in each, from the smallest hole up. If the insert pushes a burr of plastic out of the bottom of the hole, the hole is still too small; the right size leaves no burr that could block the screw. Other makers use other sizes; [Ruthex](https://www.ruthex.de/en/products/ruthex-gewindeeinsatz-m3-100-stuck-rx-m3x5-7-messing-gewindebuchsen), for example, publishes CAD data for each insert on its product page. Always use the dimensions for the inserts you actually have.
+
+**Install the insert.** The steps follow [CNC Kitchen's tips for heat-set inserts](https://www.cnckitchen.com/blog/tips-and-tricks-for-heat-set-inserts):
+
+1. Set the iron 10 to 20 °C above the printing temperature of the part's material: about 225 °C for PLA, 245 °C for PETG and 265 °C for ABS.
+2. Place the insert on the hole with its pilot (the short, smooth end) down. The hole should be just large enough for the pilot to sit in it easily.
+3. Press the insert in with the iron tip, keeping it straight, until it is about 90 % of the way in.
+4. Take the iron away and press the insert flush with a flat tool, such as the shaft of a screwdriver or a pair of tweezers. Hold it for a few seconds until the plastic has solidified; otherwise the insert tends to creep back out.
+5. Return the iron to its stand before you pick up the next insert.
 
 ## Snap-fits that click
 
@@ -396,13 +486,27 @@ An iteration checklist:
 Print just the lid's arm region, or a single test arm, before the whole case. It takes about 10 minutes instead of 2 hours and tells you whether the snap works.
 </Callout>
 
-Lesson 3 takes the same idea further: gears and <Term id="backlash">backlash</Term>. A gearbox is a stack of fits, and every loose fit becomes position error at the output. The gauge numbers you write down here are the numbers you will use there.
+## Print the SO-101 parts
+
+Lesson 5 builds the SO-101 arm, and its printed parts take many hours of printer time, so start printing them once your printer has passed its first print and calibration. The [SO-ARM100 README, "Printing the Parts"](https://github.com/TheRobotStudio/SO-ARM100/blob/a758567c3978dfeefe282ede0500085a48fe8f78/README.md#printing-the-parts) gives the settings; follow it in this order:
+
+1. **Settings.** PLA+; a 0.4 mm nozzle at 0.2 mm layer height, or a 0.6 mm nozzle at 0.4 mm layer height; 15 % infill.
+2. **Printer.** Calibrate and level it, clean the plate and dry it, use a glue stick only if your printer's manufacturer recommends it, and load the filament as the printer's instructions describe.
+3. **Supports.** Enable supports, but leave out surfaces steeper than 45° to the horizontal, which print without them (the 45° rule in Design for FDM above), and put no supports in screw holes whose axis is horizontal.
+4. **Gauges first.** The [STL/Gauges folder](https://github.com/TheRobotStudio/SO-ARM100/tree/a758567c3978dfeefe282ede0500085a48fe8f78/STL/Gauges) holds two test pieces for an STS3215 servo, Gauge_0.STL and Gauge_tight_1.STL, and two for a standard Lego brick. Print Gauge_0 and check how the servo fits in it, as in the video the README links. If the fit is wrong, change your printer settings and print the gauge again before you print the arm.
+5. **The arms.** The [STL/SO101 folder](https://github.com/TheRobotStudio/SO-ARM100/tree/a758567c3978dfeefe282ede0500085a48fe8f78/STL/SO101) has each arm as one file, with all its parts already oriented on one plate. For a 220 mm × 220 mm bed, print Follower/Ender_Follower_SO101.stl and Leader/Ender_Leader_SO101.stl; for a 205 mm × 250 mm bed, Follower/Prusa_Follower_SO101.stl and Leader/Prusa_Leader_SO101.stl. The same folders also contain BambuLabA1mini_Follower_SO101.stl and BambuLabA1mini_Leader_SO101.stl for the A1 mini. If your bed matches none of these, print the parts one at a time from STL/SO101/Individual.
+6. **Removal.** Let the plate cool, take the parts off with a putty knife or the printer's scraper, pushing away from your hand, and then remove the supports.
+
+Lesson 3 takes the same idea further: gears and <Term id="backlash">backlash</Term>. A gearbox is a stack of fits, and every loose fit becomes position error at the output. The tolerance-gauge numbers you wrote down earlier in this lesson are the numbers you will use there.
 
 <Summary>
 
 **Key points**
 
-- Calibration order: temperature → flow → pressure advance → retraction → tolerance; each test assumes the earlier ones are right.
+- First print: print the manufacturer's test model first and watch the first layer to the end. Rounded lines with gaps mean the nozzle is too high, lines squished flat with ridges mean it is too low, and an even surface with no gaps and no ridges is correct.
+- Calibration order (OrcaSlicer): temperature → maximum volumetric speed → pressure advance → flow ratio → retraction, then tolerance; each test assumes the earlier ones are right.
+- Flow ratio scales every extrusion (keep it within 0.95–1.05); pressure advance compensates for the pressure lag in the nozzle; retraction pulls the filament back before a travel move to stop strings.
+- Heat-set inserts: size the hole from the insert datasheet and test it on a printed block; set the iron 10–20 °C above the printing temperature and press the last part flush with a tool.
 - Hole = shaft + 2 × per-side clearance: a 5 mm shaft with 0.2 mm per side needs a 5.4 mm hole.
 - Overhangs up to about 45° from vertical usually print without support.
 - Overhang limit from bead geometry: tan θ ≤ w / (2 × h), which gives 45° for a 0.4 mm line on 0.2 mm layers; Tg, not the melting point, limits a part in service (PLA Tg 55–60 °C, PETG Tg 80 °C but heat deflection at 70 °C under 0.455 MPa).
