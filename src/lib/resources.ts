@@ -843,8 +843,8 @@ export const resources: Record<string, Resource> = {
     kind: "service",
     cost: { zh: "目录免费；各实验室收费不同", en: "Directory free; each lab sets its own fees" },
     summary: {
-      zh: "全球约 2,875 个数字制造实验室，可以按国家搜索。买不起打印机时，先找离你最近的一个。",
-      en: "Roughly 2,875 digital-fabrication labs, searchable by country. If you cannot buy a printer, find the nearest one first.",
+      zh: "fablabs.io 目录收录全球 2,885 个数字制造实验室（2026 年 10 月），可以按国家搜索。买不起打印机时，先找离你最近的一个。",
+      en: "The fablabs.io directory lists 2,885 digital-fabrication labs (October 2026), searchable by country. If you cannot buy a printer, find the nearest one first.",
     },
     license: { zh: "© Fab Foundation，仅提供外链", en: "© Fab Foundation; external link only" },
   },
