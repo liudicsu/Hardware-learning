@@ -342,6 +342,10 @@ lerobot-find-port
 
 新舵机出厂全是 ID 1。一次接两个，它们会对同一个包一起应答，设置脚本分不清谁是谁。这就是官方流程一次只接一个电机的原因。ID 和总线波特率会写进舵机的 <Term id="eeprom">EEPROM</Term>，写一次就留在那里，直到你改它。替换用的新舵机到手时又是 ID 1，所以把“哪个舵机装在哪个关节”记下来。
 
+<Callout type="warn" title="插拔舵机线之前先断电">
+插上或拔下三针舵机线之前，先拔掉舵机电源；线完全插到位后再接回电源。设置 ID 时也一样：脚本要求接下一个电机时，先拔电源，再换线，接回电源，然后才按回车。Seeed Studio 的 SO-ARM 课程给出同样的规则：“Power off before plugging or unplugging servo cables, USB cables, or power connectors”（插拔舵机线、USB 线或电源接头之前先断电；[Seeed Studio SO-ARM 课程第 4 章](https://wiki.seeedstudio.com/robotics/soarm_physical_ai_course_chapter_4/)）。只拔 USB 线并不能让总线断电，因为舵机由电源供电，而不是由 USB 供电（同一来源）。如果之后脚本找不到电机，先查电源插头；LeRobot 指南提醒过：“the power supply cable might disconnect as you manipulate the board”（摆弄控制板时电源线可能松脱；[LeRobot SO-101 指南](https://huggingface.co/docs/lerobot/so101)）。
+</Callout>
+
 ```bash
 lerobot-setup-motors \
     --robot.type=so101_follower \
@@ -400,6 +404,12 @@ lerobot-calibrate \
 
 两条臂的流程一样：把臂摆到每个关节都在行程中点的位置，按回车；然后慢慢把每个关节走完整个行程，让工具看到两端。不要硬顶机械限位；走到行程尽头就停。`id` 是校准保存时用的名字，不是电机 ID，也不是序列号。每次启动这条臂都用同一个名字，否则会载入另一份校准数据，关节零位与当前装配对不上。
 
+校准会关掉整条臂的扭矩。LeRobot 在提示你摆到中点姿态之前，先关闭这条臂上每个电机的扭矩（[so_follower.py 第 127–131 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/so_follower.py#L127-L131)；主臂见 [so_leader.py 第 96–100 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/teleoperators/so_leader/so_leader.py#L96-L100)）。从这一刻起，舵机不再托住机械臂，从臂会在自重作用下落下。从启动命令开始直到校准结束，都要用一只手托住从臂；结束后把它放低，平放在桌面的停放位置上。工具退出后扭矩仍然是关闭的。
+
+<Callout type="warn" title="从臂不是玩具">
+从臂的力量足以夹痛手指，也能把桌上的东西扫下去。保持工作区整洁，把线缆和杯子放到臂的活动范围之外，在它上面动手时先断电。一条正在动的臂不知道你的手在哪里。
+</Callout>
+
 两条臂都校准好之后，遥操作就是一条命令：
 
 ```bash
@@ -413,6 +423,8 @@ lerobot-teleoperate \
 ```
 
 一开始慢慢移动主臂，手放在从臂电源附近。开始前把桌子清空：从臂会忠实复制你的动作，包括快速撞向杯子的那一下。第一分钟用来检查方向和行程，不是用来评判跟随精度。
+
+要停止遥操作，按 Ctrl+C。LeRobot 随后断开两条臂（[lerobot_teleoperate.py 第 274–280 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/scripts/lerobot_teleoperate.py#L274-L280)），而断开连接时默认会在关闭串口之前关掉每个电机的扭矩（[config_so_follower.py 第 31 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/config_so_follower.py#L31)；[motors_bus.py 第 547–559 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/motors_bus.py#L547-L559)）。从臂在这一刻失去扭矩，会从当前位置落下。按 Ctrl+C 之前，先用主臂把从臂带到贴近桌面的低位，或者用另一只手托住从臂。
 
 出问题时，从外往内查：
 
@@ -439,10 +451,6 @@ lerobot-teleoperate \
 拍视频时把整条臂和桌面都拍进去，不要只拍夹爪：之后回看时，你要分得清是抓取失败，还是路径撞到了东西。如果视频里某个关节明显滞后，先查机械和校准，再怀疑软件。
 
 如果整套主从臂超出预算，便宜路线仍然能学到本课的大部分。单个从臂保留完整软件路径：能装、能校准、能读关节、能用 Python 发指令，以后再加主臂。MuJoCo 让你在没有任何硬件时跑同一套软件；缺的是手感、线缆和舵机吃力时的声音。两条捷径都不浪费时间，只要记录清楚每条路线练到的是哪一部分技能。
-
-<Callout type="warn" title="从臂不是玩具">
-从臂的力量足以夹痛手指，也能把桌上的东西扫下去。保持工作区整洁，把线缆和杯子放到臂的活动范围之外，在它上面动手时先断电。一条正在动的臂不知道你的手在哪里。
-</Callout>
 
 第 6 课接着往前走：夹爪手指。它们小、迭代便宜，也是证明你“会设计、不只是会组装”的那一部分。一台能动的臂，加上你自己为它设计的手指，比一套只会跑厂家演示的套件更能回答“你会不会造机器人”。
 

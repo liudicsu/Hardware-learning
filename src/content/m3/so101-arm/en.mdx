@@ -342,6 +342,10 @@ The tool lists the serial ports, asks you to unplug one board and press Enter, a
 
 New servos all come with ID 1. If you connect two of them at once, both will answer to the same packets, and the setup script cannot tell them apart. That is why the official procedure connects exactly one motor at a time. The ID and the bus baud rate are written to the servo's <Term id="eeprom">EEPROM</Term> once, and they stay there until you change them. A replacement motor arrives as ID 1 again, so keep a note of which servo sits at which joint.
 
+<Callout type="warn" title="Power off before you plug or unplug a servo lead">
+Unplug the servo power supply before you connect or disconnect a 3-pin servo lead, and plug it back in only when the lead is fully seated. This also applies while you set IDs: when the script asks for the next motor, unplug the supply, change the lead, reconnect the supply and only then press Enter. Seeed Studio's SO-ARM course states the same rule: "Power off before plugging or unplugging servo cables, USB cables, or power connectors" ([Seeed Studio SO-ARM course, chapter 4](https://wiki.seeedstudio.com/robotics/soarm_physical_ai_course_chapter_4/)). Pulling only the USB cable does not make the bus safe, because the servos are powered by the supply and not by USB (same source). If the script then cannot find the motor, check the supply plug first; LeRobot's guide warns that "the power supply cable might disconnect as you manipulate the board" ([LeRobot SO-101 guide](https://huggingface.co/docs/lerobot/so101)).
+</Callout>
+
 ```bash
 lerobot-setup-motors \
     --robot.type=so101_follower \
@@ -400,6 +404,12 @@ lerobot-calibrate \
 
 The procedure is the same for both. Move the arm so every joint is in the middle of its range, then press Enter. Then move every joint slowly through its full range, so the tool sees both ends. Do not force a joint against its mechanical stop; reach the end of travel, then stop. The `id` is the name the calibration is saved under; it is not the motor ID, and it is not a serial number. Use the same name every time you start this arm, otherwise a different calibration file is loaded and the joint zero offsets no longer match the assembly.
 
+Calibration switches the arm's torque off. LeRobot disables torque on every motor of the arm before it asks for the middle pose ([so_follower.py, lines 127–131](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/so_follower.py#L127-L131); for the leader, [so_leader.py, lines 96–100](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/teleoperators/so_leader/so_leader.py#L96-L100)). From that moment the servos no longer hold the arm up, and the follower drops under its own weight. Support the follower with one hand from the moment you start the command until calibration has finished, and then lower it to a resting position on the table; the torque stays off after the tool exits.
+
+<Callout type="warn" title="The follower is not a toy">
+The follower is strong enough to pinch fingers and knock things off a desk. Keep the workspace clear, keep cables and cups out of the arm's reach, and power it off when you work on it. A moving arm does not know where your hand is.
+</Callout>
+
 With both arms calibrated, teleoperation is one command:
 
 ```bash
@@ -413,6 +423,8 @@ lerobot-teleoperate \
 ```
 
 Move the leader slowly at first, and keep a hand near the follower's power switch. Clear the table around the arm before you start: the follower will copy whatever you do, including a fast move into a cup. The first minute is for checking directions and range, not for judging how well it tracks.
+
+To stop teleoperation, press Ctrl+C. LeRobot then disconnects both arms ([lerobot_teleoperate.py, lines 274–280](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/scripts/lerobot_teleoperate.py#L274-L280)), and by default disconnecting switches the torque off on every motor before the port closes ([config_so_follower.py, line 31](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/config_so_follower.py#L31); [motors_bus.py, lines 547–559](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/motors_bus.py#L547-L559)). The follower goes limp at that moment and falls from wherever it is. Before you press Ctrl+C, use the leader to bring the follower to a low position just above the table, or hold the follower with your other hand.
 
 When it misbehaves, work from the outside in:
 
@@ -439,10 +451,6 @@ A checklist, in the order the work happens:
 Film the whole arm and the table, not just the gripper: later you need to see whether a failure was the grasp or the path. If one joint lags in the video, check the mechanics and the calibration before blaming the software.
 
 If the full pair is out of reach, the cheaper paths still teach most of the lesson. With a single follower you keep the whole software path: you can set it up, calibrate it, read its joints and command it from Python, and you can add a leader later. With MuJoCo you can run the same software before any hardware exists; what you miss is the hands, the cables and the sound of a servo straining. Neither shortcut is wasted time, as long as you record which part of the skill each path has practised.
-
-<Callout type="warn" title="The follower is not a toy">
-The follower is strong enough to pinch fingers and knock things off a desk. Keep the workspace clear, keep cables and cups out of the arm's reach, and power it off when you work on it. A moving arm does not know where your hand is.
-</Callout>
 
 Lesson 6 takes the next step: gripper fingers. They are small, they are cheap to iterate, and they are the part that proves you can design as well as assemble. A working arm with a gripper you designed for it is a much better answer to "can you build a robot?" than a kit that only runs the manufacturer's demo.
 

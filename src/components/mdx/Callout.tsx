@@ -72,11 +72,26 @@ function TypeIcon({ type }: { type: CalloutType }) {
 export interface CalloutProps {
   type?: CalloutType;
   title?: string;
+  // collapsible: render as a closed <details> with the title as its <summary>; it opens without JavaScript
+  collapsible?: boolean;
   children: ReactNode;
 }
 
-export function Callout({ type = "info", title, children }: CalloutProps) {
+export function Callout({ type = "info", title, collapsible = false, children }: CalloutProps) {
   const style = STYLE[type];
+  if (collapsible && title !== undefined) {
+    return (
+      <details className={`my-6 rounded-lg border-l-2 border-y border-r border-white/10 bg-white/[0.03] p-4 ${style.border}`}>
+        <summary className="cursor-pointer text-[0.95rem] font-semibold leading-relaxed text-zinc-100">
+          <span className={`${style.text} mr-2 inline-flex h-4 w-4 translate-y-0.5`}>
+            <TypeIcon type={type} />
+          </span>
+          {title}
+        </summary>
+        <div className="mt-2 min-w-0 text-[0.95rem] leading-relaxed text-zinc-300 [&_p+p]:mt-2">{children}</div>
+      </details>
+    );
+  }
   return (
     <div className={`my-6 rounded-lg border-l-2 border-y border-r border-white/10 bg-white/[0.03] p-4 ${style.border}`}>
       <div className="flex items-start gap-3">
