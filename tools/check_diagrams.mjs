@@ -1776,6 +1776,154 @@ const lessonRef = (n, slug, lang) => {
   console.log(`calc  m4 gaps: Construct €39.97 + pixi 5.8 GB; EMA α=0.5 @k67–69 ${a05.map((x) => x.toFixed(4)).join(", ")} / α=0.2 replay ${a02.map((x) => x.toFixed(4)).join(", ")}; teleop held ${teleopHeld} m vs 1.15 m; staleness ${stale} m; footprint +${fpFwd}/${fpBack}/±${fpY} (exact side ${fpYExact}); r/b 10 % → ${r10}/${b10}, turn ×${turnFactor.toFixed(2)}; inflation (254−1)·exp(−${costScale}·(d−r_ins)) out to ${inflR} m; smear ${smearTour} rad @ ${turnClamp} rad/s / ${lidarRate} Hz; Isaac 4080/16/32 Oct 2026; MuJoCo IROS 2012; bound in en/zh`);
 }
 
+{
+  // Month 5 content gaps (m5-conclusions.md): every newly stated number is recomputed or pinned here.
+  // control-modelling: joint_freq.py Bode / margins — ω_pc, kp_crit from |L|=1 at ∠L=−180°; PM/GM arithmetic; PD lead atan(ω kd/kp).
+  // state-space-lqr: lqr_sim.py nonlinear cart-pole + ∂/∂θ; recovery sweep 1°…89° / 6 s / |θ|<0.01; Qθθ=400 R=1 → |u|=20 N·m.
+  // kinematics-ik: kinematics.py singularity row q=[0,20°,−60°] v=[0.05,0,0]; DLS max_step=0.02, λ=0.03 tip advance < 20 mm.
+  // camera-calibration: calibrate.py COLS=9 ROWS=6 → 54 corners; 15 views × 54 = 810; 4+2+15×6 = 96 params → 714 residuals.
+  // moveit-pick-place: pick_place.py quat (cos22.5°,−sin22.5°,0); FINGER=0.1034; WALL length 0.30 at x=0.5 → face 0.35; L1+L2=0.251.
+  const rd5 = (p) => readFileSync(join(root, p), "utf8");
+  const lqr = rd5("tools/sim/models/lqr_sim.py");
+  const kin = rd5("tools/sim/models/kinematics.py");
+  const cal = rd5("examples/month-5/camera-calibration/calibrate.py");
+  const pick = rd5("examples/month-5/moveit-pick-place/pick_place.py");
+  const num5 = (text, re, what) => { const m = text.match(re); ok(m, `m5: ${what} not found`); return m ? Number(m[1]) : NaN; };
+  const M = num5(lqr, /^M, m, L, G, DT, FMAX = ([\d.]+)/m, "lqr M");
+  const mPole = num5(lqr, /^M, m, L, G, DT, FMAX = [\d.]+, ([\d.]+)/m, "lqr m");
+  const Lpole = num5(lqr, /^M, m, L, G, DT, FMAX = [\d.]+, [\d.]+, ([\d.]+)/m, "lqr L");
+  const G = num5(lqr, /^M, m, L, G, DT, FMAX = [\d.]+, [\d.]+, [\d.]+, ([\d.]+)/m, "lqr G");
+  const Fmax = num5(lqr, /^M, m, L, G, DT, FMAX = [\d.]+, [\d.]+, [\d.]+, [\d.]+, [\d.]+, ([\d.]+)/m, "lqr FMAX");
+  const aTheta = -(mPole * G) / M;
+  const bForce = 1 / M;
+  const aAng = ((M + mPole) * G) / (M * Lpole);
+  const bAng = -1 / (M * Lpole);
+  ok(Math.abs(aTheta - (-3.92)) < 0.01 && Math.abs(bForce - 2) < 1e-12 && Math.abs(aAng - 45.78) < 0.01 && Math.abs(bAng - (-6.67)) < 0.01,
+    `m5 lqr: linearisation −mg/M=${aTheta}, 1/M=${bForce}, (M+m)g/(ML)=${aAng}, −1/(ML)=${bAng}`);
+  ok(/range\(1,\s*90\)/.test(lqr) && (lqr.match(/balance\(k_first, d, seconds=6\.0\)/g) || []).length === 2 && /\[0\]\[2\]\)\s*<\s*0\.01/.test(lqr) && /math\.pi\s*\/\s*2/.test(lqr),
+    `m5 lqr: recovery must sweep 1…89°, 6 s, |θ|<0.01, fail past π/2`);
+  ok(Fmax === 10, `m5 lqr: FMAX must be 10 N (got ${Fmax})`);
+  const Q0 = num5(lqr, /lqr\(PHI_J, GAM_J, \[\[([\d.]+)/, "lqr joint Qθθ");
+  const Rjoint = num5(lqr, /lqr\(PHI_J, GAM_J, \[\[400\.0, 0\], \[0, 0\.01\]\], ([\d.]+)/, "lqr joint R");
+  const uBreak = Math.sqrt(Q0 / Rjoint);
+  ok(Q0 === 400 && Rjoint === 1 && uBreak === 20, `m5 lqr: Qθθ/R break-even |u|=${uBreak} must be 20 (Q0=${Q0} R=${Rjoint})`);
+  const maxStep = num5(kin, /max_step\s*=\s*([\d.]+)/, "kin max_step");
+  ok(maxStep === 0.02, `m5 kin: max_step must be 0.02 m (got ${maxStep})`);
+  ok(/lam\s*=\s*0\.03/.test(kin), `m5 kin: default λ must be 0.03`);
+  const COLS = num5(cal, /COLS, ROWS, SQ = (\d+)/, "cal COLS");
+  const ROWS = num5(cal, /COLS, ROWS, SQ = \d+, (\d+)/, "cal ROWS");
+  const corners = COLS * ROWS;
+  const nViews = 15;
+  const nPts = nViews * corners;
+  const nParams = 4 + 2 + nViews * 6;
+  const nRes = nPts - nParams;
+  ok(COLS === 9 && ROWS === 6 && corners === 54 && nPts === 810 && nParams === 96 && nRes === 714,
+    `m5 camera: ${COLS}×${ROWS}=${corners}, ${nViews} views → ${nPts} pts, ${nParams} params, ${nRes} residuals`);
+  const finger = num5(pick, /FINGER = ([\d.]+)/, "pick FINGER");
+  ok(Math.abs(finger - 0.1034) < 1e-9, `m5 moveit: FINGER must be 0.1034 (got ${finger})`);
+  const wallX = num5(pick, /WALL = \(([\d.]+)/, "pick WALL length");
+  const wallFace = 0.5 - wallX / 2;
+  ok(wallX === 0.3 && Math.abs(wallFace - 0.35) < 1e-12, `m5 moveit: wall face x=${wallFace} must be 0.35`);
+  const quatX = num5(pick, /q\.x, q\.y, q\.z, q\.w = ([\d.]+)/, "pick quat x");
+  const quatY = num5(pick, /q\.x, q\.y, q\.z, q\.w = [\d.]+, (-?[\d.]+)/, "pick quat y");
+  const c22 = Math.cos((22.5 * Math.PI) / 180), s22 = Math.sin((22.5 * Math.PI) / 180);
+  ok(Math.abs(quatX - c22) < 1e-6 && Math.abs(quatY - (-s22)) < 1e-6, `m5 moveit: quat must be (cos22.5, −sin22.5) got (${quatX},${quatY})`);
+  const L1 = 0.116, L2 = 0.135, reach = L1 + L2;
+  ok(Math.abs(reach - 0.251) < 1e-12, `m5 moveit: L1+L2 must be 0.251`);
+  const gripZ = 0.08 - 0.02;
+  const handZ = gripZ + finger;
+  const clear = handZ - 0.08;
+  ok(Math.abs(handZ - 0.1634) < 1e-9 && Math.abs(clear - 0.0834) < 1e-9, `m5 moveit: hand origin ${handZ} clear ${clear}`);
+  const lead = (Math.atan((34.6 * 0.115) / 2.86) * 180) / Math.PI;
+  ok(Math.abs(lead - 54.3) < 0.05, `m5 control: PD lead atan(34.6×0.115/2.86)=${lead} ≈ 54°`);
+  const gmFactor = 10 ** (14.2 / 20);
+  const kpCrit = 10 ** (16.6 / 20);
+  ok(Math.abs(gmFactor - 5.1) < 0.05 && Math.abs(kpCrit - 6.8) < 0.05, `m5 control: GM factor ${gmFactor} kp_crit ${kpCrit}`);
+  const phrases = {
+    en: {
+      "control-modelling": [
+        "kp_crit = 1.0 × 6.8 = 6.8 ≈ 6.79",
+        "ω_pc = 40.2 rad/s",
+        "∠L(34.6 rad/s) ≈ −124°",
+        "PM = 180° + (−124°) = 56°",
+        "|L(150.8 rad/s)| ≈ −14.2 dB",
+        "10^(14.2/20) = 5.1",
+        "atan(34.6 × 0.115 / 2.86) ≈ 54°",
+      ],
+      "state-space-lqr": [
+        "−m g/M = −3.92",
+        "1/M = 2.00",
+        "(M+m)g/(M L) = 45.78",
+        "−1/(M L) = −6.67",
+        "|θ(6 s)| < 0.01 rad",
+        "400 × 1² = 400",
+        "|u| = 20 N·m",
+      ],
+      "kinematics-ik": [
+        "max|dq| × 180/π = 44.9 deg/s",
+        "34.8 deg/s",
+        "max_step = 0.02",
+        "16 to 19 mm",
+      ],
+      "camera-calibration": [
+        "15 views × 6 pose parameters = 96 free parameters",
+        "810 − 96 = 714 independent residuals",
+      ],
+      "moveit-pick-place": [
+        "(cos 22.5°, −sin 22.5°, 0) = (0.9238795, −0.3826834, 0)",
+        "L1 + L2 = 0.116 + 0.135 = 0.251 m",
+        "x = 0.35 m",
+        "0.06 + 0.1034 = 0.1634 m",
+        "0.1634 − 0.08 = 0.0834 m",
+      ],
+    },
+    zh: {
+      "control-modelling": [
+        "kp_crit = 1.0 × 6.8 = 6.8 ≈ 6.79",
+        "ω_pc = 40.2 rad/s",
+        "∠L(34.6 rad/s) ≈ −124°",
+        "PM = 180° + (−124°) = 56°",
+        "|L(150.8 rad/s)| ≈ −14.2 dB",
+        "10^(14.2/20) = 5.1",
+        "atan(34.6 × 0.115 / 2.86) ≈ 54°",
+      ],
+      "state-space-lqr": [
+        "−m g/M = −3.92",
+        "1/M = 2.00",
+        "(M+m)g/(M L) = 45.78",
+        "−1/(M L) = −6.67",
+        "|θ(6 s)| < 0.01 rad",
+        "400 × 1² = 400",
+        "|u| = 20 N·m",
+      ],
+      "kinematics-ik": [
+        "max|dq| × 180/π = 44.9 deg/s",
+        "34.8 deg/s",
+        "max_step = 0.02",
+        "16 到 19 mm",
+      ],
+      "camera-calibration": [
+        "15 个视角 × 6 个位姿参数 = 96 个自由参数",
+        "810 − 96 = 714 个独立残差",
+      ],
+      "moveit-pick-place": [
+        "(cos 22.5°, −sin 22.5°, 0) = (0.9238795, −0.3826834, 0)",
+        "L1 + L2 = 0.116 + 0.135 = 0.251 m",
+        "x = 0.35 m",
+        "0.06 + 0.1034 = 0.1634 m",
+        "0.1634 − 0.08 = 0.0834 m",
+      ],
+    },
+  };
+  for (const lang of ["en", "zh"]) {
+    for (const [slug, qs] of Object.entries(phrases[lang])) {
+      const text = rd5(`src/content/m5/${slug}/${lang}.mdx`);
+      for (const q of qs) ok(text.includes(q), `m5 ${slug} ${lang}: expected ${JSON.stringify(q)}`);
+    }
+  }
+  console.log(`calc  m5 gaps: cart −mg/M=${aTheta.toFixed(2)} 1/M=${bForce} (M+m)g/ML=${aAng.toFixed(2)} −1/ML=${bAng.toFixed(2)}; PD lead ${lead.toFixed(1)}°; GM×${gmFactor.toFixed(1)} kp_crit ${kpCrit.toFixed(1)}; Q/R |u|=${uBreak}; cam ${nPts}−${nParams}=${nRes}; reach ${reach} wall face ${wallFace}; grip ${handZ}/${clear.toFixed(4)}; bound in en/zh`);
+}
+
 const specs = [];
 for (const f of readdirSync(specDir).filter((f) => f.endsWith(".ts"))) {
   const mod = await import(dataUrl(transpile(inlineJson(readFileSync(join(specDir, f), "utf8")))));

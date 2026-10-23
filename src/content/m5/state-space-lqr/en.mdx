@@ -6,7 +6,7 @@ For the joint, let x = [q, w], where q is the angle and w = q'. The torque is th
 
 <Formula label="State space: every state in one vector">x' = A x + B u</Formula>
 
-The cart-pole is Month 2's balancer cut down to a cart of M = 0.5 kg and a point mass m = 0.2 kg at L = 0.3 m. The input is a horizontal force F. With x = [position, speed, angle, rate], linearised about upright, the model prints:
+The cart-pole is Month 2's balancer cut down to a cart of M = 0.5 kg and a point mass m = 0.2 kg at L = 0.3 m. The input is a horizontal force F. The nonlinear equations (angle from upright) are `a = (F + m L ω² sinθ − m g sinθ cosθ)/(M + m − m cos²θ)` for the cart and `θ'' = (g sinθ − a cosθ)/L` for the pole. Linearised about upright, take ∂/∂θ at θ = 0, ω = 0 with `a ≈ F/M` to obtain `−m g/M = −3.92`, `1/M = 2.00`, `(M+m)g/(M L) = 45.78` and `−1/(M L) = −6.67`. With x = [position, speed, angle, rate], the model prints:
 
 <SimOutput source="model">
 
@@ -276,7 +276,7 @@ Nonlinear run with the first K, starting 10 deg off upright:
 
 </SimOutput>
 
-At 0.5 s the cart is at 0.177 m and the pole is already 2.23° past vertical. The cart is at 0.248 m at 1 s and back to 0.122 m at 2.5 s, while the angle is within 0.73° by 1.5 s. The last line is the important one: tested in whole degrees, the same gains recover from an initial angle of up to 53° and no further. The linear model is a local approximation around upright, so its prediction is good near 0° and increasingly wrong as the angle grows. A real balancer adds motor limits, wheel slip and sensor delay.
+At 0.5 s the cart is at 0.177 m and the pole is already 2.23° past vertical. The cart is at 0.248 m at 1 s and back to 0.122 m at 2.5 s, while the angle is within 0.73° by 1.5 s. The last line is the important one: the script sweeps start angles 1°…89°, integrates each for 6 s with F clipped to ±10 N (a run fails if `|θ|` passes 90° mid-way) and counts success when `|θ(6 s)| < 0.01 rad` — the largest passing angle is 53°. Tested in whole degrees, the same gains recover from an initial angle of up to 53° and no further. The linear model is a local approximation around upright, so its prediction is good near 0° and increasingly wrong as the angle grows. A real balancer adds motor limits, wheel slip and sensor delay.
 
 <Callout type="warn" title="53° is a simulation result">Motor limits, wheel slip and sensor delay will move that number. Test on the real robot with a hand ready to catch the pole, and do not treat the simulated limit as a guarantee.</Callout>
 
@@ -295,7 +295,7 @@ Arm joint, 1 rad move, |torque| <= 0.6 N*m (on top of gravity feedforward), 200 
 
 </SimOutput>
 
-The LQR gains are K = [15.93, 0.323], much larger than lesson 1's PD gains 2.86 N·m/rad and 0.115 N·m/(rad/s), because Q = diag(400, 0.01) with R = 1 prices a 1 rad error far above 1 N·m of torque. Gains that large spend most of the move pinned at the limit, which is exactly where plain LQR stops holding: K is computed for an unclipped output, and once the command is clipped the effective loop gain is no longer the designed one. With clipping, LQR overshoots 2.24° and is within 1° from 0.210 s. MPC overshoots 0.86° and is within 1° from 0.160 s. It is at the limit for 0.165 s, LQR for 0.175 s. The improvement exists but is limited; the bigger difference is computation.
+The LQR gains are K = [15.93, 0.323], much larger than lesson 1's PD gains 2.86 N·m/rad and 0.115 N·m/(rad/s), because Q = diag(400, 0.01) with R = 1 prices a 1 rad error far above 1 N·m of torque: a 1 rad error costs `400 × 1² = 400`, matched by `u² = 400` → `|u| = 20 N·m` (about 200× the 0.6 N·m limit and about 7× lesson 1's 2.86 N·m/rad scale), which is why the position gain lands near 16. Gains that large spend most of the move pinned at the limit, which is exactly where plain LQR stops holding: K is computed for an unclipped output, and once the command is clipped the effective loop gain is no longer the designed one. With clipping, LQR overshoots 2.24° and is within 1° from 0.210 s. MPC overshoots 0.86° and is within 1° from 0.160 s. It is at the limit for 0.165 s, LQR for 0.175 s. The improvement exists but is limited; the bigger difference is computation.
 
 MPC costs far more computation per step: every 5 ms period it runs 150 gradient steps, each a forward pass and a backward pass over 40 steps, about 12,000 small state updates, while LQR is two multiplications and an addition. On a microcontroller the 5 ms deadline is fixed. If the MPC does not finish in time, you must shorten the horizon, lower the control rate, or move to a faster chip. A lower rate adds delay, and delay eats phase margin, as lesson 1 showed.
 

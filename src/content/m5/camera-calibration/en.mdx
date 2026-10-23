@@ -175,7 +175,7 @@ saved views/camera.json
 
 </SimOutput>
 
-The first run fixes k1 = k2 = 0 and leaves only a pinhole. Its RMS error is 0.702 px. The second run allows k1 and k2 and drops to 0.189 px; the no-distortion error is about 3.7 times larger. With 15 views and 54 corners there are 810 points, so 0.189 px is a tight fit, not a lucky one.
+The first run fixes k1 = k2 = 0 and leaves only a pinhole. Its RMS error is 0.702 px. The second run allows k1 and k2 and drops to 0.189 px; the no-distortion error is about 3.7 times larger. With 15 views and 54 corners there are 810 points. The fit freezes 4 intrinsics (fx, fy, cx, cy) + 2 distortion coefficients (k1, k2) + 15 views × 6 pose parameters = 96 free parameters, leaving 810 − 96 = 714 independent residuals for an RMS of 0.189 px, so that figure is a tight fit, not a lucky one.
 
 The recovered intrinsics are close to the truth: fx = 499.8 vs 500, fy = 499.9 vs 500, cx = 319.8 vs 320, cy = 239.6 vs 240, k1 = -0.1212 vs -0.12, k2 = +0.0310 vs 0.03. The no-distortion fit is not merely a worse version of the same answer: it reports fx = 507.1 and fy = 509.2. A pinhole cannot bend, so the optimizer moves the focal length and principal point to absorb the average bending, and every pixel-to-ray conversion inherits that error.
 
