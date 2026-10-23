@@ -290,7 +290,7 @@ read position 6  SDK FF FF 06 04 02 38 02 B9     same
 | 主臂（始终 7.4 V） | 7.4 V STS3215（按 README BOM 为 C001/C044/C046） | 4–7.4 V（C001 规格） | 5 V | — |
 
 <Callout type="danger" title="12 V 电源只能接 12 V 版舵机">
-绝不要把 12 V 电源接到装有 7.4 V 舵机的机械臂上；主臂在任何情况下都属于这一类。12 V 远高于 Feetech 对 7.4 V 版给出的 4–7.4 V 输入范围。插电前，先对照舵机版本的电压（看卖家为每一袋标明的料号：ST-3215-C001 是 7.4 V，ST-3215-C018 是 12 V）和电源铭牌上的额定值；7.4 V 舵机和 12 V 舵机应分臂、分电源使用，因为同一条臂的所有舵机通过菊花链共用同一路电源。
+绝不要把 12 V 电源接到装有 7.4 V 舵机的机械臂上；主臂在任何情况下都属于这一类。12 V 远高于 Feetech 对 7.4 V 版给出的 4–7.4 V 输入范围。每种舵机版本配各自的电源（来源 A）：ST-3215-C001 和主臂的其他 7.4 V 舵机（C044、C046）配 5 V 电源，ST-3215-C018（12 V）配 12 V 电源。版本看卖家为每一袋标明的料号。7.4 V 舵机和 12 V 舵机应分臂、分电源使用，因为同一条臂的所有舵机通过菊花链共用同一路电源。
 </Callout>
 
 来源：A — [SO-ARM100 README · Sourcing Parts (IMPORTANT note)](https://github.com/TheRobotStudio/SO-ARM100/blob/a758567c3978dfeefe282ede0500085a48fe8f78/README.md#L72-L73)；B — [Feetech STS3215 (C001) specification, §5](https://www.feetechrc.com/Data/feetechrc/upload/file/20200611/6372749961523760249976542.pdf)；C — [Feetech ST-3215-C018 product page](https://www.feetechrc.com/en/525603.html) 与 [specification, §5](https://www.feetechrc.com/Data/feetechrc/upload/file/20240507/6385067068652648096680943.pdf)。
@@ -308,7 +308,7 @@ read position 6  SDK FF FF 06 04 02 38 02 B9     same
 
 简单地说，对你的这台臂：
 
-- 电源电压要和舵机版本一致：7.4 V 舵机用 5 V，所有主臂都属于这一类；只有整条臂都是 12 V C018 舵机时才用 12 V。
+- 电源要和舵机版本配对：C001 和其他 7.4 V 舵机配 5 V 电源，所有主臂都属于这一类；12 V 电源只用于整条臂都是 C018（12 V）舵机的情况。绝不要把 12 V 接到 7.4 V 舵机上。
 - 12 V 从臂要选额定电流大于 5.4 A 的电源：六个 C018 在额定电流下已经要 5.4 A，超过 README 要求的最低 5 A。
 - 标准的 5 V 从臂，4 A 电源够正常运行（估计 3.0 A），但不够几个关节同时被卡住（估计 12 A）。
 - 不要指望舵机的保护功能来防止过载：在 5 V 下过流保护可能永远不会触发，过载保护要 2 s 后才起作用，而且遥操作时下一条位置指令就会把它清除。不要让关节顶着机械限位，也不要让夹爪长时间用力夹着物体。
@@ -352,10 +352,11 @@ conda activate lerobot
 conda install ffmpeg -c conda-forge
 git clone https://github.com/huggingface/lerobot.git
 cd lerobot
+git checkout v0.6.1
 pip install -e ".[core_scripts,feetech]"
 ```
 
-前两行创建并激活一个名为 `lerobot`、使用 Python 3.12 的环境；LeRobot 要求 Python 3.12 或更新版本（[pyproject.toml 第 32 行](https://github.com/huggingface/lerobot/blob/v0.6.1/pyproject.toml#L32)）。第三行安装 `ffmpeg`，LeRobot 默认的视频解码器需要它（[安装指南第 70–87 行](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/installation.mdx#L70-L87)）。接下来两行下载代码并进入它的目录。最后一行从这个目录安装 LeRobot：`-e` 是可编辑安装，命令直接来自你的仓库副本；`[feetech]` 扩展会装上和 STS3215 通信的串口 SDK（[pyproject.toml 第 170 行](https://github.com/huggingface/lerobot/blob/v0.6.1/pyproject.toml#L170)），`[core_scripts]` 是安装指南用于录制、回放和校准的那一组（[pyproject.toml 第 132 行](https://github.com/huggingface/lerobot/blob/v0.6.1/pyproject.toml#L132)）。本课只需要 `[feetech]`：课程自己用 v0.6.1 版测试过，只装 `.[feetech]` 就能运行 `lerobot-find-port`、`lerobot-setup-motors`、`lerobot-calibrate` 和 `lerobot-teleoperate`，但显示摄像头数据和录制数据集需要 `core_scripts` 额外加入的扩展。课程按 v0.6.1 版核对过这些命令；想用完全相同的版本，就在 `cd lerobot` 之后运行 `git checkout v0.6.1`。如果最后一条命令失败，先确认你在有 `pyproject.toml` 的那个目录，并且 `lerobot` 环境已经激活。
+前两行创建并激活一个名为 `lerobot`、使用 Python 3.12 的环境；LeRobot 要求 Python 3.12 或更新版本（[pyproject.toml 第 32 行](https://github.com/huggingface/lerobot/blob/v0.6.1/pyproject.toml#L32)）。第三行安装 `ffmpeg`，LeRobot 默认的视频解码器需要它（[安装指南第 70–87 行](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/installation.mdx#L70-L87)）。接下来三行下载代码、进入它的目录，并切换到 v0.6.1 版，也就是课程核对这些命令时用的版本。最后一行从这个目录安装 LeRobot：`-e` 是可编辑安装，命令直接来自你的仓库副本；`[feetech]` 扩展会装上和 STS3215 通信的串口 SDK（[pyproject.toml 第 170 行](https://github.com/huggingface/lerobot/blob/v0.6.1/pyproject.toml#L170)），`[core_scripts]` 是安装指南用于录制、回放和校准的那一组（[pyproject.toml 第 132 行](https://github.com/huggingface/lerobot/blob/v0.6.1/pyproject.toml#L132)）。本课只需要 `[feetech]`：课程自己用 v0.6.1 版测试过，只装 `.[feetech]` 就能运行 `lerobot-find-port`、`lerobot-setup-motors`、`lerobot-calibrate` 和 `lerobot-teleoperate`，但显示摄像头数据和录制数据集需要 `core_scripts` 额外加入的扩展。如果最后一条命令失败，先确认你在有 `pyproject.toml` 的那个目录，并且 `lerobot` 环境已经激活。
 
 <Resource id="lerobot-so101" />
 
@@ -369,16 +370,22 @@ lerobot-find-port
 
 工具会列出串口，让你拔掉一块板再按回车，然后告诉你哪个串口消失了。插回去，对另一块板重复。把哪个口是主臂、哪个是从臂记下来，写在纸上或写在要用的命令旁边。Linux 下名字像 `/dev/ttyACM0` 和 `/dev/ttyACM1`，但重新插拔后可能变，所以要查，不要猜。下面的例子用 `/dev/ttyACM0` 给从臂、`/dev/ttyACM1` 给主臂；换成你自己的。
 
-串口名取决于操作系统。macOS 上形如 `/dev/tty.usbmodem575E0032081`，这是 LeRobot 指南里的例子（[LeRobot SO-101 指南第 57–74 行](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L57-L74)）；Windows 上控制板显示为 `COM` 口，例如 `COM3`，`lerobot-find-port` 通过 pyserial 列出它们（[lerobot_find_port.py 第 36–37 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/scripts/lerobot_find_port.py#L36-L37)），编号因电脑而异；Linux 上是 `/dev/ttyACM0`、`/dev/ttyACM1` 等。照 `lerobot-find-port` 打印的名字原样使用。
+串口名取决于操作系统。macOS 上形如 `/dev/tty.usbmodem575E0032081`，这是 LeRobot 指南里的例子（[LeRobot SO-101 指南第 57–74 行](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L57-L74)）；Windows 上控制板显示为 `COM` 口，例如 `COM3`，`lerobot-find-port` 通过 pyserial 列出它们（[lerobot_find_port.py 第 36–38 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/scripts/lerobot_find_port.py#L36-L38)），编号因电脑而异；Linux 上是 `/dev/ttyACM0`、`/dev/ttyACM1` 等。照 `lerobot-find-port` 打印的名字原样使用。
 
-在 Linux 上，打开串口可能报 “Permission denied”（权限被拒绝），因为串口设备属于一个系统组，而你的用户不一定在这个组里。LeRobot 指南给了一个快速解决办法，每个串口运行一次（[LeRobot SO-101 指南第 77–82 行](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L77-L82)）：
+在 Linux 上，打开串口可能报 “Permission denied”（权限被拒绝），因为串口设备属于一个系统组，而你的用户不一定在这个组里。长期的解决办法是把你的用户加入这个组：Debian 和 Ubuntu 上是 `dialout`，它提供 “full and direct access to serial ports”（对串口的完全、直接访问；[Debian 维基：SystemGroups](https://wiki.debian.org/SystemGroups)），Arch Linux 上是 `uucp`（[ArchWiki：Users and groups](https://wiki.archlinux.org/title/Users_and_groups)），其他发行版可能用别的组名。运行 `ls -l /dev/ttyACM0` 查看串口属于哪个组，再把自己加进去（把 `dialout` 换成那个组名）：
+
+```bash
+sudo usermod -aG dialout $USER
+```
+
+这一变更要注销再重新登录，或者重启之后才生效；ArchWiki 说明，组的变更要重新登录后才生效。LeRobot 指南另外给了一个临时办法（[LeRobot SO-101 指南第 77–82 行](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L77-L82)）：
 
 ```bash
 sudo chmod 666 /dev/ttyACM0
 sudo chmod 666 /dev/ttyACM1
 ```
 
-另一种常见做法是把你的用户加入拥有串口的那个组：Debian 和 Ubuntu 上是 `dialout`，它提供 “full and direct access to serial ports”（对串口的完全、直接访问；[Debian 维基：SystemGroups](https://wiki.debian.org/SystemGroups)），Arch Linux 上是 `uucp`（[ArchWiki：Users and groups](https://wiki.archlinux.org/title/Users_and_groups)）。运行 `ls -l /dev/ttyACM0` 查看串口属于哪个组，用 `sudo usermod -aG dialout $USER` 把自己加进去（把 `dialout` 换成那个组名），然后注销再重新登录；ArchWiki 说明，组的变更要重新登录后才生效。
+这个临时办法不会保留。`/dev` 里的设备文件由 udev 管理，每次插上控制板，udev 都会重新创建它并设置权限（[ArchWiki：udev](https://wiki.archlinux.org/title/Udev)），所以重新插拔或重启后，改动就没了。而且 666 会让文件所有者、所属组和其他所有用户都有读写权限（[chmod(1) 手册](https://man7.org/linux/man-pages/man1/chmod.1.html)），也就是这台电脑上的任何用户都能打开这个串口。只在组的变更生效之前用它。
 
 ### 一次一个舵机
 
@@ -496,7 +503,7 @@ lerobot-teleoperate \
 
 - **找不到某个电机**：查供电、USB 和该电机的三针线，并确认 Waveshare 板的两个跳线仍在“找到串口”一节设好的 B 位置；通道错了，板子有电但电脑什么都看不到。
 - **“Could not connect on port …”**：LeRobot 完全打不开串口时会打印这条信息（[motors_bus.py 第 536–540 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/motors_bus.py#L536-L540)）。如果它上方打印的错误里有 “Permission denied”（权限被拒绝），说明你的 Linux 用户无权打开这个串口，按“找到串口”一节的权限设置处理。否则就是串口名错了或者板子没插好：再运行一次 `lerobot-find-port`，照它打印的名字复制。
-- **“motor check failed”，并列出 “Missing motor IDs”**：串口打开了，但有些电机没有应答。LeRobot 连接时会逐个 ping 这条臂的每个 ID，并列出缺失或型号不对的 ID（[motors_bus.py 第 465–502 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/motors_bus.py#L465-L502)）。它以 1,000,000 波特和总线通信（[feetech.py 第 44 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/feetech/feetech.py#L44)），设置脚本会把这个波特率和 ID 一起写进每个电机（[motors_bus.py 第 589–595 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/motors_bus.py#L589-L595)）。设置时被跳过、或后来换上的电机仍是出厂 ID 1，所以它不会在它所在关节的 ID 上应答。在列表里找到缺失的 ID，检查通往那个电机的线；线没问题的话，再运行一次 `lerobot-setup-motors`，脚本要哪个电机就单独接哪个。
+- **“motor check failed”，并列出 “Missing motor IDs”**：串口打开了，但有些电机没有应答。LeRobot 连接时会逐个 ping 这条臂的每个 ID，并列出缺失或型号不对的 ID（[motors_bus.py 第 465–502 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/motors_bus.py#L465-L502)）。它以 1,000,000 波特和总线通信（[feetech.py 第 44 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/feetech/feetech.py#L44)），设置脚本会把这个波特率和 ID 一起写进每个电机（[motors_bus.py 第 617–629 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/motors_bus.py#L617-L629)）。设置时被跳过、或后来换上的电机仍是出厂 ID 1，所以它不会在它所在关节的 ID 上应答。这样的电机如果留在总线上，还会和 ID 为 1 的 `shoulder_pan` 冲突（[so_follower.py 第 54 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/so_follower.py#L54)）：两个舵机都会应答发给 ID 1 的包。在列表里找到缺失的 ID，检查通往那个电机的线；线没问题的话，再运行一次 `lerobot-setup-motors`，脚本要哪个电机就单独接哪个。
 - **几个关节同时动时，关节突然没劲，或者臂抽一下、控制板找不到电机**：电源电压可能在负载下跌落。Feetech 规格书说，舵机输入电压低于 4 V 时进入保护，电压回到正常范围后自动解除（C001 规格书 §7-11，[PDF](https://www.feetechrc.com/Data/feetechrc/upload/file/20200611/6372749961523760249976542.pdf)），而 5 V 电源离这个门限只有 1 V 的余量。标准的 5 V 4 A 电源会不会出现这种情况，是本课的估计，不是实测结果。先查电源插头和通往控制板的线，不要让关节长时间顶着限位；问题还在的话，在臂运动时用万用表测控制板输入端的电压，或者换一个额定电流更大的 5 V 电源。
 - **从臂一启动就猛跳**：它是在另一个姿态或另一个 id 下校准的。用你打算使用的姿态和 id 重新校准。
 - **某个关节方向反了或有偏移**：重新校准那条臂。不要靠改命令来修；错的是映射，不是命令。
