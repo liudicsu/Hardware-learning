@@ -10,15 +10,15 @@ A note on the outputs. Every command output quoted in this lesson is a real run 
 
 ## Pick the right communication pattern
 
-A node is one program with one job. The whole ROS 2 style is to give each job its own node — one reads the lidar, one filters the readings, one decides where to drive — and then let them exchange messages instead of calling each other directly. That last part is what makes a system replaceable: as long as the messages keep the same shape, you can rewrite, restart or move any node without touching the others.
+<Term id="ros-node">A node</Term> is one program with one job. The whole ROS 2 style is to give each job its own node — one reads the lidar, one filters the readings, one decides where to drive — and then let them exchange messages instead of calling each other directly. That last part is what makes a system replaceable: as long as the messages keep the same shape, you can rewrite, restart or move any node without touching the others.
 
 Nodes talk in three patterns, and most of the design work in ROS 2 is choosing between them.
 
 | Pattern | Shape | Use it for | Example in this lesson |
 | --- | --- | --- | --- |
-| Topic | one-way stream, many publishers and subscribers, nobody waits | continuous data: sensor readings, images, velocity commands, odometry | /raw, /filtered, /summary |
-| Service | request → one reply, the caller waits | quick questions and settings that finish at once | /set_alpha |
-| Action | goal → stream of feedback → result, can be cancelled | anything that takes time: drive 2 m, move an arm, collect N samples | /collect |
+| <Term id="topic">Topic</Term> | one-way stream, many publishers and subscribers, nobody waits | continuous data: sensor readings, images, velocity commands, odometry | /raw, /filtered, /summary |
+| <Term id="service">Service</Term> | request → one reply, the caller waits | quick questions and settings that finish at once | /set_alpha |
+| <Term id="action">Action</Term> | goal → stream of feedback → result, can be cancelled | anything that takes time: drive 2 m, move an arm, collect N samples | /collect |
 
 Once you have that table in your head, the choice is usually obvious, and it is worth saying out loud as a rule of thumb:
 

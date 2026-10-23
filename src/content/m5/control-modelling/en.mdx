@@ -1,4 +1,4 @@
-Month 3 left you with a working PID loop on one arm joint. [Review Month 3 PID](/en/month/month-3/pid-control) if you need the P/I/D terms, integral windup or the tuning procedure; none of that is repeated here. This lesson goes deeper: model the plant, write its transfer function, read the loop on a Bode plot, and judge stability from the gain and phase margins. State space and LQR are the next lesson.
+Month 3 left you with a working PID loop on one arm joint. [Review Month 3 PID](/en/month/month-3/pid-control) if you need the P/I/D terms, integral windup or the tuning procedure; none of that is repeated here. This lesson goes deeper: model the plant, write its <Term id="transfer-function">transfer function</Term>, read the loop on a <Term id="bode-plot">Bode plot</Term>, and judge stability from the gain and <Term id="phase-margin">phase margins</Term>. State space and LQR are the next lesson.
 
 ## Why model the joint
 
@@ -180,7 +180,7 @@ Write the controller as C and the plant as P; the loop gain is L = C × P. Magni
 
 <Formula label="Phase margin: how much more phase lag the loop can take at the gain crossover before reaching −180°">PM = 180° + ∠L(jω_c)</Formula>
 
-With the Month 3 gains, kp = 2.86 N·m/rad and kd = 0.115 N·m/(rad/s), the model gives the table below. |L| crosses 0 dB at 34.6 rad/s (read between the 30 and 100 rad/s rows), where `∠L(34.6 rad/s) ≈ −124°`, so `PM = 180° + (−124°) = 56°`. The phase reaches −180° at 150.8 rad/s, where `|L(150.8 rad/s)| ≈ −14.2 dB`, so the gain margin is 14.2 dB, a factor of `10^(14.2/20) = 5.1`. The 300 rad/s row is already at −263°, well past −180°; the margin is read at the first crossing.
+With the Month 3 gains, kp = 2.86 N·m/rad and kd = 0.115 N·m/(rad/s), the model gives the table below. |L| crosses 0 dB at 34.6 rad/s (read between the 30 and 100 rad/s rows), where `∠L(34.6 rad/s) ≈ −124°`, so `PM = 180° + (−124°) = 56°`. The phase reaches −180° at 150.8 rad/s, where `|L(150.8 rad/s)| ≈ −14.2 dB`, so the <Term id="gain-margin">gain margin</Term> is 14.2 dB, a factor of `10^(14.2/20) = 5.1`. The 300 rad/s row is already at −263°, well past −180°; the margin is read at the first crossing.
 
 <SimOutput source="model">
 

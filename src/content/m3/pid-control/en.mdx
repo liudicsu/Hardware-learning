@@ -28,6 +28,10 @@ The arm is not broken and the controller is not unstable. It has found the only 
 
 Two practical details change a textbook PID into one that works on a robot. First, take the derivative of the measurement, not of the error. If D differentiates the error and the target jumps from 0° to 60°, the error jumps too, and the derivative sees a huge rate for one sample. The controller answers with a violent derivative kick to the motor, even though nothing physical has moved. Differentiating the measurement removes that kick: a target step changes the error, but not the measured angle, so D stays quiet. The code in this lesson uses the measurement difference divided by `dt` and subtracts `kd × rate`. Second, run the loop at a fixed rate, using the timing discipline from Month 2 Lesson 2. A PID assumes that `dt` is the same every pass; if the loop sometimes takes 5 ms and sometimes 15 ms, the integral and derivative terms are calculated with the wrong time and the gains mean something different from one moment to the next.
 
+<Callout type="warn" title="Do not ship a PID that winds up or kicks">
+A target step with D on the error, or an integral that keeps accumulating while the motor is already at its torque limit, can shove the joint harder than the mechanical design expected. On a real arm that means a bang into a hard stop, a stripped horn, or a pinched finger. Differentiate the measurement, keep anti-windup on from the first Ki you try, and test a large setpoint step in simulation before you raise Ki on hardware.
+</Callout>
+
 <Resource id="beauregard-pid" />
 
 Brett Beauregard's series on improving the beginner's PID is the source of several habits used here: derivative on measurement, a fixed sample time, and <Term id="integral-windup">anti-windup</Term>. Read it after you have seen the failure modes below; it will make more sense.

@@ -4,7 +4,7 @@ This is the sixth and last lesson of Month 4. Everything it needs is already in 
 
 The practice task follows the order you would use on a real robot: calibrate odometry against the lidar, map the room and save the map, navigate in the saved map, then break navigation on purpose and find out why. The month's milestone is **map a room with SLAM Toolbox and navigate it autonomously with Nav2**.
 
-## SLAM in one picture
+## <Term id="slam">SLAM</Term> in one picture
 
 Odometry alone is not enough. `diff_drive_controller` integrates wheel rotations into a pose, and every small error — a wheel that slips, a radius that is half a millimetre off, a turn that comes out one degree long — is added up forever. After a few minutes of driving, odometry can be tens of centimetres and several degrees away from the truth, and it never notices. The lidar, on the other hand, sees the walls directly, but a single scan does not say where the robot is unless you already have a map to compare it with.
 
@@ -628,7 +628,7 @@ Nav2 is a set of servers coordinated by a behaviour tree. The parameter file [`m
 <Diagram id="nav2-pipeline" />
 
 1. **`bt_navigator`** receives the `NavigateToPose` goal and runs a behaviour tree: plan, follow, and on failure try recoveries (clear the costmaps, spin, wait, back up) before giving up.
-2. **`planner_server`** plans a path on the **global costmap**, which is the saved map (the static layer) plus obstacles currently seen by the lidar, plus inflation. The planner is NavFn, a grid search.
+2. **`planner_server`** plans a path on the **global <Term id="costmap">costmap</Term>**, which is the saved map (the static layer) plus obstacles currently seen by the lidar, plus inflation. The planner is NavFn, a grid search.
 3. **`controller_server`** follows the path with Regulated Pure Pursuit at up to 0.25 m/s, steering on the **local costmap**, a 3 m × 3 m window around the robot built from the lidar alone. It turns on the spot first when the path points more than 0.785 rad (45°) away from the robot's heading.
 4. **`velocity_smoother`** limits acceleration, and **`collision_monitor`** slows or stops the robot if the lidar sees something about to be hit. Its output, `cmd_vel_out_topic: "/diff_drive_controller/cmd_vel"`, is the only line that connects Nav2 to Lesson 5's controller. Because that controller expects `TwistStamped`, every server that publishes velocities has `enable_stamped_cmd_vel: true`.
 

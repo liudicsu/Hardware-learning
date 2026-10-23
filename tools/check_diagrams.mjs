@@ -1638,6 +1638,149 @@ const lessonRef = (n, slug, lang) => {
 }
 
 {
+  // fdm-printing materials paragraph (en/zh :75 Heat / :79 Moisture): datasheet numbers from NatureWorks Ingeo 4043D,
+  // Eastman Eastar 6763, INEOS Terluran GP-35 / Luran S 777K, BASF Ultramid B3S. Extends the short Tg bullets already in `full`.
+  // motors-drivers + resources.ts: Romi 12×120=1440 CPR and A4988 Vref = 8×I×R_CS (Pololu #1182 / #3542).
+  // % survivors after the spacing pass (#64): ohms-law resistor derating / divider loading; components RC 63 %/99 %;
+  // transmissions gear efficiency; glossary + curriculum τ / duty milestones that quote the same arithmetic.
+  const matDs = {
+    plaTg: [55, 60], plaHdt: 55, plaLoad: 0.45,
+    petgTg: 80, petgHdt: 70, petgLoad: 0.455, petgAbs: 0.13,
+    absVicat: 95, absHdtAnn: 95, absAnnH: 4, absAnnT: 80, absHdtUnann: 89, absF: 192, absPsi: 66,
+    asaVicat: 97, asaHdt: 101,
+    motor: 70, belowTg: 10,
+    nylonEq: [2.6, 3.4], nylonT: 23, nylonRh: 50, nylonSat: [9, 10], nylonE: [3500, 1200],
+  };
+  ok(matDs.plaTg[1] < matDs.petgTg && matDs.petgHdt < matDs.petgTg && matDs.petgLoad > matDs.plaLoad
+    && matDs.absHdtUnann < matDs.absHdtAnn && matDs.motor > matDs.plaTg[1] && matDs.nylonE[0] > matDs.nylonE[1],
+    `fdm materials: datasheet constants no longer support the Heat/Moisture prose`);
+  const matPhrases = {
+    en: [
+      `NatureWorks lists Tg = ${matDs.plaTg.join("–")} °C for Ingeo 4043D`,
+      `heat deflection temperature of ${matDs.plaHdt} °C under a ${matDs.plaLoad} MPa load`,
+      `data sheet for Eastar 6763`,
+      `gives Tg = ${matDs.petgTg} °C (by DSC) and a heat deflection temperature of ${matDs.petgHdt} °C under ${matDs.petgLoad} MPa`,
+      `Vicat softening temperature (B/50) of ${matDs.absVicat} °C and a heat deflection temperature of ${matDs.absHdtAnn} °C under ${matDs.plaLoad} MPa (measured on specimens annealed for ${matDs.absAnnH} h at ${matDs.absAnnT} °C)`,
+      `${matDs.asaVicat} °C and ${matDs.asaHdt} °C, under the same conditions, for`,
+      `about ${matDs.absHdtUnann} °C unannealed under ${matDs.plaLoad} MPa (${matDs.absPsi} psi; ${matDs.absF} °F`,
+      `next to a ${matDs.motor} °C motor, PLA is above its Tg, and PETG is already at its heat deflection temperature even though it is ${matDs.belowTg} °C below its Tg`,
+      `lists ${matDs.nylonEq.join("–")} % water at equilibrium in ${matDs.nylonT} °C air at ${matDs.nylonRh} % relative humidity and ${matDs.nylonSat.join("–")} % at saturation`,
+      `falls from ${matDs.nylonE[0]} MPa dry to ${matDs.nylonE[1]} MPa conditioned`,
+      `Eastman lists ${matDs.petgAbs} % for 6763 after 24 h in water`,
+    ],
+    zh: [
+      `NatureWorks 给 Ingeo 4043D`,
+      `列出的 Tg 是 ${matDs.plaTg.join("–")} °C，${matDs.plaLoad} MPa 载荷下的热变形温度是 ${matDs.plaHdt} °C`,
+      `Eastar 6763 数据表`,
+      `给出 Tg = ${matDs.petgTg} °C（DSC 测定），${matDs.petgLoad} MPa 下的热变形温度为 ${matDs.petgHdt} °C`,
+      `维卡软化温度（B/50）是 ${matDs.absVicat} °C，${matDs.plaLoad} MPa 下的热变形温度是 ${matDs.absHdtAnn} °C（试样先在 ${matDs.absAnnT} °C 退火 ${matDs.absAnnH} h 后测定）`,
+      `分别是 ${matDs.asaVicat} °C 和 ${matDs.asaHdt} °C`,
+      `未退火约 ${matDs.absHdtUnann} °C（`,
+      `贴着 ${matDs.motor} °C 的电机，PLA 已经高于它的 Tg；PETG 虽然比 Tg 低 ${matDs.belowTg} °C，却已经到了它的热变形温度`,
+      `平衡含水率为 ${matDs.nylonEq.join("–")} %，在水中饱和时为 ${matDs.nylonSat.join("–")} %`,
+      `从干态的 ${matDs.nylonE[0]} MPa 降到调湿后的 ${matDs.nylonE[1]} MPa`,
+      `Eastman 给 6763 列出的 24 h 浸水吸水率是 ${matDs.petgAbs} %`,
+    ],
+  };
+  for (const lang of ["en", "zh"]) {
+    const text = readFileSync(join(root, `src/content/m3/fdm-printing/${lang}.mdx`), "utf8");
+    for (const q of matPhrases[lang]) ok(text.includes(q), `fdm-printing ${lang} materials: expected ${JSON.stringify(q)} (NatureWorks / Eastman 6763 / INEOS / Ultramid)`);
+  }
+  console.log(`calc  fdm materials: ${matPhrases.en.length} + ${matPhrases.zh.length} phrases; PLA Tg ${matDs.plaTg.join("–")} / HDT ${matDs.plaHdt}, PETG 6763 Tg ${matDs.petgTg} / HDT ${matDs.petgHdt}, ABS unannealed ${matDs.absHdtUnann}, nylon ${matDs.nylonEq.join("–")} % → E ${matDs.nylonE.join("→")}`);
+
+  // Romi encoder: 12 CPR × 120:1 ≈ 1440 counts/wheel-turn (Pololu #3542 / #1520); A4988 I_max = Vref/(8×R_CS).
+  const romi = { cpr: 12, gear: 120, exact: 119.76 }, cprOut = romi.cpr * romi.gear;
+  const a4988 = { rNew: 0.068, rOld: 0.050, i: 1, vrefMv: 540 };
+  const vref = 8 * a4988.i * a4988.rNew;
+  // Pololu's table rounds 0.544 V to 540 mV (10 mV steps), not 544 mV.
+  ok(cprOut === 1440 && Math.abs(vref - 0.544) < 1e-9 && Math.round(vref * 100) * 10 === a4988.vrefMv,
+    `motors-drivers: 12×120 must be 1440 and Vref 8×1×0.068 = 0.544 V (Pololu ${a4988.vrefMv} mV)`);
+  const mdP = {
+    en: [
+      `output-shaft CPR = motor-shaft CPR × gear ratio = ${romi.cpr} × ${romi.gear} = ${cprOut}`,
+      `I_max = Vref / (8 × R_CS)`,
+      `${a4988.rNew} Ω on Pololu units made since 2017 and ${a4988.rOld.toFixed(3)} Ω on earlier ones`,
+      `Vref = 8 × ${a4988.i} A × ${a4988.rNew} Ω = ${vref} V, which Pololu rounds to ${a4988.vrefMv} mV`,
+      `approximately ${cprOut} counts per revolution of the Romi's wheels`,
+    ],
+    zh: [
+      `输出轴 CPR = 电机轴 CPR × 减速比 = ${romi.cpr} × ${romi.gear} = ${cprOut}`,
+      `I_max = Vref / (8 × R_CS)`,
+      `Vref = 8 × ${a4988.i} A × ${a4988.rNew} Ω = ${vref} V，Pololu 取整为 ${a4988.vrefMv} mV`,
+      `对应 Romi 车轮每转约 ${cprOut} 个计数`,
+    ],
+  };
+  for (const lang of ["en", "zh"]) {
+    const text = readFileSync(join(root, `src/content/m2/motors-drivers/${lang}.mdx`), "utf8");
+    for (const q of mdP[lang]) ok(text.includes(q), `motors-drivers ${lang}: expected ${JSON.stringify(q)}`);
+  }
+  const rs = readFileSync(join(root, "src/lib/resources.ts"), "utf8");
+  for (const q of [
+    `12 × 120 = ${cprOut}`,
+    `12 counts per motor-shaft turn`,
+    `从电机轴计数换算到输出轴计数（12 × 120 = ${cprOut}）`,
+  ]) ok(rs.includes(q), `resources.ts pololu-romi / gearmotor: expected ${JSON.stringify(q)}`);
+  console.log(`calc  motors-drivers: ${romi.cpr}×${romi.gear}=${cprOut} CPR, A4988 Vref ${vref} V (${a4988.vrefMv} mV) at R_CS ${a4988.rNew} Ω, bound in en/zh and resources.ts`);
+
+  // ohms-law: 0.25 W into 1/2 W → 50 % derating; divider 1.6→1.2 V → 25 % drop.
+  const ohms = { p: 0.25, rating: 0.5, derate: 50, vNom: 1.6, vLoad: 1.2, drop: 25 };
+  ok(Math.round(100 * ohms.p / ohms.rating) === ohms.derate && Math.round(100 * (1 - ohms.vLoad / ohms.vNom)) === ohms.drop,
+    `ohms-law: ${ohms.p}/${ohms.rating} must be ${ohms.derate} % and (1−${ohms.vLoad}/${ohms.vNom}) ${ohms.drop} %`);
+  const ohmsP = {
+    en: [`Use at most about ${ohms.derate} %`, `a ${ohms.drop} % drop`, `recommended ${ohms.derate} % of rating`, `a ${ohms.drop} % fall`],
+    zh: [`最多用额定值的 ${ohms.derate} %`, `掉了 ${ohms.drop} %`, `只占额定值的 ${ohms.derate} %`, `下降 ${ohms.drop} %`],
+  };
+  for (const lang of ["en", "zh"]) {
+    const text = readFileSync(join(root, `src/content/m1/ohms-law/${lang}.mdx`), "utf8");
+    for (const q of ohmsP[lang]) ok(text.includes(q), `ohms-law ${lang}: expected ${JSON.stringify(q)}`);
+  }
+
+  // components + glossary + curriculum: 1τ ≈ 63 %, 5τ ≈ 99 %.
+  const rc = { one: 63, five: 99 };
+  const rcP = {
+    en: [`≈ ${rc.one} %`, `≈ ${rc.five} %`],
+    zh: [`≈ ${rc.one} %`, `≈ ${rc.five} %`],
+  };
+  for (const lang of ["en", "zh"]) {
+    const text = readFileSync(join(root, `src/content/m1/components/${lang}.mdx`), "utf8");
+    for (const q of rcP[lang]) ok(text.includes(q), `components ${lang}: expected ${JSON.stringify(q)} (RC milestones)`);
+  }
+  const gloss = readFileSync(join(root, "src/lib/glossary.ts"), "utf8");
+  const cur = readFileSync(join(root, "src/lib/curriculum.ts"), "utf8");
+  for (const q of [`约 ${rc.one} %`, `约 ${rc.five} %`, `about ${rc.one} %`, `about ${rc.five} %`,
+    `${rc.one} % 与 ${rc.five} %`, `${rc.one} % and ${rc.five} %`])
+    ok(gloss.includes(q) || cur.includes(q), `glossary/curriculum: expected RC milestone ${JSON.stringify(q)}`);
+
+  // transmissions: 25.4/31.4 ≈ 81 % efficiency example.
+  const tr = { pin: 31.4, pout: 25.4 }, eff = Math.round(100 * tr.pout / tr.pin);
+  ok(eff === 81, `transmissions: ${tr.pout}/${tr.pin} must round to 81 %`);
+  for (const [lang, q] of [["en", `${tr.pout} W out, ${eff} %`], ["zh", `输出 ${tr.pout} W，即 ${eff} %`]]) {
+    const text = readFileSync(join(root, `src/content/m3/transmissions/${lang}.mdx`), "utf8");
+    ok(text.includes(q), `transmissions ${lang}: expected ${JSON.stringify(q)}`);
+  }
+  // cad-parametric: 100 % solid mass vs slicer 15–20 % infill (estimate, not a measured mass).
+  const cadInf = { solid: 100, lo: 15, hi: 20 };
+  for (const [lang, q] of [
+    ["en", `The ${cadInf.solid} % solid part. The slicer's estimate with walls and ${cadInf.lo}–${cadInf.hi} % infill will be lower.`],
+    ["zh", `${cadInf.solid} % 实心零件的质量；切片器按壁厚和 ${cadInf.lo}–${cadInf.hi} % 填充估算会更低`],
+  ]) {
+    // en prose uses "The 6.1 g figure is for a 100 % solid part..." — bind the % tokens that survive the spacing pass.
+    const text = readFileSync(join(root, `src/content/m3/cad-parametric/${lang}.mdx`), "utf8");
+    const want = lang === "en"
+      ? [`${cadInf.solid} % solid part`, `${cadInf.lo}–${cadInf.hi} % infill`]
+      : [`${cadInf.solid} % 实心`, `${cadInf.lo}–${cadInf.hi} % 填充`];
+    for (const w of want) ok(text.includes(w), `cad-parametric ${lang}: expected ${JSON.stringify(w)}`);
+  }
+
+  // Holes the %-spacing / fact-bind rules cannot catch without false positives (document for the PR):
+  // - decorative or relative percents in narrative (e.g. "a few percent", quiz distractors);
+  // - live / market prices and store sale % that change without a pinned source date;
+  // - unicode / &percnt; entities already handled by check_visible_pct;
+  // - python-terminal / ros2-control percents already bound by older recomputation blocks.
+  console.log(`calc  % survivors (safe binds): ohms-law ${ohms.derate}/${ohms.drop} %, RC ${rc.one}/${rc.five} %, transmissions ${eff} %; remaining glued-spacing-only tokens noted in PR`);
+}
+
+{
   // Month 4 content gaps (m4-conclusions.md): every newly stated number is recomputed or pinned here.
   // ros2-setup: Construct pricing page €39.97 (October 2026); pixi env size du -sh .pixi = 5.8 GB on the course Debian 13 box (October 2026).
   // ros2-graph: sensor_node.py Random(7), amp 0.5, period 50, σ 0.2; EMA replay α=0.2 and recorded α=0.5 at samples k=67..69 of that seeded sequence.
@@ -1781,7 +1924,7 @@ const lessonRef = (n, slug, lang) => {
   // control-modelling: joint_freq.py Bode / margins — ω_pc, kp_crit from |L|=1 at ∠L=−180°; PM/GM arithmetic; PD lead atan(ω kd/kp).
   // state-space-lqr: lqr_sim.py nonlinear cart-pole + ∂/∂θ; recovery sweep 1°…89° / 6 s / |θ|<0.01; Qθθ=400 R=1 → |u|=20 N·m.
   // kinematics-ik: kinematics.py singularity row q=[0,20°,−60°] v=[0.05,0,0]; DLS max_step=0.02, λ=0.03 tip advance < 20 mm.
-  // camera-calibration: calibrate.py COLS=9 ROWS=6 → 54 corners; 15 views × 54 = 810; 4+2+15×6 = 96 params → 714 residuals.
+  // camera-calibration: calibrate.py COLS=9 ROWS=6 → 54 corners; 15 views × 54 = 810 pts × 2 = 1620 obs; 4+2+15×6 = 96 params → 1524 residual DoF.
   // moveit-pick-place: pick_place.py quat (cos22.5°,−sin22.5°,0); FINGER=0.1034; WALL length 0.30 at x=0.5 → face 0.35; L1+L2=0.251.
   const rd5 = (p) => readFileSync(join(root, p), "utf8");
   const lqr = rd5("tools/sim/models/lqr_sim.py");
@@ -1824,9 +1967,10 @@ const lessonRef = (n, slug, lang) => {
   const nViews = 15;
   const nPts = nViews * corners;
   const nParams = 4 + 2 + nViews * 6;
-  const nRes = nPts - nParams;
-  ok(COLS === 9 && ROWS === 6 && corners === 54 && nPts === 810 && nParams === 96 && nRes === 714,
-    `m5 camera: ${COLS}×${ROWS}=${corners}, ${nViews} views → ${nPts} pts, ${nParams} params, ${nRes} residuals`);
+  const nObs = nPts * 2;
+  const nRes = nObs - nParams;
+  ok(COLS === 9 && ROWS === 6 && corners === 54 && nPts === 810 && nObs === 1620 && nParams === 96 && nRes === 1524,
+    `m5 camera: ${COLS}×${ROWS}=${corners}, ${nViews} views → ${nPts} pts × 2 = ${nObs} obs, ${nParams} params, ${nRes} residual DoF`);
   const finger = num5(pick, /FINGER = ([\d.]+)/, "pick FINGER");
   ok(Math.abs(finger - 0.1034) < 1e-9, `m5 moveit: FINGER must be 0.1034 (got ${finger})`);
   const wallX = num5(pick, /WALL = \(([\d.]+)/, "pick WALL length");
@@ -1879,7 +2023,8 @@ const lessonRef = (n, slug, lang) => {
       ],
       "camera-calibration": [
         "15 views × 6 pose parameters = 96 free parameters",
-        "810 − 96 = 714 independent residuals",
+        "810 × 2 = 1620 image observations",
+        "1620 − 96 = 1524 residual degrees of freedom",
       ],
       "moveit-pick-place": [
         "(cos 22.5°, −sin 22.5°, 0) = (0.9238795, −0.3826834, 0)",
@@ -1920,7 +2065,8 @@ const lessonRef = (n, slug, lang) => {
       ],
       "camera-calibration": [
         "15 个视角 × 6 个位姿参数 = 96 个自由参数",
-        "810 − 96 = 714 个独立残差",
+        "810 × 2 = 1620 个图像观测",
+        "1620 − 96 = 1524 个残差自由度",
       ],
       "moveit-pick-place": [
         "(cos 22.5°, −sin 22.5°, 0) = (0.9238795, −0.3826834, 0)",

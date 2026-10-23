@@ -1,6 +1,6 @@
 The arm from [Month 3, SO-101 arm](/en/month/month-3/so101-arm) has six motors, five joints and a gripper, but every controller so far moved a single joint. To put the gripper somewhere in space you need the map from joint angles to the gripper's position. This lesson builds that map for the first three joints of an SO-101-style arm: base yaw q0, shoulder q1 and elbow q2. The model uses the SO-101's real axis-to-axis distances, taken from the arm's URDF ([TheRobotStudio/SO-ARM100 @ a758567, `Simulation/SO101/so101_new_calib.urdf`](https://github.com/TheRobotStudio/SO-ARM100/blob/a758567c3978dfeefe282ede0500085a48fe8f78/Simulation/SO101/so101_new_calib.urdf#L374-L435)): the upper arm L1 = √(0.11257² + 0.028²) = 0.1160 m from the `shoulder_lift` axis to the `elbow_flex` axis (the `elbow_flex` joint origin, line 395), the forearm L2 = √(0.1349² + 0.0052²) = 0.1350 m from `elbow_flex` to `wrist_flex` (line 374), and the shoulder axis H = 0.0624 + 0.0542 = 0.1166 m above `base_link` (the `shoulder_pan` and `shoulder_lift` origins, lines 435 and 415). The tip is the `wrist_flex` axis. Three details of the real arm are left out to keep the geometry planar: the shoulder axis sits 30.4 mm forward of and 18.3 mm beside the base axis, the upper arm is bent by atan(0.028 / 0.11257) = 14.0°, and the joint zero positions differ from this model's (q1 = q2 = 0 is the arm straight out).
 
-## Forward kinematics
+## <Term id="forward-kinematics">Forward kinematics</Term>
 
 Each joint is a rotation plus a fixed offset. Multiply the 4 × 4 homogeneous transforms from the base to the tip in order: `rot_z(q0) * trans(0, 0, H) * rot_y(q1) * trans(L1, 0, 0) * rot_y(q2) * trans(L2, 0, 0)`. The last column of the product is the tip position, and the upper-left 3 × 3 block is its orientation.
 
@@ -188,7 +188,7 @@ if __name__ == "__main__":
 python3 tools/sim/models/kinematics.py
 ```
 
-## The Jacobian
+## The <Term id="jacobian">Jacobian</Term>
 
 The Jacobian answers a local question: if one joint moves by a tiny amount, how does the tip move? For this arm J is 3 × 3, with one column per joint. Column i is the derivative of the tip position with respect to q_i, in m/rad. The model does not differentiate symbolically: it evaluates FK at q, evaluates FK again with q_i nudged by 1e-6 rad, subtracts the positions and divides by 1e-6. That is a numerical Jacobian.
 
@@ -196,7 +196,7 @@ The base-yaw column is different in kind. Turning q0 swings the whole arm around
 
 J also turns joint speed into tip speed: v = J q'. Near a singularity J loses rank, which is what the next two sections are about.
 
-## Numerical inverse kinematics
+## Numerical <Term id="inverse-kinematics">inverse kinematics</Term>
 
 IK is the reverse problem: given a target tip position p*, find q. Closed-form solutions exist for some arms, but a numerical solver works for any chain. This model uses damped least squares (DLS):
 
@@ -273,7 +273,7 @@ The gap is 0.032 m, exactly 0.283 - 0.251. Lowering the damping to λ = 0.01 mak
 
 ## Singularities
 
-A singularity is a configuration where the Jacobian loses rank: some tip direction needs infinite joint speed, or no joint can produce it. For this arm |det J| measures how close that is. As the elbow straightens, det J goes to zero:
+A <Term id="singularity">singularity</Term> is a configuration where the Jacobian loses rank: some tip direction needs infinite joint speed, or no joint can produce it. For this arm |det J| measures how close that is. As the elbow straightens, det J goes to zero:
 
 <SimOutput source="model">
 

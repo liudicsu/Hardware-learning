@@ -1,6 +1,6 @@
 [第 3 个月的 SO-101 机械臂](/zh/month/month-3/so101-arm)有六个电机（五个关节加一个夹爪），但到目前为止每个控制器一次只动一个关节。要把夹爪（gripper）放到空间中的某个位置，需要关节角到夹爪位置的映射。本课为这种 SO-101 布局的前三个关节建立这个映射：底座偏航（base yaw）q0、肩（shoulder）q1 和肘（elbow）q2。模型采用 SO-101 真实的轴间距离，取自该机械臂的 URDF（[TheRobotStudio/SO-ARM100 @ a758567, `Simulation/SO101/so101_new_calib.urdf`](https://github.com/TheRobotStudio/SO-ARM100/blob/a758567c3978dfeefe282ede0500085a48fe8f78/Simulation/SO101/so101_new_calib.urdf#L374-L435)）：上臂 L1 = √(0.11257² + 0.028²) = 0.1160 m，是 `shoulder_lift` 轴到 `elbow_flex` 轴的距离（`elbow_flex` 关节原点，第 395 行）；前臂 L2 = √(0.1349² + 0.0052²) = 0.1350 m，是 `elbow_flex` 到 `wrist_flex`（第 374 行）；肩轴高 H = 0.0624 + 0.0542 = 0.1166 m，在 `base_link` 之上（`shoulder_pan` 与 `shoulder_lift` 的原点，第 435 和 415 行）。末端取 `wrist_flex` 轴。为了让几何保持在一个平面内，真实机械臂的三个细节被略去：肩轴比底座轴靠前 30.4 mm、偏侧 18.3 mm；上臂有 atan(0.028 / 0.11257) = 14.0° 的弯折；关节零位也与本模型不同（本模型 q1 = q2 = 0 表示臂水平伸直）。
 
-## 正运动学
+## <Term id="forward-kinematics">正运动学</Term>
 
 正运动学（forward kinematics）把关节角变成末端位置。每个关节都是一次旋转加一个固定偏移。把从底座到末端的 4 × 4 齐次变换（homogeneous transform）按顺序乘起来：`rot_z(q0) * trans(0, 0, H) * rot_y(q1) * trans(L1, 0, 0) * rot_y(q2) * trans(L2, 0, 0)`。乘积的最后一列是末端位置，左上角 3 × 3 块是它的姿态。
 
@@ -188,7 +188,7 @@ if __name__ == "__main__":
 python3 tools/sim/models/kinematics.py
 ```
 
-## 雅可比矩阵
+## <Term id="jacobian">雅可比矩阵</Term>
 
 雅可比矩阵（Jacobian）回答一个局部问题：某个关节动一点点，末端怎么动？对这个机械臂，J 是 3 × 3，每个关节一列。第 i 列是末端位置对 q_i 的导数，单位 m/rad。模型不做符号求导：先算 q 处的 FK，再把第 i 个关节加 1e-6 rad 算一次，两个位置相减再除以 1e-6。这就是数值雅可比。
 
@@ -196,7 +196,7 @@ python3 tools/sim/models/kinematics.py
 
 J 也把关节速度换成末端速度：v = J q'。接近奇异点（singularity）时 J 降秩，这就是接下来两节的内容。
 
-## 数值逆运动学
+## 数值<Term id="inverse-kinematics">逆运动学</Term>
 
 逆运动学（inverse kinematics, IK）是反方向：给定目标位置 p*，求 q。有些机械臂有解析解，但数值求解器对任何连杆链都适用。这个模型用阻尼最小二乘（damped least squares, DLS），更新式是：
 
@@ -271,7 +271,7 @@ elbow_flex    = −73.82 deg − q2    限位 ±1.69 rad    = ±96.83 deg
 
 <Quiz id="q3" question="目标离肩 0.283 m，两段连杆加起来 0.251 m。完全伸直的机械臂还差多少？" answer={0.032} unit="m" explanation="0.283 - 0.251 = 0.032 m。这是末端沿肩到目标方向能到的最近位置。" />
 
-## 奇异点
+## <Term id="singularity">奇异点</Term>
 
 奇异点（singularity）是雅可比矩阵降秩的构型：某个末端方向需要无穷大的关节速度，或者根本没有关节能产生这个方向。对这个机械臂，|det J| 衡量离奇异点有多近。肘逐渐伸直时，det J 趋于零：
 
