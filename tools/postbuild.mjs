@@ -32,6 +32,10 @@ if (quotes.notFound) {
 
 const basePath = pagesBasePath();
 
+// rendered percent check (tools/check_visible_pct.mjs): the export in out/ when there is a base path, else the prerendered pages
+const visible = run(process.execPath, ["tools/check_visible_pct.mjs", basePath !== "" ? "out" : ".next/server/app"]);
+if (visible.status !== 0) process.exit(visible.status);
+
 if (basePath !== "") {
   const check = run(process.execPath, [CHECKER, "out", basePath]);
   process.exit(check.status);
