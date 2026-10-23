@@ -1289,6 +1289,7 @@ const lessonRef = (n, slug, lang) => {
         `<Quiz id="q4" question="Why must each new servo be connected alone while you set its ID?" options={["the power supply is too weak for two", "all new servos answer to ID ${lr.idDef}, so two on the bus would both take the new ID", "the baud rate changes with each motor", "the gripper motor must always be first on the bus"]} answer={1} explanation="New servos ship with the same default ID, so two on the bus cannot be addressed separately. The setup script would be talking to both at once. Power, baud rate and bus order are not the reason." />`,
         `<Quiz id="q5" question="The follower suddenly jumps when teleoperation starts. What is the most likely cause?" options={["the baud rate is too low", "it was calibrated under a different id or pose than the leader", "the checksum is wrong", "the 1/${hi} gearing is too slow"]} answer={1} explanation="A jump at startup is the classic symptom of a calibration mismatch: the follower's saved mapping does not match the pose or name it is being started with. Baud rate would cause communication errors, a bad checksum would be rejected, and gearing does not change the zero." />`,
         `- ${nJw[0].toUpperCase() + nJw.slice(1)} STS3215 bus servos per arm, each with a ${bits}-bit encoder of ${enc} steps per turn: ${qp} steps is ${q3}°.`,
+        `- Can you convert a reported position of ${qp} steps into degrees?`,
         `- Power and cost: the standard build uses ${v5} V inside the ${vr.join("–")} V range, the BOM pair costs ${d(pair)} (one follower ${d(fol)}), and the prints are an estimated ${fdmKg} kg of PLA+ at ${soArm.infill} % infill and ${soArm.layer} mm layers (read the real figure from your slicer).`],
       zh: [`关于核实情况的说明：本站编者没有组装或运行过 SO-101。下面的步骤依据官方 LeRobot SO-101 文档（v0.6.x，2026 年 10 月核对）。命令行工具在不同版本之间会变，动手前请回原文档再核对一遍；如果本课和当前文档冲突，以文档为准。`,
         `官方仓库里的物料清单（BOM）：主从一对 ${d(pair)}，单个从臂 ${d(fol)}，不含打印件。打印件不是小开销：仓库要求 PLA+、${soArm.infill} % 填充、${soArm.layer} mm 层高、${soArm.nozzle} mm 喷嘴，正好是${lessonRef(3, "fdm-printing", "zh")}材料表里那种 PLA+ 活。整套大约 ${fdmKg} kg 耗材，下一节比较路线时这个数要算进去。这个数是本课的**估计值**，不是仓库公布的数字。给一个上限：钉住版本中两条臂打印件的整板 STL 文件 Prusa_Follower_SO101.stl 和 Prusa_Leader_SO101.stl（Bambu Lab A1 mini 整板体积相同；Ender 从臂整板为 ${ender} cm³）实体体积分别是 ${vols[0]} cm³ 和 ${vols[1]} cm³，合计 ${vols[0]} + ${vols[1]} = ${vsum.toFixed(1)} cm³，按 PLA 的 ${plaRho} g/cm³（[Prusament PLA 数据表](https://prusament.com/wp-content/uploads/2022/10/PLA_Prusament_TDS_2021_10_EN.pdf)）计算，所有零件全实心打印约为 ${solidKg} kg。${soArm.infill} % 填充时每个零件内部大部分是空的，实际用量远低于这个上限；切片软件会按你的设置给出用量，以那个数为准。`,
@@ -1310,6 +1311,7 @@ const lessonRef = (n, slug, lang) => {
         `<Quiz id="q4" question="为什么设置 ID 时，每个新舵机都必须单独连接？" options={["电源带不动两个舵机", "新舵机都响应 ID ${lr.idDef}，总线上接两个会一起接受新 ID", "每换一个舵机波特率都会变", "夹爪舵机必须永远排在总线最前面"]} answer={1} explanation="新舵机出厂 ID 相同，两个同时接在总线上就无法分别寻址，设置脚本会同时对它们说话。供电、波特率和总线顺序都不是原因。" />`,
         `<Quiz id="q5" question="遥操作一开始，从臂突然猛跳。最可能的原因是什么？" options={["波特率设得太低", "它的校准 id 或校准时的姿态与主臂不一致", "校验和算错了", "1/${hi} 的减速比太慢"]} answer={1} explanation="启动时猛跳是校准不匹配的典型症状：从臂保存的映射，和它启动时使用的姿态或名字对不上。波特率低会表现为通信错误，校验和错会被拒绝，减速比不会改变零点。" />`,
         `- 每臂 ${nJ} 只 STS3215 总线舵机，每只有 ${bits} 位、每圈 ${enc} 步的编码器：${qp} 步就是 ${q3}°。`,
+        `- 你能把舵机回报的 ${qp} 步换算成角度吗？`,
         `- 供电与成本：标准装机用 ${v5} V，落在 ${vr.join("–")} V 范围内；物料清单一对 ${d(pair)}（单从臂 ${d(fol)}），打印件估计约 ${fdmKg} kg PLA+（${soArm.infill} % 填充、${soArm.layer} mm 层高；实际用量看切片软件）。`],
     };
     for (const lang of ["en", "zh"]) {
@@ -1684,7 +1686,10 @@ for (const m of readdirSync(content)) {
 
 // House style, site-wide: a space before the percent sign ("15 %"), never "15%", "15％" or "15 ％". Every lesson
 // (en and zh) and every text file under src/lib (glossary, curriculum, resources, ...) is read; fenced code blocks
-// (scripts and their real output) and link targets ("%20" in a URL) are exempt.
+// (scripts and their real output) and link targets ("%20" in a URL) are exempt. Reader-visible UI text is read too:
+// JSX text and string/template literals in src/components and src/app, and the i18n strings in messages/*.json, where
+// an interpolation glued to the sign ("{percent}%", "${x}%") also counts. CSS values are exempt there: style={{ … }},
+// className / width / height attributes and rootMargin, and so are // and /* */ comments.
 {
   const walk = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(join(d, e.name)) : [join(d, e.name)]));
   const pctFiles = [...walk(join(root, "src/content")).filter((f) => f.endsWith(".mdx")), ...walk(join(root, "src/lib")).filter((f) => /\.tsx?$/.test(f))];
@@ -1693,8 +1698,28 @@ for (const m of readdirSync(content)) {
     const text = readFileSync(f, "utf8").replace(/^```[^\n]*\n[\s\S]*?^```/gm, (m) => m.replace(/[^\n]/g, "")).replace(/\]\([^)\s]*\)/g, "]");
     text.split("\n").forEach((l, i) => { for (const m of l.matchAll(/\d%|\d\s*％/g)) bad.push(`${f.slice(root.length + 1)}:${i + 1} "${m[0]}"`); });
   }
-  ok(pctFiles.length > 100 && bad.length === 0, `write percentages with a space ("15 %"), not ${bad.slice(0, 20).join(", ")}${bad.length > 20 ? ` and ${bad.length - 20} more` : ""}`);
-  console.log(`style percent: ${pctFiles.length} files (lessons + src/lib), ${bad.length} without the space`);
+  const blank = (m) => m.replace(/[^\n]/g, "");
+  const dropStyle = (s) => {
+    let out = "", i = 0;
+    for (let k; (k = s.indexOf("style={", i)) >= 0; ) {
+      let d = 0, j = k + 6;
+      do { if (s[j] === "{") d++; else if (s[j] === "}") d--; j++; } while (d > 0 && j < s.length);
+      out += s.slice(i, k) + blank(s.slice(k, j)); i = j;
+    }
+    return out + s.slice(i);
+  };
+  const uiFiles = [...walk(join(root, "src/components")), ...walk(join(root, "src/app"))].filter((f) => /\.tsx?$/.test(f));
+  const msgFiles = ["en", "zh"].map((l) => join(root, `messages/${l}.json`));
+  for (const f of [...uiFiles, ...msgFiles]) {
+    let text = readFileSync(f, "utf8");
+    if (!f.endsWith(".json"))
+      text = dropStyle(text.replace(/\/\*[\s\S]*?\*\//g, blank)).replace(/(^|[^:"'`\w])\/\/.*$/gm, "$1")
+        .replace(/\b(?:className|width|height)=(?:"[^"]*"|\{[^{}\n]*\})/g, "").replace(/\brootMargin:\s*"[^"]*"/g, "");
+    text.split("\n").forEach((l, i) => { for (const m of l.matchAll(/[\d}]%|[\d}]\s*％/g)) bad.push(`${f.slice(root.length + 1)}:${i + 1} "${m[0]}"`); });
+  }
+  ok(pctFiles.length > 100 && uiFiles.length > 20 && uiFiles.some((f) => f.endsWith("ProgressBar.tsx")) && bad.length === 0,
+    `write percentages with a space ("15 %"), not ${bad.slice(0, 20).join(", ")}${bad.length > 20 ? ` and ${bad.length - 20} more` : ""}`);
+  console.log(`style percent: ${pctFiles.length} files (lessons + src/lib), ${uiFiles.length} UI files (src/components + src/app) and ${msgFiles.length} message files, ${bad.length} without the space`);
 }
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
