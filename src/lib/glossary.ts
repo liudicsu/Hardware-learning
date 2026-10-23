@@ -872,6 +872,46 @@ export const glossary: GlossaryEntry[] = [
     firstExplained: true,
   },
   {
+    id: "pressure-advance",
+    term: { zh: "压力提前", en: "pressure advance" },
+    def: {
+      zh: "固件里的一项功能（Marlin 里叫 Linear Advance），补偿喷嘴里的压力滞后：打印头加速时多送一点耗材、减速时少送一点，让线条开头和结尾都保持全宽，拐角不向外鼓。它的数值用校准打印来确定。",
+      en: "A firmware feature, called Linear Advance in Marlin, that compensates for the pressure lag in the nozzle: it feeds extra filament as the print head accelerates and less as it slows down, so lines start and end at full width and corners do not bulge. Its value is found with a calibration print.",
+    },
+    lesson: "fdm-printing",
+    firstExplained: true,
+  },
+  {
+    id: "retraction",
+    term: { zh: "回抽", en: "retraction" },
+    def: {
+      zh: "在空驶之前把耗材往回抽一小段，让熔融塑料不从喷嘴渗出、不拉丝；恢复打印前再把耗材推回去。回抽太少会留下拉丝，太多可能导致堵头。",
+      en: "Pulling the filament back a short distance before a travel move, so molten plastic does not ooze from the nozzle and leave strings; the filament is pushed forward again before printing resumes. Too little leaves strings, too much can cause clogs.",
+    },
+    lesson: "fdm-printing",
+    firstExplained: true,
+  },
+  {
+    id: "direct-drive",
+    term: { zh: "直驱挤出机", en: "direct-drive extruder" },
+    def: {
+      zh: "电机装在打印头上、紧挨热端上方的挤出机，只需把耗材推过很短的一段距离。它能很好地控制 TPU 这类柔性耗材，回抽也只需很短。对比 Bowden 挤出机。",
+      en: "An extruder whose motor sits on the print head, directly above the hot end, so it pushes the filament over a short distance only. It controls flexible filament such as TPU well and needs only short retraction. Compare Bowden extruder.",
+    },
+    lesson: "fdm-printing",
+    firstExplained: true,
+  },
+  {
+    id: "bowden",
+    term: { zh: "Bowden 挤出机", en: "Bowden extruder" },
+    def: {
+      zh: "电机装在打印机机架上、通过一根长 PTFE 管把耗材推到热端的挤出机。移动的打印头更轻，但管子带来间隙，所以需要更长的回抽，也不适合柔性耗材。对比直驱挤出机。",
+      en: "An extruder whose motor sits on the printer's frame and pushes the filament to the hot end through a long PTFE tube. The moving print head stays lighter, but the tube adds slack, so it needs longer retraction and handles flexible filament poorly. Compare direct-drive extruder.",
+    },
+    lesson: "fdm-printing",
+    firstExplained: true,
+  },
+  {
     id: "torque",
     term: { zh: "扭矩", en: "torque" },
     def: {

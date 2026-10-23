@@ -720,14 +720,14 @@ export const resources: Record<string, Resource> = {
   },
   "orca-calibration": {
     id: "orca-calibration",
-    url: "https://github.com/OrcaSlicer/OrcaSlicer/wiki/Calibration",
+    url: "https://github.com/OrcaSlicer/OrcaSlicer/wiki/calibration_guide",
     title: { zh: "OrcaSlicer 校准指南", en: "OrcaSlicer Calibration wiki" },
     author: "OrcaSlicer contributors",
     kind: "guide",
     cost: { zh: "免费", en: "Free" },
     summary: {
-      zh: "按推荐顺序做温度、流量、压力提前、回抽和公差校准。想让零件装得上，这是最有用的一份切片文档。",
-      en: "Temperature, flow, pressure advance, retraction and tolerance calibration in a recommended order: the most useful slicing document if you want parts that fit.",
+      zh: "按推荐顺序做温度、最大体积流速、压力提前、流量比和回抽校准，公差放在最后。想让零件装得上，这是最有用的一份切片文档。",
+      en: "Temperature, maximum volumetric speed, pressure advance, flow ratio and retraction calibration in a recommended order, with tolerance last: the most useful slicing document if you want parts that fit.",
     },
     license: { zh: "开源项目文档（AGPL-3.0），© OrcaSlicer 贡献者", en: "Open-source project docs (AGPL-3.0), © OrcaSlicer contributors" },
   },
