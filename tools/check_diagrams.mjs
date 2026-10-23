@@ -985,7 +985,6 @@ lerobot.wikiAmps = (lerobot.wikiDef * lerobot.mA / 1000).toFixed(2);
     ok(qz2 && Number(qz2[1]) === Number(t2.toFixed(2)), `gripper-fingers ${lang}: Quiz q2 answer ${qz2 && qz2[1]} != tan ${a2}° to 2 decimals = ${t2.toFixed(2)}`);
     ok(tol2 > 0 && tol2 <= 0.02 && Math.abs(t2 - Number(qz2 && qz2[1])) <= tol2, `gripper-fingers ${lang}: Quiz q2 tolerance ${qt2 && qt2[1]} not in (0, 0.02] or does not cover tan ${a2}° = ${t2.toFixed(4)}`);
     ok(q2e.startsWith(`μ = tan ${a2}° = ${t2.toFixed(4)} ≈ ${t2.toFixed(2)}`), `gripper-fingers ${lang}: Quiz q2 explanation "${q2e}" != "μ = tan ${a2}° = ${t2.toFixed(4)} ≈ ${t2.toFixed(2)}…"`);
-    ok(!/\d[%％]/.test(text.replace(/\]\([^)\s]*\)/g, "]")), `gripper-fingers ${lang}: write percentages with a space ("80 %")`);
     // every m/s² figure in the prose must be g, the example arm acceleration A or 0.0, and A must appear in all seven places
     const accs = [...text.matchAll(/(\d+(?:\.\d+)?) m\/s²/g)].map((m) => m[1]);
     ok(accs.every((x) => [String(G), A.toFixed(1), "0.0"].includes(x)), `gripper-fingers ${lang}: m/s² figures ${JSON.stringify(accs)} must each be ${G}, ${A.toFixed(1)} or 0.0`);
@@ -1007,8 +1006,22 @@ lerobot.wikiAmps = (lerobot.wikiDef * lerobot.mA / 1000).toFixed(2);
     ok(gl.includes(q), `glossary safety-factor: expected ${JSON.stringify(q)}`);
   console.log(`calc  gripper-fingers: grip_force.py output, worked examples, widget steps, q1 ${f2(q1)} / q2 tan ${q2Angles.en}° = ${f2(tan(q2Angles.en))}, tilt readings, Polymaker/Prusa print settings, summary, fin-ray model (I ${f3(I1)} / ${Ib.toFixed(0)} / ${Ih.toFixed(0)} mm⁴), mass ${mass} g and Shore ${(shore * astmPt).toFixed(3)} mm bound in en/zh and the glossary`);
 }
-// fdm-printing's estimate for printing a full SO-101 (about 1 kg of PLA+), reused by so101-arm's kit-plus-own-print line
-const fdmFil = [20, 25];
+// fdm-printing's estimate for printing a full SO-101 (fdmKg, about 1 kg of PLA+), reused by so101-arm's kit-plus-own-print line
+const fdmFil = [20, 25], fdmKg = 1;
+// SO-ARM100 README (a758567, L72-73): PLA+, 15 % infill, 0.2 mm layers, 0.4 mm nozzle; plaRho: Prusament PLA data sheet, 1.24 g/cm³ (ISO 1183),
+// the density esp32_case's mass uses and so101-arm's volume-to-mass bound
+const soArm = { mat: "PLA+", infill: 15, layer: 0.2, nozzle: 0.4 }, plaRho = 1.24;
+// month lesson lists from curriculum.ts: "Lesson N (title)" / "第 N 课《title》" references are built from them
+const curSrc = readFileSync(join(root, "src/lib/curriculum.ts"), "utf8");
+const monthLessons = (n) => {
+  const a = curSrc.indexOf(`const month${n}Lessons`), b = curSrc.indexOf(`const month${n + 1}Lessons`);
+  return a < 0 ? [] : [...curSrc.slice(a, b < 0 ? undefined : b).matchAll(/\n    slug: "([\w-]+)",\n    title: \{ zh: "([^"]+)", en: "([^"]+)" \}/g)].map((m) => ({ slug: m[1], zh: m[2], en: m[3] }));
+};
+const lessonRef = (n, slug, lang) => {
+  const ls = monthLessons(n), i = ls.findIndex((l) => l.slug === slug);
+  ok(i >= 0, `curriculum.ts: ${slug} is not a month ${n} lesson`);
+  return i < 0 ? "?" : lang === "en" ? `Lesson ${i + 1} (${ls[i].en})` : `第 ${i + 1} 课《${ls[i].zh}》`;
+};
 {
   // so101-arm: the two BOM totals are rebuilt from the README line items (pinned a758567, US prices), and the error
   // budget, current budget, horn refit and filament upper bound are recomputed from the Feetech spec numbers quoted.
@@ -1100,13 +1113,13 @@ const fdmFil = [20, 25];
       `5 V follower, six ST-3215-C001 (C001 spec, 5-9 and 5-5, both given at 6 V):\n  rated   6 x ${r01} A = ${rated5} A\n  stall   6 x ${s01.toFixed(1)} A = ${stall5.toFixed(1)} A\n`,
     zh: `  额定   6 x ${r18} A = ${rated12} A\n  堵转   6 x ${s18} A = ${stall12} A\n` +
       `5 V 从臂，六个 ST-3215-C001（C001 规格书 5-9 和 5-5，均为 6 V 下的数据）：\n  额定   6 x ${r01} A = ${rated5} A\n  堵转   6 x ${s01.toFixed(1)} A = ${stall5.toFixed(1)} A\n` };
-  const teeth = 25, tooth = 360 / teeth, vols = [571.4, 614.6], ender = 571.3, vsum = vols[0] + vols[1], infill = 15, filament = 22;
+  const teeth = 25, tooth = 360 / teeth, vols = [571.4, 614.6], ender = 571.3, vsum = vols[0] + vols[1], infill = soArm.infill, filament = 22;
   // vols: solid volumes of Prusa_/Bambu A1 mini Follower and Leader SO101 plate STLs at a758567 (571.444, 614.587 cm³); Ender follower 571.292
   const quiz = pair + filament;
   ok(fdmFil[0] <= filament && filament <= fdmFil[1], `so101-arm: the $${filament} filament figure is outside fdm-printing's $${fdmFil.join('–')}`);
   const r1 = (hi / lo).toFixed(2), r2 = ((hi / lo) ** 2).toFixed(2);
   const common = [err, `360° / ${teeth} = ${tooth}°`, `${tooth} × ${enc} / 360 = ${(tooth * enc / 360).toFixed(2)}`, `${vols[0]} + ${vols[1]} = ${vsum.toFixed(1)} cm³`,
-    `1.24 g/cm³`, `${(vsum * 1.24 / 1000).toFixed(2)} kg`, `${hi} / ${lo} = ${r1}`, `(${hi}/${lo})² ≈ ${r2}`,
+    `${plaRho} g/cm³`, `${(vsum * plaRho / 1000).toFixed(2)} kg`, `${hi} / ${lo} = ${r1}`, `(${hi}/${lo})² ≈ ${r2}`,
     `${d(pair)} + $${filament.toFixed(2)} = ${d(quiz)}`, `answer={${quiz.toFixed(2)}}`, `| ${d(pair)} + `, `${teeth}T/OD5.9mm`];
   const per = { en: [cur.en, bom.en, `the BOM pair (${d(pair)}) and print the parts yourself with about $${filament} of PLA+`, `comes to ${d(pair)} for a leader and follower pair, or ${d(fol)} for one follower`, `the BOM pair costs ${d(pair)} (one follower ${d(fol)})`, `by a factor of about ${Math.round(0.5 / step)}`,
       `The follower uses 1/${hi} on all six joints.`,
@@ -1168,7 +1181,7 @@ const fdmFil = [20, 25];
       `The ID and the bus baud rate are written to the servo's <Term id="eeprom">EEPROM</Term> once, and they stay there until you change them. A replacement motor arrives as ID ${lr.idDef} again, so keep a note of which servo sits at which joint.`,
       `all new servos answer to ID ${lr.idDef}, so two on the bus would both take the new ID`,
       `both ship as ID ${lr.idDef}, so the setup script cannot tell them apart.`,
-      `each with a ${bits}-bit encoder of ${enc} steps per turn: 1024 steps is ${360 * 1024 / enc}°.`, `7.4 V STS3215 (${code[hi]}/${code[mid]}/${code[lo]} per the README BOM)`,
+      `each with a ${bits}-bit encoder of ${enc} steps per turn: ${qp} steps is ${q3}°.`, `7.4 V STS3215 (${code[hi]}/${code[mid]}/${code[lo]} per the README BOM)`,
       `you pay more than sourcing the BOM |`,
       `M2×6 and M3×6 look similar in a pile`, `"the 1/${hi} gearing is too slow"`,
       `Feetech specifies the output shaft as ${teeth}T/OD5.9mm, a ${teeth}-tooth spline 5.9 mm across, and the horn screw as M3×6 (C001 and C018 specifications, §6-9 and §6-13)`,
@@ -1235,13 +1248,81 @@ const fdmFil = [20, 25];
       `ID 和总线波特率会写进舵机的 <Term id="eeprom">EEPROM</Term>，写一次就留在那里，直到你改它。替换用的新舵机到手时又是 ID ${lr.idDef}，所以把“哪个舵机装在哪个关节”记下来。`,
       `新舵机都响应 ID ${lr.idDef}，总线上接两个会一起接受新 ID`,
       `它们出厂都是 ID ${lr.idDef}，设置脚本分不清谁是谁。`,
-      `每只有 ${bits} 位、每圈 ${enc} 步的编码器：1024 步就是 ${360 * 1024 / enc}°。`, `7.4 V STS3215（按 README BOM 为 ${code[hi]}/${code[mid]}/${code[lo]}）`,
+      `每只有 ${bits} 位、每圈 ${enc} 步的编码器：${qp} 步就是 ${q3}°。`, `7.4 V STS3215（按 README BOM 为 ${code[hi]}/${code[mid]}/${code[lo]}）`,
       `而且比按 BOM 自购更贵 |`,
       `M2×6 和 M3×6 混在一堆里`, `"${`1/${hi}`} 的减速比太慢"`,
       `飞特规定输出轴为 ${teeth}T/OD5.9mm，即 ${teeth} 齿、外径 5.9 mm 的花键，舵机盘螺丝为 M3×6（C001 与 C018 规格，§6-9 和 §6-13）`,
       `花键有 ${teeth} 个齿`, `打印件用 M3×6 螺丝固定在舵机盘上。`, `上面那个用 M3×6 螺丝`,
       `实体体积分别是 ${vols[0]} cm³ 和 ${vols[1]} cm³`, `Ender 从臂整板为 ${ender} cm³`,
       `PLA+、${infill} % 填充、0.2 mm 层高、0.4 mm 喷嘴，正好`, `${infill} % 填充时每个零件`, `结构件按仓库设置打印：PLA+、${infill} % 填充、0.2 mm 层高、0.4 mm 喷嘴。`, `（${infill} % 填充、0.2 mm 层高`] };
+  {
+    // whole lines of so101-arm en/zh bound to their sources (every number on them is recomputed or pinned here): :7 docs note, :9 BOM and print estimate,
+    // :26/:33–35/:66 store prices, q1 :68, :72 bus servo intro, :87/:89 gear ratios and part codes, :101 error budget, q3 :216, :290 leader power row,
+    // :339 port names, :368/:373 screws and horn spline, q4 :375, q5 :424 and the summary :453/:457
+    // servoMonth: the month whose lesson list holds motors-drivers, the lesson with the hobby-servo row; nJ: joints (motors) per arm
+    const servoMonth = [1, 2, 3, 4, 5, 6].find((n) => monthLessons(n).some((l) => l.slug === "motors-drivers"));
+    const md = (lang) => readFileSync(join(root, `src/content/m${servoMonth}/motors-drivers/${lang}.mdx`), "utf8");
+    ok(md("en").includes("\n| Hobby servo |") && md("zh").includes("\n| 航模舵机 |"), `so101-arm :72: month ${servoMonth} motors-drivers no longer has the hobby-servo row`);
+    const nJ = Object.keys(leader).length, nJw = { 6: "six" }[nJ] ?? "?";
+    // C001 spec §5-7: input voltage 4–7.4 V; the standard build runs the leader at 5 V. Screws: M2×6 hold the motors (LeRobot SO-101 guide), the horn screw is M3×6 (§6-13)
+    const vr = [4, 7.4], v5 = 5, mot = "M2×6", horn = "M3×6", solidKg = (vsum * plaRho / 1000).toFixed(2);
+    ok(vr[0] <= v5 && v5 <= vr[1] && stall5v === v5 / rTerm && Number(solidKg) > fdmKg && infill === soArm.infill && pairServos[0] === nJ + nLead(hi),
+      `so101-arm: ${v5} V must sit inside ${vr.join("–")} V and drive the stall bound, and the ${solidKg} kg solid upper bound must exceed the ${fdmKg} kg estimate`);
+    const full = {
+      en: [`A note on verification before the shopping list: the editor has not built or run an SO-101. The steps below follow the official LeRobot SO-101 documentation, v0.6.x, checked in October 2026. The command-line tools change between versions, so re-check the commands on that page before you run them; where this lesson and the current docs disagree, the docs win.`,
+        `The official bill of materials in the SO-ARM100 repository comes to ${d(pair)} for a leader and follower pair, or ${d(fol)} for one follower, with printing not included. The printed parts are not a small afterthought: the repository asks for PLA+, ${soArm.infill} % infill, ${soArm.layer} mm layers and a ${soArm.nozzle} mm nozzle, which is exactly the kind of PLA+ job from the material table in ${lessonRef(3, "fdm-printing", "en")}. A full build is roughly ${fdmKg} kg of filament, which matters when you compare routes in the next section. That figure is the course's **estimate**, not a number the repository publishes. An upper bound: the pinned plate STL files for the two arms' printed parts, Prusa_Follower_SO101.stl and Prusa_Leader_SO101.stl (the Bambu Lab A1 mini plates give the same volumes; the Ender follower plate gives ${ender} cm³), have solid volumes of ${vols[0]} cm³ and ${vols[1]} cm³, together ${vols[0]} + ${vols[1]} = ${vsum.toFixed(1)} cm³, which at PLA's ${plaRho} g/cm³ ([Prusament PLA data sheet](https://prusament.com/wp-content/uploads/2022/10/PLA_Prusament_TDS_2021_10_EN.pdf)) would be about ${solidKg} kg if every part were printed solid. At ${soArm.infill} % infill most of each part's inside is empty, so the real figure is well below that; your slicer reports it for your settings, and that is the number to use.`,
+        `There is no single correct way to get an SO-101, because the expensive part of the decision is not always the money. A simulator gives you the software path for nothing but no hands. A cheap linkage arm teaches mechanics but not the servo-bus protocol this course uses. A single follower is a real arm but cannot record leader-follower demonstrations. The table lists the routes the course considers. Prices are the prices on each store's page, verified ${vd}; all of them change, so check before ordering.`,
+        `| Hiwonder xArm 1S | $${st.hiw} | cheapest arm with intelligent bus servos that report position and voltage | not the SO-101 ecosystem |`,
+        `| SO-101 pair from the BOM | ${d(pair)} + about ${fdmKg} kg PLA+ (estimate) | everything, sourced part by part | you do the sourcing |`,
+        `| Seeed Studio SO-ARM101 Pro servo kit | $${st.seeed} (+ $${st.printed} for Seeed's printed parts set if you have no printer) | servos and control boards for both arms | no printed parts in the base kit |`,
+        `Which route you choose decides which LeRobot commands you can run. Finding the port, setting the motor IDs and calibrating all work on one arm at a time. Teleoperation and recording need two arms at once, a follower given as \`--robot.type=so101_follower\` and a leader given as \`--teleop.type=so101_leader\` ([LeRobot, Imitation learning on real-world robots](https://huggingface.co/docs/lerobot/il_robots)), so a single follower can run the first three steps and command its joints from Python, but cannot teleoperate or record demonstrations. The Hiwonder, Seeed, WowRobo and Robonine prices in the table are single prices from each store's page (verified ${vd}), not totals the course has rebuilt from line items; WowRobo's are sale prices, shown against struck-through prices of $${st.wowWas.join(" / $")}.`,
+        `<Quiz id="q1" question="You buy the BOM pair (${d(pair)}) and print the parts yourself with about $${filament} of PLA+. What is the total, in dollars?" answer={${quiz.toFixed(2)}} unit="USD" tolerance={0.01} explanation="Add the two costs: ${d(pair)} + $${filament.toFixed(2)} = ${d(quiz)}. The BOM does not include printing, which is why the filament has to be added separately." />`,
+        `A hobby servo from Month ${servoMonth} takes a PWM pulse and holds an angle. It has no name on the bus, no way to say "I am here", and no way to report what it is doing. The SO-101 uses ${nJw} Feetech STS3215 <Term id="bus-servo">bus servos</Term> per arm, and each one is a small closed-loop actuator. It has an ID, a ${bits}-bit magnetic encoder with ${enc} steps per turn, and its own position loop inside the case. That loop is the same idea as the PID loops in ${lessonRef(3, "pid-control", "en")}, except it runs in the servo rather than on your microcontroller: you send a goal, and the servo drives its motor until the encoder says it has arrived. That ${enc} is the encoder's resolution, not the arm's accuracy: backlash, horn mounting and flex in the printed parts all add error after the encoder.`,
+        `This is the backdriving arithmetic from ${lessonRef(3, "transmissions", "en")} in hardware form. Through a reduction n, the friction you feel at the output scales with n, and the <Term id="moment-of-inertia">rotor inertia</Term> scales with n². Compare the wrist's 1/${lo} with the follower's 1/${hi}: ${hi} / ${lo} = ${r1}, so the follower's ${hi}:1 joint feels about ${r1} times more friction, and its rotor inertia feels (${hi}/${lo})² ≈ ${r2} times larger. The leader's wrist is therefore much lighter to push, while the shoulder_lift keeps the 1/${hi} ratio because that joint has to hold the arm up. The leader is not a weaker arm; its ratios are chosen for an arm moved by hand.`,
+        `The three ratios are three Feetech part codes, all at ${d(servo)} in the BOM: ${code[hi]} is 1/${hi}, ${code[mid]} is 1/${mid} and ${code[lo]} is 1/${lo}. The leader bundle the README links is ${nLead(lo)} × ${code[lo]}, ${nLead(mid)} × ${code[mid]} and ${nLead(hi)} × ${code[hi]}, so the pair's ${pairServos[0]} ${code[hi]} servos are the follower's ${nJw} plus the leader's shoulder_lift. The servos look the same from outside. Identify them by the part code the seller lists for each bag and keep each servo in its bag until it goes into its joint; the course has not checked what each servo's own label shows. If you check only one, check shoulder_lift: it carries the largest gravity torque, because it holds up everything beyond it, so it must be a ${code[hi]} on both arms.`,
+        `The ${r} mm radius is an example, not the SO-101's actual reach; use the distance from your joint to your tool. The backlash is the larger term by a factor of about ${Math.round(0.5 / step)}, and it is an upper limit from the data sheet, not a measurement. Flex in the printed links adds to both and has to be measured on your own arm, for example by pushing the tool with a known force and reading how far it moves.`,
+        `<Quiz id="q3" question="A servo reports position ${qp} steps. How many degrees is that?" answer={${q3}} unit="°" explanation="The encoder has ${enc} steps per turn, so ${qp} steps is ${qp} / ${enc} = 1/${enc / qp} of a turn. 360° × 1/${enc / qp} = ${q3}°." />`,
+        `| Leader (always ${vr[1]} V) | ${vr[1]} V STS3215 (${code[hi]}/${code[mid]}/${code[lo]} per the README BOM) | ${vr.join("–")} V (${code[hi]} spec) | ${v5} V | — |`,
+        `The tool lists the serial ports, asks you to unplug one board and press Enter, and then tells you which port disappeared. Plug it back in and repeat for the other board. Write down which port belongs to the leader and which to the follower, on paper or in a note next to the command you will use. On Linux the names look like \`/dev/ttyACM0\` and \`/dev/ttyACM1\`, but they can change when you replug, so check rather than assume. The examples below use \`/dev/ttyACM0\` for the follower and \`/dev/ttyACM1\` for the leader; replace them with your own.`,
+        `- Motors are held with ${mot} screws, the smallest in the kit. Printed parts attach to the horns with ${horn} screws.`,
+        `The horn is the toothed disc that fits on the servo's output shaft; the printed link is screwed to it. Feetech specifies the output shaft as ${teeth}T/OD5.9mm, a ${teeth}-tooth spline 5.9 mm across, and the horn screw as ${horn} (C001 and C018 specifications, §6-9 and §6-13). The second horn, on the far side of the servo, gives the link a second support so it is not held by the output shaft alone; the assembly guide notes that "No screws are required for the bottom horn" ([LeRobot SO-101 guide](https://huggingface.co/docs/lerobot/so101)). The ${mot} screws hold the servo itself in its printed holder. Because the spline has ${teeth} teeth, a horn can only be refitted in steps of 360° / ${teeth} = ${tooth}°, which is ${tooth} × ${enc} / 360 = ${(tooth * enc / 360).toFixed(2)} encoder steps. Calibration records each joint's range with the horns as they were fitted, so if you take a horn off and put it back, even one tooth off, calibrate that arm again.`,
+        `<Quiz id="q4" question="Why must each new servo be connected alone while you set its ID?" options={["the power supply is too weak for two", "all new servos answer to ID ${lr.idDef}, so two on the bus would both take the new ID", "the baud rate changes with each motor", "the gripper motor must always be first on the bus"]} answer={1} explanation="New servos ship with the same default ID, so two on the bus cannot be addressed separately. The setup script would be talking to both at once. Power, baud rate and bus order are not the reason." />`,
+        `<Quiz id="q5" question="The follower suddenly jumps when teleoperation starts. What is the most likely cause?" options={["the baud rate is too low", "it was calibrated under a different id or pose than the leader", "the checksum is wrong", "the 1/${hi} gearing is too slow"]} answer={1} explanation="A jump at startup is the classic symptom of a calibration mismatch: the follower's saved mapping does not match the pose or name it is being started with. Baud rate would cause communication errors, a bad checksum would be rejected, and gearing does not change the zero." />`,
+        `- ${nJw[0].toUpperCase() + nJw.slice(1)} STS3215 bus servos per arm, each with a ${bits}-bit encoder of ${enc} steps per turn: ${qp} steps is ${q3}°.`,
+        `- Can you convert a reported position of ${qp} steps into degrees?`,
+        `- Power and cost: the standard build uses ${v5} V inside the ${vr.join("–")} V range, the BOM pair costs ${d(pair)} (one follower ${d(fol)}), and the prints are an estimated ${fdmKg} kg of PLA+ at ${soArm.infill} % infill and ${soArm.layer} mm layers (read the real figure from your slicer).`],
+      zh: [`关于核实情况的说明：本站编者没有组装或运行过 SO-101。下面的步骤依据官方 LeRobot SO-101 文档（v0.6.x，2026 年 10 月核对）。命令行工具在不同版本之间会变，动手前请回原文档再核对一遍；如果本课和当前文档冲突，以文档为准。`,
+        `官方仓库里的物料清单（BOM）：主从一对 ${d(pair)}，单个从臂 ${d(fol)}，不含打印件。打印件不是小开销：仓库要求 PLA+、${soArm.infill} % 填充、${soArm.layer} mm 层高、${soArm.nozzle} mm 喷嘴，正好是${lessonRef(3, "fdm-printing", "zh")}材料表里那种 PLA+ 活。整套大约 ${fdmKg} kg 耗材，下一节比较路线时这个数要算进去。这个数是本课的**估计值**，不是仓库公布的数字。给一个上限：钉住版本中两条臂打印件的整板 STL 文件 Prusa_Follower_SO101.stl 和 Prusa_Leader_SO101.stl（Bambu Lab A1 mini 整板体积相同；Ender 从臂整板为 ${ender} cm³）实体体积分别是 ${vols[0]} cm³ 和 ${vols[1]} cm³，合计 ${vols[0]} + ${vols[1]} = ${vsum.toFixed(1)} cm³，按 PLA 的 ${plaRho} g/cm³（[Prusament PLA 数据表](https://prusament.com/wp-content/uploads/2022/10/PLA_Prusament_TDS_2021_10_EN.pdf)）计算，所有零件全实心打印约为 ${solidKg} kg。${soArm.infill} % 填充时每个零件内部大部分是空的，实际用量远低于这个上限；切片软件会按你的设置给出用量，以那个数为准。`,
+        `买 SO-101 没有唯一正确路线，因为最贵的部分不一定是钱。仿真给你完整的软件路径，但没有手感；便宜的连杆臂教你机械，却不教本课要用的总线协议；单个从臂是真硬件，却不能录主从演示。下表列出课程考虑的几条路。价格是各商店页面上的价格，${vd} 核实；价格都会变，下单前请自己确认。`,
+        `| Hiwonder xArm 1S | $${st.hiw} | 带智能总线舵机（能回报位置和电压）的最便宜机械臂 | 不是 SO-101 生态 |`,
+        `| 按 BOM 自购 SO-101 主从一对 | ${d(pair)} + 约 ${fdmKg} kg PLA+（估计） | 全部东西，但一件一件采购 | 采购由你负责 |`,
+        `| Seeed Studio SO-ARM101 Pro 舵机套件 | $${st.seeed}（没有打印机时，另加 $${st.printed} 买 Seeed 打印件套装） | 两条臂的舵机和驱动板 | 基础套件不含打印件 |`,
+        `选哪条路线，决定了你能运行哪些 LeRobot 命令。查找串口、设置电机 ID、校准都是一次针对一条臂。遥操作和录制需要同时有两条臂：一条以 \`--robot.type=so101_follower\` 指定的从臂和一条以 \`--teleop.type=so101_leader\` 指定的主臂（[LeRobot, Imitation learning on real-world robots](https://huggingface.co/docs/lerobot/il_robots)）。所以只有一个从臂时，能完成前三步并用 Python 控制关节，但不能遥操作，也不能录制演示。表中 Hiwonder、Seeed、WowRobo 和 Robonine 的价格都是各家商店页面上的单一价格（${vd} 核实），不是本课按逐项清单重新加出来的总价；其中 WowRobo 是促销价，页面上的划线原价为 $${st.wowWas.join(" / $")}。`,
+        `<Quiz id="q1" question="你按物料清单买下主从一对（${d(pair)}），再用约 $${filament} 的 PLA+ 自己打印结构件。总共多少美元？" answer={${quiz.toFixed(2)}} unit="USD" tolerance={0.01} explanation="把两项相加：${d(pair)} + $${filament.toFixed(2)} = ${d(quiz)}。BOM 不含打印，所以耗材要单独加上。" />`,
+        `第 ${servoMonth} 个月用过的业余（hobby）舵机吃一根 PWM 脉冲，转到一个角度就完了。它没有总线上的名字，没法说“我在这里”，也没法回报自己在干什么。SO-101 每臂用 ${nJ} 个飞特 STS3215 总线舵机，每一个都是小型的闭环执行器：有 ID，有 ${bits} 位磁编码器（magnetic encoder，每圈 ${enc} 步），壳子里还有自己的位置环（position loop）。这个位置环就是${lessonRef(3, "pid-control", "zh")}里 PID 的同一套思想，只不过它跑在舵机里，不在你的单片机上：你发一个目标，舵机驱动电机，直到编码器说到了。${enc} 步是编码器的分辨率，不是整条臂的精度：减速器回差、舵机盘安装误差和打印件柔性，都会在编码器之后继续叠加误差。`,
+        `这就是${lessonRef(3, "transmissions", "zh")}反驱（backdriving）算术的硬件版。经过减速比 n，你在输出端感到的摩擦按 n 放大，<Term id="moment-of-inertia">转子惯量</Term>按 n² 放大。拿腕部的 1/${lo} 和从臂的 1/${hi} 比：${hi} / ${lo} = ${r1}，所以从臂的 1/${hi} 关节摩擦感约为 ${r1} 倍，转子惯量感为 (${hi}/${lo})² ≈ ${r2} 倍。主臂腕部因此轻得多；shoulder_lift 保留 1/${hi}，是因为那个关节要托住整条臂。主臂不是更弱的臂，它的减速比是按人手拖动的操作方式选的。`,
+        `这三种减速比对应飞特的三个料号，BOM 里单价都是 ${d(servo)}：${code[hi]} 是 1/${hi}，${code[mid]} 是 1/${mid}，${code[lo]} 是 1/${lo}。README 链接的主臂套装是 ${nLead(lo)} × ${code[lo]}、${nLead(mid)} × ${code[mid]}、${nLead(hi)} × ${code[hi]}，所以一对里的 ${pairServos[0]} 个 ${code[hi]} 就是从臂的 ${nJ} 个加上主臂 shoulder_lift 的 ${nLead(hi)} 个。这些舵机外观一样。按卖家为每一袋标明的料号来辨认，每个舵机在装进它的关节之前都留在原袋里；本课没有核实舵机本身的标签上印了什么。如果只查一个，就查 shoulder_lift：它承受的重力矩最大，因为它要托起它之后的全部结构，所以两条臂上它都必须是 ${code[hi]}。`,
+        `${r} mm 只是示例半径，不是 SO-101 的实际臂展；请用你的关节到工具的距离。回差这一项大约是编码器一步的 ${Math.round(0.5 / step)} 倍，而且它是数据表给的上限，不是实测值。打印连杆的弯曲会叠加到这两项上，必须在你自己的臂上实测，例如用已知的力推工具，读出它移动了多少。`,
+        `<Quiz id="q3" question="舵机报告位置为 ${qp} 步，这是多少度？" answer={${q3}} unit="°" explanation="编码器每圈 ${enc} 步，所以 ${qp} 步是 ${qp} / ${enc} = 1/${enc / qp} 圈。360° × 1/${enc / qp} = ${q3}°。" />`,
+        `| 主臂（始终 ${vr[1]} V） | ${vr[1]} V STS3215（按 README BOM 为 ${code[hi]}/${code[mid]}/${code[lo]}） | ${vr.join("–")} V（${code[hi]} 规格） | ${v5} V | — |`,
+        `工具会列出串口，让你拔掉一块板再按回车，然后告诉你哪个串口消失了。插回去，对另一块板重复。把哪个口是主臂、哪个是从臂记下来，写在纸上或写在要用的命令旁边。Linux 下名字像 \`/dev/ttyACM0\` 和 \`/dev/ttyACM1\`，但重新插拔后可能变，所以要查，不要猜。下面的例子用 \`/dev/ttyACM0\` 给从臂、\`/dev/ttyACM1\` 给主臂；换成你自己的。`,
+        `- 电机用 ${mot} 螺丝固定，是套件里最小的螺丝；打印件用 ${horn} 螺丝固定在舵机盘上。`,
+        `舵机盘（horn）是套在舵机输出轴上的带齿圆盘，打印连杆就拧在它上面。飞特规定输出轴为 ${teeth}T/OD5.9mm，即 ${teeth} 齿、外径 5.9 mm 的花键，舵机盘螺丝为 ${horn}（C001 与 C018 规格，§6-9 和 §6-13）。舵机另一侧的第二个舵机盘给连杆提供第二个支撑，使它不只靠输出轴撑着；组装指南写明“No screws are required for the bottom horn”（下面那个舵机盘不需要螺丝；[LeRobot SO-101 指南](https://huggingface.co/docs/lerobot/so101)）。${mot} 螺丝把舵机本身固定在打印的舵机座里。花键有 ${teeth} 个齿，所以舵机盘只能以 360° / ${teeth} = ${tooth}° 为一档重新装上，相当于 ${tooth} × ${enc} / 360 = ${(tooth * enc / 360).toFixed(2)} 个编码器步。校准记录的是按当时舵机盘位置得到的各关节范围，所以舵机盘拆下再装回时，哪怕只错了一个齿，也要把那条臂重新校准一次。`,
+        `<Quiz id="q4" question="为什么设置 ID 时，每个新舵机都必须单独连接？" options={["电源带不动两个舵机", "新舵机都响应 ID ${lr.idDef}，总线上接两个会一起接受新 ID", "每换一个舵机波特率都会变", "夹爪舵机必须永远排在总线最前面"]} answer={1} explanation="新舵机出厂 ID 相同，两个同时接在总线上就无法分别寻址，设置脚本会同时对它们说话。供电、波特率和总线顺序都不是原因。" />`,
+        `<Quiz id="q5" question="遥操作一开始，从臂突然猛跳。最可能的原因是什么？" options={["波特率设得太低", "它的校准 id 或校准时的姿态与主臂不一致", "校验和算错了", "1/${hi} 的减速比太慢"]} answer={1} explanation="启动时猛跳是校准不匹配的典型症状：从臂保存的映射，和它启动时使用的姿态或名字对不上。波特率低会表现为通信错误，校验和错会被拒绝，减速比不会改变零点。" />`,
+        `- 每臂 ${nJ} 只 STS3215 总线舵机，每只有 ${bits} 位、每圈 ${enc} 步的编码器：${qp} 步就是 ${q3}°。`,
+        `- 你能把舵机回报的 ${qp} 步换算成角度吗？`,
+        `- 供电与成本：标准装机用 ${v5} V，落在 ${vr.join("–")} V 范围内；物料清单一对 ${d(pair)}（单从臂 ${d(fol)}），打印件估计约 ${fdmKg} kg PLA+（${soArm.infill} % 填充、${soArm.layer} mm 层高；实际用量看切片软件）。`],
+    };
+    for (const lang of ["en", "zh"]) {
+      const lines = readFileSync(join(root, `src/content/m3/so101-arm/${lang}.mdx`), "utf8").split("\n");
+      for (const q of full[lang]) ok(lines.includes(q), `so101-arm ${lang}: expected the whole line ${JSON.stringify(q)} (bound to the README BOM, Feetech specs, stores and curriculum)`);
+      // q4: the answer index must point at the option that names the default ID
+      const q4 = lines.find((l) => l.startsWith('<Quiz id="q4"')) ?? "", opts = JSON.parse(q4.match(/options=\{(\[.*?\])\}/)?.[1] ?? "[]"), ans = Number(q4.match(/answer=\{(\d+)\}/)?.[1]);
+      ok(opts.length === 4 && opts.filter((o) => o.includes(`ID ${lr.idDef}`)).length === 1 && opts[ans]?.includes(`ID ${lr.idDef}`), `so101-arm ${lang} q4: answer={${ans}} must be the one option naming the default ID ${lr.idDef}`);
+    }
+    console.log(`calc  so101-arm: ${full.en.length} + ${full.zh.length} whole lines; month ${servoMonth} hobby servo, ${nJ} joints, ${vr.join("–")} V / ${v5} V, solid bound ${solidKg} kg > ${fdmKg} kg`);
+  }
   for (const lang of ["en", "zh"]) {
     const text = readFileSync(join(root, `src/content/m3/so101-arm/${lang}.mdx`), "utf8");
     for (const q of [...common, ...per[lang]]) ok(text.includes(q), `so101-arm ${lang}: expected ${JSON.stringify(q)} (recomputed from the README BOM / Feetech specs)`);
@@ -1251,7 +1332,6 @@ const fdmFil = [20, 25];
       `so101-arm ${lang}: the sts_packet.py / compare_sdk.py listings or their output blocks differ from examples/month-3/so101-arm/{sts_packet,compare_sdk}.py / expected/arm-{sts_packet,compare_sdk}.txt`);
     const rows = [...text.matchAll(/^\| (\w+) \| 1\/(\d+) \|$/gm)].map((m) => [m[1], Number(m[2])]);
     ok(JSON.stringify(rows) === JSON.stringify(Object.entries(leader)), `so101-arm ${lang}: leader ratio table ${JSON.stringify(rows)} != ${JSON.stringify(leader)}`);
-    ok(!/\d[%％]/.test(text.replace(/\]\([^)\s]*\)/g, "]")), `so101-arm ${lang}: write percentages with a space ("${infill} %")`);
     // dates: the LeRobot docs check (October 2026) and the store prices (verified ${vd}: price note and store-price note); no older price dates
     ok(text.includes(lang === "en" ? "v0.6.x, checked in October 2026." : "（v0.6.x，2026 年 10 月核对）"), `so101-arm ${lang}: expected the LeRobot docs check date`);
     ok(text.split(vd).length - 1 === 2 && !/September 2026|2026 年 9 月|store page, October|10 月商店页面/.test(text), `so101-arm ${lang}: expected "${vd}" exactly twice and no older price dates`);
@@ -1268,14 +1348,19 @@ const fdmFil = [20, 25];
   ok(robo > quiz, `so101-arm: Robonine $${robo} is no longer more than the BOM pair + filament ${d(quiz)} ("you pay more than sourcing the BOM")`);
   for (const q of [`≈ $${robo} (verified ${vd})`, `约 $${robo}（${vd} 核实）`]) ok(res.includes(q), `resources.ts robonine-so101: expected ${JSON.stringify(q)} (same price as the lesson table)`);
   // the so101 table's store prices carry the same date in resources.ts (Seeed Pro, Seeed printed parts, Hiwonder xArm 1S; WowRobo as sale prices)
-  for (const p of [st.seeed, st.printed, st.hiw])
-    for (const q of [`≈ $${p} (verified ${vd})`, `约 $${p}（${vd} 核实）`]) ok(res.includes(q), `resources.ts: expected dated price ${JSON.stringify(q)}`);
+  // the table's store prices, each bound to its own resources.ts entry; sts3215 is RobotShop's 12 V FeeTech STS3215 (title, url and price, verified with the table)
+  const entryOf = (id) => { const k = /^\w+$/.test(id) ? `\n  ${id}: {` : `\n  "${id}": {`; return res.includes(k) ? res.slice(res.indexOf(k) + 1).split(/\n  "?[\w-]+"?: \{/)[0] : ""; };
+  const stsP = 31.71, stsV = 12;
+  for (const [id, p] of [["seeed-so101-pro", st.seeed], ["seeed-so101-printed", st.printed], ["xarm-1s", st.hiw], ["sts3215", stsP]])
+    ok(entryOf(id).includes(`    cost: { zh: "约 $${p}（${vd} 核实）", en: "≈ $${p} (verified ${vd})" },`), `resources.ts ${id}: expected the dated price $${p} (verified ${vd})`);
+  ok(sts.includes(`title: { zh: "飞特 STS3215 智能总线舵机（${stsV} V）", en: "FeeTech STS3215 smart serial servo (${stsV} V)" },`) && sts.includes(`/products/feetech-${stsV}v-30kgcm-magnetic-encoding-servo-sts3215"`),
+    `resources.ts sts3215: expected the ${stsV} V FeeTech STS3215 title and RobotShop url`);
   for (const q of [`≈ $${st.wow.join(" / $")} (sale prices, verified ${vd})`, `约 $${st.wow.join(" / $")}（促销价，${vd} 核实）`]) ok(res.includes(q), `resources.ts wowrobo-so101: expected ${JSON.stringify(q)}`);
   ok(!res.includes("(course-verified)") && !res.includes("（课程核实）"), `resources.ts: every course-verified price needs a date`);
   console.log(`calc  so101-arm: BOM pair ${d(pair)} and follower ${d(fol)} rebuilt from line items, q1 ${d(quiz)}, error budget ${(r * step * rad).toFixed(2)} / ${(r * 0.5 * rad).toFixed(2)} mm, leader ratios ${Object.values(leader).join('/')} -> pair ${pairServos.join('/')}, current ${rated12} / ${stall12} / ${rated5} / ${stall5} A, horn ${tooth}° = ${(tooth * enc / 360).toFixed(2)} steps, filament bound ${(vsum * 1.24 / 1000).toFixed(2)} kg, packet reply ${rHex} -> ${pos} = ${deg}°, bound in en/zh`);
 }
 {
-  // fdm-printing: the printer shortlist (lesson table :9–13 and resources.ts cost lines) from each brand's official US store page, verified 2026-10-23.
+  // fdm-printing: the printer shortlist (lesson table :9–13 and resources.ts cost lines) from Bambu Lab's official US store and Creality's official store (USD prices), verified 2026-10-23.
   // Ender-3 V3 SE and K1C were on sale (struck-through $199 / $559). The A1 mini, A1 and P1S rows are the printer on its own; the bundles
   // (A1 mini Combo $329, A1 Combo $399, P1S AMS Combo $549 / AMS 2 Pro Combo $579) add the AMS multicolour system, which the course does not need.
   const vd = "2026-10-23";
@@ -1301,36 +1386,137 @@ const fdmFil = [20, 25];
   const per = {
     en: [`| Printer | Price (store page, verified ${vd}) | Why pick it |`,
       bedRow("en", "Bambu Lab A1 mini", `Works out of the box, automatic calibration, ${bed.mini} mm bed`), bedRow("en", "Bambu Lab A1", `Same, with the ${bed.a1} mm bed you will want for larger brackets`),
-      `Prices are the prices on each brand's official US store page, verified ${vd}; they change often, so check the store before ordering. The ${sale.map((r) => r.short).join(" and ")} prices are sale prices, shown with the regular price.`,
+      `Prices are from Bambu Lab's official US store and Creality's official store (USD prices), verified ${vd}; they change often, so check the store before ordering. The ${sale.map((r) => r.short).join(" and ")} prices are sale prices, shown with the regular price.`,
       `For the P1S the table gives the printer on its own, as for the A1 mini and A1; the AMS Combo ($${combo[0]}) and AMS 2 Pro Combo ($${combo[1]}) bundles add Bambu's automatic material system for multicolour printing, which this course does not need.`,
       `Do the break-even arithmetic: at $${save.toFixed(2)} saved per revision, a $${mini} printer (the A1 mini) needs about ${be} revisions before the hardware is paid for.`,
       `Each revision saves $${svc.toFixed(2)} − $${home.toFixed(2)} = $${save.toFixed(2)}.`,
       `- Break-even: $${save.toFixed(2)} saved per revision, so a $${mini} printer needs about ${be} revisions to pay for itself.`,
       `about $${fdmFil[0]} to $${fdmFil[1]} of filament`,
-      `A full SO-101 arm needs roughly 1 kg of PLA+. On your own machine that is about $${fdmFil[0]} to $${fdmFil[1]} of filament; a ready-printed set costs $${printed}. On those numbers alone, a printer does not pay for itself on one build. It pays for itself on iteration: the ${nW[0]} revision of a gripper finger costs ${cents} cents and ${min} minutes at home, against about $${svc} and a week from a service.`,
+      `A full SO-101 arm needs roughly ${fdmKg} kg of PLA+. On your own machine that is about $${fdmFil[0]} to $${fdmFil[1]} of filament; a ready-printed set costs $${printed}. On those numbers alone, a printer does not pay for itself on one build. It pays for itself on iteration: the ${nW[0]} revision of a gripper finger costs ${cents} cents and ${min} minutes at home, against about $${svc} and a week from a service.`,
       "```text\n" + `${rev} revisions at home = ${rev} × $${home.toFixed(2)} = $${(rev * home).toFixed(2)} and ${rev} × ${min} min ≈ ${hrs} h\nby service = ${rev} × $${svc} = $${rev * svc} and about ${rev} weeks if you wait for each one\n` + "```",
       `That is $${(rev * home).toFixed(2)} of filament and about ${hrs} hours of printing at home, against $${rev * svc} and roughly ${nW[1]} weeks if you wait for each service order.`,
       `<Quiz id="q1" question="A service charges $${svc} per revision and your own printer costs $${home.toFixed(2)} per revision. How much do you save over ${q} revisions, in dollars?" answer={${Math.round(q * save)}} unit="USD" explanation="Each revision saves $${svc.toFixed(2)} − $${home.toFixed(2)} = $${save.toFixed(2)}. Over ${q} revisions: ${q} × $${save.toFixed(2)} = $${(q * save).toFixed(2)}. Equivalently, ${q} × $${svc} = $${q * svc} for the service against ${q} × $${home.toFixed(2)} = $${Math.round(q * home)} at home." />`],
     zh: [`| 打印机 | 价格（商店页面，${vd} 核实） | 为什么选它 |`,
       bedRow("zh", "Bambu Lab A1 mini", `开箱即用，自动校准，${bed.mini} mm 热床`), bedRow("zh", "Bambu Lab A1", `同样的易用性，${bed.a1} mm 热床，打较大支架更从容`),
-      `价格是各品牌美国官方商店页面上的价格，${vd} 核实；价格经常变动，下单前请以商店页面为准。${sale.map((r) => r.short).join(" 和 ")} 的价格是促销价，括号里是原价。`,
+      `价格取自 Bambu Lab 美国官方商店和 Creality 官方商店（美元标价），${vd} 核实；价格经常变动，下单前请以商店页面为准。${sale.map((r) => r.short).join(" 和 ")} 的价格是促销价，括号里是原价。`,
       `P1S 和 A1 mini、A1 一样只算打印机本身；AMS Combo（$${combo[0]}）和 AMS 2 Pro Combo（$${combo[1]}）套装多了 Bambu 的自动换料系统（AMS），用于多色打印，本课程用不到。`,
       `盈亏平衡可以这样算：每轮省 $${save.toFixed(2)}，一台 $${mini} 的机器（A1 mini）要大约 ${be} 轮才回本。`,
       `每轮省 $${svc.toFixed(2)} − $${home.toFixed(2)} = $${save.toFixed(2)}。`,
       `- 盈亏平衡：每轮省 $${save.toFixed(2)}，所以 $${mini} 的打印机约 ${be} 轮就能回本。`,
       `这是 $${fdmFil[0]} 到 $${fdmFil[1]} 的耗材`,
-      `一整套 SO-101 机械臂大约需要 1 kg PLA+。在自己机器上，这是 $${fdmFil[0]} 到 $${fdmFil[1]} 的耗材；直接买打印好的整套件是 $${printed}。只算一次，打印机当然回不了本。它靠迭代回本：夹爪手指改到第${nW[2]}版，在家里是 ${cents} 美分和 ${min} 分钟，找服务大约是 $${svc} 和一周。`,
+      `一整套 SO-101 机械臂大约需要 ${fdmKg} kg PLA+。在自己机器上，这是 $${fdmFil[0]} 到 $${fdmFil[1]} 的耗材；直接买打印好的整套件是 $${printed}。只算一次，打印机当然回不了本。它靠迭代回本：夹爪手指改到第${nW[2]}版，在家里是 ${cents} 美分和 ${min} 分钟，找服务大约是 $${svc} 和一周。`,
       "```text\n" + `在家改 ${rev} 轮 = ${rev} × $${home.toFixed(2)} = $${(rev * home).toFixed(2)}，时间 ${rev} × ${min} min ≈ ${hrs} h\n找服务改 ${rev} 轮 = ${rev} × $${svc} = $${rev * svc}，每轮都等上一单的话大约 ${rev} 周\n` + "```",
       `也就是 $${(rev * home).toFixed(2)} 耗材和约 ${hrs} 小时打印，对 $${rev * svc} 和大约${nW[2]}周——前提还是你每次都等上一单做完。`,
       `<Quiz id="q1" question="某打印服务每轮修改收 $${svc}，你自己的打印机每轮成本 $${home.toFixed(2)}。改 ${q} 轮能省多少美元？" answer={${Math.round(q * save)}} unit="USD" explanation="每轮省 $${svc.toFixed(2)} − $${home.toFixed(2)} = $${save.toFixed(2)}。${q} 轮就是 ${q} × $${save.toFixed(2)} = $${(q * save).toFixed(2)}。也可以这么看：服务要 ${q} × $${svc} = $${q * svc}，自己打只要 ${q} × $${home.toFixed(2)} = $${Math.round(q * home)}。" />`],
   };
+  {
+    // whole lines of fdm-printing en/zh bound to their sources (every number on them is recomputed or pinned here, see the PR's mutation table):
+    // :5 price note, :9–13 table rows, :17/:19/:21 printers, :25 services, :50/:57 SO-ARM100 settings and the PLA softening range, q3 :117, the
+    // overhang :154, the snap-fit discussion :242/:244, q5 :248, :350, the case arithmetic :366 and the summary :406–409
+    const sf = readFileSync(join(root, "examples/month-3/fdm-printing/snap_fit.py"), "utf8"), sfOut = readFileSync(join(root, "examples/month-3/expected/fdm-snap_fit.txt"), "utf8");
+    const mat = Object.fromEntries([...sf.matchAll(/^    "(\w+)": +\((\d+), ([\d.]+)\),$/gm)].map((m) => [m[1], { E: +m[2], lim: +m[3] }]));
+    const sig = sf.match(/def snap\(L, t, y, b=([\d.]+), material="(\w+)", lead_deg=([\d.]+), mu=([\d.]+)\)/) ?? [], sb = +sig[1], mu = +sig[4];
+    const sr = [...sf.matchAll(/^    print\(snap\(([\d.]+), ([\d.]+), ([\d.]+)(?:, material="(\w+)")?(?:, lead_deg=(\d+))?\)\)/gm)].map((m) => {
+      const L = +m[1], t = +m[2], y = +m[3], mt = m[4] ?? sig[2], lead = +(m[5] ?? sig[3]), eps = 1.5 * y * t / L ** 2, P = sb * t ** 2 * mat[mt].E * eps / (6 * L), ta = Math.tan(lead * Math.PI / 180);
+      return { L, t, y, m: mt, lead, eps: eps * 100, lim: mat[mt].lim * 100, W: P * (mu + ta) / (1 - mu * ta) };
+    });
+    const sfL = sfOut.trimEnd().split("\n");
+    ok(sr.length === 5 && sfL.length === 5 && sr.every((s, i) => sfL[i].includes(`strain ${s.eps.toFixed(2)} %`) && sfL[i].includes(`push-on ${s.W.toFixed(1).padStart(5)} N`))
+      && sf.includes("eps = 1.5 * y * t / L ** 2") && sf.includes("W = P * (mu + tan_a) / (1 - mu * tan_a)"), `fdm-printing: snap_fit.py's formulas and calls no longer give fdm-snap_fit.txt`);
+    const scad = readFileSync(join(root, "examples/month-3/fdm-printing/esp32_case.scad"), "utf8"), caseOut = readFileSync(join(root, "examples/month-3/expected/fdm-case.txt"), "utf8");
+    const sv = Object.fromEntries([...scad.matchAll(/^(\w+)\s*=\s*([\d.]+);/gm)].map((m) => [m[1], +m[2]]));
+    const pcb = scad.match(/^in_h  = pins_h \+ ([\d.]+) \+ above_h;/m)?.[1], gap = Number(scad.match(/translate\(\[0, out_w \+ (\d+), 0\]\) lid_with_arms\(\)/)?.[1]);
+    const n4 = (x) => String(Number(x.toFixed(4))), inL = sv.board_l + 2 * sv.clearance, inW = sv.board_w + 2 * sv.clearance, inH = sv.pins_h + Number(pcb) + sv.above_h;
+    const outL = inL + 2 * sv.wall, outW = inW + 2 * sv.wall, outH = sv.floor_t + inH, closed = outH + sv.lid_t;
+    const size = [outL, 2 * outW + gap, Math.max(outH, sv.lid_t + sv.arm_L)].map((x) => x.toFixed(1));
+    const [, vol, dens, mass] = caseOut.match(/^volume: ([\d.]+) cm\^3, solid mass at ([\d.]+) g\/cm\^3: ([\d.]+) g$/m) ?? [];
+    ok(caseOut.includes(`ECHO: "inside (mm)", ${n4(inL)}, "x", ${n4(inW)}, "x", ${n4(inH)}\n`) && caseOut.includes(`ECHO: "outside, closed (mm)", ${n4(outL)}, "x", ${n4(outW)}, "x", ${n4(closed)}\n`)
+      && caseOut.includes(`size: ${size.join(" x ")} mm\n`) && Number(dens) === plaRho && (Number(vol) * Number(dens)).toFixed(1) === mass,
+      `fdm-printing: esp32_case.scad's constants no longer give fdm-case.txt (inside ${n4(inL)} × ${n4(inW)} × ${n4(inH)}, size ${size.join(" x ")}, ${vol} cm³ × ${dens} = ${mass} g, density ${plaRho})`);
+    // the case's snap arm is snap_fit.py's third call; the walk-through doubles L, then thins the arm, then swaps to PETG and steepens the lead-in
+    const arm = sr[2] ?? {};
+    ok(arm.L === sv.arm_L && arm.t === sv.arm_t && arm.y === sv.hook && sb === sv.arm_b && sr[3]?.m === "PETG" && sr[4]?.lead === 60 && sr[1]?.L === 2 * sr[0]?.L && sr[1]?.t === sr[0]?.t
+      && sr.slice(3).every((s) => s.L === arm.L && s.t === arm.t && s.y === arm.y), `fdm-printing: snap_fit.py's calls no longer match esp32_case.scad's arm (L ${sv.arm_L}, t ${sv.arm_t}, hook ${sv.hook}, b ${sv.arm_b}) or the lesson's walk-through`);
+    const pct = (x) => Number(x.toFixed(2)), f1 = (x) => x.toFixed(1), times = { 4: ["quadruples", "四倍"] }[Math.round(sr[4]?.W / arm.W)] ?? ["?", "?"];
+    // q5: L 12, t 1.0, hook 0.8 → 0.83 % ± 0.05; q3 / :406: a 5 mm shaft with 0.2 mm per side; overhang: one bead (nozzle) over two layers, atan(0.4 / 0.4) = 45°
+    const q5 = { L: 12, t: 1.0, y: 0.8, tol: 0.05 }, q5e = 1.5 * q5.y * q5.t / q5.L ** 2, q5p = pct(q5e * 100);
+    const q3f = { shaft: 5, cl: 0.2 }, hole = q3f.shaft + 2 * q3f.cl, ov = Math.round(Math.atan(soArm.nozzle / (2 * soArm.layer)) * 180 / Math.PI);
+    // NatureWorks Ingeo 4043D TDS: Tg 55–60 °C (ASTM D3418); Eastman Eastar 6763 TDS: Tg 80 °C (DSC), deflection 70 °C at 0.455 MPa (D648).
+    // bigBed: :21's "do not buy a 300 mm machine", a class of printer bigger than anything on the shortlist
+    const tg = { pla: [55, 60], petg: 80, hdt: 70, mpa: 0.455 }, bigBed = 300;
+    ok(Math.abs(q5p - pct(arm.eps)) > q5.tol && tg.hdt < tg.petg && tg.pla[1] < tg.hdt && bigBed > bed.a1 && ov === 45 && Number.isInteger(soArm.infill),
+      `fdm-printing: q5 / Tg / bed / overhang constants no longer support the prose`);
+    // :25 and resources.ts: fablabs.io lists 2,885 labs (api.fablabs.io, 2026-10-23); Craftcloud's network spans 95 countries; JLC3DP from $1.00 per part, about 3-day builds
+    const svcN = { fab: 2885, craft: 95, jlc: 1, days: 3 }, fabS = String(svcN.fab).replace(/\B(?=(\d{3})+$)/g, ","), dayW = { 3: "three" }[svcN.days] ?? "?";
+    const full = {
+      en: [`The table below is the course's shortlist. Prices are from Bambu Lab's official US store and Creality's official store (USD prices), verified ${vd}; they change often, so check the store before ordering. The ${sale.map((r) => r.short).join(" and ")} prices are sale prices, shown with the regular price. For the P1S the table gives the printer on its own, as for the A1 mini and A1; the AMS Combo ($${combo[0]}) and AMS 2 Pro Combo ($${combo[1]}) bundles add Bambu's automatic material system for multicolour printing, which this course does not need.`,
+        `| Creality Ender-3 V3 SE | ${cell.en(pr[0])} | Cheapest; open frame; more hands-on tuning; fine for PLA/PETG |`,
+        `| Bambu Lab A1 mini | ${cell.en(pr[1])} | Works out of the box, automatic calibration, ${bed.mini} mm bed |`,
+        `| Bambu Lab A1 | ${cell.en(pr[2])} | Same, with the ${bed.a1} mm bed you will want for larger brackets |`,
+        `| Creality K1C | ${cell.en(pr[3])} | Enclosed and with a hardened nozzle for carbon-fibre filaments |`,
+        `| Bambu Lab P1S | ${cell.en(pr[4])} | Enclosed CoreXY for ABS and ASA |`,
+        `The Bambu Lab A1 mini is the opposite trade. It works out of the box, calibrates itself, and its ${bed.mini} mm bed fits most brackets and gripper fingers. The A1 is the same machine with a ${bed.a1} mm bed, which matters when you print a chassis plate or a bracket that must stay in one piece. If your budget allows one printer and you would rather design than adjust the machine, the A1 is a reasonable pick.`,
+        `The ${pr[3].name} adds an enclosure and a hardened nozzle, so carbon-fibre-filled filaments are usable without changing hardware. The ${pr[4].name} is the enclosed CoreXY option for ABS and ASA. Enclosures are not a status symbol: they keep hot air around the part so large ABS prints do not split, and they keep fumes away from the room. For this course, an open-frame printer that prints PLA, PETG and TPU reliably is enough; buy an enclosure only when you actually need ABS or ASA. The money is better spent on filament, calipers and a spare nozzle.`,
+        `A practical warning: a printer is a machine that takes up space, needs a stable table and occasional maintenance. Do not buy a ${bigBed} mm machine for a hypothetical project you have not started; the parts in this course are small on purpose.`,
+        `You do not need to own a printer to finish this lesson. Fab Labs are digital-fabrication workshops; the fablabs.io directory lists ${fabS} of them worldwide (October 2026) and is searchable by country. Many public-library makerspaces in the US have 3D printers that are free or near-free; you usually pay only for filament. For a one-off part, a service is often the rational choice: Craftcloud compares quotes across a network spanning ${svcN.craft} countries and routes the job to a manufacturer near you, which makes it the right choice outside the US and EU. JLC3DP offers MJF nylon and FDM from $${svcN.jlc.toFixed(2)} per part, with builds around ${dayW} days.`,
+        `| PLA and PLA+ | Prototype brackets, jigs, and the SO-101 arm itself: the SO-ARM100 repo specifies PLA+, ${soArm.infill} % <Term id="infill">infill</Term>, ${soArm.layer} mm <Term id="layer-height">layers</Term> with a ${soArm.nozzle} mm nozzle | Stiffest of the easy materials, but it <Term id="creep">creeps</Term> under sustained load and softens around ${tg.pla.join("–")} °C (a car dashboard in summer, a part touching a hot motor) |`,
+        `PLA and PLA+ are the easiest starting point: stiff, dimensionally predictable and cheap. The SO-ARM100 repository specifies PLA+, ${soArm.infill} % infill and ${soArm.layer} mm layers with a ${soArm.nozzle} mm nozzle for its printed parts, which is a sensible default for a first robot arm. The limit is creep and heat. PLA creeps under a sustained load — a screw boss or a cantilever that stays loaded will slowly change shape — and it softens around ${tg.pla.join("–")} °C. A part that lives on a car dashboard in summer, or touches a motor that runs hot, is the wrong place for it. PLA+ is tougher than plain PLA but has the same heat limit.`,
+        `<Quiz id="q3" question="Your sliding clearance is ${q3f.cl} mm per side. What diameter do you draw for the hole of a ${q3f.shaft} mm shaft that must turn freely (mm)?" answer={${hole}} unit="mm" explanation="The gap appears on both sides, so the hole diameter is ${q3f.shaft} + 2 × ${q3f.cl} = ${hole} mm. Drawing ${q3f.shaft + q3f.cl} mm leaves only ${q3f.cl / 2} mm per side." />`,
+        `<Quiz id="q4" question="A long, thin snap hook must bend many times. How should it lie on the bed?" options={["standing up, so the layers stack along its length", "lying flat, so it bends along its layers", "it does not matter with 100 % infill", "at ${ov}° with supports"]} answer={1} explanation="A printed part is weakest between layers. Lying flat puts the bending load along the layers, so the hook bends instead of splitting at a layer line. Standing up makes the layers run across the bend, which is exactly where a snap hook cracks; 100 % infill does not fix weak layer bonds." />`,
+        `Walk through each line. The short thick arm, L = ${sr[0].L}, is the first design people draw; it strains ${pct(sr[0].eps)} % and would crack. Doubling the length cuts the strain to ${pct(sr[1].eps)} %, still above the limit. The thinner arm with a shallower hook gets to ${pct(arm.eps)} %, inside the ${f1(arm.lim)} % we allow for PLA. PETG is less stiff, so the same arm pushes on with less force, ${f1(sr[3].W)} N against ${f1(arm.W)} N. A steep ${sr[4].lead}° lead-in ${times[0]} the push-on force to ${f1(sr[4].W)} N — that is how you make a snap that is hard to close.`,
+        `The limits in the script, ${f1(mat.PLA.lim * 100)} % for PLA and ${f1(mat.PETG.lim * 100)} % for PETG, are the editor's cautious rules of thumb for printed parts, not datasheet values. A printed arm is weakest when it bends across its layers, and a real part has a fillet, layer lines and friction that the formula ignores. Print one test arm and snap it 20 times before you trust it in a case.`,
+        `<Quiz id="q5" question="An arm has L = ${q5.L} mm, t = ${q5.t.toFixed(1)} mm and a ${q5.y} mm hook. What is the strain in percent?" answer={${q5p}} unit="%" tolerance={${q5.tol}} explanation="ε = 1.5 × y × t / L² = 1.5 × ${q5.y} × ${q5.t.toFixed(1)} / ${q5.L}² = ${(1.5 * q5.y * q5.t).toFixed(1)} / ${q5.L ** 2} = ${q5e.toFixed(5)} = ${q5p} %." />`,
+        `The comment above the lid module is the important one: the lid prints flat with the arms standing up, so the arms bend across the layers — the weak direction from the previous section. That is why the arm strain is kept at ${pct(arm.eps)} %, below the cautious ${f1(arm.lim)} % limit for PLA. If an arm snaps, print the lid on its side or switch to PETG; do not simply make the arm thicker, because that raises both the strain and the push-on force.`,
+        `The arithmetic is visible. Inside length = ${sv.board_l} + 2 × ${sv.clearance} = ${n4(inL)} mm; inside height = ${sv.pins_h.toFixed(1)} pins + ${pcb} board + ${sv.above_h.toFixed(1)} above = ${n4(inH)} mm; outside closed height = ${sv.floor_t.toFixed(1)} floor + ${n4(inH)} + ${sv.lid_t.toFixed(1)} lid = ${n4(closed)} mm. The STL is ${size.join(" × ")} mm because the "both" layout prints the base and the lid side by side: the Y size is the case width plus a gap plus the lid, and the Z size is the taller of the two parts. The mass, ${mass} g, is for a 100 % solid part; with walls and infill the slicer will use less.`,
+        `- Hole = shaft + 2 × per-side clearance: a ${q3f.shaft} mm shaft with ${q3f.cl} mm per side needs a ${hole} mm hole.`,
+        `- Overhangs up to about ${ov}° from vertical usually print without support.`,
+        `- Overhang limit from bead geometry: tan θ ≤ w / (2 × h), which gives ${ov}° for a ${soArm.nozzle} mm line on ${soArm.layer} mm layers; Tg, not the melting point, limits a part in service (PLA Tg ${tg.pla.join("–")} °C, PETG Tg ${tg.petg} °C but heat deflection at ${tg.hdt} °C under ${tg.mpa} MPa).`,
+        `- Snap strain ε = 1.5 × y × t / L²: with L = ${arm.L} mm, t = ${arm.t} mm and y = ${arm.y} mm it gives ${pct(arm.eps)} %, inside the ${f1(arm.lim)} % PLA limit.`],
+      zh: [`下表是课程的短名单。价格取自 Bambu Lab 美国官方商店和 Creality 官方商店（美元标价），${vd} 核实；价格经常变动，下单前请以商店页面为准。${sale.map((r) => r.short).join(" 和 ")} 的价格是促销价，括号里是原价。P1S 和 A1 mini、A1 一样只算打印机本身；AMS Combo（$${combo[0]}）和 AMS 2 Pro Combo（$${combo[1]}）套装多了 Bambu 的自动换料系统（AMS），用于多色打印，本课程用不到。`,
+        `| Creality Ender-3 V3 SE | ${cell.zh(pr[0])} | 最便宜；开放式框架；需要更多手动调校；打 PLA/PETG 够用 |`,
+        `| Bambu Lab A1 mini | ${cell.zh(pr[1])} | 开箱即用，自动校准，${bed.mini} mm 热床 |`,
+        `| Bambu Lab A1 | ${cell.zh(pr[2])} | 同样的易用性，${bed.a1} mm 热床，打较大支架更从容 |`,
+        `| Creality K1C | ${cell.zh(pr[3])} | 封闭机箱，带硬化喷嘴，可打碳纤维耗材 |`,
+        `| Bambu Lab P1S | ${cell.zh(pr[4])} | 封闭式 CoreXY，面向 ABS 和 ASA |`,
+        `Bambu Lab A1 mini 是相反的取舍。开箱即用，自动校准，${bed.mini} mm 的热床放得下大多数支架和夹爪手指。A1 是同一套体验加上 ${bed.a1} mm 热床，打底盘板或不能拆开的大支架时，这多出来的尺寸很关键。如果预算只够一台，而你更想设计而不是调机器，A1 是值得优先考虑的选择。`,
+        `${pr[3].name} 多了封闭机箱和硬化喷嘴，不用换硬件就能打碳纤维填充耗材。${pr[4].name} 是封闭式 CoreXY，面向 ABS 和 ASA。机箱不是身份象征：它把热空气留在零件周围，让大件 ABS 不至于开裂，也把气味挡在房间里。对本课程来说，一台能稳定打印 PLA、PETG 和 TPU 的开放式打印机就足够了；只有当你确实需要 ABS 或 ASA 时，才去买带机箱的机器。省下的钱买耗材、卡尺和备用喷嘴更实在。`,
+        `一句实话：打印机需要占用空间、放在平稳的桌面上，还要偶尔维护。不要为一个还没开始的假设项目去买 ${bigBed} mm 的大机器；本课程的零件故意做得不大。`,
+        `没有打印机也能完成这一课。Fab Lab 是数字制造工坊，fablabs.io 目录收录了全球 ${fabS} 个（2026 年 10 月），可以按国家搜索。美国很多公共图书馆的创客空间里有 3D 打印机，免费或接近免费，通常只收耗材费。只做一件零件时，打印服务往往更理性：Craftcloud 能比较覆盖 ${svcN.craft} 个国家的服务网络报价，并把订单交给离你近的厂家，在美国和欧盟以外尤其合适。JLC3DP 提供 MJF 尼龙和 FDM，每件 $${svcN.jlc.toFixed(2)} 起，工期约 ${svcN.days} 天。`,
+        `| PLA 和 PLA+ | 原型支架、夹具，以及 SO-101 机械臂本身：SO-ARM100 仓库规定用 PLA+、${soArm.infill} % <Term id="infill">填充</Term>、${soArm.layer} mm <Term id="layer-height">层高</Term>、${soArm.nozzle} mm 喷嘴 | 易打印材料里最刚，但在持续载荷下会<Term id="creep">蠕变</Term>，约 ${tg.pla.join("–")} °C 开始软化（夏天车内仪表台、贴着热电机的零件） |`,
+        `PLA 和 PLA+ 是最容易的起点：刚、尺寸稳定、便宜。SO-ARM100 仓库明确要求用 PLA+、${soArm.infill} % 填充、${soArm.layer} mm 层高和 ${soArm.nozzle} mm 喷嘴打印结构件，这对第一台机械臂是合理的默认值。它的限制在蠕变和温度。PLA 在持续载荷下会慢慢变形——长期受力的螺柱或悬臂会逐渐改变形状——并且在大约 ${tg.pla.join("–")} °C 开始软化。夏天放在汽车仪表台上，或者紧贴发热电机的零件，都不适合用 PLA。PLA+ 比普通 PLA 更韧，但耐热上限一样。`,
+        `<Quiz id="q3" question="你的滑配间隙是每侧 ${q3f.cl} mm。要让一根 ${q3f.shaft} mm 的轴自由转动，孔要画多大直径（mm）？" answer={${hole}} unit="mm" explanation="两侧各有一条缝，所以孔径 = ${q3f.shaft} + 2 × ${q3f.cl} = ${hole} mm。画成 ${q3f.shaft + q3f.cl} mm 就只剩每侧 ${q3f.cl / 2} mm。" />`,
+        `<Quiz id="q4" question="一根细长的卡扣钩要反复弯很多次，它应该怎么躺在热床上？" options={["竖着放，让层沿着长度方向叠起来", "平躺着放，让它在层内方向上弯曲", "100 % 填充时怎么放都无所谓", "斜 ${ov}° 并加支撑"]} answer={1} explanation="打印件最弱的地方在层与层之间。平躺时弯曲载荷沿着层走，钩子会弯而不是在层线处裂开；竖着放会让层横跨弯曲方向，正是卡扣断裂的位置。100 % 填充也救不了薄弱的层间结合。" />`,
+        `逐行来看。又短又厚的 L = ${sr[0].L} 臂，正是大多数人第一版会画的样子；应变 ${pct(sr[0].eps)} %，会裂。长度加倍后应变降到 ${pct(sr[1].eps)} %，依然超标。把臂减薄、钩变浅，得到 ${pct(arm.eps)} %，落进我们为 PLA 留的 ${f1(arm.lim)} % 以内。PETG 刚度低，同样的臂压入力量更小，${f1(sr[3].W)} N 对 ${f1(arm.W)} N。${sr[4].lead}° 的陡导入角把压入力量提高到${times[1]}（${f1(sr[4].W)} N）——这就是把卡扣做得“很难关”的方法。`,
+        `脚本里的限值，PLA ${f1(mat.PLA.lim * 100)} %、PETG ${f1(mat.PETG.lim * 100)} %，是本站编者为打印件定的保守经验值，不是材料数据表上的数值。打印臂在横跨层的方向弯曲时最弱，而真实零件还有圆角、层线和摩擦，公式都没有算。先打一根测试臂，扣它 20 次，再把它用到外壳上。`,
+        `<Quiz id="q5" question="一根臂 L = ${q5.L} mm、t = ${q5.t.toFixed(1)} mm，钩深 ${q5.y} mm，应变是多少百分比？" answer={${q5p}} unit="%" tolerance={${q5.tol}} explanation="ε = 1.5 × y × t / L² = 1.5 × ${q5.y} × ${q5.t.toFixed(1)} / ${q5.L}² = ${(1.5 * q5.y * q5.t).toFixed(1)} / ${q5.L ** 2} = ${q5e.toFixed(5)} = ${q5p} %。" />`,
+        `盖子模块上方那段注释最重要：盖子平放打印，卡扣臂竖着，所以臂是横跨层弯曲的——正是上一节说的弱方向。这就是为什么臂的应变被控制在 ${pct(arm.eps)} %，低于 PLA 保守的 ${f1(arm.lim)} % 上限。如果臂断了，把盖子侧着打，或者换 PETG；不要简单地把臂加厚，因为那会同时提高应变和压入力量。`,
+        `算术是看得见的。内长 = ${sv.board_l} + 2 × ${sv.clearance} = ${n4(inL)} mm；内高 = ${sv.pins_h.toFixed(1)} 排针 + ${pcb} 板厚 + ${sv.above_h.toFixed(1)} 上方空间 = ${n4(inH)} mm；闭合外高 = ${sv.floor_t.toFixed(1)} 底 + ${n4(inH)} + ${sv.lid_t.toFixed(1)} 盖 = ${n4(closed)} mm。STL 是 ${size.join(" × ")} mm，因为“both”布局把底壳和盖子并排打印：Y 方向是外壳宽度加间隔再加盖子，Z 方向取两者中较高的那个。${mass} g 是按 100 % 实心算的；有墙和填充时，切片软件会用得更少。`,
+        `- 孔径 = 轴径 + 2 × 每侧间隙：${q3f.shaft} mm 的轴配每侧 ${q3f.cl} mm，需要 ${hole} mm 的孔。`,
+        `- 与竖直方向成大约 ${ov}° 以内的悬垂通常不用支撑。`,
+        `- 悬垂极限来自线条几何：tan θ ≤ w / (2 × h)，${soArm.nozzle} mm 线宽、${soArm.layer} mm 层高时为 ${ov}°；限制零件使用温度的是 Tg 而不是熔点（PLA Tg ${tg.pla.join("–")} °C，PETG Tg ${tg.petg} °C，但 ${tg.mpa} MPa 下 ${tg.hdt} °C 就热变形）。`,
+        `- 卡扣应变 ε = 1.5 × y × t / L²：L = ${arm.L} mm、t = ${arm.t} mm、y = ${arm.y} mm 得到 ${pct(arm.eps)} %，在 PLA 的 ${f1(arm.lim)} % 上限以内。`],
+    };
+    for (const lang of ["en", "zh"]) {
+      const lines = readFileSync(join(root, `src/content/m3/fdm-printing/${lang}.mdx`), "utf8").split("\n");
+      for (const q of full[lang]) ok(lines.includes(q), `fdm-printing ${lang}: expected the whole line ${JSON.stringify(q)} (bound to snap_fit.py, esp32_case.scad, the stores and data sheets)`);
+    }
+    const rs = readFileSync(join(root, "src/lib/resources.ts"), "utf8"), entry = (id) => rs.slice(rs.indexOf(`\n  ${id}: {`) + 1).split(/\n  "?[\w-]+"?: \{/)[0];
+    for (const [id, q] of [["fablabs", `      zh: "fablabs.io 目录收录全球 ${fabS} 个数字制造实验室（2026 年 10 月），可以按国家搜索。买不起打印机时，先找离你最近的一个。",`],
+        ["fablabs", `      en: "The fablabs.io directory lists ${fabS} digital-fabrication labs (October 2026), searchable by country. If you cannot buy a printer, find the nearest one first.",`],
+        ["craftcloud", `      zh: "上传模型，比较 ${svcN.craft} 个国家的打印服务报价，并把订单交给离你近的厂家。美国和欧盟以外地区的首选。",`],
+        ["craftcloud", `      en: "Upload a model, compare quotes from a network spanning ${svcN.craft} countries, and get routed to a manufacturer near you; the right choice outside the US and EU.",`],
+        ["jlc3dp", `    cost: { zh: "每件 $${svcN.jlc.toFixed(2)} 起", en: "From $${svcN.jlc.toFixed(2)} per part" },`],
+        ["jlc3dp", `      zh: "MJF 尼龙和 FDM 打印，约 ${svcN.days} 天出货。家里打不了的尼龙件，交给它最省事。",`],
+        ["jlc3dp", `      en: "MJF nylon and FDM parts with roughly ${dayW}-day builds; the easy route for nylon parts you cannot print at home.",`]])
+      ok(rs.includes(`\n  ${id}: {`) && entry(id).split("\n").includes(q), `resources.ts ${id}: expected the whole line ${JSON.stringify(q)} (same numbers as fdm-printing :25)`);
+    console.log(`calc  fdm-printing: ${full.en.length} + ${full.zh.length} whole lines; snap ${sr.map((s) => `${pct(s.eps)} %/${f1(s.W)} N`).join(", ")}; case ${size.join(" × ")}, ${mass} g; q5 ${q5p} %; overhang ${ov}°`);
+  }
   for (const lang of ["en", "zh"]) {
     const text = readFileSync(join(root, `src/content/m3/fdm-printing/${lang}.mdx`), "utf8");
     for (const q of per[lang]) ok(text.includes(q), `fdm-printing ${lang}: expected ${JSON.stringify(q)} (recomputed from the store prices / break-even)`);
     const rows = [...text.matchAll(/^\| ((?:Creality|Bambu Lab) [^|]+?) \| ([^|]+?) \| [^|]+ \|$/gm)].map((m) => [m[1], m[2]]);
     ok(JSON.stringify(rows) === JSON.stringify(pr.map((r) => [r.name, cell[lang](r)])), `fdm-printing ${lang}: printer table ${JSON.stringify(rows)} != the store prices`);
     ok(text.split(vd).length - 1 === 2 && !/Sept(ember)? 2026|2026 年 9 月/.test(text), `fdm-printing ${lang}: expected "${vd}" exactly twice (price note, table header) and no older price dates`);
-    ok(!/\d[%％]/.test(text.replace(/\]\([^)\s]*\)/g, "]")), `fdm-printing ${lang}: write percentages with a space ("15 %")`);
   }
   const res = readFileSync(join(root, "src/lib/resources.ts"), "utf8");
   for (const r of pr) {
@@ -1339,7 +1525,10 @@ const fdmFil = [20, 25];
     const q = `cost: { zh: "约 $${r.p}（${zh}${vd} 核实）", en: "≈ $${r.p} (${en}verified ${vd})" }`;
     ok(res.includes(`"${r.id}": {`) && blk.includes(`title: { zh: "${r.name}", en: "${r.name}" }`) && blk.includes(q), `resources.ts ${r.id}: expected ${r.name} with ${JSON.stringify(q)} (same price as the fdm-printing table)`);
   }
-  for (const t of [`≈ $${printed} (verified ${vd})`, `约 $${printed}（${vd} 核实）`]) ok(res.includes(t), `resources.ts: expected the ready-printed set at ${JSON.stringify(t)} (fdm-printing :31)`);
+  {
+    const sp = res.slice(res.indexOf(`"seeed-so101-printed": {`)).split(/\n  "?[\w-]+"?: \{/)[0];
+    ok(res.includes(`"seeed-so101-printed": {`) && sp.includes(`cost: { zh: "约 $${printed}（${vd} 核实）", en: "≈ $${printed} (verified ${vd})" }`), `resources.ts seeed-so101-printed: expected the ready-printed set at $${printed}, verified ${vd} (fdm-printing :31)`);
+  }
   ok(!/Sept 2026|2026 年 9 月/.test(res), `resources.ts: no price may still carry the September 2026 date`);
   console.log(`calc  fdm-printing: ${pr.map((r) => `${r.short ?? r.name.replace(/^\S+( Lab)? /, "")} $${r.p}`).join(", ")}; break-even $${mini} / $${save.toFixed(2)} = ${be} revisions, bound in en/zh and resources.ts`);
 }
@@ -1493,6 +1682,44 @@ for (const m of readdirSync(content)) {
     }
   }
   ok(quads > 0, "no <QuadratureTiming> found in the lessons (the size check above would test nothing)");
+}
+
+// House style, site-wide: a space before the percent sign ("15 %"), never "15%", "15％" or "15 ％". Every lesson
+// (en and zh) and every text file under src/lib (glossary, curriculum, resources, ...) is read; fenced code blocks
+// (scripts and their real output) and link targets ("%20" in a URL) are exempt. Reader-visible UI text is read too:
+// JSX text and string/template literals in src/components and src/app, and the i18n strings in messages/*.json, where
+// an interpolation glued to the sign ("{percent}%", "${x}%") also counts. CSS values are exempt there: style={{ … }},
+// className / width / height attributes and rootMargin, and so are // and /* */ comments.
+{
+  const walk = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(join(d, e.name)) : [join(d, e.name)]));
+  const pctFiles = [...walk(join(root, "src/content")).filter((f) => f.endsWith(".mdx")), ...walk(join(root, "src/lib")).filter((f) => /\.tsx?$/.test(f))];
+  const bad = [];
+  for (const f of pctFiles) {
+    const text = readFileSync(f, "utf8").replace(/^```[^\n]*\n[\s\S]*?^```/gm, (m) => m.replace(/[^\n]/g, "")).replace(/\]\([^)\s]*\)/g, "]");
+    text.split("\n").forEach((l, i) => { for (const m of l.matchAll(/\d%|\d\s*％/g)) bad.push(`${f.slice(root.length + 1)}:${i + 1} "${m[0]}"`); });
+  }
+  const blank = (m) => m.replace(/[^\n]/g, "");
+  const dropStyle = (s) => {
+    let out = "", i = 0;
+    for (let k; (k = s.indexOf("style={", i)) >= 0; ) {
+      let d = 0, j = k + 6;
+      do { if (s[j] === "{") d++; else if (s[j] === "}") d--; j++; } while (d > 0 && j < s.length);
+      out += s.slice(i, k) + blank(s.slice(k, j)); i = j;
+    }
+    return out + s.slice(i);
+  };
+  const uiFiles = [...walk(join(root, "src/components")), ...walk(join(root, "src/app"))].filter((f) => /\.tsx?$/.test(f));
+  const msgFiles = ["en", "zh"].map((l) => join(root, `messages/${l}.json`));
+  for (const f of [...uiFiles, ...msgFiles]) {
+    let text = readFileSync(f, "utf8");
+    if (!f.endsWith(".json"))
+      text = dropStyle(text.replace(/\/\*[\s\S]*?\*\//g, blank)).replace(/(^|[^:"'`\w])\/\/.*$/gm, "$1")
+        .replace(/\b(?:className|width|height)=(?:"[^"]*"|\{[^{}\n]*\})/g, "").replace(/\brootMargin:\s*"[^"]*"/g, "");
+    text.split("\n").forEach((l, i) => { for (const m of l.matchAll(/[\d}]%|[\d}]\s*％/g)) bad.push(`${f.slice(root.length + 1)}:${i + 1} "${m[0]}"`); });
+  }
+  ok(pctFiles.length > 100 && uiFiles.length > 20 && uiFiles.some((f) => f.endsWith("ProgressBar.tsx")) && bad.length === 0,
+    `write percentages with a space ("15 %"), not ${bad.slice(0, 20).join(", ")}${bad.length > 20 ? ` and ${bad.length - 20} more` : ""}`);
+  console.log(`style percent: ${pctFiles.length} files (lessons + src/lib), ${uiFiles.length} UI files (src/components + src/app) and ${msgFiles.length} message files, ${bad.length} without the space`);
 }
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);

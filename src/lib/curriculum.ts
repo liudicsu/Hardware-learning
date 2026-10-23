@@ -567,7 +567,7 @@ const month4Lessons: Lesson[] = [
     prereqs: ["urdf-tf", "gazebo-sim", "ros2-control"],
     resources: ["slam-toolbox", "nav2-docs", "articulated-slam", "articulated-nav2"],
     tasks: [
-      { id: "odom", text: { zh: "用 spin_check.py 让机器人按里程计原地转一整圈，用激光雷达测出真实转角，并校准 wheel_separation_multiplier，直到误差小于 1%", en: "Use spin_check.py to turn the robot one full turn by odometry, measure the real angle with the lidar, and calibrate wheel_separation_multiplier until the error is under 1%" } },
+      { id: "odom", text: { zh: "用 spin_check.py 让机器人按里程计原地转一整圈，用激光雷达测出真实转角，并校准 wheel_separation_multiplier，直到误差小于 1 %", en: "Use spin_check.py to turn the robot one full turn by odometry, measure the real angle with the lidar, and calibrate wheel_separation_multiplier until the error is under 1 %" } },
       { id: "map", text: { zh: "用 SLAM Toolbox 给房间建图，把所有障碍物都扫到，并同时保存位姿图（.posegraph）和栅格地图（.pgm + .yaml）", en: "Map the room with SLAM Toolbox until every obstacle shows, and save both the pose graph (.posegraph) and the occupancy grid (.pgm + .yaml)" } },
       { id: "nav", text: { zh: "在保存的地图里定位并启动 Nav2，从 RViz 或命令行发出目标点，让机器人绕过障碍物自己开过去", en: "Localize in the saved map, start Nav2 and send a goal from RViz or the command line; the robot must drive around the obstacles to it on its own" } },
       { id: "debug", text: { zh: "故意制造一次导航失败（如把目标放进障碍物，或停掉激光雷达），从日志、TF 和代价地图找出原因", en: "Make navigation fail on purpose (a goal inside an obstacle, or the lidar stopped) and find the cause from the logs, TF and the costmaps" } },
@@ -593,7 +593,7 @@ const month5Lessons: Lesson[] = [
     prereqs: ["pid-control", "so101-arm"],
     resources: ["ctms-frequency", "mathworks-control-practice"],
     tasks: [
-      { id: "identify", text: { zh: "对一个真实电机（或本课模型）做开环阶跃，用终值和 63% 时间求出 B 和 J，写出它的传递函数", en: "Run an open-loop step on a real motor (or the lesson's model), get B and J from the final value and the 63 % time, and write its transfer function" } },
+      { id: "identify", text: { zh: "对一个真实电机（或本课模型）做开环阶跃，用终值和 63 % 时间求出 B 和 J，写出它的传递函数", en: "Run an open-loop step on a real motor (or the lesson's model), get B and J from the final value and the 63 % time, and write its transfer function" } },
       { id: "units", text: { zh: "把你第 3 个月的 PID 增益换算成 SI 单位（每弧度），并说出每个增益的物理意义", en: "Convert your Month 3 PID gains to SI units (per radian) and say what each gain means physically" } },
       { id: "margins", text: { zh: "运行 joint_freq.py，读出相位裕度和增益裕度，并用增益裕度预测失稳的 kp", en: "Run joint_freq.py, read the phase and gain margins, and predict from the gain margin the kp at which the loop goes unstable" } },
       { id: "verify", text: { zh: "在时域里验证这个预测：取略低和略高于临界值的 kp，记录振荡是衰减还是增长，以及振荡频率", en: "Check the prediction in the time domain: one kp just below and one just above the limit, noting whether the ringing decays or grows and at what frequency" } },

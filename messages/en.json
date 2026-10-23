@@ -126,7 +126,9 @@
   "progress": {
     "reset": "Reset progress",
     "confirmReset": "Clear all learning progress saved in this browser? This cannot be undone.",
-    "overall": "Overall progress"
+    "overall": "Overall progress",
+    "barLabel": "{label}: ",
+    "barValue": "{percent} %"
   },
   "footer": {
     "course": "Course structure: ",

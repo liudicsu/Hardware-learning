@@ -126,7 +126,9 @@
   "progress": {
     "reset": "清空进度",
     "confirmReset": "确定要清空本浏览器中保存的全部学习进度吗？此操作不可撤销。",
-    "overall": "总体进度"
+    "overall": "总体进度",
+    "barLabel": "{label}：",
+    "barValue": "{percent} %"
   },
   "footer": {
     "course": "课程结构来源：",

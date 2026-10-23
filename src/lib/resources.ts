@@ -566,7 +566,7 @@ export const resources: Record<string, Resource> = {
     title: { zh: "飞特 STS3215 智能总线舵机（12 V）", en: "FeeTech STS3215 smart serial servo (12 V)" },
     author: "FeeTech · sold by RobotShop",
     kind: "hardware",
-    cost: { zh: "约 $31.71", en: "≈ $31.71" },
+    cost: { zh: "约 $31.71（2026-10-23 核实）", en: "≈ $31.71 (verified 2026-10-23)" },
     summary: {
       zh: "串行总线菊花链、12 位磁编码器，可回读位置、速度、电流和负载；开源 SO-101 机械臂用的就是它。",
       en: "Daisy-chained serial bus, 12-bit magnetic encoder, reports position, speed, current and load; the servo in the open-source SO-101 arm.",
@@ -843,8 +843,8 @@ export const resources: Record<string, Resource> = {
     kind: "service",
     cost: { zh: "目录免费；各实验室收费不同", en: "Directory free; each lab sets its own fees" },
     summary: {
-      zh: "全球约 2,875 个数字制造实验室，可以按国家搜索。买不起打印机时，先找离你最近的一个。",
-      en: "Roughly 2,875 digital-fabrication labs, searchable by country. If you cannot buy a printer, find the nearest one first.",
+      zh: "fablabs.io 目录收录全球 2,885 个数字制造实验室（2026 年 10 月），可以按国家搜索。买不起打印机时，先找离你最近的一个。",
+      en: "The fablabs.io directory lists 2,885 digital-fabrication labs (October 2026), searchable by country. If you cannot buy a printer, find the nearest one first.",
     },
     license: { zh: "© Fab Foundation，仅提供外链", en: "© Fab Foundation; external link only" },
   },

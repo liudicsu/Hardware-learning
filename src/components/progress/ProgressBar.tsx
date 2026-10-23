@@ -1,19 +1,22 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 export interface ProgressBarProps {
   value: number;
   label?: string;
 }
 
 export function ProgressBar({ value, label }: ProgressBarProps) {
+  const t = useTranslations("progress");
   const percent = Math.min(100, Math.max(0, Math.round(value)));
 
   return (
     <div>
       {label ? (
         <div className="mb-2 flex items-center justify-between gap-4 text-xs">
-          <span className="text-zinc-400">{label}</span>
-          <span className="tabular-nums text-zinc-500">{percent}%</span>
+          <span className="text-zinc-400">{t("barLabel", { label })}</span>
+          <span className="tabular-nums text-zinc-500">{t("barValue", { percent })}</span>
         </div>
       ) : null}
       <div
