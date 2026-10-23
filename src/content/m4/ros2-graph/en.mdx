@@ -231,7 +231,7 @@ def main():
 
 Two lines do most of the work of making this node configurable. `declare_parameter('rate', 5.0)` gives the node a setting named `rate` with a default of five; `.value` reads it back immediately. From now on a launch file or a YAML file can override that default without a single edit to this file. The header is filled in on every message: `get_clock().now()` gives the node's current time, and `.to_msg()` converts it to the header's time type; `frame_id` is set to `sensor_link`, a name that means nothing yet but will mean a lot in Lesson 3.
 
-The value itself is deliberately boring: a slow sine wave around 21 degrees plus a little Gaussian noise. The noise comes from `random.Random(7)`, a random generator started from a fixed seed. That is a small decision with a large payoff — a fixed seed means every run produces the same sequence of numbers, which is exactly what you want from a test signal. When a filter behaves strangely you can reproduce the exact input that caused it, instead of chasing a signal that was different last time.
+The value itself is deliberately boring: a slow sine wave around 21 °C with amplitude 0.5 °C, one cycle every 50 samples (10 s at the default 5 Hz `rate`), plus Gaussian noise with σ = 0.2 °C. The noise comes from `random.Random(7)`, a random generator started from a fixed seed. That is a small decision with a large payoff — a fixed seed means every run produces the same sequence of numbers, which is exactly what you want from a test signal. When a filter behaves strangely you can reproduce the exact input that caused it, instead of chasing a signal that was different last time.
 
 ### A filter in C++
 
@@ -844,7 +844,15 @@ The filter cannot tell the difference between a live sensor and a recording — 
 21.103138790242603
 ```
 
-These numbers show a second effect. This lone filter started at its default `alpha = 0.2`, but the recording was made after `/set_alpha` had already changed the filter to 0.5 — so the same input produces different output. Replaying one recording through a node while you vary its settings is exactly how you tune a node offline, with no robot and no risk, and it is worth building the habit early.
+Those are the α = 0.2 replay. The recording itself was made after `/set_alpha` had already changed the filter to 0.5, and the α = 0.5 `/filtered` values written into the bag for the same three raw samples were:
+
+```text
+21.270782399014728
+21.182248954843423
+21.286196363541336
+```
+
+One EMA step with the replay's α = 0.2 shows why the middle number is 21.0314… and not 21.182…: the first reading seeds the filter (`x₁ = 21.0158…`), so `y₂ = 21.0158… + 0.2 × (21.0937… − 21.0158…) = 21.0314…`. Same input, two α, two outputs. Replaying one recording through a node while you vary its settings is exactly how you tune a node offline, with no robot and no risk, and it is worth building the habit early.
 
 ### QoS mismatches
 

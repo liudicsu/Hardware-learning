@@ -349,7 +349,7 @@ done, facing +x again: yaw 1 deg
 
 </SimOutput>
 
-脚本会在每个途经点 5 cm 以内停下，所以里程计记录的位姿会比途经点短几厘米。有两个习惯比具体走哪条路线更重要：开慢一点，尤其是转弯时（转得太快会把一帧扫描抹花，因为激光雷达扫一圈的过程中机器人还在移动）；以及回到起点，好让 SLAM Toolbox 有机会完成回环检测。在 RViz 里你能看着地图长大；灰色是未知，白色是空闲，黑色是占据。
+脚本会在每个途经点 5 cm 以内停下，所以里程计记录的位姿会比途经点短几厘米。有两个习惯比具体走哪条路线更重要：开慢一点，尤其是转弯时（转得太快会把一帧扫描抹花，因为激光雷达扫一圈的过程中机器人还在移动：激光雷达 10 Hz 时，底盘在一帧扫描里转过 `ω/10` rad，所以 tour 自己的 0.6 rad/s 上限会抹花 0.06 rad ≈ 3.4°，而 0.3 rad/s 的转弯只抹花 0.03 rad）；以及回到起点，好让 SLAM Toolbox 有机会完成回环检测。在 RViz 里你能看着地图长大；灰色是未知，白色是空闲，黑色是占据。
 
 ### 保存地图
 
@@ -632,7 +632,7 @@ Nav2 是一组由行为树（behaviour tree）协调的服务器。参数文件 
 3. **`controller_server`** 用 Regulated Pure Pursuit 跟随路径，最高 0.25 m/s，转向时依据<strong>局部代价地图（local costmap）</strong>——一个以机器人为中心、3 m × 3 m 的窗口，只用激光雷达构建。当路径方向与机器人朝向相差超过 0.785 rad（45°）时，它会先原地转向。
 4. **`velocity_smoother`** 限制加速度，<strong>`collision_monitor`</strong> 则在激光雷达看到即将撞上的东西时让机器人减速或停下。它的输出 `cmd_vel_out_topic: "/diff_drive_controller/cmd_vel"`，是唯一一条把 Nav2 和第 5 课控制器连起来的配置。因为那个控制器要求 `TwistStamped`，每个发布速度的服务器都设置了 `enable_stamped_cmd_vel: true`。
 
-机器人的形状通过 `footprint` 进入规划，这是一个围绕 `base_footprint` 的矩形：向后 0.11 m、向前 0.21 m、两侧各 0.16 m。<strong>膨胀层（inflation layer）</strong>会在每个障碍物周围加上一层代价，代价随距离向外衰减，一直延伸到 `inflation_radius: 0.45` m。footprint 会碰到的栅格是禁区；膨胀过的栅格允许通过，但代价很高，所以规划器能留余量时就留，只有不得已时才从窄缝里挤过去。目标落在 `xy_goal_tolerance` 0.10 m 与 `yaw_goal_tolerance` 0.15 rad（约 9°）之内，就算到达。
+机器人的形状通过 `footprint` 进入规划，这是一个围绕 `base_footprint` 的矩形：向后 0.11 m、向前 0.21 m、两侧各 0.16 m。这些数字来自 URDF：底盘前后面在 `chassis_offset_x ± chassis_x/2 = 0.05 ± 0.15` → +0.20 m / −0.10 m，轮胎外侧面在 `wheel_separation/2 + wheel_width/2 = 0.14 + 0.015 = 0.155` m；再加 1 cm 余量后前后是 +0.21 / −0.11，两侧则把轮胎侧（0.155 + 0.01 = 0.165）按厘米圆整为 ±0.16。<strong>膨胀层（inflation layer）</strong>会在每个障碍物周围加上一层代价，代价随距离向外衰减，一直延伸到 `inflation_radius: 0.45` m。Nav2 的公式（Navigation2 里的 [`inflation_layer.hpp`](https://github.com/ros-navigation/navigation2/blob/main/nav2_costmap_2d/include/nav2_costmap_2d/inflation_layer.hpp)）是：在内切半径之外，`cost = (254 − 1) · exp(−cost_scaling_factor · (d − inscribed_radius))`，本课取 `cost_scaling_factor: 3.0`；障碍物格是致命代价（255），内切半径以内是内切代价（254）。0.45 m 是给 m4bot 留的间隙选择，不是本课展示过的调参结果。footprint 会碰到的栅格是禁区；膨胀过的栅格允许通过，但代价很高，所以规划器能留余量时就留，只有不得已时才从窄缝里挤过去。目标落在 `xy_goal_tolerance` 0.10 m 与 `yaw_goal_tolerance` 0.15 rad（约 9°）之内，就算到达。
 
 ### 发送目标
 

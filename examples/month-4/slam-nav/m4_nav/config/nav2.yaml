@@ -84,7 +84,7 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
-        inflation_radius: 0.45                  # m4bot: tuned in the lesson
+        inflation_radius: 0.45                  # m4bot clearance margin (not a measured tune)
       always_send_full_costmap: True
 
 global_costmap:
@@ -114,7 +114,7 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
-        inflation_radius: 0.45                  # m4bot: tuned in the lesson
+        inflation_radius: 0.45                  # m4bot clearance margin (not a measured tune)
       always_send_full_costmap: True
 
 planner_server:

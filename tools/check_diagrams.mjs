@@ -1637,6 +1637,145 @@ const lessonRef = (n, slug, lang) => {
   console.log(`calc  fdm-printing gaps: ${fp.en.length} + ${fp.zh.length} phrases; A1 mini ${a1.hot}/${a1.bed} °C, Prusa bed > ${prusa.bed} °C, IPA ${prusa.ipa} %, insert iron ${ins.pla} °C, flow ${f2(flow.lo)}–${f2(flow.hi)} (${flow.blocks} blocks, ${flowNew}), PA ${paVal}, retraction ${ret.dd[0]}–${ret.dd[1]} / ${ret.bw[0]}–${ret.bw[1]} mm, SO-101 ${so.n1}/${so.l1} or ${so.n2}/${so.l2} mm, ${so.infill} %, plates ${so.ender.join(" × ")} and ${so.prusaBed.join(" × ")} mm, M3 × ${m3.L} insert hole ${m3.d2.toFixed(1)} mm (CAD ${m3.cad}), depth ${m3depth} mm, iron ${ins.pla}/${ins.petg}/${ins.abs} °C, lesson refs ${lessonNo("cad-parametric")} and ${lessonNo("so101-arm")} from curriculum.ts, bound in en/zh`);
 }
 
+{
+  // Month 4 content gaps (m4-conclusions.md): every newly stated number is recomputed or pinned here.
+  // ros2-setup: Construct pricing page €39.97 (October 2026); pixi env size du -sh .pixi = 5.8 GB on the course Debian 13 box (October 2026).
+  // ros2-graph: sensor_node.py Random(7), amp 0.5, period 50, σ 0.2; EMA replay α=0.2 and recorded α=0.5 at samples k=67..69 of that seeded sequence.
+  // ros2-control: diff_drive odometry Δs = Δθ·r and ω_actual = ω·b_config/b_real; teleop 0.5 m/s × (2 + 0.5) s = 1.25 m vs measured 1.15 m; drive-distance depth-10 staleness 10/50 = 0.2 s → 0.04 m at 0.2 m/s.
+  // gazebo-sim: Isaac Sim requirements (RTX 4080 / 16 GB VRAM / 32 GB RAM, docs 6.0.0, October 2026); MuJoCo Todorov/Erez/Tassa IROS 2012 DOI 10.1109/IROS.2012.6386109 (no "fastest/most accurate").
+  // slam-nav: footprint from URDF chassis_offset_x±chassis_x/2 and wheel_separation/2+wheel_width/2 + 1 cm (Y side 0.165 rounded to the centimetre as ±0.16); Nav2 inflation_layer.hpp cost = (254−1)·exp(−cost_scaling_factor·(d−inscribed_radius)); tour ω clamp 0.6 / lidar 10 Hz → 0.06 rad smear; nav2.yaml comment "clearance margin (not a measured tune)".
+  const rd4 = (p) => readFileSync(join(root, p), "utf8");
+  const num4 = (text, re, what) => { const m = text.match(re); ok(m, `m4: ${what} not found`); return m ? Number(m[1]) : NaN; };
+  const xacro = rd4("examples/month-4/urdf-tf/m4_description/urdf/robot.urdf.xacro");
+  const prop = (name) => num4(xacro, new RegExp(`name="${name}"\\s+value="([\\d.]+)"`), `URDF ${name}`);
+  const chassisX = prop("chassis_x"), chassisOff = prop("chassis_offset_x"), wheelSep = prop("wheel_separation"), wheelW = prop("wheel_width");
+  const faceFwd = chassisOff + chassisX / 2, faceBack = chassisOff - chassisX / 2, tyreY = wheelSep / 2 + wheelW / 2;
+  const margin = 0.01;
+  const fpFwd = +(faceFwd + margin).toFixed(2);
+  const fpBack = +(faceBack - margin).toFixed(2); // −0.10 − 0.01 = −0.11
+  const fpYExact = +(tyreY + margin).toFixed(3); // 0.155 + 0.01 = 0.165
+  const fpY = Math.floor(fpYExact * 100 + 1e-12) / 100; // centimetre rounding stated in the lesson → 0.16
+  ok(Math.abs(faceFwd - 0.2) < 1e-9 && Math.abs(faceBack - (-0.1)) < 1e-9 && Math.abs(tyreY - 0.155) < 1e-9, `m4 slam-nav: URDF faces ${faceFwd}/${faceBack} and tyre ${tyreY} must be 0.20/−0.10/0.155`);
+  ok(Math.abs(fpYExact - 0.165) < 1e-12, `m4 slam-nav: tyre + 1 cm must be 0.165 before centimetre rounding (got ${fpYExact})`);
+  ok(fpFwd === 0.21 && fpBack === -0.11 && fpY === 0.16, `m4 slam-nav: footprint with margin must be +0.21/−0.11/±0.16 after centimetre rounding (got ${fpFwd}/${fpBack}/${fpY})`);
+  const nav2 = rd4("examples/month-4/slam-nav/m4_nav/config/nav2.yaml");
+  ok((nav2.match(/# m4bot clearance margin \(not a measured tune\)/g) || []).length === 2, `m4 nav2.yaml: both inflation_radius comments must say clearance margin (not a measured tune)`);
+  ok(!nav2.includes("tuned in the lesson"), `m4 nav2.yaml: "tuned in the lesson" must not remain`);
+  ok(/footprint: "\[\[0\.21, 0\.16\], \[0\.21, -0\.16\], \[-0\.11, -0\.16\], \[-0\.11, 0\.16\]\]"/.test(nav2), `m4 nav2.yaml: footprint must match the derived rectangle`);
+  const costScale = num4(nav2, /cost_scaling_factor:\s*([\d.]+)/, "nav2 cost_scaling_factor");
+  const inflR = num4(nav2, /inflation_radius:\s*([\d.]+)/, "nav2 inflation_radius");
+  ok(costScale === 3 && inflR === 0.45, `m4 nav2.yaml: cost_scaling_factor ${costScale} and inflation_radius ${inflR} must be 3.0 / 0.45`);
+  const tour = rd4("examples/month-4/slam-nav/tour.py");
+  const turnClamp = num4(tour, /max\(-([\d.]+), min\(\1,/, "tour.py turn clamp");
+  const lidarRate = num4(rd4("examples/month-4/gazebo-sim/m4_gazebo/urdf/sensors.gazebo.xacro"), /name="lidar"[\s\S]*?<update_rate>([\d.]+)</, "Gazebo lidar update_rate");
+  const smearTour = turnClamp / lidarRate;
+  ok(turnClamp === 0.6 && lidarRate === 10 && Math.abs(smearTour - 0.06) < 1e-12, `m4 slam-nav: tour clamp ${turnClamp} / lidar ${lidarRate} Hz must smear 0.06 rad`);
+  const sensor = rd4("examples/month-4/ros2-graph/m4_graph/m4_graph/sensor_node.py");
+  ok(/random\.Random\(7\)/.test(sensor) && /0\.5 \* math\.sin\(2 \* math\.pi \* self\.k \/ 50\)/.test(sensor) && /gauss\(0, 0\.2\)/.test(sensor), `m4 ros2-graph: sensor_node.py must keep Random(7), amp 0.5, period 50, σ 0.2`);
+  // Pin the CPython Random(7) raws at k=67..69 (verified) and check the EMA algebra.
+  const raw67 = 21.015805553261274, raw68 = 21.093715510672123, raw69 = 21.390143772239245;
+  const a05 = [21.270782399014728, 21.182248954843423, 21.286196363541336];
+  const a02 = [raw67, raw67 + 0.2 * (raw68 - raw67)];
+  a02.push(a02[1] + 0.2 * (raw69 - a02[1]));
+  ok(Math.abs(a02[1] - 21.031387544743442) < 1e-12 && Math.abs(a02[2] - 21.103138790242603) < 1e-12, `m4 ros2-graph: α=0.2 replay of raws 67..69 must match the lesson`);
+  ok(Math.abs(a05[1] - (a05[0] + 0.5 * (raw68 - a05[0]))) < 1e-12 && Math.abs(a05[2] - (a05[1] + 0.5 * (raw69 - a05[1]))) < 1e-12, `m4 ros2-graph: α=0.5 chain at k=67..69 must be consistent with the raws`);
+  const ctl = rd4("examples/month-4/ros2-control/m4_control/config/controllers.yaml");
+  const wr = num4(ctl, /wheel_radius:\s*([\d.]+)/, "controllers wheel_radius"), ws = num4(ctl, /wheel_separation:\s*([\d.]+)/, "controllers wheel_separation");
+  ok(wr === 0.05 && ws === 0.28, `m4 ros2-control: controllers.yaml radius/separation ${wr}/${ws}`);
+  const r10 = +(wr * 1.1).toFixed(3), b10 = +(ws * 1.1).toFixed(3), turnFactor = +(b10 / ws).toFixed(2); // 0.055, 0.308, 1.10
+  ok(r10 === 0.055 && b10 === 0.308 && turnFactor === 1.1, `m4 ros2-control: 10 % worked values must be 0.055 / 0.308 / 1.10 (got ${r10}/${b10}/${turnFactor})`);
+  const teleopHeld = 0.5 * (2 + 0.5), stale = (10 / 50) * 0.2;
+  ok(Math.abs(teleopHeld - 1.25) < 1e-12 && Math.abs(stale - 0.04) < 1e-12, `m4 ros2-control: teleop held ${teleopHeld} m and depth-10 staleness ${stale} m`);
+  const res = rd4("src/lib/resources.ts");
+  const construct = res.includes(`\n  "the-construct": {`) ? res.slice(res.indexOf(`\n  "the-construct": {`) + 1).split(/\n  "?[\w-]+"?: \{/)[0] : "";
+  ok(construct.includes(`url: "https://www.theconstruct.ai/pricing/"`), `resources.ts the-construct: url must be the pricing page`);
+  ok(construct.includes(`€39.97/month (site price, October 2026)`) && construct.includes(`€39.97/月起（2026 年 10 月官网价）`), `resources.ts the-construct: dated €39.97 cost lines`);
+  const phrases = {
+    en: {
+      "ros2-setup": [
+        `free tier; paid from [€39.97/month](https://www.theconstruct.ai/pricing/) (October 2026)`,
+        `5.8 GB on this course's Debian 13 box after \`du -sh .pixi\` (October 2026)`,
+      ],
+      "ros2-graph": [
+        `amplitude 0.5 °C, one cycle every 50 samples (10 s at the default 5 Hz \`rate\`), plus Gaussian noise with σ = 0.2 °C`,
+        `21.270782399014728`, `21.182248954843423`, `21.286196363541336`,
+        `y₂ = 21.0158… + 0.2 × (21.0937… − 21.0158…) = 21.0314…`,
+      ],
+      "ros2-control": [
+        `odometry distance is \`Δs = Δθ_wheel · r\``,
+        `\`ω_actual = (v_right − v_left)/b_real = ω · b_config / b_real\``,
+        `\`0.05 → 0.055\``,
+        `\`0.28 → 0.308\``,
+        `\`ω_actual = ω · 1.10\``,
+        `\`0.5 m/s × (2 s + 0.5 s) = 1.25 m\`; the measured 1.15 m is lower`,
+        `\`10/50 = 0.2 s\` of history, which at the 0.2 m/s command used in that run is up to \`0.2 m/s × 0.2 s = 0.04 m\` of stale position. The remaining ~0.036 m`,
+      ],
+      "gazebo-sim": [
+        `([Todorov, Erez & Tassa, IROS 2012](https://doi.org/10.1109/IROS.2012.6386109))`,
+        `([NVIDIA system requirements](https://docs.isaacsim.omniverse.nvidia.com/6.0.0/installation/requirements.html), checked October 2026)`,
+      ],
+      "slam-nav": [
+        `\`chassis_offset_x ± chassis_x/2 = 0.05 ± 0.15\` → +0.20 m / −0.10 m`,
+        `\`wheel_separation/2 + wheel_width/2 = 0.14 + 0.015 = 0.155\` m; with a 1 cm clearance margin that is +0.21 / −0.11, and ±0.16 after rounding the tyre side (0.155 + 0.01 = 0.165) to the centimetre`,
+        `\`cost = (254 − 1) · exp(−cost_scaling_factor · (d − inscribed_radius))\``,
+        `tour's own 0.6 rad/s clamp smears 0.06 rad ≈ 3.4° per scan while a 0.3 rad/s turn smears only 0.03 rad`,
+      ],
+    },
+    zh: {
+      "ros2-setup": [
+        `免费档；付费从 [€39.97/月](https://www.theconstruct.ai/pricing/) 起（2026 年 10 月）`,
+        `\`du -sh .pixi\` 测得 5.8 GB，2026 年 10 月`,
+      ],
+      "ros2-graph": [
+        `振幅 0.5 °C 的慢正弦波，每 50 个样本一个周期（默认 \`rate\` 5 Hz 时是 10 s），再加上 σ = 0.2 °C 的高斯噪声`,
+        `21.270782399014728`, `21.182248954843423`, `21.286196363541336`,
+        `y₂ = 21.0158… + 0.2 × (21.0937… − 21.0158…) = 21.0314…`,
+      ],
+      "ros2-control": [
+        `里程计距离是 \`Δs = Δθ_wheel · r\``,
+        `\`ω_actual = (v_right − v_left)/b_real = ω · b_config / b_real\``,
+        `\`0.05 → 0.055\``,
+        `\`0.28 → 0.308\``,
+        `\`ω_actual = ω · 1.10\``,
+        `\`0.5 m/s × (2 s + 0.5 s) = 1.25 m\`；测得的 1.15 m 更低`,
+        `\`10/50 = 0.2 s\` 的历史；那次命令速度是 0.2 m/s，对应最多 \`0.2 m/s × 0.2 s = 0.04 m\` 的陈旧位置。剩下的约 0.036 m`,
+      ],
+      "gazebo-sim": [
+        `（[Todorov、Erez 与 Tassa，IROS 2012](https://doi.org/10.1109/IROS.2012.6386109)）`,
+        `（[NVIDIA 系统要求](https://docs.isaacsim.omniverse.nvidia.com/6.0.0/installation/requirements.html)，2026 年 10 月核对）`,
+      ],
+      "slam-nav": [
+        `\`chassis_offset_x ± chassis_x/2 = 0.05 ± 0.15\` → +0.20 m / −0.10 m`,
+        `\`wheel_separation/2 + wheel_width/2 = 0.14 + 0.015 = 0.155\` m；再加 1 cm 余量后前后是 +0.21 / −0.11，两侧则把轮胎侧（0.155 + 0.01 = 0.165）按厘米圆整为 ±0.16`,
+        `\`cost = (254 − 1) · exp(−cost_scaling_factor · (d − inscribed_radius))\``,
+        `tour 自己的 0.6 rad/s 上限会抹花 0.06 rad ≈ 3.4°，而 0.3 rad/s 的转弯只抹花 0.03 rad`,
+      ],
+    },
+  };
+  for (const lang of ["en", "zh"]) {
+    for (const [slug, qs] of Object.entries(phrases[lang])) {
+      const text = rd4(`src/content/m4/${slug}/${lang}.mdx`);
+      for (const q of qs) ok(text.includes(q), `m4 ${slug} ${lang}: expected ${JSON.stringify(q)}`);
+      if (slug === "gazebo-sim") {
+        ok(!/fastest and most accurate|最快也最准/.test(text), `m4 gazebo-sim ${lang}: MuJoCo must not claim fastest/most accurate`);
+      }
+    }
+  }
+  // Bind the 10 % worked numbers from controllers.yaml so mutating any of them in the lesson fails.
+  for (const lang of ["en", "zh"]) {
+    const text = rd4(`src/content/m4/ros2-control/${lang}.mdx`);
+    for (const q of [`${wr.toFixed(2)} → ${r10.toFixed(3)}`, `${ws.toFixed(2)} → ${b10.toFixed(3)}`, `ω · ${turnFactor.toFixed(2)}`]) {
+      ok(text.includes(q), `m4 ros2-control ${lang}: expected worked value ${JSON.stringify(q)} (from controllers.yaml × 1.1)`);
+    }
+  }
+  // Footprint centimetre-rounding phrase must mention both 0.165 and the printed ±0.16.
+  for (const lang of ["en", "zh"]) {
+    const text = rd4(`src/content/m4/slam-nav/${lang}.mdx`);
+    ok(text.includes("0.155 + 0.01 = 0.165") && text.includes("±0.16"), `m4 slam-nav ${lang}: footprint must show 0.165 rounded to ±0.16`);
+  }
+  console.log(`calc  m4 gaps: Construct €39.97 + pixi 5.8 GB; EMA α=0.5 @k67–69 ${a05.map((x) => x.toFixed(4)).join(", ")} / α=0.2 replay ${a02.map((x) => x.toFixed(4)).join(", ")}; teleop held ${teleopHeld} m vs 1.15 m; staleness ${stale} m; footprint +${fpFwd}/${fpBack}/±${fpY} (exact side ${fpYExact}); r/b 10 % → ${r10}/${b10}, turn ×${turnFactor.toFixed(2)}; inflation (254−1)·exp(−${costScale}·(d−r_ins)) out to ${inflR} m; smear ${smearTour} rad @ ${turnClamp} rad/s / ${lidarRate} Hz; Isaac 4080/16/32 Oct 2026; MuJoCo IROS 2012; bound in en/zh`);
+}
+
 const specs = [];
 for (const f of readdirSync(specDir).filter((f) => f.endsWith(".ts"))) {
   const mod = await import(dataUrl(transpile(inlineJson(readFileSync(join(specDir, f), "utf8")))));

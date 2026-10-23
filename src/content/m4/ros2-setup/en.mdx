@@ -70,7 +70,7 @@ There are four sane routes. They all end in the same place — a terminal where 
 | --- | --- | --- | --- | --- |
 | Ubuntu 24.04 + official apt packages | Ubuntu 24.04 (native or dual-boot) | free | the reference setup every tutorial assumes; Gazebo and RViz run natively | needs Ubuntu 24.04 exactly |
 | Windows: WSL2 with Ubuntu 24.04 | Windows 10/11 | free | then follow the Ubuntu route inside WSL | GUI programs (RViz, Gazebo) run through WSLg and are slower; USB devices need extra steps |
-| The Construct | any browser | free tier; paid from €39.97/month | zero install: ROS environments with simulated robots in the browser, three complete courses on the free tier | you depend on their servers and plans |
+| The Construct | any browser | free tier; paid from [€39.97/month](https://www.theconstruct.ai/pricing/) (October 2026) | zero install: ROS environments with simulated robots in the browser, three complete courses on the free tier | you depend on their servers and plans |
 | RoboStack (conda packages, installed with pixi) | other Linux distributions, macOS, Windows | free | a self-contained environment that does not touch the system; how this site's examples were run (on Debian 13) | community-built; a few packages lag behind apt |
 
 If you are on Windows and want the closest experience to the tutorials, install WSL2 with Ubuntu 24.04 and work inside it. If you are on macOS, on Debian, or on an Ubuntu that is not 24.04, use pixi. If you cannot install anything at all, use The Construct for the first weeks; the commands are the same, they just run on someone else's machine.
@@ -112,7 +112,7 @@ pixi install
 pixi shell
 ```
 
-`pixi install` downloads ROS 2 Jazzy, Gazebo, colcon and the rest into the project folder — about 2 GB — without touching the system. `pixi shell` opens a shell where `ros2`, `colcon` and `gz` work. You can also run a single command with `pixi run ros2 topic list` without entering the shell. When you delete the folder, the environment is gone; nothing is left behind in `/usr`.
+`pixi install` downloads ROS 2 Jazzy, Gazebo, colcon and the rest into the project folder — 5.8 GB on this course's Debian 13 box after `du -sh .pixi` (October 2026) — without touching the system. `pixi shell` opens a shell where `ros2`, `colcon` and `gz` work. You can also run a single command with `pixi run ros2 topic list` without entering the shell. When you delete the folder, the environment is gone; nothing is left behind in `/usr`.
 
 <Resource id="robostack" />
 
