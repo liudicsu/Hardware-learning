@@ -171,6 +171,18 @@ This is why you measure the printed part, not just the CAD model. Keep a print l
 
 <Quiz id="q3" question="Your sliding clearance is 0.2 mm per side. What diameter do you draw for the hole of a 5 mm shaft that must turn freely (mm)?" answer={5.4} unit="mm" explanation="The gap appears on both sides, so the hole diameter is 5 + 2 × 0.2 = 5.4 mm. Drawing 5.2 mm leaves only 0.1 mm per side." />
 
+### When a print fails
+
+Most failed prints come down to a few causes. Find the symptom in the left column and work through the checks in order; change one setting at a time and record each change in your print log. The causes and checks follow Prusa's knowledge base articles on each problem.
+
+| Symptom | Likely cause | Check and fix |
+| --- | --- | --- |
+| **Warping**: corners lift off the bed, the bottom of the part curves | The plastic shrinks as it cools from nozzle temperature to room temperature, and the upper layers pull on the lower ones; worst with high-temperature materials such as ABS, ASA and PC, and with large parts | Clean the plate; check the first layer; keep the printer away from open windows and air-conditioning; check that the part-cooling fan works for PLA and PETG; print ABS and ASA in an enclosure; add a brim; print more slowly |
+| **Stringing**: thin hairs of plastic between separate parts of the print | Nozzle temperature too high, retraction too short, or wet filament; PETG strings more than PLA | Lower the nozzle temperature in small steps; run the retraction test above; dry the filament |
+| **Under-extrusion or clog**: gaps in the walls, thin or missing layers, clicking from the extruder | Nozzle too close to the bed on the first layer, slicer settings beyond what the hot end can melt, a partly clogged nozzle, dirty extruder gears, poor hot-end cooling, or a tangled spool | Check the Z offset and the slicer profile; clear the nozzle as the manual describes, or replace it; clean the extruder gears; check that the hot-end fan runs; check that the spool unwinds freely |
+| **Layer shift**: from a certain height on, the layers are offset sideways | The print head or the bed did not follow its commanded movement: wrong belt tension, a loose pulley set screw, an obstruction in the travel path, or the nozzle hitting an overhang that curled up | Check the belt tension and the pulley set screws as the manual describes; clear the travel path; fix the curling overhang with more cooling or a different orientation |
+| **First layer does not stick** | Dirty plate, nozzle too far from the bed, or nozzle and bed temperatures that do not match the filament | Clean the plate as described above; adjust the Z offset; use the temperatures from the filament profile; add a brim; use a glue stick only where the printer's manual recommends it |
+
 ## Design for FDM
 
 The milestone for this lesson is to design a part specifically for FDM, not a CAD shape that happens to export. Three things decide whether a printed part is strong and easy to make: orientation, overhangs and layer adhesion. FDM parts are <Term id="anisotropy">anisotropic</Term>: they are a stack of welded lines, and the bond between layers is weaker than the plastic inside a layer.
@@ -450,6 +462,17 @@ An iteration checklist:
 <Callout type="tip" title="Print the small test first">
 Print just the lid's arm region, or a single test arm, before the whole case. It takes about 10 minutes instead of 2 hours and tells you whether the snap works.
 </Callout>
+
+## Print the SO-101 parts
+
+Lesson 5 builds the SO-101 arm, and its printed parts take many hours of printer time, so start printing them once your printer has passed its first print and calibration. The [SO-ARM100 README, "Printing the Parts"](https://github.com/TheRobotStudio/SO-ARM100/blob/a758567c3978dfeefe282ede0500085a48fe8f78/README.md#printing-the-parts) gives the settings; follow it in this order:
+
+1. **Settings.** PLA+; a 0.4 mm nozzle at 0.2 mm layer height, or a 0.6 mm nozzle at 0.4 mm layer height; 15 % infill.
+2. **Printer.** Calibrate and level it, clean the plate and dry it, use a glue stick only if your printer's manufacturer recommends it, and load the filament as the printer's instructions describe.
+3. **Supports.** Enable supports, but leave out surfaces steeper than 45° to the horizontal, which print without them (the 45° rule in Design for FDM above), and put no supports in screw holes whose axis is horizontal.
+4. **Gauges first.** The [STL/Gauges folder](https://github.com/TheRobotStudio/SO-ARM100/tree/a758567c3978dfeefe282ede0500085a48fe8f78/STL/Gauges) holds two test pieces for an STS3215 servo, Gauge_0.STL and Gauge_tight_1.STL, and two for a standard Lego brick. Print Gauge_0 and check how the servo fits in it, as in the video the README links. If the fit is wrong, change your printer settings and print the gauge again before you print the arm.
+5. **The arms.** The [STL/SO101 folder](https://github.com/TheRobotStudio/SO-ARM100/tree/a758567c3978dfeefe282ede0500085a48fe8f78/STL/SO101) has each arm as one file, with all its parts already oriented on one plate. For a 220 mm × 220 mm bed, print Follower/Ender_Follower_SO101.stl and Leader/Ender_Leader_SO101.stl; for a 205 mm × 250 mm bed, Follower/Prusa_Follower_SO101.stl and Leader/Prusa_Leader_SO101.stl. The same folders also contain BambuLabA1mini_Follower_SO101.stl and BambuLabA1mini_Leader_SO101.stl for the A1 mini. If your bed matches none of these, print the parts one at a time from STL/SO101/Individual.
+6. **Removal.** Let the plate cool, take the parts off with a putty knife or the printer's scraper, pushing away from your hand, and then remove the supports.
 
 Lesson 3 takes the same idea further: gears and <Term id="backlash">backlash</Term>. A gearbox is a stack of fits, and every loose fit becomes position error at the output. The gauge numbers you write down here are the numbers you will use there.
 

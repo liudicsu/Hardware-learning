@@ -1538,10 +1538,13 @@ const lessonRef = (n, slug, lang) => {
   // prusa: Prusa CORE One handbook 1.01, 5.8 (print plate and heated bed may exceed 100 °C) and the sheet care notes (IPA 90 % or more).
   // orca: OrcaSlicer wiki 201599c, flow_ratio_calib (YOLO [-0.05, +0.05], step 0.01, eleven blocks, 0.98 + 0.01 = 0.99), material_flow_ratio_and_pressure_advance (0.95–1.05),
   //   pressure_advance_calib (tower: 0 + 0.002 × 8 = 0.016), retraction_calib (0–2 mm / 0.1 mm direct drive, 1–6 mm / 0.2 mm Bowden, 0.2–0.4 mm if clean).
+  // so: SO-ARM100 README @a758567, Printing the Parts (PLA+, 0.4 mm nozzle / 0.2 mm layers or 0.6 mm / 0.4 mm, 15% infill, supports ignore slopes > 45° to the horizontal,
+  //   220mm x 220mm Ender plates, 205mm x 250mm Prusa plates).
   // ins: CNC Kitchen, Tips & Tricks for Heat-Set Inserts (iron 10–20 °C above printing temperature, about 225 °C for PLA).
   const a1 = { hot: 300, bed: 80 }, prusa = { bed: 100, ipa: 90 }, ins = { pla: 225 };
   const flow = { lo: 0.95, hi: 1.05, mod: 0.05, step: 0.01, blocks: 11, old: 0.98, pick: 0.01 };
   const pa = { start: 0, step: 0.002, h: 8 }, ret = { dd: [0, 2, 0.1], bw: [1, 6, 0.2], clean: [0.2, 0.4] };
+  const so = { n1: 0.4, l1: 0.2, n2: 0.6, l2: 0.4, infill: 15, slope: 45, ender: [220, 220], prusaBed: [205, 250] };
   const flowNew = (flow.old + flow.pick).toFixed(2), paVal = (pa.start + pa.step * pa.h).toFixed(3), f2 = (x) => x.toFixed(2);
   ok(Math.round((2 * flow.mod) / flow.step) + 1 === flow.blocks, `fdm-printing: YOLO ±${flow.mod} in steps of ${flow.step} must give ${flow.blocks} blocks`);
   ok(ret.bw[1] > ret.dd[1] && ret.clean[1] < ret.dd[1], `fdm-printing: Bowden retraction range must exceed direct drive, and the clean-tower range must lie inside it`);
@@ -1554,7 +1557,10 @@ const lessonRef = (n, slug, lang) => {
       `in the guide's example, ${pa.start} + ${pa.step} × ${pa.h} = ${paVal}.`,
       `Its defaults, ${ret.dd[0]} to ${ret.dd[1]} mm in steps of ${ret.dd[2]} mm, suit most direct-drive extruders; for a Bowden extruder the guide suggests ${ret.bw[0]} to ${ret.bw[1]} mm in steps of ${ret.bw[2]} mm.`,
       `If the tower is clean from the bottom, ${ret.clean[0]} to ${ret.clean[1]} mm is enough.`,
-      `- Flow ratio scales every extrusion (keep it within ${f2(flow.lo)}–${f2(flow.hi)});`],
+      `- Flow ratio scales every extrusion (keep it within ${f2(flow.lo)}–${f2(flow.hi)});`,
+      `1. **Settings.** PLA+; a ${so.n1} mm nozzle at ${so.l1} mm layer height, or a ${so.n2} mm nozzle at ${so.l2} mm layer height; ${so.infill} % infill.`,
+      `leave out surfaces steeper than ${so.slope}° to the horizontal, which print without them (the ${so.slope}° rule in Design for FDM above)`,
+      `For a ${so.ender[0]} mm × ${so.ender[1]} mm bed, print Follower/Ender_Follower_SO101.stl and Leader/Ender_Leader_SO101.stl; for a ${so.prusaBed[0]} mm × ${so.prusaBed[1]} mm bed, Follower/Prusa_Follower_SO101.stl`],
     zh: [`Bambu Lab A1 mini 的热端最高可达 ${a1.hot} °C，热床最高 ${a1.bed} °C；Prusa 的 CORE One 使用手册提醒，打印板和热床可能超过 ${prusa.bed} °C。`,
       `烙铁头温度约 ${ins.pla} °C 或更高。`,
       `Prusa 推荐用纸巾蘸浓度 ${prusa.ipa} % 或以上的异丙醇（IPA）`,
@@ -1563,7 +1569,10 @@ const lessonRef = (n, slug, lang) => {
       `指南里的例子是 ${pa.start} + ${pa.step} × ${pa.h} = ${paVal}。`,
       `默认值是 ${ret.dd[0]} 到 ${ret.dd[1]} mm、步长 ${ret.dd[2]} mm，适合大多数直驱挤出机；对 Bowden 挤出机，指南建议 ${ret.bw[0]} 到 ${ret.bw[1]} mm、步长 ${ret.bw[2]} mm。`,
       `如果整座塔从底部起就很干净，${ret.clean[0]} 到 ${ret.clean[1]} mm 就够了。`,
-      `- 流量比按比例缩放每一段挤出（保持在 ${f2(flow.lo)}–${f2(flow.hi)} 之间）；`],
+      `- 流量比按比例缩放每一段挤出（保持在 ${f2(flow.lo)}–${f2(flow.hi)} 之间）；`,
+      `1. **设置**：PLA+；${so.n1} mm 喷嘴配 ${so.l1} mm 层高，或 ${so.n2} mm 喷嘴配 ${so.l2} mm 层高；${so.infill} % 填充。`,
+      `与水平面夹角大于 ${so.slope}° 的表面不加支撑，它们不用支撑也能打印（即上文“面向 FDM 设计”里的 ${so.slope}° 规则）`,
+      `${so.ender[0]} mm × ${so.ender[1]} mm 的热床打印 Follower/Ender_Follower_SO101.stl 和 Leader/Ender_Leader_SO101.stl；${so.prusaBed[0]} mm × ${so.prusaBed[1]} mm 的热床打印 Follower/Prusa_Follower_SO101.stl`],
   };
   ok(a1.hot > ins.pla && prusa.bed > a1.bed, `fdm-printing: the A1 mini hot end (${a1.hot} °C) must exceed the insert iron for PLA (${ins.pla} °C), and the Prusa bed note (${prusa.bed} °C) the A1 mini bed (${a1.bed} °C)`);
   for (const lang of ["en", "zh"]) {
@@ -1571,7 +1580,7 @@ const lessonRef = (n, slug, lang) => {
     for (const q of ["flow rate → pressure advance", "temperature → flow → pressure advance", "温度 → 流量 → 压力提前"]) ok(!text.includes(q), `fdm-printing ${lang}: the superseded OrcaSlicer order ${JSON.stringify(q)} must not return (current guide: temperature → max volumetric speed → PA → flow ratio → retraction)`);
     for (const q of fp[lang]) ok(text.includes(q), `fdm-printing ${lang}: expected ${JSON.stringify(q)} (bound to the manuals, the OrcaSlicer wiki, the SO-ARM100 README and CNC Kitchen)`);
   }
-  console.log(`calc  fdm-printing gaps: ${fp.en.length} + ${fp.zh.length} phrases; A1 mini ${a1.hot}/${a1.bed} °C, Prusa bed > ${prusa.bed} °C, IPA ${prusa.ipa} %, insert iron ${ins.pla} °C, flow ${f2(flow.lo)}–${f2(flow.hi)} (${flow.blocks} blocks, ${flowNew}), PA ${paVal}, retraction ${ret.dd[0]}–${ret.dd[1]} / ${ret.bw[0]}–${ret.bw[1]} mm, bound in en/zh`);
+  console.log(`calc  fdm-printing gaps: ${fp.en.length} + ${fp.zh.length} phrases; A1 mini ${a1.hot}/${a1.bed} °C, Prusa bed > ${prusa.bed} °C, IPA ${prusa.ipa} %, insert iron ${ins.pla} °C, flow ${f2(flow.lo)}–${f2(flow.hi)} (${flow.blocks} blocks, ${flowNew}), PA ${paVal}, retraction ${ret.dd[0]}–${ret.dd[1]} / ${ret.bw[0]}–${ret.bw[1]} mm, SO-101 ${so.n1}/${so.l1} or ${so.n2}/${so.l2} mm, ${so.infill} %, plates ${so.ender.join(" × ")} and ${so.prusaBed.join(" × ")} mm, bound in en/zh`);
 }
 
 const specs = [];
