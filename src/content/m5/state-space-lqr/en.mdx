@@ -1,4 +1,4 @@
-The last lesson described the arm joint with a transfer function: one input, one output. State space keeps every internal state in a vector x and writes the dynamics as `x' = A x + B u`. That is exactly what a balancer needs, because position, speed, angle and angular rate all matter at once. The plant here starts as the joint from [Lesson 1](/en/month/month-5/control-modelling), then becomes the cart-pole from Month 2.
+The last lesson described the arm joint with a transfer function: one input, one output. <Term id="state-space">State space</Term> keeps every internal state in a vector x and writes the dynamics as `x' = A x + B u`. That is exactly what a balancer needs, because position, speed, angle and angular rate all matter at once. The plant here starts as the joint from [Lesson 1](/en/month/month-5/control-modelling), then becomes the cart-pole from Month 2.
 
 ## Two plants, one form
 
@@ -206,7 +206,7 @@ python3 tools/sim/models/lqr_sim.py
 
 ## One gain row, four states
 
-LQR asks for the input sequence that minimises a cost over the whole run:
+<Term id="lqr">LQR</Term> asks for the input sequence that minimises a cost over the whole run:
 
 <Formula label="LQR cost: state error plus control effort">J = Σ (xᵀ Q x + uᵀ R u)</Formula>
 

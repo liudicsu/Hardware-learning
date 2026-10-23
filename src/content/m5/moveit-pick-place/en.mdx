@@ -2,7 +2,7 @@ Month 5, lesson 3 moved a three-joint arm to a point by solving IK with a Jacobi
 
 ## From IK to planning
 
-An IK solver returns one set of joint angles for one pose. It does not say how to move there, and it does not know what is in the way. Motion planning works in configuration space (C-space): one axis per joint. The Panda has seven joints, so a configuration is a point in seven dimensions, and every point can be tested for collision. A planner searches this space for a connected sequence of collision-free configurations, then turns it into a timed joint trajectory.
+An IK solver returns one set of joint angles for one pose. It does not say how to move there, and it does not know what is in the way. <Term id="motion-planning">Motion planning</Term> works in configuration space (C-space): one axis per joint. The Panda has seven joints, so a configuration is a point in seven dimensions, and every point can be tested for collision. A planner searches this space for a connected sequence of collision-free configurations, then turns it into a timed joint trajectory.
 
 Two planners share the work here. OMPL's RRTConnect grows two random trees, one from the start and one from the goal, until they meet. It is probabilistically complete: if a path exists, the chance of finding it approaches 1 as the planning time grows. It does not promise the shortest path, and the tree it grows is different on every run. The Pilz industrial motion planner's LIN moves the tool along a straight Cartesian line between two poses; it is predictable, but the line itself must be collision-free. The script uses OMPL for free moves and LIN for the approach, the lift and the retreat.
 
@@ -417,3 +417,28 @@ The MoveItPy structure stays the same, as do the planning scene and collision ob
 - <strong>Retrying a goal that is in collision.</strong> Three tries help when a random search misses a path. They cannot help when the goal state itself is invalid, as with fingertips at (0.50, 0.00, 0.10) inside the wall.
 - <strong>Treating mock hardware as physics.</strong> GenericSystem copies commands to joint states. It has no gravity, so the released block floats 2 mm; a real robot would let it settle.
 - <strong>Treating a gripper width command as a grasp.</strong> On real hardware, 0.04 m is a target, not proof that the block is held. Check force or position and attach only after a confirmed grasp.
+
+## Month 5 wrap-up
+
+You now have the maths under the stacks you already used: a modelled PID with readable margins, a state-space LQR, forward and inverse kinematics with singularities named, a calibrated camera that turns a pixel into millimetres, and a MoveIt pick-and-place that plans around obstacles. Here is how the month's milestones map onto the five lessons:
+
+| Milestone | Where you did it |
+| --- | --- |
+| Identify a joint model from measured data and read a PID tuning's phase and gain margins in the frequency domain | Lesson 1 (control modelling, Bode / margins) |
+| Describe a system in state space and implement LQR on a simulated plant | Lesson 2 (state space and LQR) |
+| Compute forward kinematics by hand and solve IK numerically | Lesson 3 (kinematics and IK) |
+| Explain a singularity by pointing at a robot doing it | Lesson 3 (the singularity table and DLS) |
+| Calibrate a camera and turn a pixel into a 3D position | Lesson 4 (camera calibration) |
+| Plan and execute a collision-free pick and place in MoveIt 2 | this lesson |
+
+Now do the practice task on your own machine:
+
+1. Re-run `joint_freq.py` (or your own Bode script) and confirm the PD margins you quote match the arithmetic in Lesson 1.
+2. Recover the cart-pole with LQR from at least one angle above 30° and one that fails past 53°, and write down the success criterion you used.
+3. Solve IK for one reachable tip and one near a singularity; compare plain inverse, damped least squares, and a capped step.
+4. Calibrate your own camera (or the synthetic views) and check that a known table point lands within a few millimetres.
+5. Run the pick-and-place once with OMPL and once forcing a colliding goal; read the log before you change anything.
+
+The folder `examples/month-5` holds the scripts quoted in this month; `tools/sim/models` repeats the Bode, LQR and kinematics runs.
+
+Month 6 leaves the maths for learning from demonstrations: behaviour cloning, ACT, diffusion policy, and the portfolio that gets you hired.

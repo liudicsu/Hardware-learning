@@ -6,9 +6,9 @@
 
 课程的练习任务正是本课用 m4bot 做的事：给机器人加上 `<ros2_control>` 标签，用 YAML 配置 `diff_drive_controller` 和 `joint_state_broadcaster`，在 Gazebo 里用键盘遥控驱动机器人；然后写一个动作服务器，驱动指定距离、报告进度，并支持反馈和取消。本月的里程碑是**配置 ros2_control，通过控制器而不是原始指令驱动机器人**。
 
-## 为什么要 ros2_control
+## 为什么要 <Term id="ros2-control">ros2_control</Term>
 
-第 4 课里，轮子是由一个叫 DiffDrive 的 Gazebo 插件驱动的。它确实能用：订阅 `/cmd_vel`、转动轮子关节、发布里程计。但它只能在 Gazebo 里用。真机上没有这个插件，你只能为电机另写一套程序：话题名不同、编码器计数方式不同、bug 也不同，而且在仿真里测过的代码一行都带不过去。更麻烦的是，一旦有第二个程序也想驱动轮子——比如遥控节点和导航栈——你就得自己发明一条“谁说了算”的规则。`ros2_control` 把这个问题拆成三部分。
+第 4 课里，轮子是由一个叫 DiffDrive 的 Gazebo 插件驱动的。它确实能用：订阅 `/cmd_vel`、转动轮子关节、发布<Term id="odometry">里程计</Term>。但它只能在 Gazebo 里用。真机上没有这个插件，你只能为电机另写一套程序：话题名不同、编码器计数方式不同、bug 也不同，而且在仿真里测过的代码一行都带不过去。更麻烦的是，一旦有第二个程序也想驱动轮子——比如遥控节点和导航栈——你就得自己发明一条“谁说了算”的规则。`ros2_control` 把这个问题拆成三部分。
 
 1. <strong>硬件接口（hardware interface）</strong>是一个和硬件对话的插件。它的 `read()` 把传感器值——轮子编码器的位置和速度——复制进状态接口；它的 `write()` 把命令接口，在我们的例子里是轮子速度，送给电机。除此之外，系统里没有任何部分需要知道这些电机是在 Gazebo 里、在实验台上，还是在火星车上。
 2. <strong>控制器（controllers）</strong>只看见这些接口。`diff_drive_controller` 把车体速度（linear x、angular z）换算成两个轮子的速度，再把轮子位置积分成里程计。`joint_state_broadcaster` 把所有关节位置发布到 `/joint_states`，供 `robot_state_publisher` 使用，这样 RViz 里的机器人模型才能和现实保持一致。

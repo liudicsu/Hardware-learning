@@ -1,4 +1,4 @@
-上一课用传递函数描述机械臂关节：一个输入、一个输出。状态空间（state space）把每个内部状态都放进向量 x，写成 `x' = A x + B u` 这样的矩阵方程。平衡车恰好需要这样：位置、速度、角度、角速度必须同时考虑。这里的对象先从[第 1 课](/zh/month/month-5/control-modelling)的关节开始，再换成第 2 个月的平衡车简化成的小车倒立摆（cart-pole）。
+上一课用传递函数描述机械臂关节：一个输入、一个输出。<Term id="state-space">状态空间</Term>（state space）把每个内部状态都放进向量 x，写成 `x' = A x + B u` 这样的矩阵方程。平衡车恰好需要这样：位置、速度、角度、角速度必须同时考虑。这里的对象先从[第 1 课](/zh/month/month-5/control-modelling)的关节开始，再换成第 2 个月的平衡车简化成的小车倒立摆（cart-pole）。
 
 ## 两个对象，一种形式
 
@@ -206,7 +206,7 @@ python3 tools/sim/models/lqr_sim.py
 
 ## 一行增益，四个状态
 
-线性二次调节器（LQR，linear quadratic regulator）要的是让整段运行代价最小的输入序列：
+线性二次调节器（<Term id="lqr">LQR</Term>，linear quadratic regulator）要的是让整段运行代价最小的输入序列：
 
 <Formula label="LQR 代价：状态误差加控制用力">J = Σ (xᵀ Q x + uᵀ R u)</Formula>
 

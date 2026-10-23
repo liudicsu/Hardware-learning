@@ -4,7 +4,7 @@
 
 练习任务的顺序和在真实机器人上一样：用激光雷达校准里程计，给房间建图并保存地图，在保存的地图里导航，然后故意把导航弄坏，找出原因。本月的里程碑是<strong>用 SLAM Toolbox 给房间建图，并用 Nav2 自主导航</strong>。
 
-## 一张图看懂 SLAM
+## 一张图看懂 <Term id="slam">SLAM</Term>
 
 只靠里程计不够。`diff_drive_controller` 把轮子的转动积分成一个位姿（pose），而每一个小误差——轮子打滑、半径差了半毫米、某一次转身多转了一度——都会被永远累加下去。开几分钟之后，里程计可能已经偏离真实值几十厘米、好几度，而它自己毫无察觉。激光雷达（lidar）则直接看见墙壁，但单次扫描并不能说明机器人在哪里，除非你手里已经有一张地图可以对照。
 
@@ -628,7 +628,7 @@ Nav2 是一组由行为树（behaviour tree）协调的服务器。参数文件 
 <Diagram id="nav2-pipeline" />
 
 1. **`bt_navigator`** 接收 `NavigateToPose` 目标，并运行一棵行为树：规划、跟随，失败时先尝试恢复动作（清空代价地图、原地转、等待、后退），实在不行再放弃。
-2. **`planner_server`** 在<strong>全局代价地图（global costmap）</strong>上规划路径，这张图由保存的地图（静态层）、激光雷达当前看到的障碍物，以及膨胀层（inflation layer）叠加而成。规划器是 NavFn，一种栅格搜索。
+2. **`planner_server`** 在<strong>全局<Term id="costmap">代价地图</Term>（global costmap）</strong>上规划路径，这张图由保存的地图（静态层）、激光雷达当前看到的障碍物，以及膨胀层（inflation layer）叠加而成。规划器是 NavFn，一种栅格搜索。
 3. **`controller_server`** 用 Regulated Pure Pursuit 跟随路径，最高 0.25 m/s，转向时依据<strong>局部代价地图（local costmap）</strong>——一个以机器人为中心、3 m × 3 m 的窗口，只用激光雷达构建。当路径方向与机器人朝向相差超过 0.785 rad（45°）时，它会先原地转向。
 4. **`velocity_smoother`** 限制加速度，<strong>`collision_monitor`</strong> 则在激光雷达看到即将撞上的东西时让机器人减速或停下。它的输出 `cmd_vel_out_topic: "/diff_drive_controller/cmd_vel"`，是唯一一条把 Nav2 和第 5 课控制器连起来的配置。因为那个控制器要求 `TwistStamped`，每个发布速度的服务器都设置了 `enable_stamped_cmd_vel: true`。
 

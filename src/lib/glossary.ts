@@ -1200,6 +1200,247 @@ export const glossary: GlossaryEntry[] = [
     lesson: "gripper-fingers",
     firstExplained: true,
   },
+  {
+    id: "ros-node",
+    term: { zh: "节点（node）", en: "node" },
+    def: {
+      zh: "ROS 2 里做一件事的一个进程：读激光、滤数据、算速度各是一个节点。节点之间不直接调用，只通过话题、服务或动作交换消息，所以可以单独重启或替换。",
+      en: "One process with one job in ROS 2: reading a lidar, filtering data or computing a velocity each live in their own node. Nodes do not call each other; they exchange messages on topics, services or actions, so any one can be restarted or replaced alone.",
+    },
+    lesson: "ros2-graph",
+    firstExplained: true,
+  },
+  {
+    id: "topic",
+    term: { zh: "话题（topic）", en: "topic" },
+    def: {
+      zh: "单向、持续的消息流：多名发布者与订阅者，谁也不等谁。传感器读数、图像、速度指令和里程计通常走话题。",
+      en: "A one-way, continuous stream of messages with many publishers and subscribers and no one waiting. Sensor readings, images, velocity commands and odometry usually travel on topics.",
+    },
+    lesson: "ros2-graph",
+    firstExplained: true,
+  },
+  {
+    id: "service",
+    term: { zh: "服务（service）", en: "service" },
+    def: {
+      zh: "一问一答的远程调用：客户端发请求，服务端回响应，调用方等待结果。改参数、触发标定、查询一次状态适合用服务，不适合连续数据流。",
+      en: "A request/response remote call: the client sends a request, the server replies, and the caller waits. Changing a parameter, triggering a calibration or asking for a one-shot status fits a service; a continuous stream does not.",
+    },
+    lesson: "ros2-graph",
+    firstExplained: true,
+  },
+  {
+    id: "action",
+    term: { zh: "动作（action）", en: "action" },
+    def: {
+      zh: "可反馈、可取消的长任务接口：目标发出后持续回报进度，并可中途取消。导航到点、开指定距离、抓取这类“要跑一会儿”的事用动作。",
+      en: "A long-running interface with feedback and cancellation: after a goal is sent it reports progress and can be aborted. Navigating to a pose, driving a set distance or grasping are actions.",
+    },
+    lesson: "ros2-graph",
+    firstExplained: true,
+  },
+  {
+    id: "urdf",
+    term: { zh: "URDF", en: "URDF" },
+    def: {
+      zh: "Unified Robot Description Format：用 XML 描述连杆、关节、惯量与碰撞几何的机器人模型。ROS 2 用它生成 TF，并在 RViz / Gazebo / ros2_control 之间共用同一份几何。",
+      en: "Unified Robot Description Format: an XML model of links, joints, inertias and collision geometry. ROS 2 builds the TF tree from it and shares the same geometry across RViz, Gazebo and ros2_control.",
+    },
+    lesson: "urdf-tf",
+    firstExplained: true,
+  },
+  {
+    id: "tf",
+    term: { zh: "TF（坐标变换树）", en: "TF (transform tree)" },
+    def: {
+      zh: "ROS 里各坐标系之间的时空变换树：每个坐标系相对父坐标系的位姿随时间发布。导航、点云与机械臂规划都先在 TF 里查“这个点在哪个坐标系”。",
+      en: "The tree of time-stamped transforms between frames in ROS: each frame's pose relative to its parent is published over time. Navigation, point clouds and arm planning all ask TF which frame a point is in.",
+    },
+    lesson: "urdf-tf",
+    firstExplained: true,
+  },
+  {
+    id: "xacro",
+    term: { zh: "xacro", en: "xacro" },
+    def: {
+      zh: "URDF 的宏与参数化前端：用属性、宏和数学把重复的连杆写成可配置模板，再展开成纯 URDF。Month 4 的 m4bot 整机描述就是 xacro。",
+      en: "A macro and parameter front-end for URDF: properties, macros and arithmetic turn repeated links into a configurable template that expands to plain URDF. Month 4's m4bot is described in xacro.",
+    },
+    lesson: "urdf-tf",
+    firstExplained: true,
+  },
+  {
+    id: "ros2-control",
+    term: { zh: "ros2_control", en: "ros2_control" },
+    def: {
+      zh: "ROS 2 的标准控制层：硬件接口负责读写电机与编码器，控制器只看见状态/命令接口，控制器管理器按固定频率调度。仿真、mock 与真机可以共用同一套控制器配置。",
+      en: "The standard ROS 2 control layer: a hardware interface reads and writes motors and encoders, controllers see only state and command interfaces, and the controller manager runs the loop at a fixed rate. The same controller config can serve simulation, mock hardware and a real robot.",
+    },
+    lesson: "ros2-control",
+    firstExplained: true,
+  },
+  {
+    id: "odometry",
+    term: { zh: "里程计（odometry）", en: "odometry" },
+    def: {
+      zh: "由轮速或编码器积分得到的机器人位姿估计，通常相对 odom 坐标系。它会漂移，所以 SLAM 与导航还要用激光或视觉把地图坐标系钉住。",
+      en: "A pose estimate integrated from wheel speeds or encoders, usually in the odom frame. It drifts, so SLAM and navigation still need lidar or vision to pin the map frame down.",
+    },
+    lesson: "ros2-control",
+    firstExplained: true,
+  },
+  {
+    id: "slam",
+    term: { zh: "SLAM", en: "SLAM" },
+    def: {
+      zh: "Simultaneous Localisation and Mapping：一边估计机器人位姿，一边建环境地图。本课用 SLAM Toolbox 把激光扫描收成占用栅格与位姿图。",
+      en: "Simultaneous Localisation and Mapping: estimating the robot's pose while building a map of the surroundings. This lesson uses SLAM Toolbox to turn laser scans into an occupancy grid and a pose graph.",
+    },
+    lesson: "slam-nav",
+    firstExplained: true,
+  },
+  {
+    id: "costmap",
+    term: { zh: "代价地图（costmap）", en: "costmap" },
+    def: {
+      zh: "导航用的二维栅格：自由、占用与膨胀后的危险带各有代价。全局与局部代价地图决定目标是否可达、狭窄通道是否被膨胀封死。",
+      en: "A 2-D grid for navigation in which free space, occupied cells and inflated hazard bands carry costs. Global and local costmaps decide whether a goal is reachable and whether a narrow gap is sealed by inflation.",
+    },
+    lesson: "slam-nav",
+    firstExplained: true,
+  },
+  {
+    id: "transfer-function",
+    term: { zh: "传递函数", en: "transfer function" },
+    def: {
+      zh: "线性时不变系统输出与输入的拉普拉斯域之比 G(s)。关节在重力前馈后写成 G(s) = 1/(J s² + B s)，用来画 Bode 图并读裕度。",
+      en: "The Laplace-domain ratio G(s) of output to input for a linear time-invariant system. After gravity feedforward the joint is G(s) = 1/(J s² + B s), which is what the Bode plot and the margins read.",
+    },
+    lesson: "control-modelling",
+    firstExplained: true,
+  },
+  {
+    id: "bode-plot",
+    term: { zh: "Bode 图", en: "Bode plot" },
+    def: {
+      zh: "把回路频率响应画成幅频（dB）与相频（度）两条曲线。穿越频率、相位裕度与增益裕度都从这两条曲线读出。",
+      en: "A plot of a loop's frequency response as magnitude in dB and phase in degrees. Crossover frequency, phase margin and gain margin are all read from those two curves.",
+    },
+    lesson: "control-modelling",
+    firstExplained: true,
+  },
+  {
+    id: "phase-margin",
+    term: { zh: "相位裕度", en: "phase margin" },
+    def: {
+      zh: "幅值穿过 0 dB 时，相位距 −180° 还剩多少度。正裕度表示按当前增益放大时仍稳定；本课 PD 例约为 56°。",
+      en: "How many degrees of phase remain above −180° at the frequency where |L| crosses 0 dB. A positive margin means the loop is still stable at the present gain; the lesson's PD example is about 56°.",
+    },
+    lesson: "control-modelling",
+    firstExplained: true,
+  },
+  {
+    id: "gain-margin",
+    term: { zh: "增益裕度", en: "gain margin" },
+    def: {
+      zh: "相位到达 −180° 时，幅值距 0 dB 还低多少 dB（或可再放大多少倍）。本课例约 −14.2 dB，即可再放大约 5.1 倍才临界。",
+      en: "How many dB |L| sits below 0 dB (or by what factor you may still raise the gain) when the phase reaches −180°. The lesson's example is about −14.2 dB, a factor of roughly 5.1 before the critical gain.",
+    },
+    lesson: "control-modelling",
+    firstExplained: true,
+  },
+  {
+    id: "state-space",
+    term: { zh: "状态空间", en: "state space" },
+    def: {
+      zh: "用状态向量 x 与输入 u 写的一阶向量微分方程 x' = Ax + Bu。多输入多输出与现代控制（LQR、卡尔曼）都从这个形式出发。",
+      en: "A first-order vector differential equation x' = Ax + Bu in a state vector x and an input u. MIMO plants and modern controllers (LQR, Kalman) start from this form.",
+    },
+    lesson: "state-space-lqr",
+    firstExplained: true,
+  },
+  {
+    id: "lqr",
+    term: { zh: "LQR", en: "LQR" },
+    def: {
+      zh: "线性二次调节器：在线性状态空间上最小化 ∫(xᵀQx + uᵀRu) 的最优状态反馈 u = −Kx。Q 与 R 的相对大小直接决定增益有多“凶”。",
+      en: "Linear Quadratic Regulator: the optimal state feedback u = −Kx that minimises ∫(xᵀQx + uᵀRu) on a linear state-space plant. The relative size of Q and R sets how aggressive the gains are.",
+    },
+    lesson: "state-space-lqr",
+    firstExplained: true,
+  },
+  {
+    id: "forward-kinematics",
+    term: { zh: "正运动学（FK）", en: "forward kinematics (FK)" },
+    def: {
+      zh: "由关节角求末端位姿的映射。串联臂把各关节的齐次变换连乘，得到末端位置与姿态。",
+      en: "The map from joint angles to the tip pose. For a serial arm, multiply the homogeneous transforms of each joint in order to get the tip position and orientation.",
+    },
+    lesson: "kinematics-ik",
+    firstExplained: true,
+  },
+  {
+    id: "inverse-kinematics",
+    term: { zh: "逆运动学（IK）", en: "inverse kinematics (IK)" },
+    def: {
+      zh: "由末端目标位姿反求关节角。解析解只对特定几何成立；本课用雅可比的数值迭代（含阻尼最小二乘）求解。",
+      en: "The map from a desired tip pose back to joint angles. Closed forms exist only for special geometries; this lesson solves it numerically with the Jacobian (including damped least squares).",
+    },
+    lesson: "kinematics-ik",
+    firstExplained: true,
+  },
+  {
+    id: "jacobian",
+    term: { zh: "雅可比矩阵", en: "Jacobian" },
+    def: {
+      zh: "把关节速度映射到末端线速度/角速度的矩阵：v = J(q) q'。数值 IK 每步解 J dq = dx；接近奇异时 J 病态，需要阻尼或限制步长。",
+      en: "The matrix that maps joint velocity to tip linear/angular velocity: v = J(q) q'. Numerical IK solves J dq = dx each step; near a singularity J is ill-conditioned, so you damp or cap the step.",
+    },
+    lesson: "kinematics-ik",
+    firstExplained: true,
+  },
+  {
+    id: "singularity",
+    term: { zh: "奇异点", en: "singularity" },
+    def: {
+      zh: "雅可比秩下降、某些末端方向无法用有限关节速度实现的构型。靠近奇异时 IK 会要出离谱的关节速度；阻尼最小二乘用来换稳定性。",
+      en: "A configuration where the Jacobian loses rank and some tip directions cannot be produced at finite joint speed. Near one, IK asks for absurd joint rates; damped least squares trades accuracy for stability.",
+    },
+    lesson: "kinematics-ik",
+    firstExplained: true,
+  },
+  {
+    id: "camera-intrinsics",
+    term: { zh: "相机内参", en: "camera intrinsics" },
+    def: {
+      zh: "只描述相机自身的参数：焦距 fx、fy（像素）与主点 cx、cy，组成内参矩阵 K。标定求出 K 之后，像素才能反投影到射线。",
+      en: "Parameters that describe the camera alone: focal lengths fx, fy in pixels and the principal point cx, cy, gathered in the intrinsic matrix K. After calibration recovers K, a pixel can be back-projected to a ray.",
+    },
+    lesson: "camera-calibration",
+    firstExplained: true,
+  },
+  {
+    id: "lens-distortion",
+    term: { zh: "镜头畸变", en: "lens distortion" },
+    def: {
+      zh: "真实镜头让直线变弯的径向/切向偏差；OpenCV 常用 k1、k2 等系数建模。标定同时估计畸变，去畸变后再用针孔模型。",
+      en: "The radial and tangential bend real lenses add to straight lines; OpenCV usually models it with coefficients such as k1 and k2. Calibration estimates them too, and you undistort before trusting the pinhole model.",
+    },
+    lesson: "camera-calibration",
+    firstExplained: true,
+  },
+  {
+    id: "motion-planning",
+    term: { zh: "运动规划", en: "motion planning" },
+    def: {
+      zh: "在关节空间（C 空间）里搜索一条无碰撞的构型序列，再变成带时间的轨迹。MoveIt 里 OMPL 做自由空间搜索，Pilz LIN 做直线笛卡尔段。",
+      en: "Searching configuration space (C-space) for a collision-free sequence of configurations and turning it into a timed trajectory. In MoveIt, OMPL searches free space and Pilz LIN flies straight Cartesian segments.",
+    },
+    lesson: "moveit-pick-place",
+    firstExplained: true,
+  },
+
 ];
 
 export function getTerm(id: string): GlossaryEntry | undefined {
