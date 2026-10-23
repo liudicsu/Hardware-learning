@@ -59,7 +59,7 @@ Every resistor has a **power rating**, the maximum it can dissipate safely. Kits
 
 **Worked example.** A 100 Ω resistor has 5 V across it. The current is I = 5 / 100 = 0.05 A = 50 mA, so P = 5 × 0.05 = 0.25 W. The V² / R form agrees: 25 / 100 = 0.25 W.
 
-That is exactly the 1/4 W rating. At 100% it runs very hot and ages quickly. Use at most about 50%, so fit a 1/2 W part here: 0.25 / 0.5 = 50%. In a closed box, go one size larger.
+That is exactly the 1/4 W rating. At 100 % it runs very hot and ages quickly. Use at most about 50 %, so fit a 1/2 W part here: 0.25 / 0.5 = 50 %. In a closed box, go one size larger.
 
 <Quiz id="q2" question="12 V across 470 Ω dissipates about how much power, and which resistor rating would you pick?" options={["≈0.03 W → 1/8 W is fine", "≈0.31 W → use a 1/2 W resistor", "≈3.1 W → needs a 5 W resistor"]} answer={1} explanation="P = V² / R = 12² / 470 = 144 / 470 = 0.306 W. A 1/4 W part would be over its rating, so pick at least 1/2 W and keep some margin." />
 
@@ -138,7 +138,7 @@ Larger resistors waste less battery current; the next section shows why the ADC 
 
 The formula assumes nothing is connected to the output. A real load draws current and sits in parallel with R2, making the effective bottom resistance smaller than R2. A smaller bottom resistance takes a smaller share of the input, so Vout drops.
 
-Take the previous divider and add a 10 kΩ load across R2. The bottom becomes 4.7 kΩ in parallel with 10 kΩ: (4.7 × 10) / (4.7 + 10) = 47 / 14.7 = 3.197 kΩ ≈ 3.2 kΩ. Recalculate: Vout = 5 × 3.2 / 13.2 = 1.212 V. Instead of 1.6 V you get about 1.2 V, a 25% drop. A motor would pull far more and collapse the output completely.
+Take the previous divider and add a 10 kΩ load across R2. The bottom becomes 4.7 kΩ in parallel with 10 kΩ: (4.7 × 10) / (4.7 + 10) = 47 / 14.7 = 3.197 kΩ ≈ 3.2 kΩ. Recalculate: Vout = 5 × 3.2 / 13.2 = 1.212 V. Instead of 1.6 V you get about 1.2 V, a 25 % drop. A motor would pull far more and collapse the output completely.
 
 <Falstad title="Loaded divider: a switch adds a 10 kΩ load" circuit="loadedDivider" height={420} />
 

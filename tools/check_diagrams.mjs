@@ -985,7 +985,6 @@ lerobot.wikiAmps = (lerobot.wikiDef * lerobot.mA / 1000).toFixed(2);
     ok(qz2 && Number(qz2[1]) === Number(t2.toFixed(2)), `gripper-fingers ${lang}: Quiz q2 answer ${qz2 && qz2[1]} != tan ${a2}° to 2 decimals = ${t2.toFixed(2)}`);
     ok(tol2 > 0 && tol2 <= 0.02 && Math.abs(t2 - Number(qz2 && qz2[1])) <= tol2, `gripper-fingers ${lang}: Quiz q2 tolerance ${qt2 && qt2[1]} not in (0, 0.02] or does not cover tan ${a2}° = ${t2.toFixed(4)}`);
     ok(q2e.startsWith(`μ = tan ${a2}° = ${t2.toFixed(4)} ≈ ${t2.toFixed(2)}`), `gripper-fingers ${lang}: Quiz q2 explanation "${q2e}" != "μ = tan ${a2}° = ${t2.toFixed(4)} ≈ ${t2.toFixed(2)}…"`);
-    ok(!/\d[%％]/.test(text.replace(/\]\([^)\s]*\)/g, "]")), `gripper-fingers ${lang}: write percentages with a space ("80 %")`);
     // every m/s² figure in the prose must be g, the example arm acceleration A or 0.0, and A must appear in all seven places
     const accs = [...text.matchAll(/(\d+(?:\.\d+)?) m\/s²/g)].map((m) => m[1]);
     ok(accs.every((x) => [String(G), A.toFixed(1), "0.0"].includes(x)), `gripper-fingers ${lang}: m/s² figures ${JSON.stringify(accs)} must each be ${G}, ${A.toFixed(1)} or 0.0`);
@@ -1251,7 +1250,6 @@ const fdmFil = [20, 25];
       `so101-arm ${lang}: the sts_packet.py / compare_sdk.py listings or their output blocks differ from examples/month-3/so101-arm/{sts_packet,compare_sdk}.py / expected/arm-{sts_packet,compare_sdk}.txt`);
     const rows = [...text.matchAll(/^\| (\w+) \| 1\/(\d+) \|$/gm)].map((m) => [m[1], Number(m[2])]);
     ok(JSON.stringify(rows) === JSON.stringify(Object.entries(leader)), `so101-arm ${lang}: leader ratio table ${JSON.stringify(rows)} != ${JSON.stringify(leader)}`);
-    ok(!/\d[%％]/.test(text.replace(/\]\([^)\s]*\)/g, "]")), `so101-arm ${lang}: write percentages with a space ("${infill} %")`);
     // dates: the LeRobot docs check (October 2026) and the store prices (verified ${vd}: price note and store-price note); no older price dates
     ok(text.includes(lang === "en" ? "v0.6.x, checked in October 2026." : "（v0.6.x，2026 年 10 月核对）"), `so101-arm ${lang}: expected the LeRobot docs check date`);
     ok(text.split(vd).length - 1 === 2 && !/September 2026|2026 年 9 月|store page, October|10 月商店页面/.test(text), `so101-arm ${lang}: expected "${vd}" exactly twice and no older price dates`);
@@ -1330,7 +1328,6 @@ const fdmFil = [20, 25];
     const rows = [...text.matchAll(/^\| ((?:Creality|Bambu Lab) [^|]+?) \| ([^|]+?) \| [^|]+ \|$/gm)].map((m) => [m[1], m[2]]);
     ok(JSON.stringify(rows) === JSON.stringify(pr.map((r) => [r.name, cell[lang](r)])), `fdm-printing ${lang}: printer table ${JSON.stringify(rows)} != the store prices`);
     ok(text.split(vd).length - 1 === 2 && !/Sept(ember)? 2026|2026 年 9 月/.test(text), `fdm-printing ${lang}: expected "${vd}" exactly twice (price note, table header) and no older price dates`);
-    ok(!/\d[%％]/.test(text.replace(/\]\([^)\s]*\)/g, "]")), `fdm-printing ${lang}: write percentages with a space ("15 %")`);
   }
   const res = readFileSync(join(root, "src/lib/resources.ts"), "utf8");
   for (const r of pr) {
@@ -1493,6 +1490,21 @@ for (const m of readdirSync(content)) {
     }
   }
   ok(quads > 0, "no <QuadratureTiming> found in the lessons (the size check above would test nothing)");
+}
+
+// House style, site-wide: a space before the percent sign ("15 %"), never "15%", "15％" or "15 ％". Every lesson
+// (en and zh) and every text file under src/lib (glossary, curriculum, resources, ...) is read; fenced code blocks
+// (scripts and their real output) and link targets ("%20" in a URL) are exempt.
+{
+  const walk = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(join(d, e.name)) : [join(d, e.name)]));
+  const pctFiles = [...walk(join(root, "src/content")).filter((f) => f.endsWith(".mdx")), ...walk(join(root, "src/lib")).filter((f) => /\.tsx?$/.test(f))];
+  const bad = [];
+  for (const f of pctFiles) {
+    const text = readFileSync(f, "utf8").replace(/^```[^\n]*\n[\s\S]*?^```/gm, (m) => m.replace(/[^\n]/g, "")).replace(/\]\([^)\s]*\)/g, "]");
+    text.split("\n").forEach((l, i) => { for (const m of l.matchAll(/\d%|\d\s*％/g)) bad.push(`${f.slice(root.length + 1)}:${i + 1} "${m[0]}"`); });
+  }
+  ok(pctFiles.length > 100 && bad.length === 0, `write percentages with a space ("15 %"), not ${bad.slice(0, 20).join(", ")}${bad.length > 20 ? ` and ${bad.length - 20} more` : ""}`);
+  console.log(`style percent: ${pctFiles.length} files (lessons + src/lib), ${bad.length} without the space`);
 }
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
