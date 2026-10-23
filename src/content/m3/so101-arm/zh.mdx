@@ -369,7 +369,7 @@ lerobot-find-port
 
 工具会列出串口，让你拔掉一块板再按回车，然后告诉你哪个串口消失了。插回去，对另一块板重复。把哪个口是主臂、哪个是从臂记下来，写在纸上或写在要用的命令旁边。Linux 下名字像 `/dev/ttyACM0` 和 `/dev/ttyACM1`，但重新插拔后可能变，所以要查，不要猜。下面的例子用 `/dev/ttyACM0` 给从臂、`/dev/ttyACM1` 给主臂；换成你自己的。
 
-串口名取决于操作系统。macOS 上形如 `/dev/tty.usbmodem575E0032081`，这是 LeRobot 指南里的例子（[LeRobot SO-101 指南第 57–74 行](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L57-L73)）；Windows 上控制板显示为 `COM` 口，例如 `COM3`，`lerobot-find-port` 通过 pyserial 列出它们（[lerobot_find_port.py 第 36–37 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/scripts/lerobot_find_port.py#L36-L37)），编号因电脑而异；Linux 上是 `/dev/ttyACM0`、`/dev/ttyACM1` 等。照 `lerobot-find-port` 打印的名字原样使用。
+串口名取决于操作系统。macOS 上形如 `/dev/tty.usbmodem575E0032081`，这是 LeRobot 指南里的例子（[LeRobot SO-101 指南第 57–74 行](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L57-L74)）；Windows 上控制板显示为 `COM` 口，例如 `COM3`，`lerobot-find-port` 通过 pyserial 列出它们（[lerobot_find_port.py 第 36–37 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/scripts/lerobot_find_port.py#L36-L37)），编号因电脑而异；Linux 上是 `/dev/ttyACM0`、`/dev/ttyACM1` 等。照 `lerobot-find-port` 打印的名字原样使用。
 
 在 Linux 上，打开串口可能报 “Permission denied”（权限被拒绝），因为串口设备属于一个系统组，而你的用户不一定在这个组里。LeRobot 指南给了一个快速解决办法，每个串口运行一次（[LeRobot SO-101 指南第 77–82 行](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L77-L82)）：
 
@@ -427,7 +427,7 @@ lerobot-setup-motors \
 
 主臂的夹爪这一步不同：主臂支架 4 颗 M3×6，手柄 1 颗 M2×6，夹爪电机每侧 2 颗 M2×6，它的舵机盘 1 颗 M3×6，扳机 4 颗 M3×6（[LeRobot SO-101 指南第 340–343 行](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L340-L343)）。装每个电机之前，在外壳上写下它的关节：从臂写 F1 到 F6，主臂写 L1 到 L6；Seeed 的课程建议这样做，因为它 “saves hours of debugging later”（能省下之后好几个小时的排错；[Seeed Studio SO-ARM 课程第 6 章](https://wiki.seeedstudio.com/robotics/soarm_physical_ai_course_chapter_6/)）。
 
-每根三针线都要留出余量。装下一块零件之前，用手把关节从一个限位转到另一个限位，同时看着它的线：线不能被拉紧，不能磨到舵机盘，也不能夹在两块零件之间。Seeed 对装好的臂的检查项是线缆 “are seated, not sharply bent, and stay clear of the joint motion range”（插到位、没有急弯、远离关节的活动范围；同一来源）。
+每根 3 针线都要留出余量。装下一块零件之前，用手把关节从一个限位转到另一个限位，同时看着它的线：线不能被拉紧，不能磨到舵机盘，也不能夹在两块零件之间。Seeed 对装好的臂的检查项是线缆 “are seated, not sharply bent, and stay clear of the joint motion range”（插到位、没有急弯、远离关节的活动范围；同一来源）。
 
 把两种螺丝分开放，打印件按关节分袋；M2×6 和 M3×6 混在一堆里，用眼睛很难分清。两条通用的实操建议。第一，拧进塑料打印件的螺丝不要过力；螺纹远在你觉得“拧紧”之前就滑了，滑掉的螺柱不是再加力能救的。第二，每装好一个关节，先用手转一遍。如果发卡，先找出原因再往下走：被舵机盘压住的线、轴承座里的支撑碎片，都不会自己好，而且会让校准和遥操作看起来像软件问题，实际是机械问题。
 
