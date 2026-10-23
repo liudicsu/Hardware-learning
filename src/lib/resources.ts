@@ -566,7 +566,7 @@ export const resources: Record<string, Resource> = {
     title: { zh: "飞特 STS3215 智能总线舵机（12 V）", en: "FeeTech STS3215 smart serial servo (12 V)" },
     author: "FeeTech · sold by RobotShop",
     kind: "hardware",
-    cost: { zh: "约 $31.71", en: "≈ $31.71" },
+    cost: { zh: "约 $31.71（2026-10-23 核实）", en: "≈ $31.71 (verified 2026-10-23)" },
     summary: {
       zh: "串行总线菊花链、12 位磁编码器，可回读位置、速度、电流和负载；开源 SO-101 机械臂用的就是它。",
       en: "Daisy-chained serial bus, 12-bit magnetic encoder, reports position, speed, current and load; the servo in the open-source SO-101 arm.",
