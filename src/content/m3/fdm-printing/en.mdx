@@ -84,6 +84,51 @@ The table compresses a few mechanisms. Knowing them lets you reason about a mate
 
 <Quiz id="q2" question="A motor mount sits against a motor that reaches 70 °C. Which material?" options={["PLA+", "TPU", "ABS or ASA", "PLA-CF with a brass nozzle"]} answer={2} explanation="PLA softens around 55–60 °C, so it is the wrong choice next to a 70 °C motor. ABS and ASA are the course's pick for parts near hot motors. PETG is a reasonable second choice — its glass transition is around 80 °C, close to 70 °C, so check the margin. TPU is flexible rather than heat-resistant, and carbon fibre does not fix PLA's heat limit; it also needs a hardened nozzle." />
 
+## Your first print
+
+With a printer and a filament chosen, the next step is one successful print. It tests the machine before you spend time on calibration, and it is the routine you will repeat for every part. Read the safety rules first; they apply to every printer in the shortlist.
+
+<Callout type="danger" title="Hot surfaces, molten plastic, fumes">
+- **The nozzle and the bed cause burns.** The Bambu Lab A1 mini's hot end reaches up to 300 °C and its bed up to 80 °C, and Prusa's CORE One handbook warns that the print plate and heated bed may exceed 100 °C. Both stay hot after the print ends: wait until the screen shows that they have cooled, and keep your hands out of the print area while the printer is running.
+- **Clear a clog only as the manual describes.** Some unclogging steps are done with the printer switched off and the nozzle fully cooled, others with the nozzle heated above the filament's printing temperature; the manual or the manufacturer's wiki says which, and which tool to use, such as the pin or needle supplied with the printer. When the nozzle is hot, wear heat-resistant gloves and keep your face away from it: Bambu Lab warns that pressure behind a clog can make molten filament spray out suddenly.
+- **Do not leave a running printer unattended.** Thermal runaway protection is a firmware check that switches the heaters off when the measured temperature stops following the set value, for example when a temperature sensor comes loose and the heater would otherwise keep heating. It reduces the risk but does not remove it: Prusa's handbook states that misuse or an unexpected component failure can still pose a fire hazard, and tells you not to leave the printer unattended while it is on. Keep flammable material away from the printer.
+- **Ventilate.** Printing releases ultrafine particles and volatile organic compounds (VOCs). UL Chemical Insights reports that emissions depend on the printer, the material, the operating conditions and the ventilation; PLA generally emits less, while ABS and nylon, printed at higher temperatures, release significantly more. Place the printer where the room is well ventilated or where an exhaust vents to the outside, and print at the lowest nozzle temperature that gives good quality.
+- **Use the scraper away from your hand.** Let the plate cool first; many parts come off when you remove the flexible plate and bend it. If a part or a remnant stays, use the scraper or plastic spatula supplied with the printer, and push the blade away from your other hand and your body. Do not pick at remnants with your fingernails, and do not use a sharp metal tool on a sheet whose manual forbids it, as Prusa's does.
+- **The insert iron is a hot soldering iron.** Setting heat-set inserts (later in this lesson) means a tip at about 225 °C or more. Return the iron to its stand between inserts, press the insert home with a tool rather than a finger, and switch the iron off when you finish.
+</Callout>
+
+### From CAD to G-code
+
+Every print passes through the same chain:
+
+```text
+CAD model → STL or 3MF mesh → slicer → G-code → printer
+```
+
+Lesson 1 covered the first two steps and the difference between STL and 3MF. A <Term id="slicer">slicer</Term> such as OrcaSlicer, Bambu Studio or PrusaSlicer cuts the mesh into layers, plans the walls, infill, supports and travel moves, and writes G-code: a plain-text list of machine commands (move to a position, set a temperature, feed a length of filament) that the printer's firmware executes line by line. G-code contains absolute temperatures, speeds and positions for one machine, so select the printer profile that matches your printer and the filament profile that matches the spool before you slice, and do not send a file sliced for one printer model to another.
+
+### Set up and run the first print
+
+1. **Place the printer** on a stable table, with room for the bed and the print head to move through their full travel, and away from open windows and air-conditioning outlets, whose draughts cool the part unevenly.
+2. **Run the first-start routine.** Current printers run a self-test or an initial calibration the first time they are switched on; on the A1 mini, vibration and noise during this calibration are normal. Let it finish before you print.
+3. **Load the filament** with the printer's load function: it heats the nozzle to the filament's temperature, drives the filament into the extruder and purges until clean plastic of the new colour comes out. Cut the filament end at an angle to a sharp tip first, so it enters the extruder cleanly. To change material, use the unload function, which heats the nozzle before it pulls the filament back; filament cannot be pulled out cleanly while the plastic in the nozzle is solid.
+4. **Clean the plate.** Grease from fingers is enough to stop a first layer from sticking. For its sheets, Prusa recommends isopropyl alcohol (IPA) of 90 % or more on a paper towel, and warns against products that contain IPA only as one ingredient, such as hand sanitiser, because their additives can affect the surface. For its textured PEI plate, Bambu Lab recommends dish soap and warm water, because alcohol may spread oil across the textured surface instead of removing it. Do not use acetone on a textured or satin sheet, dry the plate completely, and from then on hold it by its edges.
+5. **Level the bed and set the Z offset.** These are two separate settings. Bed leveling measures the height of the bed at a grid of points, so the printer can follow the bed's shape; Bambu Lab recommends turning on "Bed leveling" when you start a print, and Prusa printers run mesh bed leveling before each print. The Z offset is the gap between the nozzle tip and the bed during the first layer. If it is too large, the filament is laid on top of the bed and does not stick; if it is too small, the plastic cannot flow out, which gives a rough layer and can clog the nozzle. Printers with automatic calibration measure the offset themselves; on others you adjust it while the first layer prints, which Prusa calls Live Adjust Z.
+6. **Print the manufacturer's test model first.** The A1 mini comes with preloaded models on its SD card, and Prusa supplies sliced sample files on a USB drive. The manufacturer prepared these files for that printer, so they test the machine on its own. Prusa's handbook draws the conclusion: if the sample files print correctly and your own model fails, the problem is most likely in your slicing.
+7. **Watch the first layer** from start to finish, and stop the print if it fails. The table below shows how to judge it.
+
+### Judging the first layer
+
+The first layer decides whether the rest of the print can succeed, and it is the cheapest point at which to stop. Prusa's first layer calibration guide describes three cases. Judge them by eye, because the correct offset value differs between printers and between print sheets.
+
+| What you see | What it means | What to do |
+| --- | --- | --- |
+| Rounded lines with gaps between them; lines that drag or come loose | Nozzle too high (Z offset too large) | Move the nozzle closer in small steps, or rerun the printer's calibration |
+| Lines squished flat with ridges between them; edges curling up; areas so thin you can see through them | Nozzle too low (Z offset too small); in the extreme it clogs the nozzle | Raise the nozzle in small steps |
+| An even surface with no gaps and no ridges | Correct | Let the print continue, and note the value in your print log |
+
+If the first layer does not stick although the offset looks correct, clean the plate again before you change anything else. The troubleshooting table later in this lesson covers the other causes.
+
 ## Calibrate, then measure
 
 A printer that assembles and homes is not calibrated. Dimensional accuracy is a chain: extruder steps, flow, temperature, pressure advance, retraction, cooling and shrinkage all affect the final size. OrcaSlicer's calibration wiki gives a recommended running order: temperature → flow rate → pressure advance → retraction → <Term id="tolerance">tolerance</Term>. The order is not arbitrary. Each test assumes the earlier ones are right. A wrong temperature changes how the plastic flows, so a flow test run at the wrong temperature gives a wrong number. Wrong flow makes every wall thicker and every hole smaller, which corrupts a tolerance test. Pressure advance affects corners and seams; retraction affects strings and surface finish. Tolerance comes last because it depends on all of them.

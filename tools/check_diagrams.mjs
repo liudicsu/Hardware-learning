@@ -1532,6 +1532,27 @@ const lessonRef = (n, slug, lang) => {
   ok(!/Sept 2026|2026 年 9 月/.test(res), `resources.ts: no price may still carry the September 2026 date`);
   console.log(`calc  fdm-printing: ${pr.map((r) => `${r.short ?? r.name.replace(/^\S+( Lab)? /, "")} $${r.p}`).join(", ")}; break-even $${mini} / $${save.toFixed(2)} = ${be} revisions, bound in en/zh and resources.ts`);
 }
+{
+  // fdm-printing content gaps (first print, calibration tests, troubleshooting, SO-101 print settings, heat-set inserts): every number is a source constant.
+  // a1: Bambu Lab A1 mini quick start guide, specifications (max hot end 300 ℃, max build plate 80 ℃).
+  // prusa: Prusa CORE One handbook 1.01, 5.8 (print plate and heated bed may exceed 100 °C) and the sheet care notes (IPA 90 % or more).
+  // ins: CNC Kitchen, Tips & Tricks for Heat-Set Inserts (iron 10–20 °C above printing temperature, about 225 °C for PLA).
+  const a1 = { hot: 300, bed: 80 }, prusa = { bed: 100, ipa: 90 }, ins = { pla: 225 };
+  const fp = {
+    en: [`The Bambu Lab A1 mini's hot end reaches up to ${a1.hot} °C and its bed up to ${a1.bed} °C, and Prusa's CORE One handbook warns that the print plate and heated bed may exceed ${prusa.bed} °C.`,
+      `means a tip at about ${ins.pla} °C or more.`,
+      `Prusa recommends isopropyl alcohol (IPA) of ${prusa.ipa} % or more on a paper towel`],
+    zh: [`Bambu Lab A1 mini 的热端最高可达 ${a1.hot} °C，热床最高 ${a1.bed} °C；Prusa 的 CORE One 使用手册提醒，打印板和热床可能超过 ${prusa.bed} °C。`,
+      `烙铁头温度约 ${ins.pla} °C 或更高。`,
+      `Prusa 推荐用纸巾蘸浓度 ${prusa.ipa} % 或以上的异丙醇（IPA）`],
+  };
+  ok(a1.hot > ins.pla && prusa.bed > a1.bed, `fdm-printing: the A1 mini hot end (${a1.hot} °C) must exceed the insert iron for PLA (${ins.pla} °C), and the Prusa bed note (${prusa.bed} °C) the A1 mini bed (${a1.bed} °C)`);
+  for (const lang of ["en", "zh"]) {
+    const text = readFileSync(join(root, `src/content/m3/fdm-printing/${lang}.mdx`), "utf8");
+    for (const q of fp[lang]) ok(text.includes(q), `fdm-printing ${lang}: expected ${JSON.stringify(q)} (bound to the manuals, the OrcaSlicer wiki, the SO-ARM100 README and CNC Kitchen)`);
+  }
+  console.log(`calc  fdm-printing gaps: ${fp.en.length} + ${fp.zh.length} phrases; A1 mini ${a1.hot}/${a1.bed} °C, Prusa bed > ${prusa.bed} °C, IPA ${prusa.ipa} %, insert iron ${ins.pla} °C, bound in en/zh`);
+}
 
 const specs = [];
 for (const f of readdirSync(specDir).filter((f) => f.endsWith(".ts"))) {

@@ -862,6 +862,16 @@ export const glossary: GlossaryEntry[] = [
     firstExplained: true,
   },
   {
+    id: "slicer",
+    term: { zh: "切片软件", en: "slicer" },
+    def: {
+      zh: "把三维网格（STL 或 3MF）切成一层层、规划每层的外墙、填充、支撑和空驶路径，并写出打印机执行的 G-code 的程序。常见的有 OrcaSlicer、Bambu Studio 和 PrusaSlicer。",
+      en: "The program that cuts a 3D mesh (STL or 3MF) into layers, plans each layer's walls, infill, supports and travel moves, and writes the G-code the printer executes. OrcaSlicer, Bambu Studio and PrusaSlicer are common examples.",
+    },
+    lesson: "fdm-printing",
+    firstExplained: true,
+  },
+  {
     id: "torque",
     term: { zh: "扭矩", en: "torque" },
     def: {
