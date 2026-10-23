@@ -275,6 +275,8 @@ The same repository also ships an optional compliant gripper designed for TPU 95
 
 Before you mount anything, run two checks. First, does the gripper still close fully without the two fingers hitting each other or the jaw? A finger a few millimetres too long collides in the middle of the travel. Second, does the open width still clear your largest object? Measure the gap when the gripper is fully open and compare it with the widest thing you plan to grasp.
 
+After you change the fingers or take the moving jaw off, calibrate the follower again. Calibration records the range each joint moved through while you swept it, the gripper included ([so_follower.py, lines 115–143, LeRobot v0.6.1](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/so_follower.py#L115-L143)), so the range saved with the stock jaw does not describe a jaw that closes earlier or opens less. Run the follower's `lerobot-calibrate` command from the SO-101 lesson with the same `--robot.id`. When it asks whether to use the existing calibration file, type `c` and press ENTER, then open and close the new gripper fully while it records.
+
 The gripper is servo ID 6, and it drives its output through a position loop: you send a goal, and the servo keeps pushing until its encoder says it has arrived. When the fingers close on an object, the servo keeps pushing toward that goal and settles with a <Term id="steady-state-error">steady error</Term> — the same steady-state behaviour from Lesson 4 (PID & control). There is a useful side effect: because a soft TPU finger deflects, it absorbs some of that force and treats the object gently. LeRobot already limits this servo: it writes Max_Torque_Limit 500, Protection_Current 250 and Overload_Torque 25 to the gripper ([so_follower.py, lines 169–171, LeRobot v0.6.1](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/so_follower.py#L169-L171)). In Feetech's [online STS memory table](https://ftservo.github.io/ftservo-wiki/en/reference/parameter/memory-sts/) that is 50 % of the maximum torque, a protection current of 250 × 6.5 mA = 1.625 A, and an overload timer that starts once the load exceeds 25 % of the maximum torque; the 2019 table (V3.6, firmware 2.43) reposted by a third party ([STS3215 Memory Table.xlsx in matthieuvigne/STS_servos](https://github.com/matthieuvigne/STS_servos/blob/4d2278432a2b12027d04d0449e1e6f97df812d68/extras/STS3215%20Memory%20Table.xlsx)) uses the same units, and the SO-101 lesson has the details. The torque cap takes effect from the servo's next power-up: both tables say address 16 is copied to address 48, the limit actually in effect, only at power-up. That only softens a stall, so do not leave the servo stalled against a hard stop for long: it draws current and heats up. In teleoperation, open the leader's gripper as soon as you have put the object down, otherwise the follower's gripper keeps driving against its position-loop target with nothing to hold.
 
 <Quiz id="q5" question="Why start from the SO-101's STEP file rather than its STL?" options={["STL files are larger", "STEP keeps exact surfaces and dimensions you can measure and edit; STL is only triangles", "STL cannot be printed in TPU", "STEP files already contain your finger"]} answer={1} explanation="STEP is exact, editable geometry you can import and measure the mounting face and holes from; an STL is a triangle mesh with no precise geometry to dimension against. Both can be sliced and printed, so that is not the difference." />
@@ -282,6 +284,10 @@ The gripper is servo ID 6, and it drives its output through a position loop: you
 ## Practice: three objects
 
 Your task for this lesson is the course's practice task, in your own hands: design your own gripper fingers, print them in TPU, fit them to the arm, and test them on three objects of different shapes — for example something round and fragile like an egg, something heavy and smooth like a full can, and something small and thin like a battery or a pen. These fingers are the part that proves you can design as well as assemble. Bolting a kit together needs only the instructions; a working custom gripper is your own design.
+
+<Callout type="warn" title="Protect the object and your hands">
+Put a box lid or a soft pad under the test area, so that a dropped egg or can lands on something soft. Never test the grip on your own fingers: the gripper keeps pushing toward its goal position, and until the torque cap takes effect at the servo's next power-up, it may drive at full torque (the SO-101 lesson has the details). Place the object, move your hand out of the jaw, and only then close the gripper.
+</Callout>
 
 A test protocol, so the result actually means something:
 
@@ -314,6 +320,8 @@ You have reached the end of the month. Here is what you should be able to point 
 - A part modelled from a datasheet, with fully constrained sketches (Lesson 1).
 - Your printer's real clearance numbers, from a printed tolerance gauge (Lesson 2).
 - A part designed for FDM printing, with the flex load running within its layers (Lesson 2).
+- A cantilever snap arm checked with the snap-fit formula, then printed and snapped 20 times (Lesson 2).
+- A two-part ESP32 enclosure that closes without glue, iterated until it clicks properly (Lesson 2).
 - A material choice you can justify, not just copy (Lessons 2 and 6).
 - Backlash explained and, where you could, measured (Lesson 3).
 - The balancer cascade understood (Lesson 4, site supplement).
