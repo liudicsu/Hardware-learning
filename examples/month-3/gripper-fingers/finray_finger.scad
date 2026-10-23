@@ -10,7 +10,7 @@ height     = 18;     // extrusion = finger width across the object, mm
 flank      = 1.2;    // flank thickness: thinner = softer
 ribs       = 6;      // number of internal ribs
 rib_t      = 0.9;    // rib thickness
-rib_tilt   = 10;     // deg: ribs leaning toward the base make the tip wrap more
+rib_tilt   = 10;     // deg: > 0 leans the ribs toward the base; try +10 and -10
 
 base_t     = 5;      // solid mounting block, mm
 mount_d    = 3.2;    // M3 holes

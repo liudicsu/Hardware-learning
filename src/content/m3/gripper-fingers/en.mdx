@@ -16,6 +16,8 @@ The consequence lives in the denominator: μ matters exactly as much as force. A
 
 The short program below runs this arithmetic for three objects and two finger materials. It is ordinary Python doing ordinary arithmetic — not a simulation, and it has never been near a robot. The μ values inside it are rough guesses, and this lesson will ask you to measure your own and put them in.
 
+Three of the program's inputs are **example assumptions**, not measured or published values, and the course has not measured any of them on an SO-101: μ = 0.3 for PLA and μ = 0.8 for TPU on the objects below; an arm acceleration of a = 3.0 m/s², chosen to stand for a brisk move; and a safety factor of S = 2, which means the fingers are asked to hold twice the load they are expected to carry. You replace μ with a measurement later in this lesson. You can estimate a for your own arm the same way: time a move that starts from rest and covers a distance d in a time t; at constant acceleration d = ½ × a × t², so a = 2 × d / t². Raise S for objects that must not be dropped.
+
 <CodeSource path="examples/month-3/gripper-fingers/grip_force.py" />
 
 ```python
@@ -61,7 +63,7 @@ full 330 ml can   350 g  ->  PLA (mu 0.3): 14.9 N, TPU (mu 0.8):  5.6 N
 AA battery         23 g  ->  PLA (mu 0.3):  1.0 N, TPU (mu 0.8):  0.4 N
 ```
 
-Take the egg with PLA fingers. The mass is 0.060 kg, g is 9.81 m/s², the arm accelerates at 3.0 m/s², the safety factor is 2, and PLA on a smooth shell is about μ = 0.3:
+Take the egg with PLA fingers. The mass is 0.060 kg, g is 9.81 m/s², the arm accelerates at 3.0 m/s², the safety factor is 2, and PLA on a smooth shell is taken as μ = 0.3 (all three are the example assumptions above):
 
 ```text
 F = 2 × 0.060 × (9.81 + 3.0) / (2 × 0.3)
@@ -88,7 +90,7 @@ F = 2 × 0.060 × 12.81 / (2 × 0.8)
 4. Set object mass = 350 g, μ = 0.30, arm acceleration = 3.0 m/s² and safety factor = 2.0 and read Squeeze per finger = 14.9 N; then set μ = 0.80 and read 5.6 N.
 5. Conclusion: F = safety × m × (g + a) / (2μ); doubling μ from 0.30 to 0.60 halves the force from 2.6 N to 1.3 N, and the acceleration adds to g.
 
-The numerator 2 × 0.060 × 12.81 = 1.537 is identical in both; only the denominator moved. The full 330 ml can shows the gap more sharply. Its mass is 0.350 kg, so the numerator is 2 × 0.350 × 12.81 = 8.967, and the answer is 8.967 / 0.6 = 14.9 N with PLA but 8.967 / 1.6 = 5.6 N with TPU. Fifteen newtons is a firm squeeze; five or six newtons is gentle. The AA battery, at 0.023 kg, needs only 1.0 N and 0.4 N, comfortably within reach of a small servo.
+The numerator 2 × 0.060 × 12.81 = 1.537 is identical in both; only the denominator moved. The full 330 ml can shows the gap more sharply. Its mass is 0.350 kg, so the numerator is 2 × 0.350 × 12.81 = 8.967, and the answer is 8.967 / 0.6 = 14.9 N with PLA but 8.967 / 1.6 = 5.6 N with TPU. The divisors 0.6 and 1.6 are 2 × μ (two contact faces), not μ itself: μ stays 0.3 for PLA and 0.8 for TPU. Fifteen newtons is a firm squeeze; five or six newtons is gentle. The AA battery, at 0.023 kg, needs only 1.0 N and 0.4 N, comfortably within reach of a small servo.
 
 Force alone is not the whole story with fragile things. The same total force spread over a soft finger that wraps around the object is gentler than the same force concentrated on two hard points, because pressure is force divided by area. That is the motivation for the rest of the lesson: a finger that conforms spreads the load, and a load spread over a larger area needs less force to hold on.
 
@@ -129,17 +131,31 @@ Then go back to `grip_force.py`, replace the guessed mu values with your measure
 
 ## The fin-ray idea
 
-A stiff finger, the kind you would draw as a straight bar, touches a round object at one or two points. When the object is curved, two point contacts form a wedge: the normal force at each contact has a component along the object's centre line, so a little more push squeezes the round object out between them. That is why a rigid gripper is bad at eggs and good at boxes.
+A stiff finger, the kind you would draw as a straight bar, touches a round object at one or two points. If two flat, parallel jaws close squarely on a round object, the two normal forces lie on one line through its centre and cancel each other; they do not push the object out. The trouble starts when the contacts sit off the object's diameter, or the jaws are angled to each other: then each normal force has a component along the line between the jaws' opening and the object's centre, and if friction is too small, more squeeze pushes the object out between the jaws. Even when the object stays put, two small contacts concentrate the whole force on two tiny areas, which is how a shell cracks. That is why a rigid gripper is bad at eggs and good at boxes.
 
 A <Term id="fin-ray">fin-ray finger</Term> solves this by deforming on purpose. Picture a triangle standing on its base: two thin walls, called flanks, run up and meet at the tip, and a set of thin ribs bridges the gap between them. Press the front flank against an object, and the finger does not simply bend away. The ribs pass the push across to the back flank, the triangle bends toward the push, and the triangular section changes shape so that the two flanks wrap around the object instead of folding away from it. Contact spreads from two points to a long arc, so the pressure on the object is lower and the hold is more secure.
 
-The principle is named after the way fish fins bend: a fin pushed from the front curls toward the push instead of folding away. The name "Fin Ray Effect" is a trademark of Festo, who developed grippers built on it; the underlying geometry is free to use, and it is what this lesson borrows.
+The principle is named after the way fish fins bend: a fin pushed from the side curls toward the push instead of folding away. The biologist Leif Kniese described the effect in 1997 from studies of fish tail-fin mechanics, and simplified the fin into a triangular frame with stacked crossbeams; EvoLogics GmbH (Berlin) later patented it ([Manoonpong P. et al., "Fin Ray Crossbeam Angles for Efficient Foot Design for Energy-Efficient Robot Locomotion", Adv. Intell. Syst. 4(1), 2100133, 2022](https://doi.org/10.1002/aisy.202100133); [Crooks et al., 2016](https://doi.org/10.3389/frobt.2016.00070)). "Fin Ray Effect®" is a trademark of EvoLogics GmbH, not of Festo: Festo builds products on the effect, such as its FinGripper fingers, and its own documents carry the notice "Fin Ray Effect® is a trademark of EvoLogics GmbH" ([Festo BionicTripod 2.0 documentation](https://media.festo.com/media/113674_documentation.pdf), which also describes the FinGripper). The course has not checked the patent status of the geometry in any country, so it makes no claim that the geometry is free to use; this lesson prints a finger for your own bench.
 
-Three parameters decide how a fin-ray finger behaves:
+Three parameters decide how a fin-ray finger behaves. The mechanics behind each one is ordinary beam bending. The numbers below use this lesson's default finger (`length` 60 mm, `base_w` 22 mm, `height` 18 mm, `flank` 1.2 mm, `ribs` 6) and textbook beam formulas. Treat them as a **first-order model** for comparing two designs, not as a prediction of the real finger's stiffness: the model ignores the joints where ribs meet flanks and TPU's non-linear stretch.
 
-- **Flank thickness.** Thinner flanks are softer and curl more easily; thick ones behave more like a rigid finger.
-- **Rib count and thickness.** More or thicker ribs stiffen the finger; fewer, thinner ribs let it flex.
-- **Rib tilt.** Ribs leaning toward the base make the tip wrap further around the object; ribs perpendicular to the flanks keep the finger straighter.
+```text
+one flank bending on its own (a strip 18 mm wide, 1.2 mm thick):
+  I = b × t³ / 12 = 18 × 1.2³ / 12 = 2.592 mm⁴
+the two flanks working together through the ribs (each flank A = 18 × 1.2 = 21.6 mm²):
+  I ≈ 2 × A × (d / 2)²
+  at the base, d = 22 mm:   2 × 21.6 × 11² = 5227 mm⁴
+  halfway up,  d = 11 mm:   2 × 21.6 × 5.5² = 1307 mm⁴
+flank span between ribs:    60 / (6 + 1) = 8.57 mm
+```
+
+I is the second moment of area, the cross-section's resistance to bending; a beam's bending stiffness is E × I, where E is the material's modulus. The second line is why the ribs matter. Without them each flank bends on its own, and the two together have I = 2 × 2.592 = 5.184 mm⁴. With them the two flanks act as one beam, one side stretching while the other shortens, and at the base I rises to 5227 mm⁴, about 1000 times as much. The finger is stiffest at the base, where the flanks are far apart, and softest toward the tip, where they meet.
+
+- **Flank thickness.** Thinning the flanks from 1.2 mm to 0.8 mm multiplies the stiffness of a flank bending on its own by (0.8 / 1.2)³ = 0.30, because I ∝ t³. The two-flank beam only drops to 0.8 / 1.2 = 0.67, because there I ∝ A ∝ t. So a thinner flank mostly lets the front flank dent locally between the ribs and wrap the object, while the finger as a whole stays reasonably stiff.
+- **Rib count and thickness.** The ribs are what couple the two flanks. Fewer ribs lengthen the flank span between them, and a span loaded in its middle gets softer as 1/L³: with 4 ribs the span is 60 / 5 = 12 mm, so the local stiffness is (8.57 / 12)³ = 0.36 of the 6-rib finger's. Thin ribs also buckle sooner under the push they carry (Euler: the buckling load grows with I ∝ t³ of the rib).
+- **Rib tilt.** Tilting the crossbeams gives the finger a preferred bending direction and changes the force it needs to bend ([Crooks et al., 2016](https://doi.org/10.3389/frobt.2016.00070)). A later finite-element (FE) simulation looked at the angle ([W. Crooks, Soft Robotic Manipulators Inspired by the Fin Ray Effect, PhD thesis, Tufts University, May 2017, §2.3.1](https://dl.tufts.edu/downloads/p5548309k?filename=3b591m85r.pdf)): a Nastran nonlinear static analysis of a silicone finger pushed with 1 N against half-cylinders 30, 50 and 70 mm in diameter, with the crossbeam angle swept from −15° to +15° in 2.5° steps and the maximum fingertip displacement as the measure. The angle of largest displacement, from a polynomial fit, changed with the cylinder size (+2.3° at 30 mm, −6.4° at 50 mm, −5.8° at 70 mm), so it lay between −6.4° and +2.3°. It is a simulation, not a physical test. Those studies define the sign of the angle with their own drawings, which do not map one-to-one onto this file, so the course does not claim which sign of `rib_tilt` wraps further on your object: print one finger at `rib_tilt = 10` and one at `rib_tilt = -10` and compare them.
+
+Check the model on your own prints rather than trusting it. Clamp the finger's mounting block in a vice, hang a known mass on a thread from a point on the front flank, and measure how far that point moves with a ruler or calipers. A 100 g mass pulls with 0.100 × 9.81 = 0.98 N, and the finger's stiffness at that point is k = F / δ. Do it for two prints that differ in one parameter; the model predicts which one is stiffer and roughly by how much, and the measurement gives the real number.
 
 The finger below is written in OpenSCAD so every one of those is a one-line change. Like the bracket in Lesson 1 ("CAD: pick a tool, then design with parameters"), it is a parametric file: measure the jaw it bolts to, and change the mount parameters.
 
@@ -158,7 +174,7 @@ height     = 18;     // extrusion = finger width across the object, mm
 flank      = 1.2;    // flank thickness: thinner = softer
 ribs       = 6;      // number of internal ribs
 rib_t      = 0.9;    // rib thickness
-rib_tilt   = 10;     // deg: ribs leaning toward the base make the tip wrap more
+rib_tilt   = 10;     // deg: > 0 leans the ribs toward the base; try +10 and -10
 
 base_t     = 5;      // solid mounting block, mm
 mount_d    = 3.2;    // M3 holes
@@ -219,7 +235,7 @@ triangles: 340, edges not shared by exactly 2: 0  (watertight)
 volume: 5.72 cm^3, solid mass at 1.21 g/cm^3: 6.9 g
 ```
 
-Walk through the result. The 65 mm length is the 60 mm finger plus the 5 mm mounting block behind it, and the 22 × 18 mm cross-section matches `base_w` and `height`. "Watertight" means every triangle edge is shared by exactly two triangles, so the slicer can tell inside from outside and will not complain or leave holes. A typical TPU measures about 1.21 g/cm³, so the 5.72 cm³ finger weighs roughly 6.9 g — light enough that it does not load the gripper servo much.
+Walk through the result. The 65 mm length is the 60 mm finger plus the 5 mm mounting block behind it, and the 22 × 18 mm cross-section matches `base_w` and `height`. "Watertight" means every triangle edge is shared by exactly two triangles, so the slicer can tell inside from outside and will not complain or leave holes. The density 1.21 g/cm³ is inside the 1.20–1.24 g/cm³ range Polymaker gives for its PolyFlex TPU95 ([product information sheet V1.1](https://polymaker.com/wp-content/tech-docs/PolyFlex_TPU95_PIS_EN_V1.1.pdf); its newer [V5.5 technical data sheet](https://polymaker.com/wp-content/uploads/TDS_Polymaker_PolyFlex-TPU95_V5.5_2025_12_29_EN.pdf) lists 1.20 g/cm³), so the 5.72 cm³ finger weighs 5.72 × 1.21 = 6.9 g if printed solid — light enough that it does not load the gripper servo much. Use the density on your own filament's data sheet.
 
 The file also carries two guardrails. The first `assert` stops the render if the flank is thinner than two 0.4 mm extrusion lines, because a wall thinner than that will not print cleanly; the second stops it if the mounting holes would not fit across the finger's width. A failed assert costs you a second; a failed print costs you an evening.
 
@@ -229,17 +245,19 @@ Finally, the mounting block is generic. `mount_pitch = 10` is a placeholder, not
 
 ## Printing TPU
 
-TPU is a flexible filament, and 95A (<Term id="shore-hardness">Shore hardness</Term> 95A) is the grade most people print. Shore A hardness is measured with a durometer (ASTM D2240): a spring-loaded blunt cone is pressed onto the material, and the reading falls by one point for every 0.025 mm the cone sinks in, so 100 means no penetration and 0 means the full 2.5 mm. At 95A the cone sinks about 5 × 0.025 = 0.125 mm; a lower number is a softer material. Softer grades, 85A and below, are much harder to push through a printer, so start with 95A. Flexible filament behaves differently from PLA, and these are the settings that matter most.
+TPU is a flexible filament. This lesson uses 95A (<Term id="shore-hardness">Shore hardness</Term> 95A): it is the grade the SO-ARM100 project names for its compliant gripper fingers ([SO-ARM100 README](https://github.com/TheRobotStudio/SO-ARM100#6-compliant-gripper)), and Polymaker's PolyFlex TPU95 is one 95A filament with a published data sheet. Shore A hardness is measured with a durometer ([ASTM D2240-15(2021)](https://www.astm.org/d2240-15r21.html)): a spring-loaded indenter is pressed onto the material; the standard's type A indenter extends 2.50 mm, and the reading falls by one point for every 0.025 mm it sinks in (§5.1.1.5 and §5.1.1.8), so 100 means no penetration and 0 means the full 2.50 mm. At 95A the indenter sinks about 5 × 0.025 = 0.125 mm; a lower number is a softer material. Prusa's guide to flexible filaments puts it this way: "the softer the filament is, the harder it is to print" ([Prusa Knowledge Base, Flexible materials](https://help.prusa3d.com/article/flexible-materials_2057)), so start with 95A rather than a softer grade. Flexible filament behaves differently from PLA. Each setting below names its source and the failure it prevents. Where the two sources give different numbers, follow the maker of the filament you bought; the Prusa figures are written for Prusa printers.
 
-- **Print slowly and steadily, within the filament maker's temperature range.** Fast moves drag the soft filament and leave blobs; start at the slow end and do not run hotter than the maker's range hoping for better flow.
-- **A direct-drive extruder is strongly preferred.** A long Bowden tube lets the soft filament buckle instead of feeding; with the drive gears right above the nozzle, TPU feeds far more reliably.
-- **Use little or no retraction.** Retraction yanks the soft filament back, where it can jam or grind; turn it down or off and accept a few strings.
-- **Dry the filament if it pops or strings.** TPU absorbs moisture, and wet filament spits and strings; dry it before a long print.
+- **Print slowly.** Prusa gives 20 mm/s as a typical speed for flexible filament and 30–40 mm/s as the maximum it recommends, because at higher speeds you "risk clogging the nozzle or tangling filament into the gears". Polymaker gives 30–50 mm/s for PolyFlex TPU95 in its data sheet ([TDS V5.5](https://polymaker.com/wp-content/uploads/TDS_Polymaker_PolyFlex-TPU95_V5.5_2025_12_29_EN.pdf)) and 20–40 mm/s on its product page ([product page](https://shop.polymaker.com/products/polyflex-tpu95)).
+- **Stay inside the filament maker's temperature range.** Prusa's general range for flexible filament is 230–245 °C at the nozzle and 60–75 °C on the bed; Polymaker gives 210–230 °C and 25–60 °C for PolyFlex TPU95. The ranges differ by brand and hardness, which is why the maker's own figure wins.
+- **Use a direct-drive extruder.** Polymaker: "Direct extruder with a gear ratio mechanical advantage highly recommended", and "any large gap between your extruder and hotend will cause printing issues" ([product page](https://shop.polymaker.com/products/polyflex-tpu95)). Prusa adds: loosen the idler so the gears push the filament only gently, or "the filament might get entangled in the gears". The reason is buckling. The extruder pushes the filament like a column, and Euler's formula for a slender column gives the load at which it bows sideways as P = π² × E × I / L², where L is the unsupported length. A soft filament has a small E, so its P is already low; the formula then says that doubling the unsupported length divides P by 4, and a length 10 times longer divides it by 100. The lengths are illustrative, not measured on any printer: the point is that a short, guided path from gears to nozzle keeps the soft filament from folding.
+- **Use little or no retraction.** Prusa: "With lower retractions, there is a lower risk of clogging the nozzle or filament tangling", and it is "alright to turn the retractions off completely". If you do retract, Polymaker gives 3 mm on a direct-drive extruder and 6 mm on an indirect (Bowden) one ([product page](https://shop.polymaker.com/products/polyflex-tpu95)).
+- **Keep the filament dry.** Prusa: "Flexible filaments tend to absorb moisture and can be hard to print when wet." Polymaker's data sheet gives a drying setting of 70 °C for 8 h ([TDS V5.5](https://polymaker.com/wp-content/uploads/TDS_Polymaker_PolyFlex-TPU95_V5.5_2025_12_29_EN.pdf)), while its product page gives 65 °C for 8 h, only if the material has absorbed moisture ([product page](https://shop.polymaker.com/products/polyflex-tpu95)); the two differ by 5 °C. The data sheet also gives an equilibrium water absorption of 0.82 % at 70 % RH and 23 °C for PolyFlex TPU95.
+- **Part-cooling fan: follow the maker.** The sources disagree: Polymaker's product page says "Fan: ON" for PolyFlex TPU95 ([product page](https://shop.polymaker.com/products/polyflex-tpu95)) and its data sheet also lists the cooling fan ON, while Prusa's rules for flexible filaments say to keep print cooling off (rule 5 of "Important rules for successful printing with flexible filaments"). Start with the filament maker's setting and change it only if a test print shows the problem.
 - **Lay the finger so its triangular profile is on the bed.** Then the flanks and ribs are walls built up layer by layer, and the finger bends within each layer rather than across the layer lines. This is Lesson 2's orientation rule: layer lines are the weak direction, so never put the bending load across them.
 - **<Term id="infill">Infill</Term> hardly matters.** The flanks and ribs are the structure; keep infill low and let the walls do the work.
-- **Make flanks and ribs at least two extrusion widths.** At a 0.4 mm nozzle that is 0.8 mm and up, so they print as clean walls instead of a thin, ragged web.
+- **Make flanks and ribs at least two extrusion widths.** At a 0.4 mm nozzle that is 2 × 0.4 = 0.8 mm and up, so they print as clean walls instead of a thin, ragged web.
 
-One bench note: TPU sticks to a PEI sheet very well — sometimes too well. Let the part cool completely before you remove it, or you will pull the first layer off the sheet.
+The build sheet matters too, because TPU bonds strongly to many surfaces. Prusa: "If you print on a smooth or satin sheet, apply a separation layer on it (glue stick or Kapton tape should work)"; its powder-coated textured sheet "does not need any separation layer". Polymaker lists PC and textured PEI as the build surfaces for PolyFlex TPU95. Removing a part that has bonded to a bare smooth sheet can tear the sheet's surface, so put the separation layer down before the print, not after.
 
 <Callout type="tip" title="Print a short test first">
 Before committing an hour to the full finger, set `length = 30` and render a short one. It checks the rib pattern, the wall thickness and how your material behaves in about twenty minutes. Fix the geometry on the small part, then print the real one.
@@ -249,7 +267,7 @@ Before committing an hour to the full finger, set `length = 30` and render a sho
 
 ## Fit it to the SO-101
 
-Do not guess the mounting geometry. The SO-ARM100 repository publishes STEP files for the SO-101, kept in `STEP/SO101/` — for example `Moving_Jaw_SO101.step`, the moving half of the stock gripper. Import that file into your CAD tool and measure the mounting face and its holes directly. STEP is the right format for this, exactly as Lesson 1 explained: it keeps exact surfaces and dimensions you can measure and edit, while an STL is only a mesh of triangles with no precise geometry to dimension against. Change the `mount_*` parameters in `finray_finger.scad` to match, or, if you want the finger to be part of the jaw itself, redesign the jaw around your finger shape.
+Do not guess the mounting geometry. The SO-ARM100 repository publishes STEP files for the SO-101, kept in `STEP/SO101/Follower_Specific/` — for example `Moving_Jaw_SO101.step`, the moving half of the stock gripper. Import that file into your CAD tool and measure the mounting face and its holes directly. STEP is the right format for this, exactly as Lesson 1 explained: it keeps exact surfaces and dimensions you can measure and edit, while an STL is only a mesh of triangles with no precise geometry to dimension against. Change the `mount_*` parameters in `finray_finger.scad` to match, or, if you want the finger to be part of the jaw itself, redesign the jaw around your finger shape.
 
 The same repository also ships an optional compliant gripper designed for TPU 95A by Zach Tabor and Caitlin Freeman, from a June 2025 hackathon. Its outside shape matches the stock gripper, so it is a drop-in swap, and it is worth studying before you design your own: look at how its ribs are laid out and how it mounts to the arm.
 
@@ -257,7 +275,7 @@ The same repository also ships an optional compliant gripper designed for TPU 95
 
 Before you mount anything, run two checks. First, does the gripper still close fully without the two fingers hitting each other or the jaw? A finger a few millimetres too long collides in the middle of the travel. Second, does the open width still clear your largest object? Measure the gap when the gripper is fully open and compare it with the widest thing you plan to grasp.
 
-The gripper is servo ID 6, and it drives its output through a position loop: you send a goal, and the servo keeps pushing until its encoder says it has arrived. When the fingers close on an object, the servo keeps pushing toward that goal and settles with a <Term id="steady-state-error">steady error</Term> — the same steady-state behaviour from Lesson 4 (PID & control). There is a useful side effect: because a soft TPU finger deflects, it absorbs some of that force and treats the object gently. But do not leave the servo stalled against a hard stop for long, because it draws current and heats up. In teleoperation, open the leader's gripper as soon as you have put the object down, otherwise the follower's gripper keeps driving against its position-loop target with nothing to hold.
+The gripper is servo ID 6, and it drives its output through a position loop: you send a goal, and the servo keeps pushing until its encoder says it has arrived. When the fingers close on an object, the servo keeps pushing toward that goal and settles with a <Term id="steady-state-error">steady error</Term> — the same steady-state behaviour from Lesson 4 (PID & control). There is a useful side effect: because a soft TPU finger deflects, it absorbs some of that force and treats the object gently. LeRobot already limits this servo: it writes Max_Torque_Limit 500, Protection_Current 250 and Overload_Torque 25 to the gripper ([so_follower.py, lines 169–171, LeRobot v0.6.1](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/so_follower.py#L169-L171)). In Feetech's [online STS memory table](https://ftservo.github.io/ftservo-wiki/en/reference/parameter/memory-sts/) that is 50 % of the maximum torque, a protection current of 250 × 6.5 mA = 1.625 A, and an overload timer that starts once the load exceeds 25 % of the maximum torque; the 2019 table (V3.6, firmware 2.43) reposted by a third party ([STS3215 Memory Table.xlsx in matthieuvigne/STS_servos](https://github.com/matthieuvigne/STS_servos/blob/4d2278432a2b12027d04d0449e1e6f97df812d68/extras/STS3215%20Memory%20Table.xlsx)) uses the same units, and the SO-101 lesson has the details. The torque cap takes effect from the servo's next power-up: both tables say address 16 is copied to address 48, the limit actually in effect, only at power-up. That only softens a stall, so do not leave the servo stalled against a hard stop for long: it draws current and heats up. In teleoperation, open the leader's gripper as soon as you have put the object down, otherwise the follower's gripper keeps driving against its position-loop target with nothing to hold.
 
 <Quiz id="q5" question="Why start from the SO-101's STEP file rather than its STL?" options={["STL files are larger", "STEP keeps exact surfaces and dimensions you can measure and edit; STL is only triangles", "STL cannot be printed in TPU", "STEP files already contain your finger"]} answer={1} explanation="STEP is exact, editable geometry you can import and measure the mounting face and holes from; an STL is a triangle mesh with no precise geometry to dimension against. Both can be sliced and printed, so that is not the difference." />
 
@@ -308,7 +326,7 @@ Month 4 moves to ROS 2 and simulation: the same robot described in software, so 
 **Key points**
 
 - Two fingers hold by friction: 2 × μ × F ≥ S × m × (g + a), so each finger needs F = S × m × (g + a) / (2 × μ).
-- With S = 2 and a = 3.0 m/s², a 60 g egg needs 2.6 N per finger with PLA (μ ≈ 0.3) and 1.0 N with TPU (μ ≈ 0.8); a 350 g can needs 14.9 N and 5.6 N.
+- With the example assumptions S = 2, a = 3.0 m/s² and the μ values below, a 60 g egg needs 2.6 N per finger with PLA (μ ≈ 0.3) and 1.0 N with TPU (μ ≈ 0.8); a 350 g can needs 14.9 N and 5.6 N.
 - Measure μ with a tilted board: μ = tan θ at the angle where sliding starts (17° gives 0.31, 35° gives 0.70). The mass cancels; repeat three times and use the lowest angle.
 - A fin-ray finger curls toward the push because the ribs pass the load to the back flank, so contact spreads from two points to an arc. Flank thickness, rib count and thickness, and rib tilt set how stiff it is and how far it curls.
 - Print TPU 95A slowly, preferably with a direct-drive extruder, with little or no retraction, lying on its triangular side, and with flanks and ribs at least 2 × 0.4 = 0.8 mm at a 0.4 mm nozzle.
@@ -321,7 +339,7 @@ Month 4 moves to ROS 2 and simulation: the same robot described in software, so 
 - Using μ from an online table instead of measuring it on your own finger material and objects.
 - Laying the finger so the bending load crosses the layer lines.
 - Printing with `mount_pitch = 10` unchanged: it is a placeholder, not a measurement of your jaw.
-- Leaving the gripper servo stalled against an object or a hard stop, where it keeps drawing current and heats up.
+- Leaving the gripper servo stalled against an object or a hard stop, where it keeps drawing current and heats up. LeRobot's torque and current limits on the gripper soften this, but they do not make a long stall safe.
 
 **Self-check**
 
