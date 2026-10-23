@@ -1299,7 +1299,7 @@ const lessonRef = (n, slug, lang) => {
         `| Seeed Studio SO-ARM101 Pro 舵机套件 | $${st.seeed}（没有打印机时，另加 $${st.printed} 买 Seeed 打印件套装） | 两条臂的舵机和驱动板 | 基础套件不含打印件 |`,
         `选哪条路线，决定了你能运行哪些 LeRobot 命令。查找串口、设置电机 ID、校准都是一次针对一条臂。遥操作和录制需要同时有两条臂：一条以 \`--robot.type=so101_follower\` 指定的从臂和一条以 \`--teleop.type=so101_leader\` 指定的主臂（[LeRobot, Imitation learning on real-world robots](https://huggingface.co/docs/lerobot/il_robots)）。所以只有一个从臂时，能完成前三步并用 Python 控制关节，但不能遥操作，也不能录制演示。表中 Hiwonder、Seeed、WowRobo 和 Robonine 的价格都是各家商店页面上的单一价格（${vd} 核实），不是本课按逐项清单重新加出来的总价；其中 WowRobo 是促销价，页面上的划线原价为 $${st.wowWas.join(" / $")}。`,
         `<Quiz id="q1" question="你按物料清单买下主从一对（${d(pair)}），再用约 $${filament} 的 PLA+ 自己打印结构件。总共多少美元？" answer={${quiz.toFixed(2)}} unit="USD" tolerance={0.01} explanation="把两项相加：${d(pair)} + $${filament.toFixed(2)} = ${d(quiz)}。BOM 不含打印，所以耗材要单独加上。" />`,
-        `第 ${servoMonth} 个月用过的业余（hobby）舵机吃一根 PWM 脉冲，转到一个角度就完了。它没有总线上的名字，没法说“我在这里”，也没法回报自己在干什么。SO-101 每臂用 ${nJ} 个飞特 STS3215 总线舵机，每一个都是小型的闭环执行器：有 ID，有 ${bits} 位磁编码器（magnetic encoder，每圈 ${enc} 步），壳子里还有自己的位置环（position loop）。这个位置环就是${lessonRef(3, "pid-control", "zh")}里 PID 的同一套思想，只不过它跑在舵机里，不在你的单片机上：你发一个目标，舵机驱动电机，直到编码器说到了。${enc} 步是编码器的分辨率，不是整条臂的精度：减速器回差、舵机盘安装误差和打印件柔性，都会在编码器之后继续叠加误差。`,
+        `第 ${servoMonth} 个月用过的业余（hobby）舵机吃一根 PWM 脉冲，转到一个角度就完了。它没有总线上的名字，没法说“我在这里”，也没法回报自己在干什么。SO-101 每臂用 ${nJ} 个飞特 STS3215 <Term id="bus-servo">总线舵机</Term>，每一个都是小型的闭环执行器：有 ID，有 ${bits} 位磁编码器（magnetic encoder，每圈 ${enc} 步），壳子里还有自己的位置环（position loop）。这个位置环就是${lessonRef(3, "pid-control", "zh")}里 PID 的同一套思想，只不过它跑在舵机里，不在你的单片机上：你发一个目标，舵机驱动电机，直到编码器说到了。${enc} 步是编码器的分辨率，不是整条臂的精度：减速器回差、舵机盘安装误差和打印件柔性，都会在编码器之后继续叠加误差。`,
         `这就是${lessonRef(3, "transmissions", "zh")}反驱（backdriving）算术的硬件版。经过减速比 n，你在输出端感到的摩擦按 n 放大，<Term id="moment-of-inertia">转子惯量</Term>按 n² 放大。拿腕部的 1/${lo} 和从臂的 1/${hi} 比：${hi} / ${lo} = ${r1}，所以从臂的 1/${hi} 关节摩擦感约为 ${r1} 倍，转子惯量感为 (${hi}/${lo})² ≈ ${r2} 倍。主臂腕部因此轻得多；shoulder_lift 保留 1/${hi}，是因为那个关节要托住整条臂。主臂不是更弱的臂，它的减速比是按人手拖动的操作方式选的。`,
         `这三种减速比对应飞特的三个料号，BOM 里单价都是 ${d(servo)}：${code[hi]} 是 1/${hi}，${code[mid]} 是 1/${mid}，${code[lo]} 是 1/${lo}。README 链接的主臂套装是 ${nLead(lo)} × ${code[lo]}、${nLead(mid)} × ${code[mid]}、${nLead(hi)} × ${code[hi]}，所以一对里的 ${pairServos[0]} 个 ${code[hi]} 就是从臂的 ${nJ} 个加上主臂 shoulder_lift 的 ${nLead(hi)} 个。这些舵机外观一样。按卖家为每一袋标明的料号来辨认，每个舵机在装进它的关节之前都留在原袋里；本课没有核实舵机本身的标签上印了什么。如果只查一个，就查 shoulder_lift：它承受的重力矩最大，因为它要托起它之后的全部结构，所以两条臂上它都必须是 ${code[hi]}。`,
         `${r} mm 只是示例半径，不是 SO-101 的实际臂展；请用你的关节到工具的距离。回差这一项大约是编码器一步的 ${Math.round(0.5 / step)} 倍，而且它是数据表给的上限，不是实测值。打印连杆的弯曲会叠加到这两项上，必须在你自己的臂上实测，例如用已知的力推工具，读出它移动了多少。`,
@@ -1643,7 +1643,7 @@ const lessonRef = (n, slug, lang) => {
   // ros2-graph: sensor_node.py Random(7), amp 0.5, period 50, σ 0.2; EMA replay α=0.2 and recorded α=0.5 at samples k=67..69 of that seeded sequence.
   // ros2-control: diff_drive odometry Δs = Δθ·r and ω_actual = ω·b_config/b_real; teleop 0.5 m/s × (2 + 0.5) s = 1.25 m vs measured 1.15 m; drive-distance depth-10 staleness 10/50 = 0.2 s → 0.04 m at 0.2 m/s.
   // gazebo-sim: Isaac Sim requirements (RTX 4080 / 16 GB VRAM / 32 GB RAM, docs 6.0.0, October 2026); MuJoCo Todorov/Erez/Tassa IROS 2012 DOI 10.1109/IROS.2012.6386109 (no "fastest/most accurate").
-  // slam-nav: footprint from URDF chassis_offset_x±chassis_x/2 and wheel_separation/2+wheel_width/2 + 1 cm (Y side 0.165 rounded to the centimetre as ±0.16); Nav2 inflation_layer.hpp cost = (254−1)·exp(−cost_scaling_factor·(d−inscribed_radius)); tour ω clamp 0.6 / lidar 10 Hz → 0.06 rad smear; nav2.yaml comment "clearance margin (not a measured tune)".
+  // slam-nav: footprint from URDF chassis_offset_x±chassis_x/2 and wheel_separation/2+wheel_width/2 + 1 cm (Y side 0.165 floored to the centimetre as ±0.16); Nav2 inflation_layer.hpp cost = (254−1)·exp(−cost_scaling_factor·(d−inscribed_radius)); tour ω clamp 0.6 / lidar 10 Hz → 0.06 rad smear; nav2.yaml comment "clearance margin (not a measured tune)".
   const rd4 = (p) => readFileSync(join(root, p), "utf8");
   const num4 = (text, re, what) => { const m = text.match(re); ok(m, `m4: ${what} not found`); return m ? Number(m[1]) : NaN; };
   const xacro = rd4("examples/month-4/urdf-tf/m4_description/urdf/robot.urdf.xacro");
@@ -1654,10 +1654,10 @@ const lessonRef = (n, slug, lang) => {
   const fpFwd = +(faceFwd + margin).toFixed(2);
   const fpBack = +(faceBack - margin).toFixed(2); // −0.10 − 0.01 = −0.11
   const fpYExact = +(tyreY + margin).toFixed(3); // 0.155 + 0.01 = 0.165
-  const fpY = Math.floor(fpYExact * 100 + 1e-12) / 100; // centimetre rounding stated in the lesson → 0.16
+  const fpY = Math.floor(fpYExact * 100 + 1e-12) / 100; // floor to centimetre stated in the lesson → 0.16
   ok(Math.abs(faceFwd - 0.2) < 1e-9 && Math.abs(faceBack - (-0.1)) < 1e-9 && Math.abs(tyreY - 0.155) < 1e-9, `m4 slam-nav: URDF faces ${faceFwd}/${faceBack} and tyre ${tyreY} must be 0.20/−0.10/0.155`);
-  ok(Math.abs(fpYExact - 0.165) < 1e-12, `m4 slam-nav: tyre + 1 cm must be 0.165 before centimetre rounding (got ${fpYExact})`);
-  ok(fpFwd === 0.21 && fpBack === -0.11 && fpY === 0.16, `m4 slam-nav: footprint with margin must be +0.21/−0.11/±0.16 after centimetre rounding (got ${fpFwd}/${fpBack}/${fpY})`);
+  ok(Math.abs(fpYExact - 0.165) < 1e-12, `m4 slam-nav: tyre + 1 cm must be 0.165 before floor to centimetre (got ${fpYExact})`);
+  ok(fpFwd === 0.21 && fpBack === -0.11 && fpY === 0.16, `m4 slam-nav: footprint with margin must be +0.21/−0.11/±0.16 after floor to centimetre (got ${fpFwd}/${fpBack}/${fpY})`);
   const nav2 = rd4("examples/month-4/slam-nav/m4_nav/config/nav2.yaml");
   ok((nav2.match(/# m4bot clearance margin \(not a measured tune\)/g) || []).length === 2, `m4 nav2.yaml: both inflation_radius comments must say clearance margin (not a measured tune)`);
   ok(!nav2.includes("tuned in the lesson"), `m4 nav2.yaml: "tuned in the lesson" must not remain`);
@@ -1716,7 +1716,7 @@ const lessonRef = (n, slug, lang) => {
       ],
       "slam-nav": [
         `\`chassis_offset_x ± chassis_x/2 = 0.05 ± 0.15\` → +0.20 m / −0.10 m`,
-        `\`wheel_separation/2 + wheel_width/2 = 0.14 + 0.015 = 0.155\` m; with a 1 cm clearance margin that is +0.21 / −0.11, and ±0.16 after rounding the tyre side (0.155 + 0.01 = 0.165) to the centimetre`,
+        `\`wheel_separation/2 + wheel_width/2 = 0.14 + 0.015 = 0.155\` m; with a 1 cm clearance margin that is +0.21 / −0.11, and ±0.16 after flooring the tyre side (0.155 + 0.01 = 0.165) down to the centimetre`,
         `\`cost = (254 − 1) · exp(−cost_scaling_factor · (d − inscribed_radius))\``,
         `tour's own 0.6 rad/s clamp smears 0.06 rad ≈ 3.4° per scan while a 0.3 rad/s turn smears only 0.03 rad`,
       ],
@@ -1746,7 +1746,7 @@ const lessonRef = (n, slug, lang) => {
       ],
       "slam-nav": [
         `\`chassis_offset_x ± chassis_x/2 = 0.05 ± 0.15\` → +0.20 m / −0.10 m`,
-        `\`wheel_separation/2 + wheel_width/2 = 0.14 + 0.015 = 0.155\` m；再加 1 cm 余量后前后是 +0.21 / −0.11，两侧则把轮胎侧（0.155 + 0.01 = 0.165）按厘米圆整为 ±0.16`,
+        `\`wheel_separation/2 + wheel_width/2 = 0.14 + 0.015 = 0.155\` m；再加 1 cm 余量后前后是 +0.21 / −0.11，两侧则把轮胎侧（0.155 + 0.01 = 0.165）向下取到厘米为 ±0.16`,
         `\`cost = (254 − 1) · exp(−cost_scaling_factor · (d − inscribed_radius))\``,
         `tour 自己的 0.6 rad/s 上限会抹花 0.06 rad ≈ 3.4°，而 0.3 rad/s 的转弯只抹花 0.03 rad`,
       ],
@@ -1768,10 +1768,10 @@ const lessonRef = (n, slug, lang) => {
       ok(text.includes(q), `m4 ros2-control ${lang}: expected worked value ${JSON.stringify(q)} (from controllers.yaml × 1.1)`);
     }
   }
-  // Footprint centimetre-rounding phrase must mention both 0.165 and the printed ±0.16.
+  // Footprint floor-to-centimetre phrase must mention both 0.165 and the printed ±0.16.
   for (const lang of ["en", "zh"]) {
     const text = rd4(`src/content/m4/slam-nav/${lang}.mdx`);
-    ok(text.includes("0.155 + 0.01 = 0.165") && text.includes("±0.16"), `m4 slam-nav ${lang}: footprint must show 0.165 rounded to ±0.16`);
+    ok(text.includes("0.155 + 0.01 = 0.165") && text.includes("±0.16"), `m4 slam-nav ${lang}: footprint must show 0.165 floored to ±0.16`);
   }
   console.log(`calc  m4 gaps: Construct €39.97 + pixi 5.8 GB; EMA α=0.5 @k67–69 ${a05.map((x) => x.toFixed(4)).join(", ")} / α=0.2 replay ${a02.map((x) => x.toFixed(4)).join(", ")}; teleop held ${teleopHeld} m vs 1.15 m; staleness ${stale} m; footprint +${fpFwd}/${fpBack}/±${fpY} (exact side ${fpYExact}); r/b 10 % → ${r10}/${b10}, turn ×${turnFactor.toFixed(2)}; inflation (254−1)·exp(−${costScale}·(d−r_ins)) out to ${inflR} m; smear ${smearTour} rad @ ${turnClamp} rad/s / ${lidarRate} Hz; Isaac 4080/16/32 Oct 2026; MuJoCo IROS 2012; bound in en/zh`);
 }
@@ -1874,6 +1874,8 @@ const lessonRef = (n, slug, lang) => {
         "34.8 deg/s",
         "max_step = 0.02",
         "16 to 19 mm",
+        "tip path ≈ 16.1 mm",
+        "error drop ≈ 15.7 mm",
       ],
       "camera-calibration": [
         "15 views × 6 pose parameters = 96 free parameters",
@@ -1913,6 +1915,8 @@ const lessonRef = (n, slug, lang) => {
         "34.8 deg/s",
         "max_step = 0.02",
         "16 到 19 mm",
+        "末端路程约 16.1 mm",
+        "误差约降 15.7 mm",
       ],
       "camera-calibration": [
         "15 个视角 × 6 个位姿参数 = 96 个自由参数",
@@ -2211,8 +2215,13 @@ for (const m of readdirSync(content)) {
 // (en and zh) and every text file under src/lib (glossary, curriculum, resources, ...) is read; fenced code blocks
 // (scripts and their real output) and link targets ("%20" in a URL) are exempt. Reader-visible UI text is read too:
 // JSX text and string/template literals in src/components and src/app, and the i18n strings in messages/*.json, where
-// an interpolation glued to the sign ("{percent}%", "${x}%") also counts. CSS values are exempt there: style={{ … }},
-// className / width / height attributes and rootMargin, and so are // and /* */ comments.
+// an interpolation glued to the sign ("{percent}%", "${x}%", percent + "%", {percent}{"%"}) also counts. CSS values
+// are exempt there: style={{ … }}, className / width / height attributes and rootMargin, and so are // and /* */ comments.
+// Gaps this source scan cannot close (also noted in check_visible_pct.mjs):
+//   - JSX / TS text that contains "//" or "/*" inside a string or JSX text node can be swallowed when comments are
+//     stripped with a line/block regex (false negative for a glued % on that same line).
+//   - ICU "{n, number, percent}" / "{n,number,percent}" formats a locale percent at runtime; the source has no "%".
+//   - Client-only rendered text (useEffect / browser-only) is invisible to both this scan and the built-HTML scan.
 {
   const walk = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(join(d, e.name)) : [join(d, e.name)]));
   const pctFiles = [...walk(join(root, "src/content")).filter((f) => f.endsWith(".mdx")), ...walk(join(root, "src/lib")).filter((f) => /\.tsx?$/.test(f))];
@@ -2231,6 +2240,9 @@ for (const m of readdirSync(content)) {
     }
     return out + s.slice(i);
   };
+  // Glue patterns that do not leave a digit next to "%" in source but still render "15%":
+  //   percent + "%" / + '%' / + `%` ; {percent}{"%"} / {'%'} ; ICU number,percent
+  const glueRe = /(?:percent\s*\+\s*["'`]%["'`]|\{\s*["'`]%["'`]\s*\}|\{\s*[^}]*\bnumber\s*,\s*percent\b[^}]*\})/gi;
   const uiFiles = [...walk(join(root, "src/components")), ...walk(join(root, "src/app"))].filter((f) => /\.tsx?$/.test(f));
   const msgFiles = ["en", "zh"].map((l) => join(root, `messages/${l}.json`));
   for (const f of [...uiFiles, ...msgFiles]) {
@@ -2238,7 +2250,10 @@ for (const m of readdirSync(content)) {
     if (!f.endsWith(".json"))
       text = dropStyle(text.replace(/\/\*[\s\S]*?\*\//g, blank)).replace(/(^|[^:"'`\w])\/\/.*$/gm, "$1")
         .replace(/\b(?:className|width|height)=(?:"[^"]*"|\{[^{}\n]*\})/g, "").replace(/\brootMargin:\s*"[^"]*"/g, "");
-    text.split("\n").forEach((l, i) => { for (const m of l.matchAll(/[\d}]%|[\d}]\s*％/g)) bad.push(`${f.slice(root.length + 1)}:${i + 1} "${m[0]}"`); });
+    text.split("\n").forEach((l, i) => {
+      for (const m of l.matchAll(/[\d}]%|[\d}]\s*％/g)) bad.push(`${f.slice(root.length + 1)}:${i + 1} "${m[0]}"`);
+      for (const m of l.matchAll(glueRe)) bad.push(`${f.slice(root.length + 1)}:${i + 1} glued "${m[0]}"`);
+    });
   }
   ok(pctFiles.length > 100 && uiFiles.length > 20 && uiFiles.some((f) => f.endsWith("ProgressBar.tsx")) && bad.length === 0,
     `write percentages with a space ("15 %"), not ${bad.slice(0, 20).join(", ")}${bad.length > 20 ? ` and ${bad.length - 20} more` : ""}`);

@@ -57,7 +57,7 @@
 
 False positives left unchanged: the quiz option "它像均值策略一样平均…" in `act-diffusion/zh.mdx:281` (literal comparison, and Quiz options are off limits), the literal similarity statements "形状类似 SO-101" / "shaped like teleoperation" in `vla-models`, and the code-block docstrings that contain "like a teleoperated dataset" / "like a person moving a leader arm" (`behaviour-cloning/en.mdx:28`, `vla-models/en.mdx:34,44`), since code blocks must not be edited.
 
-## Section B: sections that state a conclusion without the background or intermediate steps (not fixed)
+## Section B: sections that stated a conclusion without the background or intermediate steps (closed in #70)
 
 | file | heading | what is missing |
 |---|---|---|

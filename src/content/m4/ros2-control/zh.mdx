@@ -154,7 +154,11 @@ head_controller:
 
 对 `diff_drive_controller` 来说，轮子名字就是关节名。`wheel_separation` 是 0.28 m，`wheel_radius` 是 0.05 m，它们必须和 URDF 一致——也就是第 3 课里用的属性、建模时的同一组数字。YAML 读不到 xacro 属性，所以这些数要写两遍：一遍在 xacro，一遍在这里。不一致是经典 bug，而且症状很有辨识度。控制器的里程计距离是 `Δs = Δθ_wheel · r`，命令的左右轮速是 `v_left = v − ω·b/2`、`v_right = v + ω·b/2`，所以机器人实际转角速率是 `ω_actual = (v_right − v_left)/b_real = ω · b_config / b_real`。各算一行：`r` 大 10 %（`0.05 → 0.055`）时，每个测得的距离和每条命令速度都偏高 10 %，转弯却仍正确；`b` 大 10 %（`0.28 → 0.308`）时，命令的转弯会偏长 10 %（`ω_actual = ω · 1.10`），直线（`ω = 0`）不受影响。所以半径错，所有距离都按比例偏大或偏小，机器人会多走或少走 10 %；轮距错，直线看起来完全正常，但每个转弯都不对。控制器不会去读你的 CAD 文件，它只是拿你给的数字做算术。
 
-`base_frame_id` 和 `odom_frame_id` 是 TF 坐标系。`enable_odom_tf` 负责发布 `odom` → `base_footprint` 这条变换，也就是第 4 课插件曾经发布的那条，所以 RViz 和后面的 Nav2 看到的坐标树和以前一样。`cmd_vel_timeout` 是 0.5 s：如果半秒内没有新命令，控制器就刹车。这是安全特性，第 5 节你会亲眼看到它生效。速度上限则限制了任何人能要求的最大速度：不管遥控节点或导航栈发布什么，前进都不会超过 0.5 m/s，旋转都不会超过 2.0 rad/s。
+`base_frame_id` 和 `odom_frame_id` 是 TF 坐标系。`enable_odom_tf` 负责发布 `odom` → `base_footprint` 这条变换，也就是第 4 课插件曾经发布的那条，所以 RViz 和后面的 Nav2 看到的坐标树和以前一样。`cmd_vel_timeout` 是 0.5 s：如果半秒内没有新命令，控制器就刹车。第 5 节你会亲眼看到它生效。
+
+<Callout type="warn" title="cmd_vel_timeout 是安全刹车">笔记本崩溃或转弯中途 Wi-Fi 断了，机器人会在半秒内自己停下，而不是继续往前冲。任何驱动机器人的程序都必须至少每 0.5 s 发一次命令——单条消息只是请求移动半秒，不是一条永远有效的速度设定。</Callout>
+
+速度上限则限制了任何人能要求的最大速度：不管遥控节点或导航栈发布什么，前进都不会超过 0.5 m/s，旋转都不会超过 2.0 rad/s。
 
 `head_controller` 是一个 `JointGroupPositionController`：它在 `/head_controller/commands` 上接收一个位置数组，每个关节一个值，单位是弧度。发送 `[0.5, -0.2]` 表示 pan 转到 0.5 rad、tilt 转到 −0.2 rad。它正好演示了第二个控制器占用不同接口：轮子是速度控制，云台是位置控制，两者由同一个管理器管理。
 
