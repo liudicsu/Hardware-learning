@@ -1540,8 +1540,13 @@ const lessonRef = (n, slug, lang) => {
   //   pressure_advance_calib (tower: 0 + 0.002 × 8 = 0.016), retraction_calib (0–2 mm / 0.1 mm direct drive, 1–6 mm / 0.2 mm Bowden, 0.2–0.4 mm if clean).
   // so: SO-ARM100 README @a758567, Printing the Parts (PLA+, 0.4 mm nozzle / 0.2 mm layers or 0.6 mm / 0.4 mm, 15% infill, supports ignore slopes > 45° to the horizontal,
   //   220mm x 220mm Ender plates, 205mm x 250mm Prusa plates).
-  // ins: CNC Kitchen, Tips & Tricks for Heat-Set Inserts (iron 10–20 °C above printing temperature, about 225 °C for PLA).
-  const a1 = { hot: 300, bed: 80 }, prusa = { bed: 100, ipa: 90 }, ins = { pla: 225 };
+  // ins: CNC Kitchen, Tips & Tricks for Heat-Set Inserts (iron 10–20 °C above printing temperature: about 225 °C PLA, 245 °C PETG, 265 °C ABS; melt about 90% of the way, press the rest).
+  // m3: CNC Kitchen Heat-Set Insert Dimensions and Design Guidelines, M3 x 5.7 (L 5.7, D1 4.6, D2 4.0, W 1.6, blind hole at least L + 1 mm);
+  //   CNC Kitchen, "Are our heat-set insert datasheets wrong?" (printed holes about 0.25 mm undersize, 4.2 mm in CAD is the sweet spot at about 90% of maximum strength).
+  const a1 = { hot: 300, bed: 80 }, prusa = { bed: 100, ipa: 90 }, ins = { pla: 225, petg: 245, abs: 265, over: [10, 20], way: 90 };
+  const m3 = { L: 5.7, d1: 4.6, d2: 4.0, w: 1.6, extra: 1, under: 0.25, cad: 4.2, str: 90 };
+  const m3depth = (m3.L + m3.extra).toFixed(1);
+  ok(Math.abs(m3.d2 + m3.under - m3.cad) <= 0.05 && m3.d1 > m3.d2, `fdm-printing: CNC Kitchen's ${m3.cad} mm CAD hole must be the ${m3.d2} mm nominal plus the ~${m3.under} mm print undersize, and the insert (${m3.d1} mm) larger than the hole`);
   const flow = { lo: 0.95, hi: 1.05, mod: 0.05, step: 0.01, blocks: 11, old: 0.98, pick: 0.01 };
   const pa = { start: 0, step: 0.002, h: 8 }, ret = { dd: [0, 2, 0.1], bw: [1, 6, 0.2], clean: [0.2, 0.4] };
   const so = { n1: 0.4, l1: 0.2, n2: 0.6, l2: 0.4, infill: 15, slope: 45, ender: [220, 220], prusaBed: [205, 250] };
@@ -1560,7 +1565,11 @@ const lessonRef = (n, slug, lang) => {
       `- Flow ratio scales every extrusion (keep it within ${f2(flow.lo)}–${f2(flow.hi)});`,
       `1. **Settings.** PLA+; a ${so.n1} mm nozzle at ${so.l1} mm layer height, or a ${so.n2} mm nozzle at ${so.l2} mm layer height; ${so.infill} % infill.`,
       `leave out surfaces steeper than ${so.slope}° to the horizontal, which print without them (the ${so.slope}° rule in Design for FDM above)`,
-      `For a ${so.ender[0]} mm × ${so.ender[1]} mm bed, print Follower/Ender_Follower_SO101.stl and Leader/Ender_Leader_SO101.stl; for a ${so.prusaBed[0]} mm × ${so.prusaBed[1]} mm bed, Follower/Prusa_Follower_SO101.stl`],
+      `For a ${so.ender[0]} mm × ${so.ender[1]} mm bed, print Follower/Ender_Follower_SO101.stl and Leader/Ender_Leader_SO101.stl; for a ${so.prusaBed[0]} mm × ${so.prusaBed[1]} mm bed, Follower/Prusa_Follower_SO101.stl`,
+      `M3 × ${m3.L} insert:  length L = ${m3.L} mm, outer diameter ${m3.d1} mm`, `hole diameter     ${m3.d2.toFixed(1)} mm   (straight`, `minimum wall      ${m3.w} mm   around the hole`, `blind hole depth  ≥ L + ${m3.extra} mm = ${m3depth} mm`,
+      `they came out about ${m3.under} mm undersize, and drawing the hole at ${m3.cad} mm in CAD gave the best result for holes used as printed, at about ${m3.str} % of the highest strength in the test.`,
+      `1. Set the iron ${ins.over[0]} to ${ins.over[1]} °C above the printing temperature of the part's material: about ${ins.pla} °C for PLA, ${ins.petg} °C for PETG and ${ins.abs} °C for ABS.`,
+      `until it is about ${ins.way} % of the way in.`, `set the iron ${ins.over[0]}–${ins.over[1]} °C above the printing temperature`],
     zh: [`Bambu Lab A1 mini 的热端最高可达 ${a1.hot} °C，热床最高 ${a1.bed} °C；Prusa 的 CORE One 使用手册提醒，打印板和热床可能超过 ${prusa.bed} °C。`,
       `烙铁头温度约 ${ins.pla} °C 或更高。`,
       `Prusa 推荐用纸巾蘸浓度 ${prusa.ipa} % 或以上的异丙醇（IPA）`,
@@ -1572,7 +1581,11 @@ const lessonRef = (n, slug, lang) => {
       `- 流量比按比例缩放每一段挤出（保持在 ${f2(flow.lo)}–${f2(flow.hi)} 之间）；`,
       `1. **设置**：PLA+；${so.n1} mm 喷嘴配 ${so.l1} mm 层高，或 ${so.n2} mm 喷嘴配 ${so.l2} mm 层高；${so.infill} % 填充。`,
       `与水平面夹角大于 ${so.slope}° 的表面不加支撑，它们不用支撑也能打印（即上文“面向 FDM 设计”里的 ${so.slope}° 规则）`,
-      `${so.ender[0]} mm × ${so.ender[1]} mm 的热床打印 Follower/Ender_Follower_SO101.stl 和 Leader/Ender_Leader_SO101.stl；${so.prusaBed[0]} mm × ${so.prusaBed[1]} mm 的热床打印 Follower/Prusa_Follower_SO101.stl`],
+      `${so.ender[0]} mm × ${so.ender[1]} mm 的热床打印 Follower/Ender_Follower_SO101.stl 和 Leader/Ender_Leader_SO101.stl；${so.prusaBed[0]} mm × ${so.prusaBed[1]} mm 的热床打印 Follower/Prusa_Follower_SO101.stl`,
+      `M3 × ${m3.L} 螺母：  长度 L = ${m3.L} mm，外径 ${m3.d1} mm`, `孔径             ${m3.d2.toFixed(1)} mm（直孔`, `最小壁厚         孔周围 ${m3.w} mm`, `盲孔深度         ≥ L + ${m3.extra} mm = ${m3depth} mm`,
+      `孔小了约 ${m3.under} mm；在 CAD 里把孔画成 ${m3.cad} mm，对直接使用的打印孔效果最好，强度约为测试中最高值的 ${m3.str} %。`,
+      `1. 把烙铁温度设在零件材料打印温度之上 ${ins.over[0]} 到 ${ins.over[1]} °C：PLA 约 ${ins.pla} °C，PETG 约 ${ins.petg} °C，ABS 约 ${ins.abs} °C。`,
+      `直到压进约 ${ins.way} %。`, `烙铁温度设在打印温度之上 ${ins.over[0]}–${ins.over[1]} °C`],
   };
   ok(a1.hot > ins.pla && prusa.bed > a1.bed, `fdm-printing: the A1 mini hot end (${a1.hot} °C) must exceed the insert iron for PLA (${ins.pla} °C), and the Prusa bed note (${prusa.bed} °C) the A1 mini bed (${a1.bed} °C)`);
   for (const lang of ["en", "zh"]) {
@@ -1580,7 +1593,7 @@ const lessonRef = (n, slug, lang) => {
     for (const q of ["flow rate → pressure advance", "temperature → flow → pressure advance", "温度 → 流量 → 压力提前"]) ok(!text.includes(q), `fdm-printing ${lang}: the superseded OrcaSlicer order ${JSON.stringify(q)} must not return (current guide: temperature → max volumetric speed → PA → flow ratio → retraction)`);
     for (const q of fp[lang]) ok(text.includes(q), `fdm-printing ${lang}: expected ${JSON.stringify(q)} (bound to the manuals, the OrcaSlicer wiki, the SO-ARM100 README and CNC Kitchen)`);
   }
-  console.log(`calc  fdm-printing gaps: ${fp.en.length} + ${fp.zh.length} phrases; A1 mini ${a1.hot}/${a1.bed} °C, Prusa bed > ${prusa.bed} °C, IPA ${prusa.ipa} %, insert iron ${ins.pla} °C, flow ${f2(flow.lo)}–${f2(flow.hi)} (${flow.blocks} blocks, ${flowNew}), PA ${paVal}, retraction ${ret.dd[0]}–${ret.dd[1]} / ${ret.bw[0]}–${ret.bw[1]} mm, SO-101 ${so.n1}/${so.l1} or ${so.n2}/${so.l2} mm, ${so.infill} %, plates ${so.ender.join(" × ")} and ${so.prusaBed.join(" × ")} mm, bound in en/zh`);
+  console.log(`calc  fdm-printing gaps: ${fp.en.length} + ${fp.zh.length} phrases; A1 mini ${a1.hot}/${a1.bed} °C, Prusa bed > ${prusa.bed} °C, IPA ${prusa.ipa} %, insert iron ${ins.pla} °C, flow ${f2(flow.lo)}–${f2(flow.hi)} (${flow.blocks} blocks, ${flowNew}), PA ${paVal}, retraction ${ret.dd[0]}–${ret.dd[1]} / ${ret.bw[0]}–${ret.bw[1]} mm, SO-101 ${so.n1}/${so.l1} or ${so.n2}/${so.l2} mm, ${so.infill} %, plates ${so.ender.join(" × ")} and ${so.prusaBed.join(" × ")} mm, M3 × ${m3.L} insert hole ${m3.d2.toFixed(1)} mm (CAD ${m3.cad}), depth ${m3depth} mm, iron ${ins.pla}/${ins.petg}/${ins.abs} °C, bound in en/zh`);
 }
 
 const specs = [];

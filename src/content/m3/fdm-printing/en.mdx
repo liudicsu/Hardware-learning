@@ -192,7 +192,7 @@ The milestone for this lesson is to design a part specifically for FDM, not a CA
 - **Bridges.** A short horizontal span, a few centimetres depending on the printer, can bridge between two supports. Anchor both ends, cool the bridge well, and do not ask it to carry a load.
 - **Horizontal holes.** A round hole lying on its side droops at the top. A teardrop or a flat-topped hole avoids support and keeps the top of the hole usable. For a precision bore, print undersize and drill or ream it.
 - **Walls.** Make thin walls a whole number of extrusion widths: with a 0.4 mm nozzle, use 0.8, 1.2 or 1.6 mm. Strength comes mostly from walls (<Term id="perimeter-wall">perimeters</Term>), not infill. For most brackets, adding a wall or two is a cheaper way to gain strength than adding infill.
-- **Fasteners.** Use heat-set brass inserts for threads you will open more than a few times. Printed threads are fine for coarse, rarely used parts, but they wear and strip. Size the insert hole from the insert datasheet and test one.
+- **Fasteners.** Use heat-set brass inserts for threads you will open more than a few times. Printed threads are fine for coarse, rarely used parts, but they wear and strip. Size the insert hole from the insert datasheet and test one; the steps are in "Installing heat-set inserts" below.
 - **Supports.** Supports cost time, leave rough surfaces and weaken the part where they touch. A design that needs none is usually a better design: chamfer the overhang, split the part, or choose a different orientation.
 
 ### Where the 45° and two-width rules come from
@@ -219,6 +219,29 @@ Design for FDM also means designing for your machine's error. The clearance numb
 <Resource id="hubs-dfam" />
 
 <Quiz id="q4" question="A long, thin snap hook must bend many times. How should it lie on the bed?" options={["standing up, so the layers stack along its length", "lying flat, so it bends along its layers", "it does not matter with 100 % infill", "at 45° with supports"]} answer={1} explanation="A printed part is weakest between layers. Lying flat puts the bending load along the layers, so the hook bends instead of splitting at a layer line. Standing up makes the layers run across the bend, which is exactly where a snap hook cracks; 100 % infill does not fix weak layer bonds." />
+
+### Installing heat-set inserts
+
+A heat-set insert is a brass sleeve with a metal thread inside and knurling on the outside. You press it into a printed hole with a hot soldering iron: the brass heats the plastic around it, the plastic melts and flows into the knurls, and when it cools the insert is locked in place. A screw then threads into metal instead of plastic, so it can be tightened and removed many times. Read the safety rule on the insert iron in "Your first print" before you start.
+
+**Size the hole from the datasheet of the insert you bought.** [CNC Kitchen's insert dimensions and design guidelines](https://www.cnckitchen.com/s/CNCKitchen_Heat-Set-Insert-Dimensions-and-Design-Guidelines.pdf) give, for its M3 × 5.7 insert:
+
+```text
+M3 × 5.7 insert:  length L = 5.7 mm, outer diameter 4.6 mm
+hole diameter     4.0 mm   (straight, not tapered; normally no chamfer)
+minimum wall      1.6 mm   around the hole
+blind hole depth  ≥ L + 1 mm = 6.7 mm
+```
+
+These are nominal sizes for a hole of exactly that diameter, such as a drilled one. Printed holes come out smaller than drawn (see "Why holes come out small" above). In [CNC Kitchen's test of printed holes](https://www.cnckitchen.com/blog/are-our-heat-set-insert-datasheets-wrong), they came out about 0.25 mm undersize, and drawing the hole at 4.2 mm in CAD gave the best result for holes used as printed, at about 90 % of the highest strength in the test. Your printer will differ, so print a test block with a few hole sizes around this value and install one insert in each before you commit a design. Other makers use other sizes; [Ruthex](https://www.ruthex.de/en/products/ruthex-gewindeeinsatz-m3-100-stuck-rx-m3x5-7-messing-gewindebuchsen), for example, publishes CAD data for each insert on its product page. Always use the dimensions for the inserts you actually have.
+
+**Install the insert.** The steps follow [CNC Kitchen's tips for heat-set inserts](https://www.cnckitchen.com/blog/tips-and-tricks-for-heat-set-inserts):
+
+1. Set the iron 10 to 20 °C above the printing temperature of the part's material: about 225 °C for PLA, 245 °C for PETG and 265 °C for ABS.
+2. Place the insert on the hole, narrower end down. The hole should be just large enough for that end to sit in it, so the insert stands upright before you heat it.
+3. Press the insert in with the iron tip, keeping it straight, until it is about 90 % of the way in.
+4. Take the iron away and press the insert flush with a flat tool, such as the shaft of a screwdriver or a pair of tweezers. Hold it for a few seconds until the plastic has solidified; otherwise the insert tends to creep back out.
+5. Return the iron to its stand before you pick up the next insert.
 
 ## Snap-fits that click
 
@@ -482,6 +505,7 @@ Lesson 3 takes the same idea further: gears and <Term id="backlash">backlash</Te
 
 - Calibration order (OrcaSlicer): temperature → maximum volumetric speed → pressure advance → flow ratio → retraction, then tolerance; each test assumes the earlier ones are right.
 - Flow ratio scales every extrusion (keep it within 0.95–1.05); pressure advance compensates for the pressure lag in the nozzle; retraction pulls the filament back before a travel move to stop strings.
+- Heat-set inserts: size the hole from the insert datasheet and test it on a printed block; set the iron 10–20 °C above the printing temperature and press the last part flush with a tool.
 - Hole = shaft + 2 × per-side clearance: a 5 mm shaft with 0.2 mm per side needs a 5.4 mm hole.
 - Overhangs up to about 45° from vertical usually print without support.
 - Overhang limit from bead geometry: tan θ ≤ w / (2 × h), which gives 45° for a 0.4 mm line on 0.2 mm layers; Tg, not the melting point, limits a part in service (PLA Tg 55–60 °C, PETG Tg 80 °C but heat deflection at 70 °C under 0.455 MPa).
