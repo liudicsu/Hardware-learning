@@ -2,15 +2,15 @@
 
 In Lesson 1 you built a parametric servo bracket in OpenSCAD and checked the exported STL with `stl_info.py`. A CAD model is a promise: it says what the part should be, not what your machine can make. The next step is choosing the machine — or deciding not to buy one yet.
 
-The table below is the course's shortlist. Prices are the course author's figures, checked in September 2026; treat them as approximate and check the store before ordering.
+The table below is the course's shortlist. Prices are the prices on each brand's official US store page, verified 2026-10-23; they change often, so check the store before ordering. The Ender-3 V3 SE and K1C prices are sale prices, shown with the regular price. For the P1S the table gives the printer on its own, as for the A1 mini and A1; the AMS Combo ($549) and AMS 2 Pro Combo ($579) bundles add Bambu's automatic material system for multicolour printing, which this course does not need.
 
-| Printer | Price (course, Sept 2026) | Why pick it |
+| Printer | Price (store page, verified 2026-10-23) | Why pick it |
 | --- | --- | --- |
-| Creality Ender-3 V3 SE | $199 | Cheapest; open frame; more hands-on tuning; fine for PLA/PETG |
-| Bambu Lab A1 mini | $219.99 | Works out of the box, automatic calibration, 180 mm bed |
-| Bambu Lab A1 | $299.99 | Same, with the 256 mm bed you will want for larger brackets |
-| Creality K1C | $369 | Enclosed and with a hardened nozzle for carbon-fibre filaments |
-| Bambu Lab P1S | $799 | Enclosed CoreXY for ABS and ASA |
+| Creality Ender-3 V3 SE | $179 sale (regular $199) | Cheapest; open frame; more hands-on tuning; fine for PLA/PETG |
+| Bambu Lab A1 mini | $219 | Works out of the box, automatic calibration, 180 mm bed |
+| Bambu Lab A1 | $299 | Same, with the 256 mm bed you will want for larger brackets |
+| Creality K1C | $499 sale (regular $559) | Enclosed and with a hardened nozzle for carbon-fibre filaments |
+| Bambu Lab P1S | $399 (printer only) | Enclosed CoreXY for ABS and ASA |
 
 The Ender-3 V3 SE is the cheapest way in. It has an open frame and less automation than the Bambu machines, so you will still check the bed, adjust the Z offset and learn what a first layer should look like. That is either a cost or a feature, depending on your temperament: after a month you will understand your printer, because you will have fixed it.
 
@@ -37,7 +37,7 @@ by service = 10 × $8 = $80 and about 10 weeks if you wait for each one
 
 That is $4.00 of filament and about 4.2 hours of printing at home, against $80 and roughly ten weeks if you wait for each service order. The time difference is the real argument. A printer turns a design change into an afternoon; a service turns it into a project.
 
-Do the break-even arithmetic: at $7.60 saved per revision, a $219.99 printer needs about 29 revisions before the hardware is paid for. Few people reach that on one project, and almost everyone reaches it across a year of small brackets, mounts and repairs. Add failed prints, electricity and your own time, and the case is not "printing is cheap"; it is "iterating at home is cheap".
+Do the break-even arithmetic: at $7.60 saved per revision, a $219 printer (the A1 mini) needs about 29 revisions before the hardware is paid for. Few people reach that on one project, and almost everyone reaches it across a year of small brackets, mounts and repairs. Add failed prints, electricity and your own time, and the case is not "printing is cheap"; it is "iterating at home is cheap".
 
 <Quiz id="q1" question="A service charges $8 per revision and your own printer costs $0.40 per revision. How much do you save over 25 revisions, in dollars?" answer={190} unit="USD" explanation="Each revision saves $8.00 − $0.40 = $7.60. Over 25 revisions: 25 × $7.60 = $190.00. Equivalently, 25 × $8 = $200 for the service against 25 × $0.40 = $10 at home." />
 
@@ -407,7 +407,7 @@ Lesson 3 takes the same idea further: gears and <Term id="backlash">backlash</Te
 - Overhangs up to about 45° from vertical usually print without support.
 - Overhang limit from bead geometry: tan θ ≤ w / (2 × h), which gives 45° for a 0.4 mm line on 0.2 mm layers; Tg, not the melting point, limits a part in service (PLA Tg 55–60 °C, PETG Tg 80 °C but heat deflection at 70 °C under 0.455 MPa).
 - Snap strain ε = 1.5 × y × t / L²: with L = 10 mm, t = 1.2 mm and y = 0.8 mm it gives 1.44 %, inside the 1.5 % PLA limit.
-- Break-even: $7.60 saved per revision, so a $219.99 printer needs about 29 revisions to pay for itself.
+- Break-even: $7.60 saved per revision, so a $219 printer needs about 29 revisions to pay for itself.
 
 **Common mistakes**
 
