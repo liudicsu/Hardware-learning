@@ -24,6 +24,8 @@ The milestone asks for three projects, each with **video, metrics and failure an
 - the mapped and navigated room ([Month 4, SLAM and Nav2](/en/month/month-4/slam-nav)): metrics such as goals reached out of goals sent, and map accuracy against the known room;
 - a learned pick and place on your SO-101 (lessons 1 to 4 of this month): success out of a fixed list of start positions, with a failure table.
 
+Size that list with lesson 4's rule, not by habit. Write the start positions (and object placements) down before the first session and reuse the same list for every policy. For a single rate, a Wilson 95 % interval on 20 trials is still tens of points wide (14/20 is about 48 % to 85 %); to tell 60 % from 80 % at 5 % significance and 80 % power needs about 82 trials per policy (`trials_needed` in lesson 4), and 80 % from 90 % needs about 199. So a portfolio metric is a fixed start list of that length, plus the failure table on the same trials — not "a handful of demos that looked good".
+
 Move each one a step beyond the lesson. A reviewer has seen the tutorial version many times; what they look for is the part you decided yourself: a different object, a harder condition, a measurement nobody asked you for, a fix for a failure you found.
 
 ## The README a reviewer reads
@@ -146,7 +148,7 @@ best = min(obs, key=lambda o: (o[0][0] - p[0]) ** 2 + (o[0][1] - p[1]) ** 2)
 
 - **What does it do?** It finds the recorded frame whose observation is closest to the current position, by squared Euclidean distance, so the policy can replay that frame's action.
 - **Why this way?** Squared distance gives the same nearest frame as distance without the square root. Nearest-neighbour is the simplest policy that fits the data exactly, which makes covariate shift easy to see; a neural network would hide it behind training choices.
-- **What breaks, and what would you change?** It scans every frame each step, so time grows with the dataset (3061 frames is fine, a million is not; a k-d tree fixes that). It treats x and y as having the same scale, which would be wrong if the observation mixed metres and radians, so you would normalise each dimension first. And it can only replay actions it has seen, which is why it fails near the goal.
+- **What breaks, and what would you change?** It scans every frame each step, so query time is O(N) in the number of frames. Lesson 1's 80-demo set has 3061 frames; a million-frame set is about 10⁶ / 3061 ≈ 327× larger, so the same linear scan is about 327× slower per step. A k-d tree (or any spatial index) answers nearest neighbour in O(log N) after an O(N log N) build, which brings that factor back down. Absolute wall-clock times depend on the machine; the complexity ratio does not. It treats x and y as having the same scale, which would be wrong if the observation mixed metres and radians, so you would normalise each dimension first. And it can only replay actions it has seen, which is why it fails near the goal.
 
 If you cannot answer the third level about a line, that line is what to study next. Doing this for the key lines of each portfolio project is the best interview preparation there is.
 

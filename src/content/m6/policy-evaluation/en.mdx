@@ -150,7 +150,7 @@ Run BC on 20 demos ten times, 10 trials per session, with fresh random condition
 
 </SimOutput>
 
-The policy did not change, yet one session reports 40 % and another 90 %. If you made a change between two sessions, you would attribute the difference to it whichever way the result moved. A single 10-trial session is therefore not enough to decide whether a change helped.
+The policy did not change, yet one session reports 40 % and another 90 %. That spread is what a single rate predicts: over the paired 100 trials the same policy scores 65/100, so each 10-trial session is a draw from Binomial(10, 0.65) with standard deviation √(10 × 0.65 × 0.35) ≈ 1.51 successes; a ±2 SD band is about 4 to 9 out of 10, which is exactly the range on the board. If you made a change between two sessions, you would attribute the difference to it whichever way the result moved. A single 10-trial session is therefore not enough to decide whether a change helped.
 
 ## Compare on the same trials
 
@@ -210,7 +210,7 @@ A success rate tells you how often; a failure table tells you what to fix. Sort 
 
 </SimOutput>
 
-Three quarters of the failures are at the goal end, around step 41, after the point where the demonstrations stop. That points straight at the fix (record what to do near the goal, or relabel those states with DAgger) and says that the first leg is not worth working on. On a real arm the categories are things like "missed the grasp", "grasped but dropped", "collided", "timed out", "wrong object", each with the trial number and a link to its video.
+Three quarters of the failures are at the goal end, mean step 41.3. The expert demos themselves are only 38 to 39 frames long (lesson 1): once the gripper is within the 5 cm success radius of the goal, the episode ends, so the recorded set has almost no frames that say what to do when the gripper is near the goal but still outside that radius. At test time the rollout continues up to 80 steps; after step ~39 the nearest recorded frame is still a late centre-line frame whose action drives straight, so the policy coasts past the 5 cm ball and hits the wall a few steps later — that is the 41.3. That points straight at the fix (record what to do near the goal, or relabel those states with DAgger) and says that the first leg is not worth working on. On a real arm the categories are things like "missed the grasp", "grasped but dropped", "collided", "timed out", "wrong object", each with the trial number and a link to its video.
 
 ## An evaluation protocol for your arm
 
