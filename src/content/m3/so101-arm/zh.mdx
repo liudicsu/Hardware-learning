@@ -290,7 +290,7 @@ read position 6  SDK FF FF 06 04 02 38 02 B9     same
 | 主臂（始终 7.4 V） | 7.4 V STS3215（按 README BOM 为 C001/C044/C046） | 4–7.4 V（C001 规格） | 5 V | — |
 
 <Callout type="danger" title="12 V 电源只能接 12 V 版舵机">
-绝不要把 12 V 电源接到装有 7.4 V 舵机的机械臂上；主臂在任何情况下都属于这一类。12 V 远高于 Feetech 对 7.4 V 版给出的 4–7.4 V 输入范围。插电前，先对照舵机标签上的电压和电源铭牌上的额定值；7.4 V 舵机和 12 V 舵机应分臂、分电源使用，因为同一条臂的所有舵机通过菊花链共用同一路电源。
+绝不要把 12 V 电源接到装有 7.4 V 舵机的机械臂上；主臂在任何情况下都属于这一类。12 V 远高于 Feetech 对 7.4 V 版给出的 4–7.4 V 输入范围。每种舵机版本配各自的电源（来源 A）：ST-3215-C001 和主臂的其他 7.4 V 舵机（C044、C046）配 5 V 电源，ST-3215-C018（12 V）配 12 V 电源。版本看卖家为每一袋标明的料号。7.4 V 舵机和 12 V 舵机应分臂、分电源使用，因为同一条臂的所有舵机通过菊花链共用同一路电源。
 </Callout>
 
 来源：A — [SO-ARM100 README · Sourcing Parts (IMPORTANT note)](https://github.com/TheRobotStudio/SO-ARM100/blob/a758567c3978dfeefe282ede0500085a48fe8f78/README.md#L72-L73)；B — [Feetech STS3215 (C001) specification, §5](https://www.feetechrc.com/Data/feetechrc/upload/file/20200611/6372749961523760249976542.pdf)；C — [Feetech ST-3215-C018 product page](https://www.feetechrc.com/en/525603.html) 与 [specification, §5](https://www.feetechrc.com/Data/feetechrc/upload/file/20240507/6385067068652648096680943.pdf)。
@@ -306,31 +306,63 @@ read position 6  SDK FF FF 06 04 02 38 02 B9     same
   堵转   6 x 2.0 A = 12.0 A
 ```
 
+简单地说，对你的这台臂：
+
+- 电源要和舵机版本配对：C001 和其他 7.4 V 舵机配 5 V 电源，所有主臂都属于这一类；12 V 电源只用于整条臂都是 C018（12 V）舵机的情况。绝不要把 12 V 接到 7.4 V 舵机上。
+- 12 V 从臂要选额定电流大于 5.4 A 的电源：六个 C018 在额定电流下已经要 5.4 A，超过 README 要求的最低 5 A。
+- 标准的 5 V 从臂，4 A 电源够正常运行（估计 3.0 A），但不够几个关节同时被卡住（估计 12 A）。
+- 不要指望舵机的保护功能来防止过载：在 5 V 下过流保护可能永远不会触发，过载保护要 2 s 后才起作用，而且遥操作时下一条位置指令就会把它清除。不要让关节顶着机械限位，也不要让夹爪长时间用力夹着物体。
+- 用料号区分 C001 和 C018：ST-3215-C001（7.4 V）或 ST-3215-C018（12 V），再看卖家为每一袋标明的电压。本课没有核实舵机本身的标签上印了什么。不确定手上是哪一版时，不要接 12 V。
+
+这些结论的依据在下面的深入说明里，第一次组装可以跳过。
+
+<Callout type="info" title="深入说明：电流上限和舵机保护寄存器" collapsible>
+
 README 要求 12 V 电源至少 5 A；六个 C018 在额定电流下已经要 5.4 A，所以 12 V 电源要选额定值高于 5.4 A 的。堵转数字是最坏情况——所有关节同时被卡住——而且不会持续：两份规格都写明，运行电流大于 2 A 并持续 2 s 后，舵机关闭输出并进入过流保护（§7-11）。标准臂这边，飞特给出的 C001 额定电流是 6 V 下的，不是 5 V 下的，所以 3.0 A 的总数是估计值；它在 BOM 所链接 5 V 电源（Facmogu AL-0540，5 V 4 A）的 4 A 额定值之内。堵转就放不下了。C001 的堵转电流在 6 V 下是 2 A、7.4 V 下是 2.5 A（§5-5），所以六个关节同时卡住约需 6 × 2 A = 12 A（按 6 V 数据估计），是 AL-0540 的 4 A 的三倍。这里也不能指望过流保护：5 V 下每个 C001 的堵转电流 ≤ 5 V / 2.5 Ω ≈ 2.0 A（由 §5-10 的端子电阻 2.5 Ω 估算，规格书未给 5 V 数据）。作为上限，这与规格书一致：6 V 下 §5-5 的堵转电流 2 A 小于 6 V / 2.5 Ω = 2.4 A。所以“大于 2 A 并持续 2 s”的条件可能根本不会满足。真正起作用的是同一张表里紧挨着的过载（Over Load）保护：堵转超过堵转值的 80 % 并持续 2 s 后进入保护（§7-11）。80 % / 2 s 和 2 A / 2 s 这两个门限都是出厂默认值，但飞特的资料在电流上并不一致：C001 规格书给的是 2 A / 2 s（§7-11），飞特的[在线 STS 存储表](https://ftservo.github.io/ftservo-wiki/en/reference/parameter/memory-sts/)里 Protection_Current（地址 28，单位 6.5 mA）的默认值是 511，即 511 × 6.5 mA ≈ 3.32 A（不过它的说明里又写最大可设 500 × 6.5 mA = 3250 mA），而第三方转载的 2019 年表格（V3.6，固件 2.43；[matthieuvigne/STS_servos 里的 STS3215 Memory Table.xlsx](https://github.com/matthieuvigne/STS_servos/blob/4d2278432a2b12027d04d0449e1e6f97df812d68/extras/STS3215%20Memory%20Table.xlsx)）写的是 500，即 500 × 6.5 mA = 3.25 A；想知道你的舵机是哪个值，可以自己读 28 号寄存器。过载这一侧是一致的：两份表里 Overload_Torque（地址 36，单位 1 %）都默认 80，保护时间（地址 35，单位 10 ms）都默认 200 × 10 ms = 2 s。夹爪是例外：LeRobot 配置 SO 从臂时，只给夹爪舵机写入 Max_Torque_Limit 500、Protection_Current 250 和 Overload_Torque 25（[so_follower.py 第 169–171 行，LeRobot v0.6.1](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/so_follower.py#L169-L171)）。按两份表，Max_Torque_Limit（地址 16）的单位是 0.1 %，所以 500 是最大扭矩的 50 %；Protection_Current（地址 28）的单位是 6.5 mA，所以 250 是 250 × 6.5 mA = 1.625 A；Overload_Torque（地址 36）是启动过载计时的负载门限，所以夹爪的负载一旦超过最大扭矩的 25 %（飞特没有说明是相对地址 16 的设定值还是满堵转扭矩；堵转时两种理解下都会超过）并持续 2 s，就进入保护。进入保护后输出的扭矩由另一个寄存器 Protective_Torque（地址 34，默认 20 %）决定，LeRobot 没有写它；LeRobot 的代码注释把 Overload_Torque 说成过载时的扭矩，这与飞特的表不符。在线存储表把扭矩限制（地址 16 和 48）和 Present_Load（地址 60）的单位都定为 0.1 %，并把地址 60 定义为驱动电机输出的占空比，所以 50 % 的扭矩限制一旦在上电后生效，也会把夹爪的驱动占空比限制在一半左右。
 
 不过按两份表，真正生效的扭矩限制是地址 48，它只在上电时从地址 16 载入；而 LeRobot v0.6.1 只写地址 16（从不写地址 48），也不重启舵机，所以 50 % 的限制要从舵机下一次上电起才生效；开放中的 [LeRobot PR #4783](https://github.com/huggingface/lerobot/pull/4783) 的作者也写道，改过的值“may need a power cycle to apply”（可能要断电重启才生效），但他没有在硬件上验证过。限制生效后，夹爪堵转时电流约为 0.5 × 5 V / 2.5 Ω ≈ 1.0 A，低于 1.625 A 的保护电流，所以预计过载保护（负载超过 25 % 并持续 2 s）会先动作。在此之前（例如 LeRobot 配置舵机后的第一次使用），夹爪仍可能以满占空比驱动，最高约 5 V / 2.5 Ω ≈ 2.0 A，高于 1.625 A；过载条件也同样满足，而两个计时的默认值都是 2 s（Protection_Time，地址 35；Over_Current_Protection_Time，地址 38；都是 200 × 10 ms），所以哪个保护先动作并不确定。即使 28、36 号寄存器也要上电后才生效，满占空比堵转仍会超过出厂的 80 % 过载门限。飞特没有公开固件实现，所以这些都只是估计。
 
 两份规格书还写明，重新发位置指令会清除过载和过流保护标志（§7-11），而 LeRobot 每次 send_action() 都会发送 Goal_Position（[so_follower.py 第 229 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/so_follower.py#L229)），所以遥操作时下一条指令就会清除保护标志（规格书没有说明重发相同的目标位置是否算新指令）；不能指望保护长期护住舵机，仍应避免让夹爪长时间堵转。两份表都针对一般的 STS3215 / STS 系列，而不是 C001 这个型号；这些寄存器的地址和单位在两份表里相同。LeRobot 也会给每个关节写别的寄存器：Operating_Mode（位置模式）、P/I/D 系数 16/0/32（出厂 P 为 32；[config_so_follower.py 第 45–47 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/config_so_follower.py#L45-L47)）、Return_Delay_Time 0 和加速度寄存器 254（[feetech.py 第 209–217 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/feetech/feetech.py#L209-L217)）、Phase 寄存器的第 4 位（在 STS3215 上清零，选单圈角度反馈；[feetech.py 第 219–225 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/feetech/feetech.py#L219-L225)），校准时还会写 Homing_Offset 和位置限位（[feetech.py 第 268–273 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/feetech/feetech.py#L268-L273)）。16、28、36 号寄存器在两份表里都属于 EEPROM 区，而 LeRobot 是在 Lock（地址 55）为 0 时写入它们的：configure() 在 torque_disabled() 里运行（[so_follower.py 第 160 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/so_follower.py#L160)），它先给每个电机写 Lock 0（[feetech.py 第 291–294 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/feetech/feetech.py#L291-L294)），而在线存储表说 Lock 为 0 时写入 EEPROM 的值断电后仍会保留。所以夹爪舵机断电重启、换用别的软件、或者被换到别的关节上，都还会保持 500 / 250 / 25，直到有程序再次改写这些寄存器。但其余五个关节的出厂扭矩限制和保护门限（16、28、36 号寄存器）保持不变，12 A 的堵转总数仍是一个保守的上限。
 
+</Callout>
+
 ## 组装并设置 ID
 
 组装分两半：软件要装好、能看见控制板；电机要先拿到各自的 ID，否则后面都无从谈起。先做软件，因为当你已经知道串口和工具都正常时，一个 ID 设错的电机要好查得多。
 
+### 工作台上的工具
+
+BOM 把工具和零件列在一起（[SO-ARM100 README 第 83–104 行](https://github.com/TheRobotStudio/SO-ARM100/blob/a758567c3978dfeefe282ede0500085a48fe8f78/README.md#L83-L104)）。开始之前准备好这些：
+
+- #0 和 #1 两种尺寸的十字螺丝刀。README 说“强烈推荐”（highly recommended）用它们，“装卸螺丝最省事”（easiest screw installation and removal）；这两种都是大多数小型螺丝刀套装里的标准尺寸。
+- 把机械臂固定在桌上的桌面夹具：主从一对 BOM 列了 4 个，单个从臂列了 2 个。
+- USB-C 线，每块控制板一根。
+- 每条臂一个电源，电压和它的舵机相符（见“供电”一节）。
+- 一把小螺丝刀，用来去掉打印件上的支撑；组装指南建议用它。
+- 一个万用表，臂在负载下掉电时用来测控制板上的电源电压（见下面的故障排查列表）。
+- 第 6 课做你自己的手指时：TPU 95A 耗材。仓库里的柔性夹爪还需要额外 2 颗 M3 螺丝，以及可选的 3M 夹爪胶带来增大摩擦（[README 第 251 行](https://github.com/TheRobotStudio/SO-ARM100/blob/a758567c3978dfeefe282ede0500085a48fe8f78/README.md#L251)）。
+
 ### 安装 LeRobot
 
-按 LeRobot 的安装指南，把它装进一个独立的 Python 环境。LeRobot 会拉进一大套依赖，和系统 Python 混在一起很容易把别的东西弄坏。克隆仓库、激活环境之后，在克隆目录里安装 Feetech 扩展：
+把 LeRobot 装进一个独立的 Python 环境。LeRobot 会拉进一大套依赖，和系统 Python 混在一起很容易把别的东西弄坏。[LeRobot 安装指南](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/installation.mdx)用 conda，通过 Miniforge 安装；装好 Miniforge 之后，整个安装就是在终端里执行六条命令：
 
 ```bash
-pip install -e ".[feetech]"
+conda create -y -n lerobot python=3.12
+conda activate lerobot
+conda install ffmpeg -c conda-forge
+git clone https://github.com/huggingface/lerobot.git
+cd lerobot
+git checkout v0.6.1
+pip install -e ".[core_scripts,feetech]"
 ```
 
-`-e` 是可编辑安装，命令直接来自你的仓库副本；`[feetech]` 会装上和 STS3215 通信的串口 SDK。如果命令失败，先确认你在有 `pyproject.toml` 的那个目录，再回安装页核对当前 Python 版本和系统依赖。
+前两行创建并激活一个名为 `lerobot`、使用 Python 3.12 的环境；LeRobot 要求 Python 3.12 或更新版本（[pyproject.toml 第 32 行](https://github.com/huggingface/lerobot/blob/v0.6.1/pyproject.toml#L32)）。第三行安装 `ffmpeg`，LeRobot 默认的视频解码器需要它（[安装指南第 70–87 行](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/installation.mdx#L70-L87)）。接下来三行下载代码、进入它的目录，并切换到 v0.6.1 版，也就是课程核对这些命令时用的版本。最后一行从这个目录安装 LeRobot：`-e` 是可编辑安装，命令直接来自你的仓库副本；`[feetech]` 扩展会装上和 STS3215 通信的串口 SDK（[pyproject.toml 第 170 行](https://github.com/huggingface/lerobot/blob/v0.6.1/pyproject.toml#L170)），`[core_scripts]` 是安装指南用于录制、回放和校准的那一组（[pyproject.toml 第 132 行](https://github.com/huggingface/lerobot/blob/v0.6.1/pyproject.toml#L132)）。本课只需要 `[feetech]`：课程自己用 v0.6.1 版测试过，只装 `.[feetech]` 就能运行 `lerobot-find-port`、`lerobot-setup-motors`、`lerobot-calibrate` 和 `lerobot-teleoperate`，但显示摄像头数据和录制数据集需要 `core_scripts` 额外加入的扩展。如果最后一条命令失败，先确认你在有 `pyproject.toml` 的那个目录，并且 `lerobot` 环境已经激活。
 
 <Resource id="lerobot-so101" />
 
 ### 找到串口
 
-每条臂有自己的控制板和 USB 口。运行：
+每条臂有自己的控制板和 USB 口。如果你的控制板是 Waveshare 总线舵机驱动板，先把两个跳线都放到 `B` 位置。在 B 位置，板子把舵机总线接到它的 USB 口；在 A 位置，它把总线接到给 ESP32 之类单片机用的 UART 引脚，这时电脑在总线上什么也看不到（[Waveshare Bus Servo Adapter (A) 维基](https://www.waveshare.com/wiki/Bus_Servo_Adapter_(A))）。LeRobot 指南给出同样的设置（[LeRobot SO-101 指南第 174 行](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L174)）。然后给两块板都接上 USB 和舵机电源，运行：
 
 ```bash
 lerobot-find-port
@@ -338,9 +370,30 @@ lerobot-find-port
 
 工具会列出串口，让你拔掉一块板再按回车，然后告诉你哪个串口消失了。插回去，对另一块板重复。把哪个口是主臂、哪个是从臂记下来，写在纸上或写在要用的命令旁边。Linux 下名字像 `/dev/ttyACM0` 和 `/dev/ttyACM1`，但重新插拔后可能变，所以要查，不要猜。下面的例子用 `/dev/ttyACM0` 给从臂、`/dev/ttyACM1` 给主臂；换成你自己的。
 
+串口名取决于操作系统。macOS 上形如 `/dev/tty.usbmodem575E0032081`，这是 LeRobot 指南里的例子（[LeRobot SO-101 指南第 57–74 行](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L57-L74)）；Windows 上控制板显示为 `COM` 口，例如 `COM3`，`lerobot-find-port` 通过 pyserial 列出它们（[lerobot_find_port.py 第 36–38 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/scripts/lerobot_find_port.py#L36-L38)），编号因电脑而异；Linux 上是 `/dev/ttyACM0`、`/dev/ttyACM1` 等。照 `lerobot-find-port` 打印的名字原样使用。
+
+在 Linux 上，打开串口可能报 “Permission denied”（权限被拒绝），因为串口设备属于一个系统组，而你的用户不一定在这个组里。长期的解决办法是把你的用户加入这个组：Debian 和 Ubuntu 上是 `dialout`，它提供 “full and direct access to serial ports”（对串口的完全、直接访问；[Debian 维基：SystemGroups](https://wiki.debian.org/SystemGroups)），Arch Linux 上是 `uucp`（[ArchWiki：Users and groups](https://wiki.archlinux.org/title/Users_and_groups)），其他发行版可能用别的组名。运行 `ls -l /dev/ttyACM0` 查看串口属于哪个组，再把自己加进去（把 `dialout` 换成那个组名）：
+
+```bash
+sudo usermod -aG dialout $USER
+```
+
+这一变更要注销再重新登录，或者重启之后才生效；ArchWiki 说明，组的变更要重新登录后才生效。LeRobot 指南另外给了一个临时办法（[LeRobot SO-101 指南第 77–82 行](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L77-L82)）：
+
+```bash
+sudo chmod 666 /dev/ttyACM0
+sudo chmod 666 /dev/ttyACM1
+```
+
+这个临时办法不会保留。`/dev` 里的设备文件由 udev 管理，每次插上控制板，udev 都会重新创建它并设置权限（[ArchWiki：udev](https://wiki.archlinux.org/title/Udev)），所以重新插拔或重启后，改动就没了。而且 666 会让文件所有者、所属组和其他所有用户都有读写权限（[chmod(1) 手册](https://man7.org/linux/man-pages/man1/chmod.1.html)），也就是这台电脑上的任何用户都能打开这个串口。只在组的变更生效之前用它。
+
 ### 一次一个舵机
 
 新舵机出厂全是 ID 1。一次接两个，它们会对同一个包一起应答，设置脚本分不清谁是谁。这就是官方流程一次只接一个电机的原因。ID 和总线波特率会写进舵机的 <Term id="eeprom">EEPROM</Term>，写一次就留在那里，直到你改它。替换用的新舵机到手时又是 ID 1，所以把“哪个舵机装在哪个关节”记下来。
+
+<Callout type="warn" title="插拔舵机线之前先断电">
+插上或拔下三针舵机线之前，先拔掉舵机电源；线完全插到位后再接回电源。设置 ID 时也一样：脚本要求接下一个电机时，先拔电源，再换线，接回电源，然后才按回车。Seeed Studio 的 SO-ARM 课程给出同样的规则：“Power off before plugging or unplugging servo cables, USB cables, or power connectors”（插拔舵机线、USB 线或电源接头之前先断电；[Seeed Studio SO-ARM 课程第 4 章](https://wiki.seeedstudio.com/robotics/soarm_physical_ai_course_chapter_4/)）。只拔 USB 线并不能让总线断电，因为舵机由电源供电，而不是由 USB 供电（同一来源）。如果之后脚本找不到电机，先查电源插头；LeRobot 指南提醒过：“the power supply cable might disconnect as you manipulate the board”（摆弄控制板时电源线可能松脱；[LeRobot SO-101 指南](https://huggingface.co/docs/lerobot/so101)）。
+</Callout>
 
 ```bash
 lerobot-setup-motors \
@@ -367,6 +420,21 @@ lerobot-setup-motors \
 - 大多数关节用两个舵机盘；上面那个用 M3×6 螺丝，下面那个不拧（腕部旋转电机只装一个舵机盘）。
 - 电机用 M2×6 螺丝固定，是套件里最小的螺丝；打印件用 M3×6 螺丝固定在舵机盘上。
 - 从夹爪往底座方向菊花链，最后把 shoulder_pan（ID 1）插到控制板上。
+
+下表是指南为从臂每一步列出的螺丝，照原文整理（[LeRobot SO-101 指南第 237–326 行](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L237-L326)）；每个关节都要看指南里的视频，因为“on both sides”（两侧）单看文字并不总是清楚：
+
+| 步骤 | 电机装进舵机座（M2×6） | 舵机盘（M3×6） | 打印件（M3×6） |
+| --- | --- | --- | --- |
+| 关节 1 | 电机 4 颗，第一个舵机座 2 颗 | 上舵机盘 1 颗 | 肩部件：上面 4 颗，下面 4 颗 |
+| 关节 2 | 4 颗 | 上舵机盘 1 颗 | 大臂：每侧 4 颗 |
+| 关节 3 | 4 颗 | 上舵机盘 1 颗 | 小臂：每侧 4 颗 |
+| 关节 4 | 4 颗 | 上舵机盘 1 颗 | 未列螺丝；4 号舵机座直接套上 |
+| 关节 5 | 前面 2 颗 | 1 颗，且只装一个舵机盘 | 腕部接 4 号电机：4 颗 “on both sides” |
+| 夹爪 | 每侧 2 颗 | 上舵机盘 1 颗 | 夹爪接腕部舵机盘：4 颗；爪：4 颗 “on both sides” |
+
+主臂的夹爪这一步不同：主臂支架 4 颗 M3×6，手柄 1 颗 M2×6，夹爪电机每侧 2 颗 M2×6，它的舵机盘 1 颗 M3×6，扳机 4 颗 M3×6（[LeRobot SO-101 指南第 340–343 行](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L340-L343)）。装每个电机之前，在外壳上写下它的关节：从臂写 F1 到 F6，主臂写 L1 到 L6；Seeed 的课程建议这样做，因为它 “saves hours of debugging later”（能省下之后好几个小时的排错；[Seeed Studio SO-ARM 课程第 6 章](https://wiki.seeedstudio.com/robotics/soarm_physical_ai_course_chapter_6/)）。
+
+每根 3 针线都要留出余量。装下一块零件之前，用手把关节从一个限位转到另一个限位，同时看着它的线：线不能被拉紧，不能磨到舵机盘，也不能夹在两块零件之间。Seeed 对装好的臂的检查项是线缆 “are seated, not sharply bent, and stay clear of the joint motion range”（插到位、没有急弯、远离关节的活动范围；同一来源）。
 
 把两种螺丝分开放，打印件按关节分袋；M2×6 和 M3×6 混在一堆里，用眼睛很难分清。两条通用的实操建议。第一，拧进塑料打印件的螺丝不要过力；螺纹远在你觉得“拧紧”之前就滑了，滑掉的螺柱不是再加力能救的。第二，每装好一个关节，先用手转一遍。如果发卡，先找出原因再往下走：被舵机盘压住的线、轴承座里的支撑碎片，都不会自己好，而且会让校准和遥操作看起来像软件问题，实际是机械问题。
 
@@ -400,6 +468,21 @@ lerobot-calibrate \
 
 两条臂的流程一样：把臂摆到每个关节都在行程中点的位置，按回车；然后慢慢把每个关节走完整个行程，让工具看到两端。不要硬顶机械限位；走到行程尽头就停。`id` 是校准保存时用的名字，不是电机 ID，也不是序列号。每次启动这条臂都用同一个名字，否则会载入另一份校准数据，关节零位与当前装配对不上。
 
+中点姿态靠目测；官方指南在校准视频里演示了这个姿态（[LeRobot SO-101 指南第 398 行](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L398)）。对每个关节，先用手找到它的两个限位，再把它放在两者正中：
+
+- `shoulder_pan`：臂朝正前方，处在左右两个限位的正中。
+- `shoulder_lift`、`elbow_flex` 和 `wrist_flex`：每个关节都放在它两个限位的正中。
+- `wrist_roll`：让夹爪保持水平，主臂和从臂的角度相同。LeRobot 不记录这个关节的范围，而是使用舵机的一整圈，并把你在这一步摆的角度当作中点（[so_follower.py 第 135–143 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/so_follower.py#L135-L143)），所以两条臂摆的角度不同，遥操作时就会带着一个固定偏差。同样的原因，让各关节走完整行程时跳过这个关节。
+- `gripper`：半开。
+
+姿态不需要很精确。按下回车时，LeRobot 给每个电机设置归零偏移，使它当前的位置读作编码器量程的中点（[motors_bus.py 第 775–797 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/motors_bus.py#L775-L797)）；之后记录的行程决定比例。
+
+校准会关掉整条臂的扭矩。LeRobot 在提示你摆到中点姿态之前，先关闭这条臂上每个电机的扭矩（[so_follower.py 第 127–131 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/so_follower.py#L127-L131)；主臂见 [so_leader.py 第 96–100 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/teleoperators/so_leader/so_leader.py#L96-L100)）。从这一刻起，舵机不再托住机械臂，从臂会在自重作用下落下。从启动命令开始直到校准结束，都要用一只手托住从臂；结束后把它放低，平放在桌面的停放位置上。工具退出后扭矩仍然是关闭的。
+
+<Callout type="warn" title="从臂不是玩具">
+从臂的力量足以夹痛手指，也能把桌上的东西扫下去。保持工作区整洁，把线缆和杯子放到臂的活动范围之外，在它上面动手时先断电。一条正在动的臂不知道你的手在哪里。
+</Callout>
+
 两条臂都校准好之后，遥操作就是一条命令：
 
 ```bash
@@ -414,9 +497,14 @@ lerobot-teleoperate \
 
 一开始慢慢移动主臂，手放在从臂电源附近。开始前把桌子清空：从臂会忠实复制你的动作，包括快速撞向杯子的那一下。第一分钟用来检查方向和行程，不是用来评判跟随精度。
 
+要停止遥操作，按 Ctrl+C。LeRobot 随后断开两条臂（[lerobot_teleoperate.py 第 274–280 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/scripts/lerobot_teleoperate.py#L274-L280)），而断开连接时默认会在关闭串口之前关掉每个电机的扭矩（[config_so_follower.py 第 31 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/config_so_follower.py#L31)；[motors_bus.py 第 547–559 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/motors_bus.py#L547-L559)）。从臂在这一刻失去扭矩，会从当前位置落下。按 Ctrl+C 之前，先用主臂把从臂带到贴近桌面的低位，或者用另一只手托住从臂。
+
 出问题时，从外往内查：
 
-- **找不到某个电机**：查供电、USB 和该电机的三针线。Waveshare 板要把两个跳线放在 B（USB）通道；通道错了，板子有电但电脑什么都看不到。
+- **找不到某个电机**：查供电、USB 和该电机的三针线，并确认 Waveshare 板的两个跳线仍在“找到串口”一节设好的 B 位置；通道错了，板子有电但电脑什么都看不到。
+- **“Could not connect on port …”**：LeRobot 完全打不开串口时会打印这条信息（[motors_bus.py 第 536–540 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/motors_bus.py#L536-L540)）。如果它上方打印的错误里有 “Permission denied”（权限被拒绝），说明你的 Linux 用户无权打开这个串口，按“找到串口”一节的权限设置处理。否则就是串口名错了或者板子没插好：再运行一次 `lerobot-find-port`，照它打印的名字复制。
+- **“motor check failed”，并列出 “Missing motor IDs”**：串口打开了，但有些电机没有应答。LeRobot 连接时会逐个 ping 这条臂的每个 ID，并列出缺失或型号不对的 ID（[motors_bus.py 第 465–502 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/motors_bus.py#L465-L502)）。它以 1,000,000 波特和总线通信（[feetech.py 第 44 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/feetech/feetech.py#L44)），设置脚本会把这个波特率和 ID 一起写进每个电机（[motors_bus.py 第 617–629 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/motors_bus.py#L617-L629)）。设置时被跳过、或后来换上的电机仍是出厂 ID 1，所以它不会在它所在关节的 ID 上应答。这样的电机如果留在总线上，还会和 ID 为 1 的 `shoulder_pan` 冲突（[so_follower.py 第 54 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/so_follower.py#L54)）：两个舵机都会应答发给 ID 1 的包。在列表里找到缺失的 ID，检查通往那个电机的线；线没问题的话，再运行一次 `lerobot-setup-motors`，脚本要哪个电机就单独接哪个。
+- **几个关节同时动时，关节突然没劲，或者臂抽一下、控制板找不到电机**：电源电压可能在负载下跌落。Feetech 规格书说，舵机输入电压低于 4 V 时进入保护，电压回到正常范围后自动解除（C001 规格书 §7-11，[PDF](https://www.feetechrc.com/Data/feetechrc/upload/file/20200611/6372749961523760249976542.pdf)），而 5 V 电源离这个门限只有 1 V 的余量。标准的 5 V 4 A 电源会不会出现这种情况，是本课的估计，不是实测结果。先查电源插头和通往控制板的线，不要让关节长时间顶着限位；问题还在的话，在臂运动时用万用表测控制板输入端的电压，或者换一个额定电流更大的 5 V 电源。
 - **从臂一启动就猛跳**：它是在另一个姿态或另一个 id 下校准的。用你打算使用的姿态和 id 重新校准。
 - **某个关节方向反了或有偏移**：重新校准那条臂。不要靠改命令来修；错的是映射，不是命令。
 - **舵机发热，或夹爪夹住物体后嗡嗡响**：它在顶着一个东西。位置环会保留一个稳态误差并持续出力，正是第 4 课讲的稳态行为。松开夹持或降低目标；不要让它响几分钟。
@@ -439,10 +527,6 @@ lerobot-teleoperate \
 拍视频时把整条臂和桌面都拍进去，不要只拍夹爪：之后回看时，你要分得清是抓取失败，还是路径撞到了东西。如果视频里某个关节明显滞后，先查机械和校准，再怀疑软件。
 
 如果整套主从臂超出预算，便宜路线仍然能学到本课的大部分。单个从臂保留完整软件路径：能装、能校准、能读关节、能用 Python 发指令，以后再加主臂。MuJoCo 让你在没有任何硬件时跑同一套软件；缺的是手感、线缆和舵机吃力时的声音。两条捷径都不浪费时间，只要记录清楚每条路线练到的是哪一部分技能。
-
-<Callout type="warn" title="从臂不是玩具">
-从臂的力量足以夹痛手指，也能把桌上的东西扫下去。保持工作区整洁，把线缆和杯子放到臂的活动范围之外，在它上面动手时先断电。一条正在动的臂不知道你的手在哪里。
-</Callout>
 
 第 6 课接着往前走：夹爪手指。它们小、迭代便宜，也是证明你“会设计、不只是会组装”的那一部分。一台能动的臂，加上你自己为它设计的手指，比一套只会跑厂家演示的套件更能回答“你会不会造机器人”。
 

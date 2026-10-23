@@ -1340,6 +1340,41 @@ const lessonRef = (n, slug, lang) => {
     ok(got.length >= 5, `so101-arm ${lang}: expected at least 5 quoted gear-ratio results, found ${got.length}`);
     for (const m of got) ok((m[1] ?? m[2] ?? r1) === r1 && (m[3] ?? r2) === r2, `so101-arm ${lang}: ratio quote "${m[0]}" != 345 / 147 = ${r1}, (345/147)² = ${r2}`);
   }
+  {
+    // so101-arm and gripper-fingers: en and zh must quote the same numbers, so a number changed in one language fails here.
+    // Link targets and URLs are dropped and thousands separators removed first. The expected differences are the ones already on main at 5e9c43f,
+    // from wording that differs between the languages (for example zh "第 6 课" where en says "this lesson").
+    const nums = (t) => {
+      const c = {};
+      const s = t.replace(/\]\([^)]*\)/g, "]").replace(/https?:\/\/[^\s)"'>]+/g, "").replace(/(?<=\d),(?=\d{3}\b)/g, "");
+      for (const n of s.match(/\d+(?:\.\d+)?/g) ?? []) c[n] = (c[n] ?? 0) + 1;
+      return c;
+    };
+    const minus = (a, b) => Object.fromEntries(Object.keys(a).sort().filter((k) => a[k] > (b[k] ?? 0)).map((k) => [k, a[k] - (b[k] ?? 0)]));
+    const norm = (o) => JSON.stringify(Object.fromEntries(Object.entries(o).sort()));
+    const expect = {
+      "so101-arm": [{ 3: 3, 100: 1, 1830: 1 }, { 1: 1, 5: 2, 6: 8, 10: 1 }],
+      "gripper-fingers": [{ 2: 1 }, { 1: 3, 5: 1, 6: 1 }],
+    };
+    let nl = 0;
+    for (const [slug, [ez, ze]] of Object.entries(expect)) {
+      const src = Object.fromEntries(["en", "zh"].map((l) => [l, readFileSync(join(root, `src/content/m3/${slug}/${l}.mdx`), "utf8")]));
+      const en = nums(src.en), zh = nums(src.zh);
+      const got = [norm(minus(en, zh)), norm(minus(zh, en))], want = [norm(ez), norm(ze)];
+      ok(got[0] === want[0] && got[1] === want[1], `${slug}: numbers in en but not zh ${got[0]} / in zh but not en ${got[1]}, expected ${want[0]} / ${want[1]} (a number changed in one language only?)`);
+      // a link whose text names source lines must point at exactly those lines
+      for (const lang of ["en", "zh"]) {
+        for (const [, label, url] of src[lang].matchAll(/\[([^\]]*)\]\(([^)\s]*)\)/g)) {
+          const r = label.match(lang === "en" ? /\blines? (\d+)(?:–(\d+))?/ : /第 (\d+)(?:–(\d+))? 行/);
+          if (!r) continue;
+          nl++;
+          const a = url.match(/#L(\d+)(?:-L(\d+))?$/);
+          ok(a !== null && a[1] === r[1] && a[2] === r[2], `${slug} ${lang}: link "${label}" names line ${r[1]}${r[2] ? "–" + r[2] : ""} but points at ${url}`);
+        }
+      }
+    }
+    console.log(`calc  m3 en/zh: number differences pinned for so101-arm and gripper-fingers; ${nl} line-cited links match their #L anchors`);
+  }
   const res = readFileSync(join(root, "src/lib/resources.ts"), "utf8");
   // resources.ts sts3215 summary: the encoder width is the one sts_packet.py declares
   const sts = res.slice(res.indexOf("\n  sts3215: {") + 1).split(/\n  "?[\w-]+"?: \{/)[0];

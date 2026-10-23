@@ -290,7 +290,7 @@ Power is the step where a wrong choice damages hardware, so the supply voltage h
 | Leader (always 7.4 V) | 7.4 V STS3215 (C001/C044/C046 per the README BOM) | 4–7.4 V (C001 spec) | 5 V | — |
 
 <Callout type="danger" title="A 12 V supply is only for 12 V servos">
-Never connect a 12 V supply to an arm with 7.4 V servos; the leader is always such an arm. 12 V is far outside the 4–7.4 V input range in Feetech's specification for the 7.4 V version. Before plugging in, compare the voltage on the servo label with the rating plate of the supply; keep 7.4 V and 12 V servos on separate arms and separate supplies, because all servos of one arm share the same supply through the daisy chain.
+Never connect a 12 V supply to an arm with 7.4 V servos; the leader is always such an arm. 12 V is far outside the 4–7.4 V input range in Feetech's specification for the 7.4 V version. Pair each servo version with its own supply (source A): ST-3215-C001 and the leader's other 7.4 V servos (C044, C046) go with the 5 V supply, and ST-3215-C018 (12 V) goes with the 12 V supply. Read the version from the part code the seller lists for each bag. Keep 7.4 V and 12 V servos on separate arms and separate supplies, because all servos of one arm share the same supply through the daisy chain.
 </Callout>
 
 Sources: A — [SO-ARM100 README · Sourcing Parts (IMPORTANT note)](https://github.com/TheRobotStudio/SO-ARM100/blob/a758567c3978dfeefe282ede0500085a48fe8f78/README.md#L72-L73); B — [Feetech STS3215 (C001) specification, §5](https://www.feetechrc.com/Data/feetechrc/upload/file/20200611/6372749961523760249976542.pdf); C — [Feetech ST-3215-C018 product page](https://www.feetechrc.com/en/525603.html) and [specification, §5](https://www.feetechrc.com/Data/feetechrc/upload/file/20240507/6385067068652648096680943.pdf).
@@ -306,31 +306,63 @@ The supply also has to deliver enough current. Add up what six servos draw from 
   stall   6 x 2.0 A = 12.0 A
 ```
 
+In short, for your build:
+
+- Pair the supply with the servo version: C001 and the other 7.4 V servos, which includes every leader, go with the 5 V supply; the 12 V supply is only for an arm built entirely from C018 (12 V) servos. Never connect 12 V to 7.4 V servos.
+- For a 12 V follower, choose a supply rated above 5.4 A: six C018 servos at their rated current already draw 5.4 A, more than the README's 5 A minimum.
+- For the standard 5 V follower, the 4 A supply covers normal running (an estimated 3.0 A), but not several joints blocked at once (an estimated 12 A).
+- Do not count on the servos' protection to prevent overload: at 5 V the overcurrent protection may never trigger, the overload protection acts only after 2 s, and during teleoperation the next position command clears it. Do not push a joint against its mechanical stop, and do not leave the gripper clamped hard on an object.
+- Tell C001 from C018 by the part code, ST-3215-C001 (7.4 V) or ST-3215-C018 (12 V), and the voltage that the seller lists for each bag. The course has not checked what each servo's own label shows. If you are not sure which version you have, do not connect 12 V.
+
+The reasoning behind these points is in the deep dive below. You can skip it on a first build.
+
+<Callout type="info" title="Deep dive: current limits and the servo protection registers" collapsible>
+
 The README asks for at least 5 A at 12 V; six C018 servos at their rated current already draw 5.4 A, so choose a 12 V supply rated above 5.4 A. The stall figure is the worst case, every joint blocked at once, and it does not last: both specifications say that a servo whose running current stays above 2 A for 2 s switches its output off and enters overcurrent protection (§7-11). For the standard arm, Feetech gives the C001's rated current at 6 V, not at 5 V, so the 3.0 A total is an estimate; it sits inside the 4 A rating of the 5 V supply the BOM links (Facmogu AL-0540, 5 V 4 A). The stall case does not fit. The C001 stalls at 2 A at 6 V and 2.5 A at 7.4 V (§5-5), so six blocked joints draw about 6 × 2 A = 12 A, an estimate from the 6 V figure and three times the AL-0540's 4 A. Nor can you count on the overcurrent protection here: at 5 V each C001 should stall at ≤ 5 V / 2.5 Ω ≈ 2.0 A (estimated from §5-10, the 2.5 Ω terminal resistance; Feetech gives no 5 V figure). As an upper bound this agrees with the specification: at 6 V the 2 A stall current of §5-5 is below 6 V / 2.5 Ω = 2.4 A. So the "above 2 A for 2 s" condition may never be met. The item that does apply is the Over Load protection next to it in the same table: a servo stalled at more than 80 % of its stall value for 2 s enters protection (§7-11). Both thresholds, 80 % for 2 s and 2 A for 2 s, are factory defaults, but Feetech's documents disagree on the current: the C001 specification gives 2 A for 2 s (§7-11), while Feetech's [online STS memory table](https://ftservo.github.io/ftservo-wiki/en/reference/parameter/memory-sts/) gives Protection_Current (address 28, 6.5 mA units) a default of 511, 511 × 6.5 mA ≈ 3.32 A (although its description gives 500 × 6.5 mA = 3250 mA as the maximum), and the 2019 table (V3.6, firmware 2.43) reposted by a third party ([STS3215 Memory Table.xlsx in matthieuvigne/STS_servos](https://github.com/matthieuvigne/STS_servos/blob/4d2278432a2b12027d04d0449e1e6f97df812d68/extras/STS3215%20Memory%20Table.xlsx)) lists 500, 500 × 6.5 mA = 3.25 A; to see which value your servo holds, read register 28 yourself. The overload side agrees: in both tables Overload_Torque (address 36, 1 % units) defaults to 80 and the protection time (address 35, 10 ms units) to 200 × 10 ms = 2 s. The gripper is the exception: when LeRobot configures an SO follower it writes Max_Torque_Limit 500, Protection_Current 250 and Overload_Torque 25 to the gripper servo only ([so_follower.py, lines 169–171, LeRobot v0.6.1](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/so_follower.py#L169-L171)). In both tables, Max_Torque_Limit (address 16) is in units of 0.1 %, so 500 is 50 % of the maximum torque; Protection_Current (address 28) is in units of 6.5 mA, so 250 is 250 × 6.5 mA = 1.625 A; and Overload_Torque (address 36) is the load that starts the overload timer, so once the gripper's load exceeds 25 % of its maximum torque (Feetech does not say whether this is relative to the address-16 setting or to the full locked torque; a stall exceeds it either way) for 2 s it enters protection. The torque it outputs after that is set by a different register, Protective_Torque (address 34, default 20 %), which LeRobot does not write; LeRobot's code comment calls Overload_Torque the torque when overloaded, which disagrees with Feetech's tables. The online table gives the torque limits (addresses 16 and 48) and Present_Load (address 60) all in units of 0.1 % and defines address 60 as the duty cycle of the output driving the motor, so the 50 % torque limit, once in effect after power-up, also caps the gripper's drive duty cycle at about half.
 
 According to both tables, however, the torque limit actually in effect is address 48, which is loaded from address 16 only at power-up, and LeRobot v0.6.1 writes only address 16 (never address 48) and does not reboot the servo, so the 50 % cap takes effect from the servo's next power-up; the author of the open [LeRobot PR #4783](https://github.com/huggingface/lerobot/pull/4783) likewise writes that a changed value "may need a power cycle to apply" but has not checked it on hardware. Once the cap applies, a stalled gripper should draw about 0.5 × 5 V / 2.5 Ω ≈ 1.0 A, below its 1.625 A protection current, so the overload protection (load above 25 % for 2 s) is expected to trigger first. Before then, for example in the first use after LeRobot configures the servo, the gripper may still drive at full duty, up to about 5 V / 2.5 Ω ≈ 2.0 A, which is above 1.625 A; the overload condition is met as well, and both timers default to 2 s (Protection_Time, address 35, and Over_Current_Protection_Time, address 38, both 200 × 10 ms), so it is uncertain which protection acts first. Even if registers 28 and 36 also take effect only at power-up, a full-duty stall still exceeds the factory 80 % overload threshold. Feetech has not published its firmware implementation, so all of this is an estimate.
 
 Both specifications also say that a new position command clears the overload and overcurrent protection flags (§7-11), and LeRobot sends Goal_Position on every send_action() ([so_follower.py, line 229](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/so_follower.py#L229)), so during teleoperation the next command clears the protection flags (the specifications do not say whether resending the same goal position counts as a new command); you cannot count on it to guard the servo for long, so still avoid keeping the gripper stalled. Both tables cover the STS3215 / STS series in general rather than the C001 variant, and they use the same addresses and units for these registers. LeRobot does write other registers on every joint: Operating_Mode (position), the P/I/D coefficients 16/0/32 (the factory P is 32; [config_so_follower.py, lines 45–47](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/config_so_follower.py#L45-L47)), Return_Delay_Time 0 and the acceleration registers 254 ([feetech.py, lines 209–217](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/feetech/feetech.py#L209-L217)), bit 4 of the Phase register, which it clears on the STS3215 to select single-turn angle feedback ([feetech.py, lines 219–225](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/feetech/feetech.py#L219-L225)), and, at calibration, Homing_Offset and the position limits ([feetech.py, lines 268–273](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/feetech/feetech.py#L268-L273)). Registers 16, 28 and 36 sit in the EEPROM area of both tables, and LeRobot writes them with Lock (address 55) at 0: configure() runs inside torque_disabled() ([so_follower.py, line 160](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/so_follower.py#L160)), which first writes Lock 0 to every motor ([feetech.py, lines 291–294](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/feetech/feetech.py#L291-L294)), and the online table says EEPROM values written with Lock at 0 persist after power-off. So a gripper servo keeps 500 / 250 / 25 after a power cycle, under other software, and if you move it to another joint, until something writes those registers again. But the other five joints keep the factory torque limit and protection thresholds (registers 16, 28 and 36 unchanged), and the 12 A stall total stays a conservative upper bound.
 
+</Callout>
+
 ## Assemble and set IDs
 
 The build has two halves: the software has to be installed and able to see the boards, and the motors have to be given IDs before any of it makes sense. Do the software first, because a motor with the wrong ID is much easier to diagnose when you know the port and the tools already work.
 
+### Tools on the bench
+
+The BOM lists the tools next to the parts ([SO-ARM100 README, lines 83–104](https://github.com/TheRobotStudio/SO-ARM100/blob/a758567c3978dfeefe282ede0500085a48fe8f78/README.md#L83-L104)). Have these ready before you start:
+
+- Phillips screwdrivers in sizes #0 and #1. The README calls them "highly recommended" for "easiest screw installation and removal"; both are standard sizes in most small screwdriver sets.
+- Table clamps to hold the arms on the table: the BOM lists 4 for a leader and follower pair, and 2 for a single follower.
+- USB-C cables, one for each control board.
+- One power supply per arm, with the voltage that matches its servos (see "Power").
+- A small screwdriver for removing support material from the printed parts; the assembly guide suggests one.
+- A multimeter, to measure the supply voltage at the board if the arm loses power under load (see the troubleshooting list below).
+- For your own fingers in Lesson 6: TPU 95A filament. The repository's compliant gripper also needs 2 additional M3 screws, and optionally 3M gripper tape for more friction ([README, line 251](https://github.com/TheRobotStudio/SO-ARM100/blob/a758567c3978dfeefe282ede0500085a48fe8f78/README.md#L251)).
+
 ### Install LeRobot
 
-Follow the LeRobot installation guide and put it in a separate Python environment. LeRobot pulls in a large stack of packages, and mixing it with your system Python is a good way to break something else. Once the repository is cloned and the environment is active, install the Feetech extra from inside the cloned folder:
+Install LeRobot into a separate Python environment. LeRobot pulls in a large stack of packages, and mixing it with your system Python is a good way to break something else. The [LeRobot installation guide](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/installation.mdx) uses conda, installed through Miniforge; once Miniforge is installed, the whole install is six commands in a terminal:
 
 ```bash
-pip install -e ".[feetech]"
+conda create -y -n lerobot python=3.12
+conda activate lerobot
+conda install ffmpeg -c conda-forge
+git clone https://github.com/huggingface/lerobot.git
+cd lerobot
+git checkout v0.6.1
+pip install -e ".[core_scripts,feetech]"
 ```
 
-The `-e` makes the install editable, so the commands come from your checkout; the `[feetech]` extra installs the serial SDK that talks to the STS3215. If the command fails, check that you are in the folder containing `pyproject.toml`, and re-check the installation page for the current Python version and any system packages.
+The first two lines create and activate an environment named `lerobot` with Python 3.12; LeRobot requires Python 3.12 or newer ([pyproject.toml, line 32](https://github.com/huggingface/lerobot/blob/v0.6.1/pyproject.toml#L32)). The third installs `ffmpeg`, which LeRobot's default video decoder needs ([installation guide, lines 70–87](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/installation.mdx#L70-L87)). The next three download the code, enter its folder and switch to release v0.6.1, the version the course checked these commands against. The last line installs LeRobot from that folder: the `-e` makes the install editable, so the commands come from your checkout; the `[feetech]` extra installs the serial SDK that talks to the STS3215 ([pyproject.toml, line 170](https://github.com/huggingface/lerobot/blob/v0.6.1/pyproject.toml#L170)), and `[core_scripts]` is the set the installation guide uses for recording, replaying and calibrating ([pyproject.toml, line 132](https://github.com/huggingface/lerobot/blob/v0.6.1/pyproject.toml#L132)). This lesson needs only `[feetech]`: in the course's own test of release v0.6.1, an install with only `.[feetech]` ran `lerobot-find-port`, `lerobot-setup-motors`, `lerobot-calibrate` and `lerobot-teleoperate`, but displaying camera data and recording a dataset need the extras that `core_scripts` adds. If the last command fails, check that you are in the folder containing `pyproject.toml` and that the `lerobot` environment is active.
 
 <Resource id="lerobot-so101" />
 
 ### Find the ports
 
-Each arm has its own controller board and its own USB port. Run:
+Each arm has its own controller board and its own USB port. If your boards are the Waveshare bus servo adapter, first set both jumpers to the `B` position. In position B the board connects the servo bus to its USB port; in position A it connects the bus to the UART pins for a microcontroller such as an ESP32, and the computer then sees nothing on the bus ([Waveshare Bus Servo Adapter (A) wiki](https://www.waveshare.com/wiki/Bus_Servo_Adapter_(A))). LeRobot's guide gives the same setting ([LeRobot SO-101 guide, line 174](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L174)). Then connect USB and the servo supply to both boards and run:
 
 ```bash
 lerobot-find-port
@@ -338,9 +370,30 @@ lerobot-find-port
 
 The tool lists the serial ports, asks you to unplug one board and press Enter, and then tells you which port disappeared. Plug it back in and repeat for the other board. Write down which port belongs to the leader and which to the follower, on paper or in a note next to the command you will use. On Linux the names look like `/dev/ttyACM0` and `/dev/ttyACM1`, but they can change when you replug, so check rather than assume. The examples below use `/dev/ttyACM0` for the follower and `/dev/ttyACM1` for the leader; replace them with your own.
 
+Port names depend on the operating system. On macOS they look like `/dev/tty.usbmodem575E0032081`, the example in LeRobot's guide ([LeRobot SO-101 guide, lines 57–74](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L57-L74)); on Windows the boards appear as `COM` ports, such as `COM3`, which `lerobot-find-port` lists through pyserial ([lerobot_find_port.py, lines 36–38](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/scripts/lerobot_find_port.py#L36-L38)), and the number depends on the computer; on Linux they are `/dev/ttyACM0`, `/dev/ttyACM1` and so on. Use the name exactly as `lerobot-find-port` prints it.
+
+On Linux, opening the port can fail with "Permission denied", because serial devices belong to a system group that your user may not be in. The permanent fix is to add your user to that group: `dialout` on Debian and Ubuntu, which gives "full and direct access to serial ports" ([Debian wiki: SystemGroups](https://wiki.debian.org/SystemGroups)), `uucp` on Arch Linux ([ArchWiki: Users and groups](https://wiki.archlinux.org/title/Users_and_groups)), and possibly another name on other distributions. Run `ls -l /dev/ttyACM0` to see which group owns the port, then add yourself to it (replace `dialout` with that group):
+
+```bash
+sudo usermod -aG dialout $USER
+```
+
+The change takes effect only after you log out and back in, or reboot; the ArchWiki notes that a group change applies only after a new login. LeRobot's guide gives a temporary workaround instead ([LeRobot SO-101 guide, lines 77–82](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L77-L82)):
+
+```bash
+sudo chmod 666 /dev/ttyACM0
+sudo chmod 666 /dev/ttyACM1
+```
+
+This workaround does not last. The device file in `/dev` is managed by udev, which creates it again and sets its permissions each time the board is plugged in ([ArchWiki: udev](https://wiki.archlinux.org/title/Udev)), so the change is lost when you replug the board or reboot. Mode 666 also gives read and write access to the owner, the group and every other user ([chmod(1) manual](https://man7.org/linux/man-pages/man1/chmod.1.html)), so any user on the computer can then open the port. Use it only until the group change is active.
+
 ### One motor at a time
 
 New servos all come with ID 1. If you connect two of them at once, both will answer to the same packets, and the setup script cannot tell them apart. That is why the official procedure connects exactly one motor at a time. The ID and the bus baud rate are written to the servo's <Term id="eeprom">EEPROM</Term> once, and they stay there until you change them. A replacement motor arrives as ID 1 again, so keep a note of which servo sits at which joint.
+
+<Callout type="warn" title="Power off before you plug or unplug a servo lead">
+Unplug the servo power supply before you connect or disconnect a 3-pin servo lead, and plug it back in only when the lead is fully seated. This also applies while you set IDs: when the script asks for the next motor, unplug the supply, change the lead, reconnect the supply and only then press Enter. Seeed Studio's SO-ARM course states the same rule: "Power off before plugging or unplugging servo cables, USB cables, or power connectors" ([Seeed Studio SO-ARM course, chapter 4](https://wiki.seeedstudio.com/robotics/soarm_physical_ai_course_chapter_4/)). Pulling only the USB cable does not make the bus safe, because the servos are powered by the supply and not by USB (same source). If the script then cannot find the motor, check the supply plug first; LeRobot's guide warns that "the power supply cable might disconnect as you manipulate the board" ([LeRobot SO-101 guide](https://huggingface.co/docs/lerobot/so101)).
+</Callout>
 
 ```bash
 lerobot-setup-motors \
@@ -367,6 +420,21 @@ The official guide's details are worth following literally:
 - Most joints use two motor horns; the top one takes an M3×6 screw, the bottom one does not (the wrist roll motor gets only one horn).
 - Motors are held with M2×6 screws, the smallest in the kit. Printed parts attach to the horns with M3×6 screws.
 - Daisy-chain from the gripper back to the base, and plug shoulder_pan (ID 1) into the board.
+
+The guide's screw list for each step of the follower, as it is written there ([LeRobot SO-101 guide, lines 237–326](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L237-L326)); watch the video for each joint in the guide, because "on both sides" is not always clear from the text alone:
+
+| Step | Motor into its holder (M2×6) | Horn (M3×6) | Printed part (M3×6) |
+| --- | --- | --- | --- |
+| Joint 1 | 4 for the motor, 2 for the first motor holder | 1 in the top horn | shoulder part: 4 on top, 4 on the bottom |
+| Joint 2 | 4 | 1 in the top horn | upper arm: 4 on each side |
+| Joint 3 | 4 | 1 in the top horn | forearm: 4 on each side |
+| Joint 4 | 4 | 1 in the top horn | none listed; motor holder 4 slides over |
+| Joint 5 | 2 at the front | 1, and only one horn | wrist to motor 4: 4 "on both sides" |
+| Gripper | 2 on each side | 1 in the top horn | gripper to the wrist horn: 4; claw: 4 "on both sides" |
+
+On the leader the gripper step is different: 4 M3×6 for the leader holder, 1 M2×6 for the handle, 2 M2×6 on each side of the gripper motor, 1 M3×6 in its horn and 4 M3×6 for the trigger ([LeRobot SO-101 guide, lines 340–343](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L340-L343)). Before you mount each motor, write its joint on the housing, F1 to F6 for the follower and L1 to L6 for the leader; Seeed's course recommends this because it "saves hours of debugging later" ([Seeed Studio SO-ARM course, chapter 6](https://wiki.seeedstudio.com/robotics/soarm_physical_ai_course_chapter_6/)).
+
+Leave slack in every 3-pin cable. Before you close the next part, move the joint by hand from one stop to the other and watch its cable: it must not pull tight, rub on a horn or get caught between two parts. Seeed's checklist for a finished arm is that cables "are seated, not sharply bent, and stay clear of the joint motion range" (same source).
 
 Keep the two screw sizes apart and bag the printed parts by joint; M2×6 and M3×6 look similar in a pile. Two practical tips. Do not overtighten screws into printed plastic; the threads strip long before the screw feels tight, and a stripped boss cannot be fixed with more force. And turn each joint by hand after mounting it. If it binds, find out why before you go on: a cable trapped under a horn or a support fragment inside a bearing seat will not fix itself, and it will make calibration and teleoperation feel like a software problem when it is mechanical.
 
@@ -400,6 +468,21 @@ lerobot-calibrate \
 
 The procedure is the same for both. Move the arm so every joint is in the middle of its range, then press Enter. Then move every joint slowly through its full range, so the tool sees both ends. Do not force a joint against its mechanical stop; reach the end of travel, then stop. The `id` is the name the calibration is saved under; it is not the motor ID, and it is not a serial number. Use the same name every time you start this arm, otherwise a different calibration file is loaded and the joint zero offsets no longer match the assembly.
 
+The middle pose is judged by eye; the official guide shows it in its calibration video ([LeRobot SO-101 guide, line 398](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L398)). For each joint, find its two end stops by hand and put it halfway between them:
+
+- `shoulder_pan`: the arm points straight ahead, halfway between its left and right stops.
+- `shoulder_lift`, `elbow_flex` and `wrist_flex`: each joint halfway between its two stops.
+- `wrist_roll`: hold the gripper level, at the same angle on the leader and on the follower. LeRobot does not record this joint's range; it uses the servo's full turn and takes the angle you set here as the middle ([so_follower.py, lines 135–143](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/so_follower.py#L135-L143)), so a different angle on the two arms becomes a constant offset in teleoperation. For the same reason, skip this joint when you move the joints through their ranges.
+- `gripper`: half open.
+
+The pose does not need to be exact. When you press Enter, LeRobot sets each motor's homing offset so that its present position reads as the middle of the encoder's range ([motors_bus.py, lines 775–797](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/motors_bus.py#L775-L797)); the recorded ranges then set the scale.
+
+Calibration switches the arm's torque off. LeRobot disables torque on every motor of the arm before it asks for the middle pose ([so_follower.py, lines 127–131](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/so_follower.py#L127-L131); for the leader, [so_leader.py, lines 96–100](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/teleoperators/so_leader/so_leader.py#L96-L100)). From that moment the servos no longer hold the arm up, and the follower drops under its own weight. Support the follower with one hand from the moment you start the command until calibration has finished, and then lower it to a resting position on the table; the torque stays off after the tool exits.
+
+<Callout type="warn" title="The follower is not a toy">
+The follower is strong enough to pinch fingers and knock things off a desk. Keep the workspace clear, keep cables and cups out of the arm's reach, and power it off when you work on it. A moving arm does not know where your hand is.
+</Callout>
+
 With both arms calibrated, teleoperation is one command:
 
 ```bash
@@ -414,9 +497,14 @@ lerobot-teleoperate \
 
 Move the leader slowly at first, and keep a hand near the follower's power switch. Clear the table around the arm before you start: the follower will copy whatever you do, including a fast move into a cup. The first minute is for checking directions and range, not for judging how well it tracks.
 
+To stop teleoperation, press Ctrl+C. LeRobot then disconnects both arms ([lerobot_teleoperate.py, lines 274–280](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/scripts/lerobot_teleoperate.py#L274-L280)), and by default disconnecting switches the torque off on every motor before the port closes ([config_so_follower.py, line 31](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/config_so_follower.py#L31); [motors_bus.py, lines 547–559](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/motors_bus.py#L547-L559)). The follower goes limp at that moment and falls from wherever it is. Before you press Ctrl+C, use the leader to bring the follower to a low position just above the table, or hold the follower with your other hand.
+
 When it misbehaves, work from the outside in:
 
-- **A motor is not found**: check power, USB and the 3-pin cable at that motor. The Waveshare board needs its two jumpers on the B (USB) channel; on the wrong channel the board is powered but the computer sees nothing.
+- **A motor is not found**: check power, USB and the 3-pin cable at that motor, and check that the Waveshare board's two jumpers are still on B, as set in "Find the ports"; on the wrong channel the board is powered but the computer sees nothing.
+- **"Could not connect on port …"**: LeRobot prints this when it cannot open the serial port at all ([motors_bus.py, lines 536–540](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/motors_bus.py#L536-L540)). If the error printed above it says "Permission denied", your Linux user may not open the port; apply the permission fix in "Find the ports". Otherwise the port name is wrong or the board is unplugged: run `lerobot-find-port` again and copy the name it prints.
+- **"motor check failed" with "Missing motor IDs"**: the port opened, but some motors did not answer. When it connects, LeRobot pings every ID of the arm and lists the ones that are missing or have the wrong model number ([motors_bus.py, lines 465–502](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/motors_bus.py#L465-L502)). It talks to the bus at 1,000,000 baud ([feetech.py, line 44](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/feetech/feetech.py#L44)), and the setup script writes both that baud rate and the ID into each motor ([motors_bus.py, lines 617–629](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/motors_bus.py#L617-L629)). A motor that was skipped during setup, or replaced later, still has the factory ID 1, so it does not answer at its joint's ID. If such a motor stays on the bus, it also conflicts with `shoulder_pan`, which has ID 1 ([so_follower.py, line 54](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/so_follower.py#L54)): both servos answer packets addressed to ID 1. Find the missing ID in the list, check the cable to that motor, and if the cable is fine, run `lerobot-setup-motors` again, connecting each motor alone when the script asks for it.
+- **Joints go limp, or the arm twitches and the board loses the motors, when several joints move at once**: the supply voltage may be dropping under load. Feetech's specification says a servo whose input falls below 4 V enters protection and leaves it on its own when the voltage is back in range (C001 specification, §7-11, [PDF](https://www.feetechrc.com/Data/feetechrc/upload/file/20200611/6372749961523760249976542.pdf)), and a 5 V supply has only 1 V of margin above that threshold. That this happens with the standard 5 V 4 A supply is the course's estimate, not a measured result. Check the supply plug and the cable to the board first, avoid holding joints against a stop, and if the problem stays, measure the voltage at the board's input with a multimeter while the arm moves, or try a 5 V supply with a higher current rating.
 - **The follower jumps on start**: it was calibrated in a different pose or under another id. Re-run calibration with the pose and the id you intend to use.
 - **A joint moves the wrong way or is offset**: recalibrate that arm. Do not fix it by editing the command; the mapping is wrong, not the command.
 - **A servo gets hot or the gripper buzzes when closed on an object**: it is pushing against something. The position loop keeps a steady error and keeps applying torque, exactly the steady-state behaviour from Lesson 4. Release the grip or lower the goal; do not let it buzz for minutes.
@@ -439,10 +527,6 @@ A checklist, in the order the work happens:
 Film the whole arm and the table, not just the gripper: later you need to see whether a failure was the grasp or the path. If one joint lags in the video, check the mechanics and the calibration before blaming the software.
 
 If the full pair is out of reach, the cheaper paths still teach most of the lesson. With a single follower you keep the whole software path: you can set it up, calibrate it, read its joints and command it from Python, and you can add a leader later. With MuJoCo you can run the same software before any hardware exists; what you miss is the hands, the cables and the sound of a servo straining. Neither shortcut is wasted time, as long as you record which part of the skill each path has practised.
-
-<Callout type="warn" title="The follower is not a toy">
-The follower is strong enough to pinch fingers and knock things off a desk. Keep the workspace clear, keep cables and cups out of the arm's reach, and power it off when you work on it. A moving arm does not know where your hand is.
-</Callout>
 
 Lesson 6 takes the next step: gripper fingers. They are small, they are cheap to iterate, and they are the part that proves you can design as well as assemble. A working arm with a gripper you designed for it is a much better answer to "can you build a robot?" than a kit that only runs the manufacturer's demo.
 
