@@ -388,6 +388,21 @@ lerobot-setup-motors \
 - 电机用 M2×6 螺丝固定，是套件里最小的螺丝；打印件用 M3×6 螺丝固定在舵机盘上。
 - 从夹爪往底座方向菊花链，最后把 shoulder_pan（ID 1）插到控制板上。
 
+下表是指南为从臂每一步列出的螺丝，照原文整理（[LeRobot SO-101 指南第 237–326 行](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L237-L326)）；每个关节都要看指南里的视频，因为“on both sides”（两侧）单看文字并不总是清楚：
+
+| 步骤 | 电机装进舵机座（M2×6） | 舵机盘（M3×6） | 打印件（M3×6） |
+| --- | --- | --- | --- |
+| 关节 1 | 电机 4 颗，第一个舵机座 2 颗 | 上舵机盘 1 颗 | 肩部件：上面 4 颗，下面 4 颗 |
+| 关节 2 | 4 颗 | 上舵机盘 1 颗 | 大臂：每侧 4 颗 |
+| 关节 3 | 4 颗 | 上舵机盘 1 颗 | 小臂：每侧 4 颗 |
+| 关节 4 | 4 颗 | 上舵机盘 1 颗 | 未列螺丝；4 号舵机座直接套上 |
+| 关节 5 | 前面 2 颗 | 1 颗，且只装一个舵机盘 | 腕部接 4 号电机：4 颗 “on both sides” |
+| 夹爪 | 每侧 2 颗 | 上舵机盘 1 颗 | 夹爪接腕部舵机盘：4 颗；爪：4 颗 “on both sides” |
+
+主臂的夹爪这一步不同：主臂支架 4 颗 M3×6，手柄 1 颗 M2×6，夹爪电机每侧 2 颗 M2×6，它的舵机盘 1 颗 M3×6，扳机 4 颗 M3×6（[LeRobot SO-101 指南第 340–343 行](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L340-L343)）。装每个电机之前，在外壳上写下它的关节：从臂写 F1 到 F6，主臂写 L1 到 L6；Seeed 的课程建议这样做，因为它 “saves hours of debugging later”（能省下之后好几个小时的排错；[Seeed Studio SO-ARM 课程第 6 章](https://wiki.seeedstudio.com/robotics/soarm_physical_ai_course_chapter_6/)）。
+
+每根三针线都要留出余量。装下一块零件之前，用手把关节从一个限位转到另一个限位，同时看着它的线：线不能被拉紧，不能磨到舵机盘，也不能夹在两块零件之间。Seeed 对装好的臂的检查项是线缆 “are seated, not sharply bent, and stay clear of the joint motion range”（插到位、没有急弯、远离关节的活动范围；同一来源）。
+
 把两种螺丝分开放，打印件按关节分袋；M2×6 和 M3×6 混在一堆里，用眼睛很难分清。两条通用的实操建议。第一，拧进塑料打印件的螺丝不要过力；螺纹远在你觉得“拧紧”之前就滑了，滑掉的螺柱不是再加力能救的。第二，每装好一个关节，先用手转一遍。如果发卡，先找出原因再往下走：被舵机盘压住的线、轴承座里的支撑碎片，都不会自己好，而且会让校准和遥操作看起来像软件问题，实际是机械问题。
 
 舵机盘（horn）是套在舵机输出轴上的带齿圆盘，打印连杆就拧在它上面。飞特规定输出轴为 25T/OD5.9mm，即 25 齿、外径 5.9 mm 的花键，舵机盘螺丝为 M3×6（C001 与 C018 规格，§6-9 和 §6-13）。舵机另一侧的第二个舵机盘给连杆提供第二个支撑，使它不只靠输出轴撑着；组装指南写明“No screws are required for the bottom horn”（下面那个舵机盘不需要螺丝；[LeRobot SO-101 指南](https://huggingface.co/docs/lerobot/so101)）。M2×6 螺丝把舵机本身固定在打印的舵机座里。花键有 25 个齿，所以舵机盘只能以 360° / 25 = 14.4° 为一档重新装上，相当于 14.4 × 4096 / 360 = 163.84 个编码器步。校准记录的是按当时舵机盘位置得到的各关节范围，所以舵机盘拆下再装回时，哪怕只错了一个齿，也要把那条臂重新校准一次。
@@ -419,6 +434,15 @@ lerobot-calibrate \
 ```
 
 两条臂的流程一样：把臂摆到每个关节都在行程中点的位置，按回车；然后慢慢把每个关节走完整个行程，让工具看到两端。不要硬顶机械限位；走到行程尽头就停。`id` 是校准保存时用的名字，不是电机 ID，也不是序列号。每次启动这条臂都用同一个名字，否则会载入另一份校准数据，关节零位与当前装配对不上。
+
+中点姿态靠目测；官方指南在校准视频里演示了这个姿态（[LeRobot SO-101 指南第 398 行](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L398)）。对每个关节，先用手找到它的两个限位，再把它放在两者正中：
+
+- `shoulder_pan`：臂朝正前方，处在左右两个限位的正中。
+- `shoulder_lift`、`elbow_flex` 和 `wrist_flex`：每个关节都放在它两个限位的正中。
+- `wrist_roll`：让夹爪保持水平，主臂和从臂的角度相同。LeRobot 不记录这个关节的范围，而是使用舵机的一整圈，并把你在这一步摆的角度当作中点（[so_follower.py 第 135–143 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/so_follower.py#L135-L143)），所以两条臂摆的角度不同，遥操作时就会带着一个固定偏差。同样的原因，让各关节走完整行程时跳过这个关节。
+- `gripper`：半开。
+
+姿态不需要很精确。按下回车时，LeRobot 给每个电机设置归零偏移，使它当前的位置读作编码器量程的中点（[motors_bus.py 第 775–797 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/motors_bus.py#L775-L797)）；之后记录的行程决定比例。
 
 校准会关掉整条臂的扭矩。LeRobot 在提示你摆到中点姿态之前，先关闭这条臂上每个电机的扭矩（[so_follower.py 第 127–131 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/so_follower.py#L127-L131)；主臂见 [so_leader.py 第 96–100 行](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/teleoperators/so_leader/so_leader.py#L96-L100)）。从这一刻起，舵机不再托住机械臂，从臂会在自重作用下落下。从启动命令开始直到校准结束，都要用一只手托住从臂；结束后把它放低，平放在桌面的停放位置上。工具退出后扭矩仍然是关闭的。
 

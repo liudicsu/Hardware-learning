@@ -388,6 +388,21 @@ The official guide's details are worth following literally:
 - Motors are held with M2×6 screws, the smallest in the kit. Printed parts attach to the horns with M3×6 screws.
 - Daisy-chain from the gripper back to the base, and plug shoulder_pan (ID 1) into the board.
 
+The guide's screw list for each step of the follower, as it is written there ([LeRobot SO-101 guide, lines 237–326](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L237-L326)); watch the video for each joint in the guide, because "on both sides" is not always clear from the text alone:
+
+| Step | Motor into its holder (M2×6) | Horn (M3×6) | Printed part (M3×6) |
+| --- | --- | --- | --- |
+| Joint 1 | 4 for the motor, 2 for the first motor holder | 1 in the top horn | shoulder part: 4 on top, 4 on the bottom |
+| Joint 2 | 4 | 1 in the top horn | upper arm: 4 on each side |
+| Joint 3 | 4 | 1 in the top horn | forearm: 4 on each side |
+| Joint 4 | 4 | 1 in the top horn | none listed; motor holder 4 slides over |
+| Joint 5 | 2 at the front | 1, and only one horn | wrist to motor 4: 4 "on both sides" |
+| Gripper | 2 on each side | 1 in the top horn | gripper to the wrist horn: 4; claw: 4 "on both sides" |
+
+On the leader the gripper step is different: 4 M3×6 for the leader holder, 1 M2×6 for the handle, 2 M2×6 on each side of the gripper motor, 1 M3×6 in its horn and 4 M3×6 for the trigger ([LeRobot SO-101 guide, lines 340–343](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L340-L343)). Before you mount each motor, write its joint on the housing, F1 to F6 for the follower and L1 to L6 for the leader; Seeed's course recommends this because it "saves hours of debugging later" ([Seeed Studio SO-ARM course, chapter 6](https://wiki.seeedstudio.com/robotics/soarm_physical_ai_course_chapter_6/)).
+
+Leave slack in every 3-pin cable. Before you close the next part, move the joint by hand from one stop to the other and watch its cable: it must not pull tight, rub on a horn or get caught between two parts. Seeed's checklist for a finished arm is that cables "are seated, not sharply bent, and stay clear of the joint motion range" (same source).
+
 Keep the two screw sizes apart and bag the printed parts by joint; M2×6 and M3×6 look similar in a pile. Two practical tips. Do not overtighten screws into printed plastic; the threads strip long before the screw feels tight, and a stripped boss cannot be fixed with more force. And turn each joint by hand after mounting it. If it binds, find out why before you go on: a cable trapped under a horn or a support fragment inside a bearing seat will not fix itself, and it will make calibration and teleoperation feel like a software problem when it is mechanical.
 
 The horn is the toothed disc that fits on the servo's output shaft; the printed link is screwed to it. Feetech specifies the output shaft as 25T/OD5.9mm, a 25-tooth spline 5.9 mm across, and the horn screw as M3×6 (C001 and C018 specifications, §6-9 and §6-13). The second horn, on the far side of the servo, gives the link a second support so it is not held by the output shaft alone; the assembly guide notes that "No screws are required for the bottom horn" ([LeRobot SO-101 guide](https://huggingface.co/docs/lerobot/so101)). The M2×6 screws hold the servo itself in its printed holder. Because the spline has 25 teeth, a horn can only be refitted in steps of 360° / 25 = 14.4°, which is 14.4 × 4096 / 360 = 163.84 encoder steps. Calibration records each joint's range with the horns as they were fitted, so if you take a horn off and put it back, even one tooth off, calibrate that arm again.
@@ -419,6 +434,15 @@ lerobot-calibrate \
 ```
 
 The procedure is the same for both. Move the arm so every joint is in the middle of its range, then press Enter. Then move every joint slowly through its full range, so the tool sees both ends. Do not force a joint against its mechanical stop; reach the end of travel, then stop. The `id` is the name the calibration is saved under; it is not the motor ID, and it is not a serial number. Use the same name every time you start this arm, otherwise a different calibration file is loaded and the joint zero offsets no longer match the assembly.
+
+The middle pose is judged by eye; the official guide shows it in its calibration video ([LeRobot SO-101 guide, line 398](https://github.com/huggingface/lerobot/blob/v0.6.1/docs/source/so101.mdx#L398)). For each joint, find its two end stops by hand and put it halfway between them:
+
+- `shoulder_pan`: the arm points straight ahead, halfway between its left and right stops.
+- `shoulder_lift`, `elbow_flex` and `wrist_flex`: each joint halfway between its two stops.
+- `wrist_roll`: hold the gripper level, at the same angle on the leader and on the follower. LeRobot does not record this joint's range; it uses the servo's full turn and takes the angle you set here as the middle ([so_follower.py, lines 135–143](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/so_follower.py#L135-L143)), so a different angle on the two arms becomes a constant offset in teleoperation. For the same reason, skip this joint when you move the joints through their ranges.
+- `gripper`: half open.
+
+The pose does not need to be exact. When you press Enter, LeRobot sets each motor's homing offset so that its present position reads as the middle of the encoder's range ([motors_bus.py, lines 775–797](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/motors/motors_bus.py#L775-L797)); the recorded ranges then set the scale.
 
 Calibration switches the arm's torque off. LeRobot disables torque on every motor of the arm before it asks for the middle pose ([so_follower.py, lines 127–131](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/robots/so_follower/so_follower.py#L127-L131); for the leader, [so_leader.py, lines 96–100](https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/teleoperators/so_leader/so_leader.py#L96-L100)). From that moment the servos no longer hold the arm up, and the follower drops under its own weight. Support the follower with one hand from the moment you start the command until calibration has finished, and then lower it to a resting position on the table; the torque stays off after the tool exits.
 
