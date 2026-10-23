@@ -838,9 +838,11 @@ for (const f of existsSync(dataDir) ? readdirSync(dataDir).filter((f) => f.endsW
 // sync_writes Goal_Position on every send_action() (so_follower.py line 229). C001/C018 spec 7-11: a new position command clears the
 // overload and overcurrent protection flags. Open LeRobot PR 4783: "may need a power cycle to apply", not checked on hardware. Supplementary: the 2019 "STS3215 Memory Table.xlsx" V3.6
 // (firmware 2.43, 2019-02-25) reposted in matthieuvigne/STS_servos @ 4d22784: same addresses and units, Protection current default 500; P 32, I 0, D 32.
+// Both tables and LeRobot v0.6.1 tables.py (lines 46–47, 76–83): addr 5 ID (default 1) and addr 6 baud rate are EEPROM; the SRAM area starts at
+// addr 40 Torque_Enable (wiki 2.3 "SRAM Control", xlsx "SRAM"); addr 42 Goal_Position and addr 56 Present_Position are two bytes each.
 const lrBase = "https://github.com/huggingface/lerobot/blob/v0.6.1/src/lerobot/";
 const lerobot = { torque: 500, cur: 250, ol: 25, lines: "169–171", tag: "v0.6.1", url: `${lrBase}robots/so_follower/so_follower.py#L169-L171`,
-  addr: { torque: 16, cur: 28, hold: 34, time: 35, ol: 36, ocTime: 38, lim: 48, lock: 55, load: 60 }, tUnit: 0.1, oUnit: 1, mA: 6.5, curDef: 500, wikiDef: 511, wikiMax: 500, olDef: 80, holdDef: 20, timeDef: 200, ocTimeDef: 200, timeMs: 10,
+  addr: { id: 5, baud: 6, torque: 16, cur: 28, hold: 34, time: 35, ol: 36, ocTime: 38, sram: 40, torqueEn: 40, goal: 42, lim: 48, lock: 55, present: 56, load: 60 }, idDef: 1, tUnit: 0.1, oUnit: 1, mA: 6.5, curDef: 500, wikiDef: 511, wikiMax: 500, olDef: 80, holdDef: 20, timeDef: 200, ocTimeDef: 200, timeMs: 10,
   pid: [16, 0, 32], pDef: 32, cfgLines: "45–47", cfgUrl: `${lrBase}robots/so_follower/config_so_follower.py#L45-L47`, retDelay: 0, acc: 254,
   feLines: ["209–217", "268–273", "219–225", "291–294"], feUrl: [`${lrBase}motors/feetech/feetech.py#L209-L217`, `${lrBase}motors/feetech/feetech.py#L268-L273`,
     `${lrBase}motors/feetech/feetech.py#L219-L225`, `${lrBase}motors/feetech/feetech.py#L291-L294`], sfLine: 160, sfUrl: `${lrBase}robots/so_follower/so_follower.py#L160`,
@@ -1005,6 +1007,8 @@ lerobot.wikiAmps = (lerobot.wikiDef * lerobot.mA / 1000).toFixed(2);
     ok(gl.includes(q), `glossary safety-factor: expected ${JSON.stringify(q)}`);
   console.log(`calc  gripper-fingers: grip_force.py output, worked examples, widget steps, q1 ${f2(q1)} / q2 tan ${q2Angles.en}° = ${f2(tan(q2Angles.en))}, tilt readings, Polymaker/Prusa print settings, summary, fin-ray model (I ${f3(I1)} / ${Ib.toFixed(0)} / ${Ih.toFixed(0)} mm⁴), mass ${mass} g and Shore ${(shore * astmPt).toFixed(3)} mm bound in en/zh and the glossary`);
 }
+// fdm-printing's estimate for printing a full SO-101 (about 1 kg of PLA+), reused by so101-arm's kit-plus-own-print line
+const fdmFil = [20, 25];
 {
   // so101-arm: the two BOM totals are rebuilt from the README line items (pinned a758567, US prices), and the error
   // budget, current budget, horn refit and filament upper bound are recomputed from the Feetech spec numbers quoted.
@@ -1031,8 +1035,24 @@ lerobot.wikiAmps = (lerobot.wikiDef * lerobot.mA / 1000).toFixed(2);
       `  合计     ${d(sPair)} + ${d(bPair)} + ${d(oPair)} = ${d(pair)}\n一条从臂的零件：\n  舵机      6 x ${d(servo)} = ${d(sFol)}    （6 x ${code[hi]} 1/${hi}）\n` +
       `  其他     ${d(board)} 驱动板 + $${usb} USB-C 线 + $${psu} 电源 + $5 夹具 + $6 螺丝刀 = ${d(oFol)}\n  合计     ${d(sFol)} + ${d(oFol)} = ${d(fol)}\n\`\`\``,
   };
-  const step = 360 / 4096, r = 200, rad = Math.PI / 180;
-  const err = `encoder resolution (C001 spec, 7-8):  360 / 4096 = ${step.toFixed(3)} deg per step\ngear backlash (C001 and C018 spec, 6-11):  <= 0.5 deg\n` +
+  // sts_packet.py (the program the lesson prints) and its committed output are the source for the encoder, register and reply numbers
+  const sp = readFileSync(join(root, "examples/month-3/so101-arm/sts_packet.py"), "utf8");
+  const spOut = readFileSync(join(root, "examples/month-3/expected/arm-sts_packet.txt"), "utf8");
+  const [, encS, bitsS] = sp.match(/^STEPS_PER_TURN = (\d+) +# (\d+)-bit magnetic encoder$/m) ?? [];
+  const bits = Number(bitsS), enc = Number(encS);
+  const reg = (sp.match(/^TORQUE_ENABLE, GOAL_POSITION, PRESENT_POSITION = (\d+), (\d+), (\d+)$/m) ?? []).slice(1).map(Number);
+  const rb = (sp.match(/^ +reply = bytes\(\[([^\]]+)\]\)/m)?.[1] ?? "").split(",").map((s) => Number(s.trim()));
+  const hx = (b) => b.toString(16).toUpperCase().padStart(2, "0"), lo8 = (n) => ~n & 0xFF;
+  const rHex = [...rb, lo8(rb.slice(2).reduce((a, b) => a + b, 0))].map(hx).join(" "), pos = rb[5] | rb[6] << 8, pb = `${hx(rb[5])} ${hx(rb[6])}`;
+  const posHex = `0x${hx(rb[6])}${hx(rb[5])}`, deg = (pos * 360 / enc).toFixed(1), flip = hx(rb[6] ^ 1), q3 = 360 * 1024 / enc;
+  const tq = 1 + 4 + 3 + reg[0] + 1, gs = 1 + 5 + 3 + reg[1] + 0 + 8;
+  ok(enc === 2 ** bits && JSON.stringify(reg) === JSON.stringify([lerobot.addr.torqueEn, lerobot.addr.goal, lerobot.addr.present]) && reg.every((a) => a >= lerobot.addr.sram)
+    && rb.length === 7 && spOut.includes(`reply ${rHex} -> servo ${rb[2]}, error ${rb[4]}, position ${pos} = ${deg} deg`),
+    `so101-arm: sts_packet.py (${bits}-bit / ${enc} steps, registers ${reg}, reply ${rHex}) no longer matches its output, 2^bits or the LeRobot / Feetech table`);
+  ok([lerobot.addr.id, lerobot.addr.baud, lerobot.addr.torque, lerobot.addr.cur, lerobot.addr.ol].every((a) => a < lerobot.addr.sram),
+    `so101-arm: the ID, baud rate and registers ${lerobot.addr.torque} / ${lerobot.addr.cur} / ${lerobot.addr.ol} must sit in the EEPROM area (below SRAM at ${lerobot.addr.sram})`);
+  const step = 360 / enc, r = 200, rad = Math.PI / 180;
+  const err = `encoder resolution (C001 spec, 7-8):  360 / ${enc} = ${step.toFixed(3)} deg per step\ngear backlash (C001 and C018 spec, 6-11):  <= 0.5 deg\n` +
     `at an example radius of ${r} mm from the joint axis:\n  one step:  ${r} x ${step.toFixed(3)} x pi / 180 = ${(r * step * rad).toFixed(2)} mm\n  backlash:  ${r} x 0.5   x pi / 180 = ${(r * 0.5 * rad).toFixed(2)} mm\n`;
   // Feetech C018 / C001 specs: 5-9 rated, 5-5 stall (C001 at 6 V and 7.4 V), 7-11 overcurrent (2 A for 2 s) and overload (80 % of stall for 2 s);
   // README: at least 5 A at 12 V; BOM 5 V supply Facmogu AL-0540 5 V 4 A.
@@ -1044,7 +1064,6 @@ lerobot.wikiAmps = (lerobot.wikiDef * lerobot.mA / 1000).toFixed(2);
   const robo = 329, vd = "2026-10-23";
   // store prices verified 2026-10-23: Hiwonder xArm 1S, Seeed SO-ARM101 Pro + printed parts (finalPrice), WowRobo sale prices (compare-at wowWas)
   const st = { hiw: 199.99, seeed: 277.99, printed: 30.99, wow: [325.99, 419.99, 489.99], wowWas: [363, 467, 545] };
-  const bits = 12, enc = 2 ** bits, deg3116 = (3116 * 360 / enc).toFixed(1);
   ok(st.wow.every((p, i) => p < st.wowWas[i]) && st.wow[2] > Math.max(st.hiw, st.seeed + st.printed, robo),
     `so101-arm: WowRobo prices ${st.wow} are no longer sale prices below ${st.wowWas} or no longer the highest in the table`);
   // gripper stall under the torque limit: duty cycle capped at lr.pct %, so about lr.pct / 100 x 5 V / rTerm, below the protection current;
@@ -1066,8 +1085,9 @@ lerobot.wikiAmps = (lerobot.wikiDef * lerobot.mA / 1000).toFixed(2);
   const teeth = 25, tooth = 360 / teeth, vols = [571.4, 614.6], ender = 571.3, vsum = vols[0] + vols[1], infill = 15, filament = 22;
   // vols: solid volumes of Prusa_/Bambu A1 mini Follower and Leader SO101 plate STLs at a758567 (571.444, 614.587 cm³); Ender follower 571.292
   const quiz = pair + filament;
+  ok(fdmFil[0] <= filament && filament <= fdmFil[1], `so101-arm: the $${filament} filament figure is outside fdm-printing's $${fdmFil.join('–')}`);
   const r1 = (hi / lo).toFixed(2), r2 = ((hi / lo) ** 2).toFixed(2);
-  const common = [err, `360° / ${teeth} = ${tooth}°`, `${tooth} × 4096 / 360 = ${(tooth * 4096 / 360).toFixed(2)}`, `${vols[0]} + ${vols[1]} = ${vsum.toFixed(1)} cm³`,
+  const common = [err, `360° / ${teeth} = ${tooth}°`, `${tooth} × ${enc} / 360 = ${(tooth * enc / 360).toFixed(2)}`, `${vols[0]} + ${vols[1]} = ${vsum.toFixed(1)} cm³`,
     `1.24 g/cm³`, `${(vsum * 1.24 / 1000).toFixed(2)} kg`, `${hi} / ${lo} = ${r1}`, `(${hi}/${lo})² ≈ ${r2}`,
     `${d(pair)} + $${filament.toFixed(2)} = ${d(quiz)}`, `answer={${quiz.toFixed(2)}}`, `| ${d(pair)} + `, `${teeth}T/OD5.9mm`];
   const per = { en: [cur.en, bom.en, `the BOM pair (${d(pair)}) and print the parts yourself with about $${filament} of PLA+`, `comes to ${d(pair)} for a leader and follower pair, or ${d(fol)} for one follower`, `the BOM pair costs ${d(pair)} (one follower ${d(fol)})`, `by a factor of about ${Math.round(0.5 / step)}`,
@@ -1101,7 +1121,23 @@ lerobot.wikiAmps = (lerobot.wikiDef * lerobot.mA / 1000).toFixed(2);
       `Registers ${lr.addr.torque}, ${lr.addr.cur} and ${lr.addr.ol} sit in the EEPROM area of both tables, and LeRobot writes them with Lock (address ${lr.addr.lock}) at 0: configure() runs inside torque_disabled() ([so_follower.py, line ${lr.sfLine}](${lr.sfUrl})), which first writes Lock 0 to every motor ([feetech.py, lines ${lr.feLines[3]}](${lr.feUrl[3]})), and the online table says EEPROM values written with Lock at 0 persist after power-off.`,
       `So a gripper servo keeps ${lr.torque} / ${lr.cur} / ${lr.ol} after a power cycle, under other software, and if you move it to another joint, until something writes those registers again.`,
       `But the other five joints keep the factory torque limit and protection thresholds (registers ${lr.addr.torque}, ${lr.addr.cur} and ${lr.addr.ol} unchanged), and the ${stall5} A stall total stays a conservative upper bound.`,
-      `| Hiwonder xArm 1S | $${st.hiw} |`, `| $${st.seeed} (+ $${st.printed} for Seeed's printed parts set`, `| $${st.wow[0]} printed parts plus servos / $${st.wow[1]} unassembled full kit / $${st.wow[2]} fully assembled |`, `Seeed servo kit + Seeed printed parts = $${st.seeed} + $${st.printed} = $${(st.seeed + st.printed).toFixed(2)}`, `| Robonine SO-ARM101 Black & White kit | $${robo} | both arms unassembled with ${nPair} servos,`, `Prices are the prices on each store's page, verified ${vd}; all of them change`, `single prices from each store's page (verified ${vd}), not totals the course has rebuilt from line items; WowRobo's are sale prices, shown against struck-through prices of $${st.wowWas.join(' / $')}.`, `3116 × 360 / ${enc} = ${deg3116}°`, `3116 / ${enc} of a turn is ${deg3116}°`, `The encoder has ${enc} steps per turn, so 1024 steps is 1024 / ${enc} = 1/${enc / 1024} of a turn.`, `each with a ${bits}-bit encoder of ${enc} steps per turn: 1024 steps is ${360 * 1024 / enc}°.`, `7.4 V STS3215 (${code[hi]}/${code[mid]}/${code[lo]} per the README BOM)`,
+      `| Hiwonder xArm 1S | $${st.hiw} |`, `| $${st.seeed} (+ $${st.printed} for Seeed's printed parts set`, `| $${st.wow[0]} printed parts plus servos / $${st.wow[1]} unassembled full kit / $${st.wow[2]} fully assembled |`, `Seeed servo kit + Seeed printed parts = $${st.seeed} + $${st.printed} = $${(st.seeed + st.printed).toFixed(2)}`, `| Robonine SO-ARM101 Black & White kit | $${robo} | both arms unassembled with ${nPair} servos,`, `Prices are the prices on each store's page, verified ${vd}; all of them change`, `single prices from each store's page (verified ${vd}), not totals the course has rebuilt from line items; WowRobo's are sale prices, shown against struck-through prices of $${st.wowWas.join(' / $')}.`, 
+      `Seeed servo kit + your own print ≈ $${st.seeed} + $${fdmFil[0]}–${fdmFil[1]} of filament (Lesson 2) ≈ $${Math.round(st.seeed + fdmFil[0])}–${Math.round(st.seeed + fdmFil[1])}`,
+      `It has an ID, a ${bits}-bit magnetic encoder with ${enc} steps per turn, and its own position loop inside the case.`,
+      `That ${enc} is the encoder's resolution, not the arm's accuracy`,
+      `The registers used in this lesson are from the STS control table LeRobot uses: Torque_Enable ${reg[0]}, Goal_Position ${reg[1]} and Present_Position ${reg[2]}.`,
+      `the register address ${reg[0]} and the value 1, so LENGTH is 4 and the checksum is ~(1 + 4 + 3 + ${reg[0]} + 1) & 0xFF = ~${tq} & 0xFF = 0x${hx(lo8(tq))}.`,
+      `The goal packet has three parameters, address ${reg[1]} and the two bytes of 2048. The read packet asks servo 6 for two bytes starting at register ${reg[2]}.`,
+      `ID 01 + LENGTH 05 + WRITE 03 + address ${hx(reg[1])} + low byte 00 + high byte 08 = 0x${hx(gs)} (decimal 1 + 5 + 3 + ${reg[1]} + 0 + 8 = ${gs})\ninvert: 0xFF − 0x${hx(gs)} = 0x${hx(lo8(gs))} → matches the last byte`,
+      `reply params ${pb} → ${posHex} = ${pos} steps → ${pos} × 360 / ${enc} = ${deg}°`,
+      `4. Paste the reply ${rHex} into the reply box and read the parsed reply "servo ${rb[2]}, error ${rb[4]}, position ${pos} = ${deg}°".`,
+      `Its LENGTH is ${rb[3]}, because it carries two data bytes plus the error byte and the checksum. The error byte is ${rb[4]}, so the servo reports no error. The parameters ${pb} are little-endian: ${posHex} = ${pos}, and ${pos} / ${enc} of a turn is ${deg}°. The final line flips one bit in the high data byte, ${hx(rb[6])} becomes ${flip}, and the checksum catches it before anyone can mistake 0x${flip}${hx(rb[5])} for a real position.`,
+      `answer={${q3}} unit="°" explanation="The encoder has ${enc} steps per turn, so 1024 steps is 1024 / ${enc} = 1/${enc / 1024} of a turn. 360° × 1/${enc / 1024} = ${q3}°."`,
+      `New servos all come with ID ${lr.idDef}.`,
+      `The ID and the bus baud rate are written to the servo's <Term id="eeprom">EEPROM</Term> once, and they stay there until you change them. A replacement motor arrives as ID ${lr.idDef} again, so keep a note of which servo sits at which joint.`,
+      `all new servos answer to ID ${lr.idDef}, so two on the bus would both take the new ID`,
+      `both ship as ID ${lr.idDef}, so the setup script cannot tell them apart.`,
+      `each with a ${bits}-bit encoder of ${enc} steps per turn: 1024 steps is ${360 * 1024 / enc}°.`, `7.4 V STS3215 (${code[hi]}/${code[mid]}/${code[lo]} per the README BOM)`,
       `you pay more than sourcing the BOM |`,
       `M2×6 and M3×6 look similar in a pile`, `"the 1/${hi} gearing is too slow"`,
       `Feetech specifies the output shaft as ${teeth}T/OD5.9mm, a ${teeth}-tooth spline 5.9 mm across, and the horn screw as M3×6 (C001 and C018 specifications, §6-9 and §6-13)`,
@@ -1139,7 +1175,23 @@ lerobot.wikiAmps = (lerobot.wikiDef * lerobot.mA / 1000).toFixed(2);
       `${lr.addr.torque}、${lr.addr.cur}、${lr.addr.ol} 号寄存器在两份表里都属于 EEPROM 区，而 LeRobot 是在 Lock（地址 ${lr.addr.lock}）为 0 时写入它们的：configure() 在 torque_disabled() 里运行（[so_follower.py 第 ${lr.sfLine} 行](${lr.sfUrl})），它先给每个电机写 Lock 0（[feetech.py 第 ${lr.feLines[3]} 行](${lr.feUrl[3]})），而在线存储表说 Lock 为 0 时写入 EEPROM 的值断电后仍会保留。`,
       `所以夹爪舵机断电重启、换用别的软件、或者被换到别的关节上，都还会保持 ${lr.torque} / ${lr.cur} / ${lr.ol}，直到有程序再次改写这些寄存器。`,
       `但其余五个关节的出厂扭矩限制和保护门限（${lr.addr.torque}、${lr.addr.cur}、${lr.addr.ol} 号寄存器）保持不变，${stall5} A 的堵转总数仍是一个保守的上限。`,
-      `| Hiwonder xArm 1S | $${st.hiw} |`, `| $${st.seeed}（没有打印机时，另加 $${st.printed} 买 Seeed 打印件套装）`, `| $${st.wow[0]} 打印件加舵机 / $${st.wow[1]} 未组装整机套件 / $${st.wow[2]} 整机成品 |`, `Seeed 舵机套件 + Seeed 打印件 = $${st.seeed} + $${st.printed} = $${(st.seeed + st.printed).toFixed(2)}`, `| Robonine SO-ARM101 黑白套件 | $${robo} | 两臂未组装，含 ${nPair} 个舵机`, `价格是各商店页面上的价格，${vd} 核实；`, `单一价格（${vd} 核实），不是本课按逐项清单重新加出来的总价；其中 WowRobo 是促销价，页面上的划线原价为 $${st.wowWas.join(' / $')}。`, `3116 × 360 / ${enc} = ${deg3116}°`, `3116 / ${enc} 圈就是 ${deg3116}°`, `编码器每圈 ${enc} 步，所以 1024 步是 1024 / ${enc} = 1/${enc / 1024} 圈。`, `每只有 ${bits} 位、每圈 ${enc} 步的编码器：1024 步就是 ${360 * 1024 / enc}°。`, `7.4 V STS3215（按 README BOM 为 ${code[hi]}/${code[mid]}/${code[lo]}）`,
+      `| Hiwonder xArm 1S | $${st.hiw} |`, `| $${st.seeed}（没有打印机时，另加 $${st.printed} 买 Seeed 打印件套装）`, `| $${st.wow[0]} 打印件加舵机 / $${st.wow[1]} 未组装整机套件 / $${st.wow[2]} 整机成品 |`, `Seeed 舵机套件 + Seeed 打印件 = $${st.seeed} + $${st.printed} = $${(st.seeed + st.printed).toFixed(2)}`, `| Robonine SO-ARM101 黑白套件 | $${robo} | 两臂未组装，含 ${nPair} 个舵机`, `价格是各商店页面上的价格，${vd} 核实；`, `单一价格（${vd} 核实），不是本课按逐项清单重新加出来的总价；其中 WowRobo 是促销价，页面上的划线原价为 $${st.wowWas.join(' / $')}。`, 
+      `Seeed 舵机套件 + 自己打印 ≈ $${st.seeed} + $${fdmFil[0]}–${fdmFil[1]} 耗材（第 2 课）≈ $${Math.round(st.seeed + fdmFil[0])}–${Math.round(st.seeed + fdmFil[1])}`,
+      `有 ID，有 ${bits} 位磁编码器（magnetic encoder，每圈 ${enc} 步）`,
+      `${enc} 步是编码器的分辨率，不是整条臂的精度`,
+      `本课用到的寄存器来自 LeRobot 使用的 STS 控制表：Torque_Enable ${reg[0]}、Goal_Position ${reg[1]}、Present_Position ${reg[2]}。`,
+      `寄存器地址 ${reg[0]} 和值 1，所以 LENGTH = 4，校验和 = ~(1 + 4 + 3 + ${reg[0]} + 1) & 0xFF = ~${tq} & 0xFF = 0x${hx(lo8(tq))}。`,
+      `目标位置包有三个参数：地址 ${reg[1]}，以及 2048 的低字节和高字节。读位置包向 6 号舵机要寄存器 ${reg[2]} 起的两个字节。`,
+      `ID 01 + LENGTH 05 + WRITE 03 + 地址 ${hx(reg[1])} + 低字节 00 + 高字节 08 = 0x${hx(gs)}（十进制 1 + 5 + 3 + ${reg[1]} + 0 + 8 = ${gs}）\n取反：0xFF − 0x${hx(gs)} = 0x${hx(lo8(gs))} → 与最后一个字节一致`,
+      `回复参数 ${pb} → ${posHex} = ${pos} 步 → ${pos} × 360 / ${enc} = ${deg}°`,
+      `4. 将回复 ${rHex} 粘贴到回复输入框，读取解析后的回复“舵机 ${rb[2]}，错误 ${rb[4]}，位置 ${pos} = ${deg}°”。`,
+      `LENGTH 是 ${rb[3]}，因为除了校验和，还有两个数据字节和一个错误字节。错误字节为 ${rb[4]}，说明舵机没有报告错误。参数 ${pb} 是小端序：${posHex} = ${pos}，${pos} / ${enc} 圈就是 ${deg}°。最后一行把高位数据字节的一个比特翻转，${hx(rb[6])} 变成 ${flip}，校验和在有人把 0x${flip}${hx(rb[5])} 当成真实位置之前就抓住了它。`,
+      `answer={${q3}} unit="°" explanation="编码器每圈 ${enc} 步，所以 1024 步是 1024 / ${enc} = 1/${enc / 1024} 圈。360° × 1/${enc / 1024} = ${q3}°。"`,
+      `新舵机出厂全是 ID ${lr.idDef}。`,
+      `ID 和总线波特率会写进舵机的 <Term id="eeprom">EEPROM</Term>，写一次就留在那里，直到你改它。替换用的新舵机到手时又是 ID ${lr.idDef}，所以把“哪个舵机装在哪个关节”记下来。`,
+      `新舵机都响应 ID ${lr.idDef}，总线上接两个会一起接受新 ID`,
+      `它们出厂都是 ID ${lr.idDef}，设置脚本分不清谁是谁。`,
+      `每只有 ${bits} 位、每圈 ${enc} 步的编码器：1024 步就是 ${360 * 1024 / enc}°。`, `7.4 V STS3215（按 README BOM 为 ${code[hi]}/${code[mid]}/${code[lo]}）`,
       `而且比按 BOM 自购更贵 |`,
       `M2×6 和 M3×6 混在一堆里`, `"${`1/${hi}`} 的减速比太慢"`,
       `飞特规定输出轴为 ${teeth}T/OD5.9mm，即 ${teeth} 齿、外径 5.9 mm 的花键，舵机盘螺丝为 M3×6（C001 与 C018 规格，§6-9 和 §6-13）`,
@@ -1149,6 +1201,9 @@ lerobot.wikiAmps = (lerobot.wikiDef * lerobot.mA / 1000).toFixed(2);
   for (const lang of ["en", "zh"]) {
     const text = readFileSync(join(root, `src/content/m3/so101-arm/${lang}.mdx`), "utf8");
     for (const q of [...common, ...per[lang]]) ok(text.includes(q), `so101-arm ${lang}: expected ${JSON.stringify(q)} (recomputed from the README BOM / Feetech specs)`);
+    // the printed program and its printed output are the committed files, byte for byte (the 12-bit / 4096 comment, registers 40 / 42 / 56, the 3116 reply)
+    ok(text.includes("```python\n" + sp + "```") && text.includes("```text\n$ python3 sts_packet.py\n" + spOut + "```"),
+      `so101-arm ${lang}: the sts_packet.py listing or its output block differs from examples/month-3/so101-arm/sts_packet.py / expected/arm-sts_packet.txt`);
     const rows = [...text.matchAll(/^\| (\w+) \| 1\/(\d+) \|$/gm)].map((m) => [m[1], Number(m[2])]);
     ok(JSON.stringify(rows) === JSON.stringify(Object.entries(leader)), `so101-arm ${lang}: leader ratio table ${JSON.stringify(rows)} != ${JSON.stringify(leader)}`);
     ok(!/\d[%％]/.test(text.replace(/\]\([^)\s]*\)/g, "]")), `so101-arm ${lang}: write percentages with a space ("${infill} %")`);
@@ -1168,7 +1223,61 @@ lerobot.wikiAmps = (lerobot.wikiDef * lerobot.mA / 1000).toFixed(2);
     for (const q of [`≈ $${p} (verified ${vd})`, `约 $${p}（${vd} 核实）`]) ok(res.includes(q), `resources.ts: expected dated price ${JSON.stringify(q)}`);
   for (const q of [`≈ $${st.wow.join(" / $")} (sale prices, verified ${vd})`, `约 $${st.wow.join(" / $")}（促销价，${vd} 核实）`]) ok(res.includes(q), `resources.ts wowrobo-so101: expected ${JSON.stringify(q)}`);
   ok(!res.includes("(course-verified)") && !res.includes("（课程核实）"), `resources.ts: every course-verified price needs a date`);
-  console.log(`calc  so101-arm: BOM pair ${d(pair)} and follower ${d(fol)} rebuilt from line items, q1 ${d(quiz)}, error budget ${(r * step * rad).toFixed(2)} / ${(r * 0.5 * rad).toFixed(2)} mm, leader ratios ${Object.values(leader).join('/')} -> pair ${pairServos.join('/')}, current ${rated12} / ${stall12} / ${rated5} / ${stall5} A, horn ${tooth}° = ${(tooth * 4096 / 360).toFixed(2)} steps, filament bound ${(vsum * 1.24 / 1000).toFixed(2)} kg, bound in en/zh`);
+  console.log(`calc  so101-arm: BOM pair ${d(pair)} and follower ${d(fol)} rebuilt from line items, q1 ${d(quiz)}, error budget ${(r * step * rad).toFixed(2)} / ${(r * 0.5 * rad).toFixed(2)} mm, leader ratios ${Object.values(leader).join('/')} -> pair ${pairServos.join('/')}, current ${rated12} / ${stall12} / ${rated5} / ${stall5} A, horn ${tooth}° = ${(tooth * enc / 360).toFixed(2)} steps, filament bound ${(vsum * 1.24 / 1000).toFixed(2)} kg, packet reply ${rHex} -> ${pos} = ${deg}°, bound in en/zh`);
+}
+{
+  // fdm-printing: the printer shortlist (lesson table :9–13 and resources.ts cost lines) from each brand's official US store page, verified 2026-10-23.
+  // Ender-3 V3 SE and K1C were on sale (struck-through $199 / $559). The A1 mini, A1 and P1S rows are the printer on its own; the bundles
+  // (A1 mini Combo $329, A1 Combo $399, P1S AMS Combo $549 / AMS 2 Pro Combo $579) add the AMS multicolour system, which the course does not need.
+  const vd = "2026-10-23";
+  const pr = [
+    { id: "ender3-v3-se", name: "Creality Ender-3 V3 SE", short: "Ender-3 V3 SE", p: 179, was: 199 },
+    { id: "bambu-a1-mini", name: "Bambu Lab A1 mini", p: 219 },
+    { id: "bambu-a1", name: "Bambu Lab A1", p: 299 },
+    { id: "creality-k1c", name: "Creality K1C", short: "K1C", p: 499, was: 559 },
+    { id: "bambu-p1s", name: "Bambu Lab P1S", p: 399, only: true },
+  ];
+  const combo = [549, 579], svc = 8, home = 0.4, save = svc - home, mini = pr[1].p, be = Math.round(mini / save), sale = pr.filter((r) => r.was);
+  // break-even: a print service charges $8.00 for the part, printing it at home costs $0.40 of filament; one project is about 10 revisions
+  ok(sale.every((r) => r.p < r.was) && combo.every((c) => c > pr[4].p) && pr.every((r) => r.p >= pr[0].p) && be > 10,
+    `fdm-printing: sale prices must be below the regular price, the P1S combos above the printer, the Ender the cheapest, and break-even ${be} more than one project`);
+  const cell = {
+    en: (r) => r.was ? `$${r.p} sale (regular $${r.was})` : r.only ? `$${r.p} (printer only)` : `$${r.p}`,
+    zh: (r) => r.was ? `$${r.p} 促销价（原价 $${r.was}）` : r.only ? `$${r.p}（仅打印机）` : `$${r.p}`,
+  };
+  const per = {
+    en: [`| Printer | Price (store page, verified ${vd}) | Why pick it |`,
+      `Prices are the prices on each brand's official US store page, verified ${vd}; they change often, so check the store before ordering. The ${sale.map((r) => r.short).join(" and ")} prices are sale prices, shown with the regular price.`,
+      `For the P1S the table gives the printer on its own, as for the A1 mini and A1; the AMS Combo ($${combo[0]}) and AMS 2 Pro Combo ($${combo[1]}) bundles add Bambu's automatic material system for multicolour printing, which this course does not need.`,
+      `Do the break-even arithmetic: at $${save.toFixed(2)} saved per revision, a $${mini} printer (the A1 mini) needs about ${be} revisions before the hardware is paid for.`,
+      `Each revision saves $${svc.toFixed(2)} − $${home.toFixed(2)} = $${save.toFixed(2)}.`,
+      `- Break-even: $${save.toFixed(2)} saved per revision, so a $${mini} printer needs about ${be} revisions to pay for itself.`,
+      `about $${fdmFil[0]} to $${fdmFil[1]} of filament`],
+    zh: [`| 打印机 | 价格（商店页面，${vd} 核实） | 为什么选它 |`,
+      `价格是各品牌美国官方商店页面上的价格，${vd} 核实；价格经常变动，下单前请以商店页面为准。${sale.map((r) => r.short).join(" 和 ")} 的价格是促销价，括号里是原价。`,
+      `P1S 和 A1 mini、A1 一样只算打印机本身；AMS Combo（$${combo[0]}）和 AMS 2 Pro Combo（$${combo[1]}）套装多了 Bambu 的自动换料系统（AMS），用于多色打印，本课程用不到。`,
+      `盈亏平衡可以这样算：每轮省 $${save.toFixed(2)}，一台 $${mini} 的机器（A1 mini）要大约 ${be} 轮才回本。`,
+      `每轮省 $${svc.toFixed(2)} − $${home.toFixed(2)} = $${save.toFixed(2)}。`,
+      `- 盈亏平衡：每轮省 $${save.toFixed(2)}，所以 $${mini} 的打印机约 ${be} 轮就能回本。`,
+      `这是 $${fdmFil[0]} 到 $${fdmFil[1]} 的耗材`],
+  };
+  for (const lang of ["en", "zh"]) {
+    const text = readFileSync(join(root, `src/content/m3/fdm-printing/${lang}.mdx`), "utf8");
+    for (const q of per[lang]) ok(text.includes(q), `fdm-printing ${lang}: expected ${JSON.stringify(q)} (recomputed from the store prices / break-even)`);
+    const rows = [...text.matchAll(/^\| ((?:Creality|Bambu Lab) [^|]+?) \| ([^|]+?) \| [^|]+ \|$/gm)].map((m) => [m[1], m[2]]);
+    ok(JSON.stringify(rows) === JSON.stringify(pr.map((r) => [r.name, cell[lang](r)])), `fdm-printing ${lang}: printer table ${JSON.stringify(rows)} != the store prices`);
+    ok(text.split(vd).length - 1 === 2 && !/Sept(ember)? 2026|2026 年 9 月/.test(text), `fdm-printing ${lang}: expected "${vd}" exactly twice (price note, table header) and no older price dates`);
+    ok(!/\d[%％]/.test(text.replace(/\]\([^)\s]*\)/g, "]")), `fdm-printing ${lang}: write percentages with a space ("15 %")`);
+  }
+  const res = readFileSync(join(root, "src/lib/resources.ts"), "utf8");
+  for (const r of pr) {
+    const blk = res.slice(res.indexOf(`"${r.id}": {`)).split(/\n  "[\w-]+": \{/)[0];
+    const en = r.was ? `sale price, regular $${r.was}; ` : r.only ? "printer only, " : "", zh = r.was ? `促销价，原价 $${r.was}；` : r.only ? "仅打印机，" : "";
+    const q = `cost: { zh: "约 $${r.p}（${zh}${vd} 核实）", en: "≈ $${r.p} (${en}verified ${vd})" }`;
+    ok(res.includes(`"${r.id}": {`) && blk.includes(`title: { zh: "${r.name}", en: "${r.name}" }`) && blk.includes(q), `resources.ts ${r.id}: expected ${r.name} with ${JSON.stringify(q)} (same price as the fdm-printing table)`);
+  }
+  ok(!/Sept 2026|2026 年 9 月/.test(res), `resources.ts: no price may still carry the September 2026 date`);
+  console.log(`calc  fdm-printing: ${pr.map((r) => `${r.short ?? r.name.replace(/^\S+( Lab)? /, "")} $${r.p}`).join(", ")}; break-even $${mini} / $${save.toFixed(2)} = ${be} revisions, bound in en/zh and resources.ts`);
 }
 
 const specs = [];

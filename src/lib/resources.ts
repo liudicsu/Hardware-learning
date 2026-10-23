@@ -776,7 +776,7 @@ export const resources: Record<string, Resource> = {
     title: { zh: "Creality Ender-3 V3 SE", en: "Creality Ender-3 V3 SE" },
     author: "Creality",
     kind: "hardware",
-    cost: { zh: "约 $199（课程 2026 年 9 月核实）", en: "≈ $199 (course, checked Sept 2026)" },
+    cost: { zh: "约 $179（促销价，原价 $199；2026-10-23 核实）", en: "≈ $179 (sale price, regular $199; verified 2026-10-23)" },
     summary: {
       zh: "最便宜的一档：开放式、需要你多花时间调校，但打 PLA 和 PETG 完全够用。",
       en: "The cheapest tier: open frame and more hands-on tuning, but entirely adequate for PLA and PETG.",
@@ -789,7 +789,7 @@ export const resources: Record<string, Resource> = {
     title: { zh: "Bambu Lab A1 mini", en: "Bambu Lab A1 mini" },
     author: "Bambu Lab",
     kind: "hardware",
-    cost: { zh: "约 $219.99（课程 2026 年 9 月核实）", en: "≈ $219.99 (course, checked Sept 2026)" },
+    cost: { zh: "约 $219（2026-10-23 核实）", en: "≈ $219 (verified 2026-10-23)" },
     summary: {
       zh: "开箱即用、自动校准的小型打印机；180 mm 的打印平台放得下大多数支架和夹爪手指。",
       en: "A small printer that works out of the box with automatic calibration; its 180 mm bed fits most brackets and gripper fingers.",
@@ -802,7 +802,7 @@ export const resources: Record<string, Resource> = {
     title: { zh: "Bambu Lab A1", en: "Bambu Lab A1" },
     author: "Bambu Lab",
     kind: "hardware",
-    cost: { zh: "约 $299.99（课程 2026 年 9 月核实）", en: "≈ $299.99 (course, checked Sept 2026)" },
+    cost: { zh: "约 $299（2026-10-23 核实）", en: "≈ $299 (verified 2026-10-23)" },
     summary: {
       zh: "和 A1 mini 同一套易用性，但有 256 mm 的平台，打较大的底盘板和支架更从容。",
       en: "The same ease of use as the A1 mini with a 256 mm bed, for the larger chassis plates and brackets.",
@@ -815,7 +815,7 @@ export const resources: Record<string, Resource> = {
     title: { zh: "Creality K1C", en: "Creality K1C" },
     author: "Creality",
     kind: "hardware",
-    cost: { zh: "约 $369（课程 2026 年 9 月核实）", en: "≈ $369 (course, checked Sept 2026)" },
+    cost: { zh: "约 $499（促销价，原价 $559；2026-10-23 核实）", en: "≈ $499 (sale price, regular $559; verified 2026-10-23)" },
     summary: {
       zh: "封闭机箱，自带硬化喷嘴，可以直接打碳纤维填充耗材。",
       en: "Enclosed, with a hardened nozzle, so carbon-fibre-filled filaments are an option from day one.",
@@ -828,7 +828,7 @@ export const resources: Record<string, Resource> = {
     title: { zh: "Bambu Lab P1S", en: "Bambu Lab P1S" },
     author: "Bambu Lab",
     kind: "hardware",
-    cost: { zh: "约 $799（课程 2026 年 9 月核实）", en: "≈ $799 (course, checked Sept 2026)" },
+    cost: { zh: "约 $399（仅打印机，2026-10-23 核实）", en: "≈ $399 (printer only, verified 2026-10-23)" },
     summary: {
       zh: "封闭式 CoreXY，适合会翘边的 ABS 和 ASA。",
       en: "An enclosed CoreXY machine for ABS and ASA, which warp without an enclosure.",
