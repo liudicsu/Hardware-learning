@@ -230,7 +230,7 @@ Numerical IK to (0.10, 0.15, 0.12) m from q = [0, 30, -30] deg
 
 </SimOutput>
 
-The error falls from 209.357 mm to 0.002 mm in 15 iterations. While the error is larger than 2 cm, each step scales the error so the aim is at most 20 mm (`max_step = 0.02`), but the DLS update moves the tip by J Jᵀ(J Jᵀ + λ²I)⁻¹ e rather than by e itself, so with λ = 0.03 the tip advances slightly less than the scaled 20 mm and slightly off the error direction — about 16 to 19 mm per iteration in the log; once inside 2 cm a full step lands and the last iterations only drive the residual down. The script then checks the answer with forward kinematics instead of trusting the joint angles:
+The error falls from 209.357 mm to 0.002 mm in 15 iterations. While the error is larger than 2 cm, each step scales the error so the aim is at most 20 mm (`max_step = 0.02`), but the DLS update moves the tip by J Jᵀ(J Jᵀ + λ²I)⁻¹ e rather than by e itself, so with λ = 0.03 the tip advances slightly less than the scaled 20 mm and slightly off the error direction — about 16 to 19 mm per iteration in the log (first step: tip path ≈ 16.1 mm, error drop ≈ 15.7 mm); once inside 2 cm a full step lands and the last iterations only drive the residual down. The script then checks the answer with forward kinematics instead of trusting the joint angles:
 
 <SimOutput source="model">
 

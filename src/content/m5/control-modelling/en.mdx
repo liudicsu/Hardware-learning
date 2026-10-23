@@ -240,7 +240,7 @@ and turn unstable near kp = 1.0 x 6.79 = 6.79. Check it on 0.1 rad steps:
 
 </SimOutput>
 
-Derivative changes those numbers. Month 3's kd = 0.115 N·m/(rad/s), together with kp = 2.86, lifts PM from 15° to 56° and cuts overshoot from 66 % to 2 %. The PD term itself contributes phase `∠(kp + jω kd) = atan(ω · kd / kp) = atan(34.6 × 0.115 / 2.86) ≈ 54°` at the new crossover; as ω_c moves from ≈25 rad/s (P-only at the same kp) to 34.6 rad/s, the plant and sample-delay lag grow by about 11°, so the net rise is about 41° and accounts for 15° → 56°. D adds that phase lead near the crossover, exactly where the loop needs it. That is the frequency-domain reason D calms the approach: it does not remove steady error, but it raises the phase margin.
+Derivative changes those numbers. Month 3's kd = 0.115 N·m/(rad/s), together with kp = 2.86, lifts PM from 15° to 56° and cuts overshoot from 66 % to 2 %. The PD term itself contributes phase `∠(kp + jω kd) = atan(ω · kd / kp) = atan(34.6 × 0.115 / 2.86) ≈ 54°` at the new crossover; as ω_c moves from ≈25 rad/s (P-only at the same kp) to 34.6 rad/s, the plant and sample-delay lag grow by about 11°, so the net rise is about 43° (54° − 11°); the measured PM lift is 15° → 56°. D adds that phase lead near the crossover, exactly where the loop needs it. That is the frequency-domain reason D calms the approach: it does not remove steady error, but it raises the phase margin.
 
 <Quiz id="q5" question="A gain margin of 16.6 dB corresponds to how many times more gain?" answer={6.8} unit="times" explanation="Convert decibels to a ratio: 10^(16.6/20) = 6.8. With P only and kp = 1.0, about 6.8 times more gain drives the loop unstable near the phase crossover; the model puts the critical kp at 6.79." />
 
