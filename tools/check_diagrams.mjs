@@ -1044,7 +1044,7 @@ const fdmFil = [20, 25];
   const rb = (sp.match(/^ +reply = bytes\(\[([^\]]+)\]\)/m)?.[1] ?? "").split(",").map((s) => Number(s.trim()));
   const hx = (b) => b.toString(16).toUpperCase().padStart(2, "0"), lo8 = (n) => ~n & 0xFF;
   const rHex = [...rb, lo8(rb.slice(2).reduce((a, b) => a + b, 0))].map(hx).join(" "), pos = rb[5] | rb[6] << 8, pb = `${hx(rb[5])} ${hx(rb[6])}`;
-  const posHex = `0x${hx(rb[6])}${hx(rb[5])}`, deg = (pos * 360 / enc).toFixed(1), flip = hx(rb[6] ^ 1), q3 = 360 * 1024 / enc;
+  const posHex = `0x${hx(rb[6])}${hx(rb[5])}`, deg = (pos * 360 / enc).toFixed(1), flip = hx(rb[6] ^ 1), qp = 2 ** bits / 4, q3 = qp / enc * 360; // q3: a quarter turn, 1024 / 4096 × 360 = 90
   const tq = 1 + 4 + 3 + reg[0] + 1, gs = 1 + 5 + 3 + reg[1] + 0 + 8;
   // packets rebuilt from sts_packet.py's instruction codes (PING / READ / WRITE) and checksum rule: the four request lines of its expected output must
   // match, and every packet the lesson quotes (the :191 ping 0xFB, the 2048 = 0x0800 split, the widget steps for 2048 / 1024 / servo 2) is built here
@@ -1163,7 +1163,7 @@ const fdmFil = [20, 25];
       "**Guided experiment.** This experiment shows how the STS3215 packet encodes ID, instruction and parameters, and how the checksum detects a corrupted byte.",
       `4. Paste the reply ${rHex} into the reply box and read the parsed reply "servo ${rb[2]}, error ${rb[4]}, position ${pos} = ${deg}°".`,
       `Its LENGTH is ${rb[3]}, because it carries two data bytes plus the error byte and the checksum. The error byte is ${rb[4]}, so the servo reports no error. The parameters ${pb} are little-endian: ${posHex} = ${pos}, and ${pos} / ${enc} of a turn is ${deg}°. The final line flips one bit in the high data byte, ${hx(rb[6])} becomes ${flip}, and the checksum catches it before anyone can mistake 0x${flip}${hx(rb[5])} for a real position.`,
-      `answer={${q3}} unit="°" explanation="The encoder has ${enc} steps per turn, so 1024 steps is 1024 / ${enc} = 1/${enc / 1024} of a turn. 360° × 1/${enc / 1024} = ${q3}°."`,
+      `<Quiz id="q3" question="A servo reports position ${qp} steps. How many degrees is that?" answer={${q3}} unit="°" explanation="The encoder has ${enc} steps per turn, so ${qp} steps is ${qp} / ${enc} = 1/${enc / qp} of a turn. 360° × 1/${enc / qp} = ${q3}°." />`,
       `New servos all come with ID ${lr.idDef}.`,
       `The ID and the bus baud rate are written to the servo's <Term id="eeprom">EEPROM</Term> once, and they stay there until you change them. A replacement motor arrives as ID ${lr.idDef} again, so keep a note of which servo sits at which joint.`,
       `all new servos answer to ID ${lr.idDef}, so two on the bus would both take the new ID`,
@@ -1230,7 +1230,7 @@ const fdmFil = [20, 25];
       "<strong>动手实验。</strong>本实验展示 STS3215 数据包如何编码 ID、指令与参数，以及校验和如何检测传输中出错的字节。",
       `4. 将回复 ${rHex} 粘贴到回复输入框，读取解析后的回复“舵机 ${rb[2]}，错误 ${rb[4]}，位置 ${pos} = ${deg}°”。`,
       `LENGTH 是 ${rb[3]}，因为除了校验和，还有两个数据字节和一个错误字节。错误字节为 ${rb[4]}，说明舵机没有报告错误。参数 ${pb} 是小端序：${posHex} = ${pos}，${pos} / ${enc} 圈就是 ${deg}°。最后一行把高位数据字节的一个比特翻转，${hx(rb[6])} 变成 ${flip}，校验和在有人把 0x${flip}${hx(rb[5])} 当成真实位置之前就抓住了它。`,
-      `answer={${q3}} unit="°" explanation="编码器每圈 ${enc} 步，所以 1024 步是 1024 / ${enc} = 1/${enc / 1024} 圈。360° × 1/${enc / 1024} = ${q3}°。"`,
+      `<Quiz id="q3" question="舵机报告位置为 ${qp} 步，这是多少度？" answer={${q3}} unit="°" explanation="编码器每圈 ${enc} 步，所以 ${qp} 步是 ${qp} / ${enc} = 1/${enc / qp} 圈。360° × 1/${enc / qp} = ${q3}°。" />`,
       `新舵机出厂全是 ID ${lr.idDef}。`,
       `ID 和总线波特率会写进舵机的 <Term id="eeprom">EEPROM</Term>，写一次就留在那里，直到你改它。替换用的新舵机到手时又是 ID ${lr.idDef}，所以把“哪个舵机装在哪个关节”记下来。`,
       `新舵机都响应 ID ${lr.idDef}，总线上接两个会一起接受新 ID`,
