@@ -70,7 +70,7 @@ ROS 1 已经结束。最后一个版本 Noetic 在 2025 年 5 月 31 日停止�
 | --- | --- | --- | --- | --- |
 | Ubuntu 24.04 + 官方 apt 包 | Ubuntu 24.04（原生或双系统） | 免费 | 所有教程默认的参考环境；Gazebo 和 RViz 原生运行 | 必须正好是 Ubuntu 24.04 |
 | Windows：WSL2 + Ubuntu 24.04 | Windows 10/11 | 免费 | 然后在 WSL 里照 Ubuntu 方式装 | 图形程序（RViz、Gazebo）走 WSLg，较慢；USB 设备要多做几步 |
-| The Construct | 任意浏览器 | 免费档；付费从 €39.97/月起 | 零安装：浏览器里的 ROS 环境和仿真机器人，免费档含三门完整课程 | 依赖它的服务器和套餐 |
+| The Construct | 任意浏览器 | 免费档；付费从 [€39.97/月](https://www.theconstruct.ai/pricing/) 起（2026 年 10 月） | 零安装：浏览器里的 ROS 环境和仿真机器人，免费档含三门完整课程 | 依赖它的服务器和套餐 |
 | RoboStack（conda 包，用 pixi 安装） | 其他 Linux 发行版、macOS、Windows | 免费 | 独立环境，不碰系统；本站示例就是这样做出来的（Debian 13） | 社区维护；少数包比 apt 慢一点 |
 
 如果你在 Windows 上，又想最贴近教程，就装 WSL2 + Ubuntu 24.04，在 WSL 里工作。如果你用 macOS、Debian，或者不是 24.04 的 Ubuntu，用 pixi。如果完全不能装东西，先用 The Construct 度过头几周；命令是一样的，只是跑在别人的机器上。
@@ -112,7 +112,7 @@ pixi install
 pixi shell
 ```
 
-`pixi install` 把 ROS 2 Jazzy、Gazebo、colcon 等下载到项目文件夹里（约 2 GB），不碰系统。`pixi shell` 打开一个 `ros2`、`colcon`、`gz` 都能用的 shell。也可以不进 shell，直接用 `pixi run ros2 topic list` 跑单条命令。把文件夹删掉，环境就没了，`/usr` 里什么都不留。
+`pixi install` 把 ROS 2 Jazzy、Gazebo、colcon 等下载到项目文件夹里（本站 Debian 13 机器上 `du -sh .pixi` 测得 5.8 GB，2026 年 10 月），不碰系统。`pixi shell` 打开一个 `ros2`、`colcon`、`gz` 都能用的 shell。也可以不进 shell，直接用 `pixi run ros2 topic list` 跑单条命令。把文件夹删掉，环境就没了，`/usr` 里什么都不留。
 
 <Resource id="robostack" />
 

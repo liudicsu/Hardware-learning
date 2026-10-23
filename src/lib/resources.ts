@@ -1075,7 +1075,7 @@ export const resources: Record<string, Resource> = {
   },
   "the-construct": {
     id: "the-construct",
-    url: "https://www.theconstruct.ai/",
+    url: "https://www.theconstruct.ai/pricing/",
     title: { zh: "The Construct（浏览器里的 ROS 环境）", en: "The Construct (ROS in the browser)" },
     author: "The Construct",
     kind: "service",
