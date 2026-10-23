@@ -1643,7 +1643,7 @@ const lessonRef = (n, slug, lang) => {
   // ros2-graph: sensor_node.py Random(7), amp 0.5, period 50, σ 0.2; EMA replay α=0.2 and recorded α=0.5 at samples k=67..69 of that seeded sequence.
   // ros2-control: diff_drive odometry Δs = Δθ·r and ω_actual = ω·b_config/b_real; teleop 0.5 m/s × (2 + 0.5) s = 1.25 m vs measured 1.15 m; drive-distance depth-10 staleness 10/50 = 0.2 s → 0.04 m at 0.2 m/s.
   // gazebo-sim: Isaac Sim requirements (RTX 4080 / 16 GB VRAM / 32 GB RAM, docs 6.0.0, October 2026); MuJoCo Todorov/Erez/Tassa IROS 2012 DOI 10.1109/IROS.2012.6386109 (no "fastest/most accurate").
-  // slam-nav: footprint from URDF chassis_offset_x±chassis_x/2 and wheel_separation/2+wheel_width/2 + 1 cm; Nav2 inflation_layer.hpp cost = (254−1)·exp(−cost_scaling_factor·(d−inscribed_radius)); tour ω clamp 0.6 / lidar 10 Hz → 0.06 rad smear; nav2.yaml comment "clearance margin (not a measured tune)".
+  // slam-nav: footprint from URDF chassis_offset_x±chassis_x/2 and wheel_separation/2+wheel_width/2 + 1 cm (Y side 0.165 rounded to the centimetre as ±0.16); Nav2 inflation_layer.hpp cost = (254−1)·exp(−cost_scaling_factor·(d−inscribed_radius)); tour ω clamp 0.6 / lidar 10 Hz → 0.06 rad smear; nav2.yaml comment "clearance margin (not a measured tune)".
   const rd4 = (p) => readFileSync(join(root, p), "utf8");
   const num4 = (text, re, what) => { const m = text.match(re); ok(m, `m4: ${what} not found`); return m ? Number(m[1]) : NaN; };
   const xacro = rd4("examples/month-4/urdf-tf/m4_description/urdf/robot.urdf.xacro");
@@ -1653,9 +1653,11 @@ const lessonRef = (n, slug, lang) => {
   const margin = 0.01;
   const fpFwd = +(faceFwd + margin).toFixed(2);
   const fpBack = +(faceBack - margin).toFixed(2); // −0.10 − 0.01 = −0.11
-  const fpY = +(tyreY + 0.005).toFixed(2); // lesson prints ±0.16 from 0.155
+  const fpYExact = +(tyreY + margin).toFixed(3); // 0.155 + 0.01 = 0.165
+  const fpY = Math.floor(fpYExact * 100 + 1e-12) / 100; // centimetre rounding stated in the lesson → 0.16
   ok(Math.abs(faceFwd - 0.2) < 1e-9 && Math.abs(faceBack - (-0.1)) < 1e-9 && Math.abs(tyreY - 0.155) < 1e-9, `m4 slam-nav: URDF faces ${faceFwd}/${faceBack} and tyre ${tyreY} must be 0.20/−0.10/0.155`);
-  ok(fpFwd === 0.21 && fpBack === -0.11 && fpY === 0.16, `m4 slam-nav: footprint with margin must be +0.21/−0.11/±0.16 (got ${fpFwd}/${fpBack}/${fpY})`);
+  ok(Math.abs(fpYExact - 0.165) < 1e-12, `m4 slam-nav: tyre + 1 cm must be 0.165 before centimetre rounding (got ${fpYExact})`);
+  ok(fpFwd === 0.21 && fpBack === -0.11 && fpY === 0.16, `m4 slam-nav: footprint with margin must be +0.21/−0.11/±0.16 after centimetre rounding (got ${fpFwd}/${fpBack}/${fpY})`);
   const nav2 = rd4("examples/month-4/slam-nav/m4_nav/config/nav2.yaml");
   ok((nav2.match(/# m4bot clearance margin \(not a measured tune\)/g) || []).length === 2, `m4 nav2.yaml: both inflation_radius comments must say clearance margin (not a measured tune)`);
   ok(!nav2.includes("tuned in the lesson"), `m4 nav2.yaml: "tuned in the lesson" must not remain`);
@@ -1680,6 +1682,8 @@ const lessonRef = (n, slug, lang) => {
   const ctl = rd4("examples/month-4/ros2-control/m4_control/config/controllers.yaml");
   const wr = num4(ctl, /wheel_radius:\s*([\d.]+)/, "controllers wheel_radius"), ws = num4(ctl, /wheel_separation:\s*([\d.]+)/, "controllers wheel_separation");
   ok(wr === 0.05 && ws === 0.28, `m4 ros2-control: controllers.yaml radius/separation ${wr}/${ws}`);
+  const r10 = +(wr * 1.1).toFixed(3), b10 = +(ws * 1.1).toFixed(3), turnFactor = +(b10 / ws).toFixed(2); // 0.055, 0.308, 1.10
+  ok(r10 === 0.055 && b10 === 0.308 && turnFactor === 1.1, `m4 ros2-control: 10 % worked values must be 0.055 / 0.308 / 1.10 (got ${r10}/${b10}/${turnFactor})`);
   const teleopHeld = 0.5 * (2 + 0.5), stale = (10 / 50) * 0.2;
   ok(Math.abs(teleopHeld - 1.25) < 1e-12 && Math.abs(stale - 0.04) < 1e-12, `m4 ros2-control: teleop held ${teleopHeld} m and depth-10 staleness ${stale} m`);
   const res = rd4("src/lib/resources.ts");
@@ -1700,6 +1704,9 @@ const lessonRef = (n, slug, lang) => {
       "ros2-control": [
         `odometry distance is \`Δs = Δθ_wheel · r\``,
         `\`ω_actual = (v_right − v_left)/b_real = ω · b_config / b_real\``,
+        `\`0.05 → 0.055\``,
+        `\`0.28 → 0.308\``,
+        `\`ω_actual = ω · 1.10\``,
         `\`0.5 m/s × (2 s + 0.5 s) = 1.25 m\`; the measured 1.15 m is lower`,
         `\`10/50 = 0.2 s\` of history, which at the 0.2 m/s command used in that run is up to \`0.2 m/s × 0.2 s = 0.04 m\` of stale position. The remaining ~0.036 m`,
       ],
@@ -1709,7 +1716,7 @@ const lessonRef = (n, slug, lang) => {
       ],
       "slam-nav": [
         `\`chassis_offset_x ± chassis_x/2 = 0.05 ± 0.15\` → +0.20 m / −0.10 m`,
-        `\`wheel_separation/2 + wheel_width/2 = 0.14 + 0.015 = 0.155\` m; with a 1 cm clearance margin that is +0.21 / −0.11 and ±0.16`,
+        `\`wheel_separation/2 + wheel_width/2 = 0.14 + 0.015 = 0.155\` m; with a 1 cm clearance margin that is +0.21 / −0.11, and ±0.16 after rounding the tyre side (0.155 + 0.01 = 0.165) to the centimetre`,
         `\`cost = (254 − 1) · exp(−cost_scaling_factor · (d − inscribed_radius))\``,
         `tour's own 0.6 rad/s clamp smears 0.06 rad ≈ 3.4° per scan while a 0.3 rad/s turn smears only 0.03 rad`,
       ],
@@ -1727,6 +1734,9 @@ const lessonRef = (n, slug, lang) => {
       "ros2-control": [
         `里程计距离是 \`Δs = Δθ_wheel · r\``,
         `\`ω_actual = (v_right − v_left)/b_real = ω · b_config / b_real\``,
+        `\`0.05 → 0.055\``,
+        `\`0.28 → 0.308\``,
+        `\`ω_actual = ω · 1.10\``,
         `\`0.5 m/s × (2 s + 0.5 s) = 1.25 m\`；测得的 1.15 m 更低`,
         `\`10/50 = 0.2 s\` 的历史；那次命令速度是 0.2 m/s，对应最多 \`0.2 m/s × 0.2 s = 0.04 m\` 的陈旧位置。剩下的约 0.036 m`,
       ],
@@ -1736,7 +1746,7 @@ const lessonRef = (n, slug, lang) => {
       ],
       "slam-nav": [
         `\`chassis_offset_x ± chassis_x/2 = 0.05 ± 0.15\` → +0.20 m / −0.10 m`,
-        `\`wheel_separation/2 + wheel_width/2 = 0.14 + 0.015 = 0.155\` m；再加 1 cm 余量就是 +0.21 / −0.11 和 ±0.16`,
+        `\`wheel_separation/2 + wheel_width/2 = 0.14 + 0.015 = 0.155\` m；再加 1 cm 余量后前后是 +0.21 / −0.11，两侧则把轮胎侧（0.155 + 0.01 = 0.165）按厘米圆整为 ±0.16`,
         `\`cost = (254 − 1) · exp(−cost_scaling_factor · (d − inscribed_radius))\``,
         `tour 自己的 0.6 rad/s 上限会抹花 0.06 rad ≈ 3.4°，而 0.3 rad/s 的转弯只抹花 0.03 rad`,
       ],
@@ -1751,7 +1761,19 @@ const lessonRef = (n, slug, lang) => {
       }
     }
   }
-  console.log(`calc  m4 gaps: Construct €39.97 + pixi 5.8 GB; EMA α=0.5 @k67–69 ${a05.map((x) => x.toFixed(4)).join(", ")} / α=0.2 replay ${a02.map((x) => x.toFixed(4)).join(", ")}; teleop held ${teleopHeld} m vs 1.15 m; staleness ${stale} m; footprint +${fpFwd}/${fpBack}/±${fpY}; inflation (254−1)·exp(−${costScale}·(d−r_ins)) out to ${inflR} m; smear ${smearTour} rad @ ${turnClamp} rad/s / ${lidarRate} Hz; Isaac 4080/16/32 Oct 2026; MuJoCo IROS 2012; bound in en/zh`);
+  // Bind the 10 % worked numbers from controllers.yaml so mutating any of them in the lesson fails.
+  for (const lang of ["en", "zh"]) {
+    const text = rd4(`src/content/m4/ros2-control/${lang}.mdx`);
+    for (const q of [`${wr.toFixed(2)} → ${r10.toFixed(3)}`, `${ws.toFixed(2)} → ${b10.toFixed(3)}`, `ω · ${turnFactor.toFixed(2)}`]) {
+      ok(text.includes(q), `m4 ros2-control ${lang}: expected worked value ${JSON.stringify(q)} (from controllers.yaml × 1.1)`);
+    }
+  }
+  // Footprint centimetre-rounding phrase must mention both 0.165 and the printed ±0.16.
+  for (const lang of ["en", "zh"]) {
+    const text = rd4(`src/content/m4/slam-nav/${lang}.mdx`);
+    ok(text.includes("0.155 + 0.01 = 0.165") && text.includes("±0.16"), `m4 slam-nav ${lang}: footprint must show 0.165 rounded to ±0.16`);
+  }
+  console.log(`calc  m4 gaps: Construct €39.97 + pixi 5.8 GB; EMA α=0.5 @k67–69 ${a05.map((x) => x.toFixed(4)).join(", ")} / α=0.2 replay ${a02.map((x) => x.toFixed(4)).join(", ")}; teleop held ${teleopHeld} m vs 1.15 m; staleness ${stale} m; footprint +${fpFwd}/${fpBack}/±${fpY} (exact side ${fpYExact}); r/b 10 % → ${r10}/${b10}, turn ×${turnFactor.toFixed(2)}; inflation (254−1)·exp(−${costScale}·(d−r_ins)) out to ${inflR} m; smear ${smearTour} rad @ ${turnClamp} rad/s / ${lidarRate} Hz; Isaac 4080/16/32 Oct 2026; MuJoCo IROS 2012; bound in en/zh`);
 }
 
 const specs = [];
