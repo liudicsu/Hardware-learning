@@ -112,11 +112,11 @@ The script retries an OMPL plan up to three times; Pilz gets one attempt. The at
 
 `pick_place.py` adds three collision boxes to the planning scene, all in `panda_link0`: a 1.2 x 1.2 x 0.04 m table, a 0.30 x 0.02 x 0.25 m wall at y = 0, and a 0.04 x 0.04 x 0.08 m block at (0.50, -0.25). The pick is at (0.50, -0.25) and the place at (0.50, +0.25), on opposite sides of the wall. The wall spans x 0.35 to 0.65, so the direct line between pick and place crosses it.
 
-The hand is commanded by pose. `hand_pose(x, y, z)` builds a `PoseStamped` whose fingertips are at (x, y, z): the hand origin sits 0.1034 m above them, and the orientation points the fingers straight down. Its quaternion is (x, y, z, w) = (0.9238795, -0.3826834, 0, 0). This is a good place to be careful: `geometry_msgs/Quaternion` initialises w to 1, and with w = 1 next to that x and y the quaternion is not even of unit length, let alone the rotation you meant, so the code sets all four components.
+The hand is commanded by pose. `hand_pose(x, y, z)` builds a `PoseStamped` whose fingertips are at (x, y, z): the hand origin sits 0.1034 m above them, and the orientation points the fingers straight down. Its quaternion is (x, y, z, w) = (0.9238795, -0.3826834, 0, 0). Check: `|q| = 1` with w = 0, so this is a 180° rotation about the horizontal axis (cos 22.5°, −sin 22.5°, 0) = (0.9238795, −0.3826834, 0). A 180° turn about any horizontal axis maps ẑ → −ẑ, which is what makes `panda_hand`'s +z point down. This is a good place to be careful: `geometry_msgs/Quaternion` initialises w to 1, and with w = 1 next to that x and y the quaternion is not even of unit length, let alone the rotation you meant, so the code sets all four components.
 
 <Formula label="From fingertips to the hand origin">z_hand = z_fingertips + 0.1034 m,   grip_z = 0.08 m - 0.02 m = 0.06 m</Formula>
 
-The grasp height is `grip_z = 0.06 m`: 2 cm below the block's top. That leaves the palm clear of the block while the fingers close around its upper part.
+The grasp height is `grip_z = 0.06 m`: 2 cm below the block's top. Fingertips at 0.06 m put the hand origin at 0.06 + 0.1034 = 0.1634 m, which is 0.1634 − 0.08 = 0.0834 m (83 mm) above the 0.08 m block top, so the palm stays clear while the fingers engage only the block's top 2 cm.
 
 While the block is carried it is attached to `panda_hand` with `touch_links` `panda_hand`, `panda_leftfinger` and `panda_rightfinger`. Attaching tells MoveIt that the block moves with the hand; the touch links say those three links are allowed to touch it. Every other link, and the block against the wall, is still checked. Without the attachment the planner would keep only the arm clear and could let the block intersect the wall.
 
@@ -389,7 +389,7 @@ Five DOF are fewer than six, so the arm cannot reach an arbitrary 6-D pose. `sho
 
 ### Reach
 
-The SO-101 axis distances are L1 = 0.116 m (shoulder_lift to elbow_flex) and L2 = 0.135 m (elbow_flex to wrist_flex). The shoulder axis sits 0.117 m above `base_link`; the kinematics lesson uses these values. The Panda's scene does not fit: the block at x = 0.5 m and the 0.25 m wall are out of reach and must be scaled down for the SO-101, into its reach: with the arm stretched out, the wrist axis is at most L1 + L2 = 0.116 + 0.135 = 0.251 m from the shoulder axis, half the 0.5 m to the Panda block, before the gripper length is added.
+The SO-101 axis distances are L1 = 0.116 m (shoulder_lift to elbow_flex) and L2 = 0.135 m (elbow_flex to wrist_flex). The shoulder axis sits 0.117 m above `base_link`; the kinematics lesson uses these values. The Panda's scene does not fit: the block at x = 0.5 m and the 0.25 m wall are out of reach and must be scaled down for the SO-101, into its reach: with the arm stretched out, the wrist axis is at most L1 + L2 = 0.116 + 0.135 = 0.251 m from the shoulder axis, half the 0.5 m to the Panda block, before the gripper length is added. Even the near wall face at x = 0.35 m (wall centred at x = 0.5 m with length 0.30 m along x) lies outside that 0.251 m reach.
 
 ### What changes in the config and the script
 

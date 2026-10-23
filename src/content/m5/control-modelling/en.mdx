@@ -180,7 +180,7 @@ Write the controller as C and the plant as P; the loop gain is L = C × P. Magni
 
 <Formula label="Phase margin: how much more phase lag the loop can take at the gain crossover before reaching −180°">PM = 180° + ∠L(jω_c)</Formula>
 
-With the Month 3 gains, kp = 2.86 N·m/rad and kd = 0.115 N·m/(rad/s), the model gives the table below. |L| crosses 0 dB at 34.6 rad/s with a phase margin of 56°. The phase reaches −180° at 150.8 rad/s, where the gain margin is 14.2 dB, a factor of 5.1. The 300 rad/s row is already at −263°, well past −180°; the margin is read at the first crossing.
+With the Month 3 gains, kp = 2.86 N·m/rad and kd = 0.115 N·m/(rad/s), the model gives the table below. |L| crosses 0 dB at 34.6 rad/s (read between the 30 and 100 rad/s rows), where `∠L(34.6 rad/s) ≈ −124°`, so `PM = 180° + (−124°) = 56°`. The phase reaches −180° at 150.8 rad/s, where `|L(150.8 rad/s)| ≈ −14.2 dB`, so the gain margin is 14.2 dB, a factor of `10^(14.2/20) = 5.1`. The 300 rad/s row is already at −263°, well past −180°; the margin is read at the first crossing.
 
 <SimOutput source="model">
 
@@ -221,7 +221,7 @@ The Michigan tutorial reads gain and phase margins off Bode plots step by step a
 
 Margins are not decoration: they predict how the closed loop will move. With kd = 0, raising kp raises |L| at every frequency, so the gain crossover moves right into a region with more phase lag. PM falls, and overshoot rises.
 
-At kp = 1.0 with P only, the gain margin is 16.6 dB, a gain ratio of 10^(16.6/20) = 6.8. The same margin predicts that the loop should ring at the phase crossover, 40.2 rad/s, and turn unstable near kp = 6.79. The sweep agrees: as kp goes 0.5, 1, 2, 2.86, PM falls 53°, 37°, 22°, 15°, and overshoot rises 15 %, 33 %, 54 %, 66 %. At kp = 6.5, PM is 1°, overshoot is 98 %, and the 39.3 rad/s ringing decays slowly, with the swing falling only from 172.47 to 137.12 mrad between the two windows. At kp = 7.0, PM is −1°, the ringing grows from 236.89 to 285.66 mrad, and its frequency is 40.5 rad/s. Prediction and step response line up.
+At kp = 1.0 with P only, the gain margin is 16.6 dB, a gain ratio of 10^(16.6/20) = 6.8. Sustained oscillation needs `|L| = 1` with `∠L = −180°`. Scaling kp changes magnitude but not phase, so −180° can only be met at the phase crossover ω_pc = 40.2 rad/s (hence the ringing frequency), and the gain there must rise by that factor 6.8, giving `kp_crit = 1.0 × 6.8 = 6.8 ≈ 6.79`. The same margin therefore predicts that the loop should ring at 40.2 rad/s and turn unstable near kp = 6.79. The sweep agrees: as kp goes 0.5, 1, 2, 2.86, PM falls 53°, 37°, 22°, 15°, and overshoot rises 15 %, 33 %, 54 %, 66 %. At kp = 6.5, PM is 1°, overshoot is 98 %, and the 39.3 rad/s ringing decays slowly, with the swing falling only from 172.47 to 137.12 mrad between the two windows. At kp = 7.0, PM is −1°, the ringing grows from 236.89 to 285.66 mrad, and its frequency is 40.5 rad/s. Prediction and step response line up.
 
 <SimOutput source="model">
 
@@ -240,7 +240,7 @@ and turn unstable near kp = 1.0 x 6.79 = 6.79. Check it on 0.1 rad steps:
 
 </SimOutput>
 
-Derivative changes those numbers. Month 3's kd = 0.115 N·m/(rad/s), together with kp = 2.86, lifts PM from 15° to 56° and cuts overshoot from 66 % to 2 %. D adds phase lead near the crossover, exactly where the loop needs it. That is the frequency-domain reason D calms the approach: it does not remove steady error, but it raises the phase margin.
+Derivative changes those numbers. Month 3's kd = 0.115 N·m/(rad/s), together with kp = 2.86, lifts PM from 15° to 56° and cuts overshoot from 66 % to 2 %. The PD term itself contributes phase `∠(kp + jω kd) = atan(ω · kd / kp) = atan(34.6 × 0.115 / 2.86) ≈ 54°` at the new crossover; as ω_c moves from ≈25 rad/s (P-only at the same kp) to 34.6 rad/s, the plant and sample-delay lag grow by about 11°, so the net rise is about 41° and accounts for 15° → 56°. D adds that phase lead near the crossover, exactly where the loop needs it. That is the frequency-domain reason D calms the approach: it does not remove steady error, but it raises the phase margin.
 
 <Quiz id="q5" question="A gain margin of 16.6 dB corresponds to how many times more gain?" answer={6.8} unit="times" explanation="Convert decibels to a ratio: 10^(16.6/20) = 6.8. With P only and kp = 1.0, about 6.8 times more gain drives the loop unstable near the phase crossover; the model puts the critical kp at 6.79." />
 

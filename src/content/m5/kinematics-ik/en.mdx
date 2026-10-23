@@ -230,7 +230,7 @@ Numerical IK to (0.10, 0.15, 0.12) m from q = [0, 30, -30] deg
 
 </SimOutput>
 
-The error falls from 209.357 mm to 0.002 mm in 15 iterations. While the error is larger than 2 cm, each step is capped and the error falls by roughly 16 to 19 mm per iteration; once inside 2 cm a full step lands and the last iterations only drive the residual down. The script then checks the answer with forward kinematics instead of trusting the joint angles:
+The error falls from 209.357 mm to 0.002 mm in 15 iterations. While the error is larger than 2 cm, each step scales the error so the aim is at most 20 mm (`max_step = 0.02`), but the DLS update moves the tip by J Jᵀ(J Jᵀ + λ²I)⁻¹ e rather than by e itself, so with λ = 0.03 the tip advances slightly less than the scaled 20 mm and slightly off the error direction — about 16 to 19 mm per iteration in the log; once inside 2 cm a full step lands and the last iterations only drive the residual down. The script then checks the answer with forward kinematics instead of trusting the joint angles:
 
 <SimOutput source="model">
 
@@ -292,7 +292,7 @@ Singularity: the elbow straightening, shoulder at 20 deg, base at 0
 
 </SimOutput>
 
-The first two columns are the elbow angle and det J. The last two are the largest joint speed needed to move the tip radially outward at 0.05 m/s, first with an exact inverse and then with damped least squares. At elbow -60 deg the exact inverse needs 44.9 deg/s, which is reasonable. At -0.3 deg it needs 8249.1 deg/s, which no motor can deliver. The damped solver stays at 3.4 deg/s, but then it does not deliver the requested 0.05 m/s: it projects the requested velocity onto the range of J, and the component along the missing direction is discarded.
+The first two columns are the elbow angle and det J. The last two are the largest joint speed needed to move the tip radially outward at 0.05 m/s, first with an exact inverse and then with damped least squares. Work the −60 deg row: with q0 = 0 the tip lies on the x axis, so the requested tip velocity is v = [0.05, 0, 0] m/s; solving dq = J⁻¹ v at q = [0, 20°, −60°] gives max|dq| × 180/π = 44.9 deg/s, and the damped step dq = Jᵀ(JJᵀ + λ²I)⁻¹v with λ = 0.03 gives the 34.8 deg/s column. At −0.3 deg the exact inverse needs 8249.1 deg/s, which no motor can deliver. The damped solver stays at 3.4 deg/s, but then it does not deliver the requested 0.05 m/s: it projects the requested velocity onto the range of J, and the component along the missing direction is discarded.
 
 The formula explains both the table and the second singularity:
 
