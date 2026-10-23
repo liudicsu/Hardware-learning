@@ -869,28 +869,46 @@ for (const f of existsSync(dataDir) ? readdirSync(dataDir).filter((f) => f.endsW
     `${f3(num(egg))}`, `${S} × ${f3(can)} × ${f2(G + A)} = ${f3(num(can))}`, `${f3(num(can))} / ${2 * muP} = ${f1(F(can, muP))} N`, `${f3(num(can))} / ${2 * muT} = ${f1(F(can, muT))} N`,
     `μ = tan 35° = ${f2(tan(35))}`, `μ = tan 17° = ${f2(tan(17))}`, `= ${q1.toFixed(3)} ≈ ${f2(q1)} N`, `μ = tan 31° = ${tan(31).toFixed(4)}`,
     `(${thin} / ${T})³ = ${loc}`, `${thin} / ${T} = ${tru}`, `${L} / 5 = ${span4} mm`, `(${f2(span)} / ${span4})³ = ${sp4}`,
-    `2 × ${f3(I1)} = ${f3(2 * I1)} mm⁴`, `${V} × ${rho} = ${mass} g`, `${shore} × ${astmPt} = ${(shore * astmPt).toFixed(3)} mm`, `0.100 × ${G} = ${f2(0.1 * G)} N`, `2 × 0.4 = 0.8 mm`];
+    `2 × ${f3(I1)} = ${f3(2 * I1)} mm⁴`, `${V} × ${rho} = ${mass} g`, `${shore} × ${astmPt} = ${(shore * astmPt).toFixed(3)} mm`, `0.100 × ${G} = ${f2(0.1 * G)} N`];
+  // ASTM D2240 type A: full extension = 100 points × 0.025 mm; hang-test mass; two-extrusion-width rule; Crooks 2017 §2.3.1 FE optima
+  const ext = (100 * astmPt).toFixed(2), hang = 0.1, nozzle = 0.4, twoW = `2 × ${nozzle} = ${2 * nozzle} mm`;
+  const crooks = [[30, 2.3], [50, -6.4], [70, -5.8]], sg = (x) => `${x < 0 ? "−" : "+"}${Math.abs(x).toFixed(1)}°`;
+  const cLo = sg(Math.min(...crooks.map((c) => c[1]))), cHi = sg(Math.max(...crooks.map((c) => c[1])));
+  const block = (text, tag) => { const m = text.match(new RegExp("```" + tag + "\n([\\s\\S]*?)\n```")); return m ? m[1] : null; };
   const steps = {
     en: [`read Squeeze per finger = ${f1(F(egg, 0.3))} N and Matching slide angle atan(μ) = ${deg(0.3).toFixed(0)}°`, `read Squeeze per finger = ${f1(F(egg, 0.6))} N and Matching slide angle atan(μ) = ${deg(0.6).toFixed(0)}°`,
       `read Squeeze per finger = ${f1(F(egg, 0.3, 0))} N.`, `read Squeeze per finger = ${f1(F(can, 0.3))} N; then set μ = 0.80 and read ${f1(F(can, 0.8))} N`, `from ${f1(F(egg, 0.3))} N to ${f1(F(egg, 0.6))} N`,
       `needs only ${f1(F(aa, muP))} N and ${f1(F(aa, muT))} N`, `a 60 g egg needs ${f1(F(egg, muP))} N per finger with PLA (μ ≈ ${muP}) and ${f1(F(egg, muT))} N with TPU (μ ≈ ${muT}); a 350 g can needs ${f1(F(can, muP))} N and ${f1(F(can, muT))} N`,
       `(17° gives ${f2(tan(17))}, 35° gives ${f2(tan(35))})`, `the 350 g can needs ${f1(F(can, muP))} N per PLA finger but ${f1(F(can, muT))} N per TPU finger`, `(${f2(q1)} N per finger)`,
-      `I rises to ${Ib.toFixed(0)} mm⁴, about ${(Ib / (2 * I1) / 1000).toFixed(0)}000 times`, `divisors ${2 * muP} and ${2 * muT} are 2 × μ`],
+      `I rises to ${Ib.toFixed(0)} mm⁴, about ${(Ib / (2 * I1) / 1000).toFixed(0)}000 times`, `divisors ${2 * muP} and ${2 * muT} are 2 × μ`,
+      `doubling μ from ${f2(0.3)} to ${f2(0.6)} halves the force from ${f1(F(egg, 0.3))} N to ${f1(F(egg, 0.6))} N`, `A ${hang * 1000} g mass pulls with ${f3(hang)} × ${G} = ${f2(hang * G)} N`,
+      `the standard's type A indenter extends ${ext} mm, and the reading falls by one point for every ${astmPt} mm`, `0 means the full ${ext} mm`, `At 95A the indenter sinks about ${shore} × ${astmPt}`,
+      `crossbeam angle swept from −15° to +15° in 2.5° steps`, `(${crooks.map(([d, a]) => `${sg(a)} at ${d} mm`).join(", ").replace(/, ([^,]*)$/, ", $1")}), so it lay between ${cLo} and ${cHi}`],
     zh: [`读取每根手指的夹紧力 = ${f1(F(egg, 0.3))} N、对应的滑动倾角 atan(μ) = ${deg(0.3).toFixed(0)}°`, `读取每根手指的夹紧力 = ${f1(F(egg, 0.6))} N、对应的滑动倾角 atan(μ) = ${deg(0.6).toFixed(0)}°`,
       `读取每根手指的夹紧力 = ${f1(F(egg, 0.3, 0))} N。`, `读取每根手指的夹紧力 = ${f1(F(can, 0.3))} N；再将 μ 设为 0.80，读取 ${f1(F(can, 0.8))} N`, `从 ${f1(F(egg, 0.3))} N 减半到 ${f1(F(egg, 0.6))} N`,
       `分别只需要 ${f1(F(aa, muP))} N 和 ${f1(F(aa, muT))} N`, `60 g 的鸡蛋用 PLA 手指（μ ≈ ${muP}）每指需要 ${f1(F(egg, muP))} N，用 TPU 手指（μ ≈ ${muT}）需要 ${f1(F(egg, muT))} N；350 g 的罐子分别需要 ${f1(F(can, muP))} N 和 ${f1(F(can, muT))} N`,
       `（17° 对应 ${f2(tan(17))}，35° 对应 ${f2(tan(35))}）`, `350 g 的罐子用 PLA 手指每指要 ${f1(F(can, muP))} N，用 TPU 手指只要 ${f1(F(can, muT))} N`, `（${f2(q1)} N）`,
-      `根部的 I 升到 ${Ib.toFixed(0)} mm⁴，约为前者的 ${(Ib / (2 * I1) / 1000).toFixed(0)}000 倍`, `除数 ${2 * muP} 和 ${2 * muT} 是 2 × μ`],
+      `根部的 I 升到 ${Ib.toFixed(0)} mm⁴，约为前者的 ${(Ib / (2 * I1) / 1000).toFixed(0)}000 倍`, `除数 ${2 * muP} 和 ${2 * muT} 是 2 × μ`,
+      `μ 从 ${f2(0.3)} 加倍到 ${f2(0.6)} 使力从 ${f1(F(egg, 0.3))} N 减半到 ${f1(F(egg, 0.6))} N`, `${hang * 1000} g 的质量拉力是 ${f3(hang)} × ${G} = ${f2(hang * G)} N`,
+      `A 型压针伸出 ${ext} mm，压针每多压入 ${astmPt} mm`, `0 表示压进满行程 ${ext} mm`, `95A 时压针只压进约 ${shore} × ${astmPt}`,
+      `横梁角度从 −15° 到 +15° 以 2.5° 为步长扫描`, `（${crooks.map(([d, a]) => `${d} mm 为 ${sg(a)}`).join("，")}），落在 ${cLo} 到 ${cHi} 之间`],
   };
   for (const lang of ["en", "zh"]) {
     const text = readFileSync(join(root, `src/content/m3/gripper-fingers/${lang}.mdx`), "utf8");
     for (const q of [...common, ...steps[lang]]) ok(text.includes(q), `gripper-fingers ${lang}: expected ${JSON.stringify(q)} (recomputed from grip_force.py / finray_finger.scad)`);
     const qz = text.match(/<Quiz id="q1"[^>]*answer=\{([\d.]+)\}/), qz2 = text.match(/<Quiz id="q2"[^>]*answer=\{([\d.]+)\}/);
     ok(qz && Number(qz[1]) === Number(f2(q1)), `gripper-fingers ${lang}: Quiz q1 answer ${qz && qz[1]} != ${f2(q1)}`);
-    ok(qz2 && Math.abs(Number(qz2[1]) - tan(31)) < 0.01, `gripper-fingers ${lang}: Quiz q2 answer ${qz2 && qz2[1]} != tan 31° = ${f2(tan(31))}`);
+    const qt2 = text.match(/<Quiz id="q2"[^>]*tolerance=\{([\d.]+)\}/), tol2 = qt2 ? Number(qt2[1]) : NaN;
+    ok(qz2 && Number(qz2[1]) === Number(tan(31).toFixed(1)), `gripper-fingers ${lang}: Quiz q2 answer ${qz2 && qz2[1]} != tan 31° to 1 decimal = ${tan(31).toFixed(1)}`);
+    ok(tol2 > 0 && tol2 <= 0.02 && Math.abs(tan(31) - Number(qz2 && qz2[1])) <= tol2, `gripper-fingers ${lang}: Quiz q2 tolerance ${qt2 && qt2[1]} not in (0, 0.02] or does not cover tan 31° = ${tan(31).toFixed(4)}`);
+    const nExt = text.split(`${ext} mm`).length - 1, nTwo = text.split(twoW).length - 1;
+    ok(nExt === 2, `gripper-fingers ${lang}: expected "${ext} mm" (100 × ${astmPt}) exactly twice, found ${nExt}`);
+    ok(nTwo === 2, `gripper-fingers ${lang}: expected "${twoW}" exactly twice (printing rule and summary), found ${nTwo}`);
+    ok(block(text, "scad") === scad.replace(/\n$/, ""), `gripper-fingers ${lang}: the scad code block differs from examples/month-3/gripper-fingers/finray_finger.scad`);
+    ok(block(text, "python") === py.replace(/\n$/, ""), `gripper-fingers ${lang}: the python code block differs from examples/month-3/gripper-fingers/grip_force.py`);
   }
   const gl = readFileSync(join(root, "src/lib/glossary.ts"), "utf8");
-  for (const q of [`gives ${f1(F(egg, muP))} N per PLA finger for a 60 g egg, at a = ${A.toFixed(1)} m/s² and PLA μ ≈ ${muP}`, `a = ${A.toFixed(1)} m/s²、PLA 的 μ ≈ ${muP}（两者都是示例假设）的条件下，60 g 的鸡蛋用 PLA 手指时每指需要 ${f1(F(egg, muP))} N`])
+  for (const q of [`The gripper lesson uses S = ${S}:`, `夹爪一课取 S = ${S}：`, `gives ${f1(F(egg, muP))} N per PLA finger for a 60 g egg, at a = ${A.toFixed(1)} m/s² and PLA μ ≈ ${muP}`, `a = ${A.toFixed(1)} m/s²、PLA 的 μ ≈ ${muP}（两者都是示例假设）的条件下，60 g 的鸡蛋用 PLA 手指时每指需要 ${f1(F(egg, muP))} N`])
     ok(gl.includes(q), `glossary safety-factor: expected ${JSON.stringify(q)}`);
   console.log(`calc  gripper-fingers: grip_force.py output, worked examples, widget steps, q1 ${f2(q1)} / q2 ${f2(tan(31))}, tilt readings, summary, fin-ray model (I ${f3(I1)} / ${Ib.toFixed(0)} / ${Ih.toFixed(0)} mm⁴), mass ${mass} g and Shore ${(shore * astmPt).toFixed(3)} mm bound in en/zh and the glossary`);
 }
@@ -898,37 +916,93 @@ for (const f of existsSync(dataDir) ? readdirSync(dataDir).filter((f) => f.endsW
   // so101-arm: the two BOM totals are rebuilt from the README line items (pinned a758567, US prices), and the error
   // budget, current budget, horn refit and filament upper bound are recomputed from the Feetech spec numbers quoted.
   const servo = 13.89, board = 10.6, usb = 7, psu = 10;
-  const pairServos = [7, 2, 3], pairOther = [usb, 2 * psu, 9, 6], folOther = [board, usb, psu, 5, 6];
+  // leader ratios per joint (README / LeRobot SO-101 guide); the follower is all C001 1/345. Part codes are the README's.
+  const leader = { shoulder_pan: 191, shoulder_lift: 345, elbow_flex: 191, wrist_flex: 147, wrist_roll: 147, gripper: 147 };
+  const code = { 345: "C001", 191: "C044", 147: "C046" }, hi = 345, mid = 191, lo = 147;
+  const nLead = (r) => Object.values(leader).filter((x) => x === r).length;
+  const pairServos = [6 + nLead(hi), nLead(mid), nLead(lo)], pairOther = [usb, 2 * psu, 9, 6], folOther = [board, usb, psu, 5, 6];
+  ok(JSON.stringify(pairServos) === JSON.stringify([7, 2, 3]), `so101-arm: leader map + 6 follower C001 gives ${pairServos}, README pair is 7 C001 / 2 C044 / 3 C046`);
   const d = (x) => `$${x.toFixed(2)}`;
   const nPair = pairServos.reduce((a, b) => a + b, 0), sPair = nPair * servo, bPair = 2 * board, oPair = pairOther.reduce((a, b) => a + b, 0);
   const pair = sPair + bPair + oPair, sFol = 6 * servo, oFol = folOther.reduce((a, b) => a + b, 0), fol = sFol + oFol;
-  const bom = "```text\nParts for two arms (SO-ARM100 README, US unit prices):\n" +
-    `  servos   ${nPair} x ${d(servo)} = ${d(sPair)}   (${pairServos[0]} x C001 1/345 + ${pairServos[1]} x C044 1/191 + ${pairServos[2]} x C046 1/147)\n` +
-    `  boards    2 x ${d(board)} = ${d(bPair)}\n  other    $${usb} USB-C cables + 2 x $${psu} power supplies + $9 clamps + $6 screwdrivers = ${d(oPair)}\n` +
-    `  total    ${d(sPair)} + ${d(bPair)} + ${d(oPair)} = ${d(pair)}\nParts for one follower arm:\n  servos    6 x ${d(servo)} = ${d(sFol)}    (6 x C001 1/345)\n` +
-    `  other    ${d(board)} board + $${usb} USB-C cables + $${psu} power supply + $5 clamps + $6 screwdrivers = ${d(oFol)}\n  total    ${d(sFol)} + ${d(oFol)} = ${d(fol)}\n\`\`\``;
+  const mix = `${pairServos[0]} x ${code[hi]} 1/${hi} + ${pairServos[1]} x ${code[mid]} 1/${mid} + ${pairServos[2]} x ${code[lo]} 1/${lo}`;
+  const bom = {
+    en: "```text\nParts for two arms (SO-ARM100 README, US unit prices):\n" +
+      `  servos   ${nPair} x ${d(servo)} = ${d(sPair)}   (${mix})\n` +
+      `  boards    2 x ${d(board)} = ${d(bPair)}\n  other    $${usb} USB-C cables + 2 x $${psu} power supplies + $9 clamps + $6 screwdrivers = ${d(oPair)}\n` +
+      `  total    ${d(sPair)} + ${d(bPair)} + ${d(oPair)} = ${d(pair)}\nParts for one follower arm:\n  servos    6 x ${d(servo)} = ${d(sFol)}    (6 x ${code[hi]} 1/${hi})\n` +
+      `  other    ${d(board)} board + $${usb} USB-C cables + $${psu} power supply + $5 clamps + $6 screwdrivers = ${d(oFol)}\n  total    ${d(sFol)} + ${d(oFol)} = ${d(fol)}\n\`\`\``,
+    zh: "```text\n两条臂的零件（SO-ARM100 README，美国单价）：\n" +
+      `  舵机     ${nPair} x ${d(servo)} = ${d(sPair)}   （${mix}）\n` +
+      `  驱动板    2 x ${d(board)} = ${d(bPair)}\n  其他     $${usb} USB-C 线 + 2 x $${psu} 电源 + $9 夹具 + $6 螺丝刀 = ${d(oPair)}\n` +
+      `  合计     ${d(sPair)} + ${d(bPair)} + ${d(oPair)} = ${d(pair)}\n一条从臂的零件：\n  舵机      6 x ${d(servo)} = ${d(sFol)}    （6 x ${code[hi]} 1/${hi}）\n` +
+      `  其他     ${d(board)} 驱动板 + $${usb} USB-C 线 + $${psu} 电源 + $5 夹具 + $6 螺丝刀 = ${d(oFol)}\n  合计     ${d(sFol)} + ${d(oFol)} = ${d(fol)}\n\`\`\``,
+  };
   const step = 360 / 4096, r = 200, rad = Math.PI / 180;
   const err = `encoder resolution (C001 spec, 7-8):  360 / 4096 = ${step.toFixed(3)} deg per step\ngear backlash (C001 and C018 spec, 6-11):  <= 0.5 deg\n` +
     `at an example radius of ${r} mm from the joint axis:\n  one step:  ${r} x ${step.toFixed(3)} x pi / 180 = ${(r * step * rad).toFixed(2)} mm\n  backlash:  ${r} x 0.5   x pi / 180 = ${(r * 0.5 * rad).toFixed(2)} mm\n`;
-  const cur = `  rated   6 x 0.9 A = ${(6 * 0.9).toFixed(1)} A\n  stall   6 x 2.7 A = ${(6 * 2.7).toFixed(1)} A\n` +
-    `5 V follower, six ST-3215-C001 (C001 spec, 5-9, rated current given at 6 V):\n  rated   6 x 0.5 A = ${(6 * 0.5).toFixed(1)} A\n`;
-  const tooth = 360 / 25, vols = [571.3, 614.6], vsum = vols[0] + vols[1];
-  const quiz = pair + 22;
-  const common = [bom, err, cur, `360° / 25 = ${tooth}°`, `${tooth} / ${step.toFixed(3)} = ${(tooth / step).toFixed(2)}`, `${vols[0]} + ${vols[1]} = ${vsum.toFixed(1)} cm³`,
-    `1.24 g/cm³`, `${(vsum * 1.24 / 1000).toFixed(2)} kg`, `${(6 * 0.9).toFixed(1)} A`, `345 / 147 = ${(345 / 147).toFixed(2)}`, `(345/147)² ≈ ${((345 / 147) ** 2).toFixed(2)}`,
-    `${d(pair)} + $22.00 = ${d(quiz)}`, `answer={${quiz.toFixed(2)}}`, `| ${d(pair)} + `];
-  const per = { en: [`the BOM pair (${d(pair)})`, `comes to ${d(pair)} for a leader and follower pair, or ${d(fol)} for one follower`, `the BOM pair costs ${d(pair)} (one follower ${d(fol)})`, `by a factor of about ${Math.round(0.5 / step)}`],
-    zh: [`主从一对（${d(pair)}）`, `主从一对 ${d(pair)}，单个从臂 ${d(fol)}`, `物料清单一对 ${d(pair)}（单从臂 ${d(fol)}）`, `大约是编码器一步的 ${Math.round(0.5 / step)} 倍`] };
+  // Feetech C018 / C001 specs: 5-9 rated, 5-5 stall (C001 at 6 V and 7.4 V), 7-11 overcurrent (2 A for 2 s) and overload (80 % of stall for 2 s);
+  // README: at least 5 A at 12 V; BOM 5 V supply Facmogu AL-0540 5 V 4 A.
+  const r18 = 0.9, s18 = 2.7, r01 = 0.5, s01 = 2, s01b = 2.5, psu12 = 5, psu5 = 4, protA = 2, protS = 2, olPct = 80;
+  const rated12 = (6 * r18).toFixed(1), stall12 = (6 * s18).toFixed(1), rated5 = (6 * r01).toFixed(1), stall5 = 6 * s01;
+  ok(6 * r18 > psu12 && 6 * r01 <= psu5 && stall5 > psu5 && s01 <= protA && Number.isInteger(stall5 / psu5),
+    `so101-arm: current budget no longer supports the prose (12 V rated ${rated12} vs ${psu12} A, 5 V rated ${rated5} / stall ${stall5} vs ${psu5} A, stall ${s01} A vs ${protA} A protection)`);
+  const times = { en: { 2: "twice", 3: "three times", 4: "four times" }[stall5 / psu5], zh: { 2: "两倍", 3: "三倍", 4: "四倍" }[stall5 / psu5] };
+  const cur = `  rated   6 x ${r18} A = ${rated12} A\n  stall   6 x ${s18} A = ${stall12} A\n` +
+    `5 V follower, six ST-3215-C001 (C001 spec, 5-9 and 5-5, both given at 6 V):\n  rated   6 x ${r01} A = ${rated5} A\n  stall   6 x ${s01.toFixed(1)} A = ${stall5.toFixed(1)} A\n`;
+  const teeth = 25, tooth = 360 / teeth, vols = [571.4, 614.6], ender = 571.3, vsum = vols[0] + vols[1], infill = 15, filament = 22;
+  // vols: solid volumes of Prusa_/Bambu A1 mini Follower and Leader SO101 plate STLs at a758567 (571.444, 614.587 cm³); Ender follower 571.292
+  const quiz = pair + filament;
+  const r1 = (hi / lo).toFixed(2), r2 = ((hi / lo) ** 2).toFixed(2);
+  const common = [err, cur, `360° / ${teeth} = ${tooth}°`, `${tooth} × 4096 / 360 = ${(tooth * 4096 / 360).toFixed(2)}`, `${vols[0]} + ${vols[1]} = ${vsum.toFixed(1)} cm³`,
+    `1.24 g/cm³`, `${(vsum * 1.24 / 1000).toFixed(2)} kg`, `${hi} / ${lo} = ${r1}`, `(${hi}/${lo})² ≈ ${r2}`,
+    `${d(pair)} + $${filament.toFixed(2)} = ${d(quiz)}`, `answer={${quiz.toFixed(2)}}`, `| ${d(pair)} + `, `${teeth}T/OD5.9mm`];
+  const per = { en: [bom.en, `the BOM pair (${d(pair)}) and print the parts yourself with about $${filament} of PLA+`, `comes to ${d(pair)} for a leader and follower pair, or ${d(fol)} for one follower`, `the BOM pair costs ${d(pair)} (one follower ${d(fol)})`, `by a factor of about ${Math.round(0.5 / step)}`,
+      `The follower uses 1/${hi} on all six joints.`,
+      `Compare the wrist's 1/${lo} with the follower's 1/${hi}: ${hi} / ${lo} = ${r1}, so the follower's ${hi}:1 joint feels about ${r1} times more friction, and its rotor inertia feels (${hi}/${lo})² ≈ ${r2} times larger`,
+      `while the shoulder_lift keeps the 1/${leader.shoulder_lift} ratio`,
+      `all at ${d(servo)} in the BOM: ${code[hi]} is 1/${hi}, ${code[mid]} is 1/${mid} and ${code[lo]} is 1/${lo}. The leader bundle the README links is ${nLead(lo)} × ${code[lo]}, ${nLead(mid)} × ${code[mid]} and ${nLead(hi)} × ${code[hi]}, so the pair's ${pairServos[0]} ${code[hi]} servos are the follower's six plus the leader's shoulder_lift`,
+      `putting a 1/${lo} servo in the follower's shoulder`, `the follower is 1/${hi} on all six joints while the leader mixes 1/${mid}, 1/${lo} and 1/${hi}, so ${hi} / ${lo} = ${r1} times the friction and (${hi}/${lo})² ≈ ${r2} times the rotor inertia`,
+      `Mixing the leader's 1/${lo} servos into the follower`,
+      `The README asks for at least ${psu12} A at 12 V; six C018 servos at their rated current already draw ${rated12} A, so choose a 12 V supply rated above ${rated12} A.`,
+      `a servo whose running current stays above ${protA} A for ${protS} s switches its output off and enters overcurrent protection (§7-11)`,
+      `so the ${rated5} A total is an estimate; it sits inside the ${psu5} A rating of the 5 V supply the BOM links (Facmogu AL-0540, 5 V ${psu5} A).`,
+      `The C001 stalls at ${s01} A at 6 V and ${s01b} A at 7.4 V (§5-5), so six blocked joints draw about 6 × ${s01} A = ${stall5} A, an estimate from the 6 V figure and ${times.en} the AL-0540's ${psu5} A.`,
+      `at 5 V each C001 stalls at no more than about ${s01} A, so the "above ${protA} A for ${protS} s" condition may never be met`,
+      `a servo stalled at more than ${olPct} % of its stall value for ${protS} s enters protection (§7-11)`,
+      `Feetech specifies the output shaft as ${teeth}T/OD5.9mm, a ${teeth}-tooth spline 5.9 mm across, and the horn screw as M3×6 (C001 and C018 specifications, §6-9 and §6-13)`,
+      `Because the spline has ${teeth} teeth`, `Printed parts attach to the horns with M3×6 screws.`, `the top one takes an M3×6 screw`,
+      `solid volumes of ${vols[0]} cm³ and ${vols[1]} cm³`, `the Ender follower plate gives ${ender} cm³`,
+      `PLA+, ${infill} % infill, 0.2 mm layers and a 0.4 mm nozzle`, `At ${infill} % infill most`, `PLA+, ${infill} % infill, 0.2 mm layers, 0.4 mm nozzle.`, `at ${infill} % infill and 0.2 mm layers`],
+    zh: [bom.zh, `主从一对（${d(pair)}），再用约 $${filament} 的 PLA+`, `主从一对 ${d(pair)}，单个从臂 ${d(fol)}`, `物料清单一对 ${d(pair)}（单从臂 ${d(fol)}）`, `大约是编码器一步的 ${Math.round(0.5 / step)} 倍`,
+      `从臂 6 个关节全是 1/${hi}；`,
+      `拿腕部的 1/${lo} 和从臂的 1/${hi} 比：${hi} / ${lo} = ${r1}，所以从臂的 1/${hi} 关节摩擦感约为 ${r1} 倍，转子惯量感为 (${hi}/${lo})² ≈ ${r2} 倍`,
+      `shoulder_lift 保留 1/${leader.shoulder_lift}`,
+      `BOM 里单价都是 ${d(servo)}：${code[hi]} 是 1/${hi}，${code[mid]} 是 1/${mid}，${code[lo]} 是 1/${lo}。README 链接的主臂套装是 ${nLead(lo)} × ${code[lo]}、${nLead(mid)} × ${code[mid]}、${nLead(hi)} × ${code[hi]}，所以一对里的 ${pairServos[0]} 个 ${code[hi]} 就是从臂的 6 个加上主臂 shoulder_lift 的 ${nLead(hi)} 个`,
+      `把 1/${lo} 的舵机装进从臂的肩部`, `从臂 6 个关节全是 1/${hi}，而主臂混用 1/${mid}、1/${lo} 和 1/${hi}，所以 ${hi} / ${lo} = ${r1} 倍摩擦、(${hi}/${lo})² ≈ ${r2} 倍转子惯量`,
+      `把主臂 1/${lo} 的舵机装进从臂`,
+      `README 要求 12 V 电源至少 ${psu12} A；六个 C018 在额定电流下已经要 ${rated12} A，所以 12 V 电源要选额定值高于 ${rated12} A 的。`,
+      `运行电流大于 ${protA} A 并持续 ${protS} s 后，舵机关闭输出并进入过流保护（§7-11）`,
+      `所以 ${rated5} A 的总数是估计值；它在 BOM 所链接 5 V 电源（Facmogu AL-0540，5 V ${psu5} A）的 ${psu5} A 额定值之内。`,
+      `C001 的堵转电流在 6 V 下是 ${s01} A、7.4 V 下是 ${s01b} A（§5-5），所以六个关节同时卡住约需 6 × ${s01} A = ${stall5} A（按 6 V 数据估计），是 AL-0540 的 ${psu5} A 的${times.zh}。`,
+      `5 V 下每个 C001 的堵转电流不超过约 ${s01} A，“大于 ${protA} A 并持续 ${protS} s”的条件可能根本不会满足`,
+      `堵转超过堵转值的 ${olPct} % 并持续 ${protS} s 后进入保护（§7-11）`,
+      `飞特规定输出轴为 ${teeth}T/OD5.9mm，即 ${teeth} 齿、外径 5.9 mm 的花键，舵机盘螺丝为 M3×6（C001 与 C018 规格，§6-9 和 §6-13）`,
+      `花键有 ${teeth} 个齿`, `打印件用 M3×6 螺丝固定在舵机盘上。`, `上面那个用 M3×6 螺丝`,
+      `实体体积分别是 ${vols[0]} cm³ 和 ${vols[1]} cm³`, `Ender 从臂整板为 ${ender} cm³`,
+      `PLA+、${infill} % 填充、0.2 mm 层高、0.4 mm 喷嘴，正好`, `${infill} % 填充时每个零件`, `结构件按仓库设置打印：PLA+、${infill} % 填充、0.2 mm 层高、0.4 mm 喷嘴。`, `（${infill} % 填充、0.2 mm 层高`] };
   for (const lang of ["en", "zh"]) {
     const text = readFileSync(join(root, `src/content/m3/so101-arm/${lang}.mdx`), "utf8");
     for (const q of [...common, ...per[lang]]) ok(text.includes(q), `so101-arm ${lang}: expected ${JSON.stringify(q)} (recomputed from the README BOM / Feetech specs)`);
+    const rows = [...text.matchAll(/^\| (\w+) \| 1\/(\d+) \|$/gm)].map((m) => [m[1], Number(m[2])]);
+    ok(JSON.stringify(rows) === JSON.stringify(Object.entries(leader)), `so101-arm ${lang}: leader ratio table ${JSON.stringify(rows)} != ${JSON.stringify(leader)}`);
+    ok(!/\d% /.test(text), `so101-arm ${lang}: write percentages with a space ("${infill} %")`);
     // every quoted friction / inertia ratio (the backdrive paragraph, its prose repeat and the summary) must be the computed one
-    const r1 = (345 / 147).toFixed(2), r2 = ((345 / 147) ** 2).toFixed(2);
     const got = [...text.matchAll(/345 \/ 147 = ([\d.]+)|(?:约为 |about )([\d.]+) (?:times more friction|倍)|\(345\/147\)² ≈ ([\d.]+)/g)];
     ok(got.length >= 5, `so101-arm ${lang}: expected at least 5 quoted gear-ratio results, found ${got.length}`);
     for (const m of got) ok((m[1] ?? m[2] ?? r1) === r1 && (m[3] ?? r2) === r2, `so101-arm ${lang}: ratio quote "${m[0]}" != 345 / 147 = ${r1}, (345/147)² = ${r2}`);
   }
-  console.log(`calc  so101-arm: BOM pair ${d(pair)} and follower ${d(fol)} rebuilt from line items, q1 ${d(quiz)}, error budget ${(r * step * rad).toFixed(2)} / ${(r * 0.5 * rad).toFixed(2)} mm, current ${(6 * 0.9).toFixed(1)} / ${(6 * 2.7).toFixed(1)} / ${(6 * 0.5).toFixed(1)} A, horn ${tooth}° = ${(tooth / step).toFixed(2)} steps, filament bound ${(vsum * 1.24 / 1000).toFixed(2)} kg, bound in en/zh`);
+  console.log(`calc  so101-arm: BOM pair ${d(pair)} and follower ${d(fol)} rebuilt from line items, q1 ${d(quiz)}, error budget ${(r * step * rad).toFixed(2)} / ${(r * 0.5 * rad).toFixed(2)} mm, leader ratios ${Object.values(leader).join('/')} -> pair ${pairServos.join('/')}, current ${rated12} / ${stall12} / ${rated5} / ${stall5} A, horn ${tooth}° = ${(tooth * 4096 / 360).toFixed(2)} steps, filament bound ${(vsum * 1.24 / 1000).toFixed(2)} kg, bound in en/zh`);
 }
 
 const specs = [];
