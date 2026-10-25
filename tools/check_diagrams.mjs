@@ -1957,6 +1957,45 @@ const lessonRef = (n, slug, lang) => {
     ok(text.includes(dflt), `m4 gazebo-sim ${lang}: SDF default phrase ${JSON.stringify(dflt)}`);
     const hzWall = lang === "en" ? "`ros2 topic hz` measures the wall-clock rate by default" : "`ros2 topic hz` 默认按墙钟计算频率";
     ok(text.includes(hzWall) && text.includes("`--use-sim-time`"), `m4 gazebo-sim ${lang}: ros2 topic hz wall-clock note`);
+    // Audit fixes: gpu_lidar sees visuals; headless RTF via /stats; default server.config; DART; noise; floor contact.
+    const must = lang === "en" ? [
+      "for a `gpu_lidar`, hit the **visual** geometry the renderer draws (not the collision shapes)",
+      "unless you hide it with `<visibility_flags>`",
+      "a `gpu_lidar` renders visuals, so that fin still appears in the scan",
+      "loads `Physics`, `UserCommands` and `SceneBroadcaster` — but not `Sensors`",
+      "As soon as the world lists any plugin, that default file is not loaded at all",
+      "Gazebo Harmonic solves contact with DART (`gz-physics-dartsim-plugin`)",
+      "but the default DART plugin does not read those two",
+      "rather than shrinking `max_step_size`",
+      "a close-range blind zone; Gazebo's lidar models none of those by default",
+      "wheel/caster collisions neither sink into nor float above the floor",
+    ] : [
+      "对 `gpu_lidar` 来说，打到的是渲染出来的 **visual** 几何（不是 collision）",
+      "除非用 `<visibility_flags>` 屏蔽",
+      "`gpu_lidar` 渲染的是 visual，所以这块薄片照样会出现在激光扫描里",
+      "加载 `Physics`、`UserCommands` 和 `SceneBroadcaster`——但不加载 `Sensors`",
+      "只要世界里写了任意一个插件，这份默认文件就完全不加载",
+      "Gazebo Harmonic 默认用 DART（`gz-physics-dartsim-plugin`）",
+      "但默认的 DART 插件并不读取这两项",
+      "而不是调小 `max_step_size`",
+      "以及近距离盲区；Gazebo 的激光雷达默认一样都不建模",
+      "轮子/脚轮的碰撞体没有陷进地板，也没有悬空",
+    ];
+    for (const q of must) ok(text.includes(q), `m4 gazebo-sim ${lang}: expected ${JSON.stringify(q)}`);
+    const statsQ = "`gz topic -e -t /stats -n 1`";
+    const statsN = text.split(statsQ).length - 1;
+    ok(statsN === 2 && text.includes("`real_time_factor`"), `m4 gazebo-sim ${lang}: ${statsQ} must appear twice (A + G table) with the real_time_factor field, found ${statsN}`);
+    const stale = lang === "en" ? ["hit the **collision** meshes", "server console", "never snags the lidar", "intersecting the floor wrongly"] : ["碰到的是**碰撞**网格", "服务器控制台", "免得绊住激光", "错误插入地板"];
+    for (const q of stale) ok(!text.includes(q), `m4 gazebo-sim ${lang}: stale claim ${JSON.stringify(q)} must be gone`);
+  }
+  {
+    const gzPlugins = gzWorld.match(/<plugin filename="gz-sim-[a-z-]+-system"/g) || [];
+    ok(gzPlugins.length === 4 && gzWorld.includes('filename="gz-sim-sensors-system"'), `m4 gazebo-sim: obstacles.sdf must list all four systems incl. Sensors (found ${gzPlugins.length})`);
+    const gl = rd4("src/lib/glossary.ts");
+    for (const q of ["Note: Gazebo's gpu_lidar ray-casts against visual geometry, not collision.", "注意：Gazebo 的 gpu_lidar 打的是 visual 几何，不是碰撞几何。", "Gazebo shows RTF in the GUI; headless, read it with gz topic -e -t /stats;", "Gazebo 在 GUI 里显示 RTF，无界面时用 gz topic -e -t /stats 查看；"])
+      ok(gl.includes(q), `m4 gazebo-sim glossary: expected ${JSON.stringify(q)}`);
+    for (const q of ["Lidar rays also hit collision meshes", "激光也打在碰撞网格上", "server console", "服务器控制台"])
+      ok(!gl.includes(q), `m4 gazebo-sim glossary: stale claim ${JSON.stringify(q)} must be gone`);
   }
 
   console.log(`calc  m4 gaps: Construct €39.97 + pixi 5.8 GB; EMA α=0.5 @k67–69 ${a05.map((x) => x.toFixed(4)).join(", ")} / α=0.2 replay ${a02.map((x) => x.toFixed(4)).join(", ")}; teleop held ${teleopHeld} m vs 1.15 m; staleness ${stale} m; footprint +${fpFwd}/${fpBack}/±${fpY} (exact side ${fpYExact}); r/b 10 % → ${r10}/${b10}, turn ×${turnFactor.toFixed(2)}; inflation (254−1)·exp(−${costScale}·(d−r_ins)) out to ${inflR} m; smear ${smearTour} rad @ ${turnClamp} rad/s / ${lidarRate} Hz; Isaac 4080/16/32 Oct 2026; MuJoCo IROS 2012; gz step ${maxStepGz}/RTF ${rtfGz}, lidar σ ${lidarStd}/min ${lidarMin}, hand ${handRange} m; bound in en/zh`);

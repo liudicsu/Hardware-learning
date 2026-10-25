@@ -1444,8 +1444,8 @@ export const glossary: GlossaryEntry[] = [
     id: "real-time-factor",
     term: { zh: "实时因子（real-time factor）", en: "real-time factor (RTF)" },
     def: {
-      zh: "仿真时间相对墙钟时间的快慢。RTF = 1.0 表示仿真与现实同步；小于 1 表示机器跟不上。Gazebo 在 GUI 与服务器控制台报告 RTF；负载下传感器的墙钟频率会跟着掉，但在仿真时间里仍按设定速率步进。",
-      en: "How fast simulated time runs relative to wall-clock time. RTF = 1.0 means the sim keeps pace with reality; below 1 means the machine cannot keep up. Gazebo reports RTF in the GUI and on the server console; under load, wall-clock sensor rates fall while the sensors still step at their configured rate in sim time.",
+      zh: "仿真时间相对墙钟时间的快慢。RTF = 1.0 表示仿真与现实同步；小于 1 表示机器跟不上。Gazebo 在 GUI 里显示 RTF，无界面时用 gz topic -e -t /stats 查看；负载下传感器的墙钟频率会跟着掉，但在仿真时间里仍按设定速率步进。",
+      en: "How fast simulated time runs relative to wall-clock time. RTF = 1.0 means the sim keeps pace with reality; below 1 means the machine cannot keep up. Gazebo shows RTF in the GUI; headless, read it with gz topic -e -t /stats; under load, wall-clock sensor rates fall while the sensors still step at their configured rate in sim time.",
     },
     lesson: "gazebo-sim",
     firstExplained: true,
@@ -1464,8 +1464,8 @@ export const glossary: GlossaryEntry[] = [
     id: "collision-geometry",
     term: { zh: "碰撞几何（collision geometry）", en: "collision geometry" },
     def: {
-      zh: "物理引擎用来检测接触的形状，可以与画面上的 visual 网格不同。激光也打在碰撞网格上。两者不一致时，看起来有缝却仍会撞上，或反之。",
-      en: "The shapes the physics engine uses for contact, which may differ from the painted visual meshes. Lidar rays also hit collision meshes. When the two disagree, a gap you can see may still collide, or the reverse.",
+      zh: "物理引擎用来检测接触的形状，可以与画面上的 visual 网格不同。注意：Gazebo 的 gpu_lidar 打的是 visual 几何，不是碰撞几何。两者不一致时，看起来有缝却仍会撞上，或反之。",
+      en: "The shapes the physics engine uses for contact, which may differ from the painted visual meshes. Note: Gazebo's gpu_lidar ray-casts against visual geometry, not collision. When the two disagree, a gap you can see may still collide, or the reverse.",
     },
     lesson: "gazebo-sim",
     firstExplained: true,
