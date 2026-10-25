@@ -1440,6 +1440,66 @@ export const glossary: GlossaryEntry[] = [
     lesson: "moveit-pick-place",
     firstExplained: true,
   },
+  {
+    id: "real-time-factor",
+    term: { zh: "实时因子（real-time factor）", en: "real-time factor (RTF)" },
+    def: {
+      zh: "仿真时间相对墙钟时间的快慢。RTF = 1.0 表示仿真与现实同步；小于 1 表示机器跟不上。Gazebo 在 GUI 与服务器控制台报告 RTF；负载下传感器的墙钟频率会跟着掉，但在仿真时间里仍按设定速率步进。",
+      en: "How fast simulated time runs relative to wall-clock time. RTF = 1.0 means the sim keeps pace with reality; below 1 means the machine cannot keep up. Gazebo reports RTF in the GUI and on the server console; under load, wall-clock sensor rates fall while the sensors still step at their configured rate in sim time.",
+    },
+    lesson: "gazebo-sim",
+    firstExplained: true,
+  },
+  {
+    id: "sdf",
+    term: { zh: "SDF（仿真描述格式）", en: "SDF (Simulation Description Format)" },
+    def: {
+      zh: "Gazebo 的原生场景格式：world、model、link，以及 collision / visual。URDF 描述给 ROS 用的机器人；SDF 描述整个世界。生成 URDF 时 Gazebo 会在内部转成 SDF。",
+      en: "Gazebo's native scene format: world, model, link, plus collision and visual geometry. URDF describes a robot for ROS; SDF describes a whole world. When you spawn a URDF, Gazebo converts it to SDF internally.",
+    },
+    lesson: "gazebo-sim",
+    firstExplained: true,
+  },
+  {
+    id: "collision-geometry",
+    term: { zh: "碰撞几何（collision geometry）", en: "collision geometry" },
+    def: {
+      zh: "物理引擎用来检测接触的形状，可以与画面上的 visual 网格不同。激光也打在碰撞网格上。两者不一致时，看起来有缝却仍会撞上，或反之。",
+      en: "The shapes the physics engine uses for contact, which may differ from the painted visual meshes. Lidar rays also hit collision meshes. When the two disagree, a gap you can see may still collide, or the reverse.",
+    },
+    lesson: "gazebo-sim",
+    firstExplained: true,
+  },
+  {
+    id: "diff-drive",
+    term: { zh: "DiffDrive（差速驱动插件）", en: "DiffDrive" },
+    def: {
+      zh: "Gazebo 的差速底盘系统插件（如 gz-sim-diff-drive-system）：订阅 /cmd_vel，在物理里转动轮关节，并发布里程计与 odom→base_footprint。只在仿真里存在；第 5 课用 ros2_control 替换它，以便迁到真机。",
+      en: "Gazebo's differential-drive system plugin (e.g. gz-sim-diff-drive-system): it subscribes to /cmd_vel, spins the wheel joints in physics, and publishes odometry plus odom→base_footprint. It exists only in simulation; Lesson 5 replaces it with ros2_control so the same stack can move to a real robot.",
+    },
+    lesson: "gazebo-sim",
+    firstExplained: true,
+  },
+  {
+    id: "ros-gz-bridge",
+    term: { zh: "ros_gz_bridge", en: "ros_gz_bridge" },
+    def: {
+      zh: "在 Gazebo 话题与 ROS 2 话题之间做显式类型转换与拷贝的桥。你逐条列出话题、两侧类型和方向；没写进 bridge.yaml 的话题不会出现在 ros2 topic list 里。",
+      en: "The explicit bridge that copies and type-converts selected Gazebo topics into ROS 2 (and back). You list each topic, both types and the direction; anything missing from bridge.yaml never appears in ros2 topic list.",
+    },
+    lesson: "gazebo-sim",
+    firstExplained: true,
+  },
+  {
+    id: "use-sim-time",
+    term: { zh: "use_sim_time", en: "use_sim_time" },
+    def: {
+      zh: "ROS 2 节点参数：为 true 时用 /clock 上的仿真时间，而不是墙钟。和仿真器对话的每个节点都应打开它；否则 Gazebo 时间戳与墙钟混用，TF 会报 extrapolation into the future。",
+      en: "A ROS 2 node parameter: when true, the node uses simulated time from /clock instead of the wall clock. Every node that talks to the simulator should enable it; otherwise Gazebo timestamps mix with wall time and TF reports extrapolation into the future.",
+    },
+    lesson: "gazebo-sim",
+    firstExplained: true,
+  },
 
 ];
 

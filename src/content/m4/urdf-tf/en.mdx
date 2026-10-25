@@ -279,7 +279,7 @@ root Link: base_footprint has 1 child(ren)
 
 ## Inertia without guessing
 
-RViz does not care about mass. Gazebo cares enormously. Every link that has mass needs an `<inertial>` element carrying a mass and a 3×3 inertia matrix; without one, or with nonsense values in it, the robot explodes, jitters, or sinks through the floor the moment physics starts. The frame-only links — `base_footprint`, `camera_link` and `camera_optical_link` — have no inertial on purpose, because they represent points and orientations, not matter.
+RViz does not care about mass. Gazebo cares enormously. Every link that has mass needs an `<inertial>` element carrying a mass and a 3×3 inertia matrix; without one, or with nonsense values in it, the robot explodes, jitters, or sinks through the floor the moment physics starts — the same symptoms Lesson 4 lists under Gazebo failure modes once the robot is spawned. The frame-only links — `base_footprint`, `camera_link` and `camera_optical_link` — have no inertial on purpose, because they represent points and orientations, not matter.
 
 You do not need CAD to get this right. Approximate each part as a uniform solid and use the standard formulas, which we wrap in three macros so they can never be mistyped twice.
 

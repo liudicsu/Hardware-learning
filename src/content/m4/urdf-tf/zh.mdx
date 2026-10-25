@@ -279,7 +279,7 @@ root Link: base_footprint has 1 child(ren)
 
 ## 惯量不靠猜
 
-RViz 不在乎质量，Gazebo 非常在乎。每个有质量的连杆都需要一个 `<inertial>` 元素，带着质量和 3×3 的惯量矩阵；没有它，或者里面是胡编的数值，物理一开始机器人就会炸开、抖动，或者穿过地板沉下去。纯坐标系的连杆——`base_footprint`、`camera_link` 和 `camera_optical_link`——故意不带 inertial，因为它们表示的是点和朝向，不是物质。
+RViz 不在乎质量，Gazebo 非常在乎。每个有质量的连杆都需要一个 `<inertial>` 元素，带着质量和 3×3 的惯量矩阵；没有它，或者里面是胡编的数值，物理一开始机器人就会炸开、抖动，或者穿过地板沉下去——第 4 课在 Gazebo 故障表里列的是同一类症状，机器人一生成就能看见。纯坐标系的连杆——`base_footprint`、`camera_link` 和 `camera_optical_link`——故意不带 inertial，因为它们表示的是点和朝向，不是物质。
 
 不需要 CAD 也能算对。把每个零件近似成一个均匀实心体，套标准公式即可；我们把这些公式包进三个宏，这样它们绝不会被抄错第二遍。
 
