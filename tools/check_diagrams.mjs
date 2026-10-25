@@ -1856,6 +1856,13 @@ const lessonRef = (n, slug, lang) => {
       "gazebo-sim": [
         `([Todorov, Erez & Tassa, IROS 2012](https://doi.org/10.1109/IROS.2012.6386109))`,
         `([NVIDIA system requirements](https://docs.isaacsim.omniverse.nvidia.com/6.0.0/installation/requirements.html), checked October 2026)`,
+        `\`<max_step_size>0.001</max_step_size>\``,
+        `\`<real_time_factor>1.0</real_time_factor>\``,
+        `Gaussian \`stddev\` of 0.01 m`,
+        `1.80 − 0.12 = 1.68 m`,
+        `flags \`-s -r --headless-rendering\``,
+        `gz-sim-diff-drive-system`,
+        `does **not** open separate MuJoCo, Isaac or Webots practice lessons`,
       ],
       "slam-nav": [
         `\`chassis_offset_x ± chassis_x/2 = 0.05 ± 0.15\` → +0.20 m / −0.10 m`,
@@ -1886,6 +1893,13 @@ const lessonRef = (n, slug, lang) => {
       "gazebo-sim": [
         `（[Todorov、Erez 与 Tassa，IROS 2012](https://doi.org/10.1109/IROS.2012.6386109)）`,
         `（[NVIDIA 系统要求](https://docs.isaacsim.omniverse.nvidia.com/6.0.0/installation/requirements.html)，2026 年 10 月核对）`,
+        `\`<max_step_size>0.001</max_step_size>\``,
+        `\`<real_time_factor>1.0</real_time_factor>\``,
+        `高斯 \`stddev\` 0.01 m`,
+        `1.80 − 0.12 = 1.68 m`,
+        `\`-s -r --headless-rendering\``,
+        `gz-sim-diff-drive-system`,
+        `**不会**再单开 MuJoCo、Isaac 或 Webots 的实操课`,
       ],
       "slam-nav": [
         `\`chassis_offset_x ± chassis_x/2 = 0.05 ± 0.15\` → +0.20 m / −0.10 m`,
@@ -1916,7 +1930,28 @@ const lessonRef = (n, slug, lang) => {
     const text = rd4(`src/content/m4/slam-nav/${lang}.mdx`);
     ok(text.includes("0.155 + 0.01 = 0.165") && text.includes("±0.16"), `m4 slam-nav ${lang}: footprint must show 0.165 floored to ±0.16`);
   }
-  console.log(`calc  m4 gaps: Construct €39.97 + pixi 5.8 GB; EMA α=0.5 @k67–69 ${a05.map((x) => x.toFixed(4)).join(", ")} / α=0.2 replay ${a02.map((x) => x.toFixed(4)).join(", ")}; teleop held ${teleopHeld} m vs 1.15 m; staleness ${stale} m; footprint +${fpFwd}/${fpBack}/±${fpY} (exact side ${fpYExact}); r/b 10 % → ${r10}/${b10}, turn ×${turnFactor.toFixed(2)}; inflation (254−1)·exp(−${costScale}·(d−r_ins)) out to ${inflR} m; smear ${smearTour} rad @ ${turnClamp} rad/s / ${lidarRate} Hz; Isaac 4080/16/32 Oct 2026; MuJoCo IROS 2012; bound in en/zh`);
+  // gazebo-sim thicken: physics step / RTF / lidar noise / hand range from world + sensors xacro.
+  const gzWorld = rd4("examples/month-4/gazebo-sim/m4_gazebo/worlds/obstacles.sdf");
+  const gzSensors = rd4("examples/month-4/gazebo-sim/m4_gazebo/urdf/sensors.gazebo.xacro");
+  const maxStepGz = num4(gzWorld, /<max_step_size>([\d.]+)<\/max_step_size>/, "gazebo max_step_size");
+  const rtfGz = num4(gzWorld, /<real_time_factor>([\d.]+)<\/real_time_factor>/, "gazebo real_time_factor");
+  const lidarStd = num4(gzSensors, /name="lidar"[\s\S]*?<stddev>([\d.]+)<\/stddev>/, "gazebo lidar stddev");
+  const lidarMin = num4(gzSensors, /name="lidar"[\s\S]*?<min>([\d.]+)<\/min>/, "gazebo lidar min");
+  const redBoxX = num4(gzWorld, /model name="red_box"[\s\S]*?<pose>([\d.]+)/, "gazebo red_box x");
+  const redBoxW = num4(gzWorld, /model name="red_box"[\s\S]*?<box>[\s\S]*?<size>([\d.]+)/, "gazebo red_box width");
+  const lidarJointX = num4(xacro, /name="lidar_joint"[\s\S]*?xyz="([\d.-]+)/, "urdf lidar_joint x");
+  const redFace = redBoxX - redBoxW / 2;
+  const handRange = redFace - lidarJointX;
+  ok(maxStepGz === 0.001 && rtfGz === 1.0, `m4 gazebo-sim: max_step_size ${maxStepGz} and RTF ${rtfGz} must be 0.001 / 1.0`);
+  ok(lidarStd === 0.01 && lidarMin === 0.2, `m4 gazebo-sim: lidar stddev ${lidarStd} and min ${lidarMin} must be 0.01 / 0.20`);
+  ok(Math.abs(redFace - 1.8) < 1e-12 && Math.abs(handRange - 1.68) < 1e-12 && lidarJointX === 0.12, `m4 gazebo-sim: red face ${redFace} and hand range ${handRange} must be 1.80 / 1.68 with lidar at ${lidarJointX}`);
+  for (const lang of ["en", "zh"]) {
+    const text = rd4(`src/content/m4/gazebo-sim/${lang}.mdx`);
+    ok(text.includes("1.80 − 0.12 = 1.68 m"), `m4 gazebo-sim ${lang}: hand range phrase must stay`);
+    ok(text.includes("<Term id=\"real-time-factor\">") && text.includes("<Term id=\"use-sim-time\">"), `m4 gazebo-sim ${lang}: RTF and use_sim_time Terms`);
+  }
+
+  console.log(`calc  m4 gaps: Construct €39.97 + pixi 5.8 GB; EMA α=0.5 @k67–69 ${a05.map((x) => x.toFixed(4)).join(", ")} / α=0.2 replay ${a02.map((x) => x.toFixed(4)).join(", ")}; teleop held ${teleopHeld} m vs 1.15 m; staleness ${stale} m; footprint +${fpFwd}/${fpBack}/±${fpY} (exact side ${fpYExact}); r/b 10 % → ${r10}/${b10}, turn ×${turnFactor.toFixed(2)}; inflation (254−1)·exp(−${costScale}·(d−r_ins)) out to ${inflR} m; smear ${smearTour} rad @ ${turnClamp} rad/s / ${lidarRate} Hz; Isaac 4080/16/32 Oct 2026; MuJoCo IROS 2012; gz step ${maxStepGz}/RTF ${rtfGz}, lidar σ ${lidarStd}/min ${lidarMin}, hand ${handRange} m; bound in en/zh`);
 }
 
 {

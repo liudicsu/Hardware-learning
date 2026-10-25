@@ -510,7 +510,7 @@ const month4Lessons: Lesson[] = [
       zh: "理清 Gazebo 的命名历史和版本配对，选对仿真器（Gazebo、MuJoCo、Isaac Sim）；然后写一个带障碍物的 SDF 世界，把上一课的 xacro 机器人放进去，加上激光雷达和相机，通过 ros_gz_bridge 在 ROS 2 和 RViz 里看到传感器数据。",
       en: "Untangle Gazebo's naming history and version pairing and pick the right simulator (Gazebo, MuJoCo, Isaac Sim); then write an SDF world with obstacles, put last lesson's xacro robot into it with a lidar and a camera, and see the sensor data in ROS 2 and RViz through ros_gz_bridge.",
     },
-    minutes: 240,
+    minutes: 270,
     objectives: [
       { zh: "能为 ROS 2 Jazzy 选择 Gazebo Harmonic，并识别 ign 或 gazebo_ros_pkgs 这类过时教程。", en: "Select Gazebo Harmonic for ROS 2 Jazzy and identify outdated ign or gazebo_ros_pkgs tutorials." },
       { zh: "能搭建带四个系统插件和静态障碍物的 SDF 世界，并算出红色方块前表面 1.80 m、墙内表面 2.95 m。", en: "Build an SDF world with the four system plugins and static obstacles, and compute the red-box face at 1.80 m and walls at 2.95 m." },
