@@ -1444,8 +1444,8 @@ export const glossary: GlossaryEntry[] = [
     id: "real-time-factor",
     term: { zh: "实时因子（real-time factor）", en: "real-time factor (RTF)" },
     def: {
-      zh: "仿真时间相对墙钟时间的快慢。RTF = 1.0 表示仿真与现实同步；小于 1 表示机器跟不上。Gazebo 在 GUI 里显示 RTF，无界面时用 gz topic -e -t /stats 查看；负载下传感器的墙钟频率会跟着掉，但在仿真时间里仍按设定速率步进。",
-      en: "How fast simulated time runs relative to wall-clock time. RTF = 1.0 means the sim keeps pace with reality; below 1 means the machine cannot keep up. Gazebo shows RTF in the GUI; headless, read it with gz topic -e -t /stats; under load, wall-clock sensor rates fall while the sensors still step at their configured rate in sim time.",
+      zh: "仿真时间相对墙钟时间的快慢。RTF = 1.0 表示仿真与现实同步；小于 1 表示机器跟不上。Gazebo 在 GUI 里显示 RTF，无界面时用 gz topic -e -t /world/<name>/stats 查看；负载下传感器的墙钟频率会跟着掉，但在仿真时间里仍按设定速率步进。",
+      en: "How fast simulated time runs relative to wall-clock time. RTF = 1.0 means the sim keeps pace with reality; below 1 means the machine cannot keep up. Gazebo shows RTF in the GUI; headless, read it with gz topic -e -t /world/<name>/stats; under load, wall-clock sensor rates fall while the sensors still step at their configured rate in sim time.",
     },
     lesson: "gazebo-sim",
     firstExplained: true,

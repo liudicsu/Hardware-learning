@@ -64,11 +64,11 @@ Genesis 是相反的情况。原课程说可以关注它，但暂时不要把作
 
 物理仿真器不是视频播放器。它保存一份状态——每个连杆的位姿与速度、每一处接触力、每一个关节力矩——并按固定时间步推进这份状态。本课世界文件里的 `<max_step_size>0.001</max_step_size>` 表示每个物理节拍是 1 毫秒的仿真时间；一千步就是仿真里的一秒。求解器按这个节拍积分力、处理接触，与有没有人盯着窗口无关。
 
-<Term id="real-time-factor">实时因子</Term>（real-time factor，RTF）是仿真时间相对墙钟时间的快慢。RTF = 1.0 表示世界里过一秒，你的时钟大约也过一秒；0.5 表示仿真只有现实的一半快；大于 1.0 表示它在抢跑。Gazebo 会在 GUI 里显示 RTF；无界面时用 `gz topic -e -t /stats -n 1` 查看（`real_time_factor` 字段）。如果它一直远低于 1，先让传感器便宜一点——降低相机分辨率或 `update_rate`——而不是调小 `max_step_size`：步长越小，每秒仿真时间要算的物理节拍越多，RTF 只会更低。笔记本一忙，先掉的是 RTF，再跟着掉的是传感器的墙钟频率：激光雷达设成 10 Hz，墙钟上可能只有 7 Hz，但在仿真时间里仍是「10 Hz」。负载下这是正常现象，不是传感器坏了。
+<Term id="real-time-factor">实时因子</Term>（real-time factor，RTF）是仿真时间相对墙钟时间的快慢。RTF = 1.0 表示世界里过一秒，你的时钟大约也过一秒；0.5 表示仿真只有现实的一半快；大于 1.0 表示它在抢跑。Gazebo 会在 GUI 里显示 RTF；无界面时用 `gz topic -e -t /world/obstacles/stats -n 1` 查看（`real_time_factor` 字段）。如果它一直远低于 1，先让传感器便宜一点——降低相机分辨率或 `update_rate`——而不是调小 `max_step_size`：步长越小，每秒仿真时间要算的物理节拍越多，RTF 只会更低。笔记本一忙，先掉的是 RTF，再跟着掉的是传感器的墙钟频率：激光雷达设成 10 Hz，墙钟上可能只有 7 Hz，但在仿真时间里仍是「10 Hz」。负载下这是正常现象，不是传感器坏了。
 
 接触让世界显得「实心」：轮子推地面、脚轮滑动、箱子不往下沉。惯量乱写、碰撞体重叠、摩擦差了几个数量级，接触就会变成爆炸、抖动或穿透——机器人看起来像着了魔，而 `ros2 topic list` 解释不了这种病。纯动画工具（许多 CAD 预览、没有物理服务器的 RViz 拖动）只是在时间轴上挪网格；它们不算接触，也不累积里程计。Gazebo 会。正因如此，本课后面的手算核对才重要：物理错了，好看的画面照样会撒谎。
 
-除非世界文件指定别的引擎，Gazebo Harmonic 默认用 DART（`gz-physics-dartsim-plugin`）求解接触。摩擦写在每个 collision 的 `<surface><friction><ode><mu>` 和 `<mu2>` 里——下文 `sensors.gazebo.xacro` 中 URDF 的 `<mu1>`/`<mu2>` 正是转成这两项——机器人跑偏、打转或打滑时调的就是它。老的 Gazebo Classic 教程会叫你在物体下沉或抖动时加大 `<surface><contact><ode><kp>` / `<kd>`（接触刚度与阻尼），但默认的 DART 插件并不读取这两项；下沉或抖动时先把质量和惯量改对，再确认机器人生成时没有碰撞体互相重叠。
+除非 Physics 插件选了另一个引擎（插件里的 `<engine><filename>`，或 `gz sim --physics-engine`），Gazebo Harmonic 默认用 DART（`gz-physics-dartsim-plugin`）求解接触；`<physics>` 上的 `type` 属性并不决定引擎，所以本世界可以写 `type="ignored"`。摩擦写在每个 collision 的 `<surface><friction><ode><mu>` 和 `<mu2>` 里——下文 `sensors.gazebo.xacro` 中 URDF 的 `<mu1>`/`<mu2>` 正是转成这两项——机器人跑偏、打转或打滑时调的就是它。老的 Gazebo Classic 教程会叫你在物体下沉或抖动时加大 `<surface><contact><ode><kp>` / `<kd>`（接触刚度与阻尼），但默认的 DART 插件并不读取这两项；下沉或抖动时先把质量和惯量改对，再确认机器人生成时没有碰撞体互相重叠。
 
 本课程**不会**再单开 MuJoCo、Isaac 或 Webots 的实操课。上面的表里点名它们，是为了你以后知道何时该换工具。这里练的是世界文件、传感器、桥接与手算——迁移的是这套思路，不是某个产品的点击路径，也不需要再开一个月的课。
 
@@ -775,7 +775,7 @@ straight ahead (0.0 deg): 0.73 m
 | 激光点位置不对 | `frame_id` ≠ URDF 连杆 | `gz_frame_id` 是 `lidar_link`（或你的真实连杆名） |
 | 机器人跑偏或原地打转 | 摩擦 / 脚轮 | 轮子 `mu` 高、脚轮 `mu` 极小；轮子/脚轮的碰撞体没有陷进地板，也没有悬空 |
 | 一开始就爆炸、抖动或下沉 | 惯量不对 | 第 3 课 `inertia_check.py`；每个实体连杆都有质量；生成时碰撞体不重叠（DART 不读 `<contact>` 的 `kp`/`kd`） |
-| RTF 远低于 1，传感器墙钟频率偏低 | 渲染 / 步长开销 | `gz topic -e -t /stats -n 1` → `real_time_factor`；降低相机分辨率或 `update_rate`；不要调小 `max_step_size` |
+| RTF 远低于 1，传感器墙钟频率偏低 | 渲染 / 步长开销 | `gz topic -e -t /world/obstacles/stats -n 1` → `real_time_factor`；降低相机分辨率或 `update_rate`；不要调小 `max_step_size` |
 | RViz 一片空（无模型、无点） | Fixed Frame | Fixed Frame 设为 `odom` 或 `base_footprint`，不要留在 `map` |
 | 教程命令在 Jazzy 上失败 | Gazebo Classic / Ignition 旧文档 | `ign gazebo`、`libgazebo_ros_*.so`、`gazebo_ros_pkgs` → 关掉标签页 |
 | 世界一直等 / 缺网格 | Fuel 下载 | 像本课一样内联模型；不要依赖模型服务器 |

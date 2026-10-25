@@ -1965,6 +1965,8 @@ const lessonRef = (n, slug, lang) => {
       "loads `Physics`, `UserCommands` and `SceneBroadcaster` — but not `Sensors`",
       "As soon as the world lists any plugin, that default file is not loaded at all",
       "Gazebo Harmonic solves contact with DART (`gz-physics-dartsim-plugin`)",
+      "Unless the Physics plugin selects another engine (its `<engine><filename>` element, or `gz sim --physics-engine`)",
+      "the `type` attribute on `<physics>` does not choose it",
       "but the default DART plugin does not read those two",
       "rather than shrinking `max_step_size`",
       "a close-range blind zone; Gazebo's lidar models none of those by default",
@@ -1976,25 +1978,29 @@ const lessonRef = (n, slug, lang) => {
       "加载 `Physics`、`UserCommands` 和 `SceneBroadcaster`——但不加载 `Sensors`",
       "只要世界里写了任意一个插件，这份默认文件就完全不加载",
       "Gazebo Harmonic 默认用 DART（`gz-physics-dartsim-plugin`）",
+      "除非 Physics 插件选了另一个引擎（插件里的 `<engine><filename>`，或 `gz sim --physics-engine`）",
+      "`<physics>` 上的 `type` 属性并不决定引擎",
       "但默认的 DART 插件并不读取这两项",
       "而不是调小 `max_step_size`",
       "以及近距离盲区；Gazebo 的激光雷达默认一样都不建模",
       "轮子/脚轮的碰撞体没有陷进地板，也没有悬空",
     ];
     for (const q of must) ok(text.includes(q), `m4 gazebo-sim ${lang}: expected ${JSON.stringify(q)}`);
-    const statsQ = "`gz topic -e -t /stats -n 1`";
+    const gzWorldName = (gzWorld.match(/<world name="([^"]+)"/) || [])[1];
+    ok(gzWorldName === "obstacles", `m4 gazebo-sim: world name ${gzWorldName} must be obstacles`);
+    const statsQ = `\`gz topic -e -t /world/${gzWorldName}/stats -n 1\``;
     const statsN = text.split(statsQ).length - 1;
     ok(statsN === 2 && text.includes("`real_time_factor`"), `m4 gazebo-sim ${lang}: ${statsQ} must appear twice (A + G table) with the real_time_factor field, found ${statsN}`);
-    const stale = lang === "en" ? ["hit the **collision** meshes", "server console", "never snags the lidar", "intersecting the floor wrongly"] : ["碰到的是**碰撞**网格", "服务器控制台", "免得绊住激光", "错误插入地板"];
+    const stale = lang === "en" ? ["-t /stats", "Unless a world names another engine", "hit the **collision** meshes", "server console", "never snags the lidar", "intersecting the floor wrongly"] : ["-t /stats", "除非世界文件指定别的引擎", "碰到的是**碰撞**网格", "服务器控制台", "免得绊住激光", "错误插入地板"];
     for (const q of stale) ok(!text.includes(q), `m4 gazebo-sim ${lang}: stale claim ${JSON.stringify(q)} must be gone`);
   }
   {
     const gzPlugins = gzWorld.match(/<plugin filename="gz-sim-[a-z-]+-system"/g) || [];
     ok(gzPlugins.length === 4 && gzWorld.includes('filename="gz-sim-sensors-system"'), `m4 gazebo-sim: obstacles.sdf must list all four systems incl. Sensors (found ${gzPlugins.length})`);
     const gl = rd4("src/lib/glossary.ts");
-    for (const q of ["Note: Gazebo's gpu_lidar ray-casts against visual geometry, not collision.", "注意：Gazebo 的 gpu_lidar 打的是 visual 几何，不是碰撞几何。", "Gazebo shows RTF in the GUI; headless, read it with gz topic -e -t /stats;", "Gazebo 在 GUI 里显示 RTF，无界面时用 gz topic -e -t /stats 查看；"])
+    for (const q of ["Note: Gazebo's gpu_lidar ray-casts against visual geometry, not collision.", "注意：Gazebo 的 gpu_lidar 打的是 visual 几何，不是碰撞几何。", "Gazebo shows RTF in the GUI; headless, read it with gz topic -e -t /world/<name>/stats;", "Gazebo 在 GUI 里显示 RTF，无界面时用 gz topic -e -t /world/<name>/stats 查看；"])
       ok(gl.includes(q), `m4 gazebo-sim glossary: expected ${JSON.stringify(q)}`);
-    for (const q of ["Lidar rays also hit collision meshes", "激光也打在碰撞网格上", "server console", "服务器控制台"])
+    for (const q of ["-t /stats", "Lidar rays also hit collision meshes", "激光也打在碰撞网格上", "server console", "服务器控制台"])
       ok(!gl.includes(q), `m4 gazebo-sim glossary: stale claim ${JSON.stringify(q)} must be gone`);
   }
 
