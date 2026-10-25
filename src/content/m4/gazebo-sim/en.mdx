@@ -185,16 +185,16 @@ Here is the world this lesson uses. It is deliberately small and completely self
 </sdf>
 ```
 
-The `<physics>` block and the four system plugins at the top are what make a world work at all. `<max_step_size>0.001</max_step_size>` is a one-millisecond physics step (1 000 Hz of simulated integration). `<real_time_factor>1.0</real_time_factor>` asks Gazebo to keep simulated time aligned with the wall clock when the machine can manage it. Leave `max_step_size` huge and contacts become unstable; leave RTF unset and you still get physics, but you lose a clear idea of how loaded the run is.
+The `<physics>` block and the four system plugins at the top are what make a world work at all. `<max_step_size>0.001</max_step_size>` is a one-millisecond physics step (1 000 Hz of simulated integration). `<real_time_factor>1.0</real_time_factor>` asks Gazebo to keep simulated time aligned with the wall clock when the machine can manage it. Leave `max_step_size` huge and contacts become unstable. Both elements have SDF defaults — 0.001 s and 1.0 — so leaving them out gives the same values; writing them down just makes the world file say what it does. Gazebo reports the RTF it actually achieves either way.
 
 | System plugin | Role | If it is missing |
 | --- | --- | --- |
 | `Physics` | integrates forces, contacts, joints each `max_step_size` | nothing moves; the world is a still picture |
 | `UserCommands` | lets spawners and CLI tools add or remove entities | `create` cannot insert the robot into a running world |
 | `SceneBroadcaster` | publishes the scene for GUIs and some introspection | a later GUI client has nothing to attach to |
-| `Sensors` (ogre2 here) | renders gpu_lidar / camera into Gazebo topics | sensors exist in the SDF but publish empty / nothing — looks like a dead bridge |
+| `Sensors` (ogre2 here) | renders gpu_lidar / camera into Gazebo topics | sensors exist in the SDF but no messages are published — `ros2 topic hz /scan` prints nothing; looks like a dead bridge |
 
-Headless runs still need `Physics` and `Sensors`. They often keep `SceneBroadcaster` so you can attach a GUI later. Skipping `Sensors` is the mistake that costs beginners the most time: `ros2 topic list` shows `/scan`, the bridge is "fine", and every range is empty because the world never rendered a beam.
+Headless runs still need `Physics` and `Sensors`. They often keep `SceneBroadcaster` so you can attach a GUI later. Skipping `Sensors` is the mistake that costs beginners the most time: `ros2 topic list` shows `/scan` (the bridge created it), the bridge is "fine", and yet no message ever arrives — `ros2 topic hz /scan` prints nothing — because the world never rendered a beam.
 
 `<static>true</static>` means the obstacle never moves and costs no physics computation. A wall, a box and a pillar in a test world do not need to fall over, so marking them static saves time and removes a source of surprise. Poses are written as x y z roll pitch yaw, in metres and radians, and a box's pose is its centre, not a corner. The red box is 0.4 m wide with its centre at x = 2.0, so its front face is at 2.0 − 0.4/2 = 2.0 − 0.2 = 1.80 m. The walls are 0.1 m thick and their centres sit at ±3.0 m, so their inner faces are at 3.0 − 0.05 = 2.95 m. Those two numbers, 1.80 and 2.95, will come back in the arithmetic later; write them down now.
 
@@ -505,7 +505,7 @@ On a server, in CI, or on a laptop with no free display:
 
 1. Launch with `headless:=true` (flags `-s -r --headless-rendering` on the Gazebo server).
 2. Confirm the process is alive: `ros2 topic list` shows `/clock`, `/scan`, `/odom` after the bridge starts.
-3. Do **not** require a GUI to trust the run. Use `ros2 topic hz /scan` (expect ~10 Hz in sim time), `python3 scan_probe.py`, and `python3 snap_camera.py` — the same scripts as a desktop session.
+3. Do **not** require a GUI to trust the run. Use `ros2 topic hz /scan`, `python3 scan_probe.py`, and `python3 snap_camera.py` — the same scripts as a desktop session. `ros2 topic hz` measures the wall-clock rate by default, so expect about 10 Hz only when the RTF is near 1, and less when the RTF drops below 1; add `--use-sim-time` to measure in sim time instead.
 4. If `/scan` exists but `hz` stays silent, check the Sensors system plugin and the bridge entry before restarting the desktop compositor.
 5. Set `export GZ_IP=127.0.0.1` when Gazebo transport cannot find peers on a locked-down network (the editor needed this).
 
@@ -521,7 +521,7 @@ cd ~/ros2_ws && colcon build && source install/setup.bash
 ros2 launch m4_gazebo sim.launch.py              # add headless:=true on a machine without a screen
 ```
 
-On a machine with no network connection, Gazebo's transport may find nothing at all. If the launch hangs or no topics appear, run `export GZ_IP=127.0.0.1` first; the editor needed exactly this. It is one of those fixes that is impossible to guess and trivial once you know it. To see whether a sensor is really publishing, try `ros2 topic hz /scan`: it should report close to 10 Hz, and it stays silent when the bridge is not set up.
+On a machine with no network connection, Gazebo's transport may find nothing at all. If the launch hangs or no topics appear, run `export GZ_IP=127.0.0.1` first; the editor needed exactly this. It is one of those fixes that is impossible to guess and trivial once you know it. To see whether a sensor is really publishing, try `ros2 topic hz /scan`: it should report close to 10 Hz (a wall-clock rate, lower when the RTF is below 1), and it stays silent when the bridge is not set up.
 
 The launch log confirms the spawn. This is real output:
 
@@ -767,7 +767,7 @@ Most first-week failures are the same short list. Reach for this table before re
 | --- | --- | --- |
 | TF "extrapolation into the future", model flickers in RViz | mixed clocks | every node has `use_sim_time: true`; `/clock` is bridged |
 | `/scan` missing in `ros2 topic list` | bridge or launch | `bridge.yaml` entry; launch did start `ros_gz_bridge` |
-| `/scan` exists, all ranges empty / never update | Sensors plugin or headless render | world has `gz-sim-sensors-system`; try `--headless-rendering` |
+| `/scan` exists but no messages arrive (`ros2 topic hz` prints nothing) | Sensors plugin or headless render | world has `gz-sim-sensors-system`; try `--headless-rendering` |
 | Laser points in the wrong place | `frame_id` ≠ URDF link | `gz_frame_id` is `lidar_link` (or your real link name) |
 | Robot veers or spins in place | friction / caster | wheel `mu` high, caster `mu` tiny; collision boxes not intersecting the floor wrongly |
 | Robot explodes, jitters or sinks at start | bad inertias | Lesson 3 `inertia_check.py`; mass on every physical link |
@@ -779,7 +779,7 @@ Most first-week failures are the same short list. Reach for this table before re
 
 **Transfers.** The URDF/xacro tree and TF frame names; the idea of an explicit bridge (or driver) from sensor hardware into ROS topics; launch files that compose description + drivers + viz; the habit of checking a range with a tape measure the way you checked 1.80 − 0.12 = 1.68 m; DiffDrive-as-concept becoming `ros2_control` + a hardware interface in Lesson 5.
 
-**Does not transfer as-is.** Perfect wheel odometry (no slip, no bias); the exact friction numbers that made the sim stable; GPU lidar noise that is only a Gaussian knob; the assumption that `/clock` is optional. On the real machine, wall time is the clock, and SLAM (Lesson 6) exists because odometry drifts while the lidar still sees the room.
+**Does not transfer as-is.** Perfect wheel odometry (no slip, no bias); the exact friction numbers that made the sim stable; GPU lidar noise that is only a Gaussian knob; any reliance on `/clock` and `use_sim_time: true`. On the real machine no simulator publishes `/clock`; wall time is the clock, and SLAM (Lesson 6) exists because odometry drifts while the lidar still sees the room.
 
 Simulation is a test bench you can reset. It is not a certificate that the physical robot will track 0.95 m when you ask for four seconds at 0.2 m/s. Keep the topics and frames; recalibrate the numbers that touch the ground.
 

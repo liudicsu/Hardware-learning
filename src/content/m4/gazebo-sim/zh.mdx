@@ -185,16 +185,16 @@ URDF 为 ROS 描述一台机器人：连杆、关节、惯量、坐标系。<Ter
 </sdf>
 ```
 
-`<physics>` 块和顶部四个系统插件决定了这个世界能不能工作。`<max_step_size>0.001</max_step_size>` 是 1 毫秒的物理步长（仿真积分 1 000 Hz）。`<real_time_factor>1.0</real_time_factor>` 要求在机器跟得上时让仿真时间与墙钟对齐。`max_step_size` 设得太大，接触会不稳定；不写 RTF 也能算物理，但你难以判断这次运行有多吃力。
+`<physics>` 块和顶部四个系统插件决定了这个世界能不能工作。`<max_step_size>0.001</max_step_size>` 是 1 毫秒的物理步长（仿真积分 1 000 Hz）。`<real_time_factor>1.0</real_time_factor>` 要求在机器跟得上时让仿真时间与墙钟对齐。`max_step_size` 设得太大，接触会不稳定。这两个元素在 SDF 规范里都有默认值——0.001 s 和 1.0——不写也是这两个值；写出来只是让世界文件把自己的设定讲明白。无论写不写，Gazebo 都会报告实际达到的 RTF。
 
 | 系统插件 | 作用 | 缺了会怎样 |
 | --- | --- | --- |
 | `Physics` | 按 `max_step_size` 积分力、接触与关节 | 什么都不动，世界只是静画 |
 | `UserCommands` | 让生成器与命令行工具增删实体 | `create` 无法把机器人塞进正在跑的世界 |
 | `SceneBroadcaster` | 向 GUI 与部分内省工具发布场景 | 以后挂 GUI 客户端时没有可附着的场景 |
-| `Sensors`（这里用 ogre2） | 把 gpu_lidar / 相机渲染成 Gazebo 话题 | SDF 里有传感器，却发布空数据或根本不发布——像极了桥接坏了 |
+| `Sensors`（这里用 ogre2） | 把 gpu_lidar / 相机渲染成 Gazebo 话题 | SDF 里有传感器，却一条消息都不发布——`ros2 topic hz /scan` 毫无输出，像极了桥接坏了 |
 
-无头运行仍然需要 `Physics` 和 `Sensors`。常常也保留 `SceneBroadcaster`，以便以后再挂 GUI。漏掉 `Sensors` 最耗初学者的时间：`ros2 topic list` 看得到 `/scan`，桥接「也没问题」，可是每个距离都是空的，因为世界根本没有渲染出一束光。
+无头运行仍然需要 `Physics` 和 `Sensors`。常常也保留 `SceneBroadcaster`，以便以后再挂 GUI。漏掉 `Sensors` 最耗初学者的时间：`ros2 topic list` 看得到 `/scan`（是桥接创建的），桥接「也没问题」，可就是收不到一条消息——`ros2 topic hz /scan` 毫无输出——因为世界根本没有渲染出一束光。
 
 `<static>true</static>` 表示这个障碍物永不移动，因此不消耗物理计算。测试世界里的墙、方块和柱子不需要被撞倒，标成静态既省时间，也少一个意外来源。位姿（pose）按 x y z roll pitch yaw 书写，单位是米和弧度；方块的位姿是它的中心，不是某个角。红色方块宽 0.4 m，中心在 x = 2.0，所以它的前表面在 2.0 − 0.4/2 = 2.0 − 0.2 = 1.80 m。墙厚 0.1 m，中心在 ±3.0 m，所以内表面在 3.0 − 0.05 = 2.95 m。这两个数 1.80 和 2.95 后面还会用到，现在先把它们记下来。
 
@@ -505,7 +505,7 @@ def generate_launch_description():
 
 1. 用 `headless:=true` 启动（Gazebo 服务器带 `-s -r --headless-rendering`）。
 2. 确认进程还活着：桥接起来后 `ros2 topic list` 能看到 `/clock`、`/scan`、`/odom`。
-3. **不要**靠 GUI 才敢相信这次运行。用 `ros2 topic hz /scan`（仿真时间下大约 10 Hz）、`python3 scan_probe.py` 和 `python3 snap_camera.py`——与有桌面时相同的脚本。
+3. **不要**靠 GUI 才敢相信这次运行。用 `ros2 topic hz /scan`、`python3 scan_probe.py` 和 `python3 snap_camera.py`——与有桌面时相同的脚本。`ros2 topic hz` 默认按墙钟计算频率：只有 RTF 接近 1 时才约为 10 Hz，RTF 低于 1 时会更低；加 `--use-sim-time` 则改按仿真时间计算。
 4. 若 `/scan` 在列表里但 `hz` 一直沉默，先查 Sensors 系统插件和桥接条目，再去重启桌面合成器。
 5. 当 Gazebo 传输在受限网络上找不到对端时，先 `export GZ_IP=127.0.0.1`（编辑器就需要这一步）。
 
@@ -521,7 +521,7 @@ cd ~/ros2_ws && colcon build && source install/setup.bash
 ros2 launch m4_gazebo sim.launch.py              # add headless:=true on a machine without a screen
 ```
 
-在没有网络连接的机器上，Gazebo 的传输层可能什么都找不到。如果 launch 卡住或话题不出现，先运行 `export GZ_IP=127.0.0.1`；编辑当时正是这么解决的。这种修复属于猜不到、知道后却简单得要命的一类。想知道传感器是不是真的在发布，可以先 `ros2 topic hz /scan`：正常应该接近 10 Hz，桥接没配好时它一声不吭。
+在没有网络连接的机器上，Gazebo 的传输层可能什么都找不到。如果 launch 卡住或话题不出现，先运行 `export GZ_IP=127.0.0.1`；编辑当时正是这么解决的。这种修复属于猜不到、知道后却简单得要命的一类。想知道传感器是不是真的在发布，可以先 `ros2 topic hz /scan`：正常应该接近 10 Hz（这是墙钟频率，RTF 低于 1 时会更低），桥接没配好时它一声不吭。
 
 launch 日志会确认生成成功。下面是真实输出：
 
@@ -767,7 +767,7 @@ straight ahead (0.0 deg): 0.73 m
 | --- | --- | --- |
 | TF “extrapolation into the future”，RViz 模型闪烁 | 时钟混用 | 每个节点都有 `use_sim_time: true`；`/clock` 已桥接 |
 | `ros2 topic list` 里没有 `/scan` | 桥接或启动 | `bridge.yaml` 条目；launch 是否启动了 `ros_gz_bridge` |
-| 有 `/scan`，距离全空 / 从不更新 | Sensors 插件或无界面渲染 | 世界含 `gz-sim-sensors-system`；试试 `--headless-rendering` |
+| 有 `/scan`，却收不到消息（`ros2 topic hz` 无输出） | Sensors 插件或无界面渲染 | 世界含 `gz-sim-sensors-system`；试试 `--headless-rendering` |
 | 激光点位置不对 | `frame_id` ≠ URDF 连杆 | `gz_frame_id` 是 `lidar_link`（或你的真实连杆名） |
 | 机器人跑偏或原地打转 | 摩擦 / 脚轮 | 轮子 `mu` 高、脚轮 `mu` 极小；碰撞盒没有错误插入地板 |
 | 一开始就爆炸、抖动或下沉 | 惯量不对 | 第 3 课 `inertia_check.py`；每个实体连杆都有质量 |
@@ -779,7 +779,7 @@ straight ahead (0.0 deg): 0.73 m
 
 **能迁走的。** URDF/xacro 树与 TF 坐标系名；把传感器显式桥进（或驱动进）ROS 话题的思路；拼起 description + 驱动 + 可视化的 launch；用卷尺核对距离的习惯（如同核对 1.80 − 0.12 = 1.68 m）；DiffDrive 作为概念，在第 5 课变成 `ros2_control` + 硬件接口。
 
-**不能原样搬走的。** 完美的轮式里程计（无打滑、无偏置）；那组刚好让仿真稳定的摩擦系数；只是高斯旋钮的 GPU 激光噪声；以及「`/clock` 可有可无」的假设。真机上墙钟就是时钟；正因为里程计会漂、激光还能看见房间，才有第 6 课的 SLAM。
+**不能原样搬走的。** 完美的轮式里程计（无打滑、无偏置）；那组刚好让仿真稳定的摩擦系数；只是高斯旋钮的 GPU 激光噪声；以及对 `/clock`（仿真时钟）和 `use_sim_time: true` 的依赖。真机上没有仿真器发布 `/clock`，墙钟就是时钟；正因为里程计会漂、激光还能看见房间，才有第 6 课的 SLAM。
 
 仿真是可以一键重置的试验台，不是「你要 0.2 m/s 开四秒就一定走 0.95 m」的合格证。留下话题与坐标系；凡是贴地的数字，到真机上重新标定。
 

@@ -1949,6 +1949,14 @@ const lessonRef = (n, slug, lang) => {
     const text = rd4(`src/content/m4/gazebo-sim/${lang}.mdx`);
     ok(text.includes("1.80 − 0.12 = 1.68 m"), `m4 gazebo-sim ${lang}: hand range phrase must stay`);
     ok(text.includes("<Term id=\"real-time-factor\">") && text.includes("<Term id=\"use-sim-time\">"), `m4 gazebo-sim ${lang}: RTF and use_sim_time Terms`);
+    // Both prose mentions (A: what a tick is; C: the <physics> walk-through) must quote the world's step, not just one of them.
+    const stepQ = `\`<max_step_size>${maxStepGz}</max_step_size>\``;
+    const stepN = text.split(stepQ).length - 1;
+    ok(stepN === 2, `m4 gazebo-sim ${lang}: expected ${stepQ} exactly twice in prose (A + C), found ${stepN}`);
+    const dflt = lang === "en" ? `SDF defaults — ${maxStepGz} s and ${rtfGz.toFixed(1)}` : `默认值——${maxStepGz} s 和 ${rtfGz.toFixed(1)}`;
+    ok(text.includes(dflt), `m4 gazebo-sim ${lang}: SDF default phrase ${JSON.stringify(dflt)}`);
+    const hzWall = lang === "en" ? "`ros2 topic hz` measures the wall-clock rate by default" : "`ros2 topic hz` 默认按墙钟计算频率";
+    ok(text.includes(hzWall) && text.includes("`--use-sim-time`"), `m4 gazebo-sim ${lang}: ros2 topic hz wall-clock note`);
   }
 
   console.log(`calc  m4 gaps: Construct €39.97 + pixi 5.8 GB; EMA α=0.5 @k67–69 ${a05.map((x) => x.toFixed(4)).join(", ")} / α=0.2 replay ${a02.map((x) => x.toFixed(4)).join(", ")}; teleop held ${teleopHeld} m vs 1.15 m; staleness ${stale} m; footprint +${fpFwd}/${fpBack}/±${fpY} (exact side ${fpYExact}); r/b 10 % → ${r10}/${b10}, turn ×${turnFactor.toFixed(2)}; inflation (254−1)·exp(−${costScale}·(d−r_ins)) out to ${inflR} m; smear ${smearTour} rad @ ${turnClamp} rad/s / ${lidarRate} Hz; Isaac 4080/16/32 Oct 2026; MuJoCo IROS 2012; gz step ${maxStepGz}/RTF ${rtfGz}, lidar σ ${lidarStd}/min ${lidarMin}, hand ${handRange} m; bound in en/zh`);
