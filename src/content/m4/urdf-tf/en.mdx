@@ -255,7 +255,7 @@ Now walk through it, because every one of these choices will matter later.
 Turn the xacro into plain URDF and check it before RViz ever sees it. This lesson's commands run in its folder of the course repository, `examples/month-4/urdf-tf`; Lesson 1 cloned the repository into your home folder (on the apt route, Lesson 2 did, with the `cd ~` and `git clone` lines from Lesson 1's pixi section). `check_urdf` comes with `ros-jazzy-urdfdom`, which `ros-jazzy-desktop` includes, but xacro is not in it, so the apt route installs `ros-jazzy-xacro` now. In pixi, skip the `source` and `apt` lines: `pixi shell` loads ROS and `pixi.toml` already lists xacro.
 
 ```bash
-source /opt/ros/jazzy/setup.bash                  # apt route only; in pixi, pixi shell does this
+source /opt/ros/jazzy/setup.bash                  # apt route only; pixi: cd ~/Hardware-learning/examples/month-4 && pixi shell
 cd ~/Hardware-learning/examples/month-4/urdf-tf    # Lesson 1 cloned the repository into ~
 sudo apt install ros-jazzy-xacro                  # apt route only; pixi.toml already lists xacro
 xacro m4_description/urdf/robot.urdf.xacro > /tmp/robot.urdf && check_urdf /tmp/robot.urdf
@@ -491,8 +491,9 @@ Three details in that file are worth pausing on. `Command(['xacro ', xacro_file]
 Build the package and start it, still from `examples/month-4/urdf-tf`. On the apt route, `ros-jazzy-desktop` does not include xacro or the joint sliders, so the `rosdep install` line from Lesson 1 installs what `m4_description/package.xml` lists and is still missing: `ros-jazzy-joint-state-publisher` and `ros-jazzy-joint-state-publisher-gui` (`ros-jazzy-xacro` is there since the check above). pixi has no rosdep and `pixi.toml` already lists these packages, so skip that line there:
 
 ```bash
-source /opt/ros/jazzy/setup.bash                  # apt route only; in pixi, pixi shell does this
-cp -r m4_description ~/ros2_ws/src/                # from examples/month-4/urdf-tf
+source /opt/ros/jazzy/setup.bash                  # apt route only; pixi: cd ~/Hardware-learning/examples/month-4 && pixi shell
+cd ~/Hardware-learning/examples/month-4/urdf-tf
+cp -r m4_description ~/ros2_ws/src/
 cd ~/ros2_ws
 rosdep install --from-paths src --ignore-src -y   # apt route only; pixi has no rosdep and pixi.toml already lists these
 colcon build && source install/setup.bash
@@ -562,11 +563,11 @@ if __name__ == '__main__':
     main()
 ```
 
-It publishes `/joint_states` ten times a second with a fresh timestamp, which `robot_state_publisher` needs in order to work. Start the robot with no other joint source, pose the head at 30° pan, and ask for the transform from the base to the camera. Every new terminal needs the same setup as the first: source `/opt/ros/jazzy/setup.bash` (pixi: `pixi shell`) and `~/ros2_ws/install/setup.bash`, and `pose_head.py` runs from `examples/month-4/urdf-tf`:
+It publishes `/joint_states` ten times a second with a fresh timestamp, which `robot_state_publisher` needs in order to work. Start the robot with no other joint source, pose the head at 30° pan, and ask for the transform from the base to the camera. Every new terminal needs the same setup as the first: source `/opt/ros/jazzy/setup.bash` (pixi: `cd ~/Hardware-learning/examples/month-4 && pixi shell`) and `~/ros2_ws/install/setup.bash`, and `pose_head.py` runs from `~/Hardware-learning/examples/month-4/urdf-tf`:
 
 ```bash
 ros2 launch m4_description display.launch.py joints:=none rviz:=false
-python3 pose_head.py 30 0          # second terminal: pan 30°, tilt 0°
+cd ~/Hardware-learning/examples/month-4/urdf-tf && python3 pose_head.py 30 0   # second terminal: pan 30°, tilt 0°
 ros2 run tf2_ros tf2_echo base_link camera_link    # third terminal
 ```
 

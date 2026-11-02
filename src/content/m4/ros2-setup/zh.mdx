@@ -119,14 +119,15 @@ RoboStack 把 ROS 2 打包成 conda 包，conda 是跨平台的包管理器。pi
 
 ```bash
 curl -fsSL https://pixi.sh/install.sh | bash
+source ~/.bashrc   # 安装脚本只把 ~/.pixi/bin 加进新终端的 PATH
 cd ~
-git clone https://github.com/liudicsu/Hardware-learning.git
+git clone https://github.com/liudicsu/Hardware-learning.git   # 第 1 个月已经克隆过？改为运行 cd ~/Hardware-learning && git pull
 cd Hardware-learning/examples/month-4
 pixi install
 pixi shell
 ```
 
-仓库克隆在 home 目录下（`cd ~`），这样后面每一课都能在 `~/Hardware-learning` 找到课程仓库；走 apt 路线时，到第 2 课第一次用到它时，同样用 `cd ~` 和 `git clone` 这两行克隆。`pixi install` 把 ROS 2 Jazzy、Gazebo、colcon 等下载到项目文件夹里（本站 Debian 13 机器上 `du -sh .pixi` 测得 5.8 GB，2026 年 10 月），不碰系统。`pixi shell` 打开一个 `ros2`、`colcon`、`gz` 都能用的 shell。也可以不进 shell，直接用 `pixi run ros2 topic list` 跑单条命令。把文件夹删掉，环境就没了，`/usr` 里什么都不留。
+仓库克隆在 home 目录下（`cd ~`），这样后面每一课都能在 `~/Hardware-learning` 找到课程仓库；走 apt 路线时，到第 2 课第一次用到它时，同样用 `cd ~` 和 `git clone` 这两行克隆。`pixi install` 把 ROS 2 Jazzy、Gazebo、colcon 等下载到项目文件夹里（本站 Debian 13 机器上 `du -sh .pixi` 测得 5.8 GB，2026 年 10 月），不碰系统。`pixi shell` 打开一个 `ros2`、`colcon`、`gz` 都能用的 shell。也可以不进 shell，直接用 `pixi run ros2 topic list` 跑单条命令。把文件夹删掉，环境就没了，`/usr` 里什么都不留。`pixi shell` 只在当前文件夹及其上级文件夹里找 `pixi.toml`，所以每个新终端都要先 `cd ~/Hardware-learning/examples/month-4 && pixi shell`，或者在任意文件夹里用 `pixi shell --manifest-path ~/Hardware-learning/examples/month-4/pixi.toml`。
 
 <Resource id="robostack" />
 

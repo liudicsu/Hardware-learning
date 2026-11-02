@@ -2642,7 +2642,7 @@ for (const m of readdirSync(content)) {
   const rdB = (p) => readFileSync(join(root, p), "utf8");
   const DESKTOP = new Set(["robot_state_publisher", "rviz2", "rclpy", "geometry_msgs", "nav_msgs", "ament_cmake", "rosidl_default_generators",
     "action_msgs", "rosidl_default_runtime", "teleop_twist_keyboard", "tf2_ros", "tf2_tools", "urdfdom"]);
-  const SRC = "source /opt/ros/jazzy/setup.bash                  # apt route only; in pixi, pixi shell does this";
+  const SRC = "source /opt/ros/jazzy/setup.bash                  # apt route only; pixi: cd ~/Hardware-learning/examples/month-4 && pixi shell";
   // pixi.toml metapackage that carries each non-desktop key (closure of that RoboStack/apt metapackage).
   const PIXI = { xacro: "xacro", joint_state_publisher: "joint-state-publisher", joint_state_publisher_gui: "joint-state-publisher-gui",
     ros_gz_sim: "ros-gz", ros_gz_bridge: "ros-gz", controller_manager: "ros2-control", ros2controlcli: "ros2-control",
@@ -2665,8 +2665,11 @@ for (const m of readdirSync(content)) {
       const lines = blocks[0].replace(/\\\n\s*/g, "").split("\n").filter(Boolean);
       ok(lines[0] === SRC, `${tag}: build block must start with the apt-route source line`);
       lines.shift();
-      const cp = lines[0].match(/^cp -r (.+?) ~\/ros2_ws\/src\/\s+# from examples\/month-4\/([a-z0-9-]+)/);
-      ok(cp && cp[2] === lesson, `${tag}: cp line must end with "# from examples/month-4/${lesson}"`);
+      // after #80: the block cds into its lesson folder itself, so the cp needs no "# from examples/..." note
+      ok(lines[0] === `cd ~/Hardware-learning/examples/month-4/${lesson}` && existsSync(join(root, "examples/month-4", lesson)), `${tag}: second line must be "cd ~/Hardware-learning/examples/month-4/${lesson}"`);
+      lines.shift();
+      const cp = lines[0].match(/^cp -r (.+?) ~\/ros2_ws\/src\/(?:\s+#.*)?$/);
+      ok(cp && !lines[0].includes("# from"), `${tag}: cp line copies into ~/ros2_ws/src/ with no "# from examples/..." note`);
       if (!cp) continue;
       const copied = cp[1].trim().split(/\s+/);
       const names = new Set();
@@ -2718,18 +2721,18 @@ for (const m of readdirSync(content)) {
     const facts = {
       en: { "urdf-tf": ["`check_urdf` comes with `ros-jazzy-urdfdom`, which `ros-jazzy-desktop` includes, but xacro is not in it, so the apt route installs `ros-jazzy-xacro` now",
           "Lesson 1 cloned the repository into your home folder (on the apt route, Lesson 2 did, with the `cd ~` and `git clone` lines from Lesson 1's pixi section)", "In pixi, skip the `source` and `apt` lines",
-          "(`ros-jazzy-xacro` is there since the check above)", "`pose_head.py` runs from `examples/month-4/urdf-tf`"],
+          "(`ros-jazzy-xacro` is there since the check above)", "`pose_head.py` runs from `~/Hardware-learning/examples/month-4/urdf-tf`"],
         "gazebo-sim": ["the `gz` command this brings lives under `/opt/ros/jazzy/opt/gz_tools_vendor`, so it is not on the PATH before that",
-          "The scripts later in this lesson run from `examples/month-4/gazebo-sim`, in a second terminal"],
-        "ros2-control": ["The scripts later in this lesson run from `examples/month-4/ros2-control`, in a second terminal"],
-        "slam-nav": ["`slam.launch.py` is part of `m4_nav`, so build that package now and start it", "The scripts in this lesson run from `examples/month-4/slam-nav`, in a second terminal",
+          "The scripts later in this lesson run from `~/Hardware-learning/examples/month-4/gazebo-sim`, in a second terminal"],
+        "ros2-control": ["The scripts later in this lesson run from `~/Hardware-learning/examples/month-4/ros2-control`, in a second terminal"],
+        "slam-nav": ["`slam.launch.py` is part of `m4_nav`, so build that package now and start it", "The scripts in this lesson run from `~/Hardware-learning/examples/month-4/slam-nav`, in a second terminal",
           "Mapping runs under the `slam.launch.py` you built and started for the odometry check"] },
       zh: { "urdf-tf": ["`check_urdf` 来自 `ros-jazzy-urdfdom`，`ros-jazzy-desktop` 已经带了它，但不带 xacro，所以 apt 路线要在这里装上 `ros-jazzy-xacro`",
           "第 1 课把仓库克隆到了 home 目录下（走 apt 路线时是第 2 课，用第 1 课 pixi 一节里的 `cd ~` 和 `git clone` 这两行）", "在 pixi 里跳过 `source` 和 `apt` 这两行",
-          "（`ros-jazzy-xacro` 在上面检查时已经装好）", "`pose_head.py` 要在 `examples/month-4/urdf-tf` 里运行"],
-        "gazebo-sim": ["这样装上的 `gz` 命令在 `/opt/ros/jazzy/opt/gz_tools_vendor` 下，source 之前不在 PATH 里", "本课后面的脚本在 `examples/month-4/gazebo-sim` 里运行，用另一个"],
-        "ros2-control": ["本课后面的脚本在 `examples/month-4/ros2-control` 里运行，用另一个"],
-        "slam-nav": ["`slam.launch.py` 在 `m4_nav` 包里，所以现在构建这个包并启动它", "本课的脚本都在 `examples/month-4/slam-nav` 里运行，用另一个",
+          "（`ros-jazzy-xacro` 在上面检查时已经装好）", "`pose_head.py` 要在 `~/Hardware-learning/examples/month-4/urdf-tf` 里运行"],
+        "gazebo-sim": ["这样装上的 `gz` 命令在 `/opt/ros/jazzy/opt/gz_tools_vendor` 下，source 之前不在 PATH 里", "本课后面的脚本在 `~/Hardware-learning/examples/month-4/gazebo-sim` 里运行，用另一个"],
+        "ros2-control": ["本课后面的脚本在 `~/Hardware-learning/examples/month-4/ros2-control` 里运行，用另一个"],
+        "slam-nav": ["`slam.launch.py` 在 `m4_nav` 包里，所以现在构建这个包并启动它", "本课的脚本都在 `~/Hardware-learning/examples/month-4/slam-nav` 里运行，用另一个",
           "建图就在为里程计检查构建并启动的那个 `slam.launch.py` 下进行"] } };
     const stale = ["cd ~/ros2_ws/src/m4_description/urdf", "xacro robot.urdf.xacro > /tmp/robot.urdf", "Run the check again under `slam.launch.py`",
       "在加载了校准的 `slam.launch.py` 下再跑一次检查", "Build the package and start mapping", "构建这个包并开始建图",
@@ -2739,7 +2742,7 @@ for (const m of readdirSync(content)) {
       const text = rdB(`src/content/m4/${lesson}/${lang}.mdx`);
       for (const f of facts[lang][lesson]) ok(text.includes(f), `${tag}: expected ${JSON.stringify(f)}`);
       for (const st of stale) ok(!text.includes(st), `${tag}: stale ${JSON.stringify(st)} must be gone`);
-      const build = text.search(/```bash\nsource \/opt\/ros\/jazzy\/setup\.bash[^\n]*\ncp -r /);
+      const build = text.search(/```bash\nsource \/opt\/ros\/jazzy\/setup\.bash[^\n]*\ncd ~\/Hardware-learning\/examples\/month-4\/[a-z0-9-]+\ncp -r /);
       ok(build > 0, `${tag}: build block not found`);
       const lead = text.lastIndexOf("\n\n", build - 3); // the build block's lead-in paragraph may name what it builds
       // A launch of this lesson's own package, in prose, a bash block or a quoted run, only after the block that builds it
@@ -2800,27 +2803,133 @@ for (const m of readdirSync(content)) {
         for (const b of text.matchAll(/```bash\n([\s\S]*?)```/g)) {
           const L = b[1].split("\n");
           L.forEach((l, i) => {
-            if (l === GC) ok(L[i - 1] === "cd ~", `${tag}: the git clone of the course repository must follow "cd ~"`);
+            if (l.startsWith(GC)) ok(L[i - 1] === "cd ~", `${tag}: the git clone of the course repository must follow "cd ~"`);
             const m = l.match(/^cd (~\/)?Hardware-learning(\/\S*)?/);
             if (m) {
-              ok(m[1] || L[i - 1] === GC, `${tag}: "${l}" is relative, so it must come right after the clone`);
+              ok(m[1] || (L[i - 1] ?? "").startsWith(GC), `${tag}: "${l}" is relative, so it must come right after the clone`);
               ok(existsSync(join(root, (m[2] ?? "/").slice(1))), `${tag}: "${l}" names a folder the repository does not have`);
             }
           });
         }
         const noListings = text.replace(/```(?:python|yaml|xml|cmake)\n[\s\S]*?```/g, (m) => " ".repeat(m.length));
-        const name = lesson.split("/")[1], folder = text.replace(/<CodeSource[^>]*>/g, "").indexOf("`examples/month-4/" + name + "`");
+        const name = lesson.split("/")[1], prose = text.replace(/<CodeSource[^>]*>/g, ""), folder = Math.min(...["`examples/month-4/", "`~/Hardware-learning/examples/month-4/"].map((pre) => prose.indexOf(pre + name + "`")).map((i) => (i < 0 ? Infinity : i)));
         const run = noListings.search(/(?:^|\$ )python3 [a-z_]+\.py/m);
-        if (run >= 0) ok(folder >= 0 && folder < run, `${tag}: the first python3 run (char ${run}) must come after the prose names \`examples/month-4/${name}\` (char ${folder})`);
+        if (run >= 0) ok(folder < run, `${tag}: the first python3 run (char ${run}) must come after the prose names \`examples/month-4/${name}\` (char ${folder})`);
       }
       const g = rdB(`src/content/m4/ros2-graph/${lang}.mdx`);
       ok(g.includes(GB) && g.indexOf(GB) < g.indexOf("Starting >>> m4_interfaces"), `m4 paths ros2-graph ${lang}: copy the packages, then build them`);
       const sn = rdB(`src/content/m4/slam-nav/${lang}.mdx`), mk = sn.indexOf("```bash\nmkdir -p ~/maps\n```");
       ok(mk > 0 && mk < sn.indexOf("maps/room"), `m4 paths slam-nav ${lang}: mkdir -p ~/maps before the first save into it`);
       const s1 = rdB(`src/content/m4/ros2-setup/${lang}.mdx`);
-      ok(s1.includes("```bash\ncurl -fsSL https://pixi.sh/install.sh | bash\ncd ~\n" + GC + "\ncd Hardware-learning/examples/month-4\npixi install\npixi shell\n```"), `m4 paths ros2-setup ${lang}: pixi block clones from ~`);
+      // after #80: pixi's install.sh only appends ~/.pixi/bin to ~/.bashrc and asks to "restart or source your shell", and a second
+      // git clone into an existing ~/Hardware-learning fails ("destination path ... already exists"), so Month 1 readers pull instead
+      const PB = lang === "en" ? ["# pixi's installer only adds ~/.pixi/bin to new shells", "# cloned in Month 1 already? run cd ~/Hardware-learning && git pull instead"]
+        : ["# 安装脚本只把 ~/.pixi/bin 加进新终端的 PATH", "# 第 1 个月已经克隆过？改为运行 cd ~/Hardware-learning && git pull"];
+      ok(s1.includes("```bash\ncurl -fsSL https://pixi.sh/install.sh | bash\nsource ~/.bashrc   " + PB[0] + "\ncd ~\n" + GC + "   " + PB[1] + "\ncd Hardware-learning/examples/month-4\npixi install\npixi shell\n```"), `m4 paths ros2-setup ${lang}: pixi block sources ~/.bashrc after the installer and clones from ~`);
     }
     console.log("m4 paths: clones from ~, cds into the clone absolute or right after it, first script runs after their folder is named, ~/maps made before saving");
+  }
+  // Small paths 2 (after #80): no placeholder home folder in a command, and every cd / script path into the clone is absolute.
+  {
+    const SER = `$ ros2 service call /slam_toolbox/serialize_map slam_toolbox/srv/SerializePoseGraph "{filename: '$HOME/maps/room'}"`;
+    const facts4 = {
+      en: { "m4/slam-nav": ["In the pose-graph command the path is written with `$HOME`, not `~`: bash does not expand `~` inside quotes, but it does expand `$HOME` inside the double quotes",
+          "In the output below the site editor's temporary folder is printed as `/home/you/maps`; yours shows your own home folder."],
+        "m4/ros2-graph": ["(Git is already installed: Lesson 1's `ros-dev-tools` depends on `ros-build-essential`, which pulls in `git`)"],
+        "m5/camera-calibration": ["`cd ~/Hardware-learning/examples/month-5 && pixi shell` gives you both", "```bash\ncd ~/Hardware-learning/examples/month-5/camera-calibration\npython3 make_views.py views\n"],
+        "m5/moveit-pick-place": ["go to `~/Hardware-learning/examples/month-5` and run `pixi run sim`", "use two terminals in `~/Hardware-learning/examples/month-5/moveit-pick-place`"] },
+      zh: { "m4/slam-nav": ["位姿图那条命令里的路径用的是 `$HOME` 而不是 `~`：bash 不会展开引号里的 `~`，但会展开双引号里的 `$HOME`",
+          "下面的输出里，本站编者用的临时文件夹显示为 `/home/you/maps`；你的输出显示你自己的 home 目录。"],
+        "m4/ros2-graph": ["（Git 已经装好了：第 1 课的 `ros-dev-tools` 依赖 `ros-build-essential`，后者会装上 `git`）"],
+        "m5/camera-calibration": ["`cd ~/Hardware-learning/examples/month-5 && pixi shell` 两者都有", "```bash\ncd ~/Hardware-learning/examples/month-5/camera-calibration\npython3 make_views.py views\n"],
+        "m5/moveit-pick-place": ["进入 `~/Hardware-learning/examples/month-5` 执行 `pixi run sim`", "手动运行则在 `~/Hardware-learning/examples/month-5/moveit-pick-place` 里开两个终端"] } };
+    const runSh = rdB("tools/sim/ros/run.sh"), expSave = rdB("tools/sim/expected/m4-ros-nav_save.txt");
+    // run.sh prints the lesson's command and runs the same quoting with its own folder; the expected transcript starts with that line
+    ok(runSh.includes(`echo "\\$ ros2 service call /slam_toolbox/serialize_map slam_toolbox/srv/SerializePoseGraph \\"{filename: '\\$HOME/maps/room'}\\""`), "m4 paths2: run.sh echoes the $HOME serialize_map command");
+    ok(runSh.includes(`SerializePoseGraph "{filename: '$MAPS/room'}"`), "m4 paths2: run.sh calls serialize_map with the same double-outside, single-inside quoting");
+    ok(expSave.split("\n")[0] === SER, "m4 paths2: expected nav_save transcript starts with the $HOME command");
+    const months = readdirSync(join(root, "src/content")).filter((d) => /^m[1-6]$/.test(d));
+    const lessonsAll = months.flatMap((m) => readdirSync(join(root, "src/content", m)).filter((l) => existsSync(join(root, "src/content", m, l, "en.mdx"))).map((l) => `${m}/${l}`));
+    for (const lang of ["en", "zh"]) {
+      for (const [lesson, fs] of Object.entries(facts4[lang])) {
+        const text = rdB(`src/content/${lesson}/${lang}.mdx`);
+        for (const f of fs) ok(text.includes(f), `m4 paths2 ${lesson} ${lang}: expected ${JSON.stringify(f)}`);
+      }
+      const sn = rdB(`src/content/m4/slam-nav/${lang}.mdx`);
+      ok(sn.includes(SER + "\n"), `m4 paths2 slam-nav ${lang}: serialize_map command uses $HOME`);
+      ok(sn.indexOf(SER) === sn.lastIndexOf(SER) && sn.indexOf(SER) > sn.indexOf("```bash\nmkdir -p ~/maps\n```"), `m4 paths2 slam-nav ${lang}: one serialize_map command, after mkdir`);
+      for (const lesson of lessonsAll) {
+        const tag = `m4 paths2 ${lesson} ${lang}`, text = rdB(`src/content/${lesson}/${lang}.mdx`);
+        // commands: lines of bash/sh blocks and "$ " lines of transcripts
+        const cmds = [];
+        for (const b of text.matchAll(/```(bash|sh|text)\n([\s\S]*?)```/g))
+          for (const l of b[2].split("\n")) if (b[1] !== "text" || l.startsWith("$ ")) cmds.push(l.replace(/^\$ /, ""));
+        for (const c of cmds) ok(!c.includes("/home/you"), `${tag}: command "${c}" names the placeholder /home/you; write $HOME or ~`);
+        // every cd (in a block or inline code) into the course repository is absolute, unless right after the clone
+        const inline = [...text.matchAll(/`(cd [^`]+)`/g)].map((m) => m[1]);
+        const blocks = [...text.matchAll(/```(?:bash|sh)\n([\s\S]*?)```/g)].map((b) => b[1].split("\n"));
+        const cdTargets = [...inline.flatMap((c) => c.split(/\s*&&\s*/)), ...blocks.flatMap((L) => L.filter((l, i) => !(l.startsWith("cd Hardware-learning") && (L[i - 1] ?? "").startsWith("git clone https://github.com/liudicsu/Hardware-learning.git"))))]
+          .filter((c) => /^cd /.test(c)).map((c) => c.slice(3).split(/\s+/)[0]);
+        for (const t of cdTargets) {
+          ok(!/^(examples|tools|Hardware-learning)(\/|$)/.test(t), `${tag}: "cd ${t}" is relative to wherever the reader is; write ~/Hardware-learning/...`);
+          const m = t.match(/^~\/Hardware-learning(\/\S*)?$/);
+          if (m) ok(existsSync(join(root, (m[1] ?? "/").slice(1))), `${tag}: "cd ${t}" names a folder the repository does not have`);
+        }
+        // a script run by path into the repository from a bash block is absolute too
+        for (const L of blocks) for (const l of L) {
+          const m = l.match(/^python3 (\S+\/\S+\.py)/);
+          if (m) {
+            ok(m[1].startsWith("~/Hardware-learning/") || !/^(examples|tools)\//.test(m[1]), `${tag}: "${l}" runs a repository script by a relative path`);
+            if (m[1].startsWith("~/Hardware-learning/")) ok(existsSync(join(root, m[1].slice("~/Hardware-learning/".length))), `${tag}: "${l}" names a script the repository does not have`);
+          }
+        }
+      }
+    }
+    console.log("m4 paths2: no /home/you in commands, serialize_map with $HOME matches run.sh, every cd and script path into the clone absolute (m1-m6)");
+  }
+  // Small paths 3 (review round 28 on a215a1a): new terminals and pixi shell, build blocks cd into their folder, second-terminal scripts.
+  {
+    const CDP = "cd ~/Hardware-learning/examples/month-4 && pixi shell";
+    const MP = "pixi shell --manifest-path ~/Hardware-learning/examples/month-4/pixi.toml";
+    ok(existsSync(join(root, "examples/month-4/pixi.toml")), "m4 paths3: examples/month-4/pixi.toml exists for --manifest-path");
+    // pixi 0.83.0: `pixi shell --help` lists "-m, --manifest-path <MANIFEST_PATH>"; outside a project it fails with
+    // "could not find pixi.toml or pyproject.toml with tool.pixi at directory /tmp"; from a subfolder it finds the parent's pixi.toml.
+    const SETUP = { en: "(ROS loaded, on the apt route with `source /opt/ros/jazzy/setup.bash` and in pixi with `" + CDP + "`, then `source ~/ros2_ws/install/setup.bash`)",
+      zh: "（先加载 ROS：apt 路线用 `source /opt/ros/jazzy/setup.bash`，pixi 用 `" + CDP + "`；再 `source ~/ros2_ws/install/setup.bash`）" };
+    const NEWT = { en: "`pixi shell` looks for `pixi.toml` only in the current folder and the folders above it, so every new terminal needs `" + CDP + "`, or, from any folder, `" + MP + "`.",
+      zh: "`pixi shell` 只在当前文件夹及其上级文件夹里找 `pixi.toml`，所以每个新终端都要先 `" + CDP + "`，或者在任意文件夹里用 `" + MP + "`。" };
+    const SPIN = "```bash\nros2 launch m4_control control.launch.py          # Lesson 5's launch file; add headless:=true on a machine without a screen\ncd ~/Hardware-learning/examples/month-4/slam-nav && python3 spin_check.py   # second terminal\n```\n\n<SimOutput source=\"ros\">\n\n```text\n$ python3 spin_check.py\nodometry says: 360.0 deg\nlidar says:    403.1";
+    const scriptBlocks = { "urdf-tf": ["cd ~/Hardware-learning/examples/month-4/urdf-tf && python3 pose_head.py 30 0   # second terminal: pan 30°, tilt 0°\n"],
+      "gazebo-sim": ["```bash\ncd ~/Hardware-learning/examples/month-4/gazebo-sim\npython3 scan_probe.py\n```", "```bash\ncd ~/Hardware-learning/examples/month-4/gazebo-sim\npython3 snap_camera.py camera.png\n```"],
+      "ros2-control": [], "slam-nav": [SPIN] };
+    const DOC = "(needs Pillow: sudo apt install python3-pil; pixi has it)";
+    ok(rdB("examples/month-4/gazebo-sim/snap_camera.py").includes(DOC), "m4 paths3: snap_camera.py docstring names python3-pil");
+    // Ubuntu 24.04 marks its Python EXTERNALLY-MANAGED (libpython3.12-stdlib), so a bare pip install refuses; pillow is in pixi.lock via matplotlib-base.
+    ok(/\/pillow-[0-9.]+-py312/.test(rdB("examples/month-4/pixi.lock")), "m4 paths3: pixi.lock carries pillow");
+    ok(!/pip install pillow/.test(rdB("examples/month-4/gazebo-sim/snap_camera.py")), "m4 paths3: snap_camera.py no longer says pip install pillow");
+    ok(rdB("src/content/m1/git-github/en.mdx").includes("```bash\ncd ~\ngit clone https://github.com/liudicsu/Hardware-learning.git\n"), "m4 paths3: Month 1 clones into ~, so Lesson 1's clone line says to pull instead");
+    for (const lang of ["en", "zh"]) {
+      const s1 = rdB(`src/content/m4/ros2-setup/${lang}.mdx`);
+      ok(s1.includes(NEWT[lang] + "\n"), `m4 paths3 ros2-setup ${lang}: new terminals need cd + pixi shell, or --manifest-path`);
+      for (const lesson of Object.keys(scriptBlocks)) {
+        const tag = `m4 paths3 ${lesson} ${lang}`, text = rdB(`src/content/m4/${lesson}/${lang}.mdx`);
+        for (const st of ["in pixi, pixi shell does this", "(pixi: `pixi shell`)", "（pixi 里用 `pixi shell`）", "# from examples/month-4", "(ROS and `~/ros2_ws/install/setup.bash` sourced)",
+          "（source 了 ROS 和 `~/ros2_ws/install/setup.bash`）", "pip install pillow"]) ok(!text.includes(st), `${tag}: stale ${JSON.stringify(st)} must be gone`);
+        // every pixi shell inside a bash block, and every one in a "(pixi: ...)" aside, is the cd form
+        for (const b of text.matchAll(/```bash\n([\s\S]*?)```/g)) for (const l of b[1].split("\n"))
+          if (l.includes("pixi shell")) ok(l.includes(CDP), `${tag}: "${l}" must say ${CDP}`);
+        for (const m of text.matchAll(/(?:\(pixi: |pixi 里用 )`([^`]*)`/g)) ok(m[1] === CDP, `${tag}: pixi aside "${m[1]}" must be ${CDP}`);
+        if (lesson !== "urdf-tf") ok(text.includes(SETUP[lang]), `${tag}: second-terminal setup names both routes`);
+        else ok(text.includes(lang === "en" ? "(pixi: `" + CDP + "`)" : "（pixi 里用 `" + CDP + "`）"), `${tag}: new-terminal setup uses the cd form`);
+        for (const sb of scriptBlocks[lesson]) ok(text.includes(sb), `${tag}: expected script block ${JSON.stringify(sb.slice(0, 80))}`);
+        if (lesson === "gazebo-sim") ok(text.includes(DOC), `${tag}: snap_camera docstring matches the script`);
+        if (lesson === "slam-nav") {
+          const sp = text.indexOf(SPIN), first = text.indexOf("$ python3 spin_check.py");
+          ok(sp > 0 && first === sp + SPIN.indexOf("$ python3 spin_check.py"), `${tag}: the first spin_check transcript is preceded by its launch + second-terminal block`);
+        }
+      }
+    }
+    console.log("m4 paths3: new terminals cd + pixi shell (or --manifest-path), build blocks cd into their folder, second-terminal scripts cd first");
   }
   console.log("m4 build path: urdf-tf / gazebo-sim / ros2-control / slam-nav cp paths, rosdep order, non-desktop apt names checked");
 }

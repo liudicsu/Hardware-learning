@@ -517,11 +517,12 @@ On a server, in CI, or on a laptop with no free display:
 
 The `create` node spawns the robot from the `robot_description` topic, not from a file path. It reads the same description that `robot_state_publisher` received, so the model in Gazebo and the TF in ROS 2 cannot drift apart. The small `-z 0.01` lifts the robot one centimetre above the floor, which avoids a first-step collision with the ground plane.
 
-Build and run, from `examples/month-4/gazebo-sim`. On the apt route, `rosdep install` reads `m4_gazebo/package.xml` and adds `ros-jazzy-ros-gz-sim` and `ros-jazzy-ros-gz-bridge`, which the `ros-jazzy-ros-gz` install at the top of this lesson already brought in; in pixi, skip that line. The scripts later in this lesson run from `examples/month-4/gazebo-sim`, in a second terminal set up the same way (ROS and `~/ros2_ws/install/setup.bash` sourced):
+Build and run, from `examples/month-4/gazebo-sim`. On the apt route, `rosdep install` reads `m4_gazebo/package.xml` and adds `ros-jazzy-ros-gz-sim` and `ros-jazzy-ros-gz-bridge`, which the `ros-jazzy-ros-gz` install at the top of this lesson already brought in; in pixi, skip that line. The scripts later in this lesson run from `~/Hardware-learning/examples/month-4/gazebo-sim`, in a second terminal set up the same way (ROS loaded, on the apt route with `source /opt/ros/jazzy/setup.bash` and in pixi with `cd ~/Hardware-learning/examples/month-4 && pixi shell`, then `source ~/ros2_ws/install/setup.bash`):
 
 ```bash
-source /opt/ros/jazzy/setup.bash                  # apt route only; in pixi, pixi shell does this
-cp -r ../urdf-tf/m4_description m4_gazebo ~/ros2_ws/src/   # from examples/month-4/gazebo-sim; m4_description from Lesson 3
+source /opt/ros/jazzy/setup.bash                  # apt route only; pixi: cd ~/Hardware-learning/examples/month-4 && pixi shell
+cd ~/Hardware-learning/examples/month-4/gazebo-sim
+cp -r ../urdf-tf/m4_description m4_gazebo ~/ros2_ws/src/   # m4_description from Lesson 3
 cd ~/ros2_ws
 rosdep install --from-paths src --ignore-src -y   # apt route only; pixi has no rosdep and pixi.toml already lists these
 colcon build && source install/setup.bash
@@ -628,6 +629,7 @@ Note the QoS profile: `qos_profile_sensor_data` is best effort, which is Lesson 
 Run it with the simulation already going:
 
 ```bash
+cd ~/Hardware-learning/examples/month-4/gazebo-sim
 python3 scan_probe.py
 ```
 
@@ -671,7 +673,7 @@ Now the camera. The snapshot script saves one frame as a PNG and prints what the
 #!/usr/bin/env python3
 """Save one frame from /camera/image_raw as a PNG, and print what the image header says.
 
-usage: python3 snap_camera.py [out.png]      (needs Pillow: pip install pillow)"""
+usage: python3 snap_camera.py [out.png]      (needs Pillow: sudo apt install python3-pil; pixi has it)"""
 import sys
 
 import rclpy
@@ -702,6 +704,7 @@ if __name__ == '__main__':
 ```
 
 ```bash
+cd ~/Hardware-learning/examples/month-4/gazebo-sim
 python3 snap_camera.py camera.png
 ```
 

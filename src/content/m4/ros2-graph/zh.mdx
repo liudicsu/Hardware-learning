@@ -121,7 +121,7 @@ ament_package()
 
 在 `package.xml` 里有几行很关键，而且容易写错。加上一个对 `rosidl_default_generators` 的 `buildtool_depend`（生成器本身），一个对 `std_msgs` 和 `action_msgs` 的 `depend`（我们的消息建立在这两个标准包之上），还有一个对 `rosidl_default_runtime` 的 `exec_depend`（生成的代码真正运行时要靠它）。然后加上这一行分组声明：`<member_of_group>rosidl_interface_packages</member_of_group>`。忘了最后这一行，就是那个经典的“能编译，但类型找不到”的错误：代码确实生成好、装好了，但 ROS 从不知道这个包提供接口，于是 `ros2 interface show` 和其它包都找不到这些类型。
 
-现在构建这三个包。它们在课程仓库的 `examples/month-4/ros2-graph` 里；走 apt 路线时，先用第 1 课 pixi 一节里的 `cd ~` 和 `git clone` 这两行把仓库克隆下来。把它们拷进工作空间，再跑第 1 课里那个 colcon 循环，只不过包变多了：
+现在构建这三个包。它们在课程仓库的 `examples/month-4/ros2-graph` 里；走 apt 路线时，先用第 1 课 pixi 一节里的 `cd ~` 和 `git clone` 这两行把仓库克隆下来（Git 已经装好了：第 1 课的 `ros-dev-tools` 依赖 `ros-build-essential`，后者会装上 `git`）。把它们拷进工作空间，再跑第 1 课里那个 colcon 循环，只不过包变多了：
 
 ```bash
 cd ~/Hardware-learning/examples/month-4/ros2-graph

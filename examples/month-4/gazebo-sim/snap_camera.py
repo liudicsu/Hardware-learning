@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Save one frame from /camera/image_raw as a PNG, and print what the image header says.
 
-usage: python3 snap_camera.py [out.png]      (needs Pillow: pip install pillow)"""
+usage: python3 snap_camera.py [out.png]      (needs Pillow: sudo apt install python3-pil; pixi has it)"""
 import sys
 
 import rclpy

@@ -121,7 +121,7 @@ ament_package()
 
 In `package.xml` a few lines matter, and they are easy to get wrong. Add a `buildtool_depend` on `rosidl_default_generators` (the generator), a `depend` on both `std_msgs` and `action_msgs` (the standard packages our messages build on), and an `exec_depend` on `rosidl_default_runtime` (needed when the generated code actually runs). Then add the group line `<member_of_group>rosidl_interface_packages</member_of_group>`. Forgetting that last line is the classic "it builds but the type is not found" error: the code is generated and installed correctly, but ROS never learns that this package provides interfaces, so `ros2 interface show` and other packages cannot find the types.
 
-Build the three packages. They are in the course repository, in `examples/month-4/ros2-graph`; on the apt route, clone it first with the `cd ~` and `git clone` lines from Lesson 1's pixi section. Copy them into the workspace, then run the same colcon loop from Lesson 1, just with more of them:
+Build the three packages. They are in the course repository, in `examples/month-4/ros2-graph`; on the apt route, clone it first with the `cd ~` and `git clone` lines from Lesson 1's pixi section (Git is already installed: Lesson 1's `ros-dev-tools` depends on `ros-build-essential`, which pulls in `git`). Copy them into the workspace, then run the same colcon loop from Lesson 1, just with more of them:
 
 ```bash
 cd ~/Hardware-learning/examples/month-4/ros2-graph

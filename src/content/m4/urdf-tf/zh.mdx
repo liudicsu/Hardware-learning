@@ -255,7 +255,7 @@
 把 xacro 转成朴素 URDF，并在 RViz 看到它之前先检查。本课的命令都在课程仓库里本课的文件夹 `examples/month-4/urdf-tf` 中执行；第 1 课把仓库克隆到了 home 目录下（走 apt 路线时是第 2 课，用第 1 课 pixi 一节里的 `cd ~` 和 `git clone` 这两行）。`check_urdf` 来自 `ros-jazzy-urdfdom`，`ros-jazzy-desktop` 已经带了它，但不带 xacro，所以 apt 路线要在这里装上 `ros-jazzy-xacro`。在 pixi 里跳过 `source` 和 `apt` 这两行：`pixi shell` 会加载 ROS，`pixi.toml` 也已经列了 xacro。
 
 ```bash
-source /opt/ros/jazzy/setup.bash                  # apt route only; in pixi, pixi shell does this
+source /opt/ros/jazzy/setup.bash                  # apt route only; pixi: cd ~/Hardware-learning/examples/month-4 && pixi shell
 cd ~/Hardware-learning/examples/month-4/urdf-tf    # Lesson 1 cloned the repository into ~
 sudo apt install ros-jazzy-xacro                  # apt route only; pixi.toml already lists xacro
 xacro m4_description/urdf/robot.urdf.xacro > /tmp/robot.urdf && check_urdf /tmp/robot.urdf
@@ -491,8 +491,9 @@ def generate_launch_description():
 构建这个包并启动它，仍然在 `examples/month-4/urdf-tf` 里执行。走 apt 路线时，`ros-jazzy-desktop` 不带 xacro，也不带关节滑块界面，所以要用第 1 课讲过的 `rosdep install` 装上 `m4_description/package.xml` 列出、但还没装的依赖：`ros-jazzy-joint-state-publisher` 和 `ros-jazzy-joint-state-publisher-gui`（`ros-jazzy-xacro` 在上面检查时已经装好）。pixi 里没有 rosdep，`pixi.toml` 也已经列了这些包，所以在 pixi 里跳过这一行：
 
 ```bash
-source /opt/ros/jazzy/setup.bash                  # apt route only; in pixi, pixi shell does this
-cp -r m4_description ~/ros2_ws/src/                # from examples/month-4/urdf-tf
+source /opt/ros/jazzy/setup.bash                  # apt route only; pixi: cd ~/Hardware-learning/examples/month-4 && pixi shell
+cd ~/Hardware-learning/examples/month-4/urdf-tf
+cp -r m4_description ~/ros2_ws/src/
 cd ~/ros2_ws
 rosdep install --from-paths src --ignore-src -y   # apt route only; pixi has no rosdep and pixi.toml already lists these
 colcon build && source install/setup.bash
@@ -562,11 +563,11 @@ if __name__ == '__main__':
     main()
 ```
 
-它每秒十次带着新时间戳发布 `/joint_states`，这正是 `robot_state_publisher` 工作所必需的。用「没有其它关节来源」的方式启动机器人，把云台摆到 pan 30°，然后查询从底盘到相机的变换。每个新终端都要和第一个一样准备好：source `/opt/ros/jazzy/setup.bash`（pixi 里用 `pixi shell`）和 `~/ros2_ws/install/setup.bash`，`pose_head.py` 要在 `examples/month-4/urdf-tf` 里运行：
+它每秒十次带着新时间戳发布 `/joint_states`，这正是 `robot_state_publisher` 工作所必需的。用「没有其它关节来源」的方式启动机器人，把云台摆到 pan 30°，然后查询从底盘到相机的变换。每个新终端都要和第一个一样准备好：source `/opt/ros/jazzy/setup.bash`（pixi 里用 `cd ~/Hardware-learning/examples/month-4 && pixi shell`）和 `~/ros2_ws/install/setup.bash`，`pose_head.py` 要在 `~/Hardware-learning/examples/month-4/urdf-tf` 里运行：
 
 ```bash
 ros2 launch m4_description display.launch.py joints:=none rviz:=false
-python3 pose_head.py 30 0          # second terminal: pan 30°, tilt 0°
+cd ~/Hardware-learning/examples/month-4/urdf-tf && python3 pose_head.py 30 0   # second terminal: pan 30°, tilt 0°
 ros2 run tf2_ros tf2_echo base_link camera_link    # third terminal
 ```
 

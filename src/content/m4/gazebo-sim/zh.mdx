@@ -517,11 +517,12 @@ def generate_launch_description():
 
 `create` 节点从 `robot_description` 话题生成机器人，而不是从文件路径读取。它拿到的是 `robot_state_publisher` 收到的同一份描述，所以 Gazebo 里的模型和 ROS 2 里的 TF 不可能各自漂移。末尾的 `-z 0.01` 把机器人抬高 1 cm，避免第一步就和地面相撞。
 
-构建并运行，`cp` 在 `examples/month-4/gazebo-sim` 里执行。走 apt 路线时，`rosdep install` 读 `m4_gazebo/package.xml`，会再装 `ros-jazzy-ros-gz-sim` 和 `ros-jazzy-ros-gz-bridge`，本课开头装的 `ros-jazzy-ros-gz` 已经带了它们；在 pixi 里跳过这一行。本课后面的脚本在 `examples/month-4/gazebo-sim` 里运行，用另一个同样准备好的终端（source 了 ROS 和 `~/ros2_ws/install/setup.bash`）：
+构建并运行，`cp` 在 `examples/month-4/gazebo-sim` 里执行。走 apt 路线时，`rosdep install` 读 `m4_gazebo/package.xml`，会再装 `ros-jazzy-ros-gz-sim` 和 `ros-jazzy-ros-gz-bridge`，本课开头装的 `ros-jazzy-ros-gz` 已经带了它们；在 pixi 里跳过这一行。本课后面的脚本在 `~/Hardware-learning/examples/month-4/gazebo-sim` 里运行，用另一个同样准备好的终端（先加载 ROS：apt 路线用 `source /opt/ros/jazzy/setup.bash`，pixi 用 `cd ~/Hardware-learning/examples/month-4 && pixi shell`；再 `source ~/ros2_ws/install/setup.bash`）：
 
 ```bash
-source /opt/ros/jazzy/setup.bash                  # apt route only; in pixi, pixi shell does this
-cp -r ../urdf-tf/m4_description m4_gazebo ~/ros2_ws/src/   # from examples/month-4/gazebo-sim; m4_description from Lesson 3
+source /opt/ros/jazzy/setup.bash                  # apt route only; pixi: cd ~/Hardware-learning/examples/month-4 && pixi shell
+cd ~/Hardware-learning/examples/month-4/gazebo-sim
+cp -r ../urdf-tf/m4_description m4_gazebo ~/ros2_ws/src/   # m4_description from Lesson 3
 cd ~/ros2_ws
 rosdep install --from-paths src --ignore-src -y   # apt route only; pixi has no rosdep and pixi.toml already lists these
 colcon build && source install/setup.bash
@@ -628,6 +629,7 @@ if __name__ == '__main__':
 在仿真已经运行时执行：
 
 ```bash
+cd ~/Hardware-learning/examples/month-4/gazebo-sim
 python3 scan_probe.py
 ```
 
@@ -671,7 +673,7 @@ nearest:
 #!/usr/bin/env python3
 """Save one frame from /camera/image_raw as a PNG, and print what the image header says.
 
-usage: python3 snap_camera.py [out.png]      (needs Pillow: pip install pillow)"""
+usage: python3 snap_camera.py [out.png]      (needs Pillow: sudo apt install python3-pil; pixi has it)"""
 import sys
 
 import rclpy
@@ -702,6 +704,7 @@ if __name__ == '__main__':
 ```
 
 ```bash
+cd ~/Hardware-learning/examples/month-4/gazebo-sim
 python3 snap_camera.py camera.png
 ```
 
