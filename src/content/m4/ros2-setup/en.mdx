@@ -6,7 +6,7 @@ Months 1–3 were your way. You wrote one program, it ran one loop on a microcon
 
 The month builds in order. Lesson 2, "Nodes, topics, services and actions", gives you the vocabulary. Lesson 3, "URDF and TF: describing a robot", gives the robot a body. Lesson 4, "Simulation with Gazebo", puts that body in a world. Lesson 5, "ros2_control: drive through a controller", makes the wheels turn. Lesson 6, "SLAM and Nav2: map and navigate", closes the loop with a map and a destination. This lesson is the floor: choose a version, install it, and get one node of your own running.
 
-A note on the outputs below. Every command output quoted here is a real run of ROS 2 Jazzy, not a simulation. The site editor ran them on Debian 13, with Jazzy installed from RoboStack's conda packages through pixi — not on Ubuntu. The Ubuntu apt commands in the install section are copied from the official Jazzy install page, checked in November 2026, and the environment variables, ports and network settings later in the lesson come from the Jazzy documentation and the ROS 2 source code. Timestamps in the logs will differ on your machine, and so will paths that contain a home folder. Distro dates come from the official ROS 2 releases page, also checked in October 2026.
+A note on the outputs below. Every command output quoted here is a real run of ROS 2 Jazzy, not a simulation. The site editor ran them on Debian 13, with Jazzy installed from RoboStack's conda packages through pixi — not on Ubuntu. The Ubuntu apt commands in the install section are copied from the official Jazzy install page, checked in November 2026, and the environment variables, ports and network settings later in the lesson come from the Jazzy documentation and the ROS 2 source code. Timestamps in the logs will differ on your machine, and so will paths that contain a home folder. Distro dates and platforms come from REP 2000 for Humble, Jazzy and Kilted; REP 2000 stops at Kilted, so Lyrical's come from the releases table and Lyrical's supported-platforms page on docs.ros.org. Both were checked in November 2026.
 
 ## Pick a distro
 
@@ -21,7 +21,7 @@ The release cadence has a pattern worth memorising. Even years are LTS (long-ter
 | Jazzy Jalisco | May 2024 | May 2029 | 24.04 | LTS: start here |
 | Humble Hawksbill | May 2022 | May 2027 | 22.04 | Legacy; you will meet it on older robots and in older courses |
 
-Read the table with a calendar, not with a vague sense of "newer is better". Kilted was released in May 2025 and dies in November 2026, which is 18 months — the "about 18 months" figure in practice. The end dates here follow REP 2000, which gives Kilted "May 2025 - November 2026"; the releases table on docs.ros.org currently says December 2026, so do not plan on that extra month. Jazzy was released in May 2024 and gets until May 2029, exactly five years. The end-of-life date is not the day the code stops running; it is the day fixes, security updates and new binary packages stop; from then on you are on your own when something breaks, and new tutorials and packages move to newer distros.
+Read the table with a calendar, not with a vague sense of "newer is better". Kilted was released in May 2025 and dies in November 2026, which is 18 months — the "about 18 months" figure in practice. The end dates here follow REP 2000, which gives Kilted "May 2025 - November 2026"; the releases table on docs.ros.org currently says December 2026, so do not plan on that extra month. REP 2000 has no Lyrical entry yet, so Lyrical's May 2026 release and May 2031 end date come from that docs.ros.org table. Jazzy was released in May 2024 and gets until May 2029, exactly five years. The end-of-life date is not the day the code stops running; it is the day fixes, security updates and new binary packages stop; from then on you are on your own when something breaks, and new tutorials and packages move to newer distros.
 
 Here is the calculation you will repeat for any distro. Say it is October 2026 and you want to know how much support Lyrical has left:
 
@@ -36,7 +36,7 @@ The same sum for Jazzy gives the answer to the quiz below.
 
 So why start on Jazzy rather than the newest LTS? Because almost every course, book and video series still targets Jazzy. It has more than two and a half years of support left, which is plenty of runway to learn on. And when a tutorial and your install are the same distro, you fight the topic instead of version differences: the package names match, the launch syntax matches, and error messages you find online were written about the code you are running. Move to Lyrical when the tutorial stack you rely on catches up; the concepts transfer almost unchanged, so that move will be a week of adjustment, not a restart.
 
-One more piece of vocabulary, from REP 2000, the document that fixes each distro's target platforms: every platform gets a tier. Tier 1 platforms are tested continuously and their bugs are fixed first. A distro can have more than one: Jazzy's Tier 1 platforms are Ubuntu 24.04, with deb packages for amd64 and arm64, and Windows 10, as a binary archive. RHEL 9 is Tier 2, and Ubuntu 22.04, macOS, Debian 12 and OpenEmbedded/Yocto are Tier 3, source builds only. What each distro does have is exactly one Ubuntu release at Tier 1: 24.04 for Jazzy and Kilted, 22.04 for Humble, and 26.04 for Lyrical, whose supported-platforms page also lists Windows 11 at Tier 1. Lower tiers mean fewer prebuilt binaries and fewer tested combinations. That is why the install instructions care so much about the exact Ubuntu version, and why the alternatives in this lesson exist at all.
+One more piece of vocabulary, from REP 2000, the document that fixes each distro's target platforms: every platform gets a tier. Tier 1 platforms are tested continuously and their bugs are fixed first. A distro can have more than one: Jazzy's Tier 1 platforms are Ubuntu 24.04, with deb packages for amd64 and arm64, and Windows 10, as a binary archive. RHEL 9 is Tier 2, and Ubuntu 22.04, macOS, Debian 12 and OpenEmbedded/Yocto are Tier 3, source builds only. What each distro does have is exactly one Ubuntu release at Tier 1: 24.04 for Jazzy and Kilted, 22.04 for Humble, and 26.04 for Lyrical. Lyrical is not in REP 2000 yet; that figure, and Windows 11 at Tier 1, come from Lyrical's supported-platforms page on docs.ros.org. Lower tiers mean fewer prebuilt binaries and fewer tested combinations. That is why the install instructions care so much about the exact Ubuntu version, and why the alternatives in this lesson exist at all.
 
 Practical habit: write your distro at the top of your notes, and read it in the first command of every tutorial before spending time on the rest.
 
@@ -52,7 +52,7 @@ ROS 1 is finished. Its last release, Noetic, reached end of life on 31 May 2025,
 | `roscore` | ROS 1 needs a central master | nothing: ROS 2 nodes find each other automatically (<Term id="dds">DDS</Term> discovery), no master |
 | `rosrun pkg node` | ROS 1 runner | `ros2 run pkg node` |
 | `import rospy` | ROS 1 Python library | `import rclpy` |
-| `roslaunch` with a `.launch` XML file | ROS 1 launch | `ros2 launch` with a Python `.launch.py` file (ROS 2 can also read XML and YAML launch files, but the documentation and this site use Python) |
+| `roslaunch` with a `.launch` XML file | ROS 1 launch | `ros2 launch` with a Python `.launch.py` file (ROS 2 launch files can also be written in XML or YAML, and the official launch tutorials show all three formats; this site uses Python) |
 
 The pattern behind the table is that ROS 1 was built around a central master process. Every node registered with it, and `roscore` had to be running before anything else worked. ROS 2 removed the master: nodes discover each other over DDS, so starting order stops mattering and there is no single process to restart when the graph misbehaves. The Python library changed name from `rospy` to `rclpy`, and the build system changed from catkin to ament with <Term id="colcon">colcon</Term> on top.
 
@@ -385,7 +385,7 @@ That `source install/setup.bash` line deserves a habit of its own. The workspace
 
 ### One distro, one Ubuntu
 
-The binary packages are compiled for one operating system release, not for "Linux". The Jazzy install page says it directly: deb packages are available for Ubuntu Noble (24.04). REP 2000, the document that fixes each distro's target platforms, lists Jazzy on Ubuntu 24.04 as Tier 1 with deb packages, and Ubuntu 22.04 as Tier 3, source builds only. The packages link against that release's own libraries — REP 2000 pins Python 3.12.3 and Qt 5.15.10 for Noble — which is why the Noble debs put their Python modules under `/opt/ros/jazzy/lib/python3.12/site-packages` (the Noble `ros-jazzy-rclpy` deb unpacks `rclpy` there). The `install/m4_hello/lib/python3.12/...` paths in this lesson come from the site's pixi environment, which happens to use Python 3.12 as well. On any other Ubuntu there are no Jazzy debs to install, so you would be building from source. The pairing in the distro table is not a recommendation: Humble goes with 22.04, Jazzy and Kilted with 24.04, Lyrical with 26.04.
+The binary packages are compiled for one operating system release, not for "Linux". The Jazzy install page says it directly: deb packages are available for Ubuntu Noble (24.04). REP 2000, the document that fixes each distro's target platforms, lists Jazzy on Ubuntu 24.04 as Tier 1 with deb packages, and Ubuntu 22.04 as Tier 3, source builds only. The packages link against that release's own libraries — REP 2000 pins Python 3.12.3 and Qt 5.15.10 for Noble — which is why the Noble debs put their Python modules under `/opt/ros/jazzy/lib/python3.12/site-packages` (the Noble `ros-jazzy-rclpy` deb unpacks `rclpy` there). The `install/m4_hello/lib/python3.12/...` paths in this lesson come from the site's pixi environment, which happens to use Python 3.12 as well. On any other Ubuntu there are no Jazzy debs to install, so you would be building from source. The pairing in the distro table is not a recommendation: Humble goes with 22.04, Jazzy and Kilted with 24.04, Lyrical with 26.04 (the Lyrical pairing is from its supported-platforms page, since REP 2000 stops at Kilted).
 
 ### apt or a source build
 
@@ -394,7 +394,7 @@ There are two ways to get the ROS 2 core onto a machine, and they leave ROS 2 in
 | | apt (binary) packages | Source build |
 | --- | --- | --- |
 | Where ROS lives | `/opt/ros/jazzy`, owned by root | a folder you choose, e.g. `~/ros2_jazzy/install` |
-| How you get it | `sudo apt install ros-jazzy-desktop` | `vcs import` the repositories listed in `ros2.repos`, install their dependencies with `rosdep install --from-paths src --ignore-src -y`, then `colcon build --symlink-install` |
+| How you get it | `sudo apt install ros-jazzy-desktop` | `vcs import` the repositories listed in `ros2.repos`, install their dependencies with `rosdep install --from-paths src --ignore-src -y --skip-keys "fastcdr rti-connext-dds-6.0.1 urdfdom_headers"` (the command as the Jazzy Ubuntu development-setup page gives it), then `colcon build --symlink-install` |
 | How you load it | `source /opt/ros/jazzy/setup.bash` | `. ~/ros2_jazzy/install/local_setup.bash` |
 | Updates | `sudo apt upgrade` | pull and rebuild yourself |
 | Use it when | almost always: Tier 1 Ubuntu, learning, robots | a platform without binaries, or you need to patch ROS itself |
@@ -497,6 +497,7 @@ Without `--symlink-install`, the first row needs a rebuild too. The rule underne
 ```bash
 sudo rosdep init          # once per machine: writes /etc/ros/rosdep/sources.list.d/20-default.list
 rosdep update             # no sudo: downloads the key database
+source /opt/ros/jazzy/setup.bash   # sets ROS_DISTRO=jazzy, which rosdep uses to resolve ROS keys such as rclpy
 cd ~/ros2_ws
 rosdep install --from-paths src --ignore-src -y
 ```
@@ -608,7 +609,7 @@ Waiting for UDP multicast datagram...
 Received from 172.30.0.2:46989: 'Hello World!'
 ```
 
-If nothing arrives, check that the network interface lists `MULTICAST` in `ip link` (or `ifconfig`), and check the firewall. With Ubuntu's ufw, the troubleshooting guide's fix is to allow UDP multicast traffic in both directions:
+If nothing arrives, check that the network interface lists `MULTICAST` in `ip link` (or `ifconfig`), and check the firewall. With Ubuntu's ufw, the troubleshooting guide's fix is two `allow in` rules, which allow inbound UDP addressed to, and coming from, multicast addresses (224.0.0.0/4):
 
 ```bash
 sudo ufw allow in proto udp to 224.0.0.0/4
@@ -639,7 +640,7 @@ docker pull osrf/ros:jazzy-desktop
 docker run -it --rm osrf/ros:jazzy-desktop ros2 run demo_nodes_cpp talker
 ```
 
-By default the container sits on its own bridge network, isolated from your LAN. `--network host` makes it share the host's network stack, so DDS discovery behaves as if the nodes ran on the host; that works on Docker Engine on Linux, and on Docker Desktop only from version 4.34 and only as an opt-in. `--device` hands one device file, such as a serial adapter, to the container. Containers are how many teams ship software to a robot: the image you tested is the image that runs.
+By default the container sits on its own bridge network, isolated from your LAN. `--network host` makes it share the host's network stack, so DDS discovery behaves as if the nodes ran on the host. That holds on Docker Engine on Linux. Docker Desktop's host networking (4.34 and later, switched on in Settings after signing in to a Docker account) works only at layer 4, and processes in the container cannot bind to the host's IP addresses. Docker's page does not mention DDS, but with those limits do not rely on it for DDS discovery: keep both nodes in one container, or run both in containers on the same Linux host. `--device` hands one device file, such as a serial adapter, to the container. Containers are how many teams ship software to a robot: the image you tested is the image that runs.
 
 A virtual machine (VirtualBox, VMware, UTM) is a full second computer. Its default NAT networking hides it from the LAN, just as a home router hides your laptop, so a robot cannot discover nodes in it; switch the VM's adapter to bridged networking to put it on the same subnet. 3D acceleration in a VM is usually weak, and Gazebo is the first program to notice.
 
@@ -653,13 +654,13 @@ Nearly every setup failure in the first weeks is one of the rows below. Read the
 | --- | --- | --- | --- |
 | `Package 'm4_hello' not found` | this terminal has not sourced the workspace, or the package was added after it was sourced | `printenv AMENT_PREFIX_PATH` has no `install/m4_hello` | `source ~/ros2_ws/install/setup.bash` |
 | `No executable found` | the package is found, but has no executable of that name: a typo, or a console script added to `setup.py` without a rebuild | `ros2 pkg executables m4_hello` lists the real names | use a listed name, or `colcon build` again |
-| another terminal or computer cannot see your topics | different `ROS_DOMAIN_ID`, `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` on one side, different RMW, or blocked multicast | `printenv ROS_DOMAIN_ID ROS_AUTOMATIC_DISCOVERY_RANGE RMW_IMPLEMENTATION` on both sides; across computers `ros2 multicast receive` / `send` | make the three values match; open the firewall for multicast, or use `ROS_STATIC_PEERS` |
+| another terminal or computer cannot see your topics | different `ROS_DOMAIN_ID`, `ROS_AUTOMATIC_DISCOVERY_RANGE=OFF` on either side (or `LOCALHOST` on either side, across computers only), different RMW, or blocked multicast | `printenv ROS_DOMAIN_ID ROS_AUTOMATIC_DISCOVERY_RANGE RMW_IMPLEMENTATION` on both sides; across computers `ros2 multicast receive` / `send` | make the three values match; open the firewall for multicast, or use `ROS_STATIC_PEERS` |
 | `source` seemed to do nothing | the script ran in a child shell (`bash install/setup.bash` or `./install/setup.bash`), the path was wrong, or the shell is not bash | `printenv ROS_DISTRO`; `echo $0` shows the shell | use `source` or `.`, never `bash`; use `setup.zsh` in zsh; build before sourcing |
 | odd import errors, missing symbols, a warning that `ROS_DISTRO was set to 'humble' before` | two distros, or ROS 1 and ROS 2, loaded in one terminal, often from old `~/.bashrc` lines | `printenv ROS_DISTRO ROS_VERSION`; `printenv AMENT_PREFIX_PATH`; `grep -n 'source /opt/ros' ~/.bashrc` | keep one `source /opt/ros/jazzy/setup.bash` line, then open a new terminal |
 | `build/` and `install/` appear inside `src/` | `colcon build` was run inside `src/` | `ls ~/ros2_ws/src` | delete the stray folders and build from the workspace root |
 | Python errors after a conda environment was active | conda's Python shadows the system one that apt's ROS 2 was built for | `which python3`; `printenv PATH` | `conda deactivate`, or keep conda paths out of `PATH` in ROS terminals |
 | garbled text or encoding errors, typically in a fresh container | the locale is `POSIX` instead of a UTF-8 locale | `locale` | the locale block from the install section |
-| `colcon build` stalls or the board runs out of memory | too many compile jobs on a small computer such as a Raspberry Pi | `free -h` while building | `MAKEFLAGS=-j1 colcon build --executor sequential` |
+| `colcon build` stalls or the board runs out of memory | too many compile jobs on a small computer such as a Raspberry Pi | `free -h` while building | `MAKEFLAGS=-j1 colcon build --executor sequential` (`--executor sequential` is from the colcon tutorial, `MAKEFLAGS=-j1` from the installation troubleshooting page) |
 | RViz does not start on a Wayland desktop | Qt's Wayland back end | `echo $XDG_SESSION_TYPE` prints `wayland` | `QT_QPA_PLATFORM=xcb rviz2` |
 
 Three of those rows deserve a real output. Without the workspace sourced, the package itself is missing:

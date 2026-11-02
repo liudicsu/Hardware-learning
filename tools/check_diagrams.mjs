@@ -2071,7 +2071,9 @@ const lessonRef = (n, slug, lang) => {
         "ROS_AUTOMATIC_DISCOVERY_RANGE=SYSTEM_DEFAULT", 'ROS_STATIC_PEERS="192.168.0.1;remote.com"', "export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp",
         "sudo ufw allow in proto udp to 224.0.0.0/4", "sudo ufw allow in proto udp from 224.0.0.0/4", "QT_QPA_PLATFORM=xcb rviz2",
         "sudo apt clean && sudo apt update && sudo apt full-upgrade -y", "sudo apt remove ros2-apt-source", "/opt/ros/jazzy/lib/python3.12/site-packages",
-        "MAKEFLAGS=-j1 colcon build --executor sequential", "colcon build --symlink-install", "networkingMode=mirrored", "usbipd attach --wsl --busid 4-4", "--network host"];
+        "MAKEFLAGS=-j1 colcon build --executor sequential", "colcon build --symlink-install",
+        'rosdep install --from-paths src --ignore-src -y --skip-keys "fastcdr rti-connext-dds-6.0.1 urdfdom_headers"',
+        "source /opt/ros/jazzy/setup.bash   # sets ROS_DISTRO=jazzy, which rosdep uses to resolve ROS keys such as rclpy\ncd ~/ros2_ws\nrosdep install --from-paths src --ignore-src -y", "networkingMode=mirrored", "usbipd attach --wsl --busid 4-4", "--network host"];
       for (const q of cmds) ok(text.includes(q), `${L}: expected command ${JSON.stringify(q)}`);
       // Real outputs: every line of the expected file appears in the lesson (log timestamps and the sender's address masked).
       const mt = maskOut(text);
@@ -2095,6 +2097,14 @@ const lessonRef = (n, slug, lang) => {
         "RHEL 9 is Tier 2", "The first line only checks; the four after it install and set the locale",
         "may only include the base `noble` suite", "come from the site's pixi environment",
         "A new `.py` file inside an existing package directory takes effect at once, because that whole directory is linked", "`import m4_hello.newmod` worked without a rebuild", "A new launch or other data file, a new entry point in `setup.py`, or a new top-level package still needs `colcon build`", "macOS, Debian 12 and OpenEmbedded/Yocto are Tier 3", "the Noble `ros-jazzy-rclpy` deb unpacks `rclpy` there",
+        // Audit 27 (Docker host.md, Improved-Dynamic-Discovery same/different-host tables, Installation-Troubleshooting ufw, Development-Setup, launch formats, colcon tutorial).
+        "That holds on Docker Engine on Linux. Docker Desktop's host networking (4.34 and later, switched on in Settings after signing in to a Docker account) works only at layer 4",
+        "processes in the container cannot bind to the host's IP addresses", "do not rely on it for DDS discovery: keep both nodes in one container, or run both in containers on the same Linux host",
+        "`ROS_AUTOMATIC_DISCOVERY_RANGE=OFF` on either side (or `LOCALHOST` on either side, across computers only)",
+        "two `allow in` rules, which allow inbound UDP addressed to, and coming from, multicast addresses (224.0.0.0/4)",
+        "REP 2000 stops at Kilted, so Lyrical's come from the releases table and Lyrical's supported-platforms page on docs.ros.org", "REP 2000 has no Lyrical entry yet",
+        "Lyrical is not in REP 2000 yet; that figure, and Windows 11 at Tier 1, come from Lyrical's supported-platforms page", "the Lyrical pairing is from its supported-platforms page",
+        "the official launch tutorials show all three formats", "`--executor sequential` is from the colcon tutorial, `MAKEFLAGS=-j1` from the installation troubleshooting page",
       ] : [
         "| `ROS_AUTOMATIC_DISCOVERY_RANGE=OFF` | 什么都不发现，连本机上的其他节点也不发现；`ROS_STATIC_PEERS` 同样不生效 |",
         '| `ROS_STATIC_PEERS="192.168.0.1;remote.com"` | 在范围之外再加上这些主机，但范围为 `OFF` 时会被忽略；多个条目用 `;` 分隔 |',
@@ -2103,16 +2113,28 @@ const lessonRef = (n, slug, lang) => {
         "RHEL 9 是 Tier 2", "第一行只是检查，后面四行才是安装并设置 locale",
         "apt 源可能只包含基础的 `noble` 套件", "来自本站的 pixi 环境",
         "已有包目录内新增的 `.py` 文件会通过目录符号链接直接生效", "不重新构建就能 `import m4_hello.newmod`", "新增 launch 等数据文件、`setup.py` 里新增入口点、或新增顶层包，仍需 `colcon build`", "macOS、Debian 12 和 OpenEmbedded/Yocto 是 Tier 3", "Noble 的 `ros-jazzy-rclpy` deb 包里，`rclpy` 就在这个路径下",
+        "这一点只在 Linux 上的 Docker Engine 成立。Docker Desktop 的 host 网络（4.34 起，需登录 Docker 账号后在设置里手动开启）只在第 4 层生效",
+        "容器里的进程也不能绑定宿主机的 IP 地址", "不要指望它做 DDS 发现：要么把两个节点放进同一个容器，要么都放进同一台 Linux 主机上的容器里",
+        "任一边设了 `ROS_AUTOMATIC_DISCOVERY_RANGE=OFF`（跨电脑时任一边设 `LOCALHOST` 也会这样）",
+        "两条 `allow in` 规则，放行目标地址或来源地址为组播段（224.0.0.0/4）的入站 UDP",
+        "REP 2000 只写到 Kilted，所以 Lyrical 的来自 docs.ros.org 的发行版表和 Lyrical 的 supported-platforms 页", "REP 2000 还没有 Lyrical 一节",
+        "REP 2000 里还没有 Lyrical，这个数字以及 Windows 11 为 Tier 1，都来自 docs.ros.org 上 Lyrical 的 supported-platforms 页", "Lyrical 这一条出自它的 supported-platforms 页",
+        "官方 launch 教程三种格式都给了", "`--executor sequential` 出自 colcon 教程，`MAKEFLAGS=-j1` 出自安装故障排查页",
+        "必须先启动 `roscore`", "Python 库从 `rospy` 改名为 `rclpy`", "（24.04 是 `noble`）",
       ];
       for (const q of facts) ok(text.includes(q), `${L}: expected corrected claim ${JSON.stringify(q)}`);
       const stale = lang === "en" ? ["In a new terminal you need both, in that order", "one of four mistakes", "47 repositories", "ROS_LOCALHOST_ONLY=1 is the recommended",
         "always try these hosts", "no automatic discovery at all", "range above 32767", "the five lines", "| December 2026 |", "dies in December 2026", "19 months", "about two months",
         "one Ubuntu LTS as its Tier 1 platform", "lists only `noble`", "your workspace above installs into",
-        "a new module", "Symlinks also only cover files that already exist", "macOS and Debian 12 are Tier 3"]
+        "a new module", "Symlinks also only cover files that already exist", "macOS and Debian 12 are Tier 3",
+        "in both directions", "only as an opt-in", "`ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` on one side", "the documentation and this site use Python",
+        "also checked in October 2026", "whose supported-platforms page also lists"]
         : ["新终端里两条都要", "四个错误之一", "47 个", "推荐用 ROS_LOCALHOST_ONLY",
         "总是尝试这些主机", "完全不自动发现", "32767 以上", "那五行", "| 2026 年 12 月 |", "2026 年 12 月停止支持", "19 个月", "约两个月",
         "都有一个作为 Tier 1 的 Ubuntu LTS", "只写了 `noble`", "上面的工作空间装进的是",
-        "新加的模块", "新模块", "符号链接也只覆盖已经存在的文件", "macOS 和 Debian 12 是 Tier 3"];
+        "新加的模块", "新模块", "符号链接也只覆盖已经存在的文件", "macOS 和 Debian 12 是 Tier 3",
+        "双向放行", "而且需要手动开启。", "某一边设了", "文档和本站都用 Python", "2026 年 10 月核对", "同样把 Windows 11 列为 Tier 1",
+        "从 rospy 改名为 rclpy", "必须先启动 roscore", "是 noble）"];
       for (const q of stale) ok(!text.includes(q), `${L}: stale claim ${JSON.stringify(q)} must be gone`);
     }
     console.log(`calc  m4 ros2-setup: ports 7400+250·D (+1, +10+2P, +11+2P): D1 ${port(1)}/${port(1, 0)}, D2 ${port(2)}, D101 ${port(101)}/${port(101, 0)} → ${fit101} procs; max domain ${maxDomain}; safe Linux 0–${linuxSafeHi} & ${linuxSafeLo}–${maxDomain}, macOS/Win 0–${otherSafeHi}; spill > ${spill}; Kilted ${kiltedMonths} months; ${outputs.length} real outputs and ${terms.length} Terms bound in en/zh`);
