@@ -298,7 +298,7 @@ if __name__ == "__main__":
     main()
 ```
 
-运行检查过的版本，进入 `examples/month-5` 执行 `pixi run sim`；它会调用 `tools/sim/m5/run.sh`，启动 launch 文件、运行脚本并比较输出。手动运行则在 `examples/month-5/moveit-pick-place` 里开两个终端：第一个执行 `ros2 launch bringup.launch.py`，等三个控制器都报告已配置并激活（configured and active），再在第二个终端执行 `python3 pick_place.py`。
+运行检查过的版本，进入 `~/Hardware-learning/examples/month-5` 执行 `pixi run sim`；它会调用 `tools/sim/m5/run.sh`，启动 launch 文件、运行脚本并比较输出。手动运行则在 `~/Hardware-learning/examples/month-5/moveit-pick-place` 里开两个终端：第一个执行 `ros2 launch bringup.launch.py`，等三个控制器都报告已配置并激活（configured and active），再在第二个终端执行 `python3 pick_place.py`。
 
 <SimOutput source="ros">
 

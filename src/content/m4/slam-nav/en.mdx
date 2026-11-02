@@ -133,7 +133,12 @@ if __name__ == '__main__':
     main()
 ```
 
-The lidar has 360 beams, one per degree; `best_shift` interpolates between beams to estimate the rotation to 0.1°. Averaging five scans before and after removes most of the lidar's noise. Run it with Lesson 5's launch file, which loads the controller exactly as Lesson 5 left it. The scripts in this lesson run from `examples/month-4/slam-nav`, in a second terminal set up like the first (ROS and `~/ros2_ws/install/setup.bash` sourced):
+The lidar has 360 beams, one per degree; `best_shift` interpolates between beams to estimate the rotation to 0.1°. Averaging five scans before and after removes most of the lidar's noise. Run it with Lesson 5's launch file, which loads the controller exactly as Lesson 5 left it. The scripts in this lesson run from `~/Hardware-learning/examples/month-4/slam-nav`, in a second terminal set up like the first (ROS loaded, on the apt route with `source /opt/ros/jazzy/setup.bash` and in pixi with `cd ~/Hardware-learning/examples/month-4 && pixi shell`, then `source ~/ros2_ws/install/setup.bash`):
+
+```bash
+ros2 launch m4_control control.launch.py          # Lesson 5's launch file; add headless:=true on a machine without a screen
+cd ~/Hardware-learning/examples/month-4/slam-nav && python3 spin_check.py   # second terminal
+```
 
 <SimOutput source="ros">
 
@@ -167,9 +172,10 @@ diff_drive_controller:
 `wheel_separation_multiplier` scales the separation in both directions: in odometry (wheel motion to body motion) and in commands (body velocity to wheel speeds). Calibrating it therefore also makes a commanded 1 rad/s turn come out as 1 rad/s. Lesson 5's launch file takes the file through its `drive_params` argument, and both of today's launch files pass it. `slam.launch.py` is part of `m4_nav`, so build that package now and start it. Run the `cp` from `examples/month-4/slam-nav`: `m4_nav` reuses the packages from Lessons 3 to 5, so they go into the workspace too, and copying over the earlier copies is harmless. On the apt route, `rosdep install` adds `ros-jazzy-slam-toolbox`, `ros-jazzy-nav2-bringup`, `ros-jazzy-nav2-common` and `ros-jazzy-nav2-map-server` from `m4_nav/package.xml`; in pixi, skip that line:
 
 ```bash
-source /opt/ros/jazzy/setup.bash                  # apt route only; in pixi, pixi shell does this
+source /opt/ros/jazzy/setup.bash                  # apt route only; pixi: cd ~/Hardware-learning/examples/month-4 && pixi shell
+cd ~/Hardware-learning/examples/month-4/slam-nav
 cp -r ../urdf-tf/m4_description ../gazebo-sim/m4_gazebo ../ros2-control/m4_control \
-      ../ros2-control/m4_drive_interfaces m4_nav ~/ros2_ws/src/   # from examples/month-4/slam-nav
+      ../ros2-control/m4_drive_interfaces m4_nav ~/ros2_ws/src/
 cd ~/ros2_ws
 rosdep install --from-paths src --ignore-src -y   # apt route only; pixi has no rosdep and pixi.toml already lists these
 colcon build && source install/setup.bash
@@ -373,10 +379,12 @@ There are two formats, for two different consumers. SLAM Toolbox's **pose graph*
 mkdir -p ~/maps
 ```
 
+In the pose-graph command the path is written with `$HOME`, not `~`: bash does not expand `~` inside quotes, but it does expand `$HOME` inside the double quotes, and the single quotes around it keep the path one YAML string for `ros2 service call`. In the output below the site editor's temporary folder is printed as `/home/you/maps`; yours shows your own home folder.
+
 <SimOutput source="ros">
 
 ```text
-$ ros2 service call /slam_toolbox/serialize_map slam_toolbox/srv/SerializePoseGraph "{filename: '/home/you/maps/room'}"
+$ ros2 service call /slam_toolbox/serialize_map slam_toolbox/srv/SerializePoseGraph "{filename: '$HOME/maps/room'}"
 waiting for service to become available...
 requester: making request: slam_toolbox.srv.SerializePoseGraph_Request(filename='/home/you/maps/room')
 

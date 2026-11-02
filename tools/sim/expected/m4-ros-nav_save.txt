@@ -1,4 +1,4 @@
-$ ros2 service call /slam_toolbox/serialize_map slam_toolbox/srv/SerializePoseGraph "{filename: '/home/you/maps/room'}"
+$ ros2 service call /slam_toolbox/serialize_map slam_toolbox/srv/SerializePoseGraph "{filename: '$HOME/maps/room'}"
 waiting for service to become available...
 requester: making request: slam_toolbox.srv.SerializePoseGraph_Request(filename='/home/you/maps/room')
 

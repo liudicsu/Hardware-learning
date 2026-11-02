@@ -141,7 +141,7 @@ wait_for "$TMP/slam" 'Registering sensor' 200 || { tail -30 "$TMP/slam"; exit 1;
 check m4-ros-nav_spin_cal.txt --tol 0.03 bash -c "echo '\$ python3 spin_check.py'; python3 '$NAV/spin_check.py'"
 check m4-ros-nav_tour.txt --tol 0.06 --mask 'yaw -?[0-9]+ deg' bash -c "echo '\$ python3 tour.py'; python3 '$NAV/tour.py'"
 save_map() {
-  echo "\$ ros2 service call /slam_toolbox/serialize_map slam_toolbox/srv/SerializePoseGraph \"{filename: '/home/you/maps/room'}\""
+  echo "\$ ros2 service call /slam_toolbox/serialize_map slam_toolbox/srv/SerializePoseGraph \"{filename: '\$HOME/maps/room'}\""
   ros2 service call /slam_toolbox/serialize_map slam_toolbox/srv/SerializePoseGraph "{filename: '$MAPS/room'}" | sed "s|$MAPS|/home/you/maps|"
   echo '$ ros2 run nav2_map_server map_saver_cli -f ~/maps/room --ros-args -p use_sim_time:=true'
   # map_saver gives up if /map has not arrived within 2 s ("Failed to spin map subscription"),
