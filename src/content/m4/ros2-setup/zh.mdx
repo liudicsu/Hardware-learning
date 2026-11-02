@@ -6,7 +6,7 @@
 
 这个月按顺序搭起来：第 2 课“节点、话题、服务与动作”给你词汇；第 3 课“URDF 与 TF：描述一台机器人”给机器人一副身体；第 4 课“用 Gazebo 仿真”把这副身体放进世界；第 5 课“ros2_control：通过控制器驱动”让轮子转起来；第 6 课“SLAM 与 Nav2：建图与导航”用地图和目的地闭合整个循环。本课是基础：选一个版本，装好，然后让你自己的第一个节点跑起来。
 
-关于下面出现的输出，需要说明一次。这里引用的每一段命令输出都是 ROS 2 Jazzy 的真实运行，不是仿真。本站编者是在 Debian 13 上跑的，Jazzy 来自 RoboStack 的 conda 包、用 pixi 安装——不是 Ubuntu。安装一节里的 Ubuntu apt 命令抄自 Jazzy 官方安装页，2026 年 10 月核对过。你机器上的时间戳会不同，含主目录的路径也会不同。发行版日期来自 ROS 2 官方发布页，同样在 2026 年 10 月核对过。
+关于下面出现的输出，需要说明一次。这里引用的每一段命令输出都是 ROS 2 Jazzy 的真实运行，不是仿真。本站编者是在 Debian 13 上跑的，Jazzy 来自 RoboStack 的 conda 包、用 pixi 安装——不是 Ubuntu。安装一节里的 Ubuntu apt 命令抄自 Jazzy 官方安装页，2026 年 11 月核对过；后面的环境变量、端口和网络设置来自 Jazzy 文档和 ROS 2 源码。你机器上的时间戳会不同，含主目录的路径也会不同。发行版日期来自 ROS 2 官方发布页，同样在 2026 年 10 月核对过。
 
 ## 选发行版
 
@@ -17,11 +17,11 @@ ROS 2 每年 5 月发布一个新版本。每个版本叫一个发行版（distr
 | 发行版 | 发布时间 | 支持结束 | Ubuntu | 结论 |
 | --- | --- | --- | --- | --- |
 | Lyrical Luth | 2026 年 5 月 | 2031 年 5 月 | 26.04 | 最新的 LTS；全新的量产项目该选它 |
-| Kilted Kaiju | 2025 年 5 月 | 2026 年 12 月 | 24.04 | 非 LTS，支持只剩约两个月：不要从它开始 |
+| Kilted Kaiju | 2025 年 5 月 | 2026 年 11 月 | 24.04 | 非 LTS，支持到 2026 年 11 月结束：不要从它开始 |
 | Jazzy Jalisco | 2024 年 5 月 | 2029 年 5 月 | 24.04 | LTS：从这里开始 |
 | Humble Hawksbill | 2022 年 5 月 | 2027 年 5 月 | 22.04 | 老版本；会在旧机器人和旧课程里遇到 |
 
-看这张表要对着日历，而不是凭“越新越好”的感觉。Kilted 2025 年 5 月发布，2026 年 12 月停止支持，中间 19 个月——这就是“约 18 个月”的实际样子。Jazzy 2024 年 5 月发布，支持到 2029 年 5 月，正好 5 年。支持结束（end of life）不等于代码某天突然跑不动，而是修复、安全更新和新的二进制包停止发布；从那以后出了问题只能靠自己，新的教程和软件包也都转向更新的发行版。
+看这张表要对着日历，而不是凭“越新越好”的感觉。Kilted 2025 年 5 月发布，2026 年 11 月停止支持，中间 18 个月——这就是“约 18 个月”的实际样子。这里的停止日期以 REP 2000 为准，它给 Kilted 写的是“May 2025 - November 2026”；docs.ros.org 的发行版表目前写的是 2026 年 12 月，别指望多出来的那一个月。Jazzy 2024 年 5 月发布，支持到 2029 年 5 月，正好 5 年。支持结束（end of life）不等于代码某天突然跑不动，而是修复、安全更新和新的二进制包停止发布；从那以后出了问题只能靠自己，新的教程和软件包也都转向更新的发行版。
 
 下面这个算法，你以后对任何发行版都会重复。假设现在是 2026 年 10 月，想知道 Lyrical 还剩多少支持：
 
@@ -36,7 +36,7 @@ ROS 2 每年 5 月发布一个新版本。每个版本叫一个发行版（distr
 
 那么，既然 Lyrical 是最新的 LTS，为什么本课从 Jazzy 开始？因为几乎所有课程、书和视频系列目前仍以 Jazzy 为目标；Jazzy 还剩两年半以上的支持，足够你学完；更关键的是，当教程和你的安装是同一个发行版时，你的精力花在概念本身，而不是版本差异上——包名对得上，launch 语法对得上，搜到的报错就是针对你手上这份代码的。等你要依赖的教程生态跟上 Lyrical 再迁移；概念几乎不变，那会是一周的适应，而不是从头再来。
 
-发布页上还有一个词值得知道：每个发行版都有一个作为 Tier 1 的 Ubuntu LTS。Jazzy 和 Kilted 对应 24.04，Humble 对应 22.04，Lyrical 对应 26.04。其他操作系统属于更低的层级，意味着预编译包更少、验证过的组合也更少。这解释了为什么安装说明如此在意 Ubuntu 的具体版本，也解释了本课为什么还要给出替代方案。
+还有一个词值得知道，它来自 REP 2000，即规定每个发行版目标平台的文档：每个平台都被分到一个层级（tier）。Tier 1 平台持续接受测试，问题优先修复。一个发行版可以有不止一个 Tier 1：Jazzy 的 Tier 1 是 Ubuntu 24.04（amd64 和 arm64，提供 deb 包）和 Windows 10（提供二进制压缩包）。RHEL 9 是 Tier 2，Ubuntu 22.04、macOS、Debian 12 和 OpenEmbedded/Yocto 是 Tier 3，只能源码构建。每个发行版确实只有一个 Ubuntu 版本是 Tier 1：Jazzy 和 Kilted 是 24.04，Humble 是 22.04，Lyrical 是 26.04（它的 supported-platforms 页面同样把 Windows 11 列为 Tier 1）。层级越低，预编译包越少、验证过的组合也越少。这解释了为什么安装说明如此在意 Ubuntu 的具体版本，也解释了本课为什么还要给出替代方案。
 
 习惯：把你的发行版写在笔记最上面；读任何教程，先看第一条命令里写的是哪个发行版，再决定要不要花时间。
 
@@ -49,12 +49,12 @@ ROS 1 已经结束。最后一个版本 Noetic 在 2025 年 5 月 31 日停止�
 | 如果你看到…… | 它属于 ROS 1，因为…… | ROS 2 的写法 |
 | --- | --- | --- |
 | `catkin_make` 或 `catkin build` | ROS 1 的构建工具 | `colcon build` |
-| `roscore` | ROS 1 需要中央 master | 什么都不用：ROS 2 节点通过 DDS 自动发现彼此，没有 master |
+| `roscore` | ROS 1 需要中央 master | 什么都不用：ROS 2 节点通过 <Term id="dds">DDS</Term> 自动发现彼此，没有 master |
 | `rosrun pkg node` | ROS 1 的运行命令 | `ros2 run pkg node` |
 | `import rospy` | ROS 1 的 Python 库 | `import rclpy` |
 | `roslaunch` 配 `.launch` XML 文件 | ROS 1 的启动方式 | `ros2 launch` 配 Python 的 `.launch.py` 文件（ROS 2 也能读 XML 和 YAML launch 文件，但文档和本站都用 Python） |
 
-这张表背后的规律是：ROS 1 围绕一个中央 master 进程设计。每个节点都要向它注册，必须先启动 roscore，其他东西才能工作。ROS 2 去掉了 master：节点通过 DDS 互相发现，于是启动顺序不再重要，也没有一个“重启一下 master”的万能按钮。Python 库从 rospy 改名为 rclpy，构建系统从 catkin 换成 ament，外面再套 colcon。
+这张表背后的规律是：ROS 1 围绕一个中央 master 进程设计。每个节点都要向它注册，必须先启动 roscore，其他东西才能工作。ROS 2 去掉了 master：节点通过 DDS 互相发现，于是启动顺序不再重要，也没有一个“重启一下 master”的万能按钮。Python 库从 rospy 改名为 rclpy，构建系统从 catkin 换成 ament，外面再套 <Term id="colcon">colcon</Term>。
 
 路径也藏不住。教程里写 `/opt/ros/noetic`、`melodic`、`kinetic`，那些都是 ROS 1；ROS 2 在 `/opt/ros/jazzy`、`/opt/ros/humble` 这类目录。看到 `source /opt/ros/noetic/setup.bash`，形式很熟，但它加载的全是 ROS 1。
 
@@ -81,22 +81,35 @@ ROS 1 已经结束。最后一个版本 Noetic 在 2025 年 5 月 31 日停止�
 
 这是参考环境：Ubuntu 24.04，原生或双系统，装官方 apt 包。大多数书、大学课程和视频系列都默认它，所以你遇到的问题，别人多半已经遇到并写下来了。
 
-下面的步骤来自 Jazzy 官方安装页，2026 年 10 月核对过。
+下面的步骤来自 Jazzy 官方安装页，2026 年 11 月核对过，顺序也和官方页一致：先 locale，再仓库，再开发工具，最后装 ROS 本身。
 
 ```bash
+locale                                    # check for UTF-8
+sudo apt update && sudo apt install locales
+sudo locale-gen en_US en_US.UTF-8
+sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
+export LANG=en_US.UTF-8
+
 sudo apt install software-properties-common
 sudo add-apt-repository universe
 sudo apt update && sudo apt install curl -y
 export ROS_APT_SOURCE_VERSION=$(curl -s https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F "tag_name" | awk -F'"' '{print $4}')
 curl -L -o /tmp/ros2-apt-source.deb "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ROS_APT_SOURCE_VERSION}/ros2-apt-source_${ROS_APT_SOURCE_VERSION}.$(. /etc/os-release && echo ${UBUNTU_CODENAME:-${VERSION_CODENAME}})_all.deb"
 sudo dpkg -i /tmp/ros2-apt-source.deb
+
 sudo apt update && sudo apt install ros-dev-tools
+sudo apt update
+sudo apt upgrade
 sudo apt install ros-jazzy-desktop
 ```
 
-前几行启用 Ubuntu 的 universe 仓库，并安装“添加 ROS 2 apt 仓库及其签名密钥”的那个包。`ROS_APT_SOURCE_VERSION` 那行向 GitHub 查询 apt-source 包的最新发布标签；`curl` 那行按你的 Ubuntu 代号（24.04 是 noble）下载对应的 `.deb`。装上它，apt 才知道 ROS 2 的包在哪里；没有它，`apt install ros-jazzy-desktop` 只会告诉你找不到包。
+locale 那几行放在最前面，因为 ROS 2 要求 UTF-8 的 locale。桌面版 Ubuntu 通常已经有了，`locale` 会显示 `LANG=en_US.UTF-8` 之类；Docker 镜像这类精简系统可能显示 `POSIX`。第一行只是检查，后面四行才是安装并设置 locale；官方页最后还会再跑一次 `locale` 来确认。任何 UTF-8 locale 都可以，`en_US.UTF-8` 只是 ROS 2 项目测试时用的那一个。
 
-`ros-dev-tools` 带来 colcon 和后面要用的其他构建工具。`ros-jazzy-desktop` 是 ROS 2 加上 RViz、示例和教程。还有一个 `ros-jazzy-ros-base`，是不带图形工具的精简版，装在没显示器的机器人上——学习阶段用 desktop。
+接下来几行启用 Ubuntu 的 universe 仓库，并安装“添加 ROS 2 apt 仓库及其签名密钥”的那个包。`ROS_APT_SOURCE_VERSION` 那行向 GitHub 查询 apt-source 包的最新发布标签；`curl` 那行按你的 Ubuntu 代号（24.04 是 noble）下载对应的 `.deb`。装上它，apt 才知道 ROS 2 的包在哪里；没有它，`apt install ros-jazzy-desktop` 只会告诉你找不到包。
+
+`ros-dev-tools` 带来 colcon、<Term id="rosdep">rosdep</Term> 和后面要用的其他构建工具。官方页提醒：在 Ubuntu 24.04 上，apt 源可能只包含基础的 `noble` 套件，这会让安装 `ros-dev-tools` 时出现依赖冲突。用 `grep Suites /etc/apt/sources.list.d/ubuntu.sources` 检查 `Suites:` 行，应该是 `Suites: noble noble-updates noble-backports`。如果不是，按官方页把这一行改成这样，再运行 `sudo apt clean && sudo apt update && sudo apt full-upgrade -y`。正式安装前的 `sudo apt upgrade` 同样来自官方页：ROS 2 的包是在持续更新的 Ubuntu 上构建的，所以先把系统升到最新。
+
+`ros-jazzy-desktop` 是 ROS 2 加上 RViz、示例和教程。还有一个 `ros-jazzy-ros-base`，是不带图形工具的精简版，装在没显示器的机器人上——学习阶段用 desktop。哪天要卸掉它，比如改用源码构建，同一页给的命令是 `sudo apt remove '~nros-jazzy-*' && sudo apt autoremove`。如果连仓库也想删掉，官方页还给了可选的一步：`sudo apt remove ros2-apt-source`，然后 `sudo apt update`、`sudo apt autoremove` 和 `sudo apt upgrade`；最后这条是因为之前被 ROS 仓库遮住的包现在可能有更新。
 
 这些命令会随时间变化：仓库地址、包名、支持的 Ubuntu 版本都会变。哪一步失败，就去和官方页面比对，而不是照 2024 年的博客继续硬改。安装完成后，每个终端都要加载环境，这就是下一节的第一件事。
 
@@ -362,29 +375,308 @@ Summary: 1 package finished [0.78s]
 
 0.5 s 的间隔在时间戳里看得见：653.507、653.998、654.498、654.998。第一个间隔是 0.491 s，后面是 0.500 和 0.500。第一次回调在节点启动期间晚了几毫秒；定时器按自己的起始时间排程，所以一次迟到不会把后面的调用往后推。ROS 定时器不提供实时保证，但在空闲的电脑上它能很好地守住节拍。
 
-现在讲两个能解释大部分工作空间混乱的词。`/opt/ros/jazzy` 是 underlay（底层）：你之前 source 的已安装 ROS 2。工作空间的 `install/setup.bash` 是 overlay（覆盖层）：它在 underlay 之上叠加你的包，而不修改它。先 source underlay，再 source overlay，因为 overlay 的脚本是在已加载的内容上扩展的。新终端里两条都要，而且顺序如此。
-
-`colcon build --symlink-install` 用符号链接代替复制 Python 文件，改代码后不用重新构建就生效。经常改代码时用它。新增文件和修改 `setup.py` 仍然要重新构建，因为那改变的是“装什么”，而不只是已装文件的内容。
+`source install/setup.bash` 这一行值得单独养成一个习惯。工作空间教程要求你另开一个终端——不是刚才构建的那个——再去 source 工作空间：在构建用的终端里 source 工作空间，或者在已经 source 了这个工作空间的终端里构建，都可能造成复杂的问题。一个终端专门 `colcon build`，另一个专门 `ros2 run`，是最省事的避坑办法。下一节讲这一行到底加载了什么。
 
 <Quiz id="q3" question="用 create_timer(0.2, self.tick) 创建定时器，ros2 topic hz 会报告每秒多少条消息？" answer={5} unit="Hz" explanation="每 0.2 s 调用一次 → 1 / 0.2 = 每秒 5 次。" />
 
+## `source` 改了什么
+
+`source` 在当前 shell 里执行一个脚本，所以它设置的变量只留在这一个终端里。它不往磁盘写任何东西，也没有“反 source”：想回到干净的环境，就开一个新终端。ROS 2 里几乎所有“昨天还好好的”问题，最后都归结为这个终端 source 过哪些脚本、source 时环境是什么状态。
+
+### 一个发行版，对应一个 Ubuntu
+
+二进制包是为某一个操作系统版本编译的，而不是为“Linux”编译的。Jazzy 安装页说得很直接：deb 包提供给 Ubuntu Noble（24.04）。REP 2000 是规定每个发行版目标平台的文档，它把 Ubuntu 24.04 上的 Jazzy 列为 Tier 1、提供 deb 包，把 Ubuntu 22.04 列为 Tier 3、只能源码构建。这些包链接的是该版本自带的库——REP 2000 给 Noble 钉死了 Python 3.12.3 和 Qt 5.15.10——所以 Noble 上的 deb 包把 Python 模块装在 `/opt/ros/jazzy/lib/python3.12/site-packages`（Noble 的 `ros-jazzy-rclpy` deb 包里，`rclpy` 就在这个路径下）。本课里 `install/m4_hello/lib/python3.12/...` 这类路径来自本站的 pixi 环境，它恰好也用 Python 3.12。在别的 Ubuntu 上没有 Jazzy 的 deb 可装，只能从源码构建。发行版表里的配对不是建议：Humble 配 22.04，Jazzy 和 Kilted 配 24.04，Lyrical 配 26.04。
+
+### apt 还是源码构建
+
+把 ROS 2 核心装到一台机器上有两种方式，ROS 2 最后待的位置不一样。
+
+| | apt（二进制）包 | 源码构建 |
+| --- | --- | --- |
+| ROS 在哪里 | `/opt/ros/jazzy`，属于 root | 你自己选的目录，例如 `~/ros2_jazzy/install` |
+| 怎么得到 | `sudo apt install ros-jazzy-desktop` | 用 `vcs import` 拉下 `ros2.repos` 里列的仓库，用 `rosdep install --from-paths src --ignore-src -y` 装依赖，再 `colcon build --symlink-install` |
+| 怎么加载 | `source /opt/ros/jazzy/setup.bash` | `. ~/ros2_jazzy/install/local_setup.bash` |
+| 更新 | `sudo apt upgrade` | 自己拉代码、重新构建 |
+| 什么时候用 | 几乎总是：Tier 1 的 Ubuntu、学习、机器人 | 平台没有二进制包，或者你要改 ROS 本身 |
+
+源码路线对应官方的“Ubuntu (source)”页；Jazzy 的 `ros2.repos` 列了 108 个要克隆并构建的仓库，这本身就是一个项目，不是捷径。别不小心在一台机器上两样都留着：apt 页上的卸载命令，正是为改用源码构建准备的。pixi 是同一思路的第三种形态——它的 ROS 2 装在 `.pixi/envs/default` 目录里，由 `pixi shell` 加载，代替 `source /opt/ros/jazzy/setup.bash`。
+
+### underlay 与 overlay
+
+两个词能解释大部分工作空间的混乱。<Term id="underlay">underlay</Term>（底层）是你在其上构建的那套 ROS 2：apt 安装时就是 `/opt/ros/jazzy`。<Term id="overlay">overlay</Term>（覆盖层）是你工作空间的 `install/` 目录，它在 underlay 之上叠加你的包，而不修改 underlay。工作空间教程给了最要紧的两条规则：underlay 必须包含 overlay 里每个包的依赖；overlay 里的包会覆盖 underlay 里同名的包。overlay 可以层层叠：一个工作空间的 `install/` 可以当下一个工作空间的 underlay。
+
+每个 `install/` 目录都提供两个脚本，区别恰好就在 underlay：
+
+- `install/local_setup.bash` 只加入这个工作空间里的包。
+- `install/setup.bash` 先 source 你运行 `colcon build` 时已加载的 underlay，再加入这个工作空间。
+
+在生成的文件里就看得到：`install/setup.bash` 里有一行 `COLCON_CURRENT_PREFIX="…"`，写的是构建时记录下来的 underlay——apt 安装时是 `/opt/ros/jazzy`，本站的 pixi 运行里是 `.pixi/envs/default` 目录——后面才是工作空间自己的目录。下面是两个完全没加载 ROS 的 shell（`env -i bash --norc`）里的真实输出，每个脚本各一个：
+
+```text
+$ source ~/ros2_ws/install/local_setup.bash
+$ printenv AMENT_PREFIX_PATH
+/home/you/ros2_ws/install/m4_hello
+$ command -v ros2 || echo 'ros2 not on PATH'
+ros2 not on PATH
+$ source ~/ros2_ws/install/setup.bash
+$ printenv ROS_DISTRO
+jazzy
+$ ros2 pkg prefix m4_hello
+/home/you/ros2_ws/install/m4_hello
+```
+
+source 了 `local_setup.bash` 之后，包已经进了索引，但 `ros2` 命令本身不在，因为它属于 underlay。source 了 `setup.bash` 之后，`ros2` 能用，`ros2 pkg prefix m4_hello` 也找到了包。所以在新终端里，只 `source ~/ros2_ws/install/setup.bash` 就够了；先 source 一下 `/opt/ros/jazzy/setup.bash` 也没坏处。只有 `local_setup.bash` 需要先 source underlay。
+
+### 它设置了哪些变量
+
+下面是 source 实际改动的内容，来自 colcon、ament 和 `ros_environment` 的 hook 脚本，而不是凭记忆，并且用 source 前后 `env` 的差异核对过：
+
+| 变量 | 由谁设置 | 用途 |
+| --- | --- | --- |
+| `ROS_DISTRO`、`ROS_VERSION`、`ROS_PYTHON_VERSION` | underlay 里的 `ros_environment` 包 | 你加载的是哪个 ROS：`jazzy`、`2`、`3` |
+| `AMENT_PREFIX_PATH` | ament（underlay）和 colcon-ros（你的包） | 包索引：`ros2 run`、`ros2 pkg` 靠它找包 |
+| `PYTHONPATH` | ament 和 colcon | Python 去哪里找 `rclpy` 和你包里的模块 |
+| `LD_LIBRARY_PATH` | ament 和 colcon | 编译好的 `.so` 库去哪里找；只有安装了库的包才会加 |
+| `PATH` | ament 和 colcon | `bin/` 目录里的可执行文件，例如 `ros2`；只有存在 `bin/` 才会加 |
+| `CMAKE_PREFIX_PATH` | colcon-cmake | 基于这个工作空间构建时，CMake 去哪里找包 |
+| `COLCON_PREFIX_PATH` | colcon | 构建下一个 overlay 时，colcon 要串起来的工作空间 |
+
+本课的工作空间比这张表小。在 underlay 之上 source 它，正好只改了三个变量：`AMENT_PREFIX_PATH` 多了 `install/m4_hello`，`PYTHONPATH` 多了 `install/m4_hello/lib/python3.12/site-packages`，`COLCON_PREFIX_PATH` 变成 `/home/you/ros2_ws/install`。`PATH` 没变，因为 `ros2 run` 是通过包索引、而不是通过 `PATH` 在 `install/m4_hello/lib/m4_hello/` 里找到 `hello_node` 的。第 2 课的 C++ 工作空间还会加上 `CMAKE_PREFIX_PATH` 和 `LD_LIBRARY_PATH`，因为它安装了编译好的库。
+
+用 `printenv | grep -i ROS` 看一个终端里有什么；官方教程期望其中有 `ROS_VERSION=2`、`ROS_PYTHON_VERSION=3` 和 `ROS_DISTRO=jazzy`。underlay 还会防止混用：如果 `ROS_DISTRO` 已经被设成别的发行版，source Jazzy 时会先打印这条真实警告，再覆盖它：
+
+```text
+ROS_DISTRO was set to 'humble' before. Please make sure that the environment does not mix paths from different distributions.
+```
+
+## 工作空间内部：colcon 与 rosdep
+
+### colcon 构建了什么
+
+colcon 是架在各个构建系统之上的构建工具。它找到你运行它的目录下面的每一个包——也就是每个带 `package.xml` 的目录——根据里面声明的依赖排出构建顺序，再调用每个包自己的构建系统：`ament_cmake` 和普通 `cmake` 包用 CMake，`ament_python` 用 `setup.py`。它在源码目录之外构建，这就是四个目录的含义：
+
+| 目录 | 放什么 | 能删吗？ |
+| --- | --- | --- |
+| `src/` | 你的包，唯一需要你编辑和提交的目录 | 不能 |
+| `build/` | 中间文件，每个包一个子目录，CMake 或 setuptools 在这里运行 | 能，会重新生成 |
+| `install/` | 每个包装进自己的子目录，外加 `setup.bash` 和 `local_setup.bash` 脚本 | 能，重新构建并重新 source |
+| `log/` | 每次 colcon 运行的日志 | 能 |
+
+和 ROS 1 的 catkin 不同，这里没有 `devel/` 目录。目录里放一个名为 `COLCON_IGNORE` 的空文件，colcon 就会跳过它——这是不删包、只把它搁置的办法。`colcon list` 显示 colcon 找到了什么、每个包的构建类型；在下面的实验工作空间里，它打印的是：
+
+```text
+m4_hello	src/m4_hello	(ros.ament_python)
+m4_second	src/m4_second	(ros.ament_python)
+```
+
+### package.xml、setup.py 与 CMakeLists.txt
+
+每个包有两类描述，回答的是不同的问题。`package.xml` 是 ROS 这一侧：名字、版本、许可证和依赖，依赖写成 `<depend>`、`<build_depend>`、`<exec_depend>` 或 `<test_depend>`。colcon 读它来排构建顺序，rosdep 读它来安装系统包。构建文件是语言这一侧：`ament_python` 用 `setup.py`，说明安装哪些模块、数据文件和 console script；`ament_cmake` 用 `CMakeLists.txt`，负责编译目标并安装。一个依赖通常两边都要写——写进 `package.xml`，保证对的包在场；写进 `setup.py` 或 `CMakeLists.txt`，代码才真的基于它构建和安装。少写一边，就会在一台机器上构建失败、在另一台上却正常。
+
+### `--symlink-install`
+
+colcon 默认把文件复制进 `install/`。用 `colcon build --symlink-install` 时它改为链接，于是对 `src/` 里 Python 文件和其他不需要编译的资源的修改，不用重新构建就生效。在本课的包里，结果在磁盘上看得到：`install/m4_hello/lib/python3.12/site-packages/m4-hello.egg-link` 指回源码，`build/m4_hello/m4_hello` 是指向 `src/m4_hello/m4_hello` 的符号链接。编译过的 C++ 仍然要重新构建，因为装进去的是二进制。链接只覆盖上一次构建看到的东西。已有包目录内新增的 `.py` 文件会通过目录符号链接直接生效：本站编者新建了 `src/m4_hello/m4_hello/newmod.py`，不重新构建就能 `import m4_hello.newmod`。新增 launch 等数据文件、`setup.py` 里新增入口点、或新增顶层包，仍需 `colcon build`，因为这些链接和脚本是构建那一步创建的：新建的 `launch/b.launch.py` 直到下一次构建前都在 share 目录里找不到（另见下表 `setup.py` 那一行）。
+
+### 重新构建，还是重新 source？
+
+会过期的是两样不同的东西。重新构建更新的是 `install/` 里的内容；重新 source 更新的是这个终端知道的东西。本站编者在一个用 `--symlink-install` 构建的工作空间里核对了前三行，第二个包 `m4_second` 由 `ros2 pkg create` 创建：
+
+| 你改了 | 要重新构建？ | 要重新 source？ | 实际结果 |
+| --- | --- | --- | --- |
+| 已有 `.py` 节点里的一行 | 不要 | 不要 | 下一次 `ros2 run` 就打印了改过的文字 |
+| `setup.py`，例如新增一个 console script | 要 | 不要 | 一直是 `No executable found`，直到 `colcon build --packages-select m4_second`，之后就能运行 |
+| 往 `src/` 里新加了一个包 | 要 | 要 | 构建之后仍是 `Package 'm4_second' not found`，直到 `source install/setup.bash` |
+| `ament_cmake` 包里的 C++ 源码 | 要 | 不要 | 不在这次测试里：装进去的二进制是构建产物，只有 `colcon build` 能改变它 |
+
+不用 `--symlink-install` 时，第一行也要重新构建。底层的规则是：新包就是 `install/` 里的一个新目录，只有 source 才会把新目录加进 `AMENT_PREFIX_PATH`；凡是改变“装什么”的修改，都要 `colcon build`。
+
+### rosdep：系统依赖
+
+`package.xml` 里的依赖写的是 `rclpy`、`std_msgs` 这样的 key，而不是 apt 包名。rosdep 这个工具把 key 翻译成你所在平台上对应的系统包，再用 apt 安装。它包含在 `ros-dev-tools` 里，单独的包名是 `python3-rosdep`。一台机器第一次用要两步，之后每个工作空间一条命令：
+
+```bash
+sudo rosdep init          # once per machine: writes /etc/ros/rosdep/sources.list.d/20-default.list
+rosdep update             # no sudo: downloads the key database
+cd ~/ros2_ws
+rosdep install --from-paths src --ignore-src -y
+```
+
+`--from-paths src` 读取 `src/` 下的每个 `package.xml`，`--ignore-src` 跳过那些本身就是工作空间里的包的 key，`-y` 替你回答 apt 的确认。所有依赖都已就位时，它打印 `#All required rosdeps installed successfully`。拿到别人的包之后、`colcon build` 之前运行它；否则缺一个系统库，报出来的会是 CMake 或 import 错误，离真正的原因很远。rosdep 支持 Linux 和 macOS，不支持 Windows。pixi 里没有 apt 可调，依赖要写进 pixi 的项目文件。
+
+## 网络：DDS、域与发现
+
+### 线上发生了什么
+
+ROS 2 没有自带网络协议。每个发布者和订阅者下面都是一个中间件库，让你能替换它的那一层叫 <Term id="rmw">RMW</Term>（ROS 中间件接口）。Jazzy 的默认是 Fast DDS，即 `rmw_fastrtps_cpp`；Eclipse Cyclone DDS（`rmw_cyclonedds_cpp`）和 RTI Connext（`rmw_connextdds`）是 REP 2000 里另外两个 Tier 1 选项。`ros2 doctor --report` 会写出当前用的是哪个：
+
+```text
+middleware name    : rmw_fastrtps_cpp
+```
+
+想在 Ubuntu 上试 Cyclone DDS，就装上它，并在每个要用它的终端里设一个变量：
+
+```bash
+sudo apt install ros-jazzy-rmw-cyclonedds-cpp
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+```
+
+`RMW_IMPLEMENTATION` 没设时用默认值。如果它写的是没安装的东西，每个节点一启动就退出；设成 `RMW_IMPLEMENTATION=rmw_foo` 时，真实报错里有 `RMW implementation not installed (expected identifier of 'rmw_foo')` 和 `failed to load shared library 'librmw_foo.so'`，所以拼错会立刻暴露。一个系统里的所有节点用同一个 RMW。文档不保证不同厂商之间能互通；在编者的运行里，同一台机器上的 Cyclone talker 和 Fast DDS listener 碰巧通了，而这恰恰是不该依赖的那种结果。
+
+### 域，以及背后的端口
+
+发现是自动的：每个节点通过 UDP 组播宣告自己，互相听到的节点就连起来。<Term id="domain-id">域 ID</Term> 决定哪些节点在同一场对话里。`ROS_DOMAIN_ID` 默认是 0，DDS 标准把它换算成 UDP 端口号。对域 D、参与者编号 P（每个 ROS 2 进程就是一个参与者）：
+
+```text
+discovery multicast   7400 + 250·D
+user multicast        7400 + 250·D + 1
+discovery unicast     7400 + 250·D + 10 + 2·P
+user unicast          7400 + 250·D + 11 + 2·P
+```
+
+域 1 的组播端口是 7650 和 7651，第一个进程用 7660 和 7661。UDP 端口到 65535 为止，所以能用的最大域是 232。Linux 默认的临时端口是 32768–60999（在 `/proc/sys/net/ipv4/ip_local_port_range` 里设置），操作系统会把这些端口随手分给任何程序，所以端口落在这个范围里的域可能撞车。域 0–101 都在它下面，215–232 都在它上面，所以文档把 0–101 称为 Linux 上的安全范围，另加 215–232。macOS 和 Windows 用的是 49152–65535，所以 macOS 和 Windows 上是 0–166。域 101 是 Linux 安全范围的顶端：它的组播端口是 32650 和 32651，第一个进程用 32660 和 32661，端口撞上 32768 之前只放得下 54 个进程。每个进程占两个端口，所以一台电脑上跑超过 120 个进程时，端口可能溢出到下一个域。
+
+超出范围的值会大声报错。`ROS_DOMAIN_ID=233` 和 `ROS_DOMAIN_ID=abc` 的真实输出：
+
+```text
+Calculated port number is too high. Probably the domainId is over 232 or portBase is too high.
+failed to initialize rcl: ROS_DOMAIN_ID is not an integral number
+```
+
+域不匹配则是悄无声息的。这里一个 talker 跑在域 7，同一条命令先从域 8、再从域 7 执行：
+
+```text
+$ ROS_DOMAIN_ID=8 ros2 topic list
+/parameter_events
+/rosout
+$ ROS_DOMAIN_ID=7 ros2 topic list
+/chatter
+/parameter_events
+/rosout
+```
+
+从域 8 看，没有 `/chatter`，也没有报错；那里的 listener 只是什么都收不到。
+
+### 为什么你的节点会漏到局域网上
+
+发现默认会覆盖你子网里的每台电脑。同一个 Wi-Fi 下的两个学生都把 `ROS_DOMAIN_ID` 留成 0，他们就是同一个 ROS 2 系统：在 `ros2 topic list` 里看得到对方的话题，陌生人的 `/cmd_vel` 也能到达你的机器人。故障排查指南把这叫作 multiple host interference（多主机干扰），解决办法是每人或每台机器人一个自己的域。在安全范围里选一个，写进 `~/.bashrc`：
+
+```bash
+export ROS_DOMAIN_ID=42
+```
+
+域只能把愿意配合的人分开，它不是安全措施。想让流量完全留在本机，就要限制发现范围。
+
+### 限制发现范围
+
+从 Iron 开始，两个变量控制发现能走多远，Jazzy 用的就是它们：
+
+| 设置 | 效果 |
+| --- | --- |
+| `ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET` | 默认值：组播能到达的每台主机 |
+| `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` | 只发现本机上的节点 |
+| `ROS_AUTOMATIC_DISCOVERY_RANGE=OFF` | 什么都不发现，连本机上的其他节点也不发现；`ROS_STATIC_PEERS` 同样不生效 |
+| `ROS_AUTOMATIC_DISCOVERY_RANGE=SYSTEM_DEFAULT` | 交给 RMW 自己的配置 |
+| `ROS_STATIC_PEERS="192.168.0.1;remote.com"` | 在范围之外再加上这些主机，但范围为 `OFF` 时会被忽略；多个条目用 `;` 分隔 |
+
+发现要双方都配合：只要任意一方把范围设成 `OFF`，两个节点就连不上，不管 peers 列表里写了什么。`LOCALHOST` 适合一个人在笔记本上干活，本站的检查用的也是它。两台电脑之间组播不通时，例如隔着一个屏蔽组播的网络，靠 `ROS_STATIC_PEERS` 让它们找到对方。两者都由默认的 DDS 层读取；较新的 Zenoh RMW 两个都不支持。
+
+老教程用的是 `ROS_LOCALHOST_ONLY=1`。它在 Jazzy 里仍然有效，但从 Iron 起已被弃用，而且会压过新的设置。设了它之后的真实输出：
+
+```text
+$ ROS_LOCALHOST_ONLY=1 ros2 topic list
+[WARN] [1793624654.483755377] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793624654.483771133] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+/parameter_events
+/rosout
+```
+
+拼错的值也不会失败：`ROS_AUTOMATIC_DISCOVERY_RANGE=LAN` 会打印 `Invalid value 'LAN' specified for 'ROS_AUTOMATIC_DISCOVERY_RANGE', assuming localhost only`。
+
+### 防火墙与组播
+
+两台电脑本该互相看见却看不见时，先测组播，再怪 ROS。每台机器各运行一条命令：
+
+```bash
+ros2 multicast receive    # computer A
+ros2 multicast send       # computer B
+```
+
+接收端的真实输出，这里两条命令在同一台机器上：
+
+```text
+Waiting for UDP multicast datagram...
+Received from 172.30.0.2:46989: 'Hello World!'
+```
+
+什么都没收到，就检查网卡在 `ip link`（或 `ifconfig`）里有没有 `MULTICAST`，再检查防火墙。用 Ubuntu 的 ufw 时，故障排查指南给的办法是双向放行 UDP 组播：
+
+```bash
+sudo ufw allow in proto udp to 224.0.0.0/4
+sudo ufw allow in proto udp from 224.0.0.0/4
+```
+
+如果网络根本不转发组播，就用 `ROS_STATIC_PEERS` 写上另一台电脑的地址来绕过去。
+
+<Quiz id="q5" question="你的终端里 ROS_DOMAIN_ID=2。发现组播流量走哪个 UDP 端口？" answer={7900} tolerance={0} explanation="7400 + 250 × 2 = 7900；用户组播端口再高一个，是 7901。" />
+
+## 在哪里运行：原生、WSL2、容器还是虚拟机
+
+上面的安装路线回答的是怎么得到 ROS 2；这一节讲的是它跑在哪种机器上。这四种都能跑本课。区别出现在工作涉及硬件、图形或其他电脑的时候：
+
+| | 原生 Ubuntu 24.04 | Windows 上的 WSL2 | Docker 容器 | 虚拟机 |
+| --- | --- | --- | --- | --- |
+| 图形界面（RViz、Gazebo） | 原生 | WSLg，Windows 11 和 Windows 10 build 19044+ 自带 | 需要把宿主机的显示传进去 | 能用，图形较慢 |
+| USB（串口适配器、激光雷达、相机） | 直接用 | 每个设备用 `usbipd`，见下文 | `--device=/dev/ttyUSB0` | 虚拟机软件的 USB 直通 |
+| 局域网里的其他电脑 | 直接通 | 默认 NAT；mirrored 网络模式加上组播支持 | Linux 宿主机上用 `--network host` | 默认 NAT；改用桥接网络 |
+| 和机器人一致 | 是，如果机器人跑 Ubuntu 24.04 | 否 | 同一个镜像可以跑在机器人上 | 否 |
+
+WSL2 跑的是真正的 Linux 内核，Ubuntu 路线在里面原样可用。和原生安装相比有两点不同。USB 设备在你接入之前一直归 Windows：装好 usbipd-win，然后在管理员 PowerShell 里运行 `usbipd list`，每个设备执行一次 `usbipd bind --busid 4-4`，每次使用时执行 `usbipd attach --wsl --busid 4-4`；之后 WSL 里的 `lsusb` 就能看到它，而在 `usbipd detach --busid 4-4` 之前 Windows 用不了它。网络默认是 NAT，所以 WSL2 里的节点发现不了其他电脑上的节点。在 `%UserProfile%\.wslconfig` 的 `[wsl2]` 下设 `networkingMode=mirrored`（Windows 11 22H2 或更新），会把 Windows 的网卡镜像进 Linux，并加上组播支持。
+
+容器打包的是一个确定的环境。ROS 2 文档里的 Docker 示例只有两条命令，宿主机上除了 Docker 什么都不用装，talker 就能跑：
+
+```bash
+docker pull osrf/ros:jazzy-desktop
+docker run -it --rm osrf/ros:jazzy-desktop ros2 run demo_nodes_cpp talker
+```
+
+容器默认在自己的 bridge 网络上，和你的局域网隔开。`--network host` 让它共用宿主机的网络栈，于是 DDS 发现就像节点直接跑在宿主机上一样；这在 Linux 上的 Docker Engine 里可用，Docker Desktop 要 4.34 起才支持，而且需要手动开启。`--device` 把一个设备文件（比如串口适配器）交给容器。很多团队就是用容器把软件部署到机器人上的：测过的镜像，就是跑起来的镜像。
+
+虚拟机（VirtualBox、VMware、UTM）是完整的第二台电脑。它默认的 NAT 网络会把它藏在局域网之外，就像家里的路由器把你的笔记本藏起来一样，所以机器人发现不了里面的节点；把虚拟机的网卡改成桥接，它才和你在同一个子网。虚拟机里的 3D 加速通常很弱，Gazebo 会第一个感觉到。
+
+这个选择越往后越重要。[第 4 课](/zh/month/month-4/gazebo-sim)要跑 Gazebo，它需要能用的 3D 图形；[第 6 课](/zh/month/month-4/slam-nav)要让 SLAM、Nav2 和 RViz 一起跑。如果你现在的环境连 RViz 都吃力，就在那之前解决：原生 Ubuntu，或者带 WSLg 的 WSL2，最省事。等到了真机器人，它的电脑通常跑原生 Ubuntu 或容器，你的笔记本通过网络、在同一个域里加入它——上面网络一节的内容原样适用。
+
 ## 出错时
 
-第一周几乎所有的安装失败，都是下面四个错误之一。
+头几周几乎所有的安装失败，都是下表中的某一行。看症状、跑检查命令，检查结果通常就告诉你是哪一行。
 
-- **没有 source**：新终端不知道你的工作空间。在只 source 了 ROS 本身的终端里运行 `ros2 run m4_hello hello_node`，真实输出是：
+| 症状 | 可能原因 | 检查 | 修法 |
+| --- | --- | --- | --- |
+| `Package 'm4_hello' not found` | 这个终端没 source 工作空间，或者包是在 source 之后才加的 | `printenv AMENT_PREFIX_PATH` 里没有 `install/m4_hello` | `source ~/ros2_ws/install/setup.bash` |
+| `No executable found` | 包找到了，但没有这个名字的可执行文件：拼错了，或者在 `setup.py` 里加了 console script 却没重新构建 | `ros2 pkg executables m4_hello` 列出真正的名字 | 用列出来的名字，或者再 `colcon build` 一次 |
+| 另一个终端或另一台电脑看不到你的话题 | `ROS_DOMAIN_ID` 不同、某一边设了 `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST`、RMW 不同，或者组播被挡 | 两边都运行 `printenv ROS_DOMAIN_ID ROS_AUTOMATIC_DISCOVERY_RANGE RMW_IMPLEMENTATION`；跨电脑时用 `ros2 multicast receive` / `send` | 让这三个值一致；在防火墙放行组播，或者用 `ROS_STATIC_PEERS` |
+| `source` 好像什么都没做 | 脚本跑在了子 shell 里（`bash install/setup.bash` 或 `./install/setup.bash`）、路径写错，或者 shell 不是 bash | `printenv ROS_DISTRO`；`echo $0` 显示当前 shell | 用 `source` 或 `.`，绝不用 `bash`；zsh 里用 `setup.zsh`；先构建再 source |
+| 奇怪的 import 错误、缺符号、警告 `ROS_DISTRO was set to 'humble' before` | 一个终端里加载了两个发行版，或者 ROS 1 和 ROS 2，常常来自 `~/.bashrc` 的旧行 | `printenv ROS_DISTRO ROS_VERSION`；`printenv AMENT_PREFIX_PATH`；`grep -n 'source /opt/ros' ~/.bashrc` | 只留一行 `source /opt/ros/jazzy/setup.bash`，然后开新终端 |
+| `src/` 里冒出了 `build/` 和 `install/` | 在 `src/` 里面运行了 `colcon build` | `ls ~/ros2_ws/src` | 删掉这些乱跑的目录，回到工作空间根目录构建 |
+| 激活过 conda 环境之后出现 Python 错误 | conda 的 Python 挡住了 apt 版 ROS 2 所依赖的系统 Python | `which python3`；`printenv PATH` | `conda deactivate`，或者在 ROS 终端里别让 conda 路径进 `PATH` |
+| 乱码或编码错误，多见于新建的容器 | locale 是 `POSIX`，不是 UTF-8 locale | `locale` | 安装一节里的 locale 那几行 |
+| `colcon build` 卡住，或者板子内存耗尽 | 在树莓派这类小电脑上并行编译任务太多 | 构建时运行 `free -h` | `MAKEFLAGS=-j1 colcon build --executor sequential` |
+| RViz 在 Wayland 桌面上起不来 | Qt 的 Wayland 后端 | `echo $XDG_SESSION_TYPE` 输出 `wayland` | `QT_QPA_PLATFORM=xcb rviz2` |
 
-  ```text
-  Package 'm4_hello' not found
-  ```
+其中三行值得看看真实输出。没 source 工作空间时，连包本身都找不到：
 
-  修法：`source ~/ros2_ws/install/setup.bash`（在 ROS underlay 之后）。包没有丢，只是终端没被告知去哪里找。
+```text
+Package 'm4_hello' not found
+```
 
-- **在错误的目录里构建**：`colcon build` 要在工作空间根目录运行，绝不要进 `src/` 里运行。在 `src/` 里构建，`build/` 和 `install/` 就会长在源码树里面，形成第二个令人困惑、还会和第一个打架的工作空间。真发生了，删掉这些乱跑的文件夹，回到根目录重新构建。
+source 了工作空间、但名字写错时，`ros2 run m4_hello hello` 走得更远——它找到了包——然后在下一步失败：
 
-- **混用发行版**：在同一个终端里 source 了 Humble 和 Jazzy（常常来自 `~/.bashrc` 的旧行），会得到看起来像“包坏了”的错误：缺符号、Python 导入失败、明明装了却说找不到。用 `printenv ROS_DISTRO` 检查，确认它输出 `jazzy`；再看看你的 shell 启动文件都 source 了什么。
+```text
+No executable found
+```
 
-- **节点互相看不见，或者看见太多**：ROS 2 会发现同一网络、同一 `ROS_DOMAIN_ID` 上的所有节点，默认是 0。在共享网络（学校、办公室）里，你会看到陌生人的节点，他们也会看到你的。把自己的域设成 `export ROS_DOMAIN_ID=42`（0–101 之间任何数字都安全），或者用 `export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` 只留在本机；两个终端域号不同，就永远听不见对方——所以“话题在发但收不到”时先查这个。另一个原因（QoS）在第 2 课。
+`ros2 pkg executables m4_hello` 输出 `m4_hello hello_node`，后面那个才是要用的名字。第三个是网络一节里的域示例：根本没有报错，只是话题不在。同一个域里“话题在发但收不到”时，另一个原因是 QoS，第 2 课会讲。
+
+locale 那一行是编者没能复现的：Python 3.12 遇到普通的 C 或 POSIX locale 会自己切换到 UTF-8，所以 ROS 2 的工具照常运行。但安装页仍然要求 UTF-8 locale，精简容器里的其他程序也没那么宽容，所以还是把它修好，别指望这一点。
 
 <Quiz id="q4" question="在新终端里运行 ros2 run m4_hello hello_node，输出：Package 'm4_hello' not found。这个包之前构建时没有任何报错。你该怎么做？" options={["用 colcon build --symlink-install 重新构建", "在当前终端里 source 工作空间的 install/setup.bash", "重装 ROS 2 Jazzy", "先启动 roscore"]} answer={1} explanation="每个终端都要 source 工作空间的 overlay；roscore 是 ROS 1 的东西，ROS 2 里不存在。" />
 

@@ -6,7 +6,7 @@ Months 1–3 were your way. You wrote one program, it ran one loop on a microcon
 
 The month builds in order. Lesson 2, "Nodes, topics, services and actions", gives you the vocabulary. Lesson 3, "URDF and TF: describing a robot", gives the robot a body. Lesson 4, "Simulation with Gazebo", puts that body in a world. Lesson 5, "ros2_control: drive through a controller", makes the wheels turn. Lesson 6, "SLAM and Nav2: map and navigate", closes the loop with a map and a destination. This lesson is the floor: choose a version, install it, and get one node of your own running.
 
-A note on the outputs below. Every command output quoted here is a real run of ROS 2 Jazzy, not a simulation. The site editor ran them on Debian 13, with Jazzy installed from RoboStack's conda packages through pixi — not on Ubuntu. The Ubuntu apt commands in the install section are copied from the official Jazzy install page, checked in October 2026. Timestamps in the logs will differ on your machine, and so will paths that contain a home folder. Distro dates come from the official ROS 2 releases page, also checked in October 2026.
+A note on the outputs below. Every command output quoted here is a real run of ROS 2 Jazzy, not a simulation. The site editor ran them on Debian 13, with Jazzy installed from RoboStack's conda packages through pixi — not on Ubuntu. The Ubuntu apt commands in the install section are copied from the official Jazzy install page, checked in November 2026, and the environment variables, ports and network settings later in the lesson come from the Jazzy documentation and the ROS 2 source code. Timestamps in the logs will differ on your machine, and so will paths that contain a home folder. Distro dates come from the official ROS 2 releases page, also checked in October 2026.
 
 ## Pick a distro
 
@@ -17,11 +17,11 @@ The release cadence has a pattern worth memorising. Even years are LTS (long-ter
 | Distro | Released | End of life | Ubuntu | Verdict |
 | --- | --- | --- | --- | --- |
 | Lyrical Luth | May 2026 | May 2031 | 26.04 | The newest LTS; what you would pick for a brand-new production project |
-| Kilted Kaiju | May 2025 | December 2026 | 24.04 | Non-LTS, support ends in about two months: do not start here |
+| Kilted Kaiju | May 2025 | November 2026 | 24.04 | Non-LTS, support ends in November 2026: do not start here |
 | Jazzy Jalisco | May 2024 | May 2029 | 24.04 | LTS: start here |
 | Humble Hawksbill | May 2022 | May 2027 | 22.04 | Legacy; you will meet it on older robots and in older courses |
 
-Read the table with a calendar, not with a vague sense of "newer is better". Kilted was released in May 2025 and dies in December 2026, which is 19 months — the "about 18 months" figure in practice. Jazzy was released in May 2024 and gets until May 2029, exactly five years. The end-of-life date is not the day the code stops running; it is the day fixes, security updates and new binary packages stop; from then on you are on your own when something breaks, and new tutorials and packages move to newer distros.
+Read the table with a calendar, not with a vague sense of "newer is better". Kilted was released in May 2025 and dies in November 2026, which is 18 months — the "about 18 months" figure in practice. The end dates here follow REP 2000, which gives Kilted "May 2025 - November 2026"; the releases table on docs.ros.org currently says December 2026, so do not plan on that extra month. Jazzy was released in May 2024 and gets until May 2029, exactly five years. The end-of-life date is not the day the code stops running; it is the day fixes, security updates and new binary packages stop; from then on you are on your own when something breaks, and new tutorials and packages move to newer distros.
 
 Here is the calculation you will repeat for any distro. Say it is October 2026 and you want to know how much support Lyrical has left:
 
@@ -36,7 +36,7 @@ The same sum for Jazzy gives the answer to the quiz below.
 
 So why start on Jazzy rather than the newest LTS? Because almost every course, book and video series still targets Jazzy. It has more than two and a half years of support left, which is plenty of runway to learn on. And when a tutorial and your install are the same distro, you fight the topic instead of version differences: the package names match, the launch syntax matches, and error messages you find online were written about the code you are running. Move to Lyrical when the tutorial stack you rely on catches up; the concepts transfer almost unchanged, so that move will be a week of adjustment, not a restart.
 
-One more piece of vocabulary from the releases page: each distro is built against one Ubuntu LTS as its Tier 1 platform. Jazzy and Kilted target Ubuntu 24.04; Humble targets 22.04; Lyrical targets 26.04. Other operating systems are supported at lower tiers, which means fewer prebuilt binaries and fewer tested combinations. That is why the install instructions care so much about the exact Ubuntu version, and why the alternatives in this lesson exist at all.
+One more piece of vocabulary, from REP 2000, the document that fixes each distro's target platforms: every platform gets a tier. Tier 1 platforms are tested continuously and their bugs are fixed first. A distro can have more than one: Jazzy's Tier 1 platforms are Ubuntu 24.04, with deb packages for amd64 and arm64, and Windows 10, as a binary archive. RHEL 9 is Tier 2, and Ubuntu 22.04, macOS, Debian 12 and OpenEmbedded/Yocto are Tier 3, source builds only. What each distro does have is exactly one Ubuntu release at Tier 1: 24.04 for Jazzy and Kilted, 22.04 for Humble, and 26.04 for Lyrical, whose supported-platforms page also lists Windows 11 at Tier 1. Lower tiers mean fewer prebuilt binaries and fewer tested combinations. That is why the install instructions care so much about the exact Ubuntu version, and why the alternatives in this lesson exist at all.
 
 Practical habit: write your distro at the top of your notes, and read it in the first command of every tutorial before spending time on the rest.
 
@@ -49,12 +49,12 @@ ROS 1 is finished. Its last release, Noetic, reached end of life on 31 May 2025,
 | If you see… | It is ROS 1 because… | The ROS 2 way |
 | --- | --- | --- |
 | `catkin_make` or `catkin build` | the ROS 1 build tool | `colcon build` |
-| `roscore` | ROS 1 needs a central master | nothing: ROS 2 nodes find each other automatically (DDS discovery), no master |
+| `roscore` | ROS 1 needs a central master | nothing: ROS 2 nodes find each other automatically (<Term id="dds">DDS</Term> discovery), no master |
 | `rosrun pkg node` | ROS 1 runner | `ros2 run pkg node` |
 | `import rospy` | ROS 1 Python library | `import rclpy` |
 | `roslaunch` with a `.launch` XML file | ROS 1 launch | `ros2 launch` with a Python `.launch.py` file (ROS 2 can also read XML and YAML launch files, but the documentation and this site use Python) |
 
-The pattern behind the table is that ROS 1 was built around a central master process. Every node registered with it, and `roscore` had to be running before anything else worked. ROS 2 removed the master: nodes discover each other over DDS, so starting order stops mattering and there is no single process to restart when the graph misbehaves. The Python library changed name from `rospy` to `rclpy`, and the build system changed from catkin to ament with colcon on top.
+The pattern behind the table is that ROS 1 was built around a central master process. Every node registered with it, and `roscore` had to be running before anything else worked. ROS 2 removed the master: nodes discover each other over DDS, so starting order stops mattering and there is no single process to restart when the graph misbehaves. The Python library changed name from `rospy` to `rclpy`, and the build system changed from catkin to ament with <Term id="colcon">colcon</Term> on top.
 
 Paths give it away too. If the tutorial says `/opt/ros/noetic`, `melodic` or `kinetic`, those are ROS 1 installations; ROS 2 lives in `/opt/ros/jazzy`, `/opt/ros/humble` and so on. You will also see `source /opt/ros/noetic/setup.bash` in old setup instructions — the shape is familiar, but everything it loads is ROS 1.
 
@@ -81,22 +81,35 @@ If you are on Windows and want the closest experience to the tutorials, install 
 
 This is the reference setup: Ubuntu 24.04, native or dual-boot, with the official apt packages. Most books, university courses and video series assume exactly this, so problems you hit are problems someone else has already solved.
 
-The steps below are from the official Jazzy install page, checked in October 2026.
+The steps below are from the official Jazzy install page, checked in November 2026. They run in the page's order: locale, repositories, development tools, then ROS itself.
 
 ```bash
+locale                                    # check for UTF-8
+sudo apt update && sudo apt install locales
+sudo locale-gen en_US en_US.UTF-8
+sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
+export LANG=en_US.UTF-8
+
 sudo apt install software-properties-common
 sudo add-apt-repository universe
 sudo apt update && sudo apt install curl -y
 export ROS_APT_SOURCE_VERSION=$(curl -s https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F "tag_name" | awk -F'"' '{print $4}')
 curl -L -o /tmp/ros2-apt-source.deb "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ROS_APT_SOURCE_VERSION}/ros2-apt-source_${ROS_APT_SOURCE_VERSION}.$(. /etc/os-release && echo ${UBUNTU_CODENAME:-${VERSION_CODENAME}})_all.deb"
 sudo dpkg -i /tmp/ros2-apt-source.deb
+
 sudo apt update && sudo apt install ros-dev-tools
+sudo apt update
+sudo apt upgrade
 sudo apt install ros-jazzy-desktop
 ```
 
-The first lines enable Ubuntu's universe repository and install the package that adds the ROS 2 apt repository and its signing key. The `ROS_APT_SOURCE_VERSION` line asks GitHub for the newest release tag of the apt-source package, and the `curl` line downloads the `.deb` built for your Ubuntu codename — on 24.04 that is `noble`. Installing it tells apt where the ROS 2 packages live; without it, `apt install ros-jazzy-desktop` would simply find nothing.
+The locale block comes first because ROS 2 expects a UTF-8 locale. A desktop Ubuntu already has one, and `locale` will show `LANG=en_US.UTF-8` or similar; a minimal system such as a Docker image may report `POSIX`. The first line only checks; the four after it install and set the locale, and the official page ends with another `locale` to verify. Any UTF-8 locale is fine; `en_US.UTF-8` is simply the one the ROS 2 project tests with.
 
-`ros-dev-tools` brings colcon and the other build tools you need from Lesson 2 onward. `ros-jazzy-desktop` is ROS 2 plus RViz, the demos and the tutorials. There is also `ros-jazzy-ros-base`, the bare-bones version without GUI tools, which is what you would put on a robot with no monitor. For learning, take the desktop package.
+The next lines enable Ubuntu's universe repository and install the package that adds the ROS 2 apt repository and its signing key. The `ROS_APT_SOURCE_VERSION` line asks GitHub for the newest release tag of the apt-source package, and the `curl` line downloads the `.deb` built for your Ubuntu codename — on 24.04 that is `noble`. Installing it tells apt where the ROS 2 packages live; without it, `apt install ros-jazzy-desktop` would simply find nothing.
+
+`ros-dev-tools` brings colcon, <Term id="rosdep">rosdep</Term> and the other build tools you need from Lesson 2 onward. The install page warns that on Ubuntu 24.04 the apt sources may only include the base `noble` suite, which can cause dependency conflicts when installing `ros-dev-tools`. Check the `Suites:` line with `grep Suites /etc/apt/sources.list.d/ubuntu.sources`; it should read `Suites: noble noble-updates noble-backports`. If it does not, edit the line to that and then run `sudo apt clean && sudo apt update && sudo apt full-upgrade -y`, as the page says. The `sudo apt upgrade` before the main install is also from the official page: ROS 2 packages are built against an up-to-date Ubuntu, so bring the system up to date first.
+
+`ros-jazzy-desktop` is ROS 2 plus RViz, the demos and the tutorials. There is also `ros-jazzy-ros-base`, the bare-bones version without GUI tools, which is what you would put on a robot with no monitor. For learning, take the desktop package. Should you ever want to remove it, for example to switch to a source build, the same page gives `sudo apt remove '~nros-jazzy-*' && sudo apt autoremove`. It adds an optional step if you also want the repository gone: `sudo apt remove ros2-apt-source`, then `sudo apt update`, `sudo apt autoremove` and `sudo apt upgrade`, the last one because packages that the ROS repository had shadowed may now have upgrades.
 
 These commands change over time — repository URLs, package names and supported Ubuntu versions all move. If a step fails, compare it with the official page rather than with a blog post from 2024. After installation, every terminal needs the environment loaded, which is the first thing in the next section.
 
@@ -362,29 +375,308 @@ Real output of the node, first four lines, then Ctrl+C:
 
 The 0.5 s spacing is visible in the timestamps: 653.507, 653.998, 654.498, 654.998. The first gap is 0.491 s, then 0.500 and 0.500. The first callback ran a few milliseconds late while the node was still starting up; the timer schedules against its own start time, so one late call does not push the following ones back. ROS timers are not real-time guarantees, but on an idle computer they keep to the grid well.
 
-Now the two words that explain most workspace confusion. `/opt/ros/jazzy` is the underlay: the installed ROS 2, which you sourced earlier. Your workspace's `install/setup.bash` is the overlay: it adds your packages on top of the underlay without modifying it. Source the underlay first, then the overlay, because the overlay's script extends what is already loaded. In a new terminal you need both, in that order.
-
-`colcon build --symlink-install` links Python files instead of copying them, so edits take effect without rebuilding. Use it once you are editing often. New files and changes to `setup.py` still need a rebuild, because those change what gets installed, not just the contents of an installed file.
+That `source install/setup.bash` line deserves a habit of its own. The workspace tutorial asks you to open a new terminal, separate from the one where you built, before you source the workspace: sourcing a workspace in the terminal where you build, or building in a terminal where that workspace is already sourced, can create complex issues. One terminal for `colcon build`, another for `ros2 run`, is the simplest way to stay out of trouble. The next section explains what that line actually loads.
 
 <Quiz id="q3" question="A timer is created with create_timer(0.2, self.tick). How many messages per second will ros2 topic hz report?" answer={5} unit="Hz" explanation="One call every 0.2 s → 1 / 0.2 = 5 per second." />
 
+## What `source` changes
+
+`source` runs a script inside your current shell, so the variables it sets stay in that one terminal. Nothing is written to disk, and there is no "unsource": to get a clean environment back, open a new terminal. Almost every "it worked yesterday" problem in ROS 2 comes down to which scripts a terminal has sourced, and in what state they found it.
+
+### One distro, one Ubuntu
+
+The binary packages are compiled for one operating system release, not for "Linux". The Jazzy install page says it directly: deb packages are available for Ubuntu Noble (24.04). REP 2000, the document that fixes each distro's target platforms, lists Jazzy on Ubuntu 24.04 as Tier 1 with deb packages, and Ubuntu 22.04 as Tier 3, source builds only. The packages link against that release's own libraries — REP 2000 pins Python 3.12.3 and Qt 5.15.10 for Noble — which is why the Noble debs put their Python modules under `/opt/ros/jazzy/lib/python3.12/site-packages` (the Noble `ros-jazzy-rclpy` deb unpacks `rclpy` there). The `install/m4_hello/lib/python3.12/...` paths in this lesson come from the site's pixi environment, which happens to use Python 3.12 as well. On any other Ubuntu there are no Jazzy debs to install, so you would be building from source. The pairing in the distro table is not a recommendation: Humble goes with 22.04, Jazzy and Kilted with 24.04, Lyrical with 26.04.
+
+### apt or a source build
+
+There are two ways to get the ROS 2 core onto a machine, and they leave ROS 2 in different places.
+
+| | apt (binary) packages | Source build |
+| --- | --- | --- |
+| Where ROS lives | `/opt/ros/jazzy`, owned by root | a folder you choose, e.g. `~/ros2_jazzy/install` |
+| How you get it | `sudo apt install ros-jazzy-desktop` | `vcs import` the repositories listed in `ros2.repos`, install their dependencies with `rosdep install --from-paths src --ignore-src -y`, then `colcon build --symlink-install` |
+| How you load it | `source /opt/ros/jazzy/setup.bash` | `. ~/ros2_jazzy/install/local_setup.bash` |
+| Updates | `sudo apt upgrade` | pull and rebuild yourself |
+| Use it when | almost always: Tier 1 Ubuntu, learning, robots | a platform without binaries, or you need to patch ROS itself |
+
+The source route is the official "Ubuntu (source)" page; Jazzy's `ros2.repos` lists 108 repositories to clone and build, so it is a project of its own, not a shortcut. Do not keep both on one machine by accident: the apt page's uninstall command exists precisely for switching to a source build. pixi is a third shape of the same idea — its ROS 2 lives in the `.pixi/envs/default` folder, and `pixi shell` loads it instead of `source /opt/ros/jazzy/setup.bash`.
+
+### Underlay and overlay
+
+Two words explain most workspace confusion. The <Term id="underlay">underlay</Term> is the ROS 2 you build on: `/opt/ros/jazzy` for an apt install. The <Term id="overlay">overlay</Term> is your workspace's `install/` folder, which adds your packages on top of the underlay without modifying it. The workspace tutorial gives the two rules that matter: the underlay must contain the dependencies of every package in your overlay, and a package in the overlay overrides a package of the same name in the underlay. Overlays can stack: one workspace's `install/` can be the underlay of the next.
+
+Each `install/` folder offers two scripts, and the difference is exactly the underlay:
+
+- `install/local_setup.bash` adds only the packages in this workspace.
+- `install/setup.bash` first sources the underlay that was loaded when you ran `colcon build`, then the workspace.
+
+You can see that in the generated file: `install/setup.bash` contains a line `COLCON_CURRENT_PREFIX="…"` naming the underlay recorded at build time — on an apt install, `/opt/ros/jazzy`; in this site's pixi run, the `.pixi/envs/default` folder — followed by the workspace's own folder. Real output from two shells started with no ROS loaded at all (`env -i bash --norc`), one per script:
+
+```text
+$ source ~/ros2_ws/install/local_setup.bash
+$ printenv AMENT_PREFIX_PATH
+/home/you/ros2_ws/install/m4_hello
+$ command -v ros2 || echo 'ros2 not on PATH'
+ros2 not on PATH
+$ source ~/ros2_ws/install/setup.bash
+$ printenv ROS_DISTRO
+jazzy
+$ ros2 pkg prefix m4_hello
+/home/you/ros2_ws/install/m4_hello
+```
+
+After `local_setup.bash` the packages are indexed, but the `ros2` command itself is missing, because it belongs to the underlay. After `setup.bash`, `ros2` works and `ros2 pkg prefix m4_hello` finds the package. So in a new terminal, `source ~/ros2_ws/install/setup.bash` alone is enough; sourcing `/opt/ros/jazzy/setup.bash` before it does no harm. Only `local_setup.bash` needs the underlay sourced first.
+
+### The variables it sets
+
+Here is what sourcing actually changes, read from the hook scripts in colcon, ament and `ros_environment` rather than from memory, and checked by diffing `env` before and after:
+
+| Variable | Set by | What it is for |
+| --- | --- | --- |
+| `ROS_DISTRO`, `ROS_VERSION`, `ROS_PYTHON_VERSION` | the `ros_environment` package in the underlay | which ROS you loaded: `jazzy`, `2`, `3` |
+| `AMENT_PREFIX_PATH` | ament (underlay) and colcon-ros (your packages) | the package index: how `ros2 run` and `ros2 pkg` find packages |
+| `PYTHONPATH` | ament and colcon | where Python finds `rclpy` and your package's modules |
+| `LD_LIBRARY_PATH` | ament and colcon | where compiled `.so` libraries are found; only added for a package that installs libraries |
+| `PATH` | ament and colcon | executables in a `bin/` folder, such as `ros2`; only added if `bin/` exists |
+| `CMAKE_PREFIX_PATH` | colcon-cmake | where CMake finds packages when you build against this workspace |
+| `COLCON_PREFIX_PATH` | colcon | the workspaces colcon chains when the next overlay is built |
+
+The workspace from this lesson is smaller than the table. Sourcing it on top of the underlay changed exactly three variables: `AMENT_PREFIX_PATH` gained `install/m4_hello`, `PYTHONPATH` gained `install/m4_hello/lib/python3.12/site-packages`, and `COLCON_PREFIX_PATH` became `/home/you/ros2_ws/install`. `PATH` did not change, because `ros2 run` finds `hello_node` in `install/m4_hello/lib/m4_hello/` through the package index, not through `PATH`. The C++ workspace in Lesson 2 also adds `CMAKE_PREFIX_PATH` and `LD_LIBRARY_PATH`, because it installs compiled libraries.
+
+Check what a terminal has with `printenv | grep -i ROS`; the official tutorial expects `ROS_VERSION=2`, `ROS_PYTHON_VERSION=3` and `ROS_DISTRO=jazzy` among the lines. The underlay also guards against mixing: if `ROS_DISTRO` was already set to another distro, sourcing Jazzy prints this real warning before overwriting it:
+
+```text
+ROS_DISTRO was set to 'humble' before. Please make sure that the environment does not mix paths from different distributions.
+```
+
+## Inside the workspace: colcon and rosdep
+
+### What colcon builds
+
+colcon is the build tool on top of the individual build systems. It finds every package — every folder with a `package.xml` — below the folder you run it in, works out the order from the dependencies declared there, and calls each package's own build system: CMake for `ament_cmake` and plain `cmake` packages, `setup.py` for `ament_python`. It builds out of source, which is what the four folders mean:
+
+| Folder | Holds | Safe to delete? |
+| --- | --- | --- |
+| `src/` | your packages, the only folder you edit and commit | no |
+| `build/` | intermediate files, one subfolder per package, where CMake or setuptools ran | yes, it is rebuilt |
+| `install/` | each package installed into its own subfolder, plus the `setup.bash` and `local_setup.bash` scripts | yes, rebuild and source again |
+| `log/` | the log of every colcon run | yes |
+
+Unlike catkin in ROS 1, there is no `devel/` folder. A folder that contains an empty file called `COLCON_IGNORE` is skipped, which is how you park a package without deleting it. `colcon list` shows what colcon found, with each package's build type; for the experiment workspace below it printed:
+
+```text
+m4_hello	src/m4_hello	(ros.ament_python)
+m4_second	src/m4_second	(ros.ament_python)
+```
+
+### package.xml, setup.py and CMakeLists.txt
+
+Each package has two kinds of description, and they answer different questions. `package.xml` is the ROS side: name, version, licence and dependencies, written as `<depend>`, `<build_depend>`, `<exec_depend>` or `<test_depend>`. colcon reads it to order the build, and rosdep reads it to install system packages. The build file is the language side: for `ament_python` it is `setup.py`, which says which modules, data files and console scripts are installed; for `ament_cmake` it is `CMakeLists.txt`, which compiles targets and installs them. A dependency usually appears in both — in `package.xml` so the right package is present, and in `setup.py` or `CMakeLists.txt` so the code is actually built and installed against it. If one side is missing, the build fails on one machine and works on another.
+
+### `--symlink-install`
+
+By default colcon copies files into `install/`. With `colcon build --symlink-install` it links them instead, so edits to Python files and other non-compiled resources in `src/` take effect without a rebuild. In this lesson's package the result is visible on disk: `install/m4_hello/lib/python3.12/site-packages/m4-hello.egg-link` points back at the source, and `build/m4_hello/m4_hello` is a symlink to `src/m4_hello/m4_hello`. Compiled C++ still has to be rebuilt, because the binary is what gets installed. The links cover only what the last build saw. A new `.py` file inside an existing package directory takes effect at once, because that whole directory is linked: the site editor added `src/m4_hello/m4_hello/newmod.py` and `import m4_hello.newmod` worked without a rebuild. A new launch or other data file, a new entry point in `setup.py`, or a new top-level package still needs `colcon build`, because the build step is what creates those links and scripts: a new `launch/b.launch.py` was not found in the share directory until the next build (see also the `setup.py` row in the table below).
+
+### Rebuild or re-source?
+
+Two different things go stale. A rebuild updates what is in `install/`; a re-source updates what this terminal knows about. The site editor checked the first three rows in a workspace built with `--symlink-install`, with a second package `m4_second` created by `ros2 pkg create`:
+
+| You changed | Rebuild? | Re-source? | What happened |
+| --- | --- | --- | --- |
+| a line in an existing `.py` node | no | no | the next `ros2 run` printed the edited text |
+| `setup.py`, e.g. a new console script | yes | no | `No executable found` until `colcon build --packages-select m4_second`, then it ran |
+| added a new package to `src/` | yes | yes | after the build, `Package 'm4_second' not found` until `source install/setup.bash` |
+| C++ source in an `ament_cmake` package | yes | no | not part of this test: the installed binary is a build product, so only `colcon build` changes it |
+
+Without `--symlink-install`, the first row needs a rebuild too. The rule underneath: a new package is a new folder in `install/`, and only sourcing adds new folders to `AMENT_PREFIX_PATH`; anything that changes what gets installed needs `colcon build`.
+
+### rosdep: system dependencies
+
+`package.xml` names dependencies as keys such as `rclpy` or `std_msgs`, not as apt packages. rosdep is the tool that turns those keys into the right system packages for your platform and installs them with apt. It is part of `ros-dev-tools`; the stand-alone package is `python3-rosdep`. The first use on a machine needs two steps, then one command per workspace:
+
+```bash
+sudo rosdep init          # once per machine: writes /etc/ros/rosdep/sources.list.d/20-default.list
+rosdep update             # no sudo: downloads the key database
+cd ~/ros2_ws
+rosdep install --from-paths src --ignore-src -y
+```
+
+`--from-paths src` reads every `package.xml` under `src/`, `--ignore-src` skips keys that are themselves packages in your workspace, and `-y` answers yes to apt. When everything is already present it prints `#All required rosdeps installed successfully`. Run it after cloning someone else's package and before `colcon build`; a missing system library is otherwise reported as a CMake or import error, far from the cause. rosdep works on Linux and macOS, not on Windows. In pixi there is no apt to call, so dependencies go into the pixi project file instead.
+
+## Networking: DDS, domains and discovery
+
+### What happens on the wire
+
+ROS 2 does not ship its own network protocol. Under every publisher and subscriber is a middleware library, and the layer that lets you swap it is the <Term id="rmw">RMW</Term> (ROS middleware interface). The default in Jazzy is Fast DDS, as `rmw_fastrtps_cpp`; Eclipse Cyclone DDS (`rmw_cyclonedds_cpp`) and RTI Connext (`rmw_connextdds`) are the other Tier 1 choices in REP 2000. `ros2 doctor --report` names the one in use:
+
+```text
+middleware name    : rmw_fastrtps_cpp
+```
+
+To try Cyclone DDS on Ubuntu, install it and set one variable in every terminal that should use it:
+
+```bash
+sudo apt install ros-jazzy-rmw-cyclonedds-cpp
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+```
+
+If `RMW_IMPLEMENTATION` is unset, the default is used. If it names something not installed, every node exits at start; with `RMW_IMPLEMENTATION=rmw_foo` the real error contains `RMW implementation not installed (expected identifier of 'rmw_foo')` and `failed to load shared library 'librmw_foo.so'`, so a typo shows up immediately. Keep all nodes in one system on the same RMW. The documentation does not guarantee that different vendors talk to each other; in the editor's run a Cyclone talker and a Fast DDS listener on one machine happened to work, which is exactly the kind of result you should not build on.
+
+### Domains and the ports behind them
+
+Discovery is automatic: each node announces itself over UDP multicast, and nodes that hear each other connect. The <Term id="domain-id">domain ID</Term> decides which nodes are in the same conversation. `ROS_DOMAIN_ID` defaults to 0, and the DDS standard turns it into UDP port numbers. For domain D and participant number P (each ROS 2 process is one participant):
+
+```text
+discovery multicast   7400 + 250·D
+user multicast        7400 + 250·D + 1
+discovery unicast     7400 + 250·D + 10 + 2·P
+user unicast          7400 + 250·D + 11 + 2·P
+```
+
+For domain 1 that gives 7650 and 7651 for multicast, and 7660 and 7661 for the first process. Because UDP ports stop at 65535, the largest usable domain is 232. Linux's default ephemeral ports are 32768–60999 (set in `/proc/sys/net/ipv4/ip_local_port_range`), and the operating system hands those out to any program, so a domain whose ports land in that range can collide. Domains 0–101 stay below it and 215–232 above it, which is why the documentation calls 0–101 the safe range on Linux, plus 215–232. macOS and Windows use 49152–65535, so there it is 0–166. Domain 101 is the top of the Linux safe range: its multicast ports are 32650 and 32651, the first process uses 32660 and 32661, and only 54 processes fit before the ports run into 32768. Each process takes two ports, so running more than 120 processes on one computer may spill into the next domain's ports.
+
+Out-of-range values fail loudly. Real output with `ROS_DOMAIN_ID=233` and with `ROS_DOMAIN_ID=abc`:
+
+```text
+Calculated port number is too high. Probably the domainId is over 232 or portBase is too high.
+failed to initialize rcl: ROS_DOMAIN_ID is not an integral number
+```
+
+A domain mismatch, on the other hand, fails silently. Here a talker runs on domain 7, and the same command is tried from domain 8 and then from domain 7:
+
+```text
+$ ROS_DOMAIN_ID=8 ros2 topic list
+/parameter_events
+/rosout
+$ ROS_DOMAIN_ID=7 ros2 topic list
+/chatter
+/parameter_events
+/rosout
+```
+
+From domain 8 there is no `/chatter` and no error; a listener there simply hears nothing.
+
+### Why your nodes leak onto the LAN
+
+Discovery reaches every computer on your subnet by default. Two students on the same Wi-Fi who both leave `ROS_DOMAIN_ID` at 0 are one ROS 2 system: they see each other's topics in `ros2 topic list`, and a stranger's `/cmd_vel` can reach your robot. The troubleshooting guide calls this multiple host interference, and the fix is a domain of your own per person or per robot. Pick one in the safe range and put it in `~/.bashrc`:
+
+```bash
+export ROS_DOMAIN_ID=42
+```
+
+A domain separates groups that all play along; it is not security. To keep traffic on your computer at all, limit discovery instead.
+
+### Limiting discovery
+
+Since Iron, two variables control how far discovery reaches, and Jazzy uses them:
+
+| Setting | Effect |
+| --- | --- |
+| `ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET` | the default: every host reachable by multicast |
+| `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` | only nodes on this computer |
+| `ROS_AUTOMATIC_DISCOVERY_RANGE=OFF` | discovers nothing, not even other nodes on this computer; `ROS_STATIC_PEERS` is ignored too |
+| `ROS_AUTOMATIC_DISCOVERY_RANGE=SYSTEM_DEFAULT` | leave it to the RMW's own configuration |
+| `ROS_STATIC_PEERS="192.168.0.1;remote.com"` | these hosts are added on top of the range, but ignored when the range is `OFF`; separate entries with `;` |
+
+Discovery needs both sides: if either node has the range set to `OFF`, the two never connect, whatever the peers list says. `LOCALHOST` is the setting for working alone on a laptop, and it is what this site's checks use. `ROS_STATIC_PEERS` is how two computers find each other when multicast does not work between them, for example across a network that blocks it. Both are read by the default DDS layers; the newer Zenoh RMW supports neither.
+
+Older tutorials use `ROS_LOCALHOST_ONLY=1` instead. It still works in Jazzy but has been deprecated since Iron, and it overrides the new settings. Real output with it set:
+
+```text
+$ ROS_LOCALHOST_ONLY=1 ros2 topic list
+[WARN] [1793624654.483755377] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793624654.483771133] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+/parameter_events
+/rosout
+```
+
+A misspelt value does not fail either: `ROS_AUTOMATIC_DISCOVERY_RANGE=LAN` prints `Invalid value 'LAN' specified for 'ROS_AUTOMATIC_DISCOVERY_RANGE', assuming localhost only`.
+
+### Firewalls and multicast
+
+When two computers should see each other and do not, test multicast before you blame ROS. Run one command on each machine:
+
+```bash
+ros2 multicast receive    # computer A
+ros2 multicast send       # computer B
+```
+
+Real output on the receiving side, here with both on one machine:
+
+```text
+Waiting for UDP multicast datagram...
+Received from 172.30.0.2:46989: 'Hello World!'
+```
+
+If nothing arrives, check that the network interface lists `MULTICAST` in `ip link` (or `ifconfig`), and check the firewall. With Ubuntu's ufw, the troubleshooting guide's fix is to allow UDP multicast traffic in both directions:
+
+```bash
+sudo ufw allow in proto udp to 224.0.0.0/4
+sudo ufw allow in proto udp from 224.0.0.0/4
+```
+
+On a network that does not pass multicast at all, `ROS_STATIC_PEERS` with the other computer's address is the way round it.
+
+<Quiz id="q5" question="Your terminal has ROS_DOMAIN_ID=2. Which UDP port carries the discovery multicast traffic?" answer={7900} tolerance={0} explanation="7400 + 250 × 2 = 7900; the user multicast port is one higher, 7901." />
+
+## Where to run it: native, WSL2, a container or a VM
+
+The install routes above answer how you get ROS 2; this section is about the kind of machine it runs on. Any of these four can run this lesson. They differ when the work touches hardware, graphics or other computers:
+
+| | Native Ubuntu 24.04 | WSL2 on Windows | Docker container | Virtual machine |
+| --- | --- | --- | --- | --- |
+| GUI (RViz, Gazebo) | native | WSLg, built in on Windows 11 and Windows 10 build 19044+ | needs the host's display passed in | yes, with slower graphics |
+| USB (serial adapter, lidar, camera) | direct | `usbipd` per device, see below | `--device=/dev/ttyUSB0` | the hypervisor's USB passthrough |
+| Other computers on the LAN | direct | NAT by default; mirrored networking adds multicast | `--network host` on a Linux host | NAT by default; use bridged networking |
+| Same as the robot | yes, if the robot runs Ubuntu 24.04 | no | the same image can run on the robot | no |
+
+WSL2 runs a real Linux kernel, and the Ubuntu route works inside it unchanged. Two things are different from a native install. USB devices stay with Windows until you attach them: install usbipd-win, then in an administrator PowerShell run `usbipd list`, `usbipd bind --busid 4-4` once per device, and `usbipd attach --wsl --busid 4-4` each time; `lsusb` in WSL then shows it, and Windows cannot use it until `usbipd detach --busid 4-4`. Networking is NAT by default, so nodes inside WSL2 do not discover nodes on other computers. Setting `networkingMode=mirrored` under `[wsl2]` in `%UserProfile%\.wslconfig` (Windows 11 22H2 or later) mirrors the Windows interfaces into Linux and adds multicast support.
+
+A container packages one exact environment. The ROS 2 documentation's Docker example is two commands, and the talker runs with nothing installed on the host but Docker:
+
+```bash
+docker pull osrf/ros:jazzy-desktop
+docker run -it --rm osrf/ros:jazzy-desktop ros2 run demo_nodes_cpp talker
+```
+
+By default the container sits on its own bridge network, isolated from your LAN. `--network host` makes it share the host's network stack, so DDS discovery behaves as if the nodes ran on the host; that works on Docker Engine on Linux, and on Docker Desktop only from version 4.34 and only as an opt-in. `--device` hands one device file, such as a serial adapter, to the container. Containers are how many teams ship software to a robot: the image you tested is the image that runs.
+
+A virtual machine (VirtualBox, VMware, UTM) is a full second computer. Its default NAT networking hides it from the LAN, just as a home router hides your laptop, so a robot cannot discover nodes in it; switch the VM's adapter to bridged networking to put it on the same subnet. 3D acceleration in a VM is usually weak, and Gazebo is the first program to notice.
+
+The choice matters more as the month goes on. [Lesson 4](/en/month/month-4/gazebo-sim) runs Gazebo, which wants working 3D graphics, and [Lesson 6](/en/month/month-4/slam-nav) runs SLAM and Nav2 together with RViz. If your setup struggles with RViz now, solve it before then: native Ubuntu or WSL2 with WSLg are the least work. When you reach a real robot, its computer usually runs native Ubuntu or a container, and your laptop joins it over the network in the same domain — everything in the networking section above applies as written.
+
 ## When it breaks
 
-Nearly every setup failure in the first week is one of four mistakes.
+Nearly every setup failure in the first weeks is one of the rows below. Read the symptom, run the check, and the check usually tells you which row you are in.
 
-- **Not sourced.** A new terminal does not know your workspace. Real output of `ros2 run m4_hello hello_node` in a terminal where only ROS itself is sourced:
+| Symptom | Likely cause | Check | Fix |
+| --- | --- | --- | --- |
+| `Package 'm4_hello' not found` | this terminal has not sourced the workspace, or the package was added after it was sourced | `printenv AMENT_PREFIX_PATH` has no `install/m4_hello` | `source ~/ros2_ws/install/setup.bash` |
+| `No executable found` | the package is found, but has no executable of that name: a typo, or a console script added to `setup.py` without a rebuild | `ros2 pkg executables m4_hello` lists the real names | use a listed name, or `colcon build` again |
+| another terminal or computer cannot see your topics | different `ROS_DOMAIN_ID`, `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` on one side, different RMW, or blocked multicast | `printenv ROS_DOMAIN_ID ROS_AUTOMATIC_DISCOVERY_RANGE RMW_IMPLEMENTATION` on both sides; across computers `ros2 multicast receive` / `send` | make the three values match; open the firewall for multicast, or use `ROS_STATIC_PEERS` |
+| `source` seemed to do nothing | the script ran in a child shell (`bash install/setup.bash` or `./install/setup.bash`), the path was wrong, or the shell is not bash | `printenv ROS_DISTRO`; `echo $0` shows the shell | use `source` or `.`, never `bash`; use `setup.zsh` in zsh; build before sourcing |
+| odd import errors, missing symbols, a warning that `ROS_DISTRO was set to 'humble' before` | two distros, or ROS 1 and ROS 2, loaded in one terminal, often from old `~/.bashrc` lines | `printenv ROS_DISTRO ROS_VERSION`; `printenv AMENT_PREFIX_PATH`; `grep -n 'source /opt/ros' ~/.bashrc` | keep one `source /opt/ros/jazzy/setup.bash` line, then open a new terminal |
+| `build/` and `install/` appear inside `src/` | `colcon build` was run inside `src/` | `ls ~/ros2_ws/src` | delete the stray folders and build from the workspace root |
+| Python errors after a conda environment was active | conda's Python shadows the system one that apt's ROS 2 was built for | `which python3`; `printenv PATH` | `conda deactivate`, or keep conda paths out of `PATH` in ROS terminals |
+| garbled text or encoding errors, typically in a fresh container | the locale is `POSIX` instead of a UTF-8 locale | `locale` | the locale block from the install section |
+| `colcon build` stalls or the board runs out of memory | too many compile jobs on a small computer such as a Raspberry Pi | `free -h` while building | `MAKEFLAGS=-j1 colcon build --executor sequential` |
+| RViz does not start on a Wayland desktop | Qt's Wayland back end | `echo $XDG_SESSION_TYPE` prints `wayland` | `QT_QPA_PLATFORM=xcb rviz2` |
 
-  ```text
-  Package 'm4_hello' not found
-  ```
+Three of those rows deserve a real output. Without the workspace sourced, the package itself is missing:
 
-  Fix: `source ~/ros2_ws/install/setup.bash` (after the ROS underlay). The package is not missing; the terminal simply has not been told where to look.
+```text
+Package 'm4_hello' not found
+```
 
-- **Building in the wrong folder.** Run `colcon build` from the workspace root, never inside `src/`. If you build inside `src/`, you get `build/` and `install/` folders inside your source tree and a confusing second workspace that competes with the first. If that happens, delete the stray folders and rebuild from the root.
+With the workspace sourced but a wrong name, `ros2 run m4_hello hello` gets further — it finds the package — and fails one step later:
 
-- **Mixing distros.** Sourcing Humble and Jazzy in the same terminal — often from an old `~/.bashrc` line — gives errors that look like broken packages, missing symbols or Python import failures. Check with `printenv ROS_DISTRO` and make sure it says `jazzy`. Then look at what your shell startup files source.
+```text
+No executable found
+```
 
-- **Nodes that cannot see each other, or see too much.** ROS 2 discovers every node on the same network with the same `ROS_DOMAIN_ID`, which defaults to 0. On a shared network (university, office), you will see strangers' nodes and they will see yours. Set your own domain, for example `export ROS_DOMAIN_ID=42` (any number from 0 to 101 is safe), or stay on your computer with `export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST`. Two terminals with different domain IDs will never hear each other, so when a topic "publishes but nothing receives", check this first. Lesson 2 covers the other cause, QoS.
+`ros2 pkg executables m4_hello` prints `m4_hello hello_node`, which is the name to use. The domain example in the networking section is the third: no error at all, just topics that are not there. When a topic "publishes but nothing receives" inside one domain, the other cause is QoS, which Lesson 2 covers.
+
+The locale row is the one the site editor could not reproduce: Python 3.12 switches a plain C or POSIX locale to UTF-8 on its own, so the ROS 2 tools ran normally. The install page still requires a UTF-8 locale, and other programs in a minimal container are less forgiving, so fix it rather than rely on that.
 
 <Quiz id="q4" question="In a new terminal, ros2 run m4_hello hello_node prints: Package 'm4_hello' not found. The package built without errors. What do you do?" options={["rebuild with colcon build --symlink-install", "source install/setup.bash from the workspace in this terminal", "reinstall ROS 2 Jazzy", "start roscore first"]} answer={1} explanation="Each terminal must source the workspace overlay; roscore is ROS 1 and does not exist in ROS 2." />
 

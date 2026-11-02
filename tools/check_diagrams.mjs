@@ -1760,7 +1760,7 @@ const lessonRef = (n, slug, lang) => {
   }
   // cad-parametric: 100 % solid mass vs slicer 15–20 % infill (estimate, not a measured mass).
   const cadInf = { solid: 100, lo: 15, hi: 20 };
-  for (const [lang, q] of [
+  for (const [lang] of [
     ["en", `The ${cadInf.solid} % solid part. The slicer's estimate with walls and ${cadInf.lo}–${cadInf.hi} % infill will be lower.`],
     ["zh", `${cadInf.solid} % 实心零件的质量；切片器按壁厚和 ${cadInf.lo}–${cadInf.hi} % 填充估算会更低`],
   ]) {
@@ -1959,26 +1959,26 @@ const lessonRef = (n, slug, lang) => {
     ok(text.includes(hzWall) && text.includes("`--use-sim-time`"), `m4 gazebo-sim ${lang}: ros2 topic hz wall-clock note`);
     // Audit fixes: gpu_lidar sees visuals; headless RTF via /stats; default server.config; DART; noise; floor contact.
     const must = lang === "en" ? [
-      "for a `gpu_lidar`, hit the **visual** geometry the renderer draws (not the collision shapes)",
+      "for a `gpu_lidar`, they hit the **visual** geometry the renderer draws, not the collision shapes",
       "unless you hide it with `<visibility_flags>`",
       "a `gpu_lidar` renders visuals, so that fin still appears in the scan",
       "loads `Physics`, `UserCommands` and `SceneBroadcaster` — but not `Sensors`",
       "As soon as the world lists any plugin, that default file is not loaded at all",
       "Gazebo Harmonic solves contact with DART (`gz-physics-dartsim-plugin`)",
-      "Unless the Physics plugin selects another engine (its `<engine><filename>` element, or `gz sim --physics-engine`)",
+      "Unless another engine is selected (`gz sim --physics-engine`, highest priority; or the Physics plugin's `<engine><filename>`)",
       "the `type` attribute on `<physics>` does not choose it",
       "but the default DART plugin does not read those two",
       "rather than shrinking `max_step_size`",
       "a close-range blind zone; Gazebo's lidar models none of those by default",
       "wheel/caster collisions neither sink into nor float above the floor",
     ] : [
-      "对 `gpu_lidar` 来说，打到的是渲染出来的 **visual** 几何（不是 collision）",
+      "对 `gpu_lidar` 来说，打到的是渲染出来的 **visual** 几何，而不是 collision",
       "除非用 `<visibility_flags>` 屏蔽",
       "`gpu_lidar` 渲染的是 visual，所以这块薄片照样会出现在激光扫描里",
       "加载 `Physics`、`UserCommands` 和 `SceneBroadcaster`——但不加载 `Sensors`",
       "只要世界里写了任意一个插件，这份默认文件就完全不加载",
       "Gazebo Harmonic 默认用 DART（`gz-physics-dartsim-plugin`）",
-      "除非 Physics 插件选了另一个引擎（插件里的 `<engine><filename>`，或 `gz sim --physics-engine`）",
+      "除非另选了引擎（`gz sim --physics-engine`，优先级最高；或 Physics 插件里的 `<engine><filename>`）",
       "`<physics>` 上的 `type` 属性并不决定引擎",
       "但默认的 DART 插件并不读取这两项",
       "而不是调小 `max_step_size`",
@@ -1991,7 +1991,7 @@ const lessonRef = (n, slug, lang) => {
     const statsQ = `\`gz topic -e -t /world/${gzWorldName}/stats -n 1\``;
     const statsN = text.split(statsQ).length - 1;
     ok(statsN === 2 && text.includes("`real_time_factor`"), `m4 gazebo-sim ${lang}: ${statsQ} must appear twice (A + G table) with the real_time_factor field, found ${statsN}`);
-    const stale = lang === "en" ? ["-t /stats", "Unless a world names another engine", "hit the **collision** meshes", "server console", "never snags the lidar", "intersecting the floor wrongly"] : ["-t /stats", "除非世界文件指定别的引擎", "碰到的是**碰撞**网格", "服务器控制台", "免得绊住激光", "错误插入地板"];
+    const stale = lang === "en" ? ["-t /stats", "Unless a world names another engine", "hit the **collision** meshes", "server console", "never snags the lidar", "intersecting the floor wrongly", "Unless the Physics plugin selects another engine", "(not the collision shapes) —"] : ["-t /stats", "除非世界文件指定别的引擎", "碰到的是**碰撞**网格", "服务器控制台", "免得绊住激光", "错误插入地板", "除非 Physics 插件选了另一个引擎", "（不是 collision）——"];
     for (const q of stale) ok(!text.includes(q), `m4 gazebo-sim ${lang}: stale claim ${JSON.stringify(q)} must be gone`);
   }
   {
@@ -2002,6 +2002,120 @@ const lessonRef = (n, slug, lang) => {
       ok(gl.includes(q), `m4 gazebo-sim glossary: expected ${JSON.stringify(q)}`);
     for (const q of ["-t /stats", "Lidar rays also hit collision meshes", "激光也打在碰撞网格上", "server console", "服务器控制台"])
       ok(!gl.includes(q), `m4 gazebo-sim glossary: stale claim ${JSON.stringify(q)} must be gone`);
+  }
+
+  {
+    // ros2-setup thickening: DDS port arithmetic (Jazzy "The ROS_DOMAIN_ID" page), quoted commands (Jazzy install,
+    // troubleshooting, colcon and rosdep docs), real outputs (examples/month-4/expected, made by check.sh), Terms, links.
+    const port = (D, P = null) => (P === null ? 7400 + 250 * D : 7400 + 250 * D + 10 + 2 * P);
+    const UDP_MAX = 65535, LINUX_EPH_LO = 32768, LINUX_EPH_HI = 60999, OTHER_EPH_LO = 49152;
+    const maxDomain = Math.floor((UDP_MAX - 7400 - 11) / 250);                 // first process still fits below 65536
+    const linuxSafeHi = Math.floor((LINUX_EPH_LO - 1 - 7400 - 11) / 250);      // first process below the ephemeral pool
+    const linuxSafeLo = Math.ceil((LINUX_EPH_HI + 1 - 7400) / 250);            // whole domain above the pool
+    const otherSafeHi = Math.floor((OTHER_EPH_LO - 1 - 7400 - 11) / 250);
+    const fit101 = Math.floor((LINUX_EPH_LO - 1 - (port(101) + 11)) / 2) + 1;  // processes in domain 101 below 32768
+    const spill = (250 - 10) / 2;                                              // P at which unicast reaches the next domain
+    const kiltedEol = [2025, 2026], kiltedMonths = (kiltedEol[1] - kiltedEol[0]) * 12 + (11 - 5);   // REP 2000: "Kilted Kaiju (May 2025 - November 2026)"
+    ok(kiltedMonths === 18, `m4 ros2-setup: Kilted May 2025 → November 2026 must be 18 months, got ${kiltedMonths}`);
+    // Safe domains: every port of domains 0–101 below the Linux pool, every port of 215–232 above it (port(215) > 60999 ≥ port(214)).
+    ok(port(linuxSafeLo) > LINUX_EPH_HI && port(linuxSafeLo - 1) <= LINUX_EPH_HI && port(linuxSafeHi, 0) + 1 < LINUX_EPH_LO && port(otherSafeHi, 0) + 1 < OTHER_EPH_LO,
+      `m4 ros2-setup: safe-range edges must follow the ephemeral pools ${LINUX_EPH_LO}–${LINUX_EPH_HI} / ${OTHER_EPH_LO}–${UDP_MAX}`);
+    ok(port(2) + 250 === port(3) && port(1, spill) === port(2), `m4 ros2-setup: ${spill} processes spill into the next domain`);
+    ok(maxDomain === 232 && linuxSafeHi === 101 && linuxSafeLo === 215 && otherSafeHi === 166 && fit101 === 54 && spill === 120,
+      `m4 ros2-setup: domain limits ${maxDomain}/${linuxSafeHi}/${linuxSafeLo}/${otherSafeHi}/${fit101}/${spill} must be 232/101/215/166/54/120`);
+    const exp4 = (n) => rd4(`examples/month-4/expected/${n}`);
+    const maskOut = (s) => s.replace(/\[(WARN|INFO)\] \[\d+\.\d+\]/g, "[$1] [T]").replace(/from [\d.]+:\d+/g, "from IP:PORT");
+    const outputs = ["ros-no_executable.txt", "ros-pkg_executables.txt", "ros-fresh_shells.txt", "ros-distro_check.txt", "ros-doctor_rmw.txt",
+      "ros-rmw_missing.txt", "ros-domain_errors.txt", "ros-domain_mismatch.txt", "ros-localhost_only.txt", "ros-range_invalid.txt", "ros-multicast.txt"];
+    const sh4 = rd4("examples/month-4/check.sh");
+    const inline = new Set(["ros-pkg_executables.txt", "ros-rmw_missing.txt", "ros-range_invalid.txt"]);   // quoted inside a sentence
+    const gl = rd4("src/lib/glossary.ts");
+    const terms = ["dds", "colcon", "rosdep", "underlay", "overlay", "rmw", "domain-id"];
+    for (const id of terms) {
+      const m = gl.match(new RegExp(`id: "${id}",[\\s\\S]*?\\n  \\},`));
+      ok(m && m[0].includes('lesson: "ros2-setup"') && m[0].includes("firstExplained: true"), `m4 ros2-setup glossary: ${id} must be lesson ros2-setup, firstExplained`);
+    }
+    for (const lang of ["en", "zh"]) {
+      const text = rd4(`src/content/m4/ros2-setup/${lang}.mdx`);
+      const L = `m4 ros2-setup ${lang}`;
+      const nums = lang === "en" ? [
+        `For domain 1 that gives ${port(1)} and ${port(1) + 1} for multicast, and ${port(1, 0)} and ${port(1, 0) + 1} for the first process`,
+        `the largest usable domain is ${maxDomain}`,
+        `Linux's default ephemeral ports are ${LINUX_EPH_LO}–${LINUX_EPH_HI} (set in \`/proc/sys/net/ipv4/ip_local_port_range\`)`,
+        `Domains 0–${linuxSafeHi} stay below it and ${linuxSafeLo}–${maxDomain} above it, which is why the documentation calls 0–${linuxSafeHi} the safe range on Linux, plus ${linuxSafeLo}–${maxDomain}. macOS and Windows use ${OTHER_EPH_LO}–${UDP_MAX}, so there it is 0–${otherSafeHi}`,
+        `| Kilted Kaiju | May ${kiltedEol[0]} | November ${kiltedEol[1]} | 24.04 |`, `dies in November ${kiltedEol[1]}, which is ${kiltedMonths} months`,
+        `its multicast ports are ${port(101)} and ${port(101) + 1}, the first process uses ${port(101, 0)} and ${port(101, 0) + 1}, and only ${fit101} processes fit before the ports run into ${LINUX_EPH_LO}`,
+        `more than ${spill} processes on one computer may spill`,
+        `108 repositories`,
+      ] : [
+        `域 1 的组播端口是 ${port(1)} 和 ${port(1) + 1}，第一个进程用 ${port(1, 0)} 和 ${port(1, 0) + 1}`,
+        `能用的最大域是 ${maxDomain}`,
+        `Linux 默认的临时端口是 ${LINUX_EPH_LO}–${LINUX_EPH_HI}（在 \`/proc/sys/net/ipv4/ip_local_port_range\` 里设置）`,
+        `域 0–${linuxSafeHi} 都在它下面，${linuxSafeLo}–${maxDomain} 都在它上面，所以文档把 0–${linuxSafeHi} 称为 Linux 上的安全范围，另加 ${linuxSafeLo}–${maxDomain}。macOS 和 Windows 用的是 ${OTHER_EPH_LO}–${UDP_MAX}，所以 macOS 和 Windows 上是 0–${otherSafeHi}`,
+        `| Kilted Kaiju | ${kiltedEol[0]} 年 5 月 | ${kiltedEol[1]} 年 11 月 | 24.04 |`, `${kiltedEol[1]} 年 11 月停止支持，中间 ${kiltedMonths} 个月`,
+        `它的组播端口是 ${port(101)} 和 ${port(101) + 1}，第一个进程用 ${port(101, 0)} 和 ${port(101, 0) + 1}，端口撞上 ${LINUX_EPH_LO} 之前只放得下 ${fit101} 个进程`,
+        `跑超过 ${spill} 个进程时，端口可能溢出`,
+        `108 个要克隆并构建的仓库`,
+      ];
+      for (const q of nums) ok(text.includes(q), `${L}: expected ${JSON.stringify(q)}`);
+      for (const f of ["discovery multicast   7400 + 250·D", "user multicast        7400 + 250·D + 1", "discovery unicast     7400 + 250·D + 10 + 2·P", "user unicast          7400 + 250·D + 11 + 2·P"])
+        ok(text.includes(f), `${L}: port formula ${JSON.stringify(f)}`);
+      const q5 = text.match(/<Quiz id="q5" question="[^"]*ROS_DOMAIN_ID=(\d+)[^"]*"[^>]*answer=\{(\d+)\} tolerance=\{0\} explanation="([^"]*)"/);
+      ok(q5 && Number(q5[2]) === port(Number(q5[1])) && q5[3].includes(`7400 + 250 × ${q5[1]} = ${port(Number(q5[1]))}`) && q5[3].includes(`${port(Number(q5[1])) + 1}`),
+        `${L}: q5 answer must be 7400+250·D (${q5 ? q5.slice(1, 3).join("→") : "missing"})`);
+      // Commands and settings quoted from the Jazzy docs (install page, troubleshooting, colcon tutorial, rosdep, WSL docs).
+      const cmds = ["sudo locale-gen en_US en_US.UTF-8", "sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8", "sudo apt update\nsudo apt upgrade\nsudo apt install ros-jazzy-desktop", "sudo apt update && sudo apt install ros-dev-tools", "sudo dpkg -i /tmp/ros2-apt-source.deb",
+        "sudo apt install ros-jazzy-desktop", "Suites: noble noble-updates noble-backports", "sudo apt remove '~nros-jazzy-*' && sudo apt autoremove",
+        "sudo rosdep init", "rosdep update", "rosdep install --from-paths src --ignore-src -y", "#All required rosdeps installed successfully",
+        "/etc/ros/rosdep/sources.list.d", "ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST", "ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET", "ROS_AUTOMATIC_DISCOVERY_RANGE=OFF",
+        "ROS_AUTOMATIC_DISCOVERY_RANGE=SYSTEM_DEFAULT", 'ROS_STATIC_PEERS="192.168.0.1;remote.com"', "export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp",
+        "sudo ufw allow in proto udp to 224.0.0.0/4", "sudo ufw allow in proto udp from 224.0.0.0/4", "QT_QPA_PLATFORM=xcb rviz2",
+        "sudo apt clean && sudo apt update && sudo apt full-upgrade -y", "sudo apt remove ros2-apt-source", "/opt/ros/jazzy/lib/python3.12/site-packages",
+        "MAKEFLAGS=-j1 colcon build --executor sequential", "colcon build --symlink-install", "networkingMode=mirrored", "usbipd attach --wsl --busid 4-4", "--network host"];
+      for (const q of cmds) ok(text.includes(q), `${L}: expected command ${JSON.stringify(q)}`);
+      // Real outputs: every line of the expected file appears in the lesson (log timestamps and the sender's address masked).
+      const mt = maskOut(text);
+      for (const f of outputs) {
+        ok(sh4.includes(`check ${f}`), `m4 ros2-setup: check.sh must produce ${f}`);
+        const out = maskOut(exp4(f)).trimEnd();
+        if (inline.has(f)) for (const line of out.split("\n")) ok(mt.includes(line.replace("[WARN] [T] [rcl]: ", "")), `${L}: real output line from ${f} missing: ${JSON.stringify(line)}`);
+        else ok(mt.includes("```text\n" + out + "\n```"), `${L}: real output ${f} must be quoted as one whole text block`);
+      }
+      for (const id of terms) {
+        const n = text.split(`<Term id="${id}">`).length - 1;
+        ok(n === 1, `${L}: <Term id="${id}"> must appear exactly once, found ${n}`);
+      }
+      for (const l of ["gazebo-sim", "slam-nav"]) ok(text.includes(`](/${lang}/month/month-4/${l})`), `${L}: link to ${l}`);
+      // Review fixes (Jazzy Improved-Dynamic-Discovery, About-Domain-ID, Ubuntu-Install-Debs, REP 2000): the corrected claims must be there.
+      const facts = lang === "en" ? [
+        "| `ROS_AUTOMATIC_DISCOVERY_RANGE=OFF` | discovers nothing, not even other nodes on this computer; `ROS_STATIC_PEERS` is ignored too |",
+        '| `ROS_STATIC_PEERS="192.168.0.1;remote.com"` | these hosts are added on top of the range, but ignored when the range is `OFF`; separate entries with `;` |',
+        "if either node has the range set to `OFF`, the two never connect",
+        'REP 2000, which gives Kilted "May 2025 - November 2026"', "Jazzy's Tier 1 platforms are Ubuntu 24.04, with deb packages for amd64 and arm64, and Windows 10, as a binary archive",
+        "RHEL 9 is Tier 2", "The first line only checks; the four after it install and set the locale",
+        "may only include the base `noble` suite", "come from the site's pixi environment",
+        "A new `.py` file inside an existing package directory takes effect at once, because that whole directory is linked", "`import m4_hello.newmod` worked without a rebuild", "A new launch or other data file, a new entry point in `setup.py`, or a new top-level package still needs `colcon build`", "macOS, Debian 12 and OpenEmbedded/Yocto are Tier 3", "the Noble `ros-jazzy-rclpy` deb unpacks `rclpy` there",
+      ] : [
+        "| `ROS_AUTOMATIC_DISCOVERY_RANGE=OFF` | 什么都不发现，连本机上的其他节点也不发现；`ROS_STATIC_PEERS` 同样不生效 |",
+        '| `ROS_STATIC_PEERS="192.168.0.1;remote.com"` | 在范围之外再加上这些主机，但范围为 `OFF` 时会被忽略；多个条目用 `;` 分隔 |',
+        "只要任意一方把范围设成 `OFF`，两个节点就连不上",
+        "以 REP 2000 为准，它给 Kilted 写的是“May 2025 - November 2026”", "Jazzy 的 Tier 1 是 Ubuntu 24.04（amd64 和 arm64，提供 deb 包）和 Windows 10（提供二进制压缩包）",
+        "RHEL 9 是 Tier 2", "第一行只是检查，后面四行才是安装并设置 locale",
+        "apt 源可能只包含基础的 `noble` 套件", "来自本站的 pixi 环境",
+        "已有包目录内新增的 `.py` 文件会通过目录符号链接直接生效", "不重新构建就能 `import m4_hello.newmod`", "新增 launch 等数据文件、`setup.py` 里新增入口点、或新增顶层包，仍需 `colcon build`", "macOS、Debian 12 和 OpenEmbedded/Yocto 是 Tier 3", "Noble 的 `ros-jazzy-rclpy` deb 包里，`rclpy` 就在这个路径下",
+      ];
+      for (const q of facts) ok(text.includes(q), `${L}: expected corrected claim ${JSON.stringify(q)}`);
+      const stale = lang === "en" ? ["In a new terminal you need both, in that order", "one of four mistakes", "47 repositories", "ROS_LOCALHOST_ONLY=1 is the recommended",
+        "always try these hosts", "no automatic discovery at all", "range above 32767", "the five lines", "| December 2026 |", "dies in December 2026", "19 months", "about two months",
+        "one Ubuntu LTS as its Tier 1 platform", "lists only `noble`", "your workspace above installs into",
+        "a new module", "Symlinks also only cover files that already exist", "macOS and Debian 12 are Tier 3"]
+        : ["新终端里两条都要", "四个错误之一", "47 个", "推荐用 ROS_LOCALHOST_ONLY",
+        "总是尝试这些主机", "完全不自动发现", "32767 以上", "那五行", "| 2026 年 12 月 |", "2026 年 12 月停止支持", "19 个月", "约两个月",
+        "都有一个作为 Tier 1 的 Ubuntu LTS", "只写了 `noble`", "上面的工作空间装进的是",
+        "新加的模块", "新模块", "符号链接也只覆盖已经存在的文件", "macOS 和 Debian 12 是 Tier 3"];
+      for (const q of stale) ok(!text.includes(q), `${L}: stale claim ${JSON.stringify(q)} must be gone`);
+    }
+    console.log(`calc  m4 ros2-setup: ports 7400+250·D (+1, +10+2P, +11+2P): D1 ${port(1)}/${port(1, 0)}, D2 ${port(2)}, D101 ${port(101)}/${port(101, 0)} → ${fit101} procs; max domain ${maxDomain}; safe Linux 0–${linuxSafeHi} & ${linuxSafeLo}–${maxDomain}, macOS/Win 0–${otherSafeHi}; spill > ${spill}; Kilted ${kiltedMonths} months; ${outputs.length} real outputs and ${terms.length} Terms bound in en/zh`);
   }
 
   console.log(`calc  m4 gaps: Construct €39.97 + pixi 5.8 GB; EMA α=0.5 @k67–69 ${a05.map((x) => x.toFixed(4)).join(", ")} / α=0.2 replay ${a02.map((x) => x.toFixed(4)).join(", ")}; teleop held ${teleopHeld} m vs 1.15 m; staleness ${stale} m; footprint +${fpFwd}/${fpBack}/±${fpY} (exact side ${fpYExact}); r/b 10 % → ${r10}/${b10}, turn ×${turnFactor.toFixed(2)}; inflation (254−1)·exp(−${costScale}·(d−r_ins)) out to ${inflR} m; smear ${smearTour} rad @ ${turnClamp} rad/s / ${lidarRate} Hz; Isaac 4080/16/32 Oct 2026; MuJoCo IROS 2012; gz step ${maxStepGz}/RTF ${rtfGz}, lidar σ ${lidarStd}/min ${lidarMin}, hand ${handRange} m; bound in en/zh`);

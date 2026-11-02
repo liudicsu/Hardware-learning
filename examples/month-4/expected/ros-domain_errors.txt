@@ -1,0 +1,2 @@
+Calculated port number is too high. Probably the domainId is over 232 or portBase is too high.
+failed to initialize rcl: ROS_DOMAIN_ID is not an integral number

@@ -1,0 +1,10 @@
+$ source ~/ros2_ws/install/local_setup.bash
+$ printenv AMENT_PREFIX_PATH
+/home/you/ros2_ws/install/m4_hello
+$ command -v ros2 || echo 'ros2 not on PATH'
+ros2 not on PATH
+$ source ~/ros2_ws/install/setup.bash
+$ printenv ROS_DISTRO
+jazzy
+$ ros2 pkg prefix m4_hello
+/home/you/ros2_ws/install/m4_hello

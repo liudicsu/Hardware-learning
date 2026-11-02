@@ -1500,6 +1500,76 @@ export const glossary: GlossaryEntry[] = [
     lesson: "gazebo-sim",
     firstExplained: true,
   },
+  {
+    id: "dds",
+    term: { zh: "DDS", en: "DDS" },
+    def: {
+      zh: "Data Distribution Service：ROS 2 默认使用的发布/订阅中间件标准。节点通过 UDP 组播自动发现彼此，不需要 ROS 1 那样的中央 master。",
+      en: "Data Distribution Service: the publish/subscribe middleware standard ROS 2 uses by default. Nodes discover each other automatically over UDP multicast, with no central master as in ROS 1.",
+    },
+    lesson: "ros2-setup",
+    firstExplained: true,
+  },
+  {
+    id: "colcon",
+    term: { zh: "colcon", en: "colcon" },
+    def: {
+      zh: "ROS 2 的构建工具。它找到目录下所有带 package.xml 的包，按依赖排序，再调用每个包自己的构建系统（CMake 或 setup.py），结果放进 build/、install/ 和 log/。",
+      en: "The ROS 2 build tool. It finds every package with a package.xml below the folder it runs in, orders them by dependency and calls each package's own build system (CMake or setup.py), writing build/, install/ and log/.",
+    },
+    lesson: "ros2-setup",
+    firstExplained: true,
+  },
+  {
+    id: "rosdep",
+    term: { zh: "rosdep", en: "rosdep" },
+    def: {
+      zh: "把 package.xml 里的依赖 key（如 rclpy、std_msgs）翻译成当前平台的系统包并安装的工具。首次使用要 sudo rosdep init 和 rosdep update，之后在工作空间里运行 rosdep install --from-paths src --ignore-src -y。",
+      en: "The tool that turns the dependency keys in package.xml (such as rclpy or std_msgs) into your platform's system packages and installs them. First use needs sudo rosdep init and rosdep update; then run rosdep install --from-paths src --ignore-src -y in a workspace.",
+    },
+    lesson: "ros2-setup",
+    firstExplained: true,
+  },
+  {
+    id: "underlay",
+    term: { zh: "underlay（底层）", en: "underlay" },
+    def: {
+      zh: "你的工作空间在其上构建的那套 ROS 2，例如 apt 安装的 /opt/ros/jazzy。它必须包含 overlay 里每个包的依赖。",
+      en: "The ROS 2 your workspace builds on, such as /opt/ros/jazzy from apt. It must contain the dependencies of every package in the overlay.",
+    },
+    lesson: "ros2-setup",
+    firstExplained: true,
+  },
+  {
+    id: "overlay",
+    term: { zh: "overlay（覆盖层）", en: "overlay" },
+    def: {
+      zh: "工作空间的 install/ 目录：在 underlay 之上叠加你的包而不修改它，同名包会覆盖 underlay 里的。install/setup.bash 会连同构建时的 underlay 一起加载，local_setup.bash 只加载本工作空间。",
+      en: "A workspace's install/ folder: it adds your packages on top of the underlay without modifying it, and a package of the same name overrides the underlay's. install/setup.bash loads it together with the build-time underlay; local_setup.bash loads only this workspace.",
+    },
+    lesson: "ros2-setup",
+    firstExplained: true,
+  },
+  {
+    id: "rmw",
+    term: { zh: "RMW", en: "RMW" },
+    def: {
+      zh: "ROS middleware interface：ROS 2 与底层中间件之间的接口层。Jazzy 默认 rmw_fastrtps_cpp（Fast DDS），可以用环境变量 RMW_IMPLEMENTATION 在运行时换成 rmw_cyclonedds_cpp 等；一个系统里的节点应使用同一个 RMW。",
+      en: "ROS middleware interface: the layer between ROS 2 and the middleware underneath. Jazzy defaults to rmw_fastrtps_cpp (Fast DDS); the RMW_IMPLEMENTATION environment variable swaps it at runtime, for example to rmw_cyclonedds_cpp. Nodes in one system should use the same RMW.",
+    },
+    lesson: "ros2-setup",
+    firstExplained: true,
+  },
+  {
+    id: "domain-id",
+    term: { zh: "域 ID（ROS_DOMAIN_ID）", en: "domain ID (ROS_DOMAIN_ID)" },
+    def: {
+      zh: "决定哪些节点互相发现的整数，默认 0，由 ROS_DOMAIN_ID 设置。DDS 把它换算成 UDP 端口（发现组播端口 = 7400 + 250 × 域号）；Linux 上安全范围是 0–101 和 215–232。不同域的节点互相看不见，且不报错。",
+      en: "The integer that decides which nodes discover each other, 0 by default, set with ROS_DOMAIN_ID. DDS turns it into UDP ports (discovery multicast = 7400 + 250 × domain); on Linux the safe range is 0–101 and 215–232. Nodes in different domains never see each other, and nothing reports an error.",
+    },
+    lesson: "ros2-setup",
+    firstExplained: true,
+  },
 
 ];
 
