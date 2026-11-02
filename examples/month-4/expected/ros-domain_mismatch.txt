@@ -1,0 +1,7 @@
+$ ROS_DOMAIN_ID=8 ros2 topic list
+/parameter_events
+/rosout
+$ ROS_DOMAIN_ID=7 ros2 topic list
+/chatter
+/parameter_events
+/rosout

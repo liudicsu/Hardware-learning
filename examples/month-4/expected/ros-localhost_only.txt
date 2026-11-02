@@ -1,0 +1,5 @@
+$ ROS_LOCALHOST_ONLY=1 ros2 topic list
+[WARN] [1793625129.877507914] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793625129.877537179] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+/parameter_events
+/rosout

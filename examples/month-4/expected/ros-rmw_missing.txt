@@ -1,0 +1,2 @@
+RMW implementation not installed (expected identifier of 'rmw_foo')
+failed to load shared library 'librmw_foo.so'

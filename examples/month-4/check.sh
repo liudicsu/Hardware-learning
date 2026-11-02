@@ -59,6 +59,40 @@ hello_graph() {
   pkill -INT -f 'lib/m4_hello/hello_node'; wait
 }
 check ros-hello_graph.txt --tol 0.05 --mask 'hello #[0-9]+' hello_graph
+# The setup diagnostics quoted in "What source changes", "Networking" and "When it breaks"
+check ros-no_executable.txt   ros2 run m4_hello hello
+check ros-pkg_executables.txt ros2 pkg executables m4_hello
+fresh_shells() {   # local_setup.bash vs setup.bash, each in a shell that has no ROS loaded at all
+  env -i HOME="$HOME" PATH=/usr/bin:/bin bash --norc -c "
+    echo '\$ source ~/ros2_ws/install/local_setup.bash'; source '$WS/install/local_setup.bash'
+    echo '\$ printenv AMENT_PREFIX_PATH'; printenv AMENT_PREFIX_PATH
+    echo \"\\\$ command -v ros2 || echo 'ros2 not on PATH'\"; command -v ros2 || echo 'ros2 not on PATH'"
+  env -i HOME="$HOME" PATH=/usr/bin:/bin bash --norc -c "
+    echo '\$ source ~/ros2_ws/install/setup.bash'; source '$WS/install/setup.bash'
+    echo '\$ printenv ROS_DISTRO'; printenv ROS_DISTRO
+    echo '\$ ros2 pkg prefix m4_hello'; ros2 pkg prefix m4_hello"
+}
+check ros-fresh_shells.txt bash -c "$(declare -f fresh_shells); WS='$WS'; fresh_shells 2>&1 | sed 's|$WS|/home/you/ros2_ws|g'"
+check ros-distro_check.txt bash -c "ROS_DISTRO=humble; source '$WS/install/setup.bash' 2>&1 >/dev/null | grep 'was set to'"
+check ros-doctor_rmw.txt   bash -c "ros2 doctor --report 2>/dev/null | grep '^middleware name'"
+check ros-rmw_missing.txt  bash -c "RMW_IMPLEMENTATION=rmw_foo ros2 run demo_nodes_cpp talker 2>&1 | grep -o -e \"RMW implementation not installed (expected identifier of 'rmw_foo')\" -e \"failed to load shared library 'librmw_foo.so'\""
+check ros-domain_errors.txt bash -c "ROS_DOMAIN_ID=233 timeout -s INT 5 ros2 run demo_nodes_cpp talker 2>&1 | grep -x 'Calculated port number.*'; \
+  ROS_DOMAIN_ID=abc timeout -s INT 5 ros2 run demo_nodes_cpp talker 2>&1 | grep -o 'failed to initialize rcl: ROS_DOMAIN_ID is not an integral number'"
+domain_mismatch() {
+  ROS_DOMAIN_ID=7 timeout -s INT 20 ros2 run demo_nodes_cpp talker > /dev/null 2>&1 &
+  sleep 2
+  echo '$ ROS_DOMAIN_ID=8 ros2 topic list'; ROS_DOMAIN_ID=8 ros2 topic list --no-daemon --spin-time 3
+  echo '$ ROS_DOMAIN_ID=7 ros2 topic list'; ROS_DOMAIN_ID=7 ros2 topic list --no-daemon --spin-time 3
+  pkill -INT -f 'demo_nodes_cpp/talker'; wait
+}
+check ros-domain_mismatch.txt domain_mismatch
+check ros-localhost_only.txt bash -c "echo '\$ ROS_LOCALHOST_ONLY=1 ros2 topic list'; ROS_LOCALHOST_ONLY=1 ros2 topic list --no-daemon 2>&1"
+check ros-range_invalid.txt  bash -c "ROS_AUTOMATIC_DISCOVERY_RANGE=LAN ros2 topic list --no-daemon 2>&1 | grep WARN"
+multicast() {
+  timeout 6 ros2 multicast receive > "$TMP/mc" 2>&1 & sleep 1
+  ros2 multicast send > /dev/null 2>&1; wait; cat "$TMP/mc"
+}
+check ros-multicast.txt --mask 'from [0-9.]+:[0-9]+' multicast
 
 # ---- Lesson 2: a graph with custom interfaces, a C++ node, a launch file and a bag ----------
 WS2="$TMP/graph_ws"; mkdir -p "$WS2/src"; cp -r "$M4/ros2-graph/"m4_* "$WS2/src/"
