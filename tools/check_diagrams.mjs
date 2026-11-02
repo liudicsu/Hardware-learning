@@ -2796,7 +2796,8 @@ for (const m of readdirSync(content)) {
         const text = rdB(`src/content/${lesson}/${lang}.mdx`);
         for (const f of fs) ok(text.includes(f), `m4 paths ${lesson} ${lang}: expected ${JSON.stringify(f)}`);
       }
-      // Every clone of the course repository is made from ~, and every cd into it is either right after that clone or absolute.
+      // Every clone of the course repository is made from ~, and every cd into it is absolute, even right after the clone: a reader
+      // who already has the clone runs "cd ~/Hardware-learning && git pull" instead (ros2-setup), and is then inside it.
       for (const lesson of ["m1/git-github", "m4/ros2-setup", "m4/ros2-graph", ...Object.keys(lessons).map((l) => "m4/" + l)]) {
         const tag = `m4 paths ${lesson} ${lang}`, text = rdB(`src/content/${lesson}/${lang}.mdx`);
         for (const st of stale3) ok(!text.includes(st), `${tag}: stale ${JSON.stringify(st)} must be gone`);
@@ -2806,7 +2807,7 @@ for (const m of readdirSync(content)) {
             if (l.startsWith(GC)) ok(L[i - 1] === "cd ~", `${tag}: the git clone of the course repository must follow "cd ~"`);
             const m = l.match(/^cd (~\/)?Hardware-learning(\/\S*)?/);
             if (m) {
-              ok(m[1] || (L[i - 1] ?? "").startsWith(GC), `${tag}: "${l}" is relative, so it must come right after the clone`);
+              ok(m[1], `${tag}: "${l}" is relative to wherever the reader is; write cd ~/Hardware-learning/...`);
               ok(existsSync(join(root, (m[2] ?? "/").slice(1))), `${tag}: "${l}" names a folder the repository does not have`);
             }
           });
@@ -2825,9 +2826,9 @@ for (const m of readdirSync(content)) {
       // git clone into an existing ~/Hardware-learning fails ("destination path ... already exists"), so Month 1 readers pull instead
       const PB = lang === "en" ? ["# pixi's installer only adds ~/.pixi/bin to new shells", "# cloned in Month 1 already? run cd ~/Hardware-learning && git pull instead"]
         : ["# 安装脚本只把 ~/.pixi/bin 加进新终端的 PATH", "# 第 1 个月已经克隆过？改为运行 cd ~/Hardware-learning && git pull"];
-      ok(s1.includes("```bash\ncurl -fsSL https://pixi.sh/install.sh | bash\nsource ~/.bashrc   " + PB[0] + "\ncd ~\n" + GC + "   " + PB[1] + "\ncd Hardware-learning/examples/month-4\npixi install\npixi shell\n```"), `m4 paths ros2-setup ${lang}: pixi block sources ~/.bashrc after the installer and clones from ~`);
+      ok(s1.includes("```bash\ncurl -fsSL https://pixi.sh/install.sh | bash\nsource ~/.bashrc   " + PB[0] + "\ncd ~\n" + GC + "   " + PB[1] + "\ncd ~/Hardware-learning/examples/month-4\npixi install\npixi shell\n```"), `m4 paths ros2-setup ${lang}: pixi block sources ~/.bashrc after the installer and clones from ~`);
     }
-    console.log("m4 paths: clones from ~, cds into the clone absolute or right after it, first script runs after their folder is named, ~/maps made before saving");
+    console.log("m4 paths: clones from ~, every cd into the clone absolute, first script runs after their folder is named, ~/maps made before saving");
   }
   // Small paths 2 (after #80): no placeholder home folder in a command, and every cd / script path into the clone is absolute.
   {
@@ -2865,27 +2866,30 @@ for (const m of readdirSync(content)) {
         for (const b of text.matchAll(/```(bash|sh|text)\n([\s\S]*?)```/g))
           for (const l of b[2].split("\n")) if (b[1] !== "text" || l.startsWith("$ ")) cmds.push(l.replace(/^\$ /, ""));
         for (const c of cmds) ok(!c.includes("/home/you"), `${tag}: command "${c}" names the placeholder /home/you; write $HOME or ~`);
-        // every cd (in a block or inline code) into the course repository is absolute, unless right after the clone
+        // every cd (in a block or inline code) into the course repository is absolute, also right after the clone
         const inline = [...text.matchAll(/`(cd [^`]+)`/g)].map((m) => m[1]);
         const blocks = [...text.matchAll(/```(?:bash|sh)\n([\s\S]*?)```/g)].map((b) => b[1].split("\n"));
-        const cdTargets = [...inline.flatMap((c) => c.split(/\s*&&\s*/)), ...blocks.flatMap((L) => L.filter((l, i) => !(l.startsWith("cd Hardware-learning") && (L[i - 1] ?? "").startsWith("git clone https://github.com/liudicsu/Hardware-learning.git"))))]
+        const cdTargets = [...inline.flatMap((c) => c.split(/\s*&&\s*/)), ...blocks.flat()]
           .filter((c) => /^cd /.test(c)).map((c) => c.slice(3).split(/\s+/)[0]);
         for (const t of cdTargets) {
           ok(!/^(examples|tools|Hardware-learning)(\/|$)/.test(t), `${tag}: "cd ${t}" is relative to wherever the reader is; write ~/Hardware-learning/...`);
           const m = t.match(/^~\/Hardware-learning(\/\S*)?$/);
           if (m) ok(existsSync(join(root, (m[1] ?? "/").slice(1))), `${tag}: "cd ${t}" names a folder the repository does not have`);
         }
-        // a script run by path into the repository from a bash block is absolute too
-        for (const L of blocks) for (const l of L) {
-          const m = l.match(/^python3 (\S+\/\S+\.py)/);
-          if (m) {
-            ok(m[1].startsWith("~/Hardware-learning/") || !/^(examples|tools)\//.test(m[1]), `${tag}: "${l}" runs a repository script by a relative path`);
-            if (m[1].startsWith("~/Hardware-learning/")) ok(existsSync(join(root, m[1].slice("~/Hardware-learning/".length))), `${tag}: "${l}" names a script the repository does not have`);
-          }
+        // a script run by a path (bash/sh lines and "$ " transcript lines alike; check_quotes drops leading "$ " lines, so
+        // SimOutput bindings do not depend on them) is ~/Hardware-learning/... and exists; a bare name is the lesson folder's own file
+        const [, mo, ls] = lesson.match(/^m(\d)\/(.+)$/);
+        for (const c of cmds) for (const part of c.split(/\s*&&\s*/)) {
+          const m = part.match(/^python3 (\S+\.py)\b/);
+          if (!m) continue;
+          if (m[1].includes("/")) {
+            ok(m[1].startsWith("~/Hardware-learning/"), `${tag}: "${c}" runs a script by a relative path; write python3 ~/Hardware-learning/...`);
+            if (m[1].startsWith("~/Hardware-learning/")) ok(existsSync(join(root, m[1].slice("~/Hardware-learning/".length))), `${tag}: "${c}" names a script the repository does not have`);
+          } else ok(existsSync(join(root, `examples/month-${mo}/${ls}/${m[1]}`)), `${tag}: "${c}" runs ${m[1]}, which examples/month-${mo}/${ls}/ does not have`);
         }
       }
     }
-    console.log("m4 paths2: no /home/you in commands, serialize_map with $HOME matches run.sh, every cd and script path into the clone absolute (m1-m6)");
+    console.log("m4 paths2: no /home/you in commands, serialize_map with $HOME matches run.sh, every cd and script path into the clone absolute, also in $-prompt lines, bare scripts in their lesson folder (m1-m6)");
   }
   // Small paths 3 (review round 28 on a215a1a): new terminals and pixi shell, build blocks cd into their folder, second-terminal scripts.
   {
