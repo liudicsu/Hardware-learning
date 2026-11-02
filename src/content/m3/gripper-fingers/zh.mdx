@@ -56,6 +56,7 @@ if __name__ == "__main__":
 真实输出：
 
 ```text
+$ cd ~/Hardware-learning/examples/month-3/gripper-fingers
 $ python3 grip_force.py
 safety factor 2.0, arm acceleration 3.0 m/s^2
 egg                60 g  ->  PLA (mu 0.3):  2.6 N, TPU (mu 0.8):  1.0 N
@@ -227,6 +228,7 @@ difference() {                           // mounting block behind the base of th
 把它渲染出来，读一读它打印的数字：
 
 ```text
+$ cd ~/Hardware-learning/examples/month-3/gripper-fingers
 $ openscad -o finray_finger.stl finray_finger.scad 2>&1 | grep ECHO
 ECHO: "finger (mm)", 65, "x", 22, "x", 18
 $ python3 ~/Hardware-learning/examples/month-3/cad-parametric/stl_info.py finray_finger.stl 1.21

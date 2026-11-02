@@ -1327,8 +1327,9 @@ const lessonRef = (n, slug, lang) => {
     const text = readFileSync(join(root, `src/content/m3/so101-arm/${lang}.mdx`), "utf8");
     for (const q of [...common, ...per[lang]]) ok(text.includes(q), `so101-arm ${lang}: expected ${JSON.stringify(q)} (recomputed from the README BOM / Feetech specs)`);
     // the printed program and its printed output are the committed files, byte for byte (the 12-bit / 4096 comment, registers 40 / 42 / 56, the 3116 reply)
-    ok(text.includes("```python\n" + sp + "```") && text.includes("```text\n$ python3 sts_packet.py\n" + spOut + "```")
-      && text.includes("```python\n" + sdkPy + "```") && text.includes("```text\n$ pip install feetech-servo-sdk\n$ python3 compare_sdk.py\n" + sdkOut + "```"),
+    const CDA = "$ cd ~/Hardware-learning/examples/month-3/so101-arm\n";
+    ok(text.includes("```python\n" + sp + "```") && text.includes("```text\n" + CDA + "$ python3 sts_packet.py\n" + spOut + "```")
+      && text.includes("```python\n" + sdkPy + "```") && text.includes("```text\n" + CDA + "$ pip install feetech-servo-sdk\n$ python3 compare_sdk.py\n" + sdkOut + "```"),
       `so101-arm ${lang}: the sts_packet.py / compare_sdk.py listings or their output blocks differ from examples/month-3/so101-arm/{sts_packet,compare_sdk}.py / expected/arm-{sts_packet,compare_sdk}.txt`);
     const rows = [...text.matchAll(/^\| (\w+) \| 1\/(\d+) \|$/gm)].map((m) => [m[1], Number(m[2])]);
     ok(JSON.stringify(rows) === JSON.stringify(Object.entries(leader)), `so101-arm ${lang}: leader ratio table ${JSON.stringify(rows)} != ${JSON.stringify(leader)}`);
@@ -2934,6 +2935,40 @@ for (const m of readdirSync(content)) {
       }
     }
     console.log("m4 paths3: new terminals cd + pixi shell (or --manifest-path), build blocks cd into their folder, second-terminal scripts cd first");
+  }
+  // Small paths 4 (after #81): a command that names a local file by a bare or relative name (python3 X.py, openscad ... X.scad) only works
+  // in the folder that holds it, so the block it is in says where that is. Each block stands alone: the cwd is what a cd earlier in the
+  // same block set (cd ~/Hardware-learning/... ; any other cd leaves the repository). Month 3 and Month 6 blocks with such a command must
+  // cd first; Month 4 keeps its own rule (m4 paths / paths3: the prose names the folder, build and second-terminal blocks cd), and Month 5
+  // already cds. A .scad file is checked in every month: it exists in the block's cd folder, or is written ~/Hardware-learning/... .
+  // check_quotes leaves leading "$ " lines out of SimOutput comparisons, so a "$ cd" first line does not touch the expected files.
+  {
+    const HL = "~/Hardware-learning/";
+    let nCmd = 0;
+    const months = readdirSync(join(root, "src/content")).filter((d) => /^m[1-6]$/.test(d));
+    for (const mo of months) for (const ls of readdirSync(join(root, "src/content", mo)).filter((l) => existsSync(join(root, "src/content", mo, l, "en.mdx")))) for (const lang of ["en", "zh"]) {
+      const tag = `m3 cad cd ${mo}/${ls} ${lang}`, text = rdB(`src/content/${mo}/${ls}/${lang}.mdx`);
+      for (const b of text.matchAll(/```(text|bash|sh)\n([\s\S]*?)```/g)) {
+        let cwd; // undefined: no cd yet in this block; null: outside the repository; string: a repository folder
+        for (const line of b[2].split("\n")) {
+          if (b[1] === "text" && !line.startsWith("$ ")) continue;
+          for (const part of line.replace(/^\$ /, "").split(/\s*&&\s*/)) {
+            const cd = part.match(/^cd (\S+)/);
+            if (cd) { cwd = cd[1].startsWith(HL) ? cd[1].slice(HL.length).replace(/\/$/, "") : null; continue; }
+            const py = part.match(/^python3 ([A-Za-z0-9_]+\.py)\b/), scad = part.match(/^openscad\b.*?\s(\S+\.scad)\b/);
+            const file = py?.[1] ?? scad?.[1];
+            if (!file) continue;
+            nCmd++;
+            if (file.startsWith(HL)) { ok(existsSync(join(root, file.slice(HL.length))), `${tag}: "${part}" names a file the repository does not have`); continue; }
+            if (typeof cwd === "string") ok(existsSync(join(root, cwd, file)), `${tag}: "${part}" runs ${file}, which ${cwd}/ (the block's cd) does not have`);
+            else if (scad || (cwd === undefined && (mo === "m3" || mo === "m6")))
+              ok(false, `${tag}: "${part}" names ${file} by a bare path, but the block has no cd ~/Hardware-learning/... before it`);
+          }
+        }
+      }
+    }
+    ok(nCmd >= 40, `m3 cad cd: only ${nCmd} local-file commands found; the scan is broken`);
+    console.log(`m3 cad cd: ${nCmd} bare python3 / openscad commands, each in a block that cds to the folder holding the file (m3, m6; .scad in every month)`);
   }
   console.log("m4 build path: urdf-tf / gazebo-sim / ros2-control / slam-nav cp paths, rosdep order, non-desktop apt names checked");
 }
