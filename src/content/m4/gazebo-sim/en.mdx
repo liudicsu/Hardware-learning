@@ -517,11 +517,13 @@ On a server, in CI, or on a laptop with no free display:
 
 The `create` node spawns the robot from the `robot_description` topic, not from a file path. It reads the same description that `robot_state_publisher` received, so the model in Gazebo and the TF in ROS 2 cannot drift apart. The small `-z 0.01` lifts the robot one centimetre above the floor, which avoids a first-step collision with the ground plane.
 
-Build and run:
+Build and run, from `examples/month-4/gazebo-sim`. On the apt route, `rosdep install` reads `m4_gazebo/package.xml` and adds `ros-jazzy-ros-gz-sim` and `ros-jazzy-ros-gz-bridge`, which the `ros-jazzy-ros-gz` install at the top of this lesson already brought in; in pixi, skip that line:
 
 ```bash
-cp -r m4_description m4_gazebo ~/ros2_ws/src/     # m4_description from Lesson 3
-cd ~/ros2_ws && colcon build && source install/setup.bash
+cp -r ../urdf-tf/m4_description m4_gazebo ~/ros2_ws/src/   # from examples/month-4/gazebo-sim; m4_description from Lesson 3
+cd ~/ros2_ws
+rosdep install --from-paths src --ignore-src -y   # apt route only; pixi has no rosdep and pixi.toml already lists these
+colcon build && source install/setup.bash
 ros2 launch m4_gazebo sim.launch.py              # add headless:=true on a machine without a screen
 ```
 

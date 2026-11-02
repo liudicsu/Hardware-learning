@@ -243,6 +243,17 @@ def generate_launch_description():
 
 SLAM Toolbox 有几种节点变体。`online_async_launch.py` 启动的是异步版本：它准备好时处理最新的一帧扫描，如果跟不上就跳过一些扫描，这样即使电脑很慢，地图也能保持最新。同步版本会处理每一帧扫描，因此可能落后于机器人。
 
+构建这个包并开始建图。`cp` 在 `examples/month-4/slam-nav` 里执行：`m4_nav` 要用第 3 到第 5 课的包，所以它们也要放进工作空间，覆盖之前拷过去的副本没有关系。走 apt 路线时，`rosdep install` 会按 `m4_nav/package.xml` 装上 `ros-jazzy-slam-toolbox`、`ros-jazzy-nav2-bringup`、`ros-jazzy-nav2-common` 和 `ros-jazzy-nav2-map-server`；在 pixi 里跳过这一行：
+
+```bash
+cp -r ../urdf-tf/m4_description ../gazebo-sim/m4_gazebo ../ros2-control/m4_control \
+      ../ros2-control/m4_drive_interfaces m4_nav ~/ros2_ws/src/   # from examples/month-4/slam-nav
+cd ~/ros2_ws
+rosdep install --from-paths src --ignore-src -y   # apt route only; pixi has no rosdep and pixi.toml already lists these
+colcon build && source install/setup.bash
+ros2 launch m4_nav slam.launch.py                # add headless:=true on a machine without a screen
+```
+
 ### 带着机器人走一圈
 
 现在驱动机器人四处走，直到每一面墙和每一个障碍物都从不止一个方向被看到。用键盘的话，你会像第 5 课那样运行 `ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -p stamped:=true -p use_sim_time:=true -r cmd_vel:=/diff_drive_controller/cmd_vel`。为了让结果可重复，本站编者用了一个做同样事情的脚本：原地转一圈，然后开到两个相对的角落再回来。

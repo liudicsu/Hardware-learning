@@ -517,11 +517,13 @@ def generate_launch_description():
 
 `create` 节点从 `robot_description` 话题生成机器人，而不是从文件路径读取。它拿到的是 `robot_state_publisher` 收到的同一份描述，所以 Gazebo 里的模型和 ROS 2 里的 TF 不可能各自漂移。末尾的 `-z 0.01` 把机器人抬高 1 cm，避免第一步就和地面相撞。
 
-构建并运行：
+构建并运行，`cp` 在 `examples/month-4/gazebo-sim` 里执行。走 apt 路线时，`rosdep install` 读 `m4_gazebo/package.xml`，会再装 `ros-jazzy-ros-gz-sim` 和 `ros-jazzy-ros-gz-bridge`，本课开头装的 `ros-jazzy-ros-gz` 已经带了它们；在 pixi 里跳过这一行：
 
 ```bash
-cp -r m4_description m4_gazebo ~/ros2_ws/src/     # m4_description from Lesson 3
-cd ~/ros2_ws && colcon build && source install/setup.bash
+cp -r ../urdf-tf/m4_description m4_gazebo ~/ros2_ws/src/   # from examples/month-4/gazebo-sim; m4_description from Lesson 3
+cd ~/ros2_ws
+rosdep install --from-paths src --ignore-src -y   # apt route only; pixi has no rosdep and pixi.toml already lists these
+colcon build && source install/setup.bash
 ros2 launch m4_gazebo sim.launch.py              # add headless:=true on a machine without a screen
 ```
 

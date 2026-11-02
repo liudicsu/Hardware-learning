@@ -2630,5 +2630,78 @@ for (const m of readdirSync(content)) {
   console.log(`style percent: ${pctFiles.length} files (lessons + src/lib), ${uiFiles.length} UI files (src/components + src/app) and ${msgFiles.length} message files, ${bad.length} without the space`);
 }
 
+{
+  // PR B (audit 27, beginner path): each Month 4 lesson that builds packages copies them from its own folder,
+  // runs rosdep on the apt route, and names every apt package that rosdep pulls in beyond ros-jazzy-desktop.
+  // Desktop membership: transitive Depends of ros-jazzy-desktop in repo.ros2.org ubuntu/main noble amd64 Packages (November 2026);
+  // key -> deb names: `rosdep resolve <key> --os=ubuntu:noble --rosdistro=jazzy` (all resolved, same names as below).
+  const rdB = (p) => readFileSync(join(root, p), "utf8");
+  const DESKTOP = new Set(["robot_state_publisher", "rviz2", "rclpy", "geometry_msgs", "nav_msgs", "ament_cmake", "rosidl_default_generators",
+    "action_msgs", "rosidl_default_runtime", "teleop_twist_keyboard", "tf2_ros", "tf2_tools"]);
+  // pixi.toml metapackage that carries each non-desktop key (closure of that RoboStack/apt metapackage).
+  const PIXI = { xacro: "xacro", joint_state_publisher: "joint-state-publisher", joint_state_publisher_gui: "joint-state-publisher-gui",
+    ros_gz_sim: "ros-gz", ros_gz_bridge: "ros-gz", controller_manager: "ros2-control", ros2controlcli: "ros2-control",
+    diff_drive_controller: "ros2-controllers", joint_state_broadcaster: "ros2-controllers", position_controllers: "ros2-controllers",
+    gz_ros2_control: "gz-ros2-control", slam_toolbox: "slam-toolbox", nav2_bringup: "nav2-bringup", nav2_common: "nav2-bringup", nav2_map_server: "nav2-bringup" };
+  const pixi = rdB("examples/month-4/pixi.toml");
+  const RD = "rosdep install --from-paths src --ignore-src -y   # apt route only; pixi has no rosdep and pixi.toml already lists these";
+  const pkgDir = (lesson, rel) => join("examples/month-4", lesson, rel);
+  const deps = (dir) => [...rdB(join(dir, "package.xml")).matchAll(/<(?:exec_|build_|buildtool_)?depend>([^<]+)</g)].map((m) => m[1]);
+  const lessons = { "urdf-tf": ["m4_description"], "gazebo-sim": ["m4_gazebo"], "ros2-control": ["m4_control", "m4_drive_interfaces"], "slam-nav": ["m4_nav"] };
+  const earlier = new Set(); // keys already introduced by an earlier lesson's packages
+  for (const [lesson, own] of Object.entries(lessons)) {
+    const ownKeys = own.flatMap((o) => deps(pkgDir(lesson, o))).filter((d) => !d.startsWith("m4_"));
+    for (const lang of ["en", "zh"]) {
+      const tag = `m4 ${lesson} ${lang} build path`;
+      const text = rdB(`src/content/m4/${lesson}/${lang}.mdx`);
+      const blocks = [...text.matchAll(/```bash\n([\s\S]*?)```/g)].map((m) => m[1]).filter((b) => b.includes("~/ros2_ws/src/") && /^cp -r /m.test(b));
+      ok(blocks.length === 1, `${tag}: expected one bash block that copies packages into ~/ros2_ws/src/ (found ${blocks.length})`);
+      if (blocks.length !== 1) continue;
+      const lines = blocks[0].replace(/\\\n\s*/g, "").split("\n").filter(Boolean);
+      const cp = lines[0].match(/^cp -r (.+?) ~\/ros2_ws\/src\/\s+# from examples\/month-4\/([a-z0-9-]+)/);
+      ok(cp && cp[2] === lesson, `${tag}: cp line must end with "# from examples/month-4/${lesson}"`);
+      if (!cp) continue;
+      const copied = cp[1].trim().split(/\s+/);
+      const names = new Set();
+      for (const rel of copied) {
+        const ok1 = existsSync(join(root, pkgDir(lesson, rel), "package.xml"));
+        ok(ok1, `${tag}: ${rel} is not a package relative to examples/month-4/${lesson}`);
+        if (ok1) names.add(rel.split("/").pop());
+      }
+      for (const o of own) ok(names.has(o), `${tag}: cp must copy ${o}`);
+      // --ignore-src: every m4_* dependency must itself be in src/, or rosdep cannot resolve it.
+      for (const rel of copied) if (existsSync(join(root, pkgDir(lesson, rel), "package.xml")))
+        for (const d of deps(pkgDir(lesson, rel))) if (d.startsWith("m4_")) ok(names.has(d), `${tag}: ${rel} needs ${d} in src/ too`);
+      const i = lines.findIndex((l) => l === "cd ~/ros2_ws"), j = lines.indexOf(RD), k = lines.indexOf("colcon build && source install/setup.bash");
+      ok(i === 1 && j > i && k === j + 1, `${tag}: order must be cp, cd ~/ros2_ws, [apt], rosdep install, colcon build (got ${i}/${j}/${k})`);
+      // Every non-desktop key of this lesson's own packages is named as an apt package in the prose, and carried by pixi.toml.
+      const keys = new Set(ownKeys.filter((d) => !earlier.has(d)));
+      if (/ros2 control list_/.test(text)) keys.add("ros2controlcli");
+      for (const key of keys) {
+        if (DESKTOP.has(key)) continue;
+        const deb = `ros-jazzy-${key.replace(/_/g, "-")}`;
+        ok(text.includes("`" + deb + "`"), `${tag}: prose must name \`${deb}\` (rosdep key ${key}, not in ros-jazzy-desktop)`);
+        ok(PIXI[key] && pixi.includes(`ros-jazzy-${PIXI[key]} = `), `${tag}: pixi.toml must carry ${key}`);
+      }
+      // ros2controlcli is not in any package.xml, so the apt route needs it by name.
+      if (keys.has("ros2controlcli") && !own.some((o) => deps(pkgDir(lesson, o)).includes("ros2controlcli")))
+        ok(lines.includes("sudo apt install ros-jazzy-ros2controlcli         # apt route only: the ros2 control commands below"), `${tag}: apt line for ros2controlcli`);
+      ok(text.includes("`examples/month-4/" + lesson + "`"), `${tag}: prose must say to run the cp from \`examples/month-4/${lesson}\``);
+      ok(lang === "en" ? /pixi[^\n]{0,120}skip/i.test(text) : /pixi 里[^\n]{0,60}跳过/.test(text), `${tag}: prose must tell pixi users to skip the rosdep line`);
+      for (const s of ["cd ~/ros2_ws && colcon build && source install/setup.bash", "cp -r m4_description m4_gazebo ~/ros2_ws/src/", "cp -r m4_description m4_gazebo m4_control"])
+        ok(!text.includes(s), `${tag}: stale command ${JSON.stringify(s)} must be gone`);
+    }
+    for (const d of ownKeys) earlier.add(d);
+  }
+  const extra = {
+    en: { "urdf-tf": "`ros-jazzy-desktop` does not include xacro or the joint sliders", "ros2-control": "which no `package.xml` here lists and `ros-jazzy-desktop` does not include, so install it by name",
+      "slam-nav": "`m4_nav` reuses the packages from Lessons 3 to 5, so they go into the workspace too" },
+    zh: { "urdf-tf": "`ros-jazzy-desktop` 不带 xacro，也不带关节滑块界面", "ros2-control": "这里没有哪个 `package.xml` 列了它，`ros-jazzy-desktop` 也不带，所以要按名字单独装",
+      "slam-nav": "`m4_nav` 要用第 3 到第 5 课的包，所以它们也要放进工作空间" } };
+  for (const lang of ["en", "zh"]) for (const [lesson, f] of Object.entries(extra[lang]))
+    ok(rdB(`src/content/m4/${lesson}/${lang}.mdx`).includes(f), `m4 ${lesson} ${lang} build path: expected ${JSON.stringify(f)}`);
+  console.log("m4 build path: urdf-tf / gazebo-sim / ros2-control / slam-nav cp paths, rosdep order, non-desktop apt names checked");
+}
+
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
 process.exit(failed ? 1 : 0);

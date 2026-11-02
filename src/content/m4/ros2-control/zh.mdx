@@ -404,11 +404,14 @@ def generate_launch_description():
   direction: GZ_TO_ROS
 ```
 
-编译四个包并启动机器人：
+编译四个包并启动机器人，`cp` 在 `examples/month-4/ros2-control` 里执行。走 apt 路线时，`rosdep install` 会装上 `m4_control/package.xml` 列出的 ros2_control 包：`ros-jazzy-controller-manager`、`ros-jazzy-diff-drive-controller`、`ros-jazzy-joint-state-broadcaster`、`ros-jazzy-position-controllers` 和 `ros-jazzy-gz-ros2-control`。下面用到的 `ros2 control` 命令来自 `ros-jazzy-ros2controlcli`，这里没有哪个 `package.xml` 列了它，`ros-jazzy-desktop` 也不带，所以要按名字单独装。在 pixi 里这两行都跳过：`pixi.toml` 里有 `ros-jazzy-ros2-control`（包含这个命令行工具）和 `ros-jazzy-gz-ros2-control`：
 
 ```bash
-cp -r m4_description m4_gazebo m4_control m4_drive_interfaces ~/ros2_ws/src/
-cd ~/ros2_ws && colcon build && source install/setup.bash
+cp -r ../urdf-tf/m4_description ../gazebo-sim/m4_gazebo m4_control m4_drive_interfaces ~/ros2_ws/src/   # from examples/month-4/ros2-control
+cd ~/ros2_ws
+sudo apt install ros-jazzy-ros2controlcli         # apt route only: the ros2 control commands below
+rosdep install --from-paths src --ignore-src -y   # apt route only; pixi has no rosdep and pixi.toml already lists these
+colcon build && source install/setup.bash
 ros2 launch m4_control control.launch.py          # add headless:=true on a machine without a screen
 ```
 

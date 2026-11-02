@@ -486,11 +486,13 @@ def generate_launch_description():
 
 这份文件里有三个细节值得停一下。`Command(['xacro ', xacro_file])` 在启动时运行 xacro，所以你改完 xacro、重新 launch 就能看到变化——不需要单独的构建步骤。把它包进 `ParameterValue(..., value_type=str)` 是为了阻止 `launch` 把这段 XML 当成 YAML 去解析，否则它真会那么干并把内容弄乱。`joints` 参数则在滑块、全部归零、什么都不发之间做选择；「什么都不发」正是第 6 节故意弄断那棵树的工具。和第二课一样，`setup.py` 必须把 `urdf`、`launch` 和 `rviz` 这几个目录安装进去，否则 launch 文件会找不到自己的文件。
 
-构建这个包并启动它：
+构建这个包并启动它。`cp` 要在 `examples/month-4/urdf-tf` 里执行。走 apt 路线时，`ros-jazzy-desktop` 不带 xacro，也不带关节滑块界面，所以要用第 1 课讲过的 `rosdep install` 装上 `m4_description/package.xml` 列出的依赖，这里是 `ros-jazzy-xacro`、`ros-jazzy-joint-state-publisher` 和 `ros-jazzy-joint-state-publisher-gui`。和第 1 课一样，先 source `/opt/ros/jazzy/setup.bash`。pixi 里没有 rosdep，`pixi.toml` 也已经列了这些包，所以在 pixi 里跳过这一行：
 
 ```bash
-cp -r m4_description ~/ros2_ws/src/
-cd ~/ros2_ws && colcon build && source install/setup.bash
+cp -r m4_description ~/ros2_ws/src/                # from examples/month-4/urdf-tf
+cd ~/ros2_ws
+rosdep install --from-paths src --ignore-src -y   # apt route only; pixi has no rosdep and pixi.toml already lists these
+colcon build && source install/setup.bash
 ros2 launch m4_description display.launch.py
 ```
 

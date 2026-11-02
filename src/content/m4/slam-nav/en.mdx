@@ -243,6 +243,17 @@ def generate_launch_description():
 
 SLAM Toolbox has several node variants. `online_async_launch.py` starts the asynchronous one: it processes the newest scan when it is ready and skips scans if it falls behind, which keeps the map current on a slow computer. The synchronous variant processes every scan and can lag behind the robot.
 
+Build the package and start mapping. Run the `cp` from `examples/month-4/slam-nav`: `m4_nav` reuses the packages from Lessons 3 to 5, so they go into the workspace too, and copying over the earlier copies is harmless. On the apt route, `rosdep install` adds `ros-jazzy-slam-toolbox`, `ros-jazzy-nav2-bringup`, `ros-jazzy-nav2-common` and `ros-jazzy-nav2-map-server` from `m4_nav/package.xml`; in pixi, skip that line:
+
+```bash
+cp -r ../urdf-tf/m4_description ../gazebo-sim/m4_gazebo ../ros2-control/m4_control \
+      ../ros2-control/m4_drive_interfaces m4_nav ~/ros2_ws/src/   # from examples/month-4/slam-nav
+cd ~/ros2_ws
+rosdep install --from-paths src --ignore-src -y   # apt route only; pixi has no rosdep and pixi.toml already lists these
+colcon build && source install/setup.bash
+ros2 launch m4_nav slam.launch.py                # add headless:=true on a machine without a screen
+```
+
 ### Drive the tour
 
 Now drive the robot around until every wall and obstacle has been seen from more than one side. With a keyboard you would run `ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -p stamped:=true -p use_sim_time:=true -r cmd_vel:=/diff_drive_controller/cmd_vel`, as in Lesson 5. For a repeatable result the editor used a script that does the same thing: spin on the spot, then drive to two opposite corners and back.

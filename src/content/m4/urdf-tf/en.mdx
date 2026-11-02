@@ -486,11 +486,13 @@ def generate_launch_description():
 
 Three details in that file are worth pausing on. `Command(['xacro ', xacro_file])` runs xacro at launch time, so you edit the xacro, relaunch, and see the change — no separate build step. Wrapping it in `ParameterValue(..., value_type=str)` stops `launch` from trying to parse the XML as YAML, which it would otherwise do and mangle. And the `joints` argument chooses between sliders, all-zero and nothing; "nothing" is what Section 6 uses to break the tree on purpose. As in Lesson 2, `setup.py` must install the `urdf`, `launch` and `rviz` folders, or the launch file will not find its own files.
 
-Build the package and start it:
+Build the package and start it. Run the `cp` from `examples/month-4/urdf-tf`. On the apt route, `ros-jazzy-desktop` does not include xacro or the joint sliders, so the `rosdep install` line from Lesson 1 installs what `m4_description/package.xml` lists: here `ros-jazzy-xacro`, `ros-jazzy-joint-state-publisher` and `ros-jazzy-joint-state-publisher-gui`. As in Lesson 1, source `/opt/ros/jazzy/setup.bash` first. pixi has no rosdep and `pixi.toml` already lists these packages, so skip that line there:
 
 ```bash
-cp -r m4_description ~/ros2_ws/src/
-cd ~/ros2_ws && colcon build && source install/setup.bash
+cp -r m4_description ~/ros2_ws/src/                # from examples/month-4/urdf-tf
+cd ~/ros2_ws
+rosdep install --from-paths src --ignore-src -y   # apt route only; pixi has no rosdep and pixi.toml already lists these
+colcon build && source install/setup.bash
 ros2 launch m4_description display.launch.py
 ```
 
