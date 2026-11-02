@@ -2711,13 +2711,13 @@ for (const m of readdirSync(content)) {
   {
     ok(DESKTOP.has("urdfdom") && !DESKTOP.has("xacro") && /^ros-jazzy-xacro = /m.test(pixi) && /^ros-jazzy-urdfdom = /m.test(pixi),
       "m4 order: check_urdf (urdfdom) is in ros-jazzy-desktop, xacro is not; pixi.toml carries both");
-    const XB = [SRC, "cd Hardware-learning/examples/month-4/urdf-tf      # in pixi (opened in examples/month-4): cd urdf-tf",
+    const XB = [SRC, "cd ~/Hardware-learning/examples/month-4/urdf-tf    # Lesson 1 cloned the repository into ~",
       "sudo apt install ros-jazzy-xacro                  # apt route only; pixi.toml already lists xacro",
       "xacro m4_description/urdf/robot.urdf.xacro > /tmp/robot.urdf && check_urdf /tmp/robot.urdf"].join("\n") + "\n";
     ok(existsSync(join(root, "examples/month-4/urdf-tf/m4_description/urdf/robot.urdf.xacro")), "m4 order: the xacro path is relative to examples/month-4/urdf-tf");
     const facts = {
       en: { "urdf-tf": ["`check_urdf` comes with `ros-jazzy-urdfdom`, which `ros-jazzy-desktop` includes, but xacro is not in it, so the apt route installs `ros-jazzy-xacro` now",
-          "clone the repository first with the `git clone` line from Lesson 1's pixi section", "In pixi, skip the `source` and `apt` lines",
+          "Lesson 1 cloned the repository into your home folder (on the apt route, Lesson 2 did, with the `cd ~` and `git clone` lines from Lesson 1's pixi section)", "In pixi, skip the `source` and `apt` lines",
           "(`ros-jazzy-xacro` is there since the check above)", "`pose_head.py` runs from `examples/month-4/urdf-tf`"],
         "gazebo-sim": ["the `gz` command this brings lives under `/opt/ros/jazzy/opt/gz_tools_vendor`, so it is not on the PATH before that",
           "The scripts later in this lesson run from `examples/month-4/gazebo-sim`, in a second terminal"],
@@ -2725,7 +2725,7 @@ for (const m of readdirSync(content)) {
         "slam-nav": ["`slam.launch.py` is part of `m4_nav`, so build that package now and start it", "The scripts in this lesson run from `examples/month-4/slam-nav`, in a second terminal",
           "Mapping runs under the `slam.launch.py` you built and started for the odometry check"] },
       zh: { "urdf-tf": ["`check_urdf` 来自 `ros-jazzy-urdfdom`，`ros-jazzy-desktop` 已经带了它，但不带 xacro，所以 apt 路线要在这里装上 `ros-jazzy-xacro`",
-          "先用第 1 课 pixi 一节里的 `git clone` 那一行把仓库克隆下来", "在 pixi 里跳过 `source` 和 `apt` 这两行",
+          "第 1 课把仓库克隆到了 home 目录下（走 apt 路线时是第 2 课，用第 1 课 pixi 一节里的 `cd ~` 和 `git clone` 这两行）", "在 pixi 里跳过 `source` 和 `apt` 这两行",
           "（`ros-jazzy-xacro` 在上面检查时已经装好）", "`pose_head.py` 要在 `examples/month-4/urdf-tf` 里运行"],
         "gazebo-sim": ["这样装上的 `gz` 命令在 `/opt/ros/jazzy/opt/gz_tools_vendor` 下，source 之前不在 PATH 里", "本课后面的脚本在 `examples/month-4/gazebo-sim` 里运行，用另一个"],
         "ros2-control": ["本课后面的脚本在 `examples/month-4/ros2-control` 里运行，用另一个"],
@@ -2766,6 +2766,61 @@ for (const m of readdirSync(content)) {
       }
     }
     console.log("m4 order: xacro check before build, nothing launched before it is built, scripts in their lesson folders");
+  }
+  // Small paths (after #79): where the course repository is cloned, where each lesson's commands run, and ~/maps.
+  {
+    const GC = "git clone https://github.com/liudicsu/Hardware-learning.git";
+    const facts3 = {
+      en: { "m1/git-github": ["Run it from your home folder (`cd ~`): the command creates `~/Hardware-learning`"],
+        "m4/ros2-setup": ["The clone goes in your home folder (`cd ~`), so every later lesson finds the course repository at `~/Hardware-learning`; on the apt route you clone it the same way, with the `cd ~` and `git clone` lines, when Lesson 2 first needs it"],
+        "m4/ros2-graph": ["They are in the course repository, in `examples/month-4/ros2-graph`; on the apt route, clone it first with the `cd ~` and `git clone` lines from Lesson 1's pixi section"],
+        "m4/ros2-control": ["Run it from this lesson's folder, `examples/month-4/ros2-control`"],
+        "m4/slam-nav": ["Neither service creates folders — map_saver's `map_io.cpp` only opens the two files, with `image.write` and `std::ofstream`"] },
+      zh: { "m1/git-github": ["在 home 目录下（`cd ~`）运行：这条命令会创建 `~/Hardware-learning` 文件夹"],
+        "m4/ros2-setup": ["仓库克隆在 home 目录下（`cd ~`），这样后面每一课都能在 `~/Hardware-learning` 找到课程仓库；走 apt 路线时，到第 2 课第一次用到它时，同样用 `cd ~` 和 `git clone` 这两行克隆"],
+        "m4/ros2-graph": ["它们在课程仓库的 `examples/month-4/ros2-graph` 里；走 apt 路线时，先用第 1 课 pixi 一节里的 `cd ~` 和 `git clone` 这两行把仓库克隆下来"],
+        "m4/ros2-control": ["在本课的文件夹 `examples/month-4/ros2-control` 里运行它"],
+        "m4/slam-nav": ["两个服务都不会建文件夹——map_saver 的 `map_io.cpp` 只用 `image.write` 和 `std::ofstream` 打开这两个文件"] } };
+    const stale3 = ["in pixi (opened in examples/month-4): cd urdf-tf", "clone the repository first with the `git clone` line from Lesson 1's pixi section",
+      "先用第 1 课 pixi 一节里的 `git clone` 那一行把仓库克隆下来", "The command creates a folder named `Hardware-learning`", "这条命令会创建名为 `Hardware-learning` 的文件夹"];
+    const pkgs = readdirSync(join(root, "examples/month-4/ros2-graph")).filter((d) => existsSync(join(root, "examples/month-4/ros2-graph", d, "package.xml"))).sort();
+    const GB = "```bash\ncd ~/Hardware-learning/examples/month-4/ros2-graph\ncp -r m4_interfaces m4_graph_cpp m4_graph ~/ros2_ws/src/\ncd ~/ros2_ws && colcon build && source install/setup.bash\n```";
+    ok(["m4_graph", "m4_graph_cpp", "m4_interfaces"].join() === pkgs.join(), `m4 paths: ros2-graph packages are ${pkgs}, the cp line copies m4_interfaces m4_graph_cpp m4_graph`);
+    const runSh = rdB("tools/sim/ros/run.sh");
+    ok(/MAPS="\$TMP\/maps"; mkdir -p "\$MAPS"/.test(runSh), "m4 paths: run.sh makes the maps folder before saving, as the lesson now does");
+    for (const lang of ["en", "zh"]) {
+      for (const [lesson, fs] of Object.entries(facts3[lang])) {
+        const text = rdB(`src/content/${lesson}/${lang}.mdx`);
+        for (const f of fs) ok(text.includes(f), `m4 paths ${lesson} ${lang}: expected ${JSON.stringify(f)}`);
+      }
+      // Every clone of the course repository is made from ~, and every cd into it is either right after that clone or absolute.
+      for (const lesson of ["m1/git-github", "m4/ros2-setup", "m4/ros2-graph", ...Object.keys(lessons).map((l) => "m4/" + l)]) {
+        const tag = `m4 paths ${lesson} ${lang}`, text = rdB(`src/content/${lesson}/${lang}.mdx`);
+        for (const st of stale3) ok(!text.includes(st), `${tag}: stale ${JSON.stringify(st)} must be gone`);
+        for (const b of text.matchAll(/```bash\n([\s\S]*?)```/g)) {
+          const L = b[1].split("\n");
+          L.forEach((l, i) => {
+            if (l === GC) ok(L[i - 1] === "cd ~", `${tag}: the git clone of the course repository must follow "cd ~"`);
+            const m = l.match(/^cd (~\/)?Hardware-learning(\/\S*)?/);
+            if (m) {
+              ok(m[1] || L[i - 1] === GC, `${tag}: "${l}" is relative, so it must come right after the clone`);
+              ok(existsSync(join(root, (m[2] ?? "/").slice(1))), `${tag}: "${l}" names a folder the repository does not have`);
+            }
+          });
+        }
+        const noListings = text.replace(/```(?:python|yaml|xml|cmake)\n[\s\S]*?```/g, (m) => " ".repeat(m.length));
+        const name = lesson.split("/")[1], folder = text.replace(/<CodeSource[^>]*>/g, "").indexOf("`examples/month-4/" + name + "`");
+        const run = noListings.search(/(?:^|\$ )python3 [a-z_]+\.py/m);
+        if (run >= 0) ok(folder >= 0 && folder < run, `${tag}: the first python3 run (char ${run}) must come after the prose names \`examples/month-4/${name}\` (char ${folder})`);
+      }
+      const g = rdB(`src/content/m4/ros2-graph/${lang}.mdx`);
+      ok(g.includes(GB) && g.indexOf(GB) < g.indexOf("Starting >>> m4_interfaces"), `m4 paths ros2-graph ${lang}: copy the packages, then build them`);
+      const sn = rdB(`src/content/m4/slam-nav/${lang}.mdx`), mk = sn.indexOf("```bash\nmkdir -p ~/maps\n```");
+      ok(mk > 0 && mk < sn.indexOf("maps/room"), `m4 paths slam-nav ${lang}: mkdir -p ~/maps before the first save into it`);
+      const s1 = rdB(`src/content/m4/ros2-setup/${lang}.mdx`);
+      ok(s1.includes("```bash\ncurl -fsSL https://pixi.sh/install.sh | bash\ncd ~\n" + GC + "\ncd Hardware-learning/examples/month-4\npixi install\npixi shell\n```"), `m4 paths ros2-setup ${lang}: pixi block clones from ~`);
+    }
+    console.log("m4 paths: clones from ~, cds into the clone absolute or right after it, first script runs after their folder is named, ~/maps made before saving");
   }
   console.log("m4 build path: urdf-tf / gazebo-sim / ros2-control / slam-nav cp paths, rosdep order, non-desktop apt names checked");
 }

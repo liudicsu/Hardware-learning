@@ -367,7 +367,11 @@ The script stops within 5 cm of each waypoint, so the odometry poses sit a few c
 
 ### Save the map
 
-There are two formats, for two different consumers. SLAM Toolbox's **pose graph** (`.posegraph` plus `.data`) contains every scan and pose, so SLAM Toolbox can load it later, localize in it and even keep extending it. The **occupancy grid** (`.pgm` image plus `.yaml`) is just the picture, which Nav2's map server, other tools and people can read. Save both while `slam.launch.py` is still running:
+There are two formats, for two different consumers. SLAM Toolbox's **pose graph** (`.posegraph` plus `.data`) contains every scan and pose, so SLAM Toolbox can load it later, localize in it and even keep extending it. The **occupancy grid** (`.pgm` image plus `.yaml`) is just the picture, which Nav2's map server, other tools and people can read. Save both while `slam.launch.py` is still running. Neither service creates folders — map_saver's `map_io.cpp` only opens the two files, with `image.write` and `std::ofstream`, and stops with `Failed to write map` if `~/maps` is missing — so make it first:
+
+```bash
+mkdir -p ~/maps
+```
 
 <SimOutput source="ros">
 

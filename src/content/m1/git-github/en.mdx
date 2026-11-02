@@ -59,12 +59,13 @@ The first connection asks whether to trust the host; type `yes`. A reply like `H
 The course repository holds every script quoted in Months 1–6. Clone it once, then run the scripts from `examples/`:
 
 ```bash
+cd ~
 git clone https://github.com/liudicsu/Hardware-learning.git
 cd Hardware-learning/examples/month-1
 git log --oneline -5
 ```
 
-The command creates a folder named `Hardware-learning` with the full history. `git log --oneline -5` shows the latest five commits; the output differs from day to day, so it is not reproduced here. Later, `git pull` fetches and merges new commits from the <Term id="remote">remote</Term>.
+Run it from your home folder (`cd ~`): the command creates `~/Hardware-learning` with the full history, which is where Month 4's lessons expect it. `git log --oneline -5` shows the latest five commits; the output differs from day to day, so it is not reproduced here. Later, `git pull` fetches and merges new commits from the <Term id="remote">remote</Term>.
 
 Keep your own work in your own repository (the next sections), not inside the <Term id="clone">clone</Term>.
 

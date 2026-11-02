@@ -119,13 +119,14 @@ RoboStack packages ROS 2 for conda, the cross-platform package manager. pixi is 
 
 ```bash
 curl -fsSL https://pixi.sh/install.sh | bash
+cd ~
 git clone https://github.com/liudicsu/Hardware-learning.git
 cd Hardware-learning/examples/month-4
 pixi install
 pixi shell
 ```
 
-`pixi install` downloads ROS 2 Jazzy, Gazebo, colcon and the rest into the project folder — 5.8 GB on this course's Debian 13 box after `du -sh .pixi` (October 2026) — without touching the system. `pixi shell` opens a shell where `ros2`, `colcon` and `gz` work. You can also run a single command with `pixi run ros2 topic list` without entering the shell. When you delete the folder, the environment is gone; nothing is left behind in `/usr`.
+The clone goes in your home folder (`cd ~`), so every later lesson finds the course repository at `~/Hardware-learning`; on the apt route you clone it the same way, with the `cd ~` and `git clone` lines, when Lesson 2 first needs it. `pixi install` downloads ROS 2 Jazzy, Gazebo, colcon and the rest into the project folder — 5.8 GB on this course's Debian 13 box after `du -sh .pixi` (October 2026) — without touching the system. `pixi shell` opens a shell where `ros2`, `colcon` and `gz` work. You can also run a single command with `pixi run ros2 topic list` without entering the shell. When you delete the folder, the environment is gone; nothing is left behind in `/usr`.
 
 <Resource id="robostack" />
 
