@@ -2760,7 +2760,7 @@ for (const m of readdirSync(content)) {
       for (const m of noListings.matchAll(/(?:^|\$ )python3 ([a-z_]+\.py)/gm))
         ok(existsSync(join(root, "examples/month-4", lesson, m[1])), `${tag}: python3 ${m[1]} is not in examples/month-4/${lesson}`);
       if (lesson === "urdf-tf") {
-        const xi = text.indexOf("```bash\n" + XB + "```"), ii = text.indexOf("```bash\npython3 inertia_check.py /tmp/robot.urdf\n```");
+        const xi = text.indexOf("```bash\n" + XB + "```"), ii = text.indexOf("```bash\ncd ~/Hardware-learning/examples/month-4/urdf-tf\npython3 inertia_check.py /tmp/robot.urdf\n```");
         ok(xi > 0 && ii > xi && build > ii, `${tag}: order must be xacro check block, inertia_check, build block (got ${xi}/${ii}/${build})`);
         ok(!text.slice(0, build).includes("~/ros2_ws/src/m4_description"), `${tag}: ~/ros2_ws/src/m4_description used before it is copied`);
       }
@@ -2938,9 +2938,10 @@ for (const m of readdirSync(content)) {
   }
   // Small paths 4 (after #81): a command that names a local file by a bare or relative name (python3 X.py, openscad ... X.scad) only works
   // in the folder that holds it, so the block it is in says where that is. Each block stands alone: the cwd is what a cd earlier in the
-  // same block set (cd ~/Hardware-learning/... ; any other cd leaves the repository). Month 3 and Month 6 blocks with such a command must
-  // cd first; Month 4 keeps its own rule (m4 paths / paths3: the prose names the folder, build and second-terminal blocks cd), and Month 5
-  // already cds. A .scad file is checked in every month: it exists in the block's cd folder, or is written ~/Hardware-learning/... .
+  // same block set (cd ~/Hardware-learning/... ; any other cd leaves the repository). Month 3, 4 and 6 blocks with such a command must
+  // cd first (Month 5 already does). One Month 4 exception: the output transcript right after the bash block that ran the same command
+  // after its cd, with only prose between (gazebo-sim scan_probe / snap_camera, the first spin_check, which the SPIN binding pins), is
+  // that block's output, not a new command. A .scad file is checked in every month: it exists in the block's cd folder, or is written ~/Hardware-learning/... .
   // check_quotes leaves leading "$ " lines out of SimOutput comparisons, so a "$ cd" first line does not touch the expected files.
   {
     const HL = "~/Hardware-learning/";
@@ -2948,7 +2949,10 @@ for (const m of readdirSync(content)) {
     const months = readdirSync(join(root, "src/content")).filter((d) => /^m[1-6]$/.test(d));
     for (const mo of months) for (const ls of readdirSync(join(root, "src/content", mo)).filter((l) => existsSync(join(root, "src/content", mo, l, "en.mdx")))) for (const lang of ["en", "zh"]) {
       const tag = `m3 cad cd ${mo}/${ls} ${lang}`, text = rdB(`src/content/${mo}/${ls}/${lang}.mdx`);
+      let prev = null; // the previous bash/sh block: where it ended and the commands it ran after a cd into the repository
       for (const b of text.matchAll(/```(text|bash|sh)\n([\s\S]*?)```/g)) {
+        const paired = (c) => b[1] === "text" && prev && !text.slice(prev.end, b.index).includes("```") && prev.ran.has(c);
+        const ran = new Set();
         let cwd; // undefined: no cd yet in this block; null: outside the repository; string: a repository folder
         for (const line of b[2].split("\n")) {
           if (b[1] === "text" && !line.startsWith("$ ")) continue;
@@ -2959,16 +2963,63 @@ for (const m of readdirSync(content)) {
             const file = py?.[1] ?? scad?.[1];
             if (!file) continue;
             nCmd++;
+            if (typeof cwd === "string") ran.add(part.replace(/\s+#.*$/, "").trim());
             if (file.startsWith(HL)) { ok(existsSync(join(root, file.slice(HL.length))), `${tag}: "${part}" names a file the repository does not have`); continue; }
             if (typeof cwd === "string") ok(existsSync(join(root, cwd, file)), `${tag}: "${part}" runs ${file}, which ${cwd}/ (the block's cd) does not have`);
-            else if (scad || (cwd === undefined && (mo === "m3" || mo === "m6")))
+            else if (scad || (cwd === undefined && ["m3", "m4", "m6"].includes(mo) && !(mo === "m4" && paired(part.trim()))))
               ok(false, `${tag}: "${part}" names ${file} by a bare path, but the block has no cd ~/Hardware-learning/... before it`);
           }
         }
+        prev = b[1] === "text" ? null : { end: b.index + b[0].length, ran };
       }
     }
     ok(nCmd >= 40, `m3 cad cd: only ${nCmd} local-file commands found; the scan is broken`);
-    console.log(`m3 cad cd: ${nCmd} bare python3 / openscad commands, each in a block that cds to the folder holding the file (m3, m6; .scad in every month)`);
+    console.log(`m3 cad cd: ${nCmd} bare python3 / openscad commands, each in a block that cds to the folder holding the file (m3, m4, m6; .scad in every month)`);
+  }
+  // Small paths 5 (round 28): ros2-graph's second / other terminals load the environment like every new terminal (ros2-setup's NEWT
+  // sentence), and the bag is recorded and replayed from one folder. rosbag2's README (jazzy): with -o "a user defined name can be given";
+  // to "send bagfiles to a different directory than the current working directory", pushd there first, so a relative -o lands in the cwd,
+  // and `ros2 bag play <bag>` takes the directory holding metadata.yaml.
+  {
+    const CDP4 = "cd ~/Hardware-learning/examples/month-4 && pixi shell";
+    const ENV = { en: "As in Lesson 1, every new terminal loads the environment first: on the apt route `source /opt/ros/jazzy/setup.bash`, in pixi `" + CDP4 + "`, and on both routes then `source ~/ros2_ws/install/setup.bash`. With the system running (the launch file comes in section 6), here is what those calls look like from a second terminal:\n",
+      zh: "和第 1 课一样，每个新终端都要先加载环境：apt 路线用 `source /opt/ros/jazzy/setup.bash`，pixi 用 `" + CDP4 + "`，两条路线之后都再 `source ~/ros2_ws/install/setup.bash`。在系统运行起来之后（launch 文件在第 6 节），从第二个终端看这些调用是这样的：\n" };
+    const BACK = { en: "and in two other terminals, each with the environment loaded first like every new terminal (section 4), echo the filtered value and play the recording back. The replay runs from `~`, the folder the recording was made in:\n",
+      zh: "另外开两个终端（和每个新终端一样，先按第 4 节加载环境），一个打印滤波后的值，一个回放录像。回放在 `~` 里运行，也就是录制时所在的文件夹：\n" };
+    const REL = { en: "a relative name, so `ros2 bag record` creates the folder `sensor_run` (its `metadata.yaml` and the `.mcap` file) in the folder the terminal is in, here `~`",
+      zh: "这是相对名字，所以 `ros2 bag record` 在终端当前所在的文件夹（这里是 `~`）里建出 `sensor_run` 文件夹" };
+    const MARK = { en: /second terminal|other terminals|another terminal/g, zh: /第二个终端|另外开两个终端|另开一个终端/g };
+    for (const lang of ["en", "zh"]) {
+      const tag = `m4 paths5 ros2-graph ${lang}`, text = rdB(`src/content/m4/ros2-graph/${lang}.mdx`), s1 = rdB(`src/content/m4/ros2-setup/${lang}.mdx`);
+      ok(s1.includes(CDP4) && s1.includes("source /opt/ros/jazzy/setup.bash") && s1.includes("source ~/ros2_ws/install/setup.bash"), `${tag}: ros2-setup still names the commands ENV repeats`);
+      const ei = text.indexOf(ENV[lang]);
+      ok(ei > 0 && text.indexOf(ENV[lang], ei + 1) < 0, `${tag}: the second-terminal paragraph opens with the new-terminal setup`);
+      // section 4 is the one that holds the setup sentence (## headings counted from 1)
+      const secs = [...text.matchAll(/^## /gm)].map((m) => m.index);
+      ok(secs.length >= 6 && secs[3] < ei && ei < secs[4], `${tag}: the setup sentence is in section 4 (BACK points there)`);
+      ok(text.includes(BACK[lang]), `${tag}: the replay's two other terminals point back to the setup and say where the bag is`);
+      ok(text.includes(REL[lang]), `${tag}: -o sensor_run is relative to the terminal's folder`);
+      const marks = [...text.matchAll(MARK[lang])].map((m) => m.index);
+      ok(marks.length === 3 && marks.every((i) => i > ei), `${tag}: the second / other / another terminal mentions are the three after the setup sentence (got ${marks.length})`);
+      // every ros2 bag command on sensor_run runs in a block whose cwd is ~
+      let nBag = 0;
+      for (const b of text.matchAll(/```(text|bash)\n([\s\S]*?)```/g)) {
+        let cwd;
+        for (const line of b[2].split("\n")) {
+          if (b[1] === "text" && !line.startsWith("$ ")) continue;
+          for (const part of line.replace(/^\$ /, "").split(/\s*&&\s*/)) {
+            const cd = part.match(/^cd (\S+)/);
+            if (cd) { cwd = cd[1]; continue; }
+            if (/^ros2 bag (record|info|play)\b.*\bsensor_run\b/.test(part)) { nBag++; ok(cwd === "~", `${tag}: "${part}" must run after cd ~ in its block (got ${cwd})`); }
+          }
+        }
+      }
+      ok(nBag === 3, `${tag}: expected record, info and play on sensor_run (got ${nBag})`);
+    }
+    // check.sh records and replays in one folder too (its own cwd), so the transcript stays its output
+    const ck = rdB("examples/month-4/check.sh");
+    ok(ck.includes("ros2 bag record -o sensor_run /raw /filtered") && ck.includes("ros2 bag play sensor_run --topics /raw"), "m4 paths5: check.sh still records and replays sensor_run by its relative name");
+    console.log("m4 paths5: ros2-graph's extra terminals load the environment first; sensor_run is recorded, inspected and replayed from ~");
   }
   console.log("m4 build path: urdf-tf / gazebo-sim / ros2-control / slam-nav cp paths, rosdep order, non-desktop apt names checked");
 }

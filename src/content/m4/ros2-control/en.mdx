@@ -265,6 +265,7 @@ if __name__ == "__main__":
 Real output:
 
 ```text
+$ cd ~/Hardware-learning/examples/month-4/ros2-control
 $ python3 diff_drive.py
 controllers.yaml: wheel_separation 0.28 m, wheel_radius 0.05 m (same as this script)
 b/2 = 0.14 m
@@ -724,6 +725,7 @@ Drive one metre. The odometry before this run read x = 0.10 m, left over from th
 <SimOutput source="ros">
 
 ```text
+$ cd ~/Hardware-learning/examples/month-4/ros2-control
 $ python3 drive_client.py 1.0 0.2
 goal accepted: 1.0 m at 0.2 m/s
 feedback: travelled 0.100 m, remaining 0.900 m
@@ -766,6 +768,7 @@ The same client can drive backwards and cancel after two seconds:
 <SimOutput source="ros">
 
 ```text
+$ cd ~/Hardware-learning/examples/month-4/ros2-control
 $ python3 drive_client.py -1.0 0.2 2.0
 goal accepted: -1.0 m at 0.2 m/s
 feedback: travelled 0.096 m, remaining 0.904 m
