@@ -192,7 +192,7 @@ The wheels turn in opposite directions at equal speed, which is exactly what a r
 
 <Quiz id="q3" question="Straight lines come out right but every 90° turn comes out at about 75°. What is the most likely mistake?" options={["wheel_radius is wrong", "wheel_separation in the YAML does not match the robot", "cmd_vel_timeout is too short", "the lidar frame is wrong"]} answer={1} explanation="Straight driving depends only on the wheel radius; the turn angle also depends on the separation between the wheels, so a wrong wheel_separation shows up only in turns." />
 
-**The same arithmetic as a script.** `diff_drive.py` does these sums for a handful of commands, the two above and the quiz's included, plus arcs and a reverse turn. Its b and r are typed into the script, so it first reads `controllers.yaml` and says whether the two still agree. It is ordinary Python doing ordinary arithmetic — no ROS, no simulator.
+**The same arithmetic as a script.** `diff_drive.py` does these sums for a handful of commands, the two above and the quiz's included, plus arcs and a reverse turn. Its b and r are typed into the script, so it first reads `controllers.yaml` and says whether the two still agree. It is ordinary Python doing ordinary arithmetic — no ROS, no simulator. Run it from this lesson's folder, `examples/month-4/ros2-control` (`cd ~/Hardware-learning/examples/month-4/ros2-control`).
 
 <CodeSource path="examples/month-4/ros2-control/diff_drive.py" />
 

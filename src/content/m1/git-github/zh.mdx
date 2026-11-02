@@ -65,12 +65,13 @@ ssh -T git@github.com
 课程仓库保存了第 1–6 个月引用的每个脚本。克隆一次，然后从 `examples/` 里运行：
 
 ```bash
+cd ~
 git clone https://github.com/liudicsu/Hardware-learning.git
 cd Hardware-learning/examples/month-1
 git log --oneline -5
 ```
 
-这条命令会创建名为 `Hardware-learning` 的文件夹，里面带完整历史。`git log --oneline -5` 显示最近五个提交；输出每天都会不同，所以这里不贴结果。之后 `git pull` 会从<Term id="remote">远程仓库</Term>取回并合并新的提交。
+在 home 目录下（`cd ~`）运行：这条命令会创建 `~/Hardware-learning` 文件夹，里面带完整历史，第 4 个月的课程也默认仓库在这里。`git log --oneline -5` 显示最近五个提交；输出每天都会不同，所以这里不贴结果。之后 `git pull` 会从<Term id="remote">远程仓库</Term>取回并合并新的提交。
 
 你自己的作品放在自己的仓库里（接下来几节），不要放进<Term id="clone">克隆</Term>下来的副本。
 

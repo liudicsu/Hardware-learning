@@ -367,7 +367,11 @@ done, facing +x again: yaw 1 deg
 
 ### 保存地图
 
-有两种格式，面向两种不同的使用者。SLAM Toolbox 的<strong>位姿图</strong>（`.posegraph` 加 `.data`）包含每一帧扫描和每一个位姿，所以 SLAM Toolbox 以后可以把它加载回来、在其中定位，甚至继续扩展它。<strong>占据栅格（occupancy grid）</strong>（`.pgm` 图像加 `.yaml`）就是那张图，Nav2 的地图服务器、其他工具和人可以读。趁 `slam.launch.py` 还在运行，把两者都保存下来：
+有两种格式，面向两种不同的使用者。SLAM Toolbox 的<strong>位姿图</strong>（`.posegraph` 加 `.data`）包含每一帧扫描和每一个位姿，所以 SLAM Toolbox 以后可以把它加载回来、在其中定位，甚至继续扩展它。<strong>占据栅格（occupancy grid）</strong>（`.pgm` 图像加 `.yaml`）就是那张图，Nav2 的地图服务器、其他工具和人可以读。趁 `slam.launch.py` 还在运行，把两者都保存下来。两个服务都不会建文件夹——map_saver 的 `map_io.cpp` 只用 `image.write` 和 `std::ofstream` 打开这两个文件，`~/maps` 不存在时会报 `Failed to write map` 而停下——所以先建好它：
+
+```bash
+mkdir -p ~/maps
+```
 
 <SimOutput source="ros">
 

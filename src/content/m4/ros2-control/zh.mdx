@@ -192,7 +192,7 @@ v_right = 0 + 1.0 × 0.14 = +0.14 m/s  →  +0.14 / 0.05 = +2.8 rad/s
 
 <Quiz id="q3" question="直线走得对，但每个 90° 转弯只转了约 75°。最可能的原因是什么？" options={["wheel_radius 写错了", "YAML 里的 wheel_separation 与机器人实际轮距不一致", "cmd_vel_timeout 太短", "激光雷达的坐标系写错了"]} answer={1} explanation="直行只取决于轮半径；转角还取决于两轮之间的距离，所以 wheel_separation 写错只会表现在转弯上。" />
 
-**把同样的算术写成脚本**。`diff_drive.py` 对几条命令做这套计算：上面两个算例和测验那一题都在里面，另外还有弧线和倒车转弯。b 和 r 是直接写在脚本里的，所以它先读一遍 `controllers.yaml`，告诉你两边是否还一致。它只是普通的 Python 做普通的算术——不用 ROS，也不用仿真器。
+**把同样的算术写成脚本**。`diff_drive.py` 对几条命令做这套计算：上面两个算例和测验那一题都在里面，另外还有弧线和倒车转弯。b 和 r 是直接写在脚本里的，所以它先读一遍 `controllers.yaml`，告诉你两边是否还一致。它只是普通的 Python 做普通的算术——不用 ROS，也不用仿真器。在本课的文件夹 `examples/month-4/ros2-control` 里运行它（`cd ~/Hardware-learning/examples/month-4/ros2-control`）。
 
 <CodeSource path="examples/month-4/ros2-control/diff_drive.py" />
 
