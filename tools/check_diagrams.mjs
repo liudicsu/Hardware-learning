@@ -2023,6 +2023,7 @@ const lessonRef = (n, slug, lang) => {
     const outputs = ["ros-no_executable.txt", "ros-pkg_executables.txt", "ros-fresh_shells.txt", "ros-distro_check.txt", "ros-doctor_rmw.txt",
       "ros-rmw_missing.txt", "ros-domain_errors.txt", "ros-domain_mismatch.txt", "ros-localhost_only.txt", "ros-range_invalid.txt", "ros-multicast.txt"];
     const sh4 = rd4("examples/month-4/check.sh");
+    const inline = new Set(["ros-pkg_executables.txt", "ros-rmw_missing.txt", "ros-range_invalid.txt"]);   // quoted inside a sentence
     const gl = rd4("src/lib/glossary.ts");
     const terms = ["dds", "colcon", "rosdep", "underlay", "overlay", "rmw", "domain-id"];
     for (const id of terms) {
@@ -2066,7 +2067,9 @@ const lessonRef = (n, slug, lang) => {
       const mt = maskOut(text);
       for (const f of outputs) {
         ok(sh4.includes(`check ${f}`), `m4 ros2-setup: check.sh must produce ${f}`);
-        for (const line of maskOut(exp4(f)).split("\n").filter(Boolean)) ok(mt.includes(f === "ros-range_invalid.txt" ? line.replace("[WARN] [T] [rcl]: ", "") : line), `${L}: real output line from ${f} missing: ${JSON.stringify(line)}`);
+        const out = maskOut(exp4(f)).trimEnd();
+        if (inline.has(f)) for (const line of out.split("\n")) ok(mt.includes(line.replace("[WARN] [T] [rcl]: ", "")), `${L}: real output line from ${f} missing: ${JSON.stringify(line)}`);
+        else ok(mt.includes("```text\n" + out + "\n```"), `${L}: real output ${f} must be quoted as one whole text block`);
       }
       for (const id of terms) {
         const n = text.split(`<Term id="${id}">`).length - 1;
