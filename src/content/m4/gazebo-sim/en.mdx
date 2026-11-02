@@ -32,7 +32,7 @@ On Ubuntu 24.04 with Jazzy, one command installs the right Gazebo and the ROS br
 sudo apt install ros-jazzy-ros-gz
 ```
 
-The package name is a small history lesson of its own: `gazebo_ros_pkgs` connected ROS to Gazebo Classic, and `ros_gz` connects ROS 2 to the new Gazebo. `gazebo_ros_pkgs` has no Jazzy release at all, so a tutorial that tells you to install it was written for the previous era. After installing, run `gz sim --versions` and check that it prints 8.x, not some older version left on the system.
+The package name is a small history lesson of its own: `gazebo_ros_pkgs` connected ROS to Gazebo Classic, and `ros_gz` connects ROS 2 to the new Gazebo. `gazebo_ros_pkgs` has no Jazzy release at all, so a tutorial that tells you to install it was written for the previous era. After installing, source `/opt/ros/jazzy/setup.bash` (the `gz` command this brings lives under `/opt/ros/jazzy/opt/gz_tools_vendor`, so it is not on the PATH before that), run `gz sim --versions` and check that it prints 8.x, not some older version left on the system.
 
 <Quiz id="q1" question="A tutorial starts with 'ign gazebo shapes.sdf' and loads libgazebo_ros_diff_drive.so. What does that tell you?" options={["it is current and works with Jazzy", "it was written for an older Gazebo, so expect to translate commands and plugins", "it needs a GPU", "it is for MuJoCo"]} answer={1} explanation="ign is the pre-2022 name of today's gz tool, and libgazebo_ros_* plugins belong to Gazebo Classic; both are signs of an outdated tutorial." />
 
@@ -517,9 +517,10 @@ On a server, in CI, or on a laptop with no free display:
 
 The `create` node spawns the robot from the `robot_description` topic, not from a file path. It reads the same description that `robot_state_publisher` received, so the model in Gazebo and the TF in ROS 2 cannot drift apart. The small `-z 0.01` lifts the robot one centimetre above the floor, which avoids a first-step collision with the ground plane.
 
-Build and run, from `examples/month-4/gazebo-sim`. On the apt route, `rosdep install` reads `m4_gazebo/package.xml` and adds `ros-jazzy-ros-gz-sim` and `ros-jazzy-ros-gz-bridge`, which the `ros-jazzy-ros-gz` install at the top of this lesson already brought in; in pixi, skip that line:
+Build and run, from `examples/month-4/gazebo-sim`. On the apt route, `rosdep install` reads `m4_gazebo/package.xml` and adds `ros-jazzy-ros-gz-sim` and `ros-jazzy-ros-gz-bridge`, which the `ros-jazzy-ros-gz` install at the top of this lesson already brought in; in pixi, skip that line. The scripts later in this lesson run from `examples/month-4/gazebo-sim`, in a second terminal set up the same way (ROS and `~/ros2_ws/install/setup.bash` sourced):
 
 ```bash
+source /opt/ros/jazzy/setup.bash                  # apt route only; in pixi, pixi shell does this
 cp -r ../urdf-tf/m4_description m4_gazebo ~/ros2_ws/src/   # from examples/month-4/gazebo-sim; m4_description from Lesson 3
 cd ~/ros2_ws
 rosdep install --from-paths src --ignore-src -y   # apt route only; pixi has no rosdep and pixi.toml already lists these
