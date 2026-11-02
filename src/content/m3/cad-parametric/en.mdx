@@ -145,6 +145,7 @@ The modules are the shape. `plate()` is the upright plate with the servo opening
 Render it and look at the numbers:
 
 ```text
+$ cd ~/Hardware-learning/examples/month-3/cad-parametric
 $ openscad -o servo_bracket.stl servo_bracket.scad 2>&1 | grep ECHO
 ECHO: "cut-out (mm)", 22.8, "x", 12.4
 ECHO: "plate (mm)", 40.2, "x", 20.4, "x", 3
@@ -158,6 +159,7 @@ The picture above was rendered by OpenSCAD from the file above, using the script
 Now change one parameter from the command line:
 
 ```text
+$ cd ~/Hardware-learning/examples/month-3/cad-parametric
 $ openscad -D clearance=0.15 -o b.stl servo_bracket.scad 2>&1 | grep cut-out
 ECHO: "cut-out (mm)", 22.5, "x", 12.1
 ```
@@ -194,6 +196,7 @@ Shaft clearance is separate from body clearance. The bracket also must not touch
 The asserts catch one kind of bad value before you print. Ask for a hole pitch of 24 mm:
 
 ```text
+$ cd ~/Hardware-learning/examples/month-3/cad-parametric
 $ openscad -D hole_pitch=24 -o b.stl servo_bracket.scad 2>&1 | grep ERROR
 ERROR: Assertion '(hole_pitch > (cut_l + hole_d))' failed: "screw holes would cut into the body opening" in file servo_bracket.scad, line 30
 ```
@@ -351,6 +354,7 @@ if __name__ == "__main__":
 Run it on the exported bracket:
 
 ```text
+$ cd ~/Hardware-learning/examples/month-3/cad-parametric
 $ python3 stl_info.py servo_bracket.stl
 size: 40.2 x 26.0 x 20.4 mm
 triangles: 580, edges not shared by exactly 2: 0  (watertight)

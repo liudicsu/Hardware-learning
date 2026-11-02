@@ -446,7 +446,7 @@ Follow the two halves. The server half is `create_service(SetAlpha, 'set_alpha',
 
 Now the trap, because it is the single most common way to hang a ROS 2 node. Calling a service from inside a service callback deadlocks with the default single-threaded executor. Here is why: `on_set_alpha` runs on the executor's one and only thread, and `self.client.call(...)` blocks that thread while it waits for the reply. But the reply has to be received and processed by that same executor — which is busy waiting. Nobody is left to answer, so it waits forever. The fix used here has two parts: `MultiThreadedExecutor` gives the executor more than one thread, and the client's own `MutuallyExclusiveCallbackGroup` reserves a callback slot so its reply can be handled on another thread while `on_set_alpha` is still waiting. Asynchronous calls are the other way out, but this is the pattern to remember first.
 
-With the system running (the launch file comes in section 6), here is what those calls look like from a second terminal:
+As in Lesson 1, every new terminal loads the environment first: on the apt route `source /opt/ros/jazzy/setup.bash`, in pixi `cd ~/Hardware-learning/examples/month-4 && pixi shell`, and on both routes then `source ~/ros2_ws/install/setup.bash`. With the system running (the launch file comes in section 6), here is what those calls look like from a second terminal:
 
 ```text
 $ ros2 service call /set_alpha m4_interfaces/srv/SetAlpha "{alpha: 0.5}"
@@ -805,9 +805,10 @@ When you stop a launch with Ctrl+C, the terminal sends SIGINT to every process a
 
 `ros2 bag` records topics to a file and plays them back with the original timing, and in Jazzy the default file format is MCAP. It sounds minor and it is not: a problem that happens once an hour in the lab can be recorded once and then replayed as often as you like, because the recording does not care that the bug is rare. This is the tool behind "how do you debug anything that only fails occasionally" — you stop trying to catch it live and start keeping the data.
 
-With the graph running, record `/raw` and `/filtered` for about four seconds and press Ctrl+C:
+With the graph running, record `/raw` and `/filtered` for about four seconds from another terminal, in your home folder, and press Ctrl+C:
 
 ```text
+$ cd ~
 $ ros2 bag record -o sensor_run /raw /filtered
 [INFO] [1792444193.178419115] [rosbag2_recorder]: Subscribed to topic '/raw'
 [INFO] [1792444193.179012611] [rosbag2_recorder]: Subscribed to topic '/filtered'
@@ -828,14 +829,14 @@ Service:           0
 Service information: 
 ```
 
-`-o sensor_run` names the recording. `ros2 bag info` then tells the whole story: about 3.4 seconds, eighteen messages on each topic, which works out to roughly 5 Hz — matching the sensor's rate — and the exact message type on each topic, so anyone opening the bag later knows what is inside. The counts depend on exactly how long you recorded; yours will not be 18 and that is fine.
+`-o sensor_run` names the recording: a relative name, so `ros2 bag record` creates the folder `sensor_run` (its `metadata.yaml` and the `.mcap` file) in the folder the terminal is in, here `~`, and `ros2 bag info sensor_run` and `ros2 bag play sensor_run` find it only from that same folder. `ros2 bag info` then tells the whole story: about 3.4 seconds, eighteen messages on each topic, which works out to roughly 5 Hz — matching the sensor's rate — and the exact message type on each topic, so anyone opening the bag later knows what is inside. The counts depend on exactly how long you recorded; yours will not be 18 and that is fine.
 
-The point of a bag is the replay. Stop the launch, then start only the filter node on its own, and in two other terminals echo the filtered value and play the recording back:
+The point of a bag is the replay. Stop the launch, then start only the filter node on its own, and in two other terminals, each with the environment loaded first like every new terminal (section 4), echo the filtered value and play the recording back. The replay runs from `~`, the folder the recording was made in:
 
 ```bash
 ros2 run m4_graph_cpp filter_node
 ros2 topic echo /filtered --field value
-ros2 bag play sensor_run --topics /raw
+cd ~ && ros2 bag play sensor_run --topics /raw
 ```
 
 The filter cannot tell the difference between a live sensor and a recording — it subscribes to `/raw` either way. The first three filtered values it published from the recorded data were:

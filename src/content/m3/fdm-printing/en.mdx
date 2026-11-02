@@ -311,6 +311,7 @@ if __name__ == "__main__":
 Real output:
 
 ```text
+$ cd ~/Hardware-learning/examples/month-3/fdm-printing
 $ python3 snap_fit.py
 L  5.0  t 1.5  hook 1.0 mm, PLA,  lead-in 30 deg: strain 9.00 % too much (limit 1.5 %) push-on 150.4 N
 L 10.0  t 1.5  hook 1.0 mm, PLA,  lead-in 30 deg: strain 2.25 % too much (limit 1.5 %) push-on  18.8 N
@@ -444,6 +445,7 @@ The comment above the lid module is the important one: the lid prints flat with 
 Render it and check the numbers:
 
 ```text
+$ cd ~/Hardware-learning/examples/month-3/fdm-printing
 $ openscad -o esp32_case.stl esp32_case.scad 2>&1 | grep ECHO
 ECHO: "inside (mm)", 63.34, "x", 26, "x", 16.6
 ECHO: "outside, closed (mm)", 67.34, "x", 30, "x", 20.6
@@ -462,6 +464,7 @@ The editor did not print this case or the tolerance gauge. Both were rendered an
 The "clash" part closes the lid on the base in software and keeps only the volume that both parts share. If the result is empty, nothing overlaps with the designed gaps:
 
 ```text
+$ cd ~/Hardware-learning/examples/month-3/fdm-printing
 $ openscad -D 'part="clash"' -o clash.stl esp32_case.scad 2>&1 | grep empty
 Current top level object is empty.
 $ openscad -D 'part="clash"' -D fit=-0.1 -o clash.stl esp32_case.scad

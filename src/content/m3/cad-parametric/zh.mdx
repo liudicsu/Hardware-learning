@@ -145,6 +145,7 @@ translate([plate_l - wall, 0, 0]) gusset();
 渲染出来，看看数字：
 
 ```text
+$ cd ~/Hardware-learning/examples/month-3/cad-parametric
 $ openscad -o servo_bracket.stl servo_bracket.scad 2>&1 | grep ECHO
 ECHO: "cut-out (mm)", 22.8, "x", 12.4
 ECHO: "plate (mm)", 40.2, "x", 20.4, "x", 3
@@ -158,6 +159,7 @@ ECHO: "screw pitch (mm)", 27.5, "tab overhang each side (mm)", 5
 现在从命令行改一个参数：
 
 ```text
+$ cd ~/Hardware-learning/examples/month-3/cad-parametric
 $ openscad -D clearance=0.15 -o b.stl servo_bracket.scad 2>&1 | grep cut-out
 ECHO: "cut-out (mm)", 22.5, "x", 12.1
 ```
@@ -194,6 +196,7 @@ ECHO: "cut-out (mm)", 22.5, "x", 12.1
 断言能提前抓住一类坏数字。把孔距设成 24 mm：
 
 ```text
+$ cd ~/Hardware-learning/examples/month-3/cad-parametric
 $ openscad -D hole_pitch=24 -o b.stl servo_bracket.scad 2>&1 | grep ERROR
 ERROR: Assertion '(hole_pitch > (cut_l + hole_d))' failed: "screw holes would cut into the body opening" in file servo_bracket.scad, line 30
 ```
@@ -351,6 +354,7 @@ if __name__ == "__main__":
 拿导出的支架跑一遍：
 
 ```text
+$ cd ~/Hardware-learning/examples/month-3/cad-parametric
 $ python3 stl_info.py servo_bracket.stl
 size: 40.2 x 26.0 x 20.4 mm
 triangles: 580, edges not shared by exactly 2: 0  (watertight)

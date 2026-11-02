@@ -446,7 +446,7 @@ def main():
 
 接下来是那个陷阱，因为它是把一个 ROS 2 节点搞挂的最常见方式。在服务回调里再调另一个服务，配上默认的单线程执行器，会死锁。原因是这样的：`on_set_alpha` 跑在执行器唯一的那条线程上，而 `self.client.call(...)` 在等回复时把这条线程堵住了。可回复恰恰又需要同一个执行器来接收和处理——而它正忙着等。没人能应答，于是永远地等下去。这里的修法分两部分：`MultiThreadedExecutor` 给执行器不止一条线程，而客户端自带的 `MutuallyExclusiveCallbackGroup` 为它预留了一个回调位置，让回复能在 `on_set_alpha` 还在等待时，被另一条线程处理。改成异步调用是另一条出路，但这个模式要先记住。
 
-在系统运行起来之后（launch 文件在第 6 节），从第二个终端看这些调用是这样的：
+和第 1 课一样，每个新终端都要先加载环境：apt 路线用 `source /opt/ros/jazzy/setup.bash`，pixi 用 `cd ~/Hardware-learning/examples/month-4 && pixi shell`，两条路线之后都再 `source ~/ros2_ws/install/setup.bash`。在系统运行起来之后（launch 文件在第 6 节），从第二个终端看这些调用是这样的：
 
 ```text
 $ ros2 service call /set_alpha m4_interfaces/srv/SetAlpha "{alpha: 0.5}"
@@ -805,9 +805,10 @@ average rate: 10.000
 
 `ros2 bag` 把话题录到文件里，再按原始时序回放，Jazzy 里默认的文件格式是 MCAP。这听着不起眼，其实不然：实验室里一小时才出现一次的问题，你录一次，就能爱回放多少遍回放多少遍，因为录制根本不在乎那个 bug 有多罕见。这就是“偶尔才失败的问题该怎么调试”背后的工具——你不再试图现场抓住它，而是开始把数据留下来。
 
-在整张图运行时，录 `/raw` 和 `/filtered` 大约四秒，然后按 Ctrl+C：
+在整张图运行时，另开一个终端，在 home 文件夹里录 `/raw` 和 `/filtered` 大约四秒，然后按 Ctrl+C：
 
 ```text
+$ cd ~
 $ ros2 bag record -o sensor_run /raw /filtered
 [INFO] [1792444193.178419115] [rosbag2_recorder]: Subscribed to topic '/raw'
 [INFO] [1792444193.179012611] [rosbag2_recorder]: Subscribed to topic '/filtered'
@@ -828,14 +829,14 @@ Service:           0
 Service information: 
 ```
 
-`-o sensor_run` 给这段录制命名。`ros2 bag info` 随后讲清了全部来龙去脉：约 3.4 秒、每个话题十八条消息（折算下来约 5 Hz，正好对上传感器的频率）、以及每个话题确切的消息类型，这样以后打开这个 bag 的人都知道里面装的是什么。条数取决于你录了多久；你的不会是 18，这没关系。
+`-o sensor_run` 给这段录制命名：这是相对名字，所以 `ros2 bag record` 在终端当前所在的文件夹（这里是 `~`）里建出 `sensor_run` 文件夹（里面是 `metadata.yaml` 和 `.mcap` 文件），`ros2 bag info sensor_run` 和 `ros2 bag play sensor_run` 也只有在同一个文件夹里才找得到它。`ros2 bag info` 随后讲清了全部来龙去脉：约 3.4 秒、每个话题十八条消息（折算下来约 5 Hz，正好对上传感器的频率）、以及每个话题确切的消息类型，这样以后打开这个 bag 的人都知道里面装的是什么。条数取决于你录了多久；你的不会是 18，这没关系。
 
-bag 的意义在于回放。停掉 launch，然后单独只启动滤波节点，另外开两个终端，一个打印滤波后的值，一个回放录像：
+bag 的意义在于回放。停掉 launch，然后单独只启动滤波节点，另外开两个终端（和每个新终端一样，先按第 4 节加载环境），一个打印滤波后的值，一个回放录像。回放在 `~` 里运行，也就是录制时所在的文件夹：
 
 ```bash
 ros2 run m4_graph_cpp filter_node
 ros2 topic echo /filtered --field value
-ros2 bag play sensor_run --topics /raw
+cd ~ && ros2 bag play sensor_run --topics /raw
 ```
 
 滤波器分不出实时传感器和一段录像——两种情况它都是订阅 `/raw`。它从录制数据里发布出来的前三个滤波值是：
