@@ -2630,5 +2630,145 @@ for (const m of readdirSync(content)) {
   console.log(`style percent: ${pctFiles.length} files (lessons + src/lib), ${uiFiles.length} UI files (src/components + src/app) and ${msgFiles.length} message files, ${bad.length} without the space`);
 }
 
+{
+  // PR B (audit 27, beginner path): each Month 4 lesson that builds packages copies them from its own folder,
+  // runs rosdep on the apt route, and names every apt package that rosdep pulls in beyond ros-jazzy-desktop.
+  // Desktop membership: transitive Depends of ros-jazzy-desktop in https://repo.ros2.org/ubuntu/main/dists/noble/main/binary-amd64/Packages.gz
+  // (the build farm's main repo, which packages.ros.org/ros2/ubuntu mirrors; https answered 200 on 2026-11-03, while plain http to
+  // repo.ros2.org and to packages.ros.org returned HTTP 500 from the editor's box). Same index: ros-jazzy-urdfdom ships
+  // /opt/ros/jazzy/bin/check_urdf, ros-jazzy-xacro ships /opt/ros/jazzy/bin/xacro, ros-jazzy-gz-tools-vendor ships
+  // /opt/ros/jazzy/opt/gz_tools_vendor/bin/gz (all three need /opt/ros/jazzy/setup.bash on the PATH).
+  // key -> deb names: `rosdep resolve <key> --os=ubuntu:noble --rosdistro=jazzy` (all resolved, same names as below).
+  const rdB = (p) => readFileSync(join(root, p), "utf8");
+  const DESKTOP = new Set(["robot_state_publisher", "rviz2", "rclpy", "geometry_msgs", "nav_msgs", "ament_cmake", "rosidl_default_generators",
+    "action_msgs", "rosidl_default_runtime", "teleop_twist_keyboard", "tf2_ros", "tf2_tools", "urdfdom"]);
+  const SRC = "source /opt/ros/jazzy/setup.bash                  # apt route only; in pixi, pixi shell does this";
+  // pixi.toml metapackage that carries each non-desktop key (closure of that RoboStack/apt metapackage).
+  const PIXI = { xacro: "xacro", joint_state_publisher: "joint-state-publisher", joint_state_publisher_gui: "joint-state-publisher-gui",
+    ros_gz_sim: "ros-gz", ros_gz_bridge: "ros-gz", controller_manager: "ros2-control", ros2controlcli: "ros2-control",
+    diff_drive_controller: "ros2-controllers", joint_state_broadcaster: "ros2-controllers", position_controllers: "ros2-controllers",
+    gz_ros2_control: "gz-ros2-control", slam_toolbox: "slam-toolbox", nav2_bringup: "nav2-bringup", nav2_common: "nav2-bringup", nav2_map_server: "nav2-bringup" };
+  const pixi = rdB("examples/month-4/pixi.toml");
+  const RD = "rosdep install --from-paths src --ignore-src -y   # apt route only; pixi has no rosdep and pixi.toml already lists these";
+  const pkgDir = (lesson, rel) => join("examples/month-4", lesson, rel);
+  const deps = (dir) => [...rdB(join(dir, "package.xml")).matchAll(/<(?:exec_|build_|buildtool_)?depend>([^<]+)</g)].map((m) => m[1]);
+  const lessons = { "urdf-tf": ["m4_description"], "gazebo-sim": ["m4_gazebo"], "ros2-control": ["m4_control", "m4_drive_interfaces"], "slam-nav": ["m4_nav"] };
+  const earlier = new Set(); // keys already introduced by an earlier lesson's packages
+  for (const [lesson, own] of Object.entries(lessons)) {
+    const ownKeys = own.flatMap((o) => deps(pkgDir(lesson, o))).filter((d) => !d.startsWith("m4_"));
+    for (const lang of ["en", "zh"]) {
+      const tag = `m4 ${lesson} ${lang} build path`;
+      const text = rdB(`src/content/m4/${lesson}/${lang}.mdx`);
+      const blocks = [...text.matchAll(/```bash\n([\s\S]*?)```/g)].map((m) => m[1]).filter((b) => b.includes("~/ros2_ws/src/") && /^cp -r /m.test(b));
+      ok(blocks.length === 1, `${tag}: expected one bash block that copies packages into ~/ros2_ws/src/ (found ${blocks.length})`);
+      if (blocks.length !== 1) continue;
+      const lines = blocks[0].replace(/\\\n\s*/g, "").split("\n").filter(Boolean);
+      ok(lines[0] === SRC, `${tag}: build block must start with the apt-route source line`);
+      lines.shift();
+      const cp = lines[0].match(/^cp -r (.+?) ~\/ros2_ws\/src\/\s+# from examples\/month-4\/([a-z0-9-]+)/);
+      ok(cp && cp[2] === lesson, `${tag}: cp line must end with "# from examples/month-4/${lesson}"`);
+      if (!cp) continue;
+      const copied = cp[1].trim().split(/\s+/);
+      const names = new Set();
+      for (const rel of copied) {
+        const ok1 = existsSync(join(root, pkgDir(lesson, rel), "package.xml"));
+        ok(ok1, `${tag}: ${rel} is not a package relative to examples/month-4/${lesson}`);
+        if (ok1) names.add(rel.split("/").pop());
+      }
+      for (const o of own) ok(names.has(o), `${tag}: cp must copy ${o}`);
+      // --ignore-src: every m4_* dependency must itself be in src/, or rosdep cannot resolve it.
+      for (const rel of copied) if (existsSync(join(root, pkgDir(lesson, rel), "package.xml")))
+        for (const d of deps(pkgDir(lesson, rel))) if (d.startsWith("m4_")) ok(names.has(d), `${tag}: ${rel} needs ${d} in src/ too`);
+      const i = lines.findIndex((l) => l === "cd ~/ros2_ws"), j = lines.indexOf(RD), k = lines.indexOf("colcon build && source install/setup.bash");
+      ok(i === 1 && j > i && k === j + 1, `${tag}: order must be cp, cd ~/ros2_ws, [apt], rosdep install, colcon build (got ${i}/${j}/${k})`);
+      // Every non-desktop key of this lesson's own packages is named as an apt package in the prose, and carried by pixi.toml.
+      const keys = new Set(ownKeys.filter((d) => !earlier.has(d)));
+      if (/ros2 control list_/.test(text)) keys.add("ros2controlcli");
+      for (const key of keys) {
+        if (DESKTOP.has(key)) continue;
+        const deb = `ros-jazzy-${key.replace(/_/g, "-")}`;
+        ok(text.includes("`" + deb + "`"), `${tag}: prose must name \`${deb}\` (rosdep key ${key}, not in ros-jazzy-desktop)`);
+        ok(PIXI[key] && pixi.includes(`ros-jazzy-${PIXI[key]} = `), `${tag}: pixi.toml must carry ${key}`);
+      }
+      // ros2controlcli is not in any package.xml, so the apt route needs it by name.
+      if (keys.has("ros2controlcli") && !own.some((o) => deps(pkgDir(lesson, o)).includes("ros2controlcli")))
+        ok(lines.includes("sudo apt install ros-jazzy-ros2controlcli         # apt route only: the ros2 control commands below"), `${tag}: apt line for ros2controlcli`);
+      ok(text.includes("`examples/month-4/" + lesson + "`"), `${tag}: prose must say to run the cp from \`examples/month-4/${lesson}\``);
+      ok(lang === "en" ? /pixi[^\n]{0,120}skip/i.test(text) : /pixi 里[^\n]{0,60}跳过/.test(text), `${tag}: prose must tell pixi users to skip the rosdep line`);
+      for (const s of ["cd ~/ros2_ws && colcon build && source install/setup.bash", "cp -r m4_description m4_gazebo ~/ros2_ws/src/", "cp -r m4_description m4_gazebo m4_control"])
+        ok(!text.includes(s), `${tag}: stale command ${JSON.stringify(s)} must be gone`);
+    }
+    for (const d of ownKeys) earlier.add(d);
+  }
+  const extra = {
+    en: { "urdf-tf": "`ros-jazzy-desktop` does not include xacro or the joint sliders", "ros2-control": "which no `package.xml` here lists and `ros-jazzy-desktop` does not include, so install it by name",
+      "slam-nav": "`m4_nav` reuses the packages from Lessons 3 to 5, so they go into the workspace too" },
+    zh: { "urdf-tf": "`ros-jazzy-desktop` 不带 xacro，也不带关节滑块界面", "ros2-control": "这里没有哪个 `package.xml` 列了它，`ros-jazzy-desktop` 也不带，所以要按名字单独装",
+      "slam-nav": "`m4_nav` 要用第 3 到第 5 课的包，所以它们也要放进工作空间" } };
+  for (const lang of ["en", "zh"]) for (const [lesson, f] of Object.entries(extra[lang]))
+    ok(rdB(`src/content/m4/${lesson}/${lang}.mdx`).includes(f), `m4 ${lesson} ${lang} build path: expected ${JSON.stringify(f)}`);
+  // PR B follow-up (review of #79): nothing in Lessons 3-6 is used before it is installed, copied or built.
+  {
+    ok(DESKTOP.has("urdfdom") && !DESKTOP.has("xacro") && /^ros-jazzy-xacro = /m.test(pixi) && /^ros-jazzy-urdfdom = /m.test(pixi),
+      "m4 order: check_urdf (urdfdom) is in ros-jazzy-desktop, xacro is not; pixi.toml carries both");
+    const XB = [SRC, "cd Hardware-learning/examples/month-4/urdf-tf      # in pixi (opened in examples/month-4): cd urdf-tf",
+      "sudo apt install ros-jazzy-xacro                  # apt route only; pixi.toml already lists xacro",
+      "xacro m4_description/urdf/robot.urdf.xacro > /tmp/robot.urdf && check_urdf /tmp/robot.urdf"].join("\n") + "\n";
+    ok(existsSync(join(root, "examples/month-4/urdf-tf/m4_description/urdf/robot.urdf.xacro")), "m4 order: the xacro path is relative to examples/month-4/urdf-tf");
+    const facts = {
+      en: { "urdf-tf": ["`check_urdf` comes with `ros-jazzy-urdfdom`, which `ros-jazzy-desktop` includes, but xacro is not in it, so the apt route installs `ros-jazzy-xacro` now",
+          "clone the repository first with the `git clone` line from Lesson 1's pixi section", "In pixi, skip the `source` and `apt` lines",
+          "(`ros-jazzy-xacro` is there since the check above)", "`pose_head.py` runs from `examples/month-4/urdf-tf`"],
+        "gazebo-sim": ["the `gz` command this brings lives under `/opt/ros/jazzy/opt/gz_tools_vendor`, so it is not on the PATH before that",
+          "The scripts later in this lesson run from `examples/month-4/gazebo-sim`, in a second terminal"],
+        "ros2-control": ["The scripts later in this lesson run from `examples/month-4/ros2-control`, in a second terminal"],
+        "slam-nav": ["`slam.launch.py` is part of `m4_nav`, so build that package now and start it", "The scripts in this lesson run from `examples/month-4/slam-nav`, in a second terminal",
+          "Mapping runs under the `slam.launch.py` you built and started for the odometry check"] },
+      zh: { "urdf-tf": ["`check_urdf` 来自 `ros-jazzy-urdfdom`，`ros-jazzy-desktop` 已经带了它，但不带 xacro，所以 apt 路线要在这里装上 `ros-jazzy-xacro`",
+          "先用第 1 课 pixi 一节里的 `git clone` 那一行把仓库克隆下来", "在 pixi 里跳过 `source` 和 `apt` 这两行",
+          "（`ros-jazzy-xacro` 在上面检查时已经装好）", "`pose_head.py` 要在 `examples/month-4/urdf-tf` 里运行"],
+        "gazebo-sim": ["这样装上的 `gz` 命令在 `/opt/ros/jazzy/opt/gz_tools_vendor` 下，source 之前不在 PATH 里", "本课后面的脚本在 `examples/month-4/gazebo-sim` 里运行，用另一个"],
+        "ros2-control": ["本课后面的脚本在 `examples/month-4/ros2-control` 里运行，用另一个"],
+        "slam-nav": ["`slam.launch.py` 在 `m4_nav` 包里，所以现在构建这个包并启动它", "本课的脚本都在 `examples/month-4/slam-nav` 里运行，用另一个",
+          "建图就在为里程计检查构建并启动的那个 `slam.launch.py` 下进行"] } };
+    const stale = ["cd ~/ros2_ws/src/m4_description/urdf", "xacro robot.urdf.xacro > /tmp/robot.urdf", "Run the check again under `slam.launch.py`",
+      "在加载了校准的 `slam.launch.py` 下再跑一次检查", "Build the package and start mapping", "构建这个包并开始建图",
+      "As in Lesson 1, source `/opt/ros/jazzy/setup.bash` first", "和第 1 课一样，先 source `/opt/ros/jazzy/setup.bash`"];
+    for (const lang of ["en", "zh"]) for (const lesson of Object.keys(lessons)) {
+      const tag = `m4 ${lesson} ${lang} order`;
+      const text = rdB(`src/content/m4/${lesson}/${lang}.mdx`);
+      for (const f of facts[lang][lesson]) ok(text.includes(f), `${tag}: expected ${JSON.stringify(f)}`);
+      for (const st of stale) ok(!text.includes(st), `${tag}: stale ${JSON.stringify(st)} must be gone`);
+      const build = text.search(/```bash\nsource \/opt\/ros\/jazzy\/setup\.bash[^\n]*\ncp -r /);
+      ok(build > 0, `${tag}: build block not found`);
+      const lead = text.lastIndexOf("\n\n", build - 3); // the build block's lead-in paragraph may name what it builds
+      // A launch of this lesson's own package, in prose, a bash block or a quoted run, only after the block that builds it
+      // (code listings are skipped: a docstring may name its launch file).
+      const noListings = text.replace(/```(?:python|yaml|xml|cmake)\n[\s\S]*?```/g, (m) => " ".repeat(m.length));
+      for (const o of lessons[lesson]) {
+        const launches = [...noListings.matchAll(/(?:ros2 launch (m4_[a-z_]+)|`([a-z_]+\.launch\.py)`)/g)];
+        for (const m of launches) {
+          const owner = m[1] ?? [...readdirSync(join(root, "examples/month-4", lesson, o, "launch")).filter((f) => f === m[2])].map(() => o)[0];
+          if (owner === o) ok(m.index > lead, `${tag}: ${m[0]} at char ${m.index} is used before the paragraph that builds it (char ${lead})`);
+        }
+      }
+      // Every script run with python3 lives in this lesson's folder, which the prose names as the place to run it.
+      for (const m of noListings.matchAll(/(?:^|\$ )python3 ([a-z_]+\.py)/gm))
+        ok(existsSync(join(root, "examples/month-4", lesson, m[1])), `${tag}: python3 ${m[1]} is not in examples/month-4/${lesson}`);
+      if (lesson === "urdf-tf") {
+        const xi = text.indexOf("```bash\n" + XB + "```"), ii = text.indexOf("```bash\npython3 inertia_check.py /tmp/robot.urdf\n```");
+        ok(xi > 0 && ii > xi && build > ii, `${tag}: order must be xacro check block, inertia_check, build block (got ${xi}/${ii}/${build})`);
+        ok(!text.slice(0, build).includes("~/ros2_ws/src/m4_description"), `${tag}: ~/ros2_ws/src/m4_description used before it is copied`);
+      }
+      if (lesson === "slam-nav") {
+        const runs = [...text.matchAll(/\$ python3 spin_check\.py/g)].map((m) => m.index);
+        ok(runs.length === 2 && runs[0] < build && build < runs[1], `${tag}: first spin_check under Lesson 5's launch, second after building m4_nav (got ${runs}/${build})`);
+      }
+    }
+    console.log("m4 order: xacro check before build, nothing launched before it is built, scripts in their lesson folders");
+  }
+  console.log("m4 build path: urdf-tf / gazebo-sim / ros2-control / slam-nav cp paths, rosdep order, non-desktop apt names checked");
+}
+
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
 process.exit(failed ? 1 : 0);

@@ -32,7 +32,7 @@
 sudo apt install ros-jazzy-ros-gz
 ```
 
-这个包名本身就是一小段历史课：`gazebo_ros_pkgs` 连接的是 ROS 和 Gazebo Classic，`ros_gz` 连接的是 ROS 2 和新版 Gazebo。`gazebo_ros_pkgs` 根本没有 Jazzy 版本，所以让你安装它的教程，写于上一个时代。装完可以运行 `gz sim --versions`，确认拿到的是 8.x，而不是系统里残留的旧版本。
+这个包名本身就是一小段历史课：`gazebo_ros_pkgs` 连接的是 ROS 和 Gazebo Classic，`ros_gz` 连接的是 ROS 2 和新版 Gazebo。`gazebo_ros_pkgs` 根本没有 Jazzy 版本，所以让你安装它的教程，写于上一个时代。装完先 source `/opt/ros/jazzy/setup.bash`（这样装上的 `gz` 命令在 `/opt/ros/jazzy/opt/gz_tools_vendor` 下，source 之前不在 PATH 里），再运行 `gz sim --versions`，确认拿到的是 8.x，而不是系统里残留的旧版本。
 
 <Quiz id="q1" question="某教程一上来就运行 'ign gazebo shapes.sdf'，还加载 libgazebo_ros_diff_drive.so。这说明什么？" options={["它是最新的，能在 Jazzy 上正常工作", "它是为旧版 Gazebo 写的，你需要翻译命令和插件名", "它需要 GPU", "它是给 MuJoCo 用的"]} answer={1} explanation="ign 是 2022 年以前 gz 工具的旧名字，libgazebo_ros_* 插件属于 Gazebo Classic；两者都是教程过时的信号。" />
 
@@ -517,11 +517,14 @@ def generate_launch_description():
 
 `create` 节点从 `robot_description` 话题生成机器人，而不是从文件路径读取。它拿到的是 `robot_state_publisher` 收到的同一份描述，所以 Gazebo 里的模型和 ROS 2 里的 TF 不可能各自漂移。末尾的 `-z 0.01` 把机器人抬高 1 cm，避免第一步就和地面相撞。
 
-构建并运行：
+构建并运行，`cp` 在 `examples/month-4/gazebo-sim` 里执行。走 apt 路线时，`rosdep install` 读 `m4_gazebo/package.xml`，会再装 `ros-jazzy-ros-gz-sim` 和 `ros-jazzy-ros-gz-bridge`，本课开头装的 `ros-jazzy-ros-gz` 已经带了它们；在 pixi 里跳过这一行。本课后面的脚本在 `examples/month-4/gazebo-sim` 里运行，用另一个同样准备好的终端（source 了 ROS 和 `~/ros2_ws/install/setup.bash`）：
 
 ```bash
-cp -r m4_description m4_gazebo ~/ros2_ws/src/     # m4_description from Lesson 3
-cd ~/ros2_ws && colcon build && source install/setup.bash
+source /opt/ros/jazzy/setup.bash                  # apt route only; in pixi, pixi shell does this
+cp -r ../urdf-tf/m4_description m4_gazebo ~/ros2_ws/src/   # from examples/month-4/gazebo-sim; m4_description from Lesson 3
+cd ~/ros2_ws
+rosdep install --from-paths src --ignore-src -y   # apt route only; pixi has no rosdep and pixi.toml already lists these
+colcon build && source install/setup.bash
 ros2 launch m4_gazebo sim.launch.py              # add headless:=true on a machine without a screen
 ```
 

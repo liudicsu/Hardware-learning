@@ -404,11 +404,15 @@ The bridge is now short, because the controllers publish odometry, TF and joint 
   direction: GZ_TO_ROS
 ```
 
-Build the four packages and start the robot:
+Build the four packages and start the robot, from `examples/month-4/ros2-control`. On the apt route, `rosdep install` adds the ros2_control packages that `m4_control/package.xml` lists: `ros-jazzy-controller-manager`, `ros-jazzy-diff-drive-controller`, `ros-jazzy-joint-state-broadcaster`, `ros-jazzy-position-controllers` and `ros-jazzy-gz-ros2-control`. The `ros2 control` commands used below come from `ros-jazzy-ros2controlcli`, which no `package.xml` here lists and `ros-jazzy-desktop` does not include, so install it by name. In pixi, skip both of those lines: `pixi.toml` has `ros-jazzy-ros2-control`, which includes the command-line tool, and `ros-jazzy-gz-ros2-control`. The scripts later in this lesson run from `examples/month-4/ros2-control`, in a second terminal set up the same way (ROS and `~/ros2_ws/install/setup.bash` sourced):
 
 ```bash
-cp -r m4_description m4_gazebo m4_control m4_drive_interfaces ~/ros2_ws/src/
-cd ~/ros2_ws && colcon build && source install/setup.bash
+source /opt/ros/jazzy/setup.bash                  # apt route only; in pixi, pixi shell does this
+cp -r ../urdf-tf/m4_description ../gazebo-sim/m4_gazebo m4_control m4_drive_interfaces ~/ros2_ws/src/   # from examples/month-4/ros2-control
+cd ~/ros2_ws
+sudo apt install ros-jazzy-ros2controlcli         # apt route only: the ros2 control commands below
+rosdep install --from-paths src --ignore-src -y   # apt route only; pixi has no rosdep and pixi.toml already lists these
+colcon build && source install/setup.bash
 ros2 launch m4_control control.launch.py          # add headless:=true on a machine without a screen
 ```
 

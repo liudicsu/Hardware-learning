@@ -252,11 +252,13 @@
 7. **visual 与 collision 分开**。`tilt_link` 有两个 visual——相机机身和一小段镜头圆柱——是为了好看，但碰撞体只有一个朴素的盒子。物理引擎每秒要检查几千次碰撞，所以简单形状便宜、漂亮形状不便宜；把细节留给 visual，把简单留给 collision。
 8. **`camera_link` 与 `camera_optical_link`**。`camera_link` 遵循 ROS 机体约定，x 向前。光学坐标系被 `rpy="${-pi/2} 0 ${-pi/2}"` 转了一下，变成 z 向前、x 向右、y 向下——这正是图像驱动和 OpenCV 期待的坐标系。URDF 依次绕固定轴做滚转、俯仰、偏航，所以 R = Rz(−90°) · Ry(0) · Rx(−90°)。作用到光学坐标轴上：R · (0, 0, 1) = (1, 0, 0)，光学 z 是机体 x（向前）；R · (1, 0, 0) = (0, −1, 0)，光学 x 是机体 −y（向右）；R · (0, 1, 0) = (0, 0, −1)，光学 y 是机体 −z（向下）。图像工具链会去找光学坐标系，所以哪怕它只是一个固定旋转，也值得加。
 
-把 xacro 转成朴素 URDF，并在 RViz 看到它之前先检查：
+把 xacro 转成朴素 URDF，并在 RViz 看到它之前先检查。本课的命令都在课程仓库里本课的文件夹 `examples/month-4/urdf-tf` 中执行；走 apt 路线时，先用第 1 课 pixi 一节里的 `git clone` 那一行把仓库克隆下来。`check_urdf` 来自 `ros-jazzy-urdfdom`，`ros-jazzy-desktop` 已经带了它，但不带 xacro，所以 apt 路线要在这里装上 `ros-jazzy-xacro`。在 pixi 里跳过 `source` 和 `apt` 这两行：`pixi shell` 会加载 ROS，`pixi.toml` 也已经列了 xacro。
 
 ```bash
-cd ~/ros2_ws/src/m4_description/urdf
-xacro robot.urdf.xacro > /tmp/robot.urdf && check_urdf /tmp/robot.urdf
+source /opt/ros/jazzy/setup.bash                  # apt route only; in pixi, pixi shell does this
+cd Hardware-learning/examples/month-4/urdf-tf      # in pixi (opened in examples/month-4): cd urdf-tf
+sudo apt install ros-jazzy-xacro                  # apt route only; pixi.toml already lists xacro
+xacro m4_description/urdf/robot.urdf.xacro > /tmp/robot.urdf && check_urdf /tmp/robot.urdf
 ```
 
 ```text
@@ -486,11 +488,14 @@ def generate_launch_description():
 
 这份文件里有三个细节值得停一下。`Command(['xacro ', xacro_file])` 在启动时运行 xacro，所以你改完 xacro、重新 launch 就能看到变化——不需要单独的构建步骤。把它包进 `ParameterValue(..., value_type=str)` 是为了阻止 `launch` 把这段 XML 当成 YAML 去解析，否则它真会那么干并把内容弄乱。`joints` 参数则在滑块、全部归零、什么都不发之间做选择；「什么都不发」正是第 6 节故意弄断那棵树的工具。和第二课一样，`setup.py` 必须把 `urdf`、`launch` 和 `rviz` 这几个目录安装进去，否则 launch 文件会找不到自己的文件。
 
-构建这个包并启动它：
+构建这个包并启动它，仍然在 `examples/month-4/urdf-tf` 里执行。走 apt 路线时，`ros-jazzy-desktop` 不带 xacro，也不带关节滑块界面，所以要用第 1 课讲过的 `rosdep install` 装上 `m4_description/package.xml` 列出、但还没装的依赖：`ros-jazzy-joint-state-publisher` 和 `ros-jazzy-joint-state-publisher-gui`（`ros-jazzy-xacro` 在上面检查时已经装好）。pixi 里没有 rosdep，`pixi.toml` 也已经列了这些包，所以在 pixi 里跳过这一行：
 
 ```bash
-cp -r m4_description ~/ros2_ws/src/
-cd ~/ros2_ws && colcon build && source install/setup.bash
+source /opt/ros/jazzy/setup.bash                  # apt route only; in pixi, pixi shell does this
+cp -r m4_description ~/ros2_ws/src/                # from examples/month-4/urdf-tf
+cd ~/ros2_ws
+rosdep install --from-paths src --ignore-src -y   # apt route only; pixi has no rosdep and pixi.toml already lists these
+colcon build && source install/setup.bash
 ros2 launch m4_description display.launch.py
 ```
 
@@ -557,7 +562,7 @@ if __name__ == '__main__':
     main()
 ```
 
-它每秒十次带着新时间戳发布 `/joint_states`，这正是 `robot_state_publisher` 工作所必需的。用「没有其它关节来源」的方式启动机器人，把云台摆到 pan 30°，然后查询从底盘到相机的变换：
+它每秒十次带着新时间戳发布 `/joint_states`，这正是 `robot_state_publisher` 工作所必需的。用「没有其它关节来源」的方式启动机器人，把云台摆到 pan 30°，然后查询从底盘到相机的变换。每个新终端都要和第一个一样准备好：source `/opt/ros/jazzy/setup.bash`（pixi 里用 `pixi shell`）和 `~/ros2_ws/install/setup.bash`，`pose_head.py` 要在 `examples/month-4/urdf-tf` 里运行：
 
 ```bash
 ros2 launch m4_description display.launch.py joints:=none rviz:=false
