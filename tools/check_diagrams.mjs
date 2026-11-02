@@ -2015,6 +2015,11 @@ const lessonRef = (n, slug, lang) => {
     const otherSafeHi = Math.floor((OTHER_EPH_LO - 1 - 7400 - 11) / 250);
     const fit101 = Math.floor((LINUX_EPH_LO - 1 - (port(101) + 11)) / 2) + 1;  // processes in domain 101 below 32768
     const spill = (250 - 10) / 2;                                              // P at which unicast reaches the next domain
+    const kiltedEol = [2025, 2026], kiltedMonths = (kiltedEol[1] - kiltedEol[0]) * 12 + (11 - 5);   // REP 2000: "Kilted Kaiju (May 2025 - November 2026)"
+    ok(kiltedMonths === 18, `m4 ros2-setup: Kilted May 2025 → November 2026 must be 18 months, got ${kiltedMonths}`);
+    // Safe domains: every port of domains 0–101 below the Linux pool, every port of 215–232 above it (port(215) > 60999 ≥ port(214)).
+    ok(port(linuxSafeLo) > LINUX_EPH_HI && port(linuxSafeLo - 1) <= LINUX_EPH_HI && port(linuxSafeHi, 0) + 1 < LINUX_EPH_LO && port(otherSafeHi, 0) + 1 < OTHER_EPH_LO,
+      `m4 ros2-setup: safe-range edges must follow the ephemeral pools ${LINUX_EPH_LO}–${LINUX_EPH_HI} / ${OTHER_EPH_LO}–${UDP_MAX}`);
     ok(port(2) + 250 === port(3) && port(1, spill) === port(2), `m4 ros2-setup: ${spill} processes spill into the next domain`);
     ok(maxDomain === 232 && linuxSafeHi === 101 && linuxSafeLo === 215 && otherSafeHi === 166 && fit101 === 54 && spill === 120,
       `m4 ros2-setup: domain limits ${maxDomain}/${linuxSafeHi}/${linuxSafeLo}/${otherSafeHi}/${fit101}/${spill} must be 232/101/215/166/54/120`);
@@ -2036,14 +2041,18 @@ const lessonRef = (n, slug, lang) => {
       const nums = lang === "en" ? [
         `For domain 1 that gives ${port(1)} and ${port(1) + 1} for multicast, and ${port(1, 0)} and ${port(1, 0) + 1} for the first process`,
         `the largest usable domain is ${maxDomain}`,
-        `calls 0–${linuxSafeHi} the safe range on Linux, plus ${linuxSafeLo}–${maxDomain}; on macOS and Windows it is 0–${otherSafeHi}`,
+        `Linux's default ephemeral ports are ${LINUX_EPH_LO}–${LINUX_EPH_HI} (set in \`/proc/sys/net/ipv4/ip_local_port_range\`)`,
+        `Domains 0–${linuxSafeHi} stay below it and ${linuxSafeLo}–${maxDomain} above it, which is why the documentation calls 0–${linuxSafeHi} the safe range on Linux, plus ${linuxSafeLo}–${maxDomain}. macOS and Windows use ${OTHER_EPH_LO}–${UDP_MAX}, so there it is 0–${otherSafeHi}`,
+        `| Kilted Kaiju | May ${kiltedEol[0]} | November ${kiltedEol[1]} | 24.04 |`, `dies in November ${kiltedEol[1]}, which is ${kiltedMonths} months`,
         `its multicast ports are ${port(101)} and ${port(101) + 1}, the first process uses ${port(101, 0)} and ${port(101, 0) + 1}, and only ${fit101} processes fit before the ports run into ${LINUX_EPH_LO}`,
         `more than ${spill} processes on one computer may spill`,
         `108 repositories`,
       ] : [
         `域 1 的组播端口是 ${port(1)} 和 ${port(1) + 1}，第一个进程用 ${port(1, 0)} 和 ${port(1, 0) + 1}`,
         `能用的最大域是 ${maxDomain}`,
-        `把 0–${linuxSafeHi} 称为 Linux 上的安全范围，另加 ${linuxSafeLo}–${maxDomain}；macOS 和 Windows 上是 0–${otherSafeHi}`,
+        `Linux 默认的临时端口是 ${LINUX_EPH_LO}–${LINUX_EPH_HI}（在 \`/proc/sys/net/ipv4/ip_local_port_range\` 里设置）`,
+        `域 0–${linuxSafeHi} 都在它下面，${linuxSafeLo}–${maxDomain} 都在它上面，所以文档把 0–${linuxSafeHi} 称为 Linux 上的安全范围，另加 ${linuxSafeLo}–${maxDomain}。macOS 和 Windows 用的是 ${OTHER_EPH_LO}–${UDP_MAX}，所以 macOS 和 Windows 上是 0–${otherSafeHi}`,
+        `| Kilted Kaiju | ${kiltedEol[0]} 年 5 月 | ${kiltedEol[1]} 年 11 月 | 24.04 |`, `${kiltedEol[1]} 年 11 月停止支持，中间 ${kiltedMonths} 个月`,
         `它的组播端口是 ${port(101)} 和 ${port(101) + 1}，第一个进程用 ${port(101, 0)} 和 ${port(101, 0) + 1}，端口撞上 ${LINUX_EPH_LO} 之前只放得下 ${fit101} 个进程`,
         `跑超过 ${spill} 个进程时，端口可能溢出`,
         `108 个要克隆并构建的仓库`,
@@ -2061,6 +2070,7 @@ const lessonRef = (n, slug, lang) => {
         "/etc/ros/rosdep/sources.list.d", "ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST", "ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET", "ROS_AUTOMATIC_DISCOVERY_RANGE=OFF",
         "ROS_AUTOMATIC_DISCOVERY_RANGE=SYSTEM_DEFAULT", 'ROS_STATIC_PEERS="192.168.0.1;remote.com"', "export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp",
         "sudo ufw allow in proto udp to 224.0.0.0/4", "sudo ufw allow in proto udp from 224.0.0.0/4", "QT_QPA_PLATFORM=xcb rviz2",
+        "sudo apt clean && sudo apt update && sudo apt full-upgrade -y", "sudo apt remove ros2-apt-source", "/opt/ros/jazzy/lib/python3.12/site-packages",
         "MAKEFLAGS=-j1 colcon build --executor sequential", "colcon build --symlink-install", "networkingMode=mirrored", "usbipd attach --wsl --busid 4-4", "--network host"];
       for (const q of cmds) ok(text.includes(q), `${L}: expected command ${JSON.stringify(q)}`);
       // Real outputs: every line of the expected file appears in the lesson (log timestamps and the sender's address masked).
@@ -2076,10 +2086,34 @@ const lessonRef = (n, slug, lang) => {
         ok(n === 1, `${L}: <Term id="${id}"> must appear exactly once, found ${n}`);
       }
       for (const l of ["gazebo-sim", "slam-nav"]) ok(text.includes(`](/${lang}/month/month-4/${l})`), `${L}: link to ${l}`);
-      const stale = lang === "en" ? ["In a new terminal you need both, in that order", "one of four mistakes", "47 repositories", "ROS_LOCALHOST_ONLY=1 is the recommended"] : ["新终端里两条都要", "四个错误之一", "47 个", "推荐用 ROS_LOCALHOST_ONLY"];
+      // Review fixes (Jazzy Improved-Dynamic-Discovery, About-Domain-ID, Ubuntu-Install-Debs, REP 2000): the corrected claims must be there.
+      const facts = lang === "en" ? [
+        "| `ROS_AUTOMATIC_DISCOVERY_RANGE=OFF` | discovers nothing, not even other nodes on this computer; `ROS_STATIC_PEERS` is ignored too |",
+        '| `ROS_STATIC_PEERS="192.168.0.1;remote.com"` | these hosts are added on top of the range, but ignored when the range is `OFF`; separate entries with `;` |',
+        "if either node has the range set to `OFF`, the two never connect",
+        'REP 2000, which gives Kilted "May 2025 - November 2026"', "Jazzy's Tier 1 platforms are Ubuntu 24.04, with deb packages for amd64 and arm64, and Windows 10, as a binary archive",
+        "RHEL 9 is Tier 2", "The first line only checks; the four after it install and set the locale",
+        "may only include the base `noble` suite", "come from the site's pixi environment",
+        "a new module, a new launch file or a new entry point in `setup.py` still needs `colcon build`",
+      ] : [
+        "| `ROS_AUTOMATIC_DISCOVERY_RANGE=OFF` | 什么都不发现，连本机上的其他节点也不发现；`ROS_STATIC_PEERS` 同样不生效 |",
+        '| `ROS_STATIC_PEERS="192.168.0.1;remote.com"` | 在范围之外再加上这些主机，但范围为 `OFF` 时会被忽略；多个条目用 `;` 分隔 |',
+        "只要任意一方把范围设成 `OFF`，两个节点就连不上",
+        "以 REP 2000 为准，它给 Kilted 写的是“May 2025 - November 2026”", "Jazzy 的 Tier 1 是 Ubuntu 24.04（amd64 和 arm64，提供 deb 包）和 Windows 10（提供二进制压缩包）",
+        "RHEL 9 是 Tier 2", "第一行只是检查，后面四行才是安装并设置 locale",
+        "apt 源可能只包含基础的 `noble` 套件", "来自本站的 pixi 环境",
+        "新加的模块、新的 launch 文件或 `setup.py` 里新的入口点，仍然要 `colcon build`",
+      ];
+      for (const q of facts) ok(text.includes(q), `${L}: expected corrected claim ${JSON.stringify(q)}`);
+      const stale = lang === "en" ? ["In a new terminal you need both, in that order", "one of four mistakes", "47 repositories", "ROS_LOCALHOST_ONLY=1 is the recommended",
+        "always try these hosts", "no automatic discovery at all", "range above 32767", "the five lines", "| December 2026 |", "dies in December 2026", "19 months", "about two months",
+        "one Ubuntu LTS as its Tier 1 platform", "lists only `noble`", "your workspace above installs into"]
+        : ["新终端里两条都要", "四个错误之一", "47 个", "推荐用 ROS_LOCALHOST_ONLY",
+        "总是尝试这些主机", "完全不自动发现", "32767 以上", "那五行", "| 2026 年 12 月 |", "2026 年 12 月停止支持", "19 个月", "约两个月",
+        "都有一个作为 Tier 1 的 Ubuntu LTS", "只写了 `noble`", "上面的工作空间装进的是"];
       for (const q of stale) ok(!text.includes(q), `${L}: stale claim ${JSON.stringify(q)} must be gone`);
     }
-    console.log(`calc  m4 ros2-setup: ports 7400+250·D (+1, +10+2P, +11+2P): D1 ${port(1)}/${port(1, 0)}, D2 ${port(2)}, D101 ${port(101)}/${port(101, 0)} → ${fit101} procs; max domain ${maxDomain}; safe Linux 0–${linuxSafeHi} & ${linuxSafeLo}–${maxDomain}, macOS/Win 0–${otherSafeHi}; spill > ${spill}; ${outputs.length} real outputs and ${terms.length} Terms bound in en/zh`);
+    console.log(`calc  m4 ros2-setup: ports 7400+250·D (+1, +10+2P, +11+2P): D1 ${port(1)}/${port(1, 0)}, D2 ${port(2)}, D101 ${port(101)}/${port(101, 0)} → ${fit101} procs; max domain ${maxDomain}; safe Linux 0–${linuxSafeHi} & ${linuxSafeLo}–${maxDomain}, macOS/Win 0–${otherSafeHi}; spill > ${spill}; Kilted ${kiltedMonths} months; ${outputs.length} real outputs and ${terms.length} Terms bound in en/zh`);
   }
 
   console.log(`calc  m4 gaps: Construct €39.97 + pixi 5.8 GB; EMA α=0.5 @k67–69 ${a05.map((x) => x.toFixed(4)).join(", ")} / α=0.2 replay ${a02.map((x) => x.toFixed(4)).join(", ")}; teleop held ${teleopHeld} m vs 1.15 m; staleness ${stale} m; footprint +${fpFwd}/${fpBack}/±${fpY} (exact side ${fpYExact}); r/b 10 % → ${r10}/${b10}, turn ×${turnFactor.toFixed(2)}; inflation (254−1)·exp(−${costScale}·(d−r_ins)) out to ${inflR} m; smear ${smearTour} rad @ ${turnClamp} rad/s / ${lidarRate} Hz; Isaac 4080/16/32 Oct 2026; MuJoCo IROS 2012; gz step ${maxStepGz}/RTF ${rtfGz}, lidar σ ${lidarStd}/min ${lidarMin}, hand ${handRange} m; bound in en/zh`);

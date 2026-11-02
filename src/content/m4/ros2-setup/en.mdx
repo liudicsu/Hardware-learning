@@ -17,11 +17,11 @@ The release cadence has a pattern worth memorising. Even years are LTS (long-ter
 | Distro | Released | End of life | Ubuntu | Verdict |
 | --- | --- | --- | --- | --- |
 | Lyrical Luth | May 2026 | May 2031 | 26.04 | The newest LTS; what you would pick for a brand-new production project |
-| Kilted Kaiju | May 2025 | December 2026 | 24.04 | Non-LTS, support ends in about two months: do not start here |
+| Kilted Kaiju | May 2025 | November 2026 | 24.04 | Non-LTS, support ends in November 2026: do not start here |
 | Jazzy Jalisco | May 2024 | May 2029 | 24.04 | LTS: start here |
 | Humble Hawksbill | May 2022 | May 2027 | 22.04 | Legacy; you will meet it on older robots and in older courses |
 
-Read the table with a calendar, not with a vague sense of "newer is better". Kilted was released in May 2025 and dies in December 2026, which is 19 months — the "about 18 months" figure in practice. Jazzy was released in May 2024 and gets until May 2029, exactly five years. The end-of-life date is not the day the code stops running; it is the day fixes, security updates and new binary packages stop; from then on you are on your own when something breaks, and new tutorials and packages move to newer distros.
+Read the table with a calendar, not with a vague sense of "newer is better". Kilted was released in May 2025 and dies in November 2026, which is 18 months — the "about 18 months" figure in practice. The end dates here follow REP 2000, which gives Kilted "May 2025 - November 2026"; the releases table on docs.ros.org currently says December 2026, so do not plan on that extra month. Jazzy was released in May 2024 and gets until May 2029, exactly five years. The end-of-life date is not the day the code stops running; it is the day fixes, security updates and new binary packages stop; from then on you are on your own when something breaks, and new tutorials and packages move to newer distros.
 
 Here is the calculation you will repeat for any distro. Say it is October 2026 and you want to know how much support Lyrical has left:
 
@@ -36,7 +36,7 @@ The same sum for Jazzy gives the answer to the quiz below.
 
 So why start on Jazzy rather than the newest LTS? Because almost every course, book and video series still targets Jazzy. It has more than two and a half years of support left, which is plenty of runway to learn on. And when a tutorial and your install are the same distro, you fight the topic instead of version differences: the package names match, the launch syntax matches, and error messages you find online were written about the code you are running. Move to Lyrical when the tutorial stack you rely on catches up; the concepts transfer almost unchanged, so that move will be a week of adjustment, not a restart.
 
-One more piece of vocabulary from the releases page: each distro is built against one Ubuntu LTS as its Tier 1 platform. Jazzy and Kilted target Ubuntu 24.04; Humble targets 22.04; Lyrical targets 26.04. Other operating systems are supported at lower tiers, which means fewer prebuilt binaries and fewer tested combinations. That is why the install instructions care so much about the exact Ubuntu version, and why the alternatives in this lesson exist at all.
+One more piece of vocabulary, from REP 2000, the document that fixes each distro's target platforms: every platform gets a tier. Tier 1 platforms are tested continuously and their bugs are fixed first. A distro can have more than one: Jazzy's Tier 1 platforms are Ubuntu 24.04, with deb packages for amd64 and arm64, and Windows 10, as a binary archive. RHEL 9 is Tier 2, and Ubuntu 22.04, macOS and Debian 12 are Tier 3, source builds only. What each distro does have is exactly one Ubuntu release at Tier 1: 24.04 for Jazzy and Kilted, 22.04 for Humble, and 26.04 for Lyrical, whose supported-platforms page also lists Windows 11 at Tier 1. Lower tiers mean fewer prebuilt binaries and fewer tested combinations. That is why the install instructions care so much about the exact Ubuntu version, and why the alternatives in this lesson exist at all.
 
 Practical habit: write your distro at the top of your notes, and read it in the first command of every tutorial before spending time on the rest.
 
@@ -103,13 +103,13 @@ sudo apt upgrade
 sudo apt install ros-jazzy-desktop
 ```
 
-The locale block comes first because ROS 2 expects a UTF-8 locale. A desktop Ubuntu already has one, and `locale` will show `LANG=en_US.UTF-8` or similar; a minimal system such as a Docker image may report `POSIX`, and the five lines fix that. Any UTF-8 locale is fine; `en_US.UTF-8` is simply the one the ROS 2 project tests with.
+The locale block comes first because ROS 2 expects a UTF-8 locale. A desktop Ubuntu already has one, and `locale` will show `LANG=en_US.UTF-8` or similar; a minimal system such as a Docker image may report `POSIX`. The first line only checks; the four after it install and set the locale, and the official page ends with another `locale` to verify. Any UTF-8 locale is fine; `en_US.UTF-8` is simply the one the ROS 2 project tests with.
 
 The next lines enable Ubuntu's universe repository and install the package that adds the ROS 2 apt repository and its signing key. The `ROS_APT_SOURCE_VERSION` line asks GitHub for the newest release tag of the apt-source package, and the `curl` line downloads the `.deb` built for your Ubuntu codename — on 24.04 that is `noble`. Installing it tells apt where the ROS 2 packages live; without it, `apt install ros-jazzy-desktop` would simply find nothing.
 
-`ros-dev-tools` brings colcon, <Term id="rosdep">rosdep</Term> and the other build tools you need from Lesson 2 onward. If installing it fails with dependency conflicts, the install page names the usual cause: the `Suites:` line in `/etc/apt/sources.list.d/ubuntu.sources` lists only `noble`. Check it with `grep Suites /etc/apt/sources.list.d/ubuntu.sources`; it should read `Suites: noble noble-updates noble-backports`. The `sudo apt upgrade` before the main install is also from the official page: ROS 2 packages are built against an up-to-date Ubuntu, so bring the system up to date first.
+`ros-dev-tools` brings colcon, <Term id="rosdep">rosdep</Term> and the other build tools you need from Lesson 2 onward. The install page warns that on Ubuntu 24.04 the apt sources may only include the base `noble` suite, which can cause dependency conflicts when installing `ros-dev-tools`. Check the `Suites:` line with `grep Suites /etc/apt/sources.list.d/ubuntu.sources`; it should read `Suites: noble noble-updates noble-backports`. If it does not, edit the line to that and then run `sudo apt clean && sudo apt update && sudo apt full-upgrade -y`, as the page says. The `sudo apt upgrade` before the main install is also from the official page: ROS 2 packages are built against an up-to-date Ubuntu, so bring the system up to date first.
 
-`ros-jazzy-desktop` is ROS 2 plus RViz, the demos and the tutorials. There is also `ros-jazzy-ros-base`, the bare-bones version without GUI tools, which is what you would put on a robot with no monitor. For learning, take the desktop package. Should you ever want to remove it, for example to switch to a source build, the same page gives `sudo apt remove '~nros-jazzy-*' && sudo apt autoremove`.
+`ros-jazzy-desktop` is ROS 2 plus RViz, the demos and the tutorials. There is also `ros-jazzy-ros-base`, the bare-bones version without GUI tools, which is what you would put on a robot with no monitor. For learning, take the desktop package. Should you ever want to remove it, for example to switch to a source build, the same page gives `sudo apt remove '~nros-jazzy-*' && sudo apt autoremove`. It adds an optional step if you also want the repository gone: `sudo apt remove ros2-apt-source`, then `sudo apt update`, `sudo apt autoremove` and `sudo apt upgrade`, the last one because packages that the ROS repository had shadowed may now have upgrades.
 
 These commands change over time — repository URLs, package names and supported Ubuntu versions all move. If a step fails, compare it with the official page rather than with a blog post from 2024. After installation, every terminal needs the environment loaded, which is the first thing in the next section.
 
@@ -385,7 +385,7 @@ That `source install/setup.bash` line deserves a habit of its own. The workspace
 
 ### One distro, one Ubuntu
 
-The binary packages are compiled for one operating system release, not for "Linux". The Jazzy install page says it directly: deb packages are available for Ubuntu Noble (24.04). REP 2000, the document that fixes each distro's target platforms, lists Jazzy on Ubuntu 24.04 as Tier 1 with deb packages, and Ubuntu 22.04 as Tier 3, source builds only. The packages link against that release's own libraries — REP 2000 pins Python 3.12.3 and Qt 5.15.10 for Noble — which is why your workspace above installs into `lib/python3.12/site-packages`. On any other Ubuntu there are no Jazzy debs to install, so you would be building from source. The pairing in the distro table is not a recommendation: Humble goes with 22.04, Jazzy and Kilted with 24.04, Lyrical with 26.04.
+The binary packages are compiled for one operating system release, not for "Linux". The Jazzy install page says it directly: deb packages are available for Ubuntu Noble (24.04). REP 2000, the document that fixes each distro's target platforms, lists Jazzy on Ubuntu 24.04 as Tier 1 with deb packages, and Ubuntu 22.04 as Tier 3, source builds only. The packages link against that release's own libraries — REP 2000 pins Python 3.12.3 and Qt 5.15.10 for Noble — which is why the Noble debs put their Python modules under `/opt/ros/jazzy/lib/python3.12/site-packages` (that is where `ros-jazzy-rclpy` installs `rclpy`). The `install/m4_hello/lib/python3.12/...` paths in this lesson come from the site's pixi environment, which happens to use Python 3.12 as well. On any other Ubuntu there are no Jazzy debs to install, so you would be building from source. The pairing in the distro table is not a recommendation: Humble goes with 22.04, Jazzy and Kilted with 24.04, Lyrical with 26.04.
 
 ### apt or a source build
 
@@ -475,7 +475,7 @@ Each package has two kinds of description, and they answer different questions. 
 
 ### `--symlink-install`
 
-By default colcon copies files into `install/`. With `colcon build --symlink-install` it links them instead, so edits to Python files and other non-compiled resources in `src/` take effect without a rebuild. In this lesson's package the result is visible on disk: `install/m4_hello/lib/python3.12/site-packages/m4-hello.egg-link` points back at the source, and `build/m4_hello/m4_hello` is a symlink to `src/m4_hello/m4_hello`. Compiled C++ still has to be rebuilt, because the binary is what gets installed.
+By default colcon copies files into `install/`. With `colcon build --symlink-install` it links them instead, so edits to Python files and other non-compiled resources in `src/` take effect without a rebuild. In this lesson's package the result is visible on disk: `install/m4_hello/lib/python3.12/site-packages/m4-hello.egg-link` points back at the source, and `build/m4_hello/m4_hello` is a symlink to `src/m4_hello/m4_hello`. Compiled C++ still has to be rebuilt, because the binary is what gets installed. Symlinks also only cover files that already exist: a new module, a new launch file or a new entry point in `setup.py` still needs `colcon build`, because the install step is what creates the link or the script (the `setup.py` row in the table below).
 
 ### Rebuild or re-source?
 
@@ -533,7 +533,7 @@ discovery unicast     7400 + 250·D + 10 + 2·P
 user unicast          7400 + 250·D + 11 + 2·P
 ```
 
-For domain 1 that gives 7650 and 7651 for multicast, and 7660 and 7661 for the first process. Because UDP ports stop at 65535, the largest usable domain is 232. On Linux the range above 32767 is also the operating system's pool of ephemeral ports, which is why the documentation calls 0–101 the safe range on Linux, plus 215–232; on macOS and Windows it is 0–166. Domain 101 is the top of that range: its multicast ports are 32650 and 32651, the first process uses 32660 and 32661, and only 54 processes fit before the ports run into 32768. Each process takes two ports, so running more than 120 processes on one computer may spill into the next domain's ports.
+For domain 1 that gives 7650 and 7651 for multicast, and 7660 and 7661 for the first process. Because UDP ports stop at 65535, the largest usable domain is 232. Linux's default ephemeral ports are 32768–60999 (set in `/proc/sys/net/ipv4/ip_local_port_range`), and the operating system hands those out to any program, so a domain whose ports land in that range can collide. Domains 0–101 stay below it and 215–232 above it, which is why the documentation calls 0–101 the safe range on Linux, plus 215–232. macOS and Windows use 49152–65535, so there it is 0–166. Domain 101 is the top of the Linux safe range: its multicast ports are 32650 and 32651, the first process uses 32660 and 32661, and only 54 processes fit before the ports run into 32768. Each process takes two ports, so running more than 120 processes on one computer may spill into the next domain's ports.
 
 Out-of-range values fail loudly. Real output with `ROS_DOMAIN_ID=233` and with `ROS_DOMAIN_ID=abc`:
 
@@ -574,11 +574,11 @@ Since Iron, two variables control how far discovery reaches, and Jazzy uses them
 | --- | --- |
 | `ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET` | the default: every host reachable by multicast |
 | `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` | only nodes on this computer |
-| `ROS_AUTOMATIC_DISCOVERY_RANGE=OFF` | no automatic discovery at all |
+| `ROS_AUTOMATIC_DISCOVERY_RANGE=OFF` | discovers nothing, not even other nodes on this computer; `ROS_STATIC_PEERS` is ignored too |
 | `ROS_AUTOMATIC_DISCOVERY_RANGE=SYSTEM_DEFAULT` | leave it to the RMW's own configuration |
-| `ROS_STATIC_PEERS="192.168.0.1;remote.com"` | always try these hosts, on top of the range; separate entries with `;` |
+| `ROS_STATIC_PEERS="192.168.0.1;remote.com"` | these hosts are added on top of the range, but ignored when the range is `OFF`; separate entries with `;` |
 
-`LOCALHOST` is the setting for working alone on a laptop, and it is what this site's checks use. `ROS_STATIC_PEERS` is how two computers find each other when multicast does not work between them, for example across a network that blocks it. Both are read by the default DDS layers; the newer Zenoh RMW supports neither.
+Discovery needs both sides: if either node has the range set to `OFF`, the two never connect, whatever the peers list says. `LOCALHOST` is the setting for working alone on a laptop, and it is what this site's checks use. `ROS_STATIC_PEERS` is how two computers find each other when multicast does not work between them, for example across a network that blocks it. Both are read by the default DDS layers; the newer Zenoh RMW supports neither.
 
 Older tutorials use `ROS_LOCALHOST_ONLY=1` instead. It still works in Jazzy but has been deprecated since Iron, and it overrides the new settings. Real output with it set:
 

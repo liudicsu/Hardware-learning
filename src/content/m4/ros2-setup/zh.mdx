@@ -17,11 +17,11 @@ ROS 2 每年 5 月发布一个新版本。每个版本叫一个发行版（distr
 | 发行版 | 发布时间 | 支持结束 | Ubuntu | 结论 |
 | --- | --- | --- | --- | --- |
 | Lyrical Luth | 2026 年 5 月 | 2031 年 5 月 | 26.04 | 最新的 LTS；全新的量产项目该选它 |
-| Kilted Kaiju | 2025 年 5 月 | 2026 年 12 月 | 24.04 | 非 LTS，支持只剩约两个月：不要从它开始 |
+| Kilted Kaiju | 2025 年 5 月 | 2026 年 11 月 | 24.04 | 非 LTS，支持到 2026 年 11 月结束：不要从它开始 |
 | Jazzy Jalisco | 2024 年 5 月 | 2029 年 5 月 | 24.04 | LTS：从这里开始 |
 | Humble Hawksbill | 2022 年 5 月 | 2027 年 5 月 | 22.04 | 老版本；会在旧机器人和旧课程里遇到 |
 
-看这张表要对着日历，而不是凭“越新越好”的感觉。Kilted 2025 年 5 月发布，2026 年 12 月停止支持，中间 19 个月——这就是“约 18 个月”的实际样子。Jazzy 2024 年 5 月发布，支持到 2029 年 5 月，正好 5 年。支持结束（end of life）不等于代码某天突然跑不动，而是修复、安全更新和新的二进制包停止发布；从那以后出了问题只能靠自己，新的教程和软件包也都转向更新的发行版。
+看这张表要对着日历，而不是凭“越新越好”的感觉。Kilted 2025 年 5 月发布，2026 年 11 月停止支持，中间 18 个月——这就是“约 18 个月”的实际样子。这里的停止日期以 REP 2000 为准，它给 Kilted 写的是“May 2025 - November 2026”；docs.ros.org 的发行版表目前写的是 2026 年 12 月，别指望多出来的那一个月。Jazzy 2024 年 5 月发布，支持到 2029 年 5 月，正好 5 年。支持结束（end of life）不等于代码某天突然跑不动，而是修复、安全更新和新的二进制包停止发布；从那以后出了问题只能靠自己，新的教程和软件包也都转向更新的发行版。
 
 下面这个算法，你以后对任何发行版都会重复。假设现在是 2026 年 10 月，想知道 Lyrical 还剩多少支持：
 
@@ -36,7 +36,7 @@ ROS 2 每年 5 月发布一个新版本。每个版本叫一个发行版（distr
 
 那么，既然 Lyrical 是最新的 LTS，为什么本课从 Jazzy 开始？因为几乎所有课程、书和视频系列目前仍以 Jazzy 为目标；Jazzy 还剩两年半以上的支持，足够你学完；更关键的是，当教程和你的安装是同一个发行版时，你的精力花在概念本身，而不是版本差异上——包名对得上，launch 语法对得上，搜到的报错就是针对你手上这份代码的。等你要依赖的教程生态跟上 Lyrical 再迁移；概念几乎不变，那会是一周的适应，而不是从头再来。
 
-发布页上还有一个词值得知道：每个发行版都有一个作为 Tier 1 的 Ubuntu LTS。Jazzy 和 Kilted 对应 24.04，Humble 对应 22.04，Lyrical 对应 26.04。其他操作系统属于更低的层级，意味着预编译包更少、验证过的组合也更少。这解释了为什么安装说明如此在意 Ubuntu 的具体版本，也解释了本课为什么还要给出替代方案。
+还有一个词值得知道，它来自 REP 2000，即规定每个发行版目标平台的文档：每个平台都被分到一个层级（tier）。Tier 1 平台持续接受测试，问题优先修复。一个发行版可以有不止一个 Tier 1：Jazzy 的 Tier 1 是 Ubuntu 24.04（amd64 和 arm64，提供 deb 包）和 Windows 10（提供二进制压缩包）。RHEL 9 是 Tier 2，Ubuntu 22.04、macOS 和 Debian 12 是 Tier 3，只能源码构建。每个发行版确实只有一个 Ubuntu 版本是 Tier 1：Jazzy 和 Kilted 是 24.04，Humble 是 22.04，Lyrical 是 26.04（它的 supported-platforms 页面同样把 Windows 11 列为 Tier 1）。层级越低，预编译包越少、验证过的组合也越少。这解释了为什么安装说明如此在意 Ubuntu 的具体版本，也解释了本课为什么还要给出替代方案。
 
 习惯：把你的发行版写在笔记最上面；读任何教程，先看第一条命令里写的是哪个发行版，再决定要不要花时间。
 
@@ -103,13 +103,13 @@ sudo apt upgrade
 sudo apt install ros-jazzy-desktop
 ```
 
-locale 那几行放在最前面，因为 ROS 2 要求 UTF-8 的 locale。桌面版 Ubuntu 通常已经有了，`locale` 会显示 `LANG=en_US.UTF-8` 之类；Docker 镜像这类精简系统可能显示 `POSIX`，那五行就是修这个的。任何 UTF-8 locale 都可以，`en_US.UTF-8` 只是 ROS 2 项目测试时用的那一个。
+locale 那几行放在最前面，因为 ROS 2 要求 UTF-8 的 locale。桌面版 Ubuntu 通常已经有了，`locale` 会显示 `LANG=en_US.UTF-8` 之类；Docker 镜像这类精简系统可能显示 `POSIX`。第一行只是检查，后面四行才是安装并设置 locale；官方页最后还会再跑一次 `locale` 来确认。任何 UTF-8 locale 都可以，`en_US.UTF-8` 只是 ROS 2 项目测试时用的那一个。
 
 接下来几行启用 Ubuntu 的 universe 仓库，并安装“添加 ROS 2 apt 仓库及其签名密钥”的那个包。`ROS_APT_SOURCE_VERSION` 那行向 GitHub 查询 apt-source 包的最新发布标签；`curl` 那行按你的 Ubuntu 代号（24.04 是 noble）下载对应的 `.deb`。装上它，apt 才知道 ROS 2 的包在哪里；没有它，`apt install ros-jazzy-desktop` 只会告诉你找不到包。
 
-`ros-dev-tools` 带来 colcon、<Term id="rosdep">rosdep</Term> 和后面要用的其他构建工具。如果装它时报依赖冲突，官方页点名了常见原因：`/etc/apt/sources.list.d/ubuntu.sources` 里的 `Suites:` 行只写了 `noble`。用 `grep Suites /etc/apt/sources.list.d/ubuntu.sources` 检查，应该是 `Suites: noble noble-updates noble-backports`。正式安装前的 `sudo apt upgrade` 同样来自官方页：ROS 2 的包是在持续更新的 Ubuntu 上构建的，所以先把系统升到最新。
+`ros-dev-tools` 带来 colcon、<Term id="rosdep">rosdep</Term> 和后面要用的其他构建工具。官方页提醒：在 Ubuntu 24.04 上，apt 源可能只包含基础的 `noble` 套件，这会让安装 `ros-dev-tools` 时出现依赖冲突。用 `grep Suites /etc/apt/sources.list.d/ubuntu.sources` 检查 `Suites:` 行，应该是 `Suites: noble noble-updates noble-backports`。如果不是，按官方页把这一行改成这样，再运行 `sudo apt clean && sudo apt update && sudo apt full-upgrade -y`。正式安装前的 `sudo apt upgrade` 同样来自官方页：ROS 2 的包是在持续更新的 Ubuntu 上构建的，所以先把系统升到最新。
 
-`ros-jazzy-desktop` 是 ROS 2 加上 RViz、示例和教程。还有一个 `ros-jazzy-ros-base`，是不带图形工具的精简版，装在没显示器的机器人上——学习阶段用 desktop。哪天要卸掉它，比如改用源码构建，同一页给的命令是 `sudo apt remove '~nros-jazzy-*' && sudo apt autoremove`。
+`ros-jazzy-desktop` 是 ROS 2 加上 RViz、示例和教程。还有一个 `ros-jazzy-ros-base`，是不带图形工具的精简版，装在没显示器的机器人上——学习阶段用 desktop。哪天要卸掉它，比如改用源码构建，同一页给的命令是 `sudo apt remove '~nros-jazzy-*' && sudo apt autoremove`。如果连仓库也想删掉，官方页还给了可选的一步：`sudo apt remove ros2-apt-source`，然后 `sudo apt update`、`sudo apt autoremove` 和 `sudo apt upgrade`；最后这条是因为之前被 ROS 仓库遮住的包现在可能有更新。
 
 这些命令会随时间变化：仓库地址、包名、支持的 Ubuntu 版本都会变。哪一步失败，就去和官方页面比对，而不是照 2024 年的博客继续硬改。安装完成后，每个终端都要加载环境，这就是下一节的第一件事。
 
@@ -385,7 +385,7 @@ Summary: 1 package finished [0.78s]
 
 ### 一个发行版，对应一个 Ubuntu
 
-二进制包是为某一个操作系统版本编译的，而不是为“Linux”编译的。Jazzy 安装页说得很直接：deb 包提供给 Ubuntu Noble（24.04）。REP 2000 是规定每个发行版目标平台的文档，它把 Ubuntu 24.04 上的 Jazzy 列为 Tier 1、提供 deb 包，把 Ubuntu 22.04 列为 Tier 3、只能源码构建。这些包链接的是该版本自带的库——REP 2000 给 Noble 钉死了 Python 3.12.3 和 Qt 5.15.10——所以上面的工作空间装进的是 `lib/python3.12/site-packages`。在别的 Ubuntu 上没有 Jazzy 的 deb 可装，只能从源码构建。发行版表里的配对不是建议：Humble 配 22.04，Jazzy 和 Kilted 配 24.04，Lyrical 配 26.04。
+二进制包是为某一个操作系统版本编译的，而不是为“Linux”编译的。Jazzy 安装页说得很直接：deb 包提供给 Ubuntu Noble（24.04）。REP 2000 是规定每个发行版目标平台的文档，它把 Ubuntu 24.04 上的 Jazzy 列为 Tier 1、提供 deb 包，把 Ubuntu 22.04 列为 Tier 3、只能源码构建。这些包链接的是该版本自带的库——REP 2000 给 Noble 钉死了 Python 3.12.3 和 Qt 5.15.10——所以 Noble 上的 deb 包把 Python 模块装在 `/opt/ros/jazzy/lib/python3.12/site-packages`（`ros-jazzy-rclpy` 就把 `rclpy` 装在这里）。本课里 `install/m4_hello/lib/python3.12/...` 这类路径来自本站的 pixi 环境，它恰好也用 Python 3.12。在别的 Ubuntu 上没有 Jazzy 的 deb 可装，只能从源码构建。发行版表里的配对不是建议：Humble 配 22.04，Jazzy 和 Kilted 配 24.04，Lyrical 配 26.04。
 
 ### apt 还是源码构建
 
@@ -475,7 +475,7 @@ m4_second	src/m4_second	(ros.ament_python)
 
 ### `--symlink-install`
 
-colcon 默认把文件复制进 `install/`。用 `colcon build --symlink-install` 时它改为链接，于是对 `src/` 里 Python 文件和其他不需要编译的资源的修改，不用重新构建就生效。在本课的包里，结果在磁盘上看得到：`install/m4_hello/lib/python3.12/site-packages/m4-hello.egg-link` 指回源码，`build/m4_hello/m4_hello` 是指向 `src/m4_hello/m4_hello` 的符号链接。编译过的 C++ 仍然要重新构建，因为装进去的是二进制。
+colcon 默认把文件复制进 `install/`。用 `colcon build --symlink-install` 时它改为链接，于是对 `src/` 里 Python 文件和其他不需要编译的资源的修改，不用重新构建就生效。在本课的包里，结果在磁盘上看得到：`install/m4_hello/lib/python3.12/site-packages/m4-hello.egg-link` 指回源码，`build/m4_hello/m4_hello` 是指向 `src/m4_hello/m4_hello` 的符号链接。编译过的 C++ 仍然要重新构建，因为装进去的是二进制。符号链接也只覆盖已经存在的文件：新加的模块、新的 launch 文件或 `setup.py` 里新的入口点，仍然要 `colcon build`，因为链接或脚本是安装那一步创建的（见下表 `setup.py` 那一行）。
 
 ### 重新构建，还是重新 source？
 
@@ -533,7 +533,7 @@ discovery unicast     7400 + 250·D + 10 + 2·P
 user unicast          7400 + 250·D + 11 + 2·P
 ```
 
-域 1 的组播端口是 7650 和 7651，第一个进程用 7660 和 7661。UDP 端口到 65535 为止，所以能用的最大域是 232。在 Linux 上，32767 以上还是操作系统的临时端口池，所以文档把 0–101 称为 Linux 上的安全范围，另加 215–232；macOS 和 Windows 上是 0–166。域 101 是这个范围的顶端：它的组播端口是 32650 和 32651，第一个进程用 32660 和 32661，端口撞上 32768 之前只放得下 54 个进程。每个进程占两个端口，所以一台电脑上跑超过 120 个进程时，端口可能溢出到下一个域。
+域 1 的组播端口是 7650 和 7651，第一个进程用 7660 和 7661。UDP 端口到 65535 为止，所以能用的最大域是 232。Linux 默认的临时端口是 32768–60999（在 `/proc/sys/net/ipv4/ip_local_port_range` 里设置），操作系统会把这些端口随手分给任何程序，所以端口落在这个范围里的域可能撞车。域 0–101 都在它下面，215–232 都在它上面，所以文档把 0–101 称为 Linux 上的安全范围，另加 215–232。macOS 和 Windows 用的是 49152–65535，所以 macOS 和 Windows 上是 0–166。域 101 是 Linux 安全范围的顶端：它的组播端口是 32650 和 32651，第一个进程用 32660 和 32661，端口撞上 32768 之前只放得下 54 个进程。每个进程占两个端口，所以一台电脑上跑超过 120 个进程时，端口可能溢出到下一个域。
 
 超出范围的值会大声报错。`ROS_DOMAIN_ID=233` 和 `ROS_DOMAIN_ID=abc` 的真实输出：
 
@@ -574,11 +574,11 @@ export ROS_DOMAIN_ID=42
 | --- | --- |
 | `ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET` | 默认值：组播能到达的每台主机 |
 | `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` | 只发现本机上的节点 |
-| `ROS_AUTOMATIC_DISCOVERY_RANGE=OFF` | 完全不自动发现 |
+| `ROS_AUTOMATIC_DISCOVERY_RANGE=OFF` | 什么都不发现，连本机上的其他节点也不发现；`ROS_STATIC_PEERS` 同样不生效 |
 | `ROS_AUTOMATIC_DISCOVERY_RANGE=SYSTEM_DEFAULT` | 交给 RMW 自己的配置 |
-| `ROS_STATIC_PEERS="192.168.0.1;remote.com"` | 在范围之外，总是尝试这些主机；多个条目用 `;` 分隔 |
+| `ROS_STATIC_PEERS="192.168.0.1;remote.com"` | 在范围之外再加上这些主机，但范围为 `OFF` 时会被忽略；多个条目用 `;` 分隔 |
 
-`LOCALHOST` 适合一个人在笔记本上干活，本站的检查用的也是它。两台电脑之间组播不通时，例如隔着一个屏蔽组播的网络，靠 `ROS_STATIC_PEERS` 让它们找到对方。两者都由默认的 DDS 层读取；较新的 Zenoh RMW 两个都不支持。
+发现要双方都配合：只要任意一方把范围设成 `OFF`，两个节点就连不上，不管 peers 列表里写了什么。`LOCALHOST` 适合一个人在笔记本上干活，本站的检查用的也是它。两台电脑之间组播不通时，例如隔着一个屏蔽组播的网络，靠 `ROS_STATIC_PEERS` 让它们找到对方。两者都由默认的 DDS 层读取；较新的 Zenoh RMW 两个都不支持。
 
 老教程用的是 `ROS_LOCALHOST_ONLY=1`。它在 Jazzy 里仍然有效，但从 Iron 起已被弃用，而且会压过新的设置。设了它之后的真实输出：
 
