@@ -2094,7 +2094,7 @@ const lessonRef = (n, slug, lang) => {
         'REP 2000, which gives Kilted "May 2025 - November 2026"', "Jazzy's Tier 1 platforms are Ubuntu 24.04, with deb packages for amd64 and arm64, and Windows 10, as a binary archive",
         "RHEL 9 is Tier 2", "The first line only checks; the four after it install and set the locale",
         "may only include the base `noble` suite", "come from the site's pixi environment",
-        "a new module, a new launch file or a new entry point in `setup.py` still needs `colcon build`",
+        "A new `.py` file inside an existing package directory takes effect at once, because that whole directory is linked", "`import m4_hello.newmod` worked without a rebuild", "A new launch or other data file, a new entry point in `setup.py`, or a new top-level package still needs `colcon build`", "macOS, Debian 12 and OpenEmbedded/Yocto are Tier 3", "the Noble `ros-jazzy-rclpy` deb unpacks `rclpy` there",
       ] : [
         "| `ROS_AUTOMATIC_DISCOVERY_RANGE=OFF` | 什么都不发现，连本机上的其他节点也不发现；`ROS_STATIC_PEERS` 同样不生效 |",
         '| `ROS_STATIC_PEERS="192.168.0.1;remote.com"` | 在范围之外再加上这些主机，但范围为 `OFF` 时会被忽略；多个条目用 `;` 分隔 |',
@@ -2102,15 +2102,17 @@ const lessonRef = (n, slug, lang) => {
         "以 REP 2000 为准，它给 Kilted 写的是“May 2025 - November 2026”", "Jazzy 的 Tier 1 是 Ubuntu 24.04（amd64 和 arm64，提供 deb 包）和 Windows 10（提供二进制压缩包）",
         "RHEL 9 是 Tier 2", "第一行只是检查，后面四行才是安装并设置 locale",
         "apt 源可能只包含基础的 `noble` 套件", "来自本站的 pixi 环境",
-        "新加的模块、新的 launch 文件或 `setup.py` 里新的入口点，仍然要 `colcon build`",
+        "已有包目录内新增的 `.py` 文件会通过目录符号链接直接生效", "不重新构建就能 `import m4_hello.newmod`", "新增 launch 等数据文件、`setup.py` 里新增入口点、或新增顶层包，仍需 `colcon build`", "macOS、Debian 12 和 OpenEmbedded/Yocto 是 Tier 3", "Noble 的 `ros-jazzy-rclpy` deb 包里，`rclpy` 就在这个路径下",
       ];
       for (const q of facts) ok(text.includes(q), `${L}: expected corrected claim ${JSON.stringify(q)}`);
       const stale = lang === "en" ? ["In a new terminal you need both, in that order", "one of four mistakes", "47 repositories", "ROS_LOCALHOST_ONLY=1 is the recommended",
         "always try these hosts", "no automatic discovery at all", "range above 32767", "the five lines", "| December 2026 |", "dies in December 2026", "19 months", "about two months",
-        "one Ubuntu LTS as its Tier 1 platform", "lists only `noble`", "your workspace above installs into"]
+        "one Ubuntu LTS as its Tier 1 platform", "lists only `noble`", "your workspace above installs into",
+        "a new module", "Symlinks also only cover files that already exist", "macOS and Debian 12 are Tier 3"]
         : ["新终端里两条都要", "四个错误之一", "47 个", "推荐用 ROS_LOCALHOST_ONLY",
         "总是尝试这些主机", "完全不自动发现", "32767 以上", "那五行", "| 2026 年 12 月 |", "2026 年 12 月停止支持", "19 个月", "约两个月",
-        "都有一个作为 Tier 1 的 Ubuntu LTS", "只写了 `noble`", "上面的工作空间装进的是"];
+        "都有一个作为 Tier 1 的 Ubuntu LTS", "只写了 `noble`", "上面的工作空间装进的是",
+        "新加的模块", "新模块", "符号链接也只覆盖已经存在的文件", "macOS 和 Debian 12 是 Tier 3"];
       for (const q of stale) ok(!text.includes(q), `${L}: stale claim ${JSON.stringify(q)} must be gone`);
     }
     console.log(`calc  m4 ros2-setup: ports 7400+250·D (+1, +10+2P, +11+2P): D1 ${port(1)}/${port(1, 0)}, D2 ${port(2)}, D101 ${port(101)}/${port(101, 0)} → ${fit101} procs; max domain ${maxDomain}; safe Linux 0–${linuxSafeHi} & ${linuxSafeLo}–${maxDomain}, macOS/Win 0–${otherSafeHi}; spill > ${spill}; Kilted ${kiltedMonths} months; ${outputs.length} real outputs and ${terms.length} Terms bound in en/zh`);
