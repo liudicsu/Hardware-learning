@@ -454,6 +454,7 @@ const month4Lessons: Lesson[] = [
       { id: "spot-ros1", text: { zh: "找三篇搜索排名靠前的 ROS 教程，按本课的特征判断哪些是 ROS 1，记下线索", en: "Find three top-ranked ROS tutorials, decide which are ROS 1 using this lesson's tell-tale signs, and note the clue" } },
       { id: "workspace", text: { zh: "创建 ~/ros2_ws，用 ros2 pkg create 生成一个 Python 包，写一个用定时器发布消息的节点", en: "Create ~/ros2_ws, generate a Python package with ros2 pkg create, and write a node that publishes on a timer" } },
       { id: "inspect", text: { zh: "用 ros2 node list、topic list、topic echo 和 topic hz 检查你的节点，确认发布频率", en: "Inspect your node with ros2 node list, topic list, topic echo and topic hz, and confirm its rate" } },
+      { id: "domains", text: { zh: "开两个终端设不同的 ROS_DOMAIN_ID，确认 talker 和 listener 互相看不见；改成相同再确认能通，最后跑 ros2 multicast receive / send 检查组播", en: "In two terminals set different ROS_DOMAIN_ID values and confirm the talker and listener cannot see each other; make them match and confirm they connect, then run ros2 multicast receive / send to check multicast" } },
     ],
   },
   {
