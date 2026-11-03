@@ -1,0 +1,7 @@
+grasp_from_mask — synth mask+depth → base grasp (deterministic synthetic grid (no RNG))
+intrinsics fx=fy=320.0 cx=160.0 cy=120.0
+mask_pixels=1600  width_est_m=0.0525
+p_cam_m = [-0.0007, -0.0007, 0.4200]
+p_base_m = [0.7200, -0.0107, 0.1807]
+grasp_xyz = [0.7200, -0.0107, 0.2007]  approach=[0.0, 0.0, -1.0]
+ok: centroid back-projects; grasp candidate in base frame

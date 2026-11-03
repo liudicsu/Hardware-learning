@@ -21,6 +21,7 @@
     </body>
     <body name="cube" pos="0 0 0.05">
       <freejoint name="cube_free"/>
+      <!-- Default mass 0.08 kg; grip_sweep.py overrides body mass to CUBE_MASS=0.15 at runtime. -->
       <geom name="cube_geom" type="box" size="0.015 0.015 0.015" mass="0.08" rgba="0.9 0.3 0.1 1" friction="1.2 0.005 0.0005"/>
     </body>
   </worldbody>

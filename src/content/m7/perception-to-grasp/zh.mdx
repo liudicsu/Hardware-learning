@@ -1,13 +1,347 @@
 本课是本站补充内容——第 7–8 个月不属于原六个月课程。
 
-## 大纲（正文在后续批次）
+第 7.5 课把深度图变成相机系里的簇。抓取还需要一条链：掩码（来自名字或点击）→ 三维点 → 变换到机器人基座 → 运动规划。本课点名 <Term id="hand-eye-calibration">手眼标定</Term>，对照眼在手上与眼在手外，用与 OpenCV `calibrateHandEye` 同接口语义的 AX=XB 求解恢复合成的 cam2gripper，并搭一条标准库掩码→抓取候选管线。SAM2 与 MoveIt 保持可选 / 本页未运行。
 
-**用文字找物体并抓起来：开放词汇分割、手眼标定与 MoveIt。** 本页是占位，好让第 7 个月课程表能列全六课，而本批次先交付 7.1、7.2、7.5。计划范围：文字 → 掩码 → 深度 → 手眼 → MoveIt；眼在手上与眼在手外。
+## 从点云到抓取候选
 
-批次安排见 `docs/notes/month-7-plan.md`。侧栏任务在全文落地前只作阅读提示。
+数据流：
+
+1. **提示或点击** → RGB 上的二值掩码（开放词汇分割；SAM2 为 Apache-2.0——本批已对照上游 LICENSE）。
+2. **掩码 + 深度 + 内参** → 相机系质心（第 7.5 课反投影）。
+3. **手眼外参** → 夹爪系或基座系中的点。
+4. **抓取表示** → 至少要有点、接近轴与宽度；经典 GraspNet 式 6-DoF 假设是研究侧对照，本页不强制。
+5. **运动** → MoveIt（或你的第 5 个月栈）到预抓取，再合爪。
+
+<Resource id="sam2" />
+<Resource id="opencv-calibration" />
+
+## 眼在手上 vs 眼在手外
+
+OpenCV `calib3d` 文档中的 `calibrateHandEye(R_gripper2base, t_gripper2base, R_target2cam, t_target2cam, R_cam2gripper, t_cam2gripper, method=CALIB_HAND_EYE_PARK)`（本批从 `opencv/opencv` 的 `calib3d.hpp` 重读签名；HTML 镜像此前曾返回 403）。
+
+- **眼在手上。** 相机固定在夹爪上。求解返回 cam2gripper（夹爪←相机）。相对运动满足 `A_i X = X B_i`，`A` 来自夹爪↔基座，`B` 来自标定板↔相机。
+- **眼在手外。** 相机固定、标定板在末端。同一 API；把夹爪↔基座位姿**取逆**再喂入，使估计的 X 变成基座↔相机。
+
+文档要求至少 **2 次旋转轴不平行的运动**，因此至少 **3 个姿态**；强烈建议更多。与 Tsai89 并列的方法包括 Park94、Horaud95（可分）以及 Andreff99 / Daniilidis98（联立）。
+
+## 合成手眼与掩码管线
+
+`handeye_toy.py` 从已知 X 生成无噪声的眼在手上位姿，并用 Park & Martin 的旋转 Procrustes（SVD）加平移最小二乘恢复——对应 OpenCV 的 `CALIB_HAND_EYE_PARK`。种子 17、8 个姿态下，近零浮点残差在打印前钳制，日志为 **0.000000 deg** 与 **0.000000e+00 m**。本机可用同样数组换成 `cv2.calibrateHandEye(..., method=CALIB_HAND_EYE_PARK)`。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-7/perception-to-grasp
+$ python3 handeye_toy.py
+```
+
+<CodeSource path="examples/month-7/perception-to-grasp/handeye_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic eye-in-hand AX=XB solve mirroring OpenCV calibrateHandEye I/O.
+
+OpenCV (calib3d.hpp):
+  cv2.calibrateHandEye(R_gripper2base, t_gripper2base,
+                       R_target2cam, t_target2cam,
+                       R_cam2gripper, t_cam2gripper,
+                       method=cv2.CALIB_HAND_EYE_PARK)
+returns ^{g}T_c for eye-in-hand (camera on gripper). Docs: ≥3 poses required
+(2 motions, non-parallel rotation axes); more recommended. Eye-to-hand uses the
+same API with inverted gripper↔base inputs (see OpenCV hand-eye figure notes).
+
+This toy builds noise-free synthetic poses from a known X, then recovers X with
+Park & Martin’s rotation Procrustes (SVD) + LS translation — matching OpenCV's
+CALIB_HAND_EYE_PARK. Needs NumPy for the 3×3 SVD (CPU-only).
+"""
+from __future__ import annotations
+
+import math
+
+import numpy as np
+
+SEED = 17
+N_POSES = 8
+
+
+def se3_inv(T: np.ndarray) -> np.ndarray:
+    R, t = T[:3, :3], T[:3, 3]
+    Ti = np.eye(4)
+    Ti[:3, :3] = R.T
+    Ti[:3, 3] = -R.T @ t
+    return Ti
+
+
+def make_T(R: np.ndarray, t: np.ndarray) -> np.ndarray:
+    T = np.eye(4)
+    T[:3, :3] = R
+    T[:3, 3] = t
+    return T
+
+
+def rpy(r: float, p: float, y: float) -> np.ndarray:
+    cr, sr = math.cos(r), math.sin(r)
+    cp, sp = math.cos(p), math.sin(p)
+    cy, sy = math.cos(y), math.sin(y)
+    Rz = np.array([[cy, -sy, 0], [sy, cy, 0], [0, 0, 1]])
+    Ry = np.array([[cp, 0, sp], [0, 1, 0], [-sp, 0, cp]])
+    Rx = np.array([[1, 0, 0], [0, cr, -sr], [0, sr, cr]])
+    return Rz @ Ry @ Rx
+
+
+def log_so3(R: np.ndarray) -> np.ndarray:
+    tr = np.trace(R)
+    cos_th = max(-1.0, min(1.0, (tr - 1.0) / 2.0))
+    th = math.acos(cos_th)
+    if th < 1e-10:
+        return np.zeros(3)
+    w = np.array([R[2, 1] - R[1, 2], R[0, 2] - R[2, 0], R[1, 0] - R[0, 1]]) / (2 * math.sin(th))
+    return w * th
+
+
+def solve_axxb_park(Ts_g2b: list[np.ndarray], Ts_t2c: list[np.ndarray]) -> np.ndarray:
+    """Park94: M = Σ α βᵀ, R = U diag(1,1,det) Vᵀ from SVD(M); then LS for t."""
+    alphas, betas = [], []
+    As_t, Bs_t = [], []
+    for i in range(len(Ts_g2b) - 1):
+        A = se3_inv(Ts_g2b[i + 1]) @ Ts_g2b[i]
+        B = Ts_t2c[i + 1] @ se3_inv(Ts_t2c[i])
+        alphas.append(log_so3(A[:3, :3]))
+        betas.append(log_so3(B[:3, :3]))
+        As_t.append(A)
+        Bs_t.append(B)
+    M = np.zeros((3, 3))
+    for a, b in zip(alphas, betas):
+        M += np.outer(a, b)  # Park: R β ≈ α → M = Σ α βᵀ
+    U, _, Vt = np.linalg.svd(M)
+    R = U @ np.diag([1.0, 1.0, np.linalg.det(U @ Vt)]) @ Vt
+    # (R_a - I) t = R t_b - t_a
+    A_stack = []
+    b_stack = []
+    I = np.eye(3)
+    for A, B in zip(As_t, Bs_t):
+        A_stack.append(A[:3, :3] - I)
+        b_stack.append(R @ B[:3, 3] - A[:3, 3])
+    A_ls = np.vstack(A_stack)
+    b_ls = np.concatenate(b_stack)
+    t, *_ = np.linalg.lstsq(A_ls, b_ls, rcond=None)
+    return make_T(R, t)
+
+
+def rot_err_deg(Ra: np.ndarray, Rb: np.ndarray) -> float:
+    R = Ra.T @ Rb
+    c = max(-1.0, min(1.0, (np.trace(R) - 1.0) / 2.0))
+    return math.degrees(math.acos(c))
+
+
+def main() -> None:
+    rng = np.random.default_rng(SEED)
+    T_true = make_T(rpy(0.05, -0.12, 0.08), np.array([0.02, -0.01, 0.05]))
+    T_board = make_T(rpy(0.0, 0.0, 0.3), np.array([0.35, 0.05, 0.0]))
+
+    Ts_g2b, Ts_t2c = [], []
+    for i in range(N_POSES):
+        yaw = -0.4 + 0.15 * i + float(rng.uniform(-0.02, 0.02))
+        pitch = 0.1 * math.sin(0.7 * i)
+        roll = 0.05 * math.cos(0.5 * i)
+        tg = np.array([0.20 + 0.03 * i, 0.02 * math.sin(i), 0.18 + 0.01 * i])
+        # diversify rotation axes across poses (non-parallel motions)
+        Tg = make_T(rpy(roll, pitch, yaw), tg)
+        Ts_g2b.append(Tg)
+        # target2cam = inv(cam2base) @ target2base, cam2base = g2b @ X
+        T_c2b = Tg @ T_true
+        T_t2c = se3_inv(T_c2b) @ T_board
+        Ts_t2c.append(T_t2c)
+
+    T_hat = solve_axxb_park(Ts_g2b, Ts_t2c)
+    r_err = rot_err_deg(T_hat[:3, :3], T_true[:3, :3])
+    t_err = float(np.linalg.norm(T_hat[:3, 3] - T_true[:3, 3]))
+    # Clamp near-zero FP noise so expected/ is machine-stable (numpy/BLAS variance).
+    r_print = 0.0 if abs(r_err) < 1e-5 else r_err
+    t_print = 0.0 if abs(t_err) < 1e-12 else t_err
+
+    print("handeye_toy — eye-in-hand AX=XB (Park SVD, seed=%d, poses=%d)" % (SEED, N_POSES))
+    print("OpenCV twin: calibrateHandEye(..., method=CALIB_HAND_EYE_PARK)")
+    print("true_t = [%s]" % ", ".join("%.4f" % x for x in T_true[:3, 3]))
+    print("hat_t  = [%s]" % ", ".join("%.4f" % x for x in T_hat[:3, 3]))
+    print("rot_err_deg=%.6f  trans_err_m=%.6e" % (r_print, t_print))
+    assert r_err < 0.05, "rotation error too large: %.6f deg" % r_err
+    assert t_err < 1e-5, "translation error too large: %.6e m" % t_err
+    print("ok: recovered cam2gripper within tolerance (noise-free synthetic)")
+    print("note: eye-to-hand → pass inverted gripper/base poses into the same API")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+handeye_toy — eye-in-hand AX=XB (Park SVD, seed=17, poses=8)
+OpenCV twin: calibrateHandEye(..., method=CALIB_HAND_EYE_PARK)
+true_t = [0.0200, -0.0100, 0.0500]
+hat_t  = [0.0200, -0.0100, 0.0500]
+rot_err_deg=0.000000  trans_err_m=0.000000e+00
+ok: recovered cam2gripper within tolerance (noise-free synthetic)
+note: eye-to-hand → pass inverted gripper/base poses into the same API
+```
+
+</SimOutput>
+
+`grasp_from_mask.py` 合成深度图与方块掩码，反投影掩码质心，乘上固定的 cam2gripper 与 gripper2base，输出基座系中的顶置抓取候选。纯标准库；本页不下载 SAM2。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-7/perception-to-grasp
+$ python3 grasp_from_mask.py
+```
+
+<CodeSource path="examples/month-7/perception-to-grasp/grasp_from_mask.py" />
+
+```python
+#!/usr/bin/env python3
+"""Mask + depth → camera point → base frame grasp pose (stdlib).
+
+Minimal perception-to-grasp pipe for lesson 7.6:
+  1. Build a synthetic depth image and a binary mask (stand-in for SAM2 /
+     open-vocab segmentation — those stay「本页未运行」, Apache-2.0 for SAM2).
+  2. Back-project mask pixels with the pinhole model to a camera-frame centroid.
+  3. Apply a known eye-in-hand cam2gripper and gripper2base to get a base-frame
+     grasp point (top-down approach along -Z_base).
+  4. Emit a grasp candidate: (xyz, approach, width_est).
+
+Classical GraspNet 6-DoF representations are cited in the MDX; this toy only
+needs a point + approach so CI stays free of torch / Open3D.
+"""
+from __future__ import annotations
+
+import math
+
+SEED_NOTE = "deterministic synthetic grid (no RNG)"
+FX = FY = 320.0
+CX, CY = 160.0, 120.0
+WIDTH, HEIGHT = 320, 240
+# cube sits at camera-frame centre-ish
+CUBE_Z = 0.42  # metres
+CUBE_U0, CUBE_V0 = 140, 100
+CUBE_U1, CUBE_V1 = 180, 140
+
+
+def mat_vec(R, t, p):
+    return [
+        R[0][0] * p[0] + R[0][1] * p[1] + R[0][2] * p[2] + t[0],
+        R[1][0] * p[0] + R[1][1] * p[1] + R[1][2] * p[2] + t[1],
+        R[2][0] * p[0] + R[2][1] * p[1] + R[2][2] * p[2] + t[2],
+    ]
+
+
+def make_synth():
+    """Return depth (list of rows) and mask (0/1)."""
+    depth = [[0.0] * WIDTH for _ in range(HEIGHT)]
+    mask = [[0] * WIDTH for _ in range(HEIGHT)]
+    for v in range(HEIGHT):
+        for u in range(WIDTH):
+            # background plane at 1.2 m
+            depth[v][u] = 1.2
+            if CUBE_U0 <= u < CUBE_U1 and CUBE_V0 <= v < CUBE_V1:
+                depth[v][u] = CUBE_Z
+                mask[v][u] = 1
+    return depth, mask
+
+
+def backproject_centroid(depth, mask):
+    xs, ys, zs = [], [], []
+    for v in range(HEIGHT):
+        for u in range(WIDTH):
+            if not mask[v][u]:
+                continue
+            z = depth[v][u]
+            x = (u - CX) / FX * z
+            y = (v - CY) / FY * z
+            xs.append(x)
+            ys.append(y)
+            zs.append(z)
+    n = len(xs)
+    assert n > 0, "empty mask"
+    return [sum(xs) / n, sum(ys) / n, sum(zs) / n], n
+
+
+def estimate_width_m(depth, mask):
+    """Axis-aligned mask width at the median depth → metres."""
+    us = [u for v in range(HEIGHT) for u in range(WIDTH) if mask[v][u]]
+    zs = [depth[v][u] for v in range(HEIGHT) for u in range(WIDTH) if mask[v][u]]
+    zs_sorted = sorted(zs)
+    z_med = zs_sorted[len(zs_sorted) // 2]
+    u_span = max(us) - min(us) + 1
+    return (u_span / FX) * z_med
+
+
+def main() -> None:
+    depth, mask = make_synth()
+    p_cam, n_pix = backproject_centroid(depth, mask)
+    width = estimate_width_m(depth, mask)
+
+    # Fixed eye-in-hand extrinsics (as if from handeye_toy) + one gripper pose
+    R_c2g = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+    t_c2g = [0.02, -0.01, 0.05]
+    R_g2b = [[0.0, 0.0, 1.0], [0.0, 1.0, 0.0], [-1.0, 0.0, 0.0]]  # cam looks along +X_base
+    t_g2b = [0.25, 0.0, 0.20]
+
+    p_grip = mat_vec(R_c2g, t_c2g, p_cam)
+    p_base = mat_vec(R_g2b, t_g2b, p_grip)
+
+    # top-down approach in base: -Z
+    approach = [0.0, 0.0, -1.0]
+    # grasp point slightly above centroid
+    grasp = [p_base[0], p_base[1], p_base[2] + 0.02]
+
+    print("grasp_from_mask — synth mask+depth → base grasp (%s)" % SEED_NOTE)
+    print("intrinsics fx=fy=%.1f cx=%.1f cy=%.1f" % (FX, CX, CY))
+    print("mask_pixels=%d  width_est_m=%.4f" % (n_pix, width))
+    print("p_cam_m = [%.4f, %.4f, %.4f]" % tuple(p_cam))
+    print("p_base_m = [%.4f, %.4f, %.4f]" % tuple(p_base))
+    print("grasp_xyz = [%.4f, %.4f, %.4f]  approach=%s" % (grasp[0], grasp[1], grasp[2], approach))
+    # expected geometry: cube centre in pixels → cam
+    u_c = 0.5 * (CUBE_U0 + CUBE_U1 - 1)
+    v_c = 0.5 * (CUBE_V0 + CUBE_V1 - 1)
+    expect_x = (u_c - CX) / FX * CUBE_Z
+    expect_y = (v_c - CY) / FY * CUBE_Z
+    assert abs(p_cam[0] - expect_x) < 1e-6
+    assert abs(p_cam[1] - expect_y) < 1e-6
+    assert abs(p_cam[2] - CUBE_Z) < 1e-9
+    assert width > 0.04
+    print("ok: centroid back-projects; grasp candidate in base frame")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+grasp_from_mask — synth mask+depth → base grasp (deterministic synthetic grid (no RNG))
+intrinsics fx=fy=320.0 cx=160.0 cy=120.0
+mask_pixels=1600  width_est_m=0.0525
+p_cam_m = [-0.0007, -0.0007, 0.4200]
+p_base_m = [0.7200, -0.0107, 0.1807]
+grasp_xyz = [0.7200, -0.0107, 0.2007]  approach=[0.0, 0.0, -1.0]
+ok: centroid back-projects; grasp candidate in base frame
+```
+
+</SimOutput>
+
+真机上（**需硬件**）：采集 ≥10–20 个 ChArUco / 棋盘格标定姿态，跑 `calibrateHandEye`，再用你的估计替换玩具外参，然后才命令 MoveIt。保持第 6 个月的评估习惯：20 个起点、留出姿态、Wilson 区间、失败表。
+
+<Quiz id="q1" question="OpenCV 的 calibrateHandEye 文档说至少需要多少个不同姿态？为什么？" options={["1 个，因为一个 SE(3) 样本就能定 X", "2 个，因为 AX=XB 只需要一次运动", "3 个（2 次旋转轴不平行的运动），并建议更多", "30 个，否则函数会拒绝运行"]} answer={2} explanation="calib3d.hpp 注释：至少 2 次旋转轴不平行的运动，因此至少 3 个姿态；强烈建议更多。函数并不硬性要求 30。" />
+
+## 常见错误
+
+- **混用眼在手上与眼在手外的输入。** 把错误的那一路取逆会让 X 落到荒唐的坐标系；调用 API 前先画图。
+- **只用平行的旋转轴。** 两次纯平移，或绕同一轴的两次旋转，会让手眼旋转欠定。
+- **跳过掩码与深度的一致性检查。** 掩码落在背景深度空洞上，质心会跳到 1.2 m，手臂往桌子里扎。
+- **不看许可就分发 SAM2 权重。** 上游 SAM2 是 Apache-2.0；仍要钉住安装的 commit，并写进实验记录。
 
 <Summary>
 
-**用文字找物体并抓起来：开放词汇分割、手眼标定与 MoveIt** 的占位页。完整例题与脚本在后续第 7 个月批次交付。
+感知到抓取是：掩码 → 深度点 → 手眼 → 基座抓取 → 规划。OpenCV `calibrateHandEye` 在眼在手上估计 cam2gripper（眼在手外则取逆输入）；至少 3 个姿态且运动旋转轴不平行。Park 风格玩具把 X 恢复到数值零；掩码管线在 CPU 上给出可复现的基座系候选。SAM2（Apache-2.0）与 MoveIt 可选，本页未运行。
 
 </Summary>

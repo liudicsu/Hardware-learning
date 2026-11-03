@@ -1,0 +1,4 @@
+sysid_fit — 1st-order lag step response (seed=11)
+dt=0.010  true_tau=0.0800  noise_std=0.0020  n=400
+tau_hat=0.079952  rel_err=0.0006 (0.06%)
+ok: |tau_hat - true_tau|/true_tau < 5%

@@ -1688,7 +1688,92 @@ export const resources: Record<string, Resource> = {
     extra: true,
   },
 
-};
+  maniskill: {
+    id: "maniskill",
+    url: "https://maniskill.readthedocs.io/en/latest/user_guide/getting_started/installation.html",
+    title: { zh: "ManiSkill 安装与任务", en: "ManiSkill install & tasks" },
+    author: "Hao Su Lab / ManiSkill contributors",
+    kind: "software",
+    cost: { zh: "免费 · 开源", en: "Free · open source" },
+    summary: {
+      zh: "GPU 并行操作仿真。安装页：GPU 仿真支持 Linux + NVIDIA；Windows/macOS 限于 CPU 仿真；渲染需 Vulkan。任务表含 PickCubeSO100-v1。",
+      en: "GPU-parallel manipulation sim. Install page: GPU sim on Linux + NVIDIA; Windows/macOS CPU-sim only; Vulkan for rendering. Task list includes PickCubeSO100-v1.",
+    },
+    license: { zh: "开源（Apache-2.0），© 原作者；仅提供外链", en: "Open source (Apache-2.0), © authors; external link only" },
+    extra: true,
+  },
+  "maniskill3-paper": {
+    id: "maniskill3-paper",
+    url: "https://arxiv.org/abs/2410.00425",
+    title: { zh: "ManiSkill3 论文", en: "ManiSkill3 paper" },
+    author: "Tao et al.",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "ManiSkill3：面向可泛化具身智能的 GPU 并行仿真与渲染。arXiv 2410.00425。",
+      en: "ManiSkill3: GPU parallelized robotics simulation and rendering for generalizable embodied AI. arXiv 2410.00425.",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
+  "sac-paper": {
+    id: "sac-paper",
+    url: "https://arxiv.org/abs/1801.01290",
+    title: { zh: "SAC 论文（Haarnoja 等，2018）", en: "SAC paper (Haarnoja et al., 2018)" },
+    author: "Haarnoja, Zhou, Abbeel, Levine",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "Soft Actor-Critic：带熵正则的 off-policy 最大熵深度 RL，随机演员 + 回放缓冲。arXiv 1801.01290。",
+      en: "Soft Actor-Critic: off-policy maximum-entropy deep RL with a stochastic actor and replay buffer. arXiv 1801.01290.",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
+  "tobin-dr": {
+    id: "tobin-dr",
+    url: "https://arxiv.org/abs/1703.06907",
+    title: { zh: "Tobin 等 2017：视觉域随机化", en: "Tobin et al. 2017: visual domain randomisation" },
+    author: "Tobin, Fong, Ray, Schneider, Zaremba, Abbeel",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "Domain Randomization for Transferring Deep Neural Networks from Simulation to the Real World。arXiv 1703.06907。",
+      en: "Domain Randomization for Transferring Deep Neural Networks from Simulation to the Real World. arXiv 1703.06907.",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
+  "peng-dr": {
+    id: "peng-dr",
+    url: "https://arxiv.org/abs/1710.06537",
+    title: { zh: "Peng 等 2017：动力学随机化", en: "Peng et al. 2017: dynamics randomisation" },
+    author: "Peng, Andrychowicz, Zaremba, Abbeel",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "Sim-to-Real Transfer of Robotic Control with Dynamics Randomization。arXiv 1710.06537。",
+      en: "Sim-to-Real Transfer of Robotic Control with Dynamics Randomization. arXiv 1710.06537.",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
+  sam2: {
+    id: "sam2",
+    url: "https://github.com/facebookresearch/sam2",
+    title: { zh: "SAM 2（Segment Anything 2）", en: "SAM 2 (Segment Anything 2)" },
+    author: "Meta / SAM 2 authors",
+    kind: "model",
+    cost: { zh: "免费 · 开源", en: "Free · open source" },
+    summary: {
+      zh: "可提示分割模型。上游 LICENSE 为 Apache-2.0（本批核对）。本课只作可选掩码来源，不下载权重。",
+      en: "Promptable segmentation. Upstream LICENSE is Apache-2.0 (re-checked this batch). Optional mask source only; weights not downloaded here.",
+    },
+    license: { zh: "开源（Apache-2.0），© Meta；仅提供外链", en: "Open source (Apache-2.0), © Meta; external link only" },
+    extra: true,
+  },
+
+}
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {
   return r.urlByLocale?.[locale] ?? r.url;
