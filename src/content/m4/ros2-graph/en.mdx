@@ -144,7 +144,7 @@ Summary: 3 packages finished [16.0s]
 
 Read the order: colcon builds in dependency order, so the interfaces go first because both other packages need them, then the C++ filter, then the Python package. Generating code for two languages is why the interface package takes most of those seven seconds — that is not a hang, it is code generation doing its job. If you ever see a package build before one it depends on, you have forgotten to declare that dependency.
 
-You can check what was generated from any terminal. `ros2 interface show` prints the definition the way ROS understands it, not the way you typed it:
+You can check what was generated from any terminal that has the workspace sourced. `ros2 interface show` prints the definition the way ROS understands it, not the way you typed it:
 
 ```text
 $ ros2 interface show m4_interfaces/msg/Reading

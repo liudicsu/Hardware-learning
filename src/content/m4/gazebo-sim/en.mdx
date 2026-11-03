@@ -70,7 +70,7 @@ Contact is what makes the world feel solid. Wheels push on the ground, a caster 
 
 Unless another engine is selected (`gz sim --physics-engine`, highest priority; or the Physics plugin's `<engine><filename>`), Gazebo Harmonic solves contact with DART (`gz-physics-dartsim-plugin`); the `type` attribute on `<physics>` does not choose it, which is why this world can say `type="ignored"`. Friction lives in `<surface><friction><ode><mu>` and `<mu2>` on each collision — the URDF `<mu1>`/`<mu2>` tags in `sensors.gazebo.xacro` below become exactly these — and that is the knob for a robot that veers, spins or skids. Older Gazebo Classic tutorials tell you to raise `<surface><contact><ode><kp>` / `<kd>` (contact stiffness and damping) when a body sinks or jitters, but the default DART plugin does not read those two; for sinking or jitter, fix the masses and inertias first, then make sure no collision shapes overlap when the robot spawns.
 
-This course does **not** open separate MuJoCo, Isaac or Webots practice lessons. Those tools are named in the table above so you know when to reach for them later. The skill you are building here — world file, sensors, bridge, hand arithmetic — transfers; the product-specific click paths do not need a second month.
+Month 7 adds a MuJoCo practice lesson (`mujoco-so101`). Isaac and Webots still do **not** get separate practice lessons here. MuJoCo, Isaac and Webots are named in the table above so you know when to reach for them; what you practise in this lesson is world files, sensors, bridges and hand arithmetic — that way of thinking transfers, and the product-specific click paths for Isaac or Webots do not need a second month.
 
 ## A world of your own
 

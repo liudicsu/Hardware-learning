@@ -1571,6 +1571,97 @@ export const glossary: GlossaryEntry[] = [
     firstExplained: true,
   },
 
+  {
+    id: "mjcf",
+    term: { zh: "MJCF", en: "MJCF" },
+    def: {
+      zh: "MuJoCo 的 XML 模型格式：用 body、joint、geom、actuator 描述刚体树与驱动；接触软硬由 solref/solimp 等约束参数设定。可与 URDF 对照，但执行器与接触是一等公民。",
+      en: "MuJoCo's XML model format: body, joint, geom and actuator describe the rigid tree and drives; contact softness is set by constraint parameters such as solref/solimp. Comparable to URDF, but actuators and contact are first-class.",
+    },
+    lesson: "mujoco-so101",
+    firstExplained: true,
+  },
+  {
+    id: "mdp",
+    term: { zh: "马尔可夫决策过程（MDP）", en: "Markov decision process (MDP)" },
+    def: {
+      zh: "强化学习的标准设定：状态、动作、转移、奖励与折扣。下一状态只依赖当前状态与动作（马尔可夫性），策略把状态映射到动作（或动作分布）。",
+      en: "The standard RL setting: states, actions, transitions, rewards and a discount. The next state depends only on the current state and action (Markov property); a policy maps states to actions (or action distributions).",
+    },
+    lesson: "rl-foundations",
+    firstExplained: true,
+  },
+  {
+    id: "reward",
+    term: { zh: "奖励", en: "reward" },
+    def: {
+      zh: "每一步环境返回的标量信号，告诉智能体这一步有多好。RL 不模仿示范动作，只最大化奖励（及其折扣和）。设计不当会 reward hacking。",
+      en: "The scalar signal the environment returns each step, saying how good that step was. RL does not clone demo actions; it maximises reward (and its discounted sum). A bad design invites reward hacking.",
+    },
+    lesson: "rl-foundations",
+    firstExplained: true,
+  },
+  {
+    id: "return-discount",
+    term: { zh: "回报与折扣", en: "return and discount" },
+    def: {
+      zh: "从某一步起的折扣奖励和 G_t = r_t + γ r_{t+1} + γ² r_{t+2} + …。γ∈[0,1) 决定远期奖励算多少；γ=0 只看一步，γ→1 几乎看整条轨迹。",
+      en: "The discounted sum of rewards from a step: G_t = r_t + γ r_{t+1} + γ² r_{t+2} + …. γ∈[0,1) sets how much later rewards count; γ=0 is one-step, γ→1 nearly the whole trajectory.",
+    },
+    lesson: "rl-foundations",
+    firstExplained: true,
+  },
+  {
+    id: "policy-rl",
+    term: { zh: "策略（RL）", en: "policy (RL)" },
+    def: {
+      zh: "把状态映射到动作（或动作分布）的规则 π(a|s)。与第 6 个月模仿学习里的「策略」是同一类对象，但这里由奖励优化得到，而不是拟合示范。",
+      en: "A rule π(a|s) that maps states to actions (or action distributions). The same kind of object as the policy in Month 6 imitation learning, but here it is optimised from rewards rather than fitted to demos.",
+    },
+    lesson: "rl-foundations",
+    firstExplained: true,
+  },
+  {
+    id: "ppo",
+    term: { zh: "PPO", en: "PPO" },
+    def: {
+      zh: "Proximal Policy Optimization：用裁剪的概率比率限制每次策略更新，避免一步走太远。Stable-Baselines3 文档写明它主要应在 CPU 上运行（尤其不用 CNN 时）。",
+      en: "Proximal Policy Optimization: a clipped probability ratio that limits each policy update so one step cannot move too far. Stable-Baselines3 docs say it is meant to run primarily on the CPU (especially without a CNN).",
+    },
+    lesson: "rl-foundations",
+    firstExplained: true,
+  },
+  {
+    id: "point-cloud",
+    term: { zh: "点云", en: "point cloud" },
+    def: {
+      zh: "三维空间中的一组点，通常由深度图按相机内参反投影得到：X=(u−c_x)/f_x·Z，Y=(v−c_y)/f_y·Z。抓取前常先下采样、去平面、再聚类。",
+      en: "A set of points in 3-D, usually back-projected from a depth map with camera intrinsics: X=(u−c_x)/f_x·Z, Y=(v−c_y)/f_y·Z. Before grasping one typically downsamples, removes a plane, then clusters.",
+    },
+    lesson: "depth-pointcloud",
+    firstExplained: true,
+  },
+  {
+    id: "voxel-downsampling",
+    term: { zh: "体素下采样", en: "voxel downsampling" },
+    def: {
+      zh: "把空间划成边长为体素尺寸的格子，每个非空格子只保留一个代表点（常取均值）。Open3D 对应 voxel_down_sample；能把几万点压到几千以便后续 RANSAC。",
+      en: "Partition space into cubes of the voxel size and keep one representative point per occupied cube (often the mean). Open3D's call is voxel_down_sample; it can cut tens of thousands of points to a few thousand before RANSAC.",
+    },
+    lesson: "depth-pointcloud",
+    firstExplained: true,
+  },
+  {
+    id: "ransac",
+    term: { zh: "RANSAC", en: "RANSAC" },
+    def: {
+      zh: "随机抽样一致：反复随机抽最小样本拟合模型（如平面），保留内点最多的那次。Open3D 的 segment_plane 用 distance_threshold、ransac_n、num_iterations。",
+      en: "RANdom SAmple Consensus: repeatedly fit a model (e.g. a plane) on a minimal random sample and keep the run with the most inliers. Open3D's segment_plane takes distance_threshold, ransac_n and num_iterations.",
+    },
+    lesson: "depth-pointcloud",
+    firstExplained: true,
+  },
+
 ];
 
 export function getTerm(id: string): GlossaryEntry | undefined {

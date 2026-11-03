@@ -1,0 +1,186 @@
+This lesson is a site supplement — Months 7–8 are not part of the original six-month course.
+
+Month 4 taught Gazebo because it is the natural place to learn ROS 2 topics and TF. When the question is "will this grasp hold under soft contact?", the usual research tool is <Term id="mjcf">MuJoCo</Term>. This lesson reads an MJCF model the way Month 4 read a URDF, closes a two-jaw gripper on a free cube with position actuators, then sweeps the timestep and the contact time constant so you see the cube slip — and how deep the jaws sink into it — as numbers, not as a vibe.
+
+## MJCF next to URDF
+
+A URDF describes links and joints for ROS. An MJCF file describes the same rigid tree, but contact and actuation are first-class:
+
+| MJCF | Rough URDF cousin | What it adds |
+|------|-------------------|--------------|
+| `body` | `link` | Inertia lives on the body; children nest as a tree |
+| `joint` | `joint` | Hinge, slide, free, ball, … with ranges |
+| `geom` | `collision` / `visual` | Shape **and** contact parameters (`friction`, `solref`, `solimp`) |
+| `actuator` | (usually separate) | Direct drives: `position`, `motor`, `velocity`, … |
+
+Menagerie's `robotstudio_so101` (Apache-2.0, needs MuJoCo ≥ 3.1.3) is a six-hinge SO-101 adapted from TheRobotStudio's `Simulation/SO101/so101_new_calib.xml`: `implicitfast` integrator, simplified collision geoms, gripper contact parameters suited to manipulation, and a camera mount. The older `trs_so_arm100` model is five DoF and already set `impratio="10"` with `cone="elliptic"` to improve anti-slip. This lesson's runnable scene is a **minimal** two-jaw soft-contact gripper (`grip_scene.xml`) so the 3×3 table stays CPU-cheap and mesh-free; after you can read that table, open the Menagerie model on your machine.
+
+## Soft contact is a tunable spring
+
+MuJoCo does not treat contacts as infinitely hard. Each constraint has a `solref` pair `(timeconst, dampratio)`: a smaller time constant is a stiffer contact; `dampratio = 1` is critical damping. `solimp` shapes how the impedance ramps with penetration. At the option level, `impratio` raises the friction-to-normal impedance ratio (important when a grasp must not slip), and `cone="elliptic"` uses an elliptic friction cone instead of a pyramidal approximation. These are the knobs the Menagerie SO-101 README highlights; they are also the knobs your grasp will be sensitive to.
+
+<Resource id="mujoco-modeling" />
+
+## A grip-and-lift sweep
+
+`grip_scene.xml` has a vertical lift slider, left/right jaw sliders with position actuators, and a free cube. The script turns gravity off while the jaws close, then turns gravity on and lifts. For each of three timesteps and three `solref` time constants it reports the cube's final height, the worst penetration seen, and HOLD vs SLIP.
+
+```bash
+$ cd ~/Hardware-learning/examples/month-7/mujoco-so101
+$ python3 -m pip install mujoco   # private venv recommended on Ubuntu 24.04
+$ python3 grip_sweep.py
+```
+
+<CodeSource path="examples/month-7/mujoco-so101/grip_sweep.py" />
+
+```python
+#!/usr/bin/env python3
+"""grip_sweep.py: 3x3 sweep of MuJoCo timestep x solref timeconst on a soft-contact grip-and-lift.
+
+A two-jaw slider gripper closes on a free cube (gravity off), then lifts with gravity on.
+For each (timestep, solref timeconst) pair we report whether the cube was held and the
+maximum contact penetration seen during the run. Fixed scene: grip_scene.xml next to this file.
+
+Requires: mujoco (pip install mujoco; Menagerie models need >= 3.1.3). Standard library + mujoco.
+usage: python3 grip_sweep.py
+"""
+from __future__ import annotations
+
+import os
+import sys
+
+try:
+    import mujoco
+    import numpy as np
+except ImportError as e:
+    sys.stderr.write(
+        "grip_sweep.py needs mujoco (and numpy). "
+        "Install with: python3 -m pip install mujoco\n"
+        f"Import error: {e}\n"
+    )
+    sys.exit(1)
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+SCENE = os.path.join(HERE, "grip_scene.xml")
+
+# Locked so expected/ stays stable. Soft + large dt → slip; stiff → hold. Penetration grows with timeconst.
+TIMESTEPS = (0.002, 0.005, 0.010)
+TIMECONSTS = (0.004, 0.020, 0.080)  # solref[0]; dampratio fixed at 1.0
+CLOSE = 0.0245
+FRICTION = 1.2
+CUBE_MASS = 0.15
+HOLD_Z = 0.08
+LIFT_CTRL = 0.10
+
+
+def run(timestep: float, timeconst: float) -> tuple[float, float, bool]:
+    m = mujoco.MjModel.from_xml_path(SCENE)
+    m.opt.timestep = timestep
+    m.opt.impratio = 10.0
+    m.opt.cone = 1  # elliptic
+    for bi in range(m.nbody):
+        name = mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_BODY, bi) or ""
+        if name == "cube":
+            m.body_mass[bi] = CUBE_MASS
+            m.body_inertia[bi] = np.array([CUBE_MASS * 8e-5] * 3)
+    for gi in range(m.ngeom):
+        name = mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, gi) or ""
+        if name in ("left_g", "right_g", "cube_geom"):
+            m.geom_solref[gi] = (timeconst, 1.0)
+            m.geom_friction[gi] = [FRICTION, 0.005, 0.0001]
+    d = mujoco.MjData(m)
+
+    # Close without gravity so the cube stays between the jaws.
+    m.opt.gravity[:] = (0.0, 0.0, 0.0)
+    d.ctrl[:] = (0.0, CLOSE, -CLOSE)
+    for _ in range(max(1, int(0.8 / timestep))):
+        mujoco.mj_step(m, d)
+    max_pen = 0.0
+    for i in range(d.ncon):
+        if d.contact[i].dist < 0:
+            max_pen = max(max_pen, -d.contact[i].dist)
+
+    # Gravity on, lift the palm.
+    m.opt.gravity[:] = (0.0, 0.0, -9.81)
+    d.ctrl[:] = (LIFT_CTRL, CLOSE, -CLOSE)
+    for _ in range(max(1, int(1.5 / timestep))):
+        mujoco.mj_step(m, d)
+        for i in range(d.ncon):
+            if d.contact[i].dist < 0:
+                max_pen = max(max_pen, -d.contact[i].dist)
+
+    cube_z = float(d.qpos[5])  # freejoint xyz after lift/left/right
+    held = cube_z > HOLD_Z
+    return cube_z, max_pen, held
+
+
+def main() -> None:
+    print(f"scene={os.path.basename(SCENE)}")
+    print(f"friction={FRICTION}  cube_mass={CUBE_MASS} kg  close={CLOSE} m")
+    print("dt_s   timeconst  cube_z_m  pen_mm  result")
+    holds = 0
+    for dt in TIMESTEPS:
+        for tc in TIMECONSTS:
+            z, pen, held = run(dt, tc)
+            holds += int(held)
+            print(
+                f"{dt:5.3f}  {tc:8.3f}  {z:8.4f}  {pen * 1e3:6.2f}  "
+                f"{'HOLD' if held else 'SLIP'}"
+            )
+    print(f"held {holds}/9  (soft + large dt slips; penetration grows with timeconst)")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+scene=grip_scene.xml
+friction=1.2  cube_mass=0.15 kg  close=0.0245 m
+dt_s   timeconst  cube_z_m  pen_mm  result
+0.002     0.004    0.1136    0.05  HOLD
+0.002     0.020    0.1130    0.16  HOLD
+0.002     0.080    0.1124    0.82  HOLD
+0.005     0.004    0.1135    0.05  HOLD
+0.005     0.020    0.1103    0.16  HOLD
+0.005     0.080    0.0143   32.69  SLIP
+0.010     0.004    0.1148    0.25  HOLD
+0.010     0.020    0.1148    0.25  HOLD
+0.010     0.080    0.0143   33.03  SLIP
+held 7/9  (soft + large dt slips; penetration grows with timeconst)
+```
+
+</SimOutput>
+
+Read the table left to right, then down. At `timeconst = 0.004` every timestep holds and penetration stays under a millimetre. At `timeconst = 0.080` the contact is soft: penetration jumps to about 0.8 mm even at `dt = 0.002`, and at `dt ≥ 0.005` the cube slips onto the floor (`cube_z ≈ 0.014`, which is the cube sitting on the plane) with penetrations past 30 mm during the failed lift. Soft contact plus a coarse step is not "more realistic" — it is a different dynamical system. Treat `timestep`, `solref`, `impratio` and `cone` as hyperparameters you report next to the policy's success rate.
+
+<Quiz id="q1" question="In the grip_sweep table, which cells are SLIP?" options={["dt=0.002 with every timeconst", "timeconst=0.080 with dt=0.005 and dt=0.010", "timeconst=0.004 with dt=0.010 only", "all nine cells"]} answer={1} explanation="The two SLIP rows are (0.005, 0.080) and (0.010, 0.080). Soft contact plus a larger step drops the cube; stiff contacts hold at every timestep in this sweep." />
+
+## Position actuators and a step
+
+A `<position>` actuator is a PD drive toward a commanded joint coordinate (`kp`, `kv`, `ctrlrange`). In the sweep, `d.ctrl = (lift, close, −close)` is exactly that command. On the real SO-101 each STS3215 already runs a position loop; in MuJoCo you are choosing how stiff the *simulated* loop and the *simulated* contacts are. A step that looks fine at `dt = 0.002` can penetrate and slip at `dt = 0.010` with a soft `solref` — the same ctrl value, a different solver.
+
+On your machine (GUI **not run on this page**):
+
+```bash
+$ python3 -m mujoco.viewer --mjcf ~/Hardware-learning/examples/month-7/mujoco-so101/grip_scene.xml
+```
+
+Then clone Menagerie and open `robotstudio_so101/scene.xml`. Count six hinges, and read the `<option>` block for `timestep`, `cone` and `impratio`.
+
+## Common mistakes
+
+- **Copying Menagerie meshes into the lesson expected output.** The quoted table comes from `grip_scene.xml`. Menagerie is what you load next on your laptop.
+- **Treating a HOLD at one `(dt, solref)` as proof the grasp is robust.** Change one knob and re-run the sweep before you trust a number.
+- **Forgetting `cone` and `impratio` when a grasp slips with "enough" friction.** Elliptic cones and a higher friction/normal impedance ratio are exactly what the older SO-ARM100 Menagerie notes call out for anti-slip.
+- **Skipping the version pin.** Menagerie asks for MuJoCo ≥ 3.1.3; older wheels will fail on the official model even if this lesson's tiny scene loads.
+
+MJX (`mujoco-mjx`) is the JAX interface to MuJoCo: it runs on NVIDIA/AMD GPUs, Apple Silicon and Cloud TPUs; MJX-Warp is tuned for NVIDIA GPUs. Lesson 7.3 is where parallel rollouts matter; here one CPU trajectory is enough.
+
+<Summary>
+
+MuJoCo models are MJCF trees where geom contact and actuators sit beside joints. A soft `solref` time constant plus a large timestep deepens penetration and can turn a HOLD into a SLIP — report those knobs with every simulated grasp. Menagerie's `robotstudio_so101` is the six-DoF Apache-2.0 model to open next; this lesson's sweep stays on a mesh-free scene so the numbers stay reproducible.
+
+</Summary>

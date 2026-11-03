@@ -216,7 +216,7 @@ ID 01 + LENGTH 05 + WRITE 03 + 地址 2A + 低字节 00 + 高字节 08 = 0x3B（
 
 <Quiz id="q3" question="舵机报告位置为 1024 步，这是多少度？" answer={90} unit="°" explanation="编码器每圈 4096 步，所以 1024 步是 1024 / 4096 = 1/4 圈。360° × 1/4 = 90°。" />
 
-飞特自己的 Python SDK 可以交叉验证这套手算。装好 SDK（`pip install feetech-servo-sdk`）之后，下一个程序把同样的四个包写进一个假串口，再和 `sts_packet.py` 的字节比较。同样没有舵机；假串口只是把 SDK 本来要发的东西记下来。
+飞特自己的 Python SDK 可以交叉验证这套手算。请在虚拟环境里安装（Ubuntu 24.04 把系统 Python 标成 externally-managed，裸 `pip install` 会被拒绝）：`python3 -m venv ~/Hardware-learning/.venv && source ~/Hardware-learning/.venv/bin/activate && pip install feetech-servo-sdk`。装好之后，下一个程序把同样的四个包写进一个假串口，再和 `sts_packet.py` 的字节比较。同样没有舵机；假串口只是把 SDK 本来要发的东西记下来。
 
 <CodeSource path="examples/month-3/so101-arm/compare_sdk.py" />
 
@@ -224,7 +224,7 @@ ID 01 + LENGTH 05 + WRITE 03 + 地址 2A + 低字节 00 + 高字节 08 = 0x3B（
 """compare_sdk.py: check sts_packet.py against Feetech's own Python SDK, no servo needed.
 
 The SDK writes its packets to a fake serial port that just records the bytes.
-Needs:  pip install feetech-servo-sdk   (tested with 1.0.0; it also installs pyserial)
+Needs:  a venv, then pip install feetech-servo-sdk   (tested with 1.0.0; it also installs pyserial)
 """
 import scservo_sdk as scs
 
@@ -271,6 +271,8 @@ for name, call, expected in cases:
 
 ```text
 $ cd ~/Hardware-learning/examples/month-3/so101-arm
+$ python3 -m venv ~/Hardware-learning/.venv
+$ source ~/Hardware-learning/.venv/bin/activate
 $ pip install feetech-servo-sdk
 $ python3 compare_sdk.py
 ping 1           SDK FF FF 01 02 01 FB           same

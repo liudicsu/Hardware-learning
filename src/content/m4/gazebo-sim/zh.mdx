@@ -70,7 +70,7 @@ Genesis 是相反的情况。原课程说可以关注它，但暂时不要把作
 
 除非另选了引擎（`gz sim --physics-engine`，优先级最高；或 Physics 插件里的 `<engine><filename>`），Gazebo Harmonic 默认用 DART（`gz-physics-dartsim-plugin`）求解接触；`<physics>` 上的 `type` 属性并不决定引擎，所以本世界可以写 `type="ignored"`。摩擦写在每个 collision 的 `<surface><friction><ode><mu>` 和 `<mu2>` 里——下文 `sensors.gazebo.xacro` 中 URDF 的 `<mu1>`/`<mu2>` 正是转成这两项——机器人跑偏、打转或打滑时调的就是它。老的 Gazebo Classic 教程会叫你在物体下沉或抖动时加大 `<surface><contact><ode><kp>` / `<kd>`（接触刚度与阻尼），但默认的 DART 插件并不读取这两项；下沉或抖动时先把质量和惯量改对，再确认机器人生成时没有碰撞体互相重叠。
 
-本课程**不会**再单开 MuJoCo、Isaac 或 Webots 的实操课。上面的表里点名它们，是为了你以后知道何时该换工具。这里练的是世界文件、传感器、桥接与手算——迁移的是这套思路，不是某个产品的点击路径，也不需要再开一个月的课。
+第 7 个月有 MuJoCo 实践课（`mujoco-so101`）；Isaac、Webots 仍不开设单独实操课。上面的表里点名 MuJoCo、Isaac 与 Webots，是为了你以后知道何时该换工具。本课练的是世界文件、传感器、桥接与手算——迁移的是这套思路；Isaac 或 Webots 的产品点击路径不需要再开一个月的课。
 
 ## 自己的世界
 

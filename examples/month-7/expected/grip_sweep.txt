@@ -1,0 +1,13 @@
+scene=grip_scene.xml
+friction=1.2  cube_mass=0.15 kg  close=0.0245 m
+dt_s   timeconst  cube_z_m  pen_mm  result
+0.002     0.004    0.1136    0.05  HOLD
+0.002     0.020    0.1130    0.16  HOLD
+0.002     0.080    0.1124    0.82  HOLD
+0.005     0.004    0.1135    0.05  HOLD
+0.005     0.020    0.1103    0.16  HOLD
+0.005     0.080    0.0143   32.69  SLIP
+0.010     0.004    0.1148    0.25  HOLD
+0.010     0.020    0.1148    0.25  HOLD
+0.010     0.080    0.0143   33.03  SLIP
+held 7/9  (soft + large dt slips; penetration grows with timeconst)

@@ -144,7 +144,7 @@ Summary: 3 packages finished [16.0s]
 
 看构建顺序：colcon 按依赖顺序来，接口包排在最前面，因为另外两个包都依赖它，然后是 C++ 滤波包，最后是 Python 包。要生成两种语言的代码，这就是为什么接口包占掉了那七秒多——它不是卡住了，是代码生成在干活。如果你哪天看到某个包排在它所依赖的包前面，那就是你漏声明依赖了。
 
-从任何一个终端都能检查生成了什么。`ros2 interface show` 打印的是 ROS 理解的定义，而不是你敲进去的样子：
+从任何一个已经 source 过该工作空间的终端，都能检查生成了什么。`ros2 interface show` 打印的是 ROS 理解的定义，而不是你敲进去的样子：
 
 ```text
 $ ros2 interface show m4_interfaces/msg/Reading

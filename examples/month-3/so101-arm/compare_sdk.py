@@ -1,7 +1,7 @@
 """compare_sdk.py: check sts_packet.py against Feetech's own Python SDK, no servo needed.
 
 The SDK writes its packets to a fake serial port that just records the bytes.
-Needs:  pip install feetech-servo-sdk   (tested with 1.0.0; it also installs pyserial)
+Needs:  a venv, then pip install feetech-servo-sdk   (tested with 1.0.0; it also installs pyserial)
 """
 import scservo_sdk as scs
 

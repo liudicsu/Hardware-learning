@@ -216,7 +216,7 @@ The reply line decodes the same way. Its LENGTH is 4, because it carries two dat
 
 <Quiz id="q3" question="A servo reports position 1024 steps. How many degrees is that?" answer={90} unit="°" explanation="The encoder has 4096 steps per turn, so 1024 steps is 1024 / 4096 = 1/4 of a turn. 360° × 1/4 = 90°." />
 
-Feetech's own Python SDK can cross-check the hand arithmetic. With the SDK installed (`pip install feetech-servo-sdk`), the next program writes the same four packets into a fake serial port, and compares the bytes with `sts_packet.py`. Again, no servo is connected; the fake port simply records what the SDK would have sent.
+Feetech's own Python SDK can cross-check the hand arithmetic. Install it inside a virtual environment (Ubuntu 24.04 marks the system Python as externally managed, so a bare `pip install` is rejected): `python3 -m venv ~/Hardware-learning/.venv && source ~/Hardware-learning/.venv/bin/activate && pip install feetech-servo-sdk`. With the SDK installed, the next program writes the same four packets into a fake serial port, and compares the bytes with `sts_packet.py`. Again, no servo is connected; the fake port simply records what the SDK would have sent.
 
 <CodeSource path="examples/month-3/so101-arm/compare_sdk.py" />
 
@@ -224,7 +224,7 @@ Feetech's own Python SDK can cross-check the hand arithmetic. With the SDK insta
 """compare_sdk.py: check sts_packet.py against Feetech's own Python SDK, no servo needed.
 
 The SDK writes its packets to a fake serial port that just records the bytes.
-Needs:  pip install feetech-servo-sdk   (tested with 1.0.0; it also installs pyserial)
+Needs:  a venv, then pip install feetech-servo-sdk   (tested with 1.0.0; it also installs pyserial)
 """
 import scservo_sdk as scs
 
@@ -271,6 +271,8 @@ Real output:
 
 ```text
 $ cd ~/Hardware-learning/examples/month-3/so101-arm
+$ python3 -m venv ~/Hardware-learning/.venv
+$ source ~/Hardware-learning/.venv/bin/activate
 $ pip install feetech-servo-sdk
 $ python3 compare_sdk.py
 ping 1           SDK FF FF 01 02 01 FB           same

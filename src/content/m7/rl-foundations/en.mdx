@@ -1,0 +1,229 @@
+This lesson is a site supplement — Months 7–8 are not part of the original six-month course.
+
+Month 6 taught imitation learning: a table of demonstrations, a policy that copies actions, and the failure when the robot leaves the data. <Term id="mdp">Reinforcement learning</Term> drops the demonstrations. The environment returns a scalar <Term id="reward">reward</Term> each step; the learner maximises the discounted <Term id="return-discount">return</Term>. This lesson names the MDP pieces, contrasts them with Month 6, trains a clipped-ratio (<Term id="ppo">PPO</Term>-style) <Term id="policy-rl">policy</Term> on a 1-D reach toy across three seeds, and points at Stable-Baselines3 for the real library path.
+
+## MDP in one page
+
+- **State** `s`: what the agent is allowed to see (here: a scalar position in [−1, 1]).
+- **Action** `a`: what it may do (here: a step in [−0.2, 0.2]).
+- **Reward** `r`: a scalar each step (here: `r = −|x − 0.8|`).
+- **Return** `G_t = r_t + γ·r_(t+1) + γ²·r_(t+2) + …`. With `γ = 0.99` and horizon 20, later rewards still count.
+- **Policy** `π(a | s)`: the rule that picks actions. In Month 6 it was fitted to demo actions; here it is updated from returns.
+
+Imitation learning needs a demonstrator and fails where the demos never went. RL needs a reward and fails when that reward is the wrong objective — **reward hacking**. A distance-only reward on a real arm can make the gripper skim the target to shave the last millimetres of error instead of settling into a stable grasp.
+
+<Resource id="spinningup" />
+
+## A 20-step 1-D reach
+
+The toy: start left of the origin, goal at +0.8, twenty steps, reward `−|x − goal|` each step. The policy is a linear Gaussian: mean `= tanh(w x + b) · 0.2`. Each iteration collects rollouts, normalises advantages, and takes several epochs of **clipped probability-ratio** updates — the PPO idea from Schulman et al., 2017 (arXiv 1707.06347) — without PyTorch, so the table below is standard-library reproducible.
+
+```bash
+$ cd ~/Hardware-learning/examples/month-7/rl-foundations
+$ python3 ppo_reach.py
+```
+
+<CodeSource path="examples/month-7/rl-foundations/ppo_reach.py" />
+
+```python
+#!/usr/bin/env python3
+"""ppo_reach.py: 1-D reach MDP trained with a clipped-surrogate (PPO-style) policy, 3 seeds.
+
+Toy environment: state is position in [-1, 1], action is a step in [-0.2, 0.2], reward is
+−|x − goal| each step, episode length 20, goal at +0.8. The policy is a linear Gaussian:
+mean = tanh(w · x + b) · 0.2. We take several epochs of clipped-ratio updates on each
+batch of rollouts (the PPO idea from Schulman et al. 2017), without a neural net or
+PyTorch, so the expected table is reproducible with the standard library only.
+
+On a learner machine with GPU optional: Stable-Baselines3's PPO is meant to run primarily
+on the CPU when not using a CNN; see the SB3 PPO docs. That path is not run here.
+usage: python3 ppo_reach.py
+"""
+from __future__ import annotations
+
+import math
+import random
+
+GOAL = 0.8
+HORIZON = 20
+ACTION_SCALE = 0.2
+GAMMA = 0.99
+CLIP = 0.2
+LR = 0.12
+EPOCHS = 6
+ROLLOUTS = 48
+ITERS = 80
+SEEDS = (0, 1, 2)
+
+
+def step_env(x: float, a: float) -> tuple[float, float, bool]:
+    a = max(-ACTION_SCALE, min(ACTION_SCALE, a))
+    nx = max(-1.0, min(1.0, x + a))
+    r = -abs(nx - GOAL)
+    done = False
+    return nx, r, done
+
+
+def discount(rewards: list[float], gamma: float = GAMMA) -> list[float]:
+    g = 0.0
+    out = [0.0] * len(rewards)
+    for t in range(len(rewards) - 1, -1, -1):
+        g = rewards[t] + gamma * g
+        out[t] = g
+    return out
+
+
+class Policy:
+    """Linear Gaussian: a ~ N(tanh(w x + b) * ACTION_SCALE, sigma)."""
+
+    def __init__(self, rng: random.Random):
+        self.w = rng.uniform(-0.3, 0.3)
+        self.b = rng.uniform(-0.3, 0.3)
+        self.log_std = -1.0  # sigma ≈ 0.37 * ACTION_SCALE after tanh scale
+
+    def mean(self, x: float) -> float:
+        return math.tanh(self.w * x + self.b) * ACTION_SCALE
+
+    def std(self) -> float:
+        return math.exp(self.log_std) * ACTION_SCALE
+
+    def act(self, x: float, rng: random.Random) -> tuple[float, float]:
+        mu = self.mean(x)
+        sig = self.std()
+        a = mu + sig * rng.gauss(0.0, 1.0)
+        a = max(-ACTION_SCALE, min(ACTION_SCALE, a))
+        # log prob under unclipped Gaussian (for ratio); clamp a for env only
+        logp = -0.5 * ((a - mu) / sig) ** 2 - math.log(sig) - 0.5 * math.log(2 * math.pi)
+        return a, logp
+
+    def logp(self, x: float, a: float) -> float:
+        mu = self.mean(x)
+        sig = self.std()
+        return -0.5 * ((a - mu) / sig) ** 2 - math.log(sig) - 0.5 * math.log(2 * math.pi)
+
+
+def collect(policy: Policy, rng: random.Random, n: int = ROLLOUTS):
+    batch = []
+    returns = []
+    for _ in range(n):
+        x = rng.uniform(-1.0, -0.2)
+        traj = []
+        rewards = []
+        for _t in range(HORIZON):
+            a, lp = policy.act(x, rng)
+            nx, r, _ = step_env(x, a)
+            traj.append((x, a, lp))
+            rewards.append(r)
+            x = nx
+        Gs = discount(rewards)
+        returns.append(sum(rewards))  # undiscounted episode return for the table
+        for (x, a, lp), G in zip(traj, Gs):
+            batch.append((x, a, lp, G))
+    return batch, sum(returns) / len(returns)
+
+
+def ppo_update(policy: Policy, batch):
+    # Normalise advantages
+    Gs = [b[3] for b in batch]
+    mean_g = sum(Gs) / len(Gs)
+    var = sum((g - mean_g) ** 2 for g in Gs) / len(Gs)
+    std = math.sqrt(var) + 1e-8
+    for _ in range(EPOCHS):
+        for x, a, old_lp, G in batch:
+            adv = (G - mean_g) / std
+            new_lp = policy.logp(x, a)
+            ratio = math.exp(max(-20.0, min(20.0, new_lp - old_lp)))
+            unclipped = ratio * adv
+            clipped = max(1.0 - CLIP, min(1.0 + CLIP, ratio)) * adv
+            # surrogate to maximise; gradient via finite difference on w, b
+            # analytical d logp / d mu * d mu / d param
+            mu = policy.mean(x)
+            sig = policy.std()
+            dlogp_dmu = (a - mu) / (sig * sig)
+            # mu = tanh(z)*ACTION_SCALE, z = w x + b
+            z = policy.w * x + policy.b
+            dmu_dz = (1.0 - math.tanh(z) ** 2) * ACTION_SCALE
+            # Use clipped objective: if ratio outside clip and adv has the wrong sign, skip
+            if (adv > 0 and ratio > 1.0 + CLIP) or (adv < 0 and ratio < 1.0 - CLIP):
+                continue
+            # ascend: param += LR * adv * dlogp/dparam  (on-policy PG inside the clip)
+            policy.w += LR * adv * dlogp_dmu * dmu_dz * x
+            policy.b += LR * adv * dlogp_dmu * dmu_dz
+
+
+def train(seed: int) -> tuple[float, float, float]:
+    rng = random.Random(seed)
+    policy = Policy(rng)
+    # initial return
+    _, r0 = collect(policy, random.Random(seed + 1000), n=16)
+    for it in range(ITERS):
+        batch, _ = collect(policy, rng)
+        ppo_update(policy, batch)
+    _, rT = collect(policy, random.Random(seed + 2000), n=32)
+    # final mean distance to goal over 32 eval rollouts (greedy mean action)
+    dists = []
+    for k in range(32):
+        erng = random.Random(seed + 3000 + k)
+        x = erng.uniform(-1.0, -0.2)
+        for _ in range(HORIZON):
+            a = policy.mean(x)
+            x, _, _ = step_env(x, a)
+        dists.append(abs(x - GOAL))
+    return r0, rT, sum(dists) / len(dists)
+
+
+def main() -> None:
+    print(f"1-D reach  goal={GOAL}  horizon={HORIZON}  gamma={GAMMA}  clip={CLIP}")
+    print("seed  return_init  return_final  mean_|x-goal|_greedy")
+    finals = []
+    for s in SEEDS:
+        r0, rT, d = train(s)
+        finals.append(rT)
+        print(f"{s:4d}  {r0:11.3f}  {rT:12.3f}  {d:20.4f}")
+    print(f"mean final return over {len(SEEDS)} seeds: {sum(finals)/len(finals):.3f}")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+1-D reach  goal=0.8  horizon=20  gamma=0.99  clip=0.2
+seed  return_init  return_final  mean_|x-goal|_greedy
+   0      -21.773       -10.513                0.4549
+   1      -14.709        -8.855                0.2700
+   2      -23.882        -6.470                0.0809
+mean final return over 3 seeds: -8.613
+```
+
+</SimOutput>
+
+Every seed's final return is better than its initial return; the mean final return over the three seeds is about −8.6. Report all three, the way Month 6's evaluation lesson reports every session — not only the luckiest seed.
+
+<Quiz id="q1" question="With γ = 0.99, how much does a reward 20 steps ahead still count in the return, as a fraction of its raw value?" options={["0", "0.99^20 ≈ 0.82", "0.99", "1"]} answer={1} explanation="0.99^20 ≈ 0.818. A horizon-20 episode still feeds most of a late reward into G_t; that is why γ close to 1 cares about the whole trajectory." />
+
+## Gymnasium and SB3 on your machine
+
+The same MDP interface is what [Gymnasium](https://gymnasium.farama.org/) standardises (`reset` / `step`). Stable-Baselines3's PPO page states that PPO is **meant to be run primarily on the CPU**, especially when not using a CNN, and suggests `SubprocVecEnv` for throughput. On your machine (not run on this page):
+
+```bash
+$ pip install gymnasium stable-baselines3
+$ python3 -c "import gymnasium as gym; from stable_baselines3 import PPO; env=gym.make('Reacher-v5'); model=PPO('MlpPolicy', env); model.learn(5000)"
+```
+
+Use three seeds and keep every learning curve. Reacher-v5 needs the MuJoCo Gymnasium extra; skip it if you have not installed that yet — the 1-D toy already shows the clipped-ratio update.
+
+## Common mistakes
+
+- **Reporting only the best seed.** Seed 0 in the table finishes worse than seed 2; both are part of the result.
+- **Confusing the BC loss with a reward.** Squared error to a demo action is supervised learning; a reward is a scalar the environment invents.
+- **Assuming PPO wants a GPU.** For MLP policies SB3's own docs point at the CPU.
+- **Designing a reward that only looks at distance.** That is the reward-hacking example above; add a term for grasp stability or for staying still at the goal once you move to a real arm.
+
+<Summary>
+
+An MDP is state, action, reward, return and policy. RL optimises the discounted return instead of cloning demos; a bad reward invites hacking. The stdlib clipped-ratio toy on a 1-D reach improves across three seeds (mean final return ≈ −8.6); SB3 PPO is the library path and is meant for the CPU when you are not using a CNN.
+
+</Summary>
