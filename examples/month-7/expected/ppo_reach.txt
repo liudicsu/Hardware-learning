@@ -1,0 +1,6 @@
+1-D reach  goal=0.8  horizon=20  gamma=0.99  clip=0.2
+seed  return_init  return_final  mean_|x-goal|_greedy
+   0      -21.773       -10.513                0.4549
+   1      -14.709        -8.855                0.2700
+   2      -23.882        -6.470                0.0809
+mean final return over 3 seeds: -8.613

@@ -815,6 +815,135 @@ const month6Lessons: Lesson[] = [
   },
 ];
 
+
+const month7Lessons: Lesson[] = [
+  {
+    slug: "mujoco-so101",
+    title: { zh: "MuJoCo 里的 SO-101：模型、接触与时间步", en: "MuJoCo and the SO-101: models, contacts and the timestep" },
+    summary: {
+      zh: "先认清 MJCF 的 body、joint、geom、actuator 以及它和 URDF 的对应；在简化夹爪场景里用位置执行器合拢并举起方块；再扫描 timestep 与 solref，看清软接触加大步长如何让方块滑落、穿透加深。对照 Menagerie 的 robotstudio_so101（≥3.1.3，6 自由度，Apache-2.0）。",
+      en: "Read MJCF body, joint, geom and actuator against URDF; close a soft-contact gripper on a free cube with position actuators and lift it; then sweep timestep and solref to see soft contacts plus a large step drop the cube and deepen penetration. Map it onto Menagerie's robotstudio_so101 (≥3.1.3, 6 DoF, Apache-2.0).",
+    },
+    minutes: 240,
+    objectives: [
+      { zh: "能说出 MJCF 里 body、joint、geom、actuator 各自管什么，并对照 URDF 的 link/joint。", en: "Name what body, joint, geom and actuator each do in MJCF, and match them to URDF link/joint." },
+      { zh: "能说明 Menagerie robotstudio_so101 要求 MuJoCo ≥ 3.1.3、有 6 个转动关节、许可证 Apache-2.0。", en: "State that Menagerie robotstudio_so101 needs MuJoCo ≥ 3.1.3, has 6 hinge DoF, and is Apache-2.0." },
+      { zh: "能读懂 grip_sweep.py 的 3×3 表：timeconst=0.08 且 dt≥0.005 时 SLIP，穿透从约 0.05 mm 长到约 33 mm。", en: "Read the 3×3 grip_sweep.py table: SLIP when timeconst=0.08 and dt≥0.005, penetration from ~0.05 mm up to ~33 mm." },
+      { zh: "能解释 solref 时间常数、impratio 与 cone=elliptic 在接触求解里各自偏向什么。", en: "Explain what the solref time constant, impratio and cone=elliptic each bias in the contact solver." },
+    ],
+    prereqs: ["urdf-tf", "gazebo-sim", "so101-arm", "control-modelling"],
+    resources: ["mujoco", "menagerie-so101", "so-arm100-sim", "mujoco-modeling", "mujoco-mjx"],
+    tasks: [
+      { id: "run", text: { zh: "安装 mujoco 后运行 grip_sweep.py，手算 held 7/9，并指出哪两格是 SLIP", en: "After installing mujoco, run grip_sweep.py, confirm held 7/9, and name the two SLIP cells" } },
+      { id: "solref", text: { zh: "把 TIMECONSTS 改成 (0.002, 0.01, 0.05) 再跑，记录穿透如何随时间常数变化", en: "Change TIMECONSTS to (0.002, 0.01, 0.05), re-run, and record how penetration tracks the time constant" } },
+      { id: "menagerie", text: { zh: "打开 Menagerie robotstudio_so101 的 README 与 so101.xml，数出 6 个 hinge，记下 option 里的 timestep、cone、impratio", en: "Open Menagerie robotstudio_so101 README and so101.xml, count 6 hinges, and note timestep, cone and impratio in option" } },
+      { id: "viewer", text: { zh: "（本机）用 python -m mujoco.viewer --mjcf grip_scene.xml 看合拢；本页未运行 GUI", en: "(On your machine) open grip_scene.xml with python -m mujoco.viewer; GUI not run on this page" } },
+    ],
+  },
+  {
+    slug: "rl-foundations",
+    title: { zh: "强化学习入门：奖励、回报与 PPO", en: "Reinforcement learning basics: rewards, returns and PPO" },
+    summary: {
+      zh: "把 MDP 的状态、动作、奖励、回报、折扣、策略讲清，并对照第 6 个月的模仿学习：RL 不需要示范，但需要奖励。在 1-D 到达玩具上用裁剪比率（PPO 思路）训练 3 个种子，读最终平均回报表；说明 SB3 的 PPO 主要应在 CPU 上跑。",
+      en: "Name the MDP pieces — state, action, reward, return, discount, policy — and contrast Month 6 imitation learning: RL needs a reward, not demos. Train a clipped-ratio (PPO-style) policy on a 1-D reach toy across 3 seeds and read the final-return table; note that SB3's PPO is meant to run primarily on the CPU.",
+    },
+    minutes: 240,
+    objectives: [
+      { zh: "能写出折扣回报 G_t = r_t + γ r_{t+1} + γ² r_{t+2} + …，并说明 γ=0.99、视野 20 时远期奖励仍算进回报。", en: "Write the discounted return G_t = r_t + γ r_{t+1} + γ² r_{t+2} + …, and note that with γ=0.99 and horizon 20 later rewards still count." },
+      { zh: "能对比模仿学习与 RL：前者拟合示范动作，后者只优化标量奖励。", en: "Contrast imitation learning with RL: one fits demo actions, the other only maximises a scalar reward." },
+      { zh: "能读懂 ppo_reach.py 三个种子的最终回报，并报出它们的平均值（约 −8.6）。", en: "Read the three final returns from ppo_reach.py and report their mean (about −8.6)." },
+      { zh: "能说出 reward hacking 的一例：只奖距离时，机械臂可能去蹭目标而不是稳住抓取。", en: "Give one reward-hacking example: a distance-only reward can make an arm skim the target instead of holding a grasp." },
+    ],
+    prereqs: ["python-terminal", "policy-evaluation", "mujoco-so101"],
+    resources: ["spinningup", "gymnasium", "sb3", "ppo-paper"],
+    tasks: [
+      { id: "run", text: { zh: "运行 ppo_reach.py，核对三个种子的最终回报与 expected/ppo_reach.txt 一致", en: "Run ppo_reach.py and check the three final returns match expected/ppo_reach.txt" } },
+      { id: "gamma", text: { zh: "把 GAMMA 改成 0.9 再跑，比较最终回报，解释折扣变小意味着什么", en: "Set GAMMA to 0.9, re-run, compare final returns, and say what a smaller discount means" } },
+      { id: "reward-hack", text: { zh: "写一句你自己的 reward hacking 例子（不要照抄课文）", en: "Write one reward-hacking example of your own (do not copy the lesson)" } },
+      { id: "sb3", text: { zh: "（选做，本页未运行）在本机用 Gymnasium + SB3 PPO 训 Reacher-v5，记录 3 个种子的学习曲线", en: "(Optional, not run here) train Reacher-v5 with Gymnasium + SB3 PPO on your machine; log 3-seed curves" } },
+    ],
+  },
+  {
+    slug: "rl-manipulation-sim",
+    title: { zh: "大规模并行仿真里的操作 RL：SAC 与奖励设计", en: "Manipulation RL in massively parallel simulation: SAC and reward design" },
+    summary: {
+      zh: "（后续批次）on-policy 与 off-policy、稠密/稀疏奖励，以及为何数千并行环境能让抓方块在几分钟内学会；对照 ManiSkill3 或 MuJoCo Playground。",
+      en: "(Later batch) on-policy vs off-policy, dense vs sparse rewards, and why thousands of parallel envs can learn a cube pick in minutes; ManiSkill3 or MuJoCo Playground.",
+    },
+    minutes: 240,
+    objectives: [
+      { zh: "能区分 on-policy（PPO）与 off-policy（SAC，带回放缓冲）。", en: "Distinguish on-policy (PPO) from off-policy (SAC with a replay buffer)." },
+      { zh: "能说明稠密奖励与稀疏奖励各适合什么阶段。", en: "Say when dense rewards and sparse rewards each help." },
+      { zh: "能指出 ManiSkill GPU 并行仿真的平台限制（Linux + NVIDIA）。", en: "State ManiSkill's GPU-parallel platform limit (Linux + NVIDIA)." },
+    ],
+    prereqs: ["rl-foundations", "kinematics-ik"],
+    resources: ["sb3", "spinningup"],
+    tasks: [
+      { id: "read", text: { zh: "读完本课大纲，记下你打算在本机还是 Colab 上跑并行仿真", en: "Read this outline and note whether you will run parallel sim locally or on Colab" } },
+    ],
+  },
+  {
+    slug: "sim-to-real",
+    title: { zh: "从仿真到真机：随机化、系统辨识与延迟", en: "From simulation to the real arm: randomisation, system identification and latency" },
+    summary: {
+      zh: "（后续批次）现实差距从质量、摩擦、阻尼、带宽、外观与延迟来；系统辨识把仿真调像真机，域随机化让策略不挑仿真。",
+      en: "(Later batch) the reality gap from mass, friction, damping, bandwidth, appearance and latency; system identification vs domain randomisation.",
+    },
+    minutes: 240,
+    objectives: [
+      { zh: "能列出至少四种现实差距来源。", en: "List at least four sources of the reality gap." },
+      { zh: "能对比系统辨识与域随机化两条路。", en: "Contrast system identification with domain randomisation." },
+      { zh: "能说明观测延迟可用 nsample × timestep 建模。", en: "Note that observation delay can be modelled as nsample × timestep." },
+    ],
+    prereqs: ["control-modelling", "mujoco-so101", "rl-foundations", "so101-arm"],
+    resources: ["mujoco-modeling"],
+    tasks: [
+      { id: "read", text: { zh: "读完本课大纲，列出你的 SO-101 上最可疑的三个仿真-真机差异", en: "Read this outline and list the three likeliest sim-to-real gaps on your SO-101" } },
+    ],
+  },
+  {
+    slug: "depth-pointcloud",
+    title: { zh: "深度相机与点云：从像素到三维点", en: "Depth cameras and point clouds: from pixels to 3D points" },
+    summary: {
+      zh: "用相机内参把深度图反投影成点云，再体素下采样、RANSAC 去桌面、DBSCAN 求质心。合成桌面加 3 个盒子的全流程可在 CPU 上复现；对照 RealSense、Depth Anything V2（Small Apache-2.0；Base/Large/Giant CC-BY-NC-4.0）与仿真相机。",
+      en: "Back-project a depth map with intrinsics, voxel-downsample, remove the desk with RANSAC, and take DBSCAN centroids. A synthetic desk with 3 boxes runs on CPU; contrast RealSense, Depth Anything V2 (Small Apache-2.0; Base/Large/Giant CC-BY-NC-4.0) and a sim camera.",
+    },
+    minutes: 240,
+    objectives: [
+      { zh: "能写出反投影 X=(u−c_x)/f_x·Z，Y=(v−c_y)/f_y·Z，并说明 Z 来自深度图。", en: "Write the back-projection X=(u−c_x)/f_x·Z, Y=(v−c_y)/f_y·Z, and say Z comes from the depth map." },
+      { zh: "能说明 cloud_pipeline.py 在 1 cm 体素后剩约 2178 点，去掉平面后 3 个簇的质心与真值盒子中心相差在 1 cm 内。", en: "State that cloud_pipeline.py keeps ~2178 points after 1 cm voxels, and after plane removal the 3 centroids sit within 1 cm of the true box centres." },
+      { zh: "能区分相对深度与米制深度，并说出 Depth Anything V2 Small 是 Apache-2.0，Base/Large/Giant 是 CC-BY-NC-4.0。", en: "Distinguish relative from metric depth, and name Depth Anything V2 Small as Apache-2.0 and Base/Large/Giant as CC-BY-NC-4.0." },
+    ],
+    prereqs: ["camera-calibration", "urdf-tf"],
+    resources: ["open3d", "realsense-ros", "depth-anything-v2"],
+    tasks: [
+      { id: "run", text: { zh: "运行 cloud_pipeline.py，核对接心质心与 true_box_centres 是否在 1 cm 内", en: "Run cloud_pipeline.py and check each centroid is within 1 cm of true_box_centres" } },
+      { id: "voxel", text: { zh: "把 VOXEL 改成 0.02，记录点数与簇数如何变", en: "Set VOXEL to 0.02 and record how point count and cluster count change" } },
+      { id: "ransac", text: { zh: "把 RANSAC_THRESH 改成 0.002 和 0.02，解释平面内点为何暴增或塌缩", en: "Set RANSAC_THRESH to 0.002 and 0.02; explain why inliers explode or collapse" } },
+      { id: "dav2", text: { zh: "（选做）用 Depth Anything V2 Small 估一张自己的照片，注明相对深度", en: "(Optional) estimate depth on your own photo with Depth Anything V2 Small; note it is relative" } },
+    ],
+  },
+  {
+    slug: "perception-to-grasp",
+    title: { zh: "用文字找物体并抓起来：开放词汇分割、手眼标定与 MoveIt", en: "Find it by name and pick it up: open-vocabulary segmentation, hand-eye calibration and MoveIt" },
+    summary: {
+      zh: "（后续批次）文字提示 → 掩码 → 深度点 → 手眼外参 → 基座系抓取点 → MoveIt；分清眼在手上与眼在手外。",
+      en: "(Later batch) text prompt → mask → depth points → hand-eye extrinsics → base-frame grasp → MoveIt; eye-in-hand vs eye-to-hand.",
+    },
+    minutes: 300,
+    objectives: [
+      { zh: "能画出从文字提示到基座系抓取点的数据流。", en: "Sketch the data flow from a text prompt to a base-frame grasp point." },
+      { zh: "能区分眼在手上与眼在手外两种手眼标定。", en: "Distinguish eye-in-hand from eye-to-hand calibration." },
+      { zh: "能说明为何手眼标定要采多个姿态样本。", en: "Explain why hand-eye calibration needs many pose samples." },
+    ],
+    prereqs: ["depth-pointcloud", "moveit-pick-place", "camera-calibration"],
+    resources: ["open3d", "moveit-docs"],
+    tasks: [
+      { id: "read", text: { zh: "读完本课大纲，决定你的相机是眼在手上还是眼在手外", en: "Read this outline and decide whether your camera is eye-in-hand or eye-to-hand" } },
+    ],
+  },
+];
+
 export const months: Month[] = [
   {
     id: 1,
@@ -965,6 +1094,29 @@ export const months: Month[] = [
       { zh: "能回答关于你代码任意一行的三层追问", en: "Answer three levels of follow-up questions about any line of your code" },
     ],
     lessons: month6Lessons,
+  },
+  {
+    id: 7,
+    slug: "month-7",
+    title: { zh: "仿真、强化学习与三维感知", en: "Simulation, reinforcement learning & 3D perception" },
+    goal: {
+      zh: "在 MuJoCo 里用 SO-101 模型训练并迁移一个策略，并让机械臂从深度和分割结果中找到要抓的物体。",
+      en: "Train a policy on an SO-101 model in MuJoCo, carry it towards the real arm, and let the arm find the object to grasp from depth and segmentation.",
+    },
+    topics: [
+      { zh: "MuJoCo 建模与接触", en: "MuJoCo modelling and contact" },
+      { zh: "强化学习（PPO、SAC）", en: "Reinforcement learning (PPO, SAC)" },
+      { zh: "仿真到真机（随机化、系统辨识、延迟）", en: "Sim-to-real (randomisation, system ID, latency)" },
+      { zh: "深度与点云", en: "Depth and point clouds" },
+      { zh: "开放词汇分割与手眼标定", en: "Open-vocabulary segmentation and hand-eye calibration" },
+      { zh: "延伸：Isaac Lab 大规模 RL；人形/四足行走仿真（选修，不成正式课）", en: "Further: Isaac Lab-scale RL; humanoid/quadruped locomotion in sim (electives, not formal lessons)" },
+    ],
+    milestones: [
+      { zh: "在 MuJoCo 中加载 SO-101，报告接触参数改动对抓取的影响", en: "Load the SO-101 in MuJoCo and report how contact-parameter changes affect the grasp" },
+      { zh: "用 PPO 训练出一个能复现的到达策略，带多种子曲线", en: "Train a reproducible reach policy with PPO and multi-seed curves" },
+      { zh: "从一张 RGB-D 图片，用文字提示得到机械臂基座坐标系下的抓取点", en: "From one RGB-D image and a text prompt, get a grasp point in the arm base frame" },
+    ],
+    lessons: month7Lessons,
   },
 ];
 

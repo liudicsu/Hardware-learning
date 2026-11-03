@@ -1,8 +1,8 @@
 {
   "site": {
     "name": "硬件学习",
-    "tagline": "6 个月成为机器人工程师 · 中英双语学习站",
-    "description": "基于 @DeRonin_ 的《How to become a Robotics Engineer in 6 months》课程整理的双语学习网站：原创讲解、可执行练习、资源卡片与本地进度追踪。"
+    "tagline": "8 个月成为机器人工程师 · 中英双语学习站",
+    "description": "基于 @DeRonin_ 的《How to become a Robotics Engineer in 6 months》整理的双语学习网站，并补充本站撰写的第 7–8 个月：原创讲解、可执行练习、资源卡片与本地进度追踪。"
   },
   "nav": {
     "home": "首页",
@@ -17,11 +17,11 @@
   },
   "home": {
     "eyebrow": "开源 · 免费 · 双语",
-    "title": "6 个月，从零到机器人工程师",
+    "title": "8 个月，从零到机器人工程师",
     "lead": "从读懂原理图开始，到 ROS 2、控制、感知与机器人学习。每节课都有原创讲解、动手任务和精选资源，进度只保存在你自己的浏览器里。",
     "start": "从第 1 个月开始",
     "continue": "继续学习",
-    "roadmap": "六个月路线",
+    "roadmap": "八个月路线",
     "lessons": "{count} 节课",
     "howTitle": "怎么用这个网站",
     "how1Title": "读讲解",
@@ -140,7 +140,7 @@
     "title": "关于与致谢",
     "lead": "这是一个为了真正学会而做的学习网站，不是资源搬运站。",
     "sourceTitle": "课程来源",
-    "source": "六个月的整体结构、每月目标、里程碑与资源清单来自 @DeRonin_ 于 2026 年 9 月发布的长文《How to become a Robotics Engineer in 6 months (RESOURCES)》。本站在此基础上用自己的话写了讲解和练习，并补充了少量资源（已标注）。",
+    "source": "第 1–6 个月的整体结构、每月目标、里程碑与资源清单来自 @DeRonin_ 于 2026 年 9 月发布的长文《How to become a Robotics Engineer in 6 months (RESOURCES)》。第 7–8 个月是本站补充内容，由本站撰写，不属于原课程。各月讲解与练习均为本站原创，并补充了少量资源（已标注）。",
     "copyrightTitle": "版权说明",
     "copyright": "所有外部资源（课程、教材、视频、工具）版权归各自作者或机构所有。本站不镜像、不转载这些内容，只提供原创摘要与外链。Falstad 模拟器以 iframe 形式嵌入其官方页面。",
     "privacyTitle": "隐私",
@@ -327,7 +327,7 @@
   },
   "math": {
     "title": "数学速查",
-    "lead": "够用就好：第 4–6 个月用到的数学，每条只有定义、一个取自课程的算例、用到它的课程，以及免费的权威教材链接。这里不是数学课；要系统学习，请读链接中的教材。",
+    "lead": "够用就好：第 4–8 个月用到的数学，每条只有定义、一个取自课程的算例、用到它的课程，以及免费的权威教材链接。这里不是数学课；要系统学习，请读链接中的教材。",
     "definition": "定义",
     "example": "课程中的算例",
     "usedIn": "用到它的课程",

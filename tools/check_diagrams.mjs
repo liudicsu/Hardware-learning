@@ -1329,7 +1329,7 @@ const lessonRef = (n, slug, lang) => {
     // the printed program and its printed output are the committed files, byte for byte (the 12-bit / 4096 comment, registers 40 / 42 / 56, the 3116 reply)
     const CDA = "$ cd ~/Hardware-learning/examples/month-3/so101-arm\n";
     ok(text.includes("```python\n" + sp + "```") && text.includes("```text\n" + CDA + "$ python3 sts_packet.py\n" + spOut + "```")
-      && text.includes("```python\n" + sdkPy + "```") && text.includes("```text\n" + CDA + "$ pip install feetech-servo-sdk\n$ python3 compare_sdk.py\n" + sdkOut + "```"),
+      && text.includes("```python\n" + sdkPy + "```") && text.includes("```text\n" + CDA + "$ python3 -m venv ~/Hardware-learning/.venv\n$ source ~/Hardware-learning/.venv/bin/activate\n$ pip install feetech-servo-sdk\n$ python3 compare_sdk.py\n" + sdkOut + "```"),
       `so101-arm ${lang}: the sts_packet.py / compare_sdk.py listings or their output blocks differ from examples/month-3/so101-arm/{sts_packet,compare_sdk}.py / expected/arm-{sts_packet,compare_sdk}.txt`);
     const rows = [...text.matchAll(/^\| (\w+) \| 1\/(\d+) \|$/gm)].map((m) => [m[1], Number(m[2])]);
     ok(JSON.stringify(rows) === JSON.stringify(Object.entries(leader)), `so101-arm ${lang}: leader ratio table ${JSON.stringify(rows)} != ${JSON.stringify(leader)}`);
@@ -1863,7 +1863,7 @@ const lessonRef = (n, slug, lang) => {
         `1.80 − 0.12 = 1.68 m`,
         `flags \`-s -r --headless-rendering\``,
         `gz-sim-diff-drive-system`,
-        `does **not** open separate MuJoCo, Isaac or Webots practice lessons`,
+        `Isaac and Webots still do **not** get separate practice lessons here.`,
       ],
       "slam-nav": [
         `\`chassis_offset_x ± chassis_x/2 = 0.05 ± 0.15\` → +0.20 m / −0.10 m`,
@@ -1900,7 +1900,7 @@ const lessonRef = (n, slug, lang) => {
         `1.80 − 0.12 = 1.68 m`,
         `\`-s -r --headless-rendering\``,
         `gz-sim-diff-drive-system`,
-        `**不会**再单开 MuJoCo、Isaac 或 Webots 的实操课`,
+        `Isaac、Webots 仍不开设单独实操课`,
       ],
       "slam-nav": [
         `\`chassis_offset_x ± chassis_x/2 = 0.05 ± 0.15\` → +0.20 m / −0.10 m`,
@@ -2430,6 +2430,133 @@ const lessonRef = (n, slug, lang) => {
 }
 
 
+{
+  // Month 7 batch 1 content gaps: every newly stated number is recomputed or pinned here.
+  // 7.1 grip_sweep: 3×3 table (held 7/9; SLIP at soft+large dt); Menagerie ≥3.1.3 / 6 DoF / Apache-2.0.
+  // 7.2 ppo_reach: γ=0.99 → 0.99^20; three seeded final returns mean −8.613.
+  // 7.5 cloud_pipeline: 160×120=19200; voxel→2178; plane 2094; 3 centroids within 1 cm; DAV2 licence split.
+  const rd7 = (rel) => readFileSync(join(root, rel), "utf8");
+  const grip = rd7("examples/month-7/expected/grip_sweep.txt");
+  const ppo = rd7("examples/month-7/expected/ppo_reach.txt");
+  const cloud = rd7("examples/month-7/expected/cloud_pipeline.txt");
+  const gripPy = rd7("examples/month-7/mujoco-so101/grip_sweep.py");
+  const ppoPy = rd7("examples/month-7/rl-foundations/ppo_reach.py");
+  const cloudPy = rd7("examples/month-7/depth-pointcloud/cloud_pipeline.py");
+  const num7 = (text, re, what) => { const m = text.match(re); ok(m, `m7: ${what} not found`); return m ? Number(m[1]) : NaN; };
+
+  ok(/held 7\/9/.test(grip), "m7 grip: expected must say held 7/9");
+  ok(/0\.005\s+0\.080\s+0\.0143\s+.*SLIP/.test(grip) && /0\.010\s+0\.080\s+0\.0143\s+.*SLIP/.test(grip),
+    "m7 grip: SLIP cells must be (0.005,0.080) and (0.010,0.080)");
+  ok(/friction=1\.2/.test(grip) && /cube_mass=0\.15/.test(grip), "m7 grip: friction=1.2 mass=0.15");
+  ok(/TIMECONSTS\s*=\s*\(0\.004,\s*0\.020,\s*0\.080\)/.test(gripPy) || /TIMECONSTS\s*=\s*\(0\.004, 0\.020, 0\.080\)/.test(gripPy),
+    "m7 grip.py: TIMECONSTS must be (0.004, 0.020, 0.080)");
+  ok(/TIMESTEPS\s*=\s*\(0\.002,\s*0\.005,\s*0\.010\)/.test(gripPy) || /TIMESTEPS\s*=\s*\(0\.002, 0\.005, 0\.010\)/.test(gripPy),
+    "m7 grip.py: TIMESTEPS must be (0.002, 0.005, 0.010)");
+
+  const gamma = num7(ppoPy, /GAMMA\s*=\s*([\d.]+)/, "ppo GAMMA");
+  ok(gamma === 0.99, `m7 ppo: GAMMA=${gamma}`);
+  const g20 = Math.pow(gamma, 20);
+  ok(Math.abs(g20 - 0.8179069375972307) < 1e-12 && Math.round(g20 * 100) / 100 === 0.82,
+    `m7 ppo: 0.99^20=${g20} must round to 0.82`);
+  ok(/mean final return over 3 seeds: -8\.613/.test(ppo), "m7 ppo: mean final return −8.613");
+  const finals = [...ppo.matchAll(/^\s+\d+\s+[-\d.]+\s+([-\d.]+)/gm)].map((m) => Number(m[1]));
+  ok(finals.length === 3, `m7 ppo: expected 3 final returns (got ${finals.length})`);
+  const meanFinal = finals.reduce((a, b) => a + b, 0) / finals.length;
+  ok(Math.abs(meanFinal - (-8.613)) < 5e-4, `m7 ppo: recomputed mean ${meanFinal} vs −8.613`);
+  ok(/CLIP\s*=\s*0\.2/.test(ppoPy) || /clip=0\.2/.test(ppo), "m7 ppo: clip 0.2");
+  ok(/SEEDS\s*=\s*\(0,\s*1,\s*2\)/.test(ppoPy) || /seeds?\s*=\s*\[0,\s*1,\s*2\]/.test(ppoPy),
+    "m7 ppo: seeds 0,1,2");
+
+  ok(/raw_points 19200/.test(cloud) && /after_voxel_1cm 2178/.test(cloud), "m7 cloud: 19200→2178");
+  ok(/plane_inliers 2094\s+remaining 84\s+clusters 3/.test(cloud), "m7 cloud: plane 2094 / rem 84 / 3 clusters");
+  ok(/160\s*\*\s*120\s*==\s*19200/.test(cloudPy) || /W,\s*H\s*=\s*160,\s*120/.test(cloudPy) || /W\s*=\s*160/.test(cloudPy),
+    "m7 cloud.py: 160×120 image");
+  // centroids within 1 cm of true centres
+  const trueC = [[-0.12, -0.05, 0.37], [0.0, 0.02, 0.36], [0.14, 0.06, 0.35]];
+  const cents = [...cloud.matchAll(/^\s+\d+\s+\d+\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)/gm)]
+    .map((m) => [Number(m[1]), Number(m[2]), Number(m[3])]);
+  ok(cents.length === 3, `m7 cloud: 3 centroids (got ${cents.length})`);
+  for (let i = 0; i < 3; i++) {
+    const d = Math.hypot(cents[i][0] - trueC[i][0], cents[i][1] - trueC[i][1], cents[i][2] - trueC[i][2]);
+    ok(d < 0.01, `m7 cloud: centroid ${i} distance ${d} must be < 1 cm`);
+  }
+
+  const phrases = {
+    en: {
+      "mujoco-so101": [
+        "MuJoCo ≥ 3.1.3",
+        "six-hinge",
+        "Apache-2.0",
+        "held 7/9",
+        "timeconst = 0.080",
+        "impratio",
+        "cone=\"elliptic\"",
+        "not run on this page",
+      ],
+      "rl-foundations": [
+        "arXiv 1707.06347",
+        "0.99^20 ≈ 0.82",
+        "−8.6",
+        "primarily on the CPU",
+        "reward hacking",
+      ],
+      "depth-pointcloud": [
+        "19200",
+        "2178",
+        "Apache-2.0",
+        "CC-BY-NC-4.0",
+        "voxel_down_sample",
+        "segment_plane",
+        "cluster_dbscan",
+        "within a centimetre",
+      ],
+    },
+    zh: {
+      "mujoco-so101": [
+        "MuJoCo ≥ 3.1.3",
+        "六个 hinge",
+        "Apache-2.0",
+        "held 7/9",
+        "timeconst = 0.080",
+        "impratio",
+        "cone=\"elliptic\"",
+        "本页未运行",
+      ],
+      "rl-foundations": [
+        "arXiv 1707.06347",
+        "0.99^20 ≈ 0.82",
+        "−8.6",
+        "主要应在 CPU",
+        "reward hacking",
+      ],
+      "depth-pointcloud": [
+        "19200",
+        "2178",
+        "Apache-2.0",
+        "CC-BY-NC-4.0",
+        "voxel_down_sample",
+        "segment_plane",
+        "cluster_dbscan",
+        "一厘米",
+      ],
+    },
+  };
+  for (const lang of ["en", "zh"]) {
+    for (const [slug, qs] of Object.entries(phrases[lang])) {
+      const text = rd7(`src/content/m7/${slug}/${lang}.mdx`);
+      for (const q of qs) ok(text.includes(q), `m7 ${slug} ${lang}: expected ${JSON.stringify(q)}`);
+    }
+  }
+  // outline shells exist so SSG does not 404
+  for (const slug of ["rl-manipulation-sim", "sim-to-real", "perception-to-grasp"]) {
+    for (const lang of ["en", "zh"]) {
+      ok(existsSync(join(root, `src/content/m7/${slug}/${lang}.mdx`)), `m7 outline ${slug}/${lang}.mdx missing`);
+    }
+  }
+  console.log(`calc  m7 gaps: grip held 7/9 SLIP@(0.005|0.010,0.080); 0.99^20≈${g20.toFixed(2)}; mean final ${meanFinal.toFixed(3)}; cloud 19200→2178 plane 2094 clusters 3; DAV2 Small Apache / Base+ CC-BY-NC; bound in en/zh`);
+}
+
+
 
 const specs = [];
 for (const f of readdirSync(specDir).filter((f) => f.endsWith(".ts"))) {
@@ -2850,7 +2977,7 @@ for (const m of readdirSync(content)) {
     ok(runSh.includes(`echo "\\$ ros2 service call /slam_toolbox/serialize_map slam_toolbox/srv/SerializePoseGraph \\"{filename: '\\$HOME/maps/room'}\\""`), "m4 paths2: run.sh echoes the $HOME serialize_map command");
     ok(runSh.includes(`SerializePoseGraph "{filename: '$MAPS/room'}"`), "m4 paths2: run.sh calls serialize_map with the same double-outside, single-inside quoting");
     ok(expSave.split("\n")[0] === SER, "m4 paths2: expected nav_save transcript starts with the $HOME command");
-    const months = readdirSync(join(root, "src/content")).filter((d) => /^m[1-6]$/.test(d));
+    const months = readdirSync(join(root, "src/content")).filter((d) => /^m[1-7]$/.test(d));
     const lessonsAll = months.flatMap((m) => readdirSync(join(root, "src/content", m)).filter((l) => existsSync(join(root, "src/content", m, l, "en.mdx"))).map((l) => `${m}/${l}`));
     for (const lang of ["en", "zh"]) {
       for (const [lesson, fs] of Object.entries(facts4[lang])) {
@@ -2946,7 +3073,7 @@ for (const m of readdirSync(content)) {
   {
     const HL = "~/Hardware-learning/";
     let nCmd = 0;
-    const months = readdirSync(join(root, "src/content")).filter((d) => /^m[1-6]$/.test(d));
+    const months = readdirSync(join(root, "src/content")).filter((d) => /^m[1-7]$/.test(d));
     for (const mo of months) for (const ls of readdirSync(join(root, "src/content", mo)).filter((l) => existsSync(join(root, "src/content", mo, l, "en.mdx")))) for (const lang of ["en", "zh"]) {
       const tag = `m3 cad cd ${mo}/${ls} ${lang}`, text = rdB(`src/content/${mo}/${ls}/${lang}.mdx`);
       let prev = null; // the previous bash/sh block: where it ended and the commands it ran after a cd into the repository
@@ -2966,7 +3093,7 @@ for (const m of readdirSync(content)) {
             if (typeof cwd === "string") ran.add(part.replace(/\s+#.*$/, "").trim());
             if (file.startsWith(HL)) { ok(existsSync(join(root, file.slice(HL.length))), `${tag}: "${part}" names a file the repository does not have`); continue; }
             if (typeof cwd === "string") ok(existsSync(join(root, cwd, file)), `${tag}: "${part}" runs ${file}, which ${cwd}/ (the block's cd) does not have`);
-            else if (scad || (cwd === undefined && ["m3", "m4", "m6"].includes(mo) && !(mo === "m4" && paired(part.trim()))))
+            else if (scad || (cwd === undefined && ["m3", "m4", "m6", "m7"].includes(mo) && !(mo === "m4" && paired(part.trim()))))
               ok(false, `${tag}: "${part}" names ${file} by a bare path, but the block has no cd ~/Hardware-learning/... before it`);
           }
         }
@@ -2974,7 +3101,7 @@ for (const m of readdirSync(content)) {
       }
     }
     ok(nCmd >= 40, `m3 cad cd: only ${nCmd} local-file commands found; the scan is broken`);
-    console.log(`m3 cad cd: ${nCmd} bare python3 / openscad commands, each in a block that cds to the folder holding the file (m3, m4, m6; .scad in every month)`);
+    console.log(`m3 cad cd: ${nCmd} bare python3 / openscad commands, each in a block that cds to the folder holding the file (m3, m4, m6, m7; .scad in every month)`);
   }
   // Small paths 5 (round 28): ros2-graph's second / other terminals load the environment like every new terminal (ros2-setup's NEWT
   // sentence), and the bag is recorded and replayed from one folder. rosbag2's README (jazzy): with -o "a user defined name can be given";

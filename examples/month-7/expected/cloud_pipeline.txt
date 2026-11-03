@@ -1,0 +1,11 @@
+image 160x120  fx=fy=120  desk_z=0.4
+raw_points 19200  after_voxel_1cm 2178
+plane_inliers 2094  remaining 84  clusters 3
+cluster  n_points  centroid_x  centroid_y  centroid_z
+      0        24     -0.1197     -0.0497      0.3700
+      1        36      0.0000      0.0198      0.3600
+      2        24      0.1400      0.0600      0.3500
+true_box_centres (x, y, z_top):
+  (-0.12, -0.05, 0.37)
+  (+0.00, +0.02, 0.36)
+  (+0.14, +0.06, 0.35)

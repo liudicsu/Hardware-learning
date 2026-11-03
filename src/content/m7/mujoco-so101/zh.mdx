@@ -1,0 +1,186 @@
+本课是本站补充内容——第 7–8 个月不属于原六个月课程。
+
+第 4 个月用 Gazebo，是因为它适合学 ROS 2 话题和 TF。当问题变成「这个软接触抓取究竟能不能握住」时，研究里更常用的工具是 <Term id="mjcf">MuJoCo</Term>。本课像第 4 个月读 URDF 那样读 MJCF，用位置执行器让双指夹爪合拢并举起方块，再扫描时间步与接触时间常数，用数字而不是感觉看清方块何时滑落、夹爪陷进去多深。
+
+## 把 MJCF 放在 URDF 旁边看
+
+URDF 为 ROS 描述 link 与 joint。MJCF 描述同一棵刚体树，但接触和驱动是一等公民：
+
+| MJCF | 大致对应的 URDF | 多出来的部分 |
+|------|----------------|--------------|
+| `body` | `link` | 惯性在 body 上；子体嵌套成树 |
+| `joint` | `joint` | hinge、slide、free、ball… 带范围 |
+| `geom` | `collision` / `visual` | 形状**以及**接触参数（`friction`、`solref`、`solimp`） |
+| `actuator` | （通常另写） | 直接驱动：`position`、`motor`、`velocity`… |
+
+Menagerie 的 `robotstudio_so101`（Apache-2.0，要求 MuJoCo ≥ 3.1.3）是六轴 SO-101，改写自 TheRobotStudio 的 `Simulation/SO101/so101_new_calib.xml`：`implicitfast` 积分器、简化碰撞几何、适合操作的夹爪接触参数，以及相机支架。更早的 `trs_so_arm100` 是五自由度，并且已经写了 `impratio="10"` 与 `cone="elliptic"` 来改善防滑。本课可运行的场景是一个**最小**双指软接触夹爪（`grip_scene.xml`），好让 3×3 表在 CPU 上又快又不依赖网格；读懂这张表之后，再在本机打开 Menagerie 模型。
+
+## 软接触是可调的弹簧
+
+MuJoCo 不把接触当成无限硬。每个约束有一对 `solref`：`(timeconst, dampratio)`——时间常数越小接触越硬；`dampratio = 1` 是临界阻尼。`solimp` 决定阻抗如何随穿透加深。在 `<option>` 一层，`impratio` 提高摩擦相对法向的阻抗比（抓取防滑时很关键），`cone="elliptic"` 使用椭圆摩擦锥而不是金字塔近似。这些正是 Menagerie SO-101 README 强调的旋钮，也是你的抓取会敏感的旋钮。
+
+<Resource id="mujoco-modeling" />
+
+## 一次合拢–举起扫描
+
+`grip_scene.xml` 有竖直升降滑块、左右夹爪滑块（位置执行器）和自由方块。脚本在合拢时关掉重力，再打开重力并举起。对三个时间步与三个 `solref` 时间常数，它报告方块最终高度、过程中最大穿透，以及 HOLD / SLIP。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-7/mujoco-so101
+$ python3 -m pip install mujoco   # Ubuntu 24.04 建议用私有 venv
+$ python3 grip_sweep.py
+```
+
+<CodeSource path="examples/month-7/mujoco-so101/grip_sweep.py" />
+
+```python
+#!/usr/bin/env python3
+"""grip_sweep.py: 3x3 sweep of MuJoCo timestep x solref timeconst on a soft-contact grip-and-lift.
+
+A two-jaw slider gripper closes on a free cube (gravity off), then lifts with gravity on.
+For each (timestep, solref timeconst) pair we report whether the cube was held and the
+maximum contact penetration seen during the run. Fixed scene: grip_scene.xml next to this file.
+
+Requires: mujoco (pip install mujoco; Menagerie models need >= 3.1.3). Standard library + mujoco.
+usage: python3 grip_sweep.py
+"""
+from __future__ import annotations
+
+import os
+import sys
+
+try:
+    import mujoco
+    import numpy as np
+except ImportError as e:
+    sys.stderr.write(
+        "grip_sweep.py needs mujoco (and numpy). "
+        "Install with: python3 -m pip install mujoco\n"
+        f"Import error: {e}\n"
+    )
+    sys.exit(1)
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+SCENE = os.path.join(HERE, "grip_scene.xml")
+
+# Locked so expected/ stays stable. Soft + large dt → slip; stiff → hold. Penetration grows with timeconst.
+TIMESTEPS = (0.002, 0.005, 0.010)
+TIMECONSTS = (0.004, 0.020, 0.080)  # solref[0]; dampratio fixed at 1.0
+CLOSE = 0.0245
+FRICTION = 1.2
+CUBE_MASS = 0.15
+HOLD_Z = 0.08
+LIFT_CTRL = 0.10
+
+
+def run(timestep: float, timeconst: float) -> tuple[float, float, bool]:
+    m = mujoco.MjModel.from_xml_path(SCENE)
+    m.opt.timestep = timestep
+    m.opt.impratio = 10.0
+    m.opt.cone = 1  # elliptic
+    for bi in range(m.nbody):
+        name = mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_BODY, bi) or ""
+        if name == "cube":
+            m.body_mass[bi] = CUBE_MASS
+            m.body_inertia[bi] = np.array([CUBE_MASS * 8e-5] * 3)
+    for gi in range(m.ngeom):
+        name = mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, gi) or ""
+        if name in ("left_g", "right_g", "cube_geom"):
+            m.geom_solref[gi] = (timeconst, 1.0)
+            m.geom_friction[gi] = [FRICTION, 0.005, 0.0001]
+    d = mujoco.MjData(m)
+
+    # Close without gravity so the cube stays between the jaws.
+    m.opt.gravity[:] = (0.0, 0.0, 0.0)
+    d.ctrl[:] = (0.0, CLOSE, -CLOSE)
+    for _ in range(max(1, int(0.8 / timestep))):
+        mujoco.mj_step(m, d)
+    max_pen = 0.0
+    for i in range(d.ncon):
+        if d.contact[i].dist < 0:
+            max_pen = max(max_pen, -d.contact[i].dist)
+
+    # Gravity on, lift the palm.
+    m.opt.gravity[:] = (0.0, 0.0, -9.81)
+    d.ctrl[:] = (LIFT_CTRL, CLOSE, -CLOSE)
+    for _ in range(max(1, int(1.5 / timestep))):
+        mujoco.mj_step(m, d)
+        for i in range(d.ncon):
+            if d.contact[i].dist < 0:
+                max_pen = max(max_pen, -d.contact[i].dist)
+
+    cube_z = float(d.qpos[5])  # freejoint xyz after lift/left/right
+    held = cube_z > HOLD_Z
+    return cube_z, max_pen, held
+
+
+def main() -> None:
+    print(f"scene={os.path.basename(SCENE)}")
+    print(f"friction={FRICTION}  cube_mass={CUBE_MASS} kg  close={CLOSE} m")
+    print("dt_s   timeconst  cube_z_m  pen_mm  result")
+    holds = 0
+    for dt in TIMESTEPS:
+        for tc in TIMECONSTS:
+            z, pen, held = run(dt, tc)
+            holds += int(held)
+            print(
+                f"{dt:5.3f}  {tc:8.3f}  {z:8.4f}  {pen * 1e3:6.2f}  "
+                f"{'HOLD' if held else 'SLIP'}"
+            )
+    print(f"held {holds}/9  (soft + large dt slips; penetration grows with timeconst)")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+scene=grip_scene.xml
+friction=1.2  cube_mass=0.15 kg  close=0.0245 m
+dt_s   timeconst  cube_z_m  pen_mm  result
+0.002     0.004    0.1136    0.05  HOLD
+0.002     0.020    0.1130    0.16  HOLD
+0.002     0.080    0.1124    0.82  HOLD
+0.005     0.004    0.1135    0.05  HOLD
+0.005     0.020    0.1103    0.16  HOLD
+0.005     0.080    0.0143   32.69  SLIP
+0.010     0.004    0.1148    0.25  HOLD
+0.010     0.020    0.1148    0.25  HOLD
+0.010     0.080    0.0143   33.03  SLIP
+held 7/9  (soft + large dt slips; penetration grows with timeconst)
+```
+
+</SimOutput>
+
+先横着读，再往下读。`timeconst = 0.004` 时每个时间步都握住，穿透不到一毫米。`timeconst = 0.080` 时接触变软：即使 `dt = 0.002`，穿透也到约 0.8 mm；当 `dt ≥ 0.005` 方块滑到地板上（`cube_z ≈ 0.014`，即方块坐在平面上），失败举起过程中的穿透超过 30 mm。软接触加粗时间步并不是「更真实」——那是另一套动力学。把 `timestep`、`solref`、`impratio`、`cone` 当成要和策略成功率一起汇报的超参数。
+
+<Quiz id="q1" question="在 grip_sweep 表里，哪些格子是 SLIP？" options={["每个 timeconst 下的 dt=0.002", "timeconst=0.080 且 dt=0.005、dt=0.010", "仅 timeconst=0.004 且 dt=0.010", "全部九格"]} answer={1} explanation="两格 SLIP 是 (0.005, 0.080) 与 (0.010, 0.080)。软接触加大步长会掉立方块；本扫描里硬接触在每个时间步都能握住。" />
+
+## 位置执行器与阶跃
+
+`<position>` 执行器是朝向指令关节坐标的 PD 驱动（`kp`、`kv`、`ctrlrange`）。扫描里 `d.ctrl = (lift, close, −close)` 就是这条指令。真机 SO-101 上每颗 STS3215 自己跑位置环；在 MuJoCo 里你是在选择*仿真*回路与*仿真*接触有多硬。同一个 ctrl，在 `dt = 0.002` 看起来没事，换到 `dt = 0.010` 配软 `solref` 就可能穿透并滑落。
+
+本机操作（GUI **本页未运行**）：
+
+```bash
+$ python3 -m mujoco.viewer --mjcf ~/Hardware-learning/examples/month-7/mujoco-so101/grip_scene.xml
+```
+
+然后克隆 Menagerie，打开 `robotstudio_so101/scene.xml`。数出六个 hinge，并读 `<option>` 里的 `timestep`、`cone`、`impratio`。
+
+## 常见错误
+
+- **把 Menagerie 网格拷进本课的期望输出。** 引用的表来自 `grip_scene.xml`。Menagerie 是你下一步在笔记本上加载的模型。
+- **把某一次 `(dt, solref)` 的 HOLD 当成抓取稳健的证明。** 先改一个旋钮再跑扫描，再相信那个数字。
+- **摩擦「够大」却仍滑落时，忘了 `cone` 与 `impratio`。** 椭圆锥和更高的摩擦/法向阻抗比，正是旧版 SO-ARM100 Menagerie 说明里为防滑写下的项。
+- **跳过版本下限。** Menagerie 要求 MuJoCo ≥ 3.1.3；更旧的 wheel 可能加载不了官方模型，即使本课的小场景能开。
+
+MJX（`mujoco-mjx`）是 MuJoCo 的 JAX 接口：可在 NVIDIA/AMD GPU、Apple Silicon 与 Cloud TPU 上跑；MJX-Warp 针对 NVIDIA GPU。第 7.3 课才会用到大规模并行；这里一条 CPU 轨迹就够。
+
+<Summary>
+
+MuJoCo 模型是 MJCF 树，geom 接触与执行器和关节并列。软的 `solref` 时间常数加上大时间步会加深穿透，并把 HOLD 变成 SLIP——每个仿真抓取都要汇报这些旋钮。Menagerie 的 `robotstudio_so101` 是接下来要打开的六自由度 Apache-2.0 模型；本课扫描留在无网格场景上，好让数字可复现。
+
+</Summary>
