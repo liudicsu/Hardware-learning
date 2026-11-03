@@ -2431,17 +2431,31 @@ const lessonRef = (n, slug, lang) => {
 
 
 {
-  // Month 7 batch 1 content gaps: every newly stated number is recomputed or pinned here.
+  // Month 7 content gaps (batch 1 + batch 2): every newly stated number is recomputed or pinned here.
   // 7.1 grip_sweep: 3×3 table (held 7/9; SLIP at soft+large dt); Menagerie ≥3.1.3 / 6 DoF / Apache-2.0.
   // 7.2 ppo_reach: γ=0.99 → 0.99^20; three seeded final returns mean −8.613.
+  // 7.3 reward_shaping: seed 7 sparse 0.000 / dense 1.000 last-50; greedy 20/20.
+  // 7.4 sysid_fit rel_err < 5%; randomize_eval nominal ≥0.85, delay=5 hurts.
   // 7.5 cloud_pipeline: 160×120=19200; voxel→2178; plane 2094; 3 centroids within 1 cm; DAV2 licence split.
+  // 7.6 handeye_toy rot_err 0; grasp_from_mask mask_pixels 1600; calibrateHandEye ≥3 poses.
   const rd7 = (rel) => readFileSync(join(root, rel), "utf8");
   const grip = rd7("examples/month-7/expected/grip_sweep.txt");
   const ppo = rd7("examples/month-7/expected/ppo_reach.txt");
   const cloud = rd7("examples/month-7/expected/cloud_pipeline.txt");
+  const reward = rd7("examples/month-7/expected/reward_shaping.txt");
+  const sysid = rd7("examples/month-7/expected/sysid_fit.txt");
+  const rand = rd7("examples/month-7/expected/randomize_eval.txt");
+  const hand = rd7("examples/month-7/expected/handeye_toy.txt");
+  const grasp = rd7("examples/month-7/expected/grasp_from_mask.txt");
   const gripPy = rd7("examples/month-7/mujoco-so101/grip_sweep.py");
   const ppoPy = rd7("examples/month-7/rl-foundations/ppo_reach.py");
   const cloudPy = rd7("examples/month-7/depth-pointcloud/cloud_pipeline.py");
+  const rewardPy = rd7("examples/month-7/rl-manipulation-sim/reward_shaping.py");
+  const sysidPy = rd7("examples/month-7/sim-to-real/sysid_fit.py");
+  const randPy = rd7("examples/month-7/sim-to-real/randomize_eval.py");
+  const handPy = rd7("examples/month-7/perception-to-grasp/handeye_toy.py");
+  const graspPy = rd7("examples/month-7/perception-to-grasp/grasp_from_mask.py");
+  ok(/MASK_HALF|mask_pixels|grasp_width/.test(graspPy), "m7 grasp: grasp_from_mask.py present");
   const num7 = (text, re, what) => { const m = text.match(re); ok(m, `m7: ${what} not found`); return m ? Number(m[1]) : NaN; };
 
   ok(/held 7\/9/.test(grip), "m7 grip: expected must say held 7/9");
@@ -2452,6 +2466,10 @@ const lessonRef = (n, slug, lang) => {
     "m7 grip.py: TIMECONSTS must be (0.004, 0.020, 0.080)");
   ok(/TIMESTEPS\s*=\s*\(0\.002,\s*0\.005,\s*0\.010\)/.test(gripPy) || /TIMESTEPS\s*=\s*\(0\.002, 0\.005, 0\.010\)/.test(gripPy),
     "m7 grip.py: TIMESTEPS must be (0.002, 0.005, 0.010)");
+  ok(/overrides grip_scene\.xml cube geom mass=0\.08/.test(gripPy) || /CUBE_MASS = 0\.15/.test(gripPy),
+    "m7 grip.py: CUBE_MASS 0.15 note");
+  ok(/grip_sweep\.py overrides/.test(rd7("examples/month-7/mujoco-so101/grip_scene.xml")),
+    "m7 grip_scene.xml: comment that script overrides mass");
 
   const gamma = num7(ppoPy, /GAMMA\s*=\s*([\d.]+)/, "ppo GAMMA");
   ok(gamma === 0.99, `m7 ppo: GAMMA=${gamma}`);
@@ -2471,7 +2489,6 @@ const lessonRef = (n, slug, lang) => {
   ok(/plane_inliers 2094\s+remaining 84\s+clusters 3/.test(cloud), "m7 cloud: plane 2094 / rem 84 / 3 clusters");
   ok(/160\s*\*\s*120\s*==\s*19200/.test(cloudPy) || /W,\s*H\s*=\s*160,\s*120/.test(cloudPy) || /W\s*=\s*160/.test(cloudPy),
     "m7 cloud.py: 160×120 image");
-  // centroids within 1 cm of true centres
   const trueC = [[-0.12, -0.05, 0.37], [0.0, 0.02, 0.36], [0.14, 0.06, 0.35]];
   const cents = [...cloud.matchAll(/^\s+\d+\s+\d+\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)/gm)]
     .map((m) => [Number(m[1]), Number(m[2]), Number(m[3])]);
@@ -2480,6 +2497,37 @@ const lessonRef = (n, slug, lang) => {
     const d = Math.hypot(cents[i][0] - trueC[i][0], cents[i][1] - trueC[i][1], cents[i][2] - trueC[i][2]);
     ok(d < 0.01, `m7 cloud: centroid ${i} distance ${d} must be < 1 cm`);
   }
+
+  // ---- 7.3 reward_shaping ----
+  ok(/SEED\s*=\s*7/.test(rewardPy), "m7 reward.py: SEED 7");
+  ok(/sparse\s+.*0\.000/.test(reward) && /dense\s+.*1\.000/.test(reward),
+    "m7 reward: sparse 0.000 / dense 1.000");
+  ok(/dense_greedy_ok 20\/20/.test(reward), "m7 reward: greedy 20/20");
+  const denseRate = num7(reward, /dense\s+[-\d.]+\s+([\d.]+)/, "dense success_rate");
+  const sparseRate = num7(reward, /sparse\s+[-\d.]+\s+([\d.]+)/, "sparse success_rate");
+  ok(denseRate > sparseRate && denseRate === 1.0 && sparseRate === 0.0,
+    `m7 reward: dense ${denseRate} > sparse ${sparseRate}`);
+
+  // ---- 7.4 sysid + DR ----
+  ok(/TRUE_TAU\s*=\s*0\.08/.test(sysidPy), "m7 sysid.py: TRUE_TAU 0.08");
+  const rel = num7(sysid, /rel_err=([\d.]+)/, "sysid rel_err");
+  ok(rel < 0.05, `m7 sysid: rel_err ${rel} must be < 0.05`);
+  ok(/ok: \|tau_hat - true_tau\|\/true_tau < 5%/.test(sysid), "m7 sysid: ok line");
+  ok(/SEED\s*=\s*13/.test(randPy), "m7 rand.py: SEED 13");
+  ok(/N_TRIALS\s*=\s*40/.test(randPy), "m7 rand.py: N_TRIALS 40");
+  const nom = num7(rand, /1\.0\s+0\s+\+0\.000\s+\d+\s+([\d.]+)/, "nominal rate");
+  const dly5 = num7(rand, /1\.0\s+5\s+\+0\.000\s+\d+\s+([\d.]+)/, "delay5 rate");
+  ok(nom >= 0.85, `m7 rand: nominal ${nom} ≥ 0.85`);
+  ok(dly5 < nom - 0.2, `m7 rand: delay5 ${dly5} clearly below nominal ${nom}`);
+
+  // ---- 7.6 hand-eye + grasp ----
+  ok(/SEED\s*=\s*17/.test(handPy) && /N_POSES\s*=\s*8/.test(handPy), "m7 hand.py: seed 17 / 8 poses");
+  ok(/rot_err_deg=0\.000000/.test(hand), "m7 hand: rot_err 0");
+  ok(/calibrateHandEye/.test(handPy) && /Park/.test(handPy), "m7 hand.py: mentions calibrateHandEye + Park");
+  ok(/mask_pixels=1600/.test(grasp), "m7 grasp: 1600 mask pixels");
+  ok(/approach=\[0\.0, 0\.0, -1\.0\]/.test(grasp), "m7 grasp: top-down approach");
+  const width = num7(grasp, /width_est_m=([\d.]+)/, "grasp width");
+  ok(width > 0.04 && width < 0.08, `m7 grasp: width ${width}`);
 
   const phrases = {
     en: {
@@ -2500,6 +2548,24 @@ const lessonRef = (n, slug, lang) => {
         "primarily on the CPU",
         "reward hacking",
       ],
+      "rl-manipulation-sim": [
+        "arXiv 1801.01290",
+        "PickCubeSO100-v1",
+        "Linux + NVIDIA",
+        "0.000",
+        "1.000",
+        "20/20",
+        "not required on this page",
+      ],
+      "sim-to-real": [
+        "arXiv 1703.06907",
+        "arXiv 1710.06537",
+        "0.06 %",
+        "0.925",
+        "0.525",
+        "needs hardware",
+        "Wilson",
+      ],
       "depth-pointcloud": [
         "19200",
         "2178",
@@ -2509,6 +2575,16 @@ const lessonRef = (n, slug, lang) => {
         "segment_plane",
         "cluster_dbscan",
         "within a centimetre",
+      ],
+      "perception-to-grasp": [
+        "calibrateHandEye",
+        "CALIB_HAND_EYE_TSAI",
+        "at least 3 poses",
+        "0.000000 deg",
+        "Apache-2.0",
+        "needs hardware",
+        "eye-in-hand",
+        "eye-to-hand",
       ],
     },
     zh: {
@@ -2529,6 +2605,24 @@ const lessonRef = (n, slug, lang) => {
         "主要应在 CPU",
         "reward hacking",
       ],
+      "rl-manipulation-sim": [
+        "arXiv 1801.01290",
+        "PickCubeSO100-v1",
+        "Linux + NVIDIA",
+        "0.000",
+        "1.000",
+        "20/20",
+        "本页未强制",
+      ],
+      "sim-to-real": [
+        "arXiv 1703.06907",
+        "arXiv 1710.06537",
+        "0.06 %",
+        "0.925",
+        "0.525",
+        "需硬件",
+        "Wilson",
+      ],
       "depth-pointcloud": [
         "19200",
         "2178",
@@ -2539,22 +2633,41 @@ const lessonRef = (n, slug, lang) => {
         "cluster_dbscan",
         "一厘米",
       ],
+      "perception-to-grasp": [
+        "calibrateHandEye",
+        "CALIB_HAND_EYE_TSAI",
+        "3 个姿态",
+        "0.000000 deg",
+        "Apache-2.0",
+        "需硬件",
+        "眼在手上",
+        "眼在手外",
+      ],
     },
   };
+  let phraseHits = 0;
   for (const lang of ["en", "zh"]) {
     for (const [slug, qs] of Object.entries(phrases[lang])) {
       const text = rd7(`src/content/m7/${slug}/${lang}.mdx`);
-      for (const q of qs) ok(text.includes(q), `m7 ${slug} ${lang}: expected ${JSON.stringify(q)}`);
+      for (const q of qs) {
+        ok(text.includes(q), `m7 ${slug} ${lang}: expected ${JSON.stringify(q)}`);
+        phraseHits++;
+      }
     }
   }
-  // outline shells exist so SSG does not 404
+  // full lessons (no longer outline shells)
   for (const slug of ["rl-manipulation-sim", "sim-to-real", "perception-to-grasp"]) {
     for (const lang of ["en", "zh"]) {
-      ok(existsSync(join(root, `src/content/m7/${slug}/${lang}.mdx`)), `m7 outline ${slug}/${lang}.mdx missing`);
+      const text = rd7(`src/content/m7/${slug}/${lang}.mdx`);
+      ok(!/Outline \(full text in a later batch\)/.test(text) && !/（后续批次）大纲/.test(text) && !/placeholder so the Month 7/.test(text),
+        `m7 ${slug}/${lang}: must not remain an outline placeholder`);
+      ok(/<CodeSource /.test(text) && /<SimOutput /.test(text),
+        `m7 ${slug}/${lang}: needs CodeSource + SimOutput`);
     }
   }
-  console.log(`calc  m7 gaps: grip held 7/9 SLIP@(0.005|0.010,0.080); 0.99^20≈${g20.toFixed(2)}; mean final ${meanFinal.toFixed(3)}; cloud 19200→2178 plane 2094 clusters 3; DAV2 Small Apache / Base+ CC-BY-NC; bound in en/zh`);
+  console.log(`calc  m7 gaps: grip held 7/9; 0.99^20≈${g20.toFixed(2)}; mean final ${meanFinal.toFixed(3)}; reward sparse ${sparseRate}/dense ${denseRate}; sysid rel ${rel}; DR nom ${nom}/delay5 ${dly5}; hand rot0; grasp w=${width}; phrases ${phraseHits}; bound in en/zh`);
 }
+
 
 
 

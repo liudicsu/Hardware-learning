@@ -1,13 +1,294 @@
 This lesson is a site supplement — Months 7–8 are not part of the original six-month course.
 
-## Outline (full text in a later batch)
+Policies that look perfect in lesson 7.1 or 7.3 often fall apart on a real SO-101. The <Term id="sim-to-real-gap">reality gap</Term> comes from mass, friction, damping, actuator bandwidth, appearance, sensor noise and **latency**. Two complementary answers: <Term id="system-identification">system identification</Term> fits the sim to a measured plant; <Term id="domain-randomization">domain randomisation</Term> trains across a distribution so the policy does not overfit one sim. This lesson runs a 1st-order sysid toy, a friction×delay×bias DR scan with Wilson intervals, and a hardware checklist. Safety here uses general engineering practice (torque / speed limits, a reachable e-stop, never bypass joint limits) — we do not hard-bind ISO clause numbers in this page.
 
-**From simulation to the real arm: randomisation, system identification and latency.** This page is a placeholder so the Month 7 curriculum can list all six lessons while batch 1 ships 7.1, 7.2 and 7.5. Planned scope: reality gap, system ID vs domain randomisation, sensor delay = nsample × timestep.
+## Reality gap, sysid, DR
 
-Check `docs/notes/month-7-plan.md` for the batch schedule. The tasks on this lesson's sidebar are reading prompts only until the full MDX lands.
+Classic references (re-checked this batch):
+
+- Tobin et al., 2017, arXiv 1703.06907 — **visual** domain randomisation for transferring deep networks from sim to the real world.
+- Peng et al., 2017, arXiv 1710.06537 — **dynamics** randomisation for sim-to-real robotic control.
+
+Sysid asks: "what τ, mass, friction does **my** arm actually have?" DR asks: "can the policy still succeed when those parameters wander?" You usually want both: identify a nominal plant, then randomise around it.
+
+MuJoCo can model observation delay as a multiple of the simulation timestep (proposal reminder: `nsample × timestep`). The DR toy below uses an explicit command-delay queue instead of a full MJCF.
+
+<Resource id="tobin-dr" />
+<Resource id="peng-dr" />
+
+## Fit a lag, then scramble it
+
+`sysid_fit.py` synthesises a first-order step response with true τ = 0.08 s and recovers `tau_hat` by least squares. Under seed 11 the relative error is about **0.06 %** (CI gate: under 5 %).
+
+```bash
+$ cd ~/Hardware-learning/examples/month-7/sim-to-real
+$ python3 sysid_fit.py
+```
+
+<CodeSource path="examples/month-7/sim-to-real/sysid_fit.py" />
+
+```python
+#!/usr/bin/env python3
+"""Fit a 1st-order lag model to a synthetic joint step response (stdlib).
+
+System identification (sysid) estimates real dynamics so the sim can be
+calibrated before domain randomization. We synthesize:
+
+    y[k+1] = y[k] + dt/tau * (u[k] - y[k]) + noise
+
+then recover ``tau_hat`` by least-squares on the discrete update. Relative
+error must stay under 5 % for the CI gate (proposal §2.4).
+"""
+from __future__ import annotations
+
+import math
+import random
+
+SEED = 11
+DT = 0.01
+TRUE_TAU = 0.08  # seconds
+NOISE_STD = 0.002
+N_STEPS = 400
+STEP_AMPLITUDE = 1.0
+
+
+def simulate(tau: float, rng: random.Random) -> list[tuple[float, float, float]]:
+    """Return list of (t, u, y)."""
+    y = 0.0
+    rows = []
+    for k in range(N_STEPS):
+        t = k * DT
+        u = 0.0 if t < 0.2 else STEP_AMPLITUDE
+        y = y + (DT / tau) * (u - y) + rng.gauss(0.0, NOISE_STD)
+        rows.append((t, u, y))
+    return rows
+
+
+def fit_tau(rows: list[tuple[float, float, float]]) -> float:
+    """LS fit of y_{k+1}-y_k = (dt/tau)(u_k - y_k) → beta=dt/tau."""
+    # beta * x = dy  with x = (u - y)
+    num = 0.0
+    den = 0.0
+    for i in range(len(rows) - 1):
+        _, u, y = rows[i]
+        _, _, y2 = rows[i + 1]
+        x = u - y
+        dy = y2 - y
+        num += x * dy
+        den += x * x
+    beta = num / den
+    if beta <= 1e-9:
+        raise RuntimeError("degenerate fit")
+    return DT / beta
+
+
+def main() -> None:
+    rng = random.Random(SEED)
+    rows = simulate(TRUE_TAU, rng)
+    tau_hat = fit_tau(rows)
+    rel_err = abs(tau_hat - TRUE_TAU) / TRUE_TAU
+    print("sysid_fit — 1st-order lag step response (seed=%d)" % SEED)
+    print("dt=%.3f  true_tau=%.4f  noise_std=%.4f  n=%d" % (DT, TRUE_TAU, NOISE_STD, N_STEPS))
+    print("tau_hat=%.6f  rel_err=%.4f (%.2f%%)" % (tau_hat, rel_err, 100 * rel_err))
+    assert rel_err < 0.05, "sysid relative error %.4f exceeds 5%%" % rel_err
+    print("ok: |tau_hat - true_tau|/true_tau < 5%")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+sysid_fit — 1st-order lag step response (seed=11)
+dt=0.010  true_tau=0.0800  noise_std=0.0020  n=400
+tau_hat=0.079952  rel_err=0.0006 (0.06%)
+ok: |tau_hat - true_tau|/true_tau < 5%
+```
+
+</SimOutput>
+
+`randomize_eval.py` then freezes an open-loop close-then-lift schedule and replays it under friction scales 1.0 / 0.7 / 0.4, command delays 0 / 2 / 5 steps, and a vertical sensor bias. Each cell runs 40 trials and prints a Wilson 95 % interval (same idea as Month 6's `eval_report.py`). Under seed 13, nominal success is **0.925**; delay = 5 drops to **0.525**; friction 0.4 drops to **0.600**; the worst cell (0.4 × delay 5 × bias −1.5 cm) sits at **0.150**.
+
+```bash
+$ cd ~/Hardware-learning/examples/month-7/sim-to-real
+$ python3 randomize_eval.py
+```
+
+<CodeSource path="examples/month-7/sim-to-real/randomize_eval.py" />
+
+```python
+#!/usr/bin/env python3
+"""Domain-randomization scan: friction / latency / sensor bias vs grasp success.
+
+A short open-loop close-then-lift schedule that succeeds under nominal
+parameters is replayed under friction×{1.0,0.7,0.4}, command delay {0,2,5}
+steps, and vertical sensor bias {0, ±1.5 cm}. Per-cell rates use a Wilson
+score interval (same idea as month-6 ``eval_report.py``).
+
+Takeaway for lesson 7.4: latency and friction misspecification open the
+reality gap even when the policy schedule is unchanged — motivate sysid + DR
+before any SO-101 deployment.
+"""
+from __future__ import annotations
+
+import math
+import random
+from dataclasses import dataclass
+
+SEED = 13
+N_TRIALS = 40
+DT = 0.02
+HORIZON = 60
+LIFT_TARGET = 0.10  # metres
+PALM_SPEED = 0.35   # m/s commanded when "lifting"
+
+
+def wilson(successes: int, n: int, z: float = 1.96) -> tuple[float, float, float]:
+    if n <= 0:
+        return 0.0, 0.0, 0.0
+    p = successes / n
+    den = 1.0 + z * z / n
+    centre = (p + z * z / (2 * n)) / den
+    half = (z / den) * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))
+    return p, max(0.0, centre - half), min(1.0, centre + half)
+
+
+@dataclass
+class TrialResult:
+    success: bool
+    final_z: float
+    slipped: bool
+
+
+def simulate(friction_scale: float, delay: int, z_bias: float, rng: random.Random) -> TrialResult:
+    """Kinematic lift with a single slip draw when the lift starts.
+
+    Slip probability rises when friction is low **or** the close command is
+    delayed relative to the lift (gripper still open when the palm rises).
+    ``z_bias`` affects only the measured height used for the success check.
+    """
+    true_z = 0.0
+    # delayed commands
+    close_q = [False] * delay
+    lift_q = [0.0] * delay
+    closed = False
+    lift_started = False
+    slipped = False
+    for t in range(HORIZON):
+        intend_close = t >= 5
+        intend_lift = PALM_SPEED if t >= 12 else 0.0
+        close_q.append(intend_close)
+        lift_q.append(intend_lift)
+        do_close = close_q.pop(0)
+        lift_cmd = lift_q.pop(0)
+        if do_close:
+            closed = True
+        if lift_cmd > 0.0 and not lift_started:
+            lift_started = True
+            # one-shot slip draw at lift onset
+            # base fail ~ 0.05 at fric=1, delay=0; grows with (1-fric) and delay
+            fail_p = 0.05 + 0.55 * (1.0 - friction_scale) + 0.08 * delay
+            # if close has not yet arrived when lift starts, almost certain slip
+            if not closed:
+                fail_p = max(fail_p, 0.9)
+            fail_p = max(0.0, min(0.95, fail_p))
+            if rng.random() < fail_p:
+                slipped = True
+        if lift_cmd > 0.0 and closed and not slipped:
+            true_z += lift_cmd * DT
+        elif slipped:
+            true_z = max(0.0, true_z - 0.4 * DT)
+    measured = true_z + z_bias
+    success = (not slipped) and closed and measured >= LIFT_TARGET
+    return TrialResult(success=success, final_z=true_z, slipped=slipped)
+
+
+def scan_cell(friction_scale: float, delay: int, z_bias: float, seed: int):
+    rng = random.Random(seed)
+    ok = 0
+    for _ in range(N_TRIALS):
+        r = random.Random(rng.randint(0, 10**9))
+        if simulate(friction_scale, delay, z_bias, r).success:
+            ok += 1
+    p, lo, hi = wilson(ok, N_TRIALS)
+    return ok, p, lo, hi
+
+
+def main() -> None:
+    cells = [
+        # fric, delay, bias
+        (1.0, 0, 0.0),
+        (0.7, 0, 0.0),
+        (0.4, 0, 0.0),
+        (1.0, 2, 0.0),
+        (1.0, 5, 0.0),
+        (1.0, 0, -0.015),
+        (0.4, 5, -0.015),
+    ]
+    print("randomize_eval — DR scan friction×delay×z_bias (seed=%d, trials/cell=%d)"
+          % (SEED, N_TRIALS))
+    print("lift_target=%.2f m  palm_speed=%.2f m/s" % (LIFT_TARGET, PALM_SPEED))
+    print("fric  delay  z_bias  ok/%d  rate   wilson95" % N_TRIALS)
+    rates = {}
+    for i, (fs, dly, zb) in enumerate(cells):
+        ok, p, lo, hi = scan_cell(fs, dly, zb, seed=SEED + 19 * i)
+        rates[(fs, dly, zb)] = p
+        print(" %.1f  %5d  %+6.3f  %3d    %.3f  [%.3f, %.3f]" % (fs, dly, zb, ok, p, lo, hi))
+    nom = rates[(1.0, 0, 0.0)]
+    assert nom >= 0.85, "nominal success too low: %.3f" % nom
+    assert rates[(1.0, 5, 0.0)] < nom - 0.2, "delay=5 should clearly hurt vs nominal"
+    assert rates[(0.4, 0, 0.0)] < nom - 0.2, "low friction should clearly hurt"
+    assert rates[(0.4, 5, -0.015)] <= 0.15, "worst cell should be near floor"
+    print("ok: DR scan shows friction/delay/bias sensitivity (Wilson intervals)")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+randomize_eval — DR scan friction×delay×z_bias (seed=13, trials/cell=40)
+lift_target=0.10 m  palm_speed=0.35 m/s
+fric  delay  z_bias  ok/40  rate   wilson95
+ 1.0      0  +0.000   37    0.925  [0.801, 0.974]
+ 0.7      0  +0.000   31    0.775  [0.625, 0.877]
+ 0.4      0  +0.000   24    0.600  [0.446, 0.737]
+ 1.0      2  +0.000   34    0.850  [0.709, 0.929]
+ 1.0      5  +0.000   21    0.525  [0.375, 0.671]
+ 1.0      0  -0.015   38    0.950  [0.835, 0.986]
+ 0.4      5  -0.015    6    0.150  [0.071, 0.291]
+ok: DR scan shows friction/delay/bias sensitivity (Wilson intervals)
+```
+
+</SimOutput>
+
+<Quiz id="q1" question="In the seed-13 DR table, which change hurts nominal success the most among the single-factor cells shown?" options={["z_bias = −0.015 m alone", "friction_scale = 0.7 alone", "delay = 5 steps alone", "delay = 2 steps alone"]} answer={2} explanation="Nominal 0.925; delay=5 → 0.525; friction 0.7 → 0.775; delay=2 → 0.850; z_bias alone stays high. The largest single-factor drop among those options is delay=5." />
+
+## Checklist: moving 7.1 / 7.3 policies to hardware
+
+Mark every hardware step **needs hardware**. Before enabling a learned policy on an SO-101 / Feetech stack:
+
+1. **Zero / home.** Record the encoder reading at a mechanical hard-stop or marked jig; write it down; confirm the URDF / MJCF zero matches.
+2. **Limits.** Software joint limits inside the manufacturer range; torque and speed caps below stall; a physically reachable e-stop that cuts motor power.
+3. **Latency budget.** Measure command-to-motion delay (scope or timestamped log). If it exceeds what the DR scan survived, fix the stack before blaming the policy.
+4. **Sensor path.** Depth / proprio offsets: re-run a small zero-check after every camera remount (ties to lesson 7.6 hand-eye).
+5. **Failure log.** For each real trial record: slip, timeout, collision, e-stop, tracking divergence — same discipline as Month 6's failure table.
+
+Isaac Lab (README: GPU-accelerated; Isaac Sim workflows target Isaac Sim 6.2) can host large DR campaigns; it is optional and **not required on this page**. Prefer the CPU toys above until the checklist is green.
+
+## Common mistakes
+
+- **Randomising appearance only.** Tobin-style visual DR does not fix a wrong τ; Peng-style dynamics DR does not fix a wrong camera extrinsics.
+- **Skipping sysid because "DR will cover it".** A nominal plant that is 2× too soft wastes the whole DR budget on an empty region.
+- **No e-stop rehearsal.** A policy that closes the jaws on a finger is not an "interesting failure mode" — it is a lab incident.
+- **Reporting a single success rate without an interval.** The Wilson column exists so 21/40 and 37/40 are not treated as equally precise.
 
 <Summary>
 
-Placeholder for **From simulation to the real arm: randomisation, system identification and latency**. Full worked examples ship in a later Month 7 batch.
+The reality gap is mass, friction, damping, bandwidth, appearance, noise and delay. Sysid fits a nominal plant (τ relative error &lt; 5 % in the toy); DR measures how success falls when friction, delay and bias wander (Wilson intervals). Move 7.1 / 7.3 policies only after zeroing, limits, e-stop and a failure log — hardware steps marked needs hardware.
 
 </Summary>

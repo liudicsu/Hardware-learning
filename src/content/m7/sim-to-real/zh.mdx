@@ -1,13 +1,294 @@
 本课是本站补充内容——第 7–8 个月不属于原六个月课程。
 
-## 大纲（正文在后续批次）
+在第 7.1 或 7.3 课里看起来完美的策略，到真正的 SO-101 上常常垮掉。<Term id="sim-to-real-gap">现实差距</Term>来自质量、摩擦、阻尼、执行器带宽、外观、传感器噪声和**延迟**。两条互补的路：<Term id="system-identification">系统辨识</Term>把仿真拟合到测得的对象；<Term id="domain-randomization">域随机化</Term>在分布上训练，让策略不要过拟合某一个仿真。本课跑一个一阶 sysid 玩具、一次摩擦×延迟×偏置的 DR 扫描（Wilson 区间），以及一份真机检查清单。安全部分用通用工程表述（力矩 / 速度限制、可触及的急停、不绕过关节限位）——本页不硬绑 ISO 条款号。
 
-**从仿真到真机：随机化、系统辨识与延迟。** 本页是占位，好让第 7 个月课程表能列全六课，而本批次先交付 7.1、7.2、7.5。计划范围：现实差距、系统辨识与域随机化、观测延迟 = nsample × timestep。
+## 现实差距、sysid、DR
 
-批次安排见 `docs/notes/month-7-plan.md`。侧栏任务在全文落地前只作阅读提示。
+经典来源（本批再核对）：
+
+- Tobin 等，2017，arXiv 1703.06907——把深度网络从仿真迁到真机的**视觉**域随机化。
+- Peng 等，2017，arXiv 1710.06537——面向仿真到真机控制的**动力学**随机化。
+
+Sysid 问：「我的手臂真正的 τ、质量、摩擦是多少？」DR 问：「这些参数漂移时策略还能成功吗？」通常两条都要：先辨识标称对象，再在其周围随机化。
+
+MuJoCo 可以用仿真步长的倍数建模观测延迟（提案提醒：`nsample × timestep`）。下面的 DR 玩具用显式命令延迟队列，而不是完整 MJCF。
+
+<Resource id="tobin-dr" />
+<Resource id="peng-dr" />
+
+## 先拟合一个滞后，再把它打乱
+
+`sysid_fit.py` 合成真实 τ = 0.08 s 的一阶阶跃响应，并用最小二乘恢复 `tau_hat`。种子 11 下相对误差约 **0.06 %**（CI 门禁：小于 5 %）。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-7/sim-to-real
+$ python3 sysid_fit.py
+```
+
+<CodeSource path="examples/month-7/sim-to-real/sysid_fit.py" />
+
+```python
+#!/usr/bin/env python3
+"""Fit a 1st-order lag model to a synthetic joint step response (stdlib).
+
+System identification (sysid) estimates real dynamics so the sim can be
+calibrated before domain randomization. We synthesize:
+
+    y[k+1] = y[k] + dt/tau * (u[k] - y[k]) + noise
+
+then recover ``tau_hat`` by least-squares on the discrete update. Relative
+error must stay under 5 % for the CI gate (proposal §2.4).
+"""
+from __future__ import annotations
+
+import math
+import random
+
+SEED = 11
+DT = 0.01
+TRUE_TAU = 0.08  # seconds
+NOISE_STD = 0.002
+N_STEPS = 400
+STEP_AMPLITUDE = 1.0
+
+
+def simulate(tau: float, rng: random.Random) -> list[tuple[float, float, float]]:
+    """Return list of (t, u, y)."""
+    y = 0.0
+    rows = []
+    for k in range(N_STEPS):
+        t = k * DT
+        u = 0.0 if t < 0.2 else STEP_AMPLITUDE
+        y = y + (DT / tau) * (u - y) + rng.gauss(0.0, NOISE_STD)
+        rows.append((t, u, y))
+    return rows
+
+
+def fit_tau(rows: list[tuple[float, float, float]]) -> float:
+    """LS fit of y_{k+1}-y_k = (dt/tau)(u_k - y_k) → beta=dt/tau."""
+    # beta * x = dy  with x = (u - y)
+    num = 0.0
+    den = 0.0
+    for i in range(len(rows) - 1):
+        _, u, y = rows[i]
+        _, _, y2 = rows[i + 1]
+        x = u - y
+        dy = y2 - y
+        num += x * dy
+        den += x * x
+    beta = num / den
+    if beta <= 1e-9:
+        raise RuntimeError("degenerate fit")
+    return DT / beta
+
+
+def main() -> None:
+    rng = random.Random(SEED)
+    rows = simulate(TRUE_TAU, rng)
+    tau_hat = fit_tau(rows)
+    rel_err = abs(tau_hat - TRUE_TAU) / TRUE_TAU
+    print("sysid_fit — 1st-order lag step response (seed=%d)" % SEED)
+    print("dt=%.3f  true_tau=%.4f  noise_std=%.4f  n=%d" % (DT, TRUE_TAU, NOISE_STD, N_STEPS))
+    print("tau_hat=%.6f  rel_err=%.4f (%.2f%%)" % (tau_hat, rel_err, 100 * rel_err))
+    assert rel_err < 0.05, "sysid relative error %.4f exceeds 5%%" % rel_err
+    print("ok: |tau_hat - true_tau|/true_tau < 5%")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+sysid_fit — 1st-order lag step response (seed=11)
+dt=0.010  true_tau=0.0800  noise_std=0.0020  n=400
+tau_hat=0.079952  rel_err=0.0006 (0.06%)
+ok: |tau_hat - true_tau|/true_tau < 5%
+```
+
+</SimOutput>
+
+`randomize_eval.py` 固定一套开环「先合爪再抬升」日程，在摩擦倍率 1.0 / 0.7 / 0.4、命令延迟 0 / 2 / 5 步、以及竖直向传感器偏置下重放。每格 40 次试验，并打印 Wilson 95 % 区间（与第 6 个月 `eval_report.py` 同一思路）。种子 13 下：标称成功率 **0.925**；delay = 5 降到 **0.525**；摩擦 0.4 降到 **0.600**；最差格（0.4 × delay 5 × 偏置 −1.5 cm）为 **0.150**。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-7/sim-to-real
+$ python3 randomize_eval.py
+```
+
+<CodeSource path="examples/month-7/sim-to-real/randomize_eval.py" />
+
+```python
+#!/usr/bin/env python3
+"""Domain-randomization scan: friction / latency / sensor bias vs grasp success.
+
+A short open-loop close-then-lift schedule that succeeds under nominal
+parameters is replayed under friction×{1.0,0.7,0.4}, command delay {0,2,5}
+steps, and vertical sensor bias {0, ±1.5 cm}. Per-cell rates use a Wilson
+score interval (same idea as month-6 ``eval_report.py``).
+
+Takeaway for lesson 7.4: latency and friction misspecification open the
+reality gap even when the policy schedule is unchanged — motivate sysid + DR
+before any SO-101 deployment.
+"""
+from __future__ import annotations
+
+import math
+import random
+from dataclasses import dataclass
+
+SEED = 13
+N_TRIALS = 40
+DT = 0.02
+HORIZON = 60
+LIFT_TARGET = 0.10  # metres
+PALM_SPEED = 0.35   # m/s commanded when "lifting"
+
+
+def wilson(successes: int, n: int, z: float = 1.96) -> tuple[float, float, float]:
+    if n <= 0:
+        return 0.0, 0.0, 0.0
+    p = successes / n
+    den = 1.0 + z * z / n
+    centre = (p + z * z / (2 * n)) / den
+    half = (z / den) * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))
+    return p, max(0.0, centre - half), min(1.0, centre + half)
+
+
+@dataclass
+class TrialResult:
+    success: bool
+    final_z: float
+    slipped: bool
+
+
+def simulate(friction_scale: float, delay: int, z_bias: float, rng: random.Random) -> TrialResult:
+    """Kinematic lift with a single slip draw when the lift starts.
+
+    Slip probability rises when friction is low **or** the close command is
+    delayed relative to the lift (gripper still open when the palm rises).
+    ``z_bias`` affects only the measured height used for the success check.
+    """
+    true_z = 0.0
+    # delayed commands
+    close_q = [False] * delay
+    lift_q = [0.0] * delay
+    closed = False
+    lift_started = False
+    slipped = False
+    for t in range(HORIZON):
+        intend_close = t >= 5
+        intend_lift = PALM_SPEED if t >= 12 else 0.0
+        close_q.append(intend_close)
+        lift_q.append(intend_lift)
+        do_close = close_q.pop(0)
+        lift_cmd = lift_q.pop(0)
+        if do_close:
+            closed = True
+        if lift_cmd > 0.0 and not lift_started:
+            lift_started = True
+            # one-shot slip draw at lift onset
+            # base fail ~ 0.05 at fric=1, delay=0; grows with (1-fric) and delay
+            fail_p = 0.05 + 0.55 * (1.0 - friction_scale) + 0.08 * delay
+            # if close has not yet arrived when lift starts, almost certain slip
+            if not closed:
+                fail_p = max(fail_p, 0.9)
+            fail_p = max(0.0, min(0.95, fail_p))
+            if rng.random() < fail_p:
+                slipped = True
+        if lift_cmd > 0.0 and closed and not slipped:
+            true_z += lift_cmd * DT
+        elif slipped:
+            true_z = max(0.0, true_z - 0.4 * DT)
+    measured = true_z + z_bias
+    success = (not slipped) and closed and measured >= LIFT_TARGET
+    return TrialResult(success=success, final_z=true_z, slipped=slipped)
+
+
+def scan_cell(friction_scale: float, delay: int, z_bias: float, seed: int):
+    rng = random.Random(seed)
+    ok = 0
+    for _ in range(N_TRIALS):
+        r = random.Random(rng.randint(0, 10**9))
+        if simulate(friction_scale, delay, z_bias, r).success:
+            ok += 1
+    p, lo, hi = wilson(ok, N_TRIALS)
+    return ok, p, lo, hi
+
+
+def main() -> None:
+    cells = [
+        # fric, delay, bias
+        (1.0, 0, 0.0),
+        (0.7, 0, 0.0),
+        (0.4, 0, 0.0),
+        (1.0, 2, 0.0),
+        (1.0, 5, 0.0),
+        (1.0, 0, -0.015),
+        (0.4, 5, -0.015),
+    ]
+    print("randomize_eval — DR scan friction×delay×z_bias (seed=%d, trials/cell=%d)"
+          % (SEED, N_TRIALS))
+    print("lift_target=%.2f m  palm_speed=%.2f m/s" % (LIFT_TARGET, PALM_SPEED))
+    print("fric  delay  z_bias  ok/%d  rate   wilson95" % N_TRIALS)
+    rates = {}
+    for i, (fs, dly, zb) in enumerate(cells):
+        ok, p, lo, hi = scan_cell(fs, dly, zb, seed=SEED + 19 * i)
+        rates[(fs, dly, zb)] = p
+        print(" %.1f  %5d  %+6.3f  %3d    %.3f  [%.3f, %.3f]" % (fs, dly, zb, ok, p, lo, hi))
+    nom = rates[(1.0, 0, 0.0)]
+    assert nom >= 0.85, "nominal success too low: %.3f" % nom
+    assert rates[(1.0, 5, 0.0)] < nom - 0.2, "delay=5 should clearly hurt vs nominal"
+    assert rates[(0.4, 0, 0.0)] < nom - 0.2, "low friction should clearly hurt"
+    assert rates[(0.4, 5, -0.015)] <= 0.15, "worst cell should be near floor"
+    print("ok: DR scan shows friction/delay/bias sensitivity (Wilson intervals)")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+randomize_eval — DR scan friction×delay×z_bias (seed=13, trials/cell=40)
+lift_target=0.10 m  palm_speed=0.35 m/s
+fric  delay  z_bias  ok/40  rate   wilson95
+ 1.0      0  +0.000   37    0.925  [0.801, 0.974]
+ 0.7      0  +0.000   31    0.775  [0.625, 0.877]
+ 0.4      0  +0.000   24    0.600  [0.446, 0.737]
+ 1.0      2  +0.000   34    0.850  [0.709, 0.929]
+ 1.0      5  +0.000   21    0.525  [0.375, 0.671]
+ 1.0      0  -0.015   38    0.950  [0.835, 0.986]
+ 0.4      5  -0.015    6    0.150  [0.071, 0.291]
+ok: DR scan shows friction/delay/bias sensitivity (Wilson intervals)
+```
+
+</SimOutput>
+
+<Quiz id="q1" question="在种子 13 的 DR 表中，下列单因素里哪一项对标称成功率伤害最大？" options={["单独 z_bias = −0.015 m", "单独 friction_scale = 0.7", "单独 delay = 5 步", "单独 delay = 2 步"]} answer={2} explanation="标称 0.925；delay=5 → 0.525；摩擦 0.7 → 0.775；delay=2 → 0.850；单独 z_bias 仍然很高。选项里跌得最多的是 delay=5。" />
+
+## 检查清单：把 7.1 / 7.3 策略迁到真机
+
+凡真机步骤一律标 **需硬件**。在 SO-101 / Feetech 栈上启用学习策略之前：
+
+1. **零位 / 回零。** 在机械硬限位或标记治具处记下编码器读数；写入文档；确认 URDF / MJCF 零位一致。
+2. **限位。** 软件关节限位落在厂家范围内；力矩与速度上限低于堵转；急停物理可及且切断电机供电。
+3. **延迟预算。** 测量命令到运动的延迟（示波器或打时间戳的日志）。若超过 DR 扫描仍能存活的范围，先修栈再怪策略。
+4. **传感路径。** 深度 / 本体感觉偏置：每次重装相机后重做小零位检查（衔接到第 7.6 课手眼）。
+5. **失败记录。** 每次真机试验记录：打滑、超时、碰撞、急停、跟踪发散——纪律与第 6 个月失败表相同。
+
+Isaac Lab（README：GPU 加速；涉及 Isaac Sim 的工作流对准 Isaac Sim 6.2）可承载大规模 DR；它是可选项，**本页未强制**。在检查清单变绿之前，优先用上面的 CPU 玩具。
+
+## 常见错误
+
+- **只随机化外观。** Tobin 式视觉 DR 修不好错误的 τ；Peng 式动力学 DR 修不好错误的相机外参。
+- **因为「DR 会兜住」而跳过 sysid。** 标称对象软了两倍，整笔 DR 预算都花在空洞区域。
+- **不做急停演练。** 策略把爪子合在手指上不是「有趣的失败模式」——是实验室事故。
+- **只报一个成功率、不报区间。** Wilson 列的存在，就是为了不把 21/40 和 37/40 当成同样精确。
 
 <Summary>
 
-**从仿真到真机：随机化、系统辨识与延迟** 的占位页。完整例题与脚本在后续第 7 个月批次交付。
+现实差距来自质量、摩擦、阻尼、带宽、外观、噪声与延迟。Sysid 拟合标称对象（玩具中 τ 相对误差 &lt; 5 %）；DR 度量摩擦、延迟与偏置漂移时成功率如何下跌（Wilson 区间）。只有完成零位、限位、急停与失败日志之后，才把 7.1 / 7.3 策略迁到真机——真机步骤标需硬件。
 
 </Summary>

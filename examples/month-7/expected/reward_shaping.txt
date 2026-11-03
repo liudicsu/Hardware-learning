@@ -1,0 +1,7 @@
+reward_shaping — tabular Q, sparse vs dense (seed=7, episodes=400, grid=6x6)
+goal_cell=(4, 3)  actions=N,S,E,W,CLOSE
+mode    mean_return  success_rate  last50_ok
+sparse       0.0000         0.000          0
+dense        3.3260         1.000         50
+dense_greedy_ok 20/20
+ok: dense shaped reward outperforms sparse under identical Q-learning

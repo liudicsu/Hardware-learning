@@ -1662,7 +1662,88 @@ export const glossary: GlossaryEntry[] = [
     firstExplained: true,
   },
 
-];
+  {
+    id: "sac",
+    term: { zh: "SAC（Soft Actor-Critic）", en: "SAC (Soft Actor-Critic)" },
+    def: {
+      zh: "带熵正则的 off-policy 深度强化学习：随机演员 + 回放缓冲，可重用旧转移。Haarnoja 等，arXiv 1801.01290；Stable-Baselines3 有实现。",
+      en: "Off-policy deep RL with entropy regularisation: a stochastic actor plus a replay buffer that reuses past transitions. Haarnoja et al., arXiv 1801.01290; implemented in Stable-Baselines3.",
+    },
+    lesson: "rl-manipulation-sim",
+    firstExplained: true,
+  },
+  {
+    id: "reward-shaping",
+    term: { zh: "奖励塑形", en: "reward shaping" },
+    def: {
+      zh: "在稀疏成功信号之外，加入距离、接近、合爪等稠密项，使学习信号更密。塑形项最终应与真实成功度量对齐，并可退火。",
+      en: "Adding dense terms (distance, approach, grip) on top of a sparse success signal so learning gets denser feedback. Shaping should stay aligned with the true success metric and can be annealed.",
+    },
+    lesson: "rl-manipulation-sim",
+    firstExplained: true,
+  },
+  {
+    id: "on-policy",
+    term: { zh: "on-policy / off-policy", en: "on-policy / off-policy" },
+    def: {
+      zh: "On-policy（如 PPO）只用当前策略采的数据更新；off-policy（如 SAC）可从回放缓冲重用旧数据。并行环境多时 on-policy 常够用；样本昂贵时 off-policy 更省。",
+      en: "On-policy methods (e.g. PPO) update from data the current policy collected; off-policy methods (e.g. SAC) may reuse older data from a replay buffer. Many parallel envs often favour on-policy; scarce samples favour off-policy.",
+    },
+    lesson: "rl-manipulation-sim",
+    firstExplained: true,
+  },
+  {
+    id: "domain-randomization",
+    term: { zh: "域随机化", en: "domain randomisation" },
+    def: {
+      zh: "在仿真里随机化视觉（Tobin 等）或动力学（Peng 等）参数，使策略在分布上训练，降低对单一仿真的过拟合，便于迁到真机。",
+      en: "Randomising visual (Tobin et al.) or dynamics (Peng et al.) parameters in sim so the policy trains across a distribution and overfits less to one simulator before real-robot transfer.",
+    },
+    lesson: "sim-to-real",
+    firstExplained: true,
+  },
+  {
+    id: "system-identification",
+    term: { zh: "系统辨识", en: "system identification" },
+    def: {
+      zh: "用真机测得的响应（如阶跃）估计仿真参数（质量、摩擦、时间常数 τ 等），把标称模型调近真实对象，再谈随机化。",
+      en: "Estimate sim parameters (mass, friction, time constant τ, …) from measured plant responses (e.g. a step) so the nominal model matches the real arm before randomising around it.",
+    },
+    lesson: "sim-to-real",
+    firstExplained: true,
+  },
+  {
+    id: "sim-to-real-gap",
+    term: { zh: "现实差距（仿真到真机）", en: "reality gap (sim-to-real)" },
+    def: {
+      zh: "仿真与真机在质量、摩擦、阻尼、带宽、外观、传感器噪声与延迟上的差异，导致仿真里成功的策略在真机失败。",
+      en: "Mismatch between sim and hardware in mass, friction, damping, bandwidth, appearance, sensor noise and latency that makes a sim-successful policy fail on the real arm.",
+    },
+    lesson: "sim-to-real",
+    firstExplained: true,
+  },
+  {
+    id: "hand-eye-calibration",
+    term: { zh: "手眼标定", en: "hand-eye calibration" },
+    def: {
+      zh: "估计相机与夹爪（眼在手上）或相机与基座（眼在手外）之间的外参，经典形式为 AX=XB。OpenCV calibrateHandEye 至少需要 3 个姿态（2 次旋转轴不平行的运动）。",
+      en: "Estimate the extrinsics between camera and gripper (eye-in-hand) or camera and base (eye-to-hand), classically AX=XB. OpenCV calibrateHandEye needs ≥3 poses (2 motions with non-parallel rotation axes).",
+    },
+    lesson: "perception-to-grasp",
+    firstExplained: true,
+  },
+  {
+    id: "open-vocabulary-segmentation",
+    term: { zh: "开放词汇分割", en: "open-vocabulary segmentation" },
+    def: {
+      zh: "用文字或点击提示得到图像掩码，而不限于固定类别表。SAM2 等可提示分割模型常用作抓取前的掩码来源（注意许可与权重）。",
+      en: "Produce an image mask from a text or click prompt without a fixed class list. Promptable models such as SAM2 are common mask sources before grasping (watch licences and weights).",
+    },
+    lesson: "perception-to-grasp",
+    firstExplained: true,
+  },
+
+]
 
 export function getTerm(id: string): GlossaryEntry | undefined {
   return glossary.find((g) => g.id === id);

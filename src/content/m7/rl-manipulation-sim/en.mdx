@@ -1,13 +1,220 @@
 This lesson is a site supplement — Months 7–8 are not part of the original six-month course.
 
-## Outline (full text in a later batch)
+Lesson 7.2 trained a clipped-ratio policy on a 1-D reach. Manipulation adds a gripper and an object: the state must say where the arm is **and** whether the jaws are closed; the action must move in space **and** open or close; the reward must care about reaching, approaching, grasping and lifting — or the learner never sees a success. This lesson names those pieces, contrasts sparse and dense shaping on a discrete reach–grasp grid, and points at ManiSkill3 / SB3 SAC as the GPU and off-policy counterparts you may run on your own machine.
 
-**Manipulation RL in massively parallel simulation: SAC and reward design.** This page is a placeholder so the Month 7 curriculum can list all six lessons while batch 1 ships 7.1, 7.2 and 7.5. Planned scope: on-policy vs off-policy, dense vs sparse rewards, ManiSkill3 / MuJoCo Playground.
+## From reach to grasp
 
-Check `docs/notes/month-7-plan.md` for the batch schedule. The tasks on this lesson's sidebar are reading prompts only until the full MDX lands.
+- **State.** Joint angles, end-effector pose, and object pose (or a compact encoding of them). The toy below bins planar position plus a binary grip bit.
+- **Action.** Joint increments, or an end-effector Δxyz plus a grip command. The toy uses five discrete moves: N, S, E, W, CLOSE.
+- **Reward shaping.** Arrival / approach / grasp / lift can each add a term. A **sparse** reward gives +1 only on success; a **dense** reward also pays for getting closer and for closing on the goal cell.
+- **Success criterion.** Here: the agent occupies the goal cell with grip = 1. In ManiSkill3's `PickCubeSO100-v1` the task card is "pick up a red cube with the SO100 robot and move it to a goal position" (table-top gripper index; max episode length 50).
+
+On-policy methods such as PPO update from data collected by the **current** policy. Off-policy methods such as <Term id="sac">SAC</Term> (Haarnoja et al., arXiv 1801.01290) reuse a replay buffer — Soft Actor-Critic is listed in Stable-Baselines3 as "Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor." One sentence of contrast is enough for this page: when samples are expensive, off-policy reuse helps; when you already have thousands of parallel envs, on-policy PPO is often enough.
+
+<Resource id="sac-paper" />
+<Resource id="sb3" />
+
+## Sparse vs dense on a grid
+
+The runnable deliverable is tabular Q-learning under identical hyperparameters, seed 7, 400 episodes, a 6×6 grid, goal cell (4, 3). Sparse gets +1 only on success; dense gets a Manhattan distance penalty, a grip bonus on the goal cell, and +5 on success. Under that seed the last-50 success rate is **0.000 for sparse** and **1.000 for dense**, and a greedy rollout of the dense Q-table succeeds 20/20 starts.
+
+```bash
+$ cd ~/Hardware-learning/examples/month-7/rl-manipulation-sim
+$ python3 reward_shaping.py
+```
+
+<CodeSource path="examples/month-7/rl-manipulation-sim/reward_shaping.py" />
+
+```python
+#!/usr/bin/env python3
+"""Sparse vs dense reward shaping on a discrete reach–grasp MDP (stdlib).
+
+Lesson 7.2 used a clipped-ratio PPO toy for a 1-D reach. Here the task adds a
+gripper channel: reach a cube, then close. We compare **sparse** (terminal +1)
+vs **dense** (distance + grip shaping) under identical tabular Q-learning so the
+success gap is seed-stable on CPU.
+
+ManiSkill3 ``PickCubeSO100-v1`` / SB3 SAC are the GPU / off-policy counterparts
+described in the MDX — this file does not import them (「本页未强制」).
+
+State bins: x∈[0,1], y∈[0,1], grip∈{0,1}  →  N x N x 2
+Actions: 5 moves {N,S,E,W,CLOSE}
+Success: cell contains the goal and grip==1
+"""
+from __future__ import annotations
+
+import random
+from typing import Literal
+
+SEED = 7
+N = 6
+GOAL = (4, 3)  # grid cell
+EPISODES = 400
+MAX_STEPS = 30
+ALPHA = 0.35
+GAMMA = 0.95
+EPS_START = 0.5
+EPS_END = 0.05
+
+Action = Literal[0, 1, 2, 3, 4]  # N S E W CLOSE
+N_ACTIONS = 5
+
+
+def idx(x: int, y: int, g: int) -> int:
+    return (g * N + y) * N + x
+
+
+def clip_cell(v: int) -> int:
+    return max(0, min(N - 1, v))
+
+
+def step(x: int, y: int, g: int, a: int, dense: bool):
+    nx, ny, ng = x, y, g
+    if a == 0:
+        ny = clip_cell(y - 1)
+    elif a == 1:
+        ny = clip_cell(y + 1)
+    elif a == 2:
+        nx = clip_cell(x + 1)
+    elif a == 3:
+        nx = clip_cell(x - 1)
+    elif a == 4:
+        ng = 1
+    success = (nx, ny) == GOAL and ng == 1
+    if dense:
+        # Manhattan distance penalty + grip bonus on goal cell + terminal
+        d = abs(nx - GOAL[0]) + abs(ny - GOAL[1])
+        r = -0.1 * d
+        if (nx, ny) == GOAL:
+            r += 0.5 * ng
+        if success:
+            r += 5.0
+    else:
+        r = 1.0 if success else 0.0
+    return nx, ny, ng, r, success
+
+
+def train(dense: bool, seed: int = SEED):
+    rng = random.Random(seed)
+    q = [[0.0] * N_ACTIONS for _ in range(N * N * 2)]
+    successes: list[int] = []
+    returns: list[float] = []
+    for ep in range(EPISODES):
+        x = rng.randint(0, 1)
+        y = rng.randint(0, 1)
+        g = 0
+        ep_ret = 0.0
+        ok = False
+        eps = EPS_START + (EPS_END - EPS_START) * (ep / max(1, EPISODES - 1))
+        for _ in range(MAX_STEPS):
+            s = idx(x, y, g)
+            if rng.random() < eps:
+                a = rng.randrange(N_ACTIONS)
+            else:
+                row = q[s]
+                m = max(row)
+                # tie-break deterministically by lowest index among maxima
+                cands = [i for i, v in enumerate(row) if v == m]
+                a = cands[0]
+            nx, ny, ng, r, success = step(x, y, g, a, dense=dense)
+            ns = idx(nx, ny, ng)
+            best_next = max(q[ns])
+            q[s][a] = (1 - ALPHA) * q[s][a] + ALPHA * (r + GAMMA * best_next)
+            ep_ret += r
+            x, y, g = nx, ny, ng
+            if success:
+                ok = True
+                break
+        successes.append(1 if ok else 0)
+        returns.append(ep_ret)
+    window = 50
+    last_s = successes[-window:]
+    last_r = returns[-window:]
+    return {
+        "mean_return": sum(last_r) / window,
+        "success_rate": sum(last_s) / window,
+        "last_ok": sum(last_s),
+        "q": q,
+    }
+
+
+def greedy_rollout(q, seed: int = 99) -> bool:
+    rng = random.Random(seed)
+    x = rng.randint(0, 1)
+    y = rng.randint(0, 1)
+    g = 0
+    for _ in range(MAX_STEPS):
+        s = idx(x, y, g)
+        row = q[s]
+        m = max(row)
+        a = min(i for i, v in enumerate(row) if v == m)
+        x, y, g, _, success = step(x, y, g, a, dense=True)
+        if success:
+            return True
+    return False
+
+
+def main() -> None:
+    sparse = train(dense=False)
+    dense = train(dense=True)
+    print("reward_shaping — tabular Q, sparse vs dense (seed=%d, episodes=%d, grid=%dx%d)"
+          % (SEED, EPISODES, N, N))
+    print("goal_cell=%s  actions=N,S,E,W,CLOSE" % (GOAL,))
+    print("mode    mean_return  success_rate  last%d_ok" % 50)
+    print("sparse  %11.4f  %12.3f  %9d" % (sparse["mean_return"], sparse["success_rate"], sparse["last_ok"]))
+    print("dense   %11.4f  %12.3f  %9d" % (dense["mean_return"], dense["success_rate"], dense["last_ok"]))
+    # evaluate greedy policy from dense Q on a few starts
+    greeds = sum(1 for s in range(20) if greedy_rollout(dense["q"], seed=100 + s))
+    print("dense_greedy_ok %d/20" % greeds)
+    assert dense["success_rate"] > sparse["success_rate"], (
+        "dense should beat sparse on success (%.3f vs %.3f)"
+        % (dense["success_rate"], sparse["success_rate"])
+    )
+    assert dense["success_rate"] >= 0.5, "dense success_rate too low: %.3f" % dense["success_rate"]
+    assert greeds >= 10, "dense greedy rollouts too weak: %d/20" % greeds
+    print("ok: dense shaped reward outperforms sparse under identical Q-learning")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+reward_shaping — tabular Q, sparse vs dense (seed=7, episodes=400, grid=6x6)
+goal_cell=(4, 3)  actions=N,S,E,W,CLOSE
+mode    mean_return  success_rate  last50_ok
+sparse       0.0000         0.000          0
+dense        3.3260         1.000         50
+dense_greedy_ok 20/20
+ok: dense shaped reward outperforms sparse under identical Q-learning
+```
+
+</SimOutput>
+
+Dense shaping is not "cheating" — it is a curriculum that makes the sparse event discoverable. Once the policy reaches the cube reliably, you can anneal the shaping terms back toward sparse so the objective matches the real success metric.
+
+<Quiz id="q1" question="Under the seed-7 table above, which statement is true?" options={["Sparse and dense both reach success_rate 1.0", "Dense reaches success_rate 1.0 while sparse stays at 0.0", "Sparse beats dense on mean_return", "The script requires a GPU"]} answer={1} explanation="The printed table is sparse 0.000 vs dense 1.000 on the last-50 window; dense_greedy_ok is 20/20. The script is stdlib CPU." />
+
+## ManiSkill3 and friends (not required on this page)
+
+ManiSkill's installation page states that GPU parallel simulation is supported on **Linux + NVIDIA GPU**; Windows/macOS are limited to CPU sim (Vulkan needed for rendering). `PickCubeSO100-v1` appears on the table-top gripper task list (Sparse Dense Demo columns; max episode steps 50). ManiSkill3 (arXiv 2410.00425) targets contact-rich GPU-parallel manipulation. MuJoCo Playground is another CPU/GPU-friendly option. **Not required on this page** — run the official Colab or a local install only if you already have the stack; keep three seeds and the step count at which success crosses your threshold.
+
+<Resource id="maniskill" />
+<Resource id="maniskill3-paper" />
+
+Isaac Lab is a separate GPU-accelerated framework (README: targets Isaac Sim 6.2 for Isaac Sim workflows). It is an elective path for Month 7, not a dependency of this lesson.
+
+## Common mistakes
+
+- **Leaving the reward sparse with almost no exploration.** The table shows 400 episodes are not enough for sparse to discover CLOSE-on-goal by chance.
+- **Forgetting the grip channel in the state.** A reach-only state cannot represent "I am on the cube but still open."
+- **Reporting only the dense curve.** Always print sparse next to dense under the same seed and hyperparameters.
+- **Assuming ManiSkill GPU sim runs on every laptop.** The install matrix is Linux + NVIDIA for GPU sim; CPU sim is the broader path.
 
 <Summary>
 
-Placeholder for **Manipulation RL in massively parallel simulation: SAC and reward design**. Full worked examples ship in a later Month 7 batch.
+Manipulation RL extends 7.2 with object and gripper channels. Sparse rewards only fire on success; dense shaping makes that event reachable. The stdlib grid toy (seed 7) shows dense last-50 success 1.000 vs sparse 0.000. SAC is the off-policy replay-buffer counterpart; ManiSkill3 `PickCubeSO100-v1` is the GPU-parallel pick task — not required on this page.
 
 </Summary>

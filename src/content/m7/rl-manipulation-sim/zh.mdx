@@ -1,13 +1,220 @@
 本课是本站补充内容——第 7–8 个月不属于原六个月课程。
 
-## 大纲（正文在后续批次）
+第 7.2 课在 1-D 到达上训练了裁剪比率策略。操作任务还要加上夹爪和物体：状态既要说清手臂在哪，也要说清爪子是否合上；动作既要在空间里动，也要开合；奖励要照顾到达、接近、抓住、抬起——否则学习器几乎看不到成功。本课点名这些零件，在离散到达-抓取网格上对照稀疏与稠密塑形，并指向 ManiSkill3 / SB3 SAC，作为你可在本机选跑的 GPU 与 off-policy 对照。
 
-**大规模并行仿真里的操作 RL：SAC 与奖励设计。** 本页是占位，好让第 7 个月课程表能列全六课，而本批次先交付 7.1、7.2、7.5。计划范围：on-policy 与 off-policy、稠密/稀疏奖励，以及 ManiSkill3 / MuJoCo Playground。
+## 从接到达到抓取
 
-批次安排见 `docs/notes/month-7-plan.md`。侧栏任务在全文落地前只作阅读提示。
+- **状态。** 关节角、末端位姿、物体位姿（或其紧凑编码）。下面的玩具把平面位置分箱，再加一个二值 grip 位。
+- **动作。** 关节增量，或末端 Δxyz 加抓取命令。玩具用五个离散动作：N、S、E、W、CLOSE。
+- **奖励塑形。** 到达 / 接近 / 抓住 / 抬起可以各自加一项。**稀疏**奖励只在成功时 +1；**稠密**奖励还会为靠近目标、在目标格合爪付分。
+- **成功判据。** 这里：智能体站在目标格且 grip = 1。ManiSkill3 的 `PickCubeSO100-v1` 任务卡写的是「用 SO100 机器人抓起红色方块并移到目标位置」（桌面夹爪任务表；最长 50 步）。
+
+On-policy 方法（如 PPO）用**当前**策略采的数据更新。Off-policy 方法（如 <Term id="sac">SAC</Term>，Haarnoja 等，arXiv 1801.01290）重用回放缓冲——Stable-Baselines3 把 Soft Actor-Critic 标成 "Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor"。本页一句对照即可：样本昂贵时 off-policy 重用有帮助；已经有数千并行环境时，on-policy PPO 常常够用。
+
+<Resource id="sac-paper" />
+<Resource id="sb3" />
+
+## 网格上的稀疏 vs 稠密
+
+可复现交付是相同超参下的表格 Q-learning：种子 7、400 回合、6×6 网格、目标格 (4, 3)。稀疏只在成功时 +1；稠密含曼哈顿距离惩罚、目标格上的合爪奖励，以及成功时 +5。该种子下最近 50 回合成功率：**稀疏 0.000，稠密 1.000**；稠密 Q 表的贪心回放在 20/20 个起点成功。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-7/rl-manipulation-sim
+$ python3 reward_shaping.py
+```
+
+<CodeSource path="examples/month-7/rl-manipulation-sim/reward_shaping.py" />
+
+```python
+#!/usr/bin/env python3
+"""Sparse vs dense reward shaping on a discrete reach–grasp MDP (stdlib).
+
+Lesson 7.2 used a clipped-ratio PPO toy for a 1-D reach. Here the task adds a
+gripper channel: reach a cube, then close. We compare **sparse** (terminal +1)
+vs **dense** (distance + grip shaping) under identical tabular Q-learning so the
+success gap is seed-stable on CPU.
+
+ManiSkill3 ``PickCubeSO100-v1`` / SB3 SAC are the GPU / off-policy counterparts
+described in the MDX — this file does not import them (「本页未强制」).
+
+State bins: x∈[0,1], y∈[0,1], grip∈{0,1}  →  N x N x 2
+Actions: 5 moves {N,S,E,W,CLOSE}
+Success: cell contains the goal and grip==1
+"""
+from __future__ import annotations
+
+import random
+from typing import Literal
+
+SEED = 7
+N = 6
+GOAL = (4, 3)  # grid cell
+EPISODES = 400
+MAX_STEPS = 30
+ALPHA = 0.35
+GAMMA = 0.95
+EPS_START = 0.5
+EPS_END = 0.05
+
+Action = Literal[0, 1, 2, 3, 4]  # N S E W CLOSE
+N_ACTIONS = 5
+
+
+def idx(x: int, y: int, g: int) -> int:
+    return (g * N + y) * N + x
+
+
+def clip_cell(v: int) -> int:
+    return max(0, min(N - 1, v))
+
+
+def step(x: int, y: int, g: int, a: int, dense: bool):
+    nx, ny, ng = x, y, g
+    if a == 0:
+        ny = clip_cell(y - 1)
+    elif a == 1:
+        ny = clip_cell(y + 1)
+    elif a == 2:
+        nx = clip_cell(x + 1)
+    elif a == 3:
+        nx = clip_cell(x - 1)
+    elif a == 4:
+        ng = 1
+    success = (nx, ny) == GOAL and ng == 1
+    if dense:
+        # Manhattan distance penalty + grip bonus on goal cell + terminal
+        d = abs(nx - GOAL[0]) + abs(ny - GOAL[1])
+        r = -0.1 * d
+        if (nx, ny) == GOAL:
+            r += 0.5 * ng
+        if success:
+            r += 5.0
+    else:
+        r = 1.0 if success else 0.0
+    return nx, ny, ng, r, success
+
+
+def train(dense: bool, seed: int = SEED):
+    rng = random.Random(seed)
+    q = [[0.0] * N_ACTIONS for _ in range(N * N * 2)]
+    successes: list[int] = []
+    returns: list[float] = []
+    for ep in range(EPISODES):
+        x = rng.randint(0, 1)
+        y = rng.randint(0, 1)
+        g = 0
+        ep_ret = 0.0
+        ok = False
+        eps = EPS_START + (EPS_END - EPS_START) * (ep / max(1, EPISODES - 1))
+        for _ in range(MAX_STEPS):
+            s = idx(x, y, g)
+            if rng.random() < eps:
+                a = rng.randrange(N_ACTIONS)
+            else:
+                row = q[s]
+                m = max(row)
+                # tie-break deterministically by lowest index among maxima
+                cands = [i for i, v in enumerate(row) if v == m]
+                a = cands[0]
+            nx, ny, ng, r, success = step(x, y, g, a, dense=dense)
+            ns = idx(nx, ny, ng)
+            best_next = max(q[ns])
+            q[s][a] = (1 - ALPHA) * q[s][a] + ALPHA * (r + GAMMA * best_next)
+            ep_ret += r
+            x, y, g = nx, ny, ng
+            if success:
+                ok = True
+                break
+        successes.append(1 if ok else 0)
+        returns.append(ep_ret)
+    window = 50
+    last_s = successes[-window:]
+    last_r = returns[-window:]
+    return {
+        "mean_return": sum(last_r) / window,
+        "success_rate": sum(last_s) / window,
+        "last_ok": sum(last_s),
+        "q": q,
+    }
+
+
+def greedy_rollout(q, seed: int = 99) -> bool:
+    rng = random.Random(seed)
+    x = rng.randint(0, 1)
+    y = rng.randint(0, 1)
+    g = 0
+    for _ in range(MAX_STEPS):
+        s = idx(x, y, g)
+        row = q[s]
+        m = max(row)
+        a = min(i for i, v in enumerate(row) if v == m)
+        x, y, g, _, success = step(x, y, g, a, dense=True)
+        if success:
+            return True
+    return False
+
+
+def main() -> None:
+    sparse = train(dense=False)
+    dense = train(dense=True)
+    print("reward_shaping — tabular Q, sparse vs dense (seed=%d, episodes=%d, grid=%dx%d)"
+          % (SEED, EPISODES, N, N))
+    print("goal_cell=%s  actions=N,S,E,W,CLOSE" % (GOAL,))
+    print("mode    mean_return  success_rate  last%d_ok" % 50)
+    print("sparse  %11.4f  %12.3f  %9d" % (sparse["mean_return"], sparse["success_rate"], sparse["last_ok"]))
+    print("dense   %11.4f  %12.3f  %9d" % (dense["mean_return"], dense["success_rate"], dense["last_ok"]))
+    # evaluate greedy policy from dense Q on a few starts
+    greeds = sum(1 for s in range(20) if greedy_rollout(dense["q"], seed=100 + s))
+    print("dense_greedy_ok %d/20" % greeds)
+    assert dense["success_rate"] > sparse["success_rate"], (
+        "dense should beat sparse on success (%.3f vs %.3f)"
+        % (dense["success_rate"], sparse["success_rate"])
+    )
+    assert dense["success_rate"] >= 0.5, "dense success_rate too low: %.3f" % dense["success_rate"]
+    assert greeds >= 10, "dense greedy rollouts too weak: %d/20" % greeds
+    print("ok: dense shaped reward outperforms sparse under identical Q-learning")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+reward_shaping — tabular Q, sparse vs dense (seed=7, episodes=400, grid=6x6)
+goal_cell=(4, 3)  actions=N,S,E,W,CLOSE
+mode    mean_return  success_rate  last50_ok
+sparse       0.0000         0.000          0
+dense        3.3260         1.000         50
+dense_greedy_ok 20/20
+ok: dense shaped reward outperforms sparse under identical Q-learning
+```
+
+</SimOutput>
+
+稠密塑形不是「作弊」——它是让稀疏事件变得可发现的课程。策略能稳定摸到方块后，可以把塑形项退火回稀疏，使目标与真实成功度量对齐。
+
+<Quiz id="q1" question="在上面种子 7 的表中，哪一句正确？" options={["稀疏与稠密的 success_rate 都是 1.0", "稠密 success_rate 为 1.0，稀疏仍为 0.0", "稀疏的 mean_return 高于稠密", "该脚本必须用 GPU"]} answer={1} explanation="表上 sparse 0.000、dense 1.000；dense_greedy_ok 为 20/20。脚本是标准库 CPU。" />
+
+## ManiSkill3 与同类（本页未强制）
+
+ManiSkill 安装页写明：GPU 并行仿真支持 **Linux + NVIDIA GPU**；Windows/macOS 限于 CPU 仿真（渲染需要 Vulkan）。`PickCubeSO100-v1` 出现在桌面夹爪任务表（Sparse/Dense/Demo 列；最长 50 步）。ManiSkill3（arXiv 2410.00425）面向接触丰富的 GPU 并行操作。MuJoCo Playground 是另一条 CPU/GPU 友好路径。**本页未强制**——只有在你已有对应环境时，才跑官方 Colab 或本机安装；保留三个种子，以及成功率跨过阈值时的步数。
+
+<Resource id="maniskill" />
+<Resource id="maniskill3-paper" />
+
+Isaac Lab 是另一套 GPU 加速框架（README：涉及 Isaac Sim 的工作流对准 Isaac Sim 6.2）。它是第 7 个月的选修路径，不是本课依赖。
+
+## 常见错误
+
+- **奖励很稀疏却几乎不探索。** 表说明 400 回合不够让稀疏碰巧发现「在目标格合爪」。
+- **状态里丢掉 grip 通道。** 只有到达的状态无法表示「我在方块上但还张着」。
+- **只汇报稠密曲线。** 同一种子、同一超参下，永远把稀疏和稠密并排打印。
+- **以为 ManiSkill GPU 仿真在每台笔记本都能跑。** 安装矩阵里 GPU 仿真是 Linux + NVIDIA；更宽的路径是 CPU 仿真。
 
 <Summary>
 
-**大规模并行仿真里的操作 RL：SAC 与奖励设计** 的占位页。完整例题与脚本在后续第 7 个月批次交付。
+操作 RL 在 7.2 之上加入物体与夹爪通道。稀疏奖励只在成功时触发；稠密塑形让该事件可及。标准库网格玩具（种子 7）给出稠密最近 50 回合成功率 1.000、稀疏 0.000。SAC 是带回报缓冲的 off-policy 对照；ManiSkill3 `PickCubeSO100-v1` 是 GPU 并行抓取任务——本页未强制。
 
 </Summary>

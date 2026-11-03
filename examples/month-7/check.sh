@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Run the Month 7 examples and compare with expected/.
-# 7.1 needs mujoco (set M7_PYTHON to a venv that has it). 7.2 and 7.5 are stdlib only.
+# 7.1 needs mujoco (set M7_PYTHON). 7.2/7.3/7.4 toys are stdlib.
+# 7.6 handeye_toy needs NumPy; grasp_from_mask is stdlib.
 # Usage: examples/month-7/check.sh        UPDATE=1 examples/month-7/check.sh
 set -uo pipefail
 M7="$(cd "$(dirname "$0")" && pwd)"
@@ -23,15 +24,29 @@ if "$PY" -c 'import mujoco' 2>/dev/null; then
   check grip_sweep.txt "$PY" "$M7/mujoco-so101/grip_sweep.py"
 else
   echo "SKIP  grip_sweep.txt (mujoco not importable under M7_PYTHON=$PY)"
-  # Still fail the overall check when UPDATE is unset, so CI/reproduce notices the gap only
-  # if someone opts in; for local without mujoco we skip without failing.
   if [[ -n "${M7_REQUIRE_MUJOCO:-}" ]]; then fail=1; fi
 fi
 
 # ---- 7.2 RL foundations (stdlib) ----------------------------------------------------------
 check ppo_reach.txt "$PY" "$M7/rl-foundations/ppo_reach.py"
 
+# ---- 7.3 reward shaping (stdlib) ----------------------------------------------------------
+check reward_shaping.txt "$PY" "$M7/rl-manipulation-sim/reward_shaping.py"
+
+# ---- 7.4 sim-to-real (stdlib) -------------------------------------------------------------
+check sysid_fit.txt "$PY" "$M7/sim-to-real/sysid_fit.py"
+check randomize_eval.txt "$PY" "$M7/sim-to-real/randomize_eval.py"
+
 # ---- 7.5 depth / point cloud (stdlib) -----------------------------------------------------
 check cloud_pipeline.txt "$PY" "$M7/depth-pointcloud/cloud_pipeline.py"
+
+# ---- 7.6 perception-to-grasp --------------------------------------------------------------
+if "$PY" -c 'import numpy' 2>/dev/null; then
+  check handeye_toy.txt "$PY" "$M7/perception-to-grasp/handeye_toy.py"
+else
+  echo "SKIP  handeye_toy.txt (numpy not importable under M7_PYTHON=$PY)"
+  if [[ -n "${M7_REQUIRE_NUMPY:-}" ]]; then fail=1; fi
+fi
+check grasp_from_mask.txt "$PY" "$M7/perception-to-grasp/grasp_from_mask.py"
 
 exit $fail
