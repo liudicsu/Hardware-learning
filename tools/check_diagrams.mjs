@@ -2523,6 +2523,10 @@ const lessonRef = (n, slug, lang) => {
   // ---- 7.6 hand-eye + grasp ----
   ok(/SEED\s*=\s*17/.test(handPy) && /N_POSES\s*=\s*8/.test(handPy), "m7 hand.py: seed 17 / 8 poses");
   ok(/rot_err_deg=0\.000000/.test(hand), "m7 hand: rot_err 0");
+  ok(/trans_err_m=0\.000000e\+00/.test(hand), "m7 hand: trans_err clamped 0");
+  ok(/CALIB_HAND_EYE_PARK/.test(hand) && /CALIB_HAND_EYE_PARK/.test(handPy), "m7 hand: PARK twin");
+  ok(/r_print = 0\.0 if abs\(r_err\) < 1e-5/.test(handPy) && /t_print = 0\.0 if abs\(t_err\) < 1e-12/.test(handPy),
+    "m7 hand.py: clamps near-zero FP before print");
   ok(/calibrateHandEye/.test(handPy) && /Park/.test(handPy), "m7 hand.py: mentions calibrateHandEye + Park");
   ok(/mask_pixels=1600/.test(grasp), "m7 grasp: 1600 mask pixels");
   ok(/approach=\[0\.0, 0\.0, -1\.0\]/.test(grasp), "m7 grasp: top-down approach");
@@ -2578,7 +2582,7 @@ const lessonRef = (n, slug, lang) => {
       ],
       "perception-to-grasp": [
         "calibrateHandEye",
-        "CALIB_HAND_EYE_TSAI",
+        "CALIB_HAND_EYE_PARK",
         "at least 3 poses",
         "0.000000 deg",
         "Apache-2.0",
@@ -2635,7 +2639,7 @@ const lessonRef = (n, slug, lang) => {
       ],
       "perception-to-grasp": [
         "calibrateHandEye",
-        "CALIB_HAND_EYE_TSAI",
+        "CALIB_HAND_EYE_PARK",
         "3 个姿态",
         "0.000000 deg",
         "Apache-2.0",

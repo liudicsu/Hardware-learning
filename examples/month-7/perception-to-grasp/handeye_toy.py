@@ -5,14 +5,14 @@ OpenCV (calib3d.hpp):
   cv2.calibrateHandEye(R_gripper2base, t_gripper2base,
                        R_target2cam, t_target2cam,
                        R_cam2gripper, t_cam2gripper,
-                       method=cv2.CALIB_HAND_EYE_TSAI)
+                       method=cv2.CALIB_HAND_EYE_PARK)
 returns ^{g}T_c for eye-in-hand (camera on gripper). Docs: ≥3 poses required
 (2 motions, non-parallel rotation axes); more recommended. Eye-to-hand uses the
 same API with inverted gripper↔base inputs (see OpenCV hand-eye figure notes).
 
 This toy builds noise-free synthetic poses from a known X, then recovers X with
-Park & Martin’s rotation Procrustes (SVD) + LS translation — one of the methods
-OpenCV lists alongside Tsai89. Needs NumPy for the 3×3 SVD (CPU-only).
+Park & Martin’s rotation Procrustes (SVD) + LS translation — matching OpenCV's
+CALIB_HAND_EYE_PARK. Needs NumPy for the 3×3 SVD (CPU-only).
 """
 from __future__ import annotations
 
@@ -116,12 +116,15 @@ def main() -> None:
     T_hat = solve_axxb_park(Ts_g2b, Ts_t2c)
     r_err = rot_err_deg(T_hat[:3, :3], T_true[:3, :3])
     t_err = float(np.linalg.norm(T_hat[:3, 3] - T_true[:3, 3]))
+    # Clamp near-zero FP noise so expected/ is machine-stable (numpy/BLAS variance).
+    r_print = 0.0 if abs(r_err) < 1e-5 else r_err
+    t_print = 0.0 if abs(t_err) < 1e-12 else t_err
 
     print("handeye_toy — eye-in-hand AX=XB (Park SVD, seed=%d, poses=%d)" % (SEED, N_POSES))
-    print("OpenCV twin: calibrateHandEye(..., method=CALIB_HAND_EYE_TSAI)")
+    print("OpenCV twin: calibrateHandEye(..., method=CALIB_HAND_EYE_PARK)")
     print("true_t = [%s]" % ", ".join("%.4f" % x for x in T_true[:3, 3]))
     print("hat_t  = [%s]" % ", ".join("%.4f" % x for x in T_hat[:3, 3]))
-    print("rot_err_deg=%.6f  trans_err_m=%.6e" % (r_err, t_err))
+    print("rot_err_deg=%.6f  trans_err_m=%.6e" % (r_print, t_print))
     assert r_err < 0.05, "rotation error too large: %.6f deg" % r_err
     assert t_err < 1e-5, "translation error too large: %.6e m" % t_err
     print("ok: recovered cam2gripper within tolerance (noise-free synthetic)")

@@ -1,7 +1,7 @@
 handeye_toy — eye-in-hand AX=XB (Park SVD, seed=17, poses=8)
-OpenCV twin: calibrateHandEye(..., method=CALIB_HAND_EYE_TSAI)
+OpenCV twin: calibrateHandEye(..., method=CALIB_HAND_EYE_PARK)
 true_t = [0.0200, -0.0100, 0.0500]
 hat_t  = [0.0200, -0.0100, 0.0500]
-rot_err_deg=0.000000  trans_err_m=1.389188e-16
+rot_err_deg=0.000000  trans_err_m=0.000000e+00
 ok: recovered cam2gripper within tolerance (noise-free synthetic)
 note: eye-to-hand → pass inverted gripper/base poses into the same API
