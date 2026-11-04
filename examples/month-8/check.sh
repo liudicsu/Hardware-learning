@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the Month 8 examples and compare with expected/.
-# Batch 1: 8.1 / 8.3 / 8.5 / 8.6 — Batch 2: 8.2 / 8.4 / 8.7
+# 7 lessons complete / 7 课已齐 (8.1–8.7)
 # Usage: examples/month-8/check.sh        UPDATE=1 examples/month-8/check.sh
 set -uo pipefail
 M8="$(cd "$(dirname "$0")" && pwd)"

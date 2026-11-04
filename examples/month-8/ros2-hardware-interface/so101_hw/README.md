@@ -9,6 +9,6 @@ Lifecycle methods to implement (control.ros.org Jazzy *Writing a Hardware Compon
 `on_error`, `export_state_interfaces`, `export_command_interfaces`, `read`, `write`
 (optional `prepare_command_mode_switch` / `perform_command_mode_switch`).
 
-`fake_bus.hpp` is an in-memory stand-in for the Featech bus so you can unit-test
+`fake_bus.hpp` is an in-memory stand-in for the Feetech bus so you can unit-test
 `read`/`write` without hardware. Pair with lesson 8.6 Dev Container + `action-ros-ci`
 in **your** package repo.

@@ -2756,6 +2756,8 @@ const lessonRef = (n, slug, lang) => {
   ok(asyncIdle < syncIdle, "m8 chunk: async idle < sync idle");
   ok(/ACTION_CHUNK\s*=\s*16/.test(chunkPy) && /THRESHOLD\s*=\s*8/.test(chunkPy),
     "m8 chunk.py: ACTION_CHUNK=16 THRESHOLD=8");
+  ok(/toy absolute remaining-action count/.test(chunkPy) && /\[0,1\] fraction/.test(chunkPy),
+    "m8 chunk.py: notes toy absolute count vs official fraction");
   ok(/CONTROL_HZ\s*=\s*50/.test(chunkPy) && /INFER_MS\s*=\s*80/.test(chunkPy),
     "m8 chunk.py: 50 Hz / 80 ms");
 
@@ -2795,6 +2797,9 @@ const lessonRef = (n, slug, lang) => {
   ok(/CONTROL_HZ\s*=\s*100/.test(servoPy) && /SEED\s*=\s*8/.test(servoPy), "m8 servo.py: 100 Hz seed 8");
   ok(/fake_bus\.hpp/.test(rd8("examples/month-8/ros2-hardware-interface/so101_hw/README.md")),
     "m8 so101_hw: README mentions fake_bus");
+  ok(/Feetech/.test(rd8("examples/month-8/ros2-hardware-interface/so101_hw/README.md"))
+    && !/Featech/.test(rd8("examples/month-8/ros2-hardware-interface/so101_hw/README.md")),
+    "m8 so101_hw: Feetech spelling (not Featech)");
 
   ok(/5 of 5 gates present/.test(gate) || /5 of 5/.test(gate), "m8 gate: 5 of 5");
   ok(/portfolio_check → 8\/8/.test(gate) || /8\/8/.test(gate), "m8 gate: portfolio 8/8");
@@ -2828,6 +2833,8 @@ const lessonRef = (n, slug, lang) => {
         "0.020",
         "actions_per_chunk",
         "chunk_size_threshold",
+        "fraction in [0,1]",
+        "absolute remaining-action count",
         "PolicyServer",
         "RobotClient",
         "ChunkTimelineWidget",
@@ -2891,6 +2898,8 @@ const lessonRef = (n, slug, lang) => {
         "0.020",
         "actions_per_chunk",
         "chunk_size_threshold",
+        "[0,1] 比例",
+        "剩余动作绝对个数",
         "PolicyServer",
         "RobotClient",
         "ChunkTimelineWidget",

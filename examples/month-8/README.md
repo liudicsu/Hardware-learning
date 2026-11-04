@@ -12,4 +12,4 @@ CPU-reproducible scripts for Month 8 (site supplement). Run `./check.sh` from th
 | robot-devops | `robot-devops/bag_stats.py` | stdlib (+ synthetic MCAP timeline) |
 | capstone | `capstone/capstone_gate.py` | stdlib (+ Month 6 `portfolio_check.py`) |
 
-Batch 1: 8.1 / 8.3 / 8.5 / 8.6. Batch 2: 8.2 / 8.4 / 8.7.
+7 lessons complete / 7 课已齐 (8.1–8.7).
