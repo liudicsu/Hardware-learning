@@ -17,7 +17,8 @@ from __future__ import annotations
 CONTROL_HZ = 50
 INFER_MS = 80.0
 ACTION_CHUNK = 16  # actions_per_chunk
-THRESHOLD = 8  # chunk_size_threshold: async starts next infer when remaining <= this
+THRESHOLD = 8  # toy absolute remaining-action count (not LeRobot's [0,1] fraction);
+                 # async starts next infer when remaining <= this (8 of 16 ≈ 0.5 fill)
 HORIZON_S = 4.0
 SEED_ACTION = 0.02  # per-step drift inside a chunk
 
@@ -115,6 +116,7 @@ def sim_async(total_ticks: int, infer_ticks: int, chunk: int, threshold: int) ->
 def main() -> None:
     total = int(HORIZON_S * CONTROL_HZ)
     it = ticks(INFER_MS)
+    # print uses same name as LeRobot; value here is toy absolute count, not official fraction
     print(
         f"control_hz={CONTROL_HZ} infer_ms={INFER_MS:g} infer_ticks={it} "
         f"actions_per_chunk={ACTION_CHUNK} chunk_size_threshold={THRESHOLD} horizon_s={HORIZON_S:g}"

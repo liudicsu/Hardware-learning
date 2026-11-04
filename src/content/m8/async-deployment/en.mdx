@@ -6,9 +6,9 @@ A VLA rarely emits one joint target per forward pass. It emits an <Term id="acti
 
 **Sync:** client waits for the whole inference, then plays `actions_per_chunk` steps, then waits again. Every inference window is idle time on the arm.
 
-**Async:** client keeps playing the current chunk while the server computes the next. When remaining actions drop to `chunk_size_threshold`, it kicks off the next inference. Swapping in a fresh chunk can jump the commanded action — that is the trade for fewer idle frames.
+**Async:** client keeps playing the current chunk while the server computes the next. When remaining actions drop to `chunk_size_threshold`, it kicks off the next inference. Swapping in a fresh chunk can jump the commanded action — that is the trade for fewer idle frames. LeRobot's `chunk_size_threshold` is a fraction in [0,1] (send when the action queue is ≤ that fill). This CPU toy uses an absolute remaining-action count (8 of 16 ≈ 0.5) under the same name.
 
-Pinned toy constants: control **50 Hz**, inference **80 ms** → **4** control ticks, `actions_per_chunk=16`, `chunk_size_threshold=8`, horizon **4 s**.
+Pinned toy constants: control **50 Hz**, inference **80 ms** → **4** control ticks, `actions_per_chunk=16`, `chunk_size_threshold=8` (toy absolute remaining-action count; LeRobot's official knob is a [0,1] fraction — 8 of 16 ≈ 0.5), horizon **4 s**.
 
 ## Run the discrete-time sim
 
@@ -39,7 +39,8 @@ from __future__ import annotations
 CONTROL_HZ = 50
 INFER_MS = 80.0
 ACTION_CHUNK = 16  # actions_per_chunk
-THRESHOLD = 8  # chunk_size_threshold: async starts next infer when remaining <= this
+THRESHOLD = 8  # toy absolute remaining-action count (not LeRobot's [0,1] fraction);
+                 # async starts next infer when remaining <= this (8 of 16 ≈ 0.5 fill)
 HORIZON_S = 4.0
 SEED_ACTION = 0.02  # per-step drift inside a chunk
 
@@ -137,6 +138,7 @@ def sim_async(total_ticks: int, infer_ticks: int, chunk: int, threshold: int) ->
 def main() -> None:
     total = int(HORIZON_S * CONTROL_HZ)
     it = ticks(INFER_MS)
+    # print uses same name as LeRobot; value here is toy absolute count, not official fraction
     print(
         f"control_hz={CONTROL_HZ} infer_ms={INFER_MS:g} infer_ticks={it} "
         f"actions_per_chunk={ACTION_CHUNK} chunk_size_threshold={THRESHOLD} horizon_s={HORIZON_S:g}"
@@ -170,7 +172,7 @@ Sync idle ratio **0.200**; async idle ratio **0.020**. Async also shows a higher
 ## Knobs
 
 - **`actions_per_chunk`:** how many actions one inference returns. Longer chunks amortise inference; stale open-loop drift grows.
-- **`chunk_size_threshold`:** when remaining actions in the current chunk fall to this value, async starts the next inference. Too high → you infer early and waste compute; too low → you go idle again.
+- **`chunk_size_threshold`:** LeRobot's official value is a fraction in [0,1] (send when the action queue is ≤ that fill). This CPU toy uses an absolute remaining-action count under the same name (8 of 16 ≈ 0.5): when remaining actions in the current chunk fall to this value, async starts the next inference. Too high → you infer early and waste compute; too low → you go idle again.
 
 Change `ACTION_CHUNK` to 8 locally and re-run; watch idle ratio and jump count move.
 
