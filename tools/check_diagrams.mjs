@@ -2470,6 +2470,10 @@ const lessonRef = (n, slug, lang) => {
     "m7 grip.py: CUBE_MASS 0.15 note");
   ok(/grip_sweep\.py overrides/.test(rd7("examples/month-7/mujoco-so101/grip_scene.xml")),
     "m7 grip_scene.xml: comment that script overrides mass");
+  ok(/python3 -m venv ~\/Hardware-learning\/\.venv/.test(gripPy) && /pip install mujoco/.test(gripPy),
+    "m7 grip.py: ImportError hints private venv + pip install mujoco");
+  ok(!/Install with: python3 -m pip install mujoco\n/.test(gripPy),
+    "m7 grip.py: bare pip-only Install hint must be gone");
 
   const gamma = num7(ppoPy, /GAMMA\s*=\s*([\d.]+)/, "ppo GAMMA");
   ok(gamma === 0.99, `m7 ppo: GAMMA=${gamma}`);
@@ -2486,6 +2490,11 @@ const lessonRef = (n, slug, lang) => {
     "m7 ppo: seeds 0,1,2");
 
   ok(/raw_points 19200/.test(cloud) && /after_voxel_1cm 2178/.test(cloud), "m7 cloud: 19200→2178");
+  for (const lang of ["en", "zh"]) {
+    const dtext = rd7(`src/content/m7/depth-pointcloud/${lang}.mdx`);
+    ok(/<Resource id="open3d" \/>/.test(dtext) && /<Resource id="realsense-ros" \/>/.test(dtext) && /<Resource id="depth-anything-v2" \/>/.test(dtext),
+      `m7 depth-pointcloud/${lang}: Resource open3d + realsense-ros + depth-anything-v2`);
+  }
   ok(/plane_inliers 2094\s+remaining 84\s+clusters 3/.test(cloud), "m7 cloud: plane 2094 / rem 84 / 3 clusters");
   ok(/160\s*\*\s*120\s*==\s*19200/.test(cloudPy) || /W,\s*H\s*=\s*160,\s*120/.test(cloudPy) || /W\s*=\s*160/.test(cloudPy),
     "m7 cloud.py: 160×120 image");
@@ -2544,6 +2553,8 @@ const lessonRef = (n, slug, lang) => {
         "impratio",
         "cone=\"elliptic\"",
         "not run on this page",
+        "python3 -m venv ~/Hardware-learning/.venv",
+        "source ~/Hardware-learning/.venv/bin/activate",
       ],
       "rl-foundations": [
         "arXiv 1707.06347",
@@ -2551,6 +2562,8 @@ const lessonRef = (n, slug, lang) => {
         "−8.6",
         "primarily on the CPU",
         "reward hacking",
+        "gymnasium[mujoco]",
+        "python3 -m venv ~/Hardware-learning/.venv",
       ],
       "rl-manipulation-sim": [
         "arXiv 1801.01290",
@@ -2589,6 +2602,7 @@ const lessonRef = (n, slug, lang) => {
         "needs hardware",
         "eye-in-hand",
         "eye-to-hand",
+        "<Term id=\"open-vocabulary-segmentation\">",
       ],
     },
     zh: {
@@ -2601,6 +2615,9 @@ const lessonRef = (n, slug, lang) => {
         "impratio",
         "cone=\"elliptic\"",
         "本页未运行",
+        "python3 -m venv ~/Hardware-learning/.venv",
+        "source ~/Hardware-learning/.venv/bin/activate",
+        "PEP 668",
       ],
       "rl-foundations": [
         "arXiv 1707.06347",
@@ -2608,6 +2625,8 @@ const lessonRef = (n, slug, lang) => {
         "−8.6",
         "主要应在 CPU",
         "reward hacking",
+        "gymnasium[mujoco]",
+        "python3 -m venv ~/Hardware-learning/.venv",
       ],
       "rl-manipulation-sim": [
         "arXiv 1801.01290",
@@ -2646,6 +2665,7 @@ const lessonRef = (n, slug, lang) => {
         "需硬件",
         "眼在手上",
         "眼在手外",
+        "<Term id=\"open-vocabulary-segmentation\">",
       ],
     },
   };
@@ -2669,6 +2689,22 @@ const lessonRef = (n, slug, lang) => {
         `m7 ${slug}/${lang}: needs CodeSource + SimOutput`);
     }
   }
+  // examples/month-7/README: all six lessons listed; no "later batch" deferral
+  const m7readme = rd7("examples/month-7/README.md");
+  ok(!/later batch/.test(m7readme), "m7 README: must not defer lessons to a later batch");
+  for (const row of [
+    "rl-manipulation-sim",
+    "sim-to-real",
+    "perception-to-grasp",
+    "reward_shaping.py",
+    "sysid_fit.py",
+    "randomize_eval.py",
+    "handeye_toy.py",
+    "grasp_from_mask.py",
+  ]) {
+    ok(m7readme.includes(row), `m7 README: must list ${row}`);
+  }
+
   console.log(`calc  m7 gaps: grip held 7/9; 0.99^20≈${g20.toFixed(2)}; mean final ${meanFinal.toFixed(3)}; reward sparse ${sparseRate}/dense ${denseRate}; sysid rel ${rel}; DR nom ${nom}/delay5 ${dly5}; hand rot0; grasp w=${width}; phrases ${phraseHits}; bound in en/zh`);
 }
 

@@ -5,7 +5,7 @@ A two-jaw slider gripper closes on a free cube (gravity off), then lifts with gr
 For each (timestep, solref timeconst) pair we report whether the cube was held and the
 maximum contact penetration seen during the run. Fixed scene: grip_scene.xml next to this file.
 
-Requires: mujoco (pip install mujoco; Menagerie models need >= 3.1.3). Standard library + mujoco.
+Requires: mujoco (private venv + pip install mujoco; Menagerie models need >= 3.1.3). Standard library + mujoco.
 usage: python3 grip_sweep.py
 """
 from __future__ import annotations
@@ -19,7 +19,10 @@ try:
 except ImportError as e:
     sys.stderr.write(
         "grip_sweep.py needs mujoco (and numpy). "
-        "Install with: python3 -m pip install mujoco\n"
+        "On Ubuntu 24.04 (PEP 668) use a private venv:\n"
+        "  python3 -m venv ~/Hardware-learning/.venv && "
+        "source ~/Hardware-learning/.venv/bin/activate && "
+        "python3 -m pip install mujoco\n"
         f"Import error: {e}\n"
     )
     sys.exit(1)
