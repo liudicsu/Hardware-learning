@@ -2954,6 +2954,11 @@ const lessonRef = (n, slug, lang) => {
   // curriculum wiring
   const cur = rd8("src/lib/curriculum.ts");
   ok(/month8Lessons/.test(cur) && /slug: "month-8"/.test(cur), "m8 curriculum: month8Lessons + month-8");
+  ok(!/later batch/i.test(cur) && !/后续批次/.test(cur),
+    "m8 curriculum: no later-batch deferral left in summaries/tasks");
+  ok(/isaac-groot/.test(cur) && /compute_budget\.py/.test(cur) && /servo_bus_sim\.py/.test(cur) && /capstone_gate\.py/.test(cur),
+    "m8 curriculum: isaac-groot + compute_budget/servo_bus/capstone_gate named");
+
   for (const slug of ["dataset-engineering", "vla-finetune", "async-deployment", "ros2-hardware-interface", "safety-reliability", "robot-devops", "capstone"]) {
     ok(new RegExp(`slug: "${slug}"`).test(cur), `m8 curriculum has ${slug}`);
   }

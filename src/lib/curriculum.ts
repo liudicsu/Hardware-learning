@@ -985,8 +985,8 @@ const month8Lessons: Lesson[] = [
     slug: "vla-finetune",
     title: { zh: "微调一个视觉-语言-动作模型：SmolVLA，以及 π0 / GR00T 的门槛", en: "Fine-tuning a vision-language-action model: SmolVLA, and what π0 / GR00T need" },
     summary: {
-      zh: "实践向：预训练权重、微调、算力预算、语言指令与录制一致、推理时的相机与端口。对照 ACT 基线；读懂 π0 / GR00T 的显存门槛表。全文在后续批次。",
-      en: "Practice: pretrained weights, fine-tuning, compute budget, language matching the recordings, cameras and ports at rollout. Contrast an ACT baseline; read the π0 / GR00T VRAM table. Full text in a later batch.",
+      zh: "实践向：预训练权重、微调、算力预算、语言指令与录制一致、推理时的相机与端口。对照 ACT 基线；读懂 π0 / GR00T 显存门槛。CPU 玩具 compute_budget.py 对照官方门槛表；GPU/Colab/真机标「本页未运行」。",
+      en: "Practice: pretrained weights, fine-tuning, compute budget, language matching the recordings, cameras and ports at rollout. Contrast an ACT baseline; read the π0 / GR00T VRAM floors. CPU toy compute_budget.py checks official floors; GPU/Colab/arm paths marked 本页未运行.",
     },
     minutes: 240,
     objectives: [
@@ -996,10 +996,10 @@ const month8Lessons: Lesson[] = [
       { zh: "能说出本课 GPU 部分标「本页未运行」。", en: "Note that the GPU path is marked not run on this page." },
     ],
     prereqs: ["act-diffusion", "vla-models", "policy-evaluation", "dataset-engineering"],
-    resources: ["lerobot-smolvla", "smolvla-paper", "openpi", "lerobot-pi05", "lerobot-groot"],
+    resources: ["lerobot-smolvla", "smolvla-paper", "openpi", "lerobot-pi05", "lerobot-groot", "isaac-groot"],
     tasks: [
       { id: "read", text: { zh: "阅读侧栏资源中 SmolVLA 微调命令与 Colab 说明", en: "Read the SmolVLA fine-tune command and Colab notes in the sidebar resources" } },
-      { id: "budget", text: { zh: "（后续批次）运行 compute_budget.py 对照官方门槛表", en: "(Later batch) run compute_budget.py against the official VRAM table" } },
+      { id: "budget", text: { zh: "运行 compute_budget.py，核对 under_floor=7 与 expected/compute_budget.txt 一致", en: "Run compute_budget.py and match under_floor=7 in expected/compute_budget.txt" } },
       { id: "lang", text: { zh: "写下训练与推理时会使用的同一条语言指令", en: "Write the one language instruction you will use at train and at rollout" } },
       { id: "gpu", text: { zh: "（选做，本页未运行）在 Colab 或自租 GPU 上微调并做 20 次试验", en: "(Optional, not run here) fine-tune on Colab or a rented GPU and run 20 trials" } },
     ],
@@ -1031,8 +1031,8 @@ const month8Lessons: Lesson[] = [
     slug: "ros2-hardware-interface",
     title: { zh: "给 SO-101 写一个 ros2_control 硬件组件", en: "Writing a ros2_control hardware component for the SO-101" },
     summary: {
-      zh: "自己写硬件组件：生命周期、状态/命令接口、read/write；关节限位器；实时循环注意点。全文在后续批次。",
-      en: "Write a hardware component: lifecycle, state/command interfaces, read/write; joint limiters; real-time loop cautions. Full text in a later batch.",
+      zh: "自己写硬件组件：生命周期、状态/命令接口、read/write；关节限位器；实时循环注意点。CPU 玩具 servo_bus_sim.py 统计总线抖动超时；so101_hw/ 骨架供本机 Jazzy 加载（本页未运行）。",
+      en: "Write a hardware component: lifecycle, state/command interfaces, read/write; joint limiters; real-time loop cautions. CPU toy servo_bus_sim.py counts bus-jitter timeouts; so101_hw/ is a skeleton for your Jazzy workspace (本页未运行).",
     },
     minutes: 240,
     objectives: [
@@ -1045,7 +1045,7 @@ const month8Lessons: Lesson[] = [
     resources: ["ros2-control-hw-component", "ros2-control-joint-limiting", "ros2-realtime", "ros2-control-docs"],
     tasks: [
       { id: "read", text: { zh: "阅读 control.ros.org（Jazzy）Writing a Hardware Component 目录", en: "Read the Jazzy Writing a Hardware Component outline on control.ros.org" } },
-      { id: "skel", text: { zh: "（后续批次）在假串口后端上列出 list_hardware_interfaces", en: "(Later batch) list_hardware_interfaces against the fake-serial backend" } },
+      { id: "skel", text: { zh: "运行 servo_bus_sim.py，确认超时从 122 降到 0，并浏览 so101_hw/ 骨架", en: "Run servo_bus_sim.py (timeouts 122→0) and skim the so101_hw/ skeleton" } },
       { id: "rt", text: { zh: "写两条实时循环禁忌（结合第 2 个月中断课）", en: "Write two real-time loop don'ts (tie back to Month 2 interrupts)" } },
       { id: "hw", text: { zh: "（选做，本页未运行）在本机 Jazzy 工作空间加载插件", en: "(Optional, not run here) load the plugin in a local Jazzy workspace" } },
     ],
@@ -1100,8 +1100,8 @@ const month8Lessons: Lesson[] = [
     slug: "capstone",
     title: { zh: "毕业项目：从数据到部署的完整机器人系统", en: "Capstone: a complete robot system from data to deployment" },
     summary: {
-      zh: "三选一轨道（学习型 / 感知抓取型 / 仿真到真机 RL），统一交付：安全清单、容器与 CI、20 起始位评估与 Wilson 区间、portfolio_check 八项。全文在后续批次。",
-      en: "Pick one track (learning / perception-grasp / sim-to-real RL) with one delivery bar: safety checklist, container+CI, 20-start eval with Wilson intervals, portfolio_check's eight parts. Full text in a later batch.",
+      zh: "三选一轨道（学习型 / 感知抓取型 / 仿真到真机 RL），统一交付：安全清单、容器与 CI、20 起始位评估与 Wilson 区间、portfolio_check 八项。用 capstone_gate.py 检查示例项目的五道门禁。",
+      en: "Pick one track (learning / perception-grasp / sim-to-real RL) with one delivery bar: safety checklist, container+CI, 20-start eval with Wilson intervals, portfolio_check's eight parts. Use capstone_gate.py to check the sample project's five gates.",
     },
     minutes: 300,
     objectives: [
