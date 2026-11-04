@@ -1,0 +1,5 @@
+control_hz=50 infer_ms=80 infer_ticks=4 actions_per_chunk=16 chunk_size_threshold=8 horizon_s=4
+mode      idle_ratio  mean_jump  n_jumps
+sync           0.200     0.0700        9
+async          0.020     0.1700       17
+ok: async_idle < sync_idle (0.020 < 0.200)

@@ -1,0 +1,178 @@
+本课是本站补充内容——第 7–8 个月不属于原六个月课程。
+
+第 6 个月起始位上表现不错的策略，仍可能指令穿出软限位、在丢包时挂住，或在你以为该停时仍输出力矩。本课分开三层：**软件限位**、指令超时 <Term id="watchdog">看门狗</Term>，以及切断动力的物理 <Term id="e-stop">急停</Term>。工业标准只提 **名称与适用范围**。CPU 故障注入玩具对比有无看门狗的最大越界。`WatchdogWidget` 延期；先读表。
+
+## 三层
+
+1. **软件限位** — 把位置/速度/力矩指令夹进配置盒（ros2_control 关节限位是一种实现）。它们不断电。
+2. **看门狗** — 若在 `TIMEOUT_TICKS` 内收不到*有效*新指令，则保持最后安全命令（或其它安全态）。常见触发：丢包、延迟、NaN。
+3. **急停** — 去掉电机动力的硬件路径（或等效断路）。**只发一个 ROS 话题不算急停。**
+
+人工介入挨着这三层：HIL-SERL 文档含 `lerobot-find-joint-limits` 等工具，好在策略乱探之前先摸清盒子。玩具里的软停数字（±0.80 rad）是课内自定——**不写 STS3215 过载/温度数值**。
+
+## 标准：只提名称
+
+- **ISO/TS 15066** — 面向*工业协作*机器人系统的技术规范。ISO 目录写明 **不适用于非工业机器人**。你的 SO-101 工作台不是那套系统；别把 15066 的力/压数字贴到桌面臂上。
+- **ISO 10218-1** — 工业机器人安全（此处只提名称；公开 HTML 常对爬虫 403）。只取通用原则：独立断电、风险评估，不要从二手博客编造条款号。
+
+## CPU 上的故障注入
+
+```bash
+$ cd ~/Hardware-learning/examples/month-8/safety-reliability
+$ python3 watchdog_sim.py
+```
+
+<CodeSource path="examples/month-8/safety-reliability/watchdog_sim.py" />
+
+```python
+#!/usr/bin/env python3
+"""watchdog_sim.py: command-stream faults with/without a timeout watchdog (stdlib).
+
+A 1-D joint command stream (rad) is disturbed by: dropped packets, delayed
+delivery, NaN payloads, and occasional wild spikes. Without a watchdog the last
+command sticks — including spikes past the soft stops. With a watchdog: if no
+valid command arrives within TIMEOUT_TICKS, hold the last safe command; always
+clamp to [Q_MIN, Q_MAX].
+
+Compares max excursion beyond the software limits.
+No STS3215 overload / temperature numbers — soft stops are lesson-chosen only.
+usage: python3 watchdog_sim.py
+"""
+from __future__ import annotations
+
+import math
+import random
+
+SEED = 7
+HORIZON = 200
+TIMEOUT_TICKS = 3
+Q_MIN = -0.80
+Q_MAX = 0.80
+DROP_P = 0.06
+SPIKE_AT = (55, 120)  # wild commands past the soft stop
+NAN_AT = (40, 90, 150)
+DELAY_AT = (70,)  # hold off applying the next command for 5 ticks
+
+
+def nominal(t: int) -> float:
+    return 0.55 * math.sin(2 * math.pi * t / 50.0)
+
+
+def build_stream(rng: random.Random) -> list[float | None]:
+    """Per-tick payload: float, or None meaning 'no packet this tick'."""
+    planned: list[float | None] = []
+    for t in range(HORIZON):
+        if t in NAN_AT:
+            planned.append(float("nan"))
+        elif t in SPIKE_AT:
+            planned.append(1.45 if t % 2 else -1.45)  # past ±0.80
+        elif rng.random() < DROP_P:
+            planned.append(None)
+        else:
+            planned.append(nominal(t))
+    # apply delay: replace DELAY_AT tick with None and push its value later
+    for d in DELAY_AT:
+        if d < len(planned) and planned[d] is not None and not (
+            isinstance(planned[d], float) and math.isnan(planned[d])
+        ):
+            val = planned[d]
+            planned[d] = None
+            dest = min(HORIZON - 1, d + 5)
+            # only overwrite if dest empty-ish
+            planned[dest] = val
+    return planned
+
+
+def run(stream: list[float | None], watchdog: bool) -> tuple[float, int, int]:
+    last_safe = 0.0
+    applied = 0.0
+    since_valid = 0
+    max_over = 0.0
+    clamps = 0
+    holds = 0
+    for payload in stream:
+        valid = payload is not None and not (isinstance(payload, float) and math.isnan(payload))
+        if valid:
+            since_valid = 0
+            cmd = float(payload)
+            # "safe" memory only records in-range commands
+            if Q_MIN <= cmd <= Q_MAX:
+                last_safe = cmd
+        else:
+            since_valid += 1
+            if watchdog and since_valid >= TIMEOUT_TICKS:
+                cmd = last_safe
+                holds += 1
+            else:
+                cmd = applied  # stick
+        if watchdog:
+            clamped = max(Q_MIN, min(Q_MAX, cmd))
+            if clamped != cmd:
+                clamps += 1
+            cmd = clamped
+        applied = cmd
+        over = max(0.0, applied - Q_MAX, Q_MIN - applied)
+        if over > max_over:
+            max_over = over
+    return max_over, clamps, holds
+
+
+def main() -> None:
+    rng = random.Random(SEED)
+    stream = build_stream(rng)
+    drops = sum(1 for p in stream if p is None)
+    nans = sum(1 for p in stream if isinstance(p, float) and math.isnan(p))
+    spikes = sum(
+        1
+        for p in stream
+        if isinstance(p, float) and not math.isnan(p) and (p > Q_MAX or p < Q_MIN)
+    )
+    print(
+        f"seed={SEED} horizon={HORIZON} timeout_ticks={TIMEOUT_TICKS} "
+        f"q_min={Q_MIN} q_max={Q_MAX} drops={drops} nans={nans} spikes={spikes}"
+    )
+    over_off, _, _ = run(stream, watchdog=False)
+    over_on, clamps, holds = run(stream, watchdog=True)
+    print(f"{'mode':<16} {'max_overshoot':>14} {'clamps':>7} {'holds':>7}")
+    print(f"{'no_watchdog':<16} {over_off:14.4f} {0:7d} {0:7d}")
+    print(f"{'watchdog_clamp':<16} {over_on:14.4f} {clamps:7d} {holds:7d}")
+    print(
+        f"ok: watchdog max_overshoot < no_watchdog "
+        f"({over_on:.4f} < {over_off:.4f})"
+    )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+seed=7 horizon=200 timeout_ticks=3 q_min=-0.8 q_max=0.8 drops=17 nans=3 spikes=2
+mode              max_overshoot  clamps   holds
+no_watchdog              0.6500       0       0
+watchdog_clamp           0.0000       2       0
+ok: watchdog max_overshoot < no_watchdog (0.0000 < 0.6500)
+```
+
+</SimOutput>
+
+种子 7，视界 200，超时 3 tick，软盒 ±0.80。流里注入丢包、延迟、NaN 与 ±1.45 尖峰。**无**看门狗时，越过软盒的最大越界 **0.6500**（尖峰粘住）。**有**看门狗夹紧时，最大越界 **0.0000**，夹紧 2 次。教训：超时策略把「卡住的尖峰」变成「保持的安全命令」。
+
+## 工作台清单
+
+每次通电前打印并勾选 `examples/month-8/safety-reliability/bench_safety_checklist.md`：清理夹点、慢速点动核对软限位、物理中断伸手可及、在仿真或空跑里确认看门狗、电机使能时人留在台前。
+
+## 常见错误
+
+- **把 `/estop` 话题叫作急停。** 电还在，就只是软件请求，不是紧急停止。
+- **有软件限位却无看门狗。** 限位夹的是*有效*指令；NaN 或沉默需要超时策略。
+- **把工业力限抄到桌面臂。** ISO/TS 15066 不适用于非工业机器人。
+- **凭记忆引用 STS3215 过载数。** 需要电气极限时用测得的软停和厂商本表——不是本页。
+
+<Summary>
+
+分开软件限位、指令超时看门狗与断电急停。ISO/TS 15066 仅工业协作；ISO 10218-1 只提名称不摘条款。`watchdog_sim.py`：无看门狗越界 0.6500，有夹紧为 0.0000。用工作台清单；WatchdogWidget 延期。本页不写 STS3215 过载数。
+
+</Summary>

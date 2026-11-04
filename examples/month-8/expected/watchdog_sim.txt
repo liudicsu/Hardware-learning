@@ -1,0 +1,5 @@
+seed=7 horizon=200 timeout_ticks=3 q_min=-0.8 q_max=0.8 drops=17 nans=3 spikes=2
+mode              max_overshoot  clamps   holds
+no_watchdog              0.6500       0       0
+watchdog_clamp           0.0000       2       0
+ok: watchdog max_overshoot < no_watchdog (0.0000 < 0.6500)

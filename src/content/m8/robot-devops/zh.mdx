@@ -1,0 +1,109 @@
+本课是本站补充内容——第 7–8 个月不属于原六个月课程。
+
+只能在一台笔记本上跑通的策略仓不算完成。本课用 <Term id="dev-container">开发容器</Term> 固定 ROS 2 工具链，用 `action-ros-ci` 跑 <Term id="ci">CI</Term>，录包时 Jazzy 默认存储为 <Term id="mcap">MCAP</Term>，并指向 Foxglove / Rerun 回放与 wandb 训练追踪。CI 模板给 **你的** 功能包仓库——不在本站 CI 里跑。CPU 玩具读合成 MCAP *时间线*（JSON 时间戳，无 libmcap），好让 `expected/` 可复现。
+
+## 开发容器
+
+Jazzy 官方指南：*Setup ROS 2 with VSCode and Docker*（ros2_documentation How-To；docs.ros.org 反爬时读 `jazzy` 分支同源 RST）。需要 `.devcontainer/devcontainer.json` 与 Dockerfile、带 Remote Development 的 VS Code（或兼容编辑器）以及 Docker。打开工作区并在容器中重开。见 `examples/month-8/robot-devops/devcontainer_ci_notes.md`。
+
+## action-ros-ci
+
+[`ros-tooling/action-ros-ci`](https://github.com/ros-tooling/action-ros-ci) 跑 `colcon build` 与 `colcon test`（可跳过测试）。搭配 `ros-tooling/setup-ros`，并钉死已发布的 action 标签。仅草图——包名换成你的；本站 GitHub Actions 从不构建你的硬件包。
+
+## Jazzy 上 rosbag2 默认：mcap
+
+交叉核实（2026-11-04，Asia/Shanghai）：在 `ros2/rosbag2` 的 **`jazzy`** 分支，`default_storage_id.cpp` 里 `rosbag2_storage::get_default_storage_id()` **返回 `"mcap"`**。Iron 发行说明首次把默认写端切到 MCAP；Jazzy 保持该默认。选中时 sqlite3 仍可用。不要假定每篇旧教程的 sqlite3 路径仍匹配全新的 Jazzy 录制。
+
+## Bag 统计玩具
+
+```bash
+$ cd ~/Hardware-learning/examples/month-8/robot-devops
+$ python3 bag_stats.py
+```
+
+<CodeSource path="examples/month-8/robot-devops/bag_stats.py" />
+
+```python
+#!/usr/bin/env python3
+"""bag_stats.py: topic rates and drop gaps from a synthetic rosbag2/MCAP fixture.
+
+Real Jazzy rosbag2 defaults to the mcap storage plugin
+(rosbag2_storage::get_default_storage_id() returns \"mcap\" on the jazzy branch).
+This toy reads a JSON timeline that mirrors per-topic stamp sequences extracted
+from such a bag — no libmcap required, so expected/ stays CPU-reproducible.
+
+Reports Hz estimates and inter-arrival gaps that exceed 1.5× the nominal period.
+usage: python3 bag_stats.py
+"""
+from __future__ import annotations
+
+import json
+import os
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+FIX = os.path.join(HERE, "sample_bag", "timeline.json")
+
+
+def main() -> None:
+    with open(FIX, encoding="utf-8") as f:
+        bag = json.load(f)
+    assert bag.get("storage_id") == "mcap"
+    print(
+        f"bag={bag['uri']} storage_id={bag['storage_id']} "
+        f"duration_s={bag['duration_s']:g} (synthetic fixture; not a binary .mcap)"
+    )
+    print(f"{'topic':<28} {'n':>5} {'hz_est':>8} {'nominal':>8} {'gaps':>5}")
+    total_gaps = 0
+    for topic in bag["topics"]:
+        name = topic["name"]
+        stamps = topic["stamps_ns"]
+        nominal_hz = float(topic["nominal_hz"])
+        n = len(stamps)
+        if n >= 2:
+            dur = (stamps[-1] - stamps[0]) / 1e9
+            hz = (n - 1) / dur if dur > 0 else float("nan")
+        else:
+            hz = 0.0
+        period = 1e9 / nominal_hz
+        gaps = 0
+        for a, b in zip(stamps, stamps[1:]):
+            if (b - a) > 1.5 * period:
+                gaps += 1
+        total_gaps += gaps
+        print(f"{name:<28} {n:5d} {hz:8.2f} {nominal_hz:8.1f} {gaps:5d}")
+    print(f"total_gap_events={total_gaps}")
+    print("ok: fixture storage_id is mcap (Jazzy rosbag2 default)")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+bag=sample_bag storage_id=mcap duration_s=2 (synthetic fixture; not a binary .mcap)
+topic                            n   hz_est  nominal  gaps
+/joint_states                   99    49.00     50.0     1
+/camera/color/image_raw         31    15.00     15.0     0
+/tf                             59    29.00     30.0     2
+total_gap_events=3
+ok: fixture storage_id is mcap (Jazzy rosbag2 default)
+```
+
+</SimOutput>
+
+夹具 `storage_id=mcap`，时长 2 s。`/joint_states` 约 49 Hz、相对 50 Hz 名义有 **1** 个缺口；`/tf` 约 29 Hz、**2** 个缺口；相机 15 Hz 干净。**total_gap_events=3**。真 bag 在你机器上用 Foxglove 或 Rerun 回放（本页未运行）。训练曲线方面，SmolVLA / GR00T 文档暴露 wandb 开关——用在*你的*微调跑次里。
+
+## 常见错误
+
+- **把开发容器 CI 塞进本站仓库。** 学员功能包 CI ≠ Hardware-learning 网站 CI。
+- **仍假定默认是 sqlite3。** Jazzy 上默认 storage_id 是 mcap。
+- **无视缺口计数。** 「50 Hz」关节话题实际 49 Hz 还带缺口，已是日志事故。
+- **永远把 wandb 当可选项。** 微调（8.2）时不记超参，毕业项目 README 很难站得住。
+
+<Summary>
+
+用开发容器固定 ROS 2；用 action-ros-ci 构建/测试你的包（你的仓）。Jazzy rosbag2 默认 mcap（`get_default_storage_id()` → `"mcap"`）。`bag_stats.py` 在合成 mcap 时间线上报 3 次缺口。Foxglove/Rerun/wandb 是回放与实验工具；那些 GPU/GUI 路径本页未运行。
+
+</Summary>

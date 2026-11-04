@@ -1,0 +1,15 @@
+{
+  "repo_id": "local/synthetic_so101_pick",
+  "fps": 10,
+  "total_episodes": 24,
+  "total_frames": 525,
+  "features": {
+    "action": {
+      "dtype": "float32",
+      "shape": [
+        2
+      ]
+    }
+  },
+  "note": "Toy LeRobot v3-style: many episodes in one JSON chunk; not Parquet/MP4."
+}

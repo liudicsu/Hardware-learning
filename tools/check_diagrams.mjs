@@ -2716,6 +2716,186 @@ const lessonRef = (n, slug, lang) => {
   console.log(`calc  m7 gaps: grip held 7/9; 0.99^20≈${g20.toFixed(2)}; mean final ${meanFinal.toFixed(3)}; reward sparse ${sparseRate}/dense ${denseRate}; sysid rel ${rel}; DR nom ${nom}/delay5 ${dly5}; hand rot0; grasp w=${width}; phrases ${phraseHits}; bound in en/zh`);
 }
 
+{
+  // Month 8 content gaps (batch 1): 8.1 / 8.3 / 8.5 / 8.6 full; 8.2 / 8.4 / 8.7 outline shells.
+  // 8.1 dataset_audit: 24 eps, cube_C UNDER miss=1, target_min=8.
+  // 8.3 chunk_latency_sim: sync idle 0.200 / async 0.020.
+  // 8.5 watchdog_sim: no_watchdog 0.6500 / watchdog 0.0000.
+  // 8.6 bag_stats: storage_id=mcap, total_gap_events=3.
+  const rd8 = (rel) => readFileSync(join(root, rel), "utf8");
+  const audit = rd8("examples/month-8/expected/dataset_audit.txt");
+  const chunk = rd8("examples/month-8/expected/chunk_latency_sim.txt");
+  const watch = rd8("examples/month-8/expected/watchdog_sim.txt");
+  const bag = rd8("examples/month-8/expected/bag_stats.txt");
+  const auditPy = rd8("examples/month-8/dataset-engineering/dataset_audit.py");
+  const chunkPy = rd8("examples/month-8/async-deployment/chunk_latency_sim.py");
+  const watchPy = rd8("examples/month-8/safety-reliability/watchdog_sim.py");
+  const bagPy = rd8("examples/month-8/robot-devops/bag_stats.py");
+  const num8 = (text, re, what) => { const m = text.match(re); ok(m, `m8: ${what} not found`); return m ? Number(m[1]) : NaN; };
+
+  ok(/episodes=24/.test(audit) && /frames=525/.test(audit), "m8 audit: 24 eps / 525 frames");
+  ok(/cube_C\s+4\b/.test(audit) && /UNDER/.test(audit), "m8 audit: cube_C UNDER with 4 eps");
+  ok(/miss/.test(audit) && /\b1\s+UNDER/.test(audit) || /cube_C\s+4\s+[\d.]+\s+[\d.]+\s+[\d.]+\s+1\s+UNDER/.test(audit),
+    "m8 audit: cube_C miss=1");
+  ok(/target_min_episodes_per_variation=8/.test(audit), "m8 audit: target_min=8");
+  ok(/TARGET_MIN\s*=\s*8/.test(auditPy), "m8 audit.py: TARGET_MIN=8");
+
+  const syncIdle = num8(chunk, /sync\s+([\d.]+)/, "sync idle");
+  const asyncIdle = num8(chunk, /async\s+([\d.]+)/, "async idle");
+  ok(syncIdle === 0.2, `m8 chunk: sync idle ${syncIdle}`);
+  ok(asyncIdle === 0.02, `m8 chunk: async idle ${asyncIdle}`);
+  ok(asyncIdle < syncIdle, "m8 chunk: async idle < sync idle");
+  ok(/ACTION_CHUNK\s*=\s*16/.test(chunkPy) && /THRESHOLD\s*=\s*8/.test(chunkPy),
+    "m8 chunk.py: ACTION_CHUNK=16 THRESHOLD=8");
+  ok(/CONTROL_HZ\s*=\s*50/.test(chunkPy) && /INFER_MS\s*=\s*80/.test(chunkPy),
+    "m8 chunk.py: 50 Hz / 80 ms");
+
+  ok(/no_watchdog\s+0\.6500/.test(watch), "m8 watch: no_watchdog 0.6500");
+  ok(/watchdog_clamp\s+0\.0000/.test(watch), "m8 watch: watchdog 0.0000");
+  ok(/Q_MIN\s*=\s*-0\.80/.test(watchPy) && /Q_MAX\s*=\s*0\.80/.test(watchPy),
+    "m8 watch.py: soft box ±0.80");
+  ok(/TIMEOUT_TICKS\s*=\s*3/.test(watchPy), "m8 watch.py: TIMEOUT_TICKS=3");
+  // Soft-stop numbers only; forbid invented STS3215 electrical figures (A / °C / numeric overload).
+  ok(!/STS3215[^\n]{0,80}\d+\s*(A\b|amp|°C|degC|C\b)/i.test(watchPy),
+    "m8 watch.py: no STS3215 electrical figures");
+  for (const lang of ["en", "zh"]) {
+    const safety = rd8(`src/content/m8/safety-reliability/${lang}.mdx`);
+    ok(!/STS3215[^\n]{0,80}\d+\s*(A\b|amp|°C|degC)/i.test(safety),
+      `m8 safety ${lang}: no STS3215 electrical figures`);
+    ok(/STS3215/.test(safety), `m8 safety ${lang}: must explicitly refuse STS3215 overload figures`);
+  }
+
+  ok(/storage_id=mcap/.test(bag) && /total_gap_events=3/.test(bag), "m8 bag: mcap + 3 gaps");
+  ok(/get_default_storage_id|storage_id.*mcap|Jazzy rosbag2 default/.test(bagPy),
+    "m8 bag.py: notes Jazzy default mcap");
+  ok(/storage_id=mcap/.test(rd8("src/content/m8/robot-devops/en.mdx")) || /returns `"mcap"`/.test(rd8("src/content/m8/robot-devops/en.mdx")) || /returns "mcap"/.test(rd8("src/content/m8/robot-devops/en.mdx")),
+    "m8 devops en: states mcap default");
+
+  // outline shells still placeholders
+  for (const slug of ["vla-finetune", "ros2-hardware-interface", "capstone"]) {
+    for (const lang of ["en", "zh"]) {
+      const text = rd8(`src/content/m8/${slug}/${lang}.mdx`);
+      ok(/Outline \(full text in a later batch\)/.test(text) || /大纲（正文在后续批次）/.test(text),
+        `m8 ${slug}/${lang}: must remain outline placeholder this batch`);
+    }
+  }
+  // full lessons have CodeSource + SimOutput
+  for (const slug of ["dataset-engineering", "async-deployment", "safety-reliability", "robot-devops"]) {
+    for (const lang of ["en", "zh"]) {
+      const text = rd8(`src/content/m8/${slug}/${lang}.mdx`);
+      ok(!/Outline \(full text in a later batch\)/.test(text) && !/大纲（正文在后续批次）/.test(text),
+        `m8 ${slug}/${lang}: must not be outline`);
+      ok(/<CodeSource /.test(text) && /<SimOutput /.test(text),
+        `m8 ${slug}/${lang}: needs CodeSource + SimOutput`);
+      ok(/本站补充|site supplement/.test(text), `m8 ${slug}/${lang}: site-supplement opener`);
+    }
+  }
+
+  const phrases = {
+    en: {
+      "dataset-engineering": [
+        "episodes=24",
+        "cube_C",
+        "UNDER",
+        "~50 episodes",
+        "2310.08864",
+        "StreamingLeRobotDataset",
+        "20 evaluation start",
+      ],
+      "async-deployment": [
+        "0.200",
+        "0.020",
+        "actions_per_chunk",
+        "chunk_size_threshold",
+        "PolicyServer",
+        "RobotClient",
+        "ChunkTimelineWidget",
+      ],
+      "safety-reliability": [
+        "0.6500",
+        "0.0000",
+        "ISO/TS 15066",
+        "does not apply",
+        "ISO 10218-1",
+        "WatchdogWidget",
+        "not an e-stop",
+      ],
+      "robot-devops": [
+        "mcap",
+        "total_gap_events=3",
+        "action-ros-ci",
+        "Dev Container",
+        "get_default_storage_id",
+        "wandb",
+      ],
+    },
+    zh: {
+      "dataset-engineering": [
+        "episodes=24",
+        "cube_C",
+        "UNDER",
+        "~50 集",
+        "2310.08864",
+        "StreamingLeRobotDataset",
+        "20 个评估起始",
+      ],
+      "async-deployment": [
+        "0.200",
+        "0.020",
+        "actions_per_chunk",
+        "chunk_size_threshold",
+        "PolicyServer",
+        "RobotClient",
+        "ChunkTimelineWidget",
+      ],
+      "safety-reliability": [
+        "0.6500",
+        "0.0000",
+        "ISO/TS 15066",
+        "不适用于非工业",
+        "ISO 10218-1",
+        "WatchdogWidget",
+        "不算急停",
+      ],
+      "robot-devops": [
+        "mcap",
+        "total_gap_events=3",
+        "action-ros-ci",
+        "开发容器",
+        "get_default_storage_id",
+        "wandb",
+      ],
+    },
+  };
+  let phraseHits = 0;
+  for (const lang of ["en", "zh"]) {
+    for (const [slug, qs] of Object.entries(phrases[lang])) {
+      const text = rd8(`src/content/m8/${slug}/${lang}.mdx`);
+      for (const q of qs) {
+        ok(text.includes(q), `m8 ${slug} ${lang}: expected ${JSON.stringify(q)}`);
+        phraseHits++;
+      }
+    }
+  }
+
+  // curriculum wiring
+  const cur = rd8("src/lib/curriculum.ts");
+  ok(/month8Lessons/.test(cur) && /slug: "month-8"/.test(cur), "m8 curriculum: month8Lessons + month-8");
+  for (const slug of ["dataset-engineering", "vla-finetune", "async-deployment", "ros2-hardware-interface", "safety-reliability", "robot-devops", "capstone"]) {
+    ok(new RegExp(`slug: "${slug}"`).test(cur), `m8 curriculum has ${slug}`);
+  }
+  ok(/minutes: 180/.test(cur) && /minutes: 240/.test(cur) && /minutes: 300/.test(cur),
+    "m8 curriculum: 180/240/300 present");
+
+  // reproduce.sh hook
+  ok(/month-8\/check\.sh/.test(rd8("tools/sim/reproduce.sh")), "m8 hooked in reproduce.sh");
+
+  console.log(`calc  m8 gaps: audit 24/UNDER; sync ${syncIdle} async ${asyncIdle}; watch 0.6500/0; bag gaps 3; phrases ${phraseHits}; bound in en/zh`);
+}
+
+
+
+
 
 
 

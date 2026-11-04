@@ -1,0 +1,8 @@
+dataset local/synthetic_so101_pick  fps=10  episodes=24  frames=525
+variation         n_ep   mean_s  action_min  action_max  miss       flag
+cube_A              10     2.20      -0.200       0.031     0         ok
+cube_B              10     2.20       0.000       0.230     0         ok
+cube_C               4     2.12       0.350       0.572     1      UNDER
+target_min_episodes_per_variation=8
+under_covered: cube_C
+total_variations=3 total_episodes=24

@@ -1,0 +1,7 @@
+bag=sample_bag storage_id=mcap duration_s=2 (synthetic fixture; not a binary .mcap)
+topic                            n   hz_est  nominal  gaps
+/joint_states                   99    49.00     50.0     1
+/camera/color/image_raw         31    15.00     15.0     0
+/tf                             59    29.00     30.0     2
+total_gap_events=3
+ok: fixture storage_id is mcap (Jazzy rosbag2 default)
