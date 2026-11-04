@@ -1,13 +1,133 @@
 This lesson is a site supplement — Months 7–8 are not part of the original six-month course.
 
-## Outline (full text in a later batch)
+Month 4's ros2-control lesson used ready-made or mock hardware. Here you sketch a real <Term id="hardware-component">hardware component</Term> so MoveIt and controllers can drive an SO-101-class bus. We walk the <Term id="lifecycle-node">lifecycle</Term> callbacks, state/command exports, `read` / `write`, JointLimiter startup logs, and real-time loop hygiene. The CPU toy measures bus jitter timeouts; the C++ plugin under `so101_hw/` is a skeleton for **your** Jazzy workspace — **本页未运行**.
 
-**Writing a ros2_control hardware component for the SO-101.** This page is a placeholder so the Month 8 curriculum can list all seven lessons while batch 1 ships 8.1, 8.3, 8.5 and 8.6. Planned scope: lifecycle callbacks, state/command interfaces, read/write, joint limiters, real-time loop cautions; hardware verification marked not run on this page.
+## Lifecycle callbacks
 
-Check `docs/notes/month-8-plan.md` for the batch schedule. The tasks on this lesson's sidebar are reading prompts only until the full MDX lands.
+control.ros.org (Jazzy) *Writing a Hardware Component*: your class extends `hardware_interface::{System|Actuator|Sensor}Interface` and implements LifecycleNodeInterface methods plus the interface hooks:
+
+- `on_init`
+- `on_configure` / `on_cleanup` / `on_shutdown`
+- `on_activate` / `on_deactivate`
+- `on_error`
+- `export_state_interfaces` / `export_command_interfaces` (Jazzy can also auto-export from the URDF `ros2_control` tag)
+- optional `prepare_command_mode_switch` / `perform_command_mode_switch`
+- **`read`** / **`write`** every control period
+
+`on_configure` is where you open the serial device; `on_activate` enables power/torque; `read` copies bus state into state interfaces; `write` pushes commands. Keep allocations and blocking Hub calls **out** of `read`/`write`.
+
+## JointLimiter
+
+The Jazzy joint_limiting docs show startup lines like `Using JointLimiter for joint 'joint1' ... has position limits: true [-1, 1]` and velocity limits. Wire limits in the `ros2_control` XML so a bad command cannot ask for an infinite velocity before your soft stops in lesson 8.5 even run.
+
+## Real-time loop hygiene
+
+ROS 2's Real-Time-Programming demo (docs source `Real-Time-Programming.rst` on the jazzy branch of `ros2/ros2_documentation`) states the rule in one line: the real-time loop must meet deadlines with only small jitter — avoid page faults, dynamic allocation, and unbounded blocking on the hot path. ROS 1 did not design for that; do not reintroduce blocking USB retries inside `write()`.
+
+## CPU deliverable: `servo_bus_sim.py`
+
+```bash
+$ cd ~/Hardware-learning/examples/month-8/ros2-hardware-interface
+$ python3 servo_bus_sim.py
+```
+
+<CodeSource path="examples/month-8/ros2-hardware-interface/servo_bus_sim.py" />
+
+```python
+#!/usr/bin/env python3
+"""servo_bus_sim.py: simulate hardware read/write cycle jitter → timeout counts.
+
+Models a ros2_control-style loop at CONTROL_HZ. Each tick must finish both
+read() and write() within the period. Bus latency is base + jitter; when the
+sum exceeds the period the tick is a TIMEOUT (deadline miss).
+
+Modes:
+  naive — always pay full read+write cost.
+  budget_guard — if projected read+write would exceed the period, skip the
+                 blocking write and apply a cheap hold (HOLD_MS). That can still
+                 miss if read alone is huge, but usually cuts timeouts.
+
+Pinned seed and constants keep expected/ stable. Pure CPU; no real serial.
+The so101_hw/ skeleton beside this file is for your Jazzy workspace
+(marked 「本页未运行」 in the lesson).
+usage: python3 servo_bus_sim.py
+"""
+from __future__ import annotations
+
+import random
+
+CONTROL_HZ = 100
+PERIOD_MS = 1000.0 / CONTROL_HZ  # 10.0
+BASE_READ_MS = 2.0
+BASE_WRITE_MS = 2.5
+JITTER_MS = 6.0  # uniform [0, JITTER_MS] added to read and to write
+HOLD_MS = 0.4  # cheap "hold last command" path under budget_guard
+TICKS = 200
+SEED = 8
+
+
+def run(budget_guard: bool) -> tuple[int, float, int]:
+    """Return (timeouts, max_overshoot_ms, holds_used)."""
+    rng = random.Random(SEED)
+    timeouts = 0
+    max_over = 0.0
+    holds = 0
+    for _ in range(TICKS):
+        read_ms = BASE_READ_MS + rng.random() * JITTER_MS
+        write_ms = BASE_WRITE_MS + rng.random() * JITTER_MS
+        if budget_guard and (read_ms + write_ms) > PERIOD_MS:
+            total = read_ms + HOLD_MS
+            holds += 1
+        else:
+            total = read_ms + write_ms
+        over = total - PERIOD_MS
+        if over > 0:
+            timeouts += 1
+            max_over = max(max_over, over)
+    return timeouts, max_over, holds
+
+
+def main() -> None:
+    t_naive, o_naive, _ = run(False)
+    t_guard, o_guard, holds = run(True)
+    print(f"servo_bus_sim control_hz={CONTROL_HZ} period_ms={PERIOD_MS:g} ticks={TICKS} seed={SEED}")
+    print(f"naive_timeouts={t_naive} naive_max_overshoot_ms={o_naive:.3f}")
+    print(f"guard_timeouts={t_guard} guard_max_overshoot_ms={o_guard:.3f} holds={holds}")
+    print(f"timeout_reduction={t_naive - t_guard}")
+    print("ok: CPU bus jitter toy (no real STS3215 bus, page not run)")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+servo_bus_sim control_hz=100 period_ms=10 ticks=200 seed=8
+naive_timeouts=122 naive_max_overshoot_ms=6.072
+guard_timeouts=0 guard_max_overshoot_ms=0.000 holds=122
+timeout_reduction=122
+ok: CPU bus jitter toy (no real STS3215 bus, page not run)
+```
+
+</SimOutput>
+
+At **100 Hz** (10 ms period) with pinned jitter, the naive path records **naive_timeouts=122** and **naive_max_overshoot_ms=6.072**. The budget guard (skip blocking write, apply a cheap hold) drives **guard_timeouts=0** with **holds=122** and **timeout_reduction=122**. That is the engineering moral: when the bus is late, fail soft inside the period instead of dragging `write` past the deadline.
+
+## Skeleton plugin (`so101_hw/`)
+
+`examples/month-8/ros2-hardware-interface/so101_hw/` holds `fake_bus.hpp` and a disabled `so101_system_skeleton.cpp` outline. Copy them into **your** package, enable the `#if 0` block, add `PLUGINLIB_EXPORT_CLASS`, and verify with `ros2 control list_hardware_interfaces` on your machine (**本页未运行**). Pair the package with lesson 8.6's Dev Container and `action-ros-ci` so every push builds the plugin.
+
+## Common mistakes
+
+- **Opening the serial port inside `read`.** Configure once in `on_configure`; keep the period deterministic.
+- **Allocating vectors every `write`.** Pre-size buffers at configure time.
+- **Skipping JointLimiter.** Software watchdogs (8.5) are not a substitute for declaring position/velocity limits to ros2_control.
+- **Expecting this site's CI to load your `.so`.** Student package CI ≠ Hardware-learning website CI.
 
 <Summary>
 
-Placeholder for **Writing a ros2_control hardware component for the SO-101**. Full worked examples ship in a later Month 8 batch.
+Write a ros2_control hardware component: lifecycle `on_init`/`configure`/`activate`/…, export state/command interfaces, `read`/`write`, JointLimiter logs, RT hygiene (no alloc/block on the hot path). `servo_bus_sim.py` cuts timeouts from 122 to 0 with a budget guard. `so101_hw/` is a skeleton for your Jazzy workspace — 本页未运行.
 
 </Summary>

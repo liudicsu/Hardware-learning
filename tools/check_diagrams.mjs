@@ -2717,11 +2717,14 @@ const lessonRef = (n, slug, lang) => {
 }
 
 {
-  // Month 8 content gaps (batch 1): 8.1 / 8.3 / 8.5 / 8.6 full; 8.2 / 8.4 / 8.7 outline shells.
+  // Month 8 content gaps (batch 1+2): all seven lessons full.
   // 8.1 dataset_audit: 24 eps, cube_C UNDER miss=1, target_min=8.
+  // 8.2 compute_budget: rows=7 under_floor=7; openpi >8/>22.5/>70; GR00T 16+/40+.
   // 8.3 chunk_latency_sim: sync idle 0.200 / async 0.020.
+  // 8.4 servo_bus_sim: naive_timeouts=122 → guard_timeouts=0; reduction=122.
   // 8.5 watchdog_sim: no_watchdog 0.6500 / watchdog 0.0000.
   // 8.6 bag_stats: storage_id=mcap, total_gap_events=3.
+  // 8.7 capstone_gate: 5 of 5 gates; portfolio 8/8 on sample.
   const rd8 = (rel) => readFileSync(join(root, rel), "utf8");
   const audit = rd8("examples/month-8/expected/dataset_audit.txt");
   const chunk = rd8("examples/month-8/expected/chunk_latency_sim.txt");
@@ -2731,6 +2734,12 @@ const lessonRef = (n, slug, lang) => {
   const chunkPy = rd8("examples/month-8/async-deployment/chunk_latency_sim.py");
   const watchPy = rd8("examples/month-8/safety-reliability/watchdog_sim.py");
   const bagPy = rd8("examples/month-8/robot-devops/bag_stats.py");
+  const budget = rd8("examples/month-8/expected/compute_budget.txt");
+  const budgetPy = rd8("examples/month-8/vla-finetune/compute_budget.py");
+  const servo = rd8("examples/month-8/expected/servo_bus_sim.txt");
+  const servoPy = rd8("examples/month-8/ros2-hardware-interface/servo_bus_sim.py");
+  const gate = rd8("examples/month-8/expected/capstone_gate.txt");
+  const gatePy = rd8("examples/month-8/capstone/capstone_gate.py");
   const num8 = (text, re, what) => { const m = text.match(re); ok(m, `m8: ${what} not found`); return m ? Number(m[1]) : NaN; };
 
   ok(/episodes=24/.test(audit) && /frames=525/.test(audit), "m8 audit: 24 eps / 525 frames");
@@ -2771,16 +2780,28 @@ const lessonRef = (n, slug, lang) => {
   ok(/storage_id=mcap/.test(rd8("src/content/m8/robot-devops/en.mdx")) || /returns `"mcap"`/.test(rd8("src/content/m8/robot-devops/en.mdx")) || /returns "mcap"/.test(rd8("src/content/m8/robot-devops/en.mdx")),
     "m8 devops en: states mcap default");
 
-  // outline shells still placeholders
-  for (const slug of ["vla-finetune", "ros2-hardware-interface", "capstone"]) {
-    for (const lang of ["en", "zh"]) {
-      const text = rd8(`src/content/m8/${slug}/${lang}.mdx`);
-      ok(/Outline \(full text in a later batch\)/.test(text) || /大纲（正文在后续批次）/.test(text),
-        `m8 ${slug}/${lang}: must remain outline placeholder this batch`);
-    }
-  }
-  // full lessons have CodeSource + SimOutput
-  for (const slug of ["dataset-engineering", "async-deployment", "safety-reliability", "robot-devops"]) {
+
+  ok(/rows=7/.test(budget) && /under_floor=7/.test(budget), "m8 budget: rows=7 under_floor=7");
+  ok(/openpi_infer/.test(budget) && /8\.0/.test(budget), "m8 budget: openpi infer floor 8");
+  ok(/22\.5/.test(budget) && /70\.0/.test(budget), "m8 budget: openpi lora 22.5 / full 70");
+  ok(/groot_n17_infer/.test(budget) && /16\.0/.test(budget), "m8 budget: groot infer 16");
+  ok(/40\.0/.test(budget) && /80\.0/.test(budget), "m8 budget: groot ft 40 / pi05 80");
+  ok(/OPT_FACTOR_FULL\s*=\s*2\.5/.test(budgetPy), "m8 budget.py: OPT_FACTOR_FULL=2.5");
+  ok(/450e6|450\s*\*\s*1e6|450e6/.test(budgetPy) || /450e6/.test(budgetPy), "m8 budget.py: smolvla 450M");
+
+  ok(/naive_timeouts=122/.test(servo), "m8 servo: naive_timeouts=122");
+  ok(/guard_timeouts=0/.test(servo), "m8 servo: guard_timeouts=0");
+  ok(/timeout_reduction=122/.test(servo), "m8 servo: timeout_reduction=122");
+  ok(/CONTROL_HZ\s*=\s*100/.test(servoPy) && /SEED\s*=\s*8/.test(servoPy), "m8 servo.py: 100 Hz seed 8");
+  ok(/fake_bus\.hpp/.test(rd8("examples/month-8/ros2-hardware-interface/so101_hw/README.md")),
+    "m8 so101_hw: README mentions fake_bus");
+
+  ok(/5 of 5 gates present/.test(gate) || /5 of 5/.test(gate), "m8 gate: 5 of 5");
+  ok(/portfolio_check → 8\/8/.test(gate) || /8\/8/.test(gate), "m8 gate: portfolio 8/8");
+  ok(/--demo/.test(gatePy), "m8 gate.py: supports --demo");
+
+  // all seven lessons full: CodeSource + SimOutput + site supplement
+  for (const slug of ["dataset-engineering", "vla-finetune", "async-deployment", "ros2-hardware-interface", "safety-reliability", "robot-devops", "capstone"]) {
     for (const lang of ["en", "zh"]) {
       const text = rd8(`src/content/m8/${slug}/${lang}.mdx`);
       ok(!/Outline \(full text in a later batch\)/.test(text) && !/大纲（正文在后续批次）/.test(text),
@@ -2828,6 +2849,32 @@ const lessonRef = (n, slug, lang) => {
         "get_default_storage_id",
         "wandb",
       ],
+      "vla-finetune": [
+        "450M",
+        "22.5",
+        "70 GB",
+        "16 GB+",
+        "40 GB+",
+        "2506.01844",
+        "under_floor=7",
+        "lerobot==0.5.1",
+      ],
+      "ros2-hardware-interface": [
+        "naive_timeouts=122",
+        "guard_timeouts=0",
+        "timeout_reduction=122",
+        "Using JointLimiter",
+        "on_init",
+        "本页未运行",
+      ],
+      "capstone": [
+        "5 of 5",
+        "8/8",
+        "20 starts",
+        "130",
+        "2405.05941",
+        "Track A",
+      ],
     },
     zh: {
       "dataset-engineering": [
@@ -2865,6 +2912,32 @@ const lessonRef = (n, slug, lang) => {
         "get_default_storage_id",
         "wandb",
       ],
+      "vla-finetune": [
+        "450M",
+        "22.5",
+        "70 GB",
+        "16 GB+",
+        "40 GB+",
+        "2506.01844",
+        "under_floor=7",
+        "lerobot==0.5.1",
+      ],
+      "ros2-hardware-interface": [
+        "naive_timeouts=122",
+        "guard_timeouts=0",
+        "timeout_reduction=122",
+        "Using JointLimiter",
+        "on_init",
+        "本页未运行",
+      ],
+      "capstone": [
+        "5/5",
+        "8/8",
+        "20",
+        "130",
+        "2405.05941",
+        "轨道 A",
+      ],
     },
   };
   let phraseHits = 0;
@@ -2890,7 +2963,7 @@ const lessonRef = (n, slug, lang) => {
   // reproduce.sh hook
   ok(/month-8\/check\.sh/.test(rd8("tools/sim/reproduce.sh")), "m8 hooked in reproduce.sh");
 
-  console.log(`calc  m8 gaps: audit 24/UNDER; sync ${syncIdle} async ${asyncIdle}; watch 0.6500/0; bag gaps 3; phrases ${phraseHits}; bound in en/zh`);
+  console.log(`calc  m8 gaps: audit 24/UNDER; budget under7; sync ${syncIdle} async ${asyncIdle}; servo 122→0; watch 0.6500/0; bag gaps 3; gate 5/5; phrases ${phraseHits}; bound in en/zh`);
 }
 
 

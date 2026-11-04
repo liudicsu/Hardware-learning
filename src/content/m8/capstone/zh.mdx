@@ -1,13 +1,189 @@
 本课是本站补充内容——第 7–8 个月不属于原六个月课程。
 
-## 大纲（正文在后续批次）
+从三条轨道中**选一条**做完，并满足统一门槛：安全清单（8.5）、容器/CI（8.6）、第 6 月评估规程（**20** 个起始、**5** 个未见、Wilson 区间、失败表），以及第 6 月 `portfolio_check.py` 的 **8/8**。仓库里的 `capstone_gate.py` 会在示例项目上检查这些门。LIBERO 只是可选仿真基准——**本页未运行**。
 
-**毕业项目：从数据到部署的完整机器人系统。** 本页是占位，好让第 8 个月课程表能列全七课，而本批次先交付 8.1、8.3、8.5、8.6。计划范围：轨道 A/B/C（学习型 / 感知抓取型 / 仿真到真机 RL）、共用安全与 DevOps 门槛、第 6 个月评估规程、portfolio_check 八项。
+## 三条轨道
 
-批次安排见 `docs/notes/month-8-plan.md`。侧栏任务在全文落地前只作阅读提示。
+| 轨道 | 路径 |
+|------|------|
+| **A — 学习型** | 数据（8.1）→ 微调（8.2）→ 异步部署（8.3） |
+| **B — 感知抓取型** | 深度/点云（7.5）+ 开放词汇抓取（7.6）+ MoveIt + 硬件组件（8.4） |
+| **C — 仿真到真机 RL** | MuJoCo SO-101（7.1）→ 仿真到真机（7.4），在真臂上验证 |
+
+硬件提示：A 微调需要云 GPU；B 最好有深度相机；若 7.3/7.4 已按 CPU 路线，C 可以偏 CPU。
+
+## 统一交付门槛
+
+1. **安全** — 填好 `examples/month-8/safety-reliability/bench_safety_checklist.md`（或你仓库中的副本），含物理急停路径。
+2. **工程化** — 在**你的**功能包仓库里 Dev Container + `action-ros-ci` 变绿（8.6）。不是本站网站 CI。
+3. **评估** — 第 6 月规程：先写 20 个起始；5 个永不进训练集；Wilson 95 %；失败表。
+4. **作品集** — 项目 README 经 `portfolio_check.py` 得到 8/8（视频、结果、试验次数、失败、复现、硬件、贡献、下一步）。
+
+模板：`examples/month-8/capstone/capstone_checklist.md`。
+
+## 在示例上跑门禁
+
+```bash
+$ cd ~/Hardware-learning/examples/month-8/capstone
+$ python3 capstone_gate.py --demo
+```
+
+<CodeSource path="examples/month-8/capstone/capstone_gate.py" />
+
+```python
+#!/usr/bin/env python3
+"""capstone_gate.py: check a capstone project folder for Month 8 shared gates.
+
+Looks for (stdlib text rules only — cannot judge quality):
+  track          TRACK.md or README names track A/B/C
+  safety         bench_safety_checklist.md (or SAFETY.md) with e-stop / 急停
+  devops         .devcontainer/ or a workflow mentioning action-ros-ci / ros-ci
+  eval_protocol  README mentions 20 starts / Wilson / held-out (or 未见 / Wilson)
+  portfolio_8    delegates to Month 6 portfolio_check on the same folder
+
+usage:
+  python3 capstone_gate.py PROJECT_DIR
+  python3 capstone_gate.py --demo    # runs against bundled sample_project
+"""
+from __future__ import annotations
+
+import os
+import re
+import subprocess
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+PORTFOLIO = os.path.normpath(
+    os.path.join(HERE, "..", "..", "month-6", "specialisation-portfolio", "portfolio_check.py")
+)
+
+
+def read(path: str) -> str:
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
+def find_safety(root: str) -> str | None:
+    for name in ("bench_safety_checklist.md", "SAFETY.md", "safety.md"):
+        p = os.path.join(root, name)
+        if os.path.isfile(p):
+            return p
+    return None
+
+
+def check(root: str) -> int:
+    root = os.path.abspath(root)
+    readme = os.path.join(root, "README.md")
+    if not os.path.isfile(readme):
+        print(f"FAIL  no README.md under {root}")
+        return 1
+    text = read(readme)
+    missing = 0
+
+    def gate(name: str, ok: bool, detail: str) -> None:
+        nonlocal missing
+        missing += not ok
+        print(f"  {'ok     ' if ok else 'MISSING'} {name:<14} {detail}")
+
+    print(f"{os.path.basename(root)}: capstone gates")
+
+    track_ok = bool(
+        re.search(r"\btrack\s*[ABC]\b|轨道\s*[ABC]|Track\s*[ABC]", text, re.I)
+    ) or os.path.isfile(os.path.join(root, "TRACK.md"))
+    gate("track", track_ok, "README/TRACK names track A, B, or C")
+
+    safety_path = find_safety(root)
+    safety_ok = False
+    if safety_path:
+        s = read(safety_path)
+        safety_ok = bool(re.search(r"e-?stop|急停", s, re.I))
+    gate("safety", safety_ok, "bench_safety_checklist.md (or SAFETY.md) with e-stop/急停")
+
+    devops_ok = os.path.isdir(os.path.join(root, ".devcontainer")) or bool(
+        re.search(r"action-ros-ci|ros-tooling/action-ros-ci", text, re.I)
+    )
+    if not devops_ok:
+        wf = os.path.join(root, ".github", "workflows")
+        if os.path.isdir(wf):
+            for fn in os.listdir(wf):
+                body = read(os.path.join(wf, fn))
+                if re.search(r"action-ros-ci|ros-tooling", body, re.I):
+                    devops_ok = True
+                    break
+    gate("devops", devops_ok, ".devcontainer or action-ros-ci workflow")
+
+    eval_ok = bool(
+        re.search(r"\b20\b.*(?:start|position|trial)|Wilson|held[- ]out|未见|起始", text, re.I)
+    )
+    gate("eval_protocol", eval_ok, "M6 protocol: 20 starts / held-out / Wilson")
+
+    # portfolio 8/8
+    if not os.path.isfile(PORTFOLIO):
+        gate("portfolio_8", False, f"cannot find portfolio_check.py at {PORTFOLIO}")
+    else:
+        proc = subprocess.run(
+            [sys.executable, PORTFOLIO, root],
+            capture_output=True,
+            text=True,
+        )
+        out = (proc.stdout or "") + (proc.stderr or "")
+        m = re.search(r"(\d+)\s+of\s+8\s+present", out)
+        n = int(m.group(1)) if m else -1
+        gate("portfolio_8", n == 8, f"portfolio_check → {n}/8 (exit {proc.returncode})")
+
+    print(f"  {5 - missing} of 5 gates present")
+    return 1 if missing else 0
+
+
+def main() -> None:
+    if len(sys.argv) == 2 and sys.argv[1] == "--demo":
+        sample = os.path.join(HERE, "sample_project")
+        raise SystemExit(check(sample))
+    if len(sys.argv) != 2:
+        raise SystemExit(__doc__.strip().splitlines()[-2])
+    raise SystemExit(check(sys.argv[1]))
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+sample_project: capstone gates
+  ok      track          README/TRACK names track A, B, or C
+  ok      safety         bench_safety_checklist.md (or SAFETY.md) with e-stop/急停
+  ok      devops         .devcontainer or action-ros-ci workflow
+  ok      eval_protocol  M6 protocol: 20 starts / held-out / Wilson
+  ok      portfolio_8    portfolio_check → 8/8 (exit 0)
+  5 of 5 gates present
+```
+
+</SimOutput>
+
+`sample_project/` 下的示例是**虚构**的，只为通过文本规则（5/5 门、作品集 8/8）。正式毕业前换成你自己的 README、视频与数字。
+
+在你自己的仓库：
+
+```bash
+$ python3 ~/Hardware-learning/examples/month-6/specialisation-portfolio/portfolio_check.py ~/my-capstone
+$ python3 ~/Hardware-learning/examples/month-8/capstone/capstone_gate.py ~/my-capstone
+```
+
+## 可选：LIBERO / SimplerEnv
+
+LeRobot 的 LIBERO 文档：**5** 个套件、**130** 个任务，Linux + MuJoCo；无头机器设 `MUJOCO_GL=egl`；`lerobot-eval --env.type=libero` 默认在四个标准套件上每任务评 10 集。**本页未运行。** SimplerEnv（arXiv **2405.05941**）研究仿真分数与真机表现的相关性——若只报仿真分，请引用它。二者都不能代替你轨道上 SO-101 的 20 次真实起始。
+
+## 常见错误
+
+- **只有演示视频，没有 20 起始表。** 审阅者两分钟就会退回。
+- **只在本课程仓库开 CI。** 毕业项目 CI 在*你的*功能包仓库。
+- **因为是桌面臂就跳过安全清单。** 桌面臂也会夹手。
+- **把 LIBERO 当成毕业标准。** 它是可选项；上面的统一门槛才是必须。
 
 <Summary>
 
-**毕业项目：从数据到部署的完整机器人系统** 的占位页。完整例题与脚本在后续第 8 个月批次交付。
+毕业项目：选轨道 A/B/C；交付 8.5 安全、8.6 开发容器/CI、第 6 月的 20 起始 / 5 未见 / Wilson / 失败表，以及 portfolio_check 8/8。`capstone_gate.py --demo` 在示例上显示 5/5。LIBERO（130 任务）与 SimplerEnv（arXiv 2405.05941）可选——本页未运行。
 
 </Summary>

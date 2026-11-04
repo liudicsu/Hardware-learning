@@ -1,0 +1,11 @@
+compute_budget: toy VRAM estimates vs official floors (no weights loaded)
+name                 params prec mode   est_GB floor_GB   vs_floor
+smolvla_base          0.45B bf16 full     2.25     40.0      UNDER
+openpi_infer          3.30B bf16 infer    7.92      8.0      UNDER
+openpi_lora           3.30B bf16 lora     6.86     22.5      UNDER
+openpi_full           3.30B bf16 full    16.50     70.0      UNDER
+groot_n17_infer       3.00B bf16 infer    7.20     16.0      UNDER
+groot_n17_ft          3.00B bf16 full    15.00     40.0      UNDER
+pi05_lerobot          3.30B bf16 full    16.50     80.0      UNDER
+rows=7 under_floor=7 over_or_eq=0
+ok: floors from openpi README / Isaac-GR00T README / LeRobot smolvla+pi05 (page not run)

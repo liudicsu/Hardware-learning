@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+"""compute_budget.py: estimate VRAM from params/precision/LoRA and compare official floors.
+
+Stdlib toy for lesson 8.2. Does NOT load weights or run fine-tuning.
+Official floors are pinned from primary docs (re-checked 2026-11-04 Asia/Shanghai):
+  - openpi README: infer >8 GB; LoRA FT >22.5 GB; full FT >70 GB
+  - Isaac-GR00T README: infer 16 GB+; fine-tune 40 GB+ recommended
+  - LeRobot SmolVLA: smolvla_base 450M; 20k steps ~4 h on one A100
+  - LeRobot π0.5: fine-tune command sized for a single 80 GB GPU
+
+Rough estimator (teaching only, not a profiler):
+  weight_GB ≈ n_params * bytes_per_param / 1e9
+  train_GB  ≈ weight_GB * optimizer_factor   (AdamW-ish ~2–3× weights in fp16)
+  lora_GB   ≈ weight_GB + adapter_GB * optimizer_factor
+usage: python3 compute_budget.py
+"""
+from __future__ import annotations
+
+BYTES = {"fp32": 4, "bf16": 2, "fp16": 2, "int8": 1}
+# Adam-like: weights + moments; pinned for expected/
+OPT_FACTOR_FULL = 2.5
+OPT_FACTOR_LORA = 2.0
+LORA_RANK_FRAC = 0.02  # adapters ~2 % of dense params (order-of-magnitude toy)
+
+
+def weight_gb(n_params: float, precision: str) -> float:
+    return n_params * BYTES[precision] / 1e9
+
+
+def estimate(n_params: float, precision: str, mode: str) -> float:
+    w = weight_gb(n_params, precision)
+    if mode == "infer":
+        return round(w * 1.2, 2)  # small activation overhead
+    if mode == "full":
+        return round(w * OPT_FACTOR_FULL, 2)
+    if mode == "lora":
+        adapters = w * LORA_RANK_FRAC
+        return round(w + adapters * OPT_FACTOR_LORA, 2)
+    raise ValueError(mode)
+
+
+# Official floors table (source → number). "pass" if estimate sits under floor is NOT
+# required — we only report estimate vs floor so students see the gap.
+OFFICIAL = [
+    # name, params, precision, mode, floor_GB, note
+    ("smolvla_base", 450e6, "bf16", "full", 40.0, "LeRobot: ~4h/20k on A100; floor=illustrative A100-class"),
+    ("openpi_infer", 3.3e9, "bf16", "infer", 8.0, "openpi README: Inference > 8 GB"),
+    ("openpi_lora", 3.3e9, "bf16", "lora", 22.5, "openpi README: Fine-Tuning (LoRA) > 22.5 GB"),
+    ("openpi_full", 3.3e9, "bf16", "full", 70.0, "openpi README: Fine-Tuning (Full) > 70 GB"),
+    ("groot_n17_infer", 3e9, "bf16", "infer", 16.0, "Isaac-GR00T: Inference 16 GB+"),
+    ("groot_n17_ft", 3e9, "bf16", "full", 40.0, "Isaac-GR00T: Fine-tuning 40 GB+ recommended"),
+    ("pi05_lerobot", 3.3e9, "bf16", "full", 80.0, "LeRobot pi05: sized for a single 80 GB GPU"),
+]
+
+
+def main() -> None:
+    print("compute_budget: toy VRAM estimates vs official floors (no weights loaded)")
+    print(f"{'name':<18} {'params':>8} {'prec':>4} {'mode':<5} {'est_GB':>7} {'floor_GB':>8} {'vs_floor':>10}")
+    under = 0
+    over = 0
+    for name, n, prec, mode, floor, _note in OFFICIAL:
+        est = estimate(n, prec, mode)
+        tag = "UNDER" if est < floor else "OVER_OR_EQ"
+        if est < floor:
+            under += 1
+        else:
+            over += 1
+        print(
+            f"{name:<18} {n/1e9:7.2f}B {prec:>4} {mode:<5} {est:7.2f} {floor:8.1f} {tag:>10}"
+        )
+    print(f"rows={len(OFFICIAL)} under_floor={under} over_or_eq={over}")
+    print("ok: floors from openpi README / Isaac-GR00T README / LeRobot smolvla+pi05 (page not run)")
+
+
+if __name__ == "__main__":
+    main()

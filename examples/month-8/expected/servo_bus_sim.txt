@@ -1,0 +1,5 @@
+servo_bus_sim control_hz=100 period_ms=10 ticks=200 seed=8
+naive_timeouts=122 naive_max_overshoot_ms=6.072
+guard_timeouts=0 guard_max_overshoot_ms=0.000 holds=122
+timeout_reduction=122
+ok: CPU bus jitter toy (no real STS3215 bus, page not run)

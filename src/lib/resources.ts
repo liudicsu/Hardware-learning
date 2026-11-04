@@ -1843,6 +1843,20 @@ export const resources: Record<string, Resource> = {
     license: { zh: "开源项目文档（Apache-2.0），© Hugging Face；仅提供外链", en: "Open-source project docs (Apache-2.0), © Hugging Face; external link only" },
     extra: true,
   },
+  "isaac-groot": {
+    id: "isaac-groot",
+    url: "https://github.com/NVIDIA/Isaac-GR00T",
+    title: { zh: "Isaac-GR00T：NVIDIA 开源 GR00T 仓库", en: "Isaac-GR00T: NVIDIA's open GR00T repository" },
+    author: "NVIDIA",
+    kind: "model",
+    cost: { zh: "开源（推理/微调需要大显存 GPU）", en: "Open source (inference/fine-tune need a large GPU)" },
+    summary: {
+      zh: "GR00T N1.7 上游仓库。README 写明推理约 16 GB+ 显存、微调推荐 40 GB+；基座检查点 nvidia/GR00T-N1.7-3B。以该 README 当前数字为准。",
+      en: "Upstream GR00T N1.7 repository. The README states inference at 16 GB+ VRAM and fine-tuning at 40 GB+ recommended; base checkpoint nvidia/GR00T-N1.7-3B. Take current numbers from that README.",
+    },
+    license: { zh: "开源项目（见仓库许可证）；仅提供外链", en: "Open-source project (see repo licence); external link only" },
+    extra: true,
+  },
   "lerobot-async": {
     id: "lerobot-async",
     url: "https://huggingface.co/docs/lerobot/async",
