@@ -6,7 +6,7 @@ Lesson 7.5 turned a depth image into clusters in the camera frame. Grasping need
 
 Data flow:
 
-1. **Prompt or click** → binary mask on the RGB image (open-vocabulary segmenters; SAM2 is Apache-2.0 — re-checked on the upstream LICENSE this batch).
+1. **Prompt or click** → binary mask on the RGB image (<Term id="open-vocabulary-segmentation">open-vocabulary segmentation</Term>; SAM2 is Apache-2.0 — re-checked on the upstream LICENSE this batch).
 2. **Mask + depth + intrinsics** → camera-frame centroid (lesson 7.5 back-projection).
 3. **Hand-eye extrinsics** → point in gripper or base.
 4. **Grasp representation** → at minimum a point, an approach axis and a width; classical GraspNet-style 6-DoF hypotheses are the research counterpart, not required here.

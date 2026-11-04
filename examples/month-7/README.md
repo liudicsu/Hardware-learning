@@ -4,8 +4,9 @@ CPU-reproducible scripts for Month 7 (site supplement). Run `./check.sh` from th
 
 | lesson | script | needs |
 |--------|--------|-------|
-| mujoco-so101 | `mujoco-so101/grip_sweep.py` | `pip install mujoco` (set `M7_PYTHON` to that interpreter) |
+| mujoco-so101 | `mujoco-so101/grip_sweep.py` | `pip install mujoco` in a private venv (set `M7_PYTHON` to that interpreter) |
 | rl-foundations | `rl-foundations/ppo_reach.py` | stdlib |
+| rl-manipulation-sim | `rl-manipulation-sim/reward_shaping.py` | stdlib |
+| sim-to-real | `sim-to-real/sysid_fit.py`, `randomize_eval.py` | stdlib |
 | depth-pointcloud | `depth-pointcloud/cloud_pipeline.py` | stdlib |
-
-Lessons 7.3 / 7.4 / 7.6 land in a later batch.
+| perception-to-grasp | `perception-to-grasp/handeye_toy.py` (numpy), `grasp_from_mask.py` | stdlib |
