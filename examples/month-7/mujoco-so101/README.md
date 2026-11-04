@@ -6,8 +6,9 @@ the time constant. The lesson maps this onto Menagerie's `robotstudio_so101` (Mu
 Apache-2.0, 6 DoF).
 
 ```bash
-python3 -m pip install mujoco
-python3 grip_sweep.py
+$ cd ~/Hardware-learning/examples/month-7/mujoco-so101
+$ python3 -m venv ~/Hardware-learning/.venv && source ~/Hardware-learning/.venv/bin/activate && python3 -m pip install mujoco  # Menagerie models need >= 3.1.3
+$ python3 grip_sweep.py
 # viewer on your machine (not run in the lesson page):
-python3 -m mujoco.viewer --mjcf grip_scene.xml
+$ python3 -m mujoco.viewer --mjcf grip_scene.xml
 ```

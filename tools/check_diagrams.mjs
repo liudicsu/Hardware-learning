@@ -2474,6 +2474,13 @@ const lessonRef = (n, slug, lang) => {
     "m7 grip.py: ImportError hints private venv + pip install mujoco");
   ok(!/Install with: python3 -m pip install mujoco\n/.test(gripPy),
     "m7 grip.py: bare pip-only Install hint must be gone");
+  const gripReadme = rd7("examples/month-7/mujoco-so101/README.md");
+  ok(/python3 -m venv ~\/Hardware-learning\/\.venv/.test(gripReadme) && /pip install mujoco/.test(gripReadme),
+    "m7 mujoco README: private venv + pip install mujoco");
+  ok(!/^python3 -m pip install mujoco$/m.test(gripReadme),
+    "m7 mujoco README: bare pip-only install line must be gone");
+  ok(/>= 3\.1\.3|≥ 3\.1\.3/.test(gripReadme),
+    "m7 mujoco README: notes Menagerie >= 3.1.3");
 
   const gamma = num7(ppoPy, /GAMMA\s*=\s*([\d.]+)/, "ppo GAMMA");
   ok(gamma === 0.99, `m7 ppo: GAMMA=${gamma}`);
@@ -2618,6 +2625,7 @@ const lessonRef = (n, slug, lang) => {
         "python3 -m venv ~/Hardware-learning/.venv",
         "source ~/Hardware-learning/.venv/bin/activate",
         "PEP 668",
+        "Menagerie ≥ 3.1.3",
       ],
       "rl-foundations": [
         "arXiv 1707.06347",
