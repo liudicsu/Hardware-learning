@@ -1,0 +1,5 @@
+dt=0.02 horizon=200 obstacle=0.4 load_thresh=200 load_fullscale=1000
+mode                x_final  peak_load  max_pen_m
+position_only        0.9941     1000.0     0.5941
+load_retreat         0.4841      208.2     0.1041
+ok: load_retreat peak_load < position_only (208.2 < 1000.0) and max_pen (0.1041 < 0.5941) => True

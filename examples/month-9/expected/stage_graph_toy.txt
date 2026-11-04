@@ -1,0 +1,50 @@
+=== good_pick_place ===
+stage                  type         container       cost_s deps
+current_state          generator    root              0.01 -
+open_hand              propagator   serial            0.05 current_state
+connect_to_grasp       connector    root              0.40 open_hand
+approach               propagator   serial_grasp      0.20 connect_to_grasp
+generate_grasp_pose    generator    serial_grasp      0.15 approach
+compute_ik             propagator   serial_grasp      0.25 generate_grasp_pose
+allow_collision        propagator   serial_grasp      0.02 compute_ik
+close_hand             propagator   serial_grasp      0.05 allow_collision
+attach_object          propagator   serial_grasp      0.02 close_hand
+lift                   propagator   serial_grasp      0.18 attach_object
+connect_to_place       connector    root              0.45 lift
+place_approach         propagator   serial_place      0.20 connect_to_place
+generate_place_pose    generator    serial_place      0.12 place_approach
+place_ik               propagator   serial_place      0.22 generate_place_pose
+open_place             propagator   serial_place      0.05 place_ik
+detach                 propagator   serial_place      0.02 open_place
+retreat                propagator   serial_place      0.15 detach
+return_home            propagator   serial            0.30 retreat
+stages=18 total_mock_cost_s=2.84 seed=9
+ok: no cycle
+ok: all stages reachable from current_state
+ok: open_hand has a connector successor
+counts generators=3 propagators=13 connectors=2
+
+=== broken_no_connect_plus_cycle ===
+stage                  type         container       cost_s deps
+current_state          generator    root              0.01 return_home
+open_hand              propagator   serial            0.05 current_state
+approach               propagator   serial_grasp      0.20 open_hand
+generate_grasp_pose    generator    serial_grasp      0.15 approach
+compute_ik             propagator   serial_grasp      0.25 generate_grasp_pose
+allow_collision        propagator   serial_grasp      0.02 compute_ik
+close_hand             propagator   serial_grasp      0.05 allow_collision
+attach_object          propagator   serial_grasp      0.02 close_hand
+lift                   propagator   serial_grasp      0.18 attach_object
+connect_to_place       connector    root              0.45 lift
+place_approach         propagator   serial_place      0.20 connect_to_place
+generate_place_pose    generator    serial_place      0.12 place_approach
+place_ik               propagator   serial_place      0.22 generate_place_pose
+open_place             propagator   serial_place      0.05 place_ik
+detach                 propagator   serial_place      0.02 open_place
+retreat                propagator   serial_place      0.15 detach
+return_home            propagator   serial            0.30 retreat
+stages=17 total_mock_cost_s=2.44 seed=9
+FAIL cycle: current_state -> open_hand -> approach -> generate_grasp_pose -> compute_ik -> allow_collision -> close_hand -> attach_object -> lift -> connect_to_place -> place_approach -> generate_place_pose -> place_ik -> open_place -> detach -> retreat -> return_home -> current_state
+ok: all stages reachable from current_state
+FAIL missing_connect: open_hand has no connector successor (need Connect before serial_grasp)
+counts generators=3 propagators=13 connectors=1

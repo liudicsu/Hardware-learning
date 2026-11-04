@@ -1,0 +1,261 @@
+本课是本站补充内容——第 7–9 个月不属于原六个月课程。
+
+开环技能序列在真实世界会失败：抓空、物体滑落、目标被挡。<Term id="inner-monologue">Inner Monologue</Term> 的核心是：把成功检测、场景描述或人类反馈以**文本**注回语言模型，形成闭环重规划——**不额外训练**该 LLM。工程上，同一思想落到行为树的 Sequence / Fallback / Retry，也就是本课的 <Term id="behaviour-tree-recovery">行为树恢复</Term>。
+
+## 与看门狗、Nav2 的分工
+
+| 机制 | 管什么 | 本站哪里 |
+| --- | --- | --- |
+| 第 8 个月看门狗 | 指令超时、非法/NaN 指令 | `safety-reliability` |
+| 第 4 个月 Nav2 恢复 | 规划失败 → 清代价地图 / 旋转 / 等待 | `slam-nav` |
+| 本课 | **技能语义失败**（没抓到、物体不见了） | 本页 |
+
+看门狗不管「闭合后开口仍像张开」；那是语义层，要用检测信号 + 重试 / 换技能。
+
+<Resource id="inner-monologue-paper" />
+
+## 行为树三件套
+
+- **Sequence：** 子节点全成功才成功；一个失败则整段失败。
+- **Fallback：** 子节点依次试，谁先成功谁赢（「主计划不行就备用」）。
+- **Retry(n)：** 子节点最多试 n 次。
+
+BehaviorTree.CPP 强调异步 Action 与运行时 XML；本课玩具是同构的迷你实现，不链真实 BT.CPP。
+
+<Resource id="behaviortree-cpp" />
+
+## CPU：抓取失败两次后换备用
+
+树形：
+
+```text
+Fallback(root)
+  Sequence(primary)
+    Retry(GraspPrimary, n=2)
+    Lift
+  Sequence(backup)
+    GraspBackup
+    Lift
+```
+
+注入：`GraspPrimary` 前两次返回 FAILURE。Retry 用尽后 Fallback 走到 `GraspBackup`。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-9/failure-recovery
+$ python3 recovery_bt_toy.py
+```
+
+<CodeSource path="examples/month-9/failure-recovery/recovery_bt_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""recovery_bt_toy.py: mini behaviour tree with grasp retry + fallback (stdlib).
+
+Tree (tick until SUCCESS or root FAILURE):
+  Fallback(root)
+    Sequence(primary)
+      Retry(n=2) → Action(GraspPrimary)   # fails twice, then would fail
+      Action(Lift)
+    Sequence(backup)
+      Action(GraspBackup)                 # succeeds
+      Action(Lift)
+
+Injected: GraspPrimary fails on attempts 1 and 2 (returns FAILURE). After
+Retry exhausts, Fallback ticks the backup sequence. Prints a decision trace.
+
+Contrasts with Month 4 Nav2 recoveries (map clear / spin) and Month 8 watchdog
+(command timeout): this toy is *semantic skill* failure, not packet silence.
+usage: python3 recovery_bt_toy.py
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Callable, List
+
+SUCCESS, FAILURE, RUNNING = "SUCCESS", "FAILURE", "RUNNING"
+
+
+@dataclass
+class Trace:
+    lines: List[str] = field(default_factory=list)
+
+    def log(self, msg: str) -> None:
+        self.lines.append(msg)
+        print(msg)
+
+
+class Node:
+    def tick(self, tr: Trace) -> str:
+        raise NotImplementedError
+
+
+@dataclass
+class Action(Node):
+    name: str
+    fn: Callable[[Trace], str]
+
+    def tick(self, tr: Trace) -> str:
+        status = self.fn(tr)
+        tr.log(f"action {self.name} -> {status}")
+        return status
+
+
+@dataclass
+class Retry(Node):
+    child: Node
+    max_attempts: int
+    name: str = "Retry"
+
+    def tick(self, tr: Trace) -> str:
+        for attempt in range(1, self.max_attempts + 1):
+            tr.log(f"retry {self.name} attempt={attempt}/{self.max_attempts}")
+            status = self.child.tick(tr)
+            if status == SUCCESS:
+                return SUCCESS
+            if status == RUNNING:
+                return RUNNING
+        tr.log(f"retry {self.name} exhausted -> FAILURE")
+        return FAILURE
+
+
+@dataclass
+class Sequence(Node):
+    children: List[Node]
+    name: str = "Sequence"
+
+    def tick(self, tr: Trace) -> str:
+        tr.log(f"sequence {self.name} enter")
+        for ch in self.children:
+            status = ch.tick(tr)
+            if status != SUCCESS:
+                tr.log(f"sequence {self.name} -> {status}")
+                return status
+        tr.log(f"sequence {self.name} -> SUCCESS")
+        return SUCCESS
+
+
+@dataclass
+class Fallback(Node):
+    children: List[Node]
+    name: str = "Fallback"
+
+    def tick(self, tr: Trace) -> str:
+        tr.log(f"fallback {self.name} enter")
+        for ch in self.children:
+            status = ch.tick(tr)
+            if status == SUCCESS:
+                tr.log(f"fallback {self.name} -> SUCCESS")
+                return SUCCESS
+            if status == RUNNING:
+                return RUNNING
+        tr.log(f"fallback {self.name} -> FAILURE")
+        return FAILURE
+
+
+def main() -> None:
+    grasp_attempts = {"n": 0}
+
+    def grasp_primary(tr: Trace) -> str:
+        grasp_attempts["n"] += 1
+        # Fail the first two calls; would succeed on a 3rd but Retry max=2.
+        if grasp_attempts["n"] <= 2:
+            return FAILURE
+        return SUCCESS
+
+    def grasp_backup(tr: Trace) -> str:
+        return SUCCESS
+
+    def lift(tr: Trace) -> str:
+        return SUCCESS
+
+    tree = Fallback(
+        name="root",
+        children=[
+            Sequence(
+                name="primary",
+                children=[
+                    Retry(
+                        name="grasp_primary",
+                        max_attempts=2,
+                        child=Action("GraspPrimary", grasp_primary),
+                    ),
+                    Action("Lift", lift),
+                ],
+            ),
+            Sequence(
+                name="backup",
+                children=[
+                    Action("GraspBackup", grasp_backup),
+                    Action("Lift", lift),
+                ],
+            ),
+        ],
+    )
+
+    tr = Trace()
+    print("bt=Fallback(Sequence(Retry(GraspPrimary,2),Lift), Sequence(GraspBackup,Lift))")
+    status = tree.tick(tr)
+    print(f"root_status={status}")
+    print(f"grasp_primary_attempts={grasp_attempts['n']}")
+    print(f"trace_lines={len(tr.lines)}")
+    # Key assertions mirrored in expected/
+    used_backup = any("GraspBackup" in line for line in tr.lines)
+    print(f"used_backup={used_backup}")
+    print(
+        f"ok: root SUCCESS after GraspPrimary failed twice and GraspBackup ran "
+        f"({status == SUCCESS and grasp_attempts['n'] == 2 and used_backup})"
+    )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+bt=Fallback(Sequence(Retry(GraspPrimary,2),Lift), Sequence(GraspBackup,Lift))
+fallback root enter
+sequence primary enter
+retry grasp_primary attempt=1/2
+action GraspPrimary -> FAILURE
+retry grasp_primary attempt=2/2
+action GraspPrimary -> FAILURE
+retry grasp_primary exhausted -> FAILURE
+sequence primary -> FAILURE
+sequence backup enter
+action GraspBackup -> SUCCESS
+action Lift -> SUCCESS
+sequence backup -> SUCCESS
+fallback root -> SUCCESS
+root_status=SUCCESS
+grasp_primary_attempts=2
+trace_lines=13
+used_backup=True
+ok: root SUCCESS after GraspPrimary failed twice and GraspBackup ran (True)
+```
+
+</SimOutput>
+
+决策轨迹 13 行：`grasp_primary_attempts=2`，`used_backup=True`，`root_status=SUCCESS`。
+
+## 失败表模板
+
+承接第 6 个月失败表格式，按「失败模式 × 检测信号 × 恢复动作」填。模板在：
+
+`~/Hardware-learning/examples/month-9/failure-recovery/failure_table.md`
+
+至少填三行与你任务相关的模式。表头已区分：看门狗管指令超时；本表管语义失败。
+
+## 常见错误
+
+- **只用看门狗覆盖抓空。** 抓空时指令往往仍按时到达。
+- **Retry 无穷次。** 先设上限，再用 Fallback 换技能或请求人工。
+- **失败不写检测信号。** 没有可观测信号就无法自动化恢复。
+- **把 Nav2 恢复参数整课重讲一遍。** 回看第 4 个月即可；本课只交叉链接。
+
+<Summary>
+
+Inner Monologue：文本反馈闭环、不额外训练 LLM。工程落点：Sequence / Fallback / Retry。与第 8 个月看门狗（指令超时）、第 4 个月 Nav2 恢复互补。`recovery_bt_toy.py`：GraspPrimary 失败 2 次后走 GraspBackup，root SUCCESS。按 `failure_table.md` 填语义失败行。
+
+</Summary>

@@ -1,0 +1,19 @@
+bt=Fallback(Sequence(Retry(GraspPrimary,2),Lift), Sequence(GraspBackup,Lift))
+fallback root enter
+sequence primary enter
+retry grasp_primary attempt=1/2
+action GraspPrimary -> FAILURE
+retry grasp_primary attempt=2/2
+action GraspPrimary -> FAILURE
+retry grasp_primary exhausted -> FAILURE
+sequence primary -> FAILURE
+sequence backup enter
+action GraspBackup -> SUCCESS
+action Lift -> SUCCESS
+sequence backup -> SUCCESS
+fallback root -> SUCCESS
+root_status=SUCCESS
+grasp_primary_attempts=2
+trace_lines=13
+used_backup=True
+ok: root SUCCESS after GraspPrimary failed twice and GraspBackup ran (True)
