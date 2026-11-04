@@ -1,13 +1,193 @@
 This lesson is a site supplement — Months 7–9 are not part of the original six-month course.
 
-## Outline (full text in a later batch)
+Month 5 MoveIt pick-place plans a **whole trajectory once**, then plays it. <Term id="moveit-servo">MoveIt Servo</Term> uses a different cadence: **every control cycle** it consumes one velocity/pose command and emits the next joint command. That fits jogging, teleop, and closed-loop “steer while you go.”
 
-**Realtime servo: jogging, singularities and collision slowdown.** This page is a placeholder so the Month 9 curriculum can list all seven lessons while batch 1 ships 9.1, 9.3 and 9.5. Planned scope: Contrast Month 5 “plan a whole trajectory once” with MoveIt Servo “consume one joint-velocity / twist / pose command per control cycle”; singularity and collision checks, smoothing; `command_out_type`. CPU toy `servo_loop_sim.py` (scale Cartesian speed near singularities) and the official demo land in a later batch; ROS not run on this page.
+## Whole trajectory vs per-cycle commands
 
-Batch 1 ships 9.1, 9.3 and 9.5; this lesson's full text is in **batch 2**. Check `docs/notes/month-9-plan.md` for the batch schedule. The tasks on this lesson's sidebar are reading prompts only until the full MDX lands.
+| | Month 5 planning | MoveIt Servo |
+| --- | --- | --- |
+| Input | Start/goal → one joint trajectory | One `JointJog` / `Twist` / `Pose` every cycle |
+| Timing | Offline (or occasional replan) | Online, at the servo rate |
+| Safety hooks | Collision check at plan time | **Per-cycle** singularity / collision / smoothing |
+
+Three command types (C++ API → common ROS messages):
+
+- `JointJogCommand` → `control_msgs/JointJog` (joint-velocity jog)
+- `TwistCommand` → `geometry_msgs/TwistStamped` (EE linear/angular velocity)
+- `PoseCommand` → `geometry_msgs/PoseStamped` (EE pose tracking)
+
+Loop shape: `servo.setCommandType(...)`, then repeatedly `getNextJointState(command)`; `getStatus()` reports singularity/collision slowdowns.
+
+<Resource id="moveit-servo" />
+
+## Safety: singularity, collision, smoothing
+
+The docs list **singularity checks, collision checks, motion smoothing, joint limits**. Parameters you will see:
+
+- `check_collisions` — run collision checks inside the servo loop
+- `use_smoothing` — enable a smoothing plugin
+- `smoothing_filter_plugin_name` — e.g. **Butterworth**, **AccelerationLimited**, **Ruckig**
+- `command_out_type` — emit `trajectory_msgs/JointTrajectory` or `std_msgs/Float64MultiArray`
+
+With a realtime kernel, the `ServoNode` main thread tries **SCHED_FIFO** priority **40** (this lesson’s toy does not need a realtime kernel).
+
+## CPU: scale Cartesian speed near a singularity
+
+Planar 2-link RR arm: θ₁ fixed, θ₂ sweeps from a bend toward a stretch singularity. Each step computes Jacobian condition number κ; when κ > `KAPPA_THRESH` (**12.0** here), multiply the EE speed norm by `KAPPA_THRESH / κ`. The table contrasts **unscaled** vs **scaled**.
+
+```bash
+$ cd ~/Hardware-learning/examples/month-9/moveit-servo
+$ python3 servo_loop_sim.py
+```
+
+<CodeSource path="examples/month-9/moveit-servo/servo_loop_sim.py" />
+
+```python
+#!/usr/bin/env python3
+"""servo_loop_sim.py: scale Cartesian speed near singularity (stdlib).
+
+Discrete-time toy of a MoveIt Servo-style loop: each control cycle consumes a
+Cartesian twist. When the planar 2-link Jacobian condition number κ exceeds
+KAPPA_THRESH, scale the twist so the end-effector speed norm drops
+(unscaled vs scaled table).
+
+Pinned constants keep expected/ stable. No ROS / MoveIt runtime.
+usage: python3 servo_loop_sim.py
+"""
+from __future__ import annotations
+
+import math
+
+L1 = 0.30  # m
+L2 = 0.25  # m
+THETA1 = 0.40  # rad, fixed
+# Sweep θ2 from a comfortable bend toward a stretch singularity (θ2 → 0).
+THETA2_START = 1.20
+THETA2_END = 0.05
+N_STEPS = 8
+V_CMD = (0.10, 0.00)  # m/s desired Cartesian twist (vx, vy)
+KAPPA_THRESH = 12.0  # condition-number threshold → start scaling
+EPS = 1e-12
+
+
+def jacobian(theta1: float, theta2: float) -> list[list[float]]:
+    """2×2 planar RR geometric Jacobian mapping dq → [vx, vy]."""
+    s1 = math.sin(theta1)
+    c1 = math.cos(theta1)
+    s12 = math.sin(theta1 + theta2)
+    c12 = math.cos(theta1 + theta2)
+    return [
+        [-L1 * s1 - L2 * s12, -L2 * s12],
+        [L1 * c1 + L2 * c12, L2 * c12],
+    ]
+
+
+def condition_number(J: list[list[float]]) -> float:
+    """κ = σ_max / σ_min via eigenvalues of JᵀJ (2×2)."""
+    a, b = J[0][0], J[0][1]
+    c, d = J[1][0], J[1][1]
+    g00 = a * a + c * c
+    g01 = a * b + c * d
+    g11 = b * b + d * d
+    tr = g00 + g11
+    det = g00 * g11 - g01 * g01
+    disc = max(0.0, tr * tr - 4.0 * det)
+    root = math.sqrt(disc)
+    lam1 = 0.5 * (tr + root)
+    lam2 = 0.5 * (tr - root)
+    sig1 = math.sqrt(max(lam1, 0.0))
+    sig2 = math.sqrt(max(lam2, 0.0))
+    sig_max = max(sig1, sig2)
+    sig_min = min(sig1, sig2)
+    if sig_min < EPS:
+        return float("inf")
+    return sig_max / sig_min
+
+
+def speed_norm(vx: float, vy: float) -> float:
+    return math.hypot(vx, vy)
+
+
+def main() -> None:
+    vx0, vy0 = V_CMD
+    v_des = speed_norm(vx0, vy0)
+    print(
+        f"L1={L1:.2f} L2={L2:.2f} theta1={THETA1:.2f} "
+        f"theta2=[{THETA2_START:.2f}..{THETA2_END:.2f}] steps={N_STEPS} "
+        f"v_cmd=({vx0:.2f},{vy0:.2f}) kappa_thresh={KAPPA_THRESH:.1f}"
+    )
+    print(
+        f"{'step':>4} {'theta2':>8} {'kappa':>10} "
+        f"{'v_unscaled':>12} {'scale':>8} {'v_scaled':>10}"
+    )
+    scaled_rows = 0
+    for i in range(N_STEPS):
+        t = i / (N_STEPS - 1)
+        theta2 = THETA2_START + t * (THETA2_END - THETA2_START)
+        kappa = condition_number(jacobian(THETA1, theta2))
+        if kappa == float("inf"):
+            scale = 0.0
+            kappa_s = f"{'inf':>10}"
+        elif kappa > KAPPA_THRESH:
+            scale = KAPPA_THRESH / kappa
+            kappa_s = f"{kappa:10.4f}"
+        else:
+            scale = 1.0
+            kappa_s = f"{kappa:10.4f}"
+        if scale < 0.0:
+            scale = 0.0
+        if scale > 1.0:
+            scale = 1.0
+        v_un = v_des
+        v_sc = v_des * scale
+        if scale < 1.0:
+            scaled_rows += 1
+        print(
+            f"{i:4d} {theta2:8.4f} {kappa_s} "
+            f"{v_un:12.4f} {scale:8.4f} {v_sc:10.4f}"
+        )
+    print(
+        f"ok: scaled_rows={scaled_rows} "
+        f"(near singularity v_scaled < v_unscaled)"
+    )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+L1=0.30 L2=0.25 theta1=0.40 theta2=[1.20..0.05] steps=8 v_cmd=(0.10,0.00) kappa_thresh=12.0
+step   theta2      kappa   v_unscaled    scale   v_scaled
+   0   1.2000     3.5734       0.1000   1.0000     0.1000
+   1   1.0357     4.2846       0.1000   1.0000     0.1000
+   2   0.8714     5.2375       0.1000   1.0000     0.1000
+   3   0.7071     6.6014       0.1000   1.0000     0.1000
+   4   0.5429     8.7500       0.1000   1.0000     0.1000
+   5   0.3786    12.7058       0.1000   0.9445     0.0944
+   6   0.2143    22.6266       0.1000   0.5304     0.0530
+   7   0.0500    97.3136       0.1000   0.1233     0.0123
+ok: scaled_rows=3 (near singularity v_scaled < v_unscaled)
+```
+
+</SimOutput>
+
+The last three rows have scale &lt; 1: κ rises from ~12.7 to 97, and `v_scaled` falls from 0.1000 to **0.0123**. Thresholds are lesson-chosen, not vendor defaults.
+
+## Optional: official keyboard servo (本页未运行)
+
+If you have MoveIt Servo installed, try the official `demo_ros_api.launch.py` + `servo_keyboard_input`. **本页未运行** ROS; real hardware also needs the Month 8 ros2_control stack wired.
+
+## Common mistakes
+
+- **Treating Servo as “plan another trajectory.”** It is per-cycle velocity/pose commands.
+- **Disabling singularity/collision checks only to feel snappier.** Read the slowdown first, then tune.
+- **Expecting SCHED_FIFO 40 on a non-realtime kernel.** The docs say the node *tries* that when a realtime kernel is present.
 
 <Summary>
 
-Placeholder for **Realtime servo: jogging, singularities and collision slowdown**. Full worked examples ship in a later Month 9 batch.
+MoveIt Servo: each control cycle consumes JointJog / Twist / Pose — contrast Month 5 whole-trajectory planning. Safety: singularity, collision, smoothing (Butterworth / AccelerationLimited / Ruckig); `check_collisions`, `use_smoothing`; `command_out_type` may be JointTrajectory or Float64MultiArray; realtime kernels try SCHED_FIFO 40. `servo_loop_sim.py`: scale EE speed when κ&gt;12; near singularity scaled_rows=3. Official keyboard demo 本页未运行.
 
 </Summary>

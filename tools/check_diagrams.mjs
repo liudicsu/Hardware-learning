@@ -2987,18 +2987,24 @@ const lessonRef = (n, slug, lang) => {
 
 
 {
-  // Month 9 content gaps (batch 1): 9.1 / 9.3 / 9.5 full; 9.2 / 9.4 / 9.6 / 9.7 outline.
+  // Month 9 content gaps (batch 2): 9.1–9.5 full; 9.6 / 9.7 outline.
   // 9.1 stage_graph_toy: generators=3; good connect; broken missing_connect + cycle.
+  // 9.2 servo_loop_sim: kappa_thresh; scaled_rows; v_unscaled / v_scaled.
   // 9.3 Present Load addr 60 / Current 69 / 6.5 mA; peak_load 208.2; F=M·a+D·v+S·(x−x_d).
+  // 9.4 saycan_score_toy: fake LLM only; pick vacuum blocked by affordance.
   // 9.5 recovery_bt_toy: GraspBackup after Retry(GraspPrimary,2); Fallback SUCCESS.
   const rd9 = (rel) => readFileSync(join(root, rel), "utf8");
   const stage = rd9("examples/month-9/expected/stage_graph_toy.txt");
+  const servo = rd9("examples/month-9/expected/servo_loop_sim.txt");
   const load = rd9("examples/month-9/expected/load_contact_sim.txt");
   const adm = rd9("examples/month-9/expected/admittance_1d.txt");
+  const saycan = rd9("examples/month-9/expected/saycan_score_toy.txt");
   const bt = rd9("examples/month-9/expected/recovery_bt_toy.txt");
   const stagePy = rd9("examples/month-9/mtc-long-horizon/stage_graph_toy.py");
+  const servoPy = rd9("examples/month-9/moveit-servo/servo_loop_sim.py");
   const loadPy = rd9("examples/month-9/effort-admittance/load_contact_sim.py");
   const admPy = rd9("examples/month-9/effort-admittance/admittance_1d.py");
+  const saycanPy = rd9("examples/month-9/llm-skill-planning/saycan_score_toy.py");
   const btPy = rd9("examples/month-9/failure-recovery/recovery_bt_toy.py");
 
   ok(/generators=3/.test(stage), "m9 stage: generators=3");
@@ -3006,6 +3012,13 @@ const lessonRef = (n, slug, lang) => {
   ok(/ok: no cycle/.test(stage) && /FAIL cycle:/.test(stage), "m9 stage: good no-cycle + broken cycle");
   ok(/propagators=13/.test(stage) && /connectors=2/.test(stage), "m9 stage: good counts 13/2");
   ok(/missing_connect/.test(stagePy), "m9 stage.py: missing_connect helper");
+
+  ok(/kappa_thresh=12\.0/.test(servo), "m9 servo: kappa_thresh=12.0");
+  ok(/v_unscaled/.test(servo) && /v_scaled/.test(servo), "m9 servo: unscaled/scaled columns");
+  ok(/scaled_rows=3/.test(servo), "m9 servo: scaled_rows=3");
+  ok(/0\.0123/.test(servo), "m9 servo: final v_scaled 0.0123");
+  ok(/KAPPA_THRESH/.test(servoPy) && /condition_number/.test(servoPy), "m9 servo.py: KAPPA_THRESH + condition_number");
+  ok(/no API|No ROS/.test(servoPy) || /No ROS \/ MoveIt runtime/.test(servoPy), "m9 servo.py: no ROS runtime");
 
   ok(/peak_load/.test(load) && /208\.2/.test(load), "m9 load: peak 208.2");
   ok(/position_only/.test(load) && /load_retreat/.test(load), "m9 load: both modes");
@@ -3017,14 +3030,22 @@ const lessonRef = (n, slug, lang) => {
     "m9 adm: three stiffness steady states");
   ok(/zeta=0\.7/.test(adm) && /F_ext=2\.0/.test(adm), "m9 adm: zeta 0.7 F_ext 2.0");
 
+  ok(/fake_llm=lookup \(no API\)/.test(saycan), "m9 saycan: fake_llm lookup no API");
+  ok(/pick vacuum/.test(saycan), "m9 saycan: pick vacuum appears");
+  ok(/without_affordance_picks_vacuum=True/.test(saycan), "m9 saycan: without picks vacuum");
+  ok(/with_affordance_blocks_vacuum=True/.test(saycan), "m9 saycan: with blocks vacuum");
+  ok(/affordance_pick_vacuum=0\.0/.test(saycan), "m9 saycan: vacuum aff 0.0");
+  ok(/NO paid API/.test(saycanPy) && /pick vacuum/.test(saycanPy), "m9 saycan.py: NO paid API + pick vacuum");
+  ok(!/openai|anthropic|api_key|API_KEY|sk-/.test(saycanPy), "m9 saycan.py: no real API wiring");
+
   ok(/GraspBackup/.test(bt) && /Fallback/.test(bt) && /Retry/.test(bt), "m9 bt: GraspBackup / Fallback / Retry");
   ok(/grasp_primary_attempts=2/.test(bt) && /used_backup=True/.test(bt), "m9 bt: 2 attempts + backup");
   ok(/root_status=SUCCESS/.test(bt), "m9 bt: root SUCCESS");
   ok(/GraspBackup/.test(btPy) && /class Fallback/.test(btPy) && /class Retry/.test(btPy),
     "m9 bt.py: Fallback/Retry/GraspBackup");
 
-  // Full lessons must not stay outline; outlines must stay outline this batch.
-  for (const slug of ["mtc-long-horizon", "effort-admittance", "failure-recovery"]) {
+  // Full lessons must not stay outline; remaining outlines stay outline this batch.
+  for (const slug of ["mtc-long-horizon", "moveit-servo", "effort-admittance", "llm-skill-planning", "failure-recovery"]) {
     for (const lang of ["en", "zh"]) {
       const text = rd9(`src/content/m9/${slug}/${lang}.mdx`);
       ok(!/Outline \(full text in a later batch\)/.test(text) && !/大纲（正文在后续批次）/.test(text),
@@ -3034,7 +3055,7 @@ const lessonRef = (n, slug, lang) => {
       ok(/本站补充|site supplement/.test(text), `m9 ${slug}/${lang}: site-supplement opener`);
     }
   }
-  for (const slug of ["moveit-servo", "llm-skill-planning", "nav-arm-compose", "multi-skill-demo"]) {
+  for (const slug of ["nav-arm-compose", "multi-skill-demo"]) {
     for (const lang of ["en", "zh"]) {
       const text = rd9(`src/content/m9/${slug}/${lang}.mdx`);
       ok(/大纲（正文在后续批次）/.test(text) || /Outline \(full text in a later batch\)/.test(text),
@@ -3052,6 +3073,16 @@ const lessonRef = (n, slug, lang) => {
         "connector",
         "本页未运行",
       ],
+      "moveit-servo": [
+        "JointJog",
+        "SCHED_FIFO",
+        "Butterworth",
+        "Ruckig",
+        "kappa_thresh",
+        "scaled_rows=3",
+        "servo_loop_sim.py",
+        "本页未运行",
+      ],
       "effort-admittance": [
         "Present Load",
         "60",
@@ -3060,6 +3091,15 @@ const lessonRef = (n, slug, lang) => {
         "208.2",
         "F = M·a + D·v + S·(x − x_d)",
         "Feetech",
+        "本页未运行",
+      ],
+      "llm-skill-planning": [
+        "SayCan",
+        "2204.01691",
+        "pick vacuum",
+        "affordance",
+        "saycan_score_toy.py",
+        "fake LLM",
         "本页未运行",
       ],
       "failure-recovery": [
@@ -3078,6 +3118,16 @@ const lessonRef = (n, slug, lang) => {
         "connector",
         "本页未运行",
       ],
+      "moveit-servo": [
+        "JointJog",
+        "SCHED_FIFO",
+        "Butterworth",
+        "Ruckig",
+        "kappa_thresh",
+        "scaled_rows=3",
+        "servo_loop_sim.py",
+        "本页未运行",
+      ],
       "effort-admittance": [
         "Present Load",
         "60",
@@ -3086,6 +3136,15 @@ const lessonRef = (n, slug, lang) => {
         "208.2",
         "F = M·a + D·v + S·(x − x_d)",
         "Feetech",
+        "本页未运行",
+      ],
+      "llm-skill-planning": [
+        "SayCan",
+        "2204.01691",
+        "pick vacuum",
+        "affordance",
+        "saycan_score_toy.py",
+        "假 LLM",
         "本页未运行",
       ],
       "failure-recovery": [
@@ -3118,9 +3177,33 @@ const lessonRef = (n, slug, lang) => {
       `m9 effort ${lang}: no F/T brand or price`);
   }
 
+  // Servo / SayCan hard facts in lesson prose.
+  for (const lang of ["en", "zh"]) {
+    const servoMd = rd9(`src/content/m9/moveit-servo/${lang}.mdx`);
+    ok(/SCHED_FIFO/.test(servoMd) && /40/.test(servoMd), `m9 servo ${lang}: SCHED_FIFO 40`);
+    ok(/check_collisions/.test(servoMd) && /use_smoothing/.test(servoMd), `m9 servo ${lang}: check_collisions + use_smoothing`);
+    ok(/Butterworth/.test(servoMd) && /Ruckig/.test(servoMd), `m9 servo ${lang}: smoothing plugins`);
+    const sayMd = rd9(`src/content/m9/llm-skill-planning/${lang}.mdx`);
+    ok(/2204\.01691/.test(sayMd), `m9 saycan ${lang}: arXiv 2204.01691`);
+    ok(/pick vacuum/.test(sayMd), `m9 saycan ${lang}: pick vacuum`);
+    ok(!/openai\.com|api\.openai|ANTHROPIC_API_KEY|sk-[a-zA-Z0-9]/.test(sayMd),
+      `m9 saycan ${lang}: no paid API endpoints/keys`);
+  }
+
   const cur9 = rd9("src/lib/curriculum.ts");
   ok(/month9Lessons/.test(cur9) && /slug: "month-9"/.test(cur9), "m9 curriculum: month9Lessons + month-9");
   ok(!/后续交付交付/.test(cur9), "m9 curriculum: no duplicated 后续交付交付");
+  ok(/servo_loop_sim\.py/.test(cur9), "m9 curriculum: names servo_loop_sim.py");
+  ok(/saycan_score_toy\.py/.test(cur9), "m9 curriculum: names saycan_score_toy.py");
+  // Full lessons should not still say 后续交付 in their own blocks (bounded to next slug).
+  {
+    const servoBlock = (cur9.match(/slug: "moveit-servo"[\s\S]*?slug: "effort-admittance"/) || [""])[0];
+    ok(servoBlock.length > 0 && !/后续交付/.test(servoBlock),
+      "m9 curriculum: moveit-servo no longer outline objective");
+    const llmBlock = (cur9.match(/slug: "llm-skill-planning"[\s\S]*?slug: "failure-recovery"/) || [""])[0];
+    ok(llmBlock.length > 0 && !/后续交付/.test(llmBlock),
+      "m9 curriculum: llm-skill-planning no longer outline objective");
+  }
   for (const slug of ["mtc-long-horizon", "moveit-servo", "effort-admittance", "llm-skill-planning", "failure-recovery", "nav-arm-compose", "multi-skill-demo"]) {
     ok(new RegExp(`slug: "${slug}"`).test(cur9), `m9 curriculum has ${slug}`);
   }
@@ -3130,7 +3213,7 @@ const lessonRef = (n, slug, lang) => {
   ok(/task-constructor/.test(rd9("src/lib/glossary.ts")) && /admittance-control/.test(rd9("src/lib/glossary.ts")),
     "m9 glossary: task-constructor + admittance-control");
 
-  console.log(`calc  m9 gaps: stage gen3/missing_connect; load peak 208.2; adm F/S; bt GraspBackup; phrases ${phraseHits9}; batch1 full 9.1/9.3/9.5`);
+  console.log(`calc  m9 gaps: stage gen3/missing_connect; servo scaled_rows=3; load peak 208.2; adm F/S; saycan vacuum block; bt GraspBackup; phrases ${phraseHits9}; batch2 full 9.1–9.5`);
 }
 
 

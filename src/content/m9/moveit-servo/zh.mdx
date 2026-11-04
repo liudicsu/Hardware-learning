@@ -1,13 +1,193 @@
 本课是本站补充内容——第 7–9 个月不属于原六个月课程。
 
-## 大纲（正文在后续批次）
+第 5 个月的 MoveIt pick-place 是「整条轨迹一次规划，再整段执行」。本课的 <Term id="moveit-servo">MoveIt Servo</Term> 换一种节奏：**每个控制周期**吃一条速度 / 位姿命令，立刻算出下一拍关节指令。适合点动、遥操作、以及要边走边躲的闭环。
 
-**实时伺服：点动、奇异点与碰撞降速。** 本页是占位，好让第 9 个月课程表能列全七课，而本批次先交付 9.1、9.3、9.5。计划范围：对比第 5 个月「整条轨迹一次规划」与 MoveIt Servo「每个控制周期吃一条关节速度 / 末端速度 / 末端位姿命令」；奇异点与碰撞检查、平滑；`command_out_type`。CPU 玩具 `servo_loop_sim.py`（接近奇异时缩放笛卡尔速度）与官方 demo 在后续批次；本页未运行 ROS。
+## 整条轨迹 vs 每周期命令
 
-本批次先交付 9.1、9.3、9.5；本课全文在**第二批**。批次安排见 `docs/notes/month-9-plan.md`。侧栏任务在全文落地前只作阅读提示。
+| | Month 5 规划 | MoveIt Servo |
+| --- | --- | --- |
+| 输入 | 起止位姿 → 一条关节轨迹 | 每个周期一条 `JointJog` / `Twist` / `Pose` |
+| 时机 | 离线（或偶尔重规划） | 在线、按伺服频率 |
+| 安全钩子 | 规划期碰撞检查 | **每周期**奇异点 / 碰撞 / 平滑 |
+
+三种命令（C++ API 名 → 常见 ROS 消息）：
+
+- `JointJogCommand` → `control_msgs/JointJog`（关节速度点动）
+- `TwistCommand` → `geometry_msgs/TwistStamped`（末端线/角速度）
+- `PoseCommand` → `geometry_msgs/PoseStamped`（末端位姿跟踪）
+
+循环形态：`servo.setCommandType(...)` 后反复 `getNextJointState(command)`，可用 `getStatus()` 看是否被奇异 / 碰撞降速。
+
+<Resource id="moveit-servo" />
+
+## 安全：奇异、碰撞、平滑
+
+文档写明 Servo 含：**奇异点检查、碰撞检查、运动平滑、关节限位**。常用参数：
+
+- `check_collisions`：是否在伺服环里做碰撞检查
+- `use_smoothing`：是否启用平滑插件
+- `smoothing_filter_plugin_name`：如 **Butterworth**、**AccelerationLimited**、**Ruckig**
+- `command_out_type`：输出 `trajectory_msgs/JointTrajectory` 或 `std_msgs/Float64MultiArray`
+
+若装了实时内核，`ServoNode` 主线程会尝试配置 **SCHED_FIFO** 优先级 **40**（课内玩具不依赖实时内核）。
+
+## CPU：接近奇异时缩放笛卡尔速度
+
+平面二连杆 RR，θ₁ 固定，θ₂ 从弯曲扫向伸直奇异。每步算雅可比条件数 κ；当 κ > `KAPPA_THRESH`（本玩具 **12.0**）时，把末端速度范数乘以 `KAPPA_THRESH / κ`。表里对比 **未缩放** 与 **已缩放**。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-9/moveit-servo
+$ python3 servo_loop_sim.py
+```
+
+<CodeSource path="examples/month-9/moveit-servo/servo_loop_sim.py" />
+
+```python
+#!/usr/bin/env python3
+"""servo_loop_sim.py: scale Cartesian speed near singularity (stdlib).
+
+Discrete-time toy of a MoveIt Servo-style loop: each control cycle consumes a
+Cartesian twist. When the planar 2-link Jacobian condition number κ exceeds
+KAPPA_THRESH, scale the twist so the end-effector speed norm drops
+(unscaled vs scaled table).
+
+Pinned constants keep expected/ stable. No ROS / MoveIt runtime.
+usage: python3 servo_loop_sim.py
+"""
+from __future__ import annotations
+
+import math
+
+L1 = 0.30  # m
+L2 = 0.25  # m
+THETA1 = 0.40  # rad, fixed
+# Sweep θ2 from a comfortable bend toward a stretch singularity (θ2 → 0).
+THETA2_START = 1.20
+THETA2_END = 0.05
+N_STEPS = 8
+V_CMD = (0.10, 0.00)  # m/s desired Cartesian twist (vx, vy)
+KAPPA_THRESH = 12.0  # condition-number threshold → start scaling
+EPS = 1e-12
+
+
+def jacobian(theta1: float, theta2: float) -> list[list[float]]:
+    """2×2 planar RR geometric Jacobian mapping dq → [vx, vy]."""
+    s1 = math.sin(theta1)
+    c1 = math.cos(theta1)
+    s12 = math.sin(theta1 + theta2)
+    c12 = math.cos(theta1 + theta2)
+    return [
+        [-L1 * s1 - L2 * s12, -L2 * s12],
+        [L1 * c1 + L2 * c12, L2 * c12],
+    ]
+
+
+def condition_number(J: list[list[float]]) -> float:
+    """κ = σ_max / σ_min via eigenvalues of JᵀJ (2×2)."""
+    a, b = J[0][0], J[0][1]
+    c, d = J[1][0], J[1][1]
+    g00 = a * a + c * c
+    g01 = a * b + c * d
+    g11 = b * b + d * d
+    tr = g00 + g11
+    det = g00 * g11 - g01 * g01
+    disc = max(0.0, tr * tr - 4.0 * det)
+    root = math.sqrt(disc)
+    lam1 = 0.5 * (tr + root)
+    lam2 = 0.5 * (tr - root)
+    sig1 = math.sqrt(max(lam1, 0.0))
+    sig2 = math.sqrt(max(lam2, 0.0))
+    sig_max = max(sig1, sig2)
+    sig_min = min(sig1, sig2)
+    if sig_min < EPS:
+        return float("inf")
+    return sig_max / sig_min
+
+
+def speed_norm(vx: float, vy: float) -> float:
+    return math.hypot(vx, vy)
+
+
+def main() -> None:
+    vx0, vy0 = V_CMD
+    v_des = speed_norm(vx0, vy0)
+    print(
+        f"L1={L1:.2f} L2={L2:.2f} theta1={THETA1:.2f} "
+        f"theta2=[{THETA2_START:.2f}..{THETA2_END:.2f}] steps={N_STEPS} "
+        f"v_cmd=({vx0:.2f},{vy0:.2f}) kappa_thresh={KAPPA_THRESH:.1f}"
+    )
+    print(
+        f"{'step':>4} {'theta2':>8} {'kappa':>10} "
+        f"{'v_unscaled':>12} {'scale':>8} {'v_scaled':>10}"
+    )
+    scaled_rows = 0
+    for i in range(N_STEPS):
+        t = i / (N_STEPS - 1)
+        theta2 = THETA2_START + t * (THETA2_END - THETA2_START)
+        kappa = condition_number(jacobian(THETA1, theta2))
+        if kappa == float("inf"):
+            scale = 0.0
+            kappa_s = f"{'inf':>10}"
+        elif kappa > KAPPA_THRESH:
+            scale = KAPPA_THRESH / kappa
+            kappa_s = f"{kappa:10.4f}"
+        else:
+            scale = 1.0
+            kappa_s = f"{kappa:10.4f}"
+        if scale < 0.0:
+            scale = 0.0
+        if scale > 1.0:
+            scale = 1.0
+        v_un = v_des
+        v_sc = v_des * scale
+        if scale < 1.0:
+            scaled_rows += 1
+        print(
+            f"{i:4d} {theta2:8.4f} {kappa_s} "
+            f"{v_un:12.4f} {scale:8.4f} {v_sc:10.4f}"
+        )
+    print(
+        f"ok: scaled_rows={scaled_rows} "
+        f"(near singularity v_scaled < v_unscaled)"
+    )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+L1=0.30 L2=0.25 theta1=0.40 theta2=[1.20..0.05] steps=8 v_cmd=(0.10,0.00) kappa_thresh=12.0
+step   theta2      kappa   v_unscaled    scale   v_scaled
+   0   1.2000     3.5734       0.1000   1.0000     0.1000
+   1   1.0357     4.2846       0.1000   1.0000     0.1000
+   2   0.8714     5.2375       0.1000   1.0000     0.1000
+   3   0.7071     6.6014       0.1000   1.0000     0.1000
+   4   0.5429     8.7500       0.1000   1.0000     0.1000
+   5   0.3786    12.7058       0.1000   0.9445     0.0944
+   6   0.2143    22.6266       0.1000   0.5304     0.0530
+   7   0.0500    97.3136       0.1000   0.1233     0.0123
+ok: scaled_rows=3 (near singularity v_scaled < v_unscaled)
+```
+
+</SimOutput>
+
+后三行 scale &lt; 1：κ 从约 12.7 涨到 97，`v_scaled` 从 0.1000 降到 **0.0123**。阈值是课内自定，不是厂商默认。
+
+## 选做：官方键盘伺服（本页未运行）
+
+本机有 MoveIt Servo 时，可试官方 `demo_ros_api.launch.py` + `servo_keyboard_input`。**本页未运行** ROS；真机还要接好第 8 个月的 ros2_control。
+
+## 常见错误
+
+- **把 Servo 当成「再规划一条轨迹」。** 它是每周期速度/位姿命令。
+- **关掉奇异/碰撞检查只为「手感更跟手」。** 先看懂降速，再谈调参。
+- **在非实时内核上期待 SCHED_FIFO 40 一定成功。** 文档说的是「若装了实时内核则尝试」。
 
 <Summary>
 
-**实时伺服：点动、奇异点与碰撞降速** 的占位页。完整例题与脚本在后续第 9 个月批次交付。
+MoveIt Servo：每控制周期吃 JointJog / Twist / Pose，对比第 5 个月整条轨迹规划。安全：奇异点、碰撞、平滑（Butterworth / AccelerationLimited / Ruckig）；`check_collisions`、`use_smoothing`；`command_out_type` 可为 JointTrajectory 或 Float64MultiArray；实时内核上尝试 SCHED_FIFO 40。`servo_loop_sim.py`：κ&gt;12 时缩放末端速度，奇异附近 scaled_rows=3。官方键盘 demo 本页未运行。
 
 </Summary>
