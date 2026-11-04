@@ -2986,6 +2986,154 @@ const lessonRef = (n, slug, lang) => {
 
 
 
+{
+  // Month 9 content gaps (batch 1): 9.1 / 9.3 / 9.5 full; 9.2 / 9.4 / 9.6 / 9.7 outline.
+  // 9.1 stage_graph_toy: generators=3; good connect; broken missing_connect + cycle.
+  // 9.3 Present Load addr 60 / Current 69 / 6.5 mA; peak_load 208.2; F=M·a+D·v+S·(x−x_d).
+  // 9.5 recovery_bt_toy: GraspBackup after Retry(GraspPrimary,2); Fallback SUCCESS.
+  const rd9 = (rel) => readFileSync(join(root, rel), "utf8");
+  const stage = rd9("examples/month-9/expected/stage_graph_toy.txt");
+  const load = rd9("examples/month-9/expected/load_contact_sim.txt");
+  const adm = rd9("examples/month-9/expected/admittance_1d.txt");
+  const bt = rd9("examples/month-9/expected/recovery_bt_toy.txt");
+  const stagePy = rd9("examples/month-9/mtc-long-horizon/stage_graph_toy.py");
+  const loadPy = rd9("examples/month-9/effort-admittance/load_contact_sim.py");
+  const admPy = rd9("examples/month-9/effort-admittance/admittance_1d.py");
+  const btPy = rd9("examples/month-9/failure-recovery/recovery_bt_toy.py");
+
+  ok(/generators=3/.test(stage), "m9 stage: generators=3");
+  ok(/missing_connect/.test(stage), "m9 stage: missing_connect in broken case");
+  ok(/ok: no cycle/.test(stage) && /FAIL cycle:/.test(stage), "m9 stage: good no-cycle + broken cycle");
+  ok(/propagators=13/.test(stage) && /connectors=2/.test(stage), "m9 stage: good counts 13/2");
+  ok(/missing_connect/.test(stagePy), "m9 stage.py: missing_connect helper");
+
+  ok(/peak_load/.test(load) && /208\.2/.test(load), "m9 load: peak 208.2");
+  ok(/position_only/.test(load) && /load_retreat/.test(load), "m9 load: both modes");
+  ok(/1000\.0/.test(load) && /0\.1041/.test(load), "m9 load: position peak 1000 + retreat pen");
+  ok(/Present Load/.test(loadPy) && /Feetech/.test(loadPy) && !/Featech/.test(loadPy),
+    "m9 load.py: Feetech Present Load (not Featech)");
+  ok(/F = M \* a \+ D \* v \+ S \* \(x - x_d\)/.test(admPy), "m9 adm.py: F=M*a+D*v+S*(x-x_d)");
+  ok(/x_ss_F_over_S/.test(adm) && /0\.040000/.test(adm) && /0\.020000/.test(adm) && /0\.010000/.test(adm),
+    "m9 adm: three stiffness steady states");
+  ok(/zeta=0\.7/.test(adm) && /F_ext=2\.0/.test(adm), "m9 adm: zeta 0.7 F_ext 2.0");
+
+  ok(/GraspBackup/.test(bt) && /Fallback/.test(bt) && /Retry/.test(bt), "m9 bt: GraspBackup / Fallback / Retry");
+  ok(/grasp_primary_attempts=2/.test(bt) && /used_backup=True/.test(bt), "m9 bt: 2 attempts + backup");
+  ok(/root_status=SUCCESS/.test(bt), "m9 bt: root SUCCESS");
+  ok(/GraspBackup/.test(btPy) && /class Fallback/.test(btPy) && /class Retry/.test(btPy),
+    "m9 bt.py: Fallback/Retry/GraspBackup");
+
+  // Full lessons must not stay outline; outlines must stay outline this batch.
+  for (const slug of ["mtc-long-horizon", "effort-admittance", "failure-recovery"]) {
+    for (const lang of ["en", "zh"]) {
+      const text = rd9(`src/content/m9/${slug}/${lang}.mdx`);
+      ok(!/Outline \(full text in a later batch\)/.test(text) && !/大纲（正文在后续批次）/.test(text),
+        `m9 ${slug}/${lang}: must not be outline`);
+      ok(/<CodeSource /.test(text) && /<SimOutput /.test(text),
+        `m9 ${slug}/${lang}: needs CodeSource + SimOutput`);
+      ok(/本站补充|site supplement/.test(text), `m9 ${slug}/${lang}: site-supplement opener`);
+    }
+  }
+  for (const slug of ["moveit-servo", "llm-skill-planning", "nav-arm-compose", "multi-skill-demo"]) {
+    for (const lang of ["en", "zh"]) {
+      const text = rd9(`src/content/m9/${slug}/${lang}.mdx`);
+      ok(/大纲（正文在后续批次）/.test(text) || /Outline \(full text in a later batch\)/.test(text),
+        `m9 ${slug}/${lang}: still outline this batch`);
+    }
+  }
+
+  const phrases9 = {
+    en: {
+      "mtc-long-horizon": [
+        "generators=3",
+        "missing_connect",
+        "Task Constructor",
+        "propagator",
+        "connector",
+        "本页未运行",
+      ],
+      "effort-admittance": [
+        "Present Load",
+        "60",
+        "69",
+        "6.5 mA",
+        "208.2",
+        "F = M·a + D·v + S·(x − x_d)",
+        "Feetech",
+        "本页未运行",
+      ],
+      "failure-recovery": [
+        "GraspBackup",
+        "Fallback",
+        "Retry",
+        "Inner Monologue",
+      ],
+    },
+    zh: {
+      "mtc-long-horizon": [
+        "generators=3",
+        "missing_connect",
+        "Task Constructor",
+        "propagator",
+        "connector",
+        "本页未运行",
+      ],
+      "effort-admittance": [
+        "Present Load",
+        "60",
+        "69",
+        "6.5 mA",
+        "208.2",
+        "F = M·a + D·v + S·(x − x_d)",
+        "Feetech",
+        "本页未运行",
+      ],
+      "failure-recovery": [
+        "GraspBackup",
+        "Fallback",
+        "Retry",
+        "Inner Monologue",
+      ],
+    },
+  };
+  let phraseHits9 = 0;
+  for (const lang of ["en", "zh"]) {
+    for (const [slug, qs] of Object.entries(phrases9[lang])) {
+      const text = rd9(`src/content/m9/${slug}/${lang}.mdx`);
+      for (const q of qs) {
+        ok(text.includes(q), `m9 ${slug} ${lang}: expected ${JSON.stringify(q)}`);
+        phraseHits9++;
+      }
+    }
+  }
+
+  // Register addresses in lesson prose (hard facts from proposal).
+  for (const lang of ["en", "zh"]) {
+    const text = rd9(`src/content/m9/effort-admittance/${lang}.mdx`);
+    ok(/\*\*60\*\*/.test(text) && /\*\*69\*\*/.test(text), `m9 effort ${lang}: addr 60/69 marked`);
+    ok(/6\.5 mA/.test(text), `m9 effort ${lang}: 6.5 mA`);
+    ok(/Feetech/.test(text), `m9 effort ${lang}: names Feetech`);
+    ok(/Featech/.test(text), `m9 effort ${lang}: warns against Featech misspelling`);
+    ok(!/\bATI\b|\bRobotiq\b|\bOnRobot\b|\$\d/.test(text),
+      `m9 effort ${lang}: no F/T brand or price`);
+  }
+
+  const cur9 = rd9("src/lib/curriculum.ts");
+  ok(/month9Lessons/.test(cur9) && /slug: "month-9"/.test(cur9), "m9 curriculum: month9Lessons + month-9");
+  ok(!/后续交付交付/.test(cur9), "m9 curriculum: no duplicated 后续交付交付");
+  for (const slug of ["mtc-long-horizon", "moveit-servo", "effort-admittance", "llm-skill-planning", "failure-recovery", "nav-arm-compose", "multi-skill-demo"]) {
+    ok(new RegExp(`slug: "${slug}"`).test(cur9), `m9 curriculum has ${slug}`);
+  }
+  ok(/month-9\/check\.sh/.test(rd9("tools/sim/reproduce.sh")), "m9 hooked in reproduce.sh");
+  ok(/moveit-mtc/.test(rd9("src/lib/resources.ts")) && /extra:\s*true/.test(rd9("src/lib/resources.ts")),
+    "m9 resources: moveit-mtc present (extra resources exist)");
+  ok(/task-constructor/.test(rd9("src/lib/glossary.ts")) && /admittance-control/.test(rd9("src/lib/glossary.ts")),
+    "m9 glossary: task-constructor + admittance-control");
+
+  console.log(`calc  m9 gaps: stage gen3/missing_connect; load peak 208.2; adm F/S; bt GraspBackup; phrases ${phraseHits9}; batch1 full 9.1/9.3/9.5`);
+}
+
+
 const specs = [];
 for (const f of readdirSync(specDir).filter((f) => f.endsWith(".ts"))) {
   const mod = await import(dataUrl(transpile(inlineJson(readFileSync(join(specDir, f), "utf8")))));
