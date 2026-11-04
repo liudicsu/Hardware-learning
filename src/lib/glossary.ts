@@ -1853,6 +1853,116 @@ export const glossary: GlossaryEntry[] = [
     lesson: "robot-devops",
     firstExplained: true,
   },
+  {
+    id: "task-constructor",
+    term: { zh: "Task Constructor（MTC）", en: "Task Constructor (MTC)" },
+    def: {
+      zh: "MoveIt 的多阶段任务规划框架：把抓放等长时程动作拆成可组合的 Stage，而不是一次求出整条轨迹。",
+      en: "MoveIt's multi-stage task planning framework: compose long-horizon motions like pick-and-place from Stages instead of solving one monolithic trajectory.",
+    },
+    lesson: "mtc-long-horizon",
+    firstExplained: true,
+  },
+  {
+    id: "mtc-stage",
+    term: { zh: "MTC 阶段", en: "MTC stage" },
+    def: {
+      zh: "Task Constructor 里的一个子问题单元。按结果流向分为 generator、propagator、connector；可用 serial / parallel / wrapper 容器组合。",
+      en: "One subproblem unit in Task Constructor. By result flow: generator, propagator or connector; compose with serial / parallel / wrapper containers.",
+    },
+    lesson: "mtc-long-horizon",
+    firstExplained: true,
+  },
+  {
+    id: "moveit-servo",
+    term: { zh: "MoveIt Servo", en: "MoveIt Servo" },
+    def: {
+      zh: "每个控制周期消费一条关节速度、末端速度或末端位姿命令的实时伺服节点；含奇异点与碰撞检查。",
+      en: "A realtime servo node that consumes one joint-velocity, twist or pose command per control cycle, with singularity and collision checks.",
+    },
+    lesson: "moveit-servo",
+    firstExplained: true,
+  },
+  {
+    id: "impedance-control",
+    term: { zh: "阻抗控制", en: "impedance control" },
+    def: {
+      zh: "由运动误差产生力/力矩（力 ← 运动误差）。与导纳方向相反；工业臂常见，桌面臂本课不作为默认路线。",
+      en: "Produces force/torque from motion error (force ← motion error). Opposite causal direction to admittance; common on industrial arms, not the default desk-arm path here.",
+    },
+    lesson: "effort-admittance",
+    firstExplained: true,
+  },
+  {
+    id: "admittance-control",
+    term: { zh: "导纳控制", en: "admittance control" },
+    def: {
+      zh: "由测得的力产生运动（运动 ← 力）。ros2_controllers 注释方程为 F = M a + D v + S (x−x_d)；阻尼比 ζ = D/(2√(M S))。",
+      en: "Produces motion from measured force (motion ← force). ros2_controllers documents F = M a + D v + S (x−x_d); damping ratio ζ = D/(2√(M S)).",
+    },
+    lesson: "effort-admittance",
+    firstExplained: true,
+  },
+  {
+    id: "present-load",
+    term: { zh: "Present Load（STS3215）", en: "Present Load (STS3215)" },
+    def: {
+      zh: "Feetech STS3215 地址 60 的反馈：bits 0–9 为幅值、bit 10 为方向，满量程 1000 = 100 % 扭矩输出（占空比负载%），不是标定牛顿。",
+      en: "Feetech STS3215 feedback at addr 60: bits 0–9 magnitude, bit 10 direction, full-scale 1000 = 100 % torque output (duty-cycle load %), not calibrated newtons.",
+    },
+    lesson: "effort-admittance",
+    firstExplained: true,
+  },
+  {
+    id: "skill-affordance",
+    term: { zh: "技能可执行性（affordance）", en: "skill affordance" },
+    def: {
+      zh: "「现在做不做得到」的分数或过滤器，常与 LLM 的「有多有用」相乘，避免选出当前不可行的技能。",
+      en: "A score or filter for “can we do this now?”, often multiplied with an LLM's “how useful” score so infeasible skills are not selected.",
+    },
+    lesson: "llm-skill-planning",
+    firstExplained: true,
+  },
+  {
+    id: "saycan",
+    term: { zh: "SayCan", en: "SayCan" },
+    def: {
+      zh: "用预训练技能约束语言模型：LLM 给有用性，价值函数/检测器给可执行性，两者相乘再选下一步技能。",
+      en: "Grounding a language model with pretrained skills: the LLM scores usefulness, a value function or detector scores affordance, multiply, then pick the next skill.",
+    },
+    lesson: "llm-skill-planning",
+    firstExplained: true,
+  },
+  {
+    id: "inner-monologue",
+    term: { zh: "Inner Monologue", en: "Inner Monologue" },
+    def: {
+      zh: "把成功检测、场景描述或人类反馈以文本注回 LLM，形成闭环重规划，无需额外训练该 LLM。",
+      en: "Feeding success detection, scene descriptions or human feedback back into an LLM as text for closed-loop replanning, without further training that LLM.",
+    },
+    lesson: "failure-recovery",
+    firstExplained: true,
+  },
+  {
+    id: "behaviour-tree-recovery",
+    term: { zh: "行为树恢复", en: "behaviour-tree recovery" },
+    def: {
+      zh: "用 Sequence / Fallback / Retry 等节点在技能失败时切换或重试；与看门狗的指令超时互补，管的是语义失败。",
+      en: "Using Sequence / Fallback / Retry (and similar) to switch or retry when a skill fails; complements watchdog command timeouts by handling semantic failures.",
+    },
+    lesson: "failure-recovery",
+    firstExplained: true,
+  },
+  {
+    id: "mobile-manipulation",
+    term: { zh: "移动操作", en: "mobile manipulation" },
+    def: {
+      zh: "在移动底盘上做操作：先导航到工作位再动臂。组合时要约定坐标系、底盘停稳互斥与失败回传。",
+      en: "Manipulation on a mobile base: navigate to a work pose, then move the arm. Compose with agreed frames, a base-settled mutex, and failure feedback.",
+    },
+    lesson: "nav-arm-compose",
+    firstExplained: true,
+  },
 
 ]
 

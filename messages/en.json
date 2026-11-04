@@ -1,8 +1,8 @@
 {
   "site": {
     "name": "Hardware Learning",
-    "tagline": "Become a robotics engineer in 8 months · bilingual study hub",
-    "description": "A bilingual study site built on @DeRonin_'s “How to become a Robotics Engineer in 6 months”, plus site-written Months 7–8: original lessons, hands-on exercises, resource cards and local progress tracking."
+    "tagline": "Become a robotics engineer in 9 months · bilingual study hub",
+    "description": "A bilingual study site built on @DeRonin_'s “How to become a Robotics Engineer in 6 months”, plus site-written Months 7–9: original lessons, hands-on exercises, resource cards and local progress tracking."
   },
   "nav": {
     "home": "Home",
@@ -17,11 +17,11 @@
   },
   "home": {
     "eyebrow": "Open · Free · Bilingual",
-    "title": "Zero to robotics engineer in 8 months",
+    "title": "Zero to robotics engineer in 9 months",
     "lead": "Start by reading a schematic, end with ROS 2, control, perception and robot learning. Every lesson has an original explanation, hands-on tasks and curated resources — and your progress stays in your own browser.",
     "start": "Start Month 1",
     "continue": "Continue learning",
-    "roadmap": "Eight-month roadmap",
+    "roadmap": "Nine-month roadmap",
     "lessons": "{count} lessons",
     "howTitle": "How to use this site",
     "how1Title": "Read",
@@ -140,7 +140,7 @@
     "title": "About & credits",
     "lead": "A study site built for actually learning — not a link dump.",
     "sourceTitle": "Course source",
-    "source": "Months 1–6 — structure, monthly goals, milestones and the resource list — come from @DeRonin_'s September 2026 article “How to become a Robotics Engineer in 6 months (RESOURCES)”. Months 7–8 are site supplements: we wrote them here; they are not part of that original course. Across all months the explanations and exercises are original, and a few resources are marked as supplements.",
+    "source": "Months 1–6 — structure, monthly goals, milestones and the resource list — come from @DeRonin_'s September 2026 article “How to become a Robotics Engineer in 6 months (RESOURCES)”. Months 7–9 are site supplements: we wrote them here; they are not part of that original course. Across all months the explanations and exercises are original, and a few resources are marked as supplements.",
     "copyrightTitle": "Copyright",
     "copyright": "All external resources (courses, textbooks, videos, tools) belong to their authors or institutions. This site does not mirror or republish them; it only provides original summaries and links. The Falstad simulator is embedded from its official page via iframe.",
     "privacyTitle": "Privacy",
@@ -327,7 +327,7 @@
   },
   "math": {
     "title": "Math quick reference",
-    "lead": "Enough and no more: the mathematics used in Months 4–8. Each entry has only a definition, one worked example from the course, the lessons that use it, and free authoritative textbooks. This is not a math course; for a systematic treatment, read the linked books.",
+    "lead": "Enough and no more: the mathematics used in Months 4–9. Each entry has only a definition, one worked example from the course, the lessons that use it, and free authoritative textbooks. This is not a math course; for a systematic treatment, read the linked books.",
     "definition": "Definition",
     "example": "Worked example from the course",
     "usedIn": "Used in",

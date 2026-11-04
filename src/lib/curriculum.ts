@@ -1122,6 +1122,172 @@ const month8Lessons: Lesson[] = [
 ];
 
 
+
+const month9Lessons: Lesson[] = [
+  {
+    slug: "mtc-long-horizon",
+    title: { zh: "用 Task Constructor 拼出长时程抓取", en: "Compose long-horizon picks with MoveIt Task Constructor" },
+    summary: {
+      zh: "任务 = 一串阶段。分清 generator / propagator / connector 与 serial / parallel / wrapper；读官方 pick-place 阶段骨架。CPU 玩具检查阶段依赖、环与缺 Connect。MTC 是多阶段运动规划，不是学习策略。",
+      en: "A task is a chain of stages. Tell generator / propagator / connector apart from serial / parallel / wrapper; read the official pick-place stage skeleton. A CPU toy checks deps, cycles and a missing Connect. MTC is multi-stage motion planning, not a learned policy.",
+    },
+    minutes: 240,
+    objectives: [
+      { zh: "能说明任务由阶段组成，并区分 generator、propagator、connector。", en: "State that a task is made of stages, and distinguish generator, propagator and connector." },
+      { zh: "能说出 serial / parallel / wrapper 三种容器的用途。", en: "Name what serial, parallel and wrapper containers are for." },
+      { zh: "能读懂 stage_graph_toy.py：好图无环、坏图报缺 Connect 与环。", en: "Read stage_graph_toy.py: good graph has no cycle; broken graph reports missing Connect and a cycle." },
+      { zh: "能说明 MTC 不做策略学习，与第 8 个月 VLA 互补。", en: "State that MTC does not learn a policy and complements Month 8 VLAs." },
+    ],
+    prereqs: ["moveit-pick-place", "urdf-tf", "ros2-control"],
+    resources: ["moveit-mtc", "moveit-docs"],
+    tasks: [
+      { id: "run", text: { zh: "运行 stage_graph_toy.py，核对 good 无环、broken 有缺 Connect 与环", en: "Run stage_graph_toy.py; confirm good has no cycle and broken reports missing Connect + cycle" } },
+      { id: "types", text: { zh: "用自己的话各一句解释 generator / propagator / connector", en: "Explain generator / propagator / connector in one sentence each, in your words" } },
+      { id: "skeleton", text: { zh: "按官方教程顺序列出 pick 侧阶段（CurrentState → … → lift）", en: "List the pick-side stages in official order (CurrentState → … → lift)" } },
+      { id: "optional", text: { zh: "（选做，本页未运行）本机跑 Panda MTC demo.launch.py", en: "(Optional, not run here) run the Panda MTC demo.launch.py locally" } },
+    ],
+  },
+  {
+    slug: "moveit-servo",
+    title: { zh: "实时伺服：点动、奇异点与碰撞降速", en: "Realtime servo: jogging, singularities and collision slowdown" },
+    summary: {
+      zh: "对比整条轨迹一次规划与每个控制周期吃速度/位姿命令。JointJog / Twist / Pose；奇异点与碰撞检查、平滑。CPU 玩具（后续交付）在接近奇异时缩放笛卡尔速度。",
+      en: "Contrast planning a whole trajectory once with consuming a velocity/pose command every control cycle. JointJog / Twist / Pose; singularity and collision checks, smoothing. A follow-on CPU toy scales Cartesian speed near singularities.",
+    },
+    minutes: 180,
+    objectives: [
+      { zh: "能对比离线轨迹规划与 MoveIt Servo 的周期命令。", en: "Contrast offline trajectory planning with MoveIt Servo's per-cycle commands." },
+      { zh: "能说出三种命令类型及对应 ROS 消息。", en: "Name the three command types and their ROS messages." },
+      { zh: "能说明奇异点检查与碰撞检查是安全特性。", en: "State that singularity and collision checks are safety features." },
+      { zh: "能指出本课正文在后续交付交付。", en: "Note that the full lesson text ships in a follow-on delivery." },
+    ],
+    prereqs: ["moveit-pick-place", "kinematics-ik", "timing-interrupts", "async-deployment"],
+    resources: ["moveit-servo", "moveit-docs"],
+    tasks: [
+      { id: "read", text: { zh: "阅读侧栏 MoveIt Servo 教程目录", en: "Read the MoveIt Servo tutorial outline in the sidebar" } },
+      { id: "cmds", text: { zh: "列出 JointJog / Twist / Pose 三种命令", en: "List the JointJog / Twist / Pose command types" } },
+      { id: "safety", text: { zh: "写两条 Servo 安全特性（奇异点或碰撞）", en: "Write two Servo safety features (singularity or collision)" } },
+      { id: "optional", text: { zh: "（选做，本页未运行）demo_ros_api.launch.py + 键盘输入", en: "(Optional, not run here) demo_ros_api.launch.py + keyboard input" } },
+    ],
+  },
+  {
+    slug: "effort-admittance",
+    title: { zh: "从位置环到接触：负载估计与导纳", en: "From position loops to contact: load estimates and admittance" },
+    summary: {
+      zh: "分清阻抗与导纳方向；默认用 Feetech STS3215 Present Load（地址 60）/ Present Current（地址 69）作接触代理（Load 是占空比负载%，不是标定牛顿）。导纳方程 F = M a + D v + S (x−x_d)；ζ = D/(2√(MS))。CPU 对比负载回退与一维导纳刚度扫描。",
+      en: "Tell impedance from admittance; default path uses Feetech STS3215 Present Load (addr 60) / Present Current (addr 69) as a contact proxy (Load is duty-cycle load %, not calibrated newtons). Admittance F = M a + D v + S (x−x_d); ζ = D/(2√(MS)). CPU toys: load-retreat vs position-only, and a 1-D stiffness scan.",
+    },
+    minutes: 240,
+    objectives: [
+      { zh: "能说明阻抗与导纳的因果方向，并说明本课以导纳为主。", en: "State the causal directions of impedance vs admittance, and that this lesson focuses on admittance." },
+      { zh: "能说出 Present Load 地址 60、满量程 1000=100 %，以及它不是牛顿。", en: "State Present Load addr 60, full-scale 1000=100 %, and that it is not newtons." },
+      { zh: "能读懂 load_contact_sim.py：回退峰值负载与穿透小于仅位置。", en: "Read load_contact_sim.py: retreat peak load and penetration are below position-only." },
+      { zh: "能读懂 admittance_1d.py：三组刚度下 x_sim ≈ F/S。", en: "Read admittance_1d.py: for three stiffnesses x_sim ≈ F/S." },
+    ],
+    prereqs: ["pid-control", "control-modelling", "so101-arm", "ros2-hardware-interface", "safety-reliability"],
+    resources: ["ros2-admittance", "ros2-controllers-index", "sts3215-register-ref", "feetech-sts3215"],
+    tasks: [
+      { id: "run-load", text: { zh: "运行 load_contact_sim.py，确认回退峰值负载更低", en: "Run load_contact_sim.py and confirm retreat peak load is lower" } },
+      { id: "run-adm", text: { zh: "运行 admittance_1d.py，核对三行 |x_sim − F/S| < 1e-3", en: "Run admittance_1d.py; confirm |x_sim − F/S| < 1e-3 on all three rows" } },
+      { id: "regs", text: { zh: "写出 Present Load 与 Present Current 的地址与单位含义", en: "Write the addresses and unit meanings of Present Load and Present Current" } },
+      { id: "optional", text: { zh: "（选做，本页未运行）真机记录空载 vs 轻触桌面的 Present Load", en: "(Optional, not run here) log Present Load idle vs light desk contact on hardware" } },
+    ],
+  },
+  {
+    slug: "llm-skill-planning",
+    title: { zh: "用语言模型编排技能：SayCan 式落地", en: "Orchestrating skills with a language model: a SayCan-style grounding" },
+    summary: {
+      zh: "自然语言 → 技能名序列。LLM 有用性分数 × 可执行性/affordance，再 argmax；技能表约束防胡编。CPU 玩具（后续交付）只用假 LLM，CI 不调用付费 API。",
+      en: "Natural language → skill-name sequence. LLM usefulness × affordance, then argmax; a skill table blocks invention. A follow-on CPU toy uses a fake LLM only — CI never calls a paid API.",
+    },
+    minutes: 240,
+    objectives: [
+      { zh: "能说明 SayCan 把 LLM 分数与可执行性相乘再选技能。", en: "State that SayCan multiplies LLM score by affordance before selecting a skill." },
+      { zh: "能说明必须用技能表约束 LLM 输出。", en: "State that a skill table must constrain LLM outputs." },
+      { zh: "能指出 CI/expected 只跑假 LLM。", en: "Note that CI/expected run only a fake LLM." },
+      { zh: "能指出本课正文在后续交付交付。", en: "Note that the full lesson text ships in a follow-on delivery." },
+    ],
+    prereqs: ["vla-models", "policy-evaluation", "mtc-long-horizon", "specialisation-portfolio"],
+    resources: ["saycan-paper", "saycan-site"],
+    tasks: [
+      { id: "read", text: { zh: "阅读侧栏 SayCan 论文摘要与项目页", en: "Read the SayCan abstract and project page in the sidebar" } },
+      { id: "formula", text: { zh: "用自己的话写清「有用性 × 可执行性」", en: "In your words: usefulness × affordance" } },
+      { id: "safety", text: { zh: "写一条技能表如何挡住不可执行步骤", en: "Write one way a skill table blocks an infeasible step" } },
+      { id: "optional", text: { zh: "（选做，本页未运行；密钥不进仓库）自备 API 跑一条真实评分", en: "(Optional, not run here; no keys in the repo) run one real LLM score with your own API key" } },
+    ],
+  },
+  {
+    slug: "failure-recovery",
+    title: { zh: "失败检测、重试与行为树恢复", en: "Failure detection, retries and behaviour-tree recovery" },
+    summary: {
+      zh: "Inner Monologue：把成功检测/场景描述以文本注回 LLM。落到工程：Sequence / Fallback / Retry。对照第 4 个月 Nav2 恢复与第 8 个月看门狗（语义技能失败 vs 指令超时）。CPU 迷你 BT：抓取失败两次后换备用技能。",
+      en: "Inner Monologue: feed success detection / scene text back into the LLM. Engineering: Sequence / Fallback / Retry. Contrast Month 4 Nav2 recoveries and Month 8 watchdogs (semantic skill failure vs command timeout). CPU mini-BT: after two grasp fails, take the backup skill.",
+    },
+    minutes: 180,
+    objectives: [
+      { zh: "能说明 Inner Monologue 用文本反馈闭环、不额外训练 LLM。", en: "State that Inner Monologue closes the loop with text feedback and no extra LLM training." },
+      { zh: "能画出 Sequence / Fallback / Retry 在本课玩具中的角色。", en: "Sketch the roles of Sequence / Fallback / Retry in this lesson's toy." },
+      { zh: "能区分看门狗超时与技能语义失败。", en: "Distinguish watchdog timeouts from skill-semantic failures." },
+      { zh: "能读懂 recovery_bt_toy.py：两次 GraspPrimary 失败后走 GraspBackup。", en: "Read recovery_bt_toy.py: after two GraspPrimary failures, GraspBackup runs." },
+    ],
+    prereqs: ["llm-skill-planning", "slam-nav", "safety-reliability", "policy-evaluation"],
+    resources: ["inner-monologue-paper", "behaviortree-cpp", "nav2-docs"],
+    tasks: [
+      { id: "run", text: { zh: "运行 recovery_bt_toy.py，确认 used_backup=True 且 root SUCCESS", en: "Run recovery_bt_toy.py; confirm used_backup=True and root SUCCESS" } },
+      { id: "table", text: { zh: "按 failure_table.md 填至少三行与你任务相关的失败模式", en: "Fill at least three rows in failure_table.md for your own task" } },
+      { id: "contrast", text: { zh: "写一句：本课恢复与第 8 个月看门狗各管什么", en: "One sentence: what this lesson's recovery vs Month 8's watchdog each cover" } },
+      { id: "nav2", text: { zh: "回看第 4 个月 slam-nav，列出一种 Nav2 恢复动作", en: "Revisit Month 4 slam-nav; name one Nav2 recovery action" } },
+    ],
+  },
+  {
+    slug: "nav-arm-compose",
+    title: { zh: "导航加操作：整机任务在仿真里接起来", en: "Navigation plus manipulation: joining the whole-robot task in simulation" },
+    summary: {
+      zh: "先走到桌边再抓的组合契约：坐标系、底盘停稳再动臂、超时与失败回传。CPU/仿真玩具（后续交付）。LeKiwi 真机组装为选修，不进本课必做。",
+      en: "The compose contract for navigate-then-pick: frames, base settled before the arm moves, timeouts and failure feedback. CPU/sim toy in a follow-on delivery. Real LeKiwi assembly is elective — not required here.",
+    },
+    minutes: 240,
+    objectives: [
+      { zh: "能说出导航与臂组合时的互斥：底盘停稳再动臂。", en: "State the mutex: settle the base before moving the arm." },
+      { zh: "能说明失败需从臂技能回传到导航层。", en: "State that arm-skill failures must feed back to the nav layer." },
+      { zh: "能指出 LeKiwi 真机为选修/超出默认范围。", en: "Note that real LeKiwi hardware is elective / outside the default scope." },
+      { zh: "能指出本课正文在后续交付交付。", en: "Note that the full lesson text ships in a follow-on delivery." },
+    ],
+    prereqs: ["slam-nav", "mtc-long-horizon", "failure-recovery", "so101-arm"],
+    resources: ["lerobot-lekiwi", "nav2-docs"],
+    tasks: [
+      { id: "read", text: { zh: "阅读侧栏 LeKiwi 文档的 host/client 数据流", en: "Read the LeKiwi host/client data flow in the sidebar docs" } },
+      { id: "contract", text: { zh: "写下三条组合契约（坐标系 / 互斥 / 超时）", en: "Write three compose-contract bullets (frames / mutex / timeout)" } },
+      { id: "scope", text: { zh: "用一句话说明为什么真机 LeKiwi 不进本课必做", en: "In one sentence: why real LeKiwi is not required in this lesson" } },
+      { id: "sketch", text: { zh: "草拟「去 A → 抓 → 去 B → 放」的技能状态机", en: "Sketch a skill state machine for go-A → pick → go-B → place" } },
+    ],
+  },
+  {
+    slug: "multi-skill-demo",
+    title: { zh: "多技能系统演示：把 9.1–9.6 收成一条可复现流水线", en: "Multi-skill system demo: one reproducible pipeline from 9.1–9.6" },
+    summary: {
+      zh: "薄系统演示，不替代第 8.7 毕业项目。技能表 + BT/MTC 阶段图 +（可选）假 LLM + 失败注入 + 评估表。三条示范剧情选一。正文与门禁脚本在后续交付。",
+      en: "A thin system demo — not a second Month 8.7 capstone. Skill table + BT/MTC stage graph + optional fake LLM + failure injection + eval sheet. Pick one of three demo scenarios. Full text and gate script in a follow-on delivery.",
+    },
+    minutes: 180,
+    objectives: [
+      { zh: "能说明本课不替代 8.7 毕业项目。", en: "State that this lesson does not replace the 8.7 capstone." },
+      { zh: "能列出演示必须复用的安全清单与失败表格式。", en: "List the safety-checklist and failure-table formats the demo must reuse." },
+      { zh: "能从三条剧情中选出一条并写三句计划。", en: "Pick one of the three scenarios and write a three-sentence plan." },
+      { zh: "能指出本课正文在后续交付交付。", en: "Note that the full lesson text ships in a follow-on delivery." },
+    ],
+    prereqs: ["mtc-long-horizon", "effort-admittance", "failure-recovery", "capstone", "robot-devops"],
+    resources: ["moveit-mtc", "behaviortree-cpp", "lerobot-libero"],
+    tasks: [
+      { id: "scenario", text: { zh: "选定 table / contact / nav 之一并写三句计划", en: "Pick table / contact / nav and write a three-sentence plan" } },
+      { id: "reuse", text: { zh: "列出将勾选的第 8 个月安全清单条目", en: "List the Month 8 safety-checklist items you will tick" } },
+      { id: "eval", text: { zh: "草拟一页评估表字段（成功/失败类/恢复是否触发）", en: "Draft eval-sheet fields (success / failure class / recovery fired?)" } },
+      { id: "ci", text: { zh: "写清演示门禁将在你自己的仓库跑", en: "State that the demo gate will run in your own repository" } },
+    ],
+  },
+];
+
+
 export const months: Month[] = [
   {
     id: 1,
@@ -1312,7 +1478,7 @@ export const months: Month[] = [
       { zh: "安全：限位、看门狗、急停", en: "Safety: limits, watchdogs, e-stop" },
       { zh: "容器、CI、rosbag2/MCAP、实验追踪", en: "Containers, CI, rosbag2/MCAP, experiment tracking" },
       { zh: "毕业项目三轨道", en: "Capstone tracks" },
-      { zh: "延伸：LeKiwi 移动操作；micro-ROS + FOC；MoveIt Servo/MTC；LIBERO 仿真基准（选修，不成正式课）", en: "Further: LeKiwi mobile manip; micro-ROS + FOC; MoveIt Servo/MTC; LIBERO sim benchmarks (electives, not formal lessons)" },
+      { zh: "延伸：LIBERO 仿真基准仍为选修。LeKiwi / MoveIt Servo / MTC / 导纳与长时程组合见第 9 个月核心课；micro-ROS + FOC 与真机 F/T 导纳见第 9 个月月页选修。", en: "Further: LIBERO stays elective. LeKiwi / MoveIt Servo / MTC / admittance and long-horizon compose → Month 9 core; micro-ROS + FOC and real F/T admittance → Month 9 month-page electives." },
     ],
     milestones: [
       { zh: "一个按规程录制、可流式加载的数据集", en: "A protocol-recorded dataset that can be streamed" },
@@ -1320,6 +1486,31 @@ export const months: Month[] = [
       { zh: "一个带 CI、容器和看门狗的仓库，以及毕业项目 README，用 portfolio_check.py 检查 8 项全过", en: "A repo with CI, containers and a watchdog, plus a capstone README that passes portfolio_check.py's eight parts" },
     ],
     lessons: month8Lessons,
+  },
+  {
+    id: 9,
+    slug: "month-9",
+    title: { zh: "长时程任务、接触力控与移动操作", en: "Long-horizon tasks, contact control & mobile manipulation" },
+    goal: {
+      zh: "把多个技能排成可失败重试的长时程任务，在接触时柔顺地用力，并能在仿真里把导航与抓取接成一条整机流程。",
+      en: "Compose skills into a long-horizon task that can retry on failure, comply under contact, and in simulation join navigation with grasping into one whole-robot flow.",
+    },
+    topics: [
+      { zh: "MTC 多阶段规划", en: "MTC multi-stage planning" },
+      { zh: "MoveIt Servo 实时伺服", en: "MoveIt Servo realtime jogging" },
+      { zh: "导纳与舵机负载估计", en: "Admittance and servo load estimates" },
+      { zh: "LLM 技能规划（SayCan 式）", en: "LLM skill planning (SayCan-style)" },
+      { zh: "失败检测与行为树恢复", en: "Failure detection and BT recovery" },
+      { zh: "Nav2 + 臂组合", en: "Nav2 + arm compose" },
+      { zh: "可选移动底盘", en: "Optional mobile base" },
+      { zh: "延伸：LeKiwi 真机组装；micro-ROS + FOC；外接 F/T 导纳；世界模型阅读（选修，不成正式课）", en: "Further: LeKiwi build; micro-ROS + FOC; external F/T admittance; world-models reading (electives, not formal lessons)" },
+    ],
+    milestones: [
+      { zh: "用 MTC 风格的阶段图描述「接近 → 抓 → 抬 → 放」，并在 CPU 玩具上验证阶段依赖与失败边", en: "Describe approach → grasp → lift → place as an MTC-style stage graph, and verify deps and failure edges on a CPU toy" },
+      { zh: "在无外接力/力矩传感器的前提下，用 Present Load（或合成负载）区分空载跟踪与顶住障碍，并报告导纳参数改动对位移的影响", en: "Without an external F/T sensor, use Present Load (or synthetic load) to tell free tracking from pressing an obstacle, and report how admittance parameters change displacement" },
+      { zh: "给定自然语言指令与技能表，产出带可执行性过滤的技能序列；注入一次失败后能重试或改计划", en: "Given a natural-language command and a skill table, produce an affordance-filtered skill sequence; after one injected failure, retry or replan" },
+    ],
+    lessons: month9Lessons,
   },
 ];
 

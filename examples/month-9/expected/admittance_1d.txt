@@ -1,0 +1,6 @@
+M=1.0 zeta=0.7 F_ext=2.0 x_d=0.0 dt=0.001 horizon=8000
+ S_N_per_m          D      x_sim  x_ss_F_over_S        err
+      50.0     9.8995   0.040000       0.040000   0.000000
+     100.0    14.0000   0.020000       0.020000   0.000000
+     200.0    19.7990   0.010000       0.010000   0.000000
+ok: |x_sim - F_ext/S| < 1e-3 for all three stiffnesses
