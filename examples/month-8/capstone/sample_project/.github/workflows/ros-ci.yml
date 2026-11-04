@@ -1,0 +1,9 @@
+name: ros-ci
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ros-tooling/action-ros-ci@v0.4
+        with:
+          package-name: sample_capstone

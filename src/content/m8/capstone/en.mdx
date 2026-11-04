@@ -1,13 +1,189 @@
 This lesson is a site supplement — Months 7–8 are not part of the original six-month course.
 
-## Outline (full text in a later batch)
+Pick **one** track and finish it to a shared bar: safety checklist (8.5), container/CI (8.6), Month 6 evaluation protocol (**20** starts, **5** held out, Wilson intervals, failure table), and Month 6 `portfolio_check.py` **8/8**. The bundled `capstone_gate.py` checks those gates on a sample project. LIBERO is an optional sim benchmark — **本页未运行**.
 
-**Capstone: a complete robot system from data to deployment.** This page is a placeholder so the Month 8 curriculum can list all seven lessons while batch 1 ships 8.1, 8.3, 8.5 and 8.6. Planned scope: tracks A/B/C (learning / perception-grasp / sim-to-real RL), shared safety + DevOps bar, Month 6 eval protocol, portfolio_check eight parts.
+## Three tracks
 
-Check `docs/notes/month-8-plan.md` for the batch schedule. The tasks on this lesson's sidebar are reading prompts only until the full MDX lands.
+| track | path |
+|-------|------|
+| **Track A — Learning** | dataset (8.1) → fine-tune (8.2) → async deploy (8.3) |
+| **Track B — Perception grasp** | depth/point cloud (7.5) + open-vocab grasp (7.6) + MoveIt + hardware component (8.4) |
+| **Track C — Sim-to-real RL** | MuJoCo SO-101 (7.1) → sim-to-real (7.4), verify on the arm |
+
+Hardware hints: A needs a cloud GPU for fine-tune; B prefers a depth camera; C can stay CPU-heavy if your 7.3/7.4 stack did.
+
+## Shared delivery bar
+
+1. **Safety** — filled `examples/month-8/safety-reliability/bench_safety_checklist.md` (or a copy in your repo) with a physical e-stop path.
+2. **DevOps** — Dev Container + `action-ros-ci` green on **your** package repo (lesson 8.6). Not this website's CI.
+3. **Eval** — Month 6 protocol: 20 starts written first; 5 never in training; Wilson 95 %; failure table.
+4. **Portfolio** — `portfolio_check.py` reports 8/8 on the project README (video, result, trials, failures, reproduce, hardware, contribution, next).
+
+Template: `examples/month-8/capstone/capstone_checklist.md`.
+
+## Run the gate on the sample
+
+```bash
+$ cd ~/Hardware-learning/examples/month-8/capstone
+$ python3 capstone_gate.py --demo
+```
+
+<CodeSource path="examples/month-8/capstone/capstone_gate.py" />
+
+```python
+#!/usr/bin/env python3
+"""capstone_gate.py: check a capstone project folder for Month 8 shared gates.
+
+Looks for (stdlib text rules only — cannot judge quality):
+  track          TRACK.md or README names track A/B/C
+  safety         bench_safety_checklist.md (or SAFETY.md) with e-stop / 急停
+  devops         .devcontainer/ or a workflow mentioning action-ros-ci / ros-ci
+  eval_protocol  README mentions 20 starts / Wilson / held-out (or 未见 / Wilson)
+  portfolio_8    delegates to Month 6 portfolio_check on the same folder
+
+usage:
+  python3 capstone_gate.py PROJECT_DIR
+  python3 capstone_gate.py --demo    # runs against bundled sample_project
+"""
+from __future__ import annotations
+
+import os
+import re
+import subprocess
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+PORTFOLIO = os.path.normpath(
+    os.path.join(HERE, "..", "..", "month-6", "specialisation-portfolio", "portfolio_check.py")
+)
+
+
+def read(path: str) -> str:
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
+def find_safety(root: str) -> str | None:
+    for name in ("bench_safety_checklist.md", "SAFETY.md", "safety.md"):
+        p = os.path.join(root, name)
+        if os.path.isfile(p):
+            return p
+    return None
+
+
+def check(root: str) -> int:
+    root = os.path.abspath(root)
+    readme = os.path.join(root, "README.md")
+    if not os.path.isfile(readme):
+        print(f"FAIL  no README.md under {root}")
+        return 1
+    text = read(readme)
+    missing = 0
+
+    def gate(name: str, ok: bool, detail: str) -> None:
+        nonlocal missing
+        missing += not ok
+        print(f"  {'ok     ' if ok else 'MISSING'} {name:<14} {detail}")
+
+    print(f"{os.path.basename(root)}: capstone gates")
+
+    track_ok = bool(
+        re.search(r"\btrack\s*[ABC]\b|轨道\s*[ABC]|Track\s*[ABC]", text, re.I)
+    ) or os.path.isfile(os.path.join(root, "TRACK.md"))
+    gate("track", track_ok, "README/TRACK names track A, B, or C")
+
+    safety_path = find_safety(root)
+    safety_ok = False
+    if safety_path:
+        s = read(safety_path)
+        safety_ok = bool(re.search(r"e-?stop|急停", s, re.I))
+    gate("safety", safety_ok, "bench_safety_checklist.md (or SAFETY.md) with e-stop/急停")
+
+    devops_ok = os.path.isdir(os.path.join(root, ".devcontainer")) or bool(
+        re.search(r"action-ros-ci|ros-tooling/action-ros-ci", text, re.I)
+    )
+    if not devops_ok:
+        wf = os.path.join(root, ".github", "workflows")
+        if os.path.isdir(wf):
+            for fn in os.listdir(wf):
+                body = read(os.path.join(wf, fn))
+                if re.search(r"action-ros-ci|ros-tooling", body, re.I):
+                    devops_ok = True
+                    break
+    gate("devops", devops_ok, ".devcontainer or action-ros-ci workflow")
+
+    eval_ok = bool(
+        re.search(r"\b20\b.*(?:start|position|trial)|Wilson|held[- ]out|未见|起始", text, re.I)
+    )
+    gate("eval_protocol", eval_ok, "M6 protocol: 20 starts / held-out / Wilson")
+
+    # portfolio 8/8
+    if not os.path.isfile(PORTFOLIO):
+        gate("portfolio_8", False, f"cannot find portfolio_check.py at {PORTFOLIO}")
+    else:
+        proc = subprocess.run(
+            [sys.executable, PORTFOLIO, root],
+            capture_output=True,
+            text=True,
+        )
+        out = (proc.stdout or "") + (proc.stderr or "")
+        m = re.search(r"(\d+)\s+of\s+8\s+present", out)
+        n = int(m.group(1)) if m else -1
+        gate("portfolio_8", n == 8, f"portfolio_check → {n}/8 (exit {proc.returncode})")
+
+    print(f"  {5 - missing} of 5 gates present")
+    return 1 if missing else 0
+
+
+def main() -> None:
+    if len(sys.argv) == 2 and sys.argv[1] == "--demo":
+        sample = os.path.join(HERE, "sample_project")
+        raise SystemExit(check(sample))
+    if len(sys.argv) != 2:
+        raise SystemExit(__doc__.strip().splitlines()[-2])
+    raise SystemExit(check(sys.argv[1]))
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+sample_project: capstone gates
+  ok      track          README/TRACK names track A, B, or C
+  ok      safety         bench_safety_checklist.md (or SAFETY.md) with e-stop/急停
+  ok      devops         .devcontainer or action-ros-ci workflow
+  ok      eval_protocol  M6 protocol: 20 starts / held-out / Wilson
+  ok      portfolio_8    portfolio_check → 8/8 (exit 0)
+  5 of 5 gates present
+```
+
+</SimOutput>
+
+The sample under `sample_project/` is a **fiction** that passes the text rules (5/5 gates, portfolio 8/8). Replace it with your real README, video, and numbers before you claim a graduation project.
+
+On your own repo:
+
+```bash
+$ python3 ~/Hardware-learning/examples/month-6/specialisation-portfolio/portfolio_check.py ~/my-capstone
+$ python3 ~/Hardware-learning/examples/month-8/capstone/capstone_gate.py ~/my-capstone
+```
+
+## Optional: LIBERO / SimplerEnv
+
+LeRobot's LIBERO docs: **5** suites, **130** tasks, Linux + MuJoCo; on headless hosts set `MUJOCO_GL=egl`; `lerobot-eval --env.type=libero` evaluates the four standard suites (default 10 episodes/task). **本页未运行.** SimplerEnv (arXiv **2405.05941**) studies how well sim scores track real-robot behaviour — cite it if you report sim-only numbers. Neither replaces the 20 real starts on your SO-101 track.
+
+## Common mistakes
+
+- **Shipping a demo video without the 20-start table.** Reviewers bounce that in two minutes.
+- **Putting CI only on this course repo.** Capstone CI lives in *your* package repo.
+- **Skipping the safety checklist because "it is only a desk arm".** Desk arms still pinch.
+- **Treating LIBERO as the graduation criterion.** It is optional colour; the shared bar above is mandatory.
 
 <Summary>
 
-Placeholder for **Capstone: a complete robot system from data to deployment**. Full worked examples ship in a later Month 8 batch.
+Capstone: choose track A/B/C; deliver 8.5 safety, 8.6 Dev Container/CI, Month 6's 20 starts / 5 held-out / Wilson / failure table, and portfolio_check 8/8. `capstone_gate.py --demo` shows 5/5 on the sample. LIBERO (130 tasks) and SimplerEnv (arXiv 2405.05941) stay optional — 本页未运行.
 
 </Summary>

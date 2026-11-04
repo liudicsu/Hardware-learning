@@ -1,0 +1,7 @@
+sample_project: capstone gates
+  ok      track          README/TRACK names track A, B, or C
+  ok      safety         bench_safety_checklist.md (or SAFETY.md) with e-stop/急停
+  ok      devops         .devcontainer or action-ros-ci workflow
+  ok      eval_protocol  M6 protocol: 20 starts / held-out / Wilson
+  ok      portfolio_8    portfolio_check → 8/8 (exit 0)
+  5 of 5 gates present

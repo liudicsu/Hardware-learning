@@ -1,13 +1,167 @@
 本课是本站补充内容——第 7–8 个月不属于原六个月课程。
 
-## 大纲（正文在后续批次）
+第 6 个月已经讲过 VLA 词元化（256 区间与 FAST/DCT）。本课只讲**实践**：加载预训练权重、在你自己的数据上微调、算力预算、语言指令必须与录制一致、推理时的相机与端口。把同一套评估起始上的 ACT 基线（第 6 月）和 SmolVLA 放在一起比，并读一张开源 VLA 显存门槛表。云 GPU / Colab / 真机微调一律标 **本页未运行**——本页只跑 CPU 估算。
 
-**微调一个视觉-语言-动作模型：SmolVLA，以及 π0 / GR00T 的门槛。** 本页是占位，好让第 8 个月课程表能列全七课，而本批次先交付 8.1、8.3、8.5、8.6。计划范围：预训练权重、微调命令、算力/显存门槛、语言与录制一致、对照 ACT 基线；GPU 路径标「本页未运行」。
+## 预训练 → 微调（先做 SmolVLA）
 
-批次安排见 `docs/notes/month-8-plan.md`。侧栏任务在全文落地前只作阅读提示。
+LeRobot 的 SmolVLA 页：从 `smolvla_base`（预训练 **450M**）出发，在自己的数据上微调。文档口径：**2 万**步在单张 **A100** 上大约 **4 小时**。若没有 GPU，文档提供 **Google Colab** 笔记本——在你自己的账号上跑，不在本页跑。
+
+命令草稿（以当前 LeRobot 文档为准；**本页未运行**）：
+
+```bash
+# 在有 GPU / Colab 的机器上——本页未运行
+cd lerobot && lerobot-train \
+  --policy.path=lerobot/smolvla_base \
+  --dataset.repo_id=${HF_USER}/mydataset \
+  --batch_size=64 \
+  --steps=20000 \
+  --output_dir=outputs/smolvla_ft
+# 随后用 lerobot-rollout --robot.type=so101_follower ...
+# 低算力推理可看 Real-Time Chunking（RTC）；异步部署见 8.3。
+```
+
+数据集里的语言字符串必须与评估时你说的话一致。相机 ID 与串口配置必须与遥操作一致。录制时叫 `wrist_cam`、训练时改名，是常见的静默失败。
+
+## 同一起始上的 ACT 与 SmolVLA
+
+沿用第 6 月的固定起始列表与配对/McNemar 思路：在 8.1 的数据上训练 ACT，微调 SmolVLA，两者都在**同一批 20 个起始**（含 5 个未见）上评估。报告两边的 Wilson 区间和失败表。不要中途换起始列表。
+
+## 官方显存门槛表（先读表）
+
+一手来源复核于 2026-11-04（Asia/Shanghai）：
+
+| 栈 | 角色 | 官方门槛 | 来源 |
+|----|------|----------|------|
+| openpi π₀ / π₀.₅ | 推理 | **> 8 GB** | openpi README |
+| openpi | LoRA 微调 | **> 22.5 GB**（如 RTX 4090） | openpi README |
+| openpi | 全量微调 | **> 70 GB**（A100 80GB / H100） | openpi README |
+| Isaac-GR00T N1.7 | 推理 | **16 GB+** | Isaac-GR00T README |
+| Isaac-GR00T N1.7 | 微调 | 推荐 **40 GB+** | Isaac-GR00T README |
+| LeRobot π₀.₅ | 微调配方 | 按**单张 80 GB GPU**设计；需在 Hub 接受 PaliGemma 许可 | LeRobot `pi05` |
+| LeRobot GR00T | 当前发行 | **仅 N1.7**（`nvidia/GR00T-N1.7-3B`）；N1.5 已移除——要继续用须固定 `lerobot==0.5.1`；SO-101 用 `new_embodiment` | LeRobot `groot` |
+
+SmolVLA 论文：arXiv **2506.01844**。π₀ / π₀.₅ / GR00T 论文见各 README——本课不重推公式。
+
+## CPU 交付：`compute_budget.py`
+
+餐巾纸估算（参数量 × 字节 × 优化器倍数）偏**乐观**。把它和官方门槛并排，冲突时以 README 表为准。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-8/vla-finetune
+$ python3 compute_budget.py
+```
+
+<CodeSource path="examples/month-8/vla-finetune/compute_budget.py" />
+
+```python
+#!/usr/bin/env python3
+"""compute_budget.py: estimate VRAM from params/precision/LoRA and compare official floors.
+
+Stdlib toy for lesson 8.2. Does NOT load weights or run fine-tuning.
+Official floors are pinned from primary docs (re-checked 2026-11-04 Asia/Shanghai):
+  - openpi README: infer >8 GB; LoRA FT >22.5 GB; full FT >70 GB
+  - Isaac-GR00T README: infer 16 GB+; fine-tune 40 GB+ recommended
+  - LeRobot SmolVLA: smolvla_base 450M; 20k steps ~4 h on one A100
+  - LeRobot π0.5: fine-tune command sized for a single 80 GB GPU
+
+Rough estimator (teaching only, not a profiler):
+  weight_GB ≈ n_params * bytes_per_param / 1e9
+  train_GB  ≈ weight_GB * optimizer_factor   (AdamW-ish ~2–3× weights in fp16)
+  lora_GB   ≈ weight_GB + adapter_GB * optimizer_factor
+usage: python3 compute_budget.py
+"""
+from __future__ import annotations
+
+BYTES = {"fp32": 4, "bf16": 2, "fp16": 2, "int8": 1}
+# Adam-like: weights + moments; pinned for expected/
+OPT_FACTOR_FULL = 2.5
+OPT_FACTOR_LORA = 2.0
+LORA_RANK_FRAC = 0.02  # adapters ~2 % of dense params (order-of-magnitude toy)
+
+
+def weight_gb(n_params: float, precision: str) -> float:
+    return n_params * BYTES[precision] / 1e9
+
+
+def estimate(n_params: float, precision: str, mode: str) -> float:
+    w = weight_gb(n_params, precision)
+    if mode == "infer":
+        return round(w * 1.2, 2)  # small activation overhead
+    if mode == "full":
+        return round(w * OPT_FACTOR_FULL, 2)
+    if mode == "lora":
+        adapters = w * LORA_RANK_FRAC
+        return round(w + adapters * OPT_FACTOR_LORA, 2)
+    raise ValueError(mode)
+
+
+# Official floors table (source → number). "pass" if estimate sits under floor is NOT
+# required — we only report estimate vs floor so students see the gap.
+OFFICIAL = [
+    # name, params, precision, mode, floor_GB, note
+    ("smolvla_base", 450e6, "bf16", "full", 40.0, "LeRobot: ~4h/20k on A100; floor=illustrative A100-class"),
+    ("openpi_infer", 3.3e9, "bf16", "infer", 8.0, "openpi README: Inference > 8 GB"),
+    ("openpi_lora", 3.3e9, "bf16", "lora", 22.5, "openpi README: Fine-Tuning (LoRA) > 22.5 GB"),
+    ("openpi_full", 3.3e9, "bf16", "full", 70.0, "openpi README: Fine-Tuning (Full) > 70 GB"),
+    ("groot_n17_infer", 3e9, "bf16", "infer", 16.0, "Isaac-GR00T: Inference 16 GB+"),
+    ("groot_n17_ft", 3e9, "bf16", "full", 40.0, "Isaac-GR00T: Fine-tuning 40 GB+ recommended"),
+    ("pi05_lerobot", 3.3e9, "bf16", "full", 80.0, "LeRobot pi05: sized for a single 80 GB GPU"),
+]
+
+
+def main() -> None:
+    print("compute_budget: toy VRAM estimates vs official floors (no weights loaded)")
+    print(f"{'name':<18} {'params':>8} {'prec':>4} {'mode':<5} {'est_GB':>7} {'floor_GB':>8} {'vs_floor':>10}")
+    under = 0
+    over = 0
+    for name, n, prec, mode, floor, _note in OFFICIAL:
+        est = estimate(n, prec, mode)
+        tag = "UNDER" if est < floor else "OVER_OR_EQ"
+        if est < floor:
+            under += 1
+        else:
+            over += 1
+        print(
+            f"{name:<18} {n/1e9:7.2f}B {prec:>4} {mode:<5} {est:7.2f} {floor:8.1f} {tag:>10}"
+        )
+    print(f"rows={len(OFFICIAL)} under_floor={under} over_or_eq={over}")
+    print("ok: floors from openpi README / Isaac-GR00T README / LeRobot smolvla+pi05 (page not run)")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+compute_budget: toy VRAM estimates vs official floors (no weights loaded)
+name                 params prec mode   est_GB floor_GB   vs_floor
+smolvla_base          0.45B bf16 full     2.25     40.0      UNDER
+openpi_infer          3.30B bf16 infer    7.92      8.0      UNDER
+openpi_lora           3.30B bf16 lora     6.86     22.5      UNDER
+openpi_full           3.30B bf16 full    16.50     70.0      UNDER
+groot_n17_infer       3.00B bf16 infer    7.20     16.0      UNDER
+groot_n17_ft          3.00B bf16 full    15.00     40.0      UNDER
+pi05_lerobot          3.30B bf16 full    16.50     80.0      UNDER
+rows=7 under_floor=7 over_or_eq=0
+ok: floors from openpi README / Isaac-GR00T README / LeRobot smolvla+pi05 (page not run)
+```
+
+</SimOutput>
+
+七行玩具估算都是 `UNDER`——这是刻意的。真实训练显存还包括激活、batch 状态与框架开销。当估算写 16 GB、而 openpi 全量微调写 **> 70 GB** 时，你租的是 70 GB 档（或改走 LoRA / SmolVLA / Colab），不是餐巾纸数字。
+
+## 常见错误
+
+- **在本课重讲词元化。** 第 6 月讲过；引用即可。
+- **遥操作与评估说的话不一致。** 模型不会补上你没录过的句子。
+- **忽略 Hub 许可。** 经 LeRobot 跑 π₀.₅ 前须接受 PaliGemma。
+- **假定 N1.5 还能加载。** 当前 LeRobot 会拒绝，除非固定 `lerobot==0.5.1`。
+- **把本页当成一次微调。** 这里从不加载权重。
 
 <Summary>
 
-**微调一个视觉-语言-动作模型：SmolVLA，以及 π0 / GR00T 的门槛** 的占位页。完整例题与脚本在后续第 8 个月批次交付。
+VLA 微调实践：`smolvla_base`（450M；A100 上约 4 小时 / 2 万步；无 GPU 用 Colab）。在第 6 月的 20 个起始上对比 ACT 与 SmolVLA。读 openpi（>8 / >22.5 / >70 GB）、GR00T（16 GB+ / 40 GB+）与 LeRobot π₀.₅（80 GB 配方）门槛。`compute_budget.py` 用乐观 UNDER 对照这些门槛。GPU / Colab / 真机：本页未运行。
 
 </Summary>

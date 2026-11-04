@@ -1,13 +1,133 @@
 本课是本站补充内容——第 7–8 个月不属于原六个月课程。
 
-## 大纲（正文在后续批次）
+第 4 个月的 ros2-control 课用的是现成或 mock 硬件。本课草拟真正的 <Term id="hardware-component">硬件组件</Term>，让 MoveIt 与控制器能驱动 SO-101 一类总线舵机。我们过一遍 <Term id="lifecycle-node">生命周期</Term> 回调、状态/命令导出、`read` / `write`、JointLimiter 启动日志，以及实时循环纪律。CPU 玩具统计总线抖动超时；`so101_hw/` 下的 C++ 插件只是骨架，供**你自己的** Jazzy 工作区使用——**本页未运行**。
 
-**给 SO-101 写一个 ros2_control 硬件组件。** 本页是占位，好让第 8 个月课程表能列全七课，而本批次先交付 8.1、8.3、8.5、8.6。计划范围：生命周期回调、状态/命令接口、read/write、关节限位器、实时循环注意点；真机验证标「本页未运行」。
+## 生命周期回调
 
-批次安排见 `docs/notes/month-8-plan.md`。侧栏任务在全文落地前只作阅读提示。
+control.ros.org（Jazzy）《Writing a Hardware Component》：类继承 `hardware_interface::{System|Actuator|Sensor}Interface`，实现 LifecycleNodeInterface 方法与接口钩子：
+
+- `on_init`
+- `on_configure` / `on_cleanup` / `on_shutdown`
+- `on_activate` / `on_deactivate`
+- `on_error`
+- `export_state_interfaces` / `export_command_interfaces`（Jazzy 也可按 URDF 里 `ros2_control` 标签自动导出）
+- 可选 `prepare_command_mode_switch` / `perform_command_mode_switch`
+- 每个控制周期的 **`read`** / **`write`**
+
+串口在 `on_configure` 打开；使能在 `on_activate`；`read` 把总线状态写入状态接口；`write` 下发命令。不要在 `read`/`write` 里分配内存或做会阻塞的 Hub 调用。
+
+## JointLimiter
+
+Jazzy joint_limiting 文档的启动日志形如 `Using JointLimiter for joint 'joint1' ... has position limits: true [-1, 1]`，并打印速度限制。在 `ros2_control` XML 里声明限位，避免坏命令在 8.5 的软件软限位之前就请求无限速度。
+
+## 实时循环纪律
+
+ROS 2 的 Real-Time-Programming 演示（`ros2/ros2_documentation` jazzy 分支 `Real-Time-Programming.rst`）用一句话概括：实时循环必须按时完成，只允许很小抖动——热路径上避免缺页、动态分配与无限阻塞。ROS 1 未按此设计；不要在 `write()` 里塞会阻塞的 USB 重试。
+
+## CPU 交付：`servo_bus_sim.py`
+
+```bash
+$ cd ~/Hardware-learning/examples/month-8/ros2-hardware-interface
+$ python3 servo_bus_sim.py
+```
+
+<CodeSource path="examples/month-8/ros2-hardware-interface/servo_bus_sim.py" />
+
+```python
+#!/usr/bin/env python3
+"""servo_bus_sim.py: simulate hardware read/write cycle jitter → timeout counts.
+
+Models a ros2_control-style loop at CONTROL_HZ. Each tick must finish both
+read() and write() within the period. Bus latency is base + jitter; when the
+sum exceeds the period the tick is a TIMEOUT (deadline miss).
+
+Modes:
+  naive — always pay full read+write cost.
+  budget_guard — if projected read+write would exceed the period, skip the
+                 blocking write and apply a cheap hold (HOLD_MS). That can still
+                 miss if read alone is huge, but usually cuts timeouts.
+
+Pinned seed and constants keep expected/ stable. Pure CPU; no real serial.
+The so101_hw/ skeleton beside this file is for your Jazzy workspace
+(marked 「本页未运行」 in the lesson).
+usage: python3 servo_bus_sim.py
+"""
+from __future__ import annotations
+
+import random
+
+CONTROL_HZ = 100
+PERIOD_MS = 1000.0 / CONTROL_HZ  # 10.0
+BASE_READ_MS = 2.0
+BASE_WRITE_MS = 2.5
+JITTER_MS = 6.0  # uniform [0, JITTER_MS] added to read and to write
+HOLD_MS = 0.4  # cheap "hold last command" path under budget_guard
+TICKS = 200
+SEED = 8
+
+
+def run(budget_guard: bool) -> tuple[int, float, int]:
+    """Return (timeouts, max_overshoot_ms, holds_used)."""
+    rng = random.Random(SEED)
+    timeouts = 0
+    max_over = 0.0
+    holds = 0
+    for _ in range(TICKS):
+        read_ms = BASE_READ_MS + rng.random() * JITTER_MS
+        write_ms = BASE_WRITE_MS + rng.random() * JITTER_MS
+        if budget_guard and (read_ms + write_ms) > PERIOD_MS:
+            total = read_ms + HOLD_MS
+            holds += 1
+        else:
+            total = read_ms + write_ms
+        over = total - PERIOD_MS
+        if over > 0:
+            timeouts += 1
+            max_over = max(max_over, over)
+    return timeouts, max_over, holds
+
+
+def main() -> None:
+    t_naive, o_naive, _ = run(False)
+    t_guard, o_guard, holds = run(True)
+    print(f"servo_bus_sim control_hz={CONTROL_HZ} period_ms={PERIOD_MS:g} ticks={TICKS} seed={SEED}")
+    print(f"naive_timeouts={t_naive} naive_max_overshoot_ms={o_naive:.3f}")
+    print(f"guard_timeouts={t_guard} guard_max_overshoot_ms={o_guard:.3f} holds={holds}")
+    print(f"timeout_reduction={t_naive - t_guard}")
+    print("ok: CPU bus jitter toy (no real STS3215 bus, page not run)")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+servo_bus_sim control_hz=100 period_ms=10 ticks=200 seed=8
+naive_timeouts=122 naive_max_overshoot_ms=6.072
+guard_timeouts=0 guard_max_overshoot_ms=0.000 holds=122
+timeout_reduction=122
+ok: CPU bus jitter toy (no real STS3215 bus, page not run)
+```
+
+</SimOutput>
+
+在 **100 Hz**（周期 10 ms）与固定抖动下，朴素路径得到 **naive_timeouts=122**、**naive_max_overshoot_ms=6.072**。预算守卫（跳过阻塞 write、改走廉价 hold）把 **guard_timeouts** 降到 **0**，**holds=122**，**timeout_reduction=122**。工程含义：总线晚了就在周期内软失败，而不是把 `write` 拖过截止时间。
+
+## 插件骨架（`so101_hw/`）
+
+`examples/month-8/ros2-hardware-interface/so101_hw/` 含 `fake_bus.hpp` 与禁用状态的 `so101_system_skeleton.cpp`。复制到**你的**包，打开 `#if 0`，补上 `PLUGINLIB_EXPORT_CLASS`，在本机用 `ros2 control list_hardware_interfaces` 验证（**本页未运行**）。再按 8.6 给该包加开发容器与 `action-ros-ci`，让每次推送都编译插件。
+
+## 常见错误
+
+- **在 `read` 里打开串口。** 只在 `on_configure` 配置一次，保证周期确定。
+- **每次 `write` 都 `new` 向量。** 在 configure 时预分配。
+- **不做 JointLimiter。** 8.5 的软件看门狗不能代替向 ros2_control 声明位置/速度限制。
+- **指望本站 CI 加载你的 `.so`。** 学员包 CI ≠ Hardware-learning 网站 CI。
 
 <Summary>
 
-**给 SO-101 写一个 ros2_control 硬件组件** 的占位页。完整例题与脚本在后续第 8 个月批次交付。
+编写 ros2_control 硬件组件：生命周期 `on_init`/`configure`/`activate`/…、导出状态/命令接口、`read`/`write`、JointLimiter 日志、实时纪律（热路径不分配、不阻塞）。`servo_bus_sim.py` 用预算守卫把超时从 122 降到 0。`so101_hw/` 是给你 Jazzy 工作区的骨架——本页未运行。
 
 </Summary>
