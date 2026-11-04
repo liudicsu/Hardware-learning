@@ -956,6 +956,172 @@ const month7Lessons: Lesson[] = [
   },
 ];
 
+
+const month8Lessons: Lesson[] = [
+  {
+    slug: "dataset-engineering",
+    title: { zh: "数据集工程：录制规程、格式与可视化", en: "Dataset engineering: recording protocol, format and visualisation" },
+    summary: {
+      zh: "数据决定策略上限。按「变化 × 重复」写录制规程；读懂 LeRobotDataset v3（多集共用 Parquet/MP4、StreamingLeRobotDataset）；留出评估起始位衔接第 6 个月；理解 Open X-Embodiment。CPU 上审计一个合成玩具数据集。",
+      en: "Data caps the policy. Write a variation×repetition recording protocol; read LeRobotDataset v3 (many episodes per Parquet/MP4, StreamingLeRobotDataset); hold out evaluation starts for Month 6; grasp Open X-Embodiment. Audit a synthetic toy dataset on CPU.",
+    },
+    minutes: 180,
+    objectives: [
+      { zh: "能写出一份变化×重复的录制规程，并说明 SmolVLA 文档建议约 50 集起步。", en: "Write a variation×repetition protocol and state that SmolVLA docs suggest starting around ~50 episodes." },
+      { zh: "能说明 LeRobotDataset v3 用元数据定位集边界、多集可落在同一 Parquet/MP4，并可用 StreamingLeRobotDataset 流式读取。", en: "Explain that LeRobotDataset v3 locates episode boundaries in metadata, packs many episodes per Parquet/MP4, and supports StreamingLeRobotDataset." },
+      { zh: "能读懂 dataset_audit.py：3 种变化、24 集，cube_C 仅 4 集被标 UNDER，缺帧 1。", en: "Read dataset_audit.py: 3 variations, 24 episodes, cube_C UNDER with 4 episodes and 1 missing frame." },
+      { zh: "能说明评估要用 20 个起始位且 5 个不在训练集（衔接第 6 个月）。", en: "State the Month 6 eval rule: 20 starts, 5 held out of the training set." },
+    ],
+    prereqs: ["behaviour-cloning", "policy-evaluation", "so101-arm"],
+    resources: ["lerobot-dataset-v3", "lerobot-il-robots", "lerobot-smolvla", "open-x-embodiment"],
+    tasks: [
+      { id: "run", text: { zh: "运行 dataset_audit.py，核对该表与 expected/dataset_audit.txt 一致", en: "Run dataset_audit.py and match expected/dataset_audit.txt" } },
+      { id: "protocol", text: { zh: "按 protocol.md 填一份你自己任务的录制规程（至少 2 个变化因子）", en: "Fill protocol.md for your own task (at least two variation factors)" } },
+      { id: "holdout", text: { zh: "列出 5 个计划留作评估、不进训练集的起始位", en: "List five evaluation start poses you will hold out of training" } },
+      { id: "oxe", text: { zh: "用一句话说明 Open X-Embodiment（arXiv 2310.08864）想解决什么问题", en: "In one sentence, say what Open X-Embodiment (arXiv 2310.08864) is for" } },
+    ],
+  },
+  {
+    slug: "vla-finetune",
+    title: { zh: "微调一个视觉-语言-动作模型：SmolVLA，以及 π0 / GR00T 的门槛", en: "Fine-tuning a vision-language-action model: SmolVLA, and what π0 / GR00T need" },
+    summary: {
+      zh: "实践向：预训练权重、微调、算力预算、语言指令与录制一致、推理时的相机与端口。对照 ACT 基线；读懂 π0 / GR00T 的显存门槛表。全文在后续批次。",
+      en: "Practice: pretrained weights, fine-tuning, compute budget, language matching the recordings, cameras and ports at rollout. Contrast an ACT baseline; read the π0 / GR00T VRAM table. Full text in a later batch.",
+    },
+    minutes: 240,
+    objectives: [
+      { zh: "能说明 SmolVLA 需在自己的数据上微调，并指出文档中的算力参考。", en: "State that SmolVLA is fine-tuned on your data, and cite the docs' compute notes." },
+      { zh: "能对照一张表读出 π0 / GR00T 的微调显存门槛。", en: "Read a table of π0 / GR00T fine-tune VRAM floors." },
+      { zh: "能说明语言指令必须与录制时一致。", en: "State that language instructions must match what was recorded." },
+      { zh: "能说出本课 GPU 部分标「本页未运行」。", en: "Note that the GPU path is marked not run on this page." },
+    ],
+    prereqs: ["act-diffusion", "vla-models", "policy-evaluation", "dataset-engineering"],
+    resources: ["lerobot-smolvla", "smolvla-paper", "openpi", "lerobot-pi05", "lerobot-groot"],
+    tasks: [
+      { id: "read", text: { zh: "阅读侧栏资源中 SmolVLA 微调命令与 Colab 说明", en: "Read the SmolVLA fine-tune command and Colab notes in the sidebar resources" } },
+      { id: "budget", text: { zh: "（后续批次）运行 compute_budget.py 对照官方门槛表", en: "(Later batch) run compute_budget.py against the official VRAM table" } },
+      { id: "lang", text: { zh: "写下训练与推理时会使用的同一条语言指令", en: "Write the one language instruction you will use at train and at rollout" } },
+      { id: "gpu", text: { zh: "（选做，本页未运行）在 Colab 或自租 GPU 上微调并做 20 次试验", en: "(Optional, not run here) fine-tune on Colab or a rented GPU and run 20 trials" } },
+    ],
+  },
+  {
+    slug: "async-deployment",
+    title: { zh: "把策略部署到真机：同步与异步推理、动作块与延迟", en: "Deploying a policy on the arm: sync vs async inference, action chunks and latency" },
+    summary: {
+      zh: "同步推理时机器人空闲等下一块；异步边执行边算。PolicyServer / RobotClient；调节 actions_per_chunk 与 chunk_size_threshold。CPU 离散时间模拟给出空闲帧比例与跳变。",
+      en: "Sync inference leaves the robot idle between chunks; async keeps executing while the next chunk computes. PolicyServer / RobotClient; tune actions_per_chunk and chunk_size_threshold. A CPU discrete-time sim reports idle-frame ratio and jumps.",
+    },
+    minutes: 180,
+    objectives: [
+      { zh: "能对比同步与异步推理：同步有空闲帧，异步在服务器算下一块时继续执行。", en: "Contrast sync vs async: sync idles; async keeps moving while the server computes the next chunk." },
+      { zh: "能说出 PolicyServer 与 RobotClient 可以同机或跨网络。", en: "State that PolicyServer and RobotClient may share a machine or span a network." },
+      { zh: "能读懂 chunk_latency_sim.py：同步空闲比 0.200，异步 0.020。", en: "Read chunk_latency_sim.py: sync idle ratio 0.200, async 0.020." },
+      { zh: "能解释 actions_per_chunk 与 chunk_size_threshold 各管什么。", en: "Explain what actions_per_chunk and chunk_size_threshold each control." },
+    ],
+    prereqs: ["vla-finetune", "ros2-graph", "timing-interrupts"],
+    resources: ["lerobot-async", "lerobot-smolvla"],
+    tasks: [
+      { id: "run", text: { zh: "运行 chunk_latency_sim.py，确认异步空闲比低于同步", en: "Run chunk_latency_sim.py and confirm async idle ratio is below sync" } },
+      { id: "tune", text: { zh: "把 ACTION_CHUNK 改成 8 再跑，记录空闲比与跳变如何变", en: "Set ACTION_CHUNK to 8, re-run, and record how idle ratio and jumps change" } },
+      { id: "params", text: { zh: "用自己的话各用一句解释 actions_per_chunk 与 chunk_size_threshold", en: "Explain actions_per_chunk and chunk_size_threshold in one sentence each, in your words" } },
+      { id: "real", text: { zh: "（选做，本页未运行）RobotClient + 远程 PolicyServer 对比两种方式成功率", en: "(Optional, not run here) compare sync vs async success with RobotClient + remote PolicyServer" } },
+    ],
+  },
+  {
+    slug: "ros2-hardware-interface",
+    title: { zh: "给 SO-101 写一个 ros2_control 硬件组件", en: "Writing a ros2_control hardware component for the SO-101" },
+    summary: {
+      zh: "自己写硬件组件：生命周期、状态/命令接口、read/write；关节限位器；实时循环注意点。全文在后续批次。",
+      en: "Write a hardware component: lifecycle, state/command interfaces, read/write; joint limiters; real-time loop cautions. Full text in a later batch.",
+    },
+    minutes: 240,
+    objectives: [
+      { zh: "能按顺序列出硬件组件关键生命周期回调与 read/write。", en: "List the key lifecycle callbacks plus read/write for a hardware component." },
+      { zh: "能说明 export_state_interfaces 与 export_command_interfaces 的分工。", en: "State what export_state_interfaces and export_command_interfaces each export." },
+      { zh: "能说出控制回路里应避免阻塞与动态分配（原则级）。", en: "State that the control loop should avoid blocking and dynamic allocation (principle-level)." },
+      { zh: "能指出真机验证标「本页未运行」。", en: "Note that hardware verification is marked not run on this page." },
+    ],
+    prereqs: ["ros2-control", "moveit-pick-place", "so101-arm", "timing-interrupts"],
+    resources: ["ros2-control-hw-component", "ros2-control-joint-limiting", "ros2-realtime", "ros2-control-docs"],
+    tasks: [
+      { id: "read", text: { zh: "阅读 control.ros.org（Jazzy）Writing a Hardware Component 目录", en: "Read the Jazzy Writing a Hardware Component outline on control.ros.org" } },
+      { id: "skel", text: { zh: "（后续批次）在假串口后端上列出 list_hardware_interfaces", en: "(Later batch) list_hardware_interfaces against the fake-serial backend" } },
+      { id: "rt", text: { zh: "写两条实时循环禁忌（结合第 2 个月中断课）", en: "Write two real-time loop don'ts (tie back to Month 2 interrupts)" } },
+      { id: "hw", text: { zh: "（选做，本页未运行）在本机 Jazzy 工作空间加载插件", en: "(Optional, not run here) load the plugin in a local Jazzy workspace" } },
+    ],
+  },
+  {
+    slug: "safety-reliability",
+    title: { zh: "安全与可靠性：限位、看门狗、急停与失效测试", en: "Safety and reliability: limits, watchdogs, e-stops and fault testing" },
+    summary: {
+      zh: "软件限位、指令超时看门狗、急停（断电≠软件消息）、人工介入、故障注入。工业标准只提名称与适用范围。CPU 模拟对比有无看门狗的最大越界。",
+      en: "Software limits, command-timeout watchdogs, e-stop (cutting power ≠ a software message), human intervention, fault injection. Industrial standards by name and scope only. A CPU sim contrasts max overshoot with and without a watchdog.",
+    },
+    minutes: 180,
+    objectives: [
+      { zh: "能区分软件限位、看门狗、急停三者，并说明急停必须切断动力。", en: "Distinguish software limits, watchdogs and e-stops, and state that e-stop must cut power." },
+      { zh: "能读懂 watchdog_sim.py：无看门狗最大越界 0.65，有看门狗为 0。", en: "Read watchdog_sim.py: max overshoot 0.65 without a watchdog, 0 with clamp." },
+      { zh: "能说明 ISO/TS 15066 面向工业协作系统且不适用于非工业机器人；ISO 10218-1 只提名称。", en: "State that ISO/TS 15066 targets industrial collaborative systems and does not apply to non-industrial robots; name ISO 10218-1 only." },
+      { zh: "能按清单完成一次通电前检查。", en: "Complete a pre-power checklist once." },
+    ],
+    prereqs: ["ros2-hardware-interface", "async-deployment", "so101-arm"],
+    resources: ["iso-ts-15066", "lerobot-hilserl", "ros2-control-joint-limiting"],
+    tasks: [
+      { id: "run", text: { zh: "运行 watchdog_sim.py，确认有看门狗时越界更小", en: "Run watchdog_sim.py and confirm overshoot shrinks with the watchdog" } },
+      { id: "checklist", text: { zh: "打印并勾选 bench_safety_checklist.md", en: "Print and tick bench_safety_checklist.md" } },
+      { id: "estop", text: { zh: "用自己的话写清：为什么只发一个 ROS 话题不算急停", en: "In your words: why publishing one ROS topic is not an e-stop" } },
+      { id: "hil", text: { zh: "读 HIL-SERL 文档中 find-joint-limits 的用途，写一句笔记", en: "Read how HIL-SERL uses find-joint-limits; write one note" } },
+    ],
+  },
+  {
+    slug: "robot-devops",
+    title: { zh: "机器人工程化：容器、CI、日志与实验追踪", en: "Robot DevOps: containers, CI, logs and experiment tracking" },
+    summary: {
+      zh: "Dev Container 固定 ROS 2 环境；action-ros-ci 做 colcon 构建测试；rosbag2 在 Jazzy 默认 mcap；Foxglove/Rerun 回放；wandb 追踪训练。CPU 统计合成 bag 时间线。",
+      en: "Pin ROS 2 with a Dev Container; build/test with action-ros-ci; rosbag2 defaults to mcap on Jazzy; replay in Foxglove/Rerun; track training with wandb. CPU stats on a synthetic bag timeline.",
+    },
+    minutes: 180,
+    objectives: [
+      { zh: "能说出 Dev Container 需要 .devcontainer/devcontainer.json 与 Dockerfile。", en: "State that a Dev Container needs .devcontainer/devcontainer.json and a Dockerfile." },
+      { zh: "能说明 action-ros-ci 会跑 colcon build 与 colcon test（可跳过测试）。", en: "State that action-ros-ci runs colcon build and colcon test (tests optional to skip)." },
+      { zh: "能证明 Jazzy 上 rosbag2 默认 storage_id 为 mcap，并读懂 bag_stats.py 的丢帧表。", en: "Show that Jazzy rosbag2 defaults to storage_id mcap, and read bag_stats.py's gap table." },
+      { zh: "能区分本课 CI 跑在学员自仓，与本站仓库无关。", en: "Distinguish student-repo CI from this site's repository." },
+    ],
+    prereqs: ["git-github", "ros2-graph", "ros2-hardware-interface"],
+    resources: ["ros2-docker-vscode", "action-ros-ci", "rosbag2", "foxglove", "rerun", "wandb"],
+    tasks: [
+      { id: "run", text: { zh: "运行 bag_stats.py，核对 storage_id=mcap 与 total_gap_events=3", en: "Run bag_stats.py; confirm storage_id=mcap and total_gap_events=3" } },
+      { id: "devcontainer", text: { zh: "在自己的练习仓按官方指南加 .devcontainer（本站 CI 不跑它）", en: "Add .devcontainer to your practice repo per the official guide (not run in this site's CI)" } },
+      { id: "ci", text: { zh: "草拟一份 action-ros-ci 工作流（包名换成你的）", en: "Draft an action-ros-ci workflow (your package name)" } },
+      { id: "wandb", text: { zh: "读 SmolVLA/GR00T 文档里 wandb 相关开关，写一句用途", en: "Read the wandb flags in SmolVLA/GR00T docs; note one use" } },
+    ],
+  },
+  {
+    slug: "capstone",
+    title: { zh: "毕业项目：从数据到部署的完整机器人系统", en: "Capstone: a complete robot system from data to deployment" },
+    summary: {
+      zh: "三选一轨道（学习型 / 感知抓取型 / 仿真到真机 RL），统一交付：安全清单、容器与 CI、20 起始位评估与 Wilson 区间、portfolio_check 八项。全文在后续批次。",
+      en: "Pick one track (learning / perception-grasp / sim-to-real RL) with one delivery bar: safety checklist, container+CI, 20-start eval with Wilson intervals, portfolio_check's eight parts. Full text in a later batch.",
+    },
+    minutes: 300,
+    objectives: [
+      { zh: "能选出一条轨道并列出必交付件。", en: "Pick one track and list the required deliverables." },
+      { zh: "能说明评估规程与第 6 个月一致（20 起始、5 留出、Wilson、失败表）。", en: "State that eval matches Month 6 (20 starts, 5 held out, Wilson, failure table)." },
+      { zh: "能说明安全清单与 DevOps 是所有轨道的共同要求。", en: "State that the safety checklist and DevOps requirements apply to every track." },
+      { zh: "能用 portfolio_check.py 的八项自检 README。", en: "Self-check the README against portfolio_check.py's eight parts." },
+    ],
+    prereqs: ["specialisation-portfolio", "policy-evaluation", "dataset-engineering"],
+    resources: ["lerobot-libero", "simplerenv-paper", "lerobot-smolvla"],
+    tasks: [
+      { id: "track", text: { zh: "选定轨道 A/B/C 并写三句计划", en: "Pick track A/B/C and write a three-sentence plan" } },
+      { id: "eval", text: { zh: "草稿一页评估表：20 起始位与失败类别", en: "Draft one eval sheet: 20 starts and failure categories" } },
+      { id: "ci", text: { zh: "列出仓库里将出现的 CI 徽章与复现命令", en: "List the CI badge and reproduce commands your repo will show" } },
+      { id: "readme", text: { zh: "对照 portfolio_check 八项列出 README 提纲", en: "Outline the README against portfolio_check's eight parts" } },
+    ],
+  },
+];
+
+
 export const months: Month[] = [
   {
     id: 1,
@@ -1129,6 +1295,31 @@ export const months: Month[] = [
       { zh: "从一张 RGB-D 图片，用文字提示得到机械臂基座坐标系下的抓取点", en: "From one RGB-D image and a text prompt, get a grasp point in the arm base frame" },
     ],
     lessons: month7Lessons,
+  },
+  {
+    id: 8,
+    slug: "month-8",
+    title: { zh: "基础模型微调、真机部署与系统工程", en: "Foundation-model fine-tuning, deployment & robot systems engineering" },
+    goal: {
+      zh: "把一个预训练机器人策略微调到你自己的 SO-101 任务上，安全、可复现地部署，并交付一个有评估报告的毕业项目。",
+      en: "Fine-tune a pretrained robot policy on your own SO-101 task, deploy it safely and reproducibly, and ship a capstone with an evaluation report.",
+    },
+    topics: [
+      { zh: "数据集工程与 LeRobot v3", en: "Dataset engineering and LeRobot v3" },
+      { zh: "VLA 微调（SmolVLA）与算力门槛", en: "VLA fine-tuning (SmolVLA) and compute floors" },
+      { zh: "同步/异步推理与动作块", en: "Sync/async inference and action chunks" },
+      { zh: "ros2_control 硬件组件", en: "ros2_control hardware components" },
+      { zh: "安全：限位、看门狗、急停", en: "Safety: limits, watchdogs, e-stop" },
+      { zh: "容器、CI、rosbag2/MCAP、实验追踪", en: "Containers, CI, rosbag2/MCAP, experiment tracking" },
+      { zh: "毕业项目三轨道", en: "Capstone tracks" },
+      { zh: "延伸：LeKiwi 移动操作；micro-ROS + FOC；MoveIt Servo/MTC；LIBERO 仿真基准（选修，不成正式课）", en: "Further: LeKiwi mobile manip; micro-ROS + FOC; MoveIt Servo/MTC; LIBERO sim benchmarks (electives, not formal lessons)" },
+    ],
+    milestones: [
+      { zh: "一个按规程录制、可流式加载的数据集", en: "A protocol-recorded dataset that can be streamed" },
+      { zh: "一个微调后的 SmolVLA（或 ACT 基线）在真机或 LIBERO 上的 Wilson 区间报告", en: "A fine-tuned SmolVLA (or ACT baseline) Wilson-interval report on hardware or LIBERO" },
+      { zh: "一个带 CI、容器和看门狗的仓库，以及毕业项目 README，用 portfolio_check.py 检查 8 项全过", en: "A repo with CI, containers and a watchdog, plus a capstone README that passes portfolio_check.py's eight parts" },
+    ],
+    lessons: month8Lessons,
   },
 ];
 

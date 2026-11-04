@@ -1,0 +1,109 @@
+This lesson is a site supplement — Months 7–8 are not part of the original six-month course.
+
+A policy repo that only works on one laptop is not finished. This lesson pins a ROS 2 toolchain with a <Term id="dev-container">Dev Container</Term>, runs <Term id="ci">CI</Term> with `action-ros-ci`, records bags whose default storage on Jazzy is <Term id="mcap">MCAP</Term>, and points at Foxglove / Rerun for replay and wandb for train runs. The CI templates are for **your** package repo — they do not run inside this site's CI. A CPU toy reads a synthetic MCAP *timeline* (JSON stamps, no libmcap) so `expected/` stays reproducible.
+
+## Dev Container
+
+Official Jazzy guide: *Setup ROS 2 with VSCode and Docker* (ros2_documentation How-To; if docs.ros.org blocks scrapers, read the matching RST on the `jazzy` branch). You need `.devcontainer/devcontainer.json` plus a Dockerfile, VS Code (or compatible) with the Remote Development extension, and Docker. Open the workspace and reopen in container. See `examples/month-8/robot-devops/devcontainer_ci_notes.md`.
+
+## action-ros-ci
+
+[`ros-tooling/action-ros-ci`](https://github.com/ros-tooling/action-ros-ci) runs `colcon build` and `colcon test` (tests can be skipped). Pair it with `ros-tooling/setup-ros` and pin a released action tag. Sketch only — replace the package name with yours; this site's GitHub Actions never build your hardware package.
+
+## rosbag2 default on Jazzy: mcap
+
+Cross-check (2026-11-04, Asia/Shanghai): on the **`jazzy`** branch of `ros2/rosbag2`, `rosbag2_storage::get_default_storage_id()` in `default_storage_id.cpp` **returns `"mcap"`**. Iron's release notes first switched the default writer to MCAP; Jazzy keeps that default. sqlite3 remains available when you select it. Do not assume every old tutorial's sqlite3 paths still match a fresh Jazzy record.
+
+## Bag stats toy
+
+```bash
+$ cd ~/Hardware-learning/examples/month-8/robot-devops
+$ python3 bag_stats.py
+```
+
+<CodeSource path="examples/month-8/robot-devops/bag_stats.py" />
+
+```python
+#!/usr/bin/env python3
+"""bag_stats.py: topic rates and drop gaps from a synthetic rosbag2/MCAP fixture.
+
+Real Jazzy rosbag2 defaults to the mcap storage plugin
+(rosbag2_storage::get_default_storage_id() returns \"mcap\" on the jazzy branch).
+This toy reads a JSON timeline that mirrors per-topic stamp sequences extracted
+from such a bag — no libmcap required, so expected/ stays CPU-reproducible.
+
+Reports Hz estimates and inter-arrival gaps that exceed 1.5× the nominal period.
+usage: python3 bag_stats.py
+"""
+from __future__ import annotations
+
+import json
+import os
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+FIX = os.path.join(HERE, "sample_bag", "timeline.json")
+
+
+def main() -> None:
+    with open(FIX, encoding="utf-8") as f:
+        bag = json.load(f)
+    assert bag.get("storage_id") == "mcap"
+    print(
+        f"bag={bag['uri']} storage_id={bag['storage_id']} "
+        f"duration_s={bag['duration_s']:g} (synthetic fixture; not a binary .mcap)"
+    )
+    print(f"{'topic':<28} {'n':>5} {'hz_est':>8} {'nominal':>8} {'gaps':>5}")
+    total_gaps = 0
+    for topic in bag["topics"]:
+        name = topic["name"]
+        stamps = topic["stamps_ns"]
+        nominal_hz = float(topic["nominal_hz"])
+        n = len(stamps)
+        if n >= 2:
+            dur = (stamps[-1] - stamps[0]) / 1e9
+            hz = (n - 1) / dur if dur > 0 else float("nan")
+        else:
+            hz = 0.0
+        period = 1e9 / nominal_hz
+        gaps = 0
+        for a, b in zip(stamps, stamps[1:]):
+            if (b - a) > 1.5 * period:
+                gaps += 1
+        total_gaps += gaps
+        print(f"{name:<28} {n:5d} {hz:8.2f} {nominal_hz:8.1f} {gaps:5d}")
+    print(f"total_gap_events={total_gaps}")
+    print("ok: fixture storage_id is mcap (Jazzy rosbag2 default)")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+bag=sample_bag storage_id=mcap duration_s=2 (synthetic fixture; not a binary .mcap)
+topic                            n   hz_est  nominal  gaps
+/joint_states                   99    49.00     50.0     1
+/camera/color/image_raw         31    15.00     15.0     0
+/tf                             59    29.00     30.0     2
+total_gap_events=3
+ok: fixture storage_id is mcap (Jazzy rosbag2 default)
+```
+
+</SimOutput>
+
+Fixture `storage_id=mcap`, duration 2 s. `/joint_states` ≈ 49 Hz with **1** gap vs 50 Hz nominal; `/tf` ≈ 29 Hz with **2** gaps; camera 15 Hz clean. **total_gap_events=3**. Replay the same ideas in Foxglove or Rerun on a real bag on your machine (not run here). For training curves, SmolVLA / GR00T docs expose wandb flags — use them in *your* fine-tune runs.
+
+## Common mistakes
+
+- **Putting Dev Container CI into this site's repo.** Student package CI ≠ Hardware-learning website CI.
+- **Assuming sqlite3 is still the default.** On Jazzy the default storage_id is mcap.
+- **Ignoring gap counts.** A "50 Hz" joint topic at 49 Hz with gaps is already a logging bug.
+- **Treating wandb as optional forever.** When you fine-tune (lesson 8.2), a run without hyperparams logged is hard to defend in the capstone README.
+
+<Summary>
+
+Pin ROS 2 with a Dev Container; build/test your packages with action-ros-ci (your repo). Jazzy rosbag2 defaults to mcap (`get_default_storage_id()` → `"mcap"`). `bag_stats.py` reports three gap events on a synthetic mcap timeline. Foxglove/Rerun/wandb are the replay and experiment tools; none of those GPU/GUI paths run on this page.
+
+</Summary>

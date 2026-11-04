@@ -1,0 +1,188 @@
+本课是本站补充内容——第 7–8 个月不属于原六个月课程。
+
+VLA 很少一次前向只吐一个关节目标。它吐出一段 <Term id="action-chunk">动作块</Term>——短开环序列。下一块怎么调度，决定手臂会不会在推理之间冻住。LeRobot 异步文档把系统拆成 **PolicyServer**（跑模型）和 **RobotClient**（对臂）。二者可同机也可跨网络。本课用 CPU 离散时间玩具对比同步空闲帧与 <Term id="async-inference">异步推理</Term>。时间线小组件（`ChunkTimelineWidget`）延期；先读表。
+
+## 同步空闲 vs 异步重叠
+
+**同步：** 客户端等完整段推理，再播放 `actions_per_chunk` 步，然后再等。每个推理窗口都是手臂空闲。
+
+**异步：** 客户端继续播当前块，同时服务器算下一块。剩余动作降到 `chunk_size_threshold` 时发起下一次推理。换入新块可能让指令跳变——这是换更少空闲帧的代价。
+
+玩具常数：控制 **50 Hz**，推理 **80 ms** → **4** 个控制 tick，`actions_per_chunk=16`，`chunk_size_threshold=8`，视界 **4 s**。
+
+## 跑离散时间模拟
+
+```bash
+$ cd ~/Hardware-learning/examples/month-8/async-deployment
+$ python3 chunk_latency_sim.py
+```
+
+<CodeSource path="examples/month-8/async-deployment/chunk_latency_sim.py" />
+
+```python
+#!/usr/bin/env python3
+"""chunk_latency_sim.py: sync vs async action-chunk latency (discrete time, stdlib).
+
+Models a control loop at CONTROL_HZ. The policy returns ACTION_CHUNK steps per
+inference that costs INFER_MS of wall time (converted to control ticks).
+
+Sync: robot is idle for the whole inference; then plays the chunk.
+Async: robot keeps playing the previous chunk while the next inference runs;
+       a new chunk is swapped in when ready (may jump).
+
+Reports idle-frame ratio and mean |Δa| at chunk boundaries for both modes.
+Pinned constants keep expected/ stable. Not run on a real arm or GPU here.
+usage: python3 chunk_latency_sim.py
+"""
+from __future__ import annotations
+
+CONTROL_HZ = 50
+INFER_MS = 80.0
+ACTION_CHUNK = 16  # actions_per_chunk
+THRESHOLD = 8  # chunk_size_threshold: async starts next infer when remaining <= this
+HORIZON_S = 4.0
+SEED_ACTION = 0.02  # per-step drift inside a chunk
+
+
+def ticks(ms: float) -> int:
+    return max(1, int(round(ms / 1000.0 * CONTROL_HZ)))
+
+
+def make_chunk(start_a: float, n: int, drift: float) -> list[float]:
+    return [start_a + drift * i for i in range(n)]
+
+
+def sim_sync(total_ticks: int, infer_ticks: int, chunk: int) -> tuple[float, float, int]:
+    t = 0
+    idle = 0
+    jumps = []
+    a_prev = None
+    base = 0.0
+    while t < total_ticks:
+        # infer (idle)
+        for _ in range(infer_ticks):
+            if t >= total_ticks:
+                break
+            idle += 1
+            t += 1
+        actions = make_chunk(base, chunk, SEED_ACTION)
+        base += SEED_ACTION * chunk + 0.05  # next chunk starts a bit higher
+        for i, a in enumerate(actions):
+            if t >= total_ticks:
+                break
+            if a_prev is not None and i == 0:
+                jumps.append(abs(a - a_prev))
+            a_prev = a
+            t += 1
+    idle_ratio = idle / total_ticks
+    mean_jump = sum(jumps) / len(jumps) if jumps else 0.0
+    return idle_ratio, mean_jump, len(jumps)
+
+
+def sim_async(total_ticks: int, infer_ticks: int, chunk: int, threshold: int) -> tuple[float, float, int]:
+    t = 0
+    idle = 0
+    jumps = []
+    a_prev = None
+    # bootstrap: must wait for first chunk
+    for _ in range(infer_ticks):
+        idle += 1
+        t += 1
+    base = 0.0
+    queue = make_chunk(base, chunk, SEED_ACTION)
+    base += SEED_ACTION * chunk + 0.05
+    infer_remaining = 0
+    pending = None
+    while t < total_ticks:
+        if infer_remaining > 0:
+            infer_remaining -= 1
+            if infer_remaining == 0 and pending is not None:
+                # swap
+                if queue:
+                    # jump from current head to new chunk start
+                    pass
+                queue = pending
+                pending = None
+        if not queue:
+            # underrun — idle one tick and kick an infer if needed
+            idle += 1
+            t += 1
+            if pending is None and infer_remaining == 0:
+                pending = make_chunk(base, chunk, SEED_ACTION)
+                base += SEED_ACTION * chunk + 0.05
+                infer_remaining = infer_ticks
+            continue
+        a = queue.pop(0)
+        if a_prev is not None and len(queue) == chunk - 1:
+            # just started a fresh chunk (queue was refilled to chunk then popped once → chunk-1)
+            # detect swap: when previous queue emptied and we took from new — handled below
+            pass
+        if a_prev is not None:
+            da = abs(a - a_prev)
+            # count only large boundary jumps (> 2 * drift)
+            if da > SEED_ACTION * 2.5:
+                jumps.append(da)
+        a_prev = a
+        t += 1
+        # start next infer when remaining <= threshold
+        if pending is None and infer_remaining == 0 and len(queue) <= threshold:
+            pending = make_chunk(base, chunk, SEED_ACTION)
+            base += SEED_ACTION * chunk + 0.05
+            infer_remaining = infer_ticks
+    idle_ratio = idle / total_ticks
+    mean_jump = sum(jumps) / len(jumps) if jumps else 0.0
+    return idle_ratio, mean_jump, len(jumps)
+
+
+def main() -> None:
+    total = int(HORIZON_S * CONTROL_HZ)
+    it = ticks(INFER_MS)
+    print(
+        f"control_hz={CONTROL_HZ} infer_ms={INFER_MS:g} infer_ticks={it} "
+        f"actions_per_chunk={ACTION_CHUNK} chunk_size_threshold={THRESHOLD} horizon_s={HORIZON_S:g}"
+    )
+    s_idle, s_jump, s_n = sim_sync(total, it, ACTION_CHUNK)
+    a_idle, a_jump, a_n = sim_async(total, it, ACTION_CHUNK, THRESHOLD)
+    print(f"{'mode':<8} {'idle_ratio':>11} {'mean_jump':>10} {'n_jumps':>8}")
+    print(f"{'sync':<8} {s_idle:11.3f} {s_jump:10.4f} {s_n:8d}")
+    print(f"{'async':<8} {a_idle:11.3f} {a_jump:10.4f} {a_n:8d}")
+    print(f"ok: async_idle < sync_idle ({a_idle:.3f} < {s_idle:.3f})")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+control_hz=50 infer_ms=80 infer_ticks=4 actions_per_chunk=16 chunk_size_threshold=8 horizon_s=4
+mode      idle_ratio  mean_jump  n_jumps
+sync           0.200     0.0700        9
+async          0.020     0.1700       17
+ok: async_idle < sync_idle (0.020 < 0.200)
+```
+
+</SimOutput>
+
+同步空闲比 **0.200**；异步空闲比 **0.020**。异步在块边界的平均跳变也更大（**0.1700** vs **0.0700**）——更少冻结，更陡的拼接。真 PolicyServer / GPU / 手臂路径 **本页未运行**。
+
+## 旋钮
+
+- **`actions_per_chunk`：** 一次推理返回多少动作。更长的块摊薄推理；开环漂移变大。
+- **`chunk_size_threshold`：** 当前块剩余动作降到该值时，异步开始下一次推理。太高 → 过早推理浪费算力；太低 → 又空闲。
+
+本地把 `ACTION_CHUNK` 改成 8 再跑，看空闲比与跳变数怎么动。
+
+## 常见错误
+
+- **把异步当成「没有延迟」。** 推理仍耗时；你只是把它藏在运动后面。
+- **忽视块边界跳变。** 打开异步后成功率掉，常常是拼接问题，不是「模型变差」。
+- **服务器与客户端没有时钟计划。** 50 Hz 控制配 80 ms 推理已是 4 个 tick——先把数字写下来。
+- **不做同步基线。** 同一套起始位上两种方式都要比（第 6 个月规程）。
+
+<Summary>
+
+同步在每次推理时等待（玩具空闲比 0.200）；异步继续动（0.020），用更大的边界跳变换。PolicyServer / RobotClient、`actions_per_chunk` 与 `chunk_size_threshold` 是 LeRobot 异步旋钮。`chunk_latency_sim.py` 仅 CPU；真 GPU/手臂标未运行。ChunkTimelineWidget 延期。
+
+</Summary>

@@ -1743,6 +1743,117 @@ export const glossary: GlossaryEntry[] = [
     firstExplained: true,
   },
 
+  {
+    id: "vla-finetuning",
+    term: { zh: "视觉-语言-动作微调", en: "VLA fine-tuning" },
+    def: {
+      zh: "在预训练的视觉-语言-动作模型权重上，用你自己的机器人数据继续训练（常配合 LoRA），使策略适配本机任务、相机与指令。",
+      en: "Continue training a pretrained vision-language-action model on your own robot data (often with LoRA) so the policy matches your task, cameras and instructions.",
+    },
+    lesson: "vla-finetune",
+    firstExplained: true,
+  },
+  {
+    id: "lora",
+    term: { zh: "LoRA（低秩适配）", en: "LoRA (low-rank adaptation)" },
+    def: {
+      zh: "在冻结的大权重旁插入低秩可训练矩阵，用较少显存做微调。许多 VLA 微调流程提供 LoRA 选项。",
+      en: "Insert small trainable low-rank matrices beside frozen large weights to fine-tune with less VRAM. Many VLA fine-tune flows expose a LoRA option.",
+    },
+    lesson: "vla-finetune",
+    firstExplained: true,
+  },
+  {
+    id: "async-inference",
+    term: { zh: "异步推理", en: "async inference" },
+    def: {
+      zh: "机器人一边执行当前动作块，一边让策略服务器计算下一块；与同步推理（算完才动）相对，可降低空闲帧。",
+      en: "The robot keeps executing the current action chunk while the policy server computes the next; contrasts with sync inference (idle until the next chunk), cutting idle frames.",
+    },
+    lesson: "async-deployment",
+    firstExplained: true,
+  },
+  {
+    id: "action-chunk",
+    term: { zh: "动作块", en: "action chunk" },
+    def: {
+      zh: "一次推理返回的一串连续动作（长度常由 actions_per_chunk 设定）。异步部署时用 chunk_size_threshold 决定何时开始下一次推理。",
+      en: "A sequence of consecutive actions returned by one inference (length often set by actions_per_chunk). In async deployment, chunk_size_threshold decides when to start the next inference.",
+    },
+    lesson: "async-deployment",
+    firstExplained: true,
+  },
+  {
+    id: "hardware-component",
+    term: { zh: "硬件组件（ros2_control）", en: "hardware component (ros2_control)" },
+    def: {
+      zh: "ros2_control 里连接真机或仿真后端的插件：导出状态/命令接口，并在控制循环中实现 read/write。",
+      en: "A ros2_control plugin that talks to real or simulated hardware: it exports state/command interfaces and implements read/write in the control loop.",
+    },
+    lesson: "ros2-hardware-interface",
+    firstExplained: true,
+  },
+  {
+    id: "lifecycle-node",
+    term: { zh: "生命周期节点", en: "lifecycle node" },
+    def: {
+      zh: "带显式状态机（未配置→非活跃→活跃等）的 ROS 2 节点；硬件组件与许多控制器按生命周期回调配置与切换。",
+      en: "A ROS 2 node with an explicit state machine (unconfigured → inactive → active, …); hardware components and many controllers configure and switch via lifecycle callbacks.",
+    },
+    lesson: "ros2-hardware-interface",
+    firstExplained: true,
+  },
+  {
+    id: "watchdog",
+    term: { zh: "看门狗（指令超时）", en: "watchdog (command timeout)" },
+    def: {
+      zh: "若在时限内收不到有效新指令，则保持最后安全命令或进入安全态；用来挡住丢包、延迟与 NaN，不能代替急停断电。",
+      en: "If no valid new command arrives within a timeout, hold the last safe command or enter a safe state; blocks drops, delay and NaNs, but does not replace cutting motor power.",
+    },
+    lesson: "safety-reliability",
+    firstExplained: true,
+  },
+  {
+    id: "e-stop",
+    term: { zh: "急停", en: "e-stop (emergency stop)" },
+    def: {
+      zh: "切断电机动力的硬件或等效断电路径。只发一个软件话题不算急停。",
+      en: "A hardware path (or equivalent) that cuts motor power. Publishing one software topic is not an e-stop.",
+    },
+    lesson: "safety-reliability",
+    firstExplained: true,
+  },
+  {
+    id: "dev-container",
+    term: { zh: "开发容器", en: "Dev Container" },
+    def: {
+      zh: "用 `.devcontainer/devcontainer.json` 与 Dockerfile 在容器里固定工具链（如 ROS 2 Jazzy），使同事与 CI 共享同一环境。",
+      en: "Pin a toolchain (e.g. ROS 2 Jazzy) inside a container via `.devcontainer/devcontainer.json` and a Dockerfile so teammates and CI share one environment.",
+    },
+    lesson: "robot-devops",
+    firstExplained: true,
+  },
+  {
+    id: "ci",
+    term: { zh: "持续集成（CI）", en: "continuous integration (CI)" },
+    def: {
+      zh: "每次推送自动构建与测试。机器人仓库常用 action-ros-ci 跑 colcon build / test；与本站网站 CI 不是同一套。",
+      en: "Automatic build and test on every push. Robot repos often use action-ros-ci for colcon build/test; that is not the same pipeline as this site's CI.",
+    },
+    lesson: "robot-devops",
+    firstExplained: true,
+  },
+  {
+    id: "mcap",
+    term: { zh: "MCAP", en: "MCAP" },
+    def: {
+      zh: "一种日志容器格式。ROS 2 Iron 起 rosbag2 默认 storage_id 为 mcap；Jazzy 分支上 get_default_storage_id() 仍返回 \"mcap\"。",
+      en: "A log container format. Since ROS 2 Iron, rosbag2 defaults storage_id to mcap; on the jazzy branch get_default_storage_id() still returns \"mcap\".",
+    },
+    lesson: "robot-devops",
+    firstExplained: true,
+  },
+
 ]
 
 export function getTerm(id: string): GlossaryEntry | undefined {

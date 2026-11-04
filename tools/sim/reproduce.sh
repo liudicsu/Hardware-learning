@@ -152,4 +152,7 @@ echo "== Month 6 toy models (examples/month-6/check.sh)"
 # Month 7: MuJoCo grip sweep (optional mujoco) + stdlib RL / point-cloud toys
 echo "== Month 7 examples (examples/month-7/check.sh)"
 "$ROOT/examples/month-7/check.sh" || fail=1
+
+echo "== Month 8 examples (examples/month-8/check.sh)"
+"$ROOT/examples/month-8/check.sh" || fail=1
 exit $fail
