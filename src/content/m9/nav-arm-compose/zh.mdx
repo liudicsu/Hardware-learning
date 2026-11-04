@@ -1,13 +1,233 @@
 本课是本站补充内容——第 7–9 个月不属于原六个月课程。
 
-## 大纲（正文在后续批次）
+第 4 个月有 Nav2，第 5 / 8 个月有臂，但缺「先走到桌边再抓」的**组合契约**：坐标系、互斥（底盘停稳再动臂）、超时与失败回传。本课把它落到 <Term id="mobile-manipulation">移动操作</Term> 的 CPU 玩具上；真机 LeKiwi 组装为**选修 / 超出范围**，不进本课必做。
 
-**导航加操作：整机任务在仿真里接起来。** 本页是占位，好让第 9 个月课程表能列全七课，而本批次先交付 9.1、9.3、9.5。计划范围：先走到桌边再抓的组合契约：坐标系、底盘停稳再动臂、超时与失败回传。CPU 玩具 `nav_pick_bt.py` 在后续批次。LeKiwi 真机组装为**选修 / 超出范围**，不进本课必做——只读文档接口与 host/client 数据流。
+## 组合契约四条
 
-本批次先交付 9.1、9.3、9.5；本课全文在**第三批**。批次安排见 `docs/notes/month-9-plan.md`。侧栏任务在全文落地前只作阅读提示。
+1. **坐标系：** `map` → `base_link` → `arm_base` → `ee`；导航目标与抓取位姿要说清落在哪一层。
+2. **互斥：** 底盘未 `base_settled` 之前，臂不许动（避免边走边伸）。
+3. **超时：** 导航与抓取各自有上限（玩具里 `timeout_nav_s=30`、`timeout_grasp_s=10`）。
+4. **失败回传：** 臂技能失败要回到导航层——常见恢复是「再靠近一点再抓」（`approach_closer_then_grasp`）。
+
+对照第 4 个月 `slam-nav` 的 Nav2 行为树恢复（清代价地图 / 旋转）；本课不重讲导航调参，只接「导航 + 操作」这一层。
+
+## CPU：网格导航 + 桌边抓取
+
+`nav_pick_bt.py`：7×7 网格、固定几何与 `seed=9`。A* 先到远接近点 `approach_far=(4,3)`，相对桌面目标 `desk=(6,3)` 距离 2.0，超出臂工作半径 `arm_workspace_r=1.5` → 抓取失败；触发 `approach_closer_then_grasp`，再到 `approach_near=(5,3)`（距离 1.0，在工作空间内）→ 成功。报告：`path_length_total`、`grasp_in_workspace_final`、`approach_closer_fired`。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-9/nav-arm-compose
+$ python3 nav_pick_bt.py
+```
+
+<CodeSource path="examples/month-9/nav-arm-compose/nav_pick_bt.py" />
+
+```python
+#!/usr/bin/env python3
+"""nav_pick_bt.py: navigate-then-pick compose contract on a grid (stdlib).
+
+Compose contract (printed): frames map>base_link>arm_base>ee; mutex =
+base settled before arm; nav/grasp timeouts; failure feedback from grasp
+to nav ("approach closer then grasp").
+
+Grid A* to a far desk approach, grasp fails (outside arm workspace),
+Fallback recovers by navigating one cell closer, then grasp succeeds.
+
+Fixed geometry + seed=9 → expected/. No real LeKiwi / Nav2 / ROS runtime.
+usage: python3 nav_pick_bt.py
+"""
+from __future__ import annotations
+
+import math
+from heapq import heappop, heappush
+from typing import Dict, List, Optional, Tuple
+
+SEED = 9
+W, H = 7, 7
+START = (1, 1)
+DESK = (6, 3)  # grasp target cell (desk edge object)
+APPROACH_FAR = (4, 3)
+APPROACH_NEAR = (5, 3)
+ARM_WORKSPACE_R = 1.5  # Euclidean cells from base to desk
+OBSTACLES = {(3, 1), (3, 2), (3, 4), (3, 5)}  # vertical wall with a gap at y=3
+TIMEOUT_NAV_S = 30
+TIMEOUT_GRASP_S = 10
+
+Pos = Tuple[int, int]
+
+
+def in_bounds(p: Pos) -> bool:
+    x, y = p
+    return 0 <= x < W and 0 <= y < H
+
+
+def neighbours(p: Pos) -> List[Pos]:
+    x, y = p
+    out: List[Pos] = []
+    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        q = (x + dx, y + dy)
+        if in_bounds(q) and q not in OBSTACLES:
+            out.append(q)
+    return out
+
+
+def astar(start: Pos, goal: Pos) -> List[Pos]:
+    """4-connected A*; returns path including start and goal."""
+    if start == goal:
+        return [start]
+    open_h: List[Tuple[int, int, Pos]] = []
+    counter = 0
+    heappush(open_h, (0, counter, start))
+    came: Dict[Pos, Optional[Pos]] = {start: None}
+    gscore: Dict[Pos, int] = {start: 0}
+
+    def h(p: Pos) -> int:
+        return abs(p[0] - goal[0]) + abs(p[1] - goal[1])
+
+    while open_h:
+        _, _, cur = heappop(open_h)
+        if cur == goal:
+            path = [cur]
+            while came[cur] is not None:
+                cur = came[cur]  # type: ignore[assignment]
+                path.append(cur)
+            path.reverse()
+            return path
+        for nxt in neighbours(cur):
+            tentative = gscore[cur] + 1
+            if tentative < gscore.get(nxt, 10**9):
+                came[nxt] = cur
+                gscore[nxt] = tentative
+                counter += 1
+                heappush(open_h, (tentative + h(nxt), counter, nxt))
+    raise RuntimeError(f"no path {start} -> {goal}")
+
+
+def dist(a: Pos, b: Pos) -> float:
+    return math.hypot(a[0] - b[0], a[1] - b[1])
+
+
+def in_workspace(base: Pos) -> bool:
+    return dist(base, DESK) <= ARM_WORKSPACE_R + 1e-9
+
+
+def fmt_path(path: List[Pos]) -> str:
+    return "->".join(f"({x},{y})" for x, y in path)
+
+
+def main() -> None:
+    print(f"seed={SEED}")
+    print(
+        f"map={W}x{H} start={START} desk={DESK} "
+        f"approach_far={APPROACH_FAR} approach_near={APPROACH_NEAR}"
+    )
+    print(f"arm_workspace_r={ARM_WORKSPACE_R}")
+    print(
+        "compose: frames=map>base_link>arm_base>ee "
+        "mutex=base_settled_before_arm "
+        f"timeout_nav_s={TIMEOUT_NAV_S} timeout_grasp_s={TIMEOUT_GRASP_S}"
+    )
+
+    # --- primary: nav to far approach, try grasp ---
+    path_far = astar(START, APPROACH_FAR)
+    path_length_far = len(path_far) - 1
+    print(f"nav_path_far={fmt_path(path_far)} path_length_far={path_length_far}")
+    print("base_settled=True")  # mutex: arm may move only after this
+    d1 = dist(APPROACH_FAR, DESK)
+    ws1 = in_workspace(APPROACH_FAR)
+    print(
+        f"grasp_attempt=1 at_base={APPROACH_FAR} dist_to_desk={d1:.3f} "
+        f"in_workspace={ws1} -> FAILURE"
+    )
+    assert not ws1, "far approach must be outside workspace for the demo"
+
+    # --- recovery: approach closer then grasp ---
+    print("recovery=approach_closer_then_grasp")
+    path_near = astar(APPROACH_FAR, APPROACH_NEAR)
+    path_length_near = len(path_near) - 1
+    print(f"nav_path_near={fmt_path(path_near)} path_length_near={path_length_near}")
+    print("base_settled=True")
+    d2 = dist(APPROACH_NEAR, DESK)
+    ws2 = in_workspace(APPROACH_NEAR)
+    print(
+        f"grasp_attempt=2 at_base={APPROACH_NEAR} dist_to_desk={d2:.3f} "
+        f"in_workspace={ws2} -> SUCCESS"
+    )
+    assert ws2, "near approach must be inside workspace"
+
+    path_length_total = path_length_far + path_length_near
+    approach_closer_fired = True
+    root_status = "SUCCESS"
+    print(f"path_length_total={path_length_total}")
+    print(f"grasp_in_workspace_final={ws2}")
+    print(f"approach_closer_fired={approach_closer_fired}")
+    print(f"root_status={root_status}")
+    ok = (
+        root_status == "SUCCESS"
+        and approach_closer_fired
+        and ws2
+        and not ws1
+        and path_length_total > 0
+    )
+    print(
+        f"ok: compose navigate-then-pick with approach-closer recovery ({ok})"
+    )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+seed=9
+map=7x7 start=(1, 1) desk=(6, 3) approach_far=(4, 3) approach_near=(5, 3)
+arm_workspace_r=1.5
+compose: frames=map>base_link>arm_base>ee mutex=base_settled_before_arm timeout_nav_s=30 timeout_grasp_s=10
+nav_path_far=(1,1)->(2,1)->(2,2)->(2,3)->(3,3)->(4,3) path_length_far=5
+base_settled=True
+grasp_attempt=1 at_base=(4, 3) dist_to_desk=2.000 in_workspace=False -> FAILURE
+recovery=approach_closer_then_grasp
+nav_path_near=(4,3)->(5,3) path_length_near=1
+base_settled=True
+grasp_attempt=2 at_base=(5, 3) dist_to_desk=1.000 in_workspace=True -> SUCCESS
+path_length_total=6
+grasp_in_workspace_final=True
+approach_closer_fired=True
+root_status=SUCCESS
+ok: compose navigate-then-pick with approach-closer recovery (True)
+```
+
+</SimOutput>
+
+关键数字：`path_length_far=5`、`path_length_near=1`、`path_length_total=6`；第一次 `in_workspace=False`，第二次 `True`；`approach_closer_fired=True`，`root_status=SUCCESS`。
+
+## LeKiwi：只读接口（真机组装超出范围）
+
+LeRobot 的 LeKiwi 把 SO-100/SO-101 装在移动底盘上。**本课不要求组装真机**（额外底盘与第二台臂超出默认桌面 SO-101 范围）；选修见月页延伸 `lekiwi-build`。
+
+阅读笔记（以当页文档为准）：
+
+| 项 | 文档中的值 |
+| --- | --- |
+| ZeroMQ host/client 示例端口 | **5555** / **5556** |
+| 轮子电机 ID | **7** / **8** / **9** |
+| 键鼠遥操作线速度档 | Fast / Medium / Slow = **0.4** / **0.25** / **0.1** m/s |
+
+主机侧常见流程：`lekiwi_host`（车上）+ 笔记本端 teleoperate；键盘 WASD 平移、ZX 转向、RF 调速。真机路径标注**本页未运行**。
+
+<Resource id="lerobot-lekiwi" />
+
+## 常见错误
+
+- **边走边伸臂。** 没有 `base_settled` 互斥，坐标系与碰撞都会漂。
+- **抓空只重试臂、不靠近。** 若失败原因是工作空间不够，应把失败回传给导航层。
+- **把 LeKiwi 真机组装当成必做。** 本课 CPU 玩具已覆盖组合契约；真机是选修。
+- **把 Nav2 恢复参数整课重讲。** 回看第 4 个月即可。
 
 <Summary>
 
-**导航加操作：整机任务在仿真里接起来** 的占位页。完整例题与脚本在后续第 9 个月批次交付。
+组合契约：坐标系、底盘停稳互斥、超时、失败回传。`nav_pick_bt.py`：远接近抓取失败后 `approach_closer_then_grasp`，`path_length_total=6`，最终在工作空间内成功。LeKiwi 只读接口（端口 5555/5556、电机 7/8/9、速度 0.4/0.25/0.1）；真机组装选修，本页未运行。
 
 </Summary>

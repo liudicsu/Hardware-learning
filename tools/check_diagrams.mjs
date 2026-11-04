@@ -2987,12 +2987,14 @@ const lessonRef = (n, slug, lang) => {
 
 
 {
-  // Month 9 content gaps (batch 2): 9.1–9.5 full; 9.6 / 9.7 outline.
+  // Month 9 content gaps (batch 3): all seven lessons full (9.1–9.7).
   // 9.1 stage_graph_toy: generators=3; good connect; broken missing_connect + cycle.
   // 9.2 servo_loop_sim: kappa_thresh; scaled_rows; v_unscaled / v_scaled.
   // 9.3 Present Load addr 60 / Current 69 / 6.5 mA; peak_load 208.2; F=M·a+D·v+S·(x−x_d).
   // 9.4 saycan_score_toy: fake LLM only; pick vacuum blocked by affordance.
   // 9.5 recovery_bt_toy: GraspBackup after Retry(GraspPrimary,2); Fallback SUCCESS.
+  // 9.6 nav_pick_bt: path_length_total; approach_closer_fired; LeKiwi 5555/5556, motors 7/8/9, 0.4/0.25/0.1.
+  // 9.7 demo_gate: --all; 3/3 gates; table/contact/nav; does not replace 8.7.
   const rd9 = (rel) => readFileSync(join(root, rel), "utf8");
   const stage = rd9("examples/month-9/expected/stage_graph_toy.txt");
   const servo = rd9("examples/month-9/expected/servo_loop_sim.txt");
@@ -3000,12 +3002,16 @@ const lessonRef = (n, slug, lang) => {
   const adm = rd9("examples/month-9/expected/admittance_1d.txt");
   const saycan = rd9("examples/month-9/expected/saycan_score_toy.txt");
   const bt = rd9("examples/month-9/expected/recovery_bt_toy.txt");
+  const nav = rd9("examples/month-9/expected/nav_pick_bt.txt");
+  const demo = rd9("examples/month-9/expected/demo_gate.txt");
   const stagePy = rd9("examples/month-9/mtc-long-horizon/stage_graph_toy.py");
   const servoPy = rd9("examples/month-9/moveit-servo/servo_loop_sim.py");
   const loadPy = rd9("examples/month-9/effort-admittance/load_contact_sim.py");
   const admPy = rd9("examples/month-9/effort-admittance/admittance_1d.py");
   const saycanPy = rd9("examples/month-9/llm-skill-planning/saycan_score_toy.py");
   const btPy = rd9("examples/month-9/failure-recovery/recovery_bt_toy.py");
+  const navPy = rd9("examples/month-9/nav-arm-compose/nav_pick_bt.py");
+  const demoPy = rd9("examples/month-9/multi-skill-demo/demo_gate.py");
 
   ok(/generators=3/.test(stage), "m9 stage: generators=3");
   ok(/missing_connect/.test(stage), "m9 stage: missing_connect in broken case");
@@ -3044,8 +3050,28 @@ const lessonRef = (n, slug, lang) => {
   ok(/GraspBackup/.test(btPy) && /class Fallback/.test(btPy) && /class Retry/.test(btPy),
     "m9 bt.py: Fallback/Retry/GraspBackup");
 
-  // Full lessons must not stay outline; remaining outlines stay outline this batch.
-  for (const slug of ["mtc-long-horizon", "moveit-servo", "effort-admittance", "llm-skill-planning", "failure-recovery"]) {
+  ok(/path_length_total=6/.test(nav), "m9 nav: path_length_total=6");
+  ok(/approach_closer_fired=True/.test(nav), "m9 nav: approach_closer_fired");
+  ok(/grasp_in_workspace_final=True/.test(nav), "m9 nav: grasp_in_workspace_final");
+  ok(/in_workspace=False/.test(nav) && /in_workspace=True/.test(nav), "m9 nav: far fail + near ok");
+  ok(/base_settled=True/.test(nav), "m9 nav: base_settled mutex");
+  ok(/approach_closer_then_grasp/.test(navPy) && /ARM_WORKSPACE_R/.test(navPy),
+    "m9 nav.py: approach_closer + workspace");
+  ok(/No real LeKiwi|No real LeKiwi \/ Nav2/.test(navPy) || /No real LeKiwi/.test(navPy),
+    "m9 nav.py: no real LeKiwi runtime");
+
+  ok(/demo_gate --all/.test(demo) && /all_scenarios_ok=True/.test(demo), "m9 demo: --all ok");
+  ok(/gates=3\/3/.test(demo) && /ok: table demo_gate 3\/3/.test(demo), "m9 demo: table 3/3");
+  ok(/ok: contact demo_gate 3\/3/.test(demo) && /ok: nav demo_gate 3\/3/.test(demo), "m9 demo: contact+nav 3/3");
+  ok(/check_skill_graph_legal=True/.test(demo) && /check_recovery_edge_fired=True/.test(demo),
+    "m9 demo: legal + recovery");
+  ok(/check_report_fields_complete=True/.test(demo), "m9 demo: report fields");
+  ok(/--scenario/.test(demoPy) && /table/.test(demoPy) && /contact/.test(demoPy) && /nav/.test(demoPy),
+    "m9 demo.py: three scenarios");
+  ok(/Does NOT replace Month 8\.7/.test(demoPy), "m9 demo.py: not a second capstone");
+
+  // All seven lessons must be full (no outlines left).
+  for (const slug of ["mtc-long-horizon", "moveit-servo", "effort-admittance", "llm-skill-planning", "failure-recovery", "nav-arm-compose", "multi-skill-demo"]) {
     for (const lang of ["en", "zh"]) {
       const text = rd9(`src/content/m9/${slug}/${lang}.mdx`);
       ok(!/Outline \(full text in a later batch\)/.test(text) && !/大纲（正文在后续批次）/.test(text),
@@ -3053,13 +3079,6 @@ const lessonRef = (n, slug, lang) => {
       ok(/<CodeSource /.test(text) && /<SimOutput /.test(text),
         `m9 ${slug}/${lang}: needs CodeSource + SimOutput`);
       ok(/本站补充|site supplement/.test(text), `m9 ${slug}/${lang}: site-supplement opener`);
-    }
-  }
-  for (const slug of ["nav-arm-compose", "multi-skill-demo"]) {
-    for (const lang of ["en", "zh"]) {
-      const text = rd9(`src/content/m9/${slug}/${lang}.mdx`);
-      ok(/大纲（正文在后续批次）/.test(text) || /Outline \(full text in a later batch\)/.test(text),
-        `m9 ${slug}/${lang}: still outline this batch`);
     }
   }
 
@@ -3108,6 +3127,26 @@ const lessonRef = (n, slug, lang) => {
         "Retry",
         "Inner Monologue",
       ],
+      "nav-arm-compose": [
+        "nav_pick_bt.py",
+        "approach_closer_then_grasp",
+        "path_length_total=6",
+        "5555",
+        "5556",
+        "0.4",
+        "0.25",
+        "0.1",
+        "本页未运行",
+      ],
+      "multi-skill-demo": [
+        "demo_gate.py",
+        "3/3",
+        "table",
+        "contact",
+        "nav",
+        "8.7",
+        "本页未强制真机",
+      ],
     },
     zh: {
       "mtc-long-horizon": [
@@ -3153,6 +3192,26 @@ const lessonRef = (n, slug, lang) => {
         "Retry",
         "Inner Monologue",
       ],
+      "nav-arm-compose": [
+        "nav_pick_bt.py",
+        "approach_closer_then_grasp",
+        "path_length_total=6",
+        "5555",
+        "5556",
+        "0.4",
+        "0.25",
+        "0.1",
+        "本页未运行",
+      ],
+      "multi-skill-demo": [
+        "demo_gate.py",
+        "3/3",
+        "table",
+        "contact",
+        "nav",
+        "8.7",
+        "本页未强制真机",
+      ],
     },
   };
   let phraseHits9 = 0;
@@ -3190,12 +3249,32 @@ const lessonRef = (n, slug, lang) => {
       `m9 saycan ${lang}: no paid API endpoints/keys`);
   }
 
+  // 9.6 / 9.7 hard facts in lesson prose.
+  for (const lang of ["en", "zh"]) {
+    const navMd = rd9(`src/content/m9/nav-arm-compose/${lang}.mdx`);
+    ok(/5555/.test(navMd) && /5556/.test(navMd), `m9 nav ${lang}: ports 5555/5556`);
+    ok(/0\.4/.test(navMd) && /0\.25/.test(navMd) && /0\.1/.test(navMd), `m9 nav ${lang}: teleop speeds`);
+    ok(/\*\*7\*\*/.test(navMd) && /\*\*8\*\*/.test(navMd) && /\*\*9\*\*/.test(navMd),
+      `m9 nav ${lang}: motor IDs 7/8/9 marked`);
+    ok(/nav_pick_bt\.py/.test(navMd) && /approach_closer_then_grasp/.test(navMd),
+      `m9 nav ${lang}: toy + recovery`);
+    ok(!/\$\d/.test(navMd), `m9 nav ${lang}: no prices`);
+    const demoMd = rd9(`src/content/m9/multi-skill-demo/${lang}.mdx`);
+    ok(/demo_gate\.py/.test(demoMd) && /3\/3/.test(demoMd), `m9 demo ${lang}: demo_gate 3/3`);
+    ok(/table/.test(demoMd) && /contact/.test(demoMd) && /nav/.test(demoMd),
+      `m9 demo ${lang}: three scenarios`);
+    ok(/8\.7/.test(demoMd), `m9 demo ${lang}: mentions 8.7 capstone boundary`);
+    ok(/本页未强制真机/.test(demoMd), `m9 demo ${lang}: 本页未强制真机`);
+  }
+
   const cur9 = rd9("src/lib/curriculum.ts");
   ok(/month9Lessons/.test(cur9) && /slug: "month-9"/.test(cur9), "m9 curriculum: month9Lessons + month-9");
   ok(!/后续交付交付/.test(cur9), "m9 curriculum: no duplicated 后续交付交付");
   ok(/servo_loop_sim\.py/.test(cur9), "m9 curriculum: names servo_loop_sim.py");
   ok(/saycan_score_toy\.py/.test(cur9), "m9 curriculum: names saycan_score_toy.py");
-  // Full lessons should not still say 后续交付 in their own blocks (bounded to next slug).
+  ok(/nav_pick_bt\.py/.test(cur9), "m9 curriculum: names nav_pick_bt.py");
+  ok(/demo_gate\.py/.test(cur9), "m9 curriculum: names demo_gate.py");
+  // Full lessons should not still say 后续交付 in their own blocks (bounded to next slug / end).
   {
     const servoBlock = (cur9.match(/slug: "moveit-servo"[\s\S]*?slug: "effort-admittance"/) || [""])[0];
     ok(servoBlock.length > 0 && !/后续交付/.test(servoBlock),
@@ -3203,17 +3282,28 @@ const lessonRef = (n, slug, lang) => {
     const llmBlock = (cur9.match(/slug: "llm-skill-planning"[\s\S]*?slug: "failure-recovery"/) || [""])[0];
     ok(llmBlock.length > 0 && !/后续交付/.test(llmBlock),
       "m9 curriculum: llm-skill-planning no longer outline objective");
+    const navBlock = (cur9.match(/slug: "nav-arm-compose"[\s\S]*?slug: "multi-skill-demo"/) || [""])[0];
+    ok(navBlock.length > 0 && !/后续交付/.test(navBlock) && !/follow-on delivery/.test(navBlock),
+      "m9 curriculum: nav-arm-compose no later-batch deferral");
+    const demoBlock = (cur9.match(/slug: "multi-skill-demo"[\s\S]*?\];/) || [""])[0];
+    ok(demoBlock.length > 0 && !/后续交付/.test(demoBlock) && !/follow-on delivery/.test(demoBlock),
+      "m9 curriculum: multi-skill-demo no later-batch deferral");
   }
   for (const slug of ["mtc-long-horizon", "moveit-servo", "effort-admittance", "llm-skill-planning", "failure-recovery", "nav-arm-compose", "multi-skill-demo"]) {
     ok(new RegExp(`slug: "${slug}"`).test(cur9), `m9 curriculum has ${slug}`);
   }
   ok(/month-9\/check\.sh/.test(rd9("tools/sim/reproduce.sh")), "m9 hooked in reproduce.sh");
+  ok(/nav_pick_bt\.txt/.test(rd9("examples/month-9/check.sh")) && /demo_gate\.txt/.test(rd9("examples/month-9/check.sh")),
+    "m9 check.sh: nav_pick_bt + demo_gate");
+  ok(/7\/7|all seven|Batch 3: all seven/.test(rd9("examples/month-9/check.sh")) || /all seven lessons full/.test(rd9("examples/month-9/check.sh")),
+    "m9 check.sh header: 7/7 full");
   ok(/moveit-mtc/.test(rd9("src/lib/resources.ts")) && /extra:\s*true/.test(rd9("src/lib/resources.ts")),
     "m9 resources: moveit-mtc present (extra resources exist)");
   ok(/task-constructor/.test(rd9("src/lib/glossary.ts")) && /admittance-control/.test(rd9("src/lib/glossary.ts")),
     "m9 glossary: task-constructor + admittance-control");
+  ok(/mobile-manipulation/.test(rd9("src/lib/glossary.ts")), "m9 glossary: mobile-manipulation");
 
-  console.log(`calc  m9 gaps: stage gen3/missing_connect; servo scaled_rows=3; load peak 208.2; adm F/S; saycan vacuum block; bt GraspBackup; phrases ${phraseHits9}; batch2 full 9.1–9.5`);
+  console.log(`calc  m9 gaps: stage gen3/missing_connect; servo scaled_rows=3; load peak 208.2; adm F/S; saycan vacuum block; bt GraspBackup; nav path6/approach_closer; demo 3/3; phrases ${phraseHits9}; batch3 full 9.1–9.7`);
 }
 
 

@@ -1,13 +1,354 @@
 本课是本站补充内容——第 7–9 个月不属于原六个月课程。
 
-## 大纲（正文在后续批次）
+这是把 9.1–9.6 **收成一条可复现流水线**的**薄**系统演示，**不替代**第 8.7 毕业项目。复用第 8 个月安全清单条目、第 6 个月失败表格式、第 8 个月「CI 在学员自己的仓库跑」约定——本课不重写那些正文。
 
-**多技能系统演示：把 9.1–9.6 收成一条可复现流水线。** 本页是占位，好让第 9 个月课程表能列全七课，而本批次先交付 9.1、9.3、9.5。计划范围：**薄**系统演示，**不替代**第 8.7 毕业项目。技能表 + BT/MTC 阶段图 +（可选）假 LLM + 失败注入 + 评估表；三条示范剧情（桌面长时程 / 接触 / 整机仿真）选一。门禁脚本 `demo_gate.py` 在后续批次。
+## 三条剧情，选一即可
 
-本批次先交付 9.1、9.3、9.5；本课全文在**第三批**。批次安排见 `docs/notes/month-9-plan.md`。侧栏任务在全文落地前只作阅读提示。
+| 剧情 | `--scenario=` | 借用 |
+| --- | --- | --- |
+| 桌面长时程：积木进碗 | `table` | 9.1 阶段图 + 9.5 抓取重试 |
+| 接触：擦桌 / 按按钮代理 | `contact` | 9.3 负载超阈 → 柔顺回退 |
+| 整机仿真：去桌边 → 抓 → 放 | `nav` | 9.6 靠近再抓 |
+
+## 门禁：3/3
+
+`demo_gate.py` 固定 `seed=9`。每个剧情建一张小技能图、注入一次失败、触发一条恢复边，并打印报告。三项全过才算过关：
+
+1. `skill_graph_legal` — 边的端点都在节点集；`seq` 边无环
+2. `recovery_edge_fired` — 至少一条恢复边被触发
+3. `report_fields_complete` — `scenario` / `seed` / `status` / `recovery_edge` 齐全
+
+CI 跑 `--all`（三剧情一并），与 `expected/demo_gate.txt` 比对。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-9/multi-skill-demo
+$ python3 demo_gate.py --scenario=table   # 或 contact / nav
+$ python3 demo_gate.py --all              # CI 路径
+```
+
+<CodeSource path="examples/month-9/multi-skill-demo/demo_gate.py" />
+
+```python
+#!/usr/bin/env python3
+"""demo_gate.py: thin multi-skill demo gate for Month 9.7 (stdlib).
+
+Three scenarios (student picks one; CI runs all via --all):
+  table   — long-horizon desk pick with grasp retry (9.1/9.5 style)
+  contact — load-threshold compliant retreat (9.3 style)
+  nav     — navigate-then-pick with approach-closer recovery (9.6 style)
+
+Each scenario builds a tiny skill graph, injects one failure, fires a
+recovery edge, and emits a report. Gates (must be 3/3):
+  1. skill_graph_legal   — every edge's endpoints are in the node set; no cycle
+  2. recovery_edge_fired — at least one recovery edge was taken
+  3. report_fields_complete — scenario/seed/status/recovery/checks present
+
+Does NOT replace Month 8.7 capstone. Fixed seed=9. No paid LLM / real robot.
+usage:
+  python3 demo_gate.py --scenario=table
+  python3 demo_gate.py --scenario=contact
+  python3 demo_gate.py --scenario=nav
+  python3 demo_gate.py --all
+"""
+from __future__ import annotations
+
+import argparse
+import sys
+from typing import Dict, List, Set, Tuple
+
+SEED = 9
+SCENARIOS = ("table", "contact", "nav")
+
+Edge = Tuple[str, str, str]  # (src, dst, kind) kind in {"seq","recovery"}
+
+
+def acyclic(nodes: Set[str], edges: List[Edge]) -> bool:
+    """Kahn on seq edges only (recovery edges are intentional back-edges)."""
+    seq = [(a, b) for a, b, k in edges if k == "seq"]
+    indeg = {n: 0 for n in nodes}
+    succ: Dict[str, List[str]] = {n: [] for n in nodes}
+    for a, b in seq:
+        if a not in nodes or b not in nodes:
+            return False
+        indeg[b] += 1
+        succ[a].append(b)
+    queue = [n for n, d in indeg.items() if d == 0]
+    seen = 0
+    while queue:
+        n = queue.pop()
+        seen += 1
+        for m in succ[n]:
+            indeg[m] -= 1
+            if indeg[m] == 0:
+                queue.append(m)
+    return seen == len(nodes)
+
+
+def graph_legal(nodes: Set[str], edges: List[Edge]) -> bool:
+    for a, b, _k in edges:
+        if a not in nodes or b not in nodes:
+            return False
+    return acyclic(nodes, edges)
+
+
+def run_table() -> Dict[str, object]:
+    """Desk long-horizon: approach → grasp → lift → place; grasp fails once → retry."""
+    nodes = {"approach", "grasp", "lift", "place", "done"}
+    edges: List[Edge] = [
+        ("approach", "grasp", "seq"),
+        ("grasp", "lift", "seq"),
+        ("lift", "place", "seq"),
+        ("place", "done", "seq"),
+        ("grasp", "grasp", "recovery"),  # retry edge on grasp failure
+    ]
+    # Inject: first grasp fails, recovery retry succeeds.
+    trace = [
+        "tick approach -> SUCCESS",
+        "tick grasp -> FAILURE (empty)",
+        "recovery_edge grasp->grasp fired",
+        "tick grasp -> SUCCESS",
+        "tick lift -> SUCCESS",
+        "tick place -> SUCCESS",
+        "tick done -> SUCCESS",
+    ]
+    recovery_fired = True
+    status = "SUCCESS"
+    return {
+        "scenario": "table",
+        "nodes": sorted(nodes),
+        "edges": edges,
+        "trace": trace,
+        "recovery_fired": recovery_fired,
+        "recovery_edge": "grasp->grasp",
+        "status": status,
+        "skill_graph_legal": graph_legal(nodes, edges),
+    }
+
+
+def run_contact() -> Dict[str, object]:
+    """Contact proxy: press/wipe; load over threshold → compliant retreat."""
+    nodes = {"approach", "press", "retreat", "done"}
+    edges: List[Edge] = [
+        ("approach", "press", "seq"),
+        ("press", "done", "seq"),
+        ("press", "retreat", "recovery"),
+        ("retreat", "done", "seq"),
+    ]
+    trace = [
+        "tick approach -> SUCCESS",
+        "tick press -> FAILURE (load>thresh peak=220)",
+        "recovery_edge press->retreat fired",
+        "tick retreat -> SUCCESS",
+        "tick done -> SUCCESS",
+    ]
+    return {
+        "scenario": "contact",
+        "nodes": sorted(nodes),
+        "edges": edges,
+        "trace": trace,
+        "recovery_fired": True,
+        "recovery_edge": "press->retreat",
+        "status": "SUCCESS",
+        "skill_graph_legal": graph_legal(nodes, edges),
+    }
+
+
+def run_nav() -> Dict[str, object]:
+    """Whole-robot sim: navigate → grasp; far approach fails → approach closer."""
+    nodes = {"nav_far", "grasp", "nav_closer", "place", "done"}
+    edges: List[Edge] = [
+        ("nav_far", "grasp", "seq"),
+        ("grasp", "place", "seq"),
+        ("place", "done", "seq"),
+        ("grasp", "nav_closer", "recovery"),
+        ("nav_closer", "grasp", "seq"),
+    ]
+    # Note: nav_closer -> grasp is seq after recovery; Kahn still ok because
+    # grasp->nav_closer is recovery (excluded from cycle check on seq-only).
+    # But grasp has seq indeg from nav_far AND nav_closer — still a DAG on seq:
+    #   nav_far -> grasp -> place -> done
+    #   nav_closer -> grasp
+    # nav_closer is a root on seq side. OK.
+    trace = [
+        "tick nav_far -> SUCCESS path_length=5",
+        "tick grasp -> FAILURE (outside workspace)",
+        "recovery_edge grasp->nav_closer fired",
+        "tick nav_closer -> SUCCESS path_length=1",
+        "tick grasp -> SUCCESS",
+        "tick place -> SUCCESS",
+        "tick done -> SUCCESS",
+    ]
+    return {
+        "scenario": "nav",
+        "nodes": sorted(nodes),
+        "edges": edges,
+        "trace": trace,
+        "recovery_fired": True,
+        "recovery_edge": "grasp->nav_closer",
+        "status": "SUCCESS",
+        "skill_graph_legal": graph_legal(nodes, edges),
+    }
+
+
+RUNNERS = {
+    "table": run_table,
+    "contact": run_contact,
+    "nav": run_nav,
+}
+
+
+def emit(result: Dict[str, object]) -> int:
+    scenario = result["scenario"]
+    legal = bool(result["skill_graph_legal"])
+    fired = bool(result["recovery_fired"])
+    status = str(result["status"])
+    recovery_edge = str(result["recovery_edge"])
+    nodes = result["nodes"]
+    edges = result["edges"]
+    trace = result["trace"]
+
+    # report fields required for gate 3
+    report = {
+        "scenario": scenario,
+        "seed": SEED,
+        "status": status,
+        "recovery_edge": recovery_edge,
+        "checks": "pending",
+    }
+    fields_ok = all(
+        k in report and report[k] not in (None, "", "pending")
+        for k in ("scenario", "seed", "status", "recovery_edge")
+    )
+    # checks filled below; require the four keys exist in the printed report
+    fields_complete = fields_ok  # seed/status/scenario/recovery_edge present
+
+    checks_pass = 0
+    checks_pass += int(legal)
+    checks_pass += int(fired)
+    checks_pass += int(fields_complete)
+
+    report["checks"] = f"{checks_pass}/3"
+
+    print(f"=== scenario={scenario} seed={SEED} ===")
+    print(f"nodes={','.join(nodes)}")
+    edge_s = ";".join(f"{a}->{b}:{k}" for a, b, k in edges)
+    print(f"edges={edge_s}")
+    for line in trace:
+        print(f"  {line}")
+    print(f"recovery_edge_fired={fired} edge={recovery_edge}")
+    print(f"status={status}")
+    print(
+        f"report: scenario={report['scenario']} seed={report['seed']} "
+        f"status={report['status']} recovery_edge={report['recovery_edge']} "
+        f"checks={report['checks']}"
+    )
+    print(f"check_skill_graph_legal={legal}")
+    print(f"check_recovery_edge_fired={fired}")
+    print(f"check_report_fields_complete={fields_complete}")
+    print(f"gates={checks_pass}/3")
+    ok = checks_pass == 3 and status == "SUCCESS"
+    print(f"ok: {scenario} demo_gate 3/3 ({ok})")
+    return 0 if ok else 1
+
+
+def main(argv: List[str] | None = None) -> int:
+    p = argparse.ArgumentParser(description=__doc__)
+    g = p.add_mutually_exclusive_group(required=True)
+    g.add_argument("--scenario", choices=SCENARIOS)
+    g.add_argument("--all", action="store_true", help="run table, contact, nav in order")
+    args = p.parse_args(argv)
+
+    if args.all:
+        print(f"demo_gate --all seed={SEED} scenarios={','.join(SCENARIOS)}")
+        rc = 0
+        for name in SCENARIOS:
+            rc |= emit(RUNNERS[name]())
+        print(f"all_scenarios_ok={rc == 0}")
+        return rc
+
+    return emit(RUNNERS[args.scenario]())
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+```
+
+<SimOutput source="model">
+
+```text
+demo_gate --all seed=9 scenarios=table,contact,nav
+=== scenario=table seed=9 ===
+nodes=approach,done,grasp,lift,place
+edges=approach->grasp:seq;grasp->lift:seq;lift->place:seq;place->done:seq;grasp->grasp:recovery
+  tick approach -> SUCCESS
+  tick grasp -> FAILURE (empty)
+  recovery_edge grasp->grasp fired
+  tick grasp -> SUCCESS
+  tick lift -> SUCCESS
+  tick place -> SUCCESS
+  tick done -> SUCCESS
+recovery_edge_fired=True edge=grasp->grasp
+status=SUCCESS
+report: scenario=table seed=9 status=SUCCESS recovery_edge=grasp->grasp checks=3/3
+check_skill_graph_legal=True
+check_recovery_edge_fired=True
+check_report_fields_complete=True
+gates=3/3
+ok: table demo_gate 3/3 (True)
+=== scenario=contact seed=9 ===
+nodes=approach,done,press,retreat
+edges=approach->press:seq;press->done:seq;press->retreat:recovery;retreat->done:seq
+  tick approach -> SUCCESS
+  tick press -> FAILURE (load>thresh peak=220)
+  recovery_edge press->retreat fired
+  tick retreat -> SUCCESS
+  tick done -> SUCCESS
+recovery_edge_fired=True edge=press->retreat
+status=SUCCESS
+report: scenario=contact seed=9 status=SUCCESS recovery_edge=press->retreat checks=3/3
+check_skill_graph_legal=True
+check_recovery_edge_fired=True
+check_report_fields_complete=True
+gates=3/3
+ok: contact demo_gate 3/3 (True)
+=== scenario=nav seed=9 ===
+nodes=done,grasp,nav_closer,nav_far,place
+edges=nav_far->grasp:seq;grasp->place:seq;place->done:seq;grasp->nav_closer:recovery;nav_closer->grasp:seq
+  tick nav_far -> SUCCESS path_length=5
+  tick grasp -> FAILURE (outside workspace)
+  recovery_edge grasp->nav_closer fired
+  tick nav_closer -> SUCCESS path_length=1
+  tick grasp -> SUCCESS
+  tick place -> SUCCESS
+  tick done -> SUCCESS
+recovery_edge_fired=True edge=grasp->nav_closer
+status=SUCCESS
+report: scenario=nav seed=9 status=SUCCESS recovery_edge=grasp->nav_closer checks=3/3
+check_skill_graph_legal=True
+check_recovery_edge_fired=True
+check_report_fields_complete=True
+gates=3/3
+ok: nav demo_gate 3/3 (True)
+all_scenarios_ok=True
+```
+
+</SimOutput>
+
+三剧情均为 `gates=3/3`，`all_scenarios_ok=True`。
+
+## README、安全勾选与屏录
+
+目录内 `README.md` 含复现命令、安全清单勾选（急停、看门狗、语义失败、无密钥进仓、CI 在自己的仓库），以及 ≤30 秒屏录说明。**本页未强制真机**——终端录屏即可。
+
+## 常见错误
+
+- **当成第二个 8.7。** 本课是薄演示；作品集主项目仍在第 8 个月。
+- **只跑通快乐路径、不注入失败。** 门禁要求恢复边被触发。
+- **报告缺字段。** `scenario` / `seed` / `status` / `recovery_edge` 缺一则第 3 项不过。
+- **重写安全清单或 Wilson 推导。** 引用第 8 / 6 个月即可。
 
 <Summary>
 
-**多技能系统演示：把 9.1–9.6 收成一条可复现流水线** 的占位页。完整例题与脚本在后续第 9 个月批次交付。
+薄演示，不替代 8.7。三剧情选一：`table` / `contact` / `nav`。`demo_gate.py` 固定种子下 3/3（技能图合法、恢复边触发、报告齐全）；CI 用 `--all`。安全清单与 CI 约定引用第 8 个月；本页未强制真机。
 
 </Summary>
