@@ -1,0 +1,16 @@
+seed=9
+map=7x7 start=(1, 1) desk=(6, 3) approach_far=(4, 3) approach_near=(5, 3)
+arm_workspace_r=1.5
+compose: frames=map>base_link>arm_base>ee mutex=base_settled_before_arm timeout_nav_s=30 timeout_grasp_s=10
+nav_path_far=(1,1)->(2,1)->(2,2)->(2,3)->(3,3)->(4,3) path_length_far=5
+base_settled=True
+grasp_attempt=1 at_base=(4, 3) dist_to_desk=2.000 in_workspace=False -> FAILURE
+recovery=approach_closer_then_grasp
+nav_path_near=(4,3)->(5,3) path_length_near=1
+base_settled=True
+grasp_attempt=2 at_base=(5, 3) dist_to_desk=1.000 in_workspace=True -> SUCCESS
+path_length_total=6
+grasp_in_workspace_final=True
+approach_closer_fired=True
+root_status=SUCCESS
+ok: compose navigate-then-pick with approach-closer recovery (True)

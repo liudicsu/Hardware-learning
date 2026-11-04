@@ -1,0 +1,54 @@
+demo_gate --all seed=9 scenarios=table,contact,nav
+=== scenario=table seed=9 ===
+nodes=approach,done,grasp,lift,place
+edges=approach->grasp:seq;grasp->lift:seq;lift->place:seq;place->done:seq;grasp->grasp:recovery
+  tick approach -> SUCCESS
+  tick grasp -> FAILURE (empty)
+  recovery_edge grasp->grasp fired
+  tick grasp -> SUCCESS
+  tick lift -> SUCCESS
+  tick place -> SUCCESS
+  tick done -> SUCCESS
+recovery_edge_fired=True edge=grasp->grasp
+status=SUCCESS
+report: scenario=table seed=9 status=SUCCESS recovery_edge=grasp->grasp checks=3/3
+check_skill_graph_legal=True
+check_recovery_edge_fired=True
+check_report_fields_complete=True
+gates=3/3
+ok: table demo_gate 3/3 (True)
+=== scenario=contact seed=9 ===
+nodes=approach,done,press,retreat
+edges=approach->press:seq;press->done:seq;press->retreat:recovery;retreat->done:seq
+  tick approach -> SUCCESS
+  tick press -> FAILURE (load>thresh peak=220)
+  recovery_edge press->retreat fired
+  tick retreat -> SUCCESS
+  tick done -> SUCCESS
+recovery_edge_fired=True edge=press->retreat
+status=SUCCESS
+report: scenario=contact seed=9 status=SUCCESS recovery_edge=press->retreat checks=3/3
+check_skill_graph_legal=True
+check_recovery_edge_fired=True
+check_report_fields_complete=True
+gates=3/3
+ok: contact demo_gate 3/3 (True)
+=== scenario=nav seed=9 ===
+nodes=done,grasp,nav_closer,nav_far,place
+edges=nav_far->grasp:seq;grasp->place:seq;place->done:seq;grasp->nav_closer:recovery;nav_closer->grasp:seq
+  tick nav_far -> SUCCESS path_length=5
+  tick grasp -> FAILURE (outside workspace)
+  recovery_edge grasp->nav_closer fired
+  tick nav_closer -> SUCCESS path_length=1
+  tick grasp -> SUCCESS
+  tick place -> SUCCESS
+  tick done -> SUCCESS
+recovery_edge_fired=True edge=grasp->nav_closer
+status=SUCCESS
+report: scenario=nav seed=9 status=SUCCESS recovery_edge=grasp->nav_closer checks=3/3
+check_skill_graph_legal=True
+check_recovery_edge_fired=True
+check_report_fields_complete=True
+gates=3/3
+ok: nav demo_gate 3/3 (True)
+all_scenarios_ok=True

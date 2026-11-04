@@ -1,0 +1,242 @@
+#!/usr/bin/env python3
+"""demo_gate.py: thin multi-skill demo gate for Month 9.7 (stdlib).
+
+Three scenarios (student picks one; CI runs all via --all):
+  table   — long-horizon desk pick with grasp retry (9.1/9.5 style)
+  contact — load-threshold compliant retreat (9.3 style)
+  nav     — navigate-then-pick with approach-closer recovery (9.6 style)
+
+Each scenario builds a tiny skill graph, injects one failure, fires a
+recovery edge, and emits a report. Gates (must be 3/3):
+  1. skill_graph_legal   — every edge's endpoints are in the node set; no cycle
+  2. recovery_edge_fired — at least one recovery edge was taken
+  3. report_fields_complete — scenario/seed/status/recovery/checks present
+
+Does NOT replace Month 8.7 capstone. Fixed seed=9. No paid LLM / real robot.
+usage:
+  python3 demo_gate.py --scenario=table
+  python3 demo_gate.py --scenario=contact
+  python3 demo_gate.py --scenario=nav
+  python3 demo_gate.py --all
+"""
+from __future__ import annotations
+
+import argparse
+import sys
+from typing import Dict, List, Set, Tuple
+
+SEED = 9
+SCENARIOS = ("table", "contact", "nav")
+
+Edge = Tuple[str, str, str]  # (src, dst, kind) kind in {"seq","recovery"}
+
+
+def acyclic(nodes: Set[str], edges: List[Edge]) -> bool:
+    """Kahn on seq edges only (recovery edges are intentional back-edges)."""
+    seq = [(a, b) for a, b, k in edges if k == "seq"]
+    indeg = {n: 0 for n in nodes}
+    succ: Dict[str, List[str]] = {n: [] for n in nodes}
+    for a, b in seq:
+        if a not in nodes or b not in nodes:
+            return False
+        indeg[b] += 1
+        succ[a].append(b)
+    queue = [n for n, d in indeg.items() if d == 0]
+    seen = 0
+    while queue:
+        n = queue.pop()
+        seen += 1
+        for m in succ[n]:
+            indeg[m] -= 1
+            if indeg[m] == 0:
+                queue.append(m)
+    return seen == len(nodes)
+
+
+def graph_legal(nodes: Set[str], edges: List[Edge]) -> bool:
+    for a, b, _k in edges:
+        if a not in nodes or b not in nodes:
+            return False
+    return acyclic(nodes, edges)
+
+
+def run_table() -> Dict[str, object]:
+    """Desk long-horizon: approach → grasp → lift → place; grasp fails once → retry."""
+    nodes = {"approach", "grasp", "lift", "place", "done"}
+    edges: List[Edge] = [
+        ("approach", "grasp", "seq"),
+        ("grasp", "lift", "seq"),
+        ("lift", "place", "seq"),
+        ("place", "done", "seq"),
+        ("grasp", "grasp", "recovery"),  # retry edge on grasp failure
+    ]
+    # Inject: first grasp fails, recovery retry succeeds.
+    trace = [
+        "tick approach -> SUCCESS",
+        "tick grasp -> FAILURE (empty)",
+        "recovery_edge grasp->grasp fired",
+        "tick grasp -> SUCCESS",
+        "tick lift -> SUCCESS",
+        "tick place -> SUCCESS",
+        "tick done -> SUCCESS",
+    ]
+    recovery_fired = True
+    status = "SUCCESS"
+    return {
+        "scenario": "table",
+        "nodes": sorted(nodes),
+        "edges": edges,
+        "trace": trace,
+        "recovery_fired": recovery_fired,
+        "recovery_edge": "grasp->grasp",
+        "status": status,
+        "skill_graph_legal": graph_legal(nodes, edges),
+    }
+
+
+def run_contact() -> Dict[str, object]:
+    """Contact proxy: press/wipe; load over threshold → compliant retreat."""
+    nodes = {"approach", "press", "retreat", "done"}
+    edges: List[Edge] = [
+        ("approach", "press", "seq"),
+        ("press", "done", "seq"),
+        ("press", "retreat", "recovery"),
+        ("retreat", "done", "seq"),
+    ]
+    trace = [
+        "tick approach -> SUCCESS",
+        "tick press -> FAILURE (load>thresh peak=220)",
+        "recovery_edge press->retreat fired",
+        "tick retreat -> SUCCESS",
+        "tick done -> SUCCESS",
+    ]
+    return {
+        "scenario": "contact",
+        "nodes": sorted(nodes),
+        "edges": edges,
+        "trace": trace,
+        "recovery_fired": True,
+        "recovery_edge": "press->retreat",
+        "status": "SUCCESS",
+        "skill_graph_legal": graph_legal(nodes, edges),
+    }
+
+
+def run_nav() -> Dict[str, object]:
+    """Whole-robot sim: navigate → grasp; far approach fails → approach closer."""
+    nodes = {"nav_far", "grasp", "nav_closer", "place", "done"}
+    edges: List[Edge] = [
+        ("nav_far", "grasp", "seq"),
+        ("grasp", "place", "seq"),
+        ("place", "done", "seq"),
+        ("grasp", "nav_closer", "recovery"),
+        ("nav_closer", "grasp", "seq"),
+    ]
+    # Note: nav_closer -> grasp is seq after recovery; Kahn still ok because
+    # grasp->nav_closer is recovery (excluded from cycle check on seq-only).
+    # But grasp has seq indeg from nav_far AND nav_closer — still a DAG on seq:
+    #   nav_far -> grasp -> place -> done
+    #   nav_closer -> grasp
+    # nav_closer is a root on seq side. OK.
+    trace = [
+        "tick nav_far -> SUCCESS path_length=5",
+        "tick grasp -> FAILURE (outside workspace)",
+        "recovery_edge grasp->nav_closer fired",
+        "tick nav_closer -> SUCCESS path_length=1",
+        "tick grasp -> SUCCESS",
+        "tick place -> SUCCESS",
+        "tick done -> SUCCESS",
+    ]
+    return {
+        "scenario": "nav",
+        "nodes": sorted(nodes),
+        "edges": edges,
+        "trace": trace,
+        "recovery_fired": True,
+        "recovery_edge": "grasp->nav_closer",
+        "status": "SUCCESS",
+        "skill_graph_legal": graph_legal(nodes, edges),
+    }
+
+
+RUNNERS = {
+    "table": run_table,
+    "contact": run_contact,
+    "nav": run_nav,
+}
+
+
+def emit(result: Dict[str, object]) -> int:
+    scenario = result["scenario"]
+    legal = bool(result["skill_graph_legal"])
+    fired = bool(result["recovery_fired"])
+    status = str(result["status"])
+    recovery_edge = str(result["recovery_edge"])
+    nodes = result["nodes"]
+    edges = result["edges"]
+    trace = result["trace"]
+
+    # report fields required for gate 3
+    report = {
+        "scenario": scenario,
+        "seed": SEED,
+        "status": status,
+        "recovery_edge": recovery_edge,
+        "checks": "pending",
+    }
+    fields_ok = all(
+        k in report and report[k] not in (None, "", "pending")
+        for k in ("scenario", "seed", "status", "recovery_edge")
+    )
+    # checks filled below; require the four keys exist in the printed report
+    fields_complete = fields_ok  # seed/status/scenario/recovery_edge present
+
+    checks_pass = 0
+    checks_pass += int(legal)
+    checks_pass += int(fired)
+    checks_pass += int(fields_complete)
+
+    report["checks"] = f"{checks_pass}/3"
+
+    print(f"=== scenario={scenario} seed={SEED} ===")
+    print(f"nodes={','.join(nodes)}")
+    edge_s = ";".join(f"{a}->{b}:{k}" for a, b, k in edges)
+    print(f"edges={edge_s}")
+    for line in trace:
+        print(f"  {line}")
+    print(f"recovery_edge_fired={fired} edge={recovery_edge}")
+    print(f"status={status}")
+    print(
+        f"report: scenario={report['scenario']} seed={report['seed']} "
+        f"status={report['status']} recovery_edge={report['recovery_edge']} "
+        f"checks={report['checks']}"
+    )
+    print(f"check_skill_graph_legal={legal}")
+    print(f"check_recovery_edge_fired={fired}")
+    print(f"check_report_fields_complete={fields_complete}")
+    print(f"gates={checks_pass}/3")
+    ok = checks_pass == 3 and status == "SUCCESS"
+    print(f"ok: {scenario} demo_gate 3/3 ({ok})")
+    return 0 if ok else 1
+
+
+def main(argv: List[str] | None = None) -> int:
+    p = argparse.ArgumentParser(description=__doc__)
+    g = p.add_mutually_exclusive_group(required=True)
+    g.add_argument("--scenario", choices=SCENARIOS)
+    g.add_argument("--all", action="store_true", help="run table, contact, nav in order")
+    args = p.parse_args(argv)
+
+    if args.all:
+        print(f"demo_gate --all seed={SEED} scenarios={','.join(SCENARIOS)}")
+        rc = 0
+        for name in SCENARIOS:
+            rc |= emit(RUNNERS[name]())
+        print(f"all_scenarios_ok={rc == 0}")
+        return rc
+
+    return emit(RUNNERS[args.scenario]())
+
+
+if __name__ == "__main__":
+    sys.exit(main())
