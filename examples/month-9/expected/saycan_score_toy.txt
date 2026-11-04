@@ -1,0 +1,27 @@
+skills=8 instructions=5 affordance_pick_vacuum=0.0 fake_llm=lookup (no API)
+--- with affordance ---
+instr='bring me the apple'
+  plan: find apple -> pick apple -> go to table -> place on table -> done
+instr='bring me a drink'
+  plan: find coke -> pick coke -> go to table -> place on table -> done
+instr='clean the floor with the vacuum'
+  plan: done
+instr='put the apple on the table'
+  plan: go to table -> place on table -> done
+instr="I'm done, stop"
+  plan: done
+--- without affordance ---
+instr='bring me the apple'
+  plan: find apple -> pick apple -> go to table -> place on table -> done
+instr='bring me a drink'
+  plan: find coke -> pick coke -> go to table -> place on table -> done
+instr='clean the floor with the vacuum'
+  plan: pick vacuum -> done
+instr='put the apple on the table'
+  plan: go to table -> place on table -> done
+instr="I'm done, stop"
+  plan: done
+--- contrast instr=clean the floor with the vacuum ---
+with_affordance:    done
+without_affordance: pick vacuum -> done
+ok: without_affordance_picks_vacuum=True with_affordance_blocks_vacuum=True any_without_vacuum=True

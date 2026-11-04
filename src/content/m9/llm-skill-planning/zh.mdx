@@ -1,13 +1,270 @@
 本课是本站补充内容——第 7–9 个月不属于原六个月课程。
 
-## 大纲（正文在后续批次）
+不重讲第 8 个月的 VLA 词元化或微调。本课只做**高层**：自然语言指令 → **技能名序列**。<Term id="saycan">SayCan</Term> 把语言模型的「这条技能对指令有多有用」与世界侧的「现在做不做得到」（<Term id="skill-affordance">affordance</Term> / 价值）相乘，再 argmax；选中技能追加进对话，直到 `done`。
 
-**用语言模型编排技能：SayCan 式落地。** 本页是占位，好让第 9 个月课程表能列全七课，而本批次先交付 9.1、9.3、9.5。计划范围：自然语言 → 技能名序列。SayCan：LLM 有用性 × 可执行性/affordance 再 argmax；技能表约束防胡编。CPU 玩具 `saycan_score_toy.py` **只跑假 LLM**（CI/expected 从不调用付费 API）；学员自备 API 选做标「本页未运行；密钥不进仓库」。
+## SayCan 一句话
 
-本批次先交付 9.1、9.3、9.5；本课全文在**第二批**。批次安排见 `docs/notes/month-9-plan.md`。侧栏任务在全文落地前只作阅读提示。
+1. 技能必须来自**封闭技能表**（LLM 不能胡编表外名字）。
+2. LLM 给出有用性分数 u(skill | instruction, history)。
+3. 可执行性 / affordance a(skill | scene) ∈ [0, 1]（真空吸尘器不在场景里 → 0）。
+4. 选 argmax<sub>skill</sub> (u × a)；执行后把该技能写进历史，循环直到 `done`。
+
+论文（arXiv **2204.01691**）与项目页强调：需要真实世界落地，才能完成长时程抽象指令。开源 Colab 用技能库 + 检测器做 affordance，不必训练 540B 或厨房真机。
+
+<Resource id="saycan-paper" />
+<Resource id="saycan-site" />
+
+## 安全：技能表 + 可执行性过滤
+
+LLM 会提出听起来合理、场景里却做不到的步骤（例如 `pick vacuum`）。**必须**用技能表约束输出，再用 affordance 把不可行项乘成 0——呼应第 8 个月安全清单：策略输出不能直接当执行许可。
+
+## CPU：假 LLM × affordance（无付费 API）
+
+`saycan_score_toy.py` **从不**调用云 API。内置 8 项技能表、确定性查表假 LLM、场景 affordance（`pick vacuum` = **0.0**）。对 **5** 条指令分别跑「有 affordance」与「无 affordance（a≡1）」；对比真空那条：无过滤会选出 `pick vacuum`，有过滤则直接 `done`。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-9/llm-skill-planning
+$ python3 saycan_score_toy.py
+```
+
+<CodeSource path="examples/month-9/llm-skill-planning/saycan_score_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""saycan_score_toy.py: SayCan-style skill selection with a fake LLM (stdlib).
+
+NO paid API. Deterministic lookup tables stand in for LLM usefulness scores and
+scene affordances. For each of five instructions, select a skill sequence by
+argmax(usefulness × affordance) until 'done', then contrast the same loop with
+affordance forced to 1.0 (which can pick infeasible skills like 'pick vacuum').
+
+Pinned tables keep expected/ stable. Keys never enter the repo.
+usage: python3 saycan_score_toy.py
+"""
+from __future__ import annotations
+
+from typing import Dict, List, Tuple
+
+# Closed skill table — LLM may only propose these names.
+SKILLS: List[str] = [
+    "find apple",
+    "pick apple",
+    "find coke",
+    "pick coke",
+    "pick vacuum",  # present in skill table but NOT in this scene
+    "go to table",
+    "place on table",
+    "done",
+]
+
+# Scene affordance in [0, 1]: what the robot can actually do *now*.
+# Vacuum is absent → affordance 0 (SayCan world grounding).
+AFFORDANCE: Dict[str, float] = {
+    "find apple": 1.0,
+    "pick apple": 0.9,  # apple visible / graspable
+    "find coke": 1.0,
+    "pick coke": 0.85,
+    "pick vacuum": 0.0,  # infeasible in this scene
+    "go to table": 1.0,
+    "place on table": 0.95,
+    "done": 1.0,
+}
+
+# Fake LLM usefulness p(skill | instruction, history_tail).
+# Keys: (instruction_id, last_skill_or_START, skill) → score in (0, 1].
+# Only the scores that matter for the five demos are listed; others default low.
+LLM_SCORES: Dict[Tuple[str, str, str], float] = {}
+
+
+def _put(instr: str, hist: str, skill: str, score: float) -> None:
+    LLM_SCORES[(instr, hist, skill)] = score
+
+
+# --- instruction A: "bring me the apple" ---
+# Good plan: find apple → pick apple → go to table → place on table → done
+A = "bring me the apple"
+_put(A, "START", "find apple", 0.92)
+_put(A, "START", "pick apple", 0.70)
+_put(A, "START", "pick vacuum", 0.55)  # LLM may invent; affordance kills it
+_put(A, "START", "go to table", 0.20)
+_put(A, "START", "done", 0.05)
+_put(A, "find apple", "pick apple", 0.95)
+_put(A, "find apple", "pick vacuum", 0.40)
+_put(A, "find apple", "done", 0.05)
+_put(A, "pick apple", "go to table", 0.90)
+_put(A, "pick apple", "place on table", 0.50)
+_put(A, "pick apple", "done", 0.05)
+_put(A, "go to table", "place on table", 0.93)
+_put(A, "go to table", "done", 0.05)
+_put(A, "place on table", "done", 0.99)
+
+# --- instruction B: "bring me a drink" (coke path) ---
+B = "bring me a drink"
+_put(B, "START", "find coke", 0.88)
+_put(B, "START", "pick coke", 0.60)
+_put(B, "START", "pick vacuum", 0.50)
+_put(B, "START", "done", 0.05)
+_put(B, "find coke", "pick coke", 0.94)
+_put(B, "find coke", "pick vacuum", 0.35)
+_put(B, "pick coke", "go to table", 0.91)
+_put(B, "go to table", "place on table", 0.92)
+_put(B, "place on table", "done", 0.99)
+
+# --- instruction C: "clean the floor with the vacuum" ---
+# Without affordance the fake LLM eagerly picks 'pick vacuum'; with aff → blocked,
+# so 'done' wins (nothing feasible to execute — world grounding).
+C = "clean the floor with the vacuum"
+_put(C, "START", "pick vacuum", 0.97)
+_put(C, "START", "find apple", 0.05)
+_put(C, "START", "pick apple", 0.05)
+_put(C, "START", "go to table", 0.05)
+_put(C, "START", "done", 0.20)  # honest stop when vacuum is unavailable
+_put(C, "pick vacuum", "done", 0.95)
+
+# --- instruction D: "put the apple on the table" (already holding? start mid-plan) ---
+D = "put the apple on the table"
+_put(D, "START", "go to table", 0.85)
+_put(D, "START", "place on table", 0.70)
+_put(D, "START", "pick apple", 0.55)
+_put(D, "START", "pick vacuum", 0.30)
+_put(D, "START", "done", 0.05)
+_put(D, "go to table", "place on table", 0.96)
+_put(D, "place on table", "done", 0.99)
+_put(D, "pick apple", "go to table", 0.90)
+
+# --- instruction E: "I'm done, stop" ---
+E = "I'm done, stop"
+_put(E, "START", "done", 0.99)
+_put(E, "START", "pick apple", 0.05)
+_put(E, "START", "pick vacuum", 0.05)
+
+INSTRUCTIONS = [A, B, C, D, E]
+DEFAULT_LLM = 0.02
+MAX_STEPS = 8
+
+
+def llm_score(instr: str, hist: str, skill: str) -> float:
+    return LLM_SCORES.get((instr, hist, skill), DEFAULT_LLM)
+
+
+def select_sequence(
+    instr: str, use_affordance: bool
+) -> Tuple[List[str], List[Tuple[str, float, float, float]]]:
+    """Return (skill_names, debug rows of skill,u,a,combined at each pick)."""
+    plan: List[str] = []
+    debug: List[Tuple[str, float, float, float]] = []
+    hist = "START"
+    for _ in range(MAX_STEPS):
+        best_skill = None
+        best_comb = -1.0
+        best_u = 0.0
+        best_a = 0.0
+        for skill in SKILLS:
+            u = llm_score(instr, hist, skill)
+            a = AFFORDANCE[skill] if use_affordance else 1.0
+            comb = u * a
+            if comb > best_comb:
+                best_comb = comb
+                best_skill = skill
+                best_u = u
+                best_a = a
+        assert best_skill is not None
+        debug.append((best_skill, best_u, best_a, best_comb))
+        plan.append(best_skill)
+        if best_skill == "done":
+            break
+        hist = best_skill
+    return plan, debug
+
+
+def fmt_plan(plan: List[str]) -> str:
+    return " -> ".join(plan)
+
+
+def main() -> None:
+    print(
+        f"skills={len(SKILLS)} instructions={len(INSTRUCTIONS)} "
+        f"affordance_pick_vacuum={AFFORDANCE['pick vacuum']} "
+        f"fake_llm=lookup (no API)"
+    )
+    print("--- with affordance ---")
+    for instr in INSTRUCTIONS:
+        plan, _ = select_sequence(instr, use_affordance=True)
+        print(f"instr={instr!r}")
+        print(f"  plan: {fmt_plan(plan)}")
+    print("--- without affordance ---")
+    vacuum_picked = False
+    for instr in INSTRUCTIONS:
+        plan, _ = select_sequence(instr, use_affordance=False)
+        if "pick vacuum" in plan:
+            vacuum_picked = True
+        print(f"instr={instr!r}")
+        print(f"  plan: {fmt_plan(plan)}")
+    # Spotlight instruction C contrast
+    plan_aff, _ = select_sequence(C, use_affordance=True)
+    plan_raw, _ = select_sequence(C, use_affordance=False)
+    print("--- contrast instr=clean the floor with the vacuum ---")
+    print(f"with_affordance:    {fmt_plan(plan_aff)}")
+    print(f"without_affordance: {fmt_plan(plan_raw)}")
+    print(
+        f"ok: without_affordance_picks_vacuum={('pick vacuum' in plan_raw)} "
+        f"with_affordance_blocks_vacuum={('pick vacuum' not in plan_aff)} "
+        f"any_without_vacuum={vacuum_picked}"
+    )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+skills=8 instructions=5 affordance_pick_vacuum=0.0 fake_llm=lookup (no API)
+--- with affordance ---
+instr='bring me the apple'
+  plan: find apple -> pick apple -> go to table -> place on table -> done
+instr='bring me a drink'
+  plan: find coke -> pick coke -> go to table -> place on table -> done
+instr='clean the floor with the vacuum'
+  plan: done
+instr='put the apple on the table'
+  plan: go to table -> place on table -> done
+instr="I'm done, stop"
+  plan: done
+--- without affordance ---
+instr='bring me the apple'
+  plan: find apple -> pick apple -> go to table -> place on table -> done
+instr='bring me a drink'
+  plan: find coke -> pick coke -> go to table -> place on table -> done
+instr='clean the floor with the vacuum'
+  plan: pick vacuum -> done
+instr='put the apple on the table'
+  plan: go to table -> place on table -> done
+instr="I'm done, stop"
+  plan: done
+--- contrast instr=clean the floor with the vacuum ---
+with_affordance:    done
+without_affordance: pick vacuum -> done
+ok: without_affordance_picks_vacuum=True with_affordance_blocks_vacuum=True any_without_vacuum=True
+```
+
+</SimOutput>
+
+对照行：`without_affordance_picks_vacuum=True`，`with_affordance_blocks_vacuum=True`。`SayCanScoreWidget` 延期；先读表。CI / expected **只跑假 LLM**。
+
+## 选做：自备 API（本页未运行；密钥不进仓库）
+
+有自己的 API Key 时，可按官方 Colab 或最小 prompt 跑一条真实 LLM 评分。**本页未运行**；密钥不进仓库、不写进 expected。
+
+## 常见错误
+
+- **把 SayCan 当成再训一个 VLA。** 本课是技能级编排，不是动作块策略。
+- **让 LLM 自由生成技能名。** 必须落在技能表内。
+- **把 CI 接到付费 API。** 本仓库 expected 只认假 LLM 输出。
 
 <Summary>
 
-**用语言模型编排技能：SayCan 式落地** 的占位页。完整例题与脚本在后续第 9 个月批次交付。
+SayCan：LLM 有用性 × affordance 再 argmax，直到 done；技能表约束防胡编。论文 arXiv 2204.01691 / say-can.github.io。`saycan_score_toy.py`：5 条指令、假 LLM 查表；无 affordance 会选 `pick vacuum`，有 affordance 则挡住。CI 不调用付费 API；自备 API 选做标本页未运行，密钥不进仓库。
 
 </Summary>
