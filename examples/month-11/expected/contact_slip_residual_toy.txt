@@ -1,0 +1,11 @@
+seed=117 dt_s=0.01 horizon=200 onset_tick=100 slip_speed_mps=0.05 ramp_ticks=20
+residual r = v_meas - J(q_meas) qdot_meas  [m/s, world frame; t=(1,0) n=(0,1)]
+contact flag = f_n > 2.0 N (assumed sensor channel); slip proxy: mean|r_t| over 5 > 0.02 m/s for 3 ticks
+unit_guard: refuse N@world - m/s@world
+scenario  rms_r_pre  rms_r_post slip_alarm_tick slip_latency_ms flag_drop_tick false_slip_ticks
+stick        0.0081      0.0082               -               -              -                0
+slip         0.0081      0.0484             111             110              -                0
+break        0.0081      0.3088               -               -            100                0
+break_ungated: slip_alarm_tick=103 (without the contact flag the proxy would call a break 'slip')
+break: max|r_n| after onset = 0.2635 m/s (printed, not used to decide break)
+ok: shared noise (identical pre-onset residuals); break from contact flag only; slip = toy proxy, not a GelSight/AnySkin classifier

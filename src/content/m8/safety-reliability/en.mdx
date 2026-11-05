@@ -1,6 +1,6 @@
 This lesson is a site supplement — Months 7–11 are not part of the original six-month course.
 
-A policy that scores well on Month 6 starts can still command through a soft stop, hang on a dropped packet, or keep torque on after you meant to quit. This lesson separates three layers: **software limits**, a command-timeout <Term id="watchdog">watchdog</Term>, and a physical <Term id="e-stop">e-stop</Term> that cuts power. Industrial standards appear by **name and scope only**. A CPU fault-injection toy compares max overshoot with and without a watchdog. `WatchdogWidget` is deferred; use the table for now.
+A policy that scores well on Month 6 starts can still command through a soft stop, hang on a dropped packet, or keep torque on after you meant to quit. This lesson separates three layers: **software limits**, a command-timeout <Term id="watchdog">watchdog</Term>, and a physical <Term id="e-stop">e-stop</Term> that cuts power. Industrial standards appear by **name and scope only**. A CPU fault-injection toy compares max overshoot with and without a watchdog. A second toy moves from the command path to the device side: drive status faults and bus silence latch safe, and only an operator ack with checked preconditions re-enables motion. `WatchdogWidget` is deferred; use the table for now.
 
 ## Three layers
 
@@ -160,6 +160,323 @@ ok: watchdog max_overshoot < no_watchdog (0.0000 < 0.6500)
 
 Seed 7, horizon 200, timeout 3 ticks, soft box ±0.80. The stream injects drops, delay, NaNs and spikes to ±1.45. **Without** a watchdog, max overshoot past the soft box is **0.6500** (spikes stick). **With** clamp-on-watchdog, max overshoot is **0.0000** and two clamps fire. That is the lesson: a timeout policy turns a stuck spike into a held safe command.
 
+## Device and bus faults: latch safe, re-enable only on an operator ack
+
+The watchdog above guards the **command path**: our own commands stop arriving or arrive broken. A drive can also report trouble from the **device side**: its status word sets a fault bit, or its status frames stop arriving on the bus. These are different failures with different owners, so they get a separate monitor. Neither replaces the other, and neither replaces the e-stop.
+
+### Two rules
+
+1. **Latch safe.** When the monitor sees a fault — the Fault bit in a received status frame, or `STATUS_TIMEOUT_TICKS` missed status frames in a row — it inhibits motion commands and holds a safe state.
+2. **A cleared bit is not permission.** The drive clearing its Fault bit, or frames coming back, does **not** re-enable motion. Re-enable only when `operator_ack == True` **and** the Fault bit is clear **and** at least `RECOVER_FRAMES` consecutive good frames have arrived. An automatic fault reset or re-enable triggered by a cleared bit is the anti-pattern this section exists to prevent.
+
+### Which status-word bits (CiA 402)
+
+The CiA 402 drive profile is a paid standard. This page does not link it or quote it. We take bit names from a public open-source table instead: the `State402::StatusWord` enum in ros2_canopen ([`state.hpp` at commit 52327f9b](https://raw.githubusercontent.com/ros-industrial/ros2_canopen/52327f9b/canopen_402_driver/include/canopen_402_driver/state.hpp)). Its standard bits 0–7 and 9–11 are:
+
+| Bit | Name in ros2_canopen |
+|---|---|
+| 0 | Ready to switch on |
+| 1 | Switched on |
+| 2 | Operation enabled |
+| 3 | Fault |
+| 4 | Voltage enabled |
+| 5 | Quick stop |
+| 6 | Switch on disabled |
+| 7 | Warning |
+| 9 | Remote |
+| 10 | Target reached |
+| 11 | Internal limit |
+
+In the same enum, bit 8 and bits 14–15 are named manufacturer-specific, and bits 12–13 operation-mode-specific. The toy puts seeded random noise on exactly those five bits, masks them out, and checks that no decision changes (`nonstandard_bit_noise_changes_decisions=0`). The decisions read only bit 3 (Fault) and bit 7 (Warning). The status words the toy builds are lesson-chosen; it does not decode the full CiA 402 state machine. For a real drive, read its manual alongside the ros2_canopen source — real drives, CANopen and SocketCAN are not run on this page.
+
+<Resource id="canopen-402-statusword" />
+
+### Run the toy
+
+```bash
+$ cd ~/Hardware-learning/examples/month-8/safety-reliability
+$ python3 actuator_fault_monitor_toy.py
+```
+
+<CodeSource path="examples/month-8/safety-reliability/actuator_fault_monitor_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""actuator_fault_monitor_toy.py: device/bus fault latch + operator ack (stdlib).
+
+watchdog_sim.py (same lesson) guards the COMMAND path: our outgoing commands
+stop arriving. This toy guards the DEVICE/BUS side: the drive's own status
+frames report a fault, or status frames stop arriving on the bus.
+
+Status word bits are read BY NAME from the public ros2_canopen table
+State402::StatusWord (canopen_402_driver/include/canopen_402_driver/state.hpp,
+commit 52327f9b): standard bits 0-7 and 9-11. The decision logic reads only
+bit 3 (Fault) and bit 7 (Warning). Bit 8 and bits 14-15 are manufacturer-
+specific and bits 12-13 are operation-mode-specific in that table: here they
+carry seeded random noise, are masked out, and are never used in a decision
+or an assertion. The official CiA 402 text is a paid standard; not linked.
+
+Three arms share one synthetic status stream:
+  ignore      forward motion whatever the status says
+  latch_only  latch safe (inhibit motion) while the fault bit is set or the
+              status timeout has elapsed, then release AUTOMATICALLY once the
+              bit is clear and frames are back -- the auto-reset anti-pattern
+  latch_ack   latch safe; stay latched when the bit clears; re-enable only
+              when operator_ack is True AND fault bit clear AND at least
+              RECOVER_FRAMES consecutive good frames have arrived
+
+Ground truth for scoring: a fault episode is unresolved from the tick the
+monitor can see it (fault bit in a received frame, or STATUS_TIMEOUT_TICKS
+missed frames) until the first QUALIFYING ack (ack + both preconditions).
+  unsafe_motion_ticks   motion forwarded while an episode is unresolved
+  false_auto_reenables  episodes after which motion resumed with no qualifying
+                        ack (must be 0 on latch_ack)
+  blind_ticks           missed frames before the timeout fires -- identical in
+                        every arm; a software monitor cannot see them, which is
+                        one reason the hardware e-stop path stays separate
+Bus-off recovery or a drive soft reset is NOT an e-stop: neither removes
+motor power. Numbers are lesson-chosen; no SIL / PL claims.
+usage: python3 actuator_fault_monitor_toy.py
+"""
+from __future__ import annotations
+
+import random
+
+SEED = 85
+HORIZON = 110
+STATUS_TIMEOUT_TICKS = 3
+RECOVER_FRAMES = 5
+
+# Bit indices named as in ros2_canopen State402::StatusWord.
+SW_READY_TO_SWITCH_ON = 0
+SW_SWITCHED_ON = 1
+SW_OPERATION_ENABLED = 2
+SW_FAULT = 3
+SW_VOLTAGE_ENABLED = 4
+SW_QUICK_STOP = 5
+SW_SWITCH_ON_DISABLED = 6
+SW_WARNING = 7
+SW_REMOTE = 9
+SW_TARGET_REACHED = 10
+SW_INTERNAL_LIMIT = 11
+STANDARD_BITS = (0, 1, 2, 3, 4, 5, 6, 7, 9, 10, 11)
+NONSTANDARD_BITS = (8, 12, 13, 14, 15)  # manufacturer- / mode-specific: masked
+STANDARD_MASK = sum(1 << b for b in STANDARD_BITS)
+
+# Lesson-chosen synthetic words (the monitor only reads bits 3 and 7).
+WORD_RUNNING = (1 << SW_READY_TO_SWITCH_ON) | (1 << SW_SWITCHED_ON) | (
+    1 << SW_OPERATION_ENABLED) | (1 << SW_VOLTAGE_ENABLED) | (1 << SW_QUICK_STOP)
+WORD_FAULT = (1 << SW_FAULT) | (1 << SW_VOLTAGE_ENABLED)
+WORD_CLEARED = (1 << SW_SWITCH_ON_DISABLED) | (1 << SW_VOLTAGE_ENABLED)
+
+WARNING_TICKS = range(20, 25)
+FAULT_TICKS = range(30, 42)        # fault bit set in received frames
+CLEARED_TICKS = range(42, 60)      # drive reports fault bit clear, not running
+GAP_TICKS = range(75, 83)          # no status frames at all (bus silence)
+ACK_TICKS = (36, 60, 85, 95)       # synthetic operator presses ack
+
+# DiagnosticStatus levels (diagnostic_msgs/msg/DiagnosticStatus: OK=0 WARN=1
+# ERROR=2; STALE=3 also exists but this toy does not use it).
+OK, WARN, ERROR = 0, 1, 2
+LEVEL_NAME = {OK: "OK", WARN: "WARN", ERROR: "ERROR"}
+
+
+def build_stream(noise_seed: int) -> list[dict]:
+    """Per tick: frame (status word or None) and operator_ack flag."""
+    rng = random.Random(noise_seed)
+    stream = []
+    for t in range(HORIZON):
+        noise = sum(1 << b for b in NONSTANDARD_BITS if rng.random() < 0.5)
+        if t in GAP_TICKS:
+            word = None
+        elif t in FAULT_TICKS:
+            word = WORD_FAULT | noise
+        elif t in CLEARED_TICKS:
+            word = WORD_CLEARED | noise
+        else:
+            word = WORD_RUNNING | noise
+            if t in WARNING_TICKS:
+                word |= 1 << SW_WARNING
+        stream.append({"t": t, "word": word, "ack": t in ACK_TICKS})
+    return stream
+
+
+def bit(word: int, idx: int) -> bool:
+    return bool((word & STANDARD_MASK) >> idx & 1)
+
+
+def observe(stream: list[dict]) -> list[dict]:
+    """Monitor view per tick, shared by every arm."""
+    out, missed, good_run, fault_seen = [], 0, 0, False
+    for s in stream:
+        w = s["word"]
+        if w is None:
+            missed += 1
+            good_run = 0
+        else:
+            missed = 0
+            fault_seen = bit(w, SW_FAULT)
+            good_run = 0 if fault_seen else good_run + 1
+        stale = missed >= STATUS_TIMEOUT_TICKS
+        fault_visible = stale or (w is not None and fault_seen)
+        level = ERROR if fault_visible else (
+            WARN if w is not None and bit(w, SW_WARNING) else OK)
+        out.append({
+            "t": s["t"], "ack": s["ack"], "frame": w is not None,
+            "fault_bit": w is not None and fault_seen, "stale": stale,
+            "blind": w is None and not stale, "fault_visible": fault_visible,
+            "good_run": good_run, "level": level,
+            "qualifying_ack": s["ack"] and not fault_visible and w is not None
+            and good_run >= RECOVER_FRAMES,
+        })
+    return out
+
+
+def run_arm(arm: str, obs: list[dict]) -> tuple[list[bool], int]:
+    """Return per-tick 'motion forwarded?' and the number of rejected acks."""
+    latched, motion, ack_rejects = False, [], 0
+    for o in obs:
+        if arm == "latch_only":
+            latched = o["fault_visible"] or (latched and not o["frame"])
+        elif arm == "latch_ack":
+            if o["fault_visible"]:
+                latched = True
+            if o["ack"] and latched:
+                if o["qualifying_ack"]:
+                    latched = False
+                else:
+                    ack_rejects += 1
+        elif arm != "ignore":
+            raise ValueError(arm)
+        motion.append(not latched)
+    return motion, ack_rejects
+
+
+def score(obs: list[dict], motion: list[bool]) -> dict:
+    unresolved, reenabled = False, False
+    unsafe = false_reenables = 0
+    for o, m in zip(obs, motion):
+        if o["fault_visible"] and not unresolved:
+            unresolved, reenabled = True, False
+        if unresolved and o["qualifying_ack"]:
+            unresolved = False
+        if unresolved and m:
+            unsafe += 1
+            # motion after the bit cleared / frames returned, without ack
+            if not o["fault_visible"] and not reenabled:
+                false_reenables += 1
+                reenabled = True
+    return {"unsafe": unsafe, "false": false_reenables,
+            "blind": sum(1 for o in obs if o["blind"]),
+            "latched": sum(1 for m in motion if not m)}
+
+
+def main() -> None:
+    stream = build_stream(SEED)
+    obs = observe(stream)
+    levels = {name: sum(1 for o in obs if o["level"] == lv)
+              for lv, name in LEVEL_NAME.items()}
+    print(f"seed={SEED} horizon={HORIZON} status_timeout_ticks={STATUS_TIMEOUT_TICKS} "
+          f"recover_frames={RECOVER_FRAMES}")
+    print("statusword: decisions read bit 3 Fault, bit 7 Warning "
+          "(ros2_canopen State402::StatusWord standard bits 0-7, 9-11)")
+    print("masked_not_asserted: bit 8, 14, 15 manufacturer-specific; "
+          "bits 12-13 mode-specific")
+    print("stream: warning t20-24 | fault_bit t30-41 | bit_clear t42-59 | "
+          "frame_gap t75-82 | operator_ack t36,60,85,95")
+    print(f"diag_levels OK={levels['OK']} WARN={levels['WARN']} ERROR={levels['ERROR']}")
+    print(f"{'arm':<11} {'unsafe_motion_ticks':>19} {'false_auto_reenables':>20} "
+          f"{'ack_rejects':>11} {'latched_ticks':>13} {'blind_ticks':>11}")
+    results = {}
+    for arm in ("ignore", "latch_only", "latch_ack"):
+        motion, rejects = run_arm(arm, obs)
+        s = score(obs, motion)
+        results[arm] = (motion, s)
+        print(f"{arm:<11} {s['unsafe']:>19d} {s['false']:>20d} "
+              f"{rejects:>11d} {s['latched']:>13d} {s['blind']:>11d}")
+    probe = obs[45]
+    state = "ENABLED" if results["latch_ack"][0][45] else "LATCHED_SAFE"
+    print(f"bit_clear_no_ack: t={probe['t']} fault_bit={int(probe['fault_bit'])} "
+          f"frame={int(probe['frame'])} operator_ack={int(probe['ack'])} state={state}")
+    for t in ACK_TICKS:
+        o = obs[t]
+        why = ("accepted" if o["qualifying_ack"] else
+               "rejected:fault_visible" if o["fault_visible"] else
+               f"rejected:good_frames={o['good_run']}<{RECOVER_FRAMES}")
+        print(f"ack t={t} -> {why}")
+    # Flip only the masked manufacturer/mode bits: decisions must not change.
+    alt = observe(build_stream(SEED + 1000))
+    changed = sum(1 for arm in results
+                  if run_arm(arm, alt)[0] != results[arm][0])
+    print(f"nonstandard_bit_noise_changes_decisions={changed}")
+    s_ack = results["latch_ack"][1]
+    assert s_ack["unsafe"] == 0 and s_ack["false"] == 0
+    assert state == "LATCHED_SAFE" and changed == 0
+    assert results["latch_only"][1]["false"] > 0 and results["ignore"][1]["unsafe"] > 0
+    print("ok: latch_ack unsafe_motion_ticks=0 false_auto_reenables=0; "
+          "bus-off / soft reset is not an e-stop (hardware path 本页未运行)")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+seed=85 horizon=110 status_timeout_ticks=3 recover_frames=5
+statusword: decisions read bit 3 Fault, bit 7 Warning (ros2_canopen State402::StatusWord standard bits 0-7, 9-11)
+masked_not_asserted: bit 8, 14, 15 manufacturer-specific; bits 12-13 mode-specific
+stream: warning t20-24 | fault_bit t30-41 | bit_clear t42-59 | frame_gap t75-82 | operator_ack t36,60,85,95
+diag_levels OK=87 WARN=5 ERROR=18
+arm         unsafe_motion_ticks false_auto_reenables ack_rejects latched_ticks blind_ticks
+ignore                       48                    2           0             0           2
+latch_only                   30                    2           0            18           2
+latch_ack                     0                    0           2            48           2
+bit_clear_no_ack: t=45 fault_bit=0 frame=1 operator_ack=0 state=LATCHED_SAFE
+ack t=36 -> rejected:fault_visible
+ack t=60 -> accepted
+ack t=85 -> rejected:good_frames=3<5
+ack t=95 -> accepted
+nonstandard_bit_noise_changes_decisions=0
+ok: latch_ack unsafe_motion_ticks=0 false_auto_reenables=0; bus-off / soft reset is not an e-stop (hardware path 本页未运行)
+```
+
+</SimOutput>
+
+### How to read it
+
+- **One shared stream** for all three arms: Warning bit at t20–24 (WARN only, motion continues in every arm); Fault bit at t30–41; Fault bit clear but drive not running at t42–59; no status frames at all at t75–82; the operator presses ack at t36, t60, t85 and t95.
+- **ignore** — **48** unsafe motion ticks (30 in the first fault episode, 18 in the second) and **2** false auto re-enables: motion never stopped, so it simply carried on after each episode.
+- **latch_only** — latches while the bit or the timeout is visible (**18** latched ticks), then releases by itself when the bit clears at t42 and when frames return at t83. Result: **30** unsafe motion ticks and **2** false auto re-enables. Latching without an ack gate is not enough.
+- **latch_ack** — **0** unsafe motion ticks and **0** false auto re-enables, with **48** latched ticks. At t45 the Fault bit is 0, a frame arrived and there is no ack: the state is still `LATCHED_SAFE`. Of the four acks, t36 is rejected (fault still visible), t60 accepted, t85 rejected (only 3 good frames since the gap, 5 required), t95 accepted.
+- **blind_ticks=2** in every arm: t75 and t76 are missing frames before the 3-tick timeout fires. No software monitor can see them; that is one reason the e-stop stays a separate hardware path.
+- **diag_levels OK=87 WARN=5 ERROR=18**: ERROR = 12 Fault-bit ticks + 6 timed-out ticks (t77–82).
+
+The price of the correct arm is availability: 48 ticks without motion. That is the intended trade, not a bug.
+
+<Quiz id="q1" question="In the latch_ack arm, the operator presses ack at t=85, three ticks after status frames return. Why is it rejected?" options={["The Fault bit is still set", "Only 3 consecutive good frames have arrived and RECOVER_FRAMES is 5", "Acks are ignored after the first one"]} answer={1} explanation="At t=85 frames are back and the Fault bit is clear, but good_frames=3 is below RECOVER_FRAMES=5, so the precondition fails. The ack at t=95 passes all three conditions." />
+
+<Quiz id="q2" question="How many unsafe motion ticks does the latch_only arm produce in the toy output?" answer={30} explanation="It releases automatically at t42 (18 ticks until the qualifying ack at t60) and at t83 (12 ticks until t95): 18 + 12 = 30." />
+
+### Bus-off and soft reset are not an e-stop
+
+- CAN bus-off recovery, re-initialising a node, or a drive fault reset / soft reset are communication or firmware actions. None of them removes motor power, and each runs through the same software and bus that just failed.
+- The e-stop from the top of this lesson stays a hardware path that removes power independently of the bus and the PC.
+- Before you write a re-enable path for a real drive (not run on this page):
+  - e-stop tested on its own, with the bus and PC ignored;
+  - the fault latch clears only on an explicit operator action, and the log records who acked and why;
+  - the status timeout is chosen and its blind window is written down;
+  - after a bus-off or fault reset, position is re-checked before any motion.
+
+The toy's numbers are lesson-chosen; there are no SIL or PL claims here.
+
+### Diagnostics: OK / WARN / ERROR
+
+`diagnostic_msgs/msg/DiagnosticStatus` ([Jazzy definition](https://github.com/ros2/common_interfaces/blob/jazzy/diagnostic_msgs/msg/DiagnosticStatus.msg)) defines the levels OK=0, WARN=1, ERROR=2 and STALE=3. The toy maps the Warning bit to WARN, the Fault bit or a status timeout to ERROR, and everything else to OK; it does not use STALE. On the ROS side, ros2_control **Example 17** shows a hardware component that publishes to `/diagnostics` with `diagnostic_updater` on the component's default node. Reading it is optional; it is not run on this page. A level on `/diagnostics` is a report for people and tools, not a latch: the latch lives in your monitor, and cutting power lives in the e-stop.
+
+<Resource id="ros2-control-ex17" />
+
 ## Bench checklist
 
 Print and tick `examples/month-8/safety-reliability/bench_safety_checklist.md` before every powered session: clear clamp points, verify soft limits with a slow jog, keep a physical interrupt in reach, confirm watchdog behaviour in sim or a dry run, stay at the bench while motors are enabled.
@@ -170,9 +487,13 @@ Print and tick `examples/month-8/safety-reliability/bench_safety_checklist.md` b
 - **Software limits without a watchdog.** Limits clamp *valid* commands; a NaN or silence needs a timeout policy.
 - **Copying industrial force limits onto a desk arm.** ISO/TS 15066 does not apply to non-industrial robots.
 - **Quoting STS3215 overload numbers from memory.** Use measured soft stops and the vendor's own sheet when you need electrical limits — not this page.
+- **Re-enabling because the fault bit cleared.** A cleared bit or returning frames is a precondition, not permission; re-enable needs `operator_ack` plus the checks.
+- **Calling bus-off recovery or a soft reset an e-stop.** Neither removes motor power.
+- **Treating every status-word bit as undefined.** Bits 0–7 and 9–11 have standard names in the public ros2_canopen table; only bit 8, bits 12–13 and bits 14–15 are manufacturer- or mode-specific, so keep those out of your asserts.
+- **Reading `/diagnostics` ERROR as a safety action.** A diagnostic level reports; the monitor latches; the e-stop cuts power.
 
 <Summary>
 
-Separate software limits, command-timeout watchdogs and power-cutting e-stops. ISO/TS 15066 is industrial-collaborative only; ISO 10218-1 is named, not quoted. `watchdog_sim.py` shows overshoot 0.6500 without a watchdog vs 0.0000 with clamp. Use the bench checklist; WatchdogWidget is deferred. No STS3215 overload figures here.
+Separate software limits, command-timeout watchdogs and power-cutting e-stops. ISO/TS 15066 is industrial-collaborative only; ISO 10218-1 is named, not quoted. `watchdog_sim.py` shows overshoot 0.6500 without a watchdog vs 0.0000 with clamp. `actuator_fault_monitor_toy.py` separates device/bus faults from the command path: ignore 48 / latch_only 30 / latch_ack 0 unsafe motion ticks, false auto re-enables 2 / 2 / 0; a cleared bit without an ack stays `LATCHED_SAFE`. Bus-off or a soft reset is not an e-stop. Use the bench checklist; WatchdogWidget is deferred. No STS3215 overload figures here.
 
 </Summary>

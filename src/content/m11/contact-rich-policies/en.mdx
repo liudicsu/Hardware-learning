@@ -1,6 +1,6 @@
 This lesson is a site supplement — Months 7–11 are not part of the original six-month course.
 
-**Scope.** [11.3 tactile sensing](/en/month/month-11/tactile-sensing) covers sensor principles and replaceability; [6.1 behaviour cloning](/en/month/month-6/behaviour-cloning) and [10.1 flow-matching action heads](/en/month/month-10/flow-matching-policies) cover how imitation policies output actions; [8.2 VLA fine-tuning](/en/month/month-8/vla-finetune) covers fine-tuning on your own data. This lesson is **folding touch into contact-rich imitation policies**: why vision alone falls short on precise insertion, how tactile tokens enter a policy, why "still works after a skin swap" is what lets tactile data scale, and a stdlib gated-insertion toy. **Buying a tactile sensor is not required**; on-robot tactile collection and policy training are marked 本页未运行 (not run on this page). This lesson **does not replace the 8.7 capstone and does not open a new capstone track**.
+**Scope.** [11.3 tactile sensing](/en/month/month-11/tactile-sensing) covers sensor principles and replaceability; [6.1 behaviour cloning](/en/month/month-6/behaviour-cloning) and [10.1 flow-matching action heads](/en/month/month-10/flow-matching-policies) cover how imitation policies output actions; [8.2 VLA fine-tuning](/en/month/month-8/vla-finetune) covers fine-tuning on your own data. This lesson is **folding touch into contact-rich imitation policies**: why vision alone falls short on precise insertion, how tactile tokens enter a policy, why "still works after a skin swap" is what lets tactile data scale, a stdlib gated-insertion toy, and a same-frame velocity residual with a contact-flag-gated slip proxy. **Buying a tactile sensor is not required**; on-robot tactile collection and policy training are marked 本页未运行 (not run on this page). This lesson **does not replace the 8.7 capstone and does not open a new capstone track**.
 
 ## Why vision alone falls short on precise insertion
 
@@ -148,6 +148,253 @@ How to read it:
 - With the swapped skin (gain mismatch) it drops to **0.715** and contacts rise to **1.53**: each correction is only six tenths of what it should be, so two contacts are not enough to converge. This is the toy version of the "skin-swap drop" — fix it by re-calibrating the gain after a swap, or by training on data from several skins.
 - AnySkin's **1.7** / **6.7** / **5.3** are paper constants, independent of the toy; the toy only reproduces the direction (vision < vision + touch, a bit lower after a swap), not the values.
 
+## Contact residual and a slip proxy
+
+The gate toy above took "in contact" as given. On a real arm you have to build such signals yourself, and the first question is what you are allowed to compare with what.
+
+### Compare like with like
+
+A residual only means something between two estimates of the **same quantity, in the same frame and the same unit**. In `contact_slip_residual_toy.py`:
+
+- `v_pred = J(q_meas) · qdot_meas` — the fingertip velocity predicted from joint encoders through forward kinematics of a planar 2-link arm (`L1 = 0.30 m`, `L2 = 0.25 m`), world frame, m/s. This is the same contact-Jacobian idea as `J_c qdot` in [11.6 humanoid WBC](/en/month/month-11/humanoid-wbc-overview); the floating-base nullspace projector is not redone here.
+- `v_meas` — a synthetic measured object/contact velocity in the same world frame, m/s. In a lab it might come from motion capture or object tracking; that is not run on this page.
+- `r = v_meas − v_pred`, then split along the table tangent `t = (1, 0)` and normal `n = (0, 1)`.
+
+<Formula label="Velocity residual (same frame, m/s)">r = v_meas − J(q) qdot,   r_t = r · t,   r_n = r · n</Formula>
+
+A force in N is **never** subtracted from a velocity in m/s. The toy's `Vel` class carries a unit and a frame and refuses mixed subtraction: `unit_guard: refuse N@world - m/s@world`.
+
+### Sensing assumption for contact
+
+The toy **assumes** a separate normal-force channel `f_n` (N), thresholded into a contact flag `f_n > 2.0 N`. This is a written assumption about the sensor, not something derived from velocities. Contact **break** is decided only from that flag. The normal-velocity residual `r_n` is printed but never used to decide break: a large `r_n` can also come from an encoder glitch, a kinematic model error or a moving table, and without a declared sensor you cannot tell them apart.
+
+### Slip is a toy proxy
+
+While the contact flag is true, the toy raises a slip alarm when the mean of `|r_t|` over 5 ticks exceeds 0.02 m/s for 3 ticks in a row. That is this page's definition, not a GelSight or AnySkin slip classifier; real slip detectors are sensor-specific (see [11.3](/en/month/month-11/tactile-sensing)). Stick, slip and break share one seeded noise stream (joint angle, joint rate, measured velocity and force noise), so differences between rows come from the scenario, not from luck.
+
+### Run it
+
+```bash
+$ cd ~/Hardware-learning/examples/month-11/contact-rich-policies
+$ python3 contact_slip_residual_toy.py
+```
+
+<CodeSource path="examples/month-11/contact-rich-policies/contact_slip_residual_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""contact_slip_residual_toy.py: same-frame velocity residual + slip proxy (stdlib).
+
+A planar 2-link arm (L1, L2 in m) pushes an object along a table. Every
+residual compares LIKE quantities: the fingertip velocity predicted from
+proprioception, v_pred = J(q_meas) @ qdot_meas (forward kinematics, world
+frame, m/s), against a synthetic measured object/contact velocity v_meas
+(world frame, m/s). Both are then projected on the table tangent t and normal
+n. A force (N) is never subtracted from a velocity (m/s): the Vel guard below
+refuses mixed units or frames.
+
+Contact break is read ONLY from an explicit assumed sensor channel: a normal-
+force reading f_n (N) thresholded into a contact flag (toy assumption written
+in the lesson). The normal velocity residual is printed but never used to
+decide "break".
+
+Slip is a toy PROXY: while the contact flag is true, the tangential residual
+(mean over SLIP_WINDOW ticks) above SLIP_THRESH for SLIP_HOLD ticks raises a
+slip alarm. It is not a GelSight / AnySkin slip classifier.
+
+Scenarios stick / slip / break share one seeded noise stream (joint, velocity
+and force noise). The contact-Jacobian idea is the same as 11.6's J_c qdot;
+this toy does not redo the floating-base projector.
+usage: python3 contact_slip_residual_toy.py
+"""
+from __future__ import annotations
+
+import math
+import random
+
+SEED = 117
+DT = 0.01                 # s
+HORIZON = 200             # ticks
+L1, L2 = 0.30, 0.25       # m
+ONSET = 100               # tick where slip or break begins
+SLIP_RAMP = 20            # ticks to reach full slip speed
+SLIP_SPEED = 0.05         # m/s tangential lag at full slip
+F_CONTACT = 5.0           # N while pressing
+F_THRESH = 2.0            # N: assumed contact-flag threshold
+Q_NOISE = 0.001           # rad
+QD_NOISE = 0.01           # rad/s
+V_NOISE = 0.004           # m/s on the measured velocity
+F_NOISE = 0.3             # N
+SLIP_WINDOW = 5           # ticks
+SLIP_THRESH = 0.02        # m/s
+SLIP_HOLD = 3             # consecutive ticks over threshold
+TANGENT = (1.0, 0.0)      # table tangent, world frame
+NORMAL = (0.0, 1.0)       # table normal, world frame
+
+
+class Vel:
+    """A 2-D quantity tagged with unit and frame; only m/s in 'world' here."""
+
+    def __init__(self, x: float, y: float, unit: str, frame: str) -> None:
+        self.x, self.y, self.unit, self.frame = x, y, unit, frame
+
+    def __sub__(self, other: "Vel") -> "Vel":
+        if self.unit != other.unit or self.frame != other.frame:
+            raise TypeError(f"refuse {self.unit}@{self.frame} - {other.unit}@{other.frame}")
+        return Vel(self.x - other.x, self.y - other.y, self.unit, self.frame)
+
+    def along(self, axis: tuple[float, float]) -> float:
+        return self.x * axis[0] + self.y * axis[1]
+
+
+def joints(k: int) -> tuple[float, float, float, float]:
+    t = k * DT
+    w = 2 * math.pi * 0.5
+    q1 = 0.5 + 0.25 * math.sin(w * t)
+    q2 = 1.1 + 0.15 * math.sin(2 * w * t)
+    return q1, q2, 0.25 * w * math.cos(w * t), 0.15 * 2 * w * math.cos(2 * w * t)
+
+
+def fk_velocity(q1: float, q2: float, qd1: float, qd2: float) -> Vel:
+    """v = J(q) qdot for the fingertip of a planar 2-link arm (world, m/s)."""
+    s1, c1 = math.sin(q1), math.cos(q1)
+    s12, c12 = math.sin(q1 + q2), math.cos(q1 + q2)
+    vx = (-L1 * s1 - L2 * s12) * qd1 - L2 * s12 * qd2
+    vy = (L1 * c1 + L2 * c12) * qd1 + L2 * c12 * qd2
+    return Vel(vx, vy, "m/s", "world")
+
+
+def shared_noise() -> list[tuple[float, ...]]:
+    rng = random.Random(SEED)
+    return [tuple(rng.gauss(0.0, s) for s in
+                  (Q_NOISE, Q_NOISE, QD_NOISE, QD_NOISE, V_NOISE, V_NOISE, F_NOISE))
+            for _ in range(HORIZON)]
+
+
+def run(scenario: str, noise: list[tuple[float, ...]], gated: bool = True) -> dict:
+    window: list[float] = []
+    over = 0
+    slip_alarm_at = break_flag_at = None
+    false_slip = 0
+    pre, post = [], []
+    max_normal_resid_post = 0.0
+    for k in range(HORIZON):
+        q1, q2, qd1, qd2 = joints(k)
+        nq1, nq2, nqd1, nqd2, nvx, nvy, nf = noise[k]
+        v_true = fk_velocity(q1, q2, qd1, qd2)
+        v_pred = fk_velocity(q1 + nq1, q2 + nq2, qd1 + nqd1, qd2 + nqd2)
+        # Synthetic object velocity in the same world frame (m/s).
+        lag = 0.0
+        if scenario == "slip" and k >= ONSET:
+            lag = SLIP_SPEED * min(1.0, (k - ONSET + 1) / SLIP_RAMP)
+        if scenario == "break" and k >= ONSET:
+            obj = Vel(0.0, 0.0, "m/s", "world")   # object left behind
+            f_n = 0.0
+        else:
+            obj = Vel(v_true.x - lag * TANGENT[0], v_true.y - lag * TANGENT[1], "m/s", "world")
+            f_n = F_CONTACT
+        v_meas = Vel(obj.x + nvx, obj.y + nvy, "m/s", "world")
+        f_meas = f_n + nf                          # N: separate channel
+        contact = f_meas > F_THRESH                # assumed sensor channel
+        r = v_meas - v_pred                        # m/s - m/s, same frame
+        r_t, r_n = r.along(TANGENT), r.along(NORMAL)
+        (post if k >= ONSET else pre).append(math.hypot(r.x, r.y))
+        if k >= ONSET:
+            max_normal_resid_post = max(max_normal_resid_post, abs(r_n))
+        if not contact and gated:
+            if break_flag_at is None and k >= ONSET:
+                break_flag_at = k
+            window.clear()
+            over = 0
+            continue                               # slip proxy suspended
+        window.append(abs(r_t))
+        if len(window) > SLIP_WINDOW:
+            window.pop(0)
+        mean_t = sum(window) / len(window)
+        over = over + 1 if mean_t > SLIP_THRESH else 0
+        if over >= SLIP_HOLD:
+            if scenario != "stick" and k >= ONSET:
+                if slip_alarm_at is None:
+                    slip_alarm_at = k
+            else:
+                false_slip += 1
+    rms = lambda xs: math.sqrt(sum(x * x for x in xs) / len(xs))
+    return {"pre": rms(pre), "post": rms(post), "slip_at": slip_alarm_at,
+            "break_at": break_flag_at, "false_slip": false_slip,
+            "max_rn_post": max_normal_resid_post}
+
+
+def main() -> None:
+    noise = shared_noise()
+    print(f"seed={SEED} dt_s={DT} horizon={HORIZON} onset_tick={ONSET} "
+          f"slip_speed_mps={SLIP_SPEED} ramp_ticks={SLIP_RAMP}")
+    print("residual r = v_meas - J(q_meas) qdot_meas  [m/s, world frame; t=(1,0) n=(0,1)]")
+    print(f"contact flag = f_n > {F_THRESH} N (assumed sensor channel); "
+          f"slip proxy: mean|r_t| over {SLIP_WINDOW} > {SLIP_THRESH} m/s for {SLIP_HOLD} ticks")
+    try:
+        _ = Vel(5.0, 0.0, "N", "world") - fk_velocity(*joints(0))
+        guard = "accepted (BUG)"
+    except TypeError as exc:
+        guard = str(exc)
+    print(f"unit_guard: {guard}")
+    print(f"{'scenario':<8} {'rms_r_pre':>10} {'rms_r_post':>11} {'slip_alarm_tick':>15} "
+          f"{'slip_latency_ms':>15} {'flag_drop_tick':>14} {'false_slip_ticks':>16}")
+    res = {}
+    for sc in ("stick", "slip", "break"):
+        r = res[sc] = run(sc, noise)
+        lat = "-" if r["slip_at"] is None else f"{(r['slip_at'] - ONSET) * DT * 1000:.0f}"
+        print(f"{sc:<8} {r['pre']:>10.4f} {r['post']:>11.4f} "
+              f"{'-' if r['slip_at'] is None else r['slip_at']:>15} {lat:>15} "
+              f"{'-' if r['break_at'] is None else r['break_at']:>14} {r['false_slip']:>16d}")
+    ungated = run("break", noise, gated=False)
+    print(f"break_ungated: slip_alarm_tick={ungated['slip_at']} "
+          "(without the contact flag the proxy would call a break 'slip')")
+    print(f"break: max|r_n| after onset = {res['break']['max_rn_post']:.4f} m/s "
+          "(printed, not used to decide break)")
+    assert res["stick"]["false_slip"] == 0 and res["slip"]["slip_at"] is not None
+    assert res["break"]["break_at"] == ONSET and res["break"]["slip_at"] is None
+    assert res["break"]["false_slip"] == 0 and ungated["slip_at"] is not None
+    assert all(abs(res[s]["pre"] - res["stick"]["pre"]) < 1e-12 for s in res)
+    print("ok: shared noise (identical pre-onset residuals); break from contact flag only; "
+          "slip = toy proxy, not a GelSight/AnySkin classifier")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+seed=117 dt_s=0.01 horizon=200 onset_tick=100 slip_speed_mps=0.05 ramp_ticks=20
+residual r = v_meas - J(q_meas) qdot_meas  [m/s, world frame; t=(1,0) n=(0,1)]
+contact flag = f_n > 2.0 N (assumed sensor channel); slip proxy: mean|r_t| over 5 > 0.02 m/s for 3 ticks
+unit_guard: refuse N@world - m/s@world
+scenario  rms_r_pre  rms_r_post slip_alarm_tick slip_latency_ms flag_drop_tick false_slip_ticks
+stick        0.0081      0.0082               -               -              -                0
+slip         0.0081      0.0484             111             110              -                0
+break        0.0081      0.3088               -               -            100                0
+break_ungated: slip_alarm_tick=103 (without the contact flag the proxy would call a break 'slip')
+break: max|r_n| after onset = 0.2635 m/s (printed, not used to decide break)
+ok: shared noise (identical pre-onset residuals); break from contact flag only; slip = toy proxy, not a GelSight/AnySkin classifier
+```
+
+</SimOutput>
+
+### How to read it
+
+- **Shared noise:** the residual RMS before tick 100 is **0.0081** m/s in all three scenarios — the same draws, as the final assertion checks.
+- **stick:** after tick 100 the RMS stays at **0.0082** m/s and there are **0** false slip ticks.
+- **slip:** from tick 100 the object lags the fingertip by a tangential speed that ramps to 0.05 m/s over 20 ticks. RMS rises to **0.0484** m/s; the alarm fires at tick **111**, a latency of **110** ms, with **0** false alarms. The latency includes the ramp, the 5-tick window and the 3-tick hold: lower thresholds alarm sooner but start firing on noise (with `SLIP_THRESH = 0.008` the alarm comes at 60 ms, but stick shows 3 false slip ticks and the final assertion fails on purpose).
+- **break:** at tick 100 the object stops and `f_n` drops; the flag drops at tick **100** (the toy force channel has no filter, so 0 ms — a real sensor is slower). RMS jumps to **0.3088** m/s and max `|r_n|` is **0.2635** m/s, yet there is no slip alarm, because the flag suspends the proxy.
+- **break_ungated:** the same residual without the flag raises a slip alarm at tick **103**: the proxy would call a break "slip". This is why the contact channel and its assumption are written down.
+
+Optional reading: Menner & Berntorp, *Simultaneous State Estimation and Contact Detection for Legged Robots by Multiple-Model Kalman Filtering* ([arXiv 2404.03444](https://arxiv.org/abs/2404.03444)) shows that contact detection can be framed as model selection inside an estimator. Reading only; its numbers are not quoted and its method is not reproduced here.
+
+<Quiz id="q1" question="Which signal does the toy use to decide that contact has broken?" options={["The normal velocity residual r_n", "The contact flag from the assumed normal-force channel (f_n above 2.0 N)", "The tangential residual r_t"]} answer={1} explanation="Break comes only from the assumed force-threshold flag. r_n is printed (0.2635 m/s after the break) but never used, because a large r_n has other possible causes." />
+
+<Quiz id="q2" question="In the slip scenario the onset is tick 100 and the alarm fires at tick 111. With dt = 0.01 s, what is the detection latency in ms?" answer={110} unit="ms" explanation="(111 − 100) × 0.01 s = 0.11 s = 110 ms." />
+
 ## Further reading (abstract level, no numbers quoted)
 
 <Resource id="vitamin-paper" />
@@ -182,6 +429,7 @@ A "contact-modality experiment" (for example, the same insertion task with visio
 - Modality-specific encoders + a shared trunk: tactile tokens condition the action head (BC / diffusion / flow matching) together with vision and state tokens.
 - Replaceability is what lets tactile data scale (AnySkin 6.7→5.3 ≈14 pp / ≈21 % relative; ReSkin 6.0→1.7 ≈43 pp / ≈72 % relative; Table III as source of truth — do not mix pp with relative).
 - Toy: vision only 0.060 → gated touch 0.970 → swapped-skin gain mismatch 0.715.
+- Residual toy: compare `v_meas` with `J(q) qdot` in one frame and unit (m/s), never N − m/s; break only from the assumed force-flag channel; slip is a toy proxy (alarm at tick 111, 110 ms, 0 false slip ticks); without the flag a break would be called slip (tick 103).
 - No tactile sensor purchase required; on-robot steps not run on this page; no new capstone track.
 
 **Common mistakes**
@@ -189,11 +437,15 @@ A "contact-modality experiment" (for example, the same insertion task with visio
 - Leaving the tactile channel ungated, so out-of-contact noise steers the policy.
 - Recording without timestamp-aligning touch and camera.
 - Skipping re-calibration after a skin swap and blaming the policy.
+- Subtracting a force from a velocity, or comparing velocities expressed in different frames.
+- Inferring contact break from the normal velocity residual without a declared contact sensor.
+- Calling a residual-threshold proxy a slip classifier.
 
 **Self-check**
 
 - Why does "looking again" not remove a fixed vision bias?
 - In the toy, why does a skin swap increase the number of contacts?
+- In the residual toy, why does the break scenario raise no slip alarm, and what happens without the contact flag?
 - Which README section should a "contact-modality experiment" go in, and why is it not a new track?
 
 **Next**

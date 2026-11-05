@@ -3936,9 +3936,9 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 16410, "followup PR1 curriculum: 16410 minutes");
-  for (const [month, expected] of [[8, 2160], [9, 2100], [11, 2460]]) {
-    ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `followup PR1 M${month}: ${expected} minutes`);
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 16800, "followup PR2 curriculum: 16800 minutes");
+  for (const [month, expected] of [[8, 2340], [9, 2100], [11, 2670]]) {
+    ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `followup PR2 M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
 }
@@ -3976,6 +3976,51 @@ const lessonRef = (n, slug, lang) => {
   }
   ok(read("examples/month-8/robot-devops/accept_fixtures/qos_override.yaml").includes("reliability:"),
     "obs1: qos_override.yaml present with README keys");
+}
+
+
+// Follow-up observability PR2 (F3 actuator fault latch + F4 contact residual).
+{
+  const read = (p) => readFileSync(join(root, p), "utf8");
+  const cases = [
+    [8, "safety-reliability", "actuator_fault_monitor_toy", ["latch_ack", "false_auto_reenables", "unsafe_motion_ticks", "state=LATCHED_SAFE", "nonstandard_bit_noise_changes_decisions=0"]],
+    [11, "contact-rich-policies", "contact_slip_residual_toy", ["refuse N@world - m/s@world", "break_ungated", "slip_alarm_tick", "flag_drop_tick", "false_slip_ticks"]],
+  ];
+  for (const [month, slug, toy, markers] of cases) {
+    const expected = read(`examples/month-${month}/expected/${toy}.txt`);
+    const py = read(`examples/month-${month}/${slug}/${toy}.py`);
+    ok(read(`examples/month-${month}/check.sh`).includes(`${toy}.txt`), `obs2 ${toy}: month check hook`);
+    for (const lang of ["en", "zh"]) {
+      const md = read(`src/content/m${month}/${slug}/${lang}.mdx`);
+      ok(md.includes(py.trim()), `obs2 ${toy} ${lang}: exact code quoted`);
+      ok(md.includes(expected.trim()), `obs2 ${toy} ${lang}: exact real stdout quoted`);
+      for (const n of markers) ok(md.includes(n), `obs2 ${toy} ${lang}: binds ${n}`);
+      ok(/本页未运行|not run on this page/.test(md), `obs2 ${toy} ${lang}: hardware marked not run`);
+    }
+  }
+  const fault = read("examples/month-8/expected/actuator_fault_monitor_toy.txt");
+  const row = (arm) => (fault.match(new RegExp(`^${arm}\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)$`, "m")) || []).slice(1).map(Number);
+  const [ign, lo, la] = ["ignore", "latch_only", "latch_ack"].map(row);
+  ok(la[0] === 0 && la[1] === 0, `obs2 fault: latch_ack unsafe=0 false_reenables=0 (got ${la})`);
+  ok(lo[1] > 0 && ign[0] > lo[0] && lo[0] > 0, `obs2 fault: ignore > latch_only > 0 unsafe; latch_only auto re-enables`);
+  ok(/t=45 fault_bit=0 frame=1 operator_ack=0 state=LATCHED_SAFE/.test(fault), "obs2 fault: bit clear without ack stays latched");
+  const faultPy = read("examples/month-8/safety-reliability/actuator_fault_monitor_toy.py");
+  ok(/NONSTANDARD_BITS = \(8, 12, 13, 14, 15\)/.test(faultPy) && /STANDARD_BITS = \(0, 1, 2, 3, 4, 5, 6, 7, 9, 10, 11\)/.test(faultPy), "obs2 fault.py: standard vs masked bits");
+  for (const lang of ["en", "zh"]) {
+    const md = read(`src/content/m8/safety-reliability/${lang}.mdx`);
+    ok(!/vary by vendor|因厂商而异|vendor-varying/i.test(md), `obs2 safety ${lang}: no blanket vendor-varying CiA claim`);
+    ok(!/cia402\.org|can-cia\.org\/[^\s)]*\.pdf/i.test(md), `obs2 safety ${lang}: no pseudo CiA PDF link`);
+    ok(md.includes("ros2_canopen/52327f9b/canopen_402_driver/include/canopen_402_driver/state.hpp"), `obs2 safety ${lang}: pinned ros2_canopen StatusWord source`);
+    ok(/Example 17/.test(md) && /OK=0, WARN=1, ERROR=2|OK=0、WARN=1、ERROR=2/.test(md), `obs2 safety ${lang}: diagnostics levels + Example 17`);
+    ok(/bus-off/.test(md) && (lang === "en" ? /not an e-stop/ : /不是急停/).test(md), `obs2 safety ${lang}: bus-off is not an e-stop`);
+    const crp = read(`src/content/m11/contact-rich-policies/${lang}.mdx`);
+    ok(/humanoid-wbc-overview/.test(crp) && /J_c qdot/.test(crp), `obs2 contact ${lang}: points to 11.6 J_c qdot`);
+    ok(/GelSight/.test(crp) && /AnySkin/.test(crp), `obs2 contact ${lang}: slip proxy not a sensor classifier`);
+  }
+  const res = read("src/lib/resources.ts");
+  for (const id of ["canopen-402-statusword", "ros2-control-ex17"]) {
+    ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `obs2 resource ${id}: present + extra`);
+  }
 }
 
 
