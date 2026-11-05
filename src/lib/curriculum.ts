@@ -227,7 +227,7 @@ const month2Lessons: Lesson[] = [
       zh: "认识四类执行器，理解 H 桥与续流二极管，选对驱动芯片，并用编码器让车轮精确转一整圈。",
       en: "Meet the four actuator types, understand H-bridges and flyback diodes, pick the right driver, and use an encoder to turn a wheel exactly one revolution.",
     },
-    minutes: 210,
+    minutes: 360,
     objectives: [
       { zh: "能解释占空比不等于转速，并算出 60 % 占空比在 7.4 V 电池上给出 0.60 × 7.4 V = 4.44 V 平均电压。", en: "Explain why PWM duty is not speed, and calculate 0.60 × 7.4 V = 4.44 V average at 60 % duty." },
       { zh: "能画出 H 桥的四个状态（含刹车与滑行），并说明为什么弃用 L298N：它 2 V 的压降在 1 A 时变成 2.0 W 的热量。", en: "Draw the H-bridge's four states including brake and coast, and reject the L298N whose 2 V drop wastes 2.0 W as heat at 1 A." },
@@ -541,7 +541,7 @@ const month4Lessons: Lesson[] = [
       zh: "把上一课的 Gazebo 驱动插件换成 ros2_control：在 xacro 里写 <ros2_control> 标签，用 YAML 配置 diff_drive_controller 和 joint_state_broadcaster，用键盘遥控；再写一个“开指定距离”的动作服务器，带反馈和取消；最后用 mock 硬件看清换成真机时到底换掉什么。",
       en: "Replace last lesson's Gazebo drive plugin with ros2_control: <ros2_control> tags in the xacro, diff_drive_controller and joint_state_broadcaster configured in YAML, keyboard teleop; then an action server that drives a commanded distance with feedback and cancellation; and mock hardware to see exactly what changes on a real robot.",
     },
-    minutes: 240,
+    minutes: 420,
     objectives: [
       { zh: "能解释 update_rate 50 下每 20 ms 一次的 read-update-write 循环，以及为什么一个命令接口只能被一个控制器占用。", en: "Explain the read-update-write loop at update_rate 50 (every 20 ms) and why a command interface is claimed by one controller." },
       { zh: "能添加 <ros2_control> 标签和 controllers.yaml，使 wheel_separation 0.28 m 与 wheel_radius 0.05 m 和 URDF 一致。", en: "Add <ros2_control> tags and a controllers.yaml whose wheel_separation 0.28 m and wheel_radius 0.05 m match the URDF." },
@@ -549,7 +549,7 @@ const month4Lessons: Lesson[] = [
       { zh: "能运行带反馈与取消的 DriveDistance 动作，把 0.997 m 的结果与里程计对照，并在 mock 硬件上重复。", en: "Run the DriveDistance action with feedback and cancellation, compare its 0.997 m result with odometry, and repeat on mock hardware." },
     ],
     prereqs: ["ros2-graph", "urdf-tf", "gazebo-sim"],
-    resources: ["ros2-control-docs", "articulated-ros2-control-real", "articulated-robotics"],
+    resources: ["ros2-control-docs", "articulated-ros2-control-real", "articulated-robotics", "ethercat-technology", "ethercat-etg2200", "acontis-dc"],
     tasks: [
       { id: "tags", text: { zh: "给你的 xacro 机器人加上 <ros2_control> 标签：轮子用速度命令接口，并报告位置和速度状态接口", en: "Add <ros2_control> tags to your xacro robot: velocity command interfaces for the wheels, reporting position and velocity state interfaces" } },
       { id: "yaml", text: { zh: "用 YAML 配置 diff_drive_controller 和 joint_state_broadcaster，确认 list_controllers 里都是 active，轮距和轮半径与 URDF 一致", en: "Configure diff_drive_controller and joint_state_broadcaster in YAML; check that list_controllers shows them active and that wheel separation and radius match the URDF" } },
@@ -1571,7 +1571,7 @@ const month11Lessons: Lesson[] = [
       zh: "接 M1 测电压与 M2 电压跌落：整机配电（逻辑轨与电机总线分开）、单程与往返导线压降、I²R 热卫生、熔断器数据门禁（仅 insufficient_data / reject_known_constraint，绝不凭峰值比给 ok_slow_blow）、电机线与编码器线分离的 EMC。标准库玩具；真机测电流与更换熔断器本页未运行。不要求新购电源分析仪；不教改 BMS、不拆包；玩具不算认证选型。",
       en: "Builds on Month 1 voltage checks and Month 2 battery sag: whole-robot power (separate logic and motor buses), one-way and round-trip IR drop, I²R thermal hygiene, fuse data gates (only insufficient_data / reject_known_constraint — never ok_slow_blow from a peak-current ratio), and EMC that keeps motor leads away from encoder wiring. Standard-library toys; real current probing and fuse swaps are not run here. No power-analyser purchase; no BMS edits, no pack teardown; the toy is not a fuse certification.",
     },
-    minutes: 330,
+    minutes: 480,
     objectives: [
       { zh: "能画出逻辑轨与电机总线分开、公共地单点汇合的星形配电。", en: "Draw a star power plan with separate logic and motor buses and a single-point common ground." },
       { zh: "能算出单程与往返压降、I²R 损耗，并比较两条线长谁先撞 V_floor。", en: "Compute one-way and round-trip drop, I²R loss, and which of two wire lengths hits V_floor first." },

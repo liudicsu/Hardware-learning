@@ -3377,6 +3377,50 @@ export const resources: Record<string, Resource> = {
     extra: true,
   },
 
+  "ethercat-technology": {
+    id: "ethercat-technology",
+    url: "https://www.ethercat.org/en/technology.html",
+    title: { zh: "EtherCAT 技术概览（ETG）", en: "EtherCAT Technology overview (ETG)" },
+    author: "EtherCAT Technology Group",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "短周期（≤100 µs）与同步抖动（≤1 µs）的官方表述；分布式时钟（DC）高精同步。本站 4.5 引用；≤1 µs 以文档为准，本页未测。",
+      en: "Official short-cycle (≤100 µs) and sync-jitter (≤1 µs) claims; Distributed Clocks for high-precision sync. Cited in 4.5; ≤1 µs is 以文档为准, not measured here.",
+    },
+    license: { zh: "© EtherCAT Technology Group；仅提供外链", en: "© EtherCAT Technology Group; external link only" },
+    extra: true,
+  },
+  "ethercat-etg2200": {
+    id: "ethercat-etg2200",
+    url: "https://www.ethercat.org/download/documents/ETG2200_V3i2i0_G_R_SlaveImplementationGuide.pdf",
+    title: { zh: "ETG.2200 从站实现指南", en: "ETG.2200 Slave Implementation Guide" },
+    author: "EtherCAT Technology Group",
+    kind: "guide",
+    cost: { zh: "免费 PDF", en: "Free PDF" },
+    summary: {
+      zh: "枚举 FreeRun、SM 事件同步、DC SYNC0/SYNC1；传播延迟测量与漂移补偿。本站 4.5 三种模式依据；不重做 CiA 402。",
+      en: "Enumerates FreeRun, SM-event sync, and DC SYNC0/SYNC1; propagation-delay measurement and drift compensation. Source for the three modes in 4.5; not a CiA 402 redo.",
+    },
+    license: { zh: "© EtherCAT Technology Group；仅提供外链", en: "© EtherCAT Technology Group; external link only" },
+    extra: true,
+  },
+  "acontis-dc": {
+    id: "acontis-dc",
+    url: "https://public.acontis.com/manuals/EC-Master/3.3/html/ec-master-class-a/dc.html",
+    title: { zh: "acontis EC-Master：分布式时钟", en: "acontis EC-Master: Distributed Clocks" },
+    author: "acontis technologies",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "主站侧 DC 步骤：初始传播延迟补偿、偏移补偿、启动后持续漂移补偿（ETG.8000）。本站 4.5 引用。",
+      en: "MainDevice DC steps: initial propagation-delay compensation, offset compensation, continuous drift compensation after start-up (ETG.8000). Cited in 4.5.",
+    },
+    license: { zh: "© acontis technologies；仅提供外链", en: "© acontis technologies; external link only" },
+    extra: true,
+  },
+
+
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

@@ -1,0 +1,17 @@
+seed=41
+sign: I>0 discharge, I<0 charge; eta applies only on charge
+eta_charge=0.98 Q_As=3600.0 SoC0=0.80 dt=1.0
+shunt_bias_A=0.05 Q_scale=0.92 SoC0_bias=-0.05
+same current profile for all arms
+t_s  SoC_true  err_shunt  err_Q  err_SoC0  T_C  derate
+   0    0.8000   +0.0000  +0.0000   -0.0500  27.00  0
+ 200    0.7167   -0.0028  -0.0072   -0.0500  32.96  0
+ 250    0.7167   -0.0035  -0.0072   -0.0500  29.81  0
+ 400    0.7575   -0.0055  -0.0037   -0.0500  30.68  0
+ 600    0.6353   -0.0083  -0.0143   -0.0500  37.04  1
+shunt_err_slope_per_s=-1.388889e-05  theory_neg_bias_over_Q=-1.388889e-05
+final_err_shunt=-0.0083 final_err_Q=-0.0143 final_err_SoC0=-0.0500
+derate_ticks=196/600  T_final_C=37.04
+OCV rest re-anchor: concept only (no OCV curve / datasheet invented here)
+not a fuel-gauge IC; no charging procedure; LiPo/BMS/thermal chamber 本页未运行
+ok: shared profile; shunt drift ~linear; Q and SoC0 errors separated; derate fires

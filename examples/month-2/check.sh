@@ -19,5 +19,6 @@ check() {
 }
 
 check freertos_priority_toy.txt "$PY" "$M2/esp32/freertos_priority_toy.py"
+check encoder_index_cal_toy.txt "$PY" "$M2/motors-drivers/encoder_index_cal_toy.py"
 
 exit $fail

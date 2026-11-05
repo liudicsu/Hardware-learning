@@ -282,6 +282,220 @@ fuse_certification=never
 
 真机用电流钳量一次峰值、用示波器看地环路、更换熔断器——本页未运行。不要求购买电源分析仪。
 
+
+## 库仑计 SoC 与课内定义的热降额
+
+前面的玩具管的是**压降**，并拒绝给保险丝做认证；SoC 还停在「读 C 数、别拆包」。这一节补一个只读的 SoC 积分器和温度降额——仍然**不**刷 BMS、**不**拆包、**不**教充电流程。
+
+### 符号约定与 η 只作用在充电
+
+本课固定（玩具也会打印）：
+
+- `I > 0` — **放电**（SoC 下降）
+- `I < 0` — **充电**（SoC 上升）
+- 库仑效率 `η` **只作用在充电**；放电用 `η = 1`。
+
+<Formula label="库仑计">SoC_(k+1) = SoC_k − η_eff(I_k)·I_k·Δt / Q</Formula>
+
+四个估计器共用**同一条**电流剖面（放电 → 静置 → 充电 → 更大电流放电）：
+
+| 臂 | 错在哪里 |
+|---|---|
+| `ideal` | 无 —— 真值参考 |
+| `shunt_bias` | 测得电流 = I + 0.05 A |
+| `q_error` | 容量 Q̂ = 0.92 Q |
+| `soc0_error` | 初始 SoC 低 5 个百分点 |
+
+恒定分流偏置在均值非零电流下使 SoC 误差**近似随时间线性增长**（放电时斜率 ≈ −bias / Q）。容量误差与初始 SoC 误差是另两轴，不要揉成一句「电池漂了」。**OCV 静置重锚**只作概念点名：本页**不**伪造一张 OCV–SoC 数据手册曲线。
+
+### 课内定义的连续降额
+
+`I_allow(T) = I_cont_nom · max(0, 1 − K·max(0, T − T_ref))`，其中 `I_cont_nom`、`K`、`T_ref` 为课内取值。当 `|I|` 超过 `I_allow` 时玩具升起 `derate`。数字**不是**电芯数据手册。真 LiPo / BMS / 温箱：本页未运行。
+
+### 运行玩具
+
+```bash
+$ cd ~/Hardware-learning/examples/month-11/power-battery-emc/
+$ python3 soc_coulomb_thermal_toy.py
+```
+
+<CodeSource path="examples/month-11/power-battery-emc/soc_coulomb_thermal_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""soc_coulomb_thermal_toy.py: coulomb-counting SoC drift + thermal derate (stdlib).
+
+Sign convention (stated, fixed for this toy):
+  I > 0  discharge (SoC falls)
+  I < 0  charge    (SoC rises)
+Coulombic efficiency η applies ONLY on charge (I < 0). Discharge uses η = 1.
+Integrator (discrete, Δt seconds):
+  SoC_{k+1} = SoC_k - η_eff(I_k) * I_k * Δt / Q
+  η_eff = η if I_k < 0 else 1.0
+
+Four estimators share ONE current profile (same I[k] sequence):
+  ideal          true I, true Q, true SoC0
+  shunt_bias     I_meas = I + BIAS_A  (constant current-shunt offset)
+  q_error        Q_hat = Q * Q_SCALE   (capacity mis-estimate)
+  soc0_error     SoC_hat0 = SoC0 + SOC0_BIAS
+
+Truth SoC uses ideal parameters. Drift from a constant shunt bias grows
+~linearly in time under a non-zero mean current. Capacity and initial-SoC
+errors are separate sources; OCV rest re-anchoring is named as a concept
+only (no OCV curve is invented as a datasheet).
+
+Thermal hygiene: lesson-defined continuous derate
+  I_allow(T) = I_cont_nom * max(0, 1 - K_DERATE * max(0, T - T_REF))
+A derate_flag rises when |I| would exceed I_allow at the current T proxy.
+Not a fuel-gauge IC; not a BMS flash; no charging procedure taught.
+Real LiPo / BMS / thermal chamber: 本页未运行.
+usage: python3 soc_coulomb_thermal_toy.py
+"""
+from __future__ import annotations
+
+SEED = 41
+DT = 1.0                 # s
+N = 600                  # 10 min profile
+Q_AS = 3600.0            # 1 A·h in ampere-seconds
+ETA_CHARGE = 0.98        # coulombic efficiency on charge only
+SOC0 = 0.80
+BIAS_A = 0.05            # shunt offset (A), discharge-positive convention
+Q_SCALE = 0.92           # capacity underestimated by 8 %
+SOC0_BIAS = -0.05        # started 5 points low
+I_CONT_NOM = 2.5         # A continuous rating at T_REF (lesson-defined)
+T_REF = 25.0             # °C
+K_DERATE = 0.02          # per °C above T_REF (lesson-defined curve)
+T_COOL = 0.01            # 1/s cool toward T_REF
+T0 = 27.0                # start temperature proxy °C
+T_RISE_PER_W = 0.004     # toy thermal rise vs |I|*V_nom proxy
+V_NOM = 14.8             # V, example assumption only
+
+
+def eta_eff(i: float) -> float:
+    return ETA_CHARGE if i < 0.0 else 1.0
+
+
+def current_profile() -> list[float]:
+    """Shared profile: discharge, rest, charge, discharge. Fixed, not random."""
+    i: list[float] = []
+    # 0..199: discharge 1.5 A
+    i += [1.5] * 200
+    # 200..249: rest
+    i += [0.0] * 50
+    # 250..399: charge -1.0 A
+    i += [-1.0] * 150
+    # 400..599: discharge 2.2 A (will trip derate as T rises)
+    i += [2.2] * 200
+    assert len(i) == N
+    return i
+
+
+def integrate(i_seq: list[float], q: float, soc0: float) -> list[float]:
+    soc = soc0
+    out = [soc]
+    for i in i_seq:
+        soc = soc - eta_eff(i) * i * DT / q
+        # clip only for display sanity; estimators do not "know" 0/1 walls
+        # differently — clip after record so error stays visible
+        out.append(max(0.0, min(1.0, soc)))
+        soc = out[-1]
+    return out  # length N+1
+
+
+def thermal_series(i_seq: list[float]) -> tuple[list[float], list[bool]]:
+    t = T0
+    temps: list[float] = []
+    flags: list[bool] = []
+    for i in i_seq:
+        # Lesson-defined proxy: heat ~ |I| * V_nom; cool toward T_REF.
+        # Not a cell datasheet; numbers are lesson-chosen.
+        t = t + T_RISE_PER_W * abs(i) * V_NOM * DT - T_COOL * (t - T_REF) * DT
+        i_allow = I_CONT_NOM * max(0.0, 1.0 - K_DERATE * max(0.0, t - T_REF))
+        temps.append(t)
+        flags.append(abs(i) > i_allow + 1e-12)
+    return temps, flags
+
+
+def main() -> None:
+    i_true = current_profile()
+    soc_true = integrate(i_true, Q_AS, SOC0)
+
+    i_bias = [i + BIAS_A for i in i_true]
+    soc_bias = integrate(i_bias, Q_AS, SOC0)
+    soc_q = integrate(i_true, Q_AS * Q_SCALE, SOC0)
+    soc_s0 = integrate(i_true, Q_AS, SOC0 + SOC0_BIAS)
+
+    temps, derate = thermal_series(i_true)
+
+    def err(est: list[float]) -> list[float]:
+        return [a - b for a, b in zip(est, soc_true)]
+
+    e_bias, e_q, e_s0 = err(soc_bias), err(soc_q), err(soc_s0)
+
+    # Report at a few anchors + end
+    anchors = [0, 200, 250, 400, N]
+    print(f"seed={SEED}")
+    print("sign: I>0 discharge, I<0 charge; eta applies only on charge")
+    print(f"eta_charge={ETA_CHARGE} Q_As={Q_AS:.1f} SoC0={SOC0:.2f} dt={DT}")
+    print(f"shunt_bias_A={BIAS_A} Q_scale={Q_SCALE} SoC0_bias={SOC0_BIAS}")
+    print("same current profile for all arms")
+    print("t_s  SoC_true  err_shunt  err_Q  err_SoC0  T_C  derate")
+    for t in anchors:
+        print(
+            f"{t:4d}  {soc_true[t]:8.4f}  {e_bias[t]:+8.4f}  {e_q[t]:+7.4f}  "
+            f"{e_s0[t]:+8.4f}  {temps[t-1] if t else T0:5.2f}  "
+            f"{int(derate[t-1]) if t else 0}"
+        )
+
+    # Linear-growth check for shunt bias over the first discharge block (mean I > 0)
+    # Expected rough slope ≈ -BIAS_A / Q  (SoC/s) under discharge with eta=1
+    slope_est = (e_bias[200] - e_bias[0]) / 200.0
+    slope_theory = -BIAS_A / Q_AS
+    print(f"shunt_err_slope_per_s={slope_est:+.6e}  theory_neg_bias_over_Q={slope_theory:+.6e}")
+    print(f"final_err_shunt={e_bias[N]:+.4f} final_err_Q={e_q[N]:+.4f} final_err_SoC0={e_s0[N]:+.4f}")
+    print(f"derate_ticks={sum(derate)}/{N}  T_final_C={temps[-1]:.2f}")
+    print("OCV rest re-anchor: concept only (no OCV curve / datasheet invented here)")
+    print("not a fuel-gauge IC; no charging procedure; LiPo/BMS/thermal chamber 本页未运行")
+    # Assertions for CI-style honesty
+    assert abs(slope_est - slope_theory) < 5e-7, (slope_est, slope_theory)
+    assert abs(e_s0[0] - SOC0_BIAS) < 1e-12
+    assert e_q[0] == 0.0
+    assert sum(derate) > 0
+    print("ok: shared profile; shunt drift ~linear; Q and SoC0 errors separated; derate fires")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+seed=41
+sign: I>0 discharge, I<0 charge; eta applies only on charge
+eta_charge=0.98 Q_As=3600.0 SoC0=0.80 dt=1.0
+shunt_bias_A=0.05 Q_scale=0.92 SoC0_bias=-0.05
+same current profile for all arms
+t_s  SoC_true  err_shunt  err_Q  err_SoC0  T_C  derate
+   0    0.8000   +0.0000  +0.0000   -0.0500  27.00  0
+ 200    0.7167   -0.0028  -0.0072   -0.0500  32.96  0
+ 250    0.7167   -0.0035  -0.0072   -0.0500  29.81  0
+ 400    0.7575   -0.0055  -0.0037   -0.0500  30.68  0
+ 600    0.6353   -0.0083  -0.0143   -0.0500  37.04  1
+shunt_err_slope_per_s=-1.388889e-05  theory_neg_bias_over_Q=-1.388889e-05
+final_err_shunt=-0.0083 final_err_Q=-0.0143 final_err_SoC0=-0.0500
+derate_ticks=196/600  T_final_C=37.04
+OCV rest re-anchor: concept only (no OCV curve / datasheet invented here)
+not a fuel-gauge IC; no charging procedure; LiPo/BMS/thermal chamber 本页未运行
+ok: shared profile; shunt drift ~linear; Q and SoC0 errors separated; derate fires
+```
+
+</SimOutput>
+
+读法：前 200 s 放电段分流误差斜率 `−1.388889e-05` /s，与 `−bias/Q` 一致。终值误差：分流 `−0.0083`、Q `−0.0143`、SoC0 `−0.0500`（初始偏差不会被积分「消掉」）。降额在偏热的大电流段触发（`196/600` tick）——这是卫生旗标，不是充电器算法。
+
+<Quiz id="q-soc1" question="按本课符号约定，充电电流 −1.0 A、持续 150 s、Q = 3600 A·s、η = 0.98，SoC 上升多少（分数）？" answer={0.040833} tolerance={0.02} explanation="ΔSoC = −η·I·Δt/Q，I=−1 → +η·1·150/3600 = 0.98×150/3600 = 0.040833。" />
+
 ## 对照 SO-101
 
 总线舵机（如 STS3215）共享电机电源与 TTL 总线。逻辑 5 V 往往来自板载 LDO 或单独轨：电机总线跌落时，逻辑轨要有自己的退耦，不能指望「同一根粗线」两边都稳。把玩具里的 `n_servos`、`I_peak`、`wire_len_m` 改成你的假设，重新跑一遍，写进你的电源清单——并附上一张熔断器数据清单，而不是一个 fuse_margin 数字。
@@ -289,6 +503,7 @@ fuse_certification=never
 ## 本课未覆盖
 
 - 改 BMS、平衡充电算法、拆电芯。
+- 充电流程；电量计 IC 固件；伪造 OCV 数据手册曲线。
 - 开关电源环路补偿、PFC。
 - 认证级 EMC 测试（传导/辐射限值）。
 - 凭玩具给熔断器「适配」结论。
@@ -303,7 +518,7 @@ fuse_certification=never
 - 单程玩具：峰值 10.80 A、压降 0.432 V、负载端 11.568 V；fuse_margin 0.926 只是比值。
 - 往返玩具：短线负载端 11.136 V、长线 10.380 V 为 long_only；I²R 峰值 9.3312 W；默认 `insufficient_data`。
 - EMC 三条：电机线远离信号线；功率/逻辑地策略分清；屏蔽按频段与规范端接（高频两端连续，禁用 GND_D 作屏蔽回流）。
-- 电池只读 C 率与 BMS 切断概念；不拆包、不改 BMS；不更换熔断器。
+- 电池只读 C 率与 BMS 切断概念；库仑 SoC + 课内降额只读；不拆包、不改 BMS、不教充电；不更换熔断器。
 
 **常见错误**
 

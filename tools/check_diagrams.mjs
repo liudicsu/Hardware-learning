@@ -3842,7 +3842,7 @@ const lessonRef = (n, slug, lang) => {
       const m = cur11.match(new RegExp(`slug: "${slug}"[\\s\\S]*?minutes: (\\d+)`));
       return m ? Number(m[1]) : NaN;
     };
-    ok(grabMin("power-battery-emc") === 330, "m11 curriculum: power minutes 330");
+    ok(grabMin("power-battery-emc") === 480, "m11 curriculum: power minutes 480");
     ok(grabMin("foc-actuator-lab") === 480, "m11 curriculum: foc minutes 480");
     ok(!/植物/.test(cur11), "m11 curriculum: no 植物 mistranslation");
   }
@@ -3936,8 +3936,8 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 18570, "dr-imagine-edge PR3 curriculum: 18570 minutes");
-  for (const [month, expected] of [[2, 1350], [3, 1290], [5, 1620], [6, 1350], [7, 1650], [8, 2490], [9, 2340], [10, 1650], [11, 2670]]) {
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 19050, "bms-encoder-ethercat PR1 curriculum: 19050 minutes");
+  for (const [month, expected] of [[2, 1500], [3, 1290], [4, 1620], [5, 1620], [6, 1350], [7, 1650], [8, 2490], [9, 2340], [10, 1650], [11, 2820]]) {
     ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `dr-imagine-edge PR3 M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
@@ -4923,7 +4923,7 @@ for (const m of readdirSync(content)) {
   for (const id of ["dreamgen-paper", "lapa-paper", "smolvla-paper", "lerobot-async"]) {
     ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `wm2 resource ${id}: present + extra`);
   }
-  ok(/18 570/.test(read("README.md")), "wm2/dr3 README: 18 570 minutes");
+  ok(/19 050/.test(read("README.md")), "b4p1 README: 19 050 minutes");
   console.log("worldmodel-smolvla PR2: neural trajectories + async chunk locks checked");
 }
 
@@ -5021,6 +5021,80 @@ for (const m of readdirSync(content)) {
     ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `dr3 resource ${id}: present + extra`);
   }
   console.log("dr-imagine-edge PR3: contact DR + imagination ranking + edge VLA budget locks checked");
+}
+
+
+// Batch-4 PR1 (H3 SoC + H4 encoder Z-index + H5 EtherCAT DC).
+{
+  const read = (p) => readFileSync(join(root, p), "utf8");
+  const cases = [
+    [11, "power-battery-emc", "soc_coulomb_thermal_toy", [
+      "sign: I>0 discharge", "eta applies only on charge", "shunt_bias_A", "Q_scale", "SoC0_bias",
+      "same current profile", "OCV rest re-anchor", "本页未运行",
+    ]],
+    [2, "motors-drivers", "encoder_index_cal_toy", [
+      "MECHANICAL HOMING / Z-INDEX, NOT FOC", "uncalibrated", "calibrated", "missed_index", "false_index",
+      "BOOT_LAB", "OFFSET_TRUE", "本页未运行",
+    ]],
+    [4, "ros2-control", "ethercat_dc_timing_toy", [
+      "FreeRun", "SM_sync", "DC_SYNC0", "shared plant", "does NOT eliminate master frame jitter",
+      "以文档为准", "本页未运行",
+    ]],
+  ];
+  for (const [month, lesson, toy, markers] of cases) {
+    const py = read(`examples/month-${month}/${lesson}/${toy}.py`);
+    const expected = read(`examples/month-${month}/expected/${toy}.txt`);
+    ok(read(`examples/month-${month}/check.sh`).includes(`${toy}.txt`), `b4p1 ${toy}: month check hook`);
+    ok(/SEED = \d+/.test(py), `b4p1 ${toy}: fixed seed`);
+    for (const lang of ["en", "zh"]) {
+      const md = read(`src/content/m${month}/${lesson}/${lang}.mdx`);
+      ok(md.includes(py.trim()), `b4p1 ${toy} ${lang}: exact code quoted`);
+      ok(md.includes(expected.trim()), `b4p1 ${toy} ${lang}: exact real stdout quoted`);
+      for (const n of markers) {
+        ok(md.includes(n) || expected.includes(n) || py.includes(n), `b4p1 ${toy} ${lang}: binds ${n}`);
+      }
+      ok(/本页未运行/.test(md), `b4p1 ${toy} ${lang}: hardware marked 本页未运行`);
+    }
+  }
+
+  // H3: shared profile, shunt slope matches -bias/Q, derate fires, no charging procedure.
+  const soc = read("examples/month-11/expected/soc_coulomb_thermal_toy.txt");
+  ok(/shunt_err_slope_per_s=-1\.388889e-05/.test(soc) && /theory_neg_bias_over_Q=-1\.388889e-05/.test(soc), "b4p1 soc: shunt slope = -bias/Q");
+  ok(/derate_ticks=196\/600/.test(soc), "b4p1 soc: derate fires on hot block");
+  ok(/no charging procedure/.test(soc), "b4p1 soc: no charging procedure");
+  for (const lang of ["en", "zh"]) {
+    const md = read(`src/content/m11/power-battery-emc/${lang}.mdx`);
+    ok(lang === "en" ? /η applies \*\*only on charge\*\*/.test(md) || /applies \*\*only on charge\*\*/.test(md) : /只作用在充电/.test(md), `b4p1 11.1 ${lang}: η only on charge`);
+    ok(/OCV/.test(md), `b4p1 11.1 ${lang}: OCV concept`);
+  }
+
+  // H4: not FOC; cal beats uncal; missed/false failure modes.
+  const enc = read("examples/month-2/expected/encoder_index_cal_toy.txt");
+  ok(/THIS IS MECHANICAL HOMING \/ Z-INDEX, NOT FOC/.test(enc), "b4p1 enc: not FOC banner");
+  ok(/^calibrated\s+0\.0009/m.test(enc) && /^uncalibrated\s+0\.3465/m.test(enc), "b4p1 enc: cal beats uncal");
+  ok(/^missed_index\s+0\.8465/m.test(enc) && /^false_index\s+0\.3492/m.test(enc), "b4p1 enc: failure modes");
+  for (const lang of ["en", "zh"]) {
+    const md = read(`src/content/m2/motors-drivers/${lang}.mdx`);
+    ok(/11\.2/.test(md), `b4p1 2.4 ${lang}: points to FOC lesson`);
+    ok(lang === "en" ? /not FOC electrical-angle/.test(md) : /不是 FOC 电角度/.test(md), `b4p1 2.4 ${lang}: not FOC`);
+  }
+
+  // H5: three modes, DC honesty, ≤1 µs attributed.
+  const ec = read("examples/month-4/expected/ethercat_dc_timing_toy.txt");
+  ok(/^FreeRun/m.test(ec) && /^SM_sync/m.test(ec) && /^DC_SYNC0/m.test(ec), "b4p1 ecat: three modes");
+  ok(/does NOT eliminate master frame jitter/.test(ec), "b4p1 ecat: DC honesty");
+  ok(/≤1 µs 以文档为准/.test(ec), "b4p1 ecat: ≤1 µs attributed");
+  const cur = read("src/lib/curriculum.ts");
+  ok(cur.match(/slug: "power-battery-emc"[\s\S]*?minutes: (\d+)/)?.[1] === "480", "b4p1 curriculum: 11.1 = 480");
+  ok(cur.match(/slug: "motors-drivers"[\s\S]*?minutes: (\d+)/)?.[1] === "360", "b4p1 curriculum: 2.4 = 360");
+  ok(cur.match(/slug: "ros2-control"[\s\S]*?minutes: (\d+)/)?.[1] === "420", "b4p1 curriculum: 4.5 = 420");
+  const rcBlock = (cur.match(/slug: "ros2-control"[\s\S]*?\n  \},/) || [""])[0];
+  ok(/ethercat-technology/.test(rcBlock) && /ethercat-etg2200/.test(rcBlock) && /acontis-dc/.test(rcBlock), "b4p1 4.5 resources wired");
+  const res = read("src/lib/resources.ts");
+  for (const id of ["ethercat-technology", "ethercat-etg2200", "acontis-dc"]) {
+    ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `b4p1 resource ${id}: present + extra`);
+  }
+  console.log("bms-encoder-ethercat PR1: SoC + Z-index + EtherCAT DC locks checked");
 }
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);

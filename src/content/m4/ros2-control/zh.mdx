@@ -849,3 +849,205 @@ mock 硬件是你在 CI 里或没有仿真器的笔记本上测试控制器、la
 <Resource id="articulated-ros2-control-real" />
 
 第 6 课会给这台机器人一张地图。SLAM Toolbox 用激光雷达和这个控制器发布的里程计建图，Nav2 则通过同一个 `diff_drive_controller` 驱动机器人——不需要新的电机代码，不需要新的话题，只是多了一个发布 `TwistStamped` 的节点。这才是现在就学 ros2_control 的真正理由：你在它之上搭建的一切，都继承了同一套接口。
+
+## EtherCAT 定时：FreeRun、SM 同步、DC SYNC0
+
+ros2_control 的 read–update–write 循环默认硬件按稳定周期采样与执行。在 EtherCAT 总线上，从站有**三种**同步方式（ETG.2200 从站实现指南；<Resource id="ethercat-etg2200" />、<Resource id="ethercat-technology" />、<Resource id="acontis-dc" />）：
+
+| 模式 | 什么触发从站应用 |
+|---|---|
+| **FreeRun** | ESC 内的**本地定时器**——与主站帧无关 |
+| **SM-synchronous** | 帧到达时的 Sync Manager 事件——1:1 跟随主站抖动 |
+| **DC SYNC0** | 经**传播延迟**与**漂移**补偿后的分布式时钟 SYNC0 边沿 |
+
+分布式时钟（DC）把从站的**采样 / 输出时刻**对齐到共用时基。按 ETG.8000 / acontis：主站在启动时测量并补偿传播延迟，之后持续补偿漂移。这**不等于**删掉线上的主站帧抖动——DC 也不这么宣称。ETG / ethercat.org 写的「同步抖动 ≤ 1 µs」（ETG.2200 作「远好于 1 µs」）**以文档为准**——不是本页实测。
+
+### 多轴运动为什么在意
+
+用 `Δposition / Δt_nominal` 估计速度，会把定时抖动放大成速度噪声。玩具在三种模式间共用同一对象与同一主站帧抖动抽样，并用**标称**周期估速——因此 SM-sync 的速度 RMS 最大，DC 最小，FreeRun 落在本地定时器的中间地带。
+
+真 EtherCAT 主站 / 从站 / Beckhoff 协议栈：本页未运行。本节**不是** CiA 402 重做（故障位在 8.5）。
+
+### 运行玩具
+
+```bash
+$ cd ~/Hardware-learning/examples/month-4/ros2-control
+$ python3 ethercat_dc_timing_toy.py
+```
+
+<CodeSource path="examples/month-4/ros2-control/ethercat_dc_timing_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""ethercat_dc_timing_toy.py: FreeRun / SM-sync / DC SYNC0 timing (stdlib).
+
+Three EtherCAT SubDevice sync modes (ETG.2200 Slave Implementation Guide;
+ethercat.org Technology; acontis EC-Master DC chapter) on ONE shared plant
+and ONE shared master-frame jitter draw:
+
+  FreeRun     local timer — ignores master frame arrival
+  SM_sync     application latches on Sync Manager event (frame arrival);
+              tracks master jitter 1:1
+  DC_SYNC0    latch/output aligned to a distributed-clock SYNC0 schedule
+              after propagation-delay and drift compensation (ETG.8000 /
+              acontis). Aligns SubDevice sample/output INSTANTS; it does
+              NOT remove master-side frame jitter from the on-the-wire
+              cycle. "<1 µs" / "≤1 µs" is the ETG claim 以文档为准 — not
+              measured on this page.
+
+Plant: single axis, position integrates commanded velocity. The controller
+estimates velocity with the NOMINAL cycle Δt (not the true sample spacing),
+which amplifies timing jitter into velocity noise.
+
+Real EtherCAT master/slave / Beckhoff stack: 本页未运行. Not a CiA 402 redo.
+usage: python3 ethercat_dc_timing_toy.py
+"""
+from __future__ import annotations
+
+import math
+import random
+
+SEED = 55
+N_CYCLES = 400
+DT_NOM = 0.001             # s, nominal cycle (1 kHz)
+# Master frame arrival jitter (shared draw), seconds stddev.
+FRAME_JITTER_STD = 40e-6   # 40 µs — large enough to see in velocity
+# FreeRun local timer jitter (independent, usually smaller crystal error)
+LOCAL_TIMER_STD = 5e-6
+# DC residual after propagation-delay + drift compensation (toy floor).
+# ETG claims synchronization "much better than 1 µs" / ethercat.org "≤ 1 µs"
+# jitter — we use a 0.3 µs residual as a lesson-chosen stand-in and label it
+# 以文档为准, NOT a measurement.
+DC_RESIDUAL_STD = 0.3e-6
+V_CMD = 1.0                # rad/s constant command
+
+
+def shared_frame_jitter(rng: random.Random) -> list[float]:
+    """Master frame arrival offsets relative to nominal tick k*DT_NOM."""
+    return [rng.gauss(0.0, FRAME_JITTER_STD) for _ in range(N_CYCLES)]
+
+
+def run_mode(mode: str, frame_jit: list[float], rng: random.Random) -> dict:
+    """Integrate plant; return position RMSE-to-ideal and velocity noise."""
+    pos = 0.0
+    prev_pos = 0.0
+    # Ideal position if every sample were exactly DT_NOM apart.
+    ideal_pos = 0.0
+    pos_errs: list[float] = []
+    vel_ests: list[float] = []
+    true_dts: list[float] = []
+    prev_sample_t = 0.0
+
+    for k in range(N_CYCLES):
+        t_nom = k * DT_NOM
+        if mode == "FreeRun":
+            # Local timer: nominal grid + small local jitter. Ignores frame_jit.
+            t_sample = t_nom + rng.gauss(0.0, LOCAL_TIMER_STD)
+        elif mode == "SM_sync":
+            # Latch on frame arrival.
+            t_sample = t_nom + frame_jit[k]
+        elif mode == "DC_SYNC0":
+            # SYNC0 grid after delay/drift compensation: nominal + tiny residual.
+            # frame_jit is deliberately NOT added — DC does not kill wire jitter,
+            # but the application trigger is the SYNC0 edge, not the frame event.
+            t_sample = t_nom + rng.gauss(0.0, DC_RESIDUAL_STD)
+        else:
+            raise ValueError(mode)
+
+        if k == 0:
+            dt_true = DT_NOM
+        else:
+            dt_true = t_sample - prev_sample_t
+        prev_sample_t = t_sample
+        true_dts.append(dt_true)
+
+        # Plant integrates commanded velocity over the TRUE sample spacing.
+        pos = pos + V_CMD * dt_true
+        ideal_pos = ideal_pos + V_CMD * DT_NOM
+        pos_errs.append(pos - ideal_pos)
+
+        # Velocity estimate uses NOMINAL Δt — jitter becomes velocity noise.
+        if k == 0:
+            vel_est = V_CMD
+        else:
+            vel_est = (pos - prev_pos) / DT_NOM
+        prev_pos = pos
+        vel_ests.append(vel_est)
+
+    # Skip first sample for velocity stats (undefined / seeded).
+    vel_noise = [v - V_CMD for v in vel_ests[1:]]
+    vel_rms = math.sqrt(sum(e * e for e in vel_noise) / len(vel_noise))
+    pos_rmse = math.sqrt(sum(e * e for e in pos_errs) / len(pos_errs))
+    dt_std = math.sqrt(
+        sum((d - DT_NOM) ** 2 for d in true_dts[1:]) / (len(true_dts) - 1)
+    )
+    return {
+        "mode": mode,
+        "pos_rmse": pos_rmse,
+        "vel_rms": vel_rms,
+        "dt_std_s": dt_std,
+        "final_pos": pos,
+        "final_ideal": ideal_pos,
+    }
+
+
+def main() -> None:
+    master = random.Random(SEED)
+    frame_jit = shared_frame_jitter(master)
+    # Per-mode local RNG for FreeRun / DC residuals (derived, reproducible).
+    local_seeds = [master.randrange(1 << 30) for _ in range(3)]
+    modes = ["FreeRun", "SM_sync", "DC_SYNC0"]
+    print(f"seed={SEED}")
+    print(f"DT_nom={DT_NOM} frame_jitter_std_s={FRAME_JITTER_STD} "
+          f"dc_residual_std_s={DC_RESIDUAL_STD}")
+    print("shared plant + shared master-frame jitter draw")
+    print("DC compensates propagation delay + drift and aligns SYNC0 "
+          "sample/output instants; it does NOT eliminate master frame jitter "
+          "on the wire")
+    print("ETG / ethercat.org sync jitter ≤1 µs 以文档为准 (not measured here)")
+    print(f"{'mode':<10} {'pos_rmse':>12} {'vel_rms':>12} {'dt_std_s':>14}")
+    results = []
+    for mode, sd in zip(modes, local_seeds):
+        r = run_mode(mode, frame_jit, random.Random(sd))
+        results.append(r)
+        print(
+            f"{r['mode']:<10} {r['pos_rmse']:12.6e} {r['vel_rms']:12.6e} "
+            f"{r['dt_std_s']:14.6e}"
+        )
+    by = {r["mode"]: r for r in results}
+    # SM tracks frame jitter → largest vel noise; DC smallest dt_std;
+    # FreeRun between (local timer, ignores frames).
+    assert by["SM_sync"]["vel_rms"] > by["DC_SYNC0"]["vel_rms"]
+    assert by["SM_sync"]["dt_std_s"] > by["DC_SYNC0"]["dt_std_s"]
+    assert by["FreeRun"]["dt_std_s"] > by["DC_SYNC0"]["dt_std_s"]
+    print(
+        "ok: three modes on shared plant/jitter; nominal-Δt velocity amplifies "
+        "jitter; DC ≠ removing master frame jitter; EtherCAT NIC 本页未运行"
+    )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+seed=55
+DT_nom=0.001 frame_jitter_std_s=4e-05 dc_residual_std_s=3e-07
+shared plant + shared master-frame jitter draw
+DC compensates propagation delay + drift and aligns SYNC0 sample/output instants; it does NOT eliminate master frame jitter on the wire
+ETG / ethercat.org sync jitter ≤1 µs 以文档为准 (not measured here)
+mode           pos_rmse      vel_rms       dt_std_s
+FreeRun    5.628923e-06 6.445746e-03   6.445746e-06
+SM_sync    9.090447e-05 5.587601e-02   5.587601e-05
+DC_SYNC0   4.814747e-07 4.389860e-04   4.389860e-07
+ok: three modes on shared plant/jitter; nominal-Δt velocity amplifies jitter; DC ≠ removing master frame jitter; EtherCAT NIC 本页未运行
+```
+
+</SimOutput>
+
+本种子下 SM-sync 速度 RMS ≈ `5.6e-2` rad/s，DC ≈ `4.4e-4`；FreeRun 落在本地定时器抖动中间。玩具里的 DC 残差标准差（约 0.3 µs）是课内取值，挂在 ETG ≤1 µs 声明之下——不是台架数。
+
+<Quiz id="q-ecat1" question="从站跑 SM-synchronous。主站帧晚到 40 µs。相对标称节拍，采样时刻如何？" options={["仍在标称节拍（本地定时器）", "晚 40 µs（帧事件）", "无论帧如何都由 SYNC0 对齐"]} answer={1} explanation="SM-sync 由 Sync Manager / 帧到达事件触发，采样 1:1 跟随主站帧抖动。FreeRun 用本地定时器；DC SYNC0 用补偿后的 SYNC0 边沿。" />
+

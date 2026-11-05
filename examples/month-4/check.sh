@@ -7,14 +7,30 @@
 # Usage: examples/month-4/check.sh        UPDATE=1 (or UPDATE=<glob>) examples/month-4/check.sh rewrites expected/
 set -uo pipefail
 M4="$(cd "$(dirname "$0")" && pwd)"
-if [[ "${ROS_DISTRO:-}" != "jazzy" ]] || ! command -v colcon >/dev/null; then
-  echo "ROS 2 Jazzy is not sourced (ROS_DISTRO=${ROS_DISTRO:-unset}); see examples/month-4/README.md"; exit 2
-fi
+fail=0
 TMP="$(mktemp -d)"; trap 'kill $(jobs -p) 2>/dev/null; ros2 daemon stop >/dev/null 2>&1; rm -rf "$TMP"' EXIT
+# ---- Python-only deepen toys (no ROS required) --------------------------------------------
+# These run even when Jazzy is not sourced, so a laptop without ROS can still check them.
+check_py() {
+  local name="$1"; shift
+  (cd "$TMP" && "$@") > "$TMP/$name" 2>&1
+  local ec=$?
+  if [[ $ec -ne 0 ]]; then echo "FAIL  $name (exit $ec)"; cat "$TMP/$name"; fail=1; return; fi
+  if [[ -n "${UPDATE:-}" ]] && { [[ "$UPDATE" == 1 ]] || [[ "$name" == $UPDATE ]]; }; then
+    cp "$TMP/$name" "$M4/expected/$name"; echo "wrote $name"; return
+  fi
+  if diff -u "$M4/expected/$name" "$TMP/$name" > "$TMP/$name.diff"; then echo "same  $name"
+  else echo "DIFF  $name"; cat "$TMP/$name.diff"; fail=1; fi
+}
+check_py ethercat_dc_timing_toy.txt python3 "$M4/ros2-control/ethercat_dc_timing_toy.py"
+
+if [[ "${ROS_DISTRO:-}" != "jazzy" ]] || ! command -v colcon >/dev/null; then
+  echo "ROS 2 Jazzy is not sourced (ROS_DISTRO=${ROS_DISTRO:-unset}); see examples/month-4/README.md"
+  echo "(Python-only toys above still ran.)"; exit $fail
+fi
 export ROS_DOMAIN_ID=$(( 40 + RANDOM % 50 )) ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
 export RCUTILS_COLORIZED_OUTPUT=0 PYTHONUNBUFFERED=1
 ros2 daemon start > /dev/null 2>&1   # the CLI's discovery cache for this domain; warm it up early
-fail=0
 check() {     # check <expected file> [--tol T] [--mask REGEX]... [--sort 1] <command...>
   local name="$1"; shift; local tol=()
   while [[ "${1:-}" == --tol || "${1:-}" == --mask || "${1:-}" == --sort ]]; do tol+=("$1" "$2"); shift 2; done
