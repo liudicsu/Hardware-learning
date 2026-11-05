@@ -3234,6 +3234,35 @@ export const resources: Record<string, Resource> = {
     extra: true,
   },
 
+  "dreamgen-paper": {
+    id: "dreamgen-paper",
+    url: "https://arxiv.org/abs/2505.12705",
+    title: { zh: "DreamGen：用视频世界模型生成神经轨迹（论文）", en: "DreamGen: neural trajectories from video world models (paper)" },
+    author: "Jang, Ye, Lin et al. (NVIDIA and others)",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "四阶段流程：微调视频世界模型 → 生成视频 → IDM 或潜动作伪标签 → 用神经轨迹训练策略；另提出 DreamGen Bench。arXiv 2505.12705。本站 9.9 阅读；结果与相关性以论文为准，本页未运行。",
+      en: "A four-stage recipe: fine-tune a video world model → generate videos → IDM or latent-action pseudo-labels → train policies on neural trajectories; also introduces DreamGen Bench. arXiv 2505.12705. Reading for 9.9; results and correlation are per the paper, not run here.",
+    },
+    license: { zh: "预印本（CC BY 4.0），© 原作者；仅提供外链", en: "Preprint (CC BY 4.0), © authors; external link only" },
+    extra: true,
+  },
+  "lapa-paper": {
+    id: "lapa-paper",
+    url: "https://arxiv.org/abs/2410.11758",
+    title: { zh: "LAPA：从视频做潜动作预训练（论文）", en: "LAPA: Latent Action Pretraining from Videos (paper)" },
+    author: "Ye, Jang, Jeon et al.",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "从无动作标签的视频中学离散潜动作，再用少量带标签数据映射到真实动作；DreamGen 用它作为 IDM 之外的伪标签来源。arXiv 2410.11758。本站 9.9 阅读；本页未运行。",
+      en: "Learns discrete latent actions from unlabelled video, then maps them to real actions with a little labelled data; DreamGen uses it as the alternative to an IDM for pseudo-labels. arXiv 2410.11758. Reading for 9.9; not run here.",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
+
   "freertos-kernel-semphr": {
     id: "freertos-kernel-semphr",
     url: "https://github.com/FreeRTOS/FreeRTOS-Kernel/blob/main/include/semphr.h",

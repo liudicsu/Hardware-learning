@@ -209,6 +209,218 @@ lerobot-train --policy.path=lerobot/smolvla_base --dataset.repo_id=${HF_USER}/pi
 
 <Resource id="lerobot-smolvla" />
 
+## SmolVLA 与异步动作块推理
+
+SmolVLA（Shukor 等，arXiv **2506.01844**）就是上表里那个小模型。即使你不打算微调它，它的论文也有两点值得细读：它怎么做到小，以及它的**异步推理**（asynchronous inference）怎样在计算下一个动作块的同时让机械臂继续动。本节关于 SmolVLA 架构与结果的一切说法都**以论文为准**；本页没有运行权重、GPU 服务器或 SO-100 机械臂。
+
+<Resource id="smolvla-paper" />
+
+### SmolVLA 怎样保持小（以论文为准）
+
+- **总参数约 450M**，其中约 100M 是动作专家（action expert）。骨干是 SmolVLM-2 视觉-语言模型，训练动作专家时 VLM 保持冻结。
+- **跳过 VLM 层。** 动作专家读取中间层的特征，而不是最后一层；论文只用语言模型的前一半层（前 16 层），其余丢掉，这部分计算大约减半。
+- **视觉词元少：** 只用全局图像，加 pixel shuffle，每帧 64 个视觉词元。
+- **交替注意力的动作专家。** 专家的各个块在**交叉注意力**（动作词元看 VLM 特征）和**因果自注意力**（动作词元看更早的动作词元）之间交替，而不是只用一种。
+- **流匹配。** 专家用<Term id="flow-matching">流匹配</Term>目标训练，输出 n = 50 个动作的动作块，推理时积分 10 步。
+- **社区数据：** 预训练用了不到 30k 个回合，全部来自公开、社区贡献的 LeRobot 数据集。
+
+### 异步推理：什么时候要下一个动作块
+
+按块执行的策略有两种跑法。**同步**（顺序）方式下，机器人执行完整个<Term id="action-chunk">动作块</Term>，再发送观测，队列空着等推理。SmolVLA 的**异步**栈里，**RobotClient** 每个控制周期从队列弹出一个动作；当剩余比例 `|A| / n` 低于阈值 **g** 时，它采一帧新观测发给 **PolicyServer**，自己不停下。新动作块到达后，客户端在重叠的步上把它与旧块剩下的部分合并。g = 0 就是同步；g = 1 每个周期都要新块（每周期一次前向）。设推理延迟为 ℓ_S、控制周期为 Δt，论文推出队列不会被耗空的条件是
+
+<Formula label="异步推理不空闲的条件（SmolVLA §3.3）">g ≥ (E[ℓ_S] / Δt) / n</Formula>
+
+8.3 已经用一个异步阈值对比过同步的空闲帧。它没有讲的是：异步推理是一种**权衡**，下面的玩具测的正是这一点。它还要和两个相邻的概念分开：
+
+| 概念 | 课 | 解决什么 |
+| --- | --- | --- |
+| 异步动作块推理（本节） | 6.3，以及 8.3 的循环 | 计算下一块时的空闲间隙；何时触发（g） |
+| 实时动作块（RTC）软掩码 | 10.2 | 拼接处的跳变：去噪时把新块往旧块引导 |
+| 传感器流的因果时间戳对齐 | 8.3 | 哪些相机/关节样本属于同一时刻，且不偷看未来 |
+
+这里的异步**不是** RTC：玩具里的新块不以旧块为条件，也没有软掩码。它也**不是**时间戳对齐：每次请求只有一个观测，没有流匹配。
+
+### 运行玩具
+
+`vla_async_chunk_toy.py` 跑五个臂，它们共享**同一个动作块预测器**（把观测到的目标位置和速度外推 n 步）、**同一个块长 n = 50**、**同一个控制周期**（30 Hz，与论文真机设置相同）、**同一组延迟抽样**（每个臂的第 k 次请求用同一个 ℓ_S）和**同一条目标轨迹**。只有 g 不同。延迟分布是本课自选的，不是在任何 GPU 上测的。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-6/vla-models
+$ python3 vla_async_chunk_toy.py
+```
+
+<CodeSource path="examples/month-6/vla-models/vla_async_chunk_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""vla_async_chunk_toy.py: sync vs async action-chunk inference, as a tradeoff (stdlib).
+
+SmolVLA (arXiv 2506.01844, 3.3) runs a RobotClient that pops one action per
+control tick from a queue and, when the remaining fraction |A|/n drops below a
+threshold g, captures an observation and asks a PolicyServer for a new chunk
+without stopping. g = 0 is the sequential limit (drain, then wait), g = 1 the
+compute-intensive limit (a request as soon as the last one returns).
+
+Every arm here shares:
+  - the same chunk predictor (a function of the observation only),
+  - the same chunk size n and control tick dt,
+  - the same latency draws l_S: the k-th request of every arm takes LAT[k],
+  - the same target path (piecewise-constant velocity, seeded).
+The robot tracks a moving target; a chunk is the target extrapolated from the
+observation, so old observations give worse actions after a velocity change.
+
+Metrics per arm: idle_s (ticks with an empty queue x dt), infer_calls,
+underruns (separate empty-queue episodes), staleness = age of the observation
+behind each executed action (mean / max, s), switches = new chunks spliced
+into a non-empty queue and their mean |jump| (overlap thrash), track_rmse.
+Aggregation f here: actions carry the executed-step index they belong to; on
+arrival the new chunk's already-executed steps are dropped and overlapping
+steps take the new value (one simple f; the paper only says "aggregate").
+This is NOT 10.2 RTC (no soft mask, the new chunk is not conditioned on the
+old one) and NOT 8.3 timestamp alignment of sensor streams. Async need not
+win every metric. SmolVLA weights, a GPU server and an SO-100 arm are not run
+on this page (本页未运行); paper latency / success numbers are 以论文为准.
+usage: python3 vla_async_chunk_toy.py
+"""
+from __future__ import annotations
+
+import math
+import random
+
+SEED = 1844
+DT = 1 / 30             # 30 Hz control, as in the paper's real-world setting
+N_CHUNK = 50            # chunk size n (the paper trains n = 50)
+HORIZON = 900           # ticks = 30 s
+LAT_MEAN, LAT_SD = 0.30, 0.10   # l_S in seconds (lesson-chosen, not measured)
+LAT_MIN = 0.10
+ARMS = (("sync", 0.0), ("async_g0.1", 0.1), ("async_g0.3", 0.3), ("async_g0.7", 0.7), ("async_g1.0", 1.0))
+
+
+def target_path(rng):
+    """Target position per tick: velocity changes every 1-3 s."""
+    pos, vel, out, t_next = 0.0, 0.0, [], 0
+    for t in range(HORIZON + N_CHUNK + 200):
+        if t == t_next:
+            vel = rng.uniform(-0.3, 0.3)
+            t_next = t + rng.randint(30, 90)
+        out.append((pos, vel))
+        pos += vel * DT
+    return out
+
+
+def latencies(rng, k=2000):
+    return [max(LAT_MIN, rng.gauss(LAT_MEAN, LAT_SD)) for _ in range(k)]
+
+
+def predict_chunk(obs_step, obs_tick, path):
+    """Same predictor for all arms: extrapolate the observed target n steps ahead.
+
+    Actions are indexed by executed-step count (not wall time): a chunk from an
+    observation taken after step k covers steps k+1 .. k+n.
+    """
+    p, v = path[obs_tick]
+    return {obs_step + 1 + i: p + v * (i + 1) * DT for i in range(N_CHUNK)}
+
+
+def run(g, path, lat):
+    queue = predict_chunk(0, 0, path)   # initial chunk, as in Algorithm 1 line 2
+    source = {k: 0 for k in queue}      # step -> wall tick of the observation behind it
+    inflight = None                     # (arrival_tick, obs_step, obs_tick)
+    step, calls, idle, underruns, was_empty = 0, 1, 0, 0, False
+    ages, jumps, errs, held = [], [], [], 0.0
+    for t in range(1, HORIZON + 1):
+        if inflight and inflight[0] <= t:          # chunk arrives: aggregate f(A, A~)
+            _arr, obs_step, obs_tick = inflight
+            live = {k: a for k, a in predict_chunk(obs_step, obs_tick, path).items() if k > step}
+            overlap = [k for k in live if k in queue]
+            if overlap:
+                k0 = min(overlap)
+                jumps.append(abs(live[k0] - queue[k0]))
+            queue.update(live)
+            source.update({k: obs_tick for k in live})
+            inflight = None
+        if step + 1 in queue:                      # pop and execute the next step
+            step += 1
+            held = queue.pop(step)
+            ages.append((t - source[step]) * DT)
+            was_empty = False
+        else:                                      # empty queue: the arm waits
+            idle += 1
+            underruns += not was_empty
+            was_empty = True
+        errs.append(held - path[t][0])
+        if inflight is None and (not queue or len(queue) / N_CHUNK < g):
+            inflight = (t + max(1, math.ceil(lat[calls] / DT)), step, t)
+            calls += 1
+    return {
+        "idle_s": idle * DT, "calls": calls, "underruns": underruns,
+        "age_mean": sum(ages) / len(ages), "age_max": max(ages),
+        "switches": len(jumps), "jump_mean": sum(jumps) / len(jumps) if jumps else 0.0,
+        "rmse": math.sqrt(sum(e * e for e in errs) / len(errs)),
+    }
+
+
+def main() -> None:
+    path = target_path(random.Random(SEED))
+    lat = latencies(random.Random(SEED + 1))
+    mean_lat = sum(lat[:200]) / 200
+    print(f"seed={SEED} dt={DT:.4f}s n={N_CHUNK} horizon={HORIZON * DT:.0f}s "
+          f"l_S~N({LAT_MEAN},{LAT_SD}) min {LAT_MIN}s, shared draws (mean of first 200 = {mean_lat:.3f}s)")
+    print(f"no-idle rule of thumb (paper 3.3): g >= E[l_S]/(n*dt) = {mean_lat / (N_CHUNK * DT):.3f}")
+    print("same predictor, same n, same latency draws, same target path for every arm")
+    print(f"{'arm':<11} {'g':>4} {'idle_s':>7} {'infer_calls':>11} {'underruns':>9} "
+          f"{'stale_mean_s':>12} {'stale_max_s':>11} {'switches':>8} {'mean_jump':>9} {'track_rmse':>10}")
+    rows = {}
+    for name, g in ARMS:
+        r = run(g, path, lat)
+        rows[name] = r
+        print(f"{name:<11} {g:4.1f} {r['idle_s']:7.2f} {r['calls']:11d} {r['underruns']:9d} "
+              f"{r['age_mean']:12.3f} {r['age_max']:11.3f} {r['switches']:8d} {r['jump_mean']:9.4f} "
+              f"{r['rmse']:10.4f}")
+    s, a = rows["sync"], rows["async_g0.7"]
+    assert a["idle_s"] < s["idle_s"] and a["age_mean"] < s["age_mean"]
+    assert a["calls"] > s["calls"] and a["switches"] > s["switches"]
+    print(f"ok: async_g0.7 cuts idle {s['idle_s']:.2f}->{a['idle_s']:.2f}s and staleness "
+          f"{s['age_mean']:.3f}->{a['age_mean']:.3f}s but costs infer_calls {s['calls']}->{a['calls']} "
+          f"and {a['switches']} overlap switches; not RTC (10.2), not stamp sync (8.3); "
+          "SmolVLA / GPU / arm 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+seed=1844 dt=0.0333s n=50 horizon=30s l_S~N(0.3,0.1) min 0.1s, shared draws (mean of first 200 = 0.293s)
+no-idle rule of thumb (paper 3.3): g >= E[l_S]/(n*dt) = 0.176
+same predictor, same n, same latency draws, same target path for every arm
+arm            g  idle_s infer_calls underruns stale_mean_s stale_max_s switches mean_jump track_rmse
+sync         0.0    4.17          16        15        1.101       2.133        0    0.0000     0.1872
+async_g0.1   0.1    2.57          18        13        1.044       2.000        1    0.0058     0.1474
+async_g0.3   0.3    0.00          26         0        0.887       1.667       23    0.1464     0.1291
+async_g0.7   0.7    0.00          57         0        0.559       1.000       55    0.0409     0.0605
+async_g1.0   1.0    0.00          99         0        0.458       0.933       97    0.0195     0.0480
+ok: async_g0.7 cuts idle 4.17->0.00s and staleness 1.101->0.559s but costs infer_calls 16->57 and 55 overlap switches; not RTC (10.2), not stamp sync (8.3); SmolVLA / GPU / arm 本页未运行
+```
+
+</SimOutput>
+
+逐列读：
+
+- `idle_s`：队列为空、机械臂干等的秒数。同步在 30 s 里等了 4.17 s。`async_g0.1` 仍等 2.57 s，因为 0.1 低于上面打印的不空闲阈值 0.176。从 g = 0.3 起为 0。
+- `infer_calls`：代价。同步要 16 次请求；g = 0.7 要 57 次，g = 1.0 要 99 次——同样 30 s，服务器工作量是同步的六倍多。
+- `stale_mean_s` / `stale_max_s`：**动作陈旧度**，即每个被执行动作背后那帧观测的年龄。同步执行的动作所依据的观测最老达 2.133 s；g = 0.7 把平均值从 1.101 s 降到 0.559 s。
+- `switches` / `mean_jump`：新块拼进非空队列的次数，以及拼接处跳变的平均大小（重叠块切换抖动）。同步从不拼接。g = 0.3 拼接 23 次，平均跳变最大（0.1464），因为它的新块替换的是已经相当旧的动作；g = 1.0 拼接 97 次，每次跳变很小。
+- `track_rmse`：任务代理指标（与移动目标的距离）。在这个玩具里从 0.1872（同步）降到 0.0480（g = 1.0），因为更新鲜的观测对目标预测得更准。
+
+所以在这里，异步在空闲时间、陈旧度和跟踪上占优，在推理次数和拼接次数上吃亏。这些数字都不能搬到真机上：它们取决于本课自选的延迟和目标。论文自己的测量（其真机 Pick-Place 任务，**以论文为准**）是：异步平均 9.7 s 完成任务，同步 13.75 s，约快 30 %；60 s 内完成 19 次抓放循环，同步 9 次；三个真机任务上两种模式成功率相当。
+
+<Quiz id="q4" question="E[ℓ_S] = 0.293 s、Δt = 1/30 s、n = 50 时，按论文的经验条件，不空闲所需的最小 g 是多少？" answer={0.176} explanation="(0.293 / 0.0333) / 50 = 8.79 / 50 = 0.176。玩具里低于它的 g = 0.1 仍空闲 2.57 s，而 g = 0.3 不空闲。" />
+
+<Quiz id="q5" question="在玩具里，async_g0.7 把空闲时间降到 0 s、平均陈旧度从 1.101 s 降到 0.559 s，付出了什么？" options={["没有代价，异步每项都赢", "更多推理调用（16 → 57）和 55 次拼进非空队列的块切换", "一个让机械臂变慢的软掩码", "传感器时间戳错位"]} answer={1} explanation="异步是权衡：服务器工作更多，重叠块切换也更多。软掩码属于 10.2 RTC，时间戳对齐属于 8.3，这个玩具里都没有。" />
+
 ## VLA 替你做不了的事
 
 VLA 并没有免除前几课的工作，只是把工作转移到另一个环节。你仍然需要一个关于你自己机器人的好数据集，包含你希望它应对的变化和恢复动作。你仍然需要在一组固定条件下评估它。“零样本”（zero-shot）的说法只对与预训练数据相似的机器人和场景成立：OpenVLA 自己的模型卡就写明，不经微调它无法泛化到没见过的机器人形态。你得到的是语言条件（一个模型、多种指令）和一个更好的起点，于是每个任务需要的示范更少。
@@ -219,4 +431,7 @@ VLA 并没有免除前几课的工作，只是把工作转移到另一个环节�
 - <strong>忘了归一化统计量。</strong>VLA 输出的是归一化后的动作。把它们还原需要它所微调的数据集的第 1/第 99 百分位数（或均值和标准差）；统计量用错，形状对了，幅度却错了。
 - <strong>指望在你的机械臂上零样本运行。</strong>不在你的机器人上微调，VLA 学到的关节或末端约定、相机位置和夹爪都可能和你的不一样。按大约 50 条示范来做计划。
 - <strong>忽略推理时间。</strong>一个 7B 模型需要大显存 GPU 才能跑得够快。在真正驱动机器人的那台电脑上测量每秒能出多少个动作；跟不上时，选更小的模型或按动作块执行。
+- <strong>以为异步推理「免费」。</strong>只有 g 高于 (E[ℓ_S] / Δt) / n 时它才消除空闲，而且要付出更多推理调用和更多块拼接（玩具里 g = 0.7 时调用从 16 次到 57 次）。按你的延迟和服务器预算选 g。
+- <strong>把异步推理、RTC 和时间戳同步混为一谈。</strong>异步决定何时请求下一块（本课）；RTC 用软掩码平滑拼接处（10.2）；流对齐按时间匹配传感器样本（8.3）。
+- <strong>把 SmolVLA 论文的数字当成你自己的。</strong>450M 的规模、约 30 % 的提速和 19 对 9 次循环都以论文为准；请在你自己的机械臂上测。
 - <strong>不看范围就用区间法。</strong>如果你的任务里有比数据集中任何动作都大的运动，区间分词会把它截断，如上面 6.2 度的误差所示。

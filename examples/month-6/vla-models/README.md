@@ -16,3 +16,12 @@ python3 action_tokens.py
 No hardware needed. Output quoted in the lesson as **simulated output / 仿真输出**; checked by
 `examples/month-6/check.sh` against `examples/month-6/expected/action_tokens.txt`.
 不需要硬件。课程中以“仿真输出”引用；由 `examples/month-6/check.sh` 与 `examples/month-6/expected/action_tokens.txt` 比对。
+
+## Enrichment / 深化
+
+`vla_async_chunk_toy.py`: sync vs async action-chunk inference in the style of SmolVLA's RobotClient (arXiv 2506.01844, §3.3): request the next chunk when the remaining queue fraction falls below g. All arms share the chunk predictor, n = 50, the latency draws and the target path; it reports idle_s, infer_calls, underruns, action staleness and overlapping-chunk switches. Fixed seed; checked by `examples/month-6/check.sh`. SmolVLA weights, a GPU server and a real arm are not run here; paper numbers are per the paper. Not RTC (10.2), not timestamp sync (8.3).
+仿 SmolVLA RobotClient 的同步/异步动作块推理玩具：队列剩余比例低于 g 时请求下一块。所有臂共享预测器、n = 50、延迟抽样和目标轨迹；输出空闲时间、推理次数、欠载、动作陈旧度与重叠块切换。固定种子；由 `examples/month-6/check.sh` 核对。SmolVLA 权重、GPU 服务器与真机本页未运行；论文数字以论文为准。不是 RTC（10.2），也不是时间戳同步（8.3）。
+
+```bash
+python3 vla_async_chunk_toy.py
+```

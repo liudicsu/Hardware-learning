@@ -1,0 +1,19 @@
+seed=2505 T=15 K_TRAJ=40 (matched) K_WM_FIT=10 N_EVAL=60 success_r=0.05
+stages: 1 fit WM on real -> 2 WM rollout frames -> 3 IDM pseudo-labels -> 4 BC policy
+stage1 WM step gain diag=0.300,0.303 (expert in frames: 0.3)
+real_traj  policy (true labels, K=40)   success=60/60 mean_final_dist=0.0093
+wm_sweep: WM_ERR varies, other knob = 0, same eval starts
+    knob wm_frame_rmse  idm_rmse idm_gain  success mean_final_dist
+   0.000        0.0185    0.0051    0.998    60/60          0.0097
+   0.005        0.0208    0.0051    0.998    60/60          0.0148
+   0.010        0.0283    0.0051    0.998    60/60          0.0261
+   0.020        0.0484    0.0051    0.998    29/60          0.0508
+   0.040        0.0933    0.0051    0.998     0/60          0.1014
+idm_sweep: IDM_ERR varies, other knob = 0, same eval starts
+    knob wm_frame_rmse  idm_rmse idm_gain  success mean_final_dist
+   0.000        0.0185    0.0051    0.998    60/60          0.0097
+   0.020        0.0185    0.0077    0.936    60/60          0.0158
+   0.050        0.0185    0.0224    0.744    41/60          0.0386
+   0.100        0.0185    0.0465    0.452     7/60          0.1416
+   0.200        0.0185    0.0684    0.193     0/60          0.4555
+ok: two separate drop curves (wm 60->0, idm 60->0 of 60); IDM fitted on real pairs, applied to WM frames; DreamGen Bench correlation = paper claim only; video WM / GPU 本页未运行

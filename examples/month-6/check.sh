@@ -26,6 +26,7 @@ check multimodal.txt python3 "$M6/act-diffusion/multimodal.py"
 
 # ---- Lesson 3: VLA action tokens, per-step bins versus a DCT of the chunk -------------------------
 check action_tokens.txt python3 "$M6/vla-models/action_tokens.py"
+check vla_async_chunk_toy.txt python3 "$M6/vla-models/vla_async_chunk_toy.py"
 
 # ---- Lesson 4: evaluating a policy (Wilson intervals, paired trials, trials needed, failure table) -
 check eval_report.txt python3 "$M6/policy-evaluation/eval_report.py"

@@ -1,0 +1,10 @@
+seed=1844 dt=0.0333s n=50 horizon=30s l_S~N(0.3,0.1) min 0.1s, shared draws (mean of first 200 = 0.293s)
+no-idle rule of thumb (paper 3.3): g >= E[l_S]/(n*dt) = 0.176
+same predictor, same n, same latency draws, same target path for every arm
+arm            g  idle_s infer_calls underruns stale_mean_s stale_max_s switches mean_jump track_rmse
+sync         0.0    4.17          16        15        1.101       2.133        0    0.0000     0.1872
+async_g0.1   0.1    2.57          18        13        1.044       2.000        1    0.0058     0.1474
+async_g0.3   0.3    0.00          26         0        0.887       1.667       23    0.1464     0.1291
+async_g0.7   0.7    0.00          57         0        0.559       1.000       55    0.0409     0.0605
+async_g1.0   1.0    0.00          99         0        0.458       0.933       97    0.0195     0.0480
+ok: async_g0.7 cuts idle 4.17->0.00s and staleness 1.101->0.559s but costs infer_calls 16->57 and 55 overlap switches; not RTC (10.2), not stamp sync (8.3); SmolVLA / GPU / arm 本页未运行
