@@ -2083,6 +2083,46 @@ export const glossary: GlossaryEntry[] = [
     lesson: "edge-deploy-checklist",
     firstExplained: true,
   },
+  {
+    id: "robot-world-hand-eye",
+    term: { zh: "机器人–世界手眼标定", en: "robot–world hand–eye calibration" },
+    def: {
+      zh: "同时求两个未知变换的标定：AX = ZB，X 是世界（标定板）← 基座，Z 是相机 ← 夹爪；OpenCV 中为 calibrateRobotWorldHandEye。",
+      en: "Calibration that solves for two unknown transforms at once: AX = ZB, with X = world (board) ← base and Z = camera ← gripper; calibrateRobotWorldHandEye in OpenCV.",
+    },
+    lesson: "multi-view-extrinsics",
+    firstExplained: true,
+  },
+  {
+    id: "extrinsics-chain",
+    term: { zh: "外参链闭合误差", en: "extrinsics chain closure" },
+    def: {
+      zh: "从基座到某台相机走两条不同的标定路径（如直接 vs 经另一台相机）得到的位姿之差，用 deg 和 mm 表示；超过阈值说明有相机动了或标定有误。",
+      en: "The difference between two calibrated routes from the base to one camera (directly vs via another camera), in deg and mm; above a threshold, a camera has moved or a calibration is wrong.",
+    },
+    lesson: "multi-view-extrinsics",
+    firstExplained: true,
+  },
+  {
+    id: "intervention-rate",
+    term: { zh: "介入率", en: "intervention rate" },
+    def: {
+      zh: "人控制的帧数除以总帧数（需要记录自主帧）；按回合和总体报告，策略变好时应下降。",
+      en: "Human-controlled frames divided by all frames (autonomous frames must be logged); report it per episode and overall, it should fall as the policy improves.",
+    },
+    lesson: "intervention-logging",
+    firstExplained: true,
+  },
+  {
+    id: "recovery-correction",
+    term: { zh: "恢复与纠正", en: "recovery and correction" },
+    def: {
+      zh: "RaC 对一次人工接管的两段划分：先遥操作回到熟悉的分布内状态（恢复），再从那里示范正确行为（纠正）。",
+      en: "RaC's two-part split of a human takeover: first teleoperate back to a familiar, in-distribution state (recovery), then demonstrate the right behaviour from there (correction).",
+    },
+    lesson: "intervention-logging",
+    firstExplained: true,
+  },
 
 ]
 

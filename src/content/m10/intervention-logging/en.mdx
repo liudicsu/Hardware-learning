@@ -1,0 +1,265 @@
+This lesson is a site supplement — Months 7–10 are not part of the original six-month course.
+
+**Scope.** The DAgger part of [6.1 behaviour cloning](/en/month/month-6/behaviour-cloning) owns the idea (label the states the learner actually visits) and its toy; this lesson is about what a human-gated correction looks like **as logged data**. [8.1 dataset engineering](/en/month/month-8/dataset-engineering) owns the LeRobot dataset format and editing tools in general; here only the `intervention` column and the merge step. [8.3 async deployment](/en/month/month-8/async-deployment) and [10.2 real-time chunking](/en/month/month-10/real-time-chunking) own the inference loop the rollout runs on, [7.6 perception to grasp](/en/month/month-7/perception-to-grasp) and 10.4 own the cameras. Turning corrections into RL (10.6) and into advantage-conditioned VLAs such as π*0.6 (10.7) come in later lessons. No new hardware: a real session uses the SO-101 leader and follower you have had since Month 3 and is marked 本页未运行; the toy is CPU-only standard library. It does not replace the 8.7 capstone.
+
+## From DAgger to recovery + correction
+
+| method | who decides when the human acts | what gets labelled |
+| --- | --- | --- |
+| DAgger (Ross et al., 2011; 6.1) | the algorithm queries the expert | every state the learner visits |
+| HG-DAgger (Kelly et al., 2019) | the human, by taking over | only the frames under human control |
+| RaC (Hu et al., 2025) | the human, by taking over | the takeover split into **recovery** then **correction** |
+
+HG-DAgger made DAgger practical with a real human: the expert watches and only takes control when the learner looks unsafe, and only those frames are added to the training set (the paper also learns a "doubt" threshold from the data; its experiments are on driving). RaC adds two rules for long-horizon tasks: when you take over, first teleoperate back to a familiar, in-distribution state (recovery), then demonstrate the right behaviour from there (correction); and end the episode after an intervention rather than handing back. Its abstract reports reaching strong performance on real bimanual tasks with about 10× less data-collection time and samples than prior approaches; that is the paper's measurement, not run on this page.
+
+<Resource id="dagger-paper" />
+<Resource id="hg-dagger-paper" />
+<Resource id="rac-paper" />
+
+## What LeRobot records
+
+LeRobot v0.6.0 added `lerobot-rollout` with a `dagger` strategy that "turns deployment into data collection", and its Human-In-the-Loop Data Collection page describes the protocol. Follow the LeRobot v0.6.x docs; options may change between versions (以当期文档为准):
+
+| key | action |
+| --- | --- |
+| Space | pause the policy / resume it |
+| Tab | start / stop a correction (only while paused); corrections are recorded |
+| Enter | push the dataset to the Hub (corrections-only mode) |
+| ESC | stop the session |
+
+- While paused the robot holds and an actuated leader arm (the SO-101 leader is listed) moves to match the follower, so the handover has no jump; **no frames are recorded during the pause**.
+- By default only the human-controlled segments are recorded and **each correction becomes its own episode**. With `--strategy.record_autonomous=true` the autonomous frames are recorded too, as one continuous trajectory split into episodes automatically.
+- Every human-controlled frame is tagged in an extra `intervention` column. Datasets can only be merged when their features match, so the docs remove that column before merging with your demonstrations.
+
+<Resource id="lerobot-hil-data-collection" />
+<Resource id="lerobot-v060-blog" />
+
+## Run the log toy
+
+`intervention_log_toy.py` fakes a full-logging session (`record_autonomous=true` style): 6 episodes of 240 frames at 30 fps. The policy drifts; once the drift `dev` passes 0.6 the operator takes over, drives back until `dev` is at most 0.2 (recovery) and keeps correcting for a while before handing back. The toy then reads the log the way your training script would.
+
+```bash
+$ cd ~/Hardware-learning/examples/month-10/intervention-logging
+$ python3 intervention_log_toy.py
+```
+
+<CodeSource path="examples/month-10/intervention-logging/intervention_log_toy.py" />
+
+```python
+"""intervention_log_toy.py: read a human-in-the-loop log the way a dataset sees it (stdlib).
+
+A seeded stand-in for a DAgger-style rollout recorded with an `intervention`
+column. Each frame row is (episode_index, frame_index, intervention, dev),
+where dev is how far the arm has drifted from where the demos go.
+
+1. Generate episodes: the policy drifts; when dev crosses TAKE_OVER the
+   operator pauses (no frames recorded while paused), takes over with the
+   leader arm (intervention=1) and hands back after finishing the fix.
+2. Split each intervention run into segments; intervention rate per episode.
+3. Label frames inside a segment, RaC-style: "recovery" while dev is still
+   above IN_DIST (getting back to familiar states), "correction" after that.
+4. Count what RaC's second rule (end the episode after an intervention)
+   would keep.
+5. Merge: a demo dataset without `intervention` and the HIL dataset do not
+   share a schema; the toy merge refuses, then passes after the column is
+   removed. The error text is this toy's, not LeRobot's.
+No robot, no LeRobot install.
+"""
+
+import random
+
+SEED = 5
+FPS = 30
+EPISODES = 6
+FRAMES_PER_EPISODE = 240
+TAKE_OVER = 0.60   # operator presses the key once drift passes this
+IN_DIST = 0.20     # below this the state looks like the demos again
+RECOVER_STEP = 0.08
+CORRECT_FRAMES = (12, 30)
+
+DEMO_FEATURES = ["observation.state", "action", "timestamp", "frame_index", "episode_index", "index", "task_index"]
+HIL_FEATURES = DEMO_FEATURES + ["intervention"]
+
+
+def rollout(rng, ep):
+    rows, dev, f = [], 0.05, 0
+    while f < FRAMES_PER_EPISODE:
+        dev = max(0.0, dev + rng.gauss(0.006, 0.03))
+        if dev <= TAKE_OVER:
+            rows.append((ep, f, 0, dev))
+            f += 1
+            continue
+        # pause: robot holds, nothing is recorded; then the human drives
+        while dev > IN_DIST and f < FRAMES_PER_EPISODE:
+            dev = max(0.0, dev - RECOVER_STEP + rng.gauss(0, 0.01))
+            rows.append((ep, f, 1, dev))
+            f += 1
+        for _ in range(rng.randint(*CORRECT_FRAMES)):
+            if f >= FRAMES_PER_EPISODE:
+                break
+            dev = max(0.0, dev * 0.7 + rng.gauss(0, 0.01))
+            rows.append((ep, f, 1, dev))
+            f += 1
+    return rows
+
+
+def segments(rows):
+    segs, start = [], None
+    for i, r in enumerate(rows):
+        if r[2] and start is None:
+            start = i
+        if start is not None and (not r[2] or i == len(rows) - 1):
+            end = i if r[2] else i - 1
+            segs.append(rows[start:end + 1])
+            start = None
+    return segs
+
+
+def label(seg):
+    """RaC-style split: recovery until dev first drops to IN_DIST, then correction."""
+    rec = 0
+    for r in seg:
+        if r[3] > IN_DIST:
+            rec += 1
+        else:
+            break
+    return rec, len(seg) - rec
+
+
+def timeline(rows, step=4):
+    out = []
+    in_dist_seen = False
+    for r in rows[::step]:
+        if not r[2]:
+            out.append(".")
+            in_dist_seen = False
+        else:
+            if r[3] <= IN_DIST:
+                in_dist_seen = True
+            out.append("c" if in_dist_seen else "R")
+    return "".join(out)
+
+
+def merge(a_name, a_feats, b_name, b_feats):
+    extra_b = [f for f in b_feats if f not in a_feats]
+    extra_a = [f for f in a_feats if f not in b_feats]
+    if extra_a or extra_b:
+        raise ValueError(f"features differ: only in {b_name}: {extra_b}; only in {a_name}: {extra_a}")
+    return a_feats
+
+
+def main() -> None:
+    rng = random.Random(SEED)
+    data = [rollout(rng, ep) for ep in range(EPISODES)]
+    print(f"seed={SEED}  {EPISODES} episodes x {FRAMES_PER_EPISODE} frames @ {FPS} fps  "
+          f"take-over dev>{TAKE_OVER}  in-distribution dev<={IN_DIST}")
+    print("keys (lerobot-rollout --strategy.type=dagger, docs main): Space pause/resume policy, "
+          "Tab start/stop correction, Enter push to Hub (corrections-only), ESC stop")
+    print("timeline ep0 (every 4th frame; . policy, R recovery, c correction):")
+    print("  " + timeline(data[0]))
+
+    print(f"{'ep':>2} {'frames':>6} {'interv':>6} {'rate':>6} {'segs':>4} {'recov':>5} {'corr':>5} {'keep_rule2':>10}")
+    tot = tot_i = tot_s = tot_r = tot_c = tot_keep = 0
+    seg_lens = []
+    for ep, rows in enumerate(data):
+        segs = segments(rows)
+        n_i = sum(r[2] for r in rows)
+        rec = sum(label(s)[0] for s in segs)
+        cor = sum(label(s)[1] for s in segs)
+        keep = (rows.index(segs[0][-1]) + 1) if segs else len(rows)
+        seg_lens += [len(s) for s in segs]
+        print(f"{ep:>2} {len(rows):>6} {n_i:>6} {n_i / len(rows):>6.1%} {len(segs):>4} {rec:>5} {cor:>5} {keep:>10}")
+        tot, tot_i, tot_s, tot_r, tot_c, tot_keep = (tot + len(rows), tot_i + n_i, tot_s + len(segs),
+                                                     tot_r + rec, tot_c + cor, tot_keep + keep)
+    print(f"all {tot:>6} {tot_i:>6} {tot_i / tot:>6.1%} {tot_s:>4} {tot_r:>5} {tot_c:>5} {tot_keep:>10}")
+    mean_len = sum(seg_lens) / len(seg_lens)
+    print(f"segments: {tot_s}  mean length {mean_len:.1f} frames = {mean_len / FPS:.2f} s  "
+          f"shortest {min(seg_lens)}  longest {max(seg_lens)}")
+    print(f"recovery share of intervention frames: {tot_r / tot_i:.1%}")
+    print(f"corrections-only recording would save {tot_s} episodes with {tot_i} frames; "
+          f"full logging keeps {tot} frames incl. autonomous context")
+    print(f"RaC rule 2 (end after the first intervention) keeps {tot_keep} of {tot} frames")
+
+    try:
+        merge("demos", DEMO_FEATURES, "hil", HIL_FEATURES)
+    except ValueError as e:
+        print(f"merge demos + hil: ERROR {e}")
+    stripped = [f for f in HIL_FEATURES if f != "intervention"]
+    merge("demos", DEMO_FEATURES, "hil_stripped", stripped)
+    print(f"after remove_feature('intervention'): merge ok, {len(stripped)} features")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+seed=5  6 episodes x 240 frames @ 30 fps  take-over dev>0.6  in-distribution dev<=0.2
+keys (lerobot-rollout --strategy.type=dagger, docs main): Space pause/resume policy, Tab start/stop correction, Enter push to Hub (corrections-only), ESC stop
+timeline ep0 (every 4th frame; . policy, R recovery, c correction):
+  ................Rccccc..............RRccccccc.........Rccccc
+ep frames interv   rate segs recov  corr keep_rule2
+ 0    240     81  33.8%    3    14    67         87
+ 1    240     48  20.0%    2    10    38        108
+ 2    240     22   9.2%    1     5    17         64
+ 3    240     34  14.2%    1     5    29        144
+ 4    240     34  14.2%    1     5    29        179
+ 5    240     52  21.7%    2    10    42         76
+all   1440    271  18.8%   10    49   222        658
+segments: 10  mean length 27.1 frames = 0.90 s  shortest 18  longest 34
+recovery share of intervention frames: 18.1%
+corrections-only recording would save 10 episodes with 271 frames; full logging keeps 1440 frames incl. autonomous context
+RaC rule 2 (end after the first intervention) keeps 658 of 1440 frames
+merge demos + hil: ERROR features differ: only in hil: ['intervention']; only in demos: []
+after remove_feature('intervention'): merge ok, 7 features
+```
+
+</SimOutput>
+
+How to read it:
+
+- The <Term id="intervention-rate">intervention rate</Term> is **18.8 %** over all frames (271 of 1440), from **10** segments. Report it per episode as well: episode 0 needs the human a third of the time, episode 2 under a tenth. Over fine-tuning rounds this is the number that should fall.
+- Segments are short: mean **27.1** frames, about **0.90 s**. Short segments are normal; very long ones mean the policy was not given back control.
+- The <Term id="recovery-correction">recovery</Term> part is **18.1 %** of intervention frames; the rest is correction. If recovery dominates, the operator is taking over too late.
+- Corrections-only mode would save 10 episodes and 271 frames; full logging keeps all 1440 frames, including the autonomous context before each takeover. RaC's second rule (end the episode after the first intervention) would keep **658** frames.
+- The toy merge refuses with `only in hil: ['intervention']` and passes once the column is removed. That error text is the toy's own, not LeRobot's; the rule it mirrors (features must match) is from the docs.
+
+## The real workflow
+
+Not run on this page (本页未运行，以当期文档为准; needs a trained policy, the SO-101 pair and a Hugging Face account). The flags are taken from the LeRobot v0.6.0 release post and the HIL page; ports and names are examples:
+
+```bash
+$ lerobot-rollout --strategy.type=dagger \
+    --robot.type=so101_follower --robot.port=/dev/ttyACM0 \
+    --teleop.type=so101_leader --teleop.port=/dev/ttyACM1 \
+    --policy.path=outputs/pretrain/checkpoints/last/pretrained_model \
+    --dataset.repo_id=${HF_USER}/rollout_hil_dataset \
+    --dataset.single_task="Pick the cube" --dataset.fps=30 \
+    --strategy.num_episodes=50
+$ lerobot-edit-dataset \
+    --repo_id ${HF_USER}/rollout_hil_dataset_YYYYMMDD_HHMMSS \
+    --new_repo_id ${HF_USER}/hil_dataset_no_intervention \
+    --operation.type remove_feature \
+    --operation.feature_names "['intervention']"
+$ lerobot-edit-dataset \
+    --new_repo_id ${HF_USER}/demo_plus_hil \
+    --operation.type merge \
+    --operation.repo_ids "['${HF_USER}/demo-dataset', '${HF_USER}/hil_dataset_no_intervention']"
+```
+
+`lerobot-rollout` appends a timestamp to the dataset name, hence `_YYYYMMDD_HHMMSS`. Both datasets must also use the same robot, cameras and fps. Then fine-tune the policy on the merged dataset and repeat; for π0, π0.5 or SmolVLA the page adds `--inference.type=rtc` (10.2). Keep a copy **with** the `intervention` column: you need it to compute the rate, and 10.6 uses it.
+
+## Common mistakes
+
+- **Merging before removing `intervention`.** The merge needs matching features; strip the column on a copy, keep the original.
+- **Only logging corrections and then reporting a rate.** In corrections-only mode there are no autonomous frames, so the rate is undefined; use `record_autonomous=true` when you want the metric.
+- **Taking over late.** Long recovery segments teach recovery from far-off states and little about the task; take over when failure is imminent.
+- **Jerky handovers.** Use an actuated leader that follows the follower while paused; jumps end up in the training data.
+
+<Summary>
+
+DAgger labels what the learner visits; HG-DAgger lets a human decide when to take over; RaC splits each takeover into recovery and correction. LeRobot v0.6.x records this with `lerobot-rollout --strategy.type=dagger` (Space pause, Tab correction), tags human frames in an `intervention` column, and needs `remove_feature` before `merge`. In the toy the intervention rate is 18.8 % over 10 segments of 27.1 frames (0.90 s) on average, recovery is 18.1 % of intervention frames, and the merge fails on `only in hil: ['intervention']` until the column is removed.
+
+</Summary>

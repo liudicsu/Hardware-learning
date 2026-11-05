@@ -1,0 +1,13 @@
+seed=11  views=8  view noise 0.3 deg / 1.0 mm  stored-cal error 0.2 deg / 2.0 mm
+OpenCV 4.x calib3d.hpp: calibrateRobotWorldHandEye, method SHAH=0 (default) or LI=1, needs >= 3 poses
+AX=ZB camera-on-gripper (A=cam<-world, X=world<-base): max |AX-ZB| < 1e-12: True
+AX=ZB static camera, board on gripper (A=board<-cam, X=cam<-base): max |AX-ZB| < 1e-12: True
+stored base->cam1 error: 0.10 deg 3.4 mm
+stored base->cam2 error: 0.14 deg 3.6 mm
+cam1->cam2 from 1 view : 0.20 deg 2.0 mm off truth
+cam1->cam2 mean of 8: 0.07 deg 0.7 mm off truth (worst view 0.99 deg from mean)
+closure: T_base_cam1 * T_cam1_cam2 vs T_base_cam2; alarm if > 1.0 deg or > 10 mm
+case        rot_deg trans_mm shift@0.5m_mm  check
+as-built       0.04      4.4           0.4  ok
+bump 2deg      1.86      4.7          16.3  ALARM
+fix after an alarm: re-run the board views and the base->cam calibration; do not patch one number.

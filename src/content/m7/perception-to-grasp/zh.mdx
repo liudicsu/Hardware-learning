@@ -20,7 +20,7 @@
 OpenCV `calib3d` 文档中的 `calibrateHandEye(R_gripper2base, t_gripper2base, R_target2cam, t_target2cam, R_cam2gripper, t_cam2gripper, method=CALIB_HAND_EYE_PARK)`（本批从 `opencv/opencv` 的 `calib3d.hpp` 重读签名；HTML 镜像此前曾返回 403）。
 
 - **眼在手上。** 相机固定在夹爪上。求解返回 cam2gripper（夹爪←相机）。相对运动满足 `A_i X = X B_i`，`A` 来自夹爪↔基座，`B` 来自标定板↔相机。
-- **眼在手外。** 相机固定、标定板在末端。同一 API；把夹爪↔基座位姿**取逆**再喂入，使估计的 X 变成基座↔相机。
+- **眼在手外。** 相机固定、标定板在末端。同一 API；把夹爪↔基座位姿**取逆**再喂入，使估计的 X 变成基座↔相机。两台及以上静态相机、机器人–世界手眼（`AX = ZB`）与外参链闭合检查见 [10.4 多相机外参](/zh/month/month-10/multi-view-extrinsics)。
 
 文档要求至少 **2 次旋转轴不平行的运动**，因此至少 **3 个姿态**；强烈建议更多。与 Tsai89 并列的方法包括 Park94、Horaud95（可分）以及 Andreff99 / Daniilidis98（联立）。
 
