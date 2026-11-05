@@ -1,0 +1,277 @@
+This lesson is a site supplement — Months 7–10 are not part of the original six-month course.
+
+**Scope.** This lesson works the maths of int8 quantisation and a latency budget on a CPU, then gives a deployment checklist to read. Overlap with nearby lessons: [8.3 async deployment](/en/month/month-8/async-deployment) owns the PolicyServer / RobotClient loop, [10.2](/en/month/month-10/real-time-chunking) owns seam smoothing (here we only compute its d), [7.6 perception to grasp](/en/month/month-7/perception-to-grasp) owns the camera pipeline itself, and the DAgger part of [6.1 behaviour cloning](/en/month/month-6/behaviour-cloning) owns corrections. No new hardware is needed: every GPU, TensorRT and Jetson step below is reading only and was not run on this page (本页未运行). It does not replace the 8.7 capstone.
+
+## Train and deploy are different jobs
+
+The LeRobot compute guide is blunt: on CPU only, don't train; use Colab or rent a GPU. Its peak-VRAM envelopes at batch size 8 make the point:
+
+| Policy group | Training VRAM (batch 8) |
+| --- | --- |
+| light behaviour cloning (e.g. ACT) | about 2–6 GB |
+| diffusion | about 8–14 GB |
+| SmolVLA | about 10–16 GB |
+| π0 / π0.5 | about 24–40 GB |
+
+Deployment runs one observation at a time and needs far less, but it has its own limits: memory, power, heat and, above all, latency. [8.2](/en/month/month-8/vla-finetune) has a bytes-per-parameter table; this lesson asks how small and how fast a policy can get on the device that will actually run it. In LeRobot, `--policy.device` picks cpu / cuda / mps / xpu, and `--accelerator.mixed_precision` takes no, bf16 or fp16 (fp16 is rejected on CPU). Follow the LeRobot v0.6.x docs; options may change between versions.
+
+<Resource id="lerobot-hardware-guide" />
+<Resource id="lerobot-torch-accelerators" />
+
+## int8 by hand
+
+<Term id="quantization">Quantisation</Term> stores a float as a small integer q plus two numbers shared by many values. The ONNX Runtime docs use:
+
+- `val_fp32 = scale × (val_q − zero_point)`
+- asymmetric: `scale = (max − min) / (qmax − qmin)`
+- symmetric: `scale = max(|max|, |min|) × 2 / (qmax − qmin)`, zero_point = 0
+
+The range is widened if needed so that **0 is exactly representable**: zero padding and ReLU outputs are everywhere, and an offset on 0 would bias every layer. A single scale for a whole tensor is *per-tensor*; one scale per output channel is *per-channel*.
+
+`int8_quant_toy.py` quantises a fixed 4 × 16 weight matrix three ways, then repeats with one outlier (4.0) placed in channel 1. `ch0_max_err` is the worst error in channel 0, which contains no outlier.
+
+```bash
+$ cd ~/Hardware-learning/examples/month-10/edge-deploy-checklist
+$ python3 int8_quant_toy.py
+```
+
+<CodeSource path="examples/month-10/edge-deploy-checklist/int8_quant_toy.py" />
+
+```python
+"""int8_quant_toy.py: 8-bit linear quantisation by hand (stdlib).
+
+Formulas follow the ONNX Runtime quantisation docs:
+    val_fp32 = scale * (val_quantized - zero_point)
+    asymmetric: scale = (max - min) / (qmax - qmin)
+    symmetric:  scale = max(|max|, |min|) * 2 / (qmax - qmin)
+
+Symmetric int8 here uses the range -127..127 (zero_point = 0); asymmetric
+uint8 uses 0..255. The range is widened to include 0 so that 0.0 is exactly
+representable. A 4 x 16 weight matrix (4 output channels) is quantised
+per-tensor (one scale) and per-channel (one scale per row). One outlier in
+channel 1 shows why a single large value hurts every weight that shares its
+scale.
+"""
+
+import random
+
+SEED = 3
+ROWS, COLS = 4, 16
+
+
+def weights(with_outlier: bool) -> list[list[float]]:
+    rng = random.Random(SEED)
+    w = [[round(rng.uniform(-0.5, 0.5), 4) for _ in range(COLS)] for _ in range(ROWS)]
+    if with_outlier:
+        w[1][5] = 4.0
+    return w
+
+
+def sym_params(xs: list[float]) -> tuple[float, int, int, int]:
+    qmin, qmax = -127, 127
+    scale = max(abs(max(xs)), abs(min(xs))) * 2 / (qmax - qmin)
+    return scale, 0, qmin, qmax
+
+
+def asym_params(xs: list[float]) -> tuple[float, int, int, int]:
+    qmin, qmax = 0, 255
+    lo, hi = min(min(xs), 0.0), max(max(xs), 0.0)
+    scale = (hi - lo) / (qmax - qmin)
+    zp = max(qmin, min(qmax, round(qmin - lo / scale)))
+    return scale, zp, qmin, qmax
+
+
+def roundtrip(xs: list[float], params: tuple[float, int, int, int]) -> list[float]:
+    scale, zp, qmin, qmax = params
+    q = [max(qmin, min(qmax, round(x / scale) + zp)) for x in xs]
+    return [scale * (v - zp) for v in q]
+
+
+def run(w: list[list[float]], scheme: str) -> tuple[float, float, float, bool]:
+    flat = [x for row in w for x in row]
+    back: list[float] = []
+    scales: list[float] = []
+    if scheme == "per-channel":
+        for row in w:
+            p = sym_params(row)
+            scales.append(p[0])
+            back += roundtrip(row, p)
+    else:
+        p = sym_params(flat) if scheme == "sym tensor" else asym_params(flat)
+        scales = [p[0]] * ROWS
+        back = roundtrip(flat, p)
+    errs = [abs(a - b) for a, b in zip(flat, back)]
+    ch0 = errs[:COLS]
+    bound = all(
+        e <= scales[i // COLS] / 2 + 1e-12 for i, e in enumerate(errs)
+    )
+    mse = sum(e * e for e in errs) / len(errs)
+    return scales[0], max(ch0), mse, bound
+
+
+def main() -> None:
+    print(f"{ROWS}x{COLS} weights, seed={SEED}, uniform(-0.5, 0.5); outlier case sets w[1][5]=4.0")
+    print(f"{'case':<8} {'scheme':<12} {'scale_ch0':>9} {'ch0_max_err':>11} {'mse':>10} {'<=scale/2':>9}")
+    for case, flag in (("plain", False), ("outlier", True)):
+        w = weights(flag)
+        for scheme in ("sym tensor", "asym tensor", "per-channel"):
+            s0, e0, mse, bound = run(w, scheme)
+            print(f"{case:<8} {scheme:<12} {s0:>9.5f} {e0:>11.5f} {mse:>10.2e} {str(bound):>9}")
+    params = 100_000_000
+    print(f"weight bytes for {params // 1_000_000}M params (weights only, no activations):")
+    for name, nbytes in (("fp32", 4), ("bf16", 2), ("int8", 1)):
+        print(f"  {name:<5} {params * nbytes / 1e6:>6.0f} MB")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+4x16 weights, seed=3, uniform(-0.5, 0.5); outlier case sets w[1][5]=4.0
+case     scheme       scale_ch0 ch0_max_err        mse <=scale/2
+plain    sym tensor     0.00390     0.00190   1.06e-06      True
+plain    asym tensor    0.00385     0.00182   1.42e-06      True
+plain    per-channel    0.00390     0.00190   1.06e-06      True
+outlier  sym tensor     0.03150     0.01436   8.17e-05      True
+outlier  asym tensor    0.01760     0.00859   2.56e-05      True
+outlier  per-channel    0.00390     0.00190   1.74e-05      True
+weight bytes for 100M params (weights only, no activations):
+  fp32     400 MB
+  bf16     200 MB
+  int8     100 MB
+```
+
+</SimOutput>
+
+How to read it:
+
+- Without the outlier all three schemes give a scale near **0.00390** and errors well under one scale step.
+- With the outlier, the per-tensor symmetric scale grows to **0.03150** and channel 0's worst error to **0.01436**, even though channel 0 never changed. Per-channel keeps channel 0's scale at **0.00390** and its error at **0.00190**.
+- `<=scale/2` is True everywhere: rounding error is at most half a step, so the scale *is* the error budget.
+- int8 weights take a quarter of fp32: **400 MB** vs **100 MB** for 100M parameters (weights only).
+
+## Smaller is not always faster
+
+The ONNX Runtime docs list three ways to quantise: dynamic (activation ranges computed at run time, recommended for RNNs and transformers), static (ranges calibrated on sample data, recommended for CNNs) and quantisation-aware training if neither keeps accuracy. A speed-up also needs hardware with fast int8 paths, such as x86 VNNI, NVIDIA Tensor Core int8 or Arm dot-product instructions; on older hardware a quantised model can be slower than fp32. Sketch only, not run on this page (本页未运行):
+
+```python
+from onnxruntime.quantization import quantize_dynamic, QuantType
+quantize_dynamic("model.onnx", "model.int8.onnx", weight_type=QuantType.QInt8)
+```
+
+<Resource id="onnxruntime-quantization" />
+
+## A latency budget
+
+A <Term id="latency-budget">latency budget</Term> adds up every stage between "the camera saw it" and "the action is ready", then converts the sum into control steps: that is d in 10.2. `latency_budget.py` uses published component times only: π0 on an RTX 4090 (14 ms image encoders, 32 ms observation forward, 27 ms for 10 action steps; **73 ms** on board, **86 ms** with 13 ms of network when off board) and the RTC paper's π0.5 breakdown (97.43 ms model, 6.89 ms network, 1.44 ms resize, 3.00 ms other). Each scenario is repeated with up to 33.3 ms of camera frame age at 30 fps.
+
+```bash
+$ python3 latency_budget.py
+```
+
+<CodeSource path="examples/month-10/edge-deploy-checklist/latency_budget.py" />
+
+```python
+"""latency_budget.py: end-to-end latency -> inference delay d (stdlib).
+
+d = floor(delta / dt) as defined in the RTC paper (arXiv 2506.07339), where
+delta is the time from observation to a usable action chunk and dt is the
+control period. We also print ceil(delta / dt) as a conservative choice for
+LeRobot's inference_delay. Component numbers are copied from published
+tables (RTX 4090, not measured on this site); the camera row is the worst-case
+age of a frame at 30 fps.
+"""
+
+import math
+
+H, S_MIN = 50, 25  # pi0 / pi0.5 horizon and the paper's minimum execution horizon
+CAMERA_30FPS = 1000.0 / 30.0
+
+SCENARIOS = (
+    ("pi0 on-board", (("image encoders", 14.0), ("observation fwd", 32.0), ("10x action fwd", 27.0))),
+    ("pi0 off-board", (("on-board total", 73.0), ("network", 13.0))),
+    ("pi0.5+RTC LAN", (("model", 97.43), ("network", 6.89), ("image resize", 1.44), ("other", 3.00))),
+    ("pi0.5+RTC +100ms", (("measured total", 108.76), ("injected", 100.0))),
+)
+
+
+def main() -> None:
+    print(f"H={H}  s_min={S_MIN}  constraint d <= H - s  ->  d <= {H - S_MIN}")
+    print(f"camera frame age at 30 fps: up to {CAMERA_30FPS:.1f} ms (added in the +cam rows)")
+    print(f"{'scenario':<22} {'delta_ms':>8} {'d@50Hz':>7} {'ceil':>5} {'d@30Hz':>7} {'ceil':>5} {'fits':>5}")
+    for name, parts in SCENARIOS:
+        base = sum(ms for _, ms in parts)
+        for label, delta in ((name, base), (name + " +cam", base + CAMERA_30FPS)):
+            d50 = math.floor(delta / 20.0)
+            d30 = math.floor(delta / CAMERA_30FPS)
+            c50 = math.ceil(delta / 20.0)
+            c30 = math.ceil(delta / CAMERA_30FPS)
+            fits = c50 <= H - S_MIN
+            print(f"{label:<22} {delta:>8.1f} {d50:>7} {c50:>5} {d30:>7} {c30:>5} {str(fits):>5}")
+    print("sync inference would idle about d control steps per chunk; async/RTC hides them.")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+H=50  s_min=25  constraint d <= H - s  ->  d <= 25
+camera frame age at 30 fps: up to 33.3 ms (added in the +cam rows)
+scenario               delta_ms  d@50Hz  ceil  d@30Hz  ceil  fits
+pi0 on-board               73.0       3     4       2     3  True
+pi0 on-board +cam         106.3       5     6       3     4  True
+pi0 off-board              86.0       4     5       2     3  True
+pi0 off-board +cam        119.3       5     6       3     4  True
+pi0.5+RTC LAN             108.8       5     6       3     4  True
+pi0.5+RTC LAN +cam        142.1       7     8       4     5  True
+pi0.5+RTC +100ms          208.8      10    11       6     7  True
+pi0.5+RTC +100ms +cam     242.1      12    13       7     8  True
+sync inference would idle about d control steps per chunk; async/RTC hides them.
+```
+
+</SimOutput>
+
+How to read it:
+
+- The RTC paper defines d = floor(δ / Δt). Its real-robot runs report d≈6 on the LAN and about 11 and 16 with +100 / +200 ms injected; those match the `ceil` column (**108.8 ms → 6**, **208.8 ms → 11**). When you set `inference_delay`, round up.
+- The camera adds whole control steps: π0 on board goes from d=**3** to **5** at 50 Hz.
+- Every row satisfies d ≤ H − s = 25, so a 50-step chunk still has room. Synchronous inference would idle about d steps per chunk; async (8.3) and RTC (10.2) hide them.
+- These are published GPU numbers, not your robot. Measure your own end-to-end latency on the SO-101 before trusting a d; this page has no measured SO-101 figure.
+
+## Edge checklist
+
+Read-only; none of it was run on this page (本页未运行). Tick what your device meets and mark the rest as unknown.
+
+- **Memory**: model weights plus activations fit with headroom; the GR00T README asks for a GPU with 16 GB or more for inference.
+- **Power and clocks**: fixed power mode and clocks before timing (on Jetson, a MAXN mode and `jetson_clocks`); otherwise numbers drift.
+- **Heat**: time a long run, not one call; throttling shows up after minutes.
+- **Batch 1**: deployment latency is batch 1; throughput figures at large batch do not apply.
+- **Export path**: PyTorch → ONNX → TensorRT (or ONNX Runtime), checking outputs against the original at each step.
+- **Precision**: bf16/fp16 first, int8 only with calibration data and an accuracy check.
+- **Budget**: a filled latency table with measured values, and the d you will pass as `inference_delay`.
+
+For scale, the Isaac-GR00T README reports GR00T N1.7 at about **40 Hz** on an RTX PRO 6000 Blackwell Server Edition and about **28 Hz** on a Jetson AGX Thor with TensorRT (batch 1, LIBERO, MAXN with `jetson_clocks`). Those are the project's numbers, not measured here; no purchase is required for this lesson.
+
+<Resource id="isaac-groot" />
+<Resource id="lerobot-groot" />
+<Resource id="pi0-paper" />
+
+## Common mistakes
+
+- **Training on the deployment device.** Train on a GPU (or rent one); deploy on the edge device.
+- **Quantising per-tensor with outliers present.** One large weight inflates every other weight's error; use per-channel.
+- **Assuming int8 is faster.** Without VNNI, Tensor Core int8 or Arm dot-product support it can be slower.
+- **Budgeting model time only.** Camera age, pre-processing and network add whole control steps.
+- **Timing with dynamic clocks.** Fix power mode and clocks first, then measure over minutes.
+
+<Summary>
+
+Train on a GPU, deploy on the device. int8 uses `val = scale × (q − zero_point)` with 0 exactly representable; an outlier pushes the per-tensor scale from 0.00390 to 0.03150, while per-channel keeps 0.00390. Quantisation speeds things up only on hardware with int8 paths. A latency budget turns 73 ms (π0 on board) or 108.8 ms (π0.5 with RTC) into d at a control rate; round up for `inference_delay`. GPU, TensorRT and Jetson steps are reading only.
+
+</Summary>

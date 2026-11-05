@@ -1,0 +1,184 @@
+本课是本站补充内容——第 7–10 个月不属于原六个月课程。
+
+**范围。** 本课讲流匹配动作头如何把噪声变成一个动作块。不重训 π0 或 SmolVLA（微调仍在 8.2），也不替代 8.7 毕业项目。与相邻课程的分工：[8.3 异步部署](/zh/month/month-8/async-deployment) 负责 PolicyServer / RobotClient 循环（本课只指出积分步数会占推理延迟），[7.6 感知到抓取](/zh/month/month-7/perception-to-grasp) 负责相机到抓取的链路，[6.1 行为克隆](/zh/month/month-6/behaviour-cloning) 里的 DAgger 负责收集纠正数据。玩具只用 CPU 和 Python 标准库：不用网络、不训练、不下载权重。
+
+## 输出动作的三种方式
+
+[6.2](/zh/month/month-6/act-diffusion) 讲过示范数据的核心难题：专家有时从障碍物左边绕、有时从右边绕，用均方误差训练的策略会输出两者的**平均**，正好撞上障碍物。
+
+| 动作头 | 网络学什么 | 动作怎么出来 | 推理代价 |
+| --- | --- | --- | --- |
+| MSE 回归 | 每个观测对应一个动作 | 一次前向 | 最低；会把模式平均掉 |
+| 扩散（6.2） | 每一步加进去的噪声 | 多步去噪 | 多次前向 |
+| <Term id="flow-matching">流匹配</Term> | <Term id="velocity-field">速度场</Term> v(x, τ) | 从噪声沿速度场积分 | 几步到几十步 |
+
+流匹配（Lipman 等，arXiv **2210.02747**）训练连续归一化流时不需要模拟整条流：网络沿一条从噪声到数据的固定路径回归目标速度。因为路径是直线，少量积分步就能得到不错的样本。
+
+<Resource id="flow-matching-paper" />
+
+## π0 的约定
+
+π0（arXiv **2410.24164**）在 PaliGemma 3B 视觉语言模型上接一个 3 亿参数的动作专家（合计约 3.3B 参数），一次预测 **H=50** 个动作。按论文记号，它的流匹配约定是：
+
+- 路径：`A^τ = τ·A + (1−τ)·ε`，其中 `ε ~ N(0, I)`，τ 从 0（纯噪声）到 1（动作块）。
+- 目标速度：`u = A − ε`。网络学 `v_θ(A^τ, o) ≈ u`。
+- 训练时 τ 从一个偏向噪声较大（τ 较小）时刻的 Beta 分布中采样，截断值 s = 0.999。
+- 推理：从噪声出发做前向欧拉，`A^{τ+δ} = A^τ + δ·v_θ`，共 **10** 步（`δ = 0.1`）。
+
+这 10 步每一步都要再跑一次动作专家。论文在 RTX 4090 上报告：10 步动作流 **27 ms**，板上合计 **73 ms**（图像编码器 14 ms、观测前向 32 ms）。步数是推理延迟的一部分；这段延迟对动作块接缝的影响由 [10.2](/zh/month/month-10/real-time-chunking) 处理。以上是论文公布的数字，本页未运行。
+
+<Resource id="pi0-paper" />
+<Resource id="lerobot-pi05" />
+<Resource id="smolvla-paper" />
+
+SmolVLA（arXiv 2506.01844）同样用流匹配动作专家；作者在单块 GPU 上训练它，并可部署到消费级 GPU 甚至 CPU。
+
+## 跑闭式玩具
+
+`flow_match_toy.py` 用一维双模态目标：±1，标准差 0.1（可以想成「从障碍物左边走」和「从右边走」）。高斯混合的边缘速度场有闭式解，所以这里**没有网络**：直接用 1、2、3、5、10、50 个欧拉步积分精确速度场，统计 2000 个样本里有多少落在某个模式附近（离 ±1 不到 0.3），有多少落在无效的均值 0 附近。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-10/flow-matching-policies
+$ python3 flow_match_toy.py
+```
+
+<CodeSource path="examples/month-10/flow-matching-policies/flow_match_toy.py" />
+
+```python
+"""flow_match_toy.py: 1-D flow matching with a closed-form velocity (stdlib).
+
+Target: a bimodal mixture 0.5*N(-1, 0.1^2) + 0.5*N(+1, 0.1^2) — think of it as
+"go left of the obstacle" vs "go right". Path (pi0 convention):
+
+    x_tau = tau * x1 + (1 - tau) * eps,   eps ~ N(0, 1),   tau in [0, 1]
+    target velocity u = x1 - eps
+
+Because the target is a Gaussian mixture, the *marginal* velocity
+E[x1 - eps | x_tau = x] has a closed form, so no network is trained here.
+We integrate it with forward Euler from tau=0 (noise) to tau=1 and count how
+many samples land near a mode vs near the (invalid) mean 0.
+
+This is a toy: a real policy learns v_theta(A_tau, obs) with a network.
+"""
+
+import math
+import random
+
+SEED = 7
+N = 2000
+MODES = (-1.0, 1.0)
+SIGMA = 0.1
+STEPS = (1, 2, 3, 5, 10, 50)
+NEAR = 0.3  # "near" radius for both mode and mean
+
+
+def gauss(rng: random.Random) -> float:
+    """Box-Muller from rng.random() so the stream is stable across versions."""
+    u1 = rng.random()
+    u2 = rng.random()
+    return math.sqrt(-2.0 * math.log(1.0 - u1)) * math.cos(2.0 * math.pi * u2)
+
+
+def velocity(x: float, tau: float) -> float:
+    """Closed-form marginal velocity E[x1 - eps | x_tau = x] for the mixture."""
+    var = tau * tau * SIGMA * SIGMA + (1.0 - tau) ** 2
+    cov = tau * SIGMA * SIGMA - (1.0 - tau)  # Cov(x1 - eps, x_tau | mode)
+    logw = [-(x - tau * m) ** 2 / (2.0 * var) for m in MODES]
+    top = max(logw)
+    w = [math.exp(v - top) for v in logw]
+    z = sum(w)
+    return sum(
+        (wk / z) * (m + cov / var * (x - tau * m)) for wk, m in zip(w, MODES)
+    )
+
+
+def sample(x0: float, steps: int) -> float:
+    x = x0
+    dt = 1.0 / steps
+    for k in range(steps):
+        x = x + dt * velocity(x, k * dt)
+    return x
+
+
+def main() -> None:
+    rng = random.Random(SEED)
+    noise = [gauss(rng) for _ in range(N)]
+    print(f"target: 0.5*N(-1,{SIGMA}^2) + 0.5*N(+1,{SIGMA}^2)  samples={N}  seed={SEED}")
+    print(f"v(x=0.50, tau=0.0) = {velocity(0.5, 0.0):+.3f}   (= mean(x1) - x)")
+    print(f"v(x=0.50, tau=0.9) = {velocity(0.5, 0.9):+.3f}   (points to the +1 mode)")
+    print(f"{'steps':>5} {'near_mode':>9} {'near_mean':>9} {'mean_abs':>8}")
+    for steps in STEPS:
+        xs = [sample(x0, steps) for x0 in noise]
+        near_mode = sum(1 for x in xs if abs(abs(x) - 1.0) < NEAR) / N
+        near_mean = sum(1 for x in xs if abs(x) < NEAR) / N
+        mean_abs = sum(abs(x) for x in xs) / N
+        print(f"{steps:>5} {near_mode:>9.3f} {near_mean:>9.3f} {mean_abs:>8.3f}")
+    print("1 Euler step lands every sample on the mean (an action between the modes);")
+    print("more steps recover both modes. pi0 uses 10 steps (delta = 0.1).")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+target: 0.5*N(-1,0.1^2) + 0.5*N(+1,0.1^2)  samples=2000  seed=7
+v(x=0.50, tau=0.0) = -0.500   (= mean(x1) - x)
+v(x=0.50, tau=0.9) = +3.011   (points to the +1 mode)
+steps near_mode near_mean mean_abs
+    1     0.000     1.000    0.000
+    2     0.374     0.253    0.546
+    3     0.780     0.086    0.825
+    5     0.965     0.017    0.951
+   10     0.987     0.002    0.975
+   50     0.996     0.000    0.991
+1 Euler step lands every sample on the mean (an action between the modes);
+more steps recover both modes. pi0 uses 10 steps (delta = 0.1).
+```
+
+</SimOutput>
+
+怎么读：
+
+- τ=0 时速度场是 `mean(x1) − x`：噪声还没「看到」任何模式，所有样本都被拉向平均值 0。只走 **1** 步时整条轨迹就是这一步：near_mean = **1.000**，和 MSE 的失败一模一样。
+- 路径后段（τ=0.9）在 x=0.5 处速度为 **+3.011**，强烈指向 +1 模式。步数越多，样本越有时间选定一边：3 步 near_mode 升到 **0.780**，10 步 **0.987**，50 步 **0.996**。
+- 10 步已拿到大部分质量；从 10 步加到 50 步收益很小，却要多跑 5 倍动作专家。这就是 π0 选 10 步的原因。
+
+这是玩具：真实策略要用网络从数据里学 `v_θ`，并以观测为条件。
+
+## 更少的步数：rectified flow 与一致性
+
+每一步都占延迟，所以有几条工作线追求更少步数。Rectified flow（arXiv 2209.03003）把学到的路径「拉直」，让粗的欧拉步也不跑偏。Consistency Policy（arXiv 2405.07503）把扩散策略蒸馏成一两步即可；其摘要称推理比所比较的最快替代方法快一个数量级。本课只讲动机，不推导也不运行。
+
+<Resource id="rectified-flow-paper" />
+<Resource id="consistency-policy-paper" />
+<Resource id="diffusion-policy" />
+
+## absolute、relative 与 delta 动作
+
+动作块里*装的是什么*，和怎么采样同样重要。LeRobot 的动作表示页区分三种：
+
+| 表示 | 每个动作是 | 说明 |
+| --- | --- | --- |
+| absolute | 目标关节（或末端）位置 | LeRobot 默认 |
+| relative | 目标减去块开始时的当前状态 | OpenPI / π0 使用；误差不会跨块累积 |
+| delta | 相对上一个动作的变化量 | 误差沿块累积；UMI 主张不用 |
+
+relative 动作与 RTC（10.2）兼容。`--policy.use_relative_actions=true` 等参数以 LeRobot v0.6.x 文档为准，命令可能随版本变化。本页未运行。
+
+<Resource id="lerobot-action-representations" />
+
+## 常见错误
+
+- **为省时间只用 1、2 步却不检查样本。** 玩具显示 1 步会塌到均值，和 MSE 同样失败。
+- **默认认为流匹配「比扩散快」。** 路径直，得到好样本所需步数少；但每一步仍是一次完整的动作专家前向。
+- **混用动作表示。** 用 relative 动作训练、却当 absolute 目标执行，机械臂会去错地方。
+- **把 73 ms 当成你机器人的延迟。** 那是论文在 RTX 4090 上的数字，本页没有实测。
+
+<Summary>
+
+流匹配学一个速度场，把噪声积分成动作块。π0 用 `A^τ = τA + (1−τ)ε`、`u = A − ε`、H=50 和 10 个欧拉步（δ=0.1）；在 RTX 4090 上 10 步占板上 73 ms 中的 27 ms。`flow_match_toy.py` 里 1 步 near_mean 为 1.000，10 步 near_mode 为 0.987。因为步数占延迟，才有 rectified flow、一致性等少步方法。absolute、relative、delta 动作要有意识地选。
+
+</Summary>

@@ -1,0 +1,12 @@
+4x16 weights, seed=3, uniform(-0.5, 0.5); outlier case sets w[1][5]=4.0
+case     scheme       scale_ch0 ch0_max_err        mse <=scale/2
+plain    sym tensor     0.00390     0.00190   1.06e-06      True
+plain    asym tensor    0.00385     0.00182   1.42e-06      True
+plain    per-channel    0.00390     0.00190   1.06e-06      True
+outlier  sym tensor     0.03150     0.01436   8.17e-05      True
+outlier  asym tensor    0.01760     0.00859   2.56e-05      True
+outlier  per-channel    0.00390     0.00190   1.74e-05      True
+weight bytes for 100M params (weights only, no activations):
+  fp32     400 MB
+  bf16     200 MB
+  int8     100 MB

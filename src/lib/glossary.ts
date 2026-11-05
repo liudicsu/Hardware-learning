@@ -2023,6 +2023,66 @@ export const glossary: GlossaryEntry[] = [
     lesson: "world-models-overview",
     firstExplained: true,
   },
+  {
+    id: "flow-matching",
+    term: { zh: "流匹配（flow matching）", en: "flow matching" },
+    def: {
+      zh: "训练一个速度场 v(x, τ)，使从噪声出发沿它积分（τ 从 0 到 1）就落到数据分布上；π0 用它生成动作块。",
+      en: "Training a velocity field v(x, τ) so that integrating it from noise (τ from 0 to 1) lands on the data distribution; π0 uses it to generate action chunks.",
+    },
+    lesson: "flow-matching-policies",
+    firstExplained: true,
+  },
+  {
+    id: "velocity-field",
+    term: { zh: "速度场", en: "velocity field" },
+    def: {
+      zh: "给每个位置 x 和时间 τ 一个「该往哪走、走多快」的向量；流匹配的网络输出的就是它。",
+      en: "A vector at every position x and time τ saying which way and how fast to move; it is what a flow-matching network outputs.",
+    },
+    lesson: "flow-matching-policies",
+    firstExplained: true,
+  },
+  {
+    id: "real-time-chunking",
+    term: { zh: "实时动作块（RTC）", en: "real-time chunking (RTC)" },
+    def: {
+      zh: "推理期方法：生成新动作块时冻结推理期间已执行的 d 步，并用软掩码引导重叠区靠近旧块，使块间接缝平滑；无需重训。",
+      en: "An inference-time method: while generating a new chunk, freeze the d steps executed during inference and guide the overlap towards the old chunk with a soft mask, so seams stay smooth; no retraining.",
+    },
+    lesson: "real-time-chunking",
+    firstExplained: true,
+  },
+  {
+    id: "soft-mask",
+    term: { zh: "软掩码", en: "soft mask" },
+    def: {
+      zh: "0 到 1 之间逐步变化的权重表：越靠前越信旧块（冻结段为 1），越靠后越信新块（末段为 0）。",
+      en: "A weight table that falls from 1 to 0: early steps trust the old chunk (1 in the frozen part), late steps trust the new chunk (0 at the end).",
+    },
+    lesson: "real-time-chunking",
+    firstExplained: true,
+  },
+  {
+    id: "quantization",
+    term: { zh: "量化", en: "quantisation" },
+    def: {
+      zh: "用低位整数（如 int8）加一个 scale 和 zero_point 近似表示浮点数：val ≈ scale × (q − zero_point)，换来更小的模型与（在支持的硬件上）更快的计算。",
+      en: "Approximating floats with low-bit integers (e.g. int8) plus a scale and zero_point: val ≈ scale × (q − zero_point), for smaller models and, on supporting hardware, faster maths.",
+    },
+    lesson: "edge-deploy-checklist",
+    firstExplained: true,
+  },
+  {
+    id: "latency-budget",
+    term: { zh: "延迟预算", en: "latency budget" },
+    def: {
+      zh: "把一次「拍照 → 推理 → 动作生效」拆成各段耗时并求和，再换算成控制周期数，看是否放得进动作块。",
+      en: "Splitting one camera → inference → actuation pass into timed parts, summing them and converting to control steps to see whether it fits the action chunk.",
+    },
+    lesson: "edge-deploy-checklist",
+    firstExplained: true,
+  },
 
 ]
 

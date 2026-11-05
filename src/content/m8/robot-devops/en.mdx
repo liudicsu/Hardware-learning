@@ -1,4 +1,4 @@
-This lesson is a site supplement — Months 7–9 are not part of the original six-month course.
+This lesson is a site supplement — Months 7–10 are not part of the original six-month course.
 
 A policy repo that only works on one laptop is not finished. This lesson pins a ROS 2 toolchain with a <Term id="dev-container">Dev Container</Term>, runs <Term id="ci">CI</Term> with `action-ros-ci`, records bags whose default storage on Jazzy is <Term id="mcap">MCAP</Term>, and points at Foxglove / Rerun for replay and wandb for train runs. The CI templates are for **your** package repo — they do not run inside this site's CI. When lesson 8.4's hardware-component package lives in **your** repo, put the Dev Container and `action-ros-ci` workflow next to that package so every push builds the plugin. A CPU toy reads a synthetic MCAP *timeline* (JSON stamps, no libmcap) so `expected/` stays reproducible.
 

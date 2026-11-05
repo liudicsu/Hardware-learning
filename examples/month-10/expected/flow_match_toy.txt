@@ -1,0 +1,12 @@
+target: 0.5*N(-1,0.1^2) + 0.5*N(+1,0.1^2)  samples=2000  seed=7
+v(x=0.50, tau=0.0) = -0.500   (= mean(x1) - x)
+v(x=0.50, tau=0.9) = +3.011   (points to the +1 mode)
+steps near_mode near_mean mean_abs
+    1     0.000     1.000    0.000
+    2     0.374     0.253    0.546
+    3     0.780     0.086    0.825
+    5     0.965     0.017    0.951
+   10     0.987     0.002    0.975
+   50     0.996     0.000    0.991
+1 Euler step lands every sample on the mean (an action between the modes);
+more steps recover both modes. pi0 uses 10 steps (delta = 0.1).

@@ -11,7 +11,11 @@ external resources are shown as cards with a link, and their copyright stays wit
 
 ## What the site contains / 网站内容
 
-Six months, 34 lessons, all in Chinese (default, `/zh`) and English (`/en`):
+Ten months, 60 lessons (about 12 390 minutes of study time), all in Chinese (default, `/zh`) and English (`/en`).
+Months 1–6 follow the original course; Months 7–10 are site supplements written here and are not part of it.
+Month 10 is partial: 3 of 7 planned lessons so far.
+
+十个月、60 课（约 12 390 分钟）；第 1–6 个月沿用原课程，第 7–10 个月是本站补充内容；第 10 个月目前已写 3 课（共 7 课）。
 
 | Month | Topic | Lessons |
 | --- | --- | --- |
@@ -21,6 +25,10 @@ Six months, 34 lessons, all in Chinese (default, `/zh`) and English (`/en`):
 | 4 | ROS 2 & simulation / ROS 2 与仿真 | 6 |
 | 5 | The maths that makes robots work: control, kinematics, perception, MoveIt 2 / 控制、运动学、感知 | 5 |
 | 6 | Robot learning, specialisation & getting hired / 机器人学习、专精与求职 | 5 |
+| 7 | Simulation, reinforcement learning & 3D perception (site supplement) / 仿真、强化学习与三维感知（本站补充） | 6 |
+| 8 | Foundation-model fine-tuning, deployment & robot systems engineering (site supplement) / 基础模型微调、真机部署与系统工程（本站补充） | 8 |
+| 9 | Long-horizon tasks, contact control & mobile manipulation (site supplement) / 长时程任务、接触力控与移动操作（本站补充） | 9 |
+| 10 | Generative policies, real-time inference & real-world RL (site supplement, partial) / 生成式策略、实时推理与真实世界强化学习（本站补充，进行中） | 3 of 7 |
 
 Each lesson has an explanation, worked examples, quizzes with instant feedback, a hands-on task checklist and
 resource cards; Month 1 embeds the official [Falstad](https://www.falstad.com/circuit/) circuit simulator.
@@ -44,7 +52,7 @@ npm run dev         # http://localhost:3000 → redirects to /zh; /en for Englis
 Production build:
 
 ```bash
-npm run build       # prerenders every page (2 locales × home, about, resources, 6 months, 34 lessons)
+npm run build       # prerenders every page (2 locales × home, about, resources, 10 months, 60 lessons)
 npm start           # serves the build on http://localhost:3000 (npm start -- -p 3100 for another port)
 ```
 

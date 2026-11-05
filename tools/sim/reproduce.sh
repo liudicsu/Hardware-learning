@@ -158,4 +158,7 @@ echo "== Month 8 examples (examples/month-8/check.sh)"
 
 echo "== Month 9 examples (examples/month-9/check.sh)"
 "$ROOT/examples/month-9/check.sh" || fail=1
+
+echo "== Month 10 examples (examples/month-10/check.sh)"
+"$ROOT/examples/month-10/check.sh" || fail=1
 exit $fail
