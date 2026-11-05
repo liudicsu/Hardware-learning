@@ -2258,6 +2258,46 @@ export const glossary: GlossaryEntry[] = [
     lesson: "tactile-sensing",
     firstExplained: true,
   },
+  {
+    id: "relative-trajectory",
+    term: { zh: "相对轨迹", en: "relative trajectory" },
+    def: {
+      zh: "相对当前末端位姿表达的动作序列（UMI 式）；标定偏置不会像绝对目标那样整段平移终点。",
+      en: "An action sequence expressed relative to the current end-effector (UMI-style); a calibration bias does not translate the whole end pose the way absolute targets do.",
+    },
+    lesson: "umi-style-collection",
+    firstExplained: true,
+  },
+  {
+    id: "umi-interface",
+    term: { zh: "UMI 采集接口", en: "UMI collection interface" },
+    def: {
+      zh: "手持夹爪 + 腕部相机的野外示范接口；策略重放时仍用相对轨迹，不必在采集时带着整机本体。",
+      en: "A handheld gripper + wrist-camera interface for in-the-wild demos; policies replay relative trajectories without carrying a full robot body while collecting.",
+    },
+    lesson: "umi-style-collection",
+    firstExplained: true,
+  },
+  {
+    id: "oxe-skew",
+    term: { zh: "OXE 本体失衡", en: "OXE embodiment skew" },
+    def: {
+      zh: "跨本体池里少数臂占绝大多数轨迹（OXE-AugE 称原 OXE 真实数据 top-4 超过 85 %）；微调前要看见这种偏斜。",
+      en: "A few arms dominate a cross-embodiment pool (OXE-AugE reports original OXE real-data top-4 over 85 %); see the skew before you fine-tune.",
+    },
+    lesson: "cross-embodiment-datasets",
+    firstExplained: true,
+  },
+  {
+    id: "inverse-frequency-weight",
+    term: { zh: "逆频权重", en: "inverse-frequency weight" },
+    def: {
+      zh: "按 总样本/(类别数×该类计数) 给少数类更高采样权重，并常截断上限以防过拟合到极小类。",
+      en: "Weight a class by total/(n_classes×count) so minorities are up-weighted, usually with a clip so tiny classes cannot dominate.",
+    },
+    lesson: "cross-embodiment-datasets",
+    firstExplained: true,
+  },
 
 ]
 

@@ -3548,13 +3548,15 @@ const lessonRef = (n, slug, lang) => {
 
 
 {
-  // Month 11 PR1: 11.1 power-battery-emc / 11.2 foc-actuator-lab / 11.3 tactile-sensing.
+  // Month 11 PR1+PR2: 11.1–11.5 (power / FOC / tactile / UMI / OXE).
   // Numbers quoted in prose are bound to examples/month-11/expected/*.txt (actual stdout via UPDATE=1).
   const rd11 = (rel) => readFileSync(join(root, rel), "utf8");
   const pwr = rd11("examples/month-11/expected/power_budget_toy.txt");
   const foc = rd11("examples/month-11/expected/clarke_park_toy.txt");
   const tac = rd11("examples/month-11/expected/tactile_marker_toy.txt");
-  const slugs11 = ["power-battery-emc", "foc-actuator-lab", "tactile-sensing"];
+  const umi = rd11("examples/month-11/expected/relative_traj_toy.txt");
+  const oxe = rd11("examples/month-11/expected/oxe_imbalance_toy.txt");
+  const slugs11 = ["power-battery-emc", "foc-actuator-lab", "tactile-sensing", "umi-style-collection", "cross-embodiment-datasets"];
   const md11 = {};
   for (const slug of slugs11) {
     for (const lang of ["en", "zh"]) {
@@ -3597,6 +3599,26 @@ const lessonRef = (n, slug, lang) => {
       grab(tac, /anyskin_plug_skin=([0-9.]+)/, "tac plug_skin"),
       grab(tac, /anyskin_plug_swap=([0-9.]+)/, "tac plug_swap"),
     ],
+    "umi-style-collection": [
+      grab(umi, /abs_calib_bias_m=([0-9.]+)/, "umi abs"),
+      grab(umi, /delta_accum_err_m=([0-9.]+)/, "umi delta"),
+      grab(umi, /relative_err_m=([0-9.]+)/, "umi rel"),
+      grab(umi, /umi_cup_throughput_per_h=([0-9]+)/, "umi cup"),
+      grab(umi, /spacemouse_throughput_per_h=([0-9]+)/, "umi spacemouse"),
+      grab(umi, /hand_throughput_per_h=([0-9]+)/, "umi hand"),
+      grab(umi, /umi_field_success_pct=([0-9.]+)/, "umi field"),
+      grab(umi, /umi_ate_mm=([0-9.]+)/, "umi ate_mm"),
+      grab(umi, /umi_ate_deg=([0-9.]+)/, "umi ate_deg"),
+    ],
+    "cross-embodiment-datasets": [
+      grab(oxe, /top4_share=([0-9.]+)/, "oxe top4"),
+      grab(oxe, /max_weight=([0-9.]+)/, "oxe max_w"),
+      grab(oxe, /oxe_embodiments=([0-9]+)/, "oxe emb"),
+      grab(oxe, /oxe_top4_pct=([0-9]+)/, "oxe top4_pct"),
+      grab(oxe, /oxe_auge_traj_million=([0-9.]+)/, "oxe auge_m"),
+      grab(oxe, /oxe_auge_success_lift_lo=([0-9]+)/, "oxe lift_lo"),
+      grab(oxe, /oxe_auge_success_lift_hi=([0-9]+)/, "oxe lift_hi"),
+    ],
   };
   ok(/pass_11v_floor=true/.test(pwr), "m11 pwr: load stays above 11 V floor");
   ok(/id_err=0\.000e\+00/.test(foc) && /iq_err=0\.000e\+00/.test(foc), "m11 foc: round-trip id/iq err 0");
@@ -3604,6 +3626,13 @@ const lessonRef = (n, slug, lang) => {
   ok(/anyskin_replace_s=12/.test(tac) && /anyskin_slip_acc=0\.92/.test(tac), "m11 tac: AnySkin 12 s / 0.92");
   ok(/anyskin_plug_cam=1\.7/.test(tac) && /anyskin_plug_skin=6\.7/.test(tac) && /anyskin_plug_swap=5\.3/.test(tac),
     "m11 tac: plug 1.7 / 6.7 / 5.3");
+  ok(/abs_calib_bias_m=0\.025000/.test(umi) && /relative_err_m=0\.000000/.test(umi), "m11 umi: abs 0.025 / rel 0");
+  ok(/umi_cup_throughput_per_h=111/.test(umi) && /spacemouse_throughput_per_h=35/.test(umi) && /hand_throughput_per_h=231/.test(umi),
+    "m11 umi: throughput 111/35/231");
+  ok(/top4_share=0\.8957/.test(oxe), "m11 oxe: synthetic top4_share 0.8957");
+  ok(/oxe_embodiments=22/.test(oxe) && /oxe_top4_pct=85/.test(oxe), "m11 oxe: paper 22 / 85");
+  ok(/oxe_auge_traj_million=4\.4/.test(oxe) && /oxe_auge_success_lift_lo=24/.test(oxe) && /oxe_auge_success_lift_hi=45/.test(oxe),
+    "m11 oxe: AugE 4.4 / 24–45");
 
   for (const lang of ["zh", "en"]) {
     const p1 = md11[`power-battery-emc/${lang}`];
@@ -3624,6 +3653,23 @@ const lessonRef = (n, slug, lang) => {
       `m11 tac ${lang}: no required DIGIT purchase`);
     ok(lang === "en" ? /paper as source of truth|take the paper/.test(t1) : /以论文为准/.test(t1),
       `m11 tac ${lang}: paper as source of truth`);
+    const u1 = md11[`umi-style-collection/${lang}`];
+    ok(/so101-arm/.test(u1) && /dataset-engineering/.test(u1), `m11 umi ${lang}: scope vs 3.5 / 8.1`);
+    ok(/real-time-chunking|10\.2/.test(u1), `m11 umi ${lang}: echoes 10.2`);
+    ok(lang === "en" ? /not required|Buying a GoPro|buy a GoPro/i.test(u1) : /不强制购买|不要求购买|不要.*GoPro/.test(u1),
+      `m11 umi ${lang}: no required GoPro purchase`);
+    ok(lang === "en" ? /paper as source of truth|take the paper/.test(u1) : /以论文为准/.test(u1),
+      `m11 umi ${lang}: paper as source of truth`);
+    ok(lang === "en" ? /synthetic|SE\(2\)/.test(u1) : /合成|SE\(2\)/.test(u1) || /简化/.test(u1),
+      `m11 umi ${lang}: SE(2) toy labelled`);
+    const o1 = md11[`cross-embodiment-datasets/${lang}`];
+    ok(/sim-benchmarks/.test(o1) && /dataset-engineering/.test(o1), `m11 oxe ${lang}: scope vs 9.7 / 8.1`);
+    ok(lang === "en" ? /[Ss]ynthetic/.test(o1) && /not.*real OXE|NOT.*OXE|not OXE/.test(o1) : /合成/.test(o1) && /不是.*OXE|不进 CI|真实 OXE/.test(o1),
+      `m11 oxe ${lang}: synthetic counts labelled`);
+    ok(lang === "en" ? /paper as source of truth|take the paper/.test(o1) : /以论文为准/.test(o1),
+      `m11 oxe ${lang}: paper as source of truth`);
+    ok(lang === "en" ? /not run|本页未运行/.test(o1) : /本页未运行/.test(o1),
+      `m11 oxe ${lang}: download/train not run`);
   }
 
   let phraseHits11 = 0;
@@ -3642,20 +3688,22 @@ const lessonRef = (n, slug, lang) => {
   for (const slug of slugs11) ok(new RegExp(`slug: "${slug}"`).test(cur11), `m11 curriculum has ${slug}`);
   ok(/month-11\/check\.sh/.test(rd11("tools/sim/reproduce.sh")), "m11 hooked in reproduce.sh");
   const chk11 = rd11("examples/month-11/check.sh");
-  for (const f of ["power_budget_toy", "clarke_park_toy", "tactile_marker_toy"]) {
+  for (const f of ["power_budget_toy", "clarke_park_toy", "tactile_marker_toy", "relative_traj_toy", "oxe_imbalance_toy"]) {
     ok(new RegExp(`${f}\\.txt`).test(chk11), `m11 check.sh: ${f}`);
   }
-  ok(/3 of 7/.test(chk11), "m11 check.sh header: 3 of 7");
+  ok(/5 of 7/.test(chk11), "m11 check.sh header: 5 of 7");
   const res11 = rd11("src/lib/resources.ts");
   for (const id of ["novanta-emc-wiring", "roboteq-emi", "ark-power-grounding", "simplefoc-foc-theory", "simplefoc-home",
-    "anyskin-paper", "anyskin-site", "digit-design", "digit-interface", "gelsight-sensors-paper", "3dcal-paper"]) {
+    "anyskin-paper", "anyskin-site", "digit-design", "digit-interface", "gelsight-sensors-paper", "3dcal-paper",
+    "umi-paper", "umi-site", "umi-hardware-guide", "oxe-site", "oxe-github", "oxe-auge-paper", "oxe-auge-site"]) {
     const block = (res11.match(new RegExp(`"${id}": \\{[\\s\\S]*?\\n  \\}`)) || [""])[0];
     ok(block.length > 0 && /extra:\s*true/.test(block), `m11 resource ${id}: present + extra`);
     ok(!/\$\d/.test(block), `m11 resource ${id}: no price`);
   }
   const glo11 = rd11("src/lib/glossary.ts");
   for (const term of ["emc-hygiene", "ir-drop", "clarke-transform", "park-transform", "id-zero", "iq-torque",
-    "simplefoc-commander", "optical-tactile", "magnetic-tactile"]) {
+    "simplefoc-commander", "optical-tactile", "magnetic-tactile",
+    "relative-trajectory", "umi-interface", "oxe-skew", "inverse-frequency-weight"]) {
     ok(new RegExp(`"${term}"`).test(glo11), `m11 glossary: ${term}`);
   }
   // Banner / pointer scaffolding
@@ -3663,10 +3711,14 @@ const lessonRef = (n, slug, lang) => {
      /foc-actuator-lab/.test(rd11("src/content/m2/motors-drivers/en.mdx")), "m11: motors-drivers points to 11.2");
   ok(/tactile-sensing/.test(rd11("src/content/m3/gripper-fingers/zh.mdx")) &&
      /tactile-sensing/.test(rd11("src/content/m3/gripper-fingers/en.mdx")), "m11: gripper points to 11.3");
+  ok(/umi-style-collection/.test(rd11("src/content/m10/flow-matching-policies/zh.mdx")) &&
+     /umi-style-collection/.test(rd11("src/content/m10/flow-matching-policies/en.mdx")), "m11: flow-matching points to 11.4");
+  ok(/cross-embodiment-datasets/.test(rd11("src/content/m8/dataset-engineering/zh.mdx")) &&
+     /cross-embodiment-datasets/.test(rd11("src/content/m8/dataset-engineering/en.mdx")), "m11: dataset-engineering points to 11.5");
   ok(/第 7–11 个月/.test(rd11("messages/zh.json")) && /Months 7–11/.test(rd11("messages/en.json")),
     "m11: messages month range 7–11");
 
-  console.log(`calc  m11 PR1: pwr 10.80 A / 0.432 V / margin 0.926; foc round-trip 0; tac contact_err + AnySkin 12/0.92/1.7/6.7/5.3; phrases ${phraseHits11}; 11.1–11.3`);
+  console.log(`calc  m11 PR2: umi abs 0.025 / delta 0.008287 / rel 0 + 111/35/231; oxe top4 0.8957 + paper 22/85/4.4/24–45; phrases ${phraseHits11}; 11.1–11.5`);
 }
 
 

@@ -1,0 +1,188 @@
+This lesson is a site supplement — Months 7–11 are not part of the original six-month course.
+
+**Scope.** [3.5 SO-101](/en/month/month-3/so101-arm) is leader–follower teleop; [8.1 dataset engineering](/en/month/month-8/dataset-engineering) and [10.5 intervention logging](/en/month/month-10/intervention-logging) cover on-robot recording and DAgger keybinds; [10.2 real-time chunking](/en/month/month-10/real-time-chunking) already matched observation / execution delay for chunk policies. This lesson is the **robot-free handheld gripper collection interface** and the relative-trajectory action choice: why UMI drops the robot body in the field, how absolute / delta / relative end error behaves under calibration noise, and how inference-time latency matching echoes 10.2 without re-deriving the RTC mask. **Buying a GoPro is not required**; without one, read + run the CPU toy. Hardware Guide prints and SLAM on a real UMI rig are marked 本页未运行 (not run on this page). This lesson also does not replace the 8.7 capstone.
+
+## Why collect without a robot body
+
+A desktop arm on a fixed base cannot go into a kitchen, a workshop or a street stall. UMI (Universal Manipulation Interface, Chi et al., RSS 2024; arXiv 2402.10329) pairs a **3D-printed parallel gripper** with a wrist GoPro (fisheye, side mirror, IMU), continuous jaw width and soft fingers, so a human can demonstrate in the wild and a policy can replay the same interface on a robot later. The action interface is a **relative trajectory**: an SE(3) sequence expressed relative to the current end-effector, not absolute world targets and not per-step deltas that accumulate.
+
+<Resource id="umi-paper" />
+<Resource id="umi-site" />
+<Resource id="umi-hardware-guide" />
+<Resource id="lerobot-action-representations" />
+<Resource id="diffusion-policy" />
+
+## Numbers we verified in the paper (take the paper as source of truth)
+
+From the UMI paper HTML (arXiv 2402.10329 v3) and the project page (opened here):
+
+- Cup-arrangement throughput (Fig.11): UMI **111**/h, human hand **231**/h, SpaceMouse teleop **35**/h.
+- Zero-shot field cup arrangement: about **71.7 %** success (43/60).
+- Visual–inertial SLAM vs MoCap (Fig.12): ATE about **6.1** mm / **3.5**°.
+
+Those are paper figures, not measured on this site. Inference-time observation / execution delay matching is the same idea as 10.2 RTC; this lesson does not re-derive the mask.
+
+## Relative / absolute / delta toy
+
+`relative_traj_toy.py` keeps an SE(2) simplification of the same idea. One action sequence, three reconstructions:
+
+1. **Absolute** — global-frame targets with a fixed calibration bias → end error equals the bias magnitude.
+2. **Delta** — each step is previous + a noisy increment → noise accumulates along the chunk.
+3. **Relative (UMI-style)** — each action is applied from the current measured EE → end error **0** when the relative actions are exact.
+
+```bash
+$ cd ~/Hardware-learning/examples/month-11/umi-style-collection
+$ python3 relative_traj_toy.py
+```
+
+<CodeSource path="examples/month-11/umi-style-collection/relative_traj_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""relative_traj_toy.py: absolute / delta / relative end-error under SE(2) (stdlib).
+
+Same action sequence, three reconstructions:
+  - absolute: global-frame targets with a fixed calibration bias
+  - delta: each step is previous + noisy increment (noise accumulates)
+  - relative (UMI-style): each action re-expressed vs the current EE
+    (here: apply the true relative action from the measured pose → zero end error)
+
+Also prints UMI paper constants used in the lesson prose (throughput, ATE)
+— paper numbers, not toy measurements. Take the paper as source of truth.
+Buying a GoPro is not required.
+"""
+import math
+import random
+
+SEED = 7
+random.seed(SEED)
+
+
+def se2_compose(p, a):
+    """Compose pose p=(x,y,yaw) with body-frame action a=(dx,dy,dyaw)."""
+    c, s = math.cos(p[2]), math.sin(p[2])
+    return (
+        p[0] + c * a[0] - s * a[1],
+        p[1] + s * a[0] + c * a[1],
+        p[2] + a[2],
+    )
+
+
+# True path: 8 relative actions from the origin
+pose = (0.0, 0.0, 0.0)
+truth = [pose]
+actions_rel = []
+for _ in range(8):
+    a = (
+        0.05 + random.uniform(-0.01, 0.01),
+        random.uniform(-0.02, 0.02),
+        random.uniform(-0.1, 0.1),
+    )
+    actions_rel.append(a)
+    pose = se2_compose(pose, a)
+    truth.append(pose)
+
+# Absolute with a fixed calibration bias in the world frame
+calib_err = (0.02, -0.015, 0.05)
+abs_end_err = math.hypot(calib_err[0], calib_err[1])  # bias dominates end error
+
+# Delta: each step relative to previous, with per-step measurement noise
+delta_pose = truth[0]
+noise = 0.003
+for a in actions_rel:
+    noisy = (
+        a[0] + random.uniform(-noise, noise),
+        a[1] + random.uniform(-noise, noise),
+        a[2] + random.uniform(-noise, noise),
+    )
+    delta_pose = se2_compose(delta_pose, noisy)
+delta_end_err = math.hypot(delta_pose[0] - truth[-1][0], delta_pose[1] - truth[-1][1])
+
+# Relative (UMI): restart each step from the measured current EE — perfect here
+rel_pose = truth[0]
+for a in actions_rel:
+    rel_pose = se2_compose(rel_pose, a)
+rel_end_err = math.hypot(rel_pose[0] - truth[-1][0], rel_pose[1] - truth[-1][1])
+
+print(f"seed={SEED}")
+print(f"steps={len(actions_rel)}")
+print(f"abs_calib_bias_m={abs_end_err:.6f}")
+print(f"delta_accum_err_m={delta_end_err:.6f}")
+print(f"relative_err_m={rel_end_err:.6f}")
+# UMI paper constants (arXiv 2402.10329 v3 / project page) for prose binding
+print(f"umi_cup_throughput_per_h=111")
+print(f"spacemouse_throughput_per_h=35")
+print(f"hand_throughput_per_h=231")
+print(f"umi_field_success_pct=71.7")
+print(f"umi_ate_mm=6.1")
+print(f"umi_ate_deg=3.5")
+```
+
+
+<SimOutput source="model">
+
+```text
+seed=7
+steps=8
+abs_calib_bias_m=0.025000
+delta_accum_err_m=0.008287
+relative_err_m=0.000000
+umi_cup_throughput_per_h=111
+spacemouse_throughput_per_h=35
+hand_throughput_per_h=231
+umi_field_success_pct=71.7
+umi_ate_mm=6.1
+umi_ate_deg=3.5
+```
+
+</SimOutput>
+
+How to read it:
+
+- Absolute end error **0.025000** m equals √(0.02² + 0.015²) — the calibration bias, not path length.
+- Delta accumulates to **0.008287** m over 8 steps of ±0.003 noise.
+- Relative stays at **0.000000** m when the relative actions match the measured EE.
+- Paper constants **111** / **35** / **231**, **71.7**, **6.1** / **3.5** are independent of the toy; they exist so check_diagrams and the prose share one number.
+
+LeRobot's action-representations page (absolute / relative / delta) is the same vocabulary [10.1](/en/month/month-10/flow-matching-policies) already named; this toy pins the error behaviour.
+
+## Hardware: no required purchase
+
+- The **CPU toy** is the required deliverable.
+- Optional: follow the UMI Hardware Guide on a printer you already have (Month 3 path).
+- GoPro / side-mirror / IMU capture, ORB-SLAM style visual–inertial on a real UMI — not run on this page.
+- Do not buy a GoPro just to follow this lesson.
+
+## Out of scope
+
+- Leader–follower teleop and Feetech bus recording (3.5 / 8.1).
+- DAgger / HG-DAgger keybinds (10.5).
+- RTC inference masks (10.2) — only the latency-matching idea is reused here.
+- Cross-embodiment pool skew (11.5).
+
+<Summary>
+
+**Key points**
+
+- UMI = handheld gripper + wrist camera; the policy interface is a relative trajectory, not a robot body in the field.
+- Paper (source of truth): throughput 111 / 35 / 231 per hour; field success 71.7 %; ATE 6.1 mm / 3.5°.
+- Toy: abs_calib_bias_m=0.025000, delta_accum_err_m=0.008287, relative_err_m=0.000000.
+- No required GoPro purchase; Hardware Guide / SLAM steps are not run here.
+
+**Common mistakes**
+
+- Treating UMI as "just another teleop arm" — the point is dropping the robot body while keeping the action interface.
+- Training relative actions and executing them as absolute targets (see 10.1).
+- Quoting ATE / throughput as "measured on this site".
+
+**Check yourself**
+
+- Why does absolute end error equal the calibration bias magnitude here?
+- Why does delta accumulate while relative does not?
+- How does inference-time delay matching relate to 10.2 without re-deriving RTC?
+
+**Next**
+
+- 11.5 Cross-embodiment datasets: why OXE-style pools skew, and what OXE-AugE does about it.
+
+</Summary>

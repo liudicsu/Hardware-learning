@@ -1,0 +1,139 @@
+本课是本站补充内容——第 7–11 个月不属于原六个月课程。
+
+**范围。** [9.7 仿真基准](/zh/month/month-9/sim-benchmarks) 打的是 LIBERO / SimplerEnv 仿真分；[8.2 VLA 微调](/zh/month/month-8/vla-finetune) 与 [8.1 数据集工程](/zh/month/month-8/dataset-engineering) 已经把 Open X-Embodiment 点成「共享格式之所以重要」的大规模理由。本课 = **真实跨本体池化数据与外观增强**：为什么 OXE 式池会偏向前几只臂、OXE-AugE 怎么报告再平衡、以及一张合成计数表如何教 top-k 占比与截断逆频权重。**真实 OXE 计数不进 CI**——玩具用合成计数并写明。下载 OXE / 训练 OpenVLA 或 π0 标注本页未运行。本课也不替代 8.7 毕业项目。
+
+## 为什么本体池会偏
+
+Open X-Embodiment（OXE）把许多机器人数据集合进同一生态，让单一策略能看到多种臂与夹爪。项目页报告 **1M+** 真实轨迹、**22** 种本体、约 **60** 个数据集。只是池化并不会自动均衡：OXE-AugE（arXiv 2512.13100）指出原 OXE 真实数据里 **top-4** 本体占比 **超过 85 %**。忽略这种失衡的微调，多半只在学多数臂。
+
+<Resource id="oxe-site" />
+<Resource id="oxe-github" />
+<Resource id="oxe-auge-paper" />
+<Resource id="oxe-auge-site" />
+
+## OXE-AugE 一段话（以论文为准）
+
+OXE-AugE 对 **16** 个常用子集做机器人外观增强，报告约 **4.4M** 轨迹——超过原 OXE 池 **3** 倍。在增强混合上微调 OpenVLA / π0，在未见过的臂–夹爪组合上成功率约提升 **24–45 %**（摘要；以论文为准）。本课不下载、不训练这两个模型。
+
+## 学员动作
+
+读 OXE 式池常用的 RLDS / 统一动作维约定（**7D**：xyz + rpy + gripper）。然后跑 CPU 玩具：计数 → top-k 占比 → 截断逆频权重。计数是**合成**的，并已标明；不是 OXE 真实表。
+
+## 失衡玩具（合成计数）
+
+`oxe_imbalance_toy.py` 造一张*看起来*像 OXE-AugE 所描述的失衡直方图，再打印 top-4 占比与截断逆频权重。论文 / 项目页常量（1M+、22、85、4.4、24 / 45）另起一行打印，让 check_diagrams 绑定它们时不与合成表混淆。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-11/cross-embodiment-datasets
+$ python3 oxe_imbalance_toy.py
+```
+
+<CodeSource path="examples/month-11/cross-embodiment-datasets/oxe_imbalance_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""oxe_imbalance_toy.py: synthetic embodiment imbalance + inverse-frequency weights (stdlib).
+
+The counts below are **synthetic** — they are NOT Open X-Embodiment (OXE) real
+cardinality. Real OXE / OXE-AugE numbers used in the lesson prose (1M+, 22
+embodiments, top-4 >85 %, 4.4M, 24–45 %) are printed as separate paper constants
+and must not be confused with this table. Take the papers / project pages as
+source of truth. Downloading OXE or training is not run on this page.
+"""
+SEED = 3
+
+# Synthetic counts mirroring OXE-style skew (NOT real OXE counts)
+robots = ["Franka", "xArm", "Kuka", "Google", "WidowX", "UR5", "Jaco", "Other"]
+counts = [420000, 280000, 180000, 150000, 40000, 35000, 20000, 25000]
+total = sum(counts)
+top4 = sum(counts[:4])
+top4_share = top4 / total
+
+# Inverse-frequency weights, clipped at 10
+weights = []
+for c in counts:
+    w = total / (len(robots) * c)
+    weights.append(min(w, 10.0))
+reweighted_mass = sum(w * c for w, c in zip(weights, counts))
+
+print(f"seed={SEED}")
+print(f"n_robots={len(robots)}")
+print(f"total_traj={total}")
+print(f"top4_share={top4_share:.4f}")
+print(f"max_weight={max(weights):.3f}")
+print(f"reweighted_mass={reweighted_mass:.1f}")
+# Paper / project-page constants (not from the synthetic table)
+print(f"oxe_traj_million_plus=1")
+print(f"oxe_embodiments=22")
+print(f"oxe_top4_pct=85")
+print(f"oxe_auge_traj_million=4.4")
+print(f"oxe_auge_multiplier=3")
+print(f"oxe_auge_success_lift_lo=24")
+print(f"oxe_auge_success_lift_hi=45")
+```
+
+
+<SimOutput source="model">
+
+```text
+seed=3
+n_robots=8
+total_traj=1150000
+top4_share=0.8957
+max_weight=7.188
+reweighted_mass=1150000.0
+oxe_traj_million_plus=1
+oxe_embodiments=22
+oxe_top4_pct=85
+oxe_auge_traj_million=4.4
+oxe_auge_multiplier=3
+oxe_auge_success_lift_lo=24
+oxe_auge_success_lift_hi=45
+```
+
+</SimOutput>
+
+怎么读：
+
+- 合成 top-4 占比 **0.8957**（约 90 %），对应玩具轨迹 1 150 000 条——**不是** OXE 真实计数。
+- 截断逆频 `max_weight=7.188`；再加权质量仍是 **1150000.0**，因为权重只重缩放行，不发明新示范。
+- 论文常量 **1**（M+）、**22**、**85**、**4.4**、**3**、**24** / **45** 与表无关；以论文 / 项目页为准。
+
+## 硬件 / 算力：本页未运行
+
+- **CPU 玩具**是必做交付。
+- 下载 OXE、训练 OpenVLA / π0、跑 OXE-AugE 外观管线——本页未运行（体量 + GPU）。
+- 完成本课不要求购买数据集，也不要求云账单。
+
+## 不在范围内
+
+- LIBERO / SimplerEnv 仿真分（9.7）。
+- 单臂 LeRobotDataset 审计细节（8.1）——这里新的是 OXE 规模失衡问题。
+- UMI 手持采集（11.4）。
+- 用新的跨本体轨道替换 8.7 毕业项目。
+
+<Summary>
+
+**要点**
+
+- OXE 汇聚多种臂；项目页：1M+ 轨迹、22 种本体。OXE-AugE：top-4 >85 %，外观增强后约 4.4M，未见臂–夹爪组合约提升 24–45 %（以论文为准）。
+- 玩具 top4_share=0.8957 来自**合成**计数；max_weight=7.188。真实 OXE 计数不进 CI。
+- 统一 7D 动作（xyz + rpy + gripper）是阅读约定；下载 / 训练步骤本页未运行。
+
+**常见错误**
+
+- 把合成表当 OXE 真表写进论文引用。
+- 用 9.7 仿真分代替跨本体池分析。
+- 为了跟课去开好几周的 OXE 下载。
+
+**自检**
+
+- 为什么列了 22 种本体，top-4 占比仍能超过 85 %？
+- 截断逆频权重在防什么？
+- 玩具 stdout 里哪些是论文常量、哪些是合成数？
+
+**下一步**
+
+- 11.6 人形全身控制阅读图（下一批 PR）：ASAP 式 delta-action 对齐与平面 LIPM 玩具。
+
+</Summary>
