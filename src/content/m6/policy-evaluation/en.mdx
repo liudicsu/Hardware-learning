@@ -235,7 +235,7 @@ The K "train seeds" in this section are **synthetic policy draws** — scripted 
 
 Uncertainty layers stay labeled and separate:
 
-1. **Count interval within one draw:** Wilson 95 % (frequentist) and a uniform-prior Beta(`1+k`, `1+n−k`) central 95 % interval (Bayesian sketch).
+1. **Count interval within one draw:** Wilson 95 % (frequentist) and a uniform-prior Beta(`1+k`, `1+n−k`) central 95 % interval (Bayesian sketch). A pooled Wilson over trials is valid only for **independent evaluation sessions of the same fixed policy**. Do **not** treat multiple `synthetic_policy_draw_k` × shared IC as independent Bernoulli trials and dump them into one pooled Wilson — those draws are different policies.
 2. **Across-draw dispersion:** min / median / max of the K point rates. The **best-seed cherry-pick** vs the **median** is printed on purpose: reporting only the best session is the anti-pattern lesson 4 already warned about.
 
 Checklist fields follow arXiv 2409.09491v2 §4 *Analysis and Reporting* (Kress-Gazit et al.): experiment parameters (success criterion, **counts** not just percentages, session timing, ICs and their relation to training), statistical analysis, and failure modes.
@@ -521,7 +521,7 @@ On `shared_IC`, the five draws land at 62.5 %, 67.5 %, 72.5 %, 85.0 %, 70.0 %. T
 
 ## Common mistakes
 
-- **Reporting the best session.** If you ran three sessions, report all three or their total. Picking the best one is how 40 % becomes 90 %.
+- **Reporting the best session.** If you ran three **independent evaluation sessions of the same fixed policy**, report all three or their total (a pooled Wilson is then meaningful). Picking the best one is how 40 % becomes 90 %. Do **not** pool multiple synthetic draws × shared IC as if they were i.i.d. Bernoulli trials of one policy.
 - **Deciding the criterion afterwards.** If the same near-miss counts as success in one session and failure in the next, the numbers are meaningless.
 - **Only testing where you trained.** Include start positions that are not in the dataset and report them separately; that is where policies differ most.
 - **Treating overlapping intervals as a tie or separate intervals as proof.** Intervals are a quick check; for two policies on the same trials, use the paired comparison.
@@ -529,4 +529,5 @@ On `shared_IC`, the five draws land at 62.5 %, 67.5 %, 72.5 %, 85.0 %, 70.0 %. T
 - **Calling synthetic draws "trained policies."** They are scripted Bernoulli stands-ins. Say so in the report.
 - **Merging shared_IC and independent_IC into one table.** Paired and unpaired designs answer different questions; keep separate tables.
 - **Mixing Wilson/Beta with across-draw min/max into one unlabeled %.** Count uncertainty and seed dispersion are different layers.
+- **Pooling draws × shared IC into one Wilson.** Different `synthetic_policy_draw_k` are different policies; a pooled count interval is reserved for repeated evals of one fixed policy.
 - **Reporting only the best synthetic seed.** Print the median (and the full set). Cherry-picking is how 70 % becomes 85 %.

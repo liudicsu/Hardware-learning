@@ -1,11 +1,21 @@
 lifecycle_sm_toy sm=ros2_managed_node source=design.ros2.org/articles/node_lifecycle.html
 note: NOT HardwareComponentInterface SM; ResourceManager transitions that plugin (prose map only)
+callback_paths: configure FAILURE→Unconfigured; ERROR/exception→ErrorProcessing; on_error SUCCESS→Unconfigured, FAILURE→Finalized
 script_A: steps=configure,activate illegal_rejects=0 reached_active=1 final_state=Active
 script_A_log=configure:OK(Unconfigured->Inactive) | activate:OK(Inactive->Active)
 script_B: steps=activate,configure,activate illegal_rejects=1 reached_active=1 final_state=Active
 script_B_log=activate:REJECT(from=Unconfigured) | configure:OK(Unconfigured->Inactive) | activate:OK(Inactive->Active)
 script_C: steps=configure,activate,shutdown illegal_rejects=0 reached_active=1 final_state=Finalized
 script_C_log=configure:OK(Unconfigured->Inactive) | activate:OK(Inactive->Active) | shutdown:OK(Active->Finalized)
+script_D: steps=configure(FAILURE) illegal_rejects=0 reached_active=0 final_state=Unconfigured
+script_D_log=configure:FAILURE(Unconfigured->Unconfigured)
+script_E: steps=configure(ERROR),on_error(SUCCESS) illegal_rejects=0 reached_active=0 final_state=Unconfigured
+script_E_log=configure:ERROR(Unconfigured->ErrorProcessing) | on_error:SUCCESS(ErrorProcessing->Unconfigured)
+script_F: steps=configure(ERROR),on_error(FAILURE) illegal_rejects=0 reached_active=0 final_state=Finalized
+script_F_log=configure:ERROR(Unconfigured->ErrorProcessing) | on_error:FAILURE(ErrorProcessing->Finalized)
 never_permanent_death_after_illegal_activate=1
 reached_finalized_via_shutdown=1
+configure_failure_returns_unconfigured=1
+on_error_success_returns_unconfigured=1
+on_error_failure_goes_finalized=1
 ok: managed-node lifecycle toy (LTTng/ros2_tracing/HW plugin load 本页未运行)

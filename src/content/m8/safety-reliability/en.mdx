@@ -189,6 +189,8 @@ The CiA 402 drive profile is a paid standard. This page does not link it or quot
 
 In the same enum, bit 8 and bits 14–15 are named manufacturer-specific, and bits 12–13 operation-mode-specific. The toy puts seeded random noise on exactly those five bits, masks them out, and checks that no decision changes (`nonstandard_bit_noise_changes_decisions=0`). The decisions read only bit 3 (Fault) and bit 7 (Warning). The status words the toy builds are lesson-chosen; it does not decode the full CiA 402 state machine. For a real drive, read its manual alongside the ros2_canopen source — real drives, CANopen and SocketCAN are not run on this page.
 
+**Controlword bit 7 = Fault Reset (rising edge), not our software latch.** The same ros2_canopen tree exposes `Command402::ControlWord::CW_Fault_Reset = 7` in [`command.hpp` at commit 52327f9b](https://raw.githubusercontent.com/ros-industrial/ros2_canopen/52327f9b/canopen_402_driver/include/canopen_402_driver/command.hpp). Transition 15 in [`command.cpp`](https://raw.githubusercontent.com/ros-industrial/ros2_canopen/52327f9b/canopen_402_driver/src/command.cpp) maps **Fault → Switch_On_Disabled** by setting that bit; `Motor402` clears bit 7 first then applies the transition so the drive sees a **0→1 rising edge**. That drive-side fault reset is a CANopen controlword action. It is **not** the same as this lesson's `operator_ack`, which only releases the **software** `LATCHED_SAFE` latch in our monitor. Clearing the software latch does **not** reset the drive and does **not** put it into Operation Enabled — those are further CiA 402 state transitions after Switch_On_Disabled.
+
 <Resource id="canopen-402-statusword" />
 
 ### Run the toy
@@ -465,7 +467,8 @@ The price of the correct arm is availability: 48 ticks without motion. That is t
 - The e-stop from the top of this lesson stays a hardware path that removes power independently of the bus and the PC.
 - Before you write a re-enable path for a real drive (not run on this page):
   - e-stop tested on its own, with the bus and PC ignored;
-  - the fault latch clears only on an explicit operator action, and the log records who acked and why;
+  - the fault latch clears only on an explicit operator action (`operator_ack`), and the log records who acked and why — that ack is **not** a controlword Fault Reset and **not** entry into Operation Enabled;
+  - if the drive is in Fault, a separate controlword bit-7 0→1 Fault Reset (ros2_canopen transition 15 → Switch_On_Disabled) is required before any enable sequence;
   - the status timeout is chosen and its blind window is written down;
   - after a bus-off or fault reset, position is re-checked before any motion.
 
@@ -488,6 +491,7 @@ Print and tick `examples/month-8/safety-reliability/bench_safety_checklist.md` b
 - **Copying industrial force limits onto a desk arm.** ISO/TS 15066 does not apply to non-industrial robots.
 - **Quoting STS3215 overload numbers from memory.** Use measured soft stops and the vendor's own sheet when you need electrical limits — not this page.
 - **Re-enabling because the fault bit cleared.** A cleared bit or returning frames is a precondition, not permission; re-enable needs `operator_ack` plus the checks.
+- **Equating `operator_ack` with a drive Fault Reset.** Ack releases the software latch only. Drive Fault Reset is controlword bit 7 rising edge (Fault → Switch_On_Disabled in ros2_canopen); Operation Enabled is a later transition.
 - **Calling bus-off recovery or a soft reset an e-stop.** Neither removes motor power.
 - **Treating every status-word bit as undefined.** Bits 0–7 and 9–11 have standard names in the public ros2_canopen table; only bit 8, bits 12–13 and bits 14–15 are manufacturer- or mode-specific, so keep those out of your asserts.
 - **Reading `/diagnostics` ERROR as a safety action.** A diagnostic level reports; the monitor latches; the e-stop cuts power.

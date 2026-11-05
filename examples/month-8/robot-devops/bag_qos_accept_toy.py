@@ -18,6 +18,9 @@ Recorder default adapt: Rosbag2QoS::adapt_request_to_offers
   (rosbag2_storage/.../qos.cpp; called from recorder.cpp when no override).
   Mixed reliable/best_effort -> best_effort, mixed transient_local/volatile
   -> volatile (WARN, still connects); max offered depth <= 1 -> keep_all.
+RxO matching is per publisher–subscriber pair: an override that is too
+strict fails to match only the incompatible publishers; zero messages on
+the topic are only possible when EVERY relevant publisher mismatches.
 
 MCAP ROS 2 getting-started: https://mcap.dev/guides/getting-started/ros-2
 docs.ros.org QoS How-To for record/playback: optional when About QoS +
@@ -161,6 +164,57 @@ def fixed_budget_demo() -> None:
     assert ok["budget_min"] > bad["budget_min"]
 
 
+def override_match_demo() -> None:
+    """Per-publisher RxO matching under a too-strict override (stdlib demo).
+
+    Matching is pairwise. An override requests one profile; each publisher
+    is checked independently. Zero messages require ALL publishers to
+    mismatch — a mixed reliable+best_effort topic with override=reliable
+    still receives from the reliable publisher.
+    """
+    # reliability offered rank: reliable > best_effort (request must not
+    # be more stringent than offer).
+    def reliability_ok(offered: str, requested: str) -> bool:
+        if requested == "best_effort":
+            return True
+        return offered == "reliable"
+
+    cases = [
+        {
+            "label": "mixed_pubs_override_reliable",
+            "pubs": ["reliable", "best_effort"],
+            "request": "reliable",
+        },
+        {
+            "label": "all_best_effort_override_reliable",
+            "pubs": ["best_effort", "best_effort"],
+            "request": "reliable",
+        },
+    ]
+    print("override_match_demo (RxO is per publisher–subscriber pair):")
+    for c in cases:
+        matches = [p for p in c["pubs"] if reliability_ok(p, c["request"])]
+        n_match = len(matches)
+        zero = n_match == 0
+        print(
+            f"  {c['label']}: pubs={','.join(c['pubs'])} "
+            f"request={c['request']} matched={n_match}/{len(c['pubs'])} "
+            f"from={','.join(matches) if matches else 'none'} "
+            f"zero_messages={'yes' if zero else 'no'}"
+        )
+    # Locked teaching asserts.
+    mixed = cases[0]
+    mixed_matches = [p for p in mixed["pubs"] if reliability_ok(p, mixed["request"])]
+    assert mixed_matches == ["reliable"], mixed_matches
+    all_be = cases[1]
+    all_be_matches = [p for p in all_be["pubs"] if reliability_ok(p, all_be["request"])]
+    assert all_be_matches == [], all_be_matches
+    print(
+        "override_match_note: too-strict override drops only incompatible "
+        "publishers; zero messages only when ALL publishers mismatch"
+    )
+
+
 def main() -> None:
     qos_keys = load_qos_keys(QOS_YAML)
     print("bag_qos_accept_toy fixtures=accept_fixtures seed=n/a (deterministic)")
@@ -178,6 +232,7 @@ def main() -> None:
         f"max_gaps_allowed={MAX_GAPS_ALLOWED} gap_factor={GAP_FACTOR}"
     )
     fixed_budget_demo()
+    override_match_demo()
 
     cases = [
         "pass_clean.json",

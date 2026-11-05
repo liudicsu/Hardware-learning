@@ -247,7 +247,7 @@ and turn unstable near kp = 1.0 x 6.79 = 6.79. Check it on 0.1 rad steps:
 
 ## 持续激励对照公平阶跃（系统辨识）
 
-第 1 节已经用一次开环力矩阶跃辨识出 B 和 J。对一阶速度环节这往往够用：PE **不是**「两个参数 ⇒ 阶跃不可辨识」。持续激励（persistency of excitation）说的是**辨识时域内回归子是否足够丰富**，也就是 `ΦᵀΦ` 是否良态（Ljung 输入信号章节，见 MIT OCW 6.435 大纲指针；De Nicolao 1997 教程对比方程误差与输出误差）。结构更丰富时，同一个阶跃可能让 `ΦᵀΦ` 病态——要用**测到的**条件数和参数误差说话，而不是事先保证「更丰富输入一定赢」。
+第 1 节已经用一次开环力矩阶跃辨识出 B 和 J。对一阶速度环节这往往够用：PE **不是**「两个参数 ⇒ 阶跃不可辨识」。持续激励（persistency of excitation）说的是**辨识时域内回归子是否足够丰富**，也就是 `ΦᵀΦ` 是否良态（Ljung 输入信号章节，见 MIT OCW 6.435 大纲指针；De Nicolao 1997 教程对比方程误差与输出误差）。玩具报告的是**有限窗口** Gram 条件数 `cond(ΦᵀΦ)`，作为本时域上丰富度的实用诊断；**严格 PE** 是更强的断言（窗口 Gram 随窗口增长有正定下界），**本页不声称**。结构更丰富时，同一个阶跃可能让 `ΦᵀΦ` 病态——要用**测到的**条件数和参数误差说话，而不是事先保证「更丰富输入一定赢」。
 
 ### 公平对比
 
@@ -259,7 +259,9 @@ and turn unstable near kp = 1.0 x 6.79 = 6.79. Check it on 0.1 rad steps:
 
 ### 估计器要诚实
 
-拟合是**方程误差 OLS**（ARX 风格）：`Φ` 的行里含有滞后输出。输出带噪时，OLS 属于 errors-in-variables / 方程误差估计，**不得**声称无偏。输出误差（OE）或工具变量（IV）是另一类估计器，本页未实现。第 7 个月的 `sysid_fit` 只作指针，不在此重做。
+**噪声模型（锁定）：**独立加性**测量**噪声。无噪状态 `z` 按 ARX 递推；测量输出为 `y = z + v`，且 `v` 与 `(z, u)` 独立。这**不是** ARX *新息*模型 `y_k = a y_{k-1} + b u_{k-1} + e_k`（那种模型里 `e_k` 与滞后回归子独立，OLS 一致）。
+
+拟合是**方程误差 OLS**（ARX 风格）：`Φ` 的行里含有滞后的**测量** `y`。滞后输出带着 `v`，因此 OLS 是 **errors-in-variables（EIV）/ 方程误差**估计——打印的 `‖θ̂−θ‖` **包含该 EE-OLS 偏差**。**不得**声称无偏（有限样本或渐近都不行）。输出误差（OE）或工具变量（IV）是另一类估计器，本页未实现。第 7 个月的 `sysid_fit` 只作指针，不在此重做。
 
 <Resource id="ljung-via-ocw" />
 
@@ -285,10 +287,19 @@ Fair comparison LOCKED: same horizon N, the SAME measurement-noise sequence for
 every input arm of a case, and input energy Σ u² matched within ENERGY_TOL
 (the richer input is scaled to the step's energy). Peak |u| is also printed.
 
-Estimator class: equation-error OLS (ARX-style). Rows of Φ contain lagged
-outputs, which are noisy, so OLS is an errors-in-variables / equation-error
-estimator and is NOT claimed unbiased. An output-error (OE) or instrumental-
+Noise model (LOCKED): independent additive measurement noise. A noise-free
+state z follows the ARX recursion; the measured output is y = z + v with
+v ~ N(0, σ²) independent of (z, u). Equation-error OLS then puts noisy lagged
+y into Φ, so it is an errors-in-variables (EIV) estimator: the printed
+‖θ̂−θ‖ includes that EE-OLS bias. This is NOT the ARX *innovation* model
+y_k = a y_{k-1} + b u_{k-1} + e_k (where e_k is independent of the lagged
+regressors and OLS is consistent). An output-error (OE) or instrumental-
 variable (IV) fit would be a different estimator; not implemented here.
+
+The finite-window Gram cond(ΦᵀΦ) is a practical diagnostic of regressor
+richness on this horizon. Strict PE is a stronger statement (a positive-
+definite lower bound on the window Gram as the window grows); the toy
+reports the diagnostic, not a PE certificate.
 
 Pointers (no copyrighted book text pasted): Ljung, System Identification, 2ed
 (ISBN 0136566952) via the MIT OCW 6.435 syllabus; De Nicolao 1997 tutorial on
@@ -305,9 +316,9 @@ SEED = 51
 N = 200                 # identification horizon (samples), shared
 DT = 0.01               # s
 ENERGY_TOL = 0.01       # |E_step - E_other| / E_step must be <= this
-NOISE_STD = 0.02        # additive measurement noise on y (same stream per case)
+NOISE_STD = 0.02        # additive measurement noise v on y = z + v (same stream per case)
 
-# Case A: first-order speed plant  τ y' + y = K u  (discrete ARX-1).
+# Case A: first-order speed plant  τ z' + z = K u  (discrete ARX-1 on noise-free z).
 # A single step is classically enough to read τ; PE is not required.
 TAU_A = 0.08            # s  (matches the Month 3 / 5.1 joint time constant)
 K_A = 1.0
@@ -345,17 +356,25 @@ def scale_energy(u: list[float], target: float) -> list[float]:
     return [s * v for v in u]
 
 
-def sim_arx1(u: list[float], a: float, b: float, noise: list[float]) -> list[float]:
+def sim_meas_arx1(u: list[float], a: float, b: float, noise: list[float]) -> list[float]:
+    """Noise-free ARX-1 state z; measured y = z + v (independent measurement noise)."""
+    z = [0.0] * len(u)
     y = [0.0] * len(u)
     for k in range(1, len(u)):
-        y[k] = a * y[k - 1] + b * u[k - 1] + noise[k]
+        z[k] = a * z[k - 1] + b * u[k - 1]
+        y[k] = z[k] + noise[k]
     return y
 
 
-def sim_arx2(u: list[float], a1: float, a2: float, b: float, noise: list[float]) -> list[float]:
+def sim_meas_arx2(
+    u: list[float], a1: float, a2: float, b: float, noise: list[float]
+) -> list[float]:
+    """Noise-free ARX-2 state z; measured y = z + v (independent measurement noise)."""
+    z = [0.0] * len(u)
     y = [0.0] * len(u)
     for k in range(2, len(u)):
-        y[k] = a1 * y[k - 1] + a2 * y[k - 2] + b * u[k - 1] + noise[k]
+        z[k] = a1 * z[k - 1] + a2 * z[k - 2] + b * u[k - 1]
+        y[k] = z[k] + noise[k]
     return y
 
 
@@ -471,8 +490,18 @@ def peak(u: list[float]) -> float:
 
 def main() -> None:
     print(f"seed={SEED} N={N} dt={DT} energy_tol={ENERGY_TOL} noise_std={NOISE_STD}")
-    print("estimator: equation-error OLS (ARX); NOT claimed unbiased when y is noisy in Phi")
-    print("PE = regressor richness over the horizon (cond of Phi^T Phi), not '2 params ⇒ step fails'")
+    print(
+        "noise_model: y=z+v (independent measurement noise on noise-free ARX state z); "
+        "NOT ARX innovation e_k"
+    )
+    print(
+        "estimator: equation-error OLS (ARX) on noisy y in Phi → EIV / EE-OLS bias; "
+        "NOT claimed unbiased (OE/IV not implemented)"
+    )
+    print(
+        "PE diagnostic: finite-window cond(Phi^T Phi); "
+        "strict PE = positive-definite lower bound on the window Gram (not claimed here)"
+    )
     print()
 
     # ---- Case A: first-order τ — a step often suffices ----
@@ -488,7 +517,7 @@ def main() -> None:
     print(f"{'input':<10} {'energy':>10} {'peak|u|':>10} {'cond(PhiTPhi)':>14} {'||theta_hat-theta||':>20}")
     results_a = []
     for name, u in (("step", u_step_a), ("prbs", u_prbs_a)):
-        y = sim_arx1(u, A_TRUE_A, B_TRUE_A, noise_a)
+        y = sim_meas_arx1(u, A_TRUE_A, B_TRUE_A, noise_a)
         theta, cond, err = fit_arx1(u, y)
         e = energy(u)
         print(f"{name:<10} {e:10.4f} {peak(u):10.4f} {cond:14.4g} {err:20.6f}")
@@ -499,7 +528,8 @@ def main() -> None:
     assert rel <= ENERGY_TOL, f"case_A energy mismatch rel={rel}"
     print(f"energy_match_rel={rel:.6f} (tol={ENERGY_TOL})  "
           f"step_err={results_a[0][3]:.6f} prbs_err={results_a[1][3]:.6f} "
-          f"(step is capable; numbers decide, PE not guaranteed to win)")
+          f"(step is capable; numbers decide, PE not guaranteed to win; "
+          f"err includes EE-OLS bias from measurement noise)")
     print()
 
     # ---- Case B: second-order — richer input improves conditioning ----
@@ -513,7 +543,7 @@ def main() -> None:
     print(f"{'input':<10} {'energy':>10} {'peak|u|':>10} {'cond(PhiTPhi)':>14} {'||theta_hat-theta||':>20}")
     results_b = []
     for name, u in (("step", u_step_b), ("two_tone", u_rich_b)):
-        y = sim_arx2(u, A1_TRUE_B, A2_TRUE_B, B_TRUE_B, noise_b)
+        y = sim_meas_arx2(u, A1_TRUE_B, A2_TRUE_B, B_TRUE_B, noise_b)
         theta, cond, err = fit_arx2(u, y)
         e = energy(u)
         print(f"{name:<10} {e:10.4f} {peak(u):10.4f} {cond:14.4g} {err:20.6f}")
@@ -526,9 +556,10 @@ def main() -> None:
         f"expected two_tone cond < step cond, got {results_b[1][2]} vs {results_b[0][2]}")
     print(f"energy_match_rel={rel:.6f} (tol={ENERGY_TOL})  "
           f"cond_step={results_b[0][2]:.4g} cond_two_tone={results_b[1][2]:.4g} "
-          f"(richer input improved conditioning)")
+          f"step_err={results_b[0][3]:.6f} two_tone_err={results_b[1][3]:.6f} "
+          f"(richer input improved conditioning; err includes EE-OLS bias)")
     print("ok: fair energy; case_A step-capable; case_B richer input better cond; "
-          "EE-OLS bias caveat stated (real motor sysid 本页未运行)")
+          "measurement-noise EIV → EE-OLS bias measured (real motor sysid 本页未运行)")
 
 
 if __name__ == "__main__":
@@ -539,30 +570,31 @@ if __name__ == "__main__":
 
 ```text
 seed=51 N=200 dt=0.01 energy_tol=0.01 noise_std=0.02
-estimator: equation-error OLS (ARX); NOT claimed unbiased when y is noisy in Phi
-PE = regressor richness over the horizon (cond of Phi^T Phi), not '2 params ⇒ step fails'
+noise_model: y=z+v (independent measurement noise on noise-free ARX state z); NOT ARX innovation e_k
+estimator: equation-error OLS (ARX) on noisy y in Phi → EIV / EE-OLS bias; NOT claimed unbiased (OE/IV not implemented)
+PE diagnostic: finite-window cond(Phi^T Phi); strict PE = positive-definite lower bound on the window Gram (not claimed here)
 
 case_A first_order_tau=0.08 K=1.0  true_theta=[0.882497, 0.117503]
 input          energy    peak|u|  cond(PhiTPhi)  ||theta_hat-theta||
-step         190.0000     1.0000          174.5             0.007848
-prbs         190.0000     0.9747          4.824             0.003003
-energy_match_rel=0.000000 (tol=0.01)  step_err=0.007848 prbs_err=0.003003 (step is capable; numbers decide, PE not guaranteed to win)
+step         190.0000     1.0000          164.2             0.034758
+prbs         190.0000     0.9747          4.965             0.002735
+energy_match_rel=0.000000 (tol=0.01)  step_err=0.034758 prbs_err=0.002735 (step is capable; numbers decide, PE not guaranteed to win; err includes EE-OLS bias from measurement noise)
 
 case_B second_order  true_theta=[1.7, -0.72, 0.05]
 input          energy    peak|u|  cond(PhiTPhi)  ||theta_hat-theta||
-step         190.0000     1.0000      1.834e+04             0.004022
-two_tone     190.0000     1.9092          912.6             0.005956
-energy_match_rel=0.000000 (tol=0.01)  cond_step=1.834e+04 cond_two_tone=912.6 (richer input improved conditioning)
-ok: fair energy; case_A step-capable; case_B richer input better cond; EE-OLS bias caveat stated (real motor sysid 本页未运行)
+step         190.0000     1.0000      2.148e+04             1.361698
+two_tone     190.0000     1.9092           1108             0.219354
+energy_match_rel=0.000000 (tol=0.01)  cond_step=2.148e+04 cond_two_tone=1108 step_err=1.361698 two_tone_err=0.219354 (richer input improved conditioning; err includes EE-OLS bias)
+ok: fair energy; case_A step-capable; case_B richer input better cond; measurement-noise EIV → EE-OLS bias measured (real motor sysid 本页未运行)
 ```
 
 </SimOutput>
 
-**Case A** 是一阶 `τ = 0.08 s` 对象（与上面关节时间常数相同）。阶跃的参数误差是 0.0078——可用。PRBS 的 `cond(ΦᵀΦ)` 小得多（4.8 对 174），误差也略小；数字说了算，不能保证 PE 必胜。**Case B** 是二阶 ARX。阶跃条件数约 `1.8×10⁴`；同等能量的两音调输入降到约 913。参数误差在这份噪声下仍可能任一方向（这里阶跃误差还略小）——所以玩具两列都打印，正文不事先封王。真实电机系统辨识本页未运行。
+**Case A** 是一阶 `τ = 0.08 s` 对象（与上面关节时间常数相同）。阶跃的参数误差是 **0.0348**——仍足以读出 τ，且误差已包含 `y = z + v` 测得的 EE-OLS 偏差。PRBS 的 `cond(ΦᵀΦ)` 小得多（**4.97 对 164**），误差也小得多（**0.0027**）；数字说了算，不能保证 PE 必胜。**Case B** 是二阶 ARX。阶跃条件数约 **`2.15×10⁴`**，参数误差 **1.36**（病态放大了 EIV 偏差）；同等能量的两音调输入把 cond 降到约 **1108**、误差降到 **0.219**。此处更丰富频谱两列都改善——仍要两列都报，不要只凭理论封王。真实电机系统辨识本页未运行。
 
-<Quiz id="q6" question="在 case_B 中，输入从 step 换成同等能量的 two_tone 后，cond(ΦᵀΦ) 如何变化？" options={["大约升高 20 倍", "从约 1.8×10⁴ 降到约 913", "完全不变", "变成 0"]} answer={1} explanation="打印行是 cond_step ≈ 1.834×10⁴、cond_two_tone ≈ 912.6。频谱更丰富改善了条件数；参数误差是另一列，不保证一并改善。" />
+<Quiz id="q6" question="在 case_B 中，输入从 step 换成同等能量的 two_tone 后，cond(ΦᵀΦ) 如何变化？" options={["大约升高 20 倍", "从约 2.15×10⁴ 降到约 1108", "完全不变", "变成 0"]} answer={1} explanation="打印行是 cond_step ≈ 2.148×10⁴、cond_two_tone ≈ 1108。频谱更丰富改善了条件数；参数误差是另一列（此处也从 ≈1.36 降到 ≈0.22，因为 EIV 偏差被病态 Gram 放大）。" />
 
-<Quiz id="q7" question="为什么本页拒绝把这次 OLS 拟合称作无偏？" options={["因为 N 只有 200", "因为方程误差 OLS 把带噪 y 放进了 Φ（errors-in-variables）", "因为阶跃能量是 190", "因为 PRBS 总会赢"]} answer={1} explanation="ARX 风格的方程误差 OLS 用滞后输出作回归子。测量噪声落在 Φ 里，估计器属于 errors-in-variables / 方程误差，不得声称无偏。OE 或 IV 是另一类估计器。" />
+<Quiz id="q7" question="为什么本页拒绝把这次 OLS 拟合称作无偏？" options={["因为 N 只有 200", "因为 y=z+v 测量噪声把带噪滞后 y 放进了 Φ（EIV / EE-OLS 偏差）", "因为阶跃能量是 190", "因为 PRBS 总会赢"]} answer={1} explanation="玩具用的是独立测量噪声 y=z+v（无噪 ARX 状态）。方程误差 OLS 用滞后测量 y 作回归子，于是 v 落在 Φ 里：这就是 errors-in-variables / EE-OLS 偏差。（若是 ARX 新息模型，OLS 才一致；玩具不是那种模型。）OE 或 IV 是另一类估计器。" />
 
 ## 常见错误
 
@@ -573,4 +605,5 @@ ok: fair energy; case_A step-capable; case_B richer input better cond; EE-OLS bi
 - <strong>识别时换了负载。</strong>重力前馈抵消的是你建模的那部分重力，不是新加的负载或弹簧。要在关节实际工作的姿态和负载下测 tau 和 B；负载一变，J、B 和两个裕度都会动。
 - **宣称「两参数 ⇒ 阶跃不可辨识」。** 一阶 τ 常常就是从阶跃读出来的。PE 讲的是回归子丰富度；应报告 `cond(ΦᵀΦ)` 和 `‖θ̂−θ‖`，而不是一刀切禁止阶跃。
 - **输入能量不对齐就谈 PE。** 很大的 PRBS 对比很小的阶跃不是 PE 课。把 `Σ u²`（或峰值 `|u|`）限制在声明容差内。
-- **对带噪 y 的方程误差 OLS 声称无偏。** 滞后 y 进了 `Φ`，就要明示偏差风险，或改用 OE / IV 并写清楚。
+- **对带噪 y 的方程误差 OLS 声称无偏。** 在 `y = z + v` 下，滞后测量 y 进了 `Φ` → EIV / EE-OLS 偏差；要明示，或改用 OE / IV。不要与 ARX 新息模型（那种下 OLS 一致）混淆。
+- **把有限窗口 `cond(ΦᵀΦ)` 当成严格 PE 证书。** 打印的条件数是时域诊断；严格 PE 要求窗口 Gram 随窗口增长有正定下界。

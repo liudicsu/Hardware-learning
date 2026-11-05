@@ -3,6 +3,10 @@ qos_override_keys=history,depth,reliability,durability,deadline,lifespan,livelin
 qos_source=ros2/rosbag2 jazzy README Overriding QoS Profiles (YAML keys); durability compatibility table from Jazzy About QoS (the rosbag2 README has no such table)
 required_topics=/joint_states,/camera/color/image_raw,/tf max_gaps_allowed=2 gap_factor=1.5
 fixed_budget_examples fixed_ok: n=100 budget_min=90 cmp=ge → PASS; fixed_fail: n=10 budget_min=50 cmp=ge → FAIL (do not swap comparisons)
+override_match_demo (RxO is per publisher–subscriber pair):
+  mixed_pubs_override_reliable: pubs=reliable,best_effort request=reliable matched=1/2 from=reliable zero_messages=no
+  all_best_effort_override_reliable: pubs=best_effort,best_effort request=reliable matched=0/2 from=none zero_messages=yes
+override_match_note: too-strict override drops only incompatible publishers; zero messages only when ALL publishers mismatch
 case=pass_clean folder_exists=True decision=ACCEPT reason=ok
 case=missing_topic folder_exists=True decision=REJECT reason=missing_required_topic topic=/camera/color/image_raw n=0
 case=gap_heavy folder_exists=True decision=REJECT reason=gap_exceeded topic=/joint_states gaps=4
