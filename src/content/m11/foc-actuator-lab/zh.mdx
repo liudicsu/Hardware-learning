@@ -1,28 +1,31 @@
 本课是本站补充内容——第 7–11 个月不属于原六个月课程。
 
-**范围。** [2.3 电机与驱动](/zh/month/month-2/motors-drivers) 讲有刷 DC / 步进，并对 FOC 说「以后再说」；[3.4 PID](/zh/month/month-3/pid-control) 与 [2.2 ESP32](/zh/month/month-2/esp32) 是本课可选刷机路径的前置。本课 = **Clarke–Park 数学 + SimpleFOC 文档阅读图 + micro-ROS 路径图**，不强制购买 BLDC 套件，不替换 SO-101 的 STS3215 总线舵机。只说明「自研关节 / 轮毂」何时需要 FOC。micro-ROS agent / 刷机不进 CI；开环速度示例刷到已有 ESP32 标注本页未运行（需驱动板；强调电流限制与急停，链 [8.5](/zh/month/month-8/safety-reliability)）。本课也不替代 8.7 毕业项目。
+**范围。** [2.3 电机与驱动](/zh/month/month-2/motors-drivers) 讲有刷 DC / 步进，并对 FOC 说「以后再说」；[3.4 PID](/zh/month/month-3/pid-control) 与 [2.2 ESP32](/zh/month/month-2/esp32) 是本课可选刷机路径的前置。本课 = **Clarke–Park 数学（代数恒等式）+ 电角度与电阻–电感（R–L）电路模型上的 dq 电流环 + SimpleFOC 文档阅读图 + micro-ROS 路径图**。植物真值电角度 θ_e★ 只存在于仿真器；控制器只看到带噪的 θ_m,meas 与电流，再算 θ̂_e。**R–L 电路 ≠ 强化学习。** 不强制购买 BLDC 套件，不替换 SO-101 的 STS3215 总线舵机。只说明「自研关节 / 轮毂」何时需要 FOC。micro-ROS agent / 刷机 / 电流传感对齐不进 CI；开环速度示例刷到已有 ESP32 标注本页未运行（需驱动板；强调电流限制与急停，链 [8.5](/zh/month/month-8/safety-reliability)）。本课也不替代 8.7 毕业项目。
 
 ## 为什么要 90°
 
-洛伦兹力在电流与磁场夹角 90° 时最大。有刷电机靠电刷与换向器机械地保持这个关系；FOC 用坐标变换在软件里做同样的事：定子磁场始终超前转子磁链 90°，于是 \(\tau = K_t \cdot i_q\)，目标是 <Term id="id-zero">\(i_d = 0\)</Term>、<Term id="iq-torque">\(i_q = \tau / K_t\)</Term>。
+洛伦兹力在电流与磁场夹角 90° 时最大。有刷电机靠电刷与换向器机械地保持这个关系；FOC 用坐标变换在软件里做同样的事：定子磁场始终超前转子磁链 90°，于是 τ = K_t · i_q，目标是 <Term id="id-zero">i_d = 0</Term>、<Term id="iq-torque">i_q = τ / K_t</Term>。
 
-## Clarke 与 Park
+## Clarke 与 Park（代数恒等式）
 
 三个参考系（SimpleFOC `foc_theory`，以当期文档为准）：
 
-1. **静止 abc**：三相 \(i_a, i_b, i_c\)，彼此 120°。
-2. **静止 αβ**（Clarke）：两正交分量；平衡时 \(i_\alpha = i_a\)，\(i_\beta = (i_a + 2 i_b)/√3\)。
-3. **旋转 dq**（Park）：随转子电角度 \(\theta_e\) 转；AC 变成近似 DC，可用普通 PI。
+1. **静止 abc**：三相 i_a, i_b, i_c，彼此 120°。
+2. **静止 αβ**（Clarke）：两正交分量；平衡时 i_α = i_a，i_β = (i_a + 2 i_b)/√3。
+3. **旋转 dq**（Park）：随转子电角度 θ_e 转；AC 变成近似 DC，可用普通 PI。
 
-逆变换：dq → αβ（逆 Park）→ abc（逆 Clarke）得到三相电压，再经 PWM 驱动。步进电机两相已正交，可省 Clarke。
+逆变换：dq → αβ（逆 Park）→ abc（逆 Clarke）得到三相电压，再经 PWM 驱动。这些变换本身是**代数恒等式**，不是植物动力学——下一节的 R–L 电路才是植物。步进电机两相已正交，可省 Clarke。
 
 <Resource id="simplefoc-foc-theory" />
+<Resource id="simplefoc-foc-implementation" />
+<Resource id="simplefoc-alignment" />
+<Resource id="simplefoc-voltage-torque" />
 <Resource id="simplefoc-home" />
 <Resource id="simplefoc" />
 
 ## Clarke–Park 往返玩具
 
-`clarke_park_toy.py` 给定 \(i_q=1\)、\(i_d=0\)、\(\theta=\pi/6\)：逆 Park → 逆 Clarke 得三相，再正变换回收。打印 `sum_abc` 与 id/iq 误差。
+`clarke_park_toy.py` 给定 i_q=1、i_d=0、θ=π/6：逆 Park → 逆 Clarke 得三相，再正变换回收。打印 `sum_abc` 与 id/iq 误差。
 
 ```bash
 $ cd ~/Hardware-learning/examples/month-11/foc-actuator-lab
@@ -97,45 +100,299 @@ id_err=0.000e+00 iq_err=0.000e+00
 
 怎么读：
 
-- \(\theta = \pi/6 \approx\) **0.523599** rad 时三相为 −0.5 / 1.0 / −0.5，sum_abc = **0.000e+00**（基尔霍夫）。
-- 往返后 id_err = **0.000e+00**、iq_err = **0.000e+00**：数学上可逆；真机误差来自电流传感、角度延迟与死区，不在本玩具里。
+- θ = π/6 ≈ **0.523599** rad 时三相为 −0.5 / 1.0 / −0.5，sum_abc = **0.000e+00**（基尔霍夫）。
+- 往返后 id_err = **0.000e+00**、iq_err = **0.000e+00**：数学上可逆；真机误差来自电流传感、角度延迟与死区，不在本玩具里。这只证明变换是恒等式，**还不**等于电流环。
+
+## 电角度与 dq 电流环（R–L 电路）
+
+SimpleFOC 风格电角度：
+
+θ̂_e = normalize(d · p · θ_m,meas − θ_e0)
+
+其中传感器方向 d ∈ `{+1, −1}`，极对数 p，零电角度偏移 θ_e0。
+
+**仿真器 vs 控制器（强制合同）：**
+
+- **物理真值** θ_e★ 只在植物积分器里用（反电动势 / 虚构电机如何转）。
+- **控制器从不接收** θ_e★。它只看到 θ_m,meas（与重构电流），再算 θ̂_e。
+- 「错 offset / 错 p」消融 = 控制器的 θ̂_e 错，而 θ_e★ 仍与植物一致。两臂使用**同一组**测量噪声。
+
+植物假设（本玩具锁定）：每轴串联 R、L；反电动势 e_q ≈ k_e ω_e、e_d ≈ 0；**交叉耦合项 ω_e L i 在两臂都省略**（不是只省略一臂）。输出 SinePWM 形状的相电压浮点——没有 MCU 定时器。
+
+`foc_current_loop_toy.py` 在同一噪声下跑三臂：正确 p/θ_e0；错 θ_e0；错极对数。指标分控制器帧 RMSE（PI 看见的）与**植物真值帧** RMSE（实际力矩/磁通轴）。错角度时控制器帧仍可能「看起来还行」，植物帧会垮——这正是对齐的意义。
+
+```bash
+$ python3 foc_current_loop_toy.py
+```
+
+<CodeSource path="examples/month-11/foc-actuator-lab/foc_current_loop_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""foc_current_loop_toy.py: electrical angle + dq PI on an R–L circuit (stdlib).
+
+Naming LOCKED: the plant is an R–L electrical circuit model (resistance R,
+inductance L). It is NOT reinforcement learning.
+
+Simulator vs controller angle contract:
+  - Ground-truth physical electrical angle theta_e_star lives ONLY inside the
+    plant integrator (back-EMF / how the fictitious machine rotates).
+  - The controller NEVER receives theta_e_star. It only sees noisy theta_m_meas
+    (and reconstructed currents) and computes hat_theta_e =
+    normalize(d * p_ctrl * theta_m_meas - theta_e0_ctrl).
+  - Ablation "wrong offset / wrong p" means the controller's hat_theta_e is wrong
+    while theta_e_star stays consistent with the plant. Both arms share the SAME
+    measurement-noise draws.
+
+Metrics (LOCKED):
+  - ctrl_*_rmse: controller-frame tracking of id/iq refs (what the PI sees).
+  - plant_*_rmse: true-frame plant currents vs refs (actual torque/flux axes).
+    Wrong hat_theta_e can look "OK" in ctrl frame while plant frame drifts —
+    that is the pedagogical point.
+  - ang_rmse: wrap(hat_theta_e - theta_e_star), diagnostic only (offline; not a
+    controller input).
+
+Clarke / Park transforms that are not plant dynamics are algebraic identities.
+Cross-coupling omega*L*i terms are OMITTED on BOTH arms (locked).
+SinePWM-shaped phase voltage floats only — no MCU timer.
+"""
+import math
+import random
+
+SEED = 13
+DT = 1e-4
+N = 4000
+WARM = 800
+R = 1.2
+L = 0.0025
+KE = 0.04
+V_LIM = 8.0
+IQ_REF = 1.0
+ID_REF = 0.0
+OMEGA_M = 6.0
+P_TRUE = 7
+D_TRUE = 1
+THETA_E0_TRUE = 0.20
+NOISE_THETA = 0.0015
+NOISE_I = 0.015
+KP_D, KI_D = 3.0, 800.0
+KP_Q, KI_Q = 3.0, 800.0
+
+
+def wrap(a):
+    return (a + math.pi) % (2 * math.pi) - math.pi
+
+
+def electrical_angle(d, p, theta_m, theta_e0):
+    return wrap(d * p * theta_m - theta_e0)
+
+
+def inv_park(ud, uq, th):
+    c, s = math.cos(th), math.sin(th)
+    return c * ud - s * uq, s * ud + c * uq
+
+
+def inv_clarke(ua, ub):
+    return (
+        ua,
+        -0.5 * ua + (math.sqrt(3) / 2) * ub,
+        -0.5 * ua - (math.sqrt(3) / 2) * ub,
+    )
+
+
+def clarke(ia, ib, _ic):
+    return ia, (ia + 2 * ib) / math.sqrt(3)
+
+
+def park(i_alpha, i_beta, th):
+    c, s = math.cos(th), math.sin(th)
+    return i_alpha * c + i_beta * s, -i_alpha * s + i_beta * c
+
+
+def run_arm(p_ctrl, theta_e0_ctrl, noise_theta, noise_i):
+    theta_m = 0.0
+    id_plant = 0.0
+    iq_plant = 0.0
+    int_d = 0.0
+    int_q = 0.0
+    s_ctrl_id = s_ctrl_iq = s_plant_id = s_plant_iq = s_ang = 0.0
+    n_metric = 0
+    ua = ub = uc = 0.0
+
+    for k in range(N):
+        theta_e_star = electrical_angle(D_TRUE, P_TRUE, theta_m, THETA_E0_TRUE)
+        omega_e = D_TRUE * P_TRUE * OMEGA_M
+        e_q = KE * omega_e
+
+        theta_m_meas = theta_m + noise_theta[k]
+        hat_theta_e = electrical_angle(D_TRUE, p_ctrl, theta_m_meas, theta_e0_ctrl)
+
+        i_alpha_p, i_beta_p = inv_park(id_plant, iq_plant, theta_e_star)
+        ia, ib, ic = inv_clarke(i_alpha_p, i_beta_p)
+        ia_m = ia + noise_i[3 * k]
+        ib_m = ib + noise_i[3 * k + 1]
+        ic_m = ic + noise_i[3 * k + 2]
+        a, b = clarke(ia_m, ib_m, ic_m)
+        id_meas, iq_meas = park(a, b, hat_theta_e)
+
+        err_d = ID_REF - id_meas
+        err_q = IQ_REF - iq_meas
+        int_d += err_d * DT
+        int_q += err_q * DT
+        ud = max(-V_LIM, min(V_LIM, KP_D * err_d + KI_D * int_d))
+        uq = max(-V_LIM, min(V_LIM, KP_Q * err_q + KI_Q * int_q))
+
+        ual, ubt = inv_park(ud, uq, hat_theta_e)
+        ua, ub, uc = inv_clarke(ual, ubt)
+
+        a_v, b_v = clarke(ua, ub, uc)
+        ud_plant, uq_plant = park(a_v, b_v, theta_e_star)
+
+        # R–L circuit; cross-coupling omitted on BOTH arms
+        id_plant += ((ud_plant - R * id_plant - 0.0) / L) * DT
+        iq_plant += ((uq_plant - R * iq_plant - e_q) / L) * DT
+
+        if k >= WARM:
+            s_ctrl_id += (id_meas - ID_REF) ** 2
+            s_ctrl_iq += (iq_meas - IQ_REF) ** 2
+            s_plant_id += (id_plant - ID_REF) ** 2
+            s_plant_iq += (iq_plant - IQ_REF) ** 2
+            s_ang += wrap(hat_theta_e - theta_e_star) ** 2
+            n_metric += 1
+
+        theta_m += OMEGA_M * DT
+
+    return {
+        "ctrl_id_rmse": math.sqrt(s_ctrl_id / n_metric),
+        "ctrl_iq_rmse": math.sqrt(s_ctrl_iq / n_metric),
+        "plant_id_rmse": math.sqrt(s_plant_id / n_metric),
+        "plant_iq_rmse": math.sqrt(s_plant_iq / n_metric),
+        "ang_rmse": math.sqrt(s_ang / n_metric),
+        "ua": ua, "ub": ub, "uc": uc,
+    }
+
+
+rng = random.Random(SEED)
+noise_theta = [rng.gauss(0.0, NOISE_THETA) for _ in range(N)]
+noise_i = [rng.gauss(0.0, NOISE_I) for _ in range(3 * N)]
+
+ok = run_arm(P_TRUE, THETA_E0_TRUE, noise_theta, noise_i)
+bad_off = run_arm(P_TRUE, THETA_E0_TRUE + 0.55, noise_theta, noise_i)
+bad_p = run_arm(5, THETA_E0_TRUE, noise_theta, noise_i)
+
+print(f"seed={SEED}")
+print(f"dt={DT:.1e} N={N} warm={WARM}")
+print(f"R_ohm={R:.2f} L_H={L:.4f}")
+print("plant_model=R_L_circuit")
+print(f"p_true={P_TRUE} theta_e0_true={THETA_E0_TRUE:.3f}")
+print(f"iq_ref={IQ_REF:.1f} id_ref={ID_REF:.1f}")
+print("cross_coupling=omitted_both_arms")
+print(f"ok_ctrl_iq_rmse={ok['ctrl_iq_rmse']:.6f}")
+print(f"ok_ctrl_id_rmse={ok['ctrl_id_rmse']:.6f}")
+print(f"ok_plant_iq_rmse={ok['plant_iq_rmse']:.6f}")
+print(f"ok_plant_id_rmse={ok['plant_id_rmse']:.6f}")
+print(f"ok_ang_rmse={ok['ang_rmse']:.6f}")
+print(f"bad_offset_ctrl_iq_rmse={bad_off['ctrl_iq_rmse']:.6f}")
+print(f"bad_offset_plant_iq_rmse={bad_off['plant_iq_rmse']:.6f}")
+print(f"bad_offset_plant_id_rmse={bad_off['plant_id_rmse']:.6f}")
+print(f"bad_offset_ang_rmse={bad_off['ang_rmse']:.6f}")
+print(f"bad_pp_ctrl_iq_rmse={bad_p['ctrl_iq_rmse']:.6f}")
+print(f"bad_pp_plant_iq_rmse={bad_p['plant_iq_rmse']:.6f}")
+print(f"bad_pp_plant_id_rmse={bad_p['plant_id_rmse']:.6f}")
+print(f"bad_pp_ang_rmse={bad_p['ang_rmse']:.6f}")
+print(f"ok_ua={ok['ua']:.6f} ok_ub={ok['ub']:.6f} ok_uc={ok['uc']:.6f}")
+print("plant_vs_controller=theta_e_star_not_fed_to_ctrl")
+
+assert bad_off["ang_rmse"] > 10 * ok["ang_rmse"]
+assert bad_p["ang_rmse"] > 10 * ok["ang_rmse"]
+assert bad_off["plant_iq_rmse"] > 2 * ok["plant_iq_rmse"]
+assert bad_p["plant_iq_rmse"] > 2 * ok["plant_iq_rmse"]
+assert bad_off["plant_id_rmse"] > 2 * ok["plant_id_rmse"]
+assert bad_p["plant_id_rmse"] > 2 * ok["plant_id_rmse"]
+# Controller can still look OK under constant offset — do NOT require ctrl degrade
+print("asserts_ok=true")
+```
+
+
+<SimOutput source="model">
+
+```text
+seed=13
+dt=1.0e-04 N=4000 warm=800
+R_ohm=1.20 L_H=0.0025
+plant_model=R_L_circuit
+p_true=7 theta_e0_true=0.200
+iq_ref=1.0 id_ref=0.0
+cross_coupling=omitted_both_arms
+ok_ctrl_iq_rmse=0.017593
+ok_ctrl_id_rmse=0.021370
+ok_plant_iq_rmse=0.003842
+ok_plant_id_rmse=0.006129
+ok_ang_rmse=0.010624
+bad_offset_ctrl_iq_rmse=0.017973
+bad_offset_plant_iq_rmse=0.147186
+bad_offset_plant_id_rmse=0.522397
+bad_offset_ang_rmse=0.550069
+bad_pp_ctrl_iq_rmse=0.026079
+bad_pp_plant_iq_rmse=1.541919
+bad_pp_plant_id_rmse=0.761119
+bad_pp_ang_rmse=2.241386
+ok_ua=2.182588 ok_ub=-2.755060 ok_uc=0.572472
+plant_vs_controller=theta_e_star_not_fed_to_ctrl
+asserts_ok=true
+```
+
+</SimOutput>
+
+怎么读：
+
+- 正确对齐：植物帧 iq RMSE = **0.003842**、id = **0.006129**，角度 RMSE = **0.010624**。
+- 错 offset（+0.55 rad）：控制器帧 iq RMSE 仍约 **0.017973**（几乎不差），但植物帧 iq = **0.147186**、id = **0.522397**，角度 = **0.550069**。
+- 错极对数（5 vs 7）：植物帧 iq = **1.541919**、id = **0.761119**，角度 = **2.241386**。
+- `plant_model=R_L_circuit`、`plant_vs_controller=theta_e_star_not_fed_to_ctrl`、`cross_coupling=omitted_both_arms`。
 
 ## SimpleFOC 阅读图
 
-- **库**：Arduino SimpleFOC（文档写 v2.4+ 坐标变换页）；PlatformIO / 多 MCU（含你在 M2 已有的 ESP32）。
+- **库**：Arduino SimpleFOC（文档写 v2.4+）；PlatformIO / 多 MCU（含你在 M2 已有的 ESP32）。读 `foc_implementation`（setPhaseVoltage / loopFOC）、`alignment_procedure`、`voltage_torque_control`——以当期文档为准。
 - **传感器**：开环（无反馈，仅演示）、霍尔、磁编码器。
 - **两条集成路径**：先串口 <Term id="simplefoc-commander">Commander</Term> 调参；再考虑 micro-ROS 客户端把关节接到 ROS 2 图里。micro-ROS + FOC 的社区实践存在，但**本页不进 CI、不抄第三方博客零件表**；刷机步骤放本目录 README，标注本页未运行。
 - **与 SO-101**：总线舵机内部已有自己的伺服；本课不替换 STS3215。当你做轮毂、直驱关节或要电流环力矩控制时，再上 FOC。
 
 ## 选做：开环刷机（本页未运行）
 
-若你已有 ESP32 + 合适驱动板：按 SimpleFOC 开环速度示例编译烧录，**先把电流限制与急停接好**（8.5）。不要为了本课去买 BLDC 套件、SimpleFOC Shield 或 hoverboard 轮毂——那些是延伸。命令以当期 SimpleFOC 文档为准。
+若你已有 ESP32 + 合适驱动板：按 SimpleFOC 开环速度示例编译烧录，**先把电流限制与急停接好**（8.5）。不要为了本课去买 BLDC 套件、SimpleFOC Shield 或 hoverboard 轮毂——那些是延伸。命令以当期 SimpleFOC 文档为准。电流传感对齐与改 zero_electric_angle 也属本页未运行。
 
 ## 本课未覆盖
 
 - 弱磁、MTPA、高频注入无感。
 - 具体 MOSFET 选型与 PCB 布局（见 11.1 EMC）。
 - 把 FOC 关节写进 ros2_control 硬件组件的完整驱动（8.4 是接口课）。
+- 交叉耦合解耦（本玩具两臂都省略，不单臂省略）。
 
 <Summary>
 
 **本课要点**
 
-- FOC 用变换保持 90°：目标 id=0、iq=τ/Kt。
-- 玩具往返 id_err / iq_err = 0.000e+00，sum_abc = 0.000e+00。
-- 先 Commander 串口，再考虑 micro-ROS；后者本页未运行。
+- FOC 用变换保持 90°：目标 id=0、iq=τ/Kt；Clarke–Park 是恒等式。
+- 往返玩具 id_err / iq_err = 0.000e+00，sum_abc = 0.000e+00。
+- R–L 电路电流环：正确对齐植物帧 iq RMSE 0.003842；错 offset / 错 p 时植物帧显著变差，控制器帧可能仍好看。
+- θ_e★ 不喂给控制器；R–L ≠ 强化学习。
+- 先 Commander 串口，再考虑 micro-ROS；刷机本页未运行。
 - 不强制买 BLDC；不替换 SO-101 总线舵机。
 
 **常见错误**
 
 - 没限流就开环全速刷机。
 - 把本课当成「必须换掉 STS3215」。
+- 把「RL 植物」读成强化学习。
+- 让仿真器把 θ_e★ 泄漏进控制器路径。
 - 把第三方博客的零件表当本站事实。
 
 **自检**
 
-- Clarke 与 Park 各解决什么？
+- Clarke 与 Park 各解决什么？为何是恒等式？
 - 为什么平衡三相 sum_abc 应为 0？
+- 错 offset 时为何控制器帧 RMSE 仍可能很小？
 - 何时需要 FOC 而不是总线舵机？
 
 **下一课会用到**

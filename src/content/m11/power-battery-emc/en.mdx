@@ -1,6 +1,6 @@
 This lesson is a site supplement — Months 7–11 are not part of the original six-month course.
 
-**Scope.** [1.x components & Ohm's law](/en/month/month-1/components) cover measuring battery voltage and a one-line safety note; [2.3 motors & drivers](/en/month/month-2/motors-drivers) cover how battery sag changes open-loop speed and the 2S LiPo full-charge calibration. [3.5 SO-101](/en/month/month-3/so101-arm) is this lesson's whole-robot power example. Here we go **system-level**: separate logic and motor buses, fuse margin, IR drop, and EMC hygiene that keeps motor leads away from encoder lines. We do not re-teach Ohm's law; we do not teach BMS reprogramming or pack teardown. Currents are **example assumptions, not measured on this site**. Real current probing / scope-on-a-loop is marked 本页未运行 (not run on this page); no power analyser purchase. This lesson also does not replace the 8.7 capstone.
+**Scope.** [1.x components & Ohm's law](/en/month/month-1/components) cover measuring battery voltage and a one-line safety note; [2.3 motors & drivers](/en/month/month-2/motors-drivers) cover how battery sag changes open-loop speed and the 2S LiPo full-charge calibration. [3.5 SO-101](/en/month/month-3/so101-arm) is this lesson's whole-robot power example. Here we go **system-level**: separate logic and motor buses, one-way and round-trip IR drop, I²R thermal hygiene, fuse **data gates** (the toy emits only `insufficient_data` / `reject_known_constraint` — never `ok_slow_blow` from a peak-current ratio), and EMC hygiene that keeps motor leads away from encoder lines. We do not re-teach Ohm's law; we do not teach BMS reprogramming or pack teardown. Currents are **example assumptions, not measured on this site**. Real current probing / scope-on-a-loop / **fuse swaps** are marked 本页未运行 (not run on this page); no power analyser purchase; **the toy is not a fuse certification**. This lesson also does not replace the 8.7 capstone.
 
 ## Why a desktop arm still needs a power plan
 
@@ -24,9 +24,9 @@ Series raises voltage; parallel raises capacity; C-rate says how much continuous
 - Stay present while charging; stop on swelling, smell or heat.
 - E-stop cuts the motor bus, not only logic (see [8.5 safety & reliability](/en/month/month-8/safety-reliability)).
 
-## Power-budget toy
+## Power-budget toy (one-way)
 
-`power_budget_toy.py` uses a fixed seed and illustrative currents: 6 servos, 0.35 A idle, 1.8 A peak, 12 V nominal, 0.8 m × 50 mΩ/m wire, 10 A fuse. It prints totals, peak drop, voltage at the load, fuse margin, and whether the 11 V floor still holds.
+`power_budget_toy.py` uses a fixed seed and illustrative currents: 6 servos, 0.35 A idle, 1.8 A peak, 12 V nominal, 0.8 m × 50 mΩ/m wire, 10 A fuse. It prints totals, **one-way** peak drop, voltage at the load, the raw fuse/peak ratio, and whether the 11 V floor still holds. `fuse_margin` is a ratio only — **not** a "fuse is suitable" conclusion.
 
 ```bash
 $ cd ~/Hardware-learning/examples/month-11/power-battery-emc
@@ -94,48 +94,216 @@ pass_11v_floor=true
 
 How to read it:
 
-- Peak total **10.80** A already sits above a 10 A fuse rating — fuse_margin = **0.926** (fuse / peak &lt; 1) warns that a slow-blow fuse can ride a short spike, but sustained stall is not fine; size from your servo datasheet.
-- 0.0400 Ω of wire drops **0.432** V at peak, leaving **11.568** V at the load, still above the 11 V floor (`pass_11v_floor=true`). R here is a **one-way conductor** resistance (R = ρ·L, length is supply-to-load one way; a symmetric return would double it — this toy uses the one-way example). Longer or thinner wire hits the floor first.
-- These currents are **example assumptions**; this site has not measured whole SO-101 peak current.
+- Peak total **10.80** A, fuse_margin = **0.926** (fuse rating / peak). That only says the peak is near the rating — it does **not** license writing "a slow-blow is fine" or emitting `ok_slow_blow`. Real selection needs the data gates in the next section.
+- Wire resistance 0.0400 Ω drops **0.432** V one-way at peak; load sees **11.568** V, still above the 11 V floor (`pass_11v_floor=true`). R here is the **one-way conductor** (R = ρ·L); with a symmetric return, round-trip is 2× — next section.
+- Currents are **example assumptions**; this site has not measured a whole SO-101 peak.
 
-Probing peak current with a clamp or scoping a ground loop is not run on this page. No power analyser purchase.
+## Round-trip drop, I²R, and fuse data gates
 
-## Against the SO-101
+`power_roundtrip_loss_toy.py` compares, on the same illustrative currents:
 
-Bus servos (e.g. STS3215) share motor power and a TTL bus. Logic 5 V often comes from an on-board LDO or a separate rail: when the motor bus sags, the logic rail needs its own decoupling — one fat wire does not keep both sides steady. Change `n_servos`, `I_peak` and `wire_len_m` to your assumptions, re-run, and put the numbers on your power checklist.
+1. **One-way vs round-trip** drop (R_go + R_ret; symmetric return = 2× one-way).
+2. **I²R** wire loss at idle and peak — thermal **hygiene**, not winding MTPA.
+3. **Protection status**: missing manufacturer time–current / DC interrupt / fault current → `insufficient_data` by default; `reject_known_constraint` only when an **explicitly supplied** numeric constraint is violated (e.g. `V_at_load < V_floor`, or `I_continuous > wire_ampacity`). **Never** emits `ok_slow_blow`.
+
+Before choosing a fuse you must obtain at least: DC voltage rating, interrupting capacity (DC vs AC), wire ampacity + derating, prospective fault current, manufacturer time–current / I²t, and inrush shape. This lesson does **not** ship those curves; the toy is not a certification; swapping a fuse is 本页未运行.
+
+```bash
+$ python3 power_roundtrip_loss_toy.py
+```
+
+<CodeSource path="examples/month-11/power-battery-emc/power_roundtrip_loss_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""power_roundtrip_loss_toy.py: round-trip IR drop, I^2R loss, fuse data gates (stdlib).
+
+Illustrative SO-101-like bus-servo currents — NOT measured on this site.
+Protection outcomes are ONLY insufficient_data or reject_known_constraint.
+Never emits ok_slow_blow / "suitable fuse" from a peak-current ratio alone.
+Real fuse selection needs DC voltage rating, interrupt capacity, wire ampacity
++ derating, prospective fault current, and manufacturer time-current / I^2t —
+none of which this toy ships.
+"""
+SEED = 7
+
+# Illustrative currents / geometry (labelled not measured)
+V_nom = 12.0
+I_idle = 0.35   # A per servo
+I_peak = 1.8    # A stall-ish peak
+n_servos = 6
+wire_mohm_per_m = 50.0  # 22 AWG ballpark illustrative
+# Two lengths under equal current — voltage constraint only
+len_short_m = 0.8
+len_long_m = 1.5
+V_floor = 11.0
+# Illustrative continuous ampacity input for the reject demo (not a datasheet claim)
+wire_ampacity_A = 8.0  # deliberately below peak total for reject_known_constraint arm
+
+I_peak_total = n_servos * I_peak
+I_idle_total = n_servos * I_idle
+
+
+def one_way_R(length_m):
+    return wire_mohm_per_m * 1e-3 * length_m
+
+
+def round_trip_drop(I, length_m):
+    # Go + return: R_go + R_ret with symmetric return
+    R_rt = 2.0 * one_way_R(length_m)
+    return I * R_rt, R_rt
+
+
+def i2r_loss(I, R):
+    return I * I * R
+
+
+def protection_status(*, v_at_load=None, v_floor=None, i_continuous=None, wire_ampacity=None,
+                      have_fuse_curve=False, have_dc_interrupt=False, have_fault_current=False):
+    """Data-gated protection literacy. Never certifies a fuse as suitable."""
+    if v_at_load is not None and v_floor is not None and v_at_load < v_floor:
+        return "reject_known_constraint"
+    if (i_continuous is not None and wire_ampacity is not None
+            and i_continuous > wire_ampacity):
+        return "reject_known_constraint"
+    # Missing manufacturer fuse curve / DC interrupt / fault current → cannot certify
+    if not (have_fuse_curve and have_dc_interrupt and have_fault_current):
+        return "insufficient_data"
+    # Even with flags, this course never ships curves — unreachable by design.
+    return "insufficient_data"
+
+
+# --- Run A: short wire, default (no fuse datasheet fields) ---
+drop_short, R_rt_short = round_trip_drop(I_peak_total, len_short_m)
+V_load_short = V_nom - drop_short
+P_idle_short = i2r_loss(I_idle_total, R_rt_short)
+P_peak_short = i2r_loss(I_peak_total, R_rt_short)
+# one-way for comparison with power_budget_toy
+R_ow_short = one_way_R(len_short_m)
+drop_ow_short = I_peak_total * R_ow_short
+status_default = protection_status()  # missing all fuse fields
+
+# --- Run B: long wire, same peak current — voltage floor only ---
+drop_long, R_rt_long = round_trip_drop(I_peak_total, len_long_m)
+V_load_long = V_nom - drop_long
+status_long_v = protection_status(v_at_load=V_load_long, v_floor=V_floor)
+
+# --- Run C: continuous current vs illustrative ampacity (reject) ---
+status_ampacity = protection_status(
+    i_continuous=I_peak_total, wire_ampacity=wire_ampacity_A
+)
+
+# Which length hits V_floor first (voltage constraint only; equal I)
+hits_floor_first = "long" if V_load_long < V_floor and V_load_short >= V_floor else (
+    "short" if V_load_short < V_floor else "neither"
+)
+
+# Sanity: never emit ok_* 
+assert status_default == "insufficient_data"
+assert "ok" not in status_default and "ok" not in status_long_v and "ok" not in status_ampacity
+
+print(f"seed={SEED}")
+print(f"V_nom={V_nom:.1f}")
+print(f"n_servos={n_servos}")
+print(f"I_idle_total={I_idle_total:.2f}")
+print(f"I_peak_total={I_peak_total:.2f}")
+print(f"len_short_m={len_short_m:.1f}")
+print(f"len_long_m={len_long_m:.1f}")
+print(f"R_oneway_short_ohm={R_ow_short:.4f}")
+print(f"R_roundtrip_short_ohm={R_rt_short:.4f}")
+print(f"V_drop_oneway_short={drop_ow_short:.3f}")
+print(f"V_drop_roundtrip_short={drop_short:.3f}")
+print(f"V_at_load_roundtrip_short={V_load_short:.3f}")
+print(f"P_i2r_idle_short_W={P_idle_short:.4f}")
+print(f"P_i2r_peak_short_W={P_peak_short:.4f}")
+print(f"V_drop_roundtrip_long={drop_long:.3f}")
+print(f"V_at_load_roundtrip_long={V_load_long:.3f}")
+print(f"V_floor={V_floor:.1f}")
+print(f"hits_V_floor_first={hits_floor_first}")
+print(f"protection_status_default={status_default}")
+print(f"protection_status_long_wire={status_long_v}")
+print(f"protection_status_ampacity={status_ampacity}")
+print(f"wire_ampacity_A={wire_ampacity_A:.1f}")
+print("fuse_certification=never")  # explicit: toy never certifies
+```
+
+
+<SimOutput source="model">
+
+```text
+seed=7
+V_nom=12.0
+n_servos=6
+I_idle_total=2.10
+I_peak_total=10.80
+len_short_m=0.8
+len_long_m=1.5
+R_oneway_short_ohm=0.0400
+R_roundtrip_short_ohm=0.0800
+V_drop_oneway_short=0.432
+V_drop_roundtrip_short=0.864
+V_at_load_roundtrip_short=11.136
+P_i2r_idle_short_W=0.3528
+P_i2r_peak_short_W=9.3312
+V_drop_roundtrip_long=1.620
+V_at_load_roundtrip_long=10.380
+V_floor=11.0
+hits_V_floor_first=long
+protection_status_default=insufficient_data
+protection_status_long_wire=reject_known_constraint
+protection_status_ampacity=reject_known_constraint
+wire_ampacity_A=8.0
+fuse_certification=never
+```
+
+</SimOutput>
+
+How to read it:
+
+- Short wire (0.8 m) round-trip drop **0.864** V → load **11.136** V; long wire (1.5 m) round-trip **1.620** V → load **10.380** V → `hits_V_floor_first=long` (same peak current; voltage constraint only).
+- Short-wire round-trip I²R: idle **0.3528** W, peak **9.3312** W — thicker / shorter wire is thermal hygiene, not "leave more fuse margin."
+- `protection_status_default=insufficient_data`: no curves → no "suitable" claim. `protection_status_long_wire=reject_known_constraint` and `protection_status_ampacity=reject_known_constraint` only demo **known** constraints being violated; `fuse_certification=never`.
+
+Probing peak current with a clamp, scoping a ground loop, or swapping a fuse — 本页未运行. No power analyser purchase.
+
+## Mapping back to SO-101
+
+Bus servos (e.g. STS3215) share the motor rail and a TTL bus. Logic 5 V often comes from an on-board LDO or a separate rail: when the motor bus sags, logic needs its own decoupling — do not expect "one fat wire" to keep both sides happy. Retune `n_servos`, `I_peak`, `wire_len_m` to your assumptions, re-run, and put the numbers on your power checklist — alongside a fuse datasheet checklist, not a single fuse_margin figure.
 
 ## Out of scope
 
-- BMS reprogramming, cell balancing algorithms, pack teardown.
-- Switch-mode loop compensation, PFC.
-- Certification EMC tests (conducted / radiated limits).
+- BMS edits, cell balancing algorithms, pack teardown.
+- SMPS loop compensation, PFC.
+- Certification-grade EMC (conducted / radiated limits).
+- Declaring a fuse "suitable" from the toy.
 
-Further reading: Novanta humanoid EMC wiring case, Roboteq EMI post, ARK Power and Grounding.
+Further reading: Novanta humanoid EMC wiring use case, Roboteq EMI blog, ARK Power and Grounding.
 
 <Summary>
 
-**Key points**
+**Takeaways**
 
-- Separate logic and motor buses; star the common ground at one point.
-- Toy: peak 10.80 A, drop 0.432 V, load 11.568 V, fuse_margin 0.926.
-- Three EMC rules: motor leads away from signals; keep power/logic grounding strategies distinct; terminate shields by frequency and device spec (HF continuous at both ends; never use GND_D as shield return; do not generalise source-end ground to every cable).
-- Batteries: read C-rate and BMS cut-off only; no teardown, no BMS edits.
-- Currents are examples; real measurements are not run here.
+- Separate logic and motor buses; single-point star ground.
+- One-way toy: peak 10.80 A, drop 0.432 V, load 11.568 V; fuse_margin 0.926 is a ratio only.
+- Round-trip toy: short load 11.136 V, long 10.380 V hits the floor first; peak I²R 9.3312 W; default `insufficient_data`.
+- EMC three: keep motor leads off signal lines; separate power/logic ground strategy; terminate shields by band and device spec (HF both ends; never use GND_D as shield return).
+- Battery: read C-rate and BMS cut concepts only; no teardown, no BMS edits, no fuse swaps.
 
 **Common mistakes**
 
-- Tying logic ground into the middle of a motor return path.
-- Running encoder and phase leads in a long parallel bundle.
-- Charging Li-ion from a random bench supply.
+- Tying logic ground into the middle of a motor return.
+- Running encoder leads parallel to phase leads for a long run.
+- "Just topping up" Li-ion on a bench supply.
+- Writing "slow-blow is fine" from I_fuse / I_peak alone.
 
-**Check yourself**
+**Self-check**
 
-- At 10.80 A peak, what is the drop on 0.8 m × 50 mΩ/m?
-- Why can fuse_margin &lt; 1 still allow a slow-blow fuse?
+- How many times larger is round-trip drop than one-way? Which length hits 11 V first?
+- Why must the default protection_status be insufficient_data?
 - What are the three hard EMC rules?
 
 **Next**
 
-- [11.2 FOC actuator lab](/en/month/month-11/foc-actuator-lab): from H-bridge PWM up to Clarke–Park.
+- [11.2 FOC actuator lab](/en/month/month-11/foc-actuator-lab): from H-bridge PWM up to electrical angle and a dq current loop.
 
 </Summary>

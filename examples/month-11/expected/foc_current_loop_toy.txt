@@ -1,0 +1,23 @@
+seed=13
+dt=1.0e-04 N=4000 warm=800
+R_ohm=1.20 L_H=0.0025
+plant_model=R_L_circuit
+p_true=7 theta_e0_true=0.200
+iq_ref=1.0 id_ref=0.0
+cross_coupling=omitted_both_arms
+ok_ctrl_iq_rmse=0.017593
+ok_ctrl_id_rmse=0.021370
+ok_plant_iq_rmse=0.003842
+ok_plant_id_rmse=0.006129
+ok_ang_rmse=0.010624
+bad_offset_ctrl_iq_rmse=0.017973
+bad_offset_plant_iq_rmse=0.147186
+bad_offset_plant_id_rmse=0.522397
+bad_offset_ang_rmse=0.550069
+bad_pp_ctrl_iq_rmse=0.026079
+bad_pp_plant_iq_rmse=1.541919
+bad_pp_plant_id_rmse=0.761119
+bad_pp_ang_rmse=2.241386
+ok_ua=2.182588 ok_ub=-2.755060 ok_uc=0.572472
+plant_vs_controller=theta_e_star_not_fed_to_ctrl
+asserts_ok=true
