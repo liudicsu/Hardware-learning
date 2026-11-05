@@ -1,0 +1,6 @@
+seed=41 lag_s=0.14 shared_packets_and_noise=True
+clock_offsets_s=0.012,-0.006,0.004 known_correction=True
+matched_arrival_events=874 catch_tolerance_m=0.012
+latest misalignment_rmse_m=0.016905 catch_proxy=11/874
+stamp_aligned misalignment_rmse_m=0.000963 catch_proxy=874/874
+arrived_brackets_only=True extrapolation=False live_success_claim=False

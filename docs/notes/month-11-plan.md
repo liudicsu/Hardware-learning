@@ -13,10 +13,10 @@ Constraints: no required purchases — not DIGIT / GelSight Mini, a BLDC kit, a 
 | 3 | `tactile-sensing` | 420 | `tactile_marker_toy.py`, `tactile_debias_recal_toy.py` | AnySkin arXiv 2409.08276; DIGIT design / interface repos; GelSight (Yuan 2017); 3D Cal arXiv 2511.03078 (abstract) |
 | 4 | `umi-style-collection` | 240 | `relative_traj_toy.py` | UMI arXiv 2402.10329 v3 + project page / Hardware Guide; LeRobot action representations |
 | 5 | `cross-embodiment-datasets` | 330 | `oxe_imbalance_toy.py`, `oxe_auge_score_toy.py` | OXE project page + GitHub; OXE-AugE arXiv 2512.13100v1 HTML §4.2 + A.5 + project page |
-| 6 | `humanoid-wbc-overview` | 240 | `lipm_track_toy.py` | ASAP arXiv 2502.01143 (abs + HTML, Table V) + code; HugWBC / Holosoma / TWIST / WBC-AGILE repos (README level) |
+| 6 | `humanoid-wbc-overview` | 480 | `lipm_track_toy.py`, `floating_base_contact_toy.py` | ALIP arXiv 2408.05308 §II-A (3) / §III (20); ASAP arXiv 2502.01143 (abs + HTML, Table V) + code; HugWBC / Holosoma / TWIST / WBC-AGILE repos (README level) |
 | 7 | `contact-rich-policies` | 180 | `tactile_gate_toy.py` | AnySkin Table III; BAKU arXiv 2406.07539; ViTaMIn 2504.06156 / exUMI 2509.14688 (abstract level, no numbers) |
 
-Total 2 220 minutes after deepen-PR2 (power +150, FOC +240, tactile +180, OXE +150); site total 71 lessons / 15 510 minutes (from `src/lib/curriculum.ts`). The remaining deepen PR (contact Jacobian/impedance/sync) raises M11 toward 2 460 and site toward 16 050 (in-place deepen batch; no Month 12).
+Total **2 460 minutes** after all three deepen PRs (power +150, FOC +240, tactile +180, OXE +150, contact Jacobian +240); site total **71 lessons / 16 050 minutes** (from `src/lib/curriculum.ts`). M8 is 1 800 and M9 is 2 100 minutes. This completes the in-place deepen batch; no new month or slug.
 
 Pointers: M2 motors-drivers → 11.2; M3 gripper-fingers → 11.3; 8.1 dataset-engineering → 11.5; 10.1 flow-matching → 11.4; M7 / M8 / M10 legged / Isaac electives → 11.6; M8 / M9 / M10 topics FOC → 11.2, tactile → 11.3 / 11.7; 8.7 capstone and 6.5 portfolio → Month 11 (optional, not a replacement). Banners and message ranges say Months 7–11.
 
@@ -31,3 +31,5 @@ Widgets deferred. No prices anywhere.
 Verification: `examples/month-11/check.sh` (7/7 same), check_diagrams, check_quotes, lint, tsc, CI build.
 
 Deepen PR2: synthetic tactile axes/signs, rest debias, independent skin-swap gain recalibration, shared evaluation noise, first-contact data gate (dimensionless, not measured Newtons; policy integration stays 11.7). OXE-AugE stages mask fusion → inpaint → base-position tune → replay/composite are documentation, not a CPU augmentation implementation. A.5 milestone scores 0.3/0.5/0.8/1.0, 10×4 trials, score mean±SE ≠ binary success; 24–45 % lift denominator uncertain (absolute vs relative). Toy outcomes are synthetic; no real OXE cardinality enters CI.
+
+Deepen PR3: six-DOF sagittal base+leg, no arm; two-row point-position Jacobian and velocity no-slip residual Jc qdot=0. Full Jc stays rank2 even for a straight leg; joint-only rank1 is a separate warning. Nullspace pitch regulation checks JcN≈0. Force-only point screen omits moments; finite sole adds CoP bounds on shared synthetic demand, neither screen certifies full dynamics. 11.4 links causal stream alignment in 8.3; 9.3 explains effort-out impedance vs motion-out admittance. All three affected month checks, diagrams, quotes, lint, tsc and CI build are required. Whole deepen batch goes to audit only after reviewer merges this final PR.

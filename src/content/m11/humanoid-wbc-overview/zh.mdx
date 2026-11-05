@@ -1,6 +1,6 @@
 本课是本站补充内容——第 7–11 个月不属于原六个月课程。
 
-**范围。** [7.2 强化学习基础](/zh/month/month-7/rl-foundations) 已经讲过 PPO / SAC，[7.4 仿真到真机](/zh/month/month-7/sim-to-real) 讲过随机化、系统辨识与延迟；第 7、8、10 个月月页把「腿式运动场 / Isaac Lab」留作选修。本课 = **人形全身控制（WBC）的阅读地图 + 一个平面 LIPM 玩具**：为什么桌面臂的课不够用、倒立摆模型里 ZMP 与捕获点为什么决定「站得住」、ASAP 怎么用 delta action 对齐仿真与真机，以及 HugWBC / Holosoma / TWIST / WBC-AGILE 各自读什么。**不重讲 PPO，也不是 Unitree 真机课。** **不要求购买人形机器人**；Isaac / MuJoCo 训练、sim2real 部署与真机步骤一律本页未运行。本课也不替代 8.7 毕业项目。
+**范围。** [7.2 强化学习基础](/zh/month/month-7/rl-foundations) 已经讲过 PPO / SAC，[7.4 仿真到真机](/zh/month/month-7/sim-to-real) 讲过随机化、系统辨识与延迟；第 7、8、10 个月月页把「腿式运动场 / Isaac Lab」留作选修。本课 = **人形全身控制（WBC）的阅读地图 + 平面 LIPM 与浮动基接触玩具**：为什么桌面臂的课不够用、倒立摆模型里 ZMP 与捕获点为什么决定「站得住」、ASAP 怎么用 delta action 对齐仿真与真机，以及 HugWBC / Holosoma / TWIST / WBC-AGILE 各自读什么。**不重讲 PPO，也不是 Unitree 真机课。** **不要求购买人形机器人**；Isaac / MuJoCo 训练、sim2real 部署与真机步骤一律本页未运行。本课也不替代 8.7 毕业项目。
 
 ## 为什么桌面臂的课不够
 
@@ -166,6 +166,177 @@ asap_real_delta_dof=4
 
 这正是人形 WBC 论文里「步态规划 / 落脚点」与「全身跟踪」分层的直觉：先检查可行性，再谈跟踪。
 
+## 浮动基接触运动学
+
+### 六个平面坐标，不是六轴浮动基
+
+上文一般机器人有空间浮动基；这里的**独立矢状面玩具**用 `q=(x_b,z_b,θ_b,q1,q2,q3)`：三个基座坐标加单条支撑腿的三个转动关节。**没有手臂，也没有摆动腿。** 三段长为 0.35、0.35、0.12 m。角度 `a_i=θ_b+Σ(j≤i)q_j` 从竖直向下量起，脚原点为 `p_c=(x_b+Σ L_i sin(a_i), z_b−Σ L_i cos(a_i))`。
+
+对正运动学求导，得到 **2×6** 雅可比。平移两列是 `(1,0)`、`(0,1)`；基座俯仰列累加所有杆段导数；关节 j 的列只累加下游杆段。脚可以转动：这是**两行点位置约束**，不是三行「粘住脚底」约束。中心差分检查全部六列解析导数。
+
+<Formula label="速度级无滑移">r_c = J_c(q) qdot = 0</Formula>
+
+秩说明方程是否独立，不说明指令已经满足接触。满行秩矩阵乘上任意 qdot，脚照样可能移动。本模型的两个基座平移列使完整 `J_c` 的秩始终为 **2**，腿伸直也如此；只有 **2×3 关节子矩阵**在伸直时降到秩 **1**，警告仅靠腿关节的运动能力受限，不是完整雅可比失秩。**单支撑不必降秩。** 数值奇异值依赖坐标缩放（米和弧度），不能当作通用奇异阈值。
+
+### 先保持接触，再调基座俯仰
+
+对这个满行秩矩阵，构造 `J_c⁺=J_cᵀ(J_c J_cᵀ)⁻¹`、`N=I−J_c⁺J_c`。将固定种子的任意指令投影成 `v0=N v_raw`，再加 `N eθ α`；`eθ` 选择真实存在的基座俯仰坐标。令 `α=(−2 θ_b−v0[2])/N[2,2]`，就能达到目标俯仰角速度而不改变首要接触残差。这只是局部**速度级**构造：没有质量矩阵、执行器力矩、关节限位，也不积分行走轨迹。不受驱动的基座不是一台能独立下指令的电机，动力学可行性仍需接触力与逆动力学验证。
+
+来源背景：[Paredes 等 §II-A 式 (3)、§III 式 (20)](https://arxiv.org/html/2408.05308) 在加速度级维持接触 `J_c qddot + Jdot_c qdot=0`，并用零空间参数化允许的加速度。已打开原文核对公式，以论文为准。这里的点位置求导与速度投影是玩具自己的显式推导，**不是 ASAP 控制器**，也不是论文的全身实现。还需初始接触速度为零：加速度为零并不能消除已有滑移速度。
+
+<Resource id="alip-feet-paper" />
+
+### 明确接触筛查，不给点足编支撑多边形
+
+同一合成质心轨迹 `x=0.14 sin(2t)`、高度 0.8 m，给出 `F_x=m xddot`、`F_z=m g`；假设质心角动量变化率为零，则 `CoP=x−h xddot/g`。两种筛查都接收同一需求。**点接触的仅力筛查**检查正法向力与 `|F_x|≤μ F_z`，μ=0.6；它**没有支撑多边形**。**有限脚底筛查**额外要求 `|CoP|≤0.10 m`。
+
+关键省略：理想点接触不能承受关于自身的非零力矩。仅力筛查故意忽略需求中的力矩 `−F_z CoP`，通过它**不等于完整点足接触力旋量可行**；有限脚底也仍需完整动力学验证。因此差异是在暴露模型漏掉的约束，不是在说点足能物理实现同一非零力旋量。前面的 LIPM 玩具已经假设有限脚底，不能把那个支撑区间偷偷移给点足。
+
+### 运行并检查残差
+
+```bash
+$ python3 floating_base_contact_toy.py
+```
+
+<CodeSource path="examples/month-11/humanoid-wbc-overview/floating_base_contact_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Planar floating-base velocity projection, not a dynamic WBC controller.
+q=(xb,zb,theta_b,q1,q2,q3): three base + three leg DOFs, no arm.
+Two-row point-position Jc permits foot rotation. Jc*qdot=0 is no-slip;
+rank alone never enforces it. Base translation columns keep full Jc rank 2.
+Force-only point screen omits moments; it does NOT certify a nonzero wrench
+for an ideal point foot. Finite sole adds a CoP test on the SAME demand.
+All forces/CoM are synthetic. No humanoid, MoCap or simulator is run.
+"""
+import math
+import random
+
+SEED = 31
+LENGTHS = (0.35, 0.35, 0.12)
+
+
+def kinematics(q):
+    angles = [q[2] + sum(q[3:4 + i]) for i in range(3)]
+    dx = [l * math.cos(a) for l, a in zip(LENGTHS, angles)]
+    dz = [l * math.sin(a) for l, a in zip(LENGTHS, angles)]
+    # Segment direction = (sin(a), -cos(a)); angle zero points down.
+    point = [q[0] + sum(l * math.sin(a) for l, a in zip(LENGTHS, angles)),
+             q[1] - sum(l * math.cos(a) for l, a in zip(LENGTHS, angles))]
+    j = [[1.0, 0.0, sum(dx)] + [sum(dx[i:]) for i in range(3)],
+         [0.0, 1.0, sum(dz)] + [sum(dz[i:]) for i in range(3)]]
+    return point, j
+
+
+def dot(a, b):
+    return sum(x * y for x, y in zip(a, b))
+
+
+def norm(v):
+    return math.sqrt(dot(v, v))
+
+
+def spectrum(rows):
+    a, b, c = dot(rows[0], rows[0]), dot(rows[0], rows[1]), dot(rows[1], rows[1])
+    disc = math.hypot(a - c, 2 * b)
+    s = [math.sqrt(max(0.0, (a + c + disc) / 2)),
+         math.sqrt(max(0.0, (a + c - disc) / 2))]
+    return sum(x > 1e-8 for x in s), s
+
+
+def projector(j):
+    # Full-row-rank right inverse: J+ = J^T (J J^T)^-1.
+    a, b, c = dot(j[0], j[0]), dot(j[0], j[1]), dot(j[1], j[1])
+    det = a * c - b * b
+    assert det > 1e-12
+    jp = [[(j[0][i] * c - j[1][i] * b) / det,
+           (j[1][i] * a - j[0][i] * b) / det] for i in range(6)]
+    return [[float(i == k) - sum(jp[i][r] * j[r][k] for r in range(2))
+             for k in range(6)] for i in range(6)]
+
+
+def main():
+    rng = random.Random(SEED)
+    q = [0.0, 0.8, 0.12, -0.3, 0.6, -0.2]
+    _, j = kinematics(q)
+    n = projector(j)
+    jn = max(abs(sum(j[r][i] * n[i][k] for i in range(6)))
+             for r in range(2) for k in range(6))
+    # Central finite-difference check of all columns, not only translations.
+    fd_err = 0.0
+    for k in range(6):
+        hi, lo = q[:], q[:]
+        hi[k] += 1e-6
+        lo[k] -= 1e-6
+        ph, _ = kinematics(hi)
+        pl, _ = kinematics(lo)
+        fd_err = max(fd_err, *(abs((ph[r] - pl[r]) / 2e-6 - j[r][k]) for r in range(2)))
+    raw = [rng.uniform(-0.3, 0.3) for _ in range(6)]
+    projected = [dot(row, raw) for row in n]
+    pitch_target = -2 * q[2]  # secondary base-pitch regulation, rad/s
+    gain = (pitch_target - projected[2]) / n[2][2]
+    velocity = [projected[i] + n[i][2] * gain for i in range(6)]
+    rc = norm([dot(row, velocity) for row in j])
+    pitch_err = abs(velocity[2] - pitch_target)
+    rank, sigma = spectrum(j)
+    straight = kinematics([0.0, 0.82, 0.0, 0.0, 0.0, 0.0])[1]
+    straight_rank, _ = spectrum(straight)
+    leg_rank, _ = spectrum([row[3:] for row in straight])
+    assert jn < 1e-12 and rc < 1e-12 and pitch_err < 1e-12 and fd_err < 1e-8
+    assert rank == straight_rank == 2 and leg_rank == 1
+
+    # Shared synthetic CoM/wrench demand; no full inverse-dynamics solution.
+    mass, height, mu, sole_half = 20.0, 0.8, 0.6, 0.10
+    point_pass, sole_pass, max_cop = 0, 0, 0.0
+    for k in range(201):
+        t = 2 * math.pi * k / 200
+        x = 0.14 * math.sin(2 * t)
+        ax = -4 * x
+        fx, fz = mass * ax, mass * 9.81
+        cop = x - height * ax / 9.81  # zero centroidal angular-momentum rate
+        # About the foot origin the demanded moment is -fz*cop.
+        force_ok = fz > 0 and abs(fx) <= mu * fz
+        sole_ok = force_ok and abs(cop) <= sole_half
+        point_pass += int(force_ok)
+        sole_pass += int(sole_ok)
+        max_cop = max(max_cop, abs(cop))
+    assert point_pass == 201 and 0 < sole_pass < point_pass
+    print(f"seed={SEED} dofs=6 contact_rows=2 no_arm=True")
+    print(f"Jc_rank={rank} sigma_max={sigma[0]:.6f} sigma_min={sigma[1]:.6f}")
+    print(f"raw_contact_speed={norm([dot(row, raw) for row in j]):.6f}")
+    print(f"contact_residual={rc:.3f} JcN_max={jn:.3f} pitch_rate_error={pitch_err:.3f}")
+    print(f"jacobian_fd_ok={fd_err < 1e-8} nullspace_ok={jn < 1e-12}")
+    print(f"straight_full_rank={straight_rank} straight_joint_only_rank={leg_rank}")
+    print(f"point_force_screen={point_pass}/201 finite_sole_screen={sole_pass}/201")
+    print(f"max_abs_cop_m={max_cop:.6f} sole_half_m={sole_half:.2f}")
+    print("point_screen_omits_moment=True full_dynamic_feasibility_not_tested=True")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+seed=31 dofs=6 contact_rows=2 no_arm=True
+Jc_rank=2 sigma_max=1.570387 sigma_min=1.005044
+raw_contact_speed=0.465223
+contact_residual=0.000 JcN_max=0.000 pitch_rate_error=0.000
+jacobian_fd_ok=True nullspace_ok=True
+straight_full_rank=2 straight_joint_only_rank=1
+point_force_screen=201/201 finite_sole_screen=77/201
+max_abs_cop_m=0.185668 sole_half_m=0.10
+point_screen_omits_moment=True full_dynamic_feasibility_not_tested=True
+```
+
+</SimOutput>
+
+未经约束的脚速为 **0.465223**；投影后接触残差、`J_c N` 与俯仰角速度误差打印 **0.000**，舍入前均有小于 `1e-12` 的断言。奇异值为 **1.570387**、**1.005044**。仅力筛查通过 **201/201** 点，有限脚底通过 **77/201** 点，CoP 绝对值峰值 **0.185668** m。这些是合成模型诊断，不是行走成功率。
+
+试把俯仰目标加倍，再故意改错一列雅可比：先观察次任务角速度变化，再解释差分 / 零空间检查为何拒绝坏几何。说明为什么腿伸直时关节子矩阵可奇异，而浮动基完整矩阵仍为秩 2。人形真机、Isaac、MoCap 与 sim2real 仍为**本页未运行**，不要求购买硬件。
+
 ## 阅读图
 
 ### 1. ASAP（arXiv 2502.01143，RSS 2025）——重点读
@@ -230,6 +401,9 @@ ASAP（Aligning Simulation and Real-World Physics）是两阶段框架，论文�
 - 玩具：慢摆 MAE 0.000250 m 不摔；快摆需要 ZMP 0.2110 m、参考捕获点 0.1027 m，0.045 s 摔倒。
 - ASAP（以论文为准）：预训练 → 真机 rollout → delta action → 冻结后微调，部署时不带 delta 模型；Table V 踢腿 61.2 → 50.2 mm，LeBron 159 → 112 mm。
 - 不要求购买人形机；训练与真机步骤本页未运行。
+
+
+- 新增接触玩具：无滑移是 J_c qdot=0，不是秩；零空间俯仰次任务保持脚点位置。点足仅力筛查不等于完整力旋量可行。
 
 **常见错误**
 

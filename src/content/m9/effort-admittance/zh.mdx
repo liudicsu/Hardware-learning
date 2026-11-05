@@ -4,8 +4,8 @@
 
 ## 阻抗 vs 导纳
 
-- **阻抗：** 你命令运动，控制器根据跟踪误差**出力**。工业臂常见。
-- **导纳：** 你测到力，控制器据此**改运动**（让开或顺从）。`ros2_controllers` 的 Admittance Controller 走这条。
+- **阻抗：** 测到运动误差 → 命令**力 / 力矩（effort）**，需要执行器能接受相应力指令。
+- **导纳：** 测到力 → 命令**位置 / 速度（motion）**，再由运动跟踪内环执行。`ros2_controllers` 的 Admittance Controller 走这条。
 
 本课以导纳为主。外接六维力传感器 + `admittance_controller` 的完整真机接线是选修 / 超出范围——**不写品牌与价格**。
 
@@ -235,6 +235,125 @@ ok: |x_sim - F_ext/S| < 1e-3 for all three stiffnesses
 
 三行 |x_sim − F/S| 都 &lt; 1e-3。`Admittance1DWidget` 延期；先读表。
 
+## 共同被控对象：阻抗输出力，导纳输出运动
+
+### 先写接口契约，再调增益
+
+这里阻抗测量运动误差，命令**力 / 力矩（effort）**：`u=K_i(x_ref−x_meas)−D_i v_meas`。它需要真正能接受力 / 力矩指令的执行器接口，光发布位置目标不会凭空创造这个接口。导纳测外力，积分虚拟模型 `M_a yddot+D_a ydot+K_a y=F_ext,meas`，输出**运动**参考 `x_cmd=x_ref+y`。随后要靠内层位置 / 速度跟踪环实现运动；内环有有限带宽和力限幅，不能直接把位置赋成目标。
+
+已打开的 [Jazzy 导纳控制器文档](https://control.ros.org/jazzy/doc/ros2_controllers/admittance_controller/doc/userdoc.html) 规定了 F/T 传感器状态接口、位置 / 速度 / 加速度命令接口，以及用于串联的位置 / 速度参考。真机接线时以安装版本为准。这里的两个示意环不是该六轴控制器的复刻。SO-101 默认仍是 **Present Load 代理 + 合成导纳玩具**，不是标定力，也不承诺力矩模式。外接 F/T 仍属选修，不要求购买；实时控制器实验**本页未运行**。
+
+### 同一机械模型，两种控制器
+
+两组都用 `m xddot = u + F_disturbance − b xdot − k x + F_wall`，m=1.0 kg、b=4.0 N·s/m、k=20.0 N/m，墙在 0.04 m，墙刚度 1800.0 N/m。墙只抵抗穿透，分离时不拉机器人。两组从静止出发，1.2 到 1.4 s 受到同一 2.0 N 扰动，回放**同一组预先生成的运动 / 力测量噪声**；物理状态因反馈不同而分离，不是换了噪声抽样。
+
+参考在 0.5 s 跳到 0.065 m，2.5 s 返回零。阻抗 K_i=120.0 N/m、D_i=16.0 N·s/m；导纳虚拟质量 1.5 kg、阻尼 25.0 N·s/m、刚度 100.0 N/m，内伺服增益 300.0 N/m 与 30.0 N·s/m。两组力命令都限在 ±20.0 N。例如 −2.0 N 外力会产生 −0.020 m 的稳态虚拟偏移，但**实际**位移还取决于内环跟踪与墙 / 机械模型受力；虚拟质量不能替换共同的物理质量。
+
+积分用 0.001 s 半隐式欧拉，墙与伺服刚度决定最快尺度。缩小 dt 是数值收敛检查，不代表实际控制带宽提高。未建模传感器滤波、通信延迟、无源性保证、硬件摩擦与看门狗。真接触前要验证这些省略与限幅，而不只是照抄增益。
+
+### 比较量与结论边界
+
+峰值接触力取物理墙弹簧力的最大值，穿透量取其最大压缩。稳定时间从 **2.5 s 返回参考**后开始算，要求位置在 0.001 m 内、速度在 0.005 m/s 内并保持到仿真末尾；`not_settled` 表示没有这种稳定尾段。它不是在墙上接触的稳定时间。这里的 N 与噪声都不是实测 STS3215 力。
+
+```bash
+$ python3 impedance_vs_admittance_toy.py
+```
+
+<CodeSource path="examples/month-9/effort-admittance/impedance_vs_admittance_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Effort-out impedance vs motion-out admittance on one mechanical plant.
+Same mass/damper/spring/wall, disturbance schedule and measurement noise.
+Admittance output goes through an explicitly modelled motion-tracking servo;
+impedance requires an effort-capable actuator. Not a safety ranking.
+Synthetic N only: no STS3215 Present Load conversion, no F/T hardware.
+"""
+import math
+import random
+
+SEED = 37
+DT, STEPS = 0.001, 6000
+M, B, K = 1.0, 4.0, 20.0
+WALL, K_WALL = 0.04, 1800.0
+EFFORT_LIMIT = 20.0
+RELEASE = 2.5
+
+
+def clamp(x, limit):
+    return max(-limit, min(limit, x))
+
+
+def simulate(mode, noise):
+    x = v = y = vy = 0.0
+    peak = penetration = 0.0
+    last_unsettled = RELEASE
+    for k, (nx, nv, nf) in enumerate(noise):
+        t = k * DT
+        ref = 0.065 if 0.5 <= t < RELEASE else 0.0
+        disturbance = 2.0 if 1.2 <= t < 1.4 else 0.0
+        wall_force = -K_WALL * max(0.0, x - WALL)
+        xm, vm = x + nx, v + nv
+        measured_external = wall_force + disturbance + nf
+        if mode == "impedance":
+            # Effort command from motion error, not a position interface.
+            effort_command = 120.0 * (ref - xm) - 16.0 * vm
+        else:
+            # Virtual mass/damper/spring offset driven by measured external force.
+            ay = (measured_external - 25.0 * vy - 100.0 * y) / 1.5
+            vy += ay * DT
+            y += vy * DT
+            motion_command = ref + y
+            # Separate inner motion servo converts motion command into effort.
+            effort_command = 300.0 * (motion_command - xm) + 30.0 * (vy - vm)
+        u = clamp(effort_command, EFFORT_LIMIT)  # same actuator effort limit
+        # Common physical plant; semi-implicit Euler, not ideal motion tracking.
+        a = (u + disturbance + wall_force - B * v - K * x) / M
+        v += a * DT
+        x += v * DT
+        pen = max(0.0, x - WALL)
+        peak = max(peak, K_WALL * pen)
+        penetration = max(penetration, pen)
+        if t >= RELEASE and (abs(x) > 0.001 or abs(v) > 0.005):
+            last_unsettled = t + DT
+    settled = abs(x) <= 0.001 and abs(v) <= 0.005
+    return peak, penetration, last_unsettled - RELEASE if settled else None
+
+
+def main():
+    rng = random.Random(SEED)
+    noise = [(rng.gauss(0, 0.0001), rng.gauss(0, 0.0005), rng.gauss(0, 0.02))
+             for _ in range(STEPS)]
+    print(f"seed={SEED} dt_s={DT} plant_mass_kg={M} shared_noise=True")
+    print("mode peak_contact_N max_penetration_m settling_after_release_s")
+    for mode in ("impedance", "admittance"):
+        force, pen, settling = simulate(mode, noise)
+        assert math.isfinite(force) and pen >= 0
+        settling_text = f"{settling:.3f}" if settling is not None else "not_settled"
+        print(f"{mode} {force:.6f} {pen:.6f} {settling_text}")
+    print("impedance_output=effort admittance_output=motion safety_ranking=none")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+seed=37 dt_s=0.001 plant_mass_kg=1.0 shared_noise=True
+mode peak_contact_N max_penetration_m settling_after_release_s
+impedance 6.769425 0.003761 0.426
+admittance 9.854206 0.005475 0.580
+impedance_output=effort admittance_output=motion safety_ranking=none
+```
+
+</SimOutput>
+
+本组配置下，阻抗峰值力 / 穿透 / 稳定时间为 **6.769425 N / 0.003761 m / 0.426 s**，导纳为 **9.854206 N / 0.005475 m / 0.580 s**。它们只比较这个被控对象上的接口与**这些增益**，不表示哪一类普遍更安全。环境刚度、内环带宽、延迟与饱和可能改变次序；安全还需限位与风险评估。
+
+试改变墙刚度，保持噪声与扰动完全相同；再只调导纳内伺服增益。记录三项指标、数值稳定性与是否稳定，不能挑一个指标就给赢家贴「安全」标签。报告里分清物理弹簧 k、虚拟导纳刚度 K_a、阻抗刚度 K_i 与内环增益。
+
 ## 选做：真机记 Load（本页未运行）
 
 有 SO-101 时，记录空载摆动 vs 轻触桌面的 Present Load 曲线。**本页未运行**；不要把玩具阈值抄成过载保护。
@@ -249,5 +368,9 @@ ok: |x_sim - F_ext/S| < 1e-3 for all three stiffnesses
 <Summary>
 
 阻抗：力 ← 运动误差；导纳：运动 ← 力。默认用 Feetech STS3215 Present Load 地址 60（1000=100 %，非牛顿）与 Current 地址 69（6.5 mA/LSB）。方程 F = M a + D v + S (x−x_d)；ζ = D/(2√(MS))。`load_contact_sim.py`：回退峰值 208.2 &lt; 仅位置 1000；`admittance_1d.py`：三刚度 x≈F/S。真机记 Load 本页未运行；不写 F/T 品牌价格与过载数。
+
+
+
+共同机械模型比较：阻抗输出 effort，导纳输出 motion 再走内伺服。共享噪声，对比力 / 穿透 / 返回后的稳定时间，不作普遍安全排名。
 
 </Summary>

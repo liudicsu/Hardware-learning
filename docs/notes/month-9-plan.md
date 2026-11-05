@@ -12,7 +12,7 @@ Constraints: private env; runnable toys prefer stdlib CPU with fixed seeds. ROS 
 |---|------|---------|--------|----------|------------------|
 | 1 | `mtc-long-horizon` | 240 | full | `stage_graph_toy.py` | MoveIt Task Constructor |
 | 2 | `moveit-servo` | 180 | full | `servo_loop_sim.py` | MoveIt realtime_servo_tutorial |
-| 3 | `effort-admittance` | 240 | full | `load_contact_sim.py`, `admittance_1d.py` | Feetech STS3215 + ros2 admittance |
+| 3 | `effort-admittance` | 420 | full | `load_contact_sim.py`, `admittance_1d.py`, `impedance_vs_admittance_toy.py` | Feetech STS3215 + ros2 admittance |
 | 4 | `llm-skill-planning` | 240 | full | `saycan_score_toy.py` (fake LLM) | SayCan arXiv 2204.01691 |
 | 5 | `failure-recovery` | 180 | full | `recovery_bt_toy.py` | Inner Monologue + BT.CPP |
 | 6 | `nav-arm-compose` | 240 | full | `nav_pick_bt.py` | LeKiwi docs (elective hardware) |
@@ -23,3 +23,5 @@ Constraints: private env; runnable toys prefer stdlib CPU with fixed seeds. ROS 
 Widgets deferred. No prices anywhere.
 
 Verification: `examples/month-9/check.sh`, check_quotes, check_diagrams, check_widgets, lint, check_wokwi, tsc, CI build.
+
+Deepen PR3 (+180): 9 lessons / **2 100 min**. Impedance commands effort; admittance commands motion through an explicit inner servo on the same mass/damper/spring/wall, disturbances and noise. Peak force, penetration and post-release settling compare chosen gains/interfaces, not universal safety. SO-101 stays Load proxy + admittance; external F/T elective. Site: 71 lessons / 16 050 min.

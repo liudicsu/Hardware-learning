@@ -29,4 +29,6 @@ check demo_gate.txt "$PY" "$M9/multi-skill-demo/demo_gate.py" --all
 check tag_error_jog.txt "$PY" "$M9/visual-servoing/tag_error_jog.py"
 check latent_predict_toy.txt "$PY" "$M9/world-models-overview/latent_predict_toy.py"
 
+check impedance_vs_admittance_toy.txt "$PY" "$M9/effort-admittance/impedance_vs_admittance_toy.py"
+
 exit $fail
