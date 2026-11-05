@@ -1,0 +1,248 @@
+本课是本站补充内容——第 7–11 个月不属于原六个月课程。
+
+**范围。** [7.2 强化学习基础](/zh/month/month-7/rl-foundations) 已经讲过 PPO / SAC，[7.4 仿真到真机](/zh/month/month-7/sim-to-real) 讲过随机化、系统辨识与延迟；第 7、8、10 个月月页把「腿式运动场 / Isaac Lab」留作选修。本课 = **人形全身控制（WBC）的阅读地图 + 一个平面 LIPM 玩具**：为什么桌面臂的课不够用、倒立摆模型里 ZMP 与捕获点为什么决定「站得住」、ASAP 怎么用 delta action 对齐仿真与真机，以及 HugWBC / Holosoma / TWIST / WBC-AGILE 各自读什么。**不重讲 PPO，也不是 Unitree 真机课。** **不要求购买人形机器人**；Isaac / MuJoCo 训练、sim2real 部署与真机步骤一律本页未运行。本课也不替代 8.7 毕业项目。
+
+## 为什么桌面臂的课不够
+
+SO-101 用螺丝固定在桌上，基座永远不会倒。人形机器人有三件桌面臂没有的事：
+
+1. **浮动基。** 躯干的位姿不是关节直接给出的，只能靠脚与地面的接触力间接推动；状态里多了 6 个不受驱动的自由度。
+2. **接触切换。** 单脚 / 双脚支撑交替，动力学方程每一步都可能换一套；落脚冲击还会让电机过热（见下文 ASAP 的局限）。
+3. **全身协调。** 手臂挥动会让质心偏移，下肢要同时补偿——这就是「全身」控制的含义。
+
+[5.2 状态空间与 LQR](/zh/month/month-5/state-space-lqr) 里的倒立摆是最小的入门模型；本课把它放到「脚底只能在一块有限的面积上用力」的约束里。
+
+## LIPM、ZMP 与捕获点
+
+线性倒立摆（LIPM）把整个身体缩成高度固定为 z_c 的一个质心点：
+
+- 横向动力学：x'' = ω²·(x − p)，ω = √(g / z_c)。
+- p 是 **ZMP**（零力矩点 / 压力中心），它**只能落在支撑脚内**，例如 |p| ≤ 0.10 m。
+- **捕获点** ξ = x + x'/ω：只要 ξ 还在脚内，就存在一个脚内的 p 能让质心停下来；ξ 一旦出了脚，不迈步就一定会倒。
+
+要让质心按 A·sin(wt) 摆动，需要的 ZMP 幅值是 A·(1 + w²/ω²)，参考轨迹自己的捕获点峰值是 A·√(1 + (w/ω)²)。频率一高，这两个数都会冲出脚外——控制器再好也救不回来。
+
+## LIPM 跟踪玩具
+
+`lipm_track_toy.py`：z_c = 0.8 m、脚半宽 0.10 m、摆幅 5 cm，PD + 前馈选 ZMP，ZMP 超出脚就裁剪；质心测量带固定种子的高斯噪声。对比 0.5 Hz（慢）和 1.0 Hz（快）两条参考；捕获点一出脚就判定为摔倒并停止。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-11/humanoid-wbc-overview
+$ python3 lipm_track_toy.py
+```
+
+<CodeSource path="examples/month-11/humanoid-wbc-overview/lipm_track_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""lipm_track_toy.py: planar linear inverted pendulum (LIPM) CoM tracking (stdlib).
+
+The CoM moves as  x'' = omega^2 * (x - p),  omega = sqrt(g / z_c),
+where p is the ZMP (centre of pressure). p can only sit inside the foot,
+here |p| <= FOOT_HALF_M. A PD + feed-forward controller picks the p it wants;
+if that p is outside the foot it is clipped, and tracking degrades.
+
+Two lateral sway references with the same amplitude:
+  - slow (0.5 Hz): the ZMP it needs stays inside the foot
+  - fast (1.0 Hz): the ZMP it needs leaves the foot -> clipping; once the
+    capture point x + v/omega leaves the foot, no in-foot ZMP can stop the CoM
+    and the robot must step (here: the run stops and reports a fall)
+CoM measurements carry seeded Gaussian noise (SEED) so the run is repeatable.
+
+Also prints ASAP (arXiv 2502.01143) Table V constants used in the lesson prose —
+paper numbers, not toy measurements. Take the paper as source of truth.
+No humanoid purchase is required; Isaac / MuJoCo training is not run on this page.
+"""
+import math
+import random
+
+SEED = 2
+G = 9.81
+Z_C = 0.8          # CoM height (m)
+FOOT_HALF_M = 0.10  # ZMP limit (m)
+AMP_M = 0.05        # sway amplitude (m)
+DT = 0.005
+T_END = 4.0
+KP, KD = 40.0, 12.0
+NOISE_M = 0.002
+
+omega = math.sqrt(G / Z_C)
+
+
+def run(freq_hz, rng):
+    w = 2 * math.pi * freq_hz
+    x, v = 0.0, AMP_M * w  # start on the reference
+    err_sum, n, clipped = 0.0, 0, 0
+    t = 0.0
+    t_fall = None
+    while t < T_END - 1e-9:
+        x_des = AMP_M * math.sin(w * t)
+        v_des = AMP_M * w * math.cos(w * t)
+        a_des = -AMP_M * w * w * math.sin(w * t)
+        x_meas = x + rng.gauss(0.0, NOISE_M)
+        u = a_des + KP * (x_des - x_meas) + KD * (v_des - v)
+        p = x_meas - u / (omega * omega)
+        if abs(p) > FOOT_HALF_M:
+            p = math.copysign(FOOT_HALF_M, p)
+            clipped += 1
+        acc = omega * omega * (x - p)
+        v += acc * DT
+        x += v * DT
+        t += DT
+        err_sum += abs(x - AMP_M * math.sin(w * t))
+        n += 1
+        if abs(x + v / omega) > FOOT_HALF_M:  # capture point left the foot
+            t_fall = t
+            break
+    return err_sum / n, clipped / n, t_fall
+
+
+rng = random.Random(SEED)
+need_slow = AMP_M * (1 + (2 * math.pi * 0.5) ** 2 / omega ** 2)
+need_fast = AMP_M * (1 + (2 * math.pi * 1.0) ** 2 / omega ** 2)
+# peak capture point of the reference itself: A * sqrt(1 + (w/omega)^2)
+cp_slow = AMP_M * math.sqrt(1 + (2 * math.pi * 0.5 / omega) ** 2)
+cp_fast = AMP_M * math.sqrt(1 + (2 * math.pi * 1.0 / omega) ** 2)
+mae_slow, clip_slow, fall_slow = run(0.5, rng)
+_, _, fall_fast = run(1.0, rng)
+
+print(f"seed={SEED}")
+print(f"z_c={Z_C}")
+print(f"omega={omega:.4f}")
+print(f"foot_half_m={FOOT_HALF_M:.2f}")
+print(f"zmp_needed_slow_m={need_slow:.4f}")
+print(f"zmp_needed_fast_m={need_fast:.4f}")
+print(f"cp_peak_ref_slow_m={cp_slow:.4f}")
+print(f"cp_peak_ref_fast_m={cp_fast:.4f}")
+print(f"com_mae_slow_m={mae_slow:.6f}")
+print(f"clip_frac_slow={clip_slow:.3f}")
+print(f"fell_slow={fall_slow is not None}")
+print(f"fell_fast={fall_fast is not None}")
+print(f"fall_time_fast_s={fall_fast:.3f}" if fall_fast is not None else "fall_time_fast_s=none")
+# ASAP paper constants (arXiv 2502.01143 Table V / Sec. IV-C) for prose binding
+print("asap_kick_gmpjpe_vanilla_mm=61.2")
+print("asap_kick_gmpjpe_asap_mm=50.2")
+print("asap_lebron_gmpjpe_vanilla_mm=159")
+print("asap_lebron_gmpjpe_asap_mm=112")
+print("asap_real_delta_dof=4")
+```
+
+
+<SimOutput source="model">
+
+```text
+seed=2
+z_c=0.8
+omega=3.5018
+foot_half_m=0.10
+zmp_needed_slow_m=0.0902
+zmp_needed_fast_m=0.2110
+cp_peak_ref_slow_m=0.0672
+cp_peak_ref_fast_m=0.1027
+com_mae_slow_m=0.000250
+clip_frac_slow=0.026
+fell_slow=False
+fell_fast=True
+fall_time_fast_s=0.045
+asap_kick_gmpjpe_vanilla_mm=61.2
+asap_kick_gmpjpe_asap_mm=50.2
+asap_lebron_gmpjpe_vanilla_mm=159
+asap_lebron_gmpjpe_asap_mm=112
+asap_real_delta_dof=4
+```
+
+</SimOutput>
+
+怎么读：
+
+- ω = **3.5018** rad/s（z_c = **0.8** m）。
+- 慢摆需要的 ZMP 幅值 **0.0902** m，在 **0.10** m 脚内；快摆需要 **0.2110** m，远超出脚。
+- 慢摆参考的捕获点峰值 **0.0672** m；快摆 **0.1027** m——**参考轨迹本身**的捕获点就已出脚。
+- 慢摆：质心 MAE **0.000250** m，只有 **0.026** 的步数因测量噪声被裁剪，fell_slow=False。
+- 快摆：fell_fast=True，在 **0.045** s 就判定摔倒。不是增益没调好，而是物理上不可行：要么降频、降幅，要么迈步（把脚挪到捕获点去）。
+- ASAP 的 **61.2** / **50.2** / **159** / **112** / **4** 是论文常量，与玩具无关；它们让 check_diagrams 与正文共用一个数。
+
+这正是人形 WBC 论文里「步态规划 / 落脚点」与「全身跟踪」分层的直觉：先检查可行性，再谈跟踪。
+
+## 阅读图
+
+### 1. ASAP（arXiv 2502.01143，RSS 2025）——重点读
+
+<Resource id="asap-paper" />
+<Resource id="asap-code" />
+
+ASAP（Aligning Simulation and Real-World Physics）是两阶段框架，论文图 2 分四步：
+
+1. **预训练运动跟踪**：从人类视频重建 SMPL 动作、在仿真里清洗、重定向到 Unitree G1，用 PPO 训练相位条件的跟踪策略（非对称 actor-critic：critic 用特权信息，actor 只用本体感受 + 相位）。
+2. **真机 rollout 采数据**：把预训练策略部署到真机，记录状态（动捕 + 板载传感器）与动作。
+3. **学 delta action 模型**：Δa_t = π^Δ(s_t, a_t)，把它加到回放的真机动作上，使仿真 s_(t+1) = f_sim(s_t, a_t + Δa_t) 贴近真机记录的状态；用 PPO 训练。
+4. **冻结 delta 模型、在「对齐后的仿真」里微调策略**，然后**不带 delta 模型**直接部署到真机。
+
+真机部分（以论文为准）：由于数据少，真机只学了脚踝 **4** 自由度的 delta action 模型（全身 23 自由度需要更多片段），用约 100 段动作片段；论文还写到采数据时有两台 G1 不同程度损坏——高动态动作会让电机过热。Table V 真机闭环：踢腿（分布内）全局身体位置误差 g-MPJPE 由 Vanilla **61.2** mm 降到 ASAP **50.2** mm；LeBron「Silencer」（分布外）由 **159** 降到 **112** mm。
+
+读什么：§III（delta action 的定义与训练）、§IV-C 真机与 Table V、§VIII 局限（硬件损耗、依赖动捕、数据饥渴）。不跑什么：G1 真机、Isaac Gym / Isaac Sim / Genesis 训练——本页未运行。
+
+### 2. 其余四个仓库——各一句话定位
+
+<Resource id="hugwbc-code" />
+<Resource id="holosoma-code" />
+<Resource id="twist-code" />
+<Resource id="wbc-agile-code" />
+
+- **HugWBC**（RSS 2025）：统一、通用的人形全身控制器，面向多样步态的运动控制；仓库已开源训练代码。读它的指令空间设计。
+- **Holosoma**（Amazon FAR）：人形 RL 训练 + 部署框架，支持运动（速度跟踪）与全身跟踪任务、PPO / FastSAC、多仿真器，以及人体动作重定向；读它的「训练 → 推理 → 真机桥接」分层。
+- **TWIST**（CoRL 2025）：遥操作全身模仿系统；仓库公开了动作数据、teacher / student 训练与 sim2sim / sim2real 脚本。读它的「人 → 动作重定向 → 通用跟踪器」链路。
+- **WBC-AGILE**（NVIDIA）：基于 Isaac Lab 的人形移动操作（loco-manipulation）训练引擎，强调验证过的 sim-to-real。读它的任务与课程组织。
+
+这些仓库都需要 GPU 与仿真器，本站不跑、不抄未核实的数字。
+
+## 与 7.4 仿真到真机对照
+
+| 做法 | 改的是什么 | ASAP 论文里的评价（以论文为准） |
+|---|---|---|
+| 系统辨识（SysID） | 仿真参数（质心偏移、质量、PD 增益比） | 需要预先定好参数空间，长时程误差会累积 |
+| 域随机化（DR） | 训练时随机化参数 | 容易得到过于保守的策略、牺牲敏捷 |
+| 残差动力学（DeltaDynamics） | 学 s 的残差 | 长时程有过拟合、误差级联 |
+| **delta action（ASAP）** | 学**动作**的残差，把仿真「拉」向真机 | 开环回放与闭环微调都更好 |
+
+关键差别：ASAP 的残差加在**动作**上，而不只是动力学；微调后的策略部署时不再需要 delta 模型。
+
+## 硬件与安全：不要求购买
+
+- **CPU 玩具**是必做交付。
+- 不要为了跟课去买人形机器人；本课所有真机、sim2real 与训练步骤本页未运行。
+- 如果你所在的实验室已有人形机：先读 [8.5 安全与可靠性](/zh/month/month-8/safety-reliability) 的限位、看门狗与急停；吊架 / 保护绳、低速首测、电机温度监控都按厂家与实验室规程来——ASAP 论文本身就记录了高动态动作导致的硬件损坏。
+
+## 不在范围内
+
+- PPO / SAC 推导（7.2）。
+- 域随机化与延迟建模细节（7.4）。
+- 四足 / 腿式运动场与 Isaac Lab 大规模训练（月页选修）。
+- 触觉与接触丰富的操作策略（11.7）。
+
+<Summary>
+
+**要点**
+
+- 人形 = 浮动基 + 接触切换 + 全身协调；LIPM 里 ZMP 只能在脚内，捕获点出脚就必须迈步。
+- 玩具：慢摆 MAE 0.000250 m 不摔；快摆需要 ZMP 0.2110 m、参考捕获点 0.1027 m，0.045 s 摔倒。
+- ASAP（以论文为准）：预训练 → 真机 rollout → delta action → 冻结后微调，部署时不带 delta 模型；Table V 踢腿 61.2 → 50.2 mm，LeBron 159 → 112 mm。
+- 不要求购买人形机；训练与真机步骤本页未运行。
+
+**常见错误**
+
+- 以为调大增益就能跟上任何参考——先算捕获点。
+- 把 ASAP 读成「残差动力学」——它学的是残差**动作**。
+- 把论文 Table V 写成「本站实测」。
+
+**自检**
+
+- 为什么 1.0 Hz 的参考在 0.10 m 的脚上一定会摔？
+- delta action 模型训练完以后，部署时还在不在？
+- SysID、DR、delta action 三者各改的是什么？
+
+**下一步**
+
+- 11.7 接触丰富策略：把 11.3 的触觉折进模仿策略。
+
+</Summary>

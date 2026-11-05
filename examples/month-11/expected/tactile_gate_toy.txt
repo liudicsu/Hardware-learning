@@ -1,0 +1,11 @@
+seed=17
+trials=200
+tol_mm=0.5
+success_vision_only=0.060
+success_tactile_gated=0.970
+success_tactile_swapped=0.715
+mean_probes_tactile=1.04
+mean_probes_swapped=1.53
+anyskin_plug_cam=1.7
+anyskin_plug_skin=6.7
+anyskin_plug_swap=5.3

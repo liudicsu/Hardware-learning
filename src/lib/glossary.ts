@@ -2298,6 +2298,66 @@ export const glossary: GlossaryEntry[] = [
     lesson: "cross-embodiment-datasets",
     firstExplained: true,
   },
+  {
+    id: "lipm",
+    term: { zh: "线性倒立摆模型（LIPM）", en: "linear inverted pendulum model (LIPM)" },
+    def: {
+      zh: "把人形整体缩成高度固定的质心点：x'' = ω²(x − p)，ω = √(g / z_c)；p 是 ZMP。",
+      en: "Shrinks a humanoid to one CoM point at fixed height: x'' = ω²(x − p), ω = √(g / z_c), where p is the ZMP.",
+    },
+    lesson: "humanoid-wbc-overview",
+    firstExplained: true,
+  },
+  {
+    id: "zmp",
+    term: { zh: "零力矩点（ZMP）", en: "zero-moment point (ZMP)" },
+    def: {
+      zh: "地面反力的压力中心；只能落在支撑脚（支撑多边形）内，决定质心能被推向哪边。",
+      en: "The centre of pressure of the ground reaction; it can only lie inside the support foot (polygon) and decides which way the CoM can be pushed.",
+    },
+    lesson: "humanoid-wbc-overview",
+    firstExplained: true,
+  },
+  {
+    id: "capture-point",
+    term: { zh: "捕获点", en: "capture point" },
+    def: {
+      zh: "ξ = x + x'/ω：落脚在此即可让 LIPM 质心停下；捕获点出了当前支撑脚就必须迈步。",
+      en: "ξ = x + x'/ω: stepping there brings the LIPM CoM to rest; once it leaves the current support foot, the robot must step.",
+    },
+    lesson: "humanoid-wbc-overview",
+    firstExplained: true,
+  },
+  {
+    id: "delta-action-model",
+    term: { zh: "delta action 模型", en: "delta action model" },
+    def: {
+      zh: "ASAP 中学到的动作残差 Δa = π^Δ(s, a)，加到仿真动作上让仿真贴近真机；用于微调，部署时不再使用。",
+      en: "ASAP's learned action residual Δa = π^Δ(s, a), added to simulator actions so sim matches the real robot; used for fine-tuning, dropped at deployment.",
+    },
+    lesson: "humanoid-wbc-overview",
+    firstExplained: true,
+  },
+  {
+    id: "tactile-token",
+    term: { zh: "触觉 token", en: "tactile token" },
+    def: {
+      zh: "触觉读数经小编码器得到的向量，与视觉、状态 token 一起进共享主干，条件化动作头。",
+      en: "A vector from a small encoder over the tactile reading; it joins vision and state tokens in a shared trunk that conditions the action head.",
+    },
+    lesson: "contact-rich-policies",
+    firstExplained: true,
+  },
+  {
+    id: "tactile-gating",
+    term: { zh: "触觉门控", en: "tactile gating" },
+    def: {
+      zh: "只在接触信号超过阈值（或有接触标志）时让触觉影响动作，避免未接触时的噪声带偏策略。",
+      en: "Letting touch affect actions only when the contact signal exceeds a threshold (or a contact flag is set), so out-of-contact noise does not steer the policy.",
+    },
+    lesson: "contact-rich-policies",
+    firstExplained: true,
+  },
 
 ]
 

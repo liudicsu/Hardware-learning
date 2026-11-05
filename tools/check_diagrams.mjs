@@ -3548,7 +3548,7 @@ const lessonRef = (n, slug, lang) => {
 
 
 {
-  // Month 11 PR1+PR2: 11.1–11.5 (power / FOC / tactile / UMI / OXE).
+  // Month 11 PR1–PR3: 11.1–11.7 (power / FOC / tactile / UMI / OXE / humanoid WBC / contact-rich).
   // Numbers quoted in prose are bound to examples/month-11/expected/*.txt (actual stdout via UPDATE=1).
   const rd11 = (rel) => readFileSync(join(root, rel), "utf8");
   const pwr = rd11("examples/month-11/expected/power_budget_toy.txt");
@@ -3556,7 +3556,10 @@ const lessonRef = (n, slug, lang) => {
   const tac = rd11("examples/month-11/expected/tactile_marker_toy.txt");
   const umi = rd11("examples/month-11/expected/relative_traj_toy.txt");
   const oxe = rd11("examples/month-11/expected/oxe_imbalance_toy.txt");
-  const slugs11 = ["power-battery-emc", "foc-actuator-lab", "tactile-sensing", "umi-style-collection", "cross-embodiment-datasets"];
+  const lipm = rd11("examples/month-11/expected/lipm_track_toy.txt");
+  const tgate = rd11("examples/month-11/expected/tactile_gate_toy.txt");
+  const slugs11 = ["power-battery-emc", "foc-actuator-lab", "tactile-sensing", "umi-style-collection", "cross-embodiment-datasets",
+    "humanoid-wbc-overview", "contact-rich-policies"];
   const md11 = {};
   for (const slug of slugs11) {
     for (const lang of ["en", "zh"]) {
@@ -3603,12 +3606,38 @@ const lessonRef = (n, slug, lang) => {
       grab(umi, /abs_calib_bias_m=([0-9.]+)/, "umi abs"),
       grab(umi, /delta_accum_err_m=([0-9.]+)/, "umi delta"),
       grab(umi, /relative_err_m=([0-9.]+)/, "umi rel"),
+      grab(umi, /abs_from_biased_meas_err_m=([0-9.]+)/, "umi abs_biased"),
+      grab(umi, /rel_from_biased_meas_err_m=([0-9.]+)/, "umi rel_biased"),
       grab(umi, /umi_cup_throughput_per_h=([0-9]+)/, "umi cup"),
       grab(umi, /spacemouse_throughput_per_h=([0-9]+)/, "umi spacemouse"),
       grab(umi, /hand_throughput_per_h=([0-9]+)/, "umi hand"),
       grab(umi, /umi_field_success_pct=([0-9.]+)/, "umi field"),
       grab(umi, /umi_ate_mm=([0-9.]+)/, "umi ate_mm"),
       grab(umi, /umi_ate_deg=([0-9.]+)/, "umi ate_deg"),
+    ],
+    "humanoid-wbc-overview": [
+      grab(lipm, /omega=([0-9.]+)/, "lipm omega"),
+      grab(lipm, /zmp_needed_slow_m=([0-9.]+)/, "lipm zmp_slow"),
+      grab(lipm, /zmp_needed_fast_m=([0-9.]+)/, "lipm zmp_fast"),
+      grab(lipm, /cp_peak_ref_slow_m=([0-9.]+)/, "lipm cp_slow"),
+      grab(lipm, /cp_peak_ref_fast_m=([0-9.]+)/, "lipm cp_fast"),
+      grab(lipm, /com_mae_slow_m=([0-9.]+)/, "lipm mae_slow"),
+      grab(lipm, /clip_frac_slow=([0-9.]+)/, "lipm clip_slow"),
+      grab(lipm, /fall_time_fast_s=([0-9.]+)/, "lipm fall_t"),
+      grab(lipm, /asap_kick_gmpjpe_vanilla_mm=([0-9.]+)/, "asap kick vanilla"),
+      grab(lipm, /asap_kick_gmpjpe_asap_mm=([0-9.]+)/, "asap kick asap"),
+      grab(lipm, /asap_lebron_gmpjpe_vanilla_mm=([0-9.]+)/, "asap lebron vanilla"),
+      grab(lipm, /asap_lebron_gmpjpe_asap_mm=([0-9.]+)/, "asap lebron asap"),
+    ],
+    "contact-rich-policies": [
+      grab(tgate, /success_vision_only=([0-9.]+)/, "tgate vis"),
+      grab(tgate, /success_tactile_gated=([0-9.]+)/, "tgate tac"),
+      grab(tgate, /success_tactile_swapped=([0-9.]+)/, "tgate swap"),
+      grab(tgate, /mean_probes_tactile=([0-9.]+)/, "tgate probes"),
+      grab(tgate, /mean_probes_swapped=([0-9.]+)/, "tgate probes_swap"),
+      grab(tgate, /anyskin_plug_cam=([0-9.]+)/, "tgate plug_cam"),
+      grab(tgate, /anyskin_plug_skin=([0-9.]+)/, "tgate plug_skin"),
+      grab(tgate, /anyskin_plug_swap=([0-9.]+)/, "tgate plug_swap"),
     ],
     "cross-embodiment-datasets": [
       grab(oxe, /top4_share=([0-9.]+)/, "oxe top4"),
@@ -3633,6 +3662,20 @@ const lessonRef = (n, slug, lang) => {
   ok(/oxe_embodiments=22/.test(oxe) && /oxe_top4_pct=85/.test(oxe), "m11 oxe: paper 22 / 85");
   ok(/oxe_auge_traj_million=4\.4/.test(oxe) && /oxe_auge_success_lift_lo=24/.test(oxe) && /oxe_auge_success_lift_hi=45/.test(oxe),
     "m11 oxe: AugE 4.4 / 24–45");
+  {
+    const num = (txt, re) => Number((txt.match(re) || [, "NaN"])[1]);
+    const ab = num(umi, /abs_from_biased_meas_err_m=([0-9.]+)/), rb = num(umi, /rel_from_biased_meas_err_m=([0-9.]+)/);
+    ok(rb < ab / 10 && /rel_bias_only_err_m=0\.000000/.test(umi), "m11 umi: world-frame bias cancels in relative actions");
+    ok(/fell_slow=False/.test(lipm) && /fell_fast=True/.test(lipm), "m11 lipm: slow stays up, fast falls");
+    const cpF = num(lipm, /cp_peak_ref_fast_m=([0-9.]+)/), cpS = num(lipm, /cp_peak_ref_slow_m=([0-9.]+)/), foot = num(lipm, /foot_half_m=([0-9.]+)/);
+    ok(cpS < foot && cpF > foot, "m11 lipm: reference capture point inside (slow) / outside (fast) the foot");
+    ok(/asap_kick_gmpjpe_vanilla_mm=61\.2/.test(lipm) && /asap_kick_gmpjpe_asap_mm=50\.2/.test(lipm), "m11 lipm: ASAP Table V kick 61.2 / 50.2");
+    ok(/asap_real_delta_dof=4/.test(lipm), "m11 lipm: ASAP real delta model 4 DoF");
+    const sv = num(tgate, /success_vision_only=([0-9.]+)/), st = num(tgate, /success_tactile_gated=([0-9.]+)/), ss = num(tgate, /success_tactile_swapped=([0-9.]+)/);
+    ok(sv < ss && ss < st, "m11 tgate: vision < swapped < gated");
+    ok(/anyskin_plug_cam=1\.7/.test(tgate) && /anyskin_plug_skin=6\.7/.test(tgate) && /anyskin_plug_swap=5\.3/.test(tgate),
+      "m11 tgate: AnySkin 1.7 / 6.7 / 5.3");
+  }
 
   for (const lang of ["zh", "en"]) {
     const p1 = md11[`power-battery-emc/${lang}`];
@@ -3663,13 +3706,29 @@ const lessonRef = (n, slug, lang) => {
     ok(lang === "en" ? /synthetic|SE\(2\)/.test(u1) : /合成|SE\(2\)/.test(u1) || /简化/.test(u1),
       `m11 umi ${lang}: SE(2) toy labelled`);
     const o1 = md11[`cross-embodiment-datasets/${lang}`];
-    ok(/sim-benchmarks/.test(o1) && /dataset-engineering/.test(o1), `m11 oxe ${lang}: scope vs 9.7 / 8.1`);
+    ok(/sim-benchmarks/.test(o1) && /dataset-engineering/.test(o1), `m11 oxe ${lang}: scope vs 8.8 / 8.1`);
     ok(lang === "en" ? /[Ss]ynthetic/.test(o1) && /not.*real OXE|NOT.*OXE|not OXE/.test(o1) : /合成/.test(o1) && /不是.*OXE|不进 CI|真实 OXE/.test(o1),
       `m11 oxe ${lang}: synthetic counts labelled`);
     ok(lang === "en" ? /paper as source of truth|take the paper/.test(o1) : /以论文为准/.test(o1),
       `m11 oxe ${lang}: paper as source of truth`);
     ok(lang === "en" ? /not run|本页未运行/.test(o1) : /本页未运行/.test(o1),
       `m11 oxe ${lang}: download/train not run`);
+    const h1 = md11[`humanoid-wbc-overview/${lang}`];
+    ok(/rl-foundations/.test(h1) && /sim-to-real/.test(h1), `m11 wbc ${lang}: scope vs 7.2 / 7.4`);
+    ok(lang === "en" ? /humanoid robot is not required|No humanoid purchase|not buy a humanoid/i.test(h1) : /不要求购买人形/.test(h1),
+      `m11 wbc ${lang}: no required humanoid purchase`);
+    ok(lang === "en" ? /paper as source of truth|take the paper/i.test(h1) : /以论文为准/.test(h1),
+      `m11 wbc ${lang}: paper as source of truth`);
+    ok(/delta action/i.test(h1) && /2502\.01143/.test(h1), `m11 wbc ${lang}: ASAP delta action + arXiv id`);
+    ok(/safety-reliability/.test(h1), `m11 wbc ${lang}: links 8.5 safety`);
+    const c1 = md11[`contact-rich-policies/${lang}`];
+    ok(/tactile-sensing/.test(c1) && /flow-matching-policies/.test(c1) && /behaviour-cloning/.test(c1), `m11 crp ${lang}: scope vs 11.3 / 10.1 / 6.1`);
+    ok(lang === "en" ? /not a new capstone track|new capstone track/.test(c1) : /不新开毕业轨道|不是新的毕业轨道/.test(c1),
+      `m11 crp ${lang}: no new capstone track`);
+    ok(lang === "en" ? /tactile sensor is not required|not buy a tactile sensor/i.test(c1) : /不要求购买触觉传感器/.test(c1),
+      `m11 crp ${lang}: no required tactile sensor purchase`);
+    ok(lang === "en" ? /paper as source of truth|take the paper/i.test(c1) : /以论文为准/.test(c1),
+      `m11 crp ${lang}: paper as source of truth`);
   }
 
   let phraseHits11 = 0;
@@ -3688,14 +3747,16 @@ const lessonRef = (n, slug, lang) => {
   for (const slug of slugs11) ok(new RegExp(`slug: "${slug}"`).test(cur11), `m11 curriculum has ${slug}`);
   ok(/month-11\/check\.sh/.test(rd11("tools/sim/reproduce.sh")), "m11 hooked in reproduce.sh");
   const chk11 = rd11("examples/month-11/check.sh");
-  for (const f of ["power_budget_toy", "clarke_park_toy", "tactile_marker_toy", "relative_traj_toy", "oxe_imbalance_toy"]) {
+  for (const f of ["power_budget_toy", "clarke_park_toy", "tactile_marker_toy", "relative_traj_toy", "oxe_imbalance_toy",
+    "lipm_track_toy", "tactile_gate_toy"]) {
     ok(new RegExp(`${f}\\.txt`).test(chk11), `m11 check.sh: ${f}`);
   }
-  ok(/5 of 7/.test(chk11), "m11 check.sh header: 5 of 7");
+  ok(/7 of 7/.test(chk11), "m11 check.sh header: 7 of 7");
   const res11 = rd11("src/lib/resources.ts");
   for (const id of ["novanta-emc-wiring", "roboteq-emi", "ark-power-grounding", "simplefoc-foc-theory", "simplefoc-home",
     "anyskin-paper", "anyskin-site", "digit-design", "digit-interface", "gelsight-sensors-paper", "3dcal-paper",
-    "umi-paper", "umi-site", "umi-hardware-guide", "oxe-site", "oxe-github", "oxe-auge-paper", "oxe-auge-site"]) {
+    "umi-paper", "umi-site", "umi-hardware-guide", "oxe-site", "oxe-github", "oxe-auge-paper", "oxe-auge-site",
+    "asap-paper", "asap-code", "hugwbc-code", "holosoma-code", "twist-code", "wbc-agile-code", "baku-paper", "vitamin-paper", "exumi-paper"]) {
     const block = (res11.match(new RegExp(`"${id}": \\{[\\s\\S]*?\\n  \\}`)) || [""])[0];
     ok(block.length > 0 && /extra:\s*true/.test(block), `m11 resource ${id}: present + extra`);
     ok(!/\$\d/.test(block), `m11 resource ${id}: no price`);
@@ -3703,7 +3764,8 @@ const lessonRef = (n, slug, lang) => {
   const glo11 = rd11("src/lib/glossary.ts");
   for (const term of ["emc-hygiene", "ir-drop", "clarke-transform", "park-transform", "id-zero", "iq-torque",
     "simplefoc-commander", "optical-tactile", "magnetic-tactile",
-    "relative-trajectory", "umi-interface", "oxe-skew", "inverse-frequency-weight"]) {
+    "relative-trajectory", "umi-interface", "oxe-skew", "inverse-frequency-weight",
+    "lipm", "zmp", "capture-point", "delta-action-model", "tactile-token", "tactile-gating"]) {
     ok(new RegExp(`"${term}"`).test(glo11), `m11 glossary: ${term}`);
   }
   // Banner / pointer scaffolding
@@ -3717,8 +3779,17 @@ const lessonRef = (n, slug, lang) => {
      /cross-embodiment-datasets/.test(rd11("src/content/m8/dataset-engineering/en.mdx")), "m11: dataset-engineering points to 11.5");
   ok(/第 7–11 个月/.test(rd11("messages/zh.json")) && /Months 7–11/.test(rd11("messages/en.json")),
     "m11: messages month range 7–11");
+  ok(/contact-rich-policies/.test(rd11("src/content/m11/tactile-sensing/zh.mdx")) &&
+     /contact-rich-policies/.test(rd11("src/content/m11/tactile-sensing/en.mdx")), "m11: 11.3 points to 11.7");
+  ok(/month-11/.test(rd11("src/content/m8/capstone/zh.mdx")) && /month-11/.test(rd11("src/content/m8/capstone/en.mdx")),
+    "m11: capstone advanced section points to Month 11");
+  ok(/11\.6/.test(cur11.slice(cur11.indexOf('slug: "month-7"'), cur11.indexOf('slug: "month-8"'))), "m11: M7 topics point legged/humanoid to 11.6");
+  ok(/11\.6/.test(cur11.slice(cur11.indexOf('slug: "month-8"'), cur11.indexOf('slug: "month-9"'))), "m11: M8 topics point to 11.6");
+  ok(/11\.6/.test(cur11.slice(cur11.indexOf('slug: "month-10"'), cur11.indexOf('slug: "month-11"'))), "m11: M10 topics point to 11.6");
+  ok(!/\(PR3\)|（PR3）|见 PR3|in PR3/.test(cur11), "m11: no PR3 placeholders left in curriculum");
+  ok(/month-11/.test(rd11("docs/notes/month-11-plan.md")) || /Month 11/.test(rd11("docs/notes/month-11-plan.md")), "m11: month-11-plan.md present");
 
-  console.log(`calc  m11 PR2: umi abs 0.025 / delta 0.008287 / rel 0 + 111/35/231; oxe top4 0.8957 + paper 22/85/4.4/24–45; phrases ${phraseHits11}; 11.1–11.5`);
+  console.log(`calc  m11 PR3: umi abs 0.025 / delta 0.008287 / rel 0, biased-meas abs 0.032893 vs rel 0.000225; oxe top4 0.8957; lipm slow ok / fast falls + ASAP 61.2→50.2; tgate vis 0.060 / gated 0.970 / swapped 0.715; phrases ${phraseHits11}; 11.1–11.7`);
 }
 
 
