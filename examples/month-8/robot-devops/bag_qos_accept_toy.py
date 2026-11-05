@@ -15,7 +15,9 @@ The Request vs Offered model and durability compatibility table live in
 About QoS Settings (Jazzy):
   https://docs.ros.org/en/jazzy/Concepts/Intermediate/About-Quality-of-Service-Settings.html
 Recorder default adapt: Rosbag2QoS::adapt_request_to_offers
-  (rosbag2_storage/.../qos.cpp; called from recorder.cpp).
+  (rosbag2_storage/.../qos.cpp; called from recorder.cpp when no override).
+  Mixed reliable/best_effort -> best_effort, mixed transient_local/volatile
+  -> volatile (WARN, still connects); max offered depth <= 1 -> keep_all.
 
 MCAP ROS 2 getting-started: https://mcap.dev/guides/getting-started/ros-2
 docs.ros.org QoS How-To for record/playback: optional when About QoS +
@@ -167,9 +169,9 @@ def main() -> None:
     extra = [k for k in qos_keys if k not in JAZZY_README_QOS_KEYS]
     assert not missing and not extra, (missing, extra)
     print(
-        "qos_source=ros2/rosbag2 jazzy README Overriding QoS Profiles; "
-        "transient_local compatibility boundary NOT documented there "
-        "(uncertainty flagged; not claimed verified)"
+        "qos_source=ros2/rosbag2 jazzy README Overriding QoS Profiles (YAML keys); "
+        "durability compatibility table from Jazzy About QoS "
+        "(the rosbag2 README has no such table)"
     )
     print(
         f"required_topics={','.join(REQUIRED_TOPICS)} "

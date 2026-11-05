@@ -3966,7 +3966,7 @@ const lessonRef = (n, slug, lang) => {
   for (const lang of ["en", "zh"]) {
     const devops = read(`src/content/m8/robot-devops/${lang}.mdx`);
     const hw = read(`src/content/m8/ros2-hardware-interface/${lang}.mdx`);
-    ok(/transient_local/.test(devops), `obs1 devops ${lang}: transient_local uncertainty flagged`);
+    ok(/transient_local/.test(devops), `obs1 devops ${lang}: transient_local durability covered`);
     ok(/folder exists|文件夹存在/.test(devops), `obs1 devops ${lang}: acceptance vs folder exists`);
     ok(/HardwareComponentInterface/.test(hw) && (/not the `HardwareComponentInterface`|不是 `HardwareComponentInterface`|NOT the ros2_control HardwareComponentInterface|≠ HardwareComponent/.test(hw)),
       `obs1 hw ${lang}: does not equate SMs`);

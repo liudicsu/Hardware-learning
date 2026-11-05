@@ -105,12 +105,16 @@ A folder on disk is not a valid recording. `bag_qos_accept_toy.py` gates synthet
 
 ### Request vs Offered, recorder adapt, and durability (F1)
 
-ROS 2 QoS uses a **Request vs Offered** model ([About QoS Settings — Jazzy](https://docs.ros.org/en/jazzy/Concepts/Intermediate/About-Quality-of-Service-Settings.html); RST mirror: `ros2/ros2_documentation` jazzy `About-Quality-of-Service-Settings.rst`). Subscriptions **request** a minimum quality; publishers **offer** a maximum. A connection forms only if **every** requested policy is not more stringent than the offered one. Incompatible reliability or durability ⇒ no match ⇒ no messages delivered (and a recorder can look “empty” on that topic).
+ROS 2 QoS uses a **Request vs Offered** model ([About QoS Settings — Jazzy](https://docs.ros.org/en/jazzy/Concepts/Intermediate/About-Quality-of-Service-Settings.html); RST mirror: `ros2/ros2_documentation` jazzy `About-Quality-of-Service-Settings.rst`). Subscriptions **request** a minimum quality; publishers **offer** a maximum. A connection forms only if **every** requested policy is not more stringent than the offered one. Incompatible reliability or durability ⇒ no match ⇒ no messages delivered (a recorder whose **override** requests too much looks “empty” on that topic).
 
 **Recorder default vs overrides** (Jazzy [rosbag2 README — Overriding QoS Profiles](https://github.com/ros2/rosbag2/blob/jazzy/README.md); raw `https://raw.githubusercontent.com/ros2/rosbag2/jazzy/README.md`):
 
-- **Default:** rosbag2 **adapts** its *requested* subscription QoS to the publishers’ *offered* profiles. Source code: `Rosbag2QoS::adapt_request_to_offers` in [`rosbag2_storage/.../qos.cpp`](https://github.com/ros2/rosbag2/blob/jazzy/rosbag2_storage/src/rosbag2_storage/qos.cpp), called from the recorder’s `subscription_qos_for_topic` when no override is set ([`recorder.cpp`](https://github.com/ros2/rosbag2/blob/jazzy/rosbag2_transport/src/rosbag2_transport/recorder.cpp)). Adaptation is **not** “any combination works”: if you force an incompatible request, or publishers disagree among themselves, you can still get no connection / no recorded samples.
-- **Overrides:** `--qos-profile-overrides-path` forces a **manual requested** profile for named topics (same README). Use it when the default adapt is wrong for your late-join / latching case — not as a free pass around compatibility.
+- **Default (no override):** rosbag2 **adapts** its *requested* subscription QoS to the publishers’ *offered* profiles. Source code: `Rosbag2QoS::adapt_request_to_offers` in [`rosbag2_storage/.../qos.cpp`](https://github.com/ros2/rosbag2/blob/jazzy/rosbag2_storage/src/rosbag2_storage/qos.cpp), called from the recorder’s `subscription_qos_for_topic` when no override is set ([`recorder.cpp`](https://github.com/ros2/rosbag2/blob/jazzy/rosbag2_transport/src/rosbag2_transport/recorder.cpp)). Rules in Jazzy `qos.cpp`:
+  - **History:** `keep_last(max offered depth)` if that depth > 1; otherwise (e.g. every publisher offers `keep_last` depth=1) it falls back to **`keep_all`** (DEBUG log: “Falling back to the RMW_QOS_POLICY_HISTORY_KEEP_ALL”).
+  - **Reliability:** `reliable` only if **all** publishers offer reliable; if publishers mix reliable/best_effort it falls back to **`best_effort`** and logs a WARN — it still connects to every publisher, but some messages from reliable publishers may be dropped.
+  - **Durability:** `transient_local` only if **all** publishers offer transient_local; if they mix transient_local/volatile it falls back to **`volatile`** and logs a WARN — it still connects, but previously published latched messages are not retrieved.
+  - So the default adapt never produces “no connection”; mixed publishers only cost reliability / retention semantics.
+- **Overrides:** `--qos-profile-overrides-path` forces a **manual requested** profile for named topics (same README; `recorder.cpp` returns the override and skips adapt). Use it when the default adapt is wrong for your late-join / latching case. **This is the only path to “no connection / nothing recorded” here:** an override that requests more than any publisher offers (e.g. `reliable` against a best_effort publisher, `transient_local` against a volatile publisher) fails RxO matching ⇒ `n==0` on that topic.
 
 **Durability and late joiners** (About QoS durability + compat table):
 
@@ -133,19 +137,19 @@ To get “latched” behaviour for late joiners, **both** sides must agree on tr
 
 | Topic | Offered |
 |---|---|
-| `/tf_static` | reliable + transient_local, keep_last depth=1 |
-| `/joint_states` | best_effort + volatile |
-| `/camera/color/image_raw` | reliable + volatile |
+| `/tf_static` | reliable + transient_local, keep_last depth=1 (one publisher) |
+| `/joint_states` | best_effort + volatile, keep_last depth=10 (one publisher) |
+| `/camera/color/image_raw` | reliable + volatile, keep_last depth=5 (one publisher) |
 
-Derive: (1) what *requested* profile default `adapt_request_to_offers` would aim for on each topic; (2) when you would write an override YAML instead; (3) which acceptance fixture would **REJECT** if the recorder joined late requesting volatile against a latching `/tf_static` and recorded `n==0` on a required topic (`missing_topic.json` / empty counts). Point at `bag_qos_accept_toy.py` + `accept_fixtures/` — JSON timelines only; no binary MCAP in CI.
+Use only the `qos.cpp` rules above (max depth ≤ 1 ⇒ `keep_all`; reliable/transient_local only if every publisher offers it). Derive: (1) the *requested* history / reliability / durability that default `adapt_request_to_offers` picks on each topic (note `/tf_static` depth=1 ⇒ `keep_all`); (2) what changes if a second `/joint_states` publisher offering reliable appears (mixed ⇒ best_effort + WARN, still connected), and when you would write an override YAML instead; (3) if an override YAML requested `transient_local` on `/camera/color/image_raw` (volatile offer), which acceptance fixture shows the result — no RxO match ⇒ `n==0` on a required topic ⇒ `missing_topic.json` **REJECT** (`missing_required_topic`). Point at `bag_qos_accept_toy.py` + `accept_fixtures/` — JSON timelines only; no binary MCAP in CI.
 
-### QoS override YAML keys + honest uncertainty
+### QoS override YAML keys and sources
 
 When recording or playing back, rosbag2 accepts `--qos-profile-overrides-path` pointing at a YAML map of topic → QoS fields. Keys verified from the Jazzy README example:
 
 `history`, `depth`, `reliability`, `durability`, `deadline` (`sec`/`nsec`), `lifespan` (`sec`/`nsec`), `liveliness`, `liveliness_lease_duration` (`sec`/`nsec`), `avoid_ros_namespace_conventions`.
 
-**Uncertainty boundaries (after the concepts above):** the Jazzy README verifies those YAML **keys** and shows `durability: volatile` in the example; it does **not** itself document the full transient_local matching table — that table lives in About QoS (fetched successfully for this lesson). Distro-specific omitted-key fallbacks: verify against the README schema; do not invent keys. The docs.ros.org How-To on overriding QoS for recording/playback is **optional** when About QoS + Jazzy README + recorder source already cover the teaching. No “open in browser for 403” workaround.
+**Sources (after the concepts above):** the Jazzy README is the source for those YAML **keys** (its example uses `durability: volatile`); the README has no durability compatibility table — that table, used above, comes from About QoS (Jazzy). Recorder adapt rules come from Jazzy `qos.cpp`. Do not invent keys beyond the README. The docs.ros.org How-To on overriding QoS for recording/playback is **optional** when About QoS + Jazzy README + recorder source already cover the teaching. No “open in browser for 403” workaround.
 
 No binary `.mcap` / real bags enter CI — JSON fixtures under `accept_fixtures/` only.
 
@@ -174,7 +178,9 @@ The Request vs Offered model and durability compatibility table live in
 About QoS Settings (Jazzy):
   https://docs.ros.org/en/jazzy/Concepts/Intermediate/About-Quality-of-Service-Settings.html
 Recorder default adapt: Rosbag2QoS::adapt_request_to_offers
-  (rosbag2_storage/.../qos.cpp; called from recorder.cpp).
+  (rosbag2_storage/.../qos.cpp; called from recorder.cpp when no override).
+  Mixed reliable/best_effort -> best_effort, mixed transient_local/volatile
+  -> volatile (WARN, still connects); max offered depth <= 1 -> keep_all.
 
 MCAP ROS 2 getting-started: https://mcap.dev/guides/getting-started/ros-2
 docs.ros.org QoS How-To for record/playback: optional when About QoS +
@@ -326,9 +332,9 @@ def main() -> None:
     extra = [k for k in qos_keys if k not in JAZZY_README_QOS_KEYS]
     assert not missing and not extra, (missing, extra)
     print(
-        "qos_source=ros2/rosbag2 jazzy README Overriding QoS Profiles; "
-        "transient_local compatibility boundary NOT documented there "
-        "(uncertainty flagged; not claimed verified)"
+        "qos_source=ros2/rosbag2 jazzy README Overriding QoS Profiles (YAML keys); "
+        "durability compatibility table from Jazzy About QoS "
+        "(the rosbag2 README has no such table)"
     )
     print(
         f"required_topics={','.join(REQUIRED_TOPICS)} "
@@ -387,7 +393,7 @@ if __name__ == "__main__":
 ```text
 bag_qos_accept_toy fixtures=accept_fixtures seed=n/a (deterministic)
 qos_override_keys=history,depth,reliability,durability,deadline,lifespan,liveliness,liveliness_lease_duration,avoid_ros_namespace_conventions
-qos_source=ros2/rosbag2 jazzy README Overriding QoS Profiles; transient_local compatibility boundary NOT documented there (uncertainty flagged; not claimed verified)
+qos_source=ros2/rosbag2 jazzy README Overriding QoS Profiles (YAML keys); durability compatibility table from Jazzy About QoS (the rosbag2 README has no such table)
 required_topics=/joint_states,/camera/color/image_raw,/tf max_gaps_allowed=2 gap_factor=1.5
 fixed_budget_examples fixed_ok: n=100 budget_min=90 cmp=ge → PASS; fixed_fail: n=10 budget_min=50 cmp=ge → FAIL (do not swap comparisons)
 case=pass_clean folder_exists=True decision=ACCEPT reason=ok
@@ -409,7 +415,7 @@ One clean fixture **ACCEPT**s; four others **REJECT** (missing topic with `n=0`,
 - **Assuming sqlite3 is still the default.** On Jazzy the default storage_id is mcap.
 - **Ignoring gap counts.** A "50 Hz" joint topic at 49 Hz with gaps is already a logging bug.
 - **Treating “folder exists” as bag acceptance.** Missing required topics (`n==0`), gap overruns or under-budget counts must reject.
-- **Inventing QoS YAML keys or claiming `transient_local` boundaries from the Jazzy README.** Only the documented keys; compatibility boundary stays flagged uncertain.
+- **Inventing QoS YAML keys, or citing the rosbag2 README for `transient_local` compatibility.** Use only the README’s keys; take durability compatibility (Pub volatile + Sub transient_local ⇒ no connection) from About QoS, and remember only a too-strict override — not default adapt — yields no connection.
 - **Treating wandb as optional forever.** When you fine-tune (lesson 8.2), a run without hyperparams logged is hard to defend in the capstone README.
 
 <Summary>

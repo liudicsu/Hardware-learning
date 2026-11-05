@@ -1091,11 +1091,11 @@ const month8Lessons: Lesson[] = [
       { zh: "能说明 action-ros-ci 会跑 colcon build 与 colcon test（可跳过测试）。", en: "State that action-ros-ci runs colcon build and colcon test (tests optional to skip)." },
       { zh: "能证明 Jazzy 上 rosbag2 默认 storage_id 为 mcap，并读懂 bag_stats.py 的丢帧表。", en: "Show that Jazzy rosbag2 defaults to storage_id mcap, and read bag_stats.py's gap table." },
       { zh: "能说明 bag 验收≠文件夹存在：缺必需 topic（n==0）、缺口超限或低于消息预算即拒收。", en: "State that bag acceptance ≠ folder exists: reject on missing required topic (n==0), gap over limit, or below message budget." },
-      { zh: "能说明 Request vs Offered、默认 adapt_request_to_offers vs 手动 override，并用 About QoS 持久性兼容表解释晚加入 / latch；YAML 键以 Jazzy README 为准，完整匹配表在 About QoS。", en: "Explain Request vs Offered, default adapt_request_to_offers vs manual overrides, and late-join/latch via the About QoS durability table; YAML keys from the Jazzy README, full matching table from About QoS." },
+      { zh: "能说明 Request vs Offered、默认 adapt_request_to_offers（混合发布方回退 best_effort / volatile，仍建连）vs 手动 override（过严才无连接），并用 About QoS 持久性兼容表解释晚加入 / latch；YAML 键以 Jazzy README 为准，完整匹配表在 About QoS。", en: "Explain Request vs Offered, default adapt_request_to_offers (mixed publishers fall back to best_effort / volatile, still connected) vs manual overrides (only a too-strict one fails to connect), and late-join/latch via the About QoS durability table; YAML keys from the Jazzy README, full matching table from About QoS." },
       { zh: "能区分本课 CI 跑在学员自仓，与本站仓库无关。", en: "Distinguish student-repo CI from this site's repository." },
     ],
     prereqs: ["git-github", "ros2-graph", "ros2-hardware-interface"],
-    resources: ["ros2-docker-vscode", "action-ros-ci", "rosbag2", "foxglove", "rerun", "wandb"],
+    resources: ["ros2-docker-vscode", "action-ros-ci", "rosbag2", "ros2-qos", "foxglove", "rerun", "wandb"],
     tasks: [
       { id: "run", text: { zh: "运行 bag_stats.py，核对 storage_id=mcap 与 total_gap_events=3", en: "Run bag_stats.py; confirm storage_id=mcap and total_gap_events=3" } },
       { id: "accept", text: { zh: "运行 bag_qos_accept_toy.py；确认缺 topic / 缺口 / 预算案例被拒，且固定消息预算例子未对调", en: "Run bag_qos_accept_toy.py; confirm missing-topic / gap / budget cases reject, and fixed message-budget examples are not swapped" } },
