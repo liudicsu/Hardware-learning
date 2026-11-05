@@ -3234,6 +3234,91 @@ export const resources: Record<string, Resource> = {
     extra: true,
   },
 
+  "freertos-kernel-semphr": {
+    id: "freertos-kernel-semphr",
+    url: "https://github.com/FreeRTOS/FreeRTOS-Kernel/blob/main/include/semphr.h",
+    title: { zh: "FreeRTOS-Kernel semphr.h（互斥量 / 二值信号量）", en: "FreeRTOS-Kernel semphr.h (mutex / binary semaphore)" },
+    author: "FreeRTOS / Amazon",
+    kind: "software",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "官方内核头文件：xSemaphoreCreateMutex() 使用优先级继承；xSemaphoreCreateBinary() 明确不做优先级继承。本站 2.3 引用；本页未运行。",
+      en: "Official kernel header: xSemaphoreCreateMutex() uses priority inheritance; xSemaphoreCreateBinary() explicitly does not. Cited in 2.3; not run here.",
+    },
+    license: { zh: "MIT，© Amazon FreeRTOS；仅提供外链", en: "MIT, © Amazon FreeRTOS; external link only" },
+    extra: true,
+  },
+  "esp-idf-freertos-overview": {
+    id: "esp-idf-freertos-overview",
+    url: "https://docs.espressif.com/projects/esp-idf/en/v5.3.2/esp32/api-reference/system/freertos.html",
+    title: { zh: "ESP-IDF FreeRTOS 概览（SMP）", en: "ESP-IDF FreeRTOS overview (SMP)" },
+    author: "Espressif",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "说明 ESP-IDF FreeRTOS 是最多双核的 SMP 实现，并有核心亲和性；相对原版单核 FreeRTOS。本站 2.3 引用；玩具刻意单核。",
+      en: "States that ESP-IDF FreeRTOS is a dual-core-at-most SMP implementation with core affinity, vs vanilla single-core FreeRTOS. Cited in 2.3; the lesson toy is deliberately single-core.",
+    },
+    license: { zh: "文档，© Espressif；仅提供外链", en: "Docs, © Espressif; external link only" },
+    extra: true,
+  },
+  "zephyr-threads": {
+    id: "zephyr-threads",
+    url: "https://docs.zephyrproject.org/latest/kernel/services/threads/index.html",
+    title: { zh: "Zephyr 线程与优先级", en: "Zephyr threads and priorities" },
+    author: "Zephyr Project",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "数字越小优先级越高；负数为协作式线程。与 FreeRTOS「数字越大越高」极性相反——移植易踩坑。本站 2.3 仅文字对照；本页未构建 Zephyr。",
+      en: "Numerically lower priorities take precedence; negative priorities are cooperative. Opposite polarity from FreeRTOS (higher number = higher priority) — a common porting bug. Text-only contrast in 2.3; Zephyr is not built here.",
+    },
+    license: { zh: "文档，© Zephyr Project；仅提供外链", en: "Docs, © Zephyr Project; external link only" },
+    extra: true,
+  },
+  "leap-hand-arxiv": {
+    id: "leap-hand-arxiv",
+    url: "https://arxiv.org/abs/2309.06440",
+    title: { zh: "LEAP Hand 论文", en: "LEAP Hand paper" },
+    author: "Shaw, Agarwal, Pathak",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "低成本拟人灵巧手；论文中策略观测/命令 16 维关节角（16 DoF，以论文为准）。本站 3.6 阅读；不要求购买。",
+      en: "Low-cost anthropomorphic dexterous hand; the paper's policy observes/commands 16 joint angles (16 DoF, 以论文为准). Reading for 3.6; purchase not required.",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
+  "dexcap-arxiv": {
+    id: "dexcap-arxiv",
+    url: "https://arxiv.org/abs/2403.07788",
+    title: { zh: "DexCap 论文", en: "DexCap paper" },
+    author: "DexCap authors",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "便携式手部动捕 + 从动捕到灵巧操作模仿（DexIL）。本站 3.6 阅读数据路径；本页未运行动捕。",
+      en: "Portable hand mocap plus imitation from mocap to dexterous skills (DexIL). Data-path reading for 3.6; mocap is not run here.",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
+  "dex-manip-arxiv": {
+    id: "dex-manip-arxiv",
+    url: "https://arxiv.org/abs/2503.02587",
+    title: { zh: "多指视觉运动扩散操作论文", en: "Visuomotor diffusion dexterous manipulation" },
+    author: "paper authors",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "Allegro 四指手 + AR 遥操作采集 + 视觉运动扩散策略。本站 3.6 阅读；不要求购买 Allegro。",
+      en: "Four-fingered Allegro Hand with AR teleop collection and visuomotor diffusion policies. Reading for 3.6; Allegro purchase not required.",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
+
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

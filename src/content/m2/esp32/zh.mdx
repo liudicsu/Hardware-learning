@@ -354,6 +354,380 @@ void loop() {
 - 在 `loop()` 里加断线重连：发现 `WiFi.status()` 不再等于已连接，就重试，而不是重启整块板。
 - 把电位器读数显示成数字，并用它直接控制舵机，再对比旋钮位置和命令角度是否一致。
 
+
+## FreeRTOS 优先级、反转与中等任务
+
+Arduino 的 `setup()` / `loop()` 已经跑在一个 <Term id="freertos-task">FreeRTOS 任务</Term> 里。当你需要不止一个速率——200 Hz 控制环、更慢的日志、Wi-Fi——就要按优先级创建任务。**FreeRTOS 编号：数字越大优先级越高**（`tskIDLE_PRIORITY` = 0，最低）。这和 Zephyr 的极性相反（见下文对照）。
+
+### 为什么必须是三个任务
+
+只用低、高两个任务，优先级反转很容易讲浅。低任务持有互斥量、高任务在上面阻塞时，若**没有别的就绪任务**，低任务会一直占用 CPU 做完临界区：高任务的等待只是这段剩余时间。**无界**反转需要一个**从不拿锁**的**中等**任务：高任务阻塞期间，中等任务抢占仍持锁的低任务，高任务就会被拖住，拖多久取决于中等任务跑多久。
+
+因此玩具在**单核**上放了三个任务：
+
+| 任务 | FreeRTOS 优先级 | 角色 |
+| --- | --- | --- |
+| `low` | 1 | 日志：持锁进入较长临界区 |
+| `medium` | 2 | 后台： **从不**拿锁 |
+| `high` | 3 | 控制：每个周期短暂需要锁 |
+
+ESP-IDF 的 FreeRTOS 是带核心亲和性的 **SMP 双核**变体（`xTaskCreatePinnedToCore`，每核 idle/IPC 任务）——见 <Resource id="esp-idf-freertos-overview" />。本玩具刻意做成**单核**，好让反转时间线不被 SMP 调度打散。在 ESP32 上烧录真实 FreeRTOS 工程 **本页未运行**。
+
+### 互斥量 vs 二值信号量
+
+FreeRTOS 里有两个容易混用的原语（<Resource id="freertos-kernel-semphr" /> — FreeRTOS-Kernel 的 `semphr.h`）：
+
+- `xSemaphoreCreateMutex()` — **有优先级继承**：更高优先级任务因该互斥量阻塞时，持有者的有效优先级会被抬高。
+- `xSemaphoreCreateBinary()` — **没有**优先级继承。头文件写得很清楚，并指向互斥量作为带继承的替代。
+
+经典坑就是把二值信号量当成互斥锁用。继承**限制**中等任务造成的等待；它**不会**消掉阻塞：高任务仍要等低任务做完临界区（本课不做优先级天花板断言）。
+
+### 运行玩具
+
+```bash
+$ cd ~/Hardware-learning/examples/month-2/esp32
+$ python3 freertos_priority_toy.py
+```
+
+<CodeSource path="examples/month-2/esp32/freertos_priority_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""freertos_priority_toy.py: priority inversion with a medium task (stdlib).
+
+Single-core fixed-priority preemptive scheduler in FreeRTOS numbering
+(higher numeric priority runs first; tskIDLE_PRIORITY = 0 is lowest).
+ESP-IDF FreeRTOS is an SMP dual-core variant with core affinity; this toy
+is deliberately single-core so the inversion story is visible without SMP
+scheduling. Real FreeRTOS on ESP32 and Zephyr builds are 本页未运行.
+
+Three tasks share one mutex-guarded critical section:
+  low     (prio 1)  logging — takes the mutex for a long stretch
+  medium  (prio 2)  background — never takes the mutex
+  high    (prio 3)  control — needs the mutex briefly each period
+
+Unbounded inversion needs the medium task: without it, when high blocks on
+the mutex held by low, low keeps the CPU (nothing else is ready at a higher
+priority than low among non-blocked tasks), so high's wait is just low's
+remaining critical-section time. With medium ready, medium preempts low and
+high stays blocked for an unbounded medium stretch.
+
+Arms (shared arrival noise):
+  no_inheritance  lock is a binary-semaphore stand-in: no priority boost
+  inheritance     lock is a mutex stand-in: holder inherits waiter's priority
+
+FreeRTOS fact (kernel semphr.h): xSemaphoreCreateMutex() implements priority
+inheritance; xSemaphoreCreateBinary() does not — using a binary semaphore as
+a mutual-exclusion lock is the classic bug. Inheritance BOUNDS blocking by
+the medium task; it does not eliminate the wait for the low task to finish
+its critical section (no priority-ceiling claim here).
+
+Zephyr polarity (prose only, docs.zephyrproject.org threads): lower number =
+higher priority; negative priorities are cooperative. Toy stays FreeRTOS
+numbering.
+
+Metrics: high-task deadline misses; max inversion wait (ticks high spent
+blocked while a medium ran).
+usage: python3 freertos_priority_toy.py
+"""
+from __future__ import annotations
+
+import random
+
+SEED = 42
+HORIZON = 400          # scheduler ticks
+DT_MS = 1              # one tick = 1 ms of simulated time
+
+# FreeRTOS-style priorities: higher number = higher priority.
+P_LOW, P_MED, P_HIGH = 1, 2, 3
+
+# Workloads (ticks of CPU needed per job).
+LOW_CS = 18            # low's critical-section length while holding the lock
+LOW_PERIOD = 80
+MED_BURST = 12         # medium CPU burst (no lock)
+MED_PERIOD = 25
+HIGH_CS = 3            # high's short critical section
+HIGH_PERIOD = 20
+HIGH_DEADLINE = 20     # miss if response > this many ticks from release
+
+# Shared arrival jitter (±ticks) applied identically to both arms.
+ARRIVAL_JITTER = 2
+
+
+class Scheduler:
+    """Tiny single-core preemptive FP scheduler with one lock."""
+
+    def __init__(self, inherit: bool, arrivals: list[tuple[int, int, int]]) -> None:
+        self.inherit = inherit
+        self.arrivals = arrivals  # (low_rel, med_rel, high_rel) jitter per period index
+        self.lock_holder: str | None = None
+        self.lock_waiters: list[str] = []
+        # base priority / effective priority
+        self.base = {"low": P_LOW, "medium": P_MED, "high": P_HIGH}
+        self.eff = dict(self.base)
+        self.ready: dict[str, int] = {}          # task -> remaining CPU this job
+        self.blocked: set[str] = set()
+        self.release_at = {"low": 0, "medium": 0, "high": 0}
+        self.period_i = {"low": 0, "medium": 0, "high": 0}
+        self.high_release_tick: int | None = None
+        self.deadline_misses = 0
+        self.max_inv_wait = 0
+        self.cur_inv_wait = 0
+        self.max_lock_wait = 0
+        self.cur_lock_wait = 0
+        self.high_jobs = 0
+        self.high_responses: list[int] = []
+        self.holding_cs_left = 0  # remaining CS work while holding lock
+
+    def _prio(self, name: str) -> int:
+        return self.eff[name]
+
+    def _boost(self) -> None:
+        """Priority inheritance: holder gets max(own, waiters' base)."""
+        if not self.inherit or self.lock_holder is None:
+            return
+        holder = self.lock_holder
+        boost = self.base[holder]
+        for w in self.lock_waiters:
+            boost = max(boost, self.base[w])
+        self.eff[holder] = boost
+
+    def _drop_boost(self) -> None:
+        if self.lock_holder is None:
+            self.eff = dict(self.base)
+            return
+        # reset non-holders; re-compute holder
+        for n in self.eff:
+            if n != self.lock_holder:
+                self.eff[n] = self.base[n]
+        self._boost()
+
+    def _try_release(self, t: int) -> None:
+        for name, period, work in (
+            ("low", LOW_PERIOD, LOW_CS),
+            ("medium", MED_PERIOD, MED_BURST),
+            ("high", HIGH_PERIOD, HIGH_CS),
+        ):
+            if t < self.release_at[name]:
+                continue
+            if name in self.ready or name in self.blocked or name == self.lock_holder:
+                # still running previous job; skip this release (overload)
+                self.release_at[name] = t + period
+                self.period_i[name] += 1
+                continue
+            # apply shared arrival jitter
+            pi = self.period_i[name]
+            jitter_triple = self.arrivals[pi % len(self.arrivals)]
+            jitter = {"low": jitter_triple[0], "medium": jitter_triple[1],
+                      "high": jitter_triple[2]}[name]
+            # release now (jitter already baked into precomputed arrival offsets
+            # relative to nominal; we just start the job)
+            self.ready[name] = work
+            if name == "high":
+                self.high_release_tick = t
+                self.high_jobs += 1
+            self.release_at[name] = t + period + jitter
+            self.period_i[name] += 1
+            _ = jitter  # jitter shifts next release; first release at 0
+
+    def _take_lock(self, name: str) -> bool:
+        if self.lock_holder is None:
+            self.lock_holder = name
+            self.holding_cs_left = self.ready[name]
+            self._boost()
+            return True
+        if self.lock_holder == name:
+            return True
+        # must wait
+        if name not in self.lock_waiters:
+            self.lock_waiters.append(name)
+        self.blocked.add(name)
+        if name in self.ready:
+            # keep remaining work recorded in ready? move to blocked
+            pass
+        self._boost()
+        return False
+
+    def _give_lock(self) -> None:
+        self.lock_holder = None
+        self.holding_cs_left = 0
+        # wake waiters in priority order
+        self.lock_waiters.sort(key=lambda n: -self.base[n])
+        woken = []
+        while self.lock_waiters:
+            w = self.lock_waiters.pop(0)
+            self.blocked.discard(w)
+            woken.append(w)
+            # highest waiter takes the lock immediately
+            self.lock_holder = w
+            self.holding_cs_left = self.ready.get(w, HIGH_CS)
+            break
+        self._drop_boost()
+        self._boost()
+
+    def _pick(self) -> str | None:
+        candidates = []
+        for name, rem in self.ready.items():
+            if rem <= 0:
+                continue
+            if name in self.blocked:
+                continue
+            # if someone else holds the lock and this task needs it:
+            # low and high need the lock for their whole job in this toy;
+            # medium never needs it.
+            if name in ("low", "high"):
+                if self.lock_holder is not None and self.lock_holder != name:
+                    # try to take (will block)
+                    if not self._take_lock(name):
+                        continue
+                elif self.lock_holder is None:
+                    if not self._take_lock(name):
+                        continue
+            candidates.append(name)
+        if not candidates:
+            return None
+        # highest effective priority wins; stable by name for ties
+        candidates.sort(key=lambda n: (-self._prio(n), n))
+        return candidates[0]
+
+    def run(self) -> dict:
+        for t in range(HORIZON):
+            self._try_release(t)
+            # inversion wait = high blocked WHILE medium runs (unbounded w/o PI)
+            # lock wait = any tick high spends blocked on the lock (bounded by low CS under PI)
+            high_blocked = "high" in self.blocked
+            running = self._pick()
+            # re-read blocked after _pick (which may have blocked high)
+            high_blocked = "high" in self.blocked
+            if high_blocked:
+                self.cur_lock_wait += 1
+                self.max_lock_wait = max(self.max_lock_wait, self.cur_lock_wait)
+                if running == "medium":
+                    self.cur_inv_wait += 1
+                    self.max_inv_wait = max(self.max_inv_wait, self.cur_inv_wait)
+                else:
+                    self.cur_inv_wait = 0
+            else:
+                self.cur_inv_wait = 0
+                self.cur_lock_wait = 0
+
+            if running is None:
+                continue
+
+            # execute one tick
+            self.ready[running] -= 1
+            if running == self.lock_holder:
+                self.holding_cs_left -= 1
+
+            if self.ready[running] <= 0:
+                # job done
+                if running == "high" and self.high_release_tick is not None:
+                    resp = t - self.high_release_tick + 1
+                    self.high_responses.append(resp)
+                    if resp > HIGH_DEADLINE:
+                        self.deadline_misses += 1
+                    self.high_release_tick = None
+                if running == self.lock_holder:
+                    self._give_lock()
+                del self.ready[running]
+
+        return {
+            "arm": "inheritance" if self.inherit else "no_inheritance",
+            "deadline_misses": self.deadline_misses,
+            "high_jobs": self.high_jobs,
+            "max_inversion_wait_ticks": self.max_inv_wait,
+            "max_inversion_wait_ms": self.max_inv_wait * DT_MS,
+            "max_lock_wait_ticks": self.max_lock_wait,
+            "mean_high_response_ticks": (
+                sum(self.high_responses) / len(self.high_responses)
+                if self.high_responses else 0.0),
+        }
+
+
+def shared_arrivals() -> list[tuple[int, int, int]]:
+    rng = random.Random(SEED)
+    # enough for HORIZON / min_period
+    n = HORIZON // 10 + 5
+    out = []
+    for _ in range(n):
+        out.append((
+            rng.randint(-ARRIVAL_JITTER, ARRIVAL_JITTER),
+            rng.randint(-ARRIVAL_JITTER, ARRIVAL_JITTER),
+            rng.randint(-ARRIVAL_JITTER, ARRIVAL_JITTER),
+        ))
+    return out
+
+
+def main() -> None:
+    arrivals = shared_arrivals()
+    rows = []
+    for inherit in (False, True):
+        rows.append(Scheduler(inherit, arrivals).run())
+
+    print(f"seed={SEED} horizon={HORIZON} tick={DT_MS}ms single_core=1")
+    print("priorities FreeRTOS-style: low=1 medium=2 high=3 (higher number runs first)")
+    print(f"workloads: low_CS={LOW_CS} med_burst={MED_BURST} high_CS={HIGH_CS} "
+          f"periods L/M/H={LOW_PERIOD}/{MED_PERIOD}/{HIGH_PERIOD}")
+    print("lock: no_inheritance = binary-semaphore stand-in (no PI); "
+          "inheritance = mutex stand-in (PI)")
+    print("inversion needs medium: medium preempts lock-holding low while high blocks")
+    print(f"{'arm':<16} {'deadline_misses':>15} {'high_jobs':>9} "
+          f"{'max_inv_wait':>12} {'max_lock_wait':>13} {'mean_high_resp':>14}")
+    for r in rows:
+        print(f"{r['arm']:<16} {r['deadline_misses']:15d} {r['high_jobs']:9d} "
+              f"{r['max_inversion_wait_ticks']:12d} {r['max_lock_wait_ticks']:13d} "
+              f"{r['mean_high_response_ticks']:14.2f}")
+
+    no, yes = rows[0], rows[1]
+    assert no["max_inversion_wait_ticks"] > yes["max_inversion_wait_ticks"], (
+        "inheritance should cut medium-driven inversion wait")
+    assert no["max_inversion_wait_ticks"] > 0, "medium must create visible inversion"
+    assert yes["max_lock_wait_ticks"] > 0, (
+        "PI bounds but does not eliminate lock wait (low still finishes CS)")
+    assert yes["max_lock_wait_ticks"] <= LOW_CS, "PI lock wait bounded by low CS length"
+    assert no["deadline_misses"] >= yes["deadline_misses"], (
+        "inheritance should not increase deadline misses")
+    print("ok: medium-driven inversion; mutex PI bounds medium wait but lock wait "
+          f"remains (PI max_lock_wait={yes['max_lock_wait_ticks']}<=low_CS={LOW_CS}); "
+          "binary semaphore has no PI (FreeRTOS-Kernel semphr.h); "
+          "ESP-IDF SMP dual-core 本页未运行; Zephyr polarity prose-only")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+seed=42 horizon=400 tick=1ms single_core=1
+priorities FreeRTOS-style: low=1 medium=2 high=3 (higher number runs first)
+workloads: low_CS=18 med_burst=12 high_CS=3 periods L/M/H=80/25/20
+lock: no_inheritance = binary-semaphore stand-in (no PI); inheritance = mutex stand-in (PI)
+inversion needs medium: medium preempts lock-holding low while high blocks
+arm              deadline_misses high_jobs max_inv_wait max_lock_wait mean_high_resp
+no_inheritance                 4        14           12            42          13.79
+inheritance                    1        20            0            18           5.80
+ok: medium-driven inversion; mutex PI bounds medium wait but lock wait remains (PI max_lock_wait=18<=low_CS=18); binary semaphore has no PI (FreeRTOS-Kernel semphr.h); ESP-IDF SMP dual-core 本页未运行; Zephyr polarity prose-only
+```
+
+</SimOutput>
+
+从左到右读表。`no_inheritance`（二值信号量替身）下，高任务 deadline miss **4** 次，高任务阻塞且中等任务在跑的最长段是 **12** tick，最长锁等待 **42** tick。`inheritance`（互斥量替身）下，中等任务驱动的反转等待降到 **0**，miss 降到 **1**，但 `max_lock_wait` 仍是 **18**——正好等于低任务临界区长度。这就是 §9 的点：PI 限制中等抢占，并不会让锁变成免费。
+
+两臂共享同一路到达噪声（`seed=42`），对比公平。
+
+<Quiz id="q7" question="本玩具里，哪一个锁替身对应 FreeRTOS 的优先级继承？" options=['no_inheritance（二值信号量）', 'inheritance（互斥量）', '两者一样', '中等任务自己的锁'] answer={1} explanation="FreeRTOS-Kernel semphr.h：xSemaphoreCreateMutex() 使用优先级继承；xSemaphoreCreateBinary() 不使用。inheritance 臂是互斥量替身。" />
+
+<Quiz id="q8" question="为什么玩具一定要有中等任务？" options=['为了用上 ESP32 的第二核', '这样高任务因锁阻塞时，才会出现无界反转', '因为 Zephyr 要求三个任务', '为了在 PI 下消掉一切锁等待'] answer={1} explanation="没有中等任务时，高任务的等待只是低任务剩余临界区。中等任务抢占仍持锁的低任务，才会在无继承时把等待拉成无界；有继承时低任务被抬到高于中等。" />
+
+### Zephyr 极性（仅文字）
+
+Zephyr 线程文档（<Resource id="zephyr-threads" />）写明：**数字越小优先级越高**，**负数**表示**协作式**线程。FreeRTOS 在数轴上相反。移植时不翻转优先级表是真实 bug；本课玩具保持 FreeRTOS 编号，**不构建 Zephyr**（本页未运行）。
+
+不要把第三方 RTOS 周期数博客当成 ESP32 上的站内实测。玩具只报告课内工作负载下的 deadline miss 与等待 tick，并不宣称「FreeRTOS 一定比 Zephyr 快」。
+
+
 ## 常见错误与检查清单
 
 下面这些故障，占了本课求助问题的大多数。开始调试之前先读一遍。
@@ -388,6 +762,8 @@ void loop() {
 - ADC：12 位，默认 `ADC_11db` 量程约 0–3.1 V；用 `analogReadMilliVolts()` 读电压。
 - LEDC 舵机脉冲：duty = pulse / period × 2^bits；50 Hz、14 位下 1.5 ms 对应 1228。
 - 舵机用独立的 5–6 V 电源供电并共地，并测量它们的堵转电流。
+- FreeRTOS：数字越大优先级越高；无界反转需要中等任务；互斥量有继承、二值信号量没有；继承只限制阻塞。
+- ESP-IDF FreeRTOS 是 SMP 双核；本课调度玩具是单核。Zephyr：数字越小优先级越高（仅文字）。
 
 **下一课会用到**
 

@@ -53,4 +53,6 @@ fi
 # Lesson 6
 DENSITY=1.21 check grip-finger.txt scad "$M3/gripper-fingers/finray_finger.scad"
 check grip-force.txt          python3 "$M3/gripper-fingers/grip_force.py"
+# Enrichment: fingertip retarget (stdlib; fixed seed)
+check fingertip_retarget_toy.txt python3 "$M3/gripper-fingers/fingertip_retarget_toy.py"
 exit $fail

@@ -1,0 +1,9 @@
+seed=42 horizon=400 tick=1ms single_core=1
+priorities FreeRTOS-style: low=1 medium=2 high=3 (higher number runs first)
+workloads: low_CS=18 med_burst=12 high_CS=3 periods L/M/H=80/25/20
+lock: no_inheritance = binary-semaphore stand-in (no PI); inheritance = mutex stand-in (PI)
+inversion needs medium: medium preempts lock-holding low while high blocks
+arm              deadline_misses high_jobs max_inv_wait max_lock_wait mean_high_resp
+no_inheritance                 4        14           12            42          13.79
+inheritance                    1        20            0            18           5.80
+ok: medium-driven inversion; mutex PI bounds medium wait but lock wait remains (PI max_lock_wait=18<=low_CS=18); binary semaphore has no PI (FreeRTOS-Kernel semphr.h); ESP-IDF SMP dual-core 本页未运行; Zephyr polarity prose-only

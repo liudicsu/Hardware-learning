@@ -16,3 +16,13 @@ python3 ../cad-parametric/stl_info.py finray_finger.stl 1.21     # TPU density �
 ```
 
 Rendered and checked in software only; not printed by the site editor. / 只在软件中渲染和检查过，本站编者没有打印过。
+
+## Enrichment / 深化
+
+`fingertip_retarget_toy.py`: lesson-defined 12-DoF planar multifinger retarget (joint-angle copy vs fingertip IK) under human/robot link ratio, joint limits, partially unreachable targets and a scaled-target variant. Fixed seed; stdout checked by `examples/month-3/check.sh`. LEAP Hand 16 DoF is per its paper; no hand purchase; real mocap not run here.
+课内定义的 12 自由度平面多指重定向（关节角拷贝 vs 指尖 IK），含人/机杆长比、关节限位、部分不可达目标与缩放目标变体。固定种子；输出由 `examples/month-3/check.sh` 核对。LEAP Hand 16 DoF 以论文为准；不要求购买；真机动捕本页未运行。
+
+```bash
+python3 fingertip_retarget_toy.py
+```
+
