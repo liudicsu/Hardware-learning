@@ -1610,7 +1610,7 @@ const month11Lessons: Lesson[] = [
     resources: ["umi-paper", "umi-site", "umi-hardware-guide", "lerobot-action-representations", "diffusion-policy"],
     tasks: [
       { id: "run", text: { zh: "运行 relative_traj_toy.py，核对 expected/relative_traj_toy.txt", en: "Run relative_traj_toy.py and match expected/relative_traj_toy.txt" } },
-      { id: "noise", text: { zh: "把动作噪声改成 0.01，比较逐步增量复合的 delta_accum_err_m 与固定锚点终点重建的 relative_err_m（后者有自身噪声、不为 0，但应明显小于前者）", en: "Set action noise to 0.01 and compare delta_accum_err_m (step-wise deltas compounded) with relative_err_m (fixed-anchor endpoint rebuild; it has its own noise and is not 0, but should stay well below delta)" } },
+      { id: "noise", text: { zh: "把动作噪声改成 0.01，比较逐步增量复合的 delta_accum_err_m 与固定锚点终点重建的 relative_err_m，并说明单次抽样不保证大小关系", en: "Set action noise to 0.01, compare delta_accum_err_m (step-wise deltas compounded) with relative_err_m (fixed-anchor endpoint rebuild), and note that a single sample does not guarantee which is smaller" } },
       { id: "compare", text: { zh: "用自己的话写三行：绝对 / 增量 / 相对在标定偏置下谁更稳", en: "In your words, three lines: which of absolute / delta / relative stays stable under a calibration bias" } },
       { id: "optional", text: { zh: "（选做，本页未运行）阅读 UMI Hardware Guide，不购买 GoPro", en: "(Optional, not run here) read the UMI Hardware Guide — do not buy a GoPro" } },
     ],
