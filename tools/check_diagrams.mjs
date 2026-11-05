@@ -3936,9 +3936,9 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 17310, "followup PR3 curriculum: 17310 minutes");
-  for (const [month, expected] of [[5, 1620], [6, 1170], [8, 2340], [9, 2100], [11, 2670]]) {
-    ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `followup PR3 M${month}: ${expected} minutes`);
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 17700, "rtos-dexterity PR1 curriculum: 17700 minutes");
+  for (const [month, expected] of [[2, 1350], [3, 1290], [5, 1620], [6, 1170], [8, 2340], [9, 2100], [11, 2670]]) {
+    ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `rtos-dexterity PR1 M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
 }
@@ -4707,10 +4707,6 @@ for (const m of readdirSync(content)) {
   }
 }
 
-console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
-process.exit(failed ? 1 : 0);
-
-
 // Follow-up observability gaps fix (sysid measurement-noise EIV, QoS pairwise override,
 // lifecycle callback results, CiA402 CW bit7, pooled Wilson scope).
 {
@@ -4759,3 +4755,91 @@ process.exit(failed ? 1 : 0);
   ok(/on_error_failure_goes_finalized=1/.test(lc), "gaps lc: on_error FAILURE");
 }
 
+
+// Batch-after-obs PR1 (G1 FreeRTOS priority inversion + G2 fingertip retarget).
+{
+  const read = (p) => readFileSync(join(root, p), "utf8");
+  const cases = [
+    [2, "esp32", "freertos_priority_toy", [
+      "no_inheritance", "inheritance", "max_inv_wait", "max_lock_wait",
+      "medium", "xSemaphoreCreateMutex", "xSemaphoreCreateBinary",
+      "single_core", "Zephyr",
+    ]],
+    [3, "gripper-fingers", "fingertip_retarget_toy", [
+      "joint_copy", "fingertip_ik", "link_ratio", "scaled_targets",
+      "limit_viol", "mean_|dq|", "lesson_DoF=12", "16 DoF",
+    ]],
+  ];
+  for (const [month, lesson, toy, markers] of cases) {
+    const pyDir = lesson === "esp32" ? "esp32" : "gripper-fingers";
+    const py = read(`examples/month-${month}/${pyDir}/${toy}.py`);
+    const expected = read(`examples/month-${month}/expected/${toy}.txt`);
+    ok(read(`examples/month-${month}/check.sh`).includes(`${toy}.txt`), `rtos1 ${toy}: month check hook`);
+    ok(/SEED = \d+/.test(py), `rtos1 ${toy}: fixed seed`);
+    for (const lang of ["en", "zh"]) {
+      const md = read(`src/content/m${month}/${lesson}/${lang}.mdx`);
+      ok(md.includes(py.trim()), `rtos1 ${toy} ${lang}: exact code quoted`);
+      ok(md.includes(expected.trim()), `rtos1 ${toy} ${lang}: exact real stdout quoted`);
+      for (const n of markers) {
+        ok(md.includes(n) || expected.includes(n) || py.includes(n), `rtos1 ${toy} ${lang}: binds ${n}`);
+      }
+      ok(/本页未运行|not run on this page/.test(md), `rtos1 ${toy} ${lang}: hardware marked not run`);
+    }
+  }
+
+  const fr = read("examples/month-2/expected/freertos_priority_toy.txt");
+  ok(/no_inheritance\s+4\s+14\s+12\s+42/.test(fr), "rtos1 freertos: no_inheritance row");
+  ok(/inheritance\s+1\s+20\s+0\s+18/.test(fr), "rtos1 freertos: inheritance row");
+  ok(/max_lock_wait=18<=low_CS=18/.test(fr), "rtos1 freertos: PI bounds but does not eliminate");
+  const frPy = read("examples/month-2/esp32/freertos_priority_toy.py");
+  ok(/P_MED/.test(frPy), "rtos1 freertos.py: medium priority");
+  ok(/inherit/.test(frPy), "rtos1 freertos.py: inheritance arm");
+
+  for (const lang of ["en", "zh"]) {
+    const md = read(`src/content/m2/esp32/${lang}.mdx`);
+    ok(/xSemaphoreCreateMutex/.test(md) && /xSemaphoreCreateBinary/.test(md),
+      `rtos1 esp32 ${lang}: mutex vs binary API names`);
+    ok(/priority inheritance|优先级继承/.test(md), `rtos1 esp32 ${lang}: PI named`);
+    ok(/medium/.test(md) && (/unbounded|无界/.test(md)), `rtos1 esp32 ${lang}: medium → unbounded`);
+    ok(/SMP|dual-core|双核/.test(md), `rtos1 esp32 ${lang}: ESP-IDF SMP`);
+    ok(/Zephyr/.test(md) && (/lower number|数字越小/.test(md)), `rtos1 esp32 ${lang}: Zephyr polarity`);
+  }
+  ok(/freertos-kernel-semphr/.test(read("src/lib/curriculum.ts")) &&
+     /esp-idf-freertos-overview/.test(read("src/lib/curriculum.ts")) &&
+     /zephyr-threads/.test(read("src/lib/curriculum.ts")), "rtos1 esp32 resources wired");
+
+  const tip = read("examples/month-3/expected/fingertip_retarget_toy.txt");
+  ok(/raw_targets\s+joint_copy\s+0\.01856/.test(tip), "rtos1 retarget: raw joint_copy RMSE");
+  ok(/raw_targets\s+fingertip_ik\s+0\.01164/.test(tip), "rtos1 retarget: raw IK RMSE");
+  ok(/scaled_targets/.test(tip), "rtos1 retarget: scaled variant");
+  ok(/lesson_DoF=12/.test(tip) && /16 DoF/.test(tip), "rtos1 retarget: 12 toy / 16 LEAP");
+  const tipPy = read("examples/month-3/gripper-fingers/fingertip_retarget_toy.py");
+  ok(/LINK_RATIO = 0\.75/.test(tipPy), "rtos1 retarget.py: link ratio");
+  ok(/ROBOT_Q_MIN/.test(tipPy) && /ROBOT_Q_MAX/.test(tipPy), "rtos1 retarget.py: joint limits");
+  ok(/scale_targets/.test(tipPy), "rtos1 retarget.py: scaled variant");
+
+  for (const lang of ["en", "zh"]) {
+    const md = read(`src/content/m3/gripper-fingers/${lang}.mdx`);
+    ok(/0\.75/.test(md), `rtos1 grip ${lang}: link ratio number`);
+    ok(/scaled|缩放/.test(md), `rtos1 grip ${lang}: scaled targets`);
+    ok(/joint_copy/.test(md) && /fingertip_ik/.test(md), `rtos1 grip ${lang}: both arms`);
+    ok(/16 DoF/.test(md) && /以论文为准/.test(md), `rtos1 grip ${lang}: LEAP 16 DoF 以论文为准`);
+    ok(/neither arm|不按构造|by construction/.test(md), `rtos1 grip ${lang}: no constructed winner`);
+  }
+  ok(/leap-hand-arxiv/.test(read("src/lib/curriculum.ts")) &&
+     /dexcap-arxiv/.test(read("src/lib/curriculum.ts")) &&
+     /dex-manip-arxiv/.test(read("src/lib/curriculum.ts")), "rtos1 grip resources wired");
+
+  const cur = read("src/lib/curriculum.ts");
+  ok(cur.match(/slug: "esp32"[\s\S]*?minutes: (\d+)/)?.[1] === "360", "rtos1 curriculum: 2.3 = 360");
+  ok(cur.match(/slug: "gripper-fingers"[\s\S]*?minutes: (\d+)/)?.[1] === "390", "rtos1 curriculum: 3.6 = 390");
+  const res = read("src/lib/resources.ts");
+  for (const id of ["freertos-kernel-semphr", "esp-idf-freertos-overview", "zephyr-threads",
+                    "leap-hand-arxiv", "dexcap-arxiv", "dex-manip-arxiv"]) {
+    ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `rtos1 resource ${id}: present + extra`);
+  }
+  console.log("rtos-dexterity PR1: FreeRTOS inversion + fingertip retarget locks checked");
+}
+
+console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
+process.exit(failed ? 1 : 0);

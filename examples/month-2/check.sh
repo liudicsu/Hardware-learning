@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Run the Month 2 enrichment toys and compare with expected/.
+# Legacy Arduino sketches stay under tools/sim/reproduce.sh / Wokwi.
+# Usage: examples/month-2/check.sh        UPDATE=1 examples/month-2/check.sh
+set -uo pipefail
+M2="$(cd "$(dirname "$0")" && pwd)"
+TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+export PYTHONDONTWRITEBYTECODE=1
+PY="${M2_PYTHON:-python3}"
+fail=0
+check() {
+  local name="$1"; shift
+  (cd "$TMP" && "$@") > "$TMP/$name" 2>&1
+  local ec=$?
+  if [[ $ec -ne 0 ]]; then echo "FAIL  $name (exit $ec)"; cat "$TMP/$name"; fail=1; return; fi
+  if [[ -n "${UPDATE:-}" ]]; then cp "$TMP/$name" "$M2/expected/$name"; echo "wrote $name"; return; fi
+  if diff -u "$M2/expected/$name" "$TMP/$name" > "$TMP/$name.diff"; then echo "same  $name"
+  else echo "DIFF  $name"; cat "$TMP/$name.diff"; fail=1; fi
+}
+
+check freertos_priority_toy.txt "$PY" "$M2/esp32/freertos_priority_toy.py"
+
+exit $fail

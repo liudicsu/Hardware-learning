@@ -1,0 +1,10 @@
+seed=73 frames=40 fingers=4 joints_per_finger=3 lesson_DoF=12
+human_links_m=(0.045, 0.025, 0.02) robot_links_m=(0.0338, 0.0188, 0.0150) link_ratio=0.75
+robot_q_limits_rad min=(-0.2, -0.1, -0.1) max=(1.2, 1.4, 1.0)
+LEAP Hand = 16 DoF per arXiv:2309.06440 (以论文为准); toy is lesson-defined 12 DoF; no hand purchase
+variant          arm                rmse_m  limit_viol  mean_|dq|
+raw_targets      joint_copy        0.01856          13    0.04710
+raw_targets      fingertip_ik      0.01164           0    0.05251
+scaled_targets   joint_copy        0.00149          13    0.04710
+scaled_targets   fingertip_ik      0.00132           0    0.04741
+ok: embodiment gap + limits + scaled variant; IK better on RMSE; joint_copy keeps a secondary metric; LEAP 16 DoF 以论文为准; real hand / mocap 本页未运行

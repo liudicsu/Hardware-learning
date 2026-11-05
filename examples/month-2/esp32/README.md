@@ -17,3 +17,13 @@ Before flashing `web_servo`, replace `your-network` / `your-password`, and **do 
 These sketches were compiled, not run; the lesson quotes no output for them. / 这些程序只做了编译，课程里没有引用它们的输出。
 
 Wokwi: `chip_info/` also has a `diagram.json` for the online simulator at [wokwi.com](https://wokwi.com); create a new ESP32-S3 project there, paste the sketch's `.ino` into the editor's `sketch.ino` tab and this `diagram.json` into the `diagram.json` tab, then start the simulation. `web_servo/` has no Wokwi diagram because reaching the ESP32's web server from a browser needs Wokwi's paid Private IoT Gateway. / Wokwi：`chip_info/` 目录里另有供在线模拟器 [wokwi.com](https://wokwi.com) 使用的 `diagram.json`；在网站上新建一个 ESP32-S3 项目，把程序的 `.ino` 内容粘进编辑器的 `sketch.ino` 标签页，把这里的 `diagram.json` 粘进 `diagram.json` 标签页，再点运行。`web_servo/` 没有 Wokwi 图，因为要从浏览器访问 ESP32 的网页服务器需要 Wokwi 付费的 Private IoT Gateway。
+
+## Enrichment / 深化
+
+`freertos_priority_toy.py`: single-core FreeRTOS-numbering scheduler with low/medium/high tasks; compares no-inheritance (binary-semaphore stand-in) vs inheritance (mutex stand-in). Fixed seed; stdout checked by `examples/month-2/check.sh`. Real FreeRTOS on ESP32 / Zephyr builds are not run here.
+单核、按 FreeRTOS 编号的调度玩具（低/中/高三任务）；对比无继承（二值信号量替身）与继承（互斥量替身）。固定种子；输出由 `examples/month-2/check.sh` 核对。真机 FreeRTOS / Zephyr 本页未运行。
+
+```bash
+python3 freertos_priority_toy.py
+```
+
