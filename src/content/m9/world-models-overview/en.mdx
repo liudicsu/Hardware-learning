@@ -1,6 +1,6 @@
 This lesson is a site supplement — Months 7–11 are not part of the original six-month course.
 
-Reading-first: a <Term id="world-model">world-model</Term> map plus a tiny discrete latent prediction toy. **No** Dreamer/UniSim training; **no** GPU required; **no** weight downloads. Complements Month 7 RL and Month 8 VLAs — it does **not** replace behaviour cloning.
+Reading-first: a <Term id="world-model">world-model</Term> map, a tiny discrete latent prediction toy, and a CPU walk through DreamGen's neural-trajectory pipeline. **No** Dreamer/UniSim training; **no** GPU required; **no** weight downloads. Complements Month 7 RL and Month 8 VLAs — it does **not** replace behaviour cloning.
 
 ## Reading map
 
@@ -141,14 +141,326 @@ ok: path=reach→reach→reach→grasp→lift→lift→lift→lift→lift total_
 
 This run goes `reach` → `close`/`grasp` → `up`/`lift` with `total_r=5.60`. That only shows “imagine in latent space” is independent of pixel replay — **not** a neural net.
 
+## DreamGen: neural trajectories from a video world model
+
+The reading map above uses world models to **plan or learn inside imagination**. DreamGen (Jang et al., arXiv **2505.12705**) uses a video world model for something else: as a **synthetic data generator** for behaviour cloning. The paper calls the result *neural trajectories*: generated robot videos paired with pseudo-actions. This section reads the recipe and runs a CPU stand-in where every stage is a few lines of least squares. Video models, GPUs and humanoids are **not run on this page**.
+
+<Resource id="dreamgen-paper" />
+
+### The four stages
+
+| Stage (per the paper) | What happens there | Stand-in in `neural_traj_idm_toy.py` |
+| --- | --- | --- |
+| 1. Fine-tune a video world model | Adapt an image-to-video model (the paper mostly uses WAN2.1 with LoRA) to one robot's teleop videos so it learns that embodiment's motion | Fit a frame-step map `df = [f_goal − f, 1] · W_wm` on 10 real trajectories (OLS) |
+| 2. Roll out the world model | Prompt it with an initial frame plus a language instruction; it generates videos, including behaviours it never saw | From 40 (start frame, goal frame) pairs, generate 15-step frame sequences, **without actions** |
+| 3. Pseudo-action labelling | Videos carry no actions, so recover them with an inverse dynamics model (IDM) or a latent action model (LAPA) | An IDM `df → a` fitted on **real labelled pairs**, then applied to the **generated** frames |
+| 4. Train a policy | Train a visuomotor policy on the video/pseudo-action pairs | Behaviour cloning by OLS: `a = [f_goal − f, 1] · W_pi` |
+
+Why stage 3 exists: a generated video shows what the robot did, but not which motor commands made it happen. An **IDM** looks at two frames and predicts the action between them; the paper's IDM is a diffusion transformer conditioned on two frames, trained on the robot's own labelled data, with no language or proprioception input. A **latent action model** learns a discrete code for "what changed between frames" from unlabelled video instead (Ye et al., LAPA, arXiv **2410.11758**). Either way the labels are model outputs, not measurements, so they carry the IDM's error.
+
+<Resource id="lapa-paper" />
+
+### Two error sources, two knobs
+
+A neural trajectory can be wrong in two separate places. The **world model** can generate frames that do not match real physics (drift, jitter, wrong endpoint). The **IDM** can read the wrong action off perfectly good frames. If you change both at once you cannot tell which one hurt the policy, so the toy sweeps them one at a time:
+
+- `WM_ERR` adds a fixed-direction drift plus jitter of that size to every generated frame step. `IDM_ERR = 0`.
+- `IDM_ERR` adds frame noise of that size to the real pairs the IDM is fitted on. `WM_ERR = 0`.
+
+Fairness rules, all enforced in the code: the real-data policy and every neural policy get the **same number of trajectories** (`K_TRAJ = 40`) for the **same instruction list**; every policy is evaluated from the **same 60 starts** with the **same evaluation noise stream**; and each knob's effect is measured, not assumed: `wm_frame_rmse` compares generated frames with the real frames for the same instruction, `idm_rmse` scores the IDM on 30 held-out real trajectories it never saw, and `idm_gain` is the fitted IDM's diagonal divided by the exact inverse of the frame map.
+
+### Run the toy
+
+```bash
+$ cd ~/Hardware-learning/examples/month-9/world-models-overview
+$ python3 neural_traj_idm_toy.py
+```
+
+<CodeSource path="examples/month-9/world-models-overview/neural_traj_idm_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""neural_traj_idm_toy.py: DreamGen-style neural trajectories on 2-D frames (stdlib).
+
+DreamGen (arXiv 2505.12705) is a 4-stage recipe; this toy keeps the stages and
+replaces video pixels with synthetic 2-D "frames" f = R s of a point robot:
+  1. fine-tune WM  : fit the world model's frame-step map on a few real teleop
+                     trajectories (OLS of df on (f_goal - f, 1))
+  2. roll out WM   : from (initial frame, goal frame) pairs, generate frame
+                     sequences -- no actions in them, like generated videos
+  3. pseudo-label  : an inverse dynamics model (IDM), fitted on REAL labelled
+                     pairs (df -> a), labels the GENERATED frames
+  4. train policy  : behaviour cloning (OLS) on the neural trajectories
+Two error sources are separate knobs, swept one at a time:
+  WM_ERR   generated frames drift / jitter away from real physics
+  IDM_ERR  the IDM sees noisy frames when it is fitted -> attenuated labels
+Fair comparison: matched trajectory count (K_TRAJ real vs K_TRAJ neural, same
+instruction list), the same shared evaluation starts and evaluation noise for
+every arm. Measured knob effect is printed (wm_frame_rmse, idm_rmse, and
+idm_gain = fitted IDM diagonal / exact inverse; below 1 = shrunk labels) next to
+the policy outcome. No pixels, no video model, no GPU; WAN/Cosmos fine-tuning,
+video generation and GR1 robots are not run on this page (本页未运行).
+DreamGen Bench's correlation with policy success is a paper claim only; this
+toy measures nothing about it.
+usage: python3 neural_traj_idm_toy.py
+"""
+from __future__ import annotations
+
+import math
+import random
+
+SEED = 2505
+T_STEPS = 15            # steps per trajectory
+K_TRAJ = 40             # matched count: real and neural policies each get 40
+K_WM_FIT = 10           # real trajectories used to fine-tune the WM and fit the IDM
+N_EVAL = 60             # shared evaluation starts
+GAIN = 0.3              # expert: a = GAIN * (g - s) + noise
+EXPERT_NOISE = 0.01
+PROCESS_NOISE = 0.005
+SUCCESS_R = 0.05        # success radius in state units
+# Frame map (stand-in for "camera"): rotation + scale, frames are 2-D.
+R = ((1.2, -0.5), (0.5, 1.2))
+DRIFT_DIR = (0.6, -0.8)  # fixed direction of WM drift (lesson-chosen)
+WM_SWEEP = (0.0, 0.005, 0.01, 0.02, 0.04)
+IDM_SWEEP = (0.0, 0.02, 0.05, 0.1, 0.2)
+
+
+def matvec(m, v):
+    return (m[0][0] * v[0] + m[0][1] * v[1], m[1][0] * v[0] + m[1][1] * v[1])
+
+
+def frame(s):
+    return matvec(R, s)
+
+
+def solve(a, b):
+    """Gaussian elimination with partial pivoting; a is n x n, b is n x k."""
+    n = len(a)
+    m = [list(a[i]) + list(b[i]) for i in range(n)]
+    for c in range(n):
+        p = max(range(c, n), key=lambda r: abs(m[r][c]))
+        m[c], m[p] = m[p], m[c]
+        for r in range(n):
+            if r != c:
+                f = m[r][c] / m[c][c]
+                m[r] = [x - f * y for x, y in zip(m[r], m[c])]
+    return [[m[i][j] / m[i][i] for j in range(n, len(m[0]))] for i in range(n)]
+
+
+def ols(xs, ys):
+    """Least squares W (d_in x d_out) minimising sum ||x W - y||^2."""
+    d, k = len(xs[0]), len(ys[0])
+    xtx = [[sum(x[i] * x[j] for x in xs) for j in range(d)] for i in range(d)]
+    xty = [[sum(x[i] * y[j] for x, y in zip(xs, ys)) for j in range(k)] for i in range(d)]
+    return solve(xtx, xty)
+
+
+def apply(w, x):
+    return tuple(sum(x[i] * w[i][j] for i in range(len(x))) for j in range(len(w[0])))
+
+
+def instructions(rng, n):
+    """(start state, goal state) pairs = 'initial frame + language' stand-in."""
+    out = []
+    for _ in range(n):
+        s = (rng.uniform(-1, 1), rng.uniform(-1, 1))
+        g = (rng.uniform(-1, 1), rng.uniform(-1, 1))
+        out.append((s, g))
+    return out
+
+
+def real_rollout(s, g, rng):
+    """Teleop on the real robot: frames AND true action labels."""
+    frames, acts = [frame(s)], []
+    for _ in range(T_STEPS):
+        a = (GAIN * (g[0] - s[0]) + rng.gauss(0, EXPERT_NOISE),
+             GAIN * (g[1] - s[1]) + rng.gauss(0, EXPERT_NOISE))
+        s = (s[0] + a[0] + rng.gauss(0, PROCESS_NOISE), s[1] + a[1] + rng.gauss(0, PROCESS_NOISE))
+        acts.append(a)
+        frames.append(frame(s))
+    return frames, acts
+
+
+def fit_wm(real):
+    """Stage 1: frame-step map df = [f_goal - f, 1] W_wm, fitted on real data."""
+    xs, ys = [], []
+    for frames, _acts, fg in real:
+        for t in range(T_STEPS):
+            f, f2 = frames[t], frames[t + 1]
+            xs.append((fg[0] - f[0], fg[1] - f[1], 1.0))
+            ys.append((f2[0] - f[0], f2[1] - f[1]))
+    return ols(xs, ys)
+
+
+def wm_rollout(w_wm, f0, fg, wm_err, rng):
+    """Stage 2: generated frames only (no actions), with drift + jitter."""
+    frames, f = [f0], f0
+    for _ in range(T_STEPS):
+        df = apply(w_wm, (fg[0] - f[0], fg[1] - f[1], 1.0))
+        f = (f[0] + df[0] + wm_err * DRIFT_DIR[0] + rng.gauss(0, wm_err),
+             f[1] + df[1] + wm_err * DRIFT_DIR[1] + rng.gauss(0, wm_err))
+        frames.append(f)
+    return frames
+
+
+def fit_idm(real, idm_err, rng):
+    """Stage 3 model: IDM (df -> a) fitted on REAL labelled pairs; idm_err = frame noise it sees."""
+    xs, ys = [], []
+    for frames, acts, _fg in real:
+        for t in range(T_STEPS):
+            f = [(x + rng.gauss(0, idm_err), y + rng.gauss(0, idm_err)) for x, y in frames[t:t + 2]]
+            xs.append((f[1][0] - f[0][0], f[1][1] - f[0][1], 1.0))
+            ys.append(acts[t])
+    return ols(xs, ys)
+
+
+def idm_label(w_idm, frames):
+    return [apply(w_idm, (frames[t + 1][0] - frames[t][0], frames[t + 1][1] - frames[t][1], 1.0))
+            for t in range(T_STEPS)]
+
+
+def fit_policy(trajs):
+    """Stage 4: BC policy a = [f_goal - f, 1] W_pi (OLS)."""
+    xs, ys = [], []
+    for frames, acts, fg in trajs:
+        for t in range(T_STEPS):
+            xs.append((fg[0] - frames[t][0], fg[1] - frames[t][1], 1.0))
+            ys.append(acts[t])
+    return ols(xs, ys)
+
+
+def evaluate(w_pi, evals):
+    """Shared starts and a re-seeded noise stream for every arm."""
+    rng = random.Random(SEED + 1)
+    wins, dist = 0, 0.0
+    for s, g in evals:
+        fg = frame(g)
+        for _ in range(T_STEPS):
+            f = frame(s)
+            a = apply(w_pi, (fg[0] - f[0], fg[1] - f[1], 1.0))
+            s = (s[0] + a[0] + rng.gauss(0, PROCESS_NOISE), s[1] + a[1] + rng.gauss(0, PROCESS_NOISE))
+        d = math.hypot(s[0] - g[0], s[1] - g[1])
+        wins += d < SUCCESS_R
+        dist += d
+    return wins, dist / len(evals)
+
+
+def rmse(pairs):
+    return math.sqrt(sum((a - b) ** 2 for a, b in pairs) / len(pairs))
+
+
+def main() -> None:
+    rng = random.Random(SEED)
+    instr = instructions(rng, K_TRAJ)
+    evals = instructions(random.Random(SEED + 2), N_EVAL)
+    real = []
+    for s, g in instr:
+        frames, acts = real_rollout(s, g, rng)
+        real.append((frames, acts, frame(g)))
+    fit_set = real[:K_WM_FIT]
+    w_wm = fit_wm(fit_set)
+    held = real[K_WM_FIT:]
+
+    print(f"seed={SEED} T={T_STEPS} K_TRAJ={K_TRAJ} (matched) K_WM_FIT={K_WM_FIT} "
+          f"N_EVAL={N_EVAL} success_r={SUCCESS_R}")
+    print("stages: 1 fit WM on real -> 2 WM rollout frames -> 3 IDM pseudo-labels -> 4 BC policy")
+    print(f"stage1 WM step gain diag={w_wm[0][0]:.3f},{w_wm[1][1]:.3f} (expert in frames: {GAIN})")
+    k, d = evaluate(fit_policy(real), evals)
+    print(f"real_traj  policy (true labels, K={K_TRAJ})   success={k}/{N_EVAL} mean_final_dist={d:.4f}")
+
+    def neural(wm_err, idm_err):
+        r = random.Random(SEED + 3)  # same generation noise stream for every grid point
+        w_idm = fit_idm(fit_set, idm_err, random.Random(SEED + 4))
+        idm_pairs = []
+        for frames, acts, _fg in held:  # IDM error measured on held-out REAL pairs
+            idm_pairs += [(p, q) for pa, ta in zip(idm_label(w_idm, frames), acts) for p, q in zip(pa, ta)]
+        wm_pairs, trajs = [], []
+        for (s, g), (rframes, _a, fg) in zip(instr, real):
+            gen = wm_rollout(w_wm, frame(s), fg, wm_err, r)
+            wm_pairs += [(p, q) for gf, rf in zip(gen, rframes) for p, q in zip(gf, rf)]
+            trajs.append((gen, idm_label(w_idm, gen), fg))
+        k, d = evaluate(fit_policy(trajs), evals)
+        ideal = R[0][0] / (R[0][0] * R[1][1] - R[0][1] * R[1][0])  # diag of the exact inverse map
+        gain = (w_idm[0][0] + w_idm[1][1]) / 2 / ideal
+        return rmse(wm_pairs), rmse(idm_pairs), gain, k, d
+
+    curves = {}
+    for name, sweep in (("wm_sweep", WM_SWEEP), ("idm_sweep", IDM_SWEEP)):
+        knob = "WM_ERR" if name == "wm_sweep" else "IDM_ERR"
+        print(f"{name}: {knob} varies, other knob = 0, same eval starts")
+        print(f"  {'knob':>6} {'wm_frame_rmse':>13} {'idm_rmse':>9} {'idm_gain':>8} {'success':>8} {'mean_final_dist':>15}")
+        rows = []
+        for v in sweep:
+            wm_r, idm_r, gain, k, d = neural(v, 0.0) if name == "wm_sweep" else neural(0.0, v)
+            rows.append(k)
+            print(f"  {v:6.3f} {wm_r:13.4f} {idm_r:9.4f} {gain:8.3f} {k:5d}/{N_EVAL} {d:15.4f}")
+        curves[name] = rows
+    for name, rows in curves.items():
+        assert rows[0] >= rows[-1] and rows[-1] < rows[0], f"{name}: error must cost success"
+    print(f"ok: two separate drop curves (wm {curves['wm_sweep'][0]}->{curves['wm_sweep'][-1]}, "
+          f"idm {curves['idm_sweep'][0]}->{curves['idm_sweep'][-1]} of {N_EVAL}); "
+          "IDM fitted on real pairs, applied to WM frames; DreamGen Bench correlation = paper claim only; "
+          "video WM / GPU 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+seed=2505 T=15 K_TRAJ=40 (matched) K_WM_FIT=10 N_EVAL=60 success_r=0.05
+stages: 1 fit WM on real -> 2 WM rollout frames -> 3 IDM pseudo-labels -> 4 BC policy
+stage1 WM step gain diag=0.300,0.303 (expert in frames: 0.3)
+real_traj  policy (true labels, K=40)   success=60/60 mean_final_dist=0.0093
+wm_sweep: WM_ERR varies, other knob = 0, same eval starts
+    knob wm_frame_rmse  idm_rmse idm_gain  success mean_final_dist
+   0.000        0.0185    0.0051    0.998    60/60          0.0097
+   0.005        0.0208    0.0051    0.998    60/60          0.0148
+   0.010        0.0283    0.0051    0.998    60/60          0.0261
+   0.020        0.0484    0.0051    0.998    29/60          0.0508
+   0.040        0.0933    0.0051    0.998     0/60          0.1014
+idm_sweep: IDM_ERR varies, other knob = 0, same eval starts
+    knob wm_frame_rmse  idm_rmse idm_gain  success mean_final_dist
+   0.000        0.0185    0.0051    0.998    60/60          0.0097
+   0.020        0.0185    0.0077    0.936    60/60          0.0158
+   0.050        0.0185    0.0224    0.744    41/60          0.0386
+   0.100        0.0185    0.0465    0.452     7/60          0.1416
+   0.200        0.0185    0.0684    0.193     0/60          0.4555
+ok: two separate drop curves (wm 60->0, idm 60->0 of 60); IDM fitted on real pairs, applied to WM frames; DreamGen Bench correlation = paper claim only; video WM / GPU 本页未运行
+```
+
+</SimOutput>
+
+### Reading the two curves
+
+- **Stage 1 worked:** the fitted world-model gain is 0.300 / 0.303, matching the expert's 0.3 in frame units, so with `WM_ERR = 0` the generated frames follow the same law as the real ones (the 0.0185 floor of `wm_frame_rmse` is the real data's own noise, which the generator does not copy).
+- **Matched baseline:** the policy trained on 40 real trajectories with true labels reaches 60/60, mean final distance 0.0093. The neural policy at (0, 0) reaches 60/60 at 0.0097, so the pipeline loses almost nothing when both models are good.
+- **World-model curve:** 60/60 up to `WM_ERR = 0.01`, then 29/60 at 0.02 and 0/60 at 0.04. The drift is systematic, so the policy learns it as a bias and lands off target; more trajectories would not average it away.
+- **IDM curve:** 60/60, 60/60, 41/60, 7/60, 0/60. The mechanism is visible in `idm_gain`: noisy frames in the IDM's training pairs shrink its fitted map (0.744 at `IDM_ERR = 0.05`, 0.193 at 0.2), the same errors-in-variables attenuation as in 5.1. Shrunk pseudo-actions teach a policy that moves too little, so it is still short of the goal after 15 steps.
+
+Both curves drop, but for different reasons, and the toy can only tell you which because the knobs were varied separately. The numbers belong to this lesson-chosen toy (frame map, drift direction, success radius 0.05); they say nothing about how large either error is for a real video model.
+
+<Quiz id="q1" question="In the idm_sweep table, how many of the 60 shared evaluation starts succeed at IDM_ERR = 0.05?" answer={41} explanation="The idm_sweep row for 0.050 reads 41/60. idm_gain = 0.744 there: the IDM fitted on noisy real pairs shrinks its labels, so the policy trained on them moves too little." />
+
+<Quiz id="q2" question="Why does the toy sweep WM_ERR and IDM_ERR one at a time with the same evaluation starts?" options={["Because the IDM needs no real data", "So a drop in success can be attributed to one error source, with the evaluation held fixed", "Because DreamGen trains the world model and IDM jointly", "To make the neural policy beat the real-data policy"]} answer={1} explanation="With one knob at zero, any change in success comes from the other one. Shared starts, shared evaluation noise and matched trajectory counts keep the comparison fair." />
+
+### DreamGen Bench is a paper claim here
+
+The paper also introduces **DreamGen Bench**, which scores generated videos for instruction following and physics following with VLM judges, and **reports** a strong correlation between those scores and downstream policy success. This lesson treats that correlation as the authors' claim: the toy computes no benchmark score and measures no correlation. The paper's headline results (for example a humanoid learning 22 new behaviours from neural trajectories after teleop data of only one pick-and-place task) are **per the paper**; no video model, GR1 robot or GPU run backs them on this site.
+
 ## Common mistakes
 
 - **Assuming the reading map means you can reproduce DreamerV3 curves.** This lesson is a map + a dict toy.
 - **Replacing 8.2 fine-tuning or 7.2 RL foundations with this overview.** They complement each other.
 - **Treating DayDreamer abstract hour counts as your homework bar.** Those are paper motivation numbers.
+- **Treating pseudo-actions as ground truth.** IDM or latent-action labels are model outputs; an IDM fitted on noisy frames shrinks them (`idm_gain` 0.744 at `IDM_ERR = 0.05`) and the policy inherits that.
+- **Changing the world model and the IDM at the same time.** Then a drop in success cannot be attributed. Sweep one knob, keep the evaluation starts and the trajectory count fixed.
+- **Quoting DreamGen or DreamGen Bench numbers as results of this site.** The 22 new behaviours and the benchmark correlation are per the paper; the toy measures neither.
 
 <Summary>
 
-World-models overview 9.9: DreamerV3 / DayDreamer / UniSim (optional IRIS) reading map; define world model, latent imagination, vs model-free. `latent_predict_toy.py` rolls H steps on a dict transition. No training, no weights, no GPU required.
+World-models overview 9.9: DreamerV3 / DayDreamer / UniSim (optional IRIS) reading map; define world model, latent imagination, vs model-free. `latent_predict_toy.py` rolls H steps on a dict transition. DreamGen's four stages (fine-tune a video world model → roll out videos → IDM or latent-action pseudo-labels → train a policy) run as a CPU stand-in in `neural_traj_idm_toy.py`: with matched trajectory counts and shared evaluation starts, world-model error and IDM error are swept separately and each gives its own drop curve (60/60 → 0/60). DreamGen Bench's correlation is a paper claim. No training of real models, no weights, no GPU required.
 
 </Summary>

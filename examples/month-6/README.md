@@ -12,7 +12,7 @@ UPDATE=1 examples/month-6/check.sh   # rewrite expected/ after an intentional ch
 |---|---|---|
 | 1. Imitation learning I: behaviour cloning and DAgger | `behaviour-cloning/` | `bc_reach.py` |
 | 2. Imitation learning II: multimodal demos, ACT and diffusion policy | `act-diffusion/` | `multimodal.py` |
-| 3. VLA models: action tokens and open weights | `vla-models/` | `action_tokens.py` |
+| 3. VLA models: action tokens and open weights | `vla-models/` | `action_tokens.py`, `vla_async_chunk_toy.py` |
 | 4. Evaluating a policy: intervals, paired trials, failure analysis | `policy-evaluation/` | `eval_report.py` |
 | 5. Choosing a specialisation, the portfolio and getting hired | `specialisation-portfolio/` | `portfolio_check.py` |
 

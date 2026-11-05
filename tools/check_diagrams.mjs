@@ -3936,9 +3936,9 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 17700, "rtos-dexterity PR1 curriculum: 17700 minutes");
-  for (const [month, expected] of [[2, 1350], [3, 1290], [5, 1620], [6, 1170], [8, 2340], [9, 2100], [11, 2670]]) {
-    ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `rtos-dexterity PR1 M${month}: ${expected} minutes`);
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 18120, "worldmodel-smolvla PR2 curriculum: 18120 minutes");
+  for (const [month, expected] of [[2, 1350], [3, 1290], [5, 1620], [6, 1350], [8, 2340], [9, 2340], [11, 2670]]) {
+    ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `worldmodel-smolvla PR2 M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
 }
@@ -4839,6 +4839,92 @@ for (const m of readdirSync(content)) {
     ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `rtos1 resource ${id}: present + extra`);
   }
   console.log("rtos-dexterity PR1: FreeRTOS inversion + fingertip retarget locks checked");
+}
+
+// Batch-after-obs PR2 (G3 DreamGen neural trajectories + G4 SmolVLA async chunk inference).
+{
+  const read = (p) => readFileSync(join(root, p), "utf8");
+  const cases = [
+    [9, "world-models-overview", "neural_traj_idm_toy", [
+      "wm_sweep", "idm_sweep", "WM_ERR", "IDM_ERR", "K_TRAJ", "idm_gain", "real_traj",
+      "2505.12705", "IDM", "DreamGen Bench",
+    ]],
+    [6, "vla-models", "vla_async_chunk_toy", [
+      "sync", "async_g0.7", "idle_s", "infer_calls", "underruns", "stale_mean_s", "switches",
+      "mean_jump", "2506.01844", "RobotClient", "PolicyServer",
+    ]],
+  ];
+  for (const [month, lesson, toy, markers] of cases) {
+    const py = read(`examples/month-${month}/${lesson}/${toy}.py`);
+    const expected = read(`examples/month-${month}/expected/${toy}.txt`);
+    ok(read(`examples/month-${month}/check.sh`).includes(`${toy}.txt`), `wm2 ${toy}: month check hook`);
+    ok(/SEED = \d+/.test(py), `wm2 ${toy}: fixed seed`);
+    for (const lang of ["en", "zh"]) {
+      const md = read(`src/content/m${month}/${lesson}/${lang}.mdx`);
+      ok(md.includes(py.trim()), `wm2 ${toy} ${lang}: exact code quoted`);
+      ok(md.includes(expected.trim()), `wm2 ${toy} ${lang}: exact real stdout quoted`);
+      for (const n of markers) {
+        ok(md.includes(n) || expected.includes(n) || py.includes(n), `wm2 ${toy} ${lang}: binds ${n}`);
+      }
+      ok(/本页未运行|not run on this page/.test(md), `wm2 ${toy} ${lang}: GPU / weights / hardware marked not run`);
+    }
+  }
+
+  // G3: the IDM is fitted on real pairs and applied to generated frames; two separate knobs; matched counts.
+  const nt = read("examples/month-9/expected/neural_traj_idm_toy.txt");
+  const ntPy = read("examples/month-9/world-models-overview/neural_traj_idm_toy.py");
+  ok(/K_TRAJ=40 \(matched\)/.test(nt), "wm2 neural: matched trajectory count");
+  ok(/real_traj\s+policy \(true labels, K=40\)\s+success=60\/60/.test(nt), "wm2 neural: real-traj baseline row");
+  ok(/0\.020\s+0\.0484\s+0\.0051\s+0\.998\s+29\/60/.test(nt), "wm2 neural: WM curve mid point 29/60");
+  ok(/0\.050\s+0\.0185\s+0\.0224\s+0\.744\s+41\/60/.test(nt), "wm2 neural: IDM curve mid point 41/60, gain 0.744");
+  ok(/wm 60->0, idm 60->0 of 60/.test(nt), "wm2 neural: both curves drop");
+  ok(/def fit_idm\(real,/.test(ntPy) && /idm_label\(w_idm, gen\)/.test(ntPy), "wm2 neural.py: IDM fitted on real, applied to generated frames");
+  ok(/neural\(v, 0\.0\) if name == "wm_sweep" else neural\(0\.0, v\)/.test(ntPy), "wm2 neural.py: knobs swept one at a time");
+  ok(/def evaluate\(w_pi, evals\):[\s\S]*?random\.Random\(SEED \+ 1\)/.test(ntPy), "wm2 neural.py: shared eval noise stream");
+  ok(/latent_predict_toy\.py/.test(read("examples/month-9/check.sh")), "wm2: dict toy kept in m9 check");
+  for (const lang of ["en", "zh"]) {
+    const md = read(`src/content/m9/world-models-overview/${lang}.mdx`);
+    ok(md.includes("<CodeSource path=\"examples/month-9/world-models-overview/latent_predict_toy.py\" />"), `wm2 9.9 ${lang}: dict toy kept`);
+    ok(/LAPA/.test(md) && /2410\.11758/.test(md), `wm2 9.9 ${lang}: latent-action route named`);
+    ok(lang === "en" ? /per the paper/.test(md) && /claim/.test(md) : /以论文为准/.test(md) && /论文的说法/.test(md),
+      `wm2 9.9 ${lang}: DreamGen Bench correlation is a paper claim`);
+    ok(/22/.test(md), `wm2 9.9 ${lang}: 22 behaviours attributed`);
+  }
+
+  // G4: same predictor / n / latency draws; async trade-off; not RTC, not stamp sync.
+  const va = read("examples/month-6/expected/vla_async_chunk_toy.txt");
+  const vaPy = read("examples/month-6/vla-models/vla_async_chunk_toy.py");
+  ok(/E\[l_S\]\/\(n\*dt\) = 0\.176/.test(va), "wm2 async: no-idle threshold 0.176");
+  ok(/^sync\s+0\.0\s+4\.17\s+16\s+15\s+1\.101/m.test(va), "wm2 async: sync row");
+  ok(/^async_g0\.1\s+0\.1\s+2\.57/m.test(va), "wm2 async: g below threshold still idles");
+  ok(/^async_g0\.7\s+0\.7\s+0\.00\s+57\s+0\s+0\.559\s+1\.000\s+55/m.test(va), "wm2 async: g=0.7 row (trade-off)");
+  ok(/N_CHUNK = 50/.test(vaPy) && /lat\[calls\]/.test(vaPy) && /def predict_chunk/.test(vaPy), "wm2 async.py: shared n, latency draws, predictor");
+  ok(/NOT 10\.2 RTC/.test(vaPy) && /NOT 8\.3 timestamp/.test(vaPy), "wm2 async.py: boundaries stated");
+  for (const lang of ["en", "zh"]) {
+    const md = read(`src/content/m6/vla-models/${lang}.mdx`);
+    ok(/450M/.test(md) && /100M/.test(md) && /SmolVLM-2/.test(md), `wm2 6.3 ${lang}: SmolVLA size per paper`);
+    ok(/16/.test(md) && /64/.test(md) && /n = 50/.test(md), `wm2 6.3 ${lang}: layer skip / visual tokens / chunk`);
+    ok(lang === "en" ? /cross-attention/.test(md) && /causal self-attention/.test(md) : /交叉注意力/.test(md) && /因果自注意力/.test(md),
+      `wm2 6.3 ${lang}: interleaved CA/SA`);
+    ok(lang === "en" ? /per the paper/.test(md) : /以论文为准/.test(md), `wm2 6.3 ${lang}: paper numbers attributed`);
+    ok(/9\.7 s/.test(md) && /13\.75 s/.test(md), `wm2 6.3 ${lang}: paper timing quoted with attribution`);
+    ok(/10\.2/.test(md) && /8\.3/.test(md) && /RTC/.test(md), `wm2 6.3 ${lang}: async ≠ RTC ≠ stamp sync`);
+    ok(md.includes("g ≥ (E[ℓ_S] / Δt) / n"), `wm2 6.3 ${lang}: no-idle formula`);
+  }
+
+  const cur = read("src/lib/curriculum.ts");
+  ok(cur.match(/slug: "world-models-overview"[\s\S]*?minutes: (\d+)/)?.[1] === "420", "wm2 curriculum: 9.9 = 420");
+  ok(cur.match(/slug: "vla-models"[\s\S]*?minutes: (\d+)/)?.[1] === "360", "wm2 curriculum: 6.3 = 360");
+  const wmBlock = (cur.match(/slug: "world-models-overview"[\s\S]*?\];\n/) || [""])[0];
+  ok(/dreamgen-paper/.test(wmBlock) && /lapa-paper/.test(wmBlock), "wm2 9.9 resources wired");
+  const vlaBlock = (cur.match(/slug: "vla-models"[\s\S]*?slug: "policy-evaluation"/) || [""])[0];
+  ok(/smolvla-paper/.test(vlaBlock) && /lerobot-async/.test(vlaBlock), "wm2 6.3 resources wired");
+  const res = read("src/lib/resources.ts");
+  for (const id of ["dreamgen-paper", "lapa-paper", "smolvla-paper", "lerobot-async"]) {
+    ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `wm2 resource ${id}: present + extra`);
+  }
+  ok(/18 120/.test(read("README.md")), "wm2 README: 18 120 minutes");
+  console.log("worldmodel-smolvla PR2: neural trajectories + async chunk locks checked");
 }
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);

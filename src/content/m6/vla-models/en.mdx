@@ -209,6 +209,218 @@ lerobot-train --policy.path=lerobot/smolvla_base --dataset.repo_id=${HF_USER}/pi
 
 <Resource id="lerobot-smolvla" />
 
+## SmolVLA and asynchronous chunk inference
+
+SmolVLA (Shukor et al., arXiv **2506.01844**) is the small model in the table above. Two things in its paper are worth reading closely even if you never fine-tune it: how it stays small, and how its **asynchronous inference** stack keeps the arm moving while the next chunk is computed. Everything in this section about SmolVLA's architecture and results is **per the paper**; no weights, GPU server or SO-100 arm were run for this page.
+
+<Resource id="smolvla-paper" />
+
+### How SmolVLA stays small (per the paper)
+
+- **About 450M parameters in total**, of which roughly 100M are the action expert. The backbone is the SmolVLM-2 vision-language model, and the VLM is kept frozen while the action expert trains.
+- **Skipped VLM layers.** The action expert reads features from an intermediate layer instead of the last one; the paper uses the first half of the language model's layers (the first 16) and drops the rest, which roughly halves that part of the compute.
+- **Few visual tokens:** the global image only, with pixel shuffle, giving 64 visual tokens per frame.
+- **Action expert with interleaved attention.** The expert's blocks alternate between **cross-attention** (action tokens attend to the VLM features) and **causal self-attention** (action tokens attend to earlier action tokens), rather than using only one kind.
+- **Flow matching.** The expert is trained with a <Term id="flow-matching">flow-matching</Term> objective to output chunks of n = 50 actions, with 10 integration steps at inference.
+- **Community data:** pretraining used fewer than 30k episodes from public, community-contributed LeRobot datasets.
+
+### Async inference: when to ask for the next chunk
+
+A chunked policy can run in two ways. In the **sync** (sequential) way, the robot executes the whole <Term id="action-chunk">action chunk</Term>, then sends an observation and waits for inference with an empty queue. In SmolVLA's **async** stack, a **RobotClient** pops one action per control tick from a queue; when the remaining fraction `|A| / n` falls below a threshold **g**, it captures a new observation and sends it to a **PolicyServer** without stopping. When the new chunk arrives, the client aggregates it with what is left of the old one on the overlapping steps. g = 0 reproduces sync; g = 1 asks for a new chunk at every tick (one forward pass per tick). With inference latency ℓ_S and control period Δt, the paper derives that the queue does not run dry when
+
+<Formula label="No-idle condition for async inference (SmolVLA §3.3)">g ≥ (E[ℓ_S] / Δt) / n</Formula>
+
+8.3 already shows sync idle frames against one async threshold. What it does not show is that async inference is a **trade-off**, which is what the toy below measures. It also has to be kept apart from two neighbouring ideas:
+
+| Idea | Lesson | What it fixes |
+| --- | --- | --- |
+| Async chunk inference (this section) | 6.3, and the loop in 8.3 | Idle gaps while the next chunk is computed; when to trigger it (g) |
+| Real-time chunking (RTC) soft mask | 10.2 | The jump at the seam: the new chunk is guided towards the old one during denoising |
+| Causal timestamp alignment of sensor streams | 8.3 | Which camera / joint samples belong together, without looking ahead |
+
+Async here is **not** RTC: the toy's new chunk is not conditioned on the old one and there is no soft mask. It is **not** stamp alignment either: there is one observation per request and no stream matching.
+
+### Run the toy
+
+`vla_async_chunk_toy.py` runs five arms that share the **same chunk predictor** (the target's observed position and velocity, extrapolated n steps ahead), the **same chunk size n = 50**, the **same control period** (30 Hz, as in the paper's real-world setting), the **same latency draws** (the k-th request of every arm takes the same ℓ_S) and the **same target path**. Only g differs. The latency distribution is lesson-chosen, not measured on any GPU.
+
+```bash
+$ cd ~/Hardware-learning/examples/month-6/vla-models
+$ python3 vla_async_chunk_toy.py
+```
+
+<CodeSource path="examples/month-6/vla-models/vla_async_chunk_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""vla_async_chunk_toy.py: sync vs async action-chunk inference, as a tradeoff (stdlib).
+
+SmolVLA (arXiv 2506.01844, 3.3) runs a RobotClient that pops one action per
+control tick from a queue and, when the remaining fraction |A|/n drops below a
+threshold g, captures an observation and asks a PolicyServer for a new chunk
+without stopping. g = 0 is the sequential limit (drain, then wait), g = 1 the
+compute-intensive limit (a request as soon as the last one returns).
+
+Every arm here shares:
+  - the same chunk predictor (a function of the observation only),
+  - the same chunk size n and control tick dt,
+  - the same latency draws l_S: the k-th request of every arm takes LAT[k],
+  - the same target path (piecewise-constant velocity, seeded).
+The robot tracks a moving target; a chunk is the target extrapolated from the
+observation, so old observations give worse actions after a velocity change.
+
+Metrics per arm: idle_s (ticks with an empty queue x dt), infer_calls,
+underruns (separate empty-queue episodes), staleness = age of the observation
+behind each executed action (mean / max, s), switches = new chunks spliced
+into a non-empty queue and their mean |jump| (overlap thrash), track_rmse.
+Aggregation f here: actions carry the executed-step index they belong to; on
+arrival the new chunk's already-executed steps are dropped and overlapping
+steps take the new value (one simple f; the paper only says "aggregate").
+This is NOT 10.2 RTC (no soft mask, the new chunk is not conditioned on the
+old one) and NOT 8.3 timestamp alignment of sensor streams. Async need not
+win every metric. SmolVLA weights, a GPU server and an SO-100 arm are not run
+on this page (本页未运行); paper latency / success numbers are 以论文为准.
+usage: python3 vla_async_chunk_toy.py
+"""
+from __future__ import annotations
+
+import math
+import random
+
+SEED = 1844
+DT = 1 / 30             # 30 Hz control, as in the paper's real-world setting
+N_CHUNK = 50            # chunk size n (the paper trains n = 50)
+HORIZON = 900           # ticks = 30 s
+LAT_MEAN, LAT_SD = 0.30, 0.10   # l_S in seconds (lesson-chosen, not measured)
+LAT_MIN = 0.10
+ARMS = (("sync", 0.0), ("async_g0.1", 0.1), ("async_g0.3", 0.3), ("async_g0.7", 0.7), ("async_g1.0", 1.0))
+
+
+def target_path(rng):
+    """Target position per tick: velocity changes every 1-3 s."""
+    pos, vel, out, t_next = 0.0, 0.0, [], 0
+    for t in range(HORIZON + N_CHUNK + 200):
+        if t == t_next:
+            vel = rng.uniform(-0.3, 0.3)
+            t_next = t + rng.randint(30, 90)
+        out.append((pos, vel))
+        pos += vel * DT
+    return out
+
+
+def latencies(rng, k=2000):
+    return [max(LAT_MIN, rng.gauss(LAT_MEAN, LAT_SD)) for _ in range(k)]
+
+
+def predict_chunk(obs_step, obs_tick, path):
+    """Same predictor for all arms: extrapolate the observed target n steps ahead.
+
+    Actions are indexed by executed-step count (not wall time): a chunk from an
+    observation taken after step k covers steps k+1 .. k+n.
+    """
+    p, v = path[obs_tick]
+    return {obs_step + 1 + i: p + v * (i + 1) * DT for i in range(N_CHUNK)}
+
+
+def run(g, path, lat):
+    queue = predict_chunk(0, 0, path)   # initial chunk, as in Algorithm 1 line 2
+    source = {k: 0 for k in queue}      # step -> wall tick of the observation behind it
+    inflight = None                     # (arrival_tick, obs_step, obs_tick)
+    step, calls, idle, underruns, was_empty = 0, 1, 0, 0, False
+    ages, jumps, errs, held = [], [], [], 0.0
+    for t in range(1, HORIZON + 1):
+        if inflight and inflight[0] <= t:          # chunk arrives: aggregate f(A, A~)
+            _arr, obs_step, obs_tick = inflight
+            live = {k: a for k, a in predict_chunk(obs_step, obs_tick, path).items() if k > step}
+            overlap = [k for k in live if k in queue]
+            if overlap:
+                k0 = min(overlap)
+                jumps.append(abs(live[k0] - queue[k0]))
+            queue.update(live)
+            source.update({k: obs_tick for k in live})
+            inflight = None
+        if step + 1 in queue:                      # pop and execute the next step
+            step += 1
+            held = queue.pop(step)
+            ages.append((t - source[step]) * DT)
+            was_empty = False
+        else:                                      # empty queue: the arm waits
+            idle += 1
+            underruns += not was_empty
+            was_empty = True
+        errs.append(held - path[t][0])
+        if inflight is None and (not queue or len(queue) / N_CHUNK < g):
+            inflight = (t + max(1, math.ceil(lat[calls] / DT)), step, t)
+            calls += 1
+    return {
+        "idle_s": idle * DT, "calls": calls, "underruns": underruns,
+        "age_mean": sum(ages) / len(ages), "age_max": max(ages),
+        "switches": len(jumps), "jump_mean": sum(jumps) / len(jumps) if jumps else 0.0,
+        "rmse": math.sqrt(sum(e * e for e in errs) / len(errs)),
+    }
+
+
+def main() -> None:
+    path = target_path(random.Random(SEED))
+    lat = latencies(random.Random(SEED + 1))
+    mean_lat = sum(lat[:200]) / 200
+    print(f"seed={SEED} dt={DT:.4f}s n={N_CHUNK} horizon={HORIZON * DT:.0f}s "
+          f"l_S~N({LAT_MEAN},{LAT_SD}) min {LAT_MIN}s, shared draws (mean of first 200 = {mean_lat:.3f}s)")
+    print(f"no-idle rule of thumb (paper 3.3): g >= E[l_S]/(n*dt) = {mean_lat / (N_CHUNK * DT):.3f}")
+    print("same predictor, same n, same latency draws, same target path for every arm")
+    print(f"{'arm':<11} {'g':>4} {'idle_s':>7} {'infer_calls':>11} {'underruns':>9} "
+          f"{'stale_mean_s':>12} {'stale_max_s':>11} {'switches':>8} {'mean_jump':>9} {'track_rmse':>10}")
+    rows = {}
+    for name, g in ARMS:
+        r = run(g, path, lat)
+        rows[name] = r
+        print(f"{name:<11} {g:4.1f} {r['idle_s']:7.2f} {r['calls']:11d} {r['underruns']:9d} "
+              f"{r['age_mean']:12.3f} {r['age_max']:11.3f} {r['switches']:8d} {r['jump_mean']:9.4f} "
+              f"{r['rmse']:10.4f}")
+    s, a = rows["sync"], rows["async_g0.7"]
+    assert a["idle_s"] < s["idle_s"] and a["age_mean"] < s["age_mean"]
+    assert a["calls"] > s["calls"] and a["switches"] > s["switches"]
+    print(f"ok: async_g0.7 cuts idle {s['idle_s']:.2f}->{a['idle_s']:.2f}s and staleness "
+          f"{s['age_mean']:.3f}->{a['age_mean']:.3f}s but costs infer_calls {s['calls']}->{a['calls']} "
+          f"and {a['switches']} overlap switches; not RTC (10.2), not stamp sync (8.3); "
+          "SmolVLA / GPU / arm 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+seed=1844 dt=0.0333s n=50 horizon=30s l_S~N(0.3,0.1) min 0.1s, shared draws (mean of first 200 = 0.293s)
+no-idle rule of thumb (paper 3.3): g >= E[l_S]/(n*dt) = 0.176
+same predictor, same n, same latency draws, same target path for every arm
+arm            g  idle_s infer_calls underruns stale_mean_s stale_max_s switches mean_jump track_rmse
+sync         0.0    4.17          16        15        1.101       2.133        0    0.0000     0.1872
+async_g0.1   0.1    2.57          18        13        1.044       2.000        1    0.0058     0.1474
+async_g0.3   0.3    0.00          26         0        0.887       1.667       23    0.1464     0.1291
+async_g0.7   0.7    0.00          57         0        0.559       1.000       55    0.0409     0.0605
+async_g1.0   1.0    0.00          99         0        0.458       0.933       97    0.0195     0.0480
+ok: async_g0.7 cuts idle 4.17->0.00s and staleness 1.101->0.559s but costs infer_calls 16->57 and 55 overlap switches; not RTC (10.2), not stamp sync (8.3); SmolVLA / GPU / arm 本页未运行
+```
+
+</SimOutput>
+
+How to read each column:
+
+- `idle_s`: seconds the arm spent with an empty queue. Sync waits 4.17 s out of 30 s. `async_g0.1` still waits 2.57 s because 0.1 is below the no-idle threshold 0.176 printed above. From g = 0.3 up, it is 0.
+- `infer_calls`: the price. Sync needs 16 requests; g = 0.7 needs 57 and g = 1.0 needs 99 — more than six times the server work for the same 30 s.
+- `stale_mean_s` / `stale_max_s`: **action staleness**, the age of the observation behind each executed action. Sync executes actions computed from an observation up to 2.133 s old; g = 0.7 brings the mean from 1.101 s to 0.559 s.
+- `switches` / `mean_jump`: how often a new chunk was spliced into a non-empty queue, and the mean size of the jump at the splice (overlap thrash). Sync never splices. g = 0.3 splices 23 times with the largest mean jump (0.1464), because its new chunk replaces actions that are already fairly old; g = 1.0 splices 97 times with small jumps.
+- `track_rmse`: a task proxy (distance to the moving target). It falls from 0.1872 (sync) to 0.0480 (g = 1.0) in this toy, because fresher observations predict the target better.
+
+So async wins on idle time, staleness and tracking here, and loses on inference calls and splices. None of these numbers transfers to a real arm: they depend on the lesson-chosen latency and target. The paper's own measurement (its real-world Pick-Place task, **per the paper**) is that async completed the task in 9.7 s on average against 13.75 s for sync, about 30 % faster, and finished 19 pick-and-place cycles in 60 s against 9, with comparable success rates across its three real-world tasks.
+
+<Quiz id="q4" question="With E[ℓ_S] = 0.293 s, Δt = 1/30 s and n = 50, what is the smallest g that avoids idle time by the paper's rule of thumb?" answer={0.176} explanation="(0.293 / 0.0333) / 50 = 8.79 / 50 = 0.176. In the toy, g = 0.1 (below it) still idles for 2.57 s, while g = 0.3 does not idle." />
+
+<Quiz id="q5" question="In the toy, what does async_g0.7 pay for cutting idle time to 0 s and mean staleness from 1.101 s to 0.559 s?" options={["Nothing; async wins every metric", "More inference calls (16 → 57) and 55 chunk splices into a non-empty queue", "A soft mask that slows the arm down", "Misaligned sensor timestamps"]} answer={1} explanation="Async is a trade-off: more server work and more overlapping-chunk switches. Soft masks are 10.2 RTC and timestamp alignment is 8.3; neither is in this toy." />
+
 ## What a VLA does not do for you
 
 A VLA does not remove the work of the previous lessons; it relocates it. You still need a good dataset of your robot, with the variation and recoveries you want it to handle. You still need to evaluate it on a fixed set of conditions. And "zero-shot" claims only hold for robots and scenes like those in the pretraining data: OpenVLA's own model card says it does not generalise to unseen robot embodiments without fine-tuning. What you gain is language conditioning (one model, many instructions) and a better starting point, so fewer demonstrations per task.
@@ -219,4 +431,7 @@ A VLA does not remove the work of the previous lessons; it relocates it. You sti
 - **Forgetting the normalisation statistics.** A VLA outputs normalised actions. Converting them back needs the 1st/99th percentiles (or mean and standard deviation) of the dataset it was fine-tuned on; the wrong statistics give the right shape at the wrong size.
 - **Expecting zero-shot on your arm.** Without fine-tuning on your robot, a VLA's joint or end-effector conventions, camera position and gripper may all differ from what it learned. Plan for about 50 demonstrations.
 - **Ignoring inference time.** A 7B model needs a large GPU to run fast enough. Measure actions per second on the computer that will drive the robot, and pick a smaller model or chunked execution if it cannot keep up.
+- **Calling async inference "free".** It removes idle time only when g is above (E[ℓ_S] / Δt) / n, and it costs more inference calls and more chunk splices (16 → 57 calls at g = 0.7 in the toy). Pick g for your latency and your server budget.
+- **Mixing up async inference, RTC and timestamp sync.** Async decides when to request the next chunk (here); RTC smooths the seam with a soft mask (10.2); stream alignment matches sensor samples by time (8.3).
+- **Quoting SmolVLA's paper numbers as your own.** The 450M size, the 30 % speed-up and the 19 vs 9 cycles are per the paper; measure on your own arm.
 - **Picking bins without looking at the range.** If your task includes motions bigger than anything in the dataset, bin tokenisation clips them, as the 6.2-degree error above shows.
