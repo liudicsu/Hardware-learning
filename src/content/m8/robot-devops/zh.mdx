@@ -82,13 +82,22 @@ if __name__ == "__main__":
 <SimOutput source="model">
 
 ```text
-bag=sample_bag storage_id=mcap duration_s=2 (synthetic fixture; not a binary .mcap)
-topic                            n   hz_est  nominal  gaps
-/joint_states                   99    49.00     50.0     1
-/camera/color/image_raw         31    15.00     15.0     0
-/tf                             59    29.00     30.0     2
-total_gap_events=3
-ok: fixture storage_id is mcap (Jazzy rosbag2 default)
+bag_qos_accept_toy fixtures=accept_fixtures seed=n/a (deterministic)
+qos_override_keys=history,depth,reliability,durability,deadline,lifespan,liveliness,liveliness_lease_duration,avoid_ros_namespace_conventions
+qos_source=ros2/rosbag2 jazzy README Overriding QoS Profiles (YAML keys); durability compatibility table from Jazzy About QoS (the rosbag2 README has no such table)
+required_topics=/joint_states,/camera/color/image_raw,/tf max_gaps_allowed=2 gap_factor=1.5
+fixed_budget_examples fixed_ok: n=100 budget_min=90 cmp=ge → PASS; fixed_fail: n=10 budget_min=50 cmp=ge → FAIL (do not swap comparisons)
+override_match_demo (RxO is per publisher–subscriber pair):
+  mixed_pubs_override_reliable: pubs=reliable,best_effort request=reliable matched=1/2 from=reliable zero_messages=no
+  all_best_effort_override_reliable: pubs=best_effort,best_effort request=reliable matched=0/2 from=none zero_messages=yes
+override_match_note: too-strict override drops only incompatible publishers; zero messages only when ALL publishers mismatch
+case=pass_clean folder_exists=True decision=ACCEPT reason=ok
+case=missing_topic folder_exists=True decision=REJECT reason=missing_required_topic topic=/camera/color/image_raw n=0
+case=gap_heavy folder_exists=True decision=REJECT reason=gap_exceeded topic=/joint_states gaps=4
+case=budget_short folder_exists=True decision=REJECT reason=below_message_budget topic=/joint_states n=21 budget_min=90
+case=empty_folder folder_exists=True decision=REJECT reason=missing_required_topic topic=/joint_states n=0
+summary accept=1 reject=4
+ok: acceptance ≠ folder_exists; synthetic fixtures only (no binary mcap; live bag/Foxglove/Rerun/wandb 本页未运行)
 ```
 
 </SimOutput>
@@ -114,7 +123,7 @@ ROS 2 QoS 采用 **Request vs Offered（请求 vs 提供）** 模型（[About Qo
   - **可靠性：** 仅当**全部**发布方 offer reliable 时才请求 `reliable`；reliable/best_effort 混合时回退 **`best_effort`** 并打 WARN——仍连上所有发布方，只是来自 reliable 发布方的部分消息可能丢。
   - **持久性：** 仅当**全部**发布方 offer transient_local 时才请求 `transient_local`；transient_local/volatile 混合时回退 **`volatile`** 并打 WARN——仍建连，只是拿不到此前已发布的 latch 消息。
   - 所以默认适配不会造成「无连接」；多发布方混合只损失可靠 / 保留语义。
-- **覆盖：** `--qos-profile-overrides-path` 对具名 topic 强制一份 **手动 requested** 配置（同一 README；`recorder.cpp` 直接返回覆盖值、跳过适配）。默认适配不适合你的晚加入 / latch 场景时再用。**本课中「无连接 / 录不到」只来自这一路径：** 覆盖请求高于任一发布方的 offer（如对 best_effort 发布方请求 `reliable`、对 volatile 发布方请求 `transient_local`）⇒ RxO 不匹配 ⇒ 该 topic `n==0`。
+- **覆盖：** `--qos-profile-overrides-path` 对具名 topic 强制一份 **手动 requested** 配置（同一 README；`recorder.cpp` 直接返回覆盖值、跳过适配）。默认适配不适合你的晚加入 / latch 场景时再用。**RxO 匹配是按发布方–订阅方逐对进行的**（About QoS：同一 topic 上其他发布方不影响某一对的兼容性）。过严的覆盖**只**与不兼容的发布方失配；兼容发布方的消息仍会到。**该 topic 零消息，只有在所有相关发布方都不匹配时才可能**（例如请求 `reliable` 而每个发布方都是 best_effort，或请求 `transient_local` 而每个发布方都是 volatile）。反例：两个发布方分别 offer reliable 与 best_effort，覆盖请求 `reliable` → 仍能收到 reliable 那一路（见 `bag_qos_accept_toy.py` 的 `override_match_demo`）。默认适配不会造成「无连接」；只有过严覆盖才可能，且仅当全部发布方都不匹配。
 
 **持久性与晚加入者**（About QoS 的 durability + 兼容表）：
 
@@ -133,6 +142,13 @@ ROS 2 QoS 采用 **Request vs Offered（请求 vs 提供）** 模型（[About Qo
 
 要让晚加入者看到「锁存」效果，**双方**都必须同意 transient local。
 
+**其他兼容边界**（同一 About QoS — Jazzy RST 表；history/depth **不**在匹配表里）：
+
+- **History / depth 不决定是否匹配。** `keep_last` 与 `keep_all` 以及数值 depth 影响缓存，不决定发布方–订阅方是否建连。
+- **Deadline：** offered deadline 必须 **≤** requested（发布方承诺更紧的节拍，能满足更松的请求）。发布方 `Default` + 订阅方有限 deadline ⇒ **不兼容**。
+- **Lease duration：** 与 deadline 同向 — offered lease ≤ requested。
+- **Liveliness：** Automatic < Manual by topic。发布方 Automatic + 订阅方 Manual by topic ⇒ **否**；发布方 Manual by topic + 订阅方 Automatic ⇒ **是**。
+
 **练习（无真机 / 无真 bag）：** 给定合成 *offered* 列表——
 
 | Topic | Offered |
@@ -141,7 +157,7 @@ ROS 2 QoS 采用 **Request vs Offered（请求 vs 提供）** 模型（[About Qo
 | `/joint_states` | best_effort + volatile，keep_last depth=10（单发布方） |
 | `/camera/color/image_raw` | reliable + volatile，keep_last depth=5（单发布方） |
 
-只用上面的 `qos.cpp` 规则（最大 depth ≤ 1 ⇒ `keep_all`；仅当每个发布方都 offer 时才请求 reliable / transient_local）。请推导：（1）默认 `adapt_request_to_offers` 在各 topic 上选出的 *requested* history / 可靠性 / 持久性（注意 `/tf_static` depth=1 ⇒ `keep_all`）；（2）若再出现一个 offer reliable 的 `/joint_states` 发布方会怎样（混合 ⇒ best_effort + WARN，仍建连），以及何时改写 override YAML；（3）若 override YAML 对 `/camera/color/image_raw`（offer volatile）请求 `transient_local`，哪条验收夹具体现其后果——RxO 不匹配 ⇒ 必需 topic `n==0` ⇒ `missing_topic.json` **REJECT**（`missing_required_topic`）。对照 `bag_qos_accept_toy.py` 与 `accept_fixtures/`——仅 JSON 时间线；CI 不进二进制 MCAP。
+只用上面的 `qos.cpp` 规则（最大 depth ≤ 1 ⇒ `keep_all`；仅当每个发布方都 offer 时才请求 reliable / transient_local）。请推导：（1）默认 `adapt_request_to_offers` 在各 topic 上选出的 *requested* history / 可靠性 / 持久性（注意 `/tf_static` depth=1 ⇒ `keep_all`）；（2）若再出现一个 offer reliable 的 `/joint_states` 发布方会怎样（混合 ⇒ best_effort + WARN，仍建连），以及何时改写 override YAML；（3）覆盖两问：（a）若 override YAML 对 `/camera/color/image_raw` 在其**唯一**发布方 offer volatile 时请求 `transient_local`——RxO 不匹配 ⇒ 必需 topic `n==0` ⇒ `missing_topic.json` **REJECT**（`missing_required_topic`）；（b）若 `/joint_states` 有**两个**发布方分别 offer reliable 与 best_effort，覆盖请求 `reliable`，该 topic 的 bag 会是空的吗？（**不会**——仍能收到 reliable 那一路；见 `override_match_demo`。）对照 `bag_qos_accept_toy.py` 与 `accept_fixtures/`——仅 JSON 时间线；CI 不进二进制 MCAP。
 
 ### QoS 覆盖 YAML 键与来源
 
@@ -181,6 +197,9 @@ Recorder default adapt: Rosbag2QoS::adapt_request_to_offers
   (rosbag2_storage/.../qos.cpp; called from recorder.cpp when no override).
   Mixed reliable/best_effort -> best_effort, mixed transient_local/volatile
   -> volatile (WARN, still connects); max offered depth <= 1 -> keep_all.
+RxO matching is per publisher–subscriber pair: an override that is too
+strict fails to match only the incompatible publishers; zero messages on
+the topic are only possible when EVERY relevant publisher mismatches.
 
 MCAP ROS 2 getting-started: https://mcap.dev/guides/getting-started/ros-2
 docs.ros.org QoS How-To for record/playback: optional when About QoS +
@@ -324,6 +343,57 @@ def fixed_budget_demo() -> None:
     assert ok["budget_min"] > bad["budget_min"]
 
 
+def override_match_demo() -> None:
+    """Per-publisher RxO matching under a too-strict override (stdlib demo).
+
+    Matching is pairwise. An override requests one profile; each publisher
+    is checked independently. Zero messages require ALL publishers to
+    mismatch — a mixed reliable+best_effort topic with override=reliable
+    still receives from the reliable publisher.
+    """
+    # reliability offered rank: reliable > best_effort (request must not
+    # be more stringent than offer).
+    def reliability_ok(offered: str, requested: str) -> bool:
+        if requested == "best_effort":
+            return True
+        return offered == "reliable"
+
+    cases = [
+        {
+            "label": "mixed_pubs_override_reliable",
+            "pubs": ["reliable", "best_effort"],
+            "request": "reliable",
+        },
+        {
+            "label": "all_best_effort_override_reliable",
+            "pubs": ["best_effort", "best_effort"],
+            "request": "reliable",
+        },
+    ]
+    print("override_match_demo (RxO is per publisher–subscriber pair):")
+    for c in cases:
+        matches = [p for p in c["pubs"] if reliability_ok(p, c["request"])]
+        n_match = len(matches)
+        zero = n_match == 0
+        print(
+            f"  {c['label']}: pubs={','.join(c['pubs'])} "
+            f"request={c['request']} matched={n_match}/{len(c['pubs'])} "
+            f"from={','.join(matches) if matches else 'none'} "
+            f"zero_messages={'yes' if zero else 'no'}"
+        )
+    # Locked teaching asserts.
+    mixed = cases[0]
+    mixed_matches = [p for p in mixed["pubs"] if reliability_ok(p, mixed["request"])]
+    assert mixed_matches == ["reliable"], mixed_matches
+    all_be = cases[1]
+    all_be_matches = [p for p in all_be["pubs"] if reliability_ok(p, all_be["request"])]
+    assert all_be_matches == [], all_be_matches
+    print(
+        "override_match_note: too-strict override drops only incompatible "
+        "publishers; zero messages only when ALL publishers mismatch"
+    )
+
+
 def main() -> None:
     qos_keys = load_qos_keys(QOS_YAML)
     print("bag_qos_accept_toy fixtures=accept_fixtures seed=n/a (deterministic)")
@@ -341,6 +411,7 @@ def main() -> None:
         f"max_gaps_allowed={MAX_GAPS_ALLOWED} gap_factor={GAP_FACTOR}"
     )
     fixed_budget_demo()
+    override_match_demo()
 
     cases = [
         "pass_clean.json",
@@ -396,6 +467,10 @@ qos_override_keys=history,depth,reliability,durability,deadline,lifespan,livelin
 qos_source=ros2/rosbag2 jazzy README Overriding QoS Profiles (YAML keys); durability compatibility table from Jazzy About QoS (the rosbag2 README has no such table)
 required_topics=/joint_states,/camera/color/image_raw,/tf max_gaps_allowed=2 gap_factor=1.5
 fixed_budget_examples fixed_ok: n=100 budget_min=90 cmp=ge → PASS; fixed_fail: n=10 budget_min=50 cmp=ge → FAIL (do not swap comparisons)
+override_match_demo (RxO is per publisher–subscriber pair):
+  mixed_pubs_override_reliable: pubs=reliable,best_effort request=reliable matched=1/2 from=reliable zero_messages=no
+  all_best_effort_override_reliable: pubs=best_effort,best_effort request=reliable matched=0/2 from=none zero_messages=yes
+override_match_note: too-strict override drops only incompatible publishers; zero messages only when ALL publishers mismatch
 case=pass_clean folder_exists=True decision=ACCEPT reason=ok
 case=missing_topic folder_exists=True decision=REJECT reason=missing_required_topic topic=/camera/color/image_raw n=0
 case=gap_heavy folder_exists=True decision=REJECT reason=gap_exceeded topic=/joint_states gaps=4
@@ -415,7 +490,8 @@ ok: acceptance ≠ folder_exists; synthetic fixtures only (no binary mcap; live 
 - **仍假定默认是 sqlite3。** Jazzy 上默认 storage_id 是 mcap。
 - **无视缺口计数。** 「50 Hz」关节话题实际 49 Hz 还带缺口，已是日志事故。
 - **把「文件夹存在」当成 bag 验收。** 缺必需 topic（`n==0`）、缺口超限或低于消息预算必须拒收。
-- **臆造 QoS YAML 键，或拿 rosbag2 README 当 `transient_local` 兼容性出处。** 只用 README 里的键；持久性兼容（Pub volatile + Sub transient_local ⇒ 无连接）以 About QoS 为准；并记住只有过严的覆盖（而非默认适配）才会无连接。
+- **臆造 QoS YAML 键，或拿 rosbag2 README 当 `transient_local` 兼容性出处。** 只用 README 里的键；持久性兼容（Pub volatile + Sub transient_local ⇒ 无连接）以 About QoS 为准；并记住只有过严的覆盖（而非默认适配）才可能无连接，且仅当该 topic 上**所有**发布方都不匹配。
+- **以为一个发布方失配就会让整个 topic 变成零消息。** RxO 是逐对的；reliable+best_effort 混合且覆盖=`reliable` 时，仍会录到 reliable 那一路。
 - **永远把 wandb 当可选项。** 微调（8.2）时不记超参，毕业项目 README 很难站得住。
 
 <Summary>

@@ -235,7 +235,7 @@ $ python3 eval_report.py
 
 不确定度分层要标注清楚、互不混写：
 
-1. **单个 draw 内的计数区间：** Wilson 95 %（频率派）以及均匀先验 Beta(`1+k`, `1+n−k`) 的中心 95 % 区间（贝叶斯草图）。
+1. **单个 draw 内的计数区间：** Wilson 95 %（频率派）以及均匀先验 Beta(`1+k`, `1+n−k`) 的中心 95 % 区间（贝叶斯草图）。把多次试验拼成一个 pooled Wilson，只对**同一固定策略的独立评估会话**成立。**不要**把多个 `synthetic_policy_draw_k` × 共享 IC 当成独立 Bernoulli 试验丢进同一个 pooled Wilson——那些 draw 是不同策略。
 2. **跨 draw 离散：** K 个点估计的 min / median / max。故意打印 **best-seed 樱桃采摘** 对 **median**：只报最好的一组，正是第 4 课已经警告过的反模式。
 
 清单字段对齐 arXiv 2409.09491v2 §4 *Analysis and Reporting*（Kress-Gazit 等）：实验参数（成功判据、**次数**而非只有百分比、时段、初始条件及其与训练的关系）、统计分析、失败模式。
@@ -521,7 +521,7 @@ ok: shared_IC and independent_IC tabulated separately; Wilson/Beta count layer �
 
 ## 常见错误
 
-- <strong>只报告最好的一组。</strong>如果你跑了三组，就报告全部三组或它们的总和。挑最好的一组，就是 40 % 变成 90 % 的方式。
+- <strong>只报告最好的一组。</strong>如果你对**同一固定策略**跑了三组**独立评估会话**，就报告全部三组或它们的总和（这时 pooled Wilson 才有意义）。挑最好的一组，就是 40 % 变成 90 % 的方式。**不要**把多个 synthetic draw × 共享 IC 当成同一策略的 i.i.d. Bernoulli 去拼一个 pooled Wilson。
 - <strong>事后才定成功标准。</strong>同一个接近成功的结果在一组算成功、下一组算失败，数字就没有意义了。
 - <strong>只在训练过的地方测试。</strong>加入数据集里没有的起始位置并单独报告；策略之间的差别多半就出在那里。
 - <strong>把区间重叠当成打平，或把区间分开当成证明。</strong>区间只是快速检查；两个策略在同样试验上比较时，用配对比较。
@@ -529,4 +529,5 @@ ok: shared_IC and independent_IC tabulated separately; Wilson/Beta count layer �
 - **把合成抽样叫作「训练好的策略」。** 它们是脚本化的伯努利替身。报告里要写明。
 - **把 shared_IC 与 independent_IC 合并成一张表。** 配对与非配对回答不同问题；分表。
 - **把 Wilson/Beta 与跨 draw 的 min/max 混成一个未标注的 %。** 计数不确定度与种子离散是不同层。
+- **把多个 draw × 共享 IC 拼进一个 Wilson。** 不同的 `synthetic_policy_draw_k` 是不同策略；pooled 计数区间只留给同一固定策略的重复评估。
 - **只报最好的合成种子。** 要报 median（以及全集）。樱桃采摘会把 70 % 写成 85 %。

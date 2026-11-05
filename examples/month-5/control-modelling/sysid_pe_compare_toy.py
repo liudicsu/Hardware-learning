@@ -12,10 +12,19 @@ Fair comparison LOCKED: same horizon N, the SAME measurement-noise sequence for
 every input arm of a case, and input energy Σ u² matched within ENERGY_TOL
 (the richer input is scaled to the step's energy). Peak |u| is also printed.
 
-Estimator class: equation-error OLS (ARX-style). Rows of Φ contain lagged
-outputs, which are noisy, so OLS is an errors-in-variables / equation-error
-estimator and is NOT claimed unbiased. An output-error (OE) or instrumental-
+Noise model (LOCKED): independent additive measurement noise. A noise-free
+state z follows the ARX recursion; the measured output is y = z + v with
+v ~ N(0, σ²) independent of (z, u). Equation-error OLS then puts noisy lagged
+y into Φ, so it is an errors-in-variables (EIV) estimator: the printed
+‖θ̂−θ‖ includes that EE-OLS bias. This is NOT the ARX *innovation* model
+y_k = a y_{k-1} + b u_{k-1} + e_k (where e_k is independent of the lagged
+regressors and OLS is consistent). An output-error (OE) or instrumental-
 variable (IV) fit would be a different estimator; not implemented here.
+
+The finite-window Gram cond(ΦᵀΦ) is a practical diagnostic of regressor
+richness on this horizon. Strict PE is a stronger statement (a positive-
+definite lower bound on the window Gram as the window grows); the toy
+reports the diagnostic, not a PE certificate.
 
 Pointers (no copyrighted book text pasted): Ljung, System Identification, 2ed
 (ISBN 0136566952) via the MIT OCW 6.435 syllabus; De Nicolao 1997 tutorial on
@@ -32,9 +41,9 @@ SEED = 51
 N = 200                 # identification horizon (samples), shared
 DT = 0.01               # s
 ENERGY_TOL = 0.01       # |E_step - E_other| / E_step must be <= this
-NOISE_STD = 0.02        # additive measurement noise on y (same stream per case)
+NOISE_STD = 0.02        # additive measurement noise v on y = z + v (same stream per case)
 
-# Case A: first-order speed plant  τ y' + y = K u  (discrete ARX-1).
+# Case A: first-order speed plant  τ z' + z = K u  (discrete ARX-1 on noise-free z).
 # A single step is classically enough to read τ; PE is not required.
 TAU_A = 0.08            # s  (matches the Month 3 / 5.1 joint time constant)
 K_A = 1.0
@@ -72,17 +81,25 @@ def scale_energy(u: list[float], target: float) -> list[float]:
     return [s * v for v in u]
 
 
-def sim_arx1(u: list[float], a: float, b: float, noise: list[float]) -> list[float]:
+def sim_meas_arx1(u: list[float], a: float, b: float, noise: list[float]) -> list[float]:
+    """Noise-free ARX-1 state z; measured y = z + v (independent measurement noise)."""
+    z = [0.0] * len(u)
     y = [0.0] * len(u)
     for k in range(1, len(u)):
-        y[k] = a * y[k - 1] + b * u[k - 1] + noise[k]
+        z[k] = a * z[k - 1] + b * u[k - 1]
+        y[k] = z[k] + noise[k]
     return y
 
 
-def sim_arx2(u: list[float], a1: float, a2: float, b: float, noise: list[float]) -> list[float]:
+def sim_meas_arx2(
+    u: list[float], a1: float, a2: float, b: float, noise: list[float]
+) -> list[float]:
+    """Noise-free ARX-2 state z; measured y = z + v (independent measurement noise)."""
+    z = [0.0] * len(u)
     y = [0.0] * len(u)
     for k in range(2, len(u)):
-        y[k] = a1 * y[k - 1] + a2 * y[k - 2] + b * u[k - 1] + noise[k]
+        z[k] = a1 * z[k - 1] + a2 * z[k - 2] + b * u[k - 1]
+        y[k] = z[k] + noise[k]
     return y
 
 
@@ -198,8 +215,18 @@ def peak(u: list[float]) -> float:
 
 def main() -> None:
     print(f"seed={SEED} N={N} dt={DT} energy_tol={ENERGY_TOL} noise_std={NOISE_STD}")
-    print("estimator: equation-error OLS (ARX); NOT claimed unbiased when y is noisy in Phi")
-    print("PE = regressor richness over the horizon (cond of Phi^T Phi), not '2 params ⇒ step fails'")
+    print(
+        "noise_model: y=z+v (independent measurement noise on noise-free ARX state z); "
+        "NOT ARX innovation e_k"
+    )
+    print(
+        "estimator: equation-error OLS (ARX) on noisy y in Phi → EIV / EE-OLS bias; "
+        "NOT claimed unbiased (OE/IV not implemented)"
+    )
+    print(
+        "PE diagnostic: finite-window cond(Phi^T Phi); "
+        "strict PE = positive-definite lower bound on the window Gram (not claimed here)"
+    )
     print()
 
     # ---- Case A: first-order τ — a step often suffices ----
@@ -215,7 +242,7 @@ def main() -> None:
     print(f"{'input':<10} {'energy':>10} {'peak|u|':>10} {'cond(PhiTPhi)':>14} {'||theta_hat-theta||':>20}")
     results_a = []
     for name, u in (("step", u_step_a), ("prbs", u_prbs_a)):
-        y = sim_arx1(u, A_TRUE_A, B_TRUE_A, noise_a)
+        y = sim_meas_arx1(u, A_TRUE_A, B_TRUE_A, noise_a)
         theta, cond, err = fit_arx1(u, y)
         e = energy(u)
         print(f"{name:<10} {e:10.4f} {peak(u):10.4f} {cond:14.4g} {err:20.6f}")
@@ -226,7 +253,8 @@ def main() -> None:
     assert rel <= ENERGY_TOL, f"case_A energy mismatch rel={rel}"
     print(f"energy_match_rel={rel:.6f} (tol={ENERGY_TOL})  "
           f"step_err={results_a[0][3]:.6f} prbs_err={results_a[1][3]:.6f} "
-          f"(step is capable; numbers decide, PE not guaranteed to win)")
+          f"(step is capable; numbers decide, PE not guaranteed to win; "
+          f"err includes EE-OLS bias from measurement noise)")
     print()
 
     # ---- Case B: second-order — richer input improves conditioning ----
@@ -240,7 +268,7 @@ def main() -> None:
     print(f"{'input':<10} {'energy':>10} {'peak|u|':>10} {'cond(PhiTPhi)':>14} {'||theta_hat-theta||':>20}")
     results_b = []
     for name, u in (("step", u_step_b), ("two_tone", u_rich_b)):
-        y = sim_arx2(u, A1_TRUE_B, A2_TRUE_B, B_TRUE_B, noise_b)
+        y = sim_meas_arx2(u, A1_TRUE_B, A2_TRUE_B, B_TRUE_B, noise_b)
         theta, cond, err = fit_arx2(u, y)
         e = energy(u)
         print(f"{name:<10} {e:10.4f} {peak(u):10.4f} {cond:14.4g} {err:20.6f}")
@@ -253,9 +281,10 @@ def main() -> None:
         f"expected two_tone cond < step cond, got {results_b[1][2]} vs {results_b[0][2]}")
     print(f"energy_match_rel={rel:.6f} (tol={ENERGY_TOL})  "
           f"cond_step={results_b[0][2]:.4g} cond_two_tone={results_b[1][2]:.4g} "
-          f"(richer input improved conditioning)")
+          f"step_err={results_b[0][3]:.6f} two_tone_err={results_b[1][3]:.6f} "
+          f"(richer input improved conditioning; err includes EE-OLS bias)")
     print("ok: fair energy; case_A step-capable; case_B richer input better cond; "
-          "EE-OLS bias caveat stated (real motor sysid 本页未运行)")
+          "measurement-noise EIV → EE-OLS bias measured (real motor sysid 本页未运行)")
 
 
 if __name__ == "__main__":

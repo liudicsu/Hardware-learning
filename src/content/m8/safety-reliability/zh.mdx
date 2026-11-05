@@ -189,6 +189,8 @@ CiA 402 驱动器规范是付费标准，本页不给链接、不引原文。位
 
 同一枚举里，位 8 和位 14–15 标为厂商自定义（manufacturer-specific），位 12–13 标为与运行模式相关（operation-mode-specific）。玩具恰好在这五位上加种子固定的随机噪声，把它们屏蔽掉，并检查所有决策都不变（`nonstandard_bit_noise_changes_decisions=0`）。决策只读位 3（Fault）和位 7（Warning）。玩具构造的状态字是课内自定的，不解码完整的 CiA 402 状态机。真实驱动器请对照它的手册和 ros2_canopen 源码——真驱动器、CANopen、SocketCAN 本页未运行。
 
+**控制字位 7 = Fault Reset（上升沿），不是我们的软件锁存。** 同一份 ros2_canopen 树在 [`command.hpp` 提交 52327f9b](https://raw.githubusercontent.com/ros-industrial/ros2_canopen/52327f9b/canopen_402_driver/include/canopen_402_driver/command.hpp) 里给出 `Command402::ControlWord::CW_Fault_Reset = 7`。[`command.cpp`](https://raw.githubusercontent.com/ros-industrial/ros2_canopen/52327f9b/canopen_402_driver/src/command.cpp) 的转移 15 把 **Fault → Switch_On_Disabled** 写成置起该位；`Motor402` 先清位 7 再应用转移，让驱动器看到 **0→1 上升沿**。那是 CANopen 控制字动作，**不是**本课的 `operator_ack`——后者只解除监视器里的**软件** `LATCHED_SAFE` 锁存。软件锁存解开 **不等于** 驱动器故障复位，也 **不等于** 进入 Operation Enabled——那些是 Switch_On_Disabled 之后更后面的 CiA 402 状态转移。
+
 <Resource id="canopen-402-statusword" />
 
 ### 运行玩具
@@ -465,7 +467,8 @@ ok: latch_ack unsafe_motion_ticks=0 false_auto_reenables=0; bus-off / soft reset
 - 本课开头的急停仍是一条硬件通路：不依赖总线和 PC，直接去掉动力。
 - 给真实驱动器写重新使能路径之前（本页未运行）：
   - 单独测过急停，不经过总线和 PC；
-  - 故障锁存只能由操作员显式动作解除，日志记下谁确认、为什么；
+  - 故障锁存只能由操作员显式动作（`operator_ack`）解除，日志记下谁确认、为什么——该 ack **不是** 控制字 Fault Reset，也 **不是** 进入 Operation Enabled；
+  - 若驱动器处于 Fault，使能序列之前还需要单独的控制字位 7 的 0→1 Fault Reset（ros2_canopen 转移 15 → Switch_On_Disabled）；
   - 定好状态超时，并把它的盲区写下来；
   - bus-off 或故障复位之后，先复核位置再允许运动。
 
@@ -488,6 +491,7 @@ ok: latch_ack unsafe_motion_ticks=0 false_auto_reenables=0; bus-off / soft reset
 - **把工业力限抄到桌面臂。** ISO/TS 15066 不适用于非工业机器人。
 - **凭记忆引用 STS3215 过载数。** 需要电气极限时用测得的软停和厂商本表——不是本页。
 - **因为故障位清零就重新使能。** 位清零或帧恢复只是前提，不是放行；重新使能要 `operator_ack` 加上各项检查。
+- **把 `operator_ack` 当成驱动器 Fault Reset。** ack 只解除软件锁存。驱动器 Fault Reset 是控制字位 7 上升沿（ros2_canopen 转移 15 → Switch_On_Disabled）；Operation Enabled 是更后面的转移。
 - **把 bus-off 恢复或软复位叫作急停。** 两者都不切断电机动力。
 - **把状态字所有位都当成没有定义。** 位 0–7、9–11 在公开的 ros2_canopen 表里有标准名称；只有位 8、位 12–13、位 14–15 是厂商自定义或与模式相关，别放进断言。
 - **把 `/diagnostics` 的 ERROR 当成安全动作。** 诊断级别只是报告；锁存靠监视器；断电靠急停。

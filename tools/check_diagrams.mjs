@@ -3947,8 +3947,8 @@ const lessonRef = (n, slug, lang) => {
 {
   const read = (p) => readFileSync(join(root, p), "utf8");
   const cases = [
-    [8, "robot-devops", "bag_qos_accept_toy", ["ACCEPT", "missing_required_topic", "gap_exceeded", "below_message_budget", "do not swap comparisons"]],
-    [8, "ros2-hardware-interface", "lifecycle_sm_toy", ["illegal_rejects=0", "illegal_rejects=1", "never_permanent_death_after_illegal_activate=1", "final_state=Active"]],
+    [8, "robot-devops", "bag_qos_accept_toy", ["ACCEPT", "missing_required_topic", "gap_exceeded", "below_message_budget", "do not swap comparisons", "override_match_demo", "zero_messages=no", "zero_messages=yes"]],
+    [8, "ros2-hardware-interface", "lifecycle_sm_toy", ["illegal_rejects=0", "illegal_rejects=1", "never_permanent_death_after_illegal_activate=1", "final_state=Active", "configure_failure_returns_unconfigured=1", "on_error_success_returns_unconfigured=1", "on_error_failure_goes_finalized=1"]],
   ];
   for (const [month, slug, toy, markers] of cases) {
     const expected = read(`examples/month-${month}/expected/${toy}.txt`);
@@ -4029,7 +4029,7 @@ const lessonRef = (n, slug, lang) => {
 {
   const read = (p) => readFileSync(join(root, p), "utf8");
   const cases = [
-    [5, "control-modelling", "sysid_pe_compare_toy", ["energy_match_rel", "case_A", "case_B", "cond_two_tone", "equation-error OLS", "NOT claimed unbiased"]],
+    [5, "control-modelling", "sysid_pe_compare_toy", ["energy_match_rel", "case_A", "case_B", "cond_two_tone", "equation-error OLS", "NOT claimed unbiased", "y=z+v", "EIV"]],
     [5, "state-space-lqr", "lqr_model_error_toy", ["oracle_fullstate", "observer_output_feedback", "privileged true x", "NOT H-infinity", "NOT equal-info baseline"]],
     [6, "policy-evaluation", "eval_seed_layers_toy", ["synthetic_policy_draw_k", "shared_IC", "independent_IC", "best_seed_cherry_pick", "across_draw_dispersion", "2409.09491v2"]],
   ];
@@ -4047,10 +4047,12 @@ const lessonRef = (n, slug, lang) => {
   }
   const pe = read("examples/month-5/expected/sysid_pe_compare_toy.txt");
   ok(/energy_match_rel=0\.000000/.test(pe), "obs3 pe: energy matched");
-  ok(/cond_step=1\.834e\+04 cond_two_tone=912\.6/.test(pe), "obs3 pe: richer input improved cond");
+  ok(/cond_step=2\.148e\+04 cond_two_tone=1108/.test(pe), "obs3 pe: richer input improved cond");
   ok(/step is capable/.test(pe), "obs3 pe: step capable on case_A");
   const pePy = read("examples/month-5/control-modelling/sysid_pe_compare_toy.py");
   ok(/NOT claimed unbiased/.test(pePy) && /equation-error OLS/.test(pePy), "obs3 pe.py: EE-OLS bias caveat");
+  ok(/y = z \+ v|y=z\+v/.test(pePy) && /sim_meas_arx/.test(pePy), "obs3 pe.py: measurement-noise model y=z+v");
+  ok(!/y\[k\] = a \* y\[k - 1\] \+ b \* u\[k - 1\] \+ noise/.test(pePy), "obs3 pe.py: not ARX innovation recursion");
   ok(!/two parameters.*not identifiable|两参数.*不可辨识/i.test(pePy), "obs3 pe.py: no '2 params ⇒ step unidentifiable'");
   for (const lang of ["en", "zh"]) {
     const md = read(`src/content/m5/control-modelling/${lang}.mdx`);
@@ -4687,3 +4689,53 @@ for (const m of readdirSync(content)) {
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
 process.exit(failed ? 1 : 0);
+
+
+// Follow-up observability gaps fix (sysid measurement-noise EIV, QoS pairwise override,
+// lifecycle callback results, CiA402 CW bit7, pooled Wilson scope).
+{
+  const read = (p) => readFileSync(join(root, p), "utf8");
+  const pe = read("examples/month-5/expected/sysid_pe_compare_toy.txt");
+  ok(/noise_model: y=z\+v/.test(pe), "gaps pe: measurement-noise model printed");
+  ok(/step_err=0\.034758 prbs_err=0\.002735/.test(pe), "gaps pe: case_A measured EE-OLS errors");
+  ok(/step_err=1\.361698 two_tone_err=0\.219354/.test(pe), "gaps pe: case_B measured EE-OLS errors");
+  for (const lang of ["en", "zh"]) {
+    const peMd = read(`src/content/m5/control-modelling/${lang}.mdx`);
+    ok(/y = z \+ v|y=z\+v/.test(peMd), `gaps pe ${lang}: y=z+v stated`);
+    ok((lang === "en" ? /NOT.*ARX \*innovation\*|not the ARX \*innovation\*/i : /不是.*ARX \*新息\*|不是.*新息模型/).test(peMd),
+      `gaps pe ${lang}: distinguishes innovation model`);
+    ok(/finite-window|有限窗口/.test(peMd), `gaps pe ${lang}: finite-window Gram diagnostic`);
+
+    const devops = read(`src/content/m8/robot-devops/${lang}.mdx`);
+    ok(/per publisher|逐对|publisher–subscriber pair|发布方–订阅方逐对/.test(devops), `gaps devops ${lang}: pairwise RxO`);
+    ok(/override_match_demo/.test(devops), `gaps devops ${lang}: override match demo`);
+    ok(/History \/ depth|history\/depth|History \/ depth 不决定|do not decide matching|不决定是否匹配/.test(devops),
+      `gaps devops ${lang}: history/depth not matching`);
+    ok(/liveliness|Liveliness/.test(devops) && /Manual by topic/.test(devops), `gaps devops ${lang}: liveliness direction`);
+
+    const safety = read(`src/content/m8/safety-reliability/${lang}.mdx`);
+    ok(/CW_Fault_Reset|Fault_Reset = 7|控制字位 7/.test(safety), `gaps safety ${lang}: CW bit7 Fault Reset`);
+    ok(/command\.hpp/.test(safety) && /52327f9b/.test(safety), `gaps safety ${lang}: pinned command.hpp`);
+    ok(/Switch_On_Disabled/.test(safety), `gaps safety ${lang}: Fault→Switch_On_Disabled`);
+    ok((lang === "en" ? /not.*Operation Enabled|does \*\*not\*\* put it into Operation Enabled/i : /不等于.*Operation Enabled|不是.*Operation Enabled/).test(safety),
+      `gaps safety ${lang}: ack ≠ Operation Enabled`);
+
+    const pol = read(`src/content/m6/policy-evaluation/${lang}.mdx`);
+    ok(/same fixed policy|同一固定策略/.test(pol), `gaps policy ${lang}: pooled Wilson = same fixed policy`);
+    ok(/pooled Wilson|pool multiple|拼一个 pooled|拼进一个 Wilson/.test(pol), `gaps policy ${lang}: forbids pooling draws`);
+
+    const hw = read(`src/content/m8/ros2-hardware-interface/${lang}.mdx`);
+    ok(/ErrorProcessing/.test(hw), `gaps hw ${lang}: ErrorProcessing`);
+    ok(/configure\(FAILURE\)|configure\*\*FAILURE\*\*|configure\(FAILURE\)/.test(hw) || /configure.*FAILURE/.test(hw),
+      `gaps hw ${lang}: configure FAILURE path`);
+    ok(/on_error/.test(hw) && /Finalized/.test(hw), `gaps hw ${lang}: on_error → Finalized`);
+  }
+  const bag = read("examples/month-8/expected/bag_qos_accept_toy.txt");
+  ok(/mixed_pubs_override_reliable:.*zero_messages=no/.test(bag), "gaps bag: mixed pubs still receive");
+  ok(/all_best_effort_override_reliable:.*zero_messages=yes/.test(bag), "gaps bag: all mismatch → zero");
+  const lc = read("examples/month-8/expected/lifecycle_sm_toy.txt");
+  ok(/configure_failure_returns_unconfigured=1/.test(lc), "gaps lc: configure FAILURE");
+  ok(/on_error_success_returns_unconfigured=1/.test(lc), "gaps lc: on_error SUCCESS");
+  ok(/on_error_failure_goes_finalized=1/.test(lc), "gaps lc: on_error FAILURE");
+}
+
