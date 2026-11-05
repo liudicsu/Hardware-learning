@@ -8,7 +8,7 @@ A policy that scores well on Month 6 starts can still command through a soft sto
 2. **Watchdog** — if no *valid* command arrives within `TIMEOUT_TICKS`, hold the last safe command (or another safe state). Drops, delay and NaN are the usual triggers.
 3. **E-stop** — a hardware path (or equivalent) that removes motor power. **Publishing one ROS topic is not an e-stop.**
 
-Human intervention sits beside those layers: HIL-SERL's docs include tools such as `lerobot-find-joint-limits` so you discover the box *before* a policy explores it. Soft-stop numbers in the toy (±0.80 rad) are lesson-chosen — **no STS3215 overload / temperature figures**.
+Human intervention sits beside those layers: HIL-SERL's docs include tools such as `lerobot-find-joint-limits` so you discover the box *before* a policy explores it; full pipeline in [10.6 real-world RL](/en/month/month-10/real-world-rl). Soft-stop numbers in the toy (±0.80 rad) are lesson-chosen — **no STS3215 overload / temperature figures**.
 
 ## Standards: names only
 

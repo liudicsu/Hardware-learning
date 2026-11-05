@@ -21,7 +21,7 @@ Notation, with Δt the control period and δ the time from observation to a usab
 
 - **H** — prediction horizon (chunk length).
 - **s** — actions executed from the previous chunk before the new inference starts.
-- **d = floor(δ / Δt)** — inference delay in control steps. The paper requires d ≤ s ≤ H − d.
+- **d = floor(δ / Δt)** — inference delay in control steps. This lesson's simplification: d ≤ s ≤ H − d (not stated as such in the RTC paper).
 
 While the new chunk is denoised, the first d actions will already have been executed from the old chunk, so they are **frozen**. Beyond that, a <Term id="soft-mask">soft mask</Term> W says how much the new chunk should agree with what is left of the old one (Eq. 5 of the paper):
 

@@ -15,10 +15,15 @@ SFT 会把数据连同其中的错误一起照抄，并停在示范的水平。R
 
 ## 结果奖励 RL：SimpleVLA-RL
 
-SimpleVLA-RL（Li 等，2025）在整个 VLA 上做大规模 RL，基于 veRL 框架，用 GRPO 式目标和二值奖励：这次 rollout 成功或没成功。基座模型是 OpenVLA-OFT——一套为 OpenVLA 优化的微调配方（并行解码、动作块、连续动作、L1 损失），其摘要报告 LIBERO 平均成功率从 76.5 % 提到 97.1 %，动作生成快 26×。SimpleVLA-RL 的摘要报告在 LIBERO 上达到最好水平，在 RoboTwin 1.0 和 2.0 上超过 π0，并在 RL 中出现作者称为「pushcut」的新行为（推动物体，而不是示范里的抓取）。论文还报告：从零条示范微调的模型出发，RL 无法起步——结果奖励需要一个已经偶尔能成功的策略。以上都是作者在 GPU 集群上的测量，本页未运行。
+SimpleVLA-RL（Li 等，2025）在整个 VLA 上做大规模 RL，基于 veRL 框架，用 GRPO 式目标和二值奖励：这次 rollout 成功或没成功。基座取自 OpenVLA-OFT 系；但 SimpleVLA-RL 为便于采样，改用离散动作 token + 交叉熵（LLaMA2 输出头、单视角），不是官方 L1 连续动作版本（§4.1）。官方 OpenVLA-OFT（并行解码、动作块、连续动作、L1 损失）的摘要报告 LIBERO 平均成功率从 76.5 % 提到 97.1 %，动作生成快 26×。SimpleVLA-RL 的摘要报告在 LIBERO 上达到最好水平，在 RoboTwin 1.0 和 2.0 上超过 π0，并在 RL 中出现作者称为「pushcut」的新行为——例如在 RoboTwin2.0 的 move can pot、place a2b 等任务上推动物体，而不是示范里的抓取。论文报告：在 5 个 RoboTwin2.0 任务上，不经轨迹微调的基座成功率为 0，仅靠结果奖励的 RL 无法提升（§6.2/Tab.7）；每任务 1 条示范微调后 RL 即可大幅提升（LIBERO-Long 17.3 %→91.7 %，§5.1）。以论文为准。以上都是作者在 GPU 集群上的测量，本页未运行。
+
+GRPO 的直观理解：同一提示下采一组 rollout，用组内归一化的优势更新策略；若一组全成或全败，优势为 0、没有梯度，该组会被丢弃。相关方法还包括 ConRFT、RIPT-VLA、RLinf（一句话入口见下方资源，不写数字）。
 
 <Resource id="simplevla-rl-paper" />
 <Resource id="openvla-oft-paper" />
+<Resource id="conrft-paper" />
+<Resource id="ript-vla-paper" />
+<Resource id="rlinf-vla-paper" />
 
 ## 优势条件：π*0.6 与 RECAP
 
@@ -30,7 +35,7 @@ Physical Intelligence 的 π*0.6 文章介绍了 RECAP，即「RL with Experienc
 
 这里大模型保持冻结，由一个小网络在它的动作之上学修正：
 
-- **ResiP**（Ankile 等，2024）固定一个按动作块输出的行为克隆模型（扩散策略），用 PPO 在稀疏奖励上训练闭环、逐步的残差，并把残差保持得很小。在其仿真家具装配任务上，报告用 50 条示范带来大幅提升（例如 one_leg 从 54 % 到 98 %）；这是论文的测量。
+- **ResiP**（Ankile 等，2024）固定一个按动作块输出的行为克隆模型（扩散策略），用 PPO 在稀疏奖励上训练闭环、逐步的残差，并把残差保持得很小。在其仿真家具装配任务上，报告用 50 条示范带来大幅提升（例如 one_leg 在低随机化 ±1.5 cm、最佳 checkpoint、仿真条件下从 54 % 到 98 %；中随机化 26 %→76 %）；以论文为准。
 - **Policy Decorator**（Yuan 等，2024）让残差与基座模型无关，用 SAC 训练；它限制残差的幅度，并在探索中逐步提高使用残差的频率，避免早期破坏基座策略的好行为。实验用 ManiSkill 和 Adroit，基座是 Behaviour Transformer 和扩散策略。
 
 残差对业余硬件有吸引力，因为要训练的部分小；但论文结果主要在仿真里。
@@ -46,7 +51,7 @@ Physical Intelligence 的 π*0.6 文章介绍了 RECAP，即「RL with Experienc
 
 ## 选做：运行优势过滤玩具
 
-`advantage_filter_toy.py` 离线复用 10.6 的密码锁链条。一个中等水平的行为策略记录 40 个回合：90 % 的时候选对，但在状态 2 和 5 比抛硬币还差。从日志里平均出价值 V(s)（「还差几步完成」取负，也就是 RECAP 描述的那种价值），每一步得到 A = −1 + V(s′) − V(s)，然后比较三种计数策略：普通 BC、只用成功回合的 BC、只用 A > 0 步骤的 BC。第二份没有任何成功的日志展示「无从排序」时会怎样。
+`advantage_filter_toy.py` 离线复用 10.6 的密码锁链条。一个中等水平的行为策略记录 40 个回合：90 % 的时候选对，但在状态 2 和 5 比抛硬币还差。从日志里平均出价值 V(s)（「还差几步完成」取负，也就是 RECAP 描述的那种价值），每一步得到 A = −1 + V(s′) − V(s)（即每步奖励 −1、不打折的 TD 误差），然后比较三种计数策略：普通 BC、只用成功回合的 BC、只用 A > 0 步骤的 BC。第二份没有任何成功的日志展示「无从排序」时会怎样。
 
 ```bash
 $ cd ~/Hardware-learning/examples/month-10/vla-rl-finetune
