@@ -1,0 +1,12 @@
+bag_qos_accept_toy fixtures=accept_fixtures seed=n/a (deterministic)
+qos_override_keys=history,depth,reliability,durability,deadline,lifespan,liveliness,liveliness_lease_duration,avoid_ros_namespace_conventions
+qos_source=ros2/rosbag2 jazzy README Overriding QoS Profiles (YAML keys); durability compatibility table from Jazzy About QoS (the rosbag2 README has no such table)
+required_topics=/joint_states,/camera/color/image_raw,/tf max_gaps_allowed=2 gap_factor=1.5
+fixed_budget_examples fixed_ok: n=100 budget_min=90 cmp=ge → PASS; fixed_fail: n=10 budget_min=50 cmp=ge → FAIL (do not swap comparisons)
+case=pass_clean folder_exists=True decision=ACCEPT reason=ok
+case=missing_topic folder_exists=True decision=REJECT reason=missing_required_topic topic=/camera/color/image_raw n=0
+case=gap_heavy folder_exists=True decision=REJECT reason=gap_exceeded topic=/joint_states gaps=4
+case=budget_short folder_exists=True decision=REJECT reason=below_message_budget topic=/joint_states n=21 budget_min=90
+case=empty_folder folder_exists=True decision=REJECT reason=missing_required_topic topic=/joint_states n=0
+summary accept=1 reject=4
+ok: acceptance ≠ folder_exists; synthetic fixtures only (no binary mcap; live bag/Foxglove/Rerun/wandb 本页未运行)

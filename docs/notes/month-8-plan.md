@@ -7,12 +7,14 @@ Batch 1–2 delivered 8.1–8.7 (dataset → capstone). **Track B (promote elect
 | dataset-engineering | 180 | `dataset_audit.py` | batch 1 |
 | vla-finetune | 240 | `compute_budget.py` | batch 2 |
 | async-deployment | 300 | `chunk_latency_sim.py`, `stream_sync_eval_toy.py` | batch 1 + deepen PR3: arrival-causal alignment |
-| ros2-hardware-interface | 240 | `servo_bus_sim.py` (+ `so101_hw/` skeleton 本页未运行) | batch 2 |
+| ros2-hardware-interface | 420 | `servo_bus_sim.py`, `lifecycle_sm_toy.py` (+ `so101_hw/` skeleton 本页未运行) | batch 2 + follow-up PR1 F2: managed-node SM ≠ HardwareComponent |
 | safety-reliability | 180 | `watchdog_sim.py` | batch 1 |
-| robot-devops | 180 | `bag_stats.py` | batch 1 |
+| robot-devops | 360 | `bag_stats.py`, `bag_qos_accept_toy.py` | batch 1 + follow-up PR1 F1: bag/QoS acceptance |
 | capstone | 300 | `capstone_gate.py --demo` | batch 2; LIBERO section → pointer to 8.8 |
 | **sim-benchmarks** | **180** | **`suite_score_table.py`** | **Track B 8.8**; GPU `lerobot-eval` 本页未运行 |
 
 Site “~1500 min” habit is intentionally broken by Track B (+180). Still labelled 本站补充. Remaining electives on month page: HIL-SERL / Isaac Lab / legged playground (not formal lessons).
 
-Deepen PR3 (+120): 8 lessons / **1 800 min**. Three synthetic streams share packets/noise; correct known clock offsets and interpolate only arrived brackets at now−0.14 s. RMSE and catch proxy are scored at a common lagged query, not live success; no RTC mask re-teach. Site: 71 lessons / 16 050 min.
+Deepen PR3 (+120): 8 lessons / **1 800 min**. Three synthetic streams share packets/noise; correct known clock offsets and interpolate only arrived brackets at now−0.14 s. RMSE and catch proxy are scored at a common lagged query, not live success; no RTC mask re-teach. Site was then 71 lessons / 16 050 min.
+
+Follow-up PR1 (+360): F1 `robot-devops` 180→360 (bag/QoS acceptance; Jazzy README QoS keys; no binary MCAP in CI); F2 `ros2-hardware-interface` 240→420 (managed-node lifecycle toy + HardwareComponent contrast; illegal activate recoverable). **8 lessons / 2 160 min**. Site: 71 lessons / **16 410 min**.

@@ -1,0 +1,7 @@
+{
+  "uri": "empty_folder",
+  "storage_id": "mcap",
+  "duration_s": 0.0,
+  "folder_exists": true,
+  "topics": []
+}

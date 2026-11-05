@@ -3936,12 +3936,48 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 16050, "deepen3 curriculum: 16050 minutes");
-  for (const [month, expected] of [[8, 1800], [9, 2100], [11, 2460]]) {
-    ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `deepen3 M${month}: ${expected} minutes`);
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 16410, "followup PR1 curriculum: 16410 minutes");
+  for (const [month, expected] of [[8, 2160], [9, 2100], [11, 2460]]) {
+    ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `followup PR1 M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
 }
+
+// Follow-up observability PR1 (F1 bag/QoS + F2 managed lifecycle).
+{
+  const read = (p) => readFileSync(join(root, p), "utf8");
+  const cases = [
+    [8, "robot-devops", "bag_qos_accept_toy", ["ACCEPT", "missing_required_topic", "gap_exceeded", "below_message_budget", "do not swap comparisons"]],
+    [8, "ros2-hardware-interface", "lifecycle_sm_toy", ["illegal_rejects=0", "illegal_rejects=1", "never_permanent_death_after_illegal_activate=1", "final_state=Active"]],
+  ];
+  for (const [month, slug, toy, markers] of cases) {
+    const expected = read(`examples/month-${month}/expected/${toy}.txt`);
+    const py = read(`examples/month-${month}/${slug}/${toy}.py`);
+    ok(read(`examples/month-${month}/check.sh`).includes(`${toy}.txt`), `obs1 ${toy}: month check hook`);
+    for (const lang of ["en", "zh"]) {
+      const md = read(`src/content/m${month}/${slug}/${lang}.mdx`);
+      ok(md.includes(py.trim()), `obs1 ${toy} ${lang}: exact code quoted`);
+      ok(md.includes(expected.trim()), `obs1 ${toy} ${lang}: exact real stdout quoted`);
+      for (const n of markers) {
+        ok(md.includes(n), `obs1 ${toy} ${lang}: binds ${n}`);
+      }
+    }
+  }
+  for (const lang of ["en", "zh"]) {
+    const devops = read(`src/content/m8/robot-devops/${lang}.mdx`);
+    const hw = read(`src/content/m8/ros2-hardware-interface/${lang}.mdx`);
+    ok(/transient_local/.test(devops), `obs1 devops ${lang}: transient_local durability covered`);
+    ok(/folder exists|文件夹存在/.test(devops), `obs1 devops ${lang}: acceptance vs folder exists`);
+    ok(/HardwareComponentInterface/.test(hw) && (/not the `HardwareComponentInterface`|不是 `HardwareComponentInterface`|NOT the ros2_control HardwareComponentInterface|≠ HardwareComponent/.test(hw)),
+      `obs1 hw ${lang}: does not equate SMs`);
+    ok(hw.includes("design.ros2.org/articles/node_lifecycle.html"), `obs1 hw ${lang}: managed-node design source`);
+    ok(/2079/.test(hw), `obs1 hw ${lang}: cites ros2_control#2079 discussion`);
+    ok(/permanently dead|永久死亡|仍可恢复|never_permanent_death/.test(hw), `obs1 hw ${lang}: recovery after illegal activate`);
+  }
+  ok(read("examples/month-8/robot-devops/accept_fixtures/qos_override.yaml").includes("reliability:"),
+    "obs1: qos_override.yaml present with README keys");
+}
+
 
 const specs = [];
 for (const f of readdirSync(specDir).filter((f) => f.endsWith(".ts"))) {

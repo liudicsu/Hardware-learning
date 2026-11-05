@@ -1,6 +1,6 @@
 This lesson is a site supplement — Months 7–11 are not part of the original six-month course.
 
-A policy repo that only works on one laptop is not finished. This lesson pins a ROS 2 toolchain with a <Term id="dev-container">Dev Container</Term>, runs <Term id="ci">CI</Term> with `action-ros-ci`, records bags whose default storage on Jazzy is <Term id="mcap">MCAP</Term>, and points at Foxglove / Rerun for replay and wandb for train runs. The CI templates are for **your** package repo — they do not run inside this site's CI. When lesson 8.4's hardware-component package lives in **your** repo, put the Dev Container and `action-ros-ci` workflow next to that package so every push builds the plugin. A CPU toy reads a synthetic MCAP *timeline* (JSON stamps, no libmcap) so `expected/` stays reproducible.
+A policy repo that only works on one laptop is not finished. This lesson pins a ROS 2 toolchain with a <Term id="dev-container">Dev Container</Term>, runs <Term id="ci">CI</Term> with `action-ros-ci`, records bags whose default storage on Jazzy is <Term id="mcap">MCAP</Term>, and points at Foxglove / Rerun for replay and wandb for train runs. The CI templates are for **your** package repo — they do not run inside this site's CI. When lesson 8.4's hardware-component package lives in **your** repo, put the Dev Container and `action-ros-ci` workflow next to that package so every push builds the plugin. CPU toys read synthetic MCAP *timelines* (JSON stamps, no libmcap) so `expected/` stays reproducible: `bag_stats.py` measures rates/gaps, and `bag_qos_accept_toy.py` shows that **acceptance ≠ folder exists**.
 
 ## Dev Container
 
@@ -12,7 +12,7 @@ Official Jazzy guide: *Setup ROS 2 with VSCode and Docker* (ros2_documentation H
 
 ## rosbag2 default on Jazzy: mcap
 
-Cross-check (2026-11-04, Asia/Shanghai): on the **`jazzy`** branch of `ros2/rosbag2`, `rosbag2_storage::get_default_storage_id()` in `default_storage_id.cpp` **returns `"mcap"`**. Iron's release notes first switched the default writer to MCAP; Jazzy keeps that default. sqlite3 remains available when you select it. Do not assume every old tutorial's sqlite3 paths still match a fresh Jazzy record.
+Cross-check (2026-11-04, Asia/Shanghai): on the **`jazzy`** branch of `ros2/rosbag2`, `rosbag2_storage::get_default_storage_id()` in `default_storage_id.cpp` **returns `"mcap"`**. Iron's release notes first switched the default writer to MCAP; Jazzy keeps that default. sqlite3 remains available when you select it. Do not assume every old tutorial's sqlite3 paths still match a fresh Jazzy record. MCAP's own ROS 2 getting-started is at [mcap.dev/guides/getting-started/ros-2](https://mcap.dev/guides/getting-started/ros-2).
 
 ## Bag stats toy
 
@@ -93,17 +93,333 @@ ok: fixture storage_id is mcap (Jazzy rosbag2 default)
 
 </SimOutput>
 
-Fixture `storage_id=mcap`, duration 2 s. `/joint_states` ≈ 49 Hz with **1** gap vs 50 Hz nominal; `/tf` ≈ 29 Hz with **2** gaps; camera 15 Hz clean. **total_gap_events=3**. Replay the same ideas in Foxglove or Rerun on a real bag on your machine (not run here). For training curves, SmolVLA / GR00T docs expose wandb flags — use them in *your* fine-tune runs.
+Fixture `storage_id=mcap`, duration 2 s. `/joint_states` ≈ 49 Hz with **1** gap vs 50 Hz nominal; `/tf` ≈ 29 Hz with **2** gaps; camera 15 Hz clean. **total_gap_events=3**. Replay the same ideas in Foxglove or Rerun on a real bag on your machine (not run here). For training curves, SmolVLA / GR00T docs expose wandb flags — use them in *your* fine-tune runs. Live bag record / Foxglove / Rerun / wandb = **本页未运行**.
+
+## Bag acceptance ≠ folder exists
+
+A folder on disk is not a valid recording. `bag_qos_accept_toy.py` gates synthetic timelines with three checks (all must pass):
+
+1. **Required topics present with `n > 0`.** Missing `/camera/color/image_raw` with `n==0` → **REJECT** even if the folder exists.
+2. **Gap budget.** Inter-arrival gaps above `1.5×` the nominal period; more than `max_gaps_allowed=2` on a required topic → **REJECT**.
+3. **Message budget.** Each required topic must meet a pinned `budget_min` (`n >= budget_min`). Fixed demo rows: `n=100` vs `budget_min=90` → PASS; `n=10` vs `budget_min=50` → FAIL. **Do not swap those comparisons.**
+
+### Request vs Offered, recorder adapt, and durability (F1)
+
+ROS 2 QoS uses a **Request vs Offered** model ([About QoS Settings — Jazzy](https://docs.ros.org/en/jazzy/Concepts/Intermediate/About-Quality-of-Service-Settings.html); RST mirror: `ros2/ros2_documentation` jazzy `About-Quality-of-Service-Settings.rst`). Subscriptions **request** a minimum quality; publishers **offer** a maximum. A connection forms only if **every** requested policy is not more stringent than the offered one. Incompatible reliability or durability ⇒ no match ⇒ no messages delivered (a recorder whose **override** requests too much looks “empty” on that topic).
+
+**Recorder default vs overrides** (Jazzy [rosbag2 README — Overriding QoS Profiles](https://github.com/ros2/rosbag2/blob/jazzy/README.md); raw `https://raw.githubusercontent.com/ros2/rosbag2/jazzy/README.md`):
+
+- **Default (no override):** rosbag2 **adapts** its *requested* subscription QoS to the publishers’ *offered* profiles. Source code: `Rosbag2QoS::adapt_request_to_offers` in [`rosbag2_storage/.../qos.cpp`](https://github.com/ros2/rosbag2/blob/jazzy/rosbag2_storage/src/rosbag2_storage/qos.cpp), called from the recorder’s `subscription_qos_for_topic` when no override is set ([`recorder.cpp`](https://github.com/ros2/rosbag2/blob/jazzy/rosbag2_transport/src/rosbag2_transport/recorder.cpp)). Rules in Jazzy `qos.cpp`:
+  - **History:** `keep_last(max offered depth)` if that depth > 1; otherwise (e.g. every publisher offers `keep_last` depth=1) it falls back to **`keep_all`** (DEBUG log: “Falling back to the RMW_QOS_POLICY_HISTORY_KEEP_ALL”).
+  - **Reliability:** `reliable` only if **all** publishers offer reliable; if publishers mix reliable/best_effort it falls back to **`best_effort`** and logs a WARN — it still connects to every publisher, but some messages from reliable publishers may be dropped.
+  - **Durability:** `transient_local` only if **all** publishers offer transient_local; if they mix transient_local/volatile it falls back to **`volatile`** and logs a WARN — it still connects, but previously published latched messages are not retrieved.
+  - So the default adapt never produces “no connection”; mixed publishers only cost reliability / retention semantics.
+- **Overrides:** `--qos-profile-overrides-path` forces a **manual requested** profile for named topics (same README; `recorder.cpp` returns the override and skips adapt). Use it when the default adapt is wrong for your late-join / latching case. **This is the only path to “no connection / nothing recorded” here:** an override that requests more than any publisher offers (e.g. `reliable` against a best_effort publisher, `transient_local` against a volatile publisher) fails RxO matching ⇒ `n==0` on that topic.
+
+**Durability and late joiners** (About QoS durability + compat table):
+
+- **Volatile:** delivers only samples published *after* the subscriber joins. A late-joining recorder on a volatile topic **misses prior samples**.
+- **Transient local:** the publisher may keep history for late-joining subscriptions **while that publisher is still alive** and still offering transient_local, with history (`keep_last` depth or `keep_all`) actually holding samples. This is **not** inventing out-of-process DDS persistence beyond transient_local.
+- Prerequisites for retained samples: live publisher offering transient_local; history cache non-empty; subscriber request compatible (transient_local request needs a transient_local offer). Pub Volatile + Sub Transient local ⇒ **no communication**.
+
+**Durability compatibility** (About QoS — Compatibility of durability QoS policies):
+
+| Publisher | Subscription | Compatible | Result |
+|---|---|---|---|
+| Volatile | Volatile | Yes | New messages only |
+| Volatile | Transient local | **No** | No communication |
+| Transient local | Volatile | Yes | New messages only |
+| Transient local | Transient local | Yes | New + retained |
+
+To get “latched” behaviour for late joiners, **both** sides must agree on transient local.
+
+**Exercise (no hardware / no real bag):** Given this synthetic *offered* list —
+
+| Topic | Offered |
+|---|---|
+| `/tf_static` | reliable + transient_local, keep_last depth=1 (one publisher) |
+| `/joint_states` | best_effort + volatile, keep_last depth=10 (one publisher) |
+| `/camera/color/image_raw` | reliable + volatile, keep_last depth=5 (one publisher) |
+
+Use only the `qos.cpp` rules above (max depth ≤ 1 ⇒ `keep_all`; reliable/transient_local only if every publisher offers it). Derive: (1) the *requested* history / reliability / durability that default `adapt_request_to_offers` picks on each topic (note `/tf_static` depth=1 ⇒ `keep_all`); (2) what changes if a second `/joint_states` publisher offering reliable appears (mixed ⇒ best_effort + WARN, still connected), and when you would write an override YAML instead; (3) if an override YAML requested `transient_local` on `/camera/color/image_raw` (volatile offer), which acceptance fixture shows the result — no RxO match ⇒ `n==0` on a required topic ⇒ `missing_topic.json` **REJECT** (`missing_required_topic`). Point at `bag_qos_accept_toy.py` + `accept_fixtures/` — JSON timelines only; no binary MCAP in CI.
+
+### QoS override YAML keys and sources
+
+When recording or playing back, rosbag2 accepts `--qos-profile-overrides-path` pointing at a YAML map of topic → QoS fields. Keys verified from the Jazzy README example:
+
+`history`, `depth`, `reliability`, `durability`, `deadline` (`sec`/`nsec`), `lifespan` (`sec`/`nsec`), `liveliness`, `liveliness_lease_duration` (`sec`/`nsec`), `avoid_ros_namespace_conventions`.
+
+**Sources (after the concepts above):** the Jazzy README is the source for those YAML **keys** (its example uses `durability: volatile`); the README has no durability compatibility table — that table, used above, comes from About QoS (Jazzy). Recorder adapt rules come from Jazzy `qos.cpp`. Do not invent keys beyond the README. The docs.ros.org How-To on overriding QoS for recording/playback is **optional** when About QoS + Jazzy README + recorder source already cover the teaching. No “open in browser for 403” workaround.
+
+No binary `.mcap` / real bags enter CI — JSON fixtures under `accept_fixtures/` only.
+
+
+```bash
+$ python3 bag_qos_accept_toy.py
+```
+
+<CodeSource path="examples/month-8/robot-devops/bag_qos_accept_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""bag_qos_accept_toy.py: synthetic rosbag2/MCAP *acceptance* gate (stdlib).
+
+Acceptance ≠ "the bag folder exists". A recording is accepted only when:
+  1. every required topic is present with n > 0 messages
+  2. inter-arrival gaps stay within max_gaps_allowed (1.5× nominal period)
+  3. per-topic message counts meet a fixed message budget (n >= budget_min)
+
+QoS override YAML keys are taken from the ros2/rosbag2 **jazzy** README
+section "Overriding QoS Profiles":
+  https://github.com/ros2/rosbag2/blob/jazzy/README.md
+  (raw: https://raw.githubusercontent.com/ros2/rosbag2/jazzy/README.md)
+That README verifies the YAML *keys* (example uses durability: volatile).
+The Request vs Offered model and durability compatibility table live in
+About QoS Settings (Jazzy):
+  https://docs.ros.org/en/jazzy/Concepts/Intermediate/About-Quality-of-Service-Settings.html
+Recorder default adapt: Rosbag2QoS::adapt_request_to_offers
+  (rosbag2_storage/.../qos.cpp; called from recorder.cpp when no override).
+  Mixed reliable/best_effort -> best_effort, mixed transient_local/volatile
+  -> volatile (WARN, still connects); max offered depth <= 1 -> keep_all.
+
+MCAP ROS 2 getting-started: https://mcap.dev/guides/getting-started/ros-2
+docs.ros.org QoS How-To for record/playback: optional when About QoS +
+Jazzy README + recorder source already cover the teaching.
+
+No binary .mcap / real bags in CI — JSON timeline fixtures only.
+Live bag record, Foxglove, Rerun, wandb = 本页未运行.
+
+usage: python3 bag_qos_accept_toy.py
+"""
+from __future__ import annotations
+
+import json
+import os
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+FIX = os.path.join(HERE, "accept_fixtures")
+QOS_YAML = os.path.join(FIX, "qos_override.yaml")
+
+# Keys from jazzy README example under "Overriding QoS Profiles".
+JAZZY_README_QOS_KEYS = (
+    "history",
+    "depth",
+    "reliability",
+    "durability",
+    "deadline",
+    "lifespan",
+    "liveliness",
+    "liveliness_lease_duration",
+    "avoid_ros_namespace_conventions",
+)
+
+REQUIRED_TOPICS = (
+    "/joint_states",
+    "/camera/color/image_raw",
+    "/tf",
+)
+
+# Fixed message-budget table — do NOT swap the pass/fail comparisons.
+# pass example: n=100 >= budget_min=90 → PASS
+# fail example: n=10  >= budget_min=50 → FAIL (reject)
+FIXED_BUDGET_PASS = {"label": "fixed_ok", "n": 100, "budget_min": 90}
+FIXED_BUDGET_FAIL = {"label": "fixed_fail", "n": 10, "budget_min": 50}
+
+# Per-topic budgets applied to fixture bags (messages over the recording).
+TOPIC_BUDGET_MIN = {
+    "/joint_states": 90,
+    "/camera/color/image_raw": 20,
+    "/tf": 50,
+}
+
+MAX_GAPS_ALLOWED = 2
+GAP_FACTOR = 1.5
+
+
+def count_gaps(stamps_ns: list[int], nominal_hz: float) -> int:
+    if len(stamps_ns) < 2 or nominal_hz <= 0:
+        return 0
+    period = 1e9 / nominal_hz
+    gaps = 0
+    for a, b in zip(stamps_ns, stamps_ns[1:]):
+        if (b - a) > GAP_FACTOR * period:
+            gaps += 1
+    return gaps
+
+
+def load_qos_keys(path: str) -> list[str]:
+    """Parse top-level per-topic keys from the override YAML (no PyYAML)."""
+    keys: list[str] = []
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            raw = line.rstrip("\n")
+            if not raw or raw.lstrip().startswith("#"):
+                continue
+            # topic header: "/name:" at column 0
+            if raw.startswith("/") and raw.endswith(":"):
+                continue
+            # policy line: two-space indent, "key:" or "key: value"
+            if raw.startswith("  ") and not raw.startswith("    "):
+                key = raw.strip().split(":", 1)[0]
+                if key not in keys:
+                    keys.append(key)
+    return keys
+
+
+def accept_bag(bag: dict) -> tuple[str, str, dict]:
+    """Return (decision, reason, detail). folder_exists alone never accepts."""
+    detail: dict = {
+        "folder_exists": bool(bag.get("folder_exists")),
+        "uri": bag.get("uri"),
+    }
+    if not bag.get("folder_exists"):
+        return "REJECT", "folder_missing", detail
+
+    by_name = {t["name"]: t for t in bag.get("topics", [])}
+
+    for req in REQUIRED_TOPICS:
+        topic = by_name.get(req)
+        n = 0 if topic is None else len(topic.get("stamps_ns", []))
+        detail[f"n:{req}"] = n
+        if topic is None or n == 0:
+            detail["missing_topic"] = req
+            return "REJECT", "missing_required_topic", detail
+
+    for req in REQUIRED_TOPICS:
+        topic = by_name[req]
+        gaps = count_gaps(topic["stamps_ns"], float(topic["nominal_hz"]))
+        detail[f"gaps:{req}"] = gaps
+        if gaps > MAX_GAPS_ALLOWED:
+            detail["gap_topic"] = req
+            return "REJECT", "gap_exceeded", detail
+
+    for req in REQUIRED_TOPICS:
+        n = len(by_name[req]["stamps_ns"])
+        budget = TOPIC_BUDGET_MIN[req]
+        detail[f"budget:{req}"] = budget
+        if n < budget:
+            detail["budget_topic"] = req
+            return "REJECT", "below_message_budget", detail
+
+    return "ACCEPT", "ok", detail
+
+
+def fixed_budget_demo() -> None:
+    """Pinned comparisons — swapping pass/fail numbers must not be done."""
+    ok = FIXED_BUDGET_PASS
+    bad = FIXED_BUDGET_FAIL
+    ok_pass = ok["n"] >= ok["budget_min"]
+    bad_pass = bad["n"] >= bad["budget_min"]
+    print(
+        f"fixed_budget_examples "
+        f"{ok['label']}: n={ok['n']} budget_min={ok['budget_min']} "
+        f"cmp=ge → {'PASS' if ok_pass else 'FAIL'}; "
+        f"{bad['label']}: n={bad['n']} budget_min={bad['budget_min']} "
+        f"cmp=ge → {'PASS' if bad_pass else 'FAIL'} "
+        f"(do not swap comparisons)"
+    )
+    assert ok_pass and not bad_pass
+    # Guard against accidental swap of the two example rows.
+    assert ok["n"] > bad["n"]
+    assert ok["budget_min"] > bad["budget_min"]
+
+
+def main() -> None:
+    qos_keys = load_qos_keys(QOS_YAML)
+    print("bag_qos_accept_toy fixtures=accept_fixtures seed=n/a (deterministic)")
+    print(f"qos_override_keys={','.join(qos_keys)}")
+    missing = [k for k in JAZZY_README_QOS_KEYS if k not in qos_keys]
+    extra = [k for k in qos_keys if k not in JAZZY_README_QOS_KEYS]
+    assert not missing and not extra, (missing, extra)
+    print(
+        "qos_source=ros2/rosbag2 jazzy README Overriding QoS Profiles (YAML keys); "
+        "durability compatibility table from Jazzy About QoS "
+        "(the rosbag2 README has no such table)"
+    )
+    print(
+        f"required_topics={','.join(REQUIRED_TOPICS)} "
+        f"max_gaps_allowed={MAX_GAPS_ALLOWED} gap_factor={GAP_FACTOR}"
+    )
+    fixed_budget_demo()
+
+    cases = [
+        "pass_clean.json",
+        "missing_topic.json",
+        "gap_heavy.json",
+        "budget_short.json",
+        "empty_folder.json",
+    ]
+    accept_n = 0
+    reject_n = 0
+    for name in cases:
+        with open(os.path.join(FIX, name), encoding="utf-8") as f:
+            bag = json.load(f)
+        decision, reason, detail = accept_bag(bag)
+        if decision == "ACCEPT":
+            accept_n += 1
+        else:
+            reject_n += 1
+        extra = ""
+        if reason == "missing_required_topic":
+            extra = f" topic={detail.get('missing_topic')} n=0"
+        elif reason == "gap_exceeded":
+            t = detail["gap_topic"]
+            extra = f" topic={t} gaps={detail[f'gaps:{t}']}"
+        elif reason == "below_message_budget":
+            t = detail["budget_topic"]
+            extra = (
+                f" topic={t} n={detail[f'n:{t}']} "
+                f"budget_min={detail[f'budget:{t}']}"
+            )
+        print(
+            f"case={bag['uri']} folder_exists={detail['folder_exists']} "
+            f"decision={decision} reason={reason}{extra}"
+        )
+
+    print(f"summary accept={accept_n} reject={reject_n}")
+    assert accept_n == 1 and reject_n == 4
+    print(
+        "ok: acceptance ≠ folder_exists; synthetic fixtures only "
+        "(no binary mcap; live bag/Foxglove/Rerun/wandb 本页未运行)"
+    )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+bag_qos_accept_toy fixtures=accept_fixtures seed=n/a (deterministic)
+qos_override_keys=history,depth,reliability,durability,deadline,lifespan,liveliness,liveliness_lease_duration,avoid_ros_namespace_conventions
+qos_source=ros2/rosbag2 jazzy README Overriding QoS Profiles (YAML keys); durability compatibility table from Jazzy About QoS (the rosbag2 README has no such table)
+required_topics=/joint_states,/camera/color/image_raw,/tf max_gaps_allowed=2 gap_factor=1.5
+fixed_budget_examples fixed_ok: n=100 budget_min=90 cmp=ge → PASS; fixed_fail: n=10 budget_min=50 cmp=ge → FAIL (do not swap comparisons)
+case=pass_clean folder_exists=True decision=ACCEPT reason=ok
+case=missing_topic folder_exists=True decision=REJECT reason=missing_required_topic topic=/camera/color/image_raw n=0
+case=gap_heavy folder_exists=True decision=REJECT reason=gap_exceeded topic=/joint_states gaps=4
+case=budget_short folder_exists=True decision=REJECT reason=below_message_budget topic=/joint_states n=21 budget_min=90
+case=empty_folder folder_exists=True decision=REJECT reason=missing_required_topic topic=/joint_states n=0
+summary accept=1 reject=4
+ok: acceptance ≠ folder_exists; synthetic fixtures only (no binary mcap; live bag/Foxglove/Rerun/wandb 本页未运行)
+```
+
+</SimOutput>
+
+One clean fixture **ACCEPT**s; four others **REJECT** (missing topic with `n=0`, gap exceeded, below message budget, empty folder that still “exists”). Acceptance is a gate on content, not on path existence.
 
 ## Common mistakes
 
 - **Putting Dev Container CI into this site's repo.** Student package CI ≠ Hardware-learning website CI.
 - **Assuming sqlite3 is still the default.** On Jazzy the default storage_id is mcap.
 - **Ignoring gap counts.** A "50 Hz" joint topic at 49 Hz with gaps is already a logging bug.
+- **Treating “folder exists” as bag acceptance.** Missing required topics (`n==0`), gap overruns or under-budget counts must reject.
+- **Inventing QoS YAML keys, or citing the rosbag2 README for `transient_local` compatibility.** Use only the README’s keys; take durability compatibility (Pub volatile + Sub transient_local ⇒ no connection) from About QoS, and remember only a too-strict override — not default adapt — yields no connection.
 - **Treating wandb as optional forever.** When you fine-tune (lesson 8.2), a run without hyperparams logged is hard to defend in the capstone README.
 
 <Summary>
 
-Pin ROS 2 with a Dev Container; build/test your packages with action-ros-ci (your repo). Jazzy rosbag2 defaults to mcap (`get_default_storage_id()` → `"mcap"`). `bag_stats.py` reports three gap events on a synthetic mcap timeline. Foxglove/Rerun/wandb are the replay and experiment tools; none of those GPU/GUI paths run on this page.
+Pin ROS 2 with a Dev Container; build/test your packages with action-ros-ci (your repo). Jazzy rosbag2 defaults to mcap (`get_default_storage_id()` → `"mcap"`). `bag_stats.py` reports three gap events on a synthetic mcap timeline. `bag_qos_accept_toy.py` rejects missing topics, gap overruns and under-budget counts; F1 covers Request vs Offered, default `adapt_request_to_offers` vs overrides, durability late-joiners (About QoS table), and YAML keys from the Jazzy README. Foxglove/Rerun/wandb are the replay and experiment tools; none of those GPU/GUI / live-bag paths run on this page.
 
 </Summary>

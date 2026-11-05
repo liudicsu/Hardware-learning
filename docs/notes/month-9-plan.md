@@ -24,4 +24,4 @@ Widgets deferred. No prices anywhere.
 
 Verification: `examples/month-9/check.sh`, check_quotes, check_diagrams, check_widgets, lint, check_wokwi, tsc, CI build.
 
-Deepen PR3 (+180): 9 lessons / **2 100 min**. Impedance commands effort; admittance commands motion through an explicit inner servo on the same mass/damper/spring/wall, disturbances and noise. Peak force, penetration and post-release settling compare chosen gains/interfaces, not universal safety. SO-101 stays Load proxy + admittance; external F/T elective. Site: 71 lessons / 16 050 min.
+Deepen PR3 (+180): 9 lessons / **2 100 min**. Impedance commands effort; admittance commands motion through an explicit inner servo on the same mass/damper/spring/wall, disturbances and noise. Peak force, penetration and post-release settling compare chosen gains/interfaces, not universal safety. SO-101 stays Load proxy + admittance; external F/T elective. Site was 71 lessons / 16 050 min before follow-up observability batch; see month-8-plan for current.

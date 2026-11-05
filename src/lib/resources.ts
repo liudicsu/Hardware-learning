@@ -1871,6 +1871,35 @@ export const resources: Record<string, Resource> = {
     license: { zh: "开源项目文档（Apache-2.0），© Hugging Face；仅提供外链", en: "Open-source project docs (Apache-2.0), © Hugging Face; external link only" },
     extra: true,
   },
+
+  "ros2-node-lifecycle": {
+    id: "ros2-node-lifecycle",
+    url: "https://design.ros2.org/articles/node_lifecycle.html",
+    title: { zh: "ROS 2 设计：托管节点生命周期", en: "ROS 2 design: managed node lifecycle" },
+    author: "Open Robotics / ROS 2 design authors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "托管节点主状态（Unconfigured/Inactive/Active/Finalized）与监管切换。本课玩具按此文；≠ ros2_control HardwareComponent SM。",
+      en: "Primary managed-node states (Unconfigured/Inactive/Active/Finalized) and supervisory transitions. This lesson's toy follows this article; ≠ ros2_control HardwareComponent SM.",
+    },
+    license: { zh: "设计文档；仅提供外链", en: "Design document; external link only" },
+    extra: true,
+  },
+  "ros2-tracing": {
+    id: "ros2-tracing",
+    url: "https://github.com/ros2/ros2_tracing",
+    title: { zh: "ros2_tracing（GitHub）", en: "ros2_tracing (GitHub)" },
+    author: "ros2 / ros2_tracing maintainers",
+    kind: "software",
+    cost: { zh: "免费 · 开源", en: "Free · open source" },
+    summary: {
+      zh: "基于 LTTng 的 ROS 2 追踪。本课仅文档概览；本页未运行 LTTng。",
+      en: "LTTng-based ROS 2 tracing. Docs overview only in this lesson; LTTng not run on this page.",
+    },
+    license: { zh: "开源（Apache-2.0）；仅提供外链", en: "Open source (Apache-2.0); external link only" },
+    extra: true,
+  },
   "ros2-control-hw-component": {
     id: "ros2-control-hw-component",
     url: "https://control.ros.org/jazzy/doc/ros2_control/hardware_interface/doc/writing_new_hardware_component.html",

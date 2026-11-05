@@ -1,0 +1,52 @@
+# QoS profile overrides — keys from ros2/rosbag2 jazzy README
+# section "Overriding QoS Profiles" (verified 2026-11-06).
+# That README shows the YAML schema; it does NOT document
+# transient_local compatibility / matching boundaries.
+/joint_states:
+  history: keep_last
+  depth: 10
+  reliability: reliable
+  durability: volatile
+  deadline:
+    sec: 0
+    nsec: 0
+  lifespan:
+    sec: 0
+    nsec: 0
+  liveliness: system_default
+  liveliness_lease_duration:
+    sec: 0
+    nsec: 0
+  avoid_ros_namespace_conventions: false
+/camera/color/image_raw:
+  history: keep_last
+  depth: 5
+  reliability: best_effort
+  durability: volatile
+  deadline:
+    sec: 0
+    nsec: 0
+  lifespan:
+    sec: 0
+    nsec: 0
+  liveliness: system_default
+  liveliness_lease_duration:
+    sec: 0
+    nsec: 0
+  avoid_ros_namespace_conventions: false
+/tf:
+  history: keep_last
+  depth: 100
+  reliability: reliable
+  durability: volatile
+  deadline:
+    sec: 0
+    nsec: 0
+  lifespan:
+    sec: 0
+    nsec: 0
+  liveliness: system_default
+  liveliness_lease_duration:
+    sec: 0
+    nsec: 0
+  avoid_ros_namespace_conventions: false

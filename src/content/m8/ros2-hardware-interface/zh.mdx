@@ -1,8 +1,8 @@
 本课是本站补充内容——第 7–11 个月不属于原六个月课程。
 
-第 4 个月的 ros2-control 课用的是现成或 mock 硬件。本课草拟真正的 <Term id="hardware-component">硬件组件</Term>，让 MoveIt 与控制器能驱动 SO-101 一类总线舵机。我们过一遍 <Term id="lifecycle-node">生命周期</Term> 回调、状态/命令导出、`read` / `write`、JointLimiter 启动日志，以及实时循环纪律。CPU 玩具统计总线抖动超时；`so101_hw/` 下的 C++ 插件只是骨架，供**你自己的** Jazzy 工作区使用——**本页未运行**。
+第 4 个月的 ros2-control 课用的是现成或 mock 硬件。本课草拟真正的 <Term id="hardware-component">硬件组件</Term>，让 MoveIt 与控制器能驱动 SO-101 一类总线舵机。我们过一遍硬件组件回调、状态/命令导出、`read` / `write`、JointLimiter 启动日志与实时循环纪律——并**单独**按设计文档演练 ROS 2 **托管节点** <Term id="lifecycle-node">生命周期</Term> 状态机，再对照它与 `HardwareComponentInterface` 的差异。CPU 玩具：`servo_bus_sim.py` 统计总线抖动超时；`lifecycle_sm_toy.py` 跑 configure/activate 脚本（含非法 activate 后的恢复）。`so101_hw/` 下的 C++ 插件只是骨架，供**你自己的** Jazzy 工作区使用——**本页未运行**。
 
-## 生命周期回调
+## 硬件组件回调
 
 control.ros.org（Jazzy）《Writing a Hardware Component》：类继承 `hardware_interface::{System|Actuator|Sensor}Interface`，实现 LifecycleNodeInterface 方法与接口钩子：
 
@@ -15,6 +15,200 @@ control.ros.org（Jazzy）《Writing a Hardware Component》：类继承 `hardwa
 - 每个控制周期的 **`read`** / **`write`**
 
 串口在 `on_configure` 打开；使能在 `on_activate`；`read` 把总线状态写入状态接口；`write` 下发命令。不要在 `read`/`write` 里分配内存或做会阻塞的 Hub 调用。
+
+## 托管节点生命周期 ≠ HardwareComponent 状态机
+
+<Resource id="ros2-node-lifecycle" />
+
+**锁定：** 下面的玩具实现的是 [design.ros2.org — Managed nodes](https://design.ros2.org/articles/node_lifecycle.html) 里的 **ROS 托管节点** 状态机，**不是** `HardwareComponentInterface` 状态机。二者绝不能等同。
+
+| | **托管 ROS 生命周期节点** | **ros2_control `HardwareComponentInterface`** |
+|---|---|---|
+| 是什么 | 按设计文档暴露生命周期服务/话题的节点 | 实现 `LifecycleNodeInterface` 的插件；**不是**独立托管节点 |
+| 谁切换 | 监管进程经生命周期服务 | `ResourceManager` / Controller Manager（`set_hardware_component_state` 等） |
+| 错误路径 | 设计：`ErrorProcessing` → Unconfigured 或 Finalized | 历史 issue 指出行为可能**并非**与设计文档 1:1——引 [ros2_control#2079](https://github.com/ros-controls/ros2_control/issues/2079) 作讨论，不当成第二个要实现的 SM |
+| 追踪 | 真实生命周期节点上的 `rcl_lifecycle_*` | 硬件路径未必发出相同 tracepoint——如实说明 |
+
+API 指针：[`HardwareComponentInterface`](https://control.ros.org/rolling/doc/api/classhardware__interface_1_1HardwareComponentInterface.html)。Controller Manager 的精确切换表随发行版漂移——散文级对照即可；玩具只停在托管节点设计 SM。
+
+设计中的主状态：`Unconfigured`、`Inactive`、`Active`、`Finalized`。从 `Unconfigured` 合法离开是 `configure` → `Inactive` 与 `shutdown` → `Finalized`。**从 `Unconfigured` 发 `activate` 非法**，必须 **拒绝**（主状态不变）。这**不**表示节点永远到不了 Active——随后合法的 `configure` 再 `activate` 可以成功。玩具必须展示恢复路径，绝不能教「一次非法 activate ⇒ 永久死亡」。
+
+### `lifecycle_sm_toy.py`
+
+脚本 A：`configure` → `activate` → `Active`（`illegal_rejects=0`）。  
+脚本 B：从 `Unconfigured` 非法 `activate` → 拒绝；再 `configure` → `activate` → `Active`（`illegal_rejects=1`，仍 `reached_active=1`）。  
+脚本 C：`configure` → `activate` → `shutdown` → `Finalized`（`reached_active=1`，`final_state=Finalized`）。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-8/ros2-hardware-interface
+$ python3 lifecycle_sm_toy.py
+```
+
+<CodeSource path="examples/month-8/ros2-hardware-interface/lifecycle_sm_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""lifecycle_sm_toy.py: ROS 2 *managed-node* lifecycle state machine (stdlib).
+
+LOCKED: this toy implements the managed ROS lifecycle node SM from
+  https://design.ros2.org/articles/node_lifecycle.html
+It is NOT the ros2_control HardwareComponentInterface state machine.
+Hardware components are plugins transitioned by ResourceManager /
+Controller Manager; do not equate the two SMs (see lesson MDX contrast).
+
+Primary states (design): Unconfigured, Inactive, Active, Finalized.
+Supervisory transitions used here: configure, activate, deactivate,
+cleanup, shutdown. Illegal requests are rejected and leave the primary
+state unchanged — they do NOT permanently brick the node.
+
+Script A: configure → activate → Active.
+Script B: activate from Unconfigured (illegal, reject) → still
+          Unconfigured; then configure → activate → Active (recovery).
+Script C: configure → activate → shutdown → Finalized.
+Metrics: illegal_rejects, reached_active, final_state.
+
+Tracing / LTTng / real HardwareComponent load = 本页未运行.
+usage: python3 lifecycle_sm_toy.py
+"""
+from __future__ import annotations
+
+# Primary states from the design doc.
+UNCONFIGURED = "Unconfigured"
+INACTIVE = "Inactive"
+ACTIVE = "Active"
+FINALIZED = "Finalized"
+
+# Legal edges: (state, transition) -> new_state
+# From design: Unconfigured --configure--> Inactive
+#              Unconfigured --shutdown--> Finalized
+#              Inactive --activate--> Active
+#              Inactive --cleanup--> Unconfigured
+#              Inactive --shutdown--> Finalized
+#              Active --deactivate--> Inactive
+#              Active --shutdown--> Finalized
+LEGAL = {
+    (UNCONFIGURED, "configure"): INACTIVE,
+    (UNCONFIGURED, "shutdown"): FINALIZED,
+    (INACTIVE, "activate"): ACTIVE,
+    (INACTIVE, "cleanup"): UNCONFIGURED,
+    (INACTIVE, "shutdown"): FINALIZED,
+    (ACTIVE, "deactivate"): INACTIVE,
+    (ACTIVE, "shutdown"): FINALIZED,
+}
+
+
+class ManagedLifecycleNode:
+    """Minimal managed-node lifecycle — design adjacency only."""
+
+    def __init__(self) -> None:
+        self.state = UNCONFIGURED
+        self.illegal_rejects = 0
+        self.transition_log: list[str] = []
+
+    def request(self, transition: str) -> bool:
+        key = (self.state, transition)
+        if key not in LEGAL:
+            self.illegal_rejects += 1
+            self.transition_log.append(
+                f"{transition}:REJECT(from={self.state})"
+            )
+            return False
+        new_state = LEGAL[key]
+        self.transition_log.append(
+            f"{transition}:OK({self.state}->{new_state})"
+        )
+        self.state = new_state
+        return True
+
+
+def run_script(name: str, steps: list[str]) -> dict:
+    node = ManagedLifecycleNode()
+    for step in steps:
+        node.request(step)
+    # reached_active: successfully entered Active at least once
+    reached = 1 if any("->Active" in e for e in node.transition_log) else 0
+    result = {
+        "script": name,
+        "steps": steps,
+        "illegal_rejects": node.illegal_rejects,
+        "reached_active": reached,
+        "final_state": node.state,
+        "log": node.transition_log,
+    }
+    return result
+
+
+def main() -> None:
+    print(
+        "lifecycle_sm_toy sm=ros2_managed_node "
+        "source=design.ros2.org/articles/node_lifecycle.html"
+    )
+    print(
+        "note: NOT HardwareComponentInterface SM; "
+        "ResourceManager transitions that plugin (prose map only)"
+    )
+
+    a = run_script("A", ["configure", "activate"])
+    b = run_script("B", ["activate", "configure", "activate"])
+    c = run_script("C", ["configure", "activate", "shutdown"])
+
+    for r in (a, b, c):
+        print(
+            f"script_{r['script']}: steps={','.join(r['steps'])} "
+            f"illegal_rejects={r['illegal_rejects']} "
+            f"reached_active={r['reached_active']} "
+            f"final_state={r['final_state']}"
+        )
+        print(f"script_{r['script']}_log={' | '.join(r['log'])}")
+
+    assert a["illegal_rejects"] == 0
+    assert a["reached_active"] == 1
+    assert a["final_state"] == ACTIVE
+
+    assert b["illegal_rejects"] == 1
+    assert b["reached_active"] == 1
+    assert b["final_state"] == ACTIVE
+    # LOCKED: illegal activate must NOT mean permanently dead.
+    assert b["final_state"] == ACTIVE
+    print("never_permanent_death_after_illegal_activate=1")
+
+    assert c["illegal_rejects"] == 0
+    assert c["reached_active"] == 1
+    assert c["final_state"] == FINALIZED
+    print("reached_finalized_via_shutdown=1")
+    print(
+        "ok: managed-node lifecycle toy "
+        "(LTTng/ros2_tracing/HW plugin load 本页未运行)"
+    )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+lifecycle_sm_toy sm=ros2_managed_node source=design.ros2.org/articles/node_lifecycle.html
+note: NOT HardwareComponentInterface SM; ResourceManager transitions that plugin (prose map only)
+script_A: steps=configure,activate illegal_rejects=0 reached_active=1 final_state=Active
+script_A_log=configure:OK(Unconfigured->Inactive) | activate:OK(Inactive->Active)
+script_B: steps=activate,configure,activate illegal_rejects=1 reached_active=1 final_state=Active
+script_B_log=activate:REJECT(from=Unconfigured) | configure:OK(Unconfigured->Inactive) | activate:OK(Inactive->Active)
+script_C: steps=configure,activate,shutdown illegal_rejects=0 reached_active=1 final_state=Finalized
+script_C_log=configure:OK(Unconfigured->Inactive) | activate:OK(Inactive->Active) | shutdown:OK(Active->Finalized)
+never_permanent_death_after_illegal_activate=1
+reached_finalized_via_shutdown=1
+ok: managed-node lifecycle toy (LTTng/ros2_tracing/HW plugin load 本页未运行)
+```
+
+</SimOutput>
+
+### 追踪素养（可选）
+
+<Resource id="ros2-tracing" />
+
+[`ros2/ros2_tracing`](https://github.com/ros2/ros2_tracing) 与 `rcl_lifecycle_transition` tracepoint 可给**托管**生命周期节点做仪器。文献中的开销数字（如 [arXiv 2201.00393v3](https://arxiv.org/html/2201.00393v3)）只作论文图引用。**LTTng / 真机追踪 = 本页未运行。** 不要声称硬件组件切换被同样仪器化。
 
 ## JointLimiter
 
@@ -121,6 +315,8 @@ ok: CPU bus jitter toy (no real STS3215 bus, page not run)
 
 ## 常见错误
 
+- **把托管节点生命周期服务等同于 HardwareComponent 切换。** 发起者不同；玩具只做托管节点。
+- **教「非法 activate ⇒ 永久死亡」。** 拒绝、留在 Unconfigured，再经 configure → activate 恢复。
 - **在 `read` 里打开串口。** 只在 `on_configure` 配置一次，保证周期确定。
 - **每次 `write` 都 `new` 向量。** 在 configure 时预分配。
 - **不做 JointLimiter。** 8.5 的软件看门狗不能代替向 ros2_control 声明位置/速度限制。
@@ -128,6 +324,6 @@ ok: CPU bus jitter toy (no real STS3215 bus, page not run)
 
 <Summary>
 
-编写 ros2_control 硬件组件：生命周期 `on_init`/`configure`/`activate`/…、导出状态/命令接口、`read`/`write`、JointLimiter 日志、实时纪律（热路径不分配、不阻塞）。`servo_bus_sim.py` 用预算守卫把超时从 122 降到 0。`so101_hw/` 是给你 Jazzy 工作区的骨架——本页未运行。
+编写 ros2_control 硬件组件：生命周期 `on_init`/`configure`/`activate`/…、导出状态/命令接口、`read`/`write`、JointLimiter 日志、实时纪律（热路径不分配、不阻塞）。另用 `lifecycle_sm_toy.py` 演练**托管节点** SM（非法 activate 被拒后仍可恢复到 Active；脚本 C 经 shutdown 到达 Finalized），并对照 `HardwareComponentInterface`——二者不是同一状态机。`servo_bus_sim.py` 用预算守卫把超时从 122 降到 0。`so101_hw/` 是给你 Jazzy 工作区的骨架——本页未运行。LTTng / 真机加载本页未运行。
 
 </Summary>
