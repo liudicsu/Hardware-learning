@@ -70,7 +70,7 @@ print(f"V_drop_peak={V_drop:.3f}")
 print(f"V_at_load={V_at_load:.3f}")
 print(f"fuse_A={fuse_A:.1f}")
 print(f"fuse_margin={margin:.3f}")
-print(f"pass_12v_floor={str(V_at_load >= V_floor).lower()}")
+print(f"pass_11v_floor={str(V_at_load >= V_floor).lower()}")
 ```
 
 
@@ -87,7 +87,7 @@ V_drop_peak=0.432
 V_at_load=11.568
 fuse_A=10.0
 fuse_margin=0.926
-pass_12v_floor=true
+pass_11v_floor=true
 ```
 
 </SimOutput>
@@ -95,7 +95,7 @@ pass_12v_floor=true
 How to read it:
 
 - Peak total **10.80** A already sits above a 10 A fuse rating — fuse_margin = **0.926** (fuse / peak &lt; 1) warns that a slow-blow fuse can ride a short spike, but sustained stall is not fine; size from your servo datasheet.
-- 0.0400 Ω of wire drops **0.432** V at peak, leaving **11.568** V at the load, still above the 11 V floor (`pass_12v_floor=true`). Longer or thinner wire hits the floor first.
+- 0.0400 Ω of wire drops **0.432** V at peak, leaving **11.568** V at the load, still above the 11 V floor (`pass_11v_floor=true`). R here is a **one-way conductor** resistance (R = ρ·L, length is supply-to-load one way; a symmetric return would double it — this toy uses the one-way example). Longer or thinner wire hits the floor first.
 - These currents are **example assumptions**; this site has not measured whole SO-101 peak current.
 
 Probing peak current with a clamp or scoping a ground loop is not run on this page. No power analyser purchase.

@@ -8,4 +8,4 @@ V_drop_peak=0.432
 V_at_load=11.568
 fuse_A=10.0
 fuse_margin=0.926
-pass_12v_floor=true
+pass_11v_floor=true

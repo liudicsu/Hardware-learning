@@ -54,7 +54,7 @@ npm run dev         # http://localhost:3000 → redirects to /zh; /en for Englis
 Production build:
 
 ```bash
-npm run build       # prerenders every page (2 locales × home, about, resources, 10 months, 64 lessons)
+npm run build       # prerenders every page (2 locales × home, about, resources, 11 months, 67 lessons)
 npm start           # serves the build on http://localhost:3000 (npm start -- -p 3100 for another port)
 ```
 

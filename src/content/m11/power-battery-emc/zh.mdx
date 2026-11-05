@@ -70,7 +70,7 @@ print(f"V_drop_peak={V_drop:.3f}")
 print(f"V_at_load={V_at_load:.3f}")
 print(f"fuse_A={fuse_A:.1f}")
 print(f"fuse_margin={margin:.3f}")
-print(f"pass_12v_floor={str(V_at_load >= V_floor).lower()}")
+print(f"pass_11v_floor={str(V_at_load >= V_floor).lower()}")
 ```
 
 
@@ -87,7 +87,7 @@ V_drop_peak=0.432
 V_at_load=11.568
 fuse_A=10.0
 fuse_margin=0.926
-pass_12v_floor=true
+pass_11v_floor=true
 ```
 
 </SimOutput>
@@ -95,7 +95,7 @@ pass_12v_floor=true
 怎么读：
 
 - 峰值总电流 **10.80** A，已经略高于 10 A 熔断额定——fuse_margin = **0.926**（熔断 / 峰值 &lt; 1）提醒你：慢熔可以扛短时尖峰，但持续堵转不行；真正选型要以你的舵机数据手册为准。
-- 导线电阻 0.0400 Ω 在峰值下压降 **0.432** V，负载端 **11.568** V，仍过 11 V 地板（`pass_12v_floor=true`）。把线加长或改细，压降会先碰到地板。
+- 导线电阻 0.0400 Ω 在峰值下压降 **0.432** V，负载端 **11.568** V，仍过 11 V 地板（`pass_11v_floor=true`）。玩具里的 R 是**单程导线**电阻（R = ρ·L，长度用电源到负载的单程；回程若对称再乘 2，本玩具按单程示例）。把线加长或改细，压降会先碰到地板。
 - 这些电流是**示例假设**；SO-101 整机真实峰值本站未测。
 
 真机用电流钳量一次峰值、用示波器看地环路——本页未运行。不要求购买电源分析仪。

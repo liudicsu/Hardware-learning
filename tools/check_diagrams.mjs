@@ -3581,7 +3581,7 @@ const lessonRef = (n, slug, lang) => {
       grab(pwr, /V_drop_peak=([0-9.]+)/, "pwr V_drop_peak"),
       grab(pwr, /V_at_load=([0-9.]+)/, "pwr V_at_load"),
       grab(pwr, /fuse_margin=([0-9.]+)/, "pwr fuse_margin"),
-      grab(pwr, /pass_12v_floor=(true|false)/, "pwr pass_12v_floor"),
+      grab(pwr, /pass_11v_floor=(true|false)/, "pwr pass_11v_floor"),
     ],
     "foc-actuator-lab": [
       grab(foc, /theta_rad=([0-9.]+)/, "foc theta"),
@@ -3598,7 +3598,7 @@ const lessonRef = (n, slug, lang) => {
       grab(tac, /anyskin_plug_swap=([0-9.]+)/, "tac plug_swap"),
     ],
   };
-  ok(/pass_12v_floor=true/.test(pwr), "m11 pwr: load stays above 11 V floor");
+  ok(/pass_11v_floor=true/.test(pwr), "m11 pwr: load stays above 11 V floor");
   ok(/id_err=0\.000e\+00/.test(foc) && /iq_err=0\.000e\+00/.test(foc), "m11 foc: round-trip id/iq err 0");
   ok(/sum_abc=0\.000e\+00/.test(foc), "m11 foc: sum_abc 0");
   ok(/anyskin_replace_s=12/.test(tac) && /anyskin_slip_acc=0\.92/.test(tac), "m11 tac: AnySkin 12 s / 0.92");
