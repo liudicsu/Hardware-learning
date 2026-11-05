@@ -13,7 +13,7 @@ Open X-Embodiment（OXE）把许多机器人数据集合进同一生态，让单
 
 ## OXE-AugE 一段话（以论文为准）
 
-OXE-AugE 对 **16** 个常用子集做机器人外观增强，报告约 **4.4M** 轨迹——超过原 OXE 池 **3** 倍。在增强混合上微调 OpenVLA / π0，在未见过的臂–夹爪组合上成功率约提升 **24–45 %**（摘要；以论文为准）。本课不下载、不训练这两个模型。
+OXE-AugE 对 **16** 个常用子集做机器人外观增强，报告约 **4.4M** 轨迹——超过原 OXE 池 **3** 倍。摘要报告 OpenVLA / π0 在未见臂–夹爪组合上约 **24–45 %** 提升；A.5 用部分得分均值，不是二值成功率。提升分母（绝对还是相对）在这里不确定，以论文为准。本课不下载、不训练这两个模型。
 
 ## 学员动作
 
@@ -37,7 +37,8 @@ $ python3 oxe_imbalance_toy.py
 The counts below are **synthetic** — they are NOT Open X-Embodiment (OXE) real
 cardinality. Real OXE / OXE-AugE numbers used in the lesson prose (1M+, 22
 embodiments, top-4 >85 %, 4.4M, 24–45 %) are printed as separate paper constants
-and must not be confused with this table. Take the papers / project pages as
+and must not be confused with this table. The 24–45 % lift denominator is
+uncertain here; A.5 score means are not binary success rates. Take papers as
 source of truth. Downloading OXE or training is not run on this page.
 Deterministic: no random draws, so there is no seed.
 """
@@ -96,6 +97,112 @@ oxe_auge_success_lift_hi=45
 - 截断逆频 `max_weight=7.188`；再加权质量仍是 **1150000.0**，因为权重只重缩放行，不发明新示范。
 - 论文常量 **1**（M+）、**22**、**85**、**4.4**、**3**、**24** / **45** 与表无关；以论文 / 项目页为准。
 
+### 分阶段增强，以及不能转移什么（+150 分钟）
+
+已打开 [OXE-AugE HTML §4.2 与附录 A.5](https://arxiv.org/html/2512.13100v1)，以论文为准。把流程读成四道检查，而不是「给机械臂换颜色就宣布迁移」：
+
+| 阶段 | 输入 → 输出 | 审核 / 失败模式 |
+|---|---|---|
+| 掩码融合（mask fusion） | SAM2 学习掩码 + 仿真机器人掩码 → 对齐、裁剪、平滑的掩码 | 查夹爪边界与背景遗漏；错掩码会擦掉物体。 |
+| 补绘（inpaint） | 遮住源机器人的视频 → 重建背景（E2FGVI） | 查时间闪烁与幻觉物体边缘。 |
+| 基座位置调节（base-position tune） | 源末端轨迹 + 目标运动学 → 可行基座平移 | 用回放跟踪误差决定接受/拒绝；不可达就丢弃，不能编造动作。 |
+| 回放合成（replay/composite） | 目标机器人回放渲染 + 重建背景 → 增强视频 | 查机器人/物体遮挡以及位姿/动作对齐。 |
+
+CPU 玩具里的阶段名是文档常量，**并未实现** SAM2、补绘、IK 或渲染。外观增强保留任务/场景意图，不保留接触动力学；不同夹爪可能需要不同策略。明确源/增强/留出本体身份；增强前先按原始轨迹划分数据，避免同源变体泄漏进训练与测试。这补充而非替代 8.1 的单臂审计。
+
+### A.5：部分得分不是二值成功
+
+| 达到的最高里程碑 | 分数 |
+|---|---:|
+| 朝物体运动并尝试抓取 | 0.3 |
+| 抓住物体 | 0.5 |
+| 携物朝正确目的地运动 | 0.8 |
+| 将物体放在目标位置 | 1.0 |
+
+每次试验记一个里程碑分数，不把阶段相加。A.5 每策略、每本体做 **10 次 × 4 任务 = 40** 次，报告**分数均值 ± 标准误**；这与完整放置的比例不同。合成玩具对未达任何里程碑显式约定记 0，A.5 未明确该情况。玩具 SE 用样本标准差 / sqrt(40)，假定各次独立；共享任务条件或相关性需要更谨慎的不确定性分析。这里不重建论文试验结果或误差条。
+
+摘要与 §6.2 将 **24–45 %** 提升称为「success」，但 A.5 的分数均值**不是二值成功率**。这里对该提升的分母、绝对还是相对解释仍**不确定**：不能擅自改成百分点，或不交代基线与汇总方法就重算相对提升；图表与论文定义优先。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-11/cross-embodiment-datasets
+$ python3 oxe_auge_score_toy.py
+```
+
+<CodeSource path="examples/month-11/cross-embodiment-datasets/oxe_auge_score_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""A.5-style partial scores vs binary completion on SYNTHETIC equal trials.
+
+Documentation constants describe AugE-Toolkit stages, not a CPU implementation
+of segmentation/inpainting/IK/rendering. No real OXE counts or paper outcomes.
+A.5: .3 attempt, .5 grasp, .8 carry towards target, 1.0 correct placement.
+Zero below is OUR convention for no milestone (A.5 does not specify it).
+Sample SE assumes independent trials; it is not the paper's error bar.
+"""
+import math
+import random
+import statistics
+
+SEED = 29
+STAGES = ("mask_fusion", "inpaint", "base_position_tune", "replay_composite")
+# Four tasks, ten trials each; deterministic synthetic outcome distribution.
+TASK_SCORES = [
+    [0, .3, .3, .5, .5, .8, .8, 1, 1, 1],
+    [0, 0, .3, .3, .5, .5, .8, .8, 1, 1],
+    [0, .3, .3, .3, .5, .5, .5, .8, 1, 1],
+    [0, 0, .3, .5, .5, .8, .8, .8, 1, 1],
+]
+rng = random.Random(SEED)
+for scores in TASK_SCORES:
+    rng.shuffle(scores)
+flat = [score for scores in TASK_SCORES for score in scores]
+binary = [float(score == 1) for score in flat]
+
+
+def mean_se(values):
+    return statistics.mean(values), statistics.stdev(values) / math.sqrt(len(values))
+
+
+mean, se = mean_se(flat)
+full, full_se = mean_se(binary)
+assert len(flat) == 40 and all(len(task) == 10 for task in TASK_SCORES)
+assert mean > full  # partial progress is not binary placement
+print(f"seed={SEED}")
+print("data=synthetic_not_paper_results")
+print("stages=" + "->".join(STAGES))
+print("rubric=0.3_attempt,0.5_grasp,0.8_carry,1.0_place")
+print("zero=no_milestone_toy_convention")
+print(f"tasks={len(TASK_SCORES)} trials_per_task=10 trials={len(flat)}")
+print(f"partial_score_mean={mean:.4f}")
+print(f"partial_score_se={se:.4f}")
+print(f"binary_completion_mean={full:.4f}")
+print(f"binary_completion_se={full_se:.4f}")
+print(f"full_placements={int(sum(binary))}/40")
+print("paper_24_45_percent_denominator=uncertain_absolute_vs_relative")
+```
+
+<SimOutput source="model">
+
+```text
+seed=29
+data=synthetic_not_paper_results
+stages=mask_fusion->inpaint->base_position_tune->replay_composite
+rubric=0.3_attempt,0.5_grasp,0.8_carry,1.0_place
+zero=no_milestone_toy_convention
+tasks=4 trials_per_task=10 trials=40
+partial_score_mean=0.5575
+partial_score_se=0.0546
+binary_completion_mean=0.2250
+binary_completion_se=0.0669
+full_placements=9/40
+paper_24_45_percent_denominator=uncertain_absolute_vs_relative
+```
+
+</SimOutput>
+
+同一批 **40** 个合成试验：部分得分均值 **0.5575 ± 0.0546**（SE），而二值完整放置均值 **0.2250 ± 0.0669**（SE），共 **9/40** 次完整放置。两者都不是 OXE 实测。把一次只抓住的 0.5 改为携物的 0.8：部分均值会变，二值完成率不变。报告时写清两个分母，不把部分均值命名成二值成功率。
+
 ## 硬件 / 算力：本页未运行
 
 - **CPU 玩具**是必做交付。
@@ -113,7 +220,7 @@ oxe_auge_success_lift_hi=45
 
 **要点**
 
-- OXE 汇聚多种臂；项目页：1M+ 轨迹、22 种本体。OXE-AugE：top-4 >85 %，外观增强后约 4.4M，未见臂–夹爪组合约提升 24–45 %（以论文为准）。
+- OXE 汇聚多种臂；项目页：1M+ 轨迹、22 种本体。OXE-AugE：top-4 >85 %，外观增强后约 4.4M，未见臂–夹爪组合报告约提升 24–45 %（分母不确定；A.5 分数均值 ≠ 二值成功率；以论文为准）。
 - 玩具 top4_share=0.8957 来自**合成**计数；max_weight=7.188。真实 OXE 计数不进 CI。
 - 统一 7D 动作（xyz + rpy + gripper）是阅读约定；下载 / 训练步骤本页未运行。
 

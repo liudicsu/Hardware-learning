@@ -1,0 +1,12 @@
+seed=29
+data=synthetic_not_paper_results
+stages=mask_fusion->inpaint->base_position_tune->replay_composite
+rubric=0.3_attempt,0.5_grasp,0.8_carry,1.0_place
+zero=no_milestone_toy_convention
+tasks=4 trials_per_task=10 trials=40
+partial_score_mean=0.5575
+partial_score_se=0.0546
+binary_completion_mean=0.2250
+binary_completion_se=0.0669
+full_placements=9/40
+paper_24_45_percent_denominator=uncertain_absolute_vs_relative

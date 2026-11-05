@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the Month 11 examples and compare with expected/.
-# All 7 of 7 lessons (11.1–11.7); 11.1/11.2 each have a deepen toy.
+# All 7 of 7 lessons (11.1–11.7); 11.1/11.2/11.3/11.5 each have a deepen toy.
 # Usage: examples/month-11/check.sh        UPDATE=1 examples/month-11/check.sh
 set -uo pipefail
 M11="$(cd "$(dirname "$0")" && pwd)"
@@ -23,8 +23,10 @@ check power_roundtrip_loss_toy.txt "$PY" "$M11/power-battery-emc/power_roundtrip
 check clarke_park_toy.txt "$PY" "$M11/foc-actuator-lab/clarke_park_toy.py"
 check foc_current_loop_toy.txt "$PY" "$M11/foc-actuator-lab/foc_current_loop_toy.py"
 check tactile_marker_toy.txt "$PY" "$M11/tactile-sensing/tactile_marker_toy.py"
+check tactile_debias_recal_toy.txt "$PY" "$M11/tactile-sensing/tactile_debias_recal_toy.py"
 check relative_traj_toy.txt "$PY" "$M11/umi-style-collection/relative_traj_toy.py"
 check oxe_imbalance_toy.txt "$PY" "$M11/cross-embodiment-datasets/oxe_imbalance_toy.py"
+check oxe_auge_score_toy.txt "$PY" "$M11/cross-embodiment-datasets/oxe_auge_score_toy.py"
 check lipm_track_toy.txt "$PY" "$M11/humanoid-wbc-overview/lipm_track_toy.py"
 check tactile_gate_toy.txt "$PY" "$M11/contact-rich-policies/tactile_gate_toy.py"
 

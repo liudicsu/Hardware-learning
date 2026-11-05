@@ -13,7 +13,7 @@ Open X-Embodiment (OXE) pools many robot datasets into one ecosystem so a single
 
 ## OXE-AugE in one paragraph (take the paper as source of truth)
 
-OXE-AugE applies robot-appearance augmentation on **16** common subsets and reports about **4.4M** trajectories — more than **3×** the original OXE pool. Fine-tuning OpenVLA / π0 on the augmented mix lifts success on unseen arm–gripper combinations by about **24–45 %** (abstract; take the paper as source of truth). This lesson does not download or train either model.
+OXE-AugE applies robot-appearance augmentation on **16** common subsets and reports about **4.4M** trajectories — more than **3×** the original OXE pool. The abstract reports about **24–45 %** improvement for OpenVLA / π0 on unseen arm–gripper combinations; A.5 uses partial-score means, not binary success rates. The lift denominator (absolute vs relative) is uncertain here; take the paper as source of truth. This lesson does not download or train either model.
 
 ## What you do as a student
 
@@ -37,7 +37,8 @@ $ python3 oxe_imbalance_toy.py
 The counts below are **synthetic** — they are NOT Open X-Embodiment (OXE) real
 cardinality. Real OXE / OXE-AugE numbers used in the lesson prose (1M+, 22
 embodiments, top-4 >85 %, 4.4M, 24–45 %) are printed as separate paper constants
-and must not be confused with this table. Take the papers / project pages as
+and must not be confused with this table. The 24–45 % lift denominator is
+uncertain here; A.5 score means are not binary success rates. Take papers as
 source of truth. Downloading OXE or training is not run on this page.
 Deterministic: no random draws, so there is no seed.
 """
@@ -96,6 +97,112 @@ How to read it:
 - Clipped inverse-frequency `max_weight=7.188`; reweighted mass stays **1150000.0** because weights rescale rows, they do not invent new demos.
 - Paper constants **1** (M+), **22**, **85**, **4.4**, **3**, **24** / **45** are independent of the table; take the paper / project page as source of truth.
 
+### Staged augmentation and what it does not transfer (+150 min)
+
+We opened [OXE-AugE HTML §4.2 and Appendix A.5](https://arxiv.org/html/2512.13100v1); take the paper as source of truth. Read the pipeline as four checkpoints, not "recolour an arm and declare transfer":
+
+| Stage | Input → output | Audit / failure case |
+|---|---|---|
+| Mask fusion | Learned SAM2 mask + simulated robot mask → aligned, pruned, smoothed mask | Inspect gripper boundaries and missing background; a wrong mask erases objects. |
+| Inpaint | Masked source video → reconstructed background (E2FGVI) | Check temporal flicker and hallucinated object edges. |
+| Base-position tune | Source end-effector path + target kinematics → feasible base translation | Replay tracking error controls accept/reject; discard unreachable paths rather than inventing actions. |
+| Replay/composite | Target-robot replay/render + reconstructed scene → augmented video | Inspect robot/object occlusion and pose/action alignment. |
+
+The stage names are documentation constants in the CPU toy, **not implementations** of SAM2, inpainting, IK or rendering. Appearance augmentation preserves task/scene intent, not contact dynamics; differing grippers may need different strategies. Keep source/augmented/held-out robot identities explicit and split original trajectories before augmentation to avoid source-derived train/test leakage. This is complementary to 8.1's single-arm audit, not a replacement.
+
+### A.5: partial score is not binary success
+
+| Highest milestone reached | Score |
+|---|---:|
+| Moves toward the object and attempts a grasp | 0.3 |
+| Grasps the object | 0.5 |
+| Carries it toward the correct destination | 0.8 |
+| Places it at the target | 1.0 |
+
+Use one milestone score per trial, not a sum of stages. A.5 evaluates **10 trials × 4 tasks = 40** per policy per embodiment and reports **mean ± standard error of scores**. This can differ from the fraction of fully completed placements. Our synthetic no-milestone outcome is 0 by explicit toy convention; A.5 does not explicitly define that case. The toy computes SE as sample standard deviation / sqrt(40), assuming independent trials; shared task conditions or correlations need more careful uncertainty treatment. It does not recreate the paper's outcomes or error bars.
+
+The abstract and §6.2 call the **24–45 %** improvement "success"; A.5's scored mean is **not binary success rate**. The denominator / absolute-vs-relative interpretation of that lift is **uncertain here**: do not silently turn it into percentage points or recompute a relative lift without specifying baseline and aggregation. Figures and paper definitions remain authoritative.
+
+```bash
+$ cd ~/Hardware-learning/examples/month-11/cross-embodiment-datasets
+$ python3 oxe_auge_score_toy.py
+```
+
+<CodeSource path="examples/month-11/cross-embodiment-datasets/oxe_auge_score_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""A.5-style partial scores vs binary completion on SYNTHETIC equal trials.
+
+Documentation constants describe AugE-Toolkit stages, not a CPU implementation
+of segmentation/inpainting/IK/rendering. No real OXE counts or paper outcomes.
+A.5: .3 attempt, .5 grasp, .8 carry towards target, 1.0 correct placement.
+Zero below is OUR convention for no milestone (A.5 does not specify it).
+Sample SE assumes independent trials; it is not the paper's error bar.
+"""
+import math
+import random
+import statistics
+
+SEED = 29
+STAGES = ("mask_fusion", "inpaint", "base_position_tune", "replay_composite")
+# Four tasks, ten trials each; deterministic synthetic outcome distribution.
+TASK_SCORES = [
+    [0, .3, .3, .5, .5, .8, .8, 1, 1, 1],
+    [0, 0, .3, .3, .5, .5, .8, .8, 1, 1],
+    [0, .3, .3, .3, .5, .5, .5, .8, 1, 1],
+    [0, 0, .3, .5, .5, .8, .8, .8, 1, 1],
+]
+rng = random.Random(SEED)
+for scores in TASK_SCORES:
+    rng.shuffle(scores)
+flat = [score for scores in TASK_SCORES for score in scores]
+binary = [float(score == 1) for score in flat]
+
+
+def mean_se(values):
+    return statistics.mean(values), statistics.stdev(values) / math.sqrt(len(values))
+
+
+mean, se = mean_se(flat)
+full, full_se = mean_se(binary)
+assert len(flat) == 40 and all(len(task) == 10 for task in TASK_SCORES)
+assert mean > full  # partial progress is not binary placement
+print(f"seed={SEED}")
+print("data=synthetic_not_paper_results")
+print("stages=" + "->".join(STAGES))
+print("rubric=0.3_attempt,0.5_grasp,0.8_carry,1.0_place")
+print("zero=no_milestone_toy_convention")
+print(f"tasks={len(TASK_SCORES)} trials_per_task=10 trials={len(flat)}")
+print(f"partial_score_mean={mean:.4f}")
+print(f"partial_score_se={se:.4f}")
+print(f"binary_completion_mean={full:.4f}")
+print(f"binary_completion_se={full_se:.4f}")
+print(f"full_placements={int(sum(binary))}/40")
+print("paper_24_45_percent_denominator=uncertain_absolute_vs_relative")
+```
+
+<SimOutput source="model">
+
+```text
+seed=29
+data=synthetic_not_paper_results
+stages=mask_fusion->inpaint->base_position_tune->replay_composite
+rubric=0.3_attempt,0.5_grasp,0.8_carry,1.0_place
+zero=no_milestone_toy_convention
+tasks=4 trials_per_task=10 trials=40
+partial_score_mean=0.5575
+partial_score_se=0.0546
+binary_completion_mean=0.2250
+binary_completion_se=0.0669
+full_placements=9/40
+paper_24_45_percent_denominator=uncertain_absolute_vs_relative
+```
+
+</SimOutput>
+
+The same **40** synthetic trials give partial-score mean **0.5575 ± 0.0546** (SE), versus binary full-placement mean **0.2250 ± 0.0669** (SE), **9/40** placements. Neither statistic is an OXE measurement. Try changing one grasp-only 0.5 to carry-only 0.8: the partial mean changes, but binary completion does not. Report both denominators and avoid naming the partial mean a binary success rate.
+
 ## Hardware / compute: not run here
 
 - The **CPU toy** is the required deliverable.
@@ -113,7 +220,7 @@ How to read it:
 
 **Key points**
 
-- OXE pools many arms; project page: 1M+ trajectories, 22 embodiments. OXE-AugE: top-4 >85 %, ~4.4M after appearance aug, ~24–45 % lift on unseen arm–gripper combos (paper as source of truth).
+- OXE pools many arms; project page: 1M+ trajectories, 22 embodiments. OXE-AugE: top-4 >85 %, ~4.4M after appearance aug, ~24–45 % reported lift on unseen arm–gripper combos (denominator uncertain; A.5 score mean ≠ binary success; paper as source of truth).
 - Toy top4_share=0.8957 on **synthetic** counts; max_weight=7.188. Real OXE cardinality is not in CI.
 - Unified 7D action (xyz + rpy + gripper) is the reading convention; download / train steps are not run here.
 
