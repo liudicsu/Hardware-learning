@@ -2,7 +2,7 @@
   "site": {
     "name": "硬件学习",
     "tagline": "9 个月成为机器人工程师 · 中英双语学习站",
-    "description": "基于 @DeRonin_ 的《How to become a Robotics Engineer in 6 months》整理的双语学习网站，并补充本站撰写的第 7–9 个月：原创讲解、可执行练习、资源卡片与本地进度追踪。"
+    "description": "基于 @DeRonin_ 的《How to become a Robotics Engineer in 6 months》整理的双语学习网站，并补充本站撰写的第 7–10 个月：原创讲解、可执行练习、资源卡片与本地进度追踪。"
   },
   "nav": {
     "home": "首页",
@@ -140,7 +140,7 @@
     "title": "关于与致谢",
     "lead": "这是一个为了真正学会而做的学习网站，不是资源搬运站。",
     "sourceTitle": "课程来源",
-    "source": "第 1–6 个月的整体结构、每月目标、里程碑与资源清单来自 @DeRonin_ 于 2026 年 9 月发布的长文《How to become a Robotics Engineer in 6 months (RESOURCES)》。第 7–9 个月是本站补充内容，由本站撰写，不属于原课程。各月讲解与练习均为本站原创，并补充了少量资源（已标注）。",
+    "source": "第 1–6 个月的整体结构、每月目标、里程碑与资源清单来自 @DeRonin_ 于 2026 年 9 月发布的长文《How to become a Robotics Engineer in 6 months (RESOURCES)》。第 7–10 个月是本站补充内容，由本站撰写，不属于原课程。各月讲解与练习均为本站原创，并补充了少量资源（已标注）。",
     "copyrightTitle": "版权说明",
     "copyright": "所有外部资源（课程、教材、视频、工具）版权归各自作者或机构所有。本站不镜像、不转载这些内容，只提供原创摘要与外链。Falstad 模拟器以 iframe 形式嵌入其官方页面。",
     "privacyTitle": "隐私",

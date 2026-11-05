@@ -1,4 +1,4 @@
-This lesson is a site supplement — Months 7–9 are not part of the original six-month course.
+This lesson is a site supplement — Months 7–10 are not part of the original six-month course.
 
 Policies that look perfect in lesson 7.1 or 7.3 often fall apart on a real SO-101. The <Term id="sim-to-real-gap">reality gap</Term> comes from mass, friction, damping, actuator bandwidth, appearance, sensor noise and **latency**. Two complementary answers: <Term id="system-identification">system identification</Term> fits the sim to a measured plant; <Term id="domain-randomization">domain randomisation</Term> trains across a distribution so the policy does not overfit one sim. This lesson runs a 1st-order sysid toy, a friction×delay×bias DR scan with Wilson intervals, and a hardware checklist. Safety here uses general engineering practice (torque / speed limits, a reachable e-stop, never bypass joint limits) — we do not hard-bind ISO clause numbers in this page.
 

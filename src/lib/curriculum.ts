@@ -1357,6 +1357,79 @@ const month9Lessons: Lesson[] = [
 ];
 
 
+const month10Lessons: Lesson[] = [
+  {
+    slug: "flow-matching-policies",
+    title: { zh: "流匹配动作头：从噪声积分出一个动作块", en: "Flow-matching action heads: from noise to an action chunk" },
+    summary: {
+      zh: "接 6.2 与 6.3：MSE 回归把两个模式平均成中间，扩散多步去噪，流匹配学速度场并沿直线路径积分。读 π0 的约定（H=50、10 步、δ=0.1）与动作表示；CPU 闭式速度场玩具看「步数太少 = 退化回平均」。不训练、不下载权重。",
+      en: "Builds on 6.2 and 6.3: MSE regression averages two modes, diffusion denoises in many steps, flow matching learns a velocity field and integrates along straight paths. Read π0's conventions (H=50, 10 steps, δ=0.1) and action representations; a CPU closed-form velocity toy shows that too few steps collapse to the mean. No training, no weights.",
+    },
+    minutes: 240,
+    objectives: [
+      { zh: "能写出 π0 的路径 A^τ = τA + (1−τ)ε、目标速度 u = A − ε 与 Euler 更新。", en: "Write π0's path A^τ = τA + (1−τ)ε, target velocity u = A − ε and the Euler update." },
+      { zh: "能解释为什么 1 个积分步会把双模态数据塌到均值。", en: "Explain why one integration step collapses bimodal data onto the mean." },
+      { zh: "能说明积分步数是推理延迟的一部分，并指向 10.2。", en: "State that the step count is part of inference latency, and point to 10.2." },
+      { zh: "能区分 absolute / relative / delta 动作表示。", en: "Tell absolute, relative and delta action representations apart." },
+    ],
+    prereqs: ["act-diffusion", "vla-models"],
+    resources: ["flow-matching-paper", "pi0-paper", "rectified-flow-paper", "consistency-policy-paper", "lerobot-action-representations", "smolvla-paper", "lerobot-pi05", "diffusion-policy"],
+    tasks: [
+      { id: "run", text: { zh: "运行 flow_match_toy.py，核对 expected/flow_match_toy.txt", en: "Run flow_match_toy.py and match expected/flow_match_toy.txt" } },
+      { id: "steps", text: { zh: "用自己的话解释 1 步与 10 步的 near_mode 差别", en: "In your words: why near_mode differs between 1 and 10 steps" } },
+      { id: "repr", text: { zh: "写一句：你的数据集用的是哪种动作表示，为什么", en: "One sentence: which action representation your dataset uses, and why" } },
+      { id: "optional", text: { zh: "（选做，本页未运行）在 LeRobot SmolVLA / π0 配置里找到积分步数", en: "(Optional, not run here) find the integration step count in the LeRobot SmolVLA / π0 configs" } },
+    ],
+  },
+  {
+    slug: "real-time-chunking",
+    title: { zh: "实时动作块：在推理延迟下让接缝平滑", en: "Real-time chunking: smooth seams under inference delay" },
+    summary: {
+      zh: "8.3 解决了「空等」，留下块边界跳变；RTC 冻结推理期间已执行的 d 步，并用指数衰减软掩码引导新块靠拢旧块，无需重训。CPU 玩具用论文软掩码做线性混合（RTC 引导的简化线性替身），对比朴素切换的最大跳变。",
+      en: "8.3 removed the idle wait but left seams between chunks; RTC freezes the d steps executed during inference and guides the new chunk towards the old one with an exponentially decaying soft mask, with no retraining. A CPU toy applies the paper's soft mask as a linear blend (a simplified linear stand-in for RTC guidance) and compares the worst jump with naive switching.",
+    },
+    minutes: 180,
+    objectives: [
+      { zh: "能说出 async 与 RTC 各解决什么（空闲帧 vs 不连续），以及为什么一起用。", en: "State what async and RTC each fix (idle frames vs discontinuities) and why they are used together." },
+      { zh: "能写出 d = floor(δ/Δt) 并画出冻结 / 软区 / 自由区时间轴。", en: "Write d = floor(δ/Δt) and draw the frozen / soft / free timeline." },
+      { zh: "能说明本课玩具是线性混合，不是真正的引导去噪。", en: "State that this lesson's toy is a linear blend, not real guided denoising." },
+      { zh: "能读懂 RTCConfig 的 execution_horizon、max_guidance_weight 与 prefix_attention_schedule。", en: "Read RTCConfig's execution_horizon, max_guidance_weight and prefix_attention_schedule." },
+    ],
+    prereqs: ["async-deployment", "flow-matching-policies"],
+    resources: ["rtc-paper", "lerobot-rtc", "lerobot-remote-inference", "lerobot-async"],
+    tasks: [
+      { id: "run", text: { zh: "运行 rtc_blend_toy.py，核对 expected/rtc_blend_toy.txt", en: "Run rtc_blend_toy.py and match expected/rtc_blend_toy.txt" } },
+      { id: "timeline", text: { zh: "为 H=50、s=25、d=5 画出冻结 / 软区 / 自由区", en: "Draw the frozen / soft / free zones for H=50, s=25, d=5" } },
+      { id: "contrast", text: { zh: "写一句：RTC 与 ACT 的 temporal ensembling 有什么不同", en: "One sentence: how RTC differs from ACT's temporal ensembling" } },
+      { id: "optional", text: { zh: "（选做，本页未运行）用 lerobot-rollout --inference.type=rtc 跑一次真机或数据集", en: "(Optional, not run here) run lerobot-rollout --inference.type=rtc on hardware or a dataset" } },
+    ],
+  },
+  {
+    slug: "edge-deploy-checklist",
+    title: { zh: "端侧部署：int8 量化与延迟预算", en: "Edge deployment: int8 quantisation and a latency budget" },
+    summary: {
+      zh: "手算 int8 量化（对称 / 非对称、per-tensor / per-channel、离群值），说明量化不一定更快；把相机 → 推理 → 网络拆成延迟预算并换算成 RTC 的 d。端侧清单（显存、电源模式、导出 ONNX / TensorRT、Jetson）只读不跑，不要求购买新硬件。",
+      en: "Work int8 quantisation by hand (symmetric / asymmetric, per-tensor / per-channel, outliers) and see why it is not always faster; break camera → inference → network into a latency budget and convert it to RTC's d. The edge checklist (VRAM, power modes, ONNX / TensorRT export, Jetson) is reading only; no new hardware.",
+    },
+    minutes: 180,
+    objectives: [
+      { zh: "能用 scale 与 zero_point 写出量化与反量化，并说明为什么 0 必须能精确表示。", en: "Write quantise / dequantise with scale and zero_point, and say why 0 must be exactly representable." },
+      { zh: "能解释一个离群值为什么让 per-tensor 误差变大，per-channel 如何缓解。", en: "Explain why one outlier inflates per-tensor error and how per-channel helps." },
+      { zh: "能把一次推理拆成延迟预算，并换算成控制周期数 d。", en: "Break one inference into a latency budget and convert it to d control steps." },
+      { zh: "能说明本课的 GPU / Jetson 步骤都是本页未运行，训练与部署要分开。", en: "State that the GPU / Jetson steps are not run here, and that training and deployment are separate." },
+    ],
+    prereqs: ["vla-finetune", "async-deployment", "real-time-chunking"],
+    resources: ["onnxruntime-quantization", "lerobot-hardware-guide", "lerobot-torch-accelerators", "pi0-paper", "rtc-paper", "isaac-groot", "lerobot-groot"],
+    tasks: [
+      { id: "run", text: { zh: "运行 int8_quant_toy.py 与 latency_budget.py，核对两份 expected", en: "Run int8_quant_toy.py and latency_budget.py and match both expected files" } },
+      { id: "budget", text: { zh: "为你自己的策略填一张延迟预算表（实测值或标「估计」）", en: "Fill a latency budget for your own policy (measured, or marked as an estimate)" } },
+      { id: "checklist", text: { zh: "逐条读端侧清单，标出你的设备已满足 / 未知的项", en: "Go through the edge checklist and mark which items your device meets or you do not know yet" } },
+      { id: "optional", text: { zh: "（选做，本页未运行）用 ONNX Runtime 对导出的模型做动态量化并对比延迟", en: "(Optional, not run here) dynamically quantise an exported model with ONNX Runtime and compare latency" } },
+    ],
+  },
+];
+
+
 export const months: Month[] = [
   {
     id: 1,
@@ -1582,6 +1655,31 @@ export const months: Month[] = [
       { zh: "给定自然语言指令与技能表，产出带可执行性过滤的技能序列；注入一次失败后能重试或改计划", en: "Given a natural-language command and a skill table, produce an affordance-filtered skill sequence; after one injected failure, retry or replan" },
     ],
     lessons: month9Lessons,
+  },
+  {
+    id: 10,
+    slug: "month-10",
+    title: { zh: "生成式策略、实时推理与真实世界强化学习", en: "Generative policies, real-time inference & real-world RL" },
+    goal: {
+      zh: "读懂流匹配动作头如何把噪声积分成动作块，让异步推理在延迟下仍平滑执行并装进端侧预算，再用多相机观测与人工介入数据在真实机器人上做强化学习式改进。",
+      en: "Understand how a flow-matching action head integrates noise into an action chunk, keep async inference smooth under delay and inside an edge budget, then use multi-camera observations and human-intervention data for RL-style improvement on a real robot.",
+    },
+    topics: [
+      { zh: "流匹配动作头（π0 / SmolVLA 式）", en: "Flow-matching action heads (π0 / SmolVLA style)" },
+      { zh: "实时动作块（RTC）与异步推理", en: "Real-time chunking (RTC) with async inference" },
+      { zh: "端侧部署：int8 量化与延迟预算", en: "Edge deployment: int8 quantisation and latency budgets" },
+      { zh: "多相机外参与机器人–世界手眼标定", en: "Multi-camera extrinsics and robot–world hand–eye" },
+      { zh: "介入日志与 DAgger 式纠正数据", en: "Intervention logging and DAgger-style corrections" },
+      { zh: "真实世界 RL：HIL-SERL 与离线+在线回放", en: "Real-world RL: HIL-SERL and offline+online replay" },
+      { zh: "VLA 上的 RL：优势条件与残差策略", en: "RL on VLAs: advantage conditioning and residual policies" },
+      { zh: "延伸：Isaac Lab / 腿式运动场；LeKiwi 真机组装；micro-ROS + FOC；外接 F/T 导纳；Jetson 真机 TensorRT 实测", en: "Further: Isaac Lab / legged locomotion; LeKiwi build; micro-ROS + FOC; external F/T admittance; on-device Jetson TensorRT measurements" },
+    ],
+    milestones: [
+      { zh: "在 CPU 玩具上说明流匹配积分步数与样本质量的关系，并用 RTC 软掩码把动作块接缝的最大跳变压到朴素切换的一半以下", en: "On CPU toys, show how flow-matching step count trades against sample quality, and use an RTC soft mask to cut the worst chunk-seam jump to under half of naive switching" },
+      { zh: "给自己的策略写一张端侧延迟预算表（相机 → 推理 → 执行），并用两台静态相机 + 机器人–世界手眼得到一致的外参链", en: "Write an edge latency budget (camera → inference → actuation) for your policy, and get a consistent extrinsics chain from two static cameras plus robot–world hand–eye" },
+      { zh: "记录带 intervention 标记的纠正数据，报告介入率，并在玩具上说明 50/50 离线+在线回放为何比只在线更快学会稀疏奖励任务", en: "Record correction data with an intervention flag, report the intervention rate, and show on a toy why 50/50 offline+online replay learns a sparse-reward task faster than online-only" },
+    ],
+    lessons: month10Lessons,
   },
 ];
 

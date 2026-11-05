@@ -1,0 +1,208 @@
+This lesson is a site supplement — Months 7–10 are not part of the original six-month course.
+
+**Scope.** [8.3 async deployment](/en/month/month-8/async-deployment) already covers PolicyServer / RobotClient and removes idle frames; this lesson does not re-teach that loop. It handles what 8.3 leaves behind: the jump at the seam when a fresh chunk replaces the old one. [7.6 perception to grasp](/en/month/month-7/perception-to-grasp) still owns the camera-to-grasp chain, and the DAgger part of [6.1 behaviour cloning](/en/month/month-6/behaviour-cloning) still owns collecting corrections; real-time chunking changes neither. It does not replace the 8.7 capstone. The toy is CPU-only, standard library, and it is a **simplified linear stand-in** for RTC guidance, not the real method.
+
+## Idle frames vs seams
+
+With a chunked policy the robot executes actions from one chunk while the next is computed. Two different things can go wrong:
+
+| Problem | Symptom | Fix |
+| --- | --- | --- |
+| idle frames | the arm stops while it waits for inference | async inference (8.3) |
+| discontinuities | the arm jerks when the fresh chunk takes over | <Term id="real-time-chunking">real-time chunking (RTC)</Term> |
+
+The LeRobot RTC page draws the same line and recommends using both together. ACT's temporal ensembling (6.2) takes a different route: it queries the policy every step and averages overlapping forecasts for the same time index. That needs an inference every control step, and the RTC paper reports that under 100 ms or 200 ms of injected delay temporal ensembling triggered the robot's protective stop.
+
+## Freezing and a soft mask
+
+RTC (Black, Galliker & Levine, arXiv **2506.07339**) treats the next chunk as an inpainting problem solved at inference time; no retraining is needed, and it works with diffusion- or flow-based policies such as π0, π0.5 and SmolVLA.
+
+Notation, with Δt the control period and δ the time from observation to a usable chunk:
+
+- **H** — prediction horizon (chunk length).
+- **s** — actions executed from the previous chunk before the new inference starts.
+- **d = floor(δ / Δt)** — inference delay in control steps. The paper requires d ≤ s ≤ H − d.
+
+While the new chunk is denoised, the first d actions will already have been executed from the old chunk, so they are **frozen**. Beyond that, a <Term id="soft-mask">soft mask</Term> W says how much the new chunk should agree with what is left of the old one (Eq. 5 of the paper):
+
+| index i | W[i] |
+| --- | --- |
+| i under d | 1 (frozen) |
+| d ≤ i, i under H − s | `c·(e^c − 1)/(e − 1)`, with `c = (H − s − i)/(H − s − d + 1)` |
+| i ≥ H − s | 0 (free) |
+
+Timeline for one chunk (H=16, s=8, d=2, the toy below):
+
+| steps | 0–1 | 2–7 | 8–15 |
+| --- | --- | --- | --- |
+| zone | frozen (old chunk) | soft (decays) | free (fresh) |
+| W | 1.00 | 0.68 → 0.01 | 0.00 |
+
+In the real method W enters a guidance term during every denoising step (a vector-Jacobian product, clipped by a maximum weight β); the paper uses β = 5. That guidance makes each denoising step about 2.5× slower in their measurements, which is why the toy below does not attempt it.
+
+<Resource id="rtc-paper" />
+
+## Run the linear stand-in
+
+`rtc_blend_toy.py` keeps the mask but drops the network. The old plan is a steady ramp (0.05 per step); the fresh chunk comes from a "different strategy" (0.20 + 0.03·i). **Naive** switching uses the frozen prefix and then plays the fresh chunk; **blend** applies `W·old + (1 − W)·fresh` after the fact. This post-hoc blend is a simplified linear stand-in for RTC's guided denoising, not the method itself.
+
+```bash
+$ cd ~/Hardware-learning/examples/month-10/real-time-chunking
+$ python3 rtc_blend_toy.py
+```
+
+<CodeSource path="examples/month-10/real-time-chunking/rtc_blend_toy.py" />
+
+```python
+"""rtc_blend_toy.py: chunk seam, naive switch vs soft-mask blend (stdlib).
+
+Simplified LINEAR stand-in for real-time chunking (RTC, arXiv 2506.07339).
+Real RTC puts the soft mask W inside a guidance term during flow-matching
+denoising (a vector-Jacobian product, clipped by beta). Here we skip the
+network and apply W directly as a post-hoc blend:
+
+    blended[i] = W[i] * prev_left[i] + (1 - W[i]) * fresh[i]
+
+W follows Eq. 5 of the RTC paper:
+    W[i] = 1                              if i < d
+    W[i] = c * (e^c - 1) / (e - 1)        if d <= i < H - s,  c = (H-s-i)/(H-s-d+1)
+    W[i] = 0                              if i >= H - s
+
+H = prediction horizon, s = actions executed from the previous chunk before
+this inference started, d = inference delay in control steps.
+"""
+
+import math
+
+H = 16
+S = 8
+DELAYS = (0, 2, 4)
+
+
+def prev_chunk() -> list[float]:
+    """Old plan: a steady ramp (rad), 0.05 per step."""
+    return [0.05 * k for k in range(H)]
+
+
+def fresh_chunk() -> list[float]:
+    """New plan from a newer observation: a different 'strategy' (lower, slower)."""
+    return [0.20 + 0.03 * i for i in range(H)]
+
+
+def soft_mask(d: int) -> list[float]:
+    w = []
+    for i in range(H):
+        if i < d:
+            w.append(1.0)
+        elif i < H - S:
+            c = (H - S - i) / (H - S - d + 1)
+            w.append(c * (math.exp(c) - 1.0) / (math.e - 1.0))
+        else:
+            w.append(0.0)
+    return w
+
+
+def executed(d: int, use_blend: bool) -> list[float]:
+    """Last executed old action, then what the robot actually plays next."""
+    prev = prev_chunk()
+    left = prev[S:] + [0.0] * S  # right-pad to length H (paper: Algorithm 1)
+    fresh = fresh_chunk()
+    w = soft_mask(d) if use_blend else [1.0 if i < d else 0.0 for i in range(H)]
+    new = [w[i] * left[i] + (1.0 - w[i]) * fresh[i] for i in range(H)]
+    # actions 0..d-1 run from the old chunk while inference is in flight
+    return [prev[S - 1]] + left[:d] + new[d:]
+
+
+def stats(seq: list[float]) -> tuple[float, float]:
+    steps = [abs(b - a) for a, b in zip(seq, seq[1:])]
+    acc = [abs(seq[k + 1] - 2 * seq[k] + seq[k - 1]) for k in range(1, len(seq) - 1)]
+    return max(steps), max(acc)
+
+
+def main() -> None:
+    print(f"H={H} s={S}  prev ramp 0.05/step, fresh = 0.20 + 0.03*i (other strategy)")
+    print(f"{'d':>2} {'mode':<6} {'max_step':>8} {'max_acc':>8} {'tail=fresh':>10}")
+    for d in DELAYS:
+        for mode in ("naive", "blend"):
+            seq = executed(d, mode == "blend")
+            mstep, macc = stats(seq)
+            tail_ok = all(
+                abs(seq[1 + i] - fresh_chunk()[i]) < 1e-12 for i in range(H - S, H)
+            )
+            print(f"{d:>2} {mode:<6} {mstep:>8.3f} {macc:>8.3f} {str(tail_ok):>10}")
+    w = soft_mask(2)
+    print("W (d=2): " + " ".join(f"{v:.2f}" for v in w))
+    print("naive jumps once at the seam; the blend spreads it over the overlap,")
+    print("and the last s actions still follow the fresh chunk.")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+H=16 s=8  prev ramp 0.05/step, fresh = 0.20 + 0.03*i (other strategy)
+ d mode   max_step  max_acc tail=fresh
+ 0 naive     0.150    0.180       True
+ 0 blend     0.030    0.005       True
+ 2 naive     0.190    0.240       True
+ 2 blend     0.050    0.078       True
+ 4 naive     0.230    0.280       True
+ 4 blend     0.070    0.120       True
+W (d=2): 1.00 1.00 0.68 0.43 0.26 0.13 0.05 0.01 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
+naive jumps once at the seam; the blend spreads it over the overlap,
+and the last s actions still follow the fresh chunk.
+```
+
+</SimOutput>
+
+How to read it:
+
+- With d=0, naive switching jumps by **0.150** in one control step; the blend's largest step is **0.030**, a fifth of that.
+- With d=2 the numbers are **0.190** vs **0.050**; with d=4, **0.230** vs **0.070**. A longer delay freezes more steps and leaves a shorter soft zone, so the blend smooths less, but its worst step stays under half of naive switching in every row.
+- `tail=fresh` is True everywhere: the last s actions still follow the fresh chunk, so the policy keeps reacting to the newest observation.
+- The printed W row for d=2 matches the timeline table above.
+
+## LeRobot RTCConfig
+
+In LeRobot, RTC is configured with `RTCConfig`; the runtime delay is passed when the next chunk is requested. Values from the LeRobot RTC page (follow the LeRobot v0.6.x docs; options may change between versions):
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `execution_horizon` | 10 | how many steps are guided towards the old chunk; 8–12 is typical |
+| `max_guidance_weight` | 10.0 | cap on the guidance weight; the docs call 10.0 optimal for 10-step flow matching |
+| `prefix_attention_schedule` | EXP | shape of the mask: LINEAR, EXP, ONES or ZEROS |
+| `inference_delay` (runtime) | — | d, passed to `predict_action_chunk(..., inference_delay=..., prev_chunk_left_over=...)` |
+
+Rollout on hardware, not run on this page (本页未运行; needs a GPU and a robot or dataset):
+
+```bash
+$ lerobot-rollout --strategy.type=base --policy.path=<your/policy> \
+    --inference.type=rtc --inference.rtc.execution_horizon=10 \
+    --inference.rtc.max_guidance_weight=10.0 ...
+```
+
+The docs also ship an offline check against a dataset, `examples/rtc/eval_dataset.py`. LeRobot's remote inference (`lerobot-policy-server` with `--inference.type=remote`) has its own `chunk_merge` and `refill_seconds` options for how chunks are spliced; it needs a robot that can hold position, which the SO followers can.
+
+<Resource id="lerobot-rtc" />
+<Resource id="lerobot-remote-inference" />
+<Resource id="lerobot-async" />
+
+## What the paper measured
+
+On real robots with π0.5 (H=50, Δt=20 ms, s_min=25), the RTC paper reports a model latency of about 97 ms with RTC vs 76 ms without, stays robust beyond 300 ms of injected delay, and finishes tasks about 20 % faster than synchronous inference. Among mask shapes, exponential decay worked best and linear was close behind. These are paper results on GPUs and robots; they were not run on this page (本页未运行). [10.3](/en/month/month-10/edge-deploy-checklist) turns latencies like these into d.
+
+## Common mistakes
+
+- **Treating the toy's blend as RTC.** The toy blends after the fact; real RTC guides each denoising step.
+- **Leaving ACT temporal ensembling on together with remote inference.** LeRobot's remote-inference page says ACT must run with temporal ensembling disabled.
+- **Setting `inference_delay` from model time only.** Camera, network and pre-processing count too (10.3).
+- **Expecting RTC to remove idle frames.** That is async inference (8.3); use both.
+
+<Summary>
+
+Async inference (8.3) removes idle frames; real-time chunking removes seams. RTC freezes the first d = floor(δ/Δt) actions and guides the next part of the new chunk towards the old one with the Eq. 5 soft mask, without retraining. In the linear stand-in `rtc_blend_toy.py` the worst step drops from 0.150 / 0.190 / 0.230 (naive) to 0.030 / 0.050 / 0.070 (blend) for d = 0 / 2 / 4. LeRobot: `execution_horizon=10`, `max_guidance_weight=10.0`, EXP schedule, `inference_delay` at runtime.
+
+</Summary>

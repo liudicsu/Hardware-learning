@@ -1,0 +1,11 @@
+H=16 s=8  prev ramp 0.05/step, fresh = 0.20 + 0.03*i (other strategy)
+ d mode   max_step  max_acc tail=fresh
+ 0 naive     0.150    0.180       True
+ 0 blend     0.030    0.005       True
+ 2 naive     0.190    0.240       True
+ 2 blend     0.050    0.078       True
+ 4 naive     0.230    0.280       True
+ 4 blend     0.070    0.120       True
+W (d=2): 1.00 1.00 0.68 0.43 0.26 0.13 0.05 0.01 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
+naive jumps once at the seam; the blend spreads it over the overlap,
+and the last s actions still follow the fresh chunk.

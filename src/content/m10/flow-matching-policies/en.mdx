@@ -1,0 +1,184 @@
+This lesson is a site supplement — Months 7–10 are not part of the original six-month course.
+
+**Scope.** This lesson explains how a flow-matching action head turns noise into an action chunk. It does not retrain π0 or SmolVLA; 8.2 still covers fine-tuning, and it does not replace the 8.7 capstone. Overlap with nearby lessons: [8.3 async deployment](/en/month/month-8/async-deployment) owns the PolicyServer / RobotClient loop (here we only note that integration steps cost latency), [7.6 perception to grasp](/en/month/month-7/perception-to-grasp) owns the camera-to-grasp chain, and the DAgger part of [6.1 behaviour cloning](/en/month/month-6/behaviour-cloning) owns collecting corrections. The toy runs on a CPU with the Python standard library: no network, no training, no weight downloads.
+
+## Three ways to output an action
+
+[6.2](/en/month/month-6/act-diffusion) showed the core problem with demonstrations: when experts sometimes go left of an obstacle and sometimes go right, a policy trained with mean-squared error outputs the **average**, which drives straight into the obstacle.
+
+| Head | What the network learns | How an action comes out | Cost at inference |
+| --- | --- | --- | --- |
+| MSE regression | one action per observation | one forward pass | lowest; averages modes |
+| Diffusion (6.2) | the noise added at each step | many denoising steps | many forward passes |
+| <Term id="flow-matching">Flow matching</Term> | a <Term id="velocity-field">velocity field</Term> v(x, τ) | integrate from noise along the field | a few to tens of steps |
+
+Flow matching (Lipman et al., arXiv **2210.02747**) trains a continuous normalising flow without simulating it: the network regresses a target velocity along a fixed path from noise to data. Because the path is a straight line, a handful of integration steps already gives good samples.
+
+<Resource id="flow-matching-paper" />
+
+## π0's conventions
+
+π0 (arXiv **2410.24164**) attaches a 300M-parameter action expert to a PaliGemma 3B vision-language model (about 3.3B parameters in total) and predicts chunks of **H=50** actions. Its flow-matching conventions, in the notation of the paper:
+
+- Path: `A^τ = τ·A + (1−τ)·ε`, with `ε ~ N(0, I)` and τ from 0 (pure noise) to 1 (the action chunk).
+- Target velocity: `u = A − ε`. The network learns `v_θ(A^τ, o) ≈ u`.
+- Training samples τ from a Beta distribution that puts more weight on noisy (low τ) times, with s = 0.999 as the cut-off.
+- Inference: start from noise and apply forward Euler, `A^{τ+δ} = A^τ + δ·v_θ`, with **10** steps (`δ = 0.1`).
+
+Every one of those 10 steps runs the action expert again. On an RTX 4090 the paper reports **27 ms** for the 10 action steps, out of **73 ms** on board (14 ms image encoders, 32 ms observation forward pass). The step count is part of inference latency; [10.2](/en/month/month-10/real-time-chunking) deals with what that latency does to the seams between chunks. These are published figures from the paper; they were not run on this page (本页未运行).
+
+<Resource id="pi0-paper" />
+<Resource id="lerobot-pi05" />
+<Resource id="smolvla-paper" />
+
+SmolVLA (arXiv 2506.01844) uses a flow-matching action expert too, and its authors train it on a single GPU and deploy it on consumer GPUs or even CPUs.
+
+## Run the closed-form toy
+
+`flow_match_toy.py` uses a 1-D target with two modes, ±1 with standard deviation 0.1 (think "left of the obstacle" and "right of it"). For a Gaussian mixture the marginal velocity has a closed form, so there is **no network**: we integrate the exact field with 1, 2, 3, 5, 10 and 50 Euler steps and count how many of 2000 samples land near a mode (within 0.3 of ±1) or near the invalid mean 0.
+
+```bash
+$ cd ~/Hardware-learning/examples/month-10/flow-matching-policies
+$ python3 flow_match_toy.py
+```
+
+<CodeSource path="examples/month-10/flow-matching-policies/flow_match_toy.py" />
+
+```python
+"""flow_match_toy.py: 1-D flow matching with a closed-form velocity (stdlib).
+
+Target: a bimodal mixture 0.5*N(-1, 0.1^2) + 0.5*N(+1, 0.1^2) — think of it as
+"go left of the obstacle" vs "go right". Path (pi0 convention):
+
+    x_tau = tau * x1 + (1 - tau) * eps,   eps ~ N(0, 1),   tau in [0, 1]
+    target velocity u = x1 - eps
+
+Because the target is a Gaussian mixture, the *marginal* velocity
+E[x1 - eps | x_tau = x] has a closed form, so no network is trained here.
+We integrate it with forward Euler from tau=0 (noise) to tau=1 and count how
+many samples land near a mode vs near the (invalid) mean 0.
+
+This is a toy: a real policy learns v_theta(A_tau, obs) with a network.
+"""
+
+import math
+import random
+
+SEED = 7
+N = 2000
+MODES = (-1.0, 1.0)
+SIGMA = 0.1
+STEPS = (1, 2, 3, 5, 10, 50)
+NEAR = 0.3  # "near" radius for both mode and mean
+
+
+def gauss(rng: random.Random) -> float:
+    """Box-Muller from rng.random() so the stream is stable across versions."""
+    u1 = rng.random()
+    u2 = rng.random()
+    return math.sqrt(-2.0 * math.log(1.0 - u1)) * math.cos(2.0 * math.pi * u2)
+
+
+def velocity(x: float, tau: float) -> float:
+    """Closed-form marginal velocity E[x1 - eps | x_tau = x] for the mixture."""
+    var = tau * tau * SIGMA * SIGMA + (1.0 - tau) ** 2
+    cov = tau * SIGMA * SIGMA - (1.0 - tau)  # Cov(x1 - eps, x_tau | mode)
+    logw = [-(x - tau * m) ** 2 / (2.0 * var) for m in MODES]
+    top = max(logw)
+    w = [math.exp(v - top) for v in logw]
+    z = sum(w)
+    return sum(
+        (wk / z) * (m + cov / var * (x - tau * m)) for wk, m in zip(w, MODES)
+    )
+
+
+def sample(x0: float, steps: int) -> float:
+    x = x0
+    dt = 1.0 / steps
+    for k in range(steps):
+        x = x + dt * velocity(x, k * dt)
+    return x
+
+
+def main() -> None:
+    rng = random.Random(SEED)
+    noise = [gauss(rng) for _ in range(N)]
+    print(f"target: 0.5*N(-1,{SIGMA}^2) + 0.5*N(+1,{SIGMA}^2)  samples={N}  seed={SEED}")
+    print(f"v(x=0.50, tau=0.0) = {velocity(0.5, 0.0):+.3f}   (= mean(x1) - x)")
+    print(f"v(x=0.50, tau=0.9) = {velocity(0.5, 0.9):+.3f}   (points to the +1 mode)")
+    print(f"{'steps':>5} {'near_mode':>9} {'near_mean':>9} {'mean_abs':>8}")
+    for steps in STEPS:
+        xs = [sample(x0, steps) for x0 in noise]
+        near_mode = sum(1 for x in xs if abs(abs(x) - 1.0) < NEAR) / N
+        near_mean = sum(1 for x in xs if abs(x) < NEAR) / N
+        mean_abs = sum(abs(x) for x in xs) / N
+        print(f"{steps:>5} {near_mode:>9.3f} {near_mean:>9.3f} {mean_abs:>8.3f}")
+    print("1 Euler step lands every sample on the mean (an action between the modes);")
+    print("more steps recover both modes. pi0 uses 10 steps (delta = 0.1).")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+target: 0.5*N(-1,0.1^2) + 0.5*N(+1,0.1^2)  samples=2000  seed=7
+v(x=0.50, tau=0.0) = -0.500   (= mean(x1) - x)
+v(x=0.50, tau=0.9) = +3.011   (points to the +1 mode)
+steps near_mode near_mean mean_abs
+    1     0.000     1.000    0.000
+    2     0.374     0.253    0.546
+    3     0.780     0.086    0.825
+    5     0.965     0.017    0.951
+   10     0.987     0.002    0.975
+   50     0.996     0.000    0.991
+1 Euler step lands every sample on the mean (an action between the modes);
+more steps recover both modes. pi0 uses 10 steps (delta = 0.1).
+```
+
+</SimOutput>
+
+How to read it:
+
+- At τ=0 the field is `mean(x1) − x`: the noise has not yet "seen" any mode, so every sample is pulled towards the average 0. With **1** step that is the whole trajectory: near_mean = **1.000**, exactly the MSE failure.
+- Late in the path (τ=0.9) the field near x=0.5 is **+3.011**, pointing hard at the +1 mode. More steps give samples time to commit to a side: near_mode rises to **0.780** at 3 steps, **0.987** at 10 and **0.996** at 50.
+- 10 steps already gets most of the quality; going from 10 to 50 buys little and costs 5× the action-expert passes. That is why π0 uses 10.
+
+This is a toy: a real policy learns `v_θ` from data with a network and conditions on the observation.
+
+## Fewer steps: rectified flow and consistency
+
+Because every step costs latency, several lines of work try to need fewer steps. Rectified flow (arXiv 2209.03003) straightens the learned paths so that a coarse Euler step stays on track. Consistency Policy (arXiv 2405.07503) distils a diffusion policy so that one or two steps suffice; its abstract reports an order-of-magnitude inference speed-up over the fastest alternative it compares with. This lesson covers only the motivation; we do not derive or run either.
+
+<Resource id="rectified-flow-paper" />
+<Resource id="consistency-policy-paper" />
+<Resource id="diffusion-policy" />
+
+## Absolute, relative and delta actions
+
+What a chunk *contains* matters as much as how it is sampled. The LeRobot action-representations page distinguishes three choices:
+
+| Representation | Each action is | Notes |
+| --- | --- | --- |
+| absolute | the target joint (or end-effector) position | LeRobot default |
+| relative | target minus the current state at chunk start | used by OpenPI / π0; errors do not accumulate across chunks |
+| delta | change from the previous action | errors accumulate along the chunk; UMI argues against it |
+
+Relative actions are compatible with RTC (10.2). Flags such as `--policy.use_relative_actions=true` follow the LeRobot v0.6.x docs; commands may change between versions. Not run on this page (本页未运行).
+
+<Resource id="lerobot-action-representations" />
+
+## Common mistakes
+
+- **Using 1 or 2 steps to save time without checking samples.** The toy shows 1 step collapses to the mean, the same failure as MSE.
+- **Calling flow matching "faster than diffusion" by default.** It is cheaper per good sample because paths are straight, but each step is still a full action-expert pass.
+- **Mixing action representations.** Training on relative actions and executing them as absolute targets sends the arm to the wrong place.
+- **Reading the 73 ms as your robot's latency.** It is an RTX 4090 figure from the paper, not measured here.
+
+<Summary>
+
+Flow matching learns a velocity field and integrates noise into an action chunk. π0 uses `A^τ = τA + (1−τ)ε`, `u = A − ε`, H=50 and 10 Euler steps (δ=0.1); the 10 steps cost 27 ms of a 73 ms on-board pass on an RTX 4090. In `flow_match_toy.py` 1 step gives near_mean 1.000 and 10 steps near_mode 0.987. Fewer-step methods (rectified flow, consistency) exist because steps cost latency. Choose absolute, relative or delta actions deliberately.
+
+</Summary>

@@ -1,0 +1,208 @@
+本课是本站补充内容——第 7–10 个月不属于原六个月课程。
+
+**范围。** [8.3 异步部署](/zh/month/month-8/async-deployment) 已经讲过 PolicyServer / RobotClient 并消除了空等帧，本课不重讲这个循环，只处理 8.3 留下的问题：新动作块接替旧块时接缝处的跳变。[7.6 感知到抓取](/zh/month/month-7/perception-to-grasp) 仍负责相机到抓取的链路，[6.1 行为克隆](/zh/month/month-6/behaviour-cloning) 里的 DAgger 仍负责收集纠正数据，实时动作块不改变它们，也不替代 8.7 毕业项目。玩具只用 CPU 和标准库，而且是 RTC 引导的**简化线性替身**，不是真正的方法。
+
+## 空等帧 vs 接缝
+
+动作块策略在执行一个块的同时计算下一个块。会出两类不同的问题：
+
+| 问题 | 现象 | 解法 |
+| --- | --- | --- |
+| 空等帧 | 机械臂停下来等推理 | 异步推理（8.3） |
+| 不连续 | 新块接手时机械臂一抖 | <Term id="real-time-chunking">实时动作块（RTC）</Term> |
+
+LeRobot 的 RTC 文档也这样划分，并建议两者一起用。ACT 的 temporal ensembling（6.2）走另一条路：每步都查询策略，对同一时间索引的多份预测加权平均。这要求每个控制周期都推理一次；RTC 论文报告，注入 100 ms 或 200 ms 额外延迟时，temporal ensembling 触发了机器人的保护性停机。
+
+## 冻结与软掩码
+
+RTC（Black、Galliker 与 Levine，arXiv **2506.07339**）把下一个块看成推理期的 inpainting 问题；不需要重训，适用于扩散或流匹配策略，如 π0、π0.5、SmolVLA。
+
+记号（Δt 为控制周期，δ 为从观测到拿到可用动作块的时间）：
+
+- **H**：预测长度（块长）。
+- **s**：新一次推理开始前，已从上一块执行掉的动作数。
+- **d = floor(δ / Δt)**：以控制步计的推理延迟。论文要求 d ≤ s ≤ H − d。
+
+新块去噪期间，前 d 个动作已经按旧块执行掉了，所以它们被**冻结**。再往后，<Term id="soft-mask">软掩码</Term> W 决定新块要在多大程度上贴近旧块剩下的部分（论文式 5）：
+
+| 下标 i | W[i] |
+| --- | --- |
+| i 小于 d | 1（冻结） |
+| d ≤ i，且 i 小于 H − s | `c·(e^c − 1)/(e − 1)`，其中 `c = (H − s − i)/(H − s − d + 1)` |
+| i ≥ H − s | 0（自由） |
+
+一个块的时间轴（H=16、s=8、d=2，即下面的玩具）：
+
+| 步 | 0–1 | 2–7 | 8–15 |
+| --- | --- | --- | --- |
+| 区段 | 冻结（旧块） | 软区（衰减） | 自由（新块） |
+| W | 1.00 | 0.68 → 0.01 | 0.00 |
+
+真正的方法里，W 在每一步去噪时进入一个引导项（向量–雅可比积，并用最大权重 β 截断）；论文取 β = 5。按论文测量，这个引导让每个去噪步慢约 2.5 倍，所以下面的玩具不去实现它。
+
+<Resource id="rtc-paper" />
+
+## 跑线性替身
+
+`rtc_blend_toy.py` 保留掩码、去掉网络。旧计划是匀速斜坡（每步 0.05）；新块来自「另一种策略」（0.20 + 0.03·i）。**naive** 先用冻结前缀，然后直接播放新块；**blend** 事后计算 `W·旧 + (1 − W)·新`。这种事后混合是 RTC 引导去噪的简化线性替身，不是方法本身。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-10/real-time-chunking
+$ python3 rtc_blend_toy.py
+```
+
+<CodeSource path="examples/month-10/real-time-chunking/rtc_blend_toy.py" />
+
+```python
+"""rtc_blend_toy.py: chunk seam, naive switch vs soft-mask blend (stdlib).
+
+Simplified LINEAR stand-in for real-time chunking (RTC, arXiv 2506.07339).
+Real RTC puts the soft mask W inside a guidance term during flow-matching
+denoising (a vector-Jacobian product, clipped by beta). Here we skip the
+network and apply W directly as a post-hoc blend:
+
+    blended[i] = W[i] * prev_left[i] + (1 - W[i]) * fresh[i]
+
+W follows Eq. 5 of the RTC paper:
+    W[i] = 1                              if i < d
+    W[i] = c * (e^c - 1) / (e - 1)        if d <= i < H - s,  c = (H-s-i)/(H-s-d+1)
+    W[i] = 0                              if i >= H - s
+
+H = prediction horizon, s = actions executed from the previous chunk before
+this inference started, d = inference delay in control steps.
+"""
+
+import math
+
+H = 16
+S = 8
+DELAYS = (0, 2, 4)
+
+
+def prev_chunk() -> list[float]:
+    """Old plan: a steady ramp (rad), 0.05 per step."""
+    return [0.05 * k for k in range(H)]
+
+
+def fresh_chunk() -> list[float]:
+    """New plan from a newer observation: a different 'strategy' (lower, slower)."""
+    return [0.20 + 0.03 * i for i in range(H)]
+
+
+def soft_mask(d: int) -> list[float]:
+    w = []
+    for i in range(H):
+        if i < d:
+            w.append(1.0)
+        elif i < H - S:
+            c = (H - S - i) / (H - S - d + 1)
+            w.append(c * (math.exp(c) - 1.0) / (math.e - 1.0))
+        else:
+            w.append(0.0)
+    return w
+
+
+def executed(d: int, use_blend: bool) -> list[float]:
+    """Last executed old action, then what the robot actually plays next."""
+    prev = prev_chunk()
+    left = prev[S:] + [0.0] * S  # right-pad to length H (paper: Algorithm 1)
+    fresh = fresh_chunk()
+    w = soft_mask(d) if use_blend else [1.0 if i < d else 0.0 for i in range(H)]
+    new = [w[i] * left[i] + (1.0 - w[i]) * fresh[i] for i in range(H)]
+    # actions 0..d-1 run from the old chunk while inference is in flight
+    return [prev[S - 1]] + left[:d] + new[d:]
+
+
+def stats(seq: list[float]) -> tuple[float, float]:
+    steps = [abs(b - a) for a, b in zip(seq, seq[1:])]
+    acc = [abs(seq[k + 1] - 2 * seq[k] + seq[k - 1]) for k in range(1, len(seq) - 1)]
+    return max(steps), max(acc)
+
+
+def main() -> None:
+    print(f"H={H} s={S}  prev ramp 0.05/step, fresh = 0.20 + 0.03*i (other strategy)")
+    print(f"{'d':>2} {'mode':<6} {'max_step':>8} {'max_acc':>8} {'tail=fresh':>10}")
+    for d in DELAYS:
+        for mode in ("naive", "blend"):
+            seq = executed(d, mode == "blend")
+            mstep, macc = stats(seq)
+            tail_ok = all(
+                abs(seq[1 + i] - fresh_chunk()[i]) < 1e-12 for i in range(H - S, H)
+            )
+            print(f"{d:>2} {mode:<6} {mstep:>8.3f} {macc:>8.3f} {str(tail_ok):>10}")
+    w = soft_mask(2)
+    print("W (d=2): " + " ".join(f"{v:.2f}" for v in w))
+    print("naive jumps once at the seam; the blend spreads it over the overlap,")
+    print("and the last s actions still follow the fresh chunk.")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+H=16 s=8  prev ramp 0.05/step, fresh = 0.20 + 0.03*i (other strategy)
+ d mode   max_step  max_acc tail=fresh
+ 0 naive     0.150    0.180       True
+ 0 blend     0.030    0.005       True
+ 2 naive     0.190    0.240       True
+ 2 blend     0.050    0.078       True
+ 4 naive     0.230    0.280       True
+ 4 blend     0.070    0.120       True
+W (d=2): 1.00 1.00 0.68 0.43 0.26 0.13 0.05 0.01 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
+naive jumps once at the seam; the blend spreads it over the overlap,
+and the last s actions still follow the fresh chunk.
+```
+
+</SimOutput>
+
+怎么读：
+
+- d=0 时，naive 切换在一个控制步里跳 **0.150**；blend 的最大单步只有 **0.030**，是前者的五分之一。
+- d=2 时是 **0.190** 对 **0.050**；d=4 时是 **0.230** 对 **0.070**。延迟越长，冻结的步越多、软区越短，blend 的平滑越弱，但每一行的最大单步都不到 naive 的一半。
+- `tail=fresh` 全为 True：最后 s 个动作仍跟随新块，策略始终响应最新观测。
+- 打印出的 d=2 掩码与上面的时间轴表一致。
+
+## LeRobot 的 RTCConfig
+
+LeRobot 用 `RTCConfig` 配置 RTC，运行时在请求下一块时传入延迟。下表取自 LeRobot RTC 文档（以 LeRobot v0.6.x 文档为准，命令可能随版本变化）：
+
+| 选项 | 默认值 | 含义 |
+| --- | --- | --- |
+| `execution_horizon` | 10 | 有多少步被引导贴近旧块；常用 8–12 |
+| `max_guidance_weight` | 10.0 | 引导权重上限；文档称 10.0 对 10 步流匹配最优 |
+| `prefix_attention_schedule` | EXP | 掩码形状：LINEAR、EXP、ONES 或 ZEROS |
+| `inference_delay`（运行时） | — | 即 d，传给 `predict_action_chunk(..., inference_delay=..., prev_chunk_left_over=...)` |
+
+真机部署，本页未运行（需要 GPU 以及真机或数据集）：
+
+```bash
+$ lerobot-rollout --strategy.type=base --policy.path=<your/policy> \
+    --inference.type=rtc --inference.rtc.execution_horizon=10 \
+    --inference.rtc.max_guidance_weight=10.0 ...
+```
+
+文档还提供对数据集的离线检查 `examples/rtc/eval_dataset.py`。LeRobot 的远程推理（`lerobot-policy-server` 加 `--inference.type=remote`）有自己的 `chunk_merge` 与 `refill_seconds` 选项来决定怎么拼接动作块；它要求机器人能保持位置，SO 系列从臂具备这一点。
+
+<Resource id="lerobot-rtc" />
+<Resource id="lerobot-remote-inference" />
+<Resource id="lerobot-async" />
+
+## 论文测到了什么
+
+在真机上用 π0.5（H=50、Δt=20 ms、s_min=25），RTC 论文报告：带 RTC 的模型延迟约 97 ms，不带约 76 ms；注入超过 300 ms 的延迟仍然稳健；完成任务比同步推理快约 20 %。几种掩码形状里指数衰减最好，线性紧随其后。这些是论文在 GPU 和真机上的结果，本页未运行。[10.3](/zh/month/month-10/edge-deploy-checklist) 会把这类延迟换算成 d。
+
+## 常见错误
+
+- **把玩具的混合当成 RTC。** 玩具是事后混合；真正的 RTC 在每一步去噪时引导。
+- **远程推理时还开着 ACT 的 temporal ensembling。** LeRobot 远程推理文档要求 ACT 关闭 temporal ensembling。
+- **只按模型耗时设 `inference_delay`。** 相机、网络和预处理也要算（10.3）。
+- **指望 RTC 消除空等帧。** 那是异步推理（8.3）的事；两者一起用。
+
+<Summary>
+
+异步推理（8.3）消除空等帧，实时动作块消除接缝。RTC 冻结前 d = floor(δ/Δt) 个动作，用式 5 的软掩码把新块后续一段引导向旧块，无需重训。在线性替身 `rtc_blend_toy.py` 里，d = 0 / 2 / 4 时最大单步从 0.150 / 0.190 / 0.230（naive）降到 0.030 / 0.050 / 0.070（blend）。LeRobot：`execution_horizon=10`、`max_guidance_weight=10.0`、EXP 形状，运行时传 `inference_delay`。
+
+</Summary>

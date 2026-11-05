@@ -3358,6 +3358,112 @@ const lessonRef = (n, slug, lang) => {
   console.log(`calc  m9 gaps: stage gen3/missing_connect; servo scaled_rows=3; load peak 208.2; adm F/S; saycan vacuum block; bt GraspBackup; nav path6/approach_closer; demo 3/3; phrases ${phraseHits9}; batch3+TrackB full 9.1–9.9`);
 }
 
+{
+  // Month 10 PR1: 10.1 flow-matching-policies / 10.2 real-time-chunking / 10.3 edge-deploy-checklist.
+  // Numbers quoted in prose are bound to examples/month-10/expected/*.txt (actual stdout via UPDATE=1).
+  // 10.2 toy must be labelled a simplified linear stand-in for RTC guidance.
+  const rd10 = (rel) => readFileSync(join(root, rel), "utf8");
+  const fm = rd10("examples/month-10/expected/flow_match_toy.txt");
+  const rtc = rd10("examples/month-10/expected/rtc_blend_toy.txt");
+  const q8 = rd10("examples/month-10/expected/int8_quant_toy.txt");
+  const lat = rd10("examples/month-10/expected/latency_budget.txt");
+  const slugs10 = ["flow-matching-policies", "real-time-chunking", "edge-deploy-checklist"];
+  const md10 = {};
+  for (const slug of slugs10) {
+    for (const lang of ["en", "zh"]) {
+      const x = rd10(`src/content/m10/${slug}/${lang}.mdx`);
+      md10[`${slug}/${lang}`] = x;
+      ok(/<CodeSource /.test(x) && /<SimOutput /.test(x), `m10 ${slug} ${lang}: CodeSource + SimOutput`);
+      ok(/本站补充|site supplement/.test(x), `m10 ${slug} ${lang}: site-supplement opener`);
+      ok(/第 7–10 个月|Months 7–10/.test(x), `m10 ${slug} ${lang}: opener says 7–10`);
+      ok(/本页未运行/.test(x), `m10 ${slug} ${lang}: 本页未运行 marker`);
+      ok(/async-deployment/.test(x) && /perception-to-grasp/.test(x) && /DAgger/.test(x),
+        `m10 ${slug} ${lang}: scope note vs 8.3 / 7.6 / DAgger`);
+      ok(/8\.7/.test(x), `m10 ${slug} ${lang}: does not replace 8.7`);
+      ok(!/\$\d/.test(x), `m10 ${slug} ${lang}: no prices`);
+      ok(/LeRobot v0\.6\.x/.test(x), `m10 ${slug} ${lang}: LeRobot v0.6.x caveat`);
+      ok(!/大纲|outline only/i.test(x), `m10 ${slug} ${lang}: full lesson, not outline`);
+    }
+  }
+  for (const lang of ["en", "zh"]) {
+    const x = md10[`real-time-chunking/${lang}`];
+    ok(lang === "en" ? /simplified linear stand-in/.test(x) : /简化线性替身/.test(x),
+      `m10 rtc ${lang}: toy labelled simplified linear stand-in`);
+  }
+
+  // Bind numbers: each value must be in the expected file AND in both languages of its lesson.
+  const grab = (txt, re, label) => {
+    const m = txt.match(re);
+    ok(!!m, `m10 expected: ${label}`);
+    return m ? m[1] : "__missing__";
+  };
+  const fmRow = (steps) => grab(fm, new RegExp(`^\\s*${steps}\\s+([0-9.]+)`, "m"), `fm steps=${steps}`);
+  const phrases10 = {
+    "flow-matching-policies": [
+      grab(fm, /v\(x=0\.50, tau=0\.9\) = ([+\-][0-9.]+)/, "fm v(0.5,0.9)"),
+      fmRow(3), fmRow(10), fmRow(50),
+      grab(fm, /^\s*1\s+[0-9.]+\s+([0-9.]+)/m, "fm 1-step near_mean"),
+    ],
+    "real-time-chunking": (() => {
+      const out = [];
+      for (const d of [0, 2, 4]) {
+        out.push(grab(rtc, new RegExp(`^ *${d} naive\\s+([0-9.]+)`, "m"), `rtc naive d=${d}`));
+        out.push(grab(rtc, new RegExp(`^ *${d} blend\\s+([0-9.]+)`, "m"), `rtc blend d=${d}`));
+      }
+      return out;
+    })(),
+    "edge-deploy-checklist": [
+      grab(q8, /^plain\s+sym tensor\s+([0-9.]+)/m, "q8 plain sym scale"),
+      grab(q8, /^outlier\s+sym tensor\s+([0-9.]+)/m, "q8 outlier sym scale"),
+      grab(q8, /^outlier\s+sym tensor\s+[0-9.]+\s+([0-9.]+)/m, "q8 outlier sym ch0 err"),
+      grab(q8, /^outlier\s+per-channel\s+[0-9.]+\s+([0-9.]+)/m, "q8 per-channel ch0 err"),
+      grab(q8, /fp32\s+([0-9]+ MB)/, "q8 fp32 MB"),
+      grab(q8, /int8\s+([0-9]+ MB)/, "q8 int8 MB"),
+      grab(lat, /pi0\.5\+RTC LAN\s+([0-9.]+)/, "lat RTC LAN ms"),
+      grab(lat, /pi0\.5\+RTC \+100ms\s+([0-9.]+)/, "lat RTC +100ms ms"),
+    ],
+  };
+  ok(/near_mean/.test(fm) && /1\s+0\.000\s+1\.000/.test(fm), "m10 fm: 1 step collapses to mean (near_mean 1.000)");
+  ok(/tail=fresh/.test(rtc) && !/False/.test(rtc), "m10 rtc: tail stays fresh");
+  ok(/<=scale\/2/.test(q8) && !/False/.test(q8), "m10 q8: error <= scale/2 everywhere");
+  ok(/d <= 25/.test(lat) && !/False/.test(lat), "m10 lat: every scenario fits d <= H - s");
+  ok(/108\.8\s+5\s+6/.test(lat) && /208\.8\s+10\s+11/.test(lat), "m10 lat: ceil matches RTC paper d 6 / 11");
+  let phraseHits10 = 0;
+  for (const [slug, vals] of Object.entries(phrases10)) {
+    for (const v of vals) {
+      for (const lang of ["en", "zh"]) {
+        const hit = md10[`${slug}/${lang}`].includes(v);
+        ok(hit, `m10 ${slug} ${lang}: quotes ${v} from expected`);
+        if (hit) phraseHits10 += 1;
+      }
+    }
+  }
+
+  const cur10 = rd10("src/lib/curriculum.ts");
+  ok(/month10Lessons/.test(cur10) && /slug: "month-10"/.test(cur10), "m10 curriculum: month10Lessons + month-10");
+  for (const slug of slugs10) ok(new RegExp(`slug: "${slug}"`).test(cur10), `m10 curriculum has ${slug}`);
+  ok(/month-10\/check\.sh/.test(rd10("tools/sim/reproduce.sh")), "m10 hooked in reproduce.sh");
+  const chk10 = rd10("examples/month-10/check.sh");
+  for (const f of ["flow_match_toy", "rtc_blend_toy", "int8_quant_toy", "latency_budget"]) {
+    ok(new RegExp(`${f}\\.txt`).test(chk10), `m10 check.sh: ${f}`);
+  }
+  ok(/3 of 7/.test(chk10), "m10 check.sh header: 3 of 7");
+  const res10 = rd10("src/lib/resources.ts");
+  for (const id of ["flow-matching-paper", "pi0-paper", "rectified-flow-paper", "consistency-policy-paper", "rtc-paper",
+    "lerobot-action-representations", "lerobot-rtc", "lerobot-remote-inference", "lerobot-hardware-guide",
+    "lerobot-torch-accelerators", "onnxruntime-quantization"]) {
+    const block = (res10.match(new RegExp(`"${id}": \\{[\\s\\S]*?\\n  \\}`)) || [""])[0];
+    ok(block.length > 0 && /extra:\s*true/.test(block), `m10 resource ${id}: present + extra`);
+    ok(!/\$\d/.test(block), `m10 resource ${id}: no price`);
+  }
+  const glo10 = rd10("src/lib/glossary.ts");
+  for (const t of ["flow-matching", "velocity-field", "real-time-chunking", "soft-mask", "quantization", "latency-budget"]) {
+    ok(new RegExp(`"${t}"`).test(glo10), `m10 glossary: ${t}`);
+  }
+
+  console.log(`calc  m10 gaps: fm 1-step mean/10-step mode; rtc blend < naive/2 d=0,2,4 (linear stand-in); int8 per-channel vs outlier; latency ceil d 6/11; phrases ${phraseHits10}; PR1 10.1–10.3`);
+}
+
 
 const specs = [];
 for (const f of readdirSync(specDir).filter((f) => f.endsWith(".ts"))) {

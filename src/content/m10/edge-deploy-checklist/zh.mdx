@@ -1,0 +1,277 @@
+本课是本站补充内容——第 7–10 个月不属于原六个月课程。
+
+**范围。** 本课在 CPU 上手算 int8 量化与延迟预算，再给一份只读的部署清单。与相邻课程的分工：[8.3 异步部署](/zh/month/month-8/async-deployment) 负责 PolicyServer / RobotClient 循环，[10.2](/zh/month/month-10/real-time-chunking) 负责平滑接缝（本课只算它要的 d），[7.6 感知到抓取](/zh/month/month-7/perception-to-grasp) 负责相机管线本身，[6.1 行为克隆](/zh/month/month-6/behaviour-cloning) 里的 DAgger 负责纠正数据。不需要新硬件：下面所有 GPU、TensorRT、Jetson 步骤都只读，本页未运行。本课也不替代 8.7 毕业项目。
+
+## 训练与部署是两件事
+
+LeRobot 算力指南说得很直接：只有 CPU 就不要训练，用 Colab 或租 GPU。它给出的批大小 8 时峰值显存量级说明了原因：
+
+| 策略类别 | 训练显存（批大小 8） |
+| --- | --- |
+| 轻量行为克隆（如 ACT） | 约 2–6 GB |
+| diffusion | 约 8–14 GB |
+| SmolVLA | 约 10–16 GB |
+| π0 / π0.5 | 约 24–40 GB |
+
+部署一次只处理一个观测，需要的资源少得多，但有自己的约束：内存、功耗、发热，以及最重要的延迟。[8.2](/zh/month/month-8/vla-finetune) 有一张每参数字节数表；本课要问的是策略在真正运行它的设备上能多小、多快。LeRobot 里 `--policy.device` 选 cpu / cuda / mps / xpu，`--accelerator.mixed_precision` 取 no、bf16 或 fp16（CPU 上拒绝 fp16）。以 LeRobot v0.6.x 文档为准，命令可能随版本变化。
+
+<Resource id="lerobot-hardware-guide" />
+<Resource id="lerobot-torch-accelerators" />
+
+## 手算 int8
+
+<Term id="quantization">量化</Term>把一个浮点数存成小整数 q，再加两个由许多数共享的参数。ONNX Runtime 文档写作：
+
+- `val_fp32 = scale × (val_q − zero_point)`
+- 非对称：`scale = (max − min) / (qmax − qmin)`
+- 对称：`scale = max(|max|, |min|) × 2 / (qmax − qmin)`，zero_point = 0
+
+必要时要把范围扩到包含 0，使 **0 能被精确表示**：零填充和 ReLU 输出到处都是，0 一旦有偏移，每一层都会被带偏。整个张量共用一个 scale 叫 *per-tensor*；每个输出通道一个 scale 叫 *per-channel*。
+
+`int8_quant_toy.py` 用三种方式量化一个固定的 4 × 16 权重矩阵，再在通道 1 放一个离群值（4.0）重做一遍。`ch0_max_err` 是通道 0（不含离群值）的最大误差。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-10/edge-deploy-checklist
+$ python3 int8_quant_toy.py
+```
+
+<CodeSource path="examples/month-10/edge-deploy-checklist/int8_quant_toy.py" />
+
+```python
+"""int8_quant_toy.py: 8-bit linear quantisation by hand (stdlib).
+
+Formulas follow the ONNX Runtime quantisation docs:
+    val_fp32 = scale * (val_quantized - zero_point)
+    asymmetric: scale = (max - min) / (qmax - qmin)
+    symmetric:  scale = max(|max|, |min|) * 2 / (qmax - qmin)
+
+Symmetric int8 here uses the range -127..127 (zero_point = 0); asymmetric
+uint8 uses 0..255. The range is widened to include 0 so that 0.0 is exactly
+representable. A 4 x 16 weight matrix (4 output channels) is quantised
+per-tensor (one scale) and per-channel (one scale per row). One outlier in
+channel 1 shows why a single large value hurts every weight that shares its
+scale.
+"""
+
+import random
+
+SEED = 3
+ROWS, COLS = 4, 16
+
+
+def weights(with_outlier: bool) -> list[list[float]]:
+    rng = random.Random(SEED)
+    w = [[round(rng.uniform(-0.5, 0.5), 4) for _ in range(COLS)] for _ in range(ROWS)]
+    if with_outlier:
+        w[1][5] = 4.0
+    return w
+
+
+def sym_params(xs: list[float]) -> tuple[float, int, int, int]:
+    qmin, qmax = -127, 127
+    scale = max(abs(max(xs)), abs(min(xs))) * 2 / (qmax - qmin)
+    return scale, 0, qmin, qmax
+
+
+def asym_params(xs: list[float]) -> tuple[float, int, int, int]:
+    qmin, qmax = 0, 255
+    lo, hi = min(min(xs), 0.0), max(max(xs), 0.0)
+    scale = (hi - lo) / (qmax - qmin)
+    zp = max(qmin, min(qmax, round(qmin - lo / scale)))
+    return scale, zp, qmin, qmax
+
+
+def roundtrip(xs: list[float], params: tuple[float, int, int, int]) -> list[float]:
+    scale, zp, qmin, qmax = params
+    q = [max(qmin, min(qmax, round(x / scale) + zp)) for x in xs]
+    return [scale * (v - zp) for v in q]
+
+
+def run(w: list[list[float]], scheme: str) -> tuple[float, float, float, bool]:
+    flat = [x for row in w for x in row]
+    back: list[float] = []
+    scales: list[float] = []
+    if scheme == "per-channel":
+        for row in w:
+            p = sym_params(row)
+            scales.append(p[0])
+            back += roundtrip(row, p)
+    else:
+        p = sym_params(flat) if scheme == "sym tensor" else asym_params(flat)
+        scales = [p[0]] * ROWS
+        back = roundtrip(flat, p)
+    errs = [abs(a - b) for a, b in zip(flat, back)]
+    ch0 = errs[:COLS]
+    bound = all(
+        e <= scales[i // COLS] / 2 + 1e-12 for i, e in enumerate(errs)
+    )
+    mse = sum(e * e for e in errs) / len(errs)
+    return scales[0], max(ch0), mse, bound
+
+
+def main() -> None:
+    print(f"{ROWS}x{COLS} weights, seed={SEED}, uniform(-0.5, 0.5); outlier case sets w[1][5]=4.0")
+    print(f"{'case':<8} {'scheme':<12} {'scale_ch0':>9} {'ch0_max_err':>11} {'mse':>10} {'<=scale/2':>9}")
+    for case, flag in (("plain", False), ("outlier", True)):
+        w = weights(flag)
+        for scheme in ("sym tensor", "asym tensor", "per-channel"):
+            s0, e0, mse, bound = run(w, scheme)
+            print(f"{case:<8} {scheme:<12} {s0:>9.5f} {e0:>11.5f} {mse:>10.2e} {str(bound):>9}")
+    params = 100_000_000
+    print(f"weight bytes for {params // 1_000_000}M params (weights only, no activations):")
+    for name, nbytes in (("fp32", 4), ("bf16", 2), ("int8", 1)):
+        print(f"  {name:<5} {params * nbytes / 1e6:>6.0f} MB")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+4x16 weights, seed=3, uniform(-0.5, 0.5); outlier case sets w[1][5]=4.0
+case     scheme       scale_ch0 ch0_max_err        mse <=scale/2
+plain    sym tensor     0.00390     0.00190   1.06e-06      True
+plain    asym tensor    0.00385     0.00182   1.42e-06      True
+plain    per-channel    0.00390     0.00190   1.06e-06      True
+outlier  sym tensor     0.03150     0.01436   8.17e-05      True
+outlier  asym tensor    0.01760     0.00859   2.56e-05      True
+outlier  per-channel    0.00390     0.00190   1.74e-05      True
+weight bytes for 100M params (weights only, no activations):
+  fp32     400 MB
+  bf16     200 MB
+  int8     100 MB
+```
+
+</SimOutput>
+
+怎么读：
+
+- 没有离群值时三种方案的 scale 都在 **0.00390** 左右，误差都远小于一个量化步。
+- 有离群值时，per-tensor 对称量化的 scale 涨到 **0.03150**，通道 0 的最大误差涨到 **0.01436**，尽管通道 0 本身一点没变。per-channel 让通道 0 的 scale 保持 **0.00390**、误差 **0.00190**。
+- `<=scale/2` 全为 True：舍入误差最多半个量化步，所以 scale 本身就是误差预算。
+- int8 权重只占 fp32 的四分之一：1 亿参数时 **400 MB** 对 **100 MB**（只算权重）。
+
+## 更小不一定更快
+
+ONNX Runtime 文档列出三种量化方式：动态量化（运行时计算激活范围，推荐用于 RNN 和 Transformer）、静态量化（用样本数据校准范围，推荐用于 CNN），两者都保不住精度时再用量化感知训练（QAT）。要真的变快，还需要硬件有快速 int8 通路，例如 x86 VNNI、NVIDIA Tensor Core int8 或 Arm dot-product 指令；在老硬件上量化后的模型可能比 fp32 还慢。仅示意，本页未运行：
+
+```python
+from onnxruntime.quantization import quantize_dynamic, QuantType
+quantize_dynamic("model.onnx", "model.int8.onnx", weight_type=QuantType.QInt8)
+```
+
+<Resource id="onnxruntime-quantization" />
+
+## 延迟预算
+
+<Term id="latency-budget">延迟预算</Term>把「相机看到」到「动作就绪」之间每一段耗时加起来，再换算成控制步数，也就是 10.2 里的 d。`latency_budget.py` 只用公开发表的分项耗时：π0 在 RTX 4090 上（图像编码器 14 ms、观测前向 32 ms、10 步动作 27 ms；板上 **73 ms**，离板加 13 ms 网络为 **86 ms**），以及 RTC 论文里 π0.5 的分解（模型 97.43 ms、网络 6.89 ms、缩放 1.44 ms、其他 3.00 ms）。每个场景再加上 30 fps 时最多 33.3 ms 的相机帧龄重算一次。
+
+```bash
+$ python3 latency_budget.py
+```
+
+<CodeSource path="examples/month-10/edge-deploy-checklist/latency_budget.py" />
+
+```python
+"""latency_budget.py: end-to-end latency -> inference delay d (stdlib).
+
+d = floor(delta / dt) as defined in the RTC paper (arXiv 2506.07339), where
+delta is the time from observation to a usable action chunk and dt is the
+control period. We also print ceil(delta / dt) as a conservative choice for
+LeRobot's inference_delay. Component numbers are copied from published
+tables (RTX 4090, not measured on this site); the camera row is the worst-case
+age of a frame at 30 fps.
+"""
+
+import math
+
+H, S_MIN = 50, 25  # pi0 / pi0.5 horizon and the paper's minimum execution horizon
+CAMERA_30FPS = 1000.0 / 30.0
+
+SCENARIOS = (
+    ("pi0 on-board", (("image encoders", 14.0), ("observation fwd", 32.0), ("10x action fwd", 27.0))),
+    ("pi0 off-board", (("on-board total", 73.0), ("network", 13.0))),
+    ("pi0.5+RTC LAN", (("model", 97.43), ("network", 6.89), ("image resize", 1.44), ("other", 3.00))),
+    ("pi0.5+RTC +100ms", (("measured total", 108.76), ("injected", 100.0))),
+)
+
+
+def main() -> None:
+    print(f"H={H}  s_min={S_MIN}  constraint d <= H - s  ->  d <= {H - S_MIN}")
+    print(f"camera frame age at 30 fps: up to {CAMERA_30FPS:.1f} ms (added in the +cam rows)")
+    print(f"{'scenario':<22} {'delta_ms':>8} {'d@50Hz':>7} {'ceil':>5} {'d@30Hz':>7} {'ceil':>5} {'fits':>5}")
+    for name, parts in SCENARIOS:
+        base = sum(ms for _, ms in parts)
+        for label, delta in ((name, base), (name + " +cam", base + CAMERA_30FPS)):
+            d50 = math.floor(delta / 20.0)
+            d30 = math.floor(delta / CAMERA_30FPS)
+            c50 = math.ceil(delta / 20.0)
+            c30 = math.ceil(delta / CAMERA_30FPS)
+            fits = c50 <= H - S_MIN
+            print(f"{label:<22} {delta:>8.1f} {d50:>7} {c50:>5} {d30:>7} {c30:>5} {str(fits):>5}")
+    print("sync inference would idle about d control steps per chunk; async/RTC hides them.")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+H=50  s_min=25  constraint d <= H - s  ->  d <= 25
+camera frame age at 30 fps: up to 33.3 ms (added in the +cam rows)
+scenario               delta_ms  d@50Hz  ceil  d@30Hz  ceil  fits
+pi0 on-board               73.0       3     4       2     3  True
+pi0 on-board +cam         106.3       5     6       3     4  True
+pi0 off-board              86.0       4     5       2     3  True
+pi0 off-board +cam        119.3       5     6       3     4  True
+pi0.5+RTC LAN             108.8       5     6       3     4  True
+pi0.5+RTC LAN +cam        142.1       7     8       4     5  True
+pi0.5+RTC +100ms          208.8      10    11       6     7  True
+pi0.5+RTC +100ms +cam     242.1      12    13       7     8  True
+sync inference would idle about d control steps per chunk; async/RTC hides them.
+```
+
+</SimOutput>
+
+怎么读：
+
+- RTC 论文定义 d = floor(δ / Δt)。它的真机实验报告局域网下 d≈6，注入 +100 / +200 ms 时约 11 和 16；这些和 `ceil` 列一致（**108.8 ms → 6**，**208.8 ms → 11**）。设置 `inference_delay` 时向上取整。
+- 相机会多出整步：π0 板上在 50 Hz 下从 d=**3** 变成 **5**。
+- 每一行都满足 d ≤ H − s = 25，50 步的块仍有余量。同步推理每块大约空等 d 步；异步（8.3）和 RTC（10.2）把它藏起来。
+- 这些是公开的 GPU 数字，不是你的机器人。信任某个 d 之前，先在 SO-101 上实测端到端延迟；本页没有 SO-101 实测数字。
+
+## 端侧清单
+
+只读；本页未运行其中任何一项。勾出你的设备已满足的项，其余标「未知」。
+
+- **内存**：权重加激活放得下且有余量；GR00T README 要求推理用 16 GB 以上显存的 GPU。
+- **电源与时钟**：计时前固定电源模式与时钟（Jetson 上用 MAXN 模式和 `jetson_clocks`），否则数字会漂。
+- **发热**：测长时间运行而不是单次调用；降频要几分钟后才出现。
+- **批大小 1**：部署延迟按批大小 1 算；大批量下的吞吐数字不适用。
+- **导出路径**：PyTorch → ONNX → TensorRT（或 ONNX Runtime），每一步都和原模型对比输出。
+- **精度**：先 bf16/fp16，有校准数据并做过精度检查后再上 int8。
+- **预算**：一张填了实测值的延迟表，以及你要传给 `inference_delay` 的 d。
+
+作为量级参考，Isaac-GR00T README 报告 GR00T N1.7 在 RTX PRO 6000 Blackwell Server Edition 上约 **40 Hz**，在 Jetson AGX Thor 上用 TensorRT 约 **28 Hz**（批大小 1、LIBERO、MAXN 加 `jetson_clocks`）。这是项目方的数字，本页未实测；本课不要求购买任何硬件。
+
+<Resource id="isaac-groot" />
+<Resource id="lerobot-groot" />
+<Resource id="pi0-paper" />
+
+## 常见错误
+
+- **在部署设备上训练。** 用 GPU（或租用）训练，在端侧设备上部署。
+- **有离群值还用 per-tensor 量化。** 一个大权重会放大其他所有权重的误差；改用 per-channel。
+- **默认 int8 更快。** 没有 VNNI、Tensor Core int8 或 Arm dot-product 支持时可能更慢。
+- **预算只算模型耗时。** 相机帧龄、预处理和网络会多出整步。
+- **在动态时钟下计时。** 先固定电源模式与时钟，再测几分钟。
+
+<Summary>
+
+用 GPU 训练，在设备上部署。int8 用 `val = scale × (q − zero_point)`，且 0 必须能精确表示；一个离群值把 per-tensor 的 scale 从 0.00390 推到 0.03150，per-channel 仍是 0.00390。只有在有 int8 通路的硬件上量化才会提速。延迟预算把 73 ms（π0 板上）或 108.8 ms（带 RTC 的 π0.5）换算成某个控制频率下的 d；设 `inference_delay` 时向上取整。GPU、TensorRT、Jetson 步骤只读。
+
+</Summary>

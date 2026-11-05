@@ -1,4 +1,4 @@
-This lesson is a site supplement — Months 7–9 are not part of the original six-month course.
+This lesson is a site supplement — Months 7–10 are not part of the original six-month course.
 
 A VLA rarely emits one joint target per forward pass. It emits an <Term id="action-chunk">action chunk</Term> — a short open-loop sequence. How you schedule the next chunk decides whether the arm freezes between inferences. LeRobot's async docs split the system into a **PolicyServer** (runs the model) and a **RobotClient** (talks to the arm). They may share a machine or span a network. This lesson contrasts sync idle frames with <Term id="async-inference">async inference</Term> on a CPU discrete-time toy. A timeline widget (`ChunkTimelineWidget`) is deferred; read the table until it ships.
 
@@ -175,6 +175,8 @@ Sync idle ratio **0.200**; async idle ratio **0.020**. Async also shows a higher
 - **`chunk_size_threshold`:** LeRobot's official value is a fraction in [0,1] (send when the action queue is ≤ that fill). This CPU toy uses an absolute remaining-action count under the same name (8 of 16 ≈ 0.5): when remaining actions in the current chunk fall to this value, async starts the next inference. Too high → you infer early and waste compute; too low → you go idle again.
 
 Change `ACTION_CHUNK` to 8 locally and re-run; watch idle ratio and jump count move.
+
+Async removes the idle frames but not the jump where a new chunk takes over; [10.2 real-time chunking](/en/month/month-10/real-time-chunking) smooths that seam.
 
 ## Common mistakes
 

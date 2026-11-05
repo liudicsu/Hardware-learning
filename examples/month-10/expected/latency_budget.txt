@@ -1,0 +1,12 @@
+H=50  s_min=25  constraint d <= H - s  ->  d <= 25
+camera frame age at 30 fps: up to 33.3 ms (added in the +cam rows)
+scenario               delta_ms  d@50Hz  ceil  d@30Hz  ceil  fits
+pi0 on-board               73.0       3     4       2     3  True
+pi0 on-board +cam         106.3       5     6       3     4  True
+pi0 off-board              86.0       4     5       2     3  True
+pi0 off-board +cam        119.3       5     6       3     4  True
+pi0.5+RTC LAN             108.8       5     6       3     4  True
+pi0.5+RTC LAN +cam        142.1       7     8       4     5  True
+pi0.5+RTC +100ms          208.8      10    11       6     7  True
+pi0.5+RTC +100ms +cam     242.1      12    13       7     8  True
+sync inference would idle about d control steps per chunk; async/RTC hides them.
