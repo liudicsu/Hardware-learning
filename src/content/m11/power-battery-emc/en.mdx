@@ -10,7 +10,7 @@ Three hard EMC rules (summarised from Novanta / Roboteq / ARK wiring guides; not
 
 1. **Keep motor phase leads away from encoder / I2C.** Fast current edges are noise sources; separate runs, cross at ~90° when they must meet.
 2. **Single-point common ground.** Star the logic and motor grounds near the supply entry so large currents do not return through signal loops.
-3. **Shields default to source-end ground.** Ground the signal-cable shield at the drive / controller end; minimise loop area.
+3. **Distinguish four "grounds" and terminate shields by device spec — no one rule for every cable.** Signal ground (GND_D), power return (GND_P / VBAT−), chassis·PE, and the cable shield are different conductors. For Ethernet / EtherCAT (100Base-Tx) and other HF shields, terminate a continuous low-impedance shield path at **both ends** so shield current can flow; **do not use GND_D as the shield return** (that dumps noise onto the logic reference). Single-ended grounding is only for specific low-frequency schemes, and only when the device manual says so — do not generalise "source-end ground" to every cable.
 
 <Resource id="novanta-emc-wiring" />
 <Resource id="roboteq-emi" />
@@ -118,7 +118,7 @@ Further reading: Novanta humanoid EMC wiring case, Roboteq EMI post, ARK Power a
 
 - Separate logic and motor buses; star the common ground at one point.
 - Toy: peak 10.80 A, drop 0.432 V, load 11.568 V, fuse_margin 0.926.
-- Three EMC rules: motor leads away from signals, single-point ground, source-end shield.
+- Three EMC rules: motor leads away from signals; keep power/logic grounding strategies distinct; terminate shields by frequency and device spec (HF continuous at both ends; never use GND_D as shield return; do not generalise source-end ground to every cable).
 - Batteries: read C-rate and BMS cut-off only; no teardown, no BMS edits.
 - Currents are examples; real measurements are not run here.
 
