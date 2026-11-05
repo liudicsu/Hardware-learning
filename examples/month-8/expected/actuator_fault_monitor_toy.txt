@@ -1,0 +1,16 @@
+seed=85 horizon=110 status_timeout_ticks=3 recover_frames=5
+statusword: decisions read bit 3 Fault, bit 7 Warning (ros2_canopen State402::StatusWord standard bits 0-7, 9-11)
+masked_not_asserted: bit 8, 14, 15 manufacturer-specific; bits 12-13 mode-specific
+stream: warning t20-24 | fault_bit t30-41 | bit_clear t42-59 | frame_gap t75-82 | operator_ack t36,60,85,95
+diag_levels OK=87 WARN=5 ERROR=18
+arm         unsafe_motion_ticks false_auto_reenables ack_rejects latched_ticks blind_ticks
+ignore                       48                    2           0             0           2
+latch_only                   30                    2           0            18           2
+latch_ack                     0                    0           2            48           2
+bit_clear_no_ack: t=45 fault_bit=0 frame=1 operator_ack=0 state=LATCHED_SAFE
+ack t=36 -> rejected:fault_visible
+ack t=60 -> accepted
+ack t=85 -> rejected:good_frames=3<5
+ack t=95 -> accepted
+nonstandard_bit_noise_changes_decisions=0
+ok: latch_ack unsafe_motion_ticks=0 false_auto_reenables=0; bus-off / soft reset is not an e-stop (hardware path 本页未运行)

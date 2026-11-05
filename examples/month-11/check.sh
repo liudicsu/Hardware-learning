@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the Month 11 examples and compare with expected/.
-# All 7 of 7 lessons (11.1–11.7); 11.1/11.2/11.3/11.5/11.6 each have a deepen toy.
+# All 7 of 7 lessons (11.1–11.7); 11.1/11.2/11.3/11.5/11.6/11.7 each have a deepen toy.
 # Usage: examples/month-11/check.sh        UPDATE=1 examples/month-11/check.sh
 set -uo pipefail
 M11="$(cd "$(dirname "$0")" && pwd)"
@@ -31,5 +31,6 @@ check lipm_track_toy.txt "$PY" "$M11/humanoid-wbc-overview/lipm_track_toy.py"
 check tactile_gate_toy.txt "$PY" "$M11/contact-rich-policies/tactile_gate_toy.py"
 
 check floating_base_contact_toy.txt "$PY" "$M11/humanoid-wbc-overview/floating_base_contact_toy.py"
+check contact_slip_residual_toy.txt "$PY" "$M11/contact-rich-policies/contact_slip_residual_toy.py"
 
 exit $fail

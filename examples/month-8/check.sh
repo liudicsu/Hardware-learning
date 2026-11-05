@@ -31,5 +31,6 @@ check stream_sync_eval_toy.txt "$PY" "$M8/async-deployment/stream_sync_eval_toy.
 
 check bag_qos_accept_toy.txt "$PY" "$M8/robot-devops/bag_qos_accept_toy.py"
 check lifecycle_sm_toy.txt "$PY" "$M8/ros2-hardware-interface/lifecycle_sm_toy.py"
+check actuator_fault_monitor_toy.txt "$PY" "$M8/safety-reliability/actuator_fault_monitor_toy.py"
 
 exit $fail
