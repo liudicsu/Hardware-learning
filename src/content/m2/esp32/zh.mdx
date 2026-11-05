@@ -717,9 +717,9 @@ ok: medium-driven inversion; mutex PI bounds medium wait but lock wait remains (
 
 两臂共享同一路到达噪声（`seed=42`），对比公平。
 
-<Quiz id="q7" question="本玩具里，哪一个锁替身对应 FreeRTOS 的优先级继承？" options=['no_inheritance（二值信号量）', 'inheritance（互斥量）', '两者一样', '中等任务自己的锁'] answer={1} explanation="FreeRTOS-Kernel semphr.h：xSemaphoreCreateMutex() 使用优先级继承；xSemaphoreCreateBinary() 不使用。inheritance 臂是互斥量替身。" />
+<Quiz id="q7" question="本玩具里，哪一个锁替身对应 FreeRTOS 的优先级继承？" options={["no_inheritance（二值信号量）", "inheritance（互斥量）", "两者一样", "中等任务自己的锁"]} answer={1} explanation="FreeRTOS-Kernel semphr.h：xSemaphoreCreateMutex() 使用优先级继承；xSemaphoreCreateBinary() 不使用。inheritance 臂是互斥量替身。" />
 
-<Quiz id="q8" question="为什么玩具一定要有中等任务？" options=['为了用上 ESP32 的第二核', '这样高任务因锁阻塞时，才会出现无界反转', '因为 Zephyr 要求三个任务', '为了在 PI 下消掉一切锁等待'] answer={1} explanation="没有中等任务时，高任务的等待只是低任务剩余临界区。中等任务抢占仍持锁的低任务，才会在无继承时把等待拉成无界；有继承时低任务被抬到高于中等。" />
+<Quiz id="q8" question="为什么玩具一定要有中等任务？" options={["为了用上 ESP32 的第二核", "这样高任务因锁阻塞时，才会出现无界反转", "因为 Zephyr 要求三个任务", "为了在 PI 下消掉一切锁等待"]} answer={1} explanation="没有中等任务时，高任务的等待只是低任务剩余临界区。中等任务抢占仍持锁的低任务，才会在无继承时把等待拉成无界；有继承时低任务被抬到高于中等。" />
 
 ### Zephyr 极性（仅文字）
 

@@ -717,9 +717,9 @@ Read the table left to right. Under `no_inheritance` (binary-semaphore stand-in)
 
 Both arms share one arrival-noise stream (`seed=42`), so the comparison is fair.
 
-<Quiz id="q7" question="In this toy, which lock stand-in models FreeRTOS priority inheritance?" options=['no_inheritance (binary semaphore)', 'inheritance (mutex)', 'Either, they are the same', "The medium task's lock"] answer={1} explanation="FreeRTOS-Kernel semphr.h: xSemaphoreCreateMutex() uses priority inheritance; xSemaphoreCreateBinary() does not. The inheritance arm is the mutex stand-in." />
+<Quiz id="q7" question="In this toy, which lock stand-in models FreeRTOS priority inheritance?" options={["no_inheritance (binary semaphore)", "inheritance (mutex)", "Either, they are the same", "The medium task's lock"]} answer={1} explanation="FreeRTOS-Kernel semphr.h: xSemaphoreCreateMutex() uses priority inheritance; xSemaphoreCreateBinary() does not. The inheritance arm is the mutex stand-in." />
 
-<Quiz id="q8" question="Why does the toy include a medium task?" options=['To use the second ESP32 core', 'So that unbounded inversion can appear while high is blocked on the lock', 'Because Zephyr requires three tasks', 'To eliminate all lock waits under PI'] answer={1} explanation="Without medium, high's wait is only low's remaining critical section. Medium preempts the lock-holding low task and makes the wait unbounded unless inheritance boosts low above medium." />
+<Quiz id="q8" question="Why does the toy include a medium task?" options={["To use the second ESP32 core", "So that unbounded inversion can appear while high is blocked on the lock", "Because Zephyr requires three tasks", "To eliminate all lock waits under PI"]} answer={1} explanation="Without medium, high's wait is only low's remaining critical section. Medium preempts the lock-holding low task and makes the wait unbounded unless inheritance boosts low above medium." />
 
 ### Zephyr polarity (text only)
 

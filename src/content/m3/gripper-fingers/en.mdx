@@ -595,7 +595,7 @@ The IK here is a damped least-squares step on a planar 3R finger with clamp-to-l
 
 <Quiz id="q6" question="How many actuated DoF does this lesson's toy hand define?" answer={12} explanation="4 fingers × 3 joints = 12. LEAP Hand's 16 DoF is a paper figure (以论文为准), not this toy's count." />
 
-<Quiz id="q7" question="Why does the toy include a link-length ratio and a scaled-target variant?" options=['To make OpenSCAD faster', 'So fingertip IK is not a tautological winner on RMSE against joint copy', 'Because LEAP requires ratio 0.75', 'To remove all joint limits'] answer={1} explanation="With identical kinematics and reachable targets, IK wins RMSE by construction. The embodiment gap, limits, unreachable frames and scaled variant keep the comparison honest; secondary metrics let joint copy win on smoothness." />
+<Quiz id="q7" question="Why does the toy include a link-length ratio and a scaled-target variant?" options={["To make OpenSCAD faster", "So fingertip IK is not a tautological winner on RMSE against joint copy", "Because LEAP requires ratio 0.75", "To remove all joint limits"]} answer={1} explanation="With identical kinematics and reachable targets, IK wins RMSE by construction. The embodiment gap, limits, unreachable frames and scaled variant keep the comparison honest; secondary metrics let joint copy win on smoothness." />
 
 
 ## Practice: three objects

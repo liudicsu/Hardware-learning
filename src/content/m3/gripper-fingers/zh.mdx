@@ -595,7 +595,7 @@ ok: embodiment gap + limits + scaled variant; IK better on RMSE; joint_copy keep
 
 <Quiz id="q6" question="本课玩具手定义了多少个驱动自由度？" answer={12} explanation="4 指 × 3 关节 = 12。LEAP Hand 的 16 DoF 是论文数字（以论文为准），不是本玩具的计数。" />
 
-<Quiz id="q7" question="为什么玩具要加入杆长比和缩放目标变体？" options=['为了让 OpenSCAD 更快', '避免指尖 IK 在 RMSE 上对关节拷贝构成同义反复式必胜', '因为 LEAP 规定比值必须是 0.75', '为了取消全部关节限位'] answer={1} explanation="在相同运动学且目标可达时，IK 会在 RMSE 上按构造取胜。本体差距、限位、不可达帧与缩放变体让对比诚实；次要指标则让关节拷贝能在平滑性上占优。" />
+<Quiz id="q7" question="为什么玩具要加入杆长比和缩放目标变体？" options={["为了让 OpenSCAD 更快", "避免指尖 IK 在 RMSE 上对关节拷贝构成同义反复式必胜", "因为 LEAP 规定比值必须是 0.75", "为了取消全部关节限位"]} answer={1} explanation="在相同运动学且目标可达时，IK 会在 RMSE 上按构造取胜。本体差距、限位、不可达帧与缩放变体让对比诚实；次要指标则让关节拷贝能在平滑性上占优。" />
 
 
 ## 练习：三种物体
