@@ -78,12 +78,12 @@ def main() -> None:
         ee_base[5] + tag_ee[5],
     )
     # Target EE: keep orientation aligned with tag, place EE so tag sits at
-    # (0,0,z_des) in camera → EE should sit tag_base shifted by -cam_in_ee
-    # along the approach, with zero relative orientation error goal.
+    # (0,0,z_des) in camera → EE = tag_base − cam_in_ee − (0,0,z_des) along
+    # approach (identity rot toy). Equiv. err_p ≈ (tag_cam_x, tag_cam_y, tag_cam_z−z_des).
     goal_ee = (
         tag_base[0] - CAM_IN_EE[0],
         tag_base[1] - CAM_IN_EE[1],
-        tag_base[2] - CAM_IN_EE[2] - (tag_cam[2] - z_des),
+        tag_base[2] - CAM_IN_EE[2] - z_des,
         tag_base[3],
         tag_base[4],
         tag_base[5],

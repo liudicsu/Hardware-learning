@@ -3001,7 +3001,7 @@ const lessonRef = (n, slug, lang) => {
 
 
 {
-  // Month 9 content gaps (batch 3): all seven lessons full (9.1–9.7).
+  // Month 9 content gaps: 9.1–9.7 core + Track B 9.8 visual-servoing / 9.9 world-models-overview.
   // 9.1 stage_graph_toy: generators=3; good connect; broken missing_connect + cycle.
   // 9.2 servo_loop_sim: kappa_thresh; scaled_rows; v_unscaled / v_scaled.
   // 9.3 Present Load addr 60 / Current 69 / 6.5 mA; peak_load 208.2; F=M·a+D·v+S·(x−x_d).
@@ -3009,6 +3009,8 @@ const lessonRef = (n, slug, lang) => {
   // 9.5 recovery_bt_toy: GraspBackup after Retry(GraspPrimary,2); Fallback SUCCESS.
   // 9.6 nav_pick_bt: path_length_total; approach_closer_fired; LeKiwi 5555/5556, motors 7/8/9, 0.4/0.25/0.1.
   // 9.7 demo_gate: --all; 3/3 gates; table/contact/nav; does not replace 8.7.
+  // 9.8 tag_error_jog: eye-in-hand; err_z≈tag_cam_z−z_des; Twist clamps + deadzone.
+  // 9.9 latent_predict_toy: DreamerV3/DayDreamer/UniSim map; H-step dict rollout; no GPU.
   const rd9 = (rel) => readFileSync(join(root, rel), "utf8");
   const stage = rd9("examples/month-9/expected/stage_graph_toy.txt");
   const servo = rd9("examples/month-9/expected/servo_loop_sim.txt");
@@ -3084,8 +3086,8 @@ const lessonRef = (n, slug, lang) => {
     "m9 demo.py: three scenarios");
   ok(/Does NOT replace Month 8\.7/.test(demoPy), "m9 demo.py: not a second capstone");
 
-  // All seven lessons must be full (no outlines left).
-  for (const slug of ["mtc-long-horizon", "moveit-servo", "effort-admittance", "llm-skill-planning", "failure-recovery", "nav-arm-compose", "multi-skill-demo"]) {
+  // All nine lessons must be full (no outlines left; includes Track B 9.8/9.9).
+  for (const slug of ["mtc-long-horizon", "moveit-servo", "effort-admittance", "llm-skill-planning", "failure-recovery", "nav-arm-compose", "multi-skill-demo", "visual-servoing", "world-models-overview"]) {
     for (const lang of ["en", "zh"]) {
       const text = rd9(`src/content/m9/${slug}/${lang}.mdx`);
       ok(!/Outline \(full text in a later batch\)/.test(text) && !/大纲（正文在后续批次）/.test(text),
@@ -3161,6 +3163,23 @@ const lessonRef = (n, slug, lang) => {
         "8.7",
         "本页未强制真机",
       ],
+      "visual-servoing": [
+        "tag_error_jog.py",
+        "eye-in-hand",
+        "z_des",
+        "ArUco",
+        "twist_limited=False",
+        "本页未运行",
+      ],
+      "world-models-overview": [
+        "latent_predict_toy.py",
+        "DreamerV3",
+        "2301.04104",
+        "DayDreamer",
+        "UniSim",
+        "latent imagination",
+        "no GPU",
+      ],
     },
     zh: {
       "mtc-long-horizon": [
@@ -3225,6 +3244,23 @@ const lessonRef = (n, slug, lang) => {
         "nav",
         "8.7",
         "本页未强制真机",
+      ],
+      "visual-servoing": [
+        "tag_error_jog.py",
+        "eye-in-hand",
+        "z_des",
+        "ArUco",
+        "twist_limited=False",
+        "本页未运行",
+      ],
+      "world-models-overview": [
+        "latent_predict_toy.py",
+        "DreamerV3",
+        "2301.04104",
+        "DayDreamer",
+        "UniSim",
+        "想象轨迹",
+        "不要求 GPU",
       ],
     },
   };
@@ -3319,7 +3355,7 @@ const lessonRef = (n, slug, lang) => {
     "m9 glossary: task-constructor + admittance-control");
   ok(/mobile-manipulation/.test(rd9("src/lib/glossary.ts")), "m9 glossary: mobile-manipulation");
 
-  console.log(`calc  m9 gaps: stage gen3/missing_connect; servo scaled_rows=3; load peak 208.2; adm F/S; saycan vacuum block; bt GraspBackup; nav path6/approach_closer; demo 3/3; phrases ${phraseHits9}; batch3 full 9.1–9.7`);
+  console.log(`calc  m9 gaps: stage gen3/missing_connect; servo scaled_rows=3; load peak 208.2; adm F/S; saycan vacuum block; bt GraspBackup; nav path6/approach_closer; demo 3/3; phrases ${phraseHits9}; batch3+TrackB full 9.1–9.9`);
 }
 
 

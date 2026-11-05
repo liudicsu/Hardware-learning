@@ -113,12 +113,12 @@ def main() -> None:
         ee_base[5] + tag_ee[5],
     )
     # Target EE: keep orientation aligned with tag, place EE so tag sits at
-    # (0,0,z_des) in camera → EE should sit tag_base shifted by -cam_in_ee
-    # along the approach, with zero relative orientation error goal.
+    # (0,0,z_des) in camera → EE = tag_base − cam_in_ee − (0,0,z_des) along
+    # approach (identity rot toy). Equiv. err_p ≈ (tag_cam_x, tag_cam_y, tag_cam_z−z_des).
     goal_ee = (
         tag_base[0] - CAM_IN_EE[0],
         tag_base[1] - CAM_IN_EE[1],
-        tag_base[2] - CAM_IN_EE[2] - (tag_cam[2] - z_des),
+        tag_base[2] - CAM_IN_EE[2] - z_des,
         tag_base[3],
         tag_base[4],
         tag_base[5],
@@ -202,15 +202,15 @@ if __name__ == "__main__":
 seed=98 eye_in_hand cam_in_ee=(0.0, 0.0, 0.08) kp_lin=0.80 kp_ang=1.20 deadzone_pos=0.005 deadzone_ang=0.020 v_max=0.12 w_max=0.40
 tag_cam=(-0.0115,0.0199,0.3205,-0.1324,-0.0080,0.0913)
 ee_base=(0.3018,-0.0871,0.2246,-0.0304,-0.0465,0.0959)
-err_pos=(-0.0115,0.0199,0.3000) |e_p|=0.3009 |e_r|=0.1610 in_deadzone=False
+err_pos=(-0.0115,0.0199,0.0205) |e_p|=0.0308 |e_r|=0.1610 in_deadzone=False
       vx       vy       vz       wx       wy       wz
- -0.0092   0.0159   0.1200  -0.1589  -0.0096   0.1095
-ok: twist_limited=True in_deadzone=False (Servo singularity/collision still Servo's job)
+ -0.0092   0.0159   0.0164  -0.1589  -0.0096   0.1095
+ok: twist_limited=False in_deadzone=False (Servo singularity/collision still Servo's job)
 ```
 
 </SimOutput>
 
-This run: `in_deadzone=False`, `vz` hits `v_max=0.12` (`twist_limited=True`). Deadzone `0.005 m` / `0.020 rad` and the clamps are lesson defaults, not vendor numbers.
+This run: `in_deadzone=False`, `err_z≈tag_cam_z−z_des` (≈0.0205 → `vz≈0.0164`), `twist_limited=False`. Clamps and deadzone `0.005 m` / `0.020 rad` are still in the toy for larger errors; lesson defaults, not vendor numbers.
 
 ## Optional: real camera / ROS (本页未运行)
 
