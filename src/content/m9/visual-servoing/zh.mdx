@@ -1,0 +1,229 @@
+本课是本站补充内容——第 7–9 个月不属于原六个月课程。
+
+学完 9.2 <Term id="moveit-servo">MoveIt Servo</Term> 与第 5 个月相机标定（内参见 <Term id="camera-intrinsics">内参</Term>）后立刻学；可与 9.3–9.7 穿插。本课做 <Term id="visual-servoing">视觉伺服</Term>：把「看见标记 → 位姿误差 → 速度命令」接到 Servo 式点动：**命令侧**在本课，奇异/碰撞降速仍由 Servo 负责。
+
+## 标定到误差（不重推完整标定）
+
+引用第 5 个月的相机矩阵 / 畸变，假定已有 `K` 与手眼。默认玩具几何是 **eye-in-hand**（相机在末端）：标记在相机系的位姿 → 经固定 `cam_in_ee` 变到臂基座系 → 与当前 EE 位姿比误差。
+
+流程：
+
+1. 检测 <Term id="aruco">ArUco</Term> / AprilTag（本页玩具用合成角点，不链 OpenCV so）
+2. `solvePnP`（或 ArUco pose）→ 标记在相机系
+3. 变换到基座系 → 位姿误差（位置 + 小角度轴角近似）
+4. 比例增益 → Twist 式 `vx..wz`，再限幅与死区
+
+<Resource id="opencv-aruco" />
+<Resource id="opencv-solvepnp" />
+<Resource id="moveit-servo" />
+
+## 对照 9.2
+
+9.2 已给 JointJog / Twist / Pose 与奇异降速。本课只生成 **Twist 规模命令表**；玩具里做简单速度限幅与死区，**不做**全套 IBVS 图像雅可比、商业视觉伺服、或多相机外参（留给仍为延伸的 `multi-view-extrinsics`）。
+
+## CPU：标记误差 → 点动
+
+`tag_error_jog.py` 固定种子 `98`：合成标记与 EE 位姿 → 误差 → 限幅后的 `vx,vy,vz,wx,wy,wz` 与是否进死区。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-9/visual-servoing
+$ python3 tag_error_jog.py
+```
+
+<CodeSource path="examples/month-9/visual-servoing/tag_error_jog.py" />
+
+```python
+#!/usr/bin/env python3
+"""tag_error_jog.py: tag pose error → limited Twist-style jog (stdlib).
+
+Eye-in-hand toy geometry: fixed seed synthesises a tag pose in the camera
+frame and a current EE pose in the base frame. Converts tag→base (simple
+fixed cam-in-EE extrinsic), builds a pose error (position + small-angle
+axis-angle proxy), scales to a Twist (vx..wz), then applies deadzone +
+per-axis clamps. No OpenCV / ROS / real camera.
+usage: python3 tag_error_jog.py
+"""
+from __future__ import annotations
+
+import math
+import random
+
+SEED = 98
+# Proportional gains (toy defaults, not vendor numbers).
+KP_LIN = 0.80  # 1/s
+KP_ANG = 1.20  # 1/s
+DEADZONE_POS = 0.005  # m
+DEADZONE_ANG = 0.020  # rad
+V_MAX = 0.12  # m/s
+W_MAX = 0.40  # rad/s
+# Fixed cam→EE extrinsic (eye-in-hand): cam origin in EE, identity rotation.
+CAM_IN_EE = (0.00, 0.00, 0.08)  # m, camera ahead of flange along +z_ee
+
+
+def clamp(x: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, x))
+
+
+def axis_angle_from_small_rot(rx: float, ry: float, rz: float) -> tuple[float, float, float, float]:
+    """Treat (rx,ry,rz) as a small-angle rotation vector → axis * angle."""
+    ang = math.sqrt(rx * rx + ry * ry + rz * rz)
+    if ang < 1e-12:
+        return 0.0, 0.0, 1.0, 0.0
+    return rx / ang, ry / ang, rz / ang, ang
+
+
+def main() -> None:
+    rng = random.Random(SEED)
+    # Synthetic tag pose in camera frame (metres, small-angle rad).
+    tag_cam = (
+        rng.uniform(-0.04, 0.04),
+        rng.uniform(-0.03, 0.03),
+        rng.uniform(0.25, 0.45),
+        rng.uniform(-0.15, 0.15),
+        rng.uniform(-0.15, 0.15),
+        rng.uniform(-0.20, 0.20),
+    )
+    # Current EE pose in base (position + small-angle orientation).
+    ee_base = (
+        rng.uniform(0.20, 0.35),
+        rng.uniform(-0.10, 0.10),
+        rng.uniform(0.15, 0.30),
+        rng.uniform(-0.05, 0.05),
+        rng.uniform(-0.05, 0.05),
+        rng.uniform(-0.10, 0.10),
+    )
+    # Desired: drive tag to a fixed look-at in camera (0,0,z_des,0,0,0).
+    z_des = 0.30
+    # Tag in EE ≈ cam_in_ee + R≈I * tag_cam (identity rotation toy).
+    tag_ee = (
+        CAM_IN_EE[0] + tag_cam[0],
+        CAM_IN_EE[1] + tag_cam[1],
+        CAM_IN_EE[2] + tag_cam[2],
+        tag_cam[3],
+        tag_cam[4],
+        tag_cam[5],
+    )
+    # Tag in base ≈ ee_base ⊕ tag_ee (small-angle add for orientation).
+    tag_base = (
+        ee_base[0] + tag_ee[0],
+        ee_base[1] + tag_ee[1],
+        ee_base[2] + tag_ee[2],
+        ee_base[3] + tag_ee[3],
+        ee_base[4] + tag_ee[4],
+        ee_base[5] + tag_ee[5],
+    )
+    # Target EE: keep orientation aligned with tag, place EE so tag sits at
+    # (0,0,z_des) in camera → EE should sit tag_base shifted by -cam_in_ee
+    # along the approach, with zero relative orientation error goal.
+    goal_ee = (
+        tag_base[0] - CAM_IN_EE[0],
+        tag_base[1] - CAM_IN_EE[1],
+        tag_base[2] - CAM_IN_EE[2] - (tag_cam[2] - z_des),
+        tag_base[3],
+        tag_base[4],
+        tag_base[5],
+    )
+    err_p = (
+        goal_ee[0] - ee_base[0],
+        goal_ee[1] - ee_base[1],
+        goal_ee[2] - ee_base[2],
+    )
+    err_r = (
+        goal_ee[3] - ee_base[3],
+        goal_ee[4] - ee_base[4],
+        goal_ee[5] - ee_base[5],
+    )
+    pos_norm = math.sqrt(err_p[0] ** 2 + err_p[1] ** 2 + err_p[2] ** 2)
+    _, _, _, ang = axis_angle_from_small_rot(*err_r)
+    in_deadzone = pos_norm < DEADZONE_POS and ang < DEADZONE_ANG
+
+    if in_deadzone:
+        twist = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    else:
+        raw = (
+            KP_LIN * err_p[0],
+            KP_LIN * err_p[1],
+            KP_LIN * err_p[2],
+            KP_ANG * err_r[0],
+            KP_ANG * err_r[1],
+            KP_ANG * err_r[2],
+        )
+        twist = (
+            clamp(raw[0], -V_MAX, V_MAX),
+            clamp(raw[1], -V_MAX, V_MAX),
+            clamp(raw[2], -V_MAX, V_MAX),
+            clamp(raw[3], -W_MAX, W_MAX),
+            clamp(raw[4], -W_MAX, W_MAX),
+            clamp(raw[5], -W_MAX, W_MAX),
+        )
+
+    print(
+        f"seed={SEED} eye_in_hand cam_in_ee={CAM_IN_EE} "
+        f"kp_lin={KP_LIN:.2f} kp_ang={KP_ANG:.2f} "
+        f"deadzone_pos={DEADZONE_POS:.3f} deadzone_ang={DEADZONE_ANG:.3f} "
+        f"v_max={V_MAX:.2f} w_max={W_MAX:.2f}"
+    )
+    print(
+        f"tag_cam=({tag_cam[0]:.4f},{tag_cam[1]:.4f},{tag_cam[2]:.4f},"
+        f"{tag_cam[3]:.4f},{tag_cam[4]:.4f},{tag_cam[5]:.4f})"
+    )
+    print(
+        f"ee_base=({ee_base[0]:.4f},{ee_base[1]:.4f},{ee_base[2]:.4f},"
+        f"{ee_base[3]:.4f},{ee_base[4]:.4f},{ee_base[5]:.4f})"
+    )
+    print(
+        f"err_pos=({err_p[0]:.4f},{err_p[1]:.4f},{err_p[2]:.4f}) "
+        f"|e_p|={pos_norm:.4f} |e_r|={ang:.4f} in_deadzone={in_deadzone}"
+    )
+    print(
+        f"{'vx':>8} {'vy':>8} {'vz':>8} {'wx':>8} {'wy':>8} {'wz':>8}"
+    )
+    print(
+        f"{twist[0]:8.4f} {twist[1]:8.4f} {twist[2]:8.4f} "
+        f"{twist[3]:8.4f} {twist[4]:8.4f} {twist[5]:8.4f}"
+    )
+    limited = any(
+        abs(t) >= V_MAX - 1e-9 if i < 3 else abs(t) >= W_MAX - 1e-9
+        for i, t in enumerate(twist)
+    )
+    print(
+        f"ok: twist_limited={limited} in_deadzone={in_deadzone} "
+        f"(Servo singularity/collision still Servo's job)"
+    )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+seed=98 eye_in_hand cam_in_ee=(0.0, 0.0, 0.08) kp_lin=0.80 kp_ang=1.20 deadzone_pos=0.005 deadzone_ang=0.020 v_max=0.12 w_max=0.40
+tag_cam=(-0.0115,0.0199,0.3205,-0.1324,-0.0080,0.0913)
+ee_base=(0.3018,-0.0871,0.2246,-0.0304,-0.0465,0.0959)
+err_pos=(-0.0115,0.0199,0.3000) |e_p|=0.3009 |e_r|=0.1610 in_deadzone=False
+      vx       vy       vz       wx       wy       wz
+ -0.0092   0.0159   0.1200  -0.1589  -0.0096   0.1095
+ok: twist_limited=True in_deadzone=False (Servo singularity/collision still Servo's job)
+```
+
+</SimOutput>
+
+本跑：`in_deadzone=False`，`vz` 顶到 `v_max=0.12`（`twist_limited=True`）。死区阈值 `0.005 m` / `0.020 rad` 与限幅是课内自定，不是厂商默认。
+
+## 选做：真摄像头 / ROS（本页未运行）
+
+本机 OpenCV + 打印 ArUco + USB 摄像头，或把 Twist 丢给 MoveIt Servo——**本页未运行**。
+
+## 常见错误
+
+- **以为本课替 Servo 做了奇异/碰撞检查。** 没有；只做命令侧限幅。
+- **把标定课整段重推一遍才开始闭环。** 引用第 5 个月结果即可。
+- **死区开太大导致「永远不动」。** 先看 `|e_p|` / `|e_r|` 再调。
+
+<Summary>
+
+视觉伺服 9.8：ArUco/PnP → 基座位姿误差 → Twist 式点动；前置 9.2 与第 5 个月标定；eye-in-hand 玩具几何。`tag_error_jog.py` 固定种子输出限幅 vx..wz 与死区标志。OpenCV 真摄像头与 ROS→Servo 本页未运行。不做全套 IBVS。
+
+</Summary>

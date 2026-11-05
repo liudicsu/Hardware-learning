@@ -1,0 +1,153 @@
+本课是本站补充内容——第 7–9 个月不属于原六个月课程。
+
+毕业门槛仍是 8.7：安全清单、容器/CI、20 起始 Wilson、portfolio 8/8。本课讲**基准纪律**：套件地图、默认评估协议、如何报告、以及仿真分≠真机分。<Term id="libero">LIBERO</Term> 是加分报告，**不能**代替 SO-101 真机起始。
+
+## 套件地图（读文档，不在本页跑 GPU）
+
+LeRobot 的 LIBERO 文档写明：**5** 个任务套件共 **130** 个任务；Linux + MuJoCo；无头设 `MUJOCO_GL=egl`；`lerobot-eval --env.type=libero` **默认**在**四个标准套件**上、**每任务 10 集**。第五套件（如 LIBERO-90 / Long）的取舍写在阅读笔记里；CPU 玩具用五列合成分数即可。
+
+| 要点 | 数字 |
+| --- | --- |
+| 套件数 | **5** |
+| 任务总数 | **130** |
+| 默认每任务集数 | **10** |
+| 默认评哪些 | 四个标准套件（文档默认） |
+
+<Resource id="lerobot-libero" />
+<Resource id="libero-paper" />
+
+## SimplerEnv：仿真分可信到哪
+
+<Term id="simplerenv">SimplerEnv</Term>（arXiv **2405.05941**）讨论开源策略的实时仿真评估，以及与真机的相关性（文中 **MMRV**、**Visual Matching** 叙事）。课内**不**重跑其 GPU 实验——读摘要与项目页，报告仿真分时对照引用。
+
+<Resource id="simplerenv-paper" />
+
+## CPU：五套件假分数表
+
+`suite_score_table.py` 用固定种子 `88` 合成五套件的 Bernoulli 结果，打印 mean success 与 Wilson 95 % 区间（复用第 6 个月公式直觉，**不**重新推导）。**禁止**把真实 `lerobot-eval` GPU 跑分写入 CI。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-8/sim-benchmarks
+$ python3 suite_score_table.py
+```
+
+<CodeSource path="examples/month-8/sim-benchmarks/suite_score_table.py" />
+
+```python
+#!/usr/bin/env python3
+"""suite_score_table.py: aggregate fake LIBERO-style suite scores (stdlib).
+
+Pinned fake episode outcomes (seed=88) for five named suites. Prints per-suite
+mean success, optional Wilson 95 % intervals (Month 6 formula, not re-derived),
+and a grand mean. No lerobot-eval / GPU / MuJoCo.
+usage: python3 suite_score_table.py
+"""
+from __future__ import annotations
+
+import math
+import random
+
+SEED = 88
+Z95 = 1.959964
+# Five suites (docs: 5 suites / 130 tasks total). Toy uses fixed episode counts.
+SUITES = (
+    ("libero_spatial", 40),
+    ("libero_object", 40),
+    ("libero_goal", 30),
+    ("libero_10", 20),
+    ("libero_90", 50),
+)
+# Success rates used to sample fixed-seed Bernoulli outcomes (not real eval).
+P_SUCCESS = {
+    "libero_spatial": 0.70,
+    "libero_object": 0.55,
+    "libero_goal": 0.60,
+    "libero_10": 0.45,
+    "libero_90": 0.35,
+}
+
+
+def wilson(k: int, n: int, z: float = Z95) -> tuple[float, float]:
+    """Wilson score interval (same intuition as Month 6 eval_report)."""
+    if n <= 0:
+        return 0.0, 0.0
+    p = k / n
+    centre = (p + z * z / (2 * n)) / (1 + z * z / n)
+    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / (1 + z * z / n)
+    return centre - half, centre + half
+
+
+def main() -> None:
+    rng = random.Random(SEED)
+    print(f"seed={SEED} suites={len(SUITES)} (fake episode outcomes; not real LIBERO)")
+    print(
+        f"{'suite':<16} {'n':>4} {'k':>4} {'mean':>8} "
+        f"{'wilson_lo':>10} {'wilson_hi':>10}"
+    )
+    total_k = 0
+    total_n = 0
+    means: list[float] = []
+    for name, n in SUITES:
+        p = P_SUCCESS[name]
+        outcomes = [1 if rng.random() < p else 0 for _ in range(n)]
+        k = sum(outcomes)
+        mean = k / n
+        lo, hi = wilson(k, n)
+        means.append(mean)
+        total_k += k
+        total_n += n
+        print(
+            f"{name:<16} {n:4d} {k:4d} {mean:8.4f} "
+            f"{lo:10.4f} {hi:10.4f}"
+        )
+    suite_mean = sum(means) / len(means)
+    overall = total_k / total_n
+    lo_o, hi_o = wilson(total_k, total_n)
+    print(
+        f"ok: n_suites={len(SUITES)} suite_mean={suite_mean:.4f} "
+        f"overall={overall:.4f} ({total_k}/{total_n}) "
+        f"wilson=[{lo_o:.4f},{hi_o:.4f}]"
+    )
+    print(
+        "note: graduation bar remains Month 8.7 (safety/CI/20-start Wilson/"
+        "portfolio 8/8); LIBERO is bonus reporting only"
+    )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+seed=88 suites=5 (fake episode outcomes; not real LIBERO)
+suite               n    k     mean  wilson_lo  wilson_hi
+libero_spatial     40   29   0.7250     0.5717     0.8389
+libero_object      40   23   0.5750     0.4220     0.7149
+libero_goal        30   16   0.5333     0.3614     0.6977
+libero_10          20   14   0.7000     0.4810     0.8545
+libero_90          50   17   0.3400     0.2244     0.4785
+ok: n_suites=5 suite_mean=0.5747 overall=0.5500 (99/180) wilson=[0.4770,0.6209]
+note: graduation bar remains Month 8.7 (safety/CI/20-start Wilson/portfolio 8/8); LIBERO is bonus reporting only
+```
+
+</SimOutput>
+
+读表时看清：`suite_mean` 是五套件均值的平均；`overall` 是按集数加权。本玩具 `n_suites=5`，`overall=0.5500`（99/180）。这些数字是**假数据**，只练报告格式。
+
+## 选做：本机 GPU 评估（本页未运行）
+
+若本机有 Linux + GPU，可按 LeRobot LIBERO 文档试跑 `lerobot-eval --env.type=libero`。**本页未运行。** 真机 20 起始仍按 8.7。
+
+## 常见错误
+
+- **用 LIBERO 顶替 8.7 统一门。** 基准是加分，不是毕业标准。
+- **只报一个总成功率，不写套件与协议。** 至少写清评了哪些套件、每任务几集。
+- **把仿真分直接写成「真机已经有多好」。** 先读 SimplerEnv 相关性叙事再下结论。
+
+<Summary>
+
+仿真基准 8.8：LIBERO 5 套件 / 130 任务；默认四标准套件 × 每任务 10 集；`MUJOCO_GL=egl`。SimplerEnv（arXiv 2405.05941）谈仿真↔真机相关性。`suite_score_table.py` 固定种子聚合五套件假分数与 Wilson；不进 CI 的 GPU eval。不替代 8.7。
+
+</Summary>

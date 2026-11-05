@@ -1,13 +1,16 @@
-# Month 8 plan (batch 2)
+# Month 8 plan
 
-Branch `feat/month-8-batch2`. Completes the three outline shells from batch 1:
+Batch 1–2 delivered 8.1–8.7 (dataset → capstone). **Track B (promote electives):** append **8.8 `sim-benchmarks`** after capstone — does **not** replace 8.7.
 
-| slug | minutes | CPU toy | expected key |
-|------|---------|---------|--------------|
-| vla-finetune | 240 | `compute_budget.py` | rows=7 under_floor=7 |
-| ros2-hardware-interface | 240 | `servo_bus_sim.py` (+ `so101_hw/` skeleton 本页未运行) | naive 122 → guard 0 |
-| capstone | 300 | `capstone_gate.py --demo` | 5 of 5; portfolio 8/8 |
+| slug | minutes | CPU toy | notes |
+|------|---------|---------|-------|
+| dataset-engineering | 180 | `dataset_audit.py` | batch 1 |
+| vla-finetune | 240 | `compute_budget.py` | batch 2 |
+| async-deployment | 180 | `chunk_latency_sim.py` | batch 1 |
+| ros2-hardware-interface | 240 | `servo_bus_sim.py` (+ `so101_hw/` skeleton 本页未运行) | batch 2 |
+| safety-reliability | 180 | `watchdog_sim.py` | batch 1 |
+| robot-devops | 180 | `bag_stats.py` | batch 1 |
+| capstone | 300 | `capstone_gate.py --demo` | batch 2; LIBERO section → pointer to 8.8 |
+| **sim-benchmarks** | **180** | **`suite_score_table.py`** | **Track B 8.8**; GPU `lerobot-eval` 本页未运行 |
 
-Batch 1 lessons (dataset-engineering, async-deployment, safety-reliability, robot-devops) unchanged in content; devops opener gains one sentence pointing HW-component CI at 8.4.
-
-Primary floors re-checked this batch: openpi README (>8 / >22.5 / >70 GB); Isaac-GR00T README (infer 16 GB+, FT 40 GB+); SmolVLA arXiv 2506.01844 + LeRobot docs; control.ros.org Jazzy writing_new_hardware_component; LIBERO optional (130 tasks) + SimplerEnv arXiv 2405.05941 — all GPU/真机/LIBERO marked 本页未运行.
+Site “~1500 min” habit is intentionally broken by Track B (+180). Still labelled 本站补充. Remaining electives on month page: HIL-SERL / Isaac Lab / legged playground (not formal lessons).
