@@ -16,7 +16,7 @@ Constraints: no required purchases — not DIGIT / GelSight Mini, a BLDC kit, a 
 | 6 | `humanoid-wbc-overview` | 480 | `lipm_track_toy.py`, `floating_base_contact_toy.py` | ALIP arXiv 2408.05308 §II-A (3) / §III (20); ASAP arXiv 2502.01143 (abs + HTML, Table V) + code; HugWBC / Holosoma / TWIST / WBC-AGILE repos (README level) |
 | 7 | `contact-rich-policies` | 180 | `tactile_gate_toy.py` | AnySkin Table III; BAKU arXiv 2406.07539; ViTaMIn 2504.06156 / exUMI 2509.14688 (abstract level, no numbers) |
 
-Total **2 460 minutes** after all three deepen PRs (power +150, FOC +240, tactile +180, OXE +150, contact Jacobian +240); site total **71 lessons / 16 050 minutes** (from `src/lib/curriculum.ts`). M8 is 1 800 and M9 is 2 100 minutes. This completes the in-place deepen batch; no new month or slug.
+Total **2 460 minutes** after all three deepen PRs (power +150, FOC +240, tactile +180, OXE +150, contact Jacobian +240); site total **71 lessons / 16 410 minutes** (from `src/lib/curriculum.ts`, after follow-up PR1). M8 is 2 160 and M9 is 2 100 minutes. This completes the in-place deepen batch; no new month or slug.
 
 Pointers: M2 motors-drivers → 11.2; M3 gripper-fingers → 11.3; 8.1 dataset-engineering → 11.5; 10.1 flow-matching → 11.4; M7 / M8 / M10 legged / Isaac electives → 11.6; M8 / M9 / M10 topics FOC → 11.2, tactile → 11.3 / 11.7; 8.7 capstone and 6.5 portfolio → Month 11 (optional, not a replacement). Banners and message ranges say Months 7–11.
 

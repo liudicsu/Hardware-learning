@@ -29,4 +29,7 @@ check suite_score_table.txt "$PY" "$M8/sim-benchmarks/suite_score_table.py"
 
 check stream_sync_eval_toy.txt "$PY" "$M8/async-deployment/stream_sync_eval_toy.py"
 
+check bag_qos_accept_toy.txt "$PY" "$M8/robot-devops/bag_qos_accept_toy.py"
+check lifecycle_sm_toy.txt "$PY" "$M8/ros2-hardware-interface/lifecycle_sm_toy.py"
+
 exit $fail

@@ -1,0 +1,8 @@
+lifecycle_sm_toy sm=ros2_managed_node source=design.ros2.org/articles/node_lifecycle.html
+note: NOT HardwareComponentInterface SM; ResourceManager transitions that plugin (prose map only)
+script_A: steps=configure,activate illegal_rejects=0 reached_active=1 final_state=Active
+script_A_log=configure:OK(Unconfigured->Inactive) | activate:OK(Inactive->Active)
+script_B: steps=activate,configure,activate illegal_rejects=1 reached_active=1 final_state=Active
+script_B_log=activate:REJECT(from=Unconfigured) | configure:OK(Unconfigured->Inactive) | activate:OK(Inactive->Active)
+never_permanent_death_after_illegal_activate=1
+ok: managed-node lifecycle toy (LTTng/ros2_tracing/HW plugin load 本页未运行)
