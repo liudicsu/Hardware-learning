@@ -1360,7 +1360,7 @@ export const resources: Record<string, Resource> = {
     url: "https://www.qrg.northwestern.edu/papers/Files/qr-workshops/QR97/DeNicolao_tutorial_1997_System_Identification_Problems_Perspectives.pdf",
     title: { zh: "De Nicolao 1997：系统辨识问题与视角（教程 PDF）", en: "De Nicolao 1997: System Identification — Problems and Perspectives (tutorial PDF)" },
     author: "Giuseppe De Nicolao",
-    kind: "paper",
+    kind: "guide",
     cost: { zh: "免费 PDF", en: "Free PDF" },
     summary: {
       zh: "OE 与方程误差、持续激励等主题的教程概览；配合本课 sysid_pe_compare_toy.py 阅读，不替代 Ljung 全书。",
@@ -1374,7 +1374,7 @@ export const resources: Record<string, Resource> = {
     url: "https://ecal.studentorg.berkeley.edu/files/ce295/CH02-StateEstimation.pdf",
     title: { zh: "UC Berkeley CE295 第 2 章：状态估计（Luenberger / 可观性）", en: "UC Berkeley CE295 Ch. 2: State Estimation (Luenberger / observability)" },
     author: "UC Berkeley Energy, Control and Applications Lab (course notes)",
-    kind: "notes",
+    kind: "guide",
     cost: { zh: "免费 PDF", en: "Free PDF" },
     summary: {
       zh: "Luenberger 观测器、可观性与卡尔曼滤波结构的课程讲义。本课 lqr_model_error_toy.py 的极点配置观测器以此为结构指针；不实现离散 Riccati 最优性声明。",
@@ -1388,7 +1388,7 @@ export const resources: Record<string, Resource> = {
     url: "https://arxiv.org/html/2409.09491v2",
     title: { zh: "Robot Learning as an Empirical Science: Best Practices for Policy Evaluation", en: "Robot Learning as an Empirical Science: Best Practices for Policy Evaluation" },
     author: "Kress-Gazit, Hashimoto, Kuppuswamy, Shah, Horgan, Richardson, Feng, Burchfiel",
-    kind: "paper",
+    kind: "textbook",
     cost: { zh: "免费 · arXiv", en: "Free · arXiv" },
     summary: {
       zh: "arXiv 2409.09491v2。§4 Analysis and Reporting：实验参数（成功判据、次数而非只有百分比、时段、初始条件及其与训练关系）、统计分析、失败模式。本课 eval_seed_layers_toy.py 的清单字段对应该节。",
