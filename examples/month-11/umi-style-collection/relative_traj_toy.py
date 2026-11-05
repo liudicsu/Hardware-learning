@@ -5,12 +5,15 @@ UMI PD2.1 / Fig.6 (arXiv 2402.10329 v3): three action representations.
   - absolute: global-frame targets (needs a shared world frame; calib bias sticks)
   - delta (contrast): each step is relative to the *previous* pose → per-step
     action noise compounds along the chunk
-  - relative (UMI): one inference chunk with a *fixed anchor* T0; each target is
-    T0^{-1} ∘ Tk reconstructed directly as T0 ∘ (T0^{-1} ∘ Tk) — not a chain of
-    deltas, so intermediate action noise does not feed the next step
+  - relative (UMI): one inference chunk with a *fixed anchor* T0; the *final*
+    pose is rebuilt directly as T0 ∘ (T0^{-1} ∘ TN) — not a chain of deltas
 
-Fair noise: the same per-component noise magnitude is added to every delta action
-and to every fixed-anchor relative action (independent draws).
+Fair noise (endpoint-error demo): the same per-component noise magnitude is
+added independently to every step-wise delta; for the fixed-anchor arm the
+same magnitude is added *once* to the final T0^{-1} ∘ TN action only
+(intermediate relative targets are not noised). Relative end error is
+therefore a single draw (~0.001875 at default noise), not zero and not a
+compounded pile-up.
 
 Bias demo (a *different* conclusion from error accumulation): a fixed left-
 multiplied world-frame bias B on measured poses cancels under relative actions

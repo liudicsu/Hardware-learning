@@ -28,7 +28,7 @@
 
 1. **绝对** — 世界系目标加上固定标定偏置 → 终点误差等于偏置模长。
 2. **增量（对照）** — 每步相对*上一拍*位姿；对每步增量动作加同等幅度独立噪声并逐步复合 → 噪声沿块累积。
-3. **相对（UMI 式）** — 同一推理块固定锚点 T0；终点直接重建为 T0 ∘ (T0⁻¹ ∘ TN)，**不**把中间增量串起来。对固定锚点相对动作加同等幅度独立噪声时，终点误差只含这一次噪声，不沿途累加。
+3. **相对（UMI 式）** — 同一推理块固定锚点 T0；终点直接重建为 T0 ∘ (T0⁻¹ ∘ TN)，**不**把中间增量串起来。公平噪声只加在**终点**相对动作 T0⁻¹ ∘ TN 上一次（中间相对目标不加噪）；终点误差是单次噪声抽签（默认约 0.001875 m），不为 0，也不沿途累加。
 
 另有一段**偏置演示**（与「误差是否累积」是不同结论）：录制时测得的末端位姿带一个固定左乘的世界系刚体偏置 B（例如 SLAM / 相机坐标系没对准：3 cm、−2 cm、0.08 rad）外加每帧 ±0.5 mm 噪声。把测得位姿当绝对目标重放，偏置会原样带到机器人上；改用固定锚点相对动作 T0⁻¹ ∘ TN，B 在乘积里抵消。偏置抵消 ≠ 证明相对不累积噪声。
 
@@ -47,12 +47,15 @@ UMI PD2.1 / Fig.6 (arXiv 2402.10329 v3): three action representations.
   - absolute: global-frame targets (needs a shared world frame; calib bias sticks)
   - delta (contrast): each step is relative to the *previous* pose → per-step
     action noise compounds along the chunk
-  - relative (UMI): one inference chunk with a *fixed anchor* T0; each target is
-    T0^{-1} ∘ Tk reconstructed directly as T0 ∘ (T0^{-1} ∘ Tk) — not a chain of
-    deltas, so intermediate action noise does not feed the next step
+  - relative (UMI): one inference chunk with a *fixed anchor* T0; the *final*
+    pose is rebuilt directly as T0 ∘ (T0^{-1} ∘ TN) — not a chain of deltas
 
-Fair noise: the same per-component noise magnitude is added to every delta action
-and to every fixed-anchor relative action (independent draws).
+Fair noise (endpoint-error demo): the same per-component noise magnitude is
+added independently to every step-wise delta; for the fixed-anchor arm the
+same magnitude is added *once* to the final T0^{-1} ∘ TN action only
+(intermediate relative targets are not noised). Relative end error is
+therefore a single draw (~0.001875 at default noise), not zero and not a
+compounded pile-up.
 
 Bias demo (a *different* conclusion from error accumulation): a fixed left-
 multiplied world-frame bias B on measured poses cancels under relative actions

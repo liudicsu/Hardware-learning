@@ -24,13 +24,13 @@ Those are paper figures, not measured on this site. Inference-time observation /
 
 ## Relative / absolute / delta toy
 
-`relative_traj_toy.py` keeps an SE(2) simplification of the same idea. One action sequence, three reconstructions:
+`relative_traj_toy.py` keeps an SE(2) simplification of the same idea (aligned with UMI §III-B / PD2.1 Fig.6). One action sequence, three reconstructions:
 
 1. **Absolute** — global-frame targets with a fixed calibration bias → end error equals the bias magnitude.
-2. **Delta** — each step is previous + a noisy increment → noise accumulates along the chunk.
-3. **Relative (UMI-style)** — each action is applied from the current measured EE → end error **0** when the relative actions are exact.
+2. **Delta (contrast)** — each step relative to the *previous* pose; the same noise magnitude is added independently to every step-wise delta and the deltas are compounded → noise accumulates along the chunk.
+3. **Relative (UMI-style)** — one inference chunk with a fixed anchor T0; the final pose is reconstructed directly as T0 ∘ (T0⁻¹ ∘ TN), **not** by chaining intermediate deltas. Fair noise is added *once* to that final T0⁻¹ ∘ TN action only (intermediate relative targets are not noised), so end error is a single draw (~0.001875 m by default) — not zero, and not a compounded pile-up.
 
-On its own, item 3 is zero by construction. So the toy adds a **bias demo**: during recording the measured EE pose carries a rigid world-frame bias B (say a mis-registered SLAM / camera frame: 3 cm, −2 cm, 0.08 rad) plus ±0.5 mm per-frame noise. Replaying the measured poses as absolute targets carries B straight onto the robot; relative actions inv(meas_t) ∘ meas_(t+1) cancel B inside the product and leave only the per-frame noise.
+A separate **bias demo** (a different conclusion from error accumulation): during recording the measured EE pose carries a fixed left-multiplied rigid world-frame bias B (say a mis-registered SLAM / camera frame: 3 cm, −2 cm, 0.08 rad) plus ±0.5 mm per-frame noise. Replaying the measured poses as absolute targets carries B straight onto the robot; fixed-anchor relative actions T0⁻¹ ∘ TN cancel B inside the product. Cancelling a fixed left-multiplied world bias is not the same claim as "relative does not accumulate step noise".
 
 ```bash
 $ cd ~/Hardware-learning/examples/month-11/umi-style-collection
@@ -47,12 +47,15 @@ UMI PD2.1 / Fig.6 (arXiv 2402.10329 v3): three action representations.
   - absolute: global-frame targets (needs a shared world frame; calib bias sticks)
   - delta (contrast): each step is relative to the *previous* pose → per-step
     action noise compounds along the chunk
-  - relative (UMI): one inference chunk with a *fixed anchor* T0; each target is
-    T0^{-1} ∘ Tk reconstructed directly as T0 ∘ (T0^{-1} ∘ Tk) — not a chain of
-    deltas, so intermediate action noise does not feed the next step
+  - relative (UMI): one inference chunk with a *fixed anchor* T0; the *final*
+    pose is rebuilt directly as T0 ∘ (T0^{-1} ∘ TN) — not a chain of deltas
 
-Fair noise: the same per-component noise magnitude is added to every delta action
-and to every fixed-anchor relative action (independent draws).
+Fair noise (endpoint-error demo): the same per-component noise magnitude is
+added independently to every step-wise delta; for the fixed-anchor arm the
+same magnitude is added *once* to the final T0^{-1} ∘ TN action only
+(intermediate relative targets are not noised). Relative end error is
+therefore a single draw (~0.001875 at default noise), not zero and not a
+compounded pile-up.
 
 Bias demo (a *different* conclusion from error accumulation): a fixed left-
 multiplied world-frame bias B on measured poses cancels under relative actions

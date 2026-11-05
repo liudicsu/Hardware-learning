@@ -1533,7 +1533,7 @@ const month11Lessons: Lesson[] = [
     objectives: [
       { zh: "能画出逻辑轨与电机总线分开、公共地单点汇合的星形配电。", en: "Draw a star power plan with separate logic and motor buses and a single-point common ground." },
       { zh: "能用玩具算出峰值电流下的压降、负载端电压和熔断裕度。", en: "Compute IR drop, voltage at the load and fuse margin at peak current on the toy." },
-      { zh: "能列出电机线与信号线分离、屏蔽源端接地、环路面积最小化三条 EMC 规则。", en: "List three EMC rules: separate motor and signal leads, source-end shield ground, minimise loop area." },
+      { zh: "能区分信号地 / 功率回流 / 机壳·PE / 屏蔽，并说明高频屏蔽两端连续端接、禁用 GND_D 作屏蔽回流，以及单端仅适用于特定低频方案。", en: "Distinguish signal ground / power return / chassis·PE / shield, and state that HF shields need continuous both-end termination, that GND_D must not be the shield return, and that single-ended grounding is only for specific LF schemes per device spec." },
       { zh: "能说明本课电流是示例假设，真机测量与改 BMS 都不在范围内。", en: "State that currents here are example assumptions, and that real measurements and BMS edits are out of scope." },
     ],
     prereqs: ["components", "motors-drivers", "so101-arm"],
@@ -1610,7 +1610,7 @@ const month11Lessons: Lesson[] = [
     resources: ["umi-paper", "umi-site", "umi-hardware-guide", "lerobot-action-representations", "diffusion-policy"],
     tasks: [
       { id: "run", text: { zh: "运行 relative_traj_toy.py，核对 expected/relative_traj_toy.txt", en: "Run relative_traj_toy.py and match expected/relative_traj_toy.txt" } },
-      { id: "noise", text: { zh: "把 delta 噪声改成 0.01，观察 delta_accum_err_m 如何变、relative_err_m 是否仍为 0", en: "Set delta noise to 0.01 and watch delta_accum_err_m change while relative_err_m stays 0" } },
+      { id: "noise", text: { zh: "把动作噪声改成 0.01，比较逐步增量复合的 delta_accum_err_m 与固定锚点终点重建的 relative_err_m（后者有自身噪声、不为 0，但应明显小于前者）", en: "Set action noise to 0.01 and compare delta_accum_err_m (step-wise deltas compounded) with relative_err_m (fixed-anchor endpoint rebuild; it has its own noise and is not 0, but should stay well below delta)" } },
       { id: "compare", text: { zh: "用自己的话写三行：绝对 / 增量 / 相对在标定偏置下谁更稳", en: "In your words, three lines: which of absolute / delta / relative stays stable under a calibration bias" } },
       { id: "optional", text: { zh: "（选做，本页未运行）阅读 UMI Hardware Guide，不购买 GoPro", en: "(Optional, not run here) read the UMI Hardware Guide — do not buy a GoPro" } },
     ],
