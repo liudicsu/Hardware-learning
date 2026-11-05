@@ -244,6 +244,132 @@ sync inference would idle about d control steps per chunk; async/RTC hides them.
 - 每一行都满足 d ≤ H − s = 25，50 步的块仍有余量。同步推理每块大约空等 d 步；异步（8.3）和 RTC（10.2）把它藏起来。
 - 这些是公开的 GPU 数字，不是你的机器人。信任某个 d 之前，先在 SO-101 上实测端到端延迟；本页没有 SO-101 实测数字。
 
+## 端侧的紧凑 VLA：只算权重的预算
+
+上面的 int8 玩具最后给出了 1 亿参数的权重字节数。真实的 VLA 要大得多，在端侧设备上首先要问的是：权重到底放不放得下。下面三个规模的参数量都**取自各自论文**（不是本站测得）：
+
+| 标签 | 参数量（以论文为准） | 出处 |
+| --- | --- | --- |
+| SmolVLA | 0.45B（其中动作专家约 100M） | arXiv 2506.01844 |
+| π0 级 | 3.3B（3B PaliGemma VLM + 300M 动作专家） | arXiv 2410.24164 |
+| OpenVLA 级 | 7B | arXiv 2406.09246 |
+
+「π0 级」「OpenVLA 级」指「这个规模的模型」；后续版本和微调后的检查点可能不同。SmolVLA 论文说它的设计目标是部署在消费级 GPU 甚至 CPU 上——这是论文的说法，以论文为准，不是本站的测量。
+
+`vla_edge_budget_toy.py` **只算权重**：参数量 × 每参数字节数。其余部分全部**排除并标明已排除**：激活、KV 缓存、视觉编码器与图像缓冲、框架与 CUDA 上下文、操作系统。所以只算权重得到的是下界，永远不能证明模型「放得下」。第 2 部分针对几个假设的推理延迟 ℓ_S，把动作块长度、控制频率和同步空闲，与 [6.3](/zh/month/month-6/vla-models) 的异步阈值 g ≥ (E[ℓ_S] / Δt) / n 联系起来。没有测任何设备，Jetson 和树莓派本页未运行。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-10/edge-deploy-checklist
+$ python3 vla_edge_budget_toy.py
+```
+
+<CodeSource path="examples/month-10/edge-deploy-checklist/vla_edge_budget_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""vla_edge_budget_toy.py: weights-only memory and chunk timing for compact VLAs (stdlib).
+
+Part 1, memory. weights_GB = params x bytes_per_param / 1e9, for three model
+sizes whose parameter counts are taken from their papers (labelled; not
+measured here):
+  SmolVLA        0.45e9  (arXiv 2506.01844: "450 million parameters")
+  pi0-class      3.3e9   (arXiv 2410.24164: 3B PaliGemma + 300M action expert)
+  OpenVLA-class  7e9     (arXiv 2406.09246: "7B-parameter")
+WEIGHTS ONLY. Activations, the KV cache, vision-encoder / image buffers, the
+framework / CUDA context and the OS are EXCLUDED and not estimated: a weights
+number is a lower bound, never "it fits".
+
+Part 2, timing. Chunk of n actions at control period dt lasts n * dt. Sync
+inference idles l_S per chunk; async (6.3, g = remaining-queue fraction that
+triggers the next request) avoids idling when g >= (l_S / dt) / n. If that
+g_min exceeds 1, even a request every tick cannot keep the queue fed. The
+l_S values are lesson-chosen what-ifs, not device measurements; Jetson / Pi
+runs are not done on this page (本页未运行).
+usage: python3 vla_edge_budget_toy.py
+"""
+from __future__ import annotations
+
+MODELS = (                       # label, params, source
+    ("SmolVLA", 0.45e9, "2506.01844"),
+    ("pi0-class", 3.3e9, "2410.24164"),
+    ("OpenVLA-class", 7.0e9, "2406.09246"),
+)
+PRECISIONS = (("fp32", 4.0), ("bf16", 2.0), ("int8", 1.0), ("int4", 0.5))
+EXCLUDED = ("activations", "KV cache", "vision-encoder / image buffers", "framework + CUDA context", "OS")
+N_CHUNK = 50
+RATES_HZ = (30, 50)
+LATENCIES_S = (0.05, 0.293, 0.8, 2.0)   # what-if l_S; 0.293 s is the 6.3 toy's mean draw
+
+
+def main() -> None:
+    print("part 1: weights-only memory (GB = params x bytes / 1e9); parameter counts from the papers")
+    print(f"{'model':<14} {'params':>7} {'arXiv':>10} " + " ".join(f"{p:>6}" for p, _ in PRECISIONS))
+    for name, n, src in MODELS:
+        print(f"{name:<14} {n / 1e9:6.2f}B {src:>10} " + " ".join(f"{n * b / 1e9:6.2f}" for _, b in PRECISIONS))
+    print("EXCLUDED (not estimated): " + ", ".join(EXCLUDED))
+    print()
+    print(f"part 2: chunk timing, n={N_CHUNK}; g_min = (l_S / dt) / n (6.3); l_S values are what-ifs")
+    print(f"{'Hz':>3} {'chunk_s':>7} {'l_S_s':>6} {'sync_idle_%':>11} {'g_min':>6}  verdict")
+    for hz in RATES_HZ:
+        dt = 1.0 / hz
+        for lat in LATENCIES_S:
+            chunk_s = N_CHUNK * dt
+            idle = lat / (lat + chunk_s)
+            g_min = (lat / dt) / N_CHUNK
+            if g_min <= 1.0:
+                verdict = f"async can hide it with g >= {g_min:.3f}"
+            else:
+                verdict = "even g = 1 underruns: shorter l_S, longer chunk or lower Hz"
+            print(f"{hz:3d} {chunk_s:7.3f} {lat:6.3f} {100 * idle:11.1f} {g_min:6.3f}  {verdict}")
+    g_check = (0.293 / (1 / 30)) / N_CHUNK
+    assert abs(g_check - 0.176) < 5e-4, g_check
+    assert MODELS[2][1] * 2.0 / 1e9 == 14.0
+    print(f"check: 30 Hz, l_S=0.293 s, n=50 -> g_min={g_check:.3f} (matches the 6.3 toy); "
+          "weights only, no device measured, Jetson / Pi 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+part 1: weights-only memory (GB = params x bytes / 1e9); parameter counts from the papers
+model           params      arXiv   fp32   bf16   int8   int4
+SmolVLA          0.45B 2506.01844   1.80   0.90   0.45   0.23
+pi0-class        3.30B 2410.24164  13.20   6.60   3.30   1.65
+OpenVLA-class    7.00B 2406.09246  28.00  14.00   7.00   3.50
+EXCLUDED (not estimated): activations, KV cache, vision-encoder / image buffers, framework + CUDA context, OS
+
+part 2: chunk timing, n=50; g_min = (l_S / dt) / n (6.3); l_S values are what-ifs
+ Hz chunk_s  l_S_s sync_idle_%  g_min  verdict
+ 30   1.667  0.050         2.9  0.030  async can hide it with g >= 0.030
+ 30   1.667  0.293        15.0  0.176  async can hide it with g >= 0.176
+ 30   1.667  0.800        32.4  0.480  async can hide it with g >= 0.480
+ 30   1.667  2.000        54.5  1.200  even g = 1 underruns: shorter l_S, longer chunk or lower Hz
+ 50   1.000  0.050         4.8  0.050  async can hide it with g >= 0.050
+ 50   1.000  0.293        22.7  0.293  async can hide it with g >= 0.293
+ 50   1.000  0.800        44.4  0.800  async can hide it with g >= 0.800
+ 50   1.000  2.000        66.7  2.000  even g = 1 underruns: shorter l_S, longer chunk or lower Hz
+check: 30 Hz, l_S=0.293 s, n=50 -> g_min=0.176 (matches the 6.3 toy); weights only, no device measured, Jetson / Pi 本页未运行
+```
+
+</SimOutput>
+
+怎么读：
+
+- **只看权重。** SmolVLA 在 bf16 下要 0.90 GB，int8 下 0.45 GB。π0 级模型 bf16 要 6.60 GB；OpenVLA 级 bf16 要 14.00 GB，int4 要 3.50 GB。
+- **被排除的部分并不小。** OpenVLA 论文报告的量化推理显存是：bf16 16.8 GB、int8 10.2 GB、int4 7.0 GB（其表 2，以论文为准）。玩具只算权重得到 14.00、7.00、3.50 GB，所以在那个设置下约有 2.8–3.5 GB 花在玩具排除的部分上。这个差值不是换一台设备还能沿用的常数。同一张表还报告：int8 在那里掉了成功率（58.1 % 对 bf16 的 71.3 %），int4 则与 bf16 持平。量化后要检查精度，正如上面 int8 一节所说。
+- **动作块时序。** 30 Hz 下 50 个动作的块持续 1.667 s。ℓ_S = 0.293 s（6.3 玩具的平均抽样）时，同步大约 15.0 % 的时间在空闲，异步需要 g ≥ 0.176——与 6.3 打印的阈值相同。50 Hz 下同样的块只持续 1.0 s，阈值升到 0.293。
+- **异步也救不了的情况。** ℓ_S = 2.0 s 时，30 Hz 的 g_min 是 1.200，50 Hz 是 2.000。g 不能超过 1，所以即使每个 tick 都请求也会欠载。办法是缩短 ℓ_S（更小的模型、更低的精度、更快的设备）、加长动作块或降低控制频率，而不是换一个 g。
+
+这里的同步空闲比例 ℓ_S / (ℓ_S + n·Δt) 是稳态公式。6.3 的玩具在随机延迟抽样和整数 tick 下测得 30 s 中空闲 4.17 s（13.9 %）。
+
+<Quiz id="q1" question="按 π0 论文的参数量（3.3B），bf16（每参数 2 字节）下仅权重占多少 GB？" answer={6.6} unit="GB" explanation="3.3 × 10⁹ × 2 字节 = 6.6 × 10⁹ 字节 = 6.6 GB。激活、KV 缓存和图像缓冲都不在其中，设备需要的比这多。" />
+
+<Quiz id="q2" question="30 Hz、n = 50、推理延迟 2.0 s 时，玩具的结论是什么？" options={["异步取 g = 0.5 就能藏住", "g_min = 1.2 > 1，即使每个 tick 都请求也会欠载：要缩短 ℓ_S、加长动作块或降低频率", "同步没问题，因为动作块有 1.667 s", "换成 int4，延迟就变成 0"]} answer={1} explanation="g_min = (2.0 / (1/30)) / 50 = 60 / 50 = 1.2。g 不能超过 1，所以无论选哪个 g 队列都会耗空。" />
+
 ## 端侧清单
 
 只读；本页未运行其中任何一项。勾出你的设备已满足的项，其余标「未知」。
@@ -255,6 +381,8 @@ sync inference would idle about d control steps per chunk; async/RTC hides them.
 - **导出路径**：PyTorch → ONNX → TensorRT（或 ONNX Runtime），每一步都和原模型对比输出。
 - **精度**：先 bf16/fp16，有校准数据并做过精度检查后再上 int8。
 - **预算**：一张填了实测值的延迟表，以及你要传给 `inference_delay` 的 d。
+- **紧凑 VLA 内存**：先用论文参数量 × 字节数（只算权重），再在设备上实测被排除的部分（激活、KV 缓存、图像缓冲、运行时）。
+- **异步客户端**：用你实测的 ℓ_S、n 和 Δt 算 g_min = (ℓ_S / Δt) / n；大于 1 就要换更小的模型、更长的动作块或更低的频率，而不是换 g。
 
 作为量级参考，Isaac-GR00T README 报告 GR00T N1.7 在 RTX PRO 6000 Blackwell Server Edition 上约 **40 Hz**，在 Jetson AGX Thor 上用 TensorRT 约 **28 Hz**（批大小 1、LIBERO、MAXN 加 `jetson_clocks`）。这是项目方的数字，本页未实测；本课不要求购买任何硬件。
 
@@ -268,10 +396,13 @@ sync inference would idle about d control steps per chunk; async/RTC hides them.
 - **有离群值还用 per-tensor 量化。** 一个大权重会放大其他所有权重的误差；改用 per-channel。
 - **默认 int8 更快。** 没有 VNNI、Tensor Core int8 或 Arm dot-product 支持时可能更慢。
 - **预算只算模型耗时。** 相机帧龄、预处理和网络会多出整步。
+- **把只算权重的内存当成「放得下」。** 参数量 × 字节数不含激活、KV 缓存和图像缓冲；OpenVLA 自己的表比权重多出 2.8–3.5 GB（以论文为准）。
+- **把论文参数量当成设备测量。** 0.45B、3.3B、7B 来自论文；你的延迟和内存要在你的设备上测。
+- **ℓ_S 比动作块还长时去调 g。** g_min 超过 1 时，哪个 g 都没用。
 - **在动态时钟下计时。** 先固定电源模式与时钟，再测几分钟。
 
 <Summary>
 
-用 GPU 训练，在设备上部署。int8 用 `val = scale × (q − zero_point)`，且 0 必须能精确表示；一个离群值把 per-tensor 的 scale 从 0.00390 推到 0.03150，per-channel 仍是 0.00390。只有在有 int8 通路的硬件上量化才会提速。延迟预算把 73 ms（π0 板上）或 108.8 ms（带 RTC 的 π0.5）换算成某个控制频率下的 d；设 `inference_delay` 时向上取整。GPU、TensorRT、Jetson 步骤只读。
+用 GPU 训练，在设备上部署。int8 用 `val = scale × (q − zero_point)`，且 0 必须能精确表示；一个离群值把 per-tensor 的 scale 从 0.00390 推到 0.03150，per-channel 仍是 0.00390。只有在有 int8 通路的硬件上量化才会提速。延迟预算把 73 ms（π0 板上）或 108.8 ms（带 RTC 的 π0.5）换算成某个控制频率下的 d；设 `inference_delay` 时向上取整。SmolVLA（0.45B）、π0 级（3.3B）、OpenVLA 级（7B）只算权重的内存用的是论文参数量，排除了激活、KV 缓存和图像缓冲；6.3 的阈值 g ≥ (E[ℓ_S] / Δt) / n 告诉你异步何时能藏住推理、何时（g_min 大于 1）藏不住。GPU、TensorRT、Jetson 步骤只读。
 
 </Summary>

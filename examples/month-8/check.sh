@@ -33,4 +33,6 @@ check bag_qos_accept_toy.txt "$PY" "$M8/robot-devops/bag_qos_accept_toy.py"
 check lifecycle_sm_toy.txt "$PY" "$M8/ros2-hardware-interface/lifecycle_sm_toy.py"
 check actuator_fault_monitor_toy.txt "$PY" "$M8/safety-reliability/actuator_fault_monitor_toy.py"
 
+check imagine_rank_toy.txt "$PY" "$M8/sim-benchmarks/imagine_rank_toy.py"
+
 exit $fail

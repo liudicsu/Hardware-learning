@@ -25,3 +25,5 @@ Rechecks from proposal §6 (batch 2):
 Widgets: RewardCurveWidget / PointCloudWidget deferred (must be measurable via check_widgets; not in this batch).
 
 Verification: `examples/month-7/check.sh` (hooked into `tools/sim/reproduce.sh`), check_diagrams bindings + mutations, check_quotes, lint, tsc, CI build, check_text_size.
+
+Batch-after-obs PR3 (G5, +150): 7.4 `sim-to-real` 240→390 — `contact_dr_toy.py`: contact-parameter DR (friction µ, mass) vs latency-only randomisation tuning one push speed on the same budget (41 candidates × 200 episodes) and seed stream; nominal and shifted µ / mass reported (DR ties nominal success but pays cycle time 0.72 → 1.08 s; fails outside its range at µ = 0.15). No τ refit, no PE narrative; toy friction ≠ MuJoCo. Month 7 **6 lessons / 1 650 min**; site **71 lessons / 18 570 min**.

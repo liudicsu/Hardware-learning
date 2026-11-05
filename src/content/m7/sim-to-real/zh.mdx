@@ -268,6 +268,209 @@ ok: DR scan shows friction/delay/bias sensitivity (Wilson intervals)
 
 <Quiz id="q1" question="在种子 13 的 DR 表中，下列单因素里哪一项对标称成功率伤害最大？" options={["单独 z_bias = −0.015 m", "单独 friction_scale = 0.7", "单独 delay = 5 步", "单独 delay = 2 步"]} answer={2} explanation="标称 0.925；delay=5 → 0.525；摩擦 0.7 → 0.775；delay=2 → 0.850；单独 z_bias 仍然很高。选项里跌得最多的是 delay=5。" />
 
+## 接触参数 DR 与仅延迟随机化
+
+上面的扫描只是在**测**一套冻结的动作安排会在哪里失效。接下来的问题是：**调参时**就做随机化有没有用，代价是什么。`randomize_eval.py` 把摩擦和延迟放在同一张表里；这里把两者拆开。一个臂**只随机化延迟**，接触参数保持标称值。另一个臂在同样的延迟之上，再随机化**接触参数**：摩擦系数 µ 和物块质量。
+
+玩具任务：一个有力限的推杆以指令速度 `v_cmd` 沿直线推物块。推杆按**标称**模型规划松手点：松手后物块应滑行 `v_cmd² / (2 µ₀ g)`，再加上平均延迟期间多走的距离。停止命令晚 L 秒生效，之后物块在库仑摩擦替身（减速度 µ·g）下滑行直到停住。成功的条件是停在 0.30 m 的 ±15 mm 以内，且 1.5 s 内静止。同样 5 N 的力限下，更重的物块加速更慢。
+
+比较为什么公平：
+
+- **只有一个控制器参数** `v_cmd`，两个臂都在同一个 41 点网格（0.20–1.00 m/s）上调。
+- **预算相同**：两个臂对每个候选值都跑 200 个训练回合。
+- **噪声种子流相同**：每个臂、每个候选值的第 k 个回合使用同一个延迟抽样、同一个 ±3 % 摩擦抖动和同一组均匀随机数。DR 臂把这些均匀随机数映射到 µ ∈ [0.25, 0.60]、m ∈ [0.30, 0.90] kg。
+- **评分相同**：先比成功次数，平手时比平均周期时间（更短者胜）。
+- **评估回合共享**（另一个种子），分别在标称 µ = 0.40 / m = 0.50 kg 以及偏移后的 µ 和质量下打分。
+
+这里什么都不拟合：不重拟 τ，也不估计任何参数——那是上面的 `sysid_fit.py`，持续激励属于 5.1。这里做的是在一个分布上调控制器。摩擦只是一行库仑替身，**不是** MuJoCo 的软接触求解器（7.1）；SO-101 上的真实推动本页未运行。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-7/sim-to-real
+$ python3 contact_dr_toy.py
+```
+
+<CodeSource path="examples/month-7/sim-to-real/contact_dr_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""contact_dr_toy.py: contact-parameter domain randomisation vs latency-only (stdlib).
+
+A force-limited pusher drives a block along a line at a commanded speed v_cmd
+(the ONE controller parameter tuned here). The release mark is planned from
+the NOMINAL model (slide v^2 / (2 mu0 g) plus the mean latency travel); the
+stop command lands L seconds late. The block then slides with a Coulomb
+friction proxy (deceleration mu * g) until it rests. Success: final position
+within TOL of X_TARGET and at rest by T_MAX. A heavier block accelerates more
+slowly under the same force limit; lower friction slides further.
+
+Two arms tune v_cmd on the SAME budget: the same candidate grid, the same
+number of training episodes and the SAME noise seed stream (episode k of every
+arm and every candidate uses the same latency draw, friction jitter and
+uniforms). Score = successes, ties broken by the shorter mean cycle time.
+  latency_only  randomises latency only; mu and mass stay nominal
+  contact_dr    randomises the same latency AND mu, mass (contact parameters)
+Both are evaluated on shared eval episodes: nominal mu / mass (in-distribution
+for latency_only), shifted mu, shifted mass, and a mu outside the DR range.
+No universal "DR wins": here it pays in nominal cycle time.
+Not system identification: nothing is fitted (7.4's sysid_fit owns tau; 5.1
+owns PE). The friction model is a toy proxy, not the MuJoCo contact solver.
+Real pushing on an SO-101 is not run on this page (本页未运行).
+usage: python3 contact_dr_toy.py
+"""
+from __future__ import annotations
+
+import math
+import random
+
+SEED = 74
+G = 9.81
+DT = 0.001
+X_TARGET = 0.30     # m
+TOL = 0.015         # m
+T_MAX = 1.5         # s, cycle-time limit (push + slide)
+K_V, F_MAX = 40.0, 5.0          # N per m/s, N (force-limited pusher)
+MU0, M0 = 0.40, 0.50            # nominal friction coefficient, kg
+MU_RANGE, M_RANGE = (0.25, 0.60), (0.30, 0.90)   # contact DR ranges
+LAT_RANGE = (0.0, 0.03)         # s, randomised in both arms
+JITTER = 0.03                   # +-3 % per-episode friction jitter (both arms)
+GRID = [round(0.20 + 0.02 * i, 2) for i in range(41)]   # v_cmd candidates 0.20..1.00
+N_TRAIN, N_EVAL = 200, 200
+
+
+def release_mark(v_cmd):
+    """Release planned from the NOMINAL model: slide v^2/(2 mu0 g) plus mean latency travel."""
+    return X_TARGET - v_cmd ** 2 / (2 * MU0 * G) - v_cmd * sum(LAT_RANGE) / 2
+
+
+def episode(v_cmd, mu, m, lat):
+    """(final position, time to rest) for one push-release-slide episode."""
+    x_rel = release_mark(v_cmd)
+    x, v, t_rel = 0.0, 0.0, None
+    t = 0.0
+    while True:
+        pushing = t_rel is None or t < t_rel
+        if pushing:
+            f = max(0.0, min(F_MAX, K_V * (v_cmd - v)))
+            a = (f - mu * m * G) / m
+            if v <= 0.0 and a < 0.0:
+                a = 0.0
+        else:
+            a = -mu * G
+        v = max(0.0, v + a * DT)
+        x += v * DT
+        t += DT
+        if t_rel is None and x >= x_rel:
+            t_rel = t + lat
+        if t_rel is not None and t >= t_rel and v <= 0.0:
+            return x, t
+        if t > 10.0:
+            return x, t
+
+
+def draws(seed, n):
+    """Shared noise stream: (latency, jitter, u_mu, u_m) per episode."""
+    rng = random.Random(seed)
+    return [(rng.uniform(*LAT_RANGE), rng.uniform(-JITTER, JITTER), rng.random(), rng.random())
+            for _ in range(n)]
+
+
+def params(arm, d, mu=None, m=None):
+    lat, jit, u_mu, u_m = d
+    if arm == "contact_dr":
+        mu = MU_RANGE[0] + u_mu * (MU_RANGE[1] - MU_RANGE[0])
+        m = M_RANGE[0] + u_m * (M_RANGE[1] - M_RANGE[0])
+    return mu * (1.0 + jit), m, lat
+
+
+def score(v_cmd, eps):
+    """(successes, mean |err| m, mean cycle time s); success = within TOL and by T_MAX."""
+    runs = [episode(v_cmd, mu, m, lat) for mu, m, lat in eps]
+    errs = [abs(x - X_TARGET) for x, _ in runs]
+    ok = sum(e <= TOL and t <= T_MAX for e, (_, t) in zip(errs, runs))
+    return ok, sum(errs) / len(errs), sum(t for _, t in runs) / len(runs)
+
+
+def tune(arm, train):
+    eps = [params(arm, d, MU0, M0) for d in train]
+    best = None
+    for v in GRID:
+        ok, mae, cyc = score(v, eps)
+        if best is None or (ok, -cyc) > (best[1], -best[3]):   # success first, then faster cycle
+            best = (v, ok, mae, cyc)
+    return best
+
+
+def main() -> None:
+    train = draws(SEED, N_TRAIN)
+    evals = draws(SEED + 1, N_EVAL)
+    print(f"seed={SEED} target={X_TARGET} m tol=+-{TOL} m t_max={T_MAX} s "
+          f"latency~U{LAT_RANGE} s jitter=+-{JITTER:.0%} F_max={F_MAX} N")
+    print(f"budget per arm: {len(GRID)} v_cmd candidates x {N_TRAIN} train episodes, same seed stream")
+    print(f"nominal mu={MU0} m={M0} kg; contact DR mu~U{MU_RANGE} m~U{M_RANGE} kg")
+    tuned = {}
+    for arm in ("latency_only", "contact_dr"):
+        v, ok, mae, cyc = tune(arm, train)
+        tuned[arm] = v
+        print(f"tuned {arm:<12} v_cmd={v:.2f} m/s release_mark={release_mark(v):.3f} m  "
+              f"train success={ok}/{N_TRAIN} mean|err|={mae * 1000:.1f} mm cycle={cyc:.2f} s")
+    conds = (("nominal", MU0, M0), ("mu_low_0.28", 0.28, M0), ("mu_high_0.55", 0.55, M0),
+             ("mass_0.85", MU0, 0.85), ("mu_out_0.15", 0.15, M0))
+    print(f"{'eval (shared episodes)':<22} {'latency_only':>23} {'contact_dr':>23}")
+    res = {}
+    for name, mu, m in conds:
+        cells = []
+        eps = [params("eval", d, mu, m) for d in evals]
+        for arm in ("latency_only", "contact_dr"):
+            ok, mae, cyc = score(tuned[arm], eps)
+            res[(name, arm)] = (ok, cyc)
+            cells.append(f"{ok:3d}/{N_EVAL} {mae * 1000:5.1f}mm {cyc:4.2f}s")
+        print(f"{name:<22} {cells[0]:>23} {cells[1]:>23}")
+    lo, dr = "latency_only", "contact_dr"
+    assert res[("nominal", lo)][0] >= res[("nominal", dr)][0], "latency_only should not lose in-distribution"
+    assert res[("nominal", lo)][1] < res[("nominal", dr)][1], "DR pays cycle time at nominal"
+    assert res[("mu_high_0.55", dr)][0] > res[("mu_high_0.55", lo)][0], "DR should help at shifted mu"
+    assert res[("mass_0.85", dr)][0] > res[("mass_0.85", lo)][0], "DR should help at shifted mass"
+    assert res[("mu_out_0.15", dr)][0] <= N_EVAL // 20, "outside the DR range DR is not a cure"
+    print("ok: same budget / seed stream; DR trades nominal cycle time for shifted mu/mass; "
+          "mu outside the DR range still fails; toy friction != MuJoCo; SO-101 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+seed=74 target=0.3 m tol=+-0.015 m t_max=1.5 s latency~U(0.0, 0.03) s jitter=+-3% F_max=5.0 N
+budget per arm: 41 v_cmd candidates x 200 train episodes, same seed stream
+nominal mu=0.4 m=0.5 kg; contact DR mu~U(0.25, 0.6) m~U(0.3, 0.9) kg
+tuned latency_only v_cmd=0.52 m/s release_mark=0.258 m  train success=200/200 mean|err|=6.3 mm cycle=0.72 s
+tuned contact_dr   v_cmd=0.34 m/s release_mark=0.280 m  train success=196/200 mean|err|=6.1 mm cycle=1.16 s
+eval (shared episodes)            latency_only              contact_dr
+nominal                  200/200   6.8mm 0.72s   200/200   4.6mm 1.08s
+mu_low_0.28              191/200   8.2mm 0.76s   200/200   2.8mm 1.07s
+mu_high_0.55              81/200  16.3mm 0.72s   200/200   8.7mm 1.13s
+mass_0.85                156/200  11.2mm 0.83s   200/200   7.5mm 1.24s
+mu_out_0.15                0/200  51.0mm 0.90s     2/200  20.3mm 1.13s
+ok: same budget / seed stream; DR trades nominal cycle time for shifted mu/mass; mu outside the DR range still fails; toy friction != MuJoCo; SO-101 本页未运行
+```
+
+</SimOutput>
+
+怎么读：
+
+- **两个臂选得不一样。** 仅延迟臂选 0.52 m/s（松手点 0.258 m）。接触 DR 选 0.34 m/s（松手点 0.280 m），推得更慢，留给滑行的距离更少。
+- **分布内 DR 并不赢。** 在标称 µ 和质量下两个臂都是 200/200。DR 的平均误差更小（4.6 对 6.8 mm），但每次推动要 1.08 s 而不是 0.72 s，长了 50 %。在仅延迟臂调参所用的条件下，这段周期时间就是 DR 的代价。它自己的训练分也更低：196/200 对 200/200。
+- **条件偏移时 DR 稳得住。** µ = 0.55 时仅延迟臂掉到 81/200，DR 保持 200/200。物块 0.85 kg 时是 156/200 对 200/200，µ = 0.28 时是 191/200 对 200/200。
+- **超出随机化范围，DR 也失败。** µ = 0.15 时两者分别是 0/200 和 2/200。DR 只覆盖你随机化过的范围，不会更远。
+
+为什么放慢有用：滑行距离是 v² / (2µg)，所以 µ 估错带来的误差随 v² 增长。0.52 m/s 时，物块在 µ = 0.40 下滑 34.5 mm，在 µ = 0.55 下只滑 25.1 mm，还没算延迟抖动就差了 9.4 mm。0.34 m/s 时两者是 14.7 mm 和 10.7 mm，只差 4.0 mm。
+
+<Quiz id="q2" question="忽略延迟，用 v² / (2µg)（g = 9.81 m/s²）计算：v = 0.52 m/s、µ = 0.40 时，物块松手后滑行多少 mm？" answer={34.5} unit="mm" explanation="0.52² / (2 × 0.40 × 9.81) = 0.2704 / 7.848 = 0.0345 m ≈ 34.5 mm。µ = 0.55 时同样的推动只滑 25.1 mm，差 9.4 mm。" />
+
+<Quiz id="q3" question="在 contact_dr_toy.py 中，接触 DR 在标称 µ 和质量下付出了什么代价？" options={["没有代价：每种条件都赢", "成功率从 200/200 掉到 81/200", "推得更慢：平均周期 0.72 s → 1.08 s，成功同为 200/200", "它重拟了 τ，所以更花时间"]} answer={2} explanation="标称下两个臂都是 200/200，但 DR 选的 v_cmd = 0.34 m/s 更慢，每次推动长 50 %。81/200 是仅延迟臂在 µ = 0.55 下的结果。这个玩具不拟合 τ。" />
+
 ## 检查清单：把 7.1 / 7.3 策略迁到真机
 
 凡真机步骤一律标 **需硬件**。在 SO-101 / Feetech 栈上启用学习策略之前：
@@ -285,10 +488,13 @@ Isaac Lab（README：GPU 加速；涉及 Isaac Sim 的工作流对准 Isaac Sim 
 - **只随机化外观。** Tobin 式视觉 DR 修不好错误的 τ；Peng 式动力学 DR 修不好错误的相机外参。
 - **因为「DR 会兜住」而跳过 sysid。** 标称对象软了两倍，整笔 DR 预算都花在空洞区域。
 - **不做急停演练。** 策略把爪子合在手指上不是「有趣的失败模式」——是实验室事故。
+- **只拿偏移条件宣布 DR 获胜。** 标称那一行和代价也要报：玩具里 DR 在标称下打平（200/200），但每次推动要 1.08 s 而不是 0.72 s。
+- **在随机化范围之外测试。** µ = 0.15 低于 DR 范围 [0.25, 0.60]，DR 只有 2/200。只有当更宽的范围对你的机械臂在物理上合理时，才去放宽范围。
+- **把 DR 调参叫作系统辨识。** `contact_dr_toy.py` 不估计任何量，它只是在一个分布上挑一个控制器参数。系统辨识（上文）和持续激励（5.1）是另外的工作。
 - **只报一个成功率、不报区间。** Wilson 列的存在，就是为了不把 21/40 和 37/40 当成同样精确。
 
 <Summary>
 
-现实差距来自质量、摩擦、阻尼、带宽、外观、噪声与延迟。Sysid 拟合标称对象（玩具中 τ 相对误差 &lt; 5 %）；DR 度量摩擦、延迟与偏置漂移时成功率如何下跌（Wilson 区间）。只有完成零位、限位、急停与失败日志之后，才把 7.1 / 7.3 策略迁到真机——真机步骤标需硬件。
+现实差距来自质量、摩擦、阻尼、带宽、外观、噪声与延迟。Sysid 拟合标称对象（玩具中 τ 相对误差 &lt; 5 %）；DR 度量摩擦、延迟与偏置漂移时成功率如何下跌（Wilson 区间）。在相同预算和种子流下，用接触 DR（µ、质量）而不是仅延迟随机化来调一个推动速度：µ = 0.55 和 0.85 kg 时保持 200/200（仅延迟臂掉到 81/200 和 156/200），代价是标称下周期变长（0.72 → 1.08 s），且超出随机化范围仍会失败；摩擦只是玩具替身，不是 MuJoCo。只有完成零位、限位、急停与失败日志之后，才把 7.1 / 7.3 策略迁到真机——真机步骤标需硬件。
 
 </Summary>

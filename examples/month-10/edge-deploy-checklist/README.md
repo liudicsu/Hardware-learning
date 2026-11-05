@@ -1,11 +1,13 @@
 # 10.3 edge-deploy-checklist
 
 - `int8_quant_toy.py` — symmetric / asymmetric, per-tensor / per-channel int8 maths from the ONNX Runtime docs, with and without one outlier.
+- `vla_edge_budget_toy.py` — weights-only memory (params × bytes) for SmolVLA / π0-class / OpenVLA-class with parameter counts from their papers (activations, KV cache and vision buffers excluded), plus chunk / Hz / sync idle and the 6.3 async threshold g ≥ (ℓ_S / Δt) / n. 仅权重显存与动作块时序；无设备实测，Jetson / Pi 本页未运行。
 - `latency_budget.py` — published latency components (π0 Table I, RTC paper Table 2) plus a 30 fps camera frame age → inference delay `d` at 50 Hz and 30 Hz.
 
 ```bash
 python3 int8_quant_toy.py    # ../expected/int8_quant_toy.txt
 python3 latency_budget.py    # ../expected/latency_budget.txt
+python3 vla_edge_budget_toy.py    # ../expected/vla_edge_budget_toy.txt
 ```
 
 Not run here / 本页未运行 (CI installs nothing extra): ONNX Runtime `quantize_dynamic` / `quantize_static`, TensorRT export, any Jetson measurement. Sketch only:

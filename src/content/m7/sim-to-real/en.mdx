@@ -268,6 +268,209 @@ ok: DR scan shows friction/delay/bias sensitivity (Wilson intervals)
 
 <Quiz id="q1" question="In the seed-13 DR table, which change hurts nominal success the most among the single-factor cells shown?" options={["z_bias = −0.015 m alone", "friction_scale = 0.7 alone", "delay = 5 steps alone", "delay = 2 steps alone"]} answer={2} explanation="Nominal 0.925; delay=5 → 0.525; friction 0.7 → 0.775; delay=2 → 0.850; z_bias alone stays high. The largest single-factor drop among those options is delay=5." />
 
+## Contact DR versus latency-only
+
+The scan above only *measures* how a frozen schedule breaks. The next question is whether randomising **while you tune** helps, and what it costs. `randomize_eval.py` put friction and delay in the same table; here they are separated. One arm randomises **latency only** and keeps contact parameters at their nominal values. The other randomises the **contact parameters**, friction coefficient µ and block mass, on top of the same latency.
+
+The toy task: a force-limited pusher drives a block along a line at a commanded speed `v_cmd`. It plans its release mark from the **nominal** model: the block should slide `v_cmd² / (2 µ₀ g)` after release, plus the mean latency travel. The stop command lands L seconds late, then the block slides with a Coulomb friction proxy (deceleration µ·g) until it rests. Success means stopping within ±15 mm of 0.30 m, and at rest within 1.5 s. A heavier block accelerates more slowly under the same 5 N force limit.
+
+What makes the comparison fair:
+
+- **One controller parameter**, `v_cmd`, tuned by both arms over the same 41-value grid (0.20–1.00 m/s).
+- **Same budget:** 200 training episodes per candidate in both arms.
+- **Same noise seed stream:** episode k of every arm and every candidate uses the same latency draw, the same ±3 % friction jitter and the same uniforms. The DR arm maps those uniforms onto µ ∈ [0.25, 0.60] and m ∈ [0.30, 0.90] kg.
+- **Same score:** most successes first, then the shorter mean cycle time.
+- **Shared evaluation episodes** (a separate seed), scored at nominal µ = 0.40 / m = 0.50 kg and at shifted µ and mass.
+
+Nothing is fitted. No τ is refitted and no parameter is estimated: that is `sysid_fit.py` above, and persistent excitation belongs to 5.1. This is tuning a controller across a distribution. The friction is a one-line Coulomb proxy, **not** MuJoCo's soft-contact solver (7.1), and no real push on an SO-101 was run on this page (本页未运行).
+
+```bash
+$ cd ~/Hardware-learning/examples/month-7/sim-to-real
+$ python3 contact_dr_toy.py
+```
+
+<CodeSource path="examples/month-7/sim-to-real/contact_dr_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""contact_dr_toy.py: contact-parameter domain randomisation vs latency-only (stdlib).
+
+A force-limited pusher drives a block along a line at a commanded speed v_cmd
+(the ONE controller parameter tuned here). The release mark is planned from
+the NOMINAL model (slide v^2 / (2 mu0 g) plus the mean latency travel); the
+stop command lands L seconds late. The block then slides with a Coulomb
+friction proxy (deceleration mu * g) until it rests. Success: final position
+within TOL of X_TARGET and at rest by T_MAX. A heavier block accelerates more
+slowly under the same force limit; lower friction slides further.
+
+Two arms tune v_cmd on the SAME budget: the same candidate grid, the same
+number of training episodes and the SAME noise seed stream (episode k of every
+arm and every candidate uses the same latency draw, friction jitter and
+uniforms). Score = successes, ties broken by the shorter mean cycle time.
+  latency_only  randomises latency only; mu and mass stay nominal
+  contact_dr    randomises the same latency AND mu, mass (contact parameters)
+Both are evaluated on shared eval episodes: nominal mu / mass (in-distribution
+for latency_only), shifted mu, shifted mass, and a mu outside the DR range.
+No universal "DR wins": here it pays in nominal cycle time.
+Not system identification: nothing is fitted (7.4's sysid_fit owns tau; 5.1
+owns PE). The friction model is a toy proxy, not the MuJoCo contact solver.
+Real pushing on an SO-101 is not run on this page (本页未运行).
+usage: python3 contact_dr_toy.py
+"""
+from __future__ import annotations
+
+import math
+import random
+
+SEED = 74
+G = 9.81
+DT = 0.001
+X_TARGET = 0.30     # m
+TOL = 0.015         # m
+T_MAX = 1.5         # s, cycle-time limit (push + slide)
+K_V, F_MAX = 40.0, 5.0          # N per m/s, N (force-limited pusher)
+MU0, M0 = 0.40, 0.50            # nominal friction coefficient, kg
+MU_RANGE, M_RANGE = (0.25, 0.60), (0.30, 0.90)   # contact DR ranges
+LAT_RANGE = (0.0, 0.03)         # s, randomised in both arms
+JITTER = 0.03                   # +-3 % per-episode friction jitter (both arms)
+GRID = [round(0.20 + 0.02 * i, 2) for i in range(41)]   # v_cmd candidates 0.20..1.00
+N_TRAIN, N_EVAL = 200, 200
+
+
+def release_mark(v_cmd):
+    """Release planned from the NOMINAL model: slide v^2/(2 mu0 g) plus mean latency travel."""
+    return X_TARGET - v_cmd ** 2 / (2 * MU0 * G) - v_cmd * sum(LAT_RANGE) / 2
+
+
+def episode(v_cmd, mu, m, lat):
+    """(final position, time to rest) for one push-release-slide episode."""
+    x_rel = release_mark(v_cmd)
+    x, v, t_rel = 0.0, 0.0, None
+    t = 0.0
+    while True:
+        pushing = t_rel is None or t < t_rel
+        if pushing:
+            f = max(0.0, min(F_MAX, K_V * (v_cmd - v)))
+            a = (f - mu * m * G) / m
+            if v <= 0.0 and a < 0.0:
+                a = 0.0
+        else:
+            a = -mu * G
+        v = max(0.0, v + a * DT)
+        x += v * DT
+        t += DT
+        if t_rel is None and x >= x_rel:
+            t_rel = t + lat
+        if t_rel is not None and t >= t_rel and v <= 0.0:
+            return x, t
+        if t > 10.0:
+            return x, t
+
+
+def draws(seed, n):
+    """Shared noise stream: (latency, jitter, u_mu, u_m) per episode."""
+    rng = random.Random(seed)
+    return [(rng.uniform(*LAT_RANGE), rng.uniform(-JITTER, JITTER), rng.random(), rng.random())
+            for _ in range(n)]
+
+
+def params(arm, d, mu=None, m=None):
+    lat, jit, u_mu, u_m = d
+    if arm == "contact_dr":
+        mu = MU_RANGE[0] + u_mu * (MU_RANGE[1] - MU_RANGE[0])
+        m = M_RANGE[0] + u_m * (M_RANGE[1] - M_RANGE[0])
+    return mu * (1.0 + jit), m, lat
+
+
+def score(v_cmd, eps):
+    """(successes, mean |err| m, mean cycle time s); success = within TOL and by T_MAX."""
+    runs = [episode(v_cmd, mu, m, lat) for mu, m, lat in eps]
+    errs = [abs(x - X_TARGET) for x, _ in runs]
+    ok = sum(e <= TOL and t <= T_MAX for e, (_, t) in zip(errs, runs))
+    return ok, sum(errs) / len(errs), sum(t for _, t in runs) / len(runs)
+
+
+def tune(arm, train):
+    eps = [params(arm, d, MU0, M0) for d in train]
+    best = None
+    for v in GRID:
+        ok, mae, cyc = score(v, eps)
+        if best is None or (ok, -cyc) > (best[1], -best[3]):   # success first, then faster cycle
+            best = (v, ok, mae, cyc)
+    return best
+
+
+def main() -> None:
+    train = draws(SEED, N_TRAIN)
+    evals = draws(SEED + 1, N_EVAL)
+    print(f"seed={SEED} target={X_TARGET} m tol=+-{TOL} m t_max={T_MAX} s "
+          f"latency~U{LAT_RANGE} s jitter=+-{JITTER:.0%} F_max={F_MAX} N")
+    print(f"budget per arm: {len(GRID)} v_cmd candidates x {N_TRAIN} train episodes, same seed stream")
+    print(f"nominal mu={MU0} m={M0} kg; contact DR mu~U{MU_RANGE} m~U{M_RANGE} kg")
+    tuned = {}
+    for arm in ("latency_only", "contact_dr"):
+        v, ok, mae, cyc = tune(arm, train)
+        tuned[arm] = v
+        print(f"tuned {arm:<12} v_cmd={v:.2f} m/s release_mark={release_mark(v):.3f} m  "
+              f"train success={ok}/{N_TRAIN} mean|err|={mae * 1000:.1f} mm cycle={cyc:.2f} s")
+    conds = (("nominal", MU0, M0), ("mu_low_0.28", 0.28, M0), ("mu_high_0.55", 0.55, M0),
+             ("mass_0.85", MU0, 0.85), ("mu_out_0.15", 0.15, M0))
+    print(f"{'eval (shared episodes)':<22} {'latency_only':>23} {'contact_dr':>23}")
+    res = {}
+    for name, mu, m in conds:
+        cells = []
+        eps = [params("eval", d, mu, m) for d in evals]
+        for arm in ("latency_only", "contact_dr"):
+            ok, mae, cyc = score(tuned[arm], eps)
+            res[(name, arm)] = (ok, cyc)
+            cells.append(f"{ok:3d}/{N_EVAL} {mae * 1000:5.1f}mm {cyc:4.2f}s")
+        print(f"{name:<22} {cells[0]:>23} {cells[1]:>23}")
+    lo, dr = "latency_only", "contact_dr"
+    assert res[("nominal", lo)][0] >= res[("nominal", dr)][0], "latency_only should not lose in-distribution"
+    assert res[("nominal", lo)][1] < res[("nominal", dr)][1], "DR pays cycle time at nominal"
+    assert res[("mu_high_0.55", dr)][0] > res[("mu_high_0.55", lo)][0], "DR should help at shifted mu"
+    assert res[("mass_0.85", dr)][0] > res[("mass_0.85", lo)][0], "DR should help at shifted mass"
+    assert res[("mu_out_0.15", dr)][0] <= N_EVAL // 20, "outside the DR range DR is not a cure"
+    print("ok: same budget / seed stream; DR trades nominal cycle time for shifted mu/mass; "
+          "mu outside the DR range still fails; toy friction != MuJoCo; SO-101 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+seed=74 target=0.3 m tol=+-0.015 m t_max=1.5 s latency~U(0.0, 0.03) s jitter=+-3% F_max=5.0 N
+budget per arm: 41 v_cmd candidates x 200 train episodes, same seed stream
+nominal mu=0.4 m=0.5 kg; contact DR mu~U(0.25, 0.6) m~U(0.3, 0.9) kg
+tuned latency_only v_cmd=0.52 m/s release_mark=0.258 m  train success=200/200 mean|err|=6.3 mm cycle=0.72 s
+tuned contact_dr   v_cmd=0.34 m/s release_mark=0.280 m  train success=196/200 mean|err|=6.1 mm cycle=1.16 s
+eval (shared episodes)            latency_only              contact_dr
+nominal                  200/200   6.8mm 0.72s   200/200   4.6mm 1.08s
+mu_low_0.28              191/200   8.2mm 0.76s   200/200   2.8mm 1.07s
+mu_high_0.55              81/200  16.3mm 0.72s   200/200   8.7mm 1.13s
+mass_0.85                156/200  11.2mm 0.83s   200/200   7.5mm 1.24s
+mu_out_0.15                0/200  51.0mm 0.90s     2/200  20.3mm 1.13s
+ok: same budget / seed stream; DR trades nominal cycle time for shifted mu/mass; mu outside the DR range still fails; toy friction != MuJoCo; SO-101 本页未运行
+```
+
+</SimOutput>
+
+How to read it:
+
+- **The two arms choose differently.** Latency-only picks 0.52 m/s (release mark 0.258 m). Contact DR picks 0.34 m/s (release mark 0.280 m), a slower push that leaves less to slide.
+- **In distribution, DR does not win.** At nominal µ and mass both arms score 200/200. DR's mean error is smaller (4.6 vs 6.8 mm), but each push takes 1.08 s instead of 0.72 s, 50 % longer. That cycle time is what DR costs on the conditions latency-only was tuned for. Its own training score is also lower: 196/200 against 200/200.
+- **Under shift, DR holds.** At µ = 0.55 latency-only drops to 81/200 while DR keeps 200/200. With a 0.85 kg block it is 156/200 against 200/200, and at µ = 0.28 it is 191/200 against 200/200.
+- **Outside the randomised range, DR fails too.** At µ = 0.15 the scores are 0/200 and 2/200. DR covers the range you randomised, not beyond it.
+
+Why slowing down helps: the slide is v² / (2µg), so the error from a wrong µ grows with v². At 0.52 m/s the block slides 34.5 mm at µ = 0.40 but 25.1 mm at µ = 0.55, a 9.4 mm shortfall before any latency jitter. At 0.34 m/s the slides are 14.7 mm and 10.7 mm, a 4.0 mm shortfall.
+
+<Quiz id="q2" question="Ignoring latency, how far (in mm) does the block slide after release at v = 0.52 m/s and µ = 0.40, using v² / (2µg) with g = 9.81 m/s²?" answer={34.5} unit="mm" explanation="0.52² / (2 × 0.40 × 9.81) = 0.2704 / 7.848 = 0.0345 m ≈ 34.5 mm. At µ = 0.55 the same push slides 25.1 mm, 9.4 mm short." />
+
+<Quiz id="q3" question="In contact_dr_toy.py, what does contact DR cost on the nominal µ and mass?" options={["Nothing: it wins every condition", "Success drops from 200/200 to 81/200", "A slower push: mean cycle time 0.72 s → 1.08 s, with the same 200/200 success", "It refits τ, which takes longer"]} answer={2} explanation="Both arms score 200/200 at nominal, but DR's slower v_cmd = 0.34 m/s makes each push 50 % longer. 81/200 is latency-only at µ = 0.55. No τ is fitted in this toy." />
+
 ## Checklist: moving 7.1 / 7.3 policies to hardware
 
 Mark every hardware step **needs hardware**. Before enabling a learned policy on an SO-101 / Feetech stack:
@@ -285,10 +488,13 @@ Isaac Lab (README: GPU-accelerated; Isaac Sim workflows target Isaac Sim 6.2) ca
 - **Randomising appearance only.** Tobin-style visual DR does not fix a wrong τ; Peng-style dynamics DR does not fix a wrong camera extrinsics.
 - **Skipping sysid because "DR will cover it".** A nominal plant that is 2× too soft wastes the whole DR budget on an empty region.
 - **No e-stop rehearsal.** A policy that closes the jaws on a finger is not an "interesting failure mode" — it is a lab incident.
+- **Declaring DR the winner from shifted conditions only.** Report the nominal row and the cost too: in the toy DR ties at nominal (200/200) but every push takes 1.08 s instead of 0.72 s.
+- **Testing outside the range you randomised.** At µ = 0.15, below the DR range [0.25, 0.60], DR scores 2/200. Widen the range only if the wider range is physically plausible for your arm.
+- **Calling DR tuning system identification.** `contact_dr_toy.py` estimates nothing; it picks one controller parameter across a distribution. Sysid (above) and persistent excitation (5.1) are separate jobs.
 - **Reporting a single success rate without an interval.** The Wilson column exists so 21/40 and 37/40 are not treated as equally precise.
 
 <Summary>
 
-The reality gap is mass, friction, damping, bandwidth, appearance, noise and delay. Sysid fits a nominal plant (τ relative error &lt; 5 % in the toy); DR measures how success falls when friction, delay and bias wander (Wilson intervals). Move 7.1 / 7.3 policies only after zeroing, limits, e-stop and a failure log — hardware steps marked needs hardware.
+The reality gap is mass, friction, damping, bandwidth, appearance, noise and delay. Sysid fits a nominal plant (τ relative error &lt; 5 % in the toy); DR measures how success falls when friction, delay and bias wander (Wilson intervals). Tuning one push speed with contact DR (µ, mass) instead of latency-only, on the same budget and seed stream, keeps 200/200 at µ = 0.55 and 0.85 kg where latency-only drops to 81/200 and 156/200, but costs cycle time at nominal (0.72 → 1.08 s) and still fails outside the randomised range; the friction is a toy proxy, not MuJoCo. Move 7.1 / 7.3 policies only after zeroing, limits, e-stop and a failure log — hardware steps marked needs hardware.
 
 </Summary>

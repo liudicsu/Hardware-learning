@@ -244,6 +244,132 @@ How to read it:
 - Every row satisfies d ≤ H − s = 25, so a 50-step chunk still has room. Synchronous inference would idle about d steps per chunk; async (8.3) and RTC (10.2) hide them.
 - These are published GPU numbers, not your robot. Measure your own end-to-end latency on the SO-101 before trusting a d; this page has no measured SO-101 figure.
 
+## Compact VLAs on the device: a weights-only budget
+
+The int8 toy above ends with weight bytes for 100M parameters. Real VLAs are far bigger, and the first question on an edge device is whether the weights fit at all. Three sizes, with parameter counts taken **from their papers** (not measured here):
+
+| Label | Parameters (per the paper) | Source |
+| --- | --- | --- |
+| SmolVLA | 0.45B (about 100M of it the action expert) | arXiv 2506.01844 |
+| π0-class | 3.3B (3B PaliGemma VLM + 300M action expert) | arXiv 2410.24164 |
+| OpenVLA-class | 7B | arXiv 2406.09246 |
+
+"π0-class" and "OpenVLA-class" mean "a model of that size"; later versions and fine-tuned checkpoints can differ. The SmolVLA paper says it is designed to be deployed on consumer-grade GPUs or even CPUs. That is its claim, per the paper, not a measurement on this site.
+
+`vla_edge_budget_toy.py` computes **weights only**: params × bytes per parameter. Everything else is **excluded and labelled as excluded**: activations, the KV cache, vision-encoder and image buffers, the framework and CUDA context, and the OS. A weights figure is therefore a lower bound and never proof that a model fits. Part 2 links chunk length, control rate and sync idle to the async threshold from [6.3](/en/month/month-6/vla-models), g ≥ (E[ℓ_S] / Δt) / n, for a few what-if inference latencies ℓ_S. No device was measured, and Jetson and Raspberry Pi runs are not done on this page (本页未运行).
+
+```bash
+$ cd ~/Hardware-learning/examples/month-10/edge-deploy-checklist
+$ python3 vla_edge_budget_toy.py
+```
+
+<CodeSource path="examples/month-10/edge-deploy-checklist/vla_edge_budget_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""vla_edge_budget_toy.py: weights-only memory and chunk timing for compact VLAs (stdlib).
+
+Part 1, memory. weights_GB = params x bytes_per_param / 1e9, for three model
+sizes whose parameter counts are taken from their papers (labelled; not
+measured here):
+  SmolVLA        0.45e9  (arXiv 2506.01844: "450 million parameters")
+  pi0-class      3.3e9   (arXiv 2410.24164: 3B PaliGemma + 300M action expert)
+  OpenVLA-class  7e9     (arXiv 2406.09246: "7B-parameter")
+WEIGHTS ONLY. Activations, the KV cache, vision-encoder / image buffers, the
+framework / CUDA context and the OS are EXCLUDED and not estimated: a weights
+number is a lower bound, never "it fits".
+
+Part 2, timing. Chunk of n actions at control period dt lasts n * dt. Sync
+inference idles l_S per chunk; async (6.3, g = remaining-queue fraction that
+triggers the next request) avoids idling when g >= (l_S / dt) / n. If that
+g_min exceeds 1, even a request every tick cannot keep the queue fed. The
+l_S values are lesson-chosen what-ifs, not device measurements; Jetson / Pi
+runs are not done on this page (本页未运行).
+usage: python3 vla_edge_budget_toy.py
+"""
+from __future__ import annotations
+
+MODELS = (                       # label, params, source
+    ("SmolVLA", 0.45e9, "2506.01844"),
+    ("pi0-class", 3.3e9, "2410.24164"),
+    ("OpenVLA-class", 7.0e9, "2406.09246"),
+)
+PRECISIONS = (("fp32", 4.0), ("bf16", 2.0), ("int8", 1.0), ("int4", 0.5))
+EXCLUDED = ("activations", "KV cache", "vision-encoder / image buffers", "framework + CUDA context", "OS")
+N_CHUNK = 50
+RATES_HZ = (30, 50)
+LATENCIES_S = (0.05, 0.293, 0.8, 2.0)   # what-if l_S; 0.293 s is the 6.3 toy's mean draw
+
+
+def main() -> None:
+    print("part 1: weights-only memory (GB = params x bytes / 1e9); parameter counts from the papers")
+    print(f"{'model':<14} {'params':>7} {'arXiv':>10} " + " ".join(f"{p:>6}" for p, _ in PRECISIONS))
+    for name, n, src in MODELS:
+        print(f"{name:<14} {n / 1e9:6.2f}B {src:>10} " + " ".join(f"{n * b / 1e9:6.2f}" for _, b in PRECISIONS))
+    print("EXCLUDED (not estimated): " + ", ".join(EXCLUDED))
+    print()
+    print(f"part 2: chunk timing, n={N_CHUNK}; g_min = (l_S / dt) / n (6.3); l_S values are what-ifs")
+    print(f"{'Hz':>3} {'chunk_s':>7} {'l_S_s':>6} {'sync_idle_%':>11} {'g_min':>6}  verdict")
+    for hz in RATES_HZ:
+        dt = 1.0 / hz
+        for lat in LATENCIES_S:
+            chunk_s = N_CHUNK * dt
+            idle = lat / (lat + chunk_s)
+            g_min = (lat / dt) / N_CHUNK
+            if g_min <= 1.0:
+                verdict = f"async can hide it with g >= {g_min:.3f}"
+            else:
+                verdict = "even g = 1 underruns: shorter l_S, longer chunk or lower Hz"
+            print(f"{hz:3d} {chunk_s:7.3f} {lat:6.3f} {100 * idle:11.1f} {g_min:6.3f}  {verdict}")
+    g_check = (0.293 / (1 / 30)) / N_CHUNK
+    assert abs(g_check - 0.176) < 5e-4, g_check
+    assert MODELS[2][1] * 2.0 / 1e9 == 14.0
+    print(f"check: 30 Hz, l_S=0.293 s, n=50 -> g_min={g_check:.3f} (matches the 6.3 toy); "
+          "weights only, no device measured, Jetson / Pi 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+part 1: weights-only memory (GB = params x bytes / 1e9); parameter counts from the papers
+model           params      arXiv   fp32   bf16   int8   int4
+SmolVLA          0.45B 2506.01844   1.80   0.90   0.45   0.23
+pi0-class        3.30B 2410.24164  13.20   6.60   3.30   1.65
+OpenVLA-class    7.00B 2406.09246  28.00  14.00   7.00   3.50
+EXCLUDED (not estimated): activations, KV cache, vision-encoder / image buffers, framework + CUDA context, OS
+
+part 2: chunk timing, n=50; g_min = (l_S / dt) / n (6.3); l_S values are what-ifs
+ Hz chunk_s  l_S_s sync_idle_%  g_min  verdict
+ 30   1.667  0.050         2.9  0.030  async can hide it with g >= 0.030
+ 30   1.667  0.293        15.0  0.176  async can hide it with g >= 0.176
+ 30   1.667  0.800        32.4  0.480  async can hide it with g >= 0.480
+ 30   1.667  2.000        54.5  1.200  even g = 1 underruns: shorter l_S, longer chunk or lower Hz
+ 50   1.000  0.050         4.8  0.050  async can hide it with g >= 0.050
+ 50   1.000  0.293        22.7  0.293  async can hide it with g >= 0.293
+ 50   1.000  0.800        44.4  0.800  async can hide it with g >= 0.800
+ 50   1.000  2.000        66.7  2.000  even g = 1 underruns: shorter l_S, longer chunk or lower Hz
+check: 30 Hz, l_S=0.293 s, n=50 -> g_min=0.176 (matches the 6.3 toy); weights only, no device measured, Jetson / Pi 本页未运行
+```
+
+</SimOutput>
+
+How to read it:
+
+- **Weights alone.** SmolVLA needs 0.90 GB in bf16 and 0.45 GB in int8. A π0-class model needs 6.60 GB in bf16, and an OpenVLA-class model 14.00 GB in bf16 and 3.50 GB in int4.
+- **What is excluded is not small.** The OpenVLA paper reports GPU memory for quantised inference of 16.8 GB in bf16, 10.2 GB in int8 and 7.0 GB in int4 (its Table 2, per the paper). The toy's weights-only numbers are 14.00, 7.00 and 3.50 GB, so roughly 2.8–3.5 GB went to things the toy excludes in that setup. That gap is not a constant you can reuse on another device. The same table reports that int8 lost success there (58.1 % vs 71.3 % for bf16) while int4 matched bf16. Check accuracy after quantising, as the int8 section above says.
+- **Chunk timing.** At 30 Hz a 50-action chunk lasts 1.667 s. With ℓ_S = 0.293 s (the mean draw in the 6.3 toy) sync idles about 15.0 % of the time, and async needs g ≥ 0.176, the same threshold 6.3 printed. At 50 Hz the same chunk lasts only 1.0 s, so the threshold rises to 0.293.
+- **When async cannot help.** With ℓ_S = 2.0 s, g_min is 1.200 at 30 Hz and 2.000 at 50 Hz. Since g cannot exceed 1, even a request at every tick underruns. The fix is a shorter ℓ_S (smaller model, lower precision, faster device), a longer chunk or a lower control rate, not a different g.
+
+The sync idle fraction here, ℓ_S / (ℓ_S + n·Δt), is the steady-state formula. The 6.3 toy measured 4.17 s idle out of 30 s (13.9 %) with random latency draws and whole ticks.
+
+<Quiz id="q1" question="Using the π0 paper's parameter count (3.3B), how many GB do the weights alone take in bf16 (2 bytes per parameter)?" answer={6.6} unit="GB" explanation="3.3 × 10⁹ × 2 bytes = 6.6 × 10⁹ bytes = 6.6 GB. Activations, the KV cache and image buffers are not included, so the device needs more than this." />
+
+<Quiz id="q2" question="At 30 Hz with n = 50, inference latency is 2.0 s. What does the toy conclude?" options={["Async with g = 0.5 hides it", "g_min = 1.2 > 1, so even a request every tick underruns: cut ℓ_S, lengthen the chunk or lower the rate", "Sync is fine because the chunk is 1.667 s", "Switch to int4 and the latency becomes 0"]} answer={1} explanation="g_min = (2.0 / (1/30)) / 50 = 60 / 50 = 1.2. g cannot exceed 1, so the queue runs dry whatever g you pick." />
+
 ## Edge checklist
 
 Read-only; none of it was run on this page (本页未运行). Tick what your device meets and mark the rest as unknown.
@@ -255,6 +381,8 @@ Read-only; none of it was run on this page (本页未运行). Tick what your dev
 - **Export path**: PyTorch → ONNX → TensorRT (or ONNX Runtime), checking outputs against the original at each step.
 - **Precision**: bf16/fp16 first, int8 only with calibration data and an accuracy check.
 - **Budget**: a filled latency table with measured values, and the d you will pass as `inference_delay`.
+- **Compact VLA memory**: start from the paper's parameter count × bytes (weights only), then measure the excluded part (activations, KV cache, image buffers, runtime) on the device itself.
+- **Async client**: with your measured ℓ_S, n and Δt, compute g_min = (ℓ_S / Δt) / n; above 1 means a smaller model, a longer chunk or a lower rate, not a different g.
 
 For scale, the Isaac-GR00T README reports GR00T N1.7 at about **40 Hz** on an RTX PRO 6000 Blackwell Server Edition and about **28 Hz** on a Jetson AGX Thor with TensorRT (batch 1, LIBERO, MAXN with `jetson_clocks`). Those are the project's numbers, not measured here; no purchase is required for this lesson.
 
@@ -268,10 +396,13 @@ For scale, the Isaac-GR00T README reports GR00T N1.7 at about **40 Hz** on an RT
 - **Quantising per-tensor with outliers present.** One large weight inflates every other weight's error; use per-channel.
 - **Assuming int8 is faster.** Without VNNI, Tensor Core int8 or Arm dot-product support it can be slower.
 - **Budgeting model time only.** Camera age, pre-processing and network add whole control steps.
+- **Calling weights-only memory "it fits".** params × bytes excludes activations, the KV cache and image buffers; OpenVLA's own table shows 2.8–3.5 GB more than its weights (per the paper).
+- **Using a paper's parameter count as a device measurement.** 0.45B, 3.3B and 7B are from the papers; your latency and memory have to be measured on your device.
+- **Tuning g when ℓ_S is longer than the chunk.** If g_min exceeds 1, no g helps.
 - **Timing with dynamic clocks.** Fix power mode and clocks first, then measure over minutes.
 
 <Summary>
 
-Train on a GPU, deploy on the device. int8 uses `val = scale × (q − zero_point)` with 0 exactly representable; an outlier pushes the per-tensor scale from 0.00390 to 0.03150, while per-channel keeps 0.00390. Quantisation speeds things up only on hardware with int8 paths. A latency budget turns 73 ms (π0 on board) or 108.8 ms (π0.5 with RTC) into d at a control rate; round up for `inference_delay`. GPU, TensorRT and Jetson steps are reading only.
+Train on a GPU, deploy on the device. int8 uses `val = scale × (q − zero_point)` with 0 exactly representable; an outlier pushes the per-tensor scale from 0.00390 to 0.03150, while per-channel keeps 0.00390. Quantisation speeds things up only on hardware with int8 paths. A latency budget turns 73 ms (π0 on board) or 108.8 ms (π0.5 with RTC) into d at a control rate; round up for `inference_delay`. Weights-only memory for SmolVLA (0.45B), π0-class (3.3B) and OpenVLA-class (7B) uses parameter counts from the papers and excludes activations, KV cache and image buffers; the 6.3 threshold g ≥ (E[ℓ_S] / Δt) / n tells you when async can hide inference and when (g_min above 1) it cannot. GPU, TensorRT and Jetson steps are reading only.
 
 </Summary>

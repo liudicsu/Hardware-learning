@@ -3263,6 +3263,35 @@ export const resources: Record<string, Resource> = {
     extra: true,
   },
 
+  "ctrl-world-paper": {
+    id: "ctrl-world-paper",
+    url: "https://arxiv.org/abs/2510.10125",
+    title: { zh: "Ctrl-World：用于机器人操作的可控生成式世界模型（论文）", en: "Ctrl-World: a controllable generative world model for robot manipulation (paper)" },
+    author: "Guo, Shi, Chen, Finn",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "在 DROID 上训练的多视角可控世界模型；策略在其中滚动，用想象结果给策略排名，并用想象中的成功轨迹微调。arXiv 2510.10125。本站 8.8 阅读；数字以论文为准，本页未运行。",
+      en: "A controllable multi-view world model trained on DROID; policies roll out inside it to rank them, and successful imagined trajectories are used for fine-tuning. arXiv 2510.10125. Reading for 8.8; numbers are per the paper, not run here.",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
+  "openvla-paper": {
+    id: "openvla-paper",
+    url: "https://arxiv.org/abs/2406.09246",
+    title: { zh: "OpenVLA 论文", en: "OpenVLA paper" },
+    author: "Kim, Pertsch, Karamcheti et al.",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "7B 参数的开源 VLA（Llama 2 + DINOv2/SigLIP 视觉编码器），含量化推理的显存与成功率表。arXiv 2406.09246。本站 10.3 用其参数量算只含权重的内存；显存数字以论文为准。",
+      en: "A 7B-parameter open-source VLA (Llama 2 + DINOv2/SigLIP vision encoder), with a table of memory and success under quantised inference. arXiv 2406.09246. Lesson 10.3 uses its parameter count for weights-only memory; memory figures are per the paper.",
+    },
+    license: { zh: "预印本（CC BY 4.0），© 原作者；仅提供外链", en: "Preprint (CC BY 4.0), © authors; external link only" },
+    extra: true,
+  },
+
   "freertos-kernel-semphr": {
     id: "freertos-kernel-semphr",
     url: "https://github.com/FreeRTOS/FreeRTOS-Kernel/blob/main/include/semphr.h",

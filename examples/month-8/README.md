@@ -11,6 +11,6 @@ CPU-reproducible scripts for Month 8 (site supplement). Run `./check.sh` from th
 | safety-reliability | `safety-reliability/watchdog_sim.py`, `safety-reliability/actuator_fault_monitor_toy.py` | stdlib |
 | robot-devops | `robot-devops/bag_stats.py` | stdlib (+ synthetic MCAP timeline) |
 | capstone | `capstone/capstone_gate.py` | stdlib (+ Month 6 `portfolio_check.py`) |
-| sim-benchmarks | `sim-benchmarks/suite_score_table.py` | stdlib |
+| sim-benchmarks | `sim-benchmarks/suite_score_table.py`, `sim-benchmarks/imagine_rank_toy.py` | stdlib |
 
 8 lessons complete / 8 课已齐 (8.1–8.8 Track B).
