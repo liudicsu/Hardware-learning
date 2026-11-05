@@ -15,10 +15,15 @@ SFT copies the data, mistakes included, and stops at the level of the demos. RL 
 
 ## Outcome-reward RL: SimpleVLA-RL
 
-SimpleVLA-RL (Li et al., 2025) runs large-scale RL on the whole VLA, built on the veRL framework, with a GRPO-style objective and a binary reward: the rollout succeeded or it did not. The base model is OpenVLA-OFT, an optimised fine-tuning recipe for OpenVLA (parallel decoding, action chunks, continuous actions, an L1 loss) whose own abstract reports LIBERO average success rising from 76.5 % to 97.1 % with 26× faster action generation. The SimpleVLA-RL abstract reports state-of-the-art results on LIBERO, beating π0 on RoboTwin 1.0 and 2.0, and a new behaviour during RL that the authors call "pushcut" (pushing an object instead of the grasp the demos showed). The paper also reports that RL could not start from a model fine-tuned on zero demos: outcome reward needs a policy that already succeeds sometimes. All measured on the authors' GPU cluster, not run here.
+SimpleVLA-RL (Li et al., 2025) runs large-scale RL on the whole VLA, built on the veRL framework, with a GRPO-style objective and a binary reward: the rollout succeeded or it did not. The base comes from the OpenVLA-OFT family; for sampling convenience, however, SimpleVLA-RL switches to discrete action tokens + cross-entropy (a LLaMA2 output head, single view), not the official L1 continuous-action OpenVLA-OFT (§4.1). Official OpenVLA-OFT (parallel decoding, action chunks, continuous actions, an L1 loss) reports in its abstract that LIBERO average success rises from 76.5 % to 97.1 % with 26× faster action generation. The SimpleVLA-RL abstract reports state-of-the-art results on LIBERO, beating π0 on RoboTwin 1.0 and 2.0, and a new behaviour during RL that the authors call "pushcut" — for example pushing an object on RoboTwin2.0 tasks such as move can pot and place a2b, instead of the grasp the demos showed. The paper reports that on 5 RoboTwin2.0 tasks, a base without trajectory fine-tuning has 0 success, and outcome-reward RL alone cannot improve it (§6.2/Tab.7); after fine-tuning with 1 demo per task, RL then lifts performance sharply (LIBERO-Long 17.3 %→91.7 %, §5.1). Per the paper. All measured on the authors' GPU cluster, not run here.
+
+Intuition for GRPO: sample a group of rollouts for the same prompt, update the policy with group-normalised advantages; if a group is all-success or all-fail, advantages are zero, there is no gradient, and that group is dropped. Related methods include ConRFT, RIPT-VLA and RLinf (one-line reading links below; no numbers).
 
 <Resource id="simplevla-rl-paper" />
 <Resource id="openvla-oft-paper" />
+<Resource id="conrft-paper" />
+<Resource id="ript-vla-paper" />
+<Resource id="rlinf-vla-paper" />
 
 ## Advantage conditioning: π*0.6 and RECAP
 
@@ -30,7 +35,7 @@ Physical Intelligence's π*0.6 post describes RECAP, "RL with Experience & Corre
 
 Here the big model stays frozen and a small network learns a correction on top of its action:
 
-- **ResiP** (Ankile et al., 2024) keeps a chunked behaviour-cloning model (a diffusion policy) fixed and trains a closed-loop, per-step residual with PPO on a sparse reward, keeping the residual small. On its simulated furniture-assembly tasks it reports large gains from 50 demos (for example one_leg rising from 54 % to 98 %); paper's measurement.
+- **ResiP** (Ankile et al., 2024) keeps a chunked behaviour-cloning model (a diffusion policy) fixed and trains a closed-loop, per-step residual with PPO on a sparse reward, keeping the residual small. On its simulated furniture-assembly tasks it reports large gains from 50 demos (for example one_leg rising from 54 % to 98 % under low randomization ±1.5 cm, best checkpoint, simulation; medium randomization 26 %→76 %); per the paper.
 - **Policy Decorator** (Yuan et al., 2024) makes the residual model-agnostic and trains it with SAC; it bounds the residual's size and gradually widens how often the residual is used during exploration, so the base policy's good behaviour is not destroyed early. Its experiments use ManiSkill and Adroit with Behaviour Transformer and Diffusion Policy bases.
 
 Residuals are attractive for hobby hardware because the trained part is small, but the papers' results are mostly in simulation.
@@ -46,7 +51,7 @@ The cheapest step on your own data is not RL at all. LeRobot's SARM page describ
 
 ## Optional: run the advantage filter toy
 
-`advantage_filter_toy.py` reuses the 10.6 lock chain offline. A mediocre behaviour policy logs 40 episodes: right 90 % of the time, but worse than a coin flip in states 2 and 5. A value V(s) ("minus steps to finish", the flavour RECAP describes) is averaged from the log, each step gets A = −1 + V(s′) − V(s), and three counted policies are compared: plain BC, BC on successful episodes only, and BC on steps with A > 0. A second log with no successes shows what happens when there is nothing to rank.
+`advantage_filter_toy.py` reuses the 10.6 lock chain offline. A mediocre behaviour policy logs 40 episodes: right 90 % of the time, but worse than a coin flip in states 2 and 5. A value V(s) ("minus steps to finish", the flavour RECAP describes) is averaged from the log, each step gets A = −1 + V(s′) − V(s) (i.e. per-step reward −1, undiscounted TD error), and three counted policies are compared: plain BC, BC on successful episodes only, and BC on steps with A > 0. A second log with no successes shows what happens when there is nothing to rank.
 
 ```bash
 $ cd ~/Hardware-learning/examples/month-10/vla-rl-finetune

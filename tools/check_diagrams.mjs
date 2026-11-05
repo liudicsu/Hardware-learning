@@ -3529,7 +3529,8 @@ const lessonRef = (n, slug, lang) => {
     "lerobot-action-representations", "lerobot-rtc", "lerobot-remote-inference", "lerobot-hardware-guide",
     "lerobot-torch-accelerators", "onnxruntime-quantization", "opencv-robot-world-handeye", "lerobot-hil-data-collection",
     "hg-dagger-paper", "rac-paper", "lerobot-v060-blog", "rlpd-paper", "hil-serl-paper", "lerobot-hilserl", "simplevla-rl-paper",
-    "openvla-oft-paper", "pistar06-blog", "resip-paper", "policy-decorator-paper", "lerobot-sarm"]) {
+    "openvla-oft-paper", "pistar06-blog", "resip-paper", "policy-decorator-paper", "lerobot-sarm",
+    "conrft-paper", "ript-vla-paper", "rlinf-vla-paper"]) {
     const block = (res10.match(new RegExp(`"${id}": \\{[\\s\\S]*?\\n  \\}`)) || [""])[0];
     ok(block.length > 0 && /extra:\s*true/.test(block), `m10 resource ${id}: present + extra`);
     ok(!/\$\d/.test(block), `m10 resource ${id}: no price`);

@@ -2641,6 +2641,48 @@ export const resources: Record<string, Resource> = {
     license: { zh: "开源项目文档（Apache-2.0），© Hugging Face；仅提供外链", en: "Open-source project docs (Apache-2.0), © Hugging Face; external link only" },
     extra: true,
   },
+  "conrft-paper": {
+    id: "conrft-paper",
+    url: "https://arxiv.org/abs/2502.05450",
+    title: { zh: "ConRFT 论文：一致性策略的 VLA 强化微调", en: "ConRFT paper: reinforced fine-tuning of VLAs via consistency policy" },
+    author: "Chen et al.",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "离线 BC+Q 与在线一致性策略微调，配合人工介入；VLA 强化微调相关阅读。arXiv 2502.05450。本站 10.7 阅读。",
+      en: "Offline BC+Q then online consistency-policy fine-tuning with human interventions; related VLA reinforced fine-tuning reading. arXiv 2502.05450. Reading for 10.7.",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
+  "ript-vla-paper": {
+    id: "ript-vla-paper",
+    url: "https://arxiv.org/abs/2505.17016",
+    title: { zh: "RIPT-VLA 论文：VLA 的交互式后训练", en: "RIPT-VLA paper: interactive post-training for VLAs" },
+    author: "Tan et al.",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "用稀疏二值成功奖励做交互式后训练；动态采样与 leave-one-out 优势估计。arXiv 2505.17016。本站 10.7 阅读。",
+      en: "Interactive post-training with sparse binary success rewards; dynamic sampling and leave-one-out advantage estimation. arXiv 2505.17016. Reading for 10.7.",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
+  "rlinf-vla-paper": {
+    id: "rlinf-vla-paper",
+    url: "https://arxiv.org/abs/2510.06710",
+    title: { zh: "RLinf-VLA 论文：统一高效的 VLA+RL 框架", en: "RLinf-VLA paper: a unified efficient framework for VLA+RL" },
+    author: "Zang et al.",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "统一接口对接多种 VLA、RL 算法与仿真器，并做可扩展训练系统。arXiv 2510.06710。本站 10.7 阅读。",
+      en: "A unified interface across VLA architectures, RL algorithms and simulators, plus a scalable training system. arXiv 2510.06710. Reading for 10.7.",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {
