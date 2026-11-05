@@ -2978,6 +2978,20 @@ export const resources: Record<string, Resource> = {
     license: { zh: "项目页，© 原作者；仅提供外链", en: "Project page, © authors; external link only" },
     extra: true,
   },
+  "alip-feet-paper": {
+    id: "alip-feet-paper",
+    url: "https://arxiv.org/html/2408.05308",
+    title: { zh: "从点接触到有限脚底：ALIP 与分层全身控制", en: "Moving past point-contacts: ALIP and hierarchical full-body control" },
+    author: "Paredes, Hagen, Chesebrough, Swann, Garagić & Hereid",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已核对 §II-A 式 (3) 的接触加速度约束与 §III 式 (20) 的零空间参数化；11.6 的平面速度投影是独立玩具，不是论文实现。以论文为准。",
+      en: "Verified §II-A Eq. (3) contact acceleration constraint and §III Eq. (20) nullspace parameterisation. The 11.6 planar velocity projector is an independent toy, not the paper implementation. Take the paper as source of truth.",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
   "asap-paper": {
     id: "asap-paper",
     url: "https://arxiv.org/abs/2502.01143",

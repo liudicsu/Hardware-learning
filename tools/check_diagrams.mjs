@@ -3894,6 +3894,55 @@ const lessonRef = (n, slug, lang) => {
 }
 
 
+// Final in-place deepen batch: bindings deliberately inspect prose, not only
+// the embedded stdout/code. Actual executions are checked by each month check.sh.
+{
+  const read = (p) => readFileSync(join(root, p), "utf8");
+  const cases = [
+    [11, "humanoid-wbc-overview", "floating_base_contact_toy", ["0.465223", "1.570387", "1.005044", "201/201", "77/201", "0.185668"]],
+    [9, "effort-admittance", "impedance_vs_admittance_toy", ["6.769425", "0.003761", "0.426", "9.854206", "0.005475", "0.580"]],
+    [8, "async-deployment", "stream_sync_eval_toy", ["874", "0.016905", "11/874", "0.000963", "874/874"]],
+  ];
+  for (const [month, slug, toy, numbers] of cases) {
+    const expected = read(`examples/month-${month}/expected/${toy}.txt`);
+    const py = read(`examples/month-${month}/${slug}/${toy}.py`);
+    ok(read(`examples/month-${month}/check.sh`).includes(`${toy}.txt`), `deepen3 ${toy}: month check hook`);
+    ok(/SEED = \d+/.test(py), `deepen3 ${toy}: fixed seed`);
+    for (const lang of ["en", "zh"]) {
+      const md = read(`src/content/m${month}/${slug}/${lang}.mdx`);
+      const prose = md.replace(/```[\s\S]*?```/g, "");
+      ok(md.includes(py.trim()), `deepen3 ${toy} ${lang}: exact code quoted`);
+      ok(md.includes(expected.trim()), `deepen3 ${toy} ${lang}: exact real stdout quoted`);
+      for (const n of numbers) {
+        ok(expected.includes(n) && prose.includes(n), `deepen3 ${toy} ${lang}: prose binds ${n} to expected`);
+      }
+      if (month === 11) {
+        ok(prose.includes("J_c(q) qdot = 0") && prose.includes("J_c N"), `deepen3 ${lang}: no-slip residual and nullspace`);
+        ok(lang === "en" ? /Single support need not reduce rank/.test(prose) : /单支撑不必降秩/.test(prose), `deepen3 ${lang}: single support not rank loss`);
+        ok(lang === "en" ? /not full point-contact wrench feasibility/.test(prose) : /不等于完整点足接触力旋量可行/.test(prose), `deepen3 ${lang}: force-only model boundary`);
+      }
+      if (month === 9) {
+        ok(prose.includes("effort") && prose.includes("motion"), `deepen3 ${lang}: effort vs motion interface contract`);
+        ok(lang === "en" ? /not rank either family as universally safer/.test(prose) : /不表示哪一类普遍更安全/.test(prose), `deepen3 ${lang}: no universal safety ranking`);
+      }
+      if (month === 8) {
+        ok(lang === "en" ? /both have already arrived by now/.test(prose) : /两端在 now 都已经到达/.test(prose), `deepen3 ${lang}: causal interpolation`);
+        ok(lang === "en" ? /not actual catch success/.test(prose) : /不是真实接取成功/.test(prose), `deepen3 ${lang}: retrospective proxy label`);
+      }
+    }
+  }
+  const cur = read("src/lib/curriculum.ts");
+  const totals = [...cur.matchAll(/const month(\d+)Lessons: Lesson\[\] = \[([\s\S]*?)\n\];/g)].map(m => ({
+    month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
+  }));
+  ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 16050, "deepen3 curriculum: 16050 minutes");
+  for (const [month, expected] of [[8, 1800], [9, 2100], [11, 2460]]) {
+    ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `deepen3 M${month}: ${expected} minutes`);
+  }
+  ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
+}
+
 const specs = [];
 for (const f of readdirSync(specDir).filter((f) => f.endsWith(".ts"))) {
   const mod = await import(dataUrl(transpile(inlineJson(readFileSync(join(specDir, f), "utf8")))));

@@ -1,6 +1,6 @@
 This lesson is a site supplement — Months 7–11 are not part of the original six-month course.
 
-**Scope.** [7.2 RL foundations](/en/month/month-7/rl-foundations) already covered PPO / SAC, and [7.4 sim-to-real](/en/month/month-7/sim-to-real) covered randomisation, system ID and latency; the Month 7, 8 and 10 pages leave "legged playground / Isaac Lab" as electives. This lesson is **a humanoid whole-body control (WBC) reading map plus one planar LIPM toy**: why desktop-arm lessons are not enough, why the ZMP and the capture point decide whether an inverted-pendulum model stays up, how ASAP aligns simulation with the real robot through a delta action model, and what to read in HugWBC / Holosoma / TWIST / WBC-AGILE. **It does not re-teach PPO and it is not a Unitree hardware course.** **Buying a humanoid robot is not required**; Isaac / MuJoCo training, sim2real deployment and on-robot steps are all marked 本页未运行 (not run on this page). This lesson also does not replace the 8.7 capstone.
+**Scope.** [7.2 RL foundations](/en/month/month-7/rl-foundations) already covered PPO / SAC, and [7.4 sim-to-real](/en/month/month-7/sim-to-real) covered randomisation, system ID and latency; the Month 7, 8 and 10 pages leave "legged playground / Isaac Lab" as electives. This lesson is **a humanoid whole-body control (WBC) reading map plus planar LIPM and floating-base contact toys**: why desktop-arm lessons are not enough, why the ZMP and the capture point decide whether an inverted-pendulum model stays up, how ASAP aligns simulation with the real robot through a delta action model, and what to read in HugWBC / Holosoma / TWIST / WBC-AGILE. **It does not re-teach PPO and it is not a Unitree hardware course.** **Buying a humanoid robot is not required**; Isaac / MuJoCo training, sim2real deployment and on-robot steps are all marked 本页未运行 (not run on this page). This lesson also does not replace the 8.7 capstone.
 
 ## Why desktop-arm lessons are not enough
 
@@ -166,6 +166,177 @@ How to read it:
 
 This is the intuition behind the split between footstep / gait planning and whole-body tracking in humanoid WBC papers: check feasibility first, then track.
 
+## Floating-base contact kinematics
+
+### Six planar coordinates, not a six-axis floating base
+
+The general robot above has a spatial floating base; this **separate sagittal toy** has `q=(x_b,z_b,θ_b,q1,q2,q3)`: three base coordinates and three revolute joints in one stance leg. It has **no arm** or swing leg. Segment lengths are 0.35, 0.35 and 0.12 m. Angles `a_i=θ_b+Σ(j≤i)q_j` are measured from downward vertical. The foot origin is `p_c=(x_b+Σ L_i sin(a_i), z_b−Σ L_i cos(a_i))`.
+
+Differentiate this forward kinematics to obtain the **2×6** Jacobian. The translation columns are `(1,0)` and `(0,1)`; the pitch column sums all segment derivatives; joint column j sums only downstream segments. The foot can rotate: this is a **two-row point-position constraint**, not a three-row glued sole. A central finite-difference test checks all six analytic columns.
+
+<Formula label="Velocity-level no-slip">r_c = J_c(q) qdot = 0</Formula>
+
+Rank describes independence, not whether the commanded velocity satisfies contact. Even a full-row-rank matrix produces foot motion for an arbitrary qdot. Here the two base-translation columns keep full `J_c` rank **2**, including the straight-leg configuration. Only the **joint-only** 2×3 submatrix loses rank (to **1**) when straight; that warns about leg-only motion authority, not loss of full-Jacobian rank. **Single support need not reduce rank.** Numerical singular values depend on our coordinate scaling (metres and radians), not a universal singularity threshold.
+
+### Contact first, base pitch second
+
+For this full-row-rank matrix, form `J_c⁺=J_cᵀ(J_c J_cᵀ)⁻¹`, then `N=I−J_c⁺J_c`. Project a seeded arbitrary command as `v0=N v_raw`, and add `N eθ α`, where `eθ` selects the existing base-pitch coordinate. Choose `α=(−2 θ_b−v0[2])/N[2,2]` to attain a desired pitch rate without changing the primary contact residual. This is a local **velocity** construction: no mass matrix, actuator torques, joint limits or integration of a walking trajectory. An unactuated base cannot be commanded as an independent motor; dynamic feasibility still needs forces and inverse dynamics.
+
+For source context, [Paredes et al., §II-A Eq. (3) and §III Eq. (20)](https://arxiv.org/html/2408.05308) maintain contact at acceleration level `J_c qddot + Jdot_c qdot=0` and parameterise admissible accelerations with a nullspace. The equations were checked in the opened paper; take the paper as source of truth. Our differentiated position map and velocity projector are explicit toy derivations, **not ASAP's controller** and not the paper's full-body implementation. Holding zero contact velocity initially matters: zero acceleration alone does not remove an existing slip velocity.
+
+<Resource id="alip-feet-paper" />
+
+### Defined contact screens, not a point-foot polygon
+
+The same synthetic CoM path `x=0.14 sin(2t)` at height 0.8 m gives `F_x=m xddot`, `F_z=m g` and, assuming zero centroidal angular-momentum rate, `CoP=x−h xddot/g`. Both screens receive this same demand. The **point force-only screen** checks positive normal force and `|F_x|≤μ F_z`, with μ=0.6. It has **no support polygon**. The **finite-sole screen** adds `|CoP|≤0.10 m`.
+
+Crucial omission: a point contact cannot support a nonzero moment about itself. The force-only screen deliberately discards the demand's moment `−F_z CoP`; passing it is **not full point-contact wrench feasibility**. The finite sole also needs full dynamics beyond these screens. Thus the difference exposes missing model constraints, not that an ideal point foot can physically realise the same nonzero wrench. The earlier LIPM toy already assumes a finite sole; do not silently transfer that support interval to the point model.
+
+### Run and inspect the residuals
+
+```bash
+$ python3 floating_base_contact_toy.py
+```
+
+<CodeSource path="examples/month-11/humanoid-wbc-overview/floating_base_contact_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Planar floating-base velocity projection, not a dynamic WBC controller.
+q=(xb,zb,theta_b,q1,q2,q3): three base + three leg DOFs, no arm.
+Two-row point-position Jc permits foot rotation. Jc*qdot=0 is no-slip;
+rank alone never enforces it. Base translation columns keep full Jc rank 2.
+Force-only point screen omits moments; it does NOT certify a nonzero wrench
+for an ideal point foot. Finite sole adds a CoP test on the SAME demand.
+All forces/CoM are synthetic. No humanoid, MoCap or simulator is run.
+"""
+import math
+import random
+
+SEED = 31
+LENGTHS = (0.35, 0.35, 0.12)
+
+
+def kinematics(q):
+    angles = [q[2] + sum(q[3:4 + i]) for i in range(3)]
+    dx = [l * math.cos(a) for l, a in zip(LENGTHS, angles)]
+    dz = [l * math.sin(a) for l, a in zip(LENGTHS, angles)]
+    # Segment direction = (sin(a), -cos(a)); angle zero points down.
+    point = [q[0] + sum(l * math.sin(a) for l, a in zip(LENGTHS, angles)),
+             q[1] - sum(l * math.cos(a) for l, a in zip(LENGTHS, angles))]
+    j = [[1.0, 0.0, sum(dx)] + [sum(dx[i:]) for i in range(3)],
+         [0.0, 1.0, sum(dz)] + [sum(dz[i:]) for i in range(3)]]
+    return point, j
+
+
+def dot(a, b):
+    return sum(x * y for x, y in zip(a, b))
+
+
+def norm(v):
+    return math.sqrt(dot(v, v))
+
+
+def spectrum(rows):
+    a, b, c = dot(rows[0], rows[0]), dot(rows[0], rows[1]), dot(rows[1], rows[1])
+    disc = math.hypot(a - c, 2 * b)
+    s = [math.sqrt(max(0.0, (a + c + disc) / 2)),
+         math.sqrt(max(0.0, (a + c - disc) / 2))]
+    return sum(x > 1e-8 for x in s), s
+
+
+def projector(j):
+    # Full-row-rank right inverse: J+ = J^T (J J^T)^-1.
+    a, b, c = dot(j[0], j[0]), dot(j[0], j[1]), dot(j[1], j[1])
+    det = a * c - b * b
+    assert det > 1e-12
+    jp = [[(j[0][i] * c - j[1][i] * b) / det,
+           (j[1][i] * a - j[0][i] * b) / det] for i in range(6)]
+    return [[float(i == k) - sum(jp[i][r] * j[r][k] for r in range(2))
+             for k in range(6)] for i in range(6)]
+
+
+def main():
+    rng = random.Random(SEED)
+    q = [0.0, 0.8, 0.12, -0.3, 0.6, -0.2]
+    _, j = kinematics(q)
+    n = projector(j)
+    jn = max(abs(sum(j[r][i] * n[i][k] for i in range(6)))
+             for r in range(2) for k in range(6))
+    # Central finite-difference check of all columns, not only translations.
+    fd_err = 0.0
+    for k in range(6):
+        hi, lo = q[:], q[:]
+        hi[k] += 1e-6
+        lo[k] -= 1e-6
+        ph, _ = kinematics(hi)
+        pl, _ = kinematics(lo)
+        fd_err = max(fd_err, *(abs((ph[r] - pl[r]) / 2e-6 - j[r][k]) for r in range(2)))
+    raw = [rng.uniform(-0.3, 0.3) for _ in range(6)]
+    projected = [dot(row, raw) for row in n]
+    pitch_target = -2 * q[2]  # secondary base-pitch regulation, rad/s
+    gain = (pitch_target - projected[2]) / n[2][2]
+    velocity = [projected[i] + n[i][2] * gain for i in range(6)]
+    rc = norm([dot(row, velocity) for row in j])
+    pitch_err = abs(velocity[2] - pitch_target)
+    rank, sigma = spectrum(j)
+    straight = kinematics([0.0, 0.82, 0.0, 0.0, 0.0, 0.0])[1]
+    straight_rank, _ = spectrum(straight)
+    leg_rank, _ = spectrum([row[3:] for row in straight])
+    assert jn < 1e-12 and rc < 1e-12 and pitch_err < 1e-12 and fd_err < 1e-8
+    assert rank == straight_rank == 2 and leg_rank == 1
+
+    # Shared synthetic CoM/wrench demand; no full inverse-dynamics solution.
+    mass, height, mu, sole_half = 20.0, 0.8, 0.6, 0.10
+    point_pass, sole_pass, max_cop = 0, 0, 0.0
+    for k in range(201):
+        t = 2 * math.pi * k / 200
+        x = 0.14 * math.sin(2 * t)
+        ax = -4 * x
+        fx, fz = mass * ax, mass * 9.81
+        cop = x - height * ax / 9.81  # zero centroidal angular-momentum rate
+        # About the foot origin the demanded moment is -fz*cop.
+        force_ok = fz > 0 and abs(fx) <= mu * fz
+        sole_ok = force_ok and abs(cop) <= sole_half
+        point_pass += int(force_ok)
+        sole_pass += int(sole_ok)
+        max_cop = max(max_cop, abs(cop))
+    assert point_pass == 201 and 0 < sole_pass < point_pass
+    print(f"seed={SEED} dofs=6 contact_rows=2 no_arm=True")
+    print(f"Jc_rank={rank} sigma_max={sigma[0]:.6f} sigma_min={sigma[1]:.6f}")
+    print(f"raw_contact_speed={norm([dot(row, raw) for row in j]):.6f}")
+    print(f"contact_residual={rc:.3f} JcN_max={jn:.3f} pitch_rate_error={pitch_err:.3f}")
+    print(f"jacobian_fd_ok={fd_err < 1e-8} nullspace_ok={jn < 1e-12}")
+    print(f"straight_full_rank={straight_rank} straight_joint_only_rank={leg_rank}")
+    print(f"point_force_screen={point_pass}/201 finite_sole_screen={sole_pass}/201")
+    print(f"max_abs_cop_m={max_cop:.6f} sole_half_m={sole_half:.2f}")
+    print("point_screen_omits_moment=True full_dynamic_feasibility_not_tested=True")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+seed=31 dofs=6 contact_rows=2 no_arm=True
+Jc_rank=2 sigma_max=1.570387 sigma_min=1.005044
+raw_contact_speed=0.465223
+contact_residual=0.000 JcN_max=0.000 pitch_rate_error=0.000
+jacobian_fd_ok=True nullspace_ok=True
+straight_full_rank=2 straight_joint_only_rank=1
+point_force_screen=201/201 finite_sole_screen=77/201
+max_abs_cop_m=0.185668 sole_half_m=0.10
+point_screen_omits_moment=True full_dynamic_feasibility_not_tested=True
+```
+
+</SimOutput>
+
+The unconstrained foot speed is **0.465223**; after projection, residual, `J_c N` and pitch-rate error print **0.000**, with assertions below `1e-12` before rounding. Singular values are **1.570387** and **1.005044**. The point force screen passes **201/201** samples; the finite-sole screen passes **77/201**, with peak absolute CoP **0.185668** m. These are synthetic model diagnostics, not walking success rates.
+
+Try doubling the base-pitch target, then perturb a Jacobian column: first observe how the secondary rate changes, then why the finite-difference / nullspace checks reject the corrupted geometry. Explain why a straight joint-only map may be singular while the floating-base map remains rank 2. Humanoid hardware, Isaac, MoCap and sim2real remain **本页未运行 (not run on this page)**; no purchase is required.
+
 ## Reading map
 
 ### 1. ASAP (arXiv 2502.01143, RSS 2025) — read closely
@@ -230,6 +401,9 @@ The key difference: ASAP adds the residual to the **action**, not only to the dy
 - Toy: slow sway MAE 0.000250 m, no fall; fast sway needs a 0.2110 m ZMP with a 0.1027 m reference capture point and falls at 0.045 s.
 - ASAP (take the paper as source of truth): pre-train → real rollout → delta action → frozen fine-tune, deployed without the delta model; Table V kick 61.2 → 50.2 mm, LeBron 159 → 112 mm.
 - No humanoid purchase required; training and on-robot steps are not run on this page.
+
+
+- Added contact toy: no-slip is J_c qdot=0, not rank; nullspace pitch task preserves point position. Force-only point screening is not full wrench feasibility.
 
 **Common mistakes**
 

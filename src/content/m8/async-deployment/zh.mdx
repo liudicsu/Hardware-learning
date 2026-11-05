@@ -169,6 +169,151 @@ ok: async_idle < sync_idle (0.020 < 0.200)
 
 同步空闲比 **0.200**；异步空闲比 **0.020**。异步在块边界的平均跳变也更大（**0.1700** vs **0.0700**）——更少冻结，更陡的拼接。真 PolicyServer / GPU / 手臂路径 **本页未运行**。
 
+## 多流对齐：不偷看未来数据
+
+### 数据包里的三种时间概念
+
+**采集时间戳**说明传感器何时观察场景；**传输延迟**是同一时钟下到达时刻减采集时刻；**时钟偏移**改变传感器报告的时间戳相对于共同时间的偏置，不是网络延迟。抖动让每包延迟不同。只按接收顺序拼起来，不会让图像、编码器与触觉自动同时。
+
+合成评估器有 30 Hz 目标相机、100 Hz 编码器与 60 Hz 间隙代理通道（米，**不是真实触觉力**）。标称延迟 0.065、0.015、0.035 s，有界抖动分别为 ±0.010、±0.004、±0.008 s。传感器时钟偏移为 0.012、−0.006、0.004 s。比较事件时间前明确减去这些**已知合成偏移**；玩具不估计或同步真实时钟。真日志要记录采集约定、时钟域与偏移标定；相机曝光中点还是结束时刻也是必须选定的约定。
+
+### 到达时刻的因果契约
+
+按**到达时刻顺序**处理数据。每当数据到达 `now`，先把该包加入对应历史，再定义共同查询 `q=now−0.14 s`。缓冲方案可以用 q 两侧样本插值，前提是**两端在 now 都已经到达**。采集时刻晚于 q 不自动违规，未来才到达的包才违规。例如 now=1.00 s、q=0.86 s，采于 0.85/0.88 s、到达于 0.92/0.95 s 的两端可用；若一个端点到 1.02 s 才收到，即使采集时间是 0.88 s 也不能用。
+
+历史按校正后的采集时间排序，处理乱序到达。没有包围查询的两端就跳过，不外推。两组使用完全相同的评估到达事件、原始包和噪声。对齐组把三路都插到 q；基线则在每路**已到达**包中取最新采集的一个。插值函数不能访问离线全集再按时间戳检索。
+
+缓冲换来一致性，**没有**抹掉 0.14 s 的数据年龄。最新样本更鲜但不同时；两组刻意在同一**滞后查询**上评分，基线分数既包含流间错位，也包含相位差。这不证明缓冲能在实时当前状态任务上击败预测器。真机还需要单独的当前状态预测 / 陈旧数据策略与可用性预算。
+
+### 指标与因果练习
+
+目标按 `0.30 sin(2.2t)+0.10` 运动，编码器按 `0.22 sin(2.2t−0.3)` 运动，第三路是两者的合成间隙。把「相机减编码器」与间隙代理分别对比 q 时刻真间隙，RMSE 合并两项误差。**接取窗口代理**要求两项绝对误差都在 0.012 m 内；它是回顾性的容差测试，**不是真实接取成功**，也不是闭环策略评估。每路预生成标准差 0.001 m 的噪声供两组共享。
+
+```bash
+$ python3 stream_sync_eval_toy.py
+```
+
+<CodeSource path="examples/month-8/async-deployment/stream_sync_eval_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Causal buffered alignment vs latest-arrived multi-stream fusion (stdlib).
+Capture time != arrival time != sensor clock stamp. Known synthetic clock
+biases are corrected, not magically estimated. At each arrival, the query
+is now-LAG. Interpolation can use samples after the query ONLY if they have
+already ARRIVED by now. Never inspect future-arriving packets.
+Both modes share packets/noise and are scored at the SAME lagged query.
+Catch-window hit is a retrospective synthetic proxy, not live robot success.
+"""
+import bisect
+import math
+import random
+
+SEED = 41
+LAG = 0.14
+CLOCK_OFFSETS = (0.012, -0.006, 0.004)
+RATES = (30, 100, 60)
+DELAYS = (0.065, 0.015, 0.035)
+JITTER = (0.010, 0.004, 0.008)
+TOL = 0.012
+
+
+def truth(t):
+    target = 0.30 * math.sin(2.2 * t) + 0.10
+    encoder = 0.22 * math.sin(2.2 * t - 0.3)
+    # Third channel is a synthetic gap proxy in metres, not a real force sensor.
+    return target, encoder, target - encoder
+
+
+def make_packets():
+    rng = random.Random(SEED)
+    packets = []
+    for stream, rate in enumerate(RATES):
+        for k in range(5 * rate + 1):
+            capture = k / rate
+            arrival = capture + DELAYS[stream] + rng.uniform(-JITTER[stream], JITTER[stream])
+            stamp = capture + CLOCK_OFFSETS[stream]
+            value = truth(capture)[stream] + rng.gauss(0, 0.001)
+            packets.append((arrival, stream, stamp, value))
+    return sorted(packets)
+
+
+def interpolate(history, query, now):
+    # history contains ONLY packets appended by the arrival-event loop.
+    times = [p[0] for p in history]
+    i = bisect.bisect_left(times, query)
+    if i == 0 or i == len(history):
+        return None  # need an arrived bracket; no extrapolation
+    a, b = history[i - 1], history[i]
+    assert a[2] <= now and b[2] <= now  # arrival, NOT capture, is availability
+    assert a[0] <= query <= b[0]
+    w = (query - a[0]) / (b[0] - a[0])
+    return a[1] + w * (b[1] - a[1])
+
+
+def main():
+    # Regression: a captured endpoint is not usable before it arrives.
+    assert interpolate([(0.85, 1.0, 0.92)], 0.86, 1.0) is None
+    arrived = [(0.85, 1.0, 0.92), (0.88, 4.0, 0.95)]
+    assert abs(interpolate(arrived, 0.86, 1.0) - 2.0) < 1e-12
+    try:
+        interpolate([(0.85, 1.0, 0.92), (0.88, 4.0, 1.02)], 0.86, 1.0)
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("future-arriving bracket accepted")
+    histories = [[], [], []]
+    errors = {mode: [] for mode in ("latest", "stamp_aligned")}
+    hits = {mode: 0 for mode in errors}
+    for now, stream, stamp, value in make_packets():
+        capture = stamp - CLOCK_OFFSETS[stream]
+        # Insert by corrected capture time, handling out-of-order arrivals.
+        bisect.insort(histories[stream], (capture, value, now))
+        query = now - LAG
+        if query < 0.2 or query > 4.8 or not all(histories):
+            continue
+        aligned = [interpolate(h, query, now) for h in histories]
+        if any(x is None for x in aligned):
+            continue  # matched coverage for both conditions
+        latest = [h[-1][1] for h in histories]  # newest capture among arrived data
+        true_gap = truth(query)[2]
+        for mode, values in (("latest", latest), ("stamp_aligned", aligned)):
+            gap_error = values[0] - values[1] - true_gap
+            proxy_error = values[2] - true_gap
+            errors[mode].append((gap_error, proxy_error))
+            hits[mode] += int(abs(gap_error) <= TOL and abs(proxy_error) <= TOL)
+    count = len(errors["latest"])
+    assert count > 0 and count == len(errors["stamp_aligned"])
+    print(f"seed={SEED} lag_s={LAG:.2f} shared_packets_and_noise=True")
+    print("clock_offsets_s=0.012,-0.006,0.004 known_correction=True")
+    print(f"matched_arrival_events={count} catch_tolerance_m={TOL:.3f}")
+    for mode, e in errors.items():
+        rmse = math.sqrt(sum(a*a + b*b for a, b in e) / (2 * count))
+        print(f"{mode} misalignment_rmse_m={rmse:.6f} catch_proxy={hits[mode]}/{count}")
+    print("arrived_brackets_only=True extrapolation=False live_success_claim=False")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+seed=41 lag_s=0.14 shared_packets_and_noise=True
+clock_offsets_s=0.012,-0.006,0.004 known_correction=True
+matched_arrival_events=874 catch_tolerance_m=0.012
+latest misalignment_rmse_m=0.016905 catch_proxy=11/874
+stamp_aligned misalignment_rmse_m=0.000963 catch_proxy=874/874
+arrived_brackets_only=True extrapolation=False live_success_claim=False
+```
+
+</SimOutput>
+
+在 **874** 个共同到达事件上，最新样本 RMSE 为 **0.016905 m**、代理命中 **11/874**；时间戳对齐为 **0.000963 m**、**874/874**。它们只是 seed-41 合成结果，不是实测机器人成功率，也不保证换种子后仍如此。边界缺少两端的事件在两组同时排除；插值函数断言两端到达时刻都不晚于 now。
+
+试把 `LAG` 降到相机延迟以下：除了 RMSE，也记录丢掉的评估覆盖。再在本地副本删除偏移校正，观察传输不变时的时间戳偏差。解释为什么直接在完整 bag 上按采集时间插值会泄漏未来可用性。[11.4 UMI 式采集](/zh/month/month-11/umi-style-collection) 对数据使用同一时间戳纪律；[10.2 RTC](/zh/month/month-10/real-time-chunking) 处理**动作接缝**，不是传感器对齐。真实相机 / 网络 / GPU / 机器人实验仍为**本页未运行**，不要求购买硬件。
+
 ## 旋钮
 
 - **`actions_per_chunk`：** 一次推理返回多少动作。更长的块摊薄推理；开环漂移变大。
@@ -188,5 +333,9 @@ ok: async_idle < sync_idle (0.020 < 0.200)
 <Summary>
 
 同步在每次推理时等待（玩具空闲比 0.200）；异步继续动（0.020），用更大的边界跳变换。PolicyServer / RobotClient、`actions_per_chunk` 与 `chunk_size_threshold` 是 LeRobot 异步旋钮。`chunk_latency_sim.py` 仅 CPU；真 GPU/手臂标未运行。ChunkTimelineWidget 延期。
+
+
+
+多流对齐先校正已知时钟偏移，再只用已经到达的两端插到滞后查询。采集时间戳、传输延迟、时钟偏移不同；接取窗口命中只是合成回顾代理。
 
 </Summary>

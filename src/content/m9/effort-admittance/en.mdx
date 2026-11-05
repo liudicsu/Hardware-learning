@@ -4,8 +4,8 @@ A position loop assumes the world will not push back. In contact, it does. This 
 
 ## Impedance vs admittance
 
-- **Impedance:** you command motion; the controller produces **force** from tracking error. Common on industrial arms.
-- **Admittance:** you measure force; the controller **changes motion** (comply / yield). The `ros2_controllers` Admittance Controller takes this path.
+- **Impedance:** measured motion error → commanded **force/torque (effort)**, requiring an effort-capable actuator interface.
+- **Admittance:** measured force → commanded **position/velocity (motion)** through a motion-tracking inner loop. The `ros2_controllers` Admittance Controller takes this path.
 
 This lesson focuses on admittance. Wiring a real six-axis F/T sensor into `admittance_controller` is elective / out of scope — **no brand names or prices**.
 
@@ -235,6 +235,125 @@ ok: |x_sim - F_ext/S| < 1e-3 for all three stiffnesses
 
 All three rows have |x_sim − F/S| &lt; 1e-3. `Admittance1DWidget` is deferred — read the table first.
 
+## Effort-out vs motion-out on a shared plant
+
+### Interface contracts before gains
+
+Impedance here measures motion error and commands **effort**: `u=K_i(x_ref−x_meas)−D_i v_meas`. It needs a torque/force-capable actuator interface; merely publishing a position goal does not create that interface. Admittance measures external force and integrates a virtual model `M_a yddot+D_a ydot+K_a y=F_ext,meas`, producing the **motion** reference `x_cmd=x_ref+y`. An inner position/velocity tracking loop must then realise that motion. That inner loop has finite bandwidth and effort limits: it is not a magic position assignment.
+
+The opened [Jazzy admittance-controller documentation](https://control.ros.org/jazzy/doc/ros2_controllers/admittance_controller/doc/userdoc.html) specifies F/T sensor state interfaces, motion command interfaces (position/velocity/acceleration), and position/velocity references for chaining. Check the installed version when wiring a real controller. Our two illustrative loops are not a reproduction of that six-axis controller. Default SO-101 still means **Present Load proxy + synthetic admittance toys**, not calibrated force or a promise of torque mode. External F/T hardware remains elective, not a required purchase; live controller experiments are **本页未运行 (not run on this page)**.
+
+### One mechanical plant, two controllers
+
+Both conditions use `m xddot = u + F_disturbance − b xdot − k x + F_wall`, with m=1.0 kg, b=4.0 N·s/m, k=20.0 N/m, wall at 0.04 m and wall stiffness 1800.0 N/m. The wall only opposes penetration; it does not pull when separated. Both start at rest, receive the same 2.0 N disturbance between 1.2 and 1.4 s, and replay the **same pre-generated motion/force measurement noise**. Physical states diverge through feedback, not through different noise draws.
+
+The reference steps to 0.065 m at 0.5 s and returns to zero at 2.5 s. Impedance uses K_i=120.0 N/m, D_i=16.0 N·s/m. Admittance uses virtual mass 1.5 kg, damping 25.0 N·s/m, stiffness 100.0 N/m; its inner servo uses 300.0 N/m and 30.0 N·s/m. Both effort commands clip at ±20.0 N. Example: a −2.0 N external force would produce a steady virtual offset −0.020 m, but the **physical** displacement also depends on inner tracking and wall/plant forces. The virtual mass is not a replacement for the shared physical mass.
+
+Integration is semi-implicit Euler at 0.001 s; the wall/servo stiffness sets the fastest scales. Smaller dt is a numerical convergence check, not higher real control bandwidth. No sensor filtering, communications delay, passivity guarantee, hardware friction or watchdog is modelled. Before real contact, validate those omissions and limits, not just these gains.
+
+### Measured quantities and limits of the comparison
+
+Peak contact force is the maximum physical wall spring force, penetration is its maximum compression. Settling is measured **after the return at 2.5 s**, requiring position within 0.001 m and speed within 0.005 m/s for the remainder of the simulated horizon; `not_settled` means no such tail. It is not a wall-contact settling-time claim. Neither the modelled N nor the noise are measured STS3215 forces.
+
+```bash
+$ python3 impedance_vs_admittance_toy.py
+```
+
+<CodeSource path="examples/month-9/effort-admittance/impedance_vs_admittance_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Effort-out impedance vs motion-out admittance on one mechanical plant.
+Same mass/damper/spring/wall, disturbance schedule and measurement noise.
+Admittance output goes through an explicitly modelled motion-tracking servo;
+impedance requires an effort-capable actuator. Not a safety ranking.
+Synthetic N only: no STS3215 Present Load conversion, no F/T hardware.
+"""
+import math
+import random
+
+SEED = 37
+DT, STEPS = 0.001, 6000
+M, B, K = 1.0, 4.0, 20.0
+WALL, K_WALL = 0.04, 1800.0
+EFFORT_LIMIT = 20.0
+RELEASE = 2.5
+
+
+def clamp(x, limit):
+    return max(-limit, min(limit, x))
+
+
+def simulate(mode, noise):
+    x = v = y = vy = 0.0
+    peak = penetration = 0.0
+    last_unsettled = RELEASE
+    for k, (nx, nv, nf) in enumerate(noise):
+        t = k * DT
+        ref = 0.065 if 0.5 <= t < RELEASE else 0.0
+        disturbance = 2.0 if 1.2 <= t < 1.4 else 0.0
+        wall_force = -K_WALL * max(0.0, x - WALL)
+        xm, vm = x + nx, v + nv
+        measured_external = wall_force + disturbance + nf
+        if mode == "impedance":
+            # Effort command from motion error, not a position interface.
+            effort_command = 120.0 * (ref - xm) - 16.0 * vm
+        else:
+            # Virtual mass/damper/spring offset driven by measured external force.
+            ay = (measured_external - 25.0 * vy - 100.0 * y) / 1.5
+            vy += ay * DT
+            y += vy * DT
+            motion_command = ref + y
+            # Separate inner motion servo converts motion command into effort.
+            effort_command = 300.0 * (motion_command - xm) + 30.0 * (vy - vm)
+        u = clamp(effort_command, EFFORT_LIMIT)  # same actuator effort limit
+        # Common physical plant; semi-implicit Euler, not ideal motion tracking.
+        a = (u + disturbance + wall_force - B * v - K * x) / M
+        v += a * DT
+        x += v * DT
+        pen = max(0.0, x - WALL)
+        peak = max(peak, K_WALL * pen)
+        penetration = max(penetration, pen)
+        if t >= RELEASE and (abs(x) > 0.001 or abs(v) > 0.005):
+            last_unsettled = t + DT
+    settled = abs(x) <= 0.001 and abs(v) <= 0.005
+    return peak, penetration, last_unsettled - RELEASE if settled else None
+
+
+def main():
+    rng = random.Random(SEED)
+    noise = [(rng.gauss(0, 0.0001), rng.gauss(0, 0.0005), rng.gauss(0, 0.02))
+             for _ in range(STEPS)]
+    print(f"seed={SEED} dt_s={DT} plant_mass_kg={M} shared_noise=True")
+    print("mode peak_contact_N max_penetration_m settling_after_release_s")
+    for mode in ("impedance", "admittance"):
+        force, pen, settling = simulate(mode, noise)
+        assert math.isfinite(force) and pen >= 0
+        settling_text = f"{settling:.3f}" if settling is not None else "not_settled"
+        print(f"{mode} {force:.6f} {pen:.6f} {settling_text}")
+    print("impedance_output=effort admittance_output=motion safety_ranking=none")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+seed=37 dt_s=0.001 plant_mass_kg=1.0 shared_noise=True
+mode peak_contact_N max_penetration_m settling_after_release_s
+impedance 6.769425 0.003761 0.426
+admittance 9.854206 0.005475 0.580
+impedance_output=effort admittance_output=motion safety_ranking=none
+```
+
+</SimOutput>
+
+For this configuration, impedance peak force / penetration / settling are **6.769425 N / 0.003761 m / 0.426 s**; admittance gives **9.854206 N / 0.005475 m / 0.580 s**. These numbers compare these interfaces **and these gains** on this plant. They do not rank either family as universally safer. Environment stiffness, inner-loop bandwidth, delay and saturation can reverse the result; safety additionally needs limits and a risk assessment.
+
+Try changing wall stiffness while keeping identical packets of noise and the same disturbance. Then vary only the admittance inner-servo gain. Record all three metrics, numerical stability and whether either case settles; do not select a single metric and call its winner safe. Distinguish physical spring k, virtual admittance stiffness K_a, impedance stiffness K_i and inner-loop gain in your report.
+
 ## Optional: log Load on hardware (本页未运行)
 
 With an SO-101, log Present Load while waving in free air vs lightly touching the desk. **本页未运行**; do not copy the toy threshold into an overload trip.
@@ -249,5 +368,9 @@ With an SO-101, log Present Load while waving in free air vs lightly touching th
 <Summary>
 
 Impedance: force ← motion error; admittance: motion ← force. Default path: Feetech STS3215 Present Load addr 60 (1000=100 %, not N) and Current addr 69 (6.5 mA/LSB). Equation F = M a + D v + S (x−x_d); ζ = D/(2√(MS)). `load_contact_sim.py`: retreat peak 208.2 &lt; position-only 1000; `admittance_1d.py`: three stiffnesses with x≈F/S. Hardware Load logging 本页未运行; no F/T brand, price, or overload trip numbers.
+
+
+
+Shared-plant comparison: impedance commands effort; admittance commands motion through an inner servo. Shared noise, force/penetration/post-release settling metrics; no universal safety ranking.
 
 </Summary>

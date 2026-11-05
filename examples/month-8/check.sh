@@ -27,4 +27,6 @@ check servo_bus_sim.txt "$PY" "$M8/ros2-hardware-interface/servo_bus_sim.py"
 check capstone_gate.txt "$PY" "$M8/capstone/capstone_gate.py" --demo
 check suite_score_table.txt "$PY" "$M8/sim-benchmarks/suite_score_table.py"
 
+check stream_sync_eval_toy.txt "$PY" "$M8/async-deployment/stream_sync_eval_toy.py"
+
 exit $fail

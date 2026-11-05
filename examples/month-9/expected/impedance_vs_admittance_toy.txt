@@ -1,0 +1,5 @@
+seed=37 dt_s=0.001 plant_mass_kg=1.0 shared_noise=True
+mode peak_contact_N max_penetration_m settling_after_release_s
+impedance 6.769425 0.003761 0.426
+admittance 9.854206 0.005475 0.580
+impedance_output=effort admittance_output=motion safety_ranking=none

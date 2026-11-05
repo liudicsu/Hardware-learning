@@ -169,6 +169,151 @@ ok: async_idle < sync_idle (0.020 < 0.200)
 
 Sync idle ratio **0.200**; async idle ratio **0.020**. Async also shows a higher mean jump at chunk boundaries (**0.1700** vs **0.0700**) — fewer freezes, sharper splices. Real PolicyServer / GPU / arm paths are **not run on this page**.
 
+## Multi-stream alignment without looking ahead
+
+### Three different clocks in a packet
+
+A **capture timestamp** says when the sensor observed the scene. **Transport delay** is arrival time minus capture time in a common clock. A **clock offset** changes the sensor's reported stamp relative to that clock; it is not network delay. Jitter changes delay from packet to packet. Matching receipt order alone does not make image, encoder and tactile observations simultaneous.
+
+This synthetic evaluator has a target-camera stream at 30 Hz, an encoder at 100 Hz and a gap-proxy channel at 60 Hz (metres, **not a real tactile force**). Nominal delays are 0.065, 0.015 and 0.035 s, with bounded jitter of ±0.010, ±0.004 and ±0.008 s. Sensor clock offsets are 0.012, −0.006 and 0.004 s. We explicitly subtract these **known synthetic offsets** before comparing event times; the toy does not estimate or synchronise real clocks. Record capture convention, clock domain and offset calibration in a real log. Camera exposure midpoint vs end time is another convention you must choose.
+
+### An arrival-time causal contract
+
+Process packets in **arrival-time order**. At each arrival `now`, first append that packet to its stream history, then define the common query `q=now−0.14 s`. The buffered policy is allowed to interpolate between samples on either side of q **only when both have already arrived by now**. Samples newer than q are not automatically forbidden; future-arriving samples are. Example: at now=1.00 s, q=0.86 s; a bracket captured at 0.85/0.88 s and received at 0.92/0.95 s is usable. A bracket endpoint received at 1.02 s is not, even if its capture stamp is 0.88 s.
+
+Histories are sorted by corrected capture time so out-of-order delivery is handled. No bracket → skip, not extrapolate. Both conditions use the same evaluated arrival events, exact packets and noise. The aligned condition interpolates all three channels at q; the baseline takes the newest-capture sample **among already arrived** data in each stream. Nothing gets to index an offline full dataset from inside interpolation.
+
+This buys coherence by buffering: it does **not** erase the 0.14 s age. The latest baseline is fresher but temporally inconsistent. Both are intentionally evaluated against the same **lagged query**, so the score penalises baseline phase mismatch as well as inter-stream skew; it is not evidence that buffering beats a predictor on a live current-time task. A real robot needs a separate current-state prediction / stale-data policy and an availability budget.
+
+### Metrics and a causal exercise
+
+The target moves as `0.30 sin(2.2t)+0.10`, the encoder as `0.22 sin(2.2t−0.3)`. Channel three is their synthetic gap. Compare camera-minus-encoder gap and gap-proxy value with true gap at q; RMSE pools those two errors. The **catch-window proxy** passes when both absolute errors are within 0.012 m. It is a retrospective tolerance test, **not actual catch success** and not a closed-loop policy evaluation. Every channel has pre-generated noise with standard deviation 0.001 m shared by both methods.
+
+```bash
+$ python3 stream_sync_eval_toy.py
+```
+
+<CodeSource path="examples/month-8/async-deployment/stream_sync_eval_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Causal buffered alignment vs latest-arrived multi-stream fusion (stdlib).
+Capture time != arrival time != sensor clock stamp. Known synthetic clock
+biases are corrected, not magically estimated. At each arrival, the query
+is now-LAG. Interpolation can use samples after the query ONLY if they have
+already ARRIVED by now. Never inspect future-arriving packets.
+Both modes share packets/noise and are scored at the SAME lagged query.
+Catch-window hit is a retrospective synthetic proxy, not live robot success.
+"""
+import bisect
+import math
+import random
+
+SEED = 41
+LAG = 0.14
+CLOCK_OFFSETS = (0.012, -0.006, 0.004)
+RATES = (30, 100, 60)
+DELAYS = (0.065, 0.015, 0.035)
+JITTER = (0.010, 0.004, 0.008)
+TOL = 0.012
+
+
+def truth(t):
+    target = 0.30 * math.sin(2.2 * t) + 0.10
+    encoder = 0.22 * math.sin(2.2 * t - 0.3)
+    # Third channel is a synthetic gap proxy in metres, not a real force sensor.
+    return target, encoder, target - encoder
+
+
+def make_packets():
+    rng = random.Random(SEED)
+    packets = []
+    for stream, rate in enumerate(RATES):
+        for k in range(5 * rate + 1):
+            capture = k / rate
+            arrival = capture + DELAYS[stream] + rng.uniform(-JITTER[stream], JITTER[stream])
+            stamp = capture + CLOCK_OFFSETS[stream]
+            value = truth(capture)[stream] + rng.gauss(0, 0.001)
+            packets.append((arrival, stream, stamp, value))
+    return sorted(packets)
+
+
+def interpolate(history, query, now):
+    # history contains ONLY packets appended by the arrival-event loop.
+    times = [p[0] for p in history]
+    i = bisect.bisect_left(times, query)
+    if i == 0 or i == len(history):
+        return None  # need an arrived bracket; no extrapolation
+    a, b = history[i - 1], history[i]
+    assert a[2] <= now and b[2] <= now  # arrival, NOT capture, is availability
+    assert a[0] <= query <= b[0]
+    w = (query - a[0]) / (b[0] - a[0])
+    return a[1] + w * (b[1] - a[1])
+
+
+def main():
+    # Regression: a captured endpoint is not usable before it arrives.
+    assert interpolate([(0.85, 1.0, 0.92)], 0.86, 1.0) is None
+    arrived = [(0.85, 1.0, 0.92), (0.88, 4.0, 0.95)]
+    assert abs(interpolate(arrived, 0.86, 1.0) - 2.0) < 1e-12
+    try:
+        interpolate([(0.85, 1.0, 0.92), (0.88, 4.0, 1.02)], 0.86, 1.0)
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("future-arriving bracket accepted")
+    histories = [[], [], []]
+    errors = {mode: [] for mode in ("latest", "stamp_aligned")}
+    hits = {mode: 0 for mode in errors}
+    for now, stream, stamp, value in make_packets():
+        capture = stamp - CLOCK_OFFSETS[stream]
+        # Insert by corrected capture time, handling out-of-order arrivals.
+        bisect.insort(histories[stream], (capture, value, now))
+        query = now - LAG
+        if query < 0.2 or query > 4.8 or not all(histories):
+            continue
+        aligned = [interpolate(h, query, now) for h in histories]
+        if any(x is None for x in aligned):
+            continue  # matched coverage for both conditions
+        latest = [h[-1][1] for h in histories]  # newest capture among arrived data
+        true_gap = truth(query)[2]
+        for mode, values in (("latest", latest), ("stamp_aligned", aligned)):
+            gap_error = values[0] - values[1] - true_gap
+            proxy_error = values[2] - true_gap
+            errors[mode].append((gap_error, proxy_error))
+            hits[mode] += int(abs(gap_error) <= TOL and abs(proxy_error) <= TOL)
+    count = len(errors["latest"])
+    assert count > 0 and count == len(errors["stamp_aligned"])
+    print(f"seed={SEED} lag_s={LAG:.2f} shared_packets_and_noise=True")
+    print("clock_offsets_s=0.012,-0.006,0.004 known_correction=True")
+    print(f"matched_arrival_events={count} catch_tolerance_m={TOL:.3f}")
+    for mode, e in errors.items():
+        rmse = math.sqrt(sum(a*a + b*b for a, b in e) / (2 * count))
+        print(f"{mode} misalignment_rmse_m={rmse:.6f} catch_proxy={hits[mode]}/{count}")
+    print("arrived_brackets_only=True extrapolation=False live_success_claim=False")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+seed=41 lag_s=0.14 shared_packets_and_noise=True
+clock_offsets_s=0.012,-0.006,0.004 known_correction=True
+matched_arrival_events=874 catch_tolerance_m=0.012
+latest misalignment_rmse_m=0.016905 catch_proxy=11/874
+stamp_aligned misalignment_rmse_m=0.000963 catch_proxy=874/874
+arrived_brackets_only=True extrapolation=False live_success_claim=False
+```
+
+</SimOutput>
+
+Over **874** matched arrival events, latest-sample RMSE is **0.016905 m** with **11/874** proxy hits; stamp alignment gives **0.000963 m** and **874/874**. These are seed-41 synthetic outcomes, not measured robot rates or a guarantee over seeds. Boundary events without brackets are excluded equally. The interpolation function asserts both bracket arrivals are no later than now.
+
+Try reducing `LAG` below the camera's delay: record lost evaluation coverage as well as RMSE. Then remove offset correction in a local copy and observe timestamp bias despite unchanged transport. Explain why interpolating from a full bag using capture time alone would leak future availability. [11.4 UMI-style collection](/en/month/month-11/umi-style-collection) uses the same timestamp discipline for data; [10.2 RTC](/en/month/month-10/real-time-chunking) handles **action seams**, not sensor alignment. Real camera / network / GPU / robot tests remain **本页未运行 (not run on this page)**, with no hardware purchase required.
+
 ## Knobs
 
 - **`actions_per_chunk`:** how many actions one inference returns. Longer chunks amortise inference; stale open-loop drift grows.
@@ -188,5 +333,9 @@ Async removes the idle frames but not the jump where a new chunk takes over; [10
 <Summary>
 
 Sync waits through every inference (idle ratio 0.200 in the toy); async keeps moving (0.020) and pays with larger boundary jumps. PolicyServer / RobotClient, `actions_per_chunk` and `chunk_size_threshold` are the LeRobot async knobs. `chunk_latency_sim.py` is CPU-only; real GPU/arm runs are marked not run here. ChunkTimelineWidget is deferred.
+
+
+
+Stream alignment corrects known clock offsets and uses only already-arrived interpolation brackets at a lagged query. Timestamp, transport delay and clock offset differ; catch-window hits are a synthetic retrospective proxy.
 
 </Summary>

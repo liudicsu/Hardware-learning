@@ -1,0 +1,9 @@
+seed=31 dofs=6 contact_rows=2 no_arm=True
+Jc_rank=2 sigma_max=1.570387 sigma_min=1.005044
+raw_contact_speed=0.465223
+contact_residual=0.000 JcN_max=0.000 pitch_rate_error=0.000
+jacobian_fd_ok=True nullspace_ok=True
+straight_full_rank=2 straight_joint_only_rank=1
+point_force_screen=201/201 finite_sole_screen=77/201
+max_abs_cop_m=0.185668 sole_half_m=0.10
+point_screen_omits_moment=True full_dynamic_feasibility_not_tested=True
