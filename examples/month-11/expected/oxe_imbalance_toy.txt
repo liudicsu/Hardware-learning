@@ -1,0 +1,13 @@
+seed=3
+n_robots=8
+total_traj=1150000
+top4_share=0.8957
+max_weight=7.188
+reweighted_mass=1150000.0
+oxe_traj_million_plus=1
+oxe_embodiments=22
+oxe_top4_pct=85
+oxe_auge_traj_million=4.4
+oxe_auge_multiplier=3
+oxe_auge_success_lift_lo=24
+oxe_auge_success_lift_hi=45

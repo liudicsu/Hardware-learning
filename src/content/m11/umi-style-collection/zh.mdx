@@ -1,0 +1,188 @@
+本课是本站补充内容——第 7–11 个月不属于原六个月课程。
+
+**范围。** [3.5 SO-101](/zh/month/month-3/so101-arm) 是主从遥操作；[8.1 数据集工程](/zh/month/month-8/dataset-engineering) 与 [10.5 介入日志](/zh/month/month-10/intervention-logging) 负责真机录制与 DAgger 键位；[10.2 实时分块](/zh/month/month-10/real-time-chunking) 已经为分块策略对齐过观测 / 执行延迟。本课 = **无机器人时的手持夹爪采集接口**与相对轨迹动作选择：为什么 UMI 在野外丢掉本体、绝对 / 增量 / 相对在标定噪声下终点误差怎么走、以及推理期延迟匹配如何呼应 10.2 却不重推 RTC 掩码。**不强制购买 GoPro**；没有就只读 + CPU 玩具。Hardware Guide 打印与真机 UMI 上的 SLAM 标注本页未运行。本课也不替代 8.7 毕业项目。
+
+## 为什么可以不带本体去采集
+
+固定基座的桌面臂进不了厨房、车间或路边摊。UMI（Universal Manipulation Interface，Chi 等，RSS 2024；arXiv 2402.10329）把**3D 打印平行夹爪**与腕部 GoPro（鱼眼、侧镜、IMU）、连续夹爪宽度和软指配在一起，人可以在野外示范，策略之后用同一接口在机器人上重放。动作接口是**相对轨迹**：相对当前末端的 SE(3) 序列，不是绝对世界目标，也不是逐步累加的增量。
+
+<Resource id="umi-paper" />
+<Resource id="umi-site" />
+<Resource id="umi-hardware-guide" />
+<Resource id="lerobot-action-representations" />
+<Resource id="diffusion-policy" />
+
+## 论文里已经核实的数字（以论文为准）
+
+来自 UMI 论文 HTML（arXiv 2402.10329 v3）与项目页（本站打开过）：
+
+- 杯摆吞吐（Fig.11）：UMI **111**/h、人手 **231**/h、SpaceMouse 遥操作 **35**/h。
+- 野外零样本杯摆：约 **71.7 %** 成功（43/60）。
+- 视觉–惯性 SLAM 对 MoCap（Fig.12）：ATE 约 **6.1** mm / **3.5**°。
+
+这些是论文数字，不是本站实测。推理期观测 / 执行延迟匹配与 10.2 RTC 同一思路；本课不重推掩码。
+
+## 相对 / 绝对 / 增量玩具
+
+`relative_traj_toy.py` 用 SE(2) 简化同一想法。同一动作序列，三种重建：
+
+1. **绝对** — 世界系目标加上固定标定偏置 → 终点误差等于偏置模长。
+2. **增量** — 每步 = 上一步 + 带噪增量 → 噪声沿块累积。
+3. **相对（UMI 式）** — 每步动作相对当前测得的末端施加 → 相对动作准确时终点误差为 **0**。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-11/umi-style-collection
+$ python3 relative_traj_toy.py
+```
+
+<CodeSource path="examples/month-11/umi-style-collection/relative_traj_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""relative_traj_toy.py: absolute / delta / relative end-error under SE(2) (stdlib).
+
+Same action sequence, three reconstructions:
+  - absolute: global-frame targets with a fixed calibration bias
+  - delta: each step is previous + noisy increment (noise accumulates)
+  - relative (UMI-style): each action re-expressed vs the current EE
+    (here: apply the true relative action from the measured pose → zero end error)
+
+Also prints UMI paper constants used in the lesson prose (throughput, ATE)
+— paper numbers, not toy measurements. Take the paper as source of truth.
+Buying a GoPro is not required.
+"""
+import math
+import random
+
+SEED = 7
+random.seed(SEED)
+
+
+def se2_compose(p, a):
+    """Compose pose p=(x,y,yaw) with body-frame action a=(dx,dy,dyaw)."""
+    c, s = math.cos(p[2]), math.sin(p[2])
+    return (
+        p[0] + c * a[0] - s * a[1],
+        p[1] + s * a[0] + c * a[1],
+        p[2] + a[2],
+    )
+
+
+# True path: 8 relative actions from the origin
+pose = (0.0, 0.0, 0.0)
+truth = [pose]
+actions_rel = []
+for _ in range(8):
+    a = (
+        0.05 + random.uniform(-0.01, 0.01),
+        random.uniform(-0.02, 0.02),
+        random.uniform(-0.1, 0.1),
+    )
+    actions_rel.append(a)
+    pose = se2_compose(pose, a)
+    truth.append(pose)
+
+# Absolute with a fixed calibration bias in the world frame
+calib_err = (0.02, -0.015, 0.05)
+abs_end_err = math.hypot(calib_err[0], calib_err[1])  # bias dominates end error
+
+# Delta: each step relative to previous, with per-step measurement noise
+delta_pose = truth[0]
+noise = 0.003
+for a in actions_rel:
+    noisy = (
+        a[0] + random.uniform(-noise, noise),
+        a[1] + random.uniform(-noise, noise),
+        a[2] + random.uniform(-noise, noise),
+    )
+    delta_pose = se2_compose(delta_pose, noisy)
+delta_end_err = math.hypot(delta_pose[0] - truth[-1][0], delta_pose[1] - truth[-1][1])
+
+# Relative (UMI): restart each step from the measured current EE — perfect here
+rel_pose = truth[0]
+for a in actions_rel:
+    rel_pose = se2_compose(rel_pose, a)
+rel_end_err = math.hypot(rel_pose[0] - truth[-1][0], rel_pose[1] - truth[-1][1])
+
+print(f"seed={SEED}")
+print(f"steps={len(actions_rel)}")
+print(f"abs_calib_bias_m={abs_end_err:.6f}")
+print(f"delta_accum_err_m={delta_end_err:.6f}")
+print(f"relative_err_m={rel_end_err:.6f}")
+# UMI paper constants (arXiv 2402.10329 v3 / project page) for prose binding
+print(f"umi_cup_throughput_per_h=111")
+print(f"spacemouse_throughput_per_h=35")
+print(f"hand_throughput_per_h=231")
+print(f"umi_field_success_pct=71.7")
+print(f"umi_ate_mm=6.1")
+print(f"umi_ate_deg=3.5")
+```
+
+
+<SimOutput source="model">
+
+```text
+seed=7
+steps=8
+abs_calib_bias_m=0.025000
+delta_accum_err_m=0.008287
+relative_err_m=0.000000
+umi_cup_throughput_per_h=111
+spacemouse_throughput_per_h=35
+hand_throughput_per_h=231
+umi_field_success_pct=71.7
+umi_ate_mm=6.1
+umi_ate_deg=3.5
+```
+
+</SimOutput>
+
+怎么读：
+
+- 绝对终点误差 **0.025000** m = √(0.02² + 0.015²)——是标定偏置，不是路径长度。
+- 增量在 8 步 ±0.003 噪声下累积到 **0.008287** m。
+- 相对在动作与测得末端一致时保持 **0.000000** m。
+- 论文常量 **111** / **35** / **231**、**71.7**、**6.1** / **3.5** 与玩具无关；它们让 check_diagrams 与正文共用一个数。
+
+LeRobot 动作表示页（absolute / relative / delta）就是 [10.1](/zh/month/month-10/flow-matching-policies) 已点过的同一套词；本玩具把误差行为钉死。
+
+## 硬件：不要求购买
+
+- **CPU 玩具**是必做交付。
+- 选做：按 UMI Hardware Guide 在你已有的打印机上打夹爪（第 3 个月路径）。
+- GoPro / 侧镜 / IMU 采集、真机 UMI 上的视觉–惯性 SLAM——本页未运行。
+- 不要为了跟课去买 GoPro。
+
+## 不在范围内
+
+- 主从遥操作与飞特总线录制（3.5 / 8.1）。
+- DAgger / HG-DAgger 键位（10.5）。
+- RTC 推理掩码（10.2）——这里只复用延迟匹配的思路。
+- 跨本体池失衡（11.5）。
+
+<Summary>
+
+**要点**
+
+- UMI = 手持夹爪 + 腕部相机；策略接口是相对轨迹，野外不带本体。
+- 论文（以论文为准）：吞吐 111 / 35 / 231 每小时；野外成功 71.7 %；ATE 6.1 mm / 3.5°。
+- 玩具：abs_calib_bias_m=0.025000，delta_accum_err_m=0.008287，relative_err_m=0.000000。
+- 不强制购买 GoPro；Hardware Guide / SLAM 步骤本页未运行。
+
+**常见错误**
+
+- 把 UMI 当成「又一台遥操作臂」——重点是丢掉本体、保留动作接口。
+- 用 relative 训练却按 absolute 执行（见 10.1）。
+- 把 ATE / 吞吐写成「本站实测」。
+
+**自检**
+
+- 为什么这里绝对终点误差等于标定偏置模长？
+- 为什么增量会累积、相对不会？
+- 推理期延迟匹配如何呼应 10.2 却不重推 RTC？
+
+**下一步**
+
+- 11.5 跨本体数据集：OXE 式池为什么偏，OXE-AugE 怎么补。
+
+</Summary>

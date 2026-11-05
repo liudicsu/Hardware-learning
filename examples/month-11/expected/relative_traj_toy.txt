@@ -1,0 +1,11 @@
+seed=7
+steps=8
+abs_calib_bias_m=0.025000
+delta_accum_err_m=0.008287
+relative_err_m=0.000000
+umi_cup_throughput_per_h=111
+spacemouse_throughput_per_h=35
+hand_throughput_per_h=231
+umi_field_success_pct=71.7
+umi_ate_mm=6.1
+umi_ate_deg=3.5

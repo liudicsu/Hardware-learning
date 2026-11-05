@@ -1,0 +1,139 @@
+This lesson is a site supplement — Months 7–11 are not part of the original six-month course.
+
+**Scope.** [9.7 sim-benchmarks](/en/month/month-9/sim-benchmarks) scores LIBERO / SimplerEnv in simulation; [8.2 VLA fine-tune](/en/month/month-8/vla-finetune) and [8.1 dataset engineering](/en/month/month-8/dataset-engineering) already named Open X-Embodiment as the large-scale reason shared formats matter. This lesson is **real cross-embodiment pooled data and appearance augmentation**: why OXE-style pools skew toward a few arms, what OXE-AugE reports for rebalancing, and how a synthetic count table teaches top-k share plus clipped inverse-frequency weights. **Real OXE cardinality is not in CI** — the toy uses synthetic counts and says so. Downloading OXE / training OpenVLA or π0 is marked 本页未运行 (not run on this page). This lesson also does not replace the 8.7 capstone.
+
+## Why embodiment pools skew
+
+Open X-Embodiment (OXE) pools many robot datasets into one ecosystem so a single policy can see many arms and grippers. The project page reports **1M+** real trajectories, **22** embodiments and about **60** datasets. Pooling alone does not make the mixture balanced: OXE-AugE (arXiv 2512.13100) notes that in the original OXE real data the **top-4** embodiments account for **more than 85 %** of trajectories. A fine-tune that ignores that skew mostly learns the majority arms.
+
+<Resource id="oxe-site" />
+<Resource id="oxe-github" />
+<Resource id="oxe-auge-paper" />
+<Resource id="oxe-auge-site" />
+
+## OXE-AugE in one paragraph (take the paper as source of truth)
+
+OXE-AugE applies robot-appearance augmentation on **16** common subsets and reports about **4.4M** trajectories — more than **3×** the original OXE pool. Fine-tuning OpenVLA / π0 on the augmented mix lifts success on unseen arm–gripper combinations by about **24–45 %** (abstract; take the paper as source of truth). This lesson does not download or train either model.
+
+## What you do as a student
+
+Read the RLDS / unified action-dimension convention used across OXE-style pools (**7D**: xyz + rpy + gripper). Then run the CPU toy: count → top-k share → clipped inverse-frequency weights. The counts are **synthetic** and labelled as such; they are not OXE's real table.
+
+## Imbalance toy (synthetic counts)
+
+`oxe_imbalance_toy.py` builds a small embodiment histogram that *looks* skewed the way OXE-AugE describes, then prints top-4 share and clipped inverse-frequency weights. Paper / project-page constants (1M+, 22, 85, 4.4, 24 / 45) are printed on separate lines so check_diagrams can bind them without confusing them with the synthetic table.
+
+```bash
+$ cd ~/Hardware-learning/examples/month-11/cross-embodiment-datasets
+$ python3 oxe_imbalance_toy.py
+```
+
+<CodeSource path="examples/month-11/cross-embodiment-datasets/oxe_imbalance_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""oxe_imbalance_toy.py: synthetic embodiment imbalance + inverse-frequency weights (stdlib).
+
+The counts below are **synthetic** — they are NOT Open X-Embodiment (OXE) real
+cardinality. Real OXE / OXE-AugE numbers used in the lesson prose (1M+, 22
+embodiments, top-4 >85 %, 4.4M, 24–45 %) are printed as separate paper constants
+and must not be confused with this table. Take the papers / project pages as
+source of truth. Downloading OXE or training is not run on this page.
+"""
+SEED = 3
+
+# Synthetic counts mirroring OXE-style skew (NOT real OXE counts)
+robots = ["Franka", "xArm", "Kuka", "Google", "WidowX", "UR5", "Jaco", "Other"]
+counts = [420000, 280000, 180000, 150000, 40000, 35000, 20000, 25000]
+total = sum(counts)
+top4 = sum(counts[:4])
+top4_share = top4 / total
+
+# Inverse-frequency weights, clipped at 10
+weights = []
+for c in counts:
+    w = total / (len(robots) * c)
+    weights.append(min(w, 10.0))
+reweighted_mass = sum(w * c for w, c in zip(weights, counts))
+
+print(f"seed={SEED}")
+print(f"n_robots={len(robots)}")
+print(f"total_traj={total}")
+print(f"top4_share={top4_share:.4f}")
+print(f"max_weight={max(weights):.3f}")
+print(f"reweighted_mass={reweighted_mass:.1f}")
+# Paper / project-page constants (not from the synthetic table)
+print(f"oxe_traj_million_plus=1")
+print(f"oxe_embodiments=22")
+print(f"oxe_top4_pct=85")
+print(f"oxe_auge_traj_million=4.4")
+print(f"oxe_auge_multiplier=3")
+print(f"oxe_auge_success_lift_lo=24")
+print(f"oxe_auge_success_lift_hi=45")
+```
+
+
+<SimOutput source="model">
+
+```text
+seed=3
+n_robots=8
+total_traj=1150000
+top4_share=0.8957
+max_weight=7.188
+reweighted_mass=1150000.0
+oxe_traj_million_plus=1
+oxe_embodiments=22
+oxe_top4_pct=85
+oxe_auge_traj_million=4.4
+oxe_auge_multiplier=3
+oxe_auge_success_lift_lo=24
+oxe_auge_success_lift_hi=45
+```
+
+</SimOutput>
+
+How to read it:
+
+- Synthetic top-4 share **0.8957** (about 90 %) on 1 150 000 toy trajectories — **not** OXE's real count.
+- Clipped inverse-frequency `max_weight=7.188`; reweighted mass stays **1150000.0** because weights rescale rows, they do not invent new demos.
+- Paper constants **1** (M+), **22**, **85**, **4.4**, **3**, **24** / **45** are independent of the table; take the paper / project page as source of truth.
+
+## Hardware / compute: not run here
+
+- The **CPU toy** is the required deliverable.
+- Downloading OXE, training OpenVLA / π0, or running OXE-AugE appearance pipelines — not run on this page (size + GPU).
+- No dataset purchase and no cloud bill are required to finish the lesson.
+
+## Out of scope
+
+- LIBERO / SimplerEnv simulation scores (9.7).
+- Single-arm LeRobotDataset audit mechanics (8.1) — only the OXE-scale skew question is new here.
+- UMI handheld collection (11.4).
+- Replacing the 8.7 capstone with a new multi-embodiment track.
+
+<Summary>
+
+**Key points**
+
+- OXE pools many arms; project page: 1M+ trajectories, 22 embodiments. OXE-AugE: top-4 >85 %, ~4.4M after appearance aug, ~24–45 % lift on unseen arm–gripper combos (paper as source of truth).
+- Toy top4_share=0.8957 on **synthetic** counts; max_weight=7.188. Real OXE cardinality is not in CI.
+- Unified 7D action (xyz + rpy + gripper) is the reading convention; download / train steps are not run here.
+
+**Common mistakes**
+
+- Pasting the synthetic table into a paper citation as if it were OXE.
+- Treating 9.7 sim scores as a substitute for cross-embodiment pool analysis.
+- Starting a multi-week OXE download just to finish this lesson.
+
+**Check yourself**
+
+- Why can top-4 share exceed 85 % even when 22 embodiments are listed?
+- What does clipping inverse-frequency weights protect against?
+- Which numbers in the toy stdout are paper constants, and which are synthetic?
+
+**Next**
+
+- 11.6 Humanoid whole-body control reading map (next PR): ASAP-style delta-action alignment and a planar LIPM toy.
+
+</Summary>

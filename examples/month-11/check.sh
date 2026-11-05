@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the Month 11 examples and compare with expected/.
-# PR1: 3 of 7 lessons (11.1–11.3). PR2/PR3 add the rest.
+# PR2: 5 of 7 lessons (11.1–11.5). PR3 adds the rest.
 # Usage: examples/month-11/check.sh        UPDATE=1 examples/month-11/check.sh
 set -uo pipefail
 M11="$(cd "$(dirname "$0")" && pwd)"
@@ -21,5 +21,7 @@ check() {
 check power_budget_toy.txt "$PY" "$M11/power-battery-emc/power_budget_toy.py"
 check clarke_park_toy.txt "$PY" "$M11/foc-actuator-lab/clarke_park_toy.py"
 check tactile_marker_toy.txt "$PY" "$M11/tactile-sensing/tactile_marker_toy.py"
+check relative_traj_toy.txt "$PY" "$M11/umi-style-collection/relative_traj_toy.py"
+check oxe_imbalance_toy.txt "$PY" "$M11/cross-embodiment-datasets/oxe_imbalance_toy.py"
 
 exit $fail
