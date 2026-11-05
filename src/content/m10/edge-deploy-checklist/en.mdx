@@ -256,7 +256,7 @@ The int8 toy above ends with weight bytes for 100M parameters. Real VLAs are far
 
 "π0-class" and "OpenVLA-class" mean "a model of that size"; later versions and fine-tuned checkpoints can differ. The SmolVLA paper says it is designed to be deployed on consumer-grade GPUs or even CPUs. That is its claim, per the paper, not a measurement on this site.
 
-`vla_edge_budget_toy.py` computes **weights only**: params × bytes per parameter. Everything else is **excluded and labelled as excluded**: activations, the KV cache, vision-encoder and image buffers, the framework and CUDA context, and the OS. A weights figure is therefore a lower bound and never proof that a model fits. Part 2 links chunk length, control rate and sync idle to the async threshold from [6.3](/en/month/month-6/vla-models), g ≥ (E[ℓ_S] / Δt) / n, for a few what-if inference latencies ℓ_S. No device was measured, and Jetson and Raspberry Pi runs are not done on this page (本页未运行).
+`vla_edge_budget_toy.py` computes **weights only**: params × bytes per parameter. The toy reports **GB = 10⁹ bytes**, which is not the same as GiB = 2³⁰ bytes (vendors sometimes quote GiB; 6.60 GB ≈ 6.15 GiB). Everything else is **excluded and labelled as excluded**: activations, the KV cache, vision-encoder and image buffers, the framework and CUDA context, and the OS. A weights figure is therefore a lower bound and never proof that a model fits. Part 2 links chunk length, control rate and sync idle to the async threshold from [6.3](/en/month/month-6/vla-models), g ≥ (E[ℓ_S] / Δt) / n, for a few what-if inference latencies ℓ_S. No device was measured, and Jetson and Raspberry Pi runs are not done on this page (本页未运行).
 
 ```bash
 $ cd ~/Hardware-learning/examples/month-10/edge-deploy-checklist
@@ -275,6 +275,8 @@ measured here):
   SmolVLA        0.45e9  (arXiv 2506.01844: "450 million parameters")
   pi0-class      3.3e9   (arXiv 2410.24164: 3B PaliGemma + 300M action expert)
   OpenVLA-class  7e9     (arXiv 2406.09246: "7B-parameter")
+Here GB = 10^9 bytes (decimal), not GiB = 2^30 bytes; vendors sometimes
+quote GiB, so a 6.60 GB figure is about 6.15 GiB.
 WEIGHTS ONLY. Activations, the KV cache, vision-encoder / image buffers, the
 framework / CUDA context and the OS are EXCLUDED and not estimated: a weights
 number is a lower bound, never "it fits".

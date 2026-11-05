@@ -11,7 +11,7 @@ Batch 1–2 delivered 8.1–8.7 (dataset → capstone). **Track B (promote elect
 | safety-reliability | 360 | `watchdog_sim.py`, `actuator_fault_monitor_toy.py` | batch 1 + follow-up PR2 F3: device/bus fault latch + operator ack |
 | robot-devops | 360 | `bag_stats.py`, `bag_qos_accept_toy.py` | batch 1 + follow-up PR1 F1: bag/QoS acceptance |
 | capstone | 300 | `capstone_gate.py --demo` | batch 2; LIBERO section → pointer to 8.8 |
-| **sim-benchmarks** | **180** | **`suite_score_table.py`** | **Track B 8.8**; GPU `lerobot-eval` 本页未运行 |
+| **sim-benchmarks** | **330** | **`suite_score_table.py`**, **`imagine_rank_toy.py`** | **Track B 8.8 + G6**; GPU `lerobot-eval` 本页未运行 |
 
 Site “~1500 min” habit is intentionally broken by Track B (+180). Still labelled 本站补充. Remaining electives on month page: HIL-SERL / Isaac Lab / legged playground (not formal lessons).
 
@@ -23,4 +23,4 @@ Follow-up PR2 (+180 here): F3 `safety-reliability` 180→360 (command-path watch
 
 Follow-up PR3 (F5–F7 on M5/M6, +510 site): does not change Month 8 minutes (**2 340**). Site after PR3: 71 lessons / **17 310 min**.
 
-Batch-after-obs PR3 (G6, +150): 8.8 `sim-benchmarks` 180→330 — Ctrl-World (arXiv 2510.10125) read per the paper; `imagine_rank_toy.py` ranks five synthetic policies on shared tasks / ICs in an oracle env vs biased world models with Kendall τ (uniform_drop keeps the order, tight_tol / no_slide / no_retry flip pairs). **8 lessons / 2 490 min**. Site with G5/G7: 71 lessons / **18 570 min**.
+Batch-after-obs PR3 (G6, +150): 8.8 `sim-benchmarks` 180→330 — Ctrl-World (arXiv 2510.10125) read per the paper; `imagine_rank_toy.py` ranks five synthetic policies on shared tasks / ICs in an oracle env vs biased world models with Kendall τ (uniform_drop preserves order under this seed; a policy-independent bias of this kind often preserves order; tight_tol / no_slide / no_retry flip pairs). **8 lessons / 2 490 min**. Site with G5/G7: 71 lessons / **18 570 min**.

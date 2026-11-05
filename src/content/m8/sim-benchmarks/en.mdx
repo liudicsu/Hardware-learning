@@ -298,7 +298,7 @@ ok: a policy-blind underestimate lowers every rate but keeps the order; biases t
 How to read it:
 
 - **The oracle order** is P1 > P4 > P3 > P2 > P5 (0.817, 0.688, 0.679, 0.604, 0.496). `calibrated` reproduces it exactly: a sanity row.
-- **A policy-blind bias keeps the order.** `uniform_drop` counts 15 % of successes as failures, on the same episodes for every policy. Every rate falls (mean −0.101), yet τ = +1.00. Underestimating success, as the paper reports for its model, does not by itself break a ranking.
+- **A policy-blind bias keeps the order.** `uniform_drop` counts 15 % of successes as failures, on the same episodes for every policy. Every rate falls (mean −0.101), yet τ = +1.00 — preserved under this seed; a policy-independent bias of this kind often preserves order. Underestimating success, as the paper reports for its model, is one such bias.
 - **A bias that looks uniform can still flip pairs.** `tight_tol` makes execution harder for everyone, but it hurts the sloppier policies more (P4 σ = 0.016, P3 σ = 0.018): τ = +0.60, with P2/P4 and P3/P4 flipped. P3 and P4 are only 2 episodes apart in the oracle (163 vs 165 of 240), so their order was within sampling noise anyway. Check intervals (6.4, 8.7) before trusting a close pair.
 - **A missing failure mode promotes the policy that has it.** `no_slide` ignores objects sliding off, so P2 jumps from 0.604 to 0.850 and ranks first: τ = +0.40, three flips. `no_retry` ends every episode after the first miss, so P3, the only policy that retries, drops from 0.679 to 0.571: τ = +0.80, P2/P3 flipped. These are the toy versions of the sliding and retry gaps the paper lists.
 

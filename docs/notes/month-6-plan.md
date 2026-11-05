@@ -54,4 +54,8 @@ Changes from the plan above:
 
 ## Follow-up PR3 (+150 here)
 
-F7 `policy-evaluation` 180→330 — `eval_seed_layers_toy.py`: `synthetic_policy_draw_k` (not real training); `shared_IC` / `independent_IC` separate tables; Wilson/Beta count intervals separate from across-draw dispersion; best-seed cherry-pick vs median; checklist fields from arXiv 2409.09491v2 §4. Month 6 **1 170 min**. With F5+F6: site **71 lessons / 17 310 min**.
+F7 `policy-evaluation` 180→330 — `eval_seed_layers_toy.py`: `synthetic_policy_draw_k` (not real training); `shared_IC` / `independent_IC` separate tables; Wilson/Beta count intervals separate from across-draw dispersion; best-seed cherry-pick vs median; checklist fields from arXiv 2409.09491v2 §4. Month 6 then **1 170 min**. With F5+F6: site then **71 lessons / 17 310 min**.
+
+## Batch-after-obs PR2 (G4, +180 here)
+
+G4 `vla-models` 180→360 — `vla_async_chunk_toy.py`: SmolVLA read per the paper; sync vs async (queue remaining fraction &lt; g triggers next request); same chunk prediction / same ℓ_S; idle_s, infer_calls, underruns, action staleness and overlapping chunk switches; async ≠ 10.2 RTC soft-mask ≠ 8.3 timestamp sync. Month 6 **5 lessons / 1 350 min**. With G3: site then **71 lessons / 18 120 min**; after G5–G7: site **71 lessons / 18 570 min** (from `src/lib/curriculum.ts`).

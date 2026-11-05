@@ -10,13 +10,13 @@ Constraints: no new hardware; not required this month: Isaac, an F/T sensor or a
 |---|------|---------|----------|------------------|
 | 1 | `flow-matching-policies` | 240 | `flow_match_toy.py` | Flow Matching / π0 / rectified flow / SmolVLA papers; LeRobot π0.5 docs |
 | 2 | `real-time-chunking` | 180 | `rtc_blend_toy.py` | RTC paper; LeRobot RTC + async docs |
-| 3 | `edge-deploy-checklist` | 180 | `latency_budget.py`, `int8_quant_toy.py` | ONNX Runtime quantization; LeRobot hardware / accelerator docs |
+| 3 | `edge-deploy-checklist` | 330 | `latency_budget.py`, `int8_quant_toy.py`, `vla_edge_budget_toy.py` | ONNX Runtime quantization; LeRobot hardware / accelerator docs |
 | 4 | `multi-view-extrinsics` | 240 | `extrinsics_chain_toy.py` | OpenCV calibrateRobotWorldHandEye / ArUco / solvePnP docs |
 | 5 | `intervention-logging` | 180 | `intervention_log_toy.py` | LeRobot HIL data collection + v0.6.0 blog; DAgger / HG-DAgger / RaC |
 | 6 | `real-world-rl` | 240 | `rlpd_chain_toy.py` | RLPD arXiv 2302.02948; HIL-SERL arXiv 2410.21845; LeRobot HIL-SERL docs |
 | 7 | `vla-rl-finetune` | 240 | `advantage_filter_toy.py` (optional) | SimpleVLA-RL 2509.09674; OpenVLA-OFT 2502.19645; π*0.6 blog; ResiP 2407.16677; Policy Decorator 2412.13630; LeRobot SARM docs |
 
-Total 1 500 minutes. Pointers: 8.3 → 10.2 (async seam), 8.7 capstone → Month 10 (optional, not a replacement), M8 topics → "HIL-SERL 见 10.6".
+Total 1 650 minutes (after G7). Pointers: 8.3 → 10.2 (async seam), 8.7 capstone → Month 10 (optional, not a replacement), M8 topics → "HIL-SERL 见 10.6".
 
 Widgets deferred. No prices anywhere.
 

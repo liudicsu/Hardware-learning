@@ -256,7 +256,7 @@ sync inference would idle about d control steps per chunk; async/RTC hides them.
 
 「π0 级」「OpenVLA 级」指「这个规模的模型」；后续版本和微调后的检查点可能不同。SmolVLA 论文说它的设计目标是部署在消费级 GPU 甚至 CPU 上——这是论文的说法，以论文为准，不是本站的测量。
 
-`vla_edge_budget_toy.py` **只算权重**：参数量 × 每参数字节数。其余部分全部**排除并标明已排除**：激活、KV 缓存、视觉编码器与图像缓冲、框架与 CUDA 上下文、操作系统。所以只算权重得到的是下界，永远不能证明模型「放得下」。第 2 部分针对几个假设的推理延迟 ℓ_S，把动作块长度、控制频率和同步空闲，与 [6.3](/zh/month/month-6/vla-models) 的异步阈值 g ≥ (E[ℓ_S] / Δt) / n 联系起来。没有测任何设备，Jetson 和树莓派本页未运行。
+`vla_edge_budget_toy.py` **只算权重**：参数量 × 每参数字节数。玩具报告的 **GB = 10⁹ 字节**，不等于 GiB = 2³⁰ 字节（厂商有时用 GiB；6.60 GB ≈ 6.15 GiB）。其余部分全部**排除并标明已排除**：激活、KV 缓存、视觉编码器与图像缓冲、框架与 CUDA 上下文、操作系统。所以只算权重得到的是下界，永远不能证明模型「放得下」。第 2 部分针对几个假设的推理延迟 ℓ_S，把动作块长度、控制频率和同步空闲，与 [6.3](/zh/month/month-6/vla-models) 的异步阈值 g ≥ (E[ℓ_S] / Δt) / n 联系起来。没有测任何设备，Jetson 和树莓派本页未运行。
 
 ```bash
 $ cd ~/Hardware-learning/examples/month-10/edge-deploy-checklist
@@ -275,6 +275,8 @@ measured here):
   SmolVLA        0.45e9  (arXiv 2506.01844: "450 million parameters")
   pi0-class      3.3e9   (arXiv 2410.24164: 3B PaliGemma + 300M action expert)
   OpenVLA-class  7e9     (arXiv 2406.09246: "7B-parameter")
+Here GB = 10^9 bytes (decimal), not GiB = 2^30 bytes; vendors sometimes
+quote GiB, so a 6.60 GB figure is about 6.15 GiB.
 WEIGHTS ONLY. Activations, the KV cache, vision-encoder / image buffers, the
 framework / CUDA context and the OS are EXCLUDED and not estimated: a weights
 number is a lower bound, never "it fits".

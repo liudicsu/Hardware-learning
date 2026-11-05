@@ -282,7 +282,7 @@ ok: DR scan shows friction/delay/bias sensitivity (Wilson intervals)
 - **评分相同**：先比成功次数，平手时比平均周期时间（更短者胜）。
 - **评估回合共享**（另一个种子），分别在标称 µ = 0.40 / m = 0.50 kg 以及偏移后的 µ 和质量下打分。
 
-这里什么都不拟合：不重拟 τ，也不估计任何参数——那是上面的 `sysid_fit.py`，持续激励属于 5.1。这里做的是在一个分布上调控制器。摩擦只是一行库仑替身，**不是** MuJoCo 的软接触求解器（7.1）；SO-101 上的真实推动本页未运行。
+这里什么都不拟合：不重拟 τ，也不估计任何参数——那是上面的 `sysid_fit.py`，持续激励属于 5.1。这里做的是在一个分布上调控制器。摩擦只是一行库仑替身，**不是** MuJoCo 的软接触求解器（7.1）；真 MuJoCo 接触 DR 常扰动 geom 上的 `solref` / `solimp` / `friction`（见 [MuJoCo XML 参考](https://mujoco.readthedocs.io/en/stable/XMLreference.html)）；SO-101 上的真实推动本页未运行。
 
 ```bash
 $ cd ~/Hardware-learning/examples/month-7/sim-to-real
