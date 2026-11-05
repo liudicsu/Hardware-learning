@@ -1,17 +1,17 @@
 seed=51 N=200 dt=0.01 energy_tol=0.01 noise_std=0.02
 noise_model: y=z+v (independent measurement noise on noise-free ARX state z); NOT ARX innovation e_k
 estimator: equation-error OLS (ARX) on noisy y in Phi → EIV / EE-OLS bias; NOT claimed unbiased (OE/IV not implemented)
-PE diagnostic: finite-window cond(Phi^T Phi); strict PE = positive-definite lower bound on the window Gram (not claimed here)
+PE diagnostic: finite-window cond(Phi^T Phi); strict PE = exist fixed N, alpha>0: for all sliding k, sum_{i=k..k+N-1} phi_i phi_i^T >= alpha I (uniform; not claimed here)
 
 case_A first_order_tau=0.08 K=1.0  true_theta=[0.882497, 0.117503]
 input          energy    peak|u|  cond(PhiTPhi)  ||theta_hat-theta||
 step         190.0000     1.0000          164.2             0.034758
 prbs         190.0000     0.9747          4.965             0.002735
-energy_match_rel=0.000000 (tol=0.01)  step_err=0.034758 prbs_err=0.002735 (step is capable; numbers decide, PE not guaranteed to win; err includes EE-OLS bias from measurement noise)
+energy_match_rel=0.000000 (tol=0.01)  step_err=0.034758 prbs_err=0.002735 (step is capable; numbers decide, PE not guaranteed to win; err is single-run parameter error, may include systematic bias)
 
 case_B second_order  true_theta=[1.7, -0.72, 0.05]
 input          energy    peak|u|  cond(PhiTPhi)  ||theta_hat-theta||
 step         190.0000     1.0000      2.148e+04             1.361698
 two_tone     190.0000     1.9092           1108             0.219354
-energy_match_rel=0.000000 (tol=0.01)  cond_step=2.148e+04 cond_two_tone=1108 step_err=1.361698 two_tone_err=0.219354 (richer input improved conditioning; err includes EE-OLS bias)
-ok: fair energy; case_A step-capable; case_B richer input better cond; measurement-noise EIV → EE-OLS bias measured (real motor sysid 本页未运行)
+energy_match_rel=0.000000 (tol=0.01)  cond_step=2.148e+04 cond_two_tone=1108 step_err=1.361698 two_tone_err=0.219354 (richer input improved conditioning; err is single-run parameter error, may include systematic bias)
+ok: fair energy; case_A step-capable; case_B richer input better cond; measurement-noise EIV → single-run parameter error may include systematic bias (one seed cannot quantify statistical bias; real motor sysid 本页未运行)

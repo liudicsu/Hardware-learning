@@ -22,9 +22,10 @@ regressors and OLS is consistent). An output-error (OE) or instrumental-
 variable (IV) fit would be a different estimator; not implemented here.
 
 The finite-window Gram cond(ΦᵀΦ) is a practical diagnostic of regressor
-richness on this horizon. Strict PE is a stronger statement (a positive-
-definite lower bound on the window Gram as the window grows); the toy
-reports the diagnostic, not a PE certificate.
+richness on this horizon. Strict PE is a stronger statement: there exist a
+fixed window length N and α>0 such that for all sliding start indices k,
+Σ_{i=k}^{k+N-1} φᵢφᵢᵀ ⪰ αI (a uniform lower bound). The toy reports the
+diagnostic, not a PE certificate.
 
 Pointers (no copyrighted book text pasted): Ljung, System Identification, 2ed
 (ISBN 0136566952) via the MIT OCW 6.435 syllabus; De Nicolao 1997 tutorial on
@@ -225,7 +226,8 @@ def main() -> None:
     )
     print(
         "PE diagnostic: finite-window cond(Phi^T Phi); "
-        "strict PE = positive-definite lower bound on the window Gram (not claimed here)"
+        "strict PE = exist fixed N, alpha>0: for all sliding k, "
+        "sum_{i=k..k+N-1} phi_i phi_i^T >= alpha I (uniform; not claimed here)"
     )
     print()
 
@@ -254,7 +256,7 @@ def main() -> None:
     print(f"energy_match_rel={rel:.6f} (tol={ENERGY_TOL})  "
           f"step_err={results_a[0][3]:.6f} prbs_err={results_a[1][3]:.6f} "
           f"(step is capable; numbers decide, PE not guaranteed to win; "
-          f"err includes EE-OLS bias from measurement noise)")
+          f"err is single-run parameter error, may include systematic bias)")
     print()
 
     # ---- Case B: second-order — richer input improves conditioning ----
@@ -282,9 +284,9 @@ def main() -> None:
     print(f"energy_match_rel={rel:.6f} (tol={ENERGY_TOL})  "
           f"cond_step={results_b[0][2]:.4g} cond_two_tone={results_b[1][2]:.4g} "
           f"step_err={results_b[0][3]:.6f} two_tone_err={results_b[1][3]:.6f} "
-          f"(richer input improved conditioning; err includes EE-OLS bias)")
+          f"(richer input improved conditioning; err is single-run parameter error, may include systematic bias)")
     print("ok: fair energy; case_A step-capable; case_B richer input better cond; "
-          "measurement-noise EIV → EE-OLS bias measured (real motor sysid 本页未运行)")
+          "measurement-noise EIV → single-run parameter error may include systematic bias (one seed cannot quantify statistical bias; real motor sysid 本页未运行)")
 
 
 if __name__ == "__main__":

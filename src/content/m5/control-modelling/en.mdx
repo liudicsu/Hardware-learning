@@ -247,7 +247,7 @@ Derivative changes those numbers. Month 3's kd = 0.115 N·m/(rad/s), together wi
 
 ## Persistency of excitation vs a fair step (sysid)
 
-Lesson 1 already identified B and J from one open-loop torque step. That works for a first-order speed lag: PE is **not** the claim "two parameters ⇒ a step cannot identify them." Persistency of excitation means the **regressors over the identification horizon** are rich enough that `ΦᵀΦ` is well-conditioned (Ljung's input-signal chapter, pointed from the MIT OCW 6.435 syllabus; De Nicolao's 1997 tutorial contrasts equation-error and output-error). The toy reports the **finite-window** Gram condition number `cond(ΦᵀΦ)` as a practical diagnostic of richness on this horizon; **strict PE** is a stronger claim (a positive-definite lower bound on the window Gram as the window grows) and is **not** claimed here. For a richer structure the same step can leave `ΦᵀΦ` ill-conditioned — you learn that by **reporting** conditioning and parameter error, not by guaranteeing that a richer input always wins.
+Lesson 1 already identified B and J from one open-loop torque step. That works for a first-order speed lag: PE is **not** the claim "two parameters ⇒ a step cannot identify them." Persistency of excitation means the **regressors over the identification horizon** are rich enough that `ΦᵀΦ` is well-conditioned (Ljung's input-signal chapter, pointed from the MIT OCW 6.435 syllabus; De Nicolao's 1997 tutorial contrasts equation-error and output-error). The toy reports the **finite-window** Gram condition number `cond(ΦᵀΦ)` as a practical diagnostic of richness on this horizon; **strict PE** is a stronger claim: there exist a fixed window length `N` and `α>0` such that for all sliding start indices `k`, `Σ_{i=k}^{k+N-1} φᵢφᵢᵀ ⪰ αI` (a **uniform** lower bound) — **not** “a positive-definite lower bound as the window grows” — and is **not** claimed here. For a richer structure the same step can leave `ΦᵀΦ` ill-conditioned — you learn that by **reporting** conditioning and parameter error, not by guaranteeing that a richer input always wins.
 
 ### Fair comparison
 
@@ -297,9 +297,10 @@ regressors and OLS is consistent). An output-error (OE) or instrumental-
 variable (IV) fit would be a different estimator; not implemented here.
 
 The finite-window Gram cond(ΦᵀΦ) is a practical diagnostic of regressor
-richness on this horizon. Strict PE is a stronger statement (a positive-
-definite lower bound on the window Gram as the window grows); the toy
-reports the diagnostic, not a PE certificate.
+richness on this horizon. Strict PE is a stronger statement: there exist a
+fixed window length N and α>0 such that for all sliding start indices k,
+Σ_{i=k}^{k+N-1} φᵢφᵢᵀ ⪰ αI (a uniform lower bound). The toy reports the
+diagnostic, not a PE certificate.
 
 Pointers (no copyrighted book text pasted): Ljung, System Identification, 2ed
 (ISBN 0136566952) via the MIT OCW 6.435 syllabus; De Nicolao 1997 tutorial on
@@ -500,7 +501,8 @@ def main() -> None:
     )
     print(
         "PE diagnostic: finite-window cond(Phi^T Phi); "
-        "strict PE = positive-definite lower bound on the window Gram (not claimed here)"
+        "strict PE = exist fixed N, alpha>0: for all sliding k, "
+        "sum_{i=k..k+N-1} phi_i phi_i^T >= alpha I (uniform; not claimed here)"
     )
     print()
 
@@ -529,7 +531,7 @@ def main() -> None:
     print(f"energy_match_rel={rel:.6f} (tol={ENERGY_TOL})  "
           f"step_err={results_a[0][3]:.6f} prbs_err={results_a[1][3]:.6f} "
           f"(step is capable; numbers decide, PE not guaranteed to win; "
-          f"err includes EE-OLS bias from measurement noise)")
+          f"err is single-run parameter error, may include systematic bias)")
     print()
 
     # ---- Case B: second-order — richer input improves conditioning ----
@@ -557,9 +559,9 @@ def main() -> None:
     print(f"energy_match_rel={rel:.6f} (tol={ENERGY_TOL})  "
           f"cond_step={results_b[0][2]:.4g} cond_two_tone={results_b[1][2]:.4g} "
           f"step_err={results_b[0][3]:.6f} two_tone_err={results_b[1][3]:.6f} "
-          f"(richer input improved conditioning; err includes EE-OLS bias)")
+          f"(richer input improved conditioning; err is single-run parameter error, may include systematic bias)")
     print("ok: fair energy; case_A step-capable; case_B richer input better cond; "
-          "measurement-noise EIV → EE-OLS bias measured (real motor sysid 本页未运行)")
+          "measurement-noise EIV → single-run parameter error may include systematic bias (one seed cannot quantify statistical bias; real motor sysid 本页未运行)")
 
 
 if __name__ == "__main__":
@@ -572,25 +574,25 @@ if __name__ == "__main__":
 seed=51 N=200 dt=0.01 energy_tol=0.01 noise_std=0.02
 noise_model: y=z+v (independent measurement noise on noise-free ARX state z); NOT ARX innovation e_k
 estimator: equation-error OLS (ARX) on noisy y in Phi → EIV / EE-OLS bias; NOT claimed unbiased (OE/IV not implemented)
-PE diagnostic: finite-window cond(Phi^T Phi); strict PE = positive-definite lower bound on the window Gram (not claimed here)
+PE diagnostic: finite-window cond(Phi^T Phi); strict PE = exist fixed N, alpha>0: for all sliding k, sum_{i=k..k+N-1} phi_i phi_i^T >= alpha I (uniform; not claimed here)
 
 case_A first_order_tau=0.08 K=1.0  true_theta=[0.882497, 0.117503]
 input          energy    peak|u|  cond(PhiTPhi)  ||theta_hat-theta||
 step         190.0000     1.0000          164.2             0.034758
 prbs         190.0000     0.9747          4.965             0.002735
-energy_match_rel=0.000000 (tol=0.01)  step_err=0.034758 prbs_err=0.002735 (step is capable; numbers decide, PE not guaranteed to win; err includes EE-OLS bias from measurement noise)
+energy_match_rel=0.000000 (tol=0.01)  step_err=0.034758 prbs_err=0.002735 (step is capable; numbers decide, PE not guaranteed to win; err is single-run parameter error, may include systematic bias)
 
 case_B second_order  true_theta=[1.7, -0.72, 0.05]
 input          energy    peak|u|  cond(PhiTPhi)  ||theta_hat-theta||
 step         190.0000     1.0000      2.148e+04             1.361698
 two_tone     190.0000     1.9092           1108             0.219354
-energy_match_rel=0.000000 (tol=0.01)  cond_step=2.148e+04 cond_two_tone=1108 step_err=1.361698 two_tone_err=0.219354 (richer input improved conditioning; err includes EE-OLS bias)
-ok: fair energy; case_A step-capable; case_B richer input better cond; measurement-noise EIV → EE-OLS bias measured (real motor sysid 本页未运行)
+energy_match_rel=0.000000 (tol=0.01)  cond_step=2.148e+04 cond_two_tone=1108 step_err=1.361698 two_tone_err=0.219354 (richer input improved conditioning; err is single-run parameter error, may include systematic bias)
+ok: fair energy; case_A step-capable; case_B richer input better cond; measurement-noise EIV → single-run parameter error may include systematic bias (one seed cannot quantify statistical bias; real motor sysid 本页未运行)
 ```
 
 </SimOutput>
 
-**Case A** is the first-order `τ = 0.08 s` plant (the same time constant as the joint above). The step's parameter error is **0.0348** — still capable of reading τ, and the error includes the measured EE-OLS bias from `y = z + v`. PRBS has a much smaller `cond(ΦᵀΦ)` (**4.97 vs 164**) and a much smaller error (**0.0027**); the numbers decide, and PE is not guaranteed to win. **Case B** is a second-order ARX. The step's condition number is about **`2.15×10⁴`** with parameter error **1.36** (ill-conditioning amplifies the EIV bias); a two-tone input with the same energy drops cond to about **1108** and error to **0.219**. Richer spectrum improved both columns here — still report both, and do not crown a winner from theory alone. Real motor system identification is not run on this page.
+**Case A** is the first-order `τ = 0.08 s` plant (the same time constant as the joint above). The step's parameter error is **0.0348** — still capable of reading τ; that figure is a **single-run parameter error**, which **may include systematic bias** from `y = z + v` (one seed cannot quantify statistical bias). PRBS has a much smaller `cond(ΦᵀΦ)` (**4.97 vs 164**) and a much smaller error (**0.0027**); the numbers decide, and PE is not guaranteed to win. **Case B** is a second-order ARX. The step's condition number is about **`2.15×10⁴`** with parameter error **1.36** (ill-conditioning amplifies the EIV bias); a two-tone input with the same energy drops cond to about **1108** and error to **0.219**. Richer spectrum improved both columns here — still report both, and do not crown a winner from theory alone. Real motor system identification is not run on this page.
 
 <Quiz id="q6" question="In case_B, what happened to cond(ΦᵀΦ) when the input changed from step to two_tone at matched energy?" options={["It rose by about 20×", "It fell from about 2.15×10⁴ to about 1108", "It stayed exactly the same", "It became zero"]} answer={1} explanation="The printed row is cond_step ≈ 2.148×10⁴ and cond_two_tone ≈ 1108. Richer spectrum improved conditioning; parameter error is a separate column (here it also fell, from ≈1.36 to ≈0.22, because EIV bias is amplified by an ill-conditioned Gram)." />
 
@@ -606,4 +608,4 @@ ok: fair energy; case_A step-capable; case_B richer input better cond; measureme
 - **Declaring "two parameters ⇒ step unidentifiable."** A first-order τ is routinely read from a step. PE is about regressor richness; report `cond(ΦᵀΦ)` and `‖θ̂−θ‖` instead of a blanket ban.
 - **Comparing inputs with unequal energy.** A huge PRBS against a tiny step is not a PE lesson. Match `Σ u²` (or peak `|u|`) within a stated tolerance.
 - **Calling equation-error OLS unbiased on noisy y.** With `y = z + v`, lagged measured y sits in `Φ` → EIV / EE-OLS bias; say so, or switch to OE / IV. Do not confuse this with an ARX innovation model (where OLS is consistent).
-- **Treating finite-window `cond(ΦᵀΦ)` as a strict PE certificate.** The printed condition number is a horizon diagnostic; strict PE needs a positive-definite lower bound on the window Gram as the window grows.
+- **Treating finite-window `cond(ΦᵀΦ)` as a strict PE certificate.** The printed condition number is a horizon diagnostic; strict PE needs a fixed window length `N` and `α>0` such that for all sliding starts `k`, `Σ_{i=k}^{k+N-1} φᵢφᵢᵀ ⪰ αI` (uniform lower bound) — not “positive-definite as the window grows.”
