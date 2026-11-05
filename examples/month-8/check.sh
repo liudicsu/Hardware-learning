@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the Month 8 examples and compare with expected/.
-# 7 lessons complete / 7 课已齐 (8.1–8.7)
+# 8 lessons complete / 8 课已齐 (8.1–8.8 Track B)
 # Usage: examples/month-8/check.sh        UPDATE=1 examples/month-8/check.sh
 set -uo pipefail
 M8="$(cd "$(dirname "$0")" && pwd)"
@@ -25,5 +25,6 @@ check bag_stats.txt "$PY" "$M8/robot-devops/bag_stats.py"
 check compute_budget.txt "$PY" "$M8/vla-finetune/compute_budget.py"
 check servo_bus_sim.txt "$PY" "$M8/ros2-hardware-interface/servo_bus_sim.py"
 check capstone_gate.txt "$PY" "$M8/capstone/capstone_gate.py" --demo
+check suite_score_table.txt "$PY" "$M8/sim-benchmarks/suite_score_table.py"
 
 exit $fail

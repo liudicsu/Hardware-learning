@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the Month 9 examples and compare with expected/.
-# Batch 3: all seven lessons full (9.1–9.7).
+# 9 lessons complete / 9 课已齐 (9.1–9.9 Track B).
 # Usage: examples/month-9/check.sh        UPDATE=1 examples/month-9/check.sh
 set -uo pipefail
 M9="$(cd "$(dirname "$0")" && pwd)"
@@ -26,5 +26,7 @@ check saycan_score_toy.txt "$PY" "$M9/llm-skill-planning/saycan_score_toy.py"
 check recovery_bt_toy.txt "$PY" "$M9/failure-recovery/recovery_bt_toy.py"
 check nav_pick_bt.txt "$PY" "$M9/nav-arm-compose/nav_pick_bt.py"
 check demo_gate.txt "$PY" "$M9/multi-skill-demo/demo_gate.py" --all
+check tag_error_jog.txt "$PY" "$M9/visual-servoing/tag_error_jog.py"
+check latent_predict_toy.txt "$PY" "$M9/world-models-overview/latent_predict_toy.py"
 
 exit $fail

@@ -1119,6 +1119,29 @@ const month8Lessons: Lesson[] = [
       { id: "readme", text: { zh: "对照 portfolio_check 八项列出 README 提纲", en: "Outline the README against portfolio_check's eight parts" } },
     ],
   },
+  {
+    slug: "sim-benchmarks",
+    title: { zh: "仿真基准：LIBERO 套件与 SimplerEnv 相关性", en: "Simulation benchmarks: LIBERO suites and SimplerEnv correlation" },
+    summary: {
+      zh: "基准纪律：套件地图、默认评估协议、如何报告、仿真分≠真机分。LIBERO 5 套件 / 130 任务；默认四标准套件 × 每任务 10 集。CPU 玩具聚合假套件分数与 Wilson；GPU lerobot-eval 本页未运行。不替代 8.7。",
+      en: "Benchmark discipline: suite map, default eval protocol, how to report, sim score ≠ real-robot score. LIBERO 5 suites / 130 tasks; default four standard suites × 10 episodes/task. CPU toy aggregates fake suite scores + Wilson; GPU lerobot-eval 本页未运行. Does not replace 8.7.",
+    },
+    minutes: 180,
+    objectives: [
+      { zh: "能说出 LIBERO 有 5 个套件、共 130 个任务，以及默认四标准套件、每任务 10 集。", en: "State that LIBERO has 5 suites / 130 tasks, and the default of four standard suites at 10 episodes/task." },
+      { zh: "能说明毕业门槛仍是 8.7，LIBERO 只是加分报告。", en: "State that the graduation bar stays 8.7 and LIBERO is bonus reporting only." },
+      { zh: "能读懂 suite_score_table.py：五套件表与 overall / Wilson。", en: "Read suite_score_table.py: five-suite table plus overall / Wilson." },
+      { zh: "能说明 SimplerEnv（arXiv 2405.05941）讨论仿真与真机相关性，本课不重跑其 GPU 实验。", en: "State that SimplerEnv (arXiv 2405.05941) studies sim↔real correlation and that this lesson does not re-run its GPU experiments." },
+    ],
+    prereqs: ["policy-evaluation", "capstone", "vla-finetune"],
+    resources: ["lerobot-libero", "simplerenv-paper", "libero-paper"],
+    tasks: [
+      { id: "run", text: { zh: "运行 suite_score_table.py，核对 n_suites=5 与 expected/suite_score_table.txt", en: "Run suite_score_table.py; confirm n_suites=5 matches expected/suite_score_table.txt" } },
+      { id: "protocol", text: { zh: "用自己的话写出默认评估协议（四套件 × 每任务 10 集）", en: "In your words: the default eval protocol (four suites × 10 episodes/task)" } },
+      { id: "bar", text: { zh: "写一句：为什么 LIBERO 不能代替 8.7 统一门", en: "One sentence: why LIBERO cannot replace the 8.7 shared bar" } },
+      { id: "optional", text: { zh: "（选做，本页未运行）按文档在本机 GPU 试跑 lerobot-eval --env.type=libero", en: "(Optional, not run here) try lerobot-eval --env.type=libero on a local GPU per the docs" } },
+    ],
+  },
 ];
 
 
@@ -1283,6 +1306,52 @@ const month9Lessons: Lesson[] = [
       { id: "scenario", text: { zh: "选定 table / contact / nav 之一并写三句计划", en: "Pick table / contact / nav and write a three-sentence plan" } },
       { id: "reuse", text: { zh: "按 README 勾选第 8 个月安全清单条目", en: "Tick the Month 8 safety-checklist items listed in the README" } },
       { id: "ci", text: { zh: "写清演示门禁将在你自己的仓库跑", en: "State that the demo gate will run in your own repository" } },
+    ],
+  },
+  {
+    slug: "visual-servoing",
+    title: { zh: "视觉伺服：从标记位姿误差到 Servo 式点动", en: "Visual servoing: from tag pose error to Servo-style jog" },
+    summary: {
+      zh: "ArUco/PnP → 基座位姿误差 → Twist 式线/角速度；前置 9.2 与第 5 个月标定。CPU 玩具 tag_error_jog.py：限幅 vx..wz 与死区。奇异/碰撞仍由 Servo 负责。真摄像头 / ROS 本页未运行。",
+      en: "ArUco/PnP → base pose error → Twist-style linear/angular rates; prereqs 9.2 and Month 5 calibration. CPU toy tag_error_jog.py: clamped vx..wz and a deadzone. Singularity/collision stay Servo's job. Real webcam / ROS 本页未运行.",
+    },
+    minutes: 240,
+    objectives: [
+      { zh: "能画出「检测 → PnP → 基座误差 → Twist → Servo」的命令侧链路。", en: "Sketch the command-side chain detect → PnP → base error → Twist → Servo." },
+      { zh: "能说明本课不做奇异/碰撞检查，那些仍属 9.2 Servo。", en: "State that this lesson does not do singularity/collision checks — those stay with 9.2 Servo." },
+      { zh: "能读懂 tag_error_jog.py：限幅表与 in_deadzone。", en: "Read tag_error_jog.py: the clamp table and in_deadzone." },
+      { zh: "能指出 OpenCV 真摄像头路径标「本页未运行」。", en: "Note that the real OpenCV webcam path is marked 本页未运行." },
+    ],
+    prereqs: ["camera-calibration", "moveit-servo", "kinematics-ik", "async-deployment"],
+    resources: ["opencv-aruco", "opencv-solvepnp", "moveit-servo"],
+    tasks: [
+      { id: "run", text: { zh: "运行 tag_error_jog.py，核对 expected/tag_error_jog.txt", en: "Run tag_error_jog.py and match expected/tag_error_jog.txt" } },
+      { id: "chain", text: { zh: "用自己的话写出从标记到 Twist 的四步", en: "In your words: the four steps from tag to Twist" } },
+      { id: "contrast", text: { zh: "写一句：本课限幅与 9.2 奇异降速各管什么", en: "One sentence: what this lesson's clamps vs 9.2 singularity scaling each cover" } },
+      { id: "optional", text: { zh: "（选做，本页未运行）本机 OpenCV + 打印 ArUco，或把 Twist 发给 Servo", en: "(Optional, not run here) local OpenCV + printed ArUco, or publish Twist into Servo" } },
+    ],
+  },
+  {
+    slug: "world-models-overview",
+    title: { zh: "世界模型概览：阅读图与极小潜变量玩具", en: "World models overview: reading map and a tiny latent toy" },
+    summary: {
+      zh: "阅读地图：DreamerV3 / DayDreamer / UniSim（可选 IRIS）。讲清世界模型、想象轨迹、与 model-free 差别。CPU 字典转移滚动 H 步；不训练、不下载权重、不要求 GPU。",
+      en: "Reading map: DreamerV3 / DayDreamer / UniSim (optional IRIS). Define world model, latent imagination, vs model-free. CPU dict-transition rollout for H steps; no training, no weights, no GPU required.",
+    },
+    minutes: 180,
+    objectives: [
+      { zh: "能用一句话区分世界模型与 model-free。", en: "Distinguish a world model from model-free learning in one sentence." },
+      { zh: "能说出 DreamerV3 / DayDreamer / UniSim 各解决哪类问题（摘要级）。", en: "State at abstract level what problem DreamerV3 / DayDreamer / UniSim each address." },
+      { zh: "能读懂 latent_predict_toy.py：固定种子下的潜状态路径与 total_r。", en: "Read latent_predict_toy.py: the latent path and total_r under a fixed seed." },
+      { zh: "能说明本课不训练神经网络、不下载权重。", en: "State that this lesson trains no neural net and downloads no weights." },
+    ],
+    prereqs: ["rl-foundations", "sim-to-real", "vla-models"],
+    resources: ["dreamerv3-paper", "daydreamer-paper", "unisim-paper", "iris-paper"],
+    tasks: [
+      { id: "run", text: { zh: "运行 latent_predict_toy.py，核对 expected/latent_predict_toy.txt", en: "Run latent_predict_toy.py and match expected/latent_predict_toy.txt" } },
+      { id: "map", text: { zh: "按阅读地图为三篇必读各写一行「问题 → 你读到了什么」", en: "For each of the three required papers, one line: question → what you took away" } },
+      { id: "terms", text: { zh: "用自己的话解释世界模型与想象轨迹", en: "In your words: world model and latent imagination" } },
+      { id: "scope", text: { zh: "写一句：本课为什么不做 Dreamer 训练", en: "One sentence: why this lesson does not train Dreamer" } },
     ],
   },
 ];
@@ -1478,7 +1547,8 @@ export const months: Month[] = [
       { zh: "安全：限位、看门狗、急停", en: "Safety: limits, watchdogs, e-stop" },
       { zh: "容器、CI、rosbag2/MCAP、实验追踪", en: "Containers, CI, rosbag2/MCAP, experiment tracking" },
       { zh: "毕业项目三轨道", en: "Capstone tracks" },
-      { zh: "延伸：LIBERO 仿真基准仍为选修。LeKiwi / MoveIt Servo / MTC / 导纳与长时程组合见第 9 个月核心课；micro-ROS + FOC 与真机 F/T 导纳见第 9 个月月页选修。", en: "Further: LIBERO stays elective. LeKiwi / MoveIt Servo / MTC / admittance and long-horizon compose → Month 9 core; micro-ROS + FOC and real F/T admittance → Month 9 month-page electives." },
+      { zh: "仿真基准（8.8 LIBERO / SimplerEnv 阅读与 CPU 分数表）", en: "Sim benchmarks (8.8 LIBERO / SimplerEnv reading + CPU score table)" },
+      { zh: "延伸：HIL-SERL / Isaac Lab / 腿式运动场仍为月页选修。LeKiwi / MoveIt Servo / MTC / 导纳与长时程组合见第 9 个月核心课；micro-ROS + FOC 与真机 F/T 导纳见第 9 个月月页选修。", en: "Further: HIL-SERL / Isaac Lab / legged playground stay month-page electives. LeKiwi / MoveIt Servo / MTC / admittance and long-horizon compose → Month 9 core; micro-ROS + FOC and real F/T admittance → Month 9 month-page electives." },
     ],
     milestones: [
       { zh: "一个按规程录制、可流式加载的数据集", en: "A protocol-recorded dataset that can be streamed" },
@@ -1503,7 +1573,8 @@ export const months: Month[] = [
       { zh: "失败检测与行为树恢复", en: "Failure detection and BT recovery" },
       { zh: "Nav2 + 臂组合", en: "Nav2 + arm compose" },
       { zh: "可选移动底盘", en: "Optional mobile base" },
-      { zh: "延伸：LeKiwi 真机组装；micro-ROS + FOC；外接 F/T 导纳；世界模型阅读（选修，不成正式课）", en: "Further: LeKiwi build; micro-ROS + FOC; external F/T admittance; world-models reading (electives, not formal lessons)" },
+      { zh: "视觉伺服（9.8）与世界模型概览（9.9）", en: "Visual servoing (9.8) and world-models overview (9.9)" },
+      { zh: "延伸：LeKiwi 真机组装；micro-ROS + FOC；外接 F/T 导纳；多视角外参 / 介入日志 / 端侧清单仍为月页选修", en: "Further: LeKiwi build; micro-ROS + FOC; external F/T admittance; multi-view extrinsics / intervention logging / edge-deploy checklist stay month-page electives" },
     ],
     milestones: [
       { zh: "用 MTC 风格的阶段图描述「接近 → 抓 → 抬 → 放」，并在 CPU 玩具上验证阶段依赖与失败边", en: "Describe approach → grasp → lift → place as an MTC-style stage graph, and verify deps and failure edges on a CPU toy" },

@@ -11,5 +11,7 @@ CPU-reproducible scripts for Month 9 (site supplement). Run `./check.sh` from th
 | failure-recovery | `failure-recovery/recovery_bt_toy.py` + `failure_table.md` | **full** | stdlib |
 | nav-arm-compose | `nav-arm-compose/nav_pick_bt.py` | **full** | stdlib |
 | multi-skill-demo | `multi-skill-demo/demo_gate.py` (`--all` for CI) | **full** | stdlib |
+| visual-servoing | `visual-servoing/tag_error_jog.py` | **Track B** | stdlib |
+| world-models-overview | `world-models-overview/latent_predict_toy.py` | **Track B** | stdlib |
 
-All seven lessons full (batch 3). Absolute paths in lessons: `~/Hardware-learning/examples/month-9/...`.
+9 lessons complete / 9 课已齐 (9.1–9.9 Track B). Absolute paths in lessons: `~/Hardware-learning/examples/month-9/...`.

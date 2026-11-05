@@ -1,4 +1,4 @@
-本课是本站补充内容——第 7–8 个月不属于原六个月课程。
+本课是本站补充内容——第 7–9 个月不属于原六个月课程。
 
 只能在一台笔记本上跑通的策略仓不算完成。本课用 <Term id="dev-container">开发容器</Term> 固定 ROS 2 工具链，用 `action-ros-ci` 跑 <Term id="ci">CI</Term>，录包时 Jazzy 默认存储为 <Term id="mcap">MCAP</Term>，并指向 Foxglove / Rerun 回放与 wandb 训练追踪。CI 模板给 **你的** 功能包仓库——不在本站 CI 里跑。当 8.4 的硬件组件包放在**你的**仓库里时，把开发容器和 `action-ros-ci` 工作流放在同一仓库，让每次推送都编译该插件。CPU 玩具读合成 MCAP *时间线*（JSON 时间戳，无 libmcap），好让 `expected/` 可复现。
 

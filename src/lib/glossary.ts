@@ -1963,6 +1963,66 @@ export const glossary: GlossaryEntry[] = [
     lesson: "nav-arm-compose",
     firstExplained: true,
   },
+  {
+    id: "libero",
+    term: { zh: "LIBERO", en: "LIBERO" },
+    def: {
+      zh: "终身机器人学习仿真基准：文档写明 5 个任务套件共 130 个任务；LeRobot 可用 lerobot-eval 评估。",
+      en: "A lifelong robot-learning sim benchmark: docs state 5 task suites / 130 tasks; LeRobot can evaluate with lerobot-eval.",
+    },
+    lesson: "sim-benchmarks",
+    firstExplained: true,
+  },
+  {
+    id: "simplerenv",
+    term: { zh: "SimplerEnv", en: "SimplerEnv" },
+    def: {
+      zh: "研究开源策略仿真评估与真机相关性的环境与论文（arXiv 2405.05941），含 Visual Matching / MMRV 等叙事。",
+      en: "An environment/paper (arXiv 2405.05941) on how sim evals of open-source policies correlate with real robots (Visual Matching / MMRV narratives).",
+    },
+    lesson: "sim-benchmarks",
+    firstExplained: true,
+  },
+  {
+    id: "visual-servoing",
+    term: { zh: "视觉伺服", en: "visual servoing" },
+    def: {
+      zh: "用视觉测得的误差生成运动命令（如 Twist），闭环驱动末端；本站玩具做到命令侧限幅，奇异/碰撞仍交 Servo。",
+      en: "Closing a loop from vision-measured error to motion commands (e.g. Twist); this site's toy covers command-side clamps, leaving singularity/collision to Servo.",
+    },
+    lesson: "visual-servoing",
+    firstExplained: true,
+  },
+  {
+    id: "aruco",
+    term: { zh: "ArUco", en: "ArUco" },
+    def: {
+      zh: "一类可打印的方形 fiducial 标记；检测角点后可用 solvePnP / ArUco 模块估计相对相机的位姿。",
+      en: "A family of printable square fiducial markers; after corner detection, solvePnP / the ArUco module estimates pose relative to the camera.",
+    },
+    lesson: "visual-servoing",
+    firstExplained: true,
+  },
+  {
+    id: "world-model",
+    term: { zh: "世界模型", en: "world model" },
+    def: {
+      zh: "学习环境动态（常在潜空间）以便在想象轨迹上规划或训练策略，而不必每步回放真实像素。",
+      en: "A model of environment dynamics (often in latent space) used to plan or train a policy on imagined trajectories without replaying real pixels every step.",
+    },
+    lesson: "world-models-overview",
+    firstExplained: true,
+  },
+  {
+    id: "latent-imagination",
+    term: { zh: "想象轨迹（latent imagination）", en: "latent imagination" },
+    def: {
+      zh: "在学到的潜动态里滚动动作序列，得到预测轨迹与奖励代理，供 actor-critic 等学习。",
+      en: "Rolling action sequences through learned latent dynamics to get predicted trajectories and proxy rewards for learning (e.g. actor-critic).",
+    },
+    lesson: "world-models-overview",
+    firstExplained: true,
+  },
 
 ]
 

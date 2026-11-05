@@ -1,0 +1,9 @@
+seed=88 suites=5 (fake episode outcomes; not real LIBERO)
+suite               n    k     mean  wilson_lo  wilson_hi
+libero_spatial     40   29   0.7250     0.5717     0.8389
+libero_object      40   23   0.5750     0.4220     0.7149
+libero_goal        30   16   0.5333     0.3614     0.6977
+libero_10          20   14   0.7000     0.4810     0.8545
+libero_90          50   17   0.3400     0.2244     0.4785
+ok: n_suites=5 suite_mean=0.5747 overall=0.5500 (99/180) wilson=[0.4770,0.6209]
+note: graduation bar remains Month 8.7 (safety/CI/20-start Wilson/portfolio 8/8); LIBERO is bonus reporting only

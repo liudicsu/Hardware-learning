@@ -1,6 +1,6 @@
-本课是本站补充内容——第 7–8 个月不属于原六个月课程。
+本课是本站补充内容——第 7–9 个月不属于原六个月课程。
 
-从三条轨道中**选一条**做完，并满足统一门槛：安全清单（8.5）、容器/CI（8.6）、第 6 月评估规程（**20** 个起始、**5** 个未见、Wilson 区间、失败表），以及第 6 月 `portfolio_check.py` 的 **8/8**。仓库里的 `capstone_gate.py` 会在示例项目上检查这些门。LIBERO 只是可选仿真基准——**本页未运行**。
+从三条轨道中**选一条**做完，并满足统一门槛：安全清单（8.5）、容器/CI（8.6）、第 6 月评估规程（**20** 个起始、**5** 个未见、Wilson 区间、失败表），以及第 6 月 `portfolio_check.py` 的 **8/8**。仓库里的 `capstone_gate.py` 会在示例项目上检查这些门。完整的 LIBERO / SimplerEnv 基准纪律见 **8.8** `sim-benchmarks`——本页只留指针。
 
 ## 三条轨道
 
@@ -171,16 +171,16 @@ $ python3 ~/Hardware-learning/examples/month-6/specialisation-portfolio/portfoli
 $ python3 ~/Hardware-learning/examples/month-8/capstone/capstone_gate.py ~/my-capstone
 ```
 
-## 可选：LIBERO / SimplerEnv
+## 仿真基准：见 8.8
 
-LeRobot 的 LIBERO 文档：**5** 个套件、**130** 个任务，Linux + MuJoCo；无头机器设 `MUJOCO_GL=egl`；`lerobot-eval --env.type=libero` 默认在四个标准套件上每任务评 10 集。**本页未运行。** SimplerEnv（arXiv **2405.05941**）研究仿真分数与真机表现的相关性——若只报仿真分，请引用它。二者都不能代替你轨道上 SO-101 的 20 次真实起始。
+套件地图、默认评估协议、SimplerEnv 相关性阅读与 CPU 分数表，见正式课 **8.8** `sim-benchmarks`。本毕业项目仍以统一门槛为准；LIBERO 是加分报告，不能代替 SO-101 的 20 次真实起始。
 
 ## 常见错误
 
 - **只有演示视频，没有 20 起始表。** 审阅者两分钟就会退回。
 - **只在本课程仓库开 CI。** 毕业项目 CI 在*你的*功能包仓库。
 - **因为是桌面臂就跳过安全清单。** 桌面臂也会夹手。
-- **把 LIBERO 当成毕业标准。** 它是可选项；上面的统一门槛才是必须。
+- **把 LIBERO 当成毕业标准。** 完整课在 8.8；上面的统一门槛才是必须。
 
 ## 进阶：第 9 个月
 
@@ -188,6 +188,6 @@ LeRobot 的 LIBERO 文档：**5** 个套件、**130** 个任务，Linux + MuJoCo
 
 <Summary>
 
-毕业项目：选轨道 A/B/C；交付 8.5 安全、8.6 开发容器/CI、第 6 月的 20 起始 / 5 未见 / Wilson / 失败表，以及 portfolio_check 8/8。`capstone_gate.py --demo` 在示例上显示 5/5。LIBERO（130 任务）与 SimplerEnv（arXiv 2405.05941）可选——本页未运行。
+毕业项目：选轨道 A/B/C；交付 8.5 安全、8.6 开发容器/CI、第 6 月的 20 起始 / 5 未见 / Wilson / 失败表，以及 portfolio_check 8/8。`capstone_gate.py --demo` 在示例上显示 5/5。LIBERO / SimplerEnv 完整课见 8.8。
 
 </Summary>

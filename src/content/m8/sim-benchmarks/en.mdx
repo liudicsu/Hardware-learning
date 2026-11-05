@@ -1,0 +1,153 @@
+This lesson is a site supplement — Months 7–9 are not part of the original six-month course.
+
+The graduation bar stays 8.7: safety checklist, container/CI, 20-start Wilson, portfolio 8/8. This lesson is about **benchmark discipline**: suite map, default eval protocol, how to report, and that sim score ≠ real-robot score. <Term id="libero">LIBERO</Term> is **bonus reporting** — it does **not** replace SO-101 real starts.
+
+## Suite map (read the docs; no GPU on this page)
+
+LeRobot's LIBERO docs: **5** task suites, **130** tasks; Linux + MuJoCo; headless hosts set `MUJOCO_GL=egl`; `lerobot-eval --env.type=libero` **defaults** to the **four standard suites** at **10 episodes per task**. How you treat the fifth suite (e.g. LIBERO-90 / Long) belongs in reading notes; the CPU toy aggregates five fake columns.
+
+| Item | Number |
+| --- | --- |
+| Suites | **5** |
+| Tasks total | **130** |
+| Default episodes / task | **10** |
+| Default coverage | four standard suites (docs default) |
+
+<Resource id="lerobot-libero" />
+<Resource id="libero-paper" />
+
+## SimplerEnv: how far to trust a sim score
+
+<Term id="simplerenv">SimplerEnv</Term> (arXiv **2405.05941**) studies real-time sim eval for open-source policies and correlation with real robots (**MMRV**, **Visual Matching** in the paper). This lesson does **not** re-run its GPU experiments — read the abstract and project page, and cite them when you report sim-only numbers.
+
+<Resource id="simplerenv-paper" />
+
+## CPU: five-suite fake score table
+
+`suite_score_table.py` draws fixed-seed (`88`) Bernoulli outcomes for five suites, prints mean success and Wilson 95 % intervals (Month 6 formula intuition — **not** re-derived). **Do not** put real `lerobot-eval` GPU scores into CI.
+
+```bash
+$ cd ~/Hardware-learning/examples/month-8/sim-benchmarks
+$ python3 suite_score_table.py
+```
+
+<CodeSource path="examples/month-8/sim-benchmarks/suite_score_table.py" />
+
+```python
+#!/usr/bin/env python3
+"""suite_score_table.py: aggregate fake LIBERO-style suite scores (stdlib).
+
+Pinned fake episode outcomes (seed=88) for five named suites. Prints per-suite
+mean success, optional Wilson 95 % intervals (Month 6 formula, not re-derived),
+and a grand mean. No lerobot-eval / GPU / MuJoCo.
+usage: python3 suite_score_table.py
+"""
+from __future__ import annotations
+
+import math
+import random
+
+SEED = 88
+Z95 = 1.959964
+# Five suites (docs: 5 suites / 130 tasks total). Toy uses fixed episode counts.
+SUITES = (
+    ("libero_spatial", 40),
+    ("libero_object", 40),
+    ("libero_goal", 30),
+    ("libero_10", 20),
+    ("libero_90", 50),
+)
+# Success rates used to sample fixed-seed Bernoulli outcomes (not real eval).
+P_SUCCESS = {
+    "libero_spatial": 0.70,
+    "libero_object": 0.55,
+    "libero_goal": 0.60,
+    "libero_10": 0.45,
+    "libero_90": 0.35,
+}
+
+
+def wilson(k: int, n: int, z: float = Z95) -> tuple[float, float]:
+    """Wilson score interval (same intuition as Month 6 eval_report)."""
+    if n <= 0:
+        return 0.0, 0.0
+    p = k / n
+    centre = (p + z * z / (2 * n)) / (1 + z * z / n)
+    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / (1 + z * z / n)
+    return centre - half, centre + half
+
+
+def main() -> None:
+    rng = random.Random(SEED)
+    print(f"seed={SEED} suites={len(SUITES)} (fake episode outcomes; not real LIBERO)")
+    print(
+        f"{'suite':<16} {'n':>4} {'k':>4} {'mean':>8} "
+        f"{'wilson_lo':>10} {'wilson_hi':>10}"
+    )
+    total_k = 0
+    total_n = 0
+    means: list[float] = []
+    for name, n in SUITES:
+        p = P_SUCCESS[name]
+        outcomes = [1 if rng.random() < p else 0 for _ in range(n)]
+        k = sum(outcomes)
+        mean = k / n
+        lo, hi = wilson(k, n)
+        means.append(mean)
+        total_k += k
+        total_n += n
+        print(
+            f"{name:<16} {n:4d} {k:4d} {mean:8.4f} "
+            f"{lo:10.4f} {hi:10.4f}"
+        )
+    suite_mean = sum(means) / len(means)
+    overall = total_k / total_n
+    lo_o, hi_o = wilson(total_k, total_n)
+    print(
+        f"ok: n_suites={len(SUITES)} suite_mean={suite_mean:.4f} "
+        f"overall={overall:.4f} ({total_k}/{total_n}) "
+        f"wilson=[{lo_o:.4f},{hi_o:.4f}]"
+    )
+    print(
+        "note: graduation bar remains Month 8.7 (safety/CI/20-start Wilson/"
+        "portfolio 8/8); LIBERO is bonus reporting only"
+    )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+seed=88 suites=5 (fake episode outcomes; not real LIBERO)
+suite               n    k     mean  wilson_lo  wilson_hi
+libero_spatial     40   29   0.7250     0.5717     0.8389
+libero_object      40   23   0.5750     0.4220     0.7149
+libero_goal        30   16   0.5333     0.3614     0.6977
+libero_10          20   14   0.7000     0.4810     0.8545
+libero_90          50   17   0.3400     0.2244     0.4785
+ok: n_suites=5 suite_mean=0.5747 overall=0.5500 (99/180) wilson=[0.4770,0.6209]
+note: graduation bar remains Month 8.7 (safety/CI/20-start Wilson/portfolio 8/8); LIBERO is bonus reporting only
+```
+
+</SimOutput>
+
+When you read the table: `suite_mean` averages the five suite means; `overall` weights by episode count. This toy reports `n_suites=5`, `overall=0.5500` (99/180). The numbers are **fake** — they only practise the report format.
+
+## Optional: local GPU eval (本页未运行)
+
+If you have Linux + a GPU, try `lerobot-eval --env.type=libero` per the LeRobot LIBERO docs. **本页未运行.** Real 20 starts still follow 8.7.
+
+## Common mistakes
+
+- **Using LIBERO to replace the 8.7 shared bar.** The benchmark is bonus, not the graduation criterion.
+- **Reporting one overall success rate with no suite/protocol.** At least name which suites and episodes-per-task.
+- **Treating a sim score as “how good the real robot already is”.** Read SimplerEnv’s correlation narrative first.
+
+<Summary>
+
+Sim benchmarks 8.8: LIBERO 5 suites / 130 tasks; default four standard suites × 10 episodes/task; `MUJOCO_GL=egl`. SimplerEnv (arXiv 2405.05941) on sim↔real correlation. `suite_score_table.py` aggregates five fake suite scores + Wilson under a fixed seed; GPU eval stays out of CI. Does not replace 8.7.
+
+</Summary>

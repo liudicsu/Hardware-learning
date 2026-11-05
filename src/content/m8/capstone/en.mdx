@@ -1,6 +1,6 @@
-This lesson is a site supplement — Months 7–8 are not part of the original six-month course.
+This lesson is a site supplement — Months 7–9 are not part of the original six-month course.
 
-Pick **one** track and finish it to a shared bar: safety checklist (8.5), container/CI (8.6), Month 6 evaluation protocol (**20** starts, **5** held out, Wilson intervals, failure table), and Month 6 `portfolio_check.py` **8/8**. The bundled `capstone_gate.py` checks those gates on a sample project. LIBERO is an optional sim benchmark — **本页未运行**.
+Pick **one** track and finish it to a shared bar: safety checklist (8.5), container/CI (8.6), Month 6 evaluation protocol (**20** starts, **5** held out, Wilson intervals, failure table), and Month 6 `portfolio_check.py` **8/8**. The bundled `capstone_gate.py` checks those gates on a sample project. Full LIBERO / SimplerEnv benchmark discipline lives in **8.8** `sim-benchmarks` — this page only keeps a pointer.
 
 ## Three tracks
 
@@ -171,16 +171,16 @@ $ python3 ~/Hardware-learning/examples/month-6/specialisation-portfolio/portfoli
 $ python3 ~/Hardware-learning/examples/month-8/capstone/capstone_gate.py ~/my-capstone
 ```
 
-## Optional: LIBERO / SimplerEnv
+## Sim benchmarks: see 8.8
 
-LeRobot's LIBERO docs: **5** suites, **130** tasks, Linux + MuJoCo; on headless hosts set `MUJOCO_GL=egl`; `lerobot-eval --env.type=libero` evaluates the four standard suites (default 10 episodes/task). **本页未运行.** SimplerEnv (arXiv **2405.05941**) studies how well sim scores track real-robot behaviour — cite it if you report sim-only numbers. Neither replaces the 20 real starts on your SO-101 track.
+Suite map, default eval protocol, SimplerEnv correlation reading, and the CPU score table live in formal lesson **8.8** `sim-benchmarks`. This capstone still grades against the shared bar; LIBERO is bonus reporting and does not replace 20 real SO-101 starts.
 
 ## Common mistakes
 
 - **Shipping a demo video without the 20-start table.** Reviewers bounce that in two minutes.
 - **Putting CI only on this course repo.** Capstone CI lives in *your* package repo.
 - **Skipping the safety checklist because "it is only a desk arm".** Desk arms still pinch.
-- **Treating LIBERO as the graduation criterion.** It is optional colour; the shared bar above is mandatory.
+- **Treating LIBERO as the graduation criterion.** The full lesson is 8.8; the shared bar above is mandatory.
 
 ## Next: Month 9
 
@@ -188,6 +188,6 @@ Month 9's multi-skill / whole-robot compose demo (`multi-skill-demo`) is a **thi
 
 <Summary>
 
-Capstone: choose track A/B/C; deliver 8.5 safety, 8.6 Dev Container/CI, Month 6's 20 starts / 5 held-out / Wilson / failure table, and portfolio_check 8/8. `capstone_gate.py --demo` shows 5/5 on the sample. LIBERO (130 tasks) and SimplerEnv (arXiv 2405.05941) stay optional — 本页未运行.
+Capstone: choose track A/B/C; deliver 8.5 safety, 8.6 Dev Container/CI, Month 6's 20 starts / 5 held-out / Wilson / failure table, and portfolio_check 8/8. `capstone_gate.py --demo` shows 5/5 on the sample. Full LIBERO / SimplerEnv coverage is in 8.8.
 
 </Summary>

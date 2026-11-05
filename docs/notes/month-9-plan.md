@@ -1,27 +1,25 @@
 # Month 9 plan: Long-horizon tasks, contact control & mobile manipulation
 
-Site supplement beyond @DeRonin_'s 6-month roadmap (Months 7–9 are written here; they are not part of that original course). Proposal: `/workspace/proposals/m9-proposal.md`.
+Site supplement beyond @DeRonin_'s 6-month roadmap (Months 7–9). Proposal archive: `/workspace/proposals/m9-proposal.md`. Track B electives: `/workspace/proposals/promote-electives-proposal.md`.
 
-**Batch 1 (merged):** scaffold all seven lessons + resources/glossary/messages/git-github/capstone pointer; full MDX + examples for **9.1, 9.3, 9.5**; outline shells for **9.2, 9.4, 9.6, 9.7**.
+**Batches 1–3 (merged):** full MDX + examples for **9.1–9.7**. **Track B:** append **9.8 `visual-servoing`** then **9.9 `world-models-overview`** (end of array only).
 
-**Batch 2 (merged):** full MDX + examples for **9.2 moveit-servo**, **9.4 llm-skill-planning** (CI/expected = fake LLM only; optional student API marked 本页未运行).
+**Electives** (month-page further-reading only, not formal lessons): `lekiwi-build`, `micro-ros-foc`, `ft-sensor-admittance`, `multi-view-extrinsics`, `intervention-logging`, `edge-deploy-checklist`. (`world-models-overview` promoted to 9.9.)
 
-**Batch 3 (this PR):** full MDX + examples for **9.6 nav-arm-compose**, **9.7 multi-skill-demo** (thin advanced demo — does **not** replace 8.7 capstone). **All seven Month 9 lessons are now full.**
+Constraints: private env; runnable toys prefer stdlib CPU with fixed seeds. ROS 2 / MoveIt demos / real SO-101 Present Load logging / paid LLM APIs / real LeKiwi / OpenCV webcam / world-model training marked「本页未运行」.
 
-**Electives** (month-page further-reading only, not formal lessons, not in the 1500 min): `lekiwi-build`, `micro-ros-foc`, `ft-sensor-admittance`, `world-models-overview`. LeKiwi real build stays elective / out of scope for 9.6 required work. Admittance lesson names no F/T brand or price.
+| # | slug | minutes | status | runnable | verified against |
+|---|------|---------|--------|----------|------------------|
+| 1 | `mtc-long-horizon` | 240 | full | `stage_graph_toy.py` | MoveIt Task Constructor |
+| 2 | `moveit-servo` | 180 | full | `servo_loop_sim.py` | MoveIt realtime_servo_tutorial |
+| 3 | `effort-admittance` | 240 | full | `load_contact_sim.py`, `admittance_1d.py` | Feetech STS3215 + ros2 admittance |
+| 4 | `llm-skill-planning` | 240 | full | `saycan_score_toy.py` (fake LLM) | SayCan arXiv 2204.01691 |
+| 5 | `failure-recovery` | 180 | full | `recovery_bt_toy.py` | Inner Monologue + BT.CPP |
+| 6 | `nav-arm-compose` | 240 | full | `nav_pick_bt.py` | LeKiwi docs (elective hardware) |
+| 7 | `multi-skill-demo` | 180 | full | `demo_gate.py --all` | Thin demo; does not replace 8.7 |
+| **8** | **`visual-servoing`** | **240** | **Track B** | **`tag_error_jog.py`** | OpenCV ArUco/PnP docs; Servo command side |
+| **9** | **`world-models-overview`** | **180** | **Track B** | **`latent_predict_toy.py`** | DreamerV3 / DayDreamer / UniSim (+ optional IRIS) reading |
 
-Constraints: private env; runnable toys prefer stdlib CPU with fixed seeds. ROS 2 / MoveIt demos / real SO-101 Present Load logging / paid LLM APIs / real LeKiwi marked「本页未运行」. Hard facts from primary sources (2026-11-04 UTC+8): MoveIt MTC & Servo tutorials; control.ros.org Jazzy admittance_controller; Feetech STS3215 Present Load addr 60 / Current addr 69; SayCan arXiv 2204.01691; Inner Monologue arXiv 2207.05608; BehaviorTree.CPP; LeRobot LeKiwi docs (ports 5555/5556; motors 7/8/9; teleop 0.4/0.25/0.1 m/s).
+Widgets deferred. No prices anywhere.
 
-| # | slug | minutes | this batch | runnable | verified against |
-|---|------|---------|------------|----------|------------------|
-| 1 | `mtc-long-horizon` | 240 | **full** (batch 1) | `stage_graph_toy.py` (stdlib) | MoveIt Task Constructor pick-and-place tutorial (generator/propagator/connector; serial/parallel/wrapper) |
-| 2 | `moveit-servo` | 180 | **full** (batch 2) | `servo_loop_sim.py` (stdlib) | MoveIt realtime_servo_tutorial (JointJog/Twist/Pose; check_collisions; use_smoothing; SCHED_FIFO 40; Butterworth/AccelerationLimited/Ruckig) |
-| 3 | `effort-admittance` | 240 | **full** (batch 1) | `load_contact_sim.py`, `admittance_1d.py` (stdlib) | Feetech STS3215 register ref + product page; ros2_controllers admittance userdoc `F = M a + D v + S (x−x_d)`; ζ = D/(2√(MS)); no F/T brand/price |
-| 4 | `llm-skill-planning` | 240 | **full** (batch 2) | `saycan_score_toy.py` (stdlib; fake LLM only) | SayCan arXiv 2204.01691; say-can.github.io |
-| 5 | `failure-recovery` | 180 | **full** (batch 1) | `recovery_bt_toy.py` + `failure_table.md` (stdlib) | Inner Monologue arXiv 2207.05608; BehaviorTree.CPP; contrast M4 Nav2 + M8 watchdog |
-| 6 | `nav-arm-compose` | 240 | **full** (batch 3) | `nav_pick_bt.py` (stdlib) | LeRobot LeKiwi docs (elective hardware; ports 5555/5556; motors 7/8/9; speeds 0.4/0.25/0.1); Nav2 compose contract |
-| 7 | `multi-skill-demo` | 180 | **full** (batch 3) | `demo_gate.py --all` (stdlib) | Thin demo gate 3/3; does not replace 8.7 |
-
-Widgets (`StageGraphWidget` / `Admittance1DWidget` / `SayCanScoreWidget`) deferred — lessons use `SimOutput` from scripts. No prices anywhere.
-
-Verification: `examples/month-9/check.sh` (hooked into `tools/sim/reproduce.sh`), check_quotes, check_diagrams, check_widgets, lint, check_wokwi, tsc, CI build.
+Verification: `examples/month-9/check.sh`, check_quotes, check_diagrams, check_widgets, lint, check_wokwi, tsc, CI build.

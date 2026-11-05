@@ -2806,7 +2806,7 @@ const lessonRef = (n, slug, lang) => {
   ok(/--demo/.test(gatePy), "m8 gate.py: supports --demo");
 
   // all seven lessons full: CodeSource + SimOutput + site supplement
-  for (const slug of ["dataset-engineering", "vla-finetune", "async-deployment", "ros2-hardware-interface", "safety-reliability", "robot-devops", "capstone"]) {
+  for (const slug of ["dataset-engineering", "vla-finetune", "async-deployment", "ros2-hardware-interface", "safety-reliability", "robot-devops", "capstone", "sim-benchmarks"]) {
     for (const lang of ["en", "zh"]) {
       const text = rd8(`src/content/m8/${slug}/${lang}.mdx`);
       ok(!/Outline \(full text in a later batch\)/.test(text) && !/大纲（正文在后续批次）/.test(text),
@@ -2878,9 +2878,16 @@ const lessonRef = (n, slug, lang) => {
         "5 of 5",
         "8/8",
         "20 starts",
+        "8.8",
+        "sim-benchmarks",
+        "Track A",
+      ],
+      "sim-benchmarks": [
         "130",
         "2405.05941",
-        "Track A",
+        "suite_score_table.py",
+        "8.7",
+        "本页未运行",
       ],
     },
     zh: {
@@ -2943,9 +2950,16 @@ const lessonRef = (n, slug, lang) => {
         "5/5",
         "8/8",
         "20",
+        "8.8",
+        "sim-benchmarks",
+        "轨道 A",
+      ],
+      "sim-benchmarks": [
         "130",
         "2405.05941",
-        "轨道 A",
+        "suite_score_table.py",
+        "8.7",
+        "本页未运行",
       ],
     },
   };
@@ -2968,7 +2982,7 @@ const lessonRef = (n, slug, lang) => {
   ok(/isaac-groot/.test(cur) && /compute_budget\.py/.test(cur) && /servo_bus_sim\.py/.test(cur) && /capstone_gate\.py/.test(cur),
     "m8 curriculum: isaac-groot + compute_budget/servo_bus/capstone_gate named");
 
-  for (const slug of ["dataset-engineering", "vla-finetune", "async-deployment", "ros2-hardware-interface", "safety-reliability", "robot-devops", "capstone"]) {
+  for (const slug of ["dataset-engineering", "vla-finetune", "async-deployment", "ros2-hardware-interface", "safety-reliability", "robot-devops", "capstone", "sim-benchmarks"]) {
     ok(new RegExp(`slug: "${slug}"`).test(cur), `m8 curriculum has ${slug}`);
   }
   ok(/minutes: 180/.test(cur) && /minutes: 240/.test(cur) && /minutes: 300/.test(cur),
@@ -3285,17 +3299,19 @@ const lessonRef = (n, slug, lang) => {
     const navBlock = (cur9.match(/slug: "nav-arm-compose"[\s\S]*?slug: "multi-skill-demo"/) || [""])[0];
     ok(navBlock.length > 0 && !/后续交付/.test(navBlock) && !/follow-on delivery/.test(navBlock),
       "m9 curriculum: nav-arm-compose no later-batch deferral");
-    const demoBlock = (cur9.match(/slug: "multi-skill-demo"[\s\S]*?\];/) || [""])[0];
+    const demoBlock = (cur9.match(/slug: "multi-skill-demo"[\s\S]*?slug: "visual-servoing"/) || cur9.match(/slug: "multi-skill-demo"[\s\S]*?\];/) || [""])[0];
     ok(demoBlock.length > 0 && !/后续交付/.test(demoBlock) && !/follow-on delivery/.test(demoBlock),
       "m9 curriculum: multi-skill-demo no later-batch deferral");
   }
-  for (const slug of ["mtc-long-horizon", "moveit-servo", "effort-admittance", "llm-skill-planning", "failure-recovery", "nav-arm-compose", "multi-skill-demo"]) {
+  for (const slug of ["mtc-long-horizon", "moveit-servo", "effort-admittance", "llm-skill-planning", "failure-recovery", "nav-arm-compose", "multi-skill-demo", "visual-servoing", "world-models-overview"]) {
     ok(new RegExp(`slug: "${slug}"`).test(cur9), `m9 curriculum has ${slug}`);
   }
   ok(/month-9\/check\.sh/.test(rd9("tools/sim/reproduce.sh")), "m9 hooked in reproduce.sh");
   ok(/nav_pick_bt\.txt/.test(rd9("examples/month-9/check.sh")) && /demo_gate\.txt/.test(rd9("examples/month-9/check.sh")),
     "m9 check.sh: nav_pick_bt + demo_gate");
-  ok(/7\/7|all seven|Batch 3: all seven/.test(rd9("examples/month-9/check.sh")) || /all seven lessons full/.test(rd9("examples/month-9/check.sh")),
+  ok(/tag_error_jog\.txt/.test(rd9("examples/month-9/check.sh")) && /latent_predict_toy\.txt/.test(rd9("examples/month-9/check.sh")),
+    "m9 check.sh: tag_error_jog + latent_predict_toy");
+  ok(/7\/7|all seven|Batch 3: all seven|9\/9|9 课已齐|Track B/.test(rd9("examples/month-9/check.sh")) || /all seven lessons full/.test(rd9("examples/month-9/check.sh")),
     "m9 check.sh header: 7/7 full");
   ok(/moveit-mtc/.test(rd9("src/lib/resources.ts")) && /extra:\s*true/.test(rd9("src/lib/resources.ts")),
     "m9 resources: moveit-mtc present (extra resources exist)");
