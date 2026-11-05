@@ -1426,6 +1426,51 @@ const month10Lessons: Lesson[] = [
       { id: "checklist", text: { zh: "逐条读端侧清单，标出你的设备已满足 / 未知的项", en: "Go through the edge checklist and mark which items your device meets or you do not know yet" } },
       { id: "optional", text: { zh: "（选做，本页未运行）用 ONNX Runtime 对导出的模型做动态量化并对比延迟", en: "(Optional, not run here) dynamically quantise an exported model with ONNX Runtime and compare latency" } },
     ],
+  },  {
+    slug: "multi-view-extrinsics",
+    title: { zh: "多相机外参与机器人–世界手眼标定", en: "Multi-camera extrinsics and robot–world hand–eye" },
+    summary: {
+      zh: "两台静态相机 + 一块共享标定板：区分 7.6 的手眼 AX = XB 与 OpenCV 的机器人–世界手眼 AX = ZB，用多视角平均估计 cam1 → cam2，再用外参链闭合误差（deg / mm）抓出被碰歪 2° 的相机。标准库玩具；第二台相机为选做，真机步骤本页未运行。",
+      en: "Two static cameras and one shared board: tell 7.6's hand–eye AX = XB from OpenCV's robot–world hand–eye AX = ZB, estimate cam1 → cam2 by averaging many views, and use the chain-closure error (deg / mm) to catch a camera knocked by 2°. Standard-library toy; a second camera is optional and the hardware steps are not run here.",
+    },
+    minutes: 240,
+    objectives: [
+      { zh: "能写出 calibrateRobotWorldHandEye 的 A、B、X、Z 各是哪两个坐标系之间的变换，并说明静态相机时角色如何互换。", en: "Name the frames behind A, B, X and Z in calibrateRobotWorldHandEye, and say how the roles swap for a static camera." },
+      { zh: "能用多个共享标定板视角估计 cam1 → cam2，并说明为什么不能只信一个视角。", en: "Estimate cam1 → cam2 from several shared board views, and say why one view is not enough." },
+      { zh: "能计算 T_base_cam1 · T_cam1_cam2 与 T_base_cam2 的闭合误差，并设定报警阈值。", en: "Compute the closure error between T_base_cam1 · T_cam1_cam2 and T_base_cam2, and set an alarm threshold." },
+      { zh: "能列出固定相机的实践清单：锁对焦、按序列号绑定设备名、定期复查。", en: "List the fixed-camera checklist: lock focus, bind device names by serial number, recheck periodically." },
+    ],
+    prereqs: ["perception-to-grasp", "camera-calibration", "urdf-tf"],
+    resources: ["opencv-robot-world-handeye", "opencv-calibration", "opencv-aruco", "opencv-solvepnp", "ros-camera-calibration"],
+    tasks: [
+      { id: "run", text: { zh: "运行 extrinsics_chain_toy.py，核对 expected/extrinsics_chain_toy.txt", en: "Run extrinsics_chain_toy.py and match expected/extrinsics_chain_toy.txt" } },
+      { id: "views", text: { zh: "把 N_VIEWS 改成 3 和 20，记录 cam1 → cam2 的误差如何变化", en: "Set N_VIEWS to 3 and to 20 and note how the cam1 → cam2 error changes" } },
+      { id: "threshold", text: { zh: "把 BUMP_DEG 改小，找出 1.0 deg 阈值能抓到的最小碰歪量", en: "Lower BUMP_DEG and find the smallest bump the 1.0 deg threshold still catches" } },
+      { id: "optional", text: { zh: "（选做，本页未运行）用第二台相机和 ChArUco 板做一次真实的机器人–世界手眼与闭合检查", en: "(Optional, not run here) run a real robot–world hand–eye and closure check with a second camera and a ChArUco board" } },
+    ],
+  },
+  {
+    slug: "intervention-logging",
+    title: { zh: "介入日志与 DAgger 式纠正数据", en: "Intervention logging and DAgger-style corrections" },
+    summary: {
+      zh: "从 DAgger 到 HG-DAgger 再到 RaC 的恢复 + 纠正：读 LeRobot lerobot-rollout --strategy.type=dagger 记录的 intervention 列，算介入率与片段长度，区分恢复与纠正，并说明合并前为什么要 remove_feature。标准库玩具；SO-101 主从臂真实采集本页未运行。",
+      en: "From DAgger to HG-DAgger to RaC's recovery + correction: read the intervention column that LeRobot's lerobot-rollout --strategy.type=dagger records, compute the intervention rate and segment lengths, separate recovery from correction, and see why remove_feature comes before merge. Standard-library toy; real collection with the SO-101 pair is not run here.",
+    },
+    minutes: 180,
+    objectives: [
+      { zh: "能说明 DAgger、HG-DAgger、RaC 在「谁决定接管」和「标注什么」上的区别。", en: "Explain how DAgger, HG-DAgger and RaC differ in who decides to take over and what gets labelled." },
+      { zh: "能从带 intervention 列的日志算出介入率、片段数和平均片段长度。", en: "Compute the intervention rate, segment count and mean segment length from a log with an intervention column." },
+      { zh: "能区分仅纠正模式与 record_autonomous=true，并说明介入率需要哪一种。", en: "Tell corrections-only mode from record_autonomous=true, and say which one the intervention rate needs." },
+      { zh: "能写出合并示范与 HIL 数据前的 remove_feature 步骤，并保留带标记的原件。", en: "Write the remove_feature step before merging demos with HIL data, and keep the tagged original." },
+    ],
+    prereqs: ["behaviour-cloning", "dataset-engineering", "real-time-chunking"],
+    resources: ["lerobot-hil-data-collection", "lerobot-v060-blog", "dagger-paper", "hg-dagger-paper", "rac-paper", "lerobot-dataset-v3"],
+    tasks: [
+      { id: "run", text: { zh: "运行 intervention_log_toy.py，核对 expected/intervention_log_toy.txt", en: "Run intervention_log_toy.py and match expected/intervention_log_toy.txt" } },
+      { id: "late", text: { zh: "把 TAKE_OVER 调高到 0.8，观察恢复占比和介入率如何变化", en: "Raise TAKE_OVER to 0.8 and watch how the recovery share and intervention rate change" } },
+      { id: "metric", text: { zh: "为你的策略写一行介入率报告格式（每回合 + 总体）", en: "Write a one-line intervention-rate report format for your policy (per episode and overall)" } },
+      { id: "optional", text: { zh: "（选做，本页未运行，以当期文档为准）用 SO-101 主从臂跑一次 lerobot-rollout --strategy.type=dagger 并合并数据", en: "(Optional, not run here; follow the current docs) run lerobot-rollout --strategy.type=dagger with the SO-101 pair and merge the data" } },
+    ],
   },
 ];
 
@@ -1647,7 +1692,7 @@ export const months: Month[] = [
       { zh: "Nav2 + 臂组合", en: "Nav2 + arm compose" },
       { zh: "可选移动底盘", en: "Optional mobile base" },
       { zh: "视觉伺服（9.8）与世界模型概览（9.9）", en: "Visual servoing (9.8) and world-models overview (9.9)" },
-      { zh: "延伸：LeKiwi 真机组装；micro-ROS + FOC；外接 F/T 导纳；多视角外参 / 介入日志 / 端侧清单仍为月页选修", en: "Further: LeKiwi build; micro-ROS + FOC; external F/T admittance; multi-view extrinsics / intervention logging / edge-deploy checklist stay month-page electives" },
+      { zh: "延伸：LeKiwi 真机组装；micro-ROS + FOC；外接 F/T 导纳；多视角外参、介入日志、端侧清单见第 10 个月（10.3–10.5）", en: "Further: LeKiwi build; micro-ROS + FOC; external F/T admittance; multi-view extrinsics, intervention logging and the edge-deploy checklist are in Month 10 (10.3–10.5)" },
     ],
     milestones: [
       { zh: "用 MTC 风格的阶段图描述「接近 → 抓 → 抬 → 放」，并在 CPU 玩具上验证阶段依赖与失败边", en: "Describe approach → grasp → lift → place as an MTC-style stage graph, and verify deps and failure edges on a CPU toy" },

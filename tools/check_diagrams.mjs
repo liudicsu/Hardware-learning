@@ -3367,7 +3367,10 @@ const lessonRef = (n, slug, lang) => {
   const rtc = rd10("examples/month-10/expected/rtc_blend_toy.txt");
   const q8 = rd10("examples/month-10/expected/int8_quant_toy.txt");
   const lat = rd10("examples/month-10/expected/latency_budget.txt");
-  const slugs10 = ["flow-matching-policies", "real-time-chunking", "edge-deploy-checklist"];
+  const ext = rd10("examples/month-10/expected/extrinsics_chain_toy.txt");
+  const ilog = rd10("examples/month-10/expected/intervention_log_toy.txt");
+  const slugs10 = ["flow-matching-policies", "real-time-chunking", "edge-deploy-checklist", "multi-view-extrinsics",
+    "intervention-logging"];
   const md10 = {};
   for (const slug of slugs10) {
     for (const lang of ["en", "zh"]) {
@@ -3422,11 +3425,42 @@ const lessonRef = (n, slug, lang) => {
       grab(lat, /pi0\.5\+RTC LAN\s+([0-9.]+)/, "lat RTC LAN ms"),
       grab(lat, /pi0\.5\+RTC \+100ms\s+([0-9.]+)/, "lat RTC +100ms ms"),
     ],
+    "multi-view-extrinsics": [
+      grab(ext, /(SHAH=0)/, "ext SHAH=0"), grab(ext, /(LI=1)/, "ext LI=1"),
+      grab(ext, /alarm if > ([0-9.]+ deg)/, "ext alarm deg"), grab(ext, /or > ([0-9]+ mm)/, "ext alarm mm"),
+      grab(ext, /mean of 8: ([0-9.]+) deg/, "ext mean-of-8 deg"),
+      grab(ext, /worst view ([0-9.]+) deg/, "ext worst view deg"),
+      grab(ext, /^as-built\s+([0-9.]+)/m, "ext as-built deg"), grab(ext, /^as-built\s+[0-9.]+\s+([0-9.]+)/m, "ext as-built mm"),
+      grab(ext, /^bump 2deg\s+([0-9.]+)/m, "ext bump deg"),
+      grab(ext, /^bump 2deg\s+[0-9.]+\s+[0-9.]+\s+([0-9.]+)/m, "ext bump shift mm"),
+    ],
+    "intervention-logging": [
+      grab(ilog, /^all\s+[0-9]+\s+[0-9]+\s+([0-9.]+)%/m, "ilog rate"),
+      grab(ilog, /^segments: ([0-9]+)/m, "ilog segments"),
+      grab(ilog, /mean length ([0-9.]+) frames/, "ilog mean seg frames"),
+      grab(ilog, /= ([0-9.]+ s)/, "ilog mean seg s"),
+      grab(ilog, /recovery share of intervention frames: ([0-9.]+)%/, "ilog recovery share"),
+      grab(ilog, /keeps ([0-9]+) of 1440/, "ilog rule2 keep"),
+      grab(ilog, /(only in hil: \['intervention'\])/, "ilog schema error"),
+      grab(ilog, /(Space) pause/, "ilog key Space"), grab(ilog, /(Tab) start\/stop/, "ilog key Tab"),
+    ],
   };
   ok(/near_mean/.test(fm) && /1\s+0\.000\s+1\.000/.test(fm), "m10 fm: 1 step collapses to mean (near_mean 1.000)");
   ok(/tail=fresh/.test(rtc) && !/False/.test(rtc), "m10 rtc: tail stays fresh");
   ok(/<=scale\/2/.test(q8) && !/False/.test(q8), "m10 q8: error <= scale/2 everywhere");
   ok(/d <= 25/.test(lat) && !/False/.test(lat), "m10 lat: every scenario fits d <= H - s");
+  ok(/max \|AX-ZB\| < 1e-12: True[\s\S]*max \|AX-ZB\| < 1e-12: True/.test(ext) && !/False/.test(ext),
+    "m10 ext: AX=ZB holds for both camera roles");
+  ok(/^as-built.*\bok$/m.test(ext) && /^bump 2deg.*ALARM$/m.test(ext), "m10 ext: as-built ok, 2deg bump alarms");
+  ok(/merge demos \+ hil: ERROR/.test(ilog) && /merge ok/.test(ilog), "m10 ilog: merge refuses, then passes after remove_feature");
+  for (const lang of ["en", "zh"]) {
+    const x = md10[`intervention-logging/${lang}`];
+    ok(/remove_feature/.test(x) && /record_autonomous/.test(x), `m10 ilog ${lang}: remove_feature + record_autonomous`);
+    ok(lang === "en" ? /not LeRobot's/.test(x) : /不是 LeRobot/.test(x), `m10 ilog ${lang}: toy error text labelled`);
+    const y = md10[`multi-view-extrinsics/${lang}`];
+    ok(/calibrateRobotWorldHandEye/.test(y) && /calibrateHandEye/.test(y) && /visual-servoing/.test(y),
+      `m10 ext ${lang}: robot-world vs 7.6 hand-eye, 9.8 pointer`);
+  }
   ok(/108\.8\s+5\s+6/.test(lat) && /208\.8\s+10\s+11/.test(lat), "m10 lat: ceil matches RTC paper d 6 / 11");
   let phraseHits10 = 0;
   for (const [slug, vals] of Object.entries(phrases10)) {
@@ -3444,24 +3478,27 @@ const lessonRef = (n, slug, lang) => {
   for (const slug of slugs10) ok(new RegExp(`slug: "${slug}"`).test(cur10), `m10 curriculum has ${slug}`);
   ok(/month-10\/check\.sh/.test(rd10("tools/sim/reproduce.sh")), "m10 hooked in reproduce.sh");
   const chk10 = rd10("examples/month-10/check.sh");
-  for (const f of ["flow_match_toy", "rtc_blend_toy", "int8_quant_toy", "latency_budget"]) {
+  for (const f of ["flow_match_toy", "rtc_blend_toy", "int8_quant_toy", "latency_budget", "extrinsics_chain_toy",
+    "intervention_log_toy"]) {
     ok(new RegExp(`${f}\\.txt`).test(chk10), `m10 check.sh: ${f}`);
   }
-  ok(/3 of 7/.test(chk10), "m10 check.sh header: 3 of 7");
+  ok(/5 of 7/.test(chk10), "m10 check.sh header: 5 of 7");
   const res10 = rd10("src/lib/resources.ts");
   for (const id of ["flow-matching-paper", "pi0-paper", "rectified-flow-paper", "consistency-policy-paper", "rtc-paper",
     "lerobot-action-representations", "lerobot-rtc", "lerobot-remote-inference", "lerobot-hardware-guide",
-    "lerobot-torch-accelerators", "onnxruntime-quantization"]) {
+    "lerobot-torch-accelerators", "onnxruntime-quantization", "opencv-robot-world-handeye", "lerobot-hil-data-collection",
+    "hg-dagger-paper", "rac-paper", "lerobot-v060-blog"]) {
     const block = (res10.match(new RegExp(`"${id}": \\{[\\s\\S]*?\\n  \\}`)) || [""])[0];
     ok(block.length > 0 && /extra:\s*true/.test(block), `m10 resource ${id}: present + extra`);
     ok(!/\$\d/.test(block), `m10 resource ${id}: no price`);
   }
   const glo10 = rd10("src/lib/glossary.ts");
-  for (const t of ["flow-matching", "velocity-field", "real-time-chunking", "soft-mask", "quantization", "latency-budget"]) {
+  for (const t of ["flow-matching", "velocity-field", "real-time-chunking", "soft-mask", "quantization", "latency-budget",
+    "robot-world-hand-eye", "extrinsics-chain", "intervention-rate", "recovery-correction"]) {
     ok(new RegExp(`"${t}"`).test(glo10), `m10 glossary: ${t}`);
   }
 
-  console.log(`calc  m10 gaps: fm 1-step mean/10-step mode; rtc blend < naive/2 d=0,2,4 (linear stand-in); int8 per-channel vs outlier; latency ceil d 6/11; phrases ${phraseHits10}; PR1 10.1–10.3`);
+  console.log(`calc  m10 gaps: fm 1-step mean/10-step mode; rtc blend < naive/2 d=0,2,4 (linear stand-in); int8 per-channel vs outlier; latency ceil d 6/11; ext as-built ok / 2deg bump alarm; ilog merge needs remove_feature; phrases ${phraseHits10}; PR1–PR2 10.1–10.5`);
 }
 
 
