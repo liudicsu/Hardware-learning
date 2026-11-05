@@ -2958,8 +2958,8 @@ export const resources: Record<string, Resource> = {
     kind: "textbook",
     cost: { zh: "免费", en: "Free" },
     summary: {
-      zh: "跨本体外观增强：原 OXE top-4 >85 %；增强后约 4.4M；未见臂–夹爪约提升 24–45 %。arXiv 2512.13100。本站 11.5；以论文为准。",
-      en: "Cross-embodiment appearance augmentation: original OXE top-4 >85 %; ~4.4M after aug; ~24–45 % lift on unseen arm–gripper combos. arXiv 2512.13100. For 11.5; take the paper as source of truth.",
+      zh: "跨本体外观增强：原 OXE top-4 >85 %；增强后约 4.4M；未见臂–夹爪报告约提升 24–45 %（分母不确定）；§4.2 四阶段与 A.5 部分分数均值/标准误，不是二值成功率。arXiv 2512.13100。本站 11.5；以论文为准。",
+      en: "Cross-embodiment appearance augmentation: original OXE top-4 >85 %; ~4.4M after aug; ~24–45 % reported lift on unseen arm–gripper combos (denominator uncertain); §4.2 stages and A.5 partial-score mean/SE, not binary success. arXiv 2512.13100. For 11.5; take the paper as source of truth.",
     },
     license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
     extra: true,

@@ -1576,11 +1576,12 @@ const month11Lessons: Lesson[] = [
     slug: "tactile-sensing",
     title: { zh: "触觉传感：GelSight / DIGIT 光学与 AnySkin 磁传感", en: "Tactile sensing: GelSight / DIGIT optics and AnySkin magnetics" },
     summary: {
-      zh: "接 3.6 鳍条几何：比较光学（弹性体+相机）与磁（磁粉+磁力计）触觉；读 AnySkin 可替换性数字；用标记网格变形玩具估计接触。标准库玩具；真机采集本页未运行。不强制购买 DIGIT / GelSight Mini。",
-      en: "Builds on 3.6 Fin Ray geometry: compare optical (elastomer + camera) and magnetic (powder + magnetometer) tactile sensing; read AnySkin replaceability numbers; estimate contact from a marker-grid deformation toy. Standard-library toy; real capture is not run here. Buying a DIGIT / GelSight Mini is not required.",
+      zh: "接 3.6 鳍条几何：比较光学（弹性体+相机）与磁（磁粉+磁力计）触觉；读 AnySkin 可替换性数字；用标记网格变形估计接触，再以共享噪声练习轴序/符号、静态去偏、换皮重标定与低载荷首次接触门禁（无量纲代理值，不是实测牛顿）。标准库玩具；真机采集本页未运行。不强制购买 DIGIT / GelSight Mini。",
+      en: "Builds on 3.6 Fin Ray geometry: compare optical (elastomer + camera) and magnetic (powder + magnetometer) tactile sensing; read AnySkin replaceability numbers; estimate contact from marker deformation, then practise axes/signs, rest debias, skin-swap recalibration and a low-load first-contact gate under shared noise (dimensionless proxy, not measured Newtons). Standard-library toy; real capture is not run here. Buying a DIGIT / GelSight Mini is not required.",
     },
-    minutes: 240,
+    minutes: 420,
     objectives: [
+      { zh: "能用共享噪声比较去偏、纠轴符号和重标定的定位误差及接触前误报，区分磁场读数与实测力。", en: "Compare localisation error and precontact false positives under shared-noise debias, axis/sign correction and recalibration; distinguish field readings from measured force." },
       { zh: "能对比光学与磁触觉的物理量、形态约束与更换成本。", en: "Contrast optical and magnetic tactile sensing on physical quantity, form-factor limits and replace cost." },
       { zh: "能引用 AnySkin 的替换时间、滑觉准确率与插接成功率（以论文为准）。", en: "Cite AnySkin replace time, slip accuracy and plug-insertion success (paper as source of truth)." },
       { zh: "能在玩具上用位移加权质心估计接触并报告误差。", en: "Estimate contact on the toy with a displacement-weighted centroid and report the error." },
@@ -1589,8 +1590,9 @@ const month11Lessons: Lesson[] = [
     prereqs: ["gripper-fingers", "sensors-fusion", "camera-calibration"],
     resources: ["anyskin-paper", "anyskin-site", "digit-design", "digit-interface", "gelsight-sensors-paper", "3dcal-paper"],
     tasks: [
+      { id: "calibrate", text: { zh: "运行 tactile_debias_recal_toy.py；解释为何仅去偏不一定改善定位，0.06/0.15 不是牛顿安全限值；比较换皮增益与首次接触门禁", en: "Run tactile_debias_recal_toy.py; explain why debias alone need not improve localisation and why 0.06/0.15 are not Newton safety limits; compare swap gains and the first-contact gate" } },
       { id: "run", text: { zh: "运行 tactile_marker_toy.py，核对 expected/tactile_marker_toy.txt", en: "Run tactile_marker_toy.py and match expected/tactile_marker_toy.txt" } },
-      { id: "force", text: { zh: "把 force_N 改成 1.0，观察 contact_err 与 max_disp 如何变", en: "Set force_N to 1.0 and watch how contact_err and max_disp change" } },
+      { id: "force", text: { zh: "把假设输入 force_N 改成 1.0，观察 contact_err 与 max_disp 如何变（不是磁场换算的实测牛顿）", en: "Set the assumed input force_N to 1.0 and watch contact_err and max_disp change (not measured Newtons converted from a field)" } },
       { id: "compare", text: { zh: "用自己的话写三行：光学 vs 磁，在可替换性上差在哪", en: "In your words, three lines: optical vs magnetic on replaceability" } },
 
       { id: "optional", text: { zh: "（选做，本页未运行）阅读 DIGIT 设计页或 AnySkin 制造视频，不下单", en: "(Optional, not run here) read the DIGIT design page or an AnySkin fabrication video — do not place an order" } },
@@ -1623,19 +1625,20 @@ const month11Lessons: Lesson[] = [
     slug: "cross-embodiment-datasets",
     title: { zh: "跨本体数据集：OXE 失衡与 OXE-AugE", en: "Cross-embodiment datasets: OXE skew and OXE-AugE" },
     summary: {
-      zh: "接 8.1/8.2 与 8.8：真实跨本体池化数据的失衡（top-4 >85 %）与 OXE-AugE 外观增强阅读；合成计数玩具做 top-k 占比与截断逆频。标准库玩具；下载 OXE / 训练本页未运行。真实 OXE 计数不进 CI。",
-      en: "Builds on 8.1/8.2 and 8.8: skew in real cross-embodiment pools (top-4 >85 %) and the OXE-AugE appearance-augmentation reading; a synthetic-count toy for top-k share and clipped inverse-frequency weights. Standard-library toy; OXE download / training are not run here. Real OXE cardinality is not in CI.",
+      zh: "接 8.1/8.2 与 8.8：真实跨本体池化数据的失衡（top-4 >85 %）与 OXE-AugE 外观增强阅读；合成计数玩具做 top-k 占比与截断逆频；补掩码融合/补绘/基座调节/回放合成和 A.5 部分评分。标准库玩具；下载 OXE / 训练本页未运行。真实 OXE 计数不进 CI。",
+      en: "Builds on 8.1/8.2 and 8.8: skew in real cross-embodiment pools (top-4 >85 %) and the OXE-AugE appearance-augmentation reading; synthetic toys for top-k share, clipped inverse-frequency weights, staged mask/inpaint/base-tune/replay augmentation and A.5 partial scores. Standard-library toy; OXE download / training are not run here. Real OXE cardinality is not in CI.",
     },
-    minutes: 180,
+    minutes: 330,
     objectives: [
       { zh: "能说明 OXE 项目页的 1M+ / 22 本体，以及为何 top-4 会超过 85 %（以论文为准）。", en: "State OXE's 1M+ / 22 embodiments from the project page, and why top-4 can exceed 85 % (paper as source of truth)." },
-      { zh: "能概述 OXE-AugE 的 4.4M 与约 24–45 % 提升（以论文为准）。", en: "Summarise OXE-AugE's 4.4M and ~24–45 % lift (paper as source of truth)." },
+      { zh: "能概述 OXE-AugE 四阶段与 4.4M；区分 A.5 分数均值与二值成功率，24–45 % 提升分母不确定（以论文为准）。", en: "Summarise OXE-AugE stages and 4.4M; distinguish A.5 score means from binary success, with the ~24–45 % lift denominator uncertain (paper as source of truth)." },
       { zh: "能在合成表上算出 top-4 占比与截断逆频权重，并标明不是真实 OXE 计数。", en: "Compute top-4 share and clipped inverse-frequency weights on the synthetic table, and label them as not real OXE counts." },
       { zh: "能说明下载 OXE / 训练本页未运行，真实计数不进 CI。", en: "State that OXE download / training are not run here, and that real cardinality is not in CI." },
     ],
     prereqs: ["dataset-engineering", "vla-models", "sim-benchmarks"],
     resources: ["oxe-site", "oxe-github", "oxe-auge-paper", "oxe-auge-site"],
     tasks: [
+      { id: "score", text: { zh: "运行 oxe_auge_score_toy.py，核对 10×4 合成试验的部分得分均值/标准误与二值完成率；解释二者不能混用", en: "Run oxe_auge_score_toy.py; verify partial-score mean/SE vs binary completion on 10×4 synthetic trials, and explain why they are not interchangeable" } },
       { id: "run", text: { zh: "运行 oxe_imbalance_toy.py，核对 expected/oxe_imbalance_toy.txt", en: "Run oxe_imbalance_toy.py and match expected/oxe_imbalance_toy.txt" } },
       { id: "clip", text: { zh: "把权重截断从 10 改成 3，观察 max_weight 与少数本体权重如何变", en: "Lower the weight clip from 10 to 3 and watch max_weight and the minority-arm weights" } },
       { id: "label", text: { zh: "用自己的话写两行：哪些 stdout 行是合成表、哪些是论文常量", en: "In your words, two lines: which stdout rows are the synthetic table and which are paper constants" } },
@@ -1947,8 +1950,8 @@ export const months: Month[] = [
     slug: "month-11",
     title: { zh: "执行器硬件、触觉接触与跨本体采集", en: "Actuator hardware, tactile contact & cross-embodiment collection" },
     goal: {
-      zh: "能给桌面机械臂写一张电源与 EMC 卫生清单（含往返压降与熔断器数据门禁），读懂 FOC 的 Clarke–Park 恒等式与 R–L 电路上的 dq 电流环并用标准库玩具验证电角度对齐，比较光学与磁触觉传感器的替换成本与信号一致性；再用相对轨迹理解 UMI 式野外采集，分析 OXE 式跨本体失衡，读完人形全身控制的阅读图，并把触觉折进接触丰富的模仿策略。",
-      en: "Write a power and EMC hygiene checklist for a desktop arm (including round-trip drop and fuse data gates), verify Clarke–Park identities and a dq current loop on an R–L circuit for electrical-angle alignment on a stdlib toy, compare optical vs magnetic tactile replaceability, then use relative trajectories for UMI-style collection, analyse OXE-style cross-embodiment skew, finish a humanoid WBC reading map, and fold touch into contact-rich imitation.",
+      zh: "能给桌面机械臂写一张电源与 EMC 卫生清单（含往返压降与熔断器数据门禁），读懂 FOC 的 Clarke–Park 恒等式与 R–L 电路上的 dq 电流环并用标准库玩具验证电角度对齐，比较光学与磁触觉传感器的替换成本与信号一致性，并以共享噪声验证去偏/轴符号/换皮重标定和首次接触门禁；再用相对轨迹理解 UMI 式野外采集，分析 OXE 式跨本体失衡与外观增强四阶段，区分 A.5 分数均值与二值成功率，读完人形全身控制的阅读图，并把触觉折进接触丰富的模仿策略。",
+      en: "Write a power and EMC hygiene checklist for a desktop arm (including round-trip drop and fuse data gates), verify Clarke–Park identities and a dq current loop on an R–L circuit for electrical-angle alignment on a stdlib toy, compare optical vs magnetic tactile replaceability and validate debias/axis signs/skin-swap recalibration and first-contact gates under shared noise, then use relative trajectories for UMI-style collection, analyse OXE-style cross-embodiment skew and augmentation stages, distinguish A.5 score means from binary success, finish a humanoid WBC reading map, and fold touch into contact-rich imitation.",
     },
     topics: [
       { zh: "整机电源、电池包与 EMC 布线", en: "Robot power, battery packs and EMC wiring" },

@@ -112,6 +112,131 @@ How to read it:
 
 Optical gels usually need recalibration after a swap; 3D Cal turns a cheap FDM printer into an automated indenter (reading only here). Magnetic skins that separate electronics from the skin and keep cross-instance signal consistent lose less policy performance after a swap — that is what AnySkin emphasises against ReSkin / DIGIT in the plug table. Replaceability is the precondition for "touch at data scale"; 11.7 picks that up.
 
+### Axes, rest bias and first contact (+180 min)
+
+This is a **synthetic calibration exercise**, not a validated AnySkin force estimator. Define skin-frame x right, y up the surface, z inward. In the fictitious replacement skin, sensor channel a measures negative y, b positive x, c inward load; gains also change. A label such as Bx in a real magnetometer refers to magnetic field, not a force axis: field units cannot be relabelled Newtons. The older marker toy's `force_N=2.5` is an assumed deformation input, not a measured force. Here all loads are **dimensionless proxies**, and positions/errors use synthetic skin units.
+
+1. At rest, average 80 samples to estimate each channel's bias. Subtract this vector before detection or localisation; do not zero the sensor while it is already in contact.
+2. Verify axis order and sign using known-direction gentle probes. Debiasing cannot fix a reversed or swapped axis.
+3. After a skin swap, collect 80 independent jig samples at known synthetic x=y=0.5, load=0.2. Estimate gx, gy, gz, rather than testing against the evaluation contacts' hidden truth. This deliberately simple diagonal-gain model does not cover nonlinear hysteresis or cross-axis coupling. Real force calibration needs independent load references and validation; real calibration/capture is 本页未运行 (not run here).
+4. Use a first-contact data gate: load above 0.06 and at most 0.15 requests `stop_approach_then_verify`. These are arbitrary dimensionless teaching thresholds, **not safe force limits**. A real device needs validated limits, speed bounds and an emergency stop. Higher-load records are rejected, not silently counted as successful gentle contact.
+
+For a worked example, a contact at x=0.3, y=−0.2, load=0.08 would produce noiseless bias-free a=0.0112, b=0.0336, c=0.096 with gains (1.4, 0.7, 1.2). Recover load=c/gz, x=(b/gx)/load, y=−(a/gy)/load. Dividing near zero amplifies noise: do not localise a resting sensor.
+
+The recorded sequence contains 30 rest, 30 gentle-contact and 30 higher-load samples. **Raw, debiased, sign-corrected (old unit gains), recalibrated and gated conditions reuse identical noise and identical records**; no condition gets fresh, quieter noise. Localisation MAE always uses the same 60 true-contact samples, even for the gated condition, to avoid selection bias. Precontact false positives use the same 30 resting samples. The gate is a replay checklist: it does not simulate stopping the physical sequence or prove a policy safer; policy integration stays in 11.7.
+
+```bash
+$ cd ~/Hardware-learning/examples/month-11/tactile-sensing
+$ python3 tactile_debias_recal_toy.py
+```
+
+<CodeSource path="examples/month-11/tactile-sensing/tactile_debias_recal_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic tactile calibration, not a magnetometer-to-Newton conversion.
+
+Body x points right, y up on the skin, z inward. After a fictitious swap,
+sensor a=-gy*load*y, b=gx*load*x, c=gz*load, plus rest bias and noise.
+All conditions reuse the SAME recorded samples. Rest and known-location
+probe records estimate bias and gains independently of evaluation contacts.
+Load is dimensionless; positions and errors are in synthetic skin units.
+The low-load gate is a first-contact teaching rule, NOT hardware safety.
+"""
+import math
+import random
+import statistics
+
+SEED = 23
+rng = random.Random(SEED)
+BIAS = (0.14, -0.12, 0.12)
+GAINS = (1.4, 0.7, 1.2)  # gx, gy, gz after synthetic skin swap
+THRESHOLD, LOW_MAX = 0.06, 0.15  # dimensionless, NOT N
+
+
+def measure(x, y, load):
+    gx, gy, gz = GAINS
+    signal = (-gy * load * y, gx * load * x, gz * load)
+    return tuple(s + b + rng.uniform(-0.004, 0.004)
+                 for s, b in zip(signal, BIAS))
+
+
+rest = [measure(0, 0, 0) for _ in range(80)]
+bias_hat = tuple(statistics.mean(row[j] for row in rest) for j in range(3))
+# Independent calibration jig: known x=y=0.5, load=0.2 (synthetic only).
+probes = [measure(0.5, 0.5, 0.2) for _ in range(80)]
+a, b, c = (statistics.mean(row[j] for row in probes) - bias_hat[j]
+           for j in range(3))
+gains_hat = (b / 0.1, -a / 0.1, c / 0.2)
+
+# Shared evaluation records: 30 rest, 30 gentle contact, 30 higher load.
+truth, records = [], []
+for i in range(90):
+    x, y = 0.3 + 0.04 * math.sin(i), -0.2 + 0.03 * math.cos(i)
+    load = 0 if i < 30 else (0.08 if i < 60 else 0.4)
+    truth.append((x, y, load))
+    records.append(measure(x, y, load))
+
+
+def estimate(row, mode):
+    a, b, c = row
+    if mode != "raw":
+        a, b, c = (v - offset for v, offset in zip(row, bias_hat))
+    if mode in ("raw", "debiased"):
+        return a / max(c, 1e-6), b / max(c, 1e-6), c
+    gx, gy, gz = gains_hat if mode in ("recalibrated", "low_force_gated") else (1, 1, 1)
+    load = c / gz
+    return (b / gx / max(load, 1e-6), -a / gy / max(load, 1e-6), load)
+
+
+print(f"seed={SEED}")
+print("units=synthetic_skin_and_dimensionless_load_not_measured_Newtons")
+print("noise=shared_records_all_conditions")
+for mode in ("raw", "debiased", "sign_corrected", "recalibrated", "low_force_gated"):
+    estimates = [estimate(row, mode) for row in records]
+    # Same 60 real-contact records for localization: avoid selection bias.
+    errors = [math.hypot(x - tx, y - ty)
+              for (x, y, _), (tx, ty, load) in zip(estimates, truth) if load > 0]
+    accepted = [i for i, (_, _, load) in enumerate(estimates)
+                if load > THRESHOLD and (mode != "low_force_gated" or load <= LOW_MAX)]
+    fp = sum(truth[i][2] == 0 for i in accepted)
+    print(f"{mode}_localisation_mae={statistics.mean(errors):.4f}")
+    print(f"{mode}_precontact_fp={fp}/30")
+    if mode == "low_force_gated":
+        print(f"gate_accepted={len(accepted)}/90")
+        print(f"first_contact_index={accepted[0] if accepted else -1}")
+        print("first_contact_action=stop_approach_then_verify")
+print(f"contact_threshold={THRESHOLD:.2f}")
+print(f"low_load_ceiling={LOW_MAX:.2f}")
+```
+
+<SimOutput source="model">
+
+```text
+seed=23
+units=synthetic_skin_and_dimensionless_load_not_measured_Newtons
+noise=shared_records_all_conditions
+raw_localisation_mae=0.3655
+raw_precontact_fp=30/30
+debiased_localisation_mae=0.5764
+debiased_precontact_fp=0/30
+sign_corrected_localisation_mae=0.0975
+sign_corrected_precontact_fp=0/30
+recalibrated_localisation_mae=0.0297
+recalibrated_precontact_fp=0/30
+low_force_gated_localisation_mae=0.0297
+low_force_gated_precontact_fp=0/30
+gate_accepted=30/90
+first_contact_index=30
+first_contact_action=stop_approach_then_verify
+contact_threshold=0.06
+low_load_ceiling=0.15
+```
+
+</SimOutput>
+
+Default seed 23: raw localisation MAE **0.3655**, debiased **0.5764**, sign-corrected **0.0975**, recalibrated **0.0297**. Debiasing alone can make localisation worse while removing false contacts: raw precontact FP **30/30** becomes **0/30**. Do not promise monotonic improvement for every metric or seed. The gate accepts **30/90**, first contact index **30**; its all-contact MAE stays **0.0297** because it does not change calibration. Try reversing one sign, changing the replacement gain, then rerunning with the same stored noise. Explain why a clean rest zero is insufficient after a gain change.
+
 ## Hardware: no required purchase
 
 - The **CPU toy** is the required deliverable.

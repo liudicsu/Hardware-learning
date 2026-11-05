@@ -3556,6 +3556,8 @@ const lessonRef = (n, slug, lang) => {
   const foc = rd11("examples/month-11/expected/clarke_park_toy.txt");
   const focLoop = rd11("examples/month-11/expected/foc_current_loop_toy.txt");
   const tac = rd11("examples/month-11/expected/tactile_marker_toy.txt");
+  const tacCal = rd11("examples/month-11/expected/tactile_debias_recal_toy.txt");
+  const oxeScore = rd11("examples/month-11/expected/oxe_auge_score_toy.txt");
   const umi = rd11("examples/month-11/expected/relative_traj_toy.txt");
   const oxe = rd11("examples/month-11/expected/oxe_imbalance_toy.txt");
   const lipm = rd11("examples/month-11/expected/lipm_track_toy.txt");
@@ -3609,6 +3611,9 @@ const lessonRef = (n, slug, lang) => {
       grab(focLoop, /ok_sat=([0-9]+)/, "focLoop ok_sat"),
     ],
     "tactile-sensing": [
+      ...["raw", "debiased", "sign_corrected", "recalibrated", "low_force_gated"].map(mode =>
+        grab(tacCal, new RegExp(`${mode}_localisation_mae=([0-9.]+)`), `tacCal ${mode}`)),
+      grab(tacCal, /gate_accepted=([0-9]+)\//, "tacCal accepted"),
       grab(tac, /contact_err=([0-9.]+)/, "tac contact_err"),
       grab(tac, /anyskin_replace_s=([0-9]+)/, "tac replace_s"),
       grab(tac, /anyskin_slip_acc=([0-9.]+)/, "tac slip"),
@@ -3654,6 +3659,8 @@ const lessonRef = (n, slug, lang) => {
       grab(tgate, /anyskin_plug_swap=([0-9.]+)/, "tgate plug_swap"),
     ],
     "cross-embodiment-datasets": [
+      ...["partial_score_mean", "partial_score_se", "binary_completion_mean", "binary_completion_se"].map(key =>
+        grab(oxeScore, new RegExp(`${key}=([0-9.]+)`), `oxeScore ${key}`)),
       grab(oxe, /top4_share=([0-9.]+)/, "oxe top4"),
       grab(oxe, /max_weight=([0-9.]+)/, "oxe max_w"),
       grab(oxe, /oxe_embodiments=([0-9]+)/, "oxe emb"),
@@ -3689,6 +3696,31 @@ const lessonRef = (n, slug, lang) => {
       "m11 focLoop: sat=0 all arms");
     ok(/anti_windup=omitted/.test(focLoop) && /pwm_rail_limit=omitted/.test(focLoop),
       "m11 focLoop: anti-windup and PWM rail omitted");
+  }
+  {
+    const val = (txt, key) => Number(txt.match(new RegExp(`^${key}=([0-9.]+)`, "m"))?.[1]);
+    ok(/noise=shared_records_all_conditions/.test(tacCal), "m11 tactile deepen: shared recorded noise");
+    ok(/not_measured_Newtons/.test(tacCal), "m11 tactile deepen: synthetic units not measured Newtons");
+    ok(/raw_precontact_fp=30\/30/.test(tacCal) && /debiased_precontact_fp=0\/30/.test(tacCal),
+      "m11 tactile deepen: precontact FP under common rest samples");
+    ok(val(tacCal, "recalibrated_localisation_mae") < val(tacCal, "sign_corrected_localisation_mae"),
+      "m11 tactile deepen: default independent gain recalibration improves localisation");
+    ok(val(tacCal, "low_force_gated_localisation_mae") === val(tacCal, "recalibrated_localisation_mae"),
+      "m11 tactile deepen: gating does not select easier localisation samples");
+    ok(/gate_accepted=30\/90/.test(tacCal) && /first_contact_index=30/.test(tacCal),
+      "m11 tactile deepen: low-load records only, first contact index");
+    ok(/tasks=4 trials_per_task=10 trials=40/.test(oxeScore), "m11 AugE score: equal 4x10 trials");
+    ok(val(oxeScore, "partial_score_mean") > val(oxeScore, "binary_completion_mean"),
+      "m11 AugE score: partial mean differs from binary completion");
+    ok(/denominator=uncertain_absolute_vs_relative/.test(oxeScore), "m11 AugE score: lift denominator uncertain");
+    for (const lang of ["en", "zh"]) {
+      const t = md11[`tactile-sensing/${lang}`], o = md11[`cross-embodiment-datasets/${lang}`];
+      ok(lang === "en" ? /dimensionless proxies/.test(t) && /identical noise/.test(t)
+        : /无量纲代理值/.test(t) && /相同的噪声/.test(t), `m11 tactile deepen ${lang}: units + equal noise`);
+      ok(lang === "en" ? /not binary success/.test(o) && /uncertain here/.test(o)
+        : /不是二值成功/.test(o) && /不确定/.test(o), `m11 AugE deepen ${lang}: score + uncertainty`);
+      ok(/2512\.13100v1/.test(o) && /A\.5/.test(o), `m11 AugE deepen ${lang}: opened HTML A.5`);
+    }
   }
   ok(/anyskin_replace_s=12/.test(tac) && /anyskin_slip_acc=0\.92/.test(tac), "m11 tac: AnySkin 12 s / 0.92");
   ok(/anyskin_plug_cam=1\.7/.test(tac) && /anyskin_plug_skin=6\.7/.test(tac) && /anyskin_plug_swap=5\.3/.test(tac),

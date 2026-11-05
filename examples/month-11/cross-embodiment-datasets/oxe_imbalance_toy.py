@@ -4,7 +4,8 @@
 The counts below are **synthetic** — they are NOT Open X-Embodiment (OXE) real
 cardinality. Real OXE / OXE-AugE numbers used in the lesson prose (1M+, 22
 embodiments, top-4 >85 %, 4.4M, 24–45 %) are printed as separate paper constants
-and must not be confused with this table. Take the papers / project pages as
+and must not be confused with this table. The 24–45 % lift denominator is
+uncertain here; A.5 score means are not binary success rates. Take papers as
 source of truth. Downloading OXE or training is not run on this page.
 Deterministic: no random draws, so there is no seed.
 """
