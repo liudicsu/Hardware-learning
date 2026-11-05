@@ -3552,7 +3552,9 @@ const lessonRef = (n, slug, lang) => {
   // Numbers quoted in prose are bound to examples/month-11/expected/*.txt (actual stdout via UPDATE=1).
   const rd11 = (rel) => readFileSync(join(root, rel), "utf8");
   const pwr = rd11("examples/month-11/expected/power_budget_toy.txt");
+  const pwrRt = rd11("examples/month-11/expected/power_roundtrip_loss_toy.txt");
   const foc = rd11("examples/month-11/expected/clarke_park_toy.txt");
+  const focLoop = rd11("examples/month-11/expected/foc_current_loop_toy.txt");
   const tac = rd11("examples/month-11/expected/tactile_marker_toy.txt");
   const umi = rd11("examples/month-11/expected/relative_traj_toy.txt");
   const oxe = rd11("examples/month-11/expected/oxe_imbalance_toy.txt");
@@ -3587,12 +3589,24 @@ const lessonRef = (n, slug, lang) => {
       grab(pwr, /V_at_load=([0-9.]+)/, "pwr V_at_load"),
       grab(pwr, /fuse_margin=([0-9.]+)/, "pwr fuse_margin"),
       grab(pwr, /pass_11v_floor=(true|false)/, "pwr pass_11v_floor"),
+      grab(pwrRt, /V_drop_roundtrip_short=([0-9.]+)/, "pwrRt drop_short"),
+      grab(pwrRt, /V_at_load_roundtrip_long=([0-9.]+)/, "pwrRt load_long"),
+      grab(pwrRt, /P_i2r_peak_short_W=([0-9.]+)/, "pwrRt i2r_peak"),
+      grab(pwrRt, /I_cont_total=([0-9.]+)/, "pwrRt I_cont"),
+      grab(pwrRt, /protection_status_default=([a-z_]+)/, "pwrRt status_default"),
+      grab(pwrRt, /hits_V_floor=([a-z_]+)/, "pwrRt hits_floor"),
     ],
     "foc-actuator-lab": [
       grab(foc, /theta_rad=([0-9.]+)/, "foc theta"),
       grab(foc, /sum_abc=([0-9.e+\-]+)/, "foc sum_abc"),
       grab(foc, /id_err=([0-9.e+\-]+)/, "foc id_err"),
       grab(foc, /iq_err=([0-9.e+\-]+)/, "foc iq_err"),
+      grab(focLoop, /ok_plant_iq_rmse=([0-9.]+)/, "focLoop ok_plant_iq"),
+      grab(focLoop, /bad_offset_plant_iq_rmse=([0-9.]+)/, "focLoop bad_off_plant_iq"),
+      grab(focLoop, /bad_pp_plant_iq_rmse=([0-9.]+)/, "focLoop bad_pp_plant_iq"),
+      grab(focLoop, /ok_ang_rmse=([0-9.]+)/, "focLoop ok_ang"),
+      grab(focLoop, /bad_offset_ang_rmse=([0-9.]+)/, "focLoop bad_off_ang"),
+      grab(focLoop, /ok_sat=([0-9]+)/, "focLoop ok_sat"),
     ],
     "tactile-sensing": [
       grab(tac, /contact_err=([0-9.]+)/, "tac contact_err"),
@@ -3650,8 +3664,32 @@ const lessonRef = (n, slug, lang) => {
     ],
   };
   ok(/pass_11v_floor=true/.test(pwr), "m11 pwr: load stays above 11 V floor");
+  ok(/protection_status_default=insufficient_data/.test(pwrRt), "m11 pwrRt: default insufficient_data");
+  ok(!/ok_slow_blow/.test(pwrRt) && /fuse_certification=never/.test(pwrRt), "m11 pwrRt: never ok_slow_blow");
+  ok(/protection_status_long_wire=reject_known_constraint/.test(pwrRt), "m11 pwrRt: long wire reject");
+  ok(/hits_V_floor=long_only/.test(pwrRt), "m11 pwrRt: long_only undervoltage");
+  ok(/I_cont_total=3\.30/.test(pwrRt) && /I_peak_total=10\.80/.test(pwrRt), "m11 pwrRt: cont≠peak");
+  ok(/protection_status_peak_only=insufficient_data/.test(pwrRt), "m11 pwrRt: peak-only stays insufficient_data");
+  ok(/protection_status_ampacity=reject_known_constraint/.test(pwrRt), "m11 pwrRt: ampacity on continuous");
   ok(/id_err=0\.000e\+00/.test(foc) && /iq_err=0\.000e\+00/.test(foc), "m11 foc: round-trip id/iq err 0");
   ok(/sum_abc=0\.000e\+00/.test(foc), "m11 foc: sum_abc 0");
+  ok(/plant_model=R_L_circuit/.test(focLoop), "m11 focLoop: R_L_circuit naming");
+  ok(/plant_vs_controller=theta_e_star_not_fed_to_ctrl/.test(focLoop), "m11 focLoop: plant vs controller contract");
+  ok(/cross_coupling=omitted_both_arms/.test(focLoop), "m11 focLoop: cross-coupling omitted both arms");
+  {
+    const num = (txt, re) => Number((txt.match(re) || [, "NaN"])[1]);
+    const okIq = num(focLoop, /ok_plant_iq_rmse=([0-9.]+)/);
+    const badOffIq = num(focLoop, /bad_offset_plant_iq_rmse=([0-9.]+)/);
+    const badPpIq = num(focLoop, /bad_pp_plant_iq_rmse=([0-9.]+)/);
+    const okAng = num(focLoop, /ok_ang_rmse=([0-9.]+)/);
+    const badOffAng = num(focLoop, /bad_offset_ang_rmse=([0-9.]+)/);
+    ok(badOffIq > 2 * okIq && badPpIq > 2 * okIq, "m11 focLoop: wrong angle wrecks plant iq");
+    ok(badOffAng > 10 * okAng, "m11 focLoop: wrong offset ang RMSE >> ok");
+    ok(/ok_sat=0/.test(focLoop) && /bad_offset_sat=0/.test(focLoop) && /bad_pp_sat=0/.test(focLoop),
+      "m11 focLoop: sat=0 all arms");
+    ok(/anti_windup=omitted/.test(focLoop) && /pwm_rail_limit=omitted/.test(focLoop),
+      "m11 focLoop: anti-windup and PWM rail omitted");
+  }
   ok(/anyskin_replace_s=12/.test(tac) && /anyskin_slip_acc=0\.92/.test(tac), "m11 tac: AnySkin 12 s / 0.92");
   ok(/anyskin_plug_cam=1\.7/.test(tac) && /anyskin_plug_skin=6\.7/.test(tac) && /anyskin_plug_swap=5\.3/.test(tac),
     "m11 tac: plug 1.7 / 6.7 / 5.3");
@@ -3688,12 +3726,29 @@ const lessonRef = (n, slug, lang) => {
     ok(lang === "en" ? /example assumptions/.test(p1) : /示例假设/.test(p1), `m11 pwr ${lang}: currents labelled examples`);
     ok(lang === "en" ? /No power analyser purchase|no power analyser/.test(p1) || /No power-analyser purchase|no power-analyser/.test(p1) || /power analyser/.test(p1)
       : /不要求新购电源分析仪|电源分析仪/.test(p1), `m11 pwr ${lang}: no analyser purchase`);
+    ok(/insufficient_data/.test(p1) && /reject_known_constraint/.test(p1), `m11 pwr ${lang}: data-gate enums`);
+    ok(/ok_slow_blow/.test(p1), `m11 pwr ${lang}: names ok_slow_blow as forbidden`);
+    ok(lang === "en" ? /round-trip/i.test(p1) : /往返/.test(p1), `m11 pwr ${lang}: round-trip`);
+    ok(lang === "en" ? /not a fuse certification|fuse certification/i.test(p1) : /不算认证选型|认证选型/.test(p1),
+      `m11 pwr ${lang}: not fuse certification`);
     const f1 = md11[`foc-actuator-lab/${lang}`];
     ok(/motors-drivers/.test(f1) && /simplefoc/i.test(f1), `m11 foc ${lang}: scope vs M2 + SimpleFOC`);
     ok(lang === "en" ? /does not replace/.test(f1) && /STS3215/.test(f1) : /不替换/.test(f1) && /STS3215/.test(f1),
       `m11 foc ${lang}: does not replace STS3215`);
     ok(lang === "en" ? /not required|No required BLDC|buying a BLDC/i.test(f1) : /不强制购买|不要求购买/.test(f1),
       `m11 foc ${lang}: no required BLDC purchase`);
+    ok(lang === "en" ? /reinforcement learning/i.test(f1) : /强化学习/.test(f1),
+      `m11 foc ${lang}: R–L ≠ reinforcement learning`);
+    ok(lang === "en" ? /never receives|not fed/i.test(f1) : /从不接收|不喂给/.test(f1),
+      `m11 foc ${lang}: plant angle not fed to controller`);
+    ok(lang === "en" ? /algebraic identities|identities/.test(f1) : /代数恒等式|恒等式/.test(f1),
+      `m11 foc ${lang}: transforms are identities`);
+    if (lang === "zh") ok(!/植物/.test(f1), "m11 foc zh: no 植物 mistranslation of plant");
+    ok(lang === "en" ? /anti-windup/i.test(f1) && /prescribed/i.test(f1) : /抗饱和|anti-windup/.test(f1) && /规定/.test(f1),
+      `m11 foc ${lang}: states omitted anti-windup / prescribed omega`);
+    ok(lang === "en" ? /I_cont_total|continuous/.test(p1) && /long_only|hits_V_floor/.test(p1)
+      : /I_cont_total|连续/.test(p1) && /long_only|hits_V_floor/.test(p1),
+      `m11 pwr ${lang}: continuous≠peak + hits_V_floor label`);
     const t1 = md11[`tactile-sensing/${lang}`];
     ok(/gripper-fingers/.test(t1), `m11 tac ${lang}: scope vs 3.6 gripper`);
     ok(/AnySkin/.test(t1) && /DIGIT/.test(t1), `m11 tac ${lang}: AnySkin + DIGIT`);
@@ -3750,15 +3805,24 @@ const lessonRef = (n, slug, lang) => {
   const cur11 = rd11("src/lib/curriculum.ts");
   ok(/month11Lessons/.test(cur11) && /slug: "month-11"/.test(cur11), "m11 curriculum: month11Lessons + month-11");
   for (const slug of slugs11) ok(new RegExp(`slug: "${slug}"`).test(cur11), `m11 curriculum has ${slug}`);
+  {
+        const grabMin = (slug) => {
+      const m = cur11.match(new RegExp(`slug: "${slug}"[\\s\\S]*?minutes: (\\d+)`));
+      return m ? Number(m[1]) : NaN;
+    };
+    ok(grabMin("power-battery-emc") === 330, "m11 curriculum: power minutes 330");
+    ok(grabMin("foc-actuator-lab") === 480, "m11 curriculum: foc minutes 480");
+    ok(!/植物/.test(cur11), "m11 curriculum: no 植物 mistranslation");
+  }
   ok(/month-11\/check\.sh/.test(rd11("tools/sim/reproduce.sh")), "m11 hooked in reproduce.sh");
   const chk11 = rd11("examples/month-11/check.sh");
-  for (const f of ["power_budget_toy", "clarke_park_toy", "tactile_marker_toy", "relative_traj_toy", "oxe_imbalance_toy",
-    "lipm_track_toy", "tactile_gate_toy"]) {
-    ok(new RegExp(`${f}\\.txt`).test(chk11), `m11 check.sh: ${f}`);
+  for (const f of ["power_budget_toy", "power_roundtrip_loss_toy", "clarke_park_toy", "foc_current_loop_toy",
+    "tactile_marker_toy", "relative_traj_toy", "oxe_imbalance_toy", "lipm_track_toy", "tactile_gate_toy"]) {
+    ok(new RegExp(`${f}\.txt`).test(chk11), `m11 check.sh: ${f}`);
   }
   ok(/7 of 7/.test(chk11), "m11 check.sh header: 7 of 7");
   const res11 = rd11("src/lib/resources.ts");
-  for (const id of ["novanta-emc-wiring", "roboteq-emi", "ark-power-grounding", "simplefoc-foc-theory", "simplefoc-home",
+  for (const id of ["novanta-emc-wiring", "roboteq-emi", "ark-power-grounding", "simplefoc-foc-theory", "simplefoc-foc-implementation", "simplefoc-alignment", "simplefoc-voltage-torque", "simplefoc-home",
     "anyskin-paper", "anyskin-site", "digit-design", "digit-interface", "gelsight-sensors-paper", "3dcal-paper",
     "umi-paper", "umi-site", "umi-hardware-guide", "oxe-site", "oxe-github", "oxe-auge-paper", "oxe-auge-site",
     "asap-paper", "asap-code", "hugwbc-code", "holosoma-code", "twist-code", "wbc-agile-code", "baku-paper", "vitamin-paper", "exumi-paper"]) {

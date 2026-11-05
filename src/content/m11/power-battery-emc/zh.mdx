@@ -1,6 +1,6 @@
 本课是本站补充内容——第 7–11 个月不属于原六个月课程。
 
-**范围。** [1.x 元件与欧姆定律](/zh/month/month-1/components) 负责测电池电压与基本安全句；[2.3 电机与驱动](/zh/month/month-2/motors-drivers) 负责电池电压变化对开环转速的影响与 2S LiPo 满电校准。[3.5 SO-101](/zh/month/month-3/so101-arm) 是本课的整机配电例子。本课升到**系统级**：逻辑轨与电机总线分开、熔断裕度、导线压降、电机线与编码器线分离的 EMC 卫生。不重讲欧姆定律；不教改 BMS、不给拆电池包步骤。电流数字是**示例假设，非本站实测**。真机测电流 / 示波器探环路标注本页未运行；不要求新购电源分析仪。本课也不替代 8.7 毕业项目。
+**范围。** [1.x 元件与欧姆定律](/zh/month/month-1/components) 负责测电池电压与基本安全句；[2.3 电机与驱动](/zh/month/month-2/motors-drivers) 负责电池电压变化对开环转速的影响与 2S LiPo 满电校准。[3.5 SO-101](/zh/month/month-3/so101-arm) 是本课的整机配电例子。本课升到**系统级**：逻辑轨与电机总线分开、单程与往返导线压降、I²R 热卫生、熔断器**数据门禁**（玩具只输出 `insufficient_data` / `reject_known_constraint`，绝不凭峰值电流比给出 `ok_slow_blow`）、电机线与编码器线分离的 EMC 卫生。不重讲欧姆定律；不教改 BMS、不给拆电池包步骤。电流数字是**示例假设，非本站实测**。真机测电流 / 示波器探环路 / **更换熔断器**标注本页未运行；不要求新购电源分析仪；**玩具不算认证选型**。本课也不替代 8.7 毕业项目。
 
 ## 为什么桌面臂也需要整机配电
 
@@ -24,9 +24,9 @@
 - 充电时有人在场；鼓包、异味、发热立刻停。
 - 急停切的是电机总线，不是只切逻辑（见 [8.5 安全与可靠性](/zh/month/month-8/safety-reliability)）。
 
-## 电源预算玩具
+## 电源预算玩具（单程）
 
-`power_budget_toy.py` 用固定种子和示例电流：6 只舵机、空载 0.35 A、峰值 1.8 A、标称 12 V、导线 0.8 m × 50 mΩ/m、10 A 熔断。输出总电流、峰值压降、负载端电压、熔断裕度，以及是否还在 11 V 地板之上。
+`power_budget_toy.py` 用固定种子和示例电流：6 只舵机、空载 0.35 A、峰值 1.8 A、标称 12 V、导线 0.8 m × 50 mΩ/m、10 A 熔断。输出总电流、**单程**峰值压降、负载端电压、原始 fuse/peak 比值，以及是否还在 11 V 地板之上。`fuse_margin` 只是比值，**不是**「熔断器合适」的结论。
 
 ```bash
 $ cd ~/Hardware-learning/examples/month-11/power-battery-emc
@@ -94,21 +94,204 @@ pass_11v_floor=true
 
 怎么读：
 
-- 峰值总电流 **10.80** A，已经略高于 10 A 熔断额定——fuse_margin = **0.926**（熔断 / 峰值 &lt; 1）提醒你：慢熔可以扛短时尖峰，但持续堵转不行；真正选型要以你的舵机数据手册为准。
-- 导线电阻 0.0400 Ω 在峰值下压降 **0.432** V，负载端 **11.568** V，仍过 11 V 地板（`pass_11v_floor=true`）。玩具里的 R 是**单程导线**电阻（R = ρ·L，长度用电源到负载的单程；回程若对称再乘 2，本玩具按单程示例）。把线加长或改细，压降会先碰到地板。
+- 峰值总电流 **10.80** A，fuse_margin = **0.926**（熔断额定 / 峰值）。这只说明峰值已经摸到额定附近——**不能**据此写成「慢熔就合适」或 `ok_slow_blow`。真正选型见下一节数据门禁。
+- 导线电阻 0.0400 Ω 在峰值下**单程**压降 **0.432** V，负载端 **11.568** V，仍过 11 V 地板（`pass_11v_floor=true`）。玩具里的 R 是**单程导线**电阻（R = ρ·L）；回程对称时往返再乘 2，见下一节。
 - 这些电流是**示例假设**；SO-101 整机真实峰值本站未测。
 
-真机用电流钳量一次峰值、用示波器看地环路——本页未运行。不要求购买电源分析仪。
+## 往返压降、I²R 与熔断器数据门禁
+
+`power_roundtrip_loss_toy.py` 在同一组示例电流下比较：
+
+1. **单程 vs 往返**压降（R_go + R_ret，对称回程 = 2×单程）。
+2. **I²R** 导线损耗（空载与峰值）——热**卫生**，不是绕组 MTPA。
+3. **连续电流与峰值电流分开**：`I_cont_total`（每只 0.55 A × 6 = 3.30 A）与 `I_peak_total`（1.8 A × 6 = 10.80 A）是两套示例假设；载流量门禁只用连续，峰值不能冒充连续。
+4. **保护状态**：默认缺厂商时间–电流曲线 / DC 分断能力 / 故障电流 → `insufficient_data`；仅当**显式给定**的数值约束被违反时才给 `reject_known_constraint`（例如 `V_at_load < V_floor`，或 `I_continuous > wire_ampacity`）。**从不**输出 `ok_slow_blow`。
+
+选型前你必须从熔断器 + 导线数据手册拿到至少：DC 电压额定、分断能力（DC vs AC）、导线载流量与降额、预期故障电流、制造商时间–电流 / I²t，以及冲击形状。本课**不提供**这些曲线；玩具不算认证选型；更换熔断器本页未运行。
+
+```bash
+$ python3 power_roundtrip_loss_toy.py
+```
+
+<CodeSource path="examples/month-11/power-battery-emc/power_roundtrip_loss_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""power_roundtrip_loss_toy.py: round-trip IR drop, I^2R loss, fuse data gates (stdlib).
+
+Illustrative SO-101-like bus-servo currents — NOT measured on this site.
+Continuous and peak currents are INDEPENDENT example assumptions (do not
+pretend peak is continuous). Ampacity gate uses continuous only; peak without
+a time–current / I^2t curve stays insufficient_data.
+Protection outcomes are ONLY insufficient_data or reject_known_constraint.
+Never emits ok_slow_blow / "suitable fuse" from a peak-current ratio alone.
+"""
+SEED = 7
+
+# Illustrative currents / geometry (labelled not measured)
+V_nom = 12.0
+I_idle = 0.35    # A per servo idle (example assumption)
+I_cont = 0.55    # A per servo continuous under load (example assumption; NOT peak)
+I_peak = 1.8     # A stall-ish peak (example assumption; duration unknown)
+n_servos = 6
+wire_mohm_per_m = 50.0  # 22 AWG ballpark illustrative
+len_short_m = 0.8
+len_long_m = 1.5
+V_floor = 11.0
+# Illustrative continuous ampacity — deliberately below I_cont_total for reject demo
+wire_ampacity_A = 3.0
+
+I_idle_total = n_servos * I_idle
+I_cont_total = n_servos * I_cont   # continuous — used for ampacity gate
+I_peak_total = n_servos * I_peak   # peak — NOT passed as continuous
+
+
+def one_way_R(length_m):
+    return wire_mohm_per_m * 1e-3 * length_m
+
+
+def round_trip_drop(I, length_m):
+    R_rt = 2.0 * one_way_R(length_m)
+    return I * R_rt, R_rt
+
+
+def i2r_loss(I, R):
+    return I * I * R
+
+
+def protection_status(*, v_at_load=None, v_floor=None, i_continuous=None, wire_ampacity=None,
+                      have_fuse_curve=False, have_dc_interrupt=False, have_fault_current=False):
+    """Data-gated protection literacy. Never certifies a fuse as suitable."""
+    if v_at_load is not None and v_floor is not None and v_at_load < v_floor:
+        return "reject_known_constraint"
+    if (i_continuous is not None and wire_ampacity is not None
+            and i_continuous > wire_ampacity):
+        return "reject_known_constraint"
+    if not (have_fuse_curve and have_dc_interrupt and have_fault_current):
+        return "insufficient_data"
+    return "insufficient_data"
+
+
+def undervoltage_label(v_short, v_long, v_floor):
+    short_uv = v_short < v_floor
+    long_uv = v_long < v_floor
+    if short_uv and long_uv:
+        return "both"
+    if long_uv:
+        return "long_only"
+    if short_uv:
+        return "short_only"
+    return "neither"
+
+
+# Round-trip IR / I^2R at peak (thermal hygiene numbers); idle I^2R for contrast
+drop_short, R_rt_short = round_trip_drop(I_peak_total, len_short_m)
+V_load_short = V_nom - drop_short
+P_idle_short = i2r_loss(I_idle_total, R_rt_short)
+P_peak_short = i2r_loss(I_peak_total, R_rt_short)
+R_ow_short = one_way_R(len_short_m)
+drop_ow_short = I_peak_total * R_ow_short
+
+drop_long, R_rt_long = round_trip_drop(I_peak_total, len_long_m)
+V_load_long = V_nom - drop_long
+
+status_default = protection_status()  # missing fuse datasheet fields
+status_long_v = protection_status(v_at_load=V_load_long, v_floor=V_floor)
+# Ampacity gate uses CONTINUOUS only — never I_peak_total as i_continuous
+status_ampacity = protection_status(
+    i_continuous=I_cont_total, wire_ampacity=wire_ampacity_A
+)
+# Peak alone without curve/duration → still insufficient_data
+status_peak_only = protection_status()  # same missing fields; peak not a reject input
+
+hits_V_floor = undervoltage_label(V_load_short, V_load_long, V_floor)
+
+assert status_default == "insufficient_data"
+assert status_peak_only == "insufficient_data"
+assert status_ampacity == "reject_known_constraint"
+assert "ok" not in status_default
+assert I_cont_total != I_peak_total
+
+print(f"seed={SEED}")
+print(f"V_nom={V_nom:.1f}")
+print(f"n_servos={n_servos}")
+print(f"I_idle_total={I_idle_total:.2f}")
+print(f"I_cont_total={I_cont_total:.2f}")  # continuous example assumption
+print(f"I_peak_total={I_peak_total:.2f}")  # peak example assumption (not continuous)
+print(f"len_short_m={len_short_m:.1f}")
+print(f"len_long_m={len_long_m:.1f}")
+print(f"R_oneway_short_ohm={R_ow_short:.4f}")
+print(f"R_roundtrip_short_ohm={R_rt_short:.4f}")
+print(f"V_drop_oneway_short={drop_ow_short:.3f}")
+print(f"V_drop_roundtrip_short={drop_short:.3f}")
+print(f"V_at_load_roundtrip_short={V_load_short:.3f}")
+print(f"P_i2r_idle_short_W={P_idle_short:.4f}")
+print(f"P_i2r_peak_short_W={P_peak_short:.4f}")
+print(f"V_drop_roundtrip_long={drop_long:.3f}")
+print(f"V_at_load_roundtrip_long={V_load_long:.3f}")
+print(f"V_floor={V_floor:.1f}")
+print(f"hits_V_floor={hits_V_floor}")
+print(f"protection_status_default={status_default}")
+print(f"protection_status_long_wire={status_long_v}")
+print(f"protection_status_ampacity={status_ampacity}")
+print(f"protection_status_peak_only={status_peak_only}")
+print(f"wire_ampacity_A={wire_ampacity_A:.1f}")
+print("currents_labelled=example_assumptions")
+print("fuse_certification=never")
+```
+
+
+<SimOutput source="model">
+
+```text
+seed=7
+V_nom=12.0
+n_servos=6
+I_idle_total=2.10
+I_cont_total=3.30
+I_peak_total=10.80
+len_short_m=0.8
+len_long_m=1.5
+R_oneway_short_ohm=0.0400
+R_roundtrip_short_ohm=0.0800
+V_drop_oneway_short=0.432
+V_drop_roundtrip_short=0.864
+V_at_load_roundtrip_short=11.136
+P_i2r_idle_short_W=0.3528
+P_i2r_peak_short_W=9.3312
+V_drop_roundtrip_long=1.620
+V_at_load_roundtrip_long=10.380
+V_floor=11.0
+hits_V_floor=long_only
+protection_status_default=insufficient_data
+protection_status_long_wire=reject_known_constraint
+protection_status_ampacity=reject_known_constraint
+protection_status_peak_only=insufficient_data
+wire_ampacity_A=3.0
+currents_labelled=example_assumptions
+fuse_certification=never
+```
+
+</SimOutput>
+
+怎么读：
+
+- 短线（0.8 m）往返压降 **0.864** V，负载端 **11.136** V；长线（1.5 m）往返 **1.620** V，负载端 **10.380** V → `hits_V_floor=long_only`（短线仍过地板、长线欠压；取值 both / short_only / long_only / neither）。
+- 短线往返 I²R：空载 **0.3528** W，峰值 **9.3312** W——提醒你粗线与短走线是热卫生，不是「多留一点熔断裕度就行」。
+- `protection_status_default=insufficient_data`：缺曲线就不能说合适。`protection_status_long_wire=reject_known_constraint` 与 `protection_status_ampacity=reject_known_constraint` 只演示**已知约束**被违反（载流量门禁用**连续电流** I_cont_total=**3.30** A，不是峰值）；峰值单独没有时间–电流曲线时仍是 `protection_status_peak_only=insufficient_data`；`fuse_certification=never`。连续与峰值是两套**示例假设**，互不冒充。
+
+真机用电流钳量一次峰值、用示波器看地环路、更换熔断器——本页未运行。不要求购买电源分析仪。
 
 ## 对照 SO-101
 
-总线舵机（如 STS3215）共享电机电源与 TTL 总线。逻辑 5 V 往往来自板载 LDO 或单独轨：电机总线跌落时，逻辑轨要有自己的退耦，不能指望「同一根粗线」两边都稳。把玩具里的 `n_servos`、`I_peak`、`wire_len_m` 改成你的假设，重新跑一遍，写进你的电源清单。
+总线舵机（如 STS3215）共享电机电源与 TTL 总线。逻辑 5 V 往往来自板载 LDO 或单独轨：电机总线跌落时，逻辑轨要有自己的退耦，不能指望「同一根粗线」两边都稳。把玩具里的 `n_servos`、`I_peak`、`wire_len_m` 改成你的假设，重新跑一遍，写进你的电源清单——并附上一张熔断器数据清单，而不是一个 fuse_margin 数字。
 
 ## 本课未覆盖
 
 - 改 BMS、平衡充电算法、拆电芯。
 - 开关电源环路补偿、PFC。
 - 认证级 EMC 测试（传导/辐射限值）。
+- 凭玩具给熔断器「适配」结论。
 
 延伸阅读：Novanta 人形 EMC 布线用例、Roboteq EMI 博文、ARK Power and Grounding。
 
@@ -117,25 +300,26 @@ pass_11v_floor=true
 **本课要点**
 
 - 逻辑轨与电机总线分开；公共地单点星形汇合。
-- 玩具：峰值 10.80 A、压降 0.432 V、负载端 11.568 V、fuse_margin 0.926。
-- EMC 三条：电机线远离信号线；功率/逻辑地策略分清；屏蔽按频段与规范端接（高频两端连续，禁用 GND_D 作屏蔽回流；勿把「源端接地」概括到所有线缆）。
-- 电池只读 C 率与 BMS 切断概念；不拆包、不改 BMS。
-- 电流为示例假设；真机测量本页未运行。
+- 单程玩具：峰值 10.80 A、压降 0.432 V、负载端 11.568 V；fuse_margin 0.926 只是比值。
+- 往返玩具：短线负载端 11.136 V、长线 10.380 V 为 long_only；I²R 峰值 9.3312 W；默认 `insufficient_data`。
+- EMC 三条：电机线远离信号线；功率/逻辑地策略分清；屏蔽按频段与规范端接（高频两端连续，禁用 GND_D 作屏蔽回流）。
+- 电池只读 C 率与 BMS 切断概念；不拆包、不改 BMS；不更换熔断器。
 
 **常见错误**
 
 - 把逻辑地接到电机大电流回路中间。
 - 编码器线与相线平行长距离并走。
 - 用可调电源给锂电「临时充」。
+- 只看 I_fuse / I_peak 就写「慢熔合适」。
 
 **自检**
 
-- 峰值 10.80 A 时 0.8 m × 50 mΩ/m 的压降是多少？
-- 为什么 fuse_margin &lt; 1 仍可能用慢熔？
+- 往返压降相对单程差几倍？hits_V_floor 取值有哪些？本例为何是 long_only？
+- 为什么默认 protection_status 必须是 insufficient_data？
 - EMC 三条硬规则是什么？
 
 **下一课会用到**
 
-- [11.2 FOC 执行器实验](/zh/month/month-11/foc-actuator-lab)：从 H 桥 PWM 升到 Clarke–Park。
+- [11.2 FOC 执行器实验](/zh/month/month-11/foc-actuator-lab)：从 H 桥 PWM 升到电角度与 dq 电流环。
 
 </Summary>
