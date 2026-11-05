@@ -17,3 +17,13 @@ What it does / 它做什么:
 
 Its output is quoted in the lesson as **simulated output / 仿真输出** and checked by `tools/sim/reproduce.sh` against `tools/sim/expected/m5-joint_freq.txt`. To try it on hardware, log speed (from an encoder) while you hold a constant PWM on a motor, and apply step 1 to your own log. Not run on a real motor by the site editor.
 课程中以“仿真输出”引用它的输出，由 `tools/sim/reproduce.sh` 与 `tools/sim/expected/m5-joint_freq.txt` 比对。想在硬件上试，就给电机一个恒定 PWM 并用编码器记录速度，再对你自己的记录做第 1 步。本站编者没有在真实电机上运行过。
+
+## Enrichment: PE vs step (`sysid_pe_compare_toy.py`) / 深化：持续激励对照阶跃
+
+```bash
+python3 examples/month-5/control-modelling/sysid_pe_compare_toy.py
+# or: bash examples/month-5/check.sh
+```
+
+Fair energy, shared noise, reports `cond(ΦᵀΦ)` and `‖θ̂−θ‖`. Equation-error OLS bias caveat. Real motor sysid 本页未运行.
+公平能量、共享噪声，报告条件数与参数误差；方程误差 OLS 偏差风险已标明。真实电机辨识本页未运行。

@@ -1,0 +1,12 @@
+seed=52 dt=0.02 horizon=250 m=1.0 b_nom=0.4 b_pert=0.1
+design: pole-placement on nominal (A,B); K_poles=[0.92, 0.88] L_poles=[0.85, 0.8]
+K=[24.0000, 9.6000]  L=[0.3420, 1.3632]
+oracle_fullstate uses privileged true x; observer uses only y=Cx+noise
+NOT H-infinity; NOT equal-info baseline; shared process noise across arms
+cost = sum(x_pos^2 + 0.1*x_vel^2 + 0.01*u^2) over the horizon
+
+arm                             rms_pos    rms_vel      rms_u         cost  final_pos
+open_loop                        0.9660     0.1231     0.0000       233.66     1.0181
+oracle_fullstate                 0.2207     0.5146     2.7307        37.44    -0.0040
+observer_output_feedback         0.2119     0.9315     5.8450       118.33    -0.0039
+ok: oracle_fullstate (privileged x) cost < observer_output_feedback cost < open_loop; model-error sweep on perturbed plant (real hardware 本页未运行)
