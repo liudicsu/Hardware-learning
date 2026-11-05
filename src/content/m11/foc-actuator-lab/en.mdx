@@ -119,6 +119,8 @@ with sensor direction d ∈ `{+1, −1}`, pole pairs p, and zero-electric offset
 
 Plant assumptions (locked for this toy): series R, L per dq axis; back-EMF e_q ≈ k_e ω_e, e_d ≈ 0; **cross-coupling ω_e L i omitted on both arms** (never on one arm only). Outputs are SinePWM-shaped phase-voltage floats — no MCU timer. Also omitted: integrator anti-windup, and a real PWM DC-rail limit (V_LIM is only a soft ud/uq clamp); OMEGA_M is prescribed, and iq does not drive mechanics.
 
+**PI worked example (units and discrete integral):** error e = i_ref − i (A); the controller integrates with discrete Forward Euler, ∫e ≈ Σ e·DT, toy DT = 1e-4 s (same as the embedded toy docstring), so ∫e is in A·s; output u = Kp·e + Ki·∫e (V). Toy gains Kp = 3.0 V/A, Ki = 800 V/(A·s). Hand example: if e stays 0.1 A for 10 steps, ∫e ≈ 10 × 0.1 × 1e-4 = 1e-4 A·s and u = 3.0×0.1 + 800×1e-4 = 0.30 + 0.08 = **0.38 V**. Back-EMF e_q = k_e ω_e is also in V (k_e = 0.04 V·s/rad). This is a hand illustration, not a toy output.
+
 `foc_current_loop_toy.py` runs three arms under identical noise: correct p/θ_e0; wrong θ_e0; wrong pole pairs. Metrics split controller-frame RMSE (what the PI sees) from **plant true-frame** RMSE (actual torque/flux axes). Under a wrong angle the controller frame can still "look fine" while the plant frame collapses — that is the point of alignment.
 
 ```bash

@@ -28,7 +28,7 @@ Still electives / not run here: LeKiwi build, external F/T, Isaac Lab-scale trai
 
 Widgets deferred. No prices anywhere.
 
-Verification: `examples/month-11/check.sh` (7/7 same), check_diagrams, check_quotes, lint, tsc, CI build.
+Verification: `examples/month-11/check.sh` (7 lessons / 12 output checks same), check_diagrams, check_quotes, lint, tsc, CI build.
 
 Deepen PR2: synthetic tactile axes/signs, rest debias, independent skin-swap gain recalibration, shared evaluation noise, first-contact data gate (dimensionless, not measured Newtons; policy integration stays 11.7). OXE-AugE stages mask fusion → inpaint → base-position tune → replay/composite are documentation, not a CPU augmentation implementation. A.5 milestone scores 0.3/0.5/0.8/1.0, 10×4 trials, score mean±SE ≠ binary success; 24–45 % lift denominator uncertain (absolute vs relative). Toy outcomes are synthetic; no real OXE cardinality enters CI.
 

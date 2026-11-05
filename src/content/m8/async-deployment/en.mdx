@@ -175,7 +175,7 @@ Sync idle ratio **0.200**; async idle ratio **0.020**. Async also shows a higher
 
 A **capture timestamp** says when the sensor observed the scene. **Transport delay** is arrival time minus capture time in a common clock. A **clock offset** changes the sensor's reported stamp relative to that clock; it is not network delay. Jitter changes delay from packet to packet. Matching receipt order alone does not make image, encoder and tactile observations simultaneous.
 
-This synthetic evaluator has a target-camera stream at 30 Hz, an encoder at 100 Hz and a gap-proxy channel at 60 Hz (metres, **not a real tactile force**). Nominal delays are 0.065, 0.015 and 0.035 s, with bounded jitter of ±0.010, ±0.004 and ±0.008 s. Sensor clock offsets are 0.012, −0.006 and 0.004 s. We explicitly subtract these **known synthetic offsets** before comparing event times; the toy does not estimate or synchronise real clocks. Record capture convention, clock domain and offset calibration in a real log. Camera exposure midpoint vs end time is another convention you must choose.
+This synthetic evaluator has a target-camera stream at 30 Hz, an encoder at 100 Hz and a gap-proxy channel at 60 Hz (metres, **not a real tactile force**). Nominal delays are 0.065, 0.015 and 0.035 s, with bounded jitter of ±0.010, ±0.004 and ±0.008 s. Sensor clock offsets are 0.012, −0.006 and 0.004 s. We explicitly subtract these **known synthetic offsets** before comparing event times; the toy does not estimate or synchronise real clocks. Record capture convention, clock domain and offset calibration in a real log. Camera exposure midpoint vs end time is another convention you must choose. **A fixed clock offset ≠ long-term drift**: this toy has constant offsets only; real clocks drift over time, so a one-off offset calibration cannot be reused indefinitely.
 
 ### An arrival-time causal contract
 
@@ -313,6 +313,14 @@ arrived_brackets_only=True extrapolation=False live_success_claim=False
 Over **874** matched arrival events, latest-sample RMSE is **0.016905 m** with **11/874** proxy hits; stamp alignment gives **0.000963 m** and **874/874**. These are seed-41 synthetic outcomes, not measured robot rates or a guarantee over seeds. Boundary events without brackets are excluded equally. The interpolation function asserts both bracket arrivals are no later than now.
 
 Try reducing `LAG` below the camera's delay: record lost evaluation coverage as well as RMSE. Then remove offset correction in a local copy and observe timestamp bias despite unchanged transport. Explain why interpolating from a full bag using capture time alone would leak future availability. [11.4 UMI-style collection](/en/month/month-11/umi-style-collection) uses the same timestamp discipline for data; [10.2 RTC](/en/month/month-10/real-time-chunking) handles **action seams**, not sensor alignment. Real camera / network / GPU / robot tests remain **本页未运行 (not run on this page)**, with no hardware purchase required.
+
+**Real-log checklist** (not measured on real logs here; every item is **本页未运行 (not run on this page)**):
+
+- **Clock domain**: which clock each stream's stamps come from (sensor, host, PTP/NTP).
+- **Timestamp meaning**: exposure midpoint/end, capture vs receipt time.
+- **Offset estimate**: how each stream's offset to the common clock is calibrated.
+- **Drift recheck**: how often the offset is re-estimated, and whether drift exceeds tolerance.
+- **Allowed data age**: maximum data age at the query time and the timeout policy.
 
 ## Knobs
 

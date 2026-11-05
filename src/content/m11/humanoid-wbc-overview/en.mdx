@@ -333,6 +333,8 @@ point_screen_omits_moment=True full_dynamic_feasibility_not_tested=True
 
 </SimOutput>
 
+Note: `JcN_max≈0` is an algebraic consequence of the nullspace projector N, not a dynamics verification; the independent geometric check is finite differences (`jacobian_fd_ok`). Planar six DOF = 3 base + 3 leg joints.
+
 The unconstrained foot speed is **0.465223**; after projection, residual, `J_c N` and pitch-rate error print **0.000**, with assertions below `1e-12` before rounding. Singular values are **1.570387** and **1.005044**. The point force screen passes **201/201** samples; the finite-sole screen passes **77/201**, with peak absolute CoP **0.185668** m. These are synthetic model diagnostics, not walking success rates.
 
 Try doubling the base-pitch target, then perturb a Jacobian column: first observe how the secondary rate changes, then why the finite-difference / nullspace checks reject the corrupted geometry. Explain why a straight joint-only map may be singular while the floating-base map remains rank 2. Humanoid hardware, Isaac, MoCap and sim2real remain **本页未运行 (not run on this page)**; no purchase is required.
