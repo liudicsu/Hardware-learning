@@ -1,17 +1,24 @@
 #!/usr/bin/env python3
 """relative_traj_toy.py: absolute / delta / relative end-error under SE(2) (stdlib).
 
-Same action sequence, three reconstructions:
-  - absolute: global-frame targets with a fixed calibration bias
-  - delta: each step is previous + noisy increment (noise accumulates)
-  - relative (UMI-style): each action re-expressed vs the current EE
-    (here: apply the true relative action from the measured pose → zero end error)
+UMI PD2.1 / Fig.6 (arXiv 2402.10329 v3): three action representations.
+  - absolute: global-frame targets (needs a shared world frame; calib bias sticks)
+  - delta (contrast): each step is relative to the *previous* pose → per-step
+    action noise compounds along the chunk
+  - relative (UMI): one inference chunk with a *fixed anchor* T0; the *final*
+    pose is rebuilt directly as T0 ∘ (T0^{-1} ∘ TN) — not a chain of deltas
 
-Bias demo: the demo was *recorded* with a measured EE pose that carries a
-world-frame bias B (rigid SE(2) offset, e.g. a mis-registered SLAM / camera frame)
-plus small per-frame noise. Replaying those measured poses as absolute targets
-carries B onto the robot; relative actions inv(meas_t) ∘ meas_{t+1} cancel B
-exactly (B cancels in the product), leaving only the per-frame noise.
+Fair noise (endpoint-error demo): the same per-component noise magnitude is
+added independently to every step-wise delta; for the fixed-anchor arm the
+same magnitude is added *once* to the final T0^{-1} ∘ TN action only
+(intermediate relative targets are not noised). Relative end error is
+therefore a single draw (~0.001875 at default noise), not zero and not a
+compounded pile-up.
+
+Bias demo (a *different* conclusion from error accumulation): a fixed left-
+multiplied world-frame bias B on measured poses cancels under relative actions
+(T0^{-1} Tk), because B drops out of the product. That is not the same claim as
+"relative does not accumulate step noise".
 
 Also prints UMI paper constants used in the lesson prose (throughput, ATE)
 — paper numbers, not toy measurements. Take the paper as source of truth.
@@ -34,43 +41,6 @@ def se2_compose(p, a):
     )
 
 
-# True path: 8 relative actions from the origin
-pose = (0.0, 0.0, 0.0)
-truth = [pose]
-actions_rel = []
-for _ in range(8):
-    a = (
-        0.05 + random.uniform(-0.01, 0.01),
-        random.uniform(-0.02, 0.02),
-        random.uniform(-0.1, 0.1),
-    )
-    actions_rel.append(a)
-    pose = se2_compose(pose, a)
-    truth.append(pose)
-
-# Absolute with a fixed calibration bias in the world frame
-calib_err = (0.02, -0.015, 0.05)
-abs_end_err = math.hypot(calib_err[0], calib_err[1])  # bias dominates end error
-
-# Delta: each step relative to previous, with per-step measurement noise
-delta_pose = truth[0]
-noise = 0.003
-for a in actions_rel:
-    noisy = (
-        a[0] + random.uniform(-noise, noise),
-        a[1] + random.uniform(-noise, noise),
-        a[2] + random.uniform(-noise, noise),
-    )
-    delta_pose = se2_compose(delta_pose, noisy)
-delta_end_err = math.hypot(delta_pose[0] - truth[-1][0], delta_pose[1] - truth[-1][1])
-
-# Relative (UMI): restart each step from the measured current EE — perfect here
-rel_pose = truth[0]
-for a in actions_rel:
-    rel_pose = se2_compose(rel_pose, a)
-rel_end_err = math.hypot(rel_pose[0] - truth[-1][0], rel_pose[1] - truth[-1][1])
-
-# Bias demo: world-frame bias on the measured EE during recording
 def se2_inv(p):
     c, s_ = math.cos(p[2]), math.sin(p[2])
     return (-c * p[0] - s_ * p[1], s_ * p[0] - c * p[1], -p[2])
@@ -81,6 +51,55 @@ def se2_mul(p, q):
     return se2_compose(p, q)
 
 
+def se2_delta(a, b):
+    """Body-frame motion taking pose a to pose b: a^{-1} ∘ b."""
+    return se2_mul(se2_inv(a), b)
+
+
+def add_noise(a, noise):
+    return (
+        a[0] + random.uniform(-noise, noise),
+        a[1] + random.uniform(-noise, noise),
+        a[2] + random.uniform(-noise, noise),
+    )
+
+
+# True path: 8 relative actions from the origin
+pose = (0.0, 0.0, 0.0)
+truth = [pose]
+for _ in range(8):
+    a = (
+        0.05 + random.uniform(-0.01, 0.01),
+        random.uniform(-0.02, 0.02),
+        random.uniform(-0.1, 0.1),
+    )
+    pose = se2_compose(pose, a)
+    truth.append(pose)
+
+# Absolute with a fixed calibration bias in the world frame
+calib_err = (0.02, -0.015, 0.05)
+abs_end_err = math.hypot(calib_err[0], calib_err[1])  # bias dominates end error
+
+noise = 0.003
+T0 = truth[0]
+
+# True step-wise deltas and fixed-anchor relatives from the clean path
+deltas = [se2_delta(truth[k], truth[k + 1]) for k in range(len(truth) - 1)]
+rels_from_anchor = [se2_delta(T0, truth[k]) for k in range(1, len(truth))]
+
+# Delta (contrast): compound noisy step-wise deltas — noise accumulates
+delta_pose = T0
+for d in deltas:
+    delta_pose = se2_compose(delta_pose, add_noise(d, noise))
+delta_end_err = math.hypot(delta_pose[0] - truth[-1][0], delta_pose[1] - truth[-1][1])
+
+# Relative (UMI PD2.1): fixed-anchor reconstruction of the final pose only.
+# One noisy (T0^{-1} ∘ TN); intermediate deltas are never chained.
+rel_final_action = add_noise(rels_from_anchor[-1], noise)
+rel_pose = se2_compose(T0, rel_final_action)
+rel_end_err = math.hypot(rel_pose[0] - truth[-1][0], rel_pose[1] - truth[-1][1])
+
+# Bias demo (separate conclusion): fixed left-multiplied world-frame bias B
 B = (0.03, -0.02, 0.08)  # world-frame bias (m, m, rad)
 meas_noise = 0.0005
 meas = []
@@ -91,20 +110,16 @@ for T in truth:
                  m[2]))
 # absolute replay: robot drives to the measured (biased) final pose
 abs_biased_err = math.hypot(meas[-1][0] - truth[-1][0], meas[-1][1] - truth[-1][1])
-# relative replay: robot starts at its own true start and chains inv(m_t) ∘ m_{t+1}
-rb_pose = truth[0]
-for k in range(len(meas) - 1):
-    rb_pose = se2_mul(rb_pose, se2_mul(se2_inv(meas[k]), meas[k + 1]))
+# relative (fixed-anchor) replay: T0 ∘ (m0^{-1} ∘ m_N); B cancels in the product
+rb_pose = se2_mul(T0, se2_mul(se2_inv(meas[0]), meas[-1]))
 rel_biased_err = math.hypot(rb_pose[0] - truth[-1][0], rb_pose[1] - truth[-1][1])
 # same, with zero noise: bias cancels exactly
-rb0 = truth[0]
 meas0 = [se2_mul(B, T) for T in truth]
-for k in range(len(meas0) - 1):
-    rb0 = se2_mul(rb0, se2_mul(se2_inv(meas0[k]), meas0[k + 1]))
+rb0 = se2_mul(T0, se2_mul(se2_inv(meas0[0]), meas0[-1]))
 rel_bias_only_err = math.hypot(rb0[0] - truth[-1][0], rb0[1] - truth[-1][1])
 
 print(f"seed={SEED}")
-print(f"steps={len(actions_rel)}")
+print(f"steps={len(deltas)}")
 print(f"abs_calib_bias_m={abs_end_err:.6f}")
 print(f"delta_accum_err_m={delta_end_err:.6f}")
 print(f"relative_err_m={rel_end_err:.6f}")

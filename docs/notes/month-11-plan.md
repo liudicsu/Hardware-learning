@@ -20,7 +20,7 @@ Total 1 500 minutes; site total 71 lessons / 14 790 minutes (from `src/lib/curri
 
 Pointers: M2 motors-drivers → 11.2; M3 gripper-fingers → 11.3; 8.1 dataset-engineering → 11.5; 10.1 flow-matching → 11.4; M7 / M8 / M10 legged / Isaac electives → 11.6; M8 / M9 / M10 topics FOC → 11.2, tactile → 11.3 / 11.7; 8.7 capstone and 6.5 portfolio → Month 11 (optional, not a replacement). Banners and message ranges say Months 7–11.
 
-PR3 polish: 11.4 toy adds a world-frame bias on the measured EE so the relative-action result is not zero by construction (absolute 0.032893 m vs relative 0.000225 m; bias-only 0); 11.5 drops its unused seed; 11.5 scope link fixed to 8.8 sim-benchmarks.
+Audit fix (#102): 11.4 toy uses fixed-anchor T0⁻¹ Tk vs step-wise delta (delta_accum 0.008287 vs relative_err 0.001875; not zero); bias demo abs 0.033248 / rel 0.000829 / bias-only 0; 11.1 EMC objectives match four-grounds / HF both-end termination (no blanket single-end rule); 11.5 drops leftover「下一批 PR」; LIPM docstring = capture-point fall.
 
 Still electives / not run here: LeKiwi build, external F/T, Isaac Lab-scale training, on-robot DIGIT / GelSight Mini / BLDC / GoPro / humanoid runs; ViTaMIn / exUMI / MiTaS full-table numbers stay unverified.
 

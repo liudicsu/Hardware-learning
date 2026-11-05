@@ -3655,7 +3655,12 @@ const lessonRef = (n, slug, lang) => {
   ok(/anyskin_replace_s=12/.test(tac) && /anyskin_slip_acc=0\.92/.test(tac), "m11 tac: AnySkin 12 s / 0.92");
   ok(/anyskin_plug_cam=1\.7/.test(tac) && /anyskin_plug_skin=6\.7/.test(tac) && /anyskin_plug_swap=5\.3/.test(tac),
     "m11 tac: plug 1.7 / 6.7 / 5.3");
-  ok(/abs_calib_bias_m=0\.025000/.test(umi) && /relative_err_m=0\.000000/.test(umi), "m11 umi: abs 0.025 / rel 0");
+  ok(/abs_calib_bias_m=0\.025000/.test(umi), "m11 umi: abs 0.025");
+  {
+    const num = (txt, re) => Number((txt.match(re) || [, "NaN"])[1]);
+    const dlt = num(umi, /delta_accum_err_m=([0-9.]+)/), rel = num(umi, /relative_err_m=([0-9.]+)/);
+    ok(dlt > rel && rel > 0, "m11 umi: delta accumulates above fixed-anchor relative");
+  }
   ok(/umi_cup_throughput_per_h=111/.test(umi) && /spacemouse_throughput_per_h=35/.test(umi) && /hand_throughput_per_h=231/.test(umi),
     "m11 umi: throughput 111/35/231");
   ok(/top4_share=0\.8957/.test(oxe), "m11 oxe: synthetic top4_share 0.8957");
@@ -3789,7 +3794,7 @@ const lessonRef = (n, slug, lang) => {
   ok(!/\(PR3\)|（PR3）|见 PR3|in PR3/.test(cur11), "m11: no PR3 placeholders left in curriculum");
   ok(/month-11/.test(rd11("docs/notes/month-11-plan.md")) || /Month 11/.test(rd11("docs/notes/month-11-plan.md")), "m11: month-11-plan.md present");
 
-  console.log(`calc  m11 PR3: umi abs 0.025 / delta 0.008287 / rel 0, biased-meas abs 0.032893 vs rel 0.000225; oxe top4 0.8957; lipm slow ok / fast falls + ASAP 61.2→50.2; tgate vis 0.060 / gated 0.970 / swapped 0.715; phrases ${phraseHits11}; 11.1–11.7`);
+  console.log(`calc  m11 audit: umi abs 0.025 / delta 0.008287 / rel 0.001875 (fixed anchor), biased-meas abs 0.033248 vs rel 0.000829; oxe top4 0.8957; lipm slow ok / fast falls + ASAP 61.2→50.2; tgate vis 0.060 / gated 0.970 / swapped 0.715; phrases ${phraseHits11}; 11.1–11.7`);
 }
 
 

@@ -44,9 +44,11 @@ if that p is outside the foot it is clipped, and tracking degrades.
 
 Two lateral sway references with the same amplitude:
   - slow (0.5 Hz): the ZMP it needs stays inside the foot
-  - fast (1.0 Hz): the ZMP it needs leaves the foot -> clipping; once the
-    capture point x + v/omega leaves the foot, no in-foot ZMP can stop the CoM
-    and the robot must step (here: the run stops and reports a fall)
+  - fast (1.0 Hz): the *reference* capture point already leaves the foot
+    (A·√(1+(w/ω)²) > FOOT_HALF); at the recorded fall (0.045 s) ZMP clipping
+    count is 0 — the fall is declared because capture point x + v/ω is outside
+    the foot, not because ZMP was clipped. No in-foot ZMP can then stop the CoM;
+    the robot must step (here: the run stops and reports a fall)
 CoM measurements carry seeded Gaussian noise (SEED) so the run is repeatable.
 
 Also prints ASAP (arXiv 2502.01143) Table V constants used in the lesson prose —

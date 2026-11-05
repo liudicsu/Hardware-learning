@@ -34,7 +34,7 @@ Two practical points:
 
 ## Replaceability is the precondition for scale
 
-Elastomers wear out and get replaced. If a new skin changes the signal, policies trained on old data lose performance and tactile data never accumulates. The AnySkin paper reports in the same table: after a skin swap AnySkin drops about −13 % relative to the original skin, ReSkin about −43 % (take the paper as source of truth). So when choosing a tactile sensor, cross-instance signal consistency matters as much as sensitivity; without it you need a quick re-calibration after each swap, or training data from several skins.
+Elastomers wear out and get replaced. If a new skin changes the signal, policies trained on old data lose performance and tactile data never accumulates. AnySkin Table III: AnySkin **6.7**/10 → **5.3**/10 (about **14** percentage points; relative drop (6.7−5.3)/6.7 ≈ **21 %**); ReSkin **6.0**/10 → **1.7**/10 (about **43** percentage points; relative drop ≈ **72 %**). Percentage points are not relative drops — do not mix them; take the paper counts as source of truth. So when choosing a tactile sensor, cross-instance signal consistency matters as much as sensitivity; without it you need a quick re-calibration after each swap, or training data from several skins.
 
 ## Gated insertion toy
 
@@ -180,7 +180,7 @@ A "contact-modality experiment" (for example, the same insertion task with visio
 
 - The last millimetres of precise insertion happen under occlusion; touch gives a direction signal at contact.
 - Modality-specific encoders + a shared trunk: tactile tokens condition the action head (BC / diffusion / flow matching) together with vision and state tokens.
-- Replaceability is what lets tactile data scale (AnySkin swap about −13 %, ReSkin about −43 %, take the paper as source of truth).
+- Replaceability is what lets tactile data scale (AnySkin 6.7→5.3 ≈14 pp / ≈21 % relative; ReSkin 6.0→1.7 ≈43 pp / ≈72 % relative; Table III as source of truth — do not mix pp with relative).
 - Toy: vision only 0.060 → gated touch 0.970 → swapped-skin gain mismatch 0.715.
 - No tactile sensor purchase required; on-robot steps not run on this page; no new capstone track.
 
