@@ -7,6 +7,8 @@ measured here):
   SmolVLA        0.45e9  (arXiv 2506.01844: "450 million parameters")
   pi0-class      3.3e9   (arXiv 2410.24164: 3B PaliGemma + 300M action expert)
   OpenVLA-class  7e9     (arXiv 2406.09246: "7B-parameter")
+Here GB = 10^9 bytes (decimal), not GiB = 2^30 bytes; vendors sometimes
+quote GiB, so a 6.60 GB figure is about 6.15 GiB.
 WEIGHTS ONLY. Activations, the KV cache, vision-encoder / image buffers, the
 framework / CUDA context and the OS are EXCLUDED and not estimated: a weights
 number is a lower bound, never "it fits".

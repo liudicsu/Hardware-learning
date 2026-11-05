@@ -282,7 +282,7 @@ What makes the comparison fair:
 - **Same score:** most successes first, then the shorter mean cycle time.
 - **Shared evaluation episodes** (a separate seed), scored at nominal µ = 0.40 / m = 0.50 kg and at shifted µ and mass.
 
-Nothing is fitted. No τ is refitted and no parameter is estimated: that is `sysid_fit.py` above, and persistent excitation belongs to 5.1. This is tuning a controller across a distribution. The friction is a one-line Coulomb proxy, **not** MuJoCo's soft-contact solver (7.1), and no real push on an SO-101 was run on this page (本页未运行).
+Nothing is fitted. No τ is refitted and no parameter is estimated: that is `sysid_fit.py` above, and persistent excitation belongs to 5.1. This is tuning a controller across a distribution. The friction is a one-line Coulomb proxy, **not** MuJoCo's soft-contact solver (7.1); real MuJoCo contact DR typically perturbs `solref` / `solimp` / `friction` on geoms (see the [MuJoCo XML reference](https://mujoco.readthedocs.io/en/stable/XMLreference.html)), and no real push on an SO-101 was run on this page (本页未运行).
 
 ```bash
 $ cd ~/Hardware-learning/examples/month-7/sim-to-real

@@ -12,7 +12,7 @@ Constraints: no shared month-4 pixi; private venv for MuJoCo (`M7_PYTHON`). Runn
 | 1 | `mujoco-so101` | 240 | batch 1 | `grip_sweep.py` + `grip_scene.xml` (needs mujoco) | Menagerie robotstudio_so101; MuJoCo modeling/XMLreference; SO-ARM100 Simulation/SO101 |
 | 2 | `rl-foundations` | 240 | batch 1 | `ppo_reach.py` (stdlib) | SB3 PPO docs; Gymnasium; Spinning Up; arXiv 1707.06347 |
 | 3 | `rl-manipulation-sim` | 240 | **full** | `reward_shaping.py` (stdlib) | ManiSkill install + PickCubeSO100-v1; SB3 SAC; arXiv 1801.01290 / 2410.00425 |
-| 4 | `sim-to-real` | 240 | **full** | `sysid_fit.py` + `randomize_eval.py` (stdlib) | Tobin arXiv 1703.06907; Peng arXiv 1710.06537; Isaac Lab README (Sim 6.2); ISO 10218-1 403 → soft safety wording |
+| 4 | `sim-to-real` | 390 | **full** | `sysid_fit.py` + `randomize_eval.py` + `contact_dr_toy.py` (stdlib) | Tobin arXiv 1703.06907; Peng arXiv 1710.06537; Isaac Lab README (Sim 6.2); ISO 10218-1 403 → soft safety wording |
 | 5 | `depth-pointcloud` | 240 | batch 1 | `cloud_pipeline.py` (stdlib) | Open3D APIs; Depth Anything V2 licences |
 | 6 | `perception-to-grasp` | 300 | **full** | `handeye_toy.py` (NumPy) + `grasp_from_mask.py` (stdlib) | OpenCV `calib3d.hpp` calibrateHandEye (TSAI/Park; ≥3 poses; eye-in-hand vs eye-to-hand); SAM2 LICENSE Apache-2.0 |
 
