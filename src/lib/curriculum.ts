@@ -1662,7 +1662,7 @@ const month11Lessons: Lesson[] = [
       { zh: "能用 LIPM 算出摆动所需 ZMP 与参考捕获点，并判断是否必须迈步。", en: "Use the LIPM to compute the ZMP a sway needs and the reference capture point, and decide whether a step is required." },
       { zh: "能复述 ASAP 的四步流水线与 delta action 的定义，并引用 Table V（以论文为准）。", en: "Restate ASAP's four-step pipeline and the delta action definition, and cite Table V (paper as source of truth)." },
       { zh: "能说明本课不要求购买人形机，训练、sim2real 与真机步骤本页未运行。", en: "State that no humanoid purchase is required and that training, sim2real and on-robot steps are not run here." },
-      { zh: "在无手臂的六自由度平面模型上推导两行 Jc，用 Jc qdot=0 与 Jc N≈0 检查无滑移，分清秩、零空间次任务和点足/有限脚底筛查。", en: "Derive two-row Jc for a six-DOF planar model with no arm; check Jc qdot=0 and Jc N≈0, distinguishing rank, nullspace tasks and point/finite-sole screens." },
+      { zh: "在无手臂的六自由度平面模型（3 基座 + 3 腿关节）上推导两行 Jc，用 Jc qdot=0 检查无滑移；Jc N≈0 只是投影代数的结果、不是动力学验证，独立几何检查靠有限差分；分清秩、零空间次任务和点足/有限脚底筛查。", en: "Derive two-row Jc for a six-DOF planar model with no arm (3 base + 3 leg joints); check no-slip with Jc qdot=0; Jc N≈0 is a projection-algebra consequence, not a dynamics verification, and the independent geometric check is finite differences; distinguish rank, nullspace tasks and point/finite-sole screens." },
     ],
     prereqs: ["rl-foundations", "sim-to-real", "state-space-lqr"],
     resources: ["alip-feet-paper", "asap-paper", "asap-code", "hugwbc-code", "holosoma-code", "twist-code", "wbc-agile-code"],
