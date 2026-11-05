@@ -1,0 +1,248 @@
+This lesson is a site supplement — Months 7–11 are not part of the original six-month course.
+
+**Scope.** [7.2 RL foundations](/en/month/month-7/rl-foundations) already covered PPO / SAC, and [7.4 sim-to-real](/en/month/month-7/sim-to-real) covered randomisation, system ID and latency; the Month 7, 8 and 10 pages leave "legged playground / Isaac Lab" as electives. This lesson is **a humanoid whole-body control (WBC) reading map plus one planar LIPM toy**: why desktop-arm lessons are not enough, why the ZMP and the capture point decide whether an inverted-pendulum model stays up, how ASAP aligns simulation with the real robot through a delta action model, and what to read in HugWBC / Holosoma / TWIST / WBC-AGILE. **It does not re-teach PPO and it is not a Unitree hardware course.** **Buying a humanoid robot is not required**; Isaac / MuJoCo training, sim2real deployment and on-robot steps are all marked 本页未运行 (not run on this page). This lesson also does not replace the 8.7 capstone.
+
+## Why desktop-arm lessons are not enough
+
+The SO-101 is screwed to the table; its base never falls over. A humanoid has three things a desktop arm does not:
+
+1. **A floating base.** The torso pose is not set by the joints directly; it can only be pushed through foot–ground contact forces, so the state gains 6 unactuated degrees of freedom.
+2. **Contact switching.** Single / double support alternate, so the dynamics can change form every step; landing impacts also heat the motors (see ASAP's limitations below).
+3. **Whole-body coordination.** Swinging an arm shifts the centre of mass (CoM), and the legs must compensate at the same time — that is what "whole-body" control means.
+
+The inverted pendulum in [5.2 state-space and LQR](/en/month/month-5/state-space-lqr) is the smallest entry model; this lesson puts it under the constraint "the sole can only push on a finite patch of ground".
+
+## LIPM, ZMP and the capture point
+
+The linear inverted pendulum model (LIPM) shrinks the whole body to one CoM point at a fixed height z_c:
+
+- Lateral dynamics: x'' = ω²·(x − p), ω = √(g / z_c).
+- p is the **ZMP** (zero-moment point / centre of pressure), and it **can only sit inside the support foot**, e.g. |p| ≤ 0.10 m.
+- **Capture point** ξ = x + x'/ω: while ξ is inside the foot, some in-foot p can bring the CoM to rest; once ξ leaves the foot, the robot falls unless it steps.
+
+To sway the CoM as A·sin(wt), the ZMP amplitude needed is A·(1 + w²/ω²), and the reference's own peak capture point is A·√(1 + (w/ω)²). Raise the frequency and both numbers leave the foot — no controller can save that.
+
+## LIPM tracking toy
+
+`lipm_track_toy.py`: z_c = 0.8 m, foot half-width 0.10 m, 5 cm sway; PD + feed-forward picks the ZMP, which is clipped at the foot edge; CoM measurements carry seeded Gaussian noise. It compares a 0.5 Hz (slow) and a 1.0 Hz (fast) reference; a capture point outside the foot counts as a fall and stops the run.
+
+```bash
+$ cd ~/Hardware-learning/examples/month-11/humanoid-wbc-overview
+$ python3 lipm_track_toy.py
+```
+
+<CodeSource path="examples/month-11/humanoid-wbc-overview/lipm_track_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""lipm_track_toy.py: planar linear inverted pendulum (LIPM) CoM tracking (stdlib).
+
+The CoM moves as  x'' = omega^2 * (x - p),  omega = sqrt(g / z_c),
+where p is the ZMP (centre of pressure). p can only sit inside the foot,
+here |p| <= FOOT_HALF_M. A PD + feed-forward controller picks the p it wants;
+if that p is outside the foot it is clipped, and tracking degrades.
+
+Two lateral sway references with the same amplitude:
+  - slow (0.5 Hz): the ZMP it needs stays inside the foot
+  - fast (1.0 Hz): the ZMP it needs leaves the foot -> clipping; once the
+    capture point x + v/omega leaves the foot, no in-foot ZMP can stop the CoM
+    and the robot must step (here: the run stops and reports a fall)
+CoM measurements carry seeded Gaussian noise (SEED) so the run is repeatable.
+
+Also prints ASAP (arXiv 2502.01143) Table V constants used in the lesson prose —
+paper numbers, not toy measurements. Take the paper as source of truth.
+No humanoid purchase is required; Isaac / MuJoCo training is not run on this page.
+"""
+import math
+import random
+
+SEED = 2
+G = 9.81
+Z_C = 0.8          # CoM height (m)
+FOOT_HALF_M = 0.10  # ZMP limit (m)
+AMP_M = 0.05        # sway amplitude (m)
+DT = 0.005
+T_END = 4.0
+KP, KD = 40.0, 12.0
+NOISE_M = 0.002
+
+omega = math.sqrt(G / Z_C)
+
+
+def run(freq_hz, rng):
+    w = 2 * math.pi * freq_hz
+    x, v = 0.0, AMP_M * w  # start on the reference
+    err_sum, n, clipped = 0.0, 0, 0
+    t = 0.0
+    t_fall = None
+    while t < T_END - 1e-9:
+        x_des = AMP_M * math.sin(w * t)
+        v_des = AMP_M * w * math.cos(w * t)
+        a_des = -AMP_M * w * w * math.sin(w * t)
+        x_meas = x + rng.gauss(0.0, NOISE_M)
+        u = a_des + KP * (x_des - x_meas) + KD * (v_des - v)
+        p = x_meas - u / (omega * omega)
+        if abs(p) > FOOT_HALF_M:
+            p = math.copysign(FOOT_HALF_M, p)
+            clipped += 1
+        acc = omega * omega * (x - p)
+        v += acc * DT
+        x += v * DT
+        t += DT
+        err_sum += abs(x - AMP_M * math.sin(w * t))
+        n += 1
+        if abs(x + v / omega) > FOOT_HALF_M:  # capture point left the foot
+            t_fall = t
+            break
+    return err_sum / n, clipped / n, t_fall
+
+
+rng = random.Random(SEED)
+need_slow = AMP_M * (1 + (2 * math.pi * 0.5) ** 2 / omega ** 2)
+need_fast = AMP_M * (1 + (2 * math.pi * 1.0) ** 2 / omega ** 2)
+# peak capture point of the reference itself: A * sqrt(1 + (w/omega)^2)
+cp_slow = AMP_M * math.sqrt(1 + (2 * math.pi * 0.5 / omega) ** 2)
+cp_fast = AMP_M * math.sqrt(1 + (2 * math.pi * 1.0 / omega) ** 2)
+mae_slow, clip_slow, fall_slow = run(0.5, rng)
+_, _, fall_fast = run(1.0, rng)
+
+print(f"seed={SEED}")
+print(f"z_c={Z_C}")
+print(f"omega={omega:.4f}")
+print(f"foot_half_m={FOOT_HALF_M:.2f}")
+print(f"zmp_needed_slow_m={need_slow:.4f}")
+print(f"zmp_needed_fast_m={need_fast:.4f}")
+print(f"cp_peak_ref_slow_m={cp_slow:.4f}")
+print(f"cp_peak_ref_fast_m={cp_fast:.4f}")
+print(f"com_mae_slow_m={mae_slow:.6f}")
+print(f"clip_frac_slow={clip_slow:.3f}")
+print(f"fell_slow={fall_slow is not None}")
+print(f"fell_fast={fall_fast is not None}")
+print(f"fall_time_fast_s={fall_fast:.3f}" if fall_fast is not None else "fall_time_fast_s=none")
+# ASAP paper constants (arXiv 2502.01143 Table V / Sec. IV-C) for prose binding
+print("asap_kick_gmpjpe_vanilla_mm=61.2")
+print("asap_kick_gmpjpe_asap_mm=50.2")
+print("asap_lebron_gmpjpe_vanilla_mm=159")
+print("asap_lebron_gmpjpe_asap_mm=112")
+print("asap_real_delta_dof=4")
+```
+
+
+<SimOutput source="model">
+
+```text
+seed=2
+z_c=0.8
+omega=3.5018
+foot_half_m=0.10
+zmp_needed_slow_m=0.0902
+zmp_needed_fast_m=0.2110
+cp_peak_ref_slow_m=0.0672
+cp_peak_ref_fast_m=0.1027
+com_mae_slow_m=0.000250
+clip_frac_slow=0.026
+fell_slow=False
+fell_fast=True
+fall_time_fast_s=0.045
+asap_kick_gmpjpe_vanilla_mm=61.2
+asap_kick_gmpjpe_asap_mm=50.2
+asap_lebron_gmpjpe_vanilla_mm=159
+asap_lebron_gmpjpe_asap_mm=112
+asap_real_delta_dof=4
+```
+
+</SimOutput>
+
+How to read it:
+
+- ω = **3.5018** rad/s (z_c = **0.8** m).
+- The slow sway needs a ZMP amplitude of **0.0902** m, inside the **0.10** m foot; the fast sway needs **0.2110** m, far outside.
+- Peak capture point of the slow reference is **0.0672** m; of the fast one **0.1027** m — **the reference itself** already leaves the foot.
+- Slow: CoM MAE **0.000250** m, only **0.026** of the steps clipped (from measurement noise), fell_slow=False.
+- Fast: fell_fast=True, a fall declared at **0.045** s. Not a tuning problem but a physical one: lower the frequency or amplitude, or take a step (move the foot to the capture point).
+- ASAP's **61.2** / **50.2** / **159** / **112** / **4** are paper constants, independent of the toy; they exist so check_diagrams and the prose share one number.
+
+This is the intuition behind the split between footstep / gait planning and whole-body tracking in humanoid WBC papers: check feasibility first, then track.
+
+## Reading map
+
+### 1. ASAP (arXiv 2502.01143, RSS 2025) — read closely
+
+<Resource id="asap-paper" />
+<Resource id="asap-code" />
+
+ASAP (Aligning Simulation and Real-World Physics) is a two-stage framework, shown in four steps in the paper's Fig. 2:
+
+1. **Pre-train motion tracking**: reconstruct SMPL motions from human video, clean them in simulation, retarget to the Unitree G1, and train a phase-conditioned tracking policy with PPO (asymmetric actor-critic: the critic gets privileged information, the actor only proprioception + phase).
+2. **Roll out on the real robot**: deploy the pre-trained policy and record states (motion capture + onboard sensors) and actions.
+3. **Learn a delta action model**: Δa_t = π^Δ(s_t, a_t) is added to the replayed real actions so that the simulated s_(t+1) = f_sim(s_t, a_t + Δa_t) matches the recorded real state; trained with PPO.
+4. **Freeze the delta model and fine-tune the policy in the "aligned" simulator**, then deploy to the real robot **without** the delta model.
+
+Real-robot part (take the paper as source of truth): with little data, the real-robot delta action model covers only the **4** ankle degrees of freedom (the full 23-DoF model needs many more clips), trained on about 100 motion clips; the paper also reports that two G1 robots were damaged to some extent during data collection — highly dynamic motions overheat the motors. Table V, real closed loop: for the kick (in-distribution), global body-position error g-MPJPE drops from Vanilla **61.2** mm to ASAP **50.2** mm; for LeBron's "Silencer" (out-of-distribution), from **159** to **112** mm.
+
+What to read: §III (definition and training of the delta action), §IV-C real-world and Table V, §VIII limitations (hardware wear, motion-capture dependence, data hunger). What not to run: the real G1, Isaac Gym / Isaac Sim / Genesis training — not run on this page.
+
+### 2. Four more repos — one line each
+
+<Resource id="hugwbc-code" />
+<Resource id="holosoma-code" />
+<Resource id="twist-code" />
+<Resource id="wbc-agile-code" />
+
+- **HugWBC** (RSS 2025): a unified, general humanoid whole-body controller for versatile locomotion; the training code is open-sourced. Read its command-space design.
+- **Holosoma** (Amazon FAR): a humanoid RL training + deployment framework covering locomotion (velocity tracking) and whole-body tracking, PPO / FastSAC, several simulators, and human-motion retargeting. Read its train → inference → robot-bridge layering.
+- **TWIST** (CoRL 2025): a teleoperated whole-body imitation system; the repo publishes motion data, teacher / student training and sim2sim / sim2real scripts. Read its human → retargeting → general tracker chain.
+- **WBC-AGILE** (NVIDIA): an Isaac Lab-based engine for humanoid loco-manipulation training, stressing validated sim-to-real. Read how it organises tasks and curricula.
+
+All four need a GPU and a simulator; this site does not run them and does not copy unverified numbers.
+
+## Against 7.4 sim-to-real
+
+| Approach | What it changes | How the ASAP paper rates it (take the paper as source of truth) |
+|---|---|---|
+| System ID (SysID) | Simulator parameters (CoM shift, mass, PD gain ratios) | Needs a predefined parameter space; long-horizon error builds up |
+| Domain randomisation (DR) | Randomised parameters during training | Tends to give over-conservative policies that lose agility |
+| Residual dynamics (DeltaDynamics) | A learned residual on s | Overfits and cascades errors over long horizons |
+| **Delta action (ASAP)** | A learned residual on the **action**, pulling sim towards real | Better in both open-loop replay and closed-loop fine-tuning |
+
+The key difference: ASAP adds the residual to the **action**, not only to the dynamics, and the fine-tuned policy no longer needs the delta model at deployment.
+
+## Hardware and safety: no purchase required
+
+- The **CPU toy** is the required deliverable.
+- Do not buy a humanoid robot to follow this lesson; every on-robot, sim2real and training step here is not run on this page.
+- If your lab already has a humanoid: read the limits, watchdog and e-stop sections of [8.5 safety and reliability](/en/month/month-8/safety-reliability) first; follow the vendor's and your lab's rules for a gantry / safety tether, slow first tests and motor-temperature monitoring — the ASAP paper itself records hardware damage from highly dynamic motions.
+
+## Out of scope
+
+- PPO / SAC derivations (7.2).
+- Domain randomisation and latency modelling details (7.4).
+- Quadruped / legged playground and Isaac Lab-scale training (month-page electives).
+- Touch and contact-rich manipulation policies (11.7).
+
+<Summary>
+
+**Key points**
+
+- Humanoid = floating base + contact switching + whole-body coordination; in the LIPM the ZMP must stay in the foot, and a capture point outside the foot forces a step.
+- Toy: slow sway MAE 0.000250 m, no fall; fast sway needs a 0.2110 m ZMP with a 0.1027 m reference capture point and falls at 0.045 s.
+- ASAP (take the paper as source of truth): pre-train → real rollout → delta action → frozen fine-tune, deployed without the delta model; Table V kick 61.2 → 50.2 mm, LeBron 159 → 112 mm.
+- No humanoid purchase required; training and on-robot steps are not run on this page.
+
+**Common mistakes**
+
+- Thinking higher gains can track any reference — compute the capture point first.
+- Reading ASAP as "residual dynamics" — it learns a residual **action**.
+- Writing the paper's Table V as "measured on this site".
+
+**Self-check**
+
+- Why must the 1.0 Hz reference fall on a 0.10 m foot?
+- Once trained, is the delta action model still there at deployment?
+- What does each of SysID, DR and delta action change?
+
+**Next**
+
+- 11.7 contact-rich policies: fold 11.3's touch into imitation policies.
+
+</Summary>

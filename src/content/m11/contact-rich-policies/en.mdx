@@ -1,0 +1,203 @@
+This lesson is a site supplement — Months 7–11 are not part of the original six-month course.
+
+**Scope.** [11.3 tactile sensing](/en/month/month-11/tactile-sensing) covers sensor principles and replaceability; [6.1 behaviour cloning](/en/month/month-6/behaviour-cloning) and [10.1 flow-matching action heads](/en/month/month-10/flow-matching-policies) cover how imitation policies output actions; [8.2 VLA fine-tuning](/en/month/month-8/vla-finetune) covers fine-tuning on your own data. This lesson is **folding touch into contact-rich imitation policies**: why vision alone falls short on precise insertion, how tactile tokens enter a policy, why "still works after a skin swap" is what lets tactile data scale, and a stdlib gated-insertion toy. **Buying a tactile sensor is not required**; on-robot tactile collection and policy training are marked 本页未运行 (not run on this page). This lesson **does not replace the 8.7 capstone and does not open a new capstone track**.
+
+## Why vision alone falls short on precise insertion
+
+In plug-into-socket or peg-into-hole tasks, the last few millimetres happen where the gripper and the object block the camera:
+
+- At contact the camera mostly sees the back of the gripper; a lateral offset is a few pixels in the image.
+- Visual pose estimates often carry a fixed bias (calibration, occlusion, lighting) that does not go away by "looking again".
+- Touch gives a signal exactly at contact: the direction of shear tells you which way you are off.
+
+AnySkin (arXiv 2409.08276) plug-insertion experiment (Table III, take the paper as source of truth): cameras only ≈ **1.7**/10; cameras + AnySkin ≈ **6.7**/10; with a fresh skin and no policy retraining ≈ **5.3**/10.
+
+<Resource id="anyskin-paper" />
+
+## How touch enters a policy
+
+A common structure is **modality-specific encoders + a shared trunk**:
+
+1. Camera image → vision encoder → vision tokens;
+2. Tactile reading (magnetometer vector or optical tactile image) → small encoder → tactile tokens;
+3. Proprioception → MLP → state token;
+4. All tokens go through one Transformer trunk, whose output conditions the action head — a BC regression head, a diffusion head or [10.1](/en/month/month-10/flow-matching-policies)'s flow-matching head all work.
+
+BAKU (arXiv 2406.07539) is one readable example of this "observation trunk + multi-sensory observations + action chunking + action head" combination.
+
+<Resource id="baku-paper" />
+
+Two practical points:
+
+- **Gating / a contact flag.** Out of contact, tactile tokens are mostly noise; a common fix is a contact flag, or letting the network learn to ignore them when not touching. The toy below shows the same intuition with an explicit threshold.
+- **Synchronisation.** Tactile sensors often sample faster than cameras; align by timestamp when recording (see [8.1 dataset engineering](/en/month/month-8/dataset-engineering)), or tactile tokens and actions drift apart.
+
+## Replaceability is the precondition for scale
+
+Elastomers wear out and get replaced. If a new skin changes the signal, policies trained on old data lose performance and tactile data never accumulates. The AnySkin paper reports in the same table: after a skin swap AnySkin drops about −13 % relative to the original skin, ReSkin about −43 % (take the paper as source of truth). So when choosing a tactile sensor, cross-instance signal consistency matters as much as sensitivity; without it you need a quick re-calibration after each swap, or training data from several skins.
+
+## Gated insertion toy
+
+`tactile_gate_toy.py`: 1-D insertion with the hole at 0 mm; the vision estimate has a fixed 1.5 mm bias plus noise, and insertion succeeds only within 0.5 mm. All three policies share the same vision draws:
+
+1. **Vision only**: insert once at the vision estimate.
+2. **Vision + gated touch**: on contact the skin reports a shear proportional to the lateral error (plus noise); only when |shear| exceeds a threshold does the policy shift by −shear / assumed gain; at most 2 contacts per trial.
+3. **Swapped skin**: same policy, but the new skin's true gain is 0.6 while the policy still assumes 1.0 (no re-calibration).
+
+```bash
+$ cd ~/Hardware-learning/examples/month-11/contact-rich-policies
+$ python3 tactile_gate_toy.py
+```
+
+<CodeSource path="examples/month-11/contact-rich-policies/tactile_gate_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""tactile_gate_toy.py: 1-D peg insertion, vision-only vs vision + gated tactile (stdlib).
+
+The hole is at 0 mm. A vision policy aims with a fixed lateral bias plus noise.
+Insertion succeeds if the lateral error is within TOL_MM.
+
+  - vision only: one try at the vision estimate
+  - + tactile (gated): on contact the skin reports a shear proportional to the
+    lateral error (plus noise). Only if |shear| > GATE the policy shifts by
+    -shear / ASSUMED_GAIN; up to MAX_PROBES contacts per trial
+  - + tactile, swapped skin: same policy, but the replacement skin's true gain
+    differs from the gain the policy was trained with (no re-calibration)
+
+Fixed seed; all trials share the same vision draws. This is a toy, not AnySkin.
+Also prints AnySkin (arXiv 2409.08276) insertion constants used in the lesson
+prose — paper numbers, not toy measurements. Take the paper as source of truth.
+"""
+import random
+
+SEED = 17
+TRIALS = 200
+BIAS_MM = 1.5
+VISION_NOISE_MM = 0.6
+TOL_MM = 0.5
+SHEAR_NOISE = 0.3
+GATE = 0.4
+ASSUMED_GAIN = 1.0
+SWAPPED_GAIN = 0.6
+MAX_PROBES = 2
+
+rng = random.Random(SEED)
+vision = [BIAS_MM + rng.gauss(0.0, VISION_NOISE_MM) for _ in range(TRIALS)]
+shear_noise = [[rng.gauss(0.0, SHEAR_NOISE) for _ in range(MAX_PROBES)] for _ in range(TRIALS)]
+
+
+def run(true_gain, use_touch):
+    ok, probes = 0, 0
+    for i in range(TRIALS):
+        err = vision[i]  # if |err| <= TOL_MM the peg slides in and we stop
+        if use_touch:
+            for k in range(MAX_PROBES):
+                if abs(err) <= TOL_MM:
+                    break
+                shear = true_gain * err + shear_noise[i][k]
+                probes += 1
+                if abs(shear) > GATE:
+                    err -= shear / ASSUMED_GAIN
+        if abs(err) <= TOL_MM:
+            ok += 1
+    return ok / TRIALS, probes / TRIALS
+
+
+succ_vis, _ = run(ASSUMED_GAIN, False)
+succ_tac, probes_tac = run(ASSUMED_GAIN, True)
+succ_swap, probes_swap = run(SWAPPED_GAIN, True)
+
+print(f"seed={SEED}")
+print(f"trials={TRIALS}")
+print(f"tol_mm={TOL_MM}")
+print(f"success_vision_only={succ_vis:.3f}")
+print(f"success_tactile_gated={succ_tac:.3f}")
+print(f"success_tactile_swapped={succ_swap:.3f}")
+print(f"mean_probes_tactile={probes_tac:.2f}")
+print(f"mean_probes_swapped={probes_swap:.2f}")
+# AnySkin paper constants (arXiv 2409.08276, insertion, successes out of 10)
+print("anyskin_plug_cam=1.7")
+print("anyskin_plug_skin=6.7")
+print("anyskin_plug_swap=5.3")
+```
+
+
+<SimOutput source="model">
+
+```text
+seed=17
+trials=200
+tol_mm=0.5
+success_vision_only=0.060
+success_tactile_gated=0.970
+success_tactile_swapped=0.715
+mean_probes_tactile=1.04
+mean_probes_swapped=1.53
+anyskin_plug_cam=1.7
+anyskin_plug_skin=6.7
+anyskin_plug_swap=5.3
+```
+
+</SimOutput>
+
+How to read it:
+
+- Vision-only success **0.060**: the fixed bias puts most draws outside the **0.5** mm tolerance.
+- With gated touch, **0.970**, using only **1.04** contacts per trial on average.
+- With the swapped skin (gain mismatch) it drops to **0.715** and contacts rise to **1.53**: each correction is only six tenths of what it should be, so two contacts are not enough to converge. This is the toy version of the "skin-swap drop" — fix it by re-calibrating the gain after a swap, or by training on data from several skins.
+- AnySkin's **1.7** / **6.7** / **5.3** are paper constants, independent of the toy; the toy only reproduces the direction (vision < vision + touch, a bit lower after a swap), not the values.
+
+## Further reading (abstract level, no numbers quoted)
+
+<Resource id="vitamin-paper" />
+<Resource id="exumi-paper" />
+
+- **ViTaMIn** (arXiv 2504.06156): integrates vision and touch into a handheld gripper (compliant Fin Ray fingers + tactile sensing) for collection without teleoperation, and pre-trains tactile representations with multimodal representation learning — roughly [11.4 UMI](/en/month/month-11/umi-style-collection) plus touch.
+- **exUMI** (arXiv 2509.14688): extends UMI with AR motion capture + rotary-encoder proprioception, modular visuo-tactile sensing and automated calibration, and proposes action-aware Tactile Prediction Pretraining (TPP).
+
+This site has not checked either paper's full tables, so no specific numbers are quoted.
+
+## One line for your portfolio
+
+A "contact-modality experiment" (for example, the same insertion task with vision-only vs vision + touch, compared with Wilson intervals) can go into your README as one section; it is **not a new capstone track**, and the bar is still the [8.7 capstone](/en/month/month-8/capstone).
+
+## Hardware: no purchase required
+
+- The **CPU toy** is the required deliverable.
+- If you already have an AnySkin / DIGIT or similar sensor, on-robot collection is optional — not run on this page; contact experiments need force / position limits and an e-stop (see [8.5](/en/month/month-8/safety-reliability)).
+- Do not buy a tactile sensor to follow this lesson.
+
+## Out of scope
+
+- Tactile sensor principles and calibration (11.3).
+- Flow-matching / diffusion head maths (10.1, 6.2).
+- RL on VLAs (10.7) and humanoid whole-body control (11.6).
+
+<Summary>
+
+**Key points**
+
+- The last millimetres of precise insertion happen under occlusion; touch gives a direction signal at contact.
+- Modality-specific encoders + a shared trunk: tactile tokens condition the action head (BC / diffusion / flow matching) together with vision and state tokens.
+- Replaceability is what lets tactile data scale (AnySkin swap about −13 %, ReSkin about −43 %, take the paper as source of truth).
+- Toy: vision only 0.060 → gated touch 0.970 → swapped-skin gain mismatch 0.715.
+- No tactile sensor purchase required; on-robot steps not run on this page; no new capstone track.
+
+**Common mistakes**
+
+- Leaving the tactile channel ungated, so out-of-contact noise steers the policy.
+- Recording without timestamp-aligning touch and camera.
+- Skipping re-calibration after a skin swap and blaming the policy.
+
+**Self-check**
+
+- Why does "looking again" not remove a fixed vision bias?
+- In the toy, why does a skin swap increase the number of contacts?
+- Which README section should a "contact-modality experiment" go in, and why is it not a new track?
+
+**Next**
+
+- Go back to the [8.7 capstone](/en/month/month-8/capstone) and decide whether to add contact modality as an advanced section.
+
+</Summary>

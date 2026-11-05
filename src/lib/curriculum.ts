@@ -1619,8 +1619,8 @@ const month11Lessons: Lesson[] = [
     slug: "cross-embodiment-datasets",
     title: { zh: "跨本体数据集：OXE 失衡与 OXE-AugE", en: "Cross-embodiment datasets: OXE skew and OXE-AugE" },
     summary: {
-      zh: "接 8.1/8.2 与 9.7：真实跨本体池化数据的失衡（top-4 >85 %）与 OXE-AugE 外观增强阅读；合成计数玩具做 top-k 占比与截断逆频。标准库玩具；下载 OXE / 训练本页未运行。真实 OXE 计数不进 CI。",
-      en: "Builds on 8.1/8.2 and 9.7: skew in real cross-embodiment pools (top-4 >85 %) and the OXE-AugE appearance-augmentation reading; a synthetic-count toy for top-k share and clipped inverse-frequency weights. Standard-library toy; OXE download / training are not run here. Real OXE cardinality is not in CI.",
+      zh: "接 8.1/8.2 与 8.8：真实跨本体池化数据的失衡（top-4 >85 %）与 OXE-AugE 外观增强阅读；合成计数玩具做 top-k 占比与截断逆频。标准库玩具；下载 OXE / 训练本页未运行。真实 OXE 计数不进 CI。",
+      en: "Builds on 8.1/8.2 and 8.8: skew in real cross-embodiment pools (top-4 >85 %) and the OXE-AugE appearance-augmentation reading; a synthetic-count toy for top-k share and clipped inverse-frequency weights. Standard-library toy; OXE download / training are not run here. Real OXE cardinality is not in CI.",
     },
     minutes: 180,
     objectives: [
@@ -1636,6 +1636,52 @@ const month11Lessons: Lesson[] = [
       { id: "clip", text: { zh: "把权重截断从 10 改成 3，观察 max_weight 与少数本体权重如何变", en: "Lower the weight clip from 10 to 3 and watch max_weight and the minority-arm weights" } },
       { id: "label", text: { zh: "用自己的话写两行：哪些 stdout 行是合成表、哪些是论文常量", en: "In your words, two lines: which stdout rows are the synthetic table and which are paper constants" } },
       { id: "optional", text: { zh: "（选做，本页未运行）打开 OXE 项目页，确认 1M+ / 22，不下载全集", en: "(Optional, not run here) open the OXE project page, confirm 1M+ / 22 — do not download the full set" } },
+    ],
+  },
+  {
+    slug: "humanoid-wbc-overview",
+    title: { zh: "人形全身控制：阅读图与 LIPM 玩具", en: "Humanoid whole-body control: reading map and a LIPM toy" },
+    summary: {
+      zh: "接 7.2 / 7.4 与 5.2：浮动基、接触切换与全身协调；LIPM 里 ZMP 只能在脚内、捕获点出脚必须迈步；ASAP 的 delta action 对齐与 Table V（以论文为准）；HugWBC / Holosoma / TWIST / WBC-AGILE 各一句定位。标准库玩具；不要求购买人形机，训练与真机步骤本页未运行。",
+      en: "Builds on 7.2 / 7.4 and 5.2: floating base, contact switching and whole-body coordination; in the LIPM the ZMP stays in the foot and a capture point outside it forces a step; ASAP's delta-action alignment and Table V (paper as source of truth); one line each for HugWBC / Holosoma / TWIST / WBC-AGILE. Standard-library toy; no humanoid purchase required, training and on-robot steps are not run here.",
+    },
+    minutes: 240,
+    objectives: [
+      { zh: "能说明人形机相对桌面臂多出的三件事：浮动基、接触切换、全身协调。", en: "Name the three things a humanoid adds over a desktop arm: floating base, contact switching, whole-body coordination." },
+      { zh: "能用 LIPM 算出摆动所需 ZMP 与参考捕获点，并判断是否必须迈步。", en: "Use the LIPM to compute the ZMP a sway needs and the reference capture point, and decide whether a step is required." },
+      { zh: "能复述 ASAP 的四步流水线与 delta action 的定义，并引用 Table V（以论文为准）。", en: "Restate ASAP's four-step pipeline and the delta action definition, and cite Table V (paper as source of truth)." },
+      { zh: "能说明本课不要求购买人形机，训练、sim2real 与真机步骤本页未运行。", en: "State that no humanoid purchase is required and that training, sim2real and on-robot steps are not run here." },
+    ],
+    prereqs: ["rl-foundations", "sim-to-real", "state-space-lqr"],
+    resources: ["asap-paper", "asap-code", "hugwbc-code", "holosoma-code", "twist-code", "wbc-agile-code"],
+    tasks: [
+      { id: "run", text: { zh: "运行 lipm_track_toy.py，核对 expected/lipm_track_toy.txt", en: "Run lipm_track_toy.py and match expected/lipm_track_toy.txt" } },
+      { id: "foot", text: { zh: "把 FOOT_HALF_M 改成 0.12，观察快摆是否还会摔、为什么", en: "Set FOOT_HALF_M to 0.12 and see whether the fast sway still falls, and why" } },
+      { id: "compare", text: { zh: "用自己的话写三行：SysID、DR、delta action 各改的是什么", en: "In your words, three lines: what SysID, DR and delta action each change" } },
+      { id: "optional", text: { zh: "（选做，本页未运行）浏览 ASAP 仓库的 README，不下单人形机", en: "(Optional, not run here) skim the ASAP repo README — do not buy a humanoid" } },
+    ],
+  },
+  {
+    slug: "contact-rich-policies",
+    title: { zh: "接触丰富策略：把触觉折进模仿", en: "Contact-rich policies: folding tactile into imitation" },
+    summary: {
+      zh: "接 11.3 与 6.1 / 10.1：为什么纯视觉在精密插入上不够；模态专用编码器 + 共享主干让触觉 token 条件化动作头；可替换性是触觉数据规模化的前提（AnySkin vs ReSkin，以论文为准）；门控插入玩具。不替代 8.7、不新开毕业轨道；不要求购买触觉传感器，真机步骤本页未运行。",
+      en: "Builds on 11.3 and 6.1 / 10.1: why vision alone falls short on precise insertion; modality-specific encoders + a shared trunk let tactile tokens condition the action head; replaceability is what lets tactile data scale (AnySkin vs ReSkin, paper as source of truth); a gated-insertion toy. Does not replace 8.7 or open a new capstone track; no tactile sensor purchase required, on-robot steps are not run here.",
+    },
+    minutes: 180,
+    objectives: [
+      { zh: "能解释精密插入时视觉的固定偏差为何靠「再看一次」消不掉，并引用 AnySkin 插接 1.7 / 6.7 / 5.3（以论文为准）。", en: "Explain why a fixed vision bias in precise insertion is not removed by looking again, and cite AnySkin's 1.7 / 6.7 / 5.3 insertion results (paper as source of truth)." },
+      { zh: "能画出模态专用编码器 + 共享主干 + 动作头的结构，并说明触觉门控与时间戳对齐。", en: "Sketch modality-specific encoders + shared trunk + action head, and explain tactile gating and timestamp alignment." },
+      { zh: "能在玩具上比较仅视觉、门控触觉与换皮增益错配的成功率并解释原因。", en: "Compare vision-only, gated touch and swapped-skin gain mismatch on the toy and explain why." },
+      { zh: "能说明接触模态实验可进作品集但不是新毕业轨道。", en: "State that a contact-modality experiment can go in the portfolio but is not a new capstone track." },
+    ],
+    prereqs: ["tactile-sensing", "behaviour-cloning", "flow-matching-policies", "vla-finetune"],
+    resources: ["anyskin-paper", "baku-paper", "vitamin-paper", "exumi-paper"],
+    tasks: [
+      { id: "run", text: { zh: "运行 tactile_gate_toy.py，核对 expected/tactile_gate_toy.txt", en: "Run tactile_gate_toy.py and match expected/tactile_gate_toy.txt" } },
+      { id: "gain", text: { zh: "把 SWAPPED_GAIN 改回 1.0 或把 MAX_PROBES 改成 3，观察换皮成功率如何变", en: "Set SWAPPED_GAIN back to 1.0, or MAX_PROBES to 3, and watch the swapped-skin success change" } },
+      { id: "gate", text: { zh: "把 GATE 改成 0，观察未接触噪声是否开始带偏修正", en: "Set GATE to 0 and see whether out-of-contact noise starts steering the correction" } },
+      { id: "optional", text: { zh: "（选做，本页未运行）已有触觉传感器的话录一次仅视觉 vs 视觉 + 触觉的插入对比，不为此购买", en: "(Optional, not run here) if you already own a tactile sensor, record one vision-only vs vision + touch insertion comparison — do not buy one for this" } },
     ],
   },
 ];
@@ -1806,7 +1852,7 @@ export const months: Month[] = [
       { zh: "仿真到真机（随机化、系统辨识、延迟）", en: "Sim-to-real (randomisation, system ID, latency)" },
       { zh: "深度与点云", en: "Depth and point clouds" },
       { zh: "开放词汇分割与手眼标定", en: "Open-vocabulary segmentation and hand-eye calibration" },
-      { zh: "延伸：Isaac Lab 大规模 RL；人形/四足行走仿真（选修，不成正式课）", en: "Further: Isaac Lab-scale RL; humanoid/quadruped locomotion in sim (electives, not formal lessons)" },
+      { zh: "延伸：Isaac Lab 大规模 RL；人形/四足行走仿真（选修，不成正式课；人形全身控制阅读图见 11.6）", en: "Further: Isaac Lab-scale RL; humanoid/quadruped locomotion in sim (electives, not formal lessons; humanoid WBC reading map → 11.6)" },
     ],
     milestones: [
       { zh: "在 MuJoCo 中加载 SO-101，报告接触参数改动对抓取的影响", en: "Load the SO-101 in MuJoCo and report how contact-parameter changes affect the grasp" },
@@ -1832,7 +1878,7 @@ export const months: Month[] = [
       { zh: "容器、CI、rosbag2/MCAP、实验追踪", en: "Containers, CI, rosbag2/MCAP, experiment tracking" },
       { zh: "毕业项目三轨道", en: "Capstone tracks" },
       { zh: "仿真基准（8.8 LIBERO / SimplerEnv 阅读与 CPU 分数表）", en: "Sim benchmarks (8.8 LIBERO / SimplerEnv reading + CPU score table)" },
-      { zh: "延伸：HIL-SERL 见 10.6；Isaac Lab / 腿式运动场仍为月页选修。LeKiwi / MoveIt Servo / MTC / 导纳与长时程组合见第 9 个月核心课；FOC 见 11.2；micro-ROS 与真机 F/T 导纳见第 9 个月月页选修。", en: "Further: HIL-SERL → 10.6; Isaac Lab / legged playground stay month-page electives. LeKiwi / MoveIt Servo / MTC / admittance and long-horizon compose → Month 9 core; FOC → 11.2; micro-ROS and real F/T admittance → Month 9 month-page electives." },
+      { zh: "延伸：HIL-SERL 见 10.6；Isaac Lab / 腿式运动场仍为月页选修（人形全身控制阅读图见 11.6）。LeKiwi / MoveIt Servo / MTC / 导纳与长时程组合见第 9 个月核心课；FOC 见 11.2；micro-ROS 与真机 F/T 导纳见第 9 个月月页选修。", en: "Further: HIL-SERL → 10.6; Isaac Lab / legged playground stay month-page electives (humanoid WBC reading map → 11.6). LeKiwi / MoveIt Servo / MTC / admittance and long-horizon compose → Month 9 core; FOC → 11.2; micro-ROS and real F/T admittance → Month 9 month-page electives." },
     ],
     milestones: [
       { zh: "一个按规程录制、可流式加载的数据集", en: "A protocol-recorded dataset that can be streamed" },
@@ -1858,7 +1904,7 @@ export const months: Month[] = [
       { zh: "Nav2 + 臂组合", en: "Nav2 + arm compose" },
       { zh: "可选移动底盘", en: "Optional mobile base" },
       { zh: "视觉伺服（9.8）与世界模型概览（9.9）", en: "Visual servoing (9.8) and world-models overview (9.9)" },
-      { zh: "延伸：LeKiwi 真机组装；FOC 见 11.2；外接 F/T 导纳；多视角外参、介入日志、端侧清单见第 10 个月（10.3–10.5）；触觉见 11.3", en: "Further: LeKiwi build; FOC → 11.2; external F/T admittance; multi-view extrinsics, intervention logging and the edge-deploy checklist are in Month 10 (10.3–10.5); tactile → 11.3" },
+      { zh: "延伸：LeKiwi 真机组装；FOC 见 11.2；外接 F/T 导纳；多视角外参、介入日志、端侧清单见第 10 个月（10.3–10.5）；触觉见 11.3，触觉进策略见 11.7", en: "Further: LeKiwi build; FOC → 11.2; external F/T admittance; multi-view extrinsics, intervention logging and the edge-deploy checklist are in Month 10 (10.3–10.5); tactile → 11.3, touch in policies → 11.7" },
     ],
     milestones: [
       { zh: "用 MTC 风格的阶段图描述「接近 → 抓 → 抬 → 放」，并在 CPU 玩具上验证阶段依赖与失败边", en: "Describe approach → grasp → lift → place as an MTC-style stage graph, and verify deps and failure edges on a CPU toy" },
@@ -1883,7 +1929,7 @@ export const months: Month[] = [
       { zh: "介入日志与 DAgger 式纠正数据", en: "Intervention logging and DAgger-style corrections" },
       { zh: "真实世界 RL：HIL-SERL 与离线+在线回放", en: "Real-world RL: HIL-SERL and offline+online replay" },
       { zh: "VLA 上的 RL：优势条件与残差策略", en: "RL on VLAs: advantage conditioning and residual policies" },
-      { zh: "延伸：Isaac Lab / 腿式运动场；LeKiwi 真机组装；FOC 见 11.2；外接 F/T 导纳；Jetson 真机 TensorRT 实测；触觉见 11.3", en: "Further: Isaac Lab / legged locomotion; LeKiwi build; FOC → 11.2; external F/T admittance; on-device Jetson TensorRT measurements; tactile → 11.3" },
+      { zh: "延伸：Isaac Lab / 腿式运动场（人形全身控制阅读图见 11.6）；LeKiwi 真机组装；FOC 见 11.2；外接 F/T 导纳；Jetson 真机 TensorRT 实测；触觉见 11.3，触觉进策略见 11.7", en: "Further: Isaac Lab / legged locomotion (humanoid WBC reading map → 11.6); LeKiwi build; FOC → 11.2; external F/T admittance; on-device Jetson TensorRT measurements; tactile → 11.3, touch in policies → 11.7" },
     ],
     milestones: [
       { zh: "在 CPU 玩具上说明流匹配积分步数与样本质量的关系，并用 RTC 软掩码把动作块接缝的最大跳变压到朴素切换的一半以下", en: "On CPU toys, show how flow-matching step count trades against sample quality, and use an RTC soft mask to cut the worst chunk-seam jump to under half of naive switching" },
@@ -1906,14 +1952,14 @@ export const months: Month[] = [
       { zh: "光学与磁触觉传感器（GelSight / DIGIT / AnySkin）", en: "Optical and magnetic tactile sensors (GelSight / DIGIT / AnySkin)" },
       { zh: "UMI 式手持采集与相对轨迹", en: "UMI-style handheld collection and relative trajectories" },
       { zh: "跨本体数据集：OXE 与 OXE-AugE", en: "Cross-embodiment datasets: OXE and OXE-AugE" },
-      { zh: "人形全身控制阅读图（PR3）", en: "Humanoid WBC reading map (PR3)" },
-      { zh: "接触丰富策略：把触觉折进模仿（PR3）", en: "Contact-rich policies: folding tactile into imitation (PR3)" },
+      { zh: "人形全身控制阅读图（ASAP / HugWBC / Holosoma / TWIST）", en: "Humanoid WBC reading map (ASAP / HugWBC / Holosoma / TWIST)" },
+      { zh: "接触丰富策略：把触觉折进模仿", en: "Contact-rich policies: folding tactile into imitation" },
       { zh: "延伸：LeKiwi 真机组装；外接 F/T；Isaac Lab 大规模训练；DIGIT/GelSight Mini / BLDC 套件 / GoPro / 人形机真机实测", en: "Further: LeKiwi build; external F/T; Isaac Lab-scale training; DIGIT/GelSight Mini / BLDC kit / GoPro / humanoid on-robot runs" },
     ],
     milestones: [
       { zh: "用 CPU 玩具算出峰值电流下的导线压降与熔断裕度，并列出电机线与编码器线分离的 EMC 三条硬规则", en: "On a CPU toy, compute IR drop and fuse margin at peak current, and list three hard EMC rules that separate motor and encoder wiring" },
       { zh: "用 Clarke–Park 往返验证 id≈0、iq 跟踪；并在标记网格变形玩具上估计接触位置", en: "Round-trip Clarke–Park so id≈0 while iq tracks, and estimate a contact location from a marker-grid deformation toy" },
-      { zh: "比较相对 / 绝对 / 增量轨迹在标定噪声下的终点误差，报告一张合成 OXE 失衡表的 top-4 占比，并读完 ASAP 式 delta-action 对齐段落（ASAP 见 PR3）", en: "Compare relative / absolute / delta trajectory end error under calibration noise, report top-4 share on a synthetic OXE imbalance table, and finish the ASAP delta-action alignment section (ASAP in PR3)" },
+      { zh: "比较相对 / 绝对 / 增量轨迹在标定噪声下的终点误差，报告一张合成 OXE 失衡表的 top-4 占比，并读完 ASAP 式 delta-action 对齐段落", en: "Compare relative / absolute / delta trajectory end error under calibration noise, report top-4 share on a synthetic OXE imbalance table, and finish the ASAP delta-action alignment section" },
     ],
     lessons: month11Lessons,
   },

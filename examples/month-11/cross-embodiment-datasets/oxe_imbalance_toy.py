@@ -6,9 +6,8 @@ cardinality. Real OXE / OXE-AugE numbers used in the lesson prose (1M+, 22
 embodiments, top-4 >85 %, 4.4M, 24–45 %) are printed as separate paper constants
 and must not be confused with this table. Take the papers / project pages as
 source of truth. Downloading OXE or training is not run on this page.
+Deterministic: no random draws, so there is no seed.
 """
-SEED = 3
-
 # Synthetic counts mirroring OXE-style skew (NOT real OXE counts)
 robots = ["Franka", "xArm", "Kuka", "Google", "WidowX", "UR5", "Jaco", "Other"]
 counts = [420000, 280000, 180000, 150000, 40000, 35000, 20000, 25000]
@@ -23,7 +22,6 @@ for c in counts:
     weights.append(min(w, 10.0))
 reweighted_mass = sum(w * c for w, c in zip(weights, counts))
 
-print(f"seed={SEED}")
 print(f"n_robots={len(robots)}")
 print(f"total_traj={total}")
 print(f"top4_share={top4_share:.4f}")

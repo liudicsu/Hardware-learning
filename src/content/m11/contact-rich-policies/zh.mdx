@@ -1,0 +1,203 @@
+本课是本站补充内容——第 7–11 个月不属于原六个月课程。
+
+**范围。** [11.3 触觉传感](/zh/month/month-11/tactile-sensing) 讲传感器原理与可替换性；[6.1 行为克隆](/zh/month/month-6/behaviour-cloning) 与 [10.1 流匹配动作头](/zh/month/month-10/flow-matching-policies) 讲模仿策略怎么输出动作；[8.2 VLA 微调](/zh/month/month-8/vla-finetune) 讲在自己的数据上微调。本课 = **把触觉折进接触丰富的模仿策略**：为什么纯视觉在精密插入上不够、触觉 token 怎样进策略、为什么「换皮后还能用」是触觉数据能规模化的前提，以及一个标准库的门控插入玩具。**不要求购买触觉传感器**；真机触觉采集与策略训练本页未运行。本课**不替代 8.7 毕业项目，也不新开毕业轨道**。
+
+## 为什么纯视觉在精密插入上不够
+
+插头对插座、销对孔这类任务，最后几毫米发生在夹爪和物体挡住相机的地方：
+
+- 接触时相机看到的多半是夹爪背面，横向偏差在图像上只有几个像素。
+- 视觉位姿估计常带一个固定偏差（标定、遮挡、光照），它不会因为「再看一次」而消失。
+- 触觉恰好在接触瞬间给出信号：剪切的方向告诉你往哪边偏了。
+
+AnySkin（arXiv 2409.08276）的插接实验（Table III，以论文为准）：仅相机 ≈ **1.7**/10；相机 + AnySkin ≈ **6.7**/10；换上一块新皮、不重训策略 ≈ **5.3**/10。
+
+<Resource id="anyskin-paper" />
+
+## 触觉怎样进策略
+
+常见结构是**模态专用编码器 + 共享主干**：
+
+1. 相机图像 → 视觉编码器 → 视觉 token；
+2. 触觉读数（磁力计向量或光学触觉图像）→ 小编码器 → 触觉 token；
+3. 本体感受 → MLP → 状态 token；
+4. 所有 token 进同一个 Transformer 主干，主干输出条件化动作头——BC 回归头、扩散头或 [10.1](/zh/month/month-10/flow-matching-policies) 的流匹配头都可以。
+
+BAKU（arXiv 2406.07539）就是这种「观测主干 + 多传感器观测 + 动作分块 + 动作头」组合的一个可读例子。
+
+<Resource id="baku-paper" />
+
+两条实践要点：
+
+- **门控 / 接触标志。** 没接触时触觉 token 几乎全是噪声；常见做法是加一个接触标志，或让网络学会在未接触时忽略它。下面的玩具用一个显式阈值来演示同一直觉。
+- **同步。** 触觉采样率往往比相机高；录制时按时间戳对齐（见 [8.1 数据集工程](/zh/month/month-8/dataset-engineering)），否则触觉 token 与动作错位。
+
+## 可替换性是数据规模的前提
+
+弹性体会磨损、要更换。如果换一块皮信号就变，旧数据训出来的策略就掉点，触觉数据也就攒不起来。AnySkin 论文在同一张表里报告：AnySkin 换皮后相对原皮约 −13 %，ReSkin 换皮约 −43 %（以论文为准）。所以选触觉传感器时，「跨实例信号一致」与灵敏度同样重要；如果不一致，就需要换皮后的快速重标定，或者在多块皮的数据上训练。
+
+## 门控插入玩具
+
+`tactile_gate_toy.py`：一维插入，孔在 0 mm；视觉估计有固定 1.5 mm 偏差加噪声，误差在 0.5 mm 内才算插入成功。三种策略共用同一组视觉抽样：
+
+1. **仅视觉**：按视觉估计插一次。
+2. **视觉 + 门控触觉**：接触时皮肤给出与横向误差成正比的剪切（加噪声），|剪切| 超过阈值才按 −剪切 / 假定增益修正；每次最多接触 2 次。
+3. **换皮**：同一策略，但新皮的真实增益是 0.6，而策略仍按 1.0 计算（没重标定）。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-11/contact-rich-policies
+$ python3 tactile_gate_toy.py
+```
+
+<CodeSource path="examples/month-11/contact-rich-policies/tactile_gate_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""tactile_gate_toy.py: 1-D peg insertion, vision-only vs vision + gated tactile (stdlib).
+
+The hole is at 0 mm. A vision policy aims with a fixed lateral bias plus noise.
+Insertion succeeds if the lateral error is within TOL_MM.
+
+  - vision only: one try at the vision estimate
+  - + tactile (gated): on contact the skin reports a shear proportional to the
+    lateral error (plus noise). Only if |shear| > GATE the policy shifts by
+    -shear / ASSUMED_GAIN; up to MAX_PROBES contacts per trial
+  - + tactile, swapped skin: same policy, but the replacement skin's true gain
+    differs from the gain the policy was trained with (no re-calibration)
+
+Fixed seed; all trials share the same vision draws. This is a toy, not AnySkin.
+Also prints AnySkin (arXiv 2409.08276) insertion constants used in the lesson
+prose — paper numbers, not toy measurements. Take the paper as source of truth.
+"""
+import random
+
+SEED = 17
+TRIALS = 200
+BIAS_MM = 1.5
+VISION_NOISE_MM = 0.6
+TOL_MM = 0.5
+SHEAR_NOISE = 0.3
+GATE = 0.4
+ASSUMED_GAIN = 1.0
+SWAPPED_GAIN = 0.6
+MAX_PROBES = 2
+
+rng = random.Random(SEED)
+vision = [BIAS_MM + rng.gauss(0.0, VISION_NOISE_MM) for _ in range(TRIALS)]
+shear_noise = [[rng.gauss(0.0, SHEAR_NOISE) for _ in range(MAX_PROBES)] for _ in range(TRIALS)]
+
+
+def run(true_gain, use_touch):
+    ok, probes = 0, 0
+    for i in range(TRIALS):
+        err = vision[i]  # if |err| <= TOL_MM the peg slides in and we stop
+        if use_touch:
+            for k in range(MAX_PROBES):
+                if abs(err) <= TOL_MM:
+                    break
+                shear = true_gain * err + shear_noise[i][k]
+                probes += 1
+                if abs(shear) > GATE:
+                    err -= shear / ASSUMED_GAIN
+        if abs(err) <= TOL_MM:
+            ok += 1
+    return ok / TRIALS, probes / TRIALS
+
+
+succ_vis, _ = run(ASSUMED_GAIN, False)
+succ_tac, probes_tac = run(ASSUMED_GAIN, True)
+succ_swap, probes_swap = run(SWAPPED_GAIN, True)
+
+print(f"seed={SEED}")
+print(f"trials={TRIALS}")
+print(f"tol_mm={TOL_MM}")
+print(f"success_vision_only={succ_vis:.3f}")
+print(f"success_tactile_gated={succ_tac:.3f}")
+print(f"success_tactile_swapped={succ_swap:.3f}")
+print(f"mean_probes_tactile={probes_tac:.2f}")
+print(f"mean_probes_swapped={probes_swap:.2f}")
+# AnySkin paper constants (arXiv 2409.08276, insertion, successes out of 10)
+print("anyskin_plug_cam=1.7")
+print("anyskin_plug_skin=6.7")
+print("anyskin_plug_swap=5.3")
+```
+
+
+<SimOutput source="model">
+
+```text
+seed=17
+trials=200
+tol_mm=0.5
+success_vision_only=0.060
+success_tactile_gated=0.970
+success_tactile_swapped=0.715
+mean_probes_tactile=1.04
+mean_probes_swapped=1.53
+anyskin_plug_cam=1.7
+anyskin_plug_skin=6.7
+anyskin_plug_swap=5.3
+```
+
+</SimOutput>
+
+怎么读：
+
+- 仅视觉成功率 **0.060**：固定偏差让大多数抽样落在 **0.5** mm 公差外。
+- 加门控触觉后 **0.970**，平均每次只接触 **1.04** 次。
+- 换皮（增益错配）后掉到 **0.715**，接触次数升到 **1.53**：修正量只有应有的六成，两次接触不够收敛。这就是玩具版的「换皮掉点」——修法是换皮后重标定增益，或用多块皮的数据训练。
+- AnySkin 的 **1.7** / **6.7** / **5.3** 是论文常量，与玩具无关；玩具只复现「视觉 < 视觉 + 触觉，换皮后略降」的方向，不复现数值。
+
+## 延伸阅读（摘要级，不引数字）
+
+<Resource id="vitamin-paper" />
+<Resource id="exumi-paper" />
+
+- **ViTaMIn**（arXiv 2504.06156）：把视觉与触觉集成进手持夹爪（Fin Ray 柔顺指 + 触觉），无需遥操作即可采集，并用多模态表征学习预训练触觉表征——相当于 [11.4 UMI](/zh/month/month-11/umi-style-collection) 加上触觉。
+- **exUMI**（arXiv 2509.14688）：在 UMI 上加 AR 动捕 + 旋转编码器的本体感受、模块化视触觉与自动标定，并提出动作感知的触觉预测预训练（TPP）。
+
+两篇的全文表格本站未逐表核对，正文不引用具体数字。
+
+## 作品集一句话
+
+「接触模态实验」（例如：同一插入任务，仅视觉 vs 视觉 + 触觉的 Wilson 区间对比）可以作为作品集的一个小节写进 README；它**不是新的毕业轨道**，毕业门槛仍按 [8.7 毕业项目](/zh/month/month-8/capstone)。
+
+## 硬件：不要求购买
+
+- **CPU 玩具**是必做交付。
+- 已有 AnySkin / DIGIT 等传感器可以选做真机采集——本页未运行；接触实验要设好力 / 位置限位与急停（见 [8.5](/zh/month/month-8/safety-reliability)）。
+- 不要为了跟课去买触觉传感器。
+
+## 不在范围内
+
+- 触觉传感器原理与标定（11.3）。
+- 流匹配 / 扩散头的数学（10.1、6.2）。
+- VLA 上的强化学习（10.7）与人形全身控制（11.6）。
+
+<Summary>
+
+**要点**
+
+- 精密插入的最后几毫米在遮挡里发生；触觉在接触瞬间给出方向信号。
+- 模态专用编码器 + 共享主干：触觉 token 和视觉、状态 token 一起条件化动作头（BC / 扩散 / 流匹配）。
+- 可替换性是触觉数据规模化的前提（AnySkin 换皮约 −13 %，ReSkin 约 −43 %，以论文为准）。
+- 玩具：仅视觉 0.060 → 门控触觉 0.970 → 换皮增益错配 0.715。
+- 不要求购买触觉传感器；真机步骤本页未运行；不新开毕业轨道。
+
+**常见错误**
+
+- 触觉通道不做门控，未接触时的噪声把策略带偏。
+- 触觉与相机不按时间戳对齐就录数据。
+- 换皮后不重标定，却怪策略没学好。
+
+**自检**
+
+- 为什么「再看一次」消不掉视觉的固定偏差？
+- 玩具里换皮为什么会让接触次数变多？
+- 「接触模态实验」应该写进作品集的哪一部分，为什么不算新轨道？
+
+**下一步**
+
+- 回到 [8.7 毕业项目](/zh/month/month-8/capstone)，决定是否把接触模态作为进阶小节加入。
+
+</Summary>

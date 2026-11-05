@@ -1,6 +1,6 @@
 本课是本站补充内容——第 7–11 个月不属于原六个月课程。
 
-**范围。** [9.7 仿真基准](/zh/month/month-9/sim-benchmarks) 打的是 LIBERO / SimplerEnv 仿真分；[8.2 VLA 微调](/zh/month/month-8/vla-finetune) 与 [8.1 数据集工程](/zh/month/month-8/dataset-engineering) 已经把 Open X-Embodiment 点成「共享格式之所以重要」的大规模理由。本课 = **真实跨本体池化数据与外观增强**：为什么 OXE 式池会偏向前几只臂、OXE-AugE 怎么报告再平衡、以及一张合成计数表如何教 top-k 占比与截断逆频权重。**真实 OXE 计数不进 CI**——玩具用合成计数并写明。下载 OXE / 训练 OpenVLA 或 π0 标注本页未运行。本课也不替代 8.7 毕业项目。
+**范围。** [8.8 仿真基准](/zh/month/month-8/sim-benchmarks) 打的是 LIBERO / SimplerEnv 仿真分；[8.2 VLA 微调](/zh/month/month-8/vla-finetune) 与 [8.1 数据集工程](/zh/month/month-8/dataset-engineering) 已经把 Open X-Embodiment 点成「共享格式之所以重要」的大规模理由。本课 = **真实跨本体池化数据与外观增强**：为什么 OXE 式池会偏向前几只臂、OXE-AugE 怎么报告再平衡、以及一张合成计数表如何教 top-k 占比与截断逆频权重。**真实 OXE 计数不进 CI**——玩具用合成计数并写明。下载 OXE / 训练 OpenVLA 或 π0 标注本页未运行。本课也不替代 8.7 毕业项目。
 
 ## 为什么本体池会偏
 
@@ -39,9 +39,8 @@ cardinality. Real OXE / OXE-AugE numbers used in the lesson prose (1M+, 22
 embodiments, top-4 >85 %, 4.4M, 24–45 %) are printed as separate paper constants
 and must not be confused with this table. Take the papers / project pages as
 source of truth. Downloading OXE or training is not run on this page.
+Deterministic: no random draws, so there is no seed.
 """
-SEED = 3
-
 # Synthetic counts mirroring OXE-style skew (NOT real OXE counts)
 robots = ["Franka", "xArm", "Kuka", "Google", "WidowX", "UR5", "Jaco", "Other"]
 counts = [420000, 280000, 180000, 150000, 40000, 35000, 20000, 25000]
@@ -56,7 +55,6 @@ for c in counts:
     weights.append(min(w, 10.0))
 reweighted_mass = sum(w * c for w, c in zip(weights, counts))
 
-print(f"seed={SEED}")
 print(f"n_robots={len(robots)}")
 print(f"total_traj={total}")
 print(f"top4_share={top4_share:.4f}")
@@ -76,7 +74,6 @@ print(f"oxe_auge_success_lift_hi=45")
 <SimOutput source="model">
 
 ```text
-seed=3
 n_robots=8
 total_traj=1150000
 top4_share=0.8957
@@ -107,7 +104,7 @@ oxe_auge_success_lift_hi=45
 
 ## 不在范围内
 
-- LIBERO / SimplerEnv 仿真分（9.7）。
+- LIBERO / SimplerEnv 仿真分（8.8）。
 - 单臂 LeRobotDataset 审计细节（8.1）——这里新的是 OXE 规模失衡问题。
 - UMI 手持采集（11.4）。
 - 用新的跨本体轨道替换 8.7 毕业项目。
@@ -123,7 +120,7 @@ oxe_auge_success_lift_hi=45
 **常见错误**
 
 - 把合成表当 OXE 真表写进论文引用。
-- 用 9.7 仿真分代替跨本体池分析。
+- 用 8.8 仿真分代替跨本体池分析。
 - 为了跟课去开好几周的 OXE 下载。
 
 **自检**
