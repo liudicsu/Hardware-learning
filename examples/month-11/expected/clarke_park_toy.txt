@@ -1,0 +1,7 @@
+seed=11
+theta_rad=0.523599
+iq_cmd=1.0000 id_cmd=0.0000
+ia=-0.500000 ib=1.000000 ic=-0.500000
+sum_abc=0.000e+00
+id_recovered=0.000000 iq_recovered=1.000000
+id_err=0.000e+00 iq_err=0.000e+00

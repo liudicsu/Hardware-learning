@@ -1520,6 +1520,80 @@ const month10Lessons: Lesson[] = [
 ];
 
 
+
+const month11Lessons: Lesson[] = [
+  {
+    slug: "power-battery-emc",
+    title: { zh: "机器人电源、电池包与 EMC 卫生", en: "Robot power, battery packs and EMC hygiene" },
+    summary: {
+      zh: "接 M1 测电压与 M2 电压跌落：整机配电（逻辑轨与电机总线分开）、示例电流下的导线压降与熔断裕度、电机线与编码器线分离的 EMC 三条硬规则。标准库玩具；真机测电流本页未运行。不要求新购电源分析仪；不教改 BMS、不拆包。",
+      en: "Builds on Month 1 voltage checks and Month 2 battery sag: whole-robot power (separate logic and motor buses), IR drop and fuse margin under illustrative currents, and three hard EMC rules that keep motor leads away from encoder wiring. Standard-library toy; real current probing is not run here. No power-analyser purchase; no BMS edits, no pack teardown.",
+    },
+    minutes: 180,
+    objectives: [
+      { zh: "能画出逻辑轨与电机总线分开、公共地单点汇合的星形配电。", en: "Draw a star power plan with separate logic and motor buses and a single-point common ground." },
+      { zh: "能用玩具算出峰值电流下的压降、负载端电压和熔断裕度。", en: "Compute IR drop, voltage at the load and fuse margin at peak current on the toy." },
+      { zh: "能列出电机线与信号线分离、屏蔽源端接地、环路面积最小化三条 EMC 规则。", en: "List three EMC rules: separate motor and signal leads, source-end shield ground, minimise loop area." },
+      { zh: "能说明本课电流是示例假设，真机测量与改 BMS 都不在范围内。", en: "State that currents here are example assumptions, and that real measurements and BMS edits are out of scope." },
+    ],
+    prereqs: ["components", "motors-drivers", "so101-arm"],
+    resources: ["novanta-emc-wiring", "roboteq-emi", "ark-power-grounding"],
+    tasks: [
+      { id: "run", text: { zh: "运行 power_budget_toy.py，核对 expected/power_budget_toy.txt", en: "Run power_budget_toy.py and match expected/power_budget_toy.txt" } },
+      { id: "wire", text: { zh: "把 wire_len_m 改成 1.5，观察 V_at_load 是否还过 11 V 地板", en: "Set wire_len_m to 1.5 and check whether V_at_load still clears the 11 V floor" } },
+      { id: "checklist", text: { zh: "为自己的桌面臂写三条 EMC 布线规则", en: "Write three EMC wiring rules for your own desktop arm" } },
+      { id: "optional", text: { zh: "（选做，本页未运行）用电流钳量一次舵机峰值电流", en: "(Optional, not run here) measure one servo's peak current with a clamp meter" } },
+    ],
+  },
+  {
+    slug: "foc-actuator-lab",
+    title: { zh: "FOC 执行器：Clarke–Park 数学与 SimpleFOC 阅读图", en: "FOC actuators: Clarke–Park math and SimpleFOC reading map" },
+    summary: {
+      zh: "接 M2「FOC 以后再说」：用 Clarke / Park 往返验证 id≈0、iq 跟踪；读 SimpleFOC 文档与 Commander → micro-ROS 两条路径。标准库玩具；开环刷机本页未运行。不强制购买 BLDC 套件，不替换 SO-101 总线舵机。",
+      en: "Picks up Month 2's 'FOC can wait': round-trip Clarke / Park so id≈0 while iq tracks; read the SimpleFOC docs and the Commander → micro-ROS paths. Standard-library toy; open-loop flashing is not run here. No required BLDC kit purchase; does not replace SO-101 bus servos.",
+    },
+    minutes: 240,
+    objectives: [
+      { zh: "能说明为什么 90° 时力矩/安培最大，以及 id=0、iq=τ/Kt。", en: "Explain why torque per amp peaks at 90°, and state id=0, iq=τ/Kt." },
+      { zh: "能写出 Clarke / Park 与逆变换，并在玩具上读懂 sum_abc 与往返误差。", en: "Write Clarke / Park and the inverse transforms, and read sum_abc plus round-trip error on the toy." },
+      { zh: "能说出 Commander 串口与 micro-ROS 两条集成路径，以及为何先串口。", en: "Name the Commander-serial and micro-ROS integration paths, and say why serial comes first." },
+      { zh: "能说明本课不替换 STS3215，刷机需限流与急停。", en: "State that this lesson does not replace STS3215, and that flashing needs current limits and e-stop." },
+    ],
+    prereqs: ["motors-drivers", "pid-control", "esp32"],
+    resources: ["simplefoc-foc-theory", "simplefoc-home", "simplefoc"],
+    tasks: [
+      { id: "run", text: { zh: "运行 clarke_park_toy.py，核对 expected/clarke_park_toy.txt", en: "Run clarke_park_toy.py and match expected/clarke_park_toy.txt" } },
+      { id: "theta", text: { zh: "把 θ 改成 π/3，确认 sum_abc 仍≈0 且 id/iq 往返误差仍≈0", en: "Set θ to π/3 and confirm sum_abc stays ≈0 with near-zero id/iq round-trip error" } },
+      { id: "map", text: { zh: "用自己的话写出 Commander → micro-ROS 的两步阅读顺序", en: "In your words, write the two-step reading order Commander → micro-ROS" } },
+      { id: "optional", text: { zh: "（选做，本页未运行，以当期文档为准）在已有 ESP32 + 驱动板上跑 SimpleFOC 开环速度示例", en: "(Optional, not run here; follow the current docs) run the SimpleFOC open-loop velocity example on an existing ESP32 + driver board" } },
+    ],
+  },
+  {
+    slug: "tactile-sensing",
+    title: { zh: "触觉传感：GelSight / DIGIT 光学与 AnySkin 磁传感", en: "Tactile sensing: GelSight / DIGIT optics and AnySkin magnetics" },
+    summary: {
+      zh: "接 3.6 鳍条几何：比较光学（弹性体+相机）与磁（磁粉+磁力计）触觉；读 AnySkin 可替换性数字；用标记网格变形玩具估计接触。标准库玩具；真机采集本页未运行。不强制购买 DIGIT / GelSight Mini。",
+      en: "Builds on 3.6 Fin Ray geometry: compare optical (elastomer + camera) and magnetic (powder + magnetometer) tactile sensing; read AnySkin replaceability numbers; estimate contact from a marker-grid deformation toy. Standard-library toy; real capture is not run here. Buying a DIGIT / GelSight Mini is not required.",
+    },
+    minutes: 240,
+    objectives: [
+      { zh: "能对比光学与磁触觉的物理量、形态约束与更换成本。", en: "Contrast optical and magnetic tactile sensing on physical quantity, form-factor limits and replace cost." },
+      { zh: "能引用 AnySkin 的替换时间、滑觉准确率与插接成功率（以论文为准）。", en: "Cite AnySkin replace time, slip accuracy and plug-insertion success (paper as source of truth)." },
+      { zh: "能在玩具上用位移加权质心估计接触并报告误差。", en: "Estimate contact on the toy with a displacement-weighted centroid and report the error." },
+      { zh: "能说明本课不要求新购传感器，真机与 3D Cal 本页未运行。", en: "State that no new sensor purchase is required, and that on-robot capture and 3D Cal are not run here." },
+    ],
+    prereqs: ["gripper-fingers", "sensors-fusion", "camera-calibration"],
+    resources: ["anyskin-paper", "anyskin-site", "digit-design", "digit-interface", "gelsight-sensors-paper", "3dcal-paper"],
+    tasks: [
+      { id: "run", text: { zh: "运行 tactile_marker_toy.py，核对 expected/tactile_marker_toy.txt", en: "Run tactile_marker_toy.py and match expected/tactile_marker_toy.txt" } },
+      { id: "force", text: { zh: "把 force_N 改成 1.0，观察 contact_err 与 max_disp 如何变", en: "Set force_N to 1.0 and watch how contact_err and max_disp change" } },
+      { id: "compare", text: { zh: "用自己的话写三行：光学 vs 磁，在可替换性上差在哪", en: "In your words, three lines: optical vs magnetic on replaceability" } },
+      { id: "optional", text: { zh: "（选做，本页未运行）阅读 DIGIT 设计页或 AnySkin 制造视频，不下单", en: "(Optional, not run here) read the DIGIT design page or an AnySkin fabrication video — do not place an order" } },
+    ],
+  },
+];
+
+
 export const months: Month[] = [
   {
     id: 1,
@@ -1711,7 +1785,7 @@ export const months: Month[] = [
       { zh: "容器、CI、rosbag2/MCAP、实验追踪", en: "Containers, CI, rosbag2/MCAP, experiment tracking" },
       { zh: "毕业项目三轨道", en: "Capstone tracks" },
       { zh: "仿真基准（8.8 LIBERO / SimplerEnv 阅读与 CPU 分数表）", en: "Sim benchmarks (8.8 LIBERO / SimplerEnv reading + CPU score table)" },
-      { zh: "延伸：HIL-SERL 见 10.6；Isaac Lab / 腿式运动场仍为月页选修。LeKiwi / MoveIt Servo / MTC / 导纳与长时程组合见第 9 个月核心课；micro-ROS + FOC 与真机 F/T 导纳见第 9 个月月页选修。", en: "Further: HIL-SERL → 10.6; Isaac Lab / legged playground stay month-page electives. LeKiwi / MoveIt Servo / MTC / admittance and long-horizon compose → Month 9 core; micro-ROS + FOC and real F/T admittance → Month 9 month-page electives." },
+      { zh: "延伸：HIL-SERL 见 10.6；Isaac Lab / 腿式运动场仍为月页选修。LeKiwi / MoveIt Servo / MTC / 导纳与长时程组合见第 9 个月核心课；FOC 见 11.2；micro-ROS 与真机 F/T 导纳见第 9 个月月页选修。", en: "Further: HIL-SERL → 10.6; Isaac Lab / legged playground stay month-page electives. LeKiwi / MoveIt Servo / MTC / admittance and long-horizon compose → Month 9 core; FOC → 11.2; micro-ROS and real F/T admittance → Month 9 month-page electives." },
     ],
     milestones: [
       { zh: "一个按规程录制、可流式加载的数据集", en: "A protocol-recorded dataset that can be streamed" },
@@ -1737,7 +1811,7 @@ export const months: Month[] = [
       { zh: "Nav2 + 臂组合", en: "Nav2 + arm compose" },
       { zh: "可选移动底盘", en: "Optional mobile base" },
       { zh: "视觉伺服（9.8）与世界模型概览（9.9）", en: "Visual servoing (9.8) and world-models overview (9.9)" },
-      { zh: "延伸：LeKiwi 真机组装；micro-ROS + FOC；外接 F/T 导纳；多视角外参、介入日志、端侧清单见第 10 个月（10.3–10.5）", en: "Further: LeKiwi build; micro-ROS + FOC; external F/T admittance; multi-view extrinsics, intervention logging and the edge-deploy checklist are in Month 10 (10.3–10.5)" },
+      { zh: "延伸：LeKiwi 真机组装；FOC 见 11.2；外接 F/T 导纳；多视角外参、介入日志、端侧清单见第 10 个月（10.3–10.5）；触觉见 11.3", en: "Further: LeKiwi build; FOC → 11.2; external F/T admittance; multi-view extrinsics, intervention logging and the edge-deploy checklist are in Month 10 (10.3–10.5); tactile → 11.3" },
     ],
     milestones: [
       { zh: "用 MTC 风格的阶段图描述「接近 → 抓 → 抬 → 放」，并在 CPU 玩具上验证阶段依赖与失败边", en: "Describe approach → grasp → lift → place as an MTC-style stage graph, and verify deps and failure edges on a CPU toy" },
@@ -1762,7 +1836,7 @@ export const months: Month[] = [
       { zh: "介入日志与 DAgger 式纠正数据", en: "Intervention logging and DAgger-style corrections" },
       { zh: "真实世界 RL：HIL-SERL 与离线+在线回放", en: "Real-world RL: HIL-SERL and offline+online replay" },
       { zh: "VLA 上的 RL：优势条件与残差策略", en: "RL on VLAs: advantage conditioning and residual policies" },
-      { zh: "延伸：Isaac Lab / 腿式运动场；LeKiwi 真机组装；micro-ROS + FOC；外接 F/T 导纳；Jetson 真机 TensorRT 实测", en: "Further: Isaac Lab / legged locomotion; LeKiwi build; micro-ROS + FOC; external F/T admittance; on-device Jetson TensorRT measurements" },
+      { zh: "延伸：Isaac Lab / 腿式运动场；LeKiwi 真机组装；FOC 见 11.2；外接 F/T 导纳；Jetson 真机 TensorRT 实测；触觉见 11.3", en: "Further: Isaac Lab / legged locomotion; LeKiwi build; FOC → 11.2; external F/T admittance; on-device Jetson TensorRT measurements; tactile → 11.3" },
     ],
     milestones: [
       { zh: "在 CPU 玩具上说明流匹配积分步数与样本质量的关系，并用 RTC 软掩码把动作块接缝的最大跳变压到朴素切换的一半以下", en: "On CPU toys, show how flow-matching step count trades against sample quality, and use an RTC soft mask to cut the worst chunk-seam jump to under half of naive switching" },
@@ -1770,6 +1844,31 @@ export const months: Month[] = [
       { zh: "记录带 intervention 标记的纠正数据，报告介入率，并在玩具上说明 50/50 离线+在线回放为何比只在线更快学会稀疏奖励任务", en: "Record correction data with an intervention flag, report the intervention rate, and show on a toy why 50/50 offline+online replay learns a sparse-reward task faster than online-only" },
     ],
     lessons: month10Lessons,
+  },
+  {
+    id: 11,
+    slug: "month-11",
+    title: { zh: "执行器硬件、触觉接触与跨本体采集", en: "Actuator hardware, tactile contact & cross-embodiment collection" },
+    goal: {
+      zh: "能给桌面机械臂写一张电源与 EMC 卫生清单，读懂 FOC 的 Clarke–Park 变换并用标准库玩具验证，比较光学与磁触觉传感器的替换成本与信号一致性；再用相对轨迹理解 UMI 式野外采集，分析 OXE 式跨本体失衡，读完人形全身控制的阅读图，并把触觉折进接触丰富的模仿策略。",
+      en: "Write a power and EMC hygiene checklist for a desktop arm, verify Clarke–Park FOC transforms on a stdlib toy, compare optical vs magnetic tactile replaceability, then use relative trajectories for UMI-style collection, analyse OXE-style cross-embodiment skew, finish a humanoid WBC reading map, and fold touch into contact-rich imitation.",
+    },
+    topics: [
+      { zh: "整机电源、电池包与 EMC 布线", en: "Robot power, battery packs and EMC wiring" },
+      { zh: "磁场定向控制（FOC）与 SimpleFOC", en: "Field-oriented control (FOC) and SimpleFOC" },
+      { zh: "光学与磁触觉传感器（GelSight / DIGIT / AnySkin）", en: "Optical and magnetic tactile sensors (GelSight / DIGIT / AnySkin)" },
+      { zh: "UMI 式手持采集与相对轨迹（PR2）", en: "UMI-style handheld collection and relative trajectories (PR2)" },
+      { zh: "跨本体数据集：OXE 与 OXE-AugE（PR2）", en: "Cross-embodiment datasets: OXE and OXE-AugE (PR2)" },
+      { zh: "人形全身控制阅读图（PR3）", en: "Humanoid WBC reading map (PR3)" },
+      { zh: "接触丰富策略：把触觉折进模仿（PR3）", en: "Contact-rich policies: folding tactile into imitation (PR3)" },
+      { zh: "延伸：LeKiwi 真机组装；外接 F/T；Isaac Lab 大规模训练；DIGIT/GelSight Mini / BLDC 套件 / GoPro / 人形机真机实测", en: "Further: LeKiwi build; external F/T; Isaac Lab-scale training; DIGIT/GelSight Mini / BLDC kit / GoPro / humanoid on-robot runs" },
+    ],
+    milestones: [
+      { zh: "用 CPU 玩具算出峰值电流下的导线压降与熔断裕度，并列出电机线与编码器线分离的 EMC 三条硬规则", en: "On a CPU toy, compute IR drop and fuse margin at peak current, and list three hard EMC rules that separate motor and encoder wiring" },
+      { zh: "用 Clarke–Park 往返验证 id≈0、iq 跟踪；并在标记网格变形玩具上估计接触位置", en: "Round-trip Clarke–Park so id≈0 while iq tracks, and estimate a contact location from a marker-grid deformation toy" },
+      { zh: "比较相对 / 绝对 / 增量轨迹在标定噪声下的终点误差，报告一张合成 OXE 失衡表的 top-4 占比，并读完 ASAP 式 delta-action 对齐段落（PR2/PR3）", en: "Compare relative / absolute / delta trajectory end error under calibration noise, report top-4 share on a synthetic OXE imbalance table, and finish the ASAP delta-action alignment section (PR2/PR3)" },
+    ],
+    lessons: month11Lessons,
   },
 ];
 

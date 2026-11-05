@@ -1,0 +1,11 @@
+seed=13
+true_contact=(0.200,-0.150)
+force_N=2.50
+est_contact=(0.2882,-0.2168)
+contact_err=0.1106
+max_disp=0.8000
+anyskin_replace_s=12
+anyskin_slip_acc=0.92
+anyskin_plug_cam=1.7
+anyskin_plug_skin=6.7
+anyskin_plug_swap=5.3

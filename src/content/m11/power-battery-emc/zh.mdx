@@ -1,0 +1,141 @@
+本课是本站补充内容——第 7–11 个月不属于原六个月课程。
+
+**范围。** [1.x 元件与欧姆定律](/zh/month/month-1/components) 负责测电池电压与基本安全句；[2.3 电机与驱动](/zh/month/month-2/motors-drivers) 负责电池电压变化对开环转速的影响与 2S LiPo 满电校准。[3.5 SO-101](/zh/month/month-3/so101-arm) 是本课的整机配电例子。本课升到**系统级**：逻辑轨与电机总线分开、熔断裕度、导线压降、电机线与编码器线分离的 EMC 卫生。不重讲欧姆定律；不教改 BMS、不给拆电池包步骤。电流数字是**示例假设，非本站实测**。真机测电流 / 示波器探环路标注本页未运行；不要求新购电源分析仪。本课也不替代 8.7 毕业项目。
+
+## 为什么桌面臂也需要整机配电
+
+六只总线舵机同时堵转时，峰值电流不是「一只舵机 × 6」那么简单——导线电阻会把负载端电压拉下去，逻辑板却还想要稳定的 5 V / 3.3 V。M2 已经见过「电池掉电压 → 开环转速变」；这里把它写成一张可算的清单。
+
+硬规则三条（EMC 卫生，阅读 Novanta / Roboteq / ARK 布线指南后归纳，本页未实测）：
+
+1. **电机相线远离编码器 / I2C。** 大电流边沿是噪声源；信号线与电机线分开走，交叉尽量 90°。
+2. **公共地单点汇合。** 逻辑地与电机地在电源入口附近星形汇合，避免大电流在信号回路里回流。
+3. **屏蔽层默认源端接地。** 信号电缆屏蔽在驱动 / 控制器端接地；环路面积尽量小。
+
+<Resource id="novanta-emc-wiring" />
+<Resource id="roboteq-emi" />
+<Resource id="ark-power-grounding" />
+
+## 电池包：只读，不拆
+
+串联抬电压、并联抬容量；C 率说明电池能持续/脉冲放出多大电流。BMS 负责过放、过流、短路切断——**本课不教改 BMS 参数，不给拆包步骤**。工作台上的安全习惯：
+
+- 锂电有专用充电器，不要用可调电源「随便充一下」。
+- 充电时有人在场；鼓包、异味、发热立刻停。
+- 急停切的是电机总线，不是只切逻辑（见 [8.5 安全与可靠性](/zh/month/month-8/safety-reliability)）。
+
+## 电源预算玩具
+
+`power_budget_toy.py` 用固定种子和示例电流：6 只舵机、空载 0.35 A、峰值 1.8 A、标称 12 V、导线 0.8 m × 50 mΩ/m、10 A 熔断。输出总电流、峰值压降、负载端电压、熔断裕度，以及是否还在 11 V 地板之上。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-11/power-battery-emc
+$ python3 power_budget_toy.py
+```
+
+<CodeSource path="examples/month-11/power-battery-emc/power_budget_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""power_budget_toy.py: IR drop and fuse margin for a desktop-arm bus (stdlib).
+
+Illustrative SO-101-like bus-servo currents — NOT measured on this site.
+Fixed seed for reproducibility; change n_servos / wire length to explore.
+"""
+SEED = 5
+# SO-101-like bus servos: illustrative currents, not measured
+V_nom = 12.0
+I_idle = 0.35  # A per servo idle
+I_peak = 1.8   # A stall-ish peak
+n_servos = 6
+wire_mohm_per_m = 50.0  # 22 AWG ballpark illustrative
+wire_len_m = 0.8
+fuse_A = 10.0
+V_floor = 11.0
+
+R = wire_mohm_per_m * 1e-3 * wire_len_m
+I_total_peak = n_servos * I_peak
+I_total_idle = n_servos * I_idle
+V_drop = I_total_peak * R
+V_at_load = V_nom - V_drop
+margin = fuse_A / I_total_peak
+
+print(f"seed={SEED}")
+print(f"V_nom={V_nom:.1f}")
+print(f"n_servos={n_servos}")
+print(f"I_idle_total={I_total_idle:.2f}")
+print(f"I_peak_total={I_total_peak:.2f}")
+print(f"wire_R_ohm={R:.4f}")
+print(f"V_drop_peak={V_drop:.3f}")
+print(f"V_at_load={V_at_load:.3f}")
+print(f"fuse_A={fuse_A:.1f}")
+print(f"fuse_margin={margin:.3f}")
+print(f"pass_11v_floor={str(V_at_load >= V_floor).lower()}")
+```
+
+
+<SimOutput source="model">
+
+```text
+seed=5
+V_nom=12.0
+n_servos=6
+I_idle_total=2.10
+I_peak_total=10.80
+wire_R_ohm=0.0400
+V_drop_peak=0.432
+V_at_load=11.568
+fuse_A=10.0
+fuse_margin=0.926
+pass_11v_floor=true
+```
+
+</SimOutput>
+
+怎么读：
+
+- 峰值总电流 **10.80** A，已经略高于 10 A 熔断额定——fuse_margin = **0.926**（熔断 / 峰值 &lt; 1）提醒你：慢熔可以扛短时尖峰，但持续堵转不行；真正选型要以你的舵机数据手册为准。
+- 导线电阻 0.0400 Ω 在峰值下压降 **0.432** V，负载端 **11.568** V，仍过 11 V 地板（`pass_11v_floor=true`）。玩具里的 R 是**单程导线**电阻（R = ρ·L，长度用电源到负载的单程；回程若对称再乘 2，本玩具按单程示例）。把线加长或改细，压降会先碰到地板。
+- 这些电流是**示例假设**；SO-101 整机真实峰值本站未测。
+
+真机用电流钳量一次峰值、用示波器看地环路——本页未运行。不要求购买电源分析仪。
+
+## 对照 SO-101
+
+总线舵机（如 STS3215）共享电机电源与 TTL 总线。逻辑 5 V 往往来自板载 LDO 或单独轨：电机总线跌落时，逻辑轨要有自己的退耦，不能指望「同一根粗线」两边都稳。把玩具里的 `n_servos`、`I_peak`、`wire_len_m` 改成你的假设，重新跑一遍，写进你的电源清单。
+
+## 本课未覆盖
+
+- 改 BMS、平衡充电算法、拆电芯。
+- 开关电源环路补偿、PFC。
+- 认证级 EMC 测试（传导/辐射限值）。
+
+延伸阅读：Novanta 人形 EMC 布线用例、Roboteq EMI 博文、ARK Power and Grounding。
+
+<Summary>
+
+**本课要点**
+
+- 逻辑轨与电机总线分开；公共地单点星形汇合。
+- 玩具：峰值 10.80 A、压降 0.432 V、负载端 11.568 V、fuse_margin 0.926。
+- EMC 三条：电机线远离信号线、地单点、屏蔽源端接地。
+- 电池只读 C 率与 BMS 切断概念；不拆包、不改 BMS。
+- 电流为示例假设；真机测量本页未运行。
+
+**常见错误**
+
+- 把逻辑地接到电机大电流回路中间。
+- 编码器线与相线平行长距离并走。
+- 用可调电源给锂电「临时充」。
+
+**自检**
+
+- 峰值 10.80 A 时 0.8 m × 50 mΩ/m 的压降是多少？
+- 为什么 fuse_margin &lt; 1 仍可能用慢熔？
+- EMC 三条硬规则是什么？
+
+**下一课会用到**
+
+- [11.2 FOC 执行器实验](/zh/month/month-11/foc-actuator-lab)：从 H 桥 PWM 升到 Clarke–Park。
+
+</Summary>

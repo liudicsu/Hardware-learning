@@ -3380,7 +3380,7 @@ const lessonRef = (n, slug, lang) => {
       md10[`${slug}/${lang}`] = x;
       ok(/<CodeSource /.test(x) && /<SimOutput /.test(x), `m10 ${slug} ${lang}: CodeSource + SimOutput`);
       ok(/本站补充|site supplement/.test(x), `m10 ${slug} ${lang}: site-supplement opener`);
-      ok(/第 7–10 个月|Months 7–10/.test(x), `m10 ${slug} ${lang}: opener says 7–10`);
+      ok(/第 7–11 个月|Months 7–11/.test(x), `m10 ${slug} ${lang}: opener says 7–11`);
       ok(/本页未运行/.test(x), `m10 ${slug} ${lang}: 本页未运行 marker`);
       ok(/async-deployment/.test(x) && /perception-to-grasp/.test(x) && /DAgger/.test(x),
         `m10 ${slug} ${lang}: scope note vs 8.3 / 7.6 / DAgger`);
@@ -3543,6 +3543,130 @@ const lessonRef = (n, slug, lang) => {
   }
 
   console.log(`calc  m10 gaps: fm 1-step mean/10-step mode; rtc blend < naive/2 d=0,2,4 (linear stand-in); int8 per-channel vs outlier; latency ceil d 6/11; ext as-built ok / 2deg bump alarm; ilog merge needs remove_feature; rlpd demos 20/20 vs online; advf adv>succ>bc, no-success log; phrases ${phraseHits10}; PR1–PR3 10.1–10.7`);
+}
+
+
+
+{
+  // Month 11 PR1: 11.1 power-battery-emc / 11.2 foc-actuator-lab / 11.3 tactile-sensing.
+  // Numbers quoted in prose are bound to examples/month-11/expected/*.txt (actual stdout via UPDATE=1).
+  const rd11 = (rel) => readFileSync(join(root, rel), "utf8");
+  const pwr = rd11("examples/month-11/expected/power_budget_toy.txt");
+  const foc = rd11("examples/month-11/expected/clarke_park_toy.txt");
+  const tac = rd11("examples/month-11/expected/tactile_marker_toy.txt");
+  const slugs11 = ["power-battery-emc", "foc-actuator-lab", "tactile-sensing"];
+  const md11 = {};
+  for (const slug of slugs11) {
+    for (const lang of ["en", "zh"]) {
+      const x = rd11(`src/content/m11/${slug}/${lang}.mdx`);
+      md11[`${slug}/${lang}`] = x;
+      ok(/<CodeSource /.test(x) && /<SimOutput /.test(x), `m11 ${slug} ${lang}: CodeSource + SimOutput`);
+      ok(/本站补充|site supplement/.test(x), `m11 ${slug} ${lang}: site-supplement opener`);
+      ok(/第 7–11 个月|Months 7–11/.test(x), `m11 ${slug} ${lang}: opener says 7–11`);
+      ok(/本页未运行/.test(x), `m11 ${slug} ${lang}: 本页未运行 marker`);
+      ok(/8\.7/.test(x), `m11 ${slug} ${lang}: does not replace 8.7`);
+      ok(!/\$\d/.test(x), `m11 ${slug} ${lang}: no prices`);
+      ok(!/大纲|outline only/i.test(x), `m11 ${slug} ${lang}: full lesson, not outline`);
+    }
+  }
+
+  const grab = (txt, re, label) => {
+    const m = txt.match(re);
+    ok(!!m, `m11 expected: ${label}`);
+    return m ? m[1] : "__missing__";
+  };
+  const phrases11 = {
+    "power-battery-emc": [
+      grab(pwr, /I_peak_total=([0-9.]+)/, "pwr I_peak_total"),
+      grab(pwr, /V_drop_peak=([0-9.]+)/, "pwr V_drop_peak"),
+      grab(pwr, /V_at_load=([0-9.]+)/, "pwr V_at_load"),
+      grab(pwr, /fuse_margin=([0-9.]+)/, "pwr fuse_margin"),
+      grab(pwr, /pass_11v_floor=(true|false)/, "pwr pass_11v_floor"),
+    ],
+    "foc-actuator-lab": [
+      grab(foc, /theta_rad=([0-9.]+)/, "foc theta"),
+      grab(foc, /sum_abc=([0-9.e+\-]+)/, "foc sum_abc"),
+      grab(foc, /id_err=([0-9.e+\-]+)/, "foc id_err"),
+      grab(foc, /iq_err=([0-9.e+\-]+)/, "foc iq_err"),
+    ],
+    "tactile-sensing": [
+      grab(tac, /contact_err=([0-9.]+)/, "tac contact_err"),
+      grab(tac, /anyskin_replace_s=([0-9]+)/, "tac replace_s"),
+      grab(tac, /anyskin_slip_acc=([0-9.]+)/, "tac slip"),
+      grab(tac, /anyskin_plug_cam=([0-9.]+)/, "tac plug_cam"),
+      grab(tac, /anyskin_plug_skin=([0-9.]+)/, "tac plug_skin"),
+      grab(tac, /anyskin_plug_swap=([0-9.]+)/, "tac plug_swap"),
+    ],
+  };
+  ok(/pass_11v_floor=true/.test(pwr), "m11 pwr: load stays above 11 V floor");
+  ok(/id_err=0\.000e\+00/.test(foc) && /iq_err=0\.000e\+00/.test(foc), "m11 foc: round-trip id/iq err 0");
+  ok(/sum_abc=0\.000e\+00/.test(foc), "m11 foc: sum_abc 0");
+  ok(/anyskin_replace_s=12/.test(tac) && /anyskin_slip_acc=0\.92/.test(tac), "m11 tac: AnySkin 12 s / 0.92");
+  ok(/anyskin_plug_cam=1\.7/.test(tac) && /anyskin_plug_skin=6\.7/.test(tac) && /anyskin_plug_swap=5\.3/.test(tac),
+    "m11 tac: plug 1.7 / 6.7 / 5.3");
+
+  for (const lang of ["zh", "en"]) {
+    const p1 = md11[`power-battery-emc/${lang}`];
+    ok(/motors-drivers/.test(p1) && /so101-arm/.test(p1), `m11 pwr ${lang}: scope vs M2 / SO-101`);
+    ok(lang === "en" ? /example assumptions/.test(p1) : /示例假设/.test(p1), `m11 pwr ${lang}: currents labelled examples`);
+    ok(lang === "en" ? /No power analyser purchase|no power analyser/.test(p1) || /No power-analyser purchase|no power-analyser/.test(p1) || /power analyser/.test(p1)
+      : /不要求新购电源分析仪|电源分析仪/.test(p1), `m11 pwr ${lang}: no analyser purchase`);
+    const f1 = md11[`foc-actuator-lab/${lang}`];
+    ok(/motors-drivers/.test(f1) && /simplefoc/i.test(f1), `m11 foc ${lang}: scope vs M2 + SimpleFOC`);
+    ok(lang === "en" ? /does not replace/.test(f1) && /STS3215/.test(f1) : /不替换/.test(f1) && /STS3215/.test(f1),
+      `m11 foc ${lang}: does not replace STS3215`);
+    ok(lang === "en" ? /not required|No required BLDC|buying a BLDC/i.test(f1) : /不强制购买|不要求购买/.test(f1),
+      `m11 foc ${lang}: no required BLDC purchase`);
+    const t1 = md11[`tactile-sensing/${lang}`];
+    ok(/gripper-fingers/.test(t1), `m11 tac ${lang}: scope vs 3.6 gripper`);
+    ok(/AnySkin/.test(t1) && /DIGIT/.test(t1), `m11 tac ${lang}: AnySkin + DIGIT`);
+    ok(lang === "en" ? /not required|Buying a DIGIT/i.test(t1) : /不强制购买|不要求/.test(t1),
+      `m11 tac ${lang}: no required DIGIT purchase`);
+    ok(lang === "en" ? /paper as source of truth|take the paper/.test(t1) : /以论文为准/.test(t1),
+      `m11 tac ${lang}: paper as source of truth`);
+  }
+
+  let phraseHits11 = 0;
+  for (const [slug, vals] of Object.entries(phrases11)) {
+    for (const v of vals) {
+      for (const lang of ["en", "zh"]) {
+        const hit = md11[`${slug}/${lang}`].includes(v);
+        ok(hit, `m11 ${slug} ${lang}: quotes ${v} from expected`);
+        if (hit) phraseHits11 += 1;
+      }
+    }
+  }
+
+  const cur11 = rd11("src/lib/curriculum.ts");
+  ok(/month11Lessons/.test(cur11) && /slug: "month-11"/.test(cur11), "m11 curriculum: month11Lessons + month-11");
+  for (const slug of slugs11) ok(new RegExp(`slug: "${slug}"`).test(cur11), `m11 curriculum has ${slug}`);
+  ok(/month-11\/check\.sh/.test(rd11("tools/sim/reproduce.sh")), "m11 hooked in reproduce.sh");
+  const chk11 = rd11("examples/month-11/check.sh");
+  for (const f of ["power_budget_toy", "clarke_park_toy", "tactile_marker_toy"]) {
+    ok(new RegExp(`${f}\\.txt`).test(chk11), `m11 check.sh: ${f}`);
+  }
+  ok(/3 of 7/.test(chk11), "m11 check.sh header: 3 of 7");
+  const res11 = rd11("src/lib/resources.ts");
+  for (const id of ["novanta-emc-wiring", "roboteq-emi", "ark-power-grounding", "simplefoc-foc-theory", "simplefoc-home",
+    "anyskin-paper", "anyskin-site", "digit-design", "digit-interface", "gelsight-sensors-paper", "3dcal-paper"]) {
+    const block = (res11.match(new RegExp(`"${id}": \\{[\\s\\S]*?\\n  \\}`)) || [""])[0];
+    ok(block.length > 0 && /extra:\s*true/.test(block), `m11 resource ${id}: present + extra`);
+    ok(!/\$\d/.test(block), `m11 resource ${id}: no price`);
+  }
+  const glo11 = rd11("src/lib/glossary.ts");
+  for (const term of ["emc-hygiene", "ir-drop", "clarke-transform", "park-transform", "id-zero", "iq-torque",
+    "simplefoc-commander", "optical-tactile", "magnetic-tactile"]) {
+    ok(new RegExp(`"${term}"`).test(glo11), `m11 glossary: ${term}`);
+  }
+  // Banner / pointer scaffolding
+  ok(/foc-actuator-lab/.test(rd11("src/content/m2/motors-drivers/zh.mdx")) &&
+     /foc-actuator-lab/.test(rd11("src/content/m2/motors-drivers/en.mdx")), "m11: motors-drivers points to 11.2");
+  ok(/tactile-sensing/.test(rd11("src/content/m3/gripper-fingers/zh.mdx")) &&
+     /tactile-sensing/.test(rd11("src/content/m3/gripper-fingers/en.mdx")), "m11: gripper points to 11.3");
+  ok(/第 7–11 个月/.test(rd11("messages/zh.json")) && /Months 7–11/.test(rd11("messages/en.json")),
+    "m11: messages month range 7–11");
+
+  console.log(`calc  m11 PR1: pwr 10.80 A / 0.432 V / margin 0.926; foc round-trip 0; tac contact_err + AnySkin 12/0.92/1.7/6.7/5.3; phrases ${phraseHits11}; 11.1–11.3`);
 }
 
 

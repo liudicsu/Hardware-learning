@@ -1,0 +1,145 @@
+本课是本站补充内容——第 7–11 个月不属于原六个月课程。
+
+**范围。** [2.3 电机与驱动](/zh/month/month-2/motors-drivers) 讲有刷 DC / 步进，并对 FOC 说「以后再说」；[3.4 PID](/zh/month/month-3/pid-control) 与 [2.2 ESP32](/zh/month/month-2/esp32) 是本课可选刷机路径的前置。本课 = **Clarke–Park 数学 + SimpleFOC 文档阅读图 + micro-ROS 路径图**，不强制购买 BLDC 套件，不替换 SO-101 的 STS3215 总线舵机。只说明「自研关节 / 轮毂」何时需要 FOC。micro-ROS agent / 刷机不进 CI；开环速度示例刷到已有 ESP32 标注本页未运行（需驱动板；强调电流限制与急停，链 [8.5](/zh/month/month-8/safety-reliability)）。本课也不替代 8.7 毕业项目。
+
+## 为什么要 90°
+
+洛伦兹力在电流与磁场夹角 90° 时最大。有刷电机靠电刷与换向器机械地保持这个关系；FOC 用坐标变换在软件里做同样的事：定子磁场始终超前转子磁链 90°，于是 \(\tau = K_t \cdot i_q\)，目标是 <Term id="id-zero">\(i_d = 0\)</Term>、<Term id="iq-torque">\(i_q = \tau / K_t\)</Term>。
+
+## Clarke 与 Park
+
+三个参考系（SimpleFOC `foc_theory`，以当期文档为准）：
+
+1. **静止 abc**：三相 \(i_a, i_b, i_c\)，彼此 120°。
+2. **静止 αβ**（Clarke）：两正交分量；平衡时 \(i_\alpha = i_a\)，\(i_\beta = (i_a + 2 i_b)/√3\)。
+3. **旋转 dq**（Park）：随转子电角度 \(\theta_e\) 转；AC 变成近似 DC，可用普通 PI。
+
+逆变换：dq → αβ（逆 Park）→ abc（逆 Clarke）得到三相电压，再经 PWM 驱动。步进电机两相已正交，可省 Clarke。
+
+<Resource id="simplefoc-foc-theory" />
+<Resource id="simplefoc-home" />
+<Resource id="simplefoc" />
+
+## Clarke–Park 往返玩具
+
+`clarke_park_toy.py` 给定 \(i_q=1\)、\(i_d=0\)、\(\theta=\pi/6\)：逆 Park → 逆 Clarke 得三相，再正变换回收。打印 `sum_abc` 与 id/iq 误差。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-11/foc-actuator-lab
+$ python3 clarke_park_toy.py
+```
+
+<CodeSource path="examples/month-11/foc-actuator-lab/clarke_park_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""clarke_park_toy.py: Clarke–Park round-trip for FOC (stdlib).
+
+Given id_cmd=0, iq_cmd and electrical angle θ:
+  inverse Park → inverse Clarke → Clarke → Park
+and check sum_abc≈0 plus recovered id/iq.
+Formulas follow SimpleFOC foc_theory (balanced three-phase).
+"""
+import math
+
+SEED = 11
+theta = math.pi / 6
+iq_cmd, id_cmd = 1.0, 0.0
+
+
+def clarke(ia, ib, ic):
+    # Balanced: ia+ib+ic=0; SimpleFOC-style
+    i_alpha = ia
+    i_beta = (ia + 2 * ib) / math.sqrt(3)
+    return i_alpha, i_beta
+
+
+def park(i_alpha, i_beta, th):
+    c, s = math.cos(th), math.sin(th)
+    id_ = i_alpha * c + i_beta * s
+    iq = -i_alpha * s + i_beta * c
+    return id_, iq
+
+
+# Inverse Park then inverse Clarke
+u_alpha = id_cmd * math.cos(theta) - iq_cmd * math.sin(theta)
+u_beta = id_cmd * math.sin(theta) + iq_cmd * math.cos(theta)
+ia = u_alpha
+ib = -0.5 * u_alpha + (math.sqrt(3) / 2) * u_beta
+ic = -0.5 * u_alpha - (math.sqrt(3) / 2) * u_beta
+
+a, b = clarke(ia, ib, ic)
+id_r, iq_r = park(a, b, theta)
+
+print(f"seed={SEED}")
+print(f"theta_rad={theta:.6f}")
+print(f"iq_cmd={iq_cmd:.4f} id_cmd={id_cmd:.4f}")
+print(f"ia={ia:.6f} ib={ib:.6f} ic={ic:.6f}")
+print(f"sum_abc={ia + ib + ic:.3e}")
+print(f"id_recovered={id_r:.6f} iq_recovered={iq_r:.6f}")
+print(f"id_err={abs(id_r - id_cmd):.3e} iq_err={abs(iq_r - iq_cmd):.3e}")
+```
+
+
+<SimOutput source="model">
+
+```text
+seed=11
+theta_rad=0.523599
+iq_cmd=1.0000 id_cmd=0.0000
+ia=-0.500000 ib=1.000000 ic=-0.500000
+sum_abc=0.000e+00
+id_recovered=0.000000 iq_recovered=1.000000
+id_err=0.000e+00 iq_err=0.000e+00
+```
+
+</SimOutput>
+
+怎么读：
+
+- \(\theta = \pi/6 \approx\) **0.523599** rad 时三相为 −0.5 / 1.0 / −0.5，sum_abc = **0.000e+00**（基尔霍夫）。
+- 往返后 id_err = **0.000e+00**、iq_err = **0.000e+00**：数学上可逆；真机误差来自电流传感、角度延迟与死区，不在本玩具里。
+
+## SimpleFOC 阅读图
+
+- **库**：Arduino SimpleFOC（文档写 v2.4+ 坐标变换页）；PlatformIO / 多 MCU（含你在 M2 已有的 ESP32）。
+- **传感器**：开环（无反馈，仅演示）、霍尔、磁编码器。
+- **两条集成路径**：先串口 <Term id="simplefoc-commander">Commander</Term> 调参；再考虑 micro-ROS 客户端把关节接到 ROS 2 图里。micro-ROS + FOC 的社区实践存在，但**本页不进 CI、不抄第三方博客零件表**；刷机步骤放本目录 README，标注本页未运行。
+- **与 SO-101**：总线舵机内部已有自己的伺服；本课不替换 STS3215。当你做轮毂、直驱关节或要电流环力矩控制时，再上 FOC。
+
+## 选做：开环刷机（本页未运行）
+
+若你已有 ESP32 + 合适驱动板：按 SimpleFOC 开环速度示例编译烧录，**先把电流限制与急停接好**（8.5）。不要为了本课去买 BLDC 套件、SimpleFOC Shield 或 hoverboard 轮毂——那些是延伸。命令以当期 SimpleFOC 文档为准。
+
+## 本课未覆盖
+
+- 弱磁、MTPA、高频注入无感。
+- 具体 MOSFET 选型与 PCB 布局（见 11.1 EMC）。
+- 把 FOC 关节写进 ros2_control 硬件组件的完整驱动（8.4 是接口课）。
+
+<Summary>
+
+**本课要点**
+
+- FOC 用变换保持 90°：目标 id=0、iq=τ/Kt。
+- 玩具往返 id_err / iq_err = 0.000e+00，sum_abc = 0.000e+00。
+- 先 Commander 串口，再考虑 micro-ROS；后者本页未运行。
+- 不强制买 BLDC；不替换 SO-101 总线舵机。
+
+**常见错误**
+
+- 没限流就开环全速刷机。
+- 把本课当成「必须换掉 STS3215」。
+- 把第三方博客的零件表当本站事实。
+
+**自检**
+
+- Clarke 与 Park 各解决什么？
+- 为什么平衡三相 sum_abc 应为 0？
+- 何时需要 FOC 而不是总线舵机？
+
+**下一课会用到**
+
+- [11.3 触觉传感](/zh/month/month-11/tactile-sensing)：给夹爪加上接触模态。
+
+</Summary>

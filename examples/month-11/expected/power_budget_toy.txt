@@ -1,0 +1,11 @@
+seed=5
+V_nom=12.0
+n_servos=6
+I_idle_total=2.10
+I_peak_total=10.80
+wire_R_ohm=0.0400
+V_drop_peak=0.432
+V_at_load=11.568
+fuse_A=10.0
+fuse_margin=0.926
+pass_11v_floor=true

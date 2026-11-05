@@ -1,0 +1,141 @@
+This lesson is a site supplement — Months 7–11 are not part of the original six-month course.
+
+**Scope.** [1.x components & Ohm's law](/en/month/month-1/components) cover measuring battery voltage and a one-line safety note; [2.3 motors & drivers](/en/month/month-2/motors-drivers) cover how battery sag changes open-loop speed and the 2S LiPo full-charge calibration. [3.5 SO-101](/en/month/month-3/so101-arm) is this lesson's whole-robot power example. Here we go **system-level**: separate logic and motor buses, fuse margin, IR drop, and EMC hygiene that keeps motor leads away from encoder lines. We do not re-teach Ohm's law; we do not teach BMS reprogramming or pack teardown. Currents are **example assumptions, not measured on this site**. Real current probing / scope-on-a-loop is marked 本页未运行 (not run on this page); no power analyser purchase. This lesson also does not replace the 8.7 capstone.
+
+## Why a desktop arm still needs a power plan
+
+When six bus servos stall together, peak current is not "one servo × 6" in isolation — wire resistance pulls the voltage at the load down while the logic board still wants a steady 5 V / 3.3 V. Month 2 already showed "battery sags → open-loop speed changes"; here we turn that into a checklist you can compute.
+
+Three hard EMC rules (summarised from Novanta / Roboteq / ARK wiring guides; not measured here):
+
+1. **Keep motor phase leads away from encoder / I2C.** Fast current edges are noise sources; separate runs, cross at ~90° when they must meet.
+2. **Single-point common ground.** Star the logic and motor grounds near the supply entry so large currents do not return through signal loops.
+3. **Shields default to source-end ground.** Ground the signal-cable shield at the drive / controller end; minimise loop area.
+
+<Resource id="novanta-emc-wiring" />
+<Resource id="roboteq-emi" />
+<Resource id="ark-power-grounding" />
+
+## Battery packs: read only, do not open
+
+Series raises voltage; parallel raises capacity; C-rate says how much continuous / pulse current the cell can deliver. The BMS cuts on over-discharge, over-current and short — **this lesson does not teach BMS parameter changes or pack teardown**. Bench habits:
+
+- Li-ion uses its own charger; do not "just top it up" on a bench supply.
+- Stay present while charging; stop on swelling, smell or heat.
+- E-stop cuts the motor bus, not only logic (see [8.5 safety & reliability](/en/month/month-8/safety-reliability)).
+
+## Power-budget toy
+
+`power_budget_toy.py` uses a fixed seed and illustrative currents: 6 servos, 0.35 A idle, 1.8 A peak, 12 V nominal, 0.8 m × 50 mΩ/m wire, 10 A fuse. It prints totals, peak drop, voltage at the load, fuse margin, and whether the 11 V floor still holds.
+
+```bash
+$ cd ~/Hardware-learning/examples/month-11/power-battery-emc
+$ python3 power_budget_toy.py
+```
+
+<CodeSource path="examples/month-11/power-battery-emc/power_budget_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""power_budget_toy.py: IR drop and fuse margin for a desktop-arm bus (stdlib).
+
+Illustrative SO-101-like bus-servo currents — NOT measured on this site.
+Fixed seed for reproducibility; change n_servos / wire length to explore.
+"""
+SEED = 5
+# SO-101-like bus servos: illustrative currents, not measured
+V_nom = 12.0
+I_idle = 0.35  # A per servo idle
+I_peak = 1.8   # A stall-ish peak
+n_servos = 6
+wire_mohm_per_m = 50.0  # 22 AWG ballpark illustrative
+wire_len_m = 0.8
+fuse_A = 10.0
+V_floor = 11.0
+
+R = wire_mohm_per_m * 1e-3 * wire_len_m
+I_total_peak = n_servos * I_peak
+I_total_idle = n_servos * I_idle
+V_drop = I_total_peak * R
+V_at_load = V_nom - V_drop
+margin = fuse_A / I_total_peak
+
+print(f"seed={SEED}")
+print(f"V_nom={V_nom:.1f}")
+print(f"n_servos={n_servos}")
+print(f"I_idle_total={I_total_idle:.2f}")
+print(f"I_peak_total={I_total_peak:.2f}")
+print(f"wire_R_ohm={R:.4f}")
+print(f"V_drop_peak={V_drop:.3f}")
+print(f"V_at_load={V_at_load:.3f}")
+print(f"fuse_A={fuse_A:.1f}")
+print(f"fuse_margin={margin:.3f}")
+print(f"pass_11v_floor={str(V_at_load >= V_floor).lower()}")
+```
+
+
+<SimOutput source="model">
+
+```text
+seed=5
+V_nom=12.0
+n_servos=6
+I_idle_total=2.10
+I_peak_total=10.80
+wire_R_ohm=0.0400
+V_drop_peak=0.432
+V_at_load=11.568
+fuse_A=10.0
+fuse_margin=0.926
+pass_11v_floor=true
+```
+
+</SimOutput>
+
+How to read it:
+
+- Peak total **10.80** A already sits above a 10 A fuse rating — fuse_margin = **0.926** (fuse / peak &lt; 1) warns that a slow-blow fuse can ride a short spike, but sustained stall is not fine; size from your servo datasheet.
+- 0.0400 Ω of wire drops **0.432** V at peak, leaving **11.568** V at the load, still above the 11 V floor (`pass_11v_floor=true`). R here is a **one-way conductor** resistance (R = ρ·L, length is supply-to-load one way; a symmetric return would double it — this toy uses the one-way example). Longer or thinner wire hits the floor first.
+- These currents are **example assumptions**; this site has not measured whole SO-101 peak current.
+
+Probing peak current with a clamp or scoping a ground loop is not run on this page. No power analyser purchase.
+
+## Against the SO-101
+
+Bus servos (e.g. STS3215) share motor power and a TTL bus. Logic 5 V often comes from an on-board LDO or a separate rail: when the motor bus sags, the logic rail needs its own decoupling — one fat wire does not keep both sides steady. Change `n_servos`, `I_peak` and `wire_len_m` to your assumptions, re-run, and put the numbers on your power checklist.
+
+## Out of scope
+
+- BMS reprogramming, cell balancing algorithms, pack teardown.
+- Switch-mode loop compensation, PFC.
+- Certification EMC tests (conducted / radiated limits).
+
+Further reading: Novanta humanoid EMC wiring case, Roboteq EMI post, ARK Power and Grounding.
+
+<Summary>
+
+**Key points**
+
+- Separate logic and motor buses; star the common ground at one point.
+- Toy: peak 10.80 A, drop 0.432 V, load 11.568 V, fuse_margin 0.926.
+- Three EMC rules: motor leads away from signals, single-point ground, source-end shield.
+- Batteries: read C-rate and BMS cut-off only; no teardown, no BMS edits.
+- Currents are examples; real measurements are not run here.
+
+**Common mistakes**
+
+- Tying logic ground into the middle of a motor return path.
+- Running encoder and phase leads in a long parallel bundle.
+- Charging Li-ion from a random bench supply.
+
+**Check yourself**
+
+- At 10.80 A peak, what is the drop on 0.8 m × 50 mΩ/m?
+- Why can fuse_margin &lt; 1 still allow a slow-blow fuse?
+- What are the three hard EMC rules?
+
+**Next**
+
+- [11.2 FOC actuator lab](/en/month/month-11/foc-actuator-lab): from H-bridge PWM up to Clarke–Park.
+
+</Summary>

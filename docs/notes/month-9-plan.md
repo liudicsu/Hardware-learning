@@ -1,6 +1,6 @@
 # Month 9 plan: Long-horizon tasks, contact control & mobile manipulation
 
-Site supplement beyond @DeRonin_'s 6-month roadmap (Months 7–10). Proposal archive: `/workspace/proposals/m9-proposal.md`. Track B electives: `/workspace/proposals/promote-electives-proposal.md`.
+Site supplement beyond @DeRonin_'s 6-month roadmap (Months 7–11). Proposal archive: `/workspace/proposals/m9-proposal.md`. Track B electives: `/workspace/proposals/promote-electives-proposal.md`.
 
 **Batches 1–3 (merged):** full MDX + examples for **9.1–9.7**. **Track B:** append **9.8 `visual-servoing`** then **9.9 `world-models-overview`** (end of array only).
 

@@ -2167,6 +2167,98 @@ export const glossary: GlossaryEntry[] = [
     lesson: "vla-rl-finetune",
     firstExplained: true,
   },
+
+  {
+    id: "emc-hygiene",
+    term: { zh: "EMC 卫生", en: "EMC hygiene" },
+    def: {
+      zh: "把电机大电流回路与编码器 / I2C 等信号回路在布线上分开，并控制接地与屏蔽，使电磁干扰不毁掉传感。",
+      en: "Keep high-current motor loops apart from encoder / I2C signal loops in the wiring, and control grounding and shields, so EMI does not kill sensing.",
+    },
+    lesson: "power-battery-emc",
+    firstExplained: true,
+  },
+  {
+    id: "ir-drop",
+    term: { zh: "导线压降", en: "IR drop" },
+    def: {
+      zh: "电流流过导线电阻时在电源与负载之间丢掉的电压；峰值电流下最明显。",
+      en: "The voltage lost between supply and load when current flows through wire resistance; worst at peak current.",
+    },
+    lesson: "power-battery-emc",
+    firstExplained: true,
+  },
+  {
+    id: "clarke-transform",
+    term: { zh: "Clarke 变换", en: "Clarke transform" },
+    def: {
+      zh: "把三相 abc 量投影到两正交的静止 αβ 轴上；平衡时常用 i_α=i_a、i_β=(i_a+2i_b)/√3。",
+      en: "Projects three-phase abc quantities onto two orthogonal stationary αβ axes; balanced form often uses i_α=i_a, i_β=(i_a+2i_b)/√3.",
+    },
+    lesson: "foc-actuator-lab",
+    firstExplained: true,
+  },
+  {
+    id: "park-transform",
+    term: { zh: "Park 变换", en: "Park transform" },
+    def: {
+      zh: "把静止 αβ 转到随转子电角度旋转的 dq 轴，使电流在同步时近似为直流，便于 PI。",
+      en: "Rotates stationary αβ into the dq frame that spins with electrical angle, so currents look near-DC when synchronised and PI is easy.",
+    },
+    lesson: "foc-actuator-lab",
+    firstExplained: true,
+  },
+  {
+    id: "id-zero",
+    term: { zh: "id = 0", en: "id = 0" },
+    def: {
+      zh: "FOC 里直轴电流置零：永磁已提供磁链，不再浪费电流去励磁，力矩由 iq 产生。",
+      en: "FOC sets the direct-axis current to zero: permanent magnets already supply flux, so no current is wasted on excitation and torque comes from iq.",
+    },
+    lesson: "foc-actuator-lab",
+    firstExplained: true,
+  },
+  {
+    id: "iq-torque",
+    term: { zh: "iq 力矩", en: "iq torque" },
+    def: {
+      zh: "交轴电流；在 id=0 时 τ ≈ Kt · iq，像控制一台有刷直流电机的电枢电流。",
+      en: "Quadrature-axis current; with id=0, τ ≈ Kt · iq, like armature current on a brushed DC motor.",
+    },
+    lesson: "foc-actuator-lab",
+    firstExplained: true,
+  },
+  {
+    id: "simplefoc-commander",
+    term: { zh: "SimpleFOC Commander", en: "SimpleFOC Commander" },
+    def: {
+      zh: "SimpleFOC 的串口命令行，用来在上 micro-ROS 之前先调通开环 / 闭环。",
+      en: "SimpleFOC's serial command line for bringing up open- / closed-loop before micro-ROS.",
+    },
+    lesson: "foc-actuator-lab",
+    firstExplained: true,
+  },
+  {
+    id: "optical-tactile",
+    term: { zh: "光学触觉", en: "optical tactile" },
+    def: {
+      zh: "用弹性体下的相机看接触变形（GelSight / DIGIT 一类）；剪切与法向变成图像梯度或标记位移。",
+      en: "Watching contact deformation with a camera under an elastomer (GelSight / DIGIT family); shear and normal become image gradients or marker motion.",
+    },
+    lesson: "tactile-sensing",
+    firstExplained: true,
+  },
+  {
+    id: "magnetic-tactile",
+    term: { zh: "磁触觉", en: "magnetic tactile" },
+    def: {
+      zh: "弹性体里的磁粉变形改变磁场，磁力计读出接触；AnySkin 把电子与皮肤分开以便快换。",
+      en: "Magnetic powder in an elastomer distorts a field that magnetometers read; AnySkin separates electronics from the skin for fast swaps.",
+    },
+    lesson: "tactile-sensing",
+    firstExplained: true,
+  },
+
 ]
 
 export function getTerm(id: string): GlossaryEntry | undefined {
