@@ -20,3 +20,5 @@ ros2 launch m4_control control.launch.py hardware:=mock headless:=true   # no si
 
 Needs ROS 2 Jazzy with `ros-jazzy-ros2-control`, `ros-jazzy-ros2-controllers` and `ros-jazzy-gz-ros2-control`, see [`../README.md`](../README.md). These runs are real ROS 2 software driving a **simulated** robot (Gazebo, or ros2_control's mock hardware); [`../../../tools/sim/ros/run.sh`](../../../tools/sim/ros/run.sh) repeats every one the lesson quotes. The package licences are left as the `TODO` placeholder on purpose.
 需要装有 `ros-jazzy-ros2-control`、`ros-jazzy-ros2-controllers` 和 `ros-jazzy-gz-ros2-control` 的 ROS 2 Jazzy，见 [`../README.md`](../README.md)。这些都是真实的 ROS 2 软件驱动**仿真**机器人（Gazebo，或 ros2_control 的 mock 硬件）；[`../../../tools/sim/ros/run.sh`](../../../tools/sim/ros/run.sh) 会重复课程引用的每一次运行。包的许可证故意保留 `TODO` 占位符。
+
+- `ethercat_dc_timing_toy.py` — FreeRun / SM-sync / DC SYNC0 on shared jitter (stdlib; no EtherCAT NIC). Batch-4.

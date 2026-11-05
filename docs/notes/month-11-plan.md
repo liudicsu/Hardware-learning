@@ -8,7 +8,7 @@ Constraints: no required purchases — not DIGIT / GelSight Mini, a BLDC kit, a 
 
 | # | slug | minutes | runnable | verified against |
 |---|------|---------|----------|------------------|
-| 1 | `power-battery-emc` | 330 | `power_budget_toy.py`, `power_roundtrip_loss_toy.py` | Novanta EMC wiring KB; Roboteq EMI blog; ARK power & grounding |
+| 1 | `power-battery-emc` | 480 | `power_budget_toy.py`, `power_roundtrip_loss_toy.py`, `soc_coulomb_thermal_toy.py` | Novanta EMC wiring KB; Roboteq EMI blog; ARK power & grounding |
 | 2 | `foc-actuator-lab` | 480 | `clarke_park_toy.py`, `foc_current_loop_toy.py` | SimpleFOC home + `foc_theory` / `foc_implementation` / alignment / voltage_torque docs |
 | 3 | `tactile-sensing` | 420 | `tactile_marker_toy.py`, `tactile_debias_recal_toy.py` | AnySkin arXiv 2409.08276; DIGIT design / interface repos; GelSight (Yuan 2017); 3D Cal arXiv 2511.03078 (abstract) |
 | 4 | `umi-style-collection` | 240 | `relative_traj_toy.py` | UMI arXiv 2402.10329 v3 + project page / Hardware Guide; LeRobot action representations |
@@ -37,3 +37,5 @@ Deepen PR3: six-DOF sagittal base+leg, no arm; two-row point-position Jacobian a
 Follow-up PR2 (+210): 11.7 `contact-rich-policies` 180→390 — same-frame velocity residual `v_meas − J(q)·qdot` (m/s, never N − m/s), contact break only from an assumed force-threshold flag, slip as a toy proxy (not a GelSight/AnySkin classifier), shared noise across stick/slip/break; points to 11.6 `J_c qdot`. Month 11 **2 670 min**; M8 **2 340**; site **71 lessons / 16 800 min** (from `src/lib/curriculum.ts`).
 
 Follow-up PR3 (F5–F7 on M5/M6, +510): Month 11 stays **2 670 min**. Site **71 lessons / 17 310 min**.
+
+Batch-4 PR1 (+150 on 11.1 only in this PR): `power-battery-emc` 330→480 — coulomb-counting SoC with discharge-positive sign, η on charge only, shared current profile across shunt-bias / Q-error / SoC0-error arms, lesson-defined thermal derate, OCV rest re-anchor as concept only; no charging procedure. Month 11 **2 820 min**; site **71 lessons / 19 050 min** (M2 1500 / M4 1620 after the sibling encoder + EtherCAT deepenings in the same PR).

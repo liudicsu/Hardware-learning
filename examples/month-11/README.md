@@ -14,3 +14,5 @@ UPDATE=1 bash examples/month-11/check.sh   # regenerate expected/
 Set `M11_PYTHON` to override the interpreter (default `python3`).
 
 11.3 also includes `tactile_debias_recal_toy.py` (shared-noise calibration, dimensionless load); 11.5 includes `oxe_auge_score_toy.py` (synthetic partial scores vs binary completion). Both are included in check.sh.
+
+- `power-battery-emc/soc_coulomb_thermal_toy.py` — coulomb SoC drift + thermal derate (batch-4).

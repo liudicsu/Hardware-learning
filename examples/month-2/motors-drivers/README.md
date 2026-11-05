@@ -21,3 +21,5 @@ arduino-cli compile -b arduino:avr:uno examples/month-2/motors-drivers/one_rev
 ```
 
 Serial at 115200 baud. The counts in the lesson come from simavr connected to a toy motor + encoder model (**simulated output / 仿真输出**); on a real wheel tune `MIN_PWM` and `KP` and expect different numbers. The Python model is [`tools/sim/models/one_rev_sim.py`](../../../tools/sim/models/one_rev_sim.py).
+
+- `encoder_index_cal_toy.py` — mechanical Z-index homing (not FOC commutation); batch-4.

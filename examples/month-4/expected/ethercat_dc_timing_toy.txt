@@ -1,0 +1,10 @@
+seed=55
+DT_nom=0.001 frame_jitter_std_s=4e-05 dc_residual_std_s=3e-07
+shared plant + shared master-frame jitter draw
+DC compensates propagation delay + drift and aligns SYNC0 sample/output instants; it does NOT eliminate master frame jitter on the wire
+ETG / ethercat.org sync jitter ≤1 µs 以文档为准 (not measured here)
+mode           pos_rmse      vel_rms       dt_std_s
+FreeRun    5.628923e-06 6.445746e-03   6.445746e-06
+SM_sync    9.090447e-05 5.587601e-02   5.587601e-05
+DC_SYNC0   4.814747e-07 4.389860e-04   4.389860e-07
+ok: three modes on shared plant/jitter; nominal-Δt velocity amplifies jitter; DC ≠ removing master frame jitter; EtherCAT NIC 本页未运行
