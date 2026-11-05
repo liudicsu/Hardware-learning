@@ -1,0 +1,20 @@
+lock chain: wrong action -> state 0, goal at 9, at most 30 steps; A = -1 + V(s') - V(s)
+
+A) mediocre log (right action 90 % of the time, 35 % in state 2, 40 % in state 5)
+  logged episodes 40, successes 20, steps 957
+  V(s): -36.7 -35.7 -34.9 -29.9 -28.6 -25.7 -17.9 -13.2 -5.0 0.0
+  policy        kept_steps  P(right) in states 2 / 5  success  mean_steps_if_success
+  bc                   957          0.35 / 0.57    49.6 %      17.4
+  success_only         357          0.44 / 0.74    89.4 %      15.0
+  adv_filter           298          1.00 / 1.00    99.2 %      12.7
+
+B) log with no successes (coin-flip policy, 6 episodes)
+  logged episodes 6, successes 0, steps 180
+  V(s): -44.7 -45.6 -45.4 -47.0 -48.0 -49.0 -50.5 -60.0 -60.0 0.0
+  policy        kept_steps  P(right) in states 2 / 5  success  mean_steps_if_success
+  bc                   180          0.64 / 0.40     0.0 %       n/a
+  success_only           0          0.50 / 0.50     2.2 %      18.0
+  adv_filter            14          0.50 / 0.00     0.0 %       n/a
+
+in A the filter drops the wrong actions that BC copies; in B nothing ever
+finished, so V cannot tell good steps from bad and the filter keeps noise.

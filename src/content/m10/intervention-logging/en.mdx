@@ -1,6 +1,6 @@
 This lesson is a site supplement — Months 7–10 are not part of the original six-month course.
 
-**Scope.** The DAgger part of [6.1 behaviour cloning](/en/month/month-6/behaviour-cloning) owns the idea (label the states the learner actually visits) and its toy; this lesson is about what a human-gated correction looks like **as logged data**. [8.1 dataset engineering](/en/month/month-8/dataset-engineering) owns the LeRobot dataset format and editing tools in general; here only the `intervention` column and the merge step. [8.3 async deployment](/en/month/month-8/async-deployment) and [10.2 real-time chunking](/en/month/month-10/real-time-chunking) own the inference loop the rollout runs on, [7.6 perception to grasp](/en/month/month-7/perception-to-grasp) and 10.4 own the cameras. Turning corrections into RL (10.6) and into advantage-conditioned VLAs such as π*0.6 (10.7) come in later lessons. No new hardware: a real session uses the SO-101 leader and follower you have had since Month 3 and is marked 本页未运行; the toy is CPU-only standard library. It does not replace the 8.7 capstone.
+**Scope.** The DAgger part of [6.1 behaviour cloning](/en/month/month-6/behaviour-cloning) owns the idea (label the states the learner actually visits) and its toy; this lesson is about what a human-gated correction looks like **as logged data**. [8.1 dataset engineering](/en/month/month-8/dataset-engineering) owns the LeRobot dataset format and editing tools in general; here only the `intervention` column and the merge step. [8.3 async deployment](/en/month/month-8/async-deployment) and [10.2 real-time chunking](/en/month/month-10/real-time-chunking) own the inference loop the rollout runs on, [7.6 perception to grasp](/en/month/month-7/perception-to-grasp) and 10.4 own the cameras. Turning corrections into RL is [10.6 real-world RL](/en/month/month-10/real-world-rl), and into advantage-conditioned VLAs such as π*0.6 is [10.7 RL on VLAs](/en/month/month-10/vla-rl-finetune). No new hardware: a real session uses the SO-101 leader and follower you have had since Month 3 and is marked 本页未运行; the toy is CPU-only standard library. It does not replace the 8.7 capstone.
 
 ## From DAgger to recovery + correction
 
@@ -36,7 +36,7 @@ LeRobot v0.6.0 added `lerobot-rollout` with a `dagger` strategy that "turns depl
 
 ## Run the log toy
 
-`intervention_log_toy.py` fakes a full-logging session (`record_autonomous=true` style): 6 episodes of 240 frames at 30 fps. The policy drifts; once the drift `dev` passes 0.6 the operator takes over, drives back until `dev` is at most 0.2 (recovery) and keeps correcting for a while before handing back. The toy then reads the log the way your training script would.
+`intervention_log_toy.py` fakes a full-logging session (`record_autonomous=true` style): 6 episodes of 240 frames at 30 fps. The policy drifts; once the drift `dev` passes 0.6 the operator takes over, drives back until `dev` is at most 0.2 (recovery) and keeps correcting for a while before handing back. That is the LeRobot DAgger flow, where control returns to the policy after each correction and the episode continues; the toy does not simulate RaC's "end the episode after an intervention" rule, it only counts what that rule would keep. The toy then reads the log the way your training script would.
 
 ```bash
 $ cd ~/Hardware-learning/examples/month-10/intervention-logging
@@ -55,6 +55,9 @@ where dev is how far the arm has drifted from where the demos go.
 1. Generate episodes: the policy drifts; when dev crosses TAKE_OVER the
    operator pauses (no frames recorded while paused), takes over with the
    leader arm (intervention=1) and hands back after finishing the fix.
+   This is the LeRobot DAgger flow: after a correction, control returns to
+   the policy and the episode goes on. It is NOT RaC's rule of ending the
+   episode after an intervention; step 4 only counts what that rule keeps.
 2. Split each intervention run into segments; intervention rate per episode.
 3. Label frames inside a segment, RaC-style: "recovery" while dev is still
    above IN_DIST (getting back to familiar states), "correction" after that.

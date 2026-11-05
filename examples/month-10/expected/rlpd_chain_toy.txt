@@ -1,0 +1,15 @@
+10-state lock chain: wrong action -> back to 0, reward only at the goal
+right actions per state: [1, 0, 1, 0, 0, 0, 1, 0, 0]
+chance a uniformly random run of 9 moves opens the lock: 1/512
+40 episodes x <= 30 steps, 8 sampled updates per step, epsilon 0.1, 20 seeds
+demos: 3 x 9 transitions = 27 transitions
+
+mode       reached  never  first_ep  resets/run  greedy_end  demo_share_last  env_steps/run
+online       11/20      9      13.2       411.2       10/20            0.0 %          958.6
+one_buf      20/20      0       1.1        28.4       20/20            5.5 %          476.4
+rlpd_5050    20/20      0       1.2        33.2       20/20           49.2 %          485.7
+
+resets per run: online 411.2 vs rlpd_5050 33.2 (each reset = a person re-staging the scene)
+demo share of the last episode's samples: one_buf 5.5 %, rlpd_5050 49.2 %
+note: tabular Q never forgets, so one_buf still works here; with a neural critic the
+diluted demos are what RLPD found weaker than keeping a fixed 50/50 split.

@@ -7,6 +7,9 @@ where dev is how far the arm has drifted from where the demos go.
 1. Generate episodes: the policy drifts; when dev crosses TAKE_OVER the
    operator pauses (no frames recorded while paused), takes over with the
    leader arm (intervention=1) and hands back after finishing the fix.
+   This is the LeRobot DAgger flow: after a correction, control returns to
+   the policy and the episode goes on. It is NOT RaC's rule of ending the
+   episode after an intervention; step 4 only counts what that rule keeps.
 2. Split each intervention run into segments; intervention rate per episode.
 3. Label frames inside a segment, RaC-style: "recovery" while dev is still
    above IN_DIST (getting back to familiar states), "correction" after that.

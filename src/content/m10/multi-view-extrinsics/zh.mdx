@@ -1,6 +1,6 @@
 本课是本站补充内容——第 7–10 个月不属于原六个月课程。
 
-**范围。** [7.6 感知到抓取](/zh/month/month-7/perception-to-grasp) 负责单相机手眼标定（`calibrateHandEye`，即 `AX = XB`）和相机到抓取的管线；本课加第二台静态相机、机器人–世界手眼（`AX = ZB`），并检查整条外参链是否闭合。[9.8 视觉伺服](/zh/month/month-9/visual-servoing) 用图像误差闭环，对外参误差不敏感；本课针对两个视角必须在「米」上对得上的场合。[8.3 异步部署](/zh/month/month-8/async-deployment) 负责相机喂给的推理循环，[6.1 行为克隆](/zh/month/month-6/behaviour-cloning) 里的 DAgger 和 10.5 负责纠正数据。真实世界 RL（10.6，后续课程）不在本课。不需要新硬件：第二台相机是选做，凡是需要它或真机的步骤都标注本页未运行；玩具只用 CPU 和标准库。本课也不替代 8.7 毕业项目。
+**范围。** [7.6 感知到抓取](/zh/month/month-7/perception-to-grasp) 负责单相机手眼标定（`calibrateHandEye`，即 `AX = XB`）和相机到抓取的管线；本课加第二台静态相机、机器人–世界手眼（`AX = ZB`），并检查整条外参链是否闭合。[9.8 视觉伺服](/zh/month/month-9/visual-servoing) 用图像误差闭环，对外参误差不敏感；本课针对两个视角必须在「米」上对得上的场合。[8.3 异步部署](/zh/month/month-8/async-deployment) 负责相机喂给的推理循环，[6.1 行为克隆](/zh/month/month-6/behaviour-cloning) 里的 DAgger 和 10.5 负责纠正数据。真实世界 RL（[10.6](/zh/month/month-10/real-world-rl)）不在本课。不需要新硬件：第二台相机是选做，凡是需要它或真机的步骤都标注本页未运行；玩具只用 CPU 和标准库。本课也不替代 8.7 毕业项目。
 
 ## 为什么要两台相机，为什么要看外参链
 
@@ -24,7 +24,7 @@
 | X | 世界 ← 基座（未知） | `R_base2world`, `t_base2world` |
 | Z | 相机 ← 夹爪（未知） | `R_gripper2cam`, `t_gripper2cam` |
 
-文档里的设定是相机装在夹爪上、标定板固定在世界中；方法可选 `CALIB_ROBOT_WORLD_HAND_EYE_SHAH`（Kronecker 积，默认）或 `CALIB_ROBOT_WORLD_HAND_EYE_LI`（对偶四元数），至少需要 3 组位姿。对于**静态**相机看夹爪上的标定板，角色互换：静态相机当「世界」，标定板当「相机」，所以 A 传标定板 ← 相机（PnP 结果的逆），解出的 X 就是相机 ← 基座。玩具在精确位姿上数值验证这两个恒等式；它不调用 OpenCV。
+文档里的设定是相机装在夹爪上、标定板固定在世界中；方法可选 `CALIB_ROBOT_WORLD_HAND_EYE_SHAH`（默认：先解旋转、再解平移，用 Kronecker 积）或 `CALIB_ROBOT_WORLD_HAND_EYE_LI`（旋转与平移同时解，用对偶四元数与 Kronecker 积）；头文件注明至少需要 3 组测量（每个输入向量长度 ≥ 3）。以上与本课阅读时的 OpenCV 4.x `calib3d.hpp` 注释一致；以当期 OpenCV 文档为准，措辞和方法可能随版本变化。对于**静态**相机看夹爪上的标定板，角色互换：静态相机当「世界」，标定板当「相机」，所以 A 传标定板 ← 相机（PnP 结果的逆），解出的 X 就是相机 ← 基座。这种互换是本课对坐标代数的推导，不是 OpenCV 文档里写的设定；请在自己的数据上验证（下面的闭合检查就是做这件事）。玩具在精确位姿上数值验证这两个恒等式；它不调用 OpenCV。
 
 <Resource id="opencv-robot-world-handeye" />
 <Resource id="opencv-calibration" />
