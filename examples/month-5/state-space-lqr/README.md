@@ -15,3 +15,13 @@ What it does / 它做什么:
 
 The site editor cross-checked the LQR gains against an independent NumPy Riccati iteration (agreement to 1e-12) and checked that every closed loop is stable (largest eigenvalue magnitude below 1). Output quoted in the lesson as **simulated output / 仿真输出**; checked by `tools/sim/reproduce.sh` against `tools/sim/expected/m5-lqr_sim.txt`. Not run on a real robot.
 本站编者用独立的 NumPy Riccati 迭代核对了 LQR 增益（误差在 1e-12 以内），并确认每个闭环都稳定（特征值模的最大值小于 1）。课程中以“仿真输出”引用；由 `tools/sim/reproduce.sh` 与 `tools/sim/expected/m5-lqr_sim.txt` 比对。没有在真机上运行过。
+
+## Enrichment: observer vs oracle (`lqr_model_error_toy.py`) / 深化：观测器对照 oracle
+
+```bash
+python3 examples/month-5/state-space-lqr/lqr_model_error_toy.py
+# or: bash examples/month-5/check.sh
+```
+
+Pole placement on nominal `(A,B)`; evaluate on perturbed plant. `oracle_fullstate` is privileged true `x`, not a same-info baseline. Not H∞. Real hardware 本页未运行.
+名义模型极点配置，扰动对象上评估。`oracle_fullstate` 是特权真 `x`，不是同信息基线。非 H∞。真机本页未运行。

@@ -1,0 +1,16 @@
+seed=51 N=200 dt=0.01 energy_tol=0.01 noise_std=0.02
+estimator: equation-error OLS (ARX); NOT claimed unbiased when y is noisy in Phi
+PE = regressor richness over the horizon (cond of Phi^T Phi), not '2 params ⇒ step fails'
+
+case_A first_order_tau=0.08 K=1.0  true_theta=[0.882497, 0.117503]
+input          energy    peak|u|  cond(PhiTPhi)  ||theta_hat-theta||
+step         190.0000     1.0000          174.5             0.007848
+prbs         190.0000     0.9747          4.824             0.003003
+energy_match_rel=0.000000 (tol=0.01)  step_err=0.007848 prbs_err=0.003003 (step is capable; numbers decide, PE not guaranteed to win)
+
+case_B second_order  true_theta=[1.7, -0.72, 0.05]
+input          energy    peak|u|  cond(PhiTPhi)  ||theta_hat-theta||
+step         190.0000     1.0000      1.834e+04             0.004022
+two_tone     190.0000     1.9092          912.6             0.005956
+energy_match_rel=0.000000 (tol=0.01)  cond_step=1.834e+04 cond_two_tone=912.6 (richer input improved conditioning)
+ok: fair energy; case_A step-capable; case_B richer input better cond; EE-OLS bias caveat stated (real motor sysid 本页未运行)

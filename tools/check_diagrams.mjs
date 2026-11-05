@@ -3936,9 +3936,9 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 16800, "followup PR2 curriculum: 16800 minutes");
-  for (const [month, expected] of [[8, 2340], [9, 2100], [11, 2670]]) {
-    ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `followup PR2 M${month}: ${expected} minutes`);
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 17310, "followup PR3 curriculum: 17310 minutes");
+  for (const [month, expected] of [[5, 1620], [6, 1170], [8, 2340], [9, 2100], [11, 2670]]) {
+    ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `followup PR3 M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
 }
@@ -4022,6 +4022,74 @@ const lessonRef = (n, slug, lang) => {
     ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `obs2 resource ${id}: present + extra`);
   }
 }
+
+
+
+// Follow-up observability PR3 (F5 PE sysid + F6 observer/oracle + F7 eval seed layers).
+{
+  const read = (p) => readFileSync(join(root, p), "utf8");
+  const cases = [
+    [5, "control-modelling", "sysid_pe_compare_toy", ["energy_match_rel", "case_A", "case_B", "cond_two_tone", "equation-error OLS", "NOT claimed unbiased"]],
+    [5, "state-space-lqr", "lqr_model_error_toy", ["oracle_fullstate", "observer_output_feedback", "privileged true x", "NOT H-infinity", "NOT equal-info baseline"]],
+    [6, "policy-evaluation", "eval_seed_layers_toy", ["synthetic_policy_draw_k", "shared_IC", "independent_IC", "best_seed_cherry_pick", "across_draw_dispersion", "2409.09491v2"]],
+  ];
+  for (const [month, slug, toy, markers] of cases) {
+    const expected = read(`examples/month-${month}/expected/${toy}.txt`);
+    const py = read(`examples/month-${month}/${slug}/${toy}.py`);
+    ok(read(`examples/month-${month}/check.sh`).includes(`${toy}.txt`), `obs3 ${toy}: month check hook`);
+    for (const lang of ["en", "zh"]) {
+      const md = read(`src/content/m${month}/${slug}/${lang}.mdx`);
+      ok(md.includes(py.trim()), `obs3 ${toy} ${lang}: exact code quoted`);
+      ok(md.includes(expected.trim()), `obs3 ${toy} ${lang}: exact real stdout quoted`);
+      for (const n of markers) ok(md.includes(n), `obs3 ${toy} ${lang}: binds ${n}`);
+      ok(/本页未运行|not run on this page/.test(md), `obs3 ${toy} ${lang}: hardware marked not run`);
+    }
+  }
+  const pe = read("examples/month-5/expected/sysid_pe_compare_toy.txt");
+  ok(/energy_match_rel=0\.000000/.test(pe), "obs3 pe: energy matched");
+  ok(/cond_step=1\.834e\+04 cond_two_tone=912\.6/.test(pe), "obs3 pe: richer input improved cond");
+  ok(/step is capable/.test(pe), "obs3 pe: step capable on case_A");
+  const pePy = read("examples/month-5/control-modelling/sysid_pe_compare_toy.py");
+  ok(/NOT claimed unbiased/.test(pePy) && /equation-error OLS/.test(pePy), "obs3 pe.py: EE-OLS bias caveat");
+  ok(!/two parameters.*not identifiable|两参数.*不可辨识/i.test(pePy), "obs3 pe.py: no '2 params ⇒ step unidentifiable'");
+  for (const lang of ["en", "zh"]) {
+    const md = read(`src/content/m5/control-modelling/${lang}.mdx`);
+    ok((lang === "en" ? /PE is \*\*not\*\* the claim "two parameters/i : /PE \*\*不是\*\*「两个参数/).test(md),
+      `obs3 pe ${lang}: rejects blanket unidentifiable claim`);
+    ok(/ENERGY_TOL|energy_tol|Σ u²|Σu²|input energy|输入能量/.test(md), `obs3 pe ${lang}: fair energy`);
+    ok(/ljung-via-ocw|ocw.mit.edu\/courses\/6-435/.test(md), `obs3 pe ${lang}: Ljung via OCW`);
+  }
+  const lqr = read("examples/month-5/expected/lqr_model_error_toy.txt");
+  ok(/oracle_fullstate\s+0\.2207/.test(lqr) && /observer_output_feedback\s+0\.2119/.test(lqr), "obs3 lqr: arm rows present");
+  ok(/37\.44/.test(lqr) && /118\.33/.test(lqr) && /233\.66/.test(lqr), "obs3 lqr: cost ordering numbers");
+  for (const lang of ["en", "zh"]) {
+    const md = read(`src/content/m5/state-space-lqr/${lang}.mdx`);
+    ok(/oracle_fullstate/.test(md) && /privileged|特权/.test(md), `obs3 lqr ${lang}: oracle privileged`);
+    ok((lang === "en" ? /not an equal-information baseline|NOT equal-info baseline|not a same-information baseline/i : /不是同信息基线/).test(md),
+      `obs3 lqr ${lang}: not equal-info`);
+    ok(/CE295|ce295-state-est|CH02-StateEstimation/.test(md), `obs3 lqr ${lang}: CE295 pointer`);
+    ok((lang === "en" ? /NOT H-infinity|it is \*\*not\*\* an H∞/i : /也\*\*不是\*\* H∞|不是 H∞ 设计/).test(md),
+      `obs3 lqr ${lang}: not H∞ design`);
+  }
+  const ev = read("examples/month-6/expected/eval_seed_layers_toy.txt");
+  ok(/best_seed_cherry_pick=85\.0%/.test(ev) && /median=70\.0%/.test(ev), "obs3 eval: cherry-pick vs median");
+  ok(/shared_IC \(paired\)/.test(ev) && /independent_IC \(unpaired\)/.test(ev), "obs3 eval: separate tables");
+  ok(/NOT real training runs/.test(ev), "obs3 eval: synthetic draws");
+  for (const lang of ["en", "zh"]) {
+    const md = read(`src/content/m6/policy-evaluation/${lang}.mdx`);
+    ok(/synthetic_policy_draw_k/.test(md), `obs3 eval ${lang}: synthetic_policy_draw_k`);
+    ok(/2409\.09491v2/.test(md), `obs3 eval ${lang}: cites §4 paper`);
+    ok(/shared_IC/.test(md) && /independent_IC/.test(md), `obs3 eval ${lang}: both IC tables`);
+  }
+  const res = read("src/lib/resources.ts");
+  for (const id of ["ljung-via-ocw", "denicolao-sysid-tutorial", "ce295-state-est", "eval-best-practices"]) {
+    ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `obs3 resource ${id}: present + extra`);
+  }
+  ok(read("src/lib/curriculum.ts").match(/slug: "control-modelling"[\s\S]*?minutes: (\d+)/)?.[1] === "420", "obs3 curriculum: 5.1 = 420");
+  ok(read("src/lib/curriculum.ts").match(/slug: "state-space-lqr"[\s\S]*?minutes: (\d+)/)?.[1] === "420", "obs3 curriculum: 5.2 = 420");
+  ok(read("src/lib/curriculum.ts").match(/slug: "policy-evaluation"[\s\S]*?minutes: (\d+)/)?.[1] === "330", "obs3 curriculum: 6.4 = 330");
+}
+
 
 
 const specs = [];

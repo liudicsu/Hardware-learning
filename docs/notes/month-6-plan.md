@@ -51,3 +51,7 @@ Changes from the plan above:
 - VLA licence facts were checked on 2026-10-20 against the Hugging Face model cards/API (OpenVLA MIT, Octo MIT,
   SmolVLA Apache-2.0, lerobot/pi05_base Gemma, GR00T N1.6 NVIDIA research licence, GR00T N1.7 NVIDIA Open Model
   License) and the openpi README (code Apache-2.0).
+
+## Follow-up PR3 (+150 here)
+
+F7 `policy-evaluation` 180→330 — `eval_seed_layers_toy.py`: `synthetic_policy_draw_k` (not real training); `shared_IC` / `independent_IC` separate tables; Wilson/Beta count intervals separate from across-draw dispersion; best-seed cherry-pick vs median; checklist fields from arXiv 2409.09491v2 §4. Month 6 **1 170 min**. With F5+F6: site **71 lessons / 17 310 min**.

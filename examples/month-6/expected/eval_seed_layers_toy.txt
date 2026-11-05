@@ -1,0 +1,37 @@
+seed=64 K_draws=5 N_IC=40
+synthetic_policy_draw_k = scripted Bernoulli policies (NOT real training runs)
+true_p per draw: [0.55, 0.62, 0.7, 0.78, 0.66]
+
+checklist_fields (arXiv 2409.09491v2 §4 Analysis and Reporting):
+  4.1 experiment_parameters: success_criterion | n_evals_counts | session_timing | ICs_and_relation_to_train
+  4.2 statistical_analysis: Wilson_or_Beta_count_interval (separate from across-draw dispersion)
+  4.3 failure_modes: categories + frequency + narrative
+  toy_success_criterion: Bernoulli trial vs scripted p_k (semantic stand-in; real arm criterion 本页未运行)
+  toy_IC_relation_to_train: evaluation ICs are held-out synthetic indices; not claimed in-distribution to any training set
+
+== shared_IC (paired) ==
+draw                           k/n   rate%          Wilson95%            Beta95%
+synthetic_policy_draw_0    25/40   62.5%  47.0..75.8  46.9..75.8
+synthetic_policy_draw_1    27/40   67.5%  52.0..79.9  51.9..79.9
+synthetic_policy_draw_2    29/40   72.5%  57.2..83.9  57.1..83.9
+synthetic_policy_draw_3    34/40   85.0%  70.9..92.9  70.8..92.8
+synthetic_policy_draw_4    28/40   70.0%  54.6..81.9  54.5..81.9
+across_draw_dispersion: min=62.5%  median=70.0%  max=85.0%  best_seed_cherry_pick=85.0%  cherry_pick_minus_median=15.0 pp
+layer_note: Wilson/Beta = count uncertainty WITHIN one draw; min/median/max = dispersion ACROSS draws — do not mix into one %
+
+== independent_IC (unpaired) ==
+draw                           k/n   rate%          Wilson95%            Beta95%
+synthetic_policy_draw_0    21/40   52.5%  37.5..67.1  37.4..67.1
+synthetic_policy_draw_1    25/40   62.5%  47.0..75.8  46.9..75.8
+synthetic_policy_draw_2    32/40   80.0%  65.2..89.5  65.1..89.4
+synthetic_policy_draw_3    37/40   92.5%  80.1..97.4  80.1..97.3
+synthetic_policy_draw_4    30/40   75.0%  59.8..85.8  59.7..85.8
+across_draw_dispersion: min=52.5%  median=75.0%  max=92.5%  best_seed_cherry_pick=92.5%  cherry_pick_minus_median=17.5 pp
+layer_note: Wilson/Beta = count uncertainty WITHIN one draw; min/median/max = dispersion ACROSS draws — do not mix into one %
+
+== failure_modes (shared_IC, synthetic_policy_draw_4 = median) ==
+  category              count  share
+  near_goal_timeout         8   66.7%
+  collision_mid_traj        4   33.3%
+
+ok: shared_IC and independent_IC tabulated separately; Wilson/Beta count layer ≠ across-draw dispersion; best_seed 85.0% vs median 70.0% (do not report best alone); synthetic draws only (real policy training 本页未运行)

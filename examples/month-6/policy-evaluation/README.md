@@ -15,3 +15,13 @@ python3 eval_report.py
 No hardware needed. Output quoted in the lesson as **simulated output / 仿真输出**; checked by
 `examples/month-6/check.sh` against `examples/month-6/expected/eval_report.txt`.
 不需要硬件。课程中以“仿真输出”引用；由 `examples/month-6/check.sh` 与 `examples/month-6/expected/eval_report.txt` 比对。
+
+## Enrichment: eval seed layers (`eval_seed_layers_toy.py`) / 深化：评估种子分层
+
+```bash
+python3 examples/month-6/policy-evaluation/eval_seed_layers_toy.py
+# also hooked in examples/month-6/check.sh
+```
+
+`synthetic_policy_draw_k` are scripted policies, not real training. `shared_IC` and `independent_IC` in separate tables; Wilson/Beta count intervals ≠ across-draw dispersion; best-seed vs median. Checklist → arXiv 2409.09491v2 §4. Real training 本页未运行.
+`synthetic_policy_draw_k` 是脚本化策略，不是真训练。`shared_IC` 与 `independent_IC` 分表；Wilson/Beta 计数区间 ≠ 跨 draw 离散；best-seed 对 median。清单 → arXiv 2409.09491v2 §4。真训练本页未运行。

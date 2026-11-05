@@ -28,3 +28,12 @@ For Lesson 4 alone, `pip install numpy opencv-python` is enough. On Ubuntu 24.04
 
 The site editor ran everything on Debian 13 with this `pixi.toml`, not on Ubuntu and not on a real robot or camera.
 本站编者在 Debian 13 上用这份 `pixi.toml` 运行了全部示例，不是在 Ubuntu 上，也没有用真机或真实相机。
+
+## Follow-up enrichment toys / 后续深化玩具
+
+- `control-modelling/sysid_pe_compare_toy.py` — PE vs step, fair energy
+- `state-space-lqr/lqr_model_error_toy.py` — observer vs oracle_fullstate under model error
+
+```bash
+bash examples/month-5/check.sh
+```

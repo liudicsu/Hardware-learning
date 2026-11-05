@@ -20,3 +20,5 @@ Deepen PR3 (+120): 8 lessons / **1 800 min**. Three synthetic streams share pack
 Follow-up PR1 (+360): F1 `robot-devops` 180→360 (bag/QoS acceptance; Jazzy README QoS keys; no binary MCAP in CI); F2 `ros2-hardware-interface` 240→420 (managed-node lifecycle toy + HardwareComponent contrast; illegal activate recoverable). **8 lessons / 2 160 min**. Site: 71 lessons / **16 410 min**.
 
 Follow-up PR2 (+180 here): F3 `safety-reliability` 180→360 (command-path watchdog ≠ device/bus fault; fault latches safe, a cleared bit never auto re-enables, re-enable needs operator_ack + bit clear + frames recovered; CiA 402 standard bits 0–7, 9–11 from the public ros2_canopen StatusWord table, bits 8 / 12–13 / 14–15 masked and not asserted; bus-off / soft reset ≠ e-stop; diagnostic OK/WARN/ERROR + Example 17 pointer). **8 lessons / 2 340 min**. Site with F4: 71 lessons / **16 800 min**.
+
+Follow-up PR3 (F5–F7 on M5/M6, +510 site): does not change Month 8 minutes (**2 340**). Site after PR3: 71 lessons / **17 310 min**.
