@@ -246,8 +246,7 @@ def load_qos_keys(path: str) -> list[str]:
     keys: list[str] = []
     with open(path, encoding="utf-8") as f:
         for line in f:
-            raw = line.rstrip("
-")
+            raw = line.rstrip("\n")
             if not raw or raw.lstrip().startswith("#"):
                 continue
             # topic header: "/name:" at column 0
