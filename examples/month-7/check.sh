@@ -36,6 +36,7 @@ check reward_shaping.txt "$PY" "$M7/rl-manipulation-sim/reward_shaping.py"
 # ---- 7.4 sim-to-real (stdlib) -------------------------------------------------------------
 check sysid_fit.txt "$PY" "$M7/sim-to-real/sysid_fit.py"
 check randomize_eval.txt "$PY" "$M7/sim-to-real/randomize_eval.py"
+check contact_dr_toy.txt "$PY" "$M7/sim-to-real/contact_dr_toy.py"
 
 # ---- 7.5 depth / point cloud (stdlib) -----------------------------------------------------
 check cloud_pipeline.txt "$PY" "$M7/depth-pointcloud/cloud_pipeline.py"

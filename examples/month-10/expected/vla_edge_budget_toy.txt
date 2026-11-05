@@ -1,0 +1,18 @@
+part 1: weights-only memory (GB = params x bytes / 1e9); parameter counts from the papers
+model           params      arXiv   fp32   bf16   int8   int4
+SmolVLA          0.45B 2506.01844   1.80   0.90   0.45   0.23
+pi0-class        3.30B 2410.24164  13.20   6.60   3.30   1.65
+OpenVLA-class    7.00B 2406.09246  28.00  14.00   7.00   3.50
+EXCLUDED (not estimated): activations, KV cache, vision-encoder / image buffers, framework + CUDA context, OS
+
+part 2: chunk timing, n=50; g_min = (l_S / dt) / n (6.3); l_S values are what-ifs
+ Hz chunk_s  l_S_s sync_idle_%  g_min  verdict
+ 30   1.667  0.050         2.9  0.030  async can hide it with g >= 0.030
+ 30   1.667  0.293        15.0  0.176  async can hide it with g >= 0.176
+ 30   1.667  0.800        32.4  0.480  async can hide it with g >= 0.480
+ 30   1.667  2.000        54.5  1.200  even g = 1 underruns: shorter l_S, longer chunk or lower Hz
+ 50   1.000  0.050         4.8  0.050  async can hide it with g >= 0.050
+ 50   1.000  0.293        22.7  0.293  async can hide it with g >= 0.293
+ 50   1.000  0.800        44.4  0.800  async can hide it with g >= 0.800
+ 50   1.000  2.000        66.7  2.000  even g = 1 underruns: shorter l_S, longer chunk or lower Hz
+check: 30 Hz, l_S=0.293 s, n=50 -> g_min=0.176 (matches the 6.3 toy); weights only, no device measured, Jetson / Pi 本页未运行

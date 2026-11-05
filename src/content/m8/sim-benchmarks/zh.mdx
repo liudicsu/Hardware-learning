@@ -136,6 +136,178 @@ note: graduation bar remains Month 8.7 (safety/CI/20-start Wilson/portfolio 8/8)
 
 读表时看清：`suite_mean` 是五套件均值的平均；`overall` 是按集数加权。本玩具 `n_suites=5`，`overall=0.5500`（99/180）。这些数字是**假数据**，只练报告格式。
 
+## 在想象中给策略排名
+
+在真机起始前挑选检查点，仿真分数是一种办法，学习得到的**世界模型**是另一种。Ctrl-World（Guo、Shi、Chen、Finn，arXiv **2510.10125**）就是为此做的可控世界模型。本段事实均**以论文为准**，论文里的内容本页都未运行。它是一个在 DROID（9.5 万条轨迹、564 个场景）上训练的多视角视频世界模型：用以位姿为条件的记忆检索在长时间滚动中保持一致，用逐帧的动作条件让动作控制预测结果。策略在它*内部*运行：策略发出一个动作块，模型返回预测的后续帧，循环从与真机滚动相同的初始观测开始。作者评估了三个公开策略（π0、π0-FAST、π0.5），报告想象中的指令遵循与真机高度吻合；同时也报告模型往往**低估**执行成功率，会漏掉一些物理现象（碰撞、物体滑走、旋转），也漏掉真实策略失败后反复重试的习惯。用想象中成功的轨迹做微调，策略平均提升 44.7 %，同样以论文为准。
+
+<Resource id="ctrl-world-paper" />
+
+要决定哪个检查点上真机，需要的是**顺序**，不是绝对成功率。有偏的世界模型也可能排对——关键在于它的误差落在*哪些*策略身上。衡量排名一致的一个数是 n 个策略上的 **Kendall τ**：
+
+<Formula label="Kendall τ（无并列）">τ = (同序对 − 逆序对) / (n(n − 1) / 2)</Formula>
+
+5 个策略共 10 对：翻转 1 对 τ = 0.8，2 对 0.6，3 对 0.4。上面的 SimplerEnv 用的是它自己的排名指标 MMRV；τ 是更简单的替身。
+
+`imagine_rank_toy.py` 里没有视频模型：每个回合只是几个数，每个「世界模型」都是 oracle 结果规则加上一种偏差。五个合成策略的区别在于：多常按指令选对物体、执行多精确、放好的物体会不会滑走、失手后会不会重试一次。每个策略在 oracle 和每个世界模型里都拿到**同样的 4 个任务 × 60 个初始条件**和同一组逐回合随机数。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-8/sim-benchmarks
+$ python3 imagine_rank_toy.py
+```
+
+<CodeSource path="examples/month-8/sim-benchmarks/imagine_rank_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""imagine_rank_toy.py: rank policies in a biased world model vs the oracle env (stdlib).
+
+Reading aid for the Ctrl-World idea (arXiv 2510.10125): roll each policy out
+inside a learned world model instead of on the robot, and use the imagined
+success rates to RANK policies. Here there is no video model: an episode is a
+few numbers, and a "world model" is the oracle outcome rule with one bias.
+
+Five synthetic policies (lesson-chosen, not real checkpoints) differ in
+  follow  probability of picking the instructed object,
+  sigma   execution error scale (m); success needs error < TOL,
+  slide   chance a successful placement slides off afterwards (real physics),
+  retry   whether the policy retries once after an execution miss.
+Every policy, in the oracle and in every world model, sees the SAME tasks and
+initial conditions and the SAME per-episode uniforms / normals (shared ICs).
+World models:
+  calibrated     same outcome rule as the oracle (sanity row)
+  uniform_drop   imagines 15 % of successes as failures, the same episodes
+                 for every policy (underestimates success, policy-blind)
+  tight_tol      imagines execution as harder (TOL x 0.7): looks uniform, but
+                 hurts sloppy (large-sigma) policies more
+  no_slide       does not model objects sliding off after placement
+  no_retry       ends the episode after the first miss (no retry)
+Metric: Kendall tau between imagined and oracle success rates over the
+policies (+1 same order, -1 reversed) and the list of flipped pairs.
+The paper's numbers (e.g. its 44.7 % improvement) are per the paper; nothing
+here is a DROID / pi0 / pi0.5 rollout (本页未运行).
+usage: python3 imagine_rank_toy.py
+"""
+from __future__ import annotations
+
+import random
+from itertools import combinations
+
+SEED = 10125
+TOL = 0.020                # m
+TASKS = ("pick_place", "drawer", "towel_fold", "stack")
+N_IC = 60                  # initial conditions per task -> 240 shared episodes
+POLICIES = (               # name, follow, sigma, slide, retry
+    ("P1", 0.90, 0.012, 0.00, False),
+    ("P2", 0.85, 0.010, 0.30, False),
+    ("P3", 0.70, 0.018, 0.00, True),
+    ("P4", 0.75, 0.016, 0.00, False),
+    ("P5", 0.50, 0.010, 0.00, False),
+)
+WORLDS = ("oracle", "calibrated", "uniform_drop", "tight_tol", "no_slide", "no_retry")
+
+
+def shared_episodes():
+    """Per (task, ic): (u_follow, z1, z2, u_slide, u_wm); identical for every policy and world."""
+    rng = random.Random(SEED)
+    return [(task, ic, rng.random(), abs(rng.gauss(0, 1)), abs(rng.gauss(0, 1)), rng.random(), rng.random())
+            for task in TASKS for ic in range(N_IC)]
+
+
+def outcome(policy, ep, world):
+    _name, follow, sigma, slide, retry = policy
+    _task, _ic, u_f, z1, z2, u_s, u_wm = ep
+    tol = TOL * (0.7 if world == "tight_tol" else 1.0)
+    if u_f >= follow:                       # wrong object: instruction not followed
+        return False
+    placed = sigma * z1 < tol
+    if not placed and retry and world != "no_retry":
+        placed = sigma * z2 < tol
+    if placed and world != "no_slide" and u_s < slide:
+        return False                        # slid off after placement (real physics)
+    if placed and world == "uniform_drop" and u_wm < 0.15:
+        return False                        # imagined failure, same episodes for all policies
+    return placed
+
+
+def kendall_tau(a, b):
+    conc = disc = 0
+    flips = []
+    for i, j in combinations(range(len(a)), 2):
+        s = (a[i] - a[j]) * (b[i] - b[j])
+        if s > 0:
+            conc += 1
+        elif s < 0:
+            disc += 1
+            flips.append((i, j))
+    n = len(a) * (len(a) - 1) // 2
+    return (conc - disc) / n, flips
+
+
+def main() -> None:
+    eps = shared_episodes()
+    n = len(eps)
+    print(f"seed={SEED} tasks={len(TASKS)} x ics={N_IC} = {n} shared episodes per policy and world; tol={TOL} m")
+    rates = {w: [sum(outcome(p, e, w) for e in eps) / n for p in POLICIES] for w in WORLDS}
+    print(f"{'policy':<6} {'follow':>6} {'sigma':>6} {'slide':>5} {'retry':>5} " + " ".join(f"{w:>12}" for w in WORLDS))
+    for k, p in enumerate(POLICIES):
+        print(f"{p[0]:<6} {p[1]:6.2f} {p[2]:6.3f} {p[3]:5.2f} {str(p[4]):>5} "
+              + " ".join(f"{rates[w][k]:12.3f}" for w in WORLDS))
+    oracle = rates["oracle"]
+    order = sorted(range(len(POLICIES)), key=lambda k: -oracle[k])
+    print("oracle ranking: " + " > ".join(POLICIES[k][0] for k in order))
+    taus = {}
+    for w in WORLDS[1:]:
+        tau, flips = kendall_tau(oracle, rates[w])
+        taus[w] = tau
+        mean_gap = sum(rates[w]) / len(POLICIES) - sum(oracle) / len(POLICIES)
+        names = ", ".join(f"{POLICIES[i][0]}/{POLICIES[j][0]}" for i, j in flips) or "none"
+        rank = " > ".join(POLICIES[k][0] for k in sorted(range(len(POLICIES)), key=lambda k: -rates[w][k]))
+        print(f"{w:<12} kendall_tau={tau:+.2f} mean_rate_shift={mean_gap:+.3f} flipped_pairs={names}  ranking: {rank}")
+    assert taus["calibrated"] == 1.0
+    assert taus["uniform_drop"] == 1.0, "a policy-blind bias should keep the ranking"
+    assert taus["tight_tol"] < 1.0 and taus["no_slide"] < 1.0 and taus["no_retry"] < 1.0
+    print("ok: a policy-blind underestimate lowers every rate but keeps the order; biases that hit "
+          "some policies' failure modes flip pairs; Ctrl-World figures 以论文为准, not run here")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+seed=10125 tasks=4 x ics=60 = 240 shared episodes per policy and world; tol=0.02 m
+policy follow  sigma slide retry       oracle   calibrated uniform_drop    tight_tol     no_slide     no_retry
+P1       0.90  0.012  0.00 False        0.817        0.817        0.692        0.717        0.817        0.817
+P2       0.85  0.010  0.30 False        0.604        0.604        0.504        0.550        0.850        0.604
+P3       0.70  0.018  0.00  True        0.679        0.679        0.579        0.583        0.679        0.571
+P4       0.75  0.016  0.00 False        0.688        0.688        0.592        0.517        0.688        0.688
+P5       0.50  0.010  0.00 False        0.496        0.496        0.412        0.454        0.496        0.496
+oracle ranking: P1 > P4 > P3 > P2 > P5
+calibrated   kendall_tau=+1.00 mean_rate_shift=+0.000 flipped_pairs=none  ranking: P1 > P4 > P3 > P2 > P5
+uniform_drop kendall_tau=+1.00 mean_rate_shift=-0.101 flipped_pairs=none  ranking: P1 > P4 > P3 > P2 > P5
+tight_tol    kendall_tau=+0.60 mean_rate_shift=-0.092 flipped_pairs=P2/P4, P3/P4  ranking: P1 > P3 > P2 > P4 > P5
+no_slide     kendall_tau=+0.40 mean_rate_shift=+0.049 flipped_pairs=P1/P2, P2/P3, P2/P4  ranking: P2 > P1 > P4 > P3 > P5
+no_retry     kendall_tau=+0.80 mean_rate_shift=-0.022 flipped_pairs=P2/P3  ranking: P1 > P4 > P2 > P3 > P5
+ok: a policy-blind underestimate lowers every rate but keeps the order; biases that hit some policies' failure modes flip pairs; Ctrl-World figures 以论文为准, not run here
+```
+
+</SimOutput>
+
+怎么读：
+
+- **oracle 的顺序**是 P1 > P4 > P3 > P2 > P5（0.817、0.688、0.679、0.604、0.496）。`calibrated` 完全复现它，是一行自检。
+- **与策略无关的偏差保持顺序。** `uniform_drop` 把 15 % 的成功判成失败，而且对每个策略都是同一批回合。所有成功率都下降（平均 −0.101），τ 仍为 +1.00。像论文报告的那样低估成功率，本身并不会打乱排名。
+- **看起来一视同仁的偏差也可能翻转。** `tight_tol` 让所有执行都更难，但对更粗糙的策略（P4 σ = 0.016、P3 σ = 0.018）伤得更重：τ = +0.60，P2/P4 和 P3/P4 翻转。P3 和 P4 在 oracle 里只差 2 个回合（240 次中 163 对 165），它们的先后本来就在抽样噪声之内。相信一对接近的排名之前，先看区间（6.4、8.7）。
+- **漏掉某种失败模式，就会抬高有这种问题的策略。** `no_slide` 不模拟物体滑走，P2 从 0.604 跳到 0.850，排到第一：τ = +0.40，翻转 3 对。`no_retry` 在第一次失手后就结束回合，唯一会重试的 P3 从 0.679 掉到 0.571：τ = +0.80，P2/P3 翻转。这正是论文列出的「滑走」和「重试」差距的玩具版。
+
+相信想象中的排名之前，先问世界模型的误差是不是**与策略无关**。想象排名只用来缩小候选检查点，不能代替 8.7 的 20 次真机起始。
+
+<Quiz id="q1" question="五个策略分别由世界模型和真机排名，10 对中有 3 对顺序相反。Kendall τ 是多少？" answer={0.4} explanation="τ = (7 同序 − 3 逆序) / 10 = 0.4，就是玩具里 no_slide 那一行。" />
+
+<Quiz id="q2" question="在 imagine_rank_toy.py 中，哪种世界模型偏差降低了所有策略的成功率，却保持了 oracle 排名（τ = +1.00）？" options={["tight_tol", "no_slide", "no_retry", "uniform_drop"]} answer={3} explanation="uniform_drop 对每个策略都在同一批回合上去掉 15 % 的成功，与策略无关。tight_tol 对大 σ 策略伤得更重，no_slide 抬高 P2，no_retry 压低 P3。" />
+
 ## 选做：本机 GPU 评估（本页未运行）
 
 若本机有 Linux + GPU，可按 LeRobot LIBERO 文档试跑 `lerobot-eval --env.type=libero`。**本页未运行。** 真机 20 起始仍按 8.7。
@@ -145,9 +317,12 @@ note: graduation bar remains Month 8.7 (safety/CI/20-start Wilson/portfolio 8/8)
 - **用 LIBERO 顶替 8.7 统一门。** 基准是加分，不是毕业标准。
 - **只报一个总成功率，不写套件与协议。** 至少写清评了哪些套件、每任务几集。
 - **把仿真分直接写成「真机已经有多好」。** 先读 SimplerEnv 相关性叙事再下结论。
+- **把想象中的成功率当成真实成功率。** Ctrl-World 的作者报告其模型往往低估执行成功率（以论文为准）；玩具里 `uniform_drop` 让所有成功率平均降低 0.101。用顺序，别用水平。
+- **不问世界模型模拟不了什么就相信它的排名。** 漏掉的失败模式（滑走、重试）恰好抬高或压低有这种问题的策略：玩具里 τ = +0.40 和 +0.80。
+- **不看区间就给一对接近的策略排名。** P3 和 P4 在 240 个回合里只差 2 个；这对翻不翻转都说明不了什么。
 
 <Summary>
 
-仿真基准 8.8：LIBERO 5 套件 / 130 任务；默认四标准套件 × 每任务 10 集；`MUJOCO_GL=egl`。SimplerEnv（arXiv 2405.05941）谈仿真↔真机相关性。`suite_score_table.py` 固定种子聚合五套件假分数与 Wilson；不进 CI 的 GPU eval。不替代 8.7。
+仿真基准 8.8：LIBERO 5 套件 / 130 任务；默认四标准套件 × 每任务 10 集；`MUJOCO_GL=egl`。SimplerEnv（arXiv 2405.05941）谈仿真↔真机相关性。`suite_score_table.py` 固定种子聚合五套件假分数与 Wilson；不进 CI 的 GPU eval。Ctrl-World（arXiv 2510.10125，以论文为准）在世界模型中给策略排名；`imagine_rank_toy.py` 在共享任务与初始条件上给五个合成策略排名：与策略无关的偏差保持 Kendall τ = +1.00，只打中某种失败模式的偏差会翻转（τ = +0.40 到 +0.80）。不替代 8.7。
 
 </Summary>

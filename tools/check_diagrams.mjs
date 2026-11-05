@@ -3936,9 +3936,9 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 18120, "worldmodel-smolvla PR2 curriculum: 18120 minutes");
-  for (const [month, expected] of [[2, 1350], [3, 1290], [5, 1620], [6, 1350], [8, 2340], [9, 2340], [11, 2670]]) {
-    ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `worldmodel-smolvla PR2 M${month}: ${expected} minutes`);
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 18570, "dr-imagine-edge PR3 curriculum: 18570 minutes");
+  for (const [month, expected] of [[2, 1350], [3, 1290], [5, 1620], [6, 1350], [7, 1650], [8, 2490], [9, 2340], [10, 1650], [11, 2670]]) {
+    ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `dr-imagine-edge PR3 M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
 }
@@ -4923,8 +4923,104 @@ for (const m of readdirSync(content)) {
   for (const id of ["dreamgen-paper", "lapa-paper", "smolvla-paper", "lerobot-async"]) {
     ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `wm2 resource ${id}: present + extra`);
   }
-  ok(/18 120/.test(read("README.md")), "wm2 README: 18 120 minutes");
+  ok(/18 570/.test(read("README.md")), "wm2/dr3 README: 18 570 minutes");
   console.log("worldmodel-smolvla PR2: neural trajectories + async chunk locks checked");
+}
+
+// Batch-after-obs PR3 (G5 contact DR + G6 imagination ranking + G7 edge VLA budget).
+{
+  const read = (p) => readFileSync(join(root, p), "utf8");
+  const cases = [
+    [7, "sim-to-real", "contact_dr_toy", [
+      "latency_only", "contact_dr", "v_cmd", "same seed stream", "nominal", "mu_high_0.55", "mass_0.85", "mu_out_0.15", "MuJoCo",
+    ]],
+    [8, "sim-benchmarks", "imagine_rank_toy", [
+      "oracle", "calibrated", "uniform_drop", "tight_tol", "no_slide", "no_retry", "kendall_tau", "flipped_pairs", "2510.10125",
+    ]],
+    [10, "edge-deploy-checklist", "vla_edge_budget_toy", [
+      "SmolVLA", "pi0-class", "OpenVLA-class", "2506.01844", "2410.24164", "2406.09246", "EXCLUDED", "KV cache", "g_min",
+    ]],
+  ];
+  for (const [month, lesson, toy, markers] of cases) {
+    const py = read(`examples/month-${month}/${lesson}/${toy}.py`);
+    const expected = read(`examples/month-${month}/expected/${toy}.txt`);
+    ok(read(`examples/month-${month}/check.sh`).includes(`${toy}.txt`), `dr3 ${toy}: month check hook`);
+    ok(/SEED = \d+/.test(py) || toy === "vla_edge_budget_toy", `dr3 ${toy}: fixed seed (or deterministic)`);
+    ok(!/import random/.test(py) || /SEED = \d+/.test(py), `dr3 ${toy}: no unseeded randomness`);
+    for (const lang of ["en", "zh"]) {
+      const md = read(`src/content/m${month}/${lesson}/${lang}.mdx`);
+      ok(md.includes(py.trim()), `dr3 ${toy} ${lang}: exact code quoted`);
+      ok(md.includes(expected.trim()), `dr3 ${toy} ${lang}: exact real stdout quoted`);
+      for (const n of markers) {
+        ok(md.includes(n) || expected.includes(n) || py.includes(n), `dr3 ${toy} ${lang}: binds ${n}`);
+      }
+      ok(/本页未运行/.test(md), `dr3 ${toy} ${lang}: hardware / GPU marked 本页未运行`);
+    }
+  }
+
+  // G5: one parameter, same budget + seed stream, nominal reported (DR does not win there), shifted µ/mass, out of range.
+  const cd = read("examples/month-7/expected/contact_dr_toy.txt");
+  const cdPy = read("examples/month-7/sim-to-real/contact_dr_toy.py");
+  ok(/budget per arm: 41 v_cmd candidates x 200 train episodes, same seed stream/.test(cd), "dr3 contact: same budget + seed stream");
+  ok(/tuned latency_only v_cmd=0\.52/.test(cd) && /tuned contact_dr\s+v_cmd=0\.34/.test(cd), "dr3 contact: tuned v_cmd per arm");
+  ok(/^nominal\s+200\/200\s+6\.8mm 0\.72s\s+200\/200\s+4\.6mm 1\.08s/m.test(cd), "dr3 contact: nominal row (DR ties success, pays cycle time)");
+  ok(/^mu_high_0\.55\s+81\/200/m.test(cd) && /^mass_0\.85\s+156\/200/m.test(cd), "dr3 contact: shifted µ / mass rows");
+  ok(/^mu_out_0\.15\s+0\/200 .*\s2\/200/m.test(cd), "dr3 contact: outside the DR range both fail");
+  ok(/def draws\(seed, n\)/.test(cdPy) && /train = draws\(SEED, N_TRAIN\)/.test(cdPy) && /for d in train/.test(cdPy), "dr3 contact.py: one shared train stream for all arms / candidates");
+  ok(/evals = draws\(SEED \+ 1, N_EVAL\)/.test(cdPy), "dr3 contact.py: shared eval stream");
+  ok(!/tau_hat|fit_tau|cond\(/.test(cdPy), "dr3 contact.py: no τ refit / PE sysid");
+  for (const lang of ["en", "zh"]) {
+    const md = read(`src/content/m7/sim-to-real/${lang}.mdx`);
+    ok(/MuJoCo/.test(md) && (lang === "en" ? /not\*\* MuJoCo's soft-contact solver/.test(md) : /\*\*不是\*\* MuJoCo 的软接触求解器/.test(md)), `dr3 7.4 ${lang}: toy friction ≠ MuJoCo`);
+    ok(/5\.1/.test(md) && /sysid_fit\.py/.test(md), `dr3 7.4 ${lang}: not sysid / PE`);
+    ok(/0\.72/.test(md) && /1\.08/.test(md) && /81\/200/.test(md) && /2\/200/.test(md), `dr3 7.4 ${lang}: nominal cost + shift + out-of-range quoted`);
+    ok(/34\.5/.test(md) && /25\.1/.test(md) && /9\.4/.test(md), `dr3 7.4 ${lang}: slide arithmetic`);
+  }
+
+  // G6: ≥4 policies, Kendall τ, one bias keeps the order, at least one flips; paper numbers attributed.
+  const ir = read("examples/month-8/expected/imagine_rank_toy.txt");
+  const irPy = read("examples/month-8/sim-benchmarks/imagine_rank_toy.py");
+  ok((irPy.match(/^    \("P\d", /gm) || []).length >= 4, "dr3 imagine.py: at least 4 synthetic policies");
+  ok(/240 shared episodes per policy and world/.test(ir), "dr3 imagine: shared tasks / ICs");
+  ok(/^uniform_drop kendall_tau=\+1\.00 .*flipped_pairs=none/m.test(ir), "dr3 imagine: policy-blind bias keeps ranking");
+  ok(/^no_slide\s+kendall_tau=\+0\.40 .*P1\/P2/m.test(ir), "dr3 imagine: no_slide flips pairs");
+  ok(/^no_retry\s+kendall_tau=\+0\.80/m.test(ir) && /^tight_tol\s+kendall_tau=\+0\.60/m.test(ir), "dr3 imagine: no_retry / tight_tol rows");
+  for (const lang of ["en", "zh"]) {
+    const md = read(`src/content/m8/sim-benchmarks/${lang}.mdx`);
+    ok(/Ctrl-World/.test(md) && /2510\.10125/.test(md) && /44\.7 %/.test(md), `dr3 8.8 ${lang}: Ctrl-World + paper number`);
+    ok(lang === "en" ? /per the paper/.test(md) : /以论文为准/.test(md), `dr3 8.8 ${lang}: paper numbers attributed`);
+    ok(/Kendall τ/.test(md) && /π0-FAST/.test(md), `dr3 8.8 ${lang}: τ formula + evaluated policies`);
+  }
+
+  // G7: weights only, exclusions labelled, paper parameter counts, g threshold linked to 6.3, no device measurement.
+  const eb = read("examples/month-10/expected/vla_edge_budget_toy.txt");
+  ok(/^SmolVLA\s+0\.45B 2506\.01844\s+1\.80\s+0\.90\s+0\.45\s+0\.23/m.test(eb), "dr3 edge: SmolVLA weights row");
+  ok(/^pi0-class\s+3\.30B 2410\.24164\s+13\.20\s+6\.60/m.test(eb), "dr3 edge: π0-class weights row");
+  ok(/^OpenVLA-class\s+7\.00B 2406\.09246\s+28\.00\s+14\.00\s+7\.00\s+3\.50/m.test(eb), "dr3 edge: OpenVLA-class weights row");
+  ok(/EXCLUDED \(not estimated\): activations, KV cache, vision-encoder \/ image buffers/.test(eb), "dr3 edge: exclusions labelled");
+  ok(/g_min=0\.176 \(matches the 6\.3 toy\)/.test(eb) && /E\[l_S\]\/\(n\*dt\) = 0\.176/.test(read("examples/month-6/expected/vla_async_chunk_toy.txt")), "dr3 edge: g threshold matches 6.3");
+  ok(/^ 30\s+1\.667\s+2\.000\s+54\.5\s+1\.200  even g = 1 underruns/m.test(eb), "dr3 edge: g_min above 1 row");
+  for (const lang of ["en", "zh"]) {
+    const md = read(`src/content/m10/edge-deploy-checklist/${lang}.mdx`);
+    ok(md.includes("g ≥ (E[ℓ_S] / Δt) / n"), `dr3 10.3 ${lang}: 6.3 threshold formula`);
+    ok(/16\.8 GB/.test(md) && /10\.2 GB/.test(md) && /7\.0 GB/.test(md), `dr3 10.3 ${lang}: OpenVLA paper memory table attributed`);
+    ok(lang === "en" ? /per the paper/.test(md) && /excluded/.test(md) : /以论文为准/.test(md) && /排除/.test(md), `dr3 10.3 ${lang}: attribution + exclusion wording`);
+    ok(/Jetson/.test(md), `dr3 10.3 ${lang}: Jetson named as not run`);
+  }
+
+  const cur = read("src/lib/curriculum.ts");
+  ok(cur.match(/slug: "sim-to-real"[\s\S]*?minutes: (\d+)/)?.[1] === "390", "dr3 curriculum: 7.4 = 390");
+  ok(cur.match(/slug: "sim-benchmarks"[\s\S]*?minutes: (\d+)/)?.[1] === "330", "dr3 curriculum: 8.8 = 330");
+  ok(cur.match(/slug: "edge-deploy-checklist"[\s\S]*?minutes: (\d+)/)?.[1] === "330", "dr3 curriculum: 10.3 = 330");
+  const sbBlock = (cur.match(/slug: "sim-benchmarks"[\s\S]*?\n  \},/) || [""])[0];
+  ok(/ctrl-world-paper/.test(sbBlock), "dr3 8.8 resources wired");
+  const edBlock = (cur.match(/slug: "edge-deploy-checklist"[\s\S]*?\n  \},/) || [""])[0];
+  ok(/smolvla-paper/.test(edBlock) && /openvla-paper/.test(edBlock) && /pi0-paper/.test(edBlock), "dr3 10.3 resources wired");
+  const res = read("src/lib/resources.ts");
+  for (const id of ["ctrl-world-paper", "openvla-paper"]) {
+    ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `dr3 resource ${id}: present + extra`);
+  }
+  console.log("dr-imagine-edge PR3: contact DR + imagination ranking + edge VLA budget locks checked");
 }
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
