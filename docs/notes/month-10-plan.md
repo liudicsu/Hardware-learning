@@ -1,6 +1,6 @@
 # Month 10 plan: Modern policy heads, deployment & real-world improvement
 
-Site supplement beyond @DeRonin_'s 6-month roadmap (Months 7–10). Lessons open with "This lesson is a site supplement — Months 7–10 are not part of the original six-month course." / 「本课是本站补充内容——第 7–10 个月不属于原六个月课程。」
+Site supplement beyond @DeRonin_'s 6-month roadmap (Months 7–11). Lessons open with "This lesson is a site supplement — Months 7–11 are not part of the original six-month course." / 「本课是本站补充内容——第 7–11 个月不属于原六个月课程。」
 
 **PR1–PR3:** full MDX + examples for **10.1–10.7** (PR1: 10.1–10.3, PR2: 10.4–10.5, PR3: 10.6–10.7). `multi-view-extrinsics`, `intervention-logging` and `edge-deploy-checklist` were Month 9 electives and are now formal lessons. Month 10 does not replace the 8.7 capstone and does not open a new track.
 

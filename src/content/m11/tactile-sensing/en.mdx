@@ -1,0 +1,153 @@
+This lesson is a site supplement — Months 7–11 are not part of the original six-month course.
+
+**Scope.** [3.6 gripper fingers](/en/month/month-3/gripper-fingers) covers friction and Fin Ray geometry; [2.4 sensor fusion](/en/month/month-2/sensors-fusion) and [5.x camera calibration](/en/month/month-5/camera-calibration) are the optical-tactile calibration prereqs. This lesson is **contact-sensor principles, calibration ideas and replaceability**: optical (GelSight family / DIGIT) and magnetic (AnySkin / ReSkin). **Buying a DIGIT, GelSight Mini or pulse magnetiser is not required**; without hardware, read + run the CPU toy. Real capture and 3D Cal automated probing are marked 本页未运行 (not run here). Folding touch into policies is 11.7 (a later PR); this lesson also does not replace the 8.7 capstone.
+
+## Two paths you can take
+
+**Optical tactile.** An elastomer sits over an endoscope camera; shear and normal deformation become image gradients / marker motion. GelSight (Yuan et al., Sensors 2017) is the family landmark; DIGIT (Lambeta et al.; Meta / GelSight collaboration) packages a reproducible open fingertip — design and interface live in `digit-design` / `digit-interface`.
+
+**Magnetic tactile.** AnySkin / ReSkin mix magnetic powder into an elastomer and read field distortion with magnetometers. AnySkin's key design is **electronics separated from the skin, self-aligning, adhesive-free**: a user study reports **12±5 s** to replace (paper Table II; take the paper as source of truth).
+
+<Resource id="anyskin-paper" />
+<Resource id="anyskin-site" />
+<Resource id="digit-design" />
+<Resource id="digit-interface" />
+<Resource id="gelsight-sensors-paper" />
+<Resource id="3dcal-paper" />
+
+## Numbers we verified in the papers (take the paper as source of truth)
+
+From AnySkin (arXiv 2409.08276, HTML opened here):
+
+- Mean replace time **12** s (±5).
+- Slip LSTM accuracy **0.92** (92 %) on unseen objects.
+- Plug insertion (Table III): cameras only ≈ **1.7**/10; cameras + AnySkin ≈ **6.7**/10; after skin swap ≈ **5.3**/10 (about −13 % vs the original skin; ReSkin in the same table drops about −43 %).
+
+3D Cal (arXiv 2511.03078 abstract): mean reconstruction error on unseen objects about **156 µm** / **205 µm** for DIGIT / GelSight Mini — abstract figures; if the PDF tables disagree, trust the PDF. Its pipeline is not run on this page.
+
+## Marker-grid toy
+
+Without a DIGIT, use a synthetic 3×3 marker grid: a contact pulls markers radially inward; estimate the contact as the **displacement-weighted centroid** (more stable than "the single largest-displacement marker"). Print the estimate error and the AnySkin constants above for prose binding.
+
+```bash
+$ cd ~/Hardware-learning/examples/month-11/tactile-sensing
+$ python3 tactile_marker_toy.py
+```
+
+<CodeSource path="examples/month-11/tactile-sensing/tactile_marker_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""tactile_marker_toy.py: marker-grid deformation → contact estimate (stdlib).
+
+3×3 marker grid; a synthetic contact pulls markers radially inward.
+Estimate contact as the displacement-weighted centroid of markers
+(not the single largest-displacement marker). Also prints AnySkin
+paper constants used in the lesson prose (replace time, slip accuracy,
+plug-insertion success rates) — paper numbers, not toy measurements.
+"""
+import math
+
+SEED = 13
+# 3x3 marker grid, rest spacing 1.0
+grid = [(x, y) for y in (-1.0, 0.0, 1.0) for x in (-1.0, 0.0, 1.0)]
+force_N = 2.5
+k = 0.08  # synthetic compliance in image units
+cx, cy = 0.2, -0.15
+
+obs = []
+for x, y in grid:
+    dx = x - cx
+    dy = y - cy
+    r2 = dx * dx + dy * dy + 1e-6
+    scale = k * force_N / r2
+    obs.append((x - dx * scale, y - dy * scale))
+
+disps = [math.hypot(o[0] - g[0], o[1] - g[1]) for o, g in zip(obs, grid)]
+# Displacement-weighted centroid of observed marker positions
+wsum = sum(disps)
+est_x = sum(o[0] * d for o, d in zip(obs, disps)) / wsum
+est_y = sum(o[1] * d for o, d in zip(obs, disps)) / wsum
+err = math.hypot(est_x - cx, est_y - cy)
+
+print(f"seed={SEED}")
+print(f"true_contact=({cx:.3f},{cy:.3f})")
+print(f"force_N={force_N:.2f}")
+print(f"est_contact=({est_x:.4f},{est_y:.4f})")
+print(f"contact_err={err:.4f}")
+print(f"max_disp={max(disps):.4f}")
+# AnySkin paper constants (arXiv 2409.08276) for check_diagrams bindings
+print(f"anyskin_replace_s=12")
+print(f"anyskin_slip_acc=0.92")
+print(f"anyskin_plug_cam=1.7")
+print(f"anyskin_plug_skin=6.7")
+print(f"anyskin_plug_swap=5.3")
+```
+
+
+<SimOutput source="model">
+
+```text
+seed=13
+true_contact=(0.200,-0.150)
+force_N=2.50
+est_contact=(0.2882,-0.2168)
+contact_err=0.1106
+max_disp=0.8000
+anyskin_replace_s=12
+anyskin_slip_acc=0.92
+anyskin_plug_cam=1.7
+anyskin_plug_skin=6.7
+anyskin_plug_swap=5.3
+```
+
+</SimOutput>
+
+How to read it:
+
+- True contact (0.200, −0.150), estimate (0.2882, −0.2168), contact_err = **0.1106** (image units). Synthetic deformation + weighted centroid — not real DIGIT pixels.
+- Paper constants **12** / **0.92** / **1.7** / **6.7** / **5.3** are independent of the toy; they exist so check_diagrams and the prose share one number.
+
+## Calibration and replaceability
+
+Optical gels usually need recalibration after a swap; 3D Cal turns a cheap FDM printer into an automated indenter (reading only here). Magnetic skins that separate electronics from the skin and keep cross-instance signal consistent lose less policy performance after a swap — that is what AnySkin emphasises against ReSkin / DIGIT in the plug table. Replaceability is the precondition for "touch at data scale"; 11.7 picks that up.
+
+## Hardware: no required purchase
+
+- The **CPU toy** is the required deliverable.
+- Optional: read the AnySkin open BOM and the DIGIT design page; print moulds if you already have a printer (Month 3 path).
+- Real capture, pulse magnetising, 3D Cal probing — not run on this page.
+- Do not buy a DIGIT / GelSight Mini / magnetiser for this lesson.
+
+## Out of scope
+
+- Folding tactile tokens into BC / flow-matching heads (11.7).
+- External F/T sensors and admittance (9.3; external F/T stays further reading).
+- Commercial GelSight Mini store prices (this site writes no prices).
+
+<Summary>
+
+**Key points**
+
+- Optical = elastomer + camera; magnetic = powder + magnetometer, electronics can separate from the skin.
+- AnySkin (paper as source of truth): replace 12 s, slip 0.92, plug 1.7 → 6.7 → swap 5.3.
+- Toy contact_err=0.1106 (displacement-weighted centroid).
+- No required purchase; real-hardware steps are not run here.
+
+**Common mistakes**
+
+- Treating the Fin Ray geometry lesson as if you already studied tactile sensing.
+- Quoting abstract µm figures as "measured on this site".
+- Ordering a DIGIT just to follow the lesson.
+
+**Check yourself**
+
+- What physical quantity does each path read?
+- Why does replaceability matter for data scale?
+- Why does the toy use a weighted centroid instead of the max-displacement marker?
+
+**Next**
+
+- 11.4 UMI-style handheld collection (next PR): how field collection drops the robot body.
+
+</Summary>

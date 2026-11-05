@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Run the Month 11 examples and compare with expected/.
+# PR1: 3 of 7 lessons (11.1–11.3). PR2/PR3 add the rest.
+# Usage: examples/month-11/check.sh        UPDATE=1 examples/month-11/check.sh
+set -uo pipefail
+M11="$(cd "$(dirname "$0")" && pwd)"
+TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+export PYTHONDONTWRITEBYTECODE=1
+PY="${M11_PYTHON:-python3}"
+fail=0
+check() {
+  local name="$1"; shift
+  (cd "$TMP" && "$@") > "$TMP/$name" 2>&1
+  local ec=$?
+  if [[ $ec -ne 0 ]]; then echo "FAIL  $name (exit $ec)"; cat "$TMP/$name"; fail=1; return; fi
+  if [[ -n "${UPDATE:-}" ]]; then cp "$TMP/$name" "$M11/expected/$name"; echo "wrote $name"; return; fi
+  if diff -u "$M11/expected/$name" "$TMP/$name" > "$TMP/$name.diff"; then echo "same  $name"
+  else echo "DIFF  $name"; cat "$TMP/$name.diff"; fail=1; fi
+}
+
+check power_budget_toy.txt "$PY" "$M11/power-battery-emc/power_budget_toy.py"
+check clarke_park_toy.txt "$PY" "$M11/foc-actuator-lab/clarke_park_toy.py"
+check tactile_marker_toy.txt "$PY" "$M11/tactile-sensing/tactile_marker_toy.py"
+
+exit $fail

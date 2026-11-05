@@ -1,0 +1,153 @@
+本课是本站补充内容——第 7–11 个月不属于原六个月课程。
+
+**范围。** [3.6 夹爪手指](/zh/month/month-3/gripper-fingers) 负责摩擦与鳍条几何；[2.4 传感器融合](/zh/month/month-2/sensors-fusion) 与 [5.x 相机标定](/zh/month/month-5/camera-calibration) 是光学触觉的标定前置。本课 = **接触传感器原理、标定思路与可替换性**：光学（GelSight 族 / DIGIT）与磁（AnySkin / ReSkin）。**不强制购买 DIGIT、GelSight Mini 或脉冲充磁机**；没有硬件就只读 + CPU 玩具。真机采集与 3D Cal 自动点触标注本页未运行。把触觉折进策略是 11.7（下一批 PR）；本课也不替代 8.7 毕业项目。
+
+## 两条可走的路径
+
+**光学触觉。** 弹性体下面装内窥相机；剪切与法向变形变成图像梯度 / 标记位移。GelSight（Yuan 等，Sensors 2017）是这一族的代表；DIGIT（Lambeta 等；Meta / GelSight 合作设计）把传感器做成可复现的开源指尖，设计与接口分别在 `digit-design` / `digit-interface`。
+
+**磁触觉。** AnySkin / ReSkin：弹性体里掺磁粉，下面用磁力计读场畸变。AnySkin 的关键设计是**电子与皮肤分离、自对准、免胶**：用户研究替换时间 **12±5 s**（论文 Table II；以论文为准）。
+
+<Resource id="anyskin-paper" />
+<Resource id="anyskin-site" />
+<Resource id="digit-design" />
+<Resource id="digit-interface" />
+<Resource id="gelsight-sensors-paper" />
+<Resource id="3dcal-paper" />
+
+## 论文里已经核实的数字（以论文为准）
+
+来自 AnySkin（arXiv 2409.08276，本站打开过 HTML）：
+
+- 替换时间平均 **12** s（±5）。
+- 滑觉 LSTM 在未见物体上准确率 **0.92**（92 %）。
+- 插接任务（Table III）：仅相机 ≈ **1.7**/10；相机 + AnySkin ≈ **6.7**/10；换皮后 ≈ **5.3**/10（相对原皮约 −13 %；同表里 ReSkin 换皮约 −43 %）。
+
+3D Cal（arXiv 2511.03078 摘要）：DIGIT / GelSight Mini 在未见物体上的平均重建误差约 **156 µm** / **205 µm**——摘要数字，实施前若与 PDF 正文不一致以 PDF 为准；本页未运行其管线。
+
+## 标记网格玩具
+
+没有 DIGIT 时，用合成 3×3 标记网格：接触点让标记径向内移；用**位移加权质心**估计接触（比「最大位移那一颗」稳）。输出估计误差，并打印上面的 AnySkin 常量供正文绑定。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-11/tactile-sensing
+$ python3 tactile_marker_toy.py
+```
+
+<CodeSource path="examples/month-11/tactile-sensing/tactile_marker_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""tactile_marker_toy.py: marker-grid deformation → contact estimate (stdlib).
+
+3×3 marker grid; a synthetic contact pulls markers radially inward.
+Estimate contact as the displacement-weighted centroid of markers
+(not the single largest-displacement marker). Also prints AnySkin
+paper constants used in the lesson prose (replace time, slip accuracy,
+plug-insertion success rates) — paper numbers, not toy measurements.
+"""
+import math
+
+SEED = 13
+# 3x3 marker grid, rest spacing 1.0
+grid = [(x, y) for y in (-1.0, 0.0, 1.0) for x in (-1.0, 0.0, 1.0)]
+force_N = 2.5
+k = 0.08  # synthetic compliance in image units
+cx, cy = 0.2, -0.15
+
+obs = []
+for x, y in grid:
+    dx = x - cx
+    dy = y - cy
+    r2 = dx * dx + dy * dy + 1e-6
+    scale = k * force_N / r2
+    obs.append((x - dx * scale, y - dy * scale))
+
+disps = [math.hypot(o[0] - g[0], o[1] - g[1]) for o, g in zip(obs, grid)]
+# Displacement-weighted centroid of observed marker positions
+wsum = sum(disps)
+est_x = sum(o[0] * d for o, d in zip(obs, disps)) / wsum
+est_y = sum(o[1] * d for o, d in zip(obs, disps)) / wsum
+err = math.hypot(est_x - cx, est_y - cy)
+
+print(f"seed={SEED}")
+print(f"true_contact=({cx:.3f},{cy:.3f})")
+print(f"force_N={force_N:.2f}")
+print(f"est_contact=({est_x:.4f},{est_y:.4f})")
+print(f"contact_err={err:.4f}")
+print(f"max_disp={max(disps):.4f}")
+# AnySkin paper constants (arXiv 2409.08276) for check_diagrams bindings
+print(f"anyskin_replace_s=12")
+print(f"anyskin_slip_acc=0.92")
+print(f"anyskin_plug_cam=1.7")
+print(f"anyskin_plug_skin=6.7")
+print(f"anyskin_plug_swap=5.3")
+```
+
+
+<SimOutput source="model">
+
+```text
+seed=13
+true_contact=(0.200,-0.150)
+force_N=2.50
+est_contact=(0.2882,-0.2168)
+contact_err=0.1106
+max_disp=0.8000
+anyskin_replace_s=12
+anyskin_slip_acc=0.92
+anyskin_plug_cam=1.7
+anyskin_plug_skin=6.7
+anyskin_plug_swap=5.3
+```
+
+</SimOutput>
+
+怎么读：
+
+- 真实接触 (0.200, −0.150)，估计 (0.2882, −0.2168)，contact_err = **0.1106**（图像单位）。这是合成变形 + 加权质心，不是真实 DIGIT 像素。
+- 论文常量 **12** / **0.92** / **1.7** / **6.7** / **5.3** 与玩具无关，只为 check_diagrams 与正文同数。
+
+## 标定与可替换性
+
+光学传感器换凝胶后通常要重标定；3D Cal 把低成本 FDM 打印机改成自动点触架（阅读即可）。磁传感器若电子与皮肤分离、信号跨实例一致，换皮后策略掉点更小——这正是 AnySkin 相对 ReSkin / DIGIT 在插接表里想强调的。可替换性是后面「触觉进大数据」的前提，细节在 11.7。
+
+## 硬件：不要求新购
+
+- **CPU 玩具**是本课必修交付。
+- 可选：读 AnySkin 开源 BOM、DIGIT 设计页；有打印机可打模具（M3 路径）。
+- 真机采集、脉冲充磁、3D Cal 点触——本页未运行。
+- 不要为了本课去买 DIGIT / GelSight Mini / 充磁机。
+
+## 本课未覆盖
+
+- 把触觉 token 折进 BC / 流匹配头（11.7）。
+- 力/力矩外接传感器与导纳（9.3；外接 F/T 仍为延伸）。
+- 商业 GelSight Mini 商店页价格（本站不写价格）。
+
+<Summary>
+
+**本课要点**
+
+- 光学 = 弹性体 + 相机；磁 = 磁粉 + 磁力计，电子可与皮肤分离。
+- AnySkin（以论文为准）：替换 12 s，滑觉 0.92，插接 1.7 → 6.7 → 换皮 5.3。
+- 玩具 contact_err=0.1106（位移加权质心）。
+- 不强制购买；真机步骤本页未运行。
+
+**常见错误**
+
+- 把 Fin Ray 几何课当成已经学过触觉传感。
+- 把摘要 µm 数字写成「本站实测」。
+- 为了跟课去下单 DIGIT。
+
+**自检**
+
+- 光学与磁触觉各靠什么物理量？
+- 为什么可替换性影响数据规模？
+- 玩具为什么用加权质心而不是最大位移点？
+
+**下一课会用到**
+
+- 11.4 UMI 式手持采集（下一批 PR）：野外采集如何去掉本体。
+
+</Summary>

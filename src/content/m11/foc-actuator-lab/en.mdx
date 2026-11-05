@@ -1,0 +1,145 @@
+This lesson is a site supplement — Months 7–11 are not part of the original six-month course.
+
+**Scope.** [2.3 motors & drivers](/en/month/month-2/motors-drivers) covers brushed DC / steppers and says FOC can wait; [3.4 PID](/en/month/month-3/pid-control) and [2.2 ESP32](/en/month/month-2/esp32) are the optional flash path's prereqs. This lesson is **Clarke–Park maths + a SimpleFOC reading map + a micro-ROS path sketch**. It does not require buying a BLDC kit and does not replace the SO-101's STS3215 bus servos — it only says when a custom joint / hub needs FOC. micro-ROS agent / flashing stays out of CI; an open-loop speed example on an existing ESP32 is marked 本页未运行 (not run here) (needs a driver board; stress current limits and e-stop, link [8.5](/en/month/month-8/safety-reliability)). This lesson also does not replace the 8.7 capstone.
+
+## Why 90°
+
+Lorentz force peaks when current and field are 90° apart. Brushed motors keep that mechanically with brushes and a commutator; FOC does it in software with coordinate transforms so the stator field stays 90° ahead of the rotor flux, \(\tau = K_t \cdot i_q\), with targets <Term id="id-zero">\(i_d = 0\)</Term> and <Term id="iq-torque">\(i_q = \tau / K_t\)</Term>.
+
+## Clarke and Park
+
+Three frames (SimpleFOC `foc_theory`; follow the current docs):
+
+1. **Stationary abc**: three phases \(i_a, i_b, i_c\), 120° apart.
+2. **Stationary αβ** (Clarke): two orthogonal components; balanced \(i_\alpha = i_a\), \(i_\beta = (i_a + 2 i_b)/√3\).
+3. **Rotating dq** (Park): spins with electrical angle \(\theta_e\); AC becomes near-DC for ordinary PI.
+
+Inverse path: dq → αβ (inverse Park) → abc (inverse Clarke) → PWM. Two-phase steppers are already orthogonal, so Clarke can be skipped.
+
+<Resource id="simplefoc-foc-theory" />
+<Resource id="simplefoc-home" />
+<Resource id="simplefoc" />
+
+## Clarke–Park round-trip toy
+
+`clarke_park_toy.py` takes \(i_q=1\), \(i_d=0\), \(\theta=\pi/6\): inverse Park → inverse Clarke to three phases, then the forward transforms recover id/iq. It prints `sum_abc` and the id/iq errors.
+
+```bash
+$ cd ~/Hardware-learning/examples/month-11/foc-actuator-lab
+$ python3 clarke_park_toy.py
+```
+
+<CodeSource path="examples/month-11/foc-actuator-lab/clarke_park_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""clarke_park_toy.py: Clarke–Park round-trip for FOC (stdlib).
+
+Given id_cmd=0, iq_cmd and electrical angle θ:
+  inverse Park → inverse Clarke → Clarke → Park
+and check sum_abc≈0 plus recovered id/iq.
+Formulas follow SimpleFOC foc_theory (balanced three-phase).
+"""
+import math
+
+SEED = 11
+theta = math.pi / 6
+iq_cmd, id_cmd = 1.0, 0.0
+
+
+def clarke(ia, ib, ic):
+    # Balanced: ia+ib+ic=0; SimpleFOC-style
+    i_alpha = ia
+    i_beta = (ia + 2 * ib) / math.sqrt(3)
+    return i_alpha, i_beta
+
+
+def park(i_alpha, i_beta, th):
+    c, s = math.cos(th), math.sin(th)
+    id_ = i_alpha * c + i_beta * s
+    iq = -i_alpha * s + i_beta * c
+    return id_, iq
+
+
+# Inverse Park then inverse Clarke
+u_alpha = id_cmd * math.cos(theta) - iq_cmd * math.sin(theta)
+u_beta = id_cmd * math.sin(theta) + iq_cmd * math.cos(theta)
+ia = u_alpha
+ib = -0.5 * u_alpha + (math.sqrt(3) / 2) * u_beta
+ic = -0.5 * u_alpha - (math.sqrt(3) / 2) * u_beta
+
+a, b = clarke(ia, ib, ic)
+id_r, iq_r = park(a, b, theta)
+
+print(f"seed={SEED}")
+print(f"theta_rad={theta:.6f}")
+print(f"iq_cmd={iq_cmd:.4f} id_cmd={id_cmd:.4f}")
+print(f"ia={ia:.6f} ib={ib:.6f} ic={ic:.6f}")
+print(f"sum_abc={ia + ib + ic:.3e}")
+print(f"id_recovered={id_r:.6f} iq_recovered={iq_r:.6f}")
+print(f"id_err={abs(id_r - id_cmd):.3e} iq_err={abs(iq_r - iq_cmd):.3e}")
+```
+
+
+<SimOutput source="model">
+
+```text
+seed=11
+theta_rad=0.523599
+iq_cmd=1.0000 id_cmd=0.0000
+ia=-0.500000 ib=1.000000 ic=-0.500000
+sum_abc=0.000e+00
+id_recovered=0.000000 iq_recovered=1.000000
+id_err=0.000e+00 iq_err=0.000e+00
+```
+
+</SimOutput>
+
+How to read it:
+
+- At \(\theta = \pi/6 \approx\) **0.523599** rad the phases are −0.5 / 1.0 / −0.5 and sum_abc = **0.000e+00** (Kirchhoff).
+- Round-trip id_err = **0.000e+00**, iq_err = **0.000e+00**: the maths is invertible; real errors come from current sensing, angle delay and dead-time, not from this toy.
+
+## SimpleFOC reading map
+
+- **Library**: Arduino SimpleFOC (docs mark the transform page as v2.4+); PlatformIO / many MCUs (including the ESP32 you already have from Month 2).
+- **Sensors**: open-loop (no feedback, demo only), Hall, magnetic encoders.
+- **Two integration paths**: tune first with the serial <Term id="simplefoc-commander">Commander</Term>; only then consider a micro-ROS client that exposes the joint to a ROS 2 graph. Community micro-ROS + FOC practice exists, but **it is not in CI here and we do not copy third-party blog BOMs**; flash steps live in this folder's README and are marked not run on this page.
+- **Against SO-101**: bus servos already run their own servo loops; this lesson does not replace STS3215. Reach for FOC when you build a hub motor, a direct-drive joint, or need a current-loop torque interface.
+
+## Optional: open-loop flash (not run here)
+
+If you already have an ESP32 and a suitable driver board: build the SimpleFOC open-loop velocity example, **with current limits and e-stop wired first** (8.5). Do not buy a BLDC kit, SimpleFOC Shield or hoverboard hub for this lesson — those are further reading. Take commands from the current SimpleFOC docs.
+
+## Out of scope
+
+- Field weakening, MTPA, high-frequency injection sensorless.
+- MOSFET picking and PCB layout (see 11.1 EMC).
+- A full ros2_control hardware component for an FOC joint (8.4 is the interface lesson).
+
+<Summary>
+
+**Key points**
+
+- FOC keeps 90° via transforms: target id=0, iq=τ/Kt.
+- Toy round-trip id_err / iq_err = 0.000e+00, sum_abc = 0.000e+00.
+- Commander serial first; micro-ROS later and not run here.
+- No required BLDC purchase; does not replace SO-101 bus servos.
+
+**Common mistakes**
+
+- Flashing open-loop at full speed with no current limit.
+- Treating this lesson as "you must replace STS3215".
+- Treating a third-party blog BOM as a site fact.
+
+**Check yourself**
+
+- What do Clarke and Park each solve?
+- Why should balanced three-phase sum_abc be 0?
+- When do you need FOC instead of a bus servo?
+
+**Next**
+
+- [11.3 tactile sensing](/en/month/month-11/tactile-sensing): add a contact modality to the gripper.
+
+</Summary>
