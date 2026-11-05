@@ -247,7 +247,7 @@ and turn unstable near kp = 1.0 x 6.79 = 6.79. Check it on 0.1 rad steps:
 
 ## 持续激励对照公平阶跃（系统辨识）
 
-第 1 节已经用一次开环力矩阶跃辨识出 B 和 J。对一阶速度环节这往往够用：PE **不是**「两个参数 ⇒ 阶跃不可辨识」。持续激励（persistency of excitation）说的是**辨识时域内回归子是否足够丰富**，也就是 `ΦᵀΦ` 是否良态（Ljung 输入信号章节，见 MIT OCW 6.435 大纲指针；De Nicolao 1997 教程对比方程误差与输出误差）。玩具报告的是**有限窗口** Gram 条件数 `cond(ΦᵀΦ)`，作为本时域上丰富度的实用诊断；**严格 PE** 是更强的断言（窗口 Gram 随窗口增长有正定下界），**本页不声称**。结构更丰富时，同一个阶跃可能让 `ΦᵀΦ` 病态——要用**测到的**条件数和参数误差说话，而不是事先保证「更丰富输入一定赢」。
+第 1 节已经用一次开环力矩阶跃辨识出 B 和 J。对一阶速度环节这往往够用：PE **不是**「两个参数 ⇒ 阶跃不可辨识」。持续激励（persistency of excitation）说的是**辨识时域内回归子是否足够丰富**，也就是 `ΦᵀΦ` 是否良态（Ljung 输入信号章节，见 MIT OCW 6.435 大纲指针；De Nicolao 1997 教程对比方程误差与输出误差）。玩具报告的是**有限窗口** Gram 条件数 `cond(ΦᵀΦ)`，作为本时域上丰富度的实用诊断；**严格 PE** 是更强的断言：存在固定窗口长度 `N` 与 `α>0`，使得对所有滑动起点 `k`，`Σ_{i=k}^{k+N-1} φᵢφᵢᵀ ⪰ αI`（**统一**下界）——**不是**「窗口增长时有正定下界」——**本页不声称**。结构更丰富时，同一个阶跃可能让 `ΦᵀΦ` 病态——要用**测到的**条件数和参数误差说话，而不是事先保证「更丰富输入一定赢」。
 
 ### 公平对比
 
@@ -297,9 +297,10 @@ regressors and OLS is consistent). An output-error (OE) or instrumental-
 variable (IV) fit would be a different estimator; not implemented here.
 
 The finite-window Gram cond(ΦᵀΦ) is a practical diagnostic of regressor
-richness on this horizon. Strict PE is a stronger statement (a positive-
-definite lower bound on the window Gram as the window grows); the toy
-reports the diagnostic, not a PE certificate.
+richness on this horizon. Strict PE is a stronger statement: there exist a
+fixed window length N and α>0 such that for all sliding start indices k,
+Σ_{i=k}^{k+N-1} φᵢφᵢᵀ ⪰ αI (a uniform lower bound). The toy reports the
+diagnostic, not a PE certificate.
 
 Pointers (no copyrighted book text pasted): Ljung, System Identification, 2ed
 (ISBN 0136566952) via the MIT OCW 6.435 syllabus; De Nicolao 1997 tutorial on
@@ -500,7 +501,8 @@ def main() -> None:
     )
     print(
         "PE diagnostic: finite-window cond(Phi^T Phi); "
-        "strict PE = positive-definite lower bound on the window Gram (not claimed here)"
+        "strict PE = exist fixed N, alpha>0: for all sliding k, "
+        "sum_{i=k..k+N-1} phi_i phi_i^T >= alpha I (uniform; not claimed here)"
     )
     print()
 
@@ -529,7 +531,7 @@ def main() -> None:
     print(f"energy_match_rel={rel:.6f} (tol={ENERGY_TOL})  "
           f"step_err={results_a[0][3]:.6f} prbs_err={results_a[1][3]:.6f} "
           f"(step is capable; numbers decide, PE not guaranteed to win; "
-          f"err includes EE-OLS bias from measurement noise)")
+          f"err is single-run parameter error, may include systematic bias)")
     print()
 
     # ---- Case B: second-order — richer input improves conditioning ----
@@ -557,9 +559,9 @@ def main() -> None:
     print(f"energy_match_rel={rel:.6f} (tol={ENERGY_TOL})  "
           f"cond_step={results_b[0][2]:.4g} cond_two_tone={results_b[1][2]:.4g} "
           f"step_err={results_b[0][3]:.6f} two_tone_err={results_b[1][3]:.6f} "
-          f"(richer input improved conditioning; err includes EE-OLS bias)")
+          f"(richer input improved conditioning; err is single-run parameter error, may include systematic bias)")
     print("ok: fair energy; case_A step-capable; case_B richer input better cond; "
-          "measurement-noise EIV → EE-OLS bias measured (real motor sysid 本页未运行)")
+          "measurement-noise EIV → single-run parameter error may include systematic bias (one seed cannot quantify statistical bias; real motor sysid 本页未运行)")
 
 
 if __name__ == "__main__":
@@ -572,25 +574,25 @@ if __name__ == "__main__":
 seed=51 N=200 dt=0.01 energy_tol=0.01 noise_std=0.02
 noise_model: y=z+v (independent measurement noise on noise-free ARX state z); NOT ARX innovation e_k
 estimator: equation-error OLS (ARX) on noisy y in Phi → EIV / EE-OLS bias; NOT claimed unbiased (OE/IV not implemented)
-PE diagnostic: finite-window cond(Phi^T Phi); strict PE = positive-definite lower bound on the window Gram (not claimed here)
+PE diagnostic: finite-window cond(Phi^T Phi); strict PE = exist fixed N, alpha>0: for all sliding k, sum_{i=k..k+N-1} phi_i phi_i^T >= alpha I (uniform; not claimed here)
 
 case_A first_order_tau=0.08 K=1.0  true_theta=[0.882497, 0.117503]
 input          energy    peak|u|  cond(PhiTPhi)  ||theta_hat-theta||
 step         190.0000     1.0000          164.2             0.034758
 prbs         190.0000     0.9747          4.965             0.002735
-energy_match_rel=0.000000 (tol=0.01)  step_err=0.034758 prbs_err=0.002735 (step is capable; numbers decide, PE not guaranteed to win; err includes EE-OLS bias from measurement noise)
+energy_match_rel=0.000000 (tol=0.01)  step_err=0.034758 prbs_err=0.002735 (step is capable; numbers decide, PE not guaranteed to win; err is single-run parameter error, may include systematic bias)
 
 case_B second_order  true_theta=[1.7, -0.72, 0.05]
 input          energy    peak|u|  cond(PhiTPhi)  ||theta_hat-theta||
 step         190.0000     1.0000      2.148e+04             1.361698
 two_tone     190.0000     1.9092           1108             0.219354
-energy_match_rel=0.000000 (tol=0.01)  cond_step=2.148e+04 cond_two_tone=1108 step_err=1.361698 two_tone_err=0.219354 (richer input improved conditioning; err includes EE-OLS bias)
-ok: fair energy; case_A step-capable; case_B richer input better cond; measurement-noise EIV → EE-OLS bias measured (real motor sysid 本页未运行)
+energy_match_rel=0.000000 (tol=0.01)  cond_step=2.148e+04 cond_two_tone=1108 step_err=1.361698 two_tone_err=0.219354 (richer input improved conditioning; err is single-run parameter error, may include systematic bias)
+ok: fair energy; case_A step-capable; case_B richer input better cond; measurement-noise EIV → single-run parameter error may include systematic bias (one seed cannot quantify statistical bias; real motor sysid 本页未运行)
 ```
 
 </SimOutput>
 
-**Case A** 是一阶 `τ = 0.08 s` 对象（与上面关节时间常数相同）。阶跃的参数误差是 **0.0348**——仍足以读出 τ，且误差已包含 `y = z + v` 测得的 EE-OLS 偏差。PRBS 的 `cond(ΦᵀΦ)` 小得多（**4.97 对 164**），误差也小得多（**0.0027**）；数字说了算，不能保证 PE 必胜。**Case B** 是二阶 ARX。阶跃条件数约 **`2.15×10⁴`**，参数误差 **1.36**（病态放大了 EIV 偏差）；同等能量的两音调输入把 cond 降到约 **1108**、误差降到 **0.219**。此处更丰富频谱两列都改善——仍要两列都报，不要只凭理论封王。真实电机系统辨识本页未运行。
+**Case A** 是一阶 `τ = 0.08 s` 对象（与上面关节时间常数相同）。阶跃的参数误差是 **0.0348**——仍足以读出 τ；该数字是**单次参数误差，可能包含系统性偏差**（来自 `y = z + v`；单个 seed 不能量化统计 bias）。PRBS 的 `cond(ΦᵀΦ)` 小得多（**4.97 对 164**），误差也小得多（**0.0027**）；数字说了算，不能保证 PE 必胜。**Case B** 是二阶 ARX。阶跃条件数约 **`2.15×10⁴`**，参数误差 **1.36**（病态放大了 EIV 偏差）；同等能量的两音调输入把 cond 降到约 **1108**、误差降到 **0.219**。此处更丰富频谱两列都改善——仍要两列都报，不要只凭理论封王。真实电机系统辨识本页未运行。
 
 <Quiz id="q6" question="在 case_B 中，输入从 step 换成同等能量的 two_tone 后，cond(ΦᵀΦ) 如何变化？" options={["大约升高 20 倍", "从约 2.15×10⁴ 降到约 1108", "完全不变", "变成 0"]} answer={1} explanation="打印行是 cond_step ≈ 2.148×10⁴、cond_two_tone ≈ 1108。频谱更丰富改善了条件数；参数误差是另一列（此处也从 ≈1.36 降到 ≈0.22，因为 EIV 偏差被病态 Gram 放大）。" />
 
@@ -606,4 +608,4 @@ ok: fair energy; case_A step-capable; case_B richer input better cond; measureme
 - **宣称「两参数 ⇒ 阶跃不可辨识」。** 一阶 τ 常常就是从阶跃读出来的。PE 讲的是回归子丰富度；应报告 `cond(ΦᵀΦ)` 和 `‖θ̂−θ‖`，而不是一刀切禁止阶跃。
 - **输入能量不对齐就谈 PE。** 很大的 PRBS 对比很小的阶跃不是 PE 课。把 `Σ u²`（或峰值 `|u|`）限制在声明容差内。
 - **对带噪 y 的方程误差 OLS 声称无偏。** 在 `y = z + v` 下，滞后测量 y 进了 `Φ` → EIV / EE-OLS 偏差；要明示，或改用 OE / IV。不要与 ARX 新息模型（那种下 OLS 一致）混淆。
-- **把有限窗口 `cond(ΦᵀΦ)` 当成严格 PE 证书。** 打印的条件数是时域诊断；严格 PE 要求窗口 Gram 随窗口增长有正定下界。
+- **把有限窗口 `cond(ΦᵀΦ)` 当成严格 PE 证书。** 打印的条件数是时域诊断；严格 PE 要求存在固定窗口长度 `N` 与 `α>0`，使对所有滑动起点 `k`，`Σ_{i=k}^{k+N-1} φᵢφᵢᵀ ⪰ αI`（统一下界）——不是「窗口增长时有正定下界」。

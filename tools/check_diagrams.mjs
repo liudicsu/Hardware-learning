@@ -4687,6 +4687,26 @@ for (const m of readdirSync(content)) {
   console.log("m4 build path: urdf-tf / gazebo-sim / ros2-control / slam-nav cp paths, rosdep order, non-desktop apt names checked");
 }
 
+
+// fix/sysid-pe-wording: strict PE = uniform sliding-window lower bound; single-run error ≠ statistical bias.
+{
+  const read = (p) => readFileSync(join(root, p), "utf8");
+  const pePy = read("examples/month-5/control-modelling/sysid_pe_compare_toy.py");
+  const peExp = read("examples/month-5/expected/sysid_pe_compare_toy.txt");
+  ok(/for all sliding start indices k/.test(pePy) && /Σ_\{i=k\}\^\{k\+N-1\} φᵢφᵢᵀ ⪰ αI|sum_\{i=k\.\.k\+N-1\} phi_i phi_i\^T >= alpha I/.test(pePy),
+    "sysid-pe-wording py: uniform sliding-window PE");
+  ok(!/as the window grows/.test(pePy), "sysid-pe-wording py: no 'as the window grows'");
+  ok(/single-run parameter error may include systematic bias/.test(peExp), "sysid-pe-wording expected: single-run error");
+  ok(!/EE-OLS bias measured/.test(peExp), "sysid-pe-wording expected: no 'bias measured'");
+  ok(/one seed cannot quantify statistical bias/.test(peExp), "sysid-pe-wording expected: one seed caveat");
+  for (const lang of ["en", "zh"]) {
+    const md = read(`src/content/m5/control-modelling/${lang}.mdx`);
+    ok(/uniform|统一/.test(md) && /sliding|滑动/.test(md), `sysid-pe-wording ${lang}: uniform sliding PE`);
+    ok(/single-run parameter error|单次参数误差/.test(md), `sysid-pe-wording ${lang}: single-run error`);
+    ok(!/EE-OLS bias measured/.test(md) && !/测得的 EE-OLS 偏差/.test(md), `sysid-pe-wording ${lang}: no measured-bias claim`);
+  }
+}
+
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
 process.exit(failed ? 1 : 0);
 
