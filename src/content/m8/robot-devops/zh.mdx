@@ -103,15 +103,52 @@ ok: fixture storage_id is mcap (Jazzy rosbag2 default)
 2. **缺口预算。** 到达间隔超过名义周期的 `1.5×`；某必需 topic 缺口数超过 `max_gaps_allowed=2` → **拒收**。
 3. **消息预算。** 每个必需 topic 须满足钉死的 `budget_min`（`n >= budget_min`）。固定示例行：`n=100` 对 `budget_min=90` → 通过；`n=10` 对 `budget_min=50` → 失败。**不要对调这两行比较。**
 
-### QoS 覆盖 YAML 键（Jazzy README）
+### Request vs Offered、录包适配与持久性（F1）
 
-录制或回放时可传 `--qos-profile-overrides-path`，指向「topic → QoS 字段」的 YAML。本批版本来源：[ros2/rosbag2 `jazzy` README — Overriding QoS Profiles](https://github.com/ros2/rosbag2/blob/jazzy/README.md)（raw：`https://raw.githubusercontent.com/ros2/rosbag2/jazzy/README.md`）。从该示例核对到的键：
+ROS 2 QoS 采用 **Request vs Offered（请求 vs 提供）** 模型（[About QoS Settings — Jazzy](https://docs.ros.org/en/jazzy/Concepts/Intermediate/About-Quality-of-Service-Settings.html)；RST 镜像：`ros2/ros2_documentation` jazzy 分支 `About-Quality-of-Service-Settings.rst`）。订阅方 **request** 可接受的最低质量；发布方 **offer** 能提供的最高质量。仅当**每一项**被请求的策略都不比对方提供的更严时才建连。可靠性或持久性不兼容 ⇒ 无匹配 ⇒ 无消息（录包端会像「该 topic 空的」）。
+
+**录包默认 vs 覆盖**（Jazzy [rosbag2 README — Overriding QoS Profiles](https://github.com/ros2/rosbag2/blob/jazzy/README.md)；raw：`https://raw.githubusercontent.com/ros2/rosbag2/jazzy/README.md`）：
+
+- **默认：** rosbag2 会按现有发布方的 *offered* 配置，**适配**自己的 *requested* 订阅 QoS。源码：`Rosbag2QoS::adapt_request_to_offers`（[`rosbag2_storage/.../qos.cpp`](https://github.com/ros2/rosbag2/blob/jazzy/rosbag2_storage/src/rosbag2_storage/qos.cpp)），在无覆盖时由 recorder 的 `subscription_qos_for_topic` 调用（[`recorder.cpp`](https://github.com/ros2/rosbag2/blob/jazzy/rosbag2_transport/src/rosbag2_transport/recorder.cpp)）。适配**不是**「任意组合都能自动对上」：强制不兼容请求、或同 topic 多发布方策略不一致时，仍可能无连接 / 录不到样本。
+- **覆盖：** `--qos-profile-overrides-path` 对具名 topic 强制一份 **手动 requested** 配置（同一 README）。默认适配搞不定晚加入 / latch 场景时再用——不能当成绕过兼容性的通行证。
+
+**持久性与晚加入者**（About QoS 的 durability + 兼容表）：
+
+- **Volatile：** 只投递订阅建立**之后**发布的样本。录包器晚加入 volatile topic 会 **错过先前样本**。
+- **Transient local：** 在发布方仍存活且仍 offer transient_local、历史缓存（`keep_last` depth 或 `keep_all`）里确有样本时，可向晚加入订阅投递保留/历史样本。这**不是**发明超出 transient_local 的进程外 DDS 持久化。
+- 保留样本前提：存活发布方 offer transient_local；历史缓存非空；订阅请求兼容（request transient_local 需要 offer transient_local）。Pub Volatile + Sub Transient local ⇒ **无通信**。
+
+**持久性兼容表**（About QoS — Compatibility of durability QoS policies）：
+
+| 发布方 | 订阅方 | 兼容 | 结果 |
+|---|---|---|---|
+| Volatile | Volatile | 是 | 仅新消息 |
+| Volatile | Transient local | **否** | 无通信 |
+| Transient local | Volatile | 是 | 仅新消息 |
+| Transient local | Transient local | 是 | 新消息 + 保留消息 |
+
+要让晚加入者看到「锁存」效果，**双方**都必须同意 transient local。
+
+**练习（无真机 / 无真 bag）：** 给定合成 *offered* 列表——
+
+| Topic | Offered |
+|---|---|
+| `/tf_static` | reliable + transient_local，keep_last depth=1 |
+| `/joint_states` | best_effort + volatile |
+| `/camera/color/image_raw` | reliable + volatile |
+
+请推导：（1）默认 `adapt_request_to_offers` 在各 topic 上大致会请求什么；（2）何时改写 override YAML；（3）若录包器晚加入、对 latch 的 `/tf_static` 却 request volatile 导致必需 topic `n==0`，哪条验收夹具会 **REJECT**（`missing_topic.json` / 空计数）。对照 `bag_qos_accept_toy.py` 与 `accept_fixtures/`——仅 JSON 时间线；CI 不进二进制 MCAP。
+
+### QoS 覆盖 YAML 键 + 如实不确定性
+
+录制或回放时可传 `--qos-profile-overrides-path`，指向「topic → QoS 字段」的 YAML。从 Jazzy README 示例核对到的键：
 
 `history`、`depth`、`reliability`、`durability`、`deadline`（`sec`/`nsec`）、`lifespan`（`sec`/`nsec`）、`liveliness`、`liveliness_lease_duration`（`sec`/`nsec`）、`avoid_ros_namespace_conventions`。
 
-**不确定性（如实）：** 该 README 核实的是 YAML *键*，示例里 `durability: volatile`。它**没有**写 `transient_local` 的兼容 / 匹配边界。本课**不声称**在该 README 验证过该边界。同名的 docs.ros.org How-To 对本批为 **未解析 / 可选**（抓取常 403）；不要发明「用浏览器打开」的变通——本批以 GitHub Jazzy README 为已发表来源。某 YAML 键省略时的发行版默认回退：对照 Jazzy README schema，勿臆造键名。
+**不确定性边界（写在概念之后）：** Jazzy README 核实的是这些 YAML **键**，示例里 `durability: volatile`；它**本身没有**写完整的 transient_local 匹配表——该表在 About QoS（本课已成功抓取）。某键省略时的发行版默认回退：对照 README schema，勿臆造键名。docs.ros.org 上「录包/回放覆盖 QoS」How-To 在 About QoS + Jazzy README + recorder 源码已覆盖教学时为 **可选**。不要发明「为躲 403 用浏览器打开」的变通。
 
 CI 不进二进制 `.mcap` / 真 bag——只有 `accept_fixtures/` 下的 JSON 夹具。
+
 
 ```bash
 $ python3 bag_qos_accept_toy.py
@@ -132,12 +169,16 @@ QoS override YAML keys are taken from the ros2/rosbag2 **jazzy** README
 section "Overriding QoS Profiles":
   https://github.com/ros2/rosbag2/blob/jazzy/README.md
   (raw: https://raw.githubusercontent.com/ros2/rosbag2/jazzy/README.md)
-That README verifies the YAML *keys*; it does **not** document
-transient_local compatibility / matching boundaries — flagged below.
+That README verifies the YAML *keys* (example uses durability: volatile).
+The Request vs Offered model and durability compatibility table live in
+About QoS Settings (Jazzy):
+  https://docs.ros.org/en/jazzy/Concepts/Intermediate/About-Quality-of-Service-Settings.html
+Recorder default adapt: Rosbag2QoS::adapt_request_to_offers
+  (rosbag2_storage/.../qos.cpp; called from recorder.cpp).
 
 MCAP ROS 2 getting-started: https://mcap.dev/guides/getting-started/ros-2
-docs.ros.org QoS How-To HTML: unresolved / optional for this batch (fetch
-providers often 403); do not invent a "open in browser" workaround.
+docs.ros.org QoS How-To for record/playback: optional when About QoS +
+Jazzy README + recorder source already cover the teaching.
 
 No binary .mcap / real bags in CI — JSON timeline fixtures only.
 Live bag record, Foxglove, Rerun, wandb = 本页未运行.
@@ -205,7 +246,8 @@ def load_qos_keys(path: str) -> list[str]:
     keys: list[str] = []
     with open(path, encoding="utf-8") as f:
         for line in f:
-            raw = line.rstrip("\n")
+            raw = line.rstrip("
+")
             if not raw or raw.lstrip().startswith("#"):
                 continue
             # topic header: "/name:" at column 0
@@ -373,6 +415,6 @@ ok: acceptance ≠ folder_exists; synthetic fixtures only (no binary mcap; live 
 
 <Summary>
 
-用开发容器固定 ROS 2；用 action-ros-ci 构建/测试你的包（你的仓）。Jazzy rosbag2 默认 mcap（`get_default_storage_id()` → `"mcap"`）。`bag_stats.py` 在合成 mcap 时间线上报 3 次缺口。`bag_qos_accept_toy.py` 拒收缺 topic、缺口超限与低于预算；QoS 覆盖键来自 Jazzy rosbag2 README（其中未验证 transient_local 边界）。Foxglove/Rerun/wandb 是回放与实验工具；那些 GPU/GUI / 真机录包路径本页未运行。
+用开发容器固定 ROS 2；用 action-ros-ci 构建/测试你的包（你的仓）。Jazzy rosbag2 默认 mcap（`get_default_storage_id()` → `"mcap"`）。`bag_stats.py` 在合成 mcap 时间线上报 3 次缺口。`bag_qos_accept_toy.py` 拒收缺 topic、缺口超限与低于预算；F1 讲 Request vs Offered、默认 `adapt_request_to_offers` vs 覆盖、持久性晚加入（About QoS 表），YAML 键以 Jazzy README 为准。Foxglove/Rerun/wandb 是回放与实验工具；那些 GPU/GUI / 真机录包路径本页未运行。
 
 </Summary>

@@ -4,5 +4,8 @@ script_A: steps=configure,activate illegal_rejects=0 reached_active=1 final_stat
 script_A_log=configure:OK(Unconfigured->Inactive) | activate:OK(Inactive->Active)
 script_B: steps=activate,configure,activate illegal_rejects=1 reached_active=1 final_state=Active
 script_B_log=activate:REJECT(from=Unconfigured) | configure:OK(Unconfigured->Inactive) | activate:OK(Inactive->Active)
+script_C: steps=configure,activate,shutdown illegal_rejects=0 reached_active=1 final_state=Finalized
+script_C_log=configure:OK(Unconfigured->Inactive) | activate:OK(Inactive->Active) | shutdown:OK(Active->Finalized)
 never_permanent_death_after_illegal_activate=1
+reached_finalized_via_shutdown=1
 ok: managed-node lifecycle toy (LTTng/ros2_tracing/HW plugin load 本页未运行)

@@ -10,12 +10,16 @@ QoS override YAML keys are taken from the ros2/rosbag2 **jazzy** README
 section "Overriding QoS Profiles":
   https://github.com/ros2/rosbag2/blob/jazzy/README.md
   (raw: https://raw.githubusercontent.com/ros2/rosbag2/jazzy/README.md)
-That README verifies the YAML *keys*; it does **not** document
-transient_local compatibility / matching boundaries — flagged below.
+That README verifies the YAML *keys* (example uses durability: volatile).
+The Request vs Offered model and durability compatibility table live in
+About QoS Settings (Jazzy):
+  https://docs.ros.org/en/jazzy/Concepts/Intermediate/About-Quality-of-Service-Settings.html
+Recorder default adapt: Rosbag2QoS::adapt_request_to_offers
+  (rosbag2_storage/.../qos.cpp; called from recorder.cpp).
 
 MCAP ROS 2 getting-started: https://mcap.dev/guides/getting-started/ros-2
-docs.ros.org QoS How-To HTML: unresolved / optional for this batch (fetch
-providers often 403); do not invent a "open in browser" workaround.
+docs.ros.org QoS How-To for record/playback: optional when About QoS +
+Jazzy README + recorder source already cover the teaching.
 
 No binary .mcap / real bags in CI — JSON timeline fixtures only.
 Live bag record, Foxglove, Rerun, wandb = 本页未运行.

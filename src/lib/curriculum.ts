@@ -1046,11 +1046,11 @@ const month8Lessons: Lesson[] = [
       { zh: "能指出真机验证与 LTTng 追踪标「本页未运行」。", en: "Note that hardware verification and LTTng tracing are marked not run on this page." },
     ],
     prereqs: ["ros2-control", "moveit-pick-place", "so101-arm", "timing-interrupts"],
-    resources: ["ros2-control-hw-component", "ros2-control-joint-limiting", "ros2-realtime", "ros2-control-docs"],
+    resources: ["ros2-control-hw-component", "ros2-control-joint-limiting", "ros2-realtime", "ros2-control-docs", "ros2-node-lifecycle", "ros2-tracing"],
     tasks: [
       { id: "read", text: { zh: "阅读 control.ros.org（Jazzy）Writing a Hardware Component 目录", en: "Read the Jazzy Writing a Hardware Component outline on control.ros.org" } },
       { id: "skel", text: { zh: "运行 servo_bus_sim.py，确认超时从 122 降到 0，并浏览 so101_hw/ 骨架", en: "Run servo_bus_sim.py (timeouts 122→0) and skim the so101_hw/ skeleton" } },
-      { id: "lifecycle", text: { zh: "运行 lifecycle_sm_toy.py；核对 script A/B 的 illegal_rejects 与最终 Active，并写一句托管节点≠HardwareComponent", en: "Run lifecycle_sm_toy.py; check script A/B illegal_rejects and final Active; one sentence: managed node ≠ HardwareComponent" } },
+      { id: "lifecycle", text: { zh: "运行 lifecycle_sm_toy.py；核对 script A/B 的 illegal_rejects 与最终 Active，以及 script C 经 shutdown 到 Finalized；写一句托管节点≠HardwareComponent", en: "Run lifecycle_sm_toy.py; check script A/B illegal_rejects and final Active, and script C shutdown→Finalized; one sentence: managed node ≠ HardwareComponent" } },
       { id: "rt", text: { zh: "写两条实时循环禁忌（结合第 2 个月中断课）", en: "Write two real-time loop don'ts (tie back to Month 2 interrupts)" } },
       { id: "hw", text: { zh: "（选做，本页未运行）在本机 Jazzy 工作空间加载插件", en: "(Optional, not run here) load the plugin in a local Jazzy workspace" } },
     ],
@@ -1082,8 +1082,8 @@ const month8Lessons: Lesson[] = [
     slug: "robot-devops",
     title: { zh: "机器人工程化：容器、CI、日志与实验追踪", en: "Robot DevOps: containers, CI, logs and experiment tracking" },
     summary: {
-      zh: "Dev Container 固定 ROS 2 环境；action-ros-ci 做 colcon 构建测试；rosbag2 在 Jazzy 默认 mcap；Foxglove/Rerun 回放；wandb 追踪训练。CPU：bag_stats.py 统计合成时间线；bag_qos_accept_toy.py 做验收（缺 topic / 缺口 / 消息预算）与 QoS 覆盖键核对。",
-      en: "Pin ROS 2 with a Dev Container; build/test with action-ros-ci; rosbag2 defaults to mcap on Jazzy; replay in Foxglove/Rerun; track training with wandb. CPU: bag_stats.py on a synthetic timeline; bag_qos_accept_toy.py for acceptance (missing topic / gaps / message budget) and QoS override key checks.",
+      zh: "Dev Container 固定 ROS 2 环境；action-ros-ci 做 colcon 构建测试；rosbag2 在 Jazzy 默认 mcap；Foxglove/Rerun 回放；wandb 追踪训练。CPU：bag_stats.py 统计合成时间线；bag_qos_accept_toy.py 做验收（缺 topic / 缺口 / 消息预算）；并练习 offered→requested / 持久性晚加入推导与 QoS 覆盖键核对。",
+      en: "Pin ROS 2 with a Dev Container; build/test with action-ros-ci; rosbag2 defaults to mcap on Jazzy; replay in Foxglove/Rerun; track training with wandb. CPU: bag_stats.py on a synthetic timeline; bag_qos_accept_toy.py for acceptance (missing topic / gaps / message budget); practice offered→requested / durability late-joiner derivation and QoS override key checks.",
     },
     minutes: 360,
     objectives: [
@@ -1091,7 +1091,7 @@ const month8Lessons: Lesson[] = [
       { zh: "能说明 action-ros-ci 会跑 colcon build 与 colcon test（可跳过测试）。", en: "State that action-ros-ci runs colcon build and colcon test (tests optional to skip)." },
       { zh: "能证明 Jazzy 上 rosbag2 默认 storage_id 为 mcap，并读懂 bag_stats.py 的丢帧表。", en: "Show that Jazzy rosbag2 defaults to storage_id mcap, and read bag_stats.py's gap table." },
       { zh: "能说明 bag 验收≠文件夹存在：缺必需 topic（n==0）、缺口超限或低于消息预算即拒收。", en: "State that bag acceptance ≠ folder exists: reject on missing required topic (n==0), gap over limit, or below message budget." },
-      { zh: "能列出 Jazzy rosbag2 README「Overriding QoS Profiles」中的 YAML 键，并注明 transient_local 兼容边界未在该 README 验证。", en: "List YAML keys from the Jazzy rosbag2 README Overriding QoS Profiles section, and note that transient_local compatibility boundaries are not verified there." },
+      { zh: "能说明 Request vs Offered、默认 adapt_request_to_offers vs 手动 override，并用 About QoS 持久性兼容表解释晚加入 / latch；YAML 键以 Jazzy README 为准，完整匹配表在 About QoS。", en: "Explain Request vs Offered, default adapt_request_to_offers vs manual overrides, and late-join/latch via the About QoS durability table; YAML keys from the Jazzy README, full matching table from About QoS." },
       { zh: "能区分本课 CI 跑在学员自仓，与本站仓库无关。", en: "Distinguish student-repo CI from this site's repository." },
     ],
     prereqs: ["git-github", "ros2-graph", "ros2-hardware-interface"],
@@ -1099,6 +1099,7 @@ const month8Lessons: Lesson[] = [
     tasks: [
       { id: "run", text: { zh: "运行 bag_stats.py，核对 storage_id=mcap 与 total_gap_events=3", en: "Run bag_stats.py; confirm storage_id=mcap and total_gap_events=3" } },
       { id: "accept", text: { zh: "运行 bag_qos_accept_toy.py；确认缺 topic / 缺口 / 预算案例被拒，且固定消息预算例子未对调", en: "Run bag_qos_accept_toy.py; confirm missing-topic / gap / budget cases reject, and fixed message-budget examples are not swapped" } },
+      { id: "qos-derive", text: { zh: "按课文合成 offered 列表，推导 recorder 默认 requested vs override，并指出何种情况下缺 topic 夹具会拒收（无真机）", en: "From the lesson's synthetic offered list, derive default recorder requested vs override, and which missing-topic reject applies (no hardware)" } },
       { id: "devcontainer", text: { zh: "在自己的练习仓按官方指南加 .devcontainer（本站 CI 不跑它）", en: "Add .devcontainer to your practice repo per the official guide (not run in this site's CI)" } },
       { id: "ci", text: { zh: "草拟一份 action-ros-ci 工作流（包名换成你的）", en: "Draft an action-ros-ci workflow (your package name)" } },
       { id: "wandb", text: { zh: "读 SmolVLA/GR00T 文档里 wandb 相关开关，写一句用途", en: "Read the wandb flags in SmolVLA/GR00T docs; note one use" } },

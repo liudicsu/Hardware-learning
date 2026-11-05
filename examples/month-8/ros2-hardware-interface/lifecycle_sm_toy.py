@@ -15,6 +15,7 @@ state unchanged — they do NOT permanently brick the node.
 Script A: configure → activate → Active.
 Script B: activate from Unconfigured (illegal, reject) → still
           Unconfigured; then configure → activate → Active (recovery).
+Script C: configure → activate → shutdown → Finalized.
 Metrics: illegal_rejects, reached_active, final_state.
 
 Tracing / LTTng / real HardwareComponent load = 本页未运行.
@@ -75,10 +76,7 @@ def run_script(name: str, steps: list[str]) -> dict:
     node = ManagedLifecycleNode()
     for step in steps:
         node.request(step)
-    reached = 1 if node.state == ACTIVE or any(
-        "->Active" in e for e in node.transition_log
-    ) else 0
-    # reached_active means we successfully entered Active at least once
+    # reached_active: successfully entered Active at least once
     reached = 1 if any("->Active" in e for e in node.transition_log) else 0
     result = {
         "script": name,
@@ -103,8 +101,9 @@ def main() -> None:
 
     a = run_script("A", ["configure", "activate"])
     b = run_script("B", ["activate", "configure", "activate"])
+    c = run_script("C", ["configure", "activate", "shutdown"])
 
-    for r in (a, b):
+    for r in (a, b, c):
         print(
             f"script_{r['script']}: steps={','.join(r['steps'])} "
             f"illegal_rejects={r['illegal_rejects']} "
@@ -123,6 +122,11 @@ def main() -> None:
     # LOCKED: illegal activate must NOT mean permanently dead.
     assert b["final_state"] == ACTIVE
     print("never_permanent_death_after_illegal_activate=1")
+
+    assert c["illegal_rejects"] == 0
+    assert c["reached_active"] == 1
+    assert c["final_state"] == FINALIZED
+    print("reached_finalized_via_shutdown=1")
     print(
         "ok: managed-node lifecycle toy "
         "(LTTng/ros2_tracing/HW plugin load 本页未运行)"

@@ -18,6 +18,8 @@ Open the serial port in `on_configure`; enable in `on_activate`; `read` copies b
 
 ## Managed-node lifecycle ≠ HardwareComponent SM
 
+<Resource id="ros2-node-lifecycle" />
+
 **LOCKED:** the toy below implements the **managed ROS lifecycle node** state machine from [design.ros2.org — Managed nodes](https://design.ros2.org/articles/node_lifecycle.html). It is **not** the `HardwareComponentInterface` state machine. Never equate the two.
 
 | | **Managed ROS lifecycle node** | **ros2_control `HardwareComponentInterface`** |
@@ -34,7 +36,8 @@ Primary states in the design: `Unconfigured`, `Inactive`, `Active`, `Finalized`.
 ### `lifecycle_sm_toy.py`
 
 Script A: `configure` → `activate` → `Active` (`illegal_rejects=0`).  
-Script B: illegal `activate` from `Unconfigured` → rejected; then `configure` → `activate` → `Active` (`illegal_rejects=1`, still `reached_active=1`).
+Script B: illegal `activate` from `Unconfigured` → rejected; then `configure` → `activate` → `Active` (`illegal_rejects=1`, still `reached_active=1`).  
+Script C: `configure` → `activate` → `shutdown` → `Finalized` (`reached_active=1`, `final_state=Finalized`).
 
 ```bash
 $ cd ~/Hardware-learning/examples/month-8/ros2-hardware-interface
@@ -61,6 +64,7 @@ state unchanged — they do NOT permanently brick the node.
 Script A: configure → activate → Active.
 Script B: activate from Unconfigured (illegal, reject) → still
           Unconfigured; then configure → activate → Active (recovery).
+Script C: configure → activate → shutdown → Finalized.
 Metrics: illegal_rejects, reached_active, final_state.
 
 Tracing / LTTng / real HardwareComponent load = 本页未运行.
@@ -121,10 +125,7 @@ def run_script(name: str, steps: list[str]) -> dict:
     node = ManagedLifecycleNode()
     for step in steps:
         node.request(step)
-    reached = 1 if node.state == ACTIVE or any(
-        "->Active" in e for e in node.transition_log
-    ) else 0
-    # reached_active means we successfully entered Active at least once
+    # reached_active: successfully entered Active at least once
     reached = 1 if any("->Active" in e for e in node.transition_log) else 0
     result = {
         "script": name,
@@ -149,8 +150,9 @@ def main() -> None:
 
     a = run_script("A", ["configure", "activate"])
     b = run_script("B", ["activate", "configure", "activate"])
+    c = run_script("C", ["configure", "activate", "shutdown"])
 
-    for r in (a, b):
+    for r in (a, b, c):
         print(
             f"script_{r['script']}: steps={','.join(r['steps'])} "
             f"illegal_rejects={r['illegal_rejects']} "
@@ -169,6 +171,11 @@ def main() -> None:
     # LOCKED: illegal activate must NOT mean permanently dead.
     assert b["final_state"] == ACTIVE
     print("never_permanent_death_after_illegal_activate=1")
+
+    assert c["illegal_rejects"] == 0
+    assert c["reached_active"] == 1
+    assert c["final_state"] == FINALIZED
+    print("reached_finalized_via_shutdown=1")
     print(
         "ok: managed-node lifecycle toy "
         "(LTTng/ros2_tracing/HW plugin load 本页未运行)"
@@ -188,13 +195,18 @@ script_A: steps=configure,activate illegal_rejects=0 reached_active=1 final_stat
 script_A_log=configure:OK(Unconfigured->Inactive) | activate:OK(Inactive->Active)
 script_B: steps=activate,configure,activate illegal_rejects=1 reached_active=1 final_state=Active
 script_B_log=activate:REJECT(from=Unconfigured) | configure:OK(Unconfigured->Inactive) | activate:OK(Inactive->Active)
+script_C: steps=configure,activate,shutdown illegal_rejects=0 reached_active=1 final_state=Finalized
+script_C_log=configure:OK(Unconfigured->Inactive) | activate:OK(Inactive->Active) | shutdown:OK(Active->Finalized)
 never_permanent_death_after_illegal_activate=1
+reached_finalized_via_shutdown=1
 ok: managed-node lifecycle toy (LTTng/ros2_tracing/HW plugin load 本页未运行)
 ```
 
 </SimOutput>
 
 ### Tracing literacy (optional)
+
+<Resource id="ros2-tracing" />
 
 [`ros2/ros2_tracing`](https://github.com/ros2/ros2_tracing) and `rcl_lifecycle_transition` tracepoints can instrument **managed** lifecycle nodes. Overhead numbers in the literature (e.g. [arXiv 2201.00393v3](https://arxiv.org/html/2201.00393v3)) are paper figures only. **LTTng / live tracing = 本页未运行.** Do not claim hardware-component transitions are identically instrumented.
 
@@ -312,6 +324,6 @@ At **100 Hz** (period 10 ms) with pinned jitter, the naive path gets **naive_tim
 
 <Summary>
 
-Write a ros2_control hardware component: lifecycle `on_init`/`configure`/`activate`/…, export state/command interfaces, `read`/`write`, JointLimiter logs, real-time discipline (no alloc / no block on the hot path). Separately, `lifecycle_sm_toy.py` drills the **managed-node** SM (illegal activate rejected, then recoverable to Active) and contrasts it with `HardwareComponentInterface` — they are not the same SM. `servo_bus_sim.py` cuts timeouts from 122 to 0 with a budget guard. `so101_hw/` is a skeleton for your Jazzy workspace — 本页未运行. LTTng / live HW load 本页未运行.
+Write a ros2_control hardware component: lifecycle `on_init`/`configure`/`activate`/…, export state/command interfaces, `read`/`write`, JointLimiter logs, real-time discipline (no alloc / no block on the hot path). Separately, `lifecycle_sm_toy.py` drills the **managed-node** SM (illegal activate rejected then recoverable to Active; Script C reaches Finalized via shutdown) and contrasts it with `HardwareComponentInterface` — they are not the same SM. `servo_bus_sim.py` cuts timeouts from 122 to 0 with a budget guard. `so101_hw/` is a skeleton for your Jazzy workspace — 本页未运行. LTTng / live HW load 本页未运行.
 
 </Summary>
