@@ -117,7 +117,7 @@ with sensor direction d ∈ `{+1, −1}`, pole pairs p, and zero-electric offset
 - The **controller never receives** θ_e★. It only sees θ_m,meas (and reconstructed currents) and computes θ̂_e.
 - Ablation "wrong offset / wrong p" means the controller's θ̂_e is wrong while θ_e★ stays consistent with the plant. Both arms share the **same** measurement-noise draws.
 
-Plant assumptions (locked for this toy): series R, L per dq axis; back-EMF e_q ≈ k_e ω_e, e_d ≈ 0; **cross-coupling ω_e L i omitted on both arms** (never on one arm only). Outputs are SinePWM-shaped phase-voltage floats — no MCU timer.
+Plant assumptions (locked for this toy): series R, L per dq axis; back-EMF e_q ≈ k_e ω_e, e_d ≈ 0; **cross-coupling ω_e L i omitted on both arms** (never on one arm only). Outputs are SinePWM-shaped phase-voltage floats — no MCU timer. Also omitted: integrator anti-windup, and a real PWM DC-rail limit (V_LIM is only a soft ud/uq clamp); OMEGA_M is prescribed, and iq does not drive mechanics.
 
 `foc_current_loop_toy.py` runs three arms under identical noise: correct p/θ_e0; wrong θ_e0; wrong pole pairs. Metrics split controller-frame RMSE (what the PI sees) from **plant true-frame** RMSE (actual torque/flux axes). Under a wrong angle the controller frame can still "look fine" while the plant frame collapses — that is the point of alignment.
 
@@ -155,6 +155,13 @@ Metrics (LOCKED):
 Clarke / Park transforms that are not plant dynamics are algebraic identities.
 Cross-coupling omega*L*i terms are OMITTED on BOTH arms (locked).
 SinePWM-shaped phase voltage floats only — no MCU timer.
+
+Also OMITTED (stated in the lesson): anti-windup on the integrators; a real
+PWM DC-rail / duty limit (V_LIM is a soft clamp on ud/uq only). With the
+chosen gains and back-EMF, all three arms report sat=0 (clamp never hits).
+Mechanics: OMEGA_M is a prescribed constant; iq is a torque *proxy* and does
+NOT integrate rotor speed. Forward-Euler on the R–L ODE needs DT << L/R
+(here DT=1e-4 s, L/R≈2.1 ms).
 """
 import math
 import random
@@ -217,6 +224,7 @@ def run_arm(p_ctrl, theta_e0_ctrl, noise_theta, noise_i):
     int_q = 0.0
     s_ctrl_id = s_ctrl_iq = s_plant_id = s_plant_iq = s_ang = 0.0
     n_metric = 0
+    sat_hits = 0
     ua = ub = uc = 0.0
 
     for k in range(N):
@@ -237,10 +245,14 @@ def run_arm(p_ctrl, theta_e0_ctrl, noise_theta, noise_i):
 
         err_d = ID_REF - id_meas
         err_q = IQ_REF - iq_meas
-        int_d += err_d * DT
+        int_d += err_d * DT  # no anti-windup (omitted)
         int_q += err_q * DT
-        ud = max(-V_LIM, min(V_LIM, KP_D * err_d + KI_D * int_d))
-        uq = max(-V_LIM, min(V_LIM, KP_Q * err_q + KI_Q * int_q))
+        ud_raw = KP_D * err_d + KI_D * int_d
+        uq_raw = KP_Q * err_q + KI_Q * int_q
+        ud = max(-V_LIM, min(V_LIM, ud_raw))
+        uq = max(-V_LIM, min(V_LIM, uq_raw))
+        if ud != ud_raw or uq != uq_raw:
+            sat_hits += 1  # soft ud/uq clamp only; not a real PWM rail
 
         ual, ubt = inv_park(ud, uq, hat_theta_e)
         ua, ub, uc = inv_clarke(ual, ubt)
@@ -268,6 +280,7 @@ def run_arm(p_ctrl, theta_e0_ctrl, noise_theta, noise_i):
         "plant_id_rmse": math.sqrt(s_plant_id / n_metric),
         "plant_iq_rmse": math.sqrt(s_plant_iq / n_metric),
         "ang_rmse": math.sqrt(s_ang / n_metric),
+        "sat_hits": sat_hits,
         "ua": ua, "ub": ub, "uc": uc,
     }
 
@@ -301,6 +314,11 @@ print(f"bad_pp_plant_iq_rmse={bad_p['plant_iq_rmse']:.6f}")
 print(f"bad_pp_plant_id_rmse={bad_p['plant_id_rmse']:.6f}")
 print(f"bad_pp_ang_rmse={bad_p['ang_rmse']:.6f}")
 print(f"ok_ua={ok['ua']:.6f} ok_ub={ok['ub']:.6f} ok_uc={ok['uc']:.6f}")
+print(f"ok_sat={ok['sat_hits']} bad_offset_sat={bad_off['sat_hits']} bad_pp_sat={bad_p['sat_hits']}")
+print("anti_windup=omitted")
+print("pwm_rail_limit=omitted")  # V_LIM is soft ud/uq clamp only
+print(f"omega_m_prescribed={OMEGA_M:.1f}")  # iq is torque proxy; does not drive mechanics
+print(f"euler_dt={DT:.1e} L_over_R={L/R:.4e}")
 print("plant_vs_controller=theta_e_star_not_fed_to_ctrl")
 
 assert bad_off["ang_rmse"] > 10 * ok["ang_rmse"]
@@ -309,6 +327,7 @@ assert bad_off["plant_iq_rmse"] > 2 * ok["plant_iq_rmse"]
 assert bad_p["plant_iq_rmse"] > 2 * ok["plant_iq_rmse"]
 assert bad_off["plant_id_rmse"] > 2 * ok["plant_id_rmse"]
 assert bad_p["plant_id_rmse"] > 2 * ok["plant_id_rmse"]
+assert ok["sat_hits"] == 0 and bad_off["sat_hits"] == 0 and bad_p["sat_hits"] == 0
 # Controller can still look OK under constant offset — do NOT require ctrl degrade
 print("asserts_ok=true")
 ```
@@ -338,6 +357,11 @@ bad_pp_plant_iq_rmse=1.541919
 bad_pp_plant_id_rmse=0.761119
 bad_pp_ang_rmse=2.241386
 ok_ua=2.182588 ok_ub=-2.755060 ok_uc=0.572472
+ok_sat=0 bad_offset_sat=0 bad_pp_sat=0
+anti_windup=omitted
+pwm_rail_limit=omitted
+omega_m_prescribed=6.0
+euler_dt=1.0e-04 L_over_R=2.0833e-03
 plant_vs_controller=theta_e_star_not_fed_to_ctrl
 asserts_ok=true
 ```
@@ -350,6 +374,9 @@ How to read it:
 - Wrong offset (+0.55 rad): controller-frame iq RMSE still about **0.017973** (barely worse), but plant-frame iq = **0.147186**, id = **0.522397**, angle = **0.550069**.
 - Wrong pole pairs (5 vs 7): plant-frame iq = **1.541919**, id = **0.761119**, angle = **2.241386**.
 - `plant_model=R_L_circuit`, `plant_vs_controller=theta_e_star_not_fed_to_ctrl`, `cross_coupling=omitted_both_arms`.
+- All three arms: `ok_sat=0` / `bad_offset_sat=0` / `bad_pp_sat=0` — `V_LIM` is a soft ud/uq clamp only, **not** a real PWM rail; integrators have **no anti-windup**.
+- `OMEGA_M=6.0` is a **prescribed** rate; iq is a torque proxy and does **not** integrate rotor mechanics. Forward Euler `DT=1e-4`, `L/R≈2.0833e-03` (need DT ≪ L/R).
+
 
 ## SimpleFOC reading map
 
@@ -386,6 +413,8 @@ If you already have an ESP32 + a suitable driver board: build and flash the Simp
 - Treating this lesson as "you must replace STS3215."
 - Reading "RL plant" as reinforcement learning.
 - Letting the simulator leak θ_e★ into the controller path.
+- Treating the V_LIM soft clamp as a real PWM rail limit, or assuming this toy has anti-windup.
+- Assuming iq changes OMEGA_M (mechanics are not modelled here).
 - Treating a third-party blog BOM as a site fact.
 
 **Self-check**

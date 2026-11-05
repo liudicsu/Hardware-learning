@@ -1551,22 +1551,22 @@ const month11Lessons: Lesson[] = [
     slug: "foc-actuator-lab",
     title: { zh: "FOC 执行器：电角度、dq 电流环与 SimpleFOC 阅读图", en: "FOC actuators: electrical angle, dq current loop and SimpleFOC reading map" },
     summary: {
-      zh: "接 M2「FOC 以后再说」：Clarke–Park 往返（代数恒等式）+ 电角度 θ̂_e = normalize(d·p·θ_m − θ_e0) + 电阻–电感（R–L）电路模型上的 dq PI→相电压。植物真值 θ_e★ 只在仿真器内，控制器从不接收。标准库玩具；开环刷机本页未运行。不强制购买 BLDC 套件，不替换 SO-101 总线舵机。R–L ≠ 强化学习。",
+      zh: "接 M2「FOC 以后再说」：Clarke–Park 往返（代数恒等式）+ 电角度 θ̂_e = normalize(d·p·θ_m − θ_e0) + 电阻–电感（R–L）电路模型上的 dq PI→相电压。被控对象真值 θ_e★ 只在仿真器内，控制器从不接收。标准库玩具；开环刷机本页未运行。不强制购买 BLDC 套件，不替换 SO-101 总线舵机。R–L ≠ 强化学习。",
       en: "Picks up Month 2's 'FOC can wait': Clarke–Park round-trip (algebraic identity) + electrical angle θ̂_e = normalize(d·p·θ_m − θ_e0) + dq PI → phase voltages on an R–L circuit plant. Ground-truth θ_e★ lives only inside the simulator; the controller never receives it. Standard-library toys; open-loop flashing is not run here. No required BLDC kit; does not replace SO-101 bus servos. R–L ≠ reinforcement learning.",
     },
     minutes: 480,
     objectives: [
       { zh: "能说明为什么 90° 时力矩/安培最大，以及 id=0、iq=τ/Kt。", en: "Explain why torque per amp peaks at 90°, and state id=0, iq=τ/Kt." },
-      { zh: "能写出 Clarke / Park 与逆变换，并说明它们是代数恒等式、不是植物动力学。", en: "Write Clarke / Park and the inverses, and state they are algebraic identities, not plant dynamics." },
-      { zh: "能写出电角度公式，并说明植物真值 θ_e★ 与控制器估计 θ̂_e 必须分开。", en: "Write the electrical-angle formula and state that plant θ_e★ and controller θ̂_e must stay separate." },
-      { zh: "能在同一噪声下比较正确对齐 vs 错 offset / 错极对数的植物帧 iq/id RMSE。", en: "Under identical noise, compare plant-frame iq/id RMSE for correct alignment vs wrong offset / wrong pole pairs." },
+      { zh: "能写出 Clarke / Park 与逆变换，并说明它们是代数恒等式、不是被控对象动力学。", en: "Write Clarke / Park and the inverses, and state they are algebraic identities, not plant dynamics." },
+      { zh: "能写出电角度公式，并说明被控对象真值 θ_e★ 与控制器估计 θ̂_e 必须分开。", en: "Write the electrical-angle formula and state that plant θ_e★ and controller θ̂_e must stay separate." },
+      { zh: "能在同一噪声下比较正确对齐 vs 错 offset / 错极对数的被控对象帧 iq/id RMSE。", en: "Under identical noise, compare plant-frame iq/id RMSE for correct alignment vs wrong offset / wrong pole pairs." },
       { zh: "能说出 Commander 串口与 micro-ROS 两条路径，以及为何先串口；刷机需限流与急停。", en: "Name the Commander-serial and micro-ROS paths, why serial comes first, and that flashing needs current limits and e-stop." },
     ],
     prereqs: ["motors-drivers", "pid-control", "esp32"],
     resources: ["simplefoc-foc-theory", "simplefoc-foc-implementation", "simplefoc-alignment", "simplefoc-voltage-torque", "simplefoc-home", "simplefoc"],
     tasks: [
       { id: "run", text: { zh: "运行 clarke_park_toy.py，核对 expected/clarke_park_toy.txt", en: "Run clarke_park_toy.py and match expected/clarke_park_toy.txt" } },
-      { id: "current", text: { zh: "运行 foc_current_loop_toy.py，核对植物帧误差在错 offset / 错 p 时变大，而控制器帧仍可能看起来还行", en: "Run foc_current_loop_toy.py and confirm plant-frame error grows under wrong offset / wrong p while the controller frame can still look fine" } },
+      { id: "current", text: { zh: "运行 foc_current_loop_toy.py，核对被控对象帧误差在错 offset / 错 p 时变大，而控制器帧仍可能看起来还行", en: "Run foc_current_loop_toy.py and confirm plant-frame error grows under wrong offset / wrong p while the controller frame can still look fine" } },
       { id: "theta", text: { zh: "把 clarke_park_toy 的 θ 改成 π/3，确认 sum_abc 仍≈0", en: "Set θ to π/3 in clarke_park_toy and confirm sum_abc stays ≈0" } },
       { id: "map", text: { zh: "用自己的话写出 Commander → micro-ROS 的两步阅读顺序", en: "In your words, write the two-step reading order Commander → micro-ROS" } },
       { id: "optional", text: { zh: "（选做，本页未运行，以当期文档为准）在已有 ESP32 + 驱动板上跑 SimpleFOC 开环速度示例", en: "(Optional, not run here; follow the current docs) run the SimpleFOC open-loop velocity example on an existing ESP32 + driver board" } },
@@ -1947,8 +1947,8 @@ export const months: Month[] = [
     slug: "month-11",
     title: { zh: "执行器硬件、触觉接触与跨本体采集", en: "Actuator hardware, tactile contact & cross-embodiment collection" },
     goal: {
-      zh: "能给桌面机械臂写一张电源与 EMC 卫生清单，读懂 FOC 的 Clarke–Park 变换并用标准库玩具验证，比较光学与磁触觉传感器的替换成本与信号一致性；再用相对轨迹理解 UMI 式野外采集，分析 OXE 式跨本体失衡，读完人形全身控制的阅读图，并把触觉折进接触丰富的模仿策略。",
-      en: "Write a power and EMC hygiene checklist for a desktop arm, verify Clarke–Park FOC transforms on a stdlib toy, compare optical vs magnetic tactile replaceability, then use relative trajectories for UMI-style collection, analyse OXE-style cross-embodiment skew, finish a humanoid WBC reading map, and fold touch into contact-rich imitation.",
+      zh: "能给桌面机械臂写一张电源与 EMC 卫生清单（含往返压降与熔断器数据门禁），读懂 FOC 的 Clarke–Park 恒等式与 R–L 电路上的 dq 电流环并用标准库玩具验证电角度对齐，比较光学与磁触觉传感器的替换成本与信号一致性；再用相对轨迹理解 UMI 式野外采集，分析 OXE 式跨本体失衡，读完人形全身控制的阅读图，并把触觉折进接触丰富的模仿策略。",
+      en: "Write a power and EMC hygiene checklist for a desktop arm (including round-trip drop and fuse data gates), verify Clarke–Park identities and a dq current loop on an R–L circuit for electrical-angle alignment on a stdlib toy, compare optical vs magnetic tactile replaceability, then use relative trajectories for UMI-style collection, analyse OXE-style cross-embodiment skew, finish a humanoid WBC reading map, and fold touch into contact-rich imitation.",
     },
     topics: [
       { zh: "整机电源、电池包与 EMC 布线", en: "Robot power, battery packs and EMC wiring" },

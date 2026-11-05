@@ -25,6 +25,13 @@ Metrics (LOCKED):
 Clarke / Park transforms that are not plant dynamics are algebraic identities.
 Cross-coupling omega*L*i terms are OMITTED on BOTH arms (locked).
 SinePWM-shaped phase voltage floats only — no MCU timer.
+
+Also OMITTED (stated in the lesson): anti-windup on the integrators; a real
+PWM DC-rail / duty limit (V_LIM is a soft clamp on ud/uq only). With the
+chosen gains and back-EMF, all three arms report sat=0 (clamp never hits).
+Mechanics: OMEGA_M is a prescribed constant; iq is a torque *proxy* and does
+NOT integrate rotor speed. Forward-Euler on the R–L ODE needs DT << L/R
+(here DT=1e-4 s, L/R≈2.1 ms).
 """
 import math
 import random
@@ -87,6 +94,7 @@ def run_arm(p_ctrl, theta_e0_ctrl, noise_theta, noise_i):
     int_q = 0.0
     s_ctrl_id = s_ctrl_iq = s_plant_id = s_plant_iq = s_ang = 0.0
     n_metric = 0
+    sat_hits = 0
     ua = ub = uc = 0.0
 
     for k in range(N):
@@ -107,10 +115,14 @@ def run_arm(p_ctrl, theta_e0_ctrl, noise_theta, noise_i):
 
         err_d = ID_REF - id_meas
         err_q = IQ_REF - iq_meas
-        int_d += err_d * DT
+        int_d += err_d * DT  # no anti-windup (omitted)
         int_q += err_q * DT
-        ud = max(-V_LIM, min(V_LIM, KP_D * err_d + KI_D * int_d))
-        uq = max(-V_LIM, min(V_LIM, KP_Q * err_q + KI_Q * int_q))
+        ud_raw = KP_D * err_d + KI_D * int_d
+        uq_raw = KP_Q * err_q + KI_Q * int_q
+        ud = max(-V_LIM, min(V_LIM, ud_raw))
+        uq = max(-V_LIM, min(V_LIM, uq_raw))
+        if ud != ud_raw or uq != uq_raw:
+            sat_hits += 1  # soft ud/uq clamp only; not a real PWM rail
 
         ual, ubt = inv_park(ud, uq, hat_theta_e)
         ua, ub, uc = inv_clarke(ual, ubt)
@@ -138,6 +150,7 @@ def run_arm(p_ctrl, theta_e0_ctrl, noise_theta, noise_i):
         "plant_id_rmse": math.sqrt(s_plant_id / n_metric),
         "plant_iq_rmse": math.sqrt(s_plant_iq / n_metric),
         "ang_rmse": math.sqrt(s_ang / n_metric),
+        "sat_hits": sat_hits,
         "ua": ua, "ub": ub, "uc": uc,
     }
 
@@ -171,6 +184,11 @@ print(f"bad_pp_plant_iq_rmse={bad_p['plant_iq_rmse']:.6f}")
 print(f"bad_pp_plant_id_rmse={bad_p['plant_id_rmse']:.6f}")
 print(f"bad_pp_ang_rmse={bad_p['ang_rmse']:.6f}")
 print(f"ok_ua={ok['ua']:.6f} ok_ub={ok['ub']:.6f} ok_uc={ok['uc']:.6f}")
+print(f"ok_sat={ok['sat_hits']} bad_offset_sat={bad_off['sat_hits']} bad_pp_sat={bad_p['sat_hits']}")
+print("anti_windup=omitted")
+print("pwm_rail_limit=omitted")  # V_LIM is soft ud/uq clamp only
+print(f"omega_m_prescribed={OMEGA_M:.1f}")  # iq is torque proxy; does not drive mechanics
+print(f"euler_dt={DT:.1e} L_over_R={L/R:.4e}")
 print("plant_vs_controller=theta_e_star_not_fed_to_ctrl")
 
 assert bad_off["ang_rmse"] > 10 * ok["ang_rmse"]
@@ -179,5 +197,6 @@ assert bad_off["plant_iq_rmse"] > 2 * ok["plant_iq_rmse"]
 assert bad_p["plant_iq_rmse"] > 2 * ok["plant_iq_rmse"]
 assert bad_off["plant_id_rmse"] > 2 * ok["plant_id_rmse"]
 assert bad_p["plant_id_rmse"] > 2 * ok["plant_id_rmse"]
+assert ok["sat_hits"] == 0 and bad_off["sat_hits"] == 0 and bad_p["sat_hits"] == 0
 # Controller can still look OK under constant offset — do NOT require ctrl degrade
 print("asserts_ok=true")

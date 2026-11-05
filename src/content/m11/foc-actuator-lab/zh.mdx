@@ -1,6 +1,6 @@
 本课是本站补充内容——第 7–11 个月不属于原六个月课程。
 
-**范围。** [2.3 电机与驱动](/zh/month/month-2/motors-drivers) 讲有刷 DC / 步进，并对 FOC 说「以后再说」；[3.4 PID](/zh/month/month-3/pid-control) 与 [2.2 ESP32](/zh/month/month-2/esp32) 是本课可选刷机路径的前置。本课 = **Clarke–Park 数学（代数恒等式）+ 电角度与电阻–电感（R–L）电路模型上的 dq 电流环 + SimpleFOC 文档阅读图 + micro-ROS 路径图**。植物真值电角度 θ_e★ 只存在于仿真器；控制器只看到带噪的 θ_m,meas 与电流，再算 θ̂_e。**R–L 电路 ≠ 强化学习。** 不强制购买 BLDC 套件，不替换 SO-101 的 STS3215 总线舵机。只说明「自研关节 / 轮毂」何时需要 FOC。micro-ROS agent / 刷机 / 电流传感对齐不进 CI；开环速度示例刷到已有 ESP32 标注本页未运行（需驱动板；强调电流限制与急停，链 [8.5](/zh/month/month-8/safety-reliability)）。本课也不替代 8.7 毕业项目。
+**范围。** [2.3 电机与驱动](/zh/month/month-2/motors-drivers) 讲有刷 DC / 步进，并对 FOC 说「以后再说」；[3.4 PID](/zh/month/month-3/pid-control) 与 [2.2 ESP32](/zh/month/month-2/esp32) 是本课可选刷机路径的前置。本课 = **Clarke–Park 数学（代数恒等式）+ 电角度与电阻–电感（R–L）电路模型上的 dq 电流环 + SimpleFOC 文档阅读图 + micro-ROS 路径图**。被控对象真值电角度 θ_e★ 只存在于仿真器；控制器只看到带噪的 θ_m,meas 与电流，再算 θ̂_e。**R–L 电路 ≠ 强化学习。** 不强制购买 BLDC 套件，不替换 SO-101 的 STS3215 总线舵机。只说明「自研关节 / 轮毂」何时需要 FOC。micro-ROS agent / 刷机 / 电流传感对齐不进 CI；开环速度示例刷到已有 ESP32 标注本页未运行（需驱动板；强调电流限制与急停，链 [8.5](/zh/month/month-8/safety-reliability)）。本课也不替代 8.7 毕业项目。
 
 ## 为什么要 90°
 
@@ -14,7 +14,7 @@
 2. **静止 αβ**（Clarke）：两正交分量；平衡时 i_α = i_a，i_β = (i_a + 2 i_b)/√3。
 3. **旋转 dq**（Park）：随转子电角度 θ_e 转；AC 变成近似 DC，可用普通 PI。
 
-逆变换：dq → αβ（逆 Park）→ abc（逆 Clarke）得到三相电压，再经 PWM 驱动。这些变换本身是**代数恒等式**，不是植物动力学——下一节的 R–L 电路才是植物。步进电机两相已正交，可省 Clarke。
+逆变换：dq → αβ（逆 Park）→ abc（逆 Clarke）得到三相电压，再经 PWM 驱动。这些变换本身是**代数恒等式**，不是被控对象动力学——下一节的 R–L 电路才是被控对象。步进电机两相已正交，可省 Clarke。
 
 <Resource id="simplefoc-foc-theory" />
 <Resource id="simplefoc-foc-implementation" />
@@ -113,13 +113,13 @@ SimpleFOC 风格电角度：
 
 **仿真器 vs 控制器（强制合同）：**
 
-- **物理真值** θ_e★ 只在植物积分器里用（反电动势 / 虚构电机如何转）。
+- **物理真值** θ_e★ 只在电路模型积分器里用（反电动势 / 虚构电机如何转）。
 - **控制器从不接收** θ_e★。它只看到 θ_m,meas（与重构电流），再算 θ̂_e。
-- 「错 offset / 错 p」消融 = 控制器的 θ̂_e 错，而 θ_e★ 仍与植物一致。两臂使用**同一组**测量噪声。
+- 「错 offset / 错 p」消融 = 控制器的 θ̂_e 错，而 θ_e★ 仍与被控对象一致。两臂使用**同一组**测量噪声。
 
-植物假设（本玩具锁定）：每轴串联 R、L；反电动势 e_q ≈ k_e ω_e、e_d ≈ 0；**交叉耦合项 ω_e L i 在两臂都省略**（不是只省略一臂）。输出 SinePWM 形状的相电压浮点——没有 MCU 定时器。
+电路模型假设（本玩具锁定）：每轴串联 R、L；反电动势 e_q ≈ k_e ω_e、e_d ≈ 0；**交叉耦合项 ω_e L i 在两臂都省略**（不是只省略一臂）。输出 SinePWM 形状的相电压浮点——没有 MCU 定时器。另省略：积分抗饱和、真实 PWM 母线限制（V_LIM 仅为 ud/uq 软钳位）；OMEGA_M 为规定值，iq 不驱动机械。
 
-`foc_current_loop_toy.py` 在同一噪声下跑三臂：正确 p/θ_e0；错 θ_e0；错极对数。指标分控制器帧 RMSE（PI 看见的）与**植物真值帧** RMSE（实际力矩/磁通轴）。错角度时控制器帧仍可能「看起来还行」，植物帧会垮——这正是对齐的意义。
+`foc_current_loop_toy.py` 在同一噪声下跑三臂：正确 p/θ_e0；错 θ_e0；错极对数。指标分控制器帧 RMSE（PI 看见的）与**被控对象真值帧** RMSE（实际力矩/磁通轴）。错角度时控制器帧仍可能「看起来还行」，被控对象帧会垮——这正是对齐的意义。
 
 ```bash
 $ python3 foc_current_loop_toy.py
@@ -155,6 +155,13 @@ Metrics (LOCKED):
 Clarke / Park transforms that are not plant dynamics are algebraic identities.
 Cross-coupling omega*L*i terms are OMITTED on BOTH arms (locked).
 SinePWM-shaped phase voltage floats only — no MCU timer.
+
+Also OMITTED (stated in the lesson): anti-windup on the integrators; a real
+PWM DC-rail / duty limit (V_LIM is a soft clamp on ud/uq only). With the
+chosen gains and back-EMF, all three arms report sat=0 (clamp never hits).
+Mechanics: OMEGA_M is a prescribed constant; iq is a torque *proxy* and does
+NOT integrate rotor speed. Forward-Euler on the R–L ODE needs DT << L/R
+(here DT=1e-4 s, L/R≈2.1 ms).
 """
 import math
 import random
@@ -217,6 +224,7 @@ def run_arm(p_ctrl, theta_e0_ctrl, noise_theta, noise_i):
     int_q = 0.0
     s_ctrl_id = s_ctrl_iq = s_plant_id = s_plant_iq = s_ang = 0.0
     n_metric = 0
+    sat_hits = 0
     ua = ub = uc = 0.0
 
     for k in range(N):
@@ -237,10 +245,14 @@ def run_arm(p_ctrl, theta_e0_ctrl, noise_theta, noise_i):
 
         err_d = ID_REF - id_meas
         err_q = IQ_REF - iq_meas
-        int_d += err_d * DT
+        int_d += err_d * DT  # no anti-windup (omitted)
         int_q += err_q * DT
-        ud = max(-V_LIM, min(V_LIM, KP_D * err_d + KI_D * int_d))
-        uq = max(-V_LIM, min(V_LIM, KP_Q * err_q + KI_Q * int_q))
+        ud_raw = KP_D * err_d + KI_D * int_d
+        uq_raw = KP_Q * err_q + KI_Q * int_q
+        ud = max(-V_LIM, min(V_LIM, ud_raw))
+        uq = max(-V_LIM, min(V_LIM, uq_raw))
+        if ud != ud_raw or uq != uq_raw:
+            sat_hits += 1  # soft ud/uq clamp only; not a real PWM rail
 
         ual, ubt = inv_park(ud, uq, hat_theta_e)
         ua, ub, uc = inv_clarke(ual, ubt)
@@ -268,6 +280,7 @@ def run_arm(p_ctrl, theta_e0_ctrl, noise_theta, noise_i):
         "plant_id_rmse": math.sqrt(s_plant_id / n_metric),
         "plant_iq_rmse": math.sqrt(s_plant_iq / n_metric),
         "ang_rmse": math.sqrt(s_ang / n_metric),
+        "sat_hits": sat_hits,
         "ua": ua, "ub": ub, "uc": uc,
     }
 
@@ -301,6 +314,11 @@ print(f"bad_pp_plant_iq_rmse={bad_p['plant_iq_rmse']:.6f}")
 print(f"bad_pp_plant_id_rmse={bad_p['plant_id_rmse']:.6f}")
 print(f"bad_pp_ang_rmse={bad_p['ang_rmse']:.6f}")
 print(f"ok_ua={ok['ua']:.6f} ok_ub={ok['ub']:.6f} ok_uc={ok['uc']:.6f}")
+print(f"ok_sat={ok['sat_hits']} bad_offset_sat={bad_off['sat_hits']} bad_pp_sat={bad_p['sat_hits']}")
+print("anti_windup=omitted")
+print("pwm_rail_limit=omitted")  # V_LIM is soft ud/uq clamp only
+print(f"omega_m_prescribed={OMEGA_M:.1f}")  # iq is torque proxy; does not drive mechanics
+print(f"euler_dt={DT:.1e} L_over_R={L/R:.4e}")
 print("plant_vs_controller=theta_e_star_not_fed_to_ctrl")
 
 assert bad_off["ang_rmse"] > 10 * ok["ang_rmse"]
@@ -309,6 +327,7 @@ assert bad_off["plant_iq_rmse"] > 2 * ok["plant_iq_rmse"]
 assert bad_p["plant_iq_rmse"] > 2 * ok["plant_iq_rmse"]
 assert bad_off["plant_id_rmse"] > 2 * ok["plant_id_rmse"]
 assert bad_p["plant_id_rmse"] > 2 * ok["plant_id_rmse"]
+assert ok["sat_hits"] == 0 and bad_off["sat_hits"] == 0 and bad_p["sat_hits"] == 0
 # Controller can still look OK under constant offset — do NOT require ctrl degrade
 print("asserts_ok=true")
 ```
@@ -338,6 +357,11 @@ bad_pp_plant_iq_rmse=1.541919
 bad_pp_plant_id_rmse=0.761119
 bad_pp_ang_rmse=2.241386
 ok_ua=2.182588 ok_ub=-2.755060 ok_uc=0.572472
+ok_sat=0 bad_offset_sat=0 bad_pp_sat=0
+anti_windup=omitted
+pwm_rail_limit=omitted
+omega_m_prescribed=6.0
+euler_dt=1.0e-04 L_over_R=2.0833e-03
 plant_vs_controller=theta_e_star_not_fed_to_ctrl
 asserts_ok=true
 ```
@@ -346,10 +370,13 @@ asserts_ok=true
 
 怎么读：
 
-- 正确对齐：植物帧 iq RMSE = **0.003842**、id = **0.006129**，角度 RMSE = **0.010624**。
-- 错 offset（+0.55 rad）：控制器帧 iq RMSE 仍约 **0.017973**（几乎不差），但植物帧 iq = **0.147186**、id = **0.522397**，角度 = **0.550069**。
-- 错极对数（5 vs 7）：植物帧 iq = **1.541919**、id = **0.761119**，角度 = **2.241386**。
+- 正确对齐：被控对象帧 iq RMSE = **0.003842**、id = **0.006129**，角度 RMSE = **0.010624**。
+- 错 offset（+0.55 rad）：控制器帧 iq RMSE 仍约 **0.017973**（几乎不差），但被控对象帧 iq = **0.147186**、id = **0.522397**，角度 = **0.550069**。
+- 错极对数（5 vs 7）：被控对象帧 iq = **1.541919**、id = **0.761119**，角度 = **2.241386**。
 - `plant_model=R_L_circuit`、`plant_vs_controller=theta_e_star_not_fed_to_ctrl`、`cross_coupling=omitted_both_arms`。
+- 三臂 `ok_sat=0` / `bad_offset_sat=0` / `bad_pp_sat=0`：`V_LIM` 只是 ud/uq 软钳位，**不是**真实 PWM 母线限制；积分器**无抗饱和**。
+- `OMEGA_M=6.0` 为**规定角速度**；iq 是力矩代理，**不**积分转子力学。前向欧拉 `DT=1e-4`，`L/R≈2.0833e-03`（需 DT ≪ L/R）。
+
 
 ## SimpleFOC 阅读图
 
@@ -375,7 +402,7 @@ asserts_ok=true
 
 - FOC 用变换保持 90°：目标 id=0、iq=τ/Kt；Clarke–Park 是恒等式。
 - 往返玩具 id_err / iq_err = 0.000e+00，sum_abc = 0.000e+00。
-- R–L 电路电流环：正确对齐植物帧 iq RMSE 0.003842；错 offset / 错 p 时植物帧显著变差，控制器帧可能仍好看。
+- R–L 电路电流环：正确对齐被控对象帧 iq RMSE 0.003842；错 offset / 错 p 时被控对象帧显著变差，控制器帧可能仍好看。
 - θ_e★ 不喂给控制器；R–L ≠ 强化学习。
 - 先 Commander 串口，再考虑 micro-ROS；刷机本页未运行。
 - 不强制买 BLDC；不替换 SO-101 总线舵机。
@@ -384,8 +411,10 @@ asserts_ok=true
 
 - 没限流就开环全速刷机。
 - 把本课当成「必须换掉 STS3215」。
-- 把「RL 植物」读成强化学习。
+- 把「R–L 电路模型 / 被控对象」读成强化学习。
 - 让仿真器把 θ_e★ 泄漏进控制器路径。
+- 把 V_LIM 软钳位当成真实 PWM 母线限制，或以为本玩具有抗饱和。
+- 以为 iq 会改变 OMEGA_M（本玩具力学未建模）。
 - 把第三方博客的零件表当本站事实。
 
 **自检**

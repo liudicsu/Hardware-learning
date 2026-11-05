@@ -3592,8 +3592,9 @@ const lessonRef = (n, slug, lang) => {
       grab(pwrRt, /V_drop_roundtrip_short=([0-9.]+)/, "pwrRt drop_short"),
       grab(pwrRt, /V_at_load_roundtrip_long=([0-9.]+)/, "pwrRt load_long"),
       grab(pwrRt, /P_i2r_peak_short_W=([0-9.]+)/, "pwrRt i2r_peak"),
+      grab(pwrRt, /I_cont_total=([0-9.]+)/, "pwrRt I_cont"),
       grab(pwrRt, /protection_status_default=([a-z_]+)/, "pwrRt status_default"),
-      grab(pwrRt, /hits_V_floor_first=([a-z]+)/, "pwrRt hits_floor"),
+      grab(pwrRt, /hits_V_floor=([a-z_]+)/, "pwrRt hits_floor"),
     ],
     "foc-actuator-lab": [
       grab(foc, /theta_rad=([0-9.]+)/, "foc theta"),
@@ -3605,6 +3606,7 @@ const lessonRef = (n, slug, lang) => {
       grab(focLoop, /bad_pp_plant_iq_rmse=([0-9.]+)/, "focLoop bad_pp_plant_iq"),
       grab(focLoop, /ok_ang_rmse=([0-9.]+)/, "focLoop ok_ang"),
       grab(focLoop, /bad_offset_ang_rmse=([0-9.]+)/, "focLoop bad_off_ang"),
+      grab(focLoop, /ok_sat=([0-9]+)/, "focLoop ok_sat"),
     ],
     "tactile-sensing": [
       grab(tac, /contact_err=([0-9.]+)/, "tac contact_err"),
@@ -3665,7 +3667,10 @@ const lessonRef = (n, slug, lang) => {
   ok(/protection_status_default=insufficient_data/.test(pwrRt), "m11 pwrRt: default insufficient_data");
   ok(!/ok_slow_blow/.test(pwrRt) && /fuse_certification=never/.test(pwrRt), "m11 pwrRt: never ok_slow_blow");
   ok(/protection_status_long_wire=reject_known_constraint/.test(pwrRt), "m11 pwrRt: long wire reject");
-  ok(/hits_V_floor_first=long/.test(pwrRt), "m11 pwrRt: long hits floor first");
+  ok(/hits_V_floor=long_only/.test(pwrRt), "m11 pwrRt: long_only undervoltage");
+  ok(/I_cont_total=3\.30/.test(pwrRt) && /I_peak_total=10\.80/.test(pwrRt), "m11 pwrRt: cont≠peak");
+  ok(/protection_status_peak_only=insufficient_data/.test(pwrRt), "m11 pwrRt: peak-only stays insufficient_data");
+  ok(/protection_status_ampacity=reject_known_constraint/.test(pwrRt), "m11 pwrRt: ampacity on continuous");
   ok(/id_err=0\.000e\+00/.test(foc) && /iq_err=0\.000e\+00/.test(foc), "m11 foc: round-trip id/iq err 0");
   ok(/sum_abc=0\.000e\+00/.test(foc), "m11 foc: sum_abc 0");
   ok(/plant_model=R_L_circuit/.test(focLoop), "m11 focLoop: R_L_circuit naming");
@@ -3680,6 +3685,10 @@ const lessonRef = (n, slug, lang) => {
     const badOffAng = num(focLoop, /bad_offset_ang_rmse=([0-9.]+)/);
     ok(badOffIq > 2 * okIq && badPpIq > 2 * okIq, "m11 focLoop: wrong angle wrecks plant iq");
     ok(badOffAng > 10 * okAng, "m11 focLoop: wrong offset ang RMSE >> ok");
+    ok(/ok_sat=0/.test(focLoop) && /bad_offset_sat=0/.test(focLoop) && /bad_pp_sat=0/.test(focLoop),
+      "m11 focLoop: sat=0 all arms");
+    ok(/anti_windup=omitted/.test(focLoop) && /pwm_rail_limit=omitted/.test(focLoop),
+      "m11 focLoop: anti-windup and PWM rail omitted");
   }
   ok(/anyskin_replace_s=12/.test(tac) && /anyskin_slip_acc=0\.92/.test(tac), "m11 tac: AnySkin 12 s / 0.92");
   ok(/anyskin_plug_cam=1\.7/.test(tac) && /anyskin_plug_skin=6\.7/.test(tac) && /anyskin_plug_swap=5\.3/.test(tac),
@@ -3734,6 +3743,12 @@ const lessonRef = (n, slug, lang) => {
       `m11 foc ${lang}: plant angle not fed to controller`);
     ok(lang === "en" ? /algebraic identities|identities/.test(f1) : /代数恒等式|恒等式/.test(f1),
       `m11 foc ${lang}: transforms are identities`);
+    if (lang === "zh") ok(!/植物/.test(f1), "m11 foc zh: no 植物 mistranslation of plant");
+    ok(lang === "en" ? /anti-windup/i.test(f1) && /prescribed/i.test(f1) : /抗饱和|anti-windup/.test(f1) && /规定/.test(f1),
+      `m11 foc ${lang}: states omitted anti-windup / prescribed omega`);
+    ok(lang === "en" ? /I_cont_total|continuous/.test(p1) && /long_only|hits_V_floor/.test(p1)
+      : /I_cont_total|连续/.test(p1) && /long_only|hits_V_floor/.test(p1),
+      `m11 pwr ${lang}: continuous≠peak + hits_V_floor label`);
     const t1 = md11[`tactile-sensing/${lang}`];
     ok(/gripper-fingers/.test(t1), `m11 tac ${lang}: scope vs 3.6 gripper`);
     ok(/AnySkin/.test(t1) && /DIGIT/.test(t1), `m11 tac ${lang}: AnySkin + DIGIT`);
@@ -3797,6 +3812,7 @@ const lessonRef = (n, slug, lang) => {
     };
     ok(grabMin("power-battery-emc") === 330, "m11 curriculum: power minutes 330");
     ok(grabMin("foc-actuator-lab") === 480, "m11 curriculum: foc minutes 480");
+    ok(!/植物/.test(cur11), "m11 curriculum: no 植物 mistranslation");
   }
   ok(/month-11\/check\.sh/.test(rd11("tools/sim/reproduce.sh")), "m11 hooked in reproduce.sh");
   const chk11 = rd11("examples/month-11/check.sh");

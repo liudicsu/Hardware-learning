@@ -19,5 +19,10 @@ bad_pp_plant_iq_rmse=1.541919
 bad_pp_plant_id_rmse=0.761119
 bad_pp_ang_rmse=2.241386
 ok_ua=2.182588 ok_ub=-2.755060 ok_uc=0.572472
+ok_sat=0 bad_offset_sat=0 bad_pp_sat=0
+anti_windup=omitted
+pwm_rail_limit=omitted
+omega_m_prescribed=6.0
+euler_dt=1.0e-04 L_over_R=2.0833e-03
 plant_vs_controller=theta_e_star_not_fed_to_ctrl
 asserts_ok=true
