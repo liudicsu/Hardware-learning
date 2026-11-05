@@ -1,6 +1,6 @@
 # 10.5 intervention-logging
 
-- `intervention_log_toy.py` — seeded human-in-the-loop log with an `intervention` column: segments, intervention rate, RaC-style recovery / correction split, what "end after intervention" keeps, and a toy merge that refuses mismatched features until `intervention` is removed.
+- `intervention_log_toy.py` — seeded human-in-the-loop log with an `intervention` column: segments, intervention rate, RaC-style recovery / correction split, what "end after intervention" keeps, and a toy merge that refuses mismatched features until `intervention` is removed. The rollout follows the LeRobot DAgger flow (control goes back to the policy after each correction); it does not simulate RaC's "end the episode after an intervention" rule, it only counts what that rule would keep. / 玩具模拟 LeRobot DAgger 流程（纠正后交回策略），不模拟 RaC「介入后结束本回合」。
 
 ```bash
 python3 intervention_log_toy.py    # ../expected/intervention_log_toy.txt

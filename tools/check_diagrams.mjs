@@ -3369,8 +3369,10 @@ const lessonRef = (n, slug, lang) => {
   const lat = rd10("examples/month-10/expected/latency_budget.txt");
   const ext = rd10("examples/month-10/expected/extrinsics_chain_toy.txt");
   const ilog = rd10("examples/month-10/expected/intervention_log_toy.txt");
+  const rlpd = rd10("examples/month-10/expected/rlpd_chain_toy.txt");
+  const advf = rd10("examples/month-10/expected/advantage_filter_toy.txt");
   const slugs10 = ["flow-matching-policies", "real-time-chunking", "edge-deploy-checklist", "multi-view-extrinsics",
-    "intervention-logging"];
+    "intervention-logging", "real-world-rl", "vla-rl-finetune"];
   const md10 = {};
   for (const slug of slugs10) {
     for (const lang of ["en", "zh"]) {
@@ -3444,6 +3446,24 @@ const lessonRef = (n, slug, lang) => {
       grab(ilog, /(only in hil: \['intervention'\])/, "ilog schema error"),
       grab(ilog, /(Space) pause/, "ilog key Space"), grab(ilog, /(Tab) start\/stop/, "ilog key Tab"),
     ],
+    "real-world-rl": [
+      grab(rlpd, /^online\s+([0-9]+\/20)/m, "rlpd online reached"),
+      grab(rlpd, /^online\s+[0-9]+\/20\s+[0-9]+\s+([0-9.]+)/m, "rlpd online first ep"),
+      grab(rlpd, /^online\s+[0-9]+\/20\s+[0-9]+\s+[0-9.]+\s+([0-9.]+)/m, "rlpd online resets"),
+      grab(rlpd, /^online\s+[0-9]+\/20\s+[0-9]+\s+[0-9.]+\s+[0-9.]+\s+([0-9]+\/20)/m, "rlpd online greedy"),
+      grab(rlpd, /^rlpd_5050\s+[0-9]+\/20\s+[0-9]+\s+[0-9.]+\s+([0-9.]+)/m, "rlpd 5050 resets"),
+      grab(rlpd, /one_buf ([0-9.]+ %)/, "rlpd one_buf demo share"),
+      grab(rlpd, /rlpd_5050 ([0-9.]+ %)/, "rlpd 5050 demo share"),
+    ],
+    "vla-rl-finetune": [
+      grab(advf, /^\s+bc\s+([0-9]+)/m, "advf all steps"),
+      grab(advf, /^\s+bc\s+[0-9]+\s+([0-9.]+) \//m, "advf bc P(right) s2"),
+      grab(advf, /^\s+bc\s+[0-9]+\s+[0-9.]+ \/ [0-9.]+\s+([0-9.]+ %)/m, "advf bc success"),
+      grab(advf, /^\s+success_only\s+([0-9]+)/m, "advf success_only kept"),
+      grab(advf, /^\s+success_only\s+[0-9]+\s+[0-9.]+ \/ [0-9.]+\s+([0-9.]+ %)/m, "advf success_only success"),
+      grab(advf, /^\s+adv_filter\s+([0-9]+)/m, "advf adv kept"),
+      grab(advf, /^\s+adv_filter\s+[0-9]+\s+[0-9.]+ \/ [0-9.]+\s+([0-9.]+ %)/m, "advf adv success"),
+    ],
   };
   ok(/near_mean/.test(fm) && /1\s+0\.000\s+1\.000/.test(fm), "m10 fm: 1 step collapses to mean (near_mean 1.000)");
   ok(/tail=fresh/.test(rtc) && !/False/.test(rtc), "m10 rtc: tail stays fresh");
@@ -3453,6 +3473,27 @@ const lessonRef = (n, slug, lang) => {
     "m10 ext: AX=ZB holds for both camera roles");
   ok(/^as-built.*\bok$/m.test(ext) && /^bump 2deg.*ALARM$/m.test(ext), "m10 ext: as-built ok, 2deg bump alarms");
   ok(/merge demos \+ hil: ERROR/.test(ilog) && /merge ok/.test(ilog), "m10 ilog: merge refuses, then passes after remove_feature");
+  ok(/^one_buf\s+20\/20/m.test(rlpd) && /^rlpd_5050\s+20\/20/m.test(rlpd) && !/^online\s+20\/20/m.test(rlpd),
+    "m10 rlpd: demos reach the goal in every seed, online-only does not");
+  {
+    const sr = (name) => Number((advf.split("B)")[0].match(new RegExp(`^\\s+${name}\\s+[0-9]+\\s+[0-9.]+ / [0-9.]+\\s+([0-9.]+) %`, "m")) || [0, NaN])[1]);
+    ok(sr("adv_filter") > sr("success_only") && sr("success_only") > sr("bc"), "m10 advf: adv_filter > success_only > bc");
+    ok(/B\) log with no successes[\s\S]*successes 0,/.test(advf), "m10 advf: log B has 0 successes");
+  }
+  for (const lang of ["zh", "en"]) {
+    const r = md10[`real-world-rl/${lang}`];
+    ok(/rl-foundations/.test(r) && /rl-manipulation-sim/.test(r) && /intervention-logging/.test(r),
+      `m10 rlpd ${lang}: scope vs 7.2 / 7.3 / 10.5`);
+    ok(/Isaac/.test(r) && /F\/T/.test(r), `m10 rlpd ${lang}: not required Isaac / F/T / real robot`);
+    const v = md10[`vla-rl-finetune/${lang}`];
+    ok(/vla-finetune/.test(v) && /real-world-rl/.test(v), `m10 vla-rl ${lang}: scope vs 8.2 / 10.6`);
+    ok(/Isaac/.test(v) && /F\/T/.test(v), `m10 vla-rl ${lang}: not required Isaac / F/T / real robot`);
+    const il = md10[`intervention-logging/${lang}`];
+    ok(lang === "en" ? /LeRobot DAgger flow/.test(il) : /LeRobot 的 DAgger 流程/.test(il), `m10 ilog ${lang}: toy = LeRobot DAgger flow, not RaC end-episode`);
+    const mv = md10[`multi-view-extrinsics/${lang}`];
+    ok(lang === "en" ? /follow the current OpenCV docs/.test(mv) : /以当期 OpenCV 文档为准/.test(mv), `m10 ext ${lang}: OpenCV docs caveat`);
+  }
+  ok(/LeRobot DAgger flow/.test(rd10("examples/month-10/intervention-logging/intervention_log_toy.py")), "m10 ilog toy docstring: LeRobot DAgger flow");
   for (const lang of ["en", "zh"]) {
     const x = md10[`intervention-logging/${lang}`];
     ok(/remove_feature/.test(x) && /record_autonomous/.test(x), `m10 ilog ${lang}: remove_feature + record_autonomous`);
@@ -3479,26 +3520,28 @@ const lessonRef = (n, slug, lang) => {
   ok(/month-10\/check\.sh/.test(rd10("tools/sim/reproduce.sh")), "m10 hooked in reproduce.sh");
   const chk10 = rd10("examples/month-10/check.sh");
   for (const f of ["flow_match_toy", "rtc_blend_toy", "int8_quant_toy", "latency_budget", "extrinsics_chain_toy",
-    "intervention_log_toy"]) {
+    "intervention_log_toy", "rlpd_chain_toy", "advantage_filter_toy"]) {
     ok(new RegExp(`${f}\\.txt`).test(chk10), `m10 check.sh: ${f}`);
   }
-  ok(/5 of 7/.test(chk10), "m10 check.sh header: 5 of 7");
+  ok(/7 of 7/.test(chk10), "m10 check.sh header: 7 of 7");
   const res10 = rd10("src/lib/resources.ts");
   for (const id of ["flow-matching-paper", "pi0-paper", "rectified-flow-paper", "consistency-policy-paper", "rtc-paper",
     "lerobot-action-representations", "lerobot-rtc", "lerobot-remote-inference", "lerobot-hardware-guide",
     "lerobot-torch-accelerators", "onnxruntime-quantization", "opencv-robot-world-handeye", "lerobot-hil-data-collection",
-    "hg-dagger-paper", "rac-paper", "lerobot-v060-blog"]) {
+    "hg-dagger-paper", "rac-paper", "lerobot-v060-blog", "rlpd-paper", "hil-serl-paper", "lerobot-hilserl", "simplevla-rl-paper",
+    "openvla-oft-paper", "pistar06-blog", "resip-paper", "policy-decorator-paper", "lerobot-sarm"]) {
     const block = (res10.match(new RegExp(`"${id}": \\{[\\s\\S]*?\\n  \\}`)) || [""])[0];
     ok(block.length > 0 && /extra:\s*true/.test(block), `m10 resource ${id}: present + extra`);
     ok(!/\$\d/.test(block), `m10 resource ${id}: no price`);
   }
   const glo10 = rd10("src/lib/glossary.ts");
   for (const t of ["flow-matching", "velocity-field", "real-time-chunking", "soft-mask", "quantization", "latency-budget",
-    "robot-world-hand-eye", "extrinsics-chain", "intervention-rate", "recovery-correction"]) {
+    "robot-world-hand-eye", "extrinsics-chain", "intervention-rate", "recovery-correction", "symmetric-sampling",
+    "reward-classifier", "advantage-conditioning", "residual-policy"]) {
     ok(new RegExp(`"${t}"`).test(glo10), `m10 glossary: ${t}`);
   }
 
-  console.log(`calc  m10 gaps: fm 1-step mean/10-step mode; rtc blend < naive/2 d=0,2,4 (linear stand-in); int8 per-channel vs outlier; latency ceil d 6/11; ext as-built ok / 2deg bump alarm; ilog merge needs remove_feature; phrases ${phraseHits10}; PR1–PR2 10.1–10.5`);
+  console.log(`calc  m10 gaps: fm 1-step mean/10-step mode; rtc blend < naive/2 d=0,2,4 (linear stand-in); int8 per-channel vs outlier; latency ceil d 6/11; ext as-built ok / 2deg bump alarm; ilog merge needs remove_feature; rlpd demos 20/20 vs online; advf adv>succ>bc, no-success log; phrases ${phraseHits10}; PR1–PR3 10.1–10.7`);
 }
 
 

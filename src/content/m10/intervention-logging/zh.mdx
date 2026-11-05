@@ -1,6 +1,6 @@
 本课是本站补充内容——第 7–10 个月不属于原六个月课程。
 
-**范围。** [6.1 行为克隆](/zh/month/month-6/behaviour-cloning) 里的 DAgger 负责思想本身（给学习者实际走到的状态打标签）和它的玩具；本课讲的是人工门控的纠正**落到数据里**是什么样。[8.1 数据集工程](/zh/month/month-8/dataset-engineering) 负责 LeRobot 数据集格式与一般的编辑工具；这里只讲 `intervention` 列和合并这一步。[8.3 异步部署](/zh/month/month-8/async-deployment) 和 [10.2 实时动作块](/zh/month/month-10/real-time-chunking) 负责回放所跑的推理循环，[7.6 感知到抓取](/zh/month/month-7/perception-to-grasp) 和 10.4 负责相机。把纠正数据用于 RL（10.6）和用于 π*0.6 这类优势条件 VLA（10.7）在后续课程。不需要新硬件：真实采集用第 3 个月起就有的 SO-101 主从臂，标注本页未运行；玩具只用 CPU 和标准库。本课也不替代 8.7 毕业项目。
+**范围。** [6.1 行为克隆](/zh/month/month-6/behaviour-cloning) 里的 DAgger 负责思想本身（给学习者实际走到的状态打标签）和它的玩具；本课讲的是人工门控的纠正**落到数据里**是什么样。[8.1 数据集工程](/zh/month/month-8/dataset-engineering) 负责 LeRobot 数据集格式与一般的编辑工具；这里只讲 `intervention` 列和合并这一步。[8.3 异步部署](/zh/month/month-8/async-deployment) 和 [10.2 实时动作块](/zh/month/month-10/real-time-chunking) 负责回放所跑的推理循环，[7.6 感知到抓取](/zh/month/month-7/perception-to-grasp) 和 10.4 负责相机。把纠正数据用于 RL 见 [10.6 真实世界 RL](/zh/month/month-10/real-world-rl)，用于 π*0.6 这类优势条件 VLA 见 [10.7 VLA 上的强化学习](/zh/month/month-10/vla-rl-finetune)。不需要新硬件：真实采集用第 3 个月起就有的 SO-101 主从臂，标注本页未运行；玩具只用 CPU 和标准库。本课也不替代 8.7 毕业项目。
 
 ## 从 DAgger 到恢复 + 纠正
 
@@ -36,7 +36,7 @@ LeRobot v0.6.0 加入了 `lerobot-rollout` 及其 `dagger` 策略，用发布文
 
 ## 运行日志玩具
 
-`intervention_log_toy.py` 模拟一次全量记录的会话（`record_autonomous=true` 那种）：6 个回合，每回合 240 帧、30 fps。策略会漂移；漂移量 `dev` 超过 0.6 时操作员接管，开回到 `dev` 不超过 0.2（恢复），再纠正一会儿后交还控制。然后玩具像你的训练脚本那样读这份日志。
+`intervention_log_toy.py` 模拟一次全量记录的会话（`record_autonomous=true` 那种）：6 个回合，每回合 240 帧、30 fps。策略会漂移；漂移量 `dev` 超过 0.6 时操作员接管，开回到 `dev` 不超过 0.2（恢复），再纠正一会儿后交还控制。这模拟的是 LeRobot 的 DAgger 流程：每次纠正之后控制交回策略、本回合继续；玩具不模拟 RaC「介入后结束本回合」的规则，只统计该规则会保留多少帧。然后玩具像你的训练脚本那样读这份日志。
 
 ```bash
 $ cd ~/Hardware-learning/examples/month-10/intervention-logging
@@ -55,6 +55,9 @@ where dev is how far the arm has drifted from where the demos go.
 1. Generate episodes: the policy drifts; when dev crosses TAKE_OVER the
    operator pauses (no frames recorded while paused), takes over with the
    leader arm (intervention=1) and hands back after finishing the fix.
+   This is the LeRobot DAgger flow: after a correction, control returns to
+   the policy and the episode goes on. It is NOT RaC's rule of ending the
+   episode after an intervention; step 4 only counts what that rule keeps.
 2. Split each intervention run into segments; intervention rate per episode.
 3. Label frames inside a segment, RaC-style: "recovery" while dev is still
    above IN_DIST (getting back to familiar states), "correction" after that.

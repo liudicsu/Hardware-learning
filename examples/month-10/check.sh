@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the Month 10 examples and compare with expected/.
-# 5 of 7 lessons so far / 已写 5 课（共 7 课；10.1–10.5，PR1–PR2）.
+# 7 of 7 lessons / 7 课全部写完（10.1–10.7，PR1–PR3）.
 # Usage: examples/month-10/check.sh        UPDATE=1 examples/month-10/check.sh
 set -uo pipefail
 M10="$(cd "$(dirname "$0")" && pwd)"
@@ -24,5 +24,7 @@ check int8_quant_toy.txt "$PY" "$M10/edge-deploy-checklist/int8_quant_toy.py"
 check latency_budget.txt "$PY" "$M10/edge-deploy-checklist/latency_budget.py"
 check extrinsics_chain_toy.txt "$PY" "$M10/multi-view-extrinsics/extrinsics_chain_toy.py"
 check intervention_log_toy.txt "$PY" "$M10/intervention-logging/intervention_log_toy.py"
+check rlpd_chain_toy.txt "$PY" "$M10/real-world-rl/rlpd_chain_toy.py"
+check advantage_filter_toy.txt "$PY" "$M10/vla-rl-finetune/advantage_filter_toy.py"
 
 exit $fail

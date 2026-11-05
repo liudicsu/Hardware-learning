@@ -1,0 +1,255 @@
+本课是本站补充内容——第 7–10 个月不属于原六个月课程。
+
+**范围。** [8.2 VLA 微调](/zh/month/month-8/vla-finetune) 负责在你的示范上对 VLA 做监督微调（SFT），[10.1 流匹配策略](/zh/month/month-10/flow-matching-policies) 负责动作头，[10.6 真实世界 RL](/zh/month/month-10/real-world-rl) 负责在小策略上用示范和介入做 RL（RLPD、HIL-SERL）。[6.1 行为克隆](/zh/month/month-6/behaviour-cloning) 里的 DAgger 和 [10.5](/zh/month/month-10/intervention-logging) 负责纠正数据怎么记录；[8.3 异步部署](/zh/month/month-8/async-deployment) 和 [7.6 感知到抓取](/zh/month/month-7/perception-to-grasp) 负责运行时和相机。本课是一张**阅读地图**：大家如何让预训练 VLA 超越它的示范；外加一个可选的标准库玩具。在 VLA 上训练其中任何一种都需要 GPU，标注本页未运行；本月不要求 Isaac、F/T 传感器或真机。不需要新硬件。本课不新增路线，也不替代 8.7 毕业项目。
+
+## 为什么 SFT 之后还要 RL
+
+SFT 会把数据连同其中的错误一起照抄，并停在示范的水平。RL 可以超过示范，但用几十亿参数的 VLA 做探索很贵，稀疏奖励给的信息也很少。目前出现了四类做法，区别在于**训练什么**和**信号从哪来**。
+
+| 类别 | 例子 | 训练什么 | 学习信号 | 论文在哪里跑 |
+| --- | --- | --- | --- | --- |
+| 整个 VLA 上的结果奖励 RL | SimpleVLA-RL | VLA 全部权重 | 每次 rollout 的二值任务成功 | 仿真基准，再加真实世界测试 |
+| <Term id="advantage-conditioning">优势条件</Term> | π*0.6 / RECAP | VLA，以「这一步是否好于预期」为条件 | 学到的价值函数 | 真机 |
+| 冻结基座上的<Term id="residual-policy">残差策略</Term> | ResiP、Policy Decorator | 一个小的修正网络 | 稀疏奖励，PPO 或 SAC | 主要在仿真 |
+| 奖励模型加权的模仿 | LeRobot SARM + RA-BC | 策略本身，带逐帧权重 | 预测的任务进度 | 你自己的数据集 |
+
+## 结果奖励 RL：SimpleVLA-RL
+
+SimpleVLA-RL（Li 等，2025）在整个 VLA 上做大规模 RL，基于 veRL 框架，用 GRPO 式目标和二值奖励：这次 rollout 成功或没成功。基座模型是 OpenVLA-OFT——一套为 OpenVLA 优化的微调配方（并行解码、动作块、连续动作、L1 损失），其摘要报告 LIBERO 平均成功率从 76.5 % 提到 97.1 %，动作生成快 26×。SimpleVLA-RL 的摘要报告在 LIBERO 上达到最好水平，在 RoboTwin 1.0 和 2.0 上超过 π0，并在 RL 中出现作者称为「pushcut」的新行为（推动物体，而不是示范里的抓取）。论文还报告：从零条示范微调的模型出发，RL 无法起步——结果奖励需要一个已经偶尔能成功的策略。以上都是作者在 GPU 集群上的测量，本页未运行。
+
+<Resource id="simplevla-rl-paper" />
+<Resource id="openvla-oft-paper" />
+
+## 优势条件：π*0.6 与 RECAP
+
+Physical Intelligence 的 π*0.6 文章介绍了 RECAP，即「RL with Experience & Corrections via Advantage-conditioned Policies」。价值函数预测离任务完成还剩多少步；据此给数据里每一步一个优势（好于还是差于预期）。不是把差数据扔掉，而是用**全部**数据训练 VLA，并以优势为条件；运行时要求它给出「好于预期」的行为。数据来自示范、机器人自己的自主尝试和专家纠正。文章报告在一些最难的任务上吞吐量提高到两倍以上，失败率可降低 2× 或更多，例子包括从早上 5:30 到晚上 11:30 做浓缩咖啡和叠衣服。π0.6 本身用 5B 视觉语言骨干加动作专家。这些是公司报告的结果，本页未运行。
+
+<Resource id="pistar06-blog" />
+
+## 残差策略：ResiP 与 Policy Decorator
+
+这里大模型保持冻结，由一个小网络在它的动作之上学修正：
+
+- **ResiP**（Ankile 等，2024）固定一个按动作块输出的行为克隆模型（扩散策略），用 PPO 在稀疏奖励上训练闭环、逐步的残差，并把残差保持得很小。在其仿真家具装配任务上，报告用 50 条示范带来大幅提升（例如 one_leg 从 54 % 到 98 %）；这是论文的测量。
+- **Policy Decorator**（Yuan 等，2024）让残差与基座模型无关，用 SAC 训练；它限制残差的幅度，并在探索中逐步提高使用残差的频率，避免早期破坏基座策略的好行为。实验用 ManiSkill 和 Adroit，基座是 Behaviour Transformer 和扩散策略。
+
+残差对业余硬件有吸引力，因为要训练的部分小；但论文结果主要在仿真里。
+
+<Resource id="resip-paper" />
+<Resource id="policy-decorator-paper" />
+
+## 奖励模型加权的模仿：SARM + RA-BC
+
+在你自己的数据上，最便宜的一步根本不是 RL。LeRobot 的 SARM 页面介绍了一个分阶段的奖励模型，逐帧预测 0 到 1 的任务进度；以及奖励对齐的行为克隆（RA-BC），按每个样本的进度变化加权：超过阈值 κ 时权重为 1，0 到 κ 之间是软权重，**进度倒退时权重为 0**。这就是用学到的进度信号做优势加权模仿。本页未运行，以当期文档为准：需要 GPU，命令（例如 `python -m lerobot.rewards.sarm.compute_rabc_weights`）来自 main 文档，可能与你安装的 LeRobot v0.6.x 版本不同。
+
+<Resource id="lerobot-sarm" />
+
+## 选做：运行优势过滤玩具
+
+`advantage_filter_toy.py` 离线复用 10.6 的密码锁链条。一个中等水平的行为策略记录 40 个回合：90 % 的时候选对，但在状态 2 和 5 比抛硬币还差。从日志里平均出价值 V(s)（「还差几步完成」取负，也就是 RECAP 描述的那种价值），每一步得到 A = −1 + V(s′) − V(s)，然后比较三种计数策略：普通 BC、只用成功回合的 BC、只用 A > 0 步骤的 BC。第二份没有任何成功的日志展示「无从排序」时会怎样。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-10/vla-rl-finetune
+$ python3 advantage_filter_toy.py
+```
+
+<CodeSource path="examples/month-10/vla-rl-finetune/advantage_filter_toy.py" />
+
+```python
+"""advantage_filter_toy.py: behaviour cloning that keeps only steps with A > 0 (stdlib).
+
+Same 10-state lock chain as 10.6 (wrong action -> back to state 0, goal at
+state 9, at most 30 steps). A mediocre behaviour policy (think: an SFT'd
+VLA, or teleop plus autonomous rollouts) records 40 episodes. It gets most
+states right but is worse than a coin flip in states 2 and 5.
+
+1. Value from the log: V(s) = mean of "minus steps to finish" over every
+   visit to s (a timed-out episode counts its remaining steps plus a
+   30-step penalty). This is the flavour of value pi*0.6 / RECAP describes
+   (predicting how far you are from done); here it is a plain average.
+2. Advantage per logged step: A = -1 + V(s') - V(s), with V(goal) = 0.
+3. Three tabular "policies" built by counting logged actions per state:
+     bc            every step, equal weight
+     success_only  only steps from episodes that reached the goal
+     adv_filter    only steps with A > 0 (binary advantage weight)
+   Each is evaluated by sampling actions in proportion to the counts,
+   2000 rollouts with a fixed seed.
+4. Same recipe on a log with no successes at all: V has nothing to rank,
+   so the filter keeps noise (outcome-reward RL also needs a policy that
+   already succeeds sometimes).
+No VLA, no GPU: only the reweighting idea.
+"""
+
+import random
+
+N = 10
+H = 30
+LOCK = [1, 0, 1, 0, 0, 0, 1, 0, 0]     # same right actions as rlpd_chain_toy.py
+GOOD = [0.9, 0.9, 0.35, 0.9, 0.9, 0.4, 0.9, 0.9, 0.9]   # P(right action) of the behaviour policy
+EPISODES = 40
+EVAL = 2000
+
+
+def step(s, a):
+    if a != LOCK[s]:
+        return 0, False
+    s2 = s + 1
+    return s2, s2 == N - 1
+
+
+def collect(p_right, episodes, seed):
+    rng = random.Random(seed)
+    log = []   # list of episodes; each a list of (s, a, s2, done)
+    for _ in range(episodes):
+        ep, s = [], 0
+        for _ in range(H):
+            a = LOCK[s] if rng.random() < p_right[s] else 1 - LOCK[s]
+            s2, done = step(s, a)
+            ep.append((s, a, s2, done))
+            if done:
+                break
+            s = s2
+        log.append(ep)
+    return log
+
+
+def values(log):
+    tot = [0.0] * N
+    cnt = [0] * N
+    for ep in log:
+        success = ep[-1][3]
+        L = len(ep)
+        for t, (s, _, _, _) in enumerate(ep):
+            g = -(L - t) if success else -(L - t) - H
+            tot[s] += g
+            cnt[s] += 1
+    v = [tot[s] / cnt[s] if cnt[s] else -2.0 * H for s in range(N)]
+    v[N - 1] = 0.0
+    return v
+
+
+def count_policy(steps):
+    c = [[0, 0] for _ in range(N - 1)]
+    for s, a in steps:
+        c[s][a] += 1
+    return c
+
+
+def p_right(c, s):
+    n = c[s][0] + c[s][1]
+    return c[s][LOCK[s]] / n if n else 0.5
+
+
+def evaluate(c, seed):
+    rng = random.Random(seed)
+    wins = lens = 0
+    for _ in range(EVAL):
+        s = 0
+        for t in range(1, H + 1):
+            a = LOCK[s] if rng.random() < p_right(c, s) else 1 - LOCK[s]
+            s, done = step(s, a)
+            if done:
+                wins += 1
+                lens += t
+                break
+    return wins / EVAL, (lens / wins if wins else float("nan"))
+
+
+def build(log, v):
+    all_steps, succ_steps, adv_steps = [], [], []
+    for ep in log:
+        success = ep[-1][3]
+        for s, a, s2, done in ep:
+            all_steps.append((s, a))
+            if success:
+                succ_steps.append((s, a))
+            if -1.0 + v[s2] - v[s] > 0:
+                adv_steps.append((s, a))
+    return {
+        "bc": (count_policy(all_steps), len(all_steps)),
+        "success_only": (count_policy(succ_steps), len(succ_steps)),
+        "adv_filter": (count_policy(adv_steps), len(adv_steps)),
+    }
+
+
+def report(title, log, seed):
+    v = values(log)
+    wins = sum(ep[-1][3] for ep in log)
+    print(title)
+    print(f"  logged episodes {len(log)}, successes {wins}, steps {sum(len(ep) for ep in log)}")
+    print("  V(s): " + " ".join(f"{x:.1f}" for x in v))
+    pols = build(log, v)
+    print("  policy        kept_steps  P(right) in states 2 / 5  success  mean_steps_if_success")
+    for name, (c, kept) in pols.items():
+        sr, ml = evaluate(c, seed)
+        mls = f"{ml:.1f}" if sr else "n/a"
+        print(f"  {name:<12} {kept:>11}  {p_right(c, 2):>12.2f} / {p_right(c, 5):.2f}  {100 * sr:>6.1f} %  {mls:>8}")
+    print()
+
+
+def main():
+    print("lock chain: wrong action -> state 0, goal at 9, at most 30 steps; A = -1 + V(s') - V(s)")
+    print()
+    report("A) mediocre log (right action 90 % of the time, 35 % in state 2, 40 % in state 5)",
+           collect(GOOD, EPISODES, seed=3), seed=11)
+    report("B) log with no successes (coin-flip policy, 6 episodes)",
+           collect([0.5] * (N - 1), 6, seed=4), seed=11)
+    print("in A the filter drops the wrong actions that BC copies; in B nothing ever")
+    print("finished, so V cannot tell good steps from bad and the filter keeps noise.")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+lock chain: wrong action -> state 0, goal at 9, at most 30 steps; A = -1 + V(s') - V(s)
+
+A) mediocre log (right action 90 % of the time, 35 % in state 2, 40 % in state 5)
+  logged episodes 40, successes 20, steps 957
+  V(s): -36.7 -35.7 -34.9 -29.9 -28.6 -25.7 -17.9 -13.2 -5.0 0.0
+  policy        kept_steps  P(right) in states 2 / 5  success  mean_steps_if_success
+  bc                   957          0.35 / 0.57    49.6 %      17.4
+  success_only         357          0.44 / 0.74    89.4 %      15.0
+  adv_filter           298          1.00 / 1.00    99.2 %      12.7
+
+B) log with no successes (coin-flip policy, 6 episodes)
+  logged episodes 6, successes 0, steps 180
+  V(s): -44.7 -45.6 -45.4 -47.0 -48.0 -49.0 -50.5 -60.0 -60.0 0.0
+  policy        kept_steps  P(right) in states 2 / 5  success  mean_steps_if_success
+  bc                   180          0.64 / 0.40     0.0 %       n/a
+  success_only           0          0.50 / 0.50     2.2 %      18.0
+  adv_filter            14          0.50 / 0.00     0.0 %       n/a
+
+in A the filter drops the wrong actions that BC copies; in B nothing ever
+finished, so V cannot tell good steps from bad and the filter keeps noise.
+```
+
+</SimOutput>
+
+怎么读：
+
+- **普通 BC** 照抄行为策略：在状态 2 选对的概率是 **0.35**，成功率 **49.6 %**。
+- **只用成功回合的 BC** 保留 957 步中的 357 步，成功率 **89.4 %**；成功回合里仍有复位前走错的那几步。
+- **优势过滤** 只保留 298 步，但恰好去掉了把机械臂送回起点的动作，成功率 **99.2 %**。这就是 RA-BC（进度倒退权重为 0）和 RECAP（以优势为条件）用学到的价值所做事情的二值版本。
+- **日志 B** 里成功次数为 **0**：价值只反映每个状态离超时还有多久，过滤器保留的是噪声，什么都学不会。这和 SimpleVLA-RL 需要一个已经偶尔能成功的策略是同一个道理。
+- 玩具省略了：没有 VLA、没有神经网络价值函数（V 是简单平均，在 40 个回合上已经够准）、没有条件 token、没有探索。它只展示重新加权这个想法。
+
+## 这对你的 SO-101 意味着什么
+
+有了 8.2 微调的策略和 10.5 的介入日志，现实的顺序是：继续记录带纠正的自主运行；在这些数据上试进度加权模仿（SARM + RA-BC）；只有 GPU 时间够时，才在窄任务上考虑小残差或 HIL-SERL 式 RL（10.6）。SimpleVLA-RL 或 RECAP 这样的完整 VLA RL 是阅读材料，不是周末项目。对 8.7 毕业项目而言，本课和 10.6 是可选的进阶方向；它们不是新路线，也不替代 8.7。
+
+## 常见错误
+
+- **指望 RL 拯救从不成功的策略。** 结果奖励和优势过滤都需要数据里有一些成功。
+- **把失败数据扔掉。** RECAP 保留它们并以优势为条件；直接丢弃的过滤器也丢掉了「更差」长什么样。
+- **残差不设上限。** 允许很大的残差可能抵消基座策略；ResiP 让它保持很小，Policy Decorator 给它设界。
+- **把论文数字当成自己的。** 上面每个百分比都是作者在其设置上的测量。
+
+<Summary>
+
+让 VLA 超越示范的四种方式：在整个模型上做结果奖励 RL（SimpleVLA-RL，基于 OpenVLA-OFT）、用全部数据做优势条件训练（π*0.6 / RECAP）、在冻结基座上训练小残差策略（ResiP、Policy Decorator）、进度加权模仿（LeRobot SARM + RA-BC）。玩具里普通 BC 成功率 49.6 %，只用成功回合 89.4 %，只用 A > 0 步骤 99.2 %；日志里成功次数为 0 时，过滤器无从排序。GPU 训练步骤本页未运行。对毕业项目而言，这些是 8.7 旁边的可选进阶阅读，不是替代。
+
+</Summary>

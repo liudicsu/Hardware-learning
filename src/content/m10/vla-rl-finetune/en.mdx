@@ -1,0 +1,255 @@
+This lesson is a site supplement — Months 7–10 are not part of the original six-month course.
+
+**Scope.** [8.2 VLA fine-tuning](/en/month/month-8/vla-finetune) owns supervised fine-tuning (SFT) of a VLA on your demos, [10.1 flow-matching policies](/en/month/month-10/flow-matching-policies) owns the action head, and [10.6 real-world RL](/en/month/month-10/real-world-rl) owns RL with demos and interventions on a small policy (RLPD, HIL-SERL). The DAgger part of [6.1 behaviour cloning](/en/month/month-6/behaviour-cloning) and [10.5](/en/month/month-10/intervention-logging) own how corrections are logged; [8.3 async deployment](/en/month/month-8/async-deployment) and [7.6 perception to grasp](/en/month/month-7/perception-to-grasp) own the runtime and cameras. This lesson is a **reading map** of how people improve a pretrained VLA beyond its demos, plus one optional standard-library toy. Training any of these on a VLA needs GPUs and is marked 本页未运行; not required for this month: Isaac, an F/T sensor or a real robot. No new hardware. It adds no new track and does not replace the 8.7 capstone.
+
+## Why RL after SFT
+
+SFT copies the data, mistakes included, and stops at the level of the demos. RL can push past them, but a multi-billion-parameter VLA is expensive to explore with, and a sparse reward gives it little to go on. Four families of answers have appeared; they differ in **what is trained** and **where the signal comes from**.
+
+| family | example | what is trained | learning signal | where the paper ran it |
+| --- | --- | --- | --- | --- |
+| outcome-reward RL on the whole VLA | SimpleVLA-RL | all VLA weights | binary task success per rollout | simulation benchmarks, then real-world tests |
+| <Term id="advantage-conditioning">advantage conditioning</Term> | π*0.6 / RECAP | the VLA, conditioned on "was this better than expected" | a learned value function | real robots |
+| <Term id="residual-policy">residual policy</Term> on a frozen base | ResiP, Policy Decorator | a small correction network | sparse reward, PPO or SAC | mostly simulation |
+| reward-model-weighted imitation | LeRobot SARM + RA-BC | the policy, with per-frame weights | predicted task progress | your own dataset |
+
+## Outcome-reward RL: SimpleVLA-RL
+
+SimpleVLA-RL (Li et al., 2025) runs large-scale RL on the whole VLA, built on the veRL framework, with a GRPO-style objective and a binary reward: the rollout succeeded or it did not. The base model is OpenVLA-OFT, an optimised fine-tuning recipe for OpenVLA (parallel decoding, action chunks, continuous actions, an L1 loss) whose own abstract reports LIBERO average success rising from 76.5 % to 97.1 % with 26× faster action generation. The SimpleVLA-RL abstract reports state-of-the-art results on LIBERO, beating π0 on RoboTwin 1.0 and 2.0, and a new behaviour during RL that the authors call "pushcut" (pushing an object instead of the grasp the demos showed). The paper also reports that RL could not start from a model fine-tuned on zero demos: outcome reward needs a policy that already succeeds sometimes. All measured on the authors' GPU cluster, not run here.
+
+<Resource id="simplevla-rl-paper" />
+<Resource id="openvla-oft-paper" />
+
+## Advantage conditioning: π*0.6 and RECAP
+
+Physical Intelligence's π*0.6 post describes RECAP, "RL with Experience & Corrections via Advantage-conditioned Policies". A value function predicts how many steps remain until the task is done; from it, each step in the data gets an advantage (better or worse than expected). Instead of throwing bad data away, the VLA is trained on **all** of it, conditioned on the advantage, and at run time is asked for the "better than expected" behaviour. Data comes from demonstrations, the robot's own autonomous attempts and expert corrections. The post reports that this more than doubles throughput on some of the hardest tasks and can cut failure rates by 2× or more, with examples such as making espresso from 5:30 am to 11:30 pm and folding laundry. π0.6 itself uses a 5B vision-language backbone with an action expert. These are the company's reported results, not run here.
+
+<Resource id="pistar06-blog" />
+
+## Residual policies: ResiP and Policy Decorator
+
+Here the big model stays frozen and a small network learns a correction on top of its action:
+
+- **ResiP** (Ankile et al., 2024) keeps a chunked behaviour-cloning model (a diffusion policy) fixed and trains a closed-loop, per-step residual with PPO on a sparse reward, keeping the residual small. On its simulated furniture-assembly tasks it reports large gains from 50 demos (for example one_leg rising from 54 % to 98 %); paper's measurement.
+- **Policy Decorator** (Yuan et al., 2024) makes the residual model-agnostic and trains it with SAC; it bounds the residual's size and gradually widens how often the residual is used during exploration, so the base policy's good behaviour is not destroyed early. Its experiments use ManiSkill and Adroit with Behaviour Transformer and Diffusion Policy bases.
+
+Residuals are attractive for hobby hardware because the trained part is small, but the papers' results are mostly in simulation.
+
+<Resource id="resip-paper" />
+<Resource id="policy-decorator-paper" />
+
+## Reward-model-weighted imitation: SARM + RA-BC
+
+The cheapest step on your own data is not RL at all. LeRobot's SARM page describes a stage-aware reward model that predicts task progress from 0 to 1 per frame, and Reward-Aligned Behaviour Cloning (RA-BC), which weights each training sample by its progress change: full weight above a threshold κ, a soft weight between 0 and κ, and **zero weight when progress goes backwards**. It is advantage-weighted imitation with a learned progress signal. Not run on this page (本页未运行，以当期文档为准): it needs a GPU, and the commands (for example `python -m lerobot.rewards.sarm.compute_rabc_weights`) are on the main docs and may differ in the LeRobot v0.6.x release you install.
+
+<Resource id="lerobot-sarm" />
+
+## Optional: run the advantage filter toy
+
+`advantage_filter_toy.py` reuses the 10.6 lock chain offline. A mediocre behaviour policy logs 40 episodes: right 90 % of the time, but worse than a coin flip in states 2 and 5. A value V(s) ("minus steps to finish", the flavour RECAP describes) is averaged from the log, each step gets A = −1 + V(s′) − V(s), and three counted policies are compared: plain BC, BC on successful episodes only, and BC on steps with A > 0. A second log with no successes shows what happens when there is nothing to rank.
+
+```bash
+$ cd ~/Hardware-learning/examples/month-10/vla-rl-finetune
+$ python3 advantage_filter_toy.py
+```
+
+<CodeSource path="examples/month-10/vla-rl-finetune/advantage_filter_toy.py" />
+
+```python
+"""advantage_filter_toy.py: behaviour cloning that keeps only steps with A > 0 (stdlib).
+
+Same 10-state lock chain as 10.6 (wrong action -> back to state 0, goal at
+state 9, at most 30 steps). A mediocre behaviour policy (think: an SFT'd
+VLA, or teleop plus autonomous rollouts) records 40 episodes. It gets most
+states right but is worse than a coin flip in states 2 and 5.
+
+1. Value from the log: V(s) = mean of "minus steps to finish" over every
+   visit to s (a timed-out episode counts its remaining steps plus a
+   30-step penalty). This is the flavour of value pi*0.6 / RECAP describes
+   (predicting how far you are from done); here it is a plain average.
+2. Advantage per logged step: A = -1 + V(s') - V(s), with V(goal) = 0.
+3. Three tabular "policies" built by counting logged actions per state:
+     bc            every step, equal weight
+     success_only  only steps from episodes that reached the goal
+     adv_filter    only steps with A > 0 (binary advantage weight)
+   Each is evaluated by sampling actions in proportion to the counts,
+   2000 rollouts with a fixed seed.
+4. Same recipe on a log with no successes at all: V has nothing to rank,
+   so the filter keeps noise (outcome-reward RL also needs a policy that
+   already succeeds sometimes).
+No VLA, no GPU: only the reweighting idea.
+"""
+
+import random
+
+N = 10
+H = 30
+LOCK = [1, 0, 1, 0, 0, 0, 1, 0, 0]     # same right actions as rlpd_chain_toy.py
+GOOD = [0.9, 0.9, 0.35, 0.9, 0.9, 0.4, 0.9, 0.9, 0.9]   # P(right action) of the behaviour policy
+EPISODES = 40
+EVAL = 2000
+
+
+def step(s, a):
+    if a != LOCK[s]:
+        return 0, False
+    s2 = s + 1
+    return s2, s2 == N - 1
+
+
+def collect(p_right, episodes, seed):
+    rng = random.Random(seed)
+    log = []   # list of episodes; each a list of (s, a, s2, done)
+    for _ in range(episodes):
+        ep, s = [], 0
+        for _ in range(H):
+            a = LOCK[s] if rng.random() < p_right[s] else 1 - LOCK[s]
+            s2, done = step(s, a)
+            ep.append((s, a, s2, done))
+            if done:
+                break
+            s = s2
+        log.append(ep)
+    return log
+
+
+def values(log):
+    tot = [0.0] * N
+    cnt = [0] * N
+    for ep in log:
+        success = ep[-1][3]
+        L = len(ep)
+        for t, (s, _, _, _) in enumerate(ep):
+            g = -(L - t) if success else -(L - t) - H
+            tot[s] += g
+            cnt[s] += 1
+    v = [tot[s] / cnt[s] if cnt[s] else -2.0 * H for s in range(N)]
+    v[N - 1] = 0.0
+    return v
+
+
+def count_policy(steps):
+    c = [[0, 0] for _ in range(N - 1)]
+    for s, a in steps:
+        c[s][a] += 1
+    return c
+
+
+def p_right(c, s):
+    n = c[s][0] + c[s][1]
+    return c[s][LOCK[s]] / n if n else 0.5
+
+
+def evaluate(c, seed):
+    rng = random.Random(seed)
+    wins = lens = 0
+    for _ in range(EVAL):
+        s = 0
+        for t in range(1, H + 1):
+            a = LOCK[s] if rng.random() < p_right(c, s) else 1 - LOCK[s]
+            s, done = step(s, a)
+            if done:
+                wins += 1
+                lens += t
+                break
+    return wins / EVAL, (lens / wins if wins else float("nan"))
+
+
+def build(log, v):
+    all_steps, succ_steps, adv_steps = [], [], []
+    for ep in log:
+        success = ep[-1][3]
+        for s, a, s2, done in ep:
+            all_steps.append((s, a))
+            if success:
+                succ_steps.append((s, a))
+            if -1.0 + v[s2] - v[s] > 0:
+                adv_steps.append((s, a))
+    return {
+        "bc": (count_policy(all_steps), len(all_steps)),
+        "success_only": (count_policy(succ_steps), len(succ_steps)),
+        "adv_filter": (count_policy(adv_steps), len(adv_steps)),
+    }
+
+
+def report(title, log, seed):
+    v = values(log)
+    wins = sum(ep[-1][3] for ep in log)
+    print(title)
+    print(f"  logged episodes {len(log)}, successes {wins}, steps {sum(len(ep) for ep in log)}")
+    print("  V(s): " + " ".join(f"{x:.1f}" for x in v))
+    pols = build(log, v)
+    print("  policy        kept_steps  P(right) in states 2 / 5  success  mean_steps_if_success")
+    for name, (c, kept) in pols.items():
+        sr, ml = evaluate(c, seed)
+        mls = f"{ml:.1f}" if sr else "n/a"
+        print(f"  {name:<12} {kept:>11}  {p_right(c, 2):>12.2f} / {p_right(c, 5):.2f}  {100 * sr:>6.1f} %  {mls:>8}")
+    print()
+
+
+def main():
+    print("lock chain: wrong action -> state 0, goal at 9, at most 30 steps; A = -1 + V(s') - V(s)")
+    print()
+    report("A) mediocre log (right action 90 % of the time, 35 % in state 2, 40 % in state 5)",
+           collect(GOOD, EPISODES, seed=3), seed=11)
+    report("B) log with no successes (coin-flip policy, 6 episodes)",
+           collect([0.5] * (N - 1), 6, seed=4), seed=11)
+    print("in A the filter drops the wrong actions that BC copies; in B nothing ever")
+    print("finished, so V cannot tell good steps from bad and the filter keeps noise.")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+lock chain: wrong action -> state 0, goal at 9, at most 30 steps; A = -1 + V(s') - V(s)
+
+A) mediocre log (right action 90 % of the time, 35 % in state 2, 40 % in state 5)
+  logged episodes 40, successes 20, steps 957
+  V(s): -36.7 -35.7 -34.9 -29.9 -28.6 -25.7 -17.9 -13.2 -5.0 0.0
+  policy        kept_steps  P(right) in states 2 / 5  success  mean_steps_if_success
+  bc                   957          0.35 / 0.57    49.6 %      17.4
+  success_only         357          0.44 / 0.74    89.4 %      15.0
+  adv_filter           298          1.00 / 1.00    99.2 %      12.7
+
+B) log with no successes (coin-flip policy, 6 episodes)
+  logged episodes 6, successes 0, steps 180
+  V(s): -44.7 -45.6 -45.4 -47.0 -48.0 -49.0 -50.5 -60.0 -60.0 0.0
+  policy        kept_steps  P(right) in states 2 / 5  success  mean_steps_if_success
+  bc                   180          0.64 / 0.40     0.0 %       n/a
+  success_only           0          0.50 / 0.50     2.2 %      18.0
+  adv_filter            14          0.50 / 0.00     0.0 %       n/a
+
+in A the filter drops the wrong actions that BC copies; in B nothing ever
+finished, so V cannot tell good steps from bad and the filter keeps noise.
+```
+
+</SimOutput>
+
+How to read it:
+
+- **Plain BC** copies the behaviour policy: in state 2 it picks the right action with probability **0.35**, and succeeds **49.6 %** of the time.
+- **Success-only BC** keeps 357 of 957 steps and reaches **89.4 %**; successful episodes still contain the wrong moves made before a reset.
+- **The advantage filter** keeps only 298 steps but drops exactly the moves that sent the arm back, and reaches **99.2 %**. That is the binary version of what RA-BC (zero weight for negative progress) and RECAP (condition on advantage) do with learned values.
+- **Log B** has **0** successes: the values only reflect how long each state lasted before the time-out, the filter keeps noise and nothing succeeds. Same lesson as SimpleVLA-RL needing a policy that already succeeds sometimes.
+- What the toy leaves out: no VLA, no neural value function (V is a plain average and exact enough on 40 episodes), no conditioning token, no exploration. It shows the reweighting idea only.
+
+## What this means for your SO-101
+
+With the 8.2 fine-tuned policy and the 10.5 intervention log, the realistic order is: keep logging autonomous runs with corrections; try progress-weighted imitation (SARM + RA-BC) on that data; consider a small residual or HIL-SERL-style RL (10.6) on a narrow task only if you have the GPU time. Full VLA RL such as SimpleVLA-RL or RECAP is reading, not a weekend project. For the 8.7 capstone, this lesson and 10.6 are optional advanced directions; they are not a new track and do not replace 8.7.
+
+## Common mistakes
+
+- **Expecting RL to rescue a policy that never succeeds.** Outcome rewards and advantage filters both need some successes in the data.
+- **Throwing away failures.** RECAP keeps them and conditions on the advantage; a filter that discards them also discards what "worse" looks like.
+- **Unbounded residuals.** A residual allowed to be large can undo the base policy; ResiP keeps it small and Policy Decorator bounds it.
+- **Quoting paper numbers as your own.** Every percentage above is the authors' measurement on their setup.
+
+<Summary>
+
+Four ways to improve a VLA beyond its demos: outcome-reward RL on the whole model (SimpleVLA-RL, on OpenVLA-OFT), advantage-conditioned training on all data (π*0.6 / RECAP), small residual policies on a frozen base (ResiP, Policy Decorator), and progress-weighted imitation (LeRobot SARM + RA-BC). In the toy, plain BC succeeds 49.6 % of the time, success-only BC 89.4 %, and BC on A > 0 steps 99.2 %; with 0 successes in the log, the filter has nothing to rank. GPU training steps are 本页未运行. For the capstone, these are optional advanced reading next to 8.7, not a replacement.
+
+</Summary>

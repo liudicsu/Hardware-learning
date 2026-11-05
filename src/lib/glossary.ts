@@ -2124,6 +2124,49 @@ export const glossary: GlossaryEntry[] = [
     firstExplained: true,
   },
 
+  {
+    id: "symmetric-sampling",
+    term: { zh: "对称采样", en: "symmetric sampling" },
+    def: {
+      zh: "RLPD 的做法：每个训练批次一半来自离线（示范）缓冲区、一半来自在线回放缓冲区，使示范在整个训练中保持固定占比。",
+      en: "RLPD's rule: every training batch is half from the offline (demo) buffer and half from the online replay buffer, so the demos keep a fixed share throughout training.",
+    },
+    lesson: "real-world-rl",
+    firstExplained: true,
+  },
+
+  {
+    id: "reward-classifier",
+    term: { zh: "奖励分类器", en: "reward classifier" },
+    def: {
+      zh: "在成功 / 失败图像上训练的分类器，把「任务完成了吗」变成二值奖励和回合结束信号，代替手写奖励函数。",
+      en: "A classifier trained on success / failure images that turns 'is the task done?' into a binary reward and an end-of-episode signal, instead of a hand-written reward function.",
+    },
+    lesson: "real-world-rl",
+    firstExplained: true,
+  },
+
+  {
+    id: "advantage-conditioning",
+    term: { zh: "优势条件", en: "advantage conditioning" },
+    def: {
+      zh: "用价值函数算出每一步好于或差于预期（优势），把它作为策略的输入条件在全部数据上训练，运行时要求「好于预期」的行为。",
+      en: "Compute from a value function whether each step was better or worse than expected (its advantage), train the policy on all data with that as an input condition, and ask for 'better than expected' at run time.",
+    },
+    lesson: "vla-rl-finetune",
+    firstExplained: true,
+  },
+
+  {
+    id: "residual-policy",
+    term: { zh: "残差策略", en: "residual policy" },
+    def: {
+      zh: "冻结一个基座策略，只训练一个小网络在其动作上加修正；通常限制修正的幅度，以免破坏基座的好行为。",
+      en: "Keep a base policy frozen and train only a small network that adds a correction to its action; the correction is usually bounded so the base's good behaviour survives.",
+    },
+    lesson: "vla-rl-finetune",
+    firstExplained: true,
+  },
 ]
 
 export function getTerm(id: string): GlossaryEntry | undefined {

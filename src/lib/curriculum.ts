@@ -1472,6 +1472,51 @@ const month10Lessons: Lesson[] = [
       { id: "optional", text: { zh: "（选做，本页未运行，以当期文档为准）用 SO-101 主从臂跑一次 lerobot-rollout --strategy.type=dagger 并合并数据", en: "(Optional, not run here; follow the current docs) run lerobot-rollout --strategy.type=dagger with the SO-101 pair and merge the data" } },
     ],
   },
+  {
+    slug: "real-world-rl",
+    title: { zh: "真实世界强化学习：RLPD 与 HIL-SERL", en: "Real-world RL: RLPD and HIL-SERL" },
+    summary: {
+      zh: "真机 RL 难在稀疏奖励、复位成本和安全。RLPD 每个批次 50/50 混入离线示范，HIL-SERL 再加奖励分类器、短促的人工介入和 actor–learner 分离。在 10 状态密码锁链条上比较只用在线与 3 条示范 + 对称采样（20 个种子）。标准库玩具；LeRobot HIL-SERL 真机训练本页未运行。",
+      en: "Real-robot RL is hard because of sparse rewards, reset cost and safety. RLPD mixes offline demos 50/50 into every batch; HIL-SERL adds a reward classifier, short human interventions and an actor–learner split. Compare online-only with 3 demos + symmetric sampling on a 10-state lock chain (20 seeds). Standard-library toy; LeRobot HIL-SERL training on a real arm is not run here.",
+    },
+    minutes: 240,
+    objectives: [
+      { zh: "能说出真机 RL 与仿真 RL 的四点不同：稀疏奖励、复位成本、安全探索、小时级预算。", en: "Name four ways real-robot RL differs from sim RL: sparse rewards, reset cost, safe exploration, an hours-long budget." },
+      { zh: "能解释 RLPD 的对称采样、LayerNorm 和高更新/数据比各自解决什么问题。", en: "Explain what RLPD's symmetric sampling, LayerNorm and high update-to-data ratio each address." },
+      { zh: "能列出 HIL-SERL 在 RLPD 之上加的部分，并说明介入数据进哪个缓冲区。", en: "List what HIL-SERL adds on top of RLPD, and say which buffer intervention data goes into." },
+      { zh: "能读懂 rlpd_chain_toy.py 的输出：到达终点的种子数、复位次数、示范占比。", en: "Read rlpd_chain_toy.py's output: seeds that reach the goal, resets per run, demo share." },
+    ],
+    prereqs: ["rl-foundations", "intervention-logging", "safety-reliability"],
+    resources: ["rlpd-paper", "hil-serl-paper", "lerobot-hilserl", "sac-paper", "lerobot-sarm"],
+    tasks: [
+      { id: "run", text: { zh: "运行 rlpd_chain_toy.py，核对 expected/rlpd_chain_toy.txt", en: "Run rlpd_chain_toy.py and match expected/rlpd_chain_toy.txt" } },
+      { id: "demos", text: { zh: "把 DEMOS 改成 1，观察三种模式的到达种子数和复位次数", en: "Set DEMOS to 1 and watch reached seeds and resets for the three modes" } },
+      { id: "reward", text: { zh: "为你的一个 SO-101 任务写出奖励分类器的正、负样本各是什么", en: "For one SO-101 task, write what the reward classifier's positive and negative samples are" } },
+      { id: "optional", text: { zh: "（选做，本页未运行，以当期文档为准）按 LeRobot HIL-SERL 指南跑一次 learner + actor", en: "(Optional, not run here; follow the current docs) run learner + actor from the LeRobot HIL-SERL guide" } },
+    ],
+  },
+  {
+    slug: "vla-rl-finetune",
+    title: { zh: "VLA 上的强化学习：优势条件与残差策略", en: "RL on VLAs: advantage conditioning and residual policies" },
+    summary: {
+      zh: "阅读地图：让预训练 VLA 超越示范的四类方法——整模型结果奖励 RL（SimpleVLA-RL）、优势条件（π*0.6 / RECAP）、冻结基座上的残差（ResiP、Policy Decorator）、进度加权模仿（LeRobot SARM + RA-BC）。可选标准库玩具比较普通 BC、只用成功回合与 A > 0 过滤。GPU 训练本页未运行。",
+      en: "A reading map of four ways to push a pretrained VLA beyond its demos: whole-model outcome-reward RL (SimpleVLA-RL), advantage conditioning (π*0.6 / RECAP), residuals on a frozen base (ResiP, Policy Decorator) and progress-weighted imitation (LeRobot SARM + RA-BC). An optional standard-library toy compares plain BC, success-only BC and an A > 0 filter. GPU training is not run here.",
+    },
+    minutes: 240,
+    objectives: [
+      { zh: "能按「训练什么、信号从哪来」区分四类 VLA 改进方法。", en: "Tell the four VLA-improvement families apart by what is trained and where the signal comes from." },
+      { zh: "能解释 RECAP 为什么保留失败数据并以优势为条件。", en: "Explain why RECAP keeps failure data and conditions on the advantage." },
+      { zh: "能说明结果奖励 RL 和优势过滤为什么都需要数据里已有成功。", en: "Explain why outcome-reward RL and advantage filtering both need some successes in the data." },
+      { zh: "能为自己的 SO-101 策略排出现实的改进顺序。", en: "Lay out a realistic improvement order for your own SO-101 policy." },
+    ],
+    prereqs: ["vla-finetune", "real-world-rl", "flow-matching-policies"],
+    resources: ["simplevla-rl-paper", "openvla-oft-paper", "pistar06-blog", "resip-paper", "policy-decorator-paper", "lerobot-sarm"],
+    tasks: [
+      { id: "map", text: { zh: "用自己的话为四类方法各写一行：训练什么、信号从哪来", en: "In your own words, write one line per family: what is trained, where the signal comes from" } },
+      { id: "run", text: { zh: "（选做）运行 advantage_filter_toy.py，核对 expected/advantage_filter_toy.txt", en: "(Optional) run advantage_filter_toy.py and match expected/advantage_filter_toy.txt" } },
+      { id: "plan", text: { zh: "为你的 8.7 毕业项目写一段可选进阶计划（不替代 8.7）", en: "Write an optional advanced plan for your 8.7 capstone (it does not replace 8.7)" } },
+    ],
+  },
 ];
 
 
@@ -1666,7 +1711,7 @@ export const months: Month[] = [
       { zh: "容器、CI、rosbag2/MCAP、实验追踪", en: "Containers, CI, rosbag2/MCAP, experiment tracking" },
       { zh: "毕业项目三轨道", en: "Capstone tracks" },
       { zh: "仿真基准（8.8 LIBERO / SimplerEnv 阅读与 CPU 分数表）", en: "Sim benchmarks (8.8 LIBERO / SimplerEnv reading + CPU score table)" },
-      { zh: "延伸：HIL-SERL / Isaac Lab / 腿式运动场仍为月页选修。LeKiwi / MoveIt Servo / MTC / 导纳与长时程组合见第 9 个月核心课；micro-ROS + FOC 与真机 F/T 导纳见第 9 个月月页选修。", en: "Further: HIL-SERL / Isaac Lab / legged playground stay month-page electives. LeKiwi / MoveIt Servo / MTC / admittance and long-horizon compose → Month 9 core; micro-ROS + FOC and real F/T admittance → Month 9 month-page electives." },
+      { zh: "延伸：HIL-SERL 见 10.6；Isaac Lab / 腿式运动场仍为月页选修。LeKiwi / MoveIt Servo / MTC / 导纳与长时程组合见第 9 个月核心课；micro-ROS + FOC 与真机 F/T 导纳见第 9 个月月页选修。", en: "Further: HIL-SERL → 10.6; Isaac Lab / legged playground stay month-page electives. LeKiwi / MoveIt Servo / MTC / admittance and long-horizon compose → Month 9 core; micro-ROS + FOC and real F/T admittance → Month 9 month-page electives." },
     ],
     milestones: [
       { zh: "一个按规程录制、可流式加载的数据集", en: "A protocol-recorded dataset that can be streamed" },
@@ -1706,8 +1751,8 @@ export const months: Month[] = [
     slug: "month-10",
     title: { zh: "生成式策略、实时推理与真实世界强化学习", en: "Generative policies, real-time inference & real-world RL" },
     goal: {
-      zh: "读懂流匹配动作头如何把噪声积分成动作块，让异步推理在延迟下仍平滑执行并装进端侧预算，再用多相机观测与人工介入数据在真实机器人上做强化学习式改进。",
-      en: "Understand how a flow-matching action head integrates noise into an action chunk, keep async inference smooth under delay and inside an edge budget, then use multi-camera observations and human-intervention data for RL-style improvement on a real robot.",
+      zh: "读懂流匹配动作头如何把噪声积分成动作块，让异步推理在延迟下仍平滑执行并装进端侧预算，再读懂如何用多相机观测与人工介入数据在真实机器人上做强化学习式改进。本月不要求 Isaac、F/T 传感器或真机；真机步骤标注本页未运行。",
+      en: "Understand how a flow-matching action head integrates noise into an action chunk, keep async inference smooth under delay and inside an edge budget, then use multi-camera observations and human-intervention data for RL-style improvement on a real robot. Not required for this month: Isaac, an F/T sensor or a real robot; real-robot steps are marked not run on this page.",
     },
     topics: [
       { zh: "流匹配动作头（π0 / SmolVLA 式）", en: "Flow-matching action heads (π0 / SmolVLA style)" },
