@@ -686,3 +686,142 @@ The locale row is the one the site editor could not reproduce: Python 3.12 switc
 The task list below is the actual work of this lesson: install one route, check the demo talker and listener, test three top-ranked tutorials against the ROS 1 table, create the workspace, and inspect your node with all four commands. Do them in that order — each one depends on the previous.
 
 One node publishing a counter is the start. Lesson 2 turns that into a whole graph, with services, actions, parameters, launch files and bags.
+
+## SROS2: a domain is not an identity
+
+A `ROS_DOMAIN_ID` separates discovery conversations; it is **not authentication, authorization or encryption**. A stranger can select the same domain. Keep the networking settings above, then add DDS-Security through SROS2: a **keystore** holds trust and permission materials, while an **enclave** selects a security context. An enclave is typically process-level; nodes/components sharing a process are not independent security boundaries merely because their node names differ. This is distinct from QoS compatibility and lifecycle state transitions.
+
+The Jazzy [security tutorial](https://docs.ros.org/en/jazzy/Tutorials/Advanced/Security/Introducing-ros2-security.html) and [keystore tutorial](https://docs.ros.org/en/jazzy/Tutorials/Advanced/Security/The-Keystore.html) distinguish public CA certificates, private CA keys, and enclave-specific identity/permission artifacts. Protect private keys; creating an enclave alone does **not** express our restrictive topic ACL. The [access-control tutorial](https://docs.ros.org/en/jazzy/Tutorials/Advanced/Security/Access-Controls.html) edits permissions and re-signs them; real DDS names such as `rt/chatter` differ from ROS topic names. Our Python table below is not a DDS policy file.
+
+**Real ROS 2 / DDS handshake and packet encryption: 本页未运行.** The following is a reading recipe from Jazzy, not output measured here. In a ROS-enabled lab, first source the Jazzy environment in each terminal as above. Terminal A creates materials once, exports the environment, and starts the talker; terminal B exports the same three variables and starts the listener. Use a supported secure RMW consistently across participants.
+
+```bash
+mkdir -p ~/sros2_demo
+cd ~/sros2_demo
+ros2 security create_keystore demo_keystore
+ros2 security create_enclave demo_keystore /talker_listener/talker
+ros2 security create_enclave demo_keystore /talker_listener/listener
+export ROS_SECURITY_KEYSTORE=~/sros2_demo/demo_keystore
+export ROS_SECURITY_ENABLE=true
+export ROS_SECURITY_STRATEGY=Enforce
+ros2 run demo_nodes_cpp talker --ros-args --enclave /talker_listener/talker
+# Terminal B: repeat the three exports above, then:
+ros2 run demo_nodes_py listener --ros-args --enclave /talker_listener/listener
+```
+
+`Enforce` makes missing/invalid security configuration fail initialization instead of falling back to unsecured operation. `Permissive` can allow local non-secure startup when setup is unavailable; it does not guarantee communication with an enforced secure peer. For this tutorial's CLI inspection, a third terminal repeats those exports, then sets `ROS_SECURITY_ENCLAVE_OVERRIDE=/talker_listener/listener` and runs `ros2 node list --no-daemon --spin-time 3`. The override gives ros2cli an enclave; the daemon may otherwise lack security materials. Sharing the demo listener context with CLI is a tutorial convenience, not a production least-privilege design.
+
+### A receive-policy table, not cryptography
+
+The **synthetic, deterministic** workload exhausts 24 requests: two domains × four principals × three topics. All arms see the same requests and intended grants. `listener` may receive `/scan`; `operator` may receive `/scan` and `/cmd_vel`; `visitor` has materials but no grants; `unknown` has no materials. `/debug` is ungranted. Domain 7 is the receiving domain; domain 8 is excluded in every arm. Material presence is an assumed provisioned identity, not signature verification; an attacker cannot become an authenticated principal just by choosing its string in a real secure deployment.
+
+| Arm | Security/material assumption | Receive decision |
+| --- | --- | --- |
+| DOMAIN_ID-only | no security checks | every same-domain request passes |
+| missing enclave + Enforce | security enabled, all required enclave materials absent | initialization denied; no receives |
+| enclave + ACL + Enforce | provisioned identities plus the same explicit allow table | require matching domain, materials and topic grant |
+
+`unauthorized_receive` counts accepted requests outside the intended grants; `legitimate_denied` counts intended same-domain requests that cannot be received. Missing-enclave denial is a startup failure in ROS, not a running packet filter: its would-be requests are counted as blocked here. The first arm leaks 9 requests; the second blocks all 3 intended receives too; the third matches the policy by construction. Zero unauthorized receives in a table is **not evidence of encryption or attack resistance**, and not certification. Real discovery, signatures, governance, permissions validity and bilateral publisher/subscriber checks are omitted. No universal winner follows from blocking all traffic.
+
+```bash
+python3 ~/Hardware-learning/examples/month-4/ros2-setup/sros_enclave_acl_toy.py
+bash ~/Hardware-learning/examples/month-4/check.sh
+```
+
+<CodeSource path="examples/month-4/ros2-setup/sros_enclave_acl_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic exhaustive ACL table, NOT DDS, authentication or encryption.
+The same domain/topic/principal requests and intended grants feed every arm.
+Material presence stands for pre-provisioned identity, NOT a verified signature.
+Enforce missing-material denial is an initialization failure in real ROS;
+we count its would-be receive requests as denied, without starting any node.
+"""
+from collections import Counter
+from itertools import product
+
+DOMAIN = 7
+TOPICS = ("/scan", "/cmd_vel", "/debug")
+GRANTS = {"listener": {"/scan"}, "operator": {"/scan", "/cmd_vel"},
+          "visitor": set(), "unknown": set()}
+MATERIALS = {"listener", "operator", "visitor"}
+REQUESTS = tuple(product((7, 8), GRANTS, TOPICS))
+ARMS = ("domain_only", "missing_enclave_Enforce", "enclave_ACL_Enforce")
+
+
+def decision(arm, domain, principal, topic):
+    if arm not in ARMS:
+        raise ValueError(arm)
+    if domain != DOMAIN:
+        return False, "other_domain"
+    if arm == "domain_only":
+        return True, "domain_only"
+    if arm == "missing_enclave_Enforce" or principal not in MATERIALS:
+        return False, "missing_materials"
+    if topic not in GRANTS[principal]:
+        return False, "policy_deny"
+    return True, "allow"
+
+
+def evaluate(arm, requests=REQUESTS):
+    counts = Counter()
+    for domain, principal, topic in requests:
+        intended = domain == DOMAIN and topic in GRANTS[principal]
+        received, reason = decision(arm, domain, principal, topic)
+        counts[reason] += 1
+        counts["received"] += received
+        counts["unauthorized_receive"] += received and not intended
+        counts["legitimate_denied"] += intended and not received
+    return counts
+
+
+def main():
+    print("Synthetic exhaustive ACL: 24 shared requests; same_domain=12; intended_allowed=3")
+    print("arm received unauthorized_receive legitimate_denied other_domain missing_materials policy_deny")
+    for arm in ARMS:
+        c = evaluate(arm)
+        keys = ("received", "unauthorized_receive", "legitimate_denied",
+                "other_domain", "missing_materials", "policy_deny")
+        print(arm, *(c[k] for k in keys))
+    print("Enforce: valid visitor still denied; unknown has no materials; /debug is never granted.")
+    print("DOMAIN_ID is not security; missing enclave blocks initialization, not a packet filter.")
+    print("No crypto, DDS handshake, QoS or lifecycle simulation; no certification claim.")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+```text
+Synthetic exhaustive ACL: 24 shared requests; same_domain=12; intended_allowed=3
+arm received unauthorized_receive legitimate_denied other_domain missing_materials policy_deny
+domain_only 12 9 0 12 0 0
+missing_enclave_Enforce 0 0 3 12 12 0
+enclave_ACL_Enforce 3 0 0 12 3 6
+Enforce: valid visitor still denied; unknown has no materials; /debug is never granted.
+DOMAIN_ID is not security; missing enclave blocks initialization, not a packet filter.
+No crypto, DDS handshake, QoS or lifecycle simulation; no certification claim.
+```
+
+<Resource id="ros2-sros-intro" />
+
+<Resource id="ros2-sros-keystore" />
+
+<Resource id="ros2-sros-acl" />
+
+### Exercises
+
+1. **30 min:** trace the official keystore/enclave recipe and annotate which files establish identity, permissions and governance. Do not publish private materials.
+2. **35 min:** predict every same-domain table row, then run the toy; explain why `visitor` differs from `unknown` and why “deny everything” is not availability.
+3. **45 min:** grant `/debug` only to `operator` in a local copy, rerun and account for every changed metric. Change the domain in all arms together; explain why guessing it is not authentication.
+4. **40 min:** design a missing-enclave negative test and a denied-topic negative test for a ROS-enabled follow-up lab, including per-terminal exports, CLI override and expected startup failures. Real DDS tests remain 本页未运行 here; do not substitute the table for a security assessment.
+
+<Summary>
+
+- Choose the apt or pixi Jazzy installation route, check the talker/listener demo, and distinguish ROS 1 commands from ROS 2.
+- Build an ament package in a colcon workspace; source the underlay and overlay in each new terminal, then inspect nodes, topics and interfaces.
+- Diagnose discovery, DOMAIN_ID, multicast, environment and package errors before rewriting a node.
+- SROS2 keystores and enclaves add identity and permission configuration beyond DOMAIN_ID; the shared ACL table contrasts open-domain receives, missing-enclave Enforce denial and explicit grants without claiming real DDS encryption.
+
+</Summary>

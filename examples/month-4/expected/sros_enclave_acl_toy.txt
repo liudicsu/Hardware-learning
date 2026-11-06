@@ -1,0 +1,8 @@
+Synthetic exhaustive ACL: 24 shared requests; same_domain=12; intended_allowed=3
+arm received unauthorized_receive legitimate_denied other_domain missing_materials policy_deny
+domain_only 12 9 0 12 0 0
+missing_enclave_Enforce 0 0 3 12 12 0
+enclave_ACL_Enforce 3 0 0 12 3 6
+Enforce: valid visitor still denied; unknown has no materials; /debug is never granted.
+DOMAIN_ID is not security; missing enclave blocks initialization, not a packet filter.
+No crypto, DDS handshake, QoS or lifecycle simulation; no certification claim.

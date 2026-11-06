@@ -890,3 +890,146 @@ data: hi
 这就是整张图。这个主题的实践任务，就是你刚刚读到的那套系统——传感器、处理节点、配置服务、带参数的汇总节点，加上你自己的 `.msg` 和 `.srv`、一个接受参数的 launch 文件、以及一段你录下又回放的 bag——这里就不重复了，去做吧：`examples/month-4/ros2-graph` 目录里有这三个包，把它们拷进 `~/ros2_ws/src` 再构建。构建之前先改一样东西——`window`、某个 `alpha`、传感器频率——然后看什么坏了、什么没坏，因为理解正是在那里真正落地的。
 
 有一根线贯穿全课却始终没被用掉：每条消息都带着一个 `frame_id`，而没人动过它。`/raw` 和 `/filtered` 都写着 `sensor_link`，可你的机器人还没有身体，这个名字什么也不指。第 3 课会用 URDF 和 TF 给机器人装上身体，每个部件都有自己的坐标系；从那以后，消息里的 `frame_id` 必须是机器人 TF 树里真实存在的名字——你会亲眼看到名字对不上时会发生什么。
+
+## Composition：节点不是进程
+
+launch 文件可以把 N 个节点可执行程序放进 N 个进程；重映射改变名称，**不改变进程部署**。可组合的 C++ 节点是共享库中注册的 component。`component_container` 托管 component manager，可以在一个进程中加载多个组件，同时保留各自的 ROS 节点名。修改 launch 文件不会悄悄把现有 Python 图转换成 C++ 组件。[Jazzy Composition 教程](https://docs.ros.org/en/jazzy/Tutorials/Intermediate/Composition.html)提供下面单独使用的 `composition` 演示包。
+
+**真实 `component_container`、ROS 图与机器人运行：本页未运行。** 阅读步骤：先按上文在每个终端加载 Jazzy，确认已安装 `rclcpp_components`、`ros2component` 和 `composition`。终端 A 运行容器并保持开启；终端 B 列出类型，再加载两个组件：
+
+```bash
+# Terminal A
+ros2 run rclcpp_components component_container
+# Terminal B
+ros2 component types
+ros2 component load /ComponentManager composition composition::Talker
+ros2 component load /ComponentManager composition composition::Listener
+ros2 component list
+```
+
+两个组件共享一个 OS 进程，但图中仍是 `/talker` 和 `/listener`。[可组合 launch 指南](https://docs.ros.org/en/jazzy/How-To-Guides/Launching-composable-nodes.html)展示 `ComposableNodeContainer` launch action 配合 `ComposableNode` 描述可以自动加载；普通 launch `Node` action 仍启动可执行程序。组合不只是重映射、切换 DOMAIN_ID 或一次 QoS 接受测试。
+
+进程更少可能减少重复 executor / 轮询开销；**组合不会自动更快，也不会自动零拷贝**。Jazzy 把 `use_intra_process_comms` 作为组件附加选项（默认 false）。[intra-process 演示](https://docs.ros.org/en/jazzy/Tutorials/Demos/Intra-Process-Communication.html)使用 `std::unique_ptr` 等合适的 C++ 所有权，并比较发布 / 订阅地址；图拓扑和所有权都会影响结果。这里对该优化**只做阅读，本页未运行**。下面的 Python 计数器既不测拷贝，也不测 ROS executor 耗时或内核上下文切换。共享地址空间还扩大崩溃波及范围；分进程仍可能互相依赖数据，不自动等于系统级故障隔离。
+
+### 共享负载、显式记账与一次注入崩溃
+
+这个**合成、确定性**扫描使用 N=2/4/8 个组件、12 tick，两种部署使用同一发布流。组件 i 在 `(tick+i)%3==0` 时有一次回调，处理载荷 `(tick+1)*(i+1)`。每个存活进程每 tick 轮询一次，包括空闲 tick；容器轮询一次后分派全部组件。这是声明过的**计数模型**，不是声称 ROS 或 Linux 总用这种调度器。`processes` 计初始部署进程数，不是崩溃后的存活数。`poll_ticks` 是各进程轮询数之和，`callbacks` 计已完成任务，`checksum` 累加已处理载荷。共享输入和相等回调工作量就是比较预算；无随机采样，因此不报告由种子得到的离散度。
+
+健康的 N=4 情况有 4 对 1 个进程、48 对 12 次轮询，但两臂都完成 16 次回调、checksum 为 248。相等只检验负载保持，不是实测提速。随后两种部署都在 **tick 5 之前对组件 1 注入相同的致命进程崩溃**，不重启。分进程部署仅失去该进程（直接崩溃波及范围为 1）；共享容器失去全部 N 个组件（范围为 N）。`lost_callbacks` 计所在进程死亡后的计划任务；不模拟下游级联、IPC 丢失、阻塞回调、资源饱和或恢复。N=4 时分进程臂丢失 3 次回调，容器丢失 9 次。更低轮询数与更小崩溃域方向不同，不预设普遍赢家。
+
+```bash
+python3 ~/Hardware-learning/examples/month-4/ros2-graph/composition_container_toy.py
+bash ~/Hardware-learning/examples/month-4/check.sh
+```
+
+<CodeSource path="examples/month-4/ros2-graph/composition_container_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic deterministic pub/sub scheduling counters, NOT ROS benchmarks.
+Every component gets the same immutable command stream in both deployments.
+Each process polls once per tick, even idle: a declared accounting assumption,
+not Linux context switches or CPU time. Callbacks use the same work function.
+Fault injection kills the process containing component 1 before tick 5;
+no restart, shared dependencies or downstream cascade are modelled.
+"""
+from dataclasses import dataclass
+
+TICKS = 12
+CRASH_TICK = 5
+
+
+@dataclass(frozen=True)
+class Result:
+    processes: int
+    polls: int
+    callbacks: int
+    checksum: int
+    lost_callbacks: int
+    blast_radius: int
+
+
+def run(n, composed, fault=False):
+    if n < 2:
+        raise ValueError("need at least two components")
+    groups = (tuple(range(n)),) if composed else tuple((i,) for i in range(n))
+    polls = callbacks = checksum = lost = 0
+    victims = next(group for group in groups if 1 in group) if fault and CRASH_TICK < TICKS else ()
+    for tick in range(TICKS):
+        for group in groups:
+            dead = fault and tick >= CRASH_TICK and 1 in group
+            if not dead:
+                polls += 1
+            for component in group:
+                # One publisher fan-out stream, same subscription schedule and payloads.
+                if (tick + component) % 3 == 0:
+                    if dead:
+                        lost += 1
+                    else:
+                        callbacks += 1
+                        checksum += (tick + 1) * (component + 1)
+    return Result(len(groups), polls, callbacks, checksum, lost, len(victims))
+
+
+def main():
+    print("Synthetic shared stream: ticks=12; equal callback work; deterministic N sweep (no seeds).")
+    print("N deployment processes poll_ticks callbacks checksum lost_callbacks crash_blast_radius")
+    for fault in (False, True):
+        print("fault=component1_before_tick5" if fault else "healthy")
+        for n in (2, 4, 8):
+            for composed in (False, True):
+                r = run(n, composed, fault)
+                print(n, "container" if composed else "separate", r.processes, r.polls,
+                      r.callbacks, r.checksum, r.lost_callbacks, r.blast_radius)
+    print("Poll ticks count per-process polling, NOT OS context switches or wall-clock speed.")
+    print("Crash blast radius counts directly killed components, not downstream dependency loss.")
+    print("Composition does not prove zero-copy; real intra-process demo is reading only.")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+```text
+Synthetic shared stream: ticks=12; equal callback work; deterministic N sweep (no seeds).
+N deployment processes poll_ticks callbacks checksum lost_callbacks crash_blast_radius
+healthy
+2 separate 2 24 8 82 0 0
+2 container 1 12 8 82 0 0
+4 separate 4 48 16 248 0 0
+4 container 1 12 16 248 0 0
+8 separate 8 96 32 948 0 0
+8 container 1 12 32 948 0 0
+fault=component1_before_tick5
+2 separate 2 17 5 28 3 1
+2 container 1 5 3 11 5 2
+4 separate 4 41 13 194 3 1
+4 container 1 5 7 52 9 4
+8 separate 8 89 29 894 3 1
+8 container 1 5 13 168 19 8
+Poll ticks count per-process polling, NOT OS context switches or wall-clock speed.
+Crash blast radius counts directly killed components, not downstream dependency loss.
+Composition does not prove zero-copy; real intra-process demo is reading only.
+```
+
+<Resource id="ros2-composition" />
+
+<Resource id="ros2-intraprocess" />
+
+<Resource id="ros2-composable-launch" />
+
+### 练习
+
+1. **35 分钟**：跟踪官方教程的 `component_container` 与每条 `ros2 component load`；把节点名和进程边界分开画，解释为什么不声称现有 Python 包已被转换。
+2. **35 分钟**：手算 N=4 健康轮询、回调与 checksum，再运行玩具。在本地副本中同时修改两臂 TICKS，保持命令流和相等工作量。
+3. **40 分钟**：在本地副本中移动共享崩溃 tick，重算直接受害组件与丢失的计划回调。在纸上增加下游依赖，解释为什么玩具不模拟其级联。
+4. **40 分钟**：设计真实 intra-process 后续实验，使用相容的 C++ 所有权与发布 / 订阅地址，并在匹配负载下跟踪独立进程对容器。在有这些运行前不报告零拷贝或提速；本页未运行。
+
+<Summary>
+
+- 用话题、自定义消息与服务、action、参数和 EMA 处理节点构建 ROS 图。
+- 用 launch 参数、命名空间与重映射配置图；用 ROS CLI 工具与 bag 检查、录制和回放。
+- 发布却无订阅接收时，先排查 QoS 兼容性，再查域和名称；保持消息 frame ID 有意义，为下一课 TF 做准备。
+- Composition 把组件加载进共享进程；相等工作量的合成轮询计数和注入崩溃展示进程数与崩溃波及范围的取舍，不是实测提速或零拷贝结果。
+
+</Summary>

@@ -1,0 +1,19 @@
+Synthetic shared stream: ticks=12; equal callback work; deterministic N sweep (no seeds).
+N deployment processes poll_ticks callbacks checksum lost_callbacks crash_blast_radius
+healthy
+2 separate 2 24 8 82 0 0
+2 container 1 12 8 82 0 0
+4 separate 4 48 16 248 0 0
+4 container 1 12 16 248 0 0
+8 separate 8 96 32 948 0 0
+8 container 1 12 32 948 0 0
+fault=component1_before_tick5
+2 separate 2 17 5 28 3 1
+2 container 1 5 3 11 5 2
+4 separate 4 41 13 194 3 1
+4 container 1 5 7 52 9 4
+8 separate 8 89 29 894 3 1
+8 container 1 5 13 168 19 8
+Poll ticks count per-process polling, NOT OS context switches or wall-clock speed.
+Crash blast radius counts directly killed components, not downstream dependency loss.
+Composition does not prove zero-copy; real intra-process demo is reading only.

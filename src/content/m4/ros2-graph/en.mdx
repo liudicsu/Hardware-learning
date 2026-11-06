@@ -890,3 +890,146 @@ So here is the debug order, and it is short. First `ros2 topic info -v <topic>`,
 That is the whole graph. The practice task for this topic is the system you have just read about — the sensor, the processing node, the configuration service and the parameterised aggregator, with your own `.msg` and `.srv`, a launch file that takes arguments, and a bag you record and replay — and rather than restate it here, go and do it: the folder `examples/month-4/ros2-graph` contains all three packages, so copy them into `~/ros2_ws/src` and build. Change one thing before you build — the `window`, an `alpha`, the sensor rate — and watch what breaks and what does not, because that is where the understanding actually settles.
 
 One thread runs through the whole lesson unspent: every message carried a `frame_id`, and nothing used it. `/raw` and `/filtered` both say `sensor_link`, but your robot has no body yet, so the name points at nothing. Lesson 3 gives the robot a body with URDF and TF, and every part gets its own frame; from then on, the `frame_id` in a message has to be a name that really exists in the robot's TF tree — and you will see for yourself what happens when it does not.
+
+## Composition: nodes are not processes
+
+A launch file can start N node executables in N processes; remapping changes names, **not process placement**. A composable C++ node is a registered component in a shared library. `component_container` hosts a component manager that can load several components in one process while retaining distinct ROS node names. Our existing Python graph is not silently converted into C++ components by changing its launch file. The [Jazzy Composition tutorial](https://docs.ros.org/en/jazzy/Tutorials/Intermediate/Composition.html) supplies the separate `composition` demo package used below.
+
+**Real `component_container`, ROS graph and robot runs: 本页未运行.** Reading recipe: source Jazzy in each terminal as above and ensure `rclcpp_components`, `ros2component` and `composition` are installed. Terminal A runs the container and stays open; terminal B lists types, then loads the two components:
+
+```bash
+# Terminal A
+ros2 run rclcpp_components component_container
+# Terminal B
+ros2 component types
+ros2 component load /ComponentManager composition composition::Talker
+ros2 component load /ComponentManager composition composition::Listener
+ros2 component list
+```
+
+The two components share one OS process but remain `/talker` and `/listener` in the graph. The [composable launch guide](https://docs.ros.org/en/jazzy/How-To-Guides/Launching-composable-nodes.html) shows how a `ComposableNodeContainer` launch action with `ComposableNode` descriptions can automate loading; ordinary launch `Node` actions still start executables. Composition is not just remapping, a DOMAIN_ID change or a QoS acceptance test.
+
+Fewer processes can reduce duplicated executor/polling overhead; **composition is not automatically faster or zero-copy**. Jazzy exposes `use_intra_process_comms` as an additional component option (default false). The [intra-process demo](https://docs.ros.org/en/jazzy/Tutorials/Demos/Intra-Process-Communication.html) uses suitable C++ ownership such as `std::unique_ptr` and compares publisher/subscriber addresses; graph topology and ownership matter. That optimization is **reading only, 本页未运行** here. The Python counters below measure neither copies, ROS executor timings nor kernel context switches. Sharing an address space also increases the crash blast radius; separate processes still may depend on each other's data, so they are not automatic system-level fault isolation.
+
+### Shared workload, explicit accounting and one injected crash
+
+This **synthetic deterministic** sweep uses N=2/4/8 components, 12 ticks and the same publisher stream in both deployments. Component i has one scheduled callback when `(tick+i)%3==0`, processing payload `(tick+1)*(i+1)`. Every healthy process polls once per tick, including idle ticks; a container polls once and dispatches all its components. This is a declared **counter model**, not a claim that ROS or Linux always follows this scheduler. `processes` counts initially deployed processes, not survivors after a crash. `poll_ticks` is the sum of these per-process polls, `callbacks` counts completed jobs, and `checksum` sums processed payloads. The shared inputs and equal callback work are the comparison budget; there is no random sampling and therefore no seed-derived spread.
+
+Healthy N=4 gives 4 versus 1 processes and 48 versus 12 poll ticks, but both complete 16 callbacks with checksum 248. The equality checks workload preservation, not measured speed. Then both deployments inject the **same component-1 fatal process crash just before tick 5**, with no restart. Separate deployment loses that process (direct crash blast radius 1); the shared container loses all N components (radius N). `lost_callbacks` counts scheduled jobs after their containing process dies; no downstream cascade, IPC loss, blocking callback, resource saturation or recovery is simulated. At N=4 the separate arm loses 3 callbacks versus 9 for the container. Lower polling counts and smaller crash domains pull in different directions: no universal winner is presumed.
+
+```bash
+python3 ~/Hardware-learning/examples/month-4/ros2-graph/composition_container_toy.py
+bash ~/Hardware-learning/examples/month-4/check.sh
+```
+
+<CodeSource path="examples/month-4/ros2-graph/composition_container_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic deterministic pub/sub scheduling counters, NOT ROS benchmarks.
+Every component gets the same immutable command stream in both deployments.
+Each process polls once per tick, even idle: a declared accounting assumption,
+not Linux context switches or CPU time. Callbacks use the same work function.
+Fault injection kills the process containing component 1 before tick 5;
+no restart, shared dependencies or downstream cascade are modelled.
+"""
+from dataclasses import dataclass
+
+TICKS = 12
+CRASH_TICK = 5
+
+
+@dataclass(frozen=True)
+class Result:
+    processes: int
+    polls: int
+    callbacks: int
+    checksum: int
+    lost_callbacks: int
+    blast_radius: int
+
+
+def run(n, composed, fault=False):
+    if n < 2:
+        raise ValueError("need at least two components")
+    groups = (tuple(range(n)),) if composed else tuple((i,) for i in range(n))
+    polls = callbacks = checksum = lost = 0
+    victims = next(group for group in groups if 1 in group) if fault and CRASH_TICK < TICKS else ()
+    for tick in range(TICKS):
+        for group in groups:
+            dead = fault and tick >= CRASH_TICK and 1 in group
+            if not dead:
+                polls += 1
+            for component in group:
+                # One publisher fan-out stream, same subscription schedule and payloads.
+                if (tick + component) % 3 == 0:
+                    if dead:
+                        lost += 1
+                    else:
+                        callbacks += 1
+                        checksum += (tick + 1) * (component + 1)
+    return Result(len(groups), polls, callbacks, checksum, lost, len(victims))
+
+
+def main():
+    print("Synthetic shared stream: ticks=12; equal callback work; deterministic N sweep (no seeds).")
+    print("N deployment processes poll_ticks callbacks checksum lost_callbacks crash_blast_radius")
+    for fault in (False, True):
+        print("fault=component1_before_tick5" if fault else "healthy")
+        for n in (2, 4, 8):
+            for composed in (False, True):
+                r = run(n, composed, fault)
+                print(n, "container" if composed else "separate", r.processes, r.polls,
+                      r.callbacks, r.checksum, r.lost_callbacks, r.blast_radius)
+    print("Poll ticks count per-process polling, NOT OS context switches or wall-clock speed.")
+    print("Crash blast radius counts directly killed components, not downstream dependency loss.")
+    print("Composition does not prove zero-copy; real intra-process demo is reading only.")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+```text
+Synthetic shared stream: ticks=12; equal callback work; deterministic N sweep (no seeds).
+N deployment processes poll_ticks callbacks checksum lost_callbacks crash_blast_radius
+healthy
+2 separate 2 24 8 82 0 0
+2 container 1 12 8 82 0 0
+4 separate 4 48 16 248 0 0
+4 container 1 12 16 248 0 0
+8 separate 8 96 32 948 0 0
+8 container 1 12 32 948 0 0
+fault=component1_before_tick5
+2 separate 2 17 5 28 3 1
+2 container 1 5 3 11 5 2
+4 separate 4 41 13 194 3 1
+4 container 1 5 7 52 9 4
+8 separate 8 89 29 894 3 1
+8 container 1 5 13 168 19 8
+Poll ticks count per-process polling, NOT OS context switches or wall-clock speed.
+Crash blast radius counts directly killed components, not downstream dependency loss.
+Composition does not prove zero-copy; real intra-process demo is reading only.
+```
+
+<Resource id="ros2-composition" />
+
+<Resource id="ros2-intraprocess" />
+
+<Resource id="ros2-composable-launch" />
+
+### Exercises
+
+1. **35 min:** trace `component_container` and each `ros2 component load` in the official tutorial. Draw node names separately from process boundaries; explain why the existing Python packages need no claimed conversion.
+2. **35 min:** hand-count N=4 healthy polls, callbacks and checksum, then run the toy. Change TICKS in a local copy for both arms together; preserve the command stream and equal work.
+3. **40 min:** move the shared crash tick in a local copy and recompute direct victims versus lost scheduled callbacks. Add a downstream dependency on paper and explain why the toy does not model its cascade.
+4. **40 min:** propose a real intra-process follow-up using compatible C++ ownership and publisher/subscriber addresses, and a standalone-versus-container trace with matched workload. Until those runs exist, do not report zero-copy or a speedup; 本页未运行.
+
+<Summary>
+
+- Build a ROS graph with topics, custom messages and services, actions, parameters and an EMA processing node.
+- Use launch arguments, namespaces and remapping to configure the graph; inspect, record and replay it with ROS CLI tools and bags.
+- Diagnose QoS compatibility before checking domains and names when a publisher has no receiving subscriber; keep message frame IDs meaningful for the next TF lesson.
+- Composition loads components into a shared process; equal-work synthetic polling counters and an injected crash expose process-count versus crash-blast-radius trade-offs, not a measured speedup or zero-copy result.
+
+</Summary>
