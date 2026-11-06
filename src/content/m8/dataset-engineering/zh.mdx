@@ -164,6 +164,11 @@ Open X-Embodiment（arXiv **2310.08864**）把许多机器人数据集合进同�
 
 已打开的 CRC 参考是**二手资料**，不是协议标准。CRC 在 GF(2) 上做多项式除法，加法是 XOR，不带整数进位。这里选 **CRC-32/IEEE (CRC-32/ISO-HDLC)**，普通多项式 **0x04C11DB7** 隐含最高32次项；反射位循环用 **0xEDB88320**，初值与 xorout 都为 **0xFFFFFFFF**，按字节顺序、字节内 **LSB-first** 处理。这不是 CRC-32C。ASCII 检查值为 **CRC32("123456789") = 0xCBF43926**；显式逐位实现与 Python 标准库 `zlib.crc32` 交叉核对，不是硬编码答案。
 
+一手延伸阅读：Koopman 与 Chakravarty（2004）的 [Cyclic Redundancy Code (CRC) Polynomial Selection For Embedded Networks](https://users.ece.cmu.edu/~koopman/roses/dsn04/koopman04_crc_poly_embedded.pdf)，DSN 2004，以及 [Philip Koopman 的 CRC 多项式选择表 / CRC Zoo](https://users.ece.cmu.edu/~koopman/crc/)。这些一手资料联系消息长度、Hamming 距离与多项式选择，不改变本玩具声明的 CRC-32/IEEE 约定或已测损坏样本。
+
+<Resource id="crc-koopman-dsn2004" />
+<Resource id="crc-koopman-zoo" />
+
 ### 相同载荷、相同损坏、三个检查器
 
 `dataset_crc_integrity_toy.py` 共享四份 16 字节载荷：全零、全 FF、递增0…15、`(37*j+11) mod256`。每个损坏副本同时交给**不检查**、**sum8=sum(bytes) mod256**、**CRC32**，收到相同字节和原始已存校验值；不检查组忽略标签。本实验中标签、长度和帧边界保持完好，不模拟插入/删除或某种存储/信道的故障概率。损坏完全确定性，因此无需随机种子，也不作五种子不确定性声明。
