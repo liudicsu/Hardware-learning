@@ -1,0 +1,24 @@
+ICP 2D nearest-segment surface surrogate; no true correspondence IDs supplied
+seeds=11/23/37/53/71 shared scans/noise/init per offset; sigma=0.004m cap=40 stop_RMSE=0.012m
+same trust bounds .35rad/.5m; hit uses SCORE-ONLY true pose <=0.03rad and <=0.03m
+offset_deg arm pose_hit/5 geometric_RMSE_mean_sd_m iterations_mean_sd
+-120 point_point 0/5 0.186180 0.001081 40.00 0.00
+-120 point_plane 0/5 0.183611 0.001421 40.00 0.00
+-60 point_point 0/5 0.034379 0.003290 40.00 0.00
+-60 point_plane 5/5 0.004720 0.000939 10.00 0.00
+-30 point_point 5/5 0.010713 0.000702 23.00 1.10
+-30 point_plane 5/5 0.004576 0.000985 5.20 0.40
+0 point_point 5/5 0.009673 0.002045 3.40 0.49
+0 point_plane 5/5 0.006232 0.002384 1.60 0.49
+30 point_point 5/5 0.010546 0.000365 17.00 0.00
+30 point_plane 5/5 0.008276 0.003205 3.40 0.49
+60 point_point 0/5 0.235253 0.000915 40.00 0.00
+60 point_plane 4/5 0.052228 0.094504 17.40 11.31
+120 point_point 0/5 0.203087 0.001910 40.00 0.00
+120 point_plane 0/5 0.200165 0.001822 40.00 0.00
+corridor: two parallel walls, no visible ends; dx(m),dy(m),dtheta(rad) parameter scaling
+point_point reassociated_H_rank=2/3 condition=inf null=along_wall_dx shifted_1m_RMSE=0.000000
+point_plane reassociated_H_rank=2/3 condition=inf null=along_wall_dx shifted_1m_RMSE=0.000000
+point_point FROZEN-match normal rank=3/3 condition=2.000; artificial tangent anchoring != scene observability
+No presumed winner; basin means sampled offsets only; population sd, not wall-clock speed
+Open3D / real lidar / SLAM Toolbox registration: 本页未运行

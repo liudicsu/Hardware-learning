@@ -23,4 +23,6 @@ check lqr_model_error_toy.txt "$PY" "$M5/state-space-lqr/lqr_model_error_toy.py"
 
 check stereo_depth_sigma_toy.txt "$PY" "$M5/camera-calibration/stereo_depth_sigma_toy.py"
 
+check quat_vs_euler_gimbal_toy.txt "$PY" "$M5/kinematics-ik/quat_vs_euler_gimbal_toy.py"
+
 exit $fail

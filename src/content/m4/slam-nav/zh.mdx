@@ -760,3 +760,274 @@ $ ros2 run tf2_ros tf2_echo map base_footprint --ros-args -p use_sim_time:=true
 <Resource id="articulated-slam" />
 
 第 5 个月会往下走，深入到你这段时间所用东西的底层。Nav2 的控制器、第 3 个月的 PID 回路和平衡车，都建立在控制理论之上；规划器和第 3 个月的机械臂，建立在运动学（kinematics）之上；你仿真过的相机，则在等着标定（calibration）和感知（perception）。下个月讲的，就是让这些部件真正运转起来的数学。
+
+## ICP：两种局部配准更新，同一对扫描（+210 min）
+
+[Open3D ICP 教程](https://www.open3d.org/docs/release/tutorial/pipelines/icp_registration.html)区分点到点 `Σ||Rp_i+t−q_i||²` 和点到面 `Σ[n_iᵀ(Rp_i+t−q_i)]²`，法向来自目标。两者都需要合理初值，都不保证对齐到正确位置。本节补配准数学，不重做里程计转圈检查或 3DGS。本实验 Open3D、真实雷达及 SLAM Toolbox 配准：**本页未运行**；教程数字只供阅读，不是这里的实测结果。
+
+<Resource id="open3d-icp-objectives" />
+
+### 声明二维表面重建与相等信息
+
+`icp_point_plane_toy.py` 是**最近线段表面替身**，不是 Open3D 的离散最近点后端。七个有序目标扫描顶点重建闭合折线房间，42 个源回波采样底层七面墙。尺寸 / 位姿 / 噪声全部**合成**，坐标为米、角度为弧度；源到目标生成位姿 `(θ,tx,ty)=(0.15,0.12,−0.07)`。每种子 **11/23/37/53/71** 给目标顶点和源回波分别加 σ=**0.004 m** 高斯噪声，两组拿到完全相同的带噪扫描、相邻点重建和初值。
+
+对每个已变换源点 x，**两组都穷举相同的最近线段投影**，得到 q 及该带噪目标线段的单位法向。不给生成墙编号、干净目标法向或真实对应关系。相邻关系 / 表面重建是双方都有的声明输入，不是点到面独占 oracle。点到点忽略法向，冻结投影 q 做二维质心 / atan2 刚体更新；点到面用法向做局部最小二乘。投影在线段内部时，欧氏距离和法向距离一致，但**冻结对应的更新模型不同**。之后迭代的估计及对应点可能分开；共享的是匹配器与输入几何，不是强制共享每一步产生的 q。
+
+### 点到面是小角度线性化
+
+当前变换点 `x=(x,y)`，残差 `r=nᵀ(x−q)`；左增量满足 `x'≈x+(dtx,dty)+dθ(−y,x)`。一行是 **`a=[nx,ny,−nx*y+ny*x]`**，求 `min Σ(r+a·δ)²`，`δ=(dtx,dty,dθ)`，即 `AᵀA δ=−Aᵀr`。教学用3×3主元消元拒绝秩亏，生产 QR/SVD 更适合诊断病态。每步重新关联、重新线性化，再应用真正有限旋转，不拿一阶点近似当最终旋转。大步长会破坏局部近似；两组用**相同**合成信赖界限 **0.35 rad / 0.5 m**，最多 **40 次迭代**，不据此证明全局收敛。
+
+统一在**几何 RMSE≤0.012 m**、预算上限或秩亏时停止。RMSE 对新匹配的带噪目标线段算欧氏距离，点到面组也用同一个评分。另用 **SCORE-ONLY** 生成位姿判命中：角度误差≤**0.03 rad**、平移误差≤**0.03 m**；它不指导拟合。初始平移为真值加 `(0.10,−0.08)` m 及共享种子扰动±0.01 m；旋转为真值加扫描偏角及共享扰动±0.005 rad。同一种子的平移 / 扰动在不同旋转偏角下不变。
+
+### 采样收敛域，不预定赢家
+
+| 初始旋转偏角 deg | 点到点命中/5 | 点到面命中/5 | RMSE 均值 ± 总体标准差 m，点 / 面 | 迭代均值 ± 总体标准差，点 / 面 |
+|---|---|---|---|---|
+| −120 | 0 | 0 | 0.186180±0.001081 / 0.183611±0.001421 | 40±0 / 40±0 |
+| −60 | 0 | 5 | 0.034379±0.003290 / 0.004720±0.000939 | 40±0 / 10±0 |
+| −30 | 5 | 5 | 0.010713±0.000702 / 0.004576±0.000985 | 23±1.10 / 5.20±0.40 |
+| 0 | 5 | 5 | 0.009673±0.002045 / 0.006232±0.002384 | 3.40±0.49 / 1.60±0.49 |
+| 30 | 5 | 5 | 0.010546±0.000365 / 0.008276±0.003205 | 17±0 / 3.40±0.49 |
+| 60 | 0 | 4 | 0.235253±0.000915 / 0.052228±0.094504 | 40±0 / 17.40±11.31 |
+| 120 | 0 | 0 | 0.203087±0.001910 / 0.200165±0.001822 | 40±0 / 40±0 |
+
+全部种子（含失败）均计入，同一迭代上限，不只统计成功样本。已测偏角中，点到点五种子全命中的是 −30/0/30，点到面是 −60/−30/0/30；+60 的面组只有4/5，±120 两组均失败。这只是**该房间 / 噪声族的采样收敛域**，不是连续域边界或普遍排名。面组在这些案例中常更快，但其他几何、法向、初值或步界限会改变结果；迭代数不是墙钟速度。
+
+### 走廊会骗过冻结对应的秩检查
+
+退化案例为平行水平墙，源补丁 x从−1.5 到1.5 m、y=±1 m。目标线段延伸到±100 m，只是**重叠区内看不到端点的理想模型**，不是传感器量程声明。沿 x 平移后重新投影，代价仍相同；平移1 m 后 RMSE 仍为0。两组的**重新关联目标 Hessian 都是 rank2/3、condition=∞，零方向为沿墙 dx**。用 `(dx m,dy m,dθ rad)` 参数和 h=1e−4 对平均欧氏平方代价有限差分；数值条件数依赖参数缩放，但这个精确零方向不变。
+
+反之，冻结投影 q 会给点到点 **rank3/3、condition2.000** 的正规矩阵，相当于人为固定了切向点身份，**不能把它叫场景可观测性**。点到面的法向系统奇异并被拒绝；两者物理配准目标均缺沿墙信息。必须区分冻结对应的求解器曲率与重新关联的场景几何；要约束此方向需要可见端点 / 角点或其他传感器。
+
+```bash
+python3 ~/Hardware-learning/examples/month-4/slam-nav/icp_point_plane_toy.py
+bash ~/Hardware-learning/examples/month-4/check.sh
+```
+
+<CodeSource path="examples/month-4/slam-nav/icp_point_plane_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""2D ICP surface surrogate, not Open3D/KITTI/SLAM Toolbox measurements.
+Target scan vertices are connected polylines; BOTH arms use the same nearest
+segment projection, not hidden true point indices. Normals come from those
+same noisy segments. Point-point freezes projected q for a rigid increment;
+point-plane linearizes normal residuals. This is not Open3D's discrete NN backend.
+Corridor diagnostics REASSOCIATE projections: frozen point-point matches can
+appear full rank while physical wall sliding is unobservable for BOTH arms.
+"""
+from math import atan2, cos, sin, sqrt, hypot, pi, radians, degrees
+from random import Random
+from statistics import mean, pstdev
+
+SEEDS=(11,23,37,53,71)
+OFFSETS=(-120,-60,-30,0,30,60,120)
+CAP, STOP_RMSE=40,.012
+TRUE=(.15,.12,-.07)  # source->target theta(rad), tx(m), ty(m); SCORE ONLY.
+VERTICES=((-1.4,-.8),(1.1,-.8),(1.1,.45),(.25,.45),(.25,1.2),(-.9,1.2),(-1.4,.2))
+
+
+def transform(point, pose):
+    a,tx,ty=pose;c,s=cos(a),sin(a);x,y=point
+    return c*x-s*y+tx,s*x+c*y+ty
+
+
+def compose(pose, delta):
+    dx,dy,da=delta
+    tx,ty=transform((pose[1],pose[2]),(da,dx,dy))
+    return pose[0]+da,tx,ty
+
+
+def segments(vertices):
+    return tuple(zip(vertices,vertices[1:]+vertices[:1]))
+
+
+def nearest(point, target):
+    best=None
+    for a,b in target:
+        vx,vy=b[0]-a[0],b[1]-a[1];den=vx*vx+vy*vy
+        u=max(0.,min(1.,((point[0]-a[0])*vx+(point[1]-a[1])*vy)/den))
+        q=(a[0]+u*vx,a[1]+u*vy)
+        d=(point[0]-q[0])**2+(point[1]-q[1])**2
+        if best is None or d<best[0]:best=(d,q,(-vy/sqrt(den),vx/sqrt(den)))
+    return best
+
+
+def correspondences(source, target, pose):
+    return tuple((x,*nearest(x,target)[1:]) for x in (transform(p,pose) for p in source))
+
+
+def rmse(source, target, pose):
+    return sqrt(mean(nearest(transform(p,pose),target)[0] for p in source))
+
+
+def solve3(a,b):
+    scale=max(abs(x) for row in a for x in row)
+    rows=[list(row)+[v] for row,v in zip(a,b)]
+    for j in range(3):
+        pivot=max(range(j,3),key=lambda i:abs(rows[i][j]))
+        if abs(rows[pivot][j])<=1e-10*max(scale,1e-30):return None
+        rows[j],rows[pivot]=rows[pivot],rows[j]
+        factor=rows[j][j];rows[j]=[v/factor for v in rows[j]]
+        for i in range(3):
+            if i!=j:
+                factor=rows[i][j];rows[i]=[x-factor*y for x,y in zip(rows[i],rows[j])]
+    return tuple(row[3] for row in rows)
+
+
+def normal_matrix(rows):
+    return [[sum(row[i]*row[j] for row in rows) for j in range(3)] for i in range(3)]
+
+
+def increment(matches,arm):
+    if arm=='point_point':
+        xc=tuple(mean(x[j] for x,_,_ in matches) for j in range(2))
+        qc=tuple(mean(q[j] for _,q,_ in matches) for j in range(2))
+        cross=sum((x[0]-xc[0])*(q[1]-qc[1])-(x[1]-xc[1])*(q[0]-qc[0]) for x,q,_ in matches)
+        dot=sum((x[0]-xc[0])*(q[0]-qc[0])+(x[1]-xc[1])*(q[1]-qc[1]) for x,q,_ in matches)
+        angle=atan2(cross,dot);rx,ry=transform(xc,(angle,0.,0.))
+        return qc[0]-rx,qc[1]-ry,angle
+    rows=[(n[0],n[1],-n[0]*x[1]+n[1]*x[0]) for x,_,n in matches]
+    residual=[n[0]*(x[0]-q[0])+n[1]*(x[1]-q[1]) for x,q,n in matches]
+    return solve3(normal_matrix(rows),[-sum(row[j]*v for row,v in zip(rows,residual)) for j in range(3)])
+
+
+def fit(source,target,initial,arm):
+    pose=initial
+    for step in range(CAP+1):
+        error=rmse(source,target,pose)
+        if error<=STOP_RMSE or step==CAP:return pose,error,step
+        delta=increment(correspondences(source,target,pose),arm)
+        if delta is None:return pose,error,step
+        # Same synthetic trust bounds for BOTH update rules: .35rad / .5m per step.
+        factor=min(1.,.35/max(abs(delta[2]),1e-30),.5/max(hypot(*delta[:2]),1e-30))
+        pose=compose(pose,tuple(factor*x for x in delta))
+    raise AssertionError('unreachable')
+
+
+def make_case(seed, offset):
+    rng=Random(seed)
+    target=segments(tuple((x+rng.gauss(0,.004),y+rng.gauss(0,.004)) for x,y in VERTICES))
+    source=[]
+    for a,b in segments(VERTICES):
+        for j in range(6):
+            u=(j+.5)/6;x=a[0]+u*(b[0]-a[0]);y=a[1]+u*(b[1]-a[1])
+            px,py=transform((x-TRUE[1],y-TRUE[2]),(-TRUE[0],0.,0.))
+            source.append((px+rng.gauss(0,.004),py+rng.gauss(0,.004)))
+    initial=(TRUE[0]+radians(offset)+rng.uniform(-.005,.005),TRUE[1]+.10+rng.uniform(-.01,.01),TRUE[2]-.08+rng.uniform(-.01,.01))
+    return tuple(source),target,initial
+
+
+def hit(pose):
+    angle=abs((pose[0]-TRUE[0]+pi)%(2*pi)-pi)
+    return angle<=.03 and hypot(pose[1]-TRUE[1],pose[2]-TRUE[2])<=.03
+
+
+def eigenvalues(a):
+    a=[list(row) for row in a]
+    for _ in range(40):
+        p,q=max(((0,1),(0,2),(1,2)),key=lambda ij:abs(a[ij[0]][ij[1]]))
+        if abs(a[p][q])<1e-13:break
+        tau=(a[q][q]-a[p][p])/(2*a[p][q]);t=(1 if tau>=0 else -1)/(abs(tau)+sqrt(1+tau*tau))
+        c=1/sqrt(1+t*t);s=t*c;apq=a[p][q]
+        a[p][p]-=t*apq;a[q][q]+=t*apq;a[p][q]=a[q][p]=0.
+        for k in range(3):
+            if k not in (p,q):
+                x,y=a[k][p],a[k][q];a[k][p]=a[p][k]=c*x-s*y;a[k][q]=a[q][k]=s*x+c*y
+    return tuple(sorted(a[i][i] for i in range(3)))
+
+
+def conditioning(matrix):
+    ev=eigenvalues(matrix);threshold=max(abs(x) for x in ev)*1e-7
+    rank=sum(x>threshold for x in ev)
+    return rank,('inf' if rank<3 else f'{ev[-1]/ev[0]:.3f}')
+
+
+def corridor():
+    source=tuple((x,y) for x in (-1.5,-1.,-.5,0.,.5,1.,1.5) for y in (-1.,1.))
+    target=(((-100.,-1.),(100.,-1.)),((-100.,1.),(100.,1.)))
+    # Hessian of freshly REASSOCIATED mean squared Euclidean distance.
+    h=1e-4
+    def cost(v):return rmse(source,target,(v[2],v[0],v[1]))**2
+    zero=(0.,0.,0.);base=cost(zero);H=[[0.]*3 for _ in range(3)]
+    for i in range(3):
+        plus=[0.]*3;plus[i]=h;minus=[-x for x in plus]
+        H[i][i]=(cost(plus)-2*base+cost(minus))/(h*h)
+        for j in range(i):
+            vals=[]
+            for si,sj in ((1,1),(1,-1),(-1,1),(-1,-1)):
+                v=[0.]*3;v[i]=si*h;v[j]=sj*h;vals.append(cost(v))
+            H[i][j]=H[j][i]=(vals[0]-vals[1]-vals[2]+vals[3])/(4*h*h)
+    return source,target,H
+
+
+def main():
+    print('ICP 2D nearest-segment surface surrogate; no true correspondence IDs supplied')
+    print('seeds=11/23/37/53/71 shared scans/noise/init per offset; sigma=0.004m cap=40 stop_RMSE=0.012m')
+    print('same trust bounds .35rad/.5m; hit uses SCORE-ONLY true pose <=0.03rad and <=0.03m')
+    print('offset_deg arm pose_hit/5 geometric_RMSE_mean_sd_m iterations_mean_sd')
+    for offset in OFFSETS:
+        cases=tuple(make_case(seed,offset) for seed in SEEDS)
+        for arm in ('point_point','point_plane'):
+            results=[fit(*case,arm) for case in cases]
+            errors=[row[1] for row in results];steps=[row[2] for row in results]
+            print(f'{offset} {arm} {sum(hit(row[0]) for row in results)}/5 {mean(errors):.6f} {pstdev(errors):.6f} {mean(steps):.2f} {pstdev(steps):.2f}')
+    source,target,H=corridor()
+    print('corridor: two parallel walls, no visible ends; dx(m),dy(m),dtheta(rad) parameter scaling')
+    for arm in ('point_point','point_plane'):
+        rank,cond=conditioning(H)
+        print(f'{arm} reassociated_H_rank={rank}/3 condition={cond} null=along_wall_dx shifted_1m_RMSE={rmse(source,target,(0.,1.,0.)):.6f}')
+    matches=correspondences(source,target,(0.,0.,0.))
+    frozen=normal_matrix([row for (x,y),_,_ in matches for row in ((1,0,-y),(0,1,x))])
+    rank,cond=conditioning(frozen)
+    print(f'point_point FROZEN-match normal rank={rank}/3 condition={cond}; artificial tangent anchoring != scene observability')
+    print('No presumed winner; basin means sampled offsets only; population sd, not wall-clock speed')
+    print('Open3D / real lidar / SLAM Toolbox registration: 本页未运行')
+
+
+if __name__=='__main__':main()
+```
+
+<SimOutput source="model">
+
+```text
+ICP 2D nearest-segment surface surrogate; no true correspondence IDs supplied
+seeds=11/23/37/53/71 shared scans/noise/init per offset; sigma=0.004m cap=40 stop_RMSE=0.012m
+same trust bounds .35rad/.5m; hit uses SCORE-ONLY true pose <=0.03rad and <=0.03m
+offset_deg arm pose_hit/5 geometric_RMSE_mean_sd_m iterations_mean_sd
+-120 point_point 0/5 0.186180 0.001081 40.00 0.00
+-120 point_plane 0/5 0.183611 0.001421 40.00 0.00
+-60 point_point 0/5 0.034379 0.003290 40.00 0.00
+-60 point_plane 5/5 0.004720 0.000939 10.00 0.00
+-30 point_point 5/5 0.010713 0.000702 23.00 1.10
+-30 point_plane 5/5 0.004576 0.000985 5.20 0.40
+0 point_point 5/5 0.009673 0.002045 3.40 0.49
+0 point_plane 5/5 0.006232 0.002384 1.60 0.49
+30 point_point 5/5 0.010546 0.000365 17.00 0.00
+30 point_plane 5/5 0.008276 0.003205 3.40 0.49
+60 point_point 0/5 0.235253 0.000915 40.00 0.00
+60 point_plane 4/5 0.052228 0.094504 17.40 11.31
+120 point_point 0/5 0.203087 0.001910 40.00 0.00
+120 point_plane 0/5 0.200165 0.001822 40.00 0.00
+corridor: two parallel walls, no visible ends; dx(m),dy(m),dtheta(rad) parameter scaling
+point_point reassociated_H_rank=2/3 condition=inf null=along_wall_dx shifted_1m_RMSE=0.000000
+point_plane reassociated_H_rank=2/3 condition=inf null=along_wall_dx shifted_1m_RMSE=0.000000
+point_point FROZEN-match normal rank=3/3 condition=2.000; artificial tangent anchoring != scene observability
+No presumed winner; basin means sampled offsets only; population sd, not wall-clock speed
+Open3D / real lidar / SLAM Toolbox registration: 本页未运行
+```
+
+</SimOutput>
+
+### 练习
+
+1. 对左增量求导推出面残差行，先用有限差分核对再求解；说明换增量坐标系后何处改变。
+2. 同一预算重跑五种子及全部偏角，保留失败，区分 RMSE 停止和仅评分的位姿成功；改上限要另标等预算对照。
+3. 沿 x 滑动走廊补丁并重新对应，对照真实代价曲线与假满秩点到点矩阵；指出什么几何证据能消除零方向。
+4. 另标扩展把折线换成离散点 NN，说明采样 / 法向假设变化，不把当前玩具叫 Open3D 复现。
+
+<Summary>
+
+SLAM Toolbox 通过 map→odom 修正里程计而 odom→base 保持平滑；建图前先用雷达转圈核对轮距。巡房并保存位姿图与 PGM，再用 Nav2 定位导航；先诊断 TF/时钟、扫描新鲜度、命令消息类型及代价地图足迹/膨胀，不可只信 SUCCEEDED，要核对最终目标距离。共享扫描的二维 ICP 实验补充五种子旋转收敛域 / RMSE / 迭代对照，并区分走廊物理沿墙零方向与冻结对应的假满秩。
+
+</Summary>

@@ -3936,8 +3936,8 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 22830, "spi-wdt-crc PR1 curriculum: 22830 minutes");
-  for (const [month, expected] of [[1, 1020], [2, 2310], [3, 1470], [4, 1620], [5, 1800], [6, 1350], [7, 2070], [8, 3180], [9, 2940], [10, 2070], [11, 3000]]) {
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 23190, "icp-quat PR2 curriculum: 23190 minutes");
+  for (const [month, expected] of [[1, 1020], [2, 2310], [3, 1470], [4, 1830], [5, 1950], [6, 1350], [7, 2070], [8, 3180], [9, 2940], [10, 2070], [11, 3000]]) {
     ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `current curriculum M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
@@ -4923,7 +4923,7 @@ for (const m of readdirSync(content)) {
   for (const id of ["dreamgen-paper", "lapa-paper", "smolvla-paper", "lerobot-async"]) {
     ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `wm2 resource ${id}: present + extra`);
   }
-  ok(/22 830/.test(read("README.md")), "b6p2 README: 21 960 minutes");
+  ok(/23 190/.test(read("README.md")), "b7p2 README: 23 190 minutes");
   console.log("worldmodel-smolvla PR2: neural trajectories + async chunk locks checked");
 }
 
@@ -5551,6 +5551,51 @@ print("protocol pass")
   for (const id of ["arduino-spi-modes","atmega328p-wdt-datasheet","crc-polynomial-reference"]) ok(read("src/lib/resources.ts").includes(`"${id}": {`),`b7p1 opened/verified source ${id}`);
   ok(read("docs/notes/batch-7-pr1-sources.md").includes("No arithmetic mismatch"),"b7p1 source and arithmetic audit recorded");
   console.log("spi-wdt-crc PR1: shared delayed edges, progress-gated independent watchdog, CRC polynomial/oracle/corpus, bilingual Summary and minute locks checked");
+}
+
+// Batch-7 PR2: shared-scan ICP surface model and independent attitude coordinates.
+{
+  const read=p=>readFileSync(join(root,p),"utf8");
+  const cases=[
+    [4,"slam-nav","icp_point_plane_toy",450,["no true correspondence IDs supplied","11/23/37/53/71","-120 point_point 0/5","60 point_plane 4/5","reassociated_H_rank=2/3 condition=inf null=along_wall_dx","FROZEN-match normal rank=3/3 condition=2.000"]],
+    [5,"kinematics-ik","quat_vs_euler_gimbal_toy",390,["Active intrinsic ZYX","-90.0 0.000000000 2/3 inf","90.0 0.000000000 2/3 inf","1145.915","Euler_lerp 171.016484 0.135543","quaternion_slerp 170.693828 0.000000","negative_dot_endpoint=1","q_vs_minus_q_matrix_maxdiff=0.000000000"]]
+  ];
+  const env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
+  const cur=read("src/lib/curriculum.ts");
+  for(const [month,slug,toy,minutes,markers] of cases){
+    const file=`examples/month-${month}/${slug}/${toy}.py`,py=read(file).trim();
+    const expected=read(`examples/month-${month}/expected/${toy}.txt`).trim();
+    const actual=execFileSync("python3",[join(root,file)],{cwd:root,encoding:"utf8",env}).trim();
+    ok(actual===expected,`b7p2 ${toy}: actual stdout matches new expected`);
+    for(const x of markers)ok(expected.includes(x),`b7p2 ${toy}: metric/mechanism ${x}`);
+    const host=cur.slice(cur.indexOf(`slug: "${slug}"`)).split("\n  },")[0];
+    ok(host.includes(`minutes: ${minutes}`),`b7p2 ${slug}: own-host minutes ${minutes}`);
+    const harness=read(`examples/month-${month}/check.sh`);
+    ok(harness.includes(`${toy}.txt`)&&harness.includes(`${slug}/${toy}.py`),`b7p2 ${toy}: additive harness`);
+    if(month===4)ok(harness.indexOf(`${toy}.txt`)<harness.indexOf('if [[ "${ROS_DISTRO:-}"'),"b7p2 ICP runs before ROS skip guard");
+    for(const lang of ["en","zh"]){
+      const md=read(`src/content/m${month}/${slug}/${lang}.mdx`),start=md.indexOf("<Summary>"),end=md.indexOf("</Summary>");
+      ok(start>0&&start===md.lastIndexOf("<Summary>")&&end>start&&md.slice(end+10).trim()==="",`b7p2 ${slug} ${lang}: sole Summary ends page`);
+      ok(md.includes(py)&&md.includes(expected),`b7p2 ${toy} ${lang}: exact source and stdout`);
+      ok(md.indexOf(py)<start&&md.indexOf(expected)<start&&md.indexOf(lang==="en"?"### Exercises":"### 练习")<start,`b7p2 ${slug} ${lang}: source/stdout/exercises before Summary`);
+      const summary=md.slice(start,end),prose=md.slice(0,md.indexOf(`<CodeSource path="${file}"`));
+      for(const x of ["本页未运行",...(month===4?["0.35 rad / 0.5 m","0.03 rad","0.03 m","rank2/3","rank3/3","0.004 m","SCORE-ONLY"]:["R=Rz(yaw)Ry(pitch)Rx(roll)","(w,x,y,z)","1145.915","5.200139","0.000700240","0.9995"])])ok(prose.includes(x),`b7p2 ${slug} ${lang}: scope/model ${x}`);
+      if(month===4){
+        ok(["Nav2","SLAM Toolbox","PGM","ICP"].every(x=>summary.includes(x)),`b7p2 SLAM ${lang}: whole-lesson Summary`);
+        ok(lang==="en"?prose.includes("nearest-segment surface surrogate")&&prose.includes("No generating wall IDs")&&prose.includes("not a continuous basin")&&prose.includes("artificially pins tangential") :prose.includes("最近线段表面替身")&&prose.includes("不给生成墙编号")&&prose.includes("不是连续域边界")&&prose.includes("人为固定了切向"),`b7p2 ICP ${lang}: matcher scope, no oracle, basin limit and frozen-rank distinction`);
+      } else {
+        ok(["SO-101","FK","IK","ZYX"].every(x=>summary.includes(x)),`b7p2 IK ${lang}: whole-lesson Summary`);
+        ok(lang==="en"?prose.includes("active intrinsic ZYX")&&prose.includes("positive pitch here is about +y")&&prose.includes("−y pitch sign")&&prose.includes("two paths")&&prose.includes("does not remove integration") :prose.includes("主动、内禀 ZYX")&&prose.includes("正 pitch 绕 +y")&&prose.includes("−y 正俯仰")&&prose.includes("两条路径")&&prose.includes("不消除积分"),`b7p2 attitude ${lang}: chart/arm signs, shared paths and normalization limits`);
+      }
+    }
+    const plan=read(`docs/notes/month-${month}-plan.md`);
+    ok(plan.startsWith(`# Month ${month}`)&&["23190","1830","1950","PR2"].every(x=>plan.includes(x)),`b7p2 M${month}: correct header and PR2-only accounting`);
+  }
+  for(const id of ["open3d-icp-objectives","quat-euler-chart","quat-slerp-short-arc"])ok(read("src/lib/resources.ts").includes(`"${id}": {`),`b7p2 opened source ${id}`);
+  ok(read("docs/notes/batch-7-pr2-sources.md").includes("189"),"b7p2 source/model/count audit");
+  const independent=execFileSync("python3",[join(root,"tools/test_b7_icp_quat_toys.py")],{cwd:root,encoding:"utf8",env});
+  ok(independent.includes("independent shared-scan ICP, finite-difference plane rows, re-associated corridor null, direct ZYX/body-Jacobian, pole rank and equal-endpoint signed-slerp tests passed"),"b7p2 independent geometry and convention tests executed");
+  console.log("icp-quat PR2: equal-information registration, corridor reassociation/null, ZYX chart rank and signed shared-endpoint paths locked");
 }
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);

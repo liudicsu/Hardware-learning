@@ -22,6 +22,7 @@ check_py() {
   if diff -u "$M4/expected/$name" "$TMP/$name" > "$TMP/$name.diff"; then echo "same  $name"
   else echo "DIFF  $name"; cat "$TMP/$name.diff"; fail=1; fi
 }
+check_py icp_point_plane_toy.txt python3 "$M4/slam-nav/icp_point_plane_toy.py"
 check_py ethercat_dc_timing_toy.txt python3 "$M4/ros2-control/ethercat_dc_timing_toy.py"
 
 if [[ "${ROS_DISTRO:-}" != "jazzy" ]] || ! command -v colcon >/dev/null; then
