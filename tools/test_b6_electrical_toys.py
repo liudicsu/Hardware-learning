@@ -29,6 +29,30 @@ assert math.isclose(w["constant_power_rise"](10., .01), 10. * .01 / w["CTH"], re
 steady = 4 * w["resistance"](w["AMBIENT"]) / (1 / w["RTH"] - 4 * w["R20"] * w["ALPHA20"])
 assert math.isclose(w["constant_current_exact"](2., 10000.) - w["AMBIENT"], steady)
 
+# Constant-current runaway threshold: deltaT is measured from ambient, not 20 C.
+critical = 1 / math.sqrt(w["ALPHA20"] * w["R20"] * w["RTH"])
+assert math.isclose(critical, 7.975790340283703, rel_tol=1e-12)
+ra = w["R20"] * (1 + w["ALPHA20"] * (w["AMBIENT"] - 20))
+assert math.isclose(ra, w["resistance"](w["AMBIENT"]))
+for current in (0., 1., 2., 5., .9 * critical):
+    damping = 1 / w["RTH"] - current**2 * w["ALPHA20"] * w["R20"]
+    rise = current**2 * ra * w["RTH"] / (1-current**2*w["ALPHA20"]*w["R20"]*w["RTH"])
+    # Substitute into original heat balance, independently of the solution's expm1.
+    heat = current**2 * w["resistance"](w["AMBIENT"] + rise)
+    assert math.isclose(heat, rise / w["RTH"], abs_tol=1e-10)
+    asymptotic = w["constant_current_exact"](current, 30*w["CTH"]/damping)-w["AMBIENT"]
+    assert math.isclose(asymptotic, rise, abs_tol=1e-9)
+# At equality, linear growth; above it exponential, not a negative physical equilibrium.
+for seconds in (30., 60.):
+    rise = w["constant_current_exact"](critical, seconds)-w["AMBIENT"]
+    assert math.isclose(rise, critical**2*ra*seconds/w["CTH"], rel_tol=1e-12)
+above = 1.1*critical
+rise30 = w["constant_current_exact"](above, 30.)-w["AMBIENT"]
+rise60 = w["constant_current_exact"](above, 60.)-w["AMBIENT"]
+assert rise60 > 2*rise30 > 0
+formal_rise = above**2*ra / (1/w["RTH"]-above**2*w["ALPHA20"]*w["R20"])
+assert formal_rise < 0 and w["resistance"](w["AMBIENT"]+formal_rise) < 0
+
 # Shared demand: monitoring alone changes neither current nor physical temperature.
 requests = w["current_profile"]()
 assert len(requests) == 4800 and set(requests) == {1.0, 5.0}

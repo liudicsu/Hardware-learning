@@ -3595,8 +3595,8 @@ export const resources: Record<string, Resource> = {
       "en": "Free"
     },
     "summary": {
-      "zh": "已打开并 curl200；Table 2-1 列出 Sm/Fm/Fm+ 的 t_r 最大值 1000/300/120 ns；30 %–70 % 上升沿 0.8473 Rp Cbus，灌电流下限与电容上限；2.1 的 Rp / Cbus 均标合成，不以固定米数断言成败。",
-      "en": "Opened and curl200; Table 2-1 gives Sm/Fm/Fm+ t_r maxima 1000/300/120 ns; 30 %–70 % rise 0.8473 Rp Cbus, sink lower bound and capacitance upper bound. Lesson 2.1 Rp/Cbus are synthetic, not a universal cable-length claim."
+      "zh": "本批次未能解析 UM10204，改用 TI SLVA689A。已打开并 curl200；Table 2-1 列出 Sm/Fm/Fm+ 的 t_r 最大值 1000/300/120 ns；30 %–70 % 上升沿 0.8473 Rp Cbus，灌电流下限与电容上限；2.1 的 Rp / Cbus 均标合成，不以固定米数断言成败。",
+      "en": "UM10204 could not be resolved during this batch; TI SLVA689A is used instead. Opened and curl200; Table 2-1 gives Sm/Fm/Fm+ t_r maxima 1000/300/120 ns; 30 %–70 % rise 0.8473 Rp Cbus, sink lower bound and capacitance upper bound. Lesson 2.1 Rp/Cbus are synthetic, not a universal cable-length claim."
     },
     "license": {
       "zh": "版权归原作者；仅提供外链",

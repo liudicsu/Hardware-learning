@@ -775,6 +775,8 @@ ok: mechanical Z-index homing (not FOC); cal beats uncal on clean index; missed/
 
 热方程为 `Cθ dT/dt = P(T) − (T−Ta)/Rθ`，其中 `P(T)=I²R(T)`。导数为零得到**稳态 ΔT = P·Rθ**；P 随 T 变时要用 P(T_ss)，是隐式平衡，不可偷用环境温度电阻算出的常功率。对**短时过载**，**ΔT ≈ P·t/Cθ，条件 t ≪ τ**：Cθ 限制初始温升速率，Rθ 决定常功率稳态温升。常 P 时 `ΔT(t)=P Rθ[1−exp(−t/(Rθ Cθ))]`；10 W 的稳态温升是 **40 K**，但 0.1 s 脉冲只升 **0.083247 K**，接近 P·t/Cθ 的 **0.083333 K**。
 
+对**恒定电流**及线性 R(T) 模型，把反馈展开：`Cθ dT/dt = I²R20(1+α(T−20)) − (T−Ta)/Rθ`，其中 `α=α20`、`R(Ta)=R20(1+α(Ta−20))`，`ΔT=T−Ta` 是从环境 Ta 起算的温升。代入得到 `Cθ dΔT/dt = I²R(Ta) − (1/Rθ−I²αR20)ΔT`。当 `I²αR20 < 1/Rθ` 时，稳定温升为 `ΔT_ss = I²R(Ta)Rθ/(1−I²αR20Rθ)`；当 `I²αR20 ≥ 1/Rθ` 时，在 R(Ta)>0 的前提下，**从环境温度开始加热无法到达有限的物理稳态**：等号处线性升温，超过后指数升温。超过阈值时形式上的负温升根要求负电阻，已不属于这个物理模型。因此合成参数下 `I_crit=1/√(αR20Rθ)` 为 **7.975790 A**。这是恒流 / 线性模型阈值，不是电机额定值，也不表示有限脉冲必然热失控。即使低于阈值，平衡温度仍可能不安全，原有降额 / 跳闸限制仍然必要。
+
 **对象与控制的全部数值输入均为合成**，包括本课定义的 **Rθ = 4 K/W**、**Cθ = 12 J/K**、T_lim=50 °C、T_trip=70 °C。常功率名义 τ=48 s 不意味着 R(T) 正反馈不会改变电流驱动下的有效时间常数。前向 Euler 使用 dt=0.10 s；单热容忽略铁耗、风冷变化、壳体 / 绕组滞后及损坏；约 153 °C 的输出不是已验证工作点。
 
 三臂消费**同一条 4800 样本的请求电流曲线**，总长 480 s：空转 1 A；30–150 s 每 10 s 有 4 s 堵转 5 A；150–240 s 与 360–420 s 长时间堵转 5 A；其余冷却。这是合成的电流控制请求，不是电压驱动电机模型。只有热控制介入后，实际电流才不同：
@@ -808,7 +810,7 @@ The plant still heats when its controller ignores heating. Ideal winding tempera
 is available to monitor/derate (not inferred from a measured case temperature).
 Lesson-defined Rtheta/Ctheta/limits, NOT insulation-class certification. Stdlib only.
 """
-from math import expm1
+from math import expm1, sqrt
 
 AMBIENT = 25.0
 R20 = 1.0                 # ohm at 20 degC, synthetic reference resistance
@@ -846,7 +848,16 @@ def advance(temp, current, dt):
 
 
 def constant_current_exact(current, seconds):
-    """Independent closed-form check of the linear-in-temperature ODE."""
+    """From ambient Ta, constant I: Ctheta*dT/dt =
+    I**2*R20*(1+alpha20*(T-20)) - (T-Ta)/Rtheta.
+    R(Ta)=R20*(1+alpha20*(Ta-20)); deltaT=T-Ta.
+    Below I**2*alpha20*R20 < 1/Rtheta, the stable steady rise is
+    deltaT_ss=I**2*R(Ta)*Rtheta/(1-I**2*alpha20*R20*Rtheta).
+    At/above the threshold there is no finite physical steady state reached
+    by heating from Ta with R(Ta)>0: linear growth at equality, exponential above.
+    A formal negative-rise root above threshold has negative R, not a valid
+    winding equilibrium. Constant I / linear R(T) only, not a motor rating.
+    """
     p0 = current * current * resistance(AMBIENT)
     b = current * current * R20 * ALPHA20 - 1 / RTH
     return AMBIENT + (p0 * seconds / CTH if abs(b) < 1e-12 else p0 / b * expm1(b * seconds / CTH))
@@ -890,6 +901,7 @@ def main():
     requests = current_profile()
     print("Synthetic winding RC; ideal winding T; no insulation/driver-package rating")
     print(f"R20_ohm={R20:.3f} alpha20_per_K={ALPHA20:.5f} R_at_25C_ohm={resistance(25):.5f}; I2R(T) positive feedback")
+    print(f"I_crit_A={1 / sqrt(ALPHA20 * R20 * RTH):.6f} (synthetic constant-current threshold; not a rating)")
     print(f"constant_P=10W steady_delta_K={10 * RTH:.3f} short_0.1s_exact_K={constant_power_rise(10, .1):.6f} short_approx_K={10 * .1 / CTH:.6f}")
     print(f"shared request samples={len(requests)} dt_s={DT:.2f} duration_s={DURATION:.0f} tau0_s={RTH * CTH:.0f}")
     print("arm physical_peak_C final_C copper_J trips derated_samples above_trip_s estimator")
@@ -910,6 +922,7 @@ if __name__ == "__main__":
 ```text
 Synthetic winding RC; ideal winding T; no insulation/driver-package rating
 R20_ohm=1.000 alpha20_per_K=0.00393 R_at_25C_ohm=1.01965; I2R(T) positive feedback
+I_crit_A=7.975790 (synthetic constant-current threshold; not a rating)
 constant_P=10W steady_delta_K=40.000 short_0.1s_exact_K=0.083247 short_approx_K=0.083333
 shared request samples=4800 dt_s=0.10 duration_s=480 tau0_s=48
 arm physical_peak_C final_C copper_J trips derated_samples above_trip_s estimator

@@ -21,3 +21,9 @@ No hardware measurements; 本页未运行. No NXP UM10204 claim: that PDF remain
 - Winding resistance uses **R20 at 20 °C** with **α20=0.00393/K**, and explicitly teaches I²R(T) positive feedback, steady ΔT=P·Rθ and short-pulse P·t/Cθ. / 温度参考一致。
 - The decoupling toy is now a **series ESL+ESR+C circuit** with shared source impedance and a separate placement loop L; all banks have 10 µF total, and intrinsic and mounted SRFs, frequency impedance and pulse voltage are evaluated. All part/parasitic/source values are synthetic. / 旧 L-only 模型已替换，不冒认器件实测值。
 - The three generic I2C rise-limit screens do not establish frequency, high-time, sink or device-mode compliance. No TMP102 Fm+ claim. / 只作上升时间筛查，不声称整机链路符合所有模式。
+
+## Batch-6 polish follow-up
+
+- 2026-11-06 11:02:08 Asia/Shanghai (UTC+8): TI SLVA689 URL above reopened, curl HTTP200; SLVA689A Table2-1 still states1000/300/120 ns. Download SHA256 `84da7d3745364e881a72914ca609e93132c356dcc0a0461de483fa27a8669e7b`. UM10204 remained unresolved during the original batch source check, so the lessons/resource metadata explicitly identify TI SLVA689A as the substitute. No claim that UM10204 is nonexistent.
+- Constant-current algebra verified with ΔT=T−Ta and R(Ta)=R20[1+α(Ta−20)]: Cθ·dΔT/dt=I²R(Ta)−(1/Rθ−I²αR20)ΔT. The supplied stable-rise formula needs no correction. At/above threshold there is no finite **physical** steady state reached by heating from ambient (R(Ta)>0); an above-threshold negative-R formal root is not a physical equilibrium. I_crit=7.975790 A for the synthetic values; not a motor rating. Regression tests cover below/equal/above threshold and preserve the existing thermal arm results.
+- Polish only: site22350 minutes unchanged; no workflow edits. Paper Hz/success-rate figures are explicitly reading comparisons only in both languages.

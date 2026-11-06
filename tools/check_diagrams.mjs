@@ -5486,5 +5486,31 @@ print("protocol pass")
   console.log("onedp-rpd PR3: disjoint-state regression surrogate, actual NFE, suboptimal-teacher equal executed budgets, early BC wins and Summary/minute locks checked");
 }
 
+// Batch-6 polish: ambient-referenced constant-current threshold and reading-only figures.
+{
+  const read=path=>readFileSync(join(root,path),"utf8");
+  const source=read("examples/month-2/motors-drivers/winding_thermal_rc_toy.py");
+  const expected=read("examples/month-2/expected/winding_thermal_rc_toy.txt");
+  ok(expected.includes("I_crit_A=7.975790 (synthetic constant-current threshold; not a rating)"),"b6 polish: critical current printed from synthetic values");
+  ok(source.includes("sqrt(ALPHA20 * R20 * RTH)") && source.includes("no finite physical steady state") && source.includes("deltaT=T-Ta"),"b6 polish: runtime and exact-ODE docstring define threshold/ambient rise");
+  for (const lang of ["en","zh"]) {
+    const md=read(`src/content/m2/motors-drivers/${lang}.mdx`), prose=md.split("<Summary>")[0].replace(/```[\s\S]*?```/g,"");
+    for (const marker of ["Cθ dT/dt = I²R20(1+α(T−20)) − (T−Ta)/Rθ","R(Ta)=R20(1+α(Ta−20))","ΔT=T−Ta","I²αR20 ≥ 1/Rθ","ΔT_ss = I²R(Ta)Rθ/(1−I²αR20Rθ)","I_crit=1/√(αR20Rθ)","7.975790 A"])
+      ok(prose.includes(marker),`b6 polish thermal ${lang}: ${marker}`);
+    ok(md.includes(source.trim()) && md.includes(expected.trim()),`b6 polish thermal ${lang}: synchronized full code/stdout`);
+    const i2c=read(`src/content/m2/arduino-io/${lang}.mdx`);
+    const note=lang==="en" ? "NXP UM10204 could not be resolved during this batch’s source check, so the opened TI SLVA689A is used instead." : "本批次资料核对时未能解析 NXP UM10204，因此改用已打开的 TI SLVA689A。";
+    ok(i2c.includes(note) && i2c.indexOf(note)<i2c.indexOf('<Resource id="ti-i2c-pullup-calculation" />'),`b6 polish I2C ${lang}: unresolved-original note next to substitute resource`);
+    for (const [month,slug] of [[10,"flow-matching-policies"],[8,"vla-finetune"]]) {
+      const body=read(`src/content/m${month}/${slug}/${lang}.mdx`).split("<Summary>")[0].replace(/```[\s\S]*?```/g,"");
+      const note=lang==="en" ? "The papers' Hz and success-rate numbers are for reading comparison only, not measurements or reproduced results on this page." : "论文中的 Hz 与成功率数字仅供阅读对比，不是本页实测或复现结果。";
+      ok(body.includes(note),`b6 polish paper ${month}/${lang}: explicit reading-only Hz and success figures`);
+    }
+  }
+  const resources=read("src/lib/resources.ts");
+  ok(resources.includes("UM10204 could not be resolved during this batch; TI SLVA689A is used instead.") && resources.includes("本批次未能解析 UM10204，改用 TI SLVA689A。"),"b6 polish resources: symmetric substitute-source note");
+  console.log("batch6-polish: verified ambient-reference threshold algebra, critical current, reading-only paper figures and I2C source fallback checked");
+}
+
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
 process.exit(failed ? 1 : 0);

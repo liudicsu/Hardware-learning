@@ -186,6 +186,8 @@ A SE(2) toy that pins absolute / delta / relative end error under a calibration 
 
 The original [OneDP paper](https://arxiv.org/abs/2410.21257) distils a pretrained diffusion policy by matching **diffused action distributions along the chain with reverse KL**. Its gradient uses a difference of scores; OneDP-S introduces an auxiliary score estimator and OneDP-D uses an analytic simplification. That KL-along-chain objective is **reading only**, not ordinary pointwise teacher MSE. [Consistency Policy](https://arxiv.org/abs/2405.07503) uses consistency trajectory modelling/self-consistency along a probability-flow ODE (with a denoising objective); neither paper is implemented here. OneDP's 2 %–10 % additional cost and 1.5→62 Hz, and any Consistency Policy figures, are **以论文为准**. Real diffusion/GPU/robot work: **本页未运行**.
 
+The papers' Hz and success-rate numbers are for reading comparison only, not measurements or reproduced results on this page.
+
 This additive experiment is a **regression surrogate**: an analytic teacher, not a learned diffusion model. It does not reproduce multimodal action distributions or the score objective, and does not contradict the earlier closed-form mixture toy: one-step generation needs learned information, not merely removing integration steps. We do not redo RTC (10.2), Cal-ConRFT/advantage filtering (10.7), or VLA RL (8.2).
 
 ### Declared data, fit budget and independent success

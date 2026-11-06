@@ -1,5 +1,6 @@
 Synthetic winding RC; ideal winding T; no insulation/driver-package rating
 R20_ohm=1.000 alpha20_per_K=0.00393 R_at_25C_ohm=1.01965; I2R(T) positive feedback
+I_crit_A=7.975790 (synthetic constant-current threshold; not a rating)
 constant_P=10W steady_delta_K=40.000 short_0.1s_exact_K=0.083247 short_approx_K=0.083333
 shared request samples=4800 dt_s=0.10 duration_s=480 tau0_s=48
 arm physical_peak_C final_C copper_J trips derated_samples above_trip_s estimator

@@ -439,6 +439,8 @@ Before you move on, you should be able to say yes to all of these:
 
 Keep the existing button `INPUT_PULLUP` quiz: this addition is **bus signal integrity**, not another button circuit, sensor-register scanner or filter. Open-drain SDA/SCL can pull low but need a resistor to return high. We assume an ideal low driver and a lumped `Rp–Cbus` rising edge; actual boards also have thresholds, fall time, clock stretching, propagation and coupled noise.
 
+NXP UM10204 could not be resolved during this batch’s source check, so the opened TI SLVA689A is used instead.
+
 <Resource id="ti-i2c-pullup-calculation" />
 <Resource id="ti-tmp102-datasheet" />
 
