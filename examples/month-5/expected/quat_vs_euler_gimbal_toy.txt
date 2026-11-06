@@ -1,0 +1,28 @@
+Active intrinsic ZYX: Rz(yaw)Ry(pitch)Rx(roll); body omega=J*[roll_dot,pitch_dot,yaw_dot]
+pitch_deg det_J rank condition2; +/-90 loses one attitude-chart direction, not arm mobility
+-90.0 0.000000000 2/3 inf
+-89.9 0.001745328 3/3 1145.915
+-60.0 0.500000000 3/3 3.732
+0.0 1.000000000 3/3 1.000
+60.0 0.500000000 3/3 3.732
+89.9 0.001745328 3/3 1145.915
+90.0 0.000000000 2/3 inf
+null roll/pitch/yaw rate: pitch+90 -> (1,0,1); pitch-90 -> (1,0,-1)
+same pure-pitch sequence: intended_pitch canonical_roll canonical_pitch canonical_yaw roundtrip_rotation_error_deg
+80.0 0.000 80.000 0.000 0.000000000
+85.0 0.000 85.000 0.000 0.000000000
+89.0 0.000 89.000 0.000 0.000000000
+90.0 0.000 90.000 -0.000 0.000000000
+91.0 180.000 89.000 180.000 0.000000000
+95.0 180.000 85.000 180.000 0.000000000
+100.0 180.000 80.000 180.000 0.000000000
+shared synthetic RPY endpoints=(10,80,-50)->(-30,100,80) deg; steps=12 duration=1s
+arm angular_speed_mean_sd_min_max_deg_per_s sampled_path_length_deg net_rotation_deg
+Euler_lerp 171.016484 0.135543 170.780907 171.166469 171.016484 170.693828
+quaternion_slerp 170.693828 0.000000 170.693828 170.693828 170.693828 170.693828
+max_same_time_rotation_difference_deg=5.200139 (two paths, not a ground-truth error)
+q_vs_minus_q_matrix_maxdiff=0.000000000 rotation_distance_deg=0.000000000
+negative_dot_endpoint=1 flipped_slerp_max_rotation_diff_deg=0.000000000
+100x_dt0.01_qdot norm_drift_raw=0.000700240 normalized=0.000000000
+Slerp fallback near equal endpoints uses normalized lerp; no universal task-path winner
+Synthetic orientation only; real robot/IMU/ROS execution: 本页未运行

@@ -333,3 +333,228 @@ Real stacks do not write their own IK for every robot. MoveIt uses plug-ins such
 - <strong>An IK solution that jumps to another branch.</strong> The second start produced base -123.69 deg instead of 56.31 deg. Both reach the target. If the path between them is not planned, the arm can swing through the table; constrain the start or add a via-point.
 - <strong>Too little damping near singularities.</strong> λ = 0.01 chattered at the straight arm and never settled. λ = 0.03 is stable but gives up on the unreachable direction. Choose damping against the expected conditioning, and check the residual.
 - <strong>Trusting IK without an FK check.</strong> A solver can stop on a local minimum or after 200 iterations with a large error. Compute FK at the returned q and compare with the target before commanding motion.
+
+## Attitude coordinates: Euler rank loss versus quaternion paths (+150 min)
+
+The arm Jacobian above maps joint rates to tip translation and can lose **physical task directions**. Gimbal lock below is different: a singular **orientation coordinate chart**, not a robot losing a physical rotational DOF. This section uses an independent, right-handed **active intrinsic ZYX yaw-pitch-roll** convention, column vectors, **`R=Rz(yaw)Ry(pitch)Rx(roll)`**; positive pitch here is about +y. Do not silently substitute it for the earlier planar arm's deliberately chosen −y pitch sign. Quaternion storage is **(w,x,y,z)**, not ROS message field order. The [Euler/quaternion conversion reference](https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles) and [slerp reference](https://en.wikipedia.org/wiki/Slerp) are **secondary** readings; neither is a robot calibration specification.
+
+<Resource id="quat-euler-chart" />
+<Resource id="quat-slerp-short-arc" />
+
+### Differentiate the Euler map, not the planar arm again
+
+Write roll φ, pitch θ, yaw ψ. The body angular velocity is `ω_body=J(φ,θ)[φdot,θdot,ψdot]ᵀ`, where:
+
+```text
+J = [1,   0,       -sin(theta)          ]
+    [0, cos(phi),  sin(phi)*cos(theta)  ]
+    [0,-sin(phi),  cos(phi)*cos(theta)  ]
+```
+
+The determinant is **cosθ**, so at **pitch ±90°**, J has **rank2/3**. At +90°, rate combination `(1,0,1)` produces zero angular velocity; at −90° it is `(1,0,−1)`. The derivative of the Euler→rotation map has lost rank: roll/yaw coordinates cannot be independently recovered there, although SO(3) still has three tangent directions. Near ±89.9°, rank is still3 but the 2-norm condition number is **1145.915**. The code uses Gaussian rank threshold1e−10 and the analytic singular-value ratio `(1+abs(sinθ))/abs(cosθ)`, not an arm-Jacobian determinant table.
+
+The same synthetic pure-pitch orientation sequence **80,85,89,90,91,95,100°** is represented by unit quaternions and converted into canonical Euler angles. At91° the canonical representation becomes `(roll,pitch,yaw)=(180,89,180)°` while its reconstructed rotation error is zero to printed precision. That branch jump is not a physical jump. The pole branch explicitly chooses roll0 and absorbs the nonunique angle into yaw; no unique roll/yaw recovery is promised at lock. Returning to Euler coordinates reintroduces their chart singularity even if the internal state is a quaternion.
+
+### Same endpoints and sample budget: slerp versus Euler lerp
+
+Both arms use the **same** synthetic RPY endpoints **(10,80,−50)→(−30,100,80)°**, **12 steps / 13 samples**, and synthetic duration **1 s**. Euler lerp linearly blends those declared angle representatives then converts to a quaternion; slerp interpolates the corresponding unit quaternion endpoints. This particular Euler path is chart/unwrap dependent; it is not automatically a geodesic. At each interval we measure `geodesic_angle(R_j,R_{j+1})/Δt`, an **interval angular-speed proxy**, not an instantaneous derivative. Summed interval angles approximate path length; the endpoint geodesic is an independent net-rotation reference.
+
+| arm | interval speed mean±population sd deg/s | min…max deg/s | sampled path deg | endpoint net deg |
+|---|---|---|---|---|
+| Euler lerp | 171.016484±0.135543 | 170.780907…171.166469 | 171.016484 | 170.693828 |
+| quaternion slerp | 170.693828±0 | 170.693828…170.693828 | 170.693828 | 170.693828 |
+
+Maximum same-time orientation difference is **5.200139°**. This compares **two paths**, not an error against ground truth or a universal task-path winner. In this example slerp has uniform speed on the short geodesic; collision, joint limits and dynamic feasibility are not evaluated. Endpoints and samples are identical; there is no independent training or stochastic seed selection in this toy.
+
+### Double cover and normalization are real obligations
+
+For unit quaternions, **q and −q represent the same rotation**: matrix max difference and rotation distance both print0. Use the sign-invariant angle `2 atan2(||v_relative||,abs(w_relative))`. For slerp first normalize endpoints; if **`dot<0`**, negate the second endpoint to select the short rotation arc. The toy deliberately supplies a negative-dot endpoint: the flip makes its entire sampled path agree with the positive-sign case. Near equal endpoints (**dot>0.9995**) it uses normalized lerp to avoid division by sinΩ≈0; that fallback is an approximation, not an exact constant-speed assertion for every input.
+
+A separate first-order quaternion-derivative integration uses identical body rate `(0.4,−0.2,0.6)` rad/s and **100×dt0.01 s** with/without per-step normalization. Raw norm drift is **0.000700240**, normalized norm drift prints0. Renormalization enforces unit norm but does not remove integration/truncation error. Quaternions do not eliminate every representation/numerical issue. All angles/timing here are synthetic; real robot, IMU and ROS execution: **本页未运行**. The 4.3 TF quaternion printout remains a cross-reference, not a relocated lesson.
+
+```bash
+python3 ~/Hardware-learning/examples/month-5/kinematics-ik/quat_vs_euler_gimbal_toy.py
+bash ~/Hardware-learning/examples/month-5/check.sh
+```
+
+<CodeSource path="examples/month-5/kinematics-ik/quat_vs_euler_gimbal_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic ATTITUDE chart experiment, not the arm's position Jacobian.
+Active intrinsic ZYX yaw-pitch-roll: R=Rz(yaw) Ry(pitch) Rx(roll), column vectors.
+Body omega = J(roll,pitch) * [roll_dot,pitch_dot,yaw_dot]. Quaternion order w,x,y,z.
+Shared orientation samples cross pitch90; shared interpolation endpoints/12steps.
+Slerp flips dot<0 for the short arc; q/-q double cover and normalization matter.
+"""
+from math import sin, cos, asin, atan2, acos, sqrt, radians, degrees, pi
+from statistics import mean, pstdev
+
+N, DURATION=12,1.0
+START=tuple(map(radians,(10.,80.,-50.)))  # roll,pitch,yaw; synthetic endpoints
+END=tuple(map(radians,(-30.,100.,80.)))
+
+
+def normalize(q):
+    norm=sqrt(sum(x*x for x in q))
+    return tuple(x/norm for x in q)
+
+
+def multiply(a,b):
+    w,x,y,z=a;v,i,j,k=b
+    return (w*v-x*i-y*j-z*k,w*i+x*v+y*k-z*j,w*j-x*k+y*v+z*i,w*k+x*j-y*i+z*v)
+
+
+def from_euler(rpy):
+    r,p,y=(x/2 for x in rpy)
+    return normalize(multiply(multiply((cos(y),0.,0.,sin(y)),(cos(p),0.,sin(p),0.)),(cos(r),sin(r),0.,0.)))
+
+
+def to_euler(q):
+    w,x,y,z=normalize(q)
+    sine=max(-1.,min(1.,2*(w*y-z*x)))
+    if abs(sine)>1-1e-12:
+        R=matrix(q)
+        return 0., (pi/2 if sine>0 else -pi/2), atan2(-R[0][1],R[1][1])
+    return (atan2(2*(w*x+y*z),1-2*(x*x+y*y)),
+            asin(sine),
+            atan2(2*(w*z+x*y),1-2*(y*y+z*z)))
+
+
+def matrix(q):
+    w,x,y,z=normalize(q)
+    return ((1-2*(y*y+z*z),2*(x*y-w*z),2*(x*z+w*y)),
+            (2*(x*y+w*z),1-2*(x*x+z*z),2*(y*z-w*x)),
+            (2*(x*z-w*y),2*(y*z+w*x),1-2*(x*x+y*y)))
+
+
+def distance(a,b):
+    # atan2 avoids acos precision loss near coincident rotations; sign-invariant.
+    a=normalize(a);b=normalize(b)
+    relative=multiply((a[0],-a[1],-a[2],-a[3]),b)
+    return 2*atan2(sqrt(sum(x*x for x in relative[1:])),abs(relative[0]))
+
+
+def slerp(a,b,u):
+    a=normalize(a);b=normalize(b);dot=sum(x*y for x,y in zip(a,b))
+    if dot<0:
+        b=tuple(-x for x in b);dot=-dot
+    dot=max(-1.,min(1.,dot))
+    if dot>.9995:return normalize(tuple((1-u)*x+u*y for x,y in zip(a,b)))
+    angle=acos(dot)
+    return normalize(tuple((sin((1-u)*angle)*x+sin(u*angle)*y)/sin(angle) for x,y in zip(a,b)))
+
+
+def rate_jacobian(roll,pitch):
+    return ((1.,0.,-sin(pitch)),(0.,cos(roll),sin(roll)*cos(pitch)),(0.,-sin(roll),cos(roll)*cos(pitch)))
+
+
+def rank(matrix):
+    rows=[list(row) for row in matrix];pivot=0
+    for column in range(3):
+        chosen=max(range(pivot,3),key=lambda i:abs(rows[i][column]))
+        if abs(rows[chosen][column])<1e-10:continue
+        rows[pivot],rows[chosen]=rows[chosen],rows[pivot]
+        divisor=rows[pivot][column];rows[pivot]=[x/divisor for x in rows[pivot]]
+        for i in range(pivot+1,3):
+            factor=rows[i][column];rows[i]=[a-factor*b for a,b in zip(rows[i],rows[pivot])]
+        pivot+=1
+        if pivot==3:break
+    return pivot
+
+
+def paths():
+    a,b=from_euler(START),from_euler(END)
+    fractions=tuple(j/N for j in range(N+1))
+    euler=tuple(from_euler(tuple((1-u)*x+u*y for x,y in zip(START,END))) for u in fractions)
+    spherical=tuple(slerp(a,b,u) for u in fractions)
+    return euler,spherical
+
+
+def main():
+    print('Active intrinsic ZYX: Rz(yaw)Ry(pitch)Rx(roll); body omega=J*[roll_dot,pitch_dot,yaw_dot]')
+    print('pitch_deg det_J rank condition2; +/-90 loses one attitude-chart direction, not arm mobility')
+    for angle in (-90.,-89.9,-60.,0.,60.,89.9,90.):
+        p=radians(angle);condition='inf' if abs(cos(p))<1e-10 else f'{(1+abs(sin(p)))/abs(cos(p)):.3f}'
+        print(f'{angle:.1f} {abs(cos(p)):.9f} {rank(rate_jacobian(.3,p))}/3 {condition}')
+    print('null roll/pitch/yaw rate: pitch+90 -> (1,0,1); pitch-90 -> (1,0,-1)')
+    print('same pure-pitch sequence: intended_pitch canonical_roll canonical_pitch canonical_yaw roundtrip_rotation_error_deg')
+    for angle in (80.,85.,89.,90.,91.,95.,100.):
+        q=from_euler((0.,radians(angle),0.));canonical=to_euler(q)
+        print(f'{angle:.1f} '+ ' '.join(f'{degrees(x):.3f}' for x in canonical)+f' {degrees(distance(q,from_euler(canonical))):.9f}')
+    euler,spherical=paths()
+    print('shared synthetic RPY endpoints=(10,80,-50)->(-30,100,80) deg; steps=12 duration=1s')
+    print('arm angular_speed_mean_sd_min_max_deg_per_s sampled_path_length_deg net_rotation_deg')
+    for arm,path in (('Euler_lerp',euler),('quaternion_slerp',spherical)):
+        increments=[degrees(distance(a,b)) for a,b in zip(path,path[1:])]
+        speed=[x*N/DURATION for x in increments]
+        print(f'{arm} {mean(speed):.6f} {pstdev(speed):.6f} {min(speed):.6f} {max(speed):.6f} {sum(increments):.6f} {degrees(distance(path[0],path[-1])):.6f}')
+    deviation=max(degrees(distance(a,b)) for a,b in zip(euler,spherical))
+    print(f'max_same_time_rotation_difference_deg={deviation:.6f} (two paths, not a ground-truth error)')
+    q=from_euler(END);negative=tuple(-x for x in q)
+    discrepancy=max(abs(x-y) for row1,row2 in zip(matrix(q),matrix(negative)) for x,y in zip(row1,row2))
+    # Negative endpoint chosen deliberately to exercise the dot<0 branch.
+    a=from_euler(START);b=negative if sum(x*y for x,y in zip(a,negative))<0 else q
+    flipped=max(degrees(distance(slerp(a,q,j/N),slerp(a,b,j/N))) for j in range(N+1))
+    print(f'q_vs_minus_q_matrix_maxdiff={discrepancy:.9f} rotation_distance_deg={degrees(distance(q,negative)):.9f}')
+    print(f'negative_dot_endpoint={int(sum(x*y for x,y in zip(a,b))<0)} flipped_slerp_max_rotation_diff_deg={flipped:.9f}')
+    raw=normalized=(1.,0.,0.,0.)
+    for _ in range(100):
+        # First-order quaternion derivative integration, NOT angle interpolation.
+        raw=tuple(x+.005*y for x,y in zip(raw,multiply(raw,(0.,.4,-.2,.6))))
+        normalized=normalize(tuple(x+.005*y for x,y in zip(normalized,multiply(normalized,(0.,.4,-.2,.6)))))
+    print(f'100x_dt0.01_qdot norm_drift_raw={sqrt(sum(x*x for x in raw))-1:.9f} normalized={abs(sqrt(sum(x*x for x in normalized))-1):.9f}')
+    print('Slerp fallback near equal endpoints uses normalized lerp; no universal task-path winner')
+    print('Synthetic orientation only; real robot/IMU/ROS execution: 本页未运行')
+
+
+if __name__=='__main__':main()
+```
+
+<SimOutput source="model">
+
+```text
+Active intrinsic ZYX: Rz(yaw)Ry(pitch)Rx(roll); body omega=J*[roll_dot,pitch_dot,yaw_dot]
+pitch_deg det_J rank condition2; +/-90 loses one attitude-chart direction, not arm mobility
+-90.0 0.000000000 2/3 inf
+-89.9 0.001745328 3/3 1145.915
+-60.0 0.500000000 3/3 3.732
+0.0 1.000000000 3/3 1.000
+60.0 0.500000000 3/3 3.732
+89.9 0.001745328 3/3 1145.915
+90.0 0.000000000 2/3 inf
+null roll/pitch/yaw rate: pitch+90 -> (1,0,1); pitch-90 -> (1,0,-1)
+same pure-pitch sequence: intended_pitch canonical_roll canonical_pitch canonical_yaw roundtrip_rotation_error_deg
+80.0 0.000 80.000 0.000 0.000000000
+85.0 0.000 85.000 0.000 0.000000000
+89.0 0.000 89.000 0.000 0.000000000
+90.0 0.000 90.000 -0.000 0.000000000
+91.0 180.000 89.000 180.000 0.000000000
+95.0 180.000 85.000 180.000 0.000000000
+100.0 180.000 80.000 180.000 0.000000000
+shared synthetic RPY endpoints=(10,80,-50)->(-30,100,80) deg; steps=12 duration=1s
+arm angular_speed_mean_sd_min_max_deg_per_s sampled_path_length_deg net_rotation_deg
+Euler_lerp 171.016484 0.135543 170.780907 171.166469 171.016484 170.693828
+quaternion_slerp 170.693828 0.000000 170.693828 170.693828 170.693828 170.693828
+max_same_time_rotation_difference_deg=5.200139 (two paths, not a ground-truth error)
+q_vs_minus_q_matrix_maxdiff=0.000000000 rotation_distance_deg=0.000000000
+negative_dot_endpoint=1 flipped_slerp_max_rotation_diff_deg=0.000000000
+100x_dt0.01_qdot norm_drift_raw=0.000700240 normalized=0.000000000
+Slerp fallback near equal endpoints uses normalized lerp; no universal task-path winner
+Synthetic orientation only; real robot/IMU/ROS execution: 本页未运行
+```
+
+</SimOutput>
+
+### Exercises
+
+1. Derive detJ=cosθ and both pole null vectors; verify columns by vee(RᵀdR). Explain why changing the attitude chart does not fix a straight-elbow position singularity.
+2. Reconstruct the 91° canonical-angle sample and compare rotation matrices, not angle coordinates. Explain the chosen nonunique pole branch and the earlier FK pitch-sign difference.
+3. Keep endpoints/steps fixed; report speed spread, sampled length and same-time path differences. Change angle representatives separately to expose chart dependence, without inventing a task winner.
+4. Supply −q, identical and nearly equal endpoints to slerp. Test `dot<0` flipping and the0.9995 normalized-lerp fallback; distinguish unit-norm correction from integration accuracy.
+
+<Summary>
+
+The simplified three-joint SO-101 model connects transform-chain and planar FK; its numerical Jacobian maps joint rates to tip motion. Damped least-squares IK depends on starting branch, reach and damping, so verify every result with FK and retain residuals for unreachable targets. Position-Jacobian rank loss, unit/sign mistakes, joint limits and collision-aware planning remain practical constraints. The separate ZYX attitude experiment shows Euler-chart rank loss at pitch±90°, compares equal-endpoint Euler/slerp paths, and makes quaternion double cover and normalization explicit.
+
+</Summary>

@@ -3839,6 +3839,76 @@ export const resources: Record<string, Resource> = {
     "extra": true
   },
 
+  "open3d-icp-objectives": {
+    "id": "open3d-icp-objectives",
+    "url": "https://www.open3d.org/docs/release/tutorial/pipelines/icp_registration.html",
+    "title": {
+      "zh": "Open3D ICP objectives and normals",
+      "en": "Open3D ICP objectives and normals"
+    },
+    "author": "Open3D authors",
+    "kind": "guide",
+    "cost": {
+      "zh": "免费",
+      "en": "Free"
+    },
+    "summary": {
+      "zh": "项目教程：点到点 / 点到面目标与目标法向；4.6 为共享最近线段的二维替身，不运行 Open3D 或冒用教程数据集指标。",
+      "en": "Project tutorial: point-point/plane objectives and target normals. Lesson4.6 uses a shared nearest-segment 2D surrogate, not Open3D/tutorial-dataset measurements."
+    },
+    "license": {
+      "zh": "版权归原作者；仅提供外链",
+      "en": "Copyright original authors; external link only"
+    },
+    "extra": true
+  },
+  "quat-euler-chart": {
+    "id": "quat-euler-chart",
+    "url": "https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles",
+    "title": {
+      "zh": "Quaternion/Euler conversion and chart singularities",
+      "en": "Quaternion/Euler conversion and chart singularities"
+    },
+    "author": "Wikipedia contributors",
+    "kind": "guide",
+    "cost": {
+      "zh": "免费",
+      "en": "Free"
+    },
+    "summary": {
+      "zh": "二手阅读：ZYX、归一化与 pitch±90° 图奇异；本节自行推导体角速度 Jacobian，不把它当机械臂位置奇异。",
+      "en": "Secondary reference: ZYX conversion, normalization and pitch-pole chart singularity. The body-rate Jacobian is independently derived, not the arm position Jacobian."
+    },
+    "license": {
+      "zh": "版权归原作者；仅提供外链",
+      "en": "Copyright original authors; external link only"
+    },
+    "extra": true
+  },
+  "quat-slerp-short-arc": {
+    "id": "quat-slerp-short-arc",
+    "url": "https://en.wikipedia.org/wiki/Slerp",
+    "title": {
+      "zh": "Slerp, short arc and quaternion double cover",
+      "en": "Slerp, short arc and quaternion double cover"
+    },
+    "author": "Wikipedia contributors",
+    "kind": "guide",
+    "cost": {
+      "zh": "免费",
+      "en": "Free"
+    },
+    "summary": {
+      "zh": "二手阅读：短弧、q/−q 双覆盖与负点积翻号；等端点 / 步数比较，不宣称任务路径最优。",
+      "en": "Secondary reference: short arcs, q/-q double cover and negative-dot flip. Equal-endpoint/step comparison, no task-path optimality claim."
+    },
+    "license": {
+      "zh": "版权归原作者；仅提供外链",
+      "en": "Copyright original authors; external link only"
+    },
+    "extra": true
+  },
+
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {
