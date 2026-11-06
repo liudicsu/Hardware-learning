@@ -14,12 +14,16 @@ Constraints: no new hardware; not required this month: Isaac, an F/T sensor or a
 | 4 | `multi-view-extrinsics` | 240 | `extrinsics_chain_toy.py` | OpenCV calibrateRobotWorldHandEye / ArUco / solvePnP docs |
 | 5 | `intervention-logging` | 180 | `intervention_log_toy.py` | LeRobot HIL data collection + v0.6.0 blog; DAgger / HG-DAgger / RaC |
 | 6 | `real-world-rl` | 240 | `rlpd_chain_toy.py` | RLPD arXiv 2302.02948; HIL-SERL arXiv 2410.21845; LeRobot HIL-SERL docs |
-| 7 | `vla-rl-finetune` | 240 | `advantage_filter_toy.py` (optional) | SimpleVLA-RL 2509.09674; OpenVLA-OFT 2502.19645; π*0.6 blog; ResiP 2407.16677; Policy Decorator 2412.13630; LeRobot SARM docs |
+| 7 | `vla-rl-finetune` | 450 | `advantage_filter_toy.py` (optional), `cal_conrft_offline_toy.py` | SimpleVLA-RL 2509.09674; OpenVLA-OFT 2502.19645; π*0.6 blog; ResiP 2407.16677; Policy Decorator 2412.13630; LeRobot SARM docs; ConRFT2502.05450 / Cal-QL2303.05479 (opened) |
 
-Total 1 650 minutes (after G7). Pointers: 8.3 → 10.2 (async seam), 8.7 capstone → Month 10 (optional, not a replacement), M8 topics → "HIL-SERL 见 10.6".
+Current total **1 860 minutes** (Batch-5 PR3); historical total1 650 after G7. Pointers: 8.3 → 10.2 (async seam), 8.7 capstone → Month 10 (optional, not a replacement), M8 topics → "HIL-SERL 见 10.6".
 
 Widgets deferred. No prices anywhere.
 
 Verification: `examples/month-8/check.sh`, `examples/month-9/check.sh`, `examples/month-10/check.sh`, check_quotes, check_diagrams, check_widgets, lint, check_wokwi, tsc, CI build.
 
 Batch-after-obs PR3 (G7, +150): 10.3 `edge-deploy-checklist` 180→330 — `vla_edge_budget_toy.py`: weights-only memory (params × bytes; activations / KV cache / vision buffers excluded and labelled) for SmolVLA 0.45B, π0-class 3.3B, OpenVLA-class 7B (counts from the papers); chunk / Hz / sync idle linked to 6.3's g ≥ (E[ℓ_S] / Δt) / n. No device measurements; Jetson / Pi 本页未运行. Month 10 **7 lessons / 1 650 min**; site **71 lessons / 18 570 min**.
+
+## Batch-5 PR3 (+210 here)
+
+10.7:240→450; M10 **1650→1860**,7 lessons. Site **20700→21090** with M9+180 (2730). Same-data/equal-update offline BC/CQL/Cal-QL, MC reference inside conservative push-down, five seeds and restricted/tabular representation control. Online dip, consistency head and robot/GPU reading only / 本页未运行; paper以论文为准. Existing advantage filter and10.6 unchanged.

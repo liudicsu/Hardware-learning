@@ -28,4 +28,7 @@ check intervention_log_toy.txt "$PY" "$M10/intervention-logging/intervention_log
 check rlpd_chain_toy.txt "$PY" "$M10/real-world-rl/rlpd_chain_toy.py"
 check advantage_filter_toy.txt "$PY" "$M10/vla-rl-finetune/advantage_filter_toy.py"
 
+check cal_conrft_offline_toy.txt "$PY" "$M10/vla-rl-finetune/cal_conrft_offline_toy.py"
+check cal_conrft_offline_tabular.txt "$PY" "$M10/vla-rl-finetune/cal_conrft_offline_toy.py" --tabular
+
 exit $fail

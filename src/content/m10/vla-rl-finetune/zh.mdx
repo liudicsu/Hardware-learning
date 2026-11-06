@@ -253,7 +253,294 @@ finished, so V cannot tell good steps from bad and the filter keeps noise.
 - **残差不设上限。** 允许很大的残差可能抵消基座策略；ResiP 让它保持很小，Policy Decorator 给它设界。
 - **把论文数字当成自己的。** 上面每个百分比都是作者在其设置上的测量。
 
+## 离线 Cal-ConRFT：校准 critic，不只贴名称
+
+本节区别于已有 `advantage_filter_toy.py` 和 **10.6 HIL-SERL**。过滤器给日志动作排序；这里真正从固定离线 MDP 批次优化 critic 与 actor，不是从零做真机 RL。
+
+<Resource id="calql-paper" />
+
+已打开的 ConRFT 原文（arXiv2502.05450，离线方法节）区分 **Cal-ConRFT 离线** 与 **HIL-ConRFT 在线**。离线用 Cal-QL 风格 critic 配合一致性策略头，在少量示范上做 **BC + Q 引导**；在线保持 BC/Q 结构，加入交互和人工介入，权重可变化。本节分类 actor **不复现一致性策略头**、扩散 / 一致性训练、Octo 主干或 Franka 实验。GPU/VLA/真机：**本页未运行**。**96.3 %** 等论文数字均 **以论文为准**，不是玩具实测。
+
+### 下界放在保守正则项内部
+
+已打开的 Cal-QL 原文（arXiv2303.05479，校准定义与方法）解释：保守 critic 可能远低于有效行为策略的回报。实用修改是在下压项内部使用 **max(Q, V_MC)**，并保留数据动作补偿。这里 V_MC(s) 是**同一离线行为示范**经过 s 后的折扣回报到达终点的均值，不是评估回报或最优真值 oracle。
+
+本节离散温度 logsumexp 版本为：
+
+- TD：`0.5 E_D[(Q(s,a) − (r + γ E_π Q_old(s',·)))²]`；终止目标为 r。
+- CQL：`α [T logsumexp_a(Q(s,a)/T) − E_D[Q(s,a) | s]]`。
+- Cal-QL：仅在 logsumexp **内部**把 Q 换成 `max(Q(s,a), V_MC(s))`。低于参考时下压导数为零；数据补偿不变，V_MC 不参与梯度。
+- Actor：`β CE(behavior,π) − η E_π Q`，固定 critic 更新分类 logits；**不是优势过滤**。
+
+下界约束正则项的输入，**不是事后硬裁剪学习 Q 或 Bellman 目标**。如原文所提醒，函数逼近和有限优化不保证每个原始 Q 或每个状态均值都满足下界。打印 `min_state_Q_minus_V` 以暴露残余欠校准。缓解在线遗忘 / 微调初期下跌**只作阅读**：本玩具**没有在线阶段**，不展示该收益。
+
+### 一个 MDP，共享数据，等更新次数
+
+四状态锁链有三动作：0以0.9概率前进（仅最后一次成功前进奖励1），1是错误钥匙、终止奖励0，2中止奖励0.2但**不算目标成功**。γ=0.95。行为概率为0.75/0.10/0.15；每种子48条日志轨迹包含失败与中止。声明种子都覆盖四状态。学习器只看转移，不拿正确动作标签。
+
+种子 **1071–1075** 各生成一个不可变批次，供 **BC_only / CQL_BC / CalQL_BC** 复用。各臂 **1000次全批 actor 更新**，状态等权、logits 零初始化、更新日程相同。各臂 β=1；η=0(BC)、η=2(两 RL 臂)。Critic 的 TD 权重1、α=1、T=0.1，学习率0.03(Q)/0.06(actor)；两 RL critic 从零开始，各更新1000次。BC **没有 critic**，Q=NA；等外层 / actor 更新**不表示等 FLOPs / 参数量**。运行内不根据留出评估结果调参。
+
+默认 critic：**Q(s,a)=w_s·features[a]**，features=(1.0,1.2,1.4)。这个刻意保留的**模型误设**共享动作效应：正 w 会把中止排在前进之上，无法拟合全部真实价值。两 RL 臂限制完全相同。这是为诊断选定的配置，不是无偏算法排行榜。它暴露保守梯度耦合，不是断言 CQL 总会尺度过低。`--tabular` 对照移除限制，但不改 MDP、数据、更新或损失。
+
+每种子 **1000条评估轨迹**共享动作抽样与转移均匀随机数，各策略都按分类分布抽样。报告目标成功率、折扣回报和包含失败的步数。`policy_Q` 是 E_π Q 在**四个数据状态上等权**的均值；`MC_behavior_V` 对行为 MC 参考用相同状态权重。两者都不是起始状态评估回报；差值是校准诊断，而非同策略预测误差。
+
+### 保留不利的尺度与策略结果
+
+受限 CQL 的策略 Q 均值 **0.135372** 低于 MC 参考 **0.439094**；Cal-QL 把它拉到 **0.419844**。这是更接近，而非硬下界证书：状态差仍为负（种子1072最小 **−0.092253**）；下压屏蔽比例也打印出来。尺度修正不能修复 critic 的错误动作排序。
+
+五种子目标成功率均值±总体标准差为 **BC0.2142±0.0494**、**CQL0.1958±0.0400**、**Cal-QL0.1628±0.0305**，逐行及最小 / 最大值都保留。BC 在这个受限 critic 配置最好，不是普遍赢家或显著性结论。不得删除不利于 Cal-QL 的结果。
+
+完整表格 critic 对照的 Q 均值为 **0.457688/0.604030**（CQL/Cal-QL），同一参考0.439094；CQL 大幅欠尺度消失。成功率均值为 **0.2786/0.2748**，BC仍为0.2142。这是表示能力敏感性检查，不是偷偷给竞争臂分配不同 critic。Cal-QL 原文也解释了校准效果为何随数据集变化。把 max 放对位置，既不保证离线策略收益，也不能据此宣称缓解在线下跌。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-10/vla-rl-finetune
+$ python3 cal_conrft_offline_toy.py
+```
+
+<CodeSource path="examples/month-10/vla-rl-finetune/cal_conrft_offline_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Offline discrete lock-chain; BC vs CQL+BC vs Cal-QL+BC (stdlib).
+No consistency head, VLA backbone, online phase or HIL-SERL reproduction.
+Tabular actor, restricted shared-action-feature linear critic (misspecified).
+CQL uses a temperature-logsumexp conservative penalty; Cal-QL masks its
+push-down via max(Q, V_MC) INSIDE that penalty, not a post-hoc Q clamp.
+V_MC is behavior return-to-go from the SAME demos, never an eval oracle.
+Equal full-batch actor updates; BC has no critic (Q scale NA), not equal FLOPs.
+All settings synthetic; paper numbers 以论文为准; GPU/robot 本页未运行.
+"""
+import math
+import random
+import statistics
+import sys
+
+FEATURES = (1., 1.2, 1.4)  # Deliberately restricted critic: Q(s,a)=w_s*FEATURES[a].
+SEEDS = (1071, 1072, 1073, 1074, 1075)
+STATES, ACTIONS, DEMOS, UPDATES, EVAL_N = 4, 3, 48, 1000, 1000
+GAMMA, ALPHA, TEMP, LR_Q, LR_PI = .95, 1., .1, .03, .06
+BC_WEIGHT, Q_WEIGHT = 1., 2.
+ARMS = ("BC_only", "CQL_BC", "CalQL_BC")
+
+
+def softmax(xs):
+    m = max(xs)
+    es = [math.exp(x-m) for x in xs]
+    return [x/sum(es) for x in es]
+
+
+def transition(s, a, noise):
+    # 0: advance with 90% probability; 1: wrong key, fail; 2: abort for .2.
+    if a == 1:
+        return 0., STATES, False
+    if a == 2:
+        return .2, STATES, False
+    if noise >= .9:
+        return 0., STATES, False
+    return (1. if s == STATES-1 else 0.), s+1, s == STATES-1
+
+
+def dataset(seed):
+    rng = random.Random(seed)
+    by_state = [[] for _ in range(STATES)]
+    for _ in range(DEMOS):
+        episode, s = [], 0
+        while s < STATES:
+            u = rng.random()
+            a = 0 if u < .75 else (1 if u < .85 else 2)
+            r, ns, _ = transition(s,a,rng.random())
+            episode.append((s,a,r,ns)); s = ns
+        ret = 0.
+        for s,a,r,ns in reversed(episode):
+            ret = r+GAMMA*ret
+            by_state[s].append((a,r,ns,ret))
+    assert all(by_state), "declared seeds must cover all four states"
+    return tuple(tuple(rows) for rows in by_state)
+
+
+def train(arm, data, tabular=False):
+    weights, features = [0.]*STATES, FEATURES
+    q = [[0.]*ACTIONS for _ in range(STATES)]
+    logits = [[0.]*ACTIONS for _ in range(STATES)]
+    refs = [statistics.fmean(row[3] for row in rows) for rows in data]
+    beta = [[sum(row[0]==a for row in rows)/len(rows) for a in range(ACTIONS)] for rows in data]
+    masked, proposals = 0, 0
+    for _ in range(UPDATES):
+        pi = [softmax(z) for z in logits]
+        grads = [[0.]*ACTIONS for _ in range(STATES)]
+        for s,rows in enumerate(data):
+            if arm != "BC_only":
+                scores = [max(x,refs[s]) if arm=="CalQL_BC" else x for x in q[s]]
+                proposal = softmax([x/TEMP for x in scores])
+                td = [0.]*ACTIONS
+                for a,r,ns,_ in rows:
+                    target = r if ns==STATES else r+GAMMA*sum(p*x for p,x in zip(pi[ns],q[ns]))
+                    td[a] += (q[s][a]-target)/len(rows)
+                for a in range(ACTIONS):
+                    active = arm!="CalQL_BC" or q[s][a] > refs[s]
+                    masked += not active; proposals += 1
+                    grad = td[a]+ALPHA*(proposal[a]*active-beta[s][a])
+                    grads[s][a] = grad
+            # CE gradient plus gradient of -E_pi Q; critic held fixed here.
+            meanq = sum(p*x for p,x in zip(pi[s],q[s]))
+            eta = 0. if arm=="BC_only" else Q_WEIGHT
+            for a in range(ACTIONS):
+                grad = BC_WEIGHT*(pi[s][a]-beta[s][a])-eta*pi[s][a]*(q[s][a]-meanq)
+                logits[s][a] -= LR_PI*grad
+        if arm != "BC_only":
+            if tabular:
+                q = [[x-LR_Q*g for x,g in zip(qs,gs)] for qs,gs in zip(q,grads)]
+            else:
+                for s in range(STATES):
+                    weights[s] -= LR_Q*sum(g*f for g,f in zip(grads[s],features))
+                q = [[w*f for f in features] for w in weights]
+    pi = [softmax(z) for z in logits]
+    # Uniform weighting over the four covered dataset states (not start return).
+    # Same dataset-state weighting for learned policy Q and MC behavior V.
+    qscale = statistics.fmean(sum(p*x for p,x in zip(ps,qs)) for ps,qs in zip(pi,q))
+    reference = statistics.fmean(refs)
+    gaps = [sum(p*x for p,x in zip(ps,qs))-ref for ps,qs,ref in zip(pi,q,refs)]
+    return pi,qscale,reference,min(gaps),masked/max(proposals,1)
+
+
+def evaluate(pi, draws):
+    successes, returns, lengths = 0, [], []
+    for trajectory in draws:
+        s, ret = 0, 0.
+        for t,(u,noise) in enumerate(trajectory):
+            cdf = 0.
+            for a,p in enumerate(pi[s]):
+                cdf += p
+                if u < cdf:
+                    break
+            r,s,success = transition(s,a,noise)
+            ret += GAMMA**t*r
+            if s == STATES:
+                successes += success; lengths.append(t+1); break
+        returns.append(ret)
+    return successes/EVAL_N,statistics.fmean(returns),statistics.fmean(lengths)
+
+
+def main():
+    assert sys.argv[1:] in ([], ["--tabular"]), "optional representation control: --tabular"
+    tabular = "--tabular" in sys.argv
+    print(f"offline lock-chain: states={STATES} actions={ACTIONS} demos={DEMOS} updates={UPDATES} eval={EVAL_N}/seed")
+    print(f"actor beta_BC={BC_WEIGHT} eta_Q=0(BC)/{Q_WEIGHT}(RL); critic TD=1 alpha={ALPHA} LSE_temperature={TEMP}; gamma={GAMMA}")
+    print("critic=full tabular representation control" if tabular else
+          f"critic Q(s,a)=w_s*features[a], features={FEATURES}; model misspecification intentionally retained")
+    print("same full demo batch/actor updates and eval action+transition uniforms; BC critic=NA, not equal FLOPs")
+    print("seed arm transitions success mean_return mean_steps policy_Q MC_behavior_V min_state_Q_minus_V masked_fraction")
+    scores = {a:[] for a in ARMS}
+    for seed in SEEDS:
+        data = dataset(seed)
+        rng = random.Random(seed+10000)
+        draws = tuple(tuple((rng.random(),rng.random()) for _ in range(STATES)) for _ in range(EVAL_N))
+        for arm in ARMS:
+            pi,q,ref,gap,masked = train(arm,data,tabular)
+            success,ret,steps = evaluate(pi,draws)
+            scores[arm].append((success,ret,q,ref,gap))
+            mechanism = f"{q:.6f} {ref:.6f} {gap:.6f} {masked:.4f}" if arm!="BC_only" else f"NA {ref:.6f} NA NA"
+            print(f"{seed} {arm} {sum(map(len,data))} {success:.3f} {ret:.6f} {steps:.3f} {mechanism}")
+    print("arm success_mean population_sd min max return_mean policy_Q_mean MC_behavior_V_mean")
+    for arm,rs in scores.items():
+        success = [r[0] for r in rs]
+        q = f"{statistics.fmean(r[2] for r in rs):.6f}" if arm!="BC_only" else "NA"
+        print(f"{arm} {statistics.fmean(success):.4f} {statistics.pstdev(success):.4f} {min(success):.3f} {max(success):.3f} "
+              f"{statistics.fmean(r[1] for r in rs):.6f} {q} {statistics.fmean(r[3] for r in rs):.6f}")
+    print("Cal-QL masks conservative push-down below MC reference; learned Q is NOT hard-clipped or a universal per-action lower bound")
+    print("offline only: online unlearning dip is reading, NOT demonstrated; no universal winner")
+    print("distinct from advantage filtering/10.6 HIL-SERL; consistency head not reproduced; paper 以论文为准; GPU/robot 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+offline lock-chain: states=4 actions=3 demos=48 updates=1000 eval=1000/seed
+actor beta_BC=1.0 eta_Q=0(BC)/2.0(RL); critic TD=1 alpha=1.0 LSE_temperature=0.1; gamma=0.95
+critic Q(s,a)=w_s*features[a], features=(1.0, 1.2, 1.4); model misspecification intentionally retained
+same full demo batch/actor updates and eval action+transition uniforms; BC critic=NA, not equal FLOPs
+seed arm transitions success mean_return mean_steps policy_Q MC_behavior_V min_state_Q_minus_V masked_fraction
+1071 BC_only 128 0.146 0.180044 2.687 NA 0.282482 NA NA
+1071 CQL_BC 128 0.144 0.178738 2.717 0.041732 0.282482 -0.295571 0.0000
+1071 CalQL_BC 128 0.126 0.170529 2.594 0.292225 0.282482 -0.001586 0.3259
+1072 BC_only 127 0.268 0.277245 2.627 NA 0.519343 NA NA
+1072 CQL_BC 127 0.248 0.262438 2.624 0.167552 0.519343 -0.386299 0.0000
+1072 CalQL_BC 127 0.199 0.232209 2.483 0.476552 0.519343 -0.092253 0.3572
+1073 BC_only 118 0.167 0.236690 2.345 NA 0.392109 NA NA
+1073 CQL_BC 118 0.155 0.230156 2.346 0.143120 0.392109 -0.273902 0.0000
+1073 CalQL_BC 118 0.127 0.215654 2.218 0.393878 0.392109 -0.031664 0.3393
+1074 BC_only 123 0.229 0.253365 2.484 NA 0.462067 NA NA
+1074 CQL_BC 123 0.209 0.237379 2.494 0.130993 0.462067 -0.393758 0.0000
+1074 CalQL_BC 123 0.176 0.220522 2.369 0.431262 0.462067 -0.060127 0.3435
+1075 BC_only 112 0.261 0.291532 2.549 NA 0.539470 NA NA
+1075 CQL_BC 112 0.223 0.265866 2.540 0.193461 0.539470 -0.424626 0.0000
+1075 CalQL_BC 112 0.186 0.242638 2.401 0.505306 0.539470 -0.082733 0.3576
+arm success_mean population_sd min max return_mean policy_Q_mean MC_behavior_V_mean
+BC_only 0.2142 0.0494 0.146 0.268 0.247775 NA 0.439094
+CQL_BC 0.1958 0.0400 0.144 0.248 0.234915 0.135372 0.439094
+CalQL_BC 0.1628 0.0305 0.126 0.199 0.216310 0.419844 0.439094
+Cal-QL masks conservative push-down below MC reference; learned Q is NOT hard-clipped or a universal per-action lower bound
+offline only: online unlearning dip is reading, NOT demonstrated; no universal winner
+distinct from advantage filtering/10.6 HIL-SERL; consistency head not reproduced; paper 以论文为准; GPU/robot 本页未运行
+```
+
+</SimOutput>
+
+### 同数据的表示能力对照
+
+```bash
+$ python3 cal_conrft_offline_toy.py --tabular
+```
+
+<SimOutput source="model">
+
+```text
+offline lock-chain: states=4 actions=3 demos=48 updates=1000 eval=1000/seed
+actor beta_BC=1.0 eta_Q=0(BC)/2.0(RL); critic TD=1 alpha=1.0 LSE_temperature=0.1; gamma=0.95
+critic=full tabular representation control
+same full demo batch/actor updates and eval action+transition uniforms; BC critic=NA, not equal FLOPs
+seed arm transitions success mean_return mean_steps policy_Q MC_behavior_V min_state_Q_minus_V masked_fraction
+1071 BC_only 128 0.146 0.180044 2.687 NA 0.282482 NA NA
+1071 CQL_BC 128 0.191 0.208033 2.896 0.296971 0.282482 0.005255 0.0000
+1071 CalQL_BC 128 0.189 0.206632 2.879 0.424241 0.282482 0.060882 0.2308
+1072 BC_only 127 0.268 0.277245 2.627 NA 0.519343 NA NA
+1072 CQL_BC 127 0.348 0.336336 2.826 0.541693 0.519343 0.014276 0.0000
+1072 CalQL_BC 127 0.343 0.332050 2.817 0.702371 0.519343 0.172180 0.3635
+1073 BC_only 118 0.167 0.236690 2.345 NA 0.392109 NA NA
+1073 CQL_BC 118 0.221 0.271246 2.495 0.406035 0.392109 0.005627 0.0000
+1073 CalQL_BC 118 0.221 0.269925 2.495 0.536749 0.392109 0.130578 0.2480
+1074 BC_only 123 0.229 0.253365 2.484 NA 0.462067 NA NA
+1074 CQL_BC 123 0.305 0.305149 2.716 0.487152 0.462067 0.018163 0.0000
+1074 CalQL_BC 123 0.296 0.297376 2.710 0.635938 0.462067 0.155483 0.3090
+1075 BC_only 112 0.261 0.291532 2.549 NA 0.539470 NA NA
+1075 CQL_BC 112 0.328 0.342000 2.715 0.556589 0.539470 0.007614 0.0000
+1075 CalQL_BC 112 0.325 0.338599 2.712 0.720853 0.539470 0.146690 0.3615
+arm success_mean population_sd min max return_mean policy_Q_mean MC_behavior_V_mean
+BC_only 0.2142 0.0494 0.146 0.268 0.247775 NA 0.439094
+CQL_BC 0.2786 0.0616 0.191 0.348 0.292553 0.457688 0.439094
+CalQL_BC 0.2748 0.0598 0.189 0.343 0.288916 0.604030 0.439094
+Cal-QL masks conservative push-down below MC reference; learned Q is NOT hard-clipped or a universal per-action lower bound
+offline only: online unlearning dip is reading, NOT demonstrated; no universal winner
+distinct from advantage filtering/10.6 HIL-SERL; consistency head not reproduced; paper 以论文为准; GPU/robot 本页未运行
+```
+
+</SimOutput>
+
+### 练习 (+210 min)
+
+1.（40 min）重建 Cal-ConRFT 离线与 HIL-ConRFT 在线，定位保守项的 max，区别 BC/Q actor 目标。
+2.（45 min）审计共享48轨迹、1000次 actor 更新、critic 额外工作和状态权重；不裁剪 Bellman 目标地推导屏蔽。
+3.（50 min）重算五种子、Q/参考差和成功率离散度，解释尺度修正为何未必修复误设动作排序。
+4.（45 min）运行同数据完整表格对照，副本改变 α/η，保留全部结果，不只挑最好臂。
+5.（30 min）列出在线下跌实验和一致性头训练还缺什么，说明本例及优势过滤为何不复现10.6 HIL-SERL。
+
 <Summary>
+
+离线 Cal-ConRFT 简化在共享示范与等更新下比较 BC/CQL/Cal-QL，用两种 critic 表示区分参考屏蔽的 Q 校准与策略成功率，不复现一致性头或在线微调下跌。
 
 让 VLA 超越示范的四种方式：在整个模型上做结果奖励 RL（SimpleVLA-RL，基于 OpenVLA-OFT）、用全部数据做优势条件训练（π*0.6 / RECAP）、在冻结基座上训练小残差策略（ResiP、Policy Decorator）、进度加权模仿（LeRobot SARM + RA-BC）。玩具里普通 BC 成功率 49.6 %，只用成功回合 89.4 %，只用 A > 0 步骤 99.2 %；日志里成功次数为 0 时，过滤器无从排序。GPU 训练步骤本页未运行。对毕业项目而言，这些是 8.7 旁边的可选进阶阅读，不是替代。
 

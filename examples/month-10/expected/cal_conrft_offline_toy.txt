@@ -1,0 +1,27 @@
+offline lock-chain: states=4 actions=3 demos=48 updates=1000 eval=1000/seed
+actor beta_BC=1.0 eta_Q=0(BC)/2.0(RL); critic TD=1 alpha=1.0 LSE_temperature=0.1; gamma=0.95
+critic Q(s,a)=w_s*features[a], features=(1.0, 1.2, 1.4); model misspecification intentionally retained
+same full demo batch/actor updates and eval action+transition uniforms; BC critic=NA, not equal FLOPs
+seed arm transitions success mean_return mean_steps policy_Q MC_behavior_V min_state_Q_minus_V masked_fraction
+1071 BC_only 128 0.146 0.180044 2.687 NA 0.282482 NA NA
+1071 CQL_BC 128 0.144 0.178738 2.717 0.041732 0.282482 -0.295571 0.0000
+1071 CalQL_BC 128 0.126 0.170529 2.594 0.292225 0.282482 -0.001586 0.3259
+1072 BC_only 127 0.268 0.277245 2.627 NA 0.519343 NA NA
+1072 CQL_BC 127 0.248 0.262438 2.624 0.167552 0.519343 -0.386299 0.0000
+1072 CalQL_BC 127 0.199 0.232209 2.483 0.476552 0.519343 -0.092253 0.3572
+1073 BC_only 118 0.167 0.236690 2.345 NA 0.392109 NA NA
+1073 CQL_BC 118 0.155 0.230156 2.346 0.143120 0.392109 -0.273902 0.0000
+1073 CalQL_BC 118 0.127 0.215654 2.218 0.393878 0.392109 -0.031664 0.3393
+1074 BC_only 123 0.229 0.253365 2.484 NA 0.462067 NA NA
+1074 CQL_BC 123 0.209 0.237379 2.494 0.130993 0.462067 -0.393758 0.0000
+1074 CalQL_BC 123 0.176 0.220522 2.369 0.431262 0.462067 -0.060127 0.3435
+1075 BC_only 112 0.261 0.291532 2.549 NA 0.539470 NA NA
+1075 CQL_BC 112 0.223 0.265866 2.540 0.193461 0.539470 -0.424626 0.0000
+1075 CalQL_BC 112 0.186 0.242638 2.401 0.505306 0.539470 -0.082733 0.3576
+arm success_mean population_sd min max return_mean policy_Q_mean MC_behavior_V_mean
+BC_only 0.2142 0.0494 0.146 0.268 0.247775 NA 0.439094
+CQL_BC 0.1958 0.0400 0.144 0.248 0.234915 0.135372 0.439094
+CalQL_BC 0.1628 0.0305 0.126 0.199 0.216310 0.419844 0.439094
+Cal-QL masks conservative push-down below MC reference; learned Q is NOT hard-clipped or a universal per-action lower bound
+offline only: online unlearning dip is reading, NOT demonstrated; no universal winner
+distinct from advantage filtering/10.6 HIL-SERL; consistency head not reproduced; paper 以论文为准; GPU/robot 本页未运行

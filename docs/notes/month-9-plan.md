@@ -10,7 +10,7 @@ Constraints: private env; runnable toys prefer stdlib CPU with fixed seeds. ROS 
 
 | # | slug | minutes | status | runnable | verified against |
 |---|------|---------|--------|----------|------------------|
-| 1 | `mtc-long-horizon` | 240 | full | `stage_graph_toy.py` | MoveIt Task Constructor |
+| 1 | `mtc-long-horizon` | 420 | full + H7 | `stage_graph_toy.py`, `mtc_stage_memory_toy.py` | MoveIt Task Constructor |
 | 2 | `moveit-servo` | 180 | full | `servo_loop_sim.py` | MoveIt realtime_servo_tutorial |
 | 3 | `effort-admittance` | 420 | full | `load_contact_sim.py`, `admittance_1d.py`, `impedance_vs_admittance_toy.py` | Feetech STS3215 + ros2 admittance |
 | 4 | `llm-skill-planning` | 240 | full | `saycan_score_toy.py` (fake LLM) | SayCan arXiv 2204.01691 |
@@ -33,3 +33,7 @@ G3 `world-models-overview` 180→420 — `neural_traj_idm_toy.py`: DreamGen four
 ## Batch-5 PR2 (+210 here)
 
 9.6 `nav-arm-compose`:240→450. M9 **2340→2550 min**,9 lessons;this PR site **20310→20700** with5.4+180,M5=1800. Shared corridor/start-goal/noise,5 seeds,equal speed/acceleration;mutex communication is extra information;holonomic reciprocal-stop is an ORCA-inspired sketch,not the full LP. Collision episodes,actual/capped arrival times,deadline misses,finite deadlock/starvation proxies and min separation all retained. No winner presumed. Curriculum IL paper reading only,以论文为准;real fleet本页未运行. / 相同输入与运动约束，披露预约额外信息和简化边界，保留所有失败，不复现论文。
+
+## Batch-5 PR3 (+180 here)
+
+9.1:240→420; M9 **2550→2730**,9 lessons. Site **20700→21090** with M10+210 (1860). Same planning stream, genuine stale-prefix rejection, charged revalidation/root fallback, bounded expansions; node counts only, no wall-clock claim. Cache is our sketch, not an MTC API promise; Panda/SO-101本页未运行. Batch-5 final totals applied now, not in earlier PRs.
