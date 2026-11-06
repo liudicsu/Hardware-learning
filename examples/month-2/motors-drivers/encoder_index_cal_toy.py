@@ -31,6 +31,8 @@ Metrics at the shared stop-at-fixture:
   false_index_count      accepted pulses that were noise
   missed_true_index      true Z edges dropped
 
+Two-stage homing first uses a limit switch for coarse search, then Z for fine
+search; this sequence is not implemented on this page (本页未实现).
 Real encoder hardware / scope-on-Z: 本页未运行.
 usage: python3 encoder_index_cal_toy.py
 """

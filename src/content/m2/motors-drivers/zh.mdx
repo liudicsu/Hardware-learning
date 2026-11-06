@@ -495,6 +495,8 @@ battery 5.0 V: done, count = 1450
 
 上面的正交解码会数边沿，但上电后计数从 0 开始，零点落在轴当时碰巧停的角度——还不是绝对零。增量式编码器靠**每转一次的索引（Z）脉冲**给出可重复的盘面参考；一次性标定再存下该索引到整机**机械零点**（硬限位 / 夹具）的偏置。
 
+两阶段回零先用限位开关粗寻，再用 Z 索引精寻；这套流程**本页未实现**。
+
 **这是机械回零 / Z 索引标定，不是 FOC 电角度 / 换相偏置标定**（后者在 [11.2 FOC 执行器实验](/zh/month/month-11/foc-actuator-lab)，且在避免清单里）。磁编码器磁铁偏心是另一类失效，这里不建模。
 
 ### 一次性偏置
@@ -561,6 +563,8 @@ Metrics at the shared stop-at-fixture:
   false_index_count      accepted pulses that were noise
   missed_true_index      true Z edges dropped
 
+Two-stage homing first uses a limit switch for coarse search, then Z for fine
+search; this sequence is not implemented on this page (本页未实现).
 Real encoder hardware / scope-on-Z: 本页未运行.
 usage: python3 encoder_index_cal_toy.py
 """

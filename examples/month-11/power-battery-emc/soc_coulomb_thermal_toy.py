@@ -20,6 +20,10 @@ Truth SoC uses ideal parameters. Drift from a constant shunt bias grows
 errors are separate sources; OCV rest re-anchoring is named as a concept
 only (no OCV curve is invented as a datasheet).
 
+Returned SoC values are clipped to [0,1] for display only, compressing reported
+error near the bounds; the internal integrator remains unclipped. This is not
+physical saturation or an estimator correction, nor proof of bounded error.
+
 Thermal hygiene: lesson-defined continuous derate
   I_allow(T) = I_cont_nom * max(0, 1 - K_DERATE * max(0, T - T_REF))
 A derate_flag rises when |I| would exceed I_allow at the current T proxy.
@@ -71,10 +75,9 @@ def integrate(i_seq: list[float], q: float, soc0: float) -> list[float]:
     out = [soc]
     for i in i_seq:
         soc = soc - eta_eff(i) * i * DT / q
-        # clip only for display sanity; estimators do not "know" 0/1 walls
-        # differently — clip after record so error stays visible
+        # Display-only clip [0,1] compresses errors near the bounds.
+        # Keep raw soc for the next step; clipping is not estimator correction.
         out.append(max(0.0, min(1.0, soc)))
-        soc = out[-1]
     return out  # length N+1
 
 

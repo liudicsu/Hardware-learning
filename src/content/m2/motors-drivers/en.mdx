@@ -495,6 +495,8 @@ The difference is 10 to 17 counts, about 2.5° to 4.3° of wheel rotation. On a 
 
 The quadrature section above counts edges. It does **not** yet give you an absolute zero after power-up: counts start at 0 at whatever angle the shaft happened to sit. Incremental encoders solve that with an **index (Z) pulse** once per revolution — a repeatable disc reference. A one-time calibration then stores the offset from that index to the machine's **mechanical zero** (hard stop / fixture).
 
+A two-stage homing sequence first performs a coarse search with the limit switch, then a fine search on Z; this sequence is **not implemented on this page**.
+
 **This is mechanical homing / Z-index calibration. It is not FOC electrical-angle / commutation-offset calibration** (that lives in [11.2 FOC actuator lab](/en/month/month-11/foc-actuator-lab) and is on the avoid-list). Magnetic-encoder magnet misalignment is a different failure mode and is not modelled here.
 
 ### One-time offset
@@ -561,6 +563,8 @@ Metrics at the shared stop-at-fixture:
   false_index_count      accepted pulses that were noise
   missed_true_index      true Z edges dropped
 
+Two-stage homing first uses a limit switch for coarse search, then Z for fine
+search; this sequence is not implemented on this page (本页未实现).
 Real encoder hardware / scope-on-Z: 本页未运行.
 usage: python3 encoder_index_cal_toy.py
 """

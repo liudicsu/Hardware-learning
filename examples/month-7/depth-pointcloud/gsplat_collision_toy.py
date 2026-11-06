@@ -4,6 +4,13 @@ Splat-Nav v1 Theorem 1 / Corollaries 1,3: separation iff some K(s)>1.
 Finite samples certify only witnessed separation (conservative in exact arithmetic).
 Ground truth is independent Euclidean point-to-solid-ellipsoid distance, solved
 by a monotone Lagrange-multiplier root with 100 bisections; not K(s) sampling.
+Splat-Nav v2 Sec. IV Eq. (2) uses D^2 <= chi2_3(gamma) for raw covariance C,
+then absorbs that quantile into the shape matrix. Our k-sigma convention uses
+D^2 <= k^2, shape = k^2 C; matching thresholds means k^2 = chi2_3(gamma).
+For an ideal normalized 3-D Gaussian, k=2 encloses about 73.85 %, NOT the 1-D
+95.45 % or the paper's gamma=0.99 (k about 3.37). Sec. VI-C2 also studies
+chi2_3(gamma)=4; choices/claims are 以论文为准. Here k=2 is a geometric cutoff,
+not calibrated occupancy confidence; opacity_min is a separate filter, not gamma.
 Floating-point arithmetic here is NOT interval-certified safety software.
 """
 from __future__ import annotations
