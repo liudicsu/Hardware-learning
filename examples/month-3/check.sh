@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the Month 3 examples exactly as the lessons do and compare with the outputs they quote
-# (stored in expected/). These are ordinary programs on your computer, not simulations.
+# (stored in expected/). Legacy calculators are program runs; backlash_loop is a synthetic simulation.
 # Needs: python3 (3.9+), OpenSCAD (tested with 2021.01), and the pinned packages in
 # requirements.txt (feetech-servo-sdk==1.0.0) for the SDK comparison:
 #   python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
@@ -55,4 +55,5 @@ DENSITY=1.21 check grip-finger.txt scad "$M3/gripper-fingers/finray_finger.scad"
 check grip-force.txt          python3 "$M3/gripper-fingers/grip_force.py"
 # Enrichment: fingertip retarget (stdlib; fixed seed)
 check fingertip_retarget_toy.txt python3 "$M3/gripper-fingers/fingertip_retarget_toy.py"
+check backlash_loop_toy.txt python3 "$M3/transmissions/backlash_loop_toy.py"
 exit $fail

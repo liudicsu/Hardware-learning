@@ -202,7 +202,127 @@ Before moving on, you should be able to answer "yes" to all of these:
 - I can walk the six-step troubleshooting routine from memory, and I have (at least) run it in Tinkercad.
 - My first kit — or my plan for it — is ordered from a reliable source so that it arrives in time to practise these measurements on real parts.
 
+## From DMM limits to uncertainty in a derived current
+
+A displayed digit is not an accuracy promise. The following **synthetic spec table** is lesson-defined: **no real DMM datasheet was opened** for this exercise. It is not a Fluke/Keysight specification, a calibration certificate or CAT/IEC 61010 certification. We extend the earlier measurement practice, not repeat colour-band quizzes. Physical DMM/calibration: **本页未运行**.
+
+| Synthetic channel | Reading term | Full-scale term | Selected range |
+|---|---|---|---|
+| V | ±0.5 % of reading | ±0.1 % of FS | 6 V |
+| R | ±0.8 % of reading | ±0.2 % of FS | 2000 Ω |
+
+For each channel the total absolute **limit half-width** is `L = a × abs(reading) + f × FS`. A counts specification would instead use `counts × least-significant-digit`; it is not another percentage. The two terms already belong to one total limit: do not silently RSS them as independent random variables. Here we compare a reading-only shortcut that omits FS against the full model at the **same true V,R**:0.2 V/1000 Ω and 5 V/1000Ω.
+
+<Resource id="nist-uncertainty-typeb" /> <Resource id="nist-uncertainty-propagation" />
+
+### Standard uncertainty is not a limit
+
+Following the NIST Type-B rectangular model, assume each **total** channel error is uniform on `[−L,L]`. Converting a spec limit to a **standard uncertainty divides by √3**, `uV = LV/√3`, `uR = LR/√3`. A specification does not by itself prove that distribution. We assume independent V and R errors; actual channels on the same instrument may share gain/temperature errors, requiring a covariance term. A calibration uncertainty with a stated coverage factor needs that factor, not automatically √3.
+
+The measurand is `I=V/R`, with sensitivity coefficients `cV=∂I/∂V=1/R` (A/V), `cR=∂I/∂R=−V/R²` (A/Ω). First-order **RSS of standard uncertainties** is `uI = sqrt((cV uV)² + (cR uR)²)`. Contrast the **worst-case linear sum of limits**, `LI = abs(cV) LV + abs(cR) LR`. These answer different questions: uI is a standard deviation under assumptions; LI is a first-order worst-case limit, not a standard deviation or automatic 95 % interval. Exact positive-denominator corner ratios bound the nonlinear V/R model and are reported separately.
+
+### Read the result, not just the digits
+
+At0.2V, full LV=0.007V and LR=12Ω give uV=0.004041V, uR=6.928203Ω. RSS is **0.004272 mA**, linear worst-case **0.009400 mA**, exact nonlinear limit **0.009514 mA**. Omitting FS reports only **0.001089 mA** RSS, particularly misleading at low reading. At5V full RSS is **0.038991 mA**, linear limit **0.091000 mA**, exact **0.092105 mA**. Do not compare a limit to a standard uncertainty as if they were the same “±accuracy”.
+
+Monte Carlo has 20000 independent pairs of standardized uniform errors (seed 113), reused across both spec arms and operating points. Full-model sample SD is **0.004259/0.038900 mA** at 0.2/5 V, close to linearized RSS; finite draws and the nonlinear ratio explain differences. These are draws from an assumed uncertainty distribution, not repeated readings that calibrate away a systematic offset. Temperature, lead resistance, meter loading and correlation are not simulated; the earlier 10 MΩ loading example remains a separate effect.
+
+```bash
+$ cd ~/Hardware-learning/examples/month-1/bench-multimeter
+$ python3 dmm_uncertainty_toy.py
+```
+
+<CodeSource path="examples/month-1/bench-multimeter/dmm_uncertainty_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic DMM spec limits -> Type-B standard uncertainty -> I=V/R.
+No real meter datasheet opened: ALL specs below are synthetic, not Fluke claims.
+A total spec half-width L = a*abs(reading) + f*full_scale is a LIMIT, not sigma.
+Model each channel's total error as independent uniform[-L,L], so u=L/sqrt(3).
+Do NOT RSS the two terms inside one manufacturer's total limit.
+Propagate independent V,R with cV=1/R, cR=-V/R^2. RSS combines STANDARD
+uncertainties; linear sum combines LIMITS. Neither is automatically 95 %.
+Monte Carlo uses shared standardized errors for both spec arms, 20000 draws
+per operating point; independent V vs R draws. No repeated-reading 1/sqrt(n)
+claim for a systematic instrument offset. No CAT/IEC certification or live test.
+"""
+import math
+import random
+
+SEED = 113
+DRAWS = 20000
+# a reading fraction, f full-scale fraction, full scale [V or ohm]. Synthetic!
+V_SPEC = (0.005, 0.001, 6.0)
+R_SPEC = (0.008, 0.002, 2000.0)
+POINTS = ((0.2, 1000.0), (5.0, 1000.0))
+
+
+def limit(reading, spec, full_spec):
+    a, f, fs = spec
+    return a * abs(reading) + (f * fs if full_spec else 0.0)
+
+
+def budget(v, r, lv, lr):
+    uv, ur = lv / math.sqrt(3), lr / math.sqrt(3)
+    cv, cr = 1 / r, -v / r**2
+    rss = math.hypot(cv * uv, cr * ur)
+    worst_linear = abs(cv) * lv + abs(cr) * lr
+    # Exact ratio extrema for a positive denominator, not just linearization.
+    exact = max(abs((v + lv) / (r - lr) - v / r),
+                abs((v - lv) / (r + lr) - v / r))
+    return uv, ur, cv, cr, rss, worst_linear, exact
+
+
+def main():
+    rng = random.Random(SEED)
+    draws = tuple((rng.uniform(-1, 1), rng.uniform(-1, 1)) for _ in range(DRAWS))
+    print(f"SYNTHETIC specs; seed={SEED} draws={DRAWS}; limits / sqrt(3) -> standard u")
+    print("V: +/- (0.5 % reading + 0.1 % of 6 V FS); R: +/- (0.8 % reading + 0.2 % of 2000 ohm FS)")
+    print("V_V arm L_V_V L_R_ohm u_V_V u_R_ohm cV_A/V cR_A/ohm RSS_uI_mA linear_limit_mA exact_limit_mA MC_sd_mA")
+    for v, r in POINTS:
+        for name, full in (("reading_only", False), ("reading_plus_FS", True)):
+            lv, lr = limit(v, V_SPEC, full), limit(r, R_SPEC, full)
+            uv, ur, cv, cr, rss, worst, exact = budget(v, r, lv, lr)
+            values = [(v + dv * lv) / (r + dr * lr) for dv, dr in draws]
+            mean = sum(values) / DRAWS
+            sd = math.sqrt(sum((x - mean)**2 for x in values) / DRAWS)
+            print(f"{v:.1f} {name} {lv:.6f} {lr:.3f} {uv:.6f} {ur:.6f} "
+                  f"{cv:.6f} {cr:.9f} {rss*1000:.6f} {worst*1000:.6f} "
+                  f"{exact*1000:.6f} {sd*1000:.6f}")
+            assert lr < r and 0 < rss < worst <= exact
+            assert abs(sd / rss - 1) < 0.03
+    print("RSS is standard uncertainty, linear sum is a worst-case first-order limit; independence assumed")
+    print("shared true V,R and standardized errors; physical DMM/calibration 本页未运行; not certification")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+```text
+SYNTHETIC specs; seed=113 draws=20000; limits / sqrt(3) -> standard u
+V: +/- (0.5 % reading + 0.1 % of 6 V FS); R: +/- (0.8 % reading + 0.2 % of 2000 ohm FS)
+V_V arm L_V_V L_R_ohm u_V_V u_R_ohm cV_A/V cR_A/ohm RSS_uI_mA linear_limit_mA exact_limit_mA MC_sd_mA
+0.2 reading_only 0.001000 8.000 0.000577 4.618802 0.001000 -0.000000200 0.001089 0.002600 0.002621 0.001087
+0.2 reading_plus_FS 0.007000 12.000 0.004041 6.928203 0.001000 -0.000000200 0.004272 0.009400 0.009514 0.004259
+5.0 reading_only 0.025000 8.000 0.014434 4.618802 0.001000 -0.000005000 0.027234 0.065000 0.065524 0.027175
+5.0 reading_plus_FS 0.031000 12.000 0.017898 6.928203 0.001000 -0.000005000 0.038991 0.091000 0.092105 0.038900
+RSS is standard uncertainty, linear sum is a worst-case first-order limit; independence assumed
+shared true V,R and standardized errors; physical DMM/calibration 本页未运行; not certification
+```
+
+### Exercises (+150 min)
+
+1. (30 min) Convert both synthetic specs at 0.2 V and 5 V to absolute limits and standard uncertainties; explain why FS dominates a small reading.
+2. (30 min) Derive cV,cR and their units; compute RSS and the linear limit without confusing their meanings.
+3. (35 min) Run the shared Monte Carlo, double draws, compare SD with RSS and exact corner limits; do not infer a new real meter spec.
+4. (30 min) Add a hypothetical common gain error and derive the covariance term; label all assumptions rather than pretend independence survives.
+5. (25 min) Sketch an offline resistor/current measurement log including range, resolution, loading and calibration status; no mains measurement.
+
 <Summary>
+
+The synthetic DMM V/R budget divides rectangular spec limits by √3, then contrasts sensitivity-weighted RSS standard uncertainty with worst-case limits.
 
 **Key points**
 

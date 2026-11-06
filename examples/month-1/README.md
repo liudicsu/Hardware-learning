@@ -20,4 +20,8 @@ Check every quoted output at once (runs in a temporary folder, leaves nothing be
 examples/month-1/check.sh
 ```
 
-These are real runs on a computer, not simulations. / 这些是电脑上的真实运行结果，不是仿真。
+The legacy python-terminal examples are real program runs. / 原 python-terminal 示例是电脑上的程序运行。
+
+## Batch-5 PR1 / 第5批 PR1
+
+`bench-multimeter/dmm_uncertainty_toy.py`: standard-library synthetic simulation, no hardware; expected output in `expected/dmm_uncertainty_toy.txt`, included in `check.sh`. / 标准库合成仿真，不是硬件测量，输出由 `check.sh` 核对。

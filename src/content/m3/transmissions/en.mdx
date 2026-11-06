@@ -347,7 +347,7 @@ target 90 deg (arm straight up, no gravity load):
 
 Walk through the output. At a target of 20°, gravity presses the teeth together on one side, so the joint is loaded. With the motor encoder the arm sags to 18.45° instead of 20.00°. That 1.55° of error has two parts. Half the 2° gap is 1°, and the teeth themselves bend under the load: gravity torque is 0.4 × cos 20° = 0.376 N·m, and dividing by a contact stiffness of 40 N·m/rad gives 0.0094 rad, which is about 0.54°. Together that is 1.54°, which is the difference between 20 and 18.45. With the arm encoder the loop fixes it, reaching 20.00° and staying still, because gravity keeps the teeth in contact and the loop can trust what it measures. This is the good case: a load that always pushes one way hides the backlash.
 
-At a target of 90° the arm points straight up and gravity no longer loads the teeth. With the motor encoder the arm floats somewhere inside the gap, here 91.01°, but it could be anywhere within about ±1° depending on friction and history. With the arm encoder the loop hunts: it sees the arm angle, corrects, crosses the dead zone, loses contact, and swings 1.16° peak to peak forever. Add a spring that always pulls the arm one way, with a <Term id="preload">preload</Term> of 0.1 N·m, and the teeth are held in contact again: 90.00°, still. That is the trick real designs use, in one of several forms: a preload spring, gravity itself, a gear split into two halves pushed apart so they straddle the gap, or an anti-backlash nut on a lead screw.
+At a target of 90° the arm points straight up and gravity no longer loads the teeth. With the motor encoder the arm floats somewhere inside the gap, here 91.01°, but it could be anywhere within about ±1° depending on friction and history. With the arm encoder the loop hunts: it sees the arm angle, corrects, crosses the dead zone, loses contact, and swings 1.16° peak to peak in that finite run; this does not prove inevitable or perpetual oscillation. Add a spring that always pulls the arm one way, with a <Term id="preload">preload</Term> of 0.1 N·m, and the teeth are held in contact again: 90.00°, still. That is the trick real designs use, in one of several forms: a preload spring, gravity itself, a gear split into two halves pushed apart so they straddle the gap, or an anti-backlash nut on a lead screw.
 
 The numbers above come from a toy model whose stiffness, friction and controller gains were chosen by the editor. They show a pattern rather than a measurement: an unloaded joint with an output encoder hunts, a loaded joint does not, and preload restores contact. Do not read the decimals as properties of a real gearbox. Build one and measure it.
 
@@ -423,7 +423,167 @@ Run the gearbox in for a few minutes under light load before you measure the bac
 
 Lesson 4 puts this to work. PID and cascade control are what make a joint follow a position or a trajectory, and the loop you will tune there has to live with the backlash you just measured. The cleaner your reducer, the easier that tuning becomes: reduction, backlash and torque density set the limits on how the control loop can be tuned.
 
+## Backlash inside the loop: sensor placement and stick–slip
+
+The earlier tip-arc calculation remains useful, but geometry alone does not predict a limit cycle. This additive experiment isolates **load Coulomb/static friction PLUS integral action**: static friction holds the load while I accumulates torque; breakaway drops friction from FS to FC, stored drive moves the load too far, error reverses, and crossing the gear gap delays the opposite correction. This is hunting, not a theorem that every backlash PID must oscillate. The earlier 4 s illustration and its 1.16° last-second swing are retained as one finite run, not evidence of perpetual oscillation or a friction ablation.
+
+<Resource id="wescott-friction" />
+
+### Plant and information contract
+
+All angles are **output-referred radians**, not motor-side degrees. Two inertias start at zero: Jm=0.01, Jl=0.03 kg·m², motor/load viscous coefficients 0.5/0.2 N·m·s/rad. Full backlash width **b=0.04 rad** and elastic contact stiffness KG=30 N·m/rad give `tau = KG × sign(qm−ql) × max(abs(qm−ql)−b/2,0)`. Inside the gap no gear torque passes; outside, tooth compliance allows deflection. Motor and load obey `Jm am = u−tau−DM vm` and `Jl al = tau−DL vl−friction`. At rest the load sticks up to **FS=0.4 N·m**; sliding uses **FC=0.02 N·m**. The deliberately large stiction drop makes the mechanism legible; it is synthetic, not a typical reducer specification. Crossing zero velocity can re-stick. Explicit semi-implicit steps are 0.002 s; a 0.001 s refinement must retain hunting.
+
+All arms share the same plant, initial state, 120 s reference (0.12, −0.08, 0.06 rad, changing at 0/30/60 s), ideal encoders with **zero shared noise**, gains Kp=8, Ki=3, Kd=1, ±2 N·m saturation and ±0.2 rad·s integral clamp. **The load-encoder arm has more information**: it sees ql rather than pretending that qm is load position. Every arm already has motor velocity for D damping. This is a sensor-placement comparison, not an equal-information algorithm contest.
+
+The third arm applies a continuous error deadband `ed = sign(e) max(abs(e)−bhat/2,0)` to **P/I only**; D retains motor-velocity feedback. In-band I leaks at 2/s, explicitly addressing stored integral drive rather than hiding an extra reset. Wescott §3.2 recommends keeping derivative damping outside the deadband and warns about stored integral action, residual error and cut-and-try band selection; this is a lesson model, not his numerical experiment. It is not FOC, Z-index homing or AGMA certification. Real gearbox/torque instrumentation: **本页未运行**.
+
+### What is actually measured
+
+Load RMSE covers the entire reference. The last 40 s report **signed steady-state error band** `[min(r−ql), max(r−ql)]`, load peak-to-peak and velocity-direction reversals (ignore speeds below 1e−5 rad/s). A **limit-cycle candidate** needs p-p above 0.005 rad, at least 3 reversals and p-p above 0.002 rad in each 20 s half. A finite simulation cannot prove an attracting periodic orbit. Settling means staying within ±0.01 rad after the last step; `not_settled` is not silently replaced by motor settling.
+
+Here motor PID has tail motor RMSE **0.000001 rad** yet load error **0.014121 rad**. Extra load sensing exposes error, but these unchanged gains hunt: p-p **0.047514 rad**,4 reversals. Removing friction or integral removes the candidate in these controls; no-friction load PID settles in **0.570 s**, whereas no-I sticks with **0.012169 rad** residual. This conditional ablation does not say that other gains or undamped backlash plants cannot oscillate without friction.
+
+With correct bhat=0.04, the deadband's measured load-error band is **[0.033429,0.033429] rad**, not zero. A conditional static allowance is `bhat/2 + b/2 + FS/KG = 0.053333 rad`: motor in-band error + gap + elastic stiction deflection. This is not a dynamic safety bound. Too-small bhat=0.004 makes motor error look small (0.002000 rad) while load still misses by **0.014043 rad**; it under-budgets play. Too-large bhat=0.12 accepts **0.067457 rad** error and has RMSE **0.065299 rad**. Correct deadband RMSE **0.033891 rad** is worse than motor PID **0.016901 rad** here: less motion is not better accuracy, and none of the friction arms meet the ±0.01 rad settling requirement.
+
+```bash
+$ cd ~/Hardware-learning/examples/month-3/transmissions
+$ python3 backlash_loop_toy.py
+```
+
+<CodeSource path="examples/month-3/transmissions/backlash_loop_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Two output-referred inertias, elastic backlash, load Coulomb/stiction, PID.
+ALL angles rad, torques N*m, inertias kg*m^2. Ideal encoders (noise=0), same
+initial state and reference per arm. Load encoder adds information, NOT an
+information-equal algorithm contest. D uses motor velocity in every arm.
+Gear torque = KG * sign(qm-ql) * max(abs(qm-ql)-b/2,0).
+Jm*am=u-tau-DM*vm; Jl*al=tau-DL*vl-friction. At rest static friction holds
+up to FS; sliding Coulomb magnitude FC<FS; velocity crossing zero can re-stick.
+P/I see error deadband only in deadband arm; D remains unmodified. In the band
+I leaks at 2/s, explicitly preventing stored I from continuing to push (Wescott
+Sec.3.2 caveat). Integrator clamps +/-0.2 rad*s; torque saturates +/-2 N*m.
+A hunting/limit-cycle CANDIDATE means tail load p-p>.005 rad, >=3 direction
+reversals, and p-p>.002 in BOTH halves of the last40s. Finite simulation is not
+a proof of an attracting periodic orbit. Selected no-friction/no-I controls do
+not hunt; friction+integral can, not every backlash PID inevitably does.
+Real reducer/torque sensors 本页未运行; no FOC/Z-homing/AGMA claims.
+"""
+import math
+
+DT, SECONDS = .002, 120.
+B, KG = .04, 30.
+JM, JL, DM, DL = .01, .03, .5, .2
+FS, FC = .4, .02  # deliberately strong stiction drop, synthetic, not typical spec
+KP, KI, KD = 8., 3., 1.
+
+
+def reference(t):
+    return .12 if t < 30 else -.08 if t < 60 else .06
+
+
+def simulate(sensor="motor", b_hat=None, friction=True, integral=True, dt=DT):
+    qm = ql = vm = vl = accum = 0.
+    history = []
+    for n in range(round(SECONDS / dt)):
+        t = n * dt
+        r = reference(t)
+        error = r - (ql if sensor == "load" else qm)
+        half_band = 0. if b_hat is None else b_hat / 2
+        pi_error = math.copysign(max(abs(error)-half_band, 0.), error)
+        if b_hat is not None and abs(error) <= half_band:
+            accum *= max(0., 1 - 2*dt)
+        else:
+            accum = max(-.2, min(.2, accum + pi_error*dt))
+        u = max(-2., min(2., KP*pi_error + (KI*accum if integral else 0.) - KD*vm))
+        gap = qm-ql
+        tau = KG * math.copysign(max(abs(gap)-B/2, 0.), gap)
+        force = tau-DL*vl
+        fs, fc = (FS, FC) if friction else (0., 0.)
+        if abs(vl) < 1e-6 and abs(force) <= fs:
+            vl = 0.
+        else:
+            prev = vl
+            sign = math.copysign(1., vl if abs(vl) > 1e-6 else force)
+            vl += (force - fc*sign) / JL * dt
+            if prev*vl < 0 and abs(force) <= fs:
+                vl = 0.
+        vm += (u-tau-DM*vm)/JM*dt
+        qm += vm*dt
+        ql += vl*dt
+        history.append((t, r-qm, r-ql, vl))
+    tail = [h for h in history if h[0] >= SECONDS-40]
+    errors = [h[2] for h in tail]
+    pp = lambda xs: max(xs)-min(xs)
+    signs = [1 if h[3] > 1e-5 else -1 for h in tail if abs(h[3]) > 1e-5]
+    reversals = sum(a != b for a, b in zip(signs, signs[1:]))
+    half = len(errors)//2
+    hunting = pp(errors) > .005 and reversals >= 3 and min(pp(errors[:half]), pp(errors[half:])) > .002
+    # Remain within +/-0.01 rad for the rest of final step; report not_settled.
+    bad = [h[0] for h in history if h[0] >= 60 and abs(h[2]) > .01]
+    settle = "not_settled" if bad and bad[-1] >= SECONDS-dt*1.1 else f"{max(bad, default=60.)+dt-60:.3f}"
+    return (math.sqrt(sum(h[2]**2 for h in history)/len(history)),
+            math.sqrt(sum(h[1]**2 for h in tail)/len(tail)),
+            min(errors), max(errors), pp(errors), reversals, hunting, settle)
+
+
+def main():
+    print(f"b={B} rad KG={KG} N*m/rad FS={FS} FC={FC} N*m; dt={DT} s; ideal encoder noise=0")
+    print("shared reference 0.12/-0.08/0.06 rad at 0/30/60s; P/I deadband only; D motor velocity unchanged; in-band I leak=2/s")
+    print("arm load_RMSE_rad tail_motor_RMSE_rad tail_load_error_min max pp reversals hunting_candidate settle_s")
+    results = {}
+    for name, kwargs in (("motor_PID", {}), ("load_PID_extra_sensor", {"sensor": "load"}),
+                         ("deadband_b_correct", {"b_hat": B}),
+                         ("deadband_b_too_small", {"b_hat": .004}),
+                         ("deadband_b_too_large", {"b_hat": .12}),
+                         ("load_no_friction", {"sensor": "load", "friction": False}),
+                         ("load_no_integral", {"sensor": "load", "integral": False})):
+        result = simulate(**kwargs)
+        results[name] = result
+        rmse, motor, low, high, pp, rev, hunt, settle = result
+        print(f"{name} {rmse:.6f} {motor:.6f} {low:.6f} {high:.6f} {pp:.6f} {rev} {int(hunt)} {settle}")
+    assert results["load_PID_extra_sensor"][6]
+    assert not results["load_no_friction"][6] and not results["load_no_integral"][6]
+    # Refine timestep: do not mistake Euler timestep chatter for hunting.
+    assert simulate("load", dt=DT/2)[6]
+    allowance = B/2+B/2+FS/KG
+    print(f"correct deadband conditional static load-error allowance=+/-{allowance:.6f} rad (bhat/2+b/2+FS/KG)")
+    print("measured tail error band above is NOT a zero-error guarantee; wrong b hides precision or leaves unmodelled play")
+    print("load encoder has more information; no universal winner; finite-window candidate, not periodic-orbit proof; hardware 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+```text
+b=0.04 rad KG=30.0 N*m/rad FS=0.4 FC=0.02 N*m; dt=0.002 s; ideal encoder noise=0
+shared reference 0.12/-0.08/0.06 rad at 0/30/60s; P/I deadband only; D motor velocity unchanged; in-band I leak=2/s
+arm load_RMSE_rad tail_motor_RMSE_rad tail_load_error_min max pp reversals hunting_candidate settle_s
+motor_PID 0.016901 0.000001 0.014121 0.014121 0.000000 0 0 not_settled
+load_PID_extra_sensor 0.021185 0.018499 -0.035109 0.012405 0.047514 4 1 not_settled
+deadband_b_correct 0.033891 0.013429 0.033429 0.033429 0.000000 0 0 not_settled
+deadband_b_too_small 0.016968 0.002000 0.014043 0.014043 0.000000 0 0 not_settled
+deadband_b_too_large 0.065299 0.055495 0.067457 0.067457 0.000000 0 0 not_settled
+load_no_friction 0.008610 0.020000 -0.000002 -0.000000 0.000002 0 0 0.570
+load_no_integral 0.015359 0.011076 0.012169 0.012169 0.000000 0 0 not_settled
+correct deadband conditional static load-error allowance=+/-0.053333 rad (bhat/2+b/2+FS/KG)
+measured tail error band above is NOT a zero-error guarantee; wrong b hides precision or leaves unmodelled play
+load encoder has more information; no universal winner; finite-window candidate, not periodic-orbit proof; hardware 本页未运行
+```
+
+### Exercises (+180 min)
+
+1. (35 min) Derive the gear-torque deadzone and units; trace static hold→integral accumulation→breakaway→reversal by logging state, without changing expected output.
+2. (45 min) Run and audit all seven arms, then halve dt again; compare candidate classification and amplitudes, not just a plot that looks periodic.
+3. (45 min) Change FS/FC and Ki separately; find a regime that does not hunt and explain why the “only with both” result is conditional, not universal.
+4. (35 min) Sweep bhat and report signed steady-state error bands, settling, and wrong-band failures; retain D and disclose I leakage.
+5. (20 min) Propose an output encoder/preload trade-off and name the extra information or mechanical cost; no real reducer claim.
+
 <Summary>
+
+The physical backlash-loop toy separates friction-plus-integral hunting from sensor placement, with disclosed extra load information and measured deadband error/failure bands.
 
 **Key points**
 
@@ -439,7 +599,7 @@ Lesson 4 puts this to work. PID and cascade control are what make a joint follow
 
 - Multiplying efficiencies as if they were one stage: two stages at 90 % leave 0.9 × 0.9 = 0.81, not 0.9.
 - Drawing a planetary stage that fails the assembly rules, such as sun 12 with ring 45 (16.5 teeth), instead of checking planet size and spacing on paper first.
-- Believing software can fix backlash: with the encoder after the gears and no load, the model hunts 1.16° peak to peak forever.
+- Believing software can fix backlash: with the encoder after the gears and no load, the earlier model shows 1.16° peak to peak in its last second, not proof of inevitable or perpetual hunting.
 - Reading backlash in degrees and ignoring the arm: 2° on a 0.30 m arm is 10.5 mm at the tip.
 
 **Self-check**

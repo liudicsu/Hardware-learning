@@ -1,0 +1,13 @@
+b=0.04 rad KG=30.0 N*m/rad FS=0.4 FC=0.02 N*m; dt=0.002 s; ideal encoder noise=0
+shared reference 0.12/-0.08/0.06 rad at 0/30/60s; P/I deadband only; D motor velocity unchanged; in-band I leak=2/s
+arm load_RMSE_rad tail_motor_RMSE_rad tail_load_error_min max pp reversals hunting_candidate settle_s
+motor_PID 0.016901 0.000001 0.014121 0.014121 0.000000 0 0 not_settled
+load_PID_extra_sensor 0.021185 0.018499 -0.035109 0.012405 0.047514 4 1 not_settled
+deadband_b_correct 0.033891 0.013429 0.033429 0.033429 0.000000 0 0 not_settled
+deadband_b_too_small 0.016968 0.002000 0.014043 0.014043 0.000000 0 0 not_settled
+deadband_b_too_large 0.065299 0.055495 0.067457 0.067457 0.000000 0 0 not_settled
+load_no_friction 0.008610 0.020000 -0.000002 -0.000000 0.000002 0 0 0.570
+load_no_integral 0.015359 0.011076 0.012169 0.012169 0.000000 0 0 not_settled
+correct deadband conditional static load-error allowance=+/-0.053333 rad (bhat/2+b/2+FS/KG)
+measured tail error band above is NOT a zero-error guarantee; wrong b hides precision or leaves unmodelled play
+load encoder has more information; no universal winner; finite-window candidate, not periodic-orbit proof; hardware 本页未运行

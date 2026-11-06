@@ -22,8 +22,12 @@ tools/sim/reproduce.sh                   # simulated outputs (Month 2 and Month 
 examples/month-3/render_previews.sh      # re-renders the pictures in public/m3/ / 重新渲染课程配图
 ```
 
-Outputs from `check.sh` are ordinary programs run on a computer, not simulations. Nothing in this month was printed or run on a real robot by the site editor: the parts were rendered and checked in software, and the printed fit is for you to find out.
-`check.sh` 里的输出是电脑上直接运行的普通程序，不是仿真。本月的零件和程序都没有被本站编者打印或装到真机上：零件只在软件中渲染和检查过，打印后能不能装上，要靠你自己验证。
+Legacy calculator outputs from `check.sh` are ordinary programs run on a computer. Nothing in this month was printed or run on a real robot by the site editor: the parts were rendered and checked in software, and the printed fit is for you to find out.
+`check.sh` 原计算器输出是电脑上直接运行的普通程序。本月的零件和程序都没有被本站编者打印或装到真机上：零件只在软件中渲染和检查过，打印后能不能装上，要靠你自己验证。
 
 Different OpenSCAD versions write a different number of triangles; `check.sh` ignores that one number.
 不同版本的 OpenSCAD 生成的三角形数量不同，`check.sh` 会忽略这个数。
+
+## Batch-5 PR1 / 第5批 PR1
+
+`transmissions/backlash_loop_toy.py`: standard-library synthetic simulation, no hardware; expected output in `expected/backlash_loop_toy.txt`, included in `check.sh`. / 标准库合成仿真，不是硬件测量，输出由 `check.sh` 核对。

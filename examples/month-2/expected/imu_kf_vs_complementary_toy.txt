@@ -1,0 +1,19 @@
+dt=0.02 N=1500; sigma_g=0.5 deg/s sigma_a=1.5 deg sigma_b0=0.5 deg/s sigma_rw=0.03 deg/s/sqrt(s)
+Q0_diag=0.000100,0.000018; R0=2.250000; bias_prior_mean=0 (not truth)
+tune_seeds=201,202,203; held_out=221..225; 9 candidates x 3 x 1500 = 40500 updates/filter
+selected complementary (0.95, 0.0)
+selected bias_complementary (0.97, 0.2)
+selected KF (1.0, 1.0)
+held_out_seed gyro_RMSE_deg accel_RMSE_deg complementary_RMSE_deg bias_complementary_RMSE_deg KF_RMSE_deg
+221 2.270439 1.469852 0.249267 0.215977 0.212520
+222 1.280862 1.505871 0.237493 0.202265 0.143872
+223 3.523789 1.521205 0.295811 0.248308 0.297265
+224 6.852406 1.503404 0.270655 0.220792 0.214184
+225 1.234915 1.463986 0.245173 0.227267 0.199543
+arm mean_RMSE_deg population_sd min max
+gyro 3.032482 2.083907 1.234915 6.852406
+accel 1.492864 0.022122 1.463986 1.521205
+complementary 0.259680 0.021152 0.237493 0.295811
+bias_complementary 0.222922 0.015118 0.202265 0.248308
+KF 0.213477 0.049114 0.143872 0.297265
+shared data/prior model; neither filter knows true bias; no universal winner; IMU hardware 本页未运行
