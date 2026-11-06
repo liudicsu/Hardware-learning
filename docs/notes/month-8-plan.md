@@ -4,7 +4,7 @@ Batch 1–2 delivered 8.1–8.7 (dataset → capstone). **Track B (promote elect
 
 | slug | minutes | CPU toy | notes |
 |------|---------|---------|-------|
-| dataset-engineering | 180 | `dataset_audit.py` | batch 1 |
+| dataset-engineering | 330 | `dataset_audit.py`, `dataset_crc_integrity_toy.py` | batch1 + Batch-7 PR1 |
 | vla-finetune | 420 | `compute_budget.py`, `rpd_teacher_rl_toy.py` | batch 2 |
 | async-deployment | 300 | `chunk_latency_sim.py`, `stream_sync_eval_toy.py` | batch 1 + deepen PR3: arrival-causal alignment |
 | ros2-hardware-interface | 600 | `servo_bus_sim.py`, `lifecycle_sm_toy.py`, `can_fault_confinement_toy.py` (+ `so101_hw/` skeleton 本页未运行) | batch 2 + follow-up PR1 F2: managed-node SM ≠ HardwareComponent |
@@ -42,3 +42,7 @@ Allocation 45+45+30+45+15=180 min. With M9 +210 separately: **21570+180+210=2196
 ## Batch-6 PR3 / 本月 H7 (+180)
 
 8.2:240→420; M8 **2850→3030**, still 8 lessons. Site **21960→22350** with M10 **1860→2070** (+210). Count only PR3:180+210=390. Deliberately suboptimal teacher; BC-only / scratch RL / teacher-MSE RL all use7680 env ticks/80 updates, with paired768/8 early checkpoints. Five seeds, shared random tape and separate256-episode evaluation; mean±population sd and range retain early BC wins. Discrete REINFORCE surrogate, not PPO, Cal-ConRFT or HIL-SERL. Real GPU/VLA/ManiSkill 本页未运行; figures 以论文为准. Source audit: batch-6-pr3-sources.md.
+
+## Batch-7 PR1 / 本月 H7 (+150)
+
+8.1 dataset-engineering180→330; **M8 3030→3180**, eight lessons. Site **22350→22830**, counting only PR1 +480 with **M2 1980→2310** (+330). Still71 lessons; no arithmetic mismatch. Allocation:30+30+45+30+15=150 min (polynomial/check value/shared corpus/burst limits+authentication/exercises). Deterministic4 payloads; no-check/sum8/CRC32 receive the same corrupted bytes and tags. Existing dataset audit remains. No claim that LeRobot formats store this toy CRC. New sections before Summary, en/zh symmetric. Sources: batch-7-pr1-sources.md.

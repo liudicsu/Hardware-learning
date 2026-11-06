@@ -1,0 +1,58 @@
+SPI synthetic edge schedule: half_period=1 prop_delay=0.2 aperture=0.1/0.3 time units
+shared payload=A5 00 FF 3C 81 01 96 69; 64 bits; one active-low CS frame
+TX_mode order aperture RX_arm RX_mode errors BER first_byte
+0 MSB 0.1 matched 0 0 0.000000 A5
+0 MSB 0.1 CPOL_wrong 2 0 0.000000 A5
+0 MSB 0.1 CPHA_wrong 1 0 0.000000 A5
+0 MSB 0.3 matched 0 0 0.000000 A5
+0 MSB 0.3 CPOL_wrong 2 27 0.421875 4A
+0 MSB 0.3 CPHA_wrong 1 27 0.421875 4A
+0 LSB 0.1 matched 0 0 0.000000 A5
+0 LSB 0.1 CPOL_wrong 2 0 0.000000 A5
+0 LSB 0.1 CPHA_wrong 1 0 0.000000 A5
+0 LSB 0.3 matched 0 0 0.000000 A5
+0 LSB 0.3 CPOL_wrong 2 25 0.390625 52
+0 LSB 0.3 CPHA_wrong 1 25 0.390625 52
+1 MSB 0.1 matched 1 0 0.000000 A5
+1 MSB 0.1 CPOL_wrong 3 27 0.421875 52
+1 MSB 0.1 CPHA_wrong 0 27 0.421875 52
+1 MSB 0.3 matched 1 0 0.000000 A5
+1 MSB 0.3 CPOL_wrong 3 0 0.000000 A5
+1 MSB 0.3 CPHA_wrong 0 0 0.000000 A5
+1 LSB 0.1 matched 1 0 0.000000 A5
+1 LSB 0.1 CPOL_wrong 3 26 0.406250 4A
+1 LSB 0.1 CPHA_wrong 0 26 0.406250 4A
+1 LSB 0.3 matched 1 0 0.000000 A5
+1 LSB 0.3 CPOL_wrong 3 0 0.000000 A5
+1 LSB 0.3 CPHA_wrong 0 0 0.000000 A5
+2 MSB 0.1 matched 2 0 0.000000 A5
+2 MSB 0.1 CPOL_wrong 0 0 0.000000 A5
+2 MSB 0.1 CPHA_wrong 3 0 0.000000 A5
+2 MSB 0.3 matched 2 0 0.000000 A5
+2 MSB 0.3 CPOL_wrong 0 27 0.421875 4A
+2 MSB 0.3 CPHA_wrong 3 27 0.421875 4A
+2 LSB 0.1 matched 2 0 0.000000 A5
+2 LSB 0.1 CPOL_wrong 0 0 0.000000 A5
+2 LSB 0.1 CPHA_wrong 3 0 0.000000 A5
+2 LSB 0.3 matched 2 0 0.000000 A5
+2 LSB 0.3 CPOL_wrong 0 25 0.390625 52
+2 LSB 0.3 CPHA_wrong 3 25 0.390625 52
+3 MSB 0.1 matched 3 0 0.000000 A5
+3 MSB 0.1 CPOL_wrong 1 27 0.421875 52
+3 MSB 0.1 CPHA_wrong 2 27 0.421875 52
+3 MSB 0.3 matched 3 0 0.000000 A5
+3 MSB 0.3 CPOL_wrong 1 0 0.000000 A5
+3 MSB 0.3 CPHA_wrong 2 0 0.000000 A5
+3 LSB 0.1 matched 3 0 0.000000 A5
+3 LSB 0.1 CPOL_wrong 1 26 0.406250 4A
+3 LSB 0.1 CPHA_wrong 2 26 0.406250 4A
+3 LSB 0.3 matched 3 0 0.000000 A5
+3 LSB 0.3 CPOL_wrong 1 0 0.000000 A5
+3 LSB 0.3 CPHA_wrong 2 0 0.000000 A5
+varied-pattern diagnostic: TX1 MSB aperture0.1 RX0 (wrong phase)
+A5->52 00->80 FF->7F 3C->9E 81->40 01->80 96->CB 69->34
+isolated-byte same wrong mode/timing: 00->00 FF->7F A5->52 96->4B
+wrong bit order: TX96 MSB decoded_LSB=69
+CS-high clocks ignored; partial 8-bit CS frames rejected; CS is not a device address
+Wrong-edge zero BER is possible in this timing model, NOT proof of a compatible mode
+No noise/no random seeds; no MHz claim; real device/scope: 本页未运行

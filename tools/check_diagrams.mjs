@@ -3936,8 +3936,8 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 22350, "onedp-rpd PR3 curriculum: 22350 minutes");
-  for (const [month, expected] of [[1, 1020], [2, 1980], [3, 1470], [4, 1620], [5, 1800], [6, 1350], [7, 2070], [8, 3030], [9, 2940], [10, 2070], [11, 3000]]) {
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 22830, "spi-wdt-crc PR1 curriculum: 22830 minutes");
+  for (const [month, expected] of [[1, 1020], [2, 2310], [3, 1470], [4, 1620], [5, 1800], [6, 1350], [7, 2070], [8, 3180], [9, 2940], [10, 2070], [11, 3000]]) {
     ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `current curriculum M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
@@ -4923,7 +4923,7 @@ for (const m of readdirSync(content)) {
   for (const id of ["dreamgen-paper", "lapa-paper", "smolvla-paper", "lerobot-async"]) {
     ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `wm2 resource ${id}: present + extra`);
   }
-  ok(/22 350/.test(read("README.md")), "b6p2 README: 21 960 minutes");
+  ok(/22 830/.test(read("README.md")), "b6p2 README: 21 960 minutes");
   console.log("worldmodel-smolvla PR2: neural trajectories + async chunk locks checked");
 }
 
@@ -5180,7 +5180,7 @@ for (const m of readdirSync(content)) {
   const read = p => readFileSync(join(root, p), "utf8");
   for (const [month, slug, toy, minutes, added, markers, summaryMarker] of [
     [1,"bench-multimeter","dmm_uncertainty_toy",240,150,["√3","RSS","0.004272","0.009400","0.009514","0.038991","0.091000","20000"],"√3"],
-    [2,"sensors-fusion","imu_kf_vs_complementary_toy",360,150,["Q0","R0","40500","201/202/203","221–225","0.259680","0.222922","0.213477","0.297265","0.295811"],"Q/R"],
+    [2,"sensors-fusion","imu_kf_vs_complementary_toy",540,150,["Q0","R0","40500","201/202/203","221–225","0.259680","0.222922","0.213477","0.297265","0.295811"],"Q/R"],
     [3,"transmissions","backlash_loop_toy",330,180,["P/I","FS=0.4","FC=0.02","0.047514","0.033429","0.053333","0.014043","0.067457","0.570"],"hunting"],
   ]) {
     const src = `examples/month-${month}/${slug}/${toy}.py`;
@@ -5510,6 +5510,47 @@ print("protocol pass")
   const resources=read("src/lib/resources.ts");
   ok(resources.includes("UM10204 could not be resolved during this batch; TI SLVA689A is used instead.") && resources.includes("本批次未能解析 UM10204，改用 TI SLVA689A。"),"b6 polish resources: symmetric substitute-source note");
   console.log("batch6-polish: verified ambient-reference threshold algebra, critical current, reading-only paper figures and I2C source fallback checked");
+}
+
+// Batch-7 PR1: shared SPI edges, independent WDT progress and shared CRC corpus.
+{
+  const read=path=>readFileSync(join(root,path),"utf8"), cur=read("src/lib/curriculum.ts");
+  const env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
+  for (const [month,slug,toy,minutes,added,markers,summaries] of [
+    [2,"sensors-fusion","spi_mode_mismatch_toy",540,180,
+      ["SPI_MODE0","SPI_MODE1","SPI_MODE2","SPI_MODE3","MSBFIRST/LSBFIRST","CPOL","CPHA","CS","A5 00 FF 3C 81 01 96 69","27/64=0.421875","00→00","96→4B","本页未运行"],
+      ["SPI mode/bit-order/CS choices","SPI 模式 / 位序 / CS"]],
+    [2,"timing-interrupts","hw_wdt_kick_toy",330,150,
+      ["7810D–AVR–01/15","128 kHz","Table10-3","WDP3..0","MCUSR.WDRF","WDE=1, WDIE=0","0x08","[8,16)","1001","524288","1048576","本页未运行"],
+      ["independent hardware-watchdog toy","独立硬件看门狗玩具"]],
+    [8,"dataset-engineering","dataset_crc_integrity_toy",330,150,
+      ["CRC-32/IEEE","0x04C11DB7","0xEDB88320","0xCBF43926","0xFFFFFFFF","zlib.crc32","13888","116/13888","32/32","CRC ≠ authentication","本页未运行"],
+      ["shared-corruption chunk toy","共享损坏分块玩具"]],
+  ]) {
+    const path=`examples/month-${month}/${slug}/${toy}.py`, source=read(path), expected=read(`examples/month-${month}/expected/${toy}.txt`);
+    ok(execFileSync("python3",[join(root,path)],{encoding:"utf8",env})===expected,`b7p1 ${toy}: actual output pinned`);
+    ok(read(`examples/month-${month}/check.sh`).includes(`check ${toy}.txt`),`b7p1 ${toy}: additive harness entry`);
+    ok(cur.slice(cur.indexOf(`slug: "${slug}"`)).match(/minutes: (\d+)/)?.[1]===String(minutes),`b7p1 ${slug}: ${minutes} minutes`);
+    for (const [index,lang] of ["en","zh"].entries()) {
+      const md=read(`src/content/m${month}/${slug}/${lang}.mdx`), pos=md.indexOf("<Summary>"), body=md.slice(0,pos), summary=md.slice(pos), prose=body.replace(/```[\s\S]*?```/g,"");
+      ok(pos>=0 && (md.match(/<Summary>/g)||[]).length===1 && md.trimEnd().endsWith("</Summary>"),`b7p1 ${slug}/${lang}: sole final Summary`);
+      ok(body.includes(source.trim()) && body.includes(expected.trim()) && body.includes('<SimOutput source="model">') && body.includes(`+${added} min`),`b7p1 ${slug}/${lang}: entire addition/code/stdout before Summary`);
+      ok(summary.includes(summaries[index]),`b7p1 ${slug}/${lang}: Summary sentence covers addition`);
+      for (const marker of markers) ok(prose.includes(marker),`b7p1 ${slug}/${lang}: binds ${marker}`);
+      if (toy==="spi_mode_mismatch_toy") ok(lang==="en" ? prose.includes("same wire") && prose.includes("synthetic arbitrary units") && prose.includes("not a model of real metastability") : prose.includes("同一导线") && prose.includes("合成任意单位") && prose.includes("不模拟真实亚稳态"),`b7p1 SPI ${lang}: shared edges and explicit capture assumptions`);
+      if (toy==="hw_wdt_kick_toy") ok(lang==="en" ? prose.includes("hides the hang") && prose.includes("not an ATmega328P window-watchdog hardware feature") && prose.includes("before clearing them") : prose.includes("掩盖挂起") && prose.includes("不是 ATmega328P 的硬件窗口看门狗功能") && prose.includes("先保存复位原因，再清标志"),`b7p1 WDT ${lang}: hidden hang, reset readback and generic window distinction`);
+      if (toy==="dataset_crc_integrity_toy") ok(lang==="en" ? prose.includes("secondary") && prose.includes("polynomial") && prose.includes("not inferred from our finite") && prose.includes("does not assert that LeRobotDataset v3 stores this CRC") : prose.includes("二手资料") && prose.includes("多项式") && prose.includes("不来自有限") && prose.includes("不声称 LeRobotDataset v3 存储这种 CRC"),`b7p1 CRC ${lang}: proof versus enumeration, authenticating limits and no format claim`);
+    }
+  }
+  const result=execFileSync("python3",[join(root,"tools/test_b7_spi_wdt_crc_toys.py")],{cwd:root,encoding:"utf8",env});
+  ok(result.includes("independent four-mode exhaustive bytes, delayed wire capture, CS framing, hidden hang/window deadlines, CRC oracle/bursts/collisions and shared corpus passed"),"b7p1 independent SPI/WDT/CRC regressions executed");
+  for (const month of [2,8]) {
+    const plan=read(`docs/notes/month-${month}-plan.md`);
+    ok(plan.startsWith(`# Month ${month}`) && ["22830","2310","3180","PR1"].every(x=>plan.includes(x)),`b7p1 M${month}: correct header and PR1-only accounting`);
+  }
+  for (const id of ["arduino-spi-modes","atmega328p-wdt-datasheet","crc-polynomial-reference"]) ok(read("src/lib/resources.ts").includes(`"${id}": {`),`b7p1 opened/verified source ${id}`);
+  ok(read("docs/notes/batch-7-pr1-sources.md").includes("No arithmetic mismatch"),"b7p1 source and arithmetic audit recorded");
+  console.log("spi-wdt-crc PR1: shared delayed edges, progress-gated independent watchdog, CRC polynomial/oracle/corpus, bilingual Summary and minute locks checked");
 }
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
