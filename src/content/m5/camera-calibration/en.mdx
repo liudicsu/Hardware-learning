@@ -472,8 +472,8 @@ long baseline costs minimum range and viewpoint occlusion; longer is NOT always 
 
 <Summary>
 
-Stereo depth uses pixel/metre-consistent disparity propagation, shared-noise Monte Carlo and quantization to expose reciprocal bias and the min-range/occlusion cost of longer baselines.
+The pinhole model projects with `u = fx x/z + cx`; fx is focal length in pixels (500 px with 3 µm pixels means a 1.5 mm lens). Checkerboard corners across varied views let `calibrateCamera` fit intrinsics, distortion and a pose per image. Reprojection error measures projected-versus-detected corner residuals: fitting distortion reduces this synthetic example's RMS from 0.702 to 0.189 px. `solvePnP` estimates the board-to-camera pose; after `undistortPoints`, ray–plane intersection with the known board/table plane turns a pixel into a 3D point. Common mistakes include mismatched resolution or focus, bent boards or centre-only views, wrong square units, skipping undistortion and mixing board/camera frames.
 
-Intrinsics and distortion depend on image size/focus; undistort before projecting a pixel onto a known plane.
+Stereo depth uses pixel/metre-consistent `σ_z ≈ (z²/(fB)) σ_d`, shared-noise Monte Carlo and quantization to expose the limits of linearization, reciprocal bias and the min-range/occlusion cost of longer baselines; real stereo rectification/matching remain 本页未运行.
 
 </Summary>

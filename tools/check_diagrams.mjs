@@ -5227,6 +5227,12 @@ for (const m of readdirSync(content)) {
       ok(start>=0 && md.trimEnd().endsWith("</Summary>") && (md.match(/<Summary>/g)||[]).length===1,`b5p2 ${toy} ${lang}: sole final Summary`);
       ok(body.includes(py.trim()) && body.includes(expected.trim()) && body.includes(`+${added} min`),`b5p2 ${toy} ${lang}: complete addition before Summary`);
       ok(month===5 ? (lang==="en" ? summary.includes("quantization") : summary.includes("量化")) : (lang==="en" ? summary.includes("mutex communication") : summary.includes("互斥通信")),`b5p2 ${toy} ${lang}: Summary teaches addition`);
+      if (month===5) {
+        const wholeLesson = lang==="en"
+          ? ["pinhole model", "fx", "calibrateCamera", "Checkerboard", "Reprojection error", "0.702", "0.189", "solvePnP", "undistortPoints", "ray–plane intersection", "Common mistakes", "resolution or focus", "board/camera frames", "σ_z", "Monte Carlo", "quantization"]
+          : ["针孔模型", "fx", "calibrateCamera", "棋盘格", "重投影误差", "0.702", "0.189", "solvePnP", "undistortPoints", "射线", "平面的交点", "常见错误", "分辨率或对焦", "相机坐标系", "σ_z", "蒙特卡洛", "量化"];
+        for (const topic of wholeLesson) ok(summary.includes(topic),`b5p2 stereo ${lang}: whole-lesson Summary covers ${topic}`);
+      }
       for (const marker of markers) ok(prose.includes(marker),`b5p2 ${toy} ${lang}: prose binds ${marker}`);
       ok(prose.includes("本页未运行"),`b5p2 ${toy} ${lang}: real hardware unrun`);
       if (month===5) ok(lang==="en" ? /f in pixels/.test(prose) && /B in metres/.test(prose) && /longer is not always better/.test(prose) : /f 的单位为像素/.test(prose) && /B 为米/.test(prose) && /并非越长越好/.test(prose),`b5p2 stereo ${lang}: units and baseline costs`);
