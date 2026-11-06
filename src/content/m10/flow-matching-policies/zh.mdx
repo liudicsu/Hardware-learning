@@ -152,6 +152,9 @@ more steps recover both modes. pi0 uses 10 steps (delta = 0.1).
 
 每一步都占延迟，所以有几条工作线追求更少步数。Rectified flow（arXiv 2209.03003）把学到的路径「拉直」，让粗的欧拉步也不跑偏。Consistency Policy（arXiv 2405.07503）把扩散策略蒸馏成一两步即可；其摘要称推理比所比较的最快替代方法快一个数量级。本课只讲动机，不推导也不运行。
 
+下方单步小节接着这个动机加入 CPU 回归替身；真正的 Consistency Policy 仍只作阅读。
+
+
 <Resource id="rectified-flow-paper" />
 <Resource id="consistency-policy-paper" />
 <Resource id="diffusion-policy" />
@@ -179,8 +182,206 @@ relative 动作与 RTC（10.2）兼容。`--policy.use_relative_actions=true` �
 - **混用动作表示。** 用 relative 动作训练、却当 absolute 目标执行，机械臂会去错地方。
 - **把 73 ms 当成你机器人的延迟。** 那是论文在 RTX 4090 上的数字，本页没有实测。
 
+## OneDP 风格单步回归替身（+210 min）
+
+[OneDP 原论文](https://arxiv.org/abs/2410.21257)把预训练扩散策略蒸馏为单步生成器：沿去噪链匹配**加噪动作分布的反向 KL**，梯度依赖 score 之差；OneDP-S 加辅助 score 估计器，OneDP-D 使用解析简化。这个 KL-along-chain 目标**只作阅读**，不是逐点教师 MSE。[Consistency Policy](https://arxiv.org/abs/2405.07503)使用沿概率流 ODE 的一致性轨迹建模 / 自一致性及去噪目标；这里两篇都没有实现。OneDP 的额外 2 %–10 % 成本、1.5→62 Hz 及任何 Consistency Policy 数字均**以论文为准**。真实扩散 / GPU / 机器人：**本页未运行**。
+
+新增实验只是**回归替身** （regression surrogate）：教师是解析迭代器，不是学到的扩散模型；不复现多模态动作分布或 score 目标，也不推翻上面的闭式混合玩具：单步生成需要学到的信息，不是直接删积分步。本节不重做 RTC（10.2）、Cal-ConRFT / 优势筛选（10.7）或 VLA RL（8.2）。
+
+### 声明数据、拟合预算与独立成功判据
+
+合成对象位移 `D(a)=a+0.22*a³`，起始位置 `x0=−e`，目标 0。教师从 `a=0` 开始，做八次 `a←a+0.5*(e−D(a))`：**N=8 次实际场函数调用**，无需训练。**11/23/37/53/71** 每个种子生成 64 个 `e∈[−1.2,1.2]` 分层演示，每格内分数 0.25…0.75，标签为 `teacher(e)+Normal(0,0.008²)`，并生成一份共享随机初值。两学生拿到完全相同的演示对、特征和初值。四个固定 Legendre 特征为 `[1,x,(5x³−3x)/2,(63x⁵−70x³+15x)/8]`，`x=e/1.2`。全批 MSE 梯度下降 lr=0.25；完整学生 **240 次更新**，刻意欠拟合的学生 **2 次**。更新数不同是欠拟合对照，**不宣称收敛或训练效率比较**。
+
+三组用相同 64 个**留出评估起始**（每格内分数 0.9，与所有种子的训练状态不交）。拟合函数不给评估起始或教师评估标签。动作 MSE 对照留出教师动作；教师自身的 MSE **按定义为零**，并非真值。独立任务成功由非线性对象判 `abs(−e+D(a))≤0.004`，不是看是否模仿教师。一次学生特征点积前向计 NFE=1，教师每次场函数计一次；评分器参考查询不计入策略推理 NFE。两类调用的 FLOPs 不同：**NFE 不是实测延迟或 Hz**，8→1 不代表墙钟快 8 倍。
+
+### 运行并查看五种子离散程度
+
+```bash
+python3 examples/month-10/flow-matching-policies/policy_distill_onestep_toy.py
+bash examples/month-10/check.sh
+```
+
+| 组 | 留出动作 MSE，均值 ± 总体标准差 | NFE/查询 | 对象成功率，均值 ± 总体标准差 | 成功率范围 |
+|---|---|---|---|---|
+| N 步教师 | 0（自参考） | 8 | 1.000000 ± 0 | 1…1 |
+| 单步学生 | 0.00000808 ± 0.00000385 | 1 | 0.712500 ± 0.145438 | 0.500000…0.937500 |
+| 欠拟合学生 | 0.17735584 ± 0.00548161 | 1 | 0.003125 ± 0.006250 | 0…0.015625 |
+
+这个固定任务只展示调用数 / 精度折中，**不预定普遍赢家**：便宜的学生仍会错过严格对象容差；同为一次调用也救不了欠拟合。五种子改变演示 / 噪声 / 初值，共享评估状态使比较配对，并不证明真实机器人泛化。
+
+<CodeSource path="examples/month-10/flow-matching-policies/policy_distill_onestep_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""OneDP-style REGRESSION SURROGATE, not KL-along-chain/score distillation.
+Synthetic analytic eight-field-call teacher solves a nonlinear inverse plant.
+Both students see the SAME 64 noisy teacher demos and copy the SAME init;
+240 vs 2 updates is a deliberately unequal underfit control, not convergence proof.
+Every scored state/start is held out; fit() never receives eval states/labels.
+NFE counts actual field/forward calls, not FLOPs, Hz or wall-clock speed.
+Original Consistency Policy and GPU OneDP/Franka are not run: 本页未运行.
+"""
+from random import Random
+from statistics import mean, pstdev
+
+SEEDS = (11, 23, 37, 53, 71)
+N_STEPS = 8
+N_DEMOS = N_EVAL = 64
+FULL_UPDATES, UNDER_UPDATES = 240, 2
+LR, DEMO_SIGMA, TOLERANCE = .25, .008, .004
+EVAL_STARTS = tuple(-1.2 + 2.4*(j+.9)/N_EVAL for j in range(N_EVAL))
+
+
+def displacement(action):
+    """Independent nonlinear one-step plant: x_next=-error+D(action), goal=0."""
+    return action + .22*action**3
+
+
+def field(error, action):
+    return error - displacement(action)
+
+
+def teacher(error):
+    action, nfe = 0., 0
+    for _ in range(N_STEPS):
+        action += .5*field(error, action)
+        nfe += 1
+    return action, nfe
+
+
+def features(error):
+    """Fixed Legendre basis on normalized error; not evaluated teacher labels."""
+    x = error/1.2
+    return (1., x, (5*x**3-3*x)/2, (63*x**5-70*x**3+15*x)/8)
+
+
+def student(weights, error):
+    return sum(w*x for w,x in zip(weights, features(error))), 1
+
+
+def demonstrations(seed):
+    rng = Random(seed)
+    # Training fractional bins .25..75 never overlap held-out fractional bin .9.
+    starts = tuple(-1.2 + 2.4*(j+.25+.5*rng.random())/N_DEMOS for j in range(N_DEMOS))
+    demos = tuple((s, teacher(s)[0]+rng.gauss(0,DEMO_SIGMA)) for s in starts)
+    initial = tuple(rng.gauss(0,.02) for _ in range(4))
+    return demos, initial
+
+
+def fit(demos, initial, updates):
+    """Only training pairs and initial weights; no teacher query or held-out input."""
+    weights = list(initial)
+    design = tuple((features(state), label) for state,label in demos)
+    for _ in range(updates):
+        gradient = [0.]*len(weights)
+        for basis, label in design:
+            residual = sum(w*x for w,x in zip(weights,basis))-label
+            for j,x in enumerate(basis):
+                gradient[j] += 2*residual*x/len(design)
+        weights = [w-LR*g for w,g in zip(weights,gradient)]
+    return tuple(weights)
+
+
+def evaluate(policy, starts, references, training_states):
+    if set(starts) & set(training_states):
+        raise ValueError("training/evaluation state overlap")
+    mse, successes, calls = 0., 0, 0
+    for state, reference in zip(starts,references):
+        action, nfe = policy(state)
+        mse += (action-reference)**2
+        successes += int(abs(-state+displacement(action)) <= TOLERANCE)
+        calls += nfe
+    return mse/len(starts), calls/len(starts), successes/len(starts)
+
+
+def run(seed):
+    demos, initial = demonstrations(seed)
+    full, under = fit(demos, initial,FULL_UPDATES), fit(demos, initial,UNDER_UPDATES)
+    # References are SCORER-ONLY; no student inference/fitting receives them.
+    references = tuple(teacher(s)[0] for s in EVAL_STARTS)
+    states = tuple(s for s,_ in demos)
+    policies = (("teacher_N8",teacher,0),
+                ("student_1",lambda s: student(full,s),FULL_UPDATES),
+                ("underfit_1",lambda s: student(under,s),UNDER_UPDATES))
+    return [(name,updates,evaluate(policy,EVAL_STARTS,references,states)) for name,policy,updates in policies]
+
+
+def main():
+    print("OneDP-style regression surrogate ONLY; KL-along-chain is reading, not implemented")
+    print("shared demos=64 held-out eval starts=64 overlap=0; N-step teacher=8 actual field calls")
+    print("student updates=240 underfit updates=2 (unequal on purpose); same data/features/init")
+    print("demo_sigma=0.008 success_abs_plant_error<=0.004; NFE is calls, not Hz or wall time")
+    print("seed arm fit_updates action_MSE NFE_per_query success")
+    all_rows = {name: [] for name in ("teacher_N8","student_1","underfit_1")}
+    for seed in SEEDS:
+        for name,updates,metrics in run(seed):
+            all_rows[name].append(metrics)
+            mse,nfe,success=metrics
+            print(f"{seed} {name} {updates} {mse:.8f} {nfe:.1f} {success:.6f}")
+    print("five-seed spread: arm metric mean population_sd min max")
+    for name,rows in all_rows.items():
+        for j,metric in enumerate(("action_MSE","NFE","success")):
+            values=[row[j] for row in rows]
+            print(f"{name} {metric} {mean(values):.8f} {pstdev(values):.8f} {min(values):.8f} {max(values):.8f}")
+    print("Teacher self-reference MSE=0 by definition; success independently uses nonlinear plant")
+    print("Scorer reference queries excluded from policy NFE; different call types are not equal FLOPs")
+    print("No diffusion distribution/score/consistency training; GPU and robot: 本页未运行; paper 以论文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+OneDP-style regression surrogate ONLY; KL-along-chain is reading, not implemented
+shared demos=64 held-out eval starts=64 overlap=0; N-step teacher=8 actual field calls
+student updates=240 underfit updates=2 (unequal on purpose); same data/features/init
+demo_sigma=0.008 success_abs_plant_error<=0.004; NFE is calls, not Hz or wall time
+seed arm fit_updates action_MSE NFE_per_query success
+11 teacher_N8 0 0.00000000 8.0 1.000000
+11 student_1 240 0.00001420 1.0 0.500000
+11 underfit_1 2 0.16977876 1.0 0.000000
+23 teacher_N8 0 0.00000000 8.0 1.000000
+23 student_1 240 0.00000972 1.0 0.703125
+23 underfit_1 2 0.17172774 1.0 0.000000
+37 teacher_N8 0 0.00000000 8.0 1.000000
+37 student_1 240 0.00000243 1.0 0.937500
+37 underfit_1 2 0.18275395 1.0 0.000000
+53 teacher_N8 0 0.00000000 8.0 1.000000
+53 student_1 240 0.00000710 1.0 0.640625
+53 underfit_1 2 0.18038248 1.0 0.000000
+71 teacher_N8 0 0.00000000 8.0 1.000000
+71 student_1 240 0.00000695 1.0 0.781250
+71 underfit_1 2 0.18213627 1.0 0.015625
+five-seed spread: arm metric mean population_sd min max
+teacher_N8 action_MSE 0.00000000 0.00000000 0.00000000 0.00000000
+teacher_N8 NFE 8.00000000 0.00000000 8.00000000 8.00000000
+teacher_N8 success 1.00000000 0.00000000 1.00000000 1.00000000
+student_1 action_MSE 0.00000808 0.00000385 0.00000243 0.00001420
+student_1 NFE 1.00000000 0.00000000 1.00000000 1.00000000
+student_1 success 0.71250000 0.14543845 0.50000000 0.93750000
+underfit_1 action_MSE 0.17735584 0.00548161 0.16977876 0.18275395
+underfit_1 NFE 1.00000000 0.00000000 1.00000000 1.00000000
+underfit_1 success 0.00312500 0.00625000 0.00000000 0.01562500
+Teacher self-reference MSE=0 by definition; success independently uses nonlinear plant
+Scorer reference queries excluded from policy NFE; different call types are not equal FLOPs
+No diffusion distribution/score/consistency training; GPU and robot: 本页未运行; paper 以论文为准
+```
+
+</SimOutput>
+
+### 练习与边界
+
+1. 对五种子核对训练 / 评估格内分数不交，并说明为什么教师评估标签绝不能进入 `fit`。
+2. 预测演示噪声翻倍的影响，再报每种子的留出 MSE 和独立对象成功率，不能只挑好结果。
+3. 让欠拟合组也在**同一**演示 / 初值上做 240 更新，才公平比较优化；说明原来不等更新实验为何不能证明收敛效率。
+4. 数实际场函数调用；说明排除评分器查询适合策略 NFE，却不代表实验总成本。指出缺少的反向 KL / score / 一致性组件。
+
 <Summary>
 
 流匹配学一个速度场，把噪声积分成动作块。π0 用 `A^τ = τA + (1−τ)ε`、`u = A − ε`、H=50 和 10 个欧拉步（δ=0.1）；在 RTX 4090 上 10 步占板上 73 ms 中的 27 ms。`flow_match_toy.py` 里 1 步 near_mean 为 1.000，10 步 near_mode 为 0.987。因为步数占延迟，才有 rectified flow、一致性等少步方法。absolute、relative、delta 动作要有意识地选。
 
+OneDP 风格回归替身在共享演示及不交的留出起始上比较八次调用教师与单次调用完整 / 欠拟合学生，报告动作 MSE 和独立对象成功率，不实现 KL-along-chain 或 GPU 训练。
 </Summary>

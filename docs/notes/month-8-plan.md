@@ -5,7 +5,7 @@ Batch 1–2 delivered 8.1–8.7 (dataset → capstone). **Track B (promote elect
 | slug | minutes | CPU toy | notes |
 |------|---------|---------|-------|
 | dataset-engineering | 180 | `dataset_audit.py` | batch 1 |
-| vla-finetune | 240 | `compute_budget.py` | batch 2 |
+| vla-finetune | 420 | `compute_budget.py`, `rpd_teacher_rl_toy.py` | batch 2 |
 | async-deployment | 300 | `chunk_latency_sim.py`, `stream_sync_eval_toy.py` | batch 1 + deepen PR3: arrival-causal alignment |
 | ros2-hardware-interface | 600 | `servo_bus_sim.py`, `lifecycle_sm_toy.py`, `can_fault_confinement_toy.py` (+ `so101_hw/` skeleton 本页未运行) | batch 2 + follow-up PR1 F2: managed-node SM ≠ HardwareComponent |
 | safety-reliability | 540 | `watchdog_sim.py`, `actuator_fault_monitor_toy.py` | batch 1 + follow-up PR2 F3: device/bus fault latch + operator ack |
@@ -38,3 +38,7 @@ Latest task overrides proposal §9's old host/threshold: **8.4 ros2-hardware-int
 Opened Bosch CAN 2.0 Part A pp.24–26 and NXP BCANPSV2.0 Rev.3 §5.2: ordinary TEC +8 / success −1; REC +1/−1 plus qualified +8; passive >127; bus-off TEC>255; 128×11 recessive recovery. Deterministic shared 43 slots, RX exceptions, 255/256 and 1407/1408 boundaries; controller policy simplified. Not CiA402/EtherCAT/e-stop; real CAN/SocketCAN 本页未运行. / 原始规则、成功回退、被动与离线、例外和恢复完整序列均回归锁定。
 
 Allocation 45+45+30+45+15=180 min. With M9 +210 separately: **21570+180+210=21960**, **M8=2850**, **M9=2940**, **71 lessons**; M1/M2 remain 1020/1980, no PR3 minutes. / 仅计本 PR，外月宿主不列在本月标题下。
+
+## Batch-6 PR3 / 本月 H7 (+180)
+
+8.2:240→420; M8 **2850→3030**, still 8 lessons. Site **21960→22350** with M10 **1860→2070** (+210). Count only PR3:180+210=390. Deliberately suboptimal teacher; BC-only / scratch RL / teacher-MSE RL all use7680 env ticks/80 updates, with paired768/8 early checkpoints. Five seeds, shared random tape and separate256-episode evaluation; mean±population sd and range retain early BC wins. Discrete REINFORCE surrogate, not PPO, Cal-ConRFT or HIL-SERL. Real GPU/VLA/ManiSkill 本页未运行; figures 以论文为准. Source audit: batch-6-pr3-sources.md.

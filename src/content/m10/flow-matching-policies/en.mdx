@@ -152,6 +152,9 @@ This is a toy: a real policy learns `v_θ` from data with a network and conditio
 
 Because every step costs latency, several lines of work try to need fewer steps. Rectified flow (arXiv 2209.03003) straightens the learned paths so that a coarse Euler step stays on track. Consistency Policy (arXiv 2405.07503) distils a diffusion policy so that one or two steps suffice; its abstract reports an order-of-magnitude inference speed-up over the fastest alternative it compares with. This lesson covers only the motivation; we do not derive or run either.
 
+The one-step section below extends this motivation with a CPU regression surrogate; actual Consistency Policy remains reading only.
+
+
 <Resource id="rectified-flow-paper" />
 <Resource id="consistency-policy-paper" />
 <Resource id="diffusion-policy" />
@@ -179,8 +182,206 @@ A SE(2) toy that pins absolute / delta / relative end error under a calibration 
 - **Mixing action representations.** Training on relative actions and executing them as absolute targets sends the arm to the wrong place.
 - **Reading the 73 ms as your robot's latency.** It is an RTX 4090 figure from the paper, not measured here.
 
+## OneDP-style one-step regression surrogate (+210 min)
+
+The original [OneDP paper](https://arxiv.org/abs/2410.21257) distils a pretrained diffusion policy by matching **diffused action distributions along the chain with reverse KL**. Its gradient uses a difference of scores; OneDP-S introduces an auxiliary score estimator and OneDP-D uses an analytic simplification. That KL-along-chain objective is **reading only**, not ordinary pointwise teacher MSE. [Consistency Policy](https://arxiv.org/abs/2405.07503) uses consistency trajectory modelling/self-consistency along a probability-flow ODE (with a denoising objective); neither paper is implemented here. OneDP's 2 %–10 % additional cost and 1.5→62 Hz, and any Consistency Policy figures, are **以论文为准**. Real diffusion/GPU/robot work: **本页未运行**.
+
+This additive experiment is a **regression surrogate**: an analytic teacher, not a learned diffusion model. It does not reproduce multimodal action distributions or the score objective, and does not contradict the earlier closed-form mixture toy: one-step generation needs learned information, not merely removing integration steps. We do not redo RTC (10.2), Cal-ConRFT/advantage filtering (10.7), or VLA RL (8.2).
+
+### Declared data, fit budget and independent success
+
+Synthetic plant displacement is `D(a)=a+0.22*a³`. A start has position `x0=−e`, goal 0. Teacher starts `a=0` and makes eight updates `a←a+0.5*(e−D(a))`: **N=8 actual field calls**, no training. Each seed in **11/23/37/53/71** creates 64 stratified demo errors `e∈[−1.2,1.2]` with within-bin fraction 0.25…0.75, labels `teacher(e)+Normal(0,0.008²)`, and one shared random initialization. Both students get identical demo pairs, features and initialization. The four fixed Legendre features are `[1,x,(5x³−3x)/2,(63x⁵−70x³+15x)/8]`, `x=e/1.2`. Full-batch MSE GD uses lr=0.25; the full student has **240 updates**, the deliberately underfit student **2**. This unequal optimization budget is an underfit control, **not a convergence or training-efficiency comparison**.
+
+All three arms are evaluated on the same 64 **held-out eval starts** (within-bin fraction 0.9, disjoint from every seed's demos). No student fitting receives eval starts or teacher eval labels. Action MSE is relative to held-out teacher actions; the teacher's own MSE is zero **by definition**, not ground truth. Independent task success is `abs(−e+D(a))≤0.004`, evaluated by the nonlinear plant, not by agreement with the teacher. One student feature-dot-product forward counts as NFE=1; each teacher field call counts as one. Scorer-only reference queries are excluded from policy inference NFE. These are different call types/FLOPs: **NFE is not measured latency or Hz**, and 8→1 is not an 8× wall-clock claim.
+
+### Run and inspect the five-seed spread
+
+```bash
+python3 examples/month-10/flow-matching-policies/policy_distill_onestep_toy.py
+bash examples/month-10/check.sh
+```
+
+| arm | held-out action MSE, mean ± population sd | NFE/query | plant success, mean ± population sd | success range |
+|---|---|---|---|---|
+| N-step teacher | 0 (self-reference) | 8 | 1.000000 ± 0 | 1…1 |
+| one-step student | 0.00000808 ± 0.00000385 | 1 | 0.712500 ± 0.145438 | 0.500000…0.937500 |
+| underfit student | 0.17735584 ± 0.00548161 | 1 | 0.003125 ± 0.006250 | 0…0.015625 |
+
+This fixed task shows a call-count/accuracy tradeoff, **not a presumed universal winner**: the cheaper fitted student still misses some strict plant tolerances; the same one-call budget does not rescue an underfit model. Five seeds vary demos/noise/init; identical eval states intentionally make this a paired comparison. They do not establish robot generalization.
+
+<CodeSource path="examples/month-10/flow-matching-policies/policy_distill_onestep_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""OneDP-style REGRESSION SURROGATE, not KL-along-chain/score distillation.
+Synthetic analytic eight-field-call teacher solves a nonlinear inverse plant.
+Both students see the SAME 64 noisy teacher demos and copy the SAME init;
+240 vs 2 updates is a deliberately unequal underfit control, not convergence proof.
+Every scored state/start is held out; fit() never receives eval states/labels.
+NFE counts actual field/forward calls, not FLOPs, Hz or wall-clock speed.
+Original Consistency Policy and GPU OneDP/Franka are not run: 本页未运行.
+"""
+from random import Random
+from statistics import mean, pstdev
+
+SEEDS = (11, 23, 37, 53, 71)
+N_STEPS = 8
+N_DEMOS = N_EVAL = 64
+FULL_UPDATES, UNDER_UPDATES = 240, 2
+LR, DEMO_SIGMA, TOLERANCE = .25, .008, .004
+EVAL_STARTS = tuple(-1.2 + 2.4*(j+.9)/N_EVAL for j in range(N_EVAL))
+
+
+def displacement(action):
+    """Independent nonlinear one-step plant: x_next=-error+D(action), goal=0."""
+    return action + .22*action**3
+
+
+def field(error, action):
+    return error - displacement(action)
+
+
+def teacher(error):
+    action, nfe = 0., 0
+    for _ in range(N_STEPS):
+        action += .5*field(error, action)
+        nfe += 1
+    return action, nfe
+
+
+def features(error):
+    """Fixed Legendre basis on normalized error; not evaluated teacher labels."""
+    x = error/1.2
+    return (1., x, (5*x**3-3*x)/2, (63*x**5-70*x**3+15*x)/8)
+
+
+def student(weights, error):
+    return sum(w*x for w,x in zip(weights, features(error))), 1
+
+
+def demonstrations(seed):
+    rng = Random(seed)
+    # Training fractional bins .25..75 never overlap held-out fractional bin .9.
+    starts = tuple(-1.2 + 2.4*(j+.25+.5*rng.random())/N_DEMOS for j in range(N_DEMOS))
+    demos = tuple((s, teacher(s)[0]+rng.gauss(0,DEMO_SIGMA)) for s in starts)
+    initial = tuple(rng.gauss(0,.02) for _ in range(4))
+    return demos, initial
+
+
+def fit(demos, initial, updates):
+    """Only training pairs and initial weights; no teacher query or held-out input."""
+    weights = list(initial)
+    design = tuple((features(state), label) for state,label in demos)
+    for _ in range(updates):
+        gradient = [0.]*len(weights)
+        for basis, label in design:
+            residual = sum(w*x for w,x in zip(weights,basis))-label
+            for j,x in enumerate(basis):
+                gradient[j] += 2*residual*x/len(design)
+        weights = [w-LR*g for w,g in zip(weights,gradient)]
+    return tuple(weights)
+
+
+def evaluate(policy, starts, references, training_states):
+    if set(starts) & set(training_states):
+        raise ValueError("training/evaluation state overlap")
+    mse, successes, calls = 0., 0, 0
+    for state, reference in zip(starts,references):
+        action, nfe = policy(state)
+        mse += (action-reference)**2
+        successes += int(abs(-state+displacement(action)) <= TOLERANCE)
+        calls += nfe
+    return mse/len(starts), calls/len(starts), successes/len(starts)
+
+
+def run(seed):
+    demos, initial = demonstrations(seed)
+    full, under = fit(demos, initial,FULL_UPDATES), fit(demos, initial,UNDER_UPDATES)
+    # References are SCORER-ONLY; no student inference/fitting receives them.
+    references = tuple(teacher(s)[0] for s in EVAL_STARTS)
+    states = tuple(s for s,_ in demos)
+    policies = (("teacher_N8",teacher,0),
+                ("student_1",lambda s: student(full,s),FULL_UPDATES),
+                ("underfit_1",lambda s: student(under,s),UNDER_UPDATES))
+    return [(name,updates,evaluate(policy,EVAL_STARTS,references,states)) for name,policy,updates in policies]
+
+
+def main():
+    print("OneDP-style regression surrogate ONLY; KL-along-chain is reading, not implemented")
+    print("shared demos=64 held-out eval starts=64 overlap=0; N-step teacher=8 actual field calls")
+    print("student updates=240 underfit updates=2 (unequal on purpose); same data/features/init")
+    print("demo_sigma=0.008 success_abs_plant_error<=0.004; NFE is calls, not Hz or wall time")
+    print("seed arm fit_updates action_MSE NFE_per_query success")
+    all_rows = {name: [] for name in ("teacher_N8","student_1","underfit_1")}
+    for seed in SEEDS:
+        for name,updates,metrics in run(seed):
+            all_rows[name].append(metrics)
+            mse,nfe,success=metrics
+            print(f"{seed} {name} {updates} {mse:.8f} {nfe:.1f} {success:.6f}")
+    print("five-seed spread: arm metric mean population_sd min max")
+    for name,rows in all_rows.items():
+        for j,metric in enumerate(("action_MSE","NFE","success")):
+            values=[row[j] for row in rows]
+            print(f"{name} {metric} {mean(values):.8f} {pstdev(values):.8f} {min(values):.8f} {max(values):.8f}")
+    print("Teacher self-reference MSE=0 by definition; success independently uses nonlinear plant")
+    print("Scorer reference queries excluded from policy NFE; different call types are not equal FLOPs")
+    print("No diffusion distribution/score/consistency training; GPU and robot: 本页未运行; paper 以论文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+OneDP-style regression surrogate ONLY; KL-along-chain is reading, not implemented
+shared demos=64 held-out eval starts=64 overlap=0; N-step teacher=8 actual field calls
+student updates=240 underfit updates=2 (unequal on purpose); same data/features/init
+demo_sigma=0.008 success_abs_plant_error<=0.004; NFE is calls, not Hz or wall time
+seed arm fit_updates action_MSE NFE_per_query success
+11 teacher_N8 0 0.00000000 8.0 1.000000
+11 student_1 240 0.00001420 1.0 0.500000
+11 underfit_1 2 0.16977876 1.0 0.000000
+23 teacher_N8 0 0.00000000 8.0 1.000000
+23 student_1 240 0.00000972 1.0 0.703125
+23 underfit_1 2 0.17172774 1.0 0.000000
+37 teacher_N8 0 0.00000000 8.0 1.000000
+37 student_1 240 0.00000243 1.0 0.937500
+37 underfit_1 2 0.18275395 1.0 0.000000
+53 teacher_N8 0 0.00000000 8.0 1.000000
+53 student_1 240 0.00000710 1.0 0.640625
+53 underfit_1 2 0.18038248 1.0 0.000000
+71 teacher_N8 0 0.00000000 8.0 1.000000
+71 student_1 240 0.00000695 1.0 0.781250
+71 underfit_1 2 0.18213627 1.0 0.015625
+five-seed spread: arm metric mean population_sd min max
+teacher_N8 action_MSE 0.00000000 0.00000000 0.00000000 0.00000000
+teacher_N8 NFE 8.00000000 0.00000000 8.00000000 8.00000000
+teacher_N8 success 1.00000000 0.00000000 1.00000000 1.00000000
+student_1 action_MSE 0.00000808 0.00000385 0.00000243 0.00001420
+student_1 NFE 1.00000000 0.00000000 1.00000000 1.00000000
+student_1 success 0.71250000 0.14543845 0.50000000 0.93750000
+underfit_1 action_MSE 0.17735584 0.00548161 0.16977876 0.18275395
+underfit_1 NFE 1.00000000 0.00000000 1.00000000 1.00000000
+underfit_1 success 0.00312500 0.00625000 0.00000000 0.01562500
+Teacher self-reference MSE=0 by definition; success independently uses nonlinear plant
+Scorer reference queries excluded from policy NFE; different call types are not equal FLOPs
+No diffusion distribution/score/consistency training; GPU and robot: 本页未运行; paper 以论文为准
+```
+
+</SimOutput>
+
+### Exercises and boundaries
+
+1. Verify the train/eval fractional-bin separation for all five seeds; explain why an evaluation teacher label must never enter `fit`.
+2. Predict what doubling demo noise changes, then report held-out MSE and independent plant success for every seed, not only a favorable one.
+3. Give the underfit arm 240 updates on the **same** demos/init to test optimization fairly. Explain why the original unequal update experiment cannot establish convergence efficiency.
+4. Count actual field calls; explain why excluding scorer queries is appropriate for policy NFE but not a total experiment-cost measure. Identify the missing reverse-KL/score/consistency components.
+
 <Summary>
 
 Flow matching learns a velocity field and integrates noise into an action chunk. π0 uses `A^τ = τA + (1−τ)ε`, `u = A − ε`, H=50 and 10 Euler steps (δ=0.1); the 10 steps cost 27 ms of a 73 ms on-board pass on an RTX 4090. In `flow_match_toy.py` 1 step gives near_mean 1.000 and 10 steps near_mode 0.987. Fewer-step methods (rectified flow, consistency) exist because steps cost latency. Choose absolute, relative or delta actions deliberately.
 
+The OneDP-style regression surrogate compares an eight-call teacher and one-call fitted/underfit students on shared demos and disjoint held-out starts, reporting independent plant success and action MSE without implementing KL-along-chain or GPU training.
 </Summary>

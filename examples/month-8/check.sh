@@ -39,4 +39,6 @@ check safety_pl_assign_toy.txt "$PY" "$M8/safety-reliability/safety_pl_assign_to
 
 check can_fault_confinement_toy.txt "$PY" "$M8/ros2-hardware-interface/can_fault_confinement_toy.py"
 
+check rpd_teacher_rl_toy.txt "$PY" "$M8/vla-finetune/rpd_teacher_rl_toy.py"
+
 exit $fail

@@ -1,0 +1,33 @@
+OneDP-style regression surrogate ONLY; KL-along-chain is reading, not implemented
+shared demos=64 held-out eval starts=64 overlap=0; N-step teacher=8 actual field calls
+student updates=240 underfit updates=2 (unequal on purpose); same data/features/init
+demo_sigma=0.008 success_abs_plant_error<=0.004; NFE is calls, not Hz or wall time
+seed arm fit_updates action_MSE NFE_per_query success
+11 teacher_N8 0 0.00000000 8.0 1.000000
+11 student_1 240 0.00001420 1.0 0.500000
+11 underfit_1 2 0.16977876 1.0 0.000000
+23 teacher_N8 0 0.00000000 8.0 1.000000
+23 student_1 240 0.00000972 1.0 0.703125
+23 underfit_1 2 0.17172774 1.0 0.000000
+37 teacher_N8 0 0.00000000 8.0 1.000000
+37 student_1 240 0.00000243 1.0 0.937500
+37 underfit_1 2 0.18275395 1.0 0.000000
+53 teacher_N8 0 0.00000000 8.0 1.000000
+53 student_1 240 0.00000710 1.0 0.640625
+53 underfit_1 2 0.18038248 1.0 0.000000
+71 teacher_N8 0 0.00000000 8.0 1.000000
+71 student_1 240 0.00000695 1.0 0.781250
+71 underfit_1 2 0.18213627 1.0 0.015625
+five-seed spread: arm metric mean population_sd min max
+teacher_N8 action_MSE 0.00000000 0.00000000 0.00000000 0.00000000
+teacher_N8 NFE 8.00000000 0.00000000 8.00000000 8.00000000
+teacher_N8 success 1.00000000 0.00000000 1.00000000 1.00000000
+student_1 action_MSE 0.00000808 0.00000385 0.00000243 0.00001420
+student_1 NFE 1.00000000 0.00000000 1.00000000 1.00000000
+student_1 success 0.71250000 0.14543845 0.50000000 0.93750000
+underfit_1 action_MSE 0.17735584 0.00548161 0.16977876 0.18275395
+underfit_1 NFE 1.00000000 0.00000000 1.00000000 1.00000000
+underfit_1 success 0.00312500 0.00625000 0.00000000 0.01562500
+Teacher self-reference MSE=0 by definition; success independently uses nonlinear plant
+Scorer reference queries excluded from policy NFE; different call types are not equal FLOPs
+No diffusion distribution/score/consistency training; GPU and robot: 本页未运行; paper 以论文为准

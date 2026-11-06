@@ -1,0 +1,52 @@
+RPD-style surrogate: discrete chain, deliberately suboptimal stochastic teacher
+teacher_exact_success=0.780842 optimal_exact_success=1.000000
+weights BC_only=(RL0,MSE1) RL_scratch=(RL1,MSE0) RL_teacher_MSE=(RL1,MSE0.5)
+paired tape:8 episodes x12 ticks/update; checkpoints8/80; gamma1 lr0.25
+equal charged env_steps/updates; goal absorbing ticks included; active decisions reported
+seed updates arm env_steps teacher_queries active_decisions success teacher_mean_MSE
+11 8 BC_only 768 768 708 0.320312 0.055618
+11 8 RL_scratch 768 768 709 0.214844 0.106622
+11 8 RL_teacher_MSE 768 768 691 0.285156 0.059162
+11 80 BC_only 7680 7680 6244 0.644531 0.003789
+11 80 RL_scratch 7680 7680 6204 0.816406 0.024199
+11 80 RL_teacher_MSE 7680 7680 5571 0.890625 0.008087
+23 8 BC_only 768 768 690 0.261719 0.058685
+23 8 RL_scratch 768 768 704 0.187500 0.098455
+23 8 RL_teacher_MSE 768 768 691 0.289062 0.057028
+23 80 BC_only 7680 7680 6032 0.554688 0.004906
+23 80 RL_scratch 7680 7680 5912 0.847656 0.015271
+23 80 RL_teacher_MSE 7680 7680 5233 0.875000 0.008897
+37 8 BC_only 768 768 730 0.246094 0.060069
+37 8 RL_scratch 768 768 755 0.128906 0.127198
+37 8 RL_teacher_MSE 768 768 736 0.210938 0.074099
+37 80 BC_only 7680 7680 6258 0.617188 0.003907
+37 80 RL_scratch 7680 7680 6411 0.761719 0.020250
+37 80 RL_teacher_MSE 7680 7680 5728 0.824219 0.008575
+53 8 BC_only 768 768 710 0.273438 0.061034
+53 8 RL_scratch 768 768 725 0.191406 0.112962
+53 8 RL_teacher_MSE 768 768 707 0.277344 0.066381
+53 80 BC_only 7680 7680 6016 0.667969 0.003660
+53 80 RL_scratch 7680 7680 5960 0.878906 0.025360
+53 80 RL_teacher_MSE 7680 7680 5474 0.937500 0.011906
+71 8 BC_only 768 768 709 0.269531 0.060335
+71 8 RL_scratch 768 768 704 0.187500 0.105027
+71 8 RL_teacher_MSE 768 768 703 0.300781 0.063473
+71 80 BC_only 7680 7680 6082 0.632812 0.004712
+71 80 RL_scratch 7680 7680 6118 0.820312 0.020853
+71 80 RL_teacher_MSE 7680 7680 5516 0.902344 0.009067
+five-seed mean+-population_sd and range: updates arm metric mean sd min max
+8 BC_only success 0.274219 0.024878 0.246094 0.320312
+8 BC_only teacher_mean_MSE 0.059148 0.001923 0.055618 0.061034
+8 RL_scratch success 0.182031 0.028449 0.128906 0.214844
+8 RL_scratch teacher_mean_MSE 0.110053 0.009736 0.098455 0.127198
+8 RL_teacher_MSE success 0.272656 0.031773 0.210938 0.300781
+8 RL_teacher_MSE teacher_mean_MSE 0.064029 0.005999 0.057028 0.074099
+80 BC_only success 0.623437 0.038161 0.554688 0.667969
+80 BC_only teacher_mean_MSE 0.004195 0.000511 0.003660 0.004906
+80 RL_scratch success 0.825000 0.038780 0.761719 0.878906
+80 RL_scratch teacher_mean_MSE 0.021187 0.003535 0.015271 0.025360
+80 RL_teacher_MSE success 0.885938 0.037091 0.824219 0.937500
+80 RL_teacher_MSE teacher_mean_MSE 0.009306 0.001342 0.008087 0.011906
+BC consumes equal online ticks/updates but ignores rewards; MSE imitation is not Bernoulli MLE
+No presumed winner; teacher bias can hinder improvement; no PPO or VLA trained
+Not Cal-ConRFT or HIL-SERL; real robot/GPU/ManiSkill: 本页未运行; paper 以论文为准

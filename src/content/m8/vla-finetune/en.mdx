@@ -1,6 +1,6 @@
 This lesson is a site supplement — Months 7–11 are not part of the original six-month course.
 
-Month 6 already covered VLA tokenisation (256 bins vs FAST/DCT). This lesson is the **practice** layer: load a pretrained checkpoint, fine-tune on *your* dataset, budget the GPU, keep language instructions identical to recording, and wire cameras/ports for rollout. We contrast an ACT baseline (Month 6) with SmolVLA on the same eval protocol, then read an open-source VLA VRAM floor table. Cloud GPU / Colab / real-arm fine-tuning are marked **本页未运行** — this page only runs a CPU estimator.
+Month 6 already covered VLA tokenisation (256 bins vs FAST/DCT). This lesson is the **practice** layer: load a pretrained checkpoint, fine-tune on *your* dataset, budget the GPU, keep language instructions identical to recording, and wire cameras/ports for rollout. We contrast an ACT baseline (Month 6) with SmolVLA on the same eval protocol, then read an open-source VLA VRAM floor table. Cloud GPU / Colab / real-arm fine-tuning are marked **本页未运行** — this page runs a CPU estimator and the discrete teacher-guided RL surrogate below.
 
 ## Pretrained → fine-tune (SmolVLA first)
 
@@ -160,8 +160,252 @@ All seven rows print `UNDER` on the toy estimator — that is intentional. Real 
 - **Assuming N1.5 still loads.** Current LeRobot rejects it unless you pin `lerobot==0.5.1`.
 - **Calling this page a fine-tune run.** Weights are never loaded here.
 
+## RPD-style teacher-guided RL surrogate (+180 min)
+
+The opened [RPD paper](https://arxiv.org/abs/2503.05833) guides on-policy RL with an MSE between policy action mean and teacher action/mean: its PPO reward objective is supplemented by teacher imitation. The paper's fixed-variance Gaussian argument makes that mean MSE BC-like. Our **discrete Bernoulli** surrogate below does not claim that Gaussian equivalence: it uses REINFORCE, no PPO clipping/critic, and a supervised mean-MSE gradient at visited states (not a full derivative through state occupancy). ManiSkill results and paper percentages are **以论文为准**; GPU/VLA/ManiSkill/real robot: **本页未运行**. It is neither Cal-ConRFT's offline conservative Q+BC (10.7) nor HIL-SERL (10.6), and does not distil a diffusion sampler like 10.1.
+
+### A deliberately suboptimal, beatable teacher
+
+States 0…4 need the binary action sequence `(1,0,1,1,0)` to advance; a wrong action resets to 0, a correct one stays put with slip probability 0.05. State 5 is absorbing success. Start is 0 or 1 with equal probability, horizon 12, terminal reward 1 iff state 5 is reached; gamma=1. The stochastic teacher chooses the correct action with probability 0.9 except at state 2, where it chooses it with probability 0.6. This teacher is **deliberately suboptimal**, not an oracle. Independent finite-horizon DP gives teacher success 0.780842; the always-correct policy is near 1 (rounded 1.000000). DP is diagnostic only, never an RL training target.
+
+Let `p=sigmoid(logit)` be the policy's action-1 mean; the queried teacher label is `aT∈{0,1}`. Teacher loss is `(p−aT)²` with derivative `2*(p−aT)*p*(1−p)`. In expectation its gradient targets the teacher mean. For each nonabsorbing decision the reward gradient is `G*(a−p)`, where `G` is the episode terminal return. Sum terms over visited states, average over eight episodes, ascend with lr=0.25. Weights **(reward, MSE)** are fixed: **BC-only=(0,1)**, **RL-from-scratch=(1,0)**, **RL+teacher-MSE=(1,0.5)**. BC-only means online MSE imitation; it receives equal interactions but ignores rewards, **not offline demonstrations or categorical maximum-likelihood BC**.
+
+### Equal budgets, separate evaluation, no presumed winner
+
+Seeds **11/23/37/53/71** share identical initial logits within each three-arm comparison. A precomputed immutable common random tape supplies the same starts, action uniforms, slip uniforms and teacher-label uniforms to every arm; their visited states can still differ. Every arm uses 80 updates × 8 episodes × 12 ticks = **7680 env steps** and **80 updates**. At a fixed early checkpoint, all use **768 steps / 8 updates**. All absorbing ticks remain charged; teacher queries are made on every tick including dummy absorbing queries and scratch discards the labels. We separately report active decisions: equality of charged budget does **not** mean identical useful visits, training compute or wall time.
+
+After all training, evaluate the two predetermined snapshots on the same independent 256 held-out episodes per seed; evaluation never selects updates or affects training. Success is terminal goal arrival within 12 ticks. `teacher_mean_MSE` is a uniform-over-five-states diagnostic of policy mean vs teacher mean, not a success measure or a loss fed back to fit. Stdout includes every seed, both checkpoints and mean ± population sd / range.
+
+| updates / env steps per arm | BC-only success | RL-from-scratch success | RL+teacher-MSE success |
+|---|---|---|---|
+| 8 / 768 | 0.274219 ± 0.024878 | 0.182031 ± 0.028449 | 0.272656 ± 0.031773 |
+| 80 / 7680 | 0.623437 ± 0.038161 | 0.825000 ± 0.038780 | 0.885938 ± 0.037091 |
+
+Early BC beats scratch on all five seeds and even exceeds guided RL on some seeds; keep those rows, not just the final mean. Later the reward-using arms can beat this imperfect teacher. The table describes this MDP and fixed weights only; a worse teacher or larger guidance weight can hinder improvement, and a method is not guaranteed to win.
+
+```bash
+python3 examples/month-8/vla-finetune/rpd_teacher_rl_toy.py
+bash examples/month-8/check.sh
+```
+
+<CodeSource path="examples/month-8/vla-finetune/rpd_teacher_rl_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""RPD-style tabular Bernoulli/REINFORCE + action-mean teacher-MSE surrogate.
+NOT PPO, VLA/HTTP/ManiSkill, Cal-ConRFT offline Q+BC, or HIL-SERL.
+Teacher is deliberately SUBOPTIMAL: correct probability .9 except bottleneck .6.
+Each arm starts from identical logits and consumes the same keyed random tape,
+8 episodes x12 ticks per update, 80 updates. Goal stays absorbing to horizon;
+those ticks are charged and active-decision counts are reported separately.
+BC-only is online teacher-MSE imitation, NOT categorical maximum-likelihood BC.
+Gamma=1; full-episode terminal return REINFORCE, no critic/clipping/replay.
+Evaluation is separate and cannot select checkpoints or affect updates.
+"""
+from math import exp
+from random import Random
+from statistics import mean, pstdev
+
+SEEDS = (11,23,37,53,71)
+CORRECT = (1,0,1,1,0)
+GOAL, HORIZON, BATCH, UPDATES = 5,12,8,80
+CHECKPOINTS = (8,80)
+SLIP, LR = .05,.25
+# (reward-gradient weight, teacher-MSE weight), fixed before evaluation.
+WEIGHTS = {"BC_only":(0.,1.), "RL_scratch":(1.,0.), "RL_teacher_MSE":(1.,.5)}
+
+
+def sigmoid(x):
+    return 1/(1+exp(-x))
+
+
+def teacher_mean(state):
+    if state == GOAL:
+        return .5  # Charged dummy query while absorbing, ignored by all gradients.
+    good = .6 if state == 2 else .9
+    return good if CORRECT[state] else 1-good
+
+
+def transition(state, action, slip_uniform):
+    if state == GOAL:
+        return GOAL
+    if action != CORRECT[state]:
+        return 0
+    return state if slip_uniform < SLIP else state+1
+
+
+def tape(seed, episodes):
+    """One immutable common-random-numbers tape; independent of arm/trajectory."""
+    rng = Random(seed)
+    return tuple((int(rng.random()>=.5),
+                  tuple((rng.random(),rng.random(),rng.random()) for _ in range(HORIZON)))
+                 for _ in range(episodes))
+
+
+def episode(probabilities, data):
+    state, steps = data[0], []
+    for action_u,slip_u,teacher_u in data[1]:
+        p = .5 if state==GOAL else probabilities[state]
+        label = int(teacher_u < teacher_mean(state))
+        action = int(action_u < p)
+        if state != GOAL:
+            steps.append((state,action,p,label))
+        state = transition(state,action,slip_u)
+    return float(state==GOAL), tuple(steps)
+
+
+def mse_logit_gradient(p, teacher_action):
+    return 2*(p-teacher_action)*p*(1-p)
+
+
+def update(logits, episodes, arm):
+    reward_weight,mse_weight = WEIGHTS[arm]
+    probabilities = tuple(sigmoid(x) for x in logits)
+    gradient,active = [0.]*GOAL,0
+    for data in episodes:
+        reward,records = episode(probabilities,data)
+        active += len(records)
+        for state,action,p,label in records:
+            gradient[state] += reward_weight*reward*(action-p)-mse_weight*mse_logit_gradient(p,label)
+    # Objective is per-episode mean SUM of visited-state terms, not per-state normalization.
+    return tuple(x+LR*g/len(episodes) for x,g in zip(logits,gradient)),active
+
+
+def train(seed, arm, training_tape):
+    rng=Random(seed)
+    logits=tuple(rng.gauss(0,.05) for _ in range(GOAL))
+    checkpoints,active = {},0
+    for step in range(1,UPDATES+1):
+        batch=training_tape[(step-1)*BATCH:step*BATCH]
+        logits,visits=update(logits,batch,arm)
+        active += visits
+        if step in CHECKPOINTS:
+            checkpoints[step]=(tuple(sigmoid(x) for x in logits), step*BATCH*HORIZON, step, active)
+    return checkpoints
+
+
+def exact_success(probabilities):
+    """Independent finite-horizon DP baseline, not used by train/update."""
+    value=[0.]*GOAL+[1.]
+    for _ in range(HORIZON):
+        previous=value
+        value=[0.]*(GOAL+1);value[GOAL]=1.
+        for state in range(GOAL):
+            good=probabilities[state] if CORRECT[state] else 1-probabilities[state]
+            value[state]=good*((1-SLIP)*previous[state+1]+SLIP*previous[state])+(1-good)*previous[0]
+    return (value[0]+value[1])/2
+
+
+def evaluate(probabilities, evaluation_tape):
+    successes=sum(episode(probabilities,data)[0] for data in evaluation_tape)
+    mismatch=mean((p-teacher_mean(s))**2 for s,p in enumerate(probabilities))
+    return successes/len(evaluation_tape), mismatch
+
+
+def main():
+    teacher=tuple(teacher_mean(s) for s in range(GOAL))
+    optimal=tuple(float(a) for a in CORRECT)
+    print("RPD-style surrogate: discrete chain, deliberately suboptimal stochastic teacher")
+    print(f"teacher_exact_success={exact_success(teacher):.6f} optimal_exact_success={exact_success(optimal):.6f}")
+    print("weights BC_only=(RL0,MSE1) RL_scratch=(RL1,MSE0) RL_teacher_MSE=(RL1,MSE0.5)")
+    print("paired tape:8 episodes x12 ticks/update; checkpoints8/80; gamma1 lr0.25")
+    print("equal charged env_steps/updates; goal absorbing ticks included; active decisions reported")
+    print("seed updates arm env_steps teacher_queries active_decisions success teacher_mean_MSE")
+    aggregate={(step,arm):[] for step in CHECKPOINTS for arm in WEIGHTS}
+    for seed in SEEDS:
+        training=tape(1000+seed,UPDATES*BATCH)
+        evaluation=tape(100000+seed,256)
+        trained={arm:train(seed,arm,training) for arm in WEIGHTS}
+        for step in CHECKPOINTS:
+            for arm in WEIGHTS:
+                probabilities,env_steps,updates,active=trained[arm][step]
+                metrics=evaluate(probabilities,evaluation)
+                aggregate[(step,arm)].append(metrics)
+                success,mse=metrics
+                print(f"{seed} {updates} {arm} {env_steps} {env_steps} {active} {success:.6f} {mse:.6f}")
+    print("five-seed mean+-population_sd and range: updates arm metric mean sd min max")
+    for (step,arm),rows in aggregate.items():
+        for j,metric in enumerate(("success","teacher_mean_MSE")):
+            values=[row[j] for row in rows]
+            print(f"{step} {arm} {metric} {mean(values):.6f} {pstdev(values):.6f} {min(values):.6f} {max(values):.6f}")
+    print("BC consumes equal online ticks/updates but ignores rewards; MSE imitation is not Bernoulli MLE")
+    print("No presumed winner; teacher bias can hinder improvement; no PPO or VLA trained")
+    print("Not Cal-ConRFT or HIL-SERL; real robot/GPU/ManiSkill: 本页未运行; paper 以论文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+RPD-style surrogate: discrete chain, deliberately suboptimal stochastic teacher
+teacher_exact_success=0.780842 optimal_exact_success=1.000000
+weights BC_only=(RL0,MSE1) RL_scratch=(RL1,MSE0) RL_teacher_MSE=(RL1,MSE0.5)
+paired tape:8 episodes x12 ticks/update; checkpoints8/80; gamma1 lr0.25
+equal charged env_steps/updates; goal absorbing ticks included; active decisions reported
+seed updates arm env_steps teacher_queries active_decisions success teacher_mean_MSE
+11 8 BC_only 768 768 708 0.320312 0.055618
+11 8 RL_scratch 768 768 709 0.214844 0.106622
+11 8 RL_teacher_MSE 768 768 691 0.285156 0.059162
+11 80 BC_only 7680 7680 6244 0.644531 0.003789
+11 80 RL_scratch 7680 7680 6204 0.816406 0.024199
+11 80 RL_teacher_MSE 7680 7680 5571 0.890625 0.008087
+23 8 BC_only 768 768 690 0.261719 0.058685
+23 8 RL_scratch 768 768 704 0.187500 0.098455
+23 8 RL_teacher_MSE 768 768 691 0.289062 0.057028
+23 80 BC_only 7680 7680 6032 0.554688 0.004906
+23 80 RL_scratch 7680 7680 5912 0.847656 0.015271
+23 80 RL_teacher_MSE 7680 7680 5233 0.875000 0.008897
+37 8 BC_only 768 768 730 0.246094 0.060069
+37 8 RL_scratch 768 768 755 0.128906 0.127198
+37 8 RL_teacher_MSE 768 768 736 0.210938 0.074099
+37 80 BC_only 7680 7680 6258 0.617188 0.003907
+37 80 RL_scratch 7680 7680 6411 0.761719 0.020250
+37 80 RL_teacher_MSE 7680 7680 5728 0.824219 0.008575
+53 8 BC_only 768 768 710 0.273438 0.061034
+53 8 RL_scratch 768 768 725 0.191406 0.112962
+53 8 RL_teacher_MSE 768 768 707 0.277344 0.066381
+53 80 BC_only 7680 7680 6016 0.667969 0.003660
+53 80 RL_scratch 7680 7680 5960 0.878906 0.025360
+53 80 RL_teacher_MSE 7680 7680 5474 0.937500 0.011906
+71 8 BC_only 768 768 709 0.269531 0.060335
+71 8 RL_scratch 768 768 704 0.187500 0.105027
+71 8 RL_teacher_MSE 768 768 703 0.300781 0.063473
+71 80 BC_only 7680 7680 6082 0.632812 0.004712
+71 80 RL_scratch 7680 7680 6118 0.820312 0.020853
+71 80 RL_teacher_MSE 7680 7680 5516 0.902344 0.009067
+five-seed mean+-population_sd and range: updates arm metric mean sd min max
+8 BC_only success 0.274219 0.024878 0.246094 0.320312
+8 BC_only teacher_mean_MSE 0.059148 0.001923 0.055618 0.061034
+8 RL_scratch success 0.182031 0.028449 0.128906 0.214844
+8 RL_scratch teacher_mean_MSE 0.110053 0.009736 0.098455 0.127198
+8 RL_teacher_MSE success 0.272656 0.031773 0.210938 0.300781
+8 RL_teacher_MSE teacher_mean_MSE 0.064029 0.005999 0.057028 0.074099
+80 BC_only success 0.623437 0.038161 0.554688 0.667969
+80 BC_only teacher_mean_MSE 0.004195 0.000511 0.003660 0.004906
+80 RL_scratch success 0.825000 0.038780 0.761719 0.878906
+80 RL_scratch teacher_mean_MSE 0.021187 0.003535 0.015271 0.025360
+80 RL_teacher_MSE success 0.885938 0.037091 0.824219 0.937500
+80 RL_teacher_MSE teacher_mean_MSE 0.009306 0.001342 0.008087 0.011906
+BC consumes equal online ticks/updates but ignores rewards; MSE imitation is not Bernoulli MLE
+No presumed winner; teacher bias can hinder improvement; no PPO or VLA trained
+Not Cal-ConRFT or HIL-SERL; real robot/GPU/ManiSkill: 本页未运行; paper 以论文为准
+```
+
+</SimOutput>
+
+### Exercises and boundaries
+
+1. Check exact DP against independent rollouts; show why the teacher is beatable without giving the DP values to training.
+2. Finite-difference the Bernoulli-logit teacher-MSE derivative. Explain why it is not categorical maximum likelihood or the paper's fixed-variance Gaussian policy.
+3. For both checkpoints verify equal env steps/updates across arms; explain active-decision differences despite a shared random tape.
+4. Retain early BC-winning seeds. Change the teacher bottleneck and guidance weight only in a separately labelled experiment; report all five seeds without promising a winner.
+
 <Summary>
 
 Fine-tune practice for VLAs: `smolvla_base` (450M; ~4 h / 20k on A100; Colab if no GPU). Compare ACT vs SmolVLA on Month 6's 20 starts. Read openpi (>8 / >22.5 / >70 GB), GR00T (16 GB+ / 40 GB+), and LeRobot π₀.₅ (80 GB recipe) floors. `compute_budget.py` shows optimistic UNDER estimates against those floors. GPU / Colab / arm paths: 本页未运行.
 
+The RPD-style discrete surrogate compares BC-only, scratch RL and teacher-MSE RL under equal interaction/update budgets across five seeds with a deliberately suboptimal teacher, preserving early BC wins rather than promising a winner.
 </Summary>
