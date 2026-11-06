@@ -269,7 +269,7 @@ finished, so V cannot tell good steps from bad and the filter keeps noise.
 
 - TD：`0.5 E_D[(Q(s,a) − (r + γ E_π Q_old(s',·)))²]`；终止目标为 r。
 - CQL：`α [T logsumexp_a(Q(s,a)/T) − E_D[Q(s,a) | s]]`。
-- Cal-QL：仅在 logsumexp **内部**把 Q 换成 `max(Q(s,a), V_MC(s))`。低于参考时下压导数为零；数据补偿不变，V_MC 不参与梯度。
+- Cal-QL：仅在 logsumexp **内部**把 Q 换成 `max(Q(s,a), V_MC(s))`。低于参考时下压导数为零；数据补偿不变，V_MC 不参与梯度。本玩具的 active mask ≈ ∂max(Q,V_MC)/∂Q（等号处选零次梯度）。
 - Actor：`β CE(behavior,π) − η E_π Q`，固定 critic 更新分类 logits；**不是优势过滤**。
 
 下界约束正则项的输入，**不是事后硬裁剪学习 Q 或 Bellman 目标**。如原文所提醒，函数逼近和有限优化不保证每个原始 Q 或每个状态均值都满足下界。打印 `min_state_Q_minus_V` 以暴露残余欠校准。缓解在线遗忘 / 微调初期下跌**只作阅读**：本玩具**没有在线阶段**，不展示该收益。
@@ -307,6 +307,7 @@ Tabular actor, restricted shared-action-feature linear critic (misspecified).
 CQL uses a temperature-logsumexp conservative penalty; Cal-QL masks its
 push-down via max(Q, V_MC) INSIDE that penalty, not a post-hoc Q clamp.
 V_MC is behavior return-to-go from the SAME demos, never an eval oracle.
+In this toy, the active mask ≈ ∂max(Q,V_MC)/∂Q (zero subgradient at equality).
 Equal full-batch actor updates; BC has no critic (Q scale NA), not equal FLOPs.
 All settings synthetic; paper numbers 以论文为准; GPU/robot 本页未运行.
 """

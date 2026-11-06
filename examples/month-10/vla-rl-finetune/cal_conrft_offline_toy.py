@@ -5,6 +5,7 @@ Tabular actor, restricted shared-action-feature linear critic (misspecified).
 CQL uses a temperature-logsumexp conservative penalty; Cal-QL masks its
 push-down via max(Q, V_MC) INSIDE that penalty, not a post-hoc Q clamp.
 V_MC is behavior return-to-go from the SAME demos, never an eval oracle.
+In this toy, the active mask ≈ ∂max(Q,V_MC)/∂Q (zero subgradient at equality).
 Equal full-batch actor updates; BC has no critic (Q scale NA), not equal FLOPs.
 All settings synthetic; paper numbers 以论文为准; GPU/robot 本页未运行.
 """

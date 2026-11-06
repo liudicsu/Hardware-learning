@@ -269,7 +269,7 @@ Our discrete temperature-logsumexp version is:
 
 - TD: `0.5 E_D[(Q(s,a) − (r + γ E_π Q_old(s',·)))²]`; terminal target r.
 - CQL: `α [T logsumexp_a(Q(s,a)/T) − E_D[Q(s,a) | s]]`.
-- Cal-QL: replace Q **only inside logsumexp** by `max(Q(s,a), V_MC(s))`. Below the reference, the push-down derivative is zero; dataset compensation is unchanged. V_MC is stop-gradient.
+- Cal-QL: replace Q **only inside logsumexp** by `max(Q(s,a), V_MC(s))`. Below the reference, the push-down derivative is zero; dataset compensation is unchanged. V_MC is stop-gradient. In this toy, the active mask ≈ ∂max(Q,V_MC)/∂Q (zero subgradient at equality).
 - Actor: `β CE(behavior,π) − η E_π Q`, categorical logits with critic fixed; **not advantage-filtering**.
 
 The floor is on the regularizer's argument, **not a post-hoc clamp of learned Q or Bellman targets**. As the paper cautions, function approximation and finite optimization do not certify every raw Q or every state-average as a lower bound. We print `min_state_Q_minus_V` to expose residual under-calibration. Online-unlearning/fine-tuning-dip mitigation is **reading only**: this toy has **no online phase**, so it does not demonstrate that benefit.
@@ -307,6 +307,7 @@ Tabular actor, restricted shared-action-feature linear critic (misspecified).
 CQL uses a temperature-logsumexp conservative penalty; Cal-QL masks its
 push-down via max(Q, V_MC) INSIDE that penalty, not a post-hoc Q clamp.
 V_MC is behavior return-to-go from the SAME demos, never an eval oracle.
+In this toy, the active mask ≈ ∂max(Q,V_MC)/∂Q (zero subgradient at equality).
 Equal full-batch actor updates; BC has no critic (Q scale NA), not equal FLOPs.
 All settings synthetic; paper numbers 以论文为准; GPU/robot 本页未运行.
 """
