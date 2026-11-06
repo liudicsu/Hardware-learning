@@ -3936,8 +3936,8 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 20700, "stereo-multirobot PR2 curriculum: 20700 minutes");
-  for (const [month, expected] of [[1, 870], [2, 1650], [3, 1470], [4, 1620], [5, 1800], [6, 1350], [7, 2070], [8, 2670], [9, 2550], [10, 1650], [11, 3000]]) {
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 21090, "cal-conrft-mtc PR3 curriculum: 21090 minutes");
+  for (const [month, expected] of [[1, 870], [2, 1650], [3, 1470], [4, 1620], [5, 1800], [6, 1350], [7, 2070], [8, 2670], [9, 2730], [10, 1860], [11, 3000]]) {
     ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `current curriculum M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
@@ -4923,7 +4923,7 @@ for (const m of readdirSync(content)) {
   for (const id of ["dreamgen-paper", "lapa-paper", "smolvla-paper", "lerobot-async"]) {
     ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `wm2 resource ${id}: present + extra`);
   }
-  ok(/20 700/.test(read("README.md")), "b5p2 README: 20 700 minutes");
+  ok(/21 090/.test(read("README.md")), "b5p3 README: 21 090 minutes");
   console.log("worldmodel-smolvla PR2: neural trajectories + async chunk locks checked");
 }
 
@@ -5248,6 +5248,93 @@ for (const m of readdirSync(content)) {
   ok(multi.includes("starvation_proxy min_sep_m") && multi.includes("capped mean substitutes 24s") && multi.includes("NOT full ORCA LP"),"b5p2 corridor: liveness/separation/censoring/approximation disclosed");
   for (const id of ["opencv-stereo-depth-source","orca-primary","mrs-curriculum-il"]) ok(read("src/lib/resources.ts").includes(`id: "${id}"`),`b5p2 source ${id}`);
   console.log("stereo-multirobot PR2: nonlinear depth, equal kinematics and information-disclosure locks checked");
+}
+
+// Batch-5 PR3 H1/H7: calibration mechanism, representation control and stale memory.
+{
+  const read = p => readFileSync(join(root,p),"utf8");
+  for (const [month,slug,toy,minutes,added,markers] of [
+    [10,"vla-rl-finetune","cal_conrft_offline_toy",450,210,["1071–1075","max(Q, V_MC)","1000","48","0.135372","0.439094","0.419844","0.2142","0.1958","0.1628","0.457688/0.604030","--tabular","96.3 %","以论文为准"]],
+    [9,"mtc-long-horizon","mtc_stage_memory_toy",420,180,["world_change","place_blocked","total_nodes = search_nodes + revalidation_nodes","20+3=23","73","70","58","6/8","2/8"]],
+  ]) {
+    const src=`examples/month-${month}/${slug}/${toy}.py`, py=read(src), expected=read(`examples/month-${month}/expected/${toy}.txt`);
+    const env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
+    ok(execFileSync("python3",[join(root,src)],{encoding:"utf8",env})===expected,`b5p3 ${toy}: executed stdout matches expected`);
+    ok(read(`examples/month-${month}/check.sh`).includes(`${toy}.txt`),`b5p3 ${toy}: check hook`);
+    for (const lang of ["en","zh"]) {
+      const md=read(`src/content/m${month}/${slug}/${lang}.mdx`), start=md.indexOf("<Summary>"), body=md.slice(0,start), summary=md.slice(start), prose=body.replace(/```[\s\S]*?```/g,"");
+      ok(start>=0 && md.trimEnd().endsWith("</Summary>") && (md.match(/<Summary>/g)||[]).length===1,`b5p3 ${toy} ${lang}: sole final Summary`);
+      ok(body.includes(py.trim()) && body.includes(expected.trim()) && body.includes(`+${added} min`),`b5p3 ${toy} ${lang}: complete addition/code/stdout/exercises before Summary`);
+      for (const marker of markers) ok(prose.includes(marker),`b5p3 ${toy} ${lang}: prose binds ${marker}`);
+      ok(prose.includes("本页未运行"),`b5p3 ${toy} ${lang}: hardware unrun`);
+      if (month===10) {
+        const control=read("examples/month-10/expected/cal_conrft_offline_tabular.txt");
+        ok(body.includes(control.trim()),`b5p3 offline ${lang}: full representation control stdout`);
+        ok(summary.includes("Cal-ConRFT") && summary.includes("SimpleVLA-RL") && summary.includes("RECAP") && summary.includes("SARM"),`b5p3 offline ${lang}: new sentence and whole prior Summary retained`);
+        ok(lang==="en" ? /not a post-hoc clamp/.test(prose) && /no online phase/.test(prose) && /misspecified representation/.test(prose) && /no critic/.test(prose) : /不是事后硬裁剪/.test(prose) && /没有在线阶段/.test(prose) && /模型误设/.test(prose) && /没有 critic/.test(prose),`b5p3 offline ${lang}: bound/online/representation/budget caveats`);
+      } else {
+        ok(summary.includes("prefix") || summary.includes("前缀"),`b5p3 memory ${lang}: Summary teaches addition`);
+        ok(summary.includes("generator") && summary.includes("Connect") && summary.includes("18"),`b5p3 memory ${lang}: whole prior Summary retained`);
+        ok(lang==="en" ? /not future ground truth/.test(prose) && /fails current-world revalidation/.test(prose) && /node-expansion-count proxy/.test(prose) && /exhaustive root fallback/.test(prose) : /不是未来真值/.test(prose) && /重验证中失败/.test(prose) && /节点展开次数代理/.test(prose) && /全根穷举回退/.test(prose),`b5p3 memory ${lang}: stale failure, charged validation/fallback and proxy boundaries`);
+      }
+    }
+    ok(read("src/lib/curriculum.ts").match(new RegExp(`slug: "${slug}"[\\s\\S]*?minutes: (\\d+)`))?.[1]===String(minutes),`b5p3 ${slug}: ${minutes} min`);
+  }
+  const env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
+  const control=read("examples/month-10/expected/cal_conrft_offline_tabular.txt");
+  ok(execFileSync("python3",[join(root,"examples/month-10/vla-rl-finetune/cal_conrft_offline_toy.py"),"--tabular"],{encoding:"utf8",env})===control,"b5p3 offline: executable tabular control matches expected");
+  ok(read("examples/month-10/check.sh").includes("cal_conrft_offline_tabular.txt"),"b5p3 offline: control check hook");
+  for (const file of ["cal_conrft_offline_toy","cal_conrft_offline_tabular"]) {
+    const txt=read(`examples/month-10/expected/${file}.txt`);
+    ok((txt.match(/^107[1-5] (?:BC_only|CQL_BC|CalQL_BC) /gm)||[]).length===15,`b5p3 ${file}: 5 seeds times 3 arms`);
+    ok(txt.includes("population_sd min max") && txt.includes("min_state_Q_minus_V masked_fraction"),`b5p3 ${file}: spread and actual raw bound gaps`);
+    const rows=txt.split("\n").filter(l=>/^107[1-5] /.test(l)).map(l=>l.split(" "));
+    for (const seed of [1071,1072,1073,1074,1075]) {
+      const rs=rows.filter(r=>r[0]===String(seed));
+      ok(new Set(rs.map(r=>r[2])).size===1 && new Set(rs.map(r=>r[7])).size===1,`b5p3 ${file} seed${seed}: identical data counts/MC references`);
+      if (file==="cal_conrft_offline_toy") {
+        const c=rs.find(r=>r[1]==="CQL_BC"),cal=rs.find(r=>r[1]==="CalQL_BC"),ref=Number(c[7]);
+        ok(Number(c[6])<ref && Math.abs(Number(cal[6])-ref)<Math.abs(Number(c[6])-ref),`b5p3 seed${seed}: over-conservative CQL scale corrected toward MC, not assumed policy victory`);
+      }
+    }
+  }
+  const protocol = execFileSync("python3",["-c",String.raw`
+import runpy, math
+m=runpy.run_path("examples/month-9/mtc-long-horizon/mtc_stage_memory_toy.py")
+stream=m["STREAM"]
+for arm in m["ARMS"]:
+ rows=m["run"](arm)
+ assert rows[:5]==m["run"](arm,stream[:5]), "future stream influenced past cache"
+ for req,row in zip(stream,rows):
+  assert row[4]==row[2]+row[3]
+  if arm=="bounded_8": assert row[4]<=8
+  if row[-1]:
+   assert all(m["feasible"](row[-1][:end],req) for end in range(1,6))
+cache=m["run"]("cached_prefix")
+assert cache[4][5]==1 and cache[4][3:5]==(1,11)
+assert cache[2][2:5]==(20,3,23), "failed suffix/global fallback not charged"
+assert sum(r[4] for r in cache)==70 and sum(r[3] for r in cache)==14
+# Finite-difference check: calibration floor is in the penalty, not TD/outputs.
+beta=[.7,.2,.1]; base=[.1,.4,.7]; ref=.3; T=.1
+for cal in [False,True]:
+ def penalty(q):
+  scores=[max(x,ref) if cal else x for x in q]; mx=max(scores)
+  return mx+T*math.log(sum(math.exp((x-mx)/T) for x in scores))-sum(p*x for p,x in zip(beta,q))
+ scores=[max(x,ref) if cal else x for x in base]; es=[math.exp(x/T) for x in scores]
+ for a in range(3):
+  hi=base[:]; lo=base[:]; hi[a]+=1e-6; lo[a]-=1e-6
+  analytic=es[a]/sum(es)*(not cal or base[a]>ref)-beta[a]
+  assert abs((penalty(hi)-penalty(lo))/2e-6-analytic)<1e-7
+rl=runpy.run_path("examples/month-10/vla-rl-finetune/cal_conrft_offline_toy.py")
+assert rl["UPDATES"]==1000 and rl["DEMOS"]==48 and len(rl["SEEDS"])==5
+rl["train"].__globals__["ALPHA"]=0.
+d=rl["dataset"](1071)
+assert rl["train"]("CQL_BC",d)[:4]==rl["train"]("CalQL_BC",d)[:4], "arms differ even without conservative penalty"
+print("protocol pass")
+`],{cwd:root,encoding:"utf8",env});
+  ok(protocol.trim()==="protocol pass","b5p3 runtime: no look-ahead, valid solutions, all fallback/revalidation charged, calibrated gradient finite difference");
+  for (const id of ["calql-paper","conrft-paper","moveit-mtc"]) ok(read("src/lib/resources.ts").includes(`id: "${id}"`),`b5p3 source ${id}`);
+  console.log("cal-conrft-mtc PR3: calibrated loss, shared-data spread, representation control and stale-cache accounting checked");
 }
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);

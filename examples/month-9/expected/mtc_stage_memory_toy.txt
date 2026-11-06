@@ -1,0 +1,34 @@
+shared stream=8 planning requests; stages=connect/grasp/ik/place/retreat candidates=0,1; prefix=3 budget=8
+one expansion=one current-world prefix predicate check; total=search+revalidation; counts only, NOT wall-clock
+request arm result search_nodes revalidation_nodes total_nodes stale_prefix_failed last_rejected_stage solution
+warmup full_replan success 8 0 8 0 ik 01000
+repeat full_replan success 8 0 8 0 ik 01000
+place_blocked full_replan no_solution 18 0 18 0 ik -
+recover_new_slot full_replan success 9 0 9 0 place 01010
+world_change full_replan success 10 0 10 0 place 11010
+repeat_B full_replan success 9 0 9 0 ik 11000
+both_routes_blocked full_replan no_solution 2 0 2 0 connect -
+restored_B full_replan success 9 0 9 0 ik 11000
+warmup cached_prefix success 8 0 8 0 ik 01000
+repeat cached_prefix success 2 3 5 0 none 01000
+place_blocked cached_prefix no_solution 20 3 23 0 ik -
+recover_new_slot cached_prefix success 3 3 6 0 place 01010
+world_change cached_prefix success 10 1 11 1 place 11010
+repeat_B cached_prefix success 2 3 5 0 none 11000
+both_routes_blocked cached_prefix no_solution 2 1 3 1 connect -
+restored_B cached_prefix success 9 0 9 0 ik 11000
+warmup bounded_8 success 8 0 8 0 ik 01000
+repeat bounded_8 success 8 0 8 0 ik 01000
+place_blocked bounded_8 budget_exhausted 8 0 8 0 place -
+recover_new_slot bounded_8 budget_exhausted 8 0 8 0 place -
+world_change bounded_8 budget_exhausted 8 0 8 0 place -
+repeat_B bounded_8 budget_exhausted 8 0 8 0 ik -
+both_routes_blocked bounded_8 no_solution 2 0 2 0 connect -
+restored_B bounded_8 budget_exhausted 8 0 8 0 ik -
+arm successes/8 search_nodes revalidation_nodes total_nodes stale_prefix_failures budget_exhaustions
+full_replan 6/8 73 0 73 0 0
+cached_prefix 6/8 56 14 70 2 0
+bounded_8 2/8 58 0 58 0 5
+world_change: cached route0 FAILS revalidation; discard dependents, then repair via route1 (not an unsafe execution)
+cache contains past accepted prefixes only; bounded exhaustion is not proof of infeasibility; no universal winner
+new toy counts are not old stage_graph_toy mock seconds; real MoveIt/Panda/SO-101 本页未运行

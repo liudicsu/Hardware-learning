@@ -19,3 +19,7 @@ CPU-reproducible scripts for Month 9 (site supplement). Run `./check.sh` from th
 ## Batch-5 PR2 / 第5批 PR2
 
 `nav-arm-compose/multi_robot_corridor_toy.py`: standard-library synthetic model; all expected output in `expected/multi_robot_corridor_toy.txt`, checked by `check.sh`. No new dependency or hardware result. / 标准库合成模型，输出由 `check.sh` 对照；无新增依赖，不是硬件结果。
+
+## Batch-5 PR3
+
+`mtc_stage_memory_toy.py`: same eight requests, full/cached/bounded search, stale-prefix failures, charged revalidation and global fallback; node-expansion counts only, not timing. / 共享八请求，完整 / 缓存 / 有界搜索，陈旧失败、重验证与回退记账，只计展开不测时间。

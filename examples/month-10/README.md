@@ -14,3 +14,7 @@ CPU-reproducible scripts for Month 10 (site supplement). Run `./check.sh` from t
 
 7 of 7 lessons / 7 课全部写完（10.1–10.7）.
 No GPU, no Jetson, no robot, no second camera, no weight downloads, no Isaac, no F/T sensor. Steps that need them are marked 本页未运行 / not run on this page in the lessons.
+
+## Batch-5 PR3
+
+`cal_conrft_offline_toy.py`: shared offline BC/CQL/Cal-QL batches/updates, MC-masked conservative gradient, restricted and `--tabular` representation controls; five-seed scale/success tables. No online phase or consistency head. / 同数据等更新、MC 屏蔽与表示能力对照；五种子；无在线阶段或一致性头。

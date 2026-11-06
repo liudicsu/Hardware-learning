@@ -2176,8 +2176,8 @@ export const resources: Record<string, Resource> = {
     kind: "guide",
     cost: { zh: "免费", en: "Free" },
     summary: {
-      zh: "把复杂规划拆成 generator / propagator / connector 阶段与容器。官方 Panda demo 启动命令见该页。",
-      en: "Decompose hard plans into generator / propagator / connector stages and containers. Official Panda demo launch commands are on this page.",
+      zh: "把复杂规划拆成 generator / propagator / connector 阶段与容器。官方 Panda demo 启动命令见该页；9.1 新前缀缓存为本站模型，不是自动缓存 API。原文已打开并 curl200。",
+      en: "Decompose hard plans into generator / propagator / connector stages and containers. Official Panda demo launch commands are on this page; the new9.1 prefix cache is our model, not an automatic cache API. Opened and curl200.",
     },
     license: { zh: "开源文档（BSD），© PickNik / MoveIt 贡献者；仅提供外链", en: "Open docs (BSD), © PickNik / MoveIt contributors; external link only" },
     extra: true,
@@ -2764,8 +2764,8 @@ export const resources: Record<string, Resource> = {
     kind: "textbook",
     cost: { zh: "免费", en: "Free" },
     summary: {
-      zh: "离线 BC+Q 与在线一致性策略微调，配合人工介入；VLA 强化微调相关阅读。arXiv 2502.05450。本站 10.7 阅读。",
-      en: "Offline BC+Q then online consistency-policy fine-tuning with human interventions; related VLA reinforced fine-tuning reading. arXiv 2502.05450. Reading for 10.7.",
+      zh: "离线 Cal-QL 风格 critic + 一致性 BC/Q 头，在线配人工介入；10.7 离散校准玩具不复现一致性头或在线阶段，数字以论文为准。原文已打开并 curl200。",
+      en: "Offline Cal-QL-style critic plus consistency BC/Q head, then online human interventions; lesson10.7 discrete toy reproduces neither head nor online phase. Paper numbers only; original opened and curl200.",
     },
     license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
     extra: true,
@@ -3541,6 +3541,19 @@ export const resources: Record<string, Resource> = {
     cost: { zh: "免费", en: "Free" },
     summary: { zh: "轨迹长度课程与全局示范到有噪自我中心观测；本站 9.6 仅作阅读指针，不训练 LEMURS/VMAS，数字以论文为准。", en: "Trajectory-length curriculum and global demonstrations to noisy egocentric observations;reading only for9.6,no LEMURS/VMAS training,numbers from the paper." },
     license: { zh: "版权归原作者；仅提供外链", en: "Copyright original authors; external link only" },
+    extra: true,
+  },
+
+
+  "calql-paper": {
+    id: "calql-paper",
+    url: "https://arxiv.org/abs/2303.05479",
+    title: { zh: "Cal-QL：校准离线 RL 预训练以便在线微调", en: "Cal-QL: calibrated offline RL pre-training for online fine-tuning" },
+    author: "Nakamoto et al.",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: { zh: "用行为 / MC 参考限制 CQL 下压；函数逼近下并非每个 Q 的硬下界。原文校准定义、方法与附录已打开并 curl200；本站10.7不模拟在线下跌。", en: "Behavior/MC reference masks CQL push-down; not a hard per-Q bound with function approximation. Definition, method and appendix opened and curl200; lesson10.7 does not simulate an online dip." },
+    license: { zh: "预印本，版权归原作者；仅提供外链", en: "Preprint, copyright original authors; external link only" },
     extra: true,
   },
 
