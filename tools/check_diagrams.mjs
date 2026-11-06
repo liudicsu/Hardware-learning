@@ -5107,6 +5107,17 @@ for (const m of readdirSync(content)) {
     for (const lang of ["en","zh"]) {
       const md = read(`src/content/m${month}/${slug}/${lang}.mdx`);
       ok(md.includes(py.trim()) && md.includes(expected.trim()), `b4p2 ${toy} ${lang}: exact code and stdout`);
+      const summaryStart = md.indexOf("<Summary>");
+      const summary = md.slice(summaryStart);
+      const body = md.slice(0, summaryStart);
+      ok(summaryStart >= 0 && md.trimEnd().endsWith("</Summary>") && (md.match(/<Summary>/g) || []).length === 1, `b4p2 ${toy} ${lang}: Summary ends page`);
+      ok(body.includes(py.trim()) && body.includes(expected.trim()) && body.includes(month === 7 ? "210 min" : "180 min"), `b4p2 ${toy} ${lang}: full addition precedes Summary`);
+      if (month === 7) {
+        for (const marker of ["AABB", "3DGS"]) ok(summary.includes(marker), `b4p2 depth ${lang} Summary: ${marker}`);
+        ok(lang === "en" ? /finite-s ellipsoid test.*independent distance ground truth.*without 3DGS training/.test(summary) : /独立距离真值.*有限 s 椭球测试.*不训练 3DGS/.test(summary), `b4p2 depth ${lang} Summary: collision method and scope`);
+      } else {
+        ok(lang === "en" ? /only PLr from the user-supplied risk graph, not achieved PL/.test(summary) : /仅从用户提供的风险图推导 PLr.*不是已达到的 PL（achieved PL）/.test(summary), `b4p2 safety ${lang} Summary: user risk graph PLr only`);
+      }
       ok(md.includes("本页未运行"), `b4p2 ${toy} ${lang}: unrun boundary`);
       for (const marker of month === 7 ? ["K(s) > 1", "false-safe", "false-alarm", "2004", "108", "1896", "135", "以论文为准", "1e-10"] : ["PLr", "insufficient_data", "category", "MTTFd", "DCavg", "CCF", "Class I/II", "2023", "2025", "SO-101", "not certification"]) {
         ok(md.includes(marker), `b4p2 ${toy} ${lang}: ${marker}`);

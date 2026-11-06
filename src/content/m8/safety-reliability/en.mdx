@@ -496,12 +496,6 @@ Print and tick `examples/month-8/safety-reliability/bench_safety_checklist.md` b
 - **Treating every status-word bit as undefined.** Bits 0–7 and 9–11 have standard names in the public ros2_canopen table; only bit 8, bits 12–13 and bits 14–15 are manufacturer- or mode-specific, so keep those out of your asserts.
 - **Reading `/diagnostics` ERROR as a safety action.** A diagnostic level reports; the monitor latches; the e-stop cuts power.
 
-<Summary>
-
-Separate software limits, command-timeout watchdogs and power-cutting e-stops. ISO/TS 15066 is industrial-collaborative only; ISO 10218-1 is named, not quoted; the later PLr section adds a limited user-input graph, not achieved PL. `watchdog_sim.py` shows overshoot 0.6500 without a watchdog vs 0.0000 with clamp. `actuator_fault_monitor_toy.py` separates device/bus faults from the command path: ignore 48 / latch_only 30 / latch_ack 0 unsafe motion ticks, false auto re-enables 2 / 2 / 0; a cleared bit without an ack stays `LATCHED_SAFE`. Bus-off or a soft reset is not an e-stop. Use the bench checklist; WatchdogWidget is deferred. No STS3215 overload figures here.
-
-</Summary>
-
 ## Standards literacy: required PLr is not achieved PL
 
 The [official ISO catalogue](https://www.iso.org/standard/73481.html) currently lists **ISO 13849-1:2023**, **Edition 4**, published **2023-04** (checked 2026-11-06, Asia/Shanghai). It describes a design methodology, not a universal list of PLr values for particular applications. The full paid standard was not read here; no clause numbers or conformity conclusion are supplied. Do not confuse ISO publication status with national adoption, harmonisation or a legal transition date.
@@ -637,3 +631,9 @@ The following account of **ISO 10218-1/-2:2025**, **Class I/II** and **ISO/TS 15
 3. **45 min — branch audit.** Walk all eight combinations by hand. Delete each required field, set null, and try S3 and a list-valued S. Check insufficient_data vs invalid_input; change one valid risk parameter at a time and explain the target change. Do not reinterpret a data-error string as PL a.
 4. **40 min — achieved-PL gap.** Write an evidence matrix for category/MTTFd/DCavg/CCF and software/validation. Mark every item absent; explain why a target of e cannot fill those blanks. Add trigger, safe state, reaction-time requirement and reset policy to a hypothetical safety-function specification without inventing normative values.
 5. **25 min — boundary review.** Explain why neither a 15066 table nor a Class I summary authorises an SO-101 contact experiment. Contrast assessment target, controller implementation, verification and independent certification, leaving the latter three unclaimed.
+
+<Summary>
+
+Separate software limits, command-timeout watchdogs and power-cutting e-stops. ISO/TS 15066 is industrial-collaborative only; ISO 10218-1 is named, not quoted; the PLr section derives only PLr from the user-supplied risk graph, not achieved PL. `watchdog_sim.py` shows overshoot 0.6500 without a watchdog vs 0.0000 with clamp. `actuator_fault_monitor_toy.py` separates device/bus faults from the command path: ignore 48 / latch_only 30 / latch_ack 0 unsafe motion ticks, false auto re-enables 2 / 2 / 0; a cleared bit without an ack stays `LATCHED_SAFE`. Bus-off or a soft reset is not an e-stop. Use the bench checklist; WatchdogWidget is deferred. No STS3215 overload figures here.
+
+</Summary>

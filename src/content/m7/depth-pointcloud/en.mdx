@@ -266,12 +266,6 @@ After the 1 cm voxel step, 19200 pixels become 2178 points. RANSAC keeps 2094 pl
 - **Skipping voxel down-sampling before RANSAC.** The raw cloud is an image's worth of points; the plane fit becomes slow and biased toward dense regions.
 - **Forgetting that centroids are in the camera frame.** Lesson 7.6 multiplies by the hand-eye transform before MoveIt sees a base-frame grasp.
 
-<Summary>
-
-Depth plus intrinsics makes a point cloud; voxel down-sampling, RANSAC plane removal and DBSCAN centroids turn a desk scene into grasp seeds. The stdlib toy recovers three box centres within 1 cm; Open3D names the same steps. Prefer metric depth for poses in metres, and read Depth Anything V2's licence per checkpoint size.
-
-</Summary>
-
 ## 3DGS literacy: from a radiance map to declared collision geometry
 
 A Gaussian splat stores a mean, covariance, colour and opacity; unlike NeRF's implicit neural density, these parameters expose ellipsoidal geometry. **Gaussians are not hard surfaces**: their tails extend indefinitely, opacity is a rendering parameter, and a missing splat does not establish physical free space. Our synthetic exercise retains opacity at least `0.5` and truncates each Gaussian at `k_sigma = 2.0`. The solid is the set with Mahalanobis distance squared at most 4. With raw covariance C, its shape matrix is `Sigma = 4 C`; semi-axes are twice the raw standard deviations. This is a declared modelling convention, not a calibrated occupancy probability or confidence guarantee. No opacity multiplication of radii is hidden in the code.
@@ -460,3 +454,9 @@ float_not_certified; Gaussian_threshold_not_physical_surface; GPU_not_run
 5. **25 min — transfer limits.** Explain why sparse collision checks alone do not certify a continuous trajectory; list map coverage and state-estimation assumptions needed before robot deployment.
 
 The paper reports replanning at **5 Hz** and pose estimation at **20 Hz** on the authors' setup — **以论文为准**, not this site's benchmark. GPU reconstruction / 3DGS training / weights and real-robot navigation: **本页未运行 (not run on this page)**. We train nothing, implement no complete Splat-Nav corridor, and make no GPU or Jetson throughput claim.
+
+<Summary>
+
+Depth plus intrinsics makes a point cloud; voxel down-sampling, RANSAC plane removal and DBSCAN centroids turn a desk scene into grasp seeds. The stdlib toy recovers three box centres within 1 cm; Open3D names the same steps. Prefer metric depth for poses in metres, and read Depth Anything V2's licence per checkpoint size. The thresholded Gaussian-ellipsoid collision check compares an enclosing AABB with a finite-s ellipsoid test using independent distance ground truth, without 3DGS training.
+
+</Summary>

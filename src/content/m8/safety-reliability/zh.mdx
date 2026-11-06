@@ -496,12 +496,6 @@ ok: latch_ack unsafe_motion_ticks=0 false_auto_reenables=0; bus-off / soft reset
 - **把状态字所有位都当成没有定义。** 位 0–7、9–11 在公开的 ros2_canopen 表里有标准名称；只有位 8、位 12–13、位 14–15 是厂商自定义或与模式相关，别放进断言。
 - **把 `/diagnostics` 的 ERROR 当成安全动作。** 诊断级别只是报告；锁存靠监视器；断电靠急停。
 
-<Summary>
-
-分开软件限位、指令超时看门狗与断电急停。ISO/TS 15066 仅工业协作；ISO 10218-1 只提名称不摘条款。`watchdog_sim.py`：无看门狗越界 0.6500，有夹紧为 0.0000。`actuator_fault_monitor_toy.py` 把设备/总线故障与指令通路分开：不安全运动 tick 为 ignore 48 / latch_only 30 / latch_ack 0，错误自动重新使能 2 / 2 / 0；位清零但未确认时仍为 `LATCHED_SAFE`。bus-off 或软复位不是急停。用工作台清单；WatchdogWidget 延期。本页不写 STS3215 过载数。
-
-</Summary>
-
 ## 标准素养：所需 PLr 不等于已达到的 PL
 
 [ISO 官方目录](https://www.iso.org/standard/73481.html) 当前列出 **ISO 13849-1:2023**，**Edition 4**，发布于 **2023-04**（2026-11-06，Asia/Shanghai 核对）。它给出设计方法，不是为所有具体应用统一指定 PLr 的清单。本页未阅读付费全文，不给条款号，也不作符合性结论。ISO 发布状态不等于某国采标、协调标准状态或法定过渡日期。
@@ -637,3 +631,9 @@ self_tests=8_branches+each_missing_field+invalid_values; toy_not_certification
 3. **45 min — 分支审计。** 手算八种组合；逐一删必需字段、设 null、尝试 S3 与列表型 S。核对 insufficient_data 与 invalid_input；每次只改变一个合法风险参数并解释目标变化，不把数据错误字符串当成 PL a。
 4. **40 min — 已达到 PL 的缺口。** 为 category/MTTFd/DCavg/CCF 与软件/验证写证据矩阵，所有缺项明确记缺。解释为何目标 e 填不了空白。在假想安全功能规格中加入触发条件、安全状态、反应时间要求与复位策略，但不编造规范数值。
 5. **25 min — 边界复核。** 解释为何 15066 表或 Class I 摘要均不能批准 SO-101 接触实验。区分评估目标、控制器实现、验证与独立认证，后三项不作声明。
+
+<Summary>
+
+分开软件限位、指令超时看门狗与断电急停。ISO/TS 15066 仅工业协作；ISO 10218-1 只提名称不摘条款；PLr 部分仅从用户提供的风险图推导 PLr，不是已达到的 PL（achieved PL）。`watchdog_sim.py`：无看门狗越界 0.6500，有夹紧为 0.0000。`actuator_fault_monitor_toy.py` 把设备/总线故障与指令通路分开：不安全运动 tick 为 ignore 48 / latch_only 30 / latch_ack 0，错误自动重新使能 2 / 2 / 0；位清零但未确认时仍为 `LATCHED_SAFE`。bus-off 或软复位不是急停。用工作台清单；WatchdogWidget 延期。本页不写 STS3215 过载数。
+
+</Summary>
