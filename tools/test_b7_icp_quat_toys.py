@@ -84,4 +84,19 @@ assert max(increments)-min(increments)<1e-12
 for u in (0.,.2,.5,.8,1.):
     a=q['from_euler'](q['START']);b=q['from_euler'](q['END'])
     assert q['distance'](q['slerp'](a,b,u),q['slerp'](a,tuple(-x for x in b),u))<1e-12
+# Explicit identical/nearly identical endpoint tests exercise the normalized-lerp fallback.
+a=q['from_euler']((.2,-.3,.4))
+for b in (a,q['from_euler']((.20001,-.29998,.39997))):
+    assert sum(x*y for x,y in zip(a,b))>.9995
+    for u in (0.,.2,.5,.8,1.):
+        blend=tuple((1-u)*x+u*y for x,y in zip(a,b))
+        norm=sum(x*x for x in blend)**.5
+        oracle=tuple(x/norm for x in blend)
+        actual=q['slerp'](a,b,u)
+        assert max(abs(x-y) for x,y in zip(actual,oracle))<1e-12
+        assert abs(sum(x*x for x in actual)-1)<1e-12
+        assert q['distance'](actual,q['slerp'](a,tuple(-x for x in b),u))<1e-12
+# Independent exact norm-growth law for first-order qdot integration at constant body rate.
+expected_norm_drift=(1+.01**2*(.4**2+.2**2+.6**2)/4)**(100/2)-1
+assert abs(expected_norm_drift-.000700240)<.5e-9
 print('independent shared-scan ICP, finite-difference plane rows, re-associated corridor null, direct ZYX/body-Jacobian, pole rank and equal-endpoint signed-slerp tests passed')
