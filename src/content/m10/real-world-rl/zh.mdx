@@ -280,8 +280,223 @@ $ python -m lerobot.rl.actor --config_path rl/train_config.json           # term
 - **奖励分类器被骗。** 如果它在「差一点」时也判成功，策略就学会「差一点」。把误报加进负样本重训。
 - **探索不设边界。** 第一个在线回合之前就设好关节 / 末端限位（8.5）。
 
+## 偏好：DPO 风格损失与学习奖励模型（+210 min）
+
+偏好对说的是**同一上下文**下哪个候选更好，不是机器人视频进度。它不同于 [10.7 SARM / RA-BC](/zh/month/month-10/vla-rl-finetune)、Cal-ConRFT 标定、RPD 教师引导和 OneDP 蒸馏；前文 RLPD/HIL-SERL 链条仍是另一实验。Rafailov 等（2023）的 [Direct Preference Optimization](https://arxiv.org/abs/2305.18290) 从 KL 正则奖励目标及 Bradley–Terry 偏好模型推导成对目标。原论文是语言模型工作，不等于此玩具运行了 VLA 偏好训练。论文数字**以论文为准**；完整 VLA/GPU 与真机在线 RL：**本页未运行**。
+
+<Resource id="dpo-preference-paper" />
+
+### 损失与参考策略
+
+偏好赢家 `y_w` 和输家 `y_l` 的所有概率都以 x 为条件：
+
+<Formula label="DPO 风格偏好损失">−logσ(β[(logπ−logπref)(y_w)−(logπ−logπref)(y_l)])</Formula>
+
+`σ(z)=1/(1+exp(−z))`。**πref 冻结**且有正支持，不是随 π 一起更新的另一策略。对数比衡量相对参考的变化，成对归一化项相消。**β** 缩放偏好 logit，对应论文奖励到策略推导中的 KL 强度；但有限步、固定学习率下，改 β 也改变梯度量级 / 饱和，不能保证 β 越大成功率越高，或实测 KL 一定单调更小。π=πref 时单对损失为 log2，不是0。线性 logit 玩具的上升更新为 `β σ(−z)(f_w−f_l)`，可执行测试用对数概率损失的有限差分核对。
+
+### 同一语料与明确的总更新预算
+
+全部值**合成**。上下文 x 均匀于 [−1,1]，动作 `a∈{−1,0,1}`；生成器效用 `u(x,a)=−[a−(0.85x+0.2sin4x)]²`。策略共享四特征 logit `f=(ax,a sin4x,a,a²)`，冻结参考权重 **(−0.3,0,0.2,−0.5)**，所有策略从它初始化。每种子 **11/23/37/53/71** 为各组生成相同 **64** 对候选动作。干净标签排序训练候选；**25 % 翻转概率情形**只反转固定随机子集，不改候选、上下文或评估起点。训练二元成功标签用效用差≤0.12 定义，是额外监督，不是偏好标签本身。
+
+每组 **240 个总梯度更新槽**，全批64，学习率 **0.12**，β=**0.5**，RM+RL 的 KL 系数 τ=**0.5**。每槽使用同一上下文 / 成对批次，复用数据，不是新采240批偏好。预算按对一个四参数块的一次梯度更新计，**不是 FLOPs 或总参数量**：
+
+| 组 | 实际目标 / 监督 | 策略 / 奖励更新 |
+|---|---|---|
+| 仅偏好赢家 BC | 对标签赢家做交叉熵，不用输家似然 | 240 / 0 |
+| DPO | 参考相对成对损失，不显式拟合奖励 | 240 / 0 |
+| 奖励模型 + RL | 先拟合 Bradley–Terry 奖励，再最大化 `Eπ[r_hat]−τ KL(π,πref)` | 120 / 120 |
+| BC-all | 对两个候选平均做交叉熵 | 240 / 0 |
+| success-filter | 对候选中二元成功者 BC；都失败则该对贡献零 | 240 / 0 |
+
+<strong>不能给 RM+RL240 次奖励更新再加240 次策略更新却称等预算。</strong>120+120 的分配在评估前声明；更少策略步与独立奖励块是此固定预算比较的一部分。RL 阶段枚举三个动作，精确算学习奖励 / KL 的期望梯度，不用 PPO、环境采样交互或真实奖励 oracle。三种核心偏好组都不读二元标签；记录对所有组暴露相同字段，但 **success-filter 使用额外二元训练监督**，只是辅助基线，不表示在纯偏好信息下过滤优于偏好学习。加 BC-all 和 success-filter 是为了区分丢数据与学习成对排序。
+
+### 留出表现与标签损坏
+
+每种子评估 **256 个不重合上下文**，由独立 RNG 生成，从不传入训练。成功率是选到效用距最优≤0.12 动作的精确策略概率，再对留出上下文平均；遗憾为 `max_a u−Eπu`。这是有限动作期望指标，不是真机 rollout 成功率。真效用只用于造数据和评分；五种子全部报告均值±**总体标准差**，不预定赢家：
+
+| 标签翻转概率 | 组 | 留出期望成功率 | 遗憾 |
+|---|---|---|---|
+| 0 | 仅偏好赢家 BC | 64.7673±3.3025 % | 0.188001±0.003168 |
+| 0 | DPO | 64.1150±3.4478 % | 0.179178±0.016041 |
+| 0 | RM+RL | 61.7746±3.7657 % | 0.231023±0.014315 |
+| 25 % | 仅偏好赢家 BC | 51.8209±3.0517 % | 0.452828±0.068743 |
+| 25 % | DPO | 53.0221±4.0392 % | 0.330722±0.030231 |
+| 25 % | RM+RL | 51.5987±5.0178 % | 0.364700±0.033400 |
+
+本例干净偏好 BC 的均值成功率略高于 DPO，DPO 遗憾更低；换噪声 / 指标排序会变化，离散范围重叠。小规模固定预算 bandit 不建立普遍赢家。BC-all 和 success-filter 不用赢家顺序，所以翻转前后不变；比较 success-filter 时必须带上其更强二元监督条件。不会用评估标签挑超参数或训练对。
+
+```bash
+python3 ~/Hardware-learning/examples/month-10/real-world-rl/preference_dpo_lite_toy.py
+bash ~/Hardware-learning/examples/month-10/check.sh
+```
+
+<CodeSource path="examples/month-10/real-world-rl/preference_dpo_lite_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic contextual bandit, not robot/VLA DPO or an online RL reproduction.
+Five arms reconcile BC-all/success-filter literacy with the three core baselines.
+Every arm receives SAME 64 training preference pairs and 240 total gradient slots.
+RM+RL spends 120 slots fitting reward, then 120 on exact expected reward-minus-KL.
+Binary success labels are extra TRAINING supervision for success_filter only;
+all records include them but core DPO/RM/BC_preferred do not consume them.
+Truth utility is used only by data generation and held-out scoring, never training.
+"""
+from math import exp, log, log1p, sin
+from random import Random
+from statistics import mean, pstdev
+
+SEEDS=(11,23,37,53,71)
+ACTIONS=(-1.,0.,1.)
+REF=(-.3,0.,.2,-.5)
+PAIRS, UPDATES, BETA, LR=64,240,.5,.12
+ARMS=('BC_all','success_filter','BC_preferred','DPO','RM_RL')
+
+
+def features(x,a):return (a*x,a*sin(4*x),a,a*a)
+
+
+def dot(a,b):return sum(x*y for x,y in zip(a,b))
+
+
+def probabilities(theta,x):
+    scores=[dot(theta,features(x,a)) for a in ACTIONS];mx=max(scores)
+    values=[exp(v-mx) for v in scores];total=sum(values)
+    return tuple(v/total for v in values)
+
+
+def utility(x,a):return -(a-(.85*x+.2*sin(4*x)))**2
+
+
+def successful(x,a):return max(utility(x,b) for b in ACTIONS)-utility(x,a)<=.12
+
+
+def make_data(seed,noise):
+    rng=Random(seed);flip=Random(seed+9000);records=[]
+    for _ in range(PAIRS):
+        x=rng.uniform(-1,1);a,b=rng.sample(range(3),2)
+        w,l=(a,b) if utility(x,ACTIONS[a])>=utility(x,ACTIONS[b]) else (b,a)
+        if flip.random()<noise:w,l=l,w
+        records.append((x,w,l,tuple(int(successful(x,a)) for a in ACTIONS)))
+    erng=Random(seed+1000);evaluation=tuple(erng.uniform(-1,1) for _ in range(256))
+    assert not set(evaluation)&{x for x,_,_,_ in records}
+    return tuple(records),evaluation
+
+
+def sigmoid_minus(z):
+    if z>=0:
+        e=exp(-z);return e/(1+e)
+    return 1/(1+exp(z))
+
+
+def dpo_loss(theta,x,w,l):
+    p,ref=probabilities(theta,x),probabilities(REF,x)
+    z=BETA*((log(p[w])-log(ref[w]))-(log(p[l])-log(ref[l])))
+    return max(0.,-z)+log1p(exp(-abs(z)))
+
+
+def gradient(theta,reward,records,arm,slot):
+    grad=[0.]*4
+    for x,w,l,success in records:
+        fs=tuple(features(x,a) for a in ACTIONS)
+        if arm=='DPO' or (arm=='RM_RL' and slot<UPDATES//2):
+            delta=tuple(a-b for a,b in zip(fs[w],fs[l]))
+            if arm=='DPO':
+                z=BETA*dot(tuple(a-b for a,b in zip(theta,REF)),delta)
+                g=tuple(BETA*sigmoid_minus(z)*v for v in delta)
+            else:g=tuple(sigmoid_minus(dot(reward,delta))*v for v in delta)
+        else:
+            p=probabilities(theta,x)
+            if arm=='RM_RL':
+                ref=probabilities(REF,x)
+                adjusted=tuple(dot(reward,f)-BETA*log(pa/pr) for f,pa,pr in zip(fs,p,ref))
+                baseline=dot(p,adjusted)
+                g=tuple(sum(pa*(v-baseline)*f[j] for pa,v,f in zip(p,adjusted,fs)) for j in range(4))
+            else:
+                candidates=(w,l) if arm=='BC_all' else ((w,) if arm=='BC_preferred' else tuple(a for a in (w,l) if success[a]))
+                # Empty binary-success pairs contribute zero, but still use the same slot/batch denominator.
+                g=tuple((mean(fs[a][j] for a in candidates)-sum(pa*f[j] for pa,f in zip(p,fs))) if candidates else 0. for j in range(4))
+        grad=[a+b/len(records) for a,b in zip(grad,g)]
+    return tuple(grad)
+
+
+def train(records,arm):
+    theta=REF;reward=(0.,)*4;policy_updates=reward_updates=0
+    for slot in range(UPDATES):
+        g=gradient(theta,reward,records,arm,slot)
+        if arm=='RM_RL' and slot<UPDATES//2:
+            reward=tuple(a+LR*b for a,b in zip(reward,g));reward_updates+=1
+        else:
+            theta=tuple(a+LR*b for a,b in zip(theta,g));policy_updates+=1
+    return theta,(policy_updates,reward_updates)
+
+
+def evaluate(theta,contexts):
+    successes=[];regrets=[]
+    for x in contexts:
+        p=probabilities(theta,x);u=tuple(utility(x,a) for a in ACTIONS)
+        successes.append(sum(pa*int(successful(x,a)) for pa,a in zip(p,ACTIONS)))
+        regrets.append(max(u)-dot(p,u))
+    return 100*mean(successes),mean(regrets)
+
+
+def main():
+    print('Synthetic offline bandit; seeds=11/23/37/53/71; held-out256 contexts per seed')
+    print('shared64 preference pairs; total_gradient_updates=240 each; full_batch=64; lr=0.12 beta=KL_tau=0.5')
+    print('RM_RL budget: reward120+policy120; others policy240; equal slots, NOT equal FLOPs/parameter counts')
+    print('success_filter alone consumes extra binary TRAINING success labels; core three use preferences only')
+    print('noise arm heldout_expected_success_pct_mean_sd regret_mean_sd policy_updates reward_updates')
+    for noise in (0.,.25):
+        cases=tuple(make_data(seed,noise) for seed in SEEDS)
+        for arm in ARMS:
+            trained=[train(data,arm) for data,_ in cases]
+            metrics=[evaluate(theta,case[1]) for (theta,_),case in zip(trained,cases)]
+            success,regret=zip(*metrics);pu,ru=trained[0][1]
+            print(f'{noise:.2f} {arm} {mean(success):.4f} {pstdev(success):.4f} {mean(regret):.6f} {pstdev(regret):.6f} {pu} {ru}')
+    print('Population sd across all5 seeds; exact policy expectation, no sampled rollout winner assumption')
+    print('No SARM progress weights / Cal-ConRFT / RPD / OneDP; full VLA and online RL: 本页未运行')
+    print('DPO paper figures: 以论文为准; this is loss/budget literacy, not a robot benchmark')
+
+
+if __name__=='__main__':main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic offline bandit; seeds=11/23/37/53/71; held-out256 contexts per seed
+shared64 preference pairs; total_gradient_updates=240 each; full_batch=64; lr=0.12 beta=KL_tau=0.5
+RM_RL budget: reward120+policy120; others policy240; equal slots, NOT equal FLOPs/parameter counts
+success_filter alone consumes extra binary TRAINING success labels; core three use preferences only
+noise arm heldout_expected_success_pct_mean_sd regret_mean_sd policy_updates reward_updates
+0.00 BC_all 37.9953 2.2071 0.842750 0.070734 240 0
+0.00 success_filter 69.6057 1.6035 0.177183 0.007785 240 0
+0.00 BC_preferred 64.7673 3.3025 0.188001 0.003168 240 0
+0.00 DPO 64.1150 3.4478 0.179178 0.016041 240 0
+0.00 RM_RL 61.7746 3.7657 0.231023 0.014315 120 120
+0.25 BC_all 37.9953 2.2071 0.842750 0.070734 240 0
+0.25 success_filter 69.6057 1.6035 0.177183 0.007785 240 0
+0.25 BC_preferred 51.8209 3.0517 0.452828 0.068743 240 0
+0.25 DPO 53.0221 4.0392 0.330722 0.030231 240 0
+0.25 RM_RL 51.5987 5.0178 0.364700 0.033400 120 120
+Population sd across all5 seeds; exact policy expectation, no sampled rollout winner assumption
+No SARM progress weights / Cal-ConRFT / RPD / OneDP; full VLA and online RL: 本页未运行
+DPO paper figures: 以论文为准; this is loss/budget literacy, not a robot benchmark
+```
+
+</SimOutput>
+
+### 练习
+
+1. 从展示的对数概率损失推 DPO 更新，说明参考参数为何不收梯度；改 β 要另标等预算实验。
+2. 核对240 个总梯度槽含奖励拟合；若改120/120 分配，先声明再评估，不隐藏240+240 的额外工作。
+3. 五种子重跑25 % 翻转，保留相同留出上下文，报成功 / 遗憾及离散，保留偏好 BC 更好的地方。
+4. 从核心组记录移除二元标签，验证更新不变；说明 success-filter 为何是额外监督，以及它与 SARM 时间进度加权的区别。
+
 <Summary>
 
 RLPD 在每个批次里都放离线数据（50/50 对称采样），配合 LayerNorm 和较高的更新/数据比；HIL-SERL 加上 20–30 条示范、学习得到的二值奖励分类器、短促的人工介入和 actor–learner 分离，报告几乎所有任务训练 1 到 2.5 小时。玩具里只用在线的 Q 学习在 11/20 个种子里到达终点、每次运行复位 411.2 次，而 3 条示范加对称采样解决了所有种子、复位 33.2 次；示范占比保持在 49.2 %，而不是降到 5.5 %。LeRobot 里由 `lerobot.rl.learner` + `lerobot.rl.actor` 跑这个循环（本页未运行）。机器人策略之后是预训练 VLA：[10.7](/zh/month/month-10/vla-rl-finetune)。
+
+独立偏好 bandit 在共享成对数据 /240 次总更新下，对照 DPO、奖励模型+RL 与偏好 BC 的留出标签噪声指标，并明示辅助二元成功基线的额外监督。
 
 </Summary>

@@ -1,0 +1,13 @@
+Synthetic shared-strap transport; seeds=11/23/37/53/71; no payload/force dynamics
+all arms/modes RECEIVE same noisy xL,xR,vL,vR,goalL,goalR,span; no latent gain/future noise
+independent: each uses own target/state; leader_follower: left gate + right follows measured left; joint: center/span
+equal400 ticks after arrival too; dt=0.02s vmax=0.35m/s amax=0.8m/s2; same gain/noise stream per seed
+arrival=20 consecutive settled ticks; score-only endpoints<=0.025m span_error<=0.04m
+collision event=entry into distance<0.32m; success requires arrival AND zero collision events
+mode success/5 collision_events_mean_sd capped_makespan_s_mean_sd timeouts/5 span_RMSE_m_mean_sd minimum_separation_m_mean_sd
+independent 5/5 0.000000 0.000000 4.412000 0.378545 0/5 0.058698 0.015830 0.453802 0.031727
+leader_follower 5/5 0.000000 0.000000 4.544000 0.442249 0/5 0.034967 0.003394 0.534073 0.001564
+joint 5/5 0.000000 0.000000 4.228000 0.368695 0/5 0.035933 0.008838 0.499056 0.018780
+Population sd; censored makespan uses8s at timeout, not an uncensored arrival-time mean
+No presumed mode winner; independent available information equals joint, only coupling differs
+Not ORCA-lite fleet / ACT chunk math; TwinVLA real robots/weights: 本页未运行; figures 以论文为准

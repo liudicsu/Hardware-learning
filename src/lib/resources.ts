@@ -3909,6 +3909,53 @@ export const resources: Record<string, Resource> = {
     "extra": true
   },
 
+  "dpo-preference-paper": {
+    "id": "dpo-preference-paper",
+    "url": "https://arxiv.org/abs/2305.18290",
+    "title": {
+      "zh": "Direct Preference Optimization",
+      "en": "Direct Preference Optimization"
+    },
+    "author": "Rafailov et al. (2023)",
+    "kind": "textbook",
+    "cost": {
+      "zh": "免费",
+      "en": "Free"
+    },
+    "summary": {
+      "zh": "原论文：参考相对偏好损失、β 与 KL 正则化的关系；10.6 为合成 bandit，论文数字以论文为准，不复现 VLA 或在线 RL。",
+      "en": "Original paper: reference-relative preference loss, beta and KL regularization;10.6 is a synthetic bandit, not VLA/online RL. Figures 以论文为准."
+    },
+    "license": {
+      "zh": "版权归原作者；仅提供外链",
+      "en": "Copyright original authors; external link only"
+    },
+    "extra": true
+  },
+  "twinvla-paper": {
+    "id": "twinvla-paper",
+    "url": "https://arxiv.org/abs/2511.05275",
+    "title": {
+      "zh": "TwinVLA: Data-Efficient Bimanual Manipulation",
+      "en": "TwinVLA: Data-Efficient Bimanual Manipulation"
+    },
+    "author": "Im et al. (2025; v2 2026)",
+    "kind": "textbook",
+    "cost": {
+      "zh": "免费",
+      "en": "Free"
+    },
+    "summary": {
+      "zh": "原论文：复制 VLM、共享视觉 / DiT、臂专属本体编码、Joint Attention 与共享 token MoE；6.2 玩具不复现架构或加载权重，数字以论文为准。",
+      "en": "Original paper: duplicated VLM, shared vision/DiT, per-arm proprioception, joint attention and shared-token MoE.6.2 toy neither reproduces the architecture nor loads weights; figures 以论文为准."
+    },
+    "license": {
+      "zh": "版权归原作者；仅提供外链",
+      "en": "Copyright original authors; external link only"
+    },
+    "extra": true
+  },
+
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

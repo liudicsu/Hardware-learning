@@ -33,4 +33,6 @@ check cal_conrft_offline_tabular.txt "$PY" "$M10/vla-rl-finetune/cal_conrft_offl
 
 check policy_distill_onestep_toy.txt "$PY" "$M10/flow-matching-policies/policy_distill_onestep_toy.py"
 
+check preference_dpo_lite_toy.txt "$PY" "$M10/real-world-rl/preference_dpo_lite_toy.py"
+
 exit $fail

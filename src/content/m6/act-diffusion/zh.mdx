@@ -308,3 +308,169 @@ lerobot-train --dataset.repo_id=${HF_USER}/pick_cube --policy.type=diffusion \
 - <strong>在不同数据或种子上比较策略。</strong>上面每一行都用同样的 40 条示范、同一个种子和同样的运行次数。第 4 课更进一步，给每次运行单独设种子，让每个策略遇到完全相同的初始条件；在硬件上，这意味着每个策略都用同一份起始位置清单。
 - <strong>把只会记忆的策略当成好策略。</strong>这里的扩散策略只能重放示范。在宣称策略能泛化之前，先在数据集里没有的起始位置上测试。
 - <strong>混淆训练成本和推理成本。</strong>扩散策略每个动作块需要多次通过网络，所以要在真正运行它的那台电脑上确认推理跟得上控制频率，而不只是在训练用的 GPU 上。
+
+## 双手完成同一个共享任务（+210 min）
+
+策略能表达多模态动作，仍可能双手配合不好。另加**合成运动学共享带条运输**：两个一维指尖滑台把同一柔顺带条的端点移到目标中心，同时保持名义间距 **0.6 m**。它不是刚体 / 载荷 / 力仿真；间距误差是**运动学柔顺代理**，不是真实应变或力。它不是 ORCA-lite 多机器人走廊，也不重做 ACT 分块数学。下述单位 / 间隙 / 控制增益都是合成设置，不是机器人规格。
+
+### 可用信息相同，耦合方式不同
+
+每 tick **每种模式的左右臂都 RECEIVE 完整同一字段** `(noisy xL,xR,vL,vR,goalL,goalR,span)`。任何组都拿不到干净状态、隐藏执行器增益或未来噪声。每种子各模式的物体 / 端点初态、目标、隐藏增益及外生传感 / 扰动流相同；动作不同导致真实轨迹不同，共用随机数不表示不同轨迹的观测数值也一样。
+
+| 模式 | 左臂观察 / 使用 | 右臂观察 / 使用 |
+|---|---|---|
+| independent | 观察完整快照，刻意只用自身位置与目标 | 观察完整快照，刻意只用自身位置与目标 |
+| leader-follower | 观察完整快照，目标反馈；测得间距短缺超过0.06 m 就等右臂 | 观察完整快照，跟随测得左位置 + 名义间距，前馈测得左速度 |
+| joint | 观察完整快照，共享中心误差 + 间距修正 | 观察完整快照，共享中心误差 − 间距修正 |
+
+因此 independent 是**因子化控制律**，不是用局部传感组对照全知集中 oracle。改变的是耦合 / 协调方式，所有可用观测字段及物理动作预算相同。控制器是固定解析律，不是学习的 TwinVLA 头。独立组对端点误差用增益2；主从组同样增益2，再加等待门 / 从臂前馈；联合组中心增益2、间距增益5。位置反馈增益单位为 s⁻¹。这些声明的设计选择不是普遍最优，也没有用这组评估种子调参。
+
+五种子全部用 **11/23/37/53/71**，初始中心±0.05 m、间距0.6±0.02 m，运输距离 **0.75–0.9 m**。左响应增益0.9–1.0、右0.55–0.8 表示非对称对象，各方法共用且不告诉任何控制器。独立高斯传感噪声 σ=**0.003 m /0.01 m/s**，速度扰动 σ=**0.006 m/s**；对象加速度和速度统一截到 **0.8 m/s² /0.35 m/s**。每模式跑满 **400 tick ×0.02 s =8 s**，首次到达后也继续，共 **800 条端点命令**，不靠提前退出省预算。
+
+### 先定义指标再比较
+
+**仅评分的真实状态**观察器在双端点目标误差≤**0.025 m** 且间距误差≤**0.04 m** 连续 **20 tick** 后记到达；控制律 / 等待门只见带噪快照。进入 `abs(xR−xL)<0.32 m` 记一次碰撞事件，这是合成指尖排斥距离模型，连续碰撞 tick 只算一次。成功须8 s 内到达且**零碰撞事件**；报告事件、成功、最小有符号间距及**全时域**间距 RMSE。超时赋 **8 s 截尾完成时长**，并明确报超时数，不能叫不截尾的到达均值。
+
+| 模式 | 成功 | 碰撞事件均值±标准差 | 截尾完成时长 s 均值±标准差 | 超时 | 间距 RMSE m 均值±标准差 | 最小间距 m 均值±标准差 |
+|---|---|---|---|---|---|---|
+| independent | 5/5 | 0±0 | 4.412000±0.378545 | 0/5 | 0.058698±0.015830 | 0.453802±0.031727 |
+| leader-follower | 5/5 | 0±0 | 4.544000±0.442249 | 0/5 | 0.034967±0.003394 | 0.534073±0.001564 |
+| joint | 5/5 | 0±0 | 4.228000±0.368695 | 0/5 | 0.035933±0.008838 | 0.499056±0.018780 |
+
+标准差为五种子的总体标准差。本例**全部模式无碰撞成功**，不人为制造独立组失败。联合组本例均值完成时长最短，主从组均值间距 RMSE 最小，独立组也都能到达。载荷、时延、容差、任务或增益变了，权衡可能变化；五例不推出预定赢家或硬件安全结论。独立回归另标一个不可达目标单元测试来核对超时，不把它算成额外挑选的 benchmark 种子。
+
+### 阅读：TwinVLA 实际组合什么
+
+Im 等的 [TwinVLA](https://arxiv.org/abs/2511.05275) 用预训练 SingleVLA 初始化两条臂专属支路：**复制 VLM 主干**，共享**视觉编码器和 DiT 动作头**，保留**每臂本体感受编码器**。Joint Attention 拼接各流 Q/K/V，再分回臂专属流，并使用因果跨臂掩码。共享语言 / 自我视角 token 作为单一序列，通过**两臂 FFN 专家的 MoE 路由**处理，而不是盲目重复共享输入计算。这是模块化学习架构，不是本节中心 / 间距控制律；其设定避免双臂**预训练**，仍要用双臂示范微调，不能说只复制权重就零样本协调。成功率、Hz、数据 / 算力及模型比较数字**以论文为准**；TwinVLA 训练 / 推理、真机与权重：**本页未运行**。
+
+<Resource id="twinvla-paper" />
+
+```bash
+python3 ~/Hardware-learning/examples/month-6/act-diffusion/bimanual_coord_modes_toy.py
+bash ~/Hardware-learning/examples/month-6/check.sh
+```
+
+<CodeSource path="examples/month-6/act-diffusion/bimanual_coord_modes_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic two-endpoint shared-strap transport, not TwinVLA inference.
+All modes/arms RECEIVE (noisy xL,xR,vL,vR,goalL,goalR,span) every tick.
+Independent deliberately factorizes local feedback, not local-only sensor access.
+Leader-follower uses left velocity/position and a left waiting gate; joint uses
+center/span feedback. No controller receives latent actuator gain or future noise.
+Each mode runs all400 ticks, including after first arrival, with same plant/noise.
+Span error is a kinematic compliance proxy, NOT a force/strain dynamics model.
+"""
+from math import sqrt
+from random import Random
+from statistics import mean, pstdev
+
+SEEDS=(11,23,37,53,71)
+MODES=('independent','leader_follower','joint')
+TICKS, DT, VMAX, AMAX=400,.02,.35,.8
+SPAN, COLLISION_DISTANCE=.6,.32
+
+
+def clip(x,bound):return max(-bound,min(bound,x))
+
+
+def make_case(seed):
+    r=Random(seed);center=r.uniform(-.05,.05);span=SPAN+r.uniform(-.02,.02)
+    start=(center-span/2,center+span/2);goal=center+r.uniform(.75,.9)
+    gains=(r.uniform(.9,1.),r.uniform(.55,.8))
+    # All modes share this exogenous sensor/disturbance stream, not their resulting states.
+    stream=tuple((tuple(r.gauss(0,.003) for _ in range(2)),tuple(r.gauss(0,.01) for _ in range(2)),tuple(r.gauss(0,.006) for _ in range(2))) for _ in range(TICKS))
+    return start,(goal-SPAN/2,goal+SPAN/2),gains,stream
+
+
+def commands(observation,mode):
+    left,right,vl,vr,gl,gr,span=observation
+    if mode=='independent':return (2*(gl-left),2*(gr-right))
+    if mode=='leader_follower':
+        lead=2*(gl-left)
+        if right-left<span-.06:lead=0. # Wait for follower, using the SAME noisy snapshot.
+        return lead,2*(left+span-right)+vl
+    center_error=(gl+gr-left-right)/2
+    span_error=right-left-span
+    common=2*center_error
+    return common+5*span_error,common-5*span_error
+
+
+def rollout(case,mode):
+    start,goal,gains,stream=case;x=list(start);v=[0.,0.]
+    stable=0;arrival=None;collisions=0;was_colliding=False;span_errors=[];min_sep=float('inf')
+    for tick,(position_noise,velocity_noise,disturbance) in enumerate(stream):
+        obs=(*tuple(a+b for a,b in zip(x,position_noise)),*tuple(a+b for a,b in zip(v,velocity_noise)),*goal,SPAN)
+        command=commands(obs,mode)
+        for j in range(2):
+            desired=gains[j]*clip(command[j],VMAX)+disturbance[j]
+            v[j]=clip(v[j]+clip(desired-v[j],AMAX*DT),VMAX)
+            x[j]+=v[j]*DT
+        separation=x[1]-x[0];min_sep=min(min_sep,separation)
+        colliding=abs(separation)<COLLISION_DISTANCE
+        collisions+=int(colliding and not was_colliding);was_colliding=colliding
+        span_errors.append((separation-SPAN)**2)
+        # Truth is a SCORE ONLY observer, not used by commands or its wait gate.
+        settled=max(abs(a-b) for a,b in zip(x,goal))<=.025 and abs(separation-SPAN)<=.04
+        stable=stable+1 if settled else 0
+        if stable>=20 and arrival is None:arrival=(tick+1)*DT
+    return {'success':int(arrival is not None and collisions==0),'collisions':collisions,
+            'capped_makespan':arrival if arrival is not None else TICKS*DT,'timeout':int(arrival is None),
+            'span_rmse':sqrt(mean(span_errors)),'min_separation':min_sep,'ticks':len(stream)}
+
+
+def main():
+    print('Synthetic shared-strap transport; seeds=11/23/37/53/71; no payload/force dynamics')
+    print('all arms/modes RECEIVE same noisy xL,xR,vL,vR,goalL,goalR,span; no latent gain/future noise')
+    print('independent: each uses own target/state; leader_follower: left gate + right follows measured left; joint: center/span')
+    print('equal400 ticks after arrival too; dt=0.02s vmax=0.35m/s amax=0.8m/s2; same gain/noise stream per seed')
+    print('arrival=20 consecutive settled ticks; score-only endpoints<=0.025m span_error<=0.04m')
+    print('collision event=entry into distance<0.32m; success requires arrival AND zero collision events')
+    print('mode success/5 collision_events_mean_sd capped_makespan_s_mean_sd timeouts/5 span_RMSE_m_mean_sd minimum_separation_m_mean_sd')
+    cases=tuple(make_case(seed) for seed in SEEDS)
+    for mode in MODES:
+        rows=[rollout(case,mode) for case in cases]
+        def report(key):
+            values=[r[key] for r in rows];return f'{mean(values):.6f} {pstdev(values):.6f}'
+        print(f'{mode} {sum(r["success"] for r in rows)}/5 {report("collisions")} {report("capped_makespan")} {sum(r["timeout"] for r in rows)}/5 {report("span_rmse")} {report("min_separation")}')
+    print('Population sd; censored makespan uses8s at timeout, not an uncensored arrival-time mean')
+    print('No presumed mode winner; independent available information equals joint, only coupling differs')
+    print('Not ORCA-lite fleet / ACT chunk math; TwinVLA real robots/weights: 本页未运行; figures 以论文为准')
+
+
+if __name__=='__main__':main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic shared-strap transport; seeds=11/23/37/53/71; no payload/force dynamics
+all arms/modes RECEIVE same noisy xL,xR,vL,vR,goalL,goalR,span; no latent gain/future noise
+independent: each uses own target/state; leader_follower: left gate + right follows measured left; joint: center/span
+equal400 ticks after arrival too; dt=0.02s vmax=0.35m/s amax=0.8m/s2; same gain/noise stream per seed
+arrival=20 consecutive settled ticks; score-only endpoints<=0.025m span_error<=0.04m
+collision event=entry into distance<0.32m; success requires arrival AND zero collision events
+mode success/5 collision_events_mean_sd capped_makespan_s_mean_sd timeouts/5 span_RMSE_m_mean_sd minimum_separation_m_mean_sd
+independent 5/5 0.000000 0.000000 4.412000 0.378545 0/5 0.058698 0.015830 0.453802 0.031727
+leader_follower 5/5 0.000000 0.000000 4.544000 0.442249 0/5 0.034967 0.003394 0.534073 0.001564
+joint 5/5 0.000000 0.000000 4.228000 0.368695 0/5 0.035933 0.008838 0.499056 0.018780
+Population sd; censored makespan uses8s at timeout, not an uncensored arrival-time mean
+No presumed mode winner; independent available information equals joint, only coupling differs
+Not ORCA-lite fleet / ACT chunk math; TwinVLA real robots/weights: 本页未运行; figures 以论文为准
+```
+
+</SimOutput>
+
+### 练习
+
+1. 逐模式写两臂观测字段，区分可用信息与独立控制律刻意因子化；解释只给联合组干净状态为何不公平。
+2. 即使到达也数满400 个观测、800 条端点命令，从仅评分观察器定义碰撞段及20 tick 稳定到达。
+3. 重跑全部种子，对照完成时长与间距 RMSE，不只凭成功率定赢家；超时均值标截尾并保留失败。
+4. 在论文中追踪 TwinVLA 模块拆分，解释玩具既没加载权重也没测架构，不把论文成功率 / Hz 当玩具实测。
+
+<Summary>
+
+多模态示范取均值可能走到不安全的中间动作，采样保留不同选择；ACT 分块 / 时间集成在平滑执行与开环暴露间权衡。扩散逐步去噪动作块并付出推理成本，玩具精确去噪器 / 示范回放并非通用已学习机器人策略；应用同一数据与评估起点，检查失败和块长，LeRobot GPU 训练命令本页未运行。新增等信息共享带条实验用全时域预算对照独立、主从、联合耦合，并把运动学指标与 TwinVLA 学习架构分开。
+
+</Summary>

@@ -1,0 +1,18 @@
+Synthetic offline bandit; seeds=11/23/37/53/71; held-out256 contexts per seed
+shared64 preference pairs; total_gradient_updates=240 each; full_batch=64; lr=0.12 beta=KL_tau=0.5
+RM_RL budget: reward120+policy120; others policy240; equal slots, NOT equal FLOPs/parameter counts
+success_filter alone consumes extra binary TRAINING success labels; core three use preferences only
+noise arm heldout_expected_success_pct_mean_sd regret_mean_sd policy_updates reward_updates
+0.00 BC_all 37.9953 2.2071 0.842750 0.070734 240 0
+0.00 success_filter 69.6057 1.6035 0.177183 0.007785 240 0
+0.00 BC_preferred 64.7673 3.3025 0.188001 0.003168 240 0
+0.00 DPO 64.1150 3.4478 0.179178 0.016041 240 0
+0.00 RM_RL 61.7746 3.7657 0.231023 0.014315 120 120
+0.25 BC_all 37.9953 2.2071 0.842750 0.070734 240 0
+0.25 success_filter 69.6057 1.6035 0.177183 0.007785 240 0
+0.25 BC_preferred 51.8209 3.0517 0.452828 0.068743 240 0
+0.25 DPO 53.0221 4.0392 0.330722 0.030231 240 0
+0.25 RM_RL 51.5987 5.0178 0.364700 0.033400 120 120
+Population sd across all5 seeds; exact policy expectation, no sampled rollout winner assumption
+No SARM progress weights / Cal-ConRFT / RPD / OneDP; full VLA and online RL: 本页未运行
+DPO paper figures: 以论文为准; this is loss/budget literacy, not a robot benchmark
