@@ -5639,5 +5639,28 @@ print("protocol pass")
   console.log("dpo-bimanual PR3: shared preferences/total updates, held-out noise, equal-information full-horizon control, opened-paper architecture and final-Summary locks checked");
 }
 
+// Batch-7 citation-only polish: original CRC/ICP references, no minute/output changes.
+{
+  const read=p=>readFileSync(join(root,p),"utf8");
+  const cases=[
+    [8,"dataset-engineering",["crc-koopman-dsn2004","crc-koopman-zoo"],["Koopman","Chakravarty","DSN 2004","https://users.ece.cmu.edu/~koopman/roses/dsn04/koopman04_crc_poly_embedded.pdf","https://users.ece.cmu.edu/~koopman/crc/"]],
+    [4,"slam-nav",["icp-besl-mckay1992","icp-chen-medioni1992"],["Besl","McKay","Chen","Medioni","14(2),239–256","10(3),145–155","10.1109/34.121791","https://doi.org/10.1016/0262-8856(92)90066-C","https://graphics.stanford.edu/~smr/ICP/comparison/besl-mckay-icp-pami92.pdf"]]
+  ];
+  const res=read("src/lib/resources.ts"),cur=read("src/lib/curriculum.ts");
+  for(const [month,slug,ids,markers] of cases){
+    const host=cur.slice(cur.indexOf(`slug: "${slug}"`)).split("\n  },")[0];
+    for(const id of ids)ok(res.includes(`"${id}": {`)&&host.includes(`"${id}"`),`b7polish original source ${id}: card/catalogue`);
+    for(const lang of ["en","zh"]){
+      const md=read(`src/content/m${month}/${slug}/${lang}.mdx`),summary=md.indexOf("<Summary>");
+      for(const x of markers)ok(md.includes(x)&&md.indexOf(x)<summary,`b7polish ${slug} ${lang}: primary reading ${x} before Summary`);
+      for(const id of ids)ok(md.includes(`<Resource id="${id}" />`),`b7polish ${slug} ${lang}: source card ${id}`);
+      if(month===8)ok(lang==="en"?md.includes("Primary further reading"):md.includes("一手延伸阅读"),`b7polish CRC ${lang}: primary versus existing secondary reading`);
+    }
+  }
+  const audit=read("docs/notes/batch-7-polish-sources.md");
+  ok(["then500","WebFetch403","202","404","23610","citation-metadata"].every(x=>audit.includes(x)),"b7polish honest link-status/selection audit and unchanged minutes");
+  console.log("batch7-polish: primary Koopman/ICP citations, bilingual placement, working reading choices and honest DOI-access audit checked");
+}
+
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
 process.exit(failed ? 1 : 0);

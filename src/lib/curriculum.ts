@@ -589,7 +589,7 @@ const month4Lessons: Lesson[] = [
       { zh: "能发送 NavigateToPose 目标，按 xy_goal_tolerance 0.10 m 检查到达，并从 TF、代价地图与 /scan 诊断故障。", en: "Send a NavigateToPose goal, check arrival within xy_goal_tolerance 0.10 m, and diagnose failures from TF, costmaps and /scan." },
     ],
     prereqs: ["urdf-tf", "gazebo-sim", "ros2-control"],
-    resources: ["open3d-icp-objectives", "slam-toolbox", "nav2-docs", "articulated-slam", "articulated-nav2"],
+    resources: ["icp-besl-mckay1992", "icp-chen-medioni1992", "open3d-icp-objectives", "slam-toolbox", "nav2-docs", "articulated-slam", "articulated-nav2"],
     tasks: [
       {"id": "geometry-literacy", "text": {"zh": "运行 icp_point_plane_toy.py，核对 expected 与模型 / 奇异性边界", "en": "Run icp_point_plane_toy.py; audit expected and model/singularity limits"}},
       { id: "odom", text: { zh: "用 spin_check.py 让机器人按里程计原地转一整圈，用激光雷达测出真实转角，并校准 wheel_separation_multiplier，直到误差小于 1 %", en: "Use spin_check.py to turn the robot one full turn by odometry, measure the real angle with the lidar, and calibrate wheel_separation_multiplier until the error is under 1 %" } },
@@ -1018,7 +1018,7 @@ const month8Lessons: Lesson[] = [
       { zh: "能说明评估要用 20 个起始位且 5 个不在训练集（衔接第 6 个月）。", en: "State the Month 6 eval rule: 20 starts, 5 held out of the training set." },
     ],
     prereqs: ["behaviour-cloning", "policy-evaluation", "so101-arm"],
-    resources: ["crc-polynomial-reference", "lerobot-dataset-v3", "lerobot-il-robots", "lerobot-smolvla", "open-x-embodiment"],
+    resources: ["crc-koopman-dsn2004", "crc-koopman-zoo", "crc-polynomial-reference", "lerobot-dataset-v3", "lerobot-il-robots", "lerobot-smolvla", "open-x-embodiment"],
     tasks: [
       {"id": "bus-reset-integrity", "text": {"zh": "运行 dataset_crc_integrity_toy.py，核对 expected 并解释模型边界", "en": "Run dataset_crc_integrity_toy.py, match expected and explain model limits"}},
       { id: "run", text: { zh: "运行 dataset_audit.py，核对该表与 expected/dataset_audit.txt 一致", en: "Run dataset_audit.py and match expected/dataset_audit.txt" } },

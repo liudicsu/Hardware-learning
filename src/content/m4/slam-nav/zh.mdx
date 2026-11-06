@@ -767,6 +767,11 @@ $ ros2 run tf2_ros tf2_echo map base_footprint --ros-args -p use_sim_time:=true
 
 <Resource id="open3d-icp-objectives" />
 
+ICP 原始文献：Besl 与 McKay（1992）的 [A Method for Registration of 3-D Shapes](https://graphics.stanford.edu/~smr/ICP/comparison/besl-mckay-icp-pami92.pdf)，IEEE TPAMI **14(2),239–256**，DOI `10.1109/34.121791`（原论文，Stanford 托管副本）；以及 Chen 与 Medioni（1992）的 [Object modelling by registration of multiple range images](https://doi.org/10.1016/0262-8856(92)90066-C)，Image and Vision Computing **10(3),145–155**，作为点到面的期刊原始参考。这些论文补充实现教程，本页实验仍是明确声明的二维最近线段替身。
+
+<Resource id="icp-besl-mckay1992" />
+<Resource id="icp-chen-medioni1992" />
+
 ### 声明二维表面重建与相等信息
 
 `icp_point_plane_toy.py` 是**最近线段表面替身**，不是 Open3D 的离散最近点后端。七个有序目标扫描顶点重建闭合折线房间，42 个源回波采样底层七面墙。尺寸 / 位姿 / 噪声全部**合成**，坐标为米、角度为弧度；源到目标生成位姿 `(θ,tx,ty)=(0.15,0.12,−0.07)`。每种子 **11/23/37/53/71** 给目标顶点和源回波分别加 σ=**0.004 m** 高斯噪声，两组拿到完全相同的带噪扫描、相邻点重建和初值。

@@ -3956,6 +3956,99 @@ export const resources: Record<string, Resource> = {
     "extra": true
   },
 
+  "crc-koopman-dsn2004": {
+    "id": "crc-koopman-dsn2004",
+    "url": "https://users.ece.cmu.edu/~koopman/roses/dsn04/koopman04_crc_poly_embedded.pdf",
+    "title": {
+      "zh": "Cyclic Redundancy Code (CRC) Polynomial Selection For Embedded Networks",
+      "en": "Cyclic Redundancy Code (CRC) Polynomial Selection For Embedded Networks"
+    },
+    "author": "Philip Koopman & Tridib Chakravarty (DSN 2004)",
+    "kind": "textbook",
+    "cost": {
+      "zh": "免费阅读",
+      "en": "Free to read"
+    },
+    "summary": {
+      "zh": "作者托管的原论文预印本：讨论消息长度、Hamming 距离与 CRC 多项式选择；作为 8.1 一手延伸阅读，不改变玩具的 IEEE CRC-32 参数。",
+      "en": "Author-hosted original-paper preprint: message length, Hamming distance and CRC polynomial selection; primary further reading for8.1, not a change to its IEEE CRC-32 parameters."
+    },
+    "license": {
+      "zh": "版权及许可见原来源；仅提供外链",
+      "en": "Copyright/license at source; external link only"
+    },
+    "extra": true
+  },
+  "crc-koopman-zoo": {
+    "id": "crc-koopman-zoo",
+    "url": "https://users.ece.cmu.edu/~koopman/crc/",
+    "title": {
+      "zh": "Koopman CRC polynomial selection tables / CRC Zoo",
+      "en": "Koopman CRC polynomial selection tables / CRC Zoo"
+    },
+    "author": "Philip Koopman, Carnegie Mellon University",
+    "kind": "guide",
+    "cost": {
+      "zh": "免费阅读",
+      "en": "Free to read"
+    },
+    "summary": {
+      "zh": "研究者维护的一手 CRC 选择表与 CRC Zoo 入口；按消息长度与 Hamming 距离阅读，并留意误码模型及多项式记法。",
+      "en": "Researcher-maintained primary CRC selection tables and CRC Zoo entry point; read message-length/HD limits, error-model assumptions and polynomial notation."
+    },
+    "license": {
+      "zh": "版权及许可见原来源；仅提供外链",
+      "en": "Copyright/license at source; external link only"
+    },
+    "extra": true
+  },
+  "icp-besl-mckay1992": {
+    "id": "icp-besl-mckay1992",
+    "url": "https://graphics.stanford.edu/~smr/ICP/comparison/besl-mckay-icp-pami92.pdf",
+    "title": {
+      "zh": "A Method for Registration of 3-D Shapes",
+      "en": "A Method for Registration of 3-D Shapes"
+    },
+    "author": "Paul J. Besl & Neil D. McKay (1992)",
+    "kind": "textbook",
+    "cost": {
+      "zh": "免费阅读",
+      "en": "Free to read"
+    },
+    "summary": {
+      "zh": "ICP 原论文，IEEE TPAMI14(2):239–256，DOI10.1109/34.121791；链接为 Stanford 托管原文副本。4.6 的二维替身不等于原论文三维实验。",
+      "en": "Original ICP paper, IEEE TPAMI14(2):239–256, DOI10.1109/34.121791; Stanford-hosted original-paper copy. Lesson4.6’s 2D surrogate is not the paper’s 3D experiment."
+    },
+    "license": {
+      "zh": "版权及许可见原来源；仅提供外链",
+      "en": "Copyright/license at source; external link only"
+    },
+    "extra": true
+  },
+  "icp-chen-medioni1992": {
+    "id": "icp-chen-medioni1992",
+    "url": "https://doi.org/10.1016/0262-8856(92)90066-C",
+    "title": {
+      "zh": "Object modelling by registration of multiple range images",
+      "en": "Object modelling by registration of multiple range images"
+    },
+    "author": "Yang Chen & Gérard Medioni (1992)",
+    "kind": "textbook",
+    "cost": {
+      "zh": "条目免费；全文依出版方",
+      "en": "Record free; full text per publisher"
+    },
+    "summary": {
+      "zh": "点到面配准原始期刊参考，Image and Vision Computing10(3):145–155；链接为 DOI 出版条目，全文访问依出版方。",
+      "en": "Original point-to-plane registration journal reference, Image and Vision Computing10(3):145–155; DOI publication record, full-text access subject to publisher terms."
+    },
+    "license": {
+      "zh": "版权及许可见原来源；仅提供外链",
+      "en": "Copyright/license at source; external link only"
+    },
+    "extra": true
+  },
+
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

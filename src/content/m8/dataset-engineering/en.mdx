@@ -164,6 +164,11 @@ A byte-perfect log can still have poor labels, missing frames or a weak recordin
 
 The opened CRC reference is **secondary**, not a protocol standard. A CRC is polynomial division over GF(2): addition is XOR, not integer carries. We choose **CRC-32/IEEE (CRC-32/ISO-HDLC)**, normal polynomial **0x04C11DB7** with its implicit degree32 term; the reflected bit loop uses **0xEDB88320**, init and xorout **0xFFFFFFFF**, bytes in order and bits **LSB-first**. This is not CRC-32C. Its ASCII check value is **CRC32("123456789") = 0xCBF43926**; our explicit bitwise implementation is cross-checked against Python stdlib `zlib.crc32`, not replaced by a hard-coded answer.
 
+Primary further reading: Koopman & Chakravarty (2004), [Cyclic Redundancy Code (CRC) Polynomial Selection For Embedded Networks](https://users.ece.cmu.edu/~koopman/roses/dsn04/koopman04_crc_poly_embedded.pdf), DSN 2004, and [Philip Koopman's CRC polynomial selection tables / CRC Zoo](https://users.ece.cmu.edu/~koopman/crc/). These primary sources relate polynomial selection to message length and Hamming distance; they do not change this toy's declared CRC-32/IEEE convention or measured corruption cases.
+
+<Resource id="crc-koopman-dsn2004" />
+<Resource id="crc-koopman-zoo" />
+
 ### Same payloads, same corruption, three checkers
 
 `dataset_crc_integrity_toy.py` uses four shared 16-byte payloads: zeros, FFs, ascending bytes0…15, and `(37*j+11) mod256`. For every corrupted copy, **no check**, **sum8=sum(bytes) mod256**, and **CRC32** receive the same bytes and original stored check values; no-check ignores the tags. Tags, length and framing remain intact in this experiment; neither insertion/deletion nor a specific storage/channel failure probability is simulated. Corruption is fully deterministic, so no stochastic seeds or five-seed uncertainty claim is needed.
