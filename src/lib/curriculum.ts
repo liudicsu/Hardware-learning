@@ -1067,11 +1067,12 @@ const month8Lessons: Lesson[] = [
     slug: "ros2-hardware-interface",
     title: { zh: "给 SO-101 写一个 ros2_control 硬件组件", en: "Writing a ros2_control hardware component for the SO-101" },
     summary: {
-      zh: "自己写硬件组件：生命周期、状态/命令接口、read/write；关节限位器；实时循环注意点。CPU：servo_bus_sim.py 统计总线抖动超时；lifecycle_sm_toy.py 演练托管节点状态机（≠ HardwareComponent SM）。so101_hw/ 骨架供本机 Jazzy 加载（本页未运行）。",
-      en: "Write a hardware component: lifecycle, state/command interfaces, read/write; joint limiters; real-time loop cautions. CPU: servo_bus_sim.py counts bus-jitter timeouts; lifecycle_sm_toy.py drills the managed-node SM (≠ HardwareComponent SM). so101_hw/ is a skeleton for your Jazzy workspace (本页未运行).",
+      zh: "自己写硬件组件：生命周期、状态/命令接口、read/write；关节限位器；实时循环注意点。CPU：servo_bus_sim.py 统计总线抖动超时；lifecycle_sm_toy.py 演练托管节点状态机（≠ HardwareComponent SM）。so101_hw/ 骨架供本机 Jazzy 加载（本页未运行）。 另用事件级 CAN TEC/REC 玩具练习故障限制与恢复资格，不把总线恢复当急停解除。",
+      en: "Write a hardware component: lifecycle, state/command interfaces, read/write; joint limiters; real-time loop cautions. CPU: servo_bus_sim.py counts bus-jitter timeouts; lifecycle_sm_toy.py drills the managed-node SM (≠ HardwareComponent SM). so101_hw/ is a skeleton for your Jazzy workspace (本页未运行). A separate CAN TEC/REC event toy covers confinement and recovery eligibility, not e-stop release.",
     },
-    minutes: 420,
+    minutes: 600,
     objectives: [
+      {"zh": "按打开的 CAN 规则计算 TEC/REC、>127 被动、TEC>255 bus-off 与 128×11 恢复资格，区别 CiA402 和急停。", "en": "Apply opened CAN TEC/REC rules, >127 passive, TEC>255 bus-off and 128×11 recovery eligibility, distinct from CiA402 and e-stops."},
       { zh: "能按顺序列出硬件组件关键生命周期回调与 read/write。", en: "List the key lifecycle callbacks plus read/write for a hardware component." },
       { zh: "能说明 export_state_interfaces 与 export_command_interfaces 的分工。", en: "State what export_state_interfaces and export_command_interfaces each export." },
       { zh: "能说出控制回路里应避免阻塞与动态分配（原则级）。", en: "State that the control loop should avoid blocking and dynamic allocation (principle-level)." },
@@ -1080,8 +1081,9 @@ const month8Lessons: Lesson[] = [
       { zh: "能指出真机验证与 LTTng 追踪标「本页未运行」。", en: "Note that hardware verification and LTTng tracing are marked not run on this page." },
     ],
     prereqs: ["ros2-control", "moveit-pick-place", "so101-arm", "timing-interrupts"],
-    resources: ["ros2-control-hw-component", "ros2-control-joint-limiting", "ros2-realtime", "ros2-control-docs", "ros2-node-lifecycle", "ros2-tracing"],
+    resources: ["ros2-control-hw-component", "ros2-control-joint-limiting", "ros2-realtime", "ros2-control-docs", "ros2-node-lifecycle", "ros2-tracing", "bosch-can20-confinement", "nxp-can20-protocol"],
     tasks: [
+      {"id": "can-confinement", "text": {"zh": "运行 can_fault_confinement_toy.py；核对 255/256、REC +8 例外和 1407/1408 隐性位恢复边界", "en": "Run can_fault_confinement_toy.py; verify 255/256, REC +8 cases and the 1407/1408 recessive-bit recovery boundary"}},
       { id: "read", text: { zh: "阅读 control.ros.org（Jazzy）Writing a Hardware Component 目录", en: "Read the Jazzy Writing a Hardware Component outline on control.ros.org" } },
       { id: "skel", text: { zh: "运行 servo_bus_sim.py，确认超时从 122 降到 0，并浏览 so101_hw/ 骨架", en: "Run servo_bus_sim.py (timeouts 122→0) and skim the so101_hw/ skeleton" } },
       { id: "lifecycle", text: { zh: "运行 lifecycle_sm_toy.py；核对 script A/B 的 illegal_rejects 与最终 Active，以及 script C 经 shutdown 到 Finalized；写一句托管节点≠HardwareComponent", en: "Run lifecycle_sm_toy.py; check script A/B illegal_rejects and final Active, and script C shutdown→Finalized; one sentence: managed node ≠ HardwareComponent" } },
@@ -1252,11 +1254,12 @@ const month9Lessons: Lesson[] = [
     slug: "effort-admittance",
     title: { zh: "从位置环到接触：负载估计与导纳", en: "From position loops to contact: load estimates and admittance" },
     summary: {
-      zh: "分清阻抗与导纳方向；默认用 Feetech STS3215 Present Load（地址 60）/ Present Current（地址 69）作接触代理（Load 是占空比负载%，不是标定牛顿）。导纳方程 F = M a + D v + S (x−x_d)；ζ = D/(2√(MS))。CPU 对比负载回退、一维导纳刚度扫描与共同机械模型上的 effort 输出阻抗 / motion 输出导纳；不作普遍安全排名。",
-      en: "Tell impedance from admittance; default path uses Feetech STS3215 Present Load (addr 60) / Present Current (addr 69) as a contact proxy (Load is duty-cycle load %, not calibrated newtons). Admittance F = M a + D v + S (x−x_d); ζ = D/(2√(MS)). CPU toys: load-retreat vs position-only, a 1-D stiffness scan, and effort-out impedance vs motion-out admittance on one shared plant; no universal safety ranking.",
+      zh: "分清阻抗与导纳方向；默认用 Feetech STS3215 Present Load（地址 60）/ Present Current（地址 69）作接触代理（Load 是占空比负载%，不是标定牛顿）。导纳方程 F = M a + D v + S (x−x_d)；ζ = D/(2√(MS))。CPU 对比负载回退、一维导纳刚度扫描与共同机械模型上的 effort 输出阻抗 / motion 输出导纳；不作普遍安全排名。 合成 F/T 六姿态 LS 估计质量、质心和偏置，以五种子留出姿态评估重力补偿；真实硬件本页未运行。",
+      en: "Tell impedance from admittance; default path uses Feetech STS3215 Present Load (addr 60) / Present Current (addr 69) as a contact proxy (Load is duty-cycle load %, not calibrated newtons). Admittance F = M a + D v + S (x−x_d); ζ = D/(2√(MS)). CPU toys: load-retreat vs position-only, a 1-D stiffness scan, and effort-out impedance vs motion-out admittance on one shared plant; no universal safety ranking. Synthetic F/T six-pose LS estimates mass, COM and offsets for five-seed held-out gravity-compensation evaluation; real hardware 本页未运行.",
     },
-    minutes: 420,
+    minutes: 630,
     objectives: [
+      {"zh": "用六姿态无接触 LS 估计 F/T 质量、质心和偏置，在五种子留出姿态对比单姿态置零、仅偏置和重力补偿，明确坐标与符号。", "en": "Estimate F/T mass, COM and offsets with six-pose contact-free LS; compare one-pose tare, bias-only and gravity compensation on five held-out seeds with explicit frames/signs."},
       { zh: "能说明阻抗与导纳的因果方向，并说明本课以导纳为主。", en: "State the causal directions of impedance vs admittance, and that this lesson focuses on admittance." },
       { zh: "能说出 Present Load 地址 60、满量程 1000=100 %，以及它不是牛顿。", en: "State Present Load addr 60, full-scale 1000=100 %, and that it is not newtons." },
       { zh: "能读懂 load_contact_sim.py：回退峰值负载与穿透小于仅位置。", en: "Read load_contact_sim.py: retreat peak load and penetration are below position-only." },
@@ -1264,8 +1267,9 @@ const month9Lessons: Lesson[] = [
       { zh: "说明阻抗输出 effort、导纳输出 motion 及其真实执行接口；在共同机械模型与共享噪声下比较力、穿透和稳定时间，不作普遍安全排名。", en: "Explain effort-out impedance and motion-out admittance interfaces; compare force, penetration and settling on one mechanical plant with shared noise, without a universal safety ranking." },
     ],
     prereqs: ["pid-control", "control-modelling", "so101-arm", "ros2-hardware-interface", "safety-reliability"],
-    resources: ["ros2-admittance", "ros2-controllers-index", "sts3215-register-ref", "feetech-sts3215"],
+    resources: ["ros2-admittance", "ros2-controllers-index", "sts3215-register-ref", "feetech-sts3215", "ft-tools-calibration"],
     tasks: [
+      {"id": "ft-calibration", "text": {"zh": "运行 ft_bias_gravity_toy.py；列出五种子 RMSE/F1/空载误触发，并推导单姿态置零随方向变化的残差", "en": "Run ft_bias_gravity_toy.py; report five-seed RMSE/F1/free-space false triggers and derive orientation-dependent one-pose tare residuals"}},
       { id: "run-load", text: { zh: "运行 load_contact_sim.py，确认回退峰值负载更低", en: "Run load_contact_sim.py and confirm retreat peak load is lower" } },
       { id: "run-adm", text: { zh: "运行 admittance_1d.py，核对三行 |x_sim − F/S| < 1e-3", en: "Run admittance_1d.py; confirm |x_sim − F/S| < 1e-3 on all three rows" } },
       { id: "regs", text: { zh: "写出 Present Load 与 Present Current 的地址与单位含义", en: "Write the addresses and unit meanings of Present Load and Present Current" } },

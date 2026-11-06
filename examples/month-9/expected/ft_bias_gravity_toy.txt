@@ -1,0 +1,51 @@
+Synthetic static sensor-origin wrench; R_BS sensor->base, gS=R_BS^T gB, gB=(0,0,-9.81)
+6 orientations x16=96 contact-free calibration rows; 12 held-out poses x10=120 eval rows
+Same recorded data for all arms; one_pose_tare deliberately uses only first-pose 16/96 rows
+sigma_F_N=0.080 sigma_tau_Nm=0.003 threshold_N=1.200; 60 free/60 contact per seed
+seed mass_hat_kg COM_error_mm force_bias_error_N torque_bias_error_Nm
+11 0.719560 0.052606 0.005666 0.000496
+23 0.720604 0.068687 0.016498 0.000590
+37 0.720554 0.141532 0.014370 0.000478
+53 0.718878 0.129696 0.005761 0.000263
+71 0.719094 0.160495 0.017686 0.001010
+seed arm force_RMSE_N torque_RMSE_Nm contact_F1 false_triggers_out_of_60_free
+11 raw 6.843520 0.424659 0.666667 60
+11 one_pose_tare 4.569921 0.278981 0.694118 51
+11 bias_only_ls 7.066162 0.427100 0.666667 60
+11 ls_gravity 0.137468 0.004896 0.909091 0
+23 raw 6.851666 0.425162 0.666667 60
+23 one_pose_tare 4.591197 0.280323 0.705882 50
+23 bias_only_ls 7.076308 0.428226 0.666667 60
+23 ls_gravity 0.146414 0.005441 0.878505 0
+37 raw 6.851204 0.424687 0.666667 60
+37 one_pose_tare 4.597689 0.279442 0.705882 50
+37 bias_only_ls 7.081617 0.427592 0.666667 60
+37 ls_gravity 0.133149 0.005255 0.899083 0
+53 raw 6.841739 0.424875 0.666667 60
+53 one_pose_tare 4.602032 0.279589 0.701754 51
+53 bias_only_ls 7.066220 0.427663 0.666667 60
+53 ls_gravity 0.142572 0.005825 0.899083 0
+71 raw 6.847648 0.424794 0.666667 60
+71 one_pose_tare 4.593226 0.279350 0.698225 50
+71 bias_only_ls 7.071732 0.427258 0.666667 60
+71 ls_gravity 0.150742 0.005012 0.947368 0
+five-seed spread: arm metric mean population_std min max
+raw force_N 6.847155 0.003988 6.841739 6.851666
+raw torque_Nm 0.424835 0.000181 0.424659 0.425162
+raw F1 0.666667 0.000000 0.666667 0.666667
+raw false_triggers 60.000000 0.000000 60.000000 60.000000
+one_pose_tare force_N 4.590813 0.011096 4.569921 4.602032
+one_pose_tare torque_Nm 0.279537 0.000441 0.278981 0.280323
+one_pose_tare F1 0.701172 0.004542 0.694118 0.705882
+one_pose_tare false_triggers 50.400000 0.489898 50.000000 51.000000
+bias_only_ls force_N 7.072408 0.005963 7.066162 7.081617
+bias_only_ls torque_Nm 0.427568 0.000389 0.427100 0.428226
+bias_only_ls F1 0.666667 0.000000 0.666667 0.666667
+bias_only_ls false_triggers 60.000000 0.000000 60.000000 60.000000
+ls_gravity force_N 0.142069 0.006247 0.133149 0.150742
+ls_gravity torque_Nm 0.005286 0.000329 0.004896 0.005825
+ls_gravity F1 0.906626 0.022674 0.878505 0.947368
+ls_gravity false_triggers 0.000000 0.000000 0.000000 0.000000
+Estimated mass/COM/offsets only; single-pose zero is not bias identification across orientations
+Static model excludes inertia, temperature drift, sensor misalignment, crosstalk and controller safety
+Present Load remains a proxy, not N; real F/T hardware: 本页未运行

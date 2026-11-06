@@ -3936,8 +3936,8 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 21570, "thermal-i2c-decoupling PR1 curriculum: 21570 minutes");
-  for (const [month, expected] of [[1, 1020], [2, 1980], [3, 1470], [4, 1620], [5, 1800], [6, 1350], [7, 2070], [8, 2670], [9, 2730], [10, 1860], [11, 3000]]) {
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 21960, "can-ft-bias PR2 curriculum: 21960 minutes");
+  for (const [month, expected] of [[1, 1020], [2, 1980], [3, 1470], [4, 1620], [5, 1800], [6, 1350], [7, 2070], [8, 2850], [9, 2940], [10, 1860], [11, 3000]]) {
     ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `current curriculum M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
@@ -4923,7 +4923,7 @@ for (const m of readdirSync(content)) {
   for (const id of ["dreamgen-paper", "lapa-paper", "smolvla-paper", "lerobot-async"]) {
     ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `wm2 resource ${id}: present + extra`);
   }
-  ok(/21 570/.test(read("README.md")), "b6p1 README: 21 570 minutes");
+  ok(/21 960/.test(read("README.md")), "b6p2 README: 21 960 minutes");
   console.log("worldmodel-smolvla PR2: neural trajectories + async chunk locks checked");
 }
 
@@ -5394,6 +5394,53 @@ print("protocol pass")
   ok(read("docs/notes/month-1-plan.md").includes("H6") && !/H3|H4/.test(read("docs/notes/month-1-plan.md")),"b6 reviewed M1 plan: only its own components host listed");
   ok(read("README.md").includes("bash examples/month-2/check.sh") && !read("README.md").includes("Month 2 has no"),"b6p1 README: M1/M2 actual reproduction commands documented");
   console.log("thermal-i2c-decoupling PR1: R20 feedback, three published rise limits, equal-C RLC/SRF and final-Summary locks checked");
+}
+
+
+// Batch-6 PR2: latest task host 8.4 + sourced >255 boundary override proposal's old wording.
+{
+  const read = path => readFileSync(join(root, path), "utf8");
+  const env = {...process.env, PYTHONDONTWRITEBYTECODE: "1"};
+  const cur = read("src/lib/curriculum.ts");
+  for (const [month, slug, toy, minutes, added, markers, summaryMarkers] of [
+    [8, "ros2-hardware-interface", "can_fault_confinement_toy", 600, 180,
+      ["Bosch CAN 2.0, Part A pp. 24–26", "BCANPSV2.0 Rev. 3 §5.2", "TEC +8", "TEC −1", "REC +1", "REC −1", "REC +8", "REC >127", "119…127", "TEC >255", "128×11=1408", "1407R", "1408R", "operator_ack", "SocketCAN", "本页未运行", "以规范为准"],
+      ["CAN TEC/REC", "CAN TEC/REC"]],
+    [9, "effort-admittance", "ft_bias_gravity_toy", 630, 210,
+      ["R_BS", "gS=R_BSᵀ gB", "h=m c", "c_hat=h_hat/m_hat", "16/96", "11/23/37/53/71", "σF=0.08 N", "στ=0.003 N·m", "−mg", "+mg", "0.142069", "0.005286", "0.906626", "50–51", "0.133149–0.150742 N", "0.878505–0.947368", "Present Load", "本页未运行"],
+      ["LS estimates mass, COM and offsets", "LS 估计质量、质心与偏置"]],
+  ]) {
+    const path=`examples/month-${month}/${slug}/${toy}.py`, source=read(path), expected=read(`examples/month-${month}/expected/${toy}.txt`);
+    ok(execFileSync("python3",[join(root,path)],{encoding:"utf8",env})===expected,`b6p2 ${toy}: actual stdout matches new expected`);
+    ok(read(`examples/month-${month}/check.sh`).includes(`check ${toy}.txt`),`b6p2 ${toy}: additive harness comparison`);
+    ok(cur.slice(cur.indexOf(`slug: "${slug}"`)).match(/minutes: (\d+)/)?.[1]===String(minutes),`b6p2 ${slug}: ${minutes} minutes`);
+    for (const [index,lang] of ["en","zh"].entries()) {
+      const md=read(`src/content/m${month}/${slug}/${lang}.mdx`), start=md.indexOf("<Summary>"), body=md.slice(0,start), summary=md.slice(start), prose=body.replace(/```[\s\S]*?```/g,"");
+      ok(start>=0 && (md.match(/<Summary>/g)||[]).length===1 && md.trimEnd().endsWith("</Summary>"),`b6p2 ${slug}/${lang}: sole final whole-lesson Summary`);
+      ok(body.includes(source.trim()) && body.includes(expected.trim()) && body.includes('<SimOutput source="model">') && body.includes(`+${added} min`),`b6p2 ${slug}/${lang}: complete addition/code/stdout before Summary`);
+      ok(summary.includes(summaryMarkers[index]),`b6p2 ${slug}/${lang}: Summary covers addition`);
+      for (const marker of markers) ok(prose.includes(marker),`b6p2 ${slug}/${lang}: prose binds ${marker}`);
+      if (month===8) {
+        ok(lang==="en" ? prose.includes("not turn the SO-101's serial servo bus into CAN") && prose.includes("not a complete implementation") && prose.includes("not decoded from bit timing") : prose.includes("不表示 SO-101 的串口舵机总线变成了 CAN") && prose.includes("不是 ISO 11898 或 CAN FD 的完整实现") && prose.includes("不从位时序"),`b6p2 CAN ${lang}: backend and protocol simplifications explicit`);
+        ok(lang==="en" ? prose.includes("not at 255") && prose.includes("14th") && prose.includes("8th") && prose.includes("non-overlapping") : prose.includes("255 时还不是") && prose.includes("第 **14** 个") && prose.includes("第 **8** 个") && prose.includes("不重叠"),`b6p2 CAN ${lang}: exact boundary, qualified extension and recovery groups`);
+        ok(prose.includes("CiA402") && prose.includes("EtherCAT") && (lang==="en" ? prose.includes("not an e-stop") : prose.includes("不是急停")),`b6p2 CAN ${lang}: not actuator statusword, EtherCAT or e-stop`);
+      } else {
+        ok(lang==="en" ? prose.includes("six orientations") && prose.includes("held-out poses") && prose.includes("not an equal-used-samples") && prose.includes("moving the wrench") : prose.includes("六个姿态") && prose.includes("留出姿态") && prose.includes("不宣称使用样本数相等") && prose.includes("基座原点"),`b6p2 FT ${lang}: estimated full-rank multi-pose LS, held-out data, information and origins`);
+        ok(prose.includes("Gram-Schmidt QR") && prose.includes("SVD") && (lang==="en" ? prose.includes("not supplied") || prose.includes("no known true mass/COM/offset supplied") : prose.includes("不给拟合器真实质量")),`b6p2 FT ${lang}: educational solver and no oracle parameters`);
+        ok(prose.includes("population std") || prose.includes("总体标准差"),`b6p2 FT ${lang}: table reports spread`);
+      }
+    }
+    for (const lang of ["en","zh"]) {
+      const plan=read(`docs/notes/month-${month}-plan.md`);
+      ok(plan.startsWith(`# Month ${month}`) && plan.includes("21960") && plan.includes("2850") && plan.includes("2940"),`b6p2 ${month}/${lang}: own-month plan header and PR2-only totals`);
+    }
+  }
+  ok(cur.match(/slug: "safety-reliability"[\s\S]*?minutes: (\d+)/)?.[1]==="540", "b6p2 8.5 remains 540: H2 is hosted on latest-requested 8.4");
+  const result=execFileSync("python3",[join(root,"tools/test_b6_can_ft_toys.py")],{cwd:root,encoding:"utf8",env});
+  ok(result.includes("independent frames, three-pose non-oracle LS, rank rejection, noiseless rotated-tare failure and five-seed held-out metrics passed"),"b6p2 independent CAN/FT physical regressions passed");
+  for (const id of ["bosch-can20-confinement","nxp-can20-protocol","ft-tools-calibration"]) ok(read("src/lib/resources.ts").includes(`"${id}": {`),`b6p2 opened/curl-verified resource ${id}`);
+  ok(read("docs/notes/batch-6-pr2-sources.md").includes("latest user explicitly relocates H2"),"b6p2 source audit records latest-request precedence");
+  console.log("can-ft-bias PR2: sourced counters/recovery, estimated six-pose wrench calibration, held-out five-seed metrics and Summary/minute locks checked");
 }
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);

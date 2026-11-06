@@ -12,7 +12,7 @@ Constraints: private env; runnable toys prefer stdlib CPU with fixed seeds. ROS 
 |---|------|---------|--------|----------|------------------|
 | 1 | `mtc-long-horizon` | 420 | full + H7 | `stage_graph_toy.py`, `mtc_stage_memory_toy.py` | MoveIt Task Constructor |
 | 2 | `moveit-servo` | 180 | full | `servo_loop_sim.py` | MoveIt realtime_servo_tutorial |
-| 3 | `effort-admittance` | 420 | full | `load_contact_sim.py`, `admittance_1d.py`, `impedance_vs_admittance_toy.py` | Feetech STS3215 + ros2 admittance |
+| 3 | `effort-admittance` | 630 | full | `load_contact_sim.py`, `admittance_1d.py`, `impedance_vs_admittance_toy.py`, `ft_bias_gravity_toy.py` | Feetech STS3215 + ros2 admittance |
 | 4 | `llm-skill-planning` | 240 | full | `saycan_score_toy.py` (fake LLM) | SayCan arXiv 2204.01691 |
 | 5 | `failure-recovery` | 180 | full | `recovery_bt_toy.py` | Inner Monologue + BT.CPP |
 | 6 | `nav-arm-compose` | 450 | full + H2 | `nav_pick_bt.py`, `multi_robot_corridor_toy.py` | LeKiwi elective; ORCA primary / MRS curriculum IL reading |
@@ -37,3 +37,11 @@ G3 `world-models-overview` 180→420 — `neural_traj_idm_toy.py`: DreamGen four
 ## Batch-5 PR3 (+180 here)
 
 9.1:240→420; M9 **2550→2730**,9 lessons. Site **20700→21090** with M10+210 (1860). Same planning stream, genuine stale-prefix rejection, charged revalidation/root fallback, bounded expansions; node counts only, no wall-clock claim. Cache is our sketch, not an MTC API promise; Panda/SO-101本页未运行. Batch-5 final totals applied now, not in earlier PRs.
+
+## Batch-6 PR2 / 本月 H5 (+210)
+
+9.3 effort-admittance **420→630**, M9 **2730→2940**, nine lessons. Sensor-frame synthetic static wrench, declared payload-on-sensor sign; six orientations ×16=96 free-space rows identify mass, COM and six offsets by LS. Twelve held-out poses, five seeds, shared contact/noise; raw / one-pose tare (first 16 rows only, disclosed) / estimated bias-only / estimated gravity compensation. No oracle parameters, force/torque RMSE, F1 and free-space false triggers with mean/std/min/max. Single-pose zero fails when orientation changes; rank-deficient calibration rejected. / 明确轴向与原点，不把 Load 当牛顿，不替换旧路径；真实 F/T 本页未运行，无需购买。
+
+Allocation 45+45+45+45+30=210 min. Sources: opened/curl200 ft_tools_ros2 calibration README and official Jazzy admittance frames/CoG docs; sign convention difference stated. / 已打开并核对来源，不冒称运行软件包。
+
+M8 separately +180: **21570+180+210=21960**, **M8=2850**, **M9=2940**, **71 lessons**. M1/M2 remain 1020/1980; no PR3 minutes. All additions before sole final Summary, en/zh code/stdout identical, old expected outputs unchanged. / 正确月标题，仅计本 PR。

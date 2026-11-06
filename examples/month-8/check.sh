@@ -37,4 +37,6 @@ check imagine_rank_toy.txt "$PY" "$M8/sim-benchmarks/imagine_rank_toy.py"
 
 check safety_pl_assign_toy.txt "$PY" "$M8/safety-reliability/safety_pl_assign_toy.py" "$M8/safety-reliability/plr_inputs.json"
 
+check can_fault_confinement_toy.txt "$PY" "$M8/ros2-hardware-interface/can_fault_confinement_toy.py"
+
 exit $fail

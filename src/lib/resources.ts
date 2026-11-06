@@ -3651,6 +3651,77 @@ export const resources: Record<string, Resource> = {
     "extra": true
   },
 
+  // Batch-6 PR2: opened and curl-verified primary rules and calibration equations.
+  "bosch-can20-confinement": {
+    "id": "bosch-can20-confinement",
+    "url": "https://www.canlab.cz/sites/default/files/pages/download/Can2spec.pdf",
+    "title": {
+      "zh": "Bosch CAN 2.0：故障限制原文（公开镜像）",
+      "en": "Bosch CAN 2.0: original fault-confinement rules (public mirror)"
+    },
+    "author": "Robert Bosch GmbH",
+    "kind": "guide",
+    "cost": {
+      "zh": "免费",
+      "en": "Free"
+    },
+    "summary": {
+      "zh": "已打开并 curl200；1991 年 9 月 Part A pp.24–26，TEC/REC、+8 例外、REC 成功复位 119…127、TEC≥256 与 128×11 恢复。玩具事件条件已预先判定，不是完整协议或认证。",
+      "en": "Opened and curl200; September 1991 Part A pp.24–26: TEC/REC, +8 exceptions, REC success reset 119…127, TEC≥256 and 128×11 recovery. Toy events are prequalified, not a complete protocol/certification."
+    },
+    "license": {
+      "zh": "版权归原作者；仅提供外链",
+      "en": "Copyright original authors; external link only"
+    },
+    "extra": true
+  },
+  "nxp-can20-protocol": {
+    "id": "nxp-can20-protocol",
+    "url": "https://www.nxp.com/docs/en/reference-manual/BCANPSV2.pdf",
+    "title": {
+      "zh": "NXP 托管 BCANPSV2.0 Rev.3：CAN 协议",
+      "en": "NXP-hosted BCANPSV2.0 Rev.3: CAN protocol"
+    },
+    "author": "Motorola / Freescale (NXP-hosted)",
+    "kind": "guide",
+    "cost": {
+      "zh": "免费",
+      "en": "Free"
+    },
+    "summary": {
+      "zh": "已打开并 curl200；§5.2 核对计数、128/256 边界和恢复。其历史显性延长表述与 Bosch 原文不同；本课该细节采用 Bosch 1991 原文，不混拼。",
+      "en": "Opened and curl200; §5.2 corroborates counters, 128/256 boundaries and recovery. Historical dominant-extension wording differs from Bosch; the lesson follows the Bosch 1991 original for that detail."
+    },
+    "license": {
+      "zh": "版权归原作者；仅提供外链",
+      "en": "Copyright original authors; external link only"
+    },
+    "extra": true
+  },
+  "ft-tools-calibration": {
+    "id": "ft-tools-calibration",
+    "url": "https://github.com/tpoignonec/ft_tools_ros2",
+    "title": {
+      "zh": "ft_tools_ros2：传感器系质量、质心和偏置 LS",
+      "en": "ft_tools_ros2: sensor-frame mass, COM and bias LS"
+    },
+    "author": "tpoignonec/ft_tools_ros2 contributors",
+    "kind": "guide",
+    "cost": {
+      "zh": "免费",
+      "en": "Free"
+    },
+    "summary": {
+      "zh": "README 已打开并 curl200；传感器系最小二乘、质量 / COM / 力和力矩偏置及扳手原点变换。README 为反作用 −mg 约定，玩具声明 +mg，不能盲抄符号。未运行该软件或真实传感器。",
+      "en": "README opened and curl200; sensor-frame LS mass/COM/offsets and wrench-origin transforms. README reaction sign is −mg; the toy declares +mg explicitly. Package and real sensor not run."
+    },
+    "license": {
+      "zh": "版权归原作者；仅提供外链",
+      "en": "Copyright original authors; external link only"
+    },
+    "extra": true
+  },
+
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {
