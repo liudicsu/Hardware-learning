@@ -270,6 +270,8 @@ After the 1 cm voxel step, 19200 pixels become 2178 points. RANSAC keeps 2094 pl
 
 A Gaussian splat stores a mean, covariance, colour and opacity; unlike NeRF's implicit neural density, these parameters expose ellipsoidal geometry. **Gaussians are not hard surfaces**: their tails extend indefinitely, opacity is a rendering parameter, and a missing splat does not establish physical free space. Our synthetic exercise retains opacity at least `0.5` and truncates each Gaussian at `k_sigma = 2.0`. The solid is the set with Mahalanobis distance squared at most 4. With raw covariance C, its shape matrix is `Sigma = 4 C`; semi-axes are twice the raw standard deviations. This is a declared modelling convention, not a calibrated occupancy probability or confidence guarantee. No opacity multiplication of radii is hidden in the code.
 
+To connect this convention to [Splat-Nav v2, Sec. IV Eq. (2)](https://arxiv.org/html/2403.02751v2): the paper thresholds squared Mahalanobis distance by `χ²₃(γ)` and absorbs that factor into the covariance/shape matrix; our convention uses `k_sigma²`, so equal geometry requires `k_sigma² = χ²₃(γ)`. For an ideal normalized 3-D Gaussian, `k_sigma = 2` encloses about **73.85 %**, not the 1-D two-sigma **95.45 %** or the paper’s `γ = 0.99` (**99 %**, `k_sigma ≈ 3.37`). Sec. VI-C2 also uses `χ²₃(γ) = 4` in simulation comparisons — choices and claims **以论文为准**. Thus the geometric kσ cutoff can be parameterized as a Mahalanobis confidence ellipsoid under an ideal Gaussian model, but this lesson does **not** assign calibrated probabilistic confidence to learned splat geometry or physical occupancy. The separate opacity filter `0.5` is not `γ`.
+
 There are three retained, axis-aligned obstacles and a sphere robot of radius **0.12 m**. Both arms receive the same **2004** robot-centre queries (seed **75**, including hand-selected collision, free, corner and tangent cases); neither gets privileged geometry. This is collision-checking literacy, **not another occupancy A*** planner. AABB means a continuous enclosing box, not a grid resolution trick.
 
 ### Check the K(s) direction before implementing
@@ -311,6 +313,13 @@ Splat-Nav v1 Theorem 1 / Corollaries 1,3: separation iff some K(s)>1.
 Finite samples certify only witnessed separation (conservative in exact arithmetic).
 Ground truth is independent Euclidean point-to-solid-ellipsoid distance, solved
 by a monotone Lagrange-multiplier root with 100 bisections; not K(s) sampling.
+Splat-Nav v2 Sec. IV Eq. (2) uses D^2 <= chi2_3(gamma) for raw covariance C,
+then absorbs that quantile into the shape matrix. Our k-sigma convention uses
+D^2 <= k^2, shape = k^2 C; matching thresholds means k^2 = chi2_3(gamma).
+For an ideal normalized 3-D Gaussian, k=2 encloses about 73.85 %, NOT the 1-D
+95.45 % or the paper's gamma=0.99 (k about 3.37). Sec. VI-C2 also studies
+chi2_3(gamma)=4; choices/claims are 以论文为准. Here k=2 is a geometric cutoff,
+not calibrated occupancy confidence; opacity_min is a separate filter, not gamma.
 Floating-point arithmetic here is NOT interval-certified safety software.
 """
 from __future__ import annotations

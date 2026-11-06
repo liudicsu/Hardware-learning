@@ -862,6 +862,8 @@ ros2_control 的 read–update–write 循环默认硬件按稳定周期采样�
 
 分布式时钟（DC）把从站的**采样 / 输出时刻**对齐到共用时基。按 ETG.8000 / acontis：主站在启动时测量并补偿传播延迟，之后持续补偿漂移。这**不等于**删掉线上的主站帧抖动——DC 也不这么宣称。ETG / ethercat.org 写的「同步抖动 ≤ 1 µs」（ETG.2200 作「远好于 1 µs」）**以文档为准**——不是本页实测。
 
+**SYNC0 shift time（偏移时间）** 是 SYNC0 边沿相对 DC 周期参考点的偏移，用来在规定采样 / 输出时刻前，为主站 / 从站（MainDevice/SubDevice）处理和过程数据到达留出余量；它不是传播延迟补偿，也不保证迟到帧消失。延伸阅读：[acontis DC 手册 Typical Bus Timing](https://public.acontis.com/manuals/EC-Master/3.3/html/ec-master-class-a/dc_technical.html#typical-bus-timing)及 <Resource id="acontis-dc" />；下面的玩具不配置硬件偏移时间。
+
 ### 多轴运动为什么在意
 
 用 `Δposition / Δt_nominal` 估计速度，会把定时抖动放大成速度噪声。玩具在三种模式间共用同一对象与同一主站帧抖动抽样，并用**标称**周期估速——因此 SM-sync 的速度 RMS 最大，DC 最小，FreeRun 落在本地定时器的中间地带。

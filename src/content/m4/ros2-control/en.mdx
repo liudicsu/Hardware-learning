@@ -862,6 +862,8 @@ ros2_control's read–update–write loop assumes the hardware samples and actua
 
 Distributed Clocks (DC) align SubDevice **sample / output instants** to a shared time base. Per ETG.8000 / acontis: the MainDevice measures and compensates propagation delay at start-up and keeps compensating drift. That is **not** the same as deleting master-side frame jitter from the wire — DC does not claim to. The ETG / ethercat.org line "synchronization jitter ≤ 1 µs" (or "much better than 1 µs" in ETG.2200) is **以文档为准** — not measured on this page.
 
+**SYNC0 shift time** is the offset of the SYNC0 edge relative to the DC cycle reference, chosen to leave margin for master/slave (MainDevice/SubDevice) processing and process-data arrival before the required sampling/output instant; it is not propagation-delay compensation or a guarantee that late frames disappear. Read the [acontis DC manual, Typical Bus Timing](https://public.acontis.com/manuals/EC-Master/3.3/html/ec-master-class-a/dc_technical.html#typical-bus-timing) and <Resource id="acontis-dc" />; the toy below does not configure a hardware shift time.
+
 ### Why multi-axis motion cares
 
 Velocity estimated as `Δposition / Δt_nominal` turns timing jitter into velocity noise. The toy shares one plant and one master-frame jitter draw across all three modes, and estimates velocity with the **nominal** cycle — so SM-sync shows the large velocity RMS, DC the small residual, FreeRun the local-timer middle ground.
