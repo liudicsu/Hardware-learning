@@ -3936,8 +3936,8 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 21960, "can-ft-bias PR2 curriculum: 21960 minutes");
-  for (const [month, expected] of [[1, 1020], [2, 1980], [3, 1470], [4, 1620], [5, 1800], [6, 1350], [7, 2070], [8, 2850], [9, 2940], [10, 1860], [11, 3000]]) {
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 22350, "onedp-rpd PR3 curriculum: 22350 minutes");
+  for (const [month, expected] of [[1, 1020], [2, 1980], [3, 1470], [4, 1620], [5, 1800], [6, 1350], [7, 2070], [8, 3030], [9, 2940], [10, 2070], [11, 3000]]) {
     ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `current curriculum M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
@@ -4923,7 +4923,7 @@ for (const m of readdirSync(content)) {
   for (const id of ["dreamgen-paper", "lapa-paper", "smolvla-paper", "lerobot-async"]) {
     ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `wm2 resource ${id}: present + extra`);
   }
-  ok(/21 960/.test(read("README.md")), "b6p2 README: 21 960 minutes");
+  ok(/22 350/.test(read("README.md")), "b6p2 README: 21 960 minutes");
   console.log("worldmodel-smolvla PR2: neural trajectories + async chunk locks checked");
 }
 
@@ -5441,6 +5441,49 @@ print("protocol pass")
   for (const id of ["bosch-can20-confinement","nxp-can20-protocol","ft-tools-calibration"]) ok(read("src/lib/resources.ts").includes(`"${id}": {`),`b6p2 opened/curl-verified resource ${id}`);
   ok(read("docs/notes/batch-6-pr2-sources.md").includes("latest user explicitly relocates H2"),"b6p2 source audit records latest-request precedence");
   console.log("can-ft-bias PR2: sourced counters/recovery, estimated six-pose wrench calibration, held-out five-seed metrics and Summary/minute locks checked");
+}
+
+// Batch-6 PR3: one-step regression honesty and equal-budget, beatable-teacher RL.
+{
+  const read = path => readFileSync(join(root,path),"utf8");
+  const env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
+  const cur=read("src/lib/curriculum.ts");
+  for (const [month,slug,toy,minutes,added,markers,summaryMarkers] of [
+    [10,"flow-matching-policies","policy_distill_onestep_toy",450,210,
+      ["2410.21257","2405.07503","KL-along-chain","regression surrogate","以论文为准","本页未运行","11/23/37/53/71","0.00000808","0.712500","0.145438","0.500000…0.937500","NFE","240","64"],
+      ["OneDP-style regression surrogate","OneDP 风格回归替身"]],
+    [8,"vla-finetune","rpd_teacher_rl_toy",420,180,
+      ["2503.05833","REINFORCE","Bernoulli","以论文为准","本页未运行","11/23/37/53/71","7680","0.780842","0.274219","0.182031","0.885938","0.037091","Cal-ConRFT","HIL-SERL"],
+      ["RPD-style discrete surrogate","RPD 风格离散替身"]],
+  ]) {
+    const path=`examples/month-${month}/${slug}/${toy}.py`, source=read(path), expected=read(`examples/month-${month}/expected/${toy}.txt`);
+    ok(execFileSync("python3",[join(root,path)],{encoding:"utf8",env})===expected,`b6p3 ${toy}: actual stdout pinned`);
+    ok(read(`examples/month-${month}/check.sh`).includes(`check ${toy}.txt`),`b6p3 ${toy}: additive check.sh entry`);
+    ok(cur.slice(cur.indexOf(`slug: "${slug}"`)).match(/minutes: (\d+)/)?.[1]===String(minutes),`b6p3 ${slug}: ${minutes} minutes`);
+    const bodies=[];
+    for (const [index,lang] of ["en","zh"].entries()) {
+      const md=read(`src/content/m${month}/${slug}/${lang}.mdx`), pos=md.indexOf("<Summary>"), body=md.slice(0,pos), summary=md.slice(pos), prose=body.replace(/```[\s\S]*?```/g,"");
+      bodies.push(body);
+      ok(pos>=0 && (md.match(/<Summary>/g)||[]).length===1 && md.trimEnd().endsWith("</Summary>"),`b6p3 ${slug}/${lang}: sole final Summary`);
+      ok(body.includes(source.trim()) && body.includes(expected.trim()) && body.includes('<SimOutput source="model">') && body.includes(`+${added} min`),`b6p3 ${slug}/${lang}: complete addition/code/stdout/exercises before Summary`);
+      ok(summary.includes(summaryMarkers[index]),`b6p3 ${slug}/${lang}: additive whole-lesson summary sentence`);
+      for (const marker of markers) ok(prose.includes(marker),`b6p3 ${slug}/${lang}: prose binds ${marker}`);
+      if (month===10) {
+        ok(lang==="en" ? prose.includes("held-out eval starts") && prose.includes("not a convergence") && prose.includes("Independent task success") && prose.includes("different call types") : prose.includes("留出评估起始") && prose.includes("不宣称收敛") && prose.includes("独立任务成功") && prose.includes("FLOPs 不同"),`b6p3 distill ${lang}: disjoint scoring, unequal-fit disclosure, independent success, no Hz claim`);
+      } else {
+        ok(lang==="en" ? prose.includes("deliberately suboptimal") && prose.includes("BC beats scratch") && prose.includes("absorbing ticks") && prose.includes("not offline") && prose.includes("evaluation never") : prose.includes("刻意次优") && prose.includes("BC 均优于 scratch") && prose.includes("吸收后的 tick") && prose.includes("不是离线演示") && prose.includes("评估不选更新数"),`b6p3 RPD ${lang}: beatable teacher, early BC wins, charged/active budget and independent evaluation`);
+      }
+    }
+    const plan=read(`docs/notes/month-${month}-plan.md`);
+    ok(plan.startsWith(`# Month ${month}`) && ["22350","3030","2070","PR3"].every(x=>plan.includes(x)),`b6p3 M${month}: correct host header and PR3-only totals`);
+  }
+  ok(read("src/content/m10/flow-matching-policies/en.mdx").includes("Because every step costs latency, several lines of work try to need fewer steps. Rectified flow (arXiv 2209.03003) straightens the learned paths so that a coarse Euler step stays on track. Consistency Policy (arXiv 2405.07503) distils a diffusion policy so that one or two steps suffice; its abstract reports an order-of-magnitude inference speed-up over the fastest alternative it compares with. This lesson covers only the motivation; we do not derive or run either."),"b6p3 en: original complete Consistency Policy paragraph preserved verbatim");
+  ok(read("src/content/m10/flow-matching-policies/zh.mdx").includes("每一步都占延迟，所以有几条工作线追求更少步数。Rectified flow（arXiv 2209.03003）把学到的路径「拉直」，让粗的欧拉步也不跑偏。Consistency Policy（arXiv 2405.07503）把扩散策略蒸馏成一两步即可；其摘要称推理比所比较的最快替代方法快一个数量级。本课只讲动机，不推导也不运行。"),"b6p3 zh: original complete Consistency Policy paragraph preserved verbatim");
+  const output=execFileSync("python3",[join(root,"tools/test_b6_distill_rpd_toys.py")],{cwd:root,encoding:"utf8",env});
+  ok(output.includes("independent held-out splits, actual NFE, no teacher/eval-label cheat, beatable teacher DP, finite-difference MSE and equal executed budgets passed"),"b6p3 independent data/compute/objective regressions passed");
+  for (const id of ["onedp-paper","rpd-paper","consistency-policy-paper"]) ok(read("src/lib/resources.ts").includes(`"${id}": {`),`b6p3 verified source ${id}`);
+  ok(read("docs/notes/batch-6-pr3-sources.md").includes("No arithmetic mismatch"),"b6p3 source and arithmetic audit recorded");
+  console.log("onedp-rpd PR3: disjoint-state regression surrogate, actual NFE, suboptimal-teacher equal executed budgets, early BC wins and Summary/minute locks checked");
 }
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);

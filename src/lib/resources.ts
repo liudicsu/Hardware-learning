@@ -2470,8 +2470,8 @@ export const resources: Record<string, Resource> = {
     kind: "textbook",
     cost: { zh: "免费", en: "Free" },
     summary: {
-      zh: "把扩散策略蒸馏成少步推理，摘要称比最快的替代方法快一个数量级。arXiv 2405.07503。本站 10.1 只讲动机。",
-      en: "Distils diffusion policies for few-step inference; the abstract reports an order-of-magnitude speed-up over the fastest alternative. arXiv 2405.07503. 10.1 covers the motivation only.",
+      zh: "把扩散策略蒸馏成少步推理，摘要称比最快的替代方法快一个数量级。arXiv 2405.07503。本站 10.1 延伸阅读并加入独立回归替身；不运行真正 Consistency Policy，数字以论文为准。",
+      en: "Distils diffusion policies for few-step inference; the abstract reports an order-of-magnitude speed-up over the fastest alternative. arXiv 2405.07503. 10.1 extends the reading with a separate regression surrogate; actual Consistency Policy is not run and paper figures remain paper-only.",
     },
     license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
     extra: true,
@@ -3714,6 +3714,53 @@ export const resources: Record<string, Resource> = {
     "summary": {
       "zh": "README 已打开并 curl200；传感器系最小二乘、质量 / COM / 力和力矩偏置及扳手原点变换。README 为反作用 −mg 约定，玩具声明 +mg，不能盲抄符号。未运行该软件或真实传感器。",
       "en": "README opened and curl200; sensor-frame LS mass/COM/offsets and wrench-origin transforms. README reaction sign is −mg; the toy declares +mg explicitly. Package and real sensor not run."
+    },
+    "license": {
+      "zh": "版权归原作者；仅提供外链",
+      "en": "Copyright original authors; external link only"
+    },
+    "extra": true
+  },
+
+  "onedp-paper": {
+    "id": "onedp-paper",
+    "url": "https://arxiv.org/abs/2410.21257",
+    "title": {
+      "zh": "One-Step Diffusion Policy: Fast Visuomotor Policies via Diffusion Distillation",
+      "en": "One-Step Diffusion Policy: Fast Visuomotor Policies via Diffusion Distillation"
+    },
+    "author": "Zhendong Wang et al.",
+    "kind": "textbook",
+    "cost": {
+      "zh": "免费",
+      "en": "Free"
+    },
+    "summary": {
+      "zh": "已打开正文并 curl200：沿链反向 KL / score 匹配；OneDP-S 与 OneDP-D。10.1 只运行回归替身；频率和额外成本以论文为准。",
+      "en": "Full paper opened and curl200: reverse KL/score matching along chain; OneDP-S/D. Lesson10.1 runs regression only; frequencies and extra cost are paper-only."
+    },
+    "license": {
+      "zh": "版权归原作者；仅提供外链",
+      "en": "Copyright original authors; external link only"
+    },
+    "extra": true
+  },
+  "rpd-paper": {
+    "id": "rpd-paper",
+    "url": "https://arxiv.org/abs/2503.05833",
+    "title": {
+      "zh": "Refined Policy Distillation: From VLA Generalists to RL Experts",
+      "en": "Refined Policy Distillation: From VLA Generalists to RL Experts"
+    },
+    "author": "Tobias Jülg, Wolfram Burgard, Florian Walter",
+    "kind": "textbook",
+    "cost": {
+      "zh": "免费",
+      "en": "Free"
+    },
+    "summary": {
+      "zh": "已打开正文并 curl200：PPO 加教师动作均值 MSE。8.2 用刻意次优教师、等预算 Bernoulli/REINFORCE 替身；不复现 PPO/VLA/ManiSkill。",
+      "en": "Full paper opened and curl200: PPO plus teacher action-mean MSE. Lesson8.2 uses a beatable-teacher equal-budget Bernoulli/REINFORCE surrogate, not PPO/VLA/ManiSkill."
     },
     "license": {
       "zh": "版权归原作者；仅提供外链",

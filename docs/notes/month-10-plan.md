@@ -8,7 +8,7 @@ Constraints: no new hardware; not required this month: Isaac, an F/T sensor or a
 
 | # | slug | minutes | runnable | verified against |
 |---|------|---------|----------|------------------|
-| 1 | `flow-matching-policies` | 240 | `flow_match_toy.py` | Flow Matching / π0 / rectified flow / SmolVLA papers; LeRobot π0.5 docs |
+| 1 | `flow-matching-policies` | 450 | `flow_match_toy.py`, `policy_distill_onestep_toy.py` | Flow Matching / π0 / rectified flow / SmolVLA papers; LeRobot π0.5 docs |
 | 2 | `real-time-chunking` | 180 | `rtc_blend_toy.py` | RTC paper; LeRobot RTC + async docs |
 | 3 | `edge-deploy-checklist` | 330 | `latency_budget.py`, `int8_quant_toy.py`, `vla_edge_budget_toy.py` | ONNX Runtime quantization; LeRobot hardware / accelerator docs |
 | 4 | `multi-view-extrinsics` | 240 | `extrinsics_chain_toy.py` | OpenCV calibrateRobotWorldHandEye / ArUco / solvePnP docs |
@@ -16,7 +16,7 @@ Constraints: no new hardware; not required this month: Isaac, an F/T sensor or a
 | 6 | `real-world-rl` | 240 | `rlpd_chain_toy.py` | RLPD arXiv 2302.02948; HIL-SERL arXiv 2410.21845; LeRobot HIL-SERL docs |
 | 7 | `vla-rl-finetune` | 450 | `advantage_filter_toy.py` (optional), `cal_conrft_offline_toy.py` | SimpleVLA-RL 2509.09674; OpenVLA-OFT 2502.19645; π*0.6 blog; ResiP 2407.16677; Policy Decorator 2412.13630; LeRobot SARM docs; ConRFT2502.05450 / Cal-QL2303.05479 (opened) |
 
-Current total **1 860 minutes** (Batch-5 PR3); historical total1 650 after G7. Pointers: 8.3 → 10.2 (async seam), 8.7 capstone → Month 10 (optional, not a replacement), M8 topics → "HIL-SERL 见 10.6".
+Current total **2 070 minutes** (Batch-6 PR3); historical total1 650 after G7. Pointers: 8.3 → 10.2 (async seam), 8.7 capstone → Month 10 (optional, not a replacement), M8 topics → "HIL-SERL 见 10.6".
 
 Widgets deferred. No prices anywhere.
 
@@ -27,3 +27,7 @@ Batch-after-obs PR3 (G7, +150): 10.3 `edge-deploy-checklist` 180→330 — `vla_
 ## Batch-5 PR3 (+210 here)
 
 10.7:240→450; M10 **1650→1860**,7 lessons. Site **20700→21090** with M9+180 (2730). Same-data/equal-update offline BC/CQL/Cal-QL, MC reference inside conservative push-down, five seeds and restricted/tabular representation control. Online dip, consistency head and robot/GPU reading only / 本页未运行; paper以论文为准. Existing advantage filter and10.6 unchanged.
+
+## Batch-6 PR3 / 本月 H1 (+210)
+
+10.1:240→450; M10 **1860→2070**, still 7 lessons. Site **21960→22350** with M8 **2850→3030** (+180). Count only PR3:210+180=390. Shared64 demos / disjoint64 eval starts, 5 seeds, action MSE / actual NFE / independent nonlinear-plant success. Eight-call analytic teacher, one-call full/underfit regressors; unequal fit updates disclosed, no convergence claim. OneDP reverse KL and real Consistency Policy reading only; GPU 本页未运行, figures 以论文为准. Existing Consistency Policy paragraph and expected outputs retained. Sources: batch-6-pr3-sources.md.

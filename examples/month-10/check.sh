@@ -31,4 +31,6 @@ check advantage_filter_toy.txt "$PY" "$M10/vla-rl-finetune/advantage_filter_toy.
 check cal_conrft_offline_toy.txt "$PY" "$M10/vla-rl-finetune/cal_conrft_offline_toy.py"
 check cal_conrft_offline_tabular.txt "$PY" "$M10/vla-rl-finetune/cal_conrft_offline_toy.py" --tabular
 
+check policy_distill_onestep_toy.txt "$PY" "$M10/flow-matching-policies/policy_distill_onestep_toy.py"
+
 exit $fail
