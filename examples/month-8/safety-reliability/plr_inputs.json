@@ -1,0 +1,7 @@
+[
+  {"application":"A_guarded_demo", "function":"safe_stop", "S":"S1", "F":"F1", "P":"P1"},
+  {"application":"A_guarded_demo", "function":"safe_speed", "S":"S1", "F":"F2", "P":"P2"},
+  {"application":"B_frequent_access", "function":"safe_stop", "S":"S2", "F":"F2", "P":"P2"},
+  {"application":"B_frequent_access", "function":"safe_speed", "S":"S2", "F":"F1", "P":"P2"},
+  {"application":"B_frequent_access", "function":"unknown_avoidance", "S":"S2", "F":"F1"}
+]

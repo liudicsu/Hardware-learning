@@ -271,3 +271,192 @@ true_box_centres (x, y, z_top):
 深度加上内参得到点云；体素下采样、RANSAC 去平面与 DBSCAN 质心把桌面场景变成抓取种子。标准库玩具把三个盒子中心恢复到 1 cm 内；Open3D 对应同名步骤。位姿要用米制深度，并按检查点大小阅读 Depth Anything V2 的许可证。
 
 </Summary>
+
+## 3DGS 素养：从辐射地图到声明过的碰撞几何
+
+高斯泼溅（Gaussian splatting）保存均值、协方差、颜色和不透明度；与 NeRF 的隐式神经密度不同，这些参数能显式描述椭球。**高斯不是硬表面**：尾部无限延伸，不透明度是渲染参数，缺少 splat 不代表物理自由空间。本合成练习保留不透明度至少 `0.5` 的高斯，并在 `k_sigma = 2.0` 截断，实体为马氏距离平方不超过 4 的区域。原始协方差为 C 时，形状矩阵 `Sigma = 4 C`，半轴是原始标准差的两倍。这是声明的建模约定，不是校准过的占据概率或置信保证。代码没有暗中再用不透明度乘半径。
+
+场景保留三个轴对齐椭球，机器人为半径 **0.12 m** 的球。两臂共用 **2004** 个机器人中心查询点（种子 **75**，包含人工选定的碰撞、自由、盒角与相切点），没有哪一臂偷看额外几何信息。这是碰撞检测素养，**不重做 occupancy A***。AABB 是连续包围盒，不是用栅格分辨率取巧。
+
+### 先核对 K(s) 判据方向再实现
+
+[Splat-Nav v1](https://arxiv.org/html/2403.02751v1) 的 Theorem 1：两个椭球**不相交，当且仅当存在**严格位于 0 与 1 之间的 `s`，使 `K(s) > 1`。令 `d = mu_b - mu_a`，形状矩阵已经包含选定边界：
+
+```text
+K(s) = d^T [Sigma_a/(1-s) + Sigma_b/s]^-1 d
+Sigma_a = diag(a_x^2, a_y^2, a_z^2); Sigma_b = radius^2 I
+```
+
+不要反过来：K 大是**分离证据**，不是碰撞标志。相切算碰撞。本臂采样 `s = 1/16, ..., 15/16`，只有至少一个证据超过 `1 + 1e-10` 才判分离，否则判碰撞。有限采样保守性的证明与论文 Corollary 1 一致：样本最大值不超过整个区间的最大值，样本证据一定真实存在；漏掉真正最大点，只会把自由查询拒绝，不会在**精确算术下**把相交对判成自由。对于并集，必须对所有障碍对都找到分离证据，才能说机器人自由。容差偏向碰撞，但不能把 Python 浮点变成区间认证安全软件。
+
+最简单的单元核对是两个单位球，中心距为 d：`s=0.5` 时 `K=d^2/4`。所以 d=3 分离、d=2 相切、d=1 重叠。先手算再看随机场景。方向依据定理中展示的 `>1` 与 Corollary 1，不照搬论文附近提到 “negativeness” 的句子。
+
+### 独立真值、保守包围盒与实测取舍
+
+真值**不复用**有限 s 检测臂。对椭球外查询中心，求到实体的最小欧氏距离；最近点坐标 `y_i = a_i^2 d_i/(a_i^2 + lambda)`。在非负 lambda 上对 `sum((y_i/a_i)^2)=1` 单调括区间并做 **100 次二分**；中心在内部时距离为零。距离不超过机器人半径（加 `1e-12` 数值容差）即球碰撞。这是精确距离问题的独立数值解，不是网格或物理传感器真值；代码断言中心、轴向、球体、相切等解析用例。它不是带严格误差界的实数算术 oracle。
+
+AABB 臂用精确球到盒距离。每个椭球都在包围盒内，因此撞椭球必撞盒：**false-safe 应为 0**，盒角却可能造成误报。有限采样椭球臂共用相同形状与球体。两臂均遍历全部三个障碍，不提前退出。
+
+- false-safe = 真值碰撞却判自由的数量 / **108** 个真值碰撞查询。
+- false-alarm = 真值自由却判碰撞的数量 / **1896** 个真值自由查询。
+- 查询代价 = 每查询确定性的轴核计算次数，AABB 为 **9**，15 点椭球为 **135**。不同核的操作不相同，这是工作量单位，**不是墙钟延迟或 Hz**。
+
+本次结果：AABB 漏检 **0/108**、误报 **81/1896**；椭球为 **0/108**、**0/1896**。此集合上采样误报为零，不代表有限采样普遍精确。本实现较紧的形状需要更多算术，不推广成普遍速度排名。渲染保真度不是碰撞召回率，两项指标都不能验证未观测的真实障碍。
+
+```bash
+python3 ~/Hardware-learning/examples/month-7/depth-pointcloud/gsplat_collision_toy.py
+bash ~/Hardware-learning/examples/month-7/check.sh
+```
+
+<CodeSource path="examples/month-7/depth-pointcloud/gsplat_collision_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Thresholded synthetic Gaussians; CPU sphere collision literacy, not a planner.
+Splat-Nav v1 Theorem 1 / Corollaries 1,3: separation iff some K(s)>1.
+Finite samples certify only witnessed separation (conservative in exact arithmetic).
+Ground truth is independent Euclidean point-to-solid-ellipsoid distance, solved
+by a monotone Lagrange-multiplier root with 100 bisections; not K(s) sampling.
+Floating-point arithmetic here is NOT interval-certified safety software.
+"""
+from __future__ import annotations
+
+import math
+import random
+
+SEED = 75
+K_SIGMA = 2.0
+OPACITY_MIN = 0.5
+RADIUS = 0.12  # m, sphere robot
+# mean[m], raw Gaussian standard deviations[m], opacity; axis-aligned for stdlib.
+GAUSSIANS = (
+    ((-0.65, 0.0, 0.0), (0.34, 0.10, 0.18), 0.9),
+    ((0.55, 0.2, 0.15), (0.12, 0.35, 0.16), 0.8),
+    ((0.0, -0.7, -0.1), (0.24, 0.15, 0.10), 0.7),
+    ((0.0, 0.0, 0.0), (0.5, 0.5, 0.5), 0.2),  # excluded, not physical free-space proof
+)
+SCENE = tuple((mu, tuple(K_SIGMA * v for v in sigma))
+              for mu, sigma, opacity in GAUSSIANS if opacity >= OPACITY_MIN)
+SAMPLES = tuple(i / 16 for i in range(1, 16))
+
+
+def distance_to_ellipsoid(d, axes):
+    """Distance from point d to solid ellipsoid, not distance to its AABB.
+    Outside: closest y_i=a_i^2*d_i/(a_i^2+lambda), sum(y_i/a_i)^2=1.
+    The latter strictly decreases in lambda>=0, so bracket + bisection applies.
+    """
+    if sum((x / a) ** 2 for x, a in zip(d, axes)) <= 1:
+        return 0.0
+    def residual(lam):
+        return sum((a * x / (a * a + lam)) ** 2
+                   for x, a in zip(d, axes)) - 1
+    lo, hi = 0.0, 1.0
+    while residual(hi) > 0:
+        hi *= 2
+    for _ in range(100):
+        mid = (lo + hi) / 2
+        if residual(mid) > 0:
+            lo = mid
+        else:
+            hi = mid
+    y = tuple(a * a * x / (a * a + hi) for x, a in zip(d, axes))
+    return math.sqrt(sum((x - z) ** 2 for x, z in zip(d, y)))
+
+
+def truth(point):
+    return any(distance_to_ellipsoid(tuple(x - c for x, c in zip(point, mu)), axes)
+               <= RADIUS + 1e-12 for mu, axes in SCENE)
+
+
+def aabb_collision(point):
+    # Each ellipsoid lies in its enclosing AABB. Sphere-box distance is exact.
+    hits = []
+    for mu, axes in SCENE:
+        dist2 = sum(max(abs(x - c) - a, 0.0) ** 2
+                    for x, c, a in zip(point, mu, axes))
+        hits.append(dist2 <= RADIUS ** 2 + 1e-12)
+    # No early exits: both arms visit every obstacle on every query.
+    return any(hits), len(SCENE) * 3  # axis-kernel evaluations
+
+
+def sampled_collision(point, samples=SAMPLES):
+    hits = []
+    for mu, axes in SCENE:
+        d = tuple(x - c for x, c in zip(point, mu))
+        # Sa=diag(axes^2), Sb=radius^2 I; direct Theorem1 convention.
+        values = [sum(x * x / (a * a / (1 - s) + RADIUS ** 2 / s)
+                      for x, a in zip(d, axes)) for s in samples]
+        # A witness >1 certifies DISJOINT; no witness means possible collision.
+        hits.append(not any(v > 1.0 + 1e-10 for v in values))
+    return any(hits), len(SCENE) * len(samples) * 3
+
+
+def self_test():
+    axes = (1.0, 0.5, 0.25)
+    assert distance_to_ellipsoid((0, 0, 0), axes) == 0
+    assert abs(distance_to_ellipsoid((1.2, 0, 0), axes) - 0.2) < 1e-12
+    assert abs(distance_to_ellipsoid((0, 0, 0.45), axes) - 0.2) < 1e-12
+    assert abs(distance_to_ellipsoid((2, 0, 0), (1, 1, 1)) - 1) < 1e-12
+    assert sampled_collision(SCENE[0][0])[0]
+    assert not sampled_collision((5, 5, 5))[0]
+    # Near tangency is collision under the lesson's tolerance.
+    mu, a = SCENE[0]
+    tangent = (mu[0] - a[0] - RADIUS, mu[1], mu[2])
+    assert truth(tangent) and aabb_collision(tangent)[0] and sampled_collision(tangent)[0]
+
+
+def main():
+    self_test()
+    rng = random.Random(SEED)
+    points = [tuple(rng.uniform(-1.5, 1.5) for _ in range(3)) for _ in range(2000)]
+    # Include known collision, enclosing-box corner, free and tangent queries.
+    points += [SCENE[0][0], (-1.30, 0.19, 0.35), (5, 5, 5),
+               (-0.65 - 0.68 - RADIUS, 0, 0)]
+    actual = [truth(p) for p in points]
+    positives, negatives = sum(actual), len(actual) - sum(actual)
+    print(f"seed={SEED} k_sigma={K_SIGMA:.1f} opacity_min={OPACITY_MIN:.1f} "
+          f"obstacles={len(SCENE)} robot_radius_m={RADIUS:.2f}")
+    print(f"shared_queries={len(points)} truth_collision={positives} truth_free={negatives}")
+    print("truth=independent_distance_root_100_bisections; touching=collision")
+    print("arm false_safe/count_truth_collision false_alarm/count_truth_free axis_kernel_evals/query")
+    rows = []
+    for name, checker in (("aabb", aabb_collision), ("ellipsoid_s15", sampled_collision)):
+        results = [checker(p) for p in points]
+        fs = sum(t and not hit for t, (hit, _) in zip(actual, results))
+        fa = sum(not t and hit for t, (hit, _) in zip(actual, results))
+        cost = sum(c for _, c in results) / len(points)
+        print(f"{name} {fs}/{positives}={fs/positives:.6f} "
+              f"{fa}/{negatives}={fa/negatives:.6f} {cost:.0f}")
+        assert fs == 0
+        rows.append(fa)
+    assert rows[0] > rows[1]  # measured on this declared scene, not universal ranking
+    print("cost=axis_kernel_evaluations_not_wallclock; kernels_have_different_operations")
+    print("finite_s: witness_K_gt_1=separate; no_witness=collision; exact_arithmetic_conservative")
+    print("float_not_certified; Gaussian_threshold_not_physical_surface; GPU_not_run")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+```text
+seed=75 k_sigma=2.0 opacity_min=0.5 obstacles=3 robot_radius_m=0.12
+shared_queries=2004 truth_collision=108 truth_free=1896
+truth=independent_distance_root_100_bisections; touching=collision
+arm false_safe/count_truth_collision false_alarm/count_truth_free axis_kernel_evals/query
+aabb 0/108=0.000000 81/1896=0.042722 9
+ellipsoid_s15 0/108=0.000000 0/1896=0.000000 135
+cost=axis_kernel_evaluations_not_wallclock; kernels_have_different_operations
+finite_s: witness_K_gt_1=separate; no_witness=collision; exact_arithmetic_conservative
+float_not_certified; Gaussian_threshold_not_physical_surface; GPU_not_run
+```
+
+### 引导练习（本课 450 min 中新增 210 min）
+
+1. **35 min — 表示审计。** 画三个椭球与包围盒，计算一轴原始与截断后的协方差，解释排除不透明度 0.2 隐藏了什么。真值与两臂阈值必须相同。
+2. **45 min — 判据审计。** 推导上面的双球检查，追踪一次找不到证据的搜索，再写出有限 s 子集证明。解释为何“所有样本 K 不超过 1”不能证明真实相交。
+3. **60 min — 重放与消融。** 复现表格，在临时副本用 1、3、15、63 个内部 s 样本重跑**同一批**保存的查询；同时报告两种错误与代价，不得逐臂改变真值或障碍。嵌套增加样本不会丢掉已有证据。AABB 不必在所有可能场景都产生更多误报。
+4. **45 min — 失败笔记。** 增加离轴近表面点，记录带符号的距离余量，区分采样保守性与浮点边界模糊。改变 k 或不透明度阈值会改变声明的真值，必须一起重算两臂。不要把排除的几何叫作物理安全空间。
+5. **25 min — 迁移边界。** 解释为何离散碰撞检测不能独自认证连续轨迹，列出部署前所需的地图覆盖与状态估计假设。
+
+论文在作者配置上报告重规划 **5 Hz**、位姿估计 **20 Hz**——**以论文为准**，不是本站跑分。GPU 重建 / 3DGS 训练 / 权重和真实机器人导航：**本页未运行 (not run on this page)**。本页不训练，不实现完整 Splat-Nav 走廊，不宣称 GPU 或 Jetson 吞吐。

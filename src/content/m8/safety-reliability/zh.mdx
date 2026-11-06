@@ -1,6 +1,6 @@
 本课是本站补充内容——第 7–11 个月不属于原六个月课程。
 
-第 6 个月起始位上表现不错的策略，仍可能指令穿出软限位、在丢包时挂住，或在你以为该停时仍输出力矩。本课分开三层：**软件限位**、指令超时 <Term id="watchdog">看门狗</Term>，以及切断动力的物理 <Term id="e-stop">急停</Term>。工业标准只提 **名称与适用范围**。CPU 故障注入玩具对比有无看门狗的最大越界。第二个玩具从指令通路转到设备侧：驱动器状态故障和总线静默都锁存安全，只有操作员确认且前提检查通过才重新使能运动。`WatchdogWidget` 延期；先读表。
+第 6 个月起始位上表现不错的策略，仍可能指令穿出软限位、在丢包时挂住，或在你以为该停时仍输出力矩。本课分开三层：**软件限位**、指令超时 <Term id="watchdog">看门狗</Term>，以及切断动力的物理 <Term id="e-stop">急停</Term>。工业标准先讲范围警告；后文增加仅 PLr 风险图素养，不作认证。CPU 故障注入玩具对比有无看门狗的最大越界。第二个玩具从指令通路转到设备侧：驱动器状态故障和总线静默都锁存安全，只有操作员确认且前提检查通过才重新使能运动。`WatchdogWidget` 延期；先读表。
 
 ## 三层
 
@@ -10,7 +10,7 @@
 
 人工介入挨着这三层：HIL-SERL 文档含 `lerobot-find-joint-limits` 等工具，好在策略乱探之前先摸清盒子；完整流程见 [10.6 真实世界 RL](/zh/month/month-10/real-world-rl)。玩具里的软停数字（±0.80 rad）是课内自定——**不写 STS3215 过载/温度数值**。
 
-## 标准：只提名称
+## 标准：先看适用范围，不给规范限值
 
 - **ISO/TS 15066** — 面向*工业协作*机器人系统的技术规范。ISO 目录写明 **不适用于非工业机器人**。你的 SO-101 工作台不是那套系统；别把 15066 的力/压数字贴到桌面臂上。
 - **ISO 10218-1** — 工业机器人安全（此处只提名称；公开 HTML 常对爬虫 403）。只取通用原则：独立断电、风险评估，不要从二手博客编造条款号。
@@ -501,3 +501,139 @@ ok: latch_ack unsafe_motion_ticks=0 false_auto_reenables=0; bus-off / soft reset
 分开软件限位、指令超时看门狗与断电急停。ISO/TS 15066 仅工业协作；ISO 10218-1 只提名称不摘条款。`watchdog_sim.py`：无看门狗越界 0.6500，有夹紧为 0.0000。`actuator_fault_monitor_toy.py` 把设备/总线故障与指令通路分开：不安全运动 tick 为 ignore 48 / latch_only 30 / latch_ack 0，错误自动重新使能 2 / 2 / 0；位清零但未确认时仍为 `LATCHED_SAFE`。bus-off 或软复位不是急停。用工作台清单；WatchdogWidget 延期。本页不写 STS3215 过载数。
 
 </Summary>
+
+## 标准素养：所需 PLr 不等于已达到的 PL
+
+[ISO 官方目录](https://www.iso.org/standard/73481.html) 当前列出 **ISO 13849-1:2023**，**Edition 4**，发布于 **2023-04**（2026-11-06，Asia/Shanghai 核对）。它给出设计方法，不是为所有具体应用统一指定 PLr 的清单。本页未阅读付费全文，不给条款号，也不作符合性结论。ISO 发布状态不等于某国采标、协调标准状态或法定过渡日期。
+
+所需性能等级 **PLr** 是**命名安全功能**的目标，不是整台机器人的标签。同一机器人在不同应用可能需要不同功能。已达到的 PL（achieved PL）针对已经实现的安全相关控制系统，需要 **category、MTTFd、DCavg、CCF**，还需系统性/软件措施及验证确认。**Achieved PL 超出范围**：玩具没有这些实现证据。查表输出 e 不代表硬件达到 PL e。
+
+### 用户给 S/F/P，两种应用用同一方法
+
+本页只教受限的基础风险图。[Pilz 解读（二手来源）](https://www.pilz.com/en-GB/support/law-standards-norms/functional-safety/en-iso-13849-1) 解释 S（伤害严重度）、F（暴露频率/持续时间）、P（避免或限制伤害的可能性）。S1 为轻微/可逆，S2 为严重/不可逆；F1 为较少/较短暴露，F2 为频繁/较长暴露；P1 为特定条件下可避免，P2 为难以避免。它们是定性输入，**不是按质量、电机转矩或“协作机器人”徽标自动选择的阈值**。须由有能力的评估者提供并说明理由，玩具不替用户选。
+
+| S | F | P1 → PLr | P2 → PLr |
+|---|---|---|---|
+| S1 | F1 | a | b |
+| S1 | F2 | b | c |
+| S2 | F1 | c | d |
+| S2 | F2 | d | e |
+
+这八分支基础查表不含概率调整或应用专用 Type-C 要求，不是完整 ISO 风险评估。P 的选择本身需要任务、操作人员及情境证据（二手来源讨论多个因素）。不能因为操作员说躲得快就选 P1。本页没有暗中降低概率从而降级。
+
+`plr_inputs.json` 是**示意用户输入样例**，不是对真实机器的评估。两应用调用相同 `assign_plr()` 和基础风险图。它提供 A_guarded_demo 的 safe_stop=S1/F1/P1 → **a**、safe_speed=S1/F2/P2 → **c**；B_frequent_access 的 safe_stop=S2/F2/P2 → **e**、safe_speed=S2/F1/P2 → **d**。名字本身不决定这些值。最后一条 B 记录缺 P，返回 **insufficient_data**，绝不默认成乐观值；application/function/S/F/P 任一缺失、null 或空值也返回数据不足。不支持的值返回 **invalid_input**。这些状态都不会控制真实机器人或使其安全，而是要求停止这份桌面评估、补齐证据。
+
+```bash
+python3 ~/Hardware-learning/examples/month-8/safety-reliability/safety_pl_assign_toy.py ~/Hardware-learning/examples/month-8/safety-reliability/plr_inputs.json
+bash ~/Hardware-learning/examples/month-8/check.sh
+```
+
+```json
+[
+  {"application":"A_guarded_demo", "function":"safe_stop", "S":"S1", "F":"F1", "P":"P1"},
+  {"application":"A_guarded_demo", "function":"safe_speed", "S":"S1", "F":"F2", "P":"P2"},
+  {"application":"B_frequent_access", "function":"safe_stop", "S":"S2", "F":"F2", "P":"P2"},
+  {"application":"B_frequent_access", "function":"safe_speed", "S":"S2", "F":"F1", "P":"P2"},
+  {"application":"B_frequent_access", "function":"unknown_avoidance", "S":"S2", "F":"F1"}
+]
+```
+
+<CodeSource path="examples/month-8/safety-reliability/safety_pl_assign_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Pedagogic S/F/P risk graph -> required PLr ONLY, never achieved PL.
+ISO 13849-1:2023 edition metadata verified on ISO catalogue; secondary risk
+literacy: Pilz EN ISO 13849-1 page. No automatic risk selection from robot type.
+User supplies S/F/P for each named safety function in a JSON list.
+Missing/null/empty field -> insufficient_data; bad values -> invalid_input.
+This intentionally excludes application-specific Type-C requirements and any
+probability-based adjustment; not a complete ISO assessment or certification.
+"""
+from __future__ import annotations
+
+import argparse
+import itertools
+import json
+from pathlib import Path
+
+GRAPH = {
+    ("S1", "F1", "P1"): "a", ("S1", "F1", "P2"): "b",
+    ("S1", "F2", "P1"): "b", ("S1", "F2", "P2"): "c",
+    ("S2", "F1", "P1"): "c", ("S2", "F1", "P2"): "d",
+    ("S2", "F2", "P1"): "d", ("S2", "F2", "P2"): "e",
+}
+
+
+def assign_plr(record):
+    keys = ("application", "function", "S", "F", "P")
+    if not isinstance(record, dict):
+        return "invalid_input"
+    if any(k not in record or record[k] is None or record[k] == "" for k in keys):
+        return "insufficient_data"
+    if any(not isinstance(record[k], str) for k in keys):
+        return "invalid_input"
+    return GRAPH.get(tuple(record[k] for k in ("S", "F", "P")), "invalid_input")
+
+
+def self_test():
+    expected = ("a", "b", "b", "c", "c", "d", "d", "e")
+    base = {"application": "test", "function": "safe_stop"}
+    for risk, plr in zip(itertools.product(("S1", "S2"), ("F1", "F2"), ("P1", "P2")), expected):
+        row = dict(base, **dict(zip(("S", "F", "P"), risk)))
+        assert assign_plr(row) == plr
+        for key in row:
+            missing = dict(row)
+            del missing[key]
+            assert assign_plr(missing) == "insufficient_data"
+    assert assign_plr(dict(base, S="S3", F="F1", P="P1")) == "invalid_input"
+    assert assign_plr(dict(base, S=[], F="F1", P="P1")) == "invalid_input"
+    assert assign_plr(dict(base, S="S1", F="F1", P=None)) == "insufficient_data"
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("input", type=Path, help="user-supplied JSON list; no inferred S/F/P")
+    args = parser.parse_args()
+    rows = json.loads(args.input.read_text())
+    if not isinstance(rows, list):
+        parser.error("input must be a JSON list")
+    self_test()
+    print("method=S/F/P_base_risk_graph; edition=ISO_13849-1:2023; result=PLr_only")
+    print("application function S F P result")
+    for row in rows:
+        fields = [str(row.get(k, "missing")) for k in ("application", "function", "S", "F", "P")] if isinstance(row, dict) else ["invalid"] * 5
+        print(" ".join(fields), assign_plr(row))
+    print("achieved_PL=out_of_scope: category,MTTFd,DCavg,CCF_needed")
+    print("self_tests=8_branches+each_missing_field+invalid_values; toy_not_certification")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+```text
+method=S/F/P_base_risk_graph; edition=ISO_13849-1:2023; result=PLr_only
+application function S F P result
+A_guarded_demo safe_stop S1 F1 P1 a
+A_guarded_demo safe_speed S1 F2 P2 c
+B_frequent_access safe_stop S2 F2 P2 e
+B_frequent_access safe_speed S2 F1 P2 d
+B_frequent_access unknown_avoidance S2 F1 missing insufficient_data
+achieved_PL=out_of_scope: category,MTTFd,DCavg,CCF_needed
+self_tests=8_branches+each_missing_field+invalid_values; toy_not_certification
+```
+
+### 工业机器人更新——明确为二手摘要
+
+以下 **ISO 10218-1/-2:2025**、**Class I/II** 与 **ISO/TS 15066** 整合说明来自 [TÜV Rheinland（二手来源）](https://www.tuv.com/landingpage/en/robotics/main/standard-update-alert/) 和 [IBF（二手来源）](https://www.ibf-solutions.com/en/seminars-and-news/news/new-standards-for-industrial-robots-en-iso-10218-1-and-2)，**不是已打开的规范条文**。摘要区分 Part 1 的工业机器人本体与 Part 2 的应用/系统/集成，描述 Class I 为受限、轻、慢的类别，Class II 为其他工业机器人，并描述 15066 协作运行材料纳入 Part 2。本页**不提供数字分类边界、力/压力表或条款号**，不得凭这些概括词判定分类或认证。“协作”针对应用，不是神奇 SKU 标签。应按适用标准与有能力的集成评估执行，不靠本摘要。
+
+**桌面教学 SO-101 不在工业 ISO 10218 的适用范围内**；这些链接不认证它，也不允许把工业力/压力限值搬到桌面机械臂。既有断电急停、软件看门狗和设备/总线锁存仍然各司其职，计算 PLr 不会实现其中任何一项。标准认证与真实安全功能验证：**本页未运行 (not run on this page)**。**玩具≠认证 (not certification)**，不是安全控制器，更不是绕过防护的指令。
+
+### 引导评估笔记（本课 540 min 中新增 180 min）
+
+1. **30 min — 范围与版本。** 核对 ISO 目录元数据，将来源分成一手目录与二手解读。解释为何目录摘要、厂商文章都不能代替全文。
+2. **40 min — 输入契约。** 为四个样例功能分别写出哪些证据才能支持 S/F/P，明确标出样例假设，不声称假设适合真实应用。跨两应用保持相同功能定义与风险图方法。
+3. **45 min — 分支审计。** 手算八种组合；逐一删必需字段、设 null、尝试 S3 与列表型 S。核对 insufficient_data 与 invalid_input；每次只改变一个合法风险参数并解释目标变化，不把数据错误字符串当成 PL a。
+4. **40 min — 已达到 PL 的缺口。** 为 category/MTTFd/DCavg/CCF 与软件/验证写证据矩阵，所有缺项明确记缺。解释为何目标 e 填不了空白。在假想安全功能规格中加入触发条件、安全状态、反应时间要求与复位策略，但不编造规范数值。
+5. **25 min — 边界复核。** 解释为何 15066 表或 Class I 摘要均不能批准 SO-101 接触实验。区分评估目标、控制器实现、验证与独立认证，后三项不作声明。
