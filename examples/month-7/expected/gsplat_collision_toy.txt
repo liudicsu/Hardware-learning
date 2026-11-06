@@ -1,0 +1,9 @@
+seed=75 k_sigma=2.0 opacity_min=0.5 obstacles=3 robot_radius_m=0.12
+shared_queries=2004 truth_collision=108 truth_free=1896
+truth=independent_distance_root_100_bisections; touching=collision
+arm false_safe/count_truth_collision false_alarm/count_truth_free axis_kernel_evals/query
+aabb 0/108=0.000000 81/1896=0.042722 9
+ellipsoid_s15 0/108=0.000000 0/1896=0.000000 135
+cost=axis_kernel_evaluations_not_wallclock; kernels_have_different_operations
+finite_s: witness_K_gt_1=separate; no_witness=collision; exact_arithmetic_conservative
+float_not_certified; Gaussian_threshold_not_physical_surface; GPU_not_run

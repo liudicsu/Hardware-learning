@@ -3936,8 +3936,8 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 19050, "bms-encoder-ethercat PR1 curriculum: 19050 minutes");
-  for (const [month, expected] of [[2, 1500], [3, 1290], [4, 1620], [5, 1620], [6, 1350], [7, 1650], [8, 2490], [9, 2340], [10, 1650], [11, 2820]]) {
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 19440, "3dgs-iso-pl PR2 curriculum: 19440 minutes");
+  for (const [month, expected] of [[2, 1500], [3, 1290], [4, 1620], [5, 1620], [6, 1350], [7, 1860], [8, 2670], [9, 2340], [10, 1650], [11, 2820]]) {
     ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `dr-imagine-edge PR3 M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
@@ -4923,7 +4923,7 @@ for (const m of readdirSync(content)) {
   for (const id of ["dreamgen-paper", "lapa-paper", "smolvla-paper", "lerobot-async"]) {
     ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `wm2 resource ${id}: present + extra`);
   }
-  ok(/19 050/.test(read("README.md")), "b4p1 README: 19 050 minutes");
+  ok(/19 440/.test(read("README.md")), "b4p2 README: 19 440 minutes");
   console.log("worldmodel-smolvla PR2: neural trajectories + async chunk locks checked");
 }
 
@@ -5023,7 +5023,6 @@ for (const m of readdirSync(content)) {
   console.log("dr-imagine-edge PR3: contact DR + imagination ranking + edge VLA budget locks checked");
 }
 
-
 // Batch-4 PR1 (H3 SoC + H4 encoder Z-index + H5 EtherCAT DC).
 {
   const read = (p) => readFileSync(join(root, p), "utf8");
@@ -5097,5 +5096,49 @@ for (const m of readdirSync(content)) {
   console.log("bms-encoder-ethercat PR1: SoC + Z-index + EtherCAT DC locks checked");
 }
 
+
+// Batch-4 PR2 H1/H6: shared collision geometry and PLr-only literacy.
+{
+  const read = p => readFileSync(join(root, p), "utf8");
+  for (const [month, slug, toy] of [[7,"depth-pointcloud","gsplat_collision_toy"], [8,"safety-reliability","safety_pl_assign_toy"]]) {
+    const py = read(`examples/month-${month}/${slug}/${toy}.py`);
+    const expected = read(`examples/month-${month}/expected/${toy}.txt`);
+    ok(read(`examples/month-${month}/check.sh`).includes(`${toy}.txt`), `b4p2 ${toy}: check hook`);
+    for (const lang of ["en","zh"]) {
+      const md = read(`src/content/m${month}/${slug}/${lang}.mdx`);
+      ok(md.includes(py.trim()) && md.includes(expected.trim()), `b4p2 ${toy} ${lang}: exact code and stdout`);
+      const summaryStart = md.indexOf("<Summary>");
+      const summary = md.slice(summaryStart);
+      const body = md.slice(0, summaryStart);
+      ok(summaryStart >= 0 && md.trimEnd().endsWith("</Summary>") && (md.match(/<Summary>/g) || []).length === 1, `b4p2 ${toy} ${lang}: Summary ends page`);
+      ok(body.includes(py.trim()) && body.includes(expected.trim()) && body.includes(month === 7 ? "210 min" : "180 min"), `b4p2 ${toy} ${lang}: full addition precedes Summary`);
+      if (month === 7) {
+        for (const marker of ["AABB", "3DGS"]) ok(summary.includes(marker), `b4p2 depth ${lang} Summary: ${marker}`);
+        ok(lang === "en" ? /finite-s ellipsoid test.*independent distance ground truth.*without 3DGS training/.test(summary) : /独立距离真值.*有限 s 椭球测试.*不训练 3DGS/.test(summary), `b4p2 depth ${lang} Summary: collision method and scope`);
+      } else {
+        ok(lang === "en" ? /only PLr from the user-supplied risk graph, not achieved PL/.test(summary) : /仅从用户提供的风险图推导 PLr.*不是已达到的 PL（achieved PL）/.test(summary), `b4p2 safety ${lang} Summary: user risk graph PLr only`);
+      }
+      ok(md.includes("本页未运行"), `b4p2 ${toy} ${lang}: unrun boundary`);
+      for (const marker of month === 7 ? ["K(s) > 1", "false-safe", "false-alarm", "2004", "108", "1896", "135", "以论文为准", "1e-10"] : ["PLr", "insufficient_data", "category", "MTTFd", "DCavg", "CCF", "Class I/II", "2023", "2025", "SO-101", "not certification"]) {
+        ok(md.includes(marker), `b4p2 ${toy} ${lang}: ${marker}`);
+      }
+    }
+  }
+  const collision = read("examples/month-7/expected/gsplat_collision_toy.txt");
+  ok(collision.includes("aabb 0/108=0.000000 81/1896=0.042722 9"), "b4p2: AABB conservative measured errors/cost");
+  ok(collision.includes("ellipsoid_s15 0/108=0.000000 0/1896=0.000000 135"), "b4p2: ellipsoid measured errors/cost");
+  const plr = read("examples/month-8/expected/safety_pl_assign_toy.txt");
+  ok(plr.includes("unknown_avoidance S2 F1 missing insufficient_data"), "b4p2: no guessed missing P");
+  for (const id of ["splat-nav-paper", "iso-13849-1-2023", "tuv-10218-2025-secondary", "pilz-plr-secondary"]) {
+    ok(read("src/lib/resources.ts").includes(`id: "${id}"`), `b4p2 source ${id}`);
+  }
+}
+
+{
+  const cur = readFileSync(join(root,"src/lib/curriculum.ts"),"utf8");
+  ok(cur.match(/slug: "depth-pointcloud"[\s\S]*?minutes: (\d+)/)?.[1] === "450", "b4p2 curriculum: 7.5=450");
+  ok(cur.match(/slug: "safety-reliability"[\s\S]*?minutes: (\d+)/)?.[1] === "540", "b4p2 curriculum: 8.5=540");
+  console.log("3dgs-iso-pl PR2: collision/PLr locks checked (reachable before exit)");
+}
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
 process.exit(failed ? 1 : 0);

@@ -35,4 +35,6 @@ check actuator_fault_monitor_toy.txt "$PY" "$M8/safety-reliability/actuator_faul
 
 check imagine_rank_toy.txt "$PY" "$M8/sim-benchmarks/imagine_rank_toy.py"
 
+check safety_pl_assign_toy.txt "$PY" "$M8/safety-reliability/safety_pl_assign_toy.py" "$M8/safety-reliability/plr_inputs.json"
+
 exit $fail

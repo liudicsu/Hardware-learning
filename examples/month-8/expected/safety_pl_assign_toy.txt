@@ -1,0 +1,9 @@
+method=S/F/P_base_risk_graph; edition=ISO_13849-1:2023; result=PLr_only
+application function S F P result
+A_guarded_demo safe_stop S1 F1 P1 a
+A_guarded_demo safe_speed S1 F2 P2 c
+B_frequent_access safe_stop S2 F2 P2 e
+B_frequent_access safe_speed S2 F1 P2 d
+B_frequent_access unknown_avoidance S2 F1 missing insufficient_data
+achieved_PL=out_of_scope: category,MTTFd,DCavg,CCF_needed
+self_tests=8_branches+each_missing_field+invalid_values; toy_not_certification

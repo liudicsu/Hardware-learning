@@ -3421,6 +3421,50 @@ export const resources: Record<string, Resource> = {
   },
 
 
+  "splat-nav-paper": {
+    id: "splat-nav-paper",
+    url: "https://arxiv.org/html/2403.02751v1",
+    title: { zh: "Splat-Nav：阈值椭球与安全分离证据", en: "Splat-Nav: thresholded ellipsoids and separation witnesses" },
+    author: "Chen et al.",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: { zh: "Theorem 1 的 K(s)>1 表示分离，Corollary 1 给有限采样保守性；5/20 Hz 以论文为准。", en: "Theorem 1: K(s)>1 witnesses separation; Corollary 1 gives conservative finite sampling. 5/20 Hz: 以论文为准." },
+    license: { zh: "版权归原作者；仅提供外链", en: "Copyright original authors; external link only" },
+    extra: true,
+  },
+  "iso-13849-1-2023": {
+    id: "iso-13849-1-2023",
+    url: "https://www.iso.org/standard/73481.html",
+    title: { zh: "ISO 13849-1:2023 官方目录（非全文）", en: "ISO 13849-1:2023 official catalogue (not full text)" },
+    author: "ISO",
+    kind: "guide",
+    cost: { zh: "免费页面（ISO 全文收费）", en: "Free page (ISO full text paid)" },
+    summary: { zh: "Edition 4，2023-04，当前 Published；只核版本/范围，PLr 不等于 achieved PL。", en: "Edition 4, 2023-04, currently Published; metadata/scope only, PLr is not achieved PL." },
+    license: { zh: "版权归原作者；仅提供外链", en: "Copyright original authors; external link only" },
+    extra: true,
+  },
+  "tuv-10218-2025-secondary": {
+    id: "tuv-10218-2025-secondary",
+    url: "https://www.tuv.com/landingpage/en/robotics/main/standard-update-alert/",
+    title: { zh: "ISO 10218:2025 更新解读（二手）", en: "ISO 10218:2025 update explainer (secondary)" },
+    author: "TÜV Rheinland",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: { zh: "二手摘要：10218-1/-2:2025、Class I/II 与 15066 整合；不是条文，不给力/压力表。", en: "Secondary summary: 10218-1/-2:2025, Class I/II, 15066 integration; not normative clauses or force/pressure tables." },
+    license: { zh: "版权归原作者；仅提供外链", en: "Copyright original authors; external link only" },
+    extra: true,
+  },
+  "pilz-plr-secondary": {
+    id: "pilz-plr-secondary",
+    url: "https://www.pilz.com/en-GB/support/law-standards-norms/functional-safety/en-iso-13849-1",
+    title: { zh: "ISO 13849 PLr 风险图素养（二手）", en: "ISO 13849 PLr risk-graph literacy (secondary)" },
+    author: "Pilz",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: { zh: "二手解读 S/F/P、PLr 与实现性能等级证据；不是完整风险评估或认证。", en: "Secondary explanation of S/F/P, PLr and implementation evidence; not a complete risk assessment or certification." },
+    license: { zh: "版权归原作者；仅提供外链", en: "Copyright original authors; external link only" },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

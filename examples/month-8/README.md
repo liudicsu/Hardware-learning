@@ -14,3 +14,5 @@ CPU-reproducible scripts for Month 8 (site supplement). Run `./check.sh` from th
 | sim-benchmarks | `sim-benchmarks/suite_score_table.py`, `sim-benchmarks/imagine_rank_toy.py` | stdlib |
 
 8 lessons complete / 8 课已齐 (8.1–8.8 Track B).
+
+Batch-4 PR2: `safety-reliability/safety_pl_assign_toy.py` (stdlib CPU), reproduced by `check.sh`; output in `expected/safety_pl_assign_toy.txt`. Supply `safety-reliability/plr_inputs.json` explicitly; its S/F/P values are illustrative inputs, not selected by the program.

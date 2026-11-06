@@ -1,6 +1,6 @@
 This lesson is a site supplement — Months 7–11 are not part of the original six-month course.
 
-A policy that scores well on Month 6 starts can still command through a soft stop, hang on a dropped packet, or keep torque on after you meant to quit. This lesson separates three layers: **software limits**, a command-timeout <Term id="watchdog">watchdog</Term>, and a physical <Term id="e-stop">e-stop</Term> that cuts power. Industrial standards appear by **name and scope only**. A CPU fault-injection toy compares max overshoot with and without a watchdog. A second toy moves from the command path to the device side: drive status faults and bus silence latch safe, and only an operator ack with checked preconditions re-enables motion. `WatchdogWidget` is deferred; use the table for now.
+A policy that scores well on Month 6 starts can still command through a soft stop, hang on a dropped packet, or keep torque on after you meant to quit. This lesson separates three layers: **software limits**, a command-timeout <Term id="watchdog">watchdog</Term>, and a physical <Term id="e-stop">e-stop</Term> that cuts power. Industrial standards begin with scope warnings; the added section teaches PLr-only risk-graph literacy, never certification. A CPU fault-injection toy compares max overshoot with and without a watchdog. A second toy moves from the command path to the device side: drive status faults and bus silence latch safe, and only an operator ack with checked preconditions re-enables motion. `WatchdogWidget` is deferred; use the table for now.
 
 ## Three layers
 
@@ -10,7 +10,7 @@ A policy that scores well on Month 6 starts can still command through a soft sto
 
 Human intervention sits beside those layers: HIL-SERL's docs include tools such as `lerobot-find-joint-limits` so you discover the box *before* a policy explores it; full pipeline in [10.6 real-world RL](/en/month/month-10/real-world-rl). Soft-stop numbers in the toy (±0.80 rad) are lesson-chosen — **no STS3215 overload / temperature figures**.
 
-## Standards: names only
+## Standards: scope first, no normative limits
 
 - **ISO/TS 15066** — technical specification for *industrial collaborative* robot systems. The ISO catalogue states it **does not apply to non-industrial robots**. Your SO-101 bench is not that system; do not paste 15066 force/pressure numbers onto a desk arm.
 - **ISO 10218-1** — industrial robot safety (name only here; the public HTML often returns 403 to scrapers). Take general principles: separate power interrupt, risk assessment, do not invent clause citations from secondary blogs.
@@ -496,8 +496,144 @@ Print and tick `examples/month-8/safety-reliability/bench_safety_checklist.md` b
 - **Treating every status-word bit as undefined.** Bits 0–7 and 9–11 have standard names in the public ros2_canopen table; only bit 8, bits 12–13 and bits 14–15 are manufacturer- or mode-specific, so keep those out of your asserts.
 - **Reading `/diagnostics` ERROR as a safety action.** A diagnostic level reports; the monitor latches; the e-stop cuts power.
 
+## Standards literacy: required PLr is not achieved PL
+
+The [official ISO catalogue](https://www.iso.org/standard/73481.html) currently lists **ISO 13849-1:2023**, **Edition 4**, published **2023-04** (checked 2026-11-06, Asia/Shanghai). It describes a design methodology, not a universal list of PLr values for particular applications. The full paid standard was not read here; no clause numbers or conformity conclusion are supplied. Do not confuse ISO publication status with national adoption, harmonisation or a legal transition date.
+
+Required Performance Level **PLr** is a target for a **named safety function**, not a label for an entire robot. The same robot can need different functions in different applications. Achieved PL is about an implemented safety-related control system and needs **category, MTTFd, DCavg, CCF**, as well as systematic/software measures and verification/validation. **Achieved PL is out of scope**: no such implementation evidence is in this toy. A lookup returning e does not establish PL e hardware.
+
+### User-supplied S/F/P, one method for two applications
+
+We use a deliberately limited base risk graph for literacy. The [Pilz explanation (secondary)](https://www.pilz.com/en-GB/support/law-standards-norms/functional-safety/en-iso-13849-1) describes S (injury severity), F (frequency/duration of exposure) and P (possibility of avoiding/limiting harm). S1 is slight/reversible, S2 serious/irreversible; F1 lower/shorter exposure, F2 frequent/long exposure; P1 avoidance possible under specific conditions, P2 scarcely possible. These are qualitative inputs, **not automatic thresholds based on mass, motor torque or a “cobot” badge**. A competent assessor must supply them with reasoning; the toy does not choose them.
+
+| S | F | P1 → PLr | P2 → PLr |
+|---|---|---|---|
+| S1 | F1 | a | b |
+| S1 | F2 | b | c |
+| S2 | F1 | c | d |
+| S2 | F2 | d | e |
+
+This base eight-branch lookup excludes probability adjustments and application-specific Type-C requirements; it is not the whole ISO risk-assessment process. P selection itself needs task/operator/context evidence (the secondary source discusses multiple factors). Never choose P1 just because an operator says they can move quickly. No probability reduction is silently applied.
+
+`plr_inputs.json` is an **illustrative user-input fixture**, not an assessment of actual machinery. Both applications use the same `assign_plr()` and base graph. It supplies A_guarded_demo safe_stop=S1/F1/P1 → **a**, safe_speed=S1/F2/P2 → **c**; B_frequent_access safe_stop=S2/F2/P2 → **e**, safe_speed=S2/F1/P2 → **d**. Names alone do not determine these values. The final B row omits P and returns **insufficient_data**, not an optimistic default; missing application/function/S/F/P, null and empty values also fail closed as data gaps. Unsupported values return **invalid_input**. Neither status commands a real robot or makes it safe; it means stop this desk assessment and obtain the missing evidence.
+
+```bash
+python3 ~/Hardware-learning/examples/month-8/safety-reliability/safety_pl_assign_toy.py ~/Hardware-learning/examples/month-8/safety-reliability/plr_inputs.json
+bash ~/Hardware-learning/examples/month-8/check.sh
+```
+
+```json
+[
+  {"application":"A_guarded_demo", "function":"safe_stop", "S":"S1", "F":"F1", "P":"P1"},
+  {"application":"A_guarded_demo", "function":"safe_speed", "S":"S1", "F":"F2", "P":"P2"},
+  {"application":"B_frequent_access", "function":"safe_stop", "S":"S2", "F":"F2", "P":"P2"},
+  {"application":"B_frequent_access", "function":"safe_speed", "S":"S2", "F":"F1", "P":"P2"},
+  {"application":"B_frequent_access", "function":"unknown_avoidance", "S":"S2", "F":"F1"}
+]
+```
+
+<CodeSource path="examples/month-8/safety-reliability/safety_pl_assign_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Pedagogic S/F/P risk graph -> required PLr ONLY, never achieved PL.
+ISO 13849-1:2023 edition metadata verified on ISO catalogue; secondary risk
+literacy: Pilz EN ISO 13849-1 page. No automatic risk selection from robot type.
+User supplies S/F/P for each named safety function in a JSON list.
+Missing/null/empty field -> insufficient_data; bad values -> invalid_input.
+This intentionally excludes application-specific Type-C requirements and any
+probability-based adjustment; not a complete ISO assessment or certification.
+"""
+from __future__ import annotations
+
+import argparse
+import itertools
+import json
+from pathlib import Path
+
+GRAPH = {
+    ("S1", "F1", "P1"): "a", ("S1", "F1", "P2"): "b",
+    ("S1", "F2", "P1"): "b", ("S1", "F2", "P2"): "c",
+    ("S2", "F1", "P1"): "c", ("S2", "F1", "P2"): "d",
+    ("S2", "F2", "P1"): "d", ("S2", "F2", "P2"): "e",
+}
+
+
+def assign_plr(record):
+    keys = ("application", "function", "S", "F", "P")
+    if not isinstance(record, dict):
+        return "invalid_input"
+    if any(k not in record or record[k] is None or record[k] == "" for k in keys):
+        return "insufficient_data"
+    if any(not isinstance(record[k], str) for k in keys):
+        return "invalid_input"
+    return GRAPH.get(tuple(record[k] for k in ("S", "F", "P")), "invalid_input")
+
+
+def self_test():
+    expected = ("a", "b", "b", "c", "c", "d", "d", "e")
+    base = {"application": "test", "function": "safe_stop"}
+    for risk, plr in zip(itertools.product(("S1", "S2"), ("F1", "F2"), ("P1", "P2")), expected):
+        row = dict(base, **dict(zip(("S", "F", "P"), risk)))
+        assert assign_plr(row) == plr
+        for key in row:
+            missing = dict(row)
+            del missing[key]
+            assert assign_plr(missing) == "insufficient_data"
+    assert assign_plr(dict(base, S="S3", F="F1", P="P1")) == "invalid_input"
+    assert assign_plr(dict(base, S=[], F="F1", P="P1")) == "invalid_input"
+    assert assign_plr(dict(base, S="S1", F="F1", P=None)) == "insufficient_data"
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("input", type=Path, help="user-supplied JSON list; no inferred S/F/P")
+    args = parser.parse_args()
+    rows = json.loads(args.input.read_text())
+    if not isinstance(rows, list):
+        parser.error("input must be a JSON list")
+    self_test()
+    print("method=S/F/P_base_risk_graph; edition=ISO_13849-1:2023; result=PLr_only")
+    print("application function S F P result")
+    for row in rows:
+        fields = [str(row.get(k, "missing")) for k in ("application", "function", "S", "F", "P")] if isinstance(row, dict) else ["invalid"] * 5
+        print(" ".join(fields), assign_plr(row))
+    print("achieved_PL=out_of_scope: category,MTTFd,DCavg,CCF_needed")
+    print("self_tests=8_branches+each_missing_field+invalid_values; toy_not_certification")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+```text
+method=S/F/P_base_risk_graph; edition=ISO_13849-1:2023; result=PLr_only
+application function S F P result
+A_guarded_demo safe_stop S1 F1 P1 a
+A_guarded_demo safe_speed S1 F2 P2 c
+B_frequent_access safe_stop S2 F2 P2 e
+B_frequent_access safe_speed S2 F1 P2 d
+B_frequent_access unknown_avoidance S2 F1 missing insufficient_data
+achieved_PL=out_of_scope: category,MTTFd,DCavg,CCF_needed
+self_tests=8_branches+each_missing_field+invalid_values; toy_not_certification
+```
+
+### Industrial robot updates — explicitly secondary summaries
+
+The following account of **ISO 10218-1/-2:2025**, **Class I/II** and **ISO/TS 15066** integration is from [TÜV Rheinland (secondary)](https://www.tuv.com/landingpage/en/robotics/main/standard-update-alert/) and [IBF (secondary)](https://www.ibf-solutions.com/en/seminars-and-news/news/new-standards-for-industrial-robots-en-iso-10218-1-and-2), **not opened normative clauses**. Their summaries distinguish the industrial robot itself in Part 1 from applications/systems/integration in Part 2, describe Class I as a limited/light/slow class and Class II as other industrial robots, and describe collaborative-operation material from 15066 as incorporated into Part 2. This page gives **no numerical class boundaries, force/pressure tables or clause numbers**; do not infer classification or certification from those broad words. Collaboration concerns the application, not a magic SKU label. Follow the applicable standards and a competent integration assessment rather than this summary.
+
+**The desktop educational SO-101 is not in industrial ISO 10218 scope**; these pointers do not certify it or justify transferring industrial force/pressure limits to a desktop arm. Existing power-cut e-stop, software watchdog and device/bus latch lessons remain distinct; calculating PLr does not implement any of them. Standards/certification and real safety-function validation: **本页未运行 (not run on this page)**. This toy is **not certification**, not a safety controller and not an instruction to defeat a guard.
+
+### Guided assessment notebook (+180 min within this 540 min lesson)
+
+1. **30 min — scope and edition.** Check the ISO catalogue metadata and label each source primary catalogue vs secondary explainer. Explain why neither a catalogue abstract nor a vendor summary substitutes for the full standard.
+2. **40 min — input contract.** For each of the four example functions, write what evidence would justify S/F/P, explicitly marking fixture assumptions. Do not claim the assumed values fit a real application. Keep the same function definition and risk-graph method across the two applications.
+3. **45 min — branch audit.** Walk all eight combinations by hand. Delete each required field, set null, and try S3 and a list-valued S. Check insufficient_data vs invalid_input; change one valid risk parameter at a time and explain the target change. Do not reinterpret a data-error string as PL a.
+4. **40 min — achieved-PL gap.** Write an evidence matrix for category/MTTFd/DCavg/CCF and software/validation. Mark every item absent; explain why a target of e cannot fill those blanks. Add trigger, safe state, reaction-time requirement and reset policy to a hypothetical safety-function specification without inventing normative values.
+5. **25 min — boundary review.** Explain why neither a 15066 table nor a Class I summary authorises an SO-101 contact experiment. Contrast assessment target, controller implementation, verification and independent certification, leaving the latter three unclaimed.
+
 <Summary>
 
-Separate software limits, command-timeout watchdogs and power-cutting e-stops. ISO/TS 15066 is industrial-collaborative only; ISO 10218-1 is named, not quoted. `watchdog_sim.py` shows overshoot 0.6500 without a watchdog vs 0.0000 with clamp. `actuator_fault_monitor_toy.py` separates device/bus faults from the command path: ignore 48 / latch_only 30 / latch_ack 0 unsafe motion ticks, false auto re-enables 2 / 2 / 0; a cleared bit without an ack stays `LATCHED_SAFE`. Bus-off or a soft reset is not an e-stop. Use the bench checklist; WatchdogWidget is deferred. No STS3215 overload figures here.
+Separate software limits, command-timeout watchdogs and power-cutting e-stops. ISO/TS 15066 is industrial-collaborative only; ISO 10218-1 is named, not quoted; the PLr section derives only PLr from the user-supplied risk graph, not achieved PL. `watchdog_sim.py` shows overshoot 0.6500 without a watchdog vs 0.0000 with clamp. `actuator_fault_monitor_toy.py` separates device/bus faults from the command path: ignore 48 / latch_only 30 / latch_ack 0 unsafe motion ticks, false auto re-enables 2 / 2 / 0; a cleared bit without an ack stays `LATCHED_SAFE`. Bus-off or a soft reset is not an e-stop. Use the bench checklist; WatchdogWidget is deferred. No STS3215 overload figures here.
 
 </Summary>
