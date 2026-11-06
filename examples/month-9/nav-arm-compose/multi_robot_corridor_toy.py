@@ -7,6 +7,7 @@ ORCA-lite is an ORCA-INSPIRED reciprocal STOP sketch, NOT the ORCA velocity-
 obstacle construction/LP. Each approaching disc takes half the available
 clearance budget over horizon TAU, slowing BOTH. No passing-side or back-out
 planner: local collision avoidance can deadlock in a single-lane corridor.
+For clarity, this is not the linear program of the original RVO/ORCA.
 Holonomic vector velocities, same speed/acceleration limits in ALL arms.
 Acceleration/noise can invalidate ideal reciprocal-avoidance guarantees;
 we measure collisions instead of claiming a certificate or real ORCA results.

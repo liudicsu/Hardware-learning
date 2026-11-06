@@ -247,7 +247,7 @@ The mutex's communication is **extra information**,not an equal-information win 
 
 ### Precisely what “ORCA-lite” means here
 
-The opened primary ORCA page describes each agent taking half the responsibility,with collision-avoidance half-planes solved by a low-dimensional LP. **Our arm is only an ORCA-inspired reciprocal-stop sketch**,not full ORCA's velocity-obstacle construction or LP,and inherits none of its formal collision-free guarantees. It assumes **holonomic discs**; it is not a differential-drive implementation.
+The opened primary ORCA page describes each agent taking half the responsibility,with collision-avoidance half-planes solved by a low-dimensional LP. **Our arm is only an ORCA-inspired reciprocal-stop sketch**,not full ORCA's velocity-obstacle construction or LP,and inherits none of its formal collision-free guarantees. It assumes **holonomic discs**; it is not a differential-drive implementation. For clarity, this is not the linear program of the original RVO/ORCA.
 
 For observed center distance D,clearance is `max(0,D−2r−0.08)`m. Over horizonτ=2s,each approaching robot budgets half,so its preferred approach component may not exceed `clearance/(2τ)`. The whole preferred velocity is scaled down proportionally; it does not choose a passing side,construct ORCA lines or reverse out of the corridor. Noise and acceleration clipping further weaken any ideal velocity-space argument. We therefore **measure** overlap rather than call this a safety certificate. This deliberately small reduction makes a literacy point: symmetric local yielding can stop collisions while producing a deadlock that needs route-level scheduling or backtracking.
 
@@ -282,6 +282,7 @@ ORCA-lite is an ORCA-INSPIRED reciprocal STOP sketch, NOT the ORCA velocity-
 obstacle construction/LP. Each approaching disc takes half the available
 clearance budget over horizon TAU, slowing BOTH. No passing-side or back-out
 planner: local collision avoidance can deadlock in a single-lane corridor.
+For clarity, this is not the linear program of the original RVO/ORCA.
 Holonomic vector velocities, same speed/acceleration limits in ALL arms.
 Acceleration/noise can invalidate ideal reciprocal-avoidance guarantees;
 we measure collisions instead of claiming a certificate or real ORCA results.

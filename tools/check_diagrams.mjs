@@ -5337,5 +5337,24 @@ print("protocol pass")
   console.log("cal-conrft-mtc PR3: calibrated loss, shared-data spread, representation control and stale-cache accounting checked");
 }
 
+// Batch-5 polish: optional CAD changes only dependency gating, never Python coverage.
+{
+  const read = p => readFileSync(join(root,p),"utf8");
+  const guard = execFileSync("python3", [join(root,"tools/test_m3_optional_cad.py")], {cwd:root,encoding:"utf8"});
+  ok(guard.includes("absent keeps all Python calls; present keeps all original checks/order"), "b5 polish M3: both dependency branches preserve check coverage/order (control-flow spy)");
+  ok(/^m3 host OpenSCAD: .+/m.test(guard), "b5 polish M3: report real host availability before isolated fixtures");
+  console.log(guard.trim());
+  for (const [month, slug, toy, phrase, zh] of [
+    [10,"vla-rl-finetune","cal_conrft_offline_toy","the active mask ≈ ∂max(Q,V_MC)/∂Q","active mask ≈ ∂max(Q,V_MC)/∂Q"],
+    [9,"nav-arm-compose","multi_robot_corridor_toy","this is not the linear program of the original RVO/ORCA","这不是原始 RVO/ORCA 的线性规划"],
+  ]) {
+    ok(read(`examples/month-${month}/${slug}/${toy}.py`).includes(phrase), `b5 polish ${toy}: source clarification`);
+    for (const lang of ["en","zh"]) {
+      const prose=read(`src/content/m${month}/${slug}/${lang}.mdx`).replace(/```[\s\S]*?```/g, "");
+      ok(prose.includes(lang==="en" ? phrase : zh), `b5 polish ${slug}/${lang}: clarification outside code fences`);
+    }
+  }
+}
+
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
 process.exit(failed ? 1 : 0);

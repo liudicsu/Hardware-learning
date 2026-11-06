@@ -247,7 +247,7 @@ LeRobot 的 LeKiwi 把 SO-100/SO-101 装在移动底盘上。**本课不要求�
 
 ### 这里的“ORCA-lite”究竟是什么
 
-已打开的 ORCA 一手页面说明各方承担一半责任，用低维 LP 求解避碰半平面。**本臂只是受 ORCA 启发的互惠停车简化**，不是完整 ORCA 的速度障碍构造 / LP，不继承它的形式化无碰撞保证。它假设 **holonomic discs（全向圆盘）**，不是差速底盘实现。
+已打开的 ORCA 一手页面说明各方承担一半责任，用低维 LP 求解避碰半平面。**本臂只是受 ORCA 启发的互惠停车简化**，不是完整 ORCA 的速度障碍构造 / LP，不继承它的形式化无碰撞保证。它假设 **holonomic discs（全向圆盘）**，不是差速底盘实现。明确地说，这不是原始 RVO/ORCA 的线性规划。
 
 观测中心距 D 对应余隙 `max(0,D−2r−0.08)`m；τ=2s 预测窗内各方分一半，因此自身朝向对方的首选速度分量不超过 `clearance/(2τ)`。代码按比例缩小整个首选速度，不选择会车侧、不构造 ORCA 直线，也不倒退出走廊；噪声和加速度限幅还会削弱理想速度空间论证。因此只**测量**重叠，不称为安全证书。这种小型简化用于说明：对称局部让行可以停止碰撞，却形成需要路线级调度 / 回退才能解决的死锁。
 
@@ -282,6 +282,7 @@ ORCA-lite is an ORCA-INSPIRED reciprocal STOP sketch, NOT the ORCA velocity-
 obstacle construction/LP. Each approaching disc takes half the available
 clearance budget over horizon TAU, slowing BOTH. No passing-side or back-out
 planner: local collision avoidance can deadlock in a single-lane corridor.
+For clarity, this is not the linear program of the original RVO/ORCA.
 Holonomic vector velocities, same speed/acceleration limits in ALL arms.
 Acceleration/noise can invalidate ideal reciprocal-avoidance guarantees;
 we measure collisions instead of claiming a certificate or real ORCA results.
