@@ -458,7 +458,7 @@ const month4Lessons: Lesson[] = [
       zh: "为什么从 Jazzy 开始、怎样一眼认出过时的 ROS 1 教程、四种安装方式，然后用 colcon 构建并运行你的第一个 ROS 2 包；再讲 source 到底改了什么、colcon 与 rosdep、DDS 域与发现、在哪种机器上跑，以及一张排错表。",
       en: "Why to start on Jazzy, how to spot an outdated ROS 1 tutorial at a glance, four ways to install, then build and run your first ROS 2 package with colcon; then what source changes, colcon and rosdep, DDS domains and discovery, which machine to run it on, and a troubleshooting table.",
     },
-    minutes: 210,
+    minutes: 360,
     objectives: [
       { zh: "能解释为何从 Jazzy 开始（LTS 支持到 2029 年 5 月），并识别 roscore、catkin_make 等 ROS 1 命令。", en: "Explain why Jazzy is the starting distro (LTS until May 2029) and recognise ROS 1 commands such as roscore and catkin_make." },
       { zh: "能用任一受支持的路线安装 ROS 2 Jazzy，并通过运行 C++ talker 与 Python listener 验证安装。", en: "Install ROS 2 Jazzy by one supported route and verify it by running the C++ talker and Python listener." },
@@ -468,7 +468,7 @@ const month4Lessons: Lesson[] = [
       { zh: "能按排错表诊断常见安装错误：未 source、找不到可执行文件、在 src/ 内构建、混用发行版、ROS_DOMAIN_ID 不一致等。", en: "Diagnose common setup failures from the troubleshooting table: missing source, no executable found, building inside src/, mixed distros, mismatched ROS_DOMAIN_ID and more." },
     ],
     prereqs: [],
-    resources: ["ros2-tutorials", "the-construct", "robostack"],
+    resources: ["ros2-sros-intro", "ros2-sros-keystore", "ros2-sros-acl", "ros2-tutorials", "the-construct", "robostack"],
     tasks: [
       { id: "install", text: { zh: "装好 ROS 2 Jazzy（任选一种方式），跑通 C++ talker 和 Python listener", en: "Install ROS 2 Jazzy (any route) and get the C++ talker and Python listener talking" } },
       { id: "spot-ros1", text: { zh: "找三篇搜索排名靠前的 ROS 教程，按本课的特征判断哪些是 ROS 1，记下线索", en: "Find three top-ranked ROS tutorials, decide which are ROS 1 using this lesson's tell-tale signs, and note the clue" } },
@@ -484,7 +484,7 @@ const month4Lessons: Lesson[] = [
       zh: "不用机器人、不用仿真器，搭一个完整的多节点系统：自定义 msg/srv/action、Python 和 C++ 节点、参数与 YAML、带参数的 launch 文件、ros2 bag 录制回放，以及“发了却收不到”的 QoS 问题。",
       en: "A complete multi-node system with no robot and no simulator: your own msg/srv/action, Python and C++ nodes, parameters and YAML, a launch file with arguments, recording and replaying with ros2 bag, and the QoS mismatch behind “it publishes but nothing receives”.",
     },
-    minutes: 240,
+    minutes: 390,
     objectives: [
       { zh: "能为连续数据选择 topic、为即时请求选择 service、为需要反馈或取消的任务选择 action。", en: "Choose a topic for continuous data, a service for an immediate request, and an action for work needing feedback or cancellation." },
       { zh: "能编写 .msg、.srv、.action 文件，并用 rosidl_generate_interfaces 生成 C++ 与 Python 代码。", en: "Write .msg, .srv and .action files and generate C++ and Python code with rosidl_generate_interfaces." },
@@ -492,7 +492,7 @@ const month4Lessons: Lesson[] = [
       { zh: "能用参数与重映射启动整张图，用 ros2 bag 录制并回放 /raw 与 /filtered，并诊断 QoS 不兼容。", en: "Launch the graph with arguments and remappings, record and replay /raw and /filtered with ros2 bag, and diagnose QoS mismatches." },
     ],
     prereqs: ["ros2-setup"],
-    resources: ["ros2-tutorials", "renard-ros2-l1", "articulated-robotics", "mogi-ros", "automatic-addison", "ros2-qos"],
+    resources: ["ros2-composition", "ros2-intraprocess", "ros2-composable-launch", "ros2-tutorials", "renard-ros2-l1", "articulated-robotics", "mogi-ros", "automatic-addison", "ros2-qos"],
     tasks: [
       { id: "pick-pipe", text: { zh: "为你设想的机器人列出 6 种数据流，每种判断该用话题、服务还是动作，写下理由", en: "List six data flows for a robot you have in mind and decide topic, service or action for each, with the reason" } },
       { id: "interfaces", text: { zh: "建一个接口包，至少包含一个自定义 .msg 和一个 .srv，用 ros2 interface show 检查", en: "Create an interfaces package with at least one custom .msg and one .srv, and check them with ros2 interface show" } },
