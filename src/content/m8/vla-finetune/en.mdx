@@ -164,6 +164,8 @@ All seven rows print `UNDER` on the toy estimator — that is intentional. Real 
 
 The opened [RPD paper](https://arxiv.org/abs/2503.05833) guides on-policy RL with an MSE between policy action mean and teacher action/mean: its PPO reward objective is supplemented by teacher imitation. The paper's fixed-variance Gaussian argument makes that mean MSE BC-like. Our **discrete Bernoulli** surrogate below does not claim that Gaussian equivalence: it uses REINFORCE, no PPO clipping/critic, and a supervised mean-MSE gradient at visited states (not a full derivative through state occupancy). ManiSkill results and paper percentages are **以论文为准**; GPU/VLA/ManiSkill/real robot: **本页未运行**. It is neither Cal-ConRFT's offline conservative Q+BC (10.7) nor HIL-SERL (10.6), and does not distil a diffusion sampler like 10.1.
 
+The papers' Hz and success-rate numbers are for reading comparison only, not measurements or reproduced results on this page.
+
 ### A deliberately suboptimal, beatable teacher
 
 States 0…4 need the binary action sequence `(1,0,1,1,0)` to advance; a wrong action resets to 0, a correct one stays put with slip probability 0.05. State 5 is absorbing success. Start is 0 or 1 with equal probability, horizon 12, terminal reward 1 iff state 5 is reached; gamma=1. The stochastic teacher chooses the correct action with probability 0.9 except at state 2, where it chooses it with probability 0.6. This teacher is **deliberately suboptimal**, not an oracle. Independent finite-horizon DP gives teacher success 0.780842; the always-correct policy is near 1 (rounded 1.000000). DP is diagnostic only, never an RL training target.

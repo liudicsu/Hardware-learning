@@ -439,6 +439,8 @@ Arduino 程序（sketch）是 C++，由对应开发板的 GCC 工具链编译（
 
 保留原有按键 `INPUT_PULLUP` 小测：新增的是**总线信号完整性**，不是重做按键、传感器寄存器扫描器或滤波。开漏 SDA/SCL 能拉低，却需要电阻回到高电平。假设理想下拉与集总 `Rp–Cbus` 上升沿；真实板还包含阈值、下降沿、时钟拉伸、传播与耦合噪声。
 
+本批次资料核对时未能解析 NXP UM10204，因此改用已打开的 TI SLVA689A。
+
 <Resource id="ti-i2c-pullup-calculation" />
 <Resource id="ti-tmp102-datasheet" />
 

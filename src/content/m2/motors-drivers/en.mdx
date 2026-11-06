@@ -775,6 +775,8 @@ Use `R(T) = R20 × [1 + 0.00393(T − 20)]`, with **R20 = 1 Ω at 20 °C** and *
 
 The thermal equation is `Cθ dT/dt = P(T) − (T−Ta)/Rθ`, with `P(T)=I²R(T)`. **Steady-state ΔT = P·Rθ** follows from zero derivative; when P depends on T, use P(T_ss), so this is an implicit equilibrium, not a constant ambient-resistance shortcut. For a **short overload**, **ΔT ≈ P·t/Cθ for t ≪ τ**: Cθ limits the initial heating rate, while Rθ sets the constant-power steady rise. For constant P, `ΔT(t)=P Rθ[1−exp(−t/(Rθ Cθ))]`; at 10 W, steady rise is **40 K**, but a 0.1 s pulse gives **0.083247 K**, close to **0.083333 K** from P·t/Cθ.
 
+For a **constant current** and the linear R(T) model, write the feedback explicitly: `Cθ dT/dt = I²R20(1+α(T−20)) − (T−Ta)/Rθ`, with `α=α20`, `R(Ta)=R20(1+α(Ta−20))` and `ΔT=T−Ta` measured from ambient Ta. Substitution gives `Cθ dΔT/dt = I²R(Ta) − (1/Rθ−I²αR20)ΔT`. Below `I²αR20 < 1/Rθ`, the stable rise is `ΔT_ss = I²R(Ta)Rθ/(1−I²αR20Rθ)`. At `I²αR20 ≥ 1/Rθ`, there is **no finite physical steady state reached by heating from ambient**, assuming R(Ta)>0: equality gives linear temperature growth, above it exponential growth. A formal negative-rise root above threshold would require negative R and is outside this physical model. Thus `I_crit=1/√(αR20Rθ)` is **7.975790 A** for the synthetic lesson values. The algebra needs no correction; this is a constant-current/linear-model threshold, not a motor rating or an inference that a finite pulse runs away. Even below it the equilibrium can exceed a safe temperature, so the existing derate/trip limits still matter.
+
 **All numerical plant/control inputs are synthetic**, including lesson-defined **Rθ = 4 K/W**, **Cθ = 12 J/K**, T_lim=50 °C and T_trip=70 °C. The nominal constant-power τ=48 s is not an assertion that R(T) feedback leaves the effective current-driven time constant unchanged. Forward Euler uses dt=0.10 s. The single thermal lump omits iron loss, airflow changes, case/winding lag and damage; a roughly 153 °C result is not a validated operating point.
 
 All arms consume the **same 4800-sample demanded current profile** over 480 s: free-run 1 A, intermittent 5 A stalls from 30–150 s (4 s of each 10 s), prolonged 5 A stalls at 150–240 s and 360–420 s, then cooling. It is a synthetic current-controlled request, not a voltage-driven motor model. Delivered current differs only when the thermal controller intervenes:
@@ -808,7 +810,7 @@ The plant still heats when its controller ignores heating. Ideal winding tempera
 is available to monitor/derate (not inferred from a measured case temperature).
 Lesson-defined Rtheta/Ctheta/limits, NOT insulation-class certification. Stdlib only.
 """
-from math import expm1
+from math import expm1, sqrt
 
 AMBIENT = 25.0
 R20 = 1.0                 # ohm at 20 degC, synthetic reference resistance
@@ -846,7 +848,16 @@ def advance(temp, current, dt):
 
 
 def constant_current_exact(current, seconds):
-    """Independent closed-form check of the linear-in-temperature ODE."""
+    """From ambient Ta, constant I: Ctheta*dT/dt =
+    I**2*R20*(1+alpha20*(T-20)) - (T-Ta)/Rtheta.
+    R(Ta)=R20*(1+alpha20*(Ta-20)); deltaT=T-Ta.
+    Below I**2*alpha20*R20 < 1/Rtheta, the stable steady rise is
+    deltaT_ss=I**2*R(Ta)*Rtheta/(1-I**2*alpha20*R20*Rtheta).
+    At/above the threshold there is no finite physical steady state reached
+    by heating from Ta with R(Ta)>0: linear growth at equality, exponential above.
+    A formal negative-rise root above threshold has negative R, not a valid
+    winding equilibrium. Constant I / linear R(T) only, not a motor rating.
+    """
     p0 = current * current * resistance(AMBIENT)
     b = current * current * R20 * ALPHA20 - 1 / RTH
     return AMBIENT + (p0 * seconds / CTH if abs(b) < 1e-12 else p0 / b * expm1(b * seconds / CTH))
@@ -890,6 +901,7 @@ def main():
     requests = current_profile()
     print("Synthetic winding RC; ideal winding T; no insulation/driver-package rating")
     print(f"R20_ohm={R20:.3f} alpha20_per_K={ALPHA20:.5f} R_at_25C_ohm={resistance(25):.5f}; I2R(T) positive feedback")
+    print(f"I_crit_A={1 / sqrt(ALPHA20 * R20 * RTH):.6f} (synthetic constant-current threshold; not a rating)")
     print(f"constant_P=10W steady_delta_K={10 * RTH:.3f} short_0.1s_exact_K={constant_power_rise(10, .1):.6f} short_approx_K={10 * .1 / CTH:.6f}")
     print(f"shared request samples={len(requests)} dt_s={DT:.2f} duration_s={DURATION:.0f} tau0_s={RTH * CTH:.0f}")
     print("arm physical_peak_C final_C copper_J trips derated_samples above_trip_s estimator")
@@ -910,6 +922,7 @@ if __name__ == "__main__":
 ```text
 Synthetic winding RC; ideal winding T; no insulation/driver-package rating
 R20_ohm=1.000 alpha20_per_K=0.00393 R_at_25C_ohm=1.01965; I2R(T) positive feedback
+I_crit_A=7.975790 (synthetic constant-current threshold; not a rating)
 constant_P=10W steady_delta_K=40.000 short_0.1s_exact_K=0.083247 short_approx_K=0.083333
 shared request samples=4800 dt_s=0.10 duration_s=480 tau0_s=48
 arm physical_peak_C final_C copper_J trips derated_samples above_trip_s estimator

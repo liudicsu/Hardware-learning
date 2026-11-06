@@ -9,7 +9,7 @@ The plant still heats when its controller ignores heating. Ideal winding tempera
 is available to monitor/derate (not inferred from a measured case temperature).
 Lesson-defined Rtheta/Ctheta/limits, NOT insulation-class certification. Stdlib only.
 """
-from math import expm1
+from math import expm1, sqrt
 
 AMBIENT = 25.0
 R20 = 1.0                 # ohm at 20 degC, synthetic reference resistance
@@ -47,7 +47,16 @@ def advance(temp, current, dt):
 
 
 def constant_current_exact(current, seconds):
-    """Independent closed-form check of the linear-in-temperature ODE."""
+    """From ambient Ta, constant I: Ctheta*dT/dt =
+    I**2*R20*(1+alpha20*(T-20)) - (T-Ta)/Rtheta.
+    R(Ta)=R20*(1+alpha20*(Ta-20)); deltaT=T-Ta.
+    Below I**2*alpha20*R20 < 1/Rtheta, the stable steady rise is
+    deltaT_ss=I**2*R(Ta)*Rtheta/(1-I**2*alpha20*R20*Rtheta).
+    At/above the threshold there is no finite physical steady state reached
+    by heating from Ta with R(Ta)>0: linear growth at equality, exponential above.
+    A formal negative-rise root above threshold has negative R, not a valid
+    winding equilibrium. Constant I / linear R(T) only, not a motor rating.
+    """
     p0 = current * current * resistance(AMBIENT)
     b = current * current * R20 * ALPHA20 - 1 / RTH
     return AMBIENT + (p0 * seconds / CTH if abs(b) < 1e-12 else p0 / b * expm1(b * seconds / CTH))
@@ -91,6 +100,7 @@ def main():
     requests = current_profile()
     print("Synthetic winding RC; ideal winding T; no insulation/driver-package rating")
     print(f"R20_ohm={R20:.3f} alpha20_per_K={ALPHA20:.5f} R_at_25C_ohm={resistance(25):.5f}; I2R(T) positive feedback")
+    print(f"I_crit_A={1 / sqrt(ALPHA20 * R20 * RTH):.6f} (synthetic constant-current threshold; not a rating)")
     print(f"constant_P=10W steady_delta_K={10 * RTH:.3f} short_0.1s_exact_K={constant_power_rise(10, .1):.6f} short_approx_K={10 * .1 / CTH:.6f}")
     print(f"shared request samples={len(requests)} dt_s={DT:.2f} duration_s={DURATION:.0f} tau0_s={RTH * CTH:.0f}")
     print("arm physical_peak_C final_C copper_J trips derated_samples above_trip_s estimator")

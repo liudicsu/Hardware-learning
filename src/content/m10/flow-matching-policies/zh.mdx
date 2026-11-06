@@ -186,6 +186,8 @@ relative 动作与 RTC（10.2）兼容。`--policy.use_relative_actions=true` �
 
 [OneDP 原论文](https://arxiv.org/abs/2410.21257)把预训练扩散策略蒸馏为单步生成器：沿去噪链匹配**加噪动作分布的反向 KL**，梯度依赖 score 之差；OneDP-S 加辅助 score 估计器，OneDP-D 使用解析简化。这个 KL-along-chain 目标**只作阅读**，不是逐点教师 MSE。[Consistency Policy](https://arxiv.org/abs/2405.07503)使用沿概率流 ODE 的一致性轨迹建模 / 自一致性及去噪目标；这里两篇都没有实现。OneDP 的额外 2 %–10 % 成本、1.5→62 Hz 及任何 Consistency Policy 数字均**以论文为准**。真实扩散 / GPU / 机器人：**本页未运行**。
 
+论文中的 Hz 与成功率数字仅供阅读对比，不是本页实测或复现结果。
+
 新增实验只是**回归替身** （regression surrogate）：教师是解析迭代器，不是学到的扩散模型；不复现多模态动作分布或 score 目标，也不推翻上面的闭式混合玩具：单步生成需要学到的信息，不是直接删积分步。本节不重做 RTC（10.2）、Cal-ConRFT / 优势筛选（10.7）或 VLA RL（8.2）。
 
 ### 声明数据、拟合预算与独立成功判据
