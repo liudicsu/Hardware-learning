@@ -9,6 +9,8 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parent.parent
+# Observe the real host before constructing either isolated presence-probe fixture.
+print("m3 host OpenSCAD: " + (shutil.which("openscad") or "not found on PATH"))
 FULL = [
     "cad-bracket.txt", "cad-bracket-tight.txt", "cad-bracket-assert.txt",
     "fdm-snap_fit.txt", "fdm-case.txt", "fdm-case-clash.txt", "fdm-case-clash-tight.txt",
