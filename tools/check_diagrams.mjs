@@ -3936,9 +3936,9 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 19830, "residual-teleop PR3 curriculum: 19830 minutes");
-  for (const [month, expected] of [[2, 1500], [3, 1290], [4, 1620], [5, 1620], [6, 1350], [7, 2070], [8, 2670], [9, 2340], [10, 1650], [11, 3000]]) {
-    ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `dr-imagine-edge PR3 M${month}: ${expected} minutes`);
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 20310, "backlash-dmm-kf PR1 curriculum: 20310 minutes");
+  for (const [month, expected] of [[1, 870], [2, 1650], [3, 1470], [4, 1620], [5, 1620], [6, 1350], [7, 2070], [8, 2670], [9, 2340], [10, 1650], [11, 3000]]) {
+    ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `current curriculum M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
 }
@@ -4923,7 +4923,7 @@ for (const m of readdirSync(content)) {
   for (const id of ["dreamgen-paper", "lapa-paper", "smolvla-paper", "lerobot-async"]) {
     ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `wm2 resource ${id}: present + extra`);
   }
-  ok(/19 830/.test(read("README.md")), "b4p3 README: 19 830 minutes");
+  ok(/20 310/.test(read("README.md")), "b5p1 README: 20 310 minutes");
   console.log("worldmodel-smolvla PR2: neural trajectories + async chunk locks checked");
 }
 
@@ -5173,6 +5173,43 @@ for (const m of readdirSync(content)) {
   for (const lang of ["en","zh"]) ok(read(`src/content/m11/humanoid-wbc-overview/${lang}.mdx`).includes(`/${lang}/month/month-7/rl-foundations`), `b4p3 WBC ${lang}: reverse pointer`);
   ok(read("src/lib/resources.ts").includes('id: "teleop-humanoid-survey"'), "b4p3 teleop: opened survey resource");
   console.log("residual-teleop PR3: equal-data, latency and final-Summary locks checked");
+}
+
+// Batch-5 PR1 §9: physical hunting, Type-B limits, equal-tuning IMU comparison.
+{
+  const read = p => readFileSync(join(root, p), "utf8");
+  for (const [month, slug, toy, minutes, added, markers, summaryMarker] of [
+    [1,"bench-multimeter","dmm_uncertainty_toy",240,150,["√3","RSS","0.004272","0.009400","0.009514","0.038991","0.091000","20000"],"√3"],
+    [2,"sensors-fusion","imu_kf_vs_complementary_toy",360,150,["Q0","R0","40500","201/202/203","221–225","0.259680","0.222922","0.213477","0.297265","0.295811"],"Q/R"],
+    [3,"transmissions","backlash_loop_toy",330,180,["P/I","FS=0.4","FC=0.02","0.047514","0.033429","0.053333","0.014043","0.067457","0.570"],"hunting"],
+  ]) {
+    const src = `examples/month-${month}/${slug}/${toy}.py`;
+    const py = read(src), expected = read(`examples/month-${month}/expected/${toy}.txt`);
+    ok(execFileSync("python3", [join(root,src)], {encoding:"utf8", env:{...process.env,PYTHONDONTWRITEBYTECODE:"1"}}) === expected, `b5p1 ${toy}: actual stdout=expected`);
+    ok(read(`examples/month-${month}/check.sh`).includes(`${toy}.txt`), `b5p1 ${toy}: check hook`);
+    for (const lang of ["en","zh"]) {
+      const md = read(`src/content/m${month}/${slug}/${lang}.mdx`), start = md.indexOf("<Summary>");
+      const body = md.slice(0,start), summary = md.slice(start);
+      const prose = body.replace(/```[\s\S]*?```/g, "");
+      ok(start >= 0 && md.trimEnd().endsWith("</Summary>") && (md.match(/<Summary>/g)||[]).length === 1, `b5p1 ${toy} ${lang}: sole final Summary`);
+      ok(body.includes(py.trim()) && body.includes(expected.trim()) && body.includes(`+${added} min`), `b5p1 ${toy} ${lang}: all code/stdout/exercises before Summary`);
+      ok(summary.includes(summaryMarker), `b5p1 ${toy} ${lang}: Summary teaches addition`);
+      for (const m of markers) ok(prose.includes(m), `b5p1 ${toy} ${lang}: prose binds ${m}`);
+      ok(prose.includes("本页未运行"), `b5p1 ${toy} ${lang}: hardware unrun`);
+      if (month === 1) ok(lang === "en" ? /synthetic spec table/.test(prose) && /no real DMM datasheet was opened/.test(prose) : /合成规格表/.test(prose) && /没有打开真实 DMM 数据手册/.test(prose), `b5p1 DMM ${lang}: synthetic, not real datasheet`);
+      if (month === 2) ok(lang === "en" ? /Neither filter knows the true bias/.test(prose) : /两种滤波器都不知道真实零偏/.test(prose), `b5p1 KF ${lang}: no bias oracle`);
+      if (month === 3) ok(lang === "en" ? /load-encoder arm has more information/.test(prose) : /负载编码器臂拥有更多信息/.test(prose), `b5p1 backlash ${lang}: extra sensor information disclosed`);
+    }
+    const cur = read("src/lib/curriculum.ts");
+    ok(cur.match(new RegExp(`slug: "${slug}"[\\s\\S]*?minutes: (\\d+)`))?.[1] === String(minutes), `b5p1 ${slug}: ${minutes} min`);
+  }
+  const imu = read("examples/month-2/expected/imu_kf_vs_complementary_toy.txt");
+  ok((imu.match(/^22[1-5] /gm)||[]).length === 5, "b5p1 IMU: 5 held-out rows");
+  ok(imu.includes("selected KF (1.0, 1.0)") && imu.includes("selected complementary (0.95, 0.0)") && imu.includes("40500"), "b5p1 IMU: declared-model Q/R and equal tuned budgets");
+  const loop = read("examples/month-3/expected/backlash_loop_toy.txt");
+  ok(/^load_PID_extra_sensor .* 4 1 not_settled$/m.test(loop) && /^load_no_friction .* 0 0 0.570$/m.test(loop) && /^load_no_integral .* 0 0 not_settled$/m.test(loop), "b5p1 backlash: friction+I hunting and both ablations");
+  for (const id of ["wescott-friction","nist-uncertainty-typeb","nist-uncertainty-propagation"]) ok(read("src/lib/resources.ts").includes(`id: "${id}"`), `b5p1 source ${id}`);
+  console.log("backlash-dmm-kf PR1: physical hunting, uncertainty and held-out tuning locks checked");
 }
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);

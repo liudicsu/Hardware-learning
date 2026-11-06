@@ -21,4 +21,6 @@ check() {
 check freertos_priority_toy.txt "$PY" "$M2/esp32/freertos_priority_toy.py"
 check encoder_index_cal_toy.txt "$PY" "$M2/motors-drivers/encoder_index_cal_toy.py"
 
+check imu_kf_vs_complementary_toy.txt "$PY" "$M2/sensors-fusion/imu_kf_vs_complementary_toy.py"
+
 exit $fail

@@ -347,7 +347,7 @@ target 90 deg (arm straight up, no gravity load):
 
 逐行看这份输出。目标 20° 时，重力把齿压向一侧，关节是受载的。用电机编码器时，手臂塌到 18.45°，而不是 20.00°。这 1.55° 的误差由两部分组成。2° 间隙的一半是 1°；齿本身在载荷下还会弯，重力扭矩是 0.4 × cos 20° = 0.376 N·m，除以 40 N·m/rad 的接触刚度，得到 0.0094 rad，大约是 0.54°。两部分加起来是 1.54°，正好是 20 与 18.45 之差。换用机械臂编码器，控制环把它修正到 20.00° 并保持不动，因为重力一直让齿保持接触，控制环可以相信它量到的角度。这是好的情况：一个方向恒定的负载，把回差藏了起来。
 
-目标 90° 时，手臂竖直向上，重力不再给齿加载。用电机编码器，手臂就停在间隙里的某个位置，这里是 91.01°，但理论上它可以在大约 ±1° 的范围内任意取值，取决于摩擦和之前的运动历史。用机械臂编码器时，控制环开始来回搜索：看到角度误差就修正，修正又要跨过死区，一跨过去就失去接触，于是永远以 1.16° 的峰峰值来回摆动。给手臂加一根始终向同一方向拉的弹簧，<Term id="preload">预载</Term> 0.1 N·m，齿重新保持接触：90.00°，静止。这正是真实设计用的办法，形式有几种：预载弹簧、重力本身、把一个齿轮做成两半互相推开以跨过间隙，或者丝杠上的消隙螺母（anti-backlash nut）。
+目标 90° 时，手臂竖直向上，重力不再给齿加载。用电机编码器，手臂就停在间隙里的某个位置，这里是 91.01°，但理论上它可以在大约 ±1° 的范围内任意取值，取决于摩擦和之前的运动历史。用机械臂编码器时，控制环开始来回搜索：看到角度误差就修正，修正又要跨过死区，一跨过去就失去接触，于是在这次有限运行中以 1.16° 的峰峰值来回摆动，不能由此断言永久或必然振荡。给手臂加一根始终向同一方向拉的弹簧，<Term id="preload">预载</Term> 0.1 N·m，齿重新保持接触：90.00°，静止。这正是真实设计用的办法，形式有几种：预载弹簧、重力本身、把一个齿轮做成两半互相推开以跨过间隙，或者丝杠上的消隙螺母（anti-backlash nut）。
 
 上面这些数字来自一个玩具模型，它的刚度、摩擦和控制增益都是本站编者选的。它们展示的是规律，而不是测量值：空载且编码器在输出端时关节会来回搜索，受载时不会，加上预载又能恢复接触。不要把小数点后的数字当成真实齿轮箱的性质。自己做一个，然后去量它。
 
@@ -423,7 +423,167 @@ target 90 deg (arm straight up, no gravity load):
 
 第 4 课会把这一切用起来。PID 与串级控制（cascade control）决定了一个关节能不能跟上位置或轨迹，而你要在那里整定的控制环，必须和你刚刚测出的回差共处。减速器做得越干净，整定就越容易：减速比、回差和扭矩密度决定了控制环能被整定到什么程度。
 
+## 把回差放进控制环：传感器位置与黏滑
+
+前面的末端弧长计算仍有用，但仅靠几何不能预言极限环。这个新增实验隔离**负载库仑 / 静摩擦加积分作用**：静摩擦把负载卡住，I 继续积累扭矩；脱黏时摩擦从 FS 降到 FC，储存的驱动把负载推过头，误差反向，跨越齿隙又延迟反向修正。这是搜索 / hunting，不是“每个有回差的 PID 必振荡”的定理。保留前面4s 旧示例及其最后1s 的1.16° 摆幅，只把它看作有限运行，不当作永久振荡或摩擦消融的证据。
+
+<Resource id="wescott-friction" />
+
+### 对象与信息约定
+
+所有角度是**折算到输出端的弧度**，不是电机端角度。两惯量从零开始：Jm=0.01、Jl=0.03 kg·m²，电机 / 负载黏性系数0.5/0.2 N·m·s/rad。全回差宽 **b=0.04 rad**，弹性接触刚度 KG=30 N·m/rad，令 `tau = KG × sign(qm−ql) × max(abs(qm−ql)−b/2,0)`。间隙中不传齿轮扭矩，间隙外允许齿的弹性变形。电机与负载分别满足 `Jm am = u−tau−DM vm`、`Jl al = tau−DL vl−friction`。静止负载可被 **FS=0.4 N·m** 的静摩擦保持，滑动时用 **FC=0.02 N·m**。故意选较大的脱黏摩擦下降以看清机制，这是合成参数，不是典型减速器规格；速度过零时可再次黏住。半隐式步长0.002s，减半到0.001s 仍须出现 hunting。
+
+各臂共用对象、初态、120s 参考（0/30/60s 时分别为0.12、−0.08、0.06rad）、**共享零噪声**的理想编码器、Kp=8、Ki=3、Kd=1、±2 N·m 饱和与 ±0.2 rad·s 积分限幅。**负载编码器臂拥有更多信息**：它读取 ql，而不假装 qm 就是负载位置。各臂原本都有电机速度作 D 阻尼；比较的是传感器位置，不是等信息算法竞赛。
+
+第三臂只对 **P/I** 的误差应用连续死区 `ed = sign(e) max(abs(e)−bhat/2,0)`，D 保留电机速度反馈。进入带内时 I 以2/s 泄漏，明确处理储存的积分驱动，不暗藏复位。Wescott §3.2 建议将微分阻尼留在死区之外，并提醒积分残留、稳态误差和带宽需试调；这里是课程模型，不复现他的数值实验。不是 FOC、Z 索引回零或 AGMA 认证。真实齿轮箱 / 扭矩仪器：**本页未运行**。
+
+### 实际测量的指标
+
+负载 RMSE 覆盖整条参考。最后40s 报告有符号的**稳态误差带** `[min(r−ql), max(r−ql)]`、负载峰峰值与速度方向反转次数（忽略低于1e−5 rad/s 的速度）。**极限环候选**须峰峰值超过0.005rad、至少3次反转、两个20s 半窗各超过0.002rad。有限仿真不能证明存在吸引周期轨道。稳定时间要求最后一步之后始终进入 ±0.01rad；`not_settled` 不能被电机已经稳定偷换。
+
+这里电机 PID 尾窗电机 RMSE 为 **0.000001 rad**，负载却偏 **0.014121 rad**。额外负载传感暴露误差，但不改增益会 hunting：峰峰值 **0.047514 rad**、4次反转。分别去掉摩擦或积分后，这些对照不再触发候选；无摩擦负载 PID 在 **0.570 s** 稳定，无 I 则黏在 **0.012169 rad** 残差。这是条件消融，不表示其他增益或欠阻尼回差对象在无摩擦时绝不会振荡。
+
+正确 bhat=0.04 时，死区臂测得的负载误差带是 **[0.033429,0.033429] rad**，不是零。条件性的静态余量为 `bhat/2 + b/2 + FS/KG = 0.053333 rad`：电机带内误差 + 齿隙 + 静摩擦弹性变形；这不是动态安全界。bhat=0.004 太小，电机误差看似很小（0.002000rad），负载仍偏 **0.014043 rad**，低估了间隙。bhat=0.12 太大，则接受 **0.067457 rad** 的误差，RMSE 为 **0.065299 rad**。正确死区的 RMSE **0.033891 rad** 在这里还差于电机 PID 的 **0.016901 rad**：少动不等于定位更准，所有有摩擦臂都没有满足 ±0.01rad 稳定要求。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-3/transmissions
+$ python3 backlash_loop_toy.py
+```
+
+<CodeSource path="examples/month-3/transmissions/backlash_loop_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Two output-referred inertias, elastic backlash, load Coulomb/stiction, PID.
+ALL angles rad, torques N*m, inertias kg*m^2. Ideal encoders (noise=0), same
+initial state and reference per arm. Load encoder adds information, NOT an
+information-equal algorithm contest. D uses motor velocity in every arm.
+Gear torque = KG * sign(qm-ql) * max(abs(qm-ql)-b/2,0).
+Jm*am=u-tau-DM*vm; Jl*al=tau-DL*vl-friction. At rest static friction holds
+up to FS; sliding Coulomb magnitude FC<FS; velocity crossing zero can re-stick.
+P/I see error deadband only in deadband arm; D remains unmodified. In the band
+I leaks at 2/s, explicitly preventing stored I from continuing to push (Wescott
+Sec.3.2 caveat). Integrator clamps +/-0.2 rad*s; torque saturates +/-2 N*m.
+A hunting/limit-cycle CANDIDATE means tail load p-p>.005 rad, >=3 direction
+reversals, and p-p>.002 in BOTH halves of the last40s. Finite simulation is not
+a proof of an attracting periodic orbit. Selected no-friction/no-I controls do
+not hunt; friction+integral can, not every backlash PID inevitably does.
+Real reducer/torque sensors 本页未运行; no FOC/Z-homing/AGMA claims.
+"""
+import math
+
+DT, SECONDS = .002, 120.
+B, KG = .04, 30.
+JM, JL, DM, DL = .01, .03, .5, .2
+FS, FC = .4, .02  # deliberately strong stiction drop, synthetic, not typical spec
+KP, KI, KD = 8., 3., 1.
+
+
+def reference(t):
+    return .12 if t < 30 else -.08 if t < 60 else .06
+
+
+def simulate(sensor="motor", b_hat=None, friction=True, integral=True, dt=DT):
+    qm = ql = vm = vl = accum = 0.
+    history = []
+    for n in range(round(SECONDS / dt)):
+        t = n * dt
+        r = reference(t)
+        error = r - (ql if sensor == "load" else qm)
+        half_band = 0. if b_hat is None else b_hat / 2
+        pi_error = math.copysign(max(abs(error)-half_band, 0.), error)
+        if b_hat is not None and abs(error) <= half_band:
+            accum *= max(0., 1 - 2*dt)
+        else:
+            accum = max(-.2, min(.2, accum + pi_error*dt))
+        u = max(-2., min(2., KP*pi_error + (KI*accum if integral else 0.) - KD*vm))
+        gap = qm-ql
+        tau = KG * math.copysign(max(abs(gap)-B/2, 0.), gap)
+        force = tau-DL*vl
+        fs, fc = (FS, FC) if friction else (0., 0.)
+        if abs(vl) < 1e-6 and abs(force) <= fs:
+            vl = 0.
+        else:
+            prev = vl
+            sign = math.copysign(1., vl if abs(vl) > 1e-6 else force)
+            vl += (force - fc*sign) / JL * dt
+            if prev*vl < 0 and abs(force) <= fs:
+                vl = 0.
+        vm += (u-tau-DM*vm)/JM*dt
+        qm += vm*dt
+        ql += vl*dt
+        history.append((t, r-qm, r-ql, vl))
+    tail = [h for h in history if h[0] >= SECONDS-40]
+    errors = [h[2] for h in tail]
+    pp = lambda xs: max(xs)-min(xs)
+    signs = [1 if h[3] > 1e-5 else -1 for h in tail if abs(h[3]) > 1e-5]
+    reversals = sum(a != b for a, b in zip(signs, signs[1:]))
+    half = len(errors)//2
+    hunting = pp(errors) > .005 and reversals >= 3 and min(pp(errors[:half]), pp(errors[half:])) > .002
+    # Remain within +/-0.01 rad for the rest of final step; report not_settled.
+    bad = [h[0] for h in history if h[0] >= 60 and abs(h[2]) > .01]
+    settle = "not_settled" if bad and bad[-1] >= SECONDS-dt*1.1 else f"{max(bad, default=60.)+dt-60:.3f}"
+    return (math.sqrt(sum(h[2]**2 for h in history)/len(history)),
+            math.sqrt(sum(h[1]**2 for h in tail)/len(tail)),
+            min(errors), max(errors), pp(errors), reversals, hunting, settle)
+
+
+def main():
+    print(f"b={B} rad KG={KG} N*m/rad FS={FS} FC={FC} N*m; dt={DT} s; ideal encoder noise=0")
+    print("shared reference 0.12/-0.08/0.06 rad at 0/30/60s; P/I deadband only; D motor velocity unchanged; in-band I leak=2/s")
+    print("arm load_RMSE_rad tail_motor_RMSE_rad tail_load_error_min max pp reversals hunting_candidate settle_s")
+    results = {}
+    for name, kwargs in (("motor_PID", {}), ("load_PID_extra_sensor", {"sensor": "load"}),
+                         ("deadband_b_correct", {"b_hat": B}),
+                         ("deadband_b_too_small", {"b_hat": .004}),
+                         ("deadband_b_too_large", {"b_hat": .12}),
+                         ("load_no_friction", {"sensor": "load", "friction": False}),
+                         ("load_no_integral", {"sensor": "load", "integral": False})):
+        result = simulate(**kwargs)
+        results[name] = result
+        rmse, motor, low, high, pp, rev, hunt, settle = result
+        print(f"{name} {rmse:.6f} {motor:.6f} {low:.6f} {high:.6f} {pp:.6f} {rev} {int(hunt)} {settle}")
+    assert results["load_PID_extra_sensor"][6]
+    assert not results["load_no_friction"][6] and not results["load_no_integral"][6]
+    # Refine timestep: do not mistake Euler timestep chatter for hunting.
+    assert simulate("load", dt=DT/2)[6]
+    allowance = B/2+B/2+FS/KG
+    print(f"correct deadband conditional static load-error allowance=+/-{allowance:.6f} rad (bhat/2+b/2+FS/KG)")
+    print("measured tail error band above is NOT a zero-error guarantee; wrong b hides precision or leaves unmodelled play")
+    print("load encoder has more information; no universal winner; finite-window candidate, not periodic-orbit proof; hardware 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+```text
+b=0.04 rad KG=30.0 N*m/rad FS=0.4 FC=0.02 N*m; dt=0.002 s; ideal encoder noise=0
+shared reference 0.12/-0.08/0.06 rad at 0/30/60s; P/I deadband only; D motor velocity unchanged; in-band I leak=2/s
+arm load_RMSE_rad tail_motor_RMSE_rad tail_load_error_min max pp reversals hunting_candidate settle_s
+motor_PID 0.016901 0.000001 0.014121 0.014121 0.000000 0 0 not_settled
+load_PID_extra_sensor 0.021185 0.018499 -0.035109 0.012405 0.047514 4 1 not_settled
+deadband_b_correct 0.033891 0.013429 0.033429 0.033429 0.000000 0 0 not_settled
+deadband_b_too_small 0.016968 0.002000 0.014043 0.014043 0.000000 0 0 not_settled
+deadband_b_too_large 0.065299 0.055495 0.067457 0.067457 0.000000 0 0 not_settled
+load_no_friction 0.008610 0.020000 -0.000002 -0.000000 0.000002 0 0 0.570
+load_no_integral 0.015359 0.011076 0.012169 0.012169 0.000000 0 0 not_settled
+correct deadband conditional static load-error allowance=+/-0.053333 rad (bhat/2+b/2+FS/KG)
+measured tail error band above is NOT a zero-error guarantee; wrong b hides precision or leaves unmodelled play
+load encoder has more information; no universal winner; finite-window candidate, not periodic-orbit proof; hardware 本页未运行
+```
+
+### 练习 (+180 min)
+
+1.（35 min）推导齿轮扭矩死区及单位；另记状态跟踪黏住→积分积累→脱黏→反转，不改 expected 输出。
+2.（45 min）运行并审计7臂，再将 dt 减半；比较候选分类和摆幅，不只看图像像不像周期。
+3.（45 min）分别改 FS/FC 与 Ki，找不 hunting 的区间，说明“需要两者”是有条件结果而非普遍定律。
+4.（35 min）扫描 bhat，报告有符号稳态误差带、稳定时间及设错失效；保留 D，明示 I 泄漏。
+5.（20 min）提出输出编码器 / 预载取舍，指出额外信息或机械代价，不声称真减速器结果。
+
 <Summary>
+
+物理回差闭环玩具区分摩擦加积分导致的 hunting 与传感器位置，明示负载臂额外信息，并报告死区误差带及设错后的失效。
 
 **本课要点**
 
@@ -439,7 +599,7 @@ target 90 deg (arm straight up, no gravity load):
 
 - 把效率当成只有一级来乘：两级各 90 % 剩下 0.9 × 0.9 = 0.81，不是 0.9。
 - 先画图再发现行星级装不上，比如太阳轮 12 配齿圈 45（需要 16.5 颗齿），而不是先在纸上验算行星轮尺寸和间距。
-- 相信软件能修回差：编码器装在齿轮之后、又没有负载时，模型会永远以 1.16° 峰峰值来回搜索。
+- 相信软件能修回差：编码器装在齿轮之后、又没有负载时，旧模型最后一秒显示 1.16° 峰峰值来回搜索，但不证明必然或永久振荡。
 - 只看角度不看手臂：0.30 m 手臂上的 2° 就是末端 10.5 mm。
 
 **自检**

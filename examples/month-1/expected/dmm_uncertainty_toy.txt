@@ -1,0 +1,9 @@
+SYNTHETIC specs; seed=113 draws=20000; limits / sqrt(3) -> standard u
+V: +/- (0.5 % reading + 0.1 % of 6 V FS); R: +/- (0.8 % reading + 0.2 % of 2000 ohm FS)
+V_V arm L_V_V L_R_ohm u_V_V u_R_ohm cV_A/V cR_A/ohm RSS_uI_mA linear_limit_mA exact_limit_mA MC_sd_mA
+0.2 reading_only 0.001000 8.000 0.000577 4.618802 0.001000 -0.000000200 0.001089 0.002600 0.002621 0.001087
+0.2 reading_plus_FS 0.007000 12.000 0.004041 6.928203 0.001000 -0.000000200 0.004272 0.009400 0.009514 0.004259
+5.0 reading_only 0.025000 8.000 0.014434 4.618802 0.001000 -0.000005000 0.027234 0.065000 0.065524 0.027175
+5.0 reading_plus_FS 0.031000 12.000 0.017898 6.928203 0.001000 -0.000005000 0.038991 0.091000 0.092105 0.038900
+RSS is standard uncertainty, linear sum is a worst-case first-order limit; independence assumed
+shared true V,R and standardized errors; physical DMM/calibration 本页未运行; not certification

@@ -507,7 +507,187 @@ t_s,gyro_only,accel_only,fused
 - 我能凭记忆写出互补滤波，并针对给定采样率选择 α。
 - 我知道怎么在开机时测量并减去陀螺仪零偏。
 
+## 同一数据流比较 KF 与互补滤波，不给零偏真值
+
+保留前面的互补示例。新增比较在完全相同的数据流上运行纯陀螺、纯加速度计、调好的互补、**标量零偏自适应互补**和二状态 KF。不是完整 Mahony 姿态实现、EKF 惯导或 Allan 方差实验。实体 IMU 噪声表征：**本页未运行**。
+
+<Resource id="labbe-kalman" />
+
+### 声明的离散噪声模型 → Q/R
+
+全程使用度、deg/s 和秒。真倾角为 `12 sin(2πt/6) + 3 sin(2πt/2)` 度，dt=0.02s、1500次更新。合成加速度计角度为 `z=theta+na`，白噪声 sigma_a=1.5deg；此**仅重力角度模型排除平动加速度**、振动和比例误差，不在动态区间偷偷喂真值。陀螺读数是真角度有限差分角速度，加上一采样零偏与独立白噪声 sigma_g=0.5deg/s。初始零偏是未知抽样，sigma_b0=0.5deg/s；每次陀螺读数之后以增量标准差 `sigma_rw sqrt(dt)` 随机游走，sigma_rw=0.03deg/s/√s。
+
+状态 x=[theta,bias]，`F=[[1,−dt],[0,1]]`，输入 `[dt gyro,0]`，`H=[1,0]`。本模型按采样保持零偏，使角度与零偏过程误差独立：`Q0=diag((sigma_g dt)², sigma_rw² dt)=diag(0.000100,0.000018)`，`R0=sigma_a²=2.250000`。它们来自**声明的合成噪声模型**，不是根据留出误差猜出或在器件上实测；也不是带交叉项的连续布朗过程精确离散化。预测 `x−=F x+B gyro`、`P−=F P Fᵀ+Q`；新息 `z−H x−`，增益 `K=P−Hᵀ/(H P−Hᵀ+R)`，更新 `x=x−+K innovation`。代码直接展开2×2协方差，不用 NumPy。
+
+各滤波器用同一首个有噪加速度角初始化。KF 的 `P0=diag(R0,sigma_b0²)`，零偏**先验均值为0**，不是抽到的真零偏。**两种滤波器都不知道真实零偏**；`estimate()` 没有真值 / 真零偏输入。真值只进入调参目标和留出评分，不进入递归更新。
+
+### 等量调参，然后冻结
+
+普通互补用陀螺预测并按 α 混合，零偏固定为0。自适应变体除角度混合外，还用同一新息更新 `bhat -= kb dt innovation`；加入它是为了不因“只有 KF 能估偏”就宣布 KF 必胜。模型容量仍不同，已明示。
+
+每个调参滤波器都用 **9候选 ×3调参种子 ×1500更新 =40500次递归更新**，相同均方误差目标、201/202/203数据流，没有额外搜索。普通互补 α 网格是0.5、0.65、0.8、0.9、0.95、0.97、0.985、0.995、0.999；自适应网格为 α 的0.9/0.97/0.995与 kb 的0.01/0.05/0.2 s⁻² 交叉。KF 将声明的 Q0、R0 分别乘0.5/1/2（3×3），不能根据评估真值任意拟合协方差。选中普通 α=**0.95**，自适应 α=**0.97**、kb=**0.2**，KF 乘数 **(1.0,1.0)**。这是相同候选 / 样本更新预算，不是相同浮点成本，也不等于连续最优解。
+
+先冻结全部选择，再跑**五个留出种子221–225**。RMSE 均值 ±总体标准差：陀螺 **3.032482 ±2.083907°**、加速度计 **1.492864 ±0.022122°**、互补 **0.259680 ±0.021152°**、自适应 **0.222922 ±0.015118°**、KF **0.213477 ±0.049114°**。保留种子223：KF **0.297265°** 差于互补 **0.295811°** 和自适应 **0.248308°**。不能得出普遍优胜或显著性结论；改变零偏谱、平动或 Q/R 假设可以改写排名，多一个状态不能代替正确的传感器模型。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-2/sensors-fusion
+$ python3 imu_kf_vs_complementary_toy.py
+```
+
+<CodeSource path="examples/month-2/sensors-fusion/imu_kf_vs_complementary_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Shared tilt-only sensor stream; no filter receives true gyro bias.
+Units: angle deg, rate deg/s, time s. Synthetic gravity-only accelerometer
+angle (no translational acceleration), white gyro/accel noise, bias random walk.
+During each sample gyro = finite-difference true rate + previous bias + noise;
+bias then takes an independent random-walk increment. Model for x=[angle,bias]:
+F=[[1,-dt],[0,1]], control=[dt*gyro,0], H=[1,0].
+Q0=diag((sigma_g*dt)^2, sigma_rw^2*dt), R0=sigma_a^2.
+P0=diag(R0,sigma_b0^2); bias prior MEAN=0, not the sampled true bias.
+KF tests 3x3 scale factors of the declared Q0,R0. Plain complementary tests
+9 alphas. Bias-adaptive complementary tests 3x3 alpha,bias-gain settings.
+Each gets 9 candidates x 3 tuning seeds x 1500 updates=40500 updates, same
+squared-error objective. Tuning truth is training-only supervision; held-out
+truth scores frozen filters. Model knowledge is shared, not oracle bias.
+Model capacity differs: plain complementary has no bias state; adaptive/KF do.
+This is not an EKF INS, Allan-variance characterization or MPU6050 measurement.
+"""
+import itertools
+import math
+import random
+import statistics
+
+DT, N = 0.02, 1500
+SIGMA_G, SIGMA_A = 0.5, 1.5
+SIGMA_B0, SIGMA_RW = 0.5, 0.03
+TUNE = (201, 202, 203)
+EVAL = (221, 222, 223, 224, 225)
+GRIDS = {
+    "complementary": tuple((a, 0.) for a in (.5, .65, .8, .9, .95, .97, .985, .995, .999)),
+    "bias_complementary": tuple(itertools.product((.9, .97, .995), (.01, .05, .2))),
+    "KF": tuple(itertools.product((.5, 1., 2.), repeat=2)),
+}
+
+
+def angle(t):
+    return 12 * math.sin(2 * math.pi * t / 6) + 3 * math.sin(2 * math.pi * t / 2)
+
+
+def sensors(seed):
+    rng = random.Random(seed)
+    bias = rng.gauss(0, SIGMA_B0)
+    truth = tuple(angle(k * DT) for k in range(N + 1))
+    accel = [truth[0] + rng.gauss(0, SIGMA_A)]
+    gyro = []
+    for prev, now in zip(truth, truth[1:]):
+        gyro.append((now - prev) / DT + bias + rng.gauss(0, SIGMA_G))
+        bias += rng.gauss(0, SIGMA_RW * math.sqrt(DT))
+        accel.append(now + rng.gauss(0, SIGMA_A))
+    return tuple(gyro), tuple(accel), truth
+
+
+def estimate(kind, config, gyro, accel):
+    # No truth or true-bias argument; all arms initialize from the same z0.
+    a, bhat = accel[0], 0.
+    out = [a]
+    p00, p01, p11 = SIGMA_A**2, 0., SIGMA_B0**2
+    for g, z in zip(gyro, accel[1:]):
+        pred = a + DT * (g - bhat)
+        innovation = z - pred
+        if kind == "gyro":
+            a = pred
+        elif kind == "accel":
+            a = z
+        elif kind in ("complementary", "bias_complementary"):
+            alpha, kb = config
+            a = pred + (1 - alpha) * innovation
+            bhat -= kb * DT * innovation
+        else:
+            qscale, rscale = config
+            qtheta = qscale * (SIGMA_G * DT)**2
+            qbias = qscale * SIGMA_RW**2 * DT
+            r = rscale * SIGMA_A**2
+            pp00 = p00 - 2 * DT * p01 + DT**2 * p11 + qtheta
+            pp01 = p01 - DT * p11
+            pp11 = p11 + qbias
+            k0, k1 = pp00 / (pp00 + r), pp01 / (pp00 + r)
+            a, bhat = pred + k0 * innovation, bhat + k1 * innovation
+            p00, p01, p11 = (1-k0)*pp00, (1-k0)*pp01, pp11-k1*pp01
+            assert p00 >= 0 and p11 >= 0 and p00*p11-p01*p01 > -1e-12
+        out.append(a)
+    return out
+
+
+def mse(estimate_values, truth):
+    return statistics.fmean((a-b)**2 for a, b in zip(estimate_values, truth))
+
+
+def main():
+    assert set(TUNE).isdisjoint(EVAL) and all(len(g) == 9 for g in GRIDS.values())
+    tuning = [sensors(s) for s in TUNE]
+    chosen = {}
+    for kind, grid in GRIDS.items():
+        chosen[kind] = min(grid, key=lambda cfg: statistics.fmean(
+            mse(estimate(kind, cfg, g, z), truth) for g, z, truth in tuning))
+    print(f"dt={DT} N={N}; sigma_g={SIGMA_G} deg/s sigma_a={SIGMA_A} deg sigma_b0={SIGMA_B0} deg/s sigma_rw={SIGMA_RW} deg/s/sqrt(s)")
+    print(f"Q0_diag={(SIGMA_G*DT)**2:.6f},{SIGMA_RW**2*DT:.6f}; R0={SIGMA_A**2:.6f}; bias_prior_mean=0 (not truth)")
+    print("tune_seeds=201,202,203; held_out=221..225; 9 candidates x 3 x 1500 = 40500 updates/filter")
+    for kind, cfg in chosen.items():
+        print(f"selected {kind} {cfg}")
+    arms = ("gyro", "accel", "complementary", "bias_complementary", "KF")
+    scores = {a: [] for a in arms}
+    print("held_out_seed gyro_RMSE_deg accel_RMSE_deg complementary_RMSE_deg bias_complementary_RMSE_deg KF_RMSE_deg")
+    for seed in EVAL:
+        g, z, truth = sensors(seed)
+        row = [math.sqrt(mse(estimate(a, chosen.get(a), g, z), truth)) for a in arms]
+        for a, value in zip(arms, row):
+            scores[a].append(value)
+        print(str(seed) + " " + " ".join(f"{v:.6f}" for v in row))
+    print("arm mean_RMSE_deg population_sd min max")
+    for a, values in scores.items():
+        print(f"{a} {statistics.fmean(values):.6f} {statistics.pstdev(values):.6f} {min(values):.6f} {max(values):.6f}")
+    print("shared data/prior model; neither filter knows true bias; no universal winner; IMU hardware 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+```text
+dt=0.02 N=1500; sigma_g=0.5 deg/s sigma_a=1.5 deg sigma_b0=0.5 deg/s sigma_rw=0.03 deg/s/sqrt(s)
+Q0_diag=0.000100,0.000018; R0=2.250000; bias_prior_mean=0 (not truth)
+tune_seeds=201,202,203; held_out=221..225; 9 candidates x 3 x 1500 = 40500 updates/filter
+selected complementary (0.95, 0.0)
+selected bias_complementary (0.97, 0.2)
+selected KF (1.0, 1.0)
+held_out_seed gyro_RMSE_deg accel_RMSE_deg complementary_RMSE_deg bias_complementary_RMSE_deg KF_RMSE_deg
+221 2.270439 1.469852 0.249267 0.215977 0.212520
+222 1.280862 1.505871 0.237493 0.202265 0.143872
+223 3.523789 1.521205 0.295811 0.248308 0.297265
+224 6.852406 1.503404 0.270655 0.220792 0.214184
+225 1.234915 1.463986 0.245173 0.227267 0.199543
+arm mean_RMSE_deg population_sd min max
+gyro 3.032482 2.083907 1.234915 6.852406
+accel 1.492864 0.022122 1.463986 1.521205
+complementary 0.259680 0.021152 0.237493 0.295811
+bias_complementary 0.222922 0.015118 0.202265 0.248308
+KF 0.213477 0.049114 0.143872 0.297265
+shared data/prior model; neither filter knows true bias; no universal winner; IMU hardware 本页未运行
+```
+
+### 练习 (+150 min)
+
+1.（35 min）从采样保持零偏模型推导 F、H、Q0、R0 与单位，解释换连续时间零偏模型为何改变 Q 交叉项。
+2.（35 min）只用调参种子运行9候选网格，核对各40500次更新，并在评估前冻结选择。
+3.（35 min）重算五行留出结果及均值 / 标准差，解释种子223的反转，不删掉它。
+4.（30 min）另做平动角度污染或改变零偏游走的压力实验，不在留出种子上重调参，不声称硬件结果。
+5.（15 min）审计函数参数有无真零偏泄漏，并对照普通 / 零偏自适应的模型容量。
+
 <Summary>
+
+等预算留出 IMU 比较从声明噪声模型推导 KF 的 Q/R，另用调参种子选择互补变体，任何臂都拿不到真实零偏。
 
 **本课要点**
 

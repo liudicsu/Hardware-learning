@@ -25,3 +25,7 @@ The Python toy models used in these lessons are in [`tools/sim/models/`](../../t
 
 > Simulated outputs are not hardware measurements: on a real board your numbers will differ.
 > 仿真输出不是硬件实测，真实开发板上的数值会有所不同。
+
+## Batch-5 PR1 / 第5批 PR1
+
+`sensors-fusion/imu_kf_vs_complementary_toy.py`: standard-library synthetic simulation, no hardware; expected output in `expected/imu_kf_vs_complementary_toy.txt`, included in `check.sh`. / 标准库合成仿真，不是硬件测量，输出由 `check.sh` 核对。

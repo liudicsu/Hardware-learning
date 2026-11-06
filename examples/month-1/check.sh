@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Run the Month 1 Python examples exactly as the lesson does and compare with the quoted output.
-# These are ordinary programs on your computer, not simulations. Needs python3 (3.9+), no packages.
+# Legacy scripts are ordinary program runs; DMM enrichment is a synthetic Monte Carlo model.
+# Needs python3 (3.9+), no packages.
 # Usage: examples/month-1/check.sh
 set -euo pipefail
+M1="$(cd "$(dirname "$0")" && pwd)"
 SRC="$(cd "$(dirname "$0")/python-terminal" && pwd)"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 cp "$SRC"/*.py "$TMP"/ && cd "$TMP"
@@ -25,4 +27,9 @@ sed -i.bak 's/record("R1", 4700, 4688)/record("R1", 4700, 4400)/' log.py   # the
 check "log.py, second run" "Logged 1 measurement.
 R1: expected 4700 Ω, measured 4400 Ω → off by 6.4 %
 1 of 2 measurements out of 5 % tolerance"  python3 log.py
+if python3 "$M1/bench-multimeter/dmm_uncertainty_toy.py" > "$TMP/dmm_uncertainty_toy.txt" && diff -u "$M1/expected/dmm_uncertainty_toy.txt" "$TMP/dmm_uncertainty_toy.txt"; then
+  echo "same  dmm_uncertainty_toy.txt"
+else
+  echo "DIFF  dmm_uncertainty_toy.txt"; fail=1
+fi
 exit $fail

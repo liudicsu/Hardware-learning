@@ -3476,6 +3476,40 @@ export const resources: Record<string, Resource> = {
     license: { zh: "© 原作者；仅提供外链", en: "© authors; external link only" },
     extra: true,
   },
+  "wescott-friction": {
+    id: "wescott-friction",
+    url: "https://www.wescottdesign.com/articles/Friction/friction.pdf",
+    title: { zh: "Wescott：摩擦与回差下的电机控制", en: "Wescott: controlling motors with friction and backlash" },
+    author: "Tim Wescott",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: { zh: "静摩擦 / 库仑摩擦、隐含齿隙状态；§3.2 只对 P/I 加死区并保留 D，提醒积分残留与带宽调节。本站 3.3 合成模型不是论文数值复现。", en: "Stiction/Coulomb friction and hidden backlash state; §3.2 places deadband on P/I, retains D and warns about stored integral drive and band tuning. The 3.3 synthetic model is not a numerical reproduction." },
+    license: { zh: "版权归原作者；仅提供外链", en: "Copyright original authors; external link only" },
+    extra: true,
+  },
+  "nist-uncertainty-typeb": {
+    id: "nist-uncertainty-typeb",
+    url: "https://physics.nist.gov/cuu/Uncertainty/typeb.html",
+    title: { zh: "NIST：B 类标准不确定度", en: "NIST: Type-B standard uncertainty" },
+    author: "NIST",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: { zh: "矩形分布半宽除以 √3；规格限值、标准不确定度与包含概率不同。本站 1.3 使用明确标注的合成 DMM 表，不是真实仪表规格。", en: "Rectangular half-width divided by √3; spec limits, standard uncertainties and coverage differ. Lesson 1.3 uses a labelled synthetic DMM table, not a real meter specification." },
+    license: { zh: "版权归原作者；仅提供外链", en: "Copyright original authors; external link only" },
+    extra: true,
+  },
+  "nist-uncertainty-propagation": {
+    id: "nist-uncertainty-propagation",
+    url: "https://www.itl.nist.gov/div898/handbook/mpc/section5/mpc55.htm",
+    title: { zh: "NIST：误差传播与灵敏度系数", en: "NIST: error propagation and sensitivity coefficients" },
+    author: "NIST/SEMATECH",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: { zh: "偏导作为灵敏度系数；独立项的 RSS 与相关项处理，线性化有边界。本站 1.3 对照 V/R 的标准不确定度与最坏限值。", en: "Partial derivatives as sensitivity coefficients; independent RSS and covariance terms, with linearization limits. Lesson 1.3 contrasts V/R standard uncertainty and worst-case limits." },
+    license: { zh: "版权归原作者；仅提供外链", en: "Copyright original authors; external link only" },
+    extra: true,
+  },
+
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

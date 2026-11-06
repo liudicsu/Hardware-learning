@@ -202,7 +202,127 @@
 - 我能背出六步排障流程，并且至少在 Tinkercad 里完整走过一遍。
 - 我的第一个套件已经下单，或者正计划从可靠的渠道下单——确保它能及时到货，用来在真实元件上练习这些测量。
 
+## 从万用表限值到派生电流的不确定度
+
+显示的位数不是准确度承诺。下表是课程定义的**合成规格表**：此练习**没有打开真实 DMM 数据手册**，不是 Fluke / Keysight 规格、校准证书或 CAT / IEC 61010 认证。这里延伸测量练习，不重复色环题。实体万用表 / 校准：**本页未运行**。
+
+| 合成通道 | 读数项 | 满量程项 | 所选量程 |
+|---|---|---|---|
+| V | 读数的 ±0.5 % | FS 的 ±0.1 % | 6 V |
+| R | 读数的 ±0.8 % | FS 的 ±0.2 % | 2000 Ω |
+
+每通道的绝对**限值半宽**为 `L = a × abs(reading) + f × FS`。若规格写 counts，则应换成 `counts × 最低有效位分辨率`，不是再乘一个百分比。两个项已经组成一个总限值，不可暗中把它们当独立随机变量做 RSS。这里在**相同真值 V,R** 上比较漏掉 FS 的只算读数捷径与完整模型：0.2V/1000Ω 和5V/1000Ω。
+
+<Resource id="nist-uncertainty-typeb" /> <Resource id="nist-uncertainty-propagation" />
+
+### 标准不确定度不是限值
+
+按 NIST B 类矩形模型，假设每通道的**总误差**均匀分布在 `[−L,L]`。把规格限值换成**标准不确定度要除以 √3**：`uV = LV/√3`、`uR = LR/√3`。规格本身并不证明这个分布。此处假设 V、R 误差独立；同一仪表的通道实际可能共享增益 / 温漂误差，需加入协方差项。已声明包含因子的校准不确定度应除以相应因子，不能一概除 √3。
+
+被测量为 `I=V/R`，灵敏度系数 `cV=∂I/∂V=1/R`（A/V）、`cR=∂I/∂R=−V/R²`（A/Ω）。一阶**标准不确定度 RSS** 是 `uI = sqrt((cV uV)² + (cR uR)²)`；对照的是**限值的最坏情况线性和** `LI = abs(cV) LV + abs(cR) LR`。两者回答不同问题：uI 是假设下的标准差，LI 是一阶最坏限值，不是标准差，也不自动代表95 % 区间。正分母下精确角点比值给出非线性 V/R 模型的界，另列报告。
+
+### 读结果，不只数位数
+
+0.2V 时完整 LV=0.007V、LR=12Ω，给出 uV=0.004041V、uR=6.928203Ω。RSS 为 **0.004272 mA**，最坏线性限值 **0.009400 mA**，精确非线性界 **0.009514 mA**。漏掉 FS 只报 **0.001089 mA** RSS，低读数时尤其误导。5V 时完整 RSS 为 **0.038991 mA**，线性限值 **0.091000 mA**，精确界 **0.092105 mA**。不能把限值和标准不确定度当成同一种“±准确度”比较。
+
+蒙特卡洛使用20000组独立标准化均匀误差对（种子113），两种规格臂与工作点复用这些抽样。完整模型样本标准差在0.2/5V 下为 **0.004259/0.038900 mA**，接近线性化 RSS；有限抽样与非线性比值解释差异。这是对假设的不确定度分布抽样，不是重复读数就能校掉系统偏差。未模拟温度、引线电阻、表负载与相关性；前面的10MΩ 加载示例仍是独立效应。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-1/bench-multimeter
+$ python3 dmm_uncertainty_toy.py
+```
+
+<CodeSource path="examples/month-1/bench-multimeter/dmm_uncertainty_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic DMM spec limits -> Type-B standard uncertainty -> I=V/R.
+No real meter datasheet opened: ALL specs below are synthetic, not Fluke claims.
+A total spec half-width L = a*abs(reading) + f*full_scale is a LIMIT, not sigma.
+Model each channel's total error as independent uniform[-L,L], so u=L/sqrt(3).
+Do NOT RSS the two terms inside one manufacturer's total limit.
+Propagate independent V,R with cV=1/R, cR=-V/R^2. RSS combines STANDARD
+uncertainties; linear sum combines LIMITS. Neither is automatically 95 %.
+Monte Carlo uses shared standardized errors for both spec arms, 20000 draws
+per operating point; independent V vs R draws. No repeated-reading 1/sqrt(n)
+claim for a systematic instrument offset. No CAT/IEC certification or live test.
+"""
+import math
+import random
+
+SEED = 113
+DRAWS = 20000
+# a reading fraction, f full-scale fraction, full scale [V or ohm]. Synthetic!
+V_SPEC = (0.005, 0.001, 6.0)
+R_SPEC = (0.008, 0.002, 2000.0)
+POINTS = ((0.2, 1000.0), (5.0, 1000.0))
+
+
+def limit(reading, spec, full_spec):
+    a, f, fs = spec
+    return a * abs(reading) + (f * fs if full_spec else 0.0)
+
+
+def budget(v, r, lv, lr):
+    uv, ur = lv / math.sqrt(3), lr / math.sqrt(3)
+    cv, cr = 1 / r, -v / r**2
+    rss = math.hypot(cv * uv, cr * ur)
+    worst_linear = abs(cv) * lv + abs(cr) * lr
+    # Exact ratio extrema for a positive denominator, not just linearization.
+    exact = max(abs((v + lv) / (r - lr) - v / r),
+                abs((v - lv) / (r + lr) - v / r))
+    return uv, ur, cv, cr, rss, worst_linear, exact
+
+
+def main():
+    rng = random.Random(SEED)
+    draws = tuple((rng.uniform(-1, 1), rng.uniform(-1, 1)) for _ in range(DRAWS))
+    print(f"SYNTHETIC specs; seed={SEED} draws={DRAWS}; limits / sqrt(3) -> standard u")
+    print("V: +/- (0.5 % reading + 0.1 % of 6 V FS); R: +/- (0.8 % reading + 0.2 % of 2000 ohm FS)")
+    print("V_V arm L_V_V L_R_ohm u_V_V u_R_ohm cV_A/V cR_A/ohm RSS_uI_mA linear_limit_mA exact_limit_mA MC_sd_mA")
+    for v, r in POINTS:
+        for name, full in (("reading_only", False), ("reading_plus_FS", True)):
+            lv, lr = limit(v, V_SPEC, full), limit(r, R_SPEC, full)
+            uv, ur, cv, cr, rss, worst, exact = budget(v, r, lv, lr)
+            values = [(v + dv * lv) / (r + dr * lr) for dv, dr in draws]
+            mean = sum(values) / DRAWS
+            sd = math.sqrt(sum((x - mean)**2 for x in values) / DRAWS)
+            print(f"{v:.1f} {name} {lv:.6f} {lr:.3f} {uv:.6f} {ur:.6f} "
+                  f"{cv:.6f} {cr:.9f} {rss*1000:.6f} {worst*1000:.6f} "
+                  f"{exact*1000:.6f} {sd*1000:.6f}")
+            assert lr < r and 0 < rss < worst <= exact
+            assert abs(sd / rss - 1) < 0.03
+    print("RSS is standard uncertainty, linear sum is a worst-case first-order limit; independence assumed")
+    print("shared true V,R and standardized errors; physical DMM/calibration 本页未运行; not certification")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+```text
+SYNTHETIC specs; seed=113 draws=20000; limits / sqrt(3) -> standard u
+V: +/- (0.5 % reading + 0.1 % of 6 V FS); R: +/- (0.8 % reading + 0.2 % of 2000 ohm FS)
+V_V arm L_V_V L_R_ohm u_V_V u_R_ohm cV_A/V cR_A/ohm RSS_uI_mA linear_limit_mA exact_limit_mA MC_sd_mA
+0.2 reading_only 0.001000 8.000 0.000577 4.618802 0.001000 -0.000000200 0.001089 0.002600 0.002621 0.001087
+0.2 reading_plus_FS 0.007000 12.000 0.004041 6.928203 0.001000 -0.000000200 0.004272 0.009400 0.009514 0.004259
+5.0 reading_only 0.025000 8.000 0.014434 4.618802 0.001000 -0.000005000 0.027234 0.065000 0.065524 0.027175
+5.0 reading_plus_FS 0.031000 12.000 0.017898 6.928203 0.001000 -0.000005000 0.038991 0.091000 0.092105 0.038900
+RSS is standard uncertainty, linear sum is a worst-case first-order limit; independence assumed
+shared true V,R and standardized errors; physical DMM/calibration 本页未运行; not certification
+```
+
+### 练习 (+150 min)
+
+1.（30 min）把0.2V、5V 下两通道合成规格换成绝对限值和标准不确定度，说明小读数时 FS 为何突出。
+2.（30 min）推导 cV、cR 及单位，手算 RSS 与线性限值，不混淆两者含义。
+3.（35 min）运行共享蒙特卡洛，将抽样翻倍，对照 SD、RSS 和精确角点界，不据此发明真实仪表规格。
+4.（30 min）加入假想共用增益误差，推导协方差项，明示假设，不假装仍然独立。
+5.（25 min）拟定离线电阻 / 电流测量日志，含量程、分辨率、加载和校准状态，不测市电。
+
 <Summary>
+
+合成 DMM 的 V/R 预算把矩形规格限值除以 √3，再对照带灵敏度系数的 RSS 标准不确定度与最坏限值。
 
 **本课要点**
 
