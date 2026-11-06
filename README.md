@@ -11,12 +11,12 @@ external resources are shown as cards with a link, and their copyright stays wit
 
 ## What the site contains / 网站内容
 
-Eleven months, 71 lessons (about 21 090 minutes of study time), all in Chinese (default, `/zh`) and English (`/en`).
+Eleven months, 71 lessons (about 21 570 minutes of study time), all in Chinese (default, `/zh`) and English (`/en`).
 Months 1–6 follow the original course; Months 7–11 are site supplements written here and are not part of it.
 Month 11 is complete: 7 of 7 lessons.
 Month 10 is complete: 7 of 7 lessons.
 
-十一个月、71 课（约 21 090 分钟）；第 1–6 个月沿用原课程，第 7–11 个月是本站补充内容；第 11 个月 7 课已全部写完。
+十一个月、71 课（约 21 570 分钟）；第 1–6 个月沿用原课程，第 7–11 个月是本站补充内容；第 11 个月 7 课已全部写完。
 
 | Month | Topic | Lessons |
 | --- | --- | --- |
@@ -121,13 +121,14 @@ Details and how to run one case by hand: [tools/sim/README.md](tools/sim/README.
 
 | Check | Needs | Command |
 | --- | --- | --- |
-| Month 1: Python command-line tools | Python 3 | `bash examples/month-1/check.sh` |
+| Month 1: Python tools, DMM uncertainty and supply dip / 工具、不确定度与电源跌落 | Python 3 (standard library only) | `bash examples/month-1/check.sh` |
+| Month 2: priority, encoder, IMU, winding thermal and I2C rise-time toys / 优先级、编码器、IMU、绕组热与 I2C 上升沿 | Python 3 (standard library only) | `bash examples/month-2/check.sh` |
 | Month 3: OpenSCAD parts and Python calculators | Python 3, [OpenSCAD](https://openscad.org/) (tested with 2021.01), and for `arm-compare_sdk` the pinned Feetech SDK (below) | `bash examples/month-3/check.sh` |
 | Month 4: ROS 2 programs that need no robot | ROS 2 Jazzy (pixi environment below) | `cd examples/month-4 && pixi run check` |
 | Month 5: control enrichment toys (PE sysid, observer vs oracle) | Python 3 (standard library only) | `bash examples/month-5/check.sh` |
 | Month 6: imitation-learning toy models, evaluation and portfolio check | Python 3 (standard library only) | `bash examples/month-6/check.sh` |
 
-Month 2 has no `check.sh`. Month 5's enrichment toys (`sysid_pe_compare_toy.py`, `lqr_model_error_toy.py`) use `examples/month-5/check.sh`; the older joint_freq / lqr_sim outputs stay under `tools/sim/reproduce.sh`
+Month 5's enrichment toys (`sysid_pe_compare_toy.py`, `lqr_model_error_toy.py`) use `examples/month-5/check.sh`; the older joint_freq / lqr_sim outputs stay under `tools/sim/reproduce.sh`
 and `tools/sim/m5/run.sh`.
 
 **Month 3 with `feetech-servo-sdk==1.0.0`.** Without the SDK, `examples/month-3/check.sh` reports

@@ -4923,7 +4923,7 @@ for (const m of readdirSync(content)) {
   for (const id of ["dreamgen-paper", "lapa-paper", "smolvla-paper", "lerobot-async"]) {
     ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `wm2 resource ${id}: present + extra`);
   }
-  ok(/21 090/.test(read("README.md")), "b5p3 README: 21 090 minutes");
+  ok(/21 570/.test(read("README.md")), "b6p1 README: 21 570 minutes");
   console.log("worldmodel-smolvla PR2: neural trajectories + async chunk locks checked");
 }
 
@@ -5390,6 +5390,7 @@ print("protocol pass")
     const plan=read(`docs/notes/month-${month}-plan.md`);
     ok(plan.includes("21570") && plan.includes("1020") && plan.includes("1980") && plan.includes("PR1"),`b6p1 M${month}: plans count only this PR`);
   }
+  ok(read("README.md").includes("bash examples/month-2/check.sh") && !read("README.md").includes("Month 2 has no"),"b6p1 README: M1/M2 actual reproduction commands documented");
   console.log("thermal-i2c-decoupling PR1: shared demand, actual derate trips, primary timing/decoupling sources, L-only proxy and final-Summary locks checked");
 }
 
