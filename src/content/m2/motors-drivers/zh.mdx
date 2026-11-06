@@ -763,6 +763,176 @@ ok: mechanical Z-index homing (not FOC); cal beats uncal on clean index; missed/
 - 我能用编码器 CPR 和减速比算出每转多少计数。
 - 我有一只能在两种电池电压下都精确转一圈的轮子，并能说清编码器起了什么作用。
 
+## 绕组铜耗与热 RC（+180 min）
+
+绕组不是线束。[11.1 系统配电](/zh/month/month-11/power-battery-emc) 已讲往返导线 I²R 与熔断器数据门禁；这里的热在**电机绕组内部**，有热量积累和散热路径。不重做 FOC，也不把驱动 IC 的封装 θJA 当成绕组热阻。已打开的 TI SLVA505 封装热文档说明 PCB / 铜箔 / 封装条件的重要性，**没有**辨识本电机的绕组参数。
+
+<Resource id="ti-driver-package-thermal" />
+
+### 先声明对象，再评价控制器
+
+使用 `R(T) = R20 × [1 + 0.00393(T − 20)]`，其中 **R20 = 1 Ω 是 20 °C 电阻**，**α20 = 0.00393/K 也以 20 °C 为参考**，不能直接配上 R25。环境 Ta=25 °C 时 R(25)=**1.01965 Ω**。在**恒电流**下，铜越热、电阻越大，`I²R(T)` 损耗也越大，这就是 **I²R(T) 正反馈**，不只是“电流发热”；不声称恒电压下也有同样反馈。
+
+热方程为 `Cθ dT/dt = P(T) − (T−Ta)/Rθ`，其中 `P(T)=I²R(T)`。导数为零得到**稳态 ΔT = P·Rθ**；P 随 T 变时要用 P(T_ss)，是隐式平衡，不可偷用环境温度电阻算出的常功率。对**短时过载**，**ΔT ≈ P·t/Cθ，条件 t ≪ τ**：Cθ 限制初始温升速率，Rθ 决定常功率稳态温升。常 P 时 `ΔT(t)=P Rθ[1−exp(−t/(Rθ Cθ))]`；10 W 的稳态温升是 **40 K**，但 0.1 s 脉冲只升 **0.083247 K**，接近 P·t/Cθ 的 **0.083333 K**。
+
+**对象与控制的全部数值输入均为合成**，包括本课定义的 **Rθ = 4 K/W**、**Cθ = 12 J/K**、T_lim=50 °C、T_trip=70 °C。常功率名义 τ=48 s 不意味着 R(T) 正反馈不会改变电流驱动下的有效时间常数。前向 Euler 使用 dt=0.10 s；单热容忽略铁耗、风冷变化、壳体 / 绕组滞后及损坏；约 153 °C 的输出不是已验证工作点。
+
+三臂消费**同一条 4800 样本的请求电流曲线**，总长 480 s：空转 1 A；30–150 s 每 10 s 有 4 s 堵转 5 A；150–240 s 与 360–420 s 长时间堵转 5 A；其余冷却。这是合成的电流控制请求，不是电压驱动电机模型。只有热控制介入后，实际电流才不同：
+
+| 臂 | 信息与动作 |
+|---|---|
+| ignore | 忽略温度，但物理仿真器仍然加热绕组。 |
+| monitor_rc | 从同一热 RC 对象报告理想绕组温度，但不降低电流。 |
+| derate_trip | 同样知道理想绕组温度；超过 50 °C 限至 3.5 A，达到 70 °C 切为零，冷却到 45 °C 才恢复。 |
+
+监测与降额都假设理想绕组 T，**不是壳温计实测**。Trips 统计进入零电流冷却状态的次数；监测臂仅观察到过热不算 trip。特意加入长堵转，让**降额臂也出现 trip**：减小电流不等于能无限期运行。这不是安全链设计或绝缘等级认证；真实绕组测温 / 硬件：**本页未运行**。
+
+### 运行标准库玩具
+
+```bash
+cd ~/Hardware-learning/examples/month-2/motors-drivers
+python3 winding_thermal_rc_toy.py
+```
+
+<CodeSource path="examples/month-2/motors-drivers/winding_thermal_rc_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic winding thermal RC, NOT harness I2R (11.1) or driver-package thetaJA.
+R(T)=R20*(1+0.00393*(T-20)); alpha20 is referenced to 20 degC.
+At fixed I, I2R(T) is positive feedback. Steady deltaT=P*Rtheta;
+short t<<tau gives deltaT approximately P*t/Ctheta.
+All arms share the demanded current profile, plant and integration grid.
+Ignore/monitor deliver the same current; derate intentionally changes delivered current.
+The plant still heats when its controller ignores heating. Ideal winding temperature
+is available to monitor/derate (not inferred from a measured case temperature).
+Lesson-defined Rtheta/Ctheta/limits, NOT insulation-class certification. Stdlib only.
+"""
+from math import expm1
+
+AMBIENT = 25.0
+R20 = 1.0                 # ohm at 20 degC, synthetic reference resistance
+ALPHA20 = 0.00393          # 1/K referenced to 20 degC, not 25 degC
+RTH = 4.0                 # K/W, lesson-defined winding-to-ambient path
+CTH = 12.0                # J/K, lesson-defined winding heat capacity
+DT = 0.1                  # s; tau = RTH * CTH = 48 s
+DURATION = 480.0
+DERATE_C = 50.0
+TRIP_C = 70.0
+RESET_C = 45.0
+DERATED_A = 3.5
+ARMS = ("ignore", "monitor_rc", "derate_trip")
+
+
+def current_profile(dt=DT):
+    """One shared request: free run, intermittent stalls, prolonged stalls, cool."""
+    result = []
+    for k in range(round(DURATION / dt)):
+        t = k * dt
+        stall = (30 <= t < 150 and (t - 30) % 10 < 4) or 150 <= t < 240 or 360 <= t < 420
+        result.append(5.0 if stall else 1.0)
+    return tuple(result)
+
+
+def resistance(temp):
+    """I2R(T) positive feedback: at fixed I, hotter copper dissipates more."""
+    return R20 * (1 + ALPHA20 * (temp - 20.0))
+
+
+def advance(temp, current, dt):
+    copper = current * current * resistance(temp)
+    cooling = (temp - AMBIENT) / RTH
+    return temp + (copper - cooling) * dt / CTH, copper * dt, cooling * dt
+
+
+def constant_current_exact(current, seconds):
+    """Independent closed-form check of the linear-in-temperature ODE."""
+    p0 = current * current * resistance(AMBIENT)
+    b = current * current * R20 * ALPHA20 - 1 / RTH
+    return AMBIENT + (p0 * seconds / CTH if abs(b) < 1e-12 else p0 / b * expm1(b * seconds / CTH))
+
+
+def constant_power_rise(power, seconds):
+    """Steady deltaT=P*RTH; for t<<tau, deltaT approximately P*t/CTH."""
+    return -power * RTH * expm1(-seconds / (RTH * CTH))
+
+
+def run(arm, requests, dt=DT):
+    if arm not in ARMS:
+        raise ValueError("unknown arm")
+    temp = peak = AMBIENT
+    copper_j = cooling_j = above_trip_s = 0.0
+    trips = derate_samples = 0
+    cooling_off = False
+    for requested in requests:
+        current = requested
+        if arm == "derate_trip":
+            if cooling_off and temp <= RESET_C:
+                cooling_off = False
+            if not cooling_off and temp >= TRIP_C:
+                cooling_off = True
+                trips += 1
+            if cooling_off:
+                current = 0.0
+            elif temp > DERATE_C:
+                current = min(current, DERATED_A)
+                derate_samples += int(current < requested)
+        above_trip_s += dt * (temp >= TRIP_C)
+        temp, heat, rejected = advance(temp, current, dt)
+        copper_j += heat
+        cooling_j += rejected
+        peak = max(peak, temp)
+    return dict(peak=peak, final=temp, copper_j=copper_j, cooling_j=cooling_j,
+                trips=trips, derate_samples=derate_samples, above_trip_s=above_trip_s)
+
+
+def main():
+    requests = current_profile()
+    print("Synthetic winding RC; ideal winding T; no insulation/driver-package rating")
+    print(f"R20_ohm={R20:.3f} alpha20_per_K={ALPHA20:.5f} R_at_25C_ohm={resistance(25):.5f}; I2R(T) positive feedback")
+    print(f"constant_P=10W steady_delta_K={10 * RTH:.3f} short_0.1s_exact_K={constant_power_rise(10, .1):.6f} short_approx_K={10 * .1 / CTH:.6f}")
+    print(f"shared request samples={len(requests)} dt_s={DT:.2f} duration_s={DURATION:.0f} tau0_s={RTH * CTH:.0f}")
+    print("arm physical_peak_C final_C copper_J trips derated_samples above_trip_s estimator")
+    for arm in ARMS:
+        r = run(arm, requests)
+        estimator = "none" if arm == "ignore" else "ideal_winding_T"
+        print(f"{arm} {r['peak']:.3f} {r['final']:.3f} {r['copper_j']:.3f} {r['trips']} {r['derate_samples']} {r['above_trip_s']:.1f} {estimator}")
+    print("trips count thermal cutoff entries; monitor observes but never intervenes")
+    print("Synthetic only; real winding measurement / motor hardware: 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic winding RC; ideal winding T; no insulation/driver-package rating
+R20_ohm=1.000 alpha20_per_K=0.00393 R_at_25C_ohm=1.01965; I2R(T) positive feedback
+constant_P=10W steady_delta_K=40.000 short_0.1s_exact_K=0.083247 short_approx_K=0.083333
+shared request samples=4800 dt_s=0.10 duration_s=480 tau0_s=48
+arm physical_peak_C final_C copper_J trips derated_samples above_trip_s estimator
+ignore 153.001 56.019 6709.332 0 0 235.0 none
+monitor_rc 153.001 56.019 6709.332 0 0 235.0 ideal_winding_T
+derate_trip 70.025 38.651 2843.554 2 1254 0.2 ideal_winding_T
+trips count thermal cutoff entries; monitor observes but never intervenes
+Synthetic only; real winding measurement / motor hardware: 本页未运行
+```
+
+</SimOutput>
+
+### 读结果，再扰动假设
+
+忽略与监测臂的物理峰值同为 **153.001 °C**，铜耗能量同为 **6709.332 J**：有信息却不行动，不能让对象变凉。降额臂为 **70.025 °C**、**2843.554 J**、**2 trips**，不能预设成零跳闸的成功臂。0.025 °C 越限与 0.2 s 超过 trip 温度暴露离散检查效应；不承诺每个样本都低于 70 °C。铜耗能量是 `Σ I_actual² R(T_k) dt`，不是输入电能或轴功。可用 `Cθ(T_final−Ta) = copper_J−cooling_J` 做能量守恒回归。
+
+**180 分钟安排：** 45 min 推导单位 / ODE；45 min 审计共享请求和三臂；45 min 积分并解释峰值 / 能量 / trips；30 min 灵敏度；15 min 复盘。
+
+1. 从环境温度施加 2 A 持续 60 s，与 `constant_current_exact` 对照；dt 减半后检查收敛。
+2. 固定 Rθ、将 Cθ 加倍：解释时间尺度变化，而不是声称平衡温度改变；再单独改变 Rθ。
+3. 去掉切断、保留 3.5 A 降额限流：预测长堵转是否仍能超过 70 °C。请求曲线必须保持不变。
+4. 在笔记中分开壳温实测、绕组温度估计与仿真真值；列出硬件应用前辨识 Rθ/Cθ 的实验。不能从玩具推出绝缘等级或允许堵转时长。
+
 <Summary>
 
 **本课要点**
@@ -775,6 +945,8 @@ ok: mechanical Z-index homing (not FOC); cal beats uncal on clean index; missed/
 - A4988 限流：I_max = Vref / (8 × R_CS)；0.068 Ω 下取 1 A 需要 Vref = 0.544 V。
 - Romi 编码器：电机每转 12 个计数（×4）× 119.76 ≈ 车轮每转 1440 个计数，70 mm 车轮上每个计数 0.153 mm。
 - 最小占空比只有按最低电池电压来定，才能越过 0.8 V 死区：0.8 V / 5.0 V = 0.16。
+
+- 绕组 R(T)=R20[1+α20(T−20)] 产生 I²R(T) 正反馈；共享电流曲线的热 RC 中，Rθ 决定稳态温升，Cθ 限制短时过载温升。
 
 **下一课会用到**
 

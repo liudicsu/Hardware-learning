@@ -32,4 +32,9 @@ if python3 "$M1/bench-multimeter/dmm_uncertainty_toy.py" > "$TMP/dmm_uncertainty
 else
   echo "DIFF  dmm_uncertainty_toy.txt"; fail=1
 fi
+if python3 "$M1/components/supply_dip_decoupling_toy.py" > "$TMP/supply_dip_decoupling_toy.txt" && diff -u "$M1/expected/supply_dip_decoupling_toy.txt" "$TMP/supply_dip_decoupling_toy.txt"; then
+  echo "same  supply_dip_decoupling_toy.txt"
+else
+  echo "DIFF  supply_dip_decoupling_toy.txt"; fail=1
+fi
 exit $fail

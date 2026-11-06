@@ -23,4 +23,7 @@ check encoder_index_cal_toy.txt "$PY" "$M2/motors-drivers/encoder_index_cal_toy.
 
 check imu_kf_vs_complementary_toy.txt "$PY" "$M2/sensors-fusion/imu_kf_vs_complementary_toy.py"
 
+check winding_thermal_rc_toy.txt "$PY" "$M2/motors-drivers/winding_thermal_rc_toy.py"
+check i2c_risetime_toy.txt "$PY" "$M2/arduino-io/i2c_risetime_toy.py"
+
 exit $fail

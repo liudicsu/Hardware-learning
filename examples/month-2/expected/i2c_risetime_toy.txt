@@ -1,0 +1,21 @@
+Synthetic Rp/Cbus; TMP102 example timing/sink budget, not a link certificate
+shared bytes=A5 00 FF 5A SCL_edges=36 ACK_outcome=not_modelled
+bit_ns=2500 low_ns=1500 release_high_ns=1000 rise_budget_ns=300
+arm Rp_ohm Cbus_pF tr_ns tr_over_bit stable_high_ns sink_at_VOLmax_mA sink_ok edge_budget_flags
+weak_short 10000 100 847.298 0.338919 0.000 0.290 1 36
+strong_short 2200 100 186.406 0.074562 735.126 1.318 1 0
+strong_long_C 2200 400 745.622 0.298249 0.000 1.318 1 36
+Rp_min_ohm=966.667 Rp_max_short_ohm=3540.668 Rp_max_long_ohm=885.167
+TI SLVA689A Table 2-1: rise-only screens (not full mode/device compliance)
+arm mode tr_max_ns tr_over_limit violating_edges
+weak_short Sm 1000 0.847298 0
+weak_short Fm 300 2.824326 36
+weak_short Fm+ 120 7.060816 36
+strong_short Sm 1000 0.186406 0
+strong_short Fm 300 0.621352 0
+strong_short Fm+ 120 1.553379 36
+strong_long_C Sm 1000 0.745622 0
+strong_long_C Fm 300 2.485407 36
+strong_long_C Fm+ 120 6.213518 36
+400kHz waveform is Fm only; Sm rise-pass is not Sm link-pass; no TMP102 Fm+ claim
+Flags are edge-budget violations, NOT observed packet loss; real bus/scope: 本页未运行

@@ -3936,8 +3936,8 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 21090, "cal-conrft-mtc PR3 curriculum: 21090 minutes");
-  for (const [month, expected] of [[1, 870], [2, 1650], [3, 1470], [4, 1620], [5, 1800], [6, 1350], [7, 2070], [8, 2670], [9, 2730], [10, 1860], [11, 3000]]) {
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 21570, "thermal-i2c-decoupling PR1 curriculum: 21570 minutes");
+  for (const [month, expected] of [[1, 1020], [2, 1980], [3, 1470], [4, 1620], [5, 1800], [6, 1350], [7, 2070], [8, 2670], [9, 2730], [10, 1860], [11, 3000]]) {
     ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `current curriculum M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
@@ -4923,7 +4923,7 @@ for (const m of readdirSync(content)) {
   for (const id of ["dreamgen-paper", "lapa-paper", "smolvla-paper", "lerobot-async"]) {
     ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `wm2 resource ${id}: present + extra`);
   }
-  ok(/21 090/.test(read("README.md")), "b5p3 README: 21 090 minutes");
+  ok(/21 570/.test(read("README.md")), "b6p1 README: 21 570 minutes");
   console.log("worldmodel-smolvla PR2: neural trajectories + async chunk locks checked");
 }
 
@@ -5085,7 +5085,7 @@ for (const m of readdirSync(content)) {
   ok(/≤1 µs 以文档为准/.test(ec), "b4p1 ecat: ≤1 µs attributed");
   const cur = read("src/lib/curriculum.ts");
   ok(cur.match(/slug: "power-battery-emc"[\s\S]*?minutes: (\d+)/)?.[1] === "480", "b4p1 curriculum: 11.1 = 480");
-  ok(cur.match(/slug: "motors-drivers"[\s\S]*?minutes: (\d+)/)?.[1] === "360", "b4p1 curriculum: 2.4 = 360");
+  ok(cur.match(/slug: "motors-drivers"[\s\S]*?minutes: (\d+)/)?.[1] === "540", "current curriculum: 2.4 = 540 (b4 index + b6 winding)");
   ok(cur.match(/slug: "ros2-control"[\s\S]*?minutes: (\d+)/)?.[1] === "420", "b4p1 curriculum: 4.5 = 420");
   const rcBlock = (cur.match(/slug: "ros2-control"[\s\S]*?\n  \},/) || [""])[0];
   ok(/ethercat-technology/.test(rcBlock) && /ethercat-etg2200/.test(rcBlock) && /acontis-dc/.test(rcBlock), "b4p1 4.5 resources wired");
@@ -5354,6 +5354,46 @@ print("protocol pass")
       ok(prose.includes(lang==="en" ? phrase : zh), `b5 polish ${slug}/${lang}: clarification outside code fences`);
     }
   }
+}
+
+// Batch-6 PR1 reviewed §9: R20 feedback, all I2C rise limits, equal-C series RLC/SRF.
+{
+  const read = p => readFileSync(join(root,p),"utf8");
+  const env = {...process.env,PYTHONDONTWRITEBYTECODE:"1"};
+  for (const [month,slug,toy,minutes,added,summaryMarkers,markers] of [
+    [2,"motors-drivers","winding_thermal_rc_toy",540,180,["I²R(T)","I²R(T)"],["R20","α20","20 °C","1.01965","P·Rθ","P·t/Cθ","t ≪ τ","Rθ","Cθ","11.1","4800","153.001","6709.332","70.025","2843.554","2 trips","0.2 s","本页未运行"]],
+    [2,"arduino-io","i2c_risetime_toy",300,150,["I2C RC","I2C RC"],["30 %–70 %","ln(7/3)","SLVA689A Table 2-1","1000 ns","300 ns","120 ns","Sm","Fm+","1300 ns","1500 ns","2500 ns","0.12","100 pF / 400 pF","A5 00 FF 5A","847.298 / 186.406 / 745.622","36 / 0 / 36","0/36/36","0/0/36","966.667","885.167","本页未运行"]],
+    [1,"components","supply_dip_decoupling_toy",270,150,["ESL+ESR+C","ESL+ESR+C"],["ESL+ESR+C","10 µF","SRF","0.711763 / 1.591549 / 5.626977 / 5.626977 MHz","20 MHz","11.1","SCLS085L","0.1 µF","3.233928 / 3.275589 / 3.278804 / 3.226711","0.066072 / 0.024411 / 0.021196 / 0.073289","0.237254 / 0.795775 / 0.906869 / 0.159091","0.376991","0.010053","0.000796","ESR","ESL","FCC/CE","本页未运行"]],
+  ]) {
+    const source=read(`examples/month-${month}/${slug}/${toy}.py`), expected=read(`examples/month-${month}/expected/${toy}.txt`);
+    ok(execFileSync("python3",[join(root,`examples/month-${month}/${slug}/${toy}.py`)],{encoding:"utf8",env})===expected,`b6p1 ${toy}: actual stdout matches new expected`);
+    ok(read(`examples/month-${month}/check.sh`).includes(`${toy}.txt`),`b6p1 ${toy}: additive harness comparison`);
+    for (const [index,lang] of ["en","zh"].entries()) {
+      const md=read(`src/content/m${month}/${slug}/${lang}.mdx`), start=md.indexOf("<Summary>"), body=md.slice(0,start), summary=md.slice(start), prose=body.replace(/```[\s\S]*?```/g,"");
+      ok(start>=0 && md.trimEnd().endsWith("</Summary>") && (md.match(/<Summary>/g)||[]).length===1,`b6p1 ${slug}/${lang}: sole final whole-lesson Summary`);
+      ok(body.includes(source.trim()) && body.includes(expected.trim()) && body.includes(`+${added} min`),`b6p1 ${slug}/${lang}: full source/output/exercises before Summary`);
+      ok(summary.includes(summaryMarkers[index]),`b6p1 ${slug}/${lang}: Summary covers addition`);
+      for (const marker of markers) ok(prose.includes(marker),`b6p1 ${slug}/${lang}: prose binds ${marker}`);
+      if (month===1) ok(lang==="en" ? prose.includes("equal total capacitance") && prose.includes("shared placement-loop L is added once, never divided by N") && prose.includes("series ESL+ESR+C capacitor path") : prose.includes("相同总电容") && prose.includes("共享放置环路 L 只加一次，绝不能除以 N") && prose.includes("串联 ESL+ESR+C 电容路径"),`b6 reviewed supply ${lang}: equal C, series path and undivided shared loop`);
+      if (slug==="motors-drivers") ok(lang==="en" ? prose.includes("the derate arm trip") && prose.includes("not a case thermometer") && prose.includes("no safety-chain design or insulation-class certification") : prose.includes("降额臂也出现 trip") && prose.includes("不是壳温计实测") && prose.includes("不是安全链设计或绝缘等级认证"),`b6p1 winding ${lang}: trip, ideal information and certification boundary`);
+      if (slug==="motors-drivers") ok(summary.includes("R20") && summary.includes("Rθ") && summary.includes("Cθ") && (lang==="en" ? prose.includes("I²R(T) positive feedback") : prose.includes("I²R(T) 正反馈")),`b6 reviewed winding ${lang}: reference/feedback and Summary mechanism`);
+      if (slug==="arduino-io") {
+        ok(body.includes('<Quiz id="q2"') && body.includes("INPUT_PULLUP"),`b6p1 I2C ${lang}: original button quiz remains`);
+        ok(lang==="en" ? prose.includes("it is not a measured packet failure or missed ACK") && prose.includes("Smaller Rp is not always better") : prose.includes("不是实测丢包或漏 ACK") && prose.includes("Rp 并非越小越好"),`b6p1 I2C ${lang}: edge/sink flags are not packet outcomes`);
+      }
+    }
+    ok(read("src/lib/curriculum.ts").match(new RegExp(`slug: "${slug}"[\\s\\S]*?minutes: (\\d+)`))?.[1]===String(minutes),`b6p1 ${slug}: ${minutes} min`);
+  }
+  const invariants=execFileSync("python3",[join(root,"tools/test_b6_electrical_toys.py")],{cwd:root,encoding:"utf8",env});
+  ok(invariants.includes("three I2C rise limits, equal-C series RLC, SRF/loop dominance, KCL/KVL/passivity and grid convergence passed"),"b6 reviewed runtime: reference/heat limits, three rise limits, equal-C RLC and independent physical residuals");
+  for (const id of ["ti-driver-package-thermal","ti-i2c-pullup-calculation","ti-tmp102-datasheet","ti-sn74hc14-decoupling"]) ok(read("src/lib/resources.ts").includes(`"${id}": {`),`b6p1 curl-verified primary source ${id}`);
+  for (const month of [1,2]) {
+    const plan=read(`docs/notes/month-${month}-plan.md`);
+    ok(plan.includes("21570") && plan.includes("1020") && plan.includes("1980") && plan.includes("PR1"),`b6p1 M${month}: plans count only this PR`);
+  }
+  ok(read("docs/notes/month-1-plan.md").includes("H6") && !/H3|H4/.test(read("docs/notes/month-1-plan.md")),"b6 reviewed M1 plan: only its own components host listed");
+  ok(read("README.md").includes("bash examples/month-2/check.sh") && !read("README.md").includes("Month 2 has no"),"b6p1 README: M1/M2 actual reproduction commands documented");
+  console.log("thermal-i2c-decoupling PR1: R20 feedback, three published rise limits, equal-C RLC/SRF and final-Summary locks checked");
 }
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
