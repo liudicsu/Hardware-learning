@@ -34,4 +34,6 @@ check tactile_gate_toy.txt "$PY" "$M11/contact-rich-policies/tactile_gate_toy.py
 check floating_base_contact_toy.txt "$PY" "$M11/humanoid-wbc-overview/floating_base_contact_toy.py"
 check contact_slip_residual_toy.txt "$PY" "$M11/contact-rich-policies/contact_slip_residual_toy.py"
 
+check teleop_rtt_budget_toy.txt "$PY" "$M11/umi-style-collection/teleop_rtt_budget_toy.py"
+
 exit $fail

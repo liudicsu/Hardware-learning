@@ -1,0 +1,14 @@
+seed=114 unilateral_position dt_ms=10 servo_tau_ms=80
+shared_stream=500_positions; shared_jitter_draws=yes; shared_reactions=20
+arm command_oneway_ms control_RTT_ms video_probe_RTT_ms display_age_used_ms
+low_RTT 20 40 100 80
+high_RTT 100 220 340 240
+one_way_only_estimate 100 220 340 0
+arm tracking_MAE_m best_lag_ms stop_advance_mean_m max_m miss_count/20
+low_RTT 0.02348 90 0.13940 0.15795 0/20
+high_RTT 0.04442 170 0.22276 0.24131 20/20
+one_way_only_estimate 0.04442 170 0.13876 0.15731 0/20
+reaction_ticks=18..28; stop_sent=hazard+display_age+reaction
+stop_advance=additional_follower_travel_after_hazard; miss=advance_gt_0.18m
+one_way_only_estimate_ignores_display_NOT_actual_high_link_performance
+control_RTT_is_not_video_RTT; no_force_feedback; network_real_robot_not_run

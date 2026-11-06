@@ -225,6 +225,159 @@ LeRobot's action-representations page (absolute / relative / delta) is the same 
 
 For causal multi-stream timestamp alignment (capture stamp vs arrival delay vs clock offset), see [8.3 stream sync](/en/month/month-8/async-deployment); buffering must use only packets already arrived at the decision time.
 
+## Teleop latency budget: unilateral positions, not delayed force reflection
+
+UMI's relative trajectories do not remove communication latency. Here a leader sends a shared stream of **500 position commands** to a follower; the follower has a local first-order position servo with **80 ms** time constant and **10 ms** integration step. The coupling is **one-way/unilateral position teleop**: there is no reflected force and no energy-coupled haptic device. Video informs the operator but is not force feedback. Wi-Fi/WebRTC-like numbers below are **illustrative only**, not a measured network, product promise or safety limit.
+
+This is **not 10.2 RTC**, **not 8.3 timestamp sync**, and **not 6.3 async**: those concern chunk continuity, stream alignment and inference scheduling. This section instead separates outgoing commands, returned observations and the operator's delayed decision. The existing relative-pose experiment is unchanged.
+
+### One-way latency, control RTT and video RTT are different measurements
+
+Our nominal low/high command one-way delays are **20/100 ms**; acknowledgement returns are **20/120 ms**. Thus **control RTT = command delay + acknowledgement delay = 40/220 ms**, not automatically twice the outgoing delay. An acknowledgement does not add delay to the command already executing at the follower.
+
+For an explicitly defined **video probe RTT**, send a request along the command path, then return an image through a separate **40/200 ms** video path plus **40 ms** capture/encode/decode/display pipeline. This request-to-image RTT is **100/340 ms**. An unsolicited remote event is seen after only the return+pipeline **display age = 80/240 ms**, not the full probe RTT. Do not double-count its already-travelled request. Continuous streaming glass-to-glass age is a one-way measurement and need not even involve a request; the table's video RTT is this toy's probe definition, not a universal “WebRTC RTT” field.
+
+Both links reuse the same per-command jitter draws of **-10/0/+10 ms**. Delivered packets are ordered by arrival; sequence numbers ensure late old commands cannot overwrite fresher ones. Both links use exactly the same sine command stream and local servo for tracking. Delays, not trajectories or actuator quality, change between arms.
+
+### Explicit operator model and metric definitions
+
+For stop trials, a remote hazard happens at **2.00 s** during a **0.35 m/s** ramp. The operator cannot react until the image is displayed. A lesson-defined reaction time is drawn in **180–280 ms**, identically for both links across **20 trials**. The operator sends a position-hold command at `hazard_time + display_age + reaction_time`; it then travels through the outgoing command path. The same ramp is shared until that arm's delayed stop decision; after it, the commanded position freezes. This is the only event-driven command difference. It is not a human-subject measurement or an e-stop implementation.
+
+- **Tracking MAE**: follower-vs-current-leader mean absolute position error over samples 50–499 of the common sine stream.
+- **Best lag**: shift the leader trace by 0–500 ms on the 10 ms grid and choose the minimum absolute error over that same window. It includes transport and servo lag and is a coarse trace-fit metric, not a packet RTT measurement.
+- **Stop advance / overshoot**: maximum follower position from the remote hazard onward minus follower position at the hazard, in metres. It is additional travel after the event, **not step-response overshoot** of this monotone servo.
+- **Miss rate**: number of the 20 stop trials with additional travel greater than the lesson threshold **0.18 m**. This threshold is not a certified protective distance or a human force limit.
+
+The third row, `one_way_only_estimate`, is an **optimistic accounting ablation of the high link**: it keeps high-link command/ack/video values but pretends display age is zero when scheduling the reaction. It is **not a third physical network** and not the actual performance of the high link. Its equal tracking MAE/lag to high is intentional (same outgoing path); its falsely optimistic stop prediction exposes the missing return path. Do not present that row's 0/20 misses as a real improvement.
+
+The actual toy links yield MAE **0.02348/0.04442 m**, best lag **90/170 ms**, mean stop advance **0.13940/0.22276 m**, and miss counts **0/20 versus 20/20**. Omitting the display age predicts only **0.13876 m** and **0/20** for the high link. These are consequences of the declared model, not evidence that any actual link or operator is safe.
+
+```bash
+python3 ~/Hardware-learning/examples/month-11/umi-style-collection/teleop_rtt_budget_toy.py
+bash ~/Hardware-learning/examples/month-11/check.sh
+```
+
+<CodeSource path="examples/month-11/umi-style-collection/teleop_rtt_budget_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Unilateral POSITION teleop + explicit visual-reaction stop model.
+Shared command stream, common packet-jitter draws, shared 20 operator reactions.
+Low/high are physical toy links; one_way_only is an optimistic ACCOUNTING
+ablation of high, not a third measured network or a proposed safety controller.
+All Wi-Fi/WebRTC-like delays are illustrative; no actual network is measured.
+"""
+from __future__ import annotations
+import math
+import random
+import statistics
+
+SEED = 114
+DT = 0.01
+TAU = 0.08
+N = 500
+EVENT = 200
+SPEED = 0.35  # m/s, lesson-defined ramp
+LIMIT = 0.18  # m additional travel; exercise threshold, NOT a safety standard
+# forward command ticks, acknowledgement ticks, video return ticks
+LINKS = {"low_RTT": (2, 2, 4), "high_RTT": (10, 12, 20),
+         "one_way_only_estimate": (10, 12, 20)}
+PIPELINE = 4  # capture/encode/decode/display ticks; no real camera run
+
+
+def follower(commands, forward_ticks, jitter):
+    events = sorted((i + max(0, forward_ticks + jitter[i]), i, value)
+                    for i, value in enumerate(commands))
+    q, latest, held, cursor = 0.0, -1, 0.0, 0
+    result = []
+    for step in range(N):
+        while cursor < len(events) and events[cursor][0] <= step:
+            _, seq, value = events[cursor]
+            if seq > latest:  # a late packet never overwrites a fresher command
+                latest, held = seq, value
+            cursor += 1
+        q += (held - q) * DT / TAU
+        result.append(q)
+    return result
+
+
+def main():
+    rng = random.Random(SEED)
+    jitter = tuple(rng.choice((-1, 0, 1)) for _ in range(N))
+    reactions = tuple(rng.randint(18, 28) for _ in range(20))
+    commands = tuple(0.25 * math.sin(1.8 * i * DT) for i in range(N))
+    print(f"seed={SEED} unilateral_position dt_ms={DT*1000:.0f} servo_tau_ms={TAU*1000:.0f}")
+    print("shared_stream=500_positions; shared_jitter_draws=yes; shared_reactions=20")
+    print("arm command_oneway_ms control_RTT_ms video_probe_RTT_ms display_age_used_ms")
+    rows = []
+    for name, (forward, ack, video) in LINKS.items():
+        display = 0 if name == "one_way_only_estimate" else video + PIPELINE
+        # Nominal control probe: command+ack; video probe: request+video+pipeline.
+        print(f"{name} {forward*10} {(forward+ack)*10} "
+              f"{(forward+video+PIPELINE)*10} {display*10}")
+        q = follower(commands, forward, jitter)
+        mae = statistics.mean(abs(q[i] - commands[i]) for i in range(50, N))
+        lag = min(range(51), key=lambda delay: sum(
+            abs(q[i] - commands[i-delay]) for i in range(50, N)))
+        advances = []
+        for reaction in reactions:
+            # Remote hazard at EVENT; seen after display age, then operator reacts.
+            stop_sent = EVENT + display + reaction
+            stream = tuple(SPEED * DT * min(i, stop_sent) for i in range(N))
+            trajectory = follower(stream, forward, jitter)
+            advances.append(max(trajectory[EVENT:]) - trajectory[EVENT])
+        misses = sum(a > LIMIT for a in advances)
+        rows.append((name, mae, lag * 10, statistics.mean(advances), max(advances), misses))
+    print("arm tracking_MAE_m best_lag_ms stop_advance_mean_m max_m miss_count/20")
+    for name, mae, lag, mean, maximum, misses in rows:
+        print(f"{name} {mae:.5f} {lag} {mean:.5f} {maximum:.5f} {misses}/20")
+    # Causality and out-of-order behavior: future command cannot act before arrival.
+    impulse = (0.0,) * 10 + (1.0,) * (N - 10)
+    test = follower(impulse, 5, (0,) * N)
+    assert all(x == 0 for x in test[:15]) and test[15] > 0
+    assert follower((0.0,) * N, 10, jitter) == [0.0] * N
+    assert rows[2][3] < rows[1][3]  # omitted video return makes budget optimistic
+    print("reaction_ticks=18..28; stop_sent=hazard+display_age+reaction")
+    print("stop_advance=additional_follower_travel_after_hazard; miss=advance_gt_0.18m")
+    print("one_way_only_estimate_ignores_display_NOT_actual_high_link_performance")
+    print("control_RTT_is_not_video_RTT; no_force_feedback; network_real_robot_not_run")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+```text
+seed=114 unilateral_position dt_ms=10 servo_tau_ms=80
+shared_stream=500_positions; shared_jitter_draws=yes; shared_reactions=20
+arm command_oneway_ms control_RTT_ms video_probe_RTT_ms display_age_used_ms
+low_RTT 20 40 100 80
+high_RTT 100 220 340 240
+one_way_only_estimate 100 220 340 0
+arm tracking_MAE_m best_lag_ms stop_advance_mean_m max_m miss_count/20
+low_RTT 0.02348 90 0.13940 0.15795 0/20
+high_RTT 0.04442 170 0.22276 0.24131 20/20
+one_way_only_estimate 0.04442 170 0.13876 0.15731 0/20
+reaction_ticks=18..28; stop_sent=hazard+display_age+reaction
+stop_advance=additional_follower_travel_after_hazard; miss=advance_gt_0.18m
+one_way_only_estimate_ignores_display_NOT_actual_high_link_performance
+control_RTT_is_not_video_RTT; no_force_feedback; network_real_robot_not_run
+```
+
+### Bilateral delay needs a stability argument, not just an RTT table
+
+The opened [Teleoperation of Humanoid Robots: A Survey](https://ar5iv.labs.arxiv.org/html/2301.04317), sections V-A and V-D/E, discusses how delayed force reflection can destabilise bilateral coupling. Passivity-based methods, including **wave variables** and energy-tank designs, provide an energy/stability framework under stated assumptions; adding damping or subtracting a measured delay is not automatically a proof. Classical constant-delay results do not transfer unchanged to arbitrary jitter, loss and sampling. Stability also does not imply high transparency or good tracking. Our unilateral position toy implements **none** of those bilateral guarantees; no force-feedback stability conclusion follows from the stop table.
+
+Real leader/follower hardware, network/video benchmarks and bilateral force-feedback experiments: **本页未运行 (not run on this page)**. The survey is reading, and hardware figures remain **以论文为准**.
+
+### Guided work (+180 min within this 420 min lesson)
+
+1. **30 min — label every timestamp.** Draw the outgoing command, ack, video-return and display pipeline; derive 40/220 and 100/340 ms. Distinguish probe RTT from unsolicited event display age without assuming symmetric paths.
+2. **40 min — audit causality.** Replay the shared sine stream and jitter. Trace one reordered packet and why its sequence number cannot overwrite a newer command. Recompute the 10 ms-grid lag, explaining why it differs from one-way delay.
+3. **45 min — operator notebook.** For one of the 20 reaction draws, locate hazard, display, decision, command arrival and final hold. Recompute stop advance and 0.18 m miss flag; mark reaction times and threshold as lesson choices.
+4. **40 min — accounting ablation.** Keep the high physical link unchanged and compare full vs omitted display-age predictions. Explain why identical tracking but different predicted misses does not mean a faster or safer physical controller. In a scratch run vary return-video delay alone and keep outgoing jitter and reactions shared.
+5. **25 min — bilateral boundary.** Read the survey's passivity discussion; list the constant-delay, sampling and loss assumptions a force-feedback design would need to revisit. Do not infer bilateral stability from the unilateral toy or replace a hardware stop with video feedback.
+
 <Summary>
 
 **Key points**
@@ -249,5 +402,7 @@ For causal multi-stream timestamp alignment (capture stamp vs arrival delay vs c
 **Next**
 
 - 11.5 Cross-embodiment datasets: why OXE-style pools skew, and what OXE-AugE does about it.
+
+The unilateral position toy separates control/video RTT and explicit display-plus-reaction stopping delay; its accounting ablation is not real-link improvement or a bilateral passivity guarantee.
 
 </Summary>

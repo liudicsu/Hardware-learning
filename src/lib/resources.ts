@@ -3115,8 +3115,8 @@ export const resources: Record<string, Resource> = {
     kind: "textbook",
     cost: { zh: "免费", en: "Free" },
     summary: {
-      zh: "人形全身技能的仿真–真机对齐：预训练跟踪 → 真机 rollout → delta action 模型 → 冻结后微调；Unitree G1。arXiv 2502.01143（RSS 2025）。本站 11.6；数字以论文为准。",
-      en: "Sim–real alignment for humanoid whole-body skills: pre-trained tracking → real rollout → delta action model → frozen fine-tune; Unitree G1. arXiv 2502.01143 (RSS 2025). For 11.6; take numbers from the paper.",
+      zh: "人形全身技能的仿真–真机对齐：预训练跟踪 → 真机 rollout → delta action 模型 → 冻结后仿真微调 → 部署不带 delta；Unitree G1。arXiv 2502.01143（RSS 2025）。本站 11.6；数字以论文为准。",
+      en: "Sim–real alignment for humanoid whole-body skills: pre-trained tracking → real rollout → delta action model → frozen simulation fine-tune → deploy without delta; Unitree G1. arXiv 2502.01143 (RSS 2025). For 11.6; take numbers from the paper.",
     },
     license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
     extra: true,
@@ -3463,6 +3463,17 @@ export const resources: Record<string, Resource> = {
     cost: { zh: "免费", en: "Free" },
     summary: { zh: "二手解读 S/F/P、PLr 与实现性能等级证据；不是完整风险评估或认证。", en: "Secondary explanation of S/F/P, PLr and implementation evidence; not a complete risk assessment or certification." },
     license: { zh: "版权归原作者；仅提供外链", en: "Copyright original authors; external link only" },
+    extra: true,
+  },
+  "teleop-humanoid-survey": {
+    id: "teleop-humanoid-survey",
+    url: "https://ar5iv.labs.arxiv.org/html/2301.04317",
+    title: { zh: "人形遥操作综述：通信延迟与无源性", en: "Humanoid teleoperation survey: delay and passivity" },
+    author: "Darvish et al.",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: { zh: "V-A、V-D/E：单向/双向通信、延迟、无源性与波变量；恒定延迟结论不自动推广到任意抖动/丢包，稳定不等于透明度。", en: "V-A, V-D/E: unilateral/bilateral communication, delay, passivity and wave variables; constant-delay results do not automatically cover arbitrary jitter/loss; stability is not transparency." },
+    license: { zh: "© 原作者；仅提供外链", en: "© authors; external link only" },
     extra: true,
   },
 }

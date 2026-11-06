@@ -10,7 +10,7 @@ Constraints: no shared month-4 pixi; private venv for MuJoCo (`M7_PYTHON`). Runn
 | # | slug | minutes | this batch | runnable | verified against |
 |---|------|---------|------------|----------|------------------|
 | 1 | `mujoco-so101` | 240 | batch 1 | `grip_sweep.py` + `grip_scene.xml` (needs mujoco) | Menagerie robotstudio_so101; MuJoCo modeling/XMLreference; SO-ARM100 Simulation/SO101 |
-| 2 | `rl-foundations` | 240 | batch 1 | `ppo_reach.py` (stdlib) | SB3 PPO docs; Gymnasium; Spinning Up; arXiv 1707.06347 |
+| 2 | `rl-foundations` | 450 | batch 1 | `ppo_reach.py` (stdlib) | SB3 PPO docs; Gymnasium; Spinning Up; arXiv 1707.06347 |
 | 3 | `rl-manipulation-sim` | 240 | **full** | `reward_shaping.py` (stdlib) | ManiSkill install + PickCubeSO100-v1; SB3 SAC; arXiv 1801.01290 / 2410.00425 |
 | 4 | `sim-to-real` | 390 | **full** | `sysid_fit.py` + `randomize_eval.py` + `contact_dr_toy.py` (stdlib) | Tobin arXiv 1703.06907; Peng arXiv 1710.06537; Isaac Lab README (Sim 6.2); ISO 10218-1 403 → soft safety wording |
 | 5 | `depth-pointcloud` | 450 | batch 1 | `cloud_pipeline.py` (stdlib) | Open3D APIs; Depth Anything V2 licences |
@@ -33,3 +33,9 @@ Batch-after-obs PR3 (G5, +150): 7.4 `sim-to-real` 240→390 — `contact_dr_toy.
 H1 7.5 240→450 (+210): thresholded Gaussians are not hard surfaces; shared scene/query sphere collision, independent distance truth vs conservative AABB and finite-s K(s) witness test. Month 7 **1 860 min** (1 650 + 210); **2 070 is the future PR3 total after H2 +210**, not this PR. No occupancy A* redo; GPU 本页未运行.
 
 Site: **71 lessons / 19 440 min** (19 050 + 390). See `batch-4-pr2-sources.md` for source checks and the M7 arithmetic correction.
+
+## Batch-4 PR3 (last planned PR)
+
+H2 7.2 240→450 (+210): Plant-A pretrained tracker → shared160 Plant-B transitions per arm → SysID-retune/DR-widen/residual-action simulation fine-tuning → policy-only B deployment. Five seeds with spread; no universal winner; not PPO/contact-DR/PE redo. M7 **2070 min** (1860+210).
+
+Site **71 lessons /19830 min** (19440+390); M7=2070,M11=3000. New material precedes final bilingual Summary. Source/limit audit: `batch-4-pr3-sources.md`.
