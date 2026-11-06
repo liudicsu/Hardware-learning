@@ -308,3 +308,169 @@ Compare them the way the toy model does: the same fixed set of start positions f
 - **Comparing policies on different data or seeds.** Every line above uses the same 40 demonstrations, the same seed and the same number of runs. Lesson 4 goes one step further and gives every run its own seed, so that each policy meets exactly the same starting conditions; on hardware, that means the same list of start positions for every policy.
 - **Calling a memorising policy a good one.** The diffusion policy here can only replay demonstrations. Test on start positions that are not in the dataset before claiming a policy generalises.
 - **Mixing up training and inference cost.** A diffusion policy needs several network passes per chunk, so check that inference keeps up with your control rate on the computer that will run it, not only on the training GPU.
+
+## Two hands on one shared task (+210 min)
+
+A policy can represent multimodal actions yet still coordinate two hands poorly. Add a separate **synthetic kinematic shared-strap transport**: two1D fingertip carriages move the endpoints of one compliant strap to a target center while keeping nominal span **0.6 m**. This is not a rigid-body/payload/force simulation; span error is a **kinematic compliance proxy**, not physical strain or force. It is not the ORCA-lite fleet corridor and does not redo ACT chunk mathematics. Units/clearances/controller gains below are synthetic, not robot specifications.
+
+### Equal available information, different coupling
+
+Every tick, **both arms in every mode RECEIVE the full same schema** `(noisy xL,xR,vL,vR,goalL,goalR,span)`. No mode gets clean state, latent actuator gains or future noise. Each seed has the same initial object/endpoints, target, hidden actuator gains and exogenous sensor/disturbance stream for all modes. Realized state trajectories differ because controls differ; common random numbers do not mean the different trajectories have identical observations.
+
+| mode | left arm observes / uses | right arm observes / uses |
+|---|---|---|
+| independent | observes full snapshot; deliberately uses only own position and goal | observes full snapshot; deliberately uses only own position and goal |
+| leader-follower | observes full snapshot; goal feedback, waits when measured span is more than0.06 m short | observes full snapshot; follows measured left position + nominal span, with measured left velocity feedforward |
+| joint | observes full snapshot; shared center error + span correction | observes full snapshot; shared center error − span correction |
+
+Thus independent is a **factorized control law**, not a local-sensors-only arm compared against an all-seeing centralized oracle. Coupling/coordination is the changed factor; all available observation fields and physical action budgets are equal. Controllers are fixed analytic laws, not learned TwinVLA heads. Independent uses gain2 on endpoint error; leader uses the same gain2 plus its wait gate/follower feedforward; joint uses center gain2 and span gain5. Position-feedback gains have units s⁻¹. These declared design choices are not universally optimized or tuned on these evaluation seeds.
+
+Use all five seeds **11/23/37/53/71**, initial center±0.05 m and span0.6±0.02 m, transport distance **0.75–0.9 m**. Left response gain0.9–1.0, right0.55–0.8 models an asymmetric plant, shared across methods and not revealed to any controller. Independent Gaussian sensor noise is σ=**0.003 m /0.01 m/s**, velocity disturbance σ=**0.006 m/s**. Plant acceleration and speed are clipped identically to **0.8 m/s² /0.35 m/s**. Every mode executes **400 ticks ×0.02 s =8 s**, including after first arrival: **800 endpoint commands** per run, not early-exit budget savings.
+
+### Define metrics before comparing
+
+The **score-only true-state** observer marks arrival after **20 consecutive** ticks with both endpoint goal errors≤**0.025 m** and span error≤**0.04 m**; controllers/gates only see the noisy snapshot. A collision event is entry into `abs(xR−xL)<0.32 m`, a synthetic fingertip exclusion-distance model; consecutive colliding ticks count once. Success requires arrival by8 s **and zero collision events**. Report collision events, success, minimum signed separation and span RMSE over the **whole horizon**. A timeout receives **8 s capped makespan**, with timeout count explicitly shown: this is not an uncensored mean of arrival times.
+
+| mode | success | collision events mean±sd | capped makespan s mean±sd | timeouts | span RMSE m mean±sd | minimum separation m mean±sd |
+|---|---|---|---|---|---|---|
+| independent | 5/5 | 0±0 | 4.412000±0.378545 | 0/5 | 0.058698±0.015830 | 0.453802±0.031727 |
+| leader-follower | 5/5 | 0±0 | 4.544000±0.442249 | 0/5 | 0.034967±0.003394 | 0.534073±0.001564 |
+| joint | 5/5 | 0±0 | 4.228000±0.368695 | 0/5 | 0.035933±0.008838 | 0.499056±0.018780 |
+
+SD is population sd across all five seeds. Here **all modes succeed without collision**; the experiment does not manufacture an independent-arm failure. Joint has the lowest mean makespan here, leader-follower the smallest mean span RMSE, and independent still reaches every goal. A different load, delay, tolerance, task or gain setting can change these trade-offs. No presumed winner or hardware safety claim follows from five cases. The independent regression includes a separately labelled unreachable-goal unit test to verify timeout accounting, not an extra selected benchmark seed.
+
+### Reading: what TwinVLA actually composes
+
+Im et al., [TwinVLA](https://arxiv.org/abs/2511.05275), describes two arm-specific branches initialized from a pretrained SingleVLA: **duplicate the VLM backbone**, share the **vision encoder and DiT action head**, and retain **per-arm proprioception encoders**. Joint attention concatenates Q/K/V across streams and splits outputs back into arm-specific streams, with a causal cross-arm mask. Shared language/ego-view tokens are processed as a single sequence using **MoE routing between the arm FFN experts**, rather than blindly duplicating shared-input processing. This is a modular learned architecture, not our center/span law. It avoids bimanual **pretraining** in that setup but still uses bimanual demonstrations for fine-tuning; it is not a claim of zero-shot coordination from copying weights alone. Success-rate, Hz, data/compute and model-comparison figures: **以论文为准**. TwinVLA training/inference, real robots and weights: **本页未运行**.
+
+<Resource id="twinvla-paper" />
+
+```bash
+python3 ~/Hardware-learning/examples/month-6/act-diffusion/bimanual_coord_modes_toy.py
+bash ~/Hardware-learning/examples/month-6/check.sh
+```
+
+<CodeSource path="examples/month-6/act-diffusion/bimanual_coord_modes_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic two-endpoint shared-strap transport, not TwinVLA inference.
+All modes/arms RECEIVE (noisy xL,xR,vL,vR,goalL,goalR,span) every tick.
+Independent deliberately factorizes local feedback, not local-only sensor access.
+Leader-follower uses left velocity/position and a left waiting gate; joint uses
+center/span feedback. No controller receives latent actuator gain or future noise.
+Each mode runs all400 ticks, including after first arrival, with same plant/noise.
+Span error is a kinematic compliance proxy, NOT a force/strain dynamics model.
+"""
+from math import sqrt
+from random import Random
+from statistics import mean, pstdev
+
+SEEDS=(11,23,37,53,71)
+MODES=('independent','leader_follower','joint')
+TICKS, DT, VMAX, AMAX=400,.02,.35,.8
+SPAN, COLLISION_DISTANCE=.6,.32
+
+
+def clip(x,bound):return max(-bound,min(bound,x))
+
+
+def make_case(seed):
+    r=Random(seed);center=r.uniform(-.05,.05);span=SPAN+r.uniform(-.02,.02)
+    start=(center-span/2,center+span/2);goal=center+r.uniform(.75,.9)
+    gains=(r.uniform(.9,1.),r.uniform(.55,.8))
+    # All modes share this exogenous sensor/disturbance stream, not their resulting states.
+    stream=tuple((tuple(r.gauss(0,.003) for _ in range(2)),tuple(r.gauss(0,.01) for _ in range(2)),tuple(r.gauss(0,.006) for _ in range(2))) for _ in range(TICKS))
+    return start,(goal-SPAN/2,goal+SPAN/2),gains,stream
+
+
+def commands(observation,mode):
+    left,right,vl,vr,gl,gr,span=observation
+    if mode=='independent':return (2*(gl-left),2*(gr-right))
+    if mode=='leader_follower':
+        lead=2*(gl-left)
+        if right-left<span-.06:lead=0. # Wait for follower, using the SAME noisy snapshot.
+        return lead,2*(left+span-right)+vl
+    center_error=(gl+gr-left-right)/2
+    span_error=right-left-span
+    common=2*center_error
+    return common+5*span_error,common-5*span_error
+
+
+def rollout(case,mode):
+    start,goal,gains,stream=case;x=list(start);v=[0.,0.]
+    stable=0;arrival=None;collisions=0;was_colliding=False;span_errors=[];min_sep=float('inf')
+    for tick,(position_noise,velocity_noise,disturbance) in enumerate(stream):
+        obs=(*tuple(a+b for a,b in zip(x,position_noise)),*tuple(a+b for a,b in zip(v,velocity_noise)),*goal,SPAN)
+        command=commands(obs,mode)
+        for j in range(2):
+            desired=gains[j]*clip(command[j],VMAX)+disturbance[j]
+            v[j]=clip(v[j]+clip(desired-v[j],AMAX*DT),VMAX)
+            x[j]+=v[j]*DT
+        separation=x[1]-x[0];min_sep=min(min_sep,separation)
+        colliding=abs(separation)<COLLISION_DISTANCE
+        collisions+=int(colliding and not was_colliding);was_colliding=colliding
+        span_errors.append((separation-SPAN)**2)
+        # Truth is a SCORE ONLY observer, not used by commands or its wait gate.
+        settled=max(abs(a-b) for a,b in zip(x,goal))<=.025 and abs(separation-SPAN)<=.04
+        stable=stable+1 if settled else 0
+        if stable>=20 and arrival is None:arrival=(tick+1)*DT
+    return {'success':int(arrival is not None and collisions==0),'collisions':collisions,
+            'capped_makespan':arrival if arrival is not None else TICKS*DT,'timeout':int(arrival is None),
+            'span_rmse':sqrt(mean(span_errors)),'min_separation':min_sep,'ticks':len(stream)}
+
+
+def main():
+    print('Synthetic shared-strap transport; seeds=11/23/37/53/71; no payload/force dynamics')
+    print('all arms/modes RECEIVE same noisy xL,xR,vL,vR,goalL,goalR,span; no latent gain/future noise')
+    print('independent: each uses own target/state; leader_follower: left gate + right follows measured left; joint: center/span')
+    print('equal400 ticks after arrival too; dt=0.02s vmax=0.35m/s amax=0.8m/s2; same gain/noise stream per seed')
+    print('arrival=20 consecutive settled ticks; score-only endpoints<=0.025m span_error<=0.04m')
+    print('collision event=entry into distance<0.32m; success requires arrival AND zero collision events')
+    print('mode success/5 collision_events_mean_sd capped_makespan_s_mean_sd timeouts/5 span_RMSE_m_mean_sd minimum_separation_m_mean_sd')
+    cases=tuple(make_case(seed) for seed in SEEDS)
+    for mode in MODES:
+        rows=[rollout(case,mode) for case in cases]
+        def report(key):
+            values=[r[key] for r in rows];return f'{mean(values):.6f} {pstdev(values):.6f}'
+        print(f'{mode} {sum(r["success"] for r in rows)}/5 {report("collisions")} {report("capped_makespan")} {sum(r["timeout"] for r in rows)}/5 {report("span_rmse")} {report("min_separation")}')
+    print('Population sd; censored makespan uses8s at timeout, not an uncensored arrival-time mean')
+    print('No presumed mode winner; independent available information equals joint, only coupling differs')
+    print('Not ORCA-lite fleet / ACT chunk math; TwinVLA real robots/weights: 本页未运行; figures 以论文为准')
+
+
+if __name__=='__main__':main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic shared-strap transport; seeds=11/23/37/53/71; no payload/force dynamics
+all arms/modes RECEIVE same noisy xL,xR,vL,vR,goalL,goalR,span; no latent gain/future noise
+independent: each uses own target/state; leader_follower: left gate + right follows measured left; joint: center/span
+equal400 ticks after arrival too; dt=0.02s vmax=0.35m/s amax=0.8m/s2; same gain/noise stream per seed
+arrival=20 consecutive settled ticks; score-only endpoints<=0.025m span_error<=0.04m
+collision event=entry into distance<0.32m; success requires arrival AND zero collision events
+mode success/5 collision_events_mean_sd capped_makespan_s_mean_sd timeouts/5 span_RMSE_m_mean_sd minimum_separation_m_mean_sd
+independent 5/5 0.000000 0.000000 4.412000 0.378545 0/5 0.058698 0.015830 0.453802 0.031727
+leader_follower 5/5 0.000000 0.000000 4.544000 0.442249 0/5 0.034967 0.003394 0.534073 0.001564
+joint 5/5 0.000000 0.000000 4.228000 0.368695 0/5 0.035933 0.008838 0.499056 0.018780
+Population sd; censored makespan uses8s at timeout, not an uncensored arrival-time mean
+No presumed mode winner; independent available information equals joint, only coupling differs
+Not ORCA-lite fleet / ACT chunk math; TwinVLA real robots/weights: 本页未运行; figures 以论文为准
+```
+
+</SimOutput>
+
+### Exercises
+
+1. Write both arms' observation fields for each mode; distinguish available information from the independent law's deliberate factorization. Explain why using clean state only for joint would invalidate this comparison.
+2. Count400 observations and800 endpoint commands per run even after arrival; define collision episodes and the20-tick settling rule from the score-only observer.
+3. Re-run all seeds; compare makespan versus span RMSE instead of declaring a winner from success alone. Label timeout means as capped and keep failures.
+4. Trace the TwinVLA module split in the paper. Explain why this toy neither loads its weights nor tests its architecture; do not translate paper success/Hz into toy measurements.
+
+<Summary>
+
+Averaging multimodal demonstrations can choose an unsafe in-between action; sampling preserves alternatives, while ACT chunks/temporal ensembling trade smoother execution against open-loop exposure. Diffusion models iteratively denoise action chunks at an inference cost, and the toy's exact denoiser/replayed demonstrations are not a general learned robot policy. Use one dataset and shared evaluation starts, inspect failures and chunk length, and treat LeRobot GPU training commands as not run here. The added equal-information shared-strap experiment compares independent, leader-follower and joint coupling with full-horizon budgets and separates its kinematic metrics from TwinVLA's learned architecture.
+
+</Summary>

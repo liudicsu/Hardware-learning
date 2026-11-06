@@ -3936,8 +3936,8 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 23190, "icp-quat PR2 curriculum: 23190 minutes");
-  for (const [month, expected] of [[1, 1020], [2, 2310], [3, 1470], [4, 1830], [5, 1950], [6, 1350], [7, 2070], [8, 3180], [9, 2940], [10, 2070], [11, 3000]]) {
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 23610, "dpo-bimanual PR3 curriculum: 23610 minutes");
+  for (const [month, expected] of [[1, 1020], [2, 2310], [3, 1470], [4, 1830], [5, 1950], [6, 1560], [7, 2070], [8, 3180], [9, 2940], [10, 2280], [11, 3000]]) {
     ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `current curriculum M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
@@ -4923,7 +4923,7 @@ for (const m of readdirSync(content)) {
   for (const id of ["dreamgen-paper", "lapa-paper", "smolvla-paper", "lerobot-async"]) {
     ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `wm2 resource ${id}: present + extra`);
   }
-  ok(/23 190/.test(read("README.md")), "b7p2 README: 23 190 minutes");
+  ok(/23 610/.test(read("README.md")), "b7p3 README: 23 610 minutes");
   console.log("worldmodel-smolvla PR2: neural trajectories + async chunk locks checked");
 }
 
@@ -5596,6 +5596,47 @@ print("protocol pass")
   const independent=execFileSync("python3",[join(root,"tools/test_b7_icp_quat_toys.py")],{cwd:root,encoding:"utf8",env});
   ok(independent.includes("independent shared-scan ICP, finite-difference plane rows, re-associated corridor null, direct ZYX/body-Jacobian, pole rank and equal-endpoint signed-slerp tests passed"),"b7p2 independent geometry and convention tests executed");
   console.log("icp-quat PR2: equal-information registration, corridor reassociation/null, ZYX chart rank and signed shared-endpoint paths locked");
+}
+
+// Batch-7 PR3: equal total-gradient preference baselines and equal-information bimanual modes.
+{
+  const read=p=>readFileSync(join(root,p),"utf8"),env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
+  const cases=[
+    [10,"real-world-rl","preference_dpo_lite_toy",["total_gradient_updates=240","reward120+policy120","0.00 BC_preferred 64.7673","0.00 DPO 64.1150","0.25 RM_RL 51.5987","success_filter alone consumes extra binary"]],
+    [6,"act-diffusion","bimanual_coord_modes_toy",["all arms/modes RECEIVE","equal400 ticks after arrival too","independent 5/5","leader_follower 5/5","joint 5/5","censored makespan uses8s"]]
+  ];
+  for(const [month,slug,toy,markers] of cases){
+    const file=`examples/month-${month}/${slug}/${toy}.py`,py=read(file).trim(),expected=read(`examples/month-${month}/expected/${toy}.txt`).trim();
+    ok(execFileSync("python3",[join(root,file)],{cwd:root,encoding:"utf8",env}).trim()===expected,`b7p3 ${toy}: actual expected output`);
+    for(const x of markers)ok(expected.includes(x),`b7p3 ${toy}: mechanism ${x}`);
+    ok(read(`examples/month-${month}/check.sh`).includes(`${toy}.txt`),`b7p3 ${toy}: additive harness hook`);
+    const cur=read("src/lib/curriculum.ts"),host=cur.slice(cur.indexOf(`slug: "${slug}"`)).split("\n  },")[0];
+    ok(host.includes("minutes: 450"),`b7p3 ${slug}: own-host +210`);
+    for(const lang of ["en","zh"]){
+      const md=read(`src/content/m${month}/${slug}/${lang}.mdx`),summary=md.indexOf("<Summary>"),end=md.indexOf("</Summary>");
+      ok(summary>0&&summary===md.lastIndexOf("<Summary>")&&end>summary&&md.slice(end+10).trim()==="",`b7p3 ${slug} ${lang}: sole final Summary`);
+      ok(md.includes(py)&&md.includes(expected)&&md.indexOf(py)<summary&&md.indexOf(expected)<summary,`b7p3 ${toy} ${lang}: exact code/stdout before Summary`);
+      ok(md.indexOf(lang==="en"?"### Exercises":"### 练习")<summary,`b7p3 ${slug} ${lang}: exercises before Summary`);
+      const prose=md.slice(0,md.indexOf(`<CodeSource path="${file}"`)),summ=md.slice(summary,end);
+      for(const x of ["以论文为准","本页未运行","11/23/37/53/71"])ok(prose.includes(x),`b7p3 ${slug} ${lang}: scope/seed ${x}`);
+      if(month===10){
+        for(const x of ["−logσ(β[(logπ−logπref)(y_w)−(logπ−logπref)(y_l)])","120 / 120","240 / 0","BC-all","success-filter","256","SARM"])ok(prose.includes(x),`b7p3 DPO ${lang}: loss/budget/baselines ${x}`);
+        ok(lang==="en"?prose.includes("πref is frozen")&&prose.includes("extra binary training supervision")&&prose.includes("not FLOPs or total parameter count")&&prose.includes("clean preferred-only BC has slightly higher") :prose.includes("πref 冻结")&&prose.includes("额外二元训练监督")&&prose.includes("不是 FLOPs 或总参数量")&&prose.includes("干净偏好 BC 的均值成功率略高"),`b7p3 DPO ${lang}: ref, extra info, honest budget and no presumed winner`);
+        ok(["RLPD","HIL-SERL","DPO"].every(x=>summ.includes(x)),`b7p3 10.6 ${lang}: whole-lesson Summary kept`);
+      }else{
+        for(const x of ["RECEIVE","noisy xL,xR,vL,vR,goalL,goalR,span","independent","leader-follower","joint","400","0.025 m","0.04 m","MoE","DiT","VLM"])ok(prose.includes(x),`b7p3 bimanual ${lang}: shared schema/task/TwinVLA source ${x}`);
+        ok(lang==="en"?prose.includes("factorized control law")&&prose.includes("not a local-sensors-only")&&prose.includes("all modes succeed without collision")&&prose.includes("not a rigid-body/payload/force simulation") :prose.includes("因子化控制律")&&prose.includes("不是用局部传感组对照全知")&&prose.includes("全部模式无碰撞成功")&&prose.includes("不是刚体 / 载荷 / 力仿真"),`b7p3 bimanual ${lang}: equal info and model/no-winner limits`);
+        ok(["ACT","LeRobot","TwinVLA"].every(x=>summ.includes(x)),`b7p3 6.2 ${lang}: full whole-lesson Summary`);
+      }
+    }
+    const plan=read(`docs/notes/month-${month}-plan.md`);
+    ok(plan.startsWith(`# Month ${month}`)&&["23610","1560","2280","PR3"].every(x=>plan.includes(x)),`b7p3 M${month}: correct header and own-PR minutes`);
+  }
+  for(const id of ["dpo-preference-paper","twinvla-paper"])ok(read("src/lib/resources.ts").includes(`"${id}": {`),`b7p3 opened primary source ${id}`);
+  ok(read("docs/notes/batch-7-pr3-sources.md").includes("No arithmetic mismatch"),"b7p3 source/budget/arithmetic audit");
+  const result=execFileSync("python3",[join(root,"tools/test_b7_dpo_bimanual_toys.py")],{cwd:root,encoding:"utf8",env});
+  ok(result.includes("independent DPO/RM/RL/BC derivatives, no-truth training, equal total updates, shared bimanual observations/noise and full-horizon/censoring tests passed"),"b7p3 independent derivative/leakage/budget/information regressions executed");
+  console.log("dpo-bimanual PR3: shared preferences/total updates, held-out noise, equal-information full-horizon control, opened-paper architecture and final-Summary locks checked");
 }
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);

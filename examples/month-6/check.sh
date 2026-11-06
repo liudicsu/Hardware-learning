@@ -45,4 +45,6 @@ for lang in ('en', 'zh'):
     bad += not ok
 sys.exit(1 if bad else 0)
 PY
+check bimanual_coord_modes_toy.txt python3 "$M6/act-diffusion/bimanual_coord_modes_toy.py"
+
 exit $fail

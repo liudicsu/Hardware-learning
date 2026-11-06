@@ -1,5 +1,7 @@
 # Month 6 plan: Robot learning, specialisation & getting hired
 
+Current / 当前 Batch-7 PR3: M6 **1560 min**; older sections retain historical totals.
+
 Course source: @DeRonin_'s 6-month roadmap (`COURSE_SOURCE` in src/lib/curriculum.ts). Month 6 topics there:
 imitation learning (behaviour cloning, ACT, diffusion policy), VLA models and which have open weights,
 choosing a specialisation, portfolio and job applications. Milestones are already in curriculum.ts.
@@ -59,3 +61,11 @@ F7 `policy-evaluation` 180→330 — `eval_seed_layers_toy.py`: `synthetic_polic
 ## Batch-after-obs PR2 (G4, +180 here)
 
 G4 `vla-models` 180→360 — `vla_async_chunk_toy.py`: SmolVLA read per the paper; sync vs async (queue remaining fraction &lt; g triggers next request); same chunk prediction / same ℓ_S; idle_s, infer_calls, underruns, action staleness and overlapping chunk switches; async ≠ 10.2 RTC soft-mask ≠ 8.3 timestamp sync. Month 6 **5 lessons / 1 350 min**. With G3: site then **71 lessons / 18 120 min**; after G5–G7: site **71 lessons / 18 570 min** (from `src/lib/curriculum.ts`).
+
+## Batch-7 PR3 / 本月 H6 (+210)
+
+6.2 act-diffusion240→450. M6 **1350→1560**, M10 **2070→2280**. This PR only:23190+210+210=**23610**,71 lessons; no arithmetic mismatch, no earlier PR minutes counted twice.
+
+Allocation:45+45+45+45+30=210 min (model/loss or information declaration / implementation / shared-seed experiment / limits and reading / exercises).
+Shared compliant-object kinematic task, all arms/modes receive full noisy snapshot and goals, independent deliberately factorizes it; no local-only versus oracle information advantage. All400 ticks, same noise/gains/caps, arrival/collision/censoring rules explicit; five-seed full-horizon metrics. TwinVLA architecture only from opened original section4; no robots/weights. Add full whole-lesson final Summary because both languages lacked one.
+New symmetric en/zh code/stdout/exercises before final Summary, stdlib expected+harness, independent regression locks, opened-source audit in batch-7-pr3-sources.md. No workflows changed.
