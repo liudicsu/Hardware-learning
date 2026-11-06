@@ -11,7 +11,7 @@ Constraints: no required purchases — not DIGIT / GelSight Mini, a BLDC kit, a 
 | 1 | `power-battery-emc` | 480 | `power_budget_toy.py`, `power_roundtrip_loss_toy.py`, `soc_coulomb_thermal_toy.py` | Novanta EMC wiring KB; Roboteq EMI blog; ARK power & grounding |
 | 2 | `foc-actuator-lab` | 480 | `clarke_park_toy.py`, `foc_current_loop_toy.py` | SimpleFOC home + `foc_theory` / `foc_implementation` / alignment / voltage_torque docs |
 | 3 | `tactile-sensing` | 420 | `tactile_marker_toy.py`, `tactile_debias_recal_toy.py` | AnySkin arXiv 2409.08276; DIGIT design / interface repos; GelSight (Yuan 2017); 3D Cal arXiv 2511.03078 (abstract) |
-| 4 | `umi-style-collection` | 240 | `relative_traj_toy.py` | UMI arXiv 2402.10329 v3 + project page / Hardware Guide; LeRobot action representations |
+| 4 | `umi-style-collection` | 420 | `relative_traj_toy.py` | UMI arXiv 2402.10329 v3 + project page / Hardware Guide; LeRobot action representations |
 | 5 | `cross-embodiment-datasets` | 330 | `oxe_imbalance_toy.py`, `oxe_auge_score_toy.py` | OXE project page + GitHub; OXE-AugE arXiv 2512.13100v1 HTML §4.2 + A.5 + project page |
 | 6 | `humanoid-wbc-overview` | 480 | `lipm_track_toy.py`, `floating_base_contact_toy.py` | ALIP arXiv 2408.05308 §II-A (3) / §III (20); ASAP arXiv 2502.01143 (abs + HTML, Table V) + code; HugWBC / Holosoma / TWIST / WBC-AGILE repos (README level) |
 | 7 | `contact-rich-policies` | 390 | `tactile_gate_toy.py`, `contact_slip_residual_toy.py` | AnySkin Table III; BAKU arXiv 2406.07539; ViTaMIn 2504.06156 / exUMI 2509.14688 (abstract level, no numbers) |
@@ -39,3 +39,9 @@ Follow-up PR2 (+210): 11.7 `contact-rich-policies` 180→390 — same-frame velo
 Follow-up PR3 (F5–F7 on M5/M6, +510): Month 11 stays **2 670 min**. Site **71 lessons / 17 310 min**.
 
 Batch-4 PR1 (+150 on 11.1 only in this PR): `power-battery-emc` 330→480 — coulomb-counting SoC with discharge-positive sign, η on charge only, shared current profile across shunt-bias / Q-error / SoC0-error arms, lesson-defined thermal derate, OCV rest re-anchor as concept only; no charging procedure. Month 11 **2 820 min**; site **71 lessons / 19 050 min** (M2 1500 / M4 1620 after the sibling encoder + EtherCAT deepenings in the same PR).
+
+## Batch-4 PR3 (last planned PR)
+
+H7 11.4 240→420 (+180): unilateral position teleop; distinct one-way/control/video RTT; explicit display-age plus operator reaction; stop-advance/miss metrics; passivity/wave-variable survey reading, not bilateral proof. M11 **3000 min** (2820+180).
+
+Site **71 lessons /19830 min** (19440+390); M7=2070,M11=3000. New material precedes final bilingual Summary. Source/limit audit: `batch-4-pr3-sources.md`.

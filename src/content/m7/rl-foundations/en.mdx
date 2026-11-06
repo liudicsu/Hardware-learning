@@ -224,8 +224,251 @@ Use three seeds and keep every learning curve. Reacher-v5 needs the MuJoCo Gymna
 - **Assuming PPO wants a GPU.** For MLP policies SB3's own docs point at the CPU.
 - **Designing a reward that only looks at distance.** That is the reward-hacking example above; add a term for grasp stability or for staying still at the goal once you move to a real arm.
 
+## Residual-action transfer: an equal-data two-stage experiment
+
+A policy can track in synthetic **Plant-A** yet fail to track after transfer to **Plant-B**, even when its task and observation interface stay the same. This section owns a small dynamics-mismatch experiment, not another PPO derivation, the 7.4 contact-parameter DR experiment or the 5.1 PE lesson. For floating-base contacts, LIPM and the humanoid context, follow [11.6 humanoid WBC](/en/month/month-11/humanoid-wbc-overview); the scalar plant below is **not** a walking robot.
+
+### Check the ASAP narrative, including what is NOT deployed
+
+[ASAP, original paper arXiv 2502.01143v3](https://arxiv.org/html/2502.01143v3), Figure 2 and sections III-B/C/D, describes: pretrain a tracking policy in simulation; collect real rollouts; fit a **delta-action model** so `f_sim(s, a + delta(s,a))` matches recorded real transitions; freeze that model and fine-tune the policy in the aligned simulator; finally deploy the fine-tuned policy **without the delta model**. The delta is not an extra “fix motor command” network shipped with the robot. Its sign is chosen to make the nominal simulator imitate the real response: if a real actuator is weaker, the simulator correction can reduce action strength. This differs from cancelling the real error with a live residual controller.
+
+**A residual is not dynamics SysID.** An action-coordinate correction does not identify a unique mass, friction coefficient or actuator constant. Multiple physical causes can have the same action effect. Our scalar supervised ridge fit and finite policy search mirror only the workflow, not ASAP's neural delta policy/PPO training, retargeting or real-data performance. All paper numbers are **以论文为准**. IsaacGym/IsaacSim/Genesis training, real robots and G1 data collection: **本页未运行 (not run on this page)**; no weights or hardware are required.
+
+### Shared data, distinct model assumptions
+
+The lesson-defined plant is `qddot = g*u - d*v - c*v*abs(v) + b`, integrated at **0.04 s** with semi-implicit Euler. Units are q in m, v in m/s and u an acceleration-equivalent action (the bias is a synthetic torque-bias proxy, not a measured motor torque). Plant-A uses `(g,d,c,b)=(1,0.5,0,0)`. Pretraining searches 27 simple trackers on four synthetic reference trajectories, selecting `(kp,kd,ff,bias)=(12,6,1,0)`; this is a finite controller-policy search, not a claim of new RL training. Each seed draws hidden Plant-B gain, damping, nonlinear drag and bias. Only the collector/evaluator accesses B; fitting and tuning do not get its parameters.
+
+The collector runs that same pretrained policy, stops after exactly **160** B transitions (first full 100-step calibration trajectory plus 60 of the next), and adds the same acceleration observation noise once. Every arm receives the **same immutable data tuple**: **160/160/160**, not different rollouts selected after seeing outcomes. Four tuning trajectories are reused in simulation, while five evaluation trajectories use the reserved `seed + 10000` namespace. No evaluation trajectory or result selects models, hyperparameters or policies.
+
+| Arm | What is learned from those 160 rows | Fine-tuning simulator |
+|---|---|---|
+| SysID-retune | Explicit gain/damping/bias in a linear family; nonlinear drag is omitted | One fitted physical-parameter model |
+| DR-widen | Same linear fit plus its residual RMS | Four lesson-defined wide parameter corners; bounds are not calibrated confidence intervals |
+| residual-action | Ridge fit of delta action on `(u,v,v*abs(v),1)` using observed-minus-A acceleration | Plant-A with the frozen action correction added only inside simulation |
+
+All arms search the same **81** tracker candidates and spend **4 × 100** simulator steps per candidate. DR assigns a different corner to each of the four trajectories, so the objective is an empirical four-scenario average, not worst-case robustness or full distribution integration. The model families have different capacity: equal B-data and simulator step counts do **not** make the experiments identical-capacity algorithm benchmarks. Here `g_A=1`, so the acceleration discrepancy has the same numerical scale as the delta action. That special conversion is not generally valid for arbitrary actuators.
+
+At deployment, `deploy(policy, real_proxy, eval_refs)` has **no delta argument**: B receives only the selected tracker action, with the same saturation for every arm. This separation is the key two-stage lesson.
+
+### Results, spread and a failure rather than a promised winner
+
+Tracking MAE is mean absolute position error over every step and then averaged over the five evaluation trajectories. `fall_proxy_episodes/5` counts trajectories whose maximum absolute position error exceeds **0.35 m**; it is a toy error threshold, **not a humanoid fall classifier**. Seeds **720–724** vary the B plant and noise. The summary reports mean, **population** standard deviation, minimum and maximum of the five seed-level MAEs, not a confidence interval.
+
+Measured mean ± spread: SysID-retune **0.02919 ± 0.00506 m**, DR-widen **0.02817 ± 0.00256 m**, residual-action **0.02706 ± 0.00323 m**. Some seeds select the same policy and tie; others differ. On seed **722**, SysID worsens from zero-shot **0.03413** to **0.03518 m**. All fall proxies are **0/5**, so that proxy does not distinguish these runs. The residual arm has the lowest mean on this fixed setup, but that does not establish a universal winner, a significance claim or a real-robot result. Do not delete ties or a regression just to tell a success story.
+
+```bash
+python3 ~/Hardware-learning/examples/month-7/rl-foundations/residual_action_mismatch_toy.py
+bash ~/Hardware-learning/examples/month-7/check.sh
+```
+
+<CodeSource path="examples/month-7/rl-foundations/residual_action_mismatch_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic two-stage tracker transfer, NOT humanoid PPO or ASAP reproduction.
+Equal B-data: all arms see the SAME 160 noisy (u,v,acceleration) transitions.
+Fit a delta ACTION in nominal A action coordinates; freeze it in SIM tuning;
+all real-proxy B evaluations call the tuned policy alone, never the delta model.
+"""
+from __future__ import annotations
+import itertools
+import math
+import random
+import statistics
+
+SEED = 720
+SEEDS = tuple(range(SEED, SEED + 5))
+DT = 0.04
+BUDGET = 160
+STEPS = 100
+A = (1.0, 0.5, 0.0, 0.0)  # gain, damping, nonlinear drag, torque-bias proxy
+
+
+def plant(params):
+    g, d, c, b = params
+    return lambda u, v: g * u - d * v - c * v * abs(v) + b
+
+
+def reference(phase, omega, amp):
+    return tuple((amp * math.sin(omega * i * DT + phase),
+                  amp * omega * math.cos(omega * i * DT + phase),
+                  -amp * omega ** 2 * math.sin(omega * i * DT + phase))
+                 for i in range(STEPS))
+
+
+def trajectories(seed, count):
+    rng = random.Random(seed)
+    return tuple(reference(rng.uniform(-1, 1), rng.uniform(0.6, 1.8),
+                           rng.uniform(0.3, 0.7)) for _ in range(count))
+
+
+def action(policy, q, v, ref):
+    kp, kd, ff, bias = policy
+    x, vel, acc = ref
+    return max(-5.0, min(5.0, kp * (x - q) + kd * (vel - v) + ff * acc + bias))
+
+
+def rollout(policy, model, refs):
+    q, v = refs[0][0], refs[0][1]
+    errors, transitions = [], []
+    for ref in refs:
+        u = action(policy, q, v, ref)
+        acc = model(u, v)
+        transitions.append((u, v, acc))
+        errors.append(abs(q - ref[0]))
+        v += DT * acc
+        q += DT * v
+    return sum(errors) / len(errors), max(errors), transitions
+
+
+def objective(policy, models, refs):
+    # Equal 4 simulation trajectories/candidate for all arms; no B evaluation.
+    return sum(rollout(policy, model, trajectory)[0]
+               for model, trajectory in zip(models, refs)) / len(refs)
+
+
+def tune(initial, models, refs, pretrain=False):
+    if pretrain:
+        candidates = itertools.product((4.0, 8.0, 12.0), (2.0, 4.0, 6.0),
+                                       (0.6, 1.0, 1.4), (0.0,))
+    else:
+        kp, kd, ff, _ = initial
+        candidates = itertools.product((kp * 0.75, kp, kp * 1.25),
+                                       (kd * 0.75, kd, kd * 1.25),
+                                       (ff * 0.75, ff, ff * 1.25), (-0.3, 0.0, 0.3))
+    return min(candidates, key=lambda p: objective(p, models, refs))
+
+
+def fit(rows, targets):
+    """Small ridge least squares via pivoted Gaussian elimination (stdlib)."""
+    n = len(rows[0])
+    mat = [[sum(x[i] * x[j] for x in rows) + (1e-5 if i == j else 0)
+            for j in range(n)] + [sum(x[i] * y for x, y in zip(rows, targets))]
+           for i in range(n)]
+    for i in range(n):
+        pivot = max(range(i, n), key=lambda k: abs(mat[k][i]))
+        mat[i], mat[pivot] = mat[pivot], mat[i]
+        scale = mat[i][i]
+        assert abs(scale) > 1e-12
+        mat[i] = [v / scale for v in mat[i]]
+        for j in range(n):
+            if j != i:
+                scale = mat[j][i]
+                mat[j] = [a - scale * b for a, b in zip(mat[j], mat[i])]
+    return tuple(row[-1] for row in mat)
+
+
+def adapt(data):
+    # SysID's explicit linear physical family omits nonlinear drag on purpose.
+    linear_rows = [(u, -v, 1.0) for u, v, _ in data]
+    g, d, bias = fit(linear_rows, [acc for _, _, acc in data])
+    sysid = plant((g, d, 0.0, bias))
+    # DR uses exactly those rows, residual spread -> lesson-defined wide bounds.
+    rms = math.sqrt(sum((acc - sysid(u, v)) ** 2 for u, v, acc in data) / len(data))
+    width = max(0.08, 2 * rms)
+    dr = tuple(plant((max(0.2, g + sign * width), max(0.0, d - sign * width),
+                      0.0, bias + other * width)) for sign, other in
+               ((-1, -1), (-1, 1), (1, -1), (1, 1)))
+    # Since g_A=1, delta-action target = observed acceleration - a_A(u,v).
+    # This is an action correction, NOT an identified mass/friction parameter.
+    features = [(u, v, v * abs(v), 1.0) for u, v, _ in data]
+    coeff = fit(features, [acc - plant(A)(u, v) for u, v, acc in data])
+    def aligned_sim(u, v):
+        delta_action = sum(c * f for c, f in zip(coeff, (u, v, v * abs(v), 1.0)))
+        return plant(A)(u + delta_action, v)
+    return {"SysID-retune": (sysid,) * 4, "DR-widen": dr,
+            "residual-action": (aligned_sim,) * 4}
+
+
+def deploy(policy, real_proxy, eval_refs):
+    # The signature deliberately has NO learned delta argument.
+    results = [rollout(policy, real_proxy, refs) for refs in eval_refs]
+    mae = statistics.mean(r[0] for r in results)
+    fall_proxy = sum(r[1] > 0.35 for r in results) / len(results)
+    return mae, fall_proxy
+
+
+def main():
+    train_refs = trajectories(71, 4)
+    base = tune(None, (plant(A),) * 4, train_refs, pretrain=True)
+    assert len(fit([(1, 0), (0, 1)], [2, 3])) == 2
+    print(f"pretrained_A_policy={base} dt_s={DT:.2f} seeds={len(SEEDS)}")
+    print(f"PlantB_samples_per_arm={BUDGET}/{BUDGET}/{BUDGET}; same_data_object=yes")
+    print("finetune_sim_steps_per_arm=81_candidates*4_trajectories*100_steps")
+    print("seed arm zero_shot_MAE_m tuned_MAE_m fall_proxy_episodes/5")
+    summary = {name: [] for name in ("SysID-retune", "DR-widen", "residual-action")}
+    for seed in SEEDS:
+        rng = random.Random(seed)
+        real = plant((rng.uniform(0.65, 0.95), rng.uniform(0.3, 0.8),
+                      rng.uniform(0.8, 2.5), rng.uniform(-0.4, 0.4)))
+        raw = []
+        for refs in train_refs:
+            remaining = BUDGET - len(raw)
+            if remaining <= 0:
+                break
+            raw.extend(rollout(base, real, refs[:remaining])[2])
+        data = tuple((u, v, a + rng.gauss(0, 0.025)) for u, v, a in raw)
+        assert len(data) == BUDGET
+        # Reserved seed namespace: neither calibration nor tuning sees eval refs.
+        eval_refs = trajectories(seed + 10000, 5)
+        zero, _ = deploy(base, real, eval_refs)
+        for name, sims in adapt(data).items():
+            policy = tune(base, sims, train_refs)
+            mae, fall = deploy(policy, real, eval_refs)
+            summary[name].append(mae)
+            print(f"{seed} {name} {zero:.5f} {mae:.5f} {round(fall * 5)}/5")
+    print("arm MAE_mean_m population_sd_m min_m max_m (across_5_seeds)")
+    for name, values in summary.items():
+        print(f"{name} {statistics.mean(values):.5f} {statistics.pstdev(values):.5f} "
+              f"{min(values):.5f} {max(values):.5f}")
+    print("deploy=policy_only_without_delta_model; residual_is_not_dynamics_SysID")
+    print("model_families_differ; no_universal_winner; fall_proxy_not_humanoid_fall; Isaac_real_robot_not_run")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+```text
+pretrained_A_policy=(12.0, 6.0, 1.0, 0.0) dt_s=0.04 seeds=5
+PlantB_samples_per_arm=160/160/160; same_data_object=yes
+finetune_sim_steps_per_arm=81_candidates*4_trajectories*100_steps
+seed arm zero_shot_MAE_m tuned_MAE_m fall_proxy_episodes/5
+720 SysID-retune 0.04276 0.03379 0/5
+720 DR-widen 0.04276 0.03141 0/5
+720 residual-action 0.04276 0.03051 0/5
+721 SysID-retune 0.04179 0.02969 0/5
+721 DR-widen 0.04179 0.02969 0/5
+721 residual-action 0.04179 0.02969 0/5
+722 SysID-retune 0.03413 0.03518 0/5
+722 DR-widen 0.03413 0.02935 0/5
+722 residual-action 0.03413 0.02781 0/5
+723 SysID-retune 0.03338 0.02579 0/5
+723 DR-widen 0.03338 0.02579 0/5
+723 residual-action 0.03338 0.02579 0/5
+724 SysID-retune 0.03038 0.02149 0/5
+724 DR-widen 0.03038 0.02459 0/5
+724 residual-action 0.03038 0.02149 0/5
+arm MAE_mean_m population_sd_m min_m max_m (across_5_seeds)
+SysID-retune 0.02919 0.00506 0.02149 0.03518
+DR-widen 0.02817 0.00256 0.02459 0.03141
+residual-action 0.02706 0.00323 0.02149 0.03051
+deploy=policy_only_without_delta_model; residual_is_not_dynamics_SysID
+model_families_differ; no_universal_winner; fall_proxy_not_humanoid_fall; Isaac_real_robot_not_run
+```
+
+### Guided work (+210 min within this 450 min lesson)
+
+1. **35 min — workflow audit.** Read ASAP's Figure 2 and III-B/C/D; draw separate calibration, simulator fine-tuning and deployment boxes. Explain why moving the delta into the real deployment changes the method.
+2. **45 min — budget audit.** Trace the actual B calls until 160 transitions, the shared noise/data object and reserved evaluation namespace. Count 81 × 4 × 100 simulator steps per arm; explain what equal counts do and do not control.
+3. **50 min — model audit.** Trace the three learned families and the sign of the correction for a weaker actuator. Explain why a learned action correction is not a uniquely identified physical parameter. Document DR's four corners and what is missing between them.
+4. **50 min — replay and stress.** Reproduce every seed row and recompute population spread. In a scratch run change the hidden nonlinear-drag range or calibration noise once, rerunning all arms on the same new data/evaluation draws. Keep regressions and ties; do not retune on evaluation performance.
+5. **30 min — transfer limits.** Explain why a scalar error threshold says nothing about contact feasibility, falling, or whole-body balance. Link back to 11.6 rather than adding another contact-DR/PPO/PE tutorial.
+
 <Summary>
 
 An MDP is state, action, reward, return and policy. RL optimises the discounted return instead of cloning demos; a bad reward invites hacking. The stdlib clipped-ratio toy on a 1-D reach improves across three seeds (mean final return ≈ −8.6); SB3 PPO is the library path and is meant for the CPU when you are not using a CNN.
+
+Equal-data Plant-A→B transfer compares SysID-retune, DR-widen and residual-action across five shared seeds; delta stays in simulator fine-tuning and is absent at deployment.
 
 </Summary>

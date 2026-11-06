@@ -3936,8 +3936,8 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 19440, "3dgs-iso-pl PR2 curriculum: 19440 minutes");
-  for (const [month, expected] of [[2, 1500], [3, 1290], [4, 1620], [5, 1620], [6, 1350], [7, 1860], [8, 2670], [9, 2340], [10, 1650], [11, 2820]]) {
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 19830, "residual-teleop PR3 curriculum: 19830 minutes");
+  for (const [month, expected] of [[2, 1500], [3, 1290], [4, 1620], [5, 1620], [6, 1350], [7, 2070], [8, 2670], [9, 2340], [10, 1650], [11, 3000]]) {
     ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `dr-imagine-edge PR3 M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
@@ -4923,7 +4923,7 @@ for (const m of readdirSync(content)) {
   for (const id of ["dreamgen-paper", "lapa-paper", "smolvla-paper", "lerobot-async"]) {
     ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `wm2 resource ${id}: present + extra`);
   }
-  ok(/19 440/.test(read("README.md")), "b4p2 README: 19 440 minutes");
+  ok(/19 830/.test(read("README.md")), "b4p3 README: 19 830 minutes");
   console.log("worldmodel-smolvla PR2: neural trajectories + async chunk locks checked");
 }
 
@@ -5140,5 +5140,40 @@ for (const m of readdirSync(content)) {
   ok(cur.match(/slug: "safety-reliability"[\s\S]*?minutes: (\d+)/)?.[1] === "540", "b4p2 curriculum: 8.5=540");
   console.log("3dgs-iso-pl PR2: collision/PLr locks checked (reachable before exit)");
 }
+// Batch-4 PR3 H2/H7: equal-data transfer and explicit operator RTT model.
+{
+  const read = p => readFileSync(join(root, p), "utf8");
+  for (const [month, slug, toy, minutes, added] of [[7,"rl-foundations","residual_action_mismatch_toy",450,210], [11,"umi-style-collection","teleop_rtt_budget_toy",420,180]]) {
+    const py = read(`examples/month-${month}/${slug}/${toy}.py`);
+    const expected = read(`examples/month-${month}/expected/${toy}.txt`);
+    const stdout = execFileSync("python3", [join(root, `examples/month-${month}/${slug}/${toy}.py`)], { encoding: "utf8", env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" } });
+    ok(stdout === expected, `b4p3 ${toy}: executed stdout matches expected`);
+    ok(read(`examples/month-${month}/check.sh`).includes(`${toy}.txt`), `b4p3 ${toy}: check hook`);
+    for (const lang of ["en","zh"]) {
+      const md = read(`src/content/m${month}/${slug}/${lang}.mdx`);
+      const start = md.indexOf("<Summary>");
+      const body = md.slice(0,start), summary = md.slice(start);
+      ok(start >= 0 && md.trimEnd().endsWith("</Summary>") && (md.match(/<Summary>/g) || []).length === 1, `b4p3 ${toy} ${lang}: final Summary`);
+      ok(body.includes(py.trim()) && body.includes(expected.trim()) && body.includes(`${added} min`), `b4p3 ${toy} ${lang}: full addition before Summary`);
+      for (const marker of month === 7 ? ["160/160/160", "720–724", "0.02919", "0.02817", "0.02706", "0.00506", "0.03413", "0.03518", "10000", "以论文为准", "本页未运行"] : ["control", "video", "RTT", "reaction", "display", "0.18 m", "20/20", "one_way_only_estimate", "wave variables", "本页未运行"]) {
+        ok(body.includes(marker), `b4p3 ${toy} ${lang}: ${marker}`);
+      }
+      ok(month === 7 ? summary.includes("delta") && summary.includes("Plant-A→B") : summary.includes("RTT") && (lang === "en" ? summary.includes("unilateral") : summary.includes("单向")), `b4p3 ${toy} ${lang}: Summary teaches addition`);
+      if (month === 7) ok(body.includes(`/${lang}/month/month-11/humanoid-wbc-overview`), `b4p3 residual ${lang}: WBC cross-link`);
+    }
+    const cur = read("src/lib/curriculum.ts");
+    ok(cur.match(new RegExp(`slug: "${slug}"[\\s\\S]*?minutes: (\\d+)`))?.[1] === String(minutes), `b4p3 ${slug}: ${minutes} minutes`);
+  }
+  const residual = read("examples/month-7/expected/residual_action_mismatch_toy.txt");
+  ok((residual.match(/^72[0-4] /gm) || []).length === 15, "b4p3 residual: 5 seeds times 3 arms");
+  ok(residual.includes("population_sd_m") && residual.includes("without_delta_model") && residual.includes("residual_is_not_dynamics_SysID"), "b4p3 residual: spread and correct deployment boundary");
+  const teleop = read("examples/month-11/expected/teleop_rtt_budget_toy.txt");
+  ok(teleop.includes("low_RTT 20 40 100 80") && teleop.includes("high_RTT 100 220 340 240"), "b4p3 teleop: one-way, control/video RTT, display age distinct");
+  ok(teleop.includes("NOT_actual_high_link_performance"), "b4p3 teleop: accounting ablation not physical winner");
+  for (const lang of ["en","zh"]) ok(read(`src/content/m11/humanoid-wbc-overview/${lang}.mdx`).includes(`/${lang}/month/month-7/rl-foundations`), `b4p3 WBC ${lang}: reverse pointer`);
+  ok(read("src/lib/resources.ts").includes('id: "teleop-humanoid-survey"'), "b4p3 teleop: opened survey resource");
+  console.log("residual-teleop PR3: equal-data, latency and final-Summary locks checked");
+}
+
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
 process.exit(failed ? 1 : 0);

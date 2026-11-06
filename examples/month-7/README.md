@@ -12,3 +12,5 @@ CPU-reproducible scripts for Month 7 (site supplement). Run `./check.sh` from th
 | perception-to-grasp | `perception-to-grasp/handeye_toy.py` (numpy), `grasp_from_mask.py` | stdlib |
 
 Batch-4 PR2: `depth-pointcloud/gsplat_collision_toy.py` (stdlib CPU), reproduced by `check.sh`; output in `expected/gsplat_collision_toy.txt`. Shared synthetic scene / queries; independent distance truth, conservative AABB vs sampled ellipsoid; no 3DGS training.
+
+Batch-4 PR3: `rl-foundations/residual_action_mismatch_toy.py` (stdlib CPU); `check.sh` compares `expected/residual_action_mismatch_toy.txt`. Same160 Plant-B samples/arm,5 shared seeds, policy-only deployment; not humanoid training.
