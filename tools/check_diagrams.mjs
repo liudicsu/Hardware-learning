@@ -3936,8 +3936,8 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 20310, "backlash-dmm-kf PR1 curriculum: 20310 minutes");
-  for (const [month, expected] of [[1, 870], [2, 1650], [3, 1470], [4, 1620], [5, 1620], [6, 1350], [7, 2070], [8, 2670], [9, 2340], [10, 1650], [11, 3000]]) {
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 20700, "stereo-multirobot PR2 curriculum: 20700 minutes");
+  for (const [month, expected] of [[1, 870], [2, 1650], [3, 1470], [4, 1620], [5, 1800], [6, 1350], [7, 2070], [8, 2670], [9, 2550], [10, 1650], [11, 3000]]) {
     ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `current curriculum M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
@@ -4923,7 +4923,7 @@ for (const m of readdirSync(content)) {
   for (const id of ["dreamgen-paper", "lapa-paper", "smolvla-paper", "lerobot-async"]) {
     ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `wm2 resource ${id}: present + extra`);
   }
-  ok(/20 310/.test(read("README.md")), "b5p1 README: 20 310 minutes");
+  ok(/20 700/.test(read("README.md")), "b5p2 README: 20 700 minutes");
   console.log("worldmodel-smolvla PR2: neural trajectories + async chunk locks checked");
 }
 
@@ -5210,6 +5210,38 @@ for (const m of readdirSync(content)) {
   ok(/^load_PID_extra_sensor .* 4 1 not_settled$/m.test(loop) && /^load_no_friction .* 0 0 0.570$/m.test(loop) && /^load_no_integral .* 0 0 not_settled$/m.test(loop), "b5p1 backlash: friction+I hunting and both ablations");
   for (const id of ["wescott-friction","nist-uncertainty-typeb","nist-uncertainty-propagation"]) ok(read("src/lib/resources.ts").includes(`id: "${id}"`), `b5p1 source ${id}`);
   console.log("backlash-dmm-kf PR1: physical hunting, uncertainty and held-out tuning locks checked");
+}
+
+// Batch-5 PR2 H5/H2: nonlinear stereo and disclosed multi-robot information.
+{
+  const read = p => readFileSync(join(root,p),"utf8");
+  for (const [month,slug,toy,minutes,added,markers] of [
+    [5,"camera-calibration","stereo_depth_sigma_toy",420,180,["3DGS","0.125","0.600","20000","0.5625","2.2500","25.000000","41.901502","15.575066","16.878823","2991/20000","11637/20000","E[fB/d]"]],
+    [9,"nav-arm-compose","multi_robot_corridor_toy",450,210,["926–930","vmax=0.6","amax=0.8","24 s","ORCA","0.004718","1.096968","0.518211","12.740","18.295","以论文为准"]],
+  ]) {
+    const src=`examples/month-${month}/${slug}/${toy}.py`, py=read(src), expected=read(`examples/month-${month}/expected/${toy}.txt`);
+    ok(execFileSync("python3",[join(root,src)],{encoding:"utf8",env:{...process.env,PYTHONDONTWRITEBYTECODE:"1"}})===expected,`b5p2 ${toy}: executed stdout matches expected`);
+    ok(read(`examples/month-${month}/check.sh`).includes(`${toy}.txt`),`b5p2 ${toy}: check hook`);
+    for (const lang of ["en","zh"]) {
+      const md=read(`src/content/m${month}/${slug}/${lang}.mdx`), start=md.indexOf("<Summary>"), body=md.slice(0,start), summary=md.slice(start), prose=body.replace(/```[\s\S]*?```/g,"");
+      ok(start>=0 && md.trimEnd().endsWith("</Summary>") && (md.match(/<Summary>/g)||[]).length===1,`b5p2 ${toy} ${lang}: sole final Summary`);
+      ok(body.includes(py.trim()) && body.includes(expected.trim()) && body.includes(`+${added} min`),`b5p2 ${toy} ${lang}: complete addition before Summary`);
+      ok(month===5 ? (lang==="en" ? summary.includes("quantization") : summary.includes("量化")) : (lang==="en" ? summary.includes("mutex communication") : summary.includes("互斥通信")),`b5p2 ${toy} ${lang}: Summary teaches addition`);
+      for (const marker of markers) ok(prose.includes(marker),`b5p2 ${toy} ${lang}: prose binds ${marker}`);
+      ok(prose.includes("本页未运行"),`b5p2 ${toy} ${lang}: real hardware unrun`);
+      if (month===5) ok(lang==="en" ? /f in pixels/.test(prose) && /B in metres/.test(prose) && /longer is not always better/.test(prose) : /f 的单位为像素/.test(prose) && /B 为米/.test(prose) && /并非越长越好/.test(prose),`b5p2 stereo ${lang}: units and baseline costs`);
+      else ok(lang==="en" ? /Extra reliable communication\/shared reservations/.test(prose) && /holonomic discs/.test(prose) && /not full ORCA/.test(prose) : /额外可靠通信 \/ 共享预约/.test(prose) && /全向圆盘/.test(prose) && /不是完整 ORCA/.test(prose),`b5p2 corridor ${lang}: extra information and simplified holonomic ORCA boundary`);
+    }
+    ok(read("src/lib/curriculum.ts").match(new RegExp(`slug: "${slug}"[\\s\\S]*?minutes: (\\d+)`))?.[1]===String(minutes),`b5p2 ${slug}: ${minutes} min`);
+  }
+  const stereo=read("examples/month-5/expected/stereo_depth_sigma_toy.txt");
+  ok(stereo.includes("60.00 0.06 0.000 0.600 20000/20000 25.000000 41.901502 15.575066"),"b5p2 stereo: nonlinear bias and MC/linear divergence measured");
+  ok(stereo.includes("0.75 0.24 0.125 192.000 0/20000") && stereo.includes("NA NA NA"),"b5p2 stereo: long-baseline near invalids not hidden");
+  const multi=read("examples/month-9/expected/multi_robot_corridor_toy.txt");
+  ok((multi.match(/^(?:926|927|928|929|930) (?:ignore_others|priority_mutex_extra_info|ORCA_lite_reciprocal_stop) /gm)||[]).length===15,"b5p2 corridor: 5 seeds times 3 arms");
+  ok(multi.includes("starvation_proxy min_sep_m") && multi.includes("capped mean substitutes 24s") && multi.includes("NOT full ORCA LP"),"b5p2 corridor: liveness/separation/censoring/approximation disclosed");
+  for (const id of ["opencv-stereo-depth-source","orca-primary","mrs-curriculum-il"]) ok(read("src/lib/resources.ts").includes(`id: "${id}"`),`b5p2 source ${id}`);
+  console.log("stereo-multirobot PR2: nonlinear depth, equal kinematics and information-disclosure locks checked");
 }
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);

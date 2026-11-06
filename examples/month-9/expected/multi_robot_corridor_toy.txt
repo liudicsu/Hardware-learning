@@ -1,0 +1,30 @@
+holonomic discs r=0.22 m corridor_width=.60 m; vmax=0.6 m/s amax=0.8 m/s^2 dt=0.05 s limit=24.0 s
+mutex=EXTRA reliable communication/shared reservation; ORCA-lite=reciprocal stop sketch, NOT full ORCA LP
+seed starts(x,y)_m goals(x,y)_m
+926 (-2.881,-0.821);(3.025,0.724) (3.173,-0.774);(-2.771,0.839)
+927 (-2.872,-0.675);(3.108,0.688) (2.567,-0.727);(-3.198,0.781)
+928 (-2.575,-0.758);(2.999,0.839) (3.161,-0.697);(-2.566,0.756)
+929 (-2.474,-0.663);(3.007,0.829) (2.358,-0.770);(-2.695,0.845)
+930 (-3.156,-0.810);(2.724,0.802) (2.542,-0.762);(-2.504,0.702)
+seed arm collision_episodes arrivals_s capped_mean_s timeouts/2 deadlock_proxy starvation_proxy min_sep_m
+926 ignore_others 1 13.40/13.00 13.200 0/2 0 0 0.005280
+926 priority_mutex_extra_info 0 13.40/timeout 18.700 1/2 0 1 1.315317
+926 ORCA_lite_reciprocal_stop 0 timeout/timeout 24.000 2/2 1 2 0.518251
+927 ignore_others 1 12.35/13.70 13.025 0/2 0 0 0.004718
+927 priority_mutex_extra_info 0 12.35/timeout 18.175 1/2 0 1 1.096968
+927 ORCA_lite_reciprocal_stop 0 timeout/timeout 24.000 2/2 1 2 0.518607
+928 ignore_others 1 12.85/12.70 12.775 0/2 0 0 0.005653
+928 priority_mutex_extra_info 0 12.85/timeout 18.425 1/2 0 1 1.369955
+928 ORCA_lite_reciprocal_stop 0 timeout/timeout 24.000 2/2 1 2 0.518259
+929 ignore_others 1 11.50/12.95 12.225 0/2 0 0 0.005691
+929 priority_mutex_extra_info 0 11.50/timeout 17.750 1/2 0 0 1.108615
+929 ORCA_lite_reciprocal_stop 0 timeout/timeout 24.000 2/2 1 2 0.518211
+930 ignore_others 1 12.85/12.10 12.475 0/2 0 0 0.005479
+930 priority_mutex_extra_info 0 12.85/timeout 18.425 1/2 0 1 1.227068
+930 ORCA_lite_reciprocal_stop 0 timeout/timeout 24.000 2/2 1 2 0.518346
+arm total_collisions mean_capped_arrival_s population_sd total_timeouts deadlock_runs starvation_robots min_sep_m
+ignore_others 5 12.740 0.355 0 0 0 0.004718
+priority_mutex_extra_info 0 18.295 0.319 5 0 4 1.096968
+ORCA_lite_reciprocal_stop 0 24.000 0.000 10 5 10 0.518211
+capped mean substitutes 24s for unfinished; collision episodes do not imply safe arrivals; no universal winner
+not nav-pick BT/teleop RTT/EtherCAT; real fleet 本页未运行; curriculum IL reading only, 以论文为准

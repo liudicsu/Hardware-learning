@@ -323,3 +323,157 @@ python3 pixel_to_table.py views
 - <strong>方格尺寸输错。</strong>所有距离都随它线性缩放：把 25 mm 输成 50 mm，每个恢复出的距离都会翻倍；反过来则减半。用卡尺量，不要凭包装上写的大小猜。
 - <strong>做射线之前忘了去畸变。</strong>在本课的桌面例子里，角点像素会因此差 44.7 mm。`undistortPoints` 这一步不是可选项。
 - <strong>把棋盘格坐标系和相机坐标系混在一起。</strong>`solvePnP` 的 R、t 把棋盘格坐标系映射到相机坐标系，平面是棋盘格坐标系里的 z = 0。拿相机坐标系的轴去和棋盘格平面求交，会悄悄打到错误的平面上。
+
+## 双目深度不确定度：像素、米与倒数
+
+保留前面的内参 / 畸变、像素到桌面示例。新增内容**不是手眼标定、多视图外参或 3DGS**。假设双相机平行、已校正，主点对齐，**f 的单位为像素**；**B 为米**，**d 和 σ_d 为像素**，恢复的 **z 为米**。真实双目**校正与匹配：本页未运行**。理想几何是模型，不声称已经标定实体双目设备。
+
+<Resource id="opencv-stereo-depth-source" />
+
+OpenCV 的相似三角形关系为 `d = f B / z`，因此 `zhat = f B / d`。求导 `∂z/∂d = −fB/d² = −z²/(fB)`，单位 m/pixel；小视差误差下 `σ_z ≈ (z²/(fB)) σ_d`，单位米。这是**局部线性化**，不是最坏情况界，也不保证深度无偏。已打开并 curl 验证官方教程源码；docs.opencv.org 页面仍 curl403，因此资源链接到 OpenCV 自己的公开源码，不冒充该端点验证成功。
+
+### 共享抽样并明示量化
+
+**0.06/0.24 m** 两条基线共用 f=600px、真深度 **0.75/2/8/60 m** 及**完全相同的视差误差元组**。合成误差均匀分布在 `[−√3 σ_d,+√3 σ_d]`，**σ_d=0.25 px**。种子514产生10000组独立对偶抽样（20000个样本）：每个 e 配 −e，使连续视差误差的样本均值恰为零；独立的是抽样对，不是全部20000项，不从命中数推断二项置信区间。这样可隔离倒数偏差，而非把非零样本均值误认成几何偏差。
+
+比较连续视差与 **q=0.125 px** 舍入：`dq = q floor(d/q + 0.5)`。这是课程定义的网格，不声称某个匹配器的定点存储格式。常见近似把量化误差看成独立均匀分布、方差 `q²/12`，所以量化后的线性预测用 `σ_eff = sqrt(σ_d² + q²/12)`。实际舍入依赖网格相位，并与输入相关；蒙特卡洛检验该近似，而不预设它正确。8m / 短基线时，测得 SD 甚至略降，而近似 σ_eff 上升；不能把这个相位相关结果说成“量化提高准确度”。
+
+合成搜索范围是 **0 < d ≤64 px**；无效或零视差应拒绝，不把 d 截成 epsilon。无效样本算容差未命中；只要有无效值，聚合深度矩为 **NA**，不暗中报条件均值。无效行打印的线性 σ 只是形式上的导数预测，不能当成可用测量。
+
+### 蒙特卡洛、线性 σ 与非线性偏差
+
+8m 时短基线连续线性 σ 为 **0.444444 m**，MC 标准差 **0.445120 m**，偏差 **0.024567 m**；长基线分别是 **0.111111/0.110570/0.001527 m**，属于小噪声近似较好的区间。SD 围绕 MC 均值，RMSE 围绕真 z，因此有偏估计要同时看两者。
+
+60m 时短基线名义视差只有 **0.600 px**：连续线性 σ 的 **25.000000 m** 远小于 MC 标准差 **41.901502 m**；即使视差误差均值为零，深度均值偏差仍有 **15.575066 m**。量化后 MC 标准差 **47.936071 m**、偏差 **16.878823 m**，而近似线性 σ 为 **25.259074 m**。B=0.24m 时，连续 MC 标准差 / 偏差为 **6.369483/0.657034 m**，量化后为 **6.445939/0.684482 m**。这些结果不是亚毫米精度承诺。
+
+为什么 `E[fB/d] ≠ z`？正 d 上倒数是凸函数，先平均视差再取倒数不等于平均深度。半宽 a 的有界均匀误差、d0>a 时，连续精确均值为 `E[zhat] = (fB/(2a)) ln((d0+a)/(d0−a))`；它预言60m 短基线偏差 **15.752296 m**，接近有限 MC 结果。二阶近似 `bias ≈ z σ_d²/d0²` 仅在噪声小时适用。d0=0.600px 时，本例有界噪声及舍入仍保证正视差；若无界高斯跨过零，倒数的无条件矩可能不良定义，不能用任意 epsilon 或不说明的删异常值掩盖。
+
+命中定义为 `abs(zhat−z) ≤0.1z`，分母含全部20000个样本和无效值。远处 / 短基线量化后 **2991/20000** 命中，远处 / 长基线为 **11637/20000**。这是课程容差，不是安全保证或置信水平。
+
+### 长基线也有代价
+
+同样64px 最大视差下，名义最近距离 `z_min=fB/d_max`：短基线 **0.5625 m**，长基线 **2.2500 m**。在0.75m、2m 处，长基线行是 **0/20000 有效值**，即使形式上的线性 σ 很漂亮。噪声和量化还会影响边界；这些是名义值，不是保证工作范围。
+
+更大基线改变视角：近处公共视野缩小，前景边缘在两侧遮住不同背景，匹配 / 遮挡处理更困难。本玩具**未模拟**这些可见性效应；固定 σ_d 和搜索范围测试都不能预测它们。基线选择须权衡不确定度、最近距离、重叠视场、遮挡、刚架尺寸及实际匹配质量，**并非越长越好**。
+
+```bash
+$ cd ~/Hardware-learning/examples/month-5/camera-calibration
+$ python3 stereo_depth_sigma_toy.py
+```
+
+<CodeSource path="examples/month-5/camera-calibration/stereo_depth_sigma_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Rectified parallel-pinhole stereo: shared depths and disparity errors.
+f [pixels], B [m], sigma_d [pixels], Z [m]; d=f*B/Z. All values synthetic.
+Uniform bounded errors have SD sigma_d. Antithetic +/- pairs ensure zero
+sample-mean disparity error, isolating reciprocal-depth bias; pairs, not all
+individual samples, are independent. The same errors feed EVERY baseline/depth.
+Quantize disparity to q=1/8 px; q/sqrt(12) is only an approximate independent
+quantization-error model, tested against actual rounding (not assumed exact).
+Reject d<=0 or d>D_MAX, never clip to epsilon. Invalids count as tolerance misses.
+Do not silently report a conditional mean as an unconditional depth result.
+Bounded noise keeps the far positive-disparity experiment away from zero;
+unbounded Gaussian reciprocal moments may be ill-behaved near that singularity.
+Real rectification/matching 本页未运行. Not hand-eye, multi-view extrinsics or 3DGS.
+"""
+import math
+import random
+import statistics
+
+SEED, N = 514, 20000
+F_PX, SIGMA_D_PX, D_MAX_PX = 600., .25, 64.
+BASELINES_M = (.06, .24)
+DEPTHS_M = (.75, 2., 8., 60.)
+Q_PX = .125
+
+
+def reconstruct(d, fb):
+    return None if not 0 < d <= D_MAX_PX else fb / d
+
+
+def main():
+    rng = random.Random(SEED)
+    half_width = math.sqrt(3)*SIGMA_D_PX
+    errors = tuple(e for _ in range(N//2) for x in [rng.uniform(-half_width, half_width)] for e in (x, -x))
+    assert abs(sum(errors)) < 1e-12 and reconstruct(0., 36.) is None
+    print(f"seed={SEED} N={N} (10000 antithetic pairs); f={F_PX} px sigma_d={SIGMA_D_PX} px q={Q_PX} px d_max={D_MAX_PX} px")
+    print("same true depths and same disparity errors; bounded uniform noise, not Gaussian tail truncation")
+    for b in BASELINES_M:
+        print(f"B={b:.2f} m nominal_min_z=fB/d_max={F_PX*b/D_MAX_PX:.4f} m; occlusion/common-FOV cost not simulated")
+    print("z_m B_m q_px d_true_px valid/N linear_sigma_m MC_sd_m MC_bias_m MC_RMSE_m within_10pct/N continuous_exact_bias_m")
+    for z in DEPTHS_M:
+        for b in BASELINES_M:
+            fb, d0 = F_PX*b, F_PX*b/z
+            exact_bias = fb/(2*half_width)*math.log((d0+half_width)/(d0-half_width))-z
+            for q in (0., Q_PX):
+                sigma_eff = math.hypot(SIGMA_D_PX, q/math.sqrt(12))
+                linear = z*z/fb*sigma_eff
+                values, hits = [], 0
+                for e in errors:
+                    d = d0+e
+                    if q:
+                        d = math.floor(d/q+.5)*q
+                    value = reconstruct(d, fb)
+                    if value is not None:
+                        values.append(value)
+                        hits += abs(value-z) <= .1*z
+                prefix = f"{z:.2f} {b:.2f} {q:.3f} {d0:.3f} {len(values)}/{N} {linear:.6f}"
+                if len(values) != N:
+                    print(prefix + f" NA NA NA {hits}/{N} NA")
+                    continue
+                mean = statistics.fmean(values)
+                sd = statistics.pstdev(values)
+                rmse = math.sqrt(statistics.fmean((v-z)**2 for v in values))
+                theory = f"{exact_bias:.6f}" if q == 0 else "NA"
+                print(prefix + f" {sd:.6f} {mean-z:.6f} {rmse:.6f} {hits}/{N} {theory}")
+    print("linear sigma is local; q/sqrt(12) approximation need not match rounding; E[fB/d] != z")
+    print("long baseline costs minimum range and viewpoint occlusion; longer is NOT always better; hardware 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+```text
+seed=514 N=20000 (10000 antithetic pairs); f=600.0 px sigma_d=0.25 px q=0.125 px d_max=64.0 px
+same true depths and same disparity errors; bounded uniform noise, not Gaussian tail truncation
+B=0.06 m nominal_min_z=fB/d_max=0.5625 m; occlusion/common-FOV cost not simulated
+B=0.24 m nominal_min_z=fB/d_max=2.2500 m; occlusion/common-FOV cost not simulated
+z_m B_m q_px d_true_px valid/N linear_sigma_m MC_sd_m MC_bias_m MC_RMSE_m within_10pct/N continuous_exact_bias_m
+0.75 0.06 0.000 48.000 20000/20000 0.003906 0.003886 0.000020 0.003886 20000/20000 0.000020
+0.75 0.06 0.125 48.000 20000/20000 0.003947 0.003858 0.000020 0.003858 20000/20000 NA
+0.75 0.24 0.000 192.000 0/20000 0.000977 NA NA NA 0/20000 NA
+0.75 0.24 0.125 192.000 0/20000 0.000987 NA NA NA 0/20000 NA
+2.00 0.06 0.000 18.000 20000/20000 0.027778 0.027643 0.000382 0.027645 20000/20000 0.000386
+2.00 0.06 0.125 18.000 20000/20000 0.028066 0.027446 0.000376 0.027449 20000/20000 NA
+2.00 0.24 0.000 72.000 0/20000 0.006944 NA NA NA 0/20000 NA
+2.00 0.24 0.125 72.000 0/20000 0.007016 NA NA NA 0/20000 NA
+8.00 0.06 0.000 4.500 20000/20000 0.444444 0.445120 0.024567 0.445797 19445/20000 0.024829
+8.00 0.06 0.125 4.500 20000/20000 0.449050 0.441843 0.024215 0.442507 20000/20000 NA
+8.00 0.24 0.000 18.000 20000/20000 0.111111 0.110570 0.001527 0.110581 20000/20000 0.001544
+8.00 0.24 0.125 18.000 20000/20000 0.112263 0.109785 0.001506 0.109795 20000/20000 NA
+60.00 0.06 0.000 0.600 20000/20000 25.000000 41.901502 15.575066 44.702556 2871/20000 15.752296
+60.00 0.06 0.125 0.600 20000/20000 25.259074 47.936071 16.878823 50.820877 2991/20000 NA
+60.00 0.24 0.000 2.400 20000/20000 6.250000 6.369483 0.657034 6.403281 11303/20000 0.664061
+60.00 0.24 0.125 2.400 20000/20000 6.314769 6.445939 0.684482 6.482179 11637/20000 NA
+linear sigma is local; q/sqrt(12) approximation need not match rounding; E[fB/d] != z
+long baseline costs minimum range and viewpoint occlusion; longer is NOT always better; hardware 本页未运行
+```
+
+### 练习 (+180 min)
+
+1.（35 min）推导 d=fB/z 与灵敏度单位；计算两基线的线性 σ 和名义最近距离，不混用毫米焦距与像素视差。
+2.（40 min）运行并审计共享对偶抽样，区分 MC 标准差、偏差和 RMSE，核对无效行处理。
+3.（40 min）在副本扫描 q 与视差网格相位，对比实际舍入和 q²/12，解释8m 方差反转。
+4.（40 min）推导均匀噪声的对数期望，对照远深度 MC 与一 / 二阶近似，解释跨零为何需要声明有效性模型。
+5.（25 min）制作包含最近距离、公共视野和遮挡的基线取舍表；真实校正 / 匹配仍未运行。
+
+<Summary>
+
+双目深度用像素 / 米一致的视差传播、共享噪声蒙特卡洛及量化，揭示倒数偏差和长基线的最近距离 / 遮挡代价。
+
+内参与畸变依赖分辨率 / 对焦；像素投到已知平面之前要先去畸变。
+
+</Summary>

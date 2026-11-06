@@ -37,3 +37,7 @@ The site editor ran everything on Debian 13 with this `pixi.toml`, not on Ubuntu
 ```bash
 bash examples/month-5/check.sh
 ```
+
+## Batch-5 PR2 / 第5批 PR2
+
+`camera-calibration/stereo_depth_sigma_toy.py`: standard-library synthetic model; all expected output in `expected/stereo_depth_sigma_toy.txt`, checked by `check.sh`. No new dependency or hardware result. / 标准库合成模型，输出由 `check.sh` 对照；无新增依赖，不是硬件结果。

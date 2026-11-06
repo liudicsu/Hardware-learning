@@ -226,7 +226,249 @@ Typical host flow: `lekiwi_host` on the base + laptop teleoperate; WASD translat
 - **Treating real LeKiwi assembly as required.** The CPU toy already covers the compose contract; hardware is elective.
 - **Re-teaching all of Nav2 recovery tuning.** Revisit Month 4.
 
+## Shared corridor: collision avoidance is not scheduling
+
+The existing single-robot nav-pick BT stays intact. This is **not another nav-pick BT, teleop RTT or EtherCAT** lesson. Two **holonomic discs** of radius0.22m traverse opposite directions through a0.60m-wide corridor (x from−1 to+1m). Since two diameters require0.88m, they cannot pass side by side. Wide holding rooms lie outside; fixed centerline waypoints at x=±1.4m connect to separately sampled starts/goals. We model no arm or nonholonomic turning constraints. Real fleet/communications: **本页未运行**.
+
+<Resource id="orca-primary" />
+<Resource id="mrs-curriculum-il" />
+
+### Same dynamics, disclosed information
+
+Seeds **926–930** sample both starts and both goals,then pre-generate neighbor-position errors uniform within±0.005m per coordinate at each tick. The immutable scene/noise tuple is reused by all arms. When paths differ,the noisy observed states differ,but the additive noise realizations and time indices do not. Own pose,static map,route and goal are available identically. Each agent in each arm has **vmax=0.6 m/s**,**amax=0.8 m/s²**,dt=0.05s and a **24 s** deadline. Vector acceleration and speed are explicitly asserted,including arrival braking; no wall projection or teleport bypasses them. Here amax is the per-tick norm(v_next−v)/dt; motion segments are piecewise linear, not a continuous-time actuator model.
+
+| Arm | Information and action |
+|---|---|
+| `ignore_others` | Own route only; deliberately ignores neighbors and follows its goal. |
+| `priority_mutex_extra_info` | **Extra reliable communication/shared reservations**: both request at0,ID0 gets the token,ID1 stays in its holding bay; a real arrival message releases/grants the next token. No future ground truth or global optimal scheduler is used. |
+| `ORCA_lite_reciprocal_stop` | Local noisy neighbor position within3m,holonomic velocity control; reciprocal stopping shares clearance responsibility,but uses no reservation channel or global back-out plan. |
+
+The mutex's communication is **extra information**,not an equal-information win over local-only avoidance. Its geometry still respects the same speed/acceleration limits. Fixed routes are shared map knowledge,not a centralized oracle trajectory secretly given to one arm.
+
+### Precisely what “ORCA-lite” means here
+
+The opened primary ORCA page describes each agent taking half the responsibility,with collision-avoidance half-planes solved by a low-dimensional LP. **Our arm is only an ORCA-inspired reciprocal-stop sketch**,not full ORCA's velocity-obstacle construction or LP,and inherits none of its formal collision-free guarantees. It assumes **holonomic discs**; it is not a differential-drive implementation.
+
+For observed center distance D,clearance is `max(0,D−2r−0.08)`m. Over horizonτ=2s,each approaching robot budgets half,so its preferred approach component may not exceed `clearance/(2τ)`. The whole preferred velocity is scaled down proportionally; it does not choose a passing side,construct ORCA lines or reverse out of the corridor. Noise and acceleration clipping further weaken any ideal velocity-space argument. We therefore **measure** overlap rather than call this a safety certificate. This deliberately small reduction makes a literacy point: symmetric local yielding can stop collisions while producing a deadlock that needs route-level scheduling or backtracking.
+
+### Metrics without hiding unfinished robots
+
+- **Collisions:** count entries into disc overlap (`center distance <0.44m`),not one collision per timestep. Minimum center separation is computed over each entire linear motion segment,not just tick endpoints. Kinematic overlaps are logged but no contact impulses are simulated; fast arrivals after passing through another robot are not safe completion.
+- **Arrival time:** within0.06m of goal and able to stop within the shared acceleration cap. Print both actual arrival times or `timeout`. The **capped mean** substitutes24s for each unfinished robot;24s is not an observed arrival or an estimate of the eventual mean.
+- **Deadline misses:** number unfinished out of2 at24s.
+- **Deadlock proxy:** both unfinished and combined displacement during the last3s below0.02m.
+- **Starvation proxy:** unfinished and cumulative time below0.06m/s at least12s. It can overlap the deadlock proxy; neither finite test proves infinite starvation/deadlock.
+
+The15 seed/arm rows retain all failures. Across5 seeds,ignore has **5 collision episodes**,capped mean **12.740±0.355 s**,minimum separation **0.004718 m**. Mutex has **0 collisions**,mean **18.295±0.319 s**,but **5 deadline misses**,**4 starvation proxies**,minimum separation **1.096968 m**. Reciprocal stop has **0 collisions**,**10 deadline misses**,**5 deadlock runs**,**10 starvation proxies**,minimum separation **0.518211 m**. Its capped mean24s and SD0 reflect all timeouts,not identical successful performance. Mutex's deadline misses are not deadlocks: the second robot is granted passage but the sequential schedule exceeds this tight budget. Do not presume a universal winner: all three fail some part of this particular collision-free/both-arrive-before-deadline task.
+
+### Paper pointer, not a reproduced policy
+
+Roche et al.,**Curriculum Imitation Learning of Distributed Multi-Robot Policies** (arXiv2509.25097),uses trajectory-length curriculum and transforms global demonstrations into noisy egocentric neighbor observations. We opened the paper's methodology/experiments; it is a **reading pointer only**,not our three hand-coded policies. No LEMURS/VMAS training,expert imitation or fleet hardware is run here; paper numbers **以论文为准**. A decentralized execution claim must disclose sensing/communication,and collision avoidance must not be confused with long-horizon liveness.
+
+```bash
+$ cd ~/Hardware-learning/examples/month-9/nav-arm-compose
+$ python3 multi_robot_corridor_toy.py
+```
+
+<CodeSource path="examples/month-9/nav-arm-compose/multi_robot_corridor_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Two holonomic discs, single-lane corridor with holding rooms (stdlib).
+Shared starts/goals and pre-generated neighbor-noise draws across all arms.
+Ignore sees own route only. Mutex uses reliable request/grant/release messages
+and a shared reservation: EXTRA information, not a local-only competitor.
+ORCA-lite is an ORCA-INSPIRED reciprocal STOP sketch, NOT the ORCA velocity-
+obstacle construction/LP. Each approaching disc takes half the available
+clearance budget over horizon TAU, slowing BOTH. No passing-side or back-out
+planner: local collision avoidance can deadlock in a single-lane corridor.
+Holonomic vector velocities, same speed/acceleration limits in ALL arms.
+Acceleration/noise can invalidate ideal reciprocal-avoidance guarantees;
+we measure collisions instead of claiming a certificate or real ORCA results.
+Kinematic overlaps are logged, not resolved with fictional contact dynamics.
+Real fleet/communications 本页未运行; IL/VMAS paper is reading only, 以论文为准.
+"""
+import math
+import random
+import statistics
+
+DT, LIMIT_S = .05, 24.
+VMAX, AMAX, RADIUS = .6, .8, .22
+TAU, MARGIN, SENSOR_RANGE = 2., .08, 3.
+SEEDS = (926, 927, 928, 929, 930)
+ARMS = ("ignore_others", "priority_mutex_extra_info", "ORCA_lite_reciprocal_stop")
+
+
+def norm(v):
+    return math.hypot(*v)
+
+
+def sub(a, b):
+    return (a[0]-b[0], a[1]-b[1])
+
+
+def cap(v, length):
+    scale = min(1., length/max(norm(v), 1e-15))
+    return (v[0]*scale, v[1]*scale)
+
+
+def scenario(seed):
+    rng = random.Random(seed)
+    starts = ((-rng.uniform(2.3,3.2), -rng.uniform(.65,.85)),
+              (rng.uniform(2.3,3.2), rng.uniform(.65,.85)))
+    goals = ((rng.uniform(2.3,3.2), -rng.uniform(.65,.85)),
+             (-rng.uniform(2.3,3.2), rng.uniform(.65,.85)))
+    # Same indexed perturbations, not the same measured state after paths diverge.
+    noise = tuple(tuple((rng.uniform(-.005,.005), rng.uniform(-.005,.005))
+                        for _ in range(2)) for _ in range(round(LIMIT_S/DT)))
+    return starts, goals, noise
+
+
+def segment_distance(old, new):
+    # Exact closest relative point over one linear integration segment.
+    r, dr = sub(old[0],old[1]), sub(sub(new[0],new[1]),sub(old[0],old[1]))
+    t = max(0., min(1., -(r[0]*dr[0]+r[1]*dr[1])/max(norm(dr)**2,1e-30)))
+    return norm((r[0]+t*dr[0], r[1]+t*dr[1]))
+
+
+def simulate(arm, data):
+    starts, goals, noise = data
+    p, v = list(starts), [(0.,0.),(0.,0.)]
+    routes = (((-1.4,0.),(1.4,0.),goals[0]), ((1.4,0.),(-1.4,0.),goals[1]))
+    stage, arrival, waited = [0,0], [None,None], [0.,0.]
+    # Both request at t=0; fixed ID priority, token released by arrival message.
+    token = 0
+    collisions, overlapping, minsep = 0, False, norm(sub(*starts))
+    positions = [tuple(p)]
+    for k, eps in enumerate(noise):
+        desired = []
+        for i in range(2):
+            if arrival[i] is not None:
+                desired.append((0.,0.)); continue
+            if stage[i] < 2 and norm(sub(routes[i][stage[i]],p[i])) < .04:
+                stage[i] += 1
+            delta = sub(routes[i][stage[i]],p[i])
+            pref = cap((2*delta[0],2*delta[1]),VMAX)
+            if arm == "priority_mutex_extra_info" and i != token:
+                pref = (0.,0.)
+            elif arm == "ORCA_lite_reciprocal_stop":
+                j = 1-i
+                rel = (p[j][0]-p[i][0]+eps[i][0], p[j][1]-p[i][1]+eps[i][1])
+                dist = norm(rel)
+                approach = (pref[0]*rel[0]+pref[1]*rel[1])/max(dist,1e-15)
+                if dist < SENSOR_RANGE and approach > 0:
+                    clearance = max(0.,dist-2*RADIUS-MARGIN)
+                    # Equal half of pair clearance/T; stop only, no side-step LP.
+                    scale = min(1.,clearance/(2*TAU*approach))
+                    pref = (pref[0]*scale,pref[1]*scale)
+            desired.append(pref)
+        old = tuple(p)
+        for i in range(2):
+            dv = cap(sub(desired[i],v[i]),AMAX*DT)
+            nextv = (v[i][0]+dv[0],v[i][1]+dv[1])
+            if stage[i] == 2 and norm(sub(goals[i],p[i])) < .06 and norm(v[i]) <= AMAX*DT:
+                nextv = (0.,0.)
+                if arrival[i] is None:
+                    arrival[i] = (k+1)*DT
+                    if arm == "priority_mutex_extra_info" and token == i:
+                        token = 1-i  # release/grant; never pre-grants future clearance
+            assert norm(nextv) <= VMAX+1e-12 and norm(sub(nextv,v[i])) <= AMAX*DT+1e-12
+            v[i] = nextv
+            p[i] = (p[i][0]+v[i][0]*DT,p[i][1]+v[i][1]*DT)
+            # Conservative inflated single-lane rectangle; no wall projection/teleport.
+            assert abs(p[i][0]) > 1.22 or abs(p[i][1]) <= .08+1e-12
+            if arrival[i] is None and norm(v[i]) < .06:
+                waited[i] += DT
+        sep = segment_distance(old,p)
+        minsep = min(minsep,sep)
+        inside = sep < 2*RADIUS
+        collisions += inside and not overlapping
+        overlapping = inside
+        positions.append(tuple(p))
+    unfinished = sum(t is None for t in arrival)
+    # Finite-time liveness proxies, not a proof of infinite starvation/deadlock.
+    tail_start = positions[-1-round(3/DT)]
+    progress = sum(norm(sub(p[i],tail_start[i])) for i in range(2) if arrival[i] is None)
+    deadlock = int(unfinished == 2 and progress < .02)
+    starvation = sum(arrival[i] is None and waited[i] >= LIMIT_S/2 for i in range(2))
+    censored_mean = statistics.fmean(t if t is not None else LIMIT_S for t in arrival)
+    times = "/".join("timeout" if t is None else f"{t:.2f}" for t in arrival)
+    return collisions, times, censored_mean, unfinished, deadlock, starvation, minsep
+
+
+def main():
+    print(f"holonomic discs r={RADIUS} m corridor_width=.60 m; vmax={VMAX} m/s amax={AMAX} m/s^2 dt={DT} s limit={LIMIT_S} s")
+    print("mutex=EXTRA reliable communication/shared reservation; ORCA-lite=reciprocal stop sketch, NOT full ORCA LP")
+    print("seed starts(x,y)_m goals(x,y)_m")
+    datasets = {seed:scenario(seed) for seed in SEEDS}
+    for seed,(starts,goals,_) in datasets.items():
+        fmt = lambda points: ";".join(f"({x:.3f},{y:.3f})" for x,y in points)
+        print(f"{seed} {fmt(starts)} {fmt(goals)}")
+    print("seed arm collision_episodes arrivals_s capped_mean_s timeouts/2 deadlock_proxy starvation_proxy min_sep_m")
+    scores = {a:[] for a in ARMS}
+    for seed,data in datasets.items():
+        for arm in ARMS:
+            r = simulate(arm,data)
+            scores[arm].append(r)
+            c,t,m,n,d,s,sep = r
+            print(f"{seed} {arm} {c} {t} {m:.3f} {n}/2 {d} {s} {sep:.6f}")
+    print("arm total_collisions mean_capped_arrival_s population_sd total_timeouts deadlock_runs starvation_robots min_sep_m")
+    for arm,rs in scores.items():
+        means=[r[2] for r in rs]
+        print(f"{arm} {sum(r[0] for r in rs)} {statistics.fmean(means):.3f} {statistics.pstdev(means):.3f} "
+              f"{sum(r[3] for r in rs)} {sum(r[4] for r in rs)} {sum(r[5] for r in rs)} {min(r[6] for r in rs):.6f}")
+    print("capped mean substitutes 24s for unfinished; collision episodes do not imply safe arrivals; no universal winner")
+    print("not nav-pick BT/teleop RTT/EtherCAT; real fleet 本页未运行; curriculum IL reading only, 以论文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+```text
+holonomic discs r=0.22 m corridor_width=.60 m; vmax=0.6 m/s amax=0.8 m/s^2 dt=0.05 s limit=24.0 s
+mutex=EXTRA reliable communication/shared reservation; ORCA-lite=reciprocal stop sketch, NOT full ORCA LP
+seed starts(x,y)_m goals(x,y)_m
+926 (-2.881,-0.821);(3.025,0.724) (3.173,-0.774);(-2.771,0.839)
+927 (-2.872,-0.675);(3.108,0.688) (2.567,-0.727);(-3.198,0.781)
+928 (-2.575,-0.758);(2.999,0.839) (3.161,-0.697);(-2.566,0.756)
+929 (-2.474,-0.663);(3.007,0.829) (2.358,-0.770);(-2.695,0.845)
+930 (-3.156,-0.810);(2.724,0.802) (2.542,-0.762);(-2.504,0.702)
+seed arm collision_episodes arrivals_s capped_mean_s timeouts/2 deadlock_proxy starvation_proxy min_sep_m
+926 ignore_others 1 13.40/13.00 13.200 0/2 0 0 0.005280
+926 priority_mutex_extra_info 0 13.40/timeout 18.700 1/2 0 1 1.315317
+926 ORCA_lite_reciprocal_stop 0 timeout/timeout 24.000 2/2 1 2 0.518251
+927 ignore_others 1 12.35/13.70 13.025 0/2 0 0 0.004718
+927 priority_mutex_extra_info 0 12.35/timeout 18.175 1/2 0 1 1.096968
+927 ORCA_lite_reciprocal_stop 0 timeout/timeout 24.000 2/2 1 2 0.518607
+928 ignore_others 1 12.85/12.70 12.775 0/2 0 0 0.005653
+928 priority_mutex_extra_info 0 12.85/timeout 18.425 1/2 0 1 1.369955
+928 ORCA_lite_reciprocal_stop 0 timeout/timeout 24.000 2/2 1 2 0.518259
+929 ignore_others 1 11.50/12.95 12.225 0/2 0 0 0.005691
+929 priority_mutex_extra_info 0 11.50/timeout 17.750 1/2 0 0 1.108615
+929 ORCA_lite_reciprocal_stop 0 timeout/timeout 24.000 2/2 1 2 0.518211
+930 ignore_others 1 12.85/12.10 12.475 0/2 0 0 0.005479
+930 priority_mutex_extra_info 0 12.85/timeout 18.425 1/2 0 1 1.227068
+930 ORCA_lite_reciprocal_stop 0 timeout/timeout 24.000 2/2 1 2 0.518346
+arm total_collisions mean_capped_arrival_s population_sd total_timeouts deadlock_runs starvation_robots min_sep_m
+ignore_others 5 12.740 0.355 0 0 0 0.004718
+priority_mutex_extra_info 0 18.295 0.319 5 0 4 1.096968
+ORCA_lite_reciprocal_stop 0 24.000 0.000 10 5 10 0.518211
+capped mean substitutes 24s for unfinished; collision episodes do not imply safe arrivals; no universal winner
+not nav-pick BT/teleop RTT/EtherCAT; real fleet 本页未运行; curriculum IL reading only, 以论文为准
+```
+
+### Exercises (+210 min)
+
+1. (40 min) Reconstruct all five sampled scenes and information contracts; distinguish common map knowledge,local perception and extra reservation messages.
+2. (45 min) Audit vector speed/acceleration and continuous-segment separation,including goal latch; ensure no teleport or wall clipping grants an arm an advantage.
+3. (45 min) Recompute15 rows and all deadline/deadlock/starvation definitions; do not rank timeouts as successful24s arrivals.
+4. (45 min) In a scratch experiment extend the common deadline and vary sensing noise; disclose that all arms receive the same change and keep failures.
+5. (35 min) Propose a route-level back-out or fair reservation policy; explain what new information it needs,and contrast the hand-coded sketch with the paper's curriculum IL without claiming reproduction.
+
 <Summary>
+
+The multi-robot corridor compares equal-kinematics ignore/mutex/reciprocal-stop arms, discloses mutex communication and holonomic-disc assumptions, and reports collision/deadline/liveness trade-offs.
 
 Compose contract: frames, base-settled mutex, timeouts, failure feedback. `nav_pick_bt.py`: after a far-approach grasp fails, `approach_closer_then_grasp` runs; `path_length_total=6` and the final grasp is inside the workspace. LeKiwi is read-only here (ports 5555/5556, motors 7/8/9, speeds 0.4/0.25/0.1); real assembly is elective and 本页未运行.
 

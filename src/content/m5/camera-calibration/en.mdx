@@ -323,3 +323,157 @@ Save the result and reuse it. `calibrate.py` writes `camera.json`; in a ROS 2 sy
 - <strong>Wrong square size.</strong> Every distance scales with it: type 50 mm instead of 25 mm and every recovered distance doubles; type 25 instead of 50 and they halve. Measure with calipers rather than trusting the size printed on the package.
 - <strong>Forgetting to undistort before the ray.</strong> In the table example that costs 44.7 mm at the corner pixel. The `undistortPoints` step is not optional.
 - <strong>Mixing the board frame with the camera frame.</strong> `solvePnP`'s R and t map board coordinates to camera coordinates, and the plane is z = 0 in the board frame. Using camera-frame axes for a board-frame plane silently intersects the wrong surface.
+
+## Stereo depth uncertainty: pixels, metres and a reciprocal
+
+The earlier intrinsics/distortion and pixel-to-table examples stay unchanged. This is **not hand-eye calibration, multi-view extrinsics or 3DGS**. We assume two parallel, already rectified pinhole views with matched principal points and focal length **f in pixels**; baseline **B in metres**, disparity **d and σ_d in pixels**, reconstructed depth **z in metres**. Real stereo **rectification and matching: 本页未运行**. The ideal geometry is a model, not a claim to have calibrated a stereo rig.
+
+<Resource id="opencv-stereo-depth-source" />
+
+OpenCV's equivalent-triangle relation is `d = f B / z`, so `zhat = f B / d`. Differentiate: `∂z/∂d = −fB/d² = −z²/(fB)` in m/pixel. For small disparity errors, `σ_z ≈ (z²/(fB)) σ_d` in metres. This is a **local linearization**, not a worst-case bound or a claim of unbiased depth. The official tutorial source was opened and curl-verified; the docs.opencv.org page remained curl403, so the resource points to OpenCV's own public source rather than claiming that endpoint was verified.
+
+### Shared samples and explicit quantization
+
+Both baselines **0.06/0.24 m** use the same f=600px, true depths **0.75/2/8/60 m** and **the identical disparity-error tuple**. Synthetic errors are uniform on `[−√3 σ_d,+√3 σ_d]`, with **σ_d=0.25 px**. Seed514 generates10000 independent antithetic pairs (20000 samples): each e is paired with −e, so continuous disparity errors have exactly zero sample mean. The pairs, not all20000 entries, are independent; no binomial confidence interval is inferred from hit counts. This exposes reciprocal bias rather than confusing it with a nonzero sample-mean error.
+
+Compare continuous disparity against rounding to **q=0.125 px**: `dq = q floor(d/q + 0.5)`. This is a lesson-defined grid, not a claim about a particular matcher's stored fixed-point format. A familiar approximation treats quantization as independent uniform error with variance `q²/12`, so the quantized linear prediction uses `σ_eff = sqrt(σ_d² + q²/12)`. Actual rounding is phase-dependent and correlated with input; the Monte Carlo tests this approximation rather than assuming it. At8m/short baseline it even slightly reduces measured SD despite increasing the approximate σ_eff. Do not turn that phase-specific outcome into “quantization improves accuracy”.
+
+The synthetic search range is **0 < d ≤64 px**; reject invalid or zero disparity rather than clipping d to an epsilon. Invalid samples count as tolerance misses. If any are invalid, aggregate depth moments are **NA**, not silently conditional means. The printed linear σ on invalid rows is only a formal derivative prediction, not a usable measurement.
+
+### Monte Carlo, linear σ and nonlinear bias
+
+At8m, short-baseline continuous linear σ is **0.444444 m**, MC SD **0.445120 m**, bias **0.024567 m**. With the long baseline those values are **0.111111/0.110570/0.001527 m**: a useful small-noise regime. SD is around the MC mean; RMSE is around the true z, so a biased estimate needs both.
+
+At60m the short baseline has nominal disparity **0.600 px**: continuous linear σ **25.000000 m** badly misses MC SD **41.901502 m**, and mean bias is **15.575066 m** despite zero-mean disparity error. Quantizing raises MC SD to **47.936071 m** and bias to **16.878823 m**, compared with approximate linear σ **25.259074 m**. With B=0.24m, continuous MC SD/bias are **6.369483/0.657034 m**; quantized **6.445939/0.684482 m**. These are not sub-mm accuracy claims.
+
+Why `E[fB/d] ≠ z`? Reciprocal depth is convex for positive d; averaging d and then inverting is not averaging depths. For bounded uniform error with half-width a and d0>a, continuous exact mean is `E[zhat] = (fB/(2a)) ln((d0+a)/(d0−a))`. This predicts **15.752296 m** short-baseline bias at60m, near the finite MC result; the second-order approximation `bias ≈ z σ_d²/d0²` works only when noise is small. At d0=0.600px, the chosen bounded noise still keeps all disparities positive, including rounding; an unbounded Gaussian crossing zero can make unconditional reciprocal moments ill-behaved. Do not hide that issue with an arbitrary epsilon or unexplained outlier deletion.
+
+Hit rate means `abs(zhat−z) ≤0.1z`, with all20000 samples in the denominator, including invalids. Far/short quantized gives **2991/20000**, far/long **11637/20000**. It is a lesson tolerance, not a safety guarantee or a confidence level.
+
+### Why a long baseline has costs
+
+For the same64px maximum disparity, nominal minimum range is `z_min=fB/d_max`: **0.5625 m** for the short baseline versus **2.2500 m** for the long one. At0.75m and2m the long-baseline rows are **0/20000 valid** even though their formal linear σ looks attractive. Noise and quantization further complicate the boundary; these are nominal, not guaranteed operating limits.
+
+A wider baseline also changes viewpoints: common field of view shrinks at near range, foreground edges hide different background surfaces, and correspondence/occlusion handling becomes harder. Those visibility effects are **not simulated** here; neither a constant σ_d nor our search-range test predicts them. Baseline choice trades uncertainty against min-range, overlap, occlusion, rig size and actual matching quality — **longer is not always better**.
+
+```bash
+$ cd ~/Hardware-learning/examples/month-5/camera-calibration
+$ python3 stereo_depth_sigma_toy.py
+```
+
+<CodeSource path="examples/month-5/camera-calibration/stereo_depth_sigma_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Rectified parallel-pinhole stereo: shared depths and disparity errors.
+f [pixels], B [m], sigma_d [pixels], Z [m]; d=f*B/Z. All values synthetic.
+Uniform bounded errors have SD sigma_d. Antithetic +/- pairs ensure zero
+sample-mean disparity error, isolating reciprocal-depth bias; pairs, not all
+individual samples, are independent. The same errors feed EVERY baseline/depth.
+Quantize disparity to q=1/8 px; q/sqrt(12) is only an approximate independent
+quantization-error model, tested against actual rounding (not assumed exact).
+Reject d<=0 or d>D_MAX, never clip to epsilon. Invalids count as tolerance misses.
+Do not silently report a conditional mean as an unconditional depth result.
+Bounded noise keeps the far positive-disparity experiment away from zero;
+unbounded Gaussian reciprocal moments may be ill-behaved near that singularity.
+Real rectification/matching 本页未运行. Not hand-eye, multi-view extrinsics or 3DGS.
+"""
+import math
+import random
+import statistics
+
+SEED, N = 514, 20000
+F_PX, SIGMA_D_PX, D_MAX_PX = 600., .25, 64.
+BASELINES_M = (.06, .24)
+DEPTHS_M = (.75, 2., 8., 60.)
+Q_PX = .125
+
+
+def reconstruct(d, fb):
+    return None if not 0 < d <= D_MAX_PX else fb / d
+
+
+def main():
+    rng = random.Random(SEED)
+    half_width = math.sqrt(3)*SIGMA_D_PX
+    errors = tuple(e for _ in range(N//2) for x in [rng.uniform(-half_width, half_width)] for e in (x, -x))
+    assert abs(sum(errors)) < 1e-12 and reconstruct(0., 36.) is None
+    print(f"seed={SEED} N={N} (10000 antithetic pairs); f={F_PX} px sigma_d={SIGMA_D_PX} px q={Q_PX} px d_max={D_MAX_PX} px")
+    print("same true depths and same disparity errors; bounded uniform noise, not Gaussian tail truncation")
+    for b in BASELINES_M:
+        print(f"B={b:.2f} m nominal_min_z=fB/d_max={F_PX*b/D_MAX_PX:.4f} m; occlusion/common-FOV cost not simulated")
+    print("z_m B_m q_px d_true_px valid/N linear_sigma_m MC_sd_m MC_bias_m MC_RMSE_m within_10pct/N continuous_exact_bias_m")
+    for z in DEPTHS_M:
+        for b in BASELINES_M:
+            fb, d0 = F_PX*b, F_PX*b/z
+            exact_bias = fb/(2*half_width)*math.log((d0+half_width)/(d0-half_width))-z
+            for q in (0., Q_PX):
+                sigma_eff = math.hypot(SIGMA_D_PX, q/math.sqrt(12))
+                linear = z*z/fb*sigma_eff
+                values, hits = [], 0
+                for e in errors:
+                    d = d0+e
+                    if q:
+                        d = math.floor(d/q+.5)*q
+                    value = reconstruct(d, fb)
+                    if value is not None:
+                        values.append(value)
+                        hits += abs(value-z) <= .1*z
+                prefix = f"{z:.2f} {b:.2f} {q:.3f} {d0:.3f} {len(values)}/{N} {linear:.6f}"
+                if len(values) != N:
+                    print(prefix + f" NA NA NA {hits}/{N} NA")
+                    continue
+                mean = statistics.fmean(values)
+                sd = statistics.pstdev(values)
+                rmse = math.sqrt(statistics.fmean((v-z)**2 for v in values))
+                theory = f"{exact_bias:.6f}" if q == 0 else "NA"
+                print(prefix + f" {sd:.6f} {mean-z:.6f} {rmse:.6f} {hits}/{N} {theory}")
+    print("linear sigma is local; q/sqrt(12) approximation need not match rounding; E[fB/d] != z")
+    print("long baseline costs minimum range and viewpoint occlusion; longer is NOT always better; hardware 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+```text
+seed=514 N=20000 (10000 antithetic pairs); f=600.0 px sigma_d=0.25 px q=0.125 px d_max=64.0 px
+same true depths and same disparity errors; bounded uniform noise, not Gaussian tail truncation
+B=0.06 m nominal_min_z=fB/d_max=0.5625 m; occlusion/common-FOV cost not simulated
+B=0.24 m nominal_min_z=fB/d_max=2.2500 m; occlusion/common-FOV cost not simulated
+z_m B_m q_px d_true_px valid/N linear_sigma_m MC_sd_m MC_bias_m MC_RMSE_m within_10pct/N continuous_exact_bias_m
+0.75 0.06 0.000 48.000 20000/20000 0.003906 0.003886 0.000020 0.003886 20000/20000 0.000020
+0.75 0.06 0.125 48.000 20000/20000 0.003947 0.003858 0.000020 0.003858 20000/20000 NA
+0.75 0.24 0.000 192.000 0/20000 0.000977 NA NA NA 0/20000 NA
+0.75 0.24 0.125 192.000 0/20000 0.000987 NA NA NA 0/20000 NA
+2.00 0.06 0.000 18.000 20000/20000 0.027778 0.027643 0.000382 0.027645 20000/20000 0.000386
+2.00 0.06 0.125 18.000 20000/20000 0.028066 0.027446 0.000376 0.027449 20000/20000 NA
+2.00 0.24 0.000 72.000 0/20000 0.006944 NA NA NA 0/20000 NA
+2.00 0.24 0.125 72.000 0/20000 0.007016 NA NA NA 0/20000 NA
+8.00 0.06 0.000 4.500 20000/20000 0.444444 0.445120 0.024567 0.445797 19445/20000 0.024829
+8.00 0.06 0.125 4.500 20000/20000 0.449050 0.441843 0.024215 0.442507 20000/20000 NA
+8.00 0.24 0.000 18.000 20000/20000 0.111111 0.110570 0.001527 0.110581 20000/20000 0.001544
+8.00 0.24 0.125 18.000 20000/20000 0.112263 0.109785 0.001506 0.109795 20000/20000 NA
+60.00 0.06 0.000 0.600 20000/20000 25.000000 41.901502 15.575066 44.702556 2871/20000 15.752296
+60.00 0.06 0.125 0.600 20000/20000 25.259074 47.936071 16.878823 50.820877 2991/20000 NA
+60.00 0.24 0.000 2.400 20000/20000 6.250000 6.369483 0.657034 6.403281 11303/20000 0.664061
+60.00 0.24 0.125 2.400 20000/20000 6.314769 6.445939 0.684482 6.482179 11637/20000 NA
+linear sigma is local; q/sqrt(12) approximation need not match rounding; E[fB/d] != z
+long baseline costs minimum range and viewpoint occlusion; longer is NOT always better; hardware 本页未运行
+```
+
+### Exercises (+180 min)
+
+1. (35 min) Derive d=fB/z and the sensitivity units; compute linear σ and nominal min-range for both baselines without mixing f in millimetres with disparity in pixels.
+2. (40 min) Run and audit shared antithetic draws; distinguish MC SD,bias and RMSE,including invalid-row handling.
+3. (40 min) Sweep q and disparity phase in a scratch copy; compare actual rounding with q²/12,including the8m variance reversal.
+4. (40 min) Derive the uniform-noise log expectation and compare far-depth MC with first/second-order predictions; explain why crossing zero requires a declared validity model.
+5. (25 min) Design a baseline trade-off sheet including min-range,overlap and occlusion; real rectification/matching remain unrun.
+
+<Summary>
+
+Stereo depth uses pixel/metre-consistent disparity propagation, shared-noise Monte Carlo and quantization to expose reciprocal bias and the min-range/occlusion cost of longer baselines.
+
+Intrinsics and distortion depend on image size/focus; undistort before projecting a pixel onto a known plane.
+
+</Summary>
