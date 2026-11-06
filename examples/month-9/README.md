@@ -15,3 +15,7 @@ CPU-reproducible scripts for Month 9 (site supplement). Run `./check.sh` from th
 | world-models-overview | `world-models-overview/latent_predict_toy.py`, `world-models-overview/neural_traj_idm_toy.py` | **Track B** | stdlib |
 
 9 lessons complete / 9 课已齐 (9.1–9.9 Track B). Absolute paths in lessons: `~/Hardware-learning/examples/month-9/...`.
+
+## Batch-5 PR2 / 第5批 PR2
+
+`nav-arm-compose/multi_robot_corridor_toy.py`: standard-library synthetic model; all expected output in `expected/multi_robot_corridor_toy.txt`, checked by `check.sh`. No new dependency or hardware result. / 标准库合成模型，输出由 `check.sh` 对照；无新增依赖，不是硬件结果。

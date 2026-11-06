@@ -15,7 +15,7 @@ Constraints: private env; runnable toys prefer stdlib CPU with fixed seeds. ROS 
 | 3 | `effort-admittance` | 420 | full | `load_contact_sim.py`, `admittance_1d.py`, `impedance_vs_admittance_toy.py` | Feetech STS3215 + ros2 admittance |
 | 4 | `llm-skill-planning` | 240 | full | `saycan_score_toy.py` (fake LLM) | SayCan arXiv 2204.01691 |
 | 5 | `failure-recovery` | 180 | full | `recovery_bt_toy.py` | Inner Monologue + BT.CPP |
-| 6 | `nav-arm-compose` | 240 | full | `nav_pick_bt.py` | LeKiwi docs (elective hardware) |
+| 6 | `nav-arm-compose` | 450 | full + H2 | `nav_pick_bt.py`, `multi_robot_corridor_toy.py` | LeKiwi elective; ORCA primary / MRS curriculum IL reading |
 | 7 | `multi-skill-demo` | 180 | full | `demo_gate.py --all` | Thin demo; does not replace 8.7 |
 | **8** | **`visual-servoing`** | **240** | **Track B** | **`tag_error_jog.py`** | OpenCV ArUco/PnP docs; Servo command side |
 | **9** | **`world-models-overview`** | **420** | **Track B + G3** | **`latent_predict_toy.py`**, **`neural_traj_idm_toy.py`** | DreamerV3 / DayDreamer / UniSim / DreamGen reading |
@@ -29,3 +29,7 @@ Deepen PR3 (+180): 9 lessons / **2 100 min** then. Impedance commands effort; ad
 ## Batch-after-obs PR2 (G3, +240 here)
 
 G3 `world-models-overview` 180→420 — `neural_traj_idm_toy.py`: DreamGen four-stage read (finetune video WM → generate video → IDM / latent-action pseudo-labels → train policy); synthetic low-dim frames; IDM fitted on real labelled pairs then applied to WM frames; WM rollout error and IDM error swept independently on shared eval ICs; DreamGen Bench correlation per the paper; original dict toy kept. Month 9 **9 lessons / 2 340 min**. With G4: site then **71 lessons / 18 120 min**; after G5–G7: site **71 lessons / 18 570 min** (from `src/lib/curriculum.ts`).
+
+## Batch-5 PR2 (+210 here)
+
+9.6 `nav-arm-compose`:240→450. M9 **2340→2550 min**,9 lessons;this PR site **20310→20700** with5.4+180,M5=1800. Shared corridor/start-goal/noise,5 seeds,equal speed/acceleration;mutex communication is extra information;holonomic reciprocal-stop is an ORCA-inspired sketch,not the full LP. Collision episodes,actual/capped arrival times,deadline misses,finite deadlock/starvation proxies and min separation all retained. No winner presumed. Curriculum IL paper reading only,以论文为准;real fleet本页未运行. / 相同输入与运动约束，披露预约额外信息和简化边界，保留所有失败，不复现论文。

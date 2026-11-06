@@ -32,4 +32,6 @@ check neural_traj_idm_toy.txt "$PY" "$M9/world-models-overview/neural_traj_idm_t
 
 check impedance_vs_admittance_toy.txt "$PY" "$M9/effort-admittance/impedance_vs_admittance_toy.py"
 
+check multi_robot_corridor_toy.txt "$PY" "$M9/nav-arm-compose/multi_robot_corridor_toy.py"
+
 exit $fail

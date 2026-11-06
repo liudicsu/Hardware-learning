@@ -3510,6 +3510,40 @@ export const resources: Record<string, Resource> = {
     extra: true,
   },
 
+  "opencv-stereo-depth-source": {
+    id: "opencv-stereo-depth-source",
+    url: "https://raw.githubusercontent.com/opencv/opencv/4.x/doc/py_tutorials/py_calib3d/py_depthmap/py_depthmap.markdown",
+    title: { zh: "OpenCV：双目深度官方教程源码", en: "OpenCV: official stereo depth tutorial source" },
+    author: "OpenCV contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: { zh: "相似三角形 d=fB/Z、匹配范围与无效点；官方源码 curl200，docs 页面 curl403。本站 5.4 的量化 / 有界噪声数值是合成模型，不是匹配器实测。", en: "Equivalent triangles d=fB/Z,matching range and invalid points;official source curl200,docs page curl403. Lesson5.4 quantization/bounded-noise values are synthetic,not matcher measurements." },
+    license: { zh: "版权归原作者；仅提供外链", en: "Copyright original authors; external link only" },
+    extra: true,
+  },
+  "orca-primary": {
+    id: "orca-primary",
+    url: "https://gamma-web.iacs.umd.edu/ORCA/",
+    title: { zh: "ORCA：互惠避碰一手说明", en: "ORCA: primary reciprocal collision-avoidance description" },
+    author: "van den Berg et al.",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: { zh: "各方承担一半避碰责任，低维 LP；本站 9.6 仅为全向圆盘互惠停车简化，不复现完整 ORCA，也不继承保证。", en: "Half responsibility per agent and low-dimensional LP;lesson9.6 uses only a holonomic-disc reciprocal-stop sketch,not full ORCA or its guarantees." },
+    license: { zh: "版权归原作者；仅提供外链", en: "Copyright original authors; external link only" },
+    extra: true,
+  },
+  "mrs-curriculum-il": {
+    id: "mrs-curriculum-il",
+    url: "https://arxiv.org/abs/2509.25097",
+    title: { zh: "分布式多机器人策略的课程模仿学习", en: "Curriculum imitation learning of distributed multi-robot policies" },
+    author: "Roche, Sebastián, Montijano",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: { zh: "轨迹长度课程与全局示范到有噪自我中心观测；本站 9.6 仅作阅读指针，不训练 LEMURS/VMAS，数字以论文为准。", en: "Trajectory-length curriculum and global demonstrations to noisy egocentric observations;reading only for9.6,no LEMURS/VMAS training,numbers from the paper." },
+    license: { zh: "版权归原作者；仅提供外链", en: "Copyright original authors; external link only" },
+    extra: true,
+  },
+
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {
