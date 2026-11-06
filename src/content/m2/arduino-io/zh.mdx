@@ -435,6 +435,138 @@ Arduino 程序（sketch）是 C++，由对应开发板的 GCC 工具链编译（
 - 我能解释占空比，并算出 PWM 输出的平均电压。
 - 我能读懂一行串口输出、理解每个字段，并在串口绘图器里把它画出来。
 
+## I2C 上拉与总线电容时序（+150 min）
+
+保留原有按键 `INPUT_PULLUP` 小测：新增的是**总线信号完整性**，不是重做按键、传感器寄存器扫描器或滤波。开漏 SDA/SCL 能拉低，却需要电阻回到高电平。假设理想下拉与集总 `Rp–Cbus` 上升沿；真实板还包含阈值、下降沿、时钟拉伸、传播与耦合噪声。
+
+<Resource id="ti-i2c-pullup-calculation" />
+<Resource id="ti-tmp102-datasheet" />
+
+**本次确实打开的来源：** TI SLVA689 给出 `tr = 0.8473 Rp Cbus` 及灌电流决定的 Rp 下限。真实 TMP102 数据手册 **SBOS397I，Timing Requirements** 的 Fast-mode：SCL 最大 **400 kHz**、时钟上升时间最大 **300 ns**、低电平至少 **1300 ns**、高电平至少 **600 ns**；电气特性在电源超过 2 V 时给出 **3 mA 下 VOL 最大 0.4 V**。这是该器件的数字，**不能忽略总线上其他所有参与者**。本次没有解析 / 打开 NXP UM10204，不把这些数值归给它。
+
+### RC 假设与共享流量
+
+从 `V(t)/Vdd = 1 − exp(−t/(Rp Cbus))` 得到 **30 %–70 %** 上升时间 `tr = ln(7/3) Rp Cbus ≈ 0.8473 Rp Cbus`。从理想零电压到 70 % 则是 `t70 = −ln(0.3) Rp Cbus`，两者不能混用。Cbus 为**合成**：板 30 pF + 3 个器件 × 10 pF + 线电容（短线 40 pF、长线 340 pF），得到 **100 pF / 400 pF**。没有声称某个固定米数的电缆必然失败。
+
+每臂传相同合成字节 **A5 00 FF 5A**：每字节 8 数据槽 + 1 ACK 槽，共 **36 个 SCL 释放沿**。这不是 TMP102 事务或 ACK 模拟器，只评估共享的时钟边沿。合成总线为 3.3 V，低相 **1500 ns**、释放高窗口 **1000 ns**、周期 **2500 ns**（400 kHz）。300 ns 上升限制占 2500 ns bit 周期的 **0.12**。不盲用 50 % 占空比，低相因此满足已打开的 1300 ns 最小值。稳定高电平时间为 `max(0, 1000 ns − t70)`，还要留出 600 ns 高电平要求。下降时间理想化为零，不是完整时序合规验证。慢边沿可能让接收方错过高电平或 ACK 时序；本模型只标风险，不观测真实失败。不能在未核对所有器件耐压时，把这些上拉改接 Uno 的 5 V 电源。
+
+| 臂 | Rp | Cbus 模型 |
+|---|---|---|
+| weak_short | 10 kΩ | 100 pF |
+| strong_short | 2.2 kΩ | 同一 100 pF |
+| strong_long_C | 同一 2.2 kΩ | 400 pF |
+
+报告 `tr/bit_period`，不能把无量纲比值标成 ns。边沿预算标志表示 `tr > 300 ns` 或稳定高电平不足 600 ns；**不是实测丢包或漏 ACK**。Rp 并非越小越好：按此电源和灌电流规格，`Rp_min = (3.3−0.4)/0.003 = 966.667 Ω`。每个器件都要承受低电平电流；模块上拉并联会改变等效 Rp。这里假设所有下拉驱动（包括 SCL 主机）都满足同一灌电流预算；TMP102 的输出规格本身不能证明主机有此能力。真实总线 / 示波器 / 对应硬件：**本页未运行**。
+
+### 运行标准库玩具
+
+```bash
+cd ~/Hardware-learning/examples/month-2/arduino-io
+python3 i2c_risetime_toy.py
+```
+
+<CodeSource path="examples/month-2/arduino-io/i2c_risetime_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic lumped open-drain RC bus; same bytes and SCL edges in all arms.
+tr30to70=ln(7/3)*Rp*C is distinct from t70=-ln(0.3)*Rp*C.
+TMP102 datasheet Fast-mode clock limits: 400 kHz, tr<=300 ns, low>=1300 ns,
+high>=600 ns. 3.3 V is selected; all Rp, board/device/wire C are SYNTHETIC.
+Every transmitter, including the master, is ASSUMED to support the example
+3 mA / VOL<=0.4 V sink budget (TMP102 gives this for its outputs).
+Edge-budget flags are NOT packet failures or ACK observations. Stdlib only.
+No distributed-line/noise/fall/setup/hold/clock-stretch simulation; 本页未运行.
+"""
+from math import log
+
+MESSAGE = bytes((0xA5, 0x00, 0xFF, 0x5A))  # synthetic, not a TMP102 register transaction
+F_HZ = 400_000.0
+LOW_S = 1500e-9
+HIGH_RELEASE_S = 1 / F_HZ - LOW_S
+RISE_BUDGET_S = 300e-9
+MIN_HIGH_S = 600e-9
+VDD = 3.3
+VOL_MAX = 0.4
+IOL_A = 0.003
+BOARD_PF = 30.0
+DEVICES = 3
+DEVICE_PF = 10.0
+ARMS = (("weak_short", 10000.0, 40.0), ("strong_short", 2200.0, 40.0),
+        ("strong_long_C", 2200.0, 340.0))
+
+
+def capacitance(wire_pf):
+    return (BOARD_PF + DEVICES * DEVICE_PF + wire_pf) * 1e-12
+
+
+def scl_slots(message):
+    # ACK is a slot, NOT a simulated response. All slots release SCL once.
+    return tuple(slot for byte in message for slot in
+                 tuple((byte >> bit) & 1 for bit in range(7, -1, -1)) + (None,))
+
+
+def evaluate(rp, cbus, slots, frequency=F_HZ):
+    if rp <= 0 or cbus <= 0 or frequency <= 0 or 1 / frequency <= LOW_S:
+        raise ValueError("positive RC and a nonempty high release window required")
+    tr = log(7 / 3) * rp * cbus
+    t70 = -log(0.3) * rp * cbus  # starts at ideal zero, conservative vs positive VOL
+    high = max(0.0, 1 / frequency - LOW_S - t70)
+    rp_min = (VDD - VOL_MAX) / IOL_A
+    rp_max = RISE_BUDGET_S / (log(7 / 3) * cbus)
+    edge_ok = tr <= RISE_BUDGET_S and high >= MIN_HIGH_S
+    return dict(tr=tr, fraction=tr * frequency, high=high, rp_min=rp_min,
+                rp_max=rp_max, sink_ma=(VDD - VOL_MAX) / rp * 1000,
+                sink_ok=rp >= rp_min, flags=sum(not edge_ok for _ in slots))
+
+
+def main():
+    slots = scl_slots(MESSAGE)
+    print("Synthetic Rp/Cbus; TMP102 example timing/sink budget, not a link certificate")
+    print(f"shared bytes={MESSAGE.hex(' ').upper()} SCL_edges={len(slots)} ACK_outcome=not_modelled")
+    print(f"bit_ns={1e9 / F_HZ:.0f} low_ns={LOW_S * 1e9:.0f} release_high_ns={HIGH_RELEASE_S * 1e9:.0f} rise_budget_ns={RISE_BUDGET_S * 1e9:.0f}")
+    print("arm Rp_ohm Cbus_pF tr_ns tr_over_bit stable_high_ns sink_at_VOLmax_mA sink_ok edge_budget_flags")
+    for arm, rp, wire_pf in ARMS:
+        cbus = capacitance(wire_pf)
+        r = evaluate(rp, cbus, slots)
+        print(f"{arm} {rp:.0f} {cbus * 1e12:.0f} {r['tr'] * 1e9:.3f} {r['fraction']:.6f} {r['high'] * 1e9:.3f} {r['sink_ma']:.3f} {int(r['sink_ok'])} {r['flags']}")
+    short = evaluate(2200, capacitance(40), slots)
+    long = evaluate(2200, capacitance(340), slots)
+    print(f"Rp_min_ohm={short['rp_min']:.3f} Rp_max_short_ohm={short['rp_max']:.3f} Rp_max_long_ohm={long['rp_max']:.3f}")
+    print("Flags are edge-budget violations, NOT observed packet loss; real bus/scope: 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic Rp/Cbus; TMP102 example timing/sink budget, not a link certificate
+shared bytes=A5 00 FF 5A SCL_edges=36 ACK_outcome=not_modelled
+bit_ns=2500 low_ns=1500 release_high_ns=1000 rise_budget_ns=300
+arm Rp_ohm Cbus_pF tr_ns tr_over_bit stable_high_ns sink_at_VOLmax_mA sink_ok edge_budget_flags
+weak_short 10000 100 847.298 0.338919 0.000 0.290 1 36
+strong_short 2200 100 186.406 0.074562 735.126 1.318 1 0
+strong_long_C 2200 400 745.622 0.298249 0.000 1.318 1 36
+Rp_min_ohm=966.667 Rp_max_short_ohm=3540.668 Rp_max_long_ohm=885.167
+Flags are edge-budget violations, NOT observed packet loss; real bus/scope: 本页未运行
+```
+
+</SimOutput>
+
+### 解释结果，不认证电缆
+
+三种上升时间为 **847.298 / 186.406 / 745.622 ns**，占 bit 的 **0.338919 / 0.074562 / 0.298249**。只有 strong_short 留下有效稳定高窗口（**735.126 ns**）；weak_short 与 strong_long_C 在模型释放窗口内不能达到 70 %。边沿预算标志为 **36 / 0 / 36**，不是丢包率。400 pF 下只看上升时间的 Rp 上限是 **885.167 Ω**，已低于灌电流下限 **966.667 Ω**：此假设组合没有只靠电阻的解。应减小总线 C，或按相应数据手册重新考虑频率 / 时序 / 驱动与缓冲，不能只是换更小的电阻。
+
+**150 分钟安排：** 30 min 查来源；30 min 推导 RC 和单位；30 min 运行共享字节三臂；45 min 灵敏度；15 min 范围复盘。
+
+1. 从两个阈值穿越时刻推导 ln(7/3)，并另算 t70。
+2. 试 100 Ω：说明为什么边沿更快仍会违反灌电流假设；记得计入上拉并联。
+3. 将 400 pF 换成实测 / 建模 C，或降低 SCL；说明改变了器件上升时间限制还是周期预算。仅增加 bit 周期，不会改变固定的 Fast-mode 上升时间规格。
+4. 声明真实 I2C 可靠前，列出还缺的数据 / 下降沿 / 建立保持 / ACK / 时钟拉伸检查；保留原按键练习。
+
 <Summary>
 
 **本课要点**
@@ -446,6 +578,8 @@ Arduino 程序（sketch）是 C++，由对应开发板的 GCC 工具链编译（
 - PWM：`analogWrite` 把占空比设为 value / 255，引脚 3、9、10、11 为 490 Hz，引脚 5、6 为 976.6 Hz；负载看到 V_avg = 占空比 × 5 V。
 - 引脚上的 LED 需要串联电阻：5 V 下 220 Ω 为 2.0 V 红色 LED 提供 13.6 mA。
 - 115200 波特率下一个字符需要 86.8 µs；64 字节发送缓冲区写满后，`Serial.print()` 会阻塞。
+
+- I2C RC 在固定字节下比较 30 %–70 % 上升时间、bit / 高电平预算与灌电流，不把预算标志当成实测丢包。
 
 **下一课会用到**
 

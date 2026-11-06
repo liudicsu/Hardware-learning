@@ -435,6 +435,138 @@ Before you move on, you should be able to say yes to all of these:
 - I can explain duty cycle and calculate the average voltage of a PWM output.
 - I can read a line of serial output, understand each field, and plot it in the Serial Plotter.
 
+## I2C pull-up and bus-capacitance timing (+150 min)
+
+Keep the existing button `INPUT_PULLUP` quiz: this addition is **bus signal integrity**, not another button circuit, sensor-register scanner or filter. Open-drain SDA/SCL can pull low but need a resistor to return high. We assume an ideal low driver and a lumped `Rp–Cbus` rising edge; actual boards also have thresholds, fall time, clock stretching, propagation and coupled noise.
+
+<Resource id="ti-i2c-pullup-calculation" />
+<Resource id="ti-tmp102-datasheet" />
+
+**Sources actually opened:** TI SLVA689 gives `tr = 0.8473 Rp Cbus` and the sink-current lower bound on Rp. The real TMP102 datasheet **SBOS397I, Timing Requirements** specifies Fast-mode SCL up to **400 kHz**, clock rise time up to **300 ns**, low period at least **1300 ns**, high period at least **600 ns**; its electrical characteristics give VOL at most **0.4 V at 3 mA** for supply above 2 V. These are that device's numbers, **not permission to ignore every other bus participant**. We did not resolve/open NXP UM10204 here and do not attribute these values to it.
+
+### RC assumptions and the shared traffic
+
+From `V(t)/Vdd = 1 − exp(−t/(Rp Cbus))`, the **30 %–70 %** rise time is `tr = ln(7/3) Rp Cbus ≈ 0.8473 Rp Cbus`. Time from ideal zero to 70 % is instead `t70 = −ln(0.3) Rp Cbus`; do not confuse these quantities. Cbus is **synthetic**: 30 pF board + 3 devices × 10 pF + wire capacitance (40 pF short, 340 pF long), yielding **100 pF / 400 pF**. No fixed cable length is claimed to always fail.
+
+The same synthetic bytes **A5 00 FF 5A** traverse every arm: 8 data slots + 1 ACK slot per byte, **36 SCL release edges**. This is not a TMP102 transaction or an ACK simulator; only the shared clock edges are assessed. Use a synthetic 3.3 V bus, low = **1500 ns**, release-high window = **1000 ns**, period = **2500 ns** (400 kHz). The 300 ns rise limit is **0.12 of the 2500 ns bit period**. Unlike an indiscriminate 50 % duty cycle, its low phase satisfies the opened 1300 ns minimum. Stable high time is `max(0, 1000 ns − t70)` and must also leave the 600 ns high requirement. Fall time is idealized as zero; this is not full timing compliance. Slow edges can make a receiver miss a high level or ACK timing; this screen marks risk, not a measured failure. Do not move these pull-ups to the Uno’s 5 V rail without checking every part’s voltage ratings.
+
+| Arm | Rp | Cbus model |
+|---|---|---|
+| weak_short | 10 kΩ | 100 pF |
+| strong_short | 2.2 kΩ | same 100 pF |
+| strong_long_C | same 2.2 kΩ | 400 pF |
+
+Report `tr/bit_period`, not a dimensionless time mislabeled ns. An edge-budget flag marks `tr > 300 ns` or stable high below 600 ns; **it is not a measured packet failure or missed ACK**. Smaller Rp is not always better: at this supply and sink specification, `Rp_min = (3.3−0.4)/0.003 = 966.667 Ω`. Every component must tolerate the low-level current; parallel module pull-ups change the effective Rp. We assume all low drivers, including the SCL master, meet this same sink budget; the TMP102 output specification alone does not establish the master’s capability. Real bus / scope / matching hardware: **本页未运行**.
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-2/arduino-io
+python3 i2c_risetime_toy.py
+```
+
+<CodeSource path="examples/month-2/arduino-io/i2c_risetime_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic lumped open-drain RC bus; same bytes and SCL edges in all arms.
+tr30to70=ln(7/3)*Rp*C is distinct from t70=-ln(0.3)*Rp*C.
+TMP102 datasheet Fast-mode clock limits: 400 kHz, tr<=300 ns, low>=1300 ns,
+high>=600 ns. 3.3 V is selected; all Rp, board/device/wire C are SYNTHETIC.
+Every transmitter, including the master, is ASSUMED to support the example
+3 mA / VOL<=0.4 V sink budget (TMP102 gives this for its outputs).
+Edge-budget flags are NOT packet failures or ACK observations. Stdlib only.
+No distributed-line/noise/fall/setup/hold/clock-stretch simulation; 本页未运行.
+"""
+from math import log
+
+MESSAGE = bytes((0xA5, 0x00, 0xFF, 0x5A))  # synthetic, not a TMP102 register transaction
+F_HZ = 400_000.0
+LOW_S = 1500e-9
+HIGH_RELEASE_S = 1 / F_HZ - LOW_S
+RISE_BUDGET_S = 300e-9
+MIN_HIGH_S = 600e-9
+VDD = 3.3
+VOL_MAX = 0.4
+IOL_A = 0.003
+BOARD_PF = 30.0
+DEVICES = 3
+DEVICE_PF = 10.0
+ARMS = (("weak_short", 10000.0, 40.0), ("strong_short", 2200.0, 40.0),
+        ("strong_long_C", 2200.0, 340.0))
+
+
+def capacitance(wire_pf):
+    return (BOARD_PF + DEVICES * DEVICE_PF + wire_pf) * 1e-12
+
+
+def scl_slots(message):
+    # ACK is a slot, NOT a simulated response. All slots release SCL once.
+    return tuple(slot for byte in message for slot in
+                 tuple((byte >> bit) & 1 for bit in range(7, -1, -1)) + (None,))
+
+
+def evaluate(rp, cbus, slots, frequency=F_HZ):
+    if rp <= 0 or cbus <= 0 or frequency <= 0 or 1 / frequency <= LOW_S:
+        raise ValueError("positive RC and a nonempty high release window required")
+    tr = log(7 / 3) * rp * cbus
+    t70 = -log(0.3) * rp * cbus  # starts at ideal zero, conservative vs positive VOL
+    high = max(0.0, 1 / frequency - LOW_S - t70)
+    rp_min = (VDD - VOL_MAX) / IOL_A
+    rp_max = RISE_BUDGET_S / (log(7 / 3) * cbus)
+    edge_ok = tr <= RISE_BUDGET_S and high >= MIN_HIGH_S
+    return dict(tr=tr, fraction=tr * frequency, high=high, rp_min=rp_min,
+                rp_max=rp_max, sink_ma=(VDD - VOL_MAX) / rp * 1000,
+                sink_ok=rp >= rp_min, flags=sum(not edge_ok for _ in slots))
+
+
+def main():
+    slots = scl_slots(MESSAGE)
+    print("Synthetic Rp/Cbus; TMP102 example timing/sink budget, not a link certificate")
+    print(f"shared bytes={MESSAGE.hex(' ').upper()} SCL_edges={len(slots)} ACK_outcome=not_modelled")
+    print(f"bit_ns={1e9 / F_HZ:.0f} low_ns={LOW_S * 1e9:.0f} release_high_ns={HIGH_RELEASE_S * 1e9:.0f} rise_budget_ns={RISE_BUDGET_S * 1e9:.0f}")
+    print("arm Rp_ohm Cbus_pF tr_ns tr_over_bit stable_high_ns sink_at_VOLmax_mA sink_ok edge_budget_flags")
+    for arm, rp, wire_pf in ARMS:
+        cbus = capacitance(wire_pf)
+        r = evaluate(rp, cbus, slots)
+        print(f"{arm} {rp:.0f} {cbus * 1e12:.0f} {r['tr'] * 1e9:.3f} {r['fraction']:.6f} {r['high'] * 1e9:.3f} {r['sink_ma']:.3f} {int(r['sink_ok'])} {r['flags']}")
+    short = evaluate(2200, capacitance(40), slots)
+    long = evaluate(2200, capacitance(340), slots)
+    print(f"Rp_min_ohm={short['rp_min']:.3f} Rp_max_short_ohm={short['rp_max']:.3f} Rp_max_long_ohm={long['rp_max']:.3f}")
+    print("Flags are edge-budget violations, NOT observed packet loss; real bus/scope: 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic Rp/Cbus; TMP102 example timing/sink budget, not a link certificate
+shared bytes=A5 00 FF 5A SCL_edges=36 ACK_outcome=not_modelled
+bit_ns=2500 low_ns=1500 release_high_ns=1000 rise_budget_ns=300
+arm Rp_ohm Cbus_pF tr_ns tr_over_bit stable_high_ns sink_at_VOLmax_mA sink_ok edge_budget_flags
+weak_short 10000 100 847.298 0.338919 0.000 0.290 1 36
+strong_short 2200 100 186.406 0.074562 735.126 1.318 1 0
+strong_long_C 2200 400 745.622 0.298249 0.000 1.318 1 36
+Rp_min_ohm=966.667 Rp_max_short_ohm=3540.668 Rp_max_long_ohm=885.167
+Flags are edge-budget violations, NOT observed packet loss; real bus/scope: 本页未运行
+```
+
+</SimOutput>
+
+### Interpret, do not certify a cable
+
+The three rise times are **847.298 / 186.406 / 745.622 ns**, or **0.338919 / 0.074562 / 0.298249** of a bit. Only strong_short has a useful stable-high window (**735.126 ns**); weak_short and strong_long_C cannot reach 70 % within the modeled release window. Their edge-budget flags are **36 / 0 / 36**, not packet-loss rates. At 400 pF the rise-time-only Rp maximum is **885.167 Ω**, already below the **966.667 Ω** sink lower bound: this particular assumed combination has no resistor-only solution. Reduce bus C or reconsider frequency/timing/drive or a buffer using its own datasheet; do not simply fit a smaller resistor.
+
+**150-minute work plan:** 30 min inspect sources; 30 min derive RC and units; 30 min run shared-byte arms; 45 min sensitivity; 15 min scope review.
+
+1. Derive ln(7/3) from the two threshold-crossing times; separately calculate t70.
+2. Try 100 Ω: show why a faster edge can violate the sink-current assumption. Include parallel pull-ups in the calculation.
+3. Replace 400 pF by a measured/modelled C, or lower SCL. State whether the device rise-time limit or the period budget changed; a longer bit period alone does not change a fixed Fast-mode rise-time specification.
+4. List the missing data/fall/setup/hold/ACK/clock-stretching checks before declaring a real I2C link reliable. Preserve the original button exercise.
+
 <Summary>
 
 **Key points**
@@ -446,6 +578,8 @@ Before you move on, you should be able to say yes to all of these:
 - PWM: `analogWrite` sets duty = value / 255 at 490 Hz (pins 3, 9, 10, 11) or 976.6 Hz (pins 5, 6); the load sees V_avg = duty × 5 V.
 - An LED on a pin needs a series resistor: 220 Ω gives 13.6 mA for a 2.0 V red LED at 5 V.
 - At 115200 baud one character takes 86.8 µs, and a full 64-byte transmit buffer blocks `Serial.print()`.
+
+- The I2C RC comparison holds bytes fixed while checking 30 %–70 % rise time, bit/high-time budgets and sink current, without treating flags as packet failures.
 
 **Used next**
 

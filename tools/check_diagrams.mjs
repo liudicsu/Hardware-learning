@@ -3936,8 +3936,8 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 21090, "cal-conrft-mtc PR3 curriculum: 21090 minutes");
-  for (const [month, expected] of [[1, 870], [2, 1650], [3, 1470], [4, 1620], [5, 1800], [6, 1350], [7, 2070], [8, 2670], [9, 2730], [10, 1860], [11, 3000]]) {
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 21570, "thermal-i2c-decoupling PR1 curriculum: 21570 minutes");
+  for (const [month, expected] of [[1, 1020], [2, 1980], [3, 1470], [4, 1620], [5, 1800], [6, 1350], [7, 2070], [8, 2670], [9, 2730], [10, 1860], [11, 3000]]) {
     ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `current curriculum M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
@@ -5085,7 +5085,7 @@ for (const m of readdirSync(content)) {
   ok(/≤1 µs 以文档为准/.test(ec), "b4p1 ecat: ≤1 µs attributed");
   const cur = read("src/lib/curriculum.ts");
   ok(cur.match(/slug: "power-battery-emc"[\s\S]*?minutes: (\d+)/)?.[1] === "480", "b4p1 curriculum: 11.1 = 480");
-  ok(cur.match(/slug: "motors-drivers"[\s\S]*?minutes: (\d+)/)?.[1] === "360", "b4p1 curriculum: 2.4 = 360");
+  ok(cur.match(/slug: "motors-drivers"[\s\S]*?minutes: (\d+)/)?.[1] === "540", "current curriculum: 2.4 = 540 (b4 index + b6 winding)");
   ok(cur.match(/slug: "ros2-control"[\s\S]*?minutes: (\d+)/)?.[1] === "420", "b4p1 curriculum: 4.5 = 420");
   const rcBlock = (cur.match(/slug: "ros2-control"[\s\S]*?\n  \},/) || [""])[0];
   ok(/ethercat-technology/.test(rcBlock) && /ethercat-etg2200/.test(rcBlock) && /acontis-dc/.test(rcBlock), "b4p1 4.5 resources wired");
@@ -5354,6 +5354,43 @@ print("protocol pass")
       ok(prose.includes(lang==="en" ? phrase : zh), `b5 polish ${slug}/${lang}: clarification outside code fences`);
     }
   }
+}
+
+// Batch-6 PR1 §9: winding != harness, I2C edge budgets, L*di/dt only.
+{
+  const read = p => readFileSync(join(root,p),"utf8");
+  const env = {...process.env,PYTHONDONTWRITEBYTECODE:"1"};
+  for (const [month,slug,toy,minutes,added,summaryMarkers,markers] of [
+    [2,"motors-drivers","winding_thermal_rc_toy",540,180,["winding RC","绕组热 RC"],["Rθ","Cθ","11.1","4800","150.534","6580.035","70.013","2837.044","2 trips","0.2 s","本页未运行"]],
+    [2,"arduino-io","i2c_risetime_toy",300,150,["I2C RC","I2C RC"],["30 %–70 %","ln(7/3)","SBOS397I","1300 ns","1500 ns","2500 ns","0.12","100 pF / 400 pF","A5 00 FF 5A","847.298 / 186.406 / 745.622","36 / 0 / 36","966.667","885.167","本页未运行"]],
+    [1,"components","supply_dip_decoupling_toy",270,150,["L·di/dt","L·di/dt"],["L·di/dt","11.1","SCLS085L","0.1 µF","2.980000 / 3.276000 / 2.500000","0.320000 / 0.024000 / 0.800000","ESR","ESL","FCC/CE","本页未运行"]],
+  ]) {
+    const source=read(`examples/month-${month}/${slug}/${toy}.py`), expected=read(`examples/month-${month}/expected/${toy}.txt`);
+    ok(execFileSync("python3",[join(root,`examples/month-${month}/${slug}/${toy}.py`)],{encoding:"utf8",env})===expected,`b6p1 ${toy}: actual stdout matches new expected`);
+    ok(read(`examples/month-${month}/check.sh`).includes(`${toy}.txt`),`b6p1 ${toy}: additive harness comparison`);
+    for (const [index,lang] of ["en","zh"].entries()) {
+      const md=read(`src/content/m${month}/${slug}/${lang}.mdx`), start=md.indexOf("<Summary>"), body=md.slice(0,start), summary=md.slice(start), prose=body.replace(/```[\s\S]*?```/g,"");
+      ok(start>=0 && md.trimEnd().endsWith("</Summary>") && (md.match(/<Summary>/g)||[]).length===1,`b6p1 ${slug}/${lang}: sole final whole-lesson Summary`);
+      ok(body.includes(source.trim()) && body.includes(expected.trim()) && body.includes(`+${added} min`),`b6p1 ${slug}/${lang}: full source/output/exercises before Summary`);
+      ok(summary.includes(summaryMarkers[index]),`b6p1 ${slug}/${lang}: Summary covers addition`);
+      for (const marker of markers) ok(prose.includes(marker),`b6p1 ${slug}/${lang}: prose binds ${marker}`);
+      if (month===1) ok(lang==="en" ? prose.includes("L·di/dt only") && prose.includes("all numerical model inputs are synthetic") && prose.includes("not a capacitor-network simulation") : prose.includes("只隔离 **L·di/dt**") && prose.includes("全部模型数值输入均为合成") && prose.includes("不是电容网络仿真"),`b6p1 supply ${lang}: no hidden capacitor/EMC claim`);
+      if (slug==="motors-drivers") ok(lang==="en" ? prose.includes("the derate arm trip") && prose.includes("not a case thermometer") && prose.includes("no safety-chain design or insulation-class certification") : prose.includes("降额臂也出现 trip") && prose.includes("不是壳温计实测") && prose.includes("不是安全链设计或绝缘等级认证"),`b6p1 winding ${lang}: trip, ideal information and certification boundary`);
+      if (slug==="arduino-io") {
+        ok(body.includes('<Quiz id="q2"') && body.includes("INPUT_PULLUP"),`b6p1 I2C ${lang}: original button quiz remains`);
+        ok(lang==="en" ? prose.includes("it is not a measured packet failure or missed ACK") && prose.includes("Smaller Rp is not always better") : prose.includes("不是实测丢包或漏 ACK") && prose.includes("Rp 并非越小越好"),`b6p1 I2C ${lang}: edge/sink flags are not packet outcomes`);
+      }
+    }
+    ok(read("src/lib/curriculum.ts").match(new RegExp(`slug: "${slug}"[\\s\\S]*?minutes: (\\d+)`))?.[1]===String(minutes),`b6p1 ${slug}: ${minutes} min`);
+  }
+  const invariants=execFileSync("python3",[join(root,"tools/test_b6_electrical_toys.py")],{cwd:root,encoding:"utf8",env});
+  ok(invariants.includes("energy/analytic/refinement checks, independent RC crossings, sink/budget separation, signed L-only edges passed"),"b6p1 runtime: shared-input physics and independent analytic checks");
+  for (const id of ["ti-driver-package-thermal","ti-i2c-pullup-calculation","ti-tmp102-datasheet","ti-sn74hc14-decoupling"]) ok(read("src/lib/resources.ts").includes(`"${id}": {`),`b6p1 curl-verified primary source ${id}`);
+  for (const month of [1,2]) {
+    const plan=read(`docs/notes/month-${month}-plan.md`);
+    ok(plan.includes("21570") && plan.includes("1020") && plan.includes("1980") && plan.includes("PR1"),`b6p1 M${month}: plans count only this PR`);
+  }
+  console.log("thermal-i2c-decoupling PR1: shared demand, actual derate trips, primary timing/decoupling sources, L-only proxy and final-Summary locks checked");
 }
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);

@@ -1,0 +1,9 @@
+Synthetic Rp/Cbus; TMP102 example timing/sink budget, not a link certificate
+shared bytes=A5 00 FF 5A SCL_edges=36 ACK_outcome=not_modelled
+bit_ns=2500 low_ns=1500 release_high_ns=1000 rise_budget_ns=300
+arm Rp_ohm Cbus_pF tr_ns tr_over_bit stable_high_ns sink_at_VOLmax_mA sink_ok edge_budget_flags
+weak_short 10000 100 847.298 0.338919 0.000 0.290 1 36
+strong_short 2200 100 186.406 0.074562 735.126 1.318 1 0
+strong_long_C 2200 400 745.622 0.298249 0.000 1.318 1 36
+Rp_min_ohm=966.667 Rp_max_short_ohm=3540.668 Rp_max_long_ohm=885.167
+Flags are edge-budget violations, NOT observed packet loss; real bus/scope: 本页未运行

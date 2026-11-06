@@ -3557,6 +3557,100 @@ export const resources: Record<string, Resource> = {
     extra: true,
   },
 
+  // Batch-6 PR1: primary PDFs opened and curl-verified 2026-11-06 (Asia/Shanghai).
+  "ti-driver-package-thermal": {
+    "id": "ti-driver-package-thermal",
+    "url": "https://www.ti.com/lit/an/slva505/slva505.pdf",
+    "title": {
+      "zh": "TI：电机驱动封装热额定值",
+      "en": "TI: motor-driver package thermal ratings"
+    },
+    "author": "Texas Instruments",
+    "kind": "guide",
+    "cost": {
+      "zh": "免费",
+      "en": "Free"
+    },
+    "summary": {
+      "zh": "本次 curl200 并打开的 SLVA505；封装 / PCB 散热与热额定值阅读，不是绕组辨识。2.4 的 Rθ/Cθ 与阈值全为本课合成定义。",
+      "en": "SLVA505 opened and curl200 this turn; package/PCB thermal-rating literacy, not winding identification. Lesson 2.4 Rθ/Cθ and thresholds are synthetic definitions."
+    },
+    "license": {
+      "zh": "版权归原作者；仅提供外链",
+      "en": "Copyright original authors; external link only"
+    },
+    "extra": true
+  },
+  "ti-i2c-pullup-calculation": {
+    "id": "ti-i2c-pullup-calculation",
+    "url": "https://www.ti.com/lit/an/slva689/slva689.pdf",
+    "title": {
+      "zh": "TI：I2C 上拉电阻计算",
+      "en": "TI: I2C pull-up resistor calculation"
+    },
+    "author": "Texas Instruments",
+    "kind": "guide",
+    "cost": {
+      "zh": "免费",
+      "en": "Free"
+    },
+    "summary": {
+      "zh": "已打开并 curl200；30 %–70 % 上升沿 0.8473 Rp Cbus，灌电流下限与电容上限；2.1 的 Rp / Cbus 均标合成，不以固定米数断言成败。",
+      "en": "Opened and curl200; 30 %–70 % rise 0.8473 Rp Cbus, sink lower bound and capacitance upper bound. Lesson 2.1 Rp/Cbus are synthetic, not a universal cable-length claim."
+    },
+    "license": {
+      "zh": "版权归原作者；仅提供外链",
+      "en": "Copyright original authors; external link only"
+    },
+    "extra": true
+  },
+  "ti-tmp102-datasheet": {
+    "id": "ti-tmp102-datasheet",
+    "url": "https://www.ti.com/lit/ds/symlink/tmp102.pdf",
+    "title": {
+      "zh": "TI TMP102：真实 I2C 时序数据手册",
+      "en": "TI TMP102: actual I2C timing datasheet"
+    },
+    "author": "Texas Instruments",
+    "kind": "guide",
+    "cost": {
+      "zh": "免费",
+      "en": "Free"
+    },
+    "summary": {
+      "zh": "SBOS397I 已打开并 curl200；Fast-mode 400 kHz、时钟上升 300 ns、低 1300 ns / 高 600 ns，以及输出 3 mA 下 VOL 0.4 V 的条件。不能代表所有总线器件。",
+      "en": "SBOS397I opened and curl200: Fast-mode 400 kHz, 300 ns clock rise, 1300 ns low/600 ns high, and conditional output VOL 0.4 V at 3 mA. Not a specification for every bus participant."
+    },
+    "license": {
+      "zh": "版权归原作者；仅提供外链",
+      "en": "Copyright original authors; external link only"
+    },
+    "extra": true
+  },
+  "ti-sn74hc14-decoupling": {
+    "id": "ti-sn74hc14-decoupling",
+    "url": "https://www.ti.com/lit/ds/symlink/sn74hc14.pdf",
+    "title": {
+      "zh": "TI SN74HC14：本地旁路与放置",
+      "en": "TI SN74HC14: local bypass and placement"
+    },
+    "author": "Texas Instruments",
+    "kind": "guide",
+    "cost": {
+      "zh": "免费",
+      "en": "Free"
+    },
+    "summary": {
+      "zh": "SCLS085L 已打开并 curl200；供电建议为每 VCC 贴近引脚放 0.1 µF，并提及与 1 µF 并联。1.2 的 L / 电流边沿 / 电压预测均为合成，不从此认证 EMC。",
+      "en": "SCLS085L opened and curl200; recommends 0.1 µF near each VCC and mentions parallel 1 µF. Lesson 1.2 L/current-edge/rail values are synthetic, not EMC certification."
+    },
+    "license": {
+      "zh": "版权归原作者；仅提供外链",
+      "en": "Copyright original authors; external link only"
+    },
+    "extra": true
+  },
+
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

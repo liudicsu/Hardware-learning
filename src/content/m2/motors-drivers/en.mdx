@@ -763,6 +763,155 @@ Before you move on, you should be able to say yes to all of these:
 - I can compute counts per revolution from encoder CPR and gear ratio.
 - I have a wheel turning exactly one revolution at two different battery voltages, and I can explain what the encoder contributed.
 
+## Winding copper loss and a thermal RC (+180 min)
+
+A winding is not a harness. [11.1 power distribution](/en/month/month-11/power-battery-emc) already covers round-trip wire I²R and fuse data gates; here the heat is **inside the motor winding**, with stored heat and a cooling path. We do not redo FOC or use a driver IC's package θJA as a winding thermal resistance. The opened TI SLVA505 package-thermal note explains why PCB/copper/package conditions matter; it does **not** identify this motor's winding parameters.
+
+<Resource id="ti-driver-package-thermal" />
+
+### Define the plant before judging the controller
+
+Use `R_winding(T) = R25 × [1 + α(T − Ta)]`, `P_copper = I² R_winding(T)` and `Cθ dT/dt = P_copper − (T − Ta)/Rθ`. Here Ta = 25 °C, R25 = 1 Ω, α = 0.00393/K, **Rθ = 4 K/W and Cθ = 12 J/K are lesson-defined synthetic parameters**, so τ = 48 s. All numerical plant/control inputs are synthetic; denote the derating threshold `T_lim = 50 °C` and cutoff `T_trip = 70 °C`. Forward Euler uses dt = 0.10 s; temperature is not an instantaneous function of current. The linear resistance law and single thermal lump omit iron loss, airflow changes, case/winding lag and motor damage; the 150 °C toy output is not a validated operating point.
+
+All arms consume the **same 4800-sample demanded current profile** over 480 s: free-run 1 A, intermittent 5 A stalls from 30–150 s (4 s of each 10 s), prolonged 5 A stalls at 150–240 s and 360–420 s, then cooling. It is a synthetic current-controlled request, not a voltage-driven motor model. Delivered current differs only when the thermal controller intervenes:
+
+| Arm | Information and action |
+|---|---|
+| ignore | Ignores temperature; the physical simulator still heats the winding. |
+| monitor_rc | Reports ideal winding temperature from the same RC plant but never reduces current. |
+| derate_trip | Same ideal winding-temperature information; above 50 °C caps current at 3.5 A, at 70 °C cuts it to zero, resumes only after cooling to 45 °C. |
+
+Monitor and derate assume ideal winding T, **not a case thermometer measurement**. Trips count entries into the zero-current cooling state; merely observing an over-temperature in the monitor is not a trip. We intentionally include a prolonged stall that makes **the derate arm trip**: reducing current is not proof it can run forever. This is no safety-chain design or insulation-class certification; real winding measurement / hardware: **本页未运行**.
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-2/motors-drivers
+python3 winding_thermal_rc_toy.py
+```
+
+<CodeSource path="examples/month-2/motors-drivers/winding_thermal_rc_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic winding thermal RC, NOT harness I2R (11.1) or driver-package thetaJA.
+All arms share the demanded current profile, plant and integration grid.
+Ignore/monitor deliver the same current; derate intentionally changes delivered current.
+The plant still heats when its controller ignores heating. Ideal winding temperature
+is available to monitor/derate (not inferred from a measured case temperature).
+Lesson-defined Rtheta/Ctheta/limits, NOT insulation-class certification. Stdlib only.
+"""
+from math import expm1
+
+AMBIENT = 25.0
+R25 = 1.0                 # ohm, synthetic winding resistance at ambient
+ALPHA = 0.00393            # 1/K, illustrative linear copper tempco
+RTH = 4.0                 # K/W, lesson-defined winding-to-ambient path
+CTH = 12.0                # J/K, lesson-defined winding heat capacity
+DT = 0.1                  # s; tau = RTH * CTH = 48 s
+DURATION = 480.0
+DERATE_C = 50.0
+TRIP_C = 70.0
+RESET_C = 45.0
+DERATED_A = 3.5
+ARMS = ("ignore", "monitor_rc", "derate_trip")
+
+
+def current_profile(dt=DT):
+    """One shared request: free run, intermittent stalls, prolonged stalls, cool."""
+    result = []
+    for k in range(round(DURATION / dt)):
+        t = k * dt
+        stall = (30 <= t < 150 and (t - 30) % 10 < 4) or 150 <= t < 240 or 360 <= t < 420
+        result.append(5.0 if stall else 1.0)
+    return tuple(result)
+
+
+def advance(temp, current, dt):
+    copper = current * current * R25 * (1 + ALPHA * (temp - AMBIENT))
+    cooling = (temp - AMBIENT) / RTH
+    return temp + (copper - cooling) * dt / CTH, copper * dt, cooling * dt
+
+
+def constant_current_exact(current, seconds):
+    """Independent closed-form check of the linear-in-temperature ODE."""
+    p0 = current * current * R25
+    b = p0 * ALPHA - 1 / RTH
+    return AMBIENT + (p0 * seconds / CTH if abs(b) < 1e-12 else p0 / b * expm1(b * seconds / CTH))
+
+
+def run(arm, requests, dt=DT):
+    if arm not in ARMS:
+        raise ValueError("unknown arm")
+    temp = peak = AMBIENT
+    copper_j = cooling_j = above_trip_s = 0.0
+    trips = derate_samples = 0
+    cooling_off = False
+    for requested in requests:
+        current = requested
+        if arm == "derate_trip":
+            if cooling_off and temp <= RESET_C:
+                cooling_off = False
+            if not cooling_off and temp >= TRIP_C:
+                cooling_off = True
+                trips += 1
+            if cooling_off:
+                current = 0.0
+            elif temp > DERATE_C:
+                current = min(current, DERATED_A)
+                derate_samples += int(current < requested)
+        above_trip_s += dt * (temp >= TRIP_C)
+        temp, heat, rejected = advance(temp, current, dt)
+        copper_j += heat
+        cooling_j += rejected
+        peak = max(peak, temp)
+    return dict(peak=peak, final=temp, copper_j=copper_j, cooling_j=cooling_j,
+                trips=trips, derate_samples=derate_samples, above_trip_s=above_trip_s)
+
+
+def main():
+    requests = current_profile()
+    print("Synthetic winding RC; ideal winding T; no insulation/driver-package rating")
+    print(f"shared request samples={len(requests)} dt_s={DT:.2f} duration_s={DURATION:.0f} tau_s={RTH * CTH:.0f}")
+    print("arm physical_peak_C final_C copper_J trips derated_samples above_trip_s estimator")
+    for arm in ARMS:
+        r = run(arm, requests)
+        estimator = "none" if arm == "ignore" else "ideal_winding_T"
+        print(f"{arm} {r['peak']:.3f} {r['final']:.3f} {r['copper_j']:.3f} {r['trips']} {r['derate_samples']} {r['above_trip_s']:.1f} {estimator}")
+    print("trips count thermal cutoff entries; monitor warns but never intervenes")
+    print("Synthetic only; real winding measurement / motor hardware: 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic winding RC; ideal winding T; no insulation/driver-package rating
+shared request samples=4800 dt_s=0.10 duration_s=480 tau_s=48
+arm physical_peak_C final_C copper_J trips derated_samples above_trip_s estimator
+ignore 150.534 55.421 6580.035 0 0 228.0 none
+monitor_rc 150.534 55.421 6580.035 0 0 228.0 ideal_winding_T
+derate_trip 70.013 39.167 2837.044 2 1277 0.2 ideal_winding_T
+trips count thermal cutoff entries; monitor warns but never intervenes
+Synthetic only; real winding measurement / motor hardware: 本页未运行
+```
+
+</SimOutput>
+
+### Read the result, then perturb it
+
+The ignore and monitor physical peaks both equal **150.534 °C**, with **6580.035 J** copper energy: information without action cannot cool the plant. Derating yields **70.013 °C**, **2837.044 J** and **2 trips**, not an assumed no-trip success. The 0.013 °C overshoot and 0.2 s above the trip level expose discrete checking; no sample-by-sample guarantee below 70 °C is claimed. Copper energy is `Σ I_actual² R(T_k) dt`, not electrical input energy or shaft work. `Cθ(T_final−Ta) = copper_J−cooling_J` is a useful energy-balance regression.
+
+**180-minute work plan:** 45 min derive units/ODE; 45 min audit shared demand and all three arms; 45 min integrate and interpret peaks/energy/trips; 30 min sensitivity; 15 min review.
+
+1. Hold 2 A for 60 s from ambient and compare Euler against `constant_current_exact`; halve dt and check convergence.
+2. Double Cθ, keeping Rθ fixed: explain the changed time scale without pretending the equilibrium changes. Then change Rθ separately.
+3. Remove the cutoff but keep the 3.5 A derating limit: predict whether the prolonged stall can still exceed 70 °C. Keep the shared demand fixed.
+4. Separate measured case T, estimated winding T and simulator truth in your notes; list what experiments would identify Rθ/Cθ before any hardware use. Do not infer an insulation class or permitted stall time from this toy.
+
 <Summary>
 
 **Key points**
@@ -775,6 +924,8 @@ Before you move on, you should be able to say yes to all of these:
 - A4988 current limit: I_max = Vref / (8 × R_CS); 1 A with 0.068 Ω needs Vref = 0.544 V.
 - Romi encoder: 12 counts per motor turn (×4) × 119.76 ≈ 1440 counts per wheel turn, 0.153 mm per count on a 70 mm wheel.
 - A minimum duty overcomes the 0.8 V dead band only if it is sized for the lowest battery voltage: 0.8 V / 5.0 V = 0.16.
+
+- The winding RC comparison keeps the demanded current shared, exposes the ignore/monitor physical heat and the derate arm’s two trips, and does not certify insulation limits.
 
 **Used next**
 
