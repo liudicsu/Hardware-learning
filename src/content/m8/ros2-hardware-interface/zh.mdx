@@ -448,8 +448,271 @@ ok: CPU bus jitter toy (no real STS3215 bus, page not run)
 - **不做 JointLimiter。** 8.5 的软件看门狗不能代替向 ros2_control 声明位置/速度限制。
 - **指望本站 CI 加载你的 `.so`。** 学员包 CI ≠ Hardware-learning 网站 CI。
 
+## Batch-6 H2：CAN 故障限制（+180 min）
+
+通用 **CAN 后端**可以把通信故障上报硬件接口，但这不表示 SO-101 的串口舵机总线变成了 CAN。本节新增独立的 Classic CAN 诊断模型，不重做生命周期状态机。**不是 CiA402 状态位，也不是 EtherCAT**；bus-off 恢复**不是急停**，也不代表允许重新使能执行器；继续保留独立的 [8.5 故障锁存 / 操作员确认路径](/zh/month/month-8/safety-reliability)。
+
+### 实际打开的规则与精确边界
+
+<Resource id="bosch-can20-confinement" />
+<Resource id="nxp-can20-protocol" />
+
+下表来自实际打开的 **Bosch CAN 2.0, Part A pp. 24–26, Fault Confinement**（1991 年 9 月，公开镜像）。NXP 的 **BCANPSV2.0 Rev. 3 §5.2** 交叉核对阈值、成功递减与复位规则；延长显性序列的条件采用 Bosch 原文。**以规范为准**；这是 Classic CAN 阅读练习，不是 ISO 11898 或 CAN FD 的完整实现。
+
+| 已满足前置条件的事件 | 计数变化 | 条件 / 例外 |
+|---|---|---|
+| 发送器发出错误标志 | **TEC +8** | 普通路径，不包含下面两个例外。 |
+| 成功发送 | **TEC −1** | 收到 ACK 且到 EOF 均无错误；最低为 0。 |
+| 接收器检测到普通错误 | **REC +1** | 排除发送主动错误 / 过载标志时的位错误。 |
+| 接收器错误标志后的第一位为显性 | **REC +8** | 单独条件；一条报文可能同时适用多条规则。 |
+| 发送主动错误 / 过载标志时检测到位错误 | **TEC +8 或 REC +8** | 分别更新发送器或接收器计数；不是普通 REC +1。 |
+| 满足条件的过长显性序列 | **TEC +8 或 REC +8** | Bosch 规则 6：主动错误 / 过载从第 **14** 个连续显性位开始，被动错误后从第 **8** 个开始，此后每八个再增加。 |
+| 成功接收并发送 ACK | 1…127 时 **REC −1** | 0 保持 0；**REC >127 时设到 119…127**。玩具确定性选择 **127**，不是“一律减一”。 |
+
+两个不增加 TEC 的发送例外为：(1) 已被动，未看到显性 ACK，**且发送被动错误标志期间没有显性位**；(2) 指定的 RTR 之前仲裁填充位情形：发出隐性却读到显性。玩具接收已经满足这些条件的事件。因此，孤立节点仅因反复无人 ACK 可进入被动态，并不必然因此 bus-off。
+
+**TEC 或 REC >127 即 error-passive**（≥128）；两者都 ≤127 才回到 active。**TEC >255 才 bus-off**（≥256），**255 时还不是**；仅 REC 高不能触发 bus-off。按规则 9，导致进入被动态的那次错误仍发主动错误标志，之后的错误才发被动标志。本模型只计算计数 / 状态结果，不生成错误标志波形或发送暂停时序。
+
+### 共享时隙与恢复
+
+两个发送案例共享 **43 个时隙**：16 次错误注入机会、8 次成功、17 次错误机会、最后两次请求。健康反事实不受影响，噪声发送器承受已满足条件的错误。它是确定性的敏感性对照，不宣称两者实际故障结果相同，也不是随机性能评测。成功报文、状态变化、被抑制请求分别统计。
+
+Bus-off 节点不能驱动 TX、ACK 或错误标志。恢复资格需要 **128 次各含 11 个连续隐性位**，即无中断空闲流中的 **128×11=1408** 位。十个隐性位后插入显性位不构成一次；显性位打断当前连续段，但不清除之前完整的次数。玩具按不重叠的 11 位组计数，到达资格后仍需显式 `request_recovery()`；控制器使能 / 复位策略因实现而异，模型不自动重新武装机器人。1408 位下限不是通用的毫秒恢复时间。
+
+```bash
+cd ~/Hardware-learning/examples/month-8/ros2-hardware-interface
+python3 can_fault_confinement_toy.py
+```
+
+<CodeSource path="examples/month-8/ros2-hardware-interface/can_fault_confinement_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Classic CAN event-level confinement; Bosch CAN 2.0 Part A pp.24-26.
+Opened primary spec: https://www.canlab.cz/sites/default/files/pages/download/Can2spec.pdf
+Inputs are QUALIFIED rule events, not a bit/CRC/arbitration/ACK decoder.
+Normal tx_error is not the passive-ACK or arbitration-stuff exception.
+REC>127 on successful receive is reset to 127 (one permitted 119..127 choice).
+Recovery counts non-overlapping 11-recessive groups, then needs a toy request;
+controller enable/reset policy and real SocketCAN/transceiver are not run here.
+Not CiA402 status bits, EtherCAT, an e-stop or a safety certification.
+"""
+from dataclasses import dataclass
+
+EVENTS = {"tx_error", "tx_ok", "tx_flag_bit", "tx_extension",
+          "tx_passive_ack_exception", "tx_arbitration_stuff_exception",
+          "rx_error", "rx_ok", "rx_after_flag_dominant", "rx_flag_bit", "rx_extension"}
+
+
+def extension_events(flag, consecutive):
+    """Rule 6 qualification only: 14th for active/overload, 8th after passive.
+    Additional increments follow each further eight dominant bits. Caller must
+    supply the correctly scoped sequence; this is not a wire-level parser.
+    """
+    if flag not in ("active", "overload", "passive") or consecutive < 0:
+        raise ValueError("invalid qualified dominant sequence")
+    first = 8 if flag == "passive" else 14
+    return max(0, 1 + (consecutive - first) // 8)
+
+
+@dataclass
+class Node:
+    tec: int = 0
+    rec: int = 0
+    accepted: int = 0
+    blocked: int = 0
+    recessive_run: int = 0
+    sequences: int = 0
+    off: bool = False
+
+    def __post_init__(self):
+        if self.tec < 0 or self.rec < 0:
+            raise ValueError("negative counter")
+        self.off = self.off or self.tec > 255
+
+    @property
+    def state(self):
+        if self.off:
+            return "bus-off"
+        return "error-passive" if max(self.tec, self.rec) > 127 else "error-active"
+
+    def apply(self, event):
+        if event not in EVENTS:
+            raise ValueError("unknown qualified event")
+        if self.off:
+            self.blocked += 1  # No TX/ACK/error flag is issued while off.
+            return False
+        if event in ("tx_error", "tx_flag_bit", "tx_extension"):
+            self.tec += 8
+        elif event == "tx_ok":
+            self.tec = max(0, self.tec - 1)
+            self.accepted += 1
+        elif event == "tx_passive_ack_exception":
+            if self.state != "error-passive":
+                raise ValueError("requires passive, no dominant ACK or passive-flag bit")
+        elif event == "tx_arbitration_stuff_exception":
+            pass  # Qualified recessive-stuff/dominant-detected arbitration exception.
+        elif event == "rx_error":
+            self.rec += 1
+        elif event in ("rx_after_flag_dominant", "rx_flag_bit", "rx_extension"):
+            self.rec += 8
+        elif event == "rx_ok":
+            self.rec = 127 if self.rec > 127 else max(0, self.rec - 1)
+            self.accepted += 1
+        self.off = self.tec > 255
+        return True
+
+    def observe(self, bits):
+        """1=recessive, 0=dominant; interrupted runs cannot form an 11-bit group."""
+        if any(bit not in "01" for bit in bits):
+            raise ValueError("bits must be 0/1")
+        if not self.off:
+            return
+        for bit in bits:
+            self.recessive_run = self.recessive_run + 1 if bit == "1" else 0
+            if self.recessive_run == 11:
+                self.sequences = min(128, self.sequences + 1)
+                self.recessive_run = 0
+
+    def request_recovery(self):
+        if not self.off or self.sequences < 128:
+            return False
+        self.tec = self.rec = self.recessive_run = self.sequences = 0
+        self.off = False
+        return True
+
+
+def shared_schedule():
+    return (True,) * 16 + (False,) * 8 + (True,) * 17 + (False,) * 2
+
+
+def transmitter_trace(noisy):
+    node, checkpoints = Node(), []
+    for slot, injected in enumerate(shared_schedule(), 1):
+        node.apply("tx_error" if noisy and injected else "tx_ok")
+        if slot in (16, 24, 40, 41, 43):
+            checkpoints.append((slot, node.tec, node.rec, node.state))
+    return node, checkpoints
+
+
+def main():
+    print("Classic CAN qualified events; shared 43 slots, deterministic, no stochastic seeds")
+    print("normal TX +8/-1; REC +1/-1 plus qualified +8; passive >127; bus-off TEC>255")
+    print("arm slot TEC REC state")
+    for name, noisy in (("healthy", False), ("noisy_tx", True)):
+        node, trace = transmitter_trace(noisy)
+        for row in trace:
+            print(name, *row)
+        print(f"{name} accepted={node.accepted} blocked_while_off={node.blocked}")
+    print("boundary TEC REC state")
+    for tec, rec in ((127, 127), (128, 0), (255, 0), (256, 0), (0, 512)):
+        print("boundary", tec, rec, Node(tec, rec).state)
+    print("receive event before_REC after_REC")
+    for event, rec in (("rx_error", 0), ("rx_ok", 1), ("rx_ok", 0),
+                       ("rx_after_flag_dominant", 120), ("rx_flag_bit", 120),
+                       ("rx_extension", 120), ("rx_ok", 128)):
+        node = Node(rec=rec)
+        node.apply(event)
+        print("receive", event, rec, node.rec)
+    print("rule6 flag count increments_of_8")
+    for flag, count in (("active", 13), ("active", 14), ("active", 22),
+                        ("overload", 14), ("passive", 7), ("passive", 8), ("passive", 16)):
+        print("rule6", flag, count, extension_events(flag, count))
+    node = Node(tec=128)
+    node.apply("tx_passive_ack_exception")
+    print(f"passive_ACK_exception TEC={node.tec}; alone-node ACK loss is not forced bus-off")
+    node.apply("tx_arbitration_stuff_exception")
+    print(f"arbitration_stuff_exception TEC={node.tec}")
+    node = Node(tec=256)
+    print(f"no_wait recovered={int(node.request_recovery())} state={node.state}")
+    node.observe(("1" * 10 + "0") * 128)
+    print(f"interrupted_10R_1D sequences={node.sequences} recovered={int(node.request_recovery())}")
+    node.observe("1" * (127 * 11 + 10))
+    print(f"1407R sequences={node.sequences} partial={node.recessive_run} recovered={int(node.request_recovery())}")
+    node.observe("1")
+    ready = node.sequences
+    recovered = node.request_recovery()
+    print(f"1408R sequences_before_reset={ready} recovered={int(recovered)} TEC={node.tec} REC={node.rec} state={node.state}")
+    print("REC>127 receive-success chooses 127 from allowed 119..127; no universal register implementation")
+    print("Not CiA402 status bits / EtherCAT / e-stop; real CAN + SocketCAN: 本页未运行; 以规范为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Classic CAN qualified events; shared 43 slots, deterministic, no stochastic seeds
+normal TX +8/-1; REC +1/-1 plus qualified +8; passive >127; bus-off TEC>255
+arm slot TEC REC state
+healthy 16 0 0 error-active
+healthy 24 0 0 error-active
+healthy 40 0 0 error-active
+healthy 41 0 0 error-active
+healthy 43 0 0 error-active
+healthy accepted=43 blocked_while_off=0
+noisy_tx 16 128 0 error-passive
+noisy_tx 24 120 0 error-active
+noisy_tx 40 248 0 error-passive
+noisy_tx 41 256 0 bus-off
+noisy_tx 43 256 0 bus-off
+noisy_tx accepted=8 blocked_while_off=2
+boundary TEC REC state
+boundary 127 127 error-active
+boundary 128 0 error-passive
+boundary 255 0 error-passive
+boundary 256 0 bus-off
+boundary 0 512 error-passive
+receive event before_REC after_REC
+receive rx_error 0 1
+receive rx_ok 1 0
+receive rx_ok 0 0
+receive rx_after_flag_dominant 120 128
+receive rx_flag_bit 120 128
+receive rx_extension 120 128
+receive rx_ok 128 127
+rule6 flag count increments_of_8
+rule6 active 13 0
+rule6 active 14 1
+rule6 active 22 2
+rule6 overload 14 1
+rule6 passive 7 0
+rule6 passive 8 1
+rule6 passive 16 2
+passive_ACK_exception TEC=128; alone-node ACK loss is not forced bus-off
+arbitration_stuff_exception TEC=128
+no_wait recovered=0 state=bus-off
+interrupted_10R_1D sequences=0 recovered=0
+1407R sequences=127 partial=10 recovered=0
+1408R sequences_before_reset=128 recovered=1 TEC=0 REC=0 state=error-active
+REC>127 receive-success chooses 127 from allowed 119..127; no universal register implementation
+Not CiA402 status bits / EtherCAT / e-stop; real CAN + SocketCAN: 本页未运行; 以规范为准
+```
+
+</SimOutput>
+
+
+噪声发送器第 16 时隙 TEC=**128**，进入被动；八次成功后为 **120**，回到主动。第 40/41 时隙为 **248 / 256**，只在后者 bus-off。健康 / 噪声成功报文为 **43 / 8**；噪声案例抑制后续 **2** 次请求，不更新计数，也不发总线信号。边界行保留 **255 仍为被动**，说明 **REC=512 不会 bus-off**，接收测试覆盖三种 REC +8 情形。
+
+不等待的恢复请求被拒。重复 128 次 `10R+1D` 仍为 **0** 次完整序列。**1407R** 只有 **127 次完整 +10 位部分段**，仍失败；再一位成为 **1408R** 才达 **128**，随后恢复清零两个计数。这区分了完整序列次数和简单累加隐性位数量。
+
+### 简化、练习与时间分配
+
+事件由调用者完成协议条件判定，不从位时序、CRC、仲裁、ACK 或重叠错误标志解码。规则 6 从已满足条件的序列开始计数；一条报文适用多条规则时，调用者须分别提供，不能去重成一次“坏帧”。REC 是不设上界的教学整数，实际控制器寄存器有限；成功复位选择已经声明。真实收发器、网络、SocketCAN、硬件恢复与急停测试：**本页未运行**。不声称安全 / SIL / 认证。
+
+1. 从 TEC=255 开始：成功变为 254，普通 +8 错误则到 263/bus-off；255 本身不是 off。
+2. 对同一条满足条件的报文依次提供 `rx_error` 和 `rx_after_flag_dominant`，解释 **+1+8**；再说明 `rx_flag_bit` 为什么不叠加普通增量。
+3. 检查主动 / 过载长度 13、14、21、22，被动长度 7、8、15、16；打断恢复连续段，不把隐性位总数当完整 11 位序列。
+4. 解释为什么总线恢复既不清除 8.5 执行器锁存，也不绕过 `operator_ack`。
+
+**180 min：** 45 阅读规则 / 边界 +45 事件与状态推导 +30 共享轨迹 +45 例外 / 恢复测试 +15 复盘；不重讲 EtherCAT DC 或 CiA402。
+
 <Summary>
 
 编写 ros2_control 硬件组件：生命周期 `on_init`/`configure`/`activate`/…、导出状态/命令接口、`read`/`write`、JointLimiter 日志、实时纪律（热路径不分配、不阻塞）。另用 `lifecycle_sm_toy.py` 演练**托管节点** SM（非法 activate 被拒后仍可恢复到 Active；脚本 C 经 shutdown 到达 Finalized），并对照 `HardwareComponentInterface`——二者不是同一状态机。`servo_bus_sim.py` 用预算守卫把超时从 122 降到 0。`so101_hw/` 是给你 Jazzy 工作区的骨架——本页未运行。LTTng / 真机加载本页未运行。
+
+Classic CAN TEC/REC 事件规则区分 >127 被动、TEC>255 bus-off，并以 128×11 隐性位约束恢复，与 CiA402、EtherCAT 和急停相互独立。
 
 </Summary>

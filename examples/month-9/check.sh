@@ -36,4 +36,6 @@ check multi_robot_corridor_toy.txt "$PY" "$M9/nav-arm-compose/multi_robot_corrid
 
 check mtc_stage_memory_toy.txt "$PY" "$M9/mtc-long-horizon/mtc_stage_memory_toy.py"
 
+check ft_bias_gravity_toy.txt "$PY" "$M9/effort-admittance/ft_bias_gravity_toy.py"
+
 exit $fail

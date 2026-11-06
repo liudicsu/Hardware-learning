@@ -1,0 +1,45 @@
+Classic CAN qualified events; shared 43 slots, deterministic, no stochastic seeds
+normal TX +8/-1; REC +1/-1 plus qualified +8; passive >127; bus-off TEC>255
+arm slot TEC REC state
+healthy 16 0 0 error-active
+healthy 24 0 0 error-active
+healthy 40 0 0 error-active
+healthy 41 0 0 error-active
+healthy 43 0 0 error-active
+healthy accepted=43 blocked_while_off=0
+noisy_tx 16 128 0 error-passive
+noisy_tx 24 120 0 error-active
+noisy_tx 40 248 0 error-passive
+noisy_tx 41 256 0 bus-off
+noisy_tx 43 256 0 bus-off
+noisy_tx accepted=8 blocked_while_off=2
+boundary TEC REC state
+boundary 127 127 error-active
+boundary 128 0 error-passive
+boundary 255 0 error-passive
+boundary 256 0 bus-off
+boundary 0 512 error-passive
+receive event before_REC after_REC
+receive rx_error 0 1
+receive rx_ok 1 0
+receive rx_ok 0 0
+receive rx_after_flag_dominant 120 128
+receive rx_flag_bit 120 128
+receive rx_extension 120 128
+receive rx_ok 128 127
+rule6 flag count increments_of_8
+rule6 active 13 0
+rule6 active 14 1
+rule6 active 22 2
+rule6 overload 14 1
+rule6 passive 7 0
+rule6 passive 8 1
+rule6 passive 16 2
+passive_ACK_exception TEC=128; alone-node ACK loss is not forced bus-off
+arbitration_stuff_exception TEC=128
+no_wait recovered=0 state=bus-off
+interrupted_10R_1D sequences=0 recovered=0
+1407R sequences=127 partial=10 recovered=0
+1408R sequences_before_reset=128 recovered=1 TEC=0 REC=0 state=error-active
+REC>127 receive-success chooses 127 from allowed 119..127; no universal register implementation
+Not CiA402 status bits / EtherCAT / e-stop; real CAN + SocketCAN: 本页未运行; 以规范为准

@@ -365,6 +365,339 @@ impedance_output=effort admittance_output=motion safety_ranking=none
 - **在接触时加大位置增益硬顶。** 先回退 / 导纳，再谈要不要加力传感器。
 - **默写过载/温度跳闸数。** 本页不提供这些数。
 
+## Batch-6 H5：估计 F/T 偏置并补偿重力（+210 min）
+
+上文默认路径仍是 Present Load 代理，**不是 N**。本节使用**合成六轴 F/T**，不把 Load 换算成力，也不要求购买传感器。先用无接触静态数据估计质量、质心（COM）与力 / 力矩偏置，再用**留出姿态**评价。真实 F/T 硬件：**本页未运行**。
+
+<Resource id="ft-tools-calibration" />
+<Resource id="ros2-admittance" />
+
+实际打开的 `ft_tools_ros2` 标定 README 说明在传感器坐标系最小二乘估计质量、质心和偏置（其实现使用 Eigen SVD，建议约十个合理选择的姿态）。Jazzy 官方导纳文档明确了重力补偿坐标系、质心位置和工具重量。本课 stdlib QR 是教学模型，不运行这些软件包，也不标定传感器到机器人之间的旋转。
+
+### 先确定符号、坐标轴与原点
+
+`R_BS` 把**传感器系 S → 基座轴向 B**。基座重力 `gB=(0,0,−9.81) m/s²`，所以 **gS=R_BSᵀ gB**。下文测量力、力矩、偏置和质心均用**传感器轴向、传感器原点**表达。同一原点的向量可以旋转为 `fB=R_BS fS`、`τB=R_BS τS`；若把扳手移到真正的基座原点，还要增加力臂叉乘，本课不做。接触输入按**同一传感器原点的基座轴向**给出，再旋转到 S。
+
+声明**负载作用于传感器为正**：`f_meas = f_contact + m gS + bF`；`τ_meas = τ_contact + h×gS + bT`，其中 **h=m c**（kg·m）。m 单位 kg，c 单位 m，bF 单位 N，bT 单位 N·m。链接的 README 使用 **−mg 反作用约定**，本玩具的 **+mg 约定**是明确选择；不能不核对传感器极性和 g 的定义就照抄减号。补偿减去自己的已声明模型，不减去 oracle 接触真值。
+
+使用**六个姿态**，让 S 中重力分别沿 ±X/±Y/±Z，**每姿态 16 个样本，共 96 条无接触标定记录**。对力的每个分量 j，LS 行为 `[gS_j, e_j]`，未知数为 `[m,bFx,bFy,bFz]`。力矩未知数为 `[hx,hy,hz,bTx,bTy,bTz]`，设计矩阵为：
+
+```text
+h cross gS = [  0   gz  -gy ] h
+             [ -gz   0   gx ]
+             [  gy -gx    0 ]
+```
+
+分别求解后用 **c_hat=h_hat/m_hat**。本课用再正交化的修改 Gram-Schmidt QR，拒绝秩亏姿态集；生产系统应选条件良好的带主元求解器或 SVD。联合辨识需要**至少三个足够不同的姿态**，但单有姿态数量不保证满秩或良好条件；六个满秩合成姿态也不是通用硬件配方。标定无接触，不给拟合器真实质量 / 质心 / 偏置，不用留出标签拟合或选阈值。
+
+### 信息审计与共享评价
+
+| 臂 | 使用 / 减去什么 |
+|---|---|
+| raw | 相同的已提供数据，不作修正。 |
+| one_pose_tare | 仅取第一姿态 **16/96** 条的均值；减去的是偏置**加该姿态重力**，不是辨识出的纯偏置。 |
+| bias_only_ls | 从全部 **96** 条估计 bF/bT；忽略已拟合的重力。 |
+| ls_gravity | 从相同 **96** 条估计 m/c/bF/bT；减去偏置和随姿态变化的重力。 |
+
+四臂都得到相同标定记录、已知姿态，消费**完全相同的已存评价流 / 噪声**。raw 和单姿态置零故意丢弃信息，已明确披露；不宣称使用样本数相等或比较样本效率。仅偏置与全补偿共享同一个 LS 拟合；没有臂得到 oracle 质量 / 质心。
+
+只有生成器使用合成真值：**m=0.72 kg**，**c=(0.035,−0.018,0.065) m**，bF=(0.32,−0.25,0.42) N，bT=(0.018,−0.012,0.009) N·m。各分量独立高斯噪声 **σF=0.08 N**、**στ=0.003 N·m**，同次臂对照完全共享。五个种子 **11/23/37/53/71** 分别使用独立标定 / 评价随机流。每次评价 **12 个留出姿态 ×10 =120** 条，**60 空载 +60 接触**；静态接触按基座轴向给出力 (1.2,0.4,0.2) N、力矩 (0.045,−0.025,0.020) N·m。
+
+指标为**向量 RMSE**：`sqrt(mean(||estimated−true||²))`，分别用 N、N·m，不是单分量 RMSE。固定接触判据 `||estimated force|| >1.2 N`；F1=`2TP/(2TP+FP+FN)`，误触发仅统计 **60 条空载**。阈值在评价前声明，不为不同臂重调。接近阈值的接触加上共享噪声，让正确标定后也不是完美检测。
+
+```bash
+cd ~/Hardware-learning/examples/month-9/effort-admittance
+python3 ft_bias_gravity_toy.py
+```
+
+<CodeSource path="examples/month-9/effort-admittance/ft_bias_gravity_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic static F/T calibration; stdlib only, no sensor purchase.
+R_BS maps sensor axes to base axes; gS=R_BS^T*(0,0,-9.81).
+Positive wrench here is payload-on-sensor: fS=m*gS+bF+contactS;
+tauS=(m*c) cross gS+bT+contactTorqueS, all at the sensor origin.
+This sign is declared, not copied from ft_tools_ros2's opposite reaction sign.
+Fit only measured free-space calibration rows. Mass, COM and both offsets are
+ESTIMATED, never supplied to compensation. All arms share recorded eval data.
+Real F/T hardware: 本页未运行. No safety or universal performance claim.
+"""
+from math import cos, sin, pi, sqrt
+from random import Random
+from statistics import mean, pstdev
+
+SEEDS = (11, 23, 37, 53, 71)
+G_BASE = (0., 0., -9.81)
+SIGMA_F, SIGMA_T = .08, .003  # N, N m per independent sensor component
+THRESHOLD = 1.2  # N; declared before evaluation, not tuned on held-out data
+ARMS = ("raw", "one_pose_tare", "bias_only_ls", "ls_gravity")
+ZERO = (0., 0., 0.)
+TRUTH = (.72, (.035, -.018, .065), (.32, -.25, .42), (.018, -.012, .009))
+CAL_POSES = ((0., 0., 0.), (pi, 0., 0.), (0., pi/2, 0.),
+             (0., -pi/2, 0.), (pi/2, 0., 0.), (-pi/2, 0., 0.))
+EVAL_POSES = tuple((-.9 + .17*k, .35*sin(.7*k) + .21, .13 + .29*k) for k in range(12))
+
+
+def add(a, b):
+    return tuple(x+y for x, y in zip(a, b))
+
+
+def sub(a, b):
+    return tuple(x-y for x, y in zip(a, b))
+
+
+def scale(k, a):
+    return tuple(k*x for x in a)
+
+
+def dot(a, b):
+    return sum(x*y for x, y in zip(a, b))
+
+
+def norm(a):
+    return sqrt(dot(a, a))
+
+
+def cross(a, b):
+    return (a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0])
+
+
+def rotation(pose):
+    """R_BS = Rz(yaw) Ry(pitch) Rx(roll), right-handed."""
+    r, p, y = pose
+    cr, sr, cp, sp, cy, sy = cos(r), sin(r), cos(p), sin(p), cos(y), sin(y)
+    return ((cy*cp, cy*sp*sr-sy*cr, cy*sp*cr+sy*sr),
+            (sy*cp, sy*sp*sr+cy*cr, sy*sp*cr-cy*sr), (-sp, cp*sr, cp*cr))
+
+
+def to_sensor(r, base):
+    return tuple(dot(column, base) for column in zip(*r))
+
+
+def to_base(r, sensor):
+    return tuple(dot(row, sensor) for row in r)
+
+
+def least_squares(rows, targets):
+    """Reorthogonalized modified Gram-Schmidt QR; reject rank-deficient poses.
+    Educational small matrices, not a substitute for production pivoted QR/SVD.
+    """
+    columns = [tuple(c) for c in zip(*rows)]
+    n = len(columns)
+    q, upper = [], [[0.]*n for _ in range(n)]
+    for j, column in enumerate(columns):
+        v = column
+        for _ in range(2):
+            for k, basis in enumerate(q):
+                coefficient = dot(basis, v)
+                upper[k][j] += coefficient
+                v = sub(v, scale(coefficient, basis))
+        upper[j][j] = norm(v)
+        if upper[j][j] < 1e-10:
+            raise ValueError("insufficient orientation excitation / rank deficient")
+        q.append(scale(1/upper[j][j], v))
+    rhs, solution = [dot(basis, targets) for basis in q], [0.]*n
+    for j in range(n-1, -1, -1):
+        solution[j] = (rhs[j]-sum(upper[j][k]*solution[k] for k in range(j+1, n)))/upper[j][j]
+    return tuple(solution)
+
+
+def fit(calibration):
+    """Receives only (gS, measured_fS, measured_tauS); no true mass/COM/bias."""
+    frows, trows, fy, ty = [], [], [], []
+    for g, f, tau in calibration:
+        h_design = ((0., g[2], -g[1]), (-g[2], 0., g[0]), (g[1], -g[0], 0.))
+        for axis in range(3):
+            unit = tuple(float(axis == j) for j in range(3))
+            frows.append((g[axis],) + unit)
+            trows.append(h_design[axis] + unit)
+            fy.append(f[axis]); ty.append(tau[axis])
+    mass_bias = least_squares(frows, fy)
+    h_bias = least_squares(trows, ty)
+    mass = mass_bias[0]
+    if mass <= 0:
+        raise ValueError("unphysical fitted mass")
+    return mass, scale(1/mass, h_bias[:3]), mass_bias[1:], h_bias[3:]
+
+
+def measurement(pose, contact_f, contact_t, rng, sigma_f=SIGMA_F, sigma_t=SIGMA_T):
+    """Truth is used ONLY by synthetic data generator and error scorer."""
+    mass, com, bf, bt = TRUTH
+    r = rotation(pose)
+    g = to_sensor(r, G_BASE)
+    f_true, t_true = to_sensor(r, contact_f), to_sensor(r, contact_t)
+    f = add(add(f_true, scale(mass, g)), bf)
+    tau = add(add(t_true, cross(scale(mass, com), g)), bt)
+    return g, add(f, tuple(rng.gauss(0, sigma_f) for _ in range(3))), add(tau, tuple(rng.gauss(0, sigma_t) for _ in range(3)))
+
+
+def datasets(seed, sigma_f=SIGMA_F, sigma_t=SIGMA_T):
+    cal_rng, eval_rng = Random(seed), Random(10000+seed)
+    calibration = [measurement(pose, ZERO, ZERO, cal_rng, sigma_f, sigma_t)
+                   for pose in CAL_POSES for _ in range(16)]
+    evaluation = []
+    for pose in EVAL_POSES:
+        r = rotation(pose)
+        for k in range(10):
+            contact = k >= 5
+            f, t = ((1.2, .4, .2), (.045, -.025, .020)) if contact else (ZERO, ZERO)
+            g, fm, tm = measurement(pose, f, t, eval_rng, sigma_f, sigma_t)
+            evaluation.append((g, fm, tm, to_sensor(r, f), to_sensor(r, t), contact))
+    return calibration, evaluation
+
+
+def tare(calibration):
+    """Constant one-pose zero uses first 16 rows only; it includes gravity."""
+    return tuple(tuple(mean(row[index][axis] for row in calibration[:16]) for axis in range(3)) for index in (1, 2))
+
+
+def compensate(arm, sample, estimated, zero):
+    g, fm, tm = sample[:3]
+    mass, com, bf, bt = estimated
+    if arm == "raw":
+        return fm, tm
+    if arm == "one_pose_tare":
+        return sub(fm, zero[0]), sub(tm, zero[1])
+    if arm == "bias_only_ls":
+        return sub(fm, bf), sub(tm, bt)
+    if arm != "ls_gravity":
+        raise ValueError("unknown arm")
+    return sub(sub(fm, bf), scale(mass, g)), sub(sub(tm, bt), cross(scale(mass, com), g))
+
+
+def score(arm, evaluation, estimated, zero):
+    f2 = t2 = 0.
+    tp = fp = fn = 0
+    for sample in evaluation:
+        f, t = compensate(arm, sample, estimated, zero)
+        f2 += norm(sub(f, sample[3]))**2
+        t2 += norm(sub(t, sample[4]))**2
+        detected, contact = norm(f) > THRESHOLD, sample[5]
+        tp += int(detected and contact)
+        fp += int(detected and not contact)
+        fn += int(not detected and contact)
+    f1 = 2*tp/(2*tp+fp+fn) if 2*tp+fp+fn else 0.
+    return sqrt(f2/len(evaluation)), sqrt(t2/len(evaluation)), f1, fp
+
+
+def main():
+    print("Synthetic static sensor-origin wrench; R_BS sensor->base, gS=R_BS^T gB, gB=(0,0,-9.81)")
+    print("6 orientations x16=96 contact-free calibration rows; 12 held-out poses x10=120 eval rows")
+    print("Same recorded data for all arms; one_pose_tare deliberately uses only first-pose 16/96 rows")
+    print("sigma_F_N=0.080 sigma_tau_Nm=0.003 threshold_N=1.200; 60 free/60 contact per seed")
+    print("seed mass_hat_kg COM_error_mm force_bias_error_N torque_bias_error_Nm")
+    results = {arm: [] for arm in ARMS}
+    traces = []
+    for seed in SEEDS:
+        calibration, evaluation = datasets(seed)
+        estimated, zero = fit(calibration), tare(calibration)
+        m, c, bf, bt = estimated
+        print(f"{seed} {m:.6f} {1000*norm(sub(c, TRUTH[1])):.6f} {norm(sub(bf, TRUTH[2])):.6f} {norm(sub(bt, TRUTH[3])):.6f}")
+        for arm in ARMS:
+            metrics = score(arm, evaluation, estimated, zero)
+            results[arm].append(metrics)
+            traces.append((seed, arm, metrics))
+    print("seed arm force_RMSE_N torque_RMSE_Nm contact_F1 false_triggers_out_of_60_free")
+    for seed, arm, (f, t, f1, fp) in traces:
+        print(f"{seed} {arm} {f:.6f} {t:.6f} {f1:.6f} {fp}")
+    print("five-seed spread: arm metric mean population_std min max")
+    for arm in ARMS:
+        for j, metric in enumerate(("force_N", "torque_Nm", "F1", "false_triggers")):
+            values = [row[j] for row in results[arm]]
+            print(f"{arm} {metric} {mean(values):.6f} {pstdev(values):.6f} {min(values):.6f} {max(values):.6f}")
+    print("Estimated mass/COM/offsets only; single-pose zero is not bias identification across orientations")
+    print("Static model excludes inertia, temperature drift, sensor misalignment, crosstalk and controller safety")
+    print("Present Load remains a proxy, not N; real F/T hardware: 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic static sensor-origin wrench; R_BS sensor->base, gS=R_BS^T gB, gB=(0,0,-9.81)
+6 orientations x16=96 contact-free calibration rows; 12 held-out poses x10=120 eval rows
+Same recorded data for all arms; one_pose_tare deliberately uses only first-pose 16/96 rows
+sigma_F_N=0.080 sigma_tau_Nm=0.003 threshold_N=1.200; 60 free/60 contact per seed
+seed mass_hat_kg COM_error_mm force_bias_error_N torque_bias_error_Nm
+11 0.719560 0.052606 0.005666 0.000496
+23 0.720604 0.068687 0.016498 0.000590
+37 0.720554 0.141532 0.014370 0.000478
+53 0.718878 0.129696 0.005761 0.000263
+71 0.719094 0.160495 0.017686 0.001010
+seed arm force_RMSE_N torque_RMSE_Nm contact_F1 false_triggers_out_of_60_free
+11 raw 6.843520 0.424659 0.666667 60
+11 one_pose_tare 4.569921 0.278981 0.694118 51
+11 bias_only_ls 7.066162 0.427100 0.666667 60
+11 ls_gravity 0.137468 0.004896 0.909091 0
+23 raw 6.851666 0.425162 0.666667 60
+23 one_pose_tare 4.591197 0.280323 0.705882 50
+23 bias_only_ls 7.076308 0.428226 0.666667 60
+23 ls_gravity 0.146414 0.005441 0.878505 0
+37 raw 6.851204 0.424687 0.666667 60
+37 one_pose_tare 4.597689 0.279442 0.705882 50
+37 bias_only_ls 7.081617 0.427592 0.666667 60
+37 ls_gravity 0.133149 0.005255 0.899083 0
+53 raw 6.841739 0.424875 0.666667 60
+53 one_pose_tare 4.602032 0.279589 0.701754 51
+53 bias_only_ls 7.066220 0.427663 0.666667 60
+53 ls_gravity 0.142572 0.005825 0.899083 0
+71 raw 6.847648 0.424794 0.666667 60
+71 one_pose_tare 4.593226 0.279350 0.698225 50
+71 bias_only_ls 7.071732 0.427258 0.666667 60
+71 ls_gravity 0.150742 0.005012 0.947368 0
+five-seed spread: arm metric mean population_std min max
+raw force_N 6.847155 0.003988 6.841739 6.851666
+raw torque_Nm 0.424835 0.000181 0.424659 0.425162
+raw F1 0.666667 0.000000 0.666667 0.666667
+raw false_triggers 60.000000 0.000000 60.000000 60.000000
+one_pose_tare force_N 4.590813 0.011096 4.569921 4.602032
+one_pose_tare torque_Nm 0.279537 0.000441 0.278981 0.280323
+one_pose_tare F1 0.701172 0.004542 0.694118 0.705882
+one_pose_tare false_triggers 50.400000 0.489898 50.000000 51.000000
+bias_only_ls force_N 7.072408 0.005963 7.066162 7.081617
+bias_only_ls torque_Nm 0.427568 0.000389 0.427100 0.428226
+bias_only_ls F1 0.666667 0.000000 0.666667 0.666667
+bias_only_ls false_triggers 60.000000 0.000000 60.000000 60.000000
+ls_gravity force_N 0.142069 0.006247 0.133149 0.150742
+ls_gravity torque_Nm 0.005286 0.000329 0.004896 0.005825
+ls_gravity F1 0.906626 0.022674 0.878505 0.947368
+ls_gravity false_triggers 0.000000 0.000000 0.000000 0.000000
+Estimated mass/COM/offsets only; single-pose zero is not bias identification across orientations
+Static model excludes inertia, temperature drift, sensor misalignment, crosstalk and controller safety
+Present Load remains a proxy, not N; real F/T hardware: 本页未运行
+```
+
+</SimOutput>
+
+
+### 读全部种子，不预设赢家
+
+| 臂 | 力 RMSE N，均值 ±总体标准差 | 力矩 RMSE N·m，均值 ±标准差 | F1 均值 ±标准差 | 空载误触发均值 /60 |
+|---|---|---|---|---|
+| raw | 6.847155 ±0.003988 | 0.424835 ±0.000181 | 0.666667 ±0.000000 | 60.0 |
+| one_pose_tare | 4.590813 ±0.011096 | 0.279537 ±0.000441 | 0.701172 ±0.004542 | 50.4 |
+| bias_only_ls | 7.072408 ±0.005963 | 0.427568 ±0.000389 | 0.666667 ±0.000000 | 60.0 |
+| ls_gravity | 0.142069 ±0.006247 | 0.005286 ±0.000329 | 0.906626 ±0.022674 | 0.0 |
+
+本组合成实验的质量估计范围 **0.718878–0.720604 kg**，COM 误差 **0.052606–0.160495 mm**；stdout 保留每个种子及 min/max。全补偿力 RMSE 为 **0.133149–0.150742 N**，F1 为 **0.878505–0.947368**。本姿态流中 raw 偏置恰好部分抵消重力，因此只减偏置反而比 raw 差；减偏置不是所有指标上的通用赢家。
+
+单姿态不能把 bF 和 m gS 分开；置零时看似为零，换方向后仍有 **50–51 次空载误触发**。只有修改随姿态变化的模型才能去掉这种系统残差。测试还展示无噪声情形：置零姿态残差为零，转 90° 后非零。这些只是模型结果，不是硬件精度规格，也不是接触控制安全证据。
+
+### 边界、练习与时间分配
+
+只建模已知姿态下的静态情况：不含加速度 / 惯性、温漂、串扰、负载变化或未知安装偏转。真实应用须先处理这些问题、激励 / 条件数和验证，再向控制器供数。本节不改原来的 Present Load 路径，也不重做先前的阻抗 / 导纳共同机械模型。没有 F/T 品牌 / 价格 / 过载跳闸推荐，不声称安全认证；硬件：**本页未运行**。
+
+1. 用无噪声标定恢复十个线性参数（m、h 的三分量与六个偏置），再求 c；只留一个姿态并解释秩亏。
+2. 单姿态置零后转 90°，先推导残差 **m(gS_new−gS_zero)** 和力矩残差，再运行测试。
+3. 固定相同噪声 / 接触 / 姿态记录，改变声明的噪声模型或 COM，至少五个种子同时报告每臂的力 RMSE、力矩 RMSE、F1 和空载误触发；不拿测试数据选阈值。
+4. 解释符号约定，以及为什么改变扳手原点时不能只旋转力矩。
+
+**210 min：** 45 坐标 / 符号方程 +45 LS / 秩推导 +45 标定与留出运行 +45 五种子指标 / 置零失效 +30 边界与复盘。
+
 <Summary>
 
 阻抗：力 ← 运动误差；导纳：运动 ← 力。默认用 Feetech STS3215 Present Load 地址 60（1000=100 %，非牛顿）与 Current 地址 69（6.5 mA/LSB）。方程 F = M a + D v + S (x−x_d)；ζ = D/(2√(MS))。`load_contact_sim.py`：回退峰值 208.2 &lt; 仅位置 1000；`admittance_1d.py`：三刚度 x≈F/S。真机记 Load 本页未运行；不写 F/T 品牌价格与过载数。
@@ -372,5 +705,7 @@ impedance_output=effort admittance_output=motion safety_ranking=none
 
 
 共同机械模型比较：阻抗输出 effort，导纳输出 motion 再走内伺服。共享噪声，对比力 / 穿透 / 返回后的稳定时间，不作普遍安全排名。
+
+传感器系六姿态 LS 估计质量、质心与偏置，五种子留出评价对照原始、单姿态置零、仅偏置与重力补偿，不偷用 oracle 参数，也不声称运行真实 F/T。
 
 </Summary>
