@@ -3595,8 +3595,8 @@ export const resources: Record<string, Resource> = {
       "en": "Free"
     },
     "summary": {
-      "zh": "已打开并 curl200；30 %–70 % 上升沿 0.8473 Rp Cbus，灌电流下限与电容上限；2.1 的 Rp / Cbus 均标合成，不以固定米数断言成败。",
-      "en": "Opened and curl200; 30 %–70 % rise 0.8473 Rp Cbus, sink lower bound and capacitance upper bound. Lesson 2.1 Rp/Cbus are synthetic, not a universal cable-length claim."
+      "zh": "已打开并 curl200；Table 2-1 列出 Sm/Fm/Fm+ 的 t_r 最大值 1000/300/120 ns；30 %–70 % 上升沿 0.8473 Rp Cbus，灌电流下限与电容上限；2.1 的 Rp / Cbus 均标合成，不以固定米数断言成败。",
+      "en": "Opened and curl200; Table 2-1 gives Sm/Fm/Fm+ t_r maxima 1000/300/120 ns; 30 %–70 % rise 0.8473 Rp Cbus, sink lower bound and capacitance upper bound. Lesson 2.1 Rp/Cbus are synthetic, not a universal cable-length claim."
     },
     "license": {
       "zh": "版权归原作者；仅提供外链",
@@ -3641,8 +3641,8 @@ export const resources: Record<string, Resource> = {
       "en": "Free"
     },
     "summary": {
-      "zh": "SCLS085L 已打开并 curl200；供电建议为每 VCC 贴近引脚放 0.1 µF，并提及与 1 µF 并联。1.2 的 L / 电流边沿 / 电压预测均为合成，不从此认证 EMC。",
-      "en": "SCLS085L opened and curl200; recommends 0.1 µF near each VCC and mentions parallel 1 µF. Lesson 1.2 L/current-edge/rail values are synthetic, not EMC certification."
+      "zh": "SCLS085L 已打开并 curl200；供电建议为每 VCC 贴近引脚放 0.1 µF，并提及与 1 µF 并联。1.2 等总电容 RLC 模型的 C / ESR / ESL / 环路 L / 电流及电压预测均为合成，不从此认证 EMC。",
+      "en": "SCLS085L opened and curl200; recommends 0.1 µF near each VCC and mentions parallel 1 µF. Lesson 1.2 equal-total-C RLC model values (C/ESR/ESL/loop L/current/rail) are synthetic, not EMC certification."
     },
     "license": {
       "zh": "版权归原作者；仅提供外链",

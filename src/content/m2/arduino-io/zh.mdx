@@ -444,6 +444,18 @@ Arduino 程序（sketch）是 C++，由对应开发板的 GCC 工具链编译（
 
 **本次确实打开的来源：** TI SLVA689 给出 `tr = 0.8473 Rp Cbus` 及灌电流决定的 Rp 下限。真实 TMP102 数据手册 **SBOS397I，Timing Requirements** 的 Fast-mode：SCL 最大 **400 kHz**、时钟上升时间最大 **300 ns**、低电平至少 **1300 ns**、高电平至少 **600 ns**；电气特性在电源超过 2 V 时给出 **3 mA 下 VOL 最大 0.4 V**。这是该器件的数字，**不能忽略总线上其他所有参与者**。本次没有解析 / 打开 NXP UM10204，不把这些数值归给它。
 
+### 三种模式的上升时间限制，不是通用 300 ns
+
+本次修正重新打开 **TI SLVA689A Table 2-1** PDF，**curl 核对 HTTP 200**。其 t_r 最大值表为：
+
+| 模式 | t_r 最大值（30 %–70 %） |
+|---|---|
+| Sm（Standard-mode） | **1000 ns** |
+| Fm（Fast-mode） | **300 ns** |
+| Fm+（Fast-mode Plus） | **120 ns** |
+
+玩具使用同一 RC 边沿与 36 个槽，让**每臂都检查三种限制**。这是**仅上升沿检查**，不是完整模式或器件合规。仿真的 **400 kHz** 高低波形仍是 Fm 例子，不是符合 Sm 的时钟；不声称 TMP102 支持 Fm+，其自身时钟上升要求也可能比通用 Sm 表更严格。原来的 300 ns 引脚 / 高电平窗口检查专属选定的 Fm / 器件，不是跨模式通用限制。引用确实打开的 TI 表，不冒认未打开的 NXP 规范。
+
 ### RC 假设与共享流量
 
 从 `V(t)/Vdd = 1 − exp(−t/(Rp Cbus))` 得到 **30 %–70 %** 上升时间 `tr = ln(7/3) Rp Cbus ≈ 0.8473 Rp Cbus`。从理想零电压到 70 % 则是 `t70 = −ln(0.3) Rp Cbus`，两者不能混用。Cbus 为**合成**：板 30 pF + 3 个器件 × 10 pF + 线电容（短线 40 pF、长线 340 pF），得到 **100 pF / 400 pF**。没有声称某个固定米数的电缆必然失败。
@@ -471,6 +483,9 @@ python3 i2c_risetime_toy.py
 #!/usr/bin/env python3
 """Synthetic lumped open-drain RC bus; same bytes and SCL edges in all arms.
 tr30to70=ln(7/3)*Rp*C is distinct from t70=-ln(0.3)*Rp*C.
+TI SLVA689A Table 2-1: tr_max Sm=1000 ns, Fm=300 ns, Fm+=120 ns.
+Three rise-only screens use shared bytes, NOT full mode compliance.
+The waveform remains 400 kHz/Fm; TMP102 is not claimed to support Fm+.
 TMP102 datasheet Fast-mode clock limits: 400 kHz, tr<=300 ns, low>=1300 ns,
 high>=600 ns. 3.3 V is selected; all Rp, board/device/wire C are SYNTHETIC.
 Every transmitter, including the master, is ASSUMED to support the example
@@ -484,7 +499,8 @@ MESSAGE = bytes((0xA5, 0x00, 0xFF, 0x5A))  # synthetic, not a TMP102 register tr
 F_HZ = 400_000.0
 LOW_S = 1500e-9
 HIGH_RELEASE_S = 1 / F_HZ - LOW_S
-RISE_BUDGET_S = 300e-9
+MODE_RISE_LIMITS = (("Sm", 1000e-9), ("Fm", 300e-9), ("Fm+", 120e-9))
+RISE_BUDGET_S = dict(MODE_RISE_LIMITS)["Fm"]
 MIN_HIGH_S = 600e-9
 VDD = 3.3
 VOL_MAX = 0.4
@@ -520,6 +536,12 @@ def evaluate(rp, cbus, slots, frequency=F_HZ):
                 sink_ok=rp >= rp_min, flags=sum(not edge_ok for _ in slots))
 
 
+def rise_screens(tr, slots):
+    """Generic mode rise limits only, not frequency/high/sink/device checks."""
+    return tuple((mode, limit, tr / limit, len(slots) if tr > limit else 0)
+                 for mode, limit in MODE_RISE_LIMITS)
+
+
 def main():
     slots = scl_slots(MESSAGE)
     print("Synthetic Rp/Cbus; TMP102 example timing/sink budget, not a link certificate")
@@ -533,6 +555,13 @@ def main():
     short = evaluate(2200, capacitance(40), slots)
     long = evaluate(2200, capacitance(340), slots)
     print(f"Rp_min_ohm={short['rp_min']:.3f} Rp_max_short_ohm={short['rp_max']:.3f} Rp_max_long_ohm={long['rp_max']:.3f}")
+    print("TI SLVA689A Table 2-1: rise-only screens (not full mode/device compliance)")
+    print("arm mode tr_max_ns tr_over_limit violating_edges")
+    for arm, rp, wire_pf in ARMS:
+        tr = evaluate(rp, capacitance(wire_pf), slots)["tr"]
+        for mode, limit, ratio, flags in rise_screens(tr, slots):
+            print(f"{arm} {mode} {limit * 1e9:.0f} {ratio:.6f} {flags}")
+    print("400kHz waveform is Fm only; Sm rise-pass is not Sm link-pass; no TMP102 Fm+ claim")
     print("Flags are edge-budget violations, NOT observed packet loss; real bus/scope: 本页未运行")
 
 
@@ -551,6 +580,18 @@ weak_short 10000 100 847.298 0.338919 0.000 0.290 1 36
 strong_short 2200 100 186.406 0.074562 735.126 1.318 1 0
 strong_long_C 2200 400 745.622 0.298249 0.000 1.318 1 36
 Rp_min_ohm=966.667 Rp_max_short_ohm=3540.668 Rp_max_long_ohm=885.167
+TI SLVA689A Table 2-1: rise-only screens (not full mode/device compliance)
+arm mode tr_max_ns tr_over_limit violating_edges
+weak_short Sm 1000 0.847298 0
+weak_short Fm 300 2.824326 36
+weak_short Fm+ 120 7.060816 36
+strong_short Sm 1000 0.186406 0
+strong_short Fm 300 0.621352 0
+strong_short Fm+ 120 1.553379 36
+strong_long_C Sm 1000 0.745622 0
+strong_long_C Fm 300 2.485407 36
+strong_long_C Fm+ 120 6.213518 36
+400kHz waveform is Fm only; Sm rise-pass is not Sm link-pass; no TMP102 Fm+ claim
 Flags are edge-budget violations, NOT observed packet loss; real bus/scope: 本页未运行
 ```
 
@@ -559,6 +600,8 @@ Flags are edge-budget violations, NOT observed packet loss; real bus/scope: 本�
 ### 解释结果，不认证电缆
 
 三种上升时间为 **847.298 / 186.406 / 745.622 ns**，占 bit 的 **0.338919 / 0.074562 / 0.298249**。只有 strong_short 留下有效稳定高窗口（**735.126 ns**）；weak_short 与 strong_long_C 在模型释放窗口内不能达到 70 %。边沿预算标志为 **36 / 0 / 36**，不是丢包率。400 pF 下只看上升时间的 Rp 上限是 **885.167 Ω**，已低于灌电流下限 **966.667 Ω**：此假设组合没有只靠电阻的解。应减小总线 C，或按相应数据手册重新考虑频率 / 时序 / 驱动与缓冲，不能只是换更小的电阻。
+
+**Sm / Fm / Fm+ 仅上升沿违例数**分别为 **0/36/36**（weak_short）、**0/0/36**（strong_short）、**0/36/36**（strong_long_C）。三臂都通过通用 Sm 上升沿筛查，但全不通过 Fm+：186.406 ns 仍大于 120 ns。这不抵消 Fm 高电平窗口失败，也不证明低速模式链路可靠；除 `tr_over_bit` 外还要看 `tr_over_limit`。
 
 **150 分钟安排：** 30 min 查来源；30 min 推导 RC 和单位；30 min 运行共享字节三臂；45 min 灵敏度；15 min 范围复盘。
 
@@ -579,7 +622,7 @@ Flags are edge-budget violations, NOT observed packet loss; real bus/scope: 本�
 - 引脚上的 LED 需要串联电阻：5 V 下 220 Ω 为 2.0 V 红色 LED 提供 13.6 mA。
 - 115200 波特率下一个字符需要 86.8 µs；64 字节发送缓冲区写满后，`Serial.print()` 会阻塞。
 
-- I2C RC 在固定字节下比较 30 %–70 % 上升时间、bit / 高电平预算与灌电流，不把预算标志当成实测丢包。
+- I2C RC 在固定字节下筛查 Sm/Fm/Fm+ 上升限制与 bit / 高电平 / 灌电流预算，不把标志当成实测丢包。
 
 **下一课会用到**
 

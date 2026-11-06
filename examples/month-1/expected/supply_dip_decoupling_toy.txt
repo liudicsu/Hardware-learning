@@ -1,8 +1,21 @@
-Synthetic L*di/dt ONLY; local-current-loop proxy, not capacitor-network simulation
-shared train rising_edges=9 falling_edges=9 rail_V=3.300
-arm effective_L_nH min_rail_V dip_V
-far_bulk 40.0 2.980000 0.320000
-local_ceramic_short 3.0 3.276000 0.024000
-long_trace 100.0 2.500000 0.800000
-No capacitor charge/ESR/ESL/ringing prediction; no FCC/CE or fuse conclusion
+Synthetic series ESL+ESR+C capacitor path; shared source Rfeed=0.5ohm
+Equal total C=10uF; shared 9 rising/9 falling ramps; 500ns plateaus; 3 cycles
+arm count each_uF total_uF ESR_eq_ohm Ltotal_nH cap_SRF_MHz mounted_SRF_MHz min_rail_V dip_V max_rail_V
+far_bulk 1 10.0 10.0 0.2000 45.000 0.711763 0.237254 3.233928 0.066072 3.338483
+local_single 1 10.0 10.0 0.0200 4.000 1.591549 0.795775 3.275589 0.024411 3.316784
+local_split 10 1.0 10.0 0.0040 3.080 5.626977 0.906869 3.278804 0.021196 3.314556
+long_trace 10 1.0 10.0 0.0040 100.080 5.626977 0.159091 3.226711 0.073289 3.363044
+arm Z_0.1SRF_ohm Z_SRF_ohm Z_10SRF_ohm ImZ_0.1SRF_ohm ImZ_10SRF_ohm XL_over_XC_at_10SRF
+far_bulk 0.693574 0.200000 0.693574 -0.664112 0.664112 100.000
+local_single 0.199008 0.020000 0.199008 -0.198000 0.198000 100.000
+local_split 0.173790 0.004000 0.173790 -0.173744 0.173744 100.000
+long_trace 0.990404 0.004000 0.990404 -0.990396 0.990396 100.000
+20MHz above all SRFs: arm Xloop_ohm Xesl_eq_ohm Xc_ohm ESR_eq_ohm
+far_bulk 5.026548 0.628319 0.000796 0.200000
+local_single 0.376991 0.125664 0.000796 0.020000
+local_split 0.376991 0.010053 0.000796 0.004000
+long_trace 12.566371 0.010053 0.000796 0.004000
+SRF cancels reactances, not ESR; above SRF the path becomes inductive
+Shared loop L is not divided by capacitor count; not a universal part/layout winner
+No DC-bias/tolerance/mutual-L/distributed-PCB/regulator dynamics; no FCC/CE or fuse claim
 Real board / scope / EMC test: 本页未运行

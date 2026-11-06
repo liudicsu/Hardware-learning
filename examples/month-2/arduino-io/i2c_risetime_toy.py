@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Synthetic lumped open-drain RC bus; same bytes and SCL edges in all arms.
 tr30to70=ln(7/3)*Rp*C is distinct from t70=-ln(0.3)*Rp*C.
+TI SLVA689A Table 2-1: tr_max Sm=1000 ns, Fm=300 ns, Fm+=120 ns.
+Three rise-only screens use shared bytes, NOT full mode compliance.
+The waveform remains 400 kHz/Fm; TMP102 is not claimed to support Fm+.
 TMP102 datasheet Fast-mode clock limits: 400 kHz, tr<=300 ns, low>=1300 ns,
 high>=600 ns. 3.3 V is selected; all Rp, board/device/wire C are SYNTHETIC.
 Every transmitter, including the master, is ASSUMED to support the example
@@ -14,7 +17,8 @@ MESSAGE = bytes((0xA5, 0x00, 0xFF, 0x5A))  # synthetic, not a TMP102 register tr
 F_HZ = 400_000.0
 LOW_S = 1500e-9
 HIGH_RELEASE_S = 1 / F_HZ - LOW_S
-RISE_BUDGET_S = 300e-9
+MODE_RISE_LIMITS = (("Sm", 1000e-9), ("Fm", 300e-9), ("Fm+", 120e-9))
+RISE_BUDGET_S = dict(MODE_RISE_LIMITS)["Fm"]
 MIN_HIGH_S = 600e-9
 VDD = 3.3
 VOL_MAX = 0.4
@@ -50,6 +54,12 @@ def evaluate(rp, cbus, slots, frequency=F_HZ):
                 sink_ok=rp >= rp_min, flags=sum(not edge_ok for _ in slots))
 
 
+def rise_screens(tr, slots):
+    """Generic mode rise limits only, not frequency/high/sink/device checks."""
+    return tuple((mode, limit, tr / limit, len(slots) if tr > limit else 0)
+                 for mode, limit in MODE_RISE_LIMITS)
+
+
 def main():
     slots = scl_slots(MESSAGE)
     print("Synthetic Rp/Cbus; TMP102 example timing/sink budget, not a link certificate")
@@ -63,6 +73,13 @@ def main():
     short = evaluate(2200, capacitance(40), slots)
     long = evaluate(2200, capacitance(340), slots)
     print(f"Rp_min_ohm={short['rp_min']:.3f} Rp_max_short_ohm={short['rp_max']:.3f} Rp_max_long_ohm={long['rp_max']:.3f}")
+    print("TI SLVA689A Table 2-1: rise-only screens (not full mode/device compliance)")
+    print("arm mode tr_max_ns tr_over_limit violating_edges")
+    for arm, rp, wire_pf in ARMS:
+        tr = evaluate(rp, capacitance(wire_pf), slots)["tr"]
+        for mode, limit, ratio, flags in rise_screens(tr, slots):
+            print(f"{arm} {mode} {limit * 1e9:.0f} {ratio:.6f} {flags}")
+    print("400kHz waveform is Fm only; Sm rise-pass is not Sm link-pass; no TMP102 Fm+ claim")
     print("Flags are edge-budget violations, NOT observed packet loss; real bus/scope: 本页未运行")
 
 

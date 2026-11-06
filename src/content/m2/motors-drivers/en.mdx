@@ -771,7 +771,11 @@ A winding is not a harness. [11.1 power distribution](/en/month/month-11/power-b
 
 ### Define the plant before judging the controller
 
-Use `R_winding(T) = R25 × [1 + α(T − Ta)]`, `P_copper = I² R_winding(T)` and `Cθ dT/dt = P_copper − (T − Ta)/Rθ`. Here Ta = 25 °C, R25 = 1 Ω, α = 0.00393/K, **Rθ = 4 K/W and Cθ = 12 J/K are lesson-defined synthetic parameters**, so τ = 48 s. All numerical plant/control inputs are synthetic; denote the derating threshold `T_lim = 50 °C` and cutoff `T_trip = 70 °C`. Forward Euler uses dt = 0.10 s; temperature is not an instantaneous function of current. The linear resistance law and single thermal lump omit iron loss, airflow changes, case/winding lag and motor damage; the 150 °C toy output is not a validated operating point.
+Use `R(T) = R20 × [1 + 0.00393(T − 20)]`, with **R20 = 1 Ω at 20 °C** and **α20 = 0.00393/K referenced to 20 °C**; do not attach that coefficient to an R25 reference. Ambient Ta=25 °C gives R(25)=**1.01965 Ω**. At **fixed current**, hotter copper has more resistance and therefore more `I²R(T)` loss: this is **I²R(T) positive feedback**, not merely “current makes heat”. It does not assert the same feedback at fixed voltage.
+
+The thermal equation is `Cθ dT/dt = P(T) − (T−Ta)/Rθ`, with `P(T)=I²R(T)`. **Steady-state ΔT = P·Rθ** follows from zero derivative; when P depends on T, use P(T_ss), so this is an implicit equilibrium, not a constant ambient-resistance shortcut. For a **short overload**, **ΔT ≈ P·t/Cθ for t ≪ τ**: Cθ limits the initial heating rate, while Rθ sets the constant-power steady rise. For constant P, `ΔT(t)=P Rθ[1−exp(−t/(Rθ Cθ))]`; at 10 W, steady rise is **40 K**, but a 0.1 s pulse gives **0.083247 K**, close to **0.083333 K** from P·t/Cθ.
+
+**All numerical plant/control inputs are synthetic**, including lesson-defined **Rθ = 4 K/W**, **Cθ = 12 J/K**, T_lim=50 °C and T_trip=70 °C. The nominal constant-power τ=48 s is not an assertion that R(T) feedback leaves the effective current-driven time constant unchanged. Forward Euler uses dt=0.10 s. The single thermal lump omits iron loss, airflow changes, case/winding lag and damage; a roughly 153 °C result is not a validated operating point.
 
 All arms consume the **same 4800-sample demanded current profile** over 480 s: free-run 1 A, intermittent 5 A stalls from 30–150 s (4 s of each 10 s), prolonged 5 A stalls at 150–240 s and 360–420 s, then cooling. It is a synthetic current-controlled request, not a voltage-driven motor model. Delivered current differs only when the thermal controller intervenes:
 
@@ -795,6 +799,9 @@ python3 winding_thermal_rc_toy.py
 ```python
 #!/usr/bin/env python3
 """Synthetic winding thermal RC, NOT harness I2R (11.1) or driver-package thetaJA.
+R(T)=R20*(1+0.00393*(T-20)); alpha20 is referenced to 20 degC.
+At fixed I, I2R(T) is positive feedback. Steady deltaT=P*Rtheta;
+short t<<tau gives deltaT approximately P*t/Ctheta.
 All arms share the demanded current profile, plant and integration grid.
 Ignore/monitor deliver the same current; derate intentionally changes delivered current.
 The plant still heats when its controller ignores heating. Ideal winding temperature
@@ -804,8 +811,8 @@ Lesson-defined Rtheta/Ctheta/limits, NOT insulation-class certification. Stdlib 
 from math import expm1
 
 AMBIENT = 25.0
-R25 = 1.0                 # ohm, synthetic winding resistance at ambient
-ALPHA = 0.00393            # 1/K, illustrative linear copper tempco
+R20 = 1.0                 # ohm at 20 degC, synthetic reference resistance
+ALPHA20 = 0.00393          # 1/K referenced to 20 degC, not 25 degC
 RTH = 4.0                 # K/W, lesson-defined winding-to-ambient path
 CTH = 12.0                # J/K, lesson-defined winding heat capacity
 DT = 0.1                  # s; tau = RTH * CTH = 48 s
@@ -827,17 +834,27 @@ def current_profile(dt=DT):
     return tuple(result)
 
 
+def resistance(temp):
+    """I2R(T) positive feedback: at fixed I, hotter copper dissipates more."""
+    return R20 * (1 + ALPHA20 * (temp - 20.0))
+
+
 def advance(temp, current, dt):
-    copper = current * current * R25 * (1 + ALPHA * (temp - AMBIENT))
+    copper = current * current * resistance(temp)
     cooling = (temp - AMBIENT) / RTH
     return temp + (copper - cooling) * dt / CTH, copper * dt, cooling * dt
 
 
 def constant_current_exact(current, seconds):
     """Independent closed-form check of the linear-in-temperature ODE."""
-    p0 = current * current * R25
-    b = p0 * ALPHA - 1 / RTH
+    p0 = current * current * resistance(AMBIENT)
+    b = current * current * R20 * ALPHA20 - 1 / RTH
     return AMBIENT + (p0 * seconds / CTH if abs(b) < 1e-12 else p0 / b * expm1(b * seconds / CTH))
+
+
+def constant_power_rise(power, seconds):
+    """Steady deltaT=P*RTH; for t<<tau, deltaT approximately P*t/CTH."""
+    return -power * RTH * expm1(-seconds / (RTH * CTH))
 
 
 def run(arm, requests, dt=DT):
@@ -872,13 +889,15 @@ def run(arm, requests, dt=DT):
 def main():
     requests = current_profile()
     print("Synthetic winding RC; ideal winding T; no insulation/driver-package rating")
-    print(f"shared request samples={len(requests)} dt_s={DT:.2f} duration_s={DURATION:.0f} tau_s={RTH * CTH:.0f}")
+    print(f"R20_ohm={R20:.3f} alpha20_per_K={ALPHA20:.5f} R_at_25C_ohm={resistance(25):.5f}; I2R(T) positive feedback")
+    print(f"constant_P=10W steady_delta_K={10 * RTH:.3f} short_0.1s_exact_K={constant_power_rise(10, .1):.6f} short_approx_K={10 * .1 / CTH:.6f}")
+    print(f"shared request samples={len(requests)} dt_s={DT:.2f} duration_s={DURATION:.0f} tau0_s={RTH * CTH:.0f}")
     print("arm physical_peak_C final_C copper_J trips derated_samples above_trip_s estimator")
     for arm in ARMS:
         r = run(arm, requests)
         estimator = "none" if arm == "ignore" else "ideal_winding_T"
         print(f"{arm} {r['peak']:.3f} {r['final']:.3f} {r['copper_j']:.3f} {r['trips']} {r['derate_samples']} {r['above_trip_s']:.1f} {estimator}")
-    print("trips count thermal cutoff entries; monitor warns but never intervenes")
+    print("trips count thermal cutoff entries; monitor observes but never intervenes")
     print("Synthetic only; real winding measurement / motor hardware: 本页未运行")
 
 
@@ -890,12 +909,14 @@ if __name__ == "__main__":
 
 ```text
 Synthetic winding RC; ideal winding T; no insulation/driver-package rating
-shared request samples=4800 dt_s=0.10 duration_s=480 tau_s=48
+R20_ohm=1.000 alpha20_per_K=0.00393 R_at_25C_ohm=1.01965; I2R(T) positive feedback
+constant_P=10W steady_delta_K=40.000 short_0.1s_exact_K=0.083247 short_approx_K=0.083333
+shared request samples=4800 dt_s=0.10 duration_s=480 tau0_s=48
 arm physical_peak_C final_C copper_J trips derated_samples above_trip_s estimator
-ignore 150.534 55.421 6580.035 0 0 228.0 none
-monitor_rc 150.534 55.421 6580.035 0 0 228.0 ideal_winding_T
-derate_trip 70.013 39.167 2837.044 2 1277 0.2 ideal_winding_T
-trips count thermal cutoff entries; monitor warns but never intervenes
+ignore 153.001 56.019 6709.332 0 0 235.0 none
+monitor_rc 153.001 56.019 6709.332 0 0 235.0 ideal_winding_T
+derate_trip 70.025 38.651 2843.554 2 1254 0.2 ideal_winding_T
+trips count thermal cutoff entries; monitor observes but never intervenes
 Synthetic only; real winding measurement / motor hardware: 本页未运行
 ```
 
@@ -903,7 +924,7 @@ Synthetic only; real winding measurement / motor hardware: 本页未运行
 
 ### Read the result, then perturb it
 
-The ignore and monitor physical peaks both equal **150.534 °C**, with **6580.035 J** copper energy: information without action cannot cool the plant. Derating yields **70.013 °C**, **2837.044 J** and **2 trips**, not an assumed no-trip success. The 0.013 °C overshoot and 0.2 s above the trip level expose discrete checking; no sample-by-sample guarantee below 70 °C is claimed. Copper energy is `Σ I_actual² R(T_k) dt`, not electrical input energy or shaft work. `Cθ(T_final−Ta) = copper_J−cooling_J` is a useful energy-balance regression.
+The ignore and monitor physical peaks both equal **153.001 °C**, with **6709.332 J** copper energy: information without action cannot cool the plant. Derating yields **70.025 °C**, **2843.554 J** and **2 trips**, not an assumed no-trip success. The 0.025 °C overshoot and 0.2 s above the trip level expose discrete checking; no sample-by-sample guarantee below 70 °C is claimed. Copper energy is `Σ I_actual² R(T_k) dt`, not electrical input energy or shaft work. `Cθ(T_final−Ta) = copper_J−cooling_J` is a useful energy-balance regression.
 
 **180-minute work plan:** 45 min derive units/ODE; 45 min audit shared demand and all three arms; 45 min integrate and interpret peaks/energy/trips; 30 min sensitivity; 15 min review.
 
@@ -925,7 +946,7 @@ The ignore and monitor physical peaks both equal **150.534 °C**, with **6580.03
 - Romi encoder: 12 counts per motor turn (×4) × 119.76 ≈ 1440 counts per wheel turn, 0.153 mm per count on a 70 mm wheel.
 - A minimum duty overcomes the 0.8 V dead band only if it is sized for the lowest battery voltage: 0.8 V / 5.0 V = 0.16.
 
-- The winding RC comparison keeps the demanded current shared, exposes the ignore/monitor physical heat and the derate arm’s two trips, and does not certify insulation limits.
+- Winding R(T)=R20[1+α20(T−20)] creates I²R(T) positive feedback; in the shared-profile thermal RC, Rθ sets steady rise while Cθ limits short-overload heating.
 
 **Used next**
 

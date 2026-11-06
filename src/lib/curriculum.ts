@@ -40,7 +40,7 @@ const month1Lessons: Lesson[] = [
     },
     minutes: 270,
     objectives: [
-      { zh: "只用 L·di/dt 在共享脉冲下比较远端 bulk、本地短回路与长线的最低电压 / 跌落；不模拟电容电荷或认证。", en: "Use L·di/dt only under shared pulses to compare minimum rail/dip for far bulk, a short local loop and long trace; no capacitor-charge or certification claim." },
+      { zh: "用串联 ESL+ESR+C、等总电容与共享脉冲比较放置 / 单颗容量、SRF 和最低电压；不声称 EMC 认证。", en: "Use series ESL+ESR+C, equal total capacitance and shared pulses to compare placement/part values, SRF and minimum rail; no EMC certification claim." },
       { zh: "能识别电阻、电容、二极管、LED、NPN 三极管和 GND 的符号，并读懂连接点、交叉无点和同名网络标号。", en: "Read resistor, capacitor, diode, LED, NPN transistor and GND symbols, junction dots, dot-less crossings and same-net labels." },
       { zh: "能计算 τ = R × C 并掌握 63 % 与 99 % 两个节点，会在每个 IC 的 VCC 与 GND 之间放置 100 nF 去耦电容。", en: "Calculate τ = R × C with the 63 % and 99 % milestones, and place a 100 nF decoupling capacitor at each IC's VCC and GND." },
       { zh: "能用 R = (Vsupply − Vf) / I 计算 LED 限流电阻，并解释 Rb = 100 kΩ 为何使三极管无法饱和。", en: "Size an LED resistor with R = (Vsupply − Vf) / I, and explain why Rb = 100 kΩ keeps the transistor out of saturation." },
@@ -49,7 +49,7 @@ const month1Lessons: Lesson[] = [
     prereqs: ["ohms-law"],
     resources: ["falstad", "tinkercad", "aac", "make-electronics", "ti-sn74hc14-decoupling"],
     tasks: [
-      { id: "b6p1", text: { zh: "运行 supply_dip_decoupling_toy.py，核对同一边沿的最低电压，并列出电荷 / ESR / ESL 排除项", en: "Run supply_dip_decoupling_toy.py, compare minimum rail under identical edges and list charge/ESR/ESL exclusions" } },
+      { id: "b6p1", text: { zh: "运行 supply_dip_decoupling_toy.py，核对等总电容的串联 ESL+ESR+C、SRF 与同一脉冲下最低电压", en: "Run supply_dip_decoupling_toy.py, check equal-total-C series ESL+ESR+C, SRF and minimum rail under identical pulses" } },
       { id: "led-resistor", text: { zh: "为 5V 驱动的红色 LED（2V，10mA）计算限流电阻", en: "Calculate the current-limiting resistor for a red LED (2 V, 10 mA) on 5 V" } },
       { id: "transistor-sim", text: { zh: "在 Falstad 中运行晶体管开关电路，用开关模拟 3.3V 逻辑引脚控制 LED", en: "Run the transistor-switch circuit in Falstad and use the switch as a 3.3 V logic pin driving the LED" } },
       { id: "rc-sim", text: { zh: "运行 RC 充放电示例，估算时间常数 τ = RC", en: "Run the RC charge/discharge example and estimate the time constant τ = RC" } },
@@ -162,7 +162,7 @@ const month2Lessons: Lesson[] = [
     },
     minutes: 300,
     objectives: [
-      { zh: "声明 Rp/Cbus 模型，在共享字节下计算 30 %–70 % 上升时间与 bit / 高电平预算，并检查灌电流而非猜丢包。", en: "Declare Rp/Cbus, compute 30 %–70 % rise time and bit/high-time budgets under shared bytes, and check sink current rather than guess packet loss." },
+      { zh: "声明 Rp/Cbus，在共享字节下检查 Sm/Fm/Fm+ 上升时间表和 bit / 高电平 / 灌电流预算，不把标志当丢包。", en: "Declare Rp/Cbus and screen shared bytes against Sm/Fm/Fm+ rise limits plus bit/high-time/sink budgets, without calling flags packet loss." },
       { zh: "能说清 setup() 与 loop() 各自做什么，以及一个只跑一次、另一个反复跑的原因。", en: "Explain what setup() and loop() do and why one runs once while the other repeats." },
       { zh: "能不看资料用 INPUT_PULLUP 接好按键，并说出按下与松开时 digitalRead() 分别返回 LOW 还是 HIGH。", en: "Wire a button with INPUT_PULLUP and state what digitalRead() returns when pressed and released." },
       { zh: "能用 V = raw × 5.0 / 1023 把 ADC 原始值换算成电压，并解释为什么必须写成 5.0。", en: "Convert a raw ADC reading to volts with V = raw × 5.0 / 1023 and explain why 5.0 is required." },
@@ -235,7 +235,7 @@ const month2Lessons: Lesson[] = [
     },
     minutes: 540,
     objectives: [
-      { zh: "用本课定义的绕组 Rθ/Cθ、共享请求电流比较忽略 / 监测 / 降额并跳闸三臂，报告峰值温度、铜耗能量和 trips；不混同线束或驱动封装热阻。", en: "Use lesson-defined winding Rθ/Cθ and shared requested current to compare ignore/monitor/derate-and-trip, reporting peak T, copper energy and trips; not harness or driver-package thermal resistance." },
+      { zh: "用参考一致的 R20/α20 与绕组 Rθ/Cθ，解释 I²R(T) 正反馈、稳态 / 短时温升，并在共享电流下比较温度 / 铜耗 / trips，不混同线束或封装热阻。", en: "Use consistent R20/α20 and winding Rθ/Cθ to explain I²R(T) feedback, steady/short-time heating and shared-current temperature/energy/trips; not harness/package thermal resistance." },
       { zh: "能解释占空比不等于转速，并算出 60 % 占空比在 7.4 V 电池上给出 0.60 × 7.4 V = 4.44 V 平均电压。", en: "Explain why PWM duty is not speed, and calculate 0.60 × 7.4 V = 4.44 V average at 60 % duty." },
       { zh: "能画出 H 桥的四个状态（含刹车与滑行），并说明为什么弃用 L298N：它 2 V 的压降在 1 A 时变成 2.0 W 的热量。", en: "Draw the H-bridge's four states including brake and coast, and reject the L298N whose 2 V drop wastes 2.0 W as heat at 1 A." },
       { zh: "能解释电感反冲，并把续流二极管反向并联在线圈两端，阴极接正电源一侧。", en: "Explain inductive kickback and connect a flyback diode across a switched coil, cathode to the positive supply." },

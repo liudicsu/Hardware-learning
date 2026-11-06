@@ -283,27 +283,42 @@ DIY 机器人最常用的锂聚合物电池（lithium polymer, LiPo）有一组�
 - 我能背出 LiPo 的电压区间、S 与 C 的含义，以及几条安全铁律。
 - 我能用 V = I × R 讲清楚堵转为什么会让 MCU 复位。
 
-## 电源跌落：谁来供应这个边沿？（+150 min）
+## 电源跌落：串联 ESL + ESR + C 与放置（+150 min）
 
-保留前面的 RC 充电曲线与 bulk / 本地去耦建议。新增只隔离 **L·di/dt**：开关负载要求电流边沿，快速供电 / 回流环路的电感需要压差。不是重做 [11.1 往返 IR 与熔断器门禁](/zh/month/month-11/power-battery-emc)，不是电容容量选型器，也不是 FCC/CE 测试。
+保留前面的 RC 充电与本地旁路建议。修正后的模型是**串联 ESL+ESR+C 电容路径**，不再只算 L·di/dt；在**相同总电容**下比较放置与单颗容量，并区分频率阻抗和瞬态最低电压。不是重做 [11.1 往返 IR / 熔断器选型](/zh/month/month-11/power-battery-emc)，也不是 FCC/CE 测试。
 
 <Resource id="ti-sn74hc14-decoupling" />
 
-本次打开了**真实 SN74HC14 数据手册** SCLS085L 的 Power Supply Recommendations：每个 VCC 推荐 **0.1 µF** 旁路，尽可能贴近供电脚；还提到 0.1 µF 与 1 µF 并联。这是特定器件的阅读指针，不是所有板的通用处方。下方玩具的环路电感 / 电流边沿 / 电压预测都不是手册实测值；**全部模型数值输入均为合成**。
+已打开的真实 **SN74HC14 SCLS085L** Power Supply Recommendations 推荐每个 VCC 贴近放 **0.1 µF**，并提及并联 1 µF。这是特定器件的阅读指针，不是玩具元件的来源。**全部模型数值输入均为合成**：每组总 C = **10 µF**，单颗 ESR/ESL、放置环路 L、脉冲与电源阻抗；没有表征任何商用器件。
 
-### 相同边沿序列，三个等效电流环路
+### 总 C 相同，不等于阻抗相同
 
-理想 3.3 V 电源下，`Vpin(t) = 3.3 V − L_loop × di/dt`。单位要一致：40 nH × (0.08 A / 10 ns) = **0.320 V**。本地陶瓷能通过短回路供应快瞬态，远端 bulk 的连接则有更大环路电感。这里为每种放置**指定**等效 L，不从电容值推出 L，也不验证实际 PCB 几何。
+N 个相同电容并联时，`C_total=N C_part`、`ESR_eq=ESR_part/N`、`ESL_eq=ESL_part/N`；**共享放置环路 L 只加一次，绝不能除以 N**。电容支路为 `Zcap(ω)=ESR_eq + j[ω(L_loop+ESL_eq) − 1/(ω C_total)]`。这种等效假设支路相同且不计不等长连接 / 互感，不适用于任意混合容量网络。
 
-| 臂 | 等效 L（合成） | 含义 |
-|---|---|---|
-| far_bulk | 40 nH | 仅远端 bulk 路径供应快速边沿。 |
-| local_ceramic_short | 3 nH | 近处陶瓷提供短的快速电流回路。 |
-| long_trace | 100 nH | 长走线 / 回流环路；有容量不能抵消放置问题。 |
+装配路径的**自谐振频率（SRF）**为 `1/[2π sqrt((L_loop+ESL_eq) C_total)]`，不是孤立器件手册的 SRF。低于 SRF，虚部为负（容性）；在 SRF，电抗抵消但 ESR 仍存在；高于 SRF，虚部为正（感性）。在 **10×SRF**，`X_L/|X_C| = 100`，增加容量不能消除高频电感。额外的 **20 MHz** 表分别列出 X_loop、X_ESL、X_C 与 ESR，展示高于四组 SRF 时的**环路电感主导**。
 
-每臂收到**同一脉冲序列**：电流增量 0.10 / 0.16 / 0.08 A，线性上升 / 下降时间 20 / 40 / 10 ns，平台 500 ns，脉冲起点间隔 10 µs；100 µs 后重复，共三周期。合计 **9 个上升沿、9 个下降沿**，并计入空闲电压。下降沿 di/dt 为负，产生理想化过冲，不做悄悄裁剪。报告**最低电压与跌落深度**，而不只是“好电容”的标签。
+| 组 | 元件（每颗 C / ESR / ESL） | 共享环路 L | 总 C |
+|---|---|---|---|
+| far_bulk | 1 × (10 µF / 0.20 Ω / 5 nH) | 40 nH | 10 µF |
+| local_single | 1 × (10 µF / 0.02 Ω / 1 nH) | 3 nH | 10 µF |
+| local_split | 10 × (1 µF / 0.04 Ω / 0.8 nH) | 同一 3 nH | 10 µF |
+| long_trace | 同一 10 × (1 µF / 0.04 Ω / 0.8 nH) | 100 nH | 10 µF |
 
-此**本地快电流回路代理不是电容网络仿真**：不包含 `I Δt/C` 电荷耗尽、ESR、独立电容 ESL 网络、振铃、稳压器带宽、直流偏压及钳位。因此不能推出容量、持续供电电压、复位阈值或 EMC 合规。相同陶瓷名称若接在长走线上，也未必有 B 臂假设的短回路。真实板 / 示波器 / EMC 测量：**本页未运行**。
+**仅放置对照：** local_split 与 long_trace 的元件和总 C 完全相同，只改共享环路 L。**容量 / 分组对照：** local_single 与 local_split 固定放置和总 C，但改变单颗 C 与声明的 ESR/ESL，不能证明“并得越多越好”。远端 bulk 也改变器件寄生参数，所以该对比不是仅放置对照。
+
+加入共享环路之前的**电容组自身 SRF** 为 **0.711763 / 1.591549 / 5.626977 / 5.626977 MHz**，与后文的装配路径 SRF 不同；**20 MHz 高于两组 SRF**，因此环路主导示例也确实高于电容自身 SRF，不只是把较低频的安装谐振换个名称。
+
+### 用电路响应同一脉冲序列
+
+理想 3.3 V 电源经共享的合成 **Rfeed = 0.5 Ω** 接到引脚，串联电容支路从引脚接回流。i 的正方向是电容储能流向引脚。定义 `u=Vc−3.3 V`、`L=L_loop+ESL_eq`，KCL/KVL 给出：
+
+- `du/dt = −i/C_total`；
+- `L di/dt = u − (Rfeed+ESR_eq)i + Rfeed I_load`；
+- `Vpin = 3.3 V − Rfeed(I_load−i)`。
+
+因此 ESR、ESL、电容放电**和回充**都会影响结果。Rfeed 代表此电路共有的电源阻抗，不是重讲线束导线选型。初始电容充到 3.3 V、i=0。每臂收到**同一脉冲序列**：电流增量 0.10 / 0.16 / 0.08 A，线性上升 / 下降时间 20 / 40 / 10 ns，平台 500 ns，起点间隔 10 µs；三周期相隔 100 µs。共 **9 个上升、9 个下降斜坡**。变步长隐式梯形法求解两状态：脉冲附近最大 0.5 ns，长空闲区间 50 ns；用网格细化检查，而不假设网格精确。过冲也报告，不裁剪。
+
+频率表描述的是**电容支路**，不是与电源并联后的完整驱动点阻抗。引脚响应还取决于 Rfeed 与工作负载频谱。不含直流偏压 / 容差、互感、分布 PCB 模态及稳压器动态；不能推出复位阈值、FCC/CE 或熔断器认证。真实板 / 示波器 / EMC：**本页未运行**。
 
 ### 运行标准库玩具
 
@@ -316,55 +331,132 @@ python3 supply_dip_decoupling_toy.py
 
 ```python
 #!/usr/bin/env python3
-"""Shared synthetic current edges; Vpin = Vrail - L_loop * di/dt ONLY.
-Far bulk, local ceramic/short loop, and long trace differ only in effective L.
-This proxies the fast current-return loop, NOT a simulated capacitor network.
-No I*R, I*dt/C, ESR, ESL network, ringing, FCC/CE or fuse claims; not 11.1 IR.
-A real SN74HC14 datasheet recommends local 0.1 uF; it does NOT supply these L,
-current edges or rail predictions. All toy numeric inputs are synthetic. Stdlib.
+"""Synthetic PDN: source through shared Rfeed, load, series ESL+ESR+C shunt.
+All arms have EXACTLY 10 uF total and consume the SAME piecewise-linear pulses.
+Identical parallel caps combine as C=N*Cpart, ESR=ESRpart/N, ESL=ESLpart/N;
+shared placement-loop inductance is added ONCE, never divided by N.
+Frequency impedance, SRF and time-domain pin voltage are different metrics.
+No real component/PCB characterization, FCC/CE or fuse certification. Stdlib only.
 """
+from math import ceil, pi, sqrt
 from typing import NamedTuple
 
 VRAIL = 3.3
-LOOPS_NH = (("far_bulk", 40.0), ("local_ceramic_short", 3.0), ("long_trace", 100.0))
-# delta current A, linear rise/fall duration ns. Each is held for 500 ns.
-PULSES = ((0.10, 20.0), (0.16, 40.0), (0.08, 10.0))
+RFEED = 0.5  # ohm, shared synthetic regulator/source impedance, not 11.1 wire sizing
+HF_HZ = 20e6
+TOTAL_C = 10e-6
+PULSES = ((0.10, 20e-9), (0.16, 40e-9), (0.08, 10e-9))
 
 
-class Edge(NamedTuple):
-    time_s: float
-    di_dt: float        # A/s, signed; falling edges produce a model overshoot
+class Bank(NamedTuple):
+    name: str
+    count: int
+    each_uf: float
+    each_esr: float  # ohm
+    each_esl_nh: float
+    loop_nh: float
 
 
-def pulse_train():
-    """Three shared periods; pulse starts 10 us apart, cycles 100 us apart."""
-    edges = []
+BANKS = (Bank("far_bulk", 1, 10., .20, 5., 40.),
+         Bank("local_single", 1, 10., .02, 1., 3.),
+         Bank("local_split", 10, 1., .04, .8, 3.),
+         Bank("long_trace", 10, 1., .04, .8, 100.))
+
+
+def equivalent(bank):
+    return (bank.count * bank.each_uf * 1e-6, bank.each_esr / bank.count,
+            (bank.loop_nh + bank.each_esl_nh / bank.count) * 1e-9)
+
+
+def impedance(bank, frequency):
+    c, r, inductance = equivalent(bank)
+    omega = 2 * pi * frequency
+    return complex(r, omega * inductance - 1 / (omega * c))
+
+
+def srf(bank):
+    """Mounted-path resonance includes the shared loop, not bare-part SRF."""
+    c, _, inductance = equivalent(bank)
+    return 1 / (2 * pi * sqrt(inductance * c))
+
+
+def component_srf(bank):
+    """Intrinsic identical-bank SRF before the shared placement-loop L."""
+    c, _, _ = equivalent(bank)
+    esl = bank.each_esl_nh / bank.count * 1e-9
+    return 1 / (2 * pi * sqrt(esl * c))
+
+
+def pulse_segments():
+    """(duration, I_start, I_end, max_step); same linear ramps and hold in all arms."""
+    segments = []
+    now = 0.
     for cycle in range(3):
-        for index, (delta_a, rise_ns) in enumerate(PULSES):
+        for index, (amplitude, rise) in enumerate(PULSES):
             start = cycle * 100e-6 + index * 10e-6
-            duration = rise_ns * 1e-9
-            slope = delta_a / duration
-            edges.extend((Edge(start, slope), Edge(start + duration + 500e-9, -slope)))
-    return tuple(edges)
+            if start > now:
+                segments.append((start - now, 0., 0., 50e-9))
+            segments.extend(((rise, 0., amplitude, .5e-9),
+                             (500e-9, amplitude, amplitude, .5e-9),
+                             (rise, amplitude, 0., .5e-9),
+                             (1000e-9, 0., 0., .5e-9)))
+            now = start + 2 * rise + 1500e-9
+    segments.append((300e-6 - now, 0., 0., 50e-9))
+    return tuple(segments)
 
 
-def evaluate(loop_nh, edges):
-    if loop_nh < 0:
-        raise ValueError("loop inductance must be nonnegative")
-    # Include idle rail. No artificial clipping hides undershoot/overshoot.
-    rails = (VRAIL,) + tuple(VRAIL - loop_nh * 1e-9 * edge.di_dt for edge in edges)
-    return min(rails), VRAIL - min(rails)
+def step(bank, u, current, load0, load1, dt):
+    """Trapezoid on u=Vc-Vrail, i=capacitor-to-node current; KCL+KVL.
+    du/dt=-i/C; L di/dt=u-(Rfeed+ESR)i+Rfeed*Iload.
+    Vpin=Vrail-Rfeed*(Iload-i). Includes charge/recharge, not L*di/dt only.
+    """
+    c, r, inductance = equivalent(bank)
+    a = dt / (2 * c)
+    b = dt / (2 * inductance)
+    damping = b * (RFEED + r)
+    rhs0 = u - a * current
+    rhs1 = b * u + (1 - damping) * current + b * RFEED * (load0 + load1)
+    next_i = (rhs1 + b * rhs0) / (1 + damping + a * b)
+    next_u = rhs0 - a * next_i
+    return next_u, next_i
+
+
+def simulate(bank, segments, refinement=1):
+    u = current = 0.
+    minimum = maximum = VRAIL
+    for duration, load0, load1, max_step in segments:
+        n = ceil(duration / (max_step / refinement))
+        dt = duration / n
+        for k in range(n):
+            before = load0 + (load1 - load0) * k / n
+            after = load0 + (load1 - load0) * (k + 1) / n
+            u, current = step(bank, u, current, before, after, dt)
+            pin = VRAIL - RFEED * (after - current)
+            minimum, maximum = min(minimum, pin), max(maximum, pin)
+    return minimum, VRAIL - minimum, maximum
 
 
 def main():
-    edges = pulse_train()
-    print("Synthetic L*di/dt ONLY; local-current-loop proxy, not capacitor-network simulation")
-    print(f"shared train rising_edges={sum(e.di_dt > 0 for e in edges)} falling_edges={sum(e.di_dt < 0 for e in edges)} rail_V={VRAIL:.3f}")
-    print("arm effective_L_nH min_rail_V dip_V")
-    for arm, loop_nh in LOOPS_NH:
-        minimum, dip = evaluate(loop_nh, edges)
-        print(f"{arm} {loop_nh:.1f} {minimum:.6f} {dip:.6f}")
-    print("No capacitor charge/ESR/ESL/ringing prediction; no FCC/CE or fuse conclusion")
+    segments = pulse_segments()
+    print("Synthetic series ESL+ESR+C capacitor path; shared source Rfeed=0.5ohm")
+    print("Equal total C=10uF; shared 9 rising/9 falling ramps; 500ns plateaus; 3 cycles")
+    print("arm count each_uF total_uF ESR_eq_ohm Ltotal_nH cap_SRF_MHz mounted_SRF_MHz min_rail_V dip_V max_rail_V")
+    for bank in BANKS:
+        c, r, inductance = equivalent(bank)
+        minimum, dip, maximum = simulate(bank, segments)
+        print(f"{bank.name} {bank.count} {bank.each_uf:.1f} {c * 1e6:.1f} {r:.4f} {inductance * 1e9:.3f} {component_srf(bank) / 1e6:.6f} {srf(bank) / 1e6:.6f} {minimum:.6f} {dip:.6f} {maximum:.6f}")
+    print("arm Z_0.1SRF_ohm Z_SRF_ohm Z_10SRF_ohm ImZ_0.1SRF_ohm ImZ_10SRF_ohm XL_over_XC_at_10SRF")
+    for bank in BANKS:
+        f = srf(bank)
+        print(f"{bank.name} {abs(impedance(bank, .1 * f)):.6f} {abs(impedance(bank, f)):.6f} {abs(impedance(bank, 10 * f)):.6f} {impedance(bank, .1 * f).imag:.6f} {impedance(bank, 10 * f).imag:.6f} 100.000")
+    print("20MHz above all SRFs: arm Xloop_ohm Xesl_eq_ohm Xc_ohm ESR_eq_ohm")
+    for bank in BANKS:
+        c, r, _ = equivalent(bank)
+        omega = 2 * pi * HF_HZ
+        print(f"{bank.name} {omega * bank.loop_nh * 1e-9:.6f} {omega * bank.each_esl_nh / bank.count * 1e-9:.6f} {1 / (omega * c):.6f} {r:.6f}")
+    print("SRF cancels reactances, not ESR; above SRF the path becomes inductive")
+    print("Shared loop L is not divided by capacitor count; not a universal part/layout winner")
+    print("No DC-bias/tolerance/mutual-L/distributed-PCB/regulator dynamics; no FCC/CE or fuse claim")
     print("Real board / scope / EMC test: 本页未运行")
 
 
@@ -375,28 +467,43 @@ if __name__ == "__main__":
 <SimOutput source="model">
 
 ```text
-Synthetic L*di/dt ONLY; local-current-loop proxy, not capacitor-network simulation
-shared train rising_edges=9 falling_edges=9 rail_V=3.300
-arm effective_L_nH min_rail_V dip_V
-far_bulk 40.0 2.980000 0.320000
-local_ceramic_short 3.0 3.276000 0.024000
-long_trace 100.0 2.500000 0.800000
-No capacitor charge/ESR/ESL/ringing prediction; no FCC/CE or fuse conclusion
+Synthetic series ESL+ESR+C capacitor path; shared source Rfeed=0.5ohm
+Equal total C=10uF; shared 9 rising/9 falling ramps; 500ns plateaus; 3 cycles
+arm count each_uF total_uF ESR_eq_ohm Ltotal_nH cap_SRF_MHz mounted_SRF_MHz min_rail_V dip_V max_rail_V
+far_bulk 1 10.0 10.0 0.2000 45.000 0.711763 0.237254 3.233928 0.066072 3.338483
+local_single 1 10.0 10.0 0.0200 4.000 1.591549 0.795775 3.275589 0.024411 3.316784
+local_split 10 1.0 10.0 0.0040 3.080 5.626977 0.906869 3.278804 0.021196 3.314556
+long_trace 10 1.0 10.0 0.0040 100.080 5.626977 0.159091 3.226711 0.073289 3.363044
+arm Z_0.1SRF_ohm Z_SRF_ohm Z_10SRF_ohm ImZ_0.1SRF_ohm ImZ_10SRF_ohm XL_over_XC_at_10SRF
+far_bulk 0.693574 0.200000 0.693574 -0.664112 0.664112 100.000
+local_single 0.199008 0.020000 0.199008 -0.198000 0.198000 100.000
+local_split 0.173790 0.004000 0.173790 -0.173744 0.173744 100.000
+long_trace 0.990404 0.004000 0.990404 -0.990396 0.990396 100.000
+20MHz above all SRFs: arm Xloop_ohm Xesl_eq_ohm Xc_ohm ESR_eq_ohm
+far_bulk 5.026548 0.628319 0.000796 0.200000
+local_single 0.376991 0.125664 0.000796 0.020000
+local_split 0.376991 0.010053 0.000796 0.004000
+long_trace 12.566371 0.010053 0.000796 0.004000
+SRF cancels reactances, not ESR; above SRF the path becomes inductive
+Shared loop L is not divided by capacitor count; not a universal part/layout winner
+No DC-bias/tolerance/mutual-L/distributed-PCB/regulator dynamics; no FCC/CE or fuse claim
 Real board / scope / EMC test: 本页未运行
 ```
 
 </SimOutput>
 
-### 解读电压及模型边界
+### 读结果，再挑战假设
 
-按臂顺序，最低电压为 **2.980000 / 3.276000 / 2.500000 V**，跌落为 **0.320000 / 0.024000 / 0.800000 V**。短环路只在**此指定 L 模型**中更好，不意味着所有布局或频率。三臂都经历最快的 0.08 A / 10 ns 边沿；只给其中一臂换工作负载会破坏公平性。电源理想、模型瞬时：长电流平台没有模型电感跌落，尽管真实电容可能放电。
+四组最低电压为 **3.233928 / 3.275589 / 3.278804 / 3.226711 V**，跌落为 **0.066072 / 0.024411 / 0.021196 / 0.073289 V**。各组都是 **10 µF**，没有悄悄增加总容量来换取结果。在此指定电路里 local_split 的短环路有帮助，同一组元件放在长线上则失去优势。这是合成计算，不是实测六位小数电压精度；步长减半 / 四分之一检查数值收敛（粗网格到减半的最低电压最大变化约 3.3 µV）。
 
-**150 分钟安排：** 30 min 来源 / 布局阅读；30 min 单位与共享脉冲；30 min 跑三臂；45 min 灵敏度与排除项；15 min 复盘。
+装配路径 SRF 为 **0.237254 / 0.795775 / 0.906869 / 0.159091 MHz**。在 SRF，输出阻抗等于 ESR，不是零。在 20 MHz，local_split 的 **X_loop=0.376991 Ω**、**X_ESL=0.010053 Ω**、**|X_C|=0.000796 Ω**，ESR=0.004 Ω：环路项主导。十个并联电容没有把共享 3 nH 环路除以十。平台阶段 di/dt 为零，仍有电荷变化，这与被替代的 L-only 模型不同。
 
-1. L 设零，验证电压恒为 3.3 V；L 加倍或上升时间减半，先预测再运行。
-2. 保留同一边沿、延长平台：说明为什么 L-only 输出无法判断 0.1 µF 的电荷是否够用。
-3. 给 local_ceramic_short 指定 long_trace 的 L，不改脉冲：解释为什么“陶瓷”标签本身不是布局模型。
-4. 画出供电**与回流**环路，列出 ESR/ESL/振铃和真实最低电压所需测量 / 模型。不能从此玩具声称 FCC/CE 或熔断器适用性。
+**150 分钟安排：** 30 min 来源 / 布局阅读；30 min 串联阻抗与 SRF；30 min 共享脉冲仿真；45 min 等总 C 对照 / 网格细化；15 min 范围复盘。
+
+1. 将阻抗虚部设零推导 SRF；检查 0.1×、10×SRF 的符号，以及 10×SRF 时 X_L/|X_C|=100。
+2. 保持总 C 为 10 µF，在相同环路 L 下比较一颗 10 µF 与十颗 1 µF；声明每颗 ESR/ESL，不能把共享环路 L 也除掉。
+3. 仅交换 local_split 与 long_trace 的环路 L，保留同一元件 / 脉冲；再延长平台，观察电荷耗尽与电源回充。
+4. 步长减半检查收敛，再列出选器件或声称最低电压前还缺的真实板数据；不能声称 FCC/CE 或熔断器适用性。
 
 <Summary>
 
@@ -410,7 +517,7 @@ Real board / scope / EMC test: 本页未运行
 - Uno 上的上拉：10 kΩ 在 1 µA 漏电流下让引脚保持在 4.99 V，按下时消耗 0.5 mA。
 - V = L × dI/dt 与续流二极管：1 H 线圈中 50 mA 电流被切断时，没有二极管会得到约 2.24 kV 的峰值。
 
-- 共享边沿电源玩具只用 L·di/dt 比较最低电压与跌落，说明快速回流环路的作用，不预测电容电荷或 EMC 合规。
+- 等总电容的串联 ESL+ESR+C 模型展示 SRF 与高频环路电感限制，并比较瞬态电压跌落，不声称 EMC 认证。
 
 **下一课会用到**
 

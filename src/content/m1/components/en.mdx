@@ -283,27 +283,42 @@ Before moving on, you should be able to answer "yes" to all of these:
 - I can recite the LiPo voltage windows, the meaning of S and C, and the safety rules.
 - I can explain, with V = I × R, why a stall can reset the MCU.
 
-## Supply dip: which loop supplies the edge? (+150 min)
+## Supply dip: series ESL + ESR + C and placement (+150 min)
 
-The earlier RC charging curve and bulk-versus-local decoupling advice stay. This addition isolates **L·di/dt only**: a switching load demands a current edge, and voltage is needed across the inductance of its fast supply/return loop. It is not a re-run of [11.1 round-trip IR and fuse gates](/en/month/month-11/power-battery-emc), a capacitor-sizing calculator, or an FCC/CE test.
+The earlier RC charging and local-bypass advice remain. The corrected model is a **series ESL+ESR+C capacitor path**, not L·di/dt alone. Compare **equal total capacitance** while changing placement and capacitor values; distinguish impedance versus frequency from the transient minimum rail. This is not [11.1 round-trip IR/fuse sizing](/en/month/month-11/power-battery-emc) or an FCC/CE test.
 
 <Resource id="ti-sn74hc14-decoupling" />
 
-The **real SN74HC14 datasheet**, SCLS085L, Power Supply Recommendations, was opened: it recommends **0.1 µF** bypass at each VCC and placement as close to the supply pin as possible; it also mentions parallel 0.1 µF and 1 µF. That is a device-specific reading pointer, not a universal board prescription. None of the toy loop inductances/current edges/rail predictions below comes from that datasheet; **all numerical model inputs are synthetic**.
+The opened real **SN74HC14 SCLS085L** Power Supply Recommendations recommends **0.1 µF** near each VCC and mentions parallel 1 µF. That is a device-specific reading pointer, not the source of the toy's parts. **All numerical model inputs are synthetic**: total C = **10 µF** for every bank, each ESR/ESL, placement loop L, pulse train and source impedance. No commercial component is characterized here.
 
-### Same edge train, three effective current loops
+### Equal C does not mean equal impedance
 
-With an ideal 3.3 V source, `Vpin(t) = 3.3 V − L_loop × di/dt`. Units matter: 40 nH × (0.08 A / 10 ns) = **0.320 V**. A local ceramic can supply the fast transient through a short return loop while a far bulk capacitor's connection has greater loop inductance. We **assign** an effective L for each placement; we do not derive L from capacitance or validate a PCB geometry.
+For N identical capacitors in parallel, `C_total=N C_part`, `ESR_eq=ESR_part/N`, `ESL_eq=ESL_part/N`; the **shared placement-loop L is added once, never divided by N**. The resulting branch is `Zcap(ω)=ESR_eq + j[ω(L_loop+ESL_eq) − 1/(ω C_total)]`. This aggregation assumes identical branches with negligible unequal connection/mutual inductance, not arbitrary mixed-value banks.
 
-| Arm | Effective L (synthetic) | Interpretation |
-|---|---|---|
-| far_bulk | 40 nH | Only a distant bulk path supplies the fast edge. |
-| local_ceramic_short | 3 nH | A nearby ceramic provides a short fast-current return loop. |
-| long_trace | 100 nH | Long trace / return loop; capacitance alone does not fix placement. |
+The mounted-path **self-resonant frequency (SRF)** is `1/[2π sqrt((L_loop+ESL_eq) C_total)]`, not the isolated component's datasheet SRF. Below SRF the imaginary part is negative (capacitive); at SRF reactances cancel but ESR remains; above SRF it becomes positive (inductive). At **10×SRF**, `X_L/|X_C| = 100`, so adding capacitance alone does not remove the high-frequency inductance. The extra **20 MHz** table separates X_loop, X_ESL, X_C and ESR and shows **loop inductance dominating** above all four SRFs.
 
-Every arm receives **the same pulse train**: increments 0.10 / 0.16 / 0.08 A, linear rise/fall times 20 / 40 / 10 ns, 500 ns plateau, pulse starts 10 µs apart; repeat after 100 µs for three cycles. There are **9 rising and 9 falling edges**; idle rail is included. A falling edge has negative di/dt and produces an idealized overshoot, never silently clipped. Report **minimum rail voltage and dip depth**, not only a label “good capacitor”.
+| Bank | Parts (each C / ESR / ESL) | Shared loop L | Total C |
+|---|---|---|---|
+| far_bulk | 1 × (10 µF / 0.20 Ω / 5 nH) | 40 nH | 10 µF |
+| local_single | 1 × (10 µF / 0.02 Ω / 1 nH) | 3 nH | 10 µF |
+| local_split | 10 × (1 µF / 0.04 Ω / 0.8 nH) | same 3 nH | 10 µF |
+| long_trace | same 10 × (1 µF / 0.04 Ω / 0.8 nH) | 100 nH | 10 µF |
 
-This **local-current-loop proxy is not a capacitor-network simulation**. It omits `I Δt/C` charge depletion, ESR, the separate capacitor ESL network, ringing, regulator bandwidth, DC bias and clamping. Thus no capacitance-sizing, sustained-rail, reset-threshold or EMC-compliance inference follows. The same named ceramic on a long trace may not provide the short loop assumed by arm B. Real board / scope / EMC measurement: **本页未运行**.
+**Placement-only control:** local_split versus long_trace has exactly the same parts and total C, changing only the common loop L. **Value/bank comparison:** local_single versus local_split keeps placement and total C fixed but changes individual C and the declared ESR/ESL; it does not prove “more parallel parts always win”. Far bulk also changes part parasitics, so that contrast is not placement-only.
+
+The **intrinsic capacitor-bank SRFs**, before adding the shared loop, are **0.711763 / 1.591549 / 5.626977 / 5.626977 MHz**. They differ from the mounted-path SRFs below; **20 MHz exceeds both sets**, so the loop-dominance example is also above the capacitor's own SRF, not just a relabelled low-frequency mounting resonance.
+
+### A circuit for the same pulse train
+
+An ideal 3.3 V source feeds the pin through a shared synthetic **Rfeed = 0.5 Ω**; the series capacitor branch goes from pin to return. The current i is positive from stored capacitor charge toward the pin. With `u=Vc−3.3 V`, `L=L_loop+ESL_eq`, the KCL/KVL model is:
+
+- `du/dt = −i/C_total`;
+- `L di/dt = u − (Rfeed+ESR_eq)i + Rfeed I_load`;
+- `Vpin = 3.3 V − Rfeed(I_load−i)`.
+
+Thus ESR, ESL, capacitor discharge **and recharge** affect the result. Rfeed represents the common source impedance for this circuit, not a new harness-wire sizing lesson. Initially the capacitor is charged to 3.3 V and i=0. All arms receive the **same pulse train**: increments 0.10 / 0.16 / 0.08 A, linear rise/fall times 20 / 40 / 10 ns, 500 ns plateaus, starts 10 µs apart; three cycles 100 µs apart. There are **9 rising and 9 falling ramps**. A variable-step implicit trapezoid solves the two states: at most 0.5 ns near pulses, 50 ns in long idle intervals; refinement is tested rather than assuming the grid is exact. Overshoot is reported, not clipped.
+
+The impedance table describes the **capacitor branch**, not the full driving-point impedance of the source in parallel. Pin response also depends on Rfeed and the workload spectrum. We omit DC-bias/tolerance, mutual L, distributed PCB modes and regulator dynamics. No reset-threshold, FCC/CE or fuse certification follows. Real board / scope / EMC: **本页未运行**.
 
 ### Run the stdlib toy
 
@@ -316,55 +331,132 @@ python3 supply_dip_decoupling_toy.py
 
 ```python
 #!/usr/bin/env python3
-"""Shared synthetic current edges; Vpin = Vrail - L_loop * di/dt ONLY.
-Far bulk, local ceramic/short loop, and long trace differ only in effective L.
-This proxies the fast current-return loop, NOT a simulated capacitor network.
-No I*R, I*dt/C, ESR, ESL network, ringing, FCC/CE or fuse claims; not 11.1 IR.
-A real SN74HC14 datasheet recommends local 0.1 uF; it does NOT supply these L,
-current edges or rail predictions. All toy numeric inputs are synthetic. Stdlib.
+"""Synthetic PDN: source through shared Rfeed, load, series ESL+ESR+C shunt.
+All arms have EXACTLY 10 uF total and consume the SAME piecewise-linear pulses.
+Identical parallel caps combine as C=N*Cpart, ESR=ESRpart/N, ESL=ESLpart/N;
+shared placement-loop inductance is added ONCE, never divided by N.
+Frequency impedance, SRF and time-domain pin voltage are different metrics.
+No real component/PCB characterization, FCC/CE or fuse certification. Stdlib only.
 """
+from math import ceil, pi, sqrt
 from typing import NamedTuple
 
 VRAIL = 3.3
-LOOPS_NH = (("far_bulk", 40.0), ("local_ceramic_short", 3.0), ("long_trace", 100.0))
-# delta current A, linear rise/fall duration ns. Each is held for 500 ns.
-PULSES = ((0.10, 20.0), (0.16, 40.0), (0.08, 10.0))
+RFEED = 0.5  # ohm, shared synthetic regulator/source impedance, not 11.1 wire sizing
+HF_HZ = 20e6
+TOTAL_C = 10e-6
+PULSES = ((0.10, 20e-9), (0.16, 40e-9), (0.08, 10e-9))
 
 
-class Edge(NamedTuple):
-    time_s: float
-    di_dt: float        # A/s, signed; falling edges produce a model overshoot
+class Bank(NamedTuple):
+    name: str
+    count: int
+    each_uf: float
+    each_esr: float  # ohm
+    each_esl_nh: float
+    loop_nh: float
 
 
-def pulse_train():
-    """Three shared periods; pulse starts 10 us apart, cycles 100 us apart."""
-    edges = []
+BANKS = (Bank("far_bulk", 1, 10., .20, 5., 40.),
+         Bank("local_single", 1, 10., .02, 1., 3.),
+         Bank("local_split", 10, 1., .04, .8, 3.),
+         Bank("long_trace", 10, 1., .04, .8, 100.))
+
+
+def equivalent(bank):
+    return (bank.count * bank.each_uf * 1e-6, bank.each_esr / bank.count,
+            (bank.loop_nh + bank.each_esl_nh / bank.count) * 1e-9)
+
+
+def impedance(bank, frequency):
+    c, r, inductance = equivalent(bank)
+    omega = 2 * pi * frequency
+    return complex(r, omega * inductance - 1 / (omega * c))
+
+
+def srf(bank):
+    """Mounted-path resonance includes the shared loop, not bare-part SRF."""
+    c, _, inductance = equivalent(bank)
+    return 1 / (2 * pi * sqrt(inductance * c))
+
+
+def component_srf(bank):
+    """Intrinsic identical-bank SRF before the shared placement-loop L."""
+    c, _, _ = equivalent(bank)
+    esl = bank.each_esl_nh / bank.count * 1e-9
+    return 1 / (2 * pi * sqrt(esl * c))
+
+
+def pulse_segments():
+    """(duration, I_start, I_end, max_step); same linear ramps and hold in all arms."""
+    segments = []
+    now = 0.
     for cycle in range(3):
-        for index, (delta_a, rise_ns) in enumerate(PULSES):
+        for index, (amplitude, rise) in enumerate(PULSES):
             start = cycle * 100e-6 + index * 10e-6
-            duration = rise_ns * 1e-9
-            slope = delta_a / duration
-            edges.extend((Edge(start, slope), Edge(start + duration + 500e-9, -slope)))
-    return tuple(edges)
+            if start > now:
+                segments.append((start - now, 0., 0., 50e-9))
+            segments.extend(((rise, 0., amplitude, .5e-9),
+                             (500e-9, amplitude, amplitude, .5e-9),
+                             (rise, amplitude, 0., .5e-9),
+                             (1000e-9, 0., 0., .5e-9)))
+            now = start + 2 * rise + 1500e-9
+    segments.append((300e-6 - now, 0., 0., 50e-9))
+    return tuple(segments)
 
 
-def evaluate(loop_nh, edges):
-    if loop_nh < 0:
-        raise ValueError("loop inductance must be nonnegative")
-    # Include idle rail. No artificial clipping hides undershoot/overshoot.
-    rails = (VRAIL,) + tuple(VRAIL - loop_nh * 1e-9 * edge.di_dt for edge in edges)
-    return min(rails), VRAIL - min(rails)
+def step(bank, u, current, load0, load1, dt):
+    """Trapezoid on u=Vc-Vrail, i=capacitor-to-node current; KCL+KVL.
+    du/dt=-i/C; L di/dt=u-(Rfeed+ESR)i+Rfeed*Iload.
+    Vpin=Vrail-Rfeed*(Iload-i). Includes charge/recharge, not L*di/dt only.
+    """
+    c, r, inductance = equivalent(bank)
+    a = dt / (2 * c)
+    b = dt / (2 * inductance)
+    damping = b * (RFEED + r)
+    rhs0 = u - a * current
+    rhs1 = b * u + (1 - damping) * current + b * RFEED * (load0 + load1)
+    next_i = (rhs1 + b * rhs0) / (1 + damping + a * b)
+    next_u = rhs0 - a * next_i
+    return next_u, next_i
+
+
+def simulate(bank, segments, refinement=1):
+    u = current = 0.
+    minimum = maximum = VRAIL
+    for duration, load0, load1, max_step in segments:
+        n = ceil(duration / (max_step / refinement))
+        dt = duration / n
+        for k in range(n):
+            before = load0 + (load1 - load0) * k / n
+            after = load0 + (load1 - load0) * (k + 1) / n
+            u, current = step(bank, u, current, before, after, dt)
+            pin = VRAIL - RFEED * (after - current)
+            minimum, maximum = min(minimum, pin), max(maximum, pin)
+    return minimum, VRAIL - minimum, maximum
 
 
 def main():
-    edges = pulse_train()
-    print("Synthetic L*di/dt ONLY; local-current-loop proxy, not capacitor-network simulation")
-    print(f"shared train rising_edges={sum(e.di_dt > 0 for e in edges)} falling_edges={sum(e.di_dt < 0 for e in edges)} rail_V={VRAIL:.3f}")
-    print("arm effective_L_nH min_rail_V dip_V")
-    for arm, loop_nh in LOOPS_NH:
-        minimum, dip = evaluate(loop_nh, edges)
-        print(f"{arm} {loop_nh:.1f} {minimum:.6f} {dip:.6f}")
-    print("No capacitor charge/ESR/ESL/ringing prediction; no FCC/CE or fuse conclusion")
+    segments = pulse_segments()
+    print("Synthetic series ESL+ESR+C capacitor path; shared source Rfeed=0.5ohm")
+    print("Equal total C=10uF; shared 9 rising/9 falling ramps; 500ns plateaus; 3 cycles")
+    print("arm count each_uF total_uF ESR_eq_ohm Ltotal_nH cap_SRF_MHz mounted_SRF_MHz min_rail_V dip_V max_rail_V")
+    for bank in BANKS:
+        c, r, inductance = equivalent(bank)
+        minimum, dip, maximum = simulate(bank, segments)
+        print(f"{bank.name} {bank.count} {bank.each_uf:.1f} {c * 1e6:.1f} {r:.4f} {inductance * 1e9:.3f} {component_srf(bank) / 1e6:.6f} {srf(bank) / 1e6:.6f} {minimum:.6f} {dip:.6f} {maximum:.6f}")
+    print("arm Z_0.1SRF_ohm Z_SRF_ohm Z_10SRF_ohm ImZ_0.1SRF_ohm ImZ_10SRF_ohm XL_over_XC_at_10SRF")
+    for bank in BANKS:
+        f = srf(bank)
+        print(f"{bank.name} {abs(impedance(bank, .1 * f)):.6f} {abs(impedance(bank, f)):.6f} {abs(impedance(bank, 10 * f)):.6f} {impedance(bank, .1 * f).imag:.6f} {impedance(bank, 10 * f).imag:.6f} 100.000")
+    print("20MHz above all SRFs: arm Xloop_ohm Xesl_eq_ohm Xc_ohm ESR_eq_ohm")
+    for bank in BANKS:
+        c, r, _ = equivalent(bank)
+        omega = 2 * pi * HF_HZ
+        print(f"{bank.name} {omega * bank.loop_nh * 1e-9:.6f} {omega * bank.each_esl_nh / bank.count * 1e-9:.6f} {1 / (omega * c):.6f} {r:.6f}")
+    print("SRF cancels reactances, not ESR; above SRF the path becomes inductive")
+    print("Shared loop L is not divided by capacitor count; not a universal part/layout winner")
+    print("No DC-bias/tolerance/mutual-L/distributed-PCB/regulator dynamics; no FCC/CE or fuse claim")
     print("Real board / scope / EMC test: 本页未运行")
 
 
@@ -375,28 +467,43 @@ if __name__ == "__main__":
 <SimOutput source="model">
 
 ```text
-Synthetic L*di/dt ONLY; local-current-loop proxy, not capacitor-network simulation
-shared train rising_edges=9 falling_edges=9 rail_V=3.300
-arm effective_L_nH min_rail_V dip_V
-far_bulk 40.0 2.980000 0.320000
-local_ceramic_short 3.0 3.276000 0.024000
-long_trace 100.0 2.500000 0.800000
-No capacitor charge/ESR/ESL/ringing prediction; no FCC/CE or fuse conclusion
+Synthetic series ESL+ESR+C capacitor path; shared source Rfeed=0.5ohm
+Equal total C=10uF; shared 9 rising/9 falling ramps; 500ns plateaus; 3 cycles
+arm count each_uF total_uF ESR_eq_ohm Ltotal_nH cap_SRF_MHz mounted_SRF_MHz min_rail_V dip_V max_rail_V
+far_bulk 1 10.0 10.0 0.2000 45.000 0.711763 0.237254 3.233928 0.066072 3.338483
+local_single 1 10.0 10.0 0.0200 4.000 1.591549 0.795775 3.275589 0.024411 3.316784
+local_split 10 1.0 10.0 0.0040 3.080 5.626977 0.906869 3.278804 0.021196 3.314556
+long_trace 10 1.0 10.0 0.0040 100.080 5.626977 0.159091 3.226711 0.073289 3.363044
+arm Z_0.1SRF_ohm Z_SRF_ohm Z_10SRF_ohm ImZ_0.1SRF_ohm ImZ_10SRF_ohm XL_over_XC_at_10SRF
+far_bulk 0.693574 0.200000 0.693574 -0.664112 0.664112 100.000
+local_single 0.199008 0.020000 0.199008 -0.198000 0.198000 100.000
+local_split 0.173790 0.004000 0.173790 -0.173744 0.173744 100.000
+long_trace 0.990404 0.004000 0.990404 -0.990396 0.990396 100.000
+20MHz above all SRFs: arm Xloop_ohm Xesl_eq_ohm Xc_ohm ESR_eq_ohm
+far_bulk 5.026548 0.628319 0.000796 0.200000
+local_single 0.376991 0.125664 0.000796 0.020000
+local_split 0.376991 0.010053 0.000796 0.004000
+long_trace 12.566371 0.010053 0.000796 0.004000
+SRF cancels reactances, not ESR; above SRF the path becomes inductive
+Shared loop L is not divided by capacitor count; not a universal part/layout winner
+No DC-bias/tolerance/mutual-L/distributed-PCB/regulator dynamics; no FCC/CE or fuse claim
 Real board / scope / EMC test: 本页未运行
 ```
 
 </SimOutput>
 
-### Interpret the rail numbers and their limits
+### Read the results and challenge the assumptions
 
-Minimum rails are **2.980000 / 3.276000 / 2.500000 V** and dips **0.320000 / 0.024000 / 0.800000 V**, in arm order. The short loop wins **this assigned-L model**, not every layout or frequency. All three see the same fastest 0.08 A / 10 ns edge; changing the workload only for one arm would invalidate the comparison. The source is ideal and the model is instantaneous: a long current plateau produces no modeled inductive dip, even though a real capacitor could discharge.
+The four minimum rails are **3.233928 / 3.275589 / 3.278804 / 3.226711 V**; dips are **0.066072 / 0.024411 / 0.021196 / 0.073289 V**. All banks have **10 µF**, so these differences are not purchased by silently adding total capacitance. Local_split's short loop helps this assigned circuit; the same bank on the long trace loses that advantage. These are synthetic calculations, not measured six-decimal voltage accuracy; halving and quartering the grid tests numerical convergence (largest coarse-to-half minimum change is about 3.3 µV).
 
-**150-minute work plan:** 30 min source/layout reading; 30 min units and shared pulse definition; 30 min run all arms; 45 min sensitivity and exclusions; 15 min review.
+Mounted-path SRFs are **0.237254 / 0.795775 / 0.906869 / 0.159091 MHz**. At SRF the printed impedance equals ESR, not zero. At 20 MHz, local_split has **X_loop=0.376991 Ω**, **X_ESL=0.010053 Ω**, **|X_C|=0.000796 Ω**, ESR=0.004 Ω: the loop term dominates. Ten parallel capacitors did not divide the shared 3 nH loop by ten. A plateau changes capacitor charge even when di/dt is zero, unlike the superseded L-only model.
 
-1. Set L to zero and verify the rail stays exactly 3.3 V. Double L or halve the rise time and predict the dip before running.
-2. Hold the same edge but extend the plateau: explain why this L-only output cannot tell whether 0.1 µF is enough charge.
-3. Give local_ceramic_short the long_trace L without changing the pulses: explain why merely writing “ceramic” is not a layout model.
-4. Sketch the supply **and return** loop and list measurements/models needed for ESR/ESL/ringing and real minimum rail. Do not claim FCC/CE or fuse suitability from this toy.
+**150-minute work plan:** 30 min source/layout reading; 30 min series impedance and SRF; 30 min shared-pulse simulation; 45 min equal-C controls/refinement; 15 min scope review.
+
+1. Derive SRF by setting the imaginary impedance to zero; verify the sign at 0.1× and 10×SRF and the ratio X_L/|X_C|=100 at 10×SRF.
+2. Keep total C fixed at 10 µF. Compare one 10 µF part with ten 1 µF parts at the same loop L, explicitly declaring each part's ESR/ESL; do not divide the shared loop L.
+3. Swap only the loop L between local_split and long_trace, retaining identical parts/pulses. Then lengthen the pulse plateau to expose charge depletion and source recharge.
+4. Halve the step, check convergence, and list the missing real-board data before choosing a part or claiming a minimum rail. No FCC/CE or fuse suitability claim.
 
 <Summary>
 
@@ -410,7 +517,7 @@ Minimum rails are **2.980000 / 3.276000 / 2.500000 V** and dips **0.320000 / 0.0
 - Pull-up on the Uno: 10 kΩ holds the pin at 4.99 V with 1 µA leakage and draws 0.5 mA when pressed.
 - V = L × dI/dt and the flyback diode: interrupting 50 mA in a 1 H coil gives a peak of about 2.24 kV without the diode.
 
-- The shared-edge supply toy compares minimum rail and dip with L·di/dt only, showing the role of the fast return loop without predicting capacitor charge or EMC compliance.
+- The equal-capacitance series ESL+ESR+C model shows SRF and the inductive high-frequency loop limit, and compares transient rail dip without claiming EMC certification.
 
 **Used next**
 

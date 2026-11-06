@@ -19,6 +19,16 @@ for path in PATHS:
             assert node.module in {"math", "typing"} and node.level == 0
 w, i, d = [runpy.run_path(str(ROOT / path)) for path in PATHS]
 
+# Reference-temperature consistency, positive feedback, steady vs short heating.
+assert w["R20"] == 1.0 and w["ALPHA20"] == .00393
+assert w["resistance"](20.) == w["R20"]
+assert math.isclose(w["resistance"](25.), 1.01965)
+assert w["resistance"](70.) > w["resistance"](25.)
+assert math.isclose(w["constant_power_rise"](10., 10000.), 10. * w["RTH"])
+assert math.isclose(w["constant_power_rise"](10., .01), 10. * .01 / w["CTH"], rel_tol=.001)
+steady = 4 * w["resistance"](w["AMBIENT"]) / (1 / w["RTH"] - 4 * w["R20"] * w["ALPHA20"])
+assert math.isclose(w["constant_current_exact"](2., 10000.) - w["AMBIENT"], steady)
+
 # Shared demand: monitoring alone changes neither current nor physical temperature.
 requests = w["current_profile"]()
 assert len(requests) == 4800 and set(requests) == {1.0, 5.0}
@@ -70,18 +80,56 @@ assert not i["evaluate"](100., i["capacitance"](40), slots)["sink_ok"]
 # Longer bit time does not silently relax a fixed device-mode rise-time bound.
 assert i["evaluate"](10000., i["capacitance"](40), slots, 100000.)["flags"] == 36
 
-# Only L*di/dt; identical edges for all loops, include idle and falling-edge overshoot.
-edges = d["pulse_train"]()
-assert len(edges) == 18 and sum(e.di_dt > 0 for e in edges) == 9
-assert sum(e.di_dt < 0 for e in edges) == 9
-assert tuple(sorted(e.time_s for e in edges)) == tuple(e.time_s for e in edges)
-assert d["evaluate"](0., edges) == (3.3, 0.)
-for _, loop in d["LOOPS_NH"]:
-    minimum, dip = d["evaluate"](loop, edges)
-    assert math.isclose(dip, loop * 1e-9 * 8e6)
-    assert math.isclose(minimum + dip, d["VRAIL"])
-    assert math.isclose(d["evaluate"](2 * loop, edges)[1], 2 * dip)
-    steeper = tuple(d["Edge"](e.time_s, 2 * e.di_dt) for e in edges)
-    assert math.isclose(d["evaluate"](loop, steeper)[1], 2 * dip)
-    assert max(d["VRAIL"] - loop * 1e-9 * e.di_dt for e in edges) > d["VRAIL"]
-print("b6 PR1: stdlib, shared inputs, physical blind/monitor equivalence, real derate trips, energy/analytic/refinement checks, independent RC crossings, sink/budget separation, signed L-only edges passed")
+# Every physical RC edge is screened against ALL THREE published mode rise limits.
+assert [mode for mode, _ in i["MODE_RISE_LIMITS"]] == ["Sm", "Fm", "Fm+"]
+assert [round(limit * 1e9) for _, limit in i["MODE_RISE_LIMITS"]] == [1000, 300, 120]
+assert [[r[3] for r in i["rise_screens"](row["tr"], slots)] for row in rows] == [
+    [0, 36, 36], [0, 0, 36], [0, 36, 36]]
+assert rows[0]["flags"] == 36  # Generic Sm rise-pass does NOT erase Fm waveform failure.
+
+# Equal total C, series parasitics and SHARED placement inductance.
+banks = d["BANKS"]
+assert len({d["equivalent"](bank)[0] for bank in banks}) == 1
+assert all(math.isclose(d["equivalent"](bank)[0], d["TOTAL_C"]) for bank in banks)
+by_name = {bank.name: bank for bank in banks}
+assert by_name["local_split"][1:5] == by_name["long_trace"][1:5]
+assert by_name["local_single"].loop_nh == by_name["local_split"].loop_nh
+assert by_name["local_single"].each_uf != by_name["local_split"].each_uf
+segments = d["pulse_segments"]()
+assert sum(end > start for _, start, end, _ in segments) == 9
+assert sum(end < start for _, start, end, _ in segments) == 9
+for bank in banks:
+    cap, esr, inductance = d["equivalent"](bank)
+    assert math.isclose(esr * bank.count, bank.each_esr)
+    assert math.isclose(inductance, (bank.loop_nh + bank.each_esl_nh / bank.count) * 1e-9)
+    assert d["component_srf"](bank) > d["srf"](bank)
+    assert d["HF_HZ"] > d["component_srf"](bank)
+    resonance = d["srf"](bank)
+    assert abs(d["impedance"](bank, resonance).imag) < 1e-12
+    assert math.isclose(abs(d["impedance"](bank, resonance)), esr)
+    assert d["impedance"](bank, resonance / 10).imag < 0 < d["impedance"](bank, 10 * resonance).imag
+    omega = 2 * math.pi * 10 * resonance
+    assert math.isclose(omega * inductance / (1 / (omega * cap)), 100.)
+    high_omega = 2 * math.pi * d["HF_HZ"]
+    assert d["HF_HZ"] > 10 * resonance
+    assert high_omega * bank.loop_nh * 1e-9 > esr + high_omega * bank.each_esl_nh / bank.count * 1e-9 + 1 / (high_omega * cap)
+    # Discrete KCL/KVL residuals independently check signs, units and all RLC terms.
+    u0, i0, load0, load1, dt = -.02, .05, .12, .13, .25e-9
+    u1, i1 = d["step"](bank, u0, i0, load0, load1, dt)
+    assert abs(cap * (u1 - u0) / dt + (i0 + i1) / 2) < 1e-8
+    assert abs(inductance * (i1 - i0) / dt - ((u0 + u1) / 2 - (d["RFEED"] + esr) * (i0 + i1) / 2 + d["RFEED"] * (load0 + load1) / 2)) < 1e-8
+    # Unforced shifted stored energy decreases by series/source dissipation.
+    u1, i1 = d["step"](bank, u0, i0, 0., 0., dt)
+    energy0 = .5 * cap * u0**2 + .5 * inductance * i0**2
+    energy1 = .5 * cap * u1**2 + .5 * inductance * i1**2
+    assert abs(energy1 - energy0 + dt * (d["RFEED"] + esr) * ((i0 + i1) / 2)**2) < 1e-20
+    assert d["simulate"](bank, ((1e-6, 0., 0., 5e-9),)) == (3.3, 0., 3.3)
+    minima = [d["simulate"](bank, segments, refine)[0] for refine in (1, 2, 4)]
+    assert abs(minima[2] - minima[1]) < .3 * abs(minima[1] - minima[0])
+    assert abs(minima[2] - minima[0]) < 4.1e-6
+# A constant plateau discharges C even though di/dt=0: not the old L-only model.
+def plateau(width):
+    return ((20e-9, 0., .1, .5e-9), (width, .1, .1, .5e-9),
+            (20e-9, .1, 0., .5e-9), (10e-6, 0., 0., 50e-9))
+assert d["simulate"](by_name["local_split"], plateau(5e-6))[0] < d["simulate"](by_name["local_split"], plateau(500e-9))[0]
+print("b6 reviewed: R20/alpha20 feedback, steady/short heat, real trips, three I2C rise limits, equal-C series RLC, SRF/loop dominance, KCL/KVL/passivity and grid convergence passed")
