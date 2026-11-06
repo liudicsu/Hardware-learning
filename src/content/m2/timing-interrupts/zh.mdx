@@ -524,6 +524,160 @@ Get ready...
 - 我记得 ISR 的规矩：短小、不用 `delay()`、不用 `Serial`、加 `volatile`、原子复制。
 - 我能解释触点弹跳，并为一个具体按键选择合适的消抖时间。
 
+## 独立硬件看门狗必须观察任务进展（+150 min）
+
+卡死主循环里检查的软件超时救不了同一循环。逻辑挂起时定时中断可能仍推进 `millis()`，但阻塞代码不再判断超时；禁用中断还可能冻结 Timer0。硬件看门狗有独立振荡器 / 计数器：`WDR` 喂狗重启计数，复位模式无需主循环配合也能到期。这里**不是 8.5 的软件命令流看门狗**，不是执行器安全锁存，更不是急停或认证。
+
+<Resource id="atmega328p-wdt-datasheet" />
+
+已打开的 **ATmega328P 7810D–AVR–01/15**，pp.44–48，描述独立 **128 kHz** 看门狗振荡器；**Table10-3** 给出下表 WDP3..0，时间为 **VCC=5.0 V 时的典型值**，不是精密截止时间。1010…1111 保留；这些是数据手册阅读值，不是板上实测。
+
+| WDP3..0 | 振荡器周期数 | 典型超时 |
+|---|---|---|
+| 0000 | 2048 | 16 ms |
+| 0001 | 4096 | 32 ms |
+| 0010 | 8192 | 64 ms |
+| 0011 | 16384 | 0.125 s |
+| 0100 | 32768 | 0.25 s |
+| 0101 | 65536 | 0.5 s |
+| 0110 | 131072 | 1.0 s |
+| 0111 | 262144 | 2.0 s |
+| 1000 | 524288 | 4.0 s |
+| 1001 | 1048576 | 8.0 s |
+
+WDTON 熔丝未编程时，**WDE=1, WDIE=0** 选系统复位；只有 WDIE 是中断模式，保护作用不同。Table10-2 还列中断后复位模式，玩具不实现。**MCUSR.WDRF 为 bit3 (0x08)**：启动早期应**先保存复位原因，再清标志**，随后走受控初始化 / 恢复路径。其他原因标志可并存；玩具只表示 WDRF，不是启动加载器读回实测。WDRF 会强制 WDE，因此关 WDE 前先清 WDRF。更改 WDE / 分频要按手册 WDCE/WDE 时序，并在**四个 CPU 时钟周期**内写下一次；应使用核对过的平台例程，不要临时拼延时循环。真实熔丝 / bootloader / 复位实验：**本页未运行**。
+
+### 同一挂起，三种喂狗来源
+
+`hw_wdt_kick_toy.py` 用**合成理想 1 ms tick**，名义 **16 tick** 截止及 **100 tick** 观察期。它选手册最短名义间隔，却不模拟振荡器容差、CPU 周期或重新启动。只记录**第一次复位**并停止，建模 WDRF 保存与清零，不保证安全重启。每个挂起场景都在 tick30 卡住主逻辑，但普通定时 ISR 仍运行；完成循环步骤后按5 tick 节奏喂狗。各组共享时钟、初始计数与挂起事件：
+
+| 组 | 健康运行 | tick30 主循环挂起 | 首次复位/结束前完成的循环步数 |
+|---|---|---|---|
+| 不喂狗 | tick16 复位 | tick16 已复位（尚未注入挂起） | 15 / 15 |
+| 主循环进展后喂狗 | 存活到100 | 最后喂狗25，tick41 复位，WDRF=0x08 | 100 / 29 |
+| ISR/定时器喂狗 | 存活到100 | 不复位，**掩盖挂起** | 100 / 29 |
+
+模型先判断硬件到期，**再处理同 tick 的喂狗**；年龄16 已太晚。定时器活着不等于应用有进展，喂狗应以必要工作 / 健康检查完成为门槛。ISR 掩盖示例前提是中断仍可响应；CPU 停止或禁用中断不会继续喂狗。不能在 ISR 无条件喂狗就声称主循环已被监控。
+
+### 通用窗口看门狗常识，不冒充 AVR 特性
+
+另设**通用窗口扩展**：年龄小于8 的喂狗也报错，年龄16 到期，因此离散规则的允许区间为 **[8,16)**。每5 tick 喂狗在5 发生**过早喂狗故障**；每10 tick 正常，但若30 挂起、上次喂狗20，则36 到期。原来过早喂也会错。**这不是 ATmega328P 的硬件窗口看门狗功能**，不把 AVR 原因位分配给该通用故障。全部时序、挂起与进展计数都是确定性合成输入，不作随机种子声明。
+
+```bash
+python3 ~/Hardware-learning/examples/month-2/timing-interrupts/hw_wdt_kick_toy.py
+bash ~/Hardware-learning/examples/month-2/check.sh
+```
+
+<CodeSource path="examples/month-2/timing-interrupts/hw_wdt_kick_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Independent discrete WDT counter; NOT the 8.5 software command watchdog.
+Ideal synthetic 1-ms ticks, nominal 16-tick deadline, 5-tick progress/kick cadence.
+Only first reset is recorded (stop, not a simulated reboot). Timer ISR can run
+while main logic is stuck; an ISR kick then hides that hang. Real oscillator
+variation, boot/fuse setup and CPU cycle timing are not simulated.
+Generic window extension is NOT an ATmega328P hardware feature claim.
+"""
+TIMEOUT, DURATION, WDRF = 16,100,0x08
+ARMS=("no_kick","main_loop","isr_timer")
+# Opened ATmega328P 7810D Table 10-3: WDP3..0, oscillator cycles, typical ms at5V.
+PRESCALE=((0,2048,16),(1,4096,32),(2,8192,64),(3,16384,125),
+          (4,32768,250),(5,65536,500),(6,131072,1000),(7,262144,2000),
+          (8,524288,4000),(9,1048576,8000))
+
+
+def run(arm, hang_at=None, kick_period=5, window_min=None):
+    if arm not in ARMS:
+        raise ValueError("unknown kick source")
+    last_kick=progress=0
+    reset_at,reason=None,"none"
+    for now in range(1,DURATION+1):
+        # Expiration wins a tie: a kick at the upper deadline is too late here.
+        if now-last_kick>=TIMEOUT:
+            reset_at,reason=now,"timeout"
+            break
+        running=hang_at is None or now<hang_at
+        progress+=int(running)
+        kick=now%kick_period==0 and (arm=="isr_timer" or (arm=="main_loop" and running))
+        if kick:
+            if window_min is not None and now-last_kick<window_min:
+                reset_at,reason=now,"window_early"
+                break
+            last_kick=now
+    # Snapshot models early boot read of WDRF only; generic window has no AVR flag.
+    saved_mcusr=WDRF if reset_at is not None and window_min is None else 0
+    cleared_mcusr=0
+    hidden=hang_at is not None and reset_at is None
+    return dict(reset_at=reset_at,reason=reason,progress=progress,hidden=hidden,
+                saved_mcusr=saved_mcusr,cleared_mcusr=cleared_mcusr)
+
+
+def main():
+    print("Independent HW WDT surrogate; ideal tick=1ms nominal timeout=16 ticks duration=100")
+    print("same hang at30 or no hang; kick cadence5; expire-before-kick tie; first reset stops run")
+    print("scenario arm reset_tick cause main_progress saved_MCUSR cleared_MCUSR hidden_hang")
+    for scenario,hang in (("healthy",None),("main_hang",30)):
+        for arm in ARMS:
+            r=run(arm,hang)
+            when="none" if r["reset_at"] is None else str(r["reset_at"])
+            print(f"{scenario} {arm} {when} {r['reason']} {r['progress']} 0x{r['saved_mcusr']:02X} 0x{r['cleared_mcusr']:02X} {int(r['hidden'])}")
+    print("Opened 7810D Table10-3: WDP3..0 cycles typical_ms_at5V (not precision deadlines)")
+    for code,cycles,ms in PRESCALE:
+        print(f"{code:04b} {cycles} {ms}")
+    print("generic window model ONLY: min_age=8 upper=16; NOT ATmega328P window hardware")
+    for label,period,hang in (("too_early",5,None),("in_window",10,None),("hung",10,30)):
+        r=run("main_loop",hang,period,8)
+        when="none" if r["reset_at"] is None else str(r["reset_at"])
+        print(f"{label} period={period} reset={when} cause={r['reason']}")
+    print("WDE reset mode / WDIE interrupt-only differ; capture MCUSR.WDRF before clearing")
+    print("Synthetic timing; no certification or e-stop claim; AVR fuse/reset lab: 本页未运行")
+
+
+if __name__=="__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Independent HW WDT surrogate; ideal tick=1ms nominal timeout=16 ticks duration=100
+same hang at30 or no hang; kick cadence5; expire-before-kick tie; first reset stops run
+scenario arm reset_tick cause main_progress saved_MCUSR cleared_MCUSR hidden_hang
+healthy no_kick 16 timeout 15 0x08 0x00 0
+healthy main_loop none none 100 0x00 0x00 0
+healthy isr_timer none none 100 0x00 0x00 0
+main_hang no_kick 16 timeout 15 0x08 0x00 0
+main_hang main_loop 41 timeout 29 0x08 0x00 0
+main_hang isr_timer none none 29 0x00 0x00 1
+Opened 7810D Table10-3: WDP3..0 cycles typical_ms_at5V (not precision deadlines)
+0000 2048 16
+0001 4096 32
+0010 8192 64
+0011 16384 125
+0100 32768 250
+0101 65536 500
+0110 131072 1000
+0111 262144 2000
+1000 524288 4000
+1001 1048576 8000
+generic window model ONLY: min_age=8 upper=16; NOT ATmega328P window hardware
+too_early period=5 reset=5 cause=window_early
+in_window period=10 reset=none cause=none
+hung period=10 reset=36 cause=timeout
+WDE reset mode / WDIE interrupt-only differ; capture MCUSR.WDRF before clearing
+Synthetic timing; no certification or e-stop claim; AVR fuse/reset lab: 本页未运行
+```
+
+</SimOutput>
+
+### 练习
+
+1. 推出16 复位和最后25+16=41；证明 ISR 组虽然不复位，主进展仍停在29。
+2. 测年龄16 才喂、通用窗口年龄8 喂，写明到期 / 同刻事件顺序。
+3. 区分 WDE 复位、仅 WDIE 和定时 ISR 喂狗；按已打开手册说明重配前保存 / 清 MCUSR，不造寄存器值。
+4. 设计多任务进展门槛及受控重启方案，并解释玩具为何不能认证这些机制或替代急停。
+
 <Summary>
 
 **本课要点**
@@ -541,4 +695,5 @@ Get ready...
 - 第 2 个月 · ESP32：Wi-Fi、3.3 V 逻辑与框架选择：在 240 MHz 双核芯片上沿用同样的 `millis()` 调度和 ISR 规矩。
 - 第 2 个月 · 电机、驱动器与编码器闭环：在 ISR 中计数编码器边沿。
 
+独立硬件看门狗玩具比较主循环进展喂狗与会掩盖挂起的 ISR 喂狗，读回 WDRF 并展示通用窗口过早故障，不冒充 AVR 窗口硬件。
 </Summary>

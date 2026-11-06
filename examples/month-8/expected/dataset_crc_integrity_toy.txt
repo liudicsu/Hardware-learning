@@ -1,0 +1,20 @@
+CRC32_IEEE("123456789")=0xCBF43926; reflected_poly=0xEDB88320
+init=xorout=0xFFFFFFFF; same4 synthetic16-byte chunks; tags/framing uncorrupted
+group arm corrupted undetected undetected_rate
+single_bit no_check 512 512 1.000000
+single_bit sum8 512 0 0.000000
+single_bit CRC32 512 0 0.000000
+burst_2to32 no_check 13888 13888 1.000000
+burst_2to32 sum8 13888 116 0.008353
+burst_2to32 CRC32 13888 0 0.000000
+balanced_bytes no_check 32 32 1.000000
+balanced_bytes sum8 32 32 1.000000
+balanced_bytes CRC32 32 0 0.000000
+generator_33 no_check 4 4 1.000000
+generator_33 sum8 4 0 0.000000
+generator_33 CRC32 4 4 1.000000
+clean acceptance: no_check=4/4 sum8=4/4 CRC32=4/4
+attacker_recomputed_tags: sum8_accept=1 CRC32_accept=1
+CRC detects ANY single nonzero burst span<=32 bits by polynomial degree, not by this finite enumeration
+33-bit collision is deliberate; CRC != authentication; no random/channel-probability claim
+Real recording/storage faults and format integration: 本页未运行

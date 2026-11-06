@@ -3769,6 +3769,76 @@ export const resources: Record<string, Resource> = {
     "extra": true
   },
 
+  "arduino-spi-modes": {
+    "id": "arduino-spi-modes",
+    "url": "https://docs.arduino.cc/learn/communication/spi/",
+    "title": {
+      "zh": "Arduino SPI: modes, bit order and CS",
+      "en": "Arduino SPI: modes, bit order and CS"
+    },
+    "author": "Arduino",
+    "kind": "guide",
+    "cost": {
+      "zh": "免费",
+      "en": "Free"
+    },
+    "summary": {
+      "zh": "正文公开 page-data 已打开并 curl200：四种 CPOL/CPHA 模式、位序与 CS；不从泛例指定器件 MHz。",
+      "en": "Public page-data opened and curl200: four CPOL/CPHA modes, bit order and CS. No device MHz inferred from examples."
+    },
+    "license": {
+      "zh": "版权归原作者；仅提供外链",
+      "en": "Copyright original authors; external link only"
+    },
+    "extra": true
+  },
+  "atmega328p-wdt-datasheet": {
+    "id": "atmega328p-wdt-datasheet",
+    "url": "https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-7810-Automotive-Microcontrollers-ATmega328P_Datasheet.pdf",
+    "title": {
+      "zh": "ATmega328P 7810D: hardware watchdog",
+      "en": "ATmega328P 7810D: hardware watchdog"
+    },
+    "author": "Atmel / Microchip",
+    "kind": "guide",
+    "cost": {
+      "zh": "免费",
+      "en": "Free"
+    },
+    "summary": {
+      "zh": "PDF 已打开并 curl200；pp44–48、Table10-2/10-3，128 kHz 独立 WDT、WDE/WDP 和 MCUSR.WDRF；时间为5V典型值，窗口扩展是独立通用模型。",
+      "en": "PDF opened and curl200; pp44–48, Table10-2/10-3: independent128kHz WDT, WDE/WDP and MCUSR.WDRF. Typical5V times; generic window model is separate."
+    },
+    "license": {
+      "zh": "版权归原作者；仅提供外链",
+      "en": "Copyright original authors; external link only"
+    },
+    "extra": true
+  },
+  "crc-polynomial-reference": {
+    "id": "crc-polynomial-reference",
+    "url": "https://en.wikipedia.org/wiki/Cyclic_redundancy_check",
+    "title": {
+      "zh": "CRC: polynomial detection and limitations",
+      "en": "CRC: polynomial detection and limitations"
+    },
+    "author": "Wikipedia contributors",
+    "kind": "guide",
+    "cost": {
+      "zh": "免费",
+      "en": "Free"
+    },
+    "summary": {
+      "zh": "已打开并 curl200，二手参考：反射 IEEE 多项式、突发错误界限与非认证；检查值另与本地 zlib 核对，不冒充协议标准。",
+      "en": "Opened and curl200, secondary reference: reflected IEEE polynomial, burst bounds and no authentication. Check value cross-checked with local zlib; not a protocol standard."
+    },
+    "license": {
+      "zh": "版权归原作者；仅提供外链",
+      "en": "Copyright original authors; external link only"
+    },
+    "extra": true
+  },
+
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

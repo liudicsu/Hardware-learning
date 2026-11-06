@@ -685,6 +685,205 @@ shared data/prior model; neither filter knows true bias; no universal winner; IM
 4. (30 min) In a separate stress experiment inject translational-angle contamination or alter bias random walk; do not retune on held-out seeds or claim a hardware result.
 5. (15 min) Audit function arguments for oracle bias leakage and contrast plain vs bias-adaptive capacity.
 
+## SPI modes: share the wire, change the sampling edge (+180 min)
+
+SPI sends synchronous bits over SCK, COPI/MOSI and CIPO/MISO, with a CS line selecting a peripheral; CS is not an I2C address. The [Arduino SPI documentation](https://docs.arduino.cc/learn/communication/spi/) gives the following modes. **Leading** means the first transition away from idle; **trailing** returns to idle. CPOL sets idle level; CPHA=0 samples leading and launches on trailing (first bit must already be ready), CPHA=1 launches leading and samples trailing.
+
+<Resource id="arduino-spi-modes" />
+
+| mode | CPOL | CPHA | idle | sample | launch/output |
+|---|---|---|---|---|---|
+| SPI_MODE0 | 0 | 0 | low | rising | falling |
+| SPI_MODE1 | 0 | 1 | low | falling | rising |
+| SPI_MODE2 | 1 | 0 | high | falling | rising |
+| SPI_MODE3 | 1 | 1 | high | rising | falling |
+
+A device datasheet, not an assumption that every sensor uses Mode 0, decides mode, CS setup/hold, word length, bit order and allowable clock. **No device MHz is specified here.** `SPISettings` separates clock, MSBFIRST/LSBFIRST and mode; `beginTransaction` configures the bus but does not replace the required CS assertion/deassertion. Devices may require CS to stay active across command, address and data rather than toggling per byte.
+
+### Deterministic shared-edge experiment, not analog timing validation
+
+`spi_mode_mismatch_toy.py` constructs one physical MOSI/SCK stream for each transmitter mode and bit order; **matched**, **CPOL-wrong** and **CPHA-wrong** receivers inspect that **same wire**, same payload and CS. The payload is **A5 00 FF 3C 81 01 96 69**, 64 bits. Both MSB-first and LSB-first are tested. CPOL-wrong (`mode XOR 2`) and CPHA-wrong (`mode XOR 1`) select the same opposite physical edge in this ideal decoder, so those rows coincide; this is not two independent noise realizations.
+
+All times are **synthetic arbitrary units**, not ns or MHz: half-period=1, launch-to-MOSI propagation=0.2, receiver capture at edge+0.1 or edge+0.3. CPHA0 preloads the first bit; CPHA1 starts from declared idle data 0. A matched receiver samples after a stable half-cycle in both cases. A wrong receiver samples near launch: before the data change it may get the old bit, after it may get the next bit. These deterministic aperture cases illustrate a violated timing contract, **not a model of real metastability or a guarantee of a particular wrong byte**. A mismatch can therefore pass some patterns, or even all patterns under one synthetic aperture, without being safe to use.
+
+Report **BER = wrong bits / 64** and the received first byte (sent A5). For MSB-first, TX0 with aperture0.3 yields **27/64=0.421875**, first byte **4A** in both wrong-mode arms (left-shift-like); TX1 with aperture0.1 gives the same BER but first byte **52** (right-shift-like). TX2/3 repeat those edge relationships. Matched BER is 0 for every mode/order/aperture. On isolated bytes at TX1/MSB/aperture0.1/RX0, **00→00** passes but **FF→7F**, **A5→52** and **96→4B** do not: only testing zeros is inadequate. Byte boundaries inside one CS frame carry the preceding bit; do not infer isolated-byte behavior from a continuous stream.
+
+CS-high clocks before/after the frame are ignored. This toy assumes whole 8-bit words within one CS frame and rejects a partial final word; that is a toy framing rule, not a universal SPI protocol. Decode a correctly sampled 96 with the wrong bit order and it becomes 69: a correct edge alone does not fix endianness. Real SPI devices, electrical setup/hold and scope measurements: **本页未运行**. This is not I2C rise-time or a redo of the existing sensor filters.
+
+```bash
+python3 ~/Hardware-learning/examples/month-2/sensors-fusion/spi_mode_mismatch_toy.py
+bash ~/Hardware-learning/examples/month-2/check.sh
+```
+
+<CodeSource path="examples/month-2/sensors-fusion/spi_mode_mismatch_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Deterministic SPI edge surrogate; no device clock rate or analog validation.
+Shared physical MOSI/SCK/CS per TX mode/order and aperture case for all RX arms.
+Synthetic time units: half period=1, propagation=0.2, apertures=0.1/0.3.
+Wrong-edge capture coincides with launch; which bit arrives is timing-dependent,
+not a prediction of real metastability. Both clean mismatches and shifted garbage
+are intentional. Eight-bit words in one active-low CS frame; COPI/MOSI only.
+"""
+from bisect import bisect_right
+
+PAYLOAD = bytes((0xA5,0x00,0xFF,0x3C,0x81,0x01,0x96,0x69))
+DELAY = .2
+APERTURES = (.1,.3)
+ORDERS = ("MSB","LSB")
+
+
+def bits_of(data, order):
+    positions=range(7,-1,-1) if order=="MSB" else range(8)
+    return tuple((byte>>bit)&1 for byte in data for bit in positions)
+
+
+def sample_rising(mode):
+    cpol,cpha=divmod(mode,2)
+    return (cpol==0) == (cpha==0)
+
+
+def waveform(data, mode, order):
+    cpol,cpha=divmod(mode,2)
+    bits=bits_of(data,order)
+    # Unselected clocks before/after the CS frame must not enter RX framing.
+    edges=[(-2.,True,False),(-1.,False,False)]
+    changes=[(-10.,0)]
+    if cpha==0:
+        changes.append((0.,bits[0]))  # First bit preloaded before leading edge at t=1.
+    for j,bit in enumerate(bits):
+        lead,trail=2*j+1.,2*j+2.
+        edges.extend(((lead,cpol==0,True),(trail,cpol==1,True)))
+        launch=lead if cpha else trail
+        value=bit if cpha else (bits[j+1] if j+1<len(bits) else 0)
+        changes.append((launch+DELAY,value))
+    edges.extend(((2*len(bits)+1.,True,False),(2*len(bits)+2.,False,False)))
+    return tuple(edges),tuple(changes)
+
+
+def receive(wire, mode, order, aperture):
+    edges,changes=wire
+    times=tuple(t for t,_ in changes)
+    captured=[]
+    for time,rising,selected in edges:
+        if selected and rising==sample_rising(mode):
+            index=bisect_right(times,time+aperture)-1
+            captured.append(changes[index][1])
+    if len(captured)%8:
+        raise ValueError("partial 8-bit CS frame")
+    positions=range(7,-1,-1) if order=="MSB" else range(8)
+    return bytes(sum(bit<<place for bit,place in zip(captured[j:j+8],positions))
+                 for j in range(0,len(captured),8))
+
+
+def bit_errors(expected, actual):
+    if len(expected)!=len(actual):
+        raise ValueError("framing length differs")
+    return sum((a^b).bit_count() for a,b in zip(expected,actual))
+
+
+def main():
+    print("SPI synthetic edge schedule: half_period=1 prop_delay=0.2 aperture=0.1/0.3 time units")
+    print("shared payload=A5 00 FF 3C 81 01 96 69; 64 bits; one active-low CS frame")
+    print("TX_mode order aperture RX_arm RX_mode errors BER first_byte")
+    for mode in range(4):
+        for order in ORDERS:
+            wire=waveform(PAYLOAD,mode,order)
+            for aperture in APERTURES:
+                for name,rx in (("matched",mode),("CPOL_wrong",mode^2),("CPHA_wrong",mode^1)):
+                    result=receive(wire,rx,order,aperture)
+                    errors=bit_errors(PAYLOAD,result)
+                    print(f"{mode} {order} {aperture:.1f} {name} {rx} {errors} {errors/64:.6f} {result[0]:02X}")
+    print("varied-pattern diagnostic: TX1 MSB aperture0.1 RX0 (wrong phase)")
+    result=receive(waveform(PAYLOAD,1,"MSB"),0,"MSB",.1)
+    print(" ".join(f"{a:02X}->{b:02X}" for a,b in zip(PAYLOAD,result)))
+    print("isolated-byte same wrong mode/timing: "+" ".join(
+        f"{v:02X}->{receive(waveform(bytes((v,)),1,'MSB'),0,'MSB',.1)[0]:02X}"
+        for v in (0x00,0xFF,0xA5,0x96)))
+    reversed_order=receive(waveform(bytes((0x96,)),0,"MSB"),0,"LSB",.1)
+    print(f"wrong bit order: TX96 MSB decoded_LSB={reversed_order[0]:02X}")
+    print("CS-high clocks ignored; partial 8-bit CS frames rejected; CS is not a device address")
+    print("Wrong-edge zero BER is possible in this timing model, NOT proof of a compatible mode")
+    print("No noise/no random seeds; no MHz claim; real device/scope: 本页未运行")
+
+
+if __name__=="__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+SPI synthetic edge schedule: half_period=1 prop_delay=0.2 aperture=0.1/0.3 time units
+shared payload=A5 00 FF 3C 81 01 96 69; 64 bits; one active-low CS frame
+TX_mode order aperture RX_arm RX_mode errors BER first_byte
+0 MSB 0.1 matched 0 0 0.000000 A5
+0 MSB 0.1 CPOL_wrong 2 0 0.000000 A5
+0 MSB 0.1 CPHA_wrong 1 0 0.000000 A5
+0 MSB 0.3 matched 0 0 0.000000 A5
+0 MSB 0.3 CPOL_wrong 2 27 0.421875 4A
+0 MSB 0.3 CPHA_wrong 1 27 0.421875 4A
+0 LSB 0.1 matched 0 0 0.000000 A5
+0 LSB 0.1 CPOL_wrong 2 0 0.000000 A5
+0 LSB 0.1 CPHA_wrong 1 0 0.000000 A5
+0 LSB 0.3 matched 0 0 0.000000 A5
+0 LSB 0.3 CPOL_wrong 2 25 0.390625 52
+0 LSB 0.3 CPHA_wrong 1 25 0.390625 52
+1 MSB 0.1 matched 1 0 0.000000 A5
+1 MSB 0.1 CPOL_wrong 3 27 0.421875 52
+1 MSB 0.1 CPHA_wrong 0 27 0.421875 52
+1 MSB 0.3 matched 1 0 0.000000 A5
+1 MSB 0.3 CPOL_wrong 3 0 0.000000 A5
+1 MSB 0.3 CPHA_wrong 0 0 0.000000 A5
+1 LSB 0.1 matched 1 0 0.000000 A5
+1 LSB 0.1 CPOL_wrong 3 26 0.406250 4A
+1 LSB 0.1 CPHA_wrong 0 26 0.406250 4A
+1 LSB 0.3 matched 1 0 0.000000 A5
+1 LSB 0.3 CPOL_wrong 3 0 0.000000 A5
+1 LSB 0.3 CPHA_wrong 0 0 0.000000 A5
+2 MSB 0.1 matched 2 0 0.000000 A5
+2 MSB 0.1 CPOL_wrong 0 0 0.000000 A5
+2 MSB 0.1 CPHA_wrong 3 0 0.000000 A5
+2 MSB 0.3 matched 2 0 0.000000 A5
+2 MSB 0.3 CPOL_wrong 0 27 0.421875 4A
+2 MSB 0.3 CPHA_wrong 3 27 0.421875 4A
+2 LSB 0.1 matched 2 0 0.000000 A5
+2 LSB 0.1 CPOL_wrong 0 0 0.000000 A5
+2 LSB 0.1 CPHA_wrong 3 0 0.000000 A5
+2 LSB 0.3 matched 2 0 0.000000 A5
+2 LSB 0.3 CPOL_wrong 0 25 0.390625 52
+2 LSB 0.3 CPHA_wrong 3 25 0.390625 52
+3 MSB 0.1 matched 3 0 0.000000 A5
+3 MSB 0.1 CPOL_wrong 1 27 0.421875 52
+3 MSB 0.1 CPHA_wrong 2 27 0.421875 52
+3 MSB 0.3 matched 3 0 0.000000 A5
+3 MSB 0.3 CPOL_wrong 1 0 0.000000 A5
+3 MSB 0.3 CPHA_wrong 2 0 0.000000 A5
+3 LSB 0.1 matched 3 0 0.000000 A5
+3 LSB 0.1 CPOL_wrong 1 26 0.406250 4A
+3 LSB 0.1 CPHA_wrong 2 26 0.406250 4A
+3 LSB 0.3 matched 3 0 0.000000 A5
+3 LSB 0.3 CPOL_wrong 1 0 0.000000 A5
+3 LSB 0.3 CPHA_wrong 2 0 0.000000 A5
+varied-pattern diagnostic: TX1 MSB aperture0.1 RX0 (wrong phase)
+A5->52 00->80 FF->7F 3C->9E 81->40 01->80 96->CB 69->34
+isolated-byte same wrong mode/timing: 00->00 FF->7F A5->52 96->4B
+wrong bit order: TX96 MSB decoded_LSB=69
+CS-high clocks ignored; partial 8-bit CS frames rejected; CS is not a device address
+Wrong-edge zero BER is possible in this timing model, NOT proof of a compatible mode
+No noise/no random seeds; no MHz claim; real device/scope: 本页未运行
+```
+
+</SimOutput>
+
+### Exercises
+
+1. Derive all four idle/sample/launch rows without memorizing only Mode0. Explain CPHA0 first-bit preload.
+2. Trace A5→4A and A5→52 using actual change timestamps; explain why CPOL-wrong and CPHA-wrong coincide here and why a zero BER mismatch is not compatibility evidence.
+3. Compare isolated00 with varied patterns; reverse96's bit order. Remove one sampled edge from a CS frame and explain the partial-word rejection.
+4. Before any hardware run (本页未运行), find the actual peripheral's mode, CS framing and setup/hold limits in its datasheet; do not transplant a generic MHz value.
+
 <Summary>
 
 The equal-budget held-out IMU comparison derives KF Q/R from its declared noise model, tunes complementary alternatives separately, and gives no arm the true bias.
@@ -703,4 +902,5 @@ The equal-budget held-out IMU comparison derives KF Q/R from its declared noise 
 - Month 2 · Your first two robots: line follower & self-balancer: the self-balancer feeds the filtered pitch into its 200 Hz control loop.
 - Month 3 · PID & control: windup and cascade loops returns to the same balancer and adds the outer speed loop.
 
+SPI mode/bit-order/CS choices are checked on a shared synthetic wire; wrong-edge captures can shift bits or accidentally pass, so varied patterns and device timing specifications matter.
 </Summary>

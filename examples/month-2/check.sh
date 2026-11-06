@@ -26,4 +26,8 @@ check imu_kf_vs_complementary_toy.txt "$PY" "$M2/sensors-fusion/imu_kf_vs_comple
 check winding_thermal_rc_toy.txt "$PY" "$M2/motors-drivers/winding_thermal_rc_toy.py"
 check i2c_risetime_toy.txt "$PY" "$M2/arduino-io/i2c_risetime_toy.py"
 
+check spi_mode_mismatch_toy.txt "$PY" "$M2/sensors-fusion/spi_mode_mismatch_toy.py"
+
+check hw_wdt_kick_toy.txt "$PY" "$M2/timing-interrupts/hw_wdt_kick_toy.py"
+
 exit $fail

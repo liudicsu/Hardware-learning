@@ -156,8 +156,171 @@ Open X-Embodiment（arXiv **2310.08864**）把许多机器人数据集合进同�
 - **以为一集一个文件。** v3 多集共用 Parquet/MP4；边界在元数据。
 - **无视缺帧。** `cube_C` 里一个缺口已是数据事故；用审计脚本找，别靠眼扫。
 
+## 日志分块 CRC：查损坏，不是身份认证（+150 min）
+
+字节完好的日志也可能标签差、缺帧或录制规程单薄；有用的演示也可能悄悄损坏。因此把接收阶段的完整性筛查当作独立问题。本玩具用**合成 16 字节块**，不处理真实 Parquet/MP4/bag，**不声称 LeRobotDataset v3 存储这种 CRC**。原有数据审计与留出起始纪律仍保留；这里不是 CAN/EtherCAT 故障隔离、QoS 接收或 Dynamixel 包教程。
+
+<Resource id="crc-polynomial-reference" />
+
+已打开的 CRC 参考是**二手资料**，不是协议标准。CRC 在 GF(2) 上做多项式除法，加法是 XOR，不带整数进位。这里选 **CRC-32/IEEE (CRC-32/ISO-HDLC)**，普通多项式 **0x04C11DB7** 隐含最高32次项；反射位循环用 **0xEDB88320**，初值与 xorout 都为 **0xFFFFFFFF**，按字节顺序、字节内 **LSB-first** 处理。这不是 CRC-32C。ASCII 检查值为 **CRC32("123456789") = 0xCBF43926**；显式逐位实现与 Python 标准库 `zlib.crc32` 交叉核对，不是硬编码答案。
+
+### 相同载荷、相同损坏、三个检查器
+
+`dataset_crc_integrity_toy.py` 共享四份 16 字节载荷：全零、全 FF、递增0…15、`(37*j+11) mod256`。每个损坏副本同时交给**不检查**、**sum8=sum(bytes) mod256**、**CRC32**，收到相同字节和原始已存校验值；不检查组忽略标签。本实验中标签、长度和帧边界保持完好，不模拟插入/删除或某种存储/信道的故障概率。损坏完全确定性，因此无需随机种子，也不作五种子不确定性声明。
+
+| 损坏语料 | 个数 | 不检查漏检 | sum8 漏检 | CRC32 漏检 |
+|---|---|---|---|---|
+| 每个单比特位置 | 512 | 512/512 | 0/512 | 0/512 |
+| 跨度2…32 的全一突发，每个可放位置 | 13888 | 13888/13888 | 116/13888 (0.008353) | 0/13888 |
+| 相邻平衡字节（+1、−1 mod256） | 32 | 32/32 | 32/32 | 0/32 |
+| 刻意构造的32次生成多项式错误，跨度33 | 4 | 4/4 | 0/4 | 4/4 |
+
+**漏检率 = 接受的损坏个数 / 损坏个数**，不是正常记录占比，也不是真实信道概率估计。四个干净块在三个检查器中全部通过。平衡字节暴露求和抵消；33位案例暴露真实 CRC 碰撞，甚至是 sum8 能抓住的案例，不能说 CRC 抓住所有错误或对每种图样都支配任何校验和。
+
+### 为什么任意一个跨度 ≤32 位的突发都能检测
+
+等长、同边界消息比较错误时，CRC 初值 / xorout 的偏置会抵消。跨度L 的突发可写为 `E(x)=x^k B(x)`，首尾非零、`degree(B)=L−1`。生成多项式次数32、常数项1，没有 x 因子；L≤32 时，次数小于32 的非零 B 不可能被它整除。因此能检测**任意一个非零、跨度≤32位的突发**，也包括内部稀疏图样，不限于连续全一。此代数保证不来自有限的全一枚举；不保证抓住合并跨度更长的多个分散突发，也不保证全部长错误。反射33位完整生成多项式掩码 `(0xEDB88320<<1)|1` 就是明确漏检例子。
+
+**CRC ≠ authentication**：能同时改载荷和标签的对手可以重新计算；玩具翻转载荷一位，替换两种标签后，两个检查器均接受。普通无密钥 hash 也不能单独认证可被替换的日志；有此需求应另选合适的认证机制 / 信任模型，不靠这个 CRC 玩具。真实录制/存储故障及集成：**本页未运行**，不宣称密码或安全认证。
+
+```bash
+python3 examples/month-8/dataset-engineering/dataset_crc_integrity_toy.py
+bash examples/month-8/check.sh
+```
+
+<CodeSource path="examples/month-8/dataset-engineering/dataset_crc_integrity_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Deterministic synthetic logged chunks, NOT a change to LeRobot/Parquet format.
+Same original payload/tags and exact corrupted cases for no-check, sum8, CRC32.
+CRC-32/IEEE (ISO-HDLC): reflected 0xEDB88320, init/xorout 0xFFFFFFFF.
+Payload-only errors; stored tags/length/framing intact in this experiment.
+CRC is error detection, NOT authentication: collisions exist and tags can be forged.
+"""
+import zlib
+
+POLY=0xEDB88320
+PAYLOADS=(bytes(16),bytes([255])*16,bytes(range(16)),bytes((37*j+11)%256 for j in range(16)))
+
+
+def crc32(data):
+    state=0xFFFFFFFF
+    for byte in data:
+        state^=byte
+        for _ in range(8):
+            state=(state>>1)^(POLY if state&1 else 0)
+    return state^0xFFFFFFFF
+
+
+def sum8(data):
+    return sum(data)&0xFF
+
+
+def flip(data, start, mask):
+    result=bytearray(data)
+    for j in range(mask.bit_length()):
+        if mask>>j&1:
+            bit=start+j
+            result[bit//8]^=1<<(bit%8)  # Contiguous on the reflected, LSB-first bit stream.
+    return bytes(result)
+
+
+def corpus():
+    """All locations; 1-bit errors and all-ones bursts are samples, not all shapes."""
+    rows=[]
+    for original in PAYLOADS:
+        for start in range(128):
+            rows.append(("single_bit",original,flip(original,start,1)))
+        for length in range(2,33):
+            for start in range(129-length):
+                rows.append(("burst_2to32",original,flip(original,start,(1<<length)-1)))
+        for j in range(0,16,2):
+            changed=bytearray(original)
+            changed[j]=(changed[j]+1)&255
+            changed[j+1]=(changed[j+1]-1)&255
+            rows.append(("balanced_bytes",original,bytes(changed)))
+        # Full reversed generator spans33 bits: an explicit long-burst collision.
+        rows.append(("generator_33",original,flip(original,0,(POLY<<1)|1)))
+    return tuple(rows)
+
+
+def accepted(arm, received, tags):
+    if arm=="no_check":
+        return True
+    if arm=="sum8":
+        return sum8(received)==tags[0]
+    if arm=="CRC32":
+        return crc32(received)==tags[1]
+    raise ValueError("unknown integrity arm")
+
+
+def main():
+    assert crc32(b"123456789")==0xCBF43926
+    print(f'CRC32_IEEE("123456789")=0x{crc32(b"123456789"):08X}; reflected_poly=0x{POLY:08X}')
+    print("init=xorout=0xFFFFFFFF; same4 synthetic16-byte chunks; tags/framing uncorrupted")
+    print("group arm corrupted undetected undetected_rate")
+    rows=corpus()
+    for group in ("single_bit","burst_2to32","balanced_bytes","generator_33"):
+        cases=tuple((original,received) for kind,original,received in rows if kind==group)
+        for arm in ("no_check","sum8","CRC32"):
+            misses=0
+            for original,received in cases:
+                assert received!=original
+                assert crc32(received)==zlib.crc32(received)&0xFFFFFFFF
+                misses+=accepted(arm,received,(sum8(original),crc32(original)))
+            print(f"{group} {arm} {len(cases)} {misses} {misses/len(cases):.6f}")
+    clean=[sum(accepted(arm,p,(sum8(p),crc32(p))) for p in PAYLOADS) for arm in ("no_check","sum8","CRC32")]
+    print(f"clean acceptance: no_check={clean[0]}/4 sum8={clean[1]}/4 CRC32={clean[2]}/4")
+    original=PAYLOADS[2];tampered=flip(original,0,1)
+    forged=(sum8(tampered),crc32(tampered))
+    print(f"attacker_recomputed_tags: sum8_accept={int(accepted('sum8',tampered,forged))} CRC32_accept={int(accepted('CRC32',tampered,forged))}")
+    print("CRC detects ANY single nonzero burst span<=32 bits by polynomial degree, not by this finite enumeration")
+    print("33-bit collision is deliberate; CRC != authentication; no random/channel-probability claim")
+    print("Real recording/storage faults and format integration: 本页未运行")
+
+
+if __name__=="__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+CRC32_IEEE("123456789")=0xCBF43926; reflected_poly=0xEDB88320
+init=xorout=0xFFFFFFFF; same4 synthetic16-byte chunks; tags/framing uncorrupted
+group arm corrupted undetected undetected_rate
+single_bit no_check 512 512 1.000000
+single_bit sum8 512 0 0.000000
+single_bit CRC32 512 0 0.000000
+burst_2to32 no_check 13888 13888 1.000000
+burst_2to32 sum8 13888 116 0.008353
+burst_2to32 CRC32 13888 0 0.000000
+balanced_bytes no_check 32 32 1.000000
+balanced_bytes sum8 32 32 1.000000
+balanced_bytes CRC32 32 0 0.000000
+generator_33 no_check 4 4 1.000000
+generator_33 sum8 4 0 0.000000
+generator_33 CRC32 4 4 1.000000
+clean acceptance: no_check=4/4 sum8=4/4 CRC32=4/4
+attacker_recomputed_tags: sum8_accept=1 CRC32_accept=1
+CRC detects ANY single nonzero burst span<=32 bits by polynomial degree, not by this finite enumeration
+33-bit collision is deliberate; CRC != authentication; no random/channel-probability claim
+Real recording/storage faults and format integration: 本页未运行
+```
+
+</SimOutput>
+
+### 练习
+
+1. 用逐位函数与 zlib 双重核对 0xCBF43926，区分反射多项式、初值、xorout 与 CRC-32C。
+2. 为三个检查器重建同一损坏语料和分母，解释116 个 sum8 突发漏检及全部32 个平衡字节漏检。
+3. 推导任意单突发≤32 的次数论证，再看33 位碰撞；为什么有限枚举本身不是证明？
+4. 篡改后重算标签并说明认证为何失败；列出覆盖之外的边界、缺块、标签与实际格式集成。
+
 <Summary>
 
 写变化×重复规程（SmolVLA 起点约 50 集 / 5×10）。LeRobotDataset v3 用元数据定位集、多集共用 Parquet/MP4；需要时用 StreamingLeRobotDataset。`dataset_audit.py` 在 24 集玩具上把 `cube_C` 标成 UNDER（4 集、缺 1 帧）。20 个评估起始里留出 5 个。Open X-Embodiment（arXiv 2310.08864）说明大规模为何要共享格式。
 
+共享损坏分块玩具比较不检查、sum8 和 CRC-32/IEEE，核对检查值与突发界限，并说明碰撞和重算标签不构成认证。
 </Summary>

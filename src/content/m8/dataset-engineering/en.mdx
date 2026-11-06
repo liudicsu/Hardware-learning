@@ -156,8 +156,171 @@ Open X-Embodiment (arXiv **2310.08864**) gathers many robot datasets into one ec
 - **Assuming one file per episode.** v3 packs many episodes per Parquet/MP4; boundaries live in metadata.
 - **Ignoring missing frames.** One gap in `cube_C` is already a data bug; find it with an audit script, not by eye.
 
+## CRC for logged chunks: corruption detection is not authentication (+150 min)
+
+A byte-perfect log can still have poor labels, missing frames or a weak recording protocol; conversely, useful episodes can be silently corrupted. Add integrity checks at ingestion as a separate concern. This toy uses **synthetic 16-byte chunks**, not actual Parquet/MP4/bag files, and **does not assert that LeRobotDataset v3 stores this CRC**. Keep the existing dataset audit and held-out-start discipline; this is not CAN/EtherCAT error confinement, QoS acceptance or a Dynamixel packet tutorial.
+
+<Resource id="crc-polynomial-reference" />
+
+The opened CRC reference is **secondary**, not a protocol standard. A CRC is polynomial division over GF(2): addition is XOR, not integer carries. We choose **CRC-32/IEEE (CRC-32/ISO-HDLC)**, normal polynomial **0x04C11DB7** with its implicit degree32 term; the reflected bit loop uses **0xEDB88320**, init and xorout **0xFFFFFFFF**, bytes in order and bits **LSB-first**. This is not CRC-32C. Its ASCII check value is **CRC32("123456789") = 0xCBF43926**; our explicit bitwise implementation is cross-checked against Python stdlib `zlib.crc32`, not replaced by a hard-coded answer.
+
+### Same payloads, same corruption, three checkers
+
+`dataset_crc_integrity_toy.py` uses four shared 16-byte payloads: zeros, FFs, ascending bytes0…15, and `(37*j+11) mod256`. For every corrupted copy, **no check**, **sum8=sum(bytes) mod256**, and **CRC32** receive the same bytes and original stored check values; no-check ignores the tags. Tags, length and framing remain intact in this experiment; neither insertion/deletion nor a specific storage/channel failure probability is simulated. Corruption is fully deterministic, so no stochastic seeds or five-seed uncertainty claim is needed.
+
+| corrupted corpus | cases | no-check undetected | sum8 undetected | CRC32 undetected |
+|---|---|---|---|---|
+| every single-bit position | 512 | 512/512 | 0/512 | 0/512 |
+| all-ones bursts, spans2…32, every fitting position | 13888 | 13888/13888 | 116/13888 (0.008353) | 0/13888 |
+| adjacent balanced bytes (+1,−1 mod256) | 32 | 32/32 | 32/32 | 0/32 |
+| deliberate degree32 generator error, span33 | 4 | 4/4 | 0/4 | 4/4 |
+
+**Undetected error rate = accepted corrupted cases / corrupted cases**, not fraction of clean records and not an estimated real-channel probability. All four clean chunks pass each checker. The balanced-byte case exposes addition's cancellation. The 33-bit case exposes a real CRC collision and even a case sum8 catches: do not claim CRC detects every error or always dominates every checksum on every pattern.
+
+### Why any single burst of span ≤32 bits is detected
+
+For fixed-length equal-framed messages, CRC init/xorout offsets cancel when comparing errors. An error burst of spanL has a polynomial `E(x)=x^k B(x)` with nonzero first/last bits and `degree(B)=L−1`. The generator has degree32 and constant term1, so it has no factor x: if L≤32, a nonzero B of degree less than 32 cannot be divisible by it. Thus **any single nonzero burst of span≤32 bits** is detected, including sparse interiors—not just runs of ones. This algebraic guarantee is not inferred from our finite all-ones enumeration. It does not cover multiple separated bursts with larger combined span or every longer error. The reflected 33-bit full-generator mask `(0xEDB88320<<1)|1` is an explicit undetected example.
+
+**CRC ≠ authentication**: an adversary who can alter payload and tag can recompute them; the toy flips a payload bit, replaces both tags, and both checkers accept. Even an ordinary unkeyed hash alone cannot authenticate a replaceable log; use an appropriate authenticated mechanism/trust model when required, not this CRC toy. Real recording/storage faults and integration: **本页未运行**; no cryptographic or safety certification is claimed.
+
+```bash
+python3 examples/month-8/dataset-engineering/dataset_crc_integrity_toy.py
+bash examples/month-8/check.sh
+```
+
+<CodeSource path="examples/month-8/dataset-engineering/dataset_crc_integrity_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Deterministic synthetic logged chunks, NOT a change to LeRobot/Parquet format.
+Same original payload/tags and exact corrupted cases for no-check, sum8, CRC32.
+CRC-32/IEEE (ISO-HDLC): reflected 0xEDB88320, init/xorout 0xFFFFFFFF.
+Payload-only errors; stored tags/length/framing intact in this experiment.
+CRC is error detection, NOT authentication: collisions exist and tags can be forged.
+"""
+import zlib
+
+POLY=0xEDB88320
+PAYLOADS=(bytes(16),bytes([255])*16,bytes(range(16)),bytes((37*j+11)%256 for j in range(16)))
+
+
+def crc32(data):
+    state=0xFFFFFFFF
+    for byte in data:
+        state^=byte
+        for _ in range(8):
+            state=(state>>1)^(POLY if state&1 else 0)
+    return state^0xFFFFFFFF
+
+
+def sum8(data):
+    return sum(data)&0xFF
+
+
+def flip(data, start, mask):
+    result=bytearray(data)
+    for j in range(mask.bit_length()):
+        if mask>>j&1:
+            bit=start+j
+            result[bit//8]^=1<<(bit%8)  # Contiguous on the reflected, LSB-first bit stream.
+    return bytes(result)
+
+
+def corpus():
+    """All locations; 1-bit errors and all-ones bursts are samples, not all shapes."""
+    rows=[]
+    for original in PAYLOADS:
+        for start in range(128):
+            rows.append(("single_bit",original,flip(original,start,1)))
+        for length in range(2,33):
+            for start in range(129-length):
+                rows.append(("burst_2to32",original,flip(original,start,(1<<length)-1)))
+        for j in range(0,16,2):
+            changed=bytearray(original)
+            changed[j]=(changed[j]+1)&255
+            changed[j+1]=(changed[j+1]-1)&255
+            rows.append(("balanced_bytes",original,bytes(changed)))
+        # Full reversed generator spans33 bits: an explicit long-burst collision.
+        rows.append(("generator_33",original,flip(original,0,(POLY<<1)|1)))
+    return tuple(rows)
+
+
+def accepted(arm, received, tags):
+    if arm=="no_check":
+        return True
+    if arm=="sum8":
+        return sum8(received)==tags[0]
+    if arm=="CRC32":
+        return crc32(received)==tags[1]
+    raise ValueError("unknown integrity arm")
+
+
+def main():
+    assert crc32(b"123456789")==0xCBF43926
+    print(f'CRC32_IEEE("123456789")=0x{crc32(b"123456789"):08X}; reflected_poly=0x{POLY:08X}')
+    print("init=xorout=0xFFFFFFFF; same4 synthetic16-byte chunks; tags/framing uncorrupted")
+    print("group arm corrupted undetected undetected_rate")
+    rows=corpus()
+    for group in ("single_bit","burst_2to32","balanced_bytes","generator_33"):
+        cases=tuple((original,received) for kind,original,received in rows if kind==group)
+        for arm in ("no_check","sum8","CRC32"):
+            misses=0
+            for original,received in cases:
+                assert received!=original
+                assert crc32(received)==zlib.crc32(received)&0xFFFFFFFF
+                misses+=accepted(arm,received,(sum8(original),crc32(original)))
+            print(f"{group} {arm} {len(cases)} {misses} {misses/len(cases):.6f}")
+    clean=[sum(accepted(arm,p,(sum8(p),crc32(p))) for p in PAYLOADS) for arm in ("no_check","sum8","CRC32")]
+    print(f"clean acceptance: no_check={clean[0]}/4 sum8={clean[1]}/4 CRC32={clean[2]}/4")
+    original=PAYLOADS[2];tampered=flip(original,0,1)
+    forged=(sum8(tampered),crc32(tampered))
+    print(f"attacker_recomputed_tags: sum8_accept={int(accepted('sum8',tampered,forged))} CRC32_accept={int(accepted('CRC32',tampered,forged))}")
+    print("CRC detects ANY single nonzero burst span<=32 bits by polynomial degree, not by this finite enumeration")
+    print("33-bit collision is deliberate; CRC != authentication; no random/channel-probability claim")
+    print("Real recording/storage faults and format integration: 本页未运行")
+
+
+if __name__=="__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+CRC32_IEEE("123456789")=0xCBF43926; reflected_poly=0xEDB88320
+init=xorout=0xFFFFFFFF; same4 synthetic16-byte chunks; tags/framing uncorrupted
+group arm corrupted undetected undetected_rate
+single_bit no_check 512 512 1.000000
+single_bit sum8 512 0 0.000000
+single_bit CRC32 512 0 0.000000
+burst_2to32 no_check 13888 13888 1.000000
+burst_2to32 sum8 13888 116 0.008353
+burst_2to32 CRC32 13888 0 0.000000
+balanced_bytes no_check 32 32 1.000000
+balanced_bytes sum8 32 32 1.000000
+balanced_bytes CRC32 32 0 0.000000
+generator_33 no_check 4 4 1.000000
+generator_33 sum8 4 0 0.000000
+generator_33 CRC32 4 4 1.000000
+clean acceptance: no_check=4/4 sum8=4/4 CRC32=4/4
+attacker_recomputed_tags: sum8_accept=1 CRC32_accept=1
+CRC detects ANY single nonzero burst span<=32 bits by polynomial degree, not by this finite enumeration
+33-bit collision is deliberate; CRC != authentication; no random/channel-probability claim
+Real recording/storage faults and format integration: 本页未运行
+```
+
+</SimOutput>
+
+### Exercises
+
+1. Verify 0xCBF43926 with both the bitwise function and zlib; distinguish reflected polynomial, init and xorout from CRC-32C.
+2. Reconstruct the identical corrupted corpus for all checkers and its denominators; explain the116 sum8 burst misses and all32 balanced-byte misses.
+3. Derive the degree argument for arbitrary single bursts≤32, then inspect the33-bit collision; why does finite enumeration alone not prove the theorem?
+4. Recompute tags after tampering and explain authentication failure; list what remains outside coverage (framing, missing chunks, labels and real format integration).
+
 <Summary>
 
 Write a variation×repetition protocol (~50 episodes / 5×10 as a SmolVLA starting point). LeRobotDataset v3 locates episodes in metadata and packs many per Parquet/MP4; stream with StreamingLeRobotDataset when needed. `dataset_audit.py` flags `cube_C` UNDER (4 episodes, 1 missing frame) on a 24-episode toy. Hold out 5 of 20 eval starts. Open X-Embodiment (arXiv 2310.08864) is why shared formats matter at scale.
 
+The shared-corruption chunk toy compares no check, sum8 and CRC-32/IEEE, verifies its check value and burst bound, and shows collisions and recomputed tags are not authentication.
 </Summary>
