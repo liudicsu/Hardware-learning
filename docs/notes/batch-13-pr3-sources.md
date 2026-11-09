@@ -4,7 +4,7 @@ Base: `e0c9ccf` (batch-13 PR2 #154 merged; site **29850**). Proposal `batch-13-p
 
 ## Opened sources (curl -L + body read, 2026-11-10, Asia/Shanghai UTC+8)
 
-- `mapvla-html` / MAP-VLA, arXiv 2511.09516 HTML: https://arxiv.org/html/2511.09516, HTTP 200, LaTeXML body read (not a JavaScript shell). §III-A stage segmentation with RDP key poses and DTW alignment; §III-B `P_k = P_base + V_k` (Eq. 2) tuned with the flow-matching loss on a frozen π0 (Eq. 3); §III-C sliding-window L2 retrieval restricted to `|k − k_cur| ≤ 1` (Eq. 4–5) and the α softmax ensemble (Eq. 6–7). 以论文为准.
+- `mapvla-html` / MAP-VLA (Runhao Li et al.; first author verified on https://arxiv.org/abs/2511.09516), arXiv 2511.09516 HTML: https://arxiv.org/html/2511.09516, HTTP 200, LaTeXML body read (not a JavaScript shell). §III-A stage segmentation with RDP key poses and DTW alignment; §III-B `P_k = P_base + V_k` (Eq. 2) tuned with the flow-matching loss on a frozen π0 (Eq. 3); §III-C sliding-window L2 retrieval restricted to `|k − k_cur| ≤ 1` (Eq. 4–5) and the α softmax ensemble (Eq. 6–7). 以论文为准.
 - `mapvla-pdf` / MAP-VLA PDF: https://arxiv.org/pdf/2511.09516, HTTP 200, 9 pages, body read via pdftotext. LIBERO-Long 83.4 vs 76.4 (+7.0); real robot 48.3 vs 23.3 (+25.0); stage-prompt ablation 81.4; retrieval 21.6 ms with 37.8 demos per task; Galaxea A1, RTX 4090. Numbers 以论文为准; π0 / GPU 本页未运行.
 - `dforcing-html` / Diffusion Forcing, arXiv 2407.01392 HTML: https://arxiv.org/html/2407.01392, HTTP 200, LaTeXML body read. §3.1 noise as partial masking; §3.2 independent per-token `k_t` (Algorithm 1), causal RNN, loss Eq. 3.1, Theorem 3.1 reweighted ELBO; scheduling matrix `K`; §3.3 stabilization with `k_small`, zig-zag schedule; §3.4 Monte Carlo Guidance. 以论文为准.
 - `dforcing-pdf` / Diffusion Forcing PDF: https://arxiv.org/pdf/2407.01392, HTTP 200, 35 pages, body read via pdftotext (abstract through §4.5, App. B.2 i.i.d. uniform noise levels, App. B.4 stabilization). §4.1 teacher forcing and causal full-sequence baselines diverge past the training horizon, DF stable (e.g. 1000 frames); §4.2 Maze2D beats Diffuser (which needs a PD controller); §4.4 Franka 80 % where diffusion policy fails, 76 % vs 48 % under occlusion. Numbers 以论文为准; video models, Franka and GPU 本页未运行.
@@ -39,3 +39,9 @@ opencode free models were tried first with a toy brief (`/workspace/b13p3-openco
 ## Local validation
 
 `tools/test_b13p3_mapvla_dforcing_toys.py`, month-10 `check.sh`, `check_quotes`, `check_diagrams`, `check_widgets`, `check_wokwi`, lint, next typegen, `tsc --noEmit`, production build. No workflow edits. Minutes **71 / 30270**.
+
+
+## Batch-13 polish clarifications (minutes unchanged)
+
+- MAP-VLA author line in the lesson now names **Runhao Li et al.** next to arXiv 2511.09516 (matches the arXiv abstract page; already listed in `resources.ts`).
+- Diffusion Forcing arm C: the lesson now states that C shares a single noise level and re-noises the context, so printed `ρ(G)` is 0.6755–0.6890 (≈ 0.68) and it does **not** reproduce the diverging causal full-sequence baseline in §4.1.

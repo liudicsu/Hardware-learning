@@ -6831,5 +6831,50 @@ print("protocol pass")
 }
 
 
+
+// Batch-13 polish: Ferrari–Canny at ε, Diffusion Forcing C shared-noise / §4.1 disclaimer, MAP-VLA authors. Minutes unchanged (30270).
+{
+  const read=p=>readFileSync(join(root,p),"utf8");
+  const note=read("docs/notes/batch-13-polish-sources.md");
+  ok(["00cc3e1","30270","Ferrari–Canny","0.6755–0.6890","§4.1","Runhao Li et al.","J-STD-020","403","not cited","No lock relaxed"].every(x=>note.includes(x)),"b13pol sources note");
+  const res=read("src/lib/resources.ts"), cur=read("src/lib/curriculum.ts");
+  ok(res.includes('"ferrari-canny-pdf": {')&&/ferrari-canny-pdf[\s\S]*?extra: true/.test(res)&&res.includes("Carlo Ferrari"),"b13pol ferrari-canny resource");
+  ok(/slug: "perception-to-grasp"[\s\S]*?"ferrari-canny-pdf"/.test(cur),"b13pol curriculum wires ferrari-canny-pdf");
+  for(const lang of ["en","zh"]){
+    const md=read(`src/content/m7/perception-to-grasp/${lang}.mdx`);
+    const head=md.indexOf(lang==="en"?"## Antipodal grasps, force closure and an ε proxy":"## 对跖抓取、力封闭与 ε 代理");
+    const summary=md.indexOf("<Summary>");
+    const sec=md.slice(head,summary);
+    ok(sec.includes("<Resource id=\"ferrari-canny-pdf\" />"),`b13pol perception-to-grasp ${lang}: Resource ferrari-canny-pdf`);
+    if(lang==="en"){
+      ok(sec.includes("Ferrari–Canny (1992)")&&sec.includes("largest origin-centred ball")&&sec.includes("Planning optimal grasps"),`b13pol perception-to-grasp ${lang}: Ferrari–Canny named at ε`);
+    }else{
+      ok(sec.includes("Ferrari–Canny（1992）")&&sec.includes("最大球半径")&&sec.includes("Planning optimal grasps"),`b13pol perception-to-grasp ${lang}: Ferrari–Canny named at ε`);
+    }
+  }
+  for(const lang of ["en","zh"]){
+    const md=read(`src/content/m10/flow-matching-policies/${lang}.mdx`);
+    const head=md.indexOf(lang==="en"?"## Diffusion Forcing: an independent noise level per token":"## Diffusion Forcing：每个 token 一个独立噪声级");
+    const summary=md.indexOf("<Summary>");
+    const sec=md.slice(head,summary);
+    ok(sec.includes("0.6755–0.6890")&&(sec.includes("§4.1")||sec.includes("第 4.1 节")),`b13pol flow-matching ${lang}: C ρ(G) and §4.1`);
+    if(lang==="en"){
+      ok(sec.includes("shares a single noise level")&&sec.includes("re-noises the context")&&sec.includes("does **not** reproduce")&&sec.includes("diverging"),`b13pol flow-matching ${lang}: C shared-noise disclaimer`);
+    }else{
+      ok(sec.includes("共用一个噪声级")&&sec.includes("重新加噪")&&sec.includes("**没有**复现")&&sec.includes("会发散"),`b13pol flow-matching ${lang}: C shared-noise disclaimer`);
+    }
+  }
+  for(const lang of ["en","zh"]){
+    const md=read(`src/content/m10/intervention-logging/${lang}.mdx`);
+    ok(md.includes("Runhao Li et al.")&&md.includes("2511.09516"),`b13pol intervention-logging ${lang}: Runhao Li et al.`);
+  }
+  const p2=read("docs/notes/batch-13-pr2-sources.md"), p3=read("docs/notes/batch-13-pr3-sources.md");
+  ok(p2.includes("ferrari-canny-pdf")&&p3.includes("Runhao Li et al.")&&p3.includes("0.6755–0.6890"),"b13pol pr2/pr3 sources updated");
+  ok(/30 270/.test(read("README.md")),"b13pol README site minutes unchanged");
+  console.log("batch-13 polish: Ferrari–Canny, C ρ(G)/§4.1, Runhao Li et al.; minutes 30270; no lock relaxed");
+}
+
+
+
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
 process.exit(failed ? 1 : 0);

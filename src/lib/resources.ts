@@ -5235,6 +5235,26 @@ export const resources: Record<string, Resource> = {
     },
     extra: true,
   },
+  "ferrari-canny-pdf": {
+    id: "ferrari-canny-pdf",
+    url: "https://users.cs.duke.edu/~tomasi/public/ReadingGroup/Ferrari%20and%20Canny%20ICRA%201992.pdf",
+    title: {
+      zh: "Ferrari–Canny：规划最优抓取（1992 ICRA PDF）",
+      en: "Ferrari–Canny: Planning Optimal Grasps (1992 ICRA PDF)",
+    },
+    author: "Carlo Ferrari, John Canny",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已用 pdftotext 读正文：力封闭是二元条件；质量 Q 是原点为心、落在基本接触力旋量凸包内的最大球半径（= 原点到最近面的距离）；L∞ 约束各指力、L1 约束总力。本页的 ε 取 L1 / 总力形式。以原文为准。",
+      en: "Body read via pdftotext: force closure is the binary condition; quality Q is the radius of the largest origin-centred sphere inside the convex hull of the primitive contact wrenches (= distance from the origin to the nearest facet); L∞ bounds each finger force, L1 bounds the total force. This page's ε follows the L1 / total-force form. 以原文为准.",
+    },
+    license: {
+      zh: "以原文为准",
+      en: "See original terms",
+    },
+    extra: true,
+  },
   "mapvla-html": {
     id: "mapvla-html",
     url: "https://arxiv.org/html/2511.09516",
