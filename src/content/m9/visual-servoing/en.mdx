@@ -19,7 +19,7 @@ Pipeline:
 
 ## Contrast with 9.2
 
-9.2 already covered JointJog / Twist / Pose and singularity scaling. This lesson only builds a **Twist-scale command table**; the toy applies simple speed limits and a deadzone. It does **not** teach a full IBVS image-Jacobian course, commercial visual-servo products, or multi-camera extrinsics (see [10.4 multi-camera extrinsics](/en/month/month-10/multi-view-extrinsics)).
+9.2 already covered JointJog / Twist / Pose and singularity scaling. The first toy only builds a **Twist-scale command table** with simple speed limits and a deadzone; the IBVS section below adds an interaction-matrix lite comparison, not a full IBVS course. Commercial visual-servo products and multi-camera extrinsics stay out of scope (see [10.4 multi-camera extrinsics](/en/month/month-10/multi-view-extrinsics)).
 
 ## CPU: tag error → jog
 
@@ -216,6 +216,335 @@ This run: `in_deadzone=False`, `err_z≈tag_cam_z−z_des` (≈0.0205 → `vz≈
 
 Local OpenCV + printed ArUco + USB camera, or publishing Twist into MoveIt Servo — **本页未运行**.
 
+## IBVS interaction-matrix lite: same estimate, different error
+
+The tag → pose error → Twist path above is **PBVS** (position-based): its error lives in 3D, `e = (t, θu)` of the current camera relative to the desired one. **IBVS** (image-based) keeps the error in the image, `e = s − s*`, and maps it to a camera velocity through the **interaction matrix** `L` (also called the image Jacobian). For one normalized point `(x, y)` at depth `Z`, the [ViSP IBVS tutorial](https://visp-doc.inria.fr/doxygen/visp-daily/tutorial-ibvs.html) writes `ṡ = L·v_c` with the 2×6 matrix below, and the law `v_c = −λ L⁺ e`, where `v_c = (v, ω)` is the camera twist:
+
+```text
+L = [ -1/Z    0    x/Z   x·y    -(1+x²)   y ]
+    [   0   -1/Z   y/Z  1+y²    -x·y     -x ]
+```
+
+Four points give an 8×6 stack; `L⁺ = (LᵀL)⁻¹Lᵀ` is the least-squares solve. The first three columns carry `1/Z`, so **IBVS still needs a depth estimate** — only for the gain matrix, not for the error. The ViSP tutorial updates `Z` from the estimated pose each iteration; a constant desired-depth `L*` is a common alternative. Two points give only 4 rows (rank < 6): two directions of camera motion are invisible, a degenerate case the toy prints. The [Wikipedia overview](https://en.wikipedia.org/wiki/Visual_servoing) (secondary) names the classic IBVS pitfalls: **camera retreat** under large rotations about the optical axis, local minima, and interaction-matrix singularities checked through condition numbers.
+
+### Fair setup
+
+`ibvs_interaction_matrix_toy.py` is **synthetic** and stdlib only: a free-flying camera, a 0.20 m square of four coplanar points, desired pose 0.5 m in front. Both arms receive **the same noisy normalized points** (σ = 0.002, roughly 1.6 px at f = 800 px), **the same assumed target model** (scale `k`), hence the same planar-homography pose estimate and the same depth estimate `Ẑ`; the same `λ = 0.5 s⁻¹`, step 0.1 s, cap 300 steps and field of view `|x|, |y| ≤ 0.4`. A run that pushes any point out of view stops as **lost** (its SSE is the value at the stop). Neither arm sees true depth. Five noise seeds; mean±sd.
+
+| Scenario | What changes |
+| --- | --- |
+| `nominal` | moderate offset and 40° yaw, correct model `k = 1` |
+| `wrong_Z_k1.5` | same start, model 1.5× too large ⇒ every depth and the PnP translation 1.5× too large |
+| `near_edge` | start with points at ±0.367 of the ±0.4 view, off-axis with 79° yaw |
+| `roll_170` | pure 170° rotation about the optical axis |
+
+Metrics: `lost/5`, final feature SSE, camera path length, final camera position error `t_err`, and `extra_retreat` = how far the camera backs away beyond its starting distance.
+
+### Reading the result
+
+- **Wrong depth:** PBVS converges to the pose the wrong model says is correct: `t_err ≈ 0.167 m = 0.5 − 0.5/1.5`, feature SSE ≈ 0.08. IBVS still drives `s → s*` (SSE ≈ 2e-5, a slower tail): a wrong `Ẑ` only mis-scales the gain, so the image error still reaches zero here. That is **robustness to depth scale in this toy**, not a guarantee — large depth errors can destabilize IBVS.
+- **Near the edge:** PBVS moves the camera along a 3D-straight path and loses a point in 5/5 runs; IBVS moves image points roughly straight toward `s*` and keeps them in view, at the cost of a longer path and a 0.07 m back-off.
+- **Large roll:** IBVS shows **camera retreat** — the straight-line image motion of points rotating 170° shrinks the pattern, so the camera backs away about 5 m before returning (path ≈ 10.6 m); PBVS rotates in place (path ≈ 0.32 m).
+- **Conditioning:** `cond(LᵀL) ≈ 4035` at `s*` mixes metres and radians (a scaling fact, not a defect); the two-point stack has two null directions.
+
+No arm wins everywhere: each failure belongs to the error space it chose. Hybrid (2½-D) schemes exist to trade these off; they are reading only here. This is not 9.2 Servo singularity scaling and not 10.4 multi-camera extrinsics. **Real webcam, OpenCV feature tracking and robot motion: 本页未运行.**
+
+```bash
+$ cd ~/Hardware-learning/examples/month-9/visual-servoing
+$ python3 ibvs_interaction_matrix_toy.py
+```
+
+<CodeSource path="examples/month-9/visual-servoing/ibvs_interaction_matrix_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""ibvs_interaction_matrix_toy.py: PBVS vs IBVS with one shared estimate (stdlib).
+
+Synthetic free-flying camera, four coplanar points (0.20 m square). Both arms
+get the SAME noisy normalized image points, the SAME assumed target model
+(scale k), hence the SAME planar pose estimate and depth estimate, the SAME
+lambda, step, iteration cap and field-of-view limit.
+  PBVS: e = (t, theta*u) of current camera w.r.t. the desired camera, from the
+        estimated pose; v = -lambda*R^T t, w = -lambda*theta*u.
+  IBVS: e = s - s*, per-point L (2x6) with the estimated depth Zhat,
+        v_c = -lambda * L^+ e   (L^+ = (L^T L)^-1 L^T, 8x6 stack).
+Point interaction matrix (normalized x, y; depth Z), as in the ViSP tutorial:
+  [ -1/Z   0   x/Z   x*y   -(1+x^2)   y ]
+  [   0  -1/Z  y/Z  1+y^2   -x*y     -x ]
+k = 1 is a correct model; k = 1.5 is a wrong-depth/scale assumption shared by
+both arms. A run that loses any point outside |x|,|y| <= FOV stops as lost.
+All values synthetic; no OpenCV, camera or robot.
+usage: python3 ibvs_interaction_matrix_toy.py
+"""
+from __future__ import annotations
+
+import math
+import random
+import statistics
+
+LAMBDA = 0.5      # 1/s, shared gain
+DT = 0.1          # s per control step
+STEPS = 300       # shared iteration cap
+SIGMA = 0.002     # normalized-coordinate noise (about 1.6 px at f=800 px)
+FOV = 0.40        # normalized half field of view
+SEEDS = (0, 1, 2, 3, 4)
+HALF = 0.10       # m, half side of the square target
+OBJ = [(-HALF, -HALF, 0.0), (HALF, -HALF, 0.0), (HALF, HALF, 0.0), (-HALF, HALF, 0.0)]
+Z_DES = 0.50      # desired camera: identity rotation, 0.5 m in front of target
+# name: (camera position in target frame, roll/pitch/yaw degrees, model scale k)
+SCENARIOS = {
+    "nominal": ((0.05, -0.04, -0.80), (4.0, -3.0, 40.0), 1.0),
+    "wrong_Z_k1.5": ((0.05, -0.04, -0.80), (4.0, -3.0, 40.0), 1.5),
+    "near_edge": ((-0.12, 0.08, -0.74), (-19.0, 1.0, -79.0), 1.0),
+    "roll_170": ((0.00, 0.00, -0.60), (0.0, 0.0, 170.0), 1.0),
+}
+
+
+# ---------- small linear algebra ----------
+def matmul(a, b):
+    return [[sum(a[i][k] * b[k][j] for k in range(len(b))) for j in range(len(b[0]))] for i in range(len(a))]
+
+
+def transpose(a):
+    return [list(r) for r in zip(*a)]
+
+
+def matvec(a, v):
+    return [sum(x * y for x, y in zip(row, v)) for row in a]
+
+
+def solve(a, b):
+    """Gaussian elimination with partial pivoting; a is n x n."""
+    n = len(a)
+    m = [list(a[i]) + [b[i]] for i in range(n)]
+    for c in range(n):
+        p = max(range(c, n), key=lambda r: abs(m[r][c]))
+        if abs(m[p][c]) < 1e-14:
+            raise ValueError("singular")
+        m[c], m[p] = m[p], m[c]
+        for r in range(n):
+            if r != c:
+                f = m[r][c] / m[c][c]
+                for k in range(c, n + 1):
+                    m[r][k] -= f * m[c][k]
+    return [m[i][n] / m[i][i] for i in range(n)]
+
+
+def pinv_apply(L, e):
+    """L^+ e via normal equations (L has full column rank 6 for 4 points)."""
+    lt = transpose(L)
+    return solve(matmul(lt, L), matvec(lt, e))
+
+
+def jacobi_eigs(s):
+    """Eigenvalues of a symmetric matrix (cyclic Jacobi)."""
+    a = [list(r) for r in s]
+    n = len(a)
+    for _ in range(60):
+        off = sum(a[i][j] ** 2 for i in range(n) for j in range(n) if i != j)
+        if off < 1e-22:
+            break
+        for p in range(n):
+            for q in range(p + 1, n):
+                if abs(a[p][q]) < 1e-30:
+                    continue
+                th = 0.5 * math.atan2(2 * a[p][q], a[q][q] - a[p][p])
+                c, s_ = math.cos(th), math.sin(th)
+                for k in range(n):
+                    akp, akq = a[k][p], a[k][q]
+                    a[k][p], a[k][q] = c * akp - s_ * akq, s_ * akp + c * akq
+                for k in range(n):
+                    apk, aqk = a[p][k], a[q][k]
+                    a[p][k], a[q][k] = c * apk - s_ * aqk, s_ * apk + c * aqk
+    return sorted(a[i][i] for i in range(n))
+
+
+def rot_rpy(r, p, y):
+    r, p, y = (math.radians(v) for v in (r, p, y))
+    cr, sr, cp, sp, cy, sy = math.cos(r), math.sin(r), math.cos(p), math.sin(p), math.cos(y), math.sin(y)
+    return [[cy * cp, cy * sp * sr - sy * cr, cy * sp * cr + sy * sr],
+            [sy * cp, sy * sp * sr + cy * cr, sy * sp * cr - cy * sr],
+            [-sp, cp * sr, cp * cr]]
+
+
+def expmap(w):
+    th = math.sqrt(sum(x * x for x in w))
+    if th < 1e-12:
+        return [[1.0, -w[2], w[1]], [w[2], 1.0, -w[0]], [-w[1], w[0], 1.0]]
+    k = [x / th for x in w]
+    c, s = math.cos(th), math.sin(th)
+    K = [[0, -k[2], k[1]], [k[2], 0, -k[0]], [-k[1], k[0], 0]]
+    KK = matmul(K, K)
+    return [[(i == j) + s * K[i][j] + (1 - c) * KK[i][j] for j in range(3)] for i in range(3)]
+
+
+def theta_u(R):
+    c = max(-1.0, min(1.0, (R[0][0] + R[1][1] + R[2][2] - 1) / 2))
+    th = math.acos(c)
+    if th < 1e-9:
+        return [0.0, 0.0, 0.0]
+    if math.pi - th < 1e-6:  # pick an axis for the 180-degree case
+        d = [math.sqrt(max(0.0, (R[i][i] + 1) / 2)) for i in range(3)]
+        return [th * x for x in d]
+    s = 2 * math.sin(th)
+    return [th * (R[2][1] - R[1][2]) / s, th * (R[0][2] - R[2][0]) / s, th * (R[1][0] - R[0][1]) / s]
+
+
+def orthonormalize(R):
+    c0 = R_col(R, 0)
+    n0 = math.sqrt(sum(x * x for x in c0))
+    c0 = [x / n0 for x in c0]
+    c1 = R_col(R, 1)
+    d = sum(a * b for a, b in zip(c0, c1))
+    c1 = [b - d * a for a, b in zip(c0, c1)]
+    n1 = math.sqrt(sum(x * x for x in c1))
+    c1 = [x / n1 for x in c1]
+    c2 = [c0[1] * c1[2] - c0[2] * c1[1], c0[2] * c1[0] - c0[0] * c1[2], c0[0] * c1[1] - c0[1] * c1[0]]
+    return [[c0[i], c1[i], c2[i]] for i in range(3)]
+
+
+def R_col(R, j):
+    return [R[i][j] for i in range(3)]
+
+
+# ---------- camera geometry ----------
+def project(Rw, tw):
+    """Camera pose (Rw, tw) in target frame -> normalized points and depths."""
+    rt = transpose(Rw)
+    pts = []
+    for X in OBJ:
+        pc = matvec(rt, [X[i] - tw[i] for i in range(3)])
+        pts.append((pc[0] / pc[2], pc[1] / pc[2], pc[2]))
+    return pts
+
+
+def interaction(x, y, Z):
+    return [[-1 / Z, 0.0, x / Z, x * y, -(1 + x * x), y],
+            [0.0, -1 / Z, y / Z, 1 + y * y, -x * y, -x]]
+
+
+def estimate_pose(meas, k):
+    """Planar homography (DLT, h33=1) from the assumed model k*OBJ -> c_R_o, c_t_o."""
+    A, b = [], []
+    for (X, Y, _), (u, v) in zip(OBJ, meas):
+        X, Y = k * X, k * Y
+        A.append([X, Y, 1, 0, 0, 0, -u * X, -u * Y]); b.append(u)
+        A.append([0, 0, 0, X, Y, 1, -v * X, -v * Y]); b.append(v)
+    h = solve(A, b) + [1.0]
+    H = [h[0:3], h[3:6], h[6:9]]
+    h1, h2, h3 = R_col(H, 0), R_col(H, 1), R_col(H, 2)
+    s = 1.0 / math.sqrt(sum(x * x for x in h1))
+    if h3[2] * s < 0:
+        s = -s
+    r1 = [s * x for x in h1]
+    r2 = [s * x for x in h2]
+    r3 = [r1[1] * r2[2] - r1[2] * r2[1], r1[2] * r2[0] - r1[0] * r2[2], r1[0] * r2[1] - r1[1] * r2[0]]
+    R = orthonormalize([[r1[i], r2[i], r3[i]] for i in range(3)])
+    return R, [s * x for x in h3]
+
+
+def run(arm, scenario, seed):
+    pos, rpy, k = SCENARIOS[scenario]
+    Rw, tw = rot_rpy(*rpy), list(pos)
+    desired = project([[1, 0, 0], [0, 1, 0], [0, 0, 1]], [0.0, 0.0, -Z_DES])
+    s_star = [c for p in desired for c in p[:2]]
+    rng = random.Random(1000 * seed + 7)  # same draw sequence for both arms
+    path, lost, steps = 0.0, False, 0
+    depth0, retreat = -tw[2], 0.0
+    for steps in range(1, STEPS + 1):
+        true_pts = project(Rw, tw)
+        if any(abs(x) > FOV or abs(y) > FOV or Z <= 0 for x, y, Z in true_pts):
+            lost = True
+            break
+        meas = [(x + rng.gauss(0, SIGMA), y + rng.gauss(0, SIGMA)) for x, y, _ in true_pts]
+        cRo, cto = estimate_pose(meas, k)
+        if arm == "PBVS":
+            # desired camera sees the target at c*_R_o = I, c*_t_o = (0,0,Z_DES)
+            # current camera w.r.t. desired: c*_R_c = cRo^T, c*_t_c = t* - cRo^T cto
+            R_dc = transpose(cRo)
+            t_dc = [[0.0, 0.0, Z_DES][i] - matvec(R_dc, cto)[i] for i in range(3)]
+            v = [-LAMBDA * x for x in matvec(cRo, t_dc)]
+            w = [-LAMBDA * x for x in theta_u(R_dc)]
+            vel = v + w
+        else:
+            zhat = [matvec(cRo, [k * X[0], k * X[1], 0.0])[2] + cto[2] for X in OBJ]
+            L = [row for (x, y), Z in zip(meas, zhat) for row in interaction(x, y, Z)]
+            e = [m - s for m, s in zip([c for p in meas for c in p], s_star)]
+            vel = [-LAMBDA * x for x in pinv_apply(L, e)]
+        dv = matvec(Rw, [vel[i] * DT for i in range(3)])
+        tw = [tw[i] + dv[i] for i in range(3)]
+        Rw = orthonormalize(matmul(Rw, expmap([vel[i] * DT for i in range(3, 6)])))
+        path += math.sqrt(sum(x * x for x in dv))
+        retreat = max(retreat, -tw[2] - depth0)  # backing away beyond the start
+    final = project(Rw, tw)
+    sse = sum((a - b) ** 2 for p, q in zip(final, desired) for a, b in zip(p[:2], q[:2]))
+    t_err = math.sqrt(tw[0] ** 2 + tw[1] ** 2 + (tw[2] + Z_DES) ** 2)
+    return {"sse": sse, "path": path, "lost": lost, "steps": steps, "t_err": t_err, "retreat": retreat}
+
+
+def fmt(vals, f):
+    return f"{statistics.mean(vals):{f}}±{statistics.pstdev(vals):{f}}"
+
+
+def main():
+    print(f"Synthetic: lambda={LAMBDA} dt={DT}s cap={STEPS} sigma={SIGMA} FOV=±{FOV} "
+          f"seeds={len(SEEDS)} target=0.20 m square Z*={Z_DES} m")
+    L0 = interaction(0.2, 0.2, Z_DES)
+    print("L(x=0.2,y=0.2,Z=0.5) rows:")
+    for row in L0:
+        print("  " + " ".join(f"{v:7.3f}" for v in row))
+    desired = project([[1, 0, 0], [0, 1, 0], [0, 0, 1]], [0.0, 0.0, -Z_DES])
+    Ld = [row for x, y, Z in desired for row in interaction(x, y, Z)]
+    ev = jacobi_eigs(matmul(transpose(Ld), Ld))
+    print(f"4-point stack at s*: eig(L^T L) min={ev[0]:.4f} max={ev[-1]:.2f} cond={ev[-1] / ev[0]:.1f}")
+    two = [row for x, y, Z in desired[:2] for row in interaction(x, y, Z)]
+    ev2 = jacobi_eigs(matmul(transpose(two), two))
+    print(f"2-point stack: rank<6, eig min={abs(ev2[0]):.1e} (null directions={sum(1 for v in ev2 if abs(v) < 1e-9)})")
+    print("scenario arm lost/5 feat_SSE path_m t_err_m extra_retreat_m")
+    for sc in SCENARIOS:
+        for arm in ("PBVS", "IBVS"):
+            rs = [run(arm, sc, s) for s in SEEDS]
+            print(f"{sc} {arm} {sum(r['lost'] for r in rs)}/5 {fmt([r['sse'] for r in rs], '.2e')} "
+                  f"{fmt([r['path'] for r in rs], '.3f')} {fmt([r['t_err'] for r in rs], '.3f')} "
+                  f"{fmt([r['retreat'] for r in rs], '.3f')}")
+    print("Shared estimate: same noisy points, model scale k, lambda, cap and FOV for both arms.")
+    print("No winner is declared; real camera/OpenCV/robot runs: 本页未运行.")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic: lambda=0.5 dt=0.1s cap=300 sigma=0.002 FOV=±0.4 seeds=5 target=0.20 m square Z*=0.5 m
+L(x=0.2,y=0.2,Z=0.5) rows:
+   -2.000   0.000   0.400   0.040  -1.040   0.200
+    0.000  -2.000   0.400   1.040  -0.040  -0.200
+4-point stack at s*: eig(L^T L) min=0.0050 max=20.33 cond=4035.3
+2-point stack: rank<6, eig min=2.2e-17 (null directions=2)
+scenario arm lost/5 feat_SSE path_m t_err_m extra_retreat_m
+nominal PBVS 0/5 9.59e-07±5.32e-07 0.512±0.006 0.003±0.002 0.000±0.000
+nominal IBVS 0/5 9.67e-07±4.38e-07 0.536±0.007 0.003±0.002 0.000±0.000
+wrong_Z_k1.5 PBVS 0/5 7.99e-02±1.95e-04 0.568±0.003 0.167±0.000 0.000±0.000
+wrong_Z_k1.5 IBVS 0/5 2.39e-05±1.89e-05 0.668±0.010 0.004±0.002 0.000±0.000
+near_edge PBVS 5/5 4.04e-01±4.89e-02 0.080±0.017 0.200±0.016 0.000±0.000
+near_edge IBVS 0/5 9.67e-07±4.38e-07 0.693±0.008 0.003±0.002 0.071±0.001
+roll_170 PBVS 0/5 9.59e-07±5.33e-07 0.321±0.006 0.003±0.002 0.000±0.000
+roll_170 IBVS 0/5 9.67e-07±4.38e-07 10.641±0.951 0.003±0.002 5.087±0.441
+Shared estimate: same noisy points, model scale k, lambda, cap and FOV for both arms.
+No winner is declared; real camera/OpenCV/robot runs: 本页未运行.
+```
+
+</SimOutput>
+
+### Exercises
+
+1. Replace the per-iteration `Ẑ` with the constant desired depth (`L*`) for IBVS and rerun `roll_170`. Does the retreat change? Keep PBVS unchanged so the comparison stays fair.
+2. Set `k = 0.7` (model too small). Predict PBVS's final `t_err` before running.
+3. Feed only two points to IBVS. Explain, using the two null directions, which camera motions it can no longer correct.
+
 ## Common mistakes
 
 - **Assuming this lesson did Servo's singularity/collision checks.** It did not; only command-side clamps.
@@ -224,6 +553,6 @@ Local OpenCV + printed ArUco + USB camera, or publishing Twist into MoveIt Servo
 
 <Summary>
 
-Visual servoing 9.8: ArUco/PnP → base pose error → Twist-style jog; prereqs 9.2 and Month 5 calibration; eye-in-hand toy geometry. `tag_error_jog.py` prints clamped vx..wz and a deadzone flag under a fixed seed. Real OpenCV webcam and ROS→Servo stay 本页未运行. No full IBVS course.
+Visual servoing 9.8: ArUco/PnP → base pose error → Twist-style jog; prereqs 9.2 and Month 5 calibration; eye-in-hand toy geometry. `tag_error_jog.py` prints clamped vx..wz and a deadzone flag under a fixed seed. Real OpenCV webcam and ROS→Servo stay 本页未运行. `ibvs_interaction_matrix_toy.py` gives PBVS and IBVS the same noisy points, pose/depth estimate, λ and view limits, solves `v_c = −λL⁺e` with the 2×6 point interaction matrix, and shows wrong-depth, near-edge and large-roll trade-offs (PBVS converging to a wrong pose or losing points, IBVS camera retreat) over five seeds without declaring a winner.
 
 </Summary>

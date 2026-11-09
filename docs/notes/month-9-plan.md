@@ -14,10 +14,10 @@ Constraints: private env; runnable toys prefer stdlib CPU with fixed seeds. ROS 
 | 2 | `moveit-servo` | 180 | full | `servo_loop_sim.py` | MoveIt realtime_servo_tutorial |
 | 3 | `effort-admittance` | 630 | full | `load_contact_sim.py`, `admittance_1d.py`, `impedance_vs_admittance_toy.py`, `ft_bias_gravity_toy.py` | Feetech STS3215 + ros2 admittance |
 | 4 | `llm-skill-planning` | 240 | full | `saycan_score_toy.py` (fake LLM) | SayCan arXiv 2204.01691 |
-| 5 | `failure-recovery` | 180 | full | `recovery_bt_toy.py` | Inner Monologue + BT.CPP |
+| 5 | `failure-recovery` | 330 | full + batch-8 H4 | `recovery_bt_toy.py`, `recovery_escalate_budget_toy.py` | Inner Monologue + BT.CPP Fallback / RetryUntilSuccessful |
 | 6 | `nav-arm-compose` | 450 | full + H2 | `nav_pick_bt.py`, `multi_robot_corridor_toy.py` | LeKiwi elective; ORCA primary / MRS curriculum IL reading |
 | 7 | `multi-skill-demo` | 180 | full | `demo_gate.py --all` | Thin demo; does not replace 8.7 |
-| **8** | **`visual-servoing`** | **240** | **Track B** | **`tag_error_jog.py`** | OpenCV ArUco/PnP docs; Servo command side |
+| **8** | **`visual-servoing`** | **420** | **Track B + batch-8 H3** | **`tag_error_jog.py`**, **`ibvs_interaction_matrix_toy.py`** | OpenCV ArUco/PnP docs; Servo command side; ViSP IBVS tutorial + Wikipedia (secondary) |
 | **9** | **`world-models-overview`** | **420** | **Track B + G3** | **`latent_predict_toy.py`**, **`neural_traj_idm_toy.py`** | DreamerV3 / DayDreamer / UniSim / DreamGen reading |
 
 Widgets deferred. No prices anywhere.
@@ -45,3 +45,12 @@ G3 `world-models-overview` 180→420 — `neural_traj_idm_toy.py`: DreamGen four
 Allocation 45+45+45+45+30=210 min. Sources: opened/curl200 ft_tools_ros2 calibration README and official Jazzy admittance frames/CoG docs; sign convention difference stated. / 已打开并核对来源，不冒称运行软件包。
 
 M8 separately +180: **21570+180+210=21960**, **M8=2850**, **M9=2940**, **71 lessons**. M1/M2 remain 1020/1980; no PR3 minutes. All additions before sole final Summary, en/zh code/stdout identical, old expected outputs unchanged. / 正确月标题，仅计本 PR。
+
+## Batch-8 PR2 — IBVS and escalation budget (Month 9 hosts only)
+
+Base166392f, after #133. H3 9.8 visual-servoing 240→420 (+180), H4 9.5 failure-recovery 180→330 (+150).
+M9 **2940→3270**, nine lessons; site **23910→24240** (+330), still 71 lessons. No arithmetic mismatch with proposal §9 or curriculum.ts on 166392f. Earlier table rows above now show current per-lesson minutes; historical batch paragraphs keep their own totals.
+
+- H3: 40 min PBVS/IBVS error spaces and 2×6 point interaction matrix +40 min shared-estimate setup (same noisy points, model scale, λ, cap, FOV; no true-depth oracle) +50 min wrong-Z / near-edge / large-roll / rank-deficient readings over five seeds +50 min exercises =180. Formula from the opened ViSP IBVS tutorial; camera retreat/singularity literacy from Wikipedia (secondary). LAAS course notes returned an Anubis bot-check page to curl, so they are not cited. Not 9.2 Servo κ-scale, not 10.4 extrinsics. Webcam/OpenCV/robot 本页未运行.
+- H4: 35 min ladder and rung costs +35 min shared failure stream / common random numbers / equal detect signal +40 min three arms and operator-budget sweep over five seeds +40 min handoff schema and exercises =150. Autonomous Retry+Fallback carries most recoveries; human handoff is never the only success path. Not 8.5 watchdog, not Nav2 recoveries, not MTC stale prefix; 10.5 intervention merge only cross-linked. Real robot / operator console 本页未运行.
+- New sections, code, stdout and exercises sit before each sole final Summary; each Summary gained one sentence in en and zh. No winner declared in either toy. Excludes VQ-BeT and dual-system (PR3).

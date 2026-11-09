@@ -38,4 +38,7 @@ check mtc_stage_memory_toy.txt "$PY" "$M9/mtc-long-horizon/mtc_stage_memory_toy.
 
 check ft_bias_gravity_toy.txt "$PY" "$M9/effort-admittance/ft_bias_gravity_toy.py"
 
+check ibvs_interaction_matrix_toy.txt "$PY" "$M9/visual-servoing/ibvs_interaction_matrix_toy.py"
+check recovery_escalate_budget_toy.txt "$PY" "$M9/failure-recovery/recovery_escalate_budget_toy.py"
+
 exit $fail
