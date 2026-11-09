@@ -43,4 +43,6 @@ check ibvs_interaction_matrix_toy.txt "$PY" "$M9/visual-servoing/ibvs_interactio
 check recovery_escalate_budget_toy.txt "$PY" "$M9/failure-recovery/recovery_escalate_budget_toy.py"
 check visual_trace_prompt_toy.txt "$PY" "$M9/visual-servoing/visual_trace_prompt_toy.py"
 
+check worldvla_action_mask_toy.txt "$PY" "$M9/world-models-overview/worldvla_action_mask_toy.py"
+
 exit $fail

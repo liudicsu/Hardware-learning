@@ -1,6 +1,16 @@
 # Month 9 plan: Long-horizon tasks, contact control & mobile manipulation
 
-Current / 当前：**M9 3690 min**, Batch-10 PR3. Earlier entries below retain their historical totals.
+Current / 当前：**M9 3900 min**, Batch-12 PR3. Earlier entries below retain their historical totals.
+
+## Batch-12 PR3 / 本月 H5 (+210)
+
+Base `4982bb2` (batch-12 PR2 merged; site **28740**). PR3 on M9 host: **M9 3690→3900 (+210)**; M11 moves in the same PR on its own plan. Site **28740→29160**, still 71 lessons.
+
+- **H5 / world-models-overview: 630→840 (+210).** WorldVLA (arXiv 2506.21539): one autoregressive backbone for action and world-model data; action attention mask that hides prior actions inside a chunk. Toy `worldvla_action_mask_toy.py`: linear-Gaussian stand-in, ridge arms on the same 40 demos, shared decode error (σ 0.15) and 256-bin tokenizer; arms causal (teacher-forced, runs on its own previous token) / masked / parallel head; common random numbers across arms and regimes, 5 seeds. H = 1: **tie, identical on every seed**; H = 5 and H = 10 with noisy vision: causal arm behind (chunk RMSE paired A−B 0.0396±0.0114 and 0.0634±0.0117, small but consistent; H = 10 last-step and success clear gaps); clean vision: small gaps on RMSE, success near-tie; masked = parallel on every seed. ≠ MemoryVLA bank; ≠ DreamGen IDM; ≠ RTC. LIBERO 以论文为准; GPU 本页未运行.
+
+**Allocation / 安排:** 40+40+50+50+30=210 minutes.
+
+**Site accounting / 全站核算:** **29160=28740+420** with M11 +210 on month-11-plan.md; **M9=3900**, **71 lessons**.
 
 ## Batch-10 PR3 / 本月 H5 (+210)
 

@@ -533,6 +533,316 @@ No winner is declared; UniVLA LIBERO / R2R / real-robot gains 以论文为准; V
 4. 给 D 与 A_raw_bc_A 在 A 上同样多的 80 个 B 带标签回合。潜动作路线还值得吗？
 5. 用两句话，把本课的潜动作与 9.9 的 LAPA / IDM 伪标签、以及上面 OXE-AugE 的外观增强区分开。论文数值以论文为准；本页不运行机器人。
 
+## X-VLA：给每个本体一组软提示
+
+上面的 UniVLA 共享一个**潜动作**空间，再按本体分别解码。X-VLA 保留普通动作，改为给每个数据来源一小组**可学习的嵌入**，也就是软提示（soft prompt），告诉同一个共享主干它正在驱动哪种硬件。本节**不是** OXE-AugE 的外观增强，也**不是** UniVLA 的潜动作。
+
+<Resource id="xvla-paper" />
+
+**实际打开并读过正文的来源（arXiv 摘要页 + 用 pdftotext 读过 PDF 正文；数字以论文为准）。**
+
+- **X-VLA（Zheng、Li 等，清华 AIR / 上海人工智能实验室 / 北京大学，arXiv 2510.10274）：** 论文在同一套对齐的训练配方下比较了四种处理异构机器人数据的办法：(a) 在输出端按领域分开的动作投影头，(b) HPT 式、对输入按领域分开的投影，(c) 用语言描述硬件的语言提示，以及 (d) **软提示**——每个数据来源一组可学习参数 `p_i ≈ Φ(h_i)`，随机初始化、端到端训练，在动作生成的早期注入。论文报告软提示训练最稳定（图 4），并在消融路径（表 1）中把预训练验证误差从 0.053 降到 0.041，把 Simpler-WidowX 上的适配准确率从 64.6 提到 73.8。
+- **两个阶段。** 第 I 阶段在来自 Droid、RoboMind 和 Agibot 的 29 万条回合（七种硬件配置、五类机器人）上预训练 X-VLA-0.9B——一个由带软提示的 Transformer 编码器构成的流匹配模型。第 II 阶段分两步适配新机器人：先在预训练主干**冻结**的情况下预热一组**新的**提示，再联合训练主干和提示。
+- **论文报告的数字（以论文为准）：** 只调 9M 参数（约 1 %）就在 LIBERO 上达到 93 %、在 Simpler-WidowX 上达到 54 %，与 3B 的 π0 相当。t-SNE 图显示学到的提示按硬件聚类，只在主视角上不同的两种 Franka 配置混在一起；冻结的、预训练好的 UR5 提示能帮助在未见过的 WidowX 上的早期适配，但领域差距限制了最终结果。在 GPU 上训练 X-VLA：**本页未运行**。
+
+### 共享的双线性替身，三种情形
+
+`xvla_soft_prompt_toy.py` 是**合成**模型，只用标准库。**模型假设：** 任务特征 `x ~ N(0, I6)`；每个本体 e 有一个含 R 个因子的隐藏硬件向量 `h_e`，它的示范动作是 `a = (Σⱼ h_e[j] T_j) x` 加噪声（sd 0.10），其中 `T_1 … T_R` 是固定的 2 × 6 映射。也就是说，本体改变的是任务特征**如何**映射到动作。相机、动作空间布局、流匹配和训练稳定性都**没有**建模。
+
+| 组 | 本体信息怎么进入模型 |
+|---|---|
+| A_pooled | 完全不进入：所有本体共用一个线性映射 |
+| B_hard_id | 把 one-hot ID 当作固定提示，每个本体一个槽位；在这个替身里，这等于每个本体一个独立的线性头，彼此不共享 |
+| C_soft_prompt | 每个本体一个长度 K = 2 的可学习提示 `p_e`，加一个共享主干，`a = (Σⱼ p_e[j] B_j) x`，用交替最小二乘联合拟合（60 轮） |
+
+**适配到一个留出的本体**（第 II 阶段的替身）时，每组都用同样的 4 条示范：A 微调它的共享映射（向它做岭回归，12 个数），B 拟合一个全新的头（向零做岭回归，12 个数），C 冻结主干、只拟合一个新提示（2 个数）。只建模了论文的第一步（提示预热），没有建模联合微调。
+
+**公共随机数：** 每个（情形、种子）的硬件向量、映射 `T_j`、训练示范及其噪声、4 条适配示范和 100 个测试输入都只抽一次，三组共用；C 的提示初始化来自它自己的固定种子。5 个种子；每项都是各种子之间的 mean±sd。指标：相对无噪声动作的动作 RMSE，分别在见过的本体上取平均（**seen_rmse**）和在适配后的留出本体上计算（**new_emb_rmse**）。两者都**看不见**相机、算力、训练稳定性和闭环成功率。
+
+**配对比较怎么贴标签**（用未取整的逐种子数值计算）：只有两组在每个种子上都完全相同才叫**打平**；配对差的均值不大于它的 sd，叫**接近打平、差距很小，在种子噪声之内**。否则差距是**稳定的**，即 `|配对均值| > sd`；稳定差距小于较小一组均值的 20 %，叫**小而稳定的差距，不是打平**，否则叫**明显差距**。20 % 规则只用来判断稳定差距是否算「小」，从不用来判断是否「稳定」。「稳定」只表示 `|配对均值| > sd`，**并不**表示每个种子的符号都一致。所以每条稳定或明显差距的打印行还附带符号计数：**5 个种子符号全部相同**（same sign on all 5 seeds）是更强的结论；**5 个种子中 k 个符号相反**（k of 5 seeds has / have the opposite sign）表示有些种子的差距方向反过来。
+
+三种情形：**single_embodiment**（一个本体，R = 2，24 条示范）；**shared_low_rank**（六个本体，硬件落在 R = 2 个共享因子上，每个只有 8 条示范：论文的前提）；**unrelated_full_rank**（六个本体各有一个私有因子，R = 6，每个 30 条示范：前提不成立）。
+
+### 运行标准库玩具
+
+```bash
+cd ~/Hardware-learning/examples/month-11/cross-embodiment-datasets
+python3 xvla_soft_prompt_toy.py
+```
+
+<CodeSource path="examples/month-11/cross-embodiment-datasets/xvla_soft_prompt_toy.py" />
+
+```python
+"""Synthetic X-VLA-style embodiment soft prompts. Stdlib only.
+
+Model (stated in the lesson prose too): a linear / bilinear stand-in, not the
+0.9B flow-matching Transformer.
+  task features   x ~ N(0, I_D), D = 6        (what the shared backbone sees)
+  embodiment e    hidden hardware vector h_e in R^R
+  demo action     a = (sum_j h_e[j] T_j) x + N(0, SIGMA^2 I_2)
+  T_1..T_R are fixed 2 x D maps; R is the true number of hardware factors.
+Arms, all fitted on the same demos:
+  A_pooled       one linear map W x for every embodiment (no embodiment input)
+  B_hard_id      the one-hot ID is the prompt (fixed, length = number of
+                 embodiments): in this stand-in that is one separate linear head
+                 per embodiment, nothing shared between embodiments
+  C_soft_prompt  a = (sum_j p_e[j] B_j) x with a learned prompt p_e in R^K, K = 2,
+                 per embodiment and a shared backbone B_1..B_K, fitted jointly by
+                 alternating least squares (ALS_ITERS sweeps)
+Adaptation to a held-out embodiment with N_NEW demos (Phase II stand-in):
+  A_pooled       ridge fine-tune of W toward the pooled W        (2 D numbers)
+  B_hard_id      a fresh head, ridge toward zero                 (2 D numbers)
+  C_soft_prompt  backbone frozen, only a new prompt p_new fitted (K numbers);
+                 the paper's second step (joint fine-tune) is not modelled.
+Common random numbers: per (regime, seed) one set of hardware vectors, maps T_j,
+train demos, demo noise, adaptation demos and test inputs is drawn once and fed
+to all three arms; C's prompt initialisation comes from its own fixed seed.
+Metrics per seed: action RMSE against the noiseless action on N_TEST test inputs
+per seen embodiment, and on the held-out embodiment after adaptation. They are
+blind to camera / action-space differences, to compute and to training stability.
+No presumed winner. Benchmark numbers 以论文为准; GPU X-VLA run 本页未运行.
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+D, K, SIGMA, LAM, ALS_ITERS, N_TEST, N_NEW = 6, 2, 0.10, 1e-3, 60, 100, 4
+# name, number of seen embodiments, true hardware factors R, demos per embodiment
+REGIMES = (("single_embodiment", 1, 2, 24), ("shared_low_rank", 6, 2, 8), ("unrelated_full_rank", 6, 6, 30))
+ARMS = ("A_pooled", "B_hard_id", "C_soft_prompt")
+
+
+def solve(a, b):
+    n = len(b)
+    m = [row[:] + [b[i]] for i, row in enumerate(a)]
+    for c in range(n):
+        p = max(range(c, n), key=lambda r: abs(m[r][c]))
+        m[c], m[p] = m[p], m[c]
+        for r in range(n):
+            if r != c:
+                f = m[r][c] / m[c][c]
+                for j in range(c, n + 1):
+                    m[r][j] -= f * m[c][j]
+    return [m[i][n] / m[i][i] for i in range(n)]
+
+
+def ridge(rows, ys, prior=None, lam=LAM):
+    """argmin sum (y - w.r)^2 + lam * n * |w - prior|^2."""
+    d, n = len(rows[0]), len(rows)
+    prior = prior or [0.0] * d
+    a = [[sum(r[i] * r[j] for r in rows) + (lam * n if i == j else 0.0) for j in range(d)] for i in range(d)]
+    b = [sum(r[i] * y for r, y in zip(rows, ys)) + lam * n * prior[i] for i in range(d)]
+    return solve(a, b)
+
+
+def apply(w, x):
+    return [sum(w[o][i] * x[i] for i in range(D)) for o in range(2)]
+
+
+def rmse(w, xs, truth):
+    err = [(p - t) ** 2 for x, tr in zip(xs, truth) for p, t in zip(apply(w, x), tr)]
+    return math.sqrt(sum(err) / len(err))
+
+
+def shared_draws(seed, n_emb, rank, n_demo):
+    """Common random numbers: one draw per (regime, seed), shared by every arm."""
+    rng = random.Random(1000 * seed + 10 * n_emb + rank)
+    t = [[[rng.gauss(0, 1 / math.sqrt(D)) for _ in range(D)] for _ in range(2)] for _ in range(rank)]
+    if rank == n_emb:  # unrelated: one private hardware factor per embodiment
+        hs = [[1.0 if j == e else 0.0 for j in range(rank)] for e in range(n_emb)]
+    else:
+        hs = [[rng.gauss(0, 1) for _ in range(rank)] for _ in range(n_emb)]
+    h_new = [rng.gauss(0, 1) for _ in range(rank)]
+
+    def true_map(h):
+        return [[sum(h[j] * t[j][o][i] for j in range(rank)) for i in range(D)] for o in range(2)]
+
+    def demos(w, n):
+        xs = [[rng.gauss(0, 1) for _ in range(D)] for _ in range(n)]
+        return xs, [[v + rng.gauss(0, SIGMA) for v in apply(w, x)] for x in xs]
+
+    maps = [true_map(h) for h in hs]
+    train = [demos(w, n_demo) for w in maps]
+    new_map = true_map(h_new)
+    adapt = demos(new_map, N_NEW)
+    test_x = [[rng.gauss(0, 1) for _ in range(D)] for _ in range(N_TEST)]
+    return maps, train, new_map, adapt, test_x
+
+
+def fit_pooled(train):
+    xs = [x for d in train for x in d[0]]
+    ys = [y for d in train for y in d[1]]
+    return [ridge(xs, [y[o] for y in ys]) for o in range(2)]
+
+
+def fit_head(xs, ys, prior=None):
+    return [ridge(xs, [y[o] for y in ys], prior[o] if prior else None) for o in range(2)]
+
+
+def prompt_map(p, b):
+    return [[sum(p[j] * b[j][o][i] for j in range(K)) for i in range(D)] for o in range(2)]
+
+
+def fit_prompt(xs, ys, b):
+    rows, tgt = [], []
+    for x, y in zip(xs, ys):
+        feats = [apply(b[j], x) for j in range(K)]
+        for o in range(2):
+            rows.append([feats[j][o] for j in range(K)])
+            tgt.append(y[o])
+    return ridge(rows, tgt)
+
+
+def fit_soft(train, seed):
+    rng = random.Random(7919 + seed)  # C's own prompt initialisation
+    prompts = [[rng.gauss(0, 1) for _ in range(K)] for _ in train]
+    b = None
+    for _ in range(ALS_ITERS):
+        b = [[[0.0] * D for _ in range(2)] for _ in range(K)]
+        for o in range(2):
+            rows = [[p[j] * xi for j in range(K) for xi in x] for p, d in zip(prompts, train) for x in d[0]]
+            ys = [y[o] for d in train for y in d[1]]
+            w = ridge(rows, ys)
+            for j in range(K):
+                b[j][o] = w[j * D:(j + 1) * D]
+        prompts = [fit_prompt(d[0], d[1], b) for d in train]
+    return prompts, b
+
+
+def run(seed, n_emb, rank, n_demo):
+    maps, train, new_map, adapt, test_x = shared_draws(seed, n_emb, rank, n_demo)
+    truth = [[apply(w, x) for x in test_x] for w in maps]
+    truth_new = [apply(new_map, x) for x in test_x]
+    pooled = fit_pooled(train)
+    heads = [fit_head(d[0], d[1]) for d in train]
+    prompts, b = fit_soft(train, seed)
+    seen = {
+        "A_pooled": sum(rmse(pooled, test_x, tr) for tr in truth) / n_emb,
+        "B_hard_id": sum(rmse(h, test_x, tr) for h, tr in zip(heads, truth)) / n_emb,
+        "C_soft_prompt": sum(rmse(prompt_map(p, b), test_x, tr) for p, tr in zip(prompts, truth)) / n_emb,
+    }
+    new = {
+        "A_pooled": rmse(fit_head(adapt[0], adapt[1], pooled), test_x, truth_new),
+        "B_hard_id": rmse(fit_head(adapt[0], adapt[1]), test_x, truth_new),
+        "C_soft_prompt": rmse(prompt_map(fit_prompt(adapt[0], adapt[1], b), b), test_x, truth_new),
+    }
+    return seen, new
+
+
+def ms(v):
+    m = sum(v) / len(v)
+    return m, math.sqrt(sum((x - m) ** 2 for x in v) / (len(v) - 1))
+
+
+def fmt(x, nd=4):
+    if x != 0 and abs(x) < 0.5 * 10 ** -nd:
+        return f"{x:.2e}"
+    return f"{x:.{nd}f}"
+
+
+def sign_note(diffs, m):
+    """How many seeds disagree in sign with the paired mean (zeros listed apart)."""
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def label(diffs, mean_a, mean_b):
+    """tie: identical on every seed; near-tie: |paired mean| <= paired sd;
+    otherwise consistent (|mean| > sd), called small if |mean| < 20 % of the
+    smaller arm mean. The 20 % rule only decides "small". "Consistent" means
+    only |mean| > sd; the appended sign count (seeds whose paired difference
+    has the opposite sign to the mean) separates sign-consistent gaps."""
+    if all(d == 0 for d in diffs):
+        return "tie: identical on every seed"
+    m, sd = ms(diffs)
+    if abs(m) <= sd:
+        return f"near-tie / small gap, within seed noise (indistinguishable from 0 within +-{sd:.4f})"
+    base = "small but consistent gap, not a tie" if abs(m) < 0.2 * min(abs(mean_a), abs(mean_b)) else "clear gap, not a tie"
+    return base + "; " + sign_note(diffs, m)
+
+
+def main():
+    print(f"seeds={len(SEEDS)} D={D} K={K} sigma={SIGMA} lam={LAM} als_iters={ALS_ITERS} n_test={N_TEST} n_new={N_NEW}")
+    print(f"numbers tuned to adapt to a new embodiment: A_pooled {2 * D}, B_hard_id {2 * D}, C_soft_prompt {K}")
+    print("regime arm seen_rmse new_emb_rmse  (mean+-sd over seeds)")
+    for name, n_emb, rank, n_demo in REGIMES:
+        res = [run(seed, n_emb, rank, n_demo) for seed in SEEDS]
+        for a in ARMS:
+            s, n = ms([r[0][a] for r in res]), ms([r[1][a] for r in res])
+            print(f"{name} E={n_emb} R={rank} demos={n_demo} {a} {s[0]:.4f}+-{s[1]:.4f} {n[0]:.4f}+-{n[1]:.4f}")
+        for x, y in (("C_soft_prompt", "B_hard_id"), ("C_soft_prompt", "A_pooled"), ("B_hard_id", "A_pooled")):
+            for i, met in ((0, "seen_rmse"), (1, "new_emb_rmse")):
+                d = [r[i][x] - r[i][y] for r in res]
+                m, sd = ms(d)
+                print(f"{name} paired {x[0]}-{y[0]} {met} {fmt(m)}+-{sd:.4f}: {label(d, ms([r[i][x] for r in res])[0], ms([r[i][y] for r in res])[0])}")
+    print("No winner declared: K = 2 prompts help only when embodiments share a few hardware factors")
+    print("Benchmark success rates 以论文为准; GPU X-VLA run 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+seeds=5 D=6 K=2 sigma=0.1 lam=0.001 als_iters=60 n_test=100 n_new=4
+numbers tuned to adapt to a new embodiment: A_pooled 12, B_hard_id 12, C_soft_prompt 2
+regime arm seen_rmse new_emb_rmse  (mean+-sd over seeds)
+single_embodiment E=1 R=2 demos=24 A_pooled 0.0651+-0.0179 1.0589+-0.3141
+single_embodiment E=1 R=2 demos=24 B_hard_id 0.0651+-0.0179 0.5999+-0.3989
+single_embodiment E=1 R=2 demos=24 C_soft_prompt 0.0643+-0.0180 0.8406+-0.5117
+single_embodiment paired C-B seen_rmse -0.0007+-0.0009: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.0009)
+single_embodiment paired C-B new_emb_rmse 0.2406+-0.2119: clear gap, not a tie; 1 of 5 seeds has the opposite sign
+single_embodiment paired C-A seen_rmse -0.0007+-0.0009: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.0009)
+single_embodiment paired C-A new_emb_rmse -0.2183+-0.4182: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.4182)
+single_embodiment paired B-A seen_rmse 0.0000+-0.0000: tie: identical on every seed
+single_embodiment paired B-A new_emb_rmse -0.4590+-0.3328: clear gap, not a tie; same sign on all 5 seeds
+shared_low_rank E=6 R=2 demos=8 A_pooled 1.2427+-0.1303 0.6318+-0.4109
+shared_low_rank E=6 R=2 demos=8 B_hard_id 0.1812+-0.0351 0.5149+-0.3261
+shared_low_rank E=6 R=2 demos=8 C_soft_prompt 0.0690+-0.0118 0.0721+-0.0327
+shared_low_rank paired C-B seen_rmse -0.1122+-0.0401: clear gap, not a tie; same sign on all 5 seeds
+shared_low_rank paired C-B new_emb_rmse -0.4428+-0.3071: clear gap, not a tie; same sign on all 5 seeds
+shared_low_rank paired C-A seen_rmse -1.1738+-0.1270: clear gap, not a tie; same sign on all 5 seeds
+shared_low_rank paired C-A new_emb_rmse -0.5597+-0.3882: clear gap, not a tie; same sign on all 5 seeds
+shared_low_rank paired B-A seen_rmse -1.0616+-0.1145: clear gap, not a tie; same sign on all 5 seeds
+shared_low_rank paired B-A new_emb_rmse -0.1169+-0.1065: clear gap, not a tie; same sign on all 5 seeds
+unrelated_full_rank E=6 R=6 demos=30 A_pooled 0.8695+-0.0653 1.2747+-0.5434
+unrelated_full_rank E=6 R=6 demos=30 B_hard_id 0.0530+-0.0052 1.2388+-0.4554
+unrelated_full_rank E=6 R=6 demos=30 C_soft_prompt 0.6029+-0.0457 1.4080+-0.5846
+unrelated_full_rank paired C-B seen_rmse 0.5499+-0.0422: clear gap, not a tie; same sign on all 5 seeds
+unrelated_full_rank paired C-B new_emb_rmse 0.1692+-0.1618: small but consistent gap, not a tie; 1 of 5 seeds has the opposite sign
+unrelated_full_rank paired C-A seen_rmse -0.2666+-0.0370: clear gap, not a tie; same sign on all 5 seeds
+unrelated_full_rank paired C-A new_emb_rmse 0.1333+-0.2764: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.2764)
+unrelated_full_rank paired B-A seen_rmse -0.8165+-0.0637: clear gap, not a tie; same sign on all 5 seeds
+unrelated_full_rank paired B-A new_emb_rmse -0.0359+-0.1828: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.1828)
+No winner declared: K = 2 prompts help only when embodiments share a few hardware factors
+Benchmark success rates 以论文为准; GPU X-VLA run 本页未运行
+```
+
+</SimOutput>
+
+### 读三种情形
+
+- **single_embodiment：** 在见过的数据上 A 和 B **打平：每个种子都完全相同**（0.0651±0.0179）：只有一个本体时，one-hot 头就是共享映射。C 为 0.0643±0.0180，配对 C−B −0.0007±0.0009，**接近打平、差距很小，在种子噪声之内**；双线性拟合只是正则化方式不同。在留出本体上，没有任何数据教过主干硬件如何变化，所以 **C 输给 B**：0.8406±0.5117 对全新头的 0.5999±0.3989（配对 C−B 0.2406±0.2119）。因为超过 B 均值的 20 %，它被标为明显差距，但 `|配对均值|` 只比 sd 大约 0.03，而且 **5 个种子中 1 个符号相反**（那个种子上 C 更好），所以只是勉强稳定。A 微调共享映射最差，为 1.0589±0.3141（配对 B−A −0.4590±0.3328，明显差距）：向另一台机器人的映射靠拢是个坏先验。
+- **shared_low_rank：** C 在两个指标上都赢。见过的本体：0.0690±0.0118，B 为 0.1812±0.0351，A 为 1.2427±0.1303（配对 C−B −0.1122±0.0401，明显差距）。新本体：0.0721±0.0327，B 为 0.5149±0.3261，A 为 0.6318±0.4109（配对 C−B −0.4428±0.3071，明显差距）。只有 8 条示范时，每个独立的头都要单独估 12 个数，而 C 共享主干、每个本体只拟合 2 个数；不带本体输入的共享映射会把互不兼容的映射平均掉。新本体上 B 对 A（配对 −0.1169±0.1065）因为超过 B 均值的 20 % 被标为明显差距，但 `|配对均值|` 只比 sd 大约 0.01（5 个种子符号全部相同）。除了 single_embodiment 和 unrelated_full_rank 里点名的两处单个种子反向，这个玩具里其余稳定或明显的差距，5 个种子符号全部相同。
+- **unrelated_full_rank：** **C 输了。** 见过的本体：0.6029±0.0457，B 为 0.0530±0.0052（配对 C−B 0.5499±0.0422，明显差距）：两个提示数撑不起六个互不相关的映射。在留出本体上三组都很差（A 1.2747±0.5434，B 1.2388±0.4554，C 1.4080±0.5846），因为 4 条示范定不下 12 个数，而新映射又在 C 的张成空间之外。C−B 0.1692±0.1618 是**小而稳定的差距，不是打平**，但只是勉强：`|配对均值|` 只比 sd 大不到 0.01，而且 **5 个种子中 1 个符号相反**（那个种子上 C 更好）；C−A 0.1333±0.2764 和 B−A −0.0359±0.1828 都**接近打平、差距很小，在种子噪声之内**。
+
+本页**不宣布普遍赢家**。各本体共享少数几个硬件因子、而每个本体数据又少时，软提示才划算，这正是论文的前提。只有一个本体时，它在见过的数据上不带来任何好处，在新本体上输给全新的头；本体互不相关时，短提示太窄，独立的头在见过的数据上会赢。基准数字以论文为准；GPU 上运行 X-VLA：**本页未运行**。
+
+**210 分钟安排：** 40 分钟读 X-VLA 对四种做法的比较和两步适配那一段；40 分钟说明为什么在这个替身里 one-hot 提示等于独立的头；50 分钟运行玩具并读三种情形；50 分钟在种子固定下改 K、每个本体的示范数和 `N_NEW`；30 分钟做下面的练习。
+
+### 练习
+
+1. 证明：当提示是每个本体一个槽位的 one-hot ID 时，`a = (Σⱼ p_e[j] B_j) x` 退化为每个本体一个独立的线性头。
+2. 种子固定，设 `K = 6`。运行前先预测 unrelated_full_rank 里 C 的 seen_rmse 会怎么变。
+3. 从 `shared_draws` 说明：对同一个（情形、种子），三组拿到的硬件向量、示范、噪声和测试输入都相同。
+4. 把 `N_NEW` 从 4 提到 12。在 shared_low_rank 里，哪一组的 new_emb_rmse 应该改善最多，为什么？
+5. 在任何 GPU 运行之前（本页未运行），写出这个玩具与 X-VLA-0.9B 的两点不同，并解释为什么论文在 LIBERO 上的 93 % 不是本页复现的数字。
+
 ## 硬件 / 算力：本页未运行
 
 - **CPU 玩具**是必做交付。
@@ -554,6 +864,7 @@ No winner is declared; UniVLA LIBERO / R2R / real-robot gains 以论文为准; V
 - 玩具 top4_share=0.8957 来自**合成**计数；max_weight=7.188。真实 OXE 计数不进 CI。
 - 统一 7D 动作（xyz + rpy + gripper）是阅读约定；下载 / 训练步骤本页未运行。
 - UniVLA：`univla_latent_action_toy.py` 在五个种子上表明，从两种臂的无标签视频学到的以任务为中心的潜动作，加上 20 个标签的解码器，能迁移到电机映射不同的臂；来自另一臂的原始 BC 会失败，没有执行者区分的潜动作会混入与任务无关的运动（**合成**结果；论文数值以论文为准，本页未运行）。
+- X-VLA 软提示：`xvla_soft_prompt_toy.py` 在五个种子上表明，各本体共享少数硬件因子且示范少时，共享主干上 K = 2 的可学习提示胜过独立的 one-hot 头和共享映射；只有一个本体时在见过的数据上与它们接近打平，但在新本体上输给全新的头；本体互不相关时则输（**合成**结果；X-VLA 数字以论文为准，本页未运行）。
 
 **常见错误**
 
