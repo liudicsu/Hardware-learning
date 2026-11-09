@@ -39,4 +39,6 @@ check teleop_rtt_budget_toy.txt "$PY" "$M11/umi-style-collection/teleop_rtt_budg
 
 check ground_loop_return_ir_toy.txt "$PY" "$M11/power-battery-emc/ground_loop_return_ir_toy.py"
 
+check xvla_soft_prompt_toy.txt "$PY" "$M11/cross-embodiment-datasets/xvla_soft_prompt_toy.py"
+
 exit $fail

@@ -729,10 +729,317 @@ GPU / MemoryVLA weights / robot: 本页未运行; Shi et al. 2508.19236 以论�
 5. 任何 GPU 运行前（本页未运行），写明为何本玩具不是 MemoryVLA SimplerEnv / 真机结果，以及为何此处不实现 MemoryVLA++。
 
 
+## WorldVLA：在动作块内屏蔽先前动作
+
+上面的记忆库一节讲的是来自**过去**的线索。WorldVLA 讲的是**接下来几步**动作：一个自回归模型逐个词元地生成一块动作时，第 k 个动作该不该看到它刚生成的那些动作？本节**不是** MemoryVLA 记忆库，**不是** DreamGen 的 IDM 流程，也**不是**实时分块（RTC）。
+
+<Resource id="worldvla-paper" />
+
+**实际打开并读过正文的来源（arXiv 摘要页 + 用 pdftotext 读过 PDF 正文；数字以论文为准）。**
+
+- **WorldVLA（Cen 等，阿里达摩院 / 湖畔实验室 / 浙江大学，arXiv 2506.21539）：** 一个*自回归动作世界模型*。一个 Chameleon 主干配三个分词器，共用一张词表：VQ-GAN 图像分词器（256 × 256 图像 256 个词元，512 × 512 图像 1024 个）、BPE 文本分词器，以及动作分词器——把 7 个动作维度各自放进 256 个箱之一，箱宽由训练数据的范围决定。训练混合两类数据：**动作模型数据**（文本 + M = 2 张图 → K 个动作，只对动作词元算损失）和**世界模型数据**（图像 + 动作 → 下一帧图像，只对图像词元算损失），损失为 `L = L_action + α L_world`，α = 0.04。
+- **注意力掩码。** 默认的因果掩码下，第 k 个动作能看到同一块里的第 1 … k−1 个动作。论文的解释是：主干在动作域的泛化能力有限，前面的错误会传到后面的动作。它给动作模型设计的掩码让当前动作**只看文本和图像词元**，从不看先前动作，因此整块动作也可以并行生成；世界模型部分仍用普通因果掩码。
+- **论文报告的数字（以论文为准）：** LIBERO 消融（表 3）中，不分块平均成功率 62.8 %，默认掩码下分块 54.0 %，分块加新掩码 76.6 %，再加世界模型数据 78.1 %；块长 K = 5（LIBERO-Long 上 K = 10）。引言中说，常规自回归分块会让抓取成功率下降 10 % 到 50 %，新掩码能挽回 4 % 到 23 %。完整基准（表 2）上，512 × 512 的 WorldVLA 平均 81.8 %，OpenVLA 为 76.5 %，而连续动作的 OpenVLA-OFT 达到 95.4 %。在 GPU 上训练 WorldVLA：**本页未运行**。
+
+### 共享的线性替身，四种情形
+
+`worldvla_action_mask_toy.py` 是**合成**模型，只用标准库。**模型假设：** 隐藏场景状态 `s ~ N(0, I3)`；视觉输入 `x = s + σ_obs·z`；块内第 k 步的示范动作 `a_k = c_k · s` 加示范噪声（sd 0.10），其中 `c_k = (cos(0.3 + 0.15k), sin(0.3 + 0.15k), 0.5)`，相邻动作强相关，像一次平滑的伸手。每组都是在同一批 40 条示范上拟合的岭回归。论文说的动作泛化能力有限，在这里建模为**解码误差**：测试时每组的每个预测动作都额外加上 `N(0, 0.15²)` 的误差，再经过每步一个共用的 256 箱分词器（箱宽取训练范围，与论文一致）。没有世界模型数据，没有图像，没有闭环。
+
+| 组 | 第 k 步能看到什么 |
+|---|---|
+| A_causal | `x` 和上一个动作词元；训练时用教师强制（示范里真实的上一个动作），运行时用它**自己**的上一个预测 |
+| B_mask | 只看 `x`（WorldVLA 式掩码） |
+| C_parallel | 只看 `x`；一个头一次输出全部 H 步 |
+
+**公共随机数：** 每个种子只生成一次 40 条训练示范和 200 个测试场景，连同它们的观测噪声、示范噪声和解码误差，三组**以及**四种情形全部共用（情形只改 H 和 `σ_obs`）；没有哪一组少了某个噪声源。5 个种子；表中每项都是各种子之间的 mean±sd。指标都相对无噪声的 `c_k · s`：整块 RMSE、最后一步 RMSE，以及成功率 = 块内**最差**一步误差小于 0.5 的场景比例。这些都是**开环**指标，**看不见**解码延迟、闭环纠错，以及块太长时损失的反应速度（论文报告过块太长会因此变差）。
+
+**配对比较怎么贴标签**（用未取整的逐种子数值计算）：只有两组在每个种子上都完全相同才叫**打平**；配对差的均值不大于它的 sd，叫**接近打平、差距很小，在种子噪声之内**。否则差距是**稳定的**，即 `|配对均值| > sd`；稳定差距小于较小一组均值的 20 %，叫**小而稳定的差距，不是打平**，否则叫**明显差距**。20 % 规则只用来判断稳定差距是否算「小」，从不用来判断是否「稳定」。会被取整成零的配对均值用更多位数打印，绝不打印带符号的零。
+
+四种情形：**H1_noisy_obs**（H = 1，`σ_obs = 0.3`）；**H5_noisy_obs**（H = 5，论文默认块长）；**H10_noisy_obs**（H = 10，论文 LIBERO-Long 的块长）；**H10_clean_obs**（H = 10，`σ_obs = 0.05`）。
+
+### 运行标准库玩具
+
+```bash
+cd ~/Hardware-learning/examples/month-9/world-models-overview
+python3 worldvla_action_mask_toy.py
+```
+
+<CodeSource path="examples/month-9/world-models-overview/worldvla_action_mask_toy.py" />
+
+```python
+"""Synthetic WorldVLA-style action-chunk attention mask. Stdlib only.
+
+Model (stated in the lesson prose too): a linear-Gaussian stand-in, not a
+Chameleon backbone and not image tokens.
+  latent scene state  s ~ N(0, I3)
+  observation         x = s + N(0, SIGMA_OBS^2 I3)     (what "vision" sees)
+  demo action         a_k = c_k . s + N(0, SIGMA_DEMO^2), k = 1..H
+  c_k = (cos(0.3 + 0.15 k), sin(0.3 + 0.15 k), 0.5): neighbouring actions in a
+  chunk are strongly correlated, as in a smooth reach.
+Limited action generalization (the paper's stated cause) is modelled as a decode
+error: at test time every predicted action of every arm gets an extra
+N(0, SIGMA_DEC^2) error before it is tokenized (same draw for every arm).
+Every action (target, teacher-forcing input, prediction) passes through one shared
+256-bin tokenizer per chunk step whose bin widths come from the training range.
+Each arm is a ridge regression (LAM = 1e-3 per sample) fitted on the same
+N_TRAIN demos:
+  A_causal    default causal attention: step k sees x AND the previous action
+              token; trained with teacher forcing (the demo's previous action),
+              run on its OWN previous prediction at test time.
+  B_mask      WorldVLA-style action mask: step k sees x only, never a prior action.
+  C_parallel  one head emits all H steps at once from x (parallel decoding).
+Common random numbers: per seed one set of train demos, one set of test scenes and
+one set of observation / demo-noise draws is generated once and fed to all three
+arms and all four regimes (a regime only changes H and the observation-noise
+scale); no arm skips a noise source.
+Metrics per seed over N_TEST test scenes: chunk RMSE against the noiseless
+c_k . s, last-step RMSE, and success = share of scenes whose worst step error in
+the chunk is below TOL. They are open-loop: blind to closed-loop recovery, to
+decode latency and to the reactivity lost with long chunks.
+No presumed winner. LIBERO numbers 以论文为准; GPU WorldVLA run 本页未运行.
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+N_TRAIN, N_TEST, BINS, LAM, TOL, SIGMA_DEMO, SIGMA_DEC = 40, 200, 256, 1e-3, 0.5, 0.10, 0.15
+REGIMES = (("H1_noisy_obs", 1, 0.3), ("H5_noisy_obs", 5, 0.3), ("H10_noisy_obs", 10, 0.3), ("H10_clean_obs", 10, 0.05))
+ARMS = ("A_causal", "B_mask", "C_parallel")
+H_MAX = max(r[1] for r in REGIMES)
+
+
+def coef(k):
+    return (math.cos(0.3 + 0.15 * k), math.sin(0.3 + 0.15 * k), 0.5)
+
+
+def solve(a, b):
+    n = len(b)
+    m = [row[:] + [b[i]] for i, row in enumerate(a)]
+    for c in range(n):
+        p = max(range(c, n), key=lambda r: abs(m[r][c]))
+        m[c], m[p] = m[p], m[c]
+        for r in range(n):
+            if r != c:
+                f = m[r][c] / m[c][c]
+                for j in range(c, n + 1):
+                    m[r][j] -= f * m[c][j]
+    return [m[i][n] / m[i][i] for i in range(n)]
+
+
+def ridge(rows, ys):
+    d = len(rows[0])
+    a = [[sum(r[i] * r[j] for r in rows) + (LAM * len(rows) if i == j else 0.0) for j in range(d)] for i in range(d)]
+    return solve(a, [sum(r[i] * y for r, y in zip(rows, ys)) for i in range(d)])
+
+
+def dot(w, v):
+    return sum(p * q for p, q in zip(w, v))
+
+
+def shared_draws(seed, horizon, sigma_obs):
+    """Common random numbers: one draw per seed, shared by every arm AND every
+    regime (regimes only change H and the observation-noise scale)."""
+    rng = random.Random(seed)
+
+    def scene():
+        s = [rng.gauss(0, 1) for _ in range(3)]
+        z = [rng.gauss(0, 1) for _ in range(3)]
+        e = [rng.gauss(0, SIGMA_DEMO) for _ in range(H_MAX)]
+        nu = [rng.gauss(0, SIGMA_DEC) for _ in range(H_MAX)]
+        x = [v + sigma_obs * u for v, u in zip(s, z)]
+        clean = [dot(coef(k), s) for k in range(1, horizon + 1)]
+        return x, clean, [c + n for c, n in zip(clean, e)], nu
+
+    return [scene() for _ in range(N_TRAIN)], [scene() for _ in range(N_TEST)]
+
+
+def tokenizer(train, horizon):
+    out = []
+    for k in range(horizon):
+        lo, hi = min(t[2][k] for t in train), max(t[2][k] for t in train)
+        w = (hi - lo) / BINS
+        out.append(lambda v, lo=lo, w=w: lo + (min(BINS - 1, max(0, int((v - lo) / w))) + 0.5) * w)
+    return out
+
+
+def fit_predict(arm, train, test, horizon):
+    q = tokenizer(train, horizon)
+    tgt = [[q[k](t[2][k]) for k in range(horizon)] for t in train]
+    preds, beta = [], []
+    if arm == "A_causal":
+        ws = [ridge([t[0] for t in train], [y[0] for y in tgt])]
+        for k in range(1, horizon):
+            ws.append(ridge([t[0] + [y[k - 1]] for t, y in zip(train, tgt)], [y[k] for y in tgt]))
+        for x, _, _, nu in test:
+            p = [q[0](dot(ws[0], x) + nu[0])]
+            for k in range(1, horizon):
+                p.append(q[k](dot(ws[k], x + [p[-1]]) + nu[k]))
+            preds.append(p)
+        beta.extend(w[-1] for w in ws[1:])
+    elif arm == "B_mask":
+        ws = [ridge([t[0] for t in train], [y[k] for y in tgt]) for k in range(horizon)]
+        for x, _, _, nu in test:
+            preds.append([q[k](dot(ws[k], x) + nu[k]) for k in range(horizon)])
+    else:
+        xs = [t[0] for t in train]
+        d = len(xs[0])
+        g = [[sum(r[i] * r[j] for r in xs) + (LAM * len(xs) if i == j else 0.0) for j in range(d)] for i in range(d)]
+        ginv = [solve(g, [1.0 if i == j else 0.0 for i in range(d)]) for j in range(d)]
+        xty = [[sum(r[i] * y[k] for r, y in zip(xs, tgt)) for k in range(horizon)] for i in range(d)]
+        w = [[sum(ginv[j][i] * xty[i][k] for i in range(d)) for j in range(d)] for k in range(horizon)]
+        for x, _, _, nu in test:
+            preds.append([q[k](dot(w[k], x) + nu[k]) for k in range(horizon)])
+    return preds, beta
+
+
+def metrics(preds, test, horizon):
+    errs = [[p[k] - t[1][k] for k in range(horizon)] for p, t in zip(preds, test)]
+    rmse = math.sqrt(sum(e * e for row in errs for e in row) / (len(errs) * horizon))
+    last = math.sqrt(sum(row[-1] ** 2 for row in errs) / len(errs))
+    succ = sum(max(abs(e) for e in row) < TOL for row in errs)
+    return rmse, last, succ
+
+
+def ms(v):
+    m = sum(v) / len(v)
+    return m, math.sqrt(sum((x - m) ** 2 for x in v) / (len(v) - 1))
+
+
+def fmt(x, nd=4):
+    if x != 0 and abs(x) < 0.5 * 10 ** -nd:
+        return f"{x:.2e}"
+    return f"{x:.{nd}f}"
+
+
+def label(diffs, mean_a, mean_b, scale=1):
+    """tie: identical on every seed; near-tie: |paired mean| <= paired sd;
+    otherwise consistent (|mean| > sd), called small if |mean| < 20 % of the
+    smaller arm mean. The 20 % rule only decides "small"."""
+    if all(d == 0 for d in diffs):
+        return "tie: identical on every seed"
+    m, sd = ms(diffs)
+    if abs(m) <= sd:
+        return f"near-tie / small gap, within seed noise (indistinguishable from 0 within +-{sd / scale:.4f})"
+    if abs(m) < 0.2 * min(abs(mean_a), abs(mean_b)):
+        return "small but consistent gap, not a tie"
+    return "clear gap, not a tie"
+
+
+def main():
+    print(f"seeds={len(SEEDS)} n_train={N_TRAIN} n_test={N_TEST} bins={BINS} sigma_demo={SIGMA_DEMO} sigma_dec={SIGMA_DEC} tol={TOL} lam={LAM}")
+    print("regime arm chunk_rmse last_step_rmse success  (mean+-sd over seeds)")
+    res = {}
+    for name, horizon, sigma_obs in REGIMES:
+        per, betas = {a: [] for a in ARMS}, []
+        for seed in SEEDS:
+            train, test = shared_draws(seed, horizon, sigma_obs)
+            for a in ARMS:
+                preds, beta = fit_predict(a, train, test, horizon)
+                per[a].append(metrics(preds, test, horizon))
+                betas.extend(beta)
+        res[name] = per
+        for a in ARMS:
+            cols = [ms([r[i] for r in per[a]]) for i in range(3)]
+            cols[2] = (cols[2][0] / N_TEST, cols[2][1] / N_TEST)
+            print(f"{name} H={horizon} sigma_obs={sigma_obs} {a} " + " ".join(f"{m:.4f}+-{sd:.4f}" for m, sd in cols))
+        if betas:
+            print(f"{name} A_causal weight on its previous action token, mean over steps 2..H and seeds: {sum(betas) / len(betas):.3f}")
+        for x, y in (("A_causal", "B_mask"), ("C_parallel", "B_mask")):
+            for i, met in ((0, "chunk_rmse"), (1, "last_step_rmse"), (2, "success")):
+                scale = N_TEST if i == 2 else 1  # success is compared as integer counts
+                d = [p[i] - r[i] for p, r in zip(per[x], per[y])]
+                m, sd = ms(d)
+                ma, mb = ms([p[i] for p in per[x]])[0], ms([r[i] for r in per[y]])[0]
+                print(f"{name} paired {x[0]}-{y[0]} {met} {fmt(m / scale)}+-{sd / scale:.4f}: {label(d, ma, mb, scale)}")
+    print("H=1: a one-step chunk has no prior action to attend to, so the mask changes nothing")
+    print("B vs C: with the prior actions masked, each step is a function of x only, so token-by-token and parallel decoding compute the same chunk here")
+    print("No winner declared: the metrics are open-loop and blind to decode latency and to closed-loop recovery")
+    print("LIBERO success rates 以论文为准; GPU WorldVLA run 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+seeds=5 n_train=40 n_test=200 bins=256 sigma_demo=0.1 sigma_dec=0.15 tol=0.5 lam=0.001
+regime arm chunk_rmse last_step_rmse success  (mean+-sd over seeds)
+H1_noisy_obs H=1 sigma_obs=0.3 A_causal 0.3907+-0.0452 0.3907+-0.0452 0.7980+-0.0437
+H1_noisy_obs H=1 sigma_obs=0.3 B_mask 0.3907+-0.0452 0.3907+-0.0452 0.7980+-0.0437
+H1_noisy_obs H=1 sigma_obs=0.3 C_parallel 0.3907+-0.0452 0.3907+-0.0452 0.7980+-0.0437
+H1_noisy_obs paired A-B chunk_rmse 0.0000+-0.0000: tie: identical on every seed
+H1_noisy_obs paired A-B last_step_rmse 0.0000+-0.0000: tie: identical on every seed
+H1_noisy_obs paired A-B success 0.0000+-0.0000: tie: identical on every seed
+H1_noisy_obs paired C-B chunk_rmse 0.0000+-0.0000: tie: identical on every seed
+H1_noisy_obs paired C-B last_step_rmse 0.0000+-0.0000: tie: identical on every seed
+H1_noisy_obs paired C-B success 0.0000+-0.0000: tie: identical on every seed
+H5_noisy_obs H=5 sigma_obs=0.3 A_causal 0.4259+-0.0303 0.4442+-0.0350 0.5700+-0.0359
+H5_noisy_obs H=5 sigma_obs=0.3 B_mask 0.3863+-0.0288 0.3839+-0.0249 0.5990+-0.0334
+H5_noisy_obs H=5 sigma_obs=0.3 C_parallel 0.3863+-0.0288 0.3839+-0.0249 0.5990+-0.0334
+H5_noisy_obs A_causal weight on its previous action token, mean over steps 2..H and seeds: 0.898
+H5_noisy_obs paired A-B chunk_rmse 0.0396+-0.0114: small but consistent gap, not a tie
+H5_noisy_obs paired A-B last_step_rmse 0.0603+-0.0148: small but consistent gap, not a tie
+H5_noisy_obs paired A-B success -0.0290+-0.0282: small but consistent gap, not a tie
+H5_noisy_obs paired C-B chunk_rmse 0.0000+-0.0000: tie: identical on every seed
+H5_noisy_obs paired C-B last_step_rmse 0.0000+-0.0000: tie: identical on every seed
+H5_noisy_obs paired C-B success 0.0000+-0.0000: tie: identical on every seed
+H10_noisy_obs H=10 sigma_obs=0.3 A_causal 0.4455+-0.0251 0.4660+-0.0235 0.3740+-0.0261
+H10_noisy_obs H=10 sigma_obs=0.3 B_mask 0.3821+-0.0180 0.3645+-0.0235 0.4590+-0.0301
+H10_noisy_obs H=10 sigma_obs=0.3 C_parallel 0.3821+-0.0180 0.3645+-0.0235 0.4590+-0.0301
+H10_noisy_obs A_causal weight on its previous action token, mean over steps 2..H and seeds: 0.889
+H10_noisy_obs paired A-B chunk_rmse 0.0634+-0.0117: small but consistent gap, not a tie
+H10_noisy_obs paired A-B last_step_rmse 0.1015+-0.0254: clear gap, not a tie
+H10_noisy_obs paired A-B success -0.0850+-0.0296: clear gap, not a tie
+H10_noisy_obs paired C-B chunk_rmse 0.0000+-0.0000: tie: identical on every seed
+H10_noisy_obs paired C-B last_step_rmse 0.0000+-0.0000: tie: identical on every seed
+H10_noisy_obs paired C-B success 0.0000+-0.0000: tie: identical on every seed
+H10_clean_obs H=10 sigma_obs=0.05 A_causal 0.2016+-0.0271 0.1719+-0.0097 0.9380+-0.0413
+H10_clean_obs H=10 sigma_obs=0.05 B_mask 0.1965+-0.0267 0.1667+-0.0093 0.9380+-0.0321
+H10_clean_obs H=10 sigma_obs=0.05 C_parallel 0.1965+-0.0267 0.1667+-0.0093 0.9380+-0.0321
+H10_clean_obs A_causal weight on its previous action token, mean over steps 2..H and seeds: 0.265
+H10_clean_obs paired A-B chunk_rmse 0.0051+-0.0024: small but consistent gap, not a tie
+H10_clean_obs paired A-B last_step_rmse 0.0051+-0.0050: small but consistent gap, not a tie
+H10_clean_obs paired A-B success 0.0000+-0.0094: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.0094)
+H10_clean_obs paired C-B chunk_rmse 0.0000+-0.0000: tie: identical on every seed
+H10_clean_obs paired C-B last_step_rmse 0.0000+-0.0000: tie: identical on every seed
+H10_clean_obs paired C-B success 0.0000+-0.0000: tie: identical on every seed
+H=1: a one-step chunk has no prior action to attend to, so the mask changes nothing
+B vs C: with the prior actions masked, each step is a function of x only, so token-by-token and parallel decoding compute the same chunk here
+No winner declared: the metrics are open-loop and blind to decode latency and to closed-loop recovery
+LIBERO success rates 以论文为准; GPU WorldVLA run 本页未运行
+```
+
+</SimOutput>
+
+### 读四种情形
+
+- **H1_noisy_obs：** A、B、C **打平：每个种子都完全相同**（三组整块 RMSE 都是 0.3907±0.0452，成功率都是 0.7980±0.0437）。这是结构决定的，不是巧合：只有一步的块没有先前动作可看，掩码什么也没改变。
+- **H5_noisy_obs：** A 对上一个动作词元的权重平均为 0.898。视觉有噪声时，训练中示范的上一个动作是关于 `s` 的最好线索；测试时这个输入换成了 A 自己的预测，而预测已经带着解码误差，于是误差被传了下去。整块 RMSE A 0.4259±0.0303 对 B 0.3863±0.0288（配对 A−B 0.0396±0.0114），最后一步 RMSE 0.4442±0.0350 对 0.3839±0.0249（配对 0.0603±0.0148），都是**小而稳定的差距，不是打平**。成功率 0.5700±0.0359 对 0.5990±0.0334（配对 −0.0290±0.0282）勉强得到同样的标签：`|配对均值|` 只比 sd 大不到 0.001。
+- **H10_noisy_obs：** 差距随块长变大。整块 RMSE A 0.4455±0.0251 对 B 0.3821±0.0180（配对 0.0634±0.0117）是**小而稳定的差距，不是打平**（为 B 均值的 16.6 %）；最后一步 RMSE 0.4660±0.0235 对 0.3645±0.0235（配对 0.1015±0.0254）和成功率 0.3740±0.0261 对 0.4590±0.0301（配对 −0.0850±0.0296）都是**明显差距**。A 对上一个动作的权重为 0.889。
+- **H10_clean_obs：** 视觉干净时，`x` 已经足以确定 `s`，A 对上一个动作的权重降到 0.265，传下去的误差很少。整块 RMSE A 0.2016±0.0271 对 B 0.1965±0.0267（配对 0.0051±0.0024）和最后一步 RMSE 0.1719±0.0097 对 0.1667±0.0093（配对 0.0051±0.0050，`|配对均值|` 只比 sd 大约 0.0001）都是**小而稳定的差距，不是打平**。成功率是**接近打平、差距很小，在种子噪声之内**：两组平均都是 0.9380，配对 0.0000±0.0094，但逐种子的计数不同，所以不是打平。
+- **B 对 C：** 在每种情形下都**打平：每个种子都完全相同**。屏蔽先前动作后，每一步只是 `x` 的函数，所以逐词元解码和一个并行头算出的是同一块动作。在这里，掩码相对普通并行解码没有任何收益；真实模型里两者的差别是解码延迟，而这些指标看不见它。
+
+**为什么需要解码误差。** 在这个线性高斯替身里，A 串起来的预测器仍是 `x` 的线性函数；没有解码误差、示范又足够多时，它会逼近 B 的预测器，差距会缩向零。所以这个玩具展示的是论文所说的误差传播机制，并不证明 WorldVLA 里一定如此。
+
+本页**不宣布普遍赢家**。按种子平均，这个玩具里掩码从未比因果那一组差（单个种子可能不同），但在 H = 1 时它在每个种子上都与因果那一组完全相同，视觉干净时收益很小，而且与并行头完全相同。论文里 LIBERO 上更大的差距来自真实主干，以论文为准；GPU 上运行 WorldVLA：**本页未运行**。
+
+**210 分钟安排：** 40 分钟读 WorldVLA 摘要、训练策略与注意力掩码两段和表 3；40 分钟推导为什么这里屏蔽后的单步和并行头是 `x` 的同一个函数；50 分钟运行玩具并读四种情形；50 分钟在种子固定下改 `SIGMA_DEC`、`N_TRAIN` 和 H；30 分钟写下每组在哪个指标上赢、为什么。
+
+### 练习
+
+1. 种子固定，设 `SIGMA_DEC = 0`。运行前先预测 H10_noisy_obs 里 A−B 会不会缩小，并用 A 对上一个动作的权重解释你的预测。
+2. 从 `shared_draws` 说明：对同一个种子，三组和四种情形看到的场景、观测噪声、示范噪声和解码误差都相同。
+3. 解释为什么 H = 1 时 A 和 B 必须给出完全相同的数字，而不只是接近。
+4. H10_noisy_obs 里成功率的差距（−0.0850±0.0296）相对均值比整块 RMSE 的差距更大。用「块内最差一步」的成功定义解释原因。
+5. 在任何 GPU 运行之前（本页未运行），写下为什么这个玩具不是 LIBERO 结果，并说出真实 WorldVLA 里被玩具省掉的两部分。
+
 <Summary>
 
 世界模型概览 9.9：DreamerV3 / DayDreamer / UniSim（可选 IRIS）阅读地图；讲清世界模型、想象轨迹、与 model-free 差别。`latent_predict_toy.py` 用字典转移滚动 H 步。DreamGen 的四个阶段（微调视频世界模型 → 生成视频 → IDM 或潜动作伪标签 → 训练策略）在 `neural_traj_idm_toy.py` 里用 CPU 替身跑通：轨迹数匹配、评估起点共享，世界模型误差和 IDM 误差分开扫，各给出一条下降曲线（60/60 → 0/60）。DreamGen Bench 的相关性只是论文的说法。不训练真实模型、不下载权重、不要求 GPU。
 
 - MemoryVLA 入门：三个共享预算制度——(a) 无延迟 A/B/C 打平，(b) 超出窗口的延迟使 C 相对 B 信息不对等，(c) 陈旧/干扰检索使记忆库变差——不是 MemoryVLA 基准；≠ MTC 阶段记忆；≠ DreamGen IDM。
+- WorldVLA：`worldvla_action_mask_toy.py` 在五个种子上表明，在动作块内屏蔽先前动作，在 H = 1 时每个种子上都与默认因果掩码完全相同；视觉有噪声时，块越长因果那一组落后越多（从小而稳定的差距到明显差距），视觉干净时只落后一个小而稳定的 RMSE 差距；屏蔽后的一组与并行头完全相同（**合成**结果；LIBERO 数字以论文为准，本页未运行）。
 
 </Summary>

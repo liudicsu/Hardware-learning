@@ -729,10 +729,317 @@ Paper % 以论文为准. GPU / weights: **本页未运行**. MemoryVLA++ imagina
 5. Before any GPU run (本页未运行), write why this toy is not a MemoryVLA SimplerEnv / real-robot result, and why MemoryVLA++ is not implemented here.
 
 
+## WorldVLA: masking prior actions inside an action chunk
+
+The memory-bank section above is about a cue from the **past**. WorldVLA is about the **next few** actions: when one autoregressive model emits a chunk of actions token by token, should action k be allowed to look at the actions it has just emitted? This section is **not** the MemoryVLA bank, **not** the DreamGen IDM pipeline and **not** real-time chunking.
+
+<Resource id="worldvla-paper" />
+
+**Source actually opened (arXiv abstract page + PDF body read with pdftotext; numbers 以论文为准).**
+
+- **WorldVLA (Cen et al., DAMO Academy / Hupan Lab / Zhejiang University, arXiv 2506.21539):** an *autoregressive action world model*. One Chameleon backbone with three tokenizers shares one vocabulary: a VQ-GAN image tokenizer (256 tokens for a 256 × 256 image, 1024 for 512 × 512), a BPE text tokenizer, and an action tokenizer that puts each of the 7 action dimensions into one of 256 bins whose widths come from the training range. Training mixes **action-model data** (text + M = 2 images → K actions, loss on action tokens only) and **world-model data** (image + action → next image, loss on image tokens only), with `L = L_action + α L_world` and α = 0.04.
+- **The mask.** Under the default causal mask, action k attends to actions 1 … k−1 of the same chunk. The paper's explanation is that the backbone generalizes poorly in the action domain, so an early mistake propagates to later actions. Its action-model mask lets the current action see **only text and image tokens**, never prior actions, which also allows the chunk to be generated in parallel; the world-model part keeps the ordinary causal mask.
+- **Reported numbers (以论文为准):** in the LIBERO ablation (Table 3) average success is 62.8 % without chunking, 54.0 % with chunking under the default mask, 76.6 % with chunking plus the new mask, and 78.1 % when world-model data is added; chunk length is K = 5 (K = 10 on LIBERO-Long). The introduction reports that conventional autoregressive chunking loses 10 % to 50 % grasp success and that the mask recovers 4 % to 23 %. On the full benchmark (Table 2), WorldVLA at 512 × 512 averages 81.8 % against OpenVLA's 76.5 %, while the continuous-action OpenVLA-OFT reaches 95.4 %. Training WorldVLA on GPUs: **本页未运行**.
+
+### Shared linear stand-in, four regimes
+
+`worldvla_action_mask_toy.py` is **synthetic** and stdlib only. **Model assumptions:** a hidden scene state `s ~ N(0, I3)`; the vision input is `x = s + σ_obs·z`; the demo action at chunk step k is `a_k = c_k · s` plus demo noise (sd 0.10), with `c_k = (cos(0.3 + 0.15k), sin(0.3 + 0.15k), 0.5)`, so neighbouring actions are strongly correlated, as in a smooth reach. Each arm is a ridge regression fitted on the same 40 demos. The paper's limited action generalization is modelled as a **decode error**: at test time every predicted action of every arm gets an extra `N(0, 0.15²)` error and then passes through one shared 256-bin tokenizer per step (bin widths from the training range, as in the paper). No world-model data, no images, no closed loop.
+
+| Arm | What step k may attend to |
+|---|---|
+| A_causal | `x` and the previous action token; trained with teacher forcing (the demo's own previous action), run on its **own** previous prediction |
+| B_mask | `x` only (WorldVLA-style mask) |
+| C_parallel | `x` only; one head emits all H steps at once |
+
+**Common random numbers:** per seed, one set of 40 training demos and 200 test scenes, with their observation-noise, demo-noise and decode-error draws, is generated once and fed to all three arms **and** all four regimes (a regime only changes H and `σ_obs`); no arm skips a noise source. Five seeds; every table entry is mean±sd over seeds. Metrics against the noiseless `c_k · s`: chunk RMSE, last-step RMSE, and success = share of scenes whose **worst** step error in the chunk is below 0.5. They are **open-loop**, so they are **blind** to decode latency, to closed-loop recovery and to the reactivity a long chunk gives up (the paper reports that very long chunks hurt for that reason).
+
+**How pairs are labelled** (computed from unrounded per-seed values): **tie** only if the two arms are identical on every seed; **near-tie / small gap, within seed noise** if the mean paired difference is no larger than its sd. Otherwise the gap is **consistent**, which means `|paired mean| > sd`; it is called **small but consistent gap, not a tie** if it is under 20 % of the smaller arm's mean, and **clear gap** otherwise. The 20 % rule only decides whether a consistent gap is small; it never decides consistency. A paired mean that would round to zero is printed with more digits, never as a signed zero.
+
+Regimes: **H1_noisy_obs** (H = 1, `σ_obs = 0.3`); **H5_noisy_obs** (H = 5, the paper's default chunk); **H10_noisy_obs** (H = 10, the paper's LIBERO-Long chunk); **H10_clean_obs** (H = 10, `σ_obs = 0.05`).
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-9/world-models-overview
+python3 worldvla_action_mask_toy.py
+```
+
+<CodeSource path="examples/month-9/world-models-overview/worldvla_action_mask_toy.py" />
+
+```python
+"""Synthetic WorldVLA-style action-chunk attention mask. Stdlib only.
+
+Model (stated in the lesson prose too): a linear-Gaussian stand-in, not a
+Chameleon backbone and not image tokens.
+  latent scene state  s ~ N(0, I3)
+  observation         x = s + N(0, SIGMA_OBS^2 I3)     (what "vision" sees)
+  demo action         a_k = c_k . s + N(0, SIGMA_DEMO^2), k = 1..H
+  c_k = (cos(0.3 + 0.15 k), sin(0.3 + 0.15 k), 0.5): neighbouring actions in a
+  chunk are strongly correlated, as in a smooth reach.
+Limited action generalization (the paper's stated cause) is modelled as a decode
+error: at test time every predicted action of every arm gets an extra
+N(0, SIGMA_DEC^2) error before it is tokenized (same draw for every arm).
+Every action (target, teacher-forcing input, prediction) passes through one shared
+256-bin tokenizer per chunk step whose bin widths come from the training range.
+Each arm is a ridge regression (LAM = 1e-3 per sample) fitted on the same
+N_TRAIN demos:
+  A_causal    default causal attention: step k sees x AND the previous action
+              token; trained with teacher forcing (the demo's previous action),
+              run on its OWN previous prediction at test time.
+  B_mask      WorldVLA-style action mask: step k sees x only, never a prior action.
+  C_parallel  one head emits all H steps at once from x (parallel decoding).
+Common random numbers: per seed one set of train demos, one set of test scenes and
+one set of observation / demo-noise draws is generated once and fed to all three
+arms and all four regimes (a regime only changes H and the observation-noise
+scale); no arm skips a noise source.
+Metrics per seed over N_TEST test scenes: chunk RMSE against the noiseless
+c_k . s, last-step RMSE, and success = share of scenes whose worst step error in
+the chunk is below TOL. They are open-loop: blind to closed-loop recovery, to
+decode latency and to the reactivity lost with long chunks.
+No presumed winner. LIBERO numbers 以论文为准; GPU WorldVLA run 本页未运行.
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+N_TRAIN, N_TEST, BINS, LAM, TOL, SIGMA_DEMO, SIGMA_DEC = 40, 200, 256, 1e-3, 0.5, 0.10, 0.15
+REGIMES = (("H1_noisy_obs", 1, 0.3), ("H5_noisy_obs", 5, 0.3), ("H10_noisy_obs", 10, 0.3), ("H10_clean_obs", 10, 0.05))
+ARMS = ("A_causal", "B_mask", "C_parallel")
+H_MAX = max(r[1] for r in REGIMES)
+
+
+def coef(k):
+    return (math.cos(0.3 + 0.15 * k), math.sin(0.3 + 0.15 * k), 0.5)
+
+
+def solve(a, b):
+    n = len(b)
+    m = [row[:] + [b[i]] for i, row in enumerate(a)]
+    for c in range(n):
+        p = max(range(c, n), key=lambda r: abs(m[r][c]))
+        m[c], m[p] = m[p], m[c]
+        for r in range(n):
+            if r != c:
+                f = m[r][c] / m[c][c]
+                for j in range(c, n + 1):
+                    m[r][j] -= f * m[c][j]
+    return [m[i][n] / m[i][i] for i in range(n)]
+
+
+def ridge(rows, ys):
+    d = len(rows[0])
+    a = [[sum(r[i] * r[j] for r in rows) + (LAM * len(rows) if i == j else 0.0) for j in range(d)] for i in range(d)]
+    return solve(a, [sum(r[i] * y for r, y in zip(rows, ys)) for i in range(d)])
+
+
+def dot(w, v):
+    return sum(p * q for p, q in zip(w, v))
+
+
+def shared_draws(seed, horizon, sigma_obs):
+    """Common random numbers: one draw per seed, shared by every arm AND every
+    regime (regimes only change H and the observation-noise scale)."""
+    rng = random.Random(seed)
+
+    def scene():
+        s = [rng.gauss(0, 1) for _ in range(3)]
+        z = [rng.gauss(0, 1) for _ in range(3)]
+        e = [rng.gauss(0, SIGMA_DEMO) for _ in range(H_MAX)]
+        nu = [rng.gauss(0, SIGMA_DEC) for _ in range(H_MAX)]
+        x = [v + sigma_obs * u for v, u in zip(s, z)]
+        clean = [dot(coef(k), s) for k in range(1, horizon + 1)]
+        return x, clean, [c + n for c, n in zip(clean, e)], nu
+
+    return [scene() for _ in range(N_TRAIN)], [scene() for _ in range(N_TEST)]
+
+
+def tokenizer(train, horizon):
+    out = []
+    for k in range(horizon):
+        lo, hi = min(t[2][k] for t in train), max(t[2][k] for t in train)
+        w = (hi - lo) / BINS
+        out.append(lambda v, lo=lo, w=w: lo + (min(BINS - 1, max(0, int((v - lo) / w))) + 0.5) * w)
+    return out
+
+
+def fit_predict(arm, train, test, horizon):
+    q = tokenizer(train, horizon)
+    tgt = [[q[k](t[2][k]) for k in range(horizon)] for t in train]
+    preds, beta = [], []
+    if arm == "A_causal":
+        ws = [ridge([t[0] for t in train], [y[0] for y in tgt])]
+        for k in range(1, horizon):
+            ws.append(ridge([t[0] + [y[k - 1]] for t, y in zip(train, tgt)], [y[k] for y in tgt]))
+        for x, _, _, nu in test:
+            p = [q[0](dot(ws[0], x) + nu[0])]
+            for k in range(1, horizon):
+                p.append(q[k](dot(ws[k], x + [p[-1]]) + nu[k]))
+            preds.append(p)
+        beta.extend(w[-1] for w in ws[1:])
+    elif arm == "B_mask":
+        ws = [ridge([t[0] for t in train], [y[k] for y in tgt]) for k in range(horizon)]
+        for x, _, _, nu in test:
+            preds.append([q[k](dot(ws[k], x) + nu[k]) for k in range(horizon)])
+    else:
+        xs = [t[0] for t in train]
+        d = len(xs[0])
+        g = [[sum(r[i] * r[j] for r in xs) + (LAM * len(xs) if i == j else 0.0) for j in range(d)] for i in range(d)]
+        ginv = [solve(g, [1.0 if i == j else 0.0 for i in range(d)]) for j in range(d)]
+        xty = [[sum(r[i] * y[k] for r, y in zip(xs, tgt)) for k in range(horizon)] for i in range(d)]
+        w = [[sum(ginv[j][i] * xty[i][k] for i in range(d)) for j in range(d)] for k in range(horizon)]
+        for x, _, _, nu in test:
+            preds.append([q[k](dot(w[k], x) + nu[k]) for k in range(horizon)])
+    return preds, beta
+
+
+def metrics(preds, test, horizon):
+    errs = [[p[k] - t[1][k] for k in range(horizon)] for p, t in zip(preds, test)]
+    rmse = math.sqrt(sum(e * e for row in errs for e in row) / (len(errs) * horizon))
+    last = math.sqrt(sum(row[-1] ** 2 for row in errs) / len(errs))
+    succ = sum(max(abs(e) for e in row) < TOL for row in errs)
+    return rmse, last, succ
+
+
+def ms(v):
+    m = sum(v) / len(v)
+    return m, math.sqrt(sum((x - m) ** 2 for x in v) / (len(v) - 1))
+
+
+def fmt(x, nd=4):
+    if x != 0 and abs(x) < 0.5 * 10 ** -nd:
+        return f"{x:.2e}"
+    return f"{x:.{nd}f}"
+
+
+def label(diffs, mean_a, mean_b, scale=1):
+    """tie: identical on every seed; near-tie: |paired mean| <= paired sd;
+    otherwise consistent (|mean| > sd), called small if |mean| < 20 % of the
+    smaller arm mean. The 20 % rule only decides "small"."""
+    if all(d == 0 for d in diffs):
+        return "tie: identical on every seed"
+    m, sd = ms(diffs)
+    if abs(m) <= sd:
+        return f"near-tie / small gap, within seed noise (indistinguishable from 0 within +-{sd / scale:.4f})"
+    if abs(m) < 0.2 * min(abs(mean_a), abs(mean_b)):
+        return "small but consistent gap, not a tie"
+    return "clear gap, not a tie"
+
+
+def main():
+    print(f"seeds={len(SEEDS)} n_train={N_TRAIN} n_test={N_TEST} bins={BINS} sigma_demo={SIGMA_DEMO} sigma_dec={SIGMA_DEC} tol={TOL} lam={LAM}")
+    print("regime arm chunk_rmse last_step_rmse success  (mean+-sd over seeds)")
+    res = {}
+    for name, horizon, sigma_obs in REGIMES:
+        per, betas = {a: [] for a in ARMS}, []
+        for seed in SEEDS:
+            train, test = shared_draws(seed, horizon, sigma_obs)
+            for a in ARMS:
+                preds, beta = fit_predict(a, train, test, horizon)
+                per[a].append(metrics(preds, test, horizon))
+                betas.extend(beta)
+        res[name] = per
+        for a in ARMS:
+            cols = [ms([r[i] for r in per[a]]) for i in range(3)]
+            cols[2] = (cols[2][0] / N_TEST, cols[2][1] / N_TEST)
+            print(f"{name} H={horizon} sigma_obs={sigma_obs} {a} " + " ".join(f"{m:.4f}+-{sd:.4f}" for m, sd in cols))
+        if betas:
+            print(f"{name} A_causal weight on its previous action token, mean over steps 2..H and seeds: {sum(betas) / len(betas):.3f}")
+        for x, y in (("A_causal", "B_mask"), ("C_parallel", "B_mask")):
+            for i, met in ((0, "chunk_rmse"), (1, "last_step_rmse"), (2, "success")):
+                scale = N_TEST if i == 2 else 1  # success is compared as integer counts
+                d = [p[i] - r[i] for p, r in zip(per[x], per[y])]
+                m, sd = ms(d)
+                ma, mb = ms([p[i] for p in per[x]])[0], ms([r[i] for r in per[y]])[0]
+                print(f"{name} paired {x[0]}-{y[0]} {met} {fmt(m / scale)}+-{sd / scale:.4f}: {label(d, ma, mb, scale)}")
+    print("H=1: a one-step chunk has no prior action to attend to, so the mask changes nothing")
+    print("B vs C: with the prior actions masked, each step is a function of x only, so token-by-token and parallel decoding compute the same chunk here")
+    print("No winner declared: the metrics are open-loop and blind to decode latency and to closed-loop recovery")
+    print("LIBERO success rates 以论文为准; GPU WorldVLA run 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+seeds=5 n_train=40 n_test=200 bins=256 sigma_demo=0.1 sigma_dec=0.15 tol=0.5 lam=0.001
+regime arm chunk_rmse last_step_rmse success  (mean+-sd over seeds)
+H1_noisy_obs H=1 sigma_obs=0.3 A_causal 0.3907+-0.0452 0.3907+-0.0452 0.7980+-0.0437
+H1_noisy_obs H=1 sigma_obs=0.3 B_mask 0.3907+-0.0452 0.3907+-0.0452 0.7980+-0.0437
+H1_noisy_obs H=1 sigma_obs=0.3 C_parallel 0.3907+-0.0452 0.3907+-0.0452 0.7980+-0.0437
+H1_noisy_obs paired A-B chunk_rmse 0.0000+-0.0000: tie: identical on every seed
+H1_noisy_obs paired A-B last_step_rmse 0.0000+-0.0000: tie: identical on every seed
+H1_noisy_obs paired A-B success 0.0000+-0.0000: tie: identical on every seed
+H1_noisy_obs paired C-B chunk_rmse 0.0000+-0.0000: tie: identical on every seed
+H1_noisy_obs paired C-B last_step_rmse 0.0000+-0.0000: tie: identical on every seed
+H1_noisy_obs paired C-B success 0.0000+-0.0000: tie: identical on every seed
+H5_noisy_obs H=5 sigma_obs=0.3 A_causal 0.4259+-0.0303 0.4442+-0.0350 0.5700+-0.0359
+H5_noisy_obs H=5 sigma_obs=0.3 B_mask 0.3863+-0.0288 0.3839+-0.0249 0.5990+-0.0334
+H5_noisy_obs H=5 sigma_obs=0.3 C_parallel 0.3863+-0.0288 0.3839+-0.0249 0.5990+-0.0334
+H5_noisy_obs A_causal weight on its previous action token, mean over steps 2..H and seeds: 0.898
+H5_noisy_obs paired A-B chunk_rmse 0.0396+-0.0114: small but consistent gap, not a tie
+H5_noisy_obs paired A-B last_step_rmse 0.0603+-0.0148: small but consistent gap, not a tie
+H5_noisy_obs paired A-B success -0.0290+-0.0282: small but consistent gap, not a tie
+H5_noisy_obs paired C-B chunk_rmse 0.0000+-0.0000: tie: identical on every seed
+H5_noisy_obs paired C-B last_step_rmse 0.0000+-0.0000: tie: identical on every seed
+H5_noisy_obs paired C-B success 0.0000+-0.0000: tie: identical on every seed
+H10_noisy_obs H=10 sigma_obs=0.3 A_causal 0.4455+-0.0251 0.4660+-0.0235 0.3740+-0.0261
+H10_noisy_obs H=10 sigma_obs=0.3 B_mask 0.3821+-0.0180 0.3645+-0.0235 0.4590+-0.0301
+H10_noisy_obs H=10 sigma_obs=0.3 C_parallel 0.3821+-0.0180 0.3645+-0.0235 0.4590+-0.0301
+H10_noisy_obs A_causal weight on its previous action token, mean over steps 2..H and seeds: 0.889
+H10_noisy_obs paired A-B chunk_rmse 0.0634+-0.0117: small but consistent gap, not a tie
+H10_noisy_obs paired A-B last_step_rmse 0.1015+-0.0254: clear gap, not a tie
+H10_noisy_obs paired A-B success -0.0850+-0.0296: clear gap, not a tie
+H10_noisy_obs paired C-B chunk_rmse 0.0000+-0.0000: tie: identical on every seed
+H10_noisy_obs paired C-B last_step_rmse 0.0000+-0.0000: tie: identical on every seed
+H10_noisy_obs paired C-B success 0.0000+-0.0000: tie: identical on every seed
+H10_clean_obs H=10 sigma_obs=0.05 A_causal 0.2016+-0.0271 0.1719+-0.0097 0.9380+-0.0413
+H10_clean_obs H=10 sigma_obs=0.05 B_mask 0.1965+-0.0267 0.1667+-0.0093 0.9380+-0.0321
+H10_clean_obs H=10 sigma_obs=0.05 C_parallel 0.1965+-0.0267 0.1667+-0.0093 0.9380+-0.0321
+H10_clean_obs A_causal weight on its previous action token, mean over steps 2..H and seeds: 0.265
+H10_clean_obs paired A-B chunk_rmse 0.0051+-0.0024: small but consistent gap, not a tie
+H10_clean_obs paired A-B last_step_rmse 0.0051+-0.0050: small but consistent gap, not a tie
+H10_clean_obs paired A-B success 0.0000+-0.0094: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.0094)
+H10_clean_obs paired C-B chunk_rmse 0.0000+-0.0000: tie: identical on every seed
+H10_clean_obs paired C-B last_step_rmse 0.0000+-0.0000: tie: identical on every seed
+H10_clean_obs paired C-B success 0.0000+-0.0000: tie: identical on every seed
+H=1: a one-step chunk has no prior action to attend to, so the mask changes nothing
+B vs C: with the prior actions masked, each step is a function of x only, so token-by-token and parallel decoding compute the same chunk here
+No winner declared: the metrics are open-loop and blind to decode latency and to closed-loop recovery
+LIBERO success rates 以论文为准; GPU WorldVLA run 本页未运行
+```
+
+</SimOutput>
+
+### Read the four regimes
+
+- **H1_noisy_obs:** A, B and C are a **tie: identical on every seed** (chunk RMSE 0.3907±0.0452 and success 0.7980±0.0437 for all three). This is structural, not luck: a one-step chunk has no prior action to attend to, so the mask changes nothing.
+- **H5_noisy_obs:** A's weight on its previous action token averages 0.898. With noisy vision, the demo's previous action was the best clue about `s` during training; at test time that input is A's own prediction, which already carries the decode error, so the error is passed on. Chunk RMSE A 0.4259±0.0303 against B 0.3863±0.0288 (paired A−B 0.0396±0.0114) and last-step RMSE 0.4442±0.0350 against 0.3839±0.0249 (paired 0.0603±0.0148) are **small but consistent gaps, not ties**. Success 0.5700±0.0359 against 0.5990±0.0334 (paired −0.0290±0.0282) gets the same label only just: `|paired mean|` exceeds the sd by less than 0.001.
+- **H10_noisy_obs:** the gap grows with the chunk. Chunk RMSE A 0.4455±0.0251 against B 0.3821±0.0180 (paired 0.0634±0.0117) is a **small but consistent gap, not a tie** (16.6 % of B's mean); last-step RMSE 0.4660±0.0235 against 0.3645±0.0235 (paired 0.1015±0.0254) and success 0.3740±0.0261 against 0.4590±0.0301 (paired −0.0850±0.0296) are **clear gaps**. A's previous-action weight is 0.889.
+- **H10_clean_obs:** with clean vision, `x` already pins down `s`, so A's previous-action weight drops to 0.265 and little error is passed on. Chunk RMSE A 0.2016±0.0271 against B 0.1965±0.0267 (paired 0.0051±0.0024) and last-step RMSE 0.1719±0.0097 against 0.1667±0.0093 (paired 0.0051±0.0050, where `|paired mean|` exceeds the sd by about 0.0001) are **small but consistent gaps, not ties**. Success is a **near-tie / small gap, within seed noise**: both average 0.9380, paired 0.0000±0.0094, and the per-seed counts differ, so it is not a tie.
+- **B against C:** a **tie: identical on every seed** in every regime. Once prior actions are masked, each step is a function of `x` alone, so token-by-token decoding and one parallel head compute the same chunk. Here the mask buys nothing over plain parallel decoding; what differs in a real model is decode latency, which these metrics cannot see.
+
+**Why the decode error is needed.** In this linear-Gaussian stand-in, A's chained predictor is still a linear function of `x`; without the decode error and with enough demos it approaches B's predictor, so the gap would shrink toward zero. The toy therefore shows the propagation mechanism the paper names, not a proof that it happens in WorldVLA.
+
+The page **does not declare a universal winner**. On seed averages the mask never does worse than the causal arm in this toy (single seeds can differ), but at H = 1 it is identical to the causal arm on every seed, gains little when vision is clean, and is identical to a parallel head. The paper's larger LIBERO gaps come from a real backbone and stay 以论文为准; GPU WorldVLA run: **本页未运行**.
+
+**210-minute work plan:** 40 min read the WorldVLA abstract, the training-strategy and attention-mask passages and Table 3; 40 min work out why the masked step and the parallel head are the same function of `x` here; 50 min run the toy and read the four regimes; 50 min change `SIGMA_DEC`, `N_TRAIN` and H with seeds fixed; 30 min write down which metric each arm wins and why.
+
+### Exercises
+
+1. Set `SIGMA_DEC = 0` with seeds fixed. Before running, predict whether A−B shrinks in H10_noisy_obs, and explain the prediction with A's previous-action weight.
+2. Show from `shared_draws` that all three arms and all four regimes see the same scenes, observation noise, demo noise and decode errors for a seed.
+3. Explain why H = 1 must give identical numbers for A and B, not merely close ones.
+4. In H10_noisy_obs the success gap (−0.0850±0.0296) is larger, relative to the means, than the chunk-RMSE gap. Use the worst-step definition of success to explain why.
+5. Before any GPU run (本页未运行), write why this toy is not a LIBERO result, and name two parts of the real WorldVLA that the toy leaves out.
+
 <Summary>
 
 World-models overview 9.9: DreamerV3 / DayDreamer / UniSim (optional IRIS) reading map; define world model, latent imagination, vs model-free. `latent_predict_toy.py` rolls H steps on a dict transition. DreamGen's four stages (fine-tune a video world model → roll out videos → IDM or latent-action pseudo-labels → train a policy) run as a CPU stand-in in `neural_traj_idm_toy.py`: with matched trajectory counts and shared evaluation starts, world-model error and IDM error are swept separately and each gives its own drop curve (60/60 → 0/60). DreamGen Bench's correlation is a paper claim. No training of real models, no weights, no GPU required.
 
 - MemoryVLA literacy: three shared-budget regimes — (a) no delay A/B/C tie, (b) delay beyond W gives C unequal info vs B, (c) stale/distractor retrieval degrades the bank — not a MemoryVLA benchmark; ≠ MTC stage memory; ≠ DreamGen IDM.
+- WorldVLA: `worldvla_action_mask_toy.py` shows over five seeds that masking prior actions inside a chunk gives the same result as the default causal mask on every seed at H = 1, that the causal arm falls behind as the chunk grows under noisy vision (small but consistent to clear gaps) and trails only by a small but consistent RMSE gap with clean vision, and that the masked arm equals a parallel head (**synthetic**; LIBERO numbers 以论文为准, 本页未运行).
 
 </Summary>

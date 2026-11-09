@@ -1,0 +1,45 @@
+seeds=5 n_train=40 n_test=200 bins=256 sigma_demo=0.1 sigma_dec=0.15 tol=0.5 lam=0.001
+regime arm chunk_rmse last_step_rmse success  (mean+-sd over seeds)
+H1_noisy_obs H=1 sigma_obs=0.3 A_causal 0.3907+-0.0452 0.3907+-0.0452 0.7980+-0.0437
+H1_noisy_obs H=1 sigma_obs=0.3 B_mask 0.3907+-0.0452 0.3907+-0.0452 0.7980+-0.0437
+H1_noisy_obs H=1 sigma_obs=0.3 C_parallel 0.3907+-0.0452 0.3907+-0.0452 0.7980+-0.0437
+H1_noisy_obs paired A-B chunk_rmse 0.0000+-0.0000: tie: identical on every seed
+H1_noisy_obs paired A-B last_step_rmse 0.0000+-0.0000: tie: identical on every seed
+H1_noisy_obs paired A-B success 0.0000+-0.0000: tie: identical on every seed
+H1_noisy_obs paired C-B chunk_rmse 0.0000+-0.0000: tie: identical on every seed
+H1_noisy_obs paired C-B last_step_rmse 0.0000+-0.0000: tie: identical on every seed
+H1_noisy_obs paired C-B success 0.0000+-0.0000: tie: identical on every seed
+H5_noisy_obs H=5 sigma_obs=0.3 A_causal 0.4259+-0.0303 0.4442+-0.0350 0.5700+-0.0359
+H5_noisy_obs H=5 sigma_obs=0.3 B_mask 0.3863+-0.0288 0.3839+-0.0249 0.5990+-0.0334
+H5_noisy_obs H=5 sigma_obs=0.3 C_parallel 0.3863+-0.0288 0.3839+-0.0249 0.5990+-0.0334
+H5_noisy_obs A_causal weight on its previous action token, mean over steps 2..H and seeds: 0.898
+H5_noisy_obs paired A-B chunk_rmse 0.0396+-0.0114: small but consistent gap, not a tie
+H5_noisy_obs paired A-B last_step_rmse 0.0603+-0.0148: small but consistent gap, not a tie
+H5_noisy_obs paired A-B success -0.0290+-0.0282: small but consistent gap, not a tie
+H5_noisy_obs paired C-B chunk_rmse 0.0000+-0.0000: tie: identical on every seed
+H5_noisy_obs paired C-B last_step_rmse 0.0000+-0.0000: tie: identical on every seed
+H5_noisy_obs paired C-B success 0.0000+-0.0000: tie: identical on every seed
+H10_noisy_obs H=10 sigma_obs=0.3 A_causal 0.4455+-0.0251 0.4660+-0.0235 0.3740+-0.0261
+H10_noisy_obs H=10 sigma_obs=0.3 B_mask 0.3821+-0.0180 0.3645+-0.0235 0.4590+-0.0301
+H10_noisy_obs H=10 sigma_obs=0.3 C_parallel 0.3821+-0.0180 0.3645+-0.0235 0.4590+-0.0301
+H10_noisy_obs A_causal weight on its previous action token, mean over steps 2..H and seeds: 0.889
+H10_noisy_obs paired A-B chunk_rmse 0.0634+-0.0117: small but consistent gap, not a tie
+H10_noisy_obs paired A-B last_step_rmse 0.1015+-0.0254: clear gap, not a tie
+H10_noisy_obs paired A-B success -0.0850+-0.0296: clear gap, not a tie
+H10_noisy_obs paired C-B chunk_rmse 0.0000+-0.0000: tie: identical on every seed
+H10_noisy_obs paired C-B last_step_rmse 0.0000+-0.0000: tie: identical on every seed
+H10_noisy_obs paired C-B success 0.0000+-0.0000: tie: identical on every seed
+H10_clean_obs H=10 sigma_obs=0.05 A_causal 0.2016+-0.0271 0.1719+-0.0097 0.9380+-0.0413
+H10_clean_obs H=10 sigma_obs=0.05 B_mask 0.1965+-0.0267 0.1667+-0.0093 0.9380+-0.0321
+H10_clean_obs H=10 sigma_obs=0.05 C_parallel 0.1965+-0.0267 0.1667+-0.0093 0.9380+-0.0321
+H10_clean_obs A_causal weight on its previous action token, mean over steps 2..H and seeds: 0.265
+H10_clean_obs paired A-B chunk_rmse 0.0051+-0.0024: small but consistent gap, not a tie
+H10_clean_obs paired A-B last_step_rmse 0.0051+-0.0050: small but consistent gap, not a tie
+H10_clean_obs paired A-B success 0.0000+-0.0094: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.0094)
+H10_clean_obs paired C-B chunk_rmse 0.0000+-0.0000: tie: identical on every seed
+H10_clean_obs paired C-B last_step_rmse 0.0000+-0.0000: tie: identical on every seed
+H10_clean_obs paired C-B success 0.0000+-0.0000: tie: identical on every seed
+H=1: a one-step chunk has no prior action to attend to, so the mask changes nothing
+B vs C: with the prior actions masked, each step is a function of x only, so token-by-token and parallel decoding compute the same chunk here
+No winner declared: the metrics are open-loop and blind to decode latency and to closed-loop recovery
+LIBERO success rates 以论文为准; GPU WorldVLA run 本页未运行

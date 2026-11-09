@@ -533,6 +533,306 @@ No winner is declared; UniVLA LIBERO / R2R / real-robot gains 以论文为准; V
 4. Give D the same 80 labelled episodes from B that A_raw_bc_A has from A. Is the latent route still worth it?
 5. In two sentences, tell this lesson's latent actions apart from the LAPA / IDM pseudo-labels in 9.9 and from OXE-AugE's appearance augmentation above. Paper numbers stay 以论文为准; no robot runs on this page.
 
+## X-VLA: a soft prompt for each embodiment
+
+UniVLA above shares a **latent action** space and decodes it per embodiment. X-VLA keeps ordinary actions and instead gives each data source a small set of **learnable embeddings**, a soft prompt, that tells one shared backbone which hardware it is driving. This section is **not** OXE-AugE's appearance augmentation and **not** UniVLA's latent actions.
+
+<Resource id="xvla-paper" />
+
+**Source actually opened (arXiv abstract page + PDF body read with pdftotext; numbers 以论文为准).**
+
+- **X-VLA (Zheng, Li et al., Tsinghua AIR / Shanghai AI Lab / Peking University, arXiv 2510.10274):** the paper compares four ways to handle heterogeneous robot data under one aligned training recipe: (a) domain-specific action projection heads at the output, (b) HPT-style domain-specific projections of the inputs, (c) language prompts that describe the hardware, and (d) **soft prompts**, per-source learnable parameters `p_i ≈ Φ(h_i)` that start random, are trained end to end and are injected early in action generation. It reports that soft prompts train most stably (Fig. 4) and, in its ablation path (Table 1), lower the pretraining validation error from 0.053 to 0.041 and raise adaptation accuracy on Simpler-WidowX from 64.6 to 73.8.
+- **Two phases.** Phase I pretrains X-VLA-0.9B, a flow-matching model built from soft-prompted Transformer encoders, on 290K episodes from Droid, RoboMind and Agibot (seven hardware setups, five robot types). Phase II adapts to a new robot in two steps: a **new** prompt is first warmed up with the pretrained backbone **frozen**, then backbone and prompt are trained jointly.
+- **Reported numbers (以论文为准):** tuning only 9M parameters (about 1 %) reaches 93 % on LIBERO and 54 % on Simpler-WidowX, comparable to the 3B π0. A t-SNE plot shows the learned prompts clustering by hardware, with the two Franka setups that differ only in main camera view mixed together; frozen pretrained UR5 prompts help early adaptation to the unseen WidowX, but the domain gap limits the final result. Training X-VLA on GPUs: **本页未运行**.
+
+### Shared bilinear stand-in, three regimes
+
+`xvla_soft_prompt_toy.py` is **synthetic** and stdlib only. **Model assumptions:** task features `x ~ N(0, I6)`; each embodiment e has a hidden hardware vector `h_e` with R factors, and its demo action is `a = (Σⱼ h_e[j] T_j) x` plus noise (sd 0.10), where `T_1 … T_R` are fixed 2 × 6 maps. So an embodiment changes **how** the task features map to actions. Cameras, action-space layouts, flow matching and training stability are **not** modelled.
+
+| Arm | How the embodiment enters |
+|---|---|
+| A_pooled | not at all: one linear map for every embodiment |
+| B_hard_id | the one-hot ID is the prompt, fixed, one slot per embodiment; in this stand-in that is a separate linear head per embodiment, nothing shared |
+| C_soft_prompt | a learned prompt `p_e` of length K = 2 per embodiment and a shared backbone, `a = (Σⱼ p_e[j] B_j) x`, fitted jointly by alternating least squares (60 sweeps) |
+
+**Adaptation to a held-out embodiment** (a Phase II stand-in) gives every arm the same 4 demos: A fine-tunes its pooled map (ridge toward it, 12 numbers), B fits a fresh head (ridge toward zero, 12 numbers), and C freezes the backbone and fits only a new prompt (2 numbers). Only the paper's first step, the prompt warm-up, is modelled; the joint fine-tune is not.
+
+**Common random numbers:** per (regime, seed), the hardware vectors, the maps `T_j`, the training demos and their noise, the 4 adaptation demos and the 100 test inputs are drawn once and fed to all three arms; C's prompt initialisation comes from its own fixed seed. Five seeds; every entry is mean±sd over seeds. Metrics: action RMSE against the noiseless action, averaged over the seen embodiments (**seen_rmse**) and on the held-out one after adaptation (**new_emb_rmse**). Both are **blind** to cameras, compute, training stability and closed-loop success.
+
+**How pairs are labelled** (computed from unrounded per-seed values): **tie** only if the two arms are identical on every seed; **near-tie / small gap, within seed noise** if the mean paired difference is no larger than its sd. Otherwise the gap is **consistent**, which means `|paired mean| > sd`; it is called **small but consistent gap, not a tie** if it is under 20 % of the smaller arm's mean, and **clear gap** otherwise. The 20 % rule only decides whether a consistent gap is small; it never decides consistency.
+
+Regimes: **single_embodiment** (one embodiment, R = 2, 24 demos); **shared_low_rank** (six embodiments whose hardware lies on R = 2 shared factors, only 8 demos each: the paper's premise); **unrelated_full_rank** (six embodiments with one private factor each, R = 6, 30 demos each: the premise fails).
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-11/cross-embodiment-datasets
+python3 xvla_soft_prompt_toy.py
+```
+
+<CodeSource path="examples/month-11/cross-embodiment-datasets/xvla_soft_prompt_toy.py" />
+
+```python
+"""Synthetic X-VLA-style embodiment soft prompts. Stdlib only.
+
+Model (stated in the lesson prose too): a linear / bilinear stand-in, not the
+0.9B flow-matching Transformer.
+  task features   x ~ N(0, I_D), D = 6        (what the shared backbone sees)
+  embodiment e    hidden hardware vector h_e in R^R
+  demo action     a = (sum_j h_e[j] T_j) x + N(0, SIGMA^2 I_2)
+  T_1..T_R are fixed 2 x D maps; R is the true number of hardware factors.
+Arms, all fitted on the same demos:
+  A_pooled       one linear map W x for every embodiment (no embodiment input)
+  B_hard_id      the one-hot ID is the prompt (fixed, length = number of
+                 embodiments): in this stand-in that is one separate linear head
+                 per embodiment, nothing shared between embodiments
+  C_soft_prompt  a = (sum_j p_e[j] B_j) x with a learned prompt p_e in R^K, K = 2,
+                 per embodiment and a shared backbone B_1..B_K, fitted jointly by
+                 alternating least squares (ALS_ITERS sweeps)
+Adaptation to a held-out embodiment with N_NEW demos (Phase II stand-in):
+  A_pooled       ridge fine-tune of W toward the pooled W        (2 D numbers)
+  B_hard_id      a fresh head, ridge toward zero                 (2 D numbers)
+  C_soft_prompt  backbone frozen, only a new prompt p_new fitted (K numbers);
+                 the paper's second step (joint fine-tune) is not modelled.
+Common random numbers: per (regime, seed) one set of hardware vectors, maps T_j,
+train demos, demo noise, adaptation demos and test inputs is drawn once and fed
+to all three arms; C's prompt initialisation comes from its own fixed seed.
+Metrics per seed: action RMSE against the noiseless action on N_TEST test inputs
+per seen embodiment, and on the held-out embodiment after adaptation. They are
+blind to camera / action-space differences, to compute and to training stability.
+No presumed winner. Benchmark numbers 以论文为准; GPU X-VLA run 本页未运行.
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+D, K, SIGMA, LAM, ALS_ITERS, N_TEST, N_NEW = 6, 2, 0.10, 1e-3, 60, 100, 4
+# name, number of seen embodiments, true hardware factors R, demos per embodiment
+REGIMES = (("single_embodiment", 1, 2, 24), ("shared_low_rank", 6, 2, 8), ("unrelated_full_rank", 6, 6, 30))
+ARMS = ("A_pooled", "B_hard_id", "C_soft_prompt")
+
+
+def solve(a, b):
+    n = len(b)
+    m = [row[:] + [b[i]] for i, row in enumerate(a)]
+    for c in range(n):
+        p = max(range(c, n), key=lambda r: abs(m[r][c]))
+        m[c], m[p] = m[p], m[c]
+        for r in range(n):
+            if r != c:
+                f = m[r][c] / m[c][c]
+                for j in range(c, n + 1):
+                    m[r][j] -= f * m[c][j]
+    return [m[i][n] / m[i][i] for i in range(n)]
+
+
+def ridge(rows, ys, prior=None, lam=LAM):
+    """argmin sum (y - w.r)^2 + lam * n * |w - prior|^2."""
+    d, n = len(rows[0]), len(rows)
+    prior = prior or [0.0] * d
+    a = [[sum(r[i] * r[j] for r in rows) + (lam * n if i == j else 0.0) for j in range(d)] for i in range(d)]
+    b = [sum(r[i] * y for r, y in zip(rows, ys)) + lam * n * prior[i] for i in range(d)]
+    return solve(a, b)
+
+
+def apply(w, x):
+    return [sum(w[o][i] * x[i] for i in range(D)) for o in range(2)]
+
+
+def rmse(w, xs, truth):
+    err = [(p - t) ** 2 for x, tr in zip(xs, truth) for p, t in zip(apply(w, x), tr)]
+    return math.sqrt(sum(err) / len(err))
+
+
+def shared_draws(seed, n_emb, rank, n_demo):
+    """Common random numbers: one draw per (regime, seed), shared by every arm."""
+    rng = random.Random(1000 * seed + 10 * n_emb + rank)
+    t = [[[rng.gauss(0, 1 / math.sqrt(D)) for _ in range(D)] for _ in range(2)] for _ in range(rank)]
+    if rank == n_emb:  # unrelated: one private hardware factor per embodiment
+        hs = [[1.0 if j == e else 0.0 for j in range(rank)] for e in range(n_emb)]
+    else:
+        hs = [[rng.gauss(0, 1) for _ in range(rank)] for _ in range(n_emb)]
+    h_new = [rng.gauss(0, 1) for _ in range(rank)]
+
+    def true_map(h):
+        return [[sum(h[j] * t[j][o][i] for j in range(rank)) for i in range(D)] for o in range(2)]
+
+    def demos(w, n):
+        xs = [[rng.gauss(0, 1) for _ in range(D)] for _ in range(n)]
+        return xs, [[v + rng.gauss(0, SIGMA) for v in apply(w, x)] for x in xs]
+
+    maps = [true_map(h) for h in hs]
+    train = [demos(w, n_demo) for w in maps]
+    new_map = true_map(h_new)
+    adapt = demos(new_map, N_NEW)
+    test_x = [[rng.gauss(0, 1) for _ in range(D)] for _ in range(N_TEST)]
+    return maps, train, new_map, adapt, test_x
+
+
+def fit_pooled(train):
+    xs = [x for d in train for x in d[0]]
+    ys = [y for d in train for y in d[1]]
+    return [ridge(xs, [y[o] for y in ys]) for o in range(2)]
+
+
+def fit_head(xs, ys, prior=None):
+    return [ridge(xs, [y[o] for y in ys], prior[o] if prior else None) for o in range(2)]
+
+
+def prompt_map(p, b):
+    return [[sum(p[j] * b[j][o][i] for j in range(K)) for i in range(D)] for o in range(2)]
+
+
+def fit_prompt(xs, ys, b):
+    rows, tgt = [], []
+    for x, y in zip(xs, ys):
+        feats = [apply(b[j], x) for j in range(K)]
+        for o in range(2):
+            rows.append([feats[j][o] for j in range(K)])
+            tgt.append(y[o])
+    return ridge(rows, tgt)
+
+
+def fit_soft(train, seed):
+    rng = random.Random(7919 + seed)  # C's own prompt initialisation
+    prompts = [[rng.gauss(0, 1) for _ in range(K)] for _ in train]
+    b = None
+    for _ in range(ALS_ITERS):
+        b = [[[0.0] * D for _ in range(2)] for _ in range(K)]
+        for o in range(2):
+            rows = [[p[j] * xi for j in range(K) for xi in x] for p, d in zip(prompts, train) for x in d[0]]
+            ys = [y[o] for d in train for y in d[1]]
+            w = ridge(rows, ys)
+            for j in range(K):
+                b[j][o] = w[j * D:(j + 1) * D]
+        prompts = [fit_prompt(d[0], d[1], b) for d in train]
+    return prompts, b
+
+
+def run(seed, n_emb, rank, n_demo):
+    maps, train, new_map, adapt, test_x = shared_draws(seed, n_emb, rank, n_demo)
+    truth = [[apply(w, x) for x in test_x] for w in maps]
+    truth_new = [apply(new_map, x) for x in test_x]
+    pooled = fit_pooled(train)
+    heads = [fit_head(d[0], d[1]) for d in train]
+    prompts, b = fit_soft(train, seed)
+    seen = {
+        "A_pooled": sum(rmse(pooled, test_x, tr) for tr in truth) / n_emb,
+        "B_hard_id": sum(rmse(h, test_x, tr) for h, tr in zip(heads, truth)) / n_emb,
+        "C_soft_prompt": sum(rmse(prompt_map(p, b), test_x, tr) for p, tr in zip(prompts, truth)) / n_emb,
+    }
+    new = {
+        "A_pooled": rmse(fit_head(adapt[0], adapt[1], pooled), test_x, truth_new),
+        "B_hard_id": rmse(fit_head(adapt[0], adapt[1]), test_x, truth_new),
+        "C_soft_prompt": rmse(prompt_map(fit_prompt(adapt[0], adapt[1], b), b), test_x, truth_new),
+    }
+    return seen, new
+
+
+def ms(v):
+    m = sum(v) / len(v)
+    return m, math.sqrt(sum((x - m) ** 2 for x in v) / (len(v) - 1))
+
+
+def fmt(x, nd=4):
+    if x != 0 and abs(x) < 0.5 * 10 ** -nd:
+        return f"{x:.2e}"
+    return f"{x:.{nd}f}"
+
+
+def label(diffs, mean_a, mean_b):
+    """tie: identical on every seed; near-tie: |paired mean| <= paired sd;
+    otherwise consistent (|mean| > sd), called small if |mean| < 20 % of the
+    smaller arm mean. The 20 % rule only decides "small"."""
+    if all(d == 0 for d in diffs):
+        return "tie: identical on every seed"
+    m, sd = ms(diffs)
+    if abs(m) <= sd:
+        return f"near-tie / small gap, within seed noise (indistinguishable from 0 within +-{sd:.4f})"
+    if abs(m) < 0.2 * min(abs(mean_a), abs(mean_b)):
+        return "small but consistent gap, not a tie"
+    return "clear gap, not a tie"
+
+
+def main():
+    print(f"seeds={len(SEEDS)} D={D} K={K} sigma={SIGMA} lam={LAM} als_iters={ALS_ITERS} n_test={N_TEST} n_new={N_NEW}")
+    print(f"numbers tuned to adapt to a new embodiment: A_pooled {2 * D}, B_hard_id {2 * D}, C_soft_prompt {K}")
+    print("regime arm seen_rmse new_emb_rmse  (mean+-sd over seeds)")
+    for name, n_emb, rank, n_demo in REGIMES:
+        res = [run(seed, n_emb, rank, n_demo) for seed in SEEDS]
+        for a in ARMS:
+            s, n = ms([r[0][a] for r in res]), ms([r[1][a] for r in res])
+            print(f"{name} E={n_emb} R={rank} demos={n_demo} {a} {s[0]:.4f}+-{s[1]:.4f} {n[0]:.4f}+-{n[1]:.4f}")
+        for x, y in (("C_soft_prompt", "B_hard_id"), ("C_soft_prompt", "A_pooled"), ("B_hard_id", "A_pooled")):
+            for i, met in ((0, "seen_rmse"), (1, "new_emb_rmse")):
+                d = [r[i][x] - r[i][y] for r in res]
+                m, sd = ms(d)
+                print(f"{name} paired {x[0]}-{y[0]} {met} {fmt(m)}+-{sd:.4f}: {label(d, ms([r[i][x] for r in res])[0], ms([r[i][y] for r in res])[0])}")
+    print("No winner declared: K = 2 prompts help only when embodiments share a few hardware factors")
+    print("Benchmark success rates 以论文为准; GPU X-VLA run 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+seeds=5 D=6 K=2 sigma=0.1 lam=0.001 als_iters=60 n_test=100 n_new=4
+numbers tuned to adapt to a new embodiment: A_pooled 12, B_hard_id 12, C_soft_prompt 2
+regime arm seen_rmse new_emb_rmse  (mean+-sd over seeds)
+single_embodiment E=1 R=2 demos=24 A_pooled 0.0651+-0.0179 1.0589+-0.3141
+single_embodiment E=1 R=2 demos=24 B_hard_id 0.0651+-0.0179 0.5999+-0.3989
+single_embodiment E=1 R=2 demos=24 C_soft_prompt 0.0643+-0.0180 0.8406+-0.5117
+single_embodiment paired C-B seen_rmse -0.0007+-0.0009: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.0009)
+single_embodiment paired C-B new_emb_rmse 0.2406+-0.2119: clear gap, not a tie
+single_embodiment paired C-A seen_rmse -0.0007+-0.0009: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.0009)
+single_embodiment paired C-A new_emb_rmse -0.2183+-0.4182: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.4182)
+single_embodiment paired B-A seen_rmse 0.0000+-0.0000: tie: identical on every seed
+single_embodiment paired B-A new_emb_rmse -0.4590+-0.3328: clear gap, not a tie
+shared_low_rank E=6 R=2 demos=8 A_pooled 1.2427+-0.1303 0.6318+-0.4109
+shared_low_rank E=6 R=2 demos=8 B_hard_id 0.1812+-0.0351 0.5149+-0.3261
+shared_low_rank E=6 R=2 demos=8 C_soft_prompt 0.0690+-0.0118 0.0721+-0.0327
+shared_low_rank paired C-B seen_rmse -0.1122+-0.0401: clear gap, not a tie
+shared_low_rank paired C-B new_emb_rmse -0.4428+-0.3071: clear gap, not a tie
+shared_low_rank paired C-A seen_rmse -1.1738+-0.1270: clear gap, not a tie
+shared_low_rank paired C-A new_emb_rmse -0.5597+-0.3882: clear gap, not a tie
+shared_low_rank paired B-A seen_rmse -1.0616+-0.1145: clear gap, not a tie
+shared_low_rank paired B-A new_emb_rmse -0.1169+-0.1065: clear gap, not a tie
+unrelated_full_rank E=6 R=6 demos=30 A_pooled 0.8695+-0.0653 1.2747+-0.5434
+unrelated_full_rank E=6 R=6 demos=30 B_hard_id 0.0530+-0.0052 1.2388+-0.4554
+unrelated_full_rank E=6 R=6 demos=30 C_soft_prompt 0.6029+-0.0457 1.4080+-0.5846
+unrelated_full_rank paired C-B seen_rmse 0.5499+-0.0422: clear gap, not a tie
+unrelated_full_rank paired C-B new_emb_rmse 0.1692+-0.1618: small but consistent gap, not a tie
+unrelated_full_rank paired C-A seen_rmse -0.2666+-0.0370: clear gap, not a tie
+unrelated_full_rank paired C-A new_emb_rmse 0.1333+-0.2764: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.2764)
+unrelated_full_rank paired B-A seen_rmse -0.8165+-0.0637: clear gap, not a tie
+unrelated_full_rank paired B-A new_emb_rmse -0.0359+-0.1828: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.1828)
+No winner declared: K = 2 prompts help only when embodiments share a few hardware factors
+Benchmark success rates 以论文为准; GPU X-VLA run 本页未运行
+```
+
+</SimOutput>
+
+### Read the three regimes
+
+- **single_embodiment:** on seen data A and B are a **tie: identical on every seed** (0.0651±0.0179): with one embodiment, the one-hot head is the pooled map. C gives 0.0643±0.0180, and paired C−B −0.0007±0.0009 is a **near-tie / small gap, within seed noise**; the bilinear fit is only regularised differently. On the held-out embodiment nothing has taught the backbone how hardware varies, so **C loses to B**: 0.8406±0.5117 against the fresh head's 0.5999±0.3989 (paired C−B 0.2406±0.2119). That counts as a clear gap because it exceeds 20 % of B's mean, but `|paired mean|` exceeds the sd by only about 0.03 and C is better on one of the five seeds, so it is weakly consistent. A's fine-tuned pooled map is worst at 1.0589±0.3141 (paired B−A −0.4590±0.3328, clear gap): pulling toward another robot's map is a bad prior.
+- **shared_low_rank:** C wins both metrics. Seen: 0.0690±0.0118 against B 0.1812±0.0351 and A 1.2427±0.1303 (paired C−B −0.1122±0.0401, clear gap). New embodiment: 0.0721±0.0327 against B 0.5149±0.3261 and A 0.6318±0.4109 (paired C−B −0.4428±0.3071, clear gap). With 8 demos each separate head must estimate 12 numbers alone, while C shares the backbone and fits 2 per embodiment; pooling with no embodiment input averages incompatible maps. B against A on the new embodiment (paired −0.1169±0.1065) is labelled clear because it exceeds 20 % of B's mean, though `|paired mean|` exceeds the sd by only about 0.01.
+- **unrelated_full_rank:** **C loses.** Seen: 0.6029±0.0457 against B 0.0530±0.0052 (paired C−B 0.5499±0.0422, clear gap): two prompt numbers cannot span six unrelated maps. On the held-out embodiment all three are poor (A 1.2747±0.5434, B 1.2388±0.4554, C 1.4080±0.5846), because 4 demos cannot pin down 12 numbers and the new map lies outside C's span. C−B 0.1692±0.1618 is a **small but consistent gap, not a tie**, only just; C−A 0.1333±0.2764 and B−A −0.0359±0.1828 are **near-ties / small gaps, within seed noise**.
+
+The page **does not declare a universal winner**. Soft prompts pay off when embodiments share a few hardware factors and each has little data, which is the paper's premise. With one embodiment they add nothing on seen data and lose to a fresh head on a new embodiment; when embodiments are unrelated a short prompt is too narrow and separate heads win on seen data. Benchmark numbers stay 以论文为准; GPU X-VLA run: **本页未运行**.
+
+**210-minute work plan:** 40 min read the X-VLA comparison of the four strategies and the two-step adaptation passage; 40 min show why a one-hot prompt equals separate heads in this stand-in; 50 min run the toy and read the three regimes; 50 min change K, the demos per embodiment and `N_NEW` with seeds fixed; 30 min on the exercises below.
+
+### Exercises
+
+1. Show that when the prompt is a one-hot ID with one slot per embodiment, `a = (Σⱼ p_e[j] B_j) x` reduces to a separate linear head per embodiment.
+2. Set `K = 6` with seeds fixed. Before running, predict how C's seen_rmse changes in unrelated_full_rank.
+3. Show from `shared_draws` that the three arms get the same hardware vectors, demos, noise and test inputs for a (regime, seed).
+4. Raise `N_NEW` from 4 to 12. In shared_low_rank, which arm's new_emb_rmse should improve most, and why?
+5. Before any GPU run (本页未运行), write two differences between this toy and X-VLA-0.9B, and explain why the paper's 93 % on LIBERO is not a number this page reproduced.
+
 ## Hardware / compute: not run here
 
 - The **CPU toy** is the required deliverable.
@@ -554,6 +854,7 @@ No winner is declared; UniVLA LIBERO / R2R / real-robot gains 以论文为准; V
 - Toy top4_share=0.8957 on **synthetic** counts; max_weight=7.188. Real OXE cardinality is not in CI.
 - Unified 7D action (xyz + rpy + gripper) is the reading convention; download / train steps are not run here.
 - UniVLA: `univla_latent_action_toy.py` shows over five seeds that task-centric latent actions learned from both arms' unlabelled video plus a 20-label decoder transfer to an arm whose motor map differs, while raw BC from the other arm fails and a latent without the actor split bleeds task-irrelevant motion (**synthetic**; paper numbers 以论文为准, 本页未运行).
+- X-VLA soft prompts: `xvla_soft_prompt_toy.py` shows over five seeds that K = 2 learned prompts on a shared backbone beat separate one-hot heads and a pooled map when embodiments share a few hardware factors and have few demos, near-tie them on seen data with one embodiment but lose to a fresh head on a new one, and lose when embodiments are unrelated (**synthetic**; X-VLA numbers 以论文为准, 本页未运行).
 
 **Common mistakes**
 

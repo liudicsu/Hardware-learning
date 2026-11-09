@@ -1,6 +1,16 @@
 # Month 11 plan: Actuator hardware, tactile contact & cross-embodiment collection
 
-Current / 当前：**M11 3420 min**, Batch-10 PR2. Earlier entries below retain their historical totals.
+Current / 当前：**M11 3630 min**, Batch-12 PR3. Earlier entries below retain their historical totals.
+
+## Batch-12 PR3 / 本月 H6 (+210)
+
+Base `4982bb2` (batch-12 PR2 merged; site **28740**). PR3 on M11 host: **M11 3420→3630 (+210)**; M9 moves in the same PR on its own plan. Site **28740→29160**, still 71 lessons.
+
+- **H6 / cross-embodiment-datasets: 540→750 (+210).** X-VLA (arXiv 2510.10274): per-source learnable soft prompts, soft-prompted Transformer encoders, Phase I pretraining and Phase II prompt warm-up with a frozen backbone. Toy `xvla_soft_prompt_toy.py`: bilinear stand-in `a = (Σ h_e[j] T_j) x`; arms pooled map / one-hot ID as fixed prompt (= separate heads) / K = 2 learned prompts with a shared backbone (ALS); adaptation to a held-out embodiment with 4 demos; common random numbers, 5 seeds. single_embodiment: A = B identical on every seed, C near-tie on seen data, C loses on the new embodiment; shared_low_rank: C wins both metrics; unrelated_full_rank: C loses on seen data (paired C−B 0.5499±0.0422). ≠ OXE-AugE; ≠ UniVLA latent actions. Benchmarks 以论文为准; GPU 本页未运行.
+
+**Allocation / 安排:** 40+40+50+50+30=210 minutes.
+
+**Site accounting / 全站核算:** **29160=28740+420** with M9 +210 on month-9-plan.md; **M11=3630**, **71 lessons**.
 
 ## Batch-10 PR2 / 本月 H6 (+210)
 
