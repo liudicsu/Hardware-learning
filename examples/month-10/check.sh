@@ -26,6 +26,7 @@ check vla_edge_budget_toy.txt "$PY" "$M10/edge-deploy-checklist/vla_edge_budget_
 check extrinsics_chain_toy.txt "$PY" "$M10/multi-view-extrinsics/extrinsics_chain_toy.py"
 check spatialvla_ego3d_grid_toy.txt "$PY" "$M10/multi-view-extrinsics/spatialvla_ego3d_grid_toy.py"
 check intervention_log_toy.txt "$PY" "$M10/intervention-logging/intervention_log_toy.py"
+check map_vla_memory_prompt_toy.txt "$PY" "$M10/intervention-logging/map_vla_memory_prompt_toy.py"
 check rlpd_chain_toy.txt "$PY" "$M10/real-world-rl/rlpd_chain_toy.py"
 check advantage_filter_toy.txt "$PY" "$M10/vla-rl-finetune/advantage_filter_toy.py"
 
@@ -33,6 +34,7 @@ check cal_conrft_offline_toy.txt "$PY" "$M10/vla-rl-finetune/cal_conrft_offline_
 check cal_conrft_offline_tabular.txt "$PY" "$M10/vla-rl-finetune/cal_conrft_offline_toy.py" --tabular
 
 check policy_distill_onestep_toy.txt "$PY" "$M10/flow-matching-policies/policy_distill_onestep_toy.py"
+check diffusion_forcing_token_noise_toy.txt "$PY" "$M10/flow-matching-policies/diffusion_forcing_token_noise_toy.py"
 
 check preference_dpo_lite_toy.txt "$PY" "$M10/real-world-rl/preference_dpo_lite_toy.py"
 

@@ -1,0 +1,45 @@
+Synthetic 2D limit-cycle tokens; shared training sequences / noise / levels and shared evaluation draws; linear stand-in denoiser, not a video model or robot
+seeds=5 train=2000x8 tokens K=10 cosine levels k_small=1 episodes=20 past horizon=128
+A_teacher one-token gain rho(G) per seed: 1.0262 1.0230 1.0216 1.0227 1.0242
+B_dforcing one-token gain rho(G) per seed: 0.9383 0.9520 0.9624 0.9535 0.9392
+C_fullseq one-token gain rho(G) per seed: 0.6755 0.6842 0.6824 0.6889 0.6890
+B_dforcing k_small=0 rho(G) per seed: 1.0246 1.0194 1.0229 1.0306 1.0223 (rho < 1: generated history contracts; rho > 1: it grows)
+regime arm metrics  (mean+-sd over seeds of the per-seed episode means)
+in_horizon A_teacher mse=0.0183+-0.0017 jit=0.0569+-0.0044
+in_horizon B_dforcing mse=0.3560+-0.0450 jit=0.2495+-0.0216
+in_horizon C_fullseq mse=0.8584+-0.0734 jit=0.3912+-0.0086
+in_horizon paired B-A mse: 0.3378+-0.0455: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+in_horizon paired B-A jit: 0.1927+-0.0242: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+in_horizon paired C-B mse: 0.5024+-0.0885: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+in_horizon paired C-B jit: 0.1416+-0.0243: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+past_horizon A_teacher div=1.0000+-0.0000 amp=1.6694+-0.0317
+past_horizon B_dforcing div=0.0000+-0.0000 amp=0.3899+-0.0147
+past_horizon C_fullseq div=0.0000+-0.0000 amp=0.5493+-0.0110
+past_horizon paired B-A div: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+past_horizon paired B-A amp: -1.2794+-0.0317: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+past_horizon paired C-B div: 0.0000+-0.0000: tie: identical on every seed
+past_horizon paired C-B amp: 0.1594+-0.0106: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+guided_s8 A_teacher goal=0.1931+-0.0227 jit=0.0496+-0.0043
+guided_s8 B_dforcing goal=0.2382+-0.0137 jit=0.2124+-0.0132
+guided_s8 C_fullseq goal=0.5348+-0.0498 jit=0.3774+-0.0129
+guided_s8 paired B-A goal: 0.0451+-0.0242: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+guided_s8 paired B-A jit: 0.1628+-0.0165: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+guided_s8 paired C-B goal: 0.2966+-0.0505: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+guided_s8 paired C-B jit: 0.1650+-0.0194: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+guided_s32 A_teacher goal=0.1737+-0.0085 jit=0.0460+-0.0044
+guided_s32 B_dforcing goal=0.1222+-0.0204 jit=0.2109+-0.0063
+guided_s32 C_fullseq goal=0.3470+-0.0329 jit=0.3820+-0.0077
+guided_s32 paired B-A goal: -0.0515+-0.0210: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+guided_s32 paired B-A jit: 0.1649+-0.0095: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+guided_s32 paired C-B goal: 0.2248+-0.0468: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+guided_s32 paired C-B jit: 0.1711+-0.0063: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+B_dforcing k_small=0: in_horizon mse=0.0194+-0.0056 past_horizon div=1.0000+-0.0000
+in_horizon paired B(k_small=0)-A mse: 0.0011+-0.0062: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+B_dforcing k_small=1: in_horizon mse=0.3560+-0.0450 past_horizon div=0.0000+-0.0000
+B_dforcing k_small=2: in_horizon mse=0.9515+-0.0866 past_horizon div=0.0000+-0.0000
+in_horizon: re-noising the history costs B accuracy inside the training length; A uses the clean history
+past_horizon: A feeds its own output back as clean history and its growing linear map diverges
+guided: best-of-S selection rewards diverse samples; the chosen plan's jit shows whether it is dynamically consistent
+k_small=0 turns B's sampler into teacher-forcing-style feedback: in-horizon it is within seed noise of A, past the horizon it diverges like A
+C here is causal and token-by-token; a non-causal full-sequence planner with joint gradient guidance is not modelled
+No winner declared; Diffusion Forcing video / planning / Franka results 以论文为准; GPU training 本页未运行

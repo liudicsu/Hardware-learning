@@ -380,9 +380,452 @@ No diffusion distribution/score/consistency training; GPU and robot: 本页未�
 3. 让欠拟合组也在**同一**演示 / 初值上做 240 更新，才公平比较优化；说明原来不等更新实验为何不能证明收敛效率。
 4. 数实际场函数调用；说明排除评分器查询适合策略 NFE，却不代表实验总成本。指出缺少的反向 KL / score / 一致性组件。
 
+## Diffusion Forcing：每个 token 一个独立噪声级
+
+上面的内容都把动作块当成一个整体一起去噪，每个元素处在同一个噪声级。**Diffusion Forcing** 问的是：如果训练时序列里每个 **token**（一个动作、一个状态、一帧）都有**自己独立的噪声级**，会怎样？这样训练出的因果模型，既能当 next-token 预测器用（过去干净、下一个 token 带噪），也能当整序列扩散用（所有 token 一样噪），或者介于两者之间，而且由采样器挑模式，不必重训。这一节**不是**上面 OneDP 的一致性蒸馏，**不是** WorldVLA 的注意力掩码，也**不是**把流匹配的数学重讲一遍：它讲的是**模型在训练时见过哪些噪声模式**。
+
+<Resource id="dforcing-html" />
+
+<Resource id="dforcing-pdf" />
+
+<Resource id="forge-tree-pdf" />
+
+**实际打开过的来源（读过正文）。** **Diffusion Forcing（arXiv 2407.01392，HTML 与 PDF 经 pdftotext；NeurIPS 2024）。** 第 3.1 节把加噪看成**部分掩码**：teacher forcing 掩掉下一个 token、用干净的过去预测它（沿时间轴掩码），整序列扩散把所有 token 加到同一噪声级（沿噪声轴掩码）。第 3.2 节：每个 token `x_t` 的噪声级 `k_t` **独立**采样（算法 1；附录 B.2：在各噪声级上独立同分布的均匀分布），因果 RNN 维持一个隐状态 `z_t`，损失就是对各 token 求和的普通噪声预测损失（式 3.1）；定理 3.1 说明它优化的是一个重加权的 ELBO，在一定条件下同时是所有噪声级序列的下界。采样沿一个调度矩阵 `K` 往下走（行 = 去噪步，列 = token）。第 3.3 节与附录 B.4：长 rollout 靠在小噪声级 `0 < k_small ≪ K` 下以前一个 token 为条件来**稳定**；zig-zag 调度让远期比近期更噪；未来 token 的引导梯度可以影响过去的 token（第 3.3 节，第 3.4 节的 Monte Carlo Guidance）。第 4.1 节：在 DMLab 和 Minecraft 视频上，用同一个 RNN 的 teacher forcing 和因果整序列基线在超出训练长度后**发散**，Diffusion Forcing 却能稳定 rollout（例如 1000 帧）。第 4.2 节：在 Maze2D 规划上它胜过 Diffuser，后者要靠手写 PD 控制器才能执行自己的计划。第 4.4 节：在一个需要记住初始摆放的真实 Franka 换水果任务上，它报告 80 % 成功，而无记忆的 diffusion policy 失败；有遮挡和干扰时 76 % 对 next-frame 扩散基线的 48 %。所有数字以论文为准；视频模型、Franka 和 GPU 训练：本页未运行。**FORGE-Tree（arXiv 2510.21744，经 pdftotext 读摘要与引言）**：后续工作，在冻结的 VLA 编码器上接一个按阶段对齐的 Diffusion Forcing 头，再配 Monte Carlo Tree Diffusion，每次只部分去噪一个目标片段；报告在 LIBERO 上高 13.4 到 17.2 个百分点（以论文为准）。**只作阅读**，这里没有 toy。
+
+### 三种噪声模式，同一个模型类
+
+把带噪 token 写成 `x̃ = √ᾱ_k · x + √(1 − ᾱ_k) · ε`，`ᾱ_0 = 1`（干净），`ᾱ_K = 0`（纯噪声）。因果去噪器看到带噪的前一个 token 和带噪的当前 token，预测干净的当前 token。三组用**同一个模型类**、在**同一份数据与噪声**上训练，唯一的区别是它们见过哪些噪声级对 `(k_prev, k_cur)`：
+
+| 组 | 训练模式 | 采样器能做什么 |
+|---|---|---|
+| teacher forcing | `k_prev = 0`，`k_cur` 随机 | 把自己的输出当成干净的再喂回去 |
+| Diffusion Forcing | `k_prev`、`k_cur` 独立 | 把自己的输出重新加噪到 `k_small`，少信它一点 |
+| 整序列（因果） | `k_prev = k_cur` | 每一步都必须把上下文加噪到当前噪声级 |
+
+<Formula label="反馈稳定性（生成一个 token）">x_new = G·x_prev +（新噪声项）；ρ(G) &lt; 1 ⇒ 喂回的历史收缩，ρ(G) &gt; 1 ⇒ 每步都在放大</Formula>
+
+**算例**。若模型的单 token 增益 `ρ(G) = 1.023`，一个当作干净历史喂回去的误差，在 8 个 token 的训练窗口之后再走 120 个 token，会放大 `1.023^120 ≈ 15` 倍；`ρ(G) = 0.95` 时同一个误差缩到 `0.95^120 ≈ 0.002`。把上下文重新加噪到 `ᾱ = 0.976`（toy 的 `k_small = 1`），等于告诉模型「这个 token 有点不确定」，最小二乘拟合就会减小它对这个 token 的权重。代价是每个采样出的 token 都继承了这份不确定，样本会更飘。
+
+### 公平设定
+
+`diffusion_forcing_token_noise_toy.py` 是**合成**的，只用标准库。**模型假设**：token 是二维点，来自带噪的极限环映射 `x′ = R(0.3) · x · (1 + 0.15 (1 − |x|²)) + N(0, 0.02² I)`，真实轨道是单位圆；训练序列长 **8 个 token**，起始半径 `U(0.2, 1.2)`，所以里面有向外和向内的螺线。去噪器是论文 RNN 的**线性替身**：每对噪声级一个最小二乘映射 `x̂₀ = P x̃_prev + Q x̃_cur + b`，`K = 10` 个噪声级，余弦调度 `ᾱ_k = cos²(πk/20)`；每个 token 用确定性 DDIM 从第 10 级走到第 0 级。线性映射表示不了极限环，所以每组都以同样的方式模型失配。**稳定性判据**是从前一个 token 到新 token 的单 token 映射的 `ρ(G)`；采样器对前一个 token 是仿射的，所以 toy 用两个单位差分就能精确算出 `G`。
+
+**共同随机数**（common random numbers）：每个种子里，三组在同样的 2000 条序列上训练，用同样的噪声向量和同样决定噪声级的均匀随机数；每个评估回合共享圆上的起点、真实续写、每个 token 的初始噪声和每个上下文噪声。5 个种子 × 20 个回合。**情形**：`in_horizon`（8 个 token：`mse` 是到共享真实续写的误差，`jit` = 平均 `|x_{t+1} − f(x_t)|`，即动力学残差）；`past_horizon`（128 个 token：`div` = 半径曾超过 3 的回合比例，`amp` = 第 9–128 个 token 上平均 `|r − 1|`，`r` 截到 3）；`guided_s8` / `guided_s32`（8 个 token 的计划应停在真实第 8 个 token 附近：**引导替身**是在 S 个采样计划里按终点距离留最好的一个——**不是**论文的梯度引导或 Monte Carlo Guidance；`goal` = 这个距离，`jit` = 选中计划的动力学残差）。C 组是**因果**、逐 token 的，和论文里的因果整序列基线一样；带联合梯度引导的非因果整序列规划器（Diffuser）**没有**建模。toy 还对 B 扫了一遍 `k_small`。
+
+### 运行标准库 toy
+
+```bash
+cd ~/Hardware-learning/examples/month-10/flow-matching-policies
+python3 diffusion_forcing_token_noise_toy.py
+```
+
+<CodeSource path="examples/month-10/flow-matching-policies/diffusion_forcing_token_noise_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Diffusion Forcing stand-in: what the training noise pattern does to a causal token model. Stdlib only.
+
+Model assumptions (also stated in the lesson prose):
+  tokens are 2D points from a noisy limit-cycle map x' = R(0.3) x (1 + 0.15 (1 - |x|^2)) + N(0, 0.02^2 I);
+  the true orbit is the unit circle. Training sequences are 8 tokens long and start at radius
+  U(0.2, 1.2), so they contain growing and shrinking spirals. The causal denoiser is the SAME
+  model class for every arm: for each pair of noise levels (k_prev, k_cur) one linear map
+  x0_hat(cur) = P x~prev + Q x~cur + b, fit by least squares (tiny ridge), where x~ = sqrt(abar_k) x
+  + sqrt(1 - abar_k) eps. K = 10 levels, cosine schedule abar_k = cos^2(pi k / 20), abar_10 = 0.
+  Sampling one token runs deterministic DDIM from level 10 to 0 with the previous token as context.
+  This is a linear stand-in for the paper's RNN; it is not a video model and not a robot policy.
+
+Arms (Common random numbers: per seed the same training sequences, the same per-token noise
+vectors and the same uniform draws that set noise levels; per evaluation episode the same start,
+true continuation, initial token noise and context noise):
+  A_teacher   teacher forcing: history always clean (k_prev = 0), current token at a random level;
+              at sampling time the model's own previous output is fed back as if clean
+  B_dforcing  Diffusion Forcing: k_prev and k_cur drawn independently per token; at sampling time
+              the previous output is re-noised to k_small = 1 before it is used (the paper's
+              stabilisation, App. B.4), which the model has been trained to discount
+  C_fullseq   causal full-sequence diffusion: one shared level for every token (k_prev = k_cur);
+              at sampling time the context is re-noised to the current token's level at every step
+              (the only pattern it has seen), a stand-in for conditioning without reconstruction guidance
+
+Stability criterion: sampling one token is affine in the previous token for fixed noise, so its
+Jacobian G is exact; rho(G) < 1 means fed-back history contracts, rho(G) > 1 means it grows every step.
+
+Regimes: in_horizon (8 tokens, mse to the shared true continuation, jit = mean |x_{t+1} - f(x_t)|),
+past_horizon (128 tokens: div = share of episodes whose radius ever exceeds 3, amp = mean |r - 1|
+over tokens 9..128 with r capped at 3), guided_s8 / guided_s32 (an 8-token plan must end near a goal;
+guidance stand-in = best of S sampled plans by final distance, not the paper's gradient / Monte
+Carlo guidance; goal = final distance of the chosen plan, jit = its dynamics residual).
+
+Labels: tie = identical on every seed; |m| < 1e-9 and sd < 1e-9 = numerically zero
+(floating-point residue), effectively a tie, no sign count; |paired mean| <= sd = near-tie / small
+gap within seed noise; |m| > sd = consistent gap (small if |m| < 20 % of the smaller arm mean, else
+clear), always with a sign count.
+Video / robot results and GPU training: 本页未运行. Paper numbers: 以论文为准.
+"""
+from __future__ import annotations
+
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+K = 10
+ABAR = tuple(0.0 if k == K else math.cos(math.pi * k / (2 * K)) ** 2 for k in range(K + 1))
+THETA, GAMMA, SIG_W = 0.3, 0.15, 0.02
+N_TRAIN, T_TRAIN = 2000, 8
+EPISODES = 20
+T_PAST = 128
+K_SMALL = 1
+ARMS = ("A_teacher", "B_dforcing", "C_fullseq")
+REGIMES = (
+    ("in_horizon", ("mse", "jit")),
+    ("past_horizon", ("div", "amp")),
+    ("guided_s8", ("goal", "jit")),
+    ("guided_s32", ("goal", "jit")),
+)
+
+
+def f(x):
+    """True limit-cycle map (deterministic part)."""
+    g = 1.0 + GAMMA * (1.0 - (x[0] ** 2 + x[1] ** 2))
+    c, s = math.cos(THETA), math.sin(THETA)
+    return (g * (c * x[0] - s * x[1]), g * (s * x[0] + c * x[1]))
+
+
+def noisy(x, k, e):
+    a = ABAR[k]
+    return (math.sqrt(a) * x[0] + math.sqrt(1 - a) * e[0], math.sqrt(a) * x[1] + math.sqrt(1 - a) * e[1])
+
+
+def solve(a, b):
+    n = len(a)
+    m = [row[:] + [b[i]] for i, row in enumerate(a)]
+    for i in range(n):
+        p = max(range(i, n), key=lambda r: abs(m[r][i]))
+        m[i], m[p] = m[p], m[i]
+        for r in range(n):
+            if r != i:
+                q = m[r][i] / m[i][i]
+                for c in range(i, n + 1):
+                    m[r][c] -= q * m[i][c]
+    return [m[i][n] / m[i][i] for i in range(n)]
+
+
+def fit(rows):
+    """Least squares (ridge 1e-6) for x0_hat = W [x~prev, x~cur, 1]."""
+    d = 5
+    a = [[1e-6 if i == j else 0.0 for j in range(d)] for i in range(d)]
+    b = [[0.0] * d for _ in range(2)]
+    for ft, y in rows:
+        for i in range(d):
+            for j in range(d):
+                a[i][j] += ft[i] * ft[j]
+            for o in range(2):
+                b[o][i] += ft[i] * y[o]
+    return [solve(a, b[o]) for o in range(2)]
+
+
+def training_draws(seed):
+    """Common random numbers for training: sequences, noise vectors, level draws."""
+    rng = random.Random(7000 + seed)
+    data, draws = [], []
+    for _ in range(N_TRAIN):
+        r, ph = rng.uniform(0.2, 1.2), rng.uniform(0, 2 * math.pi)
+        x = (r * math.cos(ph), r * math.sin(ph))
+        seq = [x]
+        for _ in range(T_TRAIN - 1):
+            y = f(x)
+            x = (y[0] + rng.gauss(0, SIG_W), y[1] + rng.gauss(0, SIG_W))
+            seq.append(x)
+        data.append(seq)
+        u_seq = rng.random()
+        draws.append([(rng.random(), rng.random(), u_seq, (rng.gauss(0, 1), rng.gauss(0, 1)),
+                       (rng.gauss(0, 1), rng.gauss(0, 1))) for _ in range(T_TRAIN)])
+    return data, draws
+
+
+def level(u):
+    return min(K, int(u * (K + 1)))
+
+
+def train(arm, data, draws):
+    rows = {}
+    for seq, dr in zip(data, draws):
+        for t in range(1, T_TRAIN):
+            u_prev, u_cur, u_seq, e_prev, e_cur = dr[t]
+            if arm == "A_teacher":
+                kp, kc = 0, level(u_cur)
+            elif arm == "B_dforcing":
+                kp, kc = level(u_prev), level(u_cur)
+            else:
+                kp = kc = level(u_seq)
+            xp, xc = noisy(seq[t - 1], kp, e_prev), noisy(seq[t], kc, e_cur)
+            rows.setdefault((kp, kc), []).append(((xp[0], xp[1], xc[0], xc[1], 1.0), seq[t]))
+    return {key: fit(v) for key, v in rows.items()}
+
+
+def predict(w, xp, xc):
+    ft = (xp[0], xp[1], xc[0], xc[1], 1.0)
+    return (sum(a * b for a, b in zip(w[0], ft)), sum(a * b for a, b in zip(w[1], ft)))
+
+
+def sample_token(models, arm, prev, init, ctx_noise, k_small=K_SMALL):
+    """Deterministic DDIM from level K to 0 for one token, given the previous (generated) token."""
+    x = init
+    for k in range(K, 0, -1):
+        kp = 0 if arm == "A_teacher" else (k_small if arm == "B_dforcing" else k)
+        x0 = predict(models[(kp, k)], noisy(prev, kp, ctx_noise), x)
+        a, an = ABAR[k], ABAR[k - 1]
+        eh = ((x[0] - math.sqrt(a) * x0[0]) / math.sqrt(1 - a), (x[1] - math.sqrt(a) * x0[1]) / math.sqrt(1 - a))
+        x = (math.sqrt(an) * x0[0] + math.sqrt(1 - an) * eh[0], math.sqrt(an) * x0[1] + math.sqrt(1 - an) * eh[1])
+    return x
+
+
+def token_gain(models, arm, k_small=K_SMALL):
+    """Spectral radius of G = d(new token)/d(previous token). sample_token is affine in the previous
+    token for fixed noise, so two unit differences give G exactly (up to round-off). rho(G) < 1 is
+    the stability criterion for feeding generated tokens back: the deterministic part contracts."""
+    z = ((0.0, 0.0), (0.0, 0.0))
+    o = sample_token(models, arm, (0.0, 0.0), *z, k_small)
+    c1 = sample_token(models, arm, (1.0, 0.0), *z, k_small)
+    c2 = sample_token(models, arm, (0.0, 1.0), *z, k_small)
+    a, b, c, d = c1[0] - o[0], c2[0] - o[0], c1[1] - o[1], c2[1] - o[1]
+    tr, det = a + d, a * d - b * c
+    disc = tr * tr / 4 - det
+    if disc >= 0:
+        return max(abs(tr / 2 + math.sqrt(disc)), abs(tr / 2 - math.sqrt(disc)))
+    return math.sqrt(det)
+
+
+def episode_draws(regime, seed, ep):
+    """Common random numbers for one evaluation episode, shared by all arms."""
+    rng = random.Random(100000 * [r[0] for r in REGIMES].index(regime) + 1000 * seed + ep)
+    ph = rng.uniform(0, 2 * math.pi)
+    x0 = (math.cos(ph), math.sin(ph))
+    truth = [x0]
+    for _ in range(T_TRAIN):
+        y = f(truth[-1])
+        truth.append((y[0] + rng.gauss(0, SIG_W), y[1] + rng.gauss(0, SIG_W)))
+    n_plans = {"guided_s8": 8, "guided_s32": 32}.get(regime, 1)
+    length = T_PAST if regime == "past_horizon" else T_TRAIN
+    noise = [[((rng.gauss(0, 1), rng.gauss(0, 1)), (rng.gauss(0, 1), rng.gauss(0, 1))) for _ in range(length)]
+             for _ in range(n_plans)]
+    return x0, truth, noise
+
+
+def rollout(models, arm, x0, noise_row, k_small=K_SMALL):
+    xs, x = [x0], x0
+    for init, ctx in noise_row:
+        x = sample_token(models, arm, x, init, ctx, k_small)
+        xs.append(x)
+        if math.hypot(*x) > 1e6:
+            break
+    return xs
+
+
+def jitter(xs):
+    return sum(math.dist(xs[t + 1], f(xs[t])) for t in range(len(xs) - 1)) / (len(xs) - 1)
+
+
+def run_episode(regime, models, arm, x0, truth, noise, k_small=K_SMALL):
+    if regime == "in_horizon":
+        xs = rollout(models, arm, x0, noise[0], k_small)
+        mse = sum((xs[t][0] - truth[t][0]) ** 2 + (xs[t][1] - truth[t][1]) ** 2 for t in range(1, T_TRAIN + 1)) / T_TRAIN
+        return {"mse": mse, "jit": jitter(xs)}
+    if regime == "past_horizon":
+        xs = rollout(models, arm, x0, noise[0], k_small)
+        rs = [min(math.hypot(*x), 3.0) for x in xs[1:]] + [3.0] * (T_PAST + 1 - len(xs))
+        return {"div": 1.0 if max(rs) >= 3.0 else 0.0, "amp": sum(abs(r - 1.0) for r in rs[T_TRAIN:]) / (T_PAST - T_TRAIN)}
+    goal = truth[T_TRAIN]
+    best = min((rollout(models, arm, x0, row) for row in noise), key=lambda xs: math.dist(xs[-1], goal))
+    return {"goal": math.dist(best[-1], goal), "jit": jitter(best)}
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x: float) -> str:
+    if x != 0.0 and abs(x) < 5e-4:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+NUM_ZERO = 1e-9  # |m| and sd both below this: floating-point residue, not a gap
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(mean_sd(xa)[0], mean_sd(xb)[0]):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def main() -> None:
+    print("Synthetic 2D limit-cycle tokens; shared training sequences / noise / levels and shared evaluation draws; "
+          "linear stand-in denoiser, not a video model or robot")
+    print(f"seeds={len(SEEDS)} train={N_TRAIN}x{T_TRAIN} tokens K={K} cosine levels k_small={K_SMALL} "
+          f"episodes={EPISODES} past horizon={T_PAST}")
+    models = {seed: None for seed in SEEDS}
+    for seed in SEEDS:
+        data, draws = training_draws(seed)
+        models[seed] = {arm: train(arm, data, draws) for arm in ARMS}
+    for arm in ARMS:
+        print(f"{arm} one-token gain rho(G) per seed: " + " ".join(f"{token_gain(models[s][arm], arm):.4f}" for s in SEEDS))
+    print("B_dforcing k_small=0 rho(G) per seed: " + " ".join(f"{token_gain(models[s]['B_dforcing'], 'B_dforcing', 0):.4f}" for s in SEEDS)
+          + " (rho < 1: generated history contracts; rho > 1: it grows)")
+    print("regime arm metrics  (mean+-sd over seeds of the per-seed episode means)")
+    kept = {}
+    for regime, metrics in REGIMES:
+        per = {arm: {m: [] for m in metrics} for arm in ARMS}
+        for seed in SEEDS:
+            acc = {arm: {m: 0.0 for m in metrics} for arm in ARMS}
+            for ep in range(EPISODES):
+                x0, truth, noise = episode_draws(regime, seed, ep)
+                for arm in ARMS:
+                    out = run_episode(regime, models[seed][arm], arm, x0, truth, noise)
+                    for m in metrics:
+                        acc[arm][m] += out[m] / EPISODES
+            for arm in ARMS:
+                for m in metrics:
+                    per[arm][m].append(acc[arm][m])
+        kept[regime] = per
+        for arm in ARMS:
+            print(f"{regime} {arm} " + " ".join("{}={}+-{}".format(m, *map(num, mean_sd(per[arm][m]))) for m in metrics))
+        for a, b in (("B_dforcing", "A_teacher"), ("C_fullseq", "B_dforcing")):
+            for m in metrics:
+                print(f"{regime} paired {a[0]}-{b[0]} {m}: {verdict(per[a][m], per[b][m])}")
+    for ks in (0, 1, 2):
+        mse, div = [], []
+        for seed in SEEDS:
+            a = b = 0.0
+            for ep in range(EPISODES):
+                x0, truth, noise = episode_draws("in_horizon", seed, ep)
+                a += run_episode("in_horizon", models[seed]["B_dforcing"], "B_dforcing", x0, truth, noise, ks)["mse"] / EPISODES
+                x0, truth, noise = episode_draws("past_horizon", seed, ep)
+                b += run_episode("past_horizon", models[seed]["B_dforcing"], "B_dforcing", x0, truth, noise, ks)["div"] / EPISODES
+            mse.append(a)
+            div.append(b)
+        print(f"B_dforcing k_small={ks}: in_horizon mse={'{}+-{}'.format(*map(num, mean_sd(mse)))} "
+              f"past_horizon div={'{}+-{}'.format(*map(num, mean_sd(div)))}")
+        if ks == 0:
+            print(f"in_horizon paired B(k_small=0)-A mse: {verdict(mse, kept['in_horizon']['A_teacher']['mse'])}")
+    print("in_horizon: re-noising the history costs B accuracy inside the training length; A uses the clean history")
+    print("past_horizon: A feeds its own output back as clean history and its growing linear map diverges")
+    print("guided: best-of-S selection rewards diverse samples; the chosen plan's jit shows whether it is dynamically consistent")
+    print("k_small=0 turns B's sampler into teacher-forcing-style feedback: in-horizon it is within seed noise of A, past the horizon it diverges like A")
+    print("C here is causal and token-by-token; a non-causal full-sequence planner with joint gradient guidance is not modelled")
+    print("No winner declared; Diffusion Forcing video / planning / Franka results 以论文为准; GPU training 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic 2D limit-cycle tokens; shared training sequences / noise / levels and shared evaluation draws; linear stand-in denoiser, not a video model or robot
+seeds=5 train=2000x8 tokens K=10 cosine levels k_small=1 episodes=20 past horizon=128
+A_teacher one-token gain rho(G) per seed: 1.0262 1.0230 1.0216 1.0227 1.0242
+B_dforcing one-token gain rho(G) per seed: 0.9383 0.9520 0.9624 0.9535 0.9392
+C_fullseq one-token gain rho(G) per seed: 0.6755 0.6842 0.6824 0.6889 0.6890
+B_dforcing k_small=0 rho(G) per seed: 1.0246 1.0194 1.0229 1.0306 1.0223 (rho < 1: generated history contracts; rho > 1: it grows)
+regime arm metrics  (mean+-sd over seeds of the per-seed episode means)
+in_horizon A_teacher mse=0.0183+-0.0017 jit=0.0569+-0.0044
+in_horizon B_dforcing mse=0.3560+-0.0450 jit=0.2495+-0.0216
+in_horizon C_fullseq mse=0.8584+-0.0734 jit=0.3912+-0.0086
+in_horizon paired B-A mse: 0.3378+-0.0455: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+in_horizon paired B-A jit: 0.1927+-0.0242: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+in_horizon paired C-B mse: 0.5024+-0.0885: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+in_horizon paired C-B jit: 0.1416+-0.0243: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+past_horizon A_teacher div=1.0000+-0.0000 amp=1.6694+-0.0317
+past_horizon B_dforcing div=0.0000+-0.0000 amp=0.3899+-0.0147
+past_horizon C_fullseq div=0.0000+-0.0000 amp=0.5493+-0.0110
+past_horizon paired B-A div: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+past_horizon paired B-A amp: -1.2794+-0.0317: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+past_horizon paired C-B div: 0.0000+-0.0000: tie: identical on every seed
+past_horizon paired C-B amp: 0.1594+-0.0106: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+guided_s8 A_teacher goal=0.1931+-0.0227 jit=0.0496+-0.0043
+guided_s8 B_dforcing goal=0.2382+-0.0137 jit=0.2124+-0.0132
+guided_s8 C_fullseq goal=0.5348+-0.0498 jit=0.3774+-0.0129
+guided_s8 paired B-A goal: 0.0451+-0.0242: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+guided_s8 paired B-A jit: 0.1628+-0.0165: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+guided_s8 paired C-B goal: 0.2966+-0.0505: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+guided_s8 paired C-B jit: 0.1650+-0.0194: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+guided_s32 A_teacher goal=0.1737+-0.0085 jit=0.0460+-0.0044
+guided_s32 B_dforcing goal=0.1222+-0.0204 jit=0.2109+-0.0063
+guided_s32 C_fullseq goal=0.3470+-0.0329 jit=0.3820+-0.0077
+guided_s32 paired B-A goal: -0.0515+-0.0210: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+guided_s32 paired B-A jit: 0.1649+-0.0095: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+guided_s32 paired C-B goal: 0.2248+-0.0468: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+guided_s32 paired C-B jit: 0.1711+-0.0063: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+B_dforcing k_small=0: in_horizon mse=0.0194+-0.0056 past_horizon div=1.0000+-0.0000
+in_horizon paired B(k_small=0)-A mse: 0.0011+-0.0062: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+B_dforcing k_small=1: in_horizon mse=0.3560+-0.0450 past_horizon div=0.0000+-0.0000
+B_dforcing k_small=2: in_horizon mse=0.9515+-0.0866 past_horizon div=0.0000+-0.0000
+in_horizon: re-noising the history costs B accuracy inside the training length; A uses the clean history
+past_horizon: A feeds its own output back as clean history and its growing linear map diverges
+guided: best-of-S selection rewards diverse samples; the chosen plan's jit shows whether it is dynamically consistent
+k_small=0 turns B's sampler into teacher-forcing-style feedback: in-horizon it is within seed noise of A, past the horizon it diverges like A
+C here is causal and token-by-token; a non-causal full-sequence planner with joint gradient guidance is not modelled
+No winner declared; Diffusion Forcing video / planning / Franka results 以论文为准; GPU training 本页未运行
+```
+
+</SimOutput>
+
+### 读各个情形
+
+本页标签的用法：只有配对的逐种子差在每个种子上都恰好为零，才叫**打平：每个种子都完全相同**；`|配对均值|` 和 sd 都小于 `10⁻⁹` 时，叫**数值上为零（浮点残差），等同打平**（在 sd 检验之前判断；这种行不带同号计数，也绝不叫稳定或明显）；`|配对均值| ≤ sd` 时叫**接近打平、差距很小，在种子噪声之内**；`|配对均值| > sd` 时叫**稳定**的差距，`|m|` 小于两组中较小均值的 20 % 时叫**小而稳定的差距**，否则叫**明显差距**（20 % 规则只在这两个说法之间选）。每条稳定或明显的行都带 5 个种子上的同号计数，符号相反（或恰好相等）的种子都会报出来；只靠同号计数，永远不能把差距叫成稳定。配对差为 B−A 和 C−B，写成种子间的均值 ± sd；这里每个指标都是越小越好。
+
+- **先看稳定性判据**：teacher forcing 学到的干净历史映射在每个种子上 `ρ(G)` 为 1.0216–1.0262（大于 1）；`k_small = 1` 的 Diffusion Forcing 为 0.9383–0.9624，因果整序列组为 0.6755–0.6890（小于 1）。同一个 B 模型在 `k_small = 0` 时回到 1.0194–1.0306。
+- **in_horizon——在训练长度之内，Diffusion Forcing 输**：B 的 `mse` 为 0.3560±0.0450，A 为 0.0183±0.0017（**明显差距**，配对 0.3378±0.0455，5 个种子全部同号）；`jit` 0.2495 对 0.0569（明显，0.1927±0.0242，5/5）：干净历史本来就够用时，把历史重新加噪只会损失精度。用 `k_small = 0` 采样时，**同一个** B 模型与 A **接近打平**（配对 0.0011±0.0062，5 个种子中 3 个符号相反）。C 更差（C−B 的 `mse` 0.5024±0.0885，明显，5/5）。
+- **past_horizon——teacher forcing 发散的地方，Diffusion Forcing 赢**：A 每个回合都发散（`div` 1.0000），B 和 C 一个也没有：B−A 的 `div` −1.0000±0.0000，`amp` −1.2794±0.0317（明显，5/5）。C−B 的 `div` 是**打平：每个种子都完全相同**（都是 0），但 C 的幅值误差更大（0.5493 对 0.3899；配对 0.1594±0.0106，明显，5/5）。B **并没有**跟住真实的圆：`amp` 0.3899 表示它的半径平均偏了约 0.39。有界不等于准确。
+- **guided_s8——在引导得分上 teacher forcing 胜过 Diffusion Forcing**：8 个候选计划时，A 最好的终点距离是 0.1931，B 是 0.2382（B−A 0.0451±0.0242，明显，5/5），而且 A 的计划平滑得多（`jit` 0.0496 对 0.2124）。
+- **guided_s32——候选多了，结论反过来**：32 个计划时，B 更多样的样本离目标更近，0.1222 对 0.1737（B−A −0.0515±0.0210，明显，5/5），但选中计划的动力学一致性仍差约 4.6 倍（`jit` 0.2109 对 0.0460）。best-of-S 选择奖励的是多样性，不等于模型更好。
+- **这里整序列组在引导得分上从未与 B 打平或胜过 B**：C−B 的 `goal` 在 S = 8 时为 0.2966±0.0505，S = 32 时为 0.2248±0.0468（C 明显输，5/5）。在这个因果、逐 token 的替身里，整序列引导占优的情形没有出现；那需要带联合引导的非因果规划器，toy 没有建模。
+
+本页**不宣布普遍赢家**：逐 token 的独立噪声换来了超出训练长度的稳定 rollout，代价是训练长度之内的精度和平滑度；稳定性来自采样时的重新加噪这一步（`k_small = 0` 会像 teacher forcing 一样发散）。论文结果以论文为准；视频、规划和 Franka：本页未运行。
+
+**210 分钟安排**：45 分钟读 Diffusion Forcing 第 3.1–3.4 节及附录 B.2 / B.4；30 分钟手算 `ρ(G)` 算例，并核对 `token_gain`；45 分钟运行 toy、读四个情形；50 分钟固定种子，改 `K_SMALL`、训练长度和起始半径范围；40 分钟读 FORGE-Tree 的摘要和引言，写下按阶段对齐的调度会给动作块策略带来什么变化。
+
+### 练习
+
+1. 证明在 toy 的调度下 `noisy(x, 0, e) = x`、`noisy(x, K, e) = e`，并算出 `ᾱ_1` 和 `ᾱ_2`。
+2. 从 `training_draws` 和 `train` 说明三组看到的是同一批序列和同一份噪声向量，并列出每组拟合了哪些 `(k_prev, k_cur)` 对。
+3. 用 `token_gain` 解释：为什么 A 的 `ρ(G) > 1` 预示超出训练长度后 `div = 1.0000`，而单凭 `ρ(G) < 1` 并不能让 B 的 `amp` 变小。
+4. 固定种子，设 `K_SMALL = 2`。运行之前先预测 B 的 `in_horizon` `mse` 和 `past_horizon` `div` 会怎样变，再对照扫参那几行。
+5. 在机器人上信任一个 Diffusion Forcing 策略之前（本页未运行），解释为什么 guided_s32 的胜出并不说明 B 是更好的规划器，并说出一项能把「到达目标」和「可执行」区分开的测量。
+
 <Summary>
 
 流匹配学一个速度场，把噪声积分成动作块。π0 用 `A^τ = τA + (1−τ)ε`、`u = A − ε`、H=50 和 10 个欧拉步（δ=0.1）；在 RTX 4090 上 10 步占板上 73 ms 中的 27 ms。`flow_match_toy.py` 里 1 步 near_mean 为 1.000，10 步 near_mode 为 0.987。因为步数占延迟，才有 rectified flow、一致性等少步方法。absolute、relative、delta 动作要有意识地选。
 
 OneDP 风格回归替身在共享演示及不交的留出起始上比较八次调用教师与单次调用完整 / 欠拟合学生，报告动作 MSE 和独立对象成功率，不实现 KL-along-chain 或 GPU 训练。
+
+Diffusion Forcing：用逐 token 独立的噪声级训练一个因果去噪器，并把它自己的历史重新加噪到 `k_small`，在超出训练长度后 rollout 保持有界，而 teacher forcing 每个回合都发散（`div` 配对 −1.0000±0.0000，5 个种子全部同号）；但在训练长度之内它**输给** teacher forcing（`mse` 0.3560 对 0.0183，明显差距），8 个候选的引导得分也输；这里因果整序列组从未与它打平或胜过它——这是线性替身，视频、规划与机器人结果以论文为准，本页未运行。
+
 </Summary>

@@ -5235,6 +5235,106 @@ export const resources: Record<string, Resource> = {
     },
     extra: true,
   },
+  "mapvla-html": {
+    id: "mapvla-html",
+    url: "https://arxiv.org/html/2511.09516",
+    title: {
+      zh: "MAP-VLA：面向机器人操作的记忆增强 VLA prompt（HTML）",
+      en: "MAP-VLA: Memory-Augmented Prompting for Vision-Language-Action Model in Robotic Manipulation (HTML)",
+    },
+    author: "Runhao Li, Wenkai Guo, Zhenyu Wu, Changyuan Wang, Haoyuan Deng, Zhenyu Weng, Yap-Peng Tan, Ziwei Wang",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已读 LaTeXML HTML 正文：用 RDP 关键位姿和 DTW 把演示切成对齐的阶段，在冻结的 π0 上用流匹配损失为每个阶段学 P_k = P_base + V_k；推理时在 |k − k_cur| ≤ 1 的阶段里做滑窗 L2 检索，再用 α 软集成与基础动作合并。LIBERO-Long 83.4 对 76.4、真机 48.3 对 23.3 等数字以论文为准；π0 与 GPU 本页未运行。",
+      en: "LaTeXML HTML body read: RDP key poses and DTW split demos into aligned stages; on a frozen π0 each stage learns P_k = P_base + V_k with the flow-matching loss; at inference a sliding-window L2 retrieval over stages with |k − k_cur| ≤ 1 picks the prompt and an α soft ensemble merges it with the base action. Numbers such as LIBERO-Long 83.4 vs 76.4 and real robot 48.3 vs 23.3 以论文为准; π0 and GPU 本页未运行.",
+    },
+    license: {
+      zh: "以原文为准",
+      en: "See original terms",
+    },
+    extra: true,
+  },
+  "mapvla-pdf": {
+    id: "mapvla-pdf",
+    url: "https://arxiv.org/pdf/2511.09516",
+    title: {
+      zh: "MAP-VLA：面向机器人操作的记忆增强 VLA prompt（PDF）",
+      en: "MAP-VLA: Memory-Augmented Prompting for Vision-Language-Action Model in Robotic Manipulation (PDF)",
+    },
+    author: "Runhao Li, Wenkai Guo, Zhenyu Wu, Changyuan Wang, Haoyuan Deng, Zhenyu Weng, Yap-Peng Tan, Ziwei Wang",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已用 pdftotext 读正文（与 HTML 同一版本）：阶段切分（RDP + DTW）、式 2–7 的 prompt 构造、检索与集成，消融中仅阶段 prompt 81.4，检索每步 21.6 ms（每任务 37.8 条演示），Galaxea A1 与 RTX 4090。数字以论文为准；本页未运行。",
+      en: "Body read via pdftotext (same version as the HTML): stage segmentation (RDP + DTW), prompt construction, retrieval and ensembling in Eq. 2–7; the stage-prompt-only ablation at 81.4, retrieval at 21.6 ms per step with 37.8 demos per task, Galaxea A1 and an RTX 4090. Numbers 以论文为准; 本页未运行.",
+    },
+    license: {
+      zh: "以原文为准",
+      en: "See original terms",
+    },
+    extra: true,
+  },
+  "dforcing-html": {
+    id: "dforcing-html",
+    url: "https://arxiv.org/html/2407.01392",
+    title: {
+      zh: "Diffusion Forcing：next-token 预测遇上整序列扩散（HTML）",
+      en: "Diffusion Forcing: Next-token Prediction Meets Full-Sequence Diffusion (HTML)",
+    },
+    author: "Boyuan Chen, Diego Marti Monso, Yilun Du, Max Simchowitz, Russ Tedrake, Vincent Sitzmann",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已读 LaTeXML HTML 正文：把加噪看成部分掩码，每个 token 独立采样噪声级（算法 1），因果 RNN 去噪，损失为对各 token 求和的噪声预测（定理 3.1：重加权 ELBO）；采样沿调度矩阵 K，用 k_small 稳定长 rollout，zig-zag 调度与 Monte Carlo Guidance。视频超出训练长度不发散、Maze2D 胜过 Diffuser 等结果以论文为准；本页未运行。",
+      en: "LaTeXML HTML body read: noise as partial masking, an independent noise level per token (Algorithm 1), a causal RNN denoiser and a per-token summed noise-prediction loss (Theorem 3.1: a reweighted ELBO); sampling follows a scheduling matrix K, k_small stabilizes long rollouts, plus the zig-zag schedule and Monte Carlo Guidance. Results such as stable video past the training horizon and beating Diffuser on Maze2D 以论文为准; 本页未运行.",
+    },
+    license: {
+      zh: "以原文为准",
+      en: "See original terms",
+    },
+    extra: true,
+  },
+  "dforcing-pdf": {
+    id: "dforcing-pdf",
+    url: "https://arxiv.org/pdf/2407.01392",
+    title: {
+      zh: "Diffusion Forcing：next-token 预测遇上整序列扩散（PDF）",
+      en: "Diffusion Forcing: Next-token Prediction Meets Full-Sequence Diffusion (PDF)",
+    },
+    author: "Boyuan Chen, Diego Marti Monso, Yilun Du, Max Simchowitz, Russ Tedrake, Vincent Sitzmann",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已用 pdftotext 读正文：第 3–4 节与附录 B.2（各噪声级独立同分布均匀采样）、B.4（稳定化）；teacher forcing 与因果整序列基线超出训练长度后发散；真实 Franka 换水果任务 80 %，遮挡下 76 % 对 48 %。数字以论文为准；视频模型、Franka 与 GPU 本页未运行。",
+      en: "Body read via pdftotext: Sections 3–4 and Appendix B.2 (i.i.d. uniform noise levels) and B.4 (stabilization); teacher-forcing and causal full-sequence baselines diverge past the training horizon; a real Franka fruit-swapping task at 80 %, 76 % vs 48 % under occlusion. Numbers 以论文为准; video models, Franka and GPU 本页未运行.",
+    },
+    license: {
+      zh: "以原文为准",
+      en: "See original terms",
+    },
+    extra: true,
+  },
+  "forge-tree-pdf": {
+    id: "forge-tree-pdf",
+    url: "https://arxiv.org/pdf/2510.21744",
+    title: {
+      zh: "FORGE-Tree：面向长时程机器人操作的 Diffusion Forcing 树搜索（PDF）",
+      en: "FORGE-Tree: Diffusion-Forcing Tree Search for Long-Horizon Robot Manipulation (PDF)",
+    },
+    author: "Yanjia Huang, Shuo Liu, Sheng Liu, Qingxiao Xu, Mingyang Wu, Xiangbo Gao, Zhengzhong Tu",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已用 pdftotext 读摘要与引言：在冻结的 VLA 编码器上接一个按阶段对齐的 Diffusion Forcing 头，并用 Monte Carlo Tree Diffusion 只部分去噪目标片段；LIBERO 上比原生 VLA 基线高 13.4 到 17.2 个百分点（OpenVLA、Octo-Base）。只作阅读；数字以论文为准，本页未运行。",
+      en: "Abstract and introduction read via pdftotext: a stage-aligned Diffusion Forcing head on a frozen VLA encoder, with Monte Carlo Tree Diffusion partially denoising only a target segment; +13.4 to +17.2 pp over native VLA baselines on LIBERO (OpenVLA, Octo-Base). Reading only; numbers 以论文为准, 本页未运行.",
+    },
+    license: {
+      zh: "以原文为准",
+      en: "See original terms",
+    },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {
