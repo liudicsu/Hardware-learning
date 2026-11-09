@@ -547,8 +547,7 @@ No winner is declared; real camera/OpenCV/robot runs: 本页未运行.
 2. Set `k = 0.7` (model too small). Predict PBVS's final `t_err` before running.
 3. Feed only two points to IBVS. Explain, using the two null directions, which camera motions it can no longer correct.
 
-## Visual trace prompting (TraceVLA): show the policy where it has been (+210 min)
-
+## Visual trace prompting (TraceVLA): show the policy where it has been
 This section is **not** another servo law. IBVS above turns image-feature errors into a camera twist through the interaction matrix. Visual trace prompting has no control law, no depth Z and no Jacobian. It changes only what a **learned policy sees**: the recent motion of tracked points is drawn as a polyline on top of the current frame, so a single image carries some history.
 
 <Resource id="tracevla-paper" />

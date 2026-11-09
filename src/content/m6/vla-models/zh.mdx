@@ -628,6 +628,301 @@ No winner is declared; real VLA weights, GPUs and robots: 本页未运行.
 2. 去掉指令切换但让目标继续运动。A、B、D 中哪一个现在能追平 C？
 3. 用 OpenHelix 的判据，判断上面下载表里某个 VLA 是否是双系统，并引用起决定作用的那个输入。
 
+## RDT2 的三阶段做法：词元、流匹配专家，再压成一步
+
+到目前为止，动作要么被写成词元，要么由动作头生成。RDT2 两样都做，一个接一个，最后再把生成器压缩。本节讲的是动作如何被**表示和采样**。它不是上面的双系统节拍：这里没有速率，也没有延迟。它也不是 [6.1](/zh/month/month-6/behaviour-cloning) 里给多模态 BC 头用的 VQ-BeT 码本，不是 [10.1](/zh/month/month-10/flow-matching-policies) 里 OneDP 风格的单步替身。
+
+<Resource id="rdt2-paper" />
+
+**论文做了什么（已在 arXiv 2602.03310 打开；数值以论文为准）。** RDT2（Liu 等）基于 7B 的 Qwen2.5-VL，训练数据是用重新设计、与本体无关的 UMI 在 100 多个家庭里采集的 10,000 多小时示范。
+
+- **第 1 阶段：** 残差向量量化（RVQ）分词器把每个连续动作块变成少量离散词元。词表里最不常用的 1024 个条目被预留给这些词元，VLM 用普通交叉熵训练（128K 次迭代）。论文认为这样收敛更快，也不会破坏 VLM 原有的离散知识。
+- **第 2 阶段：** **冻结** VLM，训练一个 400M 的动作专家（RDT-1B 的变体，用分组查询注意力），它通过交叉注意力读取 VLM 每一层的特征，用**流匹配**损失训练。采样一个动作块需要专家前向 5 次。
+- **第 3 阶段：** 把多步专家**蒸馏**成单步生成器 G(A⁰) = A⁰ + v_θ′(0, A⁰, ·)，从专家初始化，并对同一噪声回归专家的多步输出。
+- **消融：** 在相同离散化误差下，RVQ 比 FAST 最多节省约三分之二的词元；均匀分箱误差最低，但需要多得多的词元。
+
+这些本页都没有复现：7B 训练、GPU 与机器人均**本页未运行**。
+
+### 公平设置
+
+`rdt2_rvq_fm_distill_toy.py` 是**合成**的，只用标准库。一个动作块是 2 步 × (dx, dy) = 4 个数，来自四个朝向模式，带速度、朝向与转弯噪声。同一部分里的各臂共享同样的动作块与同样的噪声抽样（公共随机数），共五个种子。
+
+| 部分 | 臂 | 是什么 | 保持相同的预算 |
+|---|---|---|---|
+| 1 | bins_4x4 | 每个数 4 个均匀分箱，4 个词元 | 每块 8 bit |
+| 1 | single_vq_256 | 一个词元，来自 256 条目的 k-means 码本 | 每块 8 bit |
+| 1 | rvq_2x16 | 两个词元，每个残差阶段 16 条目的码本 | 每块 8 bit |
+| 1 | rvq_4x4 | 四个词元，每个残差阶段 4 条目的码本 | 每块 8 bit |
+| 2 | fm_1 / fm_2 / fm_5 | 对流匹配专家做 Euler 采样，NFE 为 1、2 或 5 | 同样的噪声抽样 |
+| 2 | distill_1_nn | 查表学生：返回 400 个已存噪声中最近那个对应的 5 步输出 | 在线 1 次 NFE |
+| 2 | distill_1_avg3 | 同样的样本对，取最近 3 个已存输出的平均 | 在线 1 次 NFE |
+
+**专家不经过训练。** 它的速度场是训练动作块轻度平滑后的精确流匹配场（完美拟合的专家会收敛到的样子），用论文的路径 A^τ = (1 − τ)ε + τA。它不以图像或语言为条件。学生是查表，不是 RDT2 训练出的 G，它们的 400 个样本对花费了 2000 次离线专家调用。第 1 部分报告留出 MSE、词元数、码本条目数和未用条目数。第 2 部分报告精度（到最近留出块的距离）、召回（每个留出块到最近样本的距离）、离流形比例（精度大于 0.25）以及不同输出的比例。结果为五个种子的 mean±sd。
+
+### 运行标准库玩具
+
+```bash
+cd ~/Hardware-learning/examples/month-6/vla-models
+python3 rdt2_rvq_fm_distill_toy.py
+```
+
+<CodeSource path="examples/month-6/vla-models/rdt2_rvq_fm_distill_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""rdt2_rvq_fm_distill_toy.py: RDT2-style recipe pieces on toy action chunks (stdlib).
+
+Synthetic action chunks: 2 steps x (dx, dy) = 4 numbers, from four heading
+modes with speed, heading and turn noise. Every arm in a part gets the SAME
+train chunks, held-out chunks and noise draws (common random numbers per seed).
+
+Part 1, tokenizer at an EQUAL 8-bit budget per chunk (Stage 1 needs tokens):
+  bins_4x4       four tokens, 4 uniform bins per number over the train range
+  single_vq_256  one token from a 256-entry codebook (k-means)
+  rvq_2x16       two tokens, each stage a 16-entry codebook on the residual
+  rvq_4x4        four tokens, each stage a 4-entry codebook on the residual
+  -> held-out MSE, tokens per chunk, codebook entries, unused (dead) entries.
+
+Part 2, continuous expert vs a one-step student under an online NFE budget:
+  the "expert" velocity is the exact flow-matching field of a lightly smoothed
+  copy of the train chunks (what a perfectly fitted expert converges to); no
+  network is trained and no VLM features condition it.
+  path A^tau = (1 - tau) * eps + tau * A, Euler steps from tau = 0 (noise)
+  fm_1, fm_2, fm_5   Euler with 1, 2 or 5 function evaluations (NFE)
+  distill_1_nn      a lookup student: returns the 5-step expert output F stored
+                     for the nearest of DISTILL_PAIRS stored noise draws
+  distill_1_avg3     the same pairs, averaging the 3 nearest stored outputs
+                     (RDT2 instead trains G(eps) = eps + v'(eps), initialised
+                     from the expert); both students cost 1 online NFE, but the
+                     pairs cost offline expert calls
+  -> precision (mean distance to the nearest held-out chunk), recall (mean
+     distance from each held-out chunk to the nearest sample), off-manifold
+     share, distinct outputs, online NFE and offline expert NFE.
+Not RDT2, not Qwen2.5-VL, no GPU. Numbers depend on the lesson-chosen sizes.
+usage: python3 rdt2_rvq_fm_distill_toy.py
+"""
+from __future__ import annotations
+
+import math
+import random
+import statistics
+
+SEEDS = (0, 1, 2, 3, 4)
+N_TOK, N_TRAIN, N_TEST, N_GEN = 768, 256, 200, 200
+LLOYD_ITERS = 8
+SMOOTH = 0.05          # expert smoothing (std of the Gaussian around each train chunk)
+DISTILL_PAIRS = 400
+OFF_MANIFOLD = 0.25    # distance to the nearest held-out chunk that counts as off-manifold
+TOKENIZERS = (("bins_4x4", [4, 4, 4, 4]), ("single_vq_256", [256]), ("rvq_2x16", [16, 16]), ("rvq_4x4", [4, 4, 4, 4]))
+GENERATORS = ("fm_1", "fm_2", "fm_5", "distill_1_nn", "distill_1_avg3")
+
+
+def sample_chunk(rng):
+    mode = rng.randrange(4)
+    head = mode * math.pi / 2 + rng.gauss(0.0, 0.12)
+    speed = 1.0 + rng.gauss(0.0, 0.08)
+    turn = rng.gauss(0.0, 0.3)
+    v1 = (speed * math.cos(head), speed * math.sin(head))
+    v2 = (speed * math.cos(head + turn), speed * math.sin(head + turn))
+    return [v1[0], v1[1], v2[0], v2[1]]
+
+
+def d2(a, b):
+    return sum((x - y) ** 2 for x, y in zip(a, b))
+
+
+def nearest(c, pts):
+    best, bi = float("inf"), 0
+    for i, p in enumerate(pts):
+        d = d2(c, p)
+        if d < best:
+            best, bi = d, i
+    return bi, best
+
+
+def kmeans(data, k, rng):
+    cent = [list(p) for p in rng.sample(data, k)] if k <= len(data) else [list(p) for p in data]
+    for _ in range(LLOYD_ITERS):
+        sums = [[0.0] * 4 for _ in cent]
+        cnt = [0] * len(cent)
+        for p in data:
+            i, _ = nearest(p, cent)
+            cnt[i] += 1
+            for j in range(4):
+                sums[i][j] += p[j]
+        for i in range(len(cent)):
+            if cnt[i]:
+                cent[i] = [s / cnt[i] for s in sums[i]]
+    return cent
+
+
+def train_rvq(data, stages, rng):
+    books, resid = [], [list(p) for p in data]
+    for k in stages:
+        book = kmeans(resid, k, rng)
+        books.append(book)
+        resid = [[r[j] - book[nearest(r, book)[0]][j] for j in range(4)] for r in resid]
+    return books
+
+
+def encode_decode(x, books):
+    rec, resid, codes = [0.0] * 4, list(x), []
+    for book in books:
+        i, _ = nearest(resid, book)
+        codes.append(i)
+        rec = [rec[j] + book[i][j] for j in range(4)]
+        resid = [resid[j] - book[i][j] for j in range(4)]
+    return rec, codes
+
+
+def velocity(x, tau, train):
+    """Exact FM field for a mixture of N(a_i, SMOOTH^2 I) under A^tau = (1-tau) eps + tau A."""
+    var = (1.0 - tau) ** 2 + (tau * SMOOTH) ** 2
+    logw = [-d2(x, [tau * v for v in a]) / (2.0 * var) for a in train]
+    m = max(logw)
+    w = [math.exp(l - m) for l in logw]
+    z = sum(w)
+    gain = tau * SMOOTH ** 2 / var
+    ea = [0.0] * 4
+    for wi, a in zip(w, train):
+        for j in range(4):
+            ea[j] += wi * (a[j] + gain * (x[j] - tau * a[j]))
+    ea = [v / z for v in ea]
+    return [(ea[j] - x[j]) / (1.0 - tau) for j in range(4)]
+
+
+def euler(eps, steps, train):
+    x, h = list(eps), 1.0 / steps
+    for s in range(steps):
+        v = velocity(x, s * h, train)
+        x = [x[j] + h * v[j] for j in range(4)]
+    return x
+
+
+def knn_student(pairs, eps, k):
+    """Average of the stored 5-step outputs for the k nearest stored noise draws."""
+    near = sorted(pairs, key=lambda p: d2(p[0], eps))[:k]
+    return [sum(p[1][j] for p in near) / k for j in range(4)]
+
+
+def gen_metrics(samples, test):
+    prec = [math.sqrt(nearest(s, test)[1]) for s in samples]
+    rec = [math.sqrt(nearest(t, samples)[1]) for t in test]
+    off = 100.0 * sum(p > OFF_MANIFOLD for p in prec) / len(prec)
+    return statistics.mean(prec), statistics.mean(rec), off
+
+
+def ms(xs, f="{:.3f}"):
+    return (f + "±" + f).format(statistics.mean(xs), statistics.stdev(xs))
+
+
+def main():
+    tok = {n: {"mse": [], "dead": []} for n, _ in TOKENIZERS}
+    gen = {n: {"prec": [], "rec": [], "off": [], "uniq": []} for n in GENERATORS}
+    for seed in SEEDS:
+        rd = random.Random(1000 + seed)
+        tok_data = [sample_chunk(rd) for _ in range(N_TOK)]
+        train = tok_data[:N_TRAIN]                   # the expert sees a subset of the same chunks
+        test = [sample_chunk(rd) for _ in range(N_TEST)]
+        for name, stages in TOKENIZERS:
+            if name.startswith("bins"):
+                lo = [min(p[j] for p in tok_data) for j in range(4)]
+                hi = [max(p[j] for p in tok_data) for j in range(4)]
+                codes = [[min(3, max(0, int((p[j] - lo[j]) / (hi[j] - lo[j]) * 4))) for j in range(4)] for p in tok_data]
+                tok[name]["dead"].append(100.0 * sum(4 - len({c[j] for c in codes}) for j in range(4)) / 16)
+                rec = lambda t: [lo[j] + (min(3, max(0, int((t[j] - lo[j]) / (hi[j] - lo[j]) * 4))) + 0.5) * (hi[j] - lo[j]) / 4 for j in range(4)]
+                tok[name]["mse"].append(statistics.mean(d2(rec(t), t) / 4 for t in test))
+                continue
+            books = train_rvq(tok_data, stages, random.Random(2000 + seed))
+            used = [set() for _ in books]
+            for p in tok_data:
+                for s, c in enumerate(encode_decode(p, books)[1]):
+                    used[s].add(c)
+            tok[name]["dead"].append(100.0 * sum(len(b) - len(u) for b, u in zip(books, used)) / sum(len(b) for b in books))
+            tok[name]["mse"].append(statistics.mean(d2(encode_decode(t, books)[0], t) / 4 for t in test))
+        rn = random.Random(3000 + seed)
+        noise = [[rn.gauss(0.0, 1.0) for _ in range(4)] for _ in range(N_GEN)]
+        rp = random.Random(4000 + seed)
+        pair_eps = [[rp.gauss(0.0, 1.0) for _ in range(4)] for _ in range(DISTILL_PAIRS)]
+        pairs = []
+        for e in pair_eps:
+            pairs.append((e, euler(e, 5, train)))
+        for name in GENERATORS:
+            if name.startswith("distill"):
+                samples = [knn_student(pairs, e, 1 if name.endswith("nn") else 3) for e in noise]
+            else:
+                samples = [euler(e, int(name[3:]), train) for e in noise]
+            p, r, o = gen_metrics(samples, test)
+            gen[name]["prec"].append(p)
+            gen[name]["rec"].append(r)
+            gen[name]["off"].append(o)
+            gen[name]["uniq"].append(100.0 * len({tuple(round(v, 9) for v in x) for x in samples}) / N_GEN)
+    print("Synthetic RDT2-style toy: 4-number action chunks, four heading modes; not RDT2, no VLM, no GPU")
+    print(f"seeds={len(SEEDS)} tokenizer_train={N_TOK} expert_train={N_TRAIN} test={N_TEST} generated={N_GEN} lloyd_iters={LLOYD_ITERS} distill_pairs={DISTILL_PAIRS} (mean±sd over seeds)")
+    print("[part1 tokenizer, equal 8-bit budget per chunk]")
+    print("arm tokens_per_chunk codebook_entries heldout_mse dead_entries_%")
+    for name, stages in TOKENIZERS:
+        print(f"{name} {len(stages)} {sum(stages)} {ms(tok[name]['mse'], '{:.4f}')} {ms(tok[name]['dead'], '{:.1f}')}")
+    print("[part2 generator, shared noise draws; expert = exact FM field of smoothed train chunks]")
+    print("arm online_nfe offline_expert_nfe precision recall off_manifold_% distinct_outputs_%")
+    for name in GENERATORS:
+        dist = name.startswith("distill")
+        nfe = 1 if dist else int(name[3:])
+        off_nfe = DISTILL_PAIRS * 5 if dist else 0
+        g = gen[name]
+        print(f"{name} {nfe} {off_nfe} {ms(g['prec'])} {ms(g['rec'])} {ms(g['off'], '{:.1f}')} {ms(g['uniq'], '{:.1f}')}")
+    print("RDT2 recipe (per the paper): Stage 1 RVQ tokens + cross-entropy, Stage 2 frozen VLM + flow-matching expert, Stage 3 one-step distillation")
+    print("No winner is declared; RDT2 task scores 以论文为准; 7B training / GPU / robots: 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic RDT2-style toy: 4-number action chunks, four heading modes; not RDT2, no VLM, no GPU
+seeds=5 tokenizer_train=768 expert_train=256 test=200 generated=200 lloyd_iters=8 distill_pairs=400 (mean±sd over seeds)
+[part1 tokenizer, equal 8-bit budget per chunk]
+arm tokens_per_chunk codebook_entries heldout_mse dead_entries_%
+bins_4x4 4 16 0.0261±0.0012 0.0±0.0
+single_vq_256 1 256 0.0024±0.0005 0.0±0.0
+rvq_2x16 2 32 0.0037±0.0005 0.0±0.0
+rvq_4x4 4 16 0.0060±0.0014 0.0±0.0
+[part2 generator, shared noise draws; expert = exact FM field of smoothed train chunks]
+arm online_nfe offline_expert_nfe precision recall off_manifold_% distinct_outputs_%
+fm_1 1 0 1.062±0.067 1.411±0.012 100.0±0.0 0.5±0.0
+fm_2 2 0 0.465±0.036 0.270±0.010 75.5±4.8 100.0±0.0
+fm_5 5 0 0.109±0.005 0.122±0.006 6.8±1.0 100.0±0.0
+distill_1_nn 1 2000 0.110±0.007 0.129±0.008 7.1±1.0 77.2±3.0
+distill_1_avg3 1 2000 0.231±0.011 0.144±0.009 37.0±4.4 96.7±1.0
+RDT2 recipe (per the paper): Stage 1 RVQ tokens + cross-entropy, Stage 2 frozen VLM + flow-matching expert, Stage 3 one-step distillation
+No winner is declared; RDT2 task scores 以论文为准; 7B training / GPU / robots: 本页未运行
+```
+
+</SimOutput>
+
+### 读出其中的取舍
+
+**词元。** 在同样 8 bit 下，单个 256 条目码本的留出 MSE 最低（**0.0024**），但需要 256 个条目。RVQ 2×16 很接近（**0.0037**），只用 32 个条目和 2 个词元。RVQ 4×4（**0.0060**）只用 16 个条目，但要 4 个词元。条目数和词元数相同的均匀分箱差约四倍（**0.0261**），因为它把比特花在了空间里空着的角落。这个规模下没有未用条目，所以论文列出的那些防码本坍缩措施在这里用不上。
+
+**步数。** 从噪声出发只走一步 Euler，每个样本都落在数据均值上：精度 **1.062**，100 % 离流形，不同输出只有 0.5 %（只有一个动作块）。两步仍大多落在模式之间（**75.5 %** 离流形）。五步达到 **0.109** 的精度、**6.8 %** 离流形。
+
+**学生。** 最近样本对学生在在线 1 次 NFE 下与 5 步专家持平（**0.110**、**7.1 %**）。但它只是在重放已存的输出（不同输出 **77.2 %**），并且花了 2000 次离线专家调用。取 3 个近邻平均能恢复多样性（不同输出 **96.7 %**），却会在模式之间模糊（**37.0 %** 离流形）。
+
+**玩具不替你选赢家。** 最少的词元以码本大小为代价。最少的步数要么牺牲质量，要么需要离线蒸馏预算，而且专家一变，学生就得重做。哪种取舍更重要，取决于你的词表、延迟预算和重训频率。
+
+**210 分钟计划：** 40 min 读论文的三个阶段；30 min 审计共享动作块与噪声；50 min 运行并读两个部分；60 min 扰动；30 min 做下面的练习。
+
+### 练习
+
+1. 把 LLOYD_ITERS 提到 20、N_TOK 提到 1536。single_vq_256 与 rvq_2x16 的差距是缩小还是扩大？用每个训练块对应的码本条目数解释。
+2. 增加一个 rvq_8x2 臂（8 个词元，每阶段 2 个条目）。运行前先预测它的 MSE，并说明对每次前向只输出一个词元的 VLM 来说代价是什么。
+3. 增加 fm_10，与 fm_5 比较精度。多出来的 NFE 从哪里开始不再划算？
+4. 把 DISTILL_PAIRS 减半到 200，重跑两个学生。哪个指标最先变化，为什么？
+5. 写两句话，把这套做法与 6.1 的 VQ-BeT 和 10.1 的 OneDP 区分开。论文数值以论文为准；本页不运行 GPU。
+
 ## 常见错误
 
 - <strong>把“开源”当成“开放权重”，再当成“可以免费商用”。</strong>要看权重的许可证，不只是代码的。GR00T N1.6 的代码是 Apache-2.0，权重却仅限研究用途。
@@ -641,6 +936,6 @@ No winner is declared; real VLA weights, GPUs and robots: 本页未运行.
 
 <Summary>
 
-VLA 从预训练的视觉语言模型出发，把相机图像加指令映射为动作，方式是写成词元或经过单独的动作头；通常你下载一个，再用约 50 条示范微调。逐步分词为每维划 256 个区间（RT-2 用数据的最小/最大值，OpenVLA 用第 1 到第 99 百分位），范围内误差至多半个区间，范围外被截断；FAST 则用 DCT 压缩整个动作块，用缩放系数在词元数与误差之间权衡。下载表区分代码许可与权重许可，SmolVLA 的规模适合单块消费级 GPU（其结构与耗时以论文为准），`vla_async_chunk_toy.py` 展示异步动作块推理围绕阈值 g ≥ (E[ℓ_S] / Δt) / n，用更多推理调用与拼接换取更少空闲与更新鲜的观测。`dual_system_vla_cadence_toy.py` 补上来自 OpenHelix 的双系统素养：慢速 System 2 设定目标，快速 System 1 每个节拍行动并且必须看到实时感知（因此不把 π0 称为双系统）；在同等计算、中途切换指令时，只有 System 1 看到当前图像的双系统臂既能跟随新指令又能跟踪运动目标，而目标静止时单速率臂毫无损失——真实权重、GPU 与 CALVIN 数字以论文为准 / 本页未运行。
+VLA 从预训练的视觉语言模型出发，把相机图像加指令映射为动作，方式是写成词元或经过单独的动作头；通常你下载一个，再用约 50 条示范微调。逐步分词为每维划 256 个区间（RT-2 用数据的最小/最大值，OpenVLA 用第 1 到第 99 百分位），范围内误差至多半个区间，范围外被截断；FAST 则用 DCT 压缩整个动作块，用缩放系数在词元数与误差之间权衡。下载表区分代码许可与权重许可，SmolVLA 的规模适合单块消费级 GPU（其结构与耗时以论文为准），`vla_async_chunk_toy.py` 展示异步动作块推理围绕阈值 g ≥ (E[ℓ_S] / Δt) / n，用更多推理调用与拼接换取更少空闲与更新鲜的观测。`dual_system_vla_cadence_toy.py` 补上来自 OpenHelix 的双系统素养：慢速 System 2 设定目标，快速 System 1 每个节拍行动并且必须看到实时感知（因此不把 π0 称为双系统）；在同等计算、中途切换指令时，只有 System 1 看到当前图像的双系统臂既能跟随新指令又能跟踪运动目标，而目标静止时单速率臂毫无损失——真实权重、GPU 与 CALVIN 数字以论文为准 / 本页未运行。`rdt2_rvq_fm_distill_toy.py` 补上 RDT2 的三阶段做法（RVQ 词元加交叉熵、冻结 VLM 的流匹配专家、单步蒸馏），在五个种子上表明：同样 8 bit 预算下，更少的词元以码本条目为代价，单步采样要么牺牲质量、要么需要离线蒸馏预算，不宣布赢家；RDT2 的分数以论文为准，7B 训练 / GPU 本页未运行。
 
 </Summary>

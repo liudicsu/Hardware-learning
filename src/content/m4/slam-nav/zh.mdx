@@ -761,8 +761,7 @@ $ ros2 run tf2_ros tf2_echo map base_footprint --ros-args -p use_sim_time:=true
 
 第 5 个月会往下走，深入到你这段时间所用东西的底层。Nav2 的控制器、第 3 个月的 PID 回路和平衡车，都建立在控制理论之上；规划器和第 3 个月的机械臂，建立在运动学（kinematics）之上；你仿真过的相机，则在等着标定（calibration）和感知（perception）。下个月讲的，就是让这些部件真正运转起来的数学。
 
-## ICP：两种局部配准更新，同一对扫描（+210 min）
-
+## ICP：两种局部配准更新，同一对扫描
 [Open3D ICP 教程](https://www.open3d.org/docs/release/tutorial/pipelines/icp_registration.html)区分点到点 `Σ||Rp_i+t−q_i||²` 和点到面 `Σ[n_iᵀ(Rp_i+t−q_i)]²`，法向来自目标。两者都需要合理初值，都不保证对齐到正确位置。本节补配准数学，不重做里程计转圈检查或 3DGS。本实验 Open3D、真实雷达及 SLAM Toolbox 配准：**本页未运行**；教程数字只供阅读，不是这里的实测结果。
 
 <Resource id="open3d-icp-objectives" />

@@ -454,8 +454,7 @@ finite_s: witness_K_gt_1=separate; no_witness=collision; exact_arithmetic_conser
 float_not_certified; Gaussian_threshold_not_physical_surface; GPU_not_run
 ```
 
-### 引导练习（本课 450 min 中新增 210 min）
-
+### 引导练习
 1. **35 min — 表示审计。** 画三个椭球与包围盒，计算一轴原始与截断后的协方差，解释排除不透明度 0.2 隐藏了什么。真值与两臂阈值必须相同。
 2. **45 min — 判据审计。** 推导上面的双球检查，追踪一次找不到证据的搜索，再写出有限 s 子集证明。解释为何“所有样本 K 不超过 1”不能证明真实相交。
 3. **60 min — 重放与消融。** 复现表格，在临时副本用 1、3、15、63 个内部 s 样本重跑**同一批**保存的查询；同时报告两种错误与代价，不得逐臂改变真值或障碍。嵌套增加样本不会丢掉已有证据。AABB 不必在所有可能场景都产生更多误报。

@@ -763,8 +763,7 @@ ok: mechanical Z-index homing (not FOC); cal beats uncal on clean index; missed/
 - 我能用编码器 CPR 和减速比算出每转多少计数。
 - 我有一只能在两种电池电压下都精确转一圈的轮子，并能说清编码器起了什么作用。
 
-## 绕组铜耗与热 RC（+180 min）
-
+## 绕组铜耗与热 RC
 绕组不是线束。[11.1 系统配电](/zh/month/month-11/power-battery-emc) 已讲往返导线 I²R 与熔断器数据门禁；这里的热在**电机绕组内部**，有热量积累和散热路径。不重做 FOC，也不把驱动 IC 的封装 θJA 当成绕组热阻。已打开的 TI SLVA505 封装热文档说明 PCB / 铜箔 / 封装条件的重要性，**没有**辨识本电机的绕组参数。
 
 <Resource id="ti-driver-package-thermal" />
@@ -946,8 +945,7 @@ Synthetic only; real winding measurement / motor hardware: 本页未运行
 3. 去掉切断、保留 3.5 A 降额限流：预测长堵转是否仍能超过 70 °C。请求曲线必须保持不变。
 4. 在笔记中分开壳温实测、绕组温度估计与仿真真值；列出硬件应用前辨识 Rθ/Cθ 的实验。不能从玩具推出绝缘等级或允许堵转时长。
 
-## PWM 死区：丢失的伏秒与过零畸变（+180 min）
-
+## PWM 死区：丢失的伏秒与过零畸变
 H 桥一节说过，真实驱动芯片内置死区，保证 S1 与 S2（或 S3 与 S4）不会同时闭合。本节给这份保护标价。它**不是** FOC 电流环整定或电角度（那是 [11.2](/zh/month/month-11/foc-actuator-lab)），也不是上面的绕组热模型，而是一个半桥臂的伏秒账。
 
 <Resource id="esp-idf-mcpwm-deadtime" />

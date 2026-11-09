@@ -524,8 +524,7 @@ Before you move on, you should be able to say yes to all of these:
 - I know the ISR rules: short, no `delay()`, no `Serial`, `volatile`, and atomic copies.
 - I can explain contact bounce and choose a sensible debounce time for a given button.
 
-## An independent hardware watchdog must observe progress (+150 min)
-
+## An independent hardware watchdog must observe progress
 A software timeout checked only inside a stuck main loop cannot rescue that same loop. A timer interrupt may still advance `millis()` during a logic hang, but the blocked code does not evaluate its timeout; disabling interrupts can freeze Timer0 as well. A hardware watchdog instead has an independent oscillator/counter: a `WDR` kick restarts its count and an enabled reset mode expires without main-loop cooperation. This is **not 8.5's software command-stream watchdog**, not an actuator safety latch and not an e-stop or certification.
 
 <Resource id="atmega328p-wdt-datasheet" />

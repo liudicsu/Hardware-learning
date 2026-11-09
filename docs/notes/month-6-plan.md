@@ -1,6 +1,6 @@
 # Month 6 plan: Robot learning, specialisation & getting hired
 
-Current / 当前 Batch-8 PR3: M6 **1980 min**; older sections retain historical totals.
+Current / 当前：**M6 2190 min**, Batch-9 PR3. Earlier entries below retain their historical totals.
 
 Course source: @DeRonin_'s 6-month roadmap (`COURSE_SOURCE` in src/lib/curriculum.ts). Month 6 topics there:
 imitation learning (behaviour cloning, ACT, diffusion policy), VLA models and which have open weights,
@@ -78,3 +78,11 @@ M6 **1560→1980**; site **24240→24660** (+420), still 71 lessons. No arithmet
 - H5: 45 min multimodal BC and the mean failure +45 min BeT k-means bins / VQ-BeT residual VQ + offsets (opened papers) +45 min shared demos, observation bins, heads, rollout stream; equal codebook vectors (8) and Lloyd iterations (12), unequal combinations (8 vs 16) printed +45 min five-seed results (MSE 66 % collisions; k-means and rvq tie on modes) +30 min exercises =210. 5× speed-up 以论文为准; GPU 本页未运行. Not FAST/DCT (6.3), diffusion (6.2) or DAgger.
 - H6: 45 min single trunk vs dual system and OpenHelix's real-time perception criterion (π0 not dual-system) +45 min OpenHelix architecture/findings per the paper +45 min equal-compute cadence toy, declared information per arm, eight switch-time seeds +45 min moving-switch vs static scenarios, no winner +30 min exercises =210. Separate from TwinVLA (6.2) and async chunking. Weights/GPU/CALVIN 本页未运行.
 - Neither host had a Summary: each now ends with a full whole-lesson Summary in en and zh whose last sentence covers the new section. New code/stdout/exercises precede it.
+
+## Batch-9 PR3 / 本月 H5 (+210)
+
+Base `64579b5` (Batch-9 PR2 merged). PR3 only: **M6 1980→2190 (+210)** and M11 **3000→3210 (+210**, own host in month-11-plan.md); site **25380→25800**, still 71 lessons; no arithmetic mismatch with proposal §9 or curriculum.ts. Batch 9 is complete at 25800.
+
+- **H5 / 6.3 vla-models: 570→780 (+210).** RDT2 three-stage recipe (arXiv 2602.03310, opened; numbers 以论文为准): Stage 1 RVQ tokens + cross-entropy, Stage 2 frozen VLM + flow-matching expert, Stage 3 one-step distillation. Toy: equal 8-bit budget (bins 4×4, single VQ 256, RVQ 2×16, RVQ 4×4) and shared noise draws for FM 1/2/5 NFE vs two lookup students (offline expert NFE reported), five seeds; no winner. New section after the OpenHelix dual-system section, which is unchanged; ≠ VQ-BeT (6.1), ≠ OneDP (10.1). 7B training / GPU 本页未运行. / RDT2 三阶段，不宣布赢家。
+
+**Allocation / 安排:** 40+30+50+60+30=210 minutes. Sources: batch-9-pr3-sources.md.

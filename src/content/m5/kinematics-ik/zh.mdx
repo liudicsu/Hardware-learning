@@ -334,8 +334,7 @@ Singularity: the elbow straightening, shoulder at 20 deg, base at 0
 - <strong>奇异点附近阻尼太小。</strong>λ = 0.01 在伸直臂上抖动，始终不收敛；λ = 0.03 稳定，但会放弃动不了的方向。根据预期的条件数选阻尼，并检查剩余误差。
 - <strong>不做 FK 检查就相信 IK。</strong>求解器可能停在局部极小，或者 200 次迭代后还差很多。先用返回的 q 算一遍 FK，和目标比较，再命令电机运动。
 
-## 姿态坐标：Euler 秩亏与四元数路径（+150 min）
-
+## 姿态坐标：Euler 秩亏与四元数路径
 上面的机械臂 Jacobian 把关节速度映射到末端平移，可能丢失**物理任务方向**。下面的万向节锁不同，是**姿态坐标图**奇异，不是机器人少了一个物理旋转自由度。本节独立采用右手系**主动、内禀 ZYX yaw-pitch-roll**，列向量，**`R=Rz(yaw)Ry(pitch)Rx(roll)`**；此处正 pitch 绕 +y，不可悄悄替换前文平面臂特意选的 −y 正俯仰。四元数保存顺序为 **(w,x,y,z)**，不是 ROS 消息字段顺序。以下 [Euler/四元数转换参考](https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles)及 [slerp 参考](https://en.wikipedia.org/wiki/Slerp)均为**二手阅读**，不是机器人标定规范。
 
 <Resource id="quat-euler-chart" />

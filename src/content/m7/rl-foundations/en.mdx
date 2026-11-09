@@ -457,8 +457,7 @@ deploy=policy_only_without_delta_model; residual_is_not_dynamics_SysID
 model_families_differ; no_universal_winner; fall_proxy_not_humanoid_fall; Isaac_real_robot_not_run
 ```
 
-### Guided work (+210 min within this 450 min lesson)
-
+### Guided work
 1. **35 min — workflow audit.** Read ASAP's Figure 2 and III-B/C/D; draw separate calibration, simulator fine-tuning and deployment boxes. Explain why moving the delta into the real deployment changes the method.
 2. **45 min — budget audit.** Trace the actual B calls until 160 transitions, the shared noise/data object and reserved evaluation namespace. Count 81 × 4 × 100 simulator steps per arm; explain what equal counts do and do not control.
 3. **50 min — model audit.** Trace the three learned families and the sign of the correction for a weaker actuator. Explain why a learned action correction is not a uniquely identified physical parameter. Document DR's four corners and what is missing between them.

@@ -1,0 +1,13 @@
+Synthetic UniVLA-style latent-action toy: 2-D reach around an obstacle, two embodiments; not UniVLA, no VLM, no GPU
+seeds=5 video_episodes_per_embodiment=80 codes=12 lloyd_iters=10 decoder_labels=20 grid=10x10x2 eval_episodes=40 (mean±sd over seeds)
+B motor map: step = (-0.6*m_y, 1.4*m_x); labels from B exist only for the decoder budget
+scenario arm success_on_A success_on_B collision_on_B
+wanderer A_raw_bc_A 0.890±0.052 0.000±0.000 0.340±0.029
+wanderer B_latent_lang 0.840±0.078 0.865±0.072 0.050±0.040
+wanderer C_latent_no_lang 0.125±0.040 0.125±0.035 0.575±0.211
+wanderer D_raw_bc_small 0.455±0.148 0.355±0.210 0.295±0.145
+still_scene A_raw_bc_A 0.890±0.052 0.000±0.000 0.340±0.029
+still_scene B_latent_lang 0.840±0.078 0.865±0.072 0.050±0.040
+still_scene C_latent_no_lang 0.840±0.078 0.865±0.072 0.050±0.040
+still_scene D_raw_bc_small 0.455±0.148 0.355±0.210 0.295±0.145
+No winner is declared; UniVLA LIBERO / R2R / real-robot gains 以论文为准; VLM pretraining / GPU / robots: 本页未运行

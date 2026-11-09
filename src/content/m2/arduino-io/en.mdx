@@ -435,8 +435,7 @@ Before you move on, you should be able to say yes to all of these:
 - I can explain duty cycle and calculate the average voltage of a PWM output.
 - I can read a line of serial output, understand each field, and plot it in the Serial Plotter.
 
-## I2C pull-up and bus-capacitance timing (+150 min)
-
+## I2C pull-up and bus-capacitance timing
 Keep the existing button `INPUT_PULLUP` quiz: this addition is **bus signal integrity**, not another button circuit, sensor-register scanner or filter. Open-drain SDA/SCL can pull low but need a resistor to return high. We assume an ideal low driver and a lumped `Rp–Cbus` rising edge; actual boards also have thresholds, fall time, clock stretching, propagation and coupled noise.
 
 NXP UM10204 could not be resolved during this batch’s source check, so the opened TI SLVA689A is used instead.
@@ -612,8 +611,7 @@ The **Sm / Fm / Fm+ rise-only violating-edge counts** are **0/36/36** (weak_shor
 3. Replace 400 pF by a measured/modelled C, or lower SCL. State whether the device rise-time limit or the period budget changed; a longer bit period alone does not change a fixed Fast-mode rise-time specification.
 4. List the missing data/fall/setup/hold/ACK/clock-stretching checks before declaring a real I2C link reliable. Preserve the original button exercise.
 
-## RS-485: the same UART bytes on a terminated differential pair (+180 min)
-
+## RS-485: the same UART bytes on a terminated differential pair
 The Serial section showed UART framing (start bit, eight data bits, stop bit) and what a baud mismatch looks like. RS-485 keeps those frames but changes the wire. A transceiver turns TX into a **differential pair A/B** that can run hundreds of metres and be shared by several nodes. This section is about that physical layer only. It is **not** the baud-mismatch garbage above, not CAN error counters (TEC/REC in 4.5), not CRC, and **not Modbus** or any other application protocol.
 
 <Resource id="ti-slla272" />

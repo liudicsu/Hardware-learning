@@ -365,8 +365,7 @@ impedance_output=effort admittance_output=motion safety_ranking=none
 - **在接触时加大位置增益硬顶。** 先回退 / 导纳，再谈要不要加力传感器。
 - **默写过载/温度跳闸数。** 本页不提供这些数。
 
-## Batch-6 H5：估计 F/T 偏置并补偿重力（+210 min）
-
+## Batch-6 H5：估计 F/T 偏置并补偿重力
 上文默认路径仍是 Present Load 代理，**不是 N**。本节使用**合成六轴 F/T**，不把 Load 换算成力，也不要求购买传感器。先用无接触静态数据估计质量、质心（COM）与力 / 力矩偏置，再用**留出姿态**评价。真实 F/T 硬件：**本页未运行**。
 
 <Resource id="ft-tools-calibration" />

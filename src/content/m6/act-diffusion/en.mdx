@@ -309,8 +309,7 @@ Compare them the way the toy model does: the same fixed set of start positions f
 - **Calling a memorising policy a good one.** The diffusion policy here can only replay demonstrations. Test on start positions that are not in the dataset before claiming a policy generalises.
 - **Mixing up training and inference cost.** A diffusion policy needs several network passes per chunk, so check that inference keeps up with your control rate on the computer that will run it, not only on the training GPU.
 
-## Two hands on one shared task (+210 min)
-
+## Two hands on one shared task
 A policy can represent multimodal actions yet still coordinate two hands poorly. Add a separate **synthetic kinematic shared-strap transport**: two1D fingertip carriages move the endpoints of one compliant strap to a target center while keeping nominal span **0.6 m**. This is not a rigid-body/payload/force simulation; span error is a **kinematic compliance proxy**, not physical strain or force. It is not the ORCA-lite fleet corridor and does not redo ACT chunk mathematics. Units/clearances/controller gains below are synthetic, not robot specifications.
 
 ### Equal available information, different coupling

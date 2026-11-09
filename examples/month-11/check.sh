@@ -28,6 +28,7 @@ check tactile_debias_recal_toy.txt "$PY" "$M11/tactile-sensing/tactile_debias_re
 check relative_traj_toy.txt "$PY" "$M11/umi-style-collection/relative_traj_toy.py"
 check oxe_imbalance_toy.txt "$PY" "$M11/cross-embodiment-datasets/oxe_imbalance_toy.py"
 check oxe_auge_score_toy.txt "$PY" "$M11/cross-embodiment-datasets/oxe_auge_score_toy.py"
+check univla_latent_action_toy.txt "$PY" "$M11/cross-embodiment-datasets/univla_latent_action_toy.py"
 check lipm_track_toy.txt "$PY" "$M11/humanoid-wbc-overview/lipm_track_toy.py"
 check tactile_gate_toy.txt "$PY" "$M11/contact-rich-policies/tactile_gate_toy.py"
 

@@ -280,8 +280,7 @@ $ python -m lerobot.rl.actor --config_path rl/train_config.json           # term
 - **A reward classifier that is fooled.** If it fires on near-misses, the policy learns the near-miss. Add the false positives as negatives and retrain.
 - **Unbounded exploration.** Set joint / end-effector limits (8.5) before the first online episode.
 
-## Preferences: DPO-style loss versus a learned reward (+210 min)
-
+## Preferences: DPO-style loss versus a learned reward
 A preference pair says which candidate is better at the **same context**, not how far along a video the robot has progressed. This is distinct from [10.7 SARM / RA-BC](/en/month/month-10/vla-rl-finetune), Cal-ConRFT calibration, RPD teacher guidance and OneDP distillation; the RLPD/HIL-SERL chain above remains a different experiment. Rafailov et al. (2023), [Direct Preference Optimization](https://arxiv.org/abs/2305.18290), derives the pairwise objective from a KL-regularized reward objective and a Bradley–Terry preference model. It is originally a language-model paper, not evidence that this toy runs VLA preference training. Paper figures: **以论文为准**. Full VLA/GPU and online robot RL: **本页未运行**.
 
 <Resource id="dpo-preference-paper" />

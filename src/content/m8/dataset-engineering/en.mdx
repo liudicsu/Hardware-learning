@@ -156,8 +156,7 @@ Open X-Embodiment (arXiv **2310.08864**) gathers many robot datasets into one ec
 - **Assuming one file per episode.** v3 packs many episodes per Parquet/MP4; boundaries live in metadata.
 - **Ignoring missing frames.** One gap in `cube_C` is already a data bug; find it with an audit script, not by eye.
 
-## CRC for logged chunks: corruption detection is not authentication (+150 min)
-
+## CRC for logged chunks: corruption detection is not authentication
 A byte-perfect log can still have poor labels, missing frames or a weak recording protocol; conversely, useful episodes can be silently corrupted. Add integrity checks at ingestion as a separate concern. This toy uses **synthetic 16-byte chunks**, not actual Parquet/MP4/bag files, and **does not assert that LeRobotDataset v3 stores this CRC**. Keep the existing dataset audit and held-out-start discipline; this is not CAN/EtherCAT error confinement, QoS acceptance or a Dynamixel packet tutorial.
 
 <Resource id="crc-polynomial-reference" />

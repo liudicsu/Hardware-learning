@@ -280,8 +280,7 @@ $ python -m lerobot.rl.actor --config_path rl/train_config.json           # term
 - **奖励分类器被骗。** 如果它在「差一点」时也判成功，策略就学会「差一点」。把误报加进负样本重训。
 - **探索不设边界。** 第一个在线回合之前就设好关节 / 末端限位（8.5）。
 
-## 偏好：DPO 风格损失与学习奖励模型（+210 min）
-
+## 偏好：DPO 风格损失与学习奖励模型
 偏好对说的是**同一上下文**下哪个候选更好，不是机器人视频进度。它不同于 [10.7 SARM / RA-BC](/zh/month/month-10/vla-rl-finetune)、Cal-ConRFT 标定、RPD 教师引导和 OneDP 蒸馏；前文 RLPD/HIL-SERL 链条仍是另一实验。Rafailov 等（2023）的 [Direct Preference Optimization](https://arxiv.org/abs/2305.18290) 从 KL 正则奖励目标及 Bradley–Terry 偏好模型推导成对目标。原论文是语言模型工作，不等于此玩具运行了 VLA 偏好训练。论文数字**以论文为准**；完整 VLA/GPU 与真机在线 RL：**本页未运行**。
 
 <Resource id="dpo-preference-paper" />

@@ -677,16 +677,14 @@ KF 0.213477 0.049114 0.143872 0.297265
 shared data/prior model; neither filter knows true bias; no universal winner; IMU hardware 本页未运行
 ```
 
-### 练习 (+150 min)
-
+### 练习
 1.（35 min）从采样保持零偏模型推导 F、H、Q0、R0 与单位，解释换连续时间零偏模型为何改变 Q 交叉项。
 2.（35 min）只用调参种子运行9候选网格，核对各40500次更新，并在评估前冻结选择。
 3.（35 min）重算五行留出结果及均值 / 标准差，解释种子223的反转，不删掉它。
 4.（30 min）另做平动角度污染或改变零偏游走的压力实验，不在留出种子上重调参，不声称硬件结果。
 5.（15 min）审计函数参数有无真零偏泄漏，并对照普通 / 零偏自适应的模型容量。
 
-## SPI 模式：共享导线，改变采样边沿（+180 min）
-
+## SPI 模式：共享导线，改变采样边沿
 SPI 用 SCK、COPI/MOSI、CIPO/MISO 同步传位，CS 选择外设；CS 不是 I2C 地址。[Arduino SPI 文档](https://docs.arduino.cc/learn/communication/spi/)给出下表。**leading** 是从空闲电平离开的第一跳，**trailing** 是回到空闲的第二跳。CPOL 定空闲电平；CPHA=0 在 leading 采样、trailing 推出（首位要预先准备），CPHA=1 在 leading 推出、trailing 采样。
 
 <Resource id="arduino-spi-modes" />
