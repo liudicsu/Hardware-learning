@@ -178,6 +178,17 @@ def main():
             for m in ("ise", "over", "settle"):
                 xa, xb = [x[m] for x in res[r][other]], [x[m] for x in res[r]["B_smith"]]
                 print(f"  paired {other[0]}-B {m}: {verdict(xa, xb)}")
+    # Seeds 0–1 of wrong_delay_big round k_hat to 0, so C≡A; also print the pure-mismatch subset.
+    subset = (2, 3, 4)
+    print("wrong_delay_big pure-mismatch subset (seeds 2-4 only; seeds 0-1 have k_hat=0 so C≡A and inflate the 5-seed mean and sd)")
+    for a in ARMS:
+        rows = [res["wrong_delay_big"][a][s] for s in subset]
+        print(f"  {a} " + " ".join(cell([x[m] for x in rows]) for m in ("ise", "over", "settle")))
+    for other in ("A_pi_ignore", "C_smith_wrong"):
+        for m in ("ise", "over", "settle"):
+            xa = [res["wrong_delay_big"][other][s][m] for s in subset]
+            xb = [res["wrong_delay_big"]["B_smith"][s][m] for s in subset]
+            print(f"  paired {other[0]}-B {m}: {verdict(xa, xb)}")
     print("No winner declared: with a true model the Smith predictor takes the delay out of the loop; with no delay it is the same PI; with the wrong delay it can lose")
     print("Real delayed plant / bench: 本页未运行; Smith-predictor statements 以原文为准")
 

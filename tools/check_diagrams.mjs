@@ -6982,10 +6982,10 @@ print("protocol pass")
       {en:["Lookup time","170.5300±37.6692","19.7531±0.5040","**tie**","not a ROS run"],zh:["查询时间","170.5300±37.6692","19.7531±0.5040","**打平**","不是 ROS 运行"]},
       ["tf2-time-tutorial","tf2-buffercore-source"],"180-minute work plan","180 分钟安排"],
     [5,"control-modelling","smith_predictor_delay_toy",600,["## Smith predictor: taking a dead time out of the loop","## Smith 预估器：把纯滞后移出回路"],
-      ["C̄ = C / (1 + C G (1 − z^−k))","e = r − y − (ŷ − ŷ_delayed)","H < 2τ","2τ_min = 0.8233 s","0.98","1.02","13.6°","76.4°","74.7°","0.236 s","λ_c = 0.15 s","A_pi_ignore","B_smith","C_smith_wrong","zero_delay","long_delay","short_delay","wrong_delay_big","87.5436±0.1121","0.2247±0.0487","87.3189±0.1214","0.5159±0.1210","2.7320±0.0045","0.6180±0.2675","0.0218±0.0248","5.9267±9.4293","−0.1920±0.0045","−0.0156±0.0032","0.0260±0.0060","0.2594±0.2363","43.0091±40.3948","2.7340±0.0055","k̂ = 12","k̂ = 0","3.50 s","1e-9","以原文为准","本页未运行","20 %"],
-      ["paired A-B ise: 0.0000+-0.0000: tie: identical on every seed","paired C-B ise: 0.0000+-0.0000: tie: identical on every seed","paired A-B over: 87.3189+-0.1214: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired C-B settle: 0.6180+-0.2675: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired C-B ise: 0.0218+-0.0248: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign","paired A-B settle: -0.1920+-0.0045: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired A-B ise: -0.0156+-0.0032: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds","paired C-B ise: 0.2594+-0.2363: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","need H < 2*tau_min = 0.8233 s","No winner declared"],
-      {en:["**synthetic**","**Model assumptions:**","**Integration step and its stability criterion.**","**not** the lead–lag compensator","near-tie / small gap, within seed noise","numerically zero (floating-point residue), effectively a tie","tie: identical on every seed","**A loses with a clear gap.**","**Smith predictor loses.**","**C loses with a clear gap on every metric**","**loses with a clear gap only on settling**","This tie is structural, not tuned","does not declare a universal winner","none diverged here","a perfect match is impossible in reality"],
-       zh:["**合成**","**模型假设**","**积分步长与稳定性判据。**","**不是**第 3 个月的超前–滞后","接近打平、差距很小，在种子噪声之内","数值上为零（浮点残差），等同打平","打平：每个种子都完全相同","**A 输了，差距明显**","**Smith 预估器输了**","**C 在每个指标上都输了，差距明显**","**C 只在调节时间上输了，差距明显**","这个打平是结构性的，不是调出来的","不宣布普遍赢家","这里没有发散","现实里不可能完全一致"]},
+      ["C̄ = C / (1 + C G (1 − z^−k))","e = r − y − (ŷ − ŷ_delayed)","H < 2τ","2τ_min = 0.8233 s","0.98","1.02","13.6°","76.4°","74.7°","0.236 s","λ_c = 0.15 s","A_pi_ignore","B_smith","C_smith_wrong","zero_delay","long_delay","short_delay","wrong_delay_big","87.5436±0.1121","0.2247±0.0487","87.3189±0.1214","0.5159±0.1210","2.7320±0.0045","0.6180±0.2675","0.0218±0.0248","5.9267±9.4293","−0.1920±0.0045","−0.0156±0.0032","0.0260±0.0060","0.2594±0.2363","43.0091±40.3948","2.7340±0.0055","13.5172±1.3548","0.1096±0.0054","2.7367±0.0058","k̂ = 12","k̂ = 0","3.50 s","1e-9","以原文为准","本页未运行","20 %"],
+      ["paired A-B ise: 0.0000+-0.0000: tie: identical on every seed","paired C-B ise: 0.0000+-0.0000: tie: identical on every seed","paired A-B over: 87.3189+-0.1214: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired C-B settle: 0.6180+-0.2675: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired C-B ise: 0.0218+-0.0248: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign","paired A-B settle: -0.1920+-0.0045: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired A-B ise: -0.0156+-0.0032: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds","paired C-B ise: 0.2594+-0.2363: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","wrong_delay_big pure-mismatch subset (seeds 2-4 only; seeds 0-1 have k_hat=0 so C≡A and inflate the 5-seed mean and sd)","paired C-B over: 13.5172+-1.3548: clear gap, not a tie (|m| > sd); same sign on all 3 seeds","paired C-B ise: 0.1096+-0.0054: clear gap, not a tie (|m| > sd); same sign on all 3 seeds","paired C-B settle: 2.7367+-0.0058: clear gap, not a tie (|m| > sd); same sign on all 3 seeds","need H < 2*tau_min = 0.8233 s","No winner declared"],
+      {en:["**synthetic**","**Model assumptions:**","**Integration step and its stability criterion.**","**not** the lead–lag compensator","near-tie / small gap, within seed noise","numerically zero (floating-point residue), effectively a tie","tie: identical on every seed","**A loses with a clear gap.**","**Smith predictor loses.**","**C loses with a clear gap on every metric**","**loses with a clear gap only on settling**","This tie is structural, not tuned","does not declare a universal winner","none diverged here","a perfect match is impossible in reality","pure-mismatch subset on seeds 2–4 only","inflates both the 5-seed mean and the sd","13.5172±1.3548"],
+       zh:["**合成**","**模型假设**","**积分步长与稳定性判据。**","**不是**第 3 个月的超前–滞后","接近打平、差距很小，在种子噪声之内","数值上为零（浮点残差），等同打平","打平：每个种子都完全相同","**A 输了，差距明显**","**Smith 预估器输了**","**C 在每个指标上都输了，差距明显**","**C 只在调节时间上输了，差距明显**","这个打平是结构性的，不是调出来的","不宣布普遍赢家","这里没有发散","现实里不可能完全一致","只用种子 2–4 的纯失配子集","把 5 种子均值和标准差都抬高了","13.5172±1.3548"]},
       {en:["Smith predictor","87.3189±0.1214","−0.1920±0.0045","**tie**","not a bench run"],zh:["Smith 预估器","87.3189±0.1214","−0.1920±0.0045","**打平**","不是实验台实验"]},
       ["wiki-smith"],"180-minute work plan","180 分钟安排"],
   ];
@@ -7009,8 +7009,8 @@ print("protocol pass")
       const mm=line.match(new RegExp(`: (${NUM})\\+-(${NUM}): `));
       ok(mm&&(line.includes("near-tie")?Math.abs(+mm[1])<=+mm[2]:Math.abs(+mm[1])>+mm[2]),`b14p2 ${toy}: label matches |m| vs sd: ${line.slice(0,70)}`);
       if(!line.includes("near-tie")){
-        ok(/same sign on all 5 seeds|of 5 seeds ha(s|ve) the opposite sign|no seed has the opposite sign/.test(line),`b14p2 ${toy}: sign count on ${line.slice(0,70)}`);
-        const o=line.match(/(\d) of 5 seeds ha/);ok(!o||+o[1]<=1,`b14p2 ${toy}: consistent label has a clear same-sign majority: ${line.slice(0,70)}`);
+        ok(/same sign on all [35] seeds|of [35] seeds ha(s|ve) the opposite sign|no seed has the opposite sign/.test(line),`b14p2 ${toy}: sign count on ${line.slice(0,70)}`);
+        const o=line.match(/(\d) of [35] seeds ha/);ok(!o||+o[1]<=1,`b14p2 ${toy}: consistent label has a clear same-sign majority: ${line.slice(0,70)}`);
       }
     }
     ok(cur.match(new RegExp(`slug: "${slug}"[\\s\\S]*?minutes: (\\d+)`))?.[1]===String(minutes),`b14p2 ${slug}: ${minutes} min`);
@@ -7151,6 +7151,42 @@ print("protocol pass")
   ok(/31 380/.test(read("README.md"))&&/约 31 380 分钟/.test(read("README.md")),"b14p3 README site minutes (en + zh)");
   console.log("hybridvla-cotvla PR3: HybridVLA ensemble, CoT-VLA subgoals and M6 2820 / site 31380 locked");
 }
+
+
+// Batch-14 polish: Smith wrong_delay_big pure-mismatch subset (seeds 2–4); optional MAP-VLA authors / J-STD-020 recheck.
+{
+  const read=p=>readFileSync(join(root,p),"utf8"), env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
+  const smpy=read("examples/month-5/control-modelling/smith_predictor_delay_toy.py");
+  const smex=read("examples/month-5/expected/smith_predictor_delay_toy.txt");
+  ok(smpy.includes("wrong_delay_big pure-mismatch subset")&&smpy.includes("subset = (2, 3, 4)"),"b14pol Smith toy: pure-mismatch subset seeds 2-4");
+  ok(execFileSync("python3",[join(root,"examples/month-5/control-modelling/smith_predictor_delay_toy.py")],{cwd:root,encoding:"utf8",env}).trim()===smex.trim(),"b14pol Smith expected byte-identical");
+  ok(smex.includes("wrong_delay_big pure-mismatch subset (seeds 2-4 only; seeds 0-1 have k_hat=0 so C≡A and inflate the 5-seed mean and sd)"),"b14pol expected header for pure-mismatch subset");
+  for(const line of ["paired C-B over: 13.5172+-1.3548: clear gap, not a tie (|m| > sd); same sign on all 3 seeds","paired C-B ise: 0.1096+-0.0054: clear gap, not a tie (|m| > sd); same sign on all 3 seeds","paired C-B settle: 2.7367+-0.0058: clear gap, not a tie (|m| > sd); same sign on all 3 seeds"]){
+    ok(smex.includes(line),`b14pol expected subset line ${line.slice(0,50)}`);
+  }
+  ok(smex.includes("paired C-B over: 43.0091+-40.3948: clear gap, not a tie (|m| > sd); same sign on all 5 seeds"),"b14pol 5-seed C-B overshoot line kept");
+  for(const lang of ["en","zh"]){
+    const md=read(`src/content/m5/control-modelling/${lang}.mdx`);
+    const head=md.indexOf(lang==="en"?"## Smith predictor: taking a dead time out of the loop":"## Smith 预估器：把纯滞后移出回路");
+    const summary=md.indexOf("<Summary>");
+    const sec=md.slice(head,summary);
+    ok(sec.includes(smpy.trim())&&sec.includes(smex.trim()),`b14pol control-modelling ${lang}: embedded py/expected match files`);
+    if(lang==="en"){
+      ok(sec.includes("pure-mismatch subset on seeds 2–4 only")&&sec.includes("inflates both the 5-seed mean and the sd")&&sec.includes("13.5172±1.3548")&&sec.includes("0.1096±0.0054")&&sec.includes("2.7367±0.0058")&&sec.includes("43.0091±40.3948"),`b14pol control-modelling ${lang}: prose states 5-seed vs subset`);
+    }else{
+      ok(sec.includes("只用种子 2–4 的纯失配子集")&&sec.includes("把 5 种子均值和标准差都抬高了")&&sec.includes("13.5172±1.3548")&&sec.includes("0.1096±0.0054")&&sec.includes("2.7367±0.0058")&&sec.includes("43.0091±40.3948"),`b14pol control-modelling ${lang}: prose states 5-seed vs subset`);
+    }
+    ok(!/：\*\*|\*\*：/.test(sec),`b14pol control-modelling ${lang}: no ** glued to a full-width colon`);
+  }
+  const note=read("docs/notes/batch-14-polish-sources.md");
+  ok(["89ca3ea","31380","pure-mismatch","13.5172","43.0091","k̂ = 0","MAP-VLA","Runhao Li","Wenkai Guo","Ziwei Wang","J-STD-020","403","not cited","No lock relaxed"].every(x=>note.includes(x)),"b14pol sources note");
+  const res=read("src/lib/resources.ts");
+  ok(res.includes("Runhao Li, Wenkai Guo, Zhenyu Wu, Changyuan Wang, Haoyuan Deng, Zhenyu Weng, Yap-Peng Tan, Ziwei Wang"),"b14pol MAP-VLA full author list in resources");
+  ok(/31 380/.test(read("README.md")),"b14pol README site minutes unchanged");
+  console.log("batch-14 polish: Smith pure-mismatch subset seeds 2-4; minutes 31380; no lock relaxed");
+}
+
+
 
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);

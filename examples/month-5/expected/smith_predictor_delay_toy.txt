@@ -52,5 +52,15 @@ wrong_delay_big (delay 20 samples = 0.20 s; C delay model off by 90%-110%, gain 
   paired C-B ise: 0.2594+-0.2363: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
   paired C-B over: 43.0091+-40.3948: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
   paired C-B settle: 2.7340+-0.0055: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+wrong_delay_big pure-mismatch subset (seeds 2-4 only; seeds 0-1 have k_hat=0 so C≡A and inflate the 5-seed mean and sd)
+  A_pi_ignore 0.7562+-0.1002 87.4215+-0.2708 3.5000+-0.0000
+  B_smith 0.2769+-0.0348 0.1988+-0.0282 0.7633+-0.0058
+  C_smith_wrong 0.3865+-0.0304 13.7160+-1.3731 3.5000+-0.0000
+  paired A-B ise: 0.4793+-0.0654: clear gap, not a tie (|m| > sd); same sign on all 3 seeds
+  paired A-B over: 87.2227+-0.2800: clear gap, not a tie (|m| > sd); same sign on all 3 seeds
+  paired A-B settle: 2.7367+-0.0058: clear gap, not a tie (|m| > sd); same sign on all 3 seeds
+  paired C-B ise: 0.1096+-0.0054: clear gap, not a tie (|m| > sd); same sign on all 3 seeds
+  paired C-B over: 13.5172+-1.3548: clear gap, not a tie (|m| > sd); same sign on all 3 seeds
+  paired C-B settle: 2.7367+-0.0058: clear gap, not a tie (|m| > sd); same sign on all 3 seeds
 No winner declared: with a true model the Smith predictor takes the delay out of the loop; with no delay it is the same PI; with the wrong delay it can lose
 Real delayed plant / bench: 本页未运行; Smith-predictor statements 以原文为准

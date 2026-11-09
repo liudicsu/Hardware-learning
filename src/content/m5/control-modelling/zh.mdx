@@ -837,6 +837,17 @@ def main():
             for m in ("ise", "over", "settle"):
                 xa, xb = [x[m] for x in res[r][other]], [x[m] for x in res[r]["B_smith"]]
                 print(f"  paired {other[0]}-B {m}: {verdict(xa, xb)}")
+    # Seeds 0–1 of wrong_delay_big round k_hat to 0, so C≡A; also print the pure-mismatch subset.
+    subset = (2, 3, 4)
+    print("wrong_delay_big pure-mismatch subset (seeds 2-4 only; seeds 0-1 have k_hat=0 so C≡A and inflate the 5-seed mean and sd)")
+    for a in ARMS:
+        rows = [res["wrong_delay_big"][a][s] for s in subset]
+        print(f"  {a} " + " ".join(cell([x[m] for x in rows]) for m in ("ise", "over", "settle")))
+    for other in ("A_pi_ignore", "C_smith_wrong"):
+        for m in ("ise", "over", "settle"):
+            xa = [res["wrong_delay_big"][other][s][m] for s in subset]
+            xb = [res["wrong_delay_big"]["B_smith"][s][m] for s in subset]
+            print(f"  paired {other[0]}-B {m}: {verdict(xa, xb)}")
     print("No winner declared: with a true model the Smith predictor takes the delay out of the loop; with no delay it is the same PI; with the wrong delay it can lose")
     print("Real delayed plant / bench: 本页未运行; Smith-predictor statements 以原文为准")
 
@@ -902,6 +913,16 @@ wrong_delay_big (delay 20 samples = 0.20 s; C delay model off by 90%-110%, gain 
   paired C-B ise: 0.2594+-0.2363: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
   paired C-B over: 43.0091+-40.3948: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
   paired C-B settle: 2.7340+-0.0055: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+wrong_delay_big pure-mismatch subset (seeds 2-4 only; seeds 0-1 have k_hat=0 so C≡A and inflate the 5-seed mean and sd)
+  A_pi_ignore 0.7562+-0.1002 87.4215+-0.2708 3.5000+-0.0000
+  B_smith 0.2769+-0.0348 0.1988+-0.0282 0.7633+-0.0058
+  C_smith_wrong 0.3865+-0.0304 13.7160+-1.3731 3.5000+-0.0000
+  paired A-B ise: 0.4793+-0.0654: clear gap, not a tie (|m| > sd); same sign on all 3 seeds
+  paired A-B over: 87.2227+-0.2800: clear gap, not a tie (|m| > sd); same sign on all 3 seeds
+  paired A-B settle: 2.7367+-0.0058: clear gap, not a tie (|m| > sd); same sign on all 3 seeds
+  paired C-B ise: 0.1096+-0.0054: clear gap, not a tie (|m| > sd); same sign on all 3 seeds
+  paired C-B over: 13.5172+-1.3548: clear gap, not a tie (|m| > sd); same sign on all 3 seeds
+  paired C-B settle: 2.7367+-0.0058: clear gap, not a tie (|m| > sd); same sign on all 3 seeds
 No winner declared: with a true model the Smith predictor takes the delay out of the loop; with no delay it is the same PI; with the wrong delay it can lose
 Real delayed plant / bench: 本页未运行; Smith-predictor statements 以原文为准
 ```
@@ -915,7 +936,7 @@ Real delayed plant / bench: 本页未运行; Smith-predictor statements 以原�
 - **zero_delay** 情形，`k = 0` 时不论模型如何，Smith 括号 `ŷ − ŷ_delayed` 都严格为零，所以三组运行的是同一个 PI。A−B 和 C−B 的每个指标都是**打平：每个种子都完全相同**。这个打平是结构性的，不是调出来的。
 - **long_delay** 情形，**A 输了，差距明显**。它的超调是 87.5436±0.1121 %，B 是 0.2247±0.0487 %（配对 A−B 87.3189±0.1214）；ISE 0.8114±0.1880 对 0.2955±0.0673（A−B 0.5159±0.1210）；负载阶跃前始终没有调节到位（A−B settle 2.7320±0.0045，A 被截断，所以这是下界）。三项都是 5 个种子同号。算例里 13.6° 的裕度就是这种振荡的样子。延迟模型偏 30–50 % 时，**C 只在调节时间上输了，差距明显**（C−B settle 0.6180±0.2675，5 个种子同号）。在 ISE（0.0218±0.0248，5 个种子中有 1 个符号相反）和超调（5.9267±9.4293，5 个种子中有 2 个符号相反）上，C 与 B **接近打平、差距很小，在种子噪声之内**。种子 1 的 `k̂ = 12`（真实为 20），超调约 22 %，但 ISE 仍略低于 B。
 - **short_delay** 情形，这里 **Smith 预估器输了**。普通 PI 更快。A−B settle −0.1920±0.0045 是明显差距，A−B ISE −0.0156±0.0032 是小但稳定的差距，都是 5 个种子同号。B 只换来小但稳定的 0.0260±0.0060 个百分点更低的超调，而超调本身只有 0.14–0.17 %。PI 还剩 74.7° 的裕度，能承受这么短的延迟，响应比不含延迟的目标 `λ_c` 更快，而 B 复现的恰恰是这个目标。C−B 在 ISE（−0.0026±0.0047）和调节时间（−0.0360±0.0716）上接近打平；超调上是小但稳定的 0.0059±0.0058，5 个种子中有 1 个符号相反。
-- **wrong_delay_big** 情形，**C 在每个指标上都输了，差距明显**，都是 5 个种子同号：ISE C−B 0.2594±0.2363，超调 43.0091±40.3948，调节时间 2.7340±0.0055（C 始终没有调节到位，被截断）。种子 0 和 1 上错误模型取整为 `k̂ = 0`，括号为零，C **就是** A，超调 87 %。种子 2–4 上模型把延迟估成两倍（`k̂` = 39–40），C 超调 13–15 %，负载阶跃前没有进入 2 % 带。这正是 Smith 预估器的经典弱点：预测好坏完全取决于延迟模型。
+- **wrong_delay_big** 情形，**C 在每个指标上都输了，差距明显**，都是 5 个种子同号：ISE C−B 0.2594±0.2363，超调 43.0091±40.3948，调节时间 2.7340±0.0055（C 始终没有调节到位，被截断）。种子 0 和 1 上错误模型取整为 `k̂ = 0`，括号为零，C **就是** A，超调 87 %；正是这种塌缩成忽略延迟的 PI，把 5 种子均值和标准差都抬高了。toy 另外打印一块**只用种子 2–4 的纯失配子集**。子集上 C−B 超调 13.5172±1.3548（明显，3 个种子同号），ISE 0.1096±0.0054，调节时间 2.7367±0.0058——对照 5 种子超调 43.0091±40.3948。那三个种子上模型把延迟估成两倍（`k̂` = 39–40），C 超调 13–15 %，负载阶跃前没有进入 2 % 带。这正是 Smith 预估器的经典弱点：预测好坏完全取决于延迟模型。
 
 本页**不宣布普遍赢家**。模型准确、延迟很长时，Smith 预估器把延迟移出了回路；没有延迟时它就是同一个 PI；延迟很短时普通 PI 更快；延迟模型错得很离谱时，它可能和忽略延迟一样差。真实的带延迟对象实验台同样**本页未运行**。
 
