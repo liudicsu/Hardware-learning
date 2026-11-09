@@ -5816,5 +5816,18 @@ print("protocol pass")
   console.log("vqbet-dualsystem PR3: multimodal BC tokenisers, OpenHelix cadence criterion, full Summaries and batch-8 total locked");
 }
 
+// Batch-8 polish: composition container types (4.2) and Chaumette & Hutchinson further reading (9.8).
+{
+  const read=p=>readFileSync(join(root,p),"utf8"),cur=read("src/lib/curriculum.ts"),res=read("src/lib/resources.ts");
+  for(const lang of ["en","zh"]){
+    const md=read(`src/content/m4/ros2-graph/${lang}.mdx`),sec=md.slice(md.indexOf(lang==="en"?"## Composition: nodes are not processes":"## Composition：节点不是进程"),md.indexOf("<Summary>"));
+    ok(sec.includes("About-Composition.html")&&["`component_container` ","`component_container_mt`","`component_container_isolated`","SingleThreadedExecutor","MultiThreadedExecutor","--use_multi_threaded_executor"].every(x=>sec.includes(x)),`b8pol ros2-graph ${lang}: three official containers and executors`);
+    const vs=read(`src/content/m9/visual-servoing/${lang}.mdx`),i=vs.indexOf("10.1109/MRA.2006.250573");
+    ok(i>0&&i<vs.indexOf("<Summary>")&&vs.includes("faculty.cc.gatech.edu/~seth/ResPages/pdfs/ChaHut06.pdf")&&vs.includes("13(4)"),`b8pol visual-servoing ${lang}: Chaumette & Hutchinson 2006 further reading`);
+  }
+  ok(res.includes(`"chaumette-hutchinson-2006": {`)&&cur.includes(`"chaumette-hutchinson-2006"`),"b8pol opened source chaumette-hutchinson-2006");
+  console.log("batch-8 polish: composition containers and IBVS primary tutorial locked");
+}
+
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
 process.exit(failed ? 1 : 0);

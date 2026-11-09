@@ -1407,7 +1407,7 @@ const month9Lessons: Lesson[] = [
       { zh: "能指出 OpenCV 真摄像头路径标「本页未运行」。", en: "Note that the real OpenCV webcam path is marked 本页未运行." },
     ],
     prereqs: ["camera-calibration", "moveit-servo", "kinematics-ik", "async-deployment"],
-    resources: ["visp-ibvs-tutorial", "wiki-visual-servoing", "opencv-aruco", "opencv-solvepnp", "moveit-servo"],
+    resources: ["visp-ibvs-tutorial", "chaumette-hutchinson-2006", "wiki-visual-servoing", "opencv-aruco", "opencv-solvepnp", "moveit-servo"],
     tasks: [
       { id: "run", text: { zh: "运行 tag_error_jog.py，核对 expected/tag_error_jog.txt", en: "Run tag_error_jog.py and match expected/tag_error_jog.txt" } },
       { id: "b8p2-ibvs", text: { zh: "运行 ibvs_interaction_matrix_toy.py，核对共享估计、五个种子与四个场景", en: "Run ibvs_interaction_matrix_toy.py and audit the shared estimate, five seeds and four scenarios" } },
