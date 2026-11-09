@@ -6159,16 +6159,16 @@ print("protocol pass")
   const cur=read("src/lib/curriculum.ts"), res=read("src/lib/resources.ts");
   const cases=[
     [10,"multi-view-extrinsics","spatialvla_ego3d_grid_toy",450,["## Ego3D position encoding","## Ego3D 位置编码"],
-      ["seeds=5","A_2d_only 0.1216+-0.0098","B_ego3d 0.0631+-0.0029","C_adaptive_grids 0.0458+-0.0034","No winner declared"],
-      ["Ego3D","Adaptive","camera-frame","A_2d_only","B_ego3d","C_adaptive_grids","以论文为准","本页未运行"],
-      {en:["**not** a rewrite","**synthetic**","No winner is declared","AX = ZB"],zh:["**不是**改写","**合成**","不宣布","AX = ZB"]},
-      {en:["SpatialVLA","Ego3D","AX=ZB"],zh:["SpatialVLA","Ego3D","AX=ZB"]},
+      ["seeds=5","A_2d_only 0.1216+-0.0098","B_ego3d 0.0631+-0.0029","C_adaptive_grids 0.0458+-0.0034","MAE is primary"],
+      ["Ego3D","Adaptive","camera-frame","A_2d_only","B_ego3d","C_adaptive_grids","mae_iid","mae_shift","以论文为准","本页未运行"],
+      {en:["**not** a rewrite","**synthetic**","Primary metric is MAE","AX = ZB"],zh:["**不是**改写","**合成**","主指标是 MAE","AX = ZB"]},
+      {en:["SpatialVLA","MAE","AX=ZB"],zh:["SpatialVLA","MAE","AX=ZB"]},
       ["spatialvla-paper"]],
     [9,"world-models-overview","memoryvla_bank_retrieve_toy",630,["## Perceptual-cognitive memory bank","## 感知–认知记忆库"],
-      ["seeds=5","A_markov 0.5300+-0.0694","B_window 0.6750+-0.0637","C_memory_bank 1.0000+-0.0000","No winner declared"],
-      ["MemoryVLA","working memory","A_markov","B_window","C_memory_bank","以论文为准","本页未运行"],
-      {en:["**not** MTC","**synthetic**","No winner is declared","DreamGen"],zh:["**不是** MTC","**合成**","不宣布","DreamGen"]},
-      {en:["MemoryVLA","delayed-cue","DreamGen IDM"],zh:["MemoryVLA","延迟线索","DreamGen IDM"]},
+      ["seeds=5","a_no_delay A_markov 1.0000+-0.0000","b_beyond_window A_markov 0.4700+-0.0481","b_beyond_window C_memory_bank 1.0000+-0.0000","c_stale_switch C_memory_bank 0.2850+-0.0978","unequal information"],
+      ["MemoryVLA","working memory","A_markov","B_window","C_memory_bank","a_no_delay","b_beyond_window","c_stale_switch","以论文为准","本页未运行"],
+      {en:["**not** MTC","**synthetic**","unequal information","DreamGen","chosen on purpose"],zh:["**不是** MTC","**合成**","信息不对等","DreamGen","故意"]},
+      {en:["MemoryVLA","three shared-budget regimes","DreamGen IDM"],zh:["MemoryVLA","三个共享预算制度","DreamGen IDM"]},
       ["memoryvla-paper"]],
   ];
   for(const [month,slug,toy,minutes,heads,outputs,markers,langMarkers,summaryMarkers,ids] of cases){

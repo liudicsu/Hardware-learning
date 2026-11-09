@@ -1,8 +1,14 @@
-Synthetic MemoryVLA memory-bank toy; shared delayed-cue POMDP; not MTC stage memory; not DreamGen IDM
-T=16 cue_t∈[2,12] button_t=15 window=6 bank_cap=8 episodes/seed=40 seeds=5; no future leak; equal move budget; paper % 以论文为准
-arm success mean_steps (mean+-sd over seeds)
-A_markov 0.5300+-0.0694 16.0000+-0.0000
-B_window 0.6750+-0.0637 16.0000+-0.0000
-C_memory_bank 1.0000+-0.0000 16.0000+-0.0000
-No winner declared: Markov vs window vs memory-bank trade success; not a MemoryVLA benchmark
+Synthetic MemoryVLA memory-bank toy; shared delayed-cue POMDP; three delay regimes; not MTC stage memory; not DreamGen IDM
+T=16 button_t=15 window=6 beyond_cue_t∈[2,9] (chosen to exceed B's window; B and C get unequal information) bank_cap=8 stale_cap=3 episodes/seed=40 seeds=5; no future leak; equal move budget; paper % 以论文为准
+regime arm success (mean+-sd over seeds)
+a_no_delay A_markov 1.0000+-0.0000
+a_no_delay B_window 1.0000+-0.0000
+a_no_delay C_memory_bank 1.0000+-0.0000
+b_beyond_window A_markov 0.4700+-0.0481
+b_beyond_window B_window 0.4700+-0.0481
+b_beyond_window C_memory_bank 1.0000+-0.0000
+c_stale_switch A_markov 0.5200+-0.0818
+c_stale_switch B_window 0.5200+-0.0818
+c_stale_switch C_memory_bank 0.2850+-0.0978
+Regime note: (a) cue at decision → A/B/C should tie; (b) delay beyond W → B misses, C can keep the cue (unequal info); (c) cue switch + distractors + tight bank → C degrades
 GPU / MemoryVLA weights / robot: 本页未运行; Shi et al. 2508.19236 以论文为准; MemoryVLA++ 2606.09827 reading only

@@ -24,3 +24,9 @@ opencode free models tried first (DeepSeek flash-free returned empty within 40 s
 ## Local validation
 
 `tools/test_b10_spatialvla_memoryvla_toys.py`, month-9 / month-10 `check.sh`, `check_quotes`, `check_diagrams`, `check_widgets`, `check_wokwi`, lint, next typegen, `tsc --noEmit`, production build. No workflow edits.
+
+## NEEDS_FIX follow-up (same PR)
+
+- MemoryVLA: three regimes (a tie / b beyond-window unequal info / c stale-switch degrade); removed “No winner” next to C=1.00.
+- SpatialVLA: MAE primary (A/B/C 0.1216/0.0631/0.0458); strict TOL 0.05 + distribution-shift MAE; no 1.00 success lead.
+- Minutes unchanged (26940 / M10 2490 / M9 3690).

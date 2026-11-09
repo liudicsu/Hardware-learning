@@ -9,136 +9,139 @@ manipulation is non-Markovian; working memory + a Perceptual-Cognitive Memory
 Bank that retrieves/consolidates past tokens, then conditions the action
 expert. MemoryVLA++ (2606.09827) is reading-only here — not a second toy.
 
-Shared long-horizon POMDP for every arm (delayed cue; equal action budget):
-  Corridor of length T. At a random early step a cue bit c ∈ {0,1} is shown
-  for one frame, then hidden. At the end the agent must press button c.
-  Observations otherwise are position + a distractor bit. No arm sees the
-  future; bank updates use only past/current tokens.
+Shared long-horizon POMDP for every arm (equal action budget; no future leak).
+Three delay regimes are reported separately so fairness is visible:
+  (a) no_delay       cue shown at the decision step — A/B/C should tie
+  (b) beyond_window  cue early enough that a fixed window of W misses it
+                     (delay chosen on purpose to exceed B's window; B and C
+                     therefore get unequal information)
+  (c) stale_switch   mid-episode cue flip + distractor bank entries + small
+                     BANK_CAP so wrong retrieval visibly degrades C
 
-Arms (same greedy 1-D mover; differ only in memory):
+Arms (same 1-D mover; differ only in memory):
   A_markov          current observation only
   B_window          concat of the last W observations
   C_memory_bank     working memory retrieves top-1 consolidated bank entry
-                    by cue-slot similarity, then fuses with current tokens
 
-Metrics: success rate on the memory-dependent button task; mean steps used.
-≥5 seeds. No winner presumed. GPU / MemoryVLA weights 本页未运行.
+Metrics: success rate per regime. ≥5 seeds. GPU / MemoryVLA weights 本页未运行.
 """
 from __future__ import annotations
 
 import math
 import random
 
-T = 16  # horizon
-CUE_LO, CUE_HI = 2, 12  # cue shown once in this range
-BUTTON_STEP = T - 1
-W = 6  # fixed window for arm B (misses early cues)
+T = 16
+BUTTON_STEP = T - 1  # 15
+W = 6
+# beyond_window: cue must satisfy cue_t <= BUTTON_STEP - W (= 9) so B misses it
+BEYOND_CUE_HI = BUTTON_STEP - W  # 9
 BANK_CAP = 8
+BANK_CAP_STALE = 3  # tight capacity under distractors
 SEEDS = (0, 1, 2, 3, 4)
 N_EP = 40
 ARMS = ("A_markov", "B_window", "C_memory_bank")
+REGIMES = ("a_no_delay", "b_beyond_window", "c_stale_switch")
 
 
 def obs_vector(pos: int, cue_visible: int | None, distractor: int) -> tuple:
-    """Partial observation. cue_visible is None when hidden."""
     cue = -1 if cue_visible is None else cue_visible
     return (pos, cue, distractor)
 
 
-def run_episode(arm: str, rng: random.Random) -> tuple[bool, int]:
-    cue_bit = rng.randint(0, 1)
-    cue_t = rng.randint(CUE_LO, CUE_HI)
+def run_episode(arm: str, rng: random.Random, regime: str) -> bool:
+    if regime == "a_no_delay":
+        cue_bit = rng.randint(0, 1)
+        cue_t = BUTTON_STEP  # visible at decision
+        switch_t = None
+        final_bit = cue_bit
+        bank_cap = BANK_CAP
+        inject_distractors = False
+    elif regime == "b_beyond_window":
+        cue_bit = rng.randint(0, 1)
+        # deliberately earlier than the window can reach at decision time
+        cue_t = rng.randint(2, BEYOND_CUE_HI)  # 2..9 inclusive
+        switch_t = None
+        final_bit = cue_bit
+        bank_cap = BANK_CAP
+        inject_distractors = False
+    else:
+        # c_stale_switch: early cue, then flip; distractors fill a tiny bank
+        cue_bit = rng.randint(0, 1)
+        cue_t = rng.randint(2, 5)
+        switch_t = rng.randint(6, 9)
+        final_bit = 1 - cue_bit
+        bank_cap = BANK_CAP_STALE
+        inject_distractors = True
+
     pos = 0
     hist: list[tuple] = []
-    # Memory bank: list of (key_feat, value_cue_estimate)
     bank: list[tuple[tuple, float]] = []
-    working: tuple | None = None
 
     for t in range(T):
         distractor = rng.randint(0, 1)
-        cue_vis = cue_bit if t == cue_t else None
+        cue_vis: int | None = None
+        if t == cue_t:
+            cue_vis = cue_bit
+        elif switch_t is not None and t == switch_t:
+            cue_vis = final_bit
         o = obs_vector(pos, cue_vis, distractor)
         hist.append(o)
 
-        # --- build feature for the policy ---
         if arm == "A_markov":
-            feat = o
-            cue_est = o[1]  # -1 when hidden
+            cue_est = o[1]
         elif arm == "B_window":
             window = hist[-W:]
-            # pad left
             while len(window) < W:
                 window = [(-1, -1, -1)] + window
-            flat = []
-            for w in window:
-                flat.extend(w)
-            feat = tuple(flat)
-            # estimate cue as last non -1 cue in window
             cue_est = -1
             for w in window:
                 if w[1] != -1:
                     cue_est = w[1]
         else:
-            # C: working memory = current tokens; retrieve from bank; consolidate
-            working = o
             if o[1] != -1:
-                # consolidate: store perceptual (pos,distractor) + cognitive cue
                 key = (o[0], o[2])
                 bank.append((key, float(o[1])))
-                if len(bank) > BANK_CAP:
-                    # merge redundancies: drop oldest duplicate-ish by key proximity
-                    bank = bank[-BANK_CAP:]
-            # retrieve: nearest key by L1 on (pos, distractor); only past entries
+                if inject_distractors:
+                    # distractor consolidations with the opposite bit
+                    for _ in range(2):
+                        dpos = rng.randint(0, BUTTON_STEP)
+                        ddis = rng.randint(0, 1)
+                        bank.append(((dpos, ddis), float(1 - int(o[1]))))
+                if len(bank) > bank_cap:
+                    bank = bank[-bank_cap:]
             cue_est = -1.0
             if bank:
-                best = min(bank, key=lambda kv: abs(kv[0][0] - o[0]) + abs(kv[0][1] - o[2]))
-                # fuse: prefer retrieved cue if current has none
+                best = min(
+                    bank,
+                    key=lambda kv: abs(kv[0][0] - o[0]) + abs(kv[0][1] - o[2]),
+                )
                 cue_est = best[1] if o[1] == -1 else float(o[1])
             elif o[1] != -1:
                 cue_est = float(o[1])
-            feat = (o[0], cue_est, o[2])
 
-        # --- equal action budget: move +1 toward end, or press at BUTTON_STEP ---
         if t < BUTTON_STEP:
-            # advance along corridor (shared policy skeleton)
             pos = min(pos + 1, BUTTON_STEP)
-            action = "move"
         else:
-            # must press 0 or 1
-            if arm == "A_markov":
-                # Markov cannot see past cue → random guess from current (no cue)
-                guess = rng.randint(0, 1) if cue_est == -1 else int(cue_est)
-            elif arm == "B_window":
-                if cue_est == -1:
-                    guess = rng.randint(0, 1)
-                else:
-                    guess = int(cue_est)
+            if cue_est == -1 or cue_est == -1.0:
+                guess = rng.randint(0, 1)
             else:
-                guess = int(round(cue_est)) if cue_est != -1 else rng.randint(0, 1)
-            success = guess == cue_bit
-            return success, t + 1
+                guess = int(round(cue_est))
+            return guess == final_bit
 
-    return False, T
+    return False
 
 
-def run_arm(arm: str, seed: int) -> tuple[float, float]:
-    rng = random.Random(50_000 + seed)
-    # Shared episode parameters stream: pre-draw cue bits / times / distractors
-    # by using a dedicated RNG so every arm sees the same POMDP realizations.
-    shared = random.Random(60_000 + seed)
-    episodes = []
-    for _ in range(N_EP):
-        # draw shared episode seed so arms replay identical POMDPs
-        ep_seed = shared.randint(0, 10**9)
-        episodes.append(ep_seed)
+_REGIME_SALT = {"a_no_delay": 11, "b_beyond_window": 22, "c_stale_switch": 33}
 
+
+def run_arm(arm: str, seed: int, regime: str) -> float:
+    shared = random.Random(60_000 + seed * 17 + _REGIME_SALT[regime])
+    episodes = [shared.randint(0, 10**9) for _ in range(N_EP)]
     succ = []
-    steps = []
     for ep_seed in episodes:
-        ok, n = run_episode(arm, random.Random(ep_seed))
+        ok = run_episode(arm, random.Random(ep_seed), regime)
         succ.append(1.0 if ok else 0.0)
-        steps.append(float(n))
-    return sum(succ) / len(succ), sum(steps) / len(steps)
+    return sum(succ) / len(succ)
 
 
 def mean_sd(xs: list[float]) -> tuple[float, float]:
@@ -150,26 +153,26 @@ def mean_sd(xs: list[float]) -> tuple[float, float]:
 def main() -> None:
     print(
         "Synthetic MemoryVLA memory-bank toy; shared delayed-cue POMDP; "
-        "not MTC stage memory; not DreamGen IDM"
+        "three delay regimes; not MTC stage memory; not DreamGen IDM"
     )
     print(
-        f"T={T} cue_t∈[{CUE_LO},{CUE_HI}] button_t={BUTTON_STEP} "
-        f"window={W} bank_cap={BANK_CAP} episodes/seed={N_EP} seeds={len(SEEDS)}; "
+        f"T={T} button_t={BUTTON_STEP} window={W} "
+        f"beyond_cue_t∈[2,{BEYOND_CUE_HI}] (chosen to exceed B's window; "
+        f"B and C get unequal information) "
+        f"bank_cap={BANK_CAP} stale_cap={BANK_CAP_STALE} "
+        f"episodes/seed={N_EP} seeds={len(SEEDS)}; "
         f"no future leak; equal move budget; paper % 以论文为准"
     )
-    print("arm success mean_steps (mean+-sd over seeds)")
-    for arm in ARMS:
-        succs, steps = [], []
-        for seed in SEEDS:
-            s, st = run_arm(arm, seed)
-            succs.append(s)
-            steps.append(st)
-        ms, ss = mean_sd(succs)
-        mt, st = mean_sd(steps)
-        print(f"{arm} {ms:.4f}+-{ss:.4f} {mt:.4f}+-{st:.4f}")
+    print("regime arm success (mean+-sd over seeds)")
+    for regime in REGIMES:
+        for arm in ARMS:
+            vals = [run_arm(arm, seed, regime) for seed in SEEDS]
+            m, s = mean_sd(vals)
+            print(f"{regime} {arm} {m:.4f}+-{s:.4f}")
     print(
-        "No winner declared: Markov vs window vs memory-bank trade success; "
-        "not a MemoryVLA benchmark"
+        "Regime note: (a) cue at decision → A/B/C should tie; "
+        "(b) delay beyond W → B misses, C can keep the cue (unequal info); "
+        "(c) cue switch + distractors + tight bank → C degrades"
     )
     print(
         "GPU / MemoryVLA weights / robot: 本页未运行; Shi et al. 2508.19236 以论文为准; "
