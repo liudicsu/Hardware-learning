@@ -2413,6 +2413,17 @@ export const resources: Record<string, Resource> = {
     license: { zh: "© Inria；仅提供外链，条款以原站为准", en: "© Inria; external link only, see original terms" },
     extra: true,
   },
+  "chaumette-hutchinson-2006": {
+    id: "chaumette-hutchinson-2006",
+    url: "https://faculty.cc.gatech.edu/~seth/ResPages/pdfs/ChaHut06.pdf",
+    title: { zh: "Chaumette & Hutchinson：视觉伺服控制 第一部分：基本方法（2006）", en: "Chaumette & Hutchinson: Visual servo control, Part I: Basic approaches (2006)" },
+    author: "François Chaumette, Seth Hutchinson",
+    kind: "textbook",
+    cost: { zh: "免费（作者托管 PDF）", en: "Free (author-hosted PDF)" },
+    summary: { zh: "IEEE Robotics & Automation Magazine 13(4), 2006，DOI 10.1109/MRA.2006.250573。IBVS / PBVS 经典教程：点特征交互矩阵、相机后退、奇异性与局部极小。", en: "IEEE Robotics & Automation Magazine 13(4), 2006, DOI 10.1109/MRA.2006.250573. Classic IBVS / PBVS tutorial: point interaction matrix, camera retreat, singularities and local minima." },
+    license: { zh: "© IEEE；作者托管副本，仅提供外链", en: "© IEEE; author-hosted copy, external link only" },
+    extra: true,
+  },
   "wiki-visual-servoing": {
     id: "wiki-visual-servoing",
     url: "https://en.wikipedia.org/wiki/Visual_servoing",

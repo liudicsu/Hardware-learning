@@ -227,6 +227,8 @@ L = [ -1/Z    0    x/Z   x·y    -(1+x²)   y ]
 
 四个点叠成 8×6；`L⁺ = (LᵀL)⁻¹Lᵀ` 即最小二乘求解。前三列含 `1/Z`，所以 **IBVS 仍然需要深度估计**——只用于增益矩阵，不用于误差。ViSP 教程每次迭代用估计位姿更新 `Z`；常数期望深度 `L*` 是常见替代。两个点只有 4 行（秩 < 6）：有两个相机运动方向看不见，玩具会打印这一退化情况。[Wikipedia 综述](https://en.wikipedia.org/wiki/Visual_servoing)（二手来源）列出 IBVS 的经典问题：绕光轴大角度旋转时的**相机后退（camera retreat）**、局部极小，以及用条件数检查的交互矩阵奇异。
 
+延伸阅读（一手）：Chaumette 与 Hutchinson，《Visual servo control, Part I: Basic approaches》，*IEEE Robotics & Automation Magazine* 13(4)，2006 年 12 月，DOI 10.1109/MRA.2006.250573（[作者托管 PDF](https://faculty.cc.gatech.edu/~seth/ResPages/pdfs/ChaHut06.pdf)）。文中推导同一个点特征交互矩阵，比较 IBVS 与 PBVS，并讨论相机后退、奇异性与局部极小。
+
 ### 公平设置
 
 `ibvs_interaction_matrix_toy.py` 是**合成**的，只用标准库：自由飞行相机，四个共面点组成 0.20 m 正方形，期望位姿在正前方 0.5 m。两臂收到**同样带噪的归一化点**（σ = 0.002，f = 800 px 时约 1.6 px）、**同样的假设目标模型**（尺度 `k`），因此得到同一个平面单应位姿估计和同一个深度估计 `Ẑ`；同样的 `λ = 0.5 s⁻¹`、步长 0.1 s、上限 300 步和视场 `|x|, |y| ≤ 0.4`。任一点被推出视野即判为 **lost** 并停止（其 SSE 取停止时的值）。两臂都看不到真实深度。五个噪声种子，报 mean±sd。

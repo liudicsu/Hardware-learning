@@ -893,7 +893,7 @@ data: hi
 
 ## Composition：节点不是进程
 
-launch 文件可以把 N 个节点可执行程序放进 N 个进程；重映射改变名称，**不改变进程部署**。可组合的 C++ 节点是共享库中注册的 component。`component_container` 托管 component manager，可以在一个进程中加载多个组件，同时保留各自的 ROS 节点名。修改 launch 文件不会悄悄把现有 Python 图转换成 C++ 组件。[Jazzy Composition 教程](https://docs.ros.org/en/jazzy/Tutorials/Intermediate/Composition.html)提供下面单独使用的 `composition` 演示包。
+launch 文件可以把 N 个节点可执行程序放进 N 个进程；重映射改变名称，**不改变进程部署**。可组合的 C++ 节点是共享库中注册的 component。`component_container` 托管 component manager，可以在一个进程中加载多个组件，同时保留各自的 ROS 节点名。修改 launch 文件不会悄悄把现有 Python 图转换成 C++ 组件。[Jazzy Composition 教程](https://docs.ros.org/en/jazzy/Tutorials/Intermediate/Composition.html)提供下面单独使用的 `composition` 演示包。[Jazzy About-Composition 页面](https://docs.ros.org/en/jazzy/Concepts/Intermediate/About-Composition.html)列出三种通用容器：`component_container` 用一个 SingleThreadedExecutor 执行所有组件，`component_container_mt` 用一个 MultiThreadedExecutor 执行它们，`component_container_isolated` 则给每个组件一个专属执行器（默认 SingleThreadedExecutor，加 `--use_multi_threaded_executor` 则为 MultiThreadedExecutor）。
 
 **真实 `component_container`、ROS 图与机器人运行：本页未运行。** 阅读步骤：先按上文在每个终端加载 Jazzy，确认已安装 `rclcpp_components`、`ros2component` 和 `composition`。终端 A 运行容器并保持开启；终端 B 列出类型，再加载两个组件：
 
