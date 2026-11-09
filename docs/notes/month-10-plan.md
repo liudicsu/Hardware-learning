@@ -1,6 +1,20 @@
 # Month 10 plan: Modern policy heads, deployment & real-world improvement
 
-Current / 当前 Batch-7 PR3: M10 **2280 min**; older sections retain historical totals.
+Current / 当前：**M10 2490 min**, Batch-10 PR3. Older sections retain historical totals.
+
+## Batch-10 PR3 / 本月 H4 (+210)
+
+Base `e814307`. PR3 only on M10 host: **M10 2280→2490 (+210)**; M9 +210 on month-9-plan.md. Site **26520→26940**, still 71 lessons.
+
+- **H4 / 10.4 multi-view-extrinsics: 240→450 (+210).** SpatialVLA Ego3D + adaptive action grids: shared camera-frame points; 2D-only vs Ego3D vs CDF/PPF grids; ≥5 seeds; ≠ AX=ZB rewrite. GPU 本页未运行. / Ego3D 与自适应网格，不宣布 SpatialVLA 基准。
+
+**Allocation / 安排:** 45+45+45+45+30=210 minutes.
+
+**Site accounting / 全站核算:** **26940=26520+420** with M9 +210; **M10=2490**, **71 lessons**.
+
+<!-- historical -->
+
+Current / 当前（历史） Batch-7 PR3: M10 **2280 min**; older sections retain historical totals.
 
 Site supplement beyond @DeRonin_'s 6-month roadmap (Months 7–11). Lessons open with "This lesson is a site supplement — Months 7–11 are not part of the original six-month course." / 「本课是本站补充内容——第 7–11 个月不属于原六个月课程。」
 
@@ -13,7 +27,7 @@ Constraints: no new hardware; not required this month: Isaac, an F/T sensor or a
 | 1 | `flow-matching-policies` | 450 | `flow_match_toy.py`, `policy_distill_onestep_toy.py` | Flow Matching / π0 / rectified flow / SmolVLA papers; LeRobot π0.5 docs |
 | 2 | `real-time-chunking` | 180 | `rtc_blend_toy.py` | RTC paper; LeRobot RTC + async docs |
 | 3 | `edge-deploy-checklist` | 330 | `latency_budget.py`, `int8_quant_toy.py`, `vla_edge_budget_toy.py` | ONNX Runtime quantization; LeRobot hardware / accelerator docs |
-| 4 | `multi-view-extrinsics` | 240 | `extrinsics_chain_toy.py` | OpenCV calibrateRobotWorldHandEye / ArUco / solvePnP docs |
+| 4 | `multi-view-extrinsics` | 450 | `extrinsics_chain_toy.py`, `spatialvla_ego3d_grid_toy.py` | OpenCV calibrateRobotWorldHandEye / ArUco / solvePnP docs; SpatialVLA 2501.15830 |
 | 5 | `intervention-logging` | 180 | `intervention_log_toy.py` | LeRobot HIL data collection + v0.6.0 blog; DAgger / HG-DAgger / RaC |
 | 6 | `real-world-rl` | 240 | `rlpd_chain_toy.py` | RLPD arXiv 2302.02948; HIL-SERL arXiv 2410.21845; LeRobot HIL-SERL docs |
 | 7 | `vla-rl-finetune` | 450 | `advantage_filter_toy.py` (optional), `cal_conrft_offline_toy.py` | SimpleVLA-RL 2509.09674; OpenVLA-OFT 2502.19645; π*0.6 blog; ResiP 2407.16677; Policy Decorator 2412.13630; LeRobot SARM docs; ConRFT2502.05450 / Cal-QL2303.05479 (opened) |

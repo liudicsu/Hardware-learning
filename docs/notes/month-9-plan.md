@@ -1,6 +1,20 @@
 # Month 9 plan: Long-horizon tasks, contact control & mobile manipulation
 
-Current / 当前：**M9 3480 min**, Batch-9 PR2. Earlier entries below retain their historical totals.
+Current / 当前：**M9 3690 min**, Batch-10 PR3. Earlier entries below retain their historical totals.
+
+## Batch-10 PR3 / 本月 H5 (+210)
+
+Base `e814307` (batch-10 PR2 merged; site **26520**). PR3 only on M9 host: **M9 3480→3690 (+210)**; M10 +210 on month-10-plan.md. Site **26520→26940**, still 71 lessons.
+
+- **H5 / 9.9 world-models-overview: 420→630 (+210).** MemoryVLA perceptual-cognitive memory bank: shared delayed-cue POMDP; Markov vs fixed window vs retrieve/consolidate; ≥5 seeds; ≠ MTC stage memory; ≠ DreamGen IDM/LAPA. GPU 本页未运行. / 记忆库检索，不宣布 MemoryVLA 基准。
+
+**Allocation / 安排:** 45+45+45+45+30=210 minutes.
+
+**Site accounting / 全站核算:** **26940=26520+420** with M10 +210; **M9=3690**, **71 lessons**.
+
+<!-- historical -->
+
+Current / 当前（历史）：**M9 3480 min**, Batch-9 PR2. Earlier entries below retain their historical totals.
 
 Site supplement beyond @DeRonin_'s 6-month roadmap (Months 7–11). Proposal archive: `/workspace/proposals/m9-proposal.md`. Track B electives: `/workspace/proposals/promote-electives-proposal.md`.
 
@@ -20,7 +34,7 @@ Constraints: private env; runnable toys prefer stdlib CPU with fixed seeds. ROS 
 | 6 | `nav-arm-compose` | 450 | full + H2 | `nav_pick_bt.py`, `multi_robot_corridor_toy.py` | LeKiwi elective; ORCA primary / MRS curriculum IL reading |
 | 7 | `multi-skill-demo` | 180 | full | `demo_gate.py --all` | Thin demo; does not replace 8.7 |
 | **8** | **`visual-servoing`** | **630** | **Track B + batch-8 H3 + batch-9 H4** | **`tag_error_jog.py`**, **`ibvs_interaction_matrix_toy.py`**, **`visual_trace_prompt_toy.py`** | OpenCV ArUco/PnP docs; Servo command side; ViSP IBVS tutorial + Wikipedia (secondary) |
-| **9** | **`world-models-overview`** | **420** | **Track B + G3** | **`latent_predict_toy.py`**, **`neural_traj_idm_toy.py`** | DreamerV3 / DayDreamer / UniSim / DreamGen reading |
+| **9** | **`world-models-overview`** | **630** | **Track B + G3 + batch-10 H5** | **`latent_predict_toy.py`**, **`neural_traj_idm_toy.py`**, **`memoryvla_bank_retrieve_toy.py`** | DreamerV3 / DayDreamer / UniSim / DreamGen reading; MemoryVLA 2508.19236 |
 
 Widgets deferred. No prices anywhere.
 

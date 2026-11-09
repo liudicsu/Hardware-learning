@@ -459,8 +459,257 @@ ok: two separate drop curves (wm 60->0, idm 60->0 of 60); IDM fitted on real pai
 - **同时改世界模型和 IDM。** 那样成功率下降就无法归因。一次只扫一个旋钮，评估起点和轨迹数保持不变。
 - **把 DreamGen 或 DreamGen Bench 的数字当成本站结果。** 22 种新行为和基准相关性以论文为准；玩具两者都没测。
 
+## 感知–认知记忆库（MemoryVLA）
+
+上面的 DreamGen 替身给**生成**帧打 IDM 伪标签。MemoryVLA 问的是另一类时间问题：任务**非马尔可夫**时，工作记忆加上巩固后的记忆库，能否找回已经离开当前帧的线索？
+
+<Resource id="memoryvla-paper" />
+
+**实际打开的来源（arXiv abs + HTML，curl 200）。**
+
+- **MemoryVLA（Shi 等，arXiv 2508.19236）：** Cognition-Memory-Action 框架。VLM 把观测编成感知与认知词元形成**工作记忆**；**感知–认知记忆库**存下由其巩固的低层细节与高层语义；工作记忆**检索**决策相关条目，与当前词元融合，并经合并冗余**更新**记忆库；再由记忆条件扩散动作专家输出动作。论文报告的 SimplerEnv-Bridge / Fractal / LIBERO / Mikasa-Robo 与真机 %（如 71.9 %、84.0 %、长时程 +26）以论文为准。GPU / MemoryVLA 权重 本页未运行。
+
+同名 / 近邻工作：**MemoryVLA++**（arXiv 2606.09827）补上想象 / 世界模型未来——本页**只作阅读**，不做第二个玩具。本节**不是** MTC 阶段前缀记忆（9.1），**不是** DreamGen IDM/LAPA，**不是** TraceVLA。
+
+### 共享延迟线索 POMDP
+
+`memoryvla_bank_retrieve_toy.py` 是**合成**的，只用标准库。每个臂玩**同一**长时程走廊：线索比特在早期**一帧**出现后隐藏；最后一步必须按该比特按下。移动预算相同；**看不到未来观测**。
+
+| 臂 | 记忆 |
+|---|---|
+| A_markov | 仅当前观测 |
+| B_window | 最近 `W` 帧拼接 |
+| C_memory_bank | 工作记忆检索巩固库条目再融合 |
+
+指标：记忆依赖按键成功率；平均步数。五多种子 mean±sd。
+
+### 运行标准库玩具
+
+```bash
+cd ~/Hardware-learning/examples/month-9/world-models-overview
+python3 memoryvla_bank_retrieve_toy.py
+```
+
+<CodeSource path="examples/month-9/world-models-overview/memoryvla_bank_retrieve_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic MemoryVLA-style perceptual-cognitive memory-bank literacy toy.
+
+NOT MemoryVLA weights, NOT MTC stage-prefix memory, NOT DreamGen IDM/LAPA,
+NOT TraceVLA. Stdlib only.
+
+Paper (Shi et al., arXiv 2508.19236; numbers 以论文为准): long-horizon
+manipulation is non-Markovian; working memory + a Perceptual-Cognitive Memory
+Bank that retrieves/consolidates past tokens, then conditions the action
+expert. MemoryVLA++ (2606.09827) is reading-only here — not a second toy.
+
+Shared long-horizon POMDP for every arm (delayed cue; equal action budget):
+  Corridor of length T. At a random early step a cue bit c ∈ {0,1} is shown
+  for one frame, then hidden. At the end the agent must press button c.
+  Observations otherwise are position + a distractor bit. No arm sees the
+  future; bank updates use only past/current tokens.
+
+Arms (same greedy 1-D mover; differ only in memory):
+  A_markov          current observation only
+  B_window          concat of the last W observations
+  C_memory_bank     working memory retrieves top-1 consolidated bank entry
+                    by cue-slot similarity, then fuses with current tokens
+
+Metrics: success rate on the memory-dependent button task; mean steps used.
+≥5 seeds. No winner presumed. GPU / MemoryVLA weights 本页未运行.
+"""
+from __future__ import annotations
+
+import math
+import random
+
+T = 16  # horizon
+CUE_LO, CUE_HI = 2, 12  # cue shown once in this range
+BUTTON_STEP = T - 1
+W = 6  # fixed window for arm B (misses early cues)
+BANK_CAP = 8
+SEEDS = (0, 1, 2, 3, 4)
+N_EP = 40
+ARMS = ("A_markov", "B_window", "C_memory_bank")
+
+
+def obs_vector(pos: int, cue_visible: int | None, distractor: int) -> tuple:
+    """Partial observation. cue_visible is None when hidden."""
+    cue = -1 if cue_visible is None else cue_visible
+    return (pos, cue, distractor)
+
+
+def run_episode(arm: str, rng: random.Random) -> tuple[bool, int]:
+    cue_bit = rng.randint(0, 1)
+    cue_t = rng.randint(CUE_LO, CUE_HI)
+    pos = 0
+    hist: list[tuple] = []
+    # Memory bank: list of (key_feat, value_cue_estimate)
+    bank: list[tuple[tuple, float]] = []
+    working: tuple | None = None
+
+    for t in range(T):
+        distractor = rng.randint(0, 1)
+        cue_vis = cue_bit if t == cue_t else None
+        o = obs_vector(pos, cue_vis, distractor)
+        hist.append(o)
+
+        # --- build feature for the policy ---
+        if arm == "A_markov":
+            feat = o
+            cue_est = o[1]  # -1 when hidden
+        elif arm == "B_window":
+            window = hist[-W:]
+            # pad left
+            while len(window) < W:
+                window = [(-1, -1, -1)] + window
+            flat = []
+            for w in window:
+                flat.extend(w)
+            feat = tuple(flat)
+            # estimate cue as last non -1 cue in window
+            cue_est = -1
+            for w in window:
+                if w[1] != -1:
+                    cue_est = w[1]
+        else:
+            # C: working memory = current tokens; retrieve from bank; consolidate
+            working = o
+            if o[1] != -1:
+                # consolidate: store perceptual (pos,distractor) + cognitive cue
+                key = (o[0], o[2])
+                bank.append((key, float(o[1])))
+                if len(bank) > BANK_CAP:
+                    # merge redundancies: drop oldest duplicate-ish by key proximity
+                    bank = bank[-BANK_CAP:]
+            # retrieve: nearest key by L1 on (pos, distractor); only past entries
+            cue_est = -1.0
+            if bank:
+                best = min(bank, key=lambda kv: abs(kv[0][0] - o[0]) + abs(kv[0][1] - o[2]))
+                # fuse: prefer retrieved cue if current has none
+                cue_est = best[1] if o[1] == -1 else float(o[1])
+            elif o[1] != -1:
+                cue_est = float(o[1])
+            feat = (o[0], cue_est, o[2])
+
+        # --- equal action budget: move +1 toward end, or press at BUTTON_STEP ---
+        if t < BUTTON_STEP:
+            # advance along corridor (shared policy skeleton)
+            pos = min(pos + 1, BUTTON_STEP)
+            action = "move"
+        else:
+            # must press 0 or 1
+            if arm == "A_markov":
+                # Markov cannot see past cue → random guess from current (no cue)
+                guess = rng.randint(0, 1) if cue_est == -1 else int(cue_est)
+            elif arm == "B_window":
+                if cue_est == -1:
+                    guess = rng.randint(0, 1)
+                else:
+                    guess = int(cue_est)
+            else:
+                guess = int(round(cue_est)) if cue_est != -1 else rng.randint(0, 1)
+            success = guess == cue_bit
+            return success, t + 1
+
+    return False, T
+
+
+def run_arm(arm: str, seed: int) -> tuple[float, float]:
+    rng = random.Random(50_000 + seed)
+    # Shared episode parameters stream: pre-draw cue bits / times / distractors
+    # by using a dedicated RNG so every arm sees the same POMDP realizations.
+    shared = random.Random(60_000 + seed)
+    episodes = []
+    for _ in range(N_EP):
+        # draw shared episode seed so arms replay identical POMDPs
+        ep_seed = shared.randint(0, 10**9)
+        episodes.append(ep_seed)
+
+    succ = []
+    steps = []
+    for ep_seed in episodes:
+        ok, n = run_episode(arm, random.Random(ep_seed))
+        succ.append(1.0 if ok else 0.0)
+        steps.append(float(n))
+    return sum(succ) / len(succ), sum(steps) / len(steps)
+
+
+def mean_sd(xs: list[float]) -> tuple[float, float]:
+    mu = sum(xs) / len(xs)
+    var = sum((x - mu) ** 2 for x in xs) / (len(xs) - 1)
+    return mu, math.sqrt(var)
+
+
+def main() -> None:
+    print(
+        "Synthetic MemoryVLA memory-bank toy; shared delayed-cue POMDP; "
+        "not MTC stage memory; not DreamGen IDM"
+    )
+    print(
+        f"T={T} cue_t∈[{CUE_LO},{CUE_HI}] button_t={BUTTON_STEP} "
+        f"window={W} bank_cap={BANK_CAP} episodes/seed={N_EP} seeds={len(SEEDS)}; "
+        f"no future leak; equal move budget; paper % 以论文为准"
+    )
+    print("arm success mean_steps (mean+-sd over seeds)")
+    for arm in ARMS:
+        succs, steps = [], []
+        for seed in SEEDS:
+            s, st = run_arm(arm, seed)
+            succs.append(s)
+            steps.append(st)
+        ms, ss = mean_sd(succs)
+        mt, st = mean_sd(steps)
+        print(f"{arm} {ms:.4f}+-{ss:.4f} {mt:.4f}+-{st:.4f}")
+    print(
+        "No winner declared: Markov vs window vs memory-bank trade success; "
+        "not a MemoryVLA benchmark"
+    )
+    print(
+        "GPU / MemoryVLA weights / robot: 本页未运行; Shi et al. 2508.19236 以论文为准; "
+        "MemoryVLA++ 2606.09827 reading only"
+    )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic MemoryVLA memory-bank toy; shared delayed-cue POMDP; not MTC stage memory; not DreamGen IDM
+T=16 cue_t∈[2,12] button_t=15 window=6 bank_cap=8 episodes/seed=40 seeds=5; no future leak; equal move budget; paper % 以论文为准
+arm success mean_steps (mean+-sd over seeds)
+A_markov 0.5300+-0.0694 16.0000+-0.0000
+B_window 0.6750+-0.0637 16.0000+-0.0000
+C_memory_bank 1.0000+-0.0000 16.0000+-0.0000
+No winner declared: Markov vs window vs memory-bank trade success; not a MemoryVLA benchmark
+GPU / MemoryVLA weights / robot: 本页未运行; Shi et al. 2508.19236 以论文为准; MemoryVLA++ 2606.09827 reading only
+```
+
+</SimOutput>
+
+### 读记忆取舍
+
+**A_markov** 在线索离开当前帧后接近随机（约 **0.53**）。**B_window** 保留短历史，线索仍落在 `W` 内时可到约 **0.68**，更早的线索会丢。**C_memory_bank** 在线索出现时巩固、决策时检索，本图成功 **1.00**。**不宣布**超出这些指标的赢家。论文 % 以论文为准。GPU / 权重：**本页未运行**。MemoryVLA++ 想象：只读。
+
+**210 分钟工作计划：** 45 分钟读 MemoryVLA 工作记忆 / 记忆库段落；45 分钟草绘延迟线索 POMDP；45 分钟跑共享回合；45 分钟在多种子固定下改 `W` / `BANK_CAP`；30 分钟对照本节与 MTC 阶段记忆、DreamGen IDM。
+
+### 练习
+
+1. 线索帧过后，为何马尔可夫策略在按键任务上接近 50 %？
+2. 对 `W=6`、`button_t=15`，B 还能看到哪些线索时刻？运行前预测 B 的成功区间。
+3. 多种子不变，把 C 的 `BANK_CAP` 置 0。运行前预测塌缩。
+4. 确认任何臂都不读取当前时刻之后的观测（无未来泄漏）。
+5. 任何 GPU 运行前（本页未运行），写明为何本玩具不是 MemoryVLA SimplerEnv / 真机结果，以及为何此处不实现 MemoryVLA++。
+
+
 <Summary>
 
 世界模型概览 9.9：DreamerV3 / DayDreamer / UniSim（可选 IRIS）阅读地图；讲清世界模型、想象轨迹、与 model-free 差别。`latent_predict_toy.py` 用字典转移滚动 H 步。DreamGen 的四个阶段（微调视频世界模型 → 生成视频 → IDM 或潜动作伪标签 → 训练策略）在 `neural_traj_idm_toy.py` 里用 CPU 替身跑通：轨迹数匹配、评估起点共享，世界模型误差和 IDM 误差分开扫，各给出一条下降曲线（60/60 → 0/60）。DreamGen Bench 的相关性只是论文的说法。不训练真实模型、不下载权重、不要求 GPU。
+
+- MemoryVLA 入门：共享延迟线索 POMDP 上，检索/巩固记忆库优于马尔可夫与固定窗历史——不是 MemoryVLA 基准；≠ MTC 阶段记忆；≠ DreamGen IDM。
 
 </Summary>

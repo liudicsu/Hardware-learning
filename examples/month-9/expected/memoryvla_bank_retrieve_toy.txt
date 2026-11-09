@@ -1,0 +1,8 @@
+Synthetic MemoryVLA memory-bank toy; shared delayed-cue POMDP; not MTC stage memory; not DreamGen IDM
+T=16 cue_t∈[2,12] button_t=15 window=6 bank_cap=8 episodes/seed=40 seeds=5; no future leak; equal move budget; paper % 以论文为准
+arm success mean_steps (mean+-sd over seeds)
+A_markov 0.5300+-0.0694 16.0000+-0.0000
+B_window 0.6750+-0.0637 16.0000+-0.0000
+C_memory_bank 1.0000+-0.0000 16.0000+-0.0000
+No winner declared: Markov vs window vs memory-bank trade success; not a MemoryVLA benchmark
+GPU / MemoryVLA weights / robot: 本页未运行; Shi et al. 2508.19236 以论文为准; MemoryVLA++ 2606.09827 reading only

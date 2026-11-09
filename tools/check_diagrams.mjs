@@ -3936,8 +3936,8 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 26520, "b10p2 curriculum: 26520 minutes");
-  for (const [month, expected] of [[1, 1170], [2, 3030], [3, 1620], [4, 2130], [5, 1950], [6, 2190], [7, 2070], [8, 3180], [9, 3480], [10, 2280], [11, 3420]]) {
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 26940, "b10p2 curriculum: 26940 minutes (tip after PR3)");
+  for (const [month, expected] of [[1, 1170], [2, 3030], [3, 1620], [4, 2130], [5, 1950], [6, 2190], [7, 2070], [8, 3180], [9, 3690], [10, 2490], [11, 3420]]) {
     ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `current curriculum M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
@@ -4913,7 +4913,7 @@ for (const m of readdirSync(content)) {
   }
 
   const cur = read("src/lib/curriculum.ts");
-  ok(cur.match(/slug: "world-models-overview"[\s\S]*?minutes: (\d+)/)?.[1] === "420", "wm2 curriculum: 9.9 = 420");
+  ok(cur.match(/slug: "world-models-overview"[\s\S]*?minutes: (\d+)/)?.[1] === "630", "wm2 curriculum: 9.9 = 630");
   ok(cur.match(/slug: "vla-models"[\s\S]*?minutes: (\d+)/)?.[1] === "780", "wm2 curriculum: 6.3 = 780 (360 + batch-8 H6 210 + batch-9 H5 210)");
   const wmBlock = (cur.match(/slug: "world-models-overview"[\s\S]*?\];\n/) || [""])[0];
   ok(/dreamgen-paper/.test(wmBlock) && /lapa-paper/.test(wmBlock), "wm2 9.9 resources wired");
@@ -4923,7 +4923,7 @@ for (const m of readdirSync(content)) {
   for (const id of ["dreamgen-paper", "lapa-paper", "smolvla-paper", "lerobot-async"]) {
     ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `wm2 resource ${id}: present + extra`);
   }
-  ok(/26 520/.test(read("README.md")), "b10p2 README: 26 520 minutes");
+  ok(/26 940/.test(read("README.md")), "b10p2 README: 26 940 minutes (tip after PR3)");
   console.log("worldmodel-smolvla PR2: neural trajectories + async chunk locks checked");
 }
 
@@ -5938,7 +5938,7 @@ print("protocol pass")
   }
   const toyTr=read("examples/month-9/visual-servoing/visual_trace_prompt_toy.py");
   ok(/SEEDS = \(0, 1, 2, 3, 4\)/.test(toyTr)&&/SEEDS = \(0, 1, 2, 3, 4\)/.test(read("examples/month-3/so101-arm/abs_vs_incr_power_on_toy.py")),"b9p2 both toys use five seeds");
-  for(const [p,x] of [["docs/notes/month-3-plan.md",["Current / 当前：**M3 1620 min**, Batch-9 PR2","1470→1620","25020→25380","240→390","Batch-9 PR2"]],["docs/notes/month-9-plan.md",["Current / 当前：**M9 3480 min**, Batch-9 PR2","3270→3480","25020→25380","420→630","Batch-9 PR2"]]]){
+  for(const [p,x] of [["docs/notes/month-3-plan.md",["Current / 当前：**M3 1620 min**, Batch-9 PR2","1470→1620","25020→25380","240→390","Batch-9 PR2"]],["docs/notes/month-9-plan.md",["3270→3480","25020→25380","420→630","Batch-9 PR2","Batch-10 PR3"]]]){
     const plan=read(p); ok(x.every(y=>plan.includes(y))&&!plan.endsWith("\n\n"),`b9p2 ${p}: header and PR2-only accounting`);
   }
   ok(read("docs/notes/batch-9-pr2-sources.md").includes("All 201 prior expected"),"b9p2 prior-output/source/model audit");
@@ -6093,7 +6093,7 @@ print("protocol pass")
   }
   const plan=read("docs/notes/month-2-plan.md");
   ok(plan.startsWith("# Month 2")&&["Current / 当前：**M2 3030 min**, Batch-10 PR1","2670→3030","25800→26160","480→660","540→720","Batch-10 PR1"].every(x=>plan.includes(x)),"b10p1 month-2 plan header and PR1-only accounting");
-  ok(/26 520/.test(read("README.md")),"b10p2 README site minutes");
+  ok(/26 940/.test(read("README.md")),"b10p2 README site minutes (tip after PR3)");
   console.log("enob-magcal PR1: ADC ENOB / front-end noise, mag hard/soft-iron and M2 3030 / site 26160 locked");
 }
 
@@ -6147,8 +6147,63 @@ print("protocol pass")
   const p1=read("docs/notes/month-1-plan.md"), p11=read("docs/notes/month-11-plan.md");
   ok(p1.startsWith("# Month 1")&&["Current / 当前：**M1 1170 min**, Batch-10 PR2","1020→1170","26160→26520","270→420","Batch-10 PR2"].every(x=>p1.includes(x)),"b10p2 month-1 plan header");
   ok(p11.includes("Current / 当前：**M11 3420 min**, Batch-10 PR2")&&["3210→3420","26160→26520","480→690","Batch-10 PR2"].every(x=>p11.includes(x)),"b10p2 month-11 plan header");
-  ok(/26 520/.test(read("README.md")),"b10p2 README site minutes");
+  ok(/26 940/.test(read("README.md")),"b10p2 README site minutes (tip after PR3)");
   console.log("esd-groundloop PR2: ESD/TVS clamp, shared-return ground loop and M1 1170 / M11 3420 / site 26520 locked");
+}
+
+
+
+// Batch-10 PR3: SpatialVLA (10.4) and MemoryVLA (9.9).
+{
+  const read=p=>readFileSync(join(root,p),"utf8"), env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
+  const cur=read("src/lib/curriculum.ts"), res=read("src/lib/resources.ts");
+  const cases=[
+    [10,"multi-view-extrinsics","spatialvla_ego3d_grid_toy",450,["## Ego3D position encoding","## Ego3D 位置编码"],
+      ["seeds=5","A_2d_only 0.1216+-0.0098","B_ego3d 0.0631+-0.0029","C_adaptive_grids 0.0458+-0.0034","No winner declared"],
+      ["Ego3D","Adaptive","camera-frame","A_2d_only","B_ego3d","C_adaptive_grids","以论文为准","本页未运行"],
+      {en:["**not** a rewrite","**synthetic**","No winner is declared","AX = ZB"],zh:["**不是**改写","**合成**","不宣布","AX = ZB"]},
+      {en:["SpatialVLA","Ego3D","AX=ZB"],zh:["SpatialVLA","Ego3D","AX=ZB"]},
+      ["spatialvla-paper"]],
+    [9,"world-models-overview","memoryvla_bank_retrieve_toy",630,["## Perceptual-cognitive memory bank","## 感知–认知记忆库"],
+      ["seeds=5","A_markov 0.5300+-0.0694","B_window 0.6750+-0.0637","C_memory_bank 1.0000+-0.0000","No winner declared"],
+      ["MemoryVLA","working memory","A_markov","B_window","C_memory_bank","以论文为准","本页未运行"],
+      {en:["**not** MTC","**synthetic**","No winner is declared","DreamGen"],zh:["**不是** MTC","**合成**","不宣布","DreamGen"]},
+      {en:["MemoryVLA","delayed-cue","DreamGen IDM"],zh:["MemoryVLA","延迟线索","DreamGen IDM"]},
+      ["memoryvla-paper"]],
+  ];
+  for(const [month,slug,toy,minutes,heads,outputs,markers,langMarkers,summaryMarkers,ids] of cases){
+    const file=`examples/month-${month}/${slug}/${toy}.py`,py=read(file).trim(),expected=read(`examples/month-${month}/expected/${toy}.txt`).trim();
+    const harness=read(`examples/month-${month}/check.sh`);
+    ok(execFileSync("python3",[join(root,file)],{cwd:root,encoding:"utf8",env}).trim()===expected,`b10p3 ${toy}: actual expected output`);
+    for(const x of outputs)ok(expected.includes(x),`b10p3 ${toy}: result ${x}`);
+    ok(cur.match(new RegExp(`slug: "${slug}"[\\s\\S]*?minutes: (\\d+)`))?.[1]===String(minutes),`b10p3 ${slug}: ${minutes} min`);
+    const host=cur.slice(cur.indexOf(`slug: "${slug}"`)).split("\n  },")[0];
+    ok(host.includes(toy)&&ids.every(id=>host.includes(`"${id}"`)),`b10p3 ${slug}: task names toy and resources wired`);
+    for(const id of ids)ok(res.includes(`"${id}": {`),`b10p3 opened source ${id}`);
+    ok(harness.includes(`${slug}/${toy}.py`)||harness.includes(`${toy}.py`),`b10p3 ${toy}: month harness`);
+    ok(harness.includes(`check ${toy}.txt`)||harness.includes(`${toy}.txt`),`b10p3 ${toy}: expected compare`);
+    for(const [index,lang] of ["en","zh"].entries()){
+      const md=read(`src/content/m${month}/${slug}/${lang}.mdx`),summary=md.indexOf("<Summary>"),end=md.indexOf("</Summary>");
+      ok(summary>0&&summary===md.lastIndexOf("<Summary>")&&md.slice(end+10).trim()==="",`b10p3 ${slug} ${lang}: sole whole-lesson Summary ends page`);
+      const head=md.indexOf(heads[index]);
+      ok(head>0&&head<summary,`b10p3 ${slug} ${lang}: new section before Summary`);
+      const sec=md.slice(head,summary);
+      ok(sec.includes(py)&&sec.includes(expected)&&sec.includes(`<CodeSource path="${file}" />`),`b10p3 ${slug} ${lang}: exact source/stdout in section`);
+      const ex=sec.lastIndexOf(lang==="en"?"### Exercises":"### 练习");
+      ok(ex>sec.indexOf("</SimOutput>")&&(sec.slice(ex).match(/^\d\. /gm)||[]).length===5,`b10p3 ${slug} ${lang}: five exercises after output`);
+      for(const x of [...markers,...langMarkers[lang]])ok(sec.includes(x),`b10p3 ${slug} ${lang}: mechanism/scope ${x}`);
+      ok(lang==="en"?/\*\*synthetic\*\*/.test(sec)&&sec.includes("mean±sd"):sec.includes("**合成**")&&sec.includes("mean±sd"),`b10p3 ${slug} ${lang}: synthetic label and spread`);
+      const summ=md.slice(summary,end);
+      for(const x of summaryMarkers[lang])ok(summ.includes(x),`b10p3 ${slug} ${lang}: Summary sentence ${x}`);
+    }
+    const en=read(`src/content/m${month}/${slug}/en.mdx`),zh=read(`src/content/m${month}/${slug}/zh.mdx`);
+    ok((en.match(/```/g)||[]).length===(zh.match(/```/g)||[]).length&&(en.match(/^### /gm)||[]).length===(zh.match(/^### /gm)||[]).length,`b10p3 ${slug}: en/zh structurally symmetric`);
+  }
+  const p9=read("docs/notes/month-9-plan.md"), p10=read("docs/notes/month-10-plan.md");
+  ok(p9.startsWith("# Month 9")&&["Current / 当前：**M9 3690 min**, Batch-10 PR3","3480→3690","26520→26940","420→630","Batch-10 PR3"].every(x=>p9.includes(x)),"b10p3 month-9 plan header");
+  ok(p10.includes("Current / 当前：**M10 2490 min**, Batch-10 PR3")&&["2280→2490","26520→26940","240→450","Batch-10 PR3"].every(x=>p10.includes(x)),"b10p3 month-10 plan header");
+  ok(/26 940/.test(read("README.md")),"b10p3 README site minutes");
+  console.log("spatialvla-memoryvla PR3: SpatialVLA Ego3D/grids, MemoryVLA bank and M10 2490 / M9 3690 / site 26940 locked");
 }
 
 
