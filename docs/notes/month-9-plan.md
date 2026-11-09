@@ -1,5 +1,7 @@
 # Month 9 plan: Long-horizon tasks, contact control & mobile manipulation
 
+Current / 当前：**M9 3480 min**, Batch-9 PR2. Earlier entries below retain their historical totals.
+
 Site supplement beyond @DeRonin_'s 6-month roadmap (Months 7–11). Proposal archive: `/workspace/proposals/m9-proposal.md`. Track B electives: `/workspace/proposals/promote-electives-proposal.md`.
 
 **Batches 1–3 (merged):** full MDX + examples for **9.1–9.7**. **Track B:** append **9.8 `visual-servoing`** then **9.9 `world-models-overview`** (end of array only).
@@ -17,7 +19,7 @@ Constraints: private env; runnable toys prefer stdlib CPU with fixed seeds. ROS 
 | 5 | `failure-recovery` | 330 | full + batch-8 H4 | `recovery_bt_toy.py`, `recovery_escalate_budget_toy.py` | Inner Monologue + BT.CPP Fallback / RetryUntilSuccessful |
 | 6 | `nav-arm-compose` | 450 | full + H2 | `nav_pick_bt.py`, `multi_robot_corridor_toy.py` | LeKiwi elective; ORCA primary / MRS curriculum IL reading |
 | 7 | `multi-skill-demo` | 180 | full | `demo_gate.py --all` | Thin demo; does not replace 8.7 |
-| **8** | **`visual-servoing`** | **420** | **Track B + batch-8 H3** | **`tag_error_jog.py`**, **`ibvs_interaction_matrix_toy.py`** | OpenCV ArUco/PnP docs; Servo command side; ViSP IBVS tutorial + Wikipedia (secondary) |
+| **8** | **`visual-servoing`** | **630** | **Track B + batch-8 H3 + batch-9 H4** | **`tag_error_jog.py`**, **`ibvs_interaction_matrix_toy.py`**, **`visual_trace_prompt_toy.py`** | OpenCV ArUco/PnP docs; Servo command side; ViSP IBVS tutorial + Wikipedia (secondary) |
 | **9** | **`world-models-overview`** | **420** | **Track B + G3** | **`latent_predict_toy.py`**, **`neural_traj_idm_toy.py`** | DreamerV3 / DayDreamer / UniSim / DreamGen reading |
 
 Widgets deferred. No prices anywhere.
@@ -54,3 +56,11 @@ M9 **2940→3270**, nine lessons; site **23910→24240** (+330), still 71 lesson
 - H3: 40 min PBVS/IBVS error spaces and 2×6 point interaction matrix +40 min shared-estimate setup (same noisy points, model scale, λ, cap, FOV; no true-depth oracle) +50 min wrong-Z / near-edge / large-roll / rank-deficient readings over five seeds +50 min exercises =180. Formula from the opened ViSP IBVS tutorial; camera retreat/singularity literacy from Wikipedia (secondary). LAAS course notes returned an Anubis bot-check page to curl, so they are not cited. Not 9.2 Servo κ-scale, not 10.4 extrinsics. Webcam/OpenCV/robot 本页未运行.
 - H4: 35 min ladder and rung costs +35 min shared failure stream / common random numbers / equal detect signal +40 min three arms and operator-budget sweep over five seeds +40 min handoff schema and exercises =150. Autonomous Retry+Fallback carries most recoveries; human handoff is never the only success path. Not 8.5 watchdog, not Nav2 recoveries, not MTC stale prefix; 10.5 intervention merge only cross-linked. Real robot / operator console 本页未运行.
 - New sections, code, stdout and exercises sit before each sole final Summary; each Summary gained one sentence in en and zh. No winner declared in either toy. Excludes VQ-BeT and dual-system (PR3).
+
+## Batch-9 PR2 / 本月 H4 (+210)
+
+Base `159f6ff`. PR2 only: **M9 3270→3480 (+210)** and M3 **1470→1620 (+150**, own host in month-3-plan.md); site **25020→25380**, still 71 lessons; no arithmetic mismatch with proposal §9 or curriculum.ts.
+
+- **H4 / 9.8 visual-servoing: 420→630 (+210).** TraceVLA-style visual trace prompting (arXiv 2412.10345, opened; paper numbers 以论文为准): raw frame vs raw + trace overlay vs lagged, jittered trace under the same k-NN cloning, demos, eval starts and five seeds. The trace is drawn only from past frames, so no privileged pose leaks to any arm. Wipe (history hidden from the frame) vs reach (Markov); trace helps wipe, costs reach; no winner. Kept distinct from IBVS (a control law); OpenVLA weights / GPU / WidowX 本页未运行. / 视觉轨迹提示 ≠ IBVS，不宣布赢家。
+
+**Allocation / 安排:** 40+30+50+60+30=210 minutes. Sources: batch-9-pr2-sources.md.

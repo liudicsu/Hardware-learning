@@ -71,4 +71,5 @@ check grip-force.txt          python3 "$M3/gripper-fingers/grip_force.py"
 # Enrichment: fingertip retarget (stdlib; fixed seed)
 check fingertip_retarget_toy.txt python3 "$M3/gripper-fingers/fingertip_retarget_toy.py"
 check backlash_loop_toy.txt python3 "$M3/transmissions/backlash_loop_toy.py"
+check abs_vs_incr_power_on_toy.txt python3 "$M3/so101-arm/abs_vs_incr_power_on_toy.py"
 exit $fail

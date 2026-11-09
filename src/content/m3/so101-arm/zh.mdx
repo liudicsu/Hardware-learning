@@ -534,6 +534,220 @@ lerobot-teleoperate \
 
 第 6 课接着往前走：夹爪手指。它们小、迭代便宜，也是证明你“会设计、不只是会组装”的那一部分。一台能动的臂，加上你自己为它设计的手指，比一套只会跑厂家演示的套件更能回答“你会不会造机器人”。
 
+## 绝对式与增量式：上电那一刻机械臂知道什么（+150 min）
+
+校准之所以可行，是因为每只 STS3215 一上电就能报出自己在哪：这是**绝对式**那一半。LeRobot 设好归零偏置，编码器已经读出角度，不需要先动一下。本节要问的是：**掉电毛刺**之后会怎样，以及什么时候"绝对"还不够。它不是 [2.4](/zh/month/month-2/motors-drivers) 的 Z 索引回零；那个流程在 `encoder_index_cal_toy.py` 里，这里不重复。在本节中，回零只是一项时间成本。
+
+<Resource id="wiki-rotary-encoder" />
+<Resource id="dxl-xl330-emanual" />
+
+**实际打开的资料。** Wikipedia 的 *Rotary encoder* 页面说，绝对式编码器断电后仍保留位置，上电后立即可用。增量式编码器只报告运动，所以上电后需要一个参考。**多圈**绝对式编码器还会记住整圈数，方式有三种：备用电池、齿轮带动的码盘组，或者靠轴转动供能的 Wiegand 传感器。ROBOTIS **XL330-M288** e-Manual 列出非接触式绝对编码器（12 位、360°），每圈 4096 脉冲。Position Control Mode 覆盖 0–4,095，也就是一圈。Extended Position Control Mode 是多圈模式，范围 −256 至 256 圈。e-Manual 还特别注明：在 Extended Position Control Mode 下断电后，Present Position 会重置为单圈内的绝对值。XL330 不在 SO-101 物料清单里，这里只把它当作"整圈数不能跨过断电"的有据示例。其数值以原文为准，本页也不对 STS3215 自身的多圈模式作任何断言。
+
+### 三种醒来的方式
+
+**增量式**计数器从 0 重新开始。如果软件把这个 0 当作校准零点，它就会悄悄地错：错的量是毛刺前关节的位置，加上断电期间关节被移动的量。**单圈绝对式**编码器知道一圈之内的角度。关节行程短于一圈时，这个角度是唯一的。行程跨越多圈时（连续旋转的手腕、减速箱电机侧的编码器、传送带），整圈数丢失，误差是整数圈。**多圈绝对式**编码器保留圈数，前提是后备一直可用。电池没电时必须报警，而不是返回一个看似合理的数。
+
+### 公平设置
+
+`abs_vs_incr_power_on_toy.py` 是**合成**的，只用标准库。各臂读到的东西完全相同：
+
+- 同一个真实角度和同一批毛刺：每个种子 20 次，共五个种子；
+- 同样的断电漂移（重力下垂，或断电时被人用手转动）；
+- 同样的 ±1 计数读数噪声，每圈 4096 计数。
+
+| 臂 | 上电时 |
+|---|---|
+| A_single_abs | 一圈内的角度，映射到最接近设定行程中点的那一圈 |
+| B_incremental | 计数器从 0 重新开始，当作校准零点并直接信任 |
+| C_incr_home | 增量式，然后回零运动：先到低端硬限位，再转一整圈（最坏情况）找到索引脉冲，速度 90°/s，外加 0.5 s 稳定 |
+| D_multi_batt | 电池保持圈数的多圈绝对式；电池没电时报警，并像 C 一样回零 |
+
+共有三个场景：
+
+- **single_turn_joint**：行程 −150…150°，下垂 σ 8°。
+- **three_turn_shaft**：行程 0…1080°，漂移 σ 60°。
+- **three_turn_flat_battery**：同一根轴，但备用电池没电。
+
+指标如下：
+
+- `wake_err_deg`：上电时的平均绝对位姿误差；`max_err_deg` 是最坏情况。
+- `within_tol_%`：误差在 1° 以内的比例。
+- `silent_wrong_%`：误差超过 1°，既没有回零也没有报警的比例。
+- `time_to_valid_s`：位姿可以被信任前需要的时间。
+- `alarms`：每 20 次毛刺中的报警次数。
+
+结果为五个种子的 mean±sd。
+
+### 运行标准库玩具
+
+```bash
+cd ~/Hardware-learning/examples/month-3/so101-arm
+python3 abs_vs_incr_power_on_toy.py
+```
+
+<CodeSource path="examples/month-3/so101-arm/abs_vs_incr_power_on_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic power-on pose toy: absolute vs incremental encoders after a power
+glitch. NOT a Feetech/Dynamixel driver, NOT the Z-index calibration toy from
+2.4 (encoder_index_cal_toy.py); homing here is only a time cost. Stdlib only.
+
+All arms read the SAME true shaft angle, the SAME glitch times, the SAME
+unpowered drift (gravity sag / a hand moving the joint while the power is off)
+and the SAME +-1 count read noise, with 4096 counts per encoder revolution.
+  A_single_abs   single-turn absolute (12-bit): wakes with the angle modulo one
+                 turn and maps it into the configured joint range
+  B_incremental  counter restarts at 0 after power-on (read as the
+                 calibration zero, 0 deg) and is trusted as is
+  C_incr_home    incremental, then a homing move (search the hard stop, then
+                 the index pulse within one turn) before the pose is trusted
+  D_multi_batt   multi-turn absolute with battery-backed turn counter; if the
+                 battery is flat it raises an alarm and homes like C
+Scenarios: a joint whose range fits inside one encoder turn, a shaft whose
+range spans three turns, and the same shaft with a flat backup battery.
+"""
+import math
+import random
+
+CPR = 4096
+DEG_PER_COUNT = 360.0 / CPR
+SEEDS = (0, 1, 2, 3, 4)
+EVENTS = 20                 # power glitches per seed
+CAL_ZERO = 0.0              # deg: pose that 0 counts meant at calibration
+HOME_SPEED = 90.0           # deg/s of encoder shaft during homing
+SETTLE_S = 0.5
+TOL_DEG = 1.0
+SCENARIOS = (
+    # name, range_lo_deg, range_hi_deg, drift_sigma_deg, battery_ok
+    ("single_turn_joint", -150.0, 150.0, 8.0, True),
+    ("three_turn_shaft", 0.0, 1080.0, 60.0, True),
+    ("three_turn_flat_battery", 0.0, 1080.0, 60.0, False),
+)
+ARMS = ("A_single_abs", "B_incremental", "C_incr_home", "D_multi_batt")
+
+
+def read_counts(angle, rng):
+    """Quantise to the encoder grid with +-1 count noise."""
+    return round(angle / DEG_PER_COUNT) + rng.choice((-1, 0, 1))
+
+
+def single_turn_map(counts, lo, hi):
+    """Single-turn absolute: only counts mod CPR survive power-off. Pick the
+    representative closest to the middle of [lo, hi]; unique when the range
+    is shorter than one turn, a guess between turns when it is longer."""
+    frac = (counts % CPR) * DEG_PER_COUNT
+    k = round(((lo + hi) / 2 - frac) / 360.0)
+    return frac + 360.0 * k
+
+
+def homing_time(true_angle, lo):
+    """Drive to the low hard stop, then one full turn (worst case) to the index pulse."""
+    return (abs(true_angle - lo) + 360.0) / HOME_SPEED + SETTLE_S
+
+
+def episode(arm, lo, hi, drift_sigma, battery_ok, rng_state, rng_noise):
+    before = rng_state.uniform(lo, hi)
+    drift = rng_state.gauss(0.0, drift_sigma)
+    true = min(max(before + drift, lo), hi)
+    counts = read_counts(true, rng_noise)
+    if arm == "A_single_abs":
+        est, t_valid, alarm = single_turn_map(counts, lo, hi), 0.0, False
+    elif arm == "B_incremental":
+        est, t_valid, alarm = CAL_ZERO, 0.0, False     # counter restarts: 0 counts = calibration zero
+    elif arm == "C_incr_home":
+        est, t_valid, alarm = counts * DEG_PER_COUNT, homing_time(true, lo), False
+    else:
+        if battery_ok:
+            est, t_valid, alarm = counts * DEG_PER_COUNT, 0.0, False
+        else:
+            est, t_valid, alarm = counts * DEG_PER_COUNT, homing_time(true, lo), True
+    err = abs(est - true)
+    silent_wrong = err > TOL_DEG and t_valid == 0.0
+    return err, t_valid, silent_wrong, alarm
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def main():
+    print("Synthetic absolute vs incremental power-on toy; not a servo driver; homing = time cost only")
+    print(f"CPR={CPR} deg_per_count={DEG_PER_COUNT:.4f} read_noise=+-1count seeds={len(SEEDS)} glitches_per_seed={EVENTS} "
+          f"home_speed={HOME_SPEED:.0f}deg/s settle={SETTLE_S}s tol={TOL_DEG}deg")
+    print("shared: true angle, glitch, unpowered drift and read-noise streams per seed")
+    print("scenario arm wake_err_deg max_err_deg within_tol_% silent_wrong_% time_to_valid_s alarms (mean+-sd over seeds)")
+    for name, lo, hi, sigma, battery in SCENARIOS:
+        for arm in ARMS:
+            errs, maxes, within, silent, tval, alarms = [], [], [], [], [], []
+            for seed in SEEDS:
+                rs = random.Random(100 + seed)        # same states for every arm
+                rn = random.Random(200 + seed)        # same read noise for every arm
+                rows = [episode(arm, lo, hi, sigma, battery, rs, rn) for _ in range(EVENTS)]
+                errs.append(sum(r[0] for r in rows) / EVENTS)
+                maxes.append(max(r[0] for r in rows))
+                within.append(100.0 * sum(r[0] <= TOL_DEG for r in rows) / EVENTS)
+                silent.append(100.0 * sum(r[2] for r in rows) / EVENTS)
+                tval.append(sum(r[1] for r in rows) / EVENTS)
+                alarms.append(sum(r[3] for r in rows))
+            cols = [mean_sd(x) for x in (errs, maxes, within, silent, tval, alarms)]
+            print(f"{name} {arm} " + " ".join(f"{m:.2f}+-{s:.2f}" for m, s in cols))
+    print("single-turn absolute is exact only when the range fits one turn; multi-turn needs a kept turn count")
+    print("XL330 Extended Position: power-off resets Present Position to one turn (e-Manual, 以原文为准)")
+    print("No winner is declared; real servos / encoders / battery packs: 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic absolute vs incremental power-on toy; not a servo driver; homing = time cost only
+CPR=4096 deg_per_count=0.0879 read_noise=+-1count seeds=5 glitches_per_seed=20 home_speed=90deg/s settle=0.5s tol=1.0deg
+shared: true angle, glitch, unpowered drift and read-noise streams per seed
+scenario arm wake_err_deg max_err_deg within_tol_% silent_wrong_% time_to_valid_s alarms (mean+-sd over seeds)
+single_turn_joint A_single_abs 0.06+-0.00 0.13+-0.01 100.00+-0.00 0.00+-0.00 0.00+-0.00 0.00+-0.00
+single_turn_joint B_incremental 72.41+-10.23 144.34+-5.82 0.00+-0.00 100.00+-0.00 0.00+-0.00 0.00+-0.00
+single_turn_joint C_incr_home 0.06+-0.00 0.13+-0.01 100.00+-0.00 0.00+-0.00 6.17+-0.20 0.00+-0.00
+single_turn_joint D_multi_batt 0.06+-0.00 0.13+-0.01 100.00+-0.00 0.00+-0.00 0.00+-0.00 0.00+-0.00
+three_turn_shaft A_single_abs 234.02+-38.20 576.00+-197.06 38.00+-12.55 62.00+-12.55 0.00+-0.00 0.00+-0.00
+three_turn_shaft B_incremental 539.48+-63.44 1052.64+-38.08 2.00+-2.74 98.00+-2.74 0.00+-0.00 0.00+-0.00
+three_turn_shaft C_incr_home 0.07+-0.01 0.13+-0.00 100.00+-0.00 0.00+-0.00 10.49+-0.70 0.00+-0.00
+three_turn_shaft D_multi_batt 0.07+-0.01 0.13+-0.00 100.00+-0.00 0.00+-0.00 0.00+-0.00 0.00+-0.00
+three_turn_flat_battery A_single_abs 234.02+-38.20 576.00+-197.06 38.00+-12.55 62.00+-12.55 0.00+-0.00 0.00+-0.00
+three_turn_flat_battery B_incremental 539.48+-63.44 1052.64+-38.08 2.00+-2.74 98.00+-2.74 0.00+-0.00 0.00+-0.00
+three_turn_flat_battery C_incr_home 0.07+-0.01 0.13+-0.00 100.00+-0.00 0.00+-0.00 10.49+-0.70 0.00+-0.00
+three_turn_flat_battery D_multi_batt 0.07+-0.01 0.13+-0.00 100.00+-0.00 0.00+-0.00 10.49+-0.70 20.00+-0.00
+single-turn absolute is exact only when the range fits one turn; multi-turn needs a kept turn count
+XL330 Extended Position: power-off resets Present Position to one turn (e-Manual, 以原文为准)
+No winner is declared; real servos / encoders / battery packs: 本页未运行
+```
+
+</SimOutput>
+
+### 读出其中的取舍
+
+**single_turn_joint。** A 与 D 醒来时平均误差 **0.06°**，来自量化（每计数 0.0879°）加噪声，100 % 落在 1° 内。B 平均偏 **72.41°**，100 % 的毛刺都是悄悄出错。C 总是对的，但要先做 **6.17 s** 的回零运动。
+
+**three_turn_shaft。** 单圈臂 A 现在只能猜圈数：平均误差 **234.02°**，最坏 **576.00°**，**62 %** 悄悄出错。通过的 38 % 是中间那一圈恰好猜对的毛刺。B 更糟（**539.48°**，98 % 悄悄出错）。C 需要 **10.49 s**，D 立即准确。
+
+**three_turn_flat_battery。** D 在 20 次毛刺中报警 **20** 次，并退回回零（**10.49 s**）：慢，但从不悄悄出错。
+
+**不宣布赢家。** A 便宜又即时，但只适用于行程不超过一圈的情况。D 需要电池，还需要能发现电池没电的机制。C 总是对的，但在信任位姿前必须先让机械臂动起来。B 只有在软件拒绝在回零前运动时才可接受。在 SO-101 上，`wrist_roll` 使用舵机的整圈，正好处在这一圈的接缝上。真实舵机、编码器与电池组：**本页未运行**。
+
+**150 分钟计划：** 30 min 读编码器类型与 XL330 注释；30 min 审计共享毛刺与各臂；45 min 运行并读三个场景；30 min 扰动；15 min 写上电检查清单。
+
+### 练习
+
+1. 计算 360 / 4096，并解释为什么绝对式臂的平均误差是 0.06° 而不是 0。
+2. 把三圈行程改成 0…300°。运行前先预测 A 那一行，再用"映射到行程中点"解释结果。
+3. 把单圈下垂改成 σ 200°。玩具会把关节夹在行程内；说明 A 是否仍然成立，以及夹紧为什么重要。
+4. 写一个上电检查：比较上次保存的位姿与醒来时读到的位姿，并决定多大的差异应当禁止运动，直到机械臂完成回零。
+5. 对一个行为像上面 XL330 注释那样的舵机，写出程序在断电重启后、信任多圈 Present Position 之前必须做什么。只写计划，本页不运行舵机。
+
 <Summary>
 
 **本课要点**
@@ -543,6 +757,7 @@ lerobot-teleoperate \
 - 半双工总线跑在 1 Mbit/s，从夹爪菊花链回底座；设置脚本先把夹爪设为 ID 6，再一路退回到 shoulder_pan = 1。
 - 减速比：从臂 6 个关节全是 1/345，而主臂混用 1/191、1/147 和 1/345，所以 345 / 147 = 2.35 倍摩擦、(345/147)² ≈ 5.51 倍转子惯量。
 - 供电与成本：标准装机用 5 V，落在 4–7.4 V 范围内；物料清单一对 $229.88（单从臂 $121.94），打印件估计约 1 kg PLA+（15 % 填充、0.2 mm 层高；实际用量看切片软件）。
+- 上电：`abs_vs_incr_power_on_toy.py` 在五个种子上表明，单圈绝对式编码器只有在行程不超过一圈时醒来才正确，增量式不回零就会悄悄出错，多圈计数需要可用的后备（合成结果；真实舵机本页未运行）。
 
 **常见错误**
 

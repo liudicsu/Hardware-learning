@@ -547,6 +547,259 @@ No winner is declared; real camera/OpenCV/robot runs: 本页未运行.
 2. Set `k = 0.7` (model too small). Predict PBVS's final `t_err` before running.
 3. Feed only two points to IBVS. Explain, using the two null directions, which camera motions it can no longer correct.
 
+## Visual trace prompting (TraceVLA): show the policy where it has been (+210 min)
+
+This section is **not** another servo law. IBVS above turns image-feature errors into a camera twist through the interaction matrix. Visual trace prompting has no control law, no depth Z and no Jacobian. It changes only what a **learned policy sees**: the recent motion of tracked points is drawn as a polyline on top of the current frame, so a single image carries some history.
+
+<Resource id="tracevla-paper" />
+
+**What the paper does (opened at arXiv 2412.10345; numbers 以论文为准).** TraceVLA (Zheng et al.) runs Co-Tracker on a K×K grid of points, keeps the points that actually moved, samples M of their tracks and overlays them on the current frame. The policy receives **both** the original image and the overlaid image, with a separator token between them and a short hint in the text prompt. With probability α during training, the trace image is replaced by the original image and the hint removed, so the policy still works when the tracker fails. The implementation uses K=40, M=5 and a time window N=6. The authors fine-tune OpenVLA (7B) on 150K trajectories and also train a 4B Phi-3-Vision variant. They report about 10 % over OpenVLA across 137 SimplerEnv configurations and 3.5x on 4 real WidowX tasks. They also report that simply concatenating past frames tends to distract the model, because the frames are nearly identical. None of these numbers were reproduced here: OpenVLA weights, GPUs and the WidowX are **本页未运行**.
+
+### Fair setup
+
+`visual_trace_prompt_toy.py` is **synthetic** and stdlib only: a 7×7 grid is rendered, and a fixed "vision encoder" reads blob coordinates only from what is drawn. Every arm is trained by the **same** k-nearest-neighbour behaviour cloning (k=3) on the same 20 demonstrations and is scored on the same 30 evaluation starts per seed, over five seeds. The arms differ only in their input:
+
+| Arm | Input | Features |
+|---|---|---|
+| A_raw | current frame only | goal offset, or end-effector cell when no goal is drawn |
+| B_raw_trace | current frame + trace of the last 3 frames | raw + oldest/newest trace point relative to the end-effector |
+| C_lagged_trace | current frame + trace that is 2 frames old, with 20 % tracker jitter | same as B, but stale and noisy |
+
+**No privileged pose leak.** The trace is drawn only from frames the policy has already seen. No arm reads the expert's hidden sweep direction or any state that is not drawn in its images. There are two tasks:
+
+- **wipe**: sweep a row edge to edge in 36 steps; the current frame does not show the sweep direction.
+- **reach**: move to a goal that is drawn in the frame; the current frame is enough (Markov).
+
+The wipe score is edge-to-edge strokes per episode (the expert does about 5). The reach score is the success rate, plus steps per episode. Results are mean±sd over five seeds.
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-9/visual-servoing
+python3 visual_trace_prompt_toy.py
+```
+
+<CodeSource path="examples/month-9/visual-servoing/visual_trace_prompt_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic visual-trace prompting toy (TraceVLA-style input, NOT TraceVLA,
+NOT IBVS, NOT a VLA). Stdlib only.
+
+A 7x7 grid world is rendered as an image. A fixed "vision encoder" reads blob
+coordinates from what is drawn:
+  raw image   -> the goal offset from the end-effector (EE) when a goal is
+                 drawn, otherwise the EE cell
+  trace image -> offsets from the EE of the oldest and newest points of a
+                 polyline drawn over the last TRACE_N frames of the EE (like an
+                 overlaid point track)
+Every arm is trained by the SAME k-nearest-neighbour behaviour cloning
+(k=3, same demonstrations, same seeds) and differs only in its input:
+  A_raw          current raw image only
+  B_raw_trace    raw image + trace image (both, as TraceVLA feeds both)
+  C_lagged_trace raw image + trace drawn from frames t-LAG-TRACE_N..t-LAG,
+                 with tracker jitter (a point shifted by one cell w.p. JITTER)
+The trace is computed only from past rendered frames; no arm sees the
+expert's hidden direction variable or any pose the raw arm's images lack.
+Tasks:
+  wipe   sweep a row edge to edge; the current frame does not show the
+         sweep direction (history matters)
+  reach  move to a visible goal; the current frame is sufficient (Markov)
+"""
+import heapq
+import math
+import random
+
+W = 7
+TRACE_N = 3
+LAG = 2
+JITTER = 0.2
+K = 3
+N_DEMOS = 20
+N_EVAL = 30
+SEEDS = (0, 1, 2, 3, 4)
+ARMS = ("A_raw", "B_raw_trace", "C_lagged_trace")
+ACTIONS = ((1, 0), (-1, 0), (0, 1), (0, -1), (0, 0))
+WIPE_T = 36
+REACH_T = 16
+
+
+def clamp(v):
+    return min(max(v, 0), W - 1)
+
+
+def encode(arm, hist, goal, rng):
+    """Features read from the rendered images only. hist: EE cells, oldest first."""
+    ee = hist[-1]
+    feat = [goal[0] - ee[0], goal[1] - ee[1]] if goal else [ee[0], ee[1]]
+    if arm == "A_raw":
+        return tuple(feat)
+    end = len(hist) - (LAG if arm == "C_lagged_trace" else 0)
+    window = hist[max(0, end - 1 - TRACE_N):max(1, end)]
+    pts = []
+    for p in (window[0], window[-1]):
+        if arm == "C_lagged_trace" and rng.random() < JITTER:
+            dx, dy = rng.choice(((1, 0), (-1, 0), (0, 1), (0, -1)))
+            p = (clamp(p[0] + dx), clamp(p[1] + dy))
+        pts += [p[0] - ee[0], p[1] - ee[1]]
+    return tuple(feat + pts)
+
+
+def wipe_expert(state):
+    (x, y), d = state
+    if x + d < 0 or x + d >= W:
+        d = -d
+    return (d, 0), ((x, y), d)
+
+
+def reach_expert(ee, goal):
+    if ee[0] != goal[0]:
+        return (1 if goal[0] > ee[0] else -1, 0)
+    if ee[1] != goal[1]:
+        return (0, 1 if goal[1] > ee[1] else -1)
+    return (0, 0)
+
+
+def demos(task, arm, rng_ep, rng_jit):
+    data = []
+    for _ in range(N_DEMOS):
+        if task == "wipe":
+            x, d = rng_ep.randrange(W), rng_ep.choice((-1, 1))
+            hist, goal, state = [(x, 3)], None, ((x, 3), d)
+            for _ in range(WIPE_T):
+                act, state = wipe_expert(state)
+                data.append((encode(arm, hist, goal, rng_jit), act))
+                hist.append((clamp(hist[-1][0] + act[0]), 3))
+                state = (hist[-1], state[1])
+        else:
+            ee = (rng_ep.randrange(W), rng_ep.randrange(W))
+            goal = (rng_ep.randrange(W), rng_ep.randrange(W))
+            hist = [ee]
+            for _ in range(REACH_T):
+                act = reach_expert(hist[-1], goal)
+                data.append((encode(arm, hist, goal, rng_jit), act))
+                if act == (0, 0):
+                    break                      # one "stay" sample at the goal, then stop
+                hist.append((clamp(hist[-1][0] + act[0]), clamp(hist[-1][1] + act[1])))
+    return data
+
+
+def knn(data, f):
+    best = heapq.nsmallest(K, data, key=lambda r: (sum((a - b) ** 2 for a, b in zip(r[0], f)), ACTIONS.index(r[1])))
+    votes = {}
+    for _, a in best:
+        votes[a] = votes.get(a, 0) + 1
+    return max(ACTIONS, key=lambda a: (votes.get(a, 0), -ACTIONS.index(a)))
+
+
+def evaluate(task, arm, data, rng_ep, rng_jit):
+    scores, steps_used = [], []
+    for _ in range(N_EVAL):
+        if task == "wipe":
+            x = rng_ep.randrange(W)
+            rng_ep.choice((-1, 1))       # keep the episode stream aligned with demos
+            hist, last_edge, strokes = [(x, 3)], None, 0
+            for _ in range(WIPE_T):
+                act = knn(data, encode(arm, hist, None, rng_jit))
+                nx = clamp(hist[-1][0] + act[0])
+                hist.append((nx, 3))
+                edge = 0 if nx == 0 else (W - 1 if nx == W - 1 else None)
+                if edge is not None and edge != last_edge:
+                    if last_edge is not None:
+                        strokes += 1
+                    last_edge = edge
+            scores.append(strokes)
+        else:
+            ee = (rng_ep.randrange(W), rng_ep.randrange(W))
+            goal = (rng_ep.randrange(W), rng_ep.randrange(W))
+            hist, done = [ee], None
+            for t in range(REACH_T):
+                if hist[-1] == goal:
+                    done = t
+                    break
+                act = knn(data, encode(arm, hist, goal, rng_jit))
+                hist.append((clamp(hist[-1][0] + act[0]), clamp(hist[-1][1] + act[1])))
+            if done is None and hist[-1] == goal:
+                done = REACH_T
+            scores.append(1.0 if done is not None else 0.0)
+            steps_used.append(done if done is not None else REACH_T)
+    return scores, steps_used
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def main():
+    print("Synthetic visual-trace prompting toy; 7x7 grid, blob-coordinate encoder, k-NN BC; not TraceVLA / not a VLA")
+    print(f"k={K} demos={N_DEMOS} eval_episodes={N_EVAL} trace_frames={TRACE_N} lag={LAG} jitter={JITTER} seeds={len(SEEDS)}")
+    print("shared per seed: demo episodes, eval starts/goals, jitter stream; trace drawn only from past frames")
+    expert_strokes = (WIPE_T - (W - 1)) / (W - 1)
+    print(f"wipe expert reference: about {expert_strokes:.1f} edge-to-edge strokes in {WIPE_T} steps")
+    print("task arm score features (mean+-sd over seeds; wipe score = strokes/episode, reach score = success rate)")
+    for task in ("wipe", "reach"):
+        for arm in ARMS:
+            means, steps = [], []
+            for seed in SEEDS:
+                data = demos(task, arm, random.Random(10 + seed), random.Random(20 + seed))
+                sc, st = evaluate(task, arm, data, random.Random(30 + seed), random.Random(40 + seed))
+                means.append(sum(sc) / len(sc))
+                if st:
+                    steps.append(sum(st) / len(st))
+            m, s = mean_sd(means)
+            nfeat = len(encode(arm, [(0, 0)] * 6, (0, 0) if task == "reach" else None, random.Random(0)))
+            extra = ""
+            if steps:
+                sm, ss = mean_sd(steps)
+                extra = f" steps={sm:.2f}+-{ss:.2f}"
+            print(f"{task} {arm} {m:.3f}+-{s:.3f} {nfeat}{extra}")
+    print("No winner is declared: history helps only where the frame hides it, and extra inputs cost data")
+    print("TraceVLA SimplerEnv / WidowX gains: 以论文为准; OpenVLA weights / GPU / real robot: 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic visual-trace prompting toy; 7x7 grid, blob-coordinate encoder, k-NN BC; not TraceVLA / not a VLA
+k=3 demos=20 eval_episodes=30 trace_frames=3 lag=2 jitter=0.2 seeds=5
+shared per seed: demo episodes, eval starts/goals, jitter stream; trace drawn only from past frames
+wipe expert reference: about 5.0 edge-to-edge strokes in 36 steps
+task arm score features (mean+-sd over seeds; wipe score = strokes/episode, reach score = success rate)
+wipe A_raw 0.000+-0.000 2
+wipe B_raw_trace 4.807+-0.306 6
+wipe C_lagged_trace 4.193+-0.569 6
+reach A_raw 0.960+-0.072 2 steps=4.89+-0.90
+reach B_raw_trace 0.920+-0.077 6 steps=6.77+-0.95
+reach C_lagged_trace 0.867+-0.047 6 steps=8.53+-0.56
+No winner is declared: history helps only where the frame hides it, and extra inputs cost data
+TraceVLA SimplerEnv / WidowX gains: 以论文为准; OpenVLA weights / GPU / real robot: 本页未运行
+```
+
+</SimOutput>
+
+### Read the trade-off
+
+**wipe.** A_raw scores **0.000** strokes: from one frame, "moving left" and "moving right" look the same, so the cloned policy averages and stalls. The trace gives B **4.807±0.306** strokes, close to the expert's 5. The lagged, jittery trace in C still helps but drops to **4.193±0.569**.
+
+**reach.** The frame already shows everything. A succeeds **0.960** of the time in **4.89** steps; B's extra four features dilute the neighbours (**0.920**, **6.77** steps); C is worse again (**0.867**, **8.53** steps).
+
+**No arm wins everywhere.** History helps only where the frame hides it, and every extra input costs data. A stale tracker costs more than it seems. This is why the paper keeps the original image and trains with trace dropout. The toy's k-NN and blob encoder are not a VLA; they only make the input question visible.
+
+**210-minute work plan:** 40 min reading the paper's method and how it differs from IBVS; 30 min auditing the shared demos and the no-leak trace; 50 min running and reading both tasks; 60 min on perturbations; 30 min on the exercises below.
+
+### Exercises
+
+1. Set LAG=0 and JITTER=0.0. Does C become B exactly? Check that the shared streams make that true.
+2. Raise N_DEMOS from 20 to 80. Predict whether the gap between A and B in reach shrinks, and explain it with the feature count.
+3. Add a "history frames" arm that stacks the last 3 raw frames instead of drawing a trace. Keep the same k and demos, and compare its feature count with B.
+4. Add trace dropout: with probability 0.3, train B on a blank trace. Report wipe and reach with the trace present and with the tracker failing at test time.
+5. In one paragraph, explain why IBVS needs no history but a cloned policy for wipe does. Keep paper numbers 以论文为准; no robot runs on this page.
+
 ## Common mistakes
 
 - **Assuming this lesson did Servo's singularity/collision checks.** It did not; only command-side clamps.
@@ -555,6 +808,6 @@ No winner is declared; real camera/OpenCV/robot runs: 本页未运行.
 
 <Summary>
 
-Visual servoing 9.8: ArUco/PnP → base pose error → Twist-style jog; prereqs 9.2 and Month 5 calibration; eye-in-hand toy geometry. `tag_error_jog.py` prints clamped vx..wz and a deadzone flag under a fixed seed. Real OpenCV webcam and ROS→Servo stay 本页未运行. `ibvs_interaction_matrix_toy.py` gives PBVS and IBVS the same noisy points, pose/depth estimate, λ and view limits, solves `v_c = −λL⁺e` with the 2×6 point interaction matrix, and shows wrong-depth, near-edge and large-roll trade-offs (PBVS converging to a wrong pose or losing points, IBVS camera retreat) over five seeds without declaring a winner.
+Visual servoing 9.8: ArUco/PnP → base pose error → Twist-style jog; prereqs 9.2 and Month 5 calibration; eye-in-hand toy geometry. `tag_error_jog.py` prints clamped vx..wz and a deadzone flag under a fixed seed. Real OpenCV webcam and ROS→Servo stay 本页未运行. `ibvs_interaction_matrix_toy.py` gives PBVS and IBVS the same noisy points, pose/depth estimate, λ and view limits, solves `v_c = −λL⁺e` with the 2×6 point interaction matrix, and shows wrong-depth, near-edge and large-roll trade-offs (PBVS converging to a wrong pose or losing points, IBVS camera retreat) over five seeds without declaring a winner. `visual_trace_prompt_toy.py` gives raw-frame, trace-overlay and lagged-trace inputs the same k-NN cloning, demos and seeds and shows over five seeds that a TraceVLA-style trace helps only where the frame hides history (wipe) and costs data where it does not (reach); paper numbers 以论文为准, VLA weights and GPU 本页未运行.
 
 </Summary>

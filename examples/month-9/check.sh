@@ -40,5 +40,6 @@ check ft_bias_gravity_toy.txt "$PY" "$M9/effort-admittance/ft_bias_gravity_toy.p
 
 check ibvs_interaction_matrix_toy.txt "$PY" "$M9/visual-servoing/ibvs_interaction_matrix_toy.py"
 check recovery_escalate_budget_toy.txt "$PY" "$M9/failure-recovery/recovery_escalate_budget_toy.py"
+check visual_trace_prompt_toy.txt "$PY" "$M9/visual-servoing/visual_trace_prompt_toy.py"
 
 exit $fail
