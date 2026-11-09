@@ -79,7 +79,7 @@ const month1Lessons: Lesson[] = [
       { zh: "能写出两线读数 R_2w = R + 2 × r_lead + 2 × r_contact 与开尔文读数 R × R_IN / (R_IN + r_sense)，在共享零件 / 引线 / 表误差抽样下比较两线、四线与清零两线，指出 5–20 mΩ 分流电阻上两线法偏高 764.0166±61.6550 %（配对 A−B 明显，5/5 同号）、5–20 kΩ 上绝对误差接近打平、引线为零时两者打平，且开尔文去不掉热电动势；不声称实验台实验。", en: "Write the two-wire reading R_2w = R + 2 × r_lead + 2 × r_contact and the Kelvin reading R × R_IN / (R_IN + r_sense), compare two-wire, four-wire and nulled two-wire on shared part, lead and meter-error draws, and show two-wire reads a 5–20 mΩ shunt 764.0166±61.6550 % high (paired A−B clear, 5/5 same sign), a near-tie in absolute error on 5–20 kΩ parts, a tie with zero leads, and that Kelvin does not remove thermal EMF; no bench-run claim." },
     ],
     prereqs: ["ohms-law", "components"],
-    resources: ["nist-uncertainty-typeb", "nist-uncertainty-propagation", "wiki-four-terminal", "sparkfun-multimeter", "sparkfun-resistors", "adafruit-dmm", "elegoo-super", "elegoo-basic", "sparkfun-sik", "tinkercad"],
+    resources: ["nist-uncertainty-typeb", "nist-uncertainty-propagation", "wiki-four-terminal", "tek-lv-lr-handbook", "sparkfun-multimeter", "sparkfun-resistors", "adafruit-dmm", "elegoo-super", "elegoo-basic", "sparkfun-sik", "tinkercad"],
     tasks: [
       { id: "b5p1", text: { zh: "运行 dmm_uncertainty_toy.py 并审计假设、预算和 expected 表格", en: "Run dmm_uncertainty_toy.py and audit assumptions, budgets and expected tables" } },
       { id: "b14p1-kelvin", text: { zh: "运行 kelvin_four_wire_sense_toy.py，手算 10 mΩ 分流电阻的两线与四线读数，比较三种情形下三组的绝对误差与偏差", en: "Run kelvin_four_wire_sense_toy.py, work the two-wire and four-wire readings of a 10 mΩ shunt by hand, and compare the three arms' absolute error and bias in the three regimes" } },

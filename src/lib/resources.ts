@@ -5135,6 +5135,26 @@ export const resources: Record<string, Resource> = {
     },
     extra: true,
   },
+  "tek-lv-lr-handbook": {
+    id: "tek-lv-lr-handbook",
+    url: "https://download.tek.com/document/LV_LR_e-hnbook_91113.pdf",
+    title: {
+      zh: "Tektronix / Keithley：精密低电压与低电阻测量（PDF）",
+      en: "Tektronix / Keithley: Making Precision Low Voltage and Low Resistance Measurements (PDF)",
+    },
+    author: "Keithley Instruments (Tektronix)",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已用 pdftotext 读正文：热电动势可用电流换向（正反电流各测一次再合并）或偏置补偿欧姆（固定电流与零电流交替，再减掉零电流电压）抵消；两者都消去恒定 VEMF。以原文为准。",
+      en: "Body read via pdftotext: thermoelectric EMFs can be cancelled by current reversal (opposite polarities, then combined) or by offset-compensated ohms (alternate a fixed source current with zero current and subtract the zero-current voltage); both cancel a constant VEMF. 以原文为准.",
+    },
+    license: {
+      zh: "以原文为准",
+      en: "See original terms",
+    },
+    extra: true,
+  },
   "marlin-lin-advance": {
     id: "marlin-lin-advance",
     url: "https://marlinfw.org/docs/features/lin_advance.html",
