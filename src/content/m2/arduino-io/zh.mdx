@@ -612,6 +612,328 @@ Flags are edge-budget violations, NOT observed packet loss; real bus/scope: 本�
 3. 将 400 pF 换成实测 / 建模 C，或降低 SCL；说明改变了器件上升时间限制还是周期预算。仅增加 bit 周期，不会改变固定的 Fast-mode 上升时间规格。
 4. 声明真实 I2C 可靠前，列出还缺的数据 / 下降沿 / 建立保持 / ACK / 时钟拉伸检查；保留原按键练习。
 
+## RS-485：同样的 UART 字节走端接差分对（+180 min）
+
+串口一节讲了 UART 帧格式（起始位、八个数据位、停止位）和波特率不匹配的样子。RS-485 保留这些帧，换的是导线。收发器把 TX 变成**差分对 A/B**，可以走几百米，并让多个节点共用。本节只讲这个物理层。它**不是**上面的波特率乱码，不是 CAN 错误计数（4.5 的 TEC/REC），不是 CRC，也**不是 Modbus** 或任何应用层协议。
+
+<Resource id="ti-slla272" />
+<Resource id="wiki-rs485" />
+<Resource id="arduino-uart-guide" />
+
+**实际打开的资料。**
+
+- **TI SLLA272（*The RS-485 Design Guide*，Rev. D）：**
+  - 总线共模范围 **−7 V 到 +12 V**，最多 **32 个单位负载**。
+  - 驱动器在 **54 Ω** 上至少输出 **1.5 V** 差分，接收器能检测低至 **200 mV** 的差分。
+  - 工业双绞线 **Z0 = 120 Ω**，主干**两端各接 120 Ω** 端接。
+  - 支线的电长度应短于驱动器上升时间的十分之一：`L_stub ≤ t_r/10 · v · c`。其表 6-1 对 100 ns 上升时间给出 **7 ft**。
+  - 半双工时，驱动 / 接收使能（DE/RE）必须保证**同一时刻只有一个驱动器在驱动**（总线争用）。
+- **Wikipedia RS-485：** 推荐线形（菊花链）拓扑而非星形；未端接端口的反射会破坏数据。
+- **Arduino UART 指南：** UART 是异步的，没有共享时钟，两端只能依靠约定的波特率与帧格式。
+
+这些文档里的数字以原文为准。各文档对极性的命名不同：Wikipedia 把二进制 1 写成 V_A − V_B < −200 mV。玩具里直接把正差分当作逻辑 1；请以你的收发器数据手册为准。
+
+### 一行讲清反射
+
+在 Z0 线上传播的波遇到阻抗 Z，反射系数为 `Γ = (Z − Z0)/(Z + Z0)`。120 Ω 端接给出 Γ = 0。未端接端（一个 12 kΩ 单位负载）**≈ +0.98**，20 Ω 驱动端 **−0.71**。支线从已端接主干末端引出处看到 120 Ω ∥ 120 Ω = 60 Ω，所以 Γ = **−1/3**。反射来回弹跳，直到线路稳定。如果接收器采样或等待起始位时弹跳还很大，UART 就会解出错误字节。差分接收是另一半：同等耦合到 A 和 B 上的噪声是共模，接收器会忽略它。
+
+### 公平设置
+
+`rs485_termination_toy.py` 是**合成**的，只用标准库。它用反射格（bounce lattice）线路模型驱动比较器和 UART 8N1 解码器；解码器在半个位处确认起始位，并在每一位中间采样。所有臂以**同一波特率**发送**同样的 17 个字节**，驱动器和主干也相同：
+
+- **驱动器：** 戴维南 ±5 V、内阻 20 Ω，边沿 100 ns。
+- **主干：** 120 m、120 Ω 双绞线，速度 0.78 c，即**单程 513 ns**，每程幅度保留 0.95。
+
+所有臂还共享**每个种子同一串噪声**：τ = 200 ns 低通、σ = 2 V 的共模噪声（大部分时间落在 −7…+12 V 内），以及 0.08 V 差分噪声。差分接收器把 1 % 的共模噪声当作合成失配吃进去。
+
+| 臂 | 线路与接收器 |
+|---|---|
+| A_term_diff | 主干两端各 120 Ω，差分接收器（±200 mV，中间保持原状态） |
+| B_unterm_diff | 不端接，同样的差分接收器 |
+| B2_stub_diff | 主干已端接，接收器位于一条 **15 m** 未端接支线末端（故意违反 SLLA272 支线规则） |
+| C_term_single | 同样已端接的主干，但只用一根线对地：完整的共模噪声直接落到半摆幅 ±200 mV 的门限上 |
+
+两个场景使用同一载荷：**1 Mbps** 与 **125 kbps**。指标如下：
+
+- `byte_errors`：17 个字节中错误或缺失的个数。
+- `framing_errors`：停止位不为高。
+- `extra_edges`：接收器比发送多出的跳变。
+- `eye_margin_V`：在延迟后的位中心处越过 ±200 mV 门限的最差余量。
+- `overshoot_x`：峰值除以稳定电平。
+- `idle_drive_mA`：总线空闲时驱动器的静态电流。
+- `first_error_byte`：按种子列出。
+
+结果为五个种子的 mean±sd。
+
+### 运行标准库玩具
+
+```bash
+cd ~/Hardware-learning/examples/month-2/arduino-io
+python3 rs485_termination_toy.py
+```
+
+<CodeSource path="examples/month-2/arduino-io/rs485_termination_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic RS-485 line toy: lossy transmission-line bounce lattice + UART
+(8N1) receiver. NOT a TDR measurement, NOT Modbus, NOT a CAN error counter.
+Stdlib only.
+
+Every arm sends the SAME 16 bytes at the SAME baud through the SAME Thevenin
+driver (+-5 V open-circuit, 20 ohm, 100 ns linear edge), the same 120 m trunk
+(Z0 = 120 ohm, velocity 0.78 c, 0.95 amplitude per pass) and the same per-seed
+noise streams (common-mode and differential). Arms differ only in line
+arrangement / receiver type:
+  A_term_diff     120 ohm at both trunk ends, differential receiver (+-200 mV)
+  B_unterm_diff   no termination, differential receiver
+  B2_stub_diff    both ends terminated, receiver on a 15 m unterminated stub
+  C_term_single   same terminated trunk, but one wire against ground: the
+                  receiver sees the full common-mode noise (threshold at
+                  half swing +- 200 mV hysteresis)
+Differential receivers see 1 % of the common-mode noise (synthetic mismatch).
+A 0 -> 1 noise glitch can create a false start bit: this is how ringing and
+noise turn into byte errors in a UART receiver that samples mid-bit.
+"""
+import math
+import random
+
+Z0 = 120.0
+RS = 20.0
+VOPEN = 5.0
+EDGE_NS = 100.0
+VEL = 0.78 * 299_792_458.0
+TRUNK_M = 120.0
+STUB_M = 15.0
+LOSS = 0.95
+RIN = 12_000.0           # one unit load, receiver input
+VTH = 0.2
+CM_SIGMA = 2.0       # V, within the -7..+12 V common-mode range
+CM_TAU_NS = 200.0
+DIFF_SIGMA = 0.08
+CM_LEAK = 0.01
+PAYLOAD = bytes(b"RS485\x00\xff\x55\xaa\x0f\xf0 A/B!\n")
+SEEDS = (0, 1, 2, 3, 4)
+SCENARIOS = (("1Mbps", 1_000_000, 5.0), ("125kbps", 125_000, 20.0))
+ARMS = ("A_term_diff", "B_unterm_diff", "B2_stub_diff", "C_term_single")
+
+
+def par(a, b):
+    return a * b / (a + b)
+
+
+def bits_of(payload):
+    out = [1] * 12                     # idle
+    for byte in payload:
+        out.append(0)                  # start
+        out += [(byte >> k) & 1 for k in range(8)]   # LSB first
+        out.append(1)                  # stop
+    return out + [1] * 12
+
+
+def drive(bits, spb, dt):
+    """Thevenin open-circuit voltage with a linear edge of EDGE_NS."""
+    edge = max(1, int(round(EDGE_NS / dt)))
+    v = []
+    level = VOPEN if bits[0] else -VOPEN
+    for b in bits:
+        target = VOPEN if b else -VOPEN
+        start = level
+        for k in range(spb):
+            v.append(start + (target - start) * min(1.0, (k + 1) / edge))
+        level = target
+    return v
+
+
+def lattice(vs, dt, arm):
+    """Bounce-diagram simulation. Returns receiver differential voltage."""
+    single = arm == "C_term_single"
+    term = arm != "B_unterm_diff"
+    stub = arm == "B2_stub_diff"
+    rt_near = Z0 if term else None
+    rth = par(RS, rt_near) if rt_near else RS
+    gain = rt_near / (rt_near + RS) if rt_near else 1.0
+    gs = (rth - Z0) / (rth + Z0)
+    t1 = max(1, int(round(TRUNK_M / VEL / (dt * 1e-9))))
+    t2 = max(1, int(round(STUB_M / VEL / (dt * 1e-9)))) if stub else 0
+    r_tap = Z0 if term else RIN
+    n = len(vs)
+    fwd = [0.0] * n        # launched forward on trunk at source
+    back = [0.0] * n       # launched backward on trunk at tap
+    s_fwd = [0.0] * n      # launched forward into stub at tap
+    rx = [0.0] * n
+    g_rx = (RIN - Z0) / (RIN + Z0)
+    for k in range(n):
+        b_arr = LOSS * back[k - t1] if k >= t1 else 0.0
+        fwd[k] = vs[k] * gain * Z0 / (rth + Z0) + gs * b_arr
+        a = LOSS * fwd[k - t1] if k >= t1 else 0.0
+        if stub:
+            c = g_rx * s_fwd[k - t2] if k >= t2 else 0.0
+            ytot = 2 / Z0 + 1 / r_tap
+            v = 2 * (a / Z0 + c / Z0) / ytot
+            back[k] = v - a
+            s_fwd[k] = v - c
+            rx[k] = (1 + g_rx) * s_fwd[k - t2] if k >= t2 else 0.0
+        else:
+            ytot = 1 / Z0 + 1 / r_tap
+            v = 2 * (a / Z0) / ytot
+            back[k] = v - a
+            rx[k] = v
+    return rx, t1 + t2
+
+
+def noise(n, dt, seed):
+    rng_cm = random.Random(10_000 + seed)
+    rng_d = random.Random(20_000 + seed)
+    a = math.exp(-dt / CM_TAU_NS)
+    scale = CM_SIGMA * math.sqrt(1 - a * a)
+    cm, d, x = [], [], rng_cm.gauss(0, CM_SIGMA)
+    for _ in range(n):
+        x = a * x + scale * rng_cm.gauss(0, 1)
+        cm.append(x)
+        d.append(rng_d.gauss(0, DIFF_SIGMA))
+    return cm, d
+
+
+def receive(v, single, swing):
+    """Comparator with hysteresis -> logic stream."""
+    hi, lo = (swing / 2 + VTH, swing / 2 - VTH) if single else (VTH, -VTH)
+    state, out = 1, []
+    for x in v:
+        if x >= hi:
+            state = 1
+        elif x <= lo:
+            state = 0
+        out.append(state)
+    return out
+
+
+def uart_decode(logic, spb):
+    out, framing, k = [], 0, 0
+    n = len(logic)
+    while k < n - 10 * spb:
+        if logic[k] == 0 and logic[k - 1] == 1:
+            if logic[k + spb // 2] != 0:
+                k += 1
+                continue              # glitch rejected by half-bit check
+            byte = 0
+            for j in range(8):
+                byte |= logic[k + spb // 2 + (j + 1) * spb] << j
+            if logic[k + spb // 2 + 9 * spb] != 1:
+                framing += 1
+            out.append(byte)
+            k += spb // 2 + 9 * spb
+        else:
+            k += 1
+    return out, framing
+
+
+def byte_errors(sent, got):
+    errs = sum(a != b for a, b in zip(sent, got)) + abs(len(sent) - len(got))
+    first = next((j for j, (a, b) in enumerate(zip(sent, got)) if a != b), None)
+    if first is None and len(sent) != len(got):
+        first = min(len(sent), len(got))
+    return errs, first
+
+
+def run(arm, baud, dt, seed):
+    spb = int(round(1e9 / baud / dt))
+    bits = bits_of(PAYLOAD)
+    vs = drive(bits, spb, dt)
+    line, delay = lattice(vs, dt, arm)
+    n = len(line)
+    skip = 6 * spb   # ignore the power-up charging of the line during idle
+    dc = line[skip - 1]   # settled idle (logic 1) level at the receiver
+    cm, dn = noise(n, dt, seed)
+    single = arm == "C_term_single"
+    if single:
+        # one wire swings 0..2*level, referenced to ground; same driver
+        sig = [x + abs(dc) for x in line]
+        rxv = [s + c for s, c in zip(sig, cm)]
+        swing = 2 * abs(dc)
+    else:
+        rxv = [x + CM_LEAK * c + d for x, c, d in zip(line, cm, dn)]
+        swing = 0.0
+    logic = receive(rxv[skip:], single, swing)
+    got, framing = uart_decode([1] + logic, spb)
+    errs, first = byte_errors(PAYLOAD, bytes(got))
+    sent_edges = sum(1 for a, b in zip(bits, bits[1:]) if a != b)
+    rx_edges = sum(1 for a, b in zip(logic, logic[1:]) if a != b)
+    # eye margin at the bit centres as seen by the receiver (after the line delay)
+    edge = int(round(EDGE_NS / dt))
+    centres = [(j * spb + spb // 2 + delay + edge // 2, bits[j]) for j in range(6, len(bits))]
+    margin = min((rxv[c] - swing / 2) * (1 if b else -1) for c, b in centres if c < n) - VTH
+    overshoot = max(abs(x) for x in line[skip:]) / max(abs(dc), 1e-9)
+    idle_ma = 1000 * VOPEN / (RS + (Z0 / 2 if arm != "B_unterm_diff" else RIN))
+    return errs, first, framing, rx_edges - sent_edges, margin, overshoot, idle_ma
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def main():
+    print("Synthetic RS-485 bounce-lattice + UART 8N1 toy; driver/cable values are lesson values, not a datasheet")
+    print(f"Z0={Z0:.0f}ohm Rs={RS:.0f}ohm Voc=+-{VOPEN:.0f}V edge={EDGE_NS:.0f}ns trunk={TRUNK_M:.0f}m stub={STUB_M:.0f}m "
+          f"v=0.78c one_way_ns={TRUNK_M / VEL * 1e9:.0f} loss/pass={LOSS} Rx_threshold=+-{VTH * 1000:.0f}mV")
+    print(f"shared payload={len(PAYLOAD)} bytes ({PAYLOAD.hex()}) noise: cm_sigma={CM_SIGMA}V tau={CM_TAU_NS:.0f}ns "
+          f"diff_sigma={DIFF_SIGMA}V cm_leak={CM_LEAK:.0%} seeds={len(SEEDS)}")
+    print("scenario arm byte_errors framing_errors extra_edges eye_margin_V overshoot_x idle_drive_mA first_error_byte (mean+-sd)")
+    for name, baud, dt in SCENARIOS:
+        for arm in ARMS:
+            rows = [run(arm, baud, dt, s) for s in SEEDS]
+            firsts = [r[1] for r in rows]
+            cols = [mean_sd([r[j] for r in rows]) for j in (0, 2, 3, 4, 5, 6)]
+            fe = ",".join("-" if f is None else str(f) for f in firsts)
+            print(f"{name} {arm} " + " ".join(f"{m:.2f}+-{s:.2f}" for m, s in cols) + f" [{fe}]")
+    print("No winner is declared: termination costs idle drive current; low baud hides reflections")
+    print("Real transceiver, cable and TDR: 本页未运行; SLLA272 numbers 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic RS-485 bounce-lattice + UART 8N1 toy; driver/cable values are lesson values, not a datasheet
+Z0=120ohm Rs=20ohm Voc=+-5V edge=100ns trunk=120m stub=15m v=0.78c one_way_ns=513 loss/pass=0.95 Rx_threshold=+-200mV
+shared payload=17 bytes (525334383500ff55aa0ff020412f42210a) noise: cm_sigma=2.0V tau=200ns diff_sigma=0.08V cm_leak=1% seeds=5
+scenario arm byte_errors framing_errors extra_edges eye_margin_V overshoot_x idle_drive_mA first_error_byte (mean+-sd)
+1Mbps A_term_diff 0.00+-0.00 0.00+-0.00 0.00+-0.00 3.16+-0.02 1.00+-0.00 62.50+-0.00 [-,-,-,-,-]
+1Mbps B_unterm_diff 16.00+-0.00 2.00+-0.00 44.00+-0.00 -5.93+-0.14 4.71+-0.00 0.42+-0.00 [0,0,0,0,0]
+1Mbps B2_stub_diff 0.00+-0.00 0.00+-0.00 0.00+-0.00 3.10+-0.04 1.35+-0.00 62.50+-0.00 [-,-,-,-,-]
+1Mbps C_term_single 6.60+-2.19 0.20+-0.45 322.00+-28.18 -2.01+-0.58 1.00+-0.00 62.50+-0.00 [2,5,0,3,0]
+125kbps A_term_diff 0.00+-0.00 0.00+-0.00 0.00+-0.00 3.12+-0.05 1.00+-0.00 62.50+-0.00 [-,-,-,-,-]
+125kbps B_unterm_diff 0.00+-0.00 0.00+-0.00 0.00+-0.00 2.94+-0.05 2.31+-0.00 0.42+-0.00 [-,-,-,-,-]
+125kbps B2_stub_diff 0.00+-0.00 0.00+-0.00 0.00+-0.00 3.13+-0.01 1.35+-0.00 62.50+-0.00 [-,-,-,-,-]
+125kbps C_term_single 8.00+-1.58 2.40+-1.14 1537.60+-66.97 -2.26+-1.45 1.00+-0.00 62.50+-0.00 [0,0,3,2,0]
+No winner is declared: termination costs idle drive current; low baud hides reflections
+Real transceiver, cable and TDR: 本页未运行; SLLA272 numbers 以原文为准
+```
+
+</SimOutput>
+
+### 当作取舍来读
+
+**1 Mbps、120 m 时**，端接差分对每个字节都解对，眼图余量 **3.16 V**。不端接时，每个种子都有 **17 个字节中的 16 个**出错，另有 2 个帧错误和 44 个多余跳变，峰值达到稳定电平的 **4.71×**。每个种子计数相同，因为原因是反射而不是噪声：往返约 1026 ns，差不多一个位，每次弹跳都落在后面的位上。15 m 支线在这个玩具里能正确解码（余量 **3.10 V**，过冲 **1.35×**）：违反支线规则在这里只损失余量、增加过冲，没有丢字节；练习 3 会把它推得更远。单端线用的是同样已端接的主干，却丢了 **6.60 ± 2.19** 个字节，因为没有任何东西抵消共模噪声。
+
+**125 kbps 时**，不端接的线路也全部解对：弹跳早在位中点之前就平息了（过冲 **2.31×**）。端接也不是免费的：两只 120 Ω 让空闲总线从驱动器取 **62.50 mA**，不端接只有 **0.42 mA**。即便如此，这个玩具结果**不等于真实总线可以不端接**：SLLA272 说线路应当始终端接，而玩具没有失效保护偏置、没有更多节点，也没有真实电缆。单端臂仍然失败（**8.00 ± 1.58** 个字节），因为它的问题是共模噪声，不是反射。**不宣布赢家**：每个臂换来的东西不同，玩具也不是 TDR 或合规测试。真实收发器、电缆与 TDR：**本页未运行**。
+
+**DE/RE 换向（只读，不建模）。** 在半双工总线上，每个节点只能在发送期间打开驱动器，并且要等**最后一个停止位真正离开 UART** 之后才释放 DE，而不是在 `Serial.write()` 把数据放进缓冲区返回时。放早了，最后一个字节被截断；放晚了，下一个节点的应答会与你相撞（总线争用）。
+
+**180 分钟计划：** 30 min 读 SLLA272 数字；45 min 推导各端与支线接点的 Γ；45 min 运行并读两种速率；45 min 扰动；15 min 规划 DE/RE 时序检查。
+
+### 练习
+
+1. 手算 12 kΩ 开路端、20 Ω 驱动端、120 Ω 端接与支线接点的 Γ，并用它们解释 125 kbps 下不端接线路的第一次过冲。
+2. 在 1 Mbps 下把 `TRUNK_M` 缩短到 60 m。运行前先预测不端接臂是否仍失败，再用往返时间解释结果。
+3. 把支线加长到 30 m、`EDGE_NS` 设为 30。先算出该上升时间下的 SLLA272 支线上限，再看支线臂是否开始丢字节。
+4. 把 `CM_SIGMA` 减半。载荷、波特率与种子保持不变，预测哪些臂会变、哪些不会。
+5. 115200 baud 下一个 8N1 字符需要 86.8 µs（见串口一节）。写出半双工节点发送三个字节后何时可以拉低 DE，以及必须等待什么。只在纸上完成，本页不运行收发器。
+
 <Summary>
 
 **本课要点**
@@ -625,6 +947,8 @@ Flags are edge-budget violations, NOT observed packet loss; real bus/scope: 本�
 - 115200 波特率下一个字符需要 86.8 µs；64 字节发送缓冲区写满后，`Serial.print()` 会阻塞。
 
 - I2C RC 在固定字节下筛查 Sm/Fm/Fm+ 上升限制与 bit / 高电平 / 灌电流预算，不把标志当成实测丢包。
+
+- RS-485 把同样的 UART 帧放到差分对上，主干两端各接 120 Ω；在共享载荷的反射玩具里，不端接的 120 m 线路在 1 Mbps 下 17 个字节错 16 个，在 125 kbps 下一个不错，端接代价是 62.50 mA 空闲驱动电流，单端线在两种速率下都因共模噪声失败。
 
 **下一课会用到**
 
