@@ -1030,8 +1030,656 @@ Open3D / real lidar / SLAM Toolbox registration: 本页未运行
 3. Slide the corridor patch along x and recompute correspondences. Compare its actual cost profile to the full-rank frozen point-point matrix; identify what geometric evidence would remove the null.
 4. Replace the target polyline with discrete point NN in a separately labelled extension. Explain the new sampling/normal assumptions rather than calling this toy an Open3D reproduction.
 
+## Local control: Regulated Pure Pursuit against the Dynamic Window Approach
+
+The Nav2 stack in this lesson follows its global path with **Regulated Pure Pursuit** (RPP): it chases a carrot on the path and slows down for sharp turns and nearby obstacles. The other classic local controller, and the idea behind Nav2's DWB plugin, is the **Dynamic Window Approach** (DWA): it does not follow the path at all, it searches the velocities the robot can reach in the next control period, keeps only those it can still stop from, and scores the rest. This section compares the two on one shared set of maps in a **synthetic** model. It is not a Nav2 run, and nothing here changes the `nav2.yaml` used above.
+
+<Resource id="fox-dwa-1997" />
+
+<Resource id="macenski-rpp-2023" />
+
+<Resource id="nav2-rpp-readme" />
+
+**Sources actually opened (body read).**
+
+- **Fox, Burgard and Thrun, "The Dynamic Window Approach to Collision Avoidance" (1997, PDF from CMU RI):** the search space is circular trajectories given by pairs `(v, ω)`; a pair is **admissible** if the robot can stop before it reaches the closest obstacle on that curvature, `v ≤ √(2·dist(v, ω)·v̇_b)` and the same for `ω` (eq. 14); the **dynamic window** keeps only velocities reachable within the next time interval under the accelerations (eq. 15); the objective is `G(v, ω) = σ(α·heading + β·dist + γ·vel)` with all three terms normalised to [0, 1], `α = 2.0` and `β = γ = 0.2`, and the smoothing `σ` increases side clearance; the interval is 0.25 s and the example accelerations are 50 cm/s² and 60 deg/s². 以原文为准.
+- **Macenski, Singh, Martín and Ginés, "Regulated Pure Pursuit for Robot Path Tracking" (arXiv 2305.20026, PDF):** the curvature to the lookahead point is `κ = 2·y / L²`; the desired linear velocity is processed by a **curvature heuristic** (slow down when the turning radius falls below a minimum) and a **proximity heuristic** (slow down when an obstacle is closer than a threshold); the text says "we take the maximum of the two". 以原文为准.
+- **Nav2 `nav2_regulated_pure_pursuit_controller` README (GitHub, main branch):** active collision detection projects the current command forward for `max_allowed_time_to_collision_up_to_carrot` seconds, "limited to maximum distance of lookahead distance selected"; `regulated_linear_scaling_min_radius` and `regulated_linear_scaling_min_speed` set the curvature trigger and the floor. 以原文为准.
+- **Wikipedia — Dynamic window approach:** a short stub that restates the same search; used only as a secondary pointer. The Nav2 docs RPP configuration page returned 404 when fetched and is not used.
+
+### Admissible velocities and the dynamic window
+
+<Formula label="Dynamic window">V_d = [v_a − v̇·Δt, v_a + v̇·Δt] × [ω_a − ω̇·Δt, ω_a + ω̇·Δt]</Formula>
+
+<Formula label="Admissible (Fox eq. 14, translational part)">v ≤ √(2 · dist(v, ω) · v̇_b)</Formula>
+
+<Formula label="Objective used here">G(v, ω) = 2.0 · heading + 0.2 · dist + 0.2 · vel</Formula>
+
+**Worked example.** With `v̇ = 0.5 m/s²` and `Δt = 0.25 s`, a robot moving at 0.6 m/s can choose any speed in [0.475, 0.725] m/s next; with `ω̇ = 1.5 rad/s²` the turn rate can move by ±0.375 rad/s. If the first obstacle on an arc is 1.0 m away and the braking deceleration is `v̇_b = 0.5 m/s²`, the admissible limit is `√(2 · 1.0 · 0.5) = 1.0 m/s`.
+
+**Safety criterion, checked at the boundary.** Admissible means "can brake to zero before the obstacle". The toy brakes from 0.98× and 1.02× of the limit with the same integrator the robots use: for an obstacle at 1.0 m, 0.98× stops at 0.9604 m (before it) and 1.02× at 1.0404 m (it hits); the same holds at 0.5 m and 2.0 m. Eq. 14 assumes the brakes act **now**. A controller that decides every `Δt` holds its command for one period first, so the toy also prints a **control-period** version, used by the arm `D_dwa_dt`:
+
+<Formula label="Admissible with one held period">v ≤ √(2 · v̇_b · (dist(v, ω) − v · Δt))</Formula>
+
+With the same 1.0 m obstacle this gives `v² + 0.25·v − 1 = 0`, so `v ≤ 0.8828 m/s` instead of 1.0 m/s. The toy prints the reason: at 1.0 m/s the robot covers 1.2500 m before it can stop.
+
+**Regulated Pure Pursuit in the same terms.** A carrot 0.9 m away with a lateral offset of 0.3 m gives `κ = 2 · 0.3 / 0.81 = 0.741 1/m`, a radius of 1.35 m, which is above `R_MIN = 0.9 m`, so the curvature rule does not slow the robot. An obstacle surface 0.3 m away with `D_PROX = 0.6 m` halves the speed. RPP does **not** check admissibility: it projects its command for `T_COLL = 1.0 s`, at most as far as the carrot, and stops if that arc hits something.
+
+<Formula label="Pure pursuit curvature">κ = 2 · y_l / L²</Formula>
+
+**Integration step.** Each robot moves along exact circular arcs in steps of `H = 0.05 s` (5 per control period), with the step-average `v` and `ω`. Nothing inside a step feeds back, so there is no step-size stability limit; the accuracy is printed instead. Over a 10 s open-loop ramp, `H` against `H/2` differ by 3.467e-03 m in position and 6.123e-05 rad in heading. In closed loop the same check on RPP in `winding` gives 25.2500 s in both cases and clearance 0.2681 against 0.2660 m. On `D_dwa_dt` in `clutter_fast` both runs arrive, but at 24.5000 against 26.2500 s: a tiny state difference can make a sampled controller pick the other side of an obstacle, so single trials can branch while the seed means stay stable.
+
+### Fair setup
+
+`dwa_vs_pure_pursuit_toy.py` is **synthetic** and stdlib only. **Model assumptions:**
+- A circular unicycle (radius 0.2 m) drives from (0, 0) to (10, 0). The base enforces `|dv/dt| ≤ 0.5 m/s²`, `|dω/dt| ≤ 1.5 rad/s²` and `|ω| ≤ 1.5 rad/s`.
+- Obstacles are circles, sensed within 3 m (a stand-in for the local costmap). Every arm plans with each obstacle grown by `PAD = 0.05 m`; collisions use the true radii.
+- A slip record is drawn once per trial: in every control period, one factor for `v` and one for `ω`, each from N(0, 0.03), scale what the base executes.
+- Every arm gets the same carrot: the first point of the shared global path at least 0.9 m ahead. Clutter obstacles are **not** on the global plan; they stand for things only the local costmap sees.
+- DWA here aims at the carrot, not at the final goal, so the two controllers chase the same target.
+- `heading` is scored at the pose reached after one period. Fox predicts the pose after one period plus maximal braking; that is simplified here.
+- There is no smoothing `σ`, and only the translational half of eq. 14 is used.
+- RPP takes the **smaller** of its curvature and proximity speeds. That is the conservative reading; the paper's text says maximum. It never goes below 0.25 m/s, and it stops when its collision arc is blocked.
+
+| Arm | Velocity choice | Safety test |
+|---|---|---|
+| A_rpp | carrot curvature, speed cut by curvature and proximity | stop if the 1.0 s arc (at most to the carrot) hits |
+| B_dwa | 7 × 15 grid in the dynamic window, maximise G | Fox eq. 14 as written |
+| C_window | same as B | none (dynamic window only) |
+| D_dwa_dt | same as B | eq. 14 with one held period |
+
+If nothing passes the filter, B and D brake as hard as the window allows and straighten. **Common random numbers:** for each (regime, seed, trial) the obstacle positions and radii, the global path and the slip record are drawn once and shared by all four arms. There are 5 seeds × 6 trials; each metric is the per-seed mean over trials, reported as mean±sd over seeds.
+
+The metrics are:
+- `success`: the goal is reached within 0.25 m before 60 s.
+- `collision`: the robot touches an obstacle.
+- `time_s`: time to the goal, with a failed trial counted as 60 s.
+- `clearance_m`: the smallest gap to an obstacle surface, 0 after a collision.
+- `viol`: the share of control periods in which the robot's **actual** speed was not admissible on its actual arc.
+- `sat`: the share of commands that lay outside the dynamic window, so the base clipped them.
+
+| Regime | Top speed | Obstacles |
+|---|---|---|
+| empty | 0.4 m/s | none |
+| open_slow | 0.4 m/s | centred 1.2–2.0 m to the side of the path |
+| clutter_slow | 0.4 m/s | six obstacles centred within 0.6 m of the path, unknown to the global plan |
+| clutter_fast | 1.2 m/s | the same six obstacles |
+| narrow_gap | 0.8 m/s | a known wall of 0.15 m posts with an opening at least 0.9 m wide |
+| winding | 1.0 m/s | a known corridor (walls ±0.7 m) around `y = 0.5·(1 − cos(2πx/5))` |
+
+**Choices made after seeing results.** These were not in the first design; the toy prints each alternative so you can see what changed.
+- **`PAD = 0.05 m`.** With `PAD = 0` the DWA arms graze obstacles at almost zero clearance under slip: B collided on 0.2000 of trials in `clutter_slow` and 0.4667 in `clutter_fast`, and RPP on 0.8333 in `clutter_fast`. With `PAD = 0.1`, D reaches 0.5667 success with no collision in `clutter_fast` but only 0.2333 in `winding`.
+- **The arm `D_dwa_dt`.** It was added after the first run showed B colliding even though every command it chose passed eq. 14.
+- **The `winding` regime.** It was added after the first run to give RPP a case built for it. Its first geometry, `y = sin(2πx/5)` with walls at ±0.6 m, stopped all four arms short of the goal without a collision (success 0 and collision 0 for each), so the geometry was changed; that first geometry is printed too.
+- **The brake fallback.** A variant that kept its curvature while braking was tried during development and reverted; the toy uses the first version (brake and straighten).
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-4/slam-nav
+python3 dwa_vs_pure_pursuit_toy.py
+```
+
+<CodeSource path="examples/month-4/slam-nav/dwa_vs_pure_pursuit_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic local-controller toy: Regulated Pure Pursuit vs the Dynamic Window Approach. Stdlib only.
+
+A circular unicycle robot (radius R_ROBOT) drives from (0, 0) to GOAL along a shared global
+path. Obstacles are circles. Clutter obstacles are NOT on the global plan (they stand for
+things only the local costmap sees), so the global path may run straight through them.
+Every arm sees the same obstacles within SENSE metres and gets the same carrot: the first
+path point at least LOOKAHEAD metres ahead of the closest path point. Every arm plans with
+each obstacle grown by PAD (chosen after the first run; ALT_PADS printed); collisions and
+the safety metrics use the true radii. Regimes: empty, open_slow (obstacles 1.2-2.0 m to the
+side), clutter_slow / clutter_fast (the same six obstacles within 0.6 m of the path, unknown to
+the global plan), narrow_gap (a known wall of 0.15 m posts with an opening at least 0.9 m wide on the path), winding (a known
+corridor around a curved path; added after the first run, the first geometry is printed).
+
+Arms (one shared world, one shared slip-noise record per trial):
+  A_rpp     Regulated-Pure-Pursuit-style tracker (Macenski et al.): curvature to the carrot
+            k = 2 y / L^2, linear speed cut by a curvature rule (radius below R_MIN) and a
+            proximity rule (obstacle closer than D_PROX), the smaller of the two kept, never
+            below V_REG_MIN; the arc of the command is projected T_COLL seconds ahead
+            (at most L metres) and the robot is told to stop if that arc hits something.
+            Commands ignore the acceleration limits; the base enforces them.
+  B_dwa     Dynamic Window Approach (Fox, Burgard, Thrun 1997): search (v, w) in the window
+            reachable in one control period, keep only admissible pairs
+            v <= sqrt(2 * dist(v, w) * B_V) (can stop before the first obstacle on the arc),
+            maximise G = 2.0 heading + 0.2 dist + 0.2 vel (weights from the paper, no smoothing).
+  C_window  the same search and objective as B without the admissibility filter.
+  D_dwa_dt  B with the control period counted: v <= sqrt(2 * B_V * (dist - v * DT_CTRL)), because the
+            chosen command is held for DT_CTRL before the next decision can brake (added after
+            the first run showed B colliding).
+When no pair passes the filter, B and D brake as hard as the window allows and straighten.
+
+Base model shared by every arm: |dv/dt| <= A_V, |dw/dt| <= A_W, |w| <= W_MAX; each
+integration step H = DT_CTRL / SUBSTEPS moves along a circular arc with the step-average
+v and w times (1 + slip), one slip factor for v and one for w per control period, each N(0, SLIP);
+the record is drawn once per trial and shared by every arm (common random numbers).
+The arc update is exact for constant-deceleration straight braking and has no step-size
+stability limit (no feedback inside a step); H vs H / 2 accuracy is printed.
+Safety criterion (Fox): a velocity is admissible iff v <= sqrt(2 * dist * B_V); the braking
+check is printed at 0.98x and 1.02x of that limit.
+
+Metrics per trial, averaged over TRIALS per seed: success (goal within GOAL_TOL before
+T_MAX), collision, time (s; a failed trial counts as T_MAX), clearance (smallest gap to an
+obstacle surface, m, 0 after a collision), viol (share of control periods in which the
+robot's actual speed was not admissible on its actual arc), sat (share of control periods
+whose command lay outside the dynamic window, so the base clipped it).
+Labels: tie = identical on every seed; numerically zero = |paired mean| and sd both < 1e-9
+(effectively a tie, no sign count); |m| <= sd = near-tie; |m| > sd = consistent gap (small if
+|m| < 20 % of the smaller arm mean, else clear), with a sign count.
+Real Nav2 / DWB / RPP plugins, real lidar, real robot: 本页未运行. Paper values: 以原文为准.
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+TRIALS = 6
+R_ROBOT = 0.2
+GOAL = (10.0, 0.0)
+GOAL_TOL = 0.25
+DT_CTRL = 0.25  # control period (Fox et al. use 0.25 s)
+SUBSTEPS = 5  # integration step H = 0.05 s
+T_MAX = 60.0
+SENSE = 3.0  # local-costmap stand-in radius
+A_V, A_W = 0.5, 1.5  # base acceleration limits (m/s^2, rad/s^2)
+B_V = 0.5  # braking deceleration used in the admissibility test (= A_V)
+W_MAX = 1.5
+SLIP = 0.03
+LOOKAHEAD = 0.9
+D_CAP = 3.0  # dist(v, w) when nothing is hit within this arc length
+N_V, N_W = 7, 15  # DWA velocity samples
+W_HEAD, W_DIST, W_VEL = 2.0, 0.2, 0.2
+R_MIN, D_PROX, V_REG_MIN, T_COLL = 0.9, 0.6, 0.25, 1.0
+PAD = 0.05  # planning margin added to every obstacle by every arm (chosen after the first run, see ALT_PADS)
+ALT_PADS = (0.0, 0.1)
+NUM_ZERO = 1e-9
+ARMS = ("A_rpp", "B_dwa", "C_window", "D_dwa_dt")
+TEST = {"B_dwa": "fox", "C_window": "none", "D_dwa_dt": "dt"}
+# name: (v_max, obstacle field)
+REGIMES = {
+    "empty": (0.4, "none"),
+    "open_slow": (0.4, "side"),
+    "clutter_slow": (0.4, "clutter"),
+    "clutter_fast": (1.2, "clutter"),
+    "narrow_gap": (0.8, "gap"),
+    "winding": (1.0, "winding"),
+}
+# winding corridor (regime added after the first run): centreline y = AMP (1 - cos(2 pi x / WAVE)), walls at +-HALF_W
+AMP, WAVE, HALF_W = 0.5, 5.0, 0.7
+# the first winding geometry tried, kept as a printed alternative: y = 1.0 sin(2 pi x / 5), walls at +-0.6
+ALT_WINDING = (1.0, "winding_first")
+
+
+def world(field, seed, trial):
+    """Common random numbers: one obstacle field and global path per (field, seed, trial)."""
+    rng = random.Random(f"{field}-{seed}-{trial}")
+    path = [(0.0, 0.0), GOAL]
+    obs = []
+    if field == "side":
+        for _ in range(5):
+            obs.append((rng.uniform(2.0, 8.0), rng.choice((-1, 1)) * rng.uniform(1.2, 2.0), rng.uniform(0.2, 0.35)))
+    elif field == "clutter":
+        for _ in range(6):
+            obs.append((rng.uniform(2.0, 8.5), rng.uniform(-0.6, 0.6), rng.uniform(0.2, 0.35)))
+    elif field in ("winding", "winding_first"):
+        if field == "winding":
+            path, half_w = [(x, AMP * (1.0 - math.cos(2 * math.pi * x / WAVE))) for x in [i * 0.25 for i in range(41)]], HALF_W
+        else:
+            path, half_w = [(x, 1.0 * math.sin(2 * math.pi * x / 5.0)) for x in [i * 0.25 for i in range(41)]], 0.6
+        dense = densify(path, 0.3)
+        for (x0, y0), (x1, y1) in zip(dense, dense[1:]):
+            nx, ny = -(y1 - y0), x1 - x0
+            n = math.hypot(nx, ny)
+            for side in (1, -1):
+                obs.append((x0 + side * half_w * nx / n, y0 + side * half_w * ny / n, 0.15))
+    elif field == "gap":
+        yc, half = rng.uniform(-0.4, 0.4), 0.45
+        y = -4.0
+        while y <= 4.0:
+            if abs(y - yc) > half + 0.15:
+                obs.append((5.0, y, 0.15))
+            y += 0.25
+        path = [(0.0, 0.0), (4.0, yc), (6.0, yc), GOAL]
+    return obs, densify(path)
+
+
+def densify(pts, step=0.05):
+    out = []
+    for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+        n = max(1, int(math.hypot(x1 - x0, y1 - y0) / step))
+        out += [(x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n) for i in range(n)]
+    return out + [pts[-1]]
+
+
+def arc_pose(x, y, th, v, w, t):
+    """Exact unicycle pose after t seconds at constant (v, w)."""
+    if abs(w) < 1e-9:
+        return x + v * t * math.cos(th), y + v * t * math.sin(th), th
+    r = v / w
+    return (x + r * (math.sin(th + w * t) - math.sin(th)),
+            y - r * (math.cos(th + w * t) - math.cos(th)), th + w * t)
+
+
+def local(x, y, th, obs, pad):
+    """Obstacles in the robot frame, inflated by the robot radius and the planning pad."""
+    c, s = math.cos(th), math.sin(th)
+    loc = [((ox - x) * c + (oy - y) * s, -(ox - x) * s + (oy - y) * c, r + R_ROBOT + pad) for ox, oy, r in obs]
+    return sorted(loc, key=lambda o: o[0] * o[0] + o[1] * o[1] - o[2] * o[2])  # nearest first, so the pruning below bites early
+
+
+def arc_hit_local(v, w, loc, cap=D_CAP):
+    """Arc length along the (v, w) curvature from the robot-frame origin to the first inflated obstacle, capped."""
+    if v <= 1e-9:
+        return cap
+    best = cap
+    k = w / v
+    for px, py, rho in loc:
+        d2 = px * px + py * py
+        if d2 <= rho * rho:
+            return 0.0
+        if d2 > (best + rho) * (best + rho):  # an arc is never shorter than the straight line: cannot beat best
+            continue
+        if abs(k) < 1e-9:
+            if abs(py) < rho and px > 0.0:
+                best = min(best, px - math.sqrt(rho * rho - py * py))
+            continue
+        rr = 1.0 / abs(k)
+        cy = 1.0 / k  # turning centre (0, cy)
+        dx, dy = px, py - cy
+        d = math.hypot(dx, dy)
+        if d > rr + rho or d < abs(rr - rho) or d == 0.0:
+            continue
+        a = (rr * rr - rho * rho + d * d) / (2 * d)
+        h = math.sqrt(max(0.0, rr * rr - a * a))
+        start = math.atan2(-cy, 0.0)
+        for sgn in (1, -1):
+            ix = a * dx / d - sgn * h * dy / d
+            iy = cy + a * dy / d + sgn * h * dx / d
+            ang = math.atan2(iy - cy, ix)
+            sweep = (ang - start) % (2 * math.pi) if k > 0 else (start - ang) % (2 * math.pi)
+            best = min(best, rr * sweep)
+    return best
+
+
+def arc_hit(x, y, th, v, w, obs, cap=D_CAP, pad=0.0):
+    """Arc length from the pose along the (v, w) curvature to the first inflated obstacle, capped."""
+    return arc_hit_local(v, w, local(x, y, th, obs, pad), cap)
+
+
+def clearance(x, y, obs):
+    return min((math.hypot(ox - x, oy - y) - r - R_ROBOT for ox, oy, r in obs), default=D_CAP)
+
+
+def carrot(path, idx, x, y, look):
+    while idx + 1 < len(path) and math.hypot(path[idx + 1][0] - x, path[idx + 1][1] - y) <= math.hypot(path[idx][0] - x, path[idx][1] - y):
+        idx += 1
+    j = idx
+    while j < len(path) - 1 and math.hypot(path[j][0] - x, path[j][1] - y) < look:
+        j += 1
+    return idx, path[j]
+
+
+def rpp(state, tgt, vis, vmax, pad):
+    x, y, th, v, w = state
+    dx, dy = tgt[0] - x, tgt[1] - y
+    ly = -dx * math.sin(th) + dy * math.cos(th)
+    L2 = max(dx * dx + dy * dy, 1e-9)
+    k = 2.0 * ly / L2
+    vc = vmax
+    if abs(k) > 1.0 / R_MIN:
+        vc = min(vc, vmax / (R_MIN * abs(k)))
+    d_o = clearance(x, y, vis) - pad
+    if d_o <= D_PROX:
+        vc = min(vc, vmax * d_o / D_PROX)
+    vc = max(vc, V_REG_MIN)
+    wc = max(-W_MAX, min(W_MAX, vc * k))
+    if arc_hit(x, y, th, vc, wc, vis, cap=min(vc * T_COLL, math.sqrt(L2)), pad=pad) < min(vc * T_COLL, math.sqrt(L2)):
+        return 0.0, 0.0
+    return vc, wc
+
+
+def dwa(state, tgt, vis, vmax, test, pad):
+    x, y, th, v, w = state
+    vlo, vhi = max(0.0, v - A_V * DT_CTRL), min(vmax, v + A_V * DT_CTRL)
+    wlo, whi = max(-W_MAX, w - A_W * DT_CTRL), min(W_MAX, w + A_W * DT_CTRL)
+    best, cmd = None, None
+    loc = local(x, y, th, vis, pad)
+    for i in range(N_V):
+        vc = vlo + (vhi - vlo) * i / (N_V - 1)
+        for j in range(N_W):
+            wc = wlo + (whi - wlo) * j / (N_W - 1)
+            dist = arc_hit_local(vc, wc, loc)
+            if test == "fox" and vc > math.sqrt(2.0 * dist * B_V):
+                continue
+            if test == "dt" and vc > math.sqrt(2.0 * max(0.0, dist - vc * DT_CTRL) * B_V):
+                continue
+            px, py, pth = arc_pose(x, y, th, vc, wc, DT_CTRL)
+            err = math.atan2(tgt[1] - py, tgt[0] - px) - pth
+            err = abs((err + math.pi) % (2 * math.pi) - math.pi)
+            g = W_HEAD * (math.pi - err) / math.pi + W_DIST * dist / D_CAP + W_VEL * vc / vmax
+            if best is None or g > best:
+                best, cmd = g, (vc, wc)
+    if cmd is None:  # nothing admissible: brake as hard as the base allows and straighten
+        cmd = (vlo, 0.0 if wlo <= 0.0 <= whi else (wlo if abs(wlo) < abs(whi) else whi))
+    return cmd
+
+
+def run(arm, regime, seed, trial, substeps=SUBSTEPS, pad=PAD, spec=None):
+    vmax, field = spec or REGIMES[regime]
+    obs, path = world(field, seed, trial)
+    rng = random.Random(f"slip-{regime}-{seed}-{trial}")
+    n_ctrl = int(T_MAX / DT_CTRL)
+    slip = [(rng.gauss(0.0, SLIP), rng.gauss(0.0, SLIP)) for _ in range(n_ctrl)]
+    h = DT_CTRL / substeps
+    x, y, th, v, w = 0.0, 0.0, 0.0, 0.0, 0.0
+    idx, gap, viol, sat = 0, D_CAP, 0, 0
+    for n in range(n_ctrl):
+        vis = [o for o in obs if math.hypot(o[0] - x, o[1] - y) - o[2] <= SENSE]
+        idx, tgt = carrot(path, idx, x, y, LOOKAHEAD)
+        if arm == "A_rpp":
+            vc, wc = rpp((x, y, th, v, w), tgt, vis, vmax, pad)
+        else:
+            vc, wc = dwa((x, y, th, v, w), tgt, vis, vmax, TEST[arm], pad)
+        if abs(vc - v) > A_V * DT_CTRL + 1e-12 or abs(wc - w) > A_W * DT_CTRL + 1e-12:
+            sat += 1
+        if v > math.sqrt(2.0 * arc_hit(x, y, th, v, w, obs) * B_V) + 1e-12:
+            viol += 1
+        sv, sw = slip[n]
+        for _ in range(substeps):
+            v1 = v + max(-A_V * h, min(A_V * h, vc - v))
+            w1 = w + max(-A_W * h, min(A_W * h, wc - w))
+            x, y, th = arc_pose(x, y, th, 0.5 * (v + v1) * (1 + sv), 0.5 * (w + w1) * (1 + sw), h)
+            v, w = v1, w1
+            gap = min(gap, clearance(x, y, obs))
+            if gap <= 0.0:
+                return {"success": 0.0, "collision": 1.0, "time": T_MAX, "clearance": 0.0, "viol": viol / (n + 1), "sat": sat / (n + 1)}
+            if math.hypot(GOAL[0] - x, GOAL[1] - y) < GOAL_TOL:
+                return {"success": 1.0, "collision": 0.0, "time": (n + 1) * DT_CTRL, "clearance": gap, "viol": viol / (n + 1), "sat": sat / (n + 1)}
+    return {"success": 0.0, "collision": 0.0, "time": T_MAX, "clearance": gap, "viol": viol / n_ctrl, "sat": sat / n_ctrl}
+
+
+def open_loop(substeps):
+    """Fixed command sequence (no slip, no obstacles): the base-model integration alone."""
+    h = DT_CTRL / substeps
+    x = y = th = v = w = 0.0
+    for n in range(40):
+        vc, wc = min(1.0, 0.1 * n), 1.2 * math.sin(0.3 * n)
+        for _ in range(substeps):
+            v1 = v + max(-A_V * h, min(A_V * h, vc - v))
+            w1 = w + max(-A_W * h, min(A_W * h, wc - w))
+            x, y, th = arc_pose(x, y, th, 0.5 * (v + v1), 0.5 * (w + w1), h)
+            v, w = v1, w1
+    return x, y, th
+
+
+def brake_stop(v0, h=DT_CTRL / SUBSTEPS):
+    """Straight-line stopping distance from v0 at full deceleration B_V with the toy's step."""
+    d, v = 0.0, v0
+    while v > 0.0:
+        v1 = max(0.0, v - B_V * h)
+        d += 0.5 * (v + v1) * h if v1 > 0.0 else v * v / (2 * B_V)
+        v = v1
+    return d
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-5:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{num(m)}+-{num(s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{num(m)}+-{num(s)}: {label}; {sign_note(diffs, m)}"
+
+
+KEYS = ("success", "collision", "time", "clearance", "viol", "sat")
+PAIRS = ((("B_dwa", "A_rpp"), ("success", "collision", "time", "clearance")),
+         (("D_dwa_dt", "A_rpp"), ("success", "collision", "time", "clearance")),
+         (("C_window", "B_dwa"), ("collision", "viol")),
+         (("D_dwa_dt", "B_dwa"), ("success", "collision")))
+
+
+def table(regime, pad=PAD, spec=None):
+    """Per-seed trial means for every arm (the same worlds and slip records for every arm)."""
+    res = {arm: [] for arm in ARMS}
+    for seed in SEEDS:
+        for arm in ARMS:
+            per = [run(arm, regime, seed, t, pad=pad, spec=spec) for t in range(TRIALS)]
+            res[arm].append({k: sum(r[k] for r in per) / TRIALS for k in KEYS})
+    return res
+
+
+def main():
+    print("Synthetic local-controller toy; unicycle + circular obstacles; shared worlds / carrot / slip noise; not Nav2")
+    print(f"seeds={len(SEEDS)} trials={TRIALS} control={DT_CTRL} s step H={DT_CTRL / SUBSTEPS} s accel {A_V} m/s^2 {A_W} rad/s^2 "
+          f"brake B_V={B_V} lookahead={LOOKAHEAD} m sense={SENSE} m pad={PAD} m T_max={T_MAX} s")
+    for d in (0.5, 1.0, 2.0):
+        lim = math.sqrt(2 * B_V * d)
+        print(f"admissibility check: obstacle at {d} m, limit sqrt(2*dist*B_V)={lim:.4f} m/s; "
+              f"0.98x stops at {brake_stop(0.98 * lim):.4f} m (before), 1.02x stops at {brake_stop(1.02 * lim):.4f} m (hits)")
+    lim = math.sqrt(2 * B_V * 1.0)
+    print(f"control-period check: at {lim:.4f} m/s the command is held {DT_CTRL} s before the next decision, "
+          f"so the robot covers {lim * DT_CTRL + brake_stop(lim):.4f} m before it can stop (D_dwa_dt subtracts v*dt from dist)")
+    a, b = open_loop(SUBSTEPS), open_loop(2 * SUBSTEPS)
+    print(f"step check (open loop, fixed command ramp, 10 s): H vs H/2 pose gap {math.hypot(a[0] - b[0], a[1] - b[1]):.3e} m, "
+          f"heading gap {abs(a[2] - b[2]):.3e} rad")
+    for arm, regime in (("A_rpp", "winding"), ("D_dwa_dt", "clutter_fast")):
+        a, b = run(arm, regime, 0, 0), run(arm, regime, 0, 0, substeps=2 * SUBSTEPS)
+        print(f"step check: {arm} {regime} seed 0 trial 0, H vs H/2: success {num(a['success'])} vs {num(b['success'])}, "
+              f"time {num(a['time'])} vs {num(b['time'])}, clearance {num(a['clearance'])} vs {num(b['clearance'])}")
+    print("regime arm success collision time_s clearance_m viol sat  (mean+-sd over seeds of per-seed trial means)")
+    for regime, (vmax, field) in REGIMES.items():
+        print(f"{regime} (v_max={vmax} m/s, field={field})")
+        res = table(regime)
+        for arm in ARMS:
+            cells = " ".join("{}+-{}".format(*map(num, mean_sd([r[k] for r in res[arm]]))) for k in KEYS)
+            print(f"  {arm} {cells}")
+        for (x, y), keys in PAIRS:
+            for k in keys:
+                print(f"  paired {x[0]}-{y[0]} {k}: {verdict([r[k] for r in res[x]], [r[k] for r in res[y]])}")
+    print("alternatives (choices made after the first run; success / collision means over all seeds and trials):")
+    for pad in ALT_PADS:
+        for regime in ("clutter_slow", "clutter_fast", "narrow_gap", "winding"):
+            res = table(regime, pad=pad)
+            cells = " ".join(f"{arm} {num(mean_sd([r['success'] for r in res[arm]])[0])}/{num(mean_sd([r['collision'] for r in res[arm]])[0])}" for arm in ARMS)
+            print(f"  pad={pad} {regime}: {cells}")
+    res = table("winding", spec=ALT_WINDING)
+    cells = " ".join(f"{arm} {num(mean_sd([r['success'] for r in res[arm]])[0])}/{num(mean_sd([r['collision'] for r in res[arm]])[0])}" for arm in ARMS)
+    print(f"  first winding geometry (y = sin, walls +-0.6 m): {cells}")
+    print("No winner declared: RPP tracks a known path, DWA avoids what the path does not know; admissibility needs the control period")
+    print("Real Nav2 / DWB / RPP plugins, lidar, robot: 本页未运行; Fox et al. and Macenski et al. values 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic local-controller toy; unicycle + circular obstacles; shared worlds / carrot / slip noise; not Nav2
+seeds=5 trials=6 control=0.25 s step H=0.05 s accel 0.5 m/s^2 1.5 rad/s^2 brake B_V=0.5 lookahead=0.9 m sense=3.0 m pad=0.05 m T_max=60.0 s
+admissibility check: obstacle at 0.5 m, limit sqrt(2*dist*B_V)=0.7071 m/s; 0.98x stops at 0.4802 m (before), 1.02x stops at 0.5202 m (hits)
+admissibility check: obstacle at 1.0 m, limit sqrt(2*dist*B_V)=1.0000 m/s; 0.98x stops at 0.9604 m (before), 1.02x stops at 1.0404 m (hits)
+admissibility check: obstacle at 2.0 m, limit sqrt(2*dist*B_V)=1.4142 m/s; 0.98x stops at 1.9208 m (before), 1.02x stops at 2.0808 m (hits)
+control-period check: at 1.0000 m/s the command is held 0.25 s before the next decision, so the robot covers 1.2500 m before it can stop (D_dwa_dt subtracts v*dt from dist)
+step check (open loop, fixed command ramp, 10 s): H vs H/2 pose gap 3.467e-03 m, heading gap 6.123e-05 rad
+step check: A_rpp winding seed 0 trial 0, H vs H/2: success 1.0000 vs 1.0000, time 25.2500 vs 25.2500, clearance 0.2681 vs 0.2660
+step check: D_dwa_dt clutter_fast seed 0 trial 0, H vs H/2: success 1.0000 vs 1.0000, time 24.5000 vs 26.2500, clearance 0.0501 vs 0.0499
+regime arm success collision time_s clearance_m viol sat  (mean+-sd over seeds of per-seed trial means)
+empty (v_max=0.4 m/s, field=none)
+  A_rpp 1.0000+-0.0000 0.0000+-0.0000 24.9250+-0.0543 3.0000+-0.0000 0.0000+-0.0000 0.0301+-0.0001
+  B_dwa 1.0000+-0.0000 0.0000+-0.0000 24.9250+-0.0543 3.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+  C_window 1.0000+-0.0000 0.0000+-0.0000 24.9250+-0.0543 3.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+  D_dwa_dt 1.0000+-0.0000 0.0000+-0.0000 24.9250+-0.0543 3.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A collision: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A time: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A clearance: 0.0000+-0.0000: tie: identical on every seed
+  paired D-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired D-A collision: 0.0000+-0.0000: tie: identical on every seed
+  paired D-A time: 0.0000+-0.0000: tie: identical on every seed
+  paired D-A clearance: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B collision: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B viol: 0.0000+-0.0000: tie: identical on every seed
+  paired D-B success: 0.0000+-0.0000: tie: identical on every seed
+  paired D-B collision: 0.0000+-0.0000: tie: identical on every seed
+open_slow (v_max=0.4 m/s, field=side)
+  A_rpp 1.0000+-0.0000 0.0000+-0.0000 24.9500+-0.0543 0.8763+-0.0373 0.0000+-0.0000 0.0301+-0.0001
+  B_dwa 1.0000+-0.0000 0.0000+-0.0000 24.9500+-0.0543 0.8763+-0.0373 0.0000+-0.0000 0.0000+-0.0000
+  C_window 1.0000+-0.0000 0.0000+-0.0000 24.9500+-0.0543 0.8763+-0.0373 0.0000+-0.0000 0.0000+-0.0000
+  D_dwa_dt 1.0000+-0.0000 0.0000+-0.0000 24.9500+-0.0543 0.8763+-0.0373 0.0000+-0.0000 0.0000+-0.0000
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A collision: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A time: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A clearance: 0.0000+-0.0000: tie: identical on every seed
+  paired D-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired D-A collision: 0.0000+-0.0000: tie: identical on every seed
+  paired D-A time: 0.0000+-0.0000: tie: identical on every seed
+  paired D-A clearance: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B collision: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B viol: 0.0000+-0.0000: tie: identical on every seed
+  paired D-B success: 0.0000+-0.0000: tie: identical on every seed
+  paired D-B collision: 0.0000+-0.0000: tie: identical on every seed
+clutter_slow (v_max=0.4 m/s, field=clutter)
+  A_rpp 0.0000+-0.0000 0.0000+-0.0000 60.0000+-0.0000 0.1824+-0.0122 0.0000+-0.0000 0.0167+-0.0000
+  B_dwa 0.9000+-0.0913 0.0000+-0.0000 33.6333+-1.9520 0.0503+-0.0001 0.0000+-0.0000 0.0000+-0.0000
+  C_window 0.9333+-0.0913 0.0000+-0.0000 33.3417+-1.9675 0.0503+-0.0001 0.0000+-0.0000 0.0000+-0.0000
+  D_dwa_dt 0.9000+-0.0913 0.0000+-0.0000 33.6333+-1.9520 0.0503+-0.0001 0.0000+-0.0000 0.0000+-0.0000
+  paired B-A success: 0.9000+-0.0913: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A collision: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A time: -26.3667+-1.9520: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A clearance: -0.1321+-0.0122: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A success: 0.9000+-0.0913: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A collision: 0.0000+-0.0000: tie: identical on every seed
+  paired D-A time: -26.3667+-1.9520: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A clearance: -0.1321+-0.0122: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B collision: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B viol: 0.0000+-0.0000: tie: identical on every seed
+  paired D-B success: 0.0000+-0.0000: tie: identical on every seed
+  paired D-B collision: 0.0000+-0.0000: tie: identical on every seed
+clutter_fast (v_max=1.2 m/s, field=clutter)
+  A_rpp 0.0000+-0.0000 0.8000+-0.1394 60.0000+-0.0000 0.0216+-0.0185 0.2681+-0.0450 0.7097+-0.1377
+  B_dwa 0.6667+-0.2635 0.1333+-0.1394 33.9333+-10.8995 0.0461+-0.0104 0.0294+-0.0354 0.0000+-0.0000
+  C_window 0.5333+-0.2739 0.2667+-0.2528 37.9833+-11.6717 0.0400+-0.0154 0.0326+-0.0350 0.0000+-0.0000
+  D_dwa_dt 0.7000+-0.2981 0.0000+-0.0000 32.6917+-11.6806 0.0531+-0.0046 0.0000+-0.0000 0.0000+-0.0000
+  paired B-A success: 0.6667+-0.2635: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A collision: -0.6667+-0.2041: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A time: -26.0667+-10.8995: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A clearance: 0.0245+-0.0215: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A success: 0.7000+-0.2981: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A collision: -0.8000+-0.1394: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A time: -27.3083+-11.6806: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A clearance: 0.0315+-0.0215: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B collision: 0.1333+-0.1394: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 2 of 5 equal
+  paired C-B viol: 0.0032+-0.0069: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign, 2 of 5 equal
+  paired D-B success: 0.0333+-0.0745: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 4 of 5 equal
+  paired D-B collision: -0.1333+-0.1394: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 2 of 5 equal
+narrow_gap (v_max=0.8 m/s, field=gap)
+  A_rpp 1.0000+-0.0000 0.0000+-0.0000 14.1583+-0.2346 0.3354+-0.0275 0.0000+-0.0000 0.1516+-0.0039
+  B_dwa 1.0000+-0.0000 0.0000+-0.0000 13.1250+-0.0510 0.3367+-0.0279 0.0000+-0.0000 0.0000+-0.0000
+  C_window 1.0000+-0.0000 0.0000+-0.0000 13.1250+-0.0510 0.3367+-0.0279 0.0000+-0.0000 0.0000+-0.0000
+  D_dwa_dt 1.0000+-0.0000 0.0000+-0.0000 13.1250+-0.0510 0.3367+-0.0279 0.0000+-0.0000 0.0000+-0.0000
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A collision: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A time: -1.0333+-0.1896: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A clearance: 0.0013+-0.0039: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired D-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired D-A collision: 0.0000+-0.0000: tie: identical on every seed
+  paired D-A time: -1.0333+-0.1896: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A clearance: 0.0013+-0.0039: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired C-B collision: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B viol: 0.0000+-0.0000: tie: identical on every seed
+  paired D-B success: 0.0000+-0.0000: tie: identical on every seed
+  paired D-B collision: 0.0000+-0.0000: tie: identical on every seed
+winding (v_max=1.0 m/s, field=winding)
+  A_rpp 1.0000+-0.0000 0.0000+-0.0000 25.3333+-0.0510 0.2679+-0.0005 0.0000+-0.0000 0.0296+-0.0001
+  B_dwa 0.0000+-0.0000 1.0000+-0.0000 60.0000+-0.0000 0.0000+-0.0000 0.2890+-0.0189 0.0000+-0.0000
+  C_window 0.0000+-0.0000 1.0000+-0.0000 60.0000+-0.0000 0.0000+-0.0000 0.2415+-0.0185 0.0000+-0.0000
+  D_dwa_dt 0.5000+-0.2041 0.0000+-0.0000 40.9083+-8.4776 0.0482+-0.0009 0.0005+-0.0010 0.0000+-0.0000
+  paired B-A success: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A collision: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A time: 34.6667+-0.0510: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A clearance: -0.2679+-0.0005: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A success: -0.5000+-0.2041: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A collision: 0.0000+-0.0000: tie: identical on every seed
+  paired D-A time: 15.5750+-8.4976: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A clearance: -0.2197+-0.0010: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B collision: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B viol: -0.0475+-0.0028: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-B success: 0.5000+-0.2041: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-B collision: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternatives (choices made after the first run; success / collision means over all seeds and trials):
+  pad=0.0 clutter_slow: A_rpp 0.0000/0.0000 B_dwa 0.8000/0.2000 C_window 0.8000/0.2000 D_dwa_dt 0.8000/0.2000
+  pad=0.0 clutter_fast: A_rpp 0.0000/0.8333 B_dwa 0.4000/0.4667 C_window 0.4000/0.4667 D_dwa_dt 0.4333/0.3667
+  pad=0.0 narrow_gap: A_rpp 1.0000/0.0000 B_dwa 1.0000/0.0000 C_window 1.0000/0.0000 D_dwa_dt 1.0000/0.0000
+  pad=0.0 winding: A_rpp 1.0000/0.0000 B_dwa 0.0000/1.0000 C_window 0.0000/1.0000 D_dwa_dt 0.1667/0.7333
+  pad=0.1 clutter_slow: A_rpp 0.0000/0.0000 B_dwa 0.8667/0.0000 C_window 0.8667/0.0667 D_dwa_dt 0.9000/0.0000
+  pad=0.1 clutter_fast: A_rpp 0.0000/0.6333 B_dwa 0.4667/0.1667 C_window 0.5667/0.2000 D_dwa_dt 0.5667/0.0000
+  pad=0.1 narrow_gap: A_rpp 1.0000/0.0000 B_dwa 1.0000/0.0000 C_window 1.0000/0.0000 D_dwa_dt 1.0000/0.0000
+  pad=0.1 winding: A_rpp 1.0000/0.0000 B_dwa 0.0000/0.7333 C_window 0.0000/1.0000 D_dwa_dt 0.2333/0.0000
+  first winding geometry (y = sin, walls +-0.6 m): A_rpp 0.0000/0.0000 B_dwa 0.0000/0.0000 C_window 0.0000/0.0000 D_dwa_dt 0.0000/0.0000
+No winner declared: RPP tracks a known path, DWA avoids what the path does not know; admissibility needs the control period
+Real Nav2 / DWB / RPP plugins, lidar, robot: 本页未运行; Fox et al. and Macenski et al. values 以原文为准
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used on this page, in this order: **tie: identical on every seed** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when `|paired mean|` and its sd are both below 1e-9 (no sign count is printed on such a line); **near-tie / small gap, within seed noise** when `|paired mean| ≤ sd`; otherwise a **consistent** gap (`|paired mean| > sd`), called **small** if `|m|` is under 20 % of the smaller arm mean and **clear** otherwise; the 20 % rule only chooses between those two words. Every consistent line carries a same-sign count over the 5 seeds, and any seed with the opposite sign is reported; a sign count alone never makes a gap consistent. Gaps are computed from unrounded values. Paired differences are B−A, D−A, C−B and D−B.
+
+- **empty and open_slow:** every arm reaches the goal in about 24.9 s and the four arms produce the same trajectories, so success, collision, time and clearance are a **tie: identical on every seed** for all pairs. (RPP's `sat` of 0.0301 comes from its first commands from standstill being clipped by the base; that does not change the path.)
+- **clutter_slow:** **RPP stops in front of the first obstacle** the global plan does not know. Its collision arc is blocked, so it never arrives within 60 s: success 0, collision 0. In Nav2 the planner would replan; that is not modelled. The DWA arms drive around: B−A success 0.9000±0.0913 and time −26.3667±1.9520 s, both clear, same sign on all 5 seeds. **RPP keeps more room**: B−A clearance −0.1321±0.0122 (clear, 5/5); DWA passes at the 0.05 m pad (0.0503 m). Without the admissibility filter nothing changes at this speed (C−B collision is a tie).
+- **clutter_fast:** at 1.2 m/s **RPP collides** on 0.8000±0.1394 of trials. Its 1 s arc is capped at the carrot (about 0.9 m), but stopping from 1.2 m/s at 0.5 m/s² takes 1.44 m. Its actual speed is inadmissible in 0.2681±0.0450 of periods, and the base clips 0.7097±0.1377 of its commands. **DWA wins on collisions**: B−A −0.6667±0.2041 and D−A −0.8000±0.1394, both clear, same sign on all 5 seeds; D never collides. Against the window without admissibility, though, B is only a **near-tie** (C−B 0.1333±0.1394, no seed of the opposite sign, 2 of 5 equal), and D−B is a near-tie as well (−0.1333±0.1394).
+- **narrow_gap:** all four arrive with no collision. **RPP is slower**: B−A time is −1.0333±0.1896 s, a small but consistent gap with the same sign on all 5 seeds, because the proximity rule slows it between the posts. Clearance is a **near-tie** (0.0013±0.0039, 3 of 5 seeds of the opposite sign).
+- **winding:** here **RPP wins.** It arrives on every trial in 25.3333±0.0510 s with 0.2679 m of clearance. **B and C collide on 30 of 30 trials** (B−A collision 1.0000±0.0000, clear). At each decision B's speed is admissible, but held for 0.25 s while the corridor bends, the next window contains no admissible pair, and braking from there is too late. D never collides but arrives on only 0.5000±0.2041 of trials (D−A success −0.5000±0.2041 and time 15.5750±8.4976 s, both clear, same sign on all 5 seeds); the rest time out, crawling or stopped. Without the filter C even shows slightly fewer violations (C−B `viol` −0.0475±0.0028, small but consistent), and both collide every time: the literal test does not help here.
+
+The page **does not declare a universal winner**. RPP follows a path it trusts and keeps more clearance, but it stops or collides when the path runs through something it did not plan for. DWA avoids what the path does not know, but in a tight corridor at speed, the literal admissibility test, without the control period, does not keep it out of the wall. A real Nav2, DWB or RPP run, a lidar and a robot: **本页未运行**.
+
+**180-minute work plan:** 30 min read Fox et al. §3–4 and the RPP paper §3; 30 min work the dynamic window, the admissible speed and the control-period limit by hand; 40 min run the toy and read the six regimes; 50 min move `PAD`, `T_COLL` and `W_DIST` with seeds fixed; 30 min the exercises.
+
+### Exercises
+
+1. An obstacle is 0.5 m away on an arc and `v̇_b = 0.5 m/s²`. Compute the admissible speed with eq. 14 and with one held period of 0.25 s, and compare with the toy's 0.5 m check line.
+2. Show from `world` and `run` that A, B, C and D see the same obstacles, the same carrot path and the same slip record for a given (regime, seed, trial).
+3. Set `T_COLL` to 3.0 s. Before you run, explain why RPP still collides in `clutter_fast`, using the README's rule that the projection stops at the lookahead point.
+4. Set `W_DIST` to 1.0 with seeds fixed and compare B's clearance and time in `clutter_slow` with the printed values.
+5. Before any Nav2 run (本页未运行), explain why B's wins in `clutter_fast` do **not** mean you should replace RPP with DWA in this lesson's corridor-like rooms.
+
 <Summary>
 
-SLAM Toolbox corrects odometry through map→odom while odom→base remains smooth; calibrate wheel separation with the lidar turn check before mapping. Tour the room, save the pose graph and PGM, then localize/navigate with Nav2. Diagnose TF/time, scan freshness, command message types and costmap footprint/inflation before tuning; check final goal distance rather than trusting SUCCEEDED alone. The shared-scan 2D ICP experiment adds a five-seed rotation basin/RMSE/iteration comparison and distinguishes the corridor’s physical along-wall null from a frozen-pair rank illusion.
+SLAM Toolbox corrects odometry through map→odom while odom→base remains smooth; calibrate wheel separation with the lidar turn check before mapping. Tour the room, save the pose graph and PGM, then localize/navigate with Nav2. Diagnose TF/time, scan freshness, command message types and costmap footprint/inflation before tuning; check final goal distance rather than trusting SUCCEEDED alone. The shared-scan 2D ICP experiment adds a five-seed rotation basin/RMSE/iteration comparison and distinguishes the corridor’s physical along-wall null from a frozen-pair rank illusion. A synthetic local-control comparison adds Regulated Pure Pursuit against the Dynamic Window Approach on shared maps: DWA drives around obstacles the global plan does not know where RPP stops (clutter_slow) or collides (clutter_fast, 0.8000 of trials against 0.1333), but in a winding corridor at 1.0 m/s RPP arrives every time while DWA with Fox's literal admissibility test collides every time and the control-period version arrives on half — a model, not a Nav2 run.
 
 </Summary>

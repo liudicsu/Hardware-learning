@@ -213,8 +213,409 @@ Isaac Lab is a separate GPU-accelerated framework (README: targets Isaac Sim 6.2
 - **Reporting only the dense curve.** Always print sparse next to dense under the same seed and hyperparameters.
 - **Assuming ManiSkill GPU sim runs on every laptop.** The install matrix is Linux + NVIDIA for GPU sim; CPU sim is the broader path.
 
+## Hindsight Experience Replay: learn from the goal you did reach
+
+The grid toy above showed sparse tabular Q-learning failing where dense shaping succeeds. Shaping is one fix, but it means writing a reward that already knows the way. **Hindsight Experience Replay** (HER) keeps the sparse success reward and changes the replay instead. An episode that missed its goal still reached *some* place; HER replays it as if that place had been the goal, so the learner sees successes long before it ever reaches the real goal. This section adds HER to the same grid MDP in a **synthetic** tabular model. It is not SB3, ManiSkill or DDPG.
+
+<Resource id="her-andrychowicz-2017" />
+
+**Source actually opened (PDF body read, arXiv 1707.01495 v3).**
+
+- **Andrychowicz et al., "Hindsight Experience Replay" (OpenAI):**
+  - The method learns from rewards that are sparse and binary, combines with any off-policy algorithm, and "may be seen as a form of implicit curriculum".
+  - The goal "influences the agent's actions but not the environment dynamics", so each trajectory can be replayed with an arbitrary goal when the algorithm is off-policy. The simplest version replays with the goal achieved in the final state.
+  - Strategies `final`, `future` (k states observed later in the same episode), `episode` and `random`; `future` with `k` equal to 4 or 8 performs best, and `k` above 8 degrades performance because too little normal replay data is left.
+  - In the bit-flipping task, DQN without HER solves only `n ≤ 13`, while DQN with HER solves `n` up to 50.
+  - §4.4: with the shaped rewards they tried, neither DDPG nor DDPG+HER solved any task. The paper adds that for every problem a reward exists that makes it easy, but designing it requires a lot of domain knowledge.
+  - The paper's reward is `−[f_g(s) = 0]`, that is −1 until success. 以论文为准.
+
+### Relabelling with achieved goals
+
+<Formula label="Sparse goal reward (this toy)">r(s′, g) = 1 if cell(s′) = g and grip(s′) = 1, else 0</Formula>
+
+<Formula label="future relabel">g′ = cell(s_j), with j drawn from the same episode at or after the replayed step, used with probability k / (k + 1)</Formula>
+
+<Formula label="Q-learning backup">Q(s, g, a) ← Q(s, g, a) + α · (r + γ · max Q(s′, g, ·) − Q(s, g, a))</Formula>
+
+A goal counts as achieved only with the gripper closed, so a step `j` with `grip = 0` leaves the original goal in place. With `k = 4` the relabel share is 4 / 5 = 0.80. The paper adds `k` extra goals per transition; this toy draws one goal per replayed sample with the same 4 : 1 ratio.
+
+**Worked example.** An episode starts at (0, 0) with goal (4, 3). The agent closes the gripper at step 3 and wanders until step 30, ending at (3, 1). Under the sparse reward every transition earns 0. Relabelled with `g′ = (3, 1)`, the last transition, from (2, 1) eastwards, now earns 1 and ends the episode. In the goal-relative table used here, that update lands on the entry "offset (−1, 0), gripper closed, action E". That is exactly the entry the agent needs when it is one cell west of (4, 3) with the gripper closed.
+
+**No integration step here.** The environment is a discrete grid; nothing is stepped in continuous time, so no step-size stability criterion applies (the independent tests check that the script has no time step). The learning rate `α = 0.35` and `γ = 0.95` keep every Q value bounded by the largest return, at most 1 for the sparse reward.
+
+### Fair setup
+
+`her_sparse_grasp_toy.py` is **synthetic** and stdlib only. **Model assumptions:**
+- The MDP is `reward_shaping.py`'s, made goal-conditioned. The state is (x, y, grip) on an N × N grid; the actions are N, S, E, W and CLOSE; CLOSE sets `grip = 1` for good. Success means the gripper is closed on the goal cell, within 30 steps.
+- Q is a table indexed by the goal-relative offset `(x − gx, y − gy, grip)`. It stands in for the paper's goal-conditioned network: what is learned for one goal carries over to every goal at the same offset.
+- Every arm learns **only from replay**: after each episode, 64 transitions are drawn uniformly from all stored episodes and backed up. The settings are `α = 0.35` and `γ = 0.95`, ε falls linearly from 0.5 to 0.05, and greedy ties go to the lowest action index.
+
+| Arm | Reward | Replay |
+|---|---|---|
+| A_sparse | 1 on success, else 0 | plain |
+| B_her | the same sparse reward | `future`, k = 4 |
+| C_dense | `reward_shaping.py`'s dense reward: −0.1 × Manhattan distance, +0.5 with the gripper closed on the goal, +5 on success | plain |
+
+**Common random numbers:** for each (regime, seed) the start cell and goal of every episode, and both exploration draws of every (episode, step), are drawn once and shared by all three arms. The replay stream starts from the same seed in every arm, but it is consumed differently because the buffers differ. There are 5 seeds.
+
+The metrics are:
+- `final`: greedy success over every (start, goal) pair of the regime after the last episode.
+- `auc`: mean greedy success over checkpoints every 50 episodes (sample efficiency).
+- `train`: success over the last 50 training episodes.
+
+| Regime | Grid | Episodes | Goals |
+|---|---|---|---|
+| near_goal | 6 × 6 | 400 | 9 cells with x, y ≤ 2 |
+| fixed_goal | 6 × 6 | 400 | `reward_shaping.py`'s goal (4, 3) only |
+| far_goals | 6 × 6 | 400 | 15 cells with x + y ≥ 6 |
+| big_grid | 10 × 10 | 400 | 28 cells with x + y ≥ 12 |
+
+Starts are the four cells (0, 0), (0, 1), (1, 0) and (1, 1) in every regime.
+
+**Choices made after seeing results.** These were not in the first design; the toy prints each alternative so you can see what changed.
+- **The goal-relative table.** The first run indexed the table by `(goal, cell, grip)`. A table like that learns nothing about a goal it has never reached, so HER barely helped: final 0.9333 against sparse 0.7556 in `near_goal`, and 0.0000 for both sparse arms in `fixed_goal`. The paper's networks generalise across goals, and the goal-relative table is the closest tabular stand-in. Both tables are printed.
+- **A dropped `wall` regime.** The first run also had a regime with five wall cells, where every arm stayed near zero (final A 0.0000, B 0.0000, C 0.0250). It was dropped because a goal-relative table cannot see where a wall is.
+- **`big_grid`.** It was added after the first run to find where HER stops helping. An 8 × 8 version (goals with x + y ≥ 9) was tried first; it is printed too (final A 0.0000, B 0.4643, C 0.9571).
+- **Other settings tried and not adopted.** With the first table, 256 updates per episode and 1 000 episodes were also tried; HER stayed far below dense on `far_goals` (final 0.333 against 1.000).
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-7/rl-manipulation-sim
+python3 her_sparse_grasp_toy.py
+```
+
+<CodeSource path="examples/month-7/rl-manipulation-sim/her_sparse_grasp_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic Hindsight Experience Replay toy on the reach-grasp grid. Stdlib only.
+
+The MDP is the one in reward_shaping.py, made goal-conditioned: state (x, y, grip) on an
+N x N grid, actions N, S, E, W, CLOSE (CLOSE sets grip = 1 and it stays closed); the goal g
+is a cell, and the episode succeeds when the gripper is closed on g. The predicate
+f_g(s) = [cell(s) == g and grip(s) == 1]; the achieved goal of a state with grip = 1 is its
+cell (states with grip = 0 achieve no goal).
+
+Q is a table indexed by the goal-relative offset (x - gx, y - gy) and grip, a stand-in for the
+goal-conditioned network of the paper: what is learned about one goal carries over to every
+goal at the same offset. This representation was chosen after the first run, which indexed
+the table by (goal, cell, grip); that run is printed as an alternative.
+
+Arms (identical representation, hyperparameters and replay budget):
+  A_sparse  reward 1 on success, 0 otherwise; replay without relabelling
+  B_her     the same sparse reward; replay with the "future" strategy (Andrychowicz et al.):
+            with probability K / (K + 1) a sampled transition is replayed with a goal achieved
+            later in the same episode, its reward and termination recomputed for that goal
+  C_dense   reward_shaping.py's dense reward (-0.1 Manhattan distance, +0.5 grip on the goal
+            cell, +5 on success); replay without relabelling
+
+Every arm learns only from replay: after each episode, UPDATES transitions are sampled
+uniformly from all stored episodes and backed up with Q-learning (ALPHA, GAMMA).
+Common random numbers: per (regime, seed) the start cell and goal of every episode and the
+two exploration draws of every (episode, step) are drawn once and shared by all arms; the
+replay-sampling stream is seeded identically per arm but is consumed differently because the
+buffers differ. No integration step: the environment is a discrete grid.
+Regimes: near_goal (goals within 2 cells), fixed_goal (reward_shaping.py's single goal (4, 3)),
+far_goals (x + y >= 6 on 6 x 6), big_grid (x + y >= 12 on 10 x 10; added after the first run,
+the 8 x 8 version tried before it is printed as an alternative).
+Metrics per seed: final = greedy success over every (start, goal) pair of the regime after
+the last episode; auc = mean greedy success over the checkpoints every EVAL_EVERY episodes
+(sample efficiency); train = success share over the last 50 training episodes.
+Labels: tie = identical on every seed; numerically zero = |paired mean| and sd both < 1e-9
+(effectively a tie, no sign count); |m| <= sd = near-tie; |m| > sd = consistent gap (small if
+|m| < 20 % of the smaller arm mean, else clear), with a sign count.
+ManiSkill3 / SB3 HER / DDPG / a GPU: 本页未运行. Paper results: 以原文为准.
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+N_ACTIONS = 5  # N S E W CLOSE
+ALPHA = 0.35
+GAMMA = 0.95
+EPS_START, EPS_END = 0.5, 0.05
+MAX_STEPS = 30
+UPDATES = 64
+K_FUTURE = 4
+EVAL_EVERY = 50
+NUM_ZERO = 1e-9
+ARMS = ("A_sparse", "B_her", "C_dense")
+# name: (grid N, episodes, start cells, goal cells)
+REGIMES = {
+    "near_goal": (6, 400, [(0, 0), (0, 1), (1, 0), (1, 1)], [(x, y) for x in range(3) for y in range(3)]),
+    "fixed_goal": (6, 400, [(0, 0), (0, 1), (1, 0), (1, 1)], [(4, 3)]),
+    "far_goals": (6, 400, [(0, 0), (0, 1), (1, 0), (1, 1)], [(x, y) for x in range(6) for y in range(6) if x + y >= 6]),
+    "big_grid": (10, 400, [(0, 0), (0, 1), (1, 0), (1, 1)], [(x, y) for x in range(10) for y in range(10) if x + y >= 12]),
+}
+# big_grid was added after the first run; the 8 x 8 version tried before it is printed as an alternative
+ALT_BIG = (8, 400, [(0, 0), (0, 1), (1, 0), (1, 1)], [(x, y) for x in range(8) for y in range(8) if x + y >= 9])
+REPR = "relative"  # Q indexed by the goal-relative offset (chosen after the first run; ALT_REPR printed)
+ALT_REPR = "absolute"  # Q indexed by (goal, cell, grip): the first run's table
+
+
+def key(goal, cell, grip, repr_=REPR):
+    if repr_ == "relative":
+        return (cell[0] - goal[0], cell[1] - goal[1], grip)
+    return (goal, cell, grip)
+
+
+def step(n, cell, grip, a, goal, dense):
+    x, y = cell
+    nx, ny, ng = x, y, grip
+    if a == 0:
+        ny = max(0, y - 1)
+    elif a == 1:
+        ny = min(n - 1, y + 1)
+    elif a == 2:
+        nx = min(n - 1, x + 1)
+    elif a == 3:
+        nx = max(0, x - 1)
+    else:
+        ng = 1
+    return (nx, ny), ng, reward((nx, ny), ng, goal, dense)
+
+
+def reward(cell, grip, goal, dense):
+    """Reward and termination of arriving in (cell, grip) when pursuing goal."""
+    success = cell == goal and grip == 1
+    if not dense:
+        return (1.0 if success else 0.0), success
+    r = -0.1 * (abs(cell[0] - goal[0]) + abs(cell[1] - goal[1]))
+    if cell == goal:
+        r += 0.5 * grip
+    if success:
+        r += 5.0
+    return r, success
+
+
+def shared_draws(regime, seed):
+    """Common random numbers: episode (start, goal) and exploration draws, shared by every arm."""
+    n, episodes, starts, goals = REGIMES[regime] if regime in REGIMES else ALT_BIG
+    rng = random.Random(f"{regime}-{seed}")
+    eps = [(rng.choice(starts), rng.choice(goals)) for _ in range(episodes)]
+    explore = [[(rng.random(), rng.randrange(N_ACTIONS)) for _ in range(MAX_STEPS)] for _ in range(episodes)]
+    return eps, explore
+
+
+def greedy(row):
+    m = max(row)
+    return row.index(m)
+
+
+def evaluate(q, regime, repr_=REPR):
+    n, _, starts, goals = REGIMES[regime] if regime in REGIMES else ALT_BIG
+    ok = 0
+    for s0 in starts:
+        for g in goals:
+            cell, grip = s0, 0
+            for _ in range(MAX_STEPS):
+                a = greedy(q[key(g, cell, grip, repr_)])
+                cell, grip, (_, done) = step(n, cell, grip, a, g, False)
+                if done:
+                    ok += 1
+                    break
+    return ok / (len(starts) * len(goals))
+
+
+def train(arm, regime, seed, k_future=K_FUTURE, repr_=REPR):
+    n, episodes, starts, goals = REGIMES[regime] if regime in REGIMES else ALT_BIG
+    cells = [(x, y) for x in range(n) for y in range(n)]
+    q = {key(g, c, gr, repr_): [0.0] * N_ACTIONS for g in cells for c in cells for gr in (0, 1)}
+    eps_draws, explore = shared_draws(regime, seed)
+    replay_rng = random.Random(f"replay-{regime}-{seed}")
+    dense = arm == "C_dense"
+    her = arm == "B_her"
+    buffer, curve, train_ok = [], [], []
+    for ep in range(episodes):
+        start, goal = eps_draws[ep]
+        eps = EPS_START + (EPS_END - EPS_START) * ep / max(1, episodes - 1)
+        cell, grip, traj, ok = start, 0, [], False
+        for t in range(MAX_STEPS):
+            u, ra = explore[ep][t]
+            a = ra if u < eps else greedy(q[key(goal, cell, grip, repr_)])
+            ncell, ngrip, (_, done) = step(n, cell, grip, a, goal, dense)
+            traj.append((cell, grip, a, ncell, ngrip))
+            cell, grip = ncell, ngrip
+            if done:
+                ok = True
+                break
+        train_ok.append(ok)
+        buffer.append((goal, traj))
+        for _ in range(UPDATES):
+            g, tr = buffer[replay_rng.randrange(len(buffer))]
+            i = replay_rng.randrange(len(tr))
+            c, gr, a, nc, ngr = tr[i]
+            if her and replay_rng.random() < k_future / (k_future + 1.0):
+                j = replay_rng.randrange(i, len(tr))
+                if tr[j][4] == 1:  # a goal is achieved only with the gripper closed
+                    g = tr[j][3]
+            r, done = reward(nc, ngr, g, dense)
+            target = r if done else r + GAMMA * max(q[key(g, nc, ngr, repr_)])
+            row = q[key(g, c, gr, repr_)]
+            row[a] += ALPHA * (target - row[a])
+        if (ep + 1) % EVAL_EVERY == 0:
+            curve.append(evaluate(q, regime, repr_))
+    return {"final": curve[-1], "auc": sum(curve) / len(curve), "train": sum(train_ok[-50:]) / 50.0}
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-5:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{num(m)}+-{num(s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{num(m)}+-{num(s)}: {label}; {sign_note(diffs, m)}"
+
+
+KEYS = ("final", "auc", "train")
+
+
+def main():
+    print("Synthetic HER toy; goal-conditioned tabular Q on the reach-grasp grid; shared episodes / exploration draws; not SB3 / ManiSkill")
+    print(f"seeds={len(SEEDS)} alpha={ALPHA} gamma={GAMMA} eps {EPS_START}->{EPS_END} max_steps={MAX_STEPS} "
+          f"updates/episode={UPDATES} future k={K_FUTURE} (relabel share {K_FUTURE / (K_FUTURE + 1):.2f}) eval every {EVAL_EVERY}; no integration step (discrete grid)")
+    print("regime arm final auc train  (mean+-sd over seeds)")
+    for regime, (n, episodes, starts, goals) in REGIMES.items():
+        print(f"{regime} (grid {n}x{n}, episodes={episodes}, {len(starts)} starts x {len(goals)} goals)")
+        res = {arm: [train(arm, regime, seed) for seed in SEEDS] for arm in ARMS}
+        for arm in ARMS:
+            cells = " ".join("{}+-{}".format(*map(num, mean_sd([r[k] for r in res[arm]]))) for k in KEYS)
+            print(f"  {arm} {cells}")
+        for x, y in (("B_her", "A_sparse"), ("B_her", "C_dense"), ("C_dense", "A_sparse")):
+            for k in ("final", "auc"):
+                print(f"  paired {x[0]}-{y[0]} {k}: {verdict([r[k] for r in res[x]], [r[k] for r in res[y]])}")
+    print("alternatives (choices made after the first run; final / auc means over seeds):")
+    for regime in REGIMES:
+        res = {arm: [train(arm, regime, seed, repr_=ALT_REPR) for seed in SEEDS] for arm in ARMS}
+        cells = " ".join(f"{arm} {num(mean_sd([r['final'] for r in res[arm]])[0])}/{num(mean_sd([r['auc'] for r in res[arm]])[0])}" for arm in ARMS)
+        print(f"  Q indexed by (goal, cell, grip), {regime}: {cells}")
+    res = {arm: [train(arm, "big_grid_8x8", seed) for seed in SEEDS] for arm in ARMS}
+    cells = " ".join(f"{arm} {num(mean_sd([r['final'] for r in res[arm]])[0])}/{num(mean_sd([r['auc'] for r in res[arm]])[0])}" for arm in ARMS)
+    print(f"  big_grid at 8x8 (goals x + y >= 9): {cells}")
+    print("near_goal: random exploration already finds nearby goals, so relabelling adds little")
+    print("fixed_goal / far_goals: sparse rarely sees a success; hindsight goals teach the goal-relative table to close on the goal")
+    print("big_grid: exploration never reaches the far offsets, so there is nothing to relabel there; dense shaping still points the way")
+    print("No winner declared: HER needs achieved goals near the ones you want; a good dense reward can match or beat it")
+    print("Real ManiSkill3 / SB3 HER / DDPG runs: 本页未运行; Andrychowicz et al. results 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic HER toy; goal-conditioned tabular Q on the reach-grasp grid; shared episodes / exploration draws; not SB3 / ManiSkill
+seeds=5 alpha=0.35 gamma=0.95 eps 0.5->0.05 max_steps=30 updates/episode=64 future k=4 (relabel share 0.80) eval every 50; no integration step (discrete grid)
+regime arm final auc train  (mean+-sd over seeds)
+near_goal (grid 6x6, episodes=400, 4 starts x 9 goals)
+  A_sparse 1.0000+-0.0000 0.9965+-0.0025 1.0000+-0.0000
+  B_her 1.0000+-0.0000 0.9986+-0.0019 1.0000+-0.0000
+  C_dense 1.0000+-0.0000 0.9972+-0.0029 1.0000+-0.0000
+  paired B-A final: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A auc: 0.0021+-0.0031: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+  paired B-C final: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C auc: 0.0014+-0.0040: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign, 2 of 5 equal
+  paired C-A final: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A auc: 0.0007+-0.0052: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign, 2 of 5 equal
+fixed_goal (grid 6x6, episodes=400, 4 starts x 1 goals)
+  A_sparse 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+  B_her 1.0000+-0.0000 1.0000+-0.0000 1.0000+-0.0000
+  C_dense 1.0000+-0.0000 1.0000+-0.0000 1.0000+-0.0000
+  paired B-A final: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A auc: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C final: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C auc: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A final: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A auc: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+far_goals (grid 6x6, episodes=400, 4 starts x 15 goals)
+  A_sparse 0.3967+-0.5432 0.3475+-0.4779 0.4000+-0.5477
+  B_her 0.9933+-0.0091 0.9321+-0.0315 1.0000+-0.0000
+  C_dense 1.0000+-0.0000 0.9417+-0.0271 1.0000+-0.0000
+  paired B-A final: 0.5967+-0.5523: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign, 1 of 5 equal
+  paired B-A auc: 0.5846+-0.4715: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C final: -0.0067+-0.0091: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+  paired B-C auc: -0.0096+-0.0146: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired C-A final: 0.6033+-0.5432: clear gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+  paired C-A auc: 0.5942+-0.4659: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+big_grid (grid 10x10, episodes=400, 4 starts x 28 goals)
+  A_sparse 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+  B_her 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+  C_dense 0.4321+-0.2232 0.1083+-0.0606 0.5280+-0.1481
+  paired B-A final: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A auc: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C final: -0.4321+-0.2232: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C auc: -0.1083+-0.0606: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A final: 0.4321+-0.2232: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A auc: 0.1083+-0.0606: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternatives (choices made after the first run; final / auc means over seeds):
+  Q indexed by (goal, cell, grip), near_goal: A_sparse 0.7556/0.7014 B_her 0.9333/0.8715 C_dense 1.0000/0.9514
+  Q indexed by (goal, cell, grip), fixed_goal: A_sparse 0.0000/0.0000 B_her 0.0000/0.0000 C_dense 1.0000/1.0000
+  Q indexed by (goal, cell, grip), far_goals: A_sparse 0.0267/0.0250 B_her 0.0733/0.0321 C_dense 0.3967/0.1583
+  Q indexed by (goal, cell, grip), big_grid: A_sparse 0.0000/0.0000 B_her 0.0000/0.0000 C_dense 0.0000/0.0000
+  big_grid at 8x8 (goals x + y >= 9): A_sparse 0.0000/0.0000 B_her 0.4643/0.2193 C_dense 0.9571/0.6616
+near_goal: random exploration already finds nearby goals, so relabelling adds little
+fixed_goal / far_goals: sparse rarely sees a success; hindsight goals teach the goal-relative table to close on the goal
+big_grid: exploration never reaches the far offsets, so there is nothing to relabel there; dense shaping still points the way
+No winner declared: HER needs achieved goals near the ones you want; a good dense reward can match or beat it
+Real ManiSkill3 / SB3 HER / DDPG runs: 本页未运行; Andrychowicz et al. results 以原文为准
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used on this page, in this order: **tie: identical on every seed** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when `|paired mean|` and its sd are both below 1e-9 (no sign count is printed on such a line); **near-tie / small gap, within seed noise** when `|paired mean| ≤ sd`; otherwise a **consistent** gap (`|paired mean| > sd`), called **small** if `|m|` is under 20 % of the smaller arm mean and **clear** otherwise; the 20 % rule only chooses between those two words. Every consistent line carries a same-sign count over the 5 seeds, and any seed with the opposite sign is reported; a sign count alone never makes a gap consistent. Gaps are computed from unrounded values. Paired differences are B−A, B−C and C−A.
+
+- **near_goal:** random exploration already closes the gripper near these goals, so every arm ends at 1.0000. The final scores are a **tie: identical on every seed**, and the learning-curve area is a **near-tie** (B−A 0.0021±0.0031, no seed of the opposite sign, 3 of 5 equal; B−C 0.0014±0.0040, 1 of 5 seeds of the opposite sign). HER adds nothing measurable here.
+- **fixed_goal:** this is `reward_shaping.py`'s goal. **Sparse stays at 0.0000** on every seed, as in that script, while HER and dense both reach 1.0000. **HER wins against sparse** (B−A final and auc 1.0000±0.0000, clear, same sign on all 5 seeds) and **ties dense** (B−C identical on every seed).
+- **far_goals:** sparse learns on some seeds and not on others (final 0.3967±0.5432). **HER wins against sparse** on the curve: B−A auc 0.5846±0.4715, clear, same sign on all 5 seeds. The final score is clear as well (0.5967±0.5523), but 1 of 5 seeds has the opposite sign and 1 of 5 is equal, so read it with care. Against dense, HER is a **near-tie** on both final (−0.0067±0.0091) and auc (−0.0096±0.0146).
+- **big_grid:** **HER loses.** Exploration from the corner almost never closes the gripper 10 or more cells away, so there is nothing to relabel at those offsets: A and B both stay at 0.0000 (a tie on every seed). Dense shaping still points the way: B−C final −0.4321±0.2232 and auc −0.1083±0.0606, clear, same sign on all 5 seeds.
+
+The page **does not declare a universal winner**. HER turns failed episodes into useful ones when the goals it achieves are near the goals you want and the learner can carry what it learns across goals. A dense reward that already knows the way can match or beat it, which is not what the paper found with its shaped rewards (§4.4): this toy's dense reward is `reward_shaping.py`'s hand-made one on a tiny grid. Real SB3 HER, DDPG or ManiSkill3 runs: **本页未运行**.
+
+**180-minute work plan:** 30 min read §3.3, §4.4 and §4.5 of the HER paper; 30 min relabel one episode by hand; 40 min run the toy and read the four regimes; 50 min move `K_FUTURE`, `UPDATES` and `REPR` with seeds fixed; 30 min the exercises.
+
+### Exercises
+
+1. Relabel the worked example's episode with the `final` strategy by hand and list which transitions now earn reward 1.
+2. Show from `shared_draws` and `train` that A, B and C see the same episode starts, goals and exploration draws for a given seed.
+3. Set `K_FUTURE` to 0 with seeds fixed. Explain before you run why B is then **not** bit-identical to A. (Hint: count what B draws from the replay stream.)
+4. Set `REPR` to `"absolute"` and compare `fixed_goal` with the printed alternative; explain why HER cannot help a table that has never seen the goal.
+5. Before any SB3 or ManiSkill run (本页未运行), explain why `big_grid` does **not** show that dense shaping beats HER in general.
+
 <Summary>
 
-Manipulation RL extends 7.2 with object and gripper channels. Sparse rewards only fire on success; dense shaping makes that event reachable. The stdlib grid toy (seed 7) shows dense last-50 success 1.000 vs sparse 0.000. SAC is the off-policy replay-buffer counterpart; ManiSkill3 `PickCubeSO100-v1` is the GPU-parallel pick task — not required on this page.
+Manipulation RL extends 7.2 with object and gripper channels. Sparse rewards only fire on success; dense shaping makes that event reachable. The stdlib grid toy (seed 7) shows dense last-50 success 1.000 vs sparse 0.000. SAC is the off-policy replay-buffer counterpart; ManiSkill3 `PickCubeSO100-v1` is the GPU-parallel pick task — not required on this page. Hindsight Experience Replay keeps the sparse reward and relabels replayed transitions with goals reached later in the episode: on the same grid with a goal-relative table it lifts greedy success from 0.0000 to 1.0000 on reward_shaping.py's goal and from 0.3967 to 0.9933 on far goals, ties or near-ties dense shaping there, adds nothing on near goals, and loses to dense on a 10 × 10 grid (0.0000 against 0.4321) — a synthetic model, not an SB3 run.
 
 </Summary>

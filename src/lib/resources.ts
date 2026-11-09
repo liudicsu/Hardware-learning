@@ -5633,6 +5633,86 @@ export const resources: Record<string, Resource> = {
     },
     extra: true,
   },
+  "fox-dwa-1997": {
+    id: "fox-dwa-1997",
+    url: "https://www.ri.cmu.edu/pub_files/pub1/fox_dieter_1997_1/fox_dieter_1997_1.pdf",
+    title: {
+      zh: "动态窗口法避碰（The Dynamic Window Approach to Collision Avoidance，PDF）",
+      en: "The Dynamic Window Approach to Collision Avoidance (PDF)",
+    },
+    author: "Dieter Fox, Wolfram Burgard, Sebastian Thrun",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已用 pdftotext 读正文：在 (v, ω) 圆弧速度空间里搜索；式 14 可容许速度 v ≤ √(2·dist(v, ω)·v̇_b)（ω 同理），即能在曲率上最近的障碍物之前停下；式 15 动态窗口只保留下一个时间间隔内可达的速度；目标函数 G = σ(α·heading + β·dist + γ·vel)，三项归一化到 [0, 1]，α = 2.0、β = γ = 0.2；时间间隔 0.25 s。数值以原文为准；本页未运行真实机器人。",
+      en: "Body read via pdftotext: search over circular-arc velocities (v, ω); eq. 14 admissible velocities v ≤ √(2·dist(v, ω)·v̇_b) (and the same for ω), i.e. able to stop before the closest obstacle on the curvature; eq. 15 dynamic window keeps velocities reachable within the next interval; objective G = σ(α·heading + β·dist + γ·vel) with terms normalised to [0, 1], α = 2.0 and β = γ = 0.2; interval 0.25 s. Values 以原文为准; no real robot run here (本页未运行).",
+    },
+    license: {
+      zh: "以原文为准",
+      en: "See original terms",
+    },
+    extra: true,
+  },
+  "macenski-rpp-2023": {
+    id: "macenski-rpp-2023",
+    url: "https://arxiv.org/abs/2305.20026",
+    title: {
+      zh: "Regulated Pure Pursuit：机器人路径跟踪（Regulated Pure Pursuit for Robot Path Tracking）",
+      en: "Regulated Pure Pursuit for Robot Path Tracking",
+    },
+    author: "Steve Macenski, Shrijit Singh, Francisco Martín, Jonatan Ginés",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已读 arXiv PDF 正文（v1）：到前视点的曲率 κ = 2y / L²；期望线速度经曲率启发式（转弯半径小于下限时减速）和接近启发式（离障碍物近时减速）处理，正文写“取两者中的最大值”；指令沿圆弧投影做碰撞检测。本页 toy 取较小值（保守读法）并在正文说明。数字以论文为准；本页未运行。",
+      en: "arXiv PDF body read (v1): curvature to the lookahead point κ = 2y / L²; the desired linear velocity is processed by a curvature heuristic (slow down below a minimum radius) and a proximity heuristic (slow down near obstacles), and the text says it takes the maximum of the two; the command is projected along its arc for collision checking. This page's toy takes the smaller one (conservative) and says so. Numbers 以论文为准; 本页未运行.",
+    },
+    license: {
+      zh: "以原文为准",
+      en: "See original terms",
+    },
+    extra: true,
+  },
+  "nav2-rpp-readme": {
+    id: "nav2-rpp-readme",
+    url: "https://github.com/ros-navigation/navigation2/blob/main/nav2_regulated_pure_pursuit_controller/README.md",
+    title: {
+      zh: "Nav2 Regulated Pure Pursuit 控制器 README",
+      en: "Nav2 Regulated Pure Pursuit controller README",
+    },
+    author: "Open Navigation / Nav2 contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已读 README 正文：主动碰撞检测把当前速度指令向前投影 max_allowed_time_to_collision_up_to_carrot 秒，且不超过所选的前视距离；regulated_linear_scaling_min_radius 设定曲率减速的触发半径，regulated_linear_scaling_min_speed 设定速度下限；还有接近目标时减速与速度缩放的前视距离。参数以原文为准；本页未运行 Nav2。",
+      en: "README body read: active collision detection projects the current velocity command forward for max_allowed_time_to_collision_up_to_carrot seconds, limited to the selected lookahead distance; regulated_linear_scaling_min_radius sets the turning radius that triggers curvature slowdown and regulated_linear_scaling_min_speed the floor; also approach slowdown and velocity-scaled lookahead. Parameters 以原文为准; Nav2 本页未运行.",
+    },
+    license: {
+      zh: "以原文为准",
+      en: "See original terms",
+    },
+    extra: true,
+  },
+  "her-andrychowicz-2017": {
+    id: "her-andrychowicz-2017",
+    url: "https://arxiv.org/abs/1707.01495",
+    title: {
+      zh: "事后经验回放（Hindsight Experience Replay）",
+      en: "Hindsight Experience Replay",
+    },
+    author: "Marcin Andrychowicz, Filip Wolski, Alex Ray, Jonas Schneider, Rachel Fong, Peter Welinder, Bob McGrew, Josh Tobin, Pieter Abbeel, Wojciech Zaremba",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已读 arXiv PDF 正文（v3）：从稀疏二值奖励中学习，可与任何 off-policy 算法结合；目标只影响动作不影响动力学，所以可以换成达到的目标回放；策略 final / future / episode / random，future 在 k = 4 或 8 时最好，k 超过 8 变差；翻转比特任务没有 HER 的 DQN 只解到 n ≤ 13，有 HER 解到 50；第 4.4 节试过的塑形奖励下 DDPG 与 DDPG+HER 都失败。结果以论文为准；本页未运行。",
+      en: "arXiv PDF body read (v3): learns from sparse binary rewards with any off-policy algorithm; the goal affects actions but not dynamics, so transitions can be replayed with achieved goals; strategies final / future / episode / random, future with k = 4 or 8 performs best and k above 8 degrades; bit-flipping DQN without HER solves only n ≤ 13, with HER up to 50; Sec. 4.4, DDPG and DDPG+HER both fail with the shaped rewards tried. Results 以论文为准; 本页未运行.",
+    },
+    license: {
+      zh: "以原文为准",
+      en: "See original terms",
+    },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

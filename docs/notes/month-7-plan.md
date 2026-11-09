@@ -1,6 +1,16 @@
 # Month 7 plan: Simulation, reinforcement learning & 3D perception
 
-Current / 当前：**M7 2430 min**, Batch-13 PR2. Earlier entries below retain their historical totals.
+Current / 当前：**M7 2610 min**, Batch-15 PR2. Earlier entries below retain their historical totals.
+
+## Batch-15 PR2 / 本月 H4 (+180)
+
+Base `d0da082` (batch-15 PR1 merged as #161; site **31710**). PR2 on M7 host: **M7 2430→2610 (+180)**; M4 moves in the same PR on its own plan. Site **31710→32070**, still 71 lessons.
+
+- **H4 / 7.3 rl-manipulation-sim: 240→420 (+180).** Hindsight Experience Replay on sparse grasp goals. Toy `her_sparse_grasp_toy.py`: `reward_shaping.py`'s grid made goal-conditioned, tabular Q indexed by the goal-relative offset (chosen after the first run; the (goal, cell, grip) table printed), replay-only learning with 64 updates per episode (no integration step, discrete grid); arms A sparse / B sparse + HER future k = 4 / C dense; shared episode starts, goals and exploration draws (common random numbers, 5 seeds). near_goal: final **tie**, auc **near-tie**; fixed_goal: B−A 1.0000±0.0000 clear 5/5, B−C **tie**; far_goals: B−A auc 0.5846±0.4715 clear 5/5, B−C **near-tie**; big_grid (added after the first run, 8×8 printed): A = B **tie** at 0, B−C −0.4321±0.2232 clear 5/5 (HER loses). SB3 HER / ManiSkill3 本页未运行.
+
+**Allocation / 安排:** 30+30+40+50+30=180 minutes.
+
+**Site accounting / 全站核算:** **32070=31710+360** with M4 +180 on month-4-plan.md; **M7=2610**, **71 lessons**.
 
 ## Batch-13 PR2 / 本月 H4 (+180)
 

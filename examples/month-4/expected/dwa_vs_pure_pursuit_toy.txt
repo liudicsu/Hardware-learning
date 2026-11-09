@@ -1,0 +1,124 @@
+Synthetic local-controller toy; unicycle + circular obstacles; shared worlds / carrot / slip noise; not Nav2
+seeds=5 trials=6 control=0.25 s step H=0.05 s accel 0.5 m/s^2 1.5 rad/s^2 brake B_V=0.5 lookahead=0.9 m sense=3.0 m pad=0.05 m T_max=60.0 s
+admissibility check: obstacle at 0.5 m, limit sqrt(2*dist*B_V)=0.7071 m/s; 0.98x stops at 0.4802 m (before), 1.02x stops at 0.5202 m (hits)
+admissibility check: obstacle at 1.0 m, limit sqrt(2*dist*B_V)=1.0000 m/s; 0.98x stops at 0.9604 m (before), 1.02x stops at 1.0404 m (hits)
+admissibility check: obstacle at 2.0 m, limit sqrt(2*dist*B_V)=1.4142 m/s; 0.98x stops at 1.9208 m (before), 1.02x stops at 2.0808 m (hits)
+control-period check: at 1.0000 m/s the command is held 0.25 s before the next decision, so the robot covers 1.2500 m before it can stop (D_dwa_dt subtracts v*dt from dist)
+step check (open loop, fixed command ramp, 10 s): H vs H/2 pose gap 3.467e-03 m, heading gap 6.123e-05 rad
+step check: A_rpp winding seed 0 trial 0, H vs H/2: success 1.0000 vs 1.0000, time 25.2500 vs 25.2500, clearance 0.2681 vs 0.2660
+step check: D_dwa_dt clutter_fast seed 0 trial 0, H vs H/2: success 1.0000 vs 1.0000, time 24.5000 vs 26.2500, clearance 0.0501 vs 0.0499
+regime arm success collision time_s clearance_m viol sat  (mean+-sd over seeds of per-seed trial means)
+empty (v_max=0.4 m/s, field=none)
+  A_rpp 1.0000+-0.0000 0.0000+-0.0000 24.9250+-0.0543 3.0000+-0.0000 0.0000+-0.0000 0.0301+-0.0001
+  B_dwa 1.0000+-0.0000 0.0000+-0.0000 24.9250+-0.0543 3.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+  C_window 1.0000+-0.0000 0.0000+-0.0000 24.9250+-0.0543 3.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+  D_dwa_dt 1.0000+-0.0000 0.0000+-0.0000 24.9250+-0.0543 3.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A collision: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A time: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A clearance: 0.0000+-0.0000: tie: identical on every seed
+  paired D-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired D-A collision: 0.0000+-0.0000: tie: identical on every seed
+  paired D-A time: 0.0000+-0.0000: tie: identical on every seed
+  paired D-A clearance: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B collision: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B viol: 0.0000+-0.0000: tie: identical on every seed
+  paired D-B success: 0.0000+-0.0000: tie: identical on every seed
+  paired D-B collision: 0.0000+-0.0000: tie: identical on every seed
+open_slow (v_max=0.4 m/s, field=side)
+  A_rpp 1.0000+-0.0000 0.0000+-0.0000 24.9500+-0.0543 0.8763+-0.0373 0.0000+-0.0000 0.0301+-0.0001
+  B_dwa 1.0000+-0.0000 0.0000+-0.0000 24.9500+-0.0543 0.8763+-0.0373 0.0000+-0.0000 0.0000+-0.0000
+  C_window 1.0000+-0.0000 0.0000+-0.0000 24.9500+-0.0543 0.8763+-0.0373 0.0000+-0.0000 0.0000+-0.0000
+  D_dwa_dt 1.0000+-0.0000 0.0000+-0.0000 24.9500+-0.0543 0.8763+-0.0373 0.0000+-0.0000 0.0000+-0.0000
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A collision: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A time: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A clearance: 0.0000+-0.0000: tie: identical on every seed
+  paired D-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired D-A collision: 0.0000+-0.0000: tie: identical on every seed
+  paired D-A time: 0.0000+-0.0000: tie: identical on every seed
+  paired D-A clearance: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B collision: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B viol: 0.0000+-0.0000: tie: identical on every seed
+  paired D-B success: 0.0000+-0.0000: tie: identical on every seed
+  paired D-B collision: 0.0000+-0.0000: tie: identical on every seed
+clutter_slow (v_max=0.4 m/s, field=clutter)
+  A_rpp 0.0000+-0.0000 0.0000+-0.0000 60.0000+-0.0000 0.1824+-0.0122 0.0000+-0.0000 0.0167+-0.0000
+  B_dwa 0.9000+-0.0913 0.0000+-0.0000 33.6333+-1.9520 0.0503+-0.0001 0.0000+-0.0000 0.0000+-0.0000
+  C_window 0.9333+-0.0913 0.0000+-0.0000 33.3417+-1.9675 0.0503+-0.0001 0.0000+-0.0000 0.0000+-0.0000
+  D_dwa_dt 0.9000+-0.0913 0.0000+-0.0000 33.6333+-1.9520 0.0503+-0.0001 0.0000+-0.0000 0.0000+-0.0000
+  paired B-A success: 0.9000+-0.0913: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A collision: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A time: -26.3667+-1.9520: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A clearance: -0.1321+-0.0122: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A success: 0.9000+-0.0913: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A collision: 0.0000+-0.0000: tie: identical on every seed
+  paired D-A time: -26.3667+-1.9520: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A clearance: -0.1321+-0.0122: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B collision: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B viol: 0.0000+-0.0000: tie: identical on every seed
+  paired D-B success: 0.0000+-0.0000: tie: identical on every seed
+  paired D-B collision: 0.0000+-0.0000: tie: identical on every seed
+clutter_fast (v_max=1.2 m/s, field=clutter)
+  A_rpp 0.0000+-0.0000 0.8000+-0.1394 60.0000+-0.0000 0.0216+-0.0185 0.2681+-0.0450 0.7097+-0.1377
+  B_dwa 0.6667+-0.2635 0.1333+-0.1394 33.9333+-10.8995 0.0461+-0.0104 0.0294+-0.0354 0.0000+-0.0000
+  C_window 0.5333+-0.2739 0.2667+-0.2528 37.9833+-11.6717 0.0400+-0.0154 0.0326+-0.0350 0.0000+-0.0000
+  D_dwa_dt 0.7000+-0.2981 0.0000+-0.0000 32.6917+-11.6806 0.0531+-0.0046 0.0000+-0.0000 0.0000+-0.0000
+  paired B-A success: 0.6667+-0.2635: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A collision: -0.6667+-0.2041: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A time: -26.0667+-10.8995: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A clearance: 0.0245+-0.0215: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A success: 0.7000+-0.2981: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A collision: -0.8000+-0.1394: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A time: -27.3083+-11.6806: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A clearance: 0.0315+-0.0215: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B collision: 0.1333+-0.1394: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 2 of 5 equal
+  paired C-B viol: 0.0032+-0.0069: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign, 2 of 5 equal
+  paired D-B success: 0.0333+-0.0745: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 4 of 5 equal
+  paired D-B collision: -0.1333+-0.1394: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 2 of 5 equal
+narrow_gap (v_max=0.8 m/s, field=gap)
+  A_rpp 1.0000+-0.0000 0.0000+-0.0000 14.1583+-0.2346 0.3354+-0.0275 0.0000+-0.0000 0.1516+-0.0039
+  B_dwa 1.0000+-0.0000 0.0000+-0.0000 13.1250+-0.0510 0.3367+-0.0279 0.0000+-0.0000 0.0000+-0.0000
+  C_window 1.0000+-0.0000 0.0000+-0.0000 13.1250+-0.0510 0.3367+-0.0279 0.0000+-0.0000 0.0000+-0.0000
+  D_dwa_dt 1.0000+-0.0000 0.0000+-0.0000 13.1250+-0.0510 0.3367+-0.0279 0.0000+-0.0000 0.0000+-0.0000
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A collision: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A time: -1.0333+-0.1896: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A clearance: 0.0013+-0.0039: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired D-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired D-A collision: 0.0000+-0.0000: tie: identical on every seed
+  paired D-A time: -1.0333+-0.1896: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A clearance: 0.0013+-0.0039: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired C-B collision: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B viol: 0.0000+-0.0000: tie: identical on every seed
+  paired D-B success: 0.0000+-0.0000: tie: identical on every seed
+  paired D-B collision: 0.0000+-0.0000: tie: identical on every seed
+winding (v_max=1.0 m/s, field=winding)
+  A_rpp 1.0000+-0.0000 0.0000+-0.0000 25.3333+-0.0510 0.2679+-0.0005 0.0000+-0.0000 0.0296+-0.0001
+  B_dwa 0.0000+-0.0000 1.0000+-0.0000 60.0000+-0.0000 0.0000+-0.0000 0.2890+-0.0189 0.0000+-0.0000
+  C_window 0.0000+-0.0000 1.0000+-0.0000 60.0000+-0.0000 0.0000+-0.0000 0.2415+-0.0185 0.0000+-0.0000
+  D_dwa_dt 0.5000+-0.2041 0.0000+-0.0000 40.9083+-8.4776 0.0482+-0.0009 0.0005+-0.0010 0.0000+-0.0000
+  paired B-A success: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A collision: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A time: 34.6667+-0.0510: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A clearance: -0.2679+-0.0005: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A success: -0.5000+-0.2041: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A collision: 0.0000+-0.0000: tie: identical on every seed
+  paired D-A time: 15.5750+-8.4976: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A clearance: -0.2197+-0.0010: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B collision: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B viol: -0.0475+-0.0028: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-B success: 0.5000+-0.2041: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-B collision: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternatives (choices made after the first run; success / collision means over all seeds and trials):
+  pad=0.0 clutter_slow: A_rpp 0.0000/0.0000 B_dwa 0.8000/0.2000 C_window 0.8000/0.2000 D_dwa_dt 0.8000/0.2000
+  pad=0.0 clutter_fast: A_rpp 0.0000/0.8333 B_dwa 0.4000/0.4667 C_window 0.4000/0.4667 D_dwa_dt 0.4333/0.3667
+  pad=0.0 narrow_gap: A_rpp 1.0000/0.0000 B_dwa 1.0000/0.0000 C_window 1.0000/0.0000 D_dwa_dt 1.0000/0.0000
+  pad=0.0 winding: A_rpp 1.0000/0.0000 B_dwa 0.0000/1.0000 C_window 0.0000/1.0000 D_dwa_dt 0.1667/0.7333
+  pad=0.1 clutter_slow: A_rpp 0.0000/0.0000 B_dwa 0.8667/0.0000 C_window 0.8667/0.0667 D_dwa_dt 0.9000/0.0000
+  pad=0.1 clutter_fast: A_rpp 0.0000/0.6333 B_dwa 0.4667/0.1667 C_window 0.5667/0.2000 D_dwa_dt 0.5667/0.0000
+  pad=0.1 narrow_gap: A_rpp 1.0000/0.0000 B_dwa 1.0000/0.0000 C_window 1.0000/0.0000 D_dwa_dt 1.0000/0.0000
+  pad=0.1 winding: A_rpp 1.0000/0.0000 B_dwa 0.0000/0.7333 C_window 0.0000/1.0000 D_dwa_dt 0.2333/0.0000
+  first winding geometry (y = sin, walls +-0.6 m): A_rpp 0.0000/0.0000 B_dwa 0.0000/0.0000 C_window 0.0000/0.0000 D_dwa_dt 0.0000/0.0000
+No winner declared: RPP tracks a known path, DWA avoids what the path does not know; admissibility needs the control period
+Real Nav2 / DWB / RPP plugins, lidar, robot: 本页未运行; Fox et al. and Macenski et al. values 以原文为准
