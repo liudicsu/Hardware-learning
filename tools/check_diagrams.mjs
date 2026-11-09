@@ -6380,10 +6380,10 @@ print("protocol pass")
   ok(true,"b12p1 independent tests tools/test_b12_thevenin_gazebo_toys.py pass");
   const cases=[
     [1,"ohms-law","thevenin_loaded_divider_toy",240,["## Thévenin and Norton equivalents","## 戴维南与诺顿等效"],
-      ["seeds=5","boards=32","Vth=1.5986V","Rth=3197.3ohm","1.2113 V","heavy_load 3300 A_voc_only","light_load 10000000 B_thevenin","near-tie / small gap","not a tie","No winner declared"],
-      ["Vth","Rth","A_voc_only","B_thevenin","C_norton","100 Ω","以原文为准","本页未运行","0.1153±0.0588","786.7609±1.2073","0.9879±0.0646","0.8726±0.0370"],
-      {en:["**not** the Wheatstone","**synthetic**","does not declare a universal winner","**Model assumptions:**","**blind**","near-tie / small gap","not a tie","same circuit on paper"],zh:["**不是**下一课的惠斯通电桥","**合成**","不宣布普遍赢家","**模型假设：**","**看不见**","接近打平、差距很小","不是打平","在纸面上是同一个电路"]},
-      {en:["Thévenin / Norton","near-tie / small gap","1.21 V"],zh:["戴维南 / 诺顿","接近打平、差距很小","1.21 V"]},
+      ["seeds=5","boards=32","Vth=1.5986V","Rth=3197.3ohm","1.2113 V","heavy_load 3300 A_voc_only","light_load 10000000 B_thevenin","light_load B vs C: B 0.8726+-0.0370 mV, C 0.8729+-0.0364 mV, gap 0.0004 mV (paired C-B 0.0004+-0.0015 mV): near-tie / small gap, within seed noise","light_load A vs B: A 0.9879+-0.0646 mV, paired A-B 0.1153+-0.0588 mV: small but consistent gap, not a tie","No winner declared"],
+      ["Vth","Rth","A_voc_only","B_thevenin","C_norton","100 Ω","以原文为准","本页未运行","0.1153±0.0588","786.7609±1.2073","0.9879±0.0646","0.8726±0.0370","0.0004±0.0015"],
+      {en:["**not** the Wheatstone","**synthetic**","does not declare a universal winner","**Model assumptions:**","**blind**","**B vs C is a near-tie / small gap:**","within seed noise","**A vs B is a small but consistent gap, not a tie:**","same circuit on paper"],zh:["**不是**下一课的惠斯通电桥","**合成**","不宣布普遍赢家","**模型假设：**","**看不见**","**B 与 C 接近打平、差距很小：**","在种子噪声之内","**A 与 B 是一个小而稳定的差距，不是打平：**","在纸面上是同一个电路"]},
+      {en:["Thévenin / Norton","near-tie / small gap","small but consistent gap (not a tie)","1.21 V"],zh:["戴维南 / 诺顿","接近打平、差距很小","小而稳定的差距（不是打平）","1.21 V"]},
       ["wiki-thevenin","wiki-norton"],"150-minute work plan","150 分钟安排"],
     [4,"gazebo-sim","gazebo_step_contact_stability_toy",450,["## Physics step size and contact stability","## 物理步长与接触稳定性"],
       ["seeds=5","dt < 3.279 ms","dt < 0.800 ms","3.4 1.700 1.3293 UNSTABLE","1.0 0.500 0.8944 1.0247 UNSTABLE","impact_drop A_coarse_3ms","gentle_rest C_fine_0.1ms","near-tie / small gap, not a tie","No winner declared"],

@@ -248,7 +248,8 @@ parts, uniform) and the meter noise draws z1 (Voc), z2 (Vtest / Isc) are drawn
 once and shared by every arm. The meter is otherwise ideal (no input loading).
 
 Regimes (5 seeds x 32 boards): heavy_load RL = 3.3 kOhm (about Rth),
-lesson_load RL = 10 kOhm, light_load RL = 10 MOhm (A is a near-tie / small gap).
+lesson_load RL = 10 kOhm, light_load RL = 10 MOhm (B and C: near-tie / small gap;
+A-B: small but consistent gap, not a tie).
 No presumed winner. Real DMM / bench Thevenin lab: 本页未运行.
 """
 from __future__ import annotations
@@ -348,19 +349,26 @@ def main() -> None:
     paired = {}
     for name, rl in REGIMES:
         res = run_regime(rl)
-        paired[name] = mean_sd([x - y for x, y in zip(res["A_voc_only"], res["B_thevenin"])])
+        paired[name] = (
+            mean_sd([x - y for x, y in zip(res["A_voc_only"], res["B_thevenin"])]),
+            mean_sd([x - y for x, y in zip(res["C_norton"], res["B_thevenin"])]),
+        )
         for arm in ARMS:
             m, s = mean_sd(res[arm])
             summary[(name, arm)] = (m, s)
             print(f"{name} {rl:.0f} {arm} {m:.4f}+-{s:.4f}")
     a, b, c = (summary[("light_load", x)] for x in ARMS)
+    (pm, ps), (qm, qs) = paired["light_load"]
     print(
-        f"light_load: A {a[0]:.4f}+-{a[1]:.4f} mV vs B {b[0]:.4f}+-{b[1]:.4f} mV vs "
-        f"C {c[0]:.4f}+-{c[1]:.4f} mV (near-tie / small gap: A's bias Vth*Rth/(Rth+RL) "
-        f"is about {vth * rth / (rth + 1e7) * 1e3:.2f} mV, the same order as the 1 mV meter noise)"
+        f"light_load B vs C: B {b[0]:.4f}+-{b[1]:.4f} mV, C {c[0]:.4f}+-{c[1]:.4f} mV, "
+        f"gap {abs(c[0] - b[0]):.4f} mV (paired C-B {qm:.4f}+-{qs:.4f} mV): near-tie / small gap, "
+        f"within seed noise (at RL >> Rth the burden / Rth error barely matters, so both reconstructions converge)"
     )
-    pm, ps = paired["light_load"]
-    print(f"light_load paired per-seed A-B = {pm:.4f}+-{ps:.4f} mV (A still slightly worse; not a tie)")
+    print(
+        f"light_load A vs B: A {a[0]:.4f}+-{a[1]:.4f} mV, paired A-B {pm:.4f}+-{ps:.4f} mV: "
+        f"small but consistent gap, not a tie (A's bias Vth*Rth/(Rth+RL) ~{vth * rth / (rth + 1e7) * 1e3:.2f} mV "
+        f"from ignoring Rth is diluted by the 1 mV meter noise)"
+    )
     a, b, c = (summary[("heavy_load", x)] for x in ARMS)
     print(
         f"heavy_load: A {a[0]:.1f} mV >> B {b[0]:.2f} mV; C {c[0]:.2f} mV "
@@ -390,8 +398,8 @@ lesson_load 10000 C_norton 9.1280+-0.0451
 light_load 10000000 A_voc_only 0.9879+-0.0646
 light_load 10000000 B_thevenin 0.8726+-0.0370
 light_load 10000000 C_norton 0.8729+-0.0364
-light_load: A 0.9879+-0.0646 mV vs B 0.8726+-0.0370 mV vs C 0.8729+-0.0364 mV (near-tie / small gap: A's bias Vth*Rth/(Rth+RL) is about 0.51 mV, the same order as the 1 mV meter noise)
-light_load paired per-seed A-B = 0.1153+-0.0588 mV (A still slightly worse; not a tie)
+light_load B vs C: B 0.8726+-0.0370 mV, C 0.8729+-0.0364 mV, gap 0.0004 mV (paired C-B 0.0004+-0.0015 mV): near-tie / small gap, within seed noise (at RL >> Rth the burden / Rth error barely matters, so both reconstructions converge)
+light_load A vs B: A 0.9879+-0.0646 mV, paired A-B 0.1153+-0.0588 mV: small but consistent gap, not a tie (A's bias Vth*Rth/(Rth+RL) ~0.51 mV from ignoring Rth is diluted by the 1 mV meter noise)
 heavy_load: A 786.8 mV >> B 2.02 mV; C 12.29 mV (Norton = Thevenin on paper; C's extra error is the ammeter burden, a measurement cost)
 No winner declared: Voc alone is fine only when RL >> Rth; B and C differ only by how they were measured
 Real DMM / bench Thevenin lab: 本页未运行; Wikipedia numbers 以原文为准
@@ -403,7 +411,9 @@ Real DMM / bench Thevenin lab: 本页未运行; Wikipedia numbers 以原文为�
 
 - **heavy_load（RL = 3.3 kΩ，约等于 Rth）：** A 偏差 786.7609±1.2073 mV，因为节点实际只有约 0.81 V，而 `Voc` 说是 1.60 V。B 偏差 2.0170±0.3716 mV，C 偏差 12.2896±0.1410 mV。
 - **lesson_load（RL = 10 kΩ）：** A 387.3881±0.5373 mV，B 1.6502±0.1055 mV，C 9.1280±0.0451 mV。
-- **light_load（RL = 10 MΩ）：** A 0.9879±0.0646 mV，B 0.8726±0.0370 mV，C 0.8729±0.0364 mV。这是**接近打平、差距很小**，不是打平：按种子配对的 A−B 差是 0.1153±0.0588 mV。原因是 A 的偏差 `Vth × Rth / (Rth + RL)` 只有约 0.51 mV，和 1 mV 的读数噪声同一量级，有一部分被噪声盖住了。B 和 C 在这里也是接近打平、差距很小，因为 RL 很大时 `Rn` 的误差几乎不起作用。
+- **light_load（RL = 10 MΩ）：** A 0.9879±0.0646 mV，B 0.8726±0.0370 mV，C 0.8729±0.0364 mV。这里要分开看两组比较：
+  - **B 与 C 接近打平、差距很小：** 差 0.0004 mV（按种子配对的 C−B 为 0.0004±0.0015 mV），在种子噪声之内。原因是 RL ≫ Rth 时，C 因负担电阻偏大的 `Rn` 和 B 用两次读数测出的 `Rth` 对 `V_L` 几乎没有影响，两种重建都收敛到 `Voc` 读数本身的精度。
+  - **A 与 B 是一个小而稳定的差距，不是打平：** 按种子配对的 A−B 为 0.1153±0.0588 mV，A 的平均误差始终更大。原因是忽略 `Rth` 会留下约 0.51 mV 的偏差 `Vth × Rth / (Rth + RL)`，它被各组共有的 1 mV 读数噪声冲淡了，但并没有消失。
 
 诺顿和戴维南**在纸面上是同一个电路**；C 在重载和本课负载下误差更大，来自测量方式（因为负担电阻，`Rn` 实际是 `Rth + 100 Ω`），不是定理的问题。本页**不宣布普遍赢家**：只有 `RL ≫ Rth` 时单看 `Voc` 才够用；最好的等效电路是你认真测出来的那一个。真实万用表 / 实验台戴维南实验：**本页未运行**。
 
@@ -415,7 +425,7 @@ Real DMM / bench Thevenin lab: 本页未运行; Wikipedia numbers 以原文为�
 2. 把本课的戴维南参数（1.5986 V，3197 Ω）换成诺顿形式，验证 RL = 4.7 kΩ 时两者给出相同的 `V_L`。
 3. 从模型里的 `shared_board` 说明：同一个种子、同一块板，A、B、C 用的是同一组元件和同一个 `Voc` 读数。
 4. 固定种子，把负担电阻改成 10 Ω。运行前先预测哪种情形下 C 的误差变化最大。
-5. 在任何实验台测量之前（本页未运行），说明为什么轻载下的**接近打平、差距很小**并**不**意味着 `Voc` 可以用来预测 3.3 kΩ 负载下的电压。
+5. 在任何实验台测量之前（本页未运行），说明为什么轻载下 A−B 的差距**很小**（0.1153±0.0588 mV，不是打平）并**不**意味着 `Voc` 可以用来预测 3.3 kΩ 负载下的电压。
 
 <Summary>
 
@@ -427,7 +437,7 @@ Real DMM / bench Thevenin lab: 本页未运行; Wikipedia numbers 以原文为�
 - 分压公式 Vout = Vin × R2 / (R1 + R2)：5 V、R1 = 10 kΩ、R2 = 4.7 kΩ 时 Vout ≈ 1.6 V。
 - 带载不可忽略：给 R2 并上 10 kΩ 负载，输出掉到约 1.2 V，下降 25 %，所以负载至少要是 R2 的 10 倍。
 - 电池接 ADC：8.4 V 经 10 kΩ / 10 kΩ 分压得到 4.20 V，静态电流 0.42 mA。
-- 戴维南 / 诺顿：练习分压器可以压缩成 `Vth = 1.5986 V` 串 `Rth ≈ 3.2 kΩ`（诺顿形式 0.5 mA ∥ 3.2 kΩ），`V_L = Vth × RL / (Rth + RL)` 在 10 kΩ 下复现 1.21 V；只有 RL ≫ Rth 时单看 `Voc` 才**接近打平、差距很小**——不是实验台实验。
+- 戴维南 / 诺顿：练习分压器可以压缩成 `Vth = 1.5986 V` 串 `Rth ≈ 3.2 kΩ`（诺顿形式 0.5 mA ∥ 3.2 kΩ），`V_L = Vth × RL / (Rth + RL)` 在 10 kΩ 下复现 1.21 V；RL ≫ Rth 时戴维南与诺顿**接近打平、差距很小**，单看 `Voc` 也只落后一个小而稳定的差距（不是打平）——不是实验台实验。
 
 **常见错误**
 

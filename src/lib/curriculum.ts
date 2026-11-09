@@ -20,7 +20,7 @@ const month1Lessons: Lesson[] = [
       { zh: "能在 A 与 mA、Ω 与 kΩ、MΩ 之间换算，且不丢 1000 倍。", en: "Convert between A and mA and between Ω, kΩ and MΩ without losing a factor of 1000." },
       { zh: "能用欧姆定律 V = I × R 和功率公式 P = V × I = I² × R = V² / R 在纸上计算电路。", en: "Use Ohm's law V = I × R and the power forms P = V × I = I² × R = V² / R to calculate a circuit on paper." },
       { zh: "能计算串并联电阻（220 Ω + 330 Ω = 550 Ω，两个 10 kΩ 并联为 5 kΩ），并应用 Vout = Vin × R2 / (R1 + R2)。", en: "Combine series and parallel resistances (220 Ω + 330 Ω = 550 Ω; two 10 kΩ in parallel = 5 kΩ) and apply Vout = Vin × R2 / (R1 + R2)." },
-      { zh: "能求出分压器的 Vth = 1.5986 V 与 Rth ≈ 3.2 kΩ（诺顿 0.5 mA ∥ 3.2 kΩ），用共享元件与读数比较只看 Voc / 戴维南 / 诺顿的带载误差，并指出 RL ≫ Rth 时只是接近打平、差距很小，不声称实验台实验。", en: "Find the divider's Vth = 1.5986 V and Rth ≈ 3.2 kΩ (Norton 0.5 mA ∥ 3.2 kΩ), compare Voc-only / Thévenin / Norton loaded-voltage errors on shared parts and readings, and show that RL ≫ Rth is only a near-tie / small gap; no bench-lab claim." },
+      { zh: "能求出分压器的 Vth = 1.5986 V 与 Rth ≈ 3.2 kΩ（诺顿 0.5 mA ∥ 3.2 kΩ），用共享元件与读数比较只看 Voc / 戴维南 / 诺顿的带载误差，并指出 RL ≫ Rth 时戴维南与诺顿接近打平、差距很小，而只看 Voc 仍有小而稳定的差距（不是打平），不声称实验台实验。", en: "Find the divider's Vth = 1.5986 V and Rth ≈ 3.2 kΩ (Norton 0.5 mA ∥ 3.2 kΩ), compare Voc-only / Thévenin / Norton loaded-voltage errors on shared parts and readings, and show that at RL ≫ Rth Thévenin and Norton are a near-tie / small gap while Voc-only keeps a small but consistent gap (not a tie); no bench-lab claim." },
       { zh: "能解释 10 kΩ 负载为何使 1.6 V 分压输出降到约 1.2 V，以及何时应改用稳压器。", en: "Explain why a 10 kΩ load drops the 1.6 V divider output to about 1.2 V, and when to use a regulator." },
     ],
     prereqs: [],

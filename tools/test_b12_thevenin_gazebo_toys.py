@@ -88,12 +88,23 @@ class Thevenin(unittest.TestCase):
         gap = mean(light["A_voc_only"]) - mean(light["B_thevenin"])
         self.assertGreater(gap, 0.0)  # not a tie
         self.assertLess(gap, 0.3)  # but a small gap (mV)
+        ab = [x - y for x, y in zip(light["A_voc_only"], light["B_thevenin"])]
+        self.assertTrue(all(d > 0 for d in ab))  # consistent: A worse on every seed
+        cb = [x - y for x, y in zip(light["C_norton"], light["B_thevenin"])]
+        m = sum(cb) / len(cb)
+        sd = math.sqrt(sum((d - m) ** 2 for d in cb) / (len(cb) - 1))
+        self.assertLess(abs(m), sd)  # B vs C within seed noise
+        self.assertGreater(abs(m), 0.0)  # but not identical
 
     def test_expected_file(self):
         exp = (ROOT / "examples/month-1/expected/thevenin_loaded_divider_toy.txt").read_text()
         self.assertEqual(run(TH_REL), exp)
-        self.assertIn("near-tie / small gap", exp)
-        self.assertIn("not a tie", exp)
+        bc = next(line for line in exp.splitlines() if line.startswith("light_load B vs C:"))
+        ab = next(line for line in exp.splitlines() if line.startswith("light_load A vs B:"))
+        self.assertIn("near-tie / small gap, within seed noise", bc)
+        self.assertNotIn("not a tie", bc)
+        self.assertIn("small but consistent gap, not a tie", ab)
+        self.assertNotIn("near-tie", ab)
 
 
 def free_oscillation(dt: float, steps: int, explicit: bool) -> float:

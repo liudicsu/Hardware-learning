@@ -22,7 +22,8 @@ parts, uniform) and the meter noise draws z1 (Voc), z2 (Vtest / Isc) are drawn
 once and shared by every arm. The meter is otherwise ideal (no input loading).
 
 Regimes (5 seeds x 32 boards): heavy_load RL = 3.3 kOhm (about Rth),
-lesson_load RL = 10 kOhm, light_load RL = 10 MOhm (A is a near-tie / small gap).
+lesson_load RL = 10 kOhm, light_load RL = 10 MOhm (B and C: near-tie / small gap;
+A-B: small but consistent gap, not a tie).
 No presumed winner. Real DMM / bench Thevenin lab: 本页未运行.
 """
 from __future__ import annotations
@@ -122,19 +123,26 @@ def main() -> None:
     paired = {}
     for name, rl in REGIMES:
         res = run_regime(rl)
-        paired[name] = mean_sd([x - y for x, y in zip(res["A_voc_only"], res["B_thevenin"])])
+        paired[name] = (
+            mean_sd([x - y for x, y in zip(res["A_voc_only"], res["B_thevenin"])]),
+            mean_sd([x - y for x, y in zip(res["C_norton"], res["B_thevenin"])]),
+        )
         for arm in ARMS:
             m, s = mean_sd(res[arm])
             summary[(name, arm)] = (m, s)
             print(f"{name} {rl:.0f} {arm} {m:.4f}+-{s:.4f}")
     a, b, c = (summary[("light_load", x)] for x in ARMS)
+    (pm, ps), (qm, qs) = paired["light_load"]
     print(
-        f"light_load: A {a[0]:.4f}+-{a[1]:.4f} mV vs B {b[0]:.4f}+-{b[1]:.4f} mV vs "
-        f"C {c[0]:.4f}+-{c[1]:.4f} mV (near-tie / small gap: A's bias Vth*Rth/(Rth+RL) "
-        f"is about {vth * rth / (rth + 1e7) * 1e3:.2f} mV, the same order as the 1 mV meter noise)"
+        f"light_load B vs C: B {b[0]:.4f}+-{b[1]:.4f} mV, C {c[0]:.4f}+-{c[1]:.4f} mV, "
+        f"gap {abs(c[0] - b[0]):.4f} mV (paired C-B {qm:.4f}+-{qs:.4f} mV): near-tie / small gap, "
+        f"within seed noise (at RL >> Rth the burden / Rth error barely matters, so both reconstructions converge)"
     )
-    pm, ps = paired["light_load"]
-    print(f"light_load paired per-seed A-B = {pm:.4f}+-{ps:.4f} mV (A still slightly worse; not a tie)")
+    print(
+        f"light_load A vs B: A {a[0]:.4f}+-{a[1]:.4f} mV, paired A-B {pm:.4f}+-{ps:.4f} mV: "
+        f"small but consistent gap, not a tie (A's bias Vth*Rth/(Rth+RL) ~{vth * rth / (rth + 1e7) * 1e3:.2f} mV "
+        f"from ignoring Rth is diluted by the 1 mV meter noise)"
+    )
     a, b, c = (summary[("heavy_load", x)] for x in ARMS)
     print(
         f"heavy_load: A {a[0]:.1f} mV >> B {b[0]:.2f} mV; C {c[0]:.2f} mV "
