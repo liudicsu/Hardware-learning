@@ -28,6 +28,7 @@ check_py icp_point_plane_toy.txt python3 "$M4/slam-nav/icp_point_plane_toy.py"
 check_py ethercat_dc_timing_toy.txt python3 "$M4/ros2-control/ethercat_dc_timing_toy.py"
 check_py gazebo_step_contact_stability_toy.txt python3 "$M4/gazebo-sim/gazebo_step_contact_stability_toy.py"
 check_py tf_buffer_time_lookup_toy.txt python3 "$M4/urdf-tf/tf_buffer_time_lookup_toy.py"
+check_py dwa_vs_pure_pursuit_toy.txt python3 "$M4/slam-nav/dwa_vs_pure_pursuit_toy.py"
 
 if [[ "${ROS_DISTRO:-}" != "jazzy" ]] || ! command -v colcon >/dev/null; then
   echo "ROS 2 Jazzy is not sourced (ROS_DISTRO=${ROS_DISTRO:-unset}); see examples/month-4/README.md"

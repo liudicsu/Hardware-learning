@@ -1,6 +1,16 @@
 # Month 4 plan / 第4个月计划
 
-Current / 当前：**M4 2490 min**, Batch-14 PR2. Earlier entries below retain their historical totals.
+Current / 当前：**M4 2670 min**, Batch-15 PR2. Earlier entries below retain their historical totals.
+
+## Batch-15 PR2 / 本月 H3 (+180)
+
+Base `d0da082` (batch-15 PR1 merged as #161; site **31710**). PR2 on M4 host: **M4 2490→2670 (+180)**; M7 moves in the same PR on its own plan. Site **31710→32070**, still 71 lessons.
+
+- **H3 / 4.6 slam-nav: 450→630 (+180).** Regulated Pure Pursuit vs the Dynamic Window Approach. Toy `dwa_vs_pure_pursuit_toy.py`: unicycle with acceleration limits, exact circular-arc steps H = 0.05 s inside a 0.25 s control period (H vs H/2 printed); arms A RPP-style tracker / B DWA with Fox eq. 14 / C window without admissibility / D DWA counting the held period (added after the first run, disclosed); shared obstacles, path and slip (common random numbers, 5 seeds × 6 trials). Admissibility checked at 0.98× / 1.02×. empty, open_slow: all **tie** (identical on every seed); clutter_slow: RPP blocked, B−A success 0.9000±0.0913 clear 5/5, RPP keeps more clearance; clutter_fast: B−A collision −0.6667±0.2041 clear 5/5, C−B 0.1333±0.1394 **near-tie** (§9 expected B safer than C: not met); narrow_gap: B−A time −1.0333±0.1896 small but consistent; winding (added after the first run, first geometry printed): RPP arrives on every trial, B and C collide 30/30, D 0.5000±0.2041 success with 0 collisions. PAD 0.05 m chosen after the first run (0.0 and 0.1 printed). Real Nav2 / DWB 本页未运行.
+
+**Allocation / 安排:** 30+30+40+50+30=180 minutes.
+
+**Site accounting / 全站核算:** **32070=31710+360** with M7 +180 on month-7-plan.md; **M4=2670**, **71 lessons**.
 
 ## Batch-14 PR2 / 本月 H3 (+180)
 

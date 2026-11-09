@@ -26,3 +26,12 @@ ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose \
 
 Needs ROS 2 Jazzy with `ros-jazzy-slam-toolbox` and `ros-jazzy-nav2-bringup` on top of Lesson 5's packages, see [`../README.md`](../README.md). These runs are real ROS 2 software driving a **simulated** robot in Gazebo; [`../../../tools/sim/ros/run.sh`](../../../tools/sim/ros/run.sh) repeats every one the lesson quotes. The package licence is left as the `TODO` placeholder on purpose.
 需要在第 5 课的基础上再装 `ros-jazzy-slam-toolbox` 和 `ros-jazzy-nav2-bringup` 的 ROS 2 Jazzy，见 [`../README.md`](../README.md)。这些都是真实的 ROS 2 软件驱动 Gazebo 里的**仿真**机器人；[`../../../tools/sim/ros/run.sh`](../../../tools/sim/ros/run.sh) 会重复课程引用的每一次运行。包的许可证故意保留 `TODO` 占位符。
+
+## dwa_vs_pure_pursuit_toy.py — local control / 局部控制
+
+Standard-library synthetic local-controller comparison, no ROS needed: a unicycle with acceleration limits drives past circular obstacles under four controllers (Regulated-Pure-Pursuit-style tracker, Dynamic Window Approach with Fox's admissibility test, the window without it, and a version that counts the control period); six regimes, five seeds × six trials, common random numbers. Expected output in `../expected/dwa_vs_pure_pursuit_toy.txt`, compared by `../check.sh` even without ROS (about 45 s). Not Nav2's RPP or DWB plugin; real Nav2 runs 本页未运行.
+标准库合成的局部控制器对比，不需要 ROS：带加速度限制的独轮车绕过圆形障碍物，比较四种控制器（Regulated Pure Pursuit 式跟踪、带 Fox 可容许检查的动态窗口法、去掉该检查的窗口、算上控制周期的版本）；六种情形，5 个种子 × 6 次试验，共用随机数。输出在 `../expected/dwa_vs_pure_pursuit_toy.txt`，没有 ROS 时 `../check.sh` 也会核对（约 45 s）。不是 Nav2 的 RPP 或 DWB 插件；真实 Nav2 运行本页未运行。
+
+```bash
+python3 dwa_vs_pure_pursuit_toy.py
+```

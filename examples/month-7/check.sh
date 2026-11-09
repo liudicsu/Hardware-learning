@@ -32,6 +32,7 @@ check ppo_reach.txt "$PY" "$M7/rl-foundations/ppo_reach.py"
 
 # ---- 7.3 reward shaping (stdlib) ----------------------------------------------------------
 check reward_shaping.txt "$PY" "$M7/rl-manipulation-sim/reward_shaping.py"
+check her_sparse_grasp_toy.txt "$PY" "$M7/rl-manipulation-sim/her_sparse_grasp_toy.py"
 
 # ---- 7.4 sim-to-real (stdlib) -------------------------------------------------------------
 check sysid_fit.txt "$PY" "$M7/sim-to-real/sysid_fit.py"

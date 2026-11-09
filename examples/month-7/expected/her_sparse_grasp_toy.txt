@@ -1,0 +1,54 @@
+Synthetic HER toy; goal-conditioned tabular Q on the reach-grasp grid; shared episodes / exploration draws; not SB3 / ManiSkill
+seeds=5 alpha=0.35 gamma=0.95 eps 0.5->0.05 max_steps=30 updates/episode=64 future k=4 (relabel share 0.80) eval every 50; no integration step (discrete grid)
+regime arm final auc train  (mean+-sd over seeds)
+near_goal (grid 6x6, episodes=400, 4 starts x 9 goals)
+  A_sparse 1.0000+-0.0000 0.9965+-0.0025 1.0000+-0.0000
+  B_her 1.0000+-0.0000 0.9986+-0.0019 1.0000+-0.0000
+  C_dense 1.0000+-0.0000 0.9972+-0.0029 1.0000+-0.0000
+  paired B-A final: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A auc: 0.0021+-0.0031: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+  paired B-C final: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C auc: 0.0014+-0.0040: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign, 2 of 5 equal
+  paired C-A final: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A auc: 0.0007+-0.0052: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign, 2 of 5 equal
+fixed_goal (grid 6x6, episodes=400, 4 starts x 1 goals)
+  A_sparse 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+  B_her 1.0000+-0.0000 1.0000+-0.0000 1.0000+-0.0000
+  C_dense 1.0000+-0.0000 1.0000+-0.0000 1.0000+-0.0000
+  paired B-A final: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A auc: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C final: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C auc: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A final: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A auc: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+far_goals (grid 6x6, episodes=400, 4 starts x 15 goals)
+  A_sparse 0.3967+-0.5432 0.3475+-0.4779 0.4000+-0.5477
+  B_her 0.9933+-0.0091 0.9321+-0.0315 1.0000+-0.0000
+  C_dense 1.0000+-0.0000 0.9417+-0.0271 1.0000+-0.0000
+  paired B-A final: 0.5967+-0.5523: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign, 1 of 5 equal
+  paired B-A auc: 0.5846+-0.4715: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C final: -0.0067+-0.0091: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+  paired B-C auc: -0.0096+-0.0146: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired C-A final: 0.6033+-0.5432: clear gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+  paired C-A auc: 0.5942+-0.4659: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+big_grid (grid 10x10, episodes=400, 4 starts x 28 goals)
+  A_sparse 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+  B_her 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+  C_dense 0.4321+-0.2232 0.1083+-0.0606 0.5280+-0.1481
+  paired B-A final: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A auc: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C final: -0.4321+-0.2232: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C auc: -0.1083+-0.0606: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A final: 0.4321+-0.2232: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A auc: 0.1083+-0.0606: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternatives (choices made after the first run; final / auc means over seeds):
+  Q indexed by (goal, cell, grip), near_goal: A_sparse 0.7556/0.7014 B_her 0.9333/0.8715 C_dense 1.0000/0.9514
+  Q indexed by (goal, cell, grip), fixed_goal: A_sparse 0.0000/0.0000 B_her 0.0000/0.0000 C_dense 1.0000/1.0000
+  Q indexed by (goal, cell, grip), far_goals: A_sparse 0.0267/0.0250 B_her 0.0733/0.0321 C_dense 0.3967/0.1583
+  Q indexed by (goal, cell, grip), big_grid: A_sparse 0.0000/0.0000 B_her 0.0000/0.0000 C_dense 0.0000/0.0000
+  big_grid at 8x8 (goals x + y >= 9): A_sparse 0.0000/0.0000 B_her 0.4643/0.2193 C_dense 0.9571/0.6616
+near_goal: random exploration already finds nearby goals, so relabelling adds little
+fixed_goal / far_goals: sparse rarely sees a success; hindsight goals teach the goal-relative table to close on the goal
+big_grid: exploration never reaches the far offsets, so there is nothing to relabel there; dense shaping still points the way
+No winner declared: HER needs achieved goals near the ones you want; a good dense reward can match or beat it
+Real ManiSkill3 / SB3 HER / DDPG runs: 本页未运行; Andrychowicz et al. results 以原文为准
