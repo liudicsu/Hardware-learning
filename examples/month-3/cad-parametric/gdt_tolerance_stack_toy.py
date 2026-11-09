@@ -10,7 +10,7 @@ Arms differ only in how the stack prediction is formed:
 Regimes (≥5 Monte Carlo seeds):
   short_chain   1 dim — worst-case == RSS (exact tie)
   long_normal   6 dims, normal MC — RSS covers most hits; worst is wider
-  long_skew     6 dims, one-sided skew MC — RSS under-covers (RSS unsafe)
+  long_skew     6 dims, one-sided skew MC — violates RSS iid/centered/normal assumptions (unsafe)
 
 Not an ASME Y14.5 certification. Real CMM / GD&T drawing lab: 本页未运行.
 """
@@ -54,7 +54,7 @@ def mc_stack(
         s = 0.0
         for t in tols:
             if dist == "normal":
-                # ±t ≈ ±3σ → σ = t/3
+                # 3σ convention: ±t ≈ ±3σ ⇒ σ = t/3
                 s += rng.gauss(0.0, abs(t) / 3.0)
             elif dist == "skew":
                 # One-sided: exponential excess toward +tol (non-normal)
@@ -130,7 +130,7 @@ def main() -> None:
     hit_wc = summary[("long_skew", "A_worst_case")][1]
     print(
         f"long_skew: RSS mc_hit={hit_rss:.3f} vs worst mc_hit={hit_wc:.3f} "
-        f"(RSS under-covers skewed one-sided stack — RSS unsafe here)"
+        f"(RSS unsafe: skew violates independent/centered/approx-normal assumptions)"
     )
     pred_c = summary[("long_normal", "C_datum_reroot")][0]
     pred_a = summary[("long_normal", "A_worst_case")][0]

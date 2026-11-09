@@ -35,21 +35,44 @@ class Wheatstone(unittest.TestCase):
         self.assertEqual(wb.VEXC, 5.0)
         self.assertEqual(wb.R0, 350.0)
         self.assertEqual(wb.G_AMP, 100.0)
+        self.assertEqual(wb.CMRR_DB, 80.0)
+        self.assertEqual(wb.N_SAMPLES, 64)
         src = (
             ROOT / "examples/month-1/components/wheatstone_bridge_sense_toy.py"
         ).read_text()
-        self.assertIn("_ARM_SALT", src)
-        self.assertNotIn("hash(arm)", src)
+        self.assertIn("shared_cm_sequence", src)
+        self.assertIn("CMRR", src)
         self.assertIn("本页未运行", src)
 
-    def test_quarter_bridge_formula(self):
+    def test_identical_cm_across_arms_per_seed(self):
+        """Common random numbers: A, B, C share the same cm sample sequence."""
+        for seed in wb.SEEDS:
+            cms = {}
+            for arm in wb.ARMS:
+                _, c = wb.measure_samples(0.002, 2.0e-3, arm, seed, stream_id=1)
+                cms[arm] = c
+            self.assertEqual(cms["A_single_ended"], cms["B_bridge_ideal"])
+            self.assertEqual(cms["B_bridge_ideal"], cms["C_bridge_offset"])
+            self.assertEqual(len(cms["A_single_ended"]), wb.N_SAMPLES)
+
+    def test_quarter_bridge_and_gf_small_strain(self):
         delta = 0.002
         vg = wb.v_bridge(delta)
-        # exact: Vexc * ((1+d)/(2+d) - 1/2)
         pred = wb.VEXC * ((1.0 + delta) / (2.0 + delta) - 0.5)
         self.assertAlmostEqual(vg, pred, places=12)
-        # small-delta ≈ Vexc*d/4
         self.assertAlmostEqual(vg, wb.VEXC * delta / 4.0, delta=1e-5)
+        # δ = GF·ε literacy: V_G ≈ Vexc·GF·ε/4 when δ=GF·ε
+        gf, eps = 2.0, 0.001
+        d = gf * eps
+        self.assertAlmostEqual(
+            wb.v_bridge(d), wb.VEXC * d / 4.0, delta=2e-4
+        )
+
+    def test_cmrr_residual_scale(self):
+        self.assertAlmostEqual(wb.CMRR_LINEAR, 10.0 ** (80.0 / 20.0), places=12)
+        # residual is cm/CMRR_LINEAR, not zero
+        cm = 1.0e-3
+        self.assertAlmostEqual(cm / wb.CMRR_LINEAR, 1.0e-7, places=16)
 
     def test_small_delta_bridge_wins_snr(self):
         name, delta, cm = wb.REGIMES[0]
@@ -80,6 +103,7 @@ class GdtStack(unittest.TestCase):
             ROOT / "examples/month-3/cad-parametric/gdt_tolerance_stack_toy.py"
         ).read_text()
         self.assertIn("ASME Y14.5", src)
+        self.assertIn("σ = t/3", src)
         self.assertIn("本页未运行", src)
 
     def test_short_chain_exact_tie(self):

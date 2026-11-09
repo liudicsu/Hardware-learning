@@ -11,7 +11,7 @@ long_skew A_worst_case 0.4500 1.0000+-0.0000 0.1501+-0.0006
 long_skew B_rss 0.1884 0.8047+-0.0118 0.1501+-0.0006
 long_skew C_datum_reroot 0.2600 1.0000+-0.0000 0.0869+-0.0009
 short_chain: |worst - RSS| = 0.0000e+00 mm (exact tie — one dim; worst==RSS)
-long_skew: RSS mc_hit=0.805 vs worst mc_hit=1.000 (RSS under-covers skewed one-sided stack — RSS unsafe here)
+long_skew: RSS mc_hit=0.805 vs worst mc_hit=1.000 (RSS unsafe: skew violates independent/centered/approx-normal assumptions)
 long_normal: datum re-root half 0.2600 mm < full worst 0.4500 mm (shorter stack)
 No winner declared: short chains make worst≈RSS; skewed stacks make RSS look safe on paper but fail MC; re-root helps only when the datum is real
 Real CMM / GD&T drawing / ASME Y14.5 lab: 本页未运行; Wikipedia GD&T and Tolerance analysis 以原文为准

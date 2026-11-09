@@ -412,6 +412,10 @@ Each link in a 1-D assembly chain carries a bilateral half-width `t_i` (the dime
 | RSS | `√(Σ t_i²)` |
 | Datum re-root | worst-case on the **shorter** chain after a mid datum |
 
+**RSS assumptions:** the root-sum-square prediction assumes the part errors are **independent**, **centered** (mean near nominal), and **approximately normal**. The toy’s `long_skew` regime is unsafe for RSS precisely because it **violates** those assumptions (one-sided, non-normal stack).
+
+**3σ convention:** the normal Monte Carlo treats each bilateral half-width as `±t ≈ ±3σ`, so **`σ = t/3`**.
+
 MMC/LMC literacy: material-condition modifiers change the available tolerance as a feature departs from maximum/least material; this toy stays on bilateral size stack maths and does **not** claim an ASME Y14.5 certification.
 
 ### Fair setup
@@ -448,7 +452,7 @@ Arms differ only in how the stack prediction is formed:
 Regimes (≥5 Monte Carlo seeds):
   short_chain   1 dim — worst-case == RSS (exact tie)
   long_normal   6 dims, normal MC — RSS covers most hits; worst is wider
-  long_skew     6 dims, one-sided skew MC — RSS under-covers (RSS unsafe)
+  long_skew     6 dims, one-sided skew MC — violates RSS iid/centered/normal assumptions (unsafe)
 
 Not an ASME Y14.5 certification. Real CMM / GD&T drawing lab: 本页未运行.
 """
@@ -492,7 +496,7 @@ def mc_stack(
         s = 0.0
         for t in tols:
             if dist == "normal":
-                # ±t ≈ ±3σ → σ = t/3
+                # 3σ convention: ±t ≈ ±3σ ⇒ σ = t/3
                 s += rng.gauss(0.0, abs(t) / 3.0)
             elif dist == "skew":
                 # One-sided: exponential excess toward +tol (non-normal)
@@ -568,7 +572,7 @@ def main() -> None:
     hit_wc = summary[("long_skew", "A_worst_case")][1]
     print(
         f"long_skew: RSS mc_hit={hit_rss:.3f} vs worst mc_hit={hit_wc:.3f} "
-        f"(RSS under-covers skewed one-sided stack — RSS unsafe here)"
+        f"(RSS unsafe: skew violates independent/centered/approx-normal assumptions)"
     )
     pred_c = summary[("long_normal", "C_datum_reroot")][0]
     pred_a = summary[("long_normal", "A_worst_case")][0]
@@ -607,7 +611,7 @@ long_skew A_worst_case 0.4500 1.0000+-0.0000 0.1501+-0.0006
 long_skew B_rss 0.1884 0.8047+-0.0118 0.1501+-0.0006
 long_skew C_datum_reroot 0.2600 1.0000+-0.0000 0.0869+-0.0009
 short_chain: |worst - RSS| = 0.0000e+00 mm (exact tie — one dim; worst==RSS)
-long_skew: RSS mc_hit=0.805 vs worst mc_hit=1.000 (RSS under-covers skewed one-sided stack — RSS unsafe here)
+long_skew: RSS mc_hit=0.805 vs worst mc_hit=1.000 (RSS unsafe: skew violates independent/centered/approx-normal assumptions)
 long_normal: datum re-root half 0.2600 mm < full worst 0.4500 mm (shorter stack)
 No winner declared: short chains make worst≈RSS; skewed stacks make RSS look safe on paper but fail MC; re-root helps only when the datum is real
 Real CMM / GD&T drawing / ASME Y14.5 lab: 本页未运行; Wikipedia GD&T and Tolerance analysis 以原文为准
@@ -617,7 +621,7 @@ Real CMM / GD&T drawing / ASME Y14.5 lab: 本页未运行; Wikipedia GD&T and To
 
 ### Read the regimes
 
-On **short_chain**, worst-case and RSS are **identical** (one dimension) — the statistical shortcut buys nothing. On **long_normal**, RSS is much narrower than worst-case and still covers nearly all normal MC draws; datum re-root cuts the worst-case half-width. On **long_skew**, RSS hit rate falls to about **0.80** while worst-case still covers — RSS looks tidy on paper and is **unsafe** for that non-normal stack. The page **does not declare a universal winner** and does **not** claim ASME Y14.5 certification. Real CMM lab: **本页未运行**.
+On **short_chain**, worst-case and RSS are **identical** (one dimension) — the statistical shortcut buys nothing. On **long_normal**, RSS is much narrower than worst-case and still covers nearly all normal MC draws (`σ = t/3`); datum re-root cuts the worst-case half-width. On **long_skew**, RSS hit rate falls to about **0.80** while worst-case still covers — RSS looks tidy on paper and is **unsafe** because the one-sided skew violates the independent / centered / approximately-normal assumptions. The page **does not declare a universal winner** and does **not** claim ASME Y14.5 certification. Real CMM lab: **本页未运行**.
 
 **150-minute work plan:** 30 min read GD&T bilateral + Tolerance analysis worst/RSS; 30 min derive `Σ\|t\|` vs `√(Σ t²)` on the printed chain; 45 min run shared-chain arms; 30 min change skew/seed with chain fixed; 15 min list what a real CMM still needs.
 

@@ -6215,14 +6215,14 @@ print("protocol pass")
   const cases=[
     [1,"components","wheatstone_bridge_sense_toy",600,["## Wheatstone bridge and instrumentation-amp sense","## 惠斯通电桥与仪表放大器传感"],
       ["seeds=5","small_delta_noisy_cm A_single_ended","large_delta_quiet_cm A_single_ended","No winner declared","|SNR_A - SNR_B|"],
-      ["Wheatstone","quarter-bridge","A_single_ended","B_bridge_ideal","C_bridge_offset","INA","以原文为准","本页未运行"],
+      ["Wheatstone","quarter-bridge","A_single_ended","B_bridge_ideal","C_bridge_offset","INA","CMRR","以原文为准","本页未运行"],
       {en:["**not** the ESD/TVS","**synthetic**","does not declare a universal winner","strain-gauge"],zh:["**不是** ESD/TVS","**合成**","不宣布普遍赢家","应变片"]},
       {en:["Wheatstone / INA","single-ended tie","INA offset"],zh:["惠斯通 / INA","单端追平","INA 失调"]},
       ["ti-sloa034","ina126-ds","wiki-wheatstone"]],
     [3,"cad-parametric","gdt_tolerance_stack_toy",300,["## GD&T bilateral tolerances and stack-up","## GD&T 双边公差与累积"],
-      ["seeds=5","short_chain A_worst_case","long_skew B_rss","No winner declared","RSS under-covers"],
+      ["seeds=5","short_chain A_worst_case","long_skew B_rss","No winner declared","RSS unsafe"],
       ["worst-case","RSS","datum","A_worst_case","B_rss","C_datum_reroot","ASME","以原文为准","本页未运行"],
-      {en:["**not** the datum-chaining quiz alone","**synthetic**","does not declare a universal winner","ASME Y14.5"],zh:["**不是**单独的基准串联","**合成**","不宣布普遍赢家","ASME Y14.5"]},
+      {en:["**not** the datum-chaining quiz alone","**synthetic**","does not declare a universal winner","ASME Y14.5","independent","σ = t/3"],zh:["**不是**单独的基准串联","**合成**","不宣布普遍赢家","ASME Y14.5","相互独立","σ = t/3"]},
       {en:["GD&T stack","RSS can be unsafe","ASME Y14.5"],zh:["GD&T 累积","RSS 可能不安全","ASME Y14.5"]},
       ["wiki-gdt","wiki-tol-analysis"]],
   ];

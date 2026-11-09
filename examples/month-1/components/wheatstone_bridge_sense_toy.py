@@ -2,16 +2,20 @@
 """Synthetic Wheatstone bridge vs single-ended sense literacy toy. Stdlib only.
 
 Shared excitation, gauge R0 and fractional ΔR within each regime for every arm.
-Arms differ only in how the same resistors are read:
-  A_single_ended   one active divider vs mid-rail reference, then gain G
-  B_bridge_ideal   quarter-bridge differential V_G then ideal gain G
-  C_bridge_offset  same bridge + input-referred offset (INA-like) then G
+Common-mode (CM) samples are **common random numbers**: for a given (seed, sample
+index), arms A/B/C all see the **same** cm draw. Bridge arms add that cm to **both**
+legs, take the differential, then apply a **finite CMRR** residual
+(INA126 Electrical Characteristics: CMRR min **80 dB**, RS=0 Ω).
 
-Regimes (shared ΔR + CM schedule per regime; ≥5 seeds):
+Arms:
+  A_single_ended   gauge divider vs mid-rail + full cm, then gain G
+  B_bridge_ideal   quarter-bridge (cm on both legs) + CMRR residual, no Vos
+  C_bridge_offset  same bridge path + INA-like RTI offset
+
+Regimes (≥5 seeds; multi-sample SNR = |Δmean| / pooled sample std):
   small_delta_noisy_cm  — small ΔR, large CM: bridge SNR wins
-  large_delta_quiet_cm  — large ΔR, tiny CM: single-ended SNR ties ideal bridge
-No presumed winner across regimes. Not a strain-gauge lab.
-Real bridge / INA hardware: 本页未运行.
+  large_delta_quiet_cm  — large ΔR, tiny CM: single-ended SNR ties B
+No presumed winner. Not a strain-gauge lab. Real bridge / INA: 本页未运行.
 """
 from __future__ import annotations
 
@@ -23,10 +27,14 @@ R0 = 350.0  # synthetic gauge ohms (TI SLOA034-style order)
 G_AMP = 100.0  # post gain (synthetic; INA126 G=5+80k/Rg can hit ~100)
 VOS_NOM = 250e-6  # INA126-class input offset, synthetic RTI max order
 DIFF_NOISE = 5.0e-5  # independent residual after differencing, V
+# TI INA126 Electrical Characteristics: CMRR min 80 dB (typ 94 dB), RS=0Ω
+CMRR_DB = 80.0
+CMRR_LINEAR = 10.0 ** (CMRR_DB / 20.0)  # Ad/Acm; residual = cm / CMRR_LINEAR
+N_SAMPLES = 64  # multi-sample SNR / std
 SEEDS = (0, 1, 2, 3, 4)
 ARMS = ("A_single_ended", "B_bridge_ideal", "C_bridge_offset")
+# Private noise/offset only — CM uses a seed-only RNG (no arm salt)
 _ARM_SALT = {"A_single_ended": 11, "B_bridge_ideal": 22, "C_bridge_offset": 33}
-# (name, delta, cm_noise_V) — CM is part of the shared regime schedule
 REGIMES = (
     ("small_delta_noisy_cm", 0.002, 2.0e-3),
     ("large_delta_quiet_cm", 0.20, 4.0e-5),
@@ -51,39 +59,72 @@ def v_single_ended(delta: float) -> float:
     return v_r - VEXC * 0.5
 
 
-def apply_arm(delta: float, cm_sigma: float, arm: str, seed: int) -> float:
-    rng = random.Random(30_000 + seed * 17 + _ARM_SALT[arm])
-    cm = rng.gauss(0.0, cm_sigma)
-    diff_n = rng.gauss(0.0, DIFF_NOISE)
-    if arm == "A_single_ended":
-        raw = v_single_ended(delta) + cm + diff_n
-        return G_AMP * raw
-    if arm == "B_bridge_ideal":
-        raw = v_bridge(delta) + diff_n  # shared CM cancels differentially
-        return G_AMP * raw
+def shared_cm_sequence(seed: int, cm_sigma: float, n: int) -> list[float]:
+    """Common random numbers: identical for every arm at this seed."""
+    rng = random.Random(50_000 + seed)  # seed only — no arm salt
+    return [rng.gauss(0.0, cm_sigma) for _ in range(n)]
+
+
+def measure_samples(
+    delta: float,
+    cm_sigma: float,
+    arm: str,
+    seed: int,
+    stream_id: int,
+) -> tuple[list[float], list[float]]:
+    """Return (outputs, cm_used). CM sequence is shared across arms for (seed, stream_id)."""
+    # Independent streams for δ=0 vs δ so CM does not cancel in the Δmean signal
+    cms = shared_cm_sequence(seed + 10_007 * stream_id, cm_sigma, N_SAMPLES)
+    # Private diff-noise advances per stream; Vos is fixed per (arm, seed) across streams
+    rng_priv = random.Random(60_000 + seed * 17 + _ARM_SALT[arm] + 97 * stream_id)
+    vos = 0.0
     if arm == "C_bridge_offset":
-        vos = VOS_NOM * (0.6 + 0.8 * rng.random())
-        if rng.random() < 0.5:
+        rng_vos = random.Random(70_000 + seed * 17 + _ARM_SALT[arm])
+        vos = VOS_NOM * (0.6 + 0.8 * rng_vos.random())
+        if rng_vos.random() < 0.5:
             vos = -vos
-        raw = v_bridge(delta) + vos + diff_n
-        return G_AMP * raw
-    raise ValueError(arm)
+    out: list[float] = []
+    for cm in cms:
+        diff_n = rng_priv.gauss(0.0, DIFF_NOISE)
+        v_l, v_r = quarter_bridge_nodes(delta)
+        if arm == "A_single_ended":
+            # Full CM on the gauge node vs clean mid-rail reference
+            raw = (v_r - VEXC * 0.5) + cm + diff_n
+        else:
+            # Add the **same** cm to both legs, then differential
+            v_l_m = v_l + cm
+            v_r_m = v_r + cm
+            v_diff = v_r_m - v_l_m  # equals v_r - v_l (identical cm cancels in subtract)
+            # Finite CMRR: residual input-referred CM error = cm / CMRR_LINEAR
+            cm_resid = cm / CMRR_LINEAR
+            raw = v_diff + cm_resid + vos + diff_n
+        out.append(G_AMP * raw)
+    return out, cms
+
+
+def sample_mean_std(xs: list[float]) -> tuple[float, float]:
+    n = len(xs)
+    mu = sum(xs) / n
+    var = sum((x - mu) ** 2 for x in xs) / (n - 1)
+    return mu, math.sqrt(var)
 
 
 def metrics_for(
     delta: float, cm_sigma: float, arm: str, seed: int
-) -> tuple[float, float, float]:
-    y0 = apply_arm(0.0, cm_sigma, arm, seed)
-    y1 = apply_arm(delta, cm_sigma, arm, seed)
-    signal = y1 - y0
-    offset_err = abs(y0)
-    if arm == "A_single_ended":
-        noise_floor = max(abs(y0), G_AMP * cm_sigma * 0.5, G_AMP * DIFF_NOISE)
-    else:
-        noise_floor = max(G_AMP * DIFF_NOISE, abs(y0) * 0.25 + G_AMP * DIFF_NOISE)
-    snr = 20.0 * math.log10(max(abs(signal), 1e-30) / max(noise_floor, 1e-30))
+) -> tuple[float, float, float, list[float]]:
+    """Return (sens, offset_err, snr_db, cm_stream_at_delta) using multi-sample SNR."""
+    y0, _ = measure_samples(0.0, cm_sigma, arm, seed, stream_id=0)
+    y1, cms1 = measure_samples(delta, cm_sigma, arm, seed, stream_id=1)
+    m0, s0 = sample_mean_std(y0)
+    m1, s1 = sample_mean_std(y1)
+    signal = m1 - m0
+    # Pooled sample std (same N); floor guards against zero
+    noise = math.sqrt(0.5 * (s0 * s0 + s1 * s1))
+    noise = max(noise, 1e-12)
+    snr = 20.0 * math.log10(max(abs(signal), 1e-30) / noise)
     sens = signal / delta if delta else 0.0
-    return sens, offset_err, snr
+    offset_err = abs(m0)
+    return sens, offset_err, snr, cms1
 
 
 def mean_sd(xs: list[float]) -> tuple[float, float]:
@@ -94,16 +135,19 @@ def mean_sd(xs: list[float]) -> tuple[float, float]:
 
 def main() -> None:
     print(
-        "Synthetic Wheatstone/INA sense toy; shared ΔR/excitation; not a strain-gauge lab"
+        "Synthetic Wheatstone/INA sense toy; shared ΔR/excitation/CM draws; "
+        "not a strain-gauge lab"
     )
     print(
         f"Vexc={VEXC}V R0={R0}ohm G={G_AMP} Vos_nom={VOS_NOM*1e6:.0f}uV "
-        f"seeds={len(SEEDS)}"
+        f"CMRR={CMRR_DB:.0f}dB(INA126 min) N_samples={N_SAMPLES} seeds={len(SEEDS)}"
     )
     print(
-        "model: quarter-bridge V_G=Vexc*(r_g/(R0+r_g)-1/2); "
-        "single-ended uses gauge divider vs mid-rail; "
-        "C adds INA-like RTI offset (TI INA126 G=5+80k/Rg literacy; SLOA034 bridge)"
+        "model: quarter-bridge V_G=Vexc*(r_g/(R0+r_g)-1/2)≈Vexc*δ/4 (small δ); "
+        "δ=GF*ε → V_G≈Vexc*GF*ε/4; "
+        "shared cm on both bridge legs then differential + residual cm/CMRR_linear; "
+        "multi-sample SNR=|Δmean|/pooled_std "
+        f"(TI INA126 CMRR min {CMRR_DB:.0f} dB; SLOA034 bridge)"
     )
     print(
         "regime arm sens_V_per_delta offset_err_V snr_dB (mean+-sd over seeds)"
@@ -113,7 +157,7 @@ def main() -> None:
         for arm in ARMS:
             sens_l, off_l, snr_l = [], [], []
             for seed in SEEDS:
-                s, o, sn = metrics_for(delta, cm, arm, seed)
+                s, o, sn, _ = metrics_for(delta, cm, arm, seed)
                 sens_l.append(s)
                 off_l.append(o)
                 snr_l.append(sn)
@@ -125,19 +169,17 @@ def main() -> None:
                 f"{reg_name} {arm} {sm:.4f}+-{ss:.4f} "
                 f"{om:.4f}+-{os_:.4f} {nm:.4f}+-{ns:.4f}"
             )
-    a_s, b_s = summary[("small_delta_noisy_cm", "A_single_ended")][0], summary[
-        ("small_delta_noisy_cm", "B_bridge_ideal")
-    ][0]
-    a_l, b_l = summary[("large_delta_quiet_cm", "A_single_ended")][0], summary[
-        ("large_delta_quiet_cm", "B_bridge_ideal")
-    ][0]
+    a_s = summary[("small_delta_noisy_cm", "A_single_ended")][0]
+    b_s = summary[("small_delta_noisy_cm", "B_bridge_ideal")][0]
+    a_l = summary[("large_delta_quiet_cm", "A_single_ended")][0]
+    b_l = summary[("large_delta_quiet_cm", "B_bridge_ideal")][0]
     print(
         f"small_delta_noisy_cm: bridge SNR advantage B-A = {b_s - a_s:.2f} dB "
-        f"(bridge wins on CM rejection)"
+        f"(finite CMRR still beats full-CM single-ended)"
     )
     print(
         f"large_delta_quiet_cm: |SNR_A - SNR_B| = {abs(a_l - b_l):.2f} dB "
-        f"(single-ended ties ideal bridge — CM tiny, no presumed winner)"
+        f"(single-ended ties bridge — CM tiny, no presumed winner)"
     )
     c_off = summary[("small_delta_noisy_cm", "C_bridge_offset")][1]
     b_off = summary[("small_delta_noisy_cm", "B_bridge_ideal")][1]
@@ -147,7 +189,7 @@ def main() -> None:
     )
     print(
         "No winner declared: quiet high-ΔR single-ended can match bridge SNR; "
-        "noisy small-ΔR needs the bridge; C's offset is a real INA cost"
+        "noisy small-ΔR needs the bridge+CMRR; C's offset is a real INA cost"
     )
     print(
         "Real Wheatstone / INA / strain-gauge lab: 本页未运行; "
