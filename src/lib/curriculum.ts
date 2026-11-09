@@ -779,8 +779,9 @@ const month6Lessons: Lesson[] = [
       zh: "示范里有两个都对的答案时，平方误差损失学到的是它们的平均——一个谁也没做过、还会撞上障碍物的动作。在方块任务上比较取平均、采样、不同长度的动作块和用精确去噪器的 DDPM 采样，看清 ACT 分块的好处与开环代价、扩散策略为什么能保留多个模式，再对照 LeRobot 训练 ACT 和 Diffusion Policy 的命令。等信息 / 预算共享任务对照独立、主从和联合双臂协调，并阅读 TwinVLA 模块。",
       en: "When the demonstrations contain two right answers, a squared-error loss learns their average: a move nobody made, straight into the obstacle. On a block task, compare averaging, sampling, action chunks of different lengths and DDPM sampling with the exact denoiser, see what ACT's chunking buys and what running open loop costs, why a diffusion policy keeps several modes, and map it onto LeRobot's commands for training ACT and Diffusion Policy. Compare independent, leader-follower and joint bimanual coupling on equal-information/budget tasks; read TwinVLA modules.",
     },
-    minutes: 450,
+    minutes: 660,
     objectives: [
+      { zh: "在共享演示与步数预算下比较 MLP 动作头、DiT 风格去噪头与量化动作 token，并指出单模态短时域接近打平；不声称 CogACT 论文成功率。", en: "On shared demos and step budget, compare MLP action head, DiT-style denoiser and quantized action tokens; show a unimodal short-horizon near-tie; no CogACT paper-success claim." },
       {"zh": "等信息 / 预算共享任务对照独立、主从和联合双臂协调，并阅读 TwinVLA 模块。", "en": "Compare independent, leader-follower and joint bimanual coupling on equal-information/budget tasks; read TwinVLA modules."},
       { zh: "能手算均值策略在岔口的横向动作 (−7 + 3) / 10 × 4.16 = −1.66 cm（即 −0.017 m），并解释它为什么撞上方块、成功率只有 67/100，而采样是 99/100。", en: "Compute the averaging policy's sideways move at the fork as (−7 + 3) / 10 × 4.16 = −1.66 cm (−0.017 m), and explain its 67/100 success against 99/100 for sampling." },
       { zh: "能说明 ACT 一次预测 k = 100 个动作（50 Hz 下 2 秒）并用时间集成混合动作块，也能解释开环代价：块长 4、8、16 的成功率依次是 98/100、88/100、80/100。", en: "Explain how ACT predicts k = 100 actions at 50 Hz (2 s) and blends chunks by temporal ensembling, and why longer chunks cost success: 4, 8 and 16 give 98/100, 88/100 and 80/100." },
@@ -788,8 +789,9 @@ const month6Lessons: Lesson[] = [
       { zh: "能在同一份 LeRobot 数据集上分别用 --policy.type=act 与 --policy.type=diffusion 训练，并用同一组固定起始位置比较成功率和失败发生的位置。", en: "Train --policy.type=act and --policy.type=diffusion on the same LeRobot dataset, then compare success and failure locations over one fixed set of start positions." },
     ],
     prereqs: ["behaviour-cloning", "so101-arm"],
-    resources: ["twinvla-paper", "act-paper", "diffusion-policy", "lerobot-il-robots"],
+    resources: ["cogact-abs", "cogact-html", "twinvla-paper", "act-paper", "diffusion-policy", "lerobot-il-robots"],
     tasks: [
+      { id: "b11p3-cogact", text: { zh: "运行 cogact_dit_action_toy.py，比较单模态短时域接近打平与多模态长 chunk 下 DiT 风格优势", en: "Run cogact_dit_action_toy.py, compare unimodal short near-tie vs multimodal long DiT-style gain" } },
       {"id": "shared-budget", "text": {"zh": "运行 bimanual_coord_modes_toy.py，核对 expected、共享数据 / 信息与总预算", "en": "Run bimanual_coord_modes_toy.py and audit expected, shared data/information and total budget"}},
       { id: "run", text: { zh: "运行 multimodal.py，用 7 : 3 的近邻比例手算均值策略在岔口的横向动作（−1.66 cm）；再打印它在刚过岔口的 (0, 0.23) 处实际给出的动作：在 examples/month-6/act-diffusion 目录下运行 python3 -c 'import random, multimodal as m; d = m.Demos(m.record_demos(40, random.Random(5))); print(round(100 * m.average_policy(d)((0, 0.23), 0)[0][0], 2))'，确认它打印出 −1.74（单位 cm），与 Quiz q1 解析一致", en: "Run multimodal.py and work out by hand, from the 7 : 3 neighbours, the averaging policy's sideways move at the fork (−1.66 cm). Then print the move it actually makes just past the fork, at (0, 0.23): in examples/month-6/act-diffusion run python3 -c 'import random, multimodal as m; d = m.Demos(m.record_demos(40, random.Random(5))); print(round(100 * m.average_policy(d)((0, 0.23), 0)[0][0], 2))' and confirm it prints −1.74 (in cm), the value in the Quiz q1 explanation" } },
       { id: "one-side", text: { zh: "让专家只从左边绕（side 固定为 −1），再比较 average 和 sample 的成功率，解释为什么差距消失", en: "Make the expert always pass on the left (side fixed at −1), compare average and sample again, and explain why the gap disappears" } },
@@ -1060,8 +1062,9 @@ const month8Lessons: Lesson[] = [
       zh: "实践向：预训练权重、微调、算力预算、语言指令与录制一致、推理时的相机与端口。对照 ACT 基线；读懂 π0 / GR00T 显存门槛。另用五种子离散替身比较刻意次优教师下等交互 / 更新预算的 BC、RL 与教师 MSE 引导。CPU 玩具 compute_budget.py 对照官方门槛表；GPU/Colab/真机标「本页未运行」。",
       en: "Practice: pretrained weights, fine-tuning, compute budget, language matching the recordings, cameras and ports at rollout. Contrast an ACT baseline; read the π0 / GR00T VRAM floors. A five-seed discrete surrogate compares equal-budget BC, scratch RL and teacher-MSE guidance with a deliberately suboptimal teacher. CPU toy compute_budget.py checks official floors; GPU/Colab/arm paths marked 本页未运行.",
     },
-    minutes: 420,
+    minutes: 630,
     objectives: [
+      { zh: "在共享任务序与梯度步数下比较无回放、小缓冲 ER 与大缓冲 ER 的平均成功与遗忘，并报告缓冲容量与算力代价；无任务切换时接近打平；不声称 LIBERO 论文指标。", en: "On a shared task order and gradient steps, compare no-replay, small-buffer ER and large-buffer ER on average success and forgetting; report buffer capacity and compute cost; near-tie with no shift; no LIBERO paper-metric claim." },
       {"zh": "能核对次优教师、BC/RL/RL+MSE 的相等交互与更新预算及五种子离散程度。", "en": "Audit a beatable teacher, equal BC/RL/RL+MSE interaction/update budgets and five-seed spread."},
       { zh: "能说明 SmolVLA 需在自己的数据上微调，并指出文档中的算力参考。", en: "State that SmolVLA is fine-tuned on your data, and cite the docs' compute notes." },
       { zh: "能对照一张表读出 π0 / GR00T 的微调显存门槛。", en: "Read a table of π0 / GR00T fine-tune VRAM floors." },
@@ -1069,8 +1072,9 @@ const month8Lessons: Lesson[] = [
       { zh: "能说出本课 GPU 部分标「本页未运行」。", en: "Note that the GPU path is marked not run on this page." },
     ],
     prereqs: ["act-diffusion", "vla-models", "policy-evaluation", "dataset-engineering"],
-    resources: ["rpd-paper", "lerobot-smolvla", "smolvla-paper", "openpi", "lerobot-pi05", "lerobot-groot", "isaac-groot"],
+    resources: ["cl-abs", "cl-html", "rpd-paper", "lerobot-smolvla", "smolvla-paper", "openpi", "lerobot-pi05", "lerobot-groot", "isaac-groot"],
     tasks: [
+      { id: "b11p3-er", text: { zh: "运行 vla_continual_er_toy.py，比较无切换接近打平与任务切换下 ER 减遗忘，并读缓冲/算力", en: "Run vla_continual_er_toy.py, compare no-shift near-tie vs shift ER forgetting reduction, and read buffer/compute" } },
       {"id": "b6p3-surrogate", "text": {"zh": "运行 rpd_teacher_rl_toy.py，核对 expected 和五种子留出结果；指出原论文未复现部分", "en": "Run rpd_teacher_rl_toy.py; audit expected and five-seed held-out results, identifying paper components not reproduced"}},
       { id: "read", text: { zh: "阅读侧栏资源中 SmolVLA 微调命令与 Colab 说明", en: "Read the SmolVLA fine-tune command and Colab notes in the sidebar resources" } },
       { id: "budget", text: { zh: "运行 compute_budget.py，核对 under_floor=7 与 expected/compute_budget.txt 一致", en: "Run compute_budget.py and match under_floor=7 in expected/compute_budget.txt" } },

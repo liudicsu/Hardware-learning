@@ -3936,8 +3936,8 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 27630, "b11p2 curriculum: 27630 minutes (tip after PR2)");
-  for (const [month, expected] of [[1, 1350], [2, 3030], [3, 1950], [4, 2130], [5, 2130], [6, 2190], [7, 2070], [8, 3180], [9, 3690], [10, 2490], [11, 3420]]) {
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 28050, "b11p3 curriculum: 28050 minutes (tip after PR3)");
+  for (const [month, expected] of [[1, 1350], [2, 3030], [3, 1950], [4, 2130], [5, 2130], [6, 2400], [7, 2070], [8, 3390], [9, 3690], [10, 2490], [11, 3420]]) {
     ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `current curriculum M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
@@ -4923,7 +4923,7 @@ for (const m of readdirSync(content)) {
   for (const id of ["dreamgen-paper", "lapa-paper", "smolvla-paper", "lerobot-async"]) {
     ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `wm2 resource ${id}: present + extra`);
   }
-  ok(/27 630/.test(read("README.md")), "b11p2 README: 27 630 minutes (tip after PR2)");
+  ok(/28 050/.test(read("README.md")), "b11p3 README: 28 050 minutes (tip after PR3)");
   console.log("worldmodel-smolvla PR2: neural trajectories + async chunk locks checked");
 }
 
@@ -5452,7 +5452,7 @@ print("protocol pass")
     [10,"flow-matching-policies","policy_distill_onestep_toy",450,210,
       ["2410.21257","2405.07503","KL-along-chain","regression surrogate","以论文为准","本页未运行","11/23/37/53/71","0.00000808","0.712500","0.145438","0.500000…0.937500","NFE","240","64"],
       ["OneDP-style regression surrogate","OneDP 风格回归替身"]],
-    [8,"vla-finetune","rpd_teacher_rl_toy",420,180,
+    [8,"vla-finetune","rpd_teacher_rl_toy",630,180,
       ["2503.05833","REINFORCE","Bernoulli","以论文为准","本页未运行","11/23/37/53/71","7680","0.780842","0.274219","0.182031","0.885938","0.037091","Cal-ConRFT","HIL-SERL"],
       ["RPD-style discrete surrogate","RPD 风格离散替身"]],
   ]) {
@@ -5611,7 +5611,7 @@ print("protocol pass")
     for(const x of markers)ok(expected.includes(x),`b7p3 ${toy}: mechanism ${x}`);
     ok(read(`examples/month-${month}/check.sh`).includes(`${toy}.txt`),`b7p3 ${toy}: additive harness hook`);
     const cur=read("src/lib/curriculum.ts"),host=cur.slice(cur.indexOf(`slug: "${slug}"`)).split("\n  },")[0];
-    ok(host.includes("minutes: 450"),`b7p3 ${slug}: own-host +210`);
+    ok(host.includes(`minutes: ${slug==="act-diffusion"?"660":"450"}`),`b7p3 ${slug}: own-host +210`);
     for(const lang of ["en","zh"]){
       const md=read(`src/content/m${month}/${slug}/${lang}.mdx`),summary=md.indexOf("<Summary>"),end=md.indexOf("</Summary>");
       ok(summary>0&&summary===md.lastIndexOf("<Summary>")&&end>summary&&md.slice(end+10).trim()==="",`b7p3 ${slug} ${lang}: sole final Summary`);
@@ -6007,7 +6007,7 @@ print("protocol pass")
     const text=readFileSync(join(root,f),"utf8").replace(/```[\s\S]*?```/g,"");
     for(const line of text.split("\n").filter(l=>/^#{1,6} /.test(l))){headN++;ok(!/[（(]\+?\d+ ?(min|分钟)|\d+ ?min 中新增|\+\d+ ?min\b/.test(line),`b9p3 heading without minute count: ${f}: ${line}`);}
   }
-  for(const [p,x] of [["docs/notes/month-6-plan.md",["Current / 当前：**M6 2190 min**, Batch-9 PR3","1980→2190","25380→25800","570→780","Batch-9 PR3"]],["docs/notes/month-11-plan.md",["Batch-9 PR3","3000→3210","25380→25800","330→540"]]]){
+  for(const [p,x] of [["docs/notes/month-6-plan.md",["1980→2190","25380→25800","570→780","Batch-9 PR3"]],["docs/notes/month-11-plan.md",["Batch-9 PR3","3000→3210","25380→25800","330→540"]]]){
     const plan=read(p); ok(x.every(y=>plan.includes(y))&&!plan.endsWith("\n\n"),`b9p3 ${p}: header and PR3-only accounting`);
   }
   ok(read("docs/notes/batch-9-pr3-sources.md").includes("All 203 prior expected"),"b9p3 prior-output/source/model audit");
@@ -6093,7 +6093,7 @@ print("protocol pass")
   }
   const plan=read("docs/notes/month-2-plan.md");
   ok(plan.startsWith("# Month 2")&&["Current / 当前：**M2 3030 min**, Batch-10 PR1","2670→3030","25800→26160","480→660","540→720","Batch-10 PR1"].every(x=>plan.includes(x)),"b10p1 month-2 plan header and PR1-only accounting");
-  ok(/27 630/.test(read("README.md")),"b11p2 README site minutes (tip after PR2)");
+  ok(/28 050/.test(read("README.md")),"b11p3 README site minutes (tip after PR3)");
   console.log("enob-magcal PR1: ADC ENOB / front-end noise, mag hard/soft-iron and M2 3030 / site 26160 locked");
 }
 
@@ -6147,7 +6147,7 @@ print("protocol pass")
   const p1=read("docs/notes/month-1-plan.md"), p11=read("docs/notes/month-11-plan.md");
   ok(p1.startsWith("# Month 1")&&["## Batch-10 PR2","1020→1170","26160→26520","270→420","Batch-10 PR2"].every(x=>p1.includes(x)),"b10p2 month-1 plan header");
   ok(p11.includes("Current / 当前：**M11 3420 min**, Batch-10 PR2")&&["3210→3420","26160→26520","480→690","Batch-10 PR2"].every(x=>p11.includes(x)),"b10p2 month-11 plan header");
-  ok(/27 630/.test(read("README.md")),"b11p2 README site minutes (tip after PR2)");
+  ok(/28 050/.test(read("README.md")),"b11p3 README site minutes (tip after PR3)");
   console.log("esd-groundloop PR2: ESD/TVS clamp, shared-return ground loop and M1 1170 / M11 3420 / site 26520 locked");
 }
 
@@ -6202,7 +6202,7 @@ print("protocol pass")
   const p9=read("docs/notes/month-9-plan.md"), p10=read("docs/notes/month-10-plan.md");
   ok(p9.startsWith("# Month 9")&&["Current / 当前：**M9 3690 min**, Batch-10 PR3","3480→3690","26520→26940","420→630","Batch-10 PR3"].every(x=>p9.includes(x)),"b10p3 month-9 plan header");
   ok(p10.includes("Current / 当前：**M10 2490 min**, Batch-10 PR3")&&["2280→2490","26520→26940","240→450","Batch-10 PR3"].every(x=>p10.includes(x)),"b10p3 month-10 plan header");
-  ok(/27 630/.test(read("README.md")),"b11p2 README site minutes");
+  ok(/28 050/.test(read("README.md")),"b11p3 README site minutes");
   console.log("spatialvla-memoryvla PR3: SpatialVLA Ego3D/grids, MemoryVLA bank and M10 2490 / M9 3690 / site 26940 locked");
 }
 
@@ -6257,7 +6257,7 @@ print("protocol pass")
   const p1=read("docs/notes/month-1-plan.md"), p3=read("docs/notes/month-3-plan.md");
   ok(p1.startsWith("# Month 1")&&["Current / 当前：**M1 1350 min**, Batch-11 PR1","1170→1350","26940→27270","420→600","Batch-11 PR1"].every(x=>p1.includes(x)),"b11p1 month-1 plan header");
   ok(p3.startsWith("# Month 3")&&["1620→1770","26940→27270","150→300","Batch-11 PR1"].every(x=>p3.includes(x)),"b11p1 month-3 plan historical PR1 markers");
-  ok(/27 630/.test(read("README.md")),"b11p2 README site minutes");
+  ok(/28 050/.test(read("README.md")),"b11p3 README site minutes");
   console.log("bridge-gdt PR1: Wheatstone/INA, GD&T stack and M1 1350 / M3 1770 / site 27270 locked");
 }
 
@@ -6308,10 +6308,67 @@ print("protocol pass")
   const p3=read("docs/notes/month-3-plan.md"), p5=read("docs/notes/month-5-plan.md");
   ok(p3.startsWith("# Month 3")&&["Current / 当前：**M3 1950 min**, Batch-11 PR2","1770→1950","27270→27630","330→**510**","Batch-11 PR2"].every(x=>p3.includes(x)),"b11p2 month-3 plan header");
   ok(p5.startsWith("# Month 5")&&["Current / 当前：M5 **2130 min** (Batch-11 PR2)","1950→2130","27270→27630","420→**600**","Batch-11 PR2"].every(x=>p5.includes(x)),"b11p2 month-5 plan header");
-  ok(/27 630/.test(read("README.md")),"b11p2 README site minutes");
+  ok(/28 050/.test(read("README.md")),"b11p3 README site minutes");
   console.log("gear-dlqr PR2: gear η(load), discrete LQR/ZOH and M3 1950 / M5 2130 / site 27630 locked");
 }
 
+
+
+// Batch-11 PR3: CogACT DiT action (6.2) and continual ER (8.2).
+{
+  const read=p=>readFileSync(join(root,p),"utf8"), env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
+  const cur=read("src/lib/curriculum.ts"), res=read("src/lib/resources.ts");
+  const cases=[
+    [6,"act-diffusion","cogact_dit_action_toy",660,["## CogACT: cognition token to DiT-style action head","## CogACT：认知表征到 DiT 风格动作头"],
+      ["seeds=5","unimodal_short A_mlp_head","multimodal_long A_mlp_head","No winner declared","near-tie / small gap"],
+      ["DiT","A_mlp_head","B_dit_denoiser","C_quant_tokens","mode averaging","Adaptive Action Ensemble","以论文为准","本页未运行"],
+      {en:["**not** OpenHelix","**synthetic**","does not declare a universal winner","near-tie / small gap","expressivity stand-in","blind","mode averaging","Adaptive Action Ensemble"],zh:["**不是** OpenHelix","**合成**","不预设赢家","接近打平","表达力替身","视而不见","mode averaging","Adaptive Action Ensemble"]},
+      {en:["CogACT cognition→action","unimodal-short","near-tie / small gap"],zh:["CogACT 认知→动作","单模态短时域","接近打平"]},
+      ["cogact-abs","cogact-html"]],
+    [8,"vla-finetune","vla_continual_er_toy",630,["## Continual VLA finetune with experience replay","## 持续学习 VLA 微调与经验回放"],
+      ["seeds=5","no_shift A_sequential","task_shift A_sequential","No winner declared","near-tie / small gap","does not monotonically"],
+      ["Experience Replay","A_sequential","B_er_small","C_er_large","buffer_cap","compute_samples","以论文为准","本页未运行"],
+      {en:["**not** MemoryVLA","**synthetic**","does not declare a universal winner","near-tie","blind","buffer","does not","monotonically"],zh:["**不是** MemoryVLA","**合成**","不预设赢家","接近打平","视而不见","缓冲","没有","单调"]},
+      {en:["Continual ER","no-shift","near-tie"],zh:["持续学习 ER","无切换","接近打平"]},
+      ["cl-abs","cl-html"]],
+  ];
+  for(const [month,slug,toy,minutes,heads,outputs,markers,langMarkers,summaryMarkers,ids] of cases){
+    const file=`examples/month-${month}/${slug}/${toy}.py`,py=read(file).trim(),expected=read(`examples/month-${month}/expected/${toy}.txt`).trim();
+    const harness=read(`examples/month-${month}/check.sh`);
+    ok(execFileSync("python3",[join(root,file)],{cwd:root,encoding:"utf8",env}).trim()===expected,`b11p3 ${toy}: actual expected output`);
+    for(const x of outputs)ok(expected.includes(x),`b11p3 ${toy}: result ${x}`);
+    ok(cur.match(new RegExp(`slug: "${slug}"[\\s\\S]*?minutes: (\\d+)`))?.[1]===String(minutes),`b11p3 ${slug}: ${minutes} min`);
+    const host=cur.slice(cur.indexOf(`slug: "${slug}"`)).split("\n  },")[0];
+    ok(host.includes(toy)&&ids.every(id=>host.includes(`"${id}"`)),`b11p3 ${slug}: task names toy and resources wired`);
+    for(const id of ids)ok(res.includes(`"${id}": {`)||res.includes(`id: "${id}"`),`b11p3 opened source ${id}`);
+    ok(harness.includes(`${slug}/${toy}.py`)||harness.includes(`${toy}.py`),`b11p3 ${toy}: month harness`);
+    ok(harness.includes(`${toy}.txt`),`b11p3 ${toy}: expected compare`);
+    for(const [index,lang] of ["en","zh"].entries()){
+      const md=read(`src/content/m${month}/${slug}/${lang}.mdx`),summary=md.indexOf("<Summary>"),end=md.indexOf("</Summary>");
+      ok(summary>0&&summary===md.lastIndexOf("<Summary>")&&md.slice(end+10).trim()==="",`b11p3 ${slug} ${lang}: sole whole-lesson Summary ends page`);
+      const head=md.indexOf(heads[index]);
+      ok(head>0&&head<summary,`b11p3 ${slug} ${lang}: new section before Summary`);
+      const sec=md.slice(head,summary);
+      for(const m of markers)ok(sec.includes(m),`b11p3 ${slug} ${lang}: marker ${m}`);
+      for(const m of langMarkers[lang])ok(sec.includes(m)||md.slice(summary,end).includes(m),`b11p3 ${slug} ${lang}: lang ${m}`);
+      for(const m of summaryMarkers[lang])ok(md.slice(summary,end).includes(m),`b11p3 ${slug} ${lang}: summary ${m}`);
+      ok(sec.includes(`<CodeSource path="examples/month-${month}/${slug}/${toy}.py" />`),`b11p3 ${slug} ${lang}: CodeSource`);
+      ok(sec.includes(py),`b11p3 ${slug} ${lang}: embedded py`);
+      ok(sec.includes(expected),`b11p3 ${slug} ${lang}: embedded expected`);
+      const ex=sec.lastIndexOf(lang==="en"?"### Exercises":"### 练习");
+      ok(ex>sec.indexOf("</SimOutput>")&&(sec.slice(ex).match(/^\d\. /gm)||[]).length===5,`b11p3 ${slug} ${lang}: five exercises after output`);
+    }
+    const en=read(`src/content/m${month}/${slug}/en.mdx`),zh=read(`src/content/m${month}/${slug}/zh.mdx`);
+    ok((en.match(/```/g)||[]).length===(zh.match(/```/g)||[]).length&&(en.match(/^### /gm)||[]).length===(zh.match(/^### /gm)||[]).length,`b11p3 ${slug}: en/zh structurally symmetric`);
+  }
+  ok((()=>{try{execFileSync("python3",[join(root,"tools/test_b11_cogact_continual_toys.py")],{cwd:root,encoding:"utf8",env,stdio:"pipe"});return true;}catch{return false;}})(),"b11p3 independent tests");
+  ok(cur.match(/minutes:\s*(\d+)/g)&&(()=>{const months=[...cur.matchAll(/const month(\d+)Lessons[\s\S]*?\];/g)]; let s=0; for(const m of months){for(const x of m[0].matchAll(/minutes:\s*(\d+)/g))s+=+x[1];} return s;})()===28050,"b11p3 curriculum: 28050 minutes (tip after PR3)");
+  const p6=read("docs/notes/month-6-plan.md"), p8=read("docs/notes/month-8-plan.md");
+  ok(p6.startsWith("# Month 6")&&["Current / 当前：**M6 2400 min**, Batch-11 PR3","2190→2400","27630→28050","450→**660**","Batch-11 PR3"].every(x=>p6.includes(x)),"b11p3 month-6 plan header");
+  ok(p8.startsWith("# Month 8")&&["Current / 当前：**M8 3390 min**, Batch-11 PR3","3180→3390","27630→28050","420→**630**","Batch-11 PR3"].every(x=>p8.includes(x)),"b11p3 month-8 plan header");
+  ok(/28 050/.test(read("README.md")),"b11p3 README site minutes");
+  console.log("cogact-continual PR3: CogACT DiT, continual ER and M6 2400 / M8 3390 / site 28050 locked");
+}
 
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);

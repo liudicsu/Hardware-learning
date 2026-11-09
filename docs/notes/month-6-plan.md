@@ -1,6 +1,6 @@
 # Month 6 plan: Robot learning, specialisation & getting hired
 
-Current / 当前：**M6 2190 min**, Batch-9 PR3. Earlier entries below retain their historical totals.
+Current / 当前：**M6 2400 min**, Batch-11 PR3. Earlier entries below retain their historical totals.
 
 Course source: @DeRonin_'s 6-month roadmap (`COURSE_SOURCE` in src/lib/curriculum.ts). Month 6 topics there:
 imitation learning (behaviour cloning, ACT, diffusion policy), VLA models and which have open weights,
@@ -86,3 +86,11 @@ Base `64579b5` (Batch-9 PR2 merged). PR3 only: **M6 1980→2190 (+210)** and M11
 - **H5 / 6.3 vla-models: 570→780 (+210).** RDT2 three-stage recipe (arXiv 2602.03310, opened; numbers 以论文为准): Stage 1 RVQ tokens + cross-entropy, Stage 2 frozen VLM + flow-matching expert, Stage 3 one-step distillation. Toy: equal 8-bit budget (bins 4×4, single VQ 256, RVQ 2×16, RVQ 4×4) and shared noise draws for FM 1/2/5 NFE vs two lookup students (offline expert NFE reported), five seeds; no winner. New section after the OpenHelix dual-system section, which is unchanged; ≠ VQ-BeT (6.1), ≠ OneDP (10.1). 7B training / GPU 本页未运行. / RDT2 三阶段，不宣布赢家。
 
 **Allocation / 安排:** 40+30+50+60+30=210 minutes. Sources: batch-9-pr3-sources.md.
+
+## Batch-11 PR3 / 本月 H5 (+210)
+
+Base `777543d` (batch-11 PR2 #146 merged; site **27630**). PR3 only: **M6 2190→2400 (+210)** and M8 **3180→3390 (+210**, own host in month-8-plan.md); site **27630→28050**, still 71 lessons; no arithmetic mismatch with proposal §9 or curriculum.ts.
+
+- **H5 / 6.2 act-diffusion: 450→**660** (+210).** CogACT componentized VLM→specialized action module (Qixiu Li et al. arXiv:2411.19650, abs+HTML+PDF opened; numbers 以论文为准). Toy `cogact_dit_action_toy.py`: shared demos/noise/budget; A ridge-linear MLP-head stand-in, B pairwise-expanded+iterative DiT-style expressivity stand-in (not a real transformer), C quantized tokens; unimodal_short exact tie (|ΔMSE|≈0), multimodal_long DiT-style edge; five seeds, common random numbers. ≠ OpenHelix / VQ-BeT / RDT2. GPU/weights 本页未运行. Sources: batch-11-pr3-sources.md.
+
+**Site accounting / 全站核算:** **28050=27630+420** with M8 +210 on month-8-plan.md; **M6=2400**, **71 lessons**.

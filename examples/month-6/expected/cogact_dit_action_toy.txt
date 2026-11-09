@@ -1,0 +1,14 @@
+Synthetic CogACT-style cognition→action toy; shared demos/noise/budget; not OpenHelix/VQ-BeT/RDT2
+FEAT_DIM=6 ACT_DIM=3 DIT_ITERS=4 N_BINS=10 RIDGE=0.01 seeds=5
+model: componentized VLM-like features → specialized action module (Qixiu Li et al. arXiv:2411.19650); A=ridge-linear; B=pairwise-expanded+iterative DiT-style stand-in; C=quantized tokens; paper % 以论文为准; GPU/weights 本页未运行
+regime arm action_mse success_proxy (mean+-sd over seeds)
+unimodal_short A_mlp_head 0.0003+-0.0001 1.0000+-0.0000
+unimodal_short B_dit_denoiser 0.0003+-0.0000 1.0000+-0.0000
+unimodal_short C_quant_tokens 0.0068+-0.0003 1.0000+-0.0000
+multimodal_long A_mlp_head 0.0016+-0.0001 1.0000+-0.0000
+multimodal_long B_dit_denoiser 0.0012+-0.0001 1.0000+-0.0000
+multimodal_long C_quant_tokens 0.0105+-0.0001 1.0000+-0.0000
+unimodal_short: |MSE_A − MSE_B| = 0.0001 (near-tie / small gap; residual from ridge regularization and noise; short-horizon unimodal is easy for both)
+multimodal_long: MSE_A − MSE_B = 0.0004 (DiT-style expressivity wins on longer multimodal chunks; C_quant=0.0105)
+No winner declared: unimodal short-horizon can make MLP match DiT-style; multimodal long-chunk is where specialized expressivity helps; quantization floor is a real OpenVLA-style cost
+Real CogACT / VLA GPU lab: 本页未运行; Qixiu Li et al. arXiv:2411.19650 以论文为准
