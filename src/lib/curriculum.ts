@@ -170,7 +170,7 @@ const month2Lessons: Lesson[] = [
       { zh: "能计算 PWM 的占空比与平均电压（例如 analogWrite(9, 191) 得到 3.75 V），并在串口绘图器里画出一行 name:value 输出。", en: "Calculate PWM duty cycle and average voltage, e.g. analogWrite(9, 191) giving 3.75 V, and plot a serial line in the Serial Plotter." },
     ],
     prereqs: ["ohms-law", "components"],
-    resources: ["mcwhorter", "arduino-examples", "arduino-docs", "wokwi", "tinkercad", "ti-i2c-pullup-calculation", "ti-tmp102-datasheet", "ti-slla272", "wiki-rs485", "arduino-uart-guide"],
+    resources: ["mcwhorter", "arduino-examples", "arduino-docs", "wokwi", "tinkercad", "ti-i2c-pullup-calculation", "ti-tmp102-datasheet", "ti-slla272", "ti-slla070", "wiki-rs485", "arduino-uart-guide"],
     tasks: [
       { id: "b9p1-rs485", text: { zh: "运行 rs485_termination_toy.py，比较 1 Mbps 与 125 kbps 下各臂的字节错误、余量与空闲电流，并写出半双工 DE 的释放时机", en: "Run rs485_termination_toy.py, compare byte errors, margin and idle current per arm at 1 Mbps and 125 kbps, and write when a half-duplex node may release DE" } },
       { id: "b6p1", text: { zh: "运行 i2c_risetime_toy.py，在相同字节下比较弱上拉 / 强上拉 / 长线电容，区分时序标志与实际 ACK", en: "Run i2c_risetime_toy.py with shared bytes for weak/strong pull-ups and long-C; distinguish timing flags from actual ACK" } },

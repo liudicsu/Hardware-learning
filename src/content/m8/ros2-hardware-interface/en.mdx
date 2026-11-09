@@ -448,7 +448,7 @@ At **100 Hz** (period 10 ms) with pinned jitter, the naive path gets **naive_tim
 - **Skipping JointLimiter.** Lesson 8.5's software watchdog does not replace declaring position/velocity limits to ros2_control.
 - **Expecting this site's CI to load your `.so`.** Student package CI ≠ Hardware-learning website CI.
 
-## Batch-6 H2: CAN fault confinement
+## CAN fault confinement
 A generic **CAN backend** can report communication faults to a hardware interface; that does not turn the SO-101's serial servo bus into CAN. Here we add a separate Classic CAN diagnostic model, not another lifecycle SM. **Not CiA402 status bits, not EtherCAT**, and bus-off recovery is **not an e-stop** or permission to re-enable an actuator; keep the independent [8.5 fault-latch/operator-ack path](/en/month/month-8/safety-reliability).
 
 ### Opened rules, exact boundaries

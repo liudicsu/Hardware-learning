@@ -208,7 +208,7 @@ The skew above is about **how many** trajectories each arm contributes. This sec
 
 <Resource id="univla-paper" />
 
-**What the paper does (opened at arXiv 2505.06111; numbers 以论文为准).** UniVLA (Bu et al., RSS 2025) learns latent actions from pairs of video frames in DINOv2 feature space, with a VQ-VAE codebook. Training has two stages:
+**What the paper does (opened at arXiv 2505.06111; numbers 以论文为准).** Other projects also use the name UniVLA; this section means only the paper by Bu et al. (arXiv 2505.06111). UniVLA (Bu et al., RSS 2025) learns latent actions from pairs of video frames in DINOv2 feature space, with a VQ-VAE codebook. Training has two stages:
 
 - **Stage 1:** the instruction (T5 embeddings) is fed to the latent model, so its codes absorb the **task-irrelevant** dynamics, such as other agents or camera shake.
 - **Stage 2:** that codebook is reused and a new set of **task-centric** latent actions is learned.

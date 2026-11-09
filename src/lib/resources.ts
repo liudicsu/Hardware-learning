@@ -452,6 +452,17 @@ export const resources: Record<string, Resource> = {
     license: { zh: "© IEEJ；仅提供外链", en: "© IEEJ; external link only" },
     extra: true,
   },
+  "ti-slla070": {
+    id: "ti-slla070",
+    url: "https://www.ti.com/lit/an/slla070/slla070.pdf",
+    title: { zh: "TI SLLA070：RS-422 与 RS-485 标准概述及系统配置（Rev. D）", en: "TI SLLA070: RS-422 and RS-485 Standards Overview and System Configurations (Rev. D)" },
+    author: "Texas Instruments",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: { zh: "第 3 节：总线空闲时差分电压悬空或接近零，接收器可能被误触发；内部与外部失效保护。延伸阅读。", en: "Section 3: during bus idle the differential voltage floats or sits near zero and can falsely trigger the receiver; internal and external failsafe. Further reading." },
+    license: { zh: "© Texas Instruments；仅提供外链", en: "© Texas Instruments; external link only" },
+    extra: true,
+  },
   "ti-slla272": {
     id: "ti-slla272",
     url: "https://www.ti.com/lit/an/slla272/slla272.pdf",
