@@ -502,6 +502,320 @@ Lesson 5 builds the SO-101 arm, and its printed parts take many hours of printer
 
 Lesson 3 takes the same idea further: gears and <Term id="backlash">backlash</Term>. A gearbox is a stack of fits, and every loose fit becomes position error at the output. The tolerance-gauge numbers you wrote down earlier in this lesson are the numbers you will use there.
 
+## Pressure advance on a corner: K = 0, a tuned K and too much K
+
+The subsection on flow, pressure advance and retraction above says what pressure advance does and how to read the tower. This section puts numbers on one corner: the same toolpath and the same melt, with only `K` changed. It is **not** the snap-fit strain toy, and it is **not** Marlin's or Klipper's planner.
+
+<Resource id="marlin-lin-advance" />
+
+**Sources actually opened (HTML body read).**
+
+- **Marlin — Linear Advance:** by default the extruder moves in linear proportion to the other axes, but an extruder is not a linear system, so extra material comes out at the end of each move and corners bleed; LIN_ADVANCE decouples extrusion from the other axes to control the pressure in the nozzle. In v1.5, K has the unit mm of filament compression per 1 mm/s of extrusion speed, and typical values are around 0.1–2.0. If the advance needs more extruder speed than the extruder jerk limit allows, Marlin lowers the print acceleration for that move. A K that is too low gives a starved line when the head speeds up and too much material when it slows down; a K that is too high reverses that picture. Slicer options such as "coast at end" should be disabled because they interfere. 以原文为准.
+- **Klipper — Kinematics and Pressure advance:** pressure rises when filament is pushed in (Hooke's law) and the flow is set by the nozzle orifice, modelled with one linear coefficient: `pa_position = nominal_position + pressure_advance × nominal_velocity`; during deceleration the extra filament is retracted, so the extruder runs backwards; Klipper also smooths the extruder motion (not modelled here). The tuning tower raises the value per layer (`FACTOR=.005` for direct drive); layers below the ideal value blob at the corners, layers above it give rounded corners and poor extrusion leading up to the corner; typical values are 0.050–1.000, the high end mostly Bowden; temperature and extrusion rate affect the value, and the test runs at a high flow rate. 以原文为准.
+
+<Resource id="klipper-pressure-advance" />
+
+### A melt that stores pressure
+
+Treat the filament between the drive gear and the nozzle as a spring with a leak. `s` is how many millimetres of filament are compressed in the hot end; the feed pushes it up, the flow out of the nozzle `q(s)` drains it:
+
+<Formula label="Melt state">ds/dt = feed(t) − q(s),   q = q_ref × (s / s_ref)^(1/n),   s_ref = K_true × q_ref</Formula>
+
+With `n = 1` this is Marlin's linear spring: at steady flow `q` the compression is `s = K_true × q`, so `K` really is "mm of compression per mm/s", and it is also the time constant of the lag, in seconds. `n < 1` is a shear-thinning stand-in: the local slope `ds/dq` then changes with flow, so one linear `K` cannot be exact at every speed. Pressure advance adds `K × k_e × dv` to the feed, which is Klipper's `nominal + K × velocity` written per step.
+
+**Worked example — a 100 mm/s line braking for a corner.** Linear melt, `K_true = 0.06 s`, `k_e = 0.0333` mm of filament per mm of path, braking from 100 to 5 mm/s at 3000 mm/s²:
+
+```text
+flow at 100 mm/s: q = 0.0333 × 100 = 3.33 mm/s; stored compression s = 0.06 × 3.33 = 0.200 mm
+brake time = (100 − 5) / 3000 = 31.7 ms, shorter than the 60 ms lag: the stored pressure is still there at the corner
+K = 0.06:   feed = 0.0333 × (v − 0.06 × 3000) = 0.0333 × (v − 180) -> −2.66 mm/s at 100, −5.83 mm/s at 5 (retracting)
+K = 0.18:   feed = 0.0333 × (v − 540)                             -> −14.65 to −17.82 mm/s: it pulls too much back
+```
+
+Without advance the leftover compression keeps pushing plastic while the head crawls through the corner: a bulge. A matched advance retracts exactly what the melt has stored; three times too much starves the line before the corner, the "poor extrusion leading up to the corner" Klipper describes.
+
+**Integration step and its stability criterion.** The toy steps `s` with explicit Euler. For `ds/dt = −λ s`, explicit Euler is stable only when `DT < 2 / λ`. Here the local `λ = dq/ds = q / (n × s)`; for a linear melt it is `1 / K_true`. The toy records the largest `λ` it meets on every run (25.84 1/s, so the limit is 77.41 ms) and asserts `DT × λ_max < 2`. It uses `DT = 0.1 ms` for path resolution (0.01 mm of travel per step at 100 mm/s, against 0.5 mm width bins), not for stability. The independent tests check that a linear melt decays at 0.98× the limit and grows at 1.02×, and that halving `DT` changes the corner RMS width error by under 5 %.
+
+### Fair setup
+
+`pressure_advance_corner_toy.py` is **synthetic** and stdlib only. **Model assumptions:** a 1-D compressible melt stand-in (one state, no nozzle geometry, no temperature dynamics); `q = 0` when `s ≤ 0`, so the nozzle cannot suck plastic back; no extruder torque, jerk or acceleration limit, so the toy does **not** model Marlin lowering the acceleration or Klipper's extruder skipping at high K; no smoothing; a trapezoidal planner stand-in with one corner speed; line width per 0.5 mm bin is deposited volume over nominal, times a filament-diameter error (sd 0.4 %, per bin). The tuned K is what a tower would give: the local slope `n × K_true` at 100 mm/s, times a reading error (sd 15 %), rounded to the tower step of 0.005 s.
+
+| Arm | K |
+|---|---|
+| A_K0 | 0 (advance off) |
+| B_tuned | the tower reading |
+| C_over | 3 × the tower reading |
+
+**Common random numbers:** for each (regime, seed) the melt `K_true` (0.04–0.08 s), the exponent `n` (0.75–1.0), the tower reading error and the whole filament-diameter sequence are drawn once and shared by all three arms. The arms differ **only** in `K`. Five seeds; metrics per seed: `bulge_%` the largest width excess, `starve_%` the largest width deficit, `rms_width_%` the RMS width error over the path; reported as mean±sd over seeds.
+
+| Regime | Cruise | Accel | Corner speed | Path |
+|---|---|---|---|---|
+| sharp_corner | 100 mm/s | 3000 mm/s² | 5 mm/s | 4 edges × 30 mm |
+| slow_corner | 25 mm/s | 500 mm/s² | 5 mm/s | 4 edges × 30 mm |
+| steady_straight | 60 mm/s | — | — | one 120 mm line at constant speed |
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-3/fdm-printing
+python3 pressure_advance_corner_toy.py
+```
+
+<CodeSource path="examples/month-3/fdm-printing/pressure_advance_corner_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Pressure / linear advance on a shared corner path: K=0 vs tuned K vs over-tuned K.
+
+Synthetic, stdlib only.  Not Marlin's or Klipper's planner, not a bit-exact
+stepper ISR, and not the snap_fit strain toy.  Real printer calibration:
+本页未运行.  Marlin / Klipper statements are 以原文为准.
+
+Melt stand-in (1-D, compressible):
+    ds/dt = feed(t) - q(s)        s = filament compression in the hot end [mm]
+    q(s)  = q_ref * (s / s_ref) ** (1 / n),  s_ref = K_true * q_ref,  q(s <= 0) = 0
+n = 1 is the linear spring of Marlin's unit "mm of compression per mm/s";
+n < 1 is a shear-thinning stand-in, so a single linear K cannot be exact.
+Feed with advance K (Klipper's pa_position = nominal + K * nominal_velocity):
+    feed step = k_e * v * DT + K * k_e * (v_next - v)
+Arms: A_K0 (K = 0), B_tuned (K read off a tuning tower), C_over (3 x B's K).
+
+Common random numbers: per (regime, seed) the melt K_true, the exponent n,
+the tower reading error and the filament-diameter sequence are drawn once
+and shared by all three arms.  Arms differ only in K.
+
+Explicit Euler is stable for this scalar ODE when DT < 2 / lambda_max with
+lambda = dq/ds = q / (n s); the toy records the largest lambda it meets on
+every run and asserts DT * lambda_max < 2.
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+DT = 1e-4                 # s
+K_E = 0.0333              # mm filament per mm of path (0.4 x 0.2 mm bead / 2.405 mm^2 of 1.75 mm filament)
+BIN = 0.5                 # mm of path per width bin
+CAL_SPEED = 100.0         # mm/s: the tuning tower runs at high flow (Klipper's advice)
+TOWER_STEP = 0.005        # s: K resolution of the tower
+OVER = 3.0                # C_over uses 3 x the tuned K
+NUM_ZERO = 1e-9           # |m| and sd both below this: floating-point residue, not a gap
+
+# name: (cruise mm/s, accel mm/s^2, corner mm/s, corners, edge mm)
+REGIMES = {
+    "sharp_corner": (100.0, 3000.0, 5.0, 4, 30.0),
+    "slow_corner": (25.0, 500.0, 5.0, 4, 30.0),
+    "steady_straight": (60.0, 3000.0, 60.0, 1, 120.0),
+}
+ARMS = ("A_K0", "B_tuned", "C_over")
+
+
+def shared_draws(regime, seed):
+    """Common random numbers: one melt, one tower reading, one filament for all arms."""
+    rng = random.Random(f"{regime}/{seed}")
+    k_true = rng.uniform(0.04, 0.08)          # s, direct-drive PLA stand-in
+    n = rng.uniform(0.75, 1.0)
+    read_err = rng.gauss(0.0, 0.15)           # relative error reading the tower
+    dia = [rng.gauss(0.0, 0.004) for _ in range(2000)]   # relative filament-diameter error per bin
+    return k_true, n, read_err, dia
+
+
+def tuned_k(k_true, n, read_err):
+    # Local slope ds/dq at the tower's flow is n * K_true; the eye adds read_err, the tower quantizes.
+    return max(0.0, round(n * k_true * (1.0 + read_err) / TOWER_STEP) * TOWER_STEP)
+
+
+def speed_profile(cruise, accel, corner, corners, edge):
+    """Planner stand-in: per edge accelerate from `corner` (or cruise at the start) to cruise, brake to `corner`."""
+    vs = []
+    for c in range(corners):
+        v = cruise if c == 0 else corner
+        end = corner if c < corners - 1 else cruise
+        x = 0.0
+        while x < edge:
+            rem = edge - x
+            v_next = min(cruise, v + accel * DT, math.sqrt(end * end + 2.0 * accel * max(rem - v * DT, 0.0)))
+            vs.append(v)
+            x += v * DT
+            v = v_next
+    vs.append(v)
+    return vs
+
+
+def flow(s, q_ref, s_ref, n):
+    return 0.0 if s <= 0.0 else q_ref * (s / s_ref) ** (1.0 / n)
+
+
+def run(regime, seed, arm):
+    cruise, accel, corner, corners, edge = REGIMES[regime]
+    k_true, n, read_err, dia = shared_draws(regime, seed)
+    kb = tuned_k(k_true, n, read_err)
+    k = {"A_K0": 0.0, "B_tuned": kb, "C_over": OVER * kb}[arm]
+    q_ref = K_E * CAL_SPEED
+    s_ref = k_true * q_ref
+    vs = speed_profile(cruise, accel, corner, corners, edge)
+    s = s_ref * ((K_E * vs[0]) / q_ref) ** n   # start in steady state at the first speed
+    x, dep, lam_max = 0.0, {}, 0.0
+    feed_min, feed_max = float("inf"), float("-inf")
+    for i in range(len(vs) - 1):
+        v, v_next = vs[i], vs[i + 1]
+        feed = K_E * v * DT + k * K_E * (v_next - v)
+        feed_min, feed_max = min(feed_min, feed / DT), max(feed_max, feed / DT)
+        q = flow(s, q_ref, s_ref, n)
+        if s > 0.0:
+            lam_max = max(lam_max, q / (n * s))
+        b = int(x / BIN)
+        dep[b] = dep.get(b, 0.0) + q * DT
+        s += feed - q * DT
+        x += v * DT
+    assert DT * lam_max < 2.0, (regime, seed, arm, lam_max)
+    nb = int(x / BIN)
+    rel = [dep.get(b, 0.0) * (1.0 + dia[b % len(dia)]) ** 2 / (K_E * BIN) - 1.0 for b in range(nb)]
+    return {
+        "bulge": 100.0 * max(0.0, max(rel)),
+        "starve": 100.0 * max(0.0, -min(rel)),
+        "rms": 100.0 * math.sqrt(sum(r * r for r in rel) / len(rel)),
+        "lam": lam_max, "k": k, "emin": feed_min, "emax": feed_max,
+    }
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def main():
+    print("Synthetic 1-D compressible-melt pressure-advance toy; arms differ only in K; shared melt / tower / filament draws; not a real printer")
+    print(f"DT={DT} s K_E={K_E} mm/mm bin={BIN} mm; tower at {CAL_SPEED:.0f} mm/s, step {TOWER_STEP} s; C_over = {OVER:.0f} x tuned K; seeds={len(SEEDS)}")
+    res = {r: {a: [run(r, s, a) for s in SEEDS] for a in ARMS} for r in REGIMES}
+    lam = max(x["lam"] for r in res.values() for a in r.values() for x in a)
+    print(f"Euler stability: largest lambda = dq/ds met on any run {lam:.2f} 1/s -> need DT < 2/lambda_max = {2.0 / lam * 1000:.2f} ms; DT={DT * 1000:.1f} ms ok")
+    for seed in SEEDS:
+        k_true, n, read_err, _ = shared_draws("sharp_corner", seed)
+        print(f"  sharp_corner seed {seed}: K_true={k_true:.4f} s n={n:.3f} local slope n*K_true={n * k_true:.4f} s tuned K={tuned_k(k_true, n, read_err):.3f} s")
+    print("regime arm bulge_% starve_% rms_width_% K_s  extruder_feed_min..max_mm/s  (mean+-sd over seeds)")
+    for r, (cruise, accel, corner, corners, edge) in REGIMES.items():
+        print(f"{r} (cruise {cruise:.0f} mm/s, accel {accel:.0f} mm/s^2, corner {corner:.0f} mm/s, {corners} edge(s) x {edge:.0f} mm)")
+        for a in ARMS:
+            xs = res[r][a]
+            cols = " ".join(f"{num(mean_sd([x[m] for x in xs])[0])}+-{num(mean_sd([x[m] for x in xs])[1])}" for m in ("bulge", "starve", "rms"))
+            kk = mean_sd([x["k"] for x in xs])[0]
+            print(f"  {a} {cols} K={kk:.4f} feed {min(x['emin'] for x in xs):.2f}..{max(x['emax'] for x in xs):.2f}")
+        for other in ("A_K0", "C_over"):
+            for m in ("bulge", "starve", "rms"):
+                xa, xb = [x[m] for x in res[r][other]], [x[m] for x in res[r]["B_tuned"]]
+                print(f"  paired {other[0]}-B {m}: {verdict(xa, xb)}")
+    print("No winner declared: advance only acts on speed changes; a tuned K shrinks corner bulge and an over-tuned K starves the line; the melt is a 1-D stand-in")
+    print("Real printer / tuning tower: 本页未运行; Marlin / Klipper numbers 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic 1-D compressible-melt pressure-advance toy; arms differ only in K; shared melt / tower / filament draws; not a real printer
+DT=0.0001 s K_E=0.0333 mm/mm bin=0.5 mm; tower at 100 mm/s, step 0.005 s; C_over = 3 x tuned K; seeds=5
+Euler stability: largest lambda = dq/ds met on any run 25.84 1/s -> need DT < 2/lambda_max = 77.41 ms; DT=0.1 ms ok
+  sharp_corner seed 0: K_true=0.0698 s n=0.936 local slope n*K_true=0.0654 s tuned K=0.050 s
+  sharp_corner seed 1: K_true=0.0490 s n=0.834 local slope n*K_true=0.0408 s tuned K=0.040 s
+  sharp_corner seed 2: K_true=0.0744 s n=0.991 local slope n*K_true=0.0737 s tuned K=0.065 s
+  sharp_corner seed 3: K_true=0.0641 s n=0.874 local slope n*K_true=0.0560 s tuned K=0.050 s
+  sharp_corner seed 4: K_true=0.0790 s n=0.988 local slope n*K_true=0.0781 s tuned K=0.090 s
+regime arm bulge_% starve_% rms_width_% K_s  extruder_feed_min..max_mm/s  (mean+-sd over seeds)
+sharp_corner (cruise 100 mm/s, accel 3000 mm/s^2, corner 5 mm/s, 4 edge(s) x 30 mm)
+  A_K0 191.2359+-9.4373 29.7687+-3.1951 28.4934+-1.7340 K=0.0000 feed 0.17..3.33
+  B_tuned 25.3353+-17.0094 10.5085+-10.3927 4.5790+-1.7662 K=0.0590 feed -9.06..12.30
+  C_over 26.3638+-5.5818 99.7746+-0.4874 20.1822+-1.6778 K=0.1770 feed -27.56..30.29
+  paired A-B bulge: 165.9007+-18.7792: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B starve: 19.2602+-12.3244: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  paired A-B rms: 23.9144+-1.8771: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B bulge: 1.0286+-19.6914: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired C-B starve: 89.2661+-10.3383: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B rms: 15.6032+-3.0591: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+slow_corner (cruise 25 mm/s, accel 500 mm/s^2, corner 5 mm/s, 4 edge(s) x 30 mm)
+  A_K0 67.3759+-1.2084 22.8227+-0.4646 9.3954+-0.1906 K=0.0000 feed 0.17..0.83
+  B_tuned 17.5018+-9.6060 6.4698+-2.4846 2.5897+-1.1430 K=0.0600 feed -1.00..2.00
+  C_over 22.0273+-5.4284 56.2295+-11.2604 8.3841+-1.7966 K=0.1800 feed -3.35..4.33
+  paired A-B bulge: 49.8740+-8.5664: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B starve: 16.3530+-2.8234: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B rms: 6.8057+-1.0347: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B bulge: 4.5254+-14.9714: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired C-B starve: 49.7598+-13.7362: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B rms: 5.7944+-2.9385: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+steady_straight (cruise 60 mm/s, accel 3000 mm/s^2, corner 60 mm/s, 1 edge(s) x 120 mm)
+  A_K0 2.8075+-0.3798 2.4622+-0.2221 0.9958+-0.0275 K=0.0000 feed 2.00..2.00
+  B_tuned 2.8075+-0.3798 2.4622+-0.2221 0.9958+-0.0275 K=0.0500 feed 2.00..2.00
+  C_over 2.8075+-0.3798 2.4622+-0.2221 0.9958+-0.0275 K=0.1500 feed 2.00..2.00
+  paired A-B bulge: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B starve: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B rms: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B bulge: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B starve: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B rms: 0.0000+-0.0000: tie: identical on every seed
+No winner declared: advance only acts on speed changes; a tuned K shrinks corner bulge and an over-tuned K starves the line; the melt is a 1-D stand-in
+Real printer / tuning tower: 本页未运行; Marlin / Klipper numbers 以原文为准
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used on this page, in this order: **tie: identical on every seed** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when `|paired mean|` and its sd are both below 1e-9 (no sign count is printed on such a line); **near-tie / small gap, within seed noise** when `|paired mean| ≤ sd`; otherwise a **consistent** gap (`|paired mean| > sd`), called **small** if `|m|` is under 20 % of the smaller arm mean and **clear** otherwise; the 20 % rule only chooses between those two words. Every consistent line carries a same-sign count over the 5 seeds, and any seed with the opposite sign is reported. Gaps are computed from unrounded values.
+
+- **sharp_corner:** bulge A 191.2359±9.4373 %, B 25.3353±17.0094 %, C 26.3638±5.5818 %. **A loses with a clear gap:** paired A−B bulge 165.9007±18.7792 and RMS width 23.9144±1.8771, both same sign on all 5 seeds. On starve A−B is 19.2602±12.3244, clear, but 1 of 5 seeds has the opposite sign: on seed 4 the tower was read high (0.090 s against a local slope of 0.0781 s), so B pulled a little too much back. **C loses with a clear gap:** paired C−B starve 89.2661±10.3383 (C's line nearly breaks, 99.7746±0.4874 % deficit) and RMS 15.6032±3.0591, both same sign on all 5 seeds. On bulge C and B are a **near-tie / small gap, within seed noise** (1.0286±19.6914, 3 of 5 seeds of the opposite sign): too much K does not bulge, it starves. C also asks the extruder for −27.56 to 30.29 mm/s, against −9.06 to 12.30 for B; a real extruder may not have that torque (not modelled).
+- **slow_corner:** the same order with smaller numbers. A−B bulge 49.8740±8.5664, starve 16.3530±2.8234, RMS 6.8057±1.0347, all clear and same sign on all 5 seeds; C−B starve 49.7598±13.7362, clear, same sign on all 5 seeds; C−B bulge 4.5254±14.9714 is a **near-tie**. A slow corner still bulges without advance, because the 5 mm/s corner is slow compared with the melt's lag.
+- **steady_straight:** at constant speed the advance term is `K × dv = 0` on every step, so all three arms feed the same filament: **tie: identical on every seed** on every metric, for A−B and C−B alike. The remaining 0.9958±0.0275 % RMS is the filament-diameter error, which no K touches. This tie is structural, not tuned: pressure advance only acts where the speed changes.
+
+The page **does not declare a universal winner**: a tuned K removes most of the corner bulge, too much K trades the bulge for a starved line, and on a straight line at constant speed K does nothing. Real printer and tuning tower: **本页未运行**.
+
+**180-minute work plan:** 30 min read the Marlin and Klipper pages; 30 min work the braking example by hand; 40 min run the toy and read the three regimes; 40 min change acceleration, corner speed and the over-tuning factor with seeds fixed; 40 min the exercises.
+
+### Exercises
+
+1. Redo the worked example for a Bowden-like `K_true = 0.4 s` at the same speeds. How long is the lag compared with the 31.7 ms brake, and what feed does a matched K command at 5 mm/s?
+2. Show from `shared_draws` that A, B and C see the same melt, the same tower reading and the same filament for a given regime and seed.
+3. From `λ = q / (n × s)`, show that a linear melt with `K_true = 0.04 s` gives `λ = 25 1/s`, and compute the largest stable `DT`.
+4. Set `OVER = 1.5` with seeds fixed. Predict whether C−B starve in `sharp_corner` stays clear before you run.
+5. Before any real printer (本页未运行), explain why the steady_straight **tie** does **not** mean pressure advance is useless on long perimeters.
+
 <Summary>
 
 **Key points**
@@ -515,6 +829,7 @@ Lesson 3 takes the same idea further: gears and <Term id="backlash">backlash</Te
 - Overhang limit from bead geometry: tan θ ≤ w / (2 × h), which gives 45° for a 0.4 mm line on 0.2 mm layers; Tg, not the melting point, limits a part in service (PLA Tg 55–60 °C, PETG Tg 80 °C but heat deflection at 70 °C under 0.455 MPa).
 - Snap strain ε = 1.5 × y × t / L²: with L = 10 mm, t = 1.2 mm and y = 0.8 mm it gives 1.44 %, inside the 1.5 % PLA limit.
 - Break-even: $7.60 saved per revision, so a $219 printer needs about 29 revisions to pay for itself.
+- Pressure advance: on a 100 mm/s corner a tuned K cuts the bulge by 165.9007±18.7792 points against K = 0 (a clear gap, same sign on all 5 seeds), 3 × that K starves the line instead (C−B starve 89.2661±10.3383, clear), and on a constant-speed straight all three **tie** (identical on every seed) — a synthetic melt, not a printer run.
 
 **Common mistakes**
 

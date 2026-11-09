@@ -1,6 +1,16 @@
 # Month 3 plan / 第 3 个月计划
 
-Current / 当前：**M3 2130 min**, Batch-13 PR1. Earlier entries below retain their historical totals.
+Current / 当前：**M3 2310 min**, Batch-14 PR1. Earlier entries below retain their historical totals.
+
+## Batch-14 PR1 — pressure advance corner toy on fdm-printing (+180)
+
+Base `db28b03` (batch-13 closed incl. polish #156; site **30270**). PR1 on M3 host: **M3 2130→2310 (+180)**; M1 moves in the same PR on its own plan. Site **30270→30600**, still 71 lessons.
+
+**H2 / 3.2 fdm-printing:** `fdm-printing` 180→**360**. Toy `pressure_advance_corner_toy.py`: 1-D compressible-melt stand-in ds/dt = feed − q(s), q ∝ s^(1/n); arms K = 0 / tower-tuned K / 3 × tuned K; shared K_true, n, tower reading error and filament-diameter sequence (common random numbers, 5 seeds); explicit Euler DT = 0.1 ms with DT × λ_max < 2 asserted (λ_max 25.84 1/s → 77.41 ms). sharp_corner: A−B bulge 165.9007±18.7792, clear, 5/5; C−B starve 89.2661±10.3383, clear, 5/5; steady_straight: all arms **tie** (identical on every seed). ≠ snap_fit; not Marlin / Klipper planner. Real printer 本页未运行.
+
+**Allocation / 安排:** 30+30+40+40+40=180 minutes.
+
+**Site accounting / 全站核算:** **30600=30270+330** with M1 +150 on month-1-plan.md; **M3=2310**, **71 lessons**.
 
 ## Batch-13 PR1 — lead–lag compensation on pid-control (+180)
 

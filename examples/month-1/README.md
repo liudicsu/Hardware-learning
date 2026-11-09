@@ -25,3 +25,7 @@ The legacy python-terminal examples are real program runs. / 原 python-terminal
 ## Batch-5 PR1 / 第5批 PR1
 
 `bench-multimeter/dmm_uncertainty_toy.py`: standard-library synthetic simulation, no hardware; expected output in `expected/dmm_uncertainty_toy.txt`, included in `check.sh`. / 标准库合成仿真，不是硬件测量，输出由 `check.sh` 核对。
+
+## bench-multimeter/ — Kelvin four-wire / 开尔文四线
+
+`bench-multimeter/kelvin_four_wire_sense_toy.py`: standard-library synthetic DC model of two-wire vs Kelvin (four-terminal) resistance measurement, no hardware; expected output in `expected/kelvin_four_wire_sense_toy.txt`, included in `check.sh`. / 标准库合成直流模型，对比两线法与开尔文四线法，不是硬件测量，输出由 `check.sh` 核对。

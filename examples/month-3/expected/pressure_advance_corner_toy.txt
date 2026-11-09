@@ -1,0 +1,41 @@
+Synthetic 1-D compressible-melt pressure-advance toy; arms differ only in K; shared melt / tower / filament draws; not a real printer
+DT=0.0001 s K_E=0.0333 mm/mm bin=0.5 mm; tower at 100 mm/s, step 0.005 s; C_over = 3 x tuned K; seeds=5
+Euler stability: largest lambda = dq/ds met on any run 25.84 1/s -> need DT < 2/lambda_max = 77.41 ms; DT=0.1 ms ok
+  sharp_corner seed 0: K_true=0.0698 s n=0.936 local slope n*K_true=0.0654 s tuned K=0.050 s
+  sharp_corner seed 1: K_true=0.0490 s n=0.834 local slope n*K_true=0.0408 s tuned K=0.040 s
+  sharp_corner seed 2: K_true=0.0744 s n=0.991 local slope n*K_true=0.0737 s tuned K=0.065 s
+  sharp_corner seed 3: K_true=0.0641 s n=0.874 local slope n*K_true=0.0560 s tuned K=0.050 s
+  sharp_corner seed 4: K_true=0.0790 s n=0.988 local slope n*K_true=0.0781 s tuned K=0.090 s
+regime arm bulge_% starve_% rms_width_% K_s  extruder_feed_min..max_mm/s  (mean+-sd over seeds)
+sharp_corner (cruise 100 mm/s, accel 3000 mm/s^2, corner 5 mm/s, 4 edge(s) x 30 mm)
+  A_K0 191.2359+-9.4373 29.7687+-3.1951 28.4934+-1.7340 K=0.0000 feed 0.17..3.33
+  B_tuned 25.3353+-17.0094 10.5085+-10.3927 4.5790+-1.7662 K=0.0590 feed -9.06..12.30
+  C_over 26.3638+-5.5818 99.7746+-0.4874 20.1822+-1.6778 K=0.1770 feed -27.56..30.29
+  paired A-B bulge: 165.9007+-18.7792: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B starve: 19.2602+-12.3244: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  paired A-B rms: 23.9144+-1.8771: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B bulge: 1.0286+-19.6914: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired C-B starve: 89.2661+-10.3383: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B rms: 15.6032+-3.0591: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+slow_corner (cruise 25 mm/s, accel 500 mm/s^2, corner 5 mm/s, 4 edge(s) x 30 mm)
+  A_K0 67.3759+-1.2084 22.8227+-0.4646 9.3954+-0.1906 K=0.0000 feed 0.17..0.83
+  B_tuned 17.5018+-9.6060 6.4698+-2.4846 2.5897+-1.1430 K=0.0600 feed -1.00..2.00
+  C_over 22.0273+-5.4284 56.2295+-11.2604 8.3841+-1.7966 K=0.1800 feed -3.35..4.33
+  paired A-B bulge: 49.8740+-8.5664: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B starve: 16.3530+-2.8234: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B rms: 6.8057+-1.0347: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B bulge: 4.5254+-14.9714: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired C-B starve: 49.7598+-13.7362: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B rms: 5.7944+-2.9385: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+steady_straight (cruise 60 mm/s, accel 3000 mm/s^2, corner 60 mm/s, 1 edge(s) x 120 mm)
+  A_K0 2.8075+-0.3798 2.4622+-0.2221 0.9958+-0.0275 K=0.0000 feed 2.00..2.00
+  B_tuned 2.8075+-0.3798 2.4622+-0.2221 0.9958+-0.0275 K=0.0500 feed 2.00..2.00
+  C_over 2.8075+-0.3798 2.4622+-0.2221 0.9958+-0.0275 K=0.1500 feed 2.00..2.00
+  paired A-B bulge: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B starve: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B rms: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B bulge: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B starve: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B rms: 0.0000+-0.0000: tie: identical on every seed
+No winner declared: advance only acts on speed changes; a tuned K shrinks corner bulge and an over-tuned K starves the line; the melt is a 1-D stand-in
+Real printer / tuning tower: 本页未运行; Marlin / Klipper numbers 以原文为准
