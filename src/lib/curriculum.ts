@@ -157,11 +157,12 @@ const month2Lessons: Lesson[] = [
     slug: "arduino-io",
     title: { zh: "Arduino 入门：数字/模拟 IO、PWM 与串口调试", en: "Arduino basics: digital & analog IO, PWM and serial debugging" },
     summary: {
-      zh: "看懂 setup/loop，会读按键和电位器、用 PWM 调亮度，并把串口打印当成主要的调试工具。",
-      en: "Understand setup/loop, read buttons and potentiometers, dim an LED with PWM, and make serial printing your main debugging tool.",
+      zh: "看懂 setup/loop，会读按键和电位器、用 PWM 调亮度，并把串口打印当成主要的调试工具。再把同样的 UART 帧放到 RS-485 差分对上：120 Ω 端接、支线与反射、单端线的共模噪声，以及 DE/RE 换向。",
+      en: "Understand setup/loop, read buttons and potentiometers, dim an LED with PWM, and make serial printing your main debugging tool. Then put the same UART frames on an RS-485 differential pair: 120 Ω termination, stubs and reflections, common-mode noise on a single-ended wire, and DE/RE turnaround.",
     },
-    minutes: 300,
+    minutes: 480,
     objectives: [
+      { zh: "能用 Γ = (Z − Z0)/(Z + Z0) 解释 RS-485 主干两端 120 Ω 端接与支线规则，并在共享载荷、波特率与噪声下比较端接 / 不端接 / 长支线 / 单端的字节错误、余量与空闲驱动电流。", en: "Use Γ = (Z − Z0)/(Z + Z0) to explain 120 Ω termination at both RS-485 trunk ends and the stub rule, and compare terminated, unterminated, long-stub and single-ended arms on byte errors, margin and idle drive with shared payload, baud and noise." },
       { zh: "声明 Rp/Cbus，在共享字节下检查 Sm/Fm/Fm+ 上升时间表和 bit / 高电平 / 灌电流预算，不把标志当丢包。", en: "Declare Rp/Cbus and screen shared bytes against Sm/Fm/Fm+ rise limits plus bit/high-time/sink budgets, without calling flags packet loss." },
       { zh: "能说清 setup() 与 loop() 各自做什么，以及一个只跑一次、另一个反复跑的原因。", en: "Explain what setup() and loop() do and why one runs once while the other repeats." },
       { zh: "能不看资料用 INPUT_PULLUP 接好按键，并说出按下与松开时 digitalRead() 分别返回 LOW 还是 HIGH。", en: "Wire a button with INPUT_PULLUP and state what digitalRead() returns when pressed and released." },
@@ -169,8 +170,9 @@ const month2Lessons: Lesson[] = [
       { zh: "能计算 PWM 的占空比与平均电压（例如 analogWrite(9, 191) 得到 3.75 V），并在串口绘图器里画出一行 name:value 输出。", en: "Calculate PWM duty cycle and average voltage, e.g. analogWrite(9, 191) giving 3.75 V, and plot a serial line in the Serial Plotter." },
     ],
     prereqs: ["ohms-law", "components"],
-    resources: ["mcwhorter", "arduino-examples", "arduino-docs", "wokwi", "tinkercad", "ti-i2c-pullup-calculation", "ti-tmp102-datasheet"],
+    resources: ["mcwhorter", "arduino-examples", "arduino-docs", "wokwi", "tinkercad", "ti-i2c-pullup-calculation", "ti-tmp102-datasheet", "ti-slla272", "wiki-rs485", "arduino-uart-guide"],
     tasks: [
+      { id: "b9p1-rs485", text: { zh: "运行 rs485_termination_toy.py，比较 1 Mbps 与 125 kbps 下各臂的字节错误、余量与空闲电流，并写出半双工 DE 的释放时机", en: "Run rs485_termination_toy.py, compare byte errors, margin and idle current per arm at 1 Mbps and 125 kbps, and write when a half-duplex node may release DE" } },
       { id: "b6p1", text: { zh: "运行 i2c_risetime_toy.py，在相同字节下比较弱上拉 / 强上拉 / 长线电容，区分时序标志与实际 ACK", en: "Run i2c_risetime_toy.py with shared bytes for weak/strong pull-ups and long-C; distinguish timing flags from actual ACK" } },
       { id: "blink-sim", text: { zh: "在 Wokwi 或真板上跑通 Blink，并把闪烁周期改成 200 ms 亮 / 800 ms 灭", en: "Run Blink in Wokwi or on a real board, then change it to 200 ms on / 800 ms off" } },
       { id: "button-pullup", text: { zh: "用 INPUT_PULLUP 接一个按键，按下时点亮 LED，并在串口打印状态变化", en: "Wire a button with INPUT_PULLUP, light the LED while pressed and print each state change to serial" } },
@@ -232,11 +234,12 @@ const month2Lessons: Lesson[] = [
     slug: "motors-drivers",
     title: { zh: "电机、驱动器与编码器闭环", en: "Motors, drivers & your first encoder loop" },
     summary: {
-      zh: "认识四类执行器，理解 H 桥与续流二极管，选对驱动芯片，并用编码器让车轮精确转一整圈。",
-      en: "Meet the four actuator types, understand H-bridges and flyback diodes, pick the right driver, and use an encoder to turn a wheel exactly one revolution.",
+      zh: "认识四类执行器，理解 H 桥与续流二极管，选对驱动芯片，并用编码器让车轮精确转一整圈。再用共享参考的半桥玩具量化 PWM 死区：平均电压误差约 −sign(i)·t_d/T_s·V_dc，过零畸变，以及 sign(i) 补偿在轻载时的过补偿。",
+      en: "Meet the four actuator types, understand H-bridges and flyback diodes, pick the right driver, and use an encoder to turn a wheel exactly one revolution. Then quantify PWM dead time on a shared-reference half-bridge toy: an average error of about −sign(i)·t_d/T_s·V_dc, zero-crossing distortion, and a sign(i) compensator that over-corrects at light load.",
     },
-    minutes: 540,
+    minutes: 720,
     objectives: [
+      { zh: "能从两段死区推导 ΔV ≈ −sign(i)·t_d/T_s·V_dc（1 µs、20 kHz、24 V 为 0.480 V），并在共享参考、母线与负载下比较理想 / 死区 / sign(i) 补偿的基波、三次谐波与过零停留。", en: "Derive ΔV ≈ −sign(i)·t_d/T_s·V_dc from the two dead intervals (0.480 V at 1 µs, 20 kHz, 24 V) and compare ideal, dead-time and sign(i)-compensated arms on fundamental, third harmonic and zero dwell with a shared reference, bus and load." },
       { zh: "用参考一致的 R20/α20 与绕组 Rθ/Cθ，解释 I²R(T) 正反馈、稳态 / 短时温升，并在共享电流下比较温度 / 铜耗 / trips，不混同线束或封装热阻。", en: "Use consistent R20/α20 and winding Rθ/Cθ to explain I²R(T) feedback, steady/short-time heating and shared-current temperature/energy/trips; not harness/package thermal resistance." },
       { zh: "能解释占空比不等于转速，并算出 60 % 占空比在 7.4 V 电池上给出 0.60 × 7.4 V = 4.44 V 平均电压。", en: "Explain why PWM duty is not speed, and calculate 0.60 × 7.4 V = 4.44 V average at 60 % duty." },
       { zh: "能画出 H 桥的四个状态（含刹车与滑行），并说明为什么弃用 L298N：它 2 V 的压降在 1 A 时变成 2.0 W 的热量。", en: "Draw the H-bridge's four states including brake and coast, and reject the L298N whose 2 V drop wastes 2.0 W as heat at 1 A." },
@@ -244,8 +247,9 @@ const month2Lessons: Lesson[] = [
       { zh: "能用编码器 CPR 与减速比算出每转车轮的计数（12 × 120 = 1440），并用 P 控制器把车轮转到恰好一圈。", en: "Compute counts per wheel revolution from CPR and gear ratio (12 × 120 = 1440) and turn a wheel exactly one revolution with a P controller." },
     ],
     prereqs: ["arduino-io", "timing-interrupts", "components"],
-    resources: ["dronebot-l298n", "sparkfun-tb6612", "dronebot-stepper", "simplefoc", "drv8833", "tb6612-breakout", "romi-gearmotor-encoder", "a4988", "sts3215", "ti-driver-package-thermal"],
+    resources: ["dronebot-l298n", "sparkfun-tb6612", "dronebot-stepper", "simplefoc", "drv8833", "tb6612-breakout", "romi-gearmotor-encoder", "a4988", "sts3215", "ti-driver-package-thermal", "esp-idf-mcpwm-deadtime", "wiki-h-bridge", "daido-deadtime-ieej"],
     tasks: [
+      { id: "b9p1-deadtime", text: { zh: "运行 pwm_deadtime_distortion_toy.py，核对 0.480 V 预测、normal 与 light 两个场景，并解释补偿器为何在轻载时过补偿", en: "Run pwm_deadtime_distortion_toy.py, check the 0.480 V prediction across the normal and light scenarios, and explain why the compensator over-corrects at light load" } },
       { id: "b6p1", text: { zh: "运行 winding_thermal_rc_toy.py，检查降额臂确实跳闸，并用解析恒流温升与能量平衡做回归", en: "Run winding_thermal_rc_toy.py, confirm the derate arm trips and check constant-current analytic temperature and energy balance" } },
       { id: "falstad-kick", text: { zh: "在 Falstad 中对比有无续流二极管时，断开电感瞬间的电压尖峰", en: "In Falstad, compare the voltage spike when an inductor is switched off with and without a flyback diode" } },
       { id: "five-speeds", text: { zh: "用 PWM 让一个直流电机正反转、各跑五档速度，记录每档的实际转速", en: "Drive a DC motor forward and back at five PWM speeds and record the actual speed at each" } },

@@ -946,6 +946,260 @@ The ignore and monitor physical peaks both equal **153.001 °C**, with **6709.33
 3. Remove the cutoff but keep the 3.5 A derating limit: predict whether the prolonged stall can still exceed 70 °C. Keep the shared demand fixed.
 4. Separate measured case T, estimated winding T and simulator truth in your notes; list what experiments would identify Rθ/Cθ before any hardware use. Do not infer an insulation class or permitted stall time from this toy.
 
+## PWM dead time: lost volt-seconds and zero-crossing distortion (+180 min)
+
+The H-bridge section said that real driver chips include dead time so that S1 and S2 (or S3 and S4) are never closed together. This section puts a number on what that protection costs. It is **not** FOC current-loop tuning or electrical-angle work (that is [11.2](/en/month/month-11/foc-actuator-lab)), and it is not the winding heat model above. It is the volt-second bookkeeping of one half-bridge leg.
+
+<Resource id="esp-idf-mcpwm-deadtime" />
+<Resource id="wiki-h-bridge" />
+<Resource id="daido-deadtime-ieej" />
+
+**Sources actually opened.** Wikipedia's H-bridge page defines **shoot-through**: closing S1 and S2 together short-circuits the supply. The ESP-IDF v5.2 MCPWM guide explains why dead time exists. The PWM edge says "off", but a MOSFET still needs a small time window to turn off, so the dead-time submodule delays PWM edges by `posedge_delay_ticks` / `negedge_delay_ticks`; setting both to zero bypasses it. Daido & Hayashi (IEEJ Journal of Industry Applications 8(1), 2019, DOI 10.1541/ieejjia.8.41) write the output-voltage error of an inverter leg as a function of current polarity. They describe the conventional feed-forward compensation that adds the error voltage to the reference, and show that near zero current the switches' parasitic capacitance changes the picture. Their equations and measured values are 以原文为准; the toy below does not model parasitic capacitance.
+
+### Where the volts go
+
+During dead time both switches of the leg are OFF, but the inductive load current keeps flowing through a freewheel (body) diode, and **the current's sign picks the diode**. With i > 0 the lower diode conducts and the output sits at the negative rail, so the delayed turn-on of the upper switch is time lost from the high level. With i < 0 the upper diode conducts and the low level loses the same time. Per PWM period the average output therefore moves by about
+
+`ΔV ≈ −sign(i) · t_d / T_s · V_dc`
+
+With t_d = 1 µs, T_s = 50 µs (20 kHz) and V_dc = 24 V this is **0.480 V**, always opposing the current. Because the error flips sign with the current, it acts like a small square wave in phase with the current. That square wave adds odd harmonics and a flat spot where the current crosses zero: **zero-crossing distortion**. When |i| is small enough that the PWM ripple itself crosses zero inside a period, the diode choice flips within the period and the simple formula no longer holds.
+
+### Fair setup
+
+`pwm_deadtime_distortion_toy.py` is **synthetic** and stdlib only. One half-bridge leg drives R = 2 Ω and L = 2 mH to the bus midpoint, so the current can be positive or negative. The R-L response is solved exactly per switching interval, and the dead intervals are integrated in sub-steps with the diode clamp, including the current stopping at zero. All arms share the same 50 Hz reference, V_dc = 24 V, load and centre-aligned 20 kHz carrier. Five seeds give the same per-period ±10 % dead-time jitter to B and C, plus a current-sense noise stream (σ = 0.05 A) that only the compensator reads.
+
+| Arm | What changes |
+|---|---|
+| A_ideal | t_d = 0: ideal complementary PWM, the reference for every comparison |
+| B_td | t_d = 1 µs (±10 % jitter), no correction |
+| C_td_comp | same dead time; duty d' = d + sign(i_meas)·t_d/T_s from a noisy current sample at the period start, using the nominal t_d (it does not see the jitter), duty clipped to [0, 1], **no extra V_dc** |
+
+There are two load scenarios. In **normal**, the reference is 3.6 V (about 1.7 A), well above the ripple. In **light**, the reference is 0.6 V (about 0.29 A), comparable to the roughly 0.15 A peak-to-peak PWM ripple. The metrics are:
+
+- `mean_err_i_pos` / `mean_err_i_neg`: the mean of (period-average output − reference) over periods with average current above +0.05 A or below −0.05 A.
+- `fund_V` and `I1_A`: the fundamental amplitudes of the output voltage and the current.
+- `I3_over_I1_%`: the third-harmonic current relative to the fundamental.
+- `irms_err_vs_A`: the RMS current difference from A under the same seed.
+- `zero_dwell_%`: the share of periods whose average |i| is below 0.02 A.
+
+Results are mean±sd over the five seeds.
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-2/motors-drivers
+python3 pwm_deadtime_distortion_toy.py
+```
+
+<CodeSource path="examples/month-2/motors-drivers/pwm_deadtime_distortion_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic PWM dead-time toy: one half-bridge leg driving an R-L load to the
+bus midpoint (so the current changes sign). NOT FOC, NOT a thermal model, NOT a
+gate-driver certificate. Stdlib only.
+
+Ideal complementary PWM switches the leg between +Vdc/2 and -Vdc/2.
+Dead time td delays each turn-on edge (both switches OFF for td). While both
+are OFF the load current picks the freewheel diode: i>0 -> lower diode ->
+-Vdc/2, i<0 -> upper diode -> +Vdc/2, i=0 -> no conduction (the current stays
+at zero until the next switch turns on). Two dead intervals per period, one of
+which is 'lost', give the average error  dV ~ -sign(i) * td/Ts * Vdc.
+
+All arms share the SAME reference, Vdc, load, PWM carrier and seeds:
+  A_ideal  td = 0
+  B_td     td = 1 us with per-period jitter (shared random draws)
+  C_td_comp same dead time + crude feed-forward duty correction
+           d' = d + sign(i_meas) * td_nom/Ts, using a noisy current sample at
+           the period start (same Vdc, duty clipped to [0, 1])
+Two scenarios: a 'normal' load current well above the ripple, and a 'light'
+load where the current is comparable to the ripple (compensation sign errors).
+Near-zero parasitic-capacitance effects (see Daido & Hayashi) are NOT modelled.
+"""
+import math
+import random
+
+VDC = 24.0
+FSW = 20000.0
+TS = 1.0 / FSW
+TD = 1.0e-6
+TD_JITTER = 0.10      # +-10 % uniform per period, shared by B and C
+F0 = 50.0
+R = 2.0
+L = 2.0e-3
+TAU = L / R
+CYCLES = 6
+WARM = 1              # discard the first cycle
+SENSE_SIGMA = 0.05    # A, current-sense noise used only by the compensator
+SUBSTEPS = 8          # sub-steps inside each dead interval
+SEEDS = (0, 1, 2, 3, 4)
+SCENARIOS = (("normal", 0.30), ("light", 0.05))
+ARMS = ("A_ideal", "B_td", "C_td_comp")
+
+
+def rl_step(i, v, h):
+    """Exact R-L response over h seconds with constant applied voltage v."""
+    if h <= 0:
+        return i, 0.0
+    target = v / R
+    e = math.exp(-h / TAU)
+    i_new = target + (i - target) * e
+    # integral of i over the step (for average-current bookkeeping)
+    integ = target * h + (i - target) * TAU * (1 - e)
+    return i_new, integ
+
+
+def dead_interval(i, h):
+    """Both switches OFF for h seconds: diode clamps by current sign.
+    Returns new current and volt-seconds applied."""
+    vs = 0.0
+    dt = h / SUBSTEPS
+    for _ in range(SUBSTEPS):
+        if i > 0:
+            v = -VDC / 2
+        elif i < 0:
+            v = VDC / 2
+        else:
+            continue   # no conduction, leg floats to the load voltage (0 V here)
+        i_new, _ = rl_step(i, v, dt)
+        if (i > 0) != (i_new > 0) or i_new == 0:
+            # current reaches zero inside the sub-step: clamp, conduction stops
+            frac = math.log((i - v / R) / (0 - v / R)) * TAU / dt if i - v / R != 0 else 1.0
+            frac = min(max(frac, 0.0), 1.0)
+            vs += v * dt * frac
+            i = 0.0
+            continue
+        vs += v * dt
+        i = i_new
+    return i, vs
+
+
+def run(arm, m, seed):
+    rng_td = random.Random(1000 + seed)      # shared jitter stream (B and C)
+    rng_sense = random.Random(2000 + seed)   # sense noise (used by C only)
+    periods = int(round(CYCLES * FSW / F0))
+    i = 0.0
+    out = []
+    for k in range(periods):
+        t = k * TS
+        ref = m * (VDC / 2) * math.sin(2 * math.pi * F0 * (t + TS / 2))
+        d = 0.5 + ref / VDC
+        jitter = 1 + TD_JITTER * (2 * rng_td.random() - 1)
+        sense = i + rng_sense.gauss(0.0, SENSE_SIGMA)
+        td = 0.0 if arm == "A_ideal" else TD * jitter
+        if arm == "C_td_comp":
+            d = d + (1 if sense > 0 else -1) * TD / TS
+        d = min(max(d, 0.0), 1.0)
+        t1 = (1 - d) * TS / 2
+        t2 = (1 + d) * TS / 2
+        i_start = i
+        vs = 0.0
+        # low on [0,t1), dead [t1,t1+td), high on [t1+td,t2), dead [t2,t2+td), low on [t2+td,Ts)
+        hi_on = max(t2 - (t1 + td), 0.0)
+        lo_first = t1
+        lo_last = max(TS - (t2 + td), 0.0)
+        i, _ = rl_step(i, -VDC / 2, lo_first); vs += -VDC / 2 * lo_first
+        dead1 = min(td, t2 - t1)
+        i, dv = dead_interval(i, dead1); vs += dv
+        i, _ = rl_step(i, VDC / 2, hi_on); vs += VDC / 2 * hi_on
+        dead2 = min(td, TS - t2)
+        i, dv = dead_interval(i, dead2); vs += dv
+        i, _ = rl_step(i, -VDC / 2, lo_last); vs += -VDC / 2 * lo_last
+        if k >= WARM * FSW / F0:
+            out.append((ref, vs / TS, 0.5 * (i_start + i)))
+    return out
+
+
+def harmonic(xs, n):
+    """Amplitude of the n-th harmonic of the fundamental over whole cycles."""
+    N = len(xs)
+    cycles = CYCLES - WARM
+    c = sum(x * math.cos(2 * math.pi * n * cycles * j / N) for j, x in enumerate(xs))
+    s = sum(x * math.sin(2 * math.pi * n * cycles * j / N) for j, x in enumerate(xs))
+    return 2 * math.hypot(c, s) / N
+
+
+def stats(vals):
+    mu = sum(vals) / len(vals)
+    sd = math.sqrt(sum((v - mu) ** 2 for v in vals) / (len(vals) - 1)) if len(vals) > 1 else 0.0
+    return mu, sd
+
+
+def main():
+    print("Synthetic half-bridge dead-time toy; Vdc/R/L/td are lesson values, not a driver datasheet")
+    print(f"Vdc_V={VDC:.0f} fsw_kHz={FSW / 1e3:.0f} Ts_us={TS * 1e6:.0f} td_us={TD * 1e6:.1f} jitter=+-{TD_JITTER * 100:.0f}% "
+          f"R_ohm={R:.0f} L_mH={L * 1e3:.0f} f0_Hz={F0:.0f} seeds={len(SEEDS)}")
+    print(f"predicted |dV| = td/Ts*Vdc = {TD / TS * VDC:.3f} V, sign opposite to i (positive i loses volts)")
+    print("shared: reference, Vdc, load, carrier, jitter stream; C only adds a sign(i_meas) duty term")
+    print("scenario arm mean_err_i_pos_V mean_err_i_neg_V fund_V I1_A I3_over_I1_% irms_err_vs_A_A zero_dwell_% (mean+-sd over seeds)")
+    for name, m in SCENARIOS:
+        ideal = {seed: run("A_ideal", m, seed) for seed in SEEDS}
+        for arm in ARMS:
+            pos, neg, fund, i1, i3r, rms, dwell = [], [], [], [], [], [], []
+            for seed in SEEDS:
+                rows = ideal[seed] if arm == "A_ideal" else run(arm, m, seed)
+                ref_rows = ideal[seed]
+                ep = [v - r for (r, v, i) in rows if i > 0.05]
+                en = [v - r for (r, v, i) in rows if i < -0.05]
+                pos.append(sum(ep) / len(ep))
+                neg.append(sum(en) / len(en))
+                fund.append(harmonic([v for _, v, _ in rows], 1))
+                cur = [i for _, _, i in rows]
+                a1 = harmonic(cur, 1)
+                i1.append(a1)
+                i3r.append(100 * harmonic(cur, 3) / a1)
+                rms.append(math.sqrt(sum((a[2] - b[2]) ** 2 for a, b in zip(rows, ref_rows)) / len(rows)))
+                dwell.append(100 * sum(abs(x) < 0.02 for x in cur) / len(cur))
+            cols = [stats(x) for x in (pos, neg, fund, i1, i3r, rms, dwell)]
+            print(f"{name} {arm} " + " ".join(
+                f"{mu:+.3f}+-{sd:.3f}" if j < 2 else f"{mu:.3f}+-{sd:.3f}" for j, (mu, sd) in enumerate(cols)))
+        print(f"{name} reference_fund_V={m * VDC / 2:.3f}")
+    print("No winner is declared: compare the normal and light rows before trusting the compensator")
+    print("Real half-bridge, gate driver and scope: 本页未运行; driver/app-note numbers 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic half-bridge dead-time toy; Vdc/R/L/td are lesson values, not a driver datasheet
+Vdc_V=24 fsw_kHz=20 Ts_us=50 td_us=1.0 jitter=+-10% R_ohm=2 L_mH=2 f0_Hz=50 seeds=5
+predicted |dV| = td/Ts*Vdc = 0.480 V, sign opposite to i (positive i loses volts)
+shared: reference, Vdc, load, carrier, jitter stream; C only adds a sign(i_meas) duty term
+scenario arm mean_err_i_pos_V mean_err_i_neg_V fund_V I1_A I3_over_I1_% irms_err_vs_A_A zero_dwell_% (mean+-sd over seeds)
+normal A_ideal +0.000+-0.000 +0.000+-0.000 3.600+-0.000 1.717+-0.000 0.000+-0.000 0.000+-0.000 0.500+-0.000
+normal B_td -0.474+-0.001 +0.474+-0.001 3.003+-0.000 1.433+-0.000 5.070+-0.019 0.213+-0.000 1.050+-0.061
+normal C_td_comp +0.004+-0.001 -0.003+-0.001 3.597+-0.001 1.717+-0.000 0.218+-0.056 0.009+-0.001 0.810+-0.096
+normal reference_fund_V=3.600
+light A_ideal +0.000+-0.000 -0.000+-0.000 0.600+-0.000 0.286+-0.000 0.000+-0.000 0.000+-0.000 4.500+-0.000
+light B_td -0.283+-0.000 +0.280+-0.000 0.191+-0.000 0.091+-0.000 26.532+-0.008 0.139+-0.000 5.500+-0.000
+light C_td_comp +0.063+-0.009 -0.048+-0.007 0.564+-0.011 0.269+-0.005 12.278+-1.816 0.054+-0.008 2.010+-0.344
+light reference_fund_V=0.600
+No winner is declared: compare the normal and light rows before trusting the compensator
+Real half-bridge, gate driver and scope: 本页未运行; driver/app-note numbers 以原文为准
+```
+
+</SimOutput>
+
+### Read the result before trusting the fix
+
+**Normal load.** B loses **−0.474 V** while i > 0 and gains **+0.474 V** while i < 0, within 0.006 V of the predicted 0.480 V. The small gap comes from periods near zero crossing. The fundamental voltage falls from **3.600 V to 3.003 V**, the current from **1.717 A to 1.433 A**, the third harmonic appears at **5.070 %**, and the zero-crossing dwell roughly doubles (0.500 % → 1.050 %). The sign(i) feed-forward in C brings the errors to **+0.004 / −0.003 V**, the fundamental back to **3.597 V** and the third harmonic down to **0.218 %**.
+
+**Light load.** B's error is only **−0.283 / +0.280 V**, smaller than 0.480 V, because the ripple makes the current change sign inside many periods. The distortion is relatively worse, though: the fundamental collapses from **0.600 V to 0.191 V** and I3/I1 is **26.532 %**. C now **over-corrects**, with errors of **+0.063 / −0.048 V** (the opposite sign). Its I3/I1 is **12.278 ± 1.816 %**, and the spread across seeds comes from the noisy current sign near zero. The compensator helps in both scenarios but needs a current measurement and a known t_d. At light load the sign it relies on is the least trustworthy, which is the region Daido & Hayashi address. **No winner is declared**: B is the honest uncorrected bridge, C is only as good as its sign and t_d estimates, and neither row certifies a real gate driver. A real half-bridge, gate driver and scope: **本页未运行**.
+
+**180-minute work plan:** 45 min derive ΔV from the two dead intervals; 45 min audit the shared reference, carrier, jitter and sense streams; 45 min run and read both scenarios; 30 min perturbations; 15 min write up what a bench measurement would need.
+
+### Exercises
+
+1. Sketch one PWM period for i > 0 and for i < 0. Mark which dead interval moves the output and derive `ΔV ≈ −sign(i)·t_d/T_s·V_dc`; check 0.480 V.
+2. Set `TD` to 0.5 µs and 2 µs. Predict the normal-scenario `mean_err` values before running, then check that they scale with t_d.
+3. Give the compensator a wrong dead time (use 1.5 µs in its duty term only). Predict the sign of the residual error in the normal scenario, then run it.
+4. Raise `SENSE_SIGMA` to 0.2 A and rerun the light scenario. Keep the reference, V_dc and seeds unchanged, and explain what happens to I3/I1 and its spread.
+5. List what you would need to measure a real leg: probe points, the gate driver's actual dead time, and what a current probe must resolve near zero. Keep this as a plan; no real bridge runs on this page.
+
 <Summary>
 
 **Key points**
@@ -960,6 +1214,8 @@ The ignore and monitor physical peaks both equal **153.001 °C**, with **6709.33
 - A minimum duty overcomes the 0.8 V dead band only if it is sized for the lowest battery voltage: 0.8 V / 5.0 V = 0.16.
 
 - Winding R(T)=R20[1+α20(T−20)] creates I²R(T) positive feedback; in the shared-profile thermal RC, Rθ sets steady rise while Cθ limits short-overload heating.
+
+- Dead time t_d keeps both switches of a leg off to prevent shoot-through, but the freewheel diode then sets the output, so the average error is about −sign(i)·t_d/T_s·V_dc (0.480 V at 1 µs, 20 kHz, 24 V); in the shared-reference toy a sign(i) feed-forward fixes the normal load but over-corrects at light load.
 
 **Used next**
 

@@ -1,0 +1,14 @@
+Synthetic RS-485 bounce-lattice + UART 8N1 toy; driver/cable values are lesson values, not a datasheet
+Z0=120ohm Rs=20ohm Voc=+-5V edge=100ns trunk=120m stub=15m v=0.78c one_way_ns=513 loss/pass=0.95 Rx_threshold=+-200mV
+shared payload=17 bytes (525334383500ff55aa0ff020412f42210a) noise: cm_sigma=2.0V tau=200ns diff_sigma=0.08V cm_leak=1% seeds=5
+scenario arm byte_errors framing_errors extra_edges eye_margin_V overshoot_x idle_drive_mA first_error_byte (mean+-sd)
+1Mbps A_term_diff 0.00+-0.00 0.00+-0.00 0.00+-0.00 3.16+-0.02 1.00+-0.00 62.50+-0.00 [-,-,-,-,-]
+1Mbps B_unterm_diff 16.00+-0.00 2.00+-0.00 44.00+-0.00 -5.93+-0.14 4.71+-0.00 0.42+-0.00 [0,0,0,0,0]
+1Mbps B2_stub_diff 0.00+-0.00 0.00+-0.00 0.00+-0.00 3.10+-0.04 1.35+-0.00 62.50+-0.00 [-,-,-,-,-]
+1Mbps C_term_single 6.60+-2.19 0.20+-0.45 322.00+-28.18 -2.01+-0.58 1.00+-0.00 62.50+-0.00 [2,5,0,3,0]
+125kbps A_term_diff 0.00+-0.00 0.00+-0.00 0.00+-0.00 3.12+-0.05 1.00+-0.00 62.50+-0.00 [-,-,-,-,-]
+125kbps B_unterm_diff 0.00+-0.00 0.00+-0.00 0.00+-0.00 2.94+-0.05 2.31+-0.00 0.42+-0.00 [-,-,-,-,-]
+125kbps B2_stub_diff 0.00+-0.00 0.00+-0.00 0.00+-0.00 3.13+-0.01 1.35+-0.00 62.50+-0.00 [-,-,-,-,-]
+125kbps C_term_single 8.00+-1.58 2.40+-1.14 1537.60+-66.97 -2.26+-1.45 1.00+-0.00 62.50+-0.00 [0,0,3,2,0]
+No winner is declared: termination costs idle drive current; low baud hides reflections
+Real transceiver, cable and TDR: 本页未运行; SLLA272 numbers 以原文为准
