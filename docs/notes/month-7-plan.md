@@ -1,5 +1,17 @@
 # Month 7 plan: Simulation, reinforcement learning & 3D perception
 
+Current / 当前：**M7 2250 min**, Batch-12 PR2. Earlier entries below retain their historical totals.
+
+## Batch-12 PR2 / 本月 H4 (+180)
+
+Base `ad9407a` (batch-12 PR1 merged; site **28380**). PR2 on M7 host: **M7 2070→2250 (+180)**; M5 moves in the same PR on its own plan. Site **28380→28740**, still 71 lessons.
+
+- **H4 / depth-pointcloud: 450→630 (+180).** Local PCA normals: k-NN covariance, eigenvector of the smallest eigenvalue (stdlib cyclic Jacobi), flipped toward the viewpoint; neighbourhood size vs noise / curvature; orientation ambiguity. Toy `pointcloud_pca_normals_toy.py`: shared height-field cloud, depth-noise draws and queries (common random numbers, 5 seeds); arms global plane (no per-point normals) / PCA k = 20 / PCA k = 4. flat_low_noise: k = 20 loses to the global plane on angle (paired B−A 0.7449±0.0397°), residual a small but consistent gap in B's favour (metric rewards fitting noise); ripple_noisy: k = 20 wins; fine_ripple_low_noise: k = 4 beats k = 20 on angle (paired B−C 5.2476±0.4954°). ≠ voxel/RANSAC-only; ≠ ICP. Open3D / PCL on a real sensor 本页未运行.
+
+**Allocation / 安排:** 30+30+40+50+30=180 minutes.
+
+**Site accounting / 全站核算:** **28740=28380+360** with M5 +180 on month-5-plan.md; **M7=2250**, **71 lessons**.
+
 Site supplement beyond @DeRonin_'s 6-month roadmap. Proposal: `/workspace/proposals/m7-m8-proposal.md` §2 / §5 / §6.
 Batch 1 (merged #83): scaffold all six lessons; full MDX + examples for **7.1, 7.2, 7.5**.
 Batch 2 (this PR): full MDX + examples for **7.3, 7.4, 7.6**; curriculum promoted; portfolio / grip mass nits.

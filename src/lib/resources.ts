@@ -4913,6 +4913,86 @@ export const resources: Record<string, Resource> = {
     },
     extra: true,
   },
+  "mr-manipulability": {
+    id: "mr-manipulability",
+    url: "https://hades.mech.northwestern.edu/images/7/7f/MR.pdf",
+    title: {
+      zh: "《现代机器人学》预印本 PDF：§5.4 可操作度",
+      en: "Modern Robotics preprint PDF: §5.4 Manipulability",
+    },
+    author: "Kevin M. Lynch and Frank C. Park",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "单位关节速度球映射为椭球 q̇ᵀ(JJᵀ)⁻¹q̇ = 1；半轴 √λᵢ，体积 ∝ √det(JJᵀ)；µ1、µ2（A 的条件数）、µ3 = √det A；力椭球用 (JJᵀ)⁻¹。PDF 正文已用 pdftotext 核验；以原文为准。",
+      en: "The unit joint-rate sphere maps to the ellipsoid q̇ᵀ(JJᵀ)⁻¹q̇ = 1; semi-axes √λᵢ, volume ∝ √det(JJᵀ); µ1, µ2 (condition number of A), µ3 = √det A; the force ellipsoid uses (JJᵀ)⁻¹. PDF body verified with pdftotext; 以原文为准.",
+    },
+    license: {
+      zh: "预印本，© Lynch 与 Park / Cambridge University Press；仅提供外链",
+      en: "Preprint, © Lynch and Park / Cambridge University Press; external link only",
+    },
+    extra: true,
+  },
+  "wiki-manipulability": {
+    id: "wiki-manipulability",
+    url: "https://en.wikipedia.org/wiki/Manipulability_ellipsoid",
+    title: {
+      zh: "Wikipedia：可操作度椭球",
+      en: "Wikipedia: Manipulability ellipsoid",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "椭球 {ξ : ξᵀ(JJᵀ)⁻¹ξ ≤ 1}；主轴由 J 的奇异值分解给出；奇异构型时指标降为零。HTML 正文已核验（小条目）。",
+      en: "The ellipsoid {ξ : ξᵀ(JJᵀ)⁻¹ξ ≤ 1}; axes from the SVD of J; the measure drops to zero at a singular configuration. HTML body verified (a stub).",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "pcl-normal-estimation": {
+    id: "pcl-normal-estimation",
+    url: "https://pcl.readthedocs.io/projects/tutorials/en/latest/normal_estimation.html",
+    title: {
+      zh: "PCL 教程：点云表面法向估计",
+      en: "PCL tutorial: Estimating Surface Normals in a PointCloud",
+    },
+    author: "Point Cloud Library contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "最近邻协方差的特征分析（PCA）给出切平面法向；符号二义，按视点翻转；k / 半径尺度太大会抹平边缘与细节。HTML 正文已核验。",
+      en: "Eigen-analysis (PCA) of the nearest-neighbour covariance gives the tangent-plane normal; the sign is ambiguous and is flipped toward the viewpoint; too large a k / radius smears edges and detail. HTML body verified.",
+    },
+    license: {
+      zh: "以原站条款为准；仅提供外链",
+      en: "See the site's terms; external link only",
+    },
+    extra: true,
+  },
+  "o3d-pcd-normals": {
+    id: "o3d-pcd-normals",
+    url: "https://www.open3d.org/docs/release/tutorial/geometry/pointcloud.html",
+    title: {
+      zh: "Open3D 教程：点云（法向估计）",
+      en: "Open3D tutorial: Point cloud (normal estimation)",
+    },
+    author: "Open3D contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "estimate_normals 用协方差分析取邻域主轴，KDTreeSearchParamHybrid(radius, max_nn)；两个相反候选即法向定向问题；orient_normals_towards_camera_location。HTML 正文已核验。",
+      en: "estimate_normals takes the neighbourhood's principal axis by covariance analysis with KDTreeSearchParamHybrid(radius, max_nn); two opposite candidates are the normal orientation problem; orient_normals_towards_camera_location. HTML body verified.",
+    },
+    license: {
+      zh: "以原站条款为准；仅提供外链",
+      en: "See the site's terms; external link only",
+    },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

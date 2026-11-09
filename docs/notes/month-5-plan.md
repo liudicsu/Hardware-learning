@@ -1,6 +1,16 @@
 # Month 5 current plan / 第5个月当前计划
 
-Current / 当前：M5 **2130 min** (Batch-11 PR2). Older batch entries retain historical totals.
+Current / 当前：**M5 2310 min**, Batch-12 PR2. Older batch entries retain historical totals.
+
+## Batch-12 PR2 / 本月 H3 (+180)
+
+Base `ad9407a` (batch-12 PR1 merged; site **28380**). PR2 on M5 host: **M5 2130→2310 (+180)**; M7 moves in the same PR on its own plan. Site **28380→28740**, still 71 lessons.
+
+- **H3 / kinematics-ik: 390→570 (+180).** Yoshikawa manipulability `w = √det(J Jᵀ) = σ1 σ2 = L1 L2 |sin q2|` and condition number `κ = σ1/σ2` (= Modern Robotics µ1; κ² = µ2) on a planar 2R stand-in with the lesson's link lengths. Toy `manipulability_yoshikawa_toy.py`: shared heading, actuator-rate noise and tip-measurement noise (common random numbers, 5 seeds); arms ignore-w (exact inverse) / keep-w (reach capped where w = 0.3·L1L2) / DLS λ = 0.01 m; resolved-rate explicit Euler with KP·DT = 0.1 < 2. far_from_singularity: A and B **tie, identical on every seed** (monitor never fires); C−A final error a near-tie / small gap within seed noise, RMS and hold rate small but consistent gaps. near_singularity: keep-w loses on tracking (final 2.393±0.032 mm vs 0.029±0.014 mm) but keeps the largest w and calmest hold. ≠ DLS redo; ≠ quaternion chart. Real SO-101 / MoveIt 本页未运行.
+
+**Allocation / 安排:** 30+40+40+40+30=180 minutes.
+
+**Site accounting / 全站核算:** **28740=28380+360** with M7 +180 on month-7-plan.md; **M5=2310**, **71 lessons**.
 
 ## Batch-11 PR2 — discrete LQR / ZOH on state-space-lqr (+180)
 

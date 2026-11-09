@@ -51,6 +51,7 @@ fi
 check grasp_from_mask.txt "$PY" "$M7/perception-to-grasp/grasp_from_mask.py"
 
 check gsplat_collision_toy.txt "$PY" "$M7/depth-pointcloud/gsplat_collision_toy.py"
+check pointcloud_pca_normals_toy.txt "$PY" "$M7/depth-pointcloud/pointcloud_pca_normals_toy.py"
 
 check residual_action_mismatch_toy.txt "$PY" "$M7/rl-foundations/residual_action_mismatch_toy.py"
 
