@@ -1,0 +1,12 @@
+Synthetic stream: 40 tasks x 5 seeds; cases {'transient': 0.5, 'primary_blocked': 0.25, 'needs_human': 0.15, 'unrecoverable': 0.1}
+Rung costs s: {'detect': 1.0, 'primary': 8.0, 'backup': 12.0, 'handoff_wait': 45.0, 'abort': 5.0}; operator 1.5 min/handoff; retry_cap=2 risk_after=3 deadline=120.0s operator_budget=6
+case counts per seed: [[13, 12, 10, 5], [20, 6, 11, 3], [18, 12, 7, 3], [20, 10, 6, 4], [25, 9, 5, 1]]
+arm success auto_success operator_calls operator_min unsafe_retry livelock aborted budget_exhausted_aborts makespan_s
+A_infinite_retry 19.2±3.9 19.2±3.9 0.0±0.0 0.0±0.0 209.0±38.3 20.8±3.9 0.0±0.0 0.0±0.0 2709±385
+B_retry_fallback 26.2±2.6 26.2±2.6 0.0±0.0 0.0±0.0 0.0±0.0 0.0±0.0 13.8±2.6 0.0±0.0 991±79
+C_escalate_ladder 30.2±3.5 26.2±2.6 6.0±0.0 9.0±0.0 0.0±0.0 0.0±0.0 9.8±3.5 7.8±2.6 1241±84
+C operator_budget=0: success 26.2±2.6 operator_calls 0.0±0.0 handoff_failed 0.0±0.0 makespan_s 991±79
+C operator_budget=6: success 30.2±3.5 operator_calls 6.0±0.0 handoff_failed 2.0±1.1 makespan_s 1241±84
+C operator_budget=20: success 35.6±2.1 operator_calls 13.8±2.6 handoff_failed 4.4±2.1 makespan_s 1565±190
+first handoff record (seed 0): {"attempted_skills": ["primary", "primary", "backup"], "escalate_reason": "retry_cap_and_backup_exhausted", "last_obs_summary": "task 0: gripper empty after 3 attempts"}
+Same stream, outcomes and detect signal for every arm; no winner is declared.

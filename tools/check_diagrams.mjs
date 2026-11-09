@@ -3936,8 +3936,8 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 23910, "sros-composition PR1 curriculum: 23910 minutes");
-  for (const [month, expected] of [[1, 1020], [2, 2310], [3, 1470], [4, 2130], [5, 1950], [6, 1560], [7, 2070], [8, 3180], [9, 2940], [10, 2280], [11, 3000]]) {
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 24240, "ibvs-escalate PR2 curriculum: 24240 minutes");
+  for (const [month, expected] of [[1, 1020], [2, 2310], [3, 1470], [4, 2130], [5, 1950], [6, 1560], [7, 2070], [8, 3180], [9, 3270], [10, 2280], [11, 3000]]) {
     ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `current curriculum M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
@@ -5697,6 +5697,66 @@ print("protocol pass")
   execFileSync("python3",[join(root,"tools/test_b8_sros_composition_toys.py")],{cwd:root,encoding:"utf8",env,stdio:"pipe"});
   ok(true,"b8p1 independent exhaustive ACL, grant/material perturbation and shared-work/fault tests executed");
   console.log("sros-composition PR1: exhaustive ACL, shared-work/fault counters, opened Jazzy sources and final whole-lesson summaries locked");
+}
+
+// Batch-8 PR2: IBVS interaction-matrix lite and recovery escalation budget.
+{
+  const read=p=>readFileSync(join(root,p),"utf8"), env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
+  const cases=[
+    ["visual-servoing","ibvs_interaction_matrix_toy",420,
+      ["-2.000   0.000   0.400   0.040  -1.040   0.200","cond=4035.3","null directions=2","wrong_Z_k1.5 PBVS 0/5 7.99e-02","t_err","near_edge PBVS 5/5","near_edge IBVS 0/5","roll_170 IBVS 0/5 9.67e-07±4.38e-07 10.641±0.951 0.003±0.002 5.087±0.441","seeds=5"],
+      ["−λ L⁺ e","2×6","1/Z","PBVS","IBVS","camera retreat|相机后退","wrong_Z_k1.5","near_edge","roll_170","visp-doc.inria.fr","en.wikipedia.org/wiki/Visual_servoing","9.2","10.4"],
+      ["ArUco","PBVS","IBVS","λ","本页未运行"]],
+    ["failure-recovery","recovery_escalate_budget_toy",330,
+      ["A_infinite_retry 19.2±3.9","B_retry_fallback 26.2±2.6 26.2±2.6 0.0±0.0","C_escalate_ladder 30.2±3.5 26.2±2.6 6.0±0.0 9.0±0.0","C operator_budget=0: success 26.2±2.6","C operator_budget=20: success 35.6±2.1","\"attempted_skills\": [\"primary\", \"primary\", \"backup\"]","no winner is declared"],
+      ["escalate_reason","last_obs_summary","attempted_skills[]","RetryUntilSuccessful","num_attempts","-1","Fallback","infinite_retry","retry_fallback","escalate_ladder","unsafe_retry","10.5","intervention-logging"],
+      ["Inner Monologue","Fallback","escalate_reason","last_obs_summary","attempted_skills[]","本页未运行"]]
+  ];
+  const cur=read("src/lib/curriculum.ts"),harness=read("examples/month-9/check.sh");
+  for(const [slug,toy,minutes,outputs,markers,summaryMarkers] of cases){
+    const file=`examples/month-9/${slug}/${toy}.py`,py=read(file).trim(),expected=read(`examples/month-9/expected/${toy}.txt`).trim();
+    ok(execFileSync("python3",[join(root,file)],{cwd:root,encoding:"utf8",env}).trim()===expected,`b8p2 ${toy}: actual expected output`);
+    for(const x of outputs)ok(expected.includes(x),`b8p2 ${toy}: result ${x}`);
+    const host=cur.slice(cur.indexOf(`slug: "${slug}"`)).split("\n  },")[0];
+    ok(host.includes(`minutes: ${minutes}`)&&host.includes(toy),`b8p2 ${slug}: host minutes ${minutes} and toy named`);
+    ok(harness.includes(`${slug}/${toy}.py`)&&harness.includes(`check ${toy}.txt`),`b8p2 ${toy}: month-9 harness compares stdout`);
+    for(const lang of ["en","zh"]){
+      const md=read(`src/content/m9/${slug}/${lang}.mdx`),summary=md.indexOf("<Summary>"),end=md.indexOf("</Summary>");
+      ok(summary>0&&summary===md.lastIndexOf("<Summary>")&&end>summary&&md.slice(end+10).trim()==="",`b8p2 ${slug} ${lang}: sole Summary ends page`);
+      ok(md.includes(py)&&md.includes(expected)&&md.indexOf(py)<summary&&md.indexOf(expected)<summary,`b8p2 ${slug} ${lang}: exact source/stdout before Summary`);
+      const ex=md.lastIndexOf(lang==="en"?"### Exercises":"### 练习");
+      ok(md.includes(`<CodeSource path="${file}" />`)&&ex>md.indexOf(`<CodeSource path="${file}" />`)&&ex<summary,`b8p2 ${slug} ${lang}: code path then exercises before Summary`);
+      const head=lang==="en"?(slug==="visual-servoing"?"## IBVS interaction-matrix lite":"## Escalation budget"):(slug==="visual-servoing"?"## IBVS 交互矩阵 lite":"## 升级预算");
+      const sec=md.slice(md.indexOf(head),summary);
+      ok(md.indexOf(head)>0,`b8p2 ${slug} ${lang}: new section heading`);
+      for(const x of [...markers,"本页未运行"])ok(x.split("|").some(y=>sec.includes(y)),`b8p2 ${slug} ${lang}: mechanism/scope ${x}`);
+      ok(lang==="en"?/synthetic/i.test(sec):sec.includes("合成"),`b8p2 ${slug} ${lang}: synthetic labelled`);
+      ok(lang==="en"?(sec.includes("Five")||sec.includes("five"))&&sec.includes("mean±sd"):sec.includes("五个")&&sec.includes("mean±sd"),`b8p2 ${slug} ${lang}: >=5 seeds with spread`);
+      ok(lang==="en"?/does not pick one|No arm wins everywhere/.test(sec):/玩具不替你选|没有哪一臂处处胜出/.test(sec),`b8p2 ${slug} ${lang}: no presumed winner`);
+      const summ=md.slice(summary,end);
+      for(const x of summaryMarkers)ok(summ.includes(x),`b8p2 ${slug} ${lang}: Summary ${x}`);
+      ok(summ.includes(`${toy}.py`)&&/five seeds|五个种子/.test(summ),`b8p2 ${slug} ${lang}: one added Summary sentence names toy`);
+    }
+    const en=read(`src/content/m9/${slug}/en.mdx`),zh=read(`src/content/m9/${slug}/zh.mdx`);
+    ok(en.split("\n").length===zh.split("\n").length&&(en.match(/```/g)||[]).length===(zh.match(/```/g)||[]).length,`b8p2 ${slug}: en/zh structurally symmetric`);
+  }
+  for(const lang of ["en","zh"]){
+    const md=read(`src/content/m9/visual-servoing/${lang}.mdx`);
+    ok(!/No full IBVS course|不做全套 IBVS。|does \*\*not\*\* teach a full IBVS/.test(md),`b8p2 visual-servoing ${lang}: stale no-IBVS scope removed`);
+    ok(lang==="en"?md.includes("Neither arm sees true depth"):md.includes("两臂都看不到真实深度"),`b8p2 visual-servoing ${lang}: no true-depth oracle`);
+    const fr=read(`src/content/m9/failure-recovery/${lang}.mdx`);
+    ok(lang==="en"?fr.includes("must not be the only success path"):fr.includes("升级不能是唯一的成功路径"),`b8p2 failure-recovery ${lang}: human not the only success path`);
+    ok(lang==="en"?fr.includes("not the Month 8 command-timeout watchdog"):fr.includes("不是第 8 个月的指令超时看门狗"),`b8p2 failure-recovery ${lang}: not 8.5 watchdog`);
+  }
+  const plan=read("docs/notes/month-9-plan.md");
+  ok(plan.startsWith("# Month 9")&&["2940→3270","23910→24240","Batch-8 PR2","240→420","180→330"].every(x=>plan.includes(x)),"b8p2 correct-month plan header and PR2-only accounting");
+  const res=read("src/lib/resources.ts");
+  for(const id of ["visp-ibvs-tutorial","wiki-visual-servoing","btcpp-fallback","btcpp-decorators"])ok(res.includes(`"${id}": {`)&&cur.includes(`"${id}"`),`b8p2 opened source ${id}`);
+  ok(!res.includes("homepages.laas.fr")&&!res.includes("ieeexplore.ieee.org/document/4015997"),"b8p2 unverified LAAS/IEEE pages not cited");
+  ok(read("docs/notes/batch-8-pr2-sources.md").includes("All 195 prior expected"),"b8p2 prior-output/source/model audit");
+  execFileSync("python3",[join(root,"tools/test_b8_ibvs_escalate_toys.py")],{cwd:root,encoding:"utf8",env,stdio:"pipe"});
+  ok(true,"b8p2 independent finite-difference L, pose-scale, rank, CRN and budget tests executed");
+  console.log("ibvs-escalate PR2: shared-estimate PBVS/IBVS, priced escalation ladder, opened sources and Summary placement locked");
 }
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);

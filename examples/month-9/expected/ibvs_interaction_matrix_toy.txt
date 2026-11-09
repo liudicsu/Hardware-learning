@@ -1,0 +1,17 @@
+Synthetic: lambda=0.5 dt=0.1s cap=300 sigma=0.002 FOV=±0.4 seeds=5 target=0.20 m square Z*=0.5 m
+L(x=0.2,y=0.2,Z=0.5) rows:
+   -2.000   0.000   0.400   0.040  -1.040   0.200
+    0.000  -2.000   0.400   1.040  -0.040  -0.200
+4-point stack at s*: eig(L^T L) min=0.0050 max=20.33 cond=4035.3
+2-point stack: rank<6, eig min=2.2e-17 (null directions=2)
+scenario arm lost/5 feat_SSE path_m t_err_m extra_retreat_m
+nominal PBVS 0/5 9.59e-07±5.32e-07 0.512±0.006 0.003±0.002 0.000±0.000
+nominal IBVS 0/5 9.67e-07±4.38e-07 0.536±0.007 0.003±0.002 0.000±0.000
+wrong_Z_k1.5 PBVS 0/5 7.99e-02±1.95e-04 0.568±0.003 0.167±0.000 0.000±0.000
+wrong_Z_k1.5 IBVS 0/5 2.39e-05±1.89e-05 0.668±0.010 0.004±0.002 0.000±0.000
+near_edge PBVS 5/5 4.04e-01±4.89e-02 0.080±0.017 0.200±0.016 0.000±0.000
+near_edge IBVS 0/5 9.67e-07±4.38e-07 0.693±0.008 0.003±0.002 0.071±0.001
+roll_170 PBVS 0/5 9.59e-07±5.33e-07 0.321±0.006 0.003±0.002 0.000±0.000
+roll_170 IBVS 0/5 9.67e-07±4.38e-07 10.641±0.951 0.003±0.002 5.087±0.441
+Shared estimate: same noisy points, model scale k, lambda, cap and FOV for both arms.
+No winner is declared; real camera/OpenCV/robot runs: 本页未运行.

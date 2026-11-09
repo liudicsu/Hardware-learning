@@ -247,6 +247,246 @@ ok: root SUCCESS after GraspPrimary failed twice and GraspBackup ran (True)
 
 至少填三行与你任务相关的模式。表头已区分：看门狗管指令超时；本表管语义失败。
 
+## 升级预算：何时停止重试并交给人
+
+「给重试设上限，然后回退到另一技能或请人帮忙」背后是一条每级都有代价的阶梯：**检测 → 重试（有上限）→ 备用技能 → 人工接管 → 中止**。BehaviorTree.CPP 的 [`RetryUntilSuccessful`](https://www.behaviortree.dev/docs/nodes-library/DecoratorNode) 接收 `num_attempts`，`-1` 表示无限重试；它的 [Fallback](https://www.behaviortree.dev/docs/nodes-library/FallbackNode) 在子节点 FAILURE 后 tick 下一个子节点，最后一个也失败时返回 FAILURE。这两个节点都不决定树用完之后**由谁买单**。这就是升级预算。
+
+| 级 | 玩具代价 | 风险 |
+| --- | --- | --- |
+| 检测（每次抓取后检查夹爪是否为空） | 1 s | 检测错了，所有臂一起受影响 |
+| 主抓取 | 8 s | 在同一堆杂物里重复失败的抓取 |
+| 备用抓取 | 12 s | 换一种接近方式，带来新的失败模式 |
+| 人工接管 | 机器人等待 45 s + 操作员 1.5 分钟 | 操作员预算有限；有些接管仍会失败 |
+| 中止 | 5 s | 任务丢失，但安全且可见 |
+
+### 公平设置
+
+`recovery_escalate_budget_toy.py` 是**合成**的，只用标准库。每个种子抽一条 40 个任务的流，每个任务有隐藏情况——`transient`（主 0.6、备 0.6）、`primary_blocked`（主永不成功、备 0.7）、`needs_human`（只有人能做到，0.9）、`unrecoverable`（谁都不行）——并**预先抽好每个结果**（公共随机数）。三臂看到同一条流、同样的结果和同一个检测信号；只有策略不同：
+
+- **A `infinite_retry`：** 重试主抓取直到每任务 120 s 截止（记账上限，不是看门狗）。
+- **B `retry_fallback`：** `Retry(primary, 2)` → 备用一次 → FAILURE（本课的 BT 形状）。
+- **C `escalate_ladder`：** B 的阶梯，之后在整条流的操作员预算（6 次）内人工接管，否则中止。
+
+`unsafe_retry` 统计某技能在本任务里已失败 3 次之后的再次尝试。五个种子，报 mean±sd。
+
+### 读结果
+
+- **A** 只有在主抓取最终成功时才成功（19.2/40）。遇到 `primary_blocked` 及更难的情况会活锁（20.8 个任务），累计 209 次不安全重试，总耗时最长。无限重试不是坚持，而是缺了预算。
+- **B** **自主**恢复 26.2/40，操作员分钟为零，总耗时最短。大部分恢复来自 Fallback。
+- **C** 保留 B 的 26.2 次自主成功，再靠人多出约 4 次——代价是 6 次呼叫、9 操作员分钟、总耗时 +250 s，且 6 次接管中约 2 次仍失败（不可恢复情况）。预算扫描显示这个权衡：预算 0 与 B 完全相同；预算 20 达到 35.6 次成功，呼叫 13.8 次。
+
+哪一臂「最好」取决于你的一分钟操作员时间相对一个丢失任务值多少；玩具不替你选。升级不能是唯一的成功路径——这里大部分负载由自主各级承担。
+
+### 接管记录格式
+
+一条能让人立刻行动的接管记录至少需要：`escalate_reason`（阶梯为何停下）、`last_obs_summary`（机器人最后看到什么）和 `attempted_skills[]`（按顺序已经试过什么）。玩具打印了第一条记录。把结果记在它旁边；之后合并到 [10.5 干预记录](/zh/month/month-10/intervention-logging) 的干预列——本课不重做那次合并。这也不是第 8 个月的指令超时看门狗、不是 Nav2 恢复，也不是 MTC 过期前缀重验证。**真实机器人与真实操作员控制台：本页未运行。**
+
+```bash
+$ cd ~/Hardware-learning/examples/month-9/failure-recovery
+$ python3 recovery_escalate_budget_toy.py
+```
+
+<CodeSource path="examples/month-9/failure-recovery/recovery_escalate_budget_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""recovery_escalate_budget_toy.py: infinite retry vs Retry+Fallback vs escalation ladder.
+
+Synthetic, stdlib only. One shared task stream per seed: every task has a
+hidden failure case and pre-drawn outcomes (common random numbers), so all
+three arms see the SAME failures and the SAME detect signal (a post-grasp
+"object in gripper" check, assumed correct here). Arms differ only in policy:
+  A infinite_retry      retry the primary grasp until the episode deadline
+  B retry_fallback      Retry(primary, 2) -> backup grasp once -> FAILURE
+  C escalate_ladder     detect -> Retry(primary, 2) -> backup once -> human
+                        handoff (if operator budget left) -> abort
+Explicit rung costs (seconds of robot time, operator minutes) are toy values.
+unsafe_retry = any attempt of a skill that has already failed RISK_AFTER times
+in this task (a stand-in for "repeating a failed grasp into the same clutter").
+usage: python3 recovery_escalate_budget_toy.py
+"""
+from __future__ import annotations
+
+import json
+import random
+import statistics
+
+SEEDS = (0, 1, 2, 3, 4)
+TASKS = 40
+# Hidden case mix (probabilities) and per-attempt success probabilities.
+CASES = (("transient", 0.50), ("primary_blocked", 0.25), ("needs_human", 0.15), ("unrecoverable", 0.10))
+P_SUCCESS = {  # case -> (primary, backup, human)
+    "transient": (0.6, 0.6, 0.95),
+    "primary_blocked": (0.0, 0.7, 0.95),
+    "needs_human": (0.0, 0.0, 0.90),
+    "unrecoverable": (0.0, 0.0, 0.00),
+}
+COST_S = {"detect": 1.0, "primary": 8.0, "backup": 12.0, "handoff_wait": 45.0, "abort": 5.0}
+OPERATOR_MIN = 1.5      # operator minutes per handoff
+DEADLINE_S = 120.0      # per-task episode bookkeeping deadline (not a watchdog)
+RETRY_CAP = 2
+RISK_AFTER = 3
+OPERATOR_BUDGET = 6     # handoffs allowed per 40-task stream (arm C)
+MAX_DRAWS = 40          # pre-drawn uniforms per skill per task
+ARMS = ("A_infinite_retry", "B_retry_fallback", "C_escalate_ladder")
+
+
+def make_stream(seed):
+    rng = random.Random(seed)
+    stream = []
+    for i in range(TASKS):
+        r, acc, case = rng.random(), 0.0, CASES[-1][0]
+        for name, p in CASES:
+            acc += p
+            if r < acc:
+                case = name
+                break
+        draws = {k: [rng.random() for _ in range(MAX_DRAWS)] for k in ("primary", "backup", "human")}
+        stream.append({"id": i, "case": case, "draws": draws})
+    return stream
+
+
+def attempt(task, skill, n):
+    p = P_SUCCESS[task["case"]][("primary", "backup", "human").index(skill)]
+    return task["draws"][skill][n] < p
+
+
+def run_task(arm, task, ops_left):
+    t, tried, fails = 0.0, [], {"primary": 0, "backup": 0}
+    out = {"success": False, "operator_calls": 0, "unsafe": 0, "livelock": False,
+           "aborted": False, "handoff": None}
+
+    def try_skill(skill):
+        nonlocal t
+        if fails[skill] >= RISK_AFTER:
+            out["unsafe"] += 1
+        n = fails[skill]
+        t += COST_S[skill] + COST_S["detect"]
+        tried.append(skill)
+        ok = attempt(task, skill, n)
+        if not ok:
+            fails[skill] += 1
+        return ok
+
+    if arm == "A_infinite_retry":
+        while t + COST_S["primary"] + COST_S["detect"] <= DEADLINE_S:
+            if try_skill("primary"):
+                out["success"] = True
+                break
+        else:
+            out["livelock"] = True
+        out["time"] = t
+        return out
+    for _ in range(RETRY_CAP):
+        if try_skill("primary"):
+            out["success"] = True
+            out["time"] = t
+            return out
+    if try_skill("backup"):
+        out["success"] = True
+        out["time"] = t
+        return out
+    if arm == "C_escalate_ladder" and ops_left > 0:
+        out["operator_calls"] = 1
+        out["handoff"] = {
+            "escalate_reason": "retry_cap_and_backup_exhausted",
+            "last_obs_summary": f"task {task['id']}: gripper empty after {len(tried)} attempts",
+            "attempted_skills": list(tried),
+        }
+        t += COST_S["handoff_wait"]
+        if attempt(task, "human", 0):
+            out["success"] = True
+            out["time"] = t
+            return out
+    t += COST_S["abort"]
+    out["aborted"] = True
+    out["time"] = t
+    return out
+
+
+def run_stream(arm, seed, budget=OPERATOR_BUDGET):
+    ops_left = budget
+    tot = {"success": 0, "operator_calls": 0, "unsafe": 0, "livelock": 0, "aborted": 0,
+           "makespan_s": 0.0, "auto_success": 0, "budget_exhausted_aborts": 0,
+           "handoff_failed": 0}
+    first_handoff = None
+    for task in make_stream(seed):
+        exhausted = arm == "C_escalate_ladder" and ops_left == 0
+        r = run_task(arm, task, ops_left)
+        ops_left -= r["operator_calls"]
+        tot["success"] += r["success"]
+        tot["auto_success"] += r["success"] and not r["operator_calls"]
+        tot["operator_calls"] += r["operator_calls"]
+        tot["handoff_failed"] += r["operator_calls"] and not r["success"]
+        tot["unsafe"] += r["unsafe"]
+        tot["livelock"] += r["livelock"]
+        tot["aborted"] += r["aborted"]
+        tot["budget_exhausted_aborts"] += exhausted and r["aborted"]
+        tot["makespan_s"] += r["time"]
+        if r["handoff"] and first_handoff is None:
+            first_handoff = r["handoff"]
+    return tot, first_handoff
+
+
+def ms(vals, f=".1f"):
+    return f"{statistics.mean(vals):{f}}±{statistics.pstdev(vals):{f}}"
+
+
+def main():
+    print(f"Synthetic stream: {TASKS} tasks x {len(SEEDS)} seeds; cases {dict(CASES)}")
+    print(f"Rung costs s: {COST_S}; operator {OPERATOR_MIN} min/handoff; "
+          f"retry_cap={RETRY_CAP} risk_after={RISK_AFTER} deadline={DEADLINE_S}s operator_budget={OPERATOR_BUDGET}")
+    cases = [sum(t["case"] == c for t in make_stream(s)) for s in SEEDS for c, _ in CASES]
+    print("case counts per seed:", [cases[i:i + 4] for i in range(0, len(cases), 4)])
+    print("arm success auto_success operator_calls operator_min unsafe_retry livelock aborted budget_exhausted_aborts makespan_s")
+    sample = None
+    for arm in ARMS:
+        rows = [run_stream(arm, s) for s in SEEDS]
+        if arm == "C_escalate_ladder":
+            sample = rows[0][1]
+        t = [r[0] for r in rows]
+        print(arm, ms([x["success"] for x in t]), ms([x["auto_success"] for x in t]),
+              ms([x["operator_calls"] for x in t]), ms([x["operator_calls"] * OPERATOR_MIN for x in t]),
+              ms([x["unsafe"] for x in t]), ms([x["livelock"] for x in t]), ms([x["aborted"] for x in t]),
+              ms([x["budget_exhausted_aborts"] for x in t]), ms([x["makespan_s"] for x in t], ".0f"))
+    for b in (0, 6, 20):
+        t = [run_stream("C_escalate_ladder", s, b)[0] for s in SEEDS]
+        print(f"C operator_budget={b}: success {ms([x['success'] for x in t])} operator_calls "
+              f"{ms([x['operator_calls'] for x in t])} handoff_failed {ms([x['handoff_failed'] for x in t])} "
+              f"makespan_s {ms([x['makespan_s'] for x in t], '.0f')}")
+    print("first handoff record (seed 0):", json.dumps(sample, sort_keys=True))
+    print("Same stream, outcomes and detect signal for every arm; no winner is declared.")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic stream: 40 tasks x 5 seeds; cases {'transient': 0.5, 'primary_blocked': 0.25, 'needs_human': 0.15, 'unrecoverable': 0.1}
+Rung costs s: {'detect': 1.0, 'primary': 8.0, 'backup': 12.0, 'handoff_wait': 45.0, 'abort': 5.0}; operator 1.5 min/handoff; retry_cap=2 risk_after=3 deadline=120.0s operator_budget=6
+case counts per seed: [[13, 12, 10, 5], [20, 6, 11, 3], [18, 12, 7, 3], [20, 10, 6, 4], [25, 9, 5, 1]]
+arm success auto_success operator_calls operator_min unsafe_retry livelock aborted budget_exhausted_aborts makespan_s
+A_infinite_retry 19.2±3.9 19.2±3.9 0.0±0.0 0.0±0.0 209.0±38.3 20.8±3.9 0.0±0.0 0.0±0.0 2709±385
+B_retry_fallback 26.2±2.6 26.2±2.6 0.0±0.0 0.0±0.0 0.0±0.0 0.0±0.0 13.8±2.6 0.0±0.0 991±79
+C_escalate_ladder 30.2±3.5 26.2±2.6 6.0±0.0 9.0±0.0 0.0±0.0 0.0±0.0 9.8±3.5 7.8±2.6 1241±84
+C operator_budget=0: success 26.2±2.6 operator_calls 0.0±0.0 handoff_failed 0.0±0.0 makespan_s 991±79
+C operator_budget=6: success 30.2±3.5 operator_calls 6.0±0.0 handoff_failed 2.0±1.1 makespan_s 1241±84
+C operator_budget=20: success 35.6±2.1 operator_calls 13.8±2.6 handoff_failed 4.4±2.1 makespan_s 1565±190
+first handoff record (seed 0): {"attempted_skills": ["primary", "primary", "backup"], "escalate_reason": "retry_cap_and_backup_exhausted", "last_obs_summary": "task 0: gripper empty after 3 attempts"}
+Same stream, outcomes and detect signal for every arm; no winner is declared.
+```
+
+</SimOutput>
+
+### 练习
+
+1. 让检测器对**所有**臂都漏报 10 % 的成功（夹住了却报「空」）。哪一臂为误报付出最多？
+2. 把一分钟操作员时间折算为 N 秒机器人时间、一个丢失任务折算为 M 秒。在这条流上 (N, M) 取何值时 C 的总代价低于 B？
+3. 给接管记录加第四个字段，让操作员能跳过注定失败的 `unrecoverable` 任务。
+
 ## 常见错误
 
 - **只用看门狗覆盖抓空。** 抓空时指令往往仍按时到达。
@@ -256,6 +496,6 @@ ok: root SUCCESS after GraspPrimary failed twice and GraspBackup ran (True)
 
 <Summary>
 
-Inner Monologue：文本反馈闭环、不额外训练 LLM。工程落点：Sequence / Fallback / Retry。与第 8 个月看门狗（指令超时）、第 4 个月 Nav2 恢复互补。`recovery_bt_toy.py`：GraspPrimary 失败 2 次后走 GraspBackup，root SUCCESS。按 `failure_table.md` 填语义失败行。
+Inner Monologue：文本反馈闭环、不额外训练 LLM。工程落点：Sequence / Fallback / Retry。与第 8 个月看门狗（指令超时）、第 4 个月 Nav2 恢复互补。`recovery_bt_toy.py`：GraspPrimary 失败 2 次后走 GraspBackup，root SUCCESS。按 `failure_table.md` 填语义失败行。`recovery_escalate_budget_toy.py` 在五个种子、同一条失败流上比较无限重试、Retry+Fallback 与有上限的「检测→重试→备用→人工→中止」阶梯，为每一级标价（机器人秒数、操作员分钟、不安全重试），并给出接管字段 `escalate_reason`、`last_obs_summary` 与 `attempted_skills[]`，不预设赢家；真实机器人与操作员控制台本页未运行。
 
 </Summary>
