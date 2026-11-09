@@ -49,6 +49,7 @@ else
   if [[ -n "${M7_REQUIRE_NUMPY:-}" ]]; then fail=1; fi
 fi
 check grasp_from_mask.txt "$PY" "$M7/perception-to-grasp/grasp_from_mask.py"
+check antipodal_force_closure_toy.txt "$PY" "$M7/perception-to-grasp/antipodal_force_closure_toy.py"
 
 check gsplat_collision_toy.txt "$PY" "$M7/depth-pointcloud/gsplat_collision_toy.py"
 check pointcloud_pca_normals_toy.txt "$PY" "$M7/depth-pointcloud/pointcloud_pca_normals_toy.py"

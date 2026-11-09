@@ -469,10 +469,506 @@ long baseline costs minimum range and viewpoint occlusion; longer is NOT always 
 4.（40 min）推导均匀噪声的对数期望，对照远深度 MC 与一 / 二阶近似，解释跨零为何需要声明有效性模型。
 5.（25 min）制作包含最近距离、公共视野和遮挡的基线取舍表；真实校正 / 匹配仍未运行。
 
+## 本质矩阵与八点法
+
+前面几节标定的是**一台**相机，并在已经校正好的双目上估算深度误差。这一节讲校正之前的那一步：相机内参 `K` 已知，两幅图里的点已经配好对，怎样恢复两台相机之间的旋转和平移方向？工具是**本质矩阵** `E` 和**八点法**。这一节**不**重写上面的双目深度一节，也**不是**基于图像的视觉伺服，更不是第 7 个月的 PCA 法向量。
+
+<Resource id="wiki-eightpt" />
+
+<Resource id="wiki-essential" />
+
+<Resource id="wiki-epipolar" />
+
+**实际打开过的来源（读过 HTML 正文）。** **Wikipedia — Eight-point algorithm：** Longuet-Higgins（1981）提出它来估计本质矩阵；对归一化图像坐标下的对应点，约束是 `(y′)ᵀ E y = 0`；每对点给齐次方程组贡献一行，`e` 取最小奇异值对应的右奇异向量（`‖e‖ = 1` 下的总体最小二乘）；最后再用一次 SVD 强制内在约束。Hartley（1997）指出，直接用像素坐标效果差，原因是矩阵病态：坐标在 0 到 1000–2000 之间，第三个坐标却是 1；点若集中在 `(700, 700) ± (100, 100)` 这样的小区域，所有向量几乎同向。他的办法是每幅图各自把原点移到质心，再缩放到固定的平均距离（Hartley 论文里是 `√2`；网页渲染出的数字丢了根号），最后 `F = (T′)ᵀ F̄ T`。**Wikipedia — Essential matrix：** 本质矩阵是一个旋转矩阵和一个反对称矩阵的乘积（文中记作 `R S`），所以有两个相等的奇异值和一个零（内在约束）；`E` 只定义到一个尺度；SVD `E = U Σ Vᵀ` 配合 `W` 得到 `R = U W⁻¹ Vᵀ`（或 `U W Vᵀ`），`t` 沿 `U` 的最后一列，共四组候选解，其中只有一组让点同时落在两台相机前方。**Wikipedia — Epipolar geometry：** 极点、经过极点的极线，以及经过两个光心和该点的极平面。以原文为准。
+
+### 从共面约束到九个数
+
+两个相机坐标系之间取 `x2 = R x1 + t`，toy 写成 `E = [t]× R`，并使用标定后的坐标 `y = K⁻¹ (u, v, 1)`：
+
+<Formula label="极线约束">(y′)ᵀ E y = 0,  E = [t]× R</Formula>
+
+把乘积展开，每对对应点给出一个关于 `E` 九个元素的线性方程，这一行是 `(y′₁y₁, y′₁y₂, y′₁, y′₂y₁, y′₂y₂, y′₂, y₁, y₂, 1)`。至少堆八行成 `Y`，取最小奇异值对应的右奇异向量，排成 `3 × 3`，再投影到本质矩阵集合上：做 SVD，把奇异值换成 `(s, s, 0)`，其中 `s = (s₁ + s₂)/2`，最后缩放到单位 Frobenius 范数。同样的九元素做法直接用在像素上，估计的是基础矩阵 `F`，再用 `E = Kᵀ F K` 换回本质矩阵。
+
+**为什么尺度要紧——算例。** 一对像素在 `(900, 500)` 和 `(905, 498)` 附近，原始的一行大约是 `(8.1×10⁵, 4.5×10⁵, 905, 4.5×10⁵, 2.5×10⁵, 498, 900, 500, 1)`：各列相差将近六个数量级，奇异向量主要由大的列决定，像素噪声也按坐标大小被加权。Hartley 变换把每幅图的质心移到原点，再把点缩放到平均距离 `√2`，这一行的每个元素就都是 1 的量级。toy 打印设计矩阵的 `log10(s₁/s₈)`：在 clustered 小区域上，原始像素是 6.54，Hartley 之后是 1.17。
+
+**数值实现。** SVD 用单边 Jacobi（Hestenes）方法直接作用在 `Y` 上，从不构造 `YᵀY`，因为那样会把条件数平方。测试检查：SVD 重构一个随机 `20 × 9` 矩阵，误差在其最大元素的 `10⁻¹⁰` 以内；`V` 正交到 `10⁻¹²`；约束步骤返回 `(s, s, 0)`；Hartley 变换后点的平均距离是 `√2`。
+
+### 公平设置
+
+`eight_point_essential_toy.py` 是**合成**的，只用标准库。**模型假设**：两台针孔相机，`K` 相同且已知（`f = 800 px`，主点 `(640, 360)`，图像 1280 × 720）；**没有**镜头畸变；静止刚性场景，40 个点，深度 4–8 m；相对旋转是绕随机轴转 8°；对应关系已知，**没有外点**（所以不用 RANSAC）；两幅图上的像素噪声都是独立同分布的高斯噪声。
+
+| 组 | 估计方法 |
+|---|---|
+| A_raw_px | 在原始像素上做基本八点法 → `F`，再 `E = Kᵀ F K` |
+| B_hartley_px | 在像素上做 Hartley 归一化八点法 → `F = T₂ᵀ F̄ T₁`，再 `E = Kᵀ F K` |
+| C_calib | 在标定坐标 `K⁻¹ x` 上做基本八点法，不做 Hartley 这一步 |
+
+三组最后都走同一个内在约束步骤。**公共随机数**：每个情形、每个种子的位姿、三维点、40 个留出点和像素噪声都只抽一次，三组读的是同一批带噪像素（C 用 `K⁻¹` 换算）。5 个种子。指标：`e_err` = `min(‖Ê − E‖, ‖Ê + E‖)`，两者都缩放到单位 Frobenius 范数；`epi_px` = 40 个**留出**的无噪点上的平均对称极线距离（像素）；`rot_deg` 和 `t_deg` = 用 SVD 分解出四组解、在训练点上按“点在两台相机前方”投票选出一组之后的旋转误差和平移方向夹角。两视图**看不出平移的尺度**，所以只给方向打分。基线很短时 **`epi_px` 看不见**平移方向的误差（下面会演示），所以四个指标都打印。
+
+| 情形 | 像素噪声 | 基线 | 点的分布 |
+|---|---|---|---|
+| noise_free | 0 | 0.5 m | 整幅图 |
+| pixel_noise | 1 px | 0.5 m | 整幅图 |
+| clustered | 0.5 px | 0.5 m | 小区域 `(900, 500) ± 100 px`（和 Hartley 的例子一样大） |
+| tiny_baseline | 1 px | 0.01 m | 整幅图 |
+
+### 运行标准库 toy
+
+```bash
+cd ~/Hardware-learning/examples/month-5/camera-calibration
+python3 eight_point_essential_toy.py
+```
+
+<CodeSource path="examples/month-5/camera-calibration/eight_point_essential_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic two-view eight-point estimate of the essential matrix E. Stdlib only.
+
+Model assumptions (also stated in the lesson prose):
+  pinhole cameras with the same known K (f = 800 px, principal point (640, 360),
+  1280 x 720 image), no lens distortion, no outliers, static rigid scene;
+  x2 = R x1 + t (camera-1 frame to camera-2 frame), E = [t]x R, and
+  y2^T E y1 = 0 for calibrated coordinates y = K^-1 (u, v, 1).
+  Pixel noise is i.i.d. Gaussian on both images; correspondences are known.
+
+Arms (same noisy pixel correspondences for all three, common random numbers):
+  A_raw_px      basic eight-point on raw pixel coordinates -> F, then E = K^T F K
+  B_hartley_px  Hartley-normalised eight-point on pixels (per image: move the
+                centroid to the origin, scale so the mean distance is sqrt(2)),
+                F = T2^T Fbar T1, then E = K^T F K
+  C_calib       basic eight-point on calibrated coordinates K^-1 x, no Hartley
+                step (already roughly unit-scale, but not re-centred)
+Every arm then gets the same internal-constraint step: SVD, replace the singular
+values by (s, s, 0) with s = (s1 + s2) / 2, and scale to unit Frobenius norm.
+Linear algebra: one-sided Jacobi SVD (Hestenes), no squaring of the design
+matrix, so its condition number s1/s8 is reported as computed.
+
+Metrics per seed (means over points):
+  e_err   min over sign of ||E_hat - E_true||_F, both unit Frobenius norm
+  epi_px  symmetric epipolar distance on 40 held-out clean points, pixels
+  rot_deg rotation error after SVD pose recovery + cheirality vote
+  t_deg   angle between recovered and true translation direction
+
+Labels: tie = identical on every seed; |m| < 1e-9 and sd < 1e-9 = numerically
+zero (floating-point residue), effectively a tie, no sign count; |paired mean| <= sd = near-tie / small
+gap within seed noise; |m| > sd = consistent gap (small if |m| < 20 % of the
+smaller arm mean, else clear), always with a sign count.
+Real camera / OpenCV: 本页未运行. Wikipedia definitions: 以原文为准.
+"""
+from __future__ import annotations
+
+import math
+import random
+
+F_PX, CX, CY, W_IMG, H_IMG = 800.0, 640.0, 360.0, 1280.0, 720.0
+N_PTS, N_TEST = 40, 40
+SEEDS = (0, 1, 2, 3, 4)
+ARMS = ("A_raw_px", "B_hartley_px", "C_calib")
+ROT_DEG = 8.0
+# name, pixel noise sd, baseline (m), image patch (u0, v0, half-width) or None = whole image
+REGIMES = (
+    ("noise_free", 0.0, 0.5, None),
+    ("pixel_noise", 1.0, 0.5, None),
+    ("clustered", 0.5, 0.5, (900.0, 500.0, 100.0)),
+    ("tiny_baseline", 1.0, 0.01, None),
+)
+METRICS = ("e_err", "epi_px", "rot_deg", "t_deg")
+PAIRED = ("e_err", "epi_px", "t_deg")
+
+
+# ---------- small dense linear algebra (lists of rows) ----------
+def matmul(a, b):
+    return [[sum(a[i][k] * b[k][j] for k in range(len(b))) for j in range(len(b[0]))] for i in range(len(a))]
+
+
+def transpose(a):
+    return [list(r) for r in zip(*a)]
+
+
+def matvec(a, v):
+    return [sum(x * y for x, y in zip(r, v)) for r in a]
+
+
+def cross(a, b):
+    return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+
+
+def det3(m):
+    return (m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+            + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]))
+
+
+def skew(t):
+    return [[0.0, -t[2], t[1]], [t[2], 0.0, -t[0]], [-t[1], t[0], 0.0]]
+
+
+def fro(a):
+    return math.sqrt(sum(x * x for r in a for x in r))
+
+
+def svd(a, sweeps: int = 60):
+    """One-sided Jacobi SVD of an m x n matrix (m >= n): returns U (m x n), s (desc), V (n x n)."""
+    m, n = len(a), len(a[0])
+    u = [list(r) for r in a]
+    v = [[1.0 if i == j else 0.0 for j in range(n)] for i in range(n)]
+    for _ in range(sweeps):
+        rotated = False
+        for p in range(n - 1):
+            for q in range(p + 1, n):
+                al = sum(u[i][p] ** 2 for i in range(m))
+                be = sum(u[i][q] ** 2 for i in range(m))
+                ga = sum(u[i][p] * u[i][q] for i in range(m))
+                if abs(ga) <= 1e-15 * math.sqrt(al * be) or ga == 0.0:
+                    continue
+                rotated = True
+                zeta = (be - al) / (2.0 * ga)
+                t = math.copysign(1.0, zeta) / (abs(zeta) + math.sqrt(1.0 + zeta * zeta))
+                c = 1.0 / math.sqrt(1.0 + t * t)
+                s = c * t
+                for row in u:
+                    row[p], row[q] = c * row[p] - s * row[q], s * row[p] + c * row[q]
+                for row in v:
+                    row[p], row[q] = c * row[p] - s * row[q], s * row[p] + c * row[q]
+        if not rotated:
+            break
+    sig = [math.sqrt(sum(u[i][j] ** 2 for i in range(m))) for j in range(n)]
+    order = sorted(range(n), key=lambda j: -sig[j])
+    s_out = [sig[j] for j in order]
+    u_out = [[(u[i][j] / sig[j]) if sig[j] > 0 else 0.0 for j in order] for i in range(m)]
+    v_out = [[v[i][j] for j in order] for i in range(n)]
+    return u_out, s_out, v_out
+
+
+def svd3(e):
+    """3x3 SVD with a proper orthonormal U even when s3 = 0 (u3 = u1 x u2)."""
+    u, s, v = svd(e)
+    u1, u2 = [r[0] for r in u], [r[1] for r in u]
+    u3 = cross(u1, u2)
+    return [[u1[i], u2[i], u3[i]] for i in range(3)], s, v
+
+
+# ---------- geometry ----------
+K = [[F_PX, 0.0, CX], [0.0, F_PX, CY], [0.0, 0.0, 1.0]]
+KINV = [[1 / F_PX, 0.0, -CX / F_PX], [0.0, 1 / F_PX, -CY / F_PX], [0.0, 0.0, 1.0]]
+
+
+def rodrigues(axis, ang):
+    n = math.sqrt(sum(x * x for x in axis))
+    x, y, z = (c / n for c in axis)
+    c, s, C = math.cos(ang), math.sin(ang), 1 - math.cos(ang)
+    return [[c + x * x * C, x * y * C - z * s, x * z * C + y * s],
+            [y * x * C + z * s, c + y * y * C, y * z * C - x * s],
+            [z * x * C - y * s, z * y * C + x * s, c + z * z * C]]
+
+
+def project(p):
+    return [F_PX * p[0] / p[2] + CX, F_PX * p[1] / p[2] + CY]
+
+
+def scene(regime: tuple, seed: int) -> dict:
+    """Common random numbers: pose, 3D points, held-out points and pixel noise are
+    drawn once per (regime, seed) and every arm reads the same lists."""
+    name, sigma, base, patch = regime
+    rng = random.Random(1000 * [r[0] for r in REGIMES].index(name) + seed)
+    rot = rodrigues([rng.gauss(0, 1), rng.gauss(0, 1), rng.gauss(0, 1)], math.radians(ROT_DEG))
+    tdir = [1.0, 0.2 * rng.uniform(-1, 1), 0.2 * rng.uniform(-1, 1)]
+    nt = math.sqrt(sum(x * x for x in tdir))
+    t = [base * x / nt for x in tdir]
+
+    def draw():
+        while True:
+            if patch:
+                u, v = rng.uniform(patch[0] - patch[2], patch[0] + patch[2]), rng.uniform(patch[1] - patch[2], patch[1] + patch[2])
+            else:
+                u, v = rng.uniform(0, W_IMG), rng.uniform(0, H_IMG)
+            z = rng.uniform(4.0, 8.0)
+            p1 = [(u - CX) / F_PX * z, (v - CY) / F_PX * z, z]
+            p2 = [a + b for a, b in zip(matvec(rot, p1), t)]
+            x2 = project(p2) if p2[2] > 0.5 else [-1.0, -1.0]
+            if 0 <= x2[0] <= W_IMG and 0 <= x2[1] <= H_IMG:
+                return project(p1), x2
+
+    train = [draw() for _ in range(N_PTS)]
+    test = [draw() for _ in range(N_TEST)]
+    noisy = [([a + rng.gauss(0, sigma) for a in x1], [a + rng.gauss(0, sigma) for a in x2]) for x1, x2 in train] \
+        if sigma > 0 else [(list(x1), list(x2)) for x1, x2 in train]
+    e_true = matmul(skew(t), rot)
+    nrm = fro(e_true)
+    return {"R": rot, "t": t, "E": [[x / nrm for x in r] for r in e_true], "train": noisy, "test": test}
+
+
+def hartley(pts):
+    cx = sum(p[0] for p in pts) / len(pts)
+    cy = sum(p[1] for p in pts) / len(pts)
+    md = sum(math.hypot(p[0] - cx, p[1] - cy) for p in pts) / len(pts)
+    s = math.sqrt(2.0) / md
+    return [[s, 0.0, -s * cx], [0.0, s, -s * cy], [0.0, 0.0, 1.0]]
+
+
+def apply_h(h, p):
+    q = matvec(h, [p[0], p[1], 1.0])
+    return [q[0] / q[2], q[1] / q[2]]
+
+
+def eight_point(p1, p2):
+    """Rows (x2 x1, x2 y1, x2, y2 x1, y2 y1, y2, x1, y1, 1); e = right singular
+    vector of the smallest singular value. Returns (3x3, condition s1/s8)."""
+    rows = [[b[0] * a[0], b[0] * a[1], b[0], b[1] * a[0], b[1] * a[1], b[1], a[0], a[1], 1.0] for a, b in zip(p1, p2)]
+    _, s, v = svd(rows)
+    e = [r[8] for r in v]
+    return [e[0:3], e[3:6], e[6:9]], s[0] / s[7]
+
+
+def enforce_essential(e):
+    u, s, v = svd3(e)
+    m = (s[0] + s[1]) / 2.0
+    out = matmul(matmul(u, [[m, 0, 0], [0, m, 0], [0, 0, 0]]), transpose(v))
+    n = fro(out)
+    return [[x / n for x in r] for r in out]
+
+
+def estimate(arm: str, train) -> tuple[list, float]:
+    x1 = [a for a, _ in train]
+    x2 = [b for _, b in train]
+    if arm == "A_raw_px":
+        f, cond = eight_point(x1, x2)
+    elif arm == "B_hartley_px":
+        h1, h2 = hartley(x1), hartley(x2)
+        fbar, cond = eight_point([apply_h(h1, p) for p in x1], [apply_h(h2, p) for p in x2])
+        f = matmul(matmul(transpose(h2), fbar), h1)
+    else:
+        e, cond = eight_point([apply_h(KINV, p) for p in x1], [apply_h(KINV, p) for p in x2])
+        return enforce_essential(e), cond
+    return enforce_essential(matmul(matmul(transpose(K), f), K)), cond
+
+
+def triangulate_depths(rot, t, y1, y2):
+    """Least-squares depths (l1, l2) with l2 y2 = l1 R y1 + t."""
+    a = matvec(rot, y1)
+    b = [-x for x in y2]
+    aa, ab, bb = sum(x * x for x in a), sum(x * y for x, y in zip(a, b)), sum(x * x for x in b)
+    ra, rb = -sum(x * y for x, y in zip(a, t)), -sum(x * y for x, y in zip(b, t))
+    det = aa * bb - ab * ab
+    return (ra * bb - ab * rb) / det, (aa * rb - ab * ra) / det
+
+
+def recover_pose(e, train):
+    """Four (R, t) candidates from E = U diag(1,1,0) V^T; keep the one with the most
+    points in front of both cameras (cheirality vote on the training points)."""
+    u, _, v = svd3(e)
+    if det3(u) < 0:
+        u = [[-x for x in r] for r in u]
+    if det3(v) < 0:
+        v = [[-x for x in r] for r in v]
+    w = [[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]]
+    u3 = [r[2] for r in u]
+    ys = [(apply_h(KINV, a) + [1.0], apply_h(KINV, b) + [1.0]) for a, b in train]
+    best = None
+    for rr in (matmul(matmul(u, w), transpose(v)), matmul(matmul(u, transpose(w)), transpose(v))):
+        for sgn in (1.0, -1.0):
+            tt = [sgn * x for x in u3]
+            front = 0
+            for y1, y2 in ys:
+                l1, l2 = triangulate_depths(rr, tt, y1, y2)
+                front += (l1 > 0 and l2 > 0)
+            if best is None or front > best[0]:
+                best = (front, rr, tt)
+    return best[1], best[2]
+
+
+def angle_deg(a, b):
+    c = sum(x * y for x, y in zip(a, b)) / math.sqrt(sum(x * x for x in a) * sum(x * x for x in b))
+    return math.degrees(math.acos(max(-1.0, min(1.0, c))))
+
+
+def rot_err_deg(ra, rb):
+    m = matmul(ra, transpose(rb))
+    return math.degrees(math.acos(max(-1.0, min(1.0, (m[0][0] + m[1][1] + m[2][2] - 1) / 2))))
+
+
+def epi_px(e, pts):
+    f = matmul(matmul(transpose(KINV), e), KINV)
+    tot = 0.0
+    for x1, x2 in pts:
+        p1, p2 = [x1[0], x1[1], 1.0], [x2[0], x2[1], 1.0]
+        l2, l1 = matvec(f, p1), matvec(transpose(f), p2)
+        r = sum(a * b for a, b in zip(p2, l2))
+        tot += 0.5 * (abs(r) / math.hypot(l2[0], l2[1]) + abs(r) / math.hypot(l1[0], l1[1]))
+    return tot / len(pts)
+
+
+def evaluate(arm: str, sc: dict) -> dict:
+    e, cond = estimate(arm, sc["train"])
+    err = min(fro([[a - b for a, b in zip(ra, rb)] for ra, rb in zip(e, sc["E"])]),
+              fro([[a + b for a, b in zip(ra, rb)] for ra, rb in zip(e, sc["E"])]))
+    rot, t = recover_pose(e, sc["train"])
+    return {"e_err": err, "epi_px": epi_px(e, sc["test"]), "rot_deg": rot_err_deg(rot, sc["R"]),
+            "t_deg": angle_deg(t, sc["t"]), "log10_cond": math.log10(cond)}
+
+
+# ---------- reporting (same label rules as the batch-13 lead-lag toy) ----------
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x: float) -> str:
+    """4 decimals, or 3 significant digits in e-notation when 4 decimals would hide it."""
+    if x != 0.0 and abs(x) < 5e-4:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+NUM_ZERO = 1e-9  # |m| and sd both below this: floating-point residue, not a gap
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(mean_sd(xa)[0], mean_sd(xb)[0]):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def main() -> None:
+    print("Synthetic two-view eight-point E; shared scenes / correspondences / pixel noise; not a real camera")
+    print(f"K: f={F_PX:.0f} px c=({CX:.0f},{CY:.0f}) image {W_IMG:.0f}x{H_IMG:.0f}; points={N_PTS} held-out={N_TEST} "
+          f"rotation={ROT_DEG:.0f} deg depth 4-8 m seeds={len(SEEDS)}")
+    print("regime arm e_err epi_px rot_deg t_deg log10_cond(s1/s8)  (mean+-sd over seeds)")
+    for regime in REGIMES:
+        name = regime[0]
+        scenes = [scene(regime, sd) for sd in SEEDS]
+        res = {arm: [evaluate(arm, sc) for sc in scenes] for arm in ARMS}
+        print(f"{name} (sigma={regime[1]} px, baseline={regime[2]} m, "
+              f"{'patch ' + str(int(regime[3][0])) + ',' + str(int(regime[3][1])) + '+-' + str(int(regime[3][2])) + ' px' if regime[3] else 'whole image'})")
+        for arm in ARMS:
+            cells = []
+            for k in METRICS + ("log10_cond",):
+                mu, sd = mean_sd([r[k] for r in res[arm]])
+                cells.append(f"{num(mu)}+-{num(sd)}")
+            print(f"{name} {arm} " + " ".join(cells))
+        for a, b in (("B_hartley_px", "A_raw_px"), ("C_calib", "B_hartley_px")):
+            for k in PAIRED:
+                print(f"{name} paired {a[0]}-{b[0]} {k}: {verdict([r[k] for r in res[a]], [r[k] for r in res[b]])}")
+    print("noise_free: every arm recovers E to round-off; normalisation changes only digits far below any pixel")
+    print("pixel_noise / clustered: raw pixels make s1/s8 huge, so the noise is weighted by coordinate size; Hartley fixes the scale")
+    print("C_calib: K^-1 already gives unit-scale coordinates, so C stays within seed noise of B here; it skips only the re-centring")
+    print("tiny_baseline: every arm loses the translation direction; epi_px stays small because it is blind to t when t is tiny")
+    print("No winner declared; epi_px is blind to the translation direction when the baseline is tiny")
+    print("Real camera / OpenCV: 本页未运行; Wikipedia definitions 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic two-view eight-point E; shared scenes / correspondences / pixel noise; not a real camera
+K: f=800 px c=(640,360) image 1280x720; points=40 held-out=40 rotation=8 deg depth 4-8 m seeds=5
+regime arm e_err epi_px rot_deg t_deg log10_cond(s1/s8)  (mean+-sd over seeds)
+noise_free (sigma=0.0 px, baseline=0.5 m, whole image)
+noise_free A_raw_px 2.253e-15+-1.974e-15 3.125e-13+-1.561e-13 0.0000+-0.0000 0.0000+-0.0000 5.5577+-0.2379
+noise_free B_hartley_px 2.464e-15+-1.360e-15 7.811e-14+-2.535e-14 2.415e-07+-5.400e-07 0.0000+-0.0000 1.9569+-0.0975
+noise_free C_calib 3.468e-15+-2.312e-15 7.910e-14+-2.045e-14 0.0000+-0.0000 0.0000+-0.0000 2.5812+-0.0831
+noise_free paired B-A e_err: 2.116e-16+-2.124e-15: numerically zero (floating-point residue), effectively a tie
+noise_free paired B-A epi_px: -2.344e-13+-1.451e-13: numerically zero (floating-point residue), effectively a tie
+noise_free paired B-A t_deg: 0.0000+-0.0000: tie: identical on every seed
+noise_free paired C-B e_err: 1.004e-15+-3.419e-15: numerically zero (floating-point residue), effectively a tie
+noise_free paired C-B epi_px: 9.909e-16+-3.749e-14: numerically zero (floating-point residue), effectively a tie
+noise_free paired C-B t_deg: 0.0000+-0.0000: tie: identical on every seed
+pixel_noise (sigma=1.0 px, baseline=0.5 m, whole image)
+pixel_noise A_raw_px 0.0989+-0.0576 3.7339+-2.3532 0.3303+-0.0964 5.6811+-3.3411 5.4205+-0.1250
+pixel_noise B_hartley_px 0.0306+-0.0233 3.2873+-1.7495 0.3332+-0.1049 1.8135+-1.3112 2.0212+-0.1577
+pixel_noise C_calib 0.0377+-0.0324 3.1957+-1.5973 0.3338+-0.1161 2.1483+-1.8987 2.5897+-0.1203
+pixel_noise paired B-A e_err: -0.0683+-0.0510: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+pixel_noise paired B-A epi_px: -0.4466+-0.7592: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+pixel_noise paired B-A t_deg: -3.8675+-2.8843: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+pixel_noise paired C-B e_err: 0.0071+-0.0222: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+pixel_noise paired C-B epi_px: -0.0916+-0.2411: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+pixel_noise paired C-B t_deg: 0.3348+-1.3992: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+clustered (sigma=0.5 px, baseline=0.5 m, patch 900,500+-100 px)
+clustered A_raw_px 0.5999+-0.4054 214.6725+-196.0401 49.2720+-49.0183 70.6496+-61.2580 6.5361+-0.0663
+clustered B_hartley_px 0.0811+-0.0481 9.9278+-4.5383 1.8555+-0.9483 4.5822+-3.1396 1.1730+-0.0454
+clustered C_calib 0.2410+-0.2160 11.8221+-5.8744 1.9917+-0.7179 14.1507+-12.1908 3.1419+-0.0440
+clustered paired B-A e_err: -0.5187+-0.3957: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+clustered paired B-A epi_px: -204.7447+-197.8867: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+clustered paired B-A t_deg: -66.0674+-59.7247: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+clustered paired C-B e_err: 0.1598+-0.2233: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+clustered paired C-B epi_px: 1.8943+-1.9309: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+clustered paired C-B t_deg: 9.5685+-12.8298: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+tiny_baseline (sigma=1.0 px, baseline=0.01 m, whole image)
+tiny_baseline A_raw_px 1.1665+-0.2422 1.0263+-0.2911 0.2231+-0.0760 89.9942+-26.0950 6.0408+-0.1898
+tiny_baseline B_hartley_px 0.8434+-0.4921 0.8752+-0.5075 0.2389+-0.1656 64.7202+-45.3131 2.8060+-0.0603
+tiny_baseline C_calib 1.2883+-0.1418 0.8325+-0.3440 0.1714+-0.0768 87.9130+-14.7044 2.9680+-0.0649
+tiny_baseline paired B-A e_err: -0.3231+-0.3811: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+tiny_baseline paired B-A epi_px: -0.1511+-0.6824: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+tiny_baseline paired B-A t_deg: -25.2740+-63.6009: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+tiny_baseline paired C-B e_err: 0.4450+-0.4568: near-tie / small gap, within seed noise (|m| <= sd); same sign on all 5 seeds
+tiny_baseline paired C-B epi_px: -0.0427+-0.5056: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+tiny_baseline paired C-B t_deg: 23.1928+-41.7498: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+noise_free: every arm recovers E to round-off; normalisation changes only digits far below any pixel
+pixel_noise / clustered: raw pixels make s1/s8 huge, so the noise is weighted by coordinate size; Hartley fixes the scale
+C_calib: K^-1 already gives unit-scale coordinates, so C stays within seed noise of B here; it skips only the re-centring
+tiny_baseline: every arm loses the translation direction; epi_px stays small because it is blind to t when t is tiny
+No winner declared; epi_px is blind to the translation direction when the baseline is tiny
+Real camera / OpenCV: 本页未运行; Wikipedia definitions 以原文为准
+```
+
+</SimOutput>
+
+### 读各个情形
+
+本页标签的用法：只有配对的逐种子差值在每个种子上都恰好为零，才叫**打平**；`|配对均值|` 和 sd 都小于 `10⁻⁹` 时叫**数值上为零（浮点残差），等同打平**（在 sd 判据之前检查；这类行不带同号计数，也永远不叫稳定或明显）；`|配对均值| ≤ sd` 叫**接近打平、差距很小，在种子噪声之内**；`|配对均值| > sd` 叫**稳定**差距，其中 `|m|` 小于两组均值中较小者的 20 % 叫**小**，否则叫**明显**（20 % 这条只用来在这两个词之间选）。每条稳定或明显的结论都带 5 个种子里的同号计数，有方向相反的种子都写出来；只靠同号计数，永远不能把差距叫成稳定。配对差是 B−A 和 C−B；负数表示 B（或 C）的误差更小。小于 `5×10⁻⁴` 的数用科学计数法打印，不会把一个差值藏成带负号的零。
+
+- **noise_free——归一化几乎无关紧要**：三组都把 `E` 恢复到舍入误差（`e_err` 约 `2–3×10⁻¹⁵`）。B−A 的 `t_deg` **打平：每个种子都完全相同**。B−A 的 `e_err`（`2.116e-16±2.124e-15`）和 B−A 的 `epi_px`（`−2.344e-13±1.451e-13` px）都是**数值上为零（浮点残差），等同打平**：均值和 sd 都远小于 `10⁻⁹`，所以不带同号计数。归一化确实让每个种子上 `epi_px` 的舍入误差更小，但 `10⁻¹³` 个像素不是有任何价值的差距。C−B 的 `e_err` 和 `epi_px` 两行也落在同一规则下。B 的 `rot_deg` 为 `2.4e-07`°，是 `acos` 在 1 附近的舍入误差。
+- **pixel_noise——B 在 `E` 和位姿上赢，在残差上没赢**：原始设计矩阵的 `log10(s₁/s₈)` 是 5.42，对 2.02。**B 在 `e_err` 上以明显差距赢**（0.0306±0.0233 对 0.0989±0.0576；配对 −0.0683±0.0510，5 个种子全部同号），**在 `t_deg` 上也以明显差距赢**（1.8135±1.3112° 对 5.6811±3.3411°；配对 −3.8675±2.8843，5/5）。留出点上的 `epi_px` 只是**接近打平、差距很小，在种子噪声之内**（3.2873±1.7495 对 3.7339±2.3532 px；配对 −0.4466±0.7592，5 个种子中 2 个符号相反），三组的 `rot_deg` 都在 0.33° 左右。
+- **clustered——正是 Hartley 描述的情况**：原始像素的 `log10(s₁/s₈)` 是 6.54，对 1.17。**B 和 A 的每一项比较都以明显差距获胜，5 个种子全部同号**：`e_err` −0.5187±0.3957，`epi_px` −204.7447±197.8867 px（A 的留出残差是 214.6725±196.0401 px），`t_deg` −66.0674±59.7247°。
+- **C_calib 对 B——归一化的大部分工作已经由 `K⁻¹` 完成**：在 pixel_noise、clustered 和 tiny_baseline 里，C−B 的每一行都是**接近打平、差距很小，在种子噪声之内**（例如 pixel_noise 的 `e_err` 0.0071±0.0222，5 个种子中 2 个相反；clustered 的 `t_deg` 9.5685±12.8298，1 个相反）。`K` 已知时，标定坐标本身就是 1 的量级，尺度问题大部分已经消失；C 只少了把质心移到原点这一步。有一行虽然接近打平，但每个种子都在同一侧：tiny_baseline 的 C−B `e_err` 0.4450±0.4568，5 个种子全部同号——按上面的规则它仍然是接近打平。
+- **tiny_baseline——三组都如实失败**：基线 1 cm、噪声 1 px 时，平移方向丢了：`t_deg` 为 89.9942±26.0950°（A）、64.7202±45.3131°（B）、87.9130±14.7044°（C）；B−A 的 `t_deg` −25.2740±63.6009 **接近打平、差距很小，在种子噪声之内**（5 个种子中 2 个相反）。旋转仍然很准（0.17–0.24°）。**三组的 `epi_px` 都停在 1 px 左右**（0.8–1.0 px）：`t → 0` 时 `y′ ≈ R y`，对**任何**方向 `t̂` 都有 `y′ᵀ [t̂]× R y ≈ y′ᵀ [t̂]× y′ = 0`，所以残差看不见平移的误差。
+
+本页**不宣布普遍赢家**：Hartley 归一化代价很小，这里没有一项比较稳定地输；它在原始像素和点很集中时最有用，换到标定坐标后几乎可以不做；而基线太短时，**任何**归一化都救不回来。真实相机和 OpenCV 的 `findEssentialMat` / `recoverPose`：**本页未运行**。
+
+**180 分钟安排**：30 分钟读三篇 Wikipedia 并写出 `Y` 的一行；40 分钟手算三个点的 Hartley `T`，用 toy 的 `svd` 核对条件数；40 分钟运行 toy，读四个情形；40 分钟固定种子，改 `sigma`、小区域大小和基线；30 分钟写下什么时候该归一化、什么时候该多加点、什么时候该挪相机。
+
+### 练习
+
+1. 把 `(y′)ᵀ E y = 0` 展开成八点法方程组的九元素一行，并解释为什么 `E` 只有五个自由度，线性方法却需要八对点。
+2. 从 `scene` 和 `evaluate` 说明：对给定的情形和种子，A、B、C 读的是同一批带噪像素对和同一批留出点。
+3. 手算三个像素 `(800, 400)`、`(1000, 400)`、`(900, 600)` 的 Hartley `T`，再用 `hartley` 和 `apply_h` 核对它们到原点的平均距离变成 `√2`。
+4. 固定种子，把 clustered 小区域的半宽从 100 px 改成 150 px。运行前先预测 C−B 的 `e_err` 是否仍在种子噪声之内，再用打印出的 `log10(s₁/s₈)` 解释结果。
+5. 在任何真实设备之前（本页未运行），解释为什么 **tiny_baseline** 里 `epi_px` 很小**并不**说明位姿正确，并说出一个能发现平移方向错误的检查。
+
 <Summary>
 
 针孔模型用 `u = fx x/z + cx` 投影；fx 是像素单位的焦距（500 px 配 3 µm 像素对应 1.5 mm 镜头）。让棋盘格角点覆盖多种视角，`calibrateCamera` 就能拟合内参、畸变及每张图的位姿。重投影误差衡量投影角点与检测角点的残差：拟合畸变后，本合成例的 RMS 从 0.702 降到 0.189 px。`solvePnP` 估计棋盘格到相机的位姿；先用 `undistortPoints` 去畸变，再用射线与已知棋盘格 / 桌面平面的交点，把像素变成三维点。常见错误包括分辨率或对焦不一致、棋盘格弯曲或只拍中央、方格尺寸单位错误、跳过去畸变，以及混淆棋盘格 / 相机坐标系。
 
 双目深度用像素 / 米一致的 `σ_z ≈ (z²/(fB)) σ_d`、共享噪声蒙特卡洛及量化，揭示线性化的局限、倒数偏差和长基线的最近距离 / 遮挡代价；真实双目校正 / 匹配仍为本页未运行。
+
+八点法本质矩阵：在共享的带噪对应点上，Hartley 归一化在 `E` 和平移方向上以明显差距胜过原始像素八点法（clustered 的 `epi_px` 配对 −204.7447±197.8867 px，5 个种子全部同号）；没有噪声、或点已在标定坐标 `K⁻¹` 下时，它几乎无关紧要（有噪声时 C−B 每一行都接近打平）；基线只有 1 cm 时它也救不回来，`epi_px` 停在 1 px 左右，平移方向却丢了——这是合成模型，真实相机本页未运行。
 
 </Summary>

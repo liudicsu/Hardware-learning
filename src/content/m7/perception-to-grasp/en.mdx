@@ -340,8 +340,445 @@ On hardware (**needs hardware**): collect ≥10–20 calibrated poses of a ChArU
 - **Skipping the mask→depth consistency check.** If the mask sits on a background depth hole, the centroid jumps to 1.2 m and the arm dives into the table.
 - **Shipping SAM2 weights without reading the licence.** Upstream SAM2 is Apache-2.0; still pin the commit you installed and note it in the lab log.
 
+## Antipodal grasps, force closure and an ε proxy
+
+The pipeline above turns a mask into **one** base-frame grasp point. It never asks whether two fingers at that point can actually hold the object. This section adds the classical test: where do the jaws touch, do the two contacts form an **antipodal** pair inside their friction cones, is the grasp **force closure**, and how much margin does an **ε (epsilon) proxy** give? It is **not** Dex-Net's GQ-CNN, **not** MoveIt collision checking, and **not** hand-eye calibration.
+
+<Resource id="quickgrasp-html" />
+
+<Resource id="dexnet2-pdf" />
+
+<Resource id="minwork-pdf" />
+
+**Sources actually opened (body read).** **QuickGrasp (arXiv 2504.19716v2, HTML):** "the epsilon ball criterion is often used for multi-fingered hands, while force closure is used for antipodal grasping"; for two-fingered antipodal grasps the grasp wrench space (GWS) is **degenerate**, so GWS volume and the epsilon radius "can sometimes be misleading" — a grasp without force closure can score higher than the diametric grasp on a cylinder — and "for two-fingered antipodal grasping, the best quality criterion is force closure itself"; their robust force-closure check perturbs the contact points over 100 trials and thresholds the grasp-matrix singular values at 0.01. **Dex-Net 2.0 (arXiv 1703.09312, PDF via pdftotext):** grasp candidates are pairs of antipodal contact points sampled on the object surface; analytic metrics such as probability of force closure and robust (expected) epsilon quality under pose and friction uncertainty, estimated by Monte Carlo, label 6.7 million synthetic point clouds that train a GQ-CNN. **Minimal Work (arXiv 1909.11226, PDF via pdftotext):** force closure asks whether a grasp can resist any disturbance wrench with an arbitrarily large grasp force; GWS volume and the ε-metric are widely used, and ε is the shortest distance from the origin to any facet of the GWS, usually built with a bounded sum of grasp-force magnitudes; their reliability metric asks whether a target wrench can be resisted without exceeding the maximum closing force. Paper numbers and claims 以论文为准; the GQ-CNN, its GPU training and the paper's physical trials: 本页未运行.
+
+### Friction cones, wrenches and ε
+
+In the plane a contact at `p` with inward normal `n` and tangent `t` can push with any force in the cone `n ± μ t` (normal component 1). Each cone edge `f` gives a **wrench** `w = (fx, fy, τ/L)` with `τ = (p − c) × f` about the centre `c` and `L` a torque scale (the toy uses the object's largest radius). With the sum of normal forces bounded by 1, two contacts give four primitive wrenches; their convex hull is the GWS. **Force closure** means the origin lies strictly inside it; **ε** is the distance from the origin to the nearest facet (0 when not force closure).
+
+<Formula label="Antipodal two-contact test">angle(p₂ − p₁, n₁) &lt; atan μ and angle(p₁ − p₂, n₂) &lt; atan μ</Formula>
+
+**Worked example.** A disc of radius `r = 40 mm`, `μ = 0.5`, jaws closing along a diameter, `L = r`. The four wrenches are `(1, 0.5, −0.5)`, `(1, −0.5, 0.5)`, `(−1, −0.5, −0.5)`, `(−1, 0.5, 0.5)`; they sum to zero, so the origin is inside. Each facet sits at distance `μ / √(μ² + 2) = 0.5 / 1.5 = 0.3333`, which is ε. If the jaw line is offset by `o` from the centre, the contact normal tilts by `asin(o/r)`, so force closure needs `o < r·sin(atan μ) = 0.447 r = 17.9 mm`. With `μ = 0`, the two cone edges coincide, the hull is flat, and ε = 0 for **every** two-finger grasp in the plane.
+
+### Fair setup
+
+`antipodal_force_closure_toy.py` is **synthetic** and stdlib only. **Model assumptions:** a **planar** rigid object (a disc = cylinder cross-section, or a 80 × 50 mm box), quasi-static; two **point contacts with Coulomb friction**, the 2D cone written by its two edges; the jaws close along a line and the fingers land where that line meets the **true** outline; the GWS uses the L1 bound (sum of normal forces ≤ 1). The toy is planar on purpose: with point contacts in 3D, two fingers cannot resist torque about the grasp axis, which is the degeneracy QuickGrasp warns about; a soft-finger model would be needed there. Perception error is a Gaussian error in the perceived centre (and box angle); the planner never sees the truth.
+
+| Arm | Grasp choice |
+|---|---|
+| A_random | the first of 8 shared jaw candidates, no antipodal or force-closure check |
+| B_antipodal | the candidate with the largest ε computed on the **perceived** object, executed on the true one |
+| C_frictionless | B's grasp executed with `μ = 0` (antipodal but frictionless) |
+
+**Common random numbers:** for each regime, seed and trial the true pose, the perceived pose, the 8 jaw candidates and one disturbance wrench are drawn once and shared by all arms. Five seeds × 40 trials. Metrics per seed: `fc` = force-closure rate on the true object; `eps` = mean ε proxy (0 when not force closure); `lift` = a **stand-in** for lift success in the spirit of Minimal Work's reliability metric — can the grasp resist the shared disturbance `w = (N(0, 0.15), −U(0.1, 0.4), N(0, 0.1))` with total normal force ≤ 1, checked exactly over every triple of wrenches. **ε is blind** to the direction of the disturbance the task actually applies, to the choice of the torque scale `L`, and to perception error; **`fc` is blind** to the margin. The toy prints how often B's pick changes when `L` is halved, and how often B's pick is force closure on the perceived object but not on the true one. C is frictionless **by construction**, so its zeros are a model fact that shows what friction buys, not a measured surprise.
+
+| Regime | Object | μ | Perception error | Candidates |
+|---|---|---|---|---|
+| disc_noisy_centre | disc, r = 40 mm | 0.5 | centre sd 0.25 × size | random angle, offset ±0.7 × size |
+| box_near_perfect | box 80 × 50 mm | 0.5 | none | face-to-face, ±2° and small offsets |
+| box_pose_error | box 80 × 50 mm | 0.3 | centre sd 0.25 × size, angle sd 20° | random angle, offset ±0.7 × size |
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-7/perception-to-grasp
+python3 antipodal_force_closure_toy.py
+```
+
+<CodeSource path="examples/month-7/perception-to-grasp/antipodal_force_closure_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic planar two-finger grasps: antipodal force closure and an epsilon proxy. Stdlib only.
+
+Model assumptions (also stated in the lesson prose):
+  planar rigid object (a disc = cylinder cross-section, or a box), quasi-static;
+  two point contacts with Coulomb friction, the 2D friction cone written as two
+  edges n_in +- mu t (normal component 1); the jaws close along a line and the
+  fingers land where that line meets the TRUE object outline. Wrench w =
+  (fx, fy, tau / L) with L the object's largest radius (the torque scale is a
+  choice; the toy also reports how often B's pick changes with L / 2).
+  Grasp wrench space with a bounded sum of normal forces (L1): the convex hull
+  of the four primitive wrenches. Force closure <=> the origin is strictly inside
+  that hull; epsilon = distance from the origin to the nearest hull facet.
+  Planar on purpose: with point contacts in 3D two fingers cannot resist torque
+  about the grasp axis, so the 6D hull of a two-finger grasp is degenerate.
+
+Arms (common random numbers: per (regime, seed, trial) the perceived pose, the 8
+jaw candidates and the disturbance wrench are drawn once and shared):
+  A_random      first candidate of the shared list, no antipodal / FC check
+  B_antipodal   candidate with the largest epsilon computed on the PERCEIVED
+                object (perception error is not removed), executed on the truth
+  C_frictionless B's grasp executed with mu = 0 (antipodal but frictionless)
+
+Metrics per seed (means over 40 trials): fc (force-closure rate on the true
+object), eps (epsilon proxy, 0 when not force closure), lift (stand-in: can the
+grasp resist the shared disturbance wrench with total normal force <= 1?).
+
+Labels: tie = identical on every seed; |m| < 1e-9 and sd < 1e-9 = numerically
+zero (floating-point residue), effectively a tie, no sign count; |paired mean| <= sd = near-tie / small
+gap within seed noise; |m| > sd = consistent gap (small if |m| < 20 % of the
+smaller arm mean, else clear), always with a sign count.
+Real gripper / Dex-Net GQ-CNN / GPU: 本页未运行. Paper statements: 以论文为准.
+"""
+from __future__ import annotations
+
+import itertools
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+TRIALS = 40
+CANDS = 8
+ARMS = ("A_random", "B_antipodal", "C_frictionless")
+METRICS = ("fc", "eps", "lift")
+# name, shape, half sizes (m), mu, centre sd / half size, angle sd (deg), candidate mode
+REGIMES = (
+    ("disc_noisy_centre", "disc", (0.04, 0.04), 0.5, 0.25, 0.0, "random"),
+    ("box_near_perfect", "box", (0.04, 0.025), 0.5, 0.0, 0.0, "aligned"),
+    ("box_pose_error", "box", (0.04, 0.025), 0.3, 0.25, 20.0, "random"),
+)
+
+
+def rot(v, a):
+    c, s = math.cos(a), math.sin(a)
+    return (c * v[0] - s * v[1], s * v[0] + c * v[1])
+
+
+def hit(shape, half, pose, c, d):
+    """Entry / exit of the line c + l d through the object at pose (x, y, angle):
+    returns ((p1, n1), (p2, n2)) with outward normals, or None if it misses."""
+    ox, oy, oa = pose
+    lc = rot((c[0] - ox, c[1] - oy), -oa)
+    ld = rot(d, -oa)
+    if shape == "disc":
+        r = half[0]
+        b = lc[0] * ld[0] + lc[1] * ld[1]
+        q = lc[0] ** 2 + lc[1] ** 2 - r * r
+        disc = b * b - q
+        if disc <= 0:
+            return None
+        ls = (-b - math.sqrt(disc), -b + math.sqrt(disc))
+        pts = [(lc[0] + l * ld[0], lc[1] + l * ld[1]) for l in ls]
+        nrm = [(p[0] / r, p[1] / r) for p in pts]
+    else:
+        lo, hi, n_lo, n_hi = -math.inf, math.inf, None, None
+        for k in range(2):
+            if abs(ld[k]) < 1e-12:
+                if abs(lc[k]) >= half[k]:
+                    return None
+                continue
+            a1, a2 = (-half[k] - lc[k]) / ld[k], (half[k] - lc[k]) / ld[k]
+            e1 = tuple(-1.0 if j == k else 0.0 for j in range(2))
+            e2 = tuple(1.0 if j == k else 0.0 for j in range(2))
+            if a1 > a2:
+                a1, a2, e1, e2 = a2, a1, e2, e1
+            if a1 > lo:
+                lo, n_lo = a1, e1
+            if a2 < hi:
+                hi, n_hi = a2, e2
+        if lo >= hi:
+            return None
+        pts = [(lc[0] + lo * ld[0], lc[1] + lo * ld[1]), (lc[0] + hi * ld[0], lc[1] + hi * ld[1])]
+        nrm = [n_lo, n_hi]
+    out = []
+    for p, n in zip(pts, nrm):
+        pw = rot(p, oa)
+        out.append(((pw[0] + ox, pw[1] + oy), rot(n, oa)))
+    return out
+
+
+def primitive_wrenches(contacts, centre, mu, scale):
+    """Two friction-cone edges per contact, normal force 1: w = (f, (p - centre) x f / L)."""
+    ws = []
+    for p, n in contacts:
+        ni = (-n[0], -n[1])
+        t = (-ni[1], ni[0])
+        for sgn in (1.0, -1.0):
+            f = (ni[0] + sgn * mu * t[0], ni[1] + sgn * mu * t[1])
+            rx, ry = p[0] - centre[0], p[1] - centre[1]
+            ws.append((f[0], f[1], (rx * f[1] - ry * f[0]) / scale))
+    return ws
+
+
+def sub(a, b):
+    return tuple(x - y for x, y in zip(a, b))
+
+
+def cross3(a, b):
+    return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
+
+
+def dot(a, b):
+    return sum(x * y for x, y in zip(a, b))
+
+
+def epsilon(ws):
+    """Origin strictly inside the tetrahedron of the four wrenches -> distance to the
+    nearest facet; otherwise 0 (not force closure). Degenerate hull -> 0."""
+    vol = dot(sub(ws[1], ws[0]), cross3(sub(ws[2], ws[0]), sub(ws[3], ws[0])))
+    if abs(vol) < 1e-12:
+        return 0.0
+    best = math.inf
+    for i in range(4):
+        a, b, c = (ws[j] for j in range(4) if j != i)
+        nrm = cross3(sub(b, a), sub(c, a))
+        ln = math.sqrt(dot(nrm, nrm))
+        if dot(nrm, sub(ws[i], a)) > 0:
+            nrm = tuple(-x for x in nrm)
+        dist = dot(nrm, a) / ln  # outward normal: origin inside <=> n.(0 - a) < 0, so n.a > 0
+        if dist <= 0:
+            return 0.0
+        best = min(best, dist)
+    return best
+
+
+def solve3(m, v):
+    d = (m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+         + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]))
+    if abs(d) < 1e-12:
+        return None
+    out = []
+    for k in range(3):
+        mk = [[v[i] if j == k else m[i][j] for j in range(3)] for i in range(3)]
+        out.append((mk[0][0] * (mk[1][1] * mk[2][2] - mk[1][2] * mk[2][1]) - mk[0][1] * (mk[1][0] * mk[2][2] - mk[1][2] * mk[2][0])
+                    + mk[0][2] * (mk[1][0] * mk[2][1] - mk[1][1] * mk[2][0])) / d)
+    return out
+
+
+def resists(ws, w_dist):
+    """Is -w_dist in conv({0} U ws), i.e. sum(l_i w_i) = -w_dist, l >= 0, sum(l) <= 1?
+    A basic solution uses at most three wrenches, so all triples are tried."""
+    q = tuple(-x for x in w_dist)
+    for tri in itertools.combinations(ws, 3):
+        lam = solve3([[tri[j][i] for j in range(3)] for i in range(3)], q)
+        if lam and min(lam) >= -1e-12 and sum(lam) <= 1.0 + 1e-12:
+            return True
+    return False
+
+
+def trial_draws(regime, seed, k):
+    """Common random numbers for one trial: perceived pose, candidates, disturbance."""
+    name, shape, half, mu, c_sd, a_sd, mode = regime
+    rng = random.Random(100000 * [r[0] for r in REGIMES].index(name) + 1000 * seed + k)
+    true_pose = (0.0, 0.0, rng.uniform(0, math.pi) if shape == "box" else 0.0)
+    size = max(half)
+    seen = (true_pose[0] + rng.gauss(0, c_sd * size), true_pose[1] + rng.gauss(0, c_sd * size),
+            true_pose[2] + math.radians(rng.gauss(0, a_sd)) if a_sd else true_pose[2])
+    cands = []
+    for _ in range(CANDS):
+        if mode == "aligned":
+            th = seen[2] + rng.choice((0.0, math.pi / 2)) + math.radians(rng.gauss(0, 2.0))
+            off = rng.uniform(-0.1, 0.1) * size
+        else:
+            th = rng.uniform(0, math.pi)
+            off = rng.uniform(-0.7, 0.7) * size
+        cands.append((th, off))
+    w = (rng.gauss(0, 0.15), -rng.uniform(0.1, 0.4), rng.gauss(0, 0.1))
+    return true_pose, seen, cands, w
+
+
+def jaw(seen, cand):
+    th, off = cand
+    d = (math.cos(th), math.sin(th))
+    return (seen[0] - off * d[1], seen[1] + off * d[0]), d
+
+
+def quality(shape, half, pose, mu, c, d, scale):
+    con = hit(shape, half, pose, c, d)
+    if con is None:
+        return 0.0, None
+    return epsilon(primitive_wrenches(con, pose[:2], mu, scale)), con
+
+
+def pick_b(regime, seen, cands, scale):
+    """Index of the largest epsilon on the perceived object, and that perceived epsilon."""
+    _, shape, half, mu, *_ = regime
+    scores = [quality(shape, half, seen, mu, *jaw(seen, c), scale)[0] for c in cands]
+    best = max(range(len(cands)), key=lambda i: scores[i])
+    return best, scores[best]
+
+
+def run_trial(regime, seed, k):
+    _, shape, half, mu, *_ = regime
+    true_pose, seen, cands, w = trial_draws(regime, seed, k)
+    scale = max(half) if shape == "disc" else math.hypot(*half)
+    ib, seen_eps = pick_b(regime, seen, cands, scale)
+    flip = ib != pick_b(regime, seen, cands, scale / 2)[0]
+    out = {}
+    for arm, idx, m in (("A_random", 0, mu), ("B_antipodal", ib, mu), ("C_frictionless", ib, 0.0)):
+        c, d = jaw(seen, cands[idx])
+        con = hit(shape, half, true_pose, c, d)
+        if con is None:
+            out[arm] = {"fc": 0.0, "eps": 0.0, "lift": 0.0}
+            continue
+        ws = primitive_wrenches(con, true_pose[:2], m, scale)
+        e = epsilon(ws)
+        out[arm] = {"fc": 1.0 if e > 0 else 0.0, "eps": e, "lift": 1.0 if resists(ws, w) else 0.0}
+    fooled = seen_eps > 0 and out["B_antipodal"]["fc"] == 0.0
+    return out, flip, fooled
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x: float) -> str:
+    if x != 0.0 and abs(x) < 5e-4:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+NUM_ZERO = 1e-9  # |m| and sd both below this: floating-point residue, not a gap
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(mean_sd(xa)[0], mean_sd(xb)[0]):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def main() -> None:
+    print("Synthetic planar two-finger grasps; shared perceived poses / jaw candidates / disturbances; not a real gripper")
+    print(f"seeds={len(SEEDS)} trials={TRIALS} candidates={CANDS}; wrench (fx, fy, tau/L), L = largest radius; "
+          "sum of normal forces <= 1")
+    print("regime arm fc eps lift  (mean+-sd over seeds of the per-seed trial means)")
+    for regime in REGIMES:
+        name, shape, half, mu, c_sd, a_sd, mode = regime
+        per = {arm: {k: [] for k in METRICS} for arm in ARMS}
+        flips = fooled = 0
+        for seed in SEEDS:
+            acc = {arm: {k: 0.0 for k in METRICS} for arm in ARMS}
+            for k in range(TRIALS):
+                out, flip, fool = run_trial(regime, seed, k)
+                flips += flip
+                fooled += fool
+                for arm in ARMS:
+                    for m in METRICS:
+                        acc[arm][m] += out[arm][m] / TRIALS
+            for arm in ARMS:
+                for m in METRICS:
+                    per[arm][m].append(acc[arm][m])
+        print(f"{name} ({shape} {half[0] * 1e3:.0f}x{half[1] * 1e3:.0f} mm half, mu={mu}, centre sd={c_sd} x size, "
+              f"angle sd={a_sd:.0f} deg, {mode} candidates)")
+        for arm in ARMS:
+            print(f"{name} {arm} " + " ".join("{}+-{}".format(*map(num, mean_sd(per[arm][m]))) for m in METRICS))
+        for a, b in (("B_antipodal", "A_random"), ("C_frictionless", "B_antipodal")):
+            for m in METRICS:
+                print(f"{name} paired {a[0]}-{b[0]} {m}: {verdict(per[a][m], per[b][m])}")
+        print(f"{name} torque scale L/2 changes B's pick on {flips} of {len(SEEDS) * TRIALS} trials; "
+              f"B's pick is force closure on the perceived object but not on the true one in {fooled} of {len(SEEDS) * TRIALS}")
+    print("disc_noisy_centre: a random jaw line misses the true centre; ranking by epsilon finds lines near a diameter")
+    print("box_near_perfect: every candidate is already face-to-face, so force closure cannot separate A and B")
+    print("box_pose_error: B ranks on a wrongly posed box; it still raises fc, but its lift gain stays within seed noise")
+    print("C_frictionless: two frictionless point contacts are never force closure in the plane (eps = 0)")
+    print("No winner declared; eps is blind to the task's actual disturbance direction and to the torque scale L")
+    print("Real gripper / Dex-Net GQ-CNN / GPU: 本页未运行; paper statements 以论文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic planar two-finger grasps; shared perceived poses / jaw candidates / disturbances; not a real gripper
+seeds=5 trials=40 candidates=8; wrench (fx, fy, tau/L), L = largest radius; sum of normal forces <= 1
+regime arm fc eps lift  (mean+-sd over seeds of the per-seed trial means)
+disc_noisy_centre (disc 40x40 mm half, mu=0.5, centre sd=0.25 x size, angle sd=0 deg, random candidates)
+disc_noisy_centre A_random 0.5400+-0.0994 0.0952+-0.0196 0.5100+-0.0945
+disc_noisy_centre B_antipodal 0.8900+-0.0548 0.1772+-0.0139 0.6350+-0.0742
+disc_noisy_centre C_frictionless 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+disc_noisy_centre paired B-A fc: 0.3500+-0.0685: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+disc_noisy_centre paired B-A eps: 0.0820+-0.0136: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+disc_noisy_centre paired B-A lift: 0.1250+-0.1173: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+disc_noisy_centre paired C-B fc: -0.8900+-0.0548: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+disc_noisy_centre paired C-B eps: -0.1772+-0.0139: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+disc_noisy_centre paired C-B lift: -0.6350+-0.0742: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+disc_noisy_centre torque scale L/2 changes B's pick on 0 of 200 trials; B's pick is force closure on the perceived object but not on the true one in 22 of 200
+box_near_perfect (box 40x25 mm half, mu=0.5, centre sd=0.0 x size, angle sd=0 deg, aligned candidates)
+box_near_perfect A_random 1.0000+-0.0000 0.2498+-0.0077 0.8600+-0.0224
+box_near_perfect B_antipodal 1.0000+-0.0000 0.2982+-0.0010 0.9150+-0.0518
+box_near_perfect C_frictionless 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+box_near_perfect paired B-A fc: 0.0000+-0.0000: tie: identical on every seed
+box_near_perfect paired B-A eps: 0.0484+-0.0071: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+box_near_perfect paired B-A lift: 0.0550+-0.0411: small but consistent gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+box_near_perfect paired C-B fc: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+box_near_perfect paired C-B eps: -0.2982+-0.0010: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+box_near_perfect paired C-B lift: -0.9150+-0.0518: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+box_near_perfect torque scale L/2 changes B's pick on 12 of 200 trials; B's pick is force closure on the perceived object but not on the true one in 0 of 200
+box_pose_error (box 40x25 mm half, mu=0.3, centre sd=0.25 x size, angle sd=20 deg, random candidates)
+box_pose_error A_random 0.2550+-0.0837 0.0202+-0.0056 0.1350+-0.0335
+box_pose_error B_antipodal 0.4650+-0.0576 0.0383+-0.0089 0.1950+-0.0570
+box_pose_error C_frictionless 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+box_pose_error paired B-A fc: 0.2100+-0.1220: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+box_pose_error paired B-A eps: 0.0180+-0.0129: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+box_pose_error paired B-A lift: 0.0600+-0.0877: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+box_pose_error paired C-B fc: -0.4650+-0.0576: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+box_pose_error paired C-B eps: -0.0383+-0.0089: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+box_pose_error paired C-B lift: -0.1950+-0.0570: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+box_pose_error torque scale L/2 changes B's pick on 14 of 200 trials; B's pick is force closure on the perceived object but not on the true one in 100 of 200
+disc_noisy_centre: a random jaw line misses the true centre; ranking by epsilon finds lines near a diameter
+box_near_perfect: every candidate is already face-to-face, so force closure cannot separate A and B
+box_pose_error: B ranks on a wrongly posed box; it still raises fc, but its lift gain stays within seed noise
+C_frictionless: two frictionless point contacts are never force closure in the plane (eps = 0)
+No winner declared; eps is blind to the task's actual disturbance direction and to the torque scale L
+Real gripper / Dex-Net GQ-CNN / GPU: 本页未运行; paper statements 以论文为准
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used on this page: **tie** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when both `|paired mean|` and sd are below `10⁻⁹` (checked before the sd test; such lines carry no sign count and are never called consistent or clear); **near-tie / small gap, within seed noise** when `|paired mean| ≤ sd`; a **consistent** gap when `|paired mean| > sd`, called **small** if `|m|` is under 20 % of the smaller arm mean and **clear** otherwise (the 20 % rule only chooses between those two words). Every consistent or clear line carries a same-sign count over the 5 seeds, any seed with the opposite sign (or an exactly equal seed) is reported, and a sign count alone never makes a gap consistent. Paired differences are B−A and C−B.
+
+- **disc_noisy_centre — B wins on force closure and margin:** `fc` 0.8900±0.0548 against 0.5400±0.0994 (**clear gap**, paired 0.3500±0.0685, same sign on all 5 seeds); `eps` 0.1772±0.0139 against 0.0952±0.0196 (clear, 0.0820±0.0136, 5/5). `lift` is a **clear gap** too (0.6350±0.0742 against 0.5100±0.0945; paired 0.1250±0.1173), but **1 of 5 seeds has the opposite sign**. B's ε stays well below the 0.3333 of a perfect diameter because the centre is misperceived: in 22 of 200 trials B's pick is force closure on the perceived disc but not on the true one.
+- **box_near_perfect — force closure cannot separate A and B:** every candidate is already face-to-face, so `fc` is 1.0000 for both and B−A is a **tie: identical on every seed**. ε still prefers B by a **small but consistent gap** (0.2982±0.0010 against 0.2498±0.0077; paired 0.0484±0.0071, 5/5), and so does `lift` (0.9150±0.0518 against 0.8600±0.0224; paired 0.0550±0.0411, small but consistent; no seed has the opposite sign, 1 of 5 seeds equal). Halving `L` changes B's pick in 12 of 200 trials: the ranking depends on the units chosen for torque.
+- **box_pose_error — the ranking is only as good as the perceived pose:** B still wins `fc` with a **clear gap** (0.4650±0.0576 against 0.2550±0.0837; paired 0.2100±0.1220, 5/5) and `eps` (paired 0.0180±0.0129, 5/5), but in 100 of 200 trials B's pick is force closure on the perceived box and not on the true one, and the `lift` gain is a **near-tie / small gap, within seed noise** (0.1950±0.0570 against 0.1350±0.0335; paired 0.0600±0.0877, 1 of 5 seeds opposite). `L/2` changes B's pick in 14 of 200 trials.
+- **C_frictionless loses everything with a clear gap, same sign on all 5 seeds:** `fc`, `eps` and `lift` are 0 in every regime (for example disc_noisy_centre C−B `fc` −0.8900±0.0548, box_near_perfect C−B `lift` −0.9150±0.0518). Two frictionless point contacts are never force closure in the plane.
+
+The page **does not declare a universal winner**: checking antipodality and ranking by ε clearly raises the force-closure rate when the candidates are poor, adds only a small margin when they are already face-to-face, and its lift benefit shrinks to seed noise when the perceived pose is wrong. Real grippers, Dex-Net's GQ-CNN and GPU training: **本页未运行**.
+
+**180-minute work plan:** 30 min read the three papers' force-closure and ε passages; 40 min derive the disc's ε and the offset limit by hand and check them with `hit` and `epsilon`; 40 min run the toy and read the three regimes; 40 min move `mu`, the centre and angle errors and `L` with seeds fixed; 30 min write down which check you would trust before a real lift and what it cannot see.
+
+### Exercises
+
+1. Derive `ε = μ / √(μ² + 2)` for the centred diametric disc grasp with `L = r`, and evaluate it for `μ = 0.2` and `μ = 1.0`.
+2. Show that an offset jaw line on a disc is force closure only when `o < r·sin(atan μ)`, then check `0.98×` and `1.02×` that limit with `hit` and `epsilon`.
+3. Show from `trial_draws` and `run_trial` that A, B and C use the same true pose, perceived pose, candidates and disturbance for a given trial.
+4. Halve `L` inside `run_trial` for the evaluation as well as the ranking, with seeds fixed. Predict which printed numbers change and which cannot change before you run.
+5. Before any real lift (本页未运行), explain why B's clear `fc` win in **box_pose_error** does **not** carry over to `lift`, and name one measurement that would shrink the 100 of 200 perceived-but-false force-closure picks.
+
 <Summary>
 
 Perception-to-grasp is mask → depth point → hand-eye → base grasp → plan. OpenCV `calibrateHandEye` estimates cam2gripper for eye-in-hand (invert inputs for eye-to-hand); ≥3 poses with non-parallel motions. The Park-style toy recovers X to numerical zero; the mask pipe emits a reproducible base-frame candidate on CPU. SAM2 (Apache-2.0) and MoveIt are optional and not run on this page.
+
+Force closure: on shared candidates and disturbances, picking the largest-ε antipodal candidate raises the force-closure rate with a clear gap on a misperceived disc (0.8900 against 0.5400, paired 0.3500±0.0685, same sign on all 5 seeds), **ties** a random pick on force closure when every candidate is already face-to-face (identical on every seed), keeps only a within-noise lift gain when the box pose is misperceived, and a frictionless two-finger grasp is never force closure — a synthetic planar model; real grippers 本页未运行.
 
 </Summary>
