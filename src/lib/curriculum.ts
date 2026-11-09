@@ -157,11 +157,12 @@ const month2Lessons: Lesson[] = [
     slug: "arduino-io",
     title: { zh: "Arduino 入门：数字/模拟 IO、PWM 与串口调试", en: "Arduino basics: digital & analog IO, PWM and serial debugging" },
     summary: {
-      zh: "看懂 setup/loop，会读按键和电位器、用 PWM 调亮度，并把串口打印当成主要的调试工具。再把同样的 UART 帧放到 RS-485 差分对上：120 Ω 端接、支线与反射、单端线的共模噪声，以及 DE/RE 换向。",
-      en: "Understand setup/loop, read buttons and potentiometers, dim an LED with PWM, and make serial printing your main debugging tool. Then put the same UART frames on an RS-485 differential pair: 120 Ω termination, stubs and reflections, common-mode noise on a single-ended wire, and DE/RE turnaround.",
+      zh: "看懂 setup/loop，会读按键和电位器、用 PWM 调亮度，并把串口打印当成主要的调试工具。再把同样的 UART 帧放到 RS-485 差分对上：120 Ω 端接、支线与反射、单端线的共模噪声，以及 DE/RE 换向。再用共享音调玩具看清 ENOB：理想约 9.92 位，前端噪声与失真会吃到约 6.3 / 5.8 位。",
+      en: "Understand setup/loop, read buttons and potentiometers, dim an LED with PWM, and make serial printing your main debugging tool. Then put the same UART frames on an RS-485 differential pair: 120 Ω termination, stubs and reflections, common-mode noise on a single-ended wire, and DE/RE turnaround. Then read ENOB on a shared-tone toy: ideal ≈ 9.92 bits, with front-end noise and distortion eating down to ≈ 6.3 / 5.8 bits.",
     },
-    minutes: 480,
+    minutes: 660,
     objectives: [
+      { zh: "能用 ENOB = (SINAD − 1.76)/6.02 解释有效位，并在共享音调与孔径下比较理想量化 / 加噪声 / 加失真的 SNR、SINAD 与 ENOB，不把玩具 ENOB 当成芯片手册值。", en: "Use ENOB = (SINAD − 1.76)/6.02 and compare ideal, noisy and distorted arms on SNR, SINAD and ENOB with a shared tone and aperture; do not treat toy ENOB as a chip datasheet rating." },
       { zh: "能用 Γ = (Z − Z0)/(Z + Z0) 解释 RS-485 主干两端 120 Ω 端接与支线规则，并在共享载荷、波特率与噪声下比较端接 / 不端接 / 长支线 / 单端的字节错误、余量与空闲驱动电流。", en: "Use Γ = (Z − Z0)/(Z + Z0) to explain 120 Ω termination at both RS-485 trunk ends and the stub rule, and compare terminated, unterminated, long-stub and single-ended arms on byte errors, margin and idle drive with shared payload, baud and noise." },
       { zh: "声明 Rp/Cbus，在共享字节下检查 Sm/Fm/Fm+ 上升时间表和 bit / 高电平 / 灌电流预算，不把标志当丢包。", en: "Declare Rp/Cbus and screen shared bytes against Sm/Fm/Fm+ rise limits plus bit/high-time/sink budgets, without calling flags packet loss." },
       { zh: "能说清 setup() 与 loop() 各自做什么，以及一个只跑一次、另一个反复跑的原因。", en: "Explain what setup() and loop() do and why one runs once while the other repeats." },
@@ -170,8 +171,9 @@ const month2Lessons: Lesson[] = [
       { zh: "能计算 PWM 的占空比与平均电压（例如 analogWrite(9, 191) 得到 3.75 V），并在串口绘图器里画出一行 name:value 输出。", en: "Calculate PWM duty cycle and average voltage, e.g. analogWrite(9, 191) giving 3.75 V, and plot a serial line in the Serial Plotter." },
     ],
     prereqs: ["ohms-law", "components"],
-    resources: ["mcwhorter", "arduino-examples", "arduino-docs", "wokwi", "tinkercad", "ti-i2c-pullup-calculation", "ti-tmp102-datasheet", "ti-slla272", "ti-slla070", "wiki-rs485", "arduino-uart-guide"],
+    resources: ["mcwhorter", "arduino-examples", "arduino-docs", "wokwi", "tinkercad", "ti-i2c-pullup-calculation", "ti-tmp102-datasheet", "ti-slla272", "ti-slla070", "wiki-rs485", "arduino-uart-guide", "wiki-enob", "ti-slaa013", "arduino-analog-input"],
     tasks: [
+      { id: "b10p1-enob", text: { zh: "运行 adc_enob_noise_toy.py，核对理想 / 噪声 / 失真三臂的 SINAD 与 ENOB，并手算 (SINAD−1.76)/6.02", en: "Run adc_enob_noise_toy.py, check SINAD and ENOB for ideal/noise/distort arms, and recompute (SINAD−1.76)/6.02 by hand" } },
       { id: "b9p1-rs485", text: { zh: "运行 rs485_termination_toy.py，比较 1 Mbps 与 125 kbps 下各臂的字节错误、余量与空闲电流，并写出半双工 DE 的释放时机", en: "Run rs485_termination_toy.py, compare byte errors, margin and idle current per arm at 1 Mbps and 125 kbps, and write when a half-duplex node may release DE" } },
       { id: "b6p1", text: { zh: "运行 i2c_risetime_toy.py，在相同字节下比较弱上拉 / 强上拉 / 长线电容，区分时序标志与实际 ACK", en: "Run i2c_risetime_toy.py with shared bytes for weak/strong pull-ups and long-C; distinguish timing flags from actual ACK" } },
       { id: "blink-sim", text: { zh: "在 Wokwi 或真板上跑通 Blink，并把闪烁周期改成 200 ms 亮 / 800 ms 灭", en: "Run Blink in Wokwi or on a real board, then change it to 200 ms on / 800 ms off" } },
@@ -261,11 +263,12 @@ const month2Lessons: Lesson[] = [
     slug: "sensors-fusion",
     title: { zh: "传感器、I2C 与互补滤波", en: "Sensors, I2C & the complementary filter" },
     summary: {
-      zh: "只看数据手册接好并读取 I2C 传感器，理解陀螺仪漂移和加速度计噪声，用四行互补滤波得到稳定的倾角。用共享 SPI 边沿比较四模式、错采样、位序与 CS。",
-      en: "Wire and read an I2C sensor from its datasheet, understand gyro drift and accelerometer noise, and get a stable tilt angle from a four-line complementary filter. Compare four SPI modes, wrong-edge capture, bit order and CS on shared edges.",
+      zh: "只看数据手册接好并读取 I2C 传感器，理解陀螺仪漂移和加速度计噪声，用四行互补滤波得到稳定的倾角。用共享 SPI 边沿比较四模式、错采样、位序与 CS。再在共享偏航路径上标定磁力计硬铁偏置与软铁拉伸。",
+      en: "Wire and read an I2C sensor from its datasheet, understand gyro drift and accelerometer noise, and get a stable tilt angle from a four-line complementary filter. Compare four SPI modes, wrong-edge capture, bit order and CS on shared edges. Then calibrate magnetometer hard-iron bias and soft-iron stretch on a shared yaw path.",
     },
-    minutes: 540,
+    minutes: 720,
     objectives: [
+      { zh: "在共享磁场与偏航路径上比较原始 / 仅硬铁 / 硬+软铁的航向误差与半径残差，区分圆心平移与椭圆拉伸，不把玩具当成 AHRS 认证。", en: "Compare raw, hard-iron-only and hard+soft arms on heading error and radius residual with a shared field and yaw path; separate centre shift from ellipse stretch; not an AHRS certification." },
       {"zh": "用共享 SPI 边沿比较四模式、错采样、位序与 CS。", "en": "Compare four SPI modes, wrong-edge capture, bit order and CS on shared edges."},
       { zh: "从声明噪声推导 KF Q/R，用等调参预算和五个留出种子比较互补变体，不给真零偏。", en: "Derive KF Q/R from declared noise and compare complementary variants with equal tuning budgets and five held-out seeds, without true bias." },
       { zh: "能用 I2C 扫描器找到新器件，并解释返回 0 表示器件已经应答。", en: "Find an I2C device with the scanner and explain that a return value of 0 means the device acknowledged." },
@@ -274,8 +277,9 @@ const month2Lessons: Lesson[] = [
       { zh: "能在开机时静止平均 100–200 个采样测出陀螺仪零偏，并在积分前把它减掉。", en: "Measure the gyro bias at startup by averaging 100–200 stationary samples and subtract it before integrating." },
     ],
     prereqs: ["arduino-io", "timing-interrupts"],
-    resources: ["arduino-spi-modes", "arduino-docs", "labbe-kalman", "mathworks-fusion", "adafruit-bno085", "wokwi"],
+    resources: ["arduino-spi-modes", "arduino-docs", "labbe-kalman", "mathworks-fusion", "adafruit-bno085", "wokwi", "vn-hsi-calibration", "wiki-magnetometer"],
     tasks: [
+      { id: "b10p1-magcal", text: { zh: "运行 mag_hard_soft_iron_toy.py，比较原始 / 仅硬铁 / 硬+软铁的航向误差与半径残差，并解释为何仅硬铁不够", en: "Run mag_hard_soft_iron_toy.py, compare raw / hard-only / hard+soft heading error and radius residual, and explain why hard-only is not enough" } },
       {"id": "bus-reset-integrity", "text": {"zh": "运行 spi_mode_mismatch_toy.py，核对 expected 并解释模型边界", "en": "Run spi_mode_mismatch_toy.py, match expected and explain model limits"}},
       { id: "b5p1", text: { zh: "运行 imu_kf_vs_complementary_toy.py 并审计假设、预算和 expected 表格", en: "Run imu_kf_vs_complementary_toy.py and audit assumptions, budgets and expected tables" } },
       { id: "i2c-scan", text: { zh: "运行 I2C 扫描程序，找到你的 IMU 地址，并读出 WHO_AM_I 寄存器", en: "Run the I2C scanner, find your IMU's address and read its WHO_AM_I register" } },

@@ -1,0 +1,9 @@
+Synthetic ADC ENOB toy; shared tone/aperture; not a datasheet SAR measurement
+n_bits=10 Vref=5.0V LSB=4.8828mV N=1024 tone_bin=17 fs_amp=2.3750V noise_sigma=3.50LSB distort_k3=0.045 seeds=5
+ideal_SNR_formula=61.96dB (TI SLAA013 / Wikipedia: 6.02n+1.76); ENOB=(SINAD-1.76)/6.02
+arm SNR_dB SINAD_dB ENOB_bits (mean+-sd over seeds)
+A_ideal 61.486+-0.000 61.476+-0.000 9.920+-0.000
+B_noise 39.809+-0.108 39.774+-0.093 6.315+-0.015
+C_distort 39.624+-0.086 36.940+-0.083 5.844+-0.014
+No winner declared: noise and distortion trade differently; toy ENOB is not a measured chip rating
+Real ADC / scope / INA lab: 本页未运行; Wikipedia+TI numbers 以原文为准

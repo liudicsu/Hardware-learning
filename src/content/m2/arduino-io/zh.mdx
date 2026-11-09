@@ -936,6 +936,238 @@ Real transceiver, cable and TDR: 本页未运行; SLLA272 numbers 以原文为�
 4. 把 `CM_SIGMA` 减半。载荷、波特率与种子保持不变，预测哪些臂会变、哪些不会。
 5. 115200 baud 下一个 8N1 字符需要 86.8 µs（见串口一节）。写出半双工节点发送三个字节后何时可以拉低 DE，以及必须等待什么。只在纸上完成，本页不运行收发器。
 
+## ADC 有效位数：10 位并不总是 10 位
+
+模拟输入一节把 Uno 的 ADC 当成理想 10 位尺：`V = raw × 5.0 / 1023`，一步约 4.9 mV。那是**标称**分辨率。前端噪声和轻微失真会在码字用尽之前就吃掉可用位数。本节只讲这个缺口。它**不是**第 1 个月的 DMM GUM 不确定度玩具，也**不是**再写一遍理想 10 位公式。
+
+<Resource id="wiki-enob" />
+<Resource id="ti-slaa013" />
+<Resource id="arduino-analog-input" />
+
+**实际打开的来源。**
+
+- **Wikipedia — Effective number of bits：** `ENOB = (SINAD_dB − 1.76) / 6.02`。ENOB 可以是小数；即使用 12 个码位的转换器，计入噪声与失真后有效位仍可能更少。
+- **TI SLAA013（《Understanding Data Converters》）：** 理想 mid-riser 量化误差为 ±½ LSB；均方量化噪声为 `q²/12`；满幅正弦的理想 SNR 为 **`6.02n + 1.76 dB`**（n = 10 时约 **61.96 dB**）。
+- **Arduino analog-input 指南：** 10 位 Uno ADC 上 `analogRead` 返回 0…1023，参考为板载电源。上述文档数字 以原文为准。真实 SAR 手册 ENOB、仪表放大前端或示波器实验：**本页未运行**。
+
+### 理想位数与有效位数
+
+仅量化就会限制 SNR。步长 `q = V_ref / 2ⁿ` 时，理想正弦 SNR 为 `6.02n + 1.76` dB。反过来，任意测得的 SINAD 都可以映回有效位数：
+
+<Formula label="由 SINAD 得到 ENOB">ENOB = (SINAD_dB − 1.76) / 6.02</Formula>
+
+前端噪声或奇次谐波抬高非音调底时，SINAD 下降，ENOB 随之下降——即便转换器仍输出 10 位码字。
+
+### 公平设定
+
+`adc_enob_noise_toy.py` 是**合成**的，只用标准库。每个臂看到**同一**相干音调（1024 点中的第 17 根谱线，幅度为 0.95 × V_ref/2，绕中点）和**同一** n = 10、V_ref = 5 V 的 mid-riser 量化器：
+
+| 臂 | 量化前的污染 |
+|---|---|
+| A_ideal | 无（只有量化） |
+| B_noise | 加性高斯噪声，σ = 3.5 LSB |
+| C_distort | 同样噪声 + 轻微奇次立方（归一化摆幅上 `k3 = 0.045`） |
+
+指标来自相干 DFT：音调功率对仅噪声谱线（SNR）、对全部非音调谱线（SINAD），再由 SINAD 得到 ENOB。结果为五多种子的 mean±sd。玩具**不**声称测得了某颗芯片的 ENOB。
+
+### 运行标准库玩具
+
+```bash
+cd ~/Hardware-learning/examples/month-2/arduino-io
+python3 adc_enob_noise_toy.py
+```
+
+<CodeSource path="examples/month-2/arduino-io/adc_enob_noise_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic ADC ENOB / front-end noise toy. Stdlib only.
+
+Shared analog tone and shared sample aperture for every arm. Arms differ only
+in front-end corruption before an ideal mid-riser n-bit quantizer:
+  A_ideal       quantizer alone (quantization noise only)
+  B_noise       same quantizer + additive front-end Gaussian noise
+  C_distort     same noise + mild odd cubic nonlinearity
+
+Metrics: SNR and SINAD from a coherent DFT tone bin, then
+ENOB = (SINAD_dB - 1.76) / 6.02 (Wikipedia ENOB; TI SLAA013 ideal SNR
+6.02n + 1.76 dB). Not a SAR datasheet measurement. Real ADC lab: 本页未运行.
+"""
+from __future__ import annotations
+
+import cmath
+import math
+import random
+
+N_BITS = 10
+N_LEVELS = 1 << N_BITS
+VREF = 5.0
+LSB = VREF / N_LEVELS
+FS_AMP = 0.95 * (VREF / 2.0)  # stay off the rails
+N_SAMPLES = 1024
+TONE_BIN = 17  # coherent: cycles = TONE_BIN over N_SAMPLES
+NOISE_SIGMA = 3.5 * LSB  # front-end noise, synthetic
+DISTORT_K3 = 0.045  # mild cubic on normalized swing, synthetic
+SEEDS = (0, 1, 2, 3, 4)
+ARMS = ("A_ideal", "B_noise", "C_distort")
+
+
+def ideal_snr_db(n: int) -> float:
+    return 6.02 * n + 1.76
+
+
+def quantize(v: float) -> float:
+    """Ideal mid-riser midtread-style clip to [0, VREF], return reconstructed volts."""
+    code = int(math.floor(v / LSB))
+    if code < 0:
+        code = 0
+    elif code > N_LEVELS - 1:
+        code = N_LEVELS - 1
+    # reconstruct at code centre
+    return (code + 0.5) * LSB
+
+
+def tone_samples() -> list[float]:
+    """Shared clean full-scale-ish sine centered at VREF/2."""
+    mid = VREF / 2.0
+    out = []
+    for k in range(N_SAMPLES):
+        phase = 2.0 * math.pi * TONE_BIN * k / N_SAMPLES
+        out.append(mid + FS_AMP * math.sin(phase))
+    return out
+
+
+def apply_arm(clean: list[float], arm: str, seed: int) -> list[float]:
+    rng = random.Random(10_000 + seed)
+    mid = VREF / 2.0
+    out = []
+    for v in clean:
+        x = v
+        if arm in ("B_noise", "C_distort"):
+            x = x + rng.gauss(0.0, NOISE_SIGMA)
+        if arm == "C_distort":
+            # odd cubic on swing about mid; shared coefficient, not a datasheet INL
+            u = (x - mid) / (VREF / 2.0)
+            x = mid + (VREF / 2.0) * (u + DISTORT_K3 * (u ** 3))
+        out.append(quantize(x))
+    return out
+
+
+def dft_bin(xs: list[float], bin_k: int) -> complex:
+    n = len(xs)
+    acc = 0j
+    for k, x in enumerate(xs):
+        acc += x * cmath.exp(-2j * math.pi * bin_k * k / n)
+    return acc
+
+
+def snr_sinad(xs: list[float]) -> tuple[float, float]:
+    """Return (SNR_dB, SINAD_dB) from coherent single-tone DFT."""
+    n = len(xs)
+    # remove DC
+    mean = sum(xs) / n
+    yc = [x - mean for x in xs]
+    # positive bins 1 .. n/2-1; tone at TONE_BIN; image at n-TONE_BIN ignored as conjugate
+    tone = dft_bin(yc, TONE_BIN)
+    # power: |X|^2 for one-sided use 2*|X|^2/n^2 for sinusoid amplitude^2/2
+    tone_p = 2.0 * (abs(tone) ** 2) / (n * n)
+    # noise+distortion: all other bins except DC and Nyquist twin
+    nd_p = 0.0
+    noise_only_p = 0.0
+    harmonics = {2 * TONE_BIN, 3 * TONE_BIN, 4 * TONE_BIN, 5 * TONE_BIN}
+    harmonics = {h for h in harmonics if 0 < h < n // 2}
+    for k in range(1, n // 2):
+        if k == TONE_BIN:
+            continue
+        p = 2.0 * (abs(dft_bin(yc, k)) ** 2) / (n * n)
+        nd_p += p
+        if k not in harmonics:
+            noise_only_p += p
+    # floor guards
+    snr = 10.0 * math.log10(tone_p / max(noise_only_p, 1e-30))
+    sinad = 10.0 * math.log10(tone_p / max(nd_p, 1e-30))
+    return snr, sinad
+
+
+def enob(sinad_db: float) -> float:
+    return (sinad_db - 1.76) / 6.02
+
+
+def mean_sd(xs: list[float]) -> tuple[float, float]:
+    mu = sum(xs) / len(xs)
+    var = sum((x - mu) ** 2 for x in xs) / (len(xs) - 1)
+    return mu, math.sqrt(var)
+
+
+def main() -> None:
+    clean = tone_samples()
+    print(
+        "Synthetic ADC ENOB toy; shared tone/aperture; not a datasheet SAR measurement"
+    )
+    print(
+        f"n_bits={N_BITS} Vref={VREF:.1f}V LSB={LSB*1e3:.4f}mV N={N_SAMPLES} "
+        f"tone_bin={TONE_BIN} fs_amp={FS_AMP:.4f}V "
+        f"noise_sigma={NOISE_SIGMA/LSB:.2f}LSB distort_k3={DISTORT_K3} seeds={len(SEEDS)}"
+    )
+    print(
+        f"ideal_SNR_formula={ideal_snr_db(N_BITS):.2f}dB "
+        f"(TI SLAA013 / Wikipedia: 6.02n+1.76); ENOB=(SINAD-1.76)/6.02"
+    )
+    print("arm SNR_dB SINAD_dB ENOB_bits (mean+-sd over seeds)")
+    for arm in ARMS:
+        snrs, sinads, enobs = [], [], []
+        for seed in SEEDS:
+            xs = apply_arm(clean, arm, seed)
+            snr, sinad = snr_sinad(xs)
+            snrs.append(snr)
+            sinads.append(sinad)
+            enobs.append(enob(sinad))
+        cols = [mean_sd(snrs), mean_sd(sinads), mean_sd(enobs)]
+        print(
+            f"{arm} "
+            + " ".join(f"{m:.3f}+-{s:.3f}" for m, s in cols)
+        )
+    print(
+        "No winner declared: noise and distortion trade differently; "
+        "toy ENOB is not a measured chip rating"
+    )
+    print("Real ADC / scope / INA lab: 本页未运行; Wikipedia+TI numbers 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic ADC ENOB toy; shared tone/aperture; not a datasheet SAR measurement
+n_bits=10 Vref=5.0V LSB=4.8828mV N=1024 tone_bin=17 fs_amp=2.3750V noise_sigma=3.50LSB distort_k3=0.045 seeds=5
+ideal_SNR_formula=61.96dB (TI SLAA013 / Wikipedia: 6.02n+1.76); ENOB=(SINAD-1.76)/6.02
+arm SNR_dB SINAD_dB ENOB_bits (mean+-sd over seeds)
+A_ideal 61.486+-0.000 61.476+-0.000 9.920+-0.000
+B_noise 39.809+-0.108 39.774+-0.093 6.315+-0.015
+C_distort 39.624+-0.086 36.940+-0.083 5.844+-0.014
+No winner declared: noise and distortion trade differently; toy ENOB is not a measured chip rating
+Real ADC / scope / INA lab: 本页未运行; Wikipedia+TI numbers 以原文为准
+```
+
+</SimOutput>
+
+### 读位预算
+
+**A_ideal** 靠近公式：SNR **61.49 dB**，SINAD **61.48 dB**，ENOB **9.92 bit**——略低于 10，因为音调是满幅的 0.95 且 mid-riser 重建是离散的。**B_noise** 落到 ENOB **6.32 bit**（SINAD ≈ 39.8 dB）：码字仍是 10 位，但前端噪声吃掉约 3.6 位。**C_distort** 的 SNR 仍接近（**39.62 dB**），而 SINAD 进一步降到 **36.94 dB**（ENOB **5.84 bit**），因为立方项把能量送进谐波，SINAD 计入而“排除谐波的 SNR”不计。**不宣布赢家**：噪声与失真买到的底噪不同；玩具不是手册额定值。真实 ADC / 示波器 / 仪表放大：**本页未运行**。
+
+**180 分钟工作计划：** 30 分钟读 ENOB/SLAA013；45 分钟推导理想 SNR 与 ENOB；45 分钟跑共享音调各臂；45 分钟在多种子固定下改 σ 或 k3；15 分钟列出真实 ENOB 实验还缺什么。
+
+### 练习
+
+1. 从 `q²/12` 量化噪声与幅度 `A = q·2ⁿ⁻¹` 的满幅正弦推导 `6.02n + 1.76`，核对 n = 10 时的 61.96 dB。
+2. 用打印的 SINAD 手算各臂 ENOB，与表格一致。
+3. 多种子不变，把 `NOISE_SIGMA` 加倍。运行前预测哪些臂会动，以及 C 的 SNR–SINAD 间隙会缩小还是变大。
+4. 设 `DISTORT_K3 = 0`，确认 C 向 B 靠拢。说明哪个指标必须一致、哪个仍可能略有差别。
+5. 任何真机实验前（本页未运行），列出本玩具省略的孔径抖动、参考噪声与 INL；不要把玩具 ENOB 当成芯片指标。
+
 <Summary>
 
 **本课要点**
@@ -951,6 +1183,8 @@ Real transceiver, cable and TDR: 本页未运行; SLLA272 numbers 以原文为�
 - I2C RC 在固定字节下筛查 Sm/Fm/Fm+ 上升限制与 bit / 高电平 / 灌电流预算，不把标志当成实测丢包。
 
 - RS-485 把同样的 UART 帧放到差分对上，主干两端各接 120 Ω；在共享载荷的反射玩具里，不端接的 120 m 线路在 1 Mbps 下 17 个字节错 16 个，在 125 kbps 下一个不错，端接代价是 62.50 mA 空闲驱动电流，单端线在两种速率下都因共模噪声失败。
+
+- ENOB 把测得的 SINAD 换成有效位：共享音调下理想约 9.92 位，加前端噪声约 6.32 位，再加轻微失真约 5.84 位——码字仍是 10 位，不是手册额定值。
 
 **下一课会用到**
 

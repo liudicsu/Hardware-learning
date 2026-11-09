@@ -882,6 +882,239 @@ No noise/no random seeds; no MHz claim; real device/scope: 本页未运行
 3. Compare isolated00 with varied patterns; reverse96's bit order. Remove one sampled edge from a CS frame and explain the partial-word rejection.
 4. Before any hardware run (本页未运行), find the actual peripheral's mode, CS framing and setup/hold limits in its datasheet; do not transplant a generic MHz value.
 
+## Magnetometer hard-iron and soft-iron calibration
+
+Earlier sections already warned that an IMU “is not a compass”: gyro integration drifts, and a raw magnetometer reading is not a heading until the local field is cleaned up. Two non-time-varying distortions dominate indoors and inside a robot frame. **Hard-iron** bias shifts the centre of the measurement cloud (a permanent offset from magnetized material on the same body). **Soft-iron** stretch turns the sphere into an ellipsoid (or the horizontal circle into an ellipse) by deflecting the existing field. This section calibrates those two. It is **not** a redo of the KF-versus-complementary comparison, and it is **not** another “IMU is not a compass” prose paragraph alone.
+
+<Resource id="vn-hsi-calibration" />
+<Resource id="wiki-magnetometer" />
+
+**Sources actually opened.**
+
+- **VectorNav — Magnetometer Hard & Soft Iron Calibration:** hard-iron distortions from objects that produce a field cause a **permanent bias** (circle centre shift; their figure uses a 200 / 100 mGauss example). Soft-iron distortions **stretch** the sphere into an ellipsoid. Calibration maps the biased ellipsoid back to a sphere centred at the origin via `m_c = S_I (m̃ − b_HI)`, with 2D (yaw circles) or 3D motion.
+- **Wikipedia — Magnetometer:** absolute magnetometers need internal calibration or known constants; relative devices measure against an uncalibrated baseline. Numbers 以原文为准. A real mag turntable / AHRS certification: **本页未运行**.
+
+### Bias versus stretch
+
+In the horizontal plane a clean field of fixed magnitude traces a circle centred at the origin as you yaw. Hard-iron only moves that centre. Soft-iron changes the radii along different axes. Heading from `atan2(my, mx)` on the raw cloud therefore carries a yaw-dependent error until both are removed.
+
+### Fair setup
+
+`mag_hard_soft_iron_toy.py` is **synthetic** and stdlib only. Every arm shares the **same** true horizontal field `B_true = (1, 0)`, the **same** 72 yaw samples (5° steps), the **same** diagonal soft stretch `S = (1.35, 0.72)`, the **same** hard bias `b = (0.35, −0.22)`, and the **same** per-seed Gaussian noise (σ = 0.03):
+
+| Arm | Correction on the shared samples |
+|---|---|
+| A_raw | none |
+| B_hard_only | subtract the sample-mean bias |
+| C_hard_soft | bias subtract + diagonal soft scale to equalize axis RMS |
+
+Metrics: mean absolute heading error versus the undistorted path, and residual radius RMS after mapping toward a circle. Results are five-seed mean±sd. The toy fits only a diagonal soft matrix; it is not a full 3×3 lab calibration.
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-2/sensors-fusion
+python3 mag_hard_soft_iron_toy.py
+```
+
+<CodeSource path="examples/month-2/sensors-fusion/mag_hard_soft_iron_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic magnetometer hard/soft-iron calibration toy. Stdlib only.
+
+Shared true field magnitude and shared yaw rotation path for every arm.
+Measurement model (VectorNav-style): m_tilde = S_soft @ R(yaw) @ B_true + b_hard + noise.
+Arms differ only in post-processing of the SAME samples:
+  A_raw          heading from uncorrected XY
+  B_hard_only    subtract estimated hard-iron bias (sample mean)
+  C_hard_soft    bias subtract + diagonal soft-iron scale (axis std → unit circle)
+
+Metrics: heading absolute error (deg) and residual radius RMS after mapping to
+a unit circle. ≥5 noise seeds. Not an AHRS certification. Mag hardware: 本页未运行.
+"""
+from __future__ import annotations
+
+import math
+import random
+
+B_TRUE = (1.0, 0.0)  # horizontal field in body-fixed world frame, synthetic units
+# Permanent hard-iron bias (sphere/circle centre shift)
+B_HARD = (0.35, -0.22)
+# Soft-iron stretch (diagonal ellipsoid → circle stretch); off-diagonals omitted for clarity
+S_SOFT = (1.35, 0.72)  # sx, sy
+N_YAWS = 72  # 5° steps, full rotation
+NOISE_SIGMA = 0.03
+SEEDS = (0, 1, 2, 3, 4)
+ARMS = ("A_raw", "B_hard_only", "C_hard_soft")
+
+
+def wrap180(deg: float) -> float:
+    while deg > 180.0:
+        deg -= 360.0
+    while deg <= -180.0:
+        deg += 360.0
+    return deg
+
+
+def heading_deg(mx: float, my: float) -> float:
+    return math.degrees(math.atan2(my, mx))
+
+
+def true_path() -> list[tuple[float, float, float]]:
+    """Return list of (yaw_deg, mx_world_rot, my_world_rot) without distortion."""
+    rows = []
+    for i in range(N_YAWS):
+        yaw = 360.0 * i / N_YAWS
+        c = math.cos(math.radians(yaw))
+        s = math.sin(math.radians(yaw))
+        # rotate true field into sensor frame as yaw changes (2D)
+        mx = c * B_TRUE[0] + s * B_TRUE[1]
+        my = -s * B_TRUE[0] + c * B_TRUE[1]
+        rows.append((yaw, mx, my))
+    return rows
+
+
+def measure(path, seed: int) -> list[tuple[float, float, float]]:
+    rng = random.Random(20_000 + seed)
+    out = []
+    sx, sy = S_SOFT
+    bx, by = B_HARD
+    for yaw, mx, my in path:
+        # soft stretch then hard bias + noise (VectorNav: m_c = S(m - b) form inverted)
+        tx = sx * mx + bx + rng.gauss(0.0, NOISE_SIGMA)
+        ty = sy * my + by + rng.gauss(0.0, NOISE_SIGMA)
+        out.append((yaw, tx, ty))
+    return out
+
+
+def calibrate_bias(samples):
+    mx = sum(p[1] for p in samples) / len(samples)
+    my = sum(p[2] for p in samples) / len(samples)
+    return mx, my
+
+
+def calibrate_soft(samples, bias):
+    """Diagonal soft scale: map demeaned axes to equal RMS (unit-ish circle)."""
+    bx, by = bias
+    xs = [p[1] - bx for p in samples]
+    ys = [p[2] - by for p in samples]
+    rx = math.sqrt(sum(v * v for v in xs) / len(xs)) or 1.0
+    ry = math.sqrt(sum(v * v for v in ys) / len(ys)) or 1.0
+    # target radius = geometric mean
+    target = math.sqrt(rx * ry)
+    return target / rx, target / ry
+
+
+def evaluate(samples, arm: str) -> tuple[float, float, float, float]:
+    """Return mean |heading err|, sd, residual radius RMS, residual radius sd."""
+    bias = calibrate_bias(samples)
+    soft = calibrate_soft(samples, bias)
+    errs = []
+    radii = []
+    for yaw, mx, my in samples:
+        if arm == "A_raw":
+            cx, cy = mx, my
+        elif arm == "B_hard_only":
+            cx, cy = mx - bias[0], my - bias[1]
+        else:
+            cx = soft[0] * (mx - bias[0])
+            cy = soft[1] * (my - bias[1])
+        est = heading_deg(cx, cy)
+        # true heading of horizontal field in sensor frame equals yaw for B_TRUE=(1,0)
+        # with our rotation convention: atan2(my,mx) of undistorted = -yaw
+        true_h = heading_deg(
+            math.cos(math.radians(yaw)) * B_TRUE[0] + math.sin(math.radians(yaw)) * B_TRUE[1],
+            -math.sin(math.radians(yaw)) * B_TRUE[0] + math.cos(math.radians(yaw)) * B_TRUE[1],
+        )
+        errs.append(abs(wrap180(est - true_h)))
+        radii.append(math.hypot(cx, cy))
+    mu_e = sum(errs) / len(errs)
+    # radius residual vs mean radius
+    mu_r = sum(radii) / len(radii)
+    resid = [abs(r - mu_r) for r in radii]
+    rms = math.sqrt(sum(r * r for r in resid) / len(resid))
+    sd_e = math.sqrt(sum((e - mu_e) ** 2 for e in errs) / (len(errs) - 1))
+    mu_abs = sum(resid) / len(resid)
+    sd_r = math.sqrt(sum((r - mu_abs) ** 2 for r in resid) / (len(resid) - 1))
+    return mu_e, sd_e, rms, sd_r
+
+
+def mean_sd(xs: list[float]) -> tuple[float, float]:
+    mu = sum(xs) / len(xs)
+    var = sum((x - mu) ** 2 for x in xs) / (len(xs) - 1)
+    return mu, math.sqrt(var)
+
+
+def main() -> None:
+    path = true_path()
+    print(
+        "Synthetic mag hard/soft-iron toy; shared field/path; not an AHRS certification"
+    )
+    print(
+        f"B_true={B_TRUE} b_hard={B_HARD} S_diag={S_SOFT} "
+        f"N_yaws={N_YAWS} noise_sigma={NOISE_SIGMA} seeds={len(SEEDS)}"
+    )
+    print(
+        "model: m_tilde = S_soft * R(yaw)*B_true + b_hard + noise "
+        "(VectorNav hard=centre shift, soft=ellipse stretch)"
+    )
+    print(
+        "arm mean_abs_heading_err_deg heading_err_sd_deg "
+        "radius_resid_rms radius_resid_sd (mean+-sd over seeds)"
+    )
+    for arm in ARMS:
+        cols_acc = [[] for _ in range(4)]
+        for seed in SEEDS:
+            samples = measure(path, seed)
+            vals = evaluate(samples, arm)
+            for i, v in enumerate(vals):
+                cols_acc[i].append(v)
+        print(
+            f"{arm} "
+            + " ".join(f"{mean_sd(c)[0]:.4f}+-{mean_sd(c)[1]:.4f}" for c in cols_acc)
+        )
+    print(
+        "No winner declared beyond the defined metric: hard-only recenters; "
+        "hard+soft also un-stretches; raw keeps both errors"
+    )
+    print("Mag turntable / real IMU: 本页未运行; VectorNav/Wikipedia definitions 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic mag hard/soft-iron toy; shared field/path; not an AHRS certification
+B_true=(1.0, 0.0) b_hard=(0.35, -0.22) S_diag=(1.35, 0.72) N_yaws=72 noise_sigma=0.03 seeds=5
+model: m_tilde = S_soft * R(yaw)*B_true + b_hard + noise (VectorNav hard=centre shift, soft=ellipse stretch)
+arm mean_abs_heading_err_deg heading_err_sd_deg radius_resid_rms radius_resid_sd (mean+-sd over seeds)
+A_raw 17.4960+-0.1329 10.7657+-0.0846 0.3662+-0.0059 0.2032+-0.0049
+B_hard_only 11.3025+-0.2888 5.6243+-0.2011 0.2214+-0.0024 0.1030+-0.0029
+C_hard_soft 1.5442+-0.1460 1.2569+-0.0373 0.0317+-0.0020 0.0197+-0.0021
+No winner declared beyond the defined metric: hard-only recenters; hard+soft also un-stretches; raw keeps both errors
+Mag turntable / real IMU: 本页未运行; VectorNav/Wikipedia definitions 以原文为准
+```
+
+</SimOutput>
+
+### Read the heading residual
+
+**A_raw** keeps both errors: mean |heading| error **17.50°**, radius residual RMS **0.37**. **B_hard_only** recenters the cloud and cuts heading error to **11.30°** and radius RMS to **0.22**, but the ellipse stretch remains. **C_hard_soft** also equalizes the axes: heading error **1.54°**, radius RMS **0.032**. On the defined metrics the progression is clear; the page still **does not declare a universal winner** for every robot or every soft-iron model — a non-diagonal `S_I`, time-varying loads or a bad motion path can change the ranking; this is **not an AHRS certification**. Mag turntable / real IMU: **本页未运行**.
+
+**180-minute work plan:** 30 min read VectorNav hard/soft definitions; 45 min derive centre shift vs axis stretch; 45 min run shared-path arms; 45 min change `S_SOFT` or bias with seeds fixed; 15 min list what a 3D HSI lab still needs.
+
+### Exercises
+
+1. From the printed `b_hard` and `S_diag`, sketch the expected ellipse centre and axis ratio before running the toy.
+2. Show why hard-only cannot zero the heading error when `sx ≠ sy`, using a yaw where the stretch aligns with the field.
+3. Set `S_SOFT = (1.0, 1.0)` with the same seeds. Predict B and C heading errors before you run, then explain any remaining gap from noise.
+4. Halve `NOISE_SIGMA`. Which metric shrinks most for C? Keep field, path and seeds fixed.
+5. Before any hardware run (本页未运行), write whether your robot can do a 2D yaw calibration or needs a 3D figure-eight; do not claim AHRS certification from this toy.
+
 <Summary>
 
 The equal-budget held-out IMU comparison derives KF Q/R from its declared noise model, tunes complementary alternatives separately, and gives no arm the true bias.
@@ -901,4 +1134,6 @@ The equal-budget held-out IMU comparison derives KF Q/R from its declared noise 
 - Month 3 · PID & control: windup and cascade loops returns to the same balancer and adds the outer speed loop.
 
 SPI mode/bit-order/CS choices are checked on a shared synthetic wire; wrong-edge captures can shift bits or accidentally pass, so varied patterns and device timing specifications matter.
+
+Hard-iron bias recenters the mag cloud and soft-iron stretch un-ellipses it; on the shared yaw path raw ≈ 17.5° heading error falls to ≈ 11.3° with hard-only and ≈ 1.5° with hard+soft — not an AHRS certification.
 </Summary>

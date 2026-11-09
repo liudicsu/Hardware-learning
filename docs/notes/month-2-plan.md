@@ -1,6 +1,19 @@
 # Month 2 plan / 第 2 个月计划
 
-Current / 当前：**M2 2670 min**, Batch-9 PR1. Earlier entries below retain their historical totals.
+Current / 当前：**M2 3030 min**, Batch-10 PR1. Earlier entries below retain their historical totals.
+
+## Batch-10 PR1 / 本月 H1 + H2 (+360)
+
+Base `73add87` (batch 9 closed incl. polish #140; site **25800**). PR1 only: **M2 2670→3030 (+360)**, site **25800→26160**, still 71 lessons; no arithmetic mismatch with proposal §0.5/§9 or curriculum.ts. M1/M11 move only in PR2, M10/M9 only in PR3.
+
+- **H1 / 2.1 arduino-io: 480→660 (+180).** ADC ENOB from SINAD: ENOB=(SINAD−1.76)/6.02; shared tone/aperture; ideal quantizer vs +noise vs +distortion; ≥5 seeds; ≠ DMM GUM; ≠ ideal 10-bit formula alone. Real ADC lab 本页未运行. / 有效位账，不宣布芯片手册 ENOB。
+- **H2 / 2.5 sensors-fusion: 540→720 (+180).** Mag hard-iron bias + soft-iron stretch; shared field/path; raw vs hard-only vs hard+soft; heading / residual metrics; ≥5 seeds; ≠ KF/complementary. Mag hardware 本页未运行. / 硬铁圆心、软铁拉伸，不是 AHRS 认证。
+
+**Allocation / 安排:** H1 30+45+45+45+15=180; H2 30+45+45+45+15=180 minutes.
+
+**Site accounting / 全站核算:** **26160=25800+360**, **M2=3030**, **71 lessons**. Other months unchanged this PR.
+
+
 
 Batch-6 PR1 only, base `073da37`: **M2 1650→1980 min (+330)**, six lessons. / 本页只列第 2 月宿主，保留六课。
 

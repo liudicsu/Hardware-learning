@@ -4357,6 +4357,107 @@ export const resources: Record<string, Resource> = {
     "extra": true
   },
 
+  "wiki-enob": {
+    id: "wiki-enob",
+    url: "https://en.wikipedia.org/wiki/Effective_number_of_bits",
+    title: {
+      zh: "Wikipedia：有效位数（ENOB）",
+      en: "Wikipedia: Effective number of bits (ENOB)",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费阅读", en: "Free to read" },
+    summary: {
+      zh: "ENOB = (SINAD_dB − 1.76) / 6.02；有效位可为小数，噪声与失真会吃掉标称分辨率。",
+      en: "ENOB = (SINAD_dB − 1.76) / 6.02; effective bits may be fractional when noise and distortion consume nominal resolution.",
+    },
+    license: {
+      zh: "CC BY-SA；仅提供外链，条款以原站为准",
+      en: "CC BY-SA; external link only, see original terms",
+    },
+    extra: true,
+  },
+  "ti-slaa013": {
+    id: "ti-slaa013",
+    url: "https://www.ti.com/lit/an/slaa013/slaa013.pdf",
+    title: {
+      zh: "TI SLAA013：理解数据转换器",
+      en: "TI SLAA013: Understanding Data Converters",
+    },
+    author: "Texas Instruments",
+    kind: "guide",
+    cost: { zh: "免费 PDF", en: "Free PDF" },
+    summary: {
+      zh: "理想量化噪声 q²/12 与满幅正弦理想 SNR = 6.02n + 1.76 dB；讨论偏移、增益、DNL/INL 与孔径误差。",
+      en: "Ideal quantization noise q²/12 and full-scale sine SNR = 6.02n + 1.76 dB; covers offset, gain, DNL/INL and aperture error.",
+    },
+    license: {
+      zh: "© Texas Instruments；仅提供外链，条款以原站为准",
+      en: "© Texas Instruments; external link only, see original terms",
+    },
+    extra: true,
+  },
+  "arduino-analog-input": {
+    id: "arduino-analog-input",
+    url: "https://docs.arduino.cc/learn/microcontrollers/analog-input/",
+    title: {
+      zh: "Arduino：模拟输入",
+      en: "Arduino: Analog Input",
+    },
+    author: "Arduino",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "Uno 等板上 analogRead 的 10 位范围与参考电源约定；本课 ENOB 玩具在此标称分辨率之上讨论噪声。",
+      en: "10-bit analogRead range and supply-reference convention on Uno-class boards; the ENOB toy discusses noise on top of that nominal resolution.",
+    },
+    license: {
+      zh: "© Arduino；仅提供外链，条款以原站为准",
+      en: "© Arduino; external link only, see original terms",
+    },
+    extra: true,
+  },
+  "vn-hsi-calibration": {
+    id: "vn-hsi-calibration",
+    url: "https://www.vectornav.com/resources/inertial-navigation-primer/specifications--and--error-budgets/specs-hsicalibration",
+    title: {
+      zh: "VectorNav：磁力计硬铁与软铁标定",
+      en: "VectorNav: Magnetometer Hard & Soft Iron Calibration",
+    },
+    author: "VectorNav Technologies",
+    kind: "guide",
+    cost: { zh: "免费阅读", en: "Free to read" },
+    summary: {
+      zh: "硬铁 = 永久偏置（圆心平移），软铁 = 磁场拉伸（椭球）；m_c = S_I(m̃ − b_HI)，含 2D/3D 运动说明。",
+      en: "Hard-iron = permanent bias (centre shift), soft-iron = field stretch (ellipsoid); m_c = S_I(m̃ − b_HI), with 2D/3D motion notes.",
+    },
+    license: {
+      zh: "© VectorNav；仅提供外链，条款以原站为准",
+      en: "© VectorNav; external link only, see original terms",
+    },
+    extra: true,
+  },
+  "wiki-magnetometer": {
+    id: "wiki-magnetometer",
+    url: "https://en.wikipedia.org/wiki/Magnetometer",
+    title: {
+      zh: "Wikipedia：磁力计",
+      en: "Wikipedia: Magnetometer",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费阅读", en: "Free to read" },
+    summary: {
+      zh: "绝对/相对磁力计与标定背景；本课硬/软铁定义以 VectorNav 引物为主，维基作补充。",
+      en: "Absolute/relative magnetometer and calibration background; lesson hard/soft-iron definitions follow the VectorNav primer, with Wikipedia as support.",
+    },
+    license: {
+      zh: "CC BY-SA；仅提供外链，条款以原站为准",
+      en: "CC BY-SA; external link only, see original terms",
+    },
+    extra: true,
+  },
+
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

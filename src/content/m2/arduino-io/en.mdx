@@ -936,6 +936,238 @@ Real transceiver, cable and TDR: 本页未运行; SLLA272 numbers 以原文为�
 4. Halve `CM_SIGMA`. Predict which arms change and which do not, keeping the payload, baud and seeds fixed.
 5. At 115200 baud one 8N1 character takes 86.8 µs (Serial section). Write when a half-duplex node may drop DE after sending three bytes, and what it must wait for. Keep this on paper; no transceiver runs on this page.
 
+## ADC ENOB: when 10 bits are not 10 bits
+
+The Analog section treated the Uno ADC as an ideal 10-bit ruler: `V = raw × 5.0 / 1023`, one step ≈ 4.9 mV. That is the **nominal** resolution. Front-end noise and mild distortion eat usable bits long before you run out of codes. This section is about that gap. It is **not** the DMM GUM uncertainty toy (Month 1), and it is **not** another restatement of the ideal 10-bit formula alone.
+
+<Resource id="wiki-enob" />
+<Resource id="ti-slaa013" />
+<Resource id="arduino-analog-input" />
+
+**Sources actually opened.**
+
+- **Wikipedia — Effective number of bits:** `ENOB = (SINAD_dB − 1.76) / 6.02`. ENOB may be fractional; a converter that uses 12 codes bits can still report fewer effective bits once noise and distortion are counted.
+- **TI SLAA013 (*Understanding Data Converters*):** ideal mid-riser quantization error is ±½ LSB; mean-square quantization noise is `q²/12`; for a full-scale sine the ideal SNR is **`6.02n + 1.76 dB`** (about **61.96 dB** at n = 10).
+- **Arduino analog-input guide:** `analogRead` returns 0…1023 on a 10-bit Uno ADC referenced to the board supply. Numbers from these documents are 以原文为准. A real SAR datasheet ENOB, INA front-end or scope lab: **本页未运行**.
+
+### Ideal bits versus effective bits
+
+Quantization alone already limits SNR. With step `q = V_ref / 2ⁿ`, the ideal sine SNR is `6.02n + 1.76` dB. Rearranged, any measured SINAD maps back to an effective bit count:
+
+<Formula label="ENOB from SINAD">ENOB = (SINAD_dB − 1.76) / 6.02</Formula>
+
+If front-end noise or odd harmonics raise the non-tone floor, SINAD falls and ENOB falls with it — even though the converter still emits 10-bit codes.
+
+### Fair setup
+
+`adc_enob_noise_toy.py` is **synthetic** and stdlib only. Every arm sees the **same** coherent tone (bin 17 of 1024 samples, amplitude 0.95 × V_ref/2 about mid-scale) and the **same** mid-riser quantizer at n = 10, V_ref = 5 V:
+
+| Arm | Corruption before the quantizer |
+|---|---|
+| A_ideal | none (quantization only) |
+| B_noise | additive Gaussian noise, σ = 3.5 LSB |
+| C_distort | same noise + mild odd cubic (`k3 = 0.045` on the normalized swing) |
+
+Metrics come from a coherent DFT: tone power versus noise-only bins (SNR) and versus all non-tone bins (SINAD), then ENOB from SINAD. Results are five-seed mean±sd. The toy does **not** claim a measured chip ENOB.
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-2/arduino-io
+python3 adc_enob_noise_toy.py
+```
+
+<CodeSource path="examples/month-2/arduino-io/adc_enob_noise_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic ADC ENOB / front-end noise toy. Stdlib only.
+
+Shared analog tone and shared sample aperture for every arm. Arms differ only
+in front-end corruption before an ideal mid-riser n-bit quantizer:
+  A_ideal       quantizer alone (quantization noise only)
+  B_noise       same quantizer + additive front-end Gaussian noise
+  C_distort     same noise + mild odd cubic nonlinearity
+
+Metrics: SNR and SINAD from a coherent DFT tone bin, then
+ENOB = (SINAD_dB - 1.76) / 6.02 (Wikipedia ENOB; TI SLAA013 ideal SNR
+6.02n + 1.76 dB). Not a SAR datasheet measurement. Real ADC lab: 本页未运行.
+"""
+from __future__ import annotations
+
+import cmath
+import math
+import random
+
+N_BITS = 10
+N_LEVELS = 1 << N_BITS
+VREF = 5.0
+LSB = VREF / N_LEVELS
+FS_AMP = 0.95 * (VREF / 2.0)  # stay off the rails
+N_SAMPLES = 1024
+TONE_BIN = 17  # coherent: cycles = TONE_BIN over N_SAMPLES
+NOISE_SIGMA = 3.5 * LSB  # front-end noise, synthetic
+DISTORT_K3 = 0.045  # mild cubic on normalized swing, synthetic
+SEEDS = (0, 1, 2, 3, 4)
+ARMS = ("A_ideal", "B_noise", "C_distort")
+
+
+def ideal_snr_db(n: int) -> float:
+    return 6.02 * n + 1.76
+
+
+def quantize(v: float) -> float:
+    """Ideal mid-riser midtread-style clip to [0, VREF], return reconstructed volts."""
+    code = int(math.floor(v / LSB))
+    if code < 0:
+        code = 0
+    elif code > N_LEVELS - 1:
+        code = N_LEVELS - 1
+    # reconstruct at code centre
+    return (code + 0.5) * LSB
+
+
+def tone_samples() -> list[float]:
+    """Shared clean full-scale-ish sine centered at VREF/2."""
+    mid = VREF / 2.0
+    out = []
+    for k in range(N_SAMPLES):
+        phase = 2.0 * math.pi * TONE_BIN * k / N_SAMPLES
+        out.append(mid + FS_AMP * math.sin(phase))
+    return out
+
+
+def apply_arm(clean: list[float], arm: str, seed: int) -> list[float]:
+    rng = random.Random(10_000 + seed)
+    mid = VREF / 2.0
+    out = []
+    for v in clean:
+        x = v
+        if arm in ("B_noise", "C_distort"):
+            x = x + rng.gauss(0.0, NOISE_SIGMA)
+        if arm == "C_distort":
+            # odd cubic on swing about mid; shared coefficient, not a datasheet INL
+            u = (x - mid) / (VREF / 2.0)
+            x = mid + (VREF / 2.0) * (u + DISTORT_K3 * (u ** 3))
+        out.append(quantize(x))
+    return out
+
+
+def dft_bin(xs: list[float], bin_k: int) -> complex:
+    n = len(xs)
+    acc = 0j
+    for k, x in enumerate(xs):
+        acc += x * cmath.exp(-2j * math.pi * bin_k * k / n)
+    return acc
+
+
+def snr_sinad(xs: list[float]) -> tuple[float, float]:
+    """Return (SNR_dB, SINAD_dB) from coherent single-tone DFT."""
+    n = len(xs)
+    # remove DC
+    mean = sum(xs) / n
+    yc = [x - mean for x in xs]
+    # positive bins 1 .. n/2-1; tone at TONE_BIN; image at n-TONE_BIN ignored as conjugate
+    tone = dft_bin(yc, TONE_BIN)
+    # power: |X|^2 for one-sided use 2*|X|^2/n^2 for sinusoid amplitude^2/2
+    tone_p = 2.0 * (abs(tone) ** 2) / (n * n)
+    # noise+distortion: all other bins except DC and Nyquist twin
+    nd_p = 0.0
+    noise_only_p = 0.0
+    harmonics = {2 * TONE_BIN, 3 * TONE_BIN, 4 * TONE_BIN, 5 * TONE_BIN}
+    harmonics = {h for h in harmonics if 0 < h < n // 2}
+    for k in range(1, n // 2):
+        if k == TONE_BIN:
+            continue
+        p = 2.0 * (abs(dft_bin(yc, k)) ** 2) / (n * n)
+        nd_p += p
+        if k not in harmonics:
+            noise_only_p += p
+    # floor guards
+    snr = 10.0 * math.log10(tone_p / max(noise_only_p, 1e-30))
+    sinad = 10.0 * math.log10(tone_p / max(nd_p, 1e-30))
+    return snr, sinad
+
+
+def enob(sinad_db: float) -> float:
+    return (sinad_db - 1.76) / 6.02
+
+
+def mean_sd(xs: list[float]) -> tuple[float, float]:
+    mu = sum(xs) / len(xs)
+    var = sum((x - mu) ** 2 for x in xs) / (len(xs) - 1)
+    return mu, math.sqrt(var)
+
+
+def main() -> None:
+    clean = tone_samples()
+    print(
+        "Synthetic ADC ENOB toy; shared tone/aperture; not a datasheet SAR measurement"
+    )
+    print(
+        f"n_bits={N_BITS} Vref={VREF:.1f}V LSB={LSB*1e3:.4f}mV N={N_SAMPLES} "
+        f"tone_bin={TONE_BIN} fs_amp={FS_AMP:.4f}V "
+        f"noise_sigma={NOISE_SIGMA/LSB:.2f}LSB distort_k3={DISTORT_K3} seeds={len(SEEDS)}"
+    )
+    print(
+        f"ideal_SNR_formula={ideal_snr_db(N_BITS):.2f}dB "
+        f"(TI SLAA013 / Wikipedia: 6.02n+1.76); ENOB=(SINAD-1.76)/6.02"
+    )
+    print("arm SNR_dB SINAD_dB ENOB_bits (mean+-sd over seeds)")
+    for arm in ARMS:
+        snrs, sinads, enobs = [], [], []
+        for seed in SEEDS:
+            xs = apply_arm(clean, arm, seed)
+            snr, sinad = snr_sinad(xs)
+            snrs.append(snr)
+            sinads.append(sinad)
+            enobs.append(enob(sinad))
+        cols = [mean_sd(snrs), mean_sd(sinads), mean_sd(enobs)]
+        print(
+            f"{arm} "
+            + " ".join(f"{m:.3f}+-{s:.3f}" for m, s in cols)
+        )
+    print(
+        "No winner declared: noise and distortion trade differently; "
+        "toy ENOB is not a measured chip rating"
+    )
+    print("Real ADC / scope / INA lab: 本页未运行; Wikipedia+TI numbers 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic ADC ENOB toy; shared tone/aperture; not a datasheet SAR measurement
+n_bits=10 Vref=5.0V LSB=4.8828mV N=1024 tone_bin=17 fs_amp=2.3750V noise_sigma=3.50LSB distort_k3=0.045 seeds=5
+ideal_SNR_formula=61.96dB (TI SLAA013 / Wikipedia: 6.02n+1.76); ENOB=(SINAD-1.76)/6.02
+arm SNR_dB SINAD_dB ENOB_bits (mean+-sd over seeds)
+A_ideal 61.486+-0.000 61.476+-0.000 9.920+-0.000
+B_noise 39.809+-0.108 39.774+-0.093 6.315+-0.015
+C_distort 39.624+-0.086 36.940+-0.083 5.844+-0.014
+No winner declared: noise and distortion trade differently; toy ENOB is not a measured chip rating
+Real ADC / scope / INA lab: 本页未运行; Wikipedia+TI numbers 以原文为准
+```
+
+</SimOutput>
+
+### Read the bit budget
+
+**A_ideal** lands near the formula: SNR **61.49 dB**, SINAD **61.48 dB**, ENOB **9.92 bits** — a shade under 10 because the tone is 0.95 of full-scale and the mid-riser reconstruction is discrete. **B_noise** collapses to ENOB **6.32 bits** (SINAD ≈ 39.8 dB): the same 10-bit codes, but front-end noise ate about 3.6 bits. **C_distort** keeps a similar SNR (**39.62 dB**) yet SINAD falls further to **36.94 dB** (ENOB **5.84 bits**) because the cubic term puts energy into harmonics that SINAD counts and SNR-with-harmonics-excluded does not. **No winner is declared**: noise and distortion buy different floors; the toy is not a datasheet rating. Real ADC / scope / INA: **本页未运行**.
+
+**180-minute work plan:** 30 min read ENOB/SLAA013 numbers; 45 min derive ideal SNR and ENOB; 45 min run shared-tone arms; 45 min change σ or k3 with seeds fixed; 15 min list what a real ENOB lab would still need.
+
+### Exercises
+
+1. Derive `6.02n + 1.76` from `q²/12` quantization noise and a full-scale sine of amplitude `A = q·2ⁿ⁻¹`. Check the n = 10 value 61.96 dB.
+2. From the printed SINAD, recompute ENOB by hand for each arm and match the table.
+3. Double `NOISE_SIGMA` with the same seeds. Predict which arms move and whether C's SNR–SINAD gap shrinks or grows before you run it.
+4. Set `DISTORT_K3 = 0` and confirm C collapses toward B. Explain which metric must agree and which may still differ slightly.
+5. Before any hardware run (本页未运行), list aperture jitter, reference noise and INL terms this toy omits; do not treat toy ENOB as a chip claim.
+
 <Summary>
 
 **Key points**
@@ -951,6 +1183,8 @@ Real transceiver, cable and TDR: 本页未运行; SLLA272 numbers 以原文为�
 - The I2C RC comparison holds bytes fixed while screening Sm/Fm/Fm+ rise limits and bit/high-time/sink budgets, without treating flags as packet failures.
 
 - RS-485 carries the same UART frames on a differential pair with 120 Ω at both trunk ends; in the shared-payload bounce toy an unterminated 120 m line corrupts 16 of 17 bytes at 1 Mbps but none at 125 kbps, termination costs 62.50 mA of idle drive, and a single-ended wire fails on common-mode noise at both rates.
+
+- ENOB converts measured SINAD into effective bits: shared-tone arms show ideal ≈ 9.92 bits falling to ≈ 6.32 with front-end noise and ≈ 5.84 with added mild distortion — still 10-bit codes, not a datasheet rating.
 
 **Used next**
 
