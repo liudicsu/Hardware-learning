@@ -863,7 +863,7 @@ A single-ended gauge divider against mid-rail sees the **same** gauge law but ke
 | B_bridge_ideal | both legs + CM → differential + **CMRR residual**, then `G` (no Vos) |
 | C_bridge_offset | same bridge path + INA-like RTI offset, then `G` |
 
-Regimes: `small_delta_noisy_cm` (bridge SNR wins) and `large_delta_quiet_cm` (**near-tie / small gap** — about 2.6 dB, not a true tie; no presumed winner). Metrics: sensitivity, offset error, and **multi-sample SNR** `|Δmean| / pooled sample std` over 64 draws (not a single-shot `|signal|/noise_floor` with asymmetric floors). **Multi-sample SNR cannot see the static offset `Vos`:** the same constant appears in every sample, so it cancels in `Δmean`. Arm C’s slightly higher SNR than B therefore does **not** mean C is better — C’s cost shows up in offset and absolute accuracy (~0.024 V vs ~0.0004 V), and C does not win. Five-seed mean±sd.
+Regimes: `small_delta_noisy_cm` (bridge SNR wins) and `large_delta_quiet_cm` (**near-tie / small gap** — about 2.6 dB, not a true tie; no presumed winner). Metrics: sensitivity, offset error, and **multi-sample SNR** `|Δmean| / pooled sample std` over 64 draws (not a single-shot `|signal|/noise_floor` with asymmetric floors). **Multi-sample SNR cannot see the static offset `Vos`:** the same constant appears in every sample, so it cancels in `Δmean`. By contrast, for uncorrelated noise, averaging N samples improves SNR by about √N; but `Vos` is a DC offset, so averaging does not remove it. Arm C’s slightly higher SNR than B therefore does **not** mean C is better — C’s cost shows up in offset and absolute accuracy (~0.024 V vs ~0.0004 V), and C does not win. Five-seed mean±sd.
 
 ### Run the stdlib toy
 
