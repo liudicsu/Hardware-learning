@@ -4662,6 +4662,67 @@ export const resources: Record<string, Resource> = {
     extra: true,
   },
 
+  "wiki-gear-train": {
+    id: "wiki-gear-train",
+    url: "https://en.wikipedia.org/wiki/Gear_train",
+    title: {
+      zh: "Wikipedia：齿轮系",
+      en: "Wikipedia: Gear train",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "齿轮比与虚功分析；刚性、无啮合损耗假设。HTML 正文已核验。",
+      en: "Gear ratio and virtual-work analysis; rigid, no mesh-loss assumption. HTML body verified.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "ua-lqr": {
+    id: "ua-lqr",
+    url: "https://underactuated.mit.edu/lqr.html",
+    title: {
+      zh: "Underactuated Robotics：线性二次调节器",
+      en: "Underactuated Robotics: Linear Quadratic Regulators",
+    },
+    author: "Russ Tedrake",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "离散时间 Riccati / DARE 与连续对照。HTML 正文已核验。",
+      en: "Discrete-time Riccati / DARE and continuous contrast. HTML body verified.",
+    },
+    license: {
+      zh: "以原站为准",
+      en: "See original terms",
+    },
+    extra: true,
+  },
+  "scipy-dare": {
+    id: "scipy-dare",
+    url: "https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.solve_discrete_are.html",
+    title: {
+      zh: "SciPy：solve_discrete_are（DARE）",
+      en: "SciPy: solve_discrete_are (DARE)",
+    },
+    author: "SciPy developers",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "离散代数 Riccati 方程定义与可解条件。HTML 正文已核验。",
+      en: "Discrete algebraic Riccati equation definition and solvability. HTML body verified.",
+    },
+    license: {
+      zh: "以原站为准",
+      en: "See original terms",
+    },
+    extra: true,
+  },
+
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

@@ -580,6 +580,286 @@ load encoder has more information; no universal winner; finite-window candidate,
 4.（35 min）扫描 bhat，报告有符号稳态误差带、稳定时间及设错失效；保留 D，明示 I 泄漏。
 5.（20 min）提出输出编码器 / 预载取舍，指出额外信息或机械代价，不声称真减速器结果。
 
+
+## 负载相关的齿轮效率
+
+上面的算术把效率当成**常数** η（打印齿轮每级猜测 0.9）。真实啮合损耗**随负载变化**：库仑（与速度符号相关）项，加上随转速增大的粘滞项。Wikipedia 齿轮系的虚功分析假定齿轮**刚性**且啮合**无损耗**——适合理想传动比，不适合 η(τ,ω)。本节**不是**齿隙闭环玩具。
+
+<Resource id="wiki-gear-train" />
+
+**实际打开的来源（HTML 正文已核验）。**
+
+- **Wikipedia — Gear train：** 齿轮 / 转速比；在齿轮刚性、啮合**无损耗**假设下用虚功做转矩比。数字 以原文为准。真实齿轮箱 / 测功实验：**本页未运行**。
+
+### 模型假设
+
+正向传动、输出端折合摩擦
+
+<Formula label="输出端库仑 + 粘滞损耗">τ_out = n · τ_in − (τ_c · sign(ω_out) + b_v · ω_out)</Formula>
+
+故瞬时 η = (τ_out · ω_out) / (τ_in · ω_in)。恒定 η 模型则令 P_out = η · P_in。**反驱是另一回事：** 正向 η **不等于**反驱 η_b；起动大约需要输出端 τ_c + |b_v|·ω_crawl。热代理 ≈ τ_loss · |ω_out|（恒定 η 臂则用 (1−η)·P_in）。
+
+**指标盲区：** 恒定 η 臂用 (1−η)·P_in 自报热代理，在 η 只在重载点拟合时看不见真实库仑份额——应用相对库仑+粘滞真值的**输出功率误差**评判，而不是只看自报热量。
+
+### 公平设置
+
+`gear_efficiency_load_toy.py` 是**合成**的，只用标准库。每个臂共享**同一**传动比 n=25:1、**同一**电机 τ–ω 日程，且每种种子下 **(τ_c, b_v) 抽签相同**（公共随机数）。
+
+| 臂 | 读出 |
+|---|---|
+| A_constant_eta | 固定 η₀ = 0.9 |
+| B_coulomb_viscous | 负载相关损耗（本玩具真值） |
+| C_heavy_fit_eta | **仅**在 B 的重载点上拟合的恒定 η |
+
+制度：`heavy_load`（η 上**接近打平 / 差距很小**——设计点处 A 的 η₀ ≈ B 的负载相关 η；并非真正零差距）与 `light_load`（恒定 η 低估库仑主导损耗）。指标：η、|P_out − P_out,B|、热代理。五多种子 mean±sd。
+
+### 运行标准库玩具
+
+
+<CodeSource path="examples/month-3/transmissions/gear_efficiency_load_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic load-dependent gear efficiency literacy toy. Stdlib only.
+
+Shared motor τ–ω schedule and gear ratio for every arm. Friction draws
+(τ_c, b_v) are **common random numbers**: for a given seed, A/B/C see the
+identical Coulomb + viscous pair (arms do not get private friction luck).
+
+Arms:
+  A_constant_eta     P_out = η0 · P_in with fixed η0=0.9 (lesson guess)
+  B_coulomb_viscous  τ_out = n·τ_in − (τ_c·sign(ω_out) + b_v·ω_out)
+  C_heavy_fit_eta    constant η fitted only on the heavy-load operating points of B
+
+Regimes (≥5 seeds):
+  heavy_load  — design point used to fit η: A matches B (exact/near tie on η)
+  light_load  — Coulomb dominates: constant-η arms diverge from B
+
+Assumptions (stated for the page): load-dependent friction loss, not a
+constant η; forward driving; back-driving needs a separate η_b / breakaway
+check (this toy reports a backdrive threshold, not a dyno). ≠ backlash-in-loop.
+Not a gearbox dyno. Real dyno: 本页未运行.
+"""
+from __future__ import annotations
+
+import math
+import random
+
+N_RATIO = 25.0  # two 5:1 stages (matches lesson arithmetic)
+ETA0 = 0.9  # a-priori constant guess (lesson printed-gear guess)
+SEEDS = (0, 1, 2, 3, 4)
+ARMS = ("A_constant_eta", "B_coulomb_viscous", "C_heavy_fit_eta")
+# Shared τ–ω operating points (motor shaft). Heavy used to fit C; light shows gap.
+OPS = {
+    "heavy_load": {"tau_in": 0.050, "omega_in": 628.0},  # ~6000 rpm, lesson load
+    "light_load": {"tau_in": 0.008, "omega_in": 628.0},  # same speed, light torque
+}
+# Nominal friction (perturbed per seed, shared across arms)
+TAU_C0 = 0.12  # N·m at output (Coulomb)
+B_V0 = 0.00035  # N·m·s/rad at output (viscous)
+FRIC_REL_STD = 0.08
+
+
+def shared_friction(seed: int) -> tuple[float, float]:
+    """Common random numbers: identical (τ_c, b_v) for every arm at this seed."""
+    rng = random.Random(40_000 + seed)  # seed only — no arm salt
+    tau_c = TAU_C0 * (1.0 + FRIC_REL_STD * rng.gauss(0.0, 1.0))
+    b_v = B_V0 * (1.0 + FRIC_REL_STD * rng.gauss(0.0, 1.0))
+    tau_c = max(1e-6, tau_c)
+    b_v = max(1e-9, b_v)
+    return tau_c, b_v
+
+
+def omega_out(omega_in: float) -> float:
+    return omega_in / N_RATIO
+
+
+def power_in(tau_in: float, omega_in: float) -> float:
+    return tau_in * omega_in
+
+
+def arm_B_out(tau_in: float, omega_in: float, tau_c: float, b_v: float) -> tuple[float, float, float]:
+    """Return (τ_out, η, heat_W) for Coulomb+viscous loss at the output."""
+    w_o = omega_out(omega_in)
+    # Load-dependent loss at output shaft
+    sign = 1.0 if w_o >= 0.0 else -1.0
+    tau_loss = tau_c * sign + b_v * w_o
+    tau_out = N_RATIO * tau_in - tau_loss
+    p_in = power_in(tau_in, omega_in)
+    p_out = tau_out * w_o
+    eta = p_out / p_in if p_in > 0.0 else 0.0
+    heat = tau_loss * abs(w_o)
+    return tau_out, eta, heat
+
+
+def arm_const_out(tau_in: float, omega_in: float, eta: float) -> tuple[float, float, float]:
+    w_o = omega_out(omega_in)
+    p_in = power_in(tau_in, omega_in)
+    p_out = eta * p_in
+    tau_out = p_out / w_o if abs(w_o) > 1e-15 else 0.0
+    heat = (1.0 - eta) * p_in
+    return tau_out, eta, heat
+
+
+def fit_eta_heavy(tau_c: float, b_v: float) -> float:
+    """Constant η from the single heavy-load truth point (C's only training point)."""
+    op = OPS["heavy_load"]
+    _, eta, _ = arm_B_out(op["tau_in"], op["omega_in"], tau_c, b_v)
+    return eta
+
+
+def metrics_for(regime: str, arm: str, seed: int) -> tuple[float, float, float, float, float]:
+    """Return (eta, p_err_W, heat_W, tau_c, b_v). p_err is |P_out_arm − P_out_B|."""
+    tau_c, b_v = shared_friction(seed)
+    op = OPS[regime]
+    tau_in, omega_in = op["tau_in"], op["omega_in"]
+    # Truth B always evaluated with the shared friction
+    tau_b, eta_b, heat_b = arm_B_out(tau_in, omega_in, tau_c, b_v)
+    p_b = tau_b * omega_out(omega_in)
+    if arm == "B_coulomb_viscous":
+        return eta_b, 0.0, heat_b, tau_c, b_v
+    if arm == "A_constant_eta":
+        tau_a, eta_a, heat_a = arm_const_out(tau_in, omega_in, ETA0)
+        p_a = tau_a * omega_out(omega_in)
+        return eta_a, abs(p_a - p_b), heat_a, tau_c, b_v
+    # C: η fitted on heavy only — blind to light-load Coulomb dominance
+    eta_fit = fit_eta_heavy(tau_c, b_v)
+    tau_c_arm, eta_c, heat_c = arm_const_out(tau_in, omega_in, eta_fit)
+    p_c = tau_c_arm * omega_out(omega_in)
+    return eta_c, abs(p_c - p_b), heat_c, tau_c, b_v
+
+
+def backdrive_threshold(tau_c: float, b_v: float, omega_crawl: float = 1.0) -> float:
+    """Output torque to start back-driving at a crawl speed (static Coulomb + viscous)."""
+    return abs(tau_c) + abs(b_v * omega_crawl)
+
+
+def mean_sd(xs: list[float]) -> tuple[float, float]:
+    n = len(xs)
+    mu = sum(xs) / n
+    var = sum((x - mu) ** 2 for x in xs) / (n - 1)
+    return mu, math.sqrt(var)
+
+
+def main() -> None:
+    print(
+        "Synthetic gear η(load) toy; shared τ–ω / ratio / friction draws; "
+        "not a gearbox dyno"
+    )
+    print(
+        f"n={N_RATIO:.0f}:1 ETA0={ETA0} seeds={len(SEEDS)} "
+        f"tau_c0={TAU_C0} b_v0={B_V0} (Coulomb+viscous at output)"
+    )
+    print(
+        "model: B τ_out=n*τ_in−(τ_c*sign(ω_out)+b_v*ω_out); "
+        "A uses fixed η0; C fits η on heavy_load only; "
+        "backdrive threshold = τ_c+|b_v|·ω_crawl (separate from forward η)"
+    )
+    print(
+        "regime arm eta p_err_W heat_W (mean+-sd over seeds; "
+        "p_err = |P_out_arm − P_out_B|)"
+    )
+    summary: dict[tuple[str, str], tuple[float, float, float]] = {}
+    fric_check: dict[int, tuple[float, float]] = {}
+    for regime in ("heavy_load", "light_load"):
+        for arm in ARMS:
+            etas, errs, heats = [], [], []
+            for seed in SEEDS:
+                eta, err, heat, tau_c, b_v = metrics_for(regime, arm, seed)
+                etas.append(eta)
+                errs.append(err)
+                heats.append(heat)
+                if arm == "A_constant_eta":
+                    fric_check[seed] = (tau_c, b_v)
+                else:
+                    assert fric_check[seed] == (tau_c, b_v)
+            me, se = mean_sd(etas)
+            mr, sr = mean_sd(errs)
+            mh, sh = mean_sd(heats)
+            summary[(regime, arm)] = (me, mr, mh)
+            print(
+                f"{regime} {arm} {me:.4f}+-{se:.4f} "
+                f"{mr:.4f}+-{sr:.4f} {mh:.4f}+-{sh:.4f}"
+            )
+
+    # Heavy: A should near-tie B on η / tiny p_err; C fitted so p_err≈0
+    eta_a_h = summary[("heavy_load", "A_constant_eta")][0]
+    eta_b_h = summary[("heavy_load", "B_coulomb_viscous")][0]
+    err_a_h = summary[("heavy_load", "A_constant_eta")][1]
+    err_c_h = summary[("heavy_load", "C_heavy_fit_eta")][1]
+    err_a_l = summary[("light_load", "A_constant_eta")][1]
+    err_c_l = summary[("light_load", "C_heavy_fit_eta")][1]
+    print(
+        f"heavy_load: |η_A − η_B| = {abs(eta_a_h - eta_b_h):.4f} "
+        f"(near-tie / small gap on design point — A’s η0≈B’s load-dependent η; "
+        f"p_err_A={err_a_h:.4f} W)"
+    )
+    print(
+        f"heavy_load: C_heavy_fit p_err = {err_c_h:.4e} W "
+        f"(fitted on this point — matches B by construction)"
+    )
+    print(
+        f"light_load: p_err_A = {err_a_l:.4f} W, p_err_C = {err_c_l:.4f} W "
+        f"(constant η under-predicts Coulomb-dominated loss)"
+    )
+    # Backdrive literacy (same shared friction, seed 0)
+    tc, bv = shared_friction(0)
+    thr = backdrive_threshold(tc, bv)
+    print(
+        f"backdrive threshold (seed0) = {thr:.4f} N*m at output "
+        f"(τ_c+|b_v|·1 rad/s; forward η does not equal backdrive η_b)"
+    )
+    print(
+        "No winner declared: heavy-load design point makes constant η look fine; "
+        "light load exposes Coulomb loss; C’s fit does not transfer"
+    )
+    print(
+        "Real gearbox / dyno lab: 本页未运行; Wikipedia Gear train numbers 以原文为准"
+    )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic gear η(load) toy; shared τ–ω / ratio / friction draws; not a gearbox dyno
+n=25:1 ETA0=0.9 seeds=5 tau_c0=0.12 b_v0=0.00035 (Coulomb+viscous at output)
+model: B τ_out=n*τ_in−(τ_c*sign(ω_out)+b_v*ω_out); A uses fixed η0; C fits η on heavy_load only; backdrive threshold = τ_c+|b_v|·ω_crawl (separate from forward η)
+regime arm eta p_err_W heat_W (mean+-sd over seeds; p_err = |P_out_arm − P_out_B|)
+heavy_load A_constant_eta 0.9000+-0.0000 0.2125+-0.0806 3.1400+-0.0000
+heavy_load B_coulomb_viscous 0.8954+-0.0061 0.0000+-0.0000 3.2856+-0.1909
+heavy_load C_heavy_fit_eta 0.8954+-0.0061 0.0000+-0.0000 3.2856+-0.1909
+light_load A_constant_eta 0.9000+-0.0000 2.7832+-0.1909 0.5024+-0.0000
+light_load B_coulomb_viscous 0.3460+-0.0380 0.0000+-0.0000 3.2856+-0.1909
+light_load C_heavy_fit_eta 0.8954+-0.0061 2.7599+-0.1604 0.5257+-0.0305
+heavy_load: |η_A − η_B| = 0.0046 (near-tie / small gap on design point — A’s η0≈B’s load-dependent η; p_err_A=0.2125 W)
+heavy_load: C_heavy_fit p_err = 0.0000e+00 W (fitted on this point — matches B by construction)
+light_load: p_err_A = 2.7832 W, p_err_C = 2.7599 W (constant η under-predicts Coulomb-dominated loss)
+backdrive threshold (seed0) = 0.1106 N*m at output (τ_c+|b_v|·1 rad/s; forward η does not equal backdrive η_b)
+No winner declared: heavy-load design point makes constant η look fine; light load exposes Coulomb loss; C’s fit does not transfer
+Real gearbox / dyno lab: 本页未运行; Wikipedia Gear train numbers 以原文为准
+```
+
+</SimOutput>
+
+### 读制度
+
+在 **heavy_load** 上，|η_A − η_B| ≈ 0.005——**接近打平 / 差距很小**，并非真正平局（剩余差距来自多种子摩擦相对固定 η₀=0.9）。C 在该点与 B **按构造**一致（唯一拟合样本）。在 **light_load** 上，A、C 的功率误差升到约 **2.8 W**，而 B 的 η 降到约 0.35——τ_in 小时库仑占主导。本页**不宣布普遍赢家**。真实测功：**本页未运行**。
+
+**180 分钟工作计划：** 30 分钟读齿轮系比 / 虚功（无损耗）假设；30 分钟推导库仑+粘滞 τ_out；45 分钟跑共享 τ–ω 各臂；45 分钟在多种子固定下改轻/重载；30 分钟列出真实测功还缺什么（温度、润滑、反驱 η_b）。
+
+### 练习
+
+1. 由 n、τ_in、ω_in 与 (τ_c, b_v) 推导 τ_out 与 η，并与打印的 heavy_load B 行对照。
+2. 用共享摩擦抽签证明同一种子下 A、B、C 得到相同 (τ_c, b_v)。
+3. 只在 heavy_load 上拟合 η（如 C），运行前预测 light_load 的 P_out。
+4. 多种子不变，把 τ_c 减半。预测哪一制度的功率误差动得最多。
+5. 任何测功前（本页未运行），写明为何重载**接近打平**不能授权在轻载工况用恒定 η，以及为何正向 η ≠ 反驱 η_b。
+
+
 <Summary>
 
 物理回差闭环玩具区分摩擦加积分导致的 hunting 与传感器位置，明示负载臂额外信息，并报告死区误差带及设错后的失效。
@@ -606,6 +886,8 @@ load encoder has more information; no universal winner; finite-window candidate,
 - 你能算出 0.1 N·m 电机经过 10:1、效率 90 % 减速器的输出扭矩吗？
 - 你能验算太阳轮 15、齿圈 45 能装下 3 个行星轮并得到 4 : 1 吗？
 - 你能把 0.40 m 手臂上 1.5° 的回差换算成末端的毫米数吗？
+
+- 负载相关齿轮效率入门：共享 τ–ω 显示恒定 η 相对库仑+粘滞在重载接近打平、轻载发散——不是齿轮箱测功。
 
 **下一课会用到**
 

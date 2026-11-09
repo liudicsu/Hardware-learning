@@ -3936,8 +3936,8 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 27270, "b11p1 curriculum: 27270 minutes (tip after PR1)");
-  for (const [month, expected] of [[1, 1350], [2, 3030], [3, 1770], [4, 2130], [5, 1950], [6, 2190], [7, 2070], [8, 3180], [9, 3690], [10, 2490], [11, 3420]]) {
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 27630, "b11p2 curriculum: 27630 minutes (tip after PR2)");
+  for (const [month, expected] of [[1, 1350], [2, 3030], [3, 1950], [4, 2130], [5, 2130], [6, 2190], [7, 2070], [8, 3180], [9, 3690], [10, 2490], [11, 3420]]) {
     ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `current curriculum M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
@@ -4088,7 +4088,7 @@ const lessonRef = (n, slug, lang) => {
     ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `obs3 resource ${id}: present + extra`);
   }
   ok(read("src/lib/curriculum.ts").match(/slug: "control-modelling"[\s\S]*?minutes: (\d+)/)?.[1] === "420", "obs3 curriculum: 5.1 = 420");
-  ok(read("src/lib/curriculum.ts").match(/slug: "state-space-lqr"[\s\S]*?minutes: (\d+)/)?.[1] === "420", "obs3 curriculum: 5.2 = 420");
+  ok(read("src/lib/curriculum.ts").match(/slug: "state-space-lqr"[\s\S]*?minutes: (\d+)/)?.[1] === "600", "obs3 curriculum: 5.2 = 600");
   ok(read("src/lib/curriculum.ts").match(/slug: "policy-evaluation"[\s\S]*?minutes: (\d+)/)?.[1] === "330", "obs3 curriculum: 6.4 = 330");
 }
 
@@ -4923,7 +4923,7 @@ for (const m of readdirSync(content)) {
   for (const id of ["dreamgen-paper", "lapa-paper", "smolvla-paper", "lerobot-async"]) {
     ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `wm2 resource ${id}: present + extra`);
   }
-  ok(/27 270/.test(read("README.md")), "b11p1 README: 27 270 minutes (tip after PR1)");
+  ok(/27 630/.test(read("README.md")), "b11p2 README: 27 630 minutes (tip after PR2)");
   console.log("worldmodel-smolvla PR2: neural trajectories + async chunk locks checked");
 }
 
@@ -5181,7 +5181,7 @@ for (const m of readdirSync(content)) {
   for (const [month, slug, toy, minutes, added, markers, summaryMarker] of [
     [1,"bench-multimeter","dmm_uncertainty_toy",240,150,["√3","RSS","0.004272","0.009400","0.009514","0.038991","0.091000","20000"],"√3"],
     [2,"sensors-fusion","imu_kf_vs_complementary_toy",720,150,["Q0","R0","40500","201/202/203","221–225","0.259680","0.222922","0.213477","0.297265","0.295811"],"Q/R"],
-    [3,"transmissions","backlash_loop_toy",330,180,["P/I","FS=0.4","FC=0.02","0.047514","0.033429","0.053333","0.014043","0.067457","0.570"],"hunting"],
+    [3,"transmissions","backlash_loop_toy",510,180,["P/I","FS=0.4","FC=0.02","0.047514","0.033429","0.053333","0.014043","0.067457","0.570"],"hunting"],
   ]) {
     const src = `examples/month-${month}/${slug}/${toy}.py`;
     const py = read(src), expected = read(`examples/month-${month}/expected/${toy}.txt`);
@@ -6093,7 +6093,7 @@ print("protocol pass")
   }
   const plan=read("docs/notes/month-2-plan.md");
   ok(plan.startsWith("# Month 2")&&["Current / 当前：**M2 3030 min**, Batch-10 PR1","2670→3030","25800→26160","480→660","540→720","Batch-10 PR1"].every(x=>plan.includes(x)),"b10p1 month-2 plan header and PR1-only accounting");
-  ok(/27 270/.test(read("README.md")),"b11p1 README site minutes (tip after batch-10)");
+  ok(/27 630/.test(read("README.md")),"b11p2 README site minutes (tip after PR2)");
   console.log("enob-magcal PR1: ADC ENOB / front-end noise, mag hard/soft-iron and M2 3030 / site 26160 locked");
 }
 
@@ -6147,7 +6147,7 @@ print("protocol pass")
   const p1=read("docs/notes/month-1-plan.md"), p11=read("docs/notes/month-11-plan.md");
   ok(p1.startsWith("# Month 1")&&["## Batch-10 PR2","1020→1170","26160→26520","270→420","Batch-10 PR2"].every(x=>p1.includes(x)),"b10p2 month-1 plan header");
   ok(p11.includes("Current / 当前：**M11 3420 min**, Batch-10 PR2")&&["3210→3420","26160→26520","480→690","Batch-10 PR2"].every(x=>p11.includes(x)),"b10p2 month-11 plan header");
-  ok(/27 270/.test(read("README.md")),"b11p1 README site minutes (tip after batch-10)");
+  ok(/27 630/.test(read("README.md")),"b11p2 README site minutes (tip after PR2)");
   console.log("esd-groundloop PR2: ESD/TVS clamp, shared-return ground loop and M1 1170 / M11 3420 / site 26520 locked");
 }
 
@@ -6202,7 +6202,7 @@ print("protocol pass")
   const p9=read("docs/notes/month-9-plan.md"), p10=read("docs/notes/month-10-plan.md");
   ok(p9.startsWith("# Month 9")&&["Current / 当前：**M9 3690 min**, Batch-10 PR3","3480→3690","26520→26940","420→630","Batch-10 PR3"].every(x=>p9.includes(x)),"b10p3 month-9 plan header");
   ok(p10.includes("Current / 当前：**M10 2490 min**, Batch-10 PR3")&&["2280→2490","26520→26940","240→450","Batch-10 PR3"].every(x=>p10.includes(x)),"b10p3 month-10 plan header");
-  ok(/27 270/.test(read("README.md")),"b11p1 README site minutes");
+  ok(/27 630/.test(read("README.md")),"b11p2 README site minutes");
   console.log("spatialvla-memoryvla PR3: SpatialVLA Ego3D/grids, MemoryVLA bank and M10 2490 / M9 3690 / site 26940 locked");
 }
 
@@ -6256,10 +6256,62 @@ print("protocol pass")
   }
   const p1=read("docs/notes/month-1-plan.md"), p3=read("docs/notes/month-3-plan.md");
   ok(p1.startsWith("# Month 1")&&["Current / 当前：**M1 1350 min**, Batch-11 PR1","1170→1350","26940→27270","420→600","Batch-11 PR1"].every(x=>p1.includes(x)),"b11p1 month-1 plan header");
-  ok(p3.startsWith("# Month 3")&&["Current / 当前：**M3 1770 min**, Batch-11 PR1","1620→1770","26940→27270","150→300","Batch-11 PR1"].every(x=>p3.includes(x)),"b11p1 month-3 plan header");
-  ok(/27 270/.test(read("README.md")),"b11p1 README site minutes");
+  ok(p3.startsWith("# Month 3")&&["1620→1770","26940→27270","150→300","Batch-11 PR1"].every(x=>p3.includes(x)),"b11p1 month-3 plan historical PR1 markers");
+  ok(/27 630/.test(read("README.md")),"b11p2 README site minutes");
   console.log("bridge-gdt PR1: Wheatstone/INA, GD&T stack and M1 1350 / M3 1770 / site 27270 locked");
 }
+
+// Batch-11 PR2: gear η(load) (3.x) and discrete LQR/ZOH (5.2).
+{
+  const read=p=>readFileSync(join(root,p),"utf8"), env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
+  const cur=read("src/lib/curriculum.ts"), res=read("src/lib/resources.ts");
+  const cases=[
+    [3,"transmissions","gear_efficiency_load_toy",510,["## Load-dependent gear efficiency","## 负载相关的齿轮效率"],
+      ["seeds=5","heavy_load A_constant_eta","light_load A_constant_eta","No winner declared","near-tie / small gap"],
+      ["Coulomb","viscous","A_constant_eta","B_coulomb_viscous","C_heavy_fit_eta","backdrive","以原文为准","本页未运行"],
+      {en:["**not** the backlash-in-loop","**synthetic**","does not declare a universal winner","near-tie","cannot see the true Coulomb"],zh:["**不是**齿隙闭环","**合成**","不宣布普遍赢家","接近打平","看不见真实库仑"]},
+      {en:["Gear η(load)","heavy-load near-tie","light-load gap"],zh:["负载相关齿轮效率","重载接近打平","轻载发散"]},
+      ["wiki-gear-train"]],
+    [5,"state-space-lqr","discrete_lqr_zoh_toy",600,["## Discrete LQR and zero-order hold","## 离散 LQR 与零阶保持"],
+      ["seeds=5","coarse_Ts A_cont_zoh","fine_Ts A_cont_zoh","No winner declared","near-tie / small gap"],
+      ["ZOH","DARE","A_cont_zoh","B_disc","C_disc_fine","RICCATI_TOL","以原文为准","本页未运行"],
+      {en:["**not** a Bode","**synthetic**","does not declare a universal winner","near-tie","CPU"],zh:["**不是** Bode","**合成**","不宣布普遍赢家","接近打平","CPU"]},
+      {en:["Discrete LQR / ZOH","fine-Ts near-tie","|λ| < 1"],zh:["离散 LQR / ZOH","细 Ts 接近打平","|λ| < 1"]},
+      ["ua-lqr","scipy-dare"]],
+  ];
+  for(const [month,slug,toy,minutes,heads,outputs,markers,langMarkers,summaryMarkers,ids] of cases){
+    const file=`examples/month-${month}/${slug}/${toy}.py`,py=read(file).trim(),expected=read(`examples/month-${month}/expected/${toy}.txt`).trim();
+    const harness=read(`examples/month-${month}/check.sh`);
+    ok(execFileSync("python3",[join(root,file)],{cwd:root,encoding:"utf8",env}).trim()===expected,`b11p2 ${toy}: actual expected output`);
+    for(const x of outputs)ok(expected.includes(x),`b11p2 ${toy}: result ${x}`);
+    ok(cur.match(new RegExp(`slug: "${slug}"[\\s\\S]*?minutes: (\\d+)`))?.[1]===String(minutes),`b11p2 ${slug}: ${minutes} min`);
+    const host=cur.slice(cur.indexOf(`slug: "${slug}"`)).split("\n  },")[0];
+    ok(host.includes(toy)&&ids.every(id=>host.includes(`"${id}"`)),`b11p2 ${slug}: task names toy and resources wired`);
+    for(const id of ids)ok(res.includes(`"${id}": {`),`b11p2 opened source ${id}`);
+    ok(harness.includes(`${slug}/${toy}.py`)||harness.includes(`${toy}.py`),`b11p2 ${toy}: month harness`);
+    ok(harness.includes(`${toy}.txt`),`b11p2 ${toy}: expected compare`);
+    for(const [index,lang] of ["en","zh"].entries()){
+      const md=read(`src/content/m${month}/${slug}/${lang}.mdx`),summary=md.indexOf("<Summary>"),end=md.indexOf("</Summary>");
+      ok(summary>0&&summary===md.lastIndexOf("<Summary>")&&md.slice(end+10).trim()==="",`b11p2 ${slug} ${lang}: sole whole-lesson Summary ends page`);
+      const head=md.indexOf(heads[index]);
+      ok(head>0&&head<summary,`b11p2 ${slug} ${lang}: new section before Summary`);
+      const sec=md.slice(head,summary);
+      for(const m of markers)ok(sec.includes(m),`b11p2 ${slug} ${lang}: marker ${m}`);
+      for(const m of langMarkers[lang])ok(sec.includes(m)||md.slice(summary,end).includes(m),`b11p2 ${slug} ${lang}: lang ${m}`);
+      for(const m of summaryMarkers[lang])ok(md.slice(summary,end).includes(m),`b11p2 ${slug} ${lang}: summary ${m}`);
+      ok(sec.includes(`<CodeSource path="examples/month-${month}/${slug}/${toy}.py" />`),`b11p2 ${slug} ${lang}: CodeSource`);
+      ok(sec.includes(py),`b11p2 ${slug} ${lang}: embedded py`);
+      ok(sec.includes(expected),`b11p2 ${slug} ${lang}: embedded expected`);
+    }
+  }
+  ok((()=>{try{execFileSync("python3",[join(root,"tools/test_b11_gear_dlqr_toys.py")],{cwd:root,encoding:"utf8",env,stdio:"pipe"});return true;}catch{return false;}})(),"b11p2 independent tests");
+  const p3=read("docs/notes/month-3-plan.md"), p5=read("docs/notes/month-5-plan.md");
+  ok(p3.startsWith("# Month 3")&&["Current / 当前：**M3 1950 min**, Batch-11 PR2","1770→1950","27270→27630","330→**510**","Batch-11 PR2"].every(x=>p3.includes(x)),"b11p2 month-3 plan header");
+  ok(p5.startsWith("# Month 5")&&["Current / 当前：M5 **2130 min** (Batch-11 PR2)","1950→2130","27270→27630","420→**600**","Batch-11 PR2"].every(x=>p5.includes(x)),"b11p2 month-5 plan header");
+  ok(/27 630/.test(read("README.md")),"b11p2 README site minutes");
+  console.log("gear-dlqr PR2: gear η(load), discrete LQR/ZOH and M3 1950 / M5 2130 / site 27630 locked");
+}
+
 
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
