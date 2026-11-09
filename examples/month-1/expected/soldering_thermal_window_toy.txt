@@ -1,0 +1,40 @@
+Synthetic lumped-RC solder-joint toy; arms differ only in dwell; shared pad / tip draws; not a real iron
+tip C=1.2 J/K K_heat=4.0 W/K P_max=60 W G_clean=0.3 W/K; T_dmg=260 C; wet above T_liq+20 C; DT=0.001 s; seeds=5 joints=40
+Euler stability: stiffest joint (C_j=0.10, G_c=0.3, G_loss=0.04) lambda_max=4.367 1/s -> need DT < 2/lambda_max = 0.458 s; DT=0.001 s ok
+regime arm cold_joint_rate pad_lift_rate dose_Cs peak_C  (mean+-sd over seeds)
+heavy_pad_underheat (63/37, T_liq=183 C, set 340 C)
+  A_short 1.0000+-0.0000 0.0000+-0.0000 0.00+-0.00 145.68+-4.61
+  B_lesson 0.2300+-0.0737 0.0000+-0.0000 0.11+-0.12 228.09+-3.78
+  C_long 0.0000+-0.0000 0.0000+-0.0000 13.30+-3.14 254.47+-2.14
+  B_lesson cold joints: mean tip oxide 0.421 on 46 cold vs 0.207 on 154 good joints (oxide cuts G_c)
+  paired A-B cold: 0.7700+-0.0737: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B lift: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B dose: -0.1090+-0.1168: near-tie / small gap, within seed noise (|m| <= sd); same sign on all 5 seeds
+  paired C-B cold: -0.2300+-0.0737: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B lift: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B dose: 13.1894+-3.1419: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+small_pad_overheat (SAC305, T_liq=217 C, set 380 C)
+  A_short 0.0000+-0.0000 0.0000+-0.0000 28.38+-1.61 303.72+-1.89
+  B_lesson 0.0000+-0.0000 0.0000+-0.0000 215.44+-3.34 342.34+-0.78
+  C_long 0.0000+-0.0000 0.9750+-0.0177 633.01+-7.53 343.34+-0.85
+  paired A-B cold: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B lift: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B dose: -187.0560+-3.0690: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B cold: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B lift: 0.9750+-0.0177: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B dose: 417.5752+-4.3362: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+matched_clean (63/37, T_liq=183 C, set 340 C)
+  A_short 0.0000+-0.0000 0.0000+-0.0000 7.33+-0.44 279.86+-0.67
+  B_lesson 0.0000+-0.0000 0.0000+-0.0000 121.44+-1.74 312.42+-0.38
+  C_long 0.0000+-0.0000 0.2900+-0.0742 387.14+-3.55 313.07+-0.36
+  paired A-B cold: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B lift: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B dose: -114.1083+-1.3103: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B cold: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B lift: 0.2900+-0.0742: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B dose: 265.6996+-1.8205: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+reflow profile reading (oven, not a hand iron; SAC305 T_liq=217 C; guide windows from Wikipedia, 以原文为准):
+  profile_ok: ramp 2.08 C/s, soak(150-200 C) 115 s, TAL 50 s, peak 245 C (+28 over liquidus), cooling 3.43 C/s -> inside the guide windows
+  profile_short: ramp 3.13 C/s, soak(150-200 C) 72 s, TAL 18 s, peak 232 C (+15 over liquidus), cooling 3.43 C/s -> ramp > 3 C/s; TAL < 30 s: cold/dull joint and void risk; peak not 20-40 C above liquidus
+No winner declared: the right dwell depends on the pad; a longer dwell rescues heavy pads but lifts small ones; rates are blind to fillet shape, intermetallic growth and component heating
+Real iron / reflow oven: 本页未运行; Wikipedia / SparkFun numbers 以原文为准

@@ -74,4 +74,5 @@ check backlash_loop_toy.txt python3 "$M3/transmissions/backlash_loop_toy.py"
 check abs_vs_incr_power_on_toy.txt python3 "$M3/so101-arm/abs_vs_incr_power_on_toy.py"
 check gdt_tolerance_stack_toy.txt python3 "$M3/cad-parametric/gdt_tolerance_stack_toy.py"
 check gear_efficiency_load_toy.txt python3 "$M3/transmissions/gear_efficiency_load_toy.py"
+check lead_lag_vs_pid_toy.txt python3 "$M3/pid-control/lead_lag_vs_pid_toy.py"
 exit $fail

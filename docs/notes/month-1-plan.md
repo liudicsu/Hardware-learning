@@ -1,6 +1,16 @@
 # Month 1 plan / 第 1 个月计划
 
-Current / 当前：**M1 1500 min**, Batch-12 PR1. Earlier entries below retain their historical totals.
+Current / 当前：**M1 1650 min**, Batch-13 PR1. Earlier entries below retain their historical totals.
+
+## Batch-13 PR1 / 本月 H1 (+150)
+
+Base `bc1e7ce` (batch-12 closed incl. polish #152; site **29160**). PR1 only on M1 host: **M1 1500→1650 (+150)**; M3 moves in the same PR on its own plan. Site **29160→29490**, still 71 lessons.
+
+- **H1 / 1.4 soldering: 120→270 (+150).** Tip / pad thermal window: two-node lumped RC (tip regulated by a proportional heater, joint with contact conductance G_c cut by tip oxide, loss G_loss to the board), explicit Euler with DT = 1 ms < 2/λ_max = 0.458 s. Toy `soldering_thermal_window_toy.py`: arms differ only in dwell (1 s / 3 s / 8 s); shared pad heat capacity, pad loss, oxide, wetting time and adhesion budget (common random numbers, 5 seeds × 40 joints). heavy_pad_underheat: A−B cold-joint rate 0.7700±0.0737, clear, 5/5; small_pad_overheat: C−B pad lift 0.9750±0.0177, clear, 5/5; matched_clean: A and B **tie** on cold-joint and pad-lift rates (identical on every seed), dose differs. Reflow-profile reading (ramp / soak / TAL / peak; Wikipedia windows 以原文为准). ≠ cold-joint quiz prose; ≠ Wheatstone / Thévenin. Real iron / oven 本页未运行. / 焊点热窗口与回流曲线识读，不宣布实验台实验。
+
+**Allocation / 安排:** 30+30+40+30+20=150 minutes.
+
+**Site accounting / 全站核算:** **29490=29160+330** with M3 +180 on month-3-plan.md; **M1=1650**, **71 lessons**.
 
 ## Batch-12 PR1 / 本月 H1 (+150)
 

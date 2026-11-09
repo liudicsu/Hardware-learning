@@ -195,6 +195,357 @@ Common mistakes that produce bad boards:
 - Skipping the tinning routine, after which the tip oxidises and turns black.
 - Trusting your eyes alone: inspect under a light and confirm with the meter before powering up.
 
+## The thermal window: cold joints, lifted pads and reflow zones
+
+The joint table above lists the cold joint and the lifted pad as two separate rows. They are really the two edges of **one thermal window**: the pad and lead must stay hot enough, long enough, for the solder to wet, but not so hot for so long that the adhesive under the copper gives up. This section puts time and temperature on that window. It is **not** another pass over the inspection quiz, and it is **not** the Wheatstone or Thévenin material from the other Month 1 lessons.
+
+<Resource id="wiki-soldering" />
+
+**Sources actually opened (HTML body read).**
+
+- **Wikipedia — Soldering:** the most common hand-soldering defect is a cold joint, where the parts never pass the solder's liquidus, usually because the iron heated the solder instead of the parts; a cold joint may not conduct at all or only intermittently. Under "Avoiding overheating of components" it also says that protracted heating by an iron that is too cool can cause heat damage, and that excessive heating of a PCB can make copper traces lift off the substrate. 以原文为准.
+- **Wikipedia — Reflow soldering:** an oven profile has four zones (preheat, thermal soak, reflow, cooling); a common maximum ramp is 3.0 °C/s, soak is typically 60–120 s, a common peak is 20–40 °C above liquidus, most pastes ask for at least 30 s of time above liquidus (TAL) and ideally under 60 s, too little TAL risks cold or dull joints and voids, too much risks intermetallic growth and brittleness, and about 4 °C/s cooling is commonly suggested. 以原文为准.
+- **SparkFun — How to Solder: Through-Hole Soldering:** medium heat of 325–375 °C, tin the tip, heat the pad and the part together; pads tied to a ground plane or large plated holes need more heat (a larger tip, a higher setpoint, flux, a little longer on the joint), and a higher-wattage station helps the tip recover after touching something cold. 以原文为准.
+
+<Resource id="wiki-reflow" />
+
+<Resource id="sparkfun-through-hole-soldering" />
+
+### A two-node heat model
+
+Treat the tip and the joint (pad + lead + plated barrel) as two lumps. While the iron touches, heat flows through a contact conductance `G_c`; the joint loses heat to the board through `G_loss`:
+
+<Formula label="Joint node">C_j × dTj/dt = G_c × (Tt − Tj) − G_loss × (Tj − T_amb)</Formula>
+
+With the tip held at `Tt`, the joint settles at `Tj∞ = (G_c × Tt + G_loss × T_amb) / (G_c + G_loss)` with time constant `τ = C_j / (G_c + G_loss)`. Tip oxide multiplies `G_c` by `(1 − oxide)`; the tin bridge from the lesson is what keeps `G_c` high.
+
+**Worked example — why oxide turns a 3 s joint cold.** A ground-plane pad with `C_j = 0.4 J/K`, `G_loss = 0.075 W/K`, tip held at 340 °C, 63/37 solder (liquidus 183 °C), wetting needs the joint above 183 + 20 = 203 °C:
+
+```text
+Clean tinned tip, G_c = 0.30 W/K:
+  Tj∞ = (0.30 × 340 + 0.075 × 25) / 0.375 = 277.0 °C,  τ = 0.4 / 0.375 = 1.07 s
+  time to 203 °C = −τ × ln(1 − 178 / 252) = 1.31 s   → a 1 s dwell never wets
+Half-oxidised tip, G_c = 0.15 W/K:
+  Tj∞ = (0.15 × 340 + 0.075 × 25) / 0.225 = 235.0 °C, τ = 0.4 / 0.225 = 1.78 s
+  time to 203 °C = −τ × ln(1 − 178 / 210) = 3.34 s   → even the 3 s lesson dwell can stay cold
+```
+
+That is the same advice as the lesson, now with numbers: clean and tin the tip before you reach for the temperature dial. The toy also lets the tip sag when it touches a heavy pad (the station recovers at up to 60 W), which makes the heavy-pad case slightly worse than this hand calculation.
+
+**Integration step and its stability criterion.** The toy steps both nodes with explicit Euler. For a linear system `dx/dt = −M x`, explicit Euler is stable only when `DT < 2 / λ_max(M)`. The stiffest joint in the toy (small pad, clean tip, the heater's proportional gain counted as a conductance) has `λ_max = 4.367 1/s`, so the limit is 0.458 s; the toy uses `DT = 1 ms` and asserts the bound. When the heater saturates at 60 W its gain drops out, which only lowers `λ_max`. The independent tests check that a free two-node system decays at 0.98× the limit and grows at 1.02×, and that halving `DT` changes the peak temperature by under 0.1 °C.
+
+### Fair setup
+
+`soldering_thermal_window_toy.py` is **synthetic** and stdlib only. **Model assumptions:** two lumped nodes with linear conductances; the station regulates on the tip node with a proportional heater (4 W/K, 60 W limit) and no sensor lag; latent heat of the solder, flux chemistry, wetting angle and intermetallic growth are **not** modelled; flux is a single scalar on `G_c`; "cold" means the joint spent less than its wetting time (drawn 0.3–0.8 s) above liquidus + 20 °C; "lifted pad" means the damage dose `∫ max(0, Tj − 260 °C) dt` exceeded the pad's adhesion budget (drawn 300–600 °C·s). Both thresholds are **toy stand-ins**, not IPC acceptance criteria.
+
+| Arm | Iron-on dwell |
+|---|---|
+| A_short | 1 s ("touch and go") |
+| B_lesson | 3 s, the lesson's 2–4 s window |
+| C_long | 8 s ("keep heating until it looks right") |
+
+The arms differ **only** in dwell. **Common random numbers:** for each (regime, seed, joint) the pad heat capacity, the pad's loss to the board, the tip oxide, the wetting time and the adhesion budget are drawn once and shared by all three arms. Five seeds × 40 joints; each rate is per seed, reported as mean±sd over seeds. The rates are **blind** to fillet shape, to how hot the component body gets, to flux burning off and to intermetallic growth; the dose is a stand-in for adhesive damage only.
+
+| Regime | Solder / setpoint | Pad |
+|---|---|---|
+| heavy_pad_underheat | 63/37, 340 °C | ground-plane pad, `C_j` 0.30–0.50 J/K, `G_loss` 0.05–0.10 W/K, tip oxide 0–0.5 |
+| small_pad_overheat | SAC305 (217 °C), 380 °C | signal pad, `C_j` 0.10–0.18 J/K, oxide 0–0.1 |
+| matched_clean | 63/37, 340 °C | ordinary pad, `C_j` 0.12–0.16 J/K, no oxide |
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-1/soldering
+python3 soldering_thermal_window_toy.py
+```
+
+<CodeSource path="examples/month-1/soldering/soldering_thermal_window_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic thermal window of a hand-soldered through-hole joint. Stdlib only.
+
+Lumped RC stand-in (two nodes, linear conductances, explicit Euler):
+  tip   C_TIP dTt/dt = P - G_c (Tt - Tj) - G_AIR (Tt - T_AMB)
+        P = clip(K_HEAT (T_set - Tt), 0, P_MAX)   (station regulates on the tip node)
+  joint C_j   dTj/dt = G_c (Tt - Tj) - G_loss (Tj - T_AMB)   while the iron touches,
+        C_j   dTj/dt = -G_loss (Tj - T_AMB)                  after it is lifted.
+  G_c = G_CLEAN * (1 - oxide) * flux: tip oxide cuts contact conductance; the tin
+  bridge / flux is a scalar. Latent heat of the solder, wetting chemistry and
+  intermetallic growth are not modelled.
+
+Cold joint: the joint spends less than its wetting time t_wet above T_liq + 20 C.
+Pad lift: the damage dose, integral of max(0, Tj - T_DMG) dt, exceeds the pad's
+adhesion budget D_crit. Both thresholds are toy stand-ins, not IPC criteria.
+
+Arms differ ONLY in iron-on dwell: A_short 1 s, B_lesson 3 s, C_long 8 s.
+Common random numbers: per (regime, seed, joint) the pad heat capacity, pad loss
+to the board, tip oxide, t_wet and D_crit are drawn once and shared by all arms.
+
+Stability: explicit Euler on dx/dt = -M x needs DT < 2 / lambda_max(M); the toy
+prints lambda_max for the stiffest joint (heater gain counted as a conductance)
+and asserts the bound. Labels: tie = identical on every seed; |paired mean| <= sd
+= near-tie / small gap within seed noise; |m| > sd = consistent gap (small if
+|m| < 20 % of the smaller arm mean, else clear), always with a sign count.
+Real iron / reflow oven: 本页未运行. Wikipedia / SparkFun numbers: 以原文为准.
+"""
+from __future__ import annotations
+
+import math
+import random
+
+T_AMB = 25.0  # C
+C_TIP = 1.2  # J/K, tip + heater lump
+G_AIR = 0.01  # W/K, tip to air
+K_HEAT = 4.0  # W/K, proportional heater gain on the tip node
+P_MAX = 60.0  # W, heater limit (tip recovery)
+G_CLEAN = 0.30  # W/K, clean tinned tip with a solder bridge
+T_DMG = 260.0  # C, pad adhesive damage onset (toy stand-in)
+DT = 0.001  # s, explicit Euler step
+T_COOL = 6.0  # s simulated after the iron is lifted
+SEEDS = (0, 1, 2, 3, 4)
+JOINTS = 40
+ARMS = (("A_short", 1.0), ("B_lesson", 3.0), ("C_long", 8.0))
+# name, solder, T_liq, T_set, C_j range, G_loss range, oxide range, flux
+REGIMES = (
+    ("heavy_pad_underheat", "63/37", 183.0, 340.0, (0.30, 0.50), (0.05, 0.10), (0.0, 0.5), 1.0),
+    ("small_pad_overheat", "SAC305", 217.0, 380.0, (0.10, 0.18), (0.02, 0.04), (0.0, 0.1), 1.0),
+    ("matched_clean", "63/37", 183.0, 340.0, (0.12, 0.16), (0.02, 0.03), (0.0, 0.0), 1.0),
+)
+
+
+def shared_joint(regime: str, seed: int, j: int, spec: tuple) -> dict:
+    """Common random numbers: one draw per (regime, seed, joint), shared by every arm."""
+    _, _, _, _, cj, gl, ox, _ = spec
+    rng = random.Random(f"{regime}|{seed}|{j}")
+    return {
+        "c_j": rng.uniform(*cj),
+        "g_loss": rng.uniform(*gl),
+        "oxide": rng.uniform(*ox),
+        "t_wet": rng.uniform(0.3, 0.8),
+        "d_crit": rng.uniform(300.0, 600.0),
+    }
+
+
+def lambda_max(c_j: float, g_c: float, g_loss: float) -> float:
+    """Largest eigenvalue of M for the linearised two-node system (heater unsaturated)."""
+    a = (g_c + G_AIR + K_HEAT) / C_TIP
+    b = -g_c / C_TIP
+    c = -g_c / c_j
+    d = (g_c + g_loss) / c_j
+    tr, det = a + d, a * d - b * c
+    return tr / 2 + math.sqrt(max(tr * tr / 4 - det, 0.0))
+
+
+def solder(dwell: float, t_liq: float, t_set: float, flux: float, jt: dict) -> dict:
+    g_c = G_CLEAN * (1.0 - jt["oxide"]) * flux
+    tt, tj = t_set, T_AMB
+    above = dose = peak = 0.0
+    n_on, n_tot = round(dwell / DT), round((dwell + T_COOL) / DT)
+    for k in range(n_tot):
+        touching = k < n_on
+        q = g_c * (tt - tj) if touching else 0.0
+        p = min(max(K_HEAT * (t_set - tt), 0.0), P_MAX)
+        tt += DT * (p - q - G_AIR * (tt - T_AMB)) / C_TIP
+        tj += DT * (q - jt["g_loss"] * (tj - T_AMB)) / jt["c_j"]
+        if tj > t_liq + 20.0:
+            above += DT
+        dose += DT * max(0.0, tj - T_DMG)
+        peak = max(peak, tj)
+    return {"cold": above < jt["t_wet"], "lift": dose > jt["d_crit"], "dose": dose, "peak": peak}
+
+
+def mean_sd(xs: list[float]) -> tuple[float, float]:
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def sign_note(diffs: list[float], m: float) -> str:
+    """How many seeds disagree in sign with the paired mean (zeros listed apart)."""
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m: float, s: float) -> str:
+    """Paired mean+-sd; extra decimals when 4 would print a signed zero such as -0.0000."""
+    if m != 0.0 and abs(m) < 5e-5:
+        return f"{m:.6f}+-{s:.6f}"
+    return f"{m:.4f}+-{s:.4f}"
+
+
+def verdict(xa: list[float], xb: list[float]) -> str:
+    """Paired xa - xb per seed: mean+-sd, then the label and the sign count."""
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(mean_sd(xa)[0], mean_sd(xb)[0]):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def reflow_reading(name: str, pts: list[tuple[float, float]], t_liq: float) -> str:
+    """Read a piecewise-linear oven profile (time s, temp C): the four zones."""
+    def temp(t: float) -> float:
+        for (t0, y0), (t1, y1) in zip(pts, pts[1:]):
+            if t0 <= t <= t1:
+                return y0 + (y1 - y0) * (t - t0) / (t1 - t0)
+        return pts[-1][1]
+    ts = [0.1 * i for i in range(int(pts[-1][0] / 0.1) + 1)]
+    ys = [temp(t) for t in ts]
+    ramp = max((y1 - y0) / 0.1 for y0, y1 in zip(ys, ys[1:]) if y0 < 150.0)
+    soak = sum(0.1 for y in ys if 150.0 <= y < 200.0 and y < t_liq)
+    tal = sum(0.1 for y in ys if y > t_liq)
+    peak = max(ys)
+    cool = -min((y1 - y0) / 0.1 for y0, y1 in zip(ys, ys[1:]))
+    flags = []
+    if ramp > 3.0:
+        flags.append("ramp > 3 C/s")
+    if not 60.0 <= soak <= 120.0:
+        flags.append("soak outside 60-120 s")
+    if tal < 30.0:
+        flags.append("TAL < 30 s: cold/dull joint and void risk")
+    if tal > 60.0:
+        flags.append("TAL > 60 s: intermetallic / brittleness risk")
+    if not 20.0 <= peak - t_liq <= 40.0:
+        flags.append("peak not 20-40 C above liquidus")
+    return (f"{name}: ramp {ramp:.2f} C/s, soak(150-200 C) {soak:.0f} s, TAL {tal:.0f} s, "
+            f"peak {peak:.0f} C (+{peak - t_liq:.0f} over liquidus), cooling {cool:.2f} C/s -> "
+            + ("; ".join(flags) if flags else "inside the guide windows"))
+
+
+def main() -> None:
+    print("Synthetic lumped-RC solder-joint toy; arms differ only in dwell; shared pad / tip draws; not a real iron")
+    print(f"tip C={C_TIP} J/K K_heat={K_HEAT} W/K P_max={P_MAX:.0f} W G_clean={G_CLEAN} W/K; "
+          f"T_dmg={T_DMG:.0f} C; wet above T_liq+20 C; DT={DT} s; seeds={len(SEEDS)} joints={JOINTS}")
+    lam = lambda_max(0.10, G_CLEAN, 0.04)
+    print(f"Euler stability: stiffest joint (C_j=0.10, G_c={G_CLEAN}, G_loss=0.04) lambda_max={lam:.3f} 1/s "
+          f"-> need DT < 2/lambda_max = {2 / lam:.3f} s; DT={DT} s ok")
+    assert DT < 2.0 / lam
+    print("regime arm cold_joint_rate pad_lift_rate dose_Cs peak_C  (mean+-sd over seeds)")
+    for spec in REGIMES:
+        regime, alloy, t_liq, t_set, _, _, _, flux = spec
+        per = {a: {"cold": [], "lift": [], "dose": [], "peak": []} for a, _ in ARMS}
+        ox_cold, ox_good = [], []
+        for seed in SEEDS:
+            joints = [shared_joint(regime, seed, j, spec) for j in range(JOINTS)]
+            for arm, dwell in ARMS:
+                rs = [solder(dwell, t_liq, t_set, flux, jt) for jt in joints]
+                if arm == "B_lesson":
+                    for r, jt in zip(rs, joints):
+                        (ox_cold if r["cold"] else ox_good).append(jt["oxide"])
+                per[arm]["cold"].append(sum(r["cold"] for r in rs) / JOINTS)
+                per[arm]["lift"].append(sum(r["lift"] for r in rs) / JOINTS)
+                per[arm]["dose"].append(sum(r["dose"] for r in rs) / JOINTS)
+                per[arm]["peak"].append(sum(r["peak"] for r in rs) / JOINTS)
+        print(f"{regime} ({alloy}, T_liq={t_liq:.0f} C, set {t_set:.0f} C)")
+        for arm, _ in ARMS:
+            cells = [mean_sd(per[arm][k]) for k in ("cold", "lift", "dose", "peak")]
+            print(f"  {arm} " + " ".join(f"{m:.4f}+-{s:.4f}" if k < 2 else f"{m:.2f}+-{s:.2f}"
+                                         for k, (m, s) in enumerate(cells)))
+        if ox_cold:
+            print(f"  B_lesson cold joints: mean tip oxide {sum(ox_cold) / len(ox_cold):.3f} on {len(ox_cold)} cold "
+                  f"vs {sum(ox_good) / len(ox_good):.3f} on {len(ox_good)} good joints (oxide cuts G_c)")
+        for x, y in (("A_short", "B_lesson"), ("C_long", "B_lesson")):
+            for k in ("cold", "lift", "dose"):
+                print(f"  paired {x[0]}-{y[0]} {k}: {verdict(per[x][k], per[y][k])}")
+    print("reflow profile reading (oven, not a hand iron; SAC305 T_liq=217 C; guide windows from Wikipedia, 以原文为准):")
+    good = [(0, 25), (60, 150), (150, 180), (185, 245), (200, 245), (225, 210), (260, 90)]
+    short = [(0, 25), (40, 150), (90, 180), (110, 232), (115, 232), (125, 210), (160, 90)]
+    print("  " + reflow_reading("profile_ok", good, 217.0))
+    print("  " + reflow_reading("profile_short", short, 217.0))
+    print("No winner declared: the right dwell depends on the pad; a longer dwell rescues heavy pads but lifts small ones; "
+          "rates are blind to fillet shape, intermetallic growth and component heating")
+    print("Real iron / reflow oven: 本页未运行; Wikipedia / SparkFun numbers 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic lumped-RC solder-joint toy; arms differ only in dwell; shared pad / tip draws; not a real iron
+tip C=1.2 J/K K_heat=4.0 W/K P_max=60 W G_clean=0.3 W/K; T_dmg=260 C; wet above T_liq+20 C; DT=0.001 s; seeds=5 joints=40
+Euler stability: stiffest joint (C_j=0.10, G_c=0.3, G_loss=0.04) lambda_max=4.367 1/s -> need DT < 2/lambda_max = 0.458 s; DT=0.001 s ok
+regime arm cold_joint_rate pad_lift_rate dose_Cs peak_C  (mean+-sd over seeds)
+heavy_pad_underheat (63/37, T_liq=183 C, set 340 C)
+  A_short 1.0000+-0.0000 0.0000+-0.0000 0.00+-0.00 145.68+-4.61
+  B_lesson 0.2300+-0.0737 0.0000+-0.0000 0.11+-0.12 228.09+-3.78
+  C_long 0.0000+-0.0000 0.0000+-0.0000 13.30+-3.14 254.47+-2.14
+  B_lesson cold joints: mean tip oxide 0.421 on 46 cold vs 0.207 on 154 good joints (oxide cuts G_c)
+  paired A-B cold: 0.7700+-0.0737: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B lift: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B dose: -0.1090+-0.1168: near-tie / small gap, within seed noise (|m| <= sd); same sign on all 5 seeds
+  paired C-B cold: -0.2300+-0.0737: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B lift: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B dose: 13.1894+-3.1419: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+small_pad_overheat (SAC305, T_liq=217 C, set 380 C)
+  A_short 0.0000+-0.0000 0.0000+-0.0000 28.38+-1.61 303.72+-1.89
+  B_lesson 0.0000+-0.0000 0.0000+-0.0000 215.44+-3.34 342.34+-0.78
+  C_long 0.0000+-0.0000 0.9750+-0.0177 633.01+-7.53 343.34+-0.85
+  paired A-B cold: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B lift: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B dose: -187.0560+-3.0690: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B cold: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B lift: 0.9750+-0.0177: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B dose: 417.5752+-4.3362: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+matched_clean (63/37, T_liq=183 C, set 340 C)
+  A_short 0.0000+-0.0000 0.0000+-0.0000 7.33+-0.44 279.86+-0.67
+  B_lesson 0.0000+-0.0000 0.0000+-0.0000 121.44+-1.74 312.42+-0.38
+  C_long 0.0000+-0.0000 0.2900+-0.0742 387.14+-3.55 313.07+-0.36
+  paired A-B cold: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B lift: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B dose: -114.1083+-1.3103: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B cold: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B lift: 0.2900+-0.0742: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B dose: 265.6996+-1.8205: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+reflow profile reading (oven, not a hand iron; SAC305 T_liq=217 C; guide windows from Wikipedia, 以原文为准):
+  profile_ok: ramp 2.08 C/s, soak(150-200 C) 115 s, TAL 50 s, peak 245 C (+28 over liquidus), cooling 3.43 C/s -> inside the guide windows
+  profile_short: ramp 3.13 C/s, soak(150-200 C) 72 s, TAL 18 s, peak 232 C (+15 over liquidus), cooling 3.43 C/s -> ramp > 3 C/s; TAL < 30 s: cold/dull joint and void risk; peak not 20-40 C above liquidus
+No winner declared: the right dwell depends on the pad; a longer dwell rescues heavy pads but lifts small ones; rates are blind to fillet shape, intermetallic growth and component heating
+Real iron / reflow oven: 本页未运行; Wikipedia / SparkFun numbers 以原文为准
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used on this page: **tie** only when the paired per-seed difference is exactly zero on every seed; **near-tie / small gap, within seed noise** when `|paired mean| ≤ sd`; a **consistent** gap when `|paired mean| > sd`, called **small** if `|m|` is under 20 % of the smaller arm mean and **clear** otherwise (the 20 % rule only chooses between those two words). Every consistent or clear line carries a same-sign count over the 5 seeds, and any seed with the opposite sign is reported.
+
+- **heavy_pad_underheat:** cold-joint rate A 1.0000±0.0000, B 0.2300±0.0737, C 0.0000±0.0000. **A loses with a clear gap:** paired A−B 0.7700±0.0737, same sign on all 5 seeds; a 1 s dwell never brings a ground-plane pad to wetting. B still leaves 23 % cold: its cold joints had mean tip oxide 0.421 against 0.207 on its good joints, which is the worked example above. C removes them (paired C−B −0.2300±0.0737, clear, 5/5). No pad lifts in any arm (**tie: identical on every seed**); C's dose is 13.30±3.14 °C·s, a clear gap over B (paired 13.1894±3.1419, 5/5) but far below any adhesion budget. The A−B dose difference, −0.1090±0.1168 °C·s, is a **near-tie / small gap, within seed noise** by the `|m| ≤ sd` rule even though all 5 seeds have the same sign: a sign count alone never makes a gap consistent.
+- **small_pad_overheat:** no cold joints in any arm (**tie**). Pad lift: A 0.0000±0.0000, B 0.0000±0.0000 (**tie**), C 0.9750±0.0177. **C loses with a clear gap:** paired C−B 0.9750±0.0177, same sign on all 5 seeds; an 8 s dwell on a small pad at 380 °C piles up 633.01±7.53 °C·s above 260 °C. B's dose (215.44±3.34) is a clear gap above A's (28.38±1.61; paired A−B −187.0560±3.0690, 5/5) but stays under every drawn budget.
+- **matched_clean:** A and B both make 0 cold joints and 0 lifted pads on every seed — **tie: identical on every seed** on both rates. They are not identical on dose: A's 1 s dwell gives 7.33±0.44 °C·s against B's 121.44±1.74 (paired A−B −114.1083±1.3103, clear, 5/5). On a small, clean pad the short dwell is just as good on defects and gentler on the board. C lifts 0.2900±0.0742 of pads (paired C−B 0.2900±0.0742, clear, 5/5).
+
+**B loses on dose wherever the pad is small**, and **A loses on cold joints wherever the pad is heavy**. The page **does not declare a universal winner**: the right dwell depends on the pad and the tip, which is why the lesson says to add flux or clean the tip before turning the dial or holding the iron longer.
+
+### Reading a reflow profile
+
+A reflow oven heats the whole board along a profile instead of one joint at a time. The toy also reads two piecewise-linear SAC305 oven profiles (liquidus 217 °C) against the Wikipedia guide windows: ramp at most 3 °C/s, soak 60–120 s, TAL at least 30 s and ideally under 60 s, peak 20–40 °C above liquidus. The 150–200 °C band used to time the soak is this toy's own choice, not a number from the source.
+
+- **profile_ok:** ramp 2.08 °C/s, soak 115 s, TAL 50 s, peak 245 °C (+28 over liquidus), cooling 3.43 °C/s — inside every window.
+- **profile_short:** ramp 3.13 °C/s, TAL 18 s, peak 232 °C (+15) — three flags; too little time above liquidus is the oven's version of the cold joint.
+
+The hand-iron toy's "time above liquidus + 20 °C" is the same idea as TAL applied to one joint. A hand iron is **not** an oven, and neither profile is a real oven log. Real iron and reflow oven: **本页未运行**.
+
+**150-minute work plan:** 30 min read the three sources; 30 min work the two-node example by hand (clean and oxidised tip); 40 min run the toy and read the three regimes; 30 min change the dwell, oxide range and setpoint with seeds fixed; 20 min read the two reflow profiles and mark each zone.
+
+### Exercises
+
+1. Repeat the worked example for `G_c = 0.30 W/K` but `C_j = 0.15 J/K`, `G_loss = 0.025 W/K`. How long until the joint passes 203 °C, and is a 1 s dwell enough?
+2. Show from `shared_joint` that A, B and C see the same pad, the same oxide, the same wetting time and the same adhesion budget for a given regime, seed and joint.
+3. Compute `λ_max` for the stiffest joint by hand from the 2 × 2 matrix in `lambda_max` and check the 0.458 s limit; then explain why heater saturation cannot make the step less stable.
+4. In heavy_pad_underheat, set the oxide range to (0.0, 0.0) with seeds fixed. Predict B's cold-joint rate before you run.
+5. Before any real iron (本页未运行), explain why the matched_clean **tie** on both defect rates does **not** mean the 1 s and 3 s dwells are equivalent.
+
 <Summary>
 
 **Key points**
@@ -204,6 +555,7 @@ Common mistakes that produce bad boards:
 - A good joint is a small concave fillet that wets the pad and climbs the lead; compare every result with the seven rows of the joint table.
 - Solid-core wire suits breadboards and plated through-holes; stranded wire suits anything that flexes, and motor leads need heat-shrink and strain relief.
 - Trim leads flush, inspect under a light, and continuity-test each pin to its own pad and against its neighbours.
+- Thermal window: in a two-node heat model where only the dwell changes, 1 s leaves every ground-plane joint cold (cold-joint rate 1.00 against 0.23 at 3 s, a clear gap, same sign on all 5 seeds), 8 s lifts 0.975 of small SAC305 pads at 380 °C, and on a clean ordinary pad 1 s and 3 s **tie** on both defect rates (identical on every seed) — a synthetic model, not a bench run.
 
 **Used next**
 

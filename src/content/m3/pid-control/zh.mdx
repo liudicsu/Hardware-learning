@@ -545,6 +545,406 @@ pitch 一列是脚本设定的倾角，不是车倒了；它一直低于 40° �
 
 第 5 课是 SO-101 机械臂，它的每一个关节都是一个位置环，和本课第 2 节很像，PID 就藏在 STS3215 总线舵机内部。你要问的问题也一样：稳态误差是多少？输出饱和时会发生什么？齿轮有齿隙时回路会怎样？第 5 个月会给你更正式的工具。现在，你已经有了能用的直觉，也有一台能待在原地的平衡车。
 
+## 超前–滞后校正
+
+PID 用固定的几样东西塑造回路：一个增益、一个积分器和一个带滤波的微分。**超前–滞后校正器**（lead–lag compensator）再加一样工具：一对零极点，放在需要相位或需要低频增益的地方。本节在同一个被控对象上比较本课的 PID 加与不加超前–滞后环节。它**不是** Smith 预估器，**不是**陷波滤波器，也**不是**第 5 个月的离散 LQR。
+
+<Resource id="wiki-leadlag" />
+
+**实际打开并读过正文的来源（HTML 正文）。** **Wikipedia — Lead–lag compensator：** 超前和滞后校正器都向开环传递函数里加一对零极点，`Y/X = (s − z)/(s − p)`；超前校正 `|z| < |p|`，滞后校正 `|z| > |p|`。超前–滞后校正把两者串起来，通常 `|p1| > |z1| > |z2| > |p2|`。超前部分在高频提供相位超前，把根轨迹往左推（响应更快、更稳定）；滞后部分减小稳态误差，它的零点和极点应当靠得很近、靠近原点。文中还提到，实现时更偏向用积分器，因为求导会放大噪声。以原文为准。
+
+### 零点、极点与换来的相位
+
+写成直流增益为 1 的形式，超前环节是 `(s/z + 1) / (s/p + 1)`，`z < p`。它的相位超前在 `ω = √(z·p)` 处最大，最大值 `φ` 决定了比值：
+
+<Formula label="超前比">p / z = (1 + sin φ) / (1 − sin φ)</Formula>
+
+**算例。** `φ = 30°` 时：`p / z = 1.5 / 0.5 = 3`。以穿越频率 `WC = 20 rad/s` 为中心：`z = 20 / √3 = 11.55 rad/s`，`p = 20 × √3 = 34.64 rad/s`。代价是高频增益：这个环节的增益从直流的 1 升到高频的 `p / z = 3`（+9.5 dB），所以传感器噪声和穿越频率以上的谐振都被放大到 3 倍。滞后环节 `z2 = 2 rad/s`、`p2 = 0.667 rad/s` 把低频增益提高到 3 倍，在 `WC` 处只付出 `atan(10) − atan(30) = −3.8°` 的相位。
+
+### 公平设置
+
+`lead_lag_vs_pid_toy.py` 是**合成**模型，只用标准库。**模型假设：** 线性时不变关节 `G(s) = 1 / (s (TM s + 1))`，`TM = 0.05 s`，后面串一个电机与被测连杆角之间的柔性传动模态 `wr² / (s² + 2 zr wr s + wr²)`（传感器与执行器不同位）；负载力矩加在被控对象输入端；**没有**执行器限幅，所以本节没有积分饱和，也不需要抗饱和；微分作用在误差上（不像本课前面那样作用在测量值上），各组共用一个 50 ms 的参考前置滤波，所以阶跃不会产生微分冲击；测量噪声是 0.5 mrad 的高斯噪声；设计者确切知道被控对象。
+
+| 组 | 控制器（1 ms 采样，每一节都用 Tustin 离散化） |
+|---|---|
+| A_pid | `Kc × (1 + 1/(TI s) + TD s / (TD/N s + 1))`，`TI = 0.25 s`，`TD = 0.025 s`，`N = 8` |
+| B_leadlag | A 的形状 × 超前（`φ = 30°`，以 `WC` 为中心）× 滞后（`z2 = WC/10`，`p2 = z2/3`） |
+| C_swapped | 把 B 的超前环节零极点对调：在需要超前的地方放了一个滞后 |
+
+**所有组、所有情形用同一套配方：** 形状固定（不针对被控对象重新整定），每组的 `Kc` 都选成在真实被控对象上 `|L(j·WC)| = 1`，所以各组共用同一个 20 rad/s 的穿越频率。**公共随机数：** 每个种子的三个参考阶跃、三个负载力矩阶跃和整段测量噪声只抽一次，送给每一组。5 个种子；指标是 ISE（经共用前置滤波后的跟踪误差平方积分，单位 10⁻³ rad²·s）、最差一次阶跃的超调（%）和 `du_rms`，即控制量相邻两次采样之差的均方根（执行器抖动）。相位裕度和幅值裕度是离散 Bode 的**代理**：Tustin 控制器 × 连续被控对象 × 半个采样周期的 ZOH 延迟，取所有穿越点中最小的裕度。**ISE 看不见**执行器抖动和幅值裕度，所以三者都打印出来。
+
+**积分步长及其稳定性判据。** 被控对象在零阶保持下用 RK4 积分，`H = TS/4 = 0.25 ms`。对被控对象的一个模态 `λ`，RK4 稳定的条件是 `|R(H·λ)| ≤ 1`，`R(z) = 1 + z + z²/2 + z³/6 + z⁴/24`；在负实轴上就是 `H·|λ| < 2.785`。toy 打印被控对象各模态允许的最大稳定步长（刚性关节 139.3 ms，带柔性模态时 70.9 ms 和 73.5 ms），并用 assert 确认 `H` 远小于它；测试检查 0.98 倍和 1.02 倍处的边界，并确认 `H` 与 `H/2` 的结果相差在 10⁻⁶ 以内。**积分器稳定不等于回路稳定：** 闭环稳不稳由控制器决定，下面就有一组在积分器仍然准确的情况下闭环发散。
+
+| 情形 | 柔性模态 |
+|---|---|
+| well_damped | 无（刚性关节） |
+| resonant | `wr = 40 rad/s = 2·WC`，`zr = 0.3` |
+| resonant_light | `wr = 40 rad/s`，`zr = 0.2` |
+
+### 运行标准库 toy
+
+```bash
+cd ~/Hardware-learning/examples/month-3/pid-control
+python3 lead_lag_vs_pid_toy.py
+```
+
+<CodeSource path="examples/month-3/pid-control/lead_lag_vs_pid_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic PID vs PID + lead-lag on a joint with a compliant mode. Stdlib only.
+
+Plant (linear, LTI, no actuator limit):
+  G(s) = 1 / (s (TM s + 1)) * wr^2 / (s^2 + 2 zr wr s + wr^2)
+  motor + inertia (TM = 0.05 s), then a compliant transmission mode (wr, zr) between
+  motor and the measured link angle (non-collocated sensor). The rigid case drops
+  the mode. Torque disturbance enters at the plant input.
+
+Controllers (sampled at TS = 1 ms, every section discretised with Tustin):
+  A_pid       Kc * (1 + 1/(TI s) + TD s / (TD/N s + 1))
+  B_leadlag   A's shape * lead (s/z+1)/(s/p+1), |z| < |p|, centred on WC with
+              PHI = 30 deg (p/z = (1+sin PHI)/(1-sin PHI)) * lag with |z2| > |p2|
+              (z2 = WC/10, p2 = z2/3)
+  C_swapped   B with the lead's pole and zero swapped (a lag where lead was needed)
+  Same design rule for every arm: one fixed recipe (not tuned per regime), and Kc
+  is chosen so |L(j WC)| = 1 on the actual plant, so all arms share crossover WC.
+
+Common random numbers: per seed the three reference steps, three load-torque
+steps and the measurement-noise sequence (sd 0.5 mrad) are drawn once and fed to
+every arm. Integration: RK4 with H = TS/4 under zero-order-hold control. RK4 is
+stable for a mode lambda when |R(H lambda)| <= 1, R(z) = 1+z+z^2/2+z^3/6+z^4/24;
+the toy prints max |R| over the plant's non-zero modes and asserts it is < 1.
+
+Labels: tie = identical on every seed; |paired mean| <= sd = near-tie / small gap
+within seed noise; |m| > sd = consistent gap (small if |m| < 20 % of the smaller
+arm mean, else clear), always with a sign count. Margins are a discrete Bode
+proxy (Tustin controller x continuous plant x ZOH half-sample delay).
+Real servo / motor bench: 本页未运行. Wikipedia definitions: 以原文为准.
+"""
+from __future__ import annotations
+
+import cmath
+import math
+import random
+
+TS = 1e-3  # s, controller sample time
+SUB = 4  # RK4 sub-steps per sample
+H = TS / SUB
+TM = 0.05  # s, motor mechanical time constant
+WC = 20.0  # rad/s, shared crossover target
+TI, TD, N = 5.0 / WC, 0.5 / WC, 8.0
+PHI = math.radians(30.0)
+ALPHA = (1 + math.sin(PHI)) / (1 - math.sin(PHI))
+BETA = 3.0
+T_END = 6.0
+NOISE = 5e-4  # rad, measurement noise sd
+DIVERGED = 10.0  # rad, abort threshold (the references never exceed 3 rad)
+SEEDS = (0, 1, 2, 3, 4)
+ARMS = ("A_pid", "B_leadlag", "C_swapped")
+# name, wr (0 = rigid), zr
+REGIMES = (("well_damped", 0.0, 0.0), ("resonant", 40.0, 0.3), ("resonant_light", 40.0, 0.2))
+
+
+def sections(arm: str) -> list[tuple[float, float]]:
+    """(zero, pole) pairs of the first-order sections cascaded after the PID."""
+    if arm == "A_pid":
+        return []
+    z, p = WC / math.sqrt(ALPHA), WC * math.sqrt(ALPHA)
+    if arm == "C_swapped":
+        z, p = p, z
+    return [(z, p), (WC / 10.0, WC / 10.0 / BETA)]
+
+
+def plant(w: float, wr: float, zr: float) -> complex:
+    s = 1j * w
+    g = 1.0 / (s * (TM * s + 1.0))
+    return g * wr * wr / (s * s + 2 * zr * wr * s + wr * wr) if wr else g
+
+
+def shape(arm: str, w: float) -> complex:
+    s = 1j * w
+    c = 1.0 + 1.0 / (TI * s) + TD * s / (TD / N * s + 1.0)
+    for z, p in sections(arm):
+        c *= (s / z + 1.0) / (s / p + 1.0)
+    return c
+
+
+def gain(arm: str, wr: float, zr: float) -> float:
+    return 1.0 / abs(shape(arm, WC) * plant(WC, wr, zr))
+
+
+def margins(arm: str, wr: float, zr: float) -> tuple[float, float]:
+    """Smallest phase margin over all |L| = 1 crossings and smallest gain margin
+    (dB) over -180 deg crossings with |L| < 1; unwrapped phase from 0.1 rad/s."""
+    k = gain(arm, wr, zr)
+    pms, gms = [], []
+    prev = None
+    off = 0.0
+    n = 20000
+    for i in range(n + 1):
+        w = 10 ** (-1 + i * (math.log10(math.pi / TS) + 1) / n)
+        loop = k * shape(arm, w) * plant(w, wr, zr) * cmath.exp(-0.5j * w * TS)
+        mag, ph = abs(loop), math.degrees(cmath.phase(loop))
+        if prev is None:
+            while ph > -90.0:
+                ph -= 360.0
+            off = ph - math.degrees(cmath.phase(loop))
+        else:
+            ph += off
+            while ph - prev[1] > 180.0:
+                ph -= 360.0
+                off -= 360.0
+            while ph - prev[1] < -180.0:
+                ph += 360.0
+                off += 360.0
+            if (prev[0] - 1.0) * (mag - 1.0) < 0:
+                pms.append(180.0 + ph)
+            for line in (-180.0, -540.0):
+                if (prev[1] - line) * (ph - line) < 0 and mag < 1.0:
+                    gms.append(-20 * math.log10(mag))
+        prev = (mag, ph)
+    return min(pms), (min(gms) if gms else math.inf)
+
+
+class Controller:
+    """PI (trapezoid) + filtered D (Tustin), then Tustin first-order sections."""
+
+    def __init__(self, arm: str, k: float) -> None:
+        c = 2.0 / TS
+        self.k, self.i, self.e_prev, self.d = k, 0.0, 0.0, 0.0
+        tf = TD / N
+        self.db0, self.da1 = TD * c / (tf * c + 1.0), (1.0 - tf * c) / (tf * c + 1.0)
+        self.secs = []
+        for z, p in sections(arm):
+            a0 = c / p + 1.0
+            self.secs.append([(c / z + 1.0) / a0, (1.0 - c / z) / a0, (1.0 - c / p) / a0, 0.0, 0.0])
+
+    def step(self, e: float) -> float:
+        self.i += TS / TI * (e + self.e_prev) / 2.0
+        self.d = self.db0 * (e - self.e_prev) - self.da1 * self.d
+        self.e_prev = e
+        x = e + self.i + self.d
+        for sec in self.secs:
+            b0, b1, a1, xp, yp = sec
+            y = b0 * x + b1 * xp - a1 * yp
+            sec[3], sec[4] = x, y
+            x = y
+        return self.k * x
+
+
+def deriv(x: list[float], u: float, wr: float, zr: float) -> list[float]:
+    v, th, y, yd = x
+    if not wr:
+        return [(u - v) / TM, v, v, 0.0]
+    return [(u - v) / TM, v, yd, wr * wr * (th - y) - 2 * zr * wr * yd]
+
+
+def rk4(x: list[float], u: float, wr: float, zr: float, h: float = H) -> list[float]:
+    k1 = deriv(x, u, wr, zr)
+    k2 = deriv([a + h / 2 * b for a, b in zip(x, k1)], u, wr, zr)
+    k3 = deriv([a + h / 2 * b for a, b in zip(x, k2)], u, wr, zr)
+    k4 = deriv([a + h * b for a, b in zip(x, k3)], u, wr, zr)
+    return [a + h / 6 * (b + 2 * c + 2 * d + e) for a, b, c, d, e in zip(x, k1, k2, k3, k4)]
+
+
+def rk4_amp(z: complex) -> float:
+    return abs(1 + z + z * z / 2 + z ** 3 / 6 + z ** 4 / 24)
+
+
+def rk4_h_max(lam: complex) -> float:
+    """Largest step with |R(h lambda)| <= 1 along this mode (bisection)."""
+    lo, hi = 0.0, 10.0 / abs(lam)
+    for _ in range(60):
+        mid = (lo + hi) / 2
+        lo, hi = (mid, hi) if rk4_amp(mid * lam) <= 1.0 else (lo, mid)
+    return lo
+
+
+def modes(wr: float, zr: float) -> list[complex]:
+    out = [complex(-1.0 / TM)]
+    if wr:
+        out += [complex(-zr * wr, s * wr * math.sqrt(1 - zr * zr)) for s in (1, -1)]
+    return out
+
+
+def shared_draws(seed: int) -> tuple[list, list, list]:
+    """Common random numbers: one draw per seed, fed to every arm and regime."""
+    rng = random.Random(seed)
+    steps = [(0.2 + 2.0 * i, rng.choice((-1.0, 1.0)) * rng.uniform(0.2, 1.0)) for i in range(3)]
+    loads = [(1.2 + 2.0 * i, 0.3 * rng.uniform(-1.0, 1.0)) for i in range(3)]
+    noise = [rng.gauss(0.0, NOISE) for _ in range(round(T_END / TS))]
+    return steps, loads, noise
+
+
+def simulate(arm: str, wr: float, zr: float, draws: tuple, sub: int = SUB) -> dict | None:
+    steps, loads, noise = draws
+    ctrl = Controller(arm, gain(arm, wr, zr))
+    x, rf, u_prev = [0.0] * 4, 0.0, 0.0
+    ise = du2 = 0.0
+    over = [0.0] * len(steps)
+    for i, nz in enumerate(noise):
+        t = i * TS
+        r = sum(a for t0, a in steps if t >= t0)
+        rf += TS / 0.05 * (r - rf)  # shared reference prefilter, 50 ms
+        u = ctrl.step(rf - (x[2] + nz))
+        d = sum(a for t0, a in loads if t >= t0)
+        for _ in range(sub):
+            x = rk4(x, u + d, wr, zr, TS / sub)
+        if abs(x[2]) > DIVERGED:
+            return None
+        ise += (rf - x[2]) ** 2 * TS
+        du2 += (u - u_prev) ** 2
+        u_prev = u
+        for j, (t0, a) in enumerate(steps):
+            if t0 <= t < t0 + 1.0:
+                over[j] = max(over[j], math.copysign(1.0, a) * (x[2] - r) / abs(a))
+    return {"ise": 1e3 * ise, "over": 100.0 * max(over), "du": math.sqrt(du2 / len(noise))}
+
+
+def mean_sd(xs: list[float]) -> tuple[float, float]:
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def sign_note(diffs: list[float], m: float) -> str:
+    """How many seeds disagree in sign with the paired mean (zeros listed apart)."""
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m: float, s: float) -> str:
+    """Paired mean+-sd; extra decimals when 4 would print a signed zero such as -0.0000."""
+    if m != 0.0 and abs(m) < 5e-5:
+        return f"{m:.6f}+-{s:.6f}"
+    return f"{m:.4f}+-{s:.4f}"
+
+
+def verdict(xa: list[float], xb: list[float]) -> str:
+    """Paired xa - xb per seed: mean+-sd, then the label and the sign count."""
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(mean_sd(xa)[0], mean_sd(xb)[0]):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def main() -> None:
+    print("Synthetic PID vs PID+lead-lag; shared steps / load torques / sensor noise; not a motor bench")
+    print(f"TS={TS} s RK4 H={H} s TM={TM} s WC={WC} rad/s TI={TI} s TD={TD} s N={N:.0f} "
+          f"lead PHI=30 deg p/z={ALPHA:.3f} lag z2={WC / 10:.1f} p2={WC / 30:.4f} rad/s seeds={len(SEEDS)}")
+    print("regime arm Kc PM_deg GM_dB")
+    for regime, wr, zr in REGIMES:
+        amp = max(rk4_amp(H * lam) for lam in modes(wr, zr))
+        h_max = min(rk4_h_max(lam) for lam in modes(wr, zr))
+        assert amp < 1.0 and H < h_max
+        cells = []
+        for arm in ARMS:
+            pm, gm = margins(arm, wr, zr)
+            cells.append(f"{arm} {gain(arm, wr, zr):.2f} {pm:.1f} {'inf' if math.isinf(gm) else f'{gm:.2f}'}")
+        print(f"{regime} (wr={wr:.0f}, zr={zr}) RK4 h_max={h_max * 1e3:.1f} ms > H, max|R(H lambda)|={amp:.6f} < 1: "
+              + " | ".join(cells))
+    print("regime arm ISE_1e-3rad2s overshoot_% du_rms  (mean+-sd over seeds)")
+    draws = [shared_draws(seed) for seed in SEEDS]
+    for regime, wr, zr in REGIMES:
+        res = {arm: [simulate(arm, wr, zr, dr) for dr in draws] for arm in ARMS}
+        for arm in ARMS:
+            ok = [r for r in res[arm] if r is not None]
+            if len(ok) < len(SEEDS):
+                print(f"{regime} {arm} diverged (|y| > {DIVERGED:.0f} rad) on {len(SEEDS) - len(ok)} of {len(SEEDS)} seeds")
+                continue
+            print(f"{regime} {arm} " + " ".join("{:.4f}+-{:.4f}".format(*mean_sd([r[k] for r in ok]))
+                                                 for k in ("ise", "over", "du")))
+        for x in ("B_leadlag", "C_swapped"):
+            if any(r is None for r in res[x] + res["A_pid"]):
+                print(f"{regime} paired {x[0]}-A: not compared ({x} closed loop unstable)")
+                continue
+            for k in ("ise", "over", "du"):
+                print(f"{regime} paired {x[0]}-A {k}: {verdict([r[k] for r in res[x]], [r[k] for r in res['A_pid']])}")
+    print("well_damped: PID alone already has margin; the extra lead adds phase it does not need and passes more sensor noise")
+    print("resonant: the lead restores phase margin at the same crossover, but its high-frequency gain shrinks the gain margin")
+    print("resonant_light: the lead lifts the resonant peak through 0 dB; a lightly damped mode needs a notch, not more lead")
+    print("No winner declared; ISE is blind to actuator chatter (du_rms) and to the gain margin")
+    print("Real servo / motor bench: 本页未运行; Wikipedia definitions 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic PID vs PID+lead-lag; shared steps / load torques / sensor noise; not a motor bench
+TS=0.001 s RK4 H=0.00025 s TM=0.05 s WC=20.0 rad/s TI=0.25 s TD=0.025 s N=8 lead PHI=30 deg p/z=3.000 lag z2=2.0 p2=0.6667 rad/s seeds=5
+regime arm Kc PM_deg GM_dB
+well_damped (wr=0, zr=0.0) RK4 h_max=139.3 ms > H, max|R(H lambda)|=0.995012 < 1: A_pid 26.35 60.6 42.37 | B_leadlag 45.44 86.8 38.26 | C_swapped 136.32 26.8 46.40
+resonant (wr=40, zr=0.3) RK4 h_max=70.9 ms > H, max|R(H lambda)|=0.997004 < 1: A_pid 21.29 38.7 3.00 | B_leadlag 36.71 64.9 2.01 | C_swapped 110.12 4.9 1.81
+resonant_light (wr=40, zr=0.2) RK4 h_max=73.5 ms > H, max|R(H lambda)|=0.998002 < 1: A_pid 20.45 45.6 0.80 | B_leadlag 35.27 -16.3 inf | C_swapped 105.82 11.8 2.75
+regime arm ISE_1e-3rad2s overshoot_% du_rms  (mean+-sd over seeds)
+well_damped A_pid 12.7681+-3.2321 13.1263+-0.0096 0.1858+-0.0038
+well_damped B_leadlag 13.4831+-3.4238 13.1321+-0.1840 0.3171+-0.0057
+well_damped C_swapped 24.5240+-6.2158 35.2800+-0.0781 0.1124+-0.0035
+well_damped paired B-A ise: 0.7150+-0.1951: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+well_damped paired B-A over: 0.0058+-0.1814: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+well_damped paired B-A du: 0.1313+-0.0019: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+well_damped paired C-A ise: 11.7559+-2.9837: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+well_damped paired C-A over: 22.1537+-0.0760: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+well_damped paired C-A du: -0.0734+-0.0004: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant A_pid 31.8025+-8.0515 30.4564+-0.0353 0.1538+-0.0039
+resonant B_leadlag 29.0000+-7.3783 27.8022+-0.2003 0.2603+-0.0056
+resonant C_swapped 210.0716+-47.2771 94.4654+-7.4189 0.1218+-0.0081
+resonant paired B-A ise: -2.8025+-0.6749: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant paired B-A over: -2.6542+-0.1663: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant paired B-A du: 0.1065+-0.0017: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant paired C-A ise: 178.2691+-39.3474: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant paired C-A over: 64.0090+-7.3838: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant paired C-A du: -0.0320+-0.0044: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant_light A_pid 39.5028+-8.5902 31.8691+-3.6884 0.1537+-0.0042
+resonant_light B_leadlag diverged (|y| > 10 rad) on 5 of 5 seeds
+resonant_light C_swapped 91.8638+-23.2433 80.0239+-0.1924 0.1000+-0.0055
+resonant_light paired B-A: not compared (B_leadlag closed loop unstable)
+resonant_light paired C-A ise: 52.3610+-14.7691: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant_light paired C-A over: 48.1548+-3.4996: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant_light paired C-A du: -0.0537+-0.0013: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+well_damped: PID alone already has margin; the extra lead adds phase it does not need and passes more sensor noise
+resonant: the lead restores phase margin at the same crossover, but its high-frequency gain shrinks the gain margin
+resonant_light: the lead lifts the resonant peak through 0 dB; a lightly damped mode needs a notch, not more lead
+No winner declared; ISE is blind to actuator chatter (du_rms) and to the gain margin
+Real servo / motor bench: 本页未运行; Wikipedia definitions 以原文为准
+```
+
+</SimOutput>
+
+### 解读各情形
+
+本页的标签这样用：只有按种子配对的差在每个种子上都恰好为零，才叫**打平**；`|配对均值| ≤ sd` 叫**接近打平、差距很小，在种子噪声之内**；`|配对均值| > sd` 叫**稳定**差距，其中 `|m|` 小于两组中较小均值的 20 % 时叫**小**，否则叫**明显**（20 % 规则只用来在这两个词之间选）。每条稳定或明显的结论都附上 5 个种子中的同号计数，有符号相反的种子也会写出来。配对差是 B−A 和 C−A。
+
+- **well_damped：** 单用 PID 已经有 60.6° 的相位裕度；超前把它推到 86.8°，这是回路并不需要的相位。**B 在跟踪上输了一个小而稳定的差距：** ISE 13.4831±3.4238 对 12.7681±3.2321，配对 B−A 为 0.7150±0.1951，5 个种子全部同号。超调**接近打平、差距很小，在种子噪声之内**（13.1321±0.1840 % 对 13.1263±0.0096 %；配对 0.0058±0.1814，5 个种子中有 3 个符号相反）。抖动是**明显**的输：`du_rms` 0.3171±0.0057 对 0.1858±0.0038（配对 0.1313±0.0019，5/5），因为超前环节把同样的传感器噪声在高频放大了 3 倍。
+- **resonant：** 柔性模态在穿越频率处吃掉了相位；A 的相位裕度是 38.7°，B 是 64.9°。**B 在跟踪上赢了一个小而稳定的差距：** ISE 29.0000±7.3783 对 31.8025±8.0515（配对 −2.8025±0.6749，5 个种子全部同号），超调 27.8022±0.2003 % 对 30.4564±0.0353 %（配对 −2.6542±0.1663，5/5）。这个赢不是白来的：超前抬高了谐振峰，幅值裕度从 3.00 dB 缩到 2.01 dB；抖动仍然是明显的输（配对 0.1065±0.0017，5/5）。
+- **resonant_light：** `zr = 0.2` 时谐振峰更高。A 以 0.80 dB 的薄幅值裕度勉强稳定。B 的超前把谐振峰抬过 0 dB，而那里的相位已经越过 −180°：相位裕度 −16.3°，**B 在 5 个种子中有 5 个发散**（连杆角超过 10 rad 时停止运行），所以不打印配对数字。穿越频率附近的轻阻尼模态需要陷波器或更低的穿越频率，而不是更多超前；陷波器不在本节范围内。
+- **C_swapped 在每个情形下的 ISE 和超调都以明显差距输掉**（例如 resonant：ISE 配对 178.2691±39.3474，超调配对 64.0090±7.3838，5/5；C 的相位裕度只有 4.9°）。但它的抖动**最小**（resonant 的 `du_rms` 配对 −0.0320±0.0044，5/5）——提醒我们单看一个指标可能会奖励错误的设计。
+
+本页**不宣布普遍赢家**：超前–滞后只在被控对象在穿越频率处缺相位、且穿越频率以上没有高谐振峰时才有帮助，而且它总要在噪声上付出代价。真实舵机或电机实验台：**本页未运行**。
+
+**180 分钟安排：** 30 分钟读超前–滞后页面并推导 30° 时的 `p / z`；40 分钟用 toy 里的函数算三种被控对象的 Kc 和裕度；40 分钟运行 toy 并解读三种情形；40 分钟在固定种子下改 `PHI`、`zr` 和 `NOISE`；30 分钟写下什么时候该用超前–滞后、什么时候该降低穿越频率或用陷波器。
+
+### 练习
+
+1. 由 `(jω/z + 1)/(jω/p + 1)` 在 `ω = √(z·p)` 处的相位推导 `p / z = (1 + sin φ)/(1 − sin φ)`，再算出以 20 rad/s 为中心、`φ = 45°` 时的 `z` 和 `p`。
+2. 从 `shared_draws` 和 `simulate` 说明：对给定种子，A、B、C 看到的是同样的参考阶跃、负载阶跃和噪声样本。
+3. 用 `rk4_h_max` 求谐振模态 `λ = −12 ± 38.16j` 的最大稳定 RK4 步长，并解释为什么 `H = 0.25 ms` 时 toy 仍然可能发散。
+4. 固定种子，把 `PHI` 改成 15°。运行前先预测 B 的相位裕度，以及它在 resonant_light 里是否仍然发散。
+5. 在任何实验台运行之前（本页未运行），解释为什么 B 在 **resonant** 里 ISE 上小而稳定的赢，**并不**说明 B 在这个被控对象上是更安全的控制器。
+
 <Summary>
 
 **本课要点**
@@ -556,6 +956,7 @@ pitch 一列是脚本设定的倾角，不是车倒了；它一直低于 40° �
 - 65 mm 轮子每转 90 个计数，就是 π × 65 / 90 = 2.27 mm 每计数。
 - 模型常数来自关节本身：重力力矩 m × g × r（用秤测 F × L），J ≥ m × r² 再加 n² × J_转子，力矩上限介于舵机的额定负载和堵转扭矩之间（这是偏乐观的短时峰值；5 V 下持续负载按 ≤0.4 N·m 的上限估：飞特未给 5 V 额定值，按电压线性折算约 0.33 N·m，属未经验证的估计），循环频率取 ωn = √(Kp / J) 的 20 到 60 倍（这里 200 Hz 是 47 倍）。
 - 串级：40 ms 测速窗每个计数对应 0.057 m/s（5 ms 则是 0.45 m/s），3° 倾角只需要 6 m/s² 中的 0.51 m/s²。
+- 超前–滞后：用同一套固定配方、共用 20 rad/s 的穿越频率，在 PID 上加超前–滞后，在谐振关节上以**小而稳定的差距**赢下 ISE（配对 −2.8025±0.6749，5 个种子全部同号），同时幅值裕度从 3.00 dB 缩到 2.01 dB；在阻尼良好的关节上以小而稳定的差距输掉 ISE；执行器抖动总是更大；在轻阻尼对象上闭环发散——这是合成模型，不是实验台实验。
 
 **常见错误**
 
