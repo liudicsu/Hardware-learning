@@ -967,11 +967,13 @@ paper (chunk m = 10): 256 + 70 = 326 against 70 tokens = 4.7x, reported ~7x wall
 
 `cot_vla_subgoal_toy.py` 是**合成**模型，只用标准库。**模型假设**如下。一条 24 格的一维轨道；任务是一串有顺序的路点（多阶段情形 3 个，`single_reach` 1 个），回合在 60 步内按顺序到达所有路点即为成功。代替图像的观测是 `(cell, stage)`，stage 表示已经到达的路点数；子目标“图像”是一个未来的 `(cell, stage)`，不是像素，也不是视频模型。所有数据来自同一个带噪示范者，它有 20 % 的时间随机行动。策略是**计数表，不是网络**，A 把 `(cell, stage)` 映射到该任务动作示范中最常见的后续 4 个动作；B 把 `(cell, stage)` 映射到该任务动作示范**和**视频中 4 步之后最常见的状态（在第一次阶段变化处截断，使子目标不会跳过路点），再由一张与任务无关的表把“朝子目标的方向”映射为动作，这张表从该任务的动作示范加上轨道上其他任务的 30 条示范中学。没见过的键，A 和 B 都退回该任务示范中最常见的动作。每组的动作块都是 4 个动作，开环执行，然后重新观测。指标：成功率（%）、用掉的步数（上限 60，所以失败组的步数只是下界）和每个回合解码的词元数。
 
+**设计迭代，如实交代。** 有三处选择是在看过中间结果之后做的，每一处都同样作用于所有情形和所有组。（1）初稿让子目标即使越过阶段变化也向前看 4 步，于是“方向 → 动作”表直接走过路点，B 在所有情形都失败；**在第一次阶段变化处截断**修好了这个错误，现在作为假设写明。（2）同一稿里，没见过的键 B 退回“停住”，而 A 用的是该任务示范中最常见的动作，这不公平，所以现在两者用同一个先验。（3）**`STALE = 2` 是看过 2 和 3 两组结果之后才选的**。取 3 时，C 在每个种子的每个多阶段回合都仅因步数预算而失败，所以 toy **两组都打印**，主表用 `STALE = 2`，第二块用 `STALE_ALT = 3` 重跑 C，并与同一个 B 比较。
+
 | 组 | 动作块从哪里来 |
 |---|---|
 | A_direct | `(cell, stage)` → 后续 4 个动作，来自该任务的动作示范 |
 | B_cot | `(cell, stage)` → 子目标，来自动作示范和视频；再由方向 → 动作；每个动作块都刷新子目标 |
-| C_cot_stale | 与 B 相同的表，但每 2 个动作块才刷新一次子目标 |
+| C_cot_stale | 与 B 相同的表，但每 2 个动作块才刷新一次子目标（`STALE = 2`；`STALE_ALT = 3` 那一块每 3 个动作块刷新一次，重跑 C） |
 
 **共用随机数（common random numbers）**。每个（情形，种子）的任务、该任务的动作示范、其他任务的 30 条示范、视频和 40 个测试起点都只抽一次，三组共用。三组**只**在怎样选择动作块上不同。5 个种子；报告种子间的均值±标准差。
 
@@ -1016,6 +1018,8 @@ Arms (each predicts one chunk of M actions per observation):
                   stage change, so a subgoal never skips a waypoint), from D_r and D_v of the task; then a task-agnostic action table (direction to subgoal) -> action,
                   learned from all D_r on the track; the subgoal is refreshed every chunk
     C_cot_stale   B's two tables, but the subgoal is refreshed only every STALE-th chunk
+STALE = 2 was chosen after seeing the runs with 2 and 3; both are printed (the main
+table uses STALE = 2, a second block repeats C with STALE_ALT = 3 against the same B).
 Unseen keys: both fall back to the task's most common demo action: A repeats it
 for the chunk, B/C put the subgoal N_AHEAD cells that way.
 Common random numbers: per (regime, seed) the task, the demos, the videos and
@@ -1031,7 +1035,8 @@ SEEDS = (0, 1, 2, 3, 4)
 W = 24                    # track cells
 M = 4                     # action chunk length
 N_AHEAD = 4               # subgoal horizon in steps
-STALE = 2                 # C refreshes its subgoal every 2nd chunk
+STALE = 2                 # C refreshes its subgoal every 2nd chunk (picked after seeing 2 and 3)
+STALE_ALT = 3             # the other value that was run; printed as a second block
 EPS = 0.2                 # demonstrator random-action rate
 T_MAX = 60                # step budget per episode
 TESTS = 40                # test episodes per seed (shared start cells)
@@ -1122,7 +1127,8 @@ def fit(d):
             {k: c.most_common(1)[0][0] for k, c in sub.items()}, act_of)
 
 
-def run(regime, seed, arm):
+def run(regime, seed, arm, stale=None):
+    stale = STALE if stale is None else stale
     d = shared_draws(regime, seed)
     task = d["task"]
     chunk, fallback, sub, act_of = fit(d)
@@ -1135,7 +1141,7 @@ def run(regime, seed, arm):
                 plan = chunk.get(obs, fallback)
                 tokens += TOK_ACTION * M
             else:
-                if goal is None or arm == "B_cot" or k % STALE == 0:
+                if goal is None or arm == "B_cot" or k % stale == 0:
                     goal = sub.get(obs, (min(W - 1, max(0, cell + N_AHEAD * fallback[0])), stage))
                     tokens += TOK_IMAGE
                 tokens += TOK_ACTION * M
@@ -1218,6 +1224,16 @@ def main():
             for m in ("succ", "steps", "tok"):
                 xs, ys = [v[m] for v in res[r][x]], [v[m] for v in res[r][y]]
                 print(f"  paired {x[0]}-{y[0]} {m}: {verdict(xs, ys)}")
+    print(f"stale-refresh sensitivity: C_cot_stale with STALE={STALE_ALT} against the same B_cot (STALE={STALE} above was chosen after seeing both runs)")
+    alt = {r: [run(r, s, "C_cot_stale", STALE_ALT) for s in SEEDS] for r in REGIMES}
+    for r in REGIMES:
+        print(f"{r}")
+        print(f"  C_cot_stale@{STALE_ALT} " + " ".join(cell_str([x[m] for x in alt[r]]) for m in ("succ", "steps", "tok")))
+        for m in ("succ", "steps", "tok"):
+            xs, ys = [v[m] for v in alt[r]], [v[m] for v in res[r]["B_cot"]]
+            print(f"  paired C@{STALE_ALT}-B {m}: {verdict(xs, ys)}")
+        xs, ys = [v["succ"] for v in alt[r]], [v["succ"] for v in res[r]["C_cot_stale"]]
+        print(f"  paired C@{STALE_ALT}-C@{STALE} succ: {verdict(xs, ys)}")
     print("No winner declared: a subgoal learned from action-less video helps when action demos are scarce; it costs 256 tokens per chunk and goes stale if not refreshed")
     print("Real CoT-VLA / GPU: 本页未运行; paper numbers 以论文为准")
 
@@ -1273,6 +1289,31 @@ single_reach (waypoints 1; action demos of the task 30; videos of the task 30)
   paired C-B succ: 0.0000+-0.0000: tie: identical on every seed
   paired C-B steps: 7.4000+-1.8868: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
   paired C-B tok: 51.8000+-13.2076: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+stale-refresh sensitivity: C_cot_stale with STALE=3 against the same B_cot (STALE=2 above was chosen after seeing both runs)
+multi_stage_video
+  C_cot_stale@3 0.0000+-0.0000 60.0000+-0.0000 1700.0000+-0.0000
+  paired C@3-B succ: -100.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-B steps: 26.6400+-5.8960: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-B tok: -796.3600+-419.0985: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-C@2 succ: -49.5000+-35.1959: clear gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+multi_stage_no_video
+  C_cot_stale@3 0.0000+-0.0000 60.0000+-0.0000 1700.0000+-0.0000
+  paired C@3-B succ: -37.5000+-25.3106: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-B steps: 4.4400+-2.4939: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-B tok: -2298.7200+-132.5819: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-C@2 succ: -4.0000+-5.7554: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+multi_stage_action_rich
+  C_cot_stale@3 0.0000+-0.0000 60.0000+-0.0000 1700.0000+-0.0000
+  paired C@3-B succ: -100.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-B steps: 29.5200+-4.9575: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-B tok: -634.4800+-354.6235: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-C@2 succ: -55.5000+-35.8556: clear gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+single_reach
+  C_cot_stale@3 92.5000+-7.0711 24.3000+-5.4663 890.0000+-139.3690
+  paired C@3-B succ: -7.5000+-7.0711: small but consistent gap, not a tie (|m| > sd); no seed has the opposite sign, 2 of 5 equal
+  paired C@3-B steps: 14.6400+-3.5905: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-B tok: 80.6000+-7.7395: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-C@2 succ: -7.5000+-7.0711: small but consistent gap, not a tie (|m| > sd); no seed has the opposite sign, 2 of 5 equal
 No winner declared: a subgoal learned from action-less video helps when action demos are scarce; it costs 256 tokens per chunk and goes stale if not refreshed
 Real CoT-VLA / GPU: 本页未运行; paper numbers 以论文为准
 ```
@@ -1287,6 +1328,7 @@ Real CoT-VLA / GPU: 本页未运行; paper numbers 以论文为准
 - **multi_stage_no_video** 情形，没有视频时子目标模型看到的和 A 是同一条示范，**CoT 没有任何收益**，B−A 成功率 2.5000±3.5355、步数 0.4800±0.8319，都是**接近打平、差距很小，在种子噪声之内**；**B 在词元上输了，差距明显**（B−A 3610.0800±111.2090，5 个种子同号）。C 在成功率上输给 B，差距明显（−33.5000±29.9270；没有种子符号相反，5 个中有 1 个相等）。
 - **multi_stage_action_rich** 情形，有 30 条动作示范时 A 已经知道怎么走（97.5000±5.5902 %）。B−A 成功率 2.5000±5.5902（5 个种子中有 4 个相等）、步数 2.4500±3.5226，都是**接近打平、差距很小，在种子噪声之内**；**B 在词元上输了，差距明显**（2128.1200±321.1586，5 个种子同号）。C 输给 B，差距明显（成功率 −44.5000±35.8556，5 个种子同号）。
 - **single_reach** 情形，一个路点、示范充足：B−A 成功率 2.5000±3.5355、步数 −1.4100±1.9080，都是**接近打平、差距很小，在种子噪声之内**；**B 在词元上输了，差距明显**（720.3600±127.4848，5 个种子同号）。C−B 成功率是**打平：每个种子都完全相同**，因为只有一个路点，时间够等过时的子目标；但 C 更慢（步数 7.4000±1.8868，明显，5 个种子同号）。
+- **每 3 个动作块才刷新（`STALE_ALT = 3` 那一块）。** 上面的 `STALE = 2` 是看过这一块之后选的，所以两组都要读。取 `STALE = 3` 时，三个多阶段情形里 C 的成功率都是 0.0000±0.0000 %，每个种子的每个回合都用完 60 步预算（步数 60.0000±0.0000），因为两次刷新之间，机器人会在已到达的子目标上停最多两个动作块。C@3−B 成功率在 `multi_stage_video` 和 `multi_stage_action_rich` 中是 −100.0000±0.0000，在 `multi_stage_no_video` 中是 −37.5000±25.3106（明显，5 个种子同号）；与 C@2 相比，`multi_stage_no_video` 只是接近打平（−4.0000±5.7554，5 个中有 3 个相等），因为 C@2 在那里本来就几乎全失败。它的词元更少（`multi_stage_video` 中 C@3−B −796.3600±419.0985，明显），那只是更便宜的失败，不是节省。在 `single_reach` 中打平消失了，**C@3 在成功率上输给 B**，−7.5000±7.0711（小但稳定，没有种子符号相反，5 个中有 2 个相等），而且更慢（步数 14.6400±3.5905，明显，5 个种子同号）。所以过时子目标组在两种设置下都输；`STALE = 3` 只是让多阶段任务全军覆没，并把单次到达的打平变成输。
 
 本页**不宣布普遍赢家**。动作标签稀少、任务有多个阶段时，从无动作视频学到的子目标会赢。没有额外视频、动作标签充足或只有一次到达时，成功率接近打平，而词元总是更多。不刷新的子目标会输。没有哪组发散或运行失败。这与论文自己的几行有输有赢的结果一致（Bridge-V2 的视觉和语言类、Franka 单指令任务），论文表 3 也说明子目标的好坏取决于生成器（以论文为准）。真实的 CoT-VLA 和 GPU **本页未运行**。
 
@@ -1297,12 +1339,12 @@ Real CoT-VLA / GPU: 本页未运行; paper numbers 以论文为准
 1. 对 10 个动作的动作块重做词元算例。B 和 A 的比例怎样变化？为什么它仍然不是延迟？
 2. 从 `shared_draws` 说明：对给定的情形和种子，A、B、C 看到的是同一个任务、同一份示范、同一份视频和同一组起点。
 3. 去掉 `fit` 里“在第一次阶段变化处截断”这一步，运行前先预测 `multi_stage_video` 中 B 会怎样，并说明原因。
-4. 固定种子，设 `STALE = 3`。先预测 `single_reach` 中 C−B 成功率是否仍然**打平**，再验证。
+4. toy 已经同时打印 `STALE = 2` 和 `STALE_ALT = 3`。固定种子，设 `STALE_ALT = 4`，先预测 `single_reach` 和 `multi_stage_video` 中的 C−B 成功率，再验证。
 5. 在动手用真机之前（本页未运行），说明为什么 `multi_stage_no_video` 是检验“视觉思维链有用”这一说法的公平对照，以及论文表 3 又补充了什么。
 
 <Summary>
 
 VLA 从预训练的视觉语言模型出发，把相机图像加指令映射为动作，方式是写成词元或经过单独的动作头；通常你下载一个，再用约 50 条示范微调。逐步分词为每维划 256 个区间（RT-2 用数据的最小/最大值，OpenVLA 用第 1 到第 99 百分位），范围内误差至多半个区间，范围外被截断；FAST 则用 DCT 压缩整个动作块，用缩放系数在词元数与误差之间权衡。下载表区分代码许可与权重许可，SmolVLA 的规模适合单块消费级 GPU（其结构与耗时以论文为准），`vla_async_chunk_toy.py` 展示异步动作块推理围绕阈值 g ≥ (E[ℓ_S] / Δt) / n，用更多推理调用与拼接换取更少空闲与更新鲜的观测。`dual_system_vla_cadence_toy.py` 补上来自 OpenHelix 的双系统素养：慢速 System 2 设定目标，快速 System 1 每个节拍行动并且必须看到实时感知（因此不把 π0 称为双系统）；在同等计算、中途切换指令时，只有 System 1 看到当前图像的双系统臂既能跟随新指令又能跟踪运动目标，而目标静止时单速率臂毫无损失——真实权重、GPU 与 CALVIN 数字以论文为准 / 本页未运行。`rdt2_rvq_fm_distill_toy.py` 补上 RDT2 的三阶段做法（RVQ 词元加交叉熵、冻结 VLM 的流匹配专家、单步蒸馏），在五个种子上表明：同样 8 bit 预算下，更少的词元以码本条目为代价，单步采样要么牺牲质量、要么需要离线蒸馏预算，不宣布赢家；RDT2 的分数以论文为准，7B 训练 / GPU 本页未运行。
 
-- CoT-VLA 视觉子目标：只有 1 条动作示范和 30 段视频时，先子目标再动作块的策略胜过直接策略（B−A 62.0000±44.8400 个百分点，明显，5/5）；没有视频、动作示范充足或只有一次到达时**接近打平**，词元总是更多，子目标过时就会输——`cot_vla_subgoal_toy.py`，计数表，不是 CoT-VLA 的 7B GPU 结果。
+- CoT-VLA 视觉子目标：只有 1 条动作示范和 30 段视频时，先子目标再动作块的策略胜过直接策略（B−A 62.0000±44.8400 个百分点，明显，5/5）；没有视频、动作示范充足或只有一次到达时**接近打平**，词元总是更多，子目标过时就会输（每 2 个动作块刷新一次，是看过每 3 个动作块的结果后选的，后者在多阶段回合全部失败）——`cot_vla_subgoal_toy.py`，计数表，不是 CoT-VLA 的 7B GPU 结果。
 </Summary>

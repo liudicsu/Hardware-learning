@@ -22,6 +22,8 @@ Arms (each predicts one chunk of M actions per observation):
                   stage change, so a subgoal never skips a waypoint), from D_r and D_v of the task; then a task-agnostic action table (direction to subgoal) -> action,
                   learned from all D_r on the track; the subgoal is refreshed every chunk
     C_cot_stale   B's two tables, but the subgoal is refreshed only every STALE-th chunk
+STALE = 2 was chosen after seeing the runs with 2 and 3; both are printed (the main
+table uses STALE = 2, a second block repeats C with STALE_ALT = 3 against the same B).
 Unseen keys: both fall back to the task's most common demo action: A repeats it
 for the chunk, B/C put the subgoal N_AHEAD cells that way.
 Common random numbers: per (regime, seed) the task, the demos, the videos and
@@ -37,7 +39,8 @@ SEEDS = (0, 1, 2, 3, 4)
 W = 24                    # track cells
 M = 4                     # action chunk length
 N_AHEAD = 4               # subgoal horizon in steps
-STALE = 2                 # C refreshes its subgoal every 2nd chunk
+STALE = 2                 # C refreshes its subgoal every 2nd chunk (picked after seeing 2 and 3)
+STALE_ALT = 3             # the other value that was run; printed as a second block
 EPS = 0.2                 # demonstrator random-action rate
 T_MAX = 60                # step budget per episode
 TESTS = 40                # test episodes per seed (shared start cells)
@@ -128,7 +131,8 @@ def fit(d):
             {k: c.most_common(1)[0][0] for k, c in sub.items()}, act_of)
 
 
-def run(regime, seed, arm):
+def run(regime, seed, arm, stale=None):
+    stale = STALE if stale is None else stale
     d = shared_draws(regime, seed)
     task = d["task"]
     chunk, fallback, sub, act_of = fit(d)
@@ -141,7 +145,7 @@ def run(regime, seed, arm):
                 plan = chunk.get(obs, fallback)
                 tokens += TOK_ACTION * M
             else:
-                if goal is None or arm == "B_cot" or k % STALE == 0:
+                if goal is None or arm == "B_cot" or k % stale == 0:
                     goal = sub.get(obs, (min(W - 1, max(0, cell + N_AHEAD * fallback[0])), stage))
                     tokens += TOK_IMAGE
                 tokens += TOK_ACTION * M
@@ -224,6 +228,16 @@ def main():
             for m in ("succ", "steps", "tok"):
                 xs, ys = [v[m] for v in res[r][x]], [v[m] for v in res[r][y]]
                 print(f"  paired {x[0]}-{y[0]} {m}: {verdict(xs, ys)}")
+    print(f"stale-refresh sensitivity: C_cot_stale with STALE={STALE_ALT} against the same B_cot (STALE={STALE} above was chosen after seeing both runs)")
+    alt = {r: [run(r, s, "C_cot_stale", STALE_ALT) for s in SEEDS] for r in REGIMES}
+    for r in REGIMES:
+        print(f"{r}")
+        print(f"  C_cot_stale@{STALE_ALT} " + " ".join(cell_str([x[m] for x in alt[r]]) for m in ("succ", "steps", "tok")))
+        for m in ("succ", "steps", "tok"):
+            xs, ys = [v[m] for v in alt[r]], [v[m] for v in res[r]["B_cot"]]
+            print(f"  paired C@{STALE_ALT}-B {m}: {verdict(xs, ys)}")
+        xs, ys = [v["succ"] for v in alt[r]], [v["succ"] for v in res[r]["C_cot_stale"]]
+        print(f"  paired C@{STALE_ALT}-C@{STALE} succ: {verdict(xs, ys)}")
     print("No winner declared: a subgoal learned from action-less video helps when action demos are scarce; it costs 256 tokens per chunk and goes stale if not refreshed")
     print("Real CoT-VLA / GPU: 本页未运行; paper numbers 以论文为准")
 

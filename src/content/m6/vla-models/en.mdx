@@ -967,11 +967,13 @@ The token count is a **cost count, not a timing**: a real model's latency depend
 
 `cot_vla_subgoal_toy.py` is **synthetic** and stdlib only. **Model assumptions:** a 1-D track of 24 cells; a task is an ordered list of waypoints (3 in the multi-stage regimes, 1 in `single_reach`), and an episode succeeds if every waypoint is reached in order within 60 steps. The observation that stands in for an image is `(cell, stage)`, where stage counts the waypoints already reached; the subgoal "image" is a future `(cell, stage)`, not pixels and not a video model. All data come from one noisy demonstrator that takes a random action 20 % of the time. Policies are **count tables, not networks**: A maps `(cell, stage)` to the most common next 4 actions in the task's action demos; B maps `(cell, stage)` to the most common state 4 steps later in the task's action demos **and** videos, cut at the first stage change so that a subgoal never skips a waypoint, and a task-agnostic table maps the direction to the subgoal to an action, learned from the task's action demos plus the 30 demos of other tasks on the track. Unseen keys fall back to the task's most common demo action for both A and B. Chunks are 4 actions for every arm, executed open loop and followed by a new observation. Metrics: success (%), steps used (capped at 60, so a failing arm's steps are a lower bound) and decoded tokens per episode.
 
+**Design iterations, disclosed.** Three choices were made after seeing intermediate numbers, and each applies to every regime and arm alike. (1) A first draft let the subgoal look 4 steps ahead even past a stage change, so the direction → action table walked straight past waypoints and B failed everywhere; the **cut at the first stage change** fixed that bug and is now a stated assumption. (2) The same draft gave B a "stay" fallback on unseen keys while A had the task's most common demo action; that was unequal, so both now use the same prior. (3) **`STALE = 2` was chosen after seeing the results** for 2 and 3: with 3, C fails every multi-stage episode on every seed through the step budget alone, so the toy prints **both** — the main table uses `STALE = 2`, and a second block reruns C with `STALE_ALT = 3` against the same B.
+
 | Arm | Chunk chosen from |
 |---|---|
 | A_direct | `(cell, stage)` → next 4 actions, from the task's action demos |
 | B_cot | `(cell, stage)` → subgoal, from action demos and videos; then direction → action; subgoal refreshed every chunk |
-| C_cot_stale | B's tables, but the subgoal is refreshed only every 2nd chunk |
+| C_cot_stale | B's tables, but the subgoal is refreshed only every 2nd chunk (`STALE = 2`; the `STALE_ALT = 3` block reruns C every 3rd chunk) |
 
 **Common random numbers:** for each (regime, seed) the task, the action demos of the task, the 30 demos of other tasks, the videos and the 40 test start cells are drawn once and shared by all three arms. The arms differ **only** in how a chunk is chosen. Five seeds; reported as mean±sd over seeds.
 
@@ -1016,6 +1018,8 @@ Arms (each predicts one chunk of M actions per observation):
                   stage change, so a subgoal never skips a waypoint), from D_r and D_v of the task; then a task-agnostic action table (direction to subgoal) -> action,
                   learned from all D_r on the track; the subgoal is refreshed every chunk
     C_cot_stale   B's two tables, but the subgoal is refreshed only every STALE-th chunk
+STALE = 2 was chosen after seeing the runs with 2 and 3; both are printed (the main
+table uses STALE = 2, a second block repeats C with STALE_ALT = 3 against the same B).
 Unseen keys: both fall back to the task's most common demo action: A repeats it
 for the chunk, B/C put the subgoal N_AHEAD cells that way.
 Common random numbers: per (regime, seed) the task, the demos, the videos and
@@ -1031,7 +1035,8 @@ SEEDS = (0, 1, 2, 3, 4)
 W = 24                    # track cells
 M = 4                     # action chunk length
 N_AHEAD = 4               # subgoal horizon in steps
-STALE = 2                 # C refreshes its subgoal every 2nd chunk
+STALE = 2                 # C refreshes its subgoal every 2nd chunk (picked after seeing 2 and 3)
+STALE_ALT = 3             # the other value that was run; printed as a second block
 EPS = 0.2                 # demonstrator random-action rate
 T_MAX = 60                # step budget per episode
 TESTS = 40                # test episodes per seed (shared start cells)
@@ -1122,7 +1127,8 @@ def fit(d):
             {k: c.most_common(1)[0][0] for k, c in sub.items()}, act_of)
 
 
-def run(regime, seed, arm):
+def run(regime, seed, arm, stale=None):
+    stale = STALE if stale is None else stale
     d = shared_draws(regime, seed)
     task = d["task"]
     chunk, fallback, sub, act_of = fit(d)
@@ -1135,7 +1141,7 @@ def run(regime, seed, arm):
                 plan = chunk.get(obs, fallback)
                 tokens += TOK_ACTION * M
             else:
-                if goal is None or arm == "B_cot" or k % STALE == 0:
+                if goal is None or arm == "B_cot" or k % stale == 0:
                     goal = sub.get(obs, (min(W - 1, max(0, cell + N_AHEAD * fallback[0])), stage))
                     tokens += TOK_IMAGE
                 tokens += TOK_ACTION * M
@@ -1218,6 +1224,16 @@ def main():
             for m in ("succ", "steps", "tok"):
                 xs, ys = [v[m] for v in res[r][x]], [v[m] for v in res[r][y]]
                 print(f"  paired {x[0]}-{y[0]} {m}: {verdict(xs, ys)}")
+    print(f"stale-refresh sensitivity: C_cot_stale with STALE={STALE_ALT} against the same B_cot (STALE={STALE} above was chosen after seeing both runs)")
+    alt = {r: [run(r, s, "C_cot_stale", STALE_ALT) for s in SEEDS] for r in REGIMES}
+    for r in REGIMES:
+        print(f"{r}")
+        print(f"  C_cot_stale@{STALE_ALT} " + " ".join(cell_str([x[m] for x in alt[r]]) for m in ("succ", "steps", "tok")))
+        for m in ("succ", "steps", "tok"):
+            xs, ys = [v[m] for v in alt[r]], [v[m] for v in res[r]["B_cot"]]
+            print(f"  paired C@{STALE_ALT}-B {m}: {verdict(xs, ys)}")
+        xs, ys = [v["succ"] for v in alt[r]], [v["succ"] for v in res[r]["C_cot_stale"]]
+        print(f"  paired C@{STALE_ALT}-C@{STALE} succ: {verdict(xs, ys)}")
     print("No winner declared: a subgoal learned from action-less video helps when action demos are scarce; it costs 256 tokens per chunk and goes stale if not refreshed")
     print("Real CoT-VLA / GPU: 本页未运行; paper numbers 以论文为准")
 
@@ -1273,6 +1289,31 @@ single_reach (waypoints 1; action demos of the task 30; videos of the task 30)
   paired C-B succ: 0.0000+-0.0000: tie: identical on every seed
   paired C-B steps: 7.4000+-1.8868: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
   paired C-B tok: 51.8000+-13.2076: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+stale-refresh sensitivity: C_cot_stale with STALE=3 against the same B_cot (STALE=2 above was chosen after seeing both runs)
+multi_stage_video
+  C_cot_stale@3 0.0000+-0.0000 60.0000+-0.0000 1700.0000+-0.0000
+  paired C@3-B succ: -100.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-B steps: 26.6400+-5.8960: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-B tok: -796.3600+-419.0985: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-C@2 succ: -49.5000+-35.1959: clear gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+multi_stage_no_video
+  C_cot_stale@3 0.0000+-0.0000 60.0000+-0.0000 1700.0000+-0.0000
+  paired C@3-B succ: -37.5000+-25.3106: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-B steps: 4.4400+-2.4939: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-B tok: -2298.7200+-132.5819: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-C@2 succ: -4.0000+-5.7554: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+multi_stage_action_rich
+  C_cot_stale@3 0.0000+-0.0000 60.0000+-0.0000 1700.0000+-0.0000
+  paired C@3-B succ: -100.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-B steps: 29.5200+-4.9575: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-B tok: -634.4800+-354.6235: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-C@2 succ: -55.5000+-35.8556: clear gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+single_reach
+  C_cot_stale@3 92.5000+-7.0711 24.3000+-5.4663 890.0000+-139.3690
+  paired C@3-B succ: -7.5000+-7.0711: small but consistent gap, not a tie (|m| > sd); no seed has the opposite sign, 2 of 5 equal
+  paired C@3-B steps: 14.6400+-3.5905: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-B tok: 80.6000+-7.7395: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-C@2 succ: -7.5000+-7.0711: small but consistent gap, not a tie (|m| > sd); no seed has the opposite sign, 2 of 5 equal
 No winner declared: a subgoal learned from action-less video helps when action demos are scarce; it costs 256 tokens per chunk and goes stale if not refreshed
 Real CoT-VLA / GPU: 本页未运行; paper numbers 以论文为准
 ```
@@ -1287,6 +1328,7 @@ How the labels are used in this section, in this order: **tie: identical on ever
 - **multi_stage_no_video:** without videos the subgoal model sees the same single demo as A, and **CoT gains nothing**: B−A success 2.5000±3.5355 and steps 0.4800±0.8319 are a **near-tie / small gap, within seed noise**, while **B loses on tokens with a clear gap** (B−A 3610.0800±111.2090, same sign on all 5 seeds). C loses to B on success with a clear gap (−33.5000±29.9270; no seed has the opposite sign, 1 of 5 equal).
 - **multi_stage_action_rich:** with 30 action demos A already knows the way (97.5000±5.5902 %). B−A success 2.5000±5.5902 (4 of 5 seeds equal) and steps 2.4500±3.5226 are a **near-tie / small gap, within seed noise**; **B loses on tokens with a clear gap** (2128.1200±321.1586, same sign on all 5 seeds). C loses to B with a clear gap (success −44.5000±35.8556, same sign on all 5 seeds).
 - **single_reach:** one waypoint and plenty of demos: B−A success 2.5000±3.5355 and steps −1.4100±1.9080 are a **near-tie / small gap, within seed noise**, and **B loses on tokens with a clear gap** (720.3600±127.4848, same sign on all 5 seeds). C−B success is a **tie: identical on every seed** — one waypoint leaves time to wait for a stale subgoal — but C is slower (steps 7.4000±1.8868, clear, same sign on all 5 seeds).
+- **Stale refresh every 3rd chunk (the `STALE_ALT = 3` block).** `STALE = 2` above was picked after seeing this block, so read both. With `STALE = 3`, C's success is 0.0000±0.0000 % in all three multi-stage regimes: every episode on every seed runs out the 60-step budget (steps 60.0000±0.0000), because between refreshes the robot sits on a reached subgoal for up to two chunks. C@3−B success is −100.0000±0.0000 in `multi_stage_video` and `multi_stage_action_rich` and −37.5000±25.3106 in `multi_stage_no_video` (clear, same sign on all 5 seeds); against C@2, `multi_stage_no_video` is only a near-tie (−4.0000±5.7554, 3 of 5 equal) because C@2 already nearly fails there. Its lower token count (C@3−B −796.3600±419.0985 in `multi_stage_video`, clear) is a cheaper failure, not a saving. In `single_reach` the tie disappears: **C@3 loses to B** on success, −7.5000±7.0711 (small but consistent, no seed has the opposite sign, 2 of 5 equal), and is slower (steps 14.6400±3.5905, clear, same sign on all 5 seeds). So the stale arm loses at both settings; `STALE = 3` only makes the loss total on multi-stage tasks and turns the single-reach tie into a loss.
 
 The page **does not declare a universal winner**. A subgoal learned from action-less video wins when action labels are scarce and the task has several stages. With no extra video, with plenty of action labels or with a single reach it is a near-tie on success and always costs more tokens. A subgoal that is not refreshed loses. No arm diverged or failed to run. This mirrors the paper's own mixed rows (Bridge-V2 visual and language, Franka single-instruction), and its Table 3 says the subgoal is only as good as its generator (以论文为准). Real CoT-VLA and GPU: **本页未运行**.
 
@@ -1297,12 +1339,12 @@ The page **does not declare a universal winner**. A subgoal learned from action-
 1. Redo the token example for a chunk of 10 actions. How does the ratio between B and A change, and why is it still not a latency?
 2. Show from `shared_draws` that A, B and C see the same task, demos, videos and start cells for a given regime and seed.
 3. Remove the cut at the first stage change in `fit` and predict, before you run, what happens to B in `multi_stage_video` and why.
-4. Set `STALE = 3` with seeds fixed. Predict whether C−B success in `single_reach` stays a **tie**, then check.
+4. The toy already prints `STALE = 2` and `STALE_ALT = 3`. Set `STALE_ALT = 4` with seeds fixed, predict C−B success in `single_reach` and in `multi_stage_video`, then check.
 5. Before a real robot (本页未运行), explain why `multi_stage_no_video` is the fair control for the claim "visual chain of thought helps", and what the paper's Table 3 adds to it.
 
 <Summary>
 
 A VLA starts from a pretrained vision-language model and maps camera images plus an instruction to actions, either as tokens or through a separate action head; you usually download one and fine-tune it on about 50 demonstrations. Per-step tokenisation uses 256 bins per dimension (RT-2 over the data's min/max, OpenVLA between the 1st and 99th percentiles), with at most half a bin of error inside the range and clipping outside it, while FAST compresses a whole chunk with a DCT so a scale trades token count against error. The download table separates code licences from weight licences, SmolVLA is the size that fits one consumer GPU (its architecture and timings per the paper), and `vla_async_chunk_toy.py` shows asynchronous chunk inference trading idle time and staleness against more inference calls and splices around the threshold g ≥ (E[ℓ_S] / Δt) / n. `dual_system_vla_cadence_toy.py` adds dual-system literacy from OpenHelix: a slow System 2 sets the goal and a fast System 1 acts every tick and must see real-time perception (so π0 is not called dual-system), and at equal compute with a mid-episode instruction switch only the dual arm whose System 1 sees the current image both follows the new instruction and tracks moving targets, while with static targets the single-rate arms lose nothing — real weights, GPUs and CALVIN numbers stay 以论文为准 / 本页未运行. `rdt2_rvq_fm_distill_toy.py` adds RDT2's three-stage recipe (RVQ tokens with cross-entropy, a frozen-VLM flow-matching expert, one-step distillation) and shows over five seeds that at an equal 8-bit budget fewer tokens cost codebook entries, and that one-step sampling costs either quality or an offline distillation budget, without declaring a winner; RDT2's scores stay 以论文为准 and its 7B training / GPU 本页未运行.
 
-- CoT-VLA visual subgoals: with one action demo and 30 videos a subgoal-then-chunk policy beats a direct one (B−A 62.0000±44.8400 points, clear, 5/5), is a **near-tie** with no video, with plenty of action demos or on a single reach, always costs more tokens, and loses when the subgoal goes stale — `cot_vla_subgoal_toy.py`, count tables, not CoT-VLA's 7B GPU results.
+- CoT-VLA visual subgoals: with one action demo and 30 videos a subgoal-then-chunk policy beats a direct one (B−A 62.0000±44.8400 points, clear, 5/5), is a **near-tie** with no video, with plenty of action demos or on a single reach, always costs more tokens, and loses when the subgoal goes stale (refresh every 2nd chunk, chosen after seeing every 3rd, which fails every multi-stage episode) — `cot_vla_subgoal_toy.py`, count tables, not CoT-VLA's 7B GPU results.
 </Summary>

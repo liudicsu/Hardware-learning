@@ -42,5 +42,30 @@ single_reach (waypoints 1; action demos of the task 30; videos of the task 30)
   paired C-B succ: 0.0000+-0.0000: tie: identical on every seed
   paired C-B steps: 7.4000+-1.8868: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
   paired C-B tok: 51.8000+-13.2076: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+stale-refresh sensitivity: C_cot_stale with STALE=3 against the same B_cot (STALE=2 above was chosen after seeing both runs)
+multi_stage_video
+  C_cot_stale@3 0.0000+-0.0000 60.0000+-0.0000 1700.0000+-0.0000
+  paired C@3-B succ: -100.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-B steps: 26.6400+-5.8960: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-B tok: -796.3600+-419.0985: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-C@2 succ: -49.5000+-35.1959: clear gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+multi_stage_no_video
+  C_cot_stale@3 0.0000+-0.0000 60.0000+-0.0000 1700.0000+-0.0000
+  paired C@3-B succ: -37.5000+-25.3106: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-B steps: 4.4400+-2.4939: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-B tok: -2298.7200+-132.5819: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-C@2 succ: -4.0000+-5.7554: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+multi_stage_action_rich
+  C_cot_stale@3 0.0000+-0.0000 60.0000+-0.0000 1700.0000+-0.0000
+  paired C@3-B succ: -100.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-B steps: 29.5200+-4.9575: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-B tok: -634.4800+-354.6235: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-C@2 succ: -55.5000+-35.8556: clear gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+single_reach
+  C_cot_stale@3 92.5000+-7.0711 24.3000+-5.4663 890.0000+-139.3690
+  paired C@3-B succ: -7.5000+-7.0711: small but consistent gap, not a tie (|m| > sd); no seed has the opposite sign, 2 of 5 equal
+  paired C@3-B steps: 14.6400+-3.5905: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-B tok: 80.6000+-7.7395: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C@3-C@2 succ: -7.5000+-7.0711: small but consistent gap, not a tie (|m| > sd); no seed has the opposite sign, 2 of 5 equal
 No winner declared: a subgoal learned from action-less video helps when action demos are scarce; it costs 256 tokens per chunk and goes stale if not refreshed
 Real CoT-VLA / GPU: 本页未运行; paper numbers 以论文为准

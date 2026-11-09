@@ -156,6 +156,28 @@ class CoT(unittest.TestCase):
         finally:
             co.STALE = old
 
+    def test_stale_alt_block(self):
+        """STALE = 2 was picked after seeing STALE = 3; both are printed and both are checked here."""
+        self.assertEqual((co.STALE, co.STALE_ALT), (2, 3))
+        for regime in co.REGIMES:
+            for seed in co.SEEDS:
+                self.assertEqual(co.run(regime, seed, "C_cot_stale"), co.run(regime, seed, "C_cot_stale", co.STALE))
+        for regime in ("multi_stage_video", "multi_stage_no_video", "multi_stage_action_rich"):
+            for seed in co.SEEDS:
+                r = co.run(regime, seed, "C_cot_stale", co.STALE_ALT)
+                self.assertEqual((r["succ"], r["steps"]), (0.0, float(co.T_MAX)))  # every episode runs out the budget
+        c3 = [co.run("single_reach", s, "C_cot_stale", co.STALE_ALT)["succ"] for s in co.SEEDS]
+        b = [co.run("single_reach", s, "B_cot")["succ"] for s in co.SEEDS]
+        c2 = [co.run("single_reach", s, "C_cot_stale")["succ"] for s in co.SEEDS]
+        self.assertEqual(c2, b)                                  # STALE = 2: tie on every seed
+        self.assertTrue(all(x <= y for x, y in zip(c3, b)) and c3 != b)  # STALE = 3: C loses, never wins
+        blk = self.out.split("stale-refresh sensitivity")[1]
+        for line in ("paired C@3-B succ: -100.0000+-0.0000: clear gap", "paired C@3-B succ: -37.5000+-25.3106: clear gap",
+                     "paired C@3-C@2 succ: -4.0000+-5.7554: near-tie", "paired C@3-B succ: -7.5000+-7.0711: small but consistent gap",
+                     "no seed has the opposite sign, 2 of 5 equal"):
+            self.assertIn(line, blk)
+        self.assertNotIn("tie: identical on every seed", blk)
+
     def test_regime_lines(self):
         for line in ("paired B-A succ: 62.0000+-44.8400: clear gap", "paired B-A succ: 2.5000+-3.5355: near-tie",
                      "paired B-A tok: 3610.0800+-111.2090: clear gap", "paired C-B succ: 0.0000+-0.0000: tie: identical on every seed"):
