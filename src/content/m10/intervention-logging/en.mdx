@@ -261,8 +261,430 @@ $ lerobot-edit-dataset \
 - **Taking over late.** Long recovery segments teach recovery from far-off states and little about the task; take over when failure is imminent.
 - **Jerky handovers.** Use an actuated leader that follows the follower while paused; jumps end up in the training data.
 
+## Stage memory prompts: MAP-VLA
+
+The logs above hold more than a rate. Each correction is a short, labelled piece of "how an expert finished this stage". A frozen VLA never looks at them again once training ends: at run time it sees only the current observation. **MAP-VLA** (Memory-Augmented Prompting for VLA) turns stage-segmented demonstrations into a **memory library of soft prompts**, retrieves the right one by **trajectory similarity** while the robot runs, and **ensembles** the memory-prompted action chunk with the ordinary one. The VLA weights do not change. This section is **not** MemoryVLA's perceptual memory bank or a WorldVLA attention mask (both in [world models](/en/month/month-9/world-models-overview)), **not** X-VLA's per-embodiment soft prompts ([cross-embodiment datasets](/en/month/month-11/cross-embodiment-datasets)) and **not** MTC stage prefixes: here the memory is indexed by **task stage** and chosen by where the arm has just been.
+
+<Resource id="mapvla-html" />
+
+<Resource id="mapvla-pdf" />
+
+**Sources actually opened (body read).** **MAP-VLA (arXiv 2511.09516, HTML and PDF via pdftotext).** The method runs on a π0 policy, fine-tuned with LoRA and then frozen. *Memory Prompt Construction:* key poses of one reference demonstration are found with the Ramer–Douglas–Peucker algorithm, stage boundaries sit at the midpoints between key poses, and every other demonstration is aligned to the reference with dynamic time warping, giving K stage-aligned segments. Each stage k gets a learnable soft prompt `V_k` that is **added element-wise** to the base prompt tokens, `P_k = P_base + V_k` (Eq. 2), and only `V_k` is optimised with the flow-matching loss on that stage's frames (Eq. 3). The library also stores the demonstration trajectories and action sequences. *Memory-Augmented Action Generation:* the last W robot states are compared with every W-long window of every demonstration by an L2 cost (Eq. 4), restricted to windows whose stage label is within 1 of the current stage (`|k − k_cur| ≤ 1`), and the arg-min (Eq. 5) updates the current stage, picks `V_k` and supplies a reference action chunk from that demonstration. The frozen model runs twice (base prompt and memory prompt) and the two chunks are mixed with `α_t` = the softmax of their negative squared distances to the reference chunk (Eq. 6), `A = α A_mem + (1 − α) A_base` (Eq. 7). Reported results: LIBERO-Long 83.4 % against 76.4 % for π0 (+7.0 points), real-robot complete success 48.3 % against 23.3 % (+25.0 points) on a Galaxea A1 arm, the ablation 81.4 % for stage prompts without ensembling, and 21.6 ms average retrieval with about 37.8 demonstrations per task — all **以论文为准**; π0 weights, LIBERO and the robot: **本页未运行**.
+
+### What the memory is and why logs feed it
+
+A memory unit is a pair: a stage prompt and the demonstrations that taught it. The prompt is tiny compared with the model, so a library of K prompts per task is cheap; the retrieval cost grows with the number of demonstrations of that task, not with the number of tasks. The intervention logs of this lesson are a natural source: a correction already starts and ends at a stage boundary, and its frames carry the robot state that retrieval matches against.
+
+<Formula label="Memory-aware prompt ensembling (MAP-VLA Eq. 6–7)">α = exp(−‖A_mem − A_ref‖²) / (exp(−‖A_mem − A_ref‖²) + exp(−‖A_base − A_ref‖²)),  A = α·A_mem + (1 − α)·A_base</Formula>
+
+**Worked example.** Suppose the memory chunk is 0.1 (squared distance) from the reference and the base chunk is 0.9. Then `α = e^−0.1 / (e^−0.1 + e^−0.9) = 1 / (1 + e^−0.8) = 0.690`, so the executed chunk is 69 % memory and 31 % base. If retrieval went wrong and the reference disagrees with the memory chunk (2.0 against 0.5), `α = 1 / (1 + e^1.5) = 0.182` and the base dominates — but only if the reference itself came from the right stage. When the prompt and the reference are **both** from the wrong stage, they agree with each other and the ensemble cannot catch it.
+
+### Fair setup
+
+`map_vla_memory_prompt_toy.py` is **synthetic** and stdlib only. **Model assumptions:** a 2D point stands in for the end effector and must visit K stage goals in order (step ≤ 0.25, goal reached within 0.15, 14 steps per stage, otherwise the episode stops); the observation is the noisy state plus a 4-dim noisy one-hot "scene look"; in the ambiguous regimes stages 1 and 3 (and 2 and 4) share one look, the way a camera can see the same scene at two points of a long task. The **frozen VLA** is a single linear map `W` from `[state, look, 1]` to the action, fit by least squares on 8 logged demonstrations per seed. A stage soft prompt `V_k` is added to the prompt features, so its effect is `W V_k`; **prompt tuning** is the least-squares fit of that effect on stage-k frames, which for a constant offset is the mean residual of the frozen `W` there. Stage labels in the demos are given (the paper's RDP + DTW step is **not** simulated). Retrieval and ensembling follow Eq. 4–7 with a 4-state window and a 4-step chunk. It is a **stand-in**, not π0 and not prompt tuning through a transformer.
+
+| Arm | What it does |
+|---|---|
+| A_memoryless | base prompt only: the current observation, no memory |
+| B_map | retrieve stage and reference (stage within 1 of the current estimate), add that stage's prompt, ensemble with the base chunk |
+| C_wrongstage | same retrieval, but the prompt **and** reference come from the neighbouring stage (a mismatched memory, e.g. a segmentation off by one), ensemble as in B |
+
+**Common random numbers:** for each regime and seed the demos and the frozen `W` are shared, and for each episode the start, observation noise, look noise and motion noise are drawn once, indexed by step, and read by every arm. Five seeds × 20 episodes. Metrics per seed: `stage` = share of stages completed, `full` = share of episodes that finish every stage, `steps` = environment steps used (an episode stops at the first stage that runs out of budget, so **fewer steps can mean earlier failure**), `hit` = share of retrievals whose stage is the true stage (A retrieves nothing). Prompt size, chunk length and step budget are the same for every arm.
+
+| Regime | Stages | Looks | State noise sd |
+|---|---|---|---|
+| ambiguous_long | 4 (square) | 0, 1, 0, 1 | 0.02 |
+| distinct_long | 4 (square) | 0, 1, 2, 3 | 0.02 |
+| single_stage | 1 | 0 | 0.02 |
+| noisy_retrieval | 4 (square) | 0, 1, 0, 1 | 0.12 |
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-10/intervention-logging
+python3 map_vla_memory_prompt_toy.py
+```
+
+<CodeSource path="examples/month-10/intervention-logging/map_vla_memory_prompt_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""MAP-VLA stand-in: stage memory soft prompts, trajectory retrieval and prompt ensembling. Stdlib only.
+
+Model assumptions (also stated in the lesson prose):
+  a 2D point "end effector" must visit K stage goals in order (step <= 0.25, goal reached within
+  0.15, 14 steps per stage, else the episode stops). The observation is the noisy state plus a
+  4-dim noisy one-hot "scene look"; in ambiguous regimes two stages share one look, like the same
+  camera view at different points of a long task. The "frozen VLA" is one linear map W from
+  [state, look, 1] to the action, fit by least squares on 8 logged demonstrations (corrections) per
+  seed and never changed afterwards. A stage "soft prompt" V_k is added to the prompt features, so
+  its effect on the action is W V_k; prompt tuning is the least-squares fit of that effect on the
+  stage-k frames (the mean residual of the frozen W there). Stage labels in the demos are known
+  (the paper finds them with RDP key poses + DTW; that step is not simulated).
+  Retrieval: the last 4 observed states are compared with every 4-state demo window whose stage is
+  within 1 of the current stage estimate (L2 cost, paper Eq. 4-5); the best window gives the stage
+  and a 4-step reference action chunk. Ensembling (Eq. 6-7): alpha = softmax weight of the memory
+  chunk against the base chunk by squared distance to the reference chunk.
+
+Arms (Common random numbers: per (regime, seed) the same demos and frozen W; per episode the same
+start, observation noise, look noise and motion noise, indexed by step):
+  A_memoryless  base prompt only: the current observation, no memory
+  B_map         retrieve stage + reference, add that stage's prompt, ensemble with the base chunk
+  C_wrongstage  same retrieval, but the prompt AND reference come from the neighbouring stage
+                (a mismatched memory, e.g. a segmentation off by one); ensemble as in B
+
+Metrics per seed (means over 20 episodes): stage = share of stages completed, full = share of
+episodes that complete every stage, steps = environment steps used (an episode stops at the first
+stage that runs out of budget), hit = share of retrievals whose stage equals the true stage.
+
+Labels: tie = identical on every seed; |m| < 1e-9 and sd < 1e-9 = numerically zero
+(floating-point residue), effectively a tie, no sign count; |paired mean| <= sd = near-tie / small
+gap within seed noise; |m| > sd = consistent gap (small if |m| < 20 % of the smaller arm mean, else
+clear), always with a sign count.
+pi0 weights / LIBERO / real robot / GPU: 本页未运行. Paper numbers: 以论文为准.
+"""
+from __future__ import annotations
+
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+STEP, TOL, BUDGET = 0.25, 0.15, 14
+WIN, H = 4, 4
+N_DEMO, EPISODES = 8, 20
+LOOKS = 4
+SIG_DEMO, SIG_MOTION = 0.03, 0.01
+ARMS = ("A_memoryless", "B_map", "C_wrongstage")
+METRICS = ("stage", "full", "steps")
+SQUARE = ((1.0, 0.0), (1.0, 1.0), (0.0, 1.0), (0.0, 0.0))
+# name, stage goals, stage -> look, state noise sd, look noise sd
+REGIMES = (
+    ("ambiguous_long", SQUARE, (0, 1, 0, 1), 0.02, 0.1),
+    ("distinct_long", SQUARE, (0, 1, 2, 3), 0.02, 0.1),
+    ("single_stage", ((1.0, 0.0),), (0,), 0.02, 0.1),
+    ("noisy_retrieval", SQUARE, (0, 1, 0, 1), 0.12, 0.1),
+)
+
+
+def clip(v, m=STEP):
+    n = math.hypot(*v)
+    return v if n <= m else (v[0] * m / n, v[1] * m / n)
+
+
+def solve(a, b):
+    n = len(a)
+    m = [row[:] + [b[i]] for i, row in enumerate(a)]
+    for i in range(n):
+        p = max(range(i, n), key=lambda r: abs(m[r][i]))
+        m[i], m[p] = m[p], m[i]
+        for r in range(n):
+            if r != i:
+                q = m[r][i] / m[i][i]
+                for c in range(i, n + 1):
+                    m[r][c] -= q * m[i][c]
+    return [m[i][n] / m[i][i] for i in range(n)]
+
+
+def look(noise, stage, lookmap, sd):
+    return [(1.0 if i == lookmap[stage] else 0.0) + sd * noise[i] for i in range(LOOKS)]
+
+
+def feats(s, c):
+    return [s[0], s[1], *c, 1.0]
+
+
+def demos(regime, seed):
+    """Logged demonstrations / corrections with stage labels; shared by all arms."""
+    name, goals, lookmap, _, sd_c = regime
+    rng = random.Random(100000 * [r[0] for r in REGIMES].index(name) + 1000 * seed)
+    out = []
+    for _ in range(N_DEMO):
+        s, traj = (rng.gauss(0, 0.05), rng.gauss(0, 0.05)), []
+        for k, g in enumerate(goals):
+            n = 0
+            while math.dist(s, g) > TOL / 2 and n < BUDGET:
+                c = look([rng.gauss(0, 1) for _ in range(LOOKS)], k, lookmap, sd_c)
+                a = clip((g[0] - s[0], g[1] - s[1]))
+                a = (a[0] + rng.gauss(0, SIG_DEMO), a[1] + rng.gauss(0, SIG_DEMO))
+                traj.append((s, c, a, k))
+                s, n = (s[0] + a[0], s[1] + a[1]), n + 1
+        out.append(traj)
+    return out
+
+
+def fit_base(demo):
+    d = 2 + LOOKS + 1
+    a = [[1e-6 if i == j else 0.0 for j in range(d)] for i in range(d)]
+    b = [[0.0] * d for _ in range(2)]
+    for traj in demo:
+        for s, c, act, _ in traj:
+            x = feats(s, c)
+            for i in range(d):
+                for j in range(d):
+                    a[i][j] += x[i] * x[j]
+                for o in range(2):
+                    b[o][i] += x[i] * act[o]
+    return [solve(a, b[o]) for o in range(2)]
+
+
+def policy(w, s, c, prompt=(0.0, 0.0)):
+    x = feats(s, c)
+    return clip((sum(p * q for p, q in zip(w[0], x)) + prompt[0], sum(p * q for p, q in zip(w[1], x)) + prompt[1]))
+
+
+def tune_prompts(w, demo, n_stages):
+    """Least-squares effect W V_k of each stage soft prompt on the frozen W: mean residual on stage k."""
+    out = []
+    for k in range(n_stages):
+        r, n = [0.0, 0.0], 0
+        for traj in demo:
+            for s, c, act, kk in traj:
+                if kk == k:
+                    p = policy(w, s, c)
+                    r[0] += act[0] - p[0]
+                    r[1] += act[1] - p[1]
+                    n += 1
+        out.append((r[0] / n, r[1] / n))
+    return out
+
+
+def chunk(w, s, c, prompt):
+    out, x = [], s
+    for _ in range(H):
+        a = policy(w, x, c, prompt)
+        out.append(a)
+        x = (x[0] + a[0], x[1] + a[1])
+    return out
+
+
+def retrieve(demo, hist, ok):
+    """Sliding-window L2 match over demo windows whose stage passes ok(stage)."""
+    best = None
+    for i, traj in enumerate(demo):
+        for j in range(WIN - 1, len(traj)):
+            if not ok(traj[j][3]):
+                continue
+            cost = sum(math.dist(hist[q], traj[j - WIN + 1 + q][0]) ** 2 for q in range(WIN))
+            if best is None or cost < best[0]:
+                best = (cost, i, j)
+    _, i, j = best
+    traj = demo[i]
+    return traj[j][3], [traj[min(j + h, len(traj) - 1)][2] for h in range(H)]
+
+
+def episode_draws(regime, seed, ep):
+    rng = random.Random(100000 * [r[0] for r in REGIMES].index(regime[0]) + 1000 * seed + 500 + ep)
+    n = BUDGET * len(regime[1]) + 1
+    return {"s0": (rng.gauss(0, 0.05), rng.gauss(0, 0.05)),
+            "obs": [(rng.gauss(0, 1), rng.gauss(0, 1)) for _ in range(n)],
+            "look": [[rng.gauss(0, 1) for _ in range(LOOKS)] for _ in range(n)],
+            "motion": [(rng.gauss(0, 1), rng.gauss(0, 1)) for _ in range(n)]}
+
+
+def run_episode(arm, regime, w, prompts, demo, nz):
+    _, goals, lookmap, sd_s, sd_c = regime
+    n_st = len(goals)
+    s = nz["s0"]
+    hist, k_cur, done, hits, queries, t = [s] * WIN, 0, 0, 0, 0, 0
+    for k, g in enumerate(goals):
+        n = 0
+        while math.dist(s, g) > TOL:
+            if n >= BUDGET:
+                return {"stage": done / n_st, "full": 0.0, "steps": float(t)}, hits, queries
+            e = nz["obs"][t]
+            so = (s[0] + sd_s * e[0], s[1] + sd_s * e[1])
+            c = look(nz["look"][t], k, lookmap, sd_c)
+            hist = hist[1:] + [so]
+            if arm == "A_memoryless":
+                a = policy(w, so, c)
+            else:
+                k_ret, ref = retrieve(demo, hist, lambda kk: abs(kk - k_cur) <= 1)
+                k_cur, queries, hits = k_ret, queries + 1, hits + (k_ret == k)
+                k_use = k_ret
+                if arm == "C_wrongstage":
+                    k_use = k_ret + 1 if k_ret + 1 < n_st else k_ret - 1
+                    _, ref = retrieve(demo, hist, lambda kk: kk == k_use)
+                mem, base = chunk(w, so, c, prompts[k_use]), chunk(w, so, c, (0.0, 0.0))
+                dm = sum((p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 for p, q in zip(mem, ref))
+                db = sum((p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 for p, q in zip(base, ref))
+                alpha = 1.0 / (1.0 + math.exp(dm - db))
+                a = clip((alpha * mem[0][0] + (1 - alpha) * base[0][0], alpha * mem[0][1] + (1 - alpha) * base[0][1]))
+            m = nz["motion"][t]
+            s = (s[0] + a[0] + SIG_MOTION * m[0], s[1] + a[1] + SIG_MOTION * m[1])
+            n, t = n + 1, t + 1
+        done += 1
+    return {"stage": 1.0, "full": 1.0, "steps": float(t)}, hits, queries
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x: float) -> str:
+    if x != 0.0 and abs(x) < 5e-4:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+NUM_ZERO = 1e-9  # |m| and sd both below this: floating-point residue, not a gap
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(mean_sd(xa)[0], mean_sd(xb)[0]):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def main() -> None:
+    print("Synthetic staged reaching task; shared demos / frozen base / episode noise; stand-in for a frozen VLA, not pi0")
+    print(f"seeds={len(SEEDS)} demos={N_DEMO} episodes={EPISODES} window={WIN} chunk={H} step<={STEP} tol={TOL} "
+          f"budget={BUDGET}/stage")
+    print("regime arm stage full steps hit  (mean+-sd over seeds of the per-seed episode means)")
+    for regime in REGIMES:
+        name, goals, lookmap, sd_s, sd_c = regime
+        arms = ARMS if len(goals) > 1 else ARMS[:2]
+        per = {arm: {m: [] for m in METRICS + ("hit",)} for arm in arms}
+        for seed in SEEDS:
+            demo = demos(regime, seed)
+            w = fit_base(demo)
+            prompts = tune_prompts(w, demo, len(goals))
+            for arm in arms:
+                acc, hits, queries = {m: 0.0 for m in METRICS}, 0, 0
+                for ep in range(EPISODES):
+                    out, h, q = run_episode(arm, regime, w, prompts, demo, episode_draws(regime, seed, ep))
+                    hits, queries = hits + h, queries + q
+                    for m in METRICS:
+                        acc[m] += out[m] / EPISODES
+                for m in METRICS:
+                    per[arm][m].append(acc[m])
+                per[arm]["hit"].append(hits / queries if queries else 0.0)
+        print(f"{name} ({len(goals)} stage{'s' if len(goals) > 1 else ''}, looks {list(lookmap)}, state noise sd={sd_s}, look noise sd={sd_c})")
+        for arm in arms:
+            hit = "-" if arm == "A_memoryless" else "{}+-{}".format(*map(num, mean_sd(per[arm]["hit"])))
+            print(f"{name} {arm} " + " ".join("{}+-{}".format(*map(num, mean_sd(per[arm][m]))) for m in METRICS)
+                  + f" {hit}")
+        pairs = (("B_map", "A_memoryless"), ("C_wrongstage", "B_map")) if len(arms) == 3 else (("B_map", "A_memoryless"),)
+        for a, b in pairs:
+            for m in METRICS:
+                print(f"{name} paired {a[0]}-{b[0]} {m}: {verdict(per[a][m], per[b][m])}")
+        if len(arms) == 2:
+            print(f"{name}: C_wrongstage not run (one stage, no neighbouring stage to mismatch)")
+    print("ambiguous_long: stages 1 and 3 (and 2 and 4) share one look, so the memoryless base cannot tell them apart")
+    print("distinct_long: the look already names the stage, so memory adds little and the gap stays within seed noise")
+    print("single_stage: one stage, one prompt; retrieval cannot pick anything else")
+    print("noisy_retrieval: state noise lowers B's retrieval hit rate and shrinks its gain over A")
+    print("C_wrongstage: a neighbouring stage's prompt and reference pull the arm to the wrong goal; fewer steps there mean earlier failure")
+    print("No winner declared; MAP-VLA LIBERO / real-robot gains 以论文为准; pi0 weights / GPU 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic staged reaching task; shared demos / frozen base / episode noise; stand-in for a frozen VLA, not pi0
+seeds=5 demos=8 episodes=20 window=4 chunk=4 step<=0.25 tol=0.15 budget=14/stage
+regime arm stage full steps hit  (mean+-sd over seeds of the per-seed episode means)
+ambiguous_long (4 stages, looks [0, 1, 0, 1], state noise sd=0.02, look noise sd=0.1)
+ambiguous_long A_memoryless 0.3500+-0.1222 0.0200+-0.0274 19.9200+-1.9801 -
+ambiguous_long B_map 0.7000+-0.0331 0.4000+-0.1696 20.2700+-2.0318 0.7403+-0.0317
+ambiguous_long C_wrongstage 0.0375+-0.0280 0.0000+-0.0000 14.6500+-0.4987 0.3779+-0.0187
+ambiguous_long paired B-A stage: 0.3500+-0.1075: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+ambiguous_long paired B-A full: 0.3800+-0.1525: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+ambiguous_long paired B-A steps: 0.3500+-2.2201: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+ambiguous_long paired C-B stage: -0.6625+-0.0395: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+ambiguous_long paired C-B full: -0.4000+-0.1696: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+ambiguous_long paired C-B steps: -5.6200+-1.8620: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+distinct_long (4 stages, looks [0, 1, 2, 3], state noise sd=0.02, look noise sd=0.1)
+distinct_long A_memoryless 0.7850+-0.0872 0.6400+-0.1432 18.4200+-0.6695 -
+distinct_long B_map 0.8050+-0.0653 0.6600+-0.1387 18.2000+-0.8867 0.8309+-0.0593
+distinct_long C_wrongstage 0.7325+-0.0798 0.5900+-0.1140 17.9800+-0.4056 0.7608+-0.0670
+distinct_long paired B-A stage: 0.0200+-0.0456: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign, 1 of 5 equal
+distinct_long paired B-A full: 0.0200+-0.0908: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign, 2 of 5 equal
+distinct_long paired B-A steps: -0.2200+-0.6150: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+distinct_long paired C-B stage: -0.0725+-0.0693: small but consistent gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+distinct_long paired C-B full: -0.0700+-0.1095: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+distinct_long paired C-B steps: -0.2200+-0.5943: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+single_stage (1 stage, looks [0], state noise sd=0.02, look noise sd=0.1)
+single_stage A_memoryless 1.0000+-0.0000 1.0000+-0.0000 4.1000+-0.0612 -
+single_stage B_map 1.0000+-0.0000 1.0000+-0.0000 4.0700+-0.0570 1.0000+-0.0000
+single_stage paired B-A stage: 0.0000+-0.0000: tie: identical on every seed
+single_stage paired B-A full: 0.0000+-0.0000: tie: identical on every seed
+single_stage paired B-A steps: -0.0300+-0.0447: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+single_stage: C_wrongstage not run (one stage, no neighbouring stage to mismatch)
+noisy_retrieval (4 stages, looks [0, 1, 0, 1], state noise sd=0.12, look noise sd=0.1)
+noisy_retrieval A_memoryless 0.3525+-0.1088 0.0700+-0.0570 19.7400+-1.7104 -
+noisy_retrieval B_map 0.4900+-0.1177 0.2700+-0.1718 19.1600+-1.3414 0.6391+-0.0539
+noisy_retrieval C_wrongstage 0.0875+-0.0523 0.0000+-0.0000 15.6000+-1.0730 0.4042+-0.0427
+noisy_retrieval paired B-A stage: 0.1375+-0.0395: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+noisy_retrieval paired B-A full: 0.2000+-0.1458: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+noisy_retrieval paired B-A steps: -0.5800+-1.5332: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+noisy_retrieval paired C-B stage: -0.4025+-0.0970: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+noisy_retrieval paired C-B full: -0.2700+-0.1718: clear gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+noisy_retrieval paired C-B steps: -3.5600+-1.2666: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+ambiguous_long: stages 1 and 3 (and 2 and 4) share one look, so the memoryless base cannot tell them apart
+distinct_long: the look already names the stage, so memory adds little and the gap stays within seed noise
+single_stage: one stage, one prompt; retrieval cannot pick anything else
+noisy_retrieval: state noise lowers B's retrieval hit rate and shrinks its gain over A
+C_wrongstage: a neighbouring stage's prompt and reference pull the arm to the wrong goal; fewer steps there mean earlier failure
+No winner declared; MAP-VLA LIBERO / real-robot gains 以论文为准; pi0 weights / GPU 本页未运行
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used on this page: **tie** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when both `|paired mean|` and sd are below `10⁻⁹` (checked before the sd test; such lines carry no sign count and are never called consistent or clear); **near-tie / small gap, within seed noise** when `|paired mean| ≤ sd`; a **consistent** gap when `|paired mean| > sd`, called **small** if `|m|` is under 20 % of the smaller arm mean and **clear** otherwise (the 20 % rule only chooses between those two words). Every consistent or clear line carries a same-sign count over the 5 seeds, any seed with the opposite sign (or an exactly equal seed) is reported, and a sign count alone never makes a gap consistent. Paired differences are B−A and C−B, shown as mean ± sd over seeds.
+
+- **ambiguous_long — memory wins where the observation cannot name the stage:** `stage` 0.7000±0.0331 against 0.3500±0.1222 (**clear gap**, paired 0.3500±0.1075, same sign on all 5 seeds) and `full` 0.4000±0.1696 against 0.0200±0.0274 (clear, 0.3800±0.1525, 5/5). B's retrievals name the true stage 0.7403 of the time. `steps` is a **near-tie** (0.3500±2.2201, 2 of 5 seeds opposite): B is not faster, it gets further.
+- **distinct_long — memory adds nothing measurable:** when every stage has its own look, the frozen base already knows the stage; B−A `stage` 0.0200±0.0456, `full` 0.0200±0.0908 and `steps` −0.2200±0.6150 are all **near-ties / small gaps, within seed noise** (for `stage` 1 of 5 seeds has the opposite sign and 1 of 5 is equal).
+- **single_stage — a tie on success:** one stage, one prompt, so B−A `stage` and `full` are a **tie: identical on every seed** (every episode succeeds for both); `steps` −0.0300±0.0447 is a near-tie (no seed has the opposite sign, 3 of 5 equal). C is not run here: there is no neighbouring stage to mismatch.
+- **noisy_retrieval — the gain shrinks with retrieval quality:** with state noise sd 0.12, B's hit rate drops from 0.7403 to 0.6391 and its `stage` gain over A falls to 0.1375±0.0395 (still clear, 5/5); `full` 0.2000±0.1458 is clear but **1 of 5 seeds has the opposite sign**.
+- **C_wrongstage — mismatched memory loses with a clear gap:** C−B `stage` −0.6625±0.0395 in ambiguous_long and −0.4025±0.0970 in noisy_retrieval (same sign on all 5 seeds), `full` 0 in both; its "fewer" steps (−5.6200±1.8620) are earlier failures. In distinct_long the loss is only a **small but consistent** gap on `stage` (−0.0725±0.0693, 1 of 5 seeds opposite) and near-ties on `full` and `steps`, because the base half of the ensemble still sees a stage-specific look.
+
+The page **does not declare a universal winner**: stage memory pays off exactly where the current observation is ambiguous about the stage, adds nothing when it is not, and a memory from the wrong stage is worse than no memory, because the prompt and its own reference agree with each other and the ensemble trusts them. Paper gains: **以论文为准**; π0, LIBERO and real teleoperated sessions: **本页未运行**.
+
+**210-minute work plan:** 40 min read MAP-VLA §III-B and §III-C (Eq. 2–7); 30 min work the ensembling example by hand and check `alpha` in the code; 40 min run the toy and read the four regimes; 50 min move the look map, the state noise and the window with seeds fixed; 50 min sketch how your own intervention logs (with stage labels) would become memory units, and what you would check before trusting a retrieval.
+
+### Exercises
+
+1. Compute `α` by hand for squared distances (0.3, 0.3), (0.0, 2.0) and (2.0, 0.0), and say which chunk dominates each time.
+2. Show from `episode_draws` and `run_episode` that A, B and C read the same start, observation, look and motion noise at a given step of a given episode.
+3. Prove that the stage prompt the toy fits is the mean residual of the frozen `W` on that stage, and explain why this is the least-squares soft prompt for a single additive offset.
+4. Change the ambiguous look map from `(0, 1, 0, 1)` to `(0, 1, 2, 1)` with seeds fixed. Predict which B−A lines should shrink before you run.
+5. Before using your own logs (本页未运行), explain why C loses even though the ensemble is supposed to protect against bad retrieval, and name one check on the logged stage labels that would catch an off-by-one segmentation.
+
 <Summary>
 
 DAgger labels what the learner visits; HG-DAgger lets a human decide when to take over; RaC splits each takeover into recovery and correction. LeRobot v0.6.x records this with `lerobot-rollout --strategy.type=dagger` (Space pause, Tab correction), tags human frames in an `intervention` column, and needs `remove_feature` before `merge`. In the toy the intervention rate is 18.8 % over 10 segments of 27.1 frames (0.90 s) on average, recovery is 18.1 % of intervention frames, and the merge fails on `only in hil: ['intervention']` until the column is removed.
+
+MAP-VLA stage memory prompts: on shared episodes, retrieving a stage soft prompt by trajectory similarity and ensembling it with the base chunk raises stage success with a clear gap when two stages look the same (`stage` paired 0.3500±0.1075, same sign on all 5 seeds), is a near-tie when every stage has its own look, **ties** on success for a single-stage task (identical on every seed), and a memory from the wrong stage loses clearly — a synthetic stand-in for a frozen VLA; π0 and real sessions 本页未运行.
 
 </Summary>

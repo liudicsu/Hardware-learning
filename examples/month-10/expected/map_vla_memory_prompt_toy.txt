@@ -1,0 +1,46 @@
+Synthetic staged reaching task; shared demos / frozen base / episode noise; stand-in for a frozen VLA, not pi0
+seeds=5 demos=8 episodes=20 window=4 chunk=4 step<=0.25 tol=0.15 budget=14/stage
+regime arm stage full steps hit  (mean+-sd over seeds of the per-seed episode means)
+ambiguous_long (4 stages, looks [0, 1, 0, 1], state noise sd=0.02, look noise sd=0.1)
+ambiguous_long A_memoryless 0.3500+-0.1222 0.0200+-0.0274 19.9200+-1.9801 -
+ambiguous_long B_map 0.7000+-0.0331 0.4000+-0.1696 20.2700+-2.0318 0.7403+-0.0317
+ambiguous_long C_wrongstage 0.0375+-0.0280 0.0000+-0.0000 14.6500+-0.4987 0.3779+-0.0187
+ambiguous_long paired B-A stage: 0.3500+-0.1075: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+ambiguous_long paired B-A full: 0.3800+-0.1525: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+ambiguous_long paired B-A steps: 0.3500+-2.2201: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+ambiguous_long paired C-B stage: -0.6625+-0.0395: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+ambiguous_long paired C-B full: -0.4000+-0.1696: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+ambiguous_long paired C-B steps: -5.6200+-1.8620: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+distinct_long (4 stages, looks [0, 1, 2, 3], state noise sd=0.02, look noise sd=0.1)
+distinct_long A_memoryless 0.7850+-0.0872 0.6400+-0.1432 18.4200+-0.6695 -
+distinct_long B_map 0.8050+-0.0653 0.6600+-0.1387 18.2000+-0.8867 0.8309+-0.0593
+distinct_long C_wrongstage 0.7325+-0.0798 0.5900+-0.1140 17.9800+-0.4056 0.7608+-0.0670
+distinct_long paired B-A stage: 0.0200+-0.0456: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign, 1 of 5 equal
+distinct_long paired B-A full: 0.0200+-0.0908: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign, 2 of 5 equal
+distinct_long paired B-A steps: -0.2200+-0.6150: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+distinct_long paired C-B stage: -0.0725+-0.0693: small but consistent gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+distinct_long paired C-B full: -0.0700+-0.1095: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+distinct_long paired C-B steps: -0.2200+-0.5943: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+single_stage (1 stage, looks [0], state noise sd=0.02, look noise sd=0.1)
+single_stage A_memoryless 1.0000+-0.0000 1.0000+-0.0000 4.1000+-0.0612 -
+single_stage B_map 1.0000+-0.0000 1.0000+-0.0000 4.0700+-0.0570 1.0000+-0.0000
+single_stage paired B-A stage: 0.0000+-0.0000: tie: identical on every seed
+single_stage paired B-A full: 0.0000+-0.0000: tie: identical on every seed
+single_stage paired B-A steps: -0.0300+-0.0447: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+single_stage: C_wrongstage not run (one stage, no neighbouring stage to mismatch)
+noisy_retrieval (4 stages, looks [0, 1, 0, 1], state noise sd=0.12, look noise sd=0.1)
+noisy_retrieval A_memoryless 0.3525+-0.1088 0.0700+-0.0570 19.7400+-1.7104 -
+noisy_retrieval B_map 0.4900+-0.1177 0.2700+-0.1718 19.1600+-1.3414 0.6391+-0.0539
+noisy_retrieval C_wrongstage 0.0875+-0.0523 0.0000+-0.0000 15.6000+-1.0730 0.4042+-0.0427
+noisy_retrieval paired B-A stage: 0.1375+-0.0395: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+noisy_retrieval paired B-A full: 0.2000+-0.1458: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+noisy_retrieval paired B-A steps: -0.5800+-1.5332: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+noisy_retrieval paired C-B stage: -0.4025+-0.0970: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+noisy_retrieval paired C-B full: -0.2700+-0.1718: clear gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+noisy_retrieval paired C-B steps: -3.5600+-1.2666: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+ambiguous_long: stages 1 and 3 (and 2 and 4) share one look, so the memoryless base cannot tell them apart
+distinct_long: the look already names the stage, so memory adds little and the gap stays within seed noise
+single_stage: one stage, one prompt; retrieval cannot pick anything else
+noisy_retrieval: state noise lowers B's retrieval hit rate and shrinks its gain over A
+C_wrongstage: a neighbouring stage's prompt and reference pull the arm to the wrong goal; fewer steps there mean earlier failure
+No winner declared; MAP-VLA LIBERO / real-robot gains 以论文为准; pi0 weights / GPU 本页未运行

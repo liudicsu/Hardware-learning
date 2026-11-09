@@ -1,8 +1,21 @@
 # Month 10 plan: Modern policy heads, deployment & real-world improvement
 
-Current / 当前：**M10 2490 min**, Batch-10 PR3. Older sections retain historical totals.
+Current / 当前：**M10 2910 min**, Batch-13 PR3. Older sections retain historical totals.
+
+## Batch-13 PR3 / 本月 H5+H6 (+420)
+
+Base `e0c9ccf` (batch-13 PR2 merged; site **29850**). PR3 only on M10 host: **M10 2490→2910 (+420)**. Site **29850→30270**, still 71 lessons.
+
+- **H5 / intervention-logging: 180→390 (+210).** MAP-VLA (arXiv 2511.09516, HTML + PDF body read) stage memory prompts: `P_k = P_base + V_k`, sliding-window L2 retrieval limited to `|k − k_cur| ≤ 1`, α soft ensemble. Toy `map_vla_memory_prompt_toy.py`: frozen least-squares base, prompt = mean residual per stage; arms memoryless / MAP retrieval / wrong-stage memory; common random numbers, 5 seeds × 20 episodes. ambiguous_long: B−A stage 0.3500±0.1075 clear 5/5; distinct_long: B−A near-tie; single_stage: B−A stage and full **tie: identical on every seed**; wrong-stage C−B stage −0.6625±0.0395 clear 5/5 (distinct_long only small but consistent). ≠ π0 fine-tuning; π0 / real robot 本页未运行.
+- **H6 / flow-matching-policies: 450→660 (+210).** Diffusion Forcing (arXiv 2407.01392, HTML + PDF body read): independent per-token noise level, `k_small` re-noising; FORGE-Tree 2510.21744 reading only. Toy `diffusion_forcing_token_noise_toy.py`: linear pair-tabular denoiser, K=10 cosine schedule, exact `ρ(G)` criterion; arms teacher forcing / Diffusion Forcing / causal full-sequence. in_horizon: DF **loses** (B−A mse 0.3378±0.0455 clear 5/5; near-tie with k_small = 0); past_horizon: B−A div −1.0000±0.0000 clear 5/5; guided_s8: teacher forcing beats DF, guided_s32: DF beats teacher forcing; causal full-sequence never ties or beats DF (§9 mismatch, disclosed). Video / Maze2D / Franka 以论文为准, 本页未运行.
+
+**Allocation / 安排:** H5 40+30+40+50+50=210; H6 45+30+45+50+40=210 minutes.
+
+**Site accounting / 全站核算:** **30270=29850+420**; **M10=2910**, **71 lessons**.
 
 ## Batch-10 PR3 / 本月 H4 (+210)
+
+（历史）Batch-10 PR3 header: M10 2490 min.
 
 Base `e814307`. PR3 only on M10 host: **M10 2280→2490 (+210)**; M9 +210 on month-9-plan.md. Site **26520→26940**, still 71 lessons.
 
