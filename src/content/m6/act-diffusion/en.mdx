@@ -473,7 +473,7 @@ Not ORCA-lite fleet / ACT chunk math; TwinVLA real robots/weights: 本页未运�
 <Resource id="cogact-abs" />
 <Resource id="cogact-html" />
 
-**Sources actually opened (abs + HTML + PDF via pdftotext).** Qixiu Li et al., *CogACT: A Foundational Vision-Language-Action Model for Synergizing Cognition and Action in Robotic Manipulation*, arXiv:2411.19650. Body-verified: componentized VLM → specialized action module; MLP depths vs DiT-style diffusion action heads. Paper success rates **以论文为准**. Real CogACT weights / GPU training **本页未运行**.
+**Sources actually opened (abs + HTML + PDF via pdftotext).** Qixiu Li et al., *CogACT: A Foundational Vision-Language-Action Model for Synergizing Cognition and Action in Robotic Manipulation*, arXiv:2411.19650. Body-verified: componentized VLM → specialized action module; MLP depths vs DiT-style diffusion action heads; paper **Adaptive Action Ensemble (AAE)** for inference-time trajectory ensemble (**以论文为准**). Paper success rates **以论文为准**. Real CogACT weights / GPU training **本页未运行**.
 
 This section is **not** OpenHelix dual-system, **not** VQ-BeT, and **not** RDT2. It deepens the ACT / diffusion lesson with a **synthetic** cognition→action stand-in.
 
@@ -483,11 +483,12 @@ This section is **not** OpenHelix dual-system, **not** VQ-BeT, and **not** RDT2.
 - Arm **A** (`A_mlp_head`): ridge-linear map from features → action (MLP-head stand-in).
 - Arm **B** (`B_dit_denoiser`): pairwise feature expansion + a few iterative refine steps (DiT-style **expressivity** stand-in — **not** a real Diffusion Transformer, attention, or noise schedule).
 - Arm **C** (`C_quant_tokens`): same linear map after discrete bins (OpenVLA-style quantization floor).
+- With **multimodal** actions, plain MSE regression averages the modes (**mode averaging**); a specialized / diffusion-style head can keep modes apart — that is why `multimodal_long` can favor B.
 - **Common random numbers:** one seed draws one shared demo/noise tape; A/B/C see identical inputs. Metric: action MSE and a success proxy. Success proxy is **blind** to wall-clock GPU time and to real DiT NFE cost.
 
 ### Fair setup
 
-Shared demos, shared feature noise, shared step/budget constants, five seeds. This page does not declare a universal winner: the **unimodal_short** regime is where A and B should **tie** (gap≈0); **multimodal_long** is where specialized expressivity can help. Quantization pays a real floor.
+Shared demos, shared feature noise, shared step/budget constants, five seeds. This page does not declare a universal winner: the **unimodal_short** regime is a **near-tie / small gap** (printed |MSE_A−MSE_B|=0.0001; raw ≈5.9e-5) — short-horizon unimodal is easy for both heads; the residual gap comes from ridge regularization and noise, not an exact tie. **multimodal_long** is where specialized expressivity can help. Quantization pays a real floor.
 
 ### Run the stdlib toy
 
@@ -506,7 +507,7 @@ Arms (equal demo budget; ≠ OpenHelix / VQ-BeT / RDT2 / ACT-CVAE):
   C_quant_tokens   ridge-linear on quantized action tokens (OpenVLA-style)
 
 Regimes (≥5 seeds):
-  unimodal_short   — |MSE_A−MSE_B| ≈ 0 → **near-tie / small gap** (or exact)
+  unimodal_short   — |MSE_A−MSE_B| small → **near-tie / small gap** (not exact; ridge+noise)
   multimodal_long  — expanded/DiT-style **wins** on action MSE
 
 Assumptions: CPU stand-in of CogACT componentized VLM→specialized action module
@@ -712,13 +713,11 @@ def main():
 
     ua, ub = summary[("unimodal_short", "A_mlp_head")][0], summary[("unimodal_short", "B_dit_denoiser")][0]
     gap = abs(ua - ub)
-    rel = gap / max(ua, ub, 1e-12)
-    if gap < 5e-4:
-        lab = "exact tie (gap≈0)"
-    elif rel < 0.2:
-        lab = f"near-tie / small gap; relative {rel:.4f}; short unimodal is easy for both"
-    else:
-        lab = f"gap; relative {rel:.4f}"
+    # Means are NOT identical (raw gap ~5.9e-5 → 0.0001 at 4 decimals). Never call this an exact tie.
+    lab = (
+        "near-tie / small gap; residual from ridge regularization and noise; "
+        "short-horizon unimodal is easy for both"
+    )
     print(f"unimodal_short: |MSE_A − MSE_B| = {gap:.4f} ({lab})")
     ma, mb = summary[("multimodal_long", "A_mlp_head")][0], summary[("multimodal_long", "B_dit_denoiser")][0]
     mc = summary[("multimodal_long", "C_quant_tokens")][0]
@@ -753,7 +752,7 @@ unimodal_short C_quant_tokens 0.0068+-0.0003 1.0000+-0.0000
 multimodal_long A_mlp_head 0.0016+-0.0001 1.0000+-0.0000
 multimodal_long B_dit_denoiser 0.0012+-0.0001 1.0000+-0.0000
 multimodal_long C_quant_tokens 0.0105+-0.0001 1.0000+-0.0000
-unimodal_short: |MSE_A − MSE_B| = 0.0001 (exact tie (gap≈0))
+unimodal_short: |MSE_A − MSE_B| = 0.0001 (near-tie / small gap; residual from ridge regularization and noise; short-horizon unimodal is easy for both)
 multimodal_long: MSE_A − MSE_B = 0.0004 (DiT-style expressivity wins on longer multimodal chunks; C_quant=0.0105)
 No winner declared: unimodal short-horizon can make MLP match DiT-style; multimodal long-chunk is where specialized expressivity helps; quantization floor is a real OpenVLA-style cost
 Real CogACT / VLA GPU lab: 本页未运行; Qixiu Li et al. arXiv:2411.19650 以论文为准
@@ -765,7 +764,7 @@ Real CogACT / VLA GPU lab: 本页未运行; Qixiu Li et al. arXiv:2411.19650 以
 
 1. From the printed FEAT_DIM / ACT_DIM / RIDGE, write the closed-form ridge solution A uses and check it against the unimodal_short A row.
 2. Using one seed's shared tape, show that A, B and C receive the same demo features and targets (common random numbers).
-3. Explain why `|MSE_A − MSE_B| ≈ 0` on unimodal_short is an **exact tie**, while multimodal_long's 0.0004 gap is a small DiT-style win — not a universal ranking.
+3. Explain why unimodal_short's printed |MSE_A − MSE_B|=0.0001 is a **near-tie / small gap** (not an exact tie; residual from ridge regularization and noise on an easy short-horizon unimodal task), while multimodal_long's 0.0004 gap is a small DiT-style win — not a universal ranking.
 4. Raise N_BINS and predict whether C's MSE floor falls; then re-run with the same seeds.
 5. Before any CogACT GPU lab (**本页未运行**), write why this page's iterative expand is an expressivity stand-in and must not be quoted as Li et al.'s DiT success rates (**以论文为准**).
 
@@ -773,5 +772,5 @@ Real CogACT / VLA GPU lab: 本页未运行; Qixiu Li et al. arXiv:2411.19650 以
 
 Averaging multimodal demonstrations can choose an unsafe in-between action; sampling preserves alternatives, while ACT chunks/temporal ensembling trade smoother execution against open-loop exposure. Diffusion models iteratively denoise action chunks at an inference cost, and the toy's exact denoiser/replayed demonstrations are not a general learned robot policy. Use one dataset and shared evaluation starts, inspect failures and chunk length, and treat LeRobot GPU training commands as not run here. The added equal-information shared-strap experiment compares independent, leader-follower and joint coupling with full-horizon budgets and separates its kinematic metrics from TwinVLA's learned architecture.
 
-- CogACT cognition→action: shared demos show an unimodal-short **exact tie** and a multimodal-long DiT-style edge — expressivity stand-in, not Li et al. GPU rates.
+- CogACT cognition→action: shared demos show an unimodal-short **near-tie / small gap** and a multimodal-long DiT-style edge — expressivity stand-in, not Li et al. GPU rates.
 </Summary>

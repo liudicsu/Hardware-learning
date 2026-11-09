@@ -10,8 +10,8 @@ Arms:
   C_er_large     ER with larger replay buffer (capacity B_LARGE)
 
 Regimes (≥5 seeds):
-  no_shift     — single task; A/B/C **exact/near tie** (ER gives no gain)
-  task_shift   — two tasks; sequential forgets; ER reduces forgetting
+  no_shift     — single task; A/B/C **near-tie / small gap** (ER gives no gain)
+  task_shift   — two tasks; sequential forgets; ER can cut NBT but not monotonically
 
 Metrics: avg success, backward transfer (NBT-style drop on task0 after task1),
 replay buffer capacity, and compute cost = grad_steps × (batch + replay_per_step).
@@ -227,7 +227,7 @@ def main():
             ma, sa = mean_sd(avgs)
             mn, sn = mean_sd(nbts)
             mc, sc = mean_sd(comps)
-            summary[(regime, arm)] = (ma, mn, caps[0], mc, rps[0])
+            summary[(regime, arm)] = (ma, mn, caps[0], mc, rps[0], sa, sn)
             print(
                 f"{regime} {arm} {ma:.4f}+-{sa:.4f} {mn:.4f}+-{sn:.4f} "
                 f"{caps[0]} {mc:.1f}+-{sc:.1f} {rps[0]}"
@@ -239,26 +239,29 @@ def main():
     ac = summary[("no_shift", "C_er_large")][0]
     gap = max(abs(aa - ab), abs(aa - ac), abs(ab - ac))
     if gap < 1e-6:
-        lab = "exact tie (gap≈0)"
+        lab = "numerical equality (gap≈0)"
     elif gap < 0.02:
         lab = f"near-tie / small gap; max |Δavg|={gap:.4f}; no task shift ⇒ ER buys nothing"
     else:
         lab = f"gap; max |Δavg|={gap:.4f}"
     print(f"no_shift: A/B/C avg_success ({lab})")
 
-    fa = summary[("task_shift", "A_sequential")][1]
-    fb = summary[("task_shift", "B_er_small")][1]
-    fc = summary[("task_shift", "C_er_large")][1]
+    aa, fa, _, _, _, saa, sna = summary[("task_shift", "A_sequential")]
+    ab, fb, _, _, _, sab, snb = summary[("task_shift", "B_er_small")]
+    ac, fc, _, _, _, sac, snc = summary[("task_shift", "C_er_large")]
     print(
-        f"task_shift: NBT forget A={fa:.4f} B={fb:.4f} C={fc:.4f} "
-        f"(ER reduces forgetting; larger buffer/compute costs more samples: "
-        f"B compute={summary[('task_shift','B_er_small')][3]:.0f}, "
+        f"task_shift: avg A={aa:.4f}+-{saa:.4f} B={ab:.4f}+-{sab:.4f} C={ac:.4f}+-{sac:.4f}; "
+        f"NBT forget A={fa:.4f}+-{sna:.4f} B={fb:.4f}+-{snb:.4f} C={fc:.4f}+-{snc:.4f} "
+        f"(B avg slightly below A within seed noise; ER can reduce forgetting vs sequential, "
+        f"but larger buffer/compute does not monotonically cut NBT — C slightly worse than B "
+        f"within seed noise; B compute={summary[('task_shift','B_er_small')][3]:.0f}, "
         f"C compute={summary[('task_shift','C_er_large')][3]:.0f} vs "
         f"A={summary[('task_shift','A_sequential')][3]:.0f})"
     )
     print(
         "No winner declared: with no shift ER matches sequential; "
-        "under shift ER helps but buffer capacity and replay samples are real costs; "
+        "under shift ER can help but not monotonically with buffer size; "
+        "buffer capacity and replay samples are real costs; "
         "avg_success is blind to wall-clock GPU time"
     )
     print(

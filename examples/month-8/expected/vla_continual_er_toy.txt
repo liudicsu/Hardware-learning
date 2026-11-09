@@ -9,6 +9,6 @@ task_shift A_sequential 0.7633+-0.0529 0.1200+-0.0617 0 320.0+-0.0 0
 task_shift B_er_small 0.7617+-0.0336 0.0867+-0.0398 8 480.0+-0.0 2
 task_shift C_er_large 0.7933+-0.0422 0.0967+-0.0545 48 640.0+-0.0 4
 no_shift: A/B/C avg_success (near-tie / small gap; max |Δavg|=0.0167; no task shift ⇒ ER buys nothing)
-task_shift: NBT forget A=0.1200 B=0.0867 C=0.0967 (ER reduces forgetting; larger buffer/compute costs more samples: B compute=480, C compute=640 vs A=320)
-No winner declared: with no shift ER matches sequential; under shift ER helps but buffer capacity and replay samples are real costs; avg_success is blind to wall-clock GPU time
+task_shift: avg A=0.7633+-0.0529 B=0.7617+-0.0336 C=0.7933+-0.0422; NBT forget A=0.1200+-0.0617 B=0.0867+-0.0398 C=0.0967+-0.0545 (B avg slightly below A within seed noise; ER can reduce forgetting vs sequential, but larger buffer/compute does not monotonically cut NBT — C slightly worse than B within seed noise; B compute=480, C compute=640 vs A=320)
+No winner declared: with no shift ER matches sequential; under shift ER can help but not monotonically with buffer size; buffer capacity and replay samples are real costs; avg_success is blind to wall-clock GPU time
 Real continual VLA / LIBERO lab: 本页未运行; Liu et al. arXiv:2603.03818 numbers 以论文为准

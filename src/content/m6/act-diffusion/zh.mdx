@@ -473,7 +473,7 @@ Not ORCA-lite fleet / ACT chunk math; TwinVLA real robots/weights: 本页未运�
 <Resource id="cogact-abs" />
 <Resource id="cogact-html" />
 
-**实际打开的来源（abs + HTML + PDF / pdftotext）。** Qixiu Li 等，*CogACT: A Foundational Vision-Language-Action Model for Synergizing Cognition and Action in Robotic Manipulation*，arXiv:2411.19650。正文已核验：组件化 VLM → 专用动作模块；MLP 深度与 DiT 风格扩散动作头对照。论文成功率 **以论文为准**。真实 CogACT 权重 / GPU 训练 **本页未运行**。
+**实际打开的来源（abs + HTML + PDF / pdftotext）。** Qixiu Li 等，*CogACT: A Foundational Vision-Language-Action Model for Synergizing Cognition and Action in Robotic Manipulation*，arXiv:2411.19650。正文已核验：组件化 VLM → 专用动作模块；MLP 深度与 DiT 风格扩散动作头对照；论文提出推理时的 **Adaptive Action Ensemble（AAE，自适应动作集成）**（**以论文为准**）。论文成功率 **以论文为准**。真实 CogACT 权重 / GPU 训练 **本页未运行**。
 
 本节 **不是** OpenHelix 双系统，**不是** VQ-BeT，也 **不是** RDT2。它在 ACT / 扩散课上用 **合成** 认知→动作替身加深一层。
 
@@ -483,11 +483,12 @@ Not ORCA-lite fleet / ACT chunk math; TwinVLA real robots/weights: 本页未运�
 - 臂 **A**（`A_mlp_head`）：特征 → 动作的岭回归线性映射（MLP 头替身）。
 - 臂 **B**（`B_dit_denoiser`）：成对特征扩展 + 少量迭代精炼（DiT 风格 **表达力** 替身——**不是** 真实 Diffusion Transformer、注意力或噪声日程）。
 - 臂 **C**（`C_quant_tokens`）：离散分箱后再做同样线性映射（OpenVLA 风格量化底噪）。
+- 当动作 **多峰** 时，纯 MSE 回归会把不同峰平均掉（**mode averaging / 模态平均**）；专用 / 扩散风格头可以分开峰——这就是 `multimodal_long` 可能偏向 B 的原因。
 - **共同随机数：** 一种子抽一条共享演示/噪声带；A/B/C 看到相同输入。指标：动作 MSE 与成功代理。成功代理对墙钟 GPU 时间与真实 DiT NFE **视而不见**。
 
 ### 公平设置
 
-共享演示、共享特征噪声、共享步数/预算常数，五多种子。不预设赢家：**unimodal_short** 下 A 与 B 应 **打平**（间隙≈0）；**multimodal_long** 下专用表达力可以帮忙。量化付出真实底噪。
+共享演示、共享特征噪声、共享步数/预算常数，五多种子。不预设赢家：**unimodal_short** 是 **接近打平 / 差距很小**（打印 |MSE_A−MSE_B|=0.0001；原始约 5.9e-5）——短时域单峰任务对两种头都很容易，剩下的差距来自岭回归正则和噪声，不是精确打平。**multimodal_long** 下专用表达力可以帮忙。量化付出真实底噪。
 
 ### 运行标准库玩具
 
@@ -506,7 +507,7 @@ Arms (equal demo budget; ≠ OpenHelix / VQ-BeT / RDT2 / ACT-CVAE):
   C_quant_tokens   ridge-linear on quantized action tokens (OpenVLA-style)
 
 Regimes (≥5 seeds):
-  unimodal_short   — |MSE_A−MSE_B| ≈ 0 → **near-tie / small gap** (or exact)
+  unimodal_short   — |MSE_A−MSE_B| small → **near-tie / small gap** (not exact; ridge+noise)
   multimodal_long  — expanded/DiT-style **wins** on action MSE
 
 Assumptions: CPU stand-in of CogACT componentized VLM→specialized action module
@@ -712,13 +713,11 @@ def main():
 
     ua, ub = summary[("unimodal_short", "A_mlp_head")][0], summary[("unimodal_short", "B_dit_denoiser")][0]
     gap = abs(ua - ub)
-    rel = gap / max(ua, ub, 1e-12)
-    if gap < 5e-4:
-        lab = "exact tie (gap≈0)"
-    elif rel < 0.2:
-        lab = f"near-tie / small gap; relative {rel:.4f}; short unimodal is easy for both"
-    else:
-        lab = f"gap; relative {rel:.4f}"
+    # Means are NOT identical (raw gap ~5.9e-5 → 0.0001 at 4 decimals). Never call this an exact tie.
+    lab = (
+        "near-tie / small gap; residual from ridge regularization and noise; "
+        "short-horizon unimodal is easy for both"
+    )
     print(f"unimodal_short: |MSE_A − MSE_B| = {gap:.4f} ({lab})")
     ma, mb = summary[("multimodal_long", "A_mlp_head")][0], summary[("multimodal_long", "B_dit_denoiser")][0]
     mc = summary[("multimodal_long", "C_quant_tokens")][0]
@@ -753,7 +752,7 @@ unimodal_short C_quant_tokens 0.0068+-0.0003 1.0000+-0.0000
 multimodal_long A_mlp_head 0.0016+-0.0001 1.0000+-0.0000
 multimodal_long B_dit_denoiser 0.0012+-0.0001 1.0000+-0.0000
 multimodal_long C_quant_tokens 0.0105+-0.0001 1.0000+-0.0000
-unimodal_short: |MSE_A − MSE_B| = 0.0001 (exact tie (gap≈0))
+unimodal_short: |MSE_A − MSE_B| = 0.0001 (near-tie / small gap; residual from ridge regularization and noise; short-horizon unimodal is easy for both)
 multimodal_long: MSE_A − MSE_B = 0.0004 (DiT-style expressivity wins on longer multimodal chunks; C_quant=0.0105)
 No winner declared: unimodal short-horizon can make MLP match DiT-style; multimodal long-chunk is where specialized expressivity helps; quantization floor is a real OpenVLA-style cost
 Real CogACT / VLA GPU lab: 本页未运行; Qixiu Li et al. arXiv:2411.19650 以论文为准
@@ -765,7 +764,7 @@ Real CogACT / VLA GPU lab: 本页未运行; Qixiu Li et al. arXiv:2411.19650 以
 
 1. 由打印的 FEAT_DIM / ACT_DIM / RIDGE，写出 A 使用的岭回归闭式解，并对照 unimodal_short 的 A 行。
 2. 用一种子的共享带，证明 A、B、C 收到相同的演示特征与目标（共同随机数）。
-3. 说明为何 unimodal_short 上 `|MSE_A − MSE_B| ≈ 0` 是 **精确打平**，而 multimodal_long 的 0.0004 间隙是小幅 DiT 风格胜出——不是普遍排名。
+3. 说明为何 unimodal_short 上打印的 |MSE_A − MSE_B|=0.0001 是 **接近打平 / 差距很小**（不是精确打平；短时域单峰任务对两种头都很容易，残差来自岭回归正则和噪声），而 multimodal_long 的 0.0004 间隙是小幅 DiT 风格胜出——不是普遍排名。
 4. 提高 N_BINS，预测 C 的 MSE 底噪是否下降；再用相同种子重跑。
 5. 在任何 CogACT GPU 实验之前（**本页未运行**），写明本页的迭代扩展只是表达力替身，不得当作 Li 等的 DiT 成功率引用（**以论文为准**）。
 
@@ -773,5 +772,5 @@ Real CogACT / VLA GPU lab: 本页未运行; Qixiu Li et al. arXiv:2411.19650 以
 
 多模态示范取均值可能走到不安全的中间动作，采样保留不同选择；ACT 分块 / 时间集成在平滑执行与开环暴露间权衡。扩散逐步去噪动作块并付出推理成本，玩具精确去噪器 / 示范回放并非通用已学习机器人策略；应用同一数据与评估起点，检查失败和块长，LeRobot GPU 训练命令本页未运行。新增等信息共享带条实验用全时域预算对照独立、主从、联合耦合，并把运动学指标与 TwinVLA 学习架构分开。
 
-- CogACT 认知→动作：共享演示下单模态短时域 **精确打平**，多模态长 chunk 有 DiT 风格优势——表达力替身，不是 Li 等的 GPU 成功率。
+- CogACT 认知→动作：共享演示下单模态短时域 **接近打平 / 差距很小**，多模态长 chunk 有 DiT 风格优势——表达力替身，不是 Li 等的 GPU 成功率。
 </Summary>

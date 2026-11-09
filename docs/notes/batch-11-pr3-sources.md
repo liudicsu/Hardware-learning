@@ -15,9 +15,15 @@ Local mirrors used during authorship: `/workspace/b11p3-sources/` (`cogact-*.htm
 
 ## Toys
 
-- `examples/month-6/act-diffusion/cogact_dit_action_toy.py` — A ridge-linear, B pairwise-expand+iterative DiT-style **expressivity stand-in** (not a real transformer), C quantized tokens; CRN demos/noise; unimodal_short exact tie; multimodal_long DiT-style edge.
-- `examples/month-8/vla-finetune/vla_continual_er_toy.py` — A sequential cap=0, B ER cap=8 replay=2, C ER cap=48 replay=4 with protected prior-task prefix; compute = samples touched; no_shift near-tie / small gap; task_shift ER reduces NBT forget.
+- `examples/month-6/act-diffusion/cogact_dit_action_toy.py` — A ridge-linear, B pairwise-expand+iterative DiT-style **expressivity stand-in** (not a real transformer), C quantized tokens; CRN demos/noise; unimodal_short near-tie / small gap (ridge+noise residual, not exact); multimodal_long DiT-style edge; mode averaging + AAE named (以论文为准).
+- `examples/month-8/vla-finetune/vla_continual_er_toy.py` — A sequential cap=0, B ER cap=8 replay=2, C ER cap=48 replay=4 with protected prior-task prefix; compute = samples touched; no_shift near-tie / small gap; task_shift ER can cut NBT vs sequential but not monotonically (C slightly worse than B within noise; B avg slightly below A within noise); stds printed.
 
 ## Checks run
 
 `tools/test_b11_cogact_continual_toys.py`, month-6 / month-8 `check.sh`, `check_quotes`, `check_diagrams`, `check_widgets`, `check_wokwi`, lint, next typegen, `tsc --noEmit`, production build. No workflow edits. Minutes **71 / 28050**.
+
+## NEEDS_FIX round (PR #147)
+
+- CogACT: replace exact-tie wording with near-tie / small gap; residual from ridge+noise; add mode averaging + Adaptive Action Ensemble (AAE, 以论文为准).
+- ER: honest task_shift wording with ±sd; B avg slightly below A within noise; larger buffer/compute not monotone on NBT.
+- Minutes unchanged: site **28050** / M6 **2400** / M8 **3390**.

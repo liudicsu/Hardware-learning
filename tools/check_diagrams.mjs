@@ -6320,15 +6320,15 @@ print("protocol pass")
   const cur=read("src/lib/curriculum.ts"), res=read("src/lib/resources.ts");
   const cases=[
     [6,"act-diffusion","cogact_dit_action_toy",660,["## CogACT: cognition token to DiT-style action head","## CogACT：认知表征到 DiT 风格动作头"],
-      ["seeds=5","unimodal_short A_mlp_head","multimodal_long A_mlp_head","No winner declared","exact tie"],
-      ["DiT","A_mlp_head","B_dit_denoiser","C_quant_tokens","以论文为准","本页未运行"],
-      {en:["**not** OpenHelix","**synthetic**","does not declare a universal winner","exact tie","expressivity stand-in","blind"],zh:["**不是** OpenHelix","**合成**","不预设赢家","精确打平","表达力替身","视而不见"]},
-      {en:["CogACT cognition→action","unimodal-short","exact tie"],zh:["CogACT 认知→动作","单模态短时域","精确打平"]},
+      ["seeds=5","unimodal_short A_mlp_head","multimodal_long A_mlp_head","No winner declared","near-tie / small gap"],
+      ["DiT","A_mlp_head","B_dit_denoiser","C_quant_tokens","mode averaging","Adaptive Action Ensemble","以论文为准","本页未运行"],
+      {en:["**not** OpenHelix","**synthetic**","does not declare a universal winner","near-tie / small gap","expressivity stand-in","blind","mode averaging","Adaptive Action Ensemble"],zh:["**不是** OpenHelix","**合成**","不预设赢家","接近打平","表达力替身","视而不见","mode averaging","Adaptive Action Ensemble"]},
+      {en:["CogACT cognition→action","unimodal-short","near-tie / small gap"],zh:["CogACT 认知→动作","单模态短时域","接近打平"]},
       ["cogact-abs","cogact-html"]],
     [8,"vla-finetune","vla_continual_er_toy",630,["## Continual VLA finetune with experience replay","## 持续学习 VLA 微调与经验回放"],
-      ["seeds=5","no_shift A_sequential","task_shift A_sequential","No winner declared","near-tie / small gap"],
+      ["seeds=5","no_shift A_sequential","task_shift A_sequential","No winner declared","near-tie / small gap","does not monotonically"],
       ["Experience Replay","A_sequential","B_er_small","C_er_large","buffer_cap","compute_samples","以论文为准","本页未运行"],
-      {en:["**not** MemoryVLA","**synthetic**","does not declare a universal winner","near-tie","blind","buffer"],zh:["**不是** MemoryVLA","**合成**","不预设赢家","接近打平","视而不见","缓冲"]},
+      {en:["**not** MemoryVLA","**synthetic**","does not declare a universal winner","near-tie","blind","buffer","does not","monotonically"],zh:["**不是** MemoryVLA","**合成**","不预设赢家","接近打平","视而不见","缓冲","没有","单调"]},
       {en:["Continual ER","no-shift","near-tie"],zh:["持续学习 ER","无切换","接近打平"]},
       ["cl-abs","cl-html"]],
   ];

@@ -8,7 +8,7 @@ unimodal_short C_quant_tokens 0.0068+-0.0003 1.0000+-0.0000
 multimodal_long A_mlp_head 0.0016+-0.0001 1.0000+-0.0000
 multimodal_long B_dit_denoiser 0.0012+-0.0001 1.0000+-0.0000
 multimodal_long C_quant_tokens 0.0105+-0.0001 1.0000+-0.0000
-unimodal_short: |MSE_A − MSE_B| = 0.0001 (exact tie (gap≈0))
+unimodal_short: |MSE_A − MSE_B| = 0.0001 (near-tie / small gap; residual from ridge regularization and noise; short-horizon unimodal is easy for both)
 multimodal_long: MSE_A − MSE_B = 0.0004 (DiT-style expressivity wins on longer multimodal chunks; C_quant=0.0105)
 No winner declared: unimodal short-horizon can make MLP match DiT-style; multimodal long-chunk is where specialized expressivity helps; quantization floor is a real OpenVLA-style cost
 Real CogACT / VLA GPU lab: 本页未运行; Qixiu Li et al. arXiv:2411.19650 以论文为准
