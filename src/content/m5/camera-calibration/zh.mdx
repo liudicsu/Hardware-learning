@@ -550,7 +550,8 @@ Metrics per seed (means over points):
   rot_deg rotation error after SVD pose recovery + cheirality vote
   t_deg   angle between recovered and true translation direction
 
-Labels: tie = identical on every seed; |paired mean| <= sd = near-tie / small
+Labels: tie = identical on every seed; |m| < 1e-9 and sd < 1e-9 = numerically
+zero (floating-point residue), effectively a tie, no sign count; |paired mean| <= sd = near-tie / small
 gap within seed noise; |m| > sd = consistent gap (small if |m| < 20 % of the
 smaller arm mean, else clear), always with a sign count.
 Real camera / OpenCV: 本页未运行. Wikipedia definitions: 以原文为准.
@@ -833,11 +834,16 @@ def fmt_pair(m, s):
     return f"{num(m)}+-{num(s)}"
 
 
+NUM_ZERO = 1e-9  # |m| and sd both below this: floating-point residue, not a gap
+
+
 def verdict(xa, xb):
     diffs = [a - b for a, b in zip(xa, xb)]
     if all(d == 0.0 for d in diffs):
         return "0.0000+-0.0000: tie: identical on every seed"
     m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
     if abs(m) <= s:
         label = "near-tie / small gap, within seed noise (|m| <= sd)"
     elif abs(m) < 0.2 * min(mean_sd(xa)[0], mean_sd(xb)[0]):
@@ -889,11 +895,11 @@ noise_free (sigma=0.0 px, baseline=0.5 m, whole image)
 noise_free A_raw_px 2.253e-15+-1.974e-15 3.125e-13+-1.561e-13 0.0000+-0.0000 0.0000+-0.0000 5.5577+-0.2379
 noise_free B_hartley_px 2.464e-15+-1.360e-15 7.811e-14+-2.535e-14 2.415e-07+-5.400e-07 0.0000+-0.0000 1.9569+-0.0975
 noise_free C_calib 3.468e-15+-2.312e-15 7.910e-14+-2.045e-14 0.0000+-0.0000 0.0000+-0.0000 2.5812+-0.0831
-noise_free paired B-A e_err: 2.116e-16+-2.124e-15: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
-noise_free paired B-A epi_px: -2.344e-13+-1.451e-13: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+noise_free paired B-A e_err: 2.116e-16+-2.124e-15: numerically zero (floating-point residue), effectively a tie
+noise_free paired B-A epi_px: -2.344e-13+-1.451e-13: numerically zero (floating-point residue), effectively a tie
 noise_free paired B-A t_deg: 0.0000+-0.0000: tie: identical on every seed
-noise_free paired C-B e_err: 1.004e-15+-3.419e-15: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
-noise_free paired C-B epi_px: 9.909e-16+-3.749e-14: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+noise_free paired C-B e_err: 1.004e-15+-3.419e-15: numerically zero (floating-point residue), effectively a tie
+noise_free paired C-B epi_px: 9.909e-16+-3.749e-14: numerically zero (floating-point residue), effectively a tie
 noise_free paired C-B t_deg: 0.0000+-0.0000: tie: identical on every seed
 pixel_noise (sigma=1.0 px, baseline=0.5 m, whole image)
 pixel_noise A_raw_px 0.0989+-0.0576 3.7339+-2.3532 0.3303+-0.0964 5.6811+-3.3411 5.4205+-0.1250
@@ -937,9 +943,9 @@ Real camera / OpenCV: 本页未运行; Wikipedia definitions 以原文为准
 
 ### 读各个情形
 
-本页标签的用法：只有配对的逐种子差值在每个种子上都恰好为零，才叫**打平**；`|配对均值| ≤ sd` 叫**接近打平、差距很小，在种子噪声之内**；`|配对均值| > sd` 叫**稳定**差距，其中 `|m|` 小于两组均值中较小者的 20 % 叫**小**，否则叫**明显**（20 % 这条只用来在这两个词之间选）。每条稳定或明显的结论都带 5 个种子里的同号计数，有方向相反的种子都写出来；只靠同号计数，永远不能把差距叫成稳定。配对差是 B−A 和 C−B；负数表示 B（或 C）的误差更小。小于 `5×10⁻⁴` 的数用科学计数法打印，不会把一个差值藏成带负号的零。
+本页标签的用法：只有配对的逐种子差值在每个种子上都恰好为零，才叫**打平**；`|配对均值|` 和 sd 都小于 `10⁻⁹` 时叫**数值上为零（浮点残差），等同打平**（在 sd 判据之前检查；这类行不带同号计数，也永远不叫稳定或明显）；`|配对均值| ≤ sd` 叫**接近打平、差距很小，在种子噪声之内**；`|配对均值| > sd` 叫**稳定**差距，其中 `|m|` 小于两组均值中较小者的 20 % 叫**小**，否则叫**明显**（20 % 这条只用来在这两个词之间选）。每条稳定或明显的结论都带 5 个种子里的同号计数，有方向相反的种子都写出来；只靠同号计数，永远不能把差距叫成稳定。配对差是 B−A 和 C−B；负数表示 B（或 C）的误差更小。小于 `5×10⁻⁴` 的数用科学计数法打印，不会把一个差值藏成带负号的零。
 
-- **noise_free——归一化几乎无关紧要**：三组都把 `E` 恢复到舍入误差（`e_err` 约 `2–3×10⁻¹⁵`）。B−A 的 `e_err` **接近打平、差距很小，在种子噪声之内**（`2.116e-16±2.124e-15`，5 个种子中 2 个符号相反），`t_deg` **打平：每个种子都完全相同**。B−A 的 `epi_px` 被标成明显差距（`−2.344e-13±1.451e-13` px，5 个种子全部同号），因为归一化之后每个种子的舍入误差都更小——但这只是 `10⁻¹³` 个像素：标签说的是符号稳定，不是说这个差距有任何价值。B 的 `rot_deg` 为 `2.4e-07`°，是 `acos` 在 1 附近的舍入误差。
+- **noise_free——归一化几乎无关紧要**：三组都把 `E` 恢复到舍入误差（`e_err` 约 `2–3×10⁻¹⁵`）。B−A 的 `t_deg` **打平：每个种子都完全相同**。B−A 的 `e_err`（`2.116e-16±2.124e-15`）和 B−A 的 `epi_px`（`−2.344e-13±1.451e-13` px）都是**数值上为零（浮点残差），等同打平**：均值和 sd 都远小于 `10⁻⁹`，所以不带同号计数。归一化确实让每个种子上 `epi_px` 的舍入误差更小，但 `10⁻¹³` 个像素不是有任何价值的差距。C−B 的 `e_err` 和 `epi_px` 两行也落在同一规则下。B 的 `rot_deg` 为 `2.4e-07`°，是 `acos` 在 1 附近的舍入误差。
 - **pixel_noise——B 在 `E` 和位姿上赢，在残差上没赢**：原始设计矩阵的 `log10(s₁/s₈)` 是 5.42，对 2.02。**B 在 `e_err` 上以明显差距赢**（0.0306±0.0233 对 0.0989±0.0576；配对 −0.0683±0.0510，5 个种子全部同号），**在 `t_deg` 上也以明显差距赢**（1.8135±1.3112° 对 5.6811±3.3411°；配对 −3.8675±2.8843，5/5）。留出点上的 `epi_px` 只是**接近打平、差距很小，在种子噪声之内**（3.2873±1.7495 对 3.7339±2.3532 px；配对 −0.4466±0.7592，5 个种子中 2 个符号相反），三组的 `rot_deg` 都在 0.33° 左右。
 - **clustered——正是 Hartley 描述的情况**：原始像素的 `log10(s₁/s₈)` 是 6.54，对 1.17。**B 和 A 的每一项比较都以明显差距获胜，5 个种子全部同号**：`e_err` −0.5187±0.3957，`epi_px` −204.7447±197.8867 px（A 的留出残差是 214.6725±196.0401 px），`t_deg` −66.0674±59.7247°。
 - **C_calib 对 B——归一化的大部分工作已经由 `K⁻¹` 完成**：在 pixel_noise、clustered 和 tiny_baseline 里，C−B 的每一行都是**接近打平、差距很小，在种子噪声之内**（例如 pixel_noise 的 `e_err` 0.0071±0.0222，5 个种子中 2 个相反；clustered 的 `t_deg` 9.5685±12.8298，1 个相反）。`K` 已知时，标定坐标本身就是 1 的量级，尺度问题大部分已经消失；C 只少了把质心移到原点这一步。有一行虽然接近打平，但每个种子都在同一侧：tiny_baseline 的 C−B `e_err` 0.4450±0.4568，5 个种子全部同号——按上面的规则它仍然是接近打平。

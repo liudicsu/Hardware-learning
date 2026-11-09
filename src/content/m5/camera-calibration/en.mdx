@@ -550,7 +550,8 @@ Metrics per seed (means over points):
   rot_deg rotation error after SVD pose recovery + cheirality vote
   t_deg   angle between recovered and true translation direction
 
-Labels: tie = identical on every seed; |paired mean| <= sd = near-tie / small
+Labels: tie = identical on every seed; |m| < 1e-9 and sd < 1e-9 = numerically
+zero (floating-point residue), effectively a tie, no sign count; |paired mean| <= sd = near-tie / small
 gap within seed noise; |m| > sd = consistent gap (small if |m| < 20 % of the
 smaller arm mean, else clear), always with a sign count.
 Real camera / OpenCV: 本页未运行. Wikipedia definitions: 以原文为准.
@@ -833,11 +834,16 @@ def fmt_pair(m, s):
     return f"{num(m)}+-{num(s)}"
 
 
+NUM_ZERO = 1e-9  # |m| and sd both below this: floating-point residue, not a gap
+
+
 def verdict(xa, xb):
     diffs = [a - b for a, b in zip(xa, xb)]
     if all(d == 0.0 for d in diffs):
         return "0.0000+-0.0000: tie: identical on every seed"
     m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
     if abs(m) <= s:
         label = "near-tie / small gap, within seed noise (|m| <= sd)"
     elif abs(m) < 0.2 * min(mean_sd(xa)[0], mean_sd(xb)[0]):
@@ -889,11 +895,11 @@ noise_free (sigma=0.0 px, baseline=0.5 m, whole image)
 noise_free A_raw_px 2.253e-15+-1.974e-15 3.125e-13+-1.561e-13 0.0000+-0.0000 0.0000+-0.0000 5.5577+-0.2379
 noise_free B_hartley_px 2.464e-15+-1.360e-15 7.811e-14+-2.535e-14 2.415e-07+-5.400e-07 0.0000+-0.0000 1.9569+-0.0975
 noise_free C_calib 3.468e-15+-2.312e-15 7.910e-14+-2.045e-14 0.0000+-0.0000 0.0000+-0.0000 2.5812+-0.0831
-noise_free paired B-A e_err: 2.116e-16+-2.124e-15: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
-noise_free paired B-A epi_px: -2.344e-13+-1.451e-13: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+noise_free paired B-A e_err: 2.116e-16+-2.124e-15: numerically zero (floating-point residue), effectively a tie
+noise_free paired B-A epi_px: -2.344e-13+-1.451e-13: numerically zero (floating-point residue), effectively a tie
 noise_free paired B-A t_deg: 0.0000+-0.0000: tie: identical on every seed
-noise_free paired C-B e_err: 1.004e-15+-3.419e-15: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
-noise_free paired C-B epi_px: 9.909e-16+-3.749e-14: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+noise_free paired C-B e_err: 1.004e-15+-3.419e-15: numerically zero (floating-point residue), effectively a tie
+noise_free paired C-B epi_px: 9.909e-16+-3.749e-14: numerically zero (floating-point residue), effectively a tie
 noise_free paired C-B t_deg: 0.0000+-0.0000: tie: identical on every seed
 pixel_noise (sigma=1.0 px, baseline=0.5 m, whole image)
 pixel_noise A_raw_px 0.0989+-0.0576 3.7339+-2.3532 0.3303+-0.0964 5.6811+-3.3411 5.4205+-0.1250
@@ -937,9 +943,9 @@ Real camera / OpenCV: 本页未运行; Wikipedia definitions 以原文为准
 
 ### Read the regimes
 
-How the labels are used on this page: **tie** only when the paired per-seed difference is exactly zero on every seed; **near-tie / small gap, within seed noise** when `|paired mean| ≤ sd`; a **consistent** gap when `|paired mean| > sd`, called **small** if `|m|` is under 20 % of the smaller arm mean and **clear** otherwise (the 20 % rule only chooses between those two words). Every consistent or clear line carries a same-sign count over the 5 seeds, any seed with the opposite sign is reported, and a sign count alone never makes a gap consistent. Paired differences are B−A and C−B; negative means B (or C) has the smaller error. Values below `5×10⁻⁴` are printed in e-notation so that no difference is hidden as a signed zero.
+How the labels are used on this page: **tie** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when both `|paired mean|` and sd are below `10⁻⁹` (checked before the sd test; such lines carry no sign count and are never called consistent or clear); **near-tie / small gap, within seed noise** when `|paired mean| ≤ sd`; a **consistent** gap when `|paired mean| > sd`, called **small** if `|m|` is under 20 % of the smaller arm mean and **clear** otherwise (the 20 % rule only chooses between those two words). Every consistent or clear line carries a same-sign count over the 5 seeds, any seed with the opposite sign is reported, and a sign count alone never makes a gap consistent. Paired differences are B−A and C−B; negative means B (or C) has the smaller error. Values below `5×10⁻⁴` are printed in e-notation so that no difference is hidden as a signed zero.
 
-- **noise_free — normalisation barely matters:** every arm recovers `E` to round-off (`e_err` about `2–3×10⁻¹⁵`). B−A `e_err` is a **near-tie / small gap, within seed noise** (`2.116e-16±2.124e-15`, 2 of 5 seeds have the opposite sign) and `t_deg` is a **tie: identical on every seed**. B−A `epi_px` is labelled a clear gap (`−2.344e-13±1.451e-13` px, same sign on all 5 seeds) because round-off is smaller after normalisation on every seed — but it is `10⁻¹³` of a pixel: the label says the sign is stable, not that the gap is worth anything. B's `rot_deg` of `2.4e-07`° is `acos` round-off near 1.
+- **noise_free — normalisation barely matters:** every arm recovers `E` to round-off (`e_err` about `2–3×10⁻¹⁵`). B−A `t_deg` is a **tie: identical on every seed**. B−A `e_err` (`2.116e-16±2.124e-15`) and B−A `epi_px` (`−2.344e-13±1.451e-13` px) are both **numerically zero (floating-point residue), effectively a tie**: the mean and sd are far below `10⁻⁹`, so no sign count is attached. Normalisation does shrink the round-off in `epi_px` on every seed, but `10⁻¹³` of a pixel is not a gap worth anything. The C−B `e_err` and `epi_px` lines fall under the same rule. B's `rot_deg` of `2.4e-07`° is `acos` round-off near 1.
 - **pixel_noise — B wins on `E` and pose, not on the residual:** the raw design matrix has `log10(s₁/s₈)` 5.42 against 2.02. **B wins `e_err` with a clear gap** (0.0306±0.0233 against 0.0989±0.0576; paired −0.0683±0.0510, same sign on all 5 seeds) and **`t_deg` with a clear gap** (1.8135±1.3112° against 5.6811±3.3411°; paired −3.8675±2.8843, 5/5). The held-out `epi_px` is only a **near-tie / small gap, within seed noise** (3.2873±1.7495 against 3.7339±2.3532 px; paired −0.4466±0.7592, 2 of 5 seeds have the opposite sign), and `rot_deg` is about 0.33° for every arm.
 - **clustered — the case Hartley described:** raw pixels give `log10(s₁/s₈)` 6.54 against 1.17. **B wins every printed comparison with A by a clear gap, same sign on all 5 seeds:** `e_err` −0.5187±0.3957, `epi_px` −204.7447±197.8867 px (A's held-out residual is 214.6725±196.0401 px), `t_deg` −66.0674±59.7247°.
 - **C_calib against B — normalisation is mostly done by `K⁻¹`:** in pixel_noise, clustered and tiny_baseline every C−B line is a **near-tie / small gap, within seed noise** (for example pixel_noise `e_err` 0.0071±0.0222 with 2 of 5 seeds opposite; clustered `t_deg` 9.5685±12.8298 with 1 of 5 opposite). With a known `K` the calibrated coordinates are already of order 1, which removes most of the scale problem; C skips only the re-centring. One line is a near-tie with every seed on the same side: tiny_baseline C−B `e_err` 0.4450±0.4568, same sign on all 5 seeds — by the rule above it stays a near-tie.

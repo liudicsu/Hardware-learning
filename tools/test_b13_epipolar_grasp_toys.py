@@ -41,6 +41,11 @@ def check_labels(case: unittest.TestCase, out: str) -> None:
             case.assertIn("0.0000+-0.0000", line)
             continue
         mm = PAIR.search(line)
+        if "numerically zero" in line:
+            case.assertTrue(mm and abs(float(mm.group(1))) < 1e-9 and float(mm.group(2)) < 1e-9, line)
+            case.assertTrue(line.endswith("numerically zero (floating-point residue), effectively a tie"), line)
+            case.assertNotRegex(line, r"sign|consistent|clear")
+            continue
         if "near-tie" in line:
             case.assertTrue(mm and abs(float(mm.group(1))) <= float(mm.group(2)), line)
         if "consistent gap" in line or "clear gap" in line:
@@ -49,6 +54,43 @@ def check_labels(case: unittest.TestCase, out: str) -> None:
             if "opposite sign" in line and "no seed" not in line:
                 opp = int(re.search(r"(\d) of 5 seeds ha", line).group(1))
                 case.assertLessEqual(opp, 1, "a consistent label needs a clear same-sign majority")
+
+
+class NumericallyZeroRule(unittest.TestCase):
+    """Rule shared by both toys: |m| < 1e-9 and sd < 1e-9 -> numerically zero, checked before |m| vs sd."""
+
+    def test_threshold_boundary_both_toys(self):
+        for mod in (ep, fc):
+            self.assertEqual(mod.NUM_ZERO, 1e-9)
+            zero = [0.0] * 5
+            # consistent sign, |m| > sd, but tiny: residue, no sign count
+            tiny = [0.9e-9, 0.95e-9, 0.9e-9, 0.92e-9, 0.93e-9]
+            v = mod.verdict(tiny, zero)
+            self.assertTrue(v.endswith("numerically zero (floating-point residue), effectively a tie"), v)
+            self.assertNotIn("sign", v)
+            # just above the threshold: the ordinary |m| vs sd rule applies again
+            above = [x + 0.2e-9 for x in tiny]
+            v = mod.verdict(above, zero)
+            self.assertNotIn("numerically zero", v)
+            self.assertIn("clear gap", v)
+            self.assertIn("same sign on all 5 seeds", v)
+            # small mean but sd above the threshold: not residue
+            noisy = [3e-9, -3e-9, 2e-9, -2e-9, 1e-10]
+            v = mod.verdict(noisy, zero)
+            self.assertNotIn("numerically zero", v)
+            self.assertIn("near-tie", v)
+            # exact zero is still the stricter tie
+            self.assertIn("tie: identical on every seed", mod.verdict(zero, zero))
+
+    def test_affected_lines(self):
+        out = run(EP_REL)
+        for line in ("noise_free paired B-A e_err: 2.116e-16+-2.124e-15: numerically zero (floating-point residue), effectively a tie",
+                     "noise_free paired B-A epi_px: -2.344e-13+-1.451e-13: numerically zero (floating-point residue), effectively a tie",
+                     "noise_free paired C-B e_err: 1.004e-15+-3.419e-15: numerically zero (floating-point residue), effectively a tie",
+                     "noise_free paired C-B epi_px: 9.909e-16+-3.749e-14: numerically zero (floating-point residue), effectively a tie"):
+            self.assertIn(line, out.splitlines())
+        self.assertEqual(sum("numerically zero" in l for l in out.splitlines()), 4)
+        self.assertEqual(sum("numerically zero" in l for l in run(FC_REL).splitlines()), 0)
 
 
 class EightPoint(unittest.TestCase):

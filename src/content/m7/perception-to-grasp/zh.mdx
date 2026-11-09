@@ -415,7 +415,8 @@ Metrics per seed (means over 40 trials): fc (force-closure rate on the true
 object), eps (epsilon proxy, 0 when not force closure), lift (stand-in: can the
 grasp resist the shared disturbance wrench with total normal force <= 1?).
 
-Labels: tie = identical on every seed; |paired mean| <= sd = near-tie / small
+Labels: tie = identical on every seed; |m| < 1e-9 and sd < 1e-9 = numerically
+zero (floating-point residue), effectively a tie, no sign count; |paired mean| <= sd = near-tie / small
 gap within seed noise; |m| > sd = consistent gap (small if |m| < 20 % of the
 smaller arm mean, else clear), always with a sign count.
 Real gripper / Dex-Net GQ-CNN / GPU: 本页未运行. Paper statements: 以论文为准.
@@ -643,11 +644,16 @@ def fmt_pair(m, s):
     return f"{num(m)}+-{num(s)}"
 
 
+NUM_ZERO = 1e-9  # |m| and sd both below this: floating-point residue, not a gap
+
+
 def verdict(xa, xb):
     diffs = [a - b for a, b in zip(xa, xb)]
     if all(d == 0.0 for d in diffs):
         return "0.0000+-0.0000: tie: identical on every seed"
     m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
     if abs(m) <= s:
         label = "near-tie / small gap, within seed noise (|m| <= sd)"
     elif abs(m) < 0.2 * min(mean_sd(xa)[0], mean_sd(xb)[0]):
@@ -750,7 +756,7 @@ Real gripper / Dex-Net GQ-CNN / GPU: 本页未运行; paper statements 以论文
 
 ### 读各个情形
 
-本页标签的用法：只有配对的逐种子差值在每个种子上都恰好为零，才叫**打平**；`|配对均值| ≤ sd` 叫**接近打平、差距很小，在种子噪声之内**；`|配对均值| > sd` 叫**稳定**差距，其中 `|m|` 小于两组均值中较小者的 20 % 叫**小**，否则叫**明显**（20 % 这条只用来在这两个词之间选）。每条稳定或明显的结论都带 5 个种子里的同号计数，方向相反（或恰好相等）的种子都写出来；只靠同号计数，永远不能把差距叫成稳定。配对差是 B−A 和 C−B。
+本页标签的用法：只有配对的逐种子差值在每个种子上都恰好为零，才叫**打平**；`|配对均值|` 和 sd 都小于 `10⁻⁹` 时叫**数值上为零（浮点残差），等同打平**（在 sd 判据之前检查；这类行不带同号计数，也永远不叫稳定或明显）；`|配对均值| ≤ sd` 叫**接近打平、差距很小，在种子噪声之内**；`|配对均值| > sd` 叫**稳定**差距，其中 `|m|` 小于两组均值中较小者的 20 % 叫**小**，否则叫**明显**（20 % 这条只用来在这两个词之间选）。每条稳定或明显的结论都带 5 个种子里的同号计数，方向相反（或恰好相等）的种子都写出来；只靠同号计数，永远不能把差距叫成稳定。配对差是 B−A 和 C−B。
 
 - **disc_noisy_centre——B 在力封闭和余量上赢**：`fc` 0.8900±0.0548 对 0.5400±0.0994（**明显差距**，配对 0.3500±0.0685，5 个种子全部同号）；`eps` 0.1772±0.0139 对 0.0952±0.0196（明显，0.0820±0.0136，5/5）。`lift` 也是**明显差距**（0.6350±0.0742 对 0.5100±0.0945；配对 0.1250±0.1173），但 **5 个种子中 1 个符号相反**。B 的 ε 远低于理想直径抓取的 0.3333，因为中心看错了：200 次试验中有 22 次，B 选的抓取在感知圆盘上力封闭，在真实圆盘上却不是。
 - **box_near_perfect——力封闭分不出 A 和 B**：每个候选本来就是面对面，两组的 `fc` 都是 1.0000，B−A **打平：每个种子都完全相同**。ε 仍然以**小而稳定的差距**偏向 B（0.2982±0.0010 对 0.2498±0.0077；配对 0.0484±0.0071，5/5），`lift` 也是（0.9150±0.0518 对 0.8600±0.0224；配对 0.0550±0.0411，小而稳定；没有种子符号相反，5 个种子中 1 个相等）。`L` 减半时，200 次中有 12 次 B 的选择改变：排序取决于力矩选用的单位。

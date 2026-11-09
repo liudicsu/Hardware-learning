@@ -5,11 +5,11 @@ noise_free (sigma=0.0 px, baseline=0.5 m, whole image)
 noise_free A_raw_px 2.253e-15+-1.974e-15 3.125e-13+-1.561e-13 0.0000+-0.0000 0.0000+-0.0000 5.5577+-0.2379
 noise_free B_hartley_px 2.464e-15+-1.360e-15 7.811e-14+-2.535e-14 2.415e-07+-5.400e-07 0.0000+-0.0000 1.9569+-0.0975
 noise_free C_calib 3.468e-15+-2.312e-15 7.910e-14+-2.045e-14 0.0000+-0.0000 0.0000+-0.0000 2.5812+-0.0831
-noise_free paired B-A e_err: 2.116e-16+-2.124e-15: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
-noise_free paired B-A epi_px: -2.344e-13+-1.451e-13: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+noise_free paired B-A e_err: 2.116e-16+-2.124e-15: numerically zero (floating-point residue), effectively a tie
+noise_free paired B-A epi_px: -2.344e-13+-1.451e-13: numerically zero (floating-point residue), effectively a tie
 noise_free paired B-A t_deg: 0.0000+-0.0000: tie: identical on every seed
-noise_free paired C-B e_err: 1.004e-15+-3.419e-15: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
-noise_free paired C-B epi_px: 9.909e-16+-3.749e-14: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+noise_free paired C-B e_err: 1.004e-15+-3.419e-15: numerically zero (floating-point residue), effectively a tie
+noise_free paired C-B epi_px: 9.909e-16+-3.749e-14: numerically zero (floating-point residue), effectively a tie
 noise_free paired C-B t_deg: 0.0000+-0.0000: tie: identical on every seed
 pixel_noise (sigma=1.0 px, baseline=0.5 m, whole image)
 pixel_noise A_raw_px 0.0989+-0.0576 3.7339+-2.3532 0.3303+-0.0964 5.6811+-3.3411 5.4205+-0.1250

@@ -26,7 +26,8 @@ Metrics per seed (means over points):
   rot_deg rotation error after SVD pose recovery + cheirality vote
   t_deg   angle between recovered and true translation direction
 
-Labels: tie = identical on every seed; |paired mean| <= sd = near-tie / small
+Labels: tie = identical on every seed; |m| < 1e-9 and sd < 1e-9 = numerically
+zero (floating-point residue), effectively a tie, no sign count; |paired mean| <= sd = near-tie / small
 gap within seed noise; |m| > sd = consistent gap (small if |m| < 20 % of the
 smaller arm mean, else clear), always with a sign count.
 Real camera / OpenCV: 本页未运行. Wikipedia definitions: 以原文为准.
@@ -309,11 +310,16 @@ def fmt_pair(m, s):
     return f"{num(m)}+-{num(s)}"
 
 
+NUM_ZERO = 1e-9  # |m| and sd both below this: floating-point residue, not a gap
+
+
 def verdict(xa, xb):
     diffs = [a - b for a, b in zip(xa, xb)]
     if all(d == 0.0 for d in diffs):
         return "0.0000+-0.0000: tie: identical on every seed"
     m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
     if abs(m) <= s:
         label = "near-tie / small gap, within seed noise (|m| <= sd)"
     elif abs(m) < 0.2 * min(mean_sd(xa)[0], mean_sd(xb)[0]):

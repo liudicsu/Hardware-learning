@@ -415,7 +415,8 @@ Metrics per seed (means over 40 trials): fc (force-closure rate on the true
 object), eps (epsilon proxy, 0 when not force closure), lift (stand-in: can the
 grasp resist the shared disturbance wrench with total normal force <= 1?).
 
-Labels: tie = identical on every seed; |paired mean| <= sd = near-tie / small
+Labels: tie = identical on every seed; |m| < 1e-9 and sd < 1e-9 = numerically
+zero (floating-point residue), effectively a tie, no sign count; |paired mean| <= sd = near-tie / small
 gap within seed noise; |m| > sd = consistent gap (small if |m| < 20 % of the
 smaller arm mean, else clear), always with a sign count.
 Real gripper / Dex-Net GQ-CNN / GPU: 本页未运行. Paper statements: 以论文为准.
@@ -643,11 +644,16 @@ def fmt_pair(m, s):
     return f"{num(m)}+-{num(s)}"
 
 
+NUM_ZERO = 1e-9  # |m| and sd both below this: floating-point residue, not a gap
+
+
 def verdict(xa, xb):
     diffs = [a - b for a, b in zip(xa, xb)]
     if all(d == 0.0 for d in diffs):
         return "0.0000+-0.0000: tie: identical on every seed"
     m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
     if abs(m) <= s:
         label = "near-tie / small gap, within seed noise (|m| <= sd)"
     elif abs(m) < 0.2 * min(mean_sd(xa)[0], mean_sd(xb)[0]):
@@ -750,7 +756,7 @@ Real gripper / Dex-Net GQ-CNN / GPU: 本页未运行; paper statements 以论文
 
 ### Read the regimes
 
-How the labels are used on this page: **tie** only when the paired per-seed difference is exactly zero on every seed; **near-tie / small gap, within seed noise** when `|paired mean| ≤ sd`; a **consistent** gap when `|paired mean| > sd`, called **small** if `|m|` is under 20 % of the smaller arm mean and **clear** otherwise (the 20 % rule only chooses between those two words). Every consistent or clear line carries a same-sign count over the 5 seeds, any seed with the opposite sign (or an exactly equal seed) is reported, and a sign count alone never makes a gap consistent. Paired differences are B−A and C−B.
+How the labels are used on this page: **tie** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when both `|paired mean|` and sd are below `10⁻⁹` (checked before the sd test; such lines carry no sign count and are never called consistent or clear); **near-tie / small gap, within seed noise** when `|paired mean| ≤ sd`; a **consistent** gap when `|paired mean| > sd`, called **small** if `|m|` is under 20 % of the smaller arm mean and **clear** otherwise (the 20 % rule only chooses between those two words). Every consistent or clear line carries a same-sign count over the 5 seeds, any seed with the opposite sign (or an exactly equal seed) is reported, and a sign count alone never makes a gap consistent. Paired differences are B−A and C−B.
 
 - **disc_noisy_centre — B wins on force closure and margin:** `fc` 0.8900±0.0548 against 0.5400±0.0994 (**clear gap**, paired 0.3500±0.0685, same sign on all 5 seeds); `eps` 0.1772±0.0139 against 0.0952±0.0196 (clear, 0.0820±0.0136, 5/5). `lift` is a **clear gap** too (0.6350±0.0742 against 0.5100±0.0945; paired 0.1250±0.1173), but **1 of 5 seeds has the opposite sign**. B's ε stays well below the 0.3333 of a perfect diameter because the centre is misperceived: in 22 of 200 trials B's pick is force closure on the perceived disc but not on the true one.
 - **box_near_perfect — force closure cannot separate A and B:** every candidate is already face-to-face, so `fc` is 1.0000 for both and B−A is a **tie: identical on every seed**. ε still prefers B by a **small but consistent gap** (0.2982±0.0010 against 0.2498±0.0077; paired 0.0484±0.0071, 5/5), and so does `lift` (0.9150±0.0518 against 0.8600±0.0224; paired 0.0550±0.0411, small but consistent; no seed has the opposite sign, 1 of 5 seeds equal). Halving `L` changes B's pick in 12 of 200 trials: the ranking depends on the units chosen for torque.
