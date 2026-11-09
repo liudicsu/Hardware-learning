@@ -712,9 +712,9 @@ GPU / MemoryVLA weights / robot: 本页未运行; Shi et al. 2508.19236 以论�
 
 **(a) No delay.** Cue at decision: A/B/C all print **1.0000±0.0000** — they tie when the cue is still in the current frame.
 
-**(b) Delay beyond the window.** Cue times are drawn from `[2, 9]` while the button is at `t = 15` and `W = 6`, so the delay was **chosen on purpose** to exceed B's window (B would need `cue_t ≥ 10`). A and B both sit near chance (**0.4700±0.0481**); C keeps the cue via the bank (**1.0000±0.0000**). That is **unequal information** between B and C, not a fair same-info contest — report it as such, not as a universal winner.
+**(b) Delay beyond the window.** Cue times are drawn from `[2, 9]` while the button is at `t = 15` and `W = 6`, so the delay was **chosen on purpose** to exceed B's window (B would need `cue_t ≥ 10`). A and B both sit near chance (**0.4700±0.0481**); C keeps the cue via the bank (**1.0000±0.0000**). That is **unequal information** between B and C, not a fair same-info contest — report it as such, not as a universal winner. A and B print **identical** values on every seed: the cue never falls inside B's window, so B never sees it and falls back to the same random guess as the Markov baseline.
 
-**(c) Stale / distractor memory.** A mid-episode cue switch plus distractor consolidations into a tight bank drops C to **0.2850±0.0978**, below A/B at **0.5200±0.0818** — the bank **visibly degrades** when retrieval is wrong.
+**(c) Stale / distractor memory.** A mid-episode cue switch plus distractor consolidations into a tight bank drops C to **0.2850±0.0978**, below A/B at **0.5200±0.0818** — the bank **visibly degrades** when retrieval is wrong. A and B again print **identical** values on every seed: neither the early cue nor the switched cue falls inside B's window at decision time, so B never sees them and matches Markov's random guess.
 
 Paper % 以论文为准. GPU / weights: **本页未运行**. MemoryVLA++ imagination: reading only.
 

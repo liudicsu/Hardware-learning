@@ -117,5 +117,18 @@ class MemoryVLA(unittest.TestCase):
         )
 
 
+    def test_ab_identical_when_cue_outside_window(self):
+        for regime in ("b_beyond_window", "c_stale_switch"):
+            for seed in mv.SEEDS:
+                self.assertEqual(
+                    mv.run_arm("A_markov", seed, regime),
+                    mv.run_arm("B_window", seed, regime),
+                )
+        en = (ROOT / "src/content/m9/world-models-overview/en.mdx").read_text()
+        zh = (ROOT / "src/content/m9/world-models-overview/zh.mdx").read_text()
+        self.assertIn("identical** values on every seed", en)
+        self.assertIn("完全相同", zh)
+
+
 if __name__ == "__main__":
     unittest.main()
