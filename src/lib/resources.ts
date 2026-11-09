@@ -5115,6 +5115,126 @@ export const resources: Record<string, Resource> = {
     },
     extra: true,
   },
+  "wiki-eightpt": {
+    id: "wiki-eightpt",
+    url: "https://en.wikipedia.org/wiki/Eight-point_algorithm",
+    title: {
+      zh: "Wikipedia：八点法（Eight-point algorithm）",
+      en: "Wikipedia: Eight-point algorithm",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "Longuet-Higgins 1981 提出；归一化坐标下 (y′)ᵀ E y = 0，每对点一行齐次方程，取最小奇异值的奇异向量，再用 SVD 强制内在约束；Hartley 1997 指出像素坐标病态，提出每幅图平移到质心并缩放的归一化。HTML 正文已核验；以原文为准。",
+      en: "Longuet-Higgins 1981; with normalized coordinates (y′)ᵀ E y = 0, one homogeneous row per pair, the singular vector of the smallest singular value, then an SVD step for the internal constraint; Hartley 1997 traces the ill-conditioning of pixel coordinates and normalizes each image by centroid shift and scaling. HTML body verified; 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "wiki-essential": {
+    id: "wiki-essential",
+    url: "https://en.wikipedia.org/wiki/Essential_matrix",
+    title: {
+      zh: "Wikipedia：本质矩阵（Essential matrix）",
+      en: "Wikipedia: Essential matrix",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "本质矩阵是旋转与反对称矩阵之积，两个奇异值相等、一个为零；只定义到尺度；由 SVD 与 W 得到四组 (R, t)，只有一组让点在两台相机前方。HTML 正文已核验；以原文为准。",
+      en: "An essential matrix is a rotation times a skew-symmetric matrix, with two equal singular values and one zero; defined up to scale; SVD with W gives four (R, t) candidates, only one of which puts the points in front of both cameras. HTML body verified; 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "wiki-epipolar": {
+    id: "wiki-epipolar",
+    url: "https://en.wikipedia.org/wiki/Epipolar_geometry",
+    title: {
+      zh: "Wikipedia：对极几何（Epipolar geometry）",
+      en: "Wikipedia: Epipolar geometry",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "针孔模型下两视图的极点、极线与极平面：一幅图里所有极线都经过该图的极点。HTML 正文已核验；以原文为准。",
+      en: "Epipoles, epipolar lines and the epipolar plane for two pinhole views: every epipolar line in an image passes through that image's epipole. HTML body verified; 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "quickgrasp-html": {
+    id: "quickgrasp-html",
+    url: "https://arxiv.org/html/2504.19716v2",
+    title: {
+      zh: "QuickGrasp：基于点云的轻量对跖抓取规划（HTML）",
+      en: "QuickGrasp: Lightweight Antipodal Grasp Planning with Point Clouds (HTML)",
+    },
+    author: "Navin Sriram Ravie, Keerthi Vasan M, Asokan Thondiyath, Bijo Sebastian",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已读 HTML 正文：两指对跖抓取的 GWS 退化，GWS 体积与 epsilon 半径可能误导，对跖抓取最好的判据是力封闭本身；稳健力封闭指标扰动接触点 100 次。数字以论文为准；本页未运行。",
+      en: "HTML body read: the GWS of a two-finger antipodal grasp is degenerate, so GWS volume and the epsilon radius can mislead, and force closure itself is the best criterion for antipodal grasps; the robust force-closure metric perturbs contacts over 100 trials. Numbers 以论文为准; 本页未运行.",
+    },
+    license: {
+      zh: "以原文为准",
+      en: "See original terms",
+    },
+    extra: true,
+  },
+  "dexnet2-pdf": {
+    id: "dexnet2-pdf",
+    url: "https://arxiv.org/pdf/1703.09312.pdf",
+    title: {
+      zh: "Dex-Net 2.0：用合成点云与解析抓取指标学习稳健抓取（PDF）",
+      en: "Dex-Net 2.0: Deep Learning to Plan Robust Grasps with Synthetic Point Clouds and Analytic Grasp Metrics (PDF)",
+    },
+    author: "Jeffrey Mahler, Jacky Liang, Sherdil Niyaz, Michael Laskey, Richard Doan, Xinyu Liu, Juan Aparicio Ojea, Ken Goldberg",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已用 pdftotext 读正文：在物体表面采样对跖接触点对作候选，用力封闭概率、位姿与摩擦不确定下的稳健 epsilon 质量等解析指标标注 670 万合成点云，训练 GQ-CNN。数字以论文为准；GQ-CNN 与 GPU 本页未运行。",
+      en: "Body read via pdftotext: antipodal contact pairs sampled on the surface as candidates; analytic metrics such as probability of force closure and robust epsilon quality under pose and friction uncertainty label 6.7 million synthetic point clouds to train a GQ-CNN. Numbers 以论文为准; GQ-CNN and GPU 本页未运行.",
+    },
+    license: {
+      zh: "以原文为准",
+      en: "See original terms",
+    },
+    extra: true,
+  },
+  "minwork-pdf": {
+    id: "minwork-pdf",
+    url: "https://arxiv.org/pdf/1909.11226.pdf",
+    title: {
+      zh: "Minimal Work：面向可变形空心物体的抓取质量指标（PDF）",
+      en: "Minimal Work: A Grasp Quality Metric for Deformable Hollow Objects (PDF)",
+    },
+    author: "Jingyi Xu, Michael Danielczuk, Jeff Ichnowski, Jeffrey Mahler, Eckehard Steinbach, Ken Goldberg",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已用 pdftotext 读正文：力封闭 = 抓取力不设上限时可抵抗任意扰动力旋量；GWS 体积与 ε 指标常用，ε 是原点到 GWS 最近面的距离，GWS 常按力大小之和有界构造；可靠性指标问能否在最大夹紧力内抵抗目标力旋量。以论文为准。",
+      en: "Body read via pdftotext: force closure = resisting any disturbance wrench with unbounded grasp force; GWS volume and the ε-metric are common, ε being the distance from the origin to the nearest GWS facet, usually with a bounded sum of force magnitudes; the reliability metric asks whether a target wrench is resisted within the maximum closing force. 以论文为准.",
+    },
+    license: {
+      zh: "以原文为准",
+      en: "See original terms",
+    },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

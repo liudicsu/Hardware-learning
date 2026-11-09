@@ -1,6 +1,16 @@
 # Month 7 plan: Simulation, reinforcement learning & 3D perception
 
-Current / 当前：**M7 2250 min**, Batch-12 PR2. Earlier entries below retain their historical totals.
+Current / 当前：**M7 2430 min**, Batch-13 PR2. Earlier entries below retain their historical totals.
+
+## Batch-13 PR2 / 本月 H4 (+180)
+
+Base `a95f352` (batch-13 PR1 merged; site **29490**). PR2 on M7 host: **M7 2250→2430 (+180)**; M5 moves in the same PR on its own plan. Site **29490→29850**, still 71 lessons.
+
+- **H4 / perception-to-grasp: 300→480 (+180).** Planar two point contacts with Coulomb friction (cone edges `n ± μ t`), wrenches `(fx, fy, τ/L)`, L1 grasp wrench space = hull of four primitive wrenches; force closure = origin strictly inside; ε = distance to the nearest facet (stand-in, labelled); lift stand-in = resist one shared disturbance with total normal force ≤ 1 (exact check over wrench triples). Toy `antipodal_force_closure_toy.py`: shared true / perceived poses, 8 jaw candidates and disturbances (common random numbers, 5 seeds × 40 trials); arms random first candidate / largest-ε antipodal on the perceived object / B's grasp with μ = 0. disc_noisy_centre: B−A fc 0.3500±0.0685 clear 5/5, lift clear with 1 of 5 opposite; box_near_perfect: B−A fc **tie: identical on every seed**, eps and lift small but consistent; box_pose_error: fc clear 5/5 but lift near-tie (0.0600±0.0877), 100 of 200 picks force closure only on the perceived box; frictionless C never force closure. ≠ Dex-Net GQ-CNN; ≠ MoveIt collision-only; ≠ hand-eye. Real gripper / GPU 本页未运行.
+
+**Allocation / 安排:** 30+40+40+40+30=180 minutes.
+
+**Site accounting / 全站核算:** **29850=29490+360** with M5 +180 on month-5-plan.md; **M7=2430**, **71 lessons**.
 
 ## Batch-12 PR2 / 本月 H4 (+180)
 

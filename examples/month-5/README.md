@@ -41,3 +41,5 @@ bash examples/month-5/check.sh
 ## Batch-5 PR2 / 第5批 PR2
 
 `camera-calibration/stereo_depth_sigma_toy.py`: standard-library synthetic model; all expected output in `expected/stereo_depth_sigma_toy.txt`, checked by `check.sh`. No new dependency or hardware result. / 标准库合成模型，输出由 `check.sh` 对照；无新增依赖，不是硬件结果。
+
+`camera-calibration/eight_point_essential_toy.py`: standard-library synthetic two-view eight-point model (raw / Hartley / calibrated coordinates); all expected output in `expected/eight_point_essential_toy.txt`, checked by `check.sh`. No new dependency or hardware result. / 标准库合成两视图八点法模型，输出由 `check.sh` 对照；无新增依赖，不是硬件结果。

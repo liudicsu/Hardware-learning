@@ -1,6 +1,16 @@
 # Month 5 current plan / 第5个月当前计划
 
-Current / 当前：**M5 2310 min**, Batch-12 PR2. Older batch entries retain historical totals.
+Current / 当前：**M5 2490 min**, Batch-13 PR2. Older batch entries retain historical totals.
+
+## Batch-13 PR2 / 本月 H3 (+180)
+
+Base `a95f352` (batch-13 PR1 merged; site **29490**). PR2 on M5 host: **M5 2310→2490 (+180)**; M7 moves in the same PR on its own plan. Site **29490→29850**, still 71 lessons.
+
+- **H3 / camera-calibration: 420→600 (+180).** Essential matrix `E = [t]× R`, `(y′)ᵀ E y = 0`, eight-point rows, null vector by one-sided Jacobi SVD (no `YᵀY`), internal constraint `(s, s, 0)`, four-solution pose recovery with a cheirality vote; Hartley normalisation (centroid, mean distance √2). Toy `eight_point_essential_toy.py`: shared pose, 40 points, 40 held-out points and pixel noise (common random numbers, 5 seeds); arms raw pixels → F → E / Hartley pixels / calibrated `K⁻¹` coordinates. noise_free: all arms at round-off, B−A `t_deg` **tie: identical on every seed**, `e_err` near-tie, `epi_px` labelled clear at 10⁻¹³ px (round-off, disclosed); pixel_noise: B−A `e_err` −0.0683±0.0510 and `t_deg` −3.8675±2.8843 clear 5/5, `epi_px` near-tie; clustered (900, 500) ± 100 px: log10(s₁/s₈) 6.54 vs 1.17, B−A `epi_px` −204.7447±197.8867 clear 5/5; every noisy C−B line a near-tie; tiny_baseline 1 cm: every arm loses the translation direction (64–90°) while `epi_px` stays ≈ 1 px (metric blind to t). ≠ stereo depth σ rewrite; ≠ IBVS; ≠ PCA normals. Real camera / OpenCV 本页未运行.
+
+**Allocation / 安排:** 30+40+40+40+30=180 minutes.
+
+**Site accounting / 全站核算:** **29850=29490+360** with M7 +180 on month-7-plan.md; **M5=2490**, **71 lessons**.
 
 ## Batch-12 PR2 / 本月 H3 (+180)
 

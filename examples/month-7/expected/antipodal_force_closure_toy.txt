@@ -1,0 +1,42 @@
+Synthetic planar two-finger grasps; shared perceived poses / jaw candidates / disturbances; not a real gripper
+seeds=5 trials=40 candidates=8; wrench (fx, fy, tau/L), L = largest radius; sum of normal forces <= 1
+regime arm fc eps lift  (mean+-sd over seeds of the per-seed trial means)
+disc_noisy_centre (disc 40x40 mm half, mu=0.5, centre sd=0.25 x size, angle sd=0 deg, random candidates)
+disc_noisy_centre A_random 0.5400+-0.0994 0.0952+-0.0196 0.5100+-0.0945
+disc_noisy_centre B_antipodal 0.8900+-0.0548 0.1772+-0.0139 0.6350+-0.0742
+disc_noisy_centre C_frictionless 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+disc_noisy_centre paired B-A fc: 0.3500+-0.0685: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+disc_noisy_centre paired B-A eps: 0.0820+-0.0136: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+disc_noisy_centre paired B-A lift: 0.1250+-0.1173: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+disc_noisy_centre paired C-B fc: -0.8900+-0.0548: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+disc_noisy_centre paired C-B eps: -0.1772+-0.0139: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+disc_noisy_centre paired C-B lift: -0.6350+-0.0742: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+disc_noisy_centre torque scale L/2 changes B's pick on 0 of 200 trials; B's pick is force closure on the perceived object but not on the true one in 22 of 200
+box_near_perfect (box 40x25 mm half, mu=0.5, centre sd=0.0 x size, angle sd=0 deg, aligned candidates)
+box_near_perfect A_random 1.0000+-0.0000 0.2498+-0.0077 0.8600+-0.0224
+box_near_perfect B_antipodal 1.0000+-0.0000 0.2982+-0.0010 0.9150+-0.0518
+box_near_perfect C_frictionless 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+box_near_perfect paired B-A fc: 0.0000+-0.0000: tie: identical on every seed
+box_near_perfect paired B-A eps: 0.0484+-0.0071: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+box_near_perfect paired B-A lift: 0.0550+-0.0411: small but consistent gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+box_near_perfect paired C-B fc: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+box_near_perfect paired C-B eps: -0.2982+-0.0010: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+box_near_perfect paired C-B lift: -0.9150+-0.0518: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+box_near_perfect torque scale L/2 changes B's pick on 12 of 200 trials; B's pick is force closure on the perceived object but not on the true one in 0 of 200
+box_pose_error (box 40x25 mm half, mu=0.3, centre sd=0.25 x size, angle sd=20 deg, random candidates)
+box_pose_error A_random 0.2550+-0.0837 0.0202+-0.0056 0.1350+-0.0335
+box_pose_error B_antipodal 0.4650+-0.0576 0.0383+-0.0089 0.1950+-0.0570
+box_pose_error C_frictionless 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+box_pose_error paired B-A fc: 0.2100+-0.1220: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+box_pose_error paired B-A eps: 0.0180+-0.0129: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+box_pose_error paired B-A lift: 0.0600+-0.0877: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+box_pose_error paired C-B fc: -0.4650+-0.0576: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+box_pose_error paired C-B eps: -0.0383+-0.0089: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+box_pose_error paired C-B lift: -0.1950+-0.0570: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+box_pose_error torque scale L/2 changes B's pick on 14 of 200 trials; B's pick is force closure on the perceived object but not on the true one in 100 of 200
+disc_noisy_centre: a random jaw line misses the true centre; ranking by epsilon finds lines near a diameter
+box_near_perfect: every candidate is already face-to-face, so force closure cannot separate A and B
+box_pose_error: B ranks on a wrongly posed box; it still raises fc, but its lift gain stays within seed noise
+C_frictionless: two frictionless point contacts are never force closure in the plane (eps = 0)
+No winner declared; eps is blind to the task's actual disturbance direction and to the torque scale L
+Real gripper / Dex-Net GQ-CNN / GPU: 本页未运行; paper statements 以论文为准
