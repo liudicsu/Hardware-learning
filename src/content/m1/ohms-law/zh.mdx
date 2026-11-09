@@ -175,6 +175,248 @@ Uno 的 ADC 公式 V = raw × 5 / 1023 会在第 2 个月的 Arduino I/O 用到�
 - 能解释分压器接上负载后输出为什么下降，以及什么时候该改用稳压器。
 - 把仿真器当作对推理的检查，而不是替代品。
 
+## 戴维南与诺顿等效
+
+上面「负载」一节为一个负载手算了 `R2 ∥ RL`。负载一换（传感器、ADC 输入、测试电阻），每次都重算就很慢；更快的做法是把输出端背后的整个网络一次性压缩成**两个数**。本节讲的就是这一步。它**不是**下一课的惠斯通电桥，也**不只是**万用表那一课里「量开路电压」的小提示。
+
+<Resource id="wiki-thevenin" />
+
+**实际打开并读过正文的来源（HTML 正文）。**
+
+- **Wikipedia — 戴维南定理（Thévenin's theorem）：** 任何只含电压源、电流源和电阻的线性网络，在两个端子上都可以用一个电压源 `Vth` 串联一个电阻 `Rth` 代替。`Vth` 是端子开路时的电压；`Rth` 是把理想电压源换成短路、电流源换成开路后从端子看进去的电阻，也可以用 `Vth` 除以端子短路电流得到。数字以原文为准。
+- **Wikipedia — 诺顿定理（Norton's theorem）：** 对偶形式，一个电流源 `In`（短路电流）并联 `Rn`；`Rn = Rth`，`Vth = In × Rn`。文中的算例（一个 15 V 网络化成 3.75 mA 并联 2 kΩ）以原文为准。
+
+### 本课分压器的两个数
+
+还是练习用的分压器：5 V，上面 R1 = 10 kΩ，下面 R2 = 4.7 kΩ 接地。
+
+1. 开路（不接负载）：`Vth = 5 × 4.7 / 14.7 = 1.5986 V`，就是熟悉的 1.6 V。
+2. 把电源置零（5 V 电源换成一根导线）：从输出端看，R1 和 R2 都接到地，所以 `Rth = 10 kΩ ∥ 4.7 kΩ = 3197 Ω ≈ 3.2 kΩ`。
+
+<Formula label="戴维南带载电压">V_L = Vth × RL / (Rth + RL)</Formula>
+
+RL = 10 kΩ 时：`1.5986 × 10 / 13.197 = 1.2113 V`，和「负载」一节用 `R2 ∥ RL` 算出的约 1.21 V 一致。诺顿形式是 `In = Vth / Rth = 0.5000 mA` 并联 `Rn = 3197 Ω`，`In × (Rn ∥ RL)` 同样得到 1.2113 V。这个公式也解释了「10 倍」经验：只看 `Vth` 的相对误差是 `Rth / (Rth + RL)`。RL = 47 kΩ（10 × R2）时是 `3.197 / 50.2 ≈ 6.4 %`；因为 `Rth` 总小于 R2，「10 × R2」是偏保守的替代说法，真正决定误差的是 RL 和 **Rth** 之比。
+
+### 在实验台上测 Rth
+
+- **用已知测试电阻读两次。** 先读 `Voc`，再接上已知的 `Rtest` 读 `Vtest`。因为 `Vtest = Voc × Rtest / (Rth + Rtest)`，所以 `Rth = Rtest × (Voc / Vtest − 1)`。
+- **短路电流。** `Rth = Voc / Isc`。电流表不是理想短路：它的负担电阻（burden）串在回路里，读到的是 `Voc / (Rth + R_burden)`。不要为了测这个去短路电池或能输出大电流的电源。
+
+### 公平设置
+
+`thevenin_loaded_divider_toy.py` 是**合成**模型，只用标准库。**模型假设：** 电阻是线性的；5 V 电源是理想的，没有内阻也不漂移；每个电阻（R1、R2、RL、Rtest）都是均匀分布的 1 % 元件；表的读数带 1 mV（电压）或 1 µA（电流）的高斯噪声，除此之外是理想的（不加载被测电路）；电流表带一个**合成的 100 Ω 负担电阻**（故意放大的替身，真实值取决于表和量程）；`Rtest` 按标称值参与计算。真值是用实际元件在输出节点上独立做 KCL 求解得到的。
+
+| 组 | 带载电压的预测方法 |
+|---|---|
+| A_voc_only | `V_L = Voc`（忽略 Rth） |
+| B_thevenin | `Vth = Voc`，`Rth` 用两次读数法，再代入上面的公式 |
+| C_norton | `In` 为经过 100 Ω 负担电阻读到的短路电流，`Rn = Voc / In`，`V_L = In × (Rn ∥ RL)` |
+
+**公共随机数：** 每个（种子、板子）的实际 R1、R2、RL、Rtest 和表的噪声只抽一次，三组共用；三组用的是同一个 `Voc` 读数。5 个种子 × 每个种子 32 块板；指标是每个种子的平均 `|V_pred − V_true|`，报告各种子之间的 mean±sd。这个指标只给带载电压打分，**看不见**短路读数的风险（真实电源可能被损坏）、各方法花的时间，以及测试电阻上的功耗。
+
+### 运行标准库模型
+
+```bash
+cd ~/Hardware-learning/examples/month-1/ohms-law
+python3 thevenin_loaded_divider_toy.py
+```
+
+<CodeSource path="examples/month-1/ohms-law/thevenin_loaded_divider_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic Thevenin / Norton equivalent of a loaded divider. Stdlib only.
+
+Network (linear resistors, ideal 5 V source, no source resistance):
+  Vs --R1-- out --R2-- GND, load RL from out to GND. Nominal R1 = 10 kOhm,
+  R2 = 4.7 kOhm (the lesson's divider), so Vth = 1.5986 V, Rth = R1||R2 = 3197 Ohm.
+
+Truth: KCL at node out with the ACTUAL (toleranced) parts:
+  (Vs - V)/R1 = V/R2 + V/RL   ->   V = (Vs/R1) / (1/R1 + 1/R2 + 1/RL)
+
+Every arm predicts the loaded voltage from bench measurements of the unloaded
+network, then is scored against that truth:
+  A_voc_only   V_L = Voc                       (ignores Rth)
+  B_thevenin   Vth = Voc; Rth from a second reading with a known 10 kOhm test
+               resistor: Rth = Rtest_nominal * (Voc/Vtest - 1);
+               V_L = Vth * RL / (Rth + RL)
+  C_norton     In = short-circuit current read through an ammeter with a
+               100 Ohm burden; Rn = Voc / In; V_L = In * (Rn || RL)
+
+Common random numbers: per (seed, board) the actual R1, R2, RL and Rtest (1 %
+parts, uniform) and the meter noise draws z1 (Voc), z2 (Vtest / Isc) are drawn
+once and shared by every arm. The meter is otherwise ideal (no input loading).
+
+Regimes (5 seeds x 32 boards): heavy_load RL = 3.3 kOhm (about Rth),
+lesson_load RL = 10 kOhm, light_load RL = 10 MOhm (A is a near-tie / small gap).
+No presumed winner. Real DMM / bench Thevenin lab: 本页未运行.
+"""
+from __future__ import annotations
+
+import math
+import random
+
+VS = 5.0  # V, ideal source
+R1_NOM = 10_000.0  # Ohm
+R2_NOM = 4_700.0  # Ohm
+RTEST_NOM = 10_000.0  # Ohm, known test resistor for the two-reading Rth method
+TOL = 0.01  # 1 % parts, uniform
+V_NOISE = 1e-3  # V, meter reading sd (about one count on a 2 V range)
+I_NOISE = 1e-6  # A, meter reading sd (about one count on a 2 mA range)
+R_BURDEN = 100.0  # Ohm, ammeter burden in series during the short-circuit reading
+SEEDS = (0, 1, 2, 3, 4)
+BOARDS = 32
+ARMS = ("A_voc_only", "B_thevenin", "C_norton")
+REGIMES = (("heavy_load", 3_300.0), ("lesson_load", 10_000.0), ("light_load", 10_000_000.0))
+
+
+def thevenin(vs: float, r1: float, r2: float) -> tuple[float, float]:
+    """Open-circuit voltage and resistance seen at `out` with the source zeroed."""
+    return vs * r2 / (r1 + r2), r1 * r2 / (r1 + r2)
+
+
+def truth_kcl(vs: float, r1: float, r2: float, rl: float) -> float:
+    """Loaded node voltage from KCL, independent of the equivalent circuits."""
+    return (vs / r1) / (1.0 / r1 + 1.0 / r2 + 1.0 / rl)
+
+
+def parallel(a: float, b: float) -> float:
+    return a * b / (a + b)
+
+
+def shared_board(seed: int, board: int, rl_nom: float) -> dict:
+    """Common random numbers: one draw per (seed, board), shared by every arm."""
+    rng = random.Random(1_000_003 * seed + 7_919 * board + int(rl_nom) % 100_003)
+    tol = lambda nom: nom * (1.0 + rng.uniform(-TOL, TOL))  # noqa: E731
+    return {
+        "r1": tol(R1_NOM),
+        "r2": tol(R2_NOM),
+        "rl": tol(rl_nom),
+        "rtest": tol(RTEST_NOM),
+        "z1": rng.gauss(0.0, 1.0),
+        "z2": rng.gauss(0.0, 1.0),
+    }
+
+
+def predict(arm: str, b: dict) -> float:
+    vth, rth = thevenin(VS, b["r1"], b["r2"])
+    voc = vth + V_NOISE * b["z1"]  # same reading for every arm
+    if arm == "A_voc_only":
+        return voc
+    if arm == "B_thevenin":
+        vtest = truth_kcl(VS, b["r1"], b["r2"], b["rtest"]) + V_NOISE * b["z2"]
+        rth_hat = RTEST_NOM * (voc / vtest - 1.0)  # uses the NOMINAL test value
+        return voc * b["rl"] / (rth_hat + b["rl"])
+    if arm == "C_norton":
+        isc = vth / (rth + R_BURDEN) + I_NOISE * b["z2"]  # burden lowers the reading
+        rn_hat = voc / isc
+        return isc * parallel(rn_hat, b["rl"])
+    raise ValueError(arm)
+
+
+def mean_sd(xs: list[float]) -> tuple[float, float]:
+    mu = sum(xs) / len(xs)
+    var = sum((x - mu) ** 2 for x in xs) / (len(xs) - 1)
+    return mu, math.sqrt(var)
+
+
+def run_regime(rl_nom: float) -> dict:
+    """Per arm: per-seed mean |V_pred - V_true| over the boards, in mV."""
+    out = {arm: [] for arm in ARMS}
+    for seed in SEEDS:
+        boards = [shared_board(seed, i, rl_nom) for i in range(BOARDS)]
+        for arm in ARMS:
+            errs = [abs(predict(arm, b) - truth_kcl(VS, b["r1"], b["r2"], b["rl"])) for b in boards]
+            out[arm].append(1e3 * sum(errs) / len(errs))
+    return out
+
+
+def main() -> None:
+    vth, rth = thevenin(VS, R1_NOM, R2_NOM)
+    print("Synthetic Thevenin/Norton toy; shared parts and meter-noise draws; not a bench lab")
+    print(
+        f"nominal Vs={VS}V R1={R1_NOM:.0f}ohm R2={R2_NOM:.0f}ohm -> Vth={vth:.4f}V Rth={rth:.1f}ohm; "
+        f"tol={TOL * 100:.0f}% V_noise={V_NOISE * 1e3:.0f}mV I_noise={I_NOISE * 1e6:.0f}uA "
+        f"burden={R_BURDEN:.0f}ohm seeds={len(SEEDS)} boards={BOARDS}"
+    )
+    print(
+        f"nominal check: RL=10k -> V_L = Vth*RL/(Rth+RL) = {vth * 1e4 / (rth + 1e4):.4f} V; "
+        f"KCL = {truth_kcl(VS, R1_NOM, R2_NOM, 1e4):.4f} V; Norton In=Vth/Rth={vth / rth * 1e3:.4f} mA"
+    )
+    print("regime RL_ohm arm |V_pred-V_true|_mV (mean+-sd over seeds)")
+    summary = {}
+    paired = {}
+    for name, rl in REGIMES:
+        res = run_regime(rl)
+        paired[name] = mean_sd([x - y for x, y in zip(res["A_voc_only"], res["B_thevenin"])])
+        for arm in ARMS:
+            m, s = mean_sd(res[arm])
+            summary[(name, arm)] = (m, s)
+            print(f"{name} {rl:.0f} {arm} {m:.4f}+-{s:.4f}")
+    a, b, c = (summary[("light_load", x)] for x in ARMS)
+    print(
+        f"light_load: A {a[0]:.4f}+-{a[1]:.4f} mV vs B {b[0]:.4f}+-{b[1]:.4f} mV vs "
+        f"C {c[0]:.4f}+-{c[1]:.4f} mV (near-tie / small gap: A's bias Vth*Rth/(Rth+RL) "
+        f"is about {vth * rth / (rth + 1e7) * 1e3:.2f} mV, the same order as the 1 mV meter noise)"
+    )
+    pm, ps = paired["light_load"]
+    print(f"light_load paired per-seed A-B = {pm:.4f}+-{ps:.4f} mV (A still slightly worse; not a tie)")
+    a, b, c = (summary[("heavy_load", x)] for x in ARMS)
+    print(
+        f"heavy_load: A {a[0]:.1f} mV >> B {b[0]:.2f} mV; C {c[0]:.2f} mV "
+        f"(Norton = Thevenin on paper; C's extra error is the ammeter burden, a measurement cost)"
+    )
+    print("No winner declared: Voc alone is fine only when RL >> Rth; B and C differ only by how they were measured")
+    print("Real DMM / bench Thevenin lab: 本页未运行; Wikipedia numbers 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic Thevenin/Norton toy; shared parts and meter-noise draws; not a bench lab
+nominal Vs=5.0V R1=10000ohm R2=4700ohm -> Vth=1.5986V Rth=3197.3ohm; tol=1% V_noise=1mV I_noise=1uA burden=100ohm seeds=5 boards=32
+nominal check: RL=10k -> V_L = Vth*RL/(Rth+RL) = 1.2113 V; KCL = 1.2113 V; Norton In=Vth/Rth=0.5000 mA
+regime RL_ohm arm |V_pred-V_true|_mV (mean+-sd over seeds)
+heavy_load 3300 A_voc_only 786.7609+-1.2073
+heavy_load 3300 B_thevenin 2.0170+-0.3716
+heavy_load 3300 C_norton 12.2896+-0.1410
+lesson_load 10000 A_voc_only 387.3881+-0.5373
+lesson_load 10000 B_thevenin 1.6502+-0.1055
+lesson_load 10000 C_norton 9.1280+-0.0451
+light_load 10000000 A_voc_only 0.9879+-0.0646
+light_load 10000000 B_thevenin 0.8726+-0.0370
+light_load 10000000 C_norton 0.8729+-0.0364
+light_load: A 0.9879+-0.0646 mV vs B 0.8726+-0.0370 mV vs C 0.8729+-0.0364 mV (near-tie / small gap: A's bias Vth*Rth/(Rth+RL) is about 0.51 mV, the same order as the 1 mV meter noise)
+light_load paired per-seed A-B = 0.1153+-0.0588 mV (A still slightly worse; not a tie)
+heavy_load: A 786.8 mV >> B 2.02 mV; C 12.29 mV (Norton = Thevenin on paper; C's extra error is the ammeter burden, a measurement cost)
+No winner declared: Voc alone is fine only when RL >> Rth; B and C differ only by how they were measured
+Real DMM / bench Thevenin lab: 本页未运行; Wikipedia numbers 以原文为准
+```
+
+</SimOutput>
+
+### 读懂各情形
+
+- **heavy_load（RL = 3.3 kΩ，约等于 Rth）：** A 偏差 786.7609±1.2073 mV，因为节点实际只有约 0.81 V，而 `Voc` 说是 1.60 V。B 偏差 2.0170±0.3716 mV，C 偏差 12.2896±0.1410 mV。
+- **lesson_load（RL = 10 kΩ）：** A 387.3881±0.5373 mV，B 1.6502±0.1055 mV，C 9.1280±0.0451 mV。
+- **light_load（RL = 10 MΩ）：** A 0.9879±0.0646 mV，B 0.8726±0.0370 mV，C 0.8729±0.0364 mV。这是**接近打平、差距很小**，不是打平：按种子配对的 A−B 差是 0.1153±0.0588 mV。原因是 A 的偏差 `Vth × Rth / (Rth + RL)` 只有约 0.51 mV，和 1 mV 的读数噪声同一量级，有一部分被噪声盖住了。B 和 C 在这里也是接近打平、差距很小，因为 RL 很大时 `Rn` 的误差几乎不起作用。
+
+诺顿和戴维南**在纸面上是同一个电路**；C 在重载和本课负载下误差更大，来自测量方式（因为负担电阻，`Rn` 实际是 `Rth + 100 Ω`），不是定理的问题。本页**不宣布普遍赢家**：只有 `RL ≫ Rth` 时单看 `Voc` 才够用；最好的等效电路是你认真测出来的那一个。真实万用表 / 实验台戴维南实验：**本页未运行**。
+
+**150 分钟安排：** 30 分钟读戴维南和诺顿两页；30 分钟手推 `Vth`、`Rth` 和 1.2113 V 的核对；40 分钟运行模型、读懂三种情形；30 分钟固定种子改 RL 和负担电阻；20 分钟写下什么时候只看 `Voc` 就够了。
+
+### 练习
+
+1. 从分压公式推出 `Rth = Rtest × (Voc / Vtest − 1)`，再算 `Voc = 1.5986 V`、10 kΩ 测试电阻下 `Vtest = 1.2113 V` 时的 `Rth`。
+2. 把本课的戴维南参数（1.5986 V，3197 Ω）换成诺顿形式，验证 RL = 4.7 kΩ 时两者给出相同的 `V_L`。
+3. 从模型里的 `shared_board` 说明：同一个种子、同一块板，A、B、C 用的是同一组元件和同一个 `Voc` 读数。
+4. 固定种子，把负担电阻改成 10 Ω。运行前先预测哪种情形下 C 的误差变化最大。
+5. 在任何实验台测量之前（本页未运行），说明为什么轻载下的**接近打平、差距很小**并**不**意味着 `Voc` 可以用来预测 3.3 kΩ 负载下的电压。
+
 <Summary>
 
 **本课要点**
@@ -185,6 +427,7 @@ Uno 的 ADC 公式 V = raw × 5 / 1023 会在第 2 个月的 Arduino I/O 用到�
 - 分压公式 Vout = Vin × R2 / (R1 + R2)：5 V、R1 = 10 kΩ、R2 = 4.7 kΩ 时 Vout ≈ 1.6 V。
 - 带载不可忽略：给 R2 并上 10 kΩ 负载，输出掉到约 1.2 V，下降 25 %，所以负载至少要是 R2 的 10 倍。
 - 电池接 ADC：8.4 V 经 10 kΩ / 10 kΩ 分压得到 4.20 V，静态电流 0.42 mA。
+- 戴维南 / 诺顿：练习分压器可以压缩成 `Vth = 1.5986 V` 串 `Rth ≈ 3.2 kΩ`（诺顿形式 0.5 mA ∥ 3.2 kΩ），`V_L = Vth × RL / (Rth + RL)` 在 10 kΩ 下复现 1.21 V；只有 RL ≫ Rth 时单看 `Voc` 才**接近打平、差距很小**——不是实验台实验。
 
 **常见错误**
 

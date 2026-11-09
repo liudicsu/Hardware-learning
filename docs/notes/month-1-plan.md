@@ -1,6 +1,16 @@
 # Month 1 plan / 第 1 个月计划
 
-Current / 当前：**M1 1350 min**, Batch-11 PR1. Earlier entries below retain their historical totals.
+Current / 当前：**M1 1500 min**, Batch-12 PR1. Earlier entries below retain their historical totals.
+
+## Batch-12 PR1 / 本月 H1 (+150)
+
+Base `a4b3b93` (batch-11 closed incl. polish #148; site **28050**). PR1 only on M1 host: **M1 1350→1500 (+150)**; M4 moves in the same PR on its own plan. Site **28050→28380**, still 71 lessons.
+
+- **H1 / 1.1 ohms-law: 90→240 (+150).** Thévenin / Norton equivalent of the lesson's loaded divider (`Vth = 1.5986 V`, `Rth ≈ 3197 Ω`, `In = 0.5 mA`); shared parts and meter-noise draws (common random numbers, 5 seeds × 32 boards); arms Voc-only / Thévenin two-reading / Norton short-circuit with ammeter burden; heavy and lesson load Voc-only loses; light load (RL = 10 MΩ) is a **near-tie / small gap** (paired A−B 0.1153±0.0588 mV), not a tie. ≠ Wheatstone; ≠ multimeter open-circuit tip alone. Real bench lab 本页未运行. / 戴维南与诺顿等效，不宣布实验台实验。
+
+**Allocation / 安排:** 30+30+40+30+20=150 minutes.
+
+**Site accounting / 全站核算:** **28380=28050+330** with M4 +180 on month-4-plan.md; **M1=1500**, **71 lessons**.
 
 ## Batch-11 PR1 / 本月 H1 (+180)
 
