@@ -6,7 +6,7 @@ Current / 当前：**M11 3420 min**, Batch-10 PR2. Earlier entries below retain 
 
 Base `59aa6df`. PR2 only on M11 host: **M11 3210→3420 (+210)**; M1 +150 on month-1-plan.md. Site **26160→26520**, still 71 lessons.
 
-- **H6 / 11.1 power-battery-emc: 480→690 (+210).** Shared-return ground-loop IR vs star vs kelvin; shared motor pulses + R map; bounce / false ADC counts; ≥5 seeds; ≠ SoC shunt-bias; ≠ shield prose-only. Chassis 本页未运行. / 共享回流跳动，不宣布暗室结果。
+- **H6 / 11.1 power-battery-emc: 480→690 (+210).** Shared-return ground-loop IR vs star vs kelvin; V=I·R literacy; physical I_bias·R_sense; R_MOTOR_FEED reported off sense; L·di/dt not modelled; ≥5 seeds; ≠ SoC shunt-bias; ≠ shield prose-only. Chassis 本页未运行. / 共享回流跳动，不宣布暗室结果。
 
 **Allocation / 安排:** 45+45+45+45+30=210 minutes.
 

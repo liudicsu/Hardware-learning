@@ -6104,16 +6104,16 @@ print("protocol pass")
   const cur=read("src/lib/curriculum.ts"), res=read("src/lib/resources.ts");
   const cases=[
     [1,"components","esd_tvs_clamp_toy",420,["## ESD and TVS","## ESD 与 TVS"],
-      ["HBM C=100pF R=1500ohm","seeds=5","A_unprotected 1848.1636+-94.2491","B_tvs 17.6306+-0.0041","C_series_tvs 17.6225+-0.0148","No winner declared"],
-      ["100 pF","1500 Ω","VRWM","VCLAMP","A_unprotected","B_tvs","C_series_tvs","以原文为准","本页未运行"],
-      {en:["**not** the supply-dip","**synthetic**","No winner is declared","not** an IEC"],zh:["**不是**上面的电源跌落","**合成**","不宣布赢家","不是** IEC"]},
-      {en:["ESD/TVS","100 pF","1500 Ω","IEC"],zh:["ESD/TVS","100 pF","1500 Ω","IEC"]},
+      ["HBM C=100pF R=1500ohm","seeds=5","Isc≈1.333A","A_unprotected 1848.1879+-94.2503","B_tvs 9.9293+-0.0988","C_series_tvs 9.8460+-0.0946","No winner declared"],
+      ["100 pF","1500 Ω","VRWM","VBR","VCLAMP","RDYN","A_unprotected","B_tvs","C_series_tvs","以原文为准","本页未运行"],
+      {en:["**not** the supply-dip","**synthetic**","No winner is declared","not** an IEC","VRWM < VBR < VCLAMP"],zh:["**不是**上面的电源跌落","**合成**","不宣布赢家","不是** IEC","VRWM < VBR < VCLAMP"]},
+      {en:["ESD/TVS","100 pF","1500 Ω","IEC","VCLAMP"],zh:["ESD/TVS","100 pF","1500 Ω","IEC","VCLAMP"]},
       ["ti-ssya010","ti-slvae37"]],
     [11,"power-battery-emc","ground_loop_return_ir_toy",690,["## Shared-return ground loop","## 共享回流地环"],
-      ["seeds=5","A_shared_return 382.2967+-7.8133","B_star 67.9639+-1.3890","C_star_kelvin 1.0195+-0.0208","No winner declared"],
-      ["star ground","ground loop","A_shared_return","B_star","C_star_kelvin","382","68","1 mV","以原文为准","本页未运行"],
-      {en:["**not** the SoC shunt-bias","**synthetic**","does not declare a universal wiring winner","not an EMC chamber"],zh:["**不是** SoC 分流偏置","**合成**","不宣布","不是 EMC 暗室"]},
-      {en:["Shared-return","hundreds of mV","~1 mV"],zh:["共享回流","数百 mV","1 mV"]},
+      ["seeds=5","A_shared_return 382.2967+-7.8133","B_star 67.9639+-1.3890","C_star_kelvin 0.0060+-0.0000","No winner declared"],
+      ["star ground","ground loop","A_shared_return","B_star","C_star_kelvin","382","68","I_ADC_BIAS","R_MOTOR_FEED","以原文为准","本页未运行"],
+      {en:["**not** the SoC shunt-bias","**synthetic**","does not declare a universal wiring winner","not an EMC chamber","L·di/dt"],zh:["**不是** SoC 分流偏置","**合成**","不宣布","不是 EMC 暗室","L·di/dt"]},
+      {en:["Shared-return","V=I·R","L·di/dt"],zh:["共享回流","V=I·R","L·di/dt"]},
       ["ti-slyt512"]],
   ];
   for(const [month,slug,toy,minutes,heads,outputs,markers,langMarkers,summaryMarkers,ids] of cases){

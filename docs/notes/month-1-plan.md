@@ -6,7 +6,7 @@ Current / 当前：**M1 1170 min**, Batch-10 PR2. Earlier entries below retain t
 
 Base `59aa6df` (batch-10 PR1 merged; site **26160**). PR2 only on M1 host: **M1 1020→1170 (+150)**; M11 moves in the same PR on its own plan. Site **26160→26520**, still 71 lessons.
 
-- **H3 / 1.2 components: 270→420 (+150).** ESD/TVS: shared HBM-style pulse (SSYA010A 100 pF/1500 Ω); unprotected vs TVS vs series+TVS; peak pin / clamp energy; ≥5 seeds; no IEC claim. ESD gun 本页未运行. / 钳位取舍，不宣布 IEC 合格。
+- **H3 / 1.2 components: 270→420 (+150).** ESD/TVS: shared HBM-style pulse (SSYA010A 100 pF/1500 Ω, I_sc≈V/1500 Ω); BE 1 ps / ≥5τ; unprotected vs connector-TVS vs series+IC-clamp; VRWM<VBR<VCLAMP (SLVAE37); ≥5 seeds; no IEC claim. ESD gun 本页未运行. / 钳位取舍，不宣布 IEC 合格。
 
 **Allocation / 安排:** 30+30+45+30+15=150 minutes.
 

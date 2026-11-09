@@ -35,12 +35,12 @@ const month1Lessons: Lesson[] = [
     slug: "components",
     title: { zh: "元件、原理图与晶体管开关", en: "Components, schematics & the transistor switch" },
     summary: {
-      zh: "认识电阻、电容、二极管/LED、晶体管，读懂原理图，理解上拉/下拉、去耦电容与电池安全。再用共享 HBM 风格脉冲比较无保护 / TVS 钳位 / 串联+TVS 的引脚峰值与钳位能量。",
-      en: "Meet resistors, capacitors, diodes/LEDs and transistors, read schematics, and understand pull-ups, decoupling and battery safety. Then compare unprotected / TVS / series+TVS pin peak and clamp energy on a shared HBM-style pulse.",
+      zh: "认识电阻、电容、二极管/LED、晶体管，读懂原理图，理解上拉/下拉、去耦电容与电池安全。再用共享 HBM 风格脉冲比较无保护 / 连接器 TVS / 串联+IC 钳位的引脚峰值与钳位电流。",
+      en: "Meet resistors, capacitors, diodes/LEDs and transistors, read schematics, and understand pull-ups, decoupling and battery safety. Then compare unprotected / connector-TVS / series+IC-clamp pin peaks and clamp currents on a shared HBM-style pulse.",
     },
     minutes: 420,
     objectives: [
-      { zh: "在共享 HBM 风格脉冲下比较无保护 / TVS / 串联+TVS 的引脚峰值与钳位能量，说明 VRWM/VCLAMP，不声称 IEC 认证。", en: "Compare unprotected / TVS / series+TVS pin peak and clamp energy on a shared HBM-style pulse; explain VRWM/VCLAMP; no IEC certification claim." },
+      { zh: "在共享 HBM 风格脉冲下比较无保护 / 连接器 TVS / 串联+IC 钳位的连接器与 IC 引脚峰值及钳位电流，说明 VRWM < VBR < VCLAMP，不声称 IEC 认证。", en: "Compare unprotected / connector-TVS / series+IC-clamp connector and IC-pin peaks and clamp currents on a shared HBM-style pulse; explain VRWM < VBR < VCLAMP; no IEC certification claim." },
       { zh: "用串联 ESL+ESR+C、等总电容与共享脉冲比较放置 / 单颗容量、SRF 和最低电压；不声称 EMC 认证。", en: "Use series ESL+ESR+C, equal total capacitance and shared pulses to compare placement/part values, SRF and minimum rail; no EMC certification claim." },
       { zh: "能识别电阻、电容、二极管、LED、NPN 三极管和 GND 的符号，并读懂连接点、交叉无点和同名网络标号。", en: "Read resistor, capacitor, diode, LED, NPN transistor and GND symbols, junction dots, dot-less crossings and same-net labels." },
       { zh: "能计算 τ = R × C 并掌握 63 % 与 99 % 两个节点，会在每个 IC 的 VCC 与 GND 之间放置 100 nF 去耦电容。", en: "Calculate τ = R × C with the 63 % and 99 % milestones, and place a 100 nF decoupling capacitor at each IC's VCC and GND." },
@@ -50,7 +50,7 @@ const month1Lessons: Lesson[] = [
     prereqs: ["ohms-law"],
     resources: ["falstad", "tinkercad", "aac", "make-electronics", "ti-sn74hc14-decoupling", "ti-ssya010", "ti-slvae37"],
     tasks: [
-      { id: "b10p2-esd", text: { zh: "运行 esd_tvs_clamp_toy.py，比较无保护 / TVS / 串联+TVS 的峰值与钳位能量，并手算 HBM ½CV²", en: "Run esd_tvs_clamp_toy.py, compare unprotected/TVS/series+TVS peak and clamp energy, and compute HBM ½CV² by hand" } },
+      { id: "b10p2-esd", text: { zh: "运行 esd_tvs_clamp_toy.py，比较无保护 / 连接器 TVS / 串联+IC 钳位的峰值与钳位电流，并手算 HBM ½CV² 与 V/1500 Ω", en: "Run esd_tvs_clamp_toy.py, compare unprotected/connector-TVS/series+IC-clamp peaks and clamp currents, and compute HBM ½CV² and V/1500 Ω by hand" } },
       { id: "b6p1", text: { zh: "运行 supply_dip_decoupling_toy.py，核对等总电容的串联 ESL+ESR+C、SRF 与同一脉冲下最低电压", en: "Run supply_dip_decoupling_toy.py, check equal-total-C series ESL+ESR+C, SRF and minimum rail under identical pulses" } },
       { id: "led-resistor", text: { zh: "为 5V 驱动的红色 LED（2V，10mA）计算限流电阻", en: "Calculate the current-limiting resistor for a red LED (2 V, 10 mA) on 5 V" } },
       { id: "transistor-sim", text: { zh: "在 Falstad 中运行晶体管开关电路，用开关模拟 3.3V 逻辑引脚控制 LED", en: "Run the transistor-switch circuit in Falstad and use the switch as a 3.3 V logic pin driving the LED" } },
