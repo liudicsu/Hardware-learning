@@ -581,9 +581,9 @@ load encoder has more information; no universal winner; finite-window candidate,
 5. (20 min) Propose an output encoder/preload trade-off and name the extra information or mechanical cost; no real reducer claim.
 
 
-## Load-dependent gear efficiency
+## Gear efficiency under load
 
-The arithmetic above treats efficiency as a **constant** η (the printed-gear guess 0.9 per stage). Real mesh loss is **load-dependent**: a Coulomb (load-ish / speed-sign) term plus a viscous term that grows with speed. Wikipedia’s gear-train virtual-work analysis assumes gears are **rigid** and there are **no losses** in tooth engagement — useful for ideal ratio, not for η(τ,ω). This section is **not** the backlash-in-loop toy.
+The arithmetic above treats efficiency as a **constant** η (the printed-gear guess 0.9 per stage). This section shows how **η under a fixed drag** still changes with the operating point: at light load the same loss power eats a larger share of a smaller `P_in`. Wikipedia’s gear-train virtual-work analysis assumes gears are **rigid** and there are **no losses** in tooth engagement — useful for ideal ratio, not for a lossy η. This section is **not** the backlash-in-loop toy.
 
 <Resource id="wiki-gear-train" />
 
@@ -593,13 +593,15 @@ The arithmetic above treats efficiency as a **constant** η (the printed-gear gu
 
 ### Model assumptions
 
-Forward driving with output-referred friction
+Forward driving with output-referred **load-independent drag** (arm B). The loss torque is
 
-<Formula label="Coulomb + viscous loss at the output">τ_out = n · τ_in − (τ_c · sign(ω_out) + b_v · ω_out)</Formula>
+<Formula label="Load-independent Coulomb + viscous drag">τ_loss = τ_c · sign(ω_out) + b_v · ω_out</Formula>
 
-so instantaneous η = (τ_out · ω_out) / (τ_in · ω_in). A constant-η model instead sets P_out = η · P_in. **Back-driving is separate:** the forward η does **not** equal backdrive η_b; breakaway needs about τ_c + |b_v|·ω_crawl at the output. Heat proxy ≈ τ_loss · |ω_out| (or (1−η)·P_in for a constant-η arm).
+with **no τ_in term**, and `τ_out = n · τ_in − τ_loss`. Instantaneous η = (τ_out · ω_out) / (τ_in · ω_in). A constant-η model instead sets `P_out = η · P_in`. **At fixed speed the loss power `τ_loss · |ω_out|` is constant** (about **3.2856 W** in both regimes of this toy), so when light load drops `P_in`, η falls with it — the drag did not grow with torque. **Mesh friction loss proportional to the transmitted load is out of scope for this page.**
 
-**Metric blindness:** constant-η arms report a heat proxy from (1−η)·P_in that cannot see the true Coulomb share when η was fitted only on heavy load — judge them by **output-power error vs the Coulomb+viscous truth**, not by their self-reported heat alone.
+**Back-driving is separate:** the forward η does **not** equal backdrive η_b; breakaway needs about τ_c + |b_v|·ω_crawl at the output. Heat proxy ≈ τ_loss · |ω_out| (or (1−η)·P_in for a constant-η arm).
+
+**Metric blindness:** constant-η arms report a heat proxy from (1−η)·P_in that cannot see the true fixed-drag heat when η was fitted only on heavy load — judge them by **output-power error vs the drag-model truth**, not by their self-reported heat alone.
 
 ### Fair setup
 
@@ -608,10 +610,10 @@ so instantaneous η = (τ_out · ω_out) / (τ_in · ω_in). A constant-η model
 | Arm | Readout |
 |---|---|
 | A_constant_eta | fixed η₀ = 0.9 |
-| B_coulomb_viscous | load-dependent loss (truth in this toy) |
+| B_coulomb_viscous | load-independent Coulomb+viscous drag (truth in this toy) |
 | C_heavy_fit_eta | constant η fitted **only** on the heavy-load point of B |
 
-Regimes: `heavy_load` (**near-tie / small gap** on η — A’s η₀ ≈ B’s load-dependent η at the design point; not a true zero gap) and `light_load` (constant η under-predicts Coulomb-dominated loss). Metrics: η, |P_out − P_out,B|, heat proxy. Five-seed mean±sd.
+Regimes: `heavy_load` (**near-tie / small gap** on η — A’s η₀ ≈ B’s drag-model η at the design point; not a true zero gap) and `light_load` (same fixed drag; `P_in` drops so η falls and constant-η arms miss the heat). Metrics: η, |P_out − P_out,B|, heat proxy. Five-seed mean±sd.
 
 ### Run the stdlib toy
 
@@ -620,7 +622,7 @@ Regimes: `heavy_load` (**near-tie / small gap** on η — A’s η₀ ≈ B’s 
 
 ```python
 #!/usr/bin/env python3
-"""Synthetic load-dependent gear efficiency literacy toy. Stdlib only.
+"""Synthetic gear-efficiency-under-load literacy toy. Stdlib only.
 
 Shared motor τ–ω schedule and gear ratio for every arm. Friction draws
 (τ_c, b_v) are **common random numbers**: for a given seed, A/B/C see the
@@ -632,13 +634,15 @@ Arms:
   C_heavy_fit_eta    constant η fitted only on the heavy-load operating points of B
 
 Regimes (≥5 seeds):
-  heavy_load  — design point used to fit η: A matches B (exact/near tie on η)
-  light_load  — Coulomb dominates: constant-η arms diverge from B
+  heavy_load  — design point used to fit η: A near-ties B on η
+  light_load  — same drag at fixed speed; P_in drops so η falls; constant-η diverges
 
-Assumptions (stated for the page): load-dependent friction loss, not a
-constant η; forward driving; back-driving needs a separate η_b / breakaway
-check (this toy reports a backdrive threshold, not a dyno). ≠ backlash-in-loop.
-Not a gearbox dyno. Real dyno: 本页未运行.
+Assumptions (stated for the page): B is a **load-independent drag** loss
+τ_loss = τ_c·sign(ω) + b_v·ω with **no τ_in term**. At fixed speed the loss
+power is constant, so light-load η falls because P_in drops — not because the
+drag grew with torque. Mesh friction ∝ transmitted load is **out of scope**.
+Forward driving; back-driving needs a separate η_b / breakaway check.
+≠ backlash-in-loop. Not a gearbox dyno. Real dyno: 本页未运行.
 """
 from __future__ import annotations
 
@@ -679,9 +683,9 @@ def power_in(tau_in: float, omega_in: float) -> float:
 
 
 def arm_B_out(tau_in: float, omega_in: float, tau_c: float, b_v: float) -> tuple[float, float, float]:
-    """Return (τ_out, η, heat_W) for Coulomb+viscous loss at the output."""
+    """Return (τ_out, η, heat_W) for load-independent Coulomb+viscous drag at output."""
     w_o = omega_out(omega_in)
-    # Load-dependent loss at output shaft
+    # Load-independent drag at output shaft (no τ_in in τ_loss)
     sign = 1.0 if w_o >= 0.0 else -1.0
     tau_loss = tau_c * sign + b_v * w_o
     tau_out = N_RATIO * tau_in - tau_loss
@@ -722,7 +726,7 @@ def metrics_for(regime: str, arm: str, seed: int) -> tuple[float, float, float, 
         tau_a, eta_a, heat_a = arm_const_out(tau_in, omega_in, ETA0)
         p_a = tau_a * omega_out(omega_in)
         return eta_a, abs(p_a - p_b), heat_a, tau_c, b_v
-    # C: η fitted on heavy only — blind to light-load Coulomb dominance
+    # C: η fitted on heavy only — blind to light-load η drop at fixed drag
     eta_fit = fit_eta_heavy(tau_c, b_v)
     tau_c_arm, eta_c, heat_c = arm_const_out(tau_in, omega_in, eta_fit)
     p_c = tau_c_arm * omega_out(omega_in)
@@ -743,7 +747,7 @@ def mean_sd(xs: list[float]) -> tuple[float, float]:
 
 def main() -> None:
     print(
-        "Synthetic gear η(load) toy; shared τ–ω / ratio / friction draws; "
+        "Synthetic gear η-under-load toy; shared τ–ω / ratio / friction draws; "
         "not a gearbox dyno"
     )
     print(
@@ -751,7 +755,7 @@ def main() -> None:
         f"tau_c0={TAU_C0} b_v0={B_V0} (Coulomb+viscous at output)"
     )
     print(
-        "model: B τ_out=n*τ_in−(τ_c*sign(ω_out)+b_v*ω_out); "
+        "model: B load-independent drag τ_loss=τ_c*sign(ω)+b_v*ω (no τ_in); τ_out=n*τ_in−τ_loss; "
         "A uses fixed η0; C fits η on heavy_load only; "
         "backdrive threshold = τ_c+|b_v|·ω_crawl (separate from forward η)"
     )
@@ -791,7 +795,7 @@ def main() -> None:
     err_c_l = summary[("light_load", "C_heavy_fit_eta")][1]
     print(
         f"heavy_load: |η_A − η_B| = {abs(eta_a_h - eta_b_h):.4f} "
-        f"(near-tie / small gap on design point — A’s η0≈B’s load-dependent η; "
+        f"(near-tie / small gap on design point — A’s η0≈B’s drag-model η; "
         f"p_err_A={err_a_h:.4f} W)"
     )
     print(
@@ -800,7 +804,7 @@ def main() -> None:
     )
     print(
         f"light_load: p_err_A = {err_a_l:.4f} W, p_err_C = {err_c_l:.4f} W "
-        f"(constant η under-predicts Coulomb-dominated loss)"
+        f"(constant η misses fixed-drag heat when P_in drops)"
     )
     # Backdrive literacy (same shared friction, seed 0)
     tc, bv = shared_friction(0)
@@ -811,7 +815,7 @@ def main() -> None:
     )
     print(
         "No winner declared: heavy-load design point makes constant η look fine; "
-        "light load exposes Coulomb loss; C’s fit does not transfer"
+        "light load drops P_in against fixed drag so η falls; C’s fit does not transfer"
     )
     print(
         "Real gearbox / dyno lab: 本页未运行; Wikipedia Gear train numbers 以原文为准"
@@ -825,9 +829,9 @@ if __name__ == "__main__":
 <SimOutput source="model">
 
 ```text
-Synthetic gear η(load) toy; shared τ–ω / ratio / friction draws; not a gearbox dyno
+Synthetic gear η-under-load toy; shared τ–ω / ratio / friction draws; not a gearbox dyno
 n=25:1 ETA0=0.9 seeds=5 tau_c0=0.12 b_v0=0.00035 (Coulomb+viscous at output)
-model: B τ_out=n*τ_in−(τ_c*sign(ω_out)+b_v*ω_out); A uses fixed η0; C fits η on heavy_load only; backdrive threshold = τ_c+|b_v|·ω_crawl (separate from forward η)
+model: B load-independent drag τ_loss=τ_c*sign(ω)+b_v*ω (no τ_in); τ_out=n*τ_in−τ_loss; A uses fixed η0; C fits η on heavy_load only; backdrive threshold = τ_c+|b_v|·ω_crawl (separate from forward η)
 regime arm eta p_err_W heat_W (mean+-sd over seeds; p_err = |P_out_arm − P_out_B|)
 heavy_load A_constant_eta 0.9000+-0.0000 0.2125+-0.0806 3.1400+-0.0000
 heavy_load B_coulomb_viscous 0.8954+-0.0061 0.0000+-0.0000 3.2856+-0.1909
@@ -835,11 +839,11 @@ heavy_load C_heavy_fit_eta 0.8954+-0.0061 0.0000+-0.0000 3.2856+-0.1909
 light_load A_constant_eta 0.9000+-0.0000 2.7832+-0.1909 0.5024+-0.0000
 light_load B_coulomb_viscous 0.3460+-0.0380 0.0000+-0.0000 3.2856+-0.1909
 light_load C_heavy_fit_eta 0.8954+-0.0061 2.7599+-0.1604 0.5257+-0.0305
-heavy_load: |η_A − η_B| = 0.0046 (near-tie / small gap on design point — A’s η0≈B’s load-dependent η; p_err_A=0.2125 W)
+heavy_load: |η_A − η_B| = 0.0046 (near-tie / small gap on design point — A’s η0≈B’s drag-model η; p_err_A=0.2125 W)
 heavy_load: C_heavy_fit p_err = 0.0000e+00 W (fitted on this point — matches B by construction)
-light_load: p_err_A = 2.7832 W, p_err_C = 2.7599 W (constant η under-predicts Coulomb-dominated loss)
+light_load: p_err_A = 2.7832 W, p_err_C = 2.7599 W (constant η misses fixed-drag heat when P_in drops)
 backdrive threshold (seed0) = 0.1106 N*m at output (τ_c+|b_v|·1 rad/s; forward η does not equal backdrive η_b)
-No winner declared: heavy-load design point makes constant η look fine; light load exposes Coulomb loss; C’s fit does not transfer
+No winner declared: heavy-load design point makes constant η look fine; light load drops P_in against fixed drag so η falls; C’s fit does not transfer
 Real gearbox / dyno lab: 本页未运行; Wikipedia Gear train numbers 以原文为准
 ```
 
@@ -847,9 +851,9 @@ Real gearbox / dyno lab: 本页未运行; Wikipedia Gear train numbers 以原文
 
 ### Read the regimes
 
-On **heavy_load**, |η_A − η_B| ≈ 0.005 — a **near-tie / small gap**, not a true tie (remaining gap from seed-wise friction vs the fixed η₀=0.9 guess). C matches B on that point **by construction** (its only fit sample). On **light_load**, power error for A and C jumps to about **2.8 W** while B’s η falls to ~0.35 — Coulomb dominates when τ_in is small. The page **does not declare a universal winner**. Real dyno: **本页未运行**.
+On **heavy_load**, |η_A − η_B| ≈ 0.005 — a **near-tie / small gap**, not a true tie (remaining gap from seed-wise friction vs the fixed η₀=0.9 guess). C matches B on that point **by construction** (its only fit sample). On **light_load**, B’s heat stays ~**3.2856 W** (fixed-speed drag) while `P_in` shrinks, so η falls to ~0.35 and constant-η power error jumps to about **2.8 W**. The page **does not declare a universal winner**. Real dyno: **本页未运行**.
 
-**180-minute work plan:** 30 min read gear-train ratio / virtual-work (no-loss) assumption; 30 min derive Coulomb+viscous τ_out; 45 min run shared τ–ω arms; 45 min change light/heavy with seeds fixed; 30 min list what a real dyno still needs (temperature, lubricant, backdrive η_b).
+**180-minute work plan:** 30 min read gear-train ratio / virtual-work (no-loss) assumption; 30 min derive load-independent drag τ_out and why η falls when `P_in` drops; 45 min run shared τ–ω arms; 45 min change light/heavy with seeds fixed; 30 min list what a real dyno still needs (temperature, lubricant, backdrive η_b; load-proportional mesh loss).
 
 ### Exercises
 
@@ -857,7 +861,7 @@ On **heavy_load**, |η_A − η_B| ≈ 0.005 — a **near-tie / small gap**, not
 2. Using the shared friction draws, show that A, B and C get the same (τ_c, b_v) per seed.
 3. Fit η on heavy_load only (as C does) and predict light_load P_out before running.
 4. Halve τ_c with seeds fixed. Predict which regime’s power error moves most.
-5. Before any dyno run (本页未运行), write why a heavy-load **near-tie** does **not** license a constant η on a light-duty cycle, and why forward η ≠ backdrive η_b.
+5. Before any dyno run (本页未运行), write why a heavy-load **near-tie** does **not** license a constant η on a light-duty cycle when drag power is fixed, why forward η ≠ backdrive η_b, and that load-proportional mesh loss is out of scope here.
 
 
 <Summary>
@@ -887,7 +891,7 @@ The physical backlash-loop toy separates friction-plus-integral hunting from sen
 - Can you check that sun 15 with ring 45 assembles with 3 planets and gives 4 : 1?
 - Can you convert 1.5° of backlash on a 0.40 m arm into millimetres at the tip?
 
-- Gear η(load) literacy: shared τ–ω shows a heavy-load near-tie for constant η vs Coulomb+viscous, and a light-load gap — not a gearbox dyno.
+- Gear η under load: shared τ–ω with **load-independent** Coulomb+viscous drag shows a heavy-load near-tie and a light-load η drop when `P_in` falls against fixed heat — not a gearbox dyno.
 
 **Used next**
 

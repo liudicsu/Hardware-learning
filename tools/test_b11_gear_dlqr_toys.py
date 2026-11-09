@@ -37,6 +37,9 @@ class GearEta(unittest.TestCase):
         ).read_text()
         self.assertIn("shared_friction", src)
         self.assertIn("Coulomb", src)
+        self.assertIn("load-independent", src)
+        self.assertNotIn("load-dependent friction loss", src)
+        self.assertNotIn("load-ish", src)
         self.assertIn("本页未运行", src)
         self.assertIn("near-tie", src)
 

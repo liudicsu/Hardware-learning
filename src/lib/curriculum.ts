@@ -376,7 +376,7 @@ const month3Lessons: Lesson[] = [
     },
     minutes: 510,
     objectives: [
-      { zh: "在共享 τ–ω 与传动比下比较恒定 η、库仑+粘滞损耗与重载拟合 η 的输出功率误差与热代理，并指出重载接近打平、轻载发散；不声称齿轮箱测功。", en: "On a shared τ–ω schedule and ratio, compare constant η, Coulomb+viscous loss and heavy-load-fit η on output-power error and heat proxy; show a heavy-load near-tie and light-load gap; no gearbox-dyno claim." },
+      { zh: "在共享 τ–ω 与传动比下比较恒定 η、与负载无关的库仑+粘滞拖曳与重载拟合 η 的输出功率误差与热代理，说明固定转速下损耗功率恒定、轻载 η 因 P_in 下降而下降；不声称齿轮箱测功。", en: "On a shared τ–ω schedule and ratio, compare constant η, load-independent Coulomb+viscous drag and heavy-load-fit η on output-power error and heat proxy; show fixed-speed loss power and a light-load η drop as P_in falls; no gearbox-dyno claim." },
       { zh: "解释负载摩擦与积分如何 hunting，披露负载编码器额外信息及死区误差带和设错失效。", en: "Explain load friction/integral hunting, disclose extra load-encoder information, and report deadband error bands and mis-setting failures." },
       { zh: "能计算输出扭矩 = 电机扭矩 × n × 效率（0.1 N·m × 10 × 0.9 = 0.9 N·m）。", en: "Calculate output torque as motor torque × n × efficiency (0.1 N·m × 10 × 0.9 = 0.9 N·m)." },
       { zh: "能验算行星装配规则：行星轮 = (齿圈 − 太阳轮)/2 为整数齿数，且 (太阳轮 + 齿圈)/N 为整数。", en: "Check planetary assembly rules: planet = (ring − sun)/2 is a whole tooth count and (sun + ring)/N is a whole number." },

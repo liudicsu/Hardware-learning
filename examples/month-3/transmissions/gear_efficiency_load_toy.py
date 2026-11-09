@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Synthetic load-dependent gear efficiency literacy toy. Stdlib only.
+"""Synthetic gear-efficiency-under-load literacy toy. Stdlib only.
 
 Shared motor τ–ω schedule and gear ratio for every arm. Friction draws
 (τ_c, b_v) are **common random numbers**: for a given seed, A/B/C see the
@@ -11,13 +11,15 @@ Arms:
   C_heavy_fit_eta    constant η fitted only on the heavy-load operating points of B
 
 Regimes (≥5 seeds):
-  heavy_load  — design point used to fit η: A matches B (exact/near tie on η)
-  light_load  — Coulomb dominates: constant-η arms diverge from B
+  heavy_load  — design point used to fit η: A near-ties B on η
+  light_load  — same drag at fixed speed; P_in drops so η falls; constant-η diverges
 
-Assumptions (stated for the page): load-dependent friction loss, not a
-constant η; forward driving; back-driving needs a separate η_b / breakaway
-check (this toy reports a backdrive threshold, not a dyno). ≠ backlash-in-loop.
-Not a gearbox dyno. Real dyno: 本页未运行.
+Assumptions (stated for the page): B is a **load-independent drag** loss
+τ_loss = τ_c·sign(ω) + b_v·ω with **no τ_in term**. At fixed speed the loss
+power is constant, so light-load η falls because P_in drops — not because the
+drag grew with torque. Mesh friction ∝ transmitted load is **out of scope**.
+Forward driving; back-driving needs a separate η_b / breakaway check.
+≠ backlash-in-loop. Not a gearbox dyno. Real dyno: 本页未运行.
 """
 from __future__ import annotations
 
@@ -58,9 +60,9 @@ def power_in(tau_in: float, omega_in: float) -> float:
 
 
 def arm_B_out(tau_in: float, omega_in: float, tau_c: float, b_v: float) -> tuple[float, float, float]:
-    """Return (τ_out, η, heat_W) for Coulomb+viscous loss at the output."""
+    """Return (τ_out, η, heat_W) for load-independent Coulomb+viscous drag at output."""
     w_o = omega_out(omega_in)
-    # Load-dependent loss at output shaft
+    # Load-independent drag at output shaft (no τ_in in τ_loss)
     sign = 1.0 if w_o >= 0.0 else -1.0
     tau_loss = tau_c * sign + b_v * w_o
     tau_out = N_RATIO * tau_in - tau_loss
@@ -101,7 +103,7 @@ def metrics_for(regime: str, arm: str, seed: int) -> tuple[float, float, float, 
         tau_a, eta_a, heat_a = arm_const_out(tau_in, omega_in, ETA0)
         p_a = tau_a * omega_out(omega_in)
         return eta_a, abs(p_a - p_b), heat_a, tau_c, b_v
-    # C: η fitted on heavy only — blind to light-load Coulomb dominance
+    # C: η fitted on heavy only — blind to light-load η drop at fixed drag
     eta_fit = fit_eta_heavy(tau_c, b_v)
     tau_c_arm, eta_c, heat_c = arm_const_out(tau_in, omega_in, eta_fit)
     p_c = tau_c_arm * omega_out(omega_in)
@@ -122,7 +124,7 @@ def mean_sd(xs: list[float]) -> tuple[float, float]:
 
 def main() -> None:
     print(
-        "Synthetic gear η(load) toy; shared τ–ω / ratio / friction draws; "
+        "Synthetic gear η-under-load toy; shared τ–ω / ratio / friction draws; "
         "not a gearbox dyno"
     )
     print(
@@ -130,7 +132,7 @@ def main() -> None:
         f"tau_c0={TAU_C0} b_v0={B_V0} (Coulomb+viscous at output)"
     )
     print(
-        "model: B τ_out=n*τ_in−(τ_c*sign(ω_out)+b_v*ω_out); "
+        "model: B load-independent drag τ_loss=τ_c*sign(ω)+b_v*ω (no τ_in); τ_out=n*τ_in−τ_loss; "
         "A uses fixed η0; C fits η on heavy_load only; "
         "backdrive threshold = τ_c+|b_v|·ω_crawl (separate from forward η)"
     )
@@ -170,7 +172,7 @@ def main() -> None:
     err_c_l = summary[("light_load", "C_heavy_fit_eta")][1]
     print(
         f"heavy_load: |η_A − η_B| = {abs(eta_a_h - eta_b_h):.4f} "
-        f"(near-tie / small gap on design point — A’s η0≈B’s load-dependent η; "
+        f"(near-tie / small gap on design point — A’s η0≈B’s drag-model η; "
         f"p_err_A={err_a_h:.4f} W)"
     )
     print(
@@ -179,7 +181,7 @@ def main() -> None:
     )
     print(
         f"light_load: p_err_A = {err_a_l:.4f} W, p_err_C = {err_c_l:.4f} W "
-        f"(constant η under-predicts Coulomb-dominated loss)"
+        f"(constant η misses fixed-drag heat when P_in drops)"
     )
     # Backdrive literacy (same shared friction, seed 0)
     tc, bv = shared_friction(0)
@@ -190,7 +192,7 @@ def main() -> None:
     )
     print(
         "No winner declared: heavy-load design point makes constant η look fine; "
-        "light load exposes Coulomb loss; C’s fit does not transfer"
+        "light load drops P_in against fixed drag so η falls; C’s fit does not transfer"
     )
     print(
         "Real gearbox / dyno lab: 本页未运行; Wikipedia Gear train numbers 以原文为准"

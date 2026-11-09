@@ -12,7 +12,7 @@ Cached under `/workspace/b11p2-sources/` on the worktree host (not committed).
 
 ## Toy design
 
-- `gear_efficiency_load_toy.py` (3.x transmissions): shared `n` / τ–ω schedule; **common random numbers** for `(τ_c, b_v)` across A/B/C; arms constant η₀=0.9 / Coulomb+viscous / heavy-load-fit η; heavy_load **near-tie / small gap** on η (not a true zero gap); light_load constant-η power-error gap; backdrive threshold separate from forward η; heat-proxy metric blindness noted; five seeds; ≠ backlash-in-loop.
+- `gear_efficiency_load_toy.py` (3.x transmissions): shared `n` / τ–ω schedule; **common random numbers** for `(τ_c, b_v)` across A/B/C; B is **load-independent drag** `τ_loss=τ_c·sign(ω)+b_v·ω` (no τ_in; fixed-speed loss power constant ≈3.2856 W); mesh∝load out of scope; heavy_load **near-tie / small gap**; light_load η falls as P_in drops; five seeds; ≠ backlash-in-loop.
 - `discrete_lqr_zoh_toy.py` (5.2): shared continuous plant + Q/R; **ZOH via matrix exponential** (augmented expm); DARE iteration to `‖ΔP‖_F < 1e-12`; stability `|λ(A_d−B_d K)| < 1`; shared process-noise series by absolute substep; arms cont+ZOH / discrete-at-Ts / discrete-fine; coarse_Ts discrete win; fine_Ts **near-tie / small gap**; cost/settling blind to CPU budget; five seeds; ≠ Bode redo.
 
 Independent tests: `tools/test_b11_gear_dlqr_toys.py` (identical friction/noise per seed; stability; ZOH≠Euler; step-size).
@@ -24,3 +24,7 @@ opencode free model attempted first; server error / empty. Toys implemented loca
 ## Local validation
 
 `tools/test_b11_gear_dlqr_toys.py`, month-3 / month-5 `check.sh`, `check_quotes`, `check_diagrams`, `check_widgets`, `check_wokwi`, lint, next typegen, `tsc --noEmit`, production build. No workflow edits. Minutes **71 / 27630**.
+
+## NEEDS_FIX follow-up (same PR)
+
+- Gear prose/docstring: B is load-independent drag (no τ_in); fixed-speed loss power constant; light-load η falls with P_in; mesh∝load out of scope. Removed overstated “load-ish / load-dependent friction loss” wording. LQR unchanged. Minutes unchanged.

@@ -6266,11 +6266,11 @@ print("protocol pass")
   const read=p=>readFileSync(join(root,p),"utf8"), env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
   const cur=read("src/lib/curriculum.ts"), res=read("src/lib/resources.ts");
   const cases=[
-    [3,"transmissions","gear_efficiency_load_toy",510,["## Load-dependent gear efficiency","## 负载相关的齿轮效率"],
+    [3,"transmissions","gear_efficiency_load_toy",510,["## Gear efficiency under load","## 负载工况下的齿轮效率"],
       ["seeds=5","heavy_load A_constant_eta","light_load A_constant_eta","No winner declared","near-tie / small gap"],
       ["Coulomb","viscous","A_constant_eta","B_coulomb_viscous","C_heavy_fit_eta","backdrive","以原文为准","本页未运行"],
-      {en:["**not** the backlash-in-loop","**synthetic**","does not declare a universal winner","near-tie","cannot see the true Coulomb"],zh:["**不是**齿隙闭环","**合成**","不宣布普遍赢家","接近打平","看不见真实库仑"]},
-      {en:["Gear η(load)","heavy-load near-tie","light-load gap"],zh:["负载相关齿轮效率","重载接近打平","轻载发散"]},
+      {en:["**not** the backlash-in-loop","**synthetic**","does not declare a universal winner","near-tie","load-independent","out of scope"],zh:["**不是**齿隙闭环","**合成**","不宣布普遍赢家","接近打平","与负载无关","不在本页范围"]},
+      {en:["Gear η under load","heavy-load near-tie","load-independent"],zh:["负载工况下的齿轮效率","重载接近打平","与负载无关"]},
       ["wiki-gear-train"]],
     [5,"state-space-lqr","discrete_lqr_zoh_toy",600,["## Discrete LQR and zero-order hold","## 离散 LQR 与零阶保持"],
       ["seeds=5","coarse_Ts A_cont_zoh","fine_Ts A_cont_zoh","No winner declared","near-tie / small gap"],
