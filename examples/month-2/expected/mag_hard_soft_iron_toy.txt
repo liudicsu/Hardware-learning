@@ -1,0 +1,9 @@
+Synthetic mag hard/soft-iron toy; shared field/path; not an AHRS certification
+B_true=(1.0, 0.0) b_hard=(0.35, -0.22) S_diag=(1.35, 0.72) N_yaws=72 noise_sigma=0.03 seeds=5
+model: m_tilde = S_soft * R(yaw)*B_true + b_hard + noise (VectorNav hard=centre shift, soft=ellipse stretch)
+arm mean_abs_heading_err_deg heading_err_sd_deg radius_resid_rms radius_resid_sd (mean+-sd over seeds)
+A_raw 17.4960+-0.1329 10.7657+-0.0846 0.3662+-0.0059 0.2032+-0.0049
+B_hard_only 11.3025+-0.2888 5.6243+-0.2011 0.2214+-0.0024 0.1030+-0.0029
+C_hard_soft 1.5442+-0.1460 1.2569+-0.0373 0.0317+-0.0020 0.0197+-0.0021
+No winner declared beyond the defined metric: hard-only recenters; hard+soft also un-stretches; raw keeps both errors
+Mag turntable / real IMU: 本页未运行; VectorNav/Wikipedia definitions 以原文为准

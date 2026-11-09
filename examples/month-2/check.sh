@@ -33,4 +33,7 @@ check hw_wdt_kick_toy.txt "$PY" "$M2/timing-interrupts/hw_wdt_kick_toy.py"
 check pwm_deadtime_distortion_toy.txt "$PY" "$M2/motors-drivers/pwm_deadtime_distortion_toy.py"
 check rs485_termination_toy.txt "$PY" "$M2/arduino-io/rs485_termination_toy.py"
 
+check adc_enob_noise_toy.txt "$PY" "$M2/arduino-io/adc_enob_noise_toy.py"
+check mag_hard_soft_iron_toy.txt "$PY" "$M2/sensors-fusion/mag_hard_soft_iron_toy.py"
+
 exit $fail

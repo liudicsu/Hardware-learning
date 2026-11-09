@@ -882,6 +882,241 @@ No noise/no random seeds; no MHz claim; real device/scope: 本页未运行
 3. 比较独立00 与不同图样，颠倒96 位序；从 CS 帧删去一个采样边沿，解释残字拒收。
 4. 任何真机实验前（本页未运行），在实际外设手册查模式、CS 帧与建立/保持限制，不照搬通用 MHz 数值。
 
+## 磁力计硬铁与软铁标定
+
+前面已经提醒：IMU「不是指南针」——陀螺积分会漂，原始磁力计读数也要先清理本地磁场才能当航向。机架内有两类近似不随时间变的畸变。**硬铁**偏置平移测量云的中心（同体磁化材料造成的永久偏移）。**软铁**拉伸把球面拉成椭球（或把水平圆拉成椭圆），即偏折已有磁场。本节标定这两者。它**不是** KF 对互补滤波的重做，也**不是**再写一段「IMU 不是指南针」的空话。
+
+<Resource id="vn-hsi-calibration" />
+<Resource id="wiki-magnetometer" />
+
+**实际打开的来源。**
+
+- **VectorNav — Magnetometer Hard & Soft Iron Calibration：** 产生磁场的物体造成的硬铁畸变会带来**永久偏置**（圆心平移；其图示用 200 / 100 mGauss 例子）。软铁畸变把球面**拉成**椭球。标定用 `m_c = S_I (m̃ − b_HI)` 把偏置椭球映回原点处的球面，可用 2D（偏航转圈）或 3D 运动。
+- **Wikipedia — Magnetometer：** 绝对磁力计需要内部标定或已知常量；相对装置相对未标定基线测量。数字 以原文为准。真实转台 / AHRS 认证：**本页未运行**。
+
+### 偏置与拉伸
+
+水平面内，固定幅值的干净磁场在偏航时描出圆心在原点的圆。硬铁只移动圆心。软铁改变不同轴上的半径。对原始云做 `atan2(my, mx)` 的航向因此带有随偏航变化的误差，直到两者都被去掉。
+
+**范围。** 地理磁偏角与平台倾角 / 磁倾角不在本节范围；此处航向只相对合成水平场 `B_true` 计量。
+
+### 公平设定
+
+`mag_hard_soft_iron_toy.py` 是**合成**的，只用标准库。每个臂共享**同一**真实水平磁场 `B_true = (1, 0)`、**同一** 72 个偏航采样（5° 一步）、**同一**对角软铁拉伸 `S = (1.35, 0.72)`、**同一**硬铁偏置 `b = (0.35, −0.22)`，以及**同一**多种子高斯噪声（σ = 0.03）：
+
+| 臂 | 对共享样本的校正 |
+|---|---|
+| A_raw | 无 |
+| B_hard_only | 减去样本均值偏置 |
+| C_hard_soft | 去偏置 + 对角软铁缩放使轴 RMS 相等 |
+
+指标：相对无畸变路径的平均绝对航向误差，以及映向圆后的残余半径 RMS。结果为五多种子的 mean±sd。玩具只拟合对角软铁矩阵，不是完整 3×3 实验室标定。
+
+### 运行标准库玩具
+
+```bash
+cd ~/Hardware-learning/examples/month-2/sensors-fusion
+python3 mag_hard_soft_iron_toy.py
+```
+
+<CodeSource path="examples/month-2/sensors-fusion/mag_hard_soft_iron_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic magnetometer hard/soft-iron calibration toy. Stdlib only.
+
+Shared true field magnitude and shared yaw rotation path for every arm.
+Measurement model (VectorNav-style): m_tilde = S_soft @ R(yaw) @ B_true + b_hard + noise.
+Arms differ only in post-processing of the SAME samples:
+  A_raw          heading from uncorrected XY
+  B_hard_only    subtract estimated hard-iron bias (sample mean)
+  C_hard_soft    bias subtract + diagonal soft-iron scale (axis std → unit circle)
+
+Metrics: heading absolute error (deg) and residual radius RMS after mapping to
+a unit circle. ≥5 noise seeds. Not an AHRS certification. Mag hardware: 本页未运行.
+"""
+from __future__ import annotations
+
+import math
+import random
+
+B_TRUE = (1.0, 0.0)  # horizontal field in body-fixed world frame, synthetic units
+# Permanent hard-iron bias (sphere/circle centre shift)
+B_HARD = (0.35, -0.22)
+# Soft-iron stretch (diagonal ellipsoid → circle stretch); off-diagonals omitted for clarity
+S_SOFT = (1.35, 0.72)  # sx, sy
+N_YAWS = 72  # 5° steps, full rotation
+NOISE_SIGMA = 0.03
+SEEDS = (0, 1, 2, 3, 4)
+ARMS = ("A_raw", "B_hard_only", "C_hard_soft")
+
+
+def wrap180(deg: float) -> float:
+    while deg > 180.0:
+        deg -= 360.0
+    while deg <= -180.0:
+        deg += 360.0
+    return deg
+
+
+def heading_deg(mx: float, my: float) -> float:
+    return math.degrees(math.atan2(my, mx))
+
+
+def true_path() -> list[tuple[float, float, float]]:
+    """Return list of (yaw_deg, mx_world_rot, my_world_rot) without distortion."""
+    rows = []
+    for i in range(N_YAWS):
+        yaw = 360.0 * i / N_YAWS
+        c = math.cos(math.radians(yaw))
+        s = math.sin(math.radians(yaw))
+        # rotate true field into sensor frame as yaw changes (2D)
+        mx = c * B_TRUE[0] + s * B_TRUE[1]
+        my = -s * B_TRUE[0] + c * B_TRUE[1]
+        rows.append((yaw, mx, my))
+    return rows
+
+
+def measure(path, seed: int) -> list[tuple[float, float, float]]:
+    rng = random.Random(20_000 + seed)
+    out = []
+    sx, sy = S_SOFT
+    bx, by = B_HARD
+    for yaw, mx, my in path:
+        # soft stretch then hard bias + noise (VectorNav: m_c = S(m - b) form inverted)
+        tx = sx * mx + bx + rng.gauss(0.0, NOISE_SIGMA)
+        ty = sy * my + by + rng.gauss(0.0, NOISE_SIGMA)
+        out.append((yaw, tx, ty))
+    return out
+
+
+def calibrate_bias(samples):
+    mx = sum(p[1] for p in samples) / len(samples)
+    my = sum(p[2] for p in samples) / len(samples)
+    return mx, my
+
+
+def calibrate_soft(samples, bias):
+    """Diagonal soft scale: map demeaned axes to equal RMS (unit-ish circle)."""
+    bx, by = bias
+    xs = [p[1] - bx for p in samples]
+    ys = [p[2] - by for p in samples]
+    rx = math.sqrt(sum(v * v for v in xs) / len(xs)) or 1.0
+    ry = math.sqrt(sum(v * v for v in ys) / len(ys)) or 1.0
+    # target radius = geometric mean
+    target = math.sqrt(rx * ry)
+    return target / rx, target / ry
+
+
+def evaluate(samples, arm: str) -> tuple[float, float, float, float]:
+    """Return mean |heading err|, sd, residual radius RMS, residual radius sd."""
+    bias = calibrate_bias(samples)
+    soft = calibrate_soft(samples, bias)
+    errs = []
+    radii = []
+    for yaw, mx, my in samples:
+        if arm == "A_raw":
+            cx, cy = mx, my
+        elif arm == "B_hard_only":
+            cx, cy = mx - bias[0], my - bias[1]
+        else:
+            cx = soft[0] * (mx - bias[0])
+            cy = soft[1] * (my - bias[1])
+        est = heading_deg(cx, cy)
+        # true heading of horizontal field in sensor frame equals yaw for B_TRUE=(1,0)
+        # with our rotation convention: atan2(my,mx) of undistorted = -yaw
+        true_h = heading_deg(
+            math.cos(math.radians(yaw)) * B_TRUE[0] + math.sin(math.radians(yaw)) * B_TRUE[1],
+            -math.sin(math.radians(yaw)) * B_TRUE[0] + math.cos(math.radians(yaw)) * B_TRUE[1],
+        )
+        errs.append(abs(wrap180(est - true_h)))
+        radii.append(math.hypot(cx, cy))
+    mu_e = sum(errs) / len(errs)
+    # radius residual vs mean radius
+    mu_r = sum(radii) / len(radii)
+    resid = [abs(r - mu_r) for r in radii]
+    rms = math.sqrt(sum(r * r for r in resid) / len(resid))
+    sd_e = math.sqrt(sum((e - mu_e) ** 2 for e in errs) / (len(errs) - 1))
+    mu_abs = sum(resid) / len(resid)
+    sd_r = math.sqrt(sum((r - mu_abs) ** 2 for r in resid) / (len(resid) - 1))
+    return mu_e, sd_e, rms, sd_r
+
+
+def mean_sd(xs: list[float]) -> tuple[float, float]:
+    mu = sum(xs) / len(xs)
+    var = sum((x - mu) ** 2 for x in xs) / (len(xs) - 1)
+    return mu, math.sqrt(var)
+
+
+def main() -> None:
+    path = true_path()
+    print(
+        "Synthetic mag hard/soft-iron toy; shared field/path; not an AHRS certification"
+    )
+    print(
+        f"B_true={B_TRUE} b_hard={B_HARD} S_diag={S_SOFT} "
+        f"N_yaws={N_YAWS} noise_sigma={NOISE_SIGMA} seeds={len(SEEDS)}"
+    )
+    print(
+        "model: m_tilde = S_soft * R(yaw)*B_true + b_hard + noise "
+        "(VectorNav hard=centre shift, soft=ellipse stretch)"
+    )
+    print(
+        "arm mean_abs_heading_err_deg heading_err_sd_deg "
+        "radius_resid_rms radius_resid_sd (mean+-sd over seeds)"
+    )
+    for arm in ARMS:
+        cols_acc = [[] for _ in range(4)]
+        for seed in SEEDS:
+            samples = measure(path, seed)
+            vals = evaluate(samples, arm)
+            for i, v in enumerate(vals):
+                cols_acc[i].append(v)
+        print(
+            f"{arm} "
+            + " ".join(f"{mean_sd(c)[0]:.4f}+-{mean_sd(c)[1]:.4f}" for c in cols_acc)
+        )
+    print(
+        "No winner declared beyond the defined metric: hard-only recenters; "
+        "hard+soft also un-stretches; raw keeps both errors"
+    )
+    print("Mag turntable / real IMU: 本页未运行; VectorNav/Wikipedia definitions 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic mag hard/soft-iron toy; shared field/path; not an AHRS certification
+B_true=(1.0, 0.0) b_hard=(0.35, -0.22) S_diag=(1.35, 0.72) N_yaws=72 noise_sigma=0.03 seeds=5
+model: m_tilde = S_soft * R(yaw)*B_true + b_hard + noise (VectorNav hard=centre shift, soft=ellipse stretch)
+arm mean_abs_heading_err_deg heading_err_sd_deg radius_resid_rms radius_resid_sd (mean+-sd over seeds)
+A_raw 17.4960+-0.1329 10.7657+-0.0846 0.3662+-0.0059 0.2032+-0.0049
+B_hard_only 11.3025+-0.2888 5.6243+-0.2011 0.2214+-0.0024 0.1030+-0.0029
+C_hard_soft 1.5442+-0.1460 1.2569+-0.0373 0.0317+-0.0020 0.0197+-0.0021
+No winner declared beyond the defined metric: hard-only recenters; hard+soft also un-stretches; raw keeps both errors
+Mag turntable / real IMU: 本页未运行; VectorNav/Wikipedia definitions 以原文为准
+```
+
+</SimOutput>
+
+### 读航向残差
+
+**A_raw** 保留两种误差：平均 |航向| 误差 **17.50°**，半径残余 RMS **0.37**。**B_hard_only** 把云重新居中，航向误差降到 **11.30°**、半径 RMS 到 **0.22**，但椭圆拉伸仍在。**C_hard_soft** 还均衡了各轴：航向误差 **1.54°**，半径 RMS **0.032**。在既定指标上递进清楚；本页仍**不宣布**对每台机器人、每一种软铁模型的普遍赢家——非对角 `S_I`、时变负载或糟糕的运动路径都可能改变排序；这**不是 AHRS 认证**。磁力计转台 / 真实 IMU：**本页未运行**。
+
+**180 分钟工作计划：** 30 分钟读 VectorNav 硬/软铁定义；45 分钟推导圆心平移与轴拉伸；45 分钟跑共享路径各臂；45 分钟在多种子固定下改 `S_SOFT` 或偏置；15 分钟列出 3D HSI 实验还缺什么。
+
+### 练习
+
+1. 根据打印的 `b_hard` 与 `S_diag`，在运行前画出预期椭圆圆心与轴比。
+2. 说明当 `sx ≠ sy` 时，为何仅硬铁校正无法把航向误差打到零，取一个拉伸与磁场对齐的偏航角说明。
+3. 多种子不变，设 `S_SOFT = (1.0, 1.0)`。运行前预测 B、C 的航向误差，再解释噪声造成的剩余间隙。
+4. 把 `NOISE_SIGMA` 减半。对 C 而言哪个指标降得最多？磁场、路径与种子保持不变。
+5. 任何真机实验前（本页未运行），写明你的机器人适合 2D 偏航标定还是需要 3D 八字；不要用本玩具声称 AHRS 认证。
+
 <Summary>
 
 等预算留出 IMU 比较从声明噪声模型推导 KF 的 Q/R，另用调参种子选择互补变体，任何臂都拿不到真实零偏。
@@ -901,4 +1136,6 @@ No noise/no random seeds; no MHz claim; real device/scope: 本页未运行
 - 第 3 个月 · PID 与控制：积分饱和与串级回路：回到同一台平衡车，并加上外环速度环。
 
 SPI 模式 / 位序 / CS 在共享合成导线上核对，错误边沿可能移位也可能偶然通过，必须测试不同图样并查器件时序。
+
+硬铁偏置把磁力计云重新居中，软铁拉伸再把它从椭圆拉回；共享偏航路径上原始约 17.5° 航向误差，仅硬铁约 11.3°，硬+软约 1.5°——不是 AHRS 认证。
 </Summary>

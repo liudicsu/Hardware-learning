@@ -3936,8 +3936,8 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 25800, "rdt2-univla PR3 curriculum: 25800 minutes");
-  for (const [month, expected] of [[1, 1020], [2, 2670], [3, 1620], [4, 2130], [5, 1950], [6, 2190], [7, 2070], [8, 3180], [9, 3480], [10, 2280], [11, 3210]]) {
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 26160, "b10p1 curriculum: 26160 minutes");
+  for (const [month, expected] of [[1, 1020], [2, 3030], [3, 1620], [4, 2130], [5, 1950], [6, 2190], [7, 2070], [8, 3180], [9, 3480], [10, 2280], [11, 3210]]) {
     ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `current curriculum M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
@@ -4923,7 +4923,7 @@ for (const m of readdirSync(content)) {
   for (const id of ["dreamgen-paper", "lapa-paper", "smolvla-paper", "lerobot-async"]) {
     ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `wm2 resource ${id}: present + extra`);
   }
-  ok(/25 800/.test(read("README.md")), "b9p3 README: 25 800 minutes");
+  ok(/26 160/.test(read("README.md")), "b10p1 README: 26 160 minutes");
   console.log("worldmodel-smolvla PR2: neural trajectories + async chunk locks checked");
 }
 
@@ -5180,7 +5180,7 @@ for (const m of readdirSync(content)) {
   const read = p => readFileSync(join(root, p), "utf8");
   for (const [month, slug, toy, minutes, added, markers, summaryMarker] of [
     [1,"bench-multimeter","dmm_uncertainty_toy",240,150,["√3","RSS","0.004272","0.009400","0.009514","0.038991","0.091000","20000"],"√3"],
-    [2,"sensors-fusion","imu_kf_vs_complementary_toy",540,150,["Q0","R0","40500","201/202/203","221–225","0.259680","0.222922","0.213477","0.297265","0.295811"],"Q/R"],
+    [2,"sensors-fusion","imu_kf_vs_complementary_toy",720,150,["Q0","R0","40500","201/202/203","221–225","0.259680","0.222922","0.213477","0.297265","0.295811"],"Q/R"],
     [3,"transmissions","backlash_loop_toy",330,180,["P/I","FS=0.4","FC=0.02","0.047514","0.033429","0.053333","0.014043","0.067457","0.570"],"hunting"],
   ]) {
     const src = `examples/month-${month}/${slug}/${toy}.py`;
@@ -5362,7 +5362,7 @@ print("protocol pass")
   const env = {...process.env,PYTHONDONTWRITEBYTECODE:"1"};
   for (const [month,slug,toy,minutes,added,summaryMarkers,markers] of [
     [2,"motors-drivers","winding_thermal_rc_toy",720,180,["I²R(T)","I²R(T)"],["R20","α20","20 °C","1.01965","P·Rθ","P·t/Cθ","t ≪ τ","Rθ","Cθ","11.1","4800","153.001","6709.332","70.025","2843.554","2 trips","0.2 s","本页未运行"]],
-    [2,"arduino-io","i2c_risetime_toy",480,150,["I2C RC","I2C RC"],["30 %–70 %","ln(7/3)","SLVA689A Table 2-1","1000 ns","300 ns","120 ns","Sm","Fm+","1300 ns","1500 ns","2500 ns","0.12","100 pF / 400 pF","A5 00 FF 5A","847.298 / 186.406 / 745.622","36 / 0 / 36","0/36/36","0/0/36","966.667","885.167","本页未运行"]],
+    [2,"arduino-io","i2c_risetime_toy",660,150,["I2C RC","I2C RC"],["30 %–70 %","ln(7/3)","SLVA689A Table 2-1","1000 ns","300 ns","120 ns","Sm","Fm+","1300 ns","1500 ns","2500 ns","0.12","100 pF / 400 pF","A5 00 FF 5A","847.298 / 186.406 / 745.622","36 / 0 / 36","0/36/36","0/0/36","966.667","885.167","本页未运行"]],
     [1,"components","supply_dip_decoupling_toy",270,150,["ESL+ESR+C","ESL+ESR+C"],["ESL+ESR+C","10 µF","SRF","0.711763 / 1.591549 / 5.626977 / 5.626977 MHz","20 MHz","11.1","SCLS085L","0.1 µF","3.233928 / 3.275589 / 3.278804 / 3.226711","0.066072 / 0.024411 / 0.021196 / 0.073289","0.237254 / 0.795775 / 0.906869 / 0.159091","0.376991","0.010053","0.000796","ESR","ESL","FCC/CE","本页未运行"]],
   ]) {
     const source=read(`examples/month-${month}/${slug}/${toy}.py`), expected=read(`examples/month-${month}/expected/${toy}.txt`);
@@ -5517,7 +5517,7 @@ print("protocol pass")
   const read=path=>readFileSync(join(root,path),"utf8"), cur=read("src/lib/curriculum.ts");
   const env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
   for (const [month,slug,toy,minutes,added,markers,summaries] of [
-    [2,"sensors-fusion","spi_mode_mismatch_toy",540,180,
+    [2,"sensors-fusion","spi_mode_mismatch_toy",720,180,
       ["SPI_MODE0","SPI_MODE1","SPI_MODE2","SPI_MODE3","MSBFIRST/LSBFIRST","CPOL","CPHA","CS","A5 00 FF 3C 81 01 96 69","27/64=0.421875","00→00","96→4B","本页未运行"],
       ["SPI mode/bit-order/CS choices","SPI 模式 / 位序 / CS"]],
     [2,"timing-interrupts","hw_wdt_kick_toy",330,150,
@@ -5840,7 +5840,7 @@ print("protocol pass")
       {en:["shoot-through","**no extra V_dc**","over-corrects","No winner is declared","not** FOC"],zh:["直通","**不额外抬高 V_dc**","过补偿","不宣布赢家","**不是** FOC"]},
       {en:["−sign(i)·t_d/T_s·V_dc","0.480 V","over-corrects"],zh:["−sign(i)·t_d/T_s·V_dc","0.480 V","过补偿"]},
       ["esp-idf-mcpwm-deadtime","wiki-h-bridge","daido-deadtime-ieej"]],
-    ["arduino-io","rs485_termination_toy",480,["## RS-485","## RS-485"],
+    ["arduino-io","rs485_termination_toy",660,["## RS-485","## RS-485"],
       ["one_way_ns=513","seeds=5","1Mbps A_term_diff 0.00+-0.00 0.00+-0.00 0.00+-0.00 3.16+-0.02","1Mbps B_unterm_diff 16.00+-0.00 2.00+-0.00 44.00+-0.00","1Mbps B2_stub_diff 0.00+-0.00","1Mbps C_term_single 6.60+-2.19","125kbps B_unterm_diff 0.00+-0.00 0.00+-0.00 0.00+-0.00 2.94+-0.05 2.31+-0.00 0.42+-0.00","125kbps C_term_single 8.00+-1.58","No winner is declared"],
       ["−7 V","+12 V","32","1.5 V","54 Ω","200 mV","Z0 = 120 Ω","120 Ω","L_stub ≤ t_r/10 · v · c","7 ft","Γ = (Z − Z0)/(Z + Z0)","−1/3","17","513 ns","15 m","A_term_diff","B_unterm_diff","B2_stub_diff","C_term_single","62.50 mA","0.42 mA","DE/RE","4.5","以原文为准","本页未运行"],
       {en:["**not Modbus**","not permission to leave a real bus unterminated","No winner is declared","last stop bit","common-mode"],zh:["**不是 Modbus**","不等于真实总线可以不端接","不宣布赢家","最后一个停止位","共模"]},
@@ -5878,7 +5878,7 @@ print("protocol pass")
     ok(!/Modbus (RTU|function|register)|TEC\/REC counter model/.test(rsSec),`b9p1 RS-485 ${lang}: no Modbus app layer or CAN counter re-teach`);
   }
   const plan=read("docs/notes/month-2-plan.md");
-  ok(plan.startsWith("# Month 2")&&["Current / 当前：**M2 2670 min**, Batch-9 PR1","2310→2670","24660→25020","540→720","300→480","Batch-9 PR1"].every(x=>plan.includes(x)),"b9p1 month-2 plan header and PR1-only accounting");
+  ok(plan.startsWith("# Month 2")&&["## Batch-9 PR1","2310→2670","24660→25020","540→720","300→480","Batch-9 PR1"].every(x=>plan.includes(x)),"b9p1 month-2 plan historical Batch-9 PR1 accounting");
   ok(read("docs/notes/batch-9-pr1-sources.md").includes("All 199 prior expected"),"b9p1 prior-output/source/model audit");
   execFileSync("python3",[join(root,"tools/test_b9_deadtime_rs485_toys.py")],{cwd:root,encoding:"utf8",env,stdio:"pipe"});
   ok(true,"b9p1 independent R-L exactness, diode clamp, volt-second, Γ, UART decode and shared-noise tests executed");
@@ -6046,6 +6046,57 @@ print("protocol pass")
   }
   console.log(`batch-9 polish: ${headN} headings without process labels, RS-485 failsafe biasing, SLLA070 further reading and UniVLA disambiguation locked`);
 }
+
+// Batch-10 PR1: ADC ENOB (2.1) and magnetometer hard/soft-iron (2.5).
+{
+  const read=p=>readFileSync(join(root,p),"utf8"), env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
+  const cur=read("src/lib/curriculum.ts"), harness=read("examples/month-2/check.sh"), res=read("src/lib/resources.ts");
+  const cases=[
+    ["arduino-io","adc_enob_noise_toy",660,["## ADC ENOB","## ADC 有效位数"],
+      ["ideal_SNR_formula=61.96dB","seeds=5","A_ideal 61.486+-0.000 61.476+-0.000 9.920+-0.000","B_noise 39.809+-0.108 39.774+-0.093 6.315+-0.015","C_distort 39.624+-0.086 36.940+-0.083 5.844+-0.014","No winner declared"],
+      ["ENOB = (SINAD_dB − 1.76) / 6.02","6.02n + 1.76","61.96","A_ideal","B_noise","C_distort","3.5 LSB","0.045","9.92","6.32","5.84","DMM GUM","以原文为准","本页未运行"],
+      {en:["**not** the DMM GUM","**synthetic**","No winner is declared","not a datasheet rating"],zh:["**不是**第 1 个月的 DMM GUM","**合成**","不宣布赢家","不是手册额定值"]},
+      {en:["ENOB","9.92","6.32","5.84"],zh:["ENOB","9.92","6.32","5.84"]},
+      ["wiki-enob","ti-slaa013","arduino-analog-input"]],
+    ["sensors-fusion","mag_hard_soft_iron_toy",720,["## Magnetometer hard-iron","## 磁力计硬铁"],
+      ["seeds=5","A_raw 17.4960+-0.1329","B_hard_only 11.3025+-0.2888","C_hard_soft 1.5442+-0.1460","No winner declared"],
+      ["hard-iron","soft-iron","b_hard","S_diag","A_raw","B_hard_only","C_hard_soft","17.50","11.30","1.54","m_c = S_I","以原文为准","本页未运行"],
+      {en:["**not** a redo of the KF-versus-complementary","**synthetic**","does not declare a universal winner","not an AHRS certification"],zh:["**不是** KF 对互补滤波的重做","**合成**","不宣布","不是 AHRS 认证"]},
+      {en:["Hard-iron","17.5","11.3","1.5"],zh:["硬铁","17.5","11.3","1.5"]},
+      ["vn-hsi-calibration","wiki-magnetometer"]],
+  ];
+  for(const [slug,toy,minutes,heads,outputs,markers,langMarkers,summaryMarkers,ids] of cases){
+    const file=`examples/month-2/${slug}/${toy}.py`,py=read(file).trim(),expected=read(`examples/month-2/expected/${toy}.txt`).trim();
+    ok(execFileSync("python3",[join(root,file)],{cwd:root,encoding:"utf8",env}).trim()===expected,`b10p1 ${toy}: actual expected output`);
+    for(const x of outputs)ok(expected.includes(x),`b10p1 ${toy}: result ${x}`);
+    ok(cur.match(new RegExp(`slug: "${slug}"[\\s\\S]*?minutes: (\\d+)`))?.[1]===String(minutes),`b10p1 ${slug}: ${minutes} min`);
+    const host=cur.slice(cur.indexOf(`slug: "${slug}"`)).split("\n  },")[0];
+    ok(host.includes(toy)&&ids.every(id=>host.includes(`"${id}"`)),`b10p1 ${slug}: task names toy and resources wired`);
+    for(const id of ids)ok(res.includes(`"${id}": {`)||res.includes(`"${id}":{`),`b10p1 opened source ${id}`);
+    ok(harness.includes(`${slug}/${toy}.py`)&&harness.includes(`check ${toy}.txt`),`b10p1 ${toy}: month-2 harness compares stdout`);
+    for(const [index,lang] of ["en","zh"].entries()){
+      const md=read(`src/content/m2/${slug}/${lang}.mdx`),summary=md.indexOf("<Summary>"),end=md.indexOf("</Summary>");
+      ok(summary>0&&summary===md.lastIndexOf("<Summary>")&&md.slice(end+10).trim()==="",`b10p1 ${slug} ${lang}: sole whole-lesson Summary ends page`);
+      const head=md.indexOf(heads[index]);
+      ok(head>0&&head<summary,`b10p1 ${slug} ${lang}: new section before Summary`);
+      const sec=md.slice(head,summary);
+      ok(sec.includes(py)&&sec.includes(expected)&&sec.includes(`<CodeSource path="${file}" />`)&&sec.includes("180"),`b10p1 ${slug} ${lang}: exact source/stdout in section`);
+      const ex=sec.lastIndexOf(lang==="en"?"### Exercises":"### 练习");
+      ok(ex>sec.indexOf("</SimOutput>")&&(sec.slice(ex).match(/^\d\. /gm)||[]).length===5,`b10p1 ${slug} ${lang}: five exercises after output`);
+      for(const x of [...markers,...langMarkers[lang]])ok(sec.includes(x),`b10p1 ${slug} ${lang}: mechanism/scope ${x}`);
+      ok(lang==="en"?/\*\*synthetic\*\*/.test(sec)&&sec.includes("mean±sd"):sec.includes("**合成**")&&sec.includes("mean±sd"),`b10p1 ${slug} ${lang}: synthetic label and spread`);
+      const summ=md.slice(summary,end);
+      for(const x of summaryMarkers[lang])ok(summ.includes(x),`b10p1 ${slug} ${lang}: Summary sentence ${x}`);
+    }
+    const en=read(`src/content/m2/${slug}/en.mdx`),zh=read(`src/content/m2/${slug}/zh.mdx`);
+    ok((en.match(/```/g)||[]).length===(zh.match(/```/g)||[]).length&&(en.match(/^### /gm)||[]).length===(zh.match(/^### /gm)||[]).length,`b10p1 ${slug}: en/zh structurally symmetric`);
+  }
+  const plan=read("docs/notes/month-2-plan.md");
+  ok(plan.startsWith("# Month 2")&&["Current / 当前：**M2 3030 min**, Batch-10 PR1","2670→3030","25800→26160","480→660","540→720","Batch-10 PR1"].every(x=>plan.includes(x)),"b10p1 month-2 plan header and PR1-only accounting");
+  ok(/26 160/.test(read("README.md")),"b10p1 README site minutes");
+  console.log("enob-magcal PR1: ADC ENOB / front-end noise, mag hard/soft-iron and M2 3030 / site 26160 locked");
+}
+
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
 process.exit(failed ? 1 : 0);
