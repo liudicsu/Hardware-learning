@@ -1,11 +1,13 @@
 # Month 8 plan
 
+Current / 当前：**M8 3390 min**, Batch-11 PR3. Earlier entries below retain their historical totals.
+
 Batch 1–2 delivered 8.1–8.7 (dataset → capstone). **Track B (promote electives):** append **8.8 `sim-benchmarks`** after capstone — does **not** replace 8.7.
 
 | slug | minutes | CPU toy | notes |
 |------|---------|---------|-------|
 | dataset-engineering | 330 | `dataset_audit.py`, `dataset_crc_integrity_toy.py` | batch1 + Batch-7 PR1 |
-| vla-finetune | 420 | `compute_budget.py`, `rpd_teacher_rl_toy.py` | batch 2 |
+| vla-finetune | 630 | `compute_budget.py`, `rpd_teacher_rl_toy.py` | batch 2 |
 | async-deployment | 300 | `chunk_latency_sim.py`, `stream_sync_eval_toy.py` | batch 1 + deepen PR3: arrival-causal alignment |
 | ros2-hardware-interface | 600 | `servo_bus_sim.py`, `lifecycle_sm_toy.py`, `can_fault_confinement_toy.py` (+ `so101_hw/` skeleton 本页未运行) | batch 2 + follow-up PR1 F2: managed-node SM ≠ HardwareComponent |
 | safety-reliability | 540 | `watchdog_sim.py`, `actuator_fault_monitor_toy.py` | batch 1 + follow-up PR2 F3: device/bus fault latch + operator ack |
@@ -46,3 +48,11 @@ Allocation 45+45+30+45+15=180 min. With M9 +210 separately: **21570+180+210=2196
 ## Batch-7 PR1 / 本月 H7 (+150)
 
 8.1 dataset-engineering180→330; **M8 3030→3180**, eight lessons. Site **22350→22830**, counting only PR1 +480 with **M2 1980→2310** (+330). Still71 lessons; no arithmetic mismatch. Allocation:30+30+45+30+15=150 min (polynomial/check value/shared corpus/burst limits+authentication/exercises). Deterministic4 payloads; no-check/sum8/CRC32 receive the same corrupted bytes and tags. Existing dataset audit remains. No claim that LeRobot formats store this toy CRC. New sections before Summary, en/zh symmetric. Sources: batch-7-pr1-sources.md.
+
+## Batch-11 PR3 / 本月 H6 (+210)
+
+Base `777543d` (batch-11 PR2 #146 merged; site **27630**). PR3 only: **M8 3180→3390 (+210)** and M6 **2190→2400 (+210**, own host in month-6-plan.md); site **27630→28050**, still 71 lessons; no arithmetic mismatch with proposal §9 or curriculum.ts.
+
+- **H6 / 8.2 vla-finetune: 420→**630** (+210).** Continual VLA finetune + Experience Replay (Huihan Liu et al. arXiv:2603.03818, abs+HTML+PDF opened; LIBERO/NBT 以论文为准). Toy `vla_continual_er_toy.py`: shared task order/steps/noise; A sequential (cap=0), B ER cap=8 replay=2, C ER cap=48 replay=4 with protected prior-task prefix; compute = samples touched; no_shift near-tie / small gap (max |Δavg|=0.0167; ER buys nothing); task_shift ER reduces NBT forget at explicit buffer/compute cost; five seeds, common random numbers. ≠ MemoryVLA / SARM / compute_budget redo. GPU 本页未运行. Sources: batch-11-pr3-sources.md.
+
+**Site accounting / 全站核算:** **28050=27630+420** with M6 +210 on month-6-plan.md; **M8=3390**, **71 lessons**.

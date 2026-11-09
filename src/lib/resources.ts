@@ -4723,6 +4723,76 @@ export const resources: Record<string, Resource> = {
     extra: true,
   },
 
+
+  "cogact-abs": {
+    id: "cogact-abs",
+    url: "https://arxiv.org/abs/2411.19650",
+    title: {
+      zh: "CogACT：协同认知与动作的基础视觉-语言-动作模型（摘要页）",
+      en: "CogACT: A Foundational VLA for Synergizing Cognition and Action (abs)",
+    },
+    author: "Qixiu Li, Yaobo Liang, Zeyu Wang, et al.",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已打开 abs+HTML+PDF：组件化 VLM→专用动作模块；系统比较 MLP 与 DiT 动作头。成功率以论文为准；本页未运行 GPU/权重。",
+      en: "Opened abs+HTML+PDF: componentized VLM→specialized action module; systematically compares MLP vs DiT action heads. Paper success rates 以论文为准; GPU/weights 本页未运行.",
+    },
+    license: { zh: "以原文为准", en: "See original terms" },
+    extra: true,
+  },
+  "cogact-html": {
+    id: "cogact-html",
+    url: "https://arxiv.org/html/2411.19650",
+    title: {
+      zh: "CogACT HTML 正文",
+      en: "CogACT HTML body",
+    },
+    author: "Qixiu Li et al.",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已打开 HTML：§3 组件化架构与 Diffusion Action Module；MLP 深度与 DiT 系列对照。数字以论文为准。",
+      en: "Opened HTML: §3 componentized architecture and Diffusion Action Module; MLP depths vs DiT series. Numbers 以论文为准.",
+    },
+    license: { zh: "以原文为准", en: "See original terms" },
+    extra: true,
+  },
+  "cl-abs": {
+    id: "cl-abs",
+    url: "https://arxiv.org/abs/2603.03818",
+    title: {
+      zh: "预训练 VLA 在持续学习中对遗忘出奇地稳健（摘要页）",
+      en: "Pretrained VLAs are Surprisingly Resistant to Forgetting in Continual Learning (abs)",
+    },
+    author: "Huihan Liu, Changyeon Kim, Bo Liu, Minghuan Liu, Yuke Zhu",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已打开 abs+HTML+PDF：预训练 VLA 上简单 Experience Replay 常显著减遗忘；LIBERO/NBT 以论文为准；本页未运行 GPU。",
+      en: "Opened abs+HTML+PDF: simple Experience Replay on pretrained VLAs often cuts forgetting sharply; LIBERO/NBT 以论文为准; GPU 本页未运行.",
+    },
+    license: { zh: "以原文为准", en: "See original terms" },
+    extra: true,
+  },
+  "cl-html": {
+    id: "cl-html",
+    url: "https://arxiv.org/html/2603.03818",
+    title: {
+      zh: "VLA 持续学习 / ER HTML 正文",
+      en: "VLA continual learning / ER HTML body",
+    },
+    author: "Huihan Liu et al.",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已打开 HTML：§3.2 ER 有效性、缓冲大小、NBT/LIBERO。数字以论文为准。",
+      en: "Opened HTML: §3.2 ER effectiveness, buffer sizes, NBT/LIBERO. Numbers 以论文为准.",
+    },
+    license: { zh: "以原文为准", en: "See original terms" },
+    extra: true,
+  },
+
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

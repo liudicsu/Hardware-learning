@@ -1,0 +1,14 @@
+Synthetic continual VLA + ER toy; shared tasks/steps/noise; not MemoryVLA / SARM / compute_budget redo
+DIM=4 GRAD_STEPS_PER_TASK=40 BATCH=4 B_SMALL=8 B_LARGE=48 REPLAY_PER_STEP=2/4 seeds=5
+model: pretrained-like linear probe; A=sequential (cap=0); B=ER cap=8; C=ER cap=48; compute = sum over steps of |batch|+|replay|; Liu et al. arXiv:2603.03818; LIBERO/NBT % 以论文为准; GPU/weights 本页未运行
+regime arm avg_success nbt_forget buffer_cap compute_samples replay_per_step (mean+-sd over seeds)
+no_shift A_sequential 0.8867+-0.0380 0.0000+-0.0000 0 160.0+-0.0 0
+no_shift B_er_small 0.8933+-0.0190 0.0000+-0.0000 8 240.0+-0.0 2
+no_shift C_er_large 0.9033+-0.0321 0.0000+-0.0000 48 320.0+-0.0 4
+task_shift A_sequential 0.7633+-0.0529 0.1200+-0.0617 0 320.0+-0.0 0
+task_shift B_er_small 0.7617+-0.0336 0.0867+-0.0398 8 480.0+-0.0 2
+task_shift C_er_large 0.7933+-0.0422 0.0967+-0.0545 48 640.0+-0.0 4
+no_shift: A/B/C avg_success (near-tie / small gap; max |Δavg|=0.0167; no task shift ⇒ ER buys nothing)
+task_shift: NBT forget A=0.1200 B=0.0867 C=0.0967 (ER reduces forgetting; larger buffer/compute costs more samples: B compute=480, C compute=640 vs A=320)
+No winner declared: with no shift ER matches sequential; under shift ER helps but buffer capacity and replay samples are real costs; avg_success is blind to wall-clock GPU time
+Real continual VLA / LIBERO lab: 本页未运行; Liu et al. arXiv:2603.03818 numbers 以论文为准

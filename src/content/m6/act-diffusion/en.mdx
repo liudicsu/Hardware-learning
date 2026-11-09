@@ -468,8 +468,310 @@ Not ORCA-lite fleet / ACT chunk math; TwinVLA real robots/weights: 本页未运�
 3. Re-run all seeds; compare makespan versus span RMSE instead of declaring a winner from success alone. Label timeout means as capped and keep failures.
 4. Trace the TwinVLA module split in the paper. Explain why this toy neither loads its weights nor tests its architecture; do not translate paper success/Hz into toy measurements.
 
+## CogACT: cognition token to DiT-style action head
+
+<Resource id="cogact-abs" />
+<Resource id="cogact-html" />
+
+**Sources actually opened (abs + HTML + PDF via pdftotext).** Qixiu Li et al., *CogACT: A Foundational Vision-Language-Action Model for Synergizing Cognition and Action in Robotic Manipulation*, arXiv:2411.19650. Body-verified: componentized VLM → specialized action module; MLP depths vs DiT-style diffusion action heads. Paper success rates **以论文为准**. Real CogACT weights / GPU training **本页未运行**.
+
+This section is **not** OpenHelix dual-system, **not** VQ-BeT, and **not** RDT2. It deepens the ACT / diffusion lesson with a **synthetic** cognition→action stand-in.
+
+### Model assumptions
+
+- Features are a fixed **VLM-like cognition vector** (stdlib features of the demo state). There is no transformer VLM on this page.
+- Arm **A** (`A_mlp_head`): ridge-linear map from features → action (MLP-head stand-in).
+- Arm **B** (`B_dit_denoiser`): pairwise feature expansion + a few iterative refine steps (DiT-style **expressivity** stand-in — **not** a real Diffusion Transformer, attention, or noise schedule).
+- Arm **C** (`C_quant_tokens`): same linear map after discrete bins (OpenVLA-style quantization floor).
+- **Common random numbers:** one seed draws one shared demo/noise tape; A/B/C see identical inputs. Metric: action MSE and a success proxy. Success proxy is **blind** to wall-clock GPU time and to real DiT NFE cost.
+
+### Fair setup
+
+Shared demos, shared feature noise, shared step/budget constants, five seeds. This page does not declare a universal winner: the **unimodal_short** regime is where A and B should **tie** (gap≈0); **multimodal_long** is where specialized expressivity can help. Quantization pays a real floor.
+
+### Run the stdlib toy
+
+<CodeSource path="examples/month-6/act-diffusion/cogact_dit_action_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic CogACT-style cognition→action literacy toy. Stdlib only.
+
+Shared demo features / chunk / noise for every arm (common random numbers per
+seed). Every arm faces the **same** noise sources and demos.
+
+Arms (equal demo budget; ≠ OpenHelix / VQ-BeT / RDT2 / ACT-CVAE):
+  A_mlp_head       ridge-linear cognition→action (shallow MLP stand-in)
+  B_dit_denoiser   ridge on expanded features + iterative refine (DiT-style stand-in)
+  C_quant_tokens   ridge-linear on quantized action tokens (OpenVLA-style)
+
+Regimes (≥5 seeds):
+  unimodal_short   — |MSE_A−MSE_B| ≈ 0 → **near-tie / small gap** (or exact)
+  multimodal_long  — expanded/DiT-style **wins** on action MSE
+
+Assumptions: CPU stand-in of CogACT componentized VLM→specialized action module
+(Qixiu Li et al., arXiv:2411.19650; abs+HTML+PDF read). B's "DiT-style" is an
+expressivity stand-in (pairwise feature interactions + iterative refine), not a
+real transformer weight stack. Paper SIMPLER/real % 以论文为准; GPU/weights
+本页未运行.
+"""
+from __future__ import annotations
+
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+ARMS = ("A_mlp_head", "B_dit_denoiser", "C_quant_tokens")
+FEAT_DIM = 6
+ACT_DIM = 3
+DIT_ITERS = 4
+N_BINS = 10
+RIDGE = 1e-2
+REGIMES = (
+    ("unimodal_short", 40, 2, 1, 0.03),
+    ("multimodal_long", 40, 12, 4, 0.03),
+)
+
+
+def shared_demo_pack(seed: int, n_demos: int, chunk: int, n_modes: int, noise_std: float):
+    rng = random.Random(30_000 + seed)
+    feats, acts, noises = [], [], []
+    for i in range(n_demos):
+        mode = i % n_modes
+        f = [0.0] * FEAT_DIM
+        f[mode % FEAT_DIM] = 1.0
+        f[-1] = mode / max(1.0, float(n_modes - 1))
+        for k in range(FEAT_DIM):
+            f[k] += 0.04 * rng.gauss(0.0, 1.0)
+        a = []
+        for t in range(chunk):
+            u = t / max(1, chunk - 1)
+            for d in range(ACT_DIM):
+                val = (
+                    0.5 * f[-1]
+                    + 0.55 * math.sin(2.4 * u + 0.8 * d + 1.2 * mode)
+                    + 0.4 * (mode + 1) * u * u * math.cos(0.6 * d + mode)
+                )
+                a.append(val)
+        n = [rng.gauss(0.0, noise_std) for _ in range(chunk * ACT_DIM)]
+        feats.append(f)
+        acts.append(a)
+        noises.append(n)
+    return feats, acts, noises
+
+
+def expand_dit(feat: list[float]) -> list[float]:
+    """Expressivity stand-in: raw feat + pairwise products (DiT capacity proxy)."""
+    out = list(feat)
+    for i in range(len(feat)):
+        for j in range(i, len(feat)):
+            out.append(feat[i] * feat[j])
+    return out
+
+
+def ridge_fit(X: list[list[float]], Y: list[list[float]], lam: float = RIDGE):
+    """Return W (out_dim x in_dim), b (out_dim) via normal equations on centered data."""
+    n = len(X)
+    d = len(X[0])
+    o = len(Y[0])
+    mean_x = [sum(X[i][k] for i in range(n)) / n for k in range(d)]
+    mean_y = [sum(Y[i][j] for i in range(n)) / n for j in range(o)]
+    # XtX, XtY
+    XtX = [[0.0] * d for _ in range(d)]
+    XtY = [[0.0] * o for _ in range(d)]
+    for i in range(n):
+        xc = [X[i][k] - mean_x[k] for k in range(d)]
+        yc = [Y[i][j] - mean_y[j] for j in range(o)]
+        for a in range(d):
+            for b in range(d):
+                XtX[a][b] += xc[a] * xc[b]
+            for j in range(o):
+                XtY[a][j] += xc[a] * yc[j]
+    for a in range(d):
+        XtX[a][a] += lam * n
+    # Solve XtX W[:,j] = XtY[:,j] via Gauss-Jordan on copy per column is heavy;
+    # use Gauss-Jordan once for all RHS.
+    M = [XtX[r][:] + XtY[r][:] for r in range(d)]
+    for col in range(d):
+        piv = max(range(col, d), key=lambda r: abs(M[r][col]))
+        M[col], M[piv] = M[piv], M[col]
+        div = M[col][col]
+        if abs(div) < 1e-12:
+            continue
+        for j in range(col, d + o):
+            M[col][j] /= div
+        for r in range(d):
+            if r == col:
+                continue
+            fac = M[r][col]
+            for j in range(col, d + o):
+                M[r][j] -= fac * M[col][j]
+    W = [[M[k][d + j] for k in range(d)] for j in range(o)]  # W[j][k]
+    # b = mean_y - W mean_x
+    b = []
+    for j in range(o):
+        b.append(mean_y[j] - sum(W[j][k] * mean_x[k] for k in range(d)))
+    return W, b
+
+
+def predict_linear(feat, W, b):
+    return [b[j] + sum(W[j][k] * feat[k] for k in range(len(feat))) for j in range(len(b))]
+
+
+def quantize(a):
+    lo, hi = -1.5, 2.0
+    out = []
+    for x in a:
+        u = (x - lo) / (hi - lo)
+        u = 0.0 if u < 0.0 else (1.0 if u > 1.0 else u)
+        idx = min(N_BINS - 1, int(u * N_BINS))
+        out.append(lo + (idx + 0.5) * (hi - lo) / N_BINS)
+    return out
+
+
+def fit_arm(arm, feats, acts, noises):
+    Y = [[acts[i][j] + noises[i][j] for j in range(len(acts[i]))] for i in range(len(acts))]
+    if arm == "A_mlp_head":
+        X = [f[:] for f in feats]
+        W, b = ridge_fit(X, Y)
+        return ("lin", W, b)
+    if arm == "C_quant_tokens":
+        Yq = [quantize(y) for y in Y]
+        X = [f[:] for f in feats]
+        W, b = ridge_fit(X, Yq)
+        return ("quant", W, b)
+    # DiT-style: expanded features
+    X = [expand_dit(f) for f in feats]
+    W, b = ridge_fit(X, Y)
+    return ("dit", W, b)
+
+
+def predict(params, feat):
+    kind, W, b = params
+    if kind == "dit":
+        x0 = predict_linear(expand_dit(feat), W, b)
+        # Iterative refine toward the same head (idempotent attractor)
+        x = [0.0] * len(x0)
+        for s in range(DIT_ITERS):
+            alpha = 1.0 / (DIT_ITERS - s)
+            x = [x[j] + alpha * (x0[j] - x[j]) for j in range(len(x))]
+        return x
+    pred = predict_linear(feat, W, b)
+    if kind == "quant":
+        return quantize(pred)
+    return pred
+
+
+def mse(a, b):
+    return sum((x - y) ** 2 for x, y in zip(a, b)) / len(a)
+
+
+def mean_sd(xs):
+    n = len(xs)
+    mu = sum(xs) / n
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (n - 1))
+
+
+def main():
+    print(
+        "Synthetic CogACT-style cognition→action toy; shared demos/noise/budget; "
+        "not OpenHelix/VQ-BeT/RDT2"
+    )
+    print(
+        f"FEAT_DIM={FEAT_DIM} ACT_DIM={ACT_DIM} DIT_ITERS={DIT_ITERS} "
+        f"N_BINS={N_BINS} RIDGE={RIDGE} seeds={len(SEEDS)}"
+    )
+    print(
+        "model: componentized VLM-like features → specialized action module "
+        "(Qixiu Li et al. arXiv:2411.19650); A=ridge-linear; "
+        "B=pairwise-expanded+iterative DiT-style stand-in; C=quantized tokens; "
+        "paper % 以论文为准; GPU/weights 本页未运行"
+    )
+    print("regime arm action_mse success_proxy (mean+-sd over seeds)")
+    summary = {}
+    for regime, n_demos, chunk, n_modes, noise_std in REGIMES:
+        thresh = 0.02 if regime == "unimodal_short" else 0.08
+        packs = {s: shared_demo_pack(s, n_demos, chunk, n_modes, noise_std) for s in SEEDS}
+        for arm in ARMS:
+            mses, succs = [], []
+            for seed in SEEDS:
+                feats, acts, noises = packs[seed]
+                params = fit_arm(arm, feats, acts, noises)
+                ms, ss = [], []
+                for i in range(len(feats)):
+                    pred = predict(params, feats[i])
+                    m = mse(pred, acts[i])
+                    ms.append(m)
+                    ss.append(1.0 if m < thresh else 0.0)
+                mses.append(sum(ms) / len(ms))
+                succs.append(sum(ss) / len(ss))
+            mm, sm = mean_sd(mses)
+            ms_, ss_ = mean_sd(succs)
+            summary[(regime, arm)] = (mm, ms_)
+            print(f"{regime} {arm} {mm:.4f}+-{sm:.4f} {ms_:.4f}+-{ss_:.4f}")
+
+    ua, ub = summary[("unimodal_short", "A_mlp_head")][0], summary[("unimodal_short", "B_dit_denoiser")][0]
+    gap = abs(ua - ub)
+    rel = gap / max(ua, ub, 1e-12)
+    if gap < 5e-4:
+        lab = "exact tie (gap≈0)"
+    elif rel < 0.2:
+        lab = f"near-tie / small gap; relative {rel:.4f}; short unimodal is easy for both"
+    else:
+        lab = f"gap; relative {rel:.4f}"
+    print(f"unimodal_short: |MSE_A − MSE_B| = {gap:.4f} ({lab})")
+    ma, mb = summary[("multimodal_long", "A_mlp_head")][0], summary[("multimodal_long", "B_dit_denoiser")][0]
+    mc = summary[("multimodal_long", "C_quant_tokens")][0]
+    print(
+        f"multimodal_long: MSE_A − MSE_B = {ma - mb:.4f} "
+        f"(DiT-style expressivity wins on longer multimodal chunks; C_quant={mc:.4f})"
+    )
+    print(
+        "No winner declared: unimodal short-horizon can make MLP match DiT-style; "
+        "multimodal long-chunk is where specialized expressivity helps; "
+        "quantization floor is a real OpenVLA-style cost"
+    )
+    print(
+        "Real CogACT / VLA GPU lab: 本页未运行; Qixiu Li et al. arXiv:2411.19650 以论文为准"
+    )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic CogACT-style cognition→action toy; shared demos/noise/budget; not OpenHelix/VQ-BeT/RDT2
+FEAT_DIM=6 ACT_DIM=3 DIT_ITERS=4 N_BINS=10 RIDGE=0.01 seeds=5
+model: componentized VLM-like features → specialized action module (Qixiu Li et al. arXiv:2411.19650); A=ridge-linear; B=pairwise-expanded+iterative DiT-style stand-in; C=quantized tokens; paper % 以论文为准; GPU/weights 本页未运行
+regime arm action_mse success_proxy (mean+-sd over seeds)
+unimodal_short A_mlp_head 0.0003+-0.0001 1.0000+-0.0000
+unimodal_short B_dit_denoiser 0.0003+-0.0000 1.0000+-0.0000
+unimodal_short C_quant_tokens 0.0068+-0.0003 1.0000+-0.0000
+multimodal_long A_mlp_head 0.0016+-0.0001 1.0000+-0.0000
+multimodal_long B_dit_denoiser 0.0012+-0.0001 1.0000+-0.0000
+multimodal_long C_quant_tokens 0.0105+-0.0001 1.0000+-0.0000
+unimodal_short: |MSE_A − MSE_B| = 0.0001 (exact tie (gap≈0))
+multimodal_long: MSE_A − MSE_B = 0.0004 (DiT-style expressivity wins on longer multimodal chunks; C_quant=0.0105)
+No winner declared: unimodal short-horizon can make MLP match DiT-style; multimodal long-chunk is where specialized expressivity helps; quantization floor is a real OpenVLA-style cost
+Real CogACT / VLA GPU lab: 本页未运行; Qixiu Li et al. arXiv:2411.19650 以论文为准
+```
+
+</SimOutput>
+
+### Exercises
+
+1. From the printed FEAT_DIM / ACT_DIM / RIDGE, write the closed-form ridge solution A uses and check it against the unimodal_short A row.
+2. Using one seed's shared tape, show that A, B and C receive the same demo features and targets (common random numbers).
+3. Explain why `|MSE_A − MSE_B| ≈ 0` on unimodal_short is an **exact tie**, while multimodal_long's 0.0004 gap is a small DiT-style win — not a universal ranking.
+4. Raise N_BINS and predict whether C's MSE floor falls; then re-run with the same seeds.
+5. Before any CogACT GPU lab (**本页未运行**), write why this page's iterative expand is an expressivity stand-in and must not be quoted as Li et al.'s DiT success rates (**以论文为准**).
+
 <Summary>
 
 Averaging multimodal demonstrations can choose an unsafe in-between action; sampling preserves alternatives, while ACT chunks/temporal ensembling trade smoother execution against open-loop exposure. Diffusion models iteratively denoise action chunks at an inference cost, and the toy's exact denoiser/replayed demonstrations are not a general learned robot policy. Use one dataset and shared evaluation starts, inspect failures and chunk length, and treat LeRobot GPU training commands as not run here. The added equal-information shared-strap experiment compares independent, leader-follower and joint coupling with full-horizon budgets and separates its kinematic metrics from TwinVLA's learned architecture.
 
+- CogACT cognition→action: shared demos show an unimodal-short **exact tie** and a multimodal-long DiT-style edge — expressivity stand-in, not Li et al. GPU rates.
 </Summary>
