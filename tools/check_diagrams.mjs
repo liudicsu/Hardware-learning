@@ -6016,5 +6016,36 @@ print("protocol pass")
   console.log(`rdt2-univla PR3: RDT2 tokens / steps / students, UniVLA latent transfer, ${headN} headings without minute counts and M6 2190 / M11 3210 / site 25800 locked`);
 }
 
+// Batch-9 polish: no process labels in lesson headings; RS-485 failsafe biasing; UniVLA name disambiguation.
+{
+  const read=p=>readFileSync(join(root,p),"utf8");
+  const mdxFiles=execFileSync("git",["ls-files","src/content"],{cwd:root,encoding:"utf8"}).split("\n").filter(f=>f.endsWith(".mdx"));
+  let headN=0;
+  for(const f of mdxFiles){
+    const text=readFileSync(join(root,f),"utf8").replace(/```[\s\S]*?```/g,"");
+    for(const line of text.split("\n").filter(l=>/^#{1,6} /.test(l))){headN++;ok(!/Batch-?\d|\bPR\s?\d|\bH\d\b/i.test(line),`b9pol heading without process label: ${f}: ${line}`);}
+  }
+  for(const [f,h] of [["src/content/m8/ros2-hardware-interface/en.mdx","## CAN fault confinement"],["src/content/m8/ros2-hardware-interface/zh.mdx","## CAN 故障限制"],["src/content/m9/effort-admittance/en.mdx","## Estimated F/T bias and gravity compensation"],["src/content/m9/effort-admittance/zh.mdx","## 估计 F/T 偏置并补偿重力"]])
+    ok(read(f).split("\n").includes(h),`b9pol renamed topic heading ${f}: ${h}`);
+  const res=read("src/lib/resources.ts"),cur=read("src/lib/curriculum.ts");
+  ok(/"ti-slla070": \{[\s\S]*?url: "https:\/\/www\.ti\.com\/lit\/an\/slla070\/slla070\.pdf"[\s\S]*?extra: true/.test(res),"b9pol opened SLLA070 resource");
+  const host=cur.slice(cur.indexOf('slug: "arduino-io"')).split("\n  },")[0];
+  ok(host.includes('"ti-slla272"')&&host.includes('"ti-slla070"'),"b9pol arduino-io wires SLLA272 and SLLA070");
+  for(const lang of ["en","zh"]){
+    const md=read(`src/content/m2/arduino-io/${lang}.mdx`),rs=md.slice(md.indexOf("## RS-485"),md.indexOf("<Summary>"));
+    const fs=rs.slice(rs.indexOf(lang==="en"?"**Failsafe biasing":"**失效保护偏置"),rs.indexOf(lang==="en"?"**DE/RE turnaround":"**DE/RE 换向"));
+    ok(fs.length>200&&rs.indexOf(lang==="en"?"**Failsafe biasing":"**失效保护偏置")<rs.indexOf("### "+(lang==="en"?"Exercises":"练习")),`b9pol arduino-io ${lang}: failsafe paragraph in RS-485 section before exercises`);
+    for(const x of ["|V_diff| ≥ 200 mV","V_AB = 200 mV + V_noise","523 Ω","0.25 V","4.75 V","120 Ω","20","10 mV","SLLA272","SLLA070","以原文为准",'<Resource id="ti-slla070" />',...(lang==="en"?["pull-up from A","pull-down from B","idle"]:["A 上拉","B 下拉","空闲"])])
+      ok(fs.includes(x),`b9pol arduino-io ${lang}: failsafe ${x}`);
+    const ce=read(`src/content/m11/cross-embodiment-datasets/${lang}.mdx`);
+    ok(ce.includes(lang==="en"?"Other projects also use the name UniVLA; this section means only the paper by Bu et al. (arXiv 2505.06111).":"还有其他工作也叫 UniVLA；本节只指 Bu 等的这篇论文（arXiv 2505.06111）。"),`b9pol cross-embodiment ${lang}: UniVLA name disambiguated`);
+  }
+  for(const slug of ["m2/arduino-io","m8/ros2-hardware-interface","m9/effort-admittance","m11/cross-embodiment-datasets"]){
+    const en=read(`src/content/${slug}/en.mdx`),zh=read(`src/content/${slug}/zh.mdx`);
+    ok(en.split("\n").length===zh.split("\n").length,`b9pol ${slug}: en/zh line counts in sync`);
+  }
+  console.log(`batch-9 polish: ${headN} headings without process labels, RS-485 failsafe biasing, SLLA070 further reading and UniVLA disambiguation locked`);
+}
+
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
 process.exit(failed ? 1 : 0);
