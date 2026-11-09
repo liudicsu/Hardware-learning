@@ -4458,6 +4458,29 @@ export const resources: Record<string, Resource> = {
     extra: true,
   },
 
+
+  "spatialvla-paper": {
+    id: "spatialvla-paper",
+    url: "https://arxiv.org/abs/2501.15830",
+    title: { zh: "SpatialVLA：探索视觉–语言–动作模型的空间表示（RSS 2025）", en: "SpatialVLA: Exploring Spatial Representations for Visual-Language-Action Models (RSS 2025)" },
+    author: "Delin Qu, Haoming Song, Qizhi Chen, Yuanqi Yao, Xinyi Ye, Jiayuan Gu, Zhigang Wang, Yan Ding, Bin Zhao, Dong Wang, Xuelong Li",
+    kind: "textbook",
+    cost: { zh: "免费（arXiv）", en: "Free (arXiv)" },
+    summary: { zh: "arXiv 2501.15830。Ego3D 位置编码在自心相机系注入 3D（无需机器人–相机外参）；自适应动作网格用 CDF/PPF 离散动作。110 万真实轨迹预训练。基准数值以论文为准。", en: "arXiv 2501.15830. Ego3D position encoding injects camera-frame 3D without robot–camera extrinsics; Adaptive Action Grids discretize via CDF/PPF. Pre-trained on 1.1M real episodes. Benchmark numbers per the paper." },
+    license: { zh: "预印本（arXiv 非独占分发许可），© 原作者；仅提供外链", en: "Preprint (arXiv non-exclusive distribution licence), © authors; external link only" },
+    extra: true,
+  },
+  "memoryvla-paper": {
+    id: "memoryvla-paper",
+    url: "https://arxiv.org/abs/2508.19236",
+    title: { zh: "MemoryVLA：视觉–语言–动作模型中的感知–认知记忆（2025）", en: "MemoryVLA: Perceptual-Cognitive Memory in Vision-Language-Action Models (2025)" },
+    author: "Hao Shi, Bin Xie, Yingfei Liu, Lin Sun, Fengrong Liu, Tiancai Wang, Erjin Zhou, Haoqiang Fan, Xiangyu Zhang, Gao Huang",
+    kind: "textbook",
+    cost: { zh: "免费（arXiv）", en: "Free (arXiv)" },
+    summary: { zh: "arXiv 2508.19236。工作记忆 + 感知–认知记忆库检索/巩固，再条件扩散动作专家。SimplerEnv / LIBERO / 真机数值以论文为准。MemoryVLA++（2606.09827）为延伸阅读。", en: "arXiv 2508.19236. Working memory plus a perceptual-cognitive memory bank with retrieve/consolidate, then a memory-conditioned diffusion action expert. SimplerEnv / LIBERO / real-robot numbers per the paper. MemoryVLA++ (2606.09827) is further reading." },
+    license: { zh: "预印本（arXiv 非独占分发许可），© 原作者；仅提供外链", en: "Preprint (arXiv non-exclusive distribution licence), © authors; external link only" },
+    extra: true,
+  },
   "ti-ssya010": {
     id: "ti-ssya010",
     url: "https://www.ti.com/lit/an/ssya010/ssya010.pdf",
