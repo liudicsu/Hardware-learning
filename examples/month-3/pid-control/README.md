@@ -23,3 +23,10 @@ Get the inner loop balancing first and copy your Month 2 `KP`/`KD` into the sket
 
 The lesson's output for this sketch comes from simavr with the simulated MPU-6050 and injected encoder pulses; no motors or robot physics are simulated (**simulated output / 仿真输出**). The models are [`pid_sim.py`](../../../tools/sim/models/pid_sim.py) and [`cascade_sim.py`](../../../tools/sim/models/cascade_sim.py). Not run on a real robot by the site editor.
 课程中这个程序的输出来自 simavr、模拟的 MPU-6050 和注入的编码器脉冲，没有模拟电机和车身物理。本站编者没有在真车上运行过。
+
+**`notch_vs_lead_resonant_toy.py`**: synthetic LTI joint with a compliant mode; PID, PID + notch, PID + lead–lag and a notch 30 % off the mode on shared steps, loads and sensor noise (five seeds, common random numbers). No servo or modal test was run.
+合成线性时不变关节加一个柔性模态：在共用阶跃、负载和传感器噪声下比较 PID、PID + 陷波、PID + 超前–滞后，以及偏离模态 30 % 的陷波（5 个种子，共用随机数）。本页未运行真实伺服或模态测试。
+
+```bash
+python3 notch_vs_lead_resonant_toy.py
+```

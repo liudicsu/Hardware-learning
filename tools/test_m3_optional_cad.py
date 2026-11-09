@@ -20,6 +20,7 @@ FULL = [
     "gear_efficiency_load_toy.txt",
     "lead_lag_vs_pid_toy.txt",
     "pressure_advance_corner_toy.txt",
+    "notch_vs_lead_resonant_toy.txt",
 ]
 CAD = {name for name in FULL if name.startswith(("cad-bracket", "fdm-case")) or name == "grip-finger.txt"}
 script = (ROOT / "examples/month-3/check.sh").read_text()

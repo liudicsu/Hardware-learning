@@ -1,6 +1,16 @@
 # Month 3 plan / 第 3 个月计划
 
-Current / 当前：**M3 2310 min**, Batch-14 PR1. Earlier entries below retain their historical totals.
+Current / 当前：**M3 2490 min**, Batch-15 PR1. Earlier entries below retain their historical totals.
+
+## Batch-15 PR1 — notch filter on pid-control (+180)
+
+Base `df3c1d8` (batch-14 closed incl. polish #160; site **31380**). PR1 on M3 host: **M3 2310→2490 (+180)**; M1 moves in the same PR on its own plan. Site **31380→31710**, still 71 lessons.
+
+**H2 / 3.4 pid-control:** `pid-control` 360→**540**. Toy `notch_vs_lead_resonant_toy.py`: the lead–lag toy's LTI joint, arms A PID / B PID + notch (ω0 = 40 rad/s, ωc = 0.5 ω0) / C PID + lead–lag / D notch at 0.7 ω0; one recipe, shared 20 rad/s crossover, shared steps, loads and noise (common random numbers, 5 seeds); RK4 H = 0.25 ms with |R(Hλ)| ≤ 1 asserted (h_max 72.7 ms on the zr = 0.05 mode). well_damped: B−A ise 5.5960±1.4179 (B loses, clear, 5/5); resonant (zr 0.3): B−A ise 27.4063±6.9473 (B loses, clear, 5/5); resonant_light (zr 0.2): B GM 0.80→2.35 dB but B−A ise 7.5146±3.5371 (small but consistent loss, 5/5); resonant_sharp (zr 0.05, picked after a margins-only prototype; zr 0.1 margins also printed): A, C, D diverge 5/5, B stable (PM 38.3°, GM 2.03 dB). ≠ lead–lag redo; ≠ Smith; ≠ discrete LQR. Real servo / modal test 本页未运行.
+
+**Allocation / 安排:** 30+40+40+40+30=180 minutes.
+
+**Site accounting / 全站核算:** **31710=31380+330** with M1 +150 on month-1-plan.md; **M3=2490**, **71 lessons**.
 
 ## Batch-14 PR1 — pressure advance corner toy on fdm-printing (+180)
 

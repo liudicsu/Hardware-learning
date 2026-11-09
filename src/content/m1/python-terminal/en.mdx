@@ -664,6 +664,329 @@ Before moving on, you should be able to answer "yes" to all of these:
 - I can read a traceback bottom-up and say what `ValueError`, `ModuleNotFoundError` and `IndentationError` mean.
 - I know why `.venv` must never be committed, and I have a plan for the CS50P problem sets.
 
+## Sampling and aliasing: when a fast tone reads as a slow one
+
+Every script so far in this lesson computes with numbers you typed. Robot code mostly computes with numbers a sensor **sampled**: an ADC, an IMU or an encoder reads a continuous signal at a fixed rate `fs`. This section uses the Python you just learned (`math`, `cmath`, `random`, dicts and list comprehensions) to run one small numerical experiment on what sampling keeps and what it scrambles. It is a **synthetic** model with ideal samples, not an ADC measurement.
+
+<Resource id="wiki-nyquist-shannon" />
+
+<Resource id="wiki-aliasing" />
+
+**Sources actually opened (HTML body read).**
+
+- **Wikipedia — Nyquist–Shannon sampling theorem:** if a function `x(t)` contains no frequencies higher than `B` hertz, it is completely determined by samples spaced less than `1/(2B)` seconds apart, so a sufficient sample rate is anything larger than `2B` samples per second; equivalently, for a given `fs` perfect reconstruction is possible for a bandlimit `B < fs/2`. The threshold `2B` is the **Nyquist rate**, an attribute of the input; `fs/2` is the **Nyquist frequency**, an attribute of the sampling equipment. When the bandlimit is too high, the reconstruction shows imperfections called aliasing. 以原文为准.
+- **Wikipedia — Aliasing:** a reconstructed signal contains low-frequency components that were not in the original when the original has components above the Nyquist frequency `fs/2`; the alias frequencies of a real sinusoid are `|f + N·fs|`, and the point `f = fs/2` where the reconstruction folds is the folding frequency. Aliasing is generally avoided by applying low-pass anti-aliasing filters before sampling; the attenuated high-frequency components still produce aliases, but typically at amplitudes low enough not to matter. 以原文为准.
+
+### Nyquist rate and folding
+
+<Formula label="Sufficient sample rate">fs > 2 × B</Formula>
+
+A real tone at `f` sampled at `fs` is read at the folded frequency, the distance from `f` to the nearest multiple of `fs`:
+
+<Formula label="Folding">f_seen = min(f mod fs, fs − (f mod fs))</Formula>
+
+**Worked example.** With `fs = 50 Hz` the Nyquist frequency is 25 Hz. A 40 Hz tone gives `40 mod 50 = 40`, and `50 − 40 = 10`, so the samples look exactly like a 10 Hz tone. With `fs = 200 Hz` the same 40 Hz tone is below `fs/2 = 100 Hz` and is read at 40 Hz, but a 150 Hz vibration on the same wire folds to `200 − 150 = 50 Hz` and appears as a peak that was never in the band you wanted. At the boundary: with `fs = 100 Hz`, a 49 Hz tone (0.98 × fs/2) is read at 49 Hz and a 51 Hz tone (1.02 × fs/2) is also read at 49 Hz.
+
+An anti-alias prefilter is a low-pass placed **before** the sampler. This toy uses a 4th-order Butterworth magnitude with its corner at a quarter of the sample rate:
+
+<Formula label="Prefilter magnitude">|H(f)| = 1 / √(1 + (f / FC)^8), FC = 0.25 × fs</Formula>
+
+At `fs = 200 Hz` (`FC = 50 Hz`) the toy prints the gain as 0.9917 at 30 Hz, 0.8361 at 45 Hz, 0.1508 at 80 Hz and 0.0301 at 120 Hz. The filter that removes the 150 Hz vibration also shrinks a 45 Hz tone you wanted by 16 %. **Safe sampling** in this toy means `fs > 2B` for the wanted tone **and** no tone above `fs/2` left above the 0.05 peak threshold after the declared prefilter.
+
+**No integration step here.** Each sample is evaluated in closed form at `t = n / fs`; nothing is stepped in time, so no step-size stability criterion applies (the independent tests check that the script has no time step). The boundary that matters is the Nyquist frequency itself, and the tests check it at 0.98× and 1.02× of `fs/2`.
+
+### Fair setup
+
+`nyquist_aliasing_toy.py` is **synthetic** and stdlib only. **Model assumptions:** ideal impulse sampling (no aperture, no jitter, no quantisation; this is **not** a claim about any real ADC); a 1 s record, so the plain DFT has 1 Hz bins; every tone sits on an integer number of hertz, so a tone below `fs/2` lands on one bin with no leakage; the prefilter acts on each tone's amplitude in steady state (its phase delay is not modelled, because every metric here is a spectral magnitude); ADC noise with sd 0.01 is added after the prefilter.
+
+| Arm | Sample rate | Prefilter |
+|---|---|---|
+| A_low | 50 Hz | none |
+| B_aaf | 200 Hz | 4th-order Butterworth, FC = 0.25 × fs |
+| C_raw | 200 Hz | none |
+
+**Common random numbers:** for each (regime, seed, trial) the wanted tone's frequency, amplitude and phase, the interferer's frequency and phase, and the noise record are drawn once and shared by all three arms (the 50 Hz arm uses the first 50 noise samples). Five seeds × 8 trials; each metric is the per-seed mean over trials, reported as mean±sd over seeds. `freq_err_Hz` is the distance from the strongest DFT peak to the wanted tone; `false_peaks` counts bins above 0.05 that are not within ±1 bin of the wanted tone; `amp_err_%` is the amplitude error at the strongest peak, so in A it is measured **at the alias** when the tone has folded.
+
+| Regime | Wanted tone | Interferer |
+|---|---|---|
+| slow_tone | 2–8 Hz | none |
+| single_tone | 35–45 Hz | none |
+| interferer | 10–30 Hz | 120–180 Hz, amplitude 0.5 |
+| near_edge | 70–90 Hz | none |
+
+**Choice made after seeing results.** The first run had three regimes; `slow_tone` was added afterwards to show a case where the 50 Hz rate is enough. Every other regime and every parameter (`FC = 0.25 × fs`, order 4, threshold 0.05, noise 0.01) is unchanged from that first run, so the three-regime run is the same three blocks printed below. The arm called `A_low` was named `A_under` in the first run; it was renamed because in `slow_tone` it is not under-sampled.
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-1/python-terminal
+python3 nyquist_aliasing_toy.py
+```
+
+<CodeSource path="examples/month-1/python-terminal/nyquist_aliasing_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic Nyquist / aliasing toy: sample shared tones, read the spectrum. Stdlib only.
+
+Ideal impulse sampling of a sum of sinusoids over a 1 s window, then a plain DFT
+(1 Hz bins). Tones sit on integer Hz, so a tone below fs/2 lands on one bin with
+no leakage; a tone above fs/2 lands on its alias bin |f - k fs|.
+
+Arms (one shared signal per trial):
+  A_low     fs = FS_LOW = 50 Hz, no prefilter (below 2B in every regime except slow_tone)
+  B_aaf     fs = FS_HIGH (above 2B) with an analog anti-alias prefilter before sampling:
+            4th-order Butterworth magnitude |H(f)| = 1 / sqrt(1 + (f / FC)^8), FC = 0.25 fs,
+            applied to each tone's amplitude (steady state; phase delay not modelled,
+            the metrics are spectral magnitudes)
+  C_raw     fs = FS_HIGH, no prefilter
+
+slow_tone was added after the first run (the other regimes and every parameter are unchanged).
+
+Common random numbers: per seed and trial the tone frequencies, amplitudes, phases
+and the ADC noise sequence (sd 0.01, added after the prefilter, drawn once at the
+longest record and truncated) are shared by every arm. No integration step: the
+signal is evaluated in closed form at each sample instant.
+
+Metrics per trial, averaged over TRIALS per seed: freq_err = |strongest DFT peak -
+wanted tone| in Hz; false_peaks = bins above THRESH that are not the wanted tone
+(+-1 bin); amp_err = |amplitude at the strongest peak - wanted amplitude| in %.
+Safe sampling: fs > 2B and no tone above fs/2 left above THRESH after the declared
+prefilter. Labels: tie = identical on every seed; numerically zero = |paired mean|
+and sd both < 1e-9 (effectively a tie, no sign count); |m| <= sd = near-tie;
+|m| > sd = consistent gap (small if |m| < 20 % of the smaller arm mean, else clear),
+with a sign count. Real scope / ADC: 本页未运行. Wikipedia definitions: 以原文为准.
+"""
+import cmath
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+TRIALS = 8
+FS_LOW, FS_HIGH = 50, 200  # Hz, 1 s records -> 1 Hz DFT bins
+FC_RATIO = 0.25  # prefilter corner FC = FC_RATIO * fs
+ORDER = 4
+THRESH = 0.05  # peak threshold (amplitude units; full-scale tone = 1)
+NOISE = 0.01
+NUM_ZERO = 1e-9
+ARMS = ("A_low", "B_aaf", "C_raw")
+# name: wanted tone range (Hz), wanted amplitude range, interferer range (Hz) or None, interferer amplitude
+REGIMES = {
+    "slow_tone": ((2, 8), (0.5, 1.0), None, 0.0),
+    "single_tone": ((35, 45), (0.5, 1.0), None, 0.0),
+    "interferer": ((10, 30), (0.5, 1.0), (120, 180), 0.5),
+    "near_edge": ((70, 90), (0.5, 1.0), None, 0.0),
+}
+ARM_FS = {"A_low": FS_LOW, "B_aaf": FS_HIGH, "C_raw": FS_HIGH}
+
+
+def prefilter(f, fs):
+    return 1.0 / math.sqrt(1.0 + (f / (FC_RATIO * fs)) ** (2 * ORDER))
+
+
+def alias(f, fs):
+    """Apparent frequency of a real tone f after sampling at fs (folding about fs/2)."""
+    r = f % fs
+    return min(r, fs - r)
+
+
+def shared_trial(regime, seed, trial):
+    """Common random numbers: one signal + one noise record per (regime, seed, trial)."""
+    (lo, hi), (alo, ahi), intr, iamp = REGIMES[regime]
+    rng = random.Random(f"{regime}-{seed}-{trial}")
+    tones = [(rng.randint(lo, hi), rng.uniform(alo, ahi), rng.uniform(0.0, 2 * math.pi))]
+    if intr:
+        tones.append((rng.randint(*intr), iamp, rng.uniform(0.0, 2 * math.pi)))
+    noise = [rng.gauss(0.0, NOISE) for _ in range(FS_HIGH)]
+    return tones, noise
+
+
+def sample(arm, tones, noise):
+    fs = ARM_FS[arm]
+    gains = [prefilter(f, fs) if arm == "B_aaf" else 1.0 for f, _, _ in tones]
+    return [sum(g * a * math.sin(2 * math.pi * f * n / fs + p) for g, (f, a, p) in zip(gains, tones)) + noise[n]
+            for n in range(fs)]
+
+
+def spectrum(x):
+    """One-sided amplitude spectrum, bins 1..N/2-1 (1 Hz apart for a 1 s record)."""
+    n = len(x)
+    return {k: 2.0 / n * abs(sum(v * cmath.exp(-2j * math.pi * k * i / n) for i, v in enumerate(x)))
+            for k in range(1, n // 2)}
+
+
+def trial_metrics(arm, tones, noise):
+    spec = spectrum(sample(arm, tones, noise))
+    f0, a0, _ = tones[0]
+    peak = max(spec, key=lambda k: (spec[k], -k))
+    false = sum(1 for k, v in spec.items() if v > THRESH and abs(k - f0) > 1)
+    return {"freq": float(abs(peak - f0)), "false": float(false), "amp": 100.0 * abs(spec[peak] - a0) / a0}
+
+
+def safe(arm, tones):
+    fs = ARM_FS[arm]
+    g = (lambda f: prefilter(f, fs)) if arm == "B_aaf" else (lambda f: 1.0)
+    left = [f for f, a, _ in tones if f >= fs / 2 and g(f) * a > THRESH]
+    return fs > 2 * tones[0][0] and not left
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-5:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{num(m)}+-{num(s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{num(m)}+-{num(s)}: {label}; {sign_note(diffs, m)}"
+
+
+def main():
+    print("Synthetic sampling toy; ideal impulse sampling + plain DFT; shared tones / phases / ADC noise; not a real ADC")
+    print(f"seeds={len(SEEDS)} trials={TRIALS} record=1 s fs_low={FS_LOW} Hz fs_high={FS_HIGH} Hz "
+          f"prefilter Butterworth order {ORDER} FC={FC_RATIO} fs threshold={THRESH} noise sd={NOISE}; no time step (closed-form samples)")
+    print(f"folding check: fs=100 Hz, tone 49 Hz -> {alias(49, 100)} Hz, tone 51 Hz -> {alias(51, 100)} Hz, "
+          f"tone 150 Hz -> {alias(150, 100)} Hz; fs=200 Hz, tone 150 Hz -> {alias(150, 200)} Hz")
+    print(f"prefilter gain at fs=200 Hz: 30 Hz {prefilter(30, 200):.4f}, 45 Hz {prefilter(45, 200):.4f}, "
+          f"80 Hz {prefilter(80, 200):.4f}, 120 Hz {prefilter(120, 200):.4f}, 180 Hz {prefilter(180, 200):.4f}")
+    print("regime arm freq_err_Hz false_peaks amp_err_%  safe_trials  (mean+-sd over seeds of per-seed trial means)")
+    for regime in REGIMES:
+        (lo, hi), _, intr, iamp = REGIMES[regime]
+        print(f"{regime} (wanted {lo}..{hi} Hz" + (f", interferer {intr[0]}..{intr[1]} Hz amp {iamp}" if intr else "") + ")")
+        res = {a: [] for a in ARMS}
+        nsafe = {a: 0 for a in ARMS}
+        for seed in SEEDS:
+            per = {a: [] for a in ARMS}
+            for trial in range(TRIALS):
+                tones, noise = shared_trial(regime, seed, trial)
+                for a in ARMS:
+                    per[a].append(trial_metrics(a, tones, noise))
+                    nsafe[a] += safe(a, tones)
+            for a in ARMS:
+                res[a].append({k: sum(t[k] for t in per[a]) / TRIALS for k in ("freq", "false", "amp")})
+        for a in ARMS:
+            cells = " ".join("{}+-{}".format(*map(num, mean_sd([r[k] for r in res[a]]))) for k in ("freq", "false", "amp"))
+            print(f"  {a} fs={ARM_FS[a]} {cells}  safe {nsafe[a]}/{len(SEEDS) * TRIALS}")
+        for x, y in (("A_low", "B_aaf"), ("C_raw", "B_aaf")):
+            for k in ("freq", "false", "amp"):
+                print(f"  paired {x[0]}-{y[0]} {k}: {verdict([r[k] for r in res[x]], [r[k] for r in res[y]])}")
+    print("slow_tone: 50 Hz is already above 2B, so the low rate reads the tone as well as the high one")
+    print("single_tone: below 2B the tone folds to fs - f; above 2B the prefilter costs passband droop at 35..45 Hz")
+    print("interferer: without a prefilter the 120..180 Hz tone folds into 20..80 Hz and reads as a real peak")
+    print("near_edge: a corner at 0.25 fs eats a 70..90 Hz wanted tone; fs > 2B is not enough with a real filter")
+    print("No winner declared: an anti-alias filter needs fs well above 2B so its corner clears the band you want")
+    print("Real scope / ADC: 本页未运行; Wikipedia definitions 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic sampling toy; ideal impulse sampling + plain DFT; shared tones / phases / ADC noise; not a real ADC
+seeds=5 trials=8 record=1 s fs_low=50 Hz fs_high=200 Hz prefilter Butterworth order 4 FC=0.25 fs threshold=0.05 noise sd=0.01; no time step (closed-form samples)
+folding check: fs=100 Hz, tone 49 Hz -> 49 Hz, tone 51 Hz -> 49 Hz, tone 150 Hz -> 50 Hz; fs=200 Hz, tone 150 Hz -> 50 Hz
+prefilter gain at fs=200 Hz: 30 Hz 0.9917, 45 Hz 0.8361, 80 Hz 0.1508, 120 Hz 0.0301, 180 Hz 0.0060
+regime arm freq_err_Hz false_peaks amp_err_%  safe_trials  (mean+-sd over seeds of per-seed trial means)
+slow_tone (wanted 2..8 Hz)
+  A_low fs=50 0.0000+-0.0000 0.0000+-0.0000 0.2192+-0.0877  safe 40/40
+  B_aaf fs=200 0.0000+-0.0000 0.0000+-0.0000 0.1082+-0.0465  safe 40/40
+  C_raw fs=200 0.0000+-0.0000 0.0000+-0.0000 0.1082+-0.0465  safe 40/40
+  paired A-B freq: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B false: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B amp: 0.1110+-0.0533: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B freq: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B false: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B amp: -1.322e-06+-2.423e-06: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+single_tone (wanted 35..45 Hz)
+  A_low fs=50 29.8500+-0.3791 1.0000+-0.0000 0.2313+-0.0645  safe 0/40
+  B_aaf fs=200 0.0000+-0.0000 0.0000+-0.0000 8.2123+-0.5281  safe 40/40
+  C_raw fs=200 0.0000+-0.0000 0.0000+-0.0000 0.1059+-0.0248  safe 40/40
+  paired A-B freq: 29.8500+-0.3791: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B false: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B amp: -7.9810+-0.5252: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B freq: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B false: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B amp: -8.1064+-0.5337: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+interferer (wanted 10..30 Hz, interferer 120..180 Hz amp 0.5)
+  A_low fs=50 2.2000+-1.8804 1.1500+-0.2236 3.3293+-4.5906  safe 0/40
+  B_aaf fs=200 0.0000+-0.0000 0.0000+-0.0000 0.2384+-0.1340  safe 40/40
+  C_raw fs=200 0.0000+-0.0000 0.9750+-0.0559 0.1075+-0.0096  safe 0/40
+  paired A-B freq: 2.2000+-1.8804: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B false: 1.1500+-0.2236: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B amp: 3.0909+-4.6715: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired C-B freq: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B false: 0.9750+-0.0559: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B amp: -0.1308+-0.1390: near-tie / small gap, within seed noise (|m| <= sd); same sign on all 5 seeds
+near_edge (wanted 70..90 Hz)
+  A_low fs=50 63.2750+-4.1102 0.9500+-0.0685 5.1466+-6.7577  safe 0/40
+  B_aaf fs=200 0.0000+-0.0000 0.0000+-0.0000 84.6084+-1.3317  safe 40/40
+  C_raw fs=200 0.0000+-0.0000 0.0000+-0.0000 0.1260+-0.0244  safe 40/40
+  paired A-B freq: 63.2750+-4.1102: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B false: 0.9500+-0.0685: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B amp: -79.4618+-7.1592: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B freq: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B false: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B amp: -84.4824+-1.3352: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+slow_tone: 50 Hz is already above 2B, so the low rate reads the tone as well as the high one
+single_tone: below 2B the tone folds to fs - f; above 2B the prefilter costs passband droop at 35..45 Hz
+interferer: without a prefilter the 120..180 Hz tone folds into 20..80 Hz and reads as a real peak
+near_edge: a corner at 0.25 fs eats a 70..90 Hz wanted tone; fs > 2B is not enough with a real filter
+No winner declared: an anti-alias filter needs fs well above 2B so its corner clears the band you want
+Real scope / ADC: 本页未运行; Wikipedia definitions 以原文为准
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used on this page, in this order: **tie: identical on every seed** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when `|paired mean|` and its sd are both below 1e-9 (no sign count is printed on such a line); **near-tie / small gap, within seed noise** when `|paired mean| ≤ sd`; otherwise a **consistent** gap (`|paired mean| > sd`), called **small** if `|m|` is under 20 % of the smaller arm mean and **clear** otherwise; the 20 % rule only chooses between those two words. Every consistent line carries a same-sign count over the 5 seeds, and any seed with the opposite sign is reported; a sign count alone never makes a gap consistent. Gaps are computed from unrounded values.
+
+- **slow_tone:** 50 Hz is already above `2B` for a 2–8 Hz tone, so A finds the right frequency: paired A−B frequency error and false peaks are a **tie: identical on every seed**. A's amplitude error is larger with a clear gap (paired A−B 0.1110±0.0533, same sign on all 5 seeds) because 50 samples average the noise less than 200. The prefilter costs B nothing here: C−B amplitude is −1.322e-06±2.423e-06, a **near-tie / small gap, within seed noise** with 1 of 5 seeds of the opposite sign. It is not numerically zero: the droop at 8 Hz is tiny but larger than 1e-9.
+- **single_tone:** A samples a 35–45 Hz tone at 50 Hz and reads it 29.8500±0.3791 Hz away, as the fold predicts. **A loses with a clear gap:** paired A−B frequency error 29.8500±0.3791 and false peaks 1.0000±0.0000, both same sign on all 5 seeds. A's amplitude error looks better than B's (paired −7.9810±0.5252, clear, 5/5) only because it is measured on the alias. B and C find the same frequency (**tie** on frequency error and on false peaks), but **B loses amplitude with a clear gap:** 8.2123±0.5281 % against 0.1059±0.0248 % (paired C−B −8.1064±0.5337, same sign on all 5 seeds). That is the passband droop of a corner at 50 Hz on a 35–45 Hz tone.
+- **interferer:** without a prefilter the 120–180 Hz tone folds into 20–80 Hz. **C loses with a clear gap** on false peaks: 0.9750±0.0559 per trial against B's 0 (paired C−B 0.9750±0.0559, same sign on all 5 seeds), and C counts as unsafe on 0 of 40 trials. It is not exactly 1 because a fold that lands within ±1 bin of the wanted tone is not counted as a separate peak. Both arms still find the wanted tone (**tie** on frequency error), and their amplitude errors are a **near-tie / small gap, within seed noise** (C−B −0.1308±0.1390; all 5 seeds have the same sign, but `|m| ≤ sd`). A loses frequency and false peaks with clear gaps (2.2000±1.8804 Hz and 1.1500±0.2236, 5/5); its amplitude error against B is a near-tie (3.0909±4.6715, 1 of 5 seeds of the opposite sign).
+- **near_edge:** a 70–90 Hz wanted tone at `fs = 200 Hz` meets `fs > 2B`, and B even counts as safe on 40 of 40 trials, but the prefilter corner at 50 Hz eats it. **B loses with a clear gap:** amplitude error 84.6084±1.3317 % against C's 0.1260±0.0244 % (paired C−B −84.4824±1.3352, same sign on all 5 seeds). The rule `fs > 2B` is necessary but not enough: a real filter needs room between the band you want and `fs/2`. A loses frequency with a clear gap (paired A−B 63.2750±4.1102, 5/5).
+
+The page **does not declare a universal winner**: a low rate is fine when the band is low, a prefilter is the only arm that rejects an out-of-band tone, and the same prefilter distorts a wanted tone that sits close to its corner. Real scope or ADC: **本页未运行**.
+
+**150-minute work plan:** 25 min read the two Wikipedia pages; 30 min work the folding example by hand for three tones; 40 min run the toy and read the four regimes; 30 min move `FC_RATIO`, `FS_HIGH` and `THRESH` with seeds fixed; 25 min the exercises.
+
+### Exercises
+
+1. A 60 Hz mains hum is sampled at 50 Hz and at 100 Hz. Use the folding formula to say where it appears in each case.
+2. Show from `shared_trial` and `sample` that B and C see the same tones and the same noise, so their only difference is the prefilter gain.
+3. Compute `|H(f)|` for a 90 Hz tone at `fs = 200 Hz` and compare it with B's printed amplitude error in `near_edge`.
+4. Set `FC_RATIO` to 0.45 with seeds fixed. Predict whether B still rejects the 120–180 Hz interferer below the 0.05 threshold before you run.
+5. Before any real scope or ADC test (本页未运行), explain why `near_edge` counting B as **safe** does **not** mean B measured the tone well.
+
 <Summary>
 
 **Key points**
@@ -673,6 +996,7 @@ Before moving on, you should be able to answer "yes" to all of these:
 - `resistors.py` shows that 1 kΩ ±5 % and 4.7 kΩ ±5 % in series give 5415–5985 Ω, and that two 10 kΩ resistors in parallel give 5 kΩ.
 - `log.py` records R1 at 4700 Ω nominal and 4688 Ω measured, checks the 5 % tolerance, and reports 4400 Ω as out of tolerance.
 - Read a traceback bottom-up: the last line names the error and the frames show where it happened.
+- Sampling: a 35–45 Hz tone sampled at 50 Hz reads 29.8500±0.3791 Hz off (a clear gap against 200 Hz, same sign on all 5 seeds), a 120–180 Hz tone without a prefilter folds into a false peak (C−B 0.9750±0.0559, clear), and the same prefilter loses 84.6084±1.3317 % of a 70–90 Hz tone near its corner — `fs > 2B` is necessary, not enough; a synthetic model, not an ADC run.
 
 **Used next**
 

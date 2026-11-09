@@ -1,0 +1,51 @@
+Synthetic sampling toy; ideal impulse sampling + plain DFT; shared tones / phases / ADC noise; not a real ADC
+seeds=5 trials=8 record=1 s fs_low=50 Hz fs_high=200 Hz prefilter Butterworth order 4 FC=0.25 fs threshold=0.05 noise sd=0.01; no time step (closed-form samples)
+folding check: fs=100 Hz, tone 49 Hz -> 49 Hz, tone 51 Hz -> 49 Hz, tone 150 Hz -> 50 Hz; fs=200 Hz, tone 150 Hz -> 50 Hz
+prefilter gain at fs=200 Hz: 30 Hz 0.9917, 45 Hz 0.8361, 80 Hz 0.1508, 120 Hz 0.0301, 180 Hz 0.0060
+regime arm freq_err_Hz false_peaks amp_err_%  safe_trials  (mean+-sd over seeds of per-seed trial means)
+slow_tone (wanted 2..8 Hz)
+  A_low fs=50 0.0000+-0.0000 0.0000+-0.0000 0.2192+-0.0877  safe 40/40
+  B_aaf fs=200 0.0000+-0.0000 0.0000+-0.0000 0.1082+-0.0465  safe 40/40
+  C_raw fs=200 0.0000+-0.0000 0.0000+-0.0000 0.1082+-0.0465  safe 40/40
+  paired A-B freq: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B false: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B amp: 0.1110+-0.0533: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B freq: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B false: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B amp: -1.322e-06+-2.423e-06: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+single_tone (wanted 35..45 Hz)
+  A_low fs=50 29.8500+-0.3791 1.0000+-0.0000 0.2313+-0.0645  safe 0/40
+  B_aaf fs=200 0.0000+-0.0000 0.0000+-0.0000 8.2123+-0.5281  safe 40/40
+  C_raw fs=200 0.0000+-0.0000 0.0000+-0.0000 0.1059+-0.0248  safe 40/40
+  paired A-B freq: 29.8500+-0.3791: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B false: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B amp: -7.9810+-0.5252: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B freq: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B false: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B amp: -8.1064+-0.5337: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+interferer (wanted 10..30 Hz, interferer 120..180 Hz amp 0.5)
+  A_low fs=50 2.2000+-1.8804 1.1500+-0.2236 3.3293+-4.5906  safe 0/40
+  B_aaf fs=200 0.0000+-0.0000 0.0000+-0.0000 0.2384+-0.1340  safe 40/40
+  C_raw fs=200 0.0000+-0.0000 0.9750+-0.0559 0.1075+-0.0096  safe 0/40
+  paired A-B freq: 2.2000+-1.8804: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B false: 1.1500+-0.2236: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B amp: 3.0909+-4.6715: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired C-B freq: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B false: 0.9750+-0.0559: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B amp: -0.1308+-0.1390: near-tie / small gap, within seed noise (|m| <= sd); same sign on all 5 seeds
+near_edge (wanted 70..90 Hz)
+  A_low fs=50 63.2750+-4.1102 0.9500+-0.0685 5.1466+-6.7577  safe 0/40
+  B_aaf fs=200 0.0000+-0.0000 0.0000+-0.0000 84.6084+-1.3317  safe 40/40
+  C_raw fs=200 0.0000+-0.0000 0.0000+-0.0000 0.1260+-0.0244  safe 40/40
+  paired A-B freq: 63.2750+-4.1102: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B false: 0.9500+-0.0685: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B amp: -79.4618+-7.1592: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B freq: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B false: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B amp: -84.4824+-1.3352: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+slow_tone: 50 Hz is already above 2B, so the low rate reads the tone as well as the high one
+single_tone: below 2B the tone folds to fs - f; above 2B the prefilter costs passband droop at 35..45 Hz
+interferer: without a prefilter the 120..180 Hz tone folds into 20..80 Hz and reads as a real peak
+near_edge: a corner at 0.25 fs eats a 70..90 Hz wanted tone; fs > 2B is not enough with a real filter
+No winner declared: an anti-alias filter needs fs well above 2B so its corner clears the band you want
+Real scope / ADC: 本页未运行; Wikipedia definitions 以原文为准

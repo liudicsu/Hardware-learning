@@ -1,6 +1,16 @@
 # Month 1 plan / 第 1 个月计划
 
-Current / 当前：**M1 1800 min**, Batch-14 PR1. Earlier entries below retain their historical totals.
+Current / 当前：**M1 1950 min**, Batch-15 PR1. Earlier entries below retain their historical totals.
+
+## Batch-15 PR1 / 本月 H1 (+150)
+
+Base `df3c1d8` (batch-14 closed incl. polish #160; site **31380**). PR1 only on M1 host: **M1 1800→1950 (+150)**; M3 moves in the same PR on its own plan. Site **31380→31710**, still 71 lessons.
+
+- **H1 / 1.5 python-terminal: 180→330 (+150).** Nyquist rate and aliasing. Toy `nyquist_aliasing_toy.py`: ideal impulse sampling + plain DFT over a 1 s record (closed-form samples, no time step); arms A 50 Hz / B 200 Hz with a 4th-order Butterworth prefilter (FC = 0.25 fs) / C 200 Hz raw; shared tones, phases and ADC noise (common random numbers, 5 seeds × 8 trials). single_tone: A−B freq 29.8500±0.3791 Hz, clear, 5/5, and C−B amp −8.1064±0.5337 (B loses amplitude to passband droop, clear, 5/5); interferer: C−B false peaks 0.9750±0.0559, clear, 5/5; near_edge: C−B amp −84.4824±1.3352 (B loses, clear, 5/5); slow_tone (added after the first run, disclosed): A−B freq and false peaks **tie** (identical on every seed). Real scope / ADC 本页未运行.
+
+**Allocation / 安排:** 25+30+40+30+25=150 minutes.
+
+**Site accounting / 全站核算:** **31710=31380+330** with M3 +180 on month-3-plan.md; **M1=1950**, **71 lessons**.
 
 ## Batch-14 PR1 / 本月 H1 (+150)
 
