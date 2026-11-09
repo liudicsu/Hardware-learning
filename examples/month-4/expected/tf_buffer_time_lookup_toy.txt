@@ -1,0 +1,46 @@
+Synthetic tf2 Buffer stand-in: one pan joint at 50 Hz, a 30 Hz camera; arms differ only in the lookup time rule; not tf2 itself
+TF period 20 ms, B timeout 50 ms, cache 10 s, error on a point 1 m in front of the camera; seeds=5
+No integration step: the joint angle is closed-form in time and the buffer is a lookup table
+regime arm err_mm fail_% wait_ms  (mean+-sd over seeds; err on images every arm answered)
+static_tree (static joint, transport 2-8 ms, image delivery lag 60-100 ms; 243-243 common images per seed)
+  A_latest 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+  B_stamped 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+  C_extrapolate 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+  paired A-B err: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B fail: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B wait: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B err: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B fail: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B wait: 0.0000+-0.0000: tie: identical on every seed
+lagging_stamp (moving joint, transport 2-8 ms, image delivery lag 60-100 ms; 243-243 common images per seed)
+  A_latest 171.3114+-37.8550 0.0000+-0.0000 0.0000+-0.0000
+  B_stamped 0.7814+-0.2768 0.0000+-0.0000 0.0000+-0.0000
+  C_extrapolate 0.7814+-0.2768 0.0000+-0.0000 0.0000+-0.0000
+  paired A-B err: 170.5300+-37.6692: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B fail: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B wait: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B err: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B fail: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B wait: 0.0000+-0.0000: tie: identical on every seed
+fresh_stamp (moving joint, transport 15-30 ms, image delivery lag 1-3 ms; 243-243 common images per seed)
+  A_latest 79.7414+-7.1331 0.0000+-0.0000 0.0000+-0.0000
+  B_stamped 3.5518+-0.7919 0.0000+-0.0000 30.4452+-0.4321
+  C_extrapolate 19.0878+-4.2234 0.0000+-0.0000 0.0000+-0.0000
+  paired A-B err: 76.1896+-6.5537: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B fail: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B wait: -30.4452+-0.4321: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B err: 15.5360+-3.4333: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B fail: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B wait: -30.4452+-0.4321: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+tf_dropout (moving joint, transport 2-8 ms, image delivery lag 60-100 ms, TF dropout 300 ms every 1000 ms; 194-197 common images per seed)
+  A_latest 199.9840+-21.7527 0.0000+-0.0000 0.0000+-0.0000
+  B_stamped 21.1206+-9.1382 19.7531+-0.5040 1.4819+-0.3506
+  C_extrapolate 47.1618+-17.2687 0.0000+-0.0000 0.0000+-0.0000
+  paired A-B err: 178.8633+-15.0951: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B fail: -19.7531+-0.5040: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B wait: -1.4819+-0.3506: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B err: 26.0411+-11.8584: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B fail: -19.7531+-0.5040: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B wait: -1.4819+-0.3506: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: a stamped lookup removes the lag error but waits for fresh data and fails when TF stops; extrapolation never fails and is wrong when the joint turns
+Real ros2 / tf2_ros / camera: 本页未运行; tf2 behaviour 以原文为准

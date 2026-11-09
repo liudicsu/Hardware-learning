@@ -27,3 +27,12 @@ python3 examples/month-5/control-modelling/sysid_pe_compare_toy.py
 
 Fair energy, shared noise, reports `cond(ΦᵀΦ)` and `‖θ̂−θ‖`. Equation-error OLS bias caveat. Real motor sysid 本页未运行.
 公平能量、共享噪声，报告条件数与参数误差；方程误差 OLS 偏差风险已标明。真实电机辨识本页未运行。
+
+## smith_predictor_delay_toy.py — Smith predictor / Smith 预估器
+
+```bash
+python3 examples/month-5/control-modelling/smith_predictor_delay_toy.py
+```
+
+First-order plant with a pure input delay, explicit Euler at 1 ms (asserts `H < 2τ`); a PI that ignores the delay vs the same PI in a Smith predictor with the true model vs one with a wrong delay / gain model; five seeds, common random numbers. Real delayed plant 本页未运行.
+带纯输入延迟的一阶对象，1 ms 显式 Euler（断言 `H < 2τ`）；比较忽略延迟的 PI、放进真实模型 Smith 预估器的同一个 PI、以及延迟/增益模型错误的 Smith 预估器；5 个种子，共用随机数。真实带延迟对象本页未运行。

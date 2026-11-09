@@ -1,6 +1,16 @@
 # Month 5 current plan / 第5个月当前计划
 
-Current / 当前：**M5 2490 min**, Batch-13 PR2. Older batch entries retain historical totals.
+Current / 当前：**M5 2670 min**, Batch-14 PR2. Older batch entries retain historical totals.
+
+## Batch-14 PR2 / 本月 H4 (+180)
+
+Base `4b996f7` (batch-14 PR1 merged as #157; site **30600**). PR2 on M5 host: **M5 2490→2670 (+180)**; M4 moves in the same PR on its own plan. Site **30600→30960**, still 71 lessons.
+
+- **H4 / 5.1 control-modelling: 420→600 (+180).** Smith predictor `C̄ = C / (1 + C G (1 − z^−k))`. Toy `smith_predictor_delay_toy.py`: first-order plant with a pure input delay, explicit Euler `H = 1 ms` with `H < 2τ` asserted (2τ_min 0.8233 s); arms A PI ignoring the delay / B Smith with the true model / C Smith with a wrong delay and gain model; shared plant, reference, load, noise and C's model errors (common random numbers, 5 seeds). zero_delay: all **tie** (identical on every seed); long_delay: A−B overshoot 87.3189±0.1214, clear, 5/5; C−B settle 0.6180±0.2675 clear but ISE / overshoot near-tie; short_delay: the plain PI wins (A−B settle −0.1920±0.0045, clear, 5/5); wrong_delay_big: C−B loses on every metric, clear, 5/5. Added a whole-lesson final Summary in en/zh (the host had none). ≠ lead–lag; ≠ discrete LQR; ≠ anti-windup. Real delayed plant 本页未运行.
+
+**Allocation / 安排:** 30+30+40+40+40=180 minutes.
+
+**Site accounting / 全站核算:** **30960=30600+360** with M4 +180 on month-4-plan.md; **M5=2670**, **71 lessons**.
 
 ## Batch-13 PR2 / 本月 H3 (+180)
 

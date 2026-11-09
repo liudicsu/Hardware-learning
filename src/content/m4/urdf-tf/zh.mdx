@@ -676,6 +676,342 @@ At time 0.0
 
 <Quiz id="q5" question="你的 SLAM 节点报错说无法从 'base_scan' 变换到 'base_link'。view_frames 显示你的树里有 lidar_link，但没有 base_scan。最可能的原因是什么？" options={["激光雷达坏了", "激光雷达驱动给扫描盖的坐标系名字，你的 URDF 里没有", "SLAM 参数不对", "RViz 没在运行"]} answer={1} explanation="消息里的那个坐标系名字在树里不存在；让驱动改用 lidar_link，或者加一个静态变换。" />
 
+## 在正确的时刻查变换
+
+上面的排障清单最后一条讲到时间错误，也就是 “extrapolation into the future” 或 “into the past”。本节讲清这些错误从哪里来，以及每种绕开它的办法各有什么代价。一个变换除了两个坐标系名，还带一个时间。“最新的变换”和“这张图拍下那一刻的变换”是两个不同的问题。本节**不是**第 1–2 课的 SROS2 或组件化内容，也**不是**第 4 课的 Gazebo 步长一节。本节之前的输出都是真实的 ROS 2 运行；本节是一个**合成**的 Python 缓冲区模型，所以它的输出标为模型输出。
+
+<Resource id="tf2-time-tutorial" />
+
+**实际打开并读过正文的来源。** 编者主机用 `curl` 访问 docs.ros.org 时拿到的是反爬验证页，所以 Jazzy 教程改读 `ros2_documentation` 仓库（jazzy 分支）里的 reStructuredText 源文件，缓冲区的行为则读 `geometry2` 源码（jazzy 分支）。
+
+- **ROS 2 教程 — Using time (C++)。** tf2 为每个变换保存时间快照，默认最多保存 10 秒。`lookupTransform()` 的时间参数取 0（`tf2::TimePointZero`）表示“缓冲区里最新的”变换。直接问“现在”会报 “Lookup would require extrapolation into the future”，因为广播出去的变换要过几毫秒才进入监听者的缓冲区。可选的第四个参数是超时（timeout），它让 `lookupTransform()` 阻塞等待变换到达，超时还没到才抛异常。以原文为准。
+- **ROS 2 教程 — Traveling in time (C++)。** 查询 5 秒前的变换时，在攒够 5 秒历史之前会一直失败。进阶重载要传目标时间、源时间和一个固定坐标系，用来问“那个坐标系当时的位置，相对另一个坐标系现在的位置在哪里”。以原文为准。
+- **ROS 2 教程 — Using stamped datatypes with `tf2_ros::MessageFilter`。** 对相机和激光数据，这个过滤器把带时间戳的消息先缓存起来，等到能变换到目标坐标系时再交出去。以原文为准。
+- **geometry2（jazzy）— `tf2` BufferCore / TimeCache 源码。** 默认缓存时长为 10 s（`BUFFER_CORE_DEFAULT_CACHE_TIME`）；时间 0 返回最新存下的样本。比最新样本还新的时间会抛 “extrapolation into the future”，比最旧样本还旧的时间会抛 “extrapolation into the past”。落在两个样本之间的时间会做插值：平移按线性插值，旋转按 slerp。这段代码没有限制两个样本之间可以隔多远。tf2 本身从不外推。以原文为准。
+
+<Resource id="tf2-buffercore-source" />
+
+### 三种问法
+
+一张图在快门关上时打上时间戳 `t_img`，但要晚一些、到 `t_q` 才送到你的节点；这段时间里云台还在转。向缓冲区提问有三种方式：
+
+| 组 | 调用 | 返回什么 |
+|---|---|---|
+| A_latest | `lookupTransform(base_link, camera_link, time 0)` | `t_q` 时缓冲区里最新的样本 |
+| B_stamped | `lookupTransform(base_link, camera_link, t_img, 50 ms)` | 在 `t_img` 处插值；如果 `t_img` 比最新样本还新，最多等 50 ms，等不到就失败 |
+| C_extrapolate | 手写的绕行办法 | `t_img` 在缓冲区内时同样插值；否则沿最新两个样本连直线外推，不等待 |
+
+**算例：云台关节以 2 rad/s 转动，看相机前方 1 m 处的一个点。**
+
+```text
+latest (time 0), image 80 ms old, joint at 2 rad/s:  Δθ = 2 × 0.080 = 0.16 rad -> 2 × 1 m × sin(0.08) = 159.8 mm
+stamped, samples 20 ms apart, |θ''| ≤ 40 rad/s²:     interpolation error ≤ 40 × 0.020² / 8 = 0.002 rad -> 2.0 mm
+extrapolated 40 ms past the newest sample:            error ≈ ½ × 40 × 0.040² = 0.032 rad -> 32.0 mm
+```
+
+用最新变换时，误差就是图像这段“年龄”内关节转过的角度。对单个转轴，tf2 的 slerp 退化为角度的线性插值，所以按时间戳查询只差两个样本之间的弯曲量。外推的误差则是超出数据的整段时间内的弯曲量，这段时间随传输延迟变长。
+
+**这里没有积分步长。** 关节角是时间的解析函数，缓冲区是一张查找表，没有任何量按时间步推进，所以不存在步长稳定性判据（独立测试会检查脚本里没有时间步长）。这一对 toy 里需要积分的是第 5 个月的 Smith 预估器，它写明了自己的判据。
+
+### 公平设置
+
+`tf_buffer_time_lookup_toy.py` 是**合成**模型，只用标准库。它是缓冲区的替身，不是 tf2，没有 BufferCore、没有消息过滤器、没有时钟，也没有执行器。**模型假设**如下。一个云台关节（绕 z 的平面转动）以 50 Hz 广播，时间戳最多有 2 ms 抖动，每个样本经过一段传输延迟才进入缓冲区。关节角是两个正弦之和：0.8–1.2 rad、0.4–0.6 Hz，加上 0.2–0.4 rad、1.5–2.0 Hz。30 Hz 的相机给图像打时间戳，图像经过一段送达延迟才到节点。时间戳用整数微秒，和 tf2 使用整数时间一样。缓存 10 s，B 的超时 50 ms。比缓存还旧的查询对 B 和 C 都会失败。误差是相机前方 1 m 处一个点的估计位置与真实位置之间的距离，单位毫米，只在**每一组**都给出答案的图像上平均，所以各组在同一批图像上评分。`fail_%` 是没有答案的图像比例，`wait_ms` 是 B 平均阻塞的时间。
+
+**共用随机数（common random numbers）**。每个（情形，种子）的轨迹、广播时间戳及其抖动、每一次传输延迟、图像时间戳和每一次送达延迟都只抽一次，三组共用。三组**只**在查询规则上不同。5 个种子；报告种子间的均值±标准差。
+
+| 情形 | 关节 | 传输延迟 | 图像送达延迟 | TF 数据流 |
+|---|---|---|---|---|
+| static_tree | 静止 | 2–8 ms | 60–100 ms | 连续 |
+| lagging_stamp | 运动 | 2–8 ms | 60–100 ms | 连续 |
+| fresh_stamp | 运动 | 15–30 ms | 1–3 ms | 连续 |
+| tf_dropout | 运动 | 2–8 ms | 60–100 ms | 每 1000 ms 中断 300 ms |
+
+### 运行标准库 toy
+
+```bash
+cd ~/Hardware-learning/examples/month-4/urdf-tf
+python3 tf_buffer_time_lookup_toy.py
+```
+
+<CodeSource path="examples/month-4/urdf-tf/tf_buffer_time_lookup_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""tf2 Buffer lookup time: latest (time 0) vs lookup at the image stamp vs extrapolating past the buffer.
+
+Synthetic, stdlib only.  A Buffer stand-in, not tf2: no C++ BufferCore, no
+message filters, no clocks, no executor.  Real `ros2 run tf2_ros ...` and a
+real camera: 本页未运行.  tf2 statements are 以原文为准.
+
+One pan joint (planar rotation about z) is broadcast at 50 Hz; every sample
+reaches the listener's buffer after a transport latency.  A camera stamps an
+image at t_img and the node asks for base_link <- camera at t_q (delivery).
+    A_latest      lookupTransform(target, source, time 0): newest sample in the buffer
+    B_stamped     lookupTransform(..., t_img, timeout 50 ms): interpolate between the two
+                  samples around t_img; if t_img is newer than the newest sample, wait up to
+                  the timeout for it to arrive, else fail (ExtrapolationException)
+    C_extrapolate t_img inside the buffer: same interpolation as B; newer than the newest
+                  sample: extrapolate linearly from the two newest samples, no wait
+tf2 itself never extrapolates (it raises); C is what a hand-rolled workaround does.
+For one rotation axis, tf2's slerp reduces to linear interpolation of the angle.
+
+Common random numbers: per (regime, seed) the joint trajectory, broadcast
+stamp jitter, transport latencies, image stamps and image delivery lags are
+drawn once and shared by all three arms.  Arms differ only in the lookup rule.
+
+No integration step: the joint angle is a closed-form function of time and
+the buffer is a lookup table, so no step-size stability criterion applies.
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+US = 1_000_000            # microseconds per second; stamps are integers, as tf2 uses integer time
+TF_PERIOD = 20_000        # us: 50 Hz joint_states -> robot_state_publisher -> /tf
+IMG_PERIOD = 33_000       # us: about 30 Hz camera
+TIMEOUT = 50_000          # us: B's lookupTransform timeout
+LEVER = 1.0               # m: error is measured on a point 1 m in front of the camera
+T_END = 10 * US
+CACHE = 10 * US           # tf2 default cache time (BUFFER_CORE_DEFAULT_CACHE_TIME = 10 s)
+NUM_ZERO = 1e-9           # |m| and sd both below this: floating-point residue, not a gap
+
+# name: (moving, transport latency range us, image delivery lag range us, dropout (period us, length us) or None)
+REGIMES = {
+    "static_tree": (False, (2_000, 8_000), (60_000, 100_000), None),
+    "lagging_stamp": (True, (2_000, 8_000), (60_000, 100_000), None),
+    "fresh_stamp": (True, (15_000, 30_000), (1_000, 3_000), None),
+    "tf_dropout": (True, (2_000, 8_000), (60_000, 100_000), (1_000_000, 300_000)),
+}
+ARMS = ("A_latest", "B_stamped", "C_extrapolate")
+
+
+def shared_draws(regime, seed):
+    """Common random numbers: one trajectory, one broadcast timeline, one camera timeline for all arms."""
+    moving, lat, lag, drop = REGIMES[regime]
+    rng = random.Random(f"{regime}/{seed}")
+    amp, f1, ph1 = rng.uniform(0.8, 1.2), rng.uniform(0.4, 0.6), rng.uniform(0.0, 2 * math.pi)
+    amp2, f2, ph2 = rng.uniform(0.2, 0.4), rng.uniform(1.5, 2.0), rng.uniform(0.0, 2 * math.pi)
+    rest = rng.uniform(-0.5, 0.5)
+    traj = (moving, rest, amp, f1, ph1, amp2, f2, ph2)
+    tf = []                                   # (stamp, arrival) for every broadcast sample
+    t = 0
+    while t <= T_END:
+        stamp = t + rng.randrange(0, 2_001)   # broadcast jitter up to 2 ms
+        if not (drop and drop[0] // 2 <= stamp % drop[0] < drop[0] // 2 + drop[1]):
+            tf.append((stamp, stamp + rng.randrange(lat[0], lat[1] + 1)))
+        t += TF_PERIOD
+    imgs = []                                 # (t_img, t_query)
+    t = US
+    while t <= T_END - US:
+        imgs.append((t, t + rng.randrange(lag[0], lag[1] + 1)))
+        t += IMG_PERIOD
+    return traj, tf, imgs
+
+
+def angle(traj, t_us):
+    moving, rest, amp, f1, ph1, amp2, f2, ph2 = traj
+    if not moving:
+        return rest
+    t = t_us / US
+    return rest + amp * math.sin(2 * math.pi * f1 * t + ph1) + amp2 * math.sin(2 * math.pi * f2 * t + ph2)
+
+
+def lerp(s0, a0, s1, a1, t):
+    if s1 == s0:
+        return a1
+    return a0 + (a1 - a0) * ((t - s0) / (s1 - s0))
+
+
+def lookup(arm, buf, t_img, t_q, arrivals):
+    """buf: samples (stamp, angle) already in the buffer at t_q, oldest first.  Returns (angle or None, wait_us)."""
+    if arm == "A_latest":
+        return buf[-1][1], 0
+    if buf[0][0] <= t_img <= buf[-1][0]:
+        for (s0, a0), (s1, a1) in zip(buf, buf[1:]):
+            if s0 <= t_img <= s1:
+                return lerp(s0, a0, s1, a1, t_img), 0
+    if t_img < buf[0][0]:
+        return None, 0                        # into the past: older than the cache
+    if arm == "C_extrapolate":
+        (s0, a0), (s1, a1) = buf[-2], buf[-1]
+        return lerp(s0, a0, s1, a1, t_img), 0
+    for stamp, ang, arrival in arrivals:      # B: wait for a sample newer than t_img
+        if stamp >= t_img:
+            if arrival - t_q > TIMEOUT:
+                return None, 0                # ExtrapolationException after the timeout
+            return lerp(buf[-1][0], buf[-1][1], stamp, ang, t_img), arrival - t_q
+    return None, 0
+
+
+def run(regime, seed):
+    traj, tf, imgs = shared_draws(regime, seed)
+    samples = sorted((arr, st, angle(traj, st)) for st, arr in tf)
+    out = {a: {"err": [], "fail": 0, "wait": []} for a in ARMS}
+    answers = []
+    for t_img, t_q in imgs:
+        buf = sorted((st, ang) for arr, st, ang in samples if arr <= t_q and st >= t_q - CACHE)
+        later = sorted((st, ang, arr) for arr, st, ang in samples if arr > t_q)
+        truth = angle(traj, t_img)
+        row = {}
+        for arm in ARMS:
+            ang, wait = lookup(arm, buf, t_img, t_q, later)
+            row[arm] = None if ang is None else 2.0 * LEVER * abs(math.sin((ang - truth) / 2.0)) * 1000.0
+            if ang is None:
+                out[arm]["fail"] += 1
+            else:
+                out[arm]["wait"].append(wait / 1000.0)
+        answers.append(row)
+    common = [r for r in answers if all(r[a] is not None for a in ARMS)]
+    res = {}
+    for arm in ARMS:
+        res[arm] = {
+            "err": sum(r[arm] for r in common) / len(common),
+            "fail": 100.0 * out[arm]["fail"] / len(imgs),
+            "wait": sum(out[arm]["wait"]) / len(out[arm]["wait"]),
+            "n": len(common),
+        }
+    return res
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def main():
+    print("Synthetic tf2 Buffer stand-in: one pan joint at 50 Hz, a 30 Hz camera; arms differ only in the lookup time rule; not tf2 itself")
+    print(f"TF period {TF_PERIOD / 1000:.0f} ms, B timeout {TIMEOUT / 1000:.0f} ms, cache {CACHE // US} s, error on a point {LEVER:.0f} m in front of the camera; seeds={len(SEEDS)}")
+    print("No integration step: the joint angle is closed-form in time and the buffer is a lookup table")
+    res = {r: [run(r, s) for s in SEEDS] for r in REGIMES}
+    print("regime arm err_mm fail_% wait_ms  (mean+-sd over seeds; err on images every arm answered)")
+    for r, (moving, lat, lag, drop) in REGIMES.items():
+        dtxt = f", TF dropout {drop[1] // 1000} ms every {drop[0] // 1000} ms" if drop else ""
+        print(f"{r} ({'moving' if moving else 'static'} joint, transport {lat[0] // 1000}-{lat[1] // 1000} ms, image delivery lag {lag[0] // 1000}-{lag[1] // 1000} ms{dtxt}; {min(x['A_latest']['n'] for x in res[r])}-{max(x['A_latest']['n'] for x in res[r])} common images per seed)")
+        for a in ARMS:
+            cols = " ".join(f"{num(mean_sd([x[a][m] for x in res[r]])[0])}+-{num(mean_sd([x[a][m] for x in res[r]])[1])}" for m in ("err", "fail", "wait"))
+            print(f"  {a} {cols}")
+        for other in ("A_latest", "C_extrapolate"):
+            for m in ("err", "fail", "wait"):
+                xa, xb = [x[other][m] for x in res[r]], [x["B_stamped"][m] for x in res[r]]
+                print(f"  paired {other[0]}-B {m}: {verdict(xa, xb)}")
+    print("No winner declared: a stamped lookup removes the lag error but waits for fresh data and fails when TF stops; extrapolation never fails and is wrong when the joint turns")
+    print("Real ros2 / tf2_ros / camera: 本页未运行; tf2 behaviour 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic tf2 Buffer stand-in: one pan joint at 50 Hz, a 30 Hz camera; arms differ only in the lookup time rule; not tf2 itself
+TF period 20 ms, B timeout 50 ms, cache 10 s, error on a point 1 m in front of the camera; seeds=5
+No integration step: the joint angle is closed-form in time and the buffer is a lookup table
+regime arm err_mm fail_% wait_ms  (mean+-sd over seeds; err on images every arm answered)
+static_tree (static joint, transport 2-8 ms, image delivery lag 60-100 ms; 243-243 common images per seed)
+  A_latest 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+  B_stamped 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+  C_extrapolate 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+  paired A-B err: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B fail: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B wait: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B err: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B fail: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B wait: 0.0000+-0.0000: tie: identical on every seed
+lagging_stamp (moving joint, transport 2-8 ms, image delivery lag 60-100 ms; 243-243 common images per seed)
+  A_latest 171.3114+-37.8550 0.0000+-0.0000 0.0000+-0.0000
+  B_stamped 0.7814+-0.2768 0.0000+-0.0000 0.0000+-0.0000
+  C_extrapolate 0.7814+-0.2768 0.0000+-0.0000 0.0000+-0.0000
+  paired A-B err: 170.5300+-37.6692: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B fail: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B wait: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B err: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B fail: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B wait: 0.0000+-0.0000: tie: identical on every seed
+fresh_stamp (moving joint, transport 15-30 ms, image delivery lag 1-3 ms; 243-243 common images per seed)
+  A_latest 79.7414+-7.1331 0.0000+-0.0000 0.0000+-0.0000
+  B_stamped 3.5518+-0.7919 0.0000+-0.0000 30.4452+-0.4321
+  C_extrapolate 19.0878+-4.2234 0.0000+-0.0000 0.0000+-0.0000
+  paired A-B err: 76.1896+-6.5537: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B fail: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B wait: -30.4452+-0.4321: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B err: 15.5360+-3.4333: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B fail: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B wait: -30.4452+-0.4321: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+tf_dropout (moving joint, transport 2-8 ms, image delivery lag 60-100 ms, TF dropout 300 ms every 1000 ms; 194-197 common images per seed)
+  A_latest 199.9840+-21.7527 0.0000+-0.0000 0.0000+-0.0000
+  B_stamped 21.1206+-9.1382 19.7531+-0.5040 1.4819+-0.3506
+  C_extrapolate 47.1618+-17.2687 0.0000+-0.0000 0.0000+-0.0000
+  paired A-B err: 178.8633+-15.0951: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B fail: -19.7531+-0.5040: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B wait: -1.4819+-0.3506: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B err: 26.0411+-11.8584: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B fail: -19.7531+-0.5040: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B wait: -1.4819+-0.3506: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: a stamped lookup removes the lag error but waits for fresh data and fails when TF stops; extrapolation never fails and is wrong when the joint turns
+Real ros2 / tf2_ros / camera: 本页未运行; tf2 behaviour 以原文为准
+```
+
+</SimOutput>
+
+### 读四种情形
+
+本页标签按以下顺序使用。**打平：每个种子都完全相同**只用于配对的逐种子差值在每个种子上都严格为零；`|配对均值|` 和它的标准差都小于 1e-9 时标为**数值上为零（浮点残差），等同打平**（这种行不打印同号计数）；`|配对均值| ≤ sd` 时为**接近打平、差距很小，在种子噪声之内**；否则是**稳定**差距（`|配对均值| > sd`），`|m|` 小于两组中较小均值的 20 % 时叫**小**，否则叫**明显**；20 % 规则只用来在这两个词之间选择。每条稳定的行都带 5 个种子上的同号计数，符号相反的种子都会报告。差距都由未四舍五入的数值计算。
+
+- **static_tree** 情形，关节不动，每个样本的角度都一样，每种查询都返回它。A−B 和 C−B 的每个指标都是**打平：每个种子都完全相同**。什么都不动时，时间 0 就够用。
+- **lagging_stamp** 情形，每张图送到时已经过去 60–100 ms。**A 输了，差距明显**。A 的误差是 171.3114±37.8550 mm，B 是 0.7814±0.2768 mm（配对 A−B 170.5300±37.6692，5 个种子同号）。每个时间戳都已经在缓冲区内，所以 B 从不等待，C 也从不外推，C−B 是**打平：每个种子都完全相同**，谁也没赢。
+- **fresh_stamp** 情形，图像在打戳后 1–3 ms 就送到，变换却要 15–30 ms 才到，所以每个时间戳都比最新样本还新。**A 输了，差距明显**（A−B 76.1896±6.5537）；**C 输了，差距明显**（C−B 15.5360±3.4333，19.0878±4.2234 mm 对 B 的 3.5518±0.7919 mm）；两者都是 5 个种子同号。这里 B 要付出代价，**B 在延迟上输了，差距明显**。它每张图要阻塞 30.4452±0.4321 ms，而 A 和 C 立刻回答（A−B wait −30.4452±0.4321，5 个种子同号）。
+- **tf_dropout** 情形，TF 数据流每秒中断 300 ms。**B 在失败率上输了，差距明显**，19.7531±0.5040 % 的图像得不到答案，而 A 和 C 每次都回答（A−B fail −19.7531±0.5040，5 个种子同号）。在三组都回答了的图像上，A 仍差 199.9840±21.7527 mm，C 差 47.1618±17.2687 mm，B 差 21.1206±9.1382 mm（A−B 178.8633±15.0951，C−B 26.0411±11.8584，都明显且 5 个种子同号）。B 在这里并不接近零。数据恢复后，时间戳落在中断期内的图像会跨着 300 ms 的运动做插值。tf2 也会这样做，因为缓存没有限制间隔多大。
+
+本页**不宣布普遍赢家**。按时间戳查询去掉了滞后误差，但要等新数据，TF 沉默时还会失败。时间 0 从不等待，但关节一动就错。外推从不失败，但关节一转弯就错。真实的 `ros2 run tf2_ros …`、真实相机和消息过滤器都**本页未运行**。
+
+**180 分钟安排**如下。30 分钟读三篇教程和 TimeCache 源码；30 分钟手算算例；40 分钟运行 toy 并读四种情形；40 分钟固定种子，改超时、延迟和中断；40 分钟做练习。
+
+### 练习
+
+1. 对 0.5 rad/s 的关节、80 ms 前的图像重做算例。时间 0 在 1 m 处会差多少？
+2. 从 `shared_draws` 说明：对给定的情形和种子，A、B、C 看到的是同一条轨迹、同一条广播时间线和同一批图像。
+3. 从 `lookup` 说明为什么在 `lagging_stamp` 里 C 与 B 逐位相同，并说出它们在什么条件下会不同。
+4. 固定种子，设 `TIMEOUT = 10_000`（10 ms）。运行前先预测 `fresh_stamp` 中 B 的 `fail_%`。
+5. 在动手用真实机器人之前（本页未运行），说明节点该如何处理 `tf_dropout` 中 B 变换不了的图像，以及为什么 `static_tree` 里的**打平**并**不**意味着时间戳无关紧要。
+
 ## 你的机器人，你的截图
 
 现在轮到练习任务：用 xacro 设计你自己的机器人。不是 TurtleBot，也不是 m4bot 的复制品。它要有差速底盘、传感器桅杆和二自由度云台，惯量正确，视觉与碰撞几何分开。用滑块驱动关节，在 RViz 里看完整的 TF 树。然后截一张图——课程把它称作初学者作品集里最容易看懂的一个信号，因为任何人扫一眼就能看出你确实描述了一台真实的机器人。
@@ -698,3 +1034,12 @@ At time 0.0
 <Resource id="renard-ros2-l2" />
 
 第 4 课里，同一份 xacro 会进入 Gazebo，那时重力、惯量和你在这里写的碰撞盒子突然都成了真的，激光雷达和相机也开始产出数据——盖的正是你在这里选定的坐标系名字。现在把树写对，仿真就轻松；写错，没有哪个算法救得了你。
+
+<Summary>
+
+- 用带命名属性和一个轮子宏的 xacro 描述，由 fixed、continuous、revolute 关节搭出 m4bot；惯量靠计算而不是猜（底盘 Ixx = 0.010667 kg·m²），并用 `inertia_check.py` 核对。
+- `robot_state_publisher` 把 `/joint_states` 和 URDF 变成 `/tf`；云台转到 pan 30° 时，base_link → camera_link 为 [-0.043, 0.010, 0.305]。
+- 用 `tf2_echo`、`view_frames` 和消息里的坐标系名诊断损坏的 TF 树；时间错误要查时钟和时间戳。
+- 查询时间：关节运动时，时间 0 比按图像时间戳查询多差 170.5300±37.6692 mm（明显，5 个种子同号）；变换滞后时按时间戳查询要等 30.4452±0.4321 ms，TF 沉默时 19.7531±0.5040 % 的图像查不到；关节静止时三种查法**打平**（每个种子都完全相同）——合成缓冲区，不是 ROS 运行。
+
+</Summary>
