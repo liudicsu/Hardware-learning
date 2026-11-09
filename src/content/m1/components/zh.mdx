@@ -863,7 +863,7 @@ ESD gun / real TVS / IEC 61000 lab: 本页未运行; TI numbers 以原文为准
 | B_bridge_ideal | 两臂 + CM → 差分 + **CMRR 残差**，再乘 `G`（无 Vos） |
 | C_bridge_offset | 同一电桥路径 + INA 式 RTI 失调，再乘 `G` |
 
-制度：`small_delta_noisy_cm`（桥 SNR 胜出）与 `large_delta_quiet_cm`（**接近打平 / 差距很小**——约 2.6 dB，并非真正平局；不预设赢家）。指标：灵敏度、失调误差，以及 64 次抽样的**多样本 SNR** `|Δmean| / 合并样本标准差`（不是单次 `|signal|/noise_floor` 且噪声底不对称）。**多样本 SNR 看不见静态失调 `Vos`：** 它在每个样本里是同一常数，故在 `Δmean` 中抵消。因此臂 C 的 SNR 略高于 B **并不**表示 C 更好——C 的代价体现在失调与绝对精度（约 0.024 V 对约 0.0004 V），C 并不胜出。五多种子 mean±sd。
+制度：`small_delta_noisy_cm`（桥 SNR 胜出）与 `large_delta_quiet_cm`（**接近打平 / 差距很小**——约 2.6 dB，并非真正平局；不预设赢家）。指标：灵敏度、失调误差，以及 64 次抽样的**多样本 SNR** `|Δmean| / 合并样本标准差`（不是单次 `|signal|/noise_floor` 且噪声底不对称）。**多样本 SNR 看不见静态失调 `Vos`：** 它在每个样本里是同一常数，故在 `Δmean` 中抵消。对互不相关的噪声，N 次平均可以让 SNR 大约提升 √N；但 Vos 是直流偏移，平均消不掉。因此臂 C 的 SNR 略高于 B **并不**表示 C 更好——C 的代价体现在失调与绝对精度（约 0.024 V 对约 0.0004 V），C 并不胜出。五多种子 mean±sd。
 
 ### 运行标准库玩具
 
