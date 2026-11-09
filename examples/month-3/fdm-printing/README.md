@@ -20,4 +20,11 @@ python3 ../cad-parametric/stl_info.py esp32_case.stl
 Set `clearance` and `fit` to the numbers from your tolerance gauge first. The lid prints flat with its arms standing up, so they bend across the layers: if one snaps, print the lid on its side or use PETG.
 先把 `clearance` 和 `fit` 改成你的公差测试件测出的数值。盖子平放打印时卡扣臂是竖着的，弯曲方向垂直于层线：如果断了，就把盖子侧放打印，或改用 PETG。
 
+**`pressure_advance_corner_toy.py`**: synthetic 1-D compressible-melt model of pressure / linear advance on a shared corner path (K = 0, a tuned K, 3 × the tuned K; five seeds, common random numbers). Not Marlin's or Klipper's planner; no printer was run.
+压力提前 / Linear Advance 的合成一维可压缩熔体模型：同一拐角路径上比较 K = 0、调好的 K 与 3 倍 K（5 个种子，共用随机数）。不是 Marlin 或 Klipper 的规划器，本页未运行打印机。
+
+```bash
+python3 pressure_advance_corner_toy.py
+```
+
 Rendered and checked in software only; not printed by the site editor. / 只在软件中渲染和检查过，本站编者没有打印过。

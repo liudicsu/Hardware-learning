@@ -1,0 +1,30 @@
+Synthetic DC Kelvin toy; arms differ only in lead wiring; shared DUT / lead / contact / meter draws; not a real meter
+seeds=5 parts=20 R_IN=1e+10 ohm; gain +-100 ppm, thermal EMF +-2 uV, noise 0.5 uV rms (shared); DC steady state, no time step
+shunt_small_dut seed 0 part 0: R=16.281 mOhm, force loop leads+contacts=86.348 mOhm -> two-wire adds 530.4 %
+regime arm abs_err_% bias_%  (mean+-sd over seeds of the per-seed part means)
+shunt_small_dut (DUT 0.005..0.02 ohm, I=0.1 A, lead 0.02..0.05 ohm, contact 0.001..0.01 ohm)
+  A_two_wire 764.0166+-61.6550 764.0166+-61.6550
+  B_kelvin 0.0892+-0.0161 0.0278+-0.0107
+  C_nulled 40.3063+-8.3066 3.1269+-11.7733
+  paired A-B abs: 763.9274+-61.6410: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B bias: 763.9888+-61.6452: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B abs: 40.2171+-8.2949: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B bias: 3.0990+-11.7689: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+large_dut (DUT 5000..20000 ohm, I=0.0001 A, lead 0.02..0.05 ohm, contact 0.001..0.01 ohm)
+  A_two_wire 0.0045+-4.455e-04 4.436e-04+-0.0007
+  B_kelvin 0.0045+-4.967e-04 -3.275e-04+-0.0007
+  C_nulled 0.0045+-0.0005 -2.955e-04+-0.0007
+  paired A-B abs: -5.365e-05+-1.445e-04: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired A-B bias: 0.0008+-6.426e-05: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B abs: -9.035e-06+-4.764e-05: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired C-B bias: 3.200e-05+-3.583e-05: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+zero_lead (DUT 0.005..0.02 ohm, I=0.1 A, lead 0..0 ohm, contact 0..0 ohm)
+  A_two_wire 0.0885+-0.0191 0.0197+-0.0196
+  B_kelvin 0.0885+-0.0191 0.0197+-0.0196
+  C_nulled 0.0561+-0.0109 -0.0034+-0.0156
+  paired A-B abs: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B bias: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B abs: -0.0325+-0.0135: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B bias: -0.0231+-0.0240: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+No winner declared: Kelvin removes lead and contact resistance, not gain error or thermal EMF; at 10 kOhm the leads hide under the meter's own error
+Real 4-wire bench: 本页未运行; Wikipedia statements 以原文为准

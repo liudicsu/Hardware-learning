@@ -57,4 +57,9 @@ if python3 "$M1/soldering/soldering_thermal_window_toy.py" > "$TMP/soldering_the
 else
   echo "DIFF  soldering_thermal_window_toy.txt"; fail=1
 fi
+if python3 "$M1/bench-multimeter/kelvin_four_wire_sense_toy.py" > "$TMP/kelvin_four_wire_sense_toy.txt" && diff -u "$M1/expected/kelvin_four_wire_sense_toy.txt" "$TMP/kelvin_four_wire_sense_toy.txt"; then
+  echo "same  kelvin_four_wire_sense_toy.txt"
+else
+  echo "DIFF  kelvin_four_wire_sense_toy.txt"; fail=1
+fi
 exit $fail

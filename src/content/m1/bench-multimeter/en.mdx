@@ -319,6 +319,278 @@ shared true V,R and standardized errors; physical DMM/calibration 本页未运�
 4. (30 min) Add a hypothetical common gain error and derive the covariance term; label all assumptions rather than pretend independence survives.
 5. (25 min) Sketch an offline resistor/current measurement log including range, resolution, loading and calibration status; no mains measurement.
 
+## Kelvin four-wire sensing: taking the leads out of a reading
+
+The uncertainty section above says plainly that lead resistance is **not** simulated there. This section adds exactly that one effect: what the test leads and their contacts do to a resistance reading, and how a four-terminal (Kelvin) connection removes them. It is **not** the Wheatstone bridge from the components lesson and **not** the Thévenin source from Ohm's law; nothing here balances a bridge or models a source.
+
+<Resource id="wiki-four-terminal" />
+
+**Source actually opened (HTML body read).** Wikipedia — Four-terminal sensing: the method uses separate current-carrying (force) and voltage-sensing (sense) electrode pairs; separating them eliminates the lead and contact resistance from the measurement, which matters most for low resistances (the article cites an LCR bridge manual that recommends a four-terminal connection below 100 Ω). The sense pair is placed right next to the part, and since almost no current flows into the measuring instrument, the drop in the sense leads is negligible. The sense pair is usually the inside pair and the force pair the outside pair; swapping them lets more lead resistance into the reading. Force wires may carry a large current and need an adequate gauge; sense wires can be thin. A three-wire variant (used on RTDs) assumes the common wire matches the load wire and is less accurate than four-wire. 以原文为准.
+
+### Where the lead resistance goes
+
+With one pair doing both jobs, the test current flows through both leads and both contacts, and the meter reads the voltage across all of them:
+
+<Formula label="Two-wire reading">R_2w = R + 2 × r_lead + 2 × r_contact</Formula>
+
+With Kelvin wiring the force pair still carries `I`, but the voltage is read by a separate sense pair that touches the part itself. The only current in the sense loop is what the voltmeter input `R_IN` draws, so the sense leads only form a tiny divider:
+
+<Formula label="Kelvin reading">R_4w = R × R_IN / (R_IN + r_sense) ≈ R × (1 − r_sense / R_IN)</Formula>
+
+**Worked example — a 10 mΩ shunt on ordinary test leads.** Two 30 mΩ leads, two 5 mΩ contacts, test current 100 mA, voltmeter input 10 GΩ:
+
+```text
+two-wire: V = 0.1 A × (10 + 2 × 30 + 2 × 5) mΩ = 8.0 mV  -> reads 80 mΩ, +700 %
+Kelvin:   V = 0.1 A × 10 mΩ = 1.0 mV                    -> reads 10 mΩ
+          sense current = 1.0 mV / 10 GΩ = 0.1 pA, so the sense leads drop almost nothing
+same leads on a 10 kΩ resistor: two-wire adds 70 mΩ = 7 ppm
+```
+
+The same 70 mΩ that ruins the shunt is 7 ppm on a 10 kΩ part, far below the ±100 ppm gain error this toy gives its meter. That is why the article ties four-terminal sensing to low resistances. A REL / null taken with the tips shorted is **not** Kelvin: it subtracts the leads as they were at the moment of the null, but the contacts at the part are new contacts and the leads may have warmed.
+
+**No integration step here.** The toy is a DC steady-state calculation: there is no time stepping, so no step-size stability criterion applies (the independent tests check that the script has no time step). The pressure-advance toy in Month 3 is the one in this pair that integrates, and it states its criterion.
+
+### Fair setup
+
+`kelvin_four_wire_sense_toy.py` is **synthetic** and stdlib only. **Model assumptions:** DC, ohmic parts and leads, an ideal constant-current source; a voltmeter input of 10 GΩ; a meter gain error uniform in ±100 ppm, one thermal EMF uniform in ±2 µV and 0.5 µV rms voltage noise per reading. These meter numbers are this toy's own choice: **no real DMM datasheet was opened**. Leads warm by 0–5 K after the null (copper tempco 0.00393 1/K, a toy constant). Thermal EMF is one shared offset; no current reversal or offset compensation is modelled. The reading is `R_meas = V / I`.
+
+| Arm | Wiring |
+|---|---|
+| A_two_wire | one pair forces the current and senses the voltage |
+| B_kelvin | force pair carries `I`; a separate sense pair touches the part |
+| C_nulled | two-wire after a REL / null with the tips shorted (new contacts at the part, leads warmed) |
+
+**Common random numbers:** for each (regime, seed, part) the part value, all four lead resistances, the contact resistances at the part and at the shorted tips, the lead warming, the gain error, the thermal EMF and both noise draws are drawn once and shared by all three arms. The arms differ **only** in wiring. Five seeds × 20 parts; each metric is the per-seed mean over parts, reported as mean±sd over seeds. `abs_err_%` is the mean absolute relative error, `bias_%` the mean signed relative error.
+
+| Regime | Part | Test current | Leads / contacts |
+|---|---|---|---|
+| shunt_small_dut | 5–20 mΩ | 100 mA | 20–50 mΩ per lead, 1–10 mΩ per contact |
+| large_dut | 5–20 kΩ | 100 µA | same leads and contacts |
+| zero_lead | 5–20 mΩ | 100 mA | leads and contacts exactly 0 |
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-1/bench-multimeter
+python3 kelvin_four_wire_sense_toy.py
+```
+
+<CodeSource path="examples/month-1/bench-multimeter/kelvin_four_wire_sense_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Kelvin (four-terminal) sensing vs two-wire resistance measurement.
+
+Synthetic DC model, stdlib only.  Not a real meter, not a Fluke/Keysight
+specification, not a Wheatstone bridge and not a Thevenin source.
+Real 4-wire bench measurement: 本页未运行.  Wikipedia statements 以原文为准.
+
+The meter forces a test current I through the force pair and reads a
+voltage V; the reading is R_meas = V / I.
+  A_two_wire : one pair does both, so V includes 2 * (r_lead + r_contact).
+  B_kelvin   : force pair carries I; a separate sense pair (r_sense in series
+               with the voltmeter input R_IN) touches the DUT itself.
+  C_nulled   : two-wire after a REL / null taken with the tips shorted: the
+               null removes the leads as they were at the short, but the
+               contacts at the DUT are new contacts and the leads have warmed.
+Shared by every arm (common random numbers, per regime, seed and part):
+DUT value, lead and contact resistances, lead warming, meter gain error,
+thermal EMF and voltage noise.  Arms differ only in how the leads are wired.
+The model is DC steady state: no time stepping, so no integration-step
+criterion applies.  Lead resistance in the GUM toy above is not simulated;
+this toy simulates only lead / contact resistance, not temperature or
+loading of the circuit under test.
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+PARTS = 20
+R_IN = 1e10            # ohm, voltmeter input in the ohms converter
+ALPHA_CU = 0.00393     # 1/K, copper lead tempco
+NUM_ZERO = 1e-9        # |m| and sd both below this: floating-point residue, not a gap
+
+# name: (DUT low ohm, DUT high ohm, test current A, lead ohm range, contact ohm range)
+REGIMES = {
+    "shunt_small_dut": (0.005, 0.020, 0.1, (0.02, 0.05), (0.001, 0.010)),
+    "large_dut": (5e3, 2e4, 1e-4, (0.02, 0.05), (0.001, 0.010)),
+    "zero_lead": (0.005, 0.020, 0.1, (0.0, 0.0), (0.0, 0.0)),
+}
+ARMS = ("A_two_wire", "B_kelvin", "C_nulled")
+
+
+def shared_part(regime, seed, part):
+    """Common random numbers: one DUT, one set of leads, one meter error, used by all arms."""
+    lo, hi, _, (l0, l1), (c0, c1) = REGIMES[regime]
+    rng = random.Random(f"{regime}/{seed}/{part}")
+    return {
+        "R": rng.uniform(lo, hi),
+        "lead": [rng.uniform(l0, l1) for _ in range(4)],      # force+, force-, sense+, sense-
+        "contact": [rng.uniform(c0, c1) for _ in range(4)],   # at the DUT
+        "null_contact": [rng.uniform(c0, c1) for _ in range(2)],  # at the shorted tips
+        "warm": rng.uniform(0.0, 5.0),                        # K the leads warm after the null
+        "gain": rng.uniform(-100e-6, 100e-6),                 # meter reading error, shared
+        "emf": rng.uniform(-2e-6, 2e-6),                      # V thermal EMF, shared
+        "noise": rng.gauss(0.0, 0.5e-6),                      # V on the reading
+        "null_noise": rng.gauss(0.0, 0.5e-6),                 # V on the null reading
+    }
+
+
+def par(a, b):
+    return a * b / (a + b)
+
+
+def reading(v, d):
+    return v * (1.0 + d["gain"]) + d["emf"] + d["noise"]
+
+
+def measure(regime, d, arm):
+    current = REGIMES[regime][2]
+    warm = 1.0 + ALPHA_CU * d["warm"]
+    if arm == "B_kelvin":
+        r_sense = d["lead"][2] + d["lead"][3] + d["contact"][2] + d["contact"][3]
+        v_dut = current * par(d["R"], R_IN + r_sense)
+        return reading(v_dut * (R_IN / (R_IN + r_sense)), d) / current
+    loop = (d["lead"][0] + d["lead"][1]) * warm + d["contact"][0] + d["contact"][1]
+    r_meas = reading(current * par(d["R"] + loop, R_IN), d) / current
+    if arm == "A_two_wire":
+        return r_meas
+    null_loop = d["lead"][0] + d["lead"][1] + d["null_contact"][0] + d["null_contact"][1]
+    null = (current * par(null_loop, R_IN) * (1.0 + d["gain"]) + d["emf"] + d["null_noise"]) / current
+    return r_meas - null
+
+
+def seed_metrics(regime, seed, arm):
+    errs = []
+    for part in range(PARTS):
+        d = shared_part(regime, seed, part)
+        errs.append((measure(regime, d, arm) - d["R"]) / d["R"] * 100.0)
+    return {"abs": sum(abs(e) for e in errs) / PARTS, "bias": sum(errs) / PARTS}
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def main():
+    print("Synthetic DC Kelvin toy; arms differ only in lead wiring; shared DUT / lead / contact / meter draws; not a real meter")
+    print(f"seeds={len(SEEDS)} parts={PARTS} R_IN={R_IN:.0e} ohm; gain +-100 ppm, thermal EMF +-2 uV, noise 0.5 uV rms (shared); DC steady state, no time step")
+    d = shared_part("shunt_small_dut", 0, 0)
+    loop = d["lead"][0] + d["lead"][1] + d["contact"][0] + d["contact"][1]
+    print(f"shunt_small_dut seed 0 part 0: R={d['R'] * 1000:.3f} mOhm, force loop leads+contacts={loop * 1000:.3f} mOhm -> two-wire adds {loop / d['R'] * 100:.1f} %")
+    print("regime arm abs_err_% bias_%  (mean+-sd over seeds of the per-seed part means)")
+    res = {r: {a: [seed_metrics(r, s, a) for s in SEEDS] for a in ARMS} for r in REGIMES}
+    for r, (lo, hi, cur, lead, cont) in REGIMES.items():
+        print(f"{r} (DUT {lo:g}..{hi:g} ohm, I={cur:g} A, lead {lead[0]:g}..{lead[1]:g} ohm, contact {cont[0]:g}..{cont[1]:g} ohm)")
+        for a in ARMS:
+            xs = res[r][a]
+            print(f"  {a} " + " ".join(f"{num(mean_sd([x[m] for x in xs])[0])}+-{num(mean_sd([x[m] for x in xs])[1])}" for m in ("abs", "bias")))
+        for other in ("A_two_wire", "C_nulled"):
+            for m in ("abs", "bias"):
+                xa, xb = [x[m] for x in res[r][other]], [x[m] for x in res[r]["B_kelvin"]]
+                print(f"  paired {other[0]}-B {m}: {verdict(xa, xb)}")
+    print("No winner declared: Kelvin removes lead and contact resistance, not gain error or thermal EMF; at 10 kOhm the leads hide under the meter's own error")
+    print("Real 4-wire bench: 本页未运行; Wikipedia statements 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic DC Kelvin toy; arms differ only in lead wiring; shared DUT / lead / contact / meter draws; not a real meter
+seeds=5 parts=20 R_IN=1e+10 ohm; gain +-100 ppm, thermal EMF +-2 uV, noise 0.5 uV rms (shared); DC steady state, no time step
+shunt_small_dut seed 0 part 0: R=16.281 mOhm, force loop leads+contacts=86.348 mOhm -> two-wire adds 530.4 %
+regime arm abs_err_% bias_%  (mean+-sd over seeds of the per-seed part means)
+shunt_small_dut (DUT 0.005..0.02 ohm, I=0.1 A, lead 0.02..0.05 ohm, contact 0.001..0.01 ohm)
+  A_two_wire 764.0166+-61.6550 764.0166+-61.6550
+  B_kelvin 0.0892+-0.0161 0.0278+-0.0107
+  C_nulled 40.3063+-8.3066 3.1269+-11.7733
+  paired A-B abs: 763.9274+-61.6410: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B bias: 763.9888+-61.6452: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B abs: 40.2171+-8.2949: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B bias: 3.0990+-11.7689: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+large_dut (DUT 5000..20000 ohm, I=0.0001 A, lead 0.02..0.05 ohm, contact 0.001..0.01 ohm)
+  A_two_wire 0.0045+-4.455e-04 4.436e-04+-0.0007
+  B_kelvin 0.0045+-4.967e-04 -3.275e-04+-0.0007
+  C_nulled 0.0045+-0.0005 -2.955e-04+-0.0007
+  paired A-B abs: -5.365e-05+-1.445e-04: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired A-B bias: 0.0008+-6.426e-05: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B abs: -9.035e-06+-4.764e-05: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired C-B bias: 3.200e-05+-3.583e-05: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+zero_lead (DUT 0.005..0.02 ohm, I=0.1 A, lead 0..0 ohm, contact 0..0 ohm)
+  A_two_wire 0.0885+-0.0191 0.0197+-0.0196
+  B_kelvin 0.0885+-0.0191 0.0197+-0.0196
+  C_nulled 0.0561+-0.0109 -0.0034+-0.0156
+  paired A-B abs: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B bias: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B abs: -0.0325+-0.0135: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B bias: -0.0231+-0.0240: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+No winner declared: Kelvin removes lead and contact resistance, not gain error or thermal EMF; at 10 kOhm the leads hide under the meter's own error
+Real 4-wire bench: 本页未运行; Wikipedia statements 以原文为准
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used on this page, in this order: **tie: identical on every seed** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when `|paired mean|` and its sd are both below 1e-9 (no sign count is printed on such a line); **near-tie / small gap, within seed noise** when `|paired mean| ≤ sd`; otherwise a **consistent** gap (`|paired mean| > sd`), called **small** if `|m|` is under 20 % of the smaller arm mean and **clear** otherwise; the 20 % rule only chooses between those two words. Every consistent line carries a same-sign count over the 5 seeds, and any seed with the opposite sign is reported. Gaps are computed from unrounded values.
+
+- **shunt_small_dut:** A reads 764.0166±61.6550 % high; B is off by 0.0892±0.0161 %. **A loses with a clear gap:** paired A−B 763.9274±61.6410, same sign on all 5 seeds. The null helps but does not fix it: C is still off by 40.3063±8.3066 % (paired C−B 40.2171±8.2949, clear, same sign on all 5 seeds), because the contacts at the shunt are not the contacts that were nulled. C's signed bias against B, 3.0990±11.7689, is a **near-tie / small gap, within seed noise**: the contact mismatch goes either way, so it averages out in the bias but not in the absolute error. B's remaining 0.09 % is mostly the ±2 µV thermal EMF over a 1 mV signal: Kelvin removes lead and contact resistance, **not** thermal EMF.
+- **large_dut:** all three arms are off by about 0.0045 %, which is the ±100 ppm gain error. The leads still add a **consistent** bias (paired A−B bias 0.0008±6.426e-05, clear, same sign on all 5 seeds: about 8 ppm), but on absolute error A−B is −5.365e-05±1.445e-04, a **near-tie / small gap, within seed noise**, with 2 of 5 seeds of the opposite sign. The lead term is real but hides under the meter's own error. Both lines are true at once: one metric is signed, the other is not.
+- **zero_lead:** with leads and contacts exactly 0, A and B compute the same reading: **tie: identical on every seed** on both metrics. Here **Kelvin loses** to the null: C−B abs −0.0325±0.0135, clear, same sign on all 5 seeds, because the null reading captures the same thermal EMF and subtracts it, while this toy's Kelvin arm has no offset compensation. This regime is a limit, not a bench setup.
+
+The page **does not declare a universal winner**: Kelvin wins wherever the part is comparable to the leads, ties when there is nothing to remove, and does nothing for gain error or thermal EMF. Real four-wire bench: **本页未运行**.
+
+**150-minute work plan:** 25 min read the source; 30 min work the shunt example by hand; 40 min run the toy and read the three regimes; 30 min change lead length, contact range and test current with seeds fixed; 25 min the exercises.
+
+### Exercises
+
+1. Redo the worked example for a 100 mΩ part with the same leads and contacts. What does two-wire read, and in percent how far off is it?
+2. Show from `shared_part` that A, B and C see the same part, leads, gain error, thermal EMF and noise for a given regime, seed and part.
+3. In `large_dut`, compute the expected two-wire bias in ppm from the mean lead and contact values, and compare it with the printed paired A−B bias.
+4. Set the thermal EMF range to zero with seeds fixed. Predict what happens to B's error in `shunt_small_dut` and to the C−B line in `zero_lead` before you run.
+5. Before any real bench (本页未运行), explain why the zero_lead **tie** between A and B does **not** mean two-wire is as good as Kelvin on a real shunt.
+
 <Summary>
 
 The synthetic DMM V/R budget divides rectangular spec limits by √3, then contrasts sensitivity-weighted RSS standard uncertainty with worst-case limits.
@@ -329,6 +601,7 @@ The synthetic DMM V/R budget divides rectangular spec limits by √3, then contr
 - Voltage is measured in parallel, current in series through a broken circuit.
 - Colour code: yellow-violet-red is 47 × 10² = 4700 Ω, with gold for ±5 %.
 - CAT rating: never measure mains with a meter or leads that carry no CAT rating.
+- Kelvin four-wire: on a 5–20 mΩ shunt two-wire reads 764.0166±61.6550 % high while Kelvin stays within 0.0892±0.0161 % (paired 763.9274±61.6410, a clear gap, same sign on all 5 seeds); on 5–20 kΩ parts the lead term is a near-tie in absolute error, and with zero leads two-wire and Kelvin **tie** (identical on every seed) — a synthetic model, not a bench run.
 
 **Used next**
 

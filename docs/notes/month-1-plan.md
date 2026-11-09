@@ -1,6 +1,16 @@
 # Month 1 plan / 第 1 个月计划
 
-Current / 当前：**M1 1650 min**, Batch-13 PR1. Earlier entries below retain their historical totals.
+Current / 当前：**M1 1800 min**, Batch-14 PR1. Earlier entries below retain their historical totals.
+
+## Batch-14 PR1 / 本月 H1 (+150)
+
+Base `db28b03` (batch-13 closed incl. polish #156; site **30270**). PR1 only on M1 host: **M1 1650→1800 (+150)**; M3 moves in the same PR on its own plan. Site **30270→30600**, still 71 lessons.
+
+- **H1 / 1.3 bench-multimeter: 240→390 (+150).** Kelvin four-terminal sensing vs two-wire lead and contact resistance. Toy `kelvin_four_wire_sense_toy.py`: DC steady state (no time step), arms A two-wire / B Kelvin / C two-wire after a shorted-tip null; shared part, leads, contacts, lead warming, gain error, thermal EMF and noise (common random numbers, 5 seeds × 20 parts). shunt_small_dut: A−B abs 763.9274±61.6410 %, clear, 5/5; large_dut: A−B abs near-tie (2 of 5 opposite sign), bias 8 ppm clear; zero_lead: A and B **tie** (identical on every seed), C beats B by cancelling the thermal EMF (disclosed). ≠ Wheatstone (batch-11); ≠ Thévenin (batch-12); extends the GUM section that omits lead R. Real 4-wire bench 本页未运行.
+
+**Allocation / 安排:** 25+30+40+30+25=150 minutes.
+
+**Site accounting / 全站核算:** **30600=30270+330** with M3 +180 on month-3-plan.md; **M1=1800**, **71 lessons**.
 
 ## Batch-13 PR1 / 本月 H1 (+150)
 
