@@ -4793,6 +4793,126 @@ export const resources: Record<string, Resource> = {
     extra: true,
   },
 
+  "wiki-thevenin": {
+    id: "wiki-thevenin",
+    url: "https://en.wikipedia.org/wiki/Thévenin%27s_theorem",
+    title: {
+      zh: "Wikipedia：戴维南定理",
+      en: "Wikipedia: Thévenin's theorem",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "线性网络在两端子上等效为 Vth 串 Rth；Vth 为开路电压，Rth 为电源置零后看进去的电阻或 Vth/Isc。HTML 正文已核验。",
+      en: "A linear network reduces at two terminals to Vth in series with Rth; Vth is the open-circuit voltage, Rth the resistance with sources zeroed, or Vth/Isc. HTML body verified.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "wiki-norton": {
+    id: "wiki-norton",
+    url: "https://en.wikipedia.org/wiki/Norton%27s_theorem",
+    title: {
+      zh: "Wikipedia：诺顿定理",
+      en: "Wikipedia: Norton's theorem",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "对偶形式：短路电流 In 并联 Rn；Rn = Rth，Vth = In × Rn。HTML 正文已核验。",
+      en: "The dual form: short-circuit current In in parallel with Rn; Rn = Rth, Vth = In × Rn. HTML body verified.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "sdf-physics-spec": {
+    id: "sdf-physics-spec",
+    url: "https://raw.githubusercontent.com/gazebosim/sdformat/sdf14/sdf/1.11/physics.sdf",
+    title: {
+      zh: "SDFormat 1.11 physics 元素规范源文件",
+      en: "SDFormat 1.11 physics element (spec source)",
+    },
+    author: "Open Robotics / SDFormat contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "max_step_size（默认 0.001）与 real_time_factor（默认 1.0）的定义。规范源文件正文已核验；以原文为准。",
+      en: "Definitions of max_step_size (default 0.001) and real_time_factor (default 1.0). Spec source body verified; 以原文为准.",
+    },
+    license: {
+      zh: "Apache-2.0；仅提供外链",
+      en: "Apache-2.0; external link only",
+    },
+    extra: true,
+  },
+  "gz-physics-engines": {
+    id: "gz-physics-engines",
+    url: "https://gazebosim.org/api/sim/8/physics.html",
+    title: {
+      zh: "Gazebo Sim 8：物理引擎",
+      en: "Gazebo Sim 8: Physics engines",
+    },
+    author: "Open Robotics / Gazebo contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "默认 DART；Bullet / Bullet Featherstone 为初步支持；用 Physics 插件 engine 或 --physics-engine 选择。HTML 正文已核验。",
+      en: "DART by default; Bullet / Bullet Featherstone preliminary; choose with the Physics plugin engine tag or --physics-engine. HTML body verified.",
+    },
+    license: {
+      zh: "© Open Robotics，仅提供外链",
+      en: "© Open Robotics; external link only",
+    },
+    extra: true,
+  },
+  "wiki-euler-method": {
+    id: "wiki-euler-method",
+    url: "https://en.wikipedia.org/wiki/Euler_method",
+    title: {
+      zh: "Wikipedia：欧拉法",
+      en: "Wikipedia: Euler method",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "显式欧拉的线性稳定区域 |1 + hk| ≤ 1；刚性问题步长过大会发散。HTML 正文已核验。",
+      en: "Explicit Euler's linear stability region |1 + hk| ≤ 1; too large a step diverges on stiff problems. HTML body verified.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "wiki-semi-implicit-euler": {
+    id: "wiki-semi-implicit-euler",
+    url: "https://en.wikipedia.org/wiki/Semi-implicit_Euler_method",
+    title: {
+      zh: "Wikipedia：半隐式欧拉法",
+      en: "Wikipedia: Semi-implicit Euler method",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "先更新 v 再用新 v 更新 x；一阶、辛积分器，能量近似守恒。HTML 正文已核验。",
+      en: "Update v, then x with the new v; first order, symplectic, nearly conserves energy. HTML body verified.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

@@ -1,0 +1,18 @@
+Synthetic Thevenin/Norton toy; shared parts and meter-noise draws; not a bench lab
+nominal Vs=5.0V R1=10000ohm R2=4700ohm -> Vth=1.5986V Rth=3197.3ohm; tol=1% V_noise=1mV I_noise=1uA burden=100ohm seeds=5 boards=32
+nominal check: RL=10k -> V_L = Vth*RL/(Rth+RL) = 1.2113 V; KCL = 1.2113 V; Norton In=Vth/Rth=0.5000 mA
+regime RL_ohm arm |V_pred-V_true|_mV (mean+-sd over seeds)
+heavy_load 3300 A_voc_only 786.7609+-1.2073
+heavy_load 3300 B_thevenin 2.0170+-0.3716
+heavy_load 3300 C_norton 12.2896+-0.1410
+lesson_load 10000 A_voc_only 387.3881+-0.5373
+lesson_load 10000 B_thevenin 1.6502+-0.1055
+lesson_load 10000 C_norton 9.1280+-0.0451
+light_load 10000000 A_voc_only 0.9879+-0.0646
+light_load 10000000 B_thevenin 0.8726+-0.0370
+light_load 10000000 C_norton 0.8729+-0.0364
+light_load B vs C: B 0.8726+-0.0370 mV, C 0.8729+-0.0364 mV, gap 0.0004 mV (paired C-B 0.0004+-0.0015 mV): near-tie / small gap, within seed noise (at RL >> Rth the burden / Rth error barely matters, so both reconstructions converge)
+light_load A vs B: A 0.9879+-0.0646 mV, paired A-B 0.1153+-0.0588 mV: small but consistent gap, not a tie (A's bias Vth*Rth/(Rth+RL) ~0.51 mV from ignoring Rth is diluted by the 1 mV meter noise)
+heavy_load: A 786.8 mV >> B 2.02 mV; C 12.29 mV (Norton = Thevenin on paper; C's extra error is the ammeter burden, a measurement cost)
+No winner declared: Voc alone is fine only when RL >> Rth; B and C differ only by how they were measured
+Real DMM / bench Thevenin lab: 本页未运行; Wikipedia numbers 以原文为准

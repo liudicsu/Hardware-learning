@@ -3936,8 +3936,8 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 28050, "b11p3 curriculum: 28050 minutes (tip after PR3)");
-  for (const [month, expected] of [[1, 1350], [2, 3030], [3, 1950], [4, 2130], [5, 2130], [6, 2400], [7, 2070], [8, 3390], [9, 3690], [10, 2490], [11, 3420]]) {
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 28380, "b12p1 curriculum: 28380 minutes (tip after PR1)");
+  for (const [month, expected] of [[1, 1500], [2, 3030], [3, 1950], [4, 2310], [5, 2130], [6, 2400], [7, 2070], [8, 3390], [9, 3690], [10, 2490], [11, 3420]]) {
     ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `current curriculum M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
@@ -4923,7 +4923,7 @@ for (const m of readdirSync(content)) {
   for (const id of ["dreamgen-paper", "lapa-paper", "smolvla-paper", "lerobot-async"]) {
     ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `wm2 resource ${id}: present + extra`);
   }
-  ok(/28 050/.test(read("README.md")), "b11p3 README: 28 050 minutes (tip after PR3)");
+  ok(/28 380/.test(read("README.md")), "b12p1 README: 28 380 minutes (tip after PR1)");
   console.log("worldmodel-smolvla PR2: neural trajectories + async chunk locks checked");
 }
 
@@ -6093,7 +6093,7 @@ print("protocol pass")
   }
   const plan=read("docs/notes/month-2-plan.md");
   ok(plan.startsWith("# Month 2")&&["Current / 当前：**M2 3030 min**, Batch-10 PR1","2670→3030","25800→26160","480→660","540→720","Batch-10 PR1"].every(x=>plan.includes(x)),"b10p1 month-2 plan header and PR1-only accounting");
-  ok(/28 050/.test(read("README.md")),"b11p3 README site minutes (tip after PR3)");
+  ok(/28 380/.test(read("README.md")),"b12p1 README site minutes (tip after PR1)");
   console.log("enob-magcal PR1: ADC ENOB / front-end noise, mag hard/soft-iron and M2 3030 / site 26160 locked");
 }
 
@@ -6147,7 +6147,7 @@ print("protocol pass")
   const p1=read("docs/notes/month-1-plan.md"), p11=read("docs/notes/month-11-plan.md");
   ok(p1.startsWith("# Month 1")&&["## Batch-10 PR2","1020→1170","26160→26520","270→420","Batch-10 PR2"].every(x=>p1.includes(x)),"b10p2 month-1 plan header");
   ok(p11.includes("Current / 当前：**M11 3420 min**, Batch-10 PR2")&&["3210→3420","26160→26520","480→690","Batch-10 PR2"].every(x=>p11.includes(x)),"b10p2 month-11 plan header");
-  ok(/28 050/.test(read("README.md")),"b11p3 README site minutes (tip after PR3)");
+  ok(/28 380/.test(read("README.md")),"b12p1 README site minutes (tip after PR1)");
   console.log("esd-groundloop PR2: ESD/TVS clamp, shared-return ground loop and M1 1170 / M11 3420 / site 26520 locked");
 }
 
@@ -6202,7 +6202,7 @@ print("protocol pass")
   const p9=read("docs/notes/month-9-plan.md"), p10=read("docs/notes/month-10-plan.md");
   ok(p9.startsWith("# Month 9")&&["Current / 当前：**M9 3690 min**, Batch-10 PR3","3480→3690","26520→26940","420→630","Batch-10 PR3"].every(x=>p9.includes(x)),"b10p3 month-9 plan header");
   ok(p10.includes("Current / 当前：**M10 2490 min**, Batch-10 PR3")&&["2280→2490","26520→26940","240→450","Batch-10 PR3"].every(x=>p10.includes(x)),"b10p3 month-10 plan header");
-  ok(/28 050/.test(read("README.md")),"b11p3 README site minutes");
+  ok(/28 380/.test(read("README.md")),"b12p1 README site minutes");
   console.log("spatialvla-memoryvla PR3: SpatialVLA Ego3D/grids, MemoryVLA bank and M10 2490 / M9 3690 / site 26940 locked");
 }
 
@@ -6255,9 +6255,9 @@ print("protocol pass")
     ok((en.match(/```/g)||[]).length===(zh.match(/```/g)||[]).length&&(en.match(/^### /gm)||[]).length===(zh.match(/^### /gm)||[]).length,`b11p1 ${slug}: en/zh structurally symmetric`);
   }
   const p1=read("docs/notes/month-1-plan.md"), p3=read("docs/notes/month-3-plan.md");
-  ok(p1.startsWith("# Month 1")&&["Current / 当前：**M1 1350 min**, Batch-11 PR1","1170→1350","26940→27270","420→600","Batch-11 PR1"].every(x=>p1.includes(x)),"b11p1 month-1 plan header");
+  ok(p1.startsWith("# Month 1")&&["## Batch-11 PR1","1170→1350","26940→27270","420→600","Batch-11 PR1"].every(x=>p1.includes(x)),"b11p1 month-1 plan header");
   ok(p3.startsWith("# Month 3")&&["1620→1770","26940→27270","150→300","Batch-11 PR1"].every(x=>p3.includes(x)),"b11p1 month-3 plan historical PR1 markers");
-  ok(/28 050/.test(read("README.md")),"b11p3 README site minutes");
+  ok(/28 380/.test(read("README.md")),"b12p1 README site minutes");
   console.log("bridge-gdt PR1: Wheatstone/INA, GD&T stack and M1 1350 / M3 1770 / site 27270 locked");
 }
 
@@ -6308,7 +6308,7 @@ print("protocol pass")
   const p3=read("docs/notes/month-3-plan.md"), p5=read("docs/notes/month-5-plan.md");
   ok(p3.startsWith("# Month 3")&&["Current / 当前：**M3 1950 min**, Batch-11 PR2","1770→1950","27270→27630","330→**510**","Batch-11 PR2"].every(x=>p3.includes(x)),"b11p2 month-3 plan header");
   ok(p5.startsWith("# Month 5")&&["Current / 当前：M5 **2130 min** (Batch-11 PR2)","1950→2130","27270→27630","420→**600**","Batch-11 PR2"].every(x=>p5.includes(x)),"b11p2 month-5 plan header");
-  ok(/28 050/.test(read("README.md")),"b11p3 README site minutes");
+  ok(/28 380/.test(read("README.md")),"b12p1 README site minutes");
   console.log("gear-dlqr PR2: gear η(load), discrete LQR/ZOH and M3 1950 / M5 2130 / site 27630 locked");
 }
 
@@ -6362,12 +6362,74 @@ print("protocol pass")
     ok((en.match(/```/g)||[]).length===(zh.match(/```/g)||[]).length&&(en.match(/^### /gm)||[]).length===(zh.match(/^### /gm)||[]).length,`b11p3 ${slug}: en/zh structurally symmetric`);
   }
   ok((()=>{try{execFileSync("python3",[join(root,"tools/test_b11_cogact_continual_toys.py")],{cwd:root,encoding:"utf8",env,stdio:"pipe"});return true;}catch{return false;}})(),"b11p3 independent tests");
-  ok(cur.match(/minutes:\s*(\d+)/g)&&(()=>{const months=[...cur.matchAll(/const month(\d+)Lessons[\s\S]*?\];/g)]; let s=0; for(const m of months){for(const x of m[0].matchAll(/minutes:\s*(\d+)/g))s+=+x[1];} return s;})()===28050,"b11p3 curriculum: 28050 minutes (tip after PR3)");
+  ok(cur.match(/minutes:\s*(\d+)/g)&&(()=>{const months=[...cur.matchAll(/const month(\d+)Lessons[\s\S]*?\];/g)]; let s=0; for(const m of months){for(const x of m[0].matchAll(/minutes:\s*(\d+)/g))s+=+x[1];} return s;})()===28380,"b12p1 curriculum: 28380 minutes (tip after PR1)");
   const p6=read("docs/notes/month-6-plan.md"), p8=read("docs/notes/month-8-plan.md");
   ok(p6.startsWith("# Month 6")&&["Current / 当前：**M6 2400 min**, Batch-11 PR3","2190→2400","27630→28050","450→**660**","Batch-11 PR3"].every(x=>p6.includes(x)),"b11p3 month-6 plan header");
   ok(p8.startsWith("# Month 8")&&["Current / 当前：**M8 3390 min**, Batch-11 PR3","3180→3390","27630→28050","420→**630**","Batch-11 PR3"].every(x=>p8.includes(x)),"b11p3 month-8 plan header");
-  ok(/28 050/.test(read("README.md")),"b11p3 README site minutes");
+  ok(/28 380/.test(read("README.md")),"b12p1 README site minutes");
   console.log("cogact-continual PR3: CogACT DiT, continual ER and M6 2400 / M8 3390 / site 28050 locked");
+}
+
+
+
+// Batch-12 PR1: Thévenin / Norton (1.1 ohms-law) and physics step-size contact stability (4.4 gazebo-sim).
+{
+  const read=p=>readFileSync(join(root,p),"utf8"), env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
+  const cur=read("src/lib/curriculum.ts"), res=read("src/lib/resources.ts");
+  execFileSync("python3",[join(root,"tools/test_b12_thevenin_gazebo_toys.py")],{cwd:root,encoding:"utf8",env,stdio:"pipe"});
+  ok(true,"b12p1 independent tests tools/test_b12_thevenin_gazebo_toys.py pass");
+  const cases=[
+    [1,"ohms-law","thevenin_loaded_divider_toy",240,["## Thévenin and Norton equivalents","## 戴维南与诺顿等效"],
+      ["seeds=5","boards=32","Vth=1.5986V","Rth=3197.3ohm","1.2113 V","heavy_load 3300 A_voc_only","light_load 10000000 B_thevenin","light_load B vs C: B 0.8726+-0.0370 mV, C 0.8729+-0.0364 mV, gap 0.0004 mV (paired C-B 0.0004+-0.0015 mV): near-tie / small gap, within seed noise","light_load A vs B: A 0.9879+-0.0646 mV, paired A-B 0.1153+-0.0588 mV: small but consistent gap, not a tie","No winner declared"],
+      ["Vth","Rth","A_voc_only","B_thevenin","C_norton","100 Ω","以原文为准","本页未运行","0.1153±0.0588","786.7609±1.2073","0.9879±0.0646","0.8726±0.0370","0.0004±0.0015"],
+      {en:["**not** the Wheatstone","**synthetic**","does not declare a universal winner","**Model assumptions:**","**blind**","**B vs C is a near-tie / small gap:**","within seed noise","**A vs B is a small but consistent gap, not a tie:**","same circuit on paper"],zh:["**不是**下一课的惠斯通电桥","**合成**","不宣布普遍赢家","**模型假设：**","**看不见**","**B 与 C 接近打平、差距很小：**","在种子噪声之内","**A 与 B 是一个小而稳定的差距，不是打平：**","在纸面上是同一个电路"]},
+      {en:["Thévenin / Norton","near-tie / small gap","small but consistent gap (not a tie)","1.21 V"],zh:["戴维南 / 诺顿","接近打平、差距很小","小而稳定的差距（不是打平）","1.21 V"]},
+      ["wiki-thevenin","wiki-norton"],"150-minute work plan","150 分钟安排"],
+    [4,"gazebo-sim","gazebo_step_contact_stability_toy",450,["## Physics step size and contact stability","## 物理步长与接触稳定性"],
+      ["seeds=5","dt < 3.279 ms","dt < 0.800 ms","3.4 1.700 1.3293 UNSTABLE","1.0 0.500 0.8944 1.0247 UNSTABLE","impact_drop A_coarse_3ms","gentle_rest C_fine_0.1ms","near-tie / small gap, not a tie","No winner declared"],
+      ["(ωΔt)_max = 2(√(ζ² + 1) − ζ)","`(ωΔt)² + 4ζ(ωΔt) < 4`","`ωΔt < 2ζ`","Kelvin–Voigt","A_coarse_3ms","B_default_1ms","C_fine_0.1ms","以原文为准","本页未运行","624.23±554.20","1.539±0.277","0.0067±0.0011","0.0050±0.0008","`solref`"],
+      {en:["**not** the inertia check","**synthetic**","does not declare a universal winner","**Model assumptions:**","**blind**","**not** DART","**not** Gazebo knobs","near-tie / small gap","not a tie","JavaScript shell"],zh:["**不是**第 3 课的惯量检查","**合成**","不宣布普遍赢家","**模型假设：**","**看不见**","**不是** DART","**不是** Gazebo 的旋钮","接近打平、差距很小","不是打平","JavaScript 外壳"]},
+      {en:["Physics step size and contact stability","near-tie / small gap","not DART"],zh:["物理步长与接触稳定性","接近打平、差距很小","不是 DART"]},
+      ["sdf-physics-spec","gz-physics-engines","wiki-euler-method","wiki-semi-implicit-euler"],"180-minute work plan","180 分钟安排"],
+  ];
+  for(const [month,slug,toy,minutes,heads,outputs,markers,langMarkers,summaryMarkers,ids,planEn,planZh] of cases){
+    const file=`examples/month-${month}/${slug}/${toy}.py`,py=read(file).trim(),expected=read(`examples/month-${month}/expected/${toy}.txt`).trim();
+    const harness=read(`examples/month-${month}/check.sh`);
+    ok(execFileSync("python3",[join(root,file)],{cwd:root,encoding:"utf8",env}).trim()===expected,`b12p1 ${toy}: actual expected output`);
+    for(const x of outputs)ok(expected.includes(x),`b12p1 ${toy}: result ${x}`);
+    ok(/SEEDS = \(0, 1, 2, 3, 4\)/.test(py)&&/common random numbers/i.test(py)&&py.includes("本页未运行"),`b12p1 ${toy}: five seeds, CRN, 本页未运行`);
+    ok(!/^\s*(import|from)\s+(numpy|scipy|torch|pandas)/m.test(py),`b12p1 ${toy}: stdlib only`);
+    ok(cur.match(new RegExp(`slug: "${slug}"[\\s\\S]*?minutes: (\\d+)`))?.[1]===String(minutes),`b12p1 ${slug}: ${minutes} min`);
+    const host=cur.slice(cur.indexOf(`slug: "${slug}"`)).split("\n  },")[0];
+    ok(host.includes(toy)&&ids.every(id=>host.includes(`"${id}"`)),`b12p1 ${slug}: task names toy and resources wired`);
+    for(const id of ids)ok(res.includes(`"${id}": {`),`b12p1 opened source ${id}`);
+    ok(harness.includes(`${slug}/${toy}.py`)&&harness.includes(`${toy}.txt`),`b12p1 ${toy}: month harness compares expected`);
+    for(const [index,lang] of ["en","zh"].entries()){
+      const md=read(`src/content/m${month}/${slug}/${lang}.mdx`),summary=md.indexOf("<Summary>"),end=md.indexOf("</Summary>");
+      ok(summary>0&&summary===md.lastIndexOf("<Summary>")&&md.slice(end+10).trim()==="",`b12p1 ${slug} ${lang}: sole whole-lesson Summary ends page`);
+      const head=md.indexOf(heads[index]);
+      ok(head>0&&head<summary,`b12p1 ${slug} ${lang}: new section before Summary`);
+      const next=md.indexOf("\n## ",head+5), sec=md.slice(head,next>0&&next<summary?next:summary);
+      ok(sec.includes(py)&&sec.includes(expected)&&sec.includes(`<CodeSource path="${file}" />`),`b12p1 ${slug} ${lang}: exact source/stdout in section`);
+      const ex=sec.lastIndexOf(lang==="en"?"### Exercises":"### 练习");
+      ok(ex>sec.indexOf("</SimOutput>")&&(sec.slice(ex).match(/^\d\. /gm)||[]).length===5,`b12p1 ${slug} ${lang}: five exercises after output`);
+      for(const x of [...markers,...langMarkers[lang]])ok(sec.includes(x),`b12p1 ${slug} ${lang}: mechanism/scope ${x}`);
+      ok(sec.includes(lang==="en"?planEn:planZh),`b12p1 ${slug} ${lang}: work plan minutes`);
+      ok(!/\b(exact tie|ties exactly)\b|精确打平/.test(sec),`b12p1 ${slug} ${lang}: no exact-tie wording`);
+      for(const h of sec.match(/^#{2,3} .*$/gm)||[])ok(!/\d+\s*(min|分钟)|Batch|PR\d|\bH\d\b/.test(h),`b12p1 ${slug} ${lang}: heading without minutes/process label ${h}`);
+      const summ=md.slice(summary,end);
+      for(const x of summaryMarkers[lang])ok(summ.includes(x),`b12p1 ${slug} ${lang}: Summary sentence ${x}`);
+    }
+    const en=read(`src/content/m${month}/${slug}/en.mdx`),zh=read(`src/content/m${month}/${slug}/zh.mdx`);
+    ok((en.match(/```/g)||[]).length===(zh.match(/```/g)||[]).length&&(en.match(/^#{2,3} /gm)||[]).length===(zh.match(/^#{2,3} /gm)||[]).length,`b12p1 ${slug}: en/zh structurally symmetric`);
+  }
+  const p1=read("docs/notes/month-1-plan.md"), p4=read("docs/notes/month-4-plan.md");
+  ok(p1.startsWith("# Month 1")&&["Current / 当前：**M1 1500 min**, Batch-12 PR1","1350→1500","28050→28380","90→240","Batch-12 PR1"].every(x=>p1.includes(x)),"b12p1 month-1 plan header");
+  ok(p4.startsWith("# Month 4")&&["Current / 当前：**M4 2310 min**, Batch-12 PR1","2130→2310","28050→28380","270→450","Batch-12 PR1"].every(x=>p4.includes(x)),"b12p1 month-4 plan header");
+  const src=read("docs/notes/batch-12-pr1-sources.md");
+  ok(["wiki-thevenin","wiki-norton","sdf-physics-spec","gz-physics-engines","wiki-euler-method","wiki-semi-implicit-euler","JavaScript shell","Common random numbers"].every(x=>src.includes(x)),"b12p1 sources note");
+  ok(/28 380/.test(read("README.md")),"b12p1 README site minutes");
+  console.log("thevenin-gazebo-dt PR1: Thévenin/Norton, step-size contact stability and M1 1500 / M4 2310 / site 28380 locked");
 }
 
 

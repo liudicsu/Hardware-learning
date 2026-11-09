@@ -770,6 +770,329 @@ straight ahead (0.0 deg): 0.73 m
 
 <Quiz id="q5" question="上面的运行里，机器人走了 0.95 m，而不是 0.2 m/s × 4 s = 0.80 m。为什么？" options={["Gazebo 的物理算错了", "停止命令比 4 s 晚到，因为每条 ros2 命令启动都需要时间", "轮子打滑了", "激光雷达推动了机器人"]} answer={1} explanation="差速驱动插件会保持上一条命令，直到新命令到达；多出的 0.15 m 就是 0.2 m/s 下的 0.75 s 命令行启动延迟。" />
 
+## 物理步长与接触稳定性
+
+「仿真器在步进什么」一节说过，`max_step_size` 取 0.001 s 表示每个物理步长是 1 毫秒；下面的排错表也提醒，不要为了救实时因子去缩小它。本节看另一面：步长对接触来说**太大**时会出什么问题，以及在信任一个步长之前怎样用稳定性判据检查它。它**不是**第 3 课的惯量检查，也**不是**第 7 个月 MuJoCo 的 `solref` 抓取扫描。
+
+**实际打开并读过的来源。**
+
+- **SDFormat 1.11 `physics.sdf`（GitHub 上的规范源文件；sdformat.org 的规范页本身是 JavaScript 外壳，不作引用）：** `max_step_size`（默认 0.001）是「仿真中每个系统能与世界状态交互的最大时间步长」；`real_time_factor`（默认 1.0）是仿真时间与真实时间之比的目标值。以原文为准。
+- **Gazebo Sim 8 API — Physics engines：** Gazebo 默认使用 DART 物理引擎；Bullet 和 Bullet Featherstone 是初步支持的替代引擎，用 Physics 插件的 `<engine><filename>` 或 `gz sim --physics-engine` 选择。以原文为准。
+- **Wikipedia — Euler method**（对 `y′ = ky`，稳定区域是 `|1 + hk| ≤ 1`；刚性问题步长太大时会不稳定）和 **Wikipedia — Semi-implicit Euler method**（先更新 `v`，再用新的 `v` 更新 `x`；一阶、辛积分器，能量近似守恒）。以原文为准。
+
+### 把接触看成刚性弹簧-阻尼
+
+罚函数式接触在物体压入地面时，相当于一根很硬的弹簧 `k` 并联一个阻尼器 `c`（Kelvin–Voigt 单元）。它的固有频率是 `ω = √(k/m)`，阻尼比是 `ζ = c / (2√(k·m))`。接触越硬，`ω` 越大，它就是**整个世界里最快的动态**，步长必须分辨得出它。下面用的是半隐式（辛）欧拉更新：`v ← v + Δt·a`，`x ← x + Δt·v`。对 `m·x″ + c·x′ + k·x = 0`，这个更新的步进矩阵在 `(ωΔt)² + 4ζ(ωΔt) < 4` 时稳定，也就是 `ωΔt` 要低于
+
+<Formula label="半隐式欧拉步长极限">(ωΔt)_max = 2(√(ζ² + 1) − ζ)</Formula>
+
+没有阻尼时就是经典的 `ωΔt < 2`。显式（前向）欧拉要严格得多：特征值 `λ = −ζω ± iω√(1 − ζ²)` 需要满足 `|1 + λΔt| < 1`，化简得 `ωΔt < 2ζ`；无阻尼弹簧在显式欧拉下永远不稳定。稳定**不等于**准确：刚好在极限以内的步长，一次接触也只采样到两三次。
+
+### 公平设置
+
+`gazebo_step_contact_stability_toy.py` 是**合成**的标准库替身，**不是** DART，也不与 Gazebo 逐位一致。**模型假设：** 1 kg 的方块只在竖直方向运动；只有一个接触点；线性 Kelvin–Voigt 接触，`k = 2.5 × 10⁵ N/m`、`ζ = 0.2`（所以 `ω = 500 rad/s`、`c = 200 N·s/m`），只在压入地面时起作用，分离前允许有一点拉力（不截断接触力）；没有摩擦；重力 9.81 m/s²；不做接触事件定位（接触只在步长边界上切换）。DART 用约束而不是这根弹簧来解接触，而且如上文所说，它不读 `<contact><ode><kp>`/`<kd>`，所以这里的 `k` 和 `c` **不是** Gazebo 的旋钮。能迁移的是规则：步长必须分辨得出最快的动态。
+
+按判据，这个接触在半隐式欧拉下要求 `Δt < 3.279 ms`，在显式欧拉下要求 `Δt < 0.800 ms`。
+
+| 组 | 步长 `Δt` | 每仿真秒步数 |
+|---|---|---|
+| A_coarse_3ms | 3 ms（稳定，`ωΔt = 1.5`） | 333 |
+| B_default_1ms | 1 ms（本课世界的 `max_step_size`） | 1000 |
+| C_fine_0.1ms | 0.1 ms | 10000 |
+
+一个 10 µs 的参考运行（不算一组）当作真值。**公共随机数：** 每个种子只抽一次落下高度（0.10 ± 0.02 m）和一条扰动力 `f(t)`（σ = 0.5 N，在 0.1 ms 网格上零阶保持）；所有组和参考运行都施加同一条 `f(t)`，并按各自的步长取平均，所以在任何一个完整步长内各组收到的冲量都相同。情形：`impact_drop`（落到地面，0.6 s）和 `gentle_rest`（从静平衡开始，0.2 s）。指标：最大压入深度及其相对参考的误差、弹跳次数（离地速度足以升高 ≥ 1 mm 的次数），以及第一次弹跳的恢复系数 `COR = √(h_apex / h_drop)`（`COR²` 就是保留下来的能量比例）。5 个种子，mean±sd。「每仿真秒步数」是算力的替代指标；它**看不见**每步求解器的迭代次数、传感器渲染以及其他决定真实 RTF 的因素。
+
+### 运行标准库模型
+
+```bash
+cd ~/Hardware-learning/examples/month-4/gazebo-sim
+python3 gazebo_step_contact_stability_toy.py
+```
+
+<CodeSource path="examples/month-4/gazebo-sim/gazebo_step_contact_stability_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic physics step-size (max_step_size) vs contact stability toy. Stdlib only.
+
+Stand-in, NOT Gazebo/DART: a 1 kg box falls onto the ground through a linear
+Kelvin-Voigt contact (spring k in parallel with damper c, active only while the
+box penetrates the ground). Every arm uses the SAME semi-implicit (symplectic)
+Euler integrator; only the step dt changes, like <max_step_size>.
+
+  v[n+1] = v[n] + dt * a(x[n], v[n], t[n])
+  x[n+1] = x[n] + dt * v[n+1]
+
+Stability criterion of this integrator on the contact spring-damper
+(omega = sqrt(k/m), zeta = c / (2 sqrt(k m))):
+  (omega*dt)^2 + 4*zeta*(omega*dt) < 4   <=>   omega*dt < 2*(sqrt(zeta^2+1) - zeta)
+Explicit (forward) Euler needs |1 + lambda*dt| < 1, i.e. omega*dt < 2*zeta.
+
+Arms (shared plant, shared drop heights and shared disturbance force f(t)):
+  A_coarse_3ms   dt = 3 ms   (stable, but only about two steps per contact)
+  B_default_1ms  dt = 1 ms   (the lesson world's max_step_size)
+  C_fine_0.1ms   dt = 0.1 ms (ten times the steps of B)
+Reference: the same integrator at dt = 10 us (not an arm).
+
+Common random numbers: per seed, one drop height and one disturbance sequence
+f(t) (zero-order hold on a 0.1 ms grid) are drawn once; every arm and the
+reference apply the SAME f(t), averaged over their own step so that every arm
+receives the same impulse (integral of f) over any whole step.
+
+Regimes (5 seeds): impact_drop (coarse loses) and gentle_rest (no impact:
+near-tie / small gap). No presumed winner. Real Gazebo / DART: 本页未运行.
+"""
+from __future__ import annotations
+
+import math
+import random
+
+M = 1.0  # kg
+G = 9.81  # m/s^2
+K = 2.5e5  # N/m contact stiffness (synthetic)
+ZETA = 0.2  # contact damping ratio (synthetic)
+C = 2.0 * ZETA * math.sqrt(K * M)  # N s/m
+OMEGA = math.sqrt(K / M)  # rad/s
+NOISE_DT = 1e-4  # disturbance grid, s
+NOISE_SIGMA = 0.5  # N, disturbance force sd
+LIFTOFF_V = math.sqrt(2.0 * G * 1e-3)  # count a bounce if it would rise >= 1 mm
+SEEDS = (0, 1, 2, 3, 4)
+ARMS = (("A_coarse_3ms", 3e-3), ("B_default_1ms", 1e-3), ("C_fine_0.1ms", 1e-4))
+REF_DT = 1e-5
+REGIMES = (("impact_drop", 0.6), ("gentle_rest", 0.2))  # (name, simulated seconds)
+
+
+def si_euler_limit(zeta: float = ZETA) -> float:
+    """Largest stable omega*dt for semi-implicit Euler on m x'' + c x' + k x = 0."""
+    return 2.0 * (math.sqrt(zeta * zeta + 1.0) - zeta)
+
+
+def explicit_euler_limit(zeta: float = ZETA) -> float:
+    """Largest stable omega*dt for explicit Euler (|1 + lambda dt| < 1)."""
+    return 2.0 * zeta
+
+
+def spectral_radius_si(dt: float) -> float:
+    """|largest eigenvalue| of the semi-implicit Euler step on the contact spring-damper."""
+    a = dt * C / M
+    b = dt * dt * K / M
+    tr = 2.0 - a - b
+    det = 1.0 - a
+    disc = tr * tr - 4.0 * det
+    if disc >= 0.0:
+        r = math.sqrt(disc)
+        return max(abs((tr + r) / 2.0), abs((tr - r) / 2.0))
+    return math.sqrt(det)  # complex pair: |lambda|^2 = det
+
+
+def spectral_radius_explicit(dt: float) -> float:
+    """|1 + lambda dt| for explicit Euler on the same spring-damper."""
+    wd = OMEGA * math.sqrt(1.0 - ZETA * ZETA)
+    re = 1.0 - ZETA * OMEGA * dt
+    return math.hypot(re, wd * dt)
+
+
+def shared_draws(seed: int, regime: str, t_end: float) -> tuple[float, list[float]]:
+    """Common random numbers: identical for every arm and the reference."""
+    rng = random.Random(9_000 + 31 * seed + (0 if regime == "impact_drop" else 7))
+    h0 = 0.10 + rng.uniform(-0.02, 0.02) if regime == "impact_drop" else 0.0
+    n = int(round(t_end / NOISE_DT)) + 2
+    force = [rng.gauss(0.0, NOISE_SIGMA) for _ in range(n)]
+    return h0, force
+
+
+def impulse_prefix(force: list[float]) -> list[float]:
+    """P[i] = integral of the zero-order-hold f(t) from 0 to i*NOISE_DT."""
+    p = [0.0]
+    for f in force:
+        p.append(p[-1] + f * NOISE_DT)
+    return p
+
+
+def impulse_until(force: list[float], prefix: list[float], t: float) -> float:
+    """Integral of f from 0 to t (exact for the zero-order-hold grid)."""
+    i = min(int(t / NOISE_DT + 1e-9), len(force) - 1)
+    return prefix[i] + force[i] * (t - i * NOISE_DT)
+
+
+def simulate(dt: float, regime: str, h0: float, force: list[float], t_end: float) -> dict:
+    """Integrate one run. x is the box bottom height (negative = penetration)."""
+    if regime == "impact_drop":
+        x, v = h0, 0.0
+    else:
+        x, v = -M * G / K, 0.0  # resting exactly at static equilibrium
+    steps = int(round(t_end / dt))
+    max_pen = max(0.0, -x)
+    bounces = 0
+    in_contact = x < 0.0
+    first_apex = None  # highest point after the first liftoff, before the next touch
+    tracking_apex = False
+    prefix = impulse_prefix(force)
+    for n in range(steps):
+        t = n * dt
+        # step-averaged disturbance: same impulse per whole step for every dt
+        f_ext = (impulse_until(force, prefix, t + dt) - impulse_until(force, prefix, t)) / dt
+        f_contact = (-K * x - C * v) if x < 0.0 else 0.0
+        a = (f_contact + f_ext) / M - G
+        v = v + dt * a
+        x = x + dt * v
+        if x < 0.0 and not in_contact:
+            in_contact = True
+            tracking_apex = False
+        elif x >= 0.0 and in_contact:
+            in_contact = False
+            if v >= LIFTOFF_V:
+                bounces += 1
+                if bounces == 1:
+                    tracking_apex = True
+                    first_apex = x
+        if tracking_apex:
+            first_apex = max(first_apex, x)
+        max_pen = max(max_pen, -x)
+    # Coefficient of restitution from heights: e = sqrt(h_apex / h_drop) (energy ratio e^2)
+    first_cor = math.sqrt(first_apex / h0) if (first_apex is not None and h0 > 0.0) else None
+    return {"max_pen": max_pen, "bounces": bounces, "cor": first_cor, "steps": steps}
+
+
+def mean_sd(xs: list[float]) -> tuple[float, float]:
+    mu = sum(xs) / len(xs)
+    var = sum((x - mu) ** 2 for x in xs) / (len(xs) - 1)
+    return mu, math.sqrt(var)
+
+
+def run_regime(regime: str, t_end: float) -> dict:
+    """Per arm: lists over seeds of |max_pen - ref| (um), bounces, |COR - ref|, max_pen."""
+    out = {name: {"pen_err_um": [], "bounces": [], "cor_err": [], "pen_um": []} for name, _ in ARMS}
+    refs = []
+    for seed in SEEDS:
+        h0, force = shared_draws(seed, regime, t_end)
+        ref = simulate(REF_DT, regime, h0, force, t_end)
+        refs.append(ref)
+        for name, dt in ARMS:
+            r = simulate(dt, regime, h0, force, t_end)
+            out[name]["pen_err_um"].append(abs(r["max_pen"] - ref["max_pen"]) * 1e6)
+            out[name]["pen_um"].append(r["max_pen"] * 1e6)
+            out[name]["bounces"].append(float(r["bounces"]))
+            if ref["cor"] is not None and r["cor"] is not None:
+                out[name]["cor_err"].append(abs(r["cor"] - ref["cor"]))
+    out["_ref"] = refs
+    return out
+
+
+def main() -> None:
+    print("Synthetic Kelvin-Voigt contact stand-in (not DART); semi-implicit Euler; shared drop heights and f(t)")
+    lim = si_euler_limit()
+    print(
+        f"m={M}kg k={K:.0f}N/m zeta={ZETA} omega={OMEGA:.1f}rad/s seeds={len(SEEDS)} "
+        f"noise_sd={NOISE_SIGMA}N ref_dt=10us"
+    )
+    print(
+        f"criterion semi-implicit Euler: omega*dt < 2*(sqrt(zeta^2+1)-zeta) = {lim:.4f} "
+        f"-> dt < {lim / OMEGA * 1e3:.3f} ms; explicit Euler: omega*dt < 2*zeta = "
+        f"{explicit_euler_limit():.4f} -> dt < {explicit_euler_limit() / OMEGA * 1e3:.3f} ms"
+    )
+    print("dt_ms omega_dt rho_semi_implicit rho_explicit")
+    for dt in (1e-4, 1e-3, 3e-3, 3.2e-3, 3.4e-3, 4e-3):
+        rs, re_ = spectral_radius_si(dt), spectral_radius_explicit(dt)
+        print(
+            f"{dt * 1e3:.1f} {OMEGA * dt:.3f} {rs:.4f}{' UNSTABLE' if rs >= 1 else ''} "
+            f"{re_:.4f}{' UNSTABLE' if re_ >= 1 else ''}"
+        )
+    print("regime arm steps_per_sim_s max_pen_um |pen-ref|_um bounces |COR-ref| (mean+-sd over seeds)")
+    summary = {}
+    for regime, t_end in REGIMES:
+        res = run_regime(regime, t_end)
+        refs = res["_ref"]
+        rp = mean_sd([r["max_pen"] * 1e6 for r in refs])
+        rb = mean_sd([float(r["bounces"]) for r in refs])
+        line = f"{regime} reference_10us {1 / REF_DT:.0f} {rp[0]:.2f}+-{rp[1]:.2f} - {rb[0]:.2f}+-{rb[1]:.2f}"
+        cors = [r["cor"] for r in refs if r["cor"] is not None]
+        if cors:
+            rc = mean_sd(cors)
+            line += f" COR={rc[0]:.4f}+-{rc[1]:.4f}"
+        print(line)
+        for name, dt in ARMS:
+            d = res[name]
+            pm, ps = mean_sd(d["pen_um"])
+            em, es = mean_sd(d["pen_err_um"])
+            bm, bs = mean_sd(d["bounces"])
+            cor = "-"
+            if len(d["cor_err"]) == len(SEEDS):
+                cm, cs = mean_sd(d["cor_err"])
+                cor = f"{cm:.4f}+-{cs:.4f}"
+            summary[(regime, name)] = (em, es, pm, ps)
+            print(
+                f"{regime} {name} {1 / dt:.0f} {pm:.2f}+-{ps:.2f} {em:.2f}+-{es:.2f} "
+                f"{bm:.2f}+-{bs:.2f} {cor}"
+            )
+    ia, ib, ic = (summary[("impact_drop", n)] for n, _ in ARMS)
+    print(
+        f"impact_drop: |pen-ref| A {ia[0]:.2f}+-{ia[1]:.2f} um, B {ib[0]:.2f}+-{ib[1]:.2f} um, "
+        f"C {ic[0]:.2f}+-{ic[1]:.2f} um (A is stable, rho<1, yet about two steps per contact: coarse loses)"
+    )
+    ga, gb, gc = (summary[("gentle_rest", n)] for n, _ in ARMS)
+    print(
+        f"gentle_rest: |pen-ref| A {ga[0]:.3f}+-{ga[1]:.3f} um, B {gb[0]:.3f}+-{gb[1]:.3f} um, "
+        f"C {gc[0]:.3f}+-{gc[1]:.3f} um on a {M * G / K * 1e6:.2f} um static sag; "
+        f"near-tie / small gap, not a tie (bounce counts are identical: 0)"
+    )
+    print("No winner declared: smaller steps cost compute (steps per simulated second); a step past the criterion diverges however cheap it is")
+    print("Real Gazebo / DART contact solver: 本页未运行; SDFormat/Gazebo docs 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic Kelvin-Voigt contact stand-in (not DART); semi-implicit Euler; shared drop heights and f(t)
+m=1.0kg k=250000N/m zeta=0.2 omega=500.0rad/s seeds=5 noise_sd=0.5N ref_dt=10us
+criterion semi-implicit Euler: omega*dt < 2*(sqrt(zeta^2+1)-zeta) = 1.6396 -> dt < 3.279 ms; explicit Euler: omega*dt < 2*zeta = 0.4000 -> dt < 0.800 ms
+dt_ms omega_dt rho_semi_implicit rho_explicit
+0.1 0.050 0.9899 0.9912
+1.0 0.500 0.8944 1.0247 UNSTABLE
+3.0 1.500 0.6325 1.6279 UNSTABLE
+3.2 1.600 0.6000 1.7088 UNSTABLE
+3.4 1.700 1.3293 UNSTABLE 1.7916 UNSTABLE
+4.0 2.000 2.7266 UNSTABLE 2.0494 UNSTABLE
+regime arm steps_per_sim_s max_pen_um |pen-ref|_um bounces |COR-ref| (mean+-sd over seeds)
+impact_drop reference_10us 100000 2146.50+-142.81 - 3.00+-0.00 COR=0.5181+-0.0008
+impact_drop A_coarse_3ms 333 2182.56+-967.46 624.23+-554.20 3.00+-1.73 0.2690+-0.3767
+impact_drop B_default_1ms 1000 1986.63+-143.06 159.87+-37.34 2.80+-0.45 0.0067+-0.0011
+impact_drop C_fine_0.1ms 10000 2142.79+-138.56 6.04+-6.15 3.00+-0.00 0.0050+-0.0008
+gentle_rest reference_10us 100000 40.34+-0.14 - 0.00+-0.00
+gentle_rest A_coarse_3ms 333 41.88+-0.29 1.54+-0.28 0.00+-0.00 -
+gentle_rest B_default_1ms 1000 40.43+-0.12 0.09+-0.08 0.00+-0.00 -
+gentle_rest C_fine_0.1ms 10000 40.34+-0.14 0.00+-0.00 0.00+-0.00 -
+impact_drop: |pen-ref| A 624.23+-554.20 um, B 159.87+-37.34 um, C 6.04+-6.15 um (A is stable, rho<1, yet about two steps per contact: coarse loses)
+gentle_rest: |pen-ref| A 1.539+-0.277 um, B 0.093+-0.079 um, C 0.004+-0.003 um on a 39.24 um static sag; near-tie / small gap, not a tie (bounce counts are identical: 0)
+No winner declared: smaller steps cost compute (steps per simulated second); a step past the criterion diverges however cheap it is
+Real Gazebo / DART contact solver: 本页未运行; SDFormat/Gazebo docs 以原文为准
+```
+
+</SimOutput>
+
+### 读懂各情形
+
+判据表就是检验：半隐式欧拉直到 3.2 ms，单步谱半径 `ρ` 都小于 1，到 3.4 ms 跳到 1.3293；显式欧拉在 1 ms 就已经不稳定（`ρ = 1.0247`）。`tools/test_b12_thevenin_gazebo_toys.py` 里的测试还在极限的 0.98 倍和 1.02 倍处积分一个自由弹簧-阻尼，分别看到衰减和发散。
+
+- **impact_drop：** 参考运行的 COR 为 0.5181±0.0008（无重力公式 `exp(−ζπ/√(1−ζ²))` 给出 0.5266），弹跳 3 次。A 虽然稳定（`ρ = 0.6325`），但每次约 6.4 ms 的接触只采样到大约两步：压入误差 624.23±554.20 µm，COR 误差 0.2690±0.3767，弹跳次数 3.00±1.73——均值和参考相同只是碰巧，离散非常大。B 的压入误差 159.87±37.34 µm，C 为 6.04±6.15 µm。**粗步长输了。** 在 COR 上，B（0.0067±0.0011）和 C（0.0050±0.0008）**接近打平、差距很小**：多花 10 倍步数在这里换不来多少 COR 精度，因为接触仍然只在步长边界上开始和结束。
+- **gentle_rest：** 压入误差 A 1.539±0.277 µm，B 0.093±0.079 µm，C 0.004±0.003 µm，静态下沉是 39.24 µm；各组弹跳都是 0 次（次数完全相同）。这是**接近打平、差距很小**，不是打平：静平衡 `m·g/k` 对任何步长都一样，剩下的差距来自 3 ms 步长对共享扰动的滤波方式。
+
+本页**不宣布普遍赢家**。步长越小越费算力——C 的步数是 B 的 10 倍，这也是下面的排错表说不要靠缩小 `max_step_size` 来修 RTF 的原因——而超过判据的步长，无论多省算力都会发散。对真实世界的做法是：找出最硬的接触或关节，让 `ωΔt` 远在所用积分器的极限以内，再把步长减半，确认压入深度和弹跳不再变化。真实 Gazebo / DART 运行：**本页未运行**。
+
+**180 分钟安排：** 30 分钟读 SDFormat 物理元素和 Gazebo 物理引擎页；40 分钟推导半隐式和显式欧拉的极限；40 分钟运行模型，读懂判据表和两种情形；40 分钟固定种子改 `K`、`ZETA` 和各组步长；30 分钟给自己的世界写一个步长减半检查。
+
+### 练习
+
+1. 由半隐式欧拉步进矩阵的迹和行列式推出 `(ωΔt)² + 4ζ(ωΔt) < 4`，并核对 `ζ = 0.2` 时打印的极限 1.6396。
+2. 证明显式欧拉需要 `ωΔt < 2ζ`，并解释为什么模型里 1 ms 这一行对显式欧拉不稳定、对半隐式欧拉却没问题。
+3. 从 `shared_draws` 和按步平均的扰动力说明：A、B、C 和参考运行拿到同一个落下高度，并且在每个完整的 3 ms 步长内收到相同的冲量。
+4. 固定种子把 `K` 加倍。运行前先预测新的半隐式极限，以及哪一组会变得不稳定。
+5. 在任何 Gazebo 运行之前（本页未运行），说明为什么静置情形下的**接近打平、差距很小**并**不**说明一个会掉落或碰撞的机器人可以用 3 ms 的 `max_step_size`。
+
 ## 出了问题怎么办
 
 第一周里的故障，大多是同一张短表。改机器人之前先查这里。
@@ -809,3 +1132,13 @@ straight ahead (0.0 deg): 0.73 m
 <Resource id="gazebo-docs" />
 
 第 5 课会拆掉 DiffDrive 插件，改用 `ros2_control` 驱动 m4bot，和真实机器人的电机被驱动的方式一样——即《谁在驱动轮子》里说的交接。激光雷达和相机原封不动，因为传感器不关心是谁在命令轮子。当你看到扫描数字和世界文件对上时，你就拥有了一张零成本、永远不会坏掉的测试台。环境搭建与 ros2-setup 的深打磨不在本课范围；上面加厚的是概念层，不是第二条仿真器产品线。
+
+<Summary>
+
+- ROS 2 Jazzy 配 Gazebo Harmonic；用 `ign gazebo` 或 `gazebo_ros_pkgs` 的教程直接关掉；MuJoCo、Isaac、Webots 只说明什么时候该用。
+- 带四个系统插件和静态障碍物的 SDF 世界里，红色方块前表面在 1.80 m，墙内表面在 2.95 m；仿真前先把这两个数写下来。
+- 360 束、10 Hz 的 `gpu_lidar` 和 640×480 相机通过 `ros_gz_bridge` 进入 ROS 2，`gz_frame_id` 用 URDF 里真实的连杆名；正前方扫描按 1.80 − 0.12 = 1.68 m 核对，开动之后里程计加激光读数仍然加回到这个数。
+- `max_step_size` 0.001 s 就是一个物理步长；传感器或步进更贵时实时因子会下降，所以先让传感器便宜一些，再考虑动步长。
+- 物理步长与接触稳定性：接触相当于一根刚性弹簧-阻尼，步长必须满足稳定判据（半隐式欧拉为 `ωΔt < 2(√(ζ² + 1) − ζ)`）；稳定的 3 ms 步长在撞击时仍然会输，静置时也只是**接近打平、差距很小**——这是合成替身，不是 DART。
+
+</Summary>

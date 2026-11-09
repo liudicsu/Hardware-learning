@@ -1,5 +1,17 @@
 # Month 4 plan / 第4个月计划
 
+Current / 当前：**M4 2310 min**, Batch-12 PR1. Earlier entries below retain their historical totals.
+
+## Batch-12 PR1 / 本月 H2 (+180)
+
+Base `a4b3b93` (batch-11 closed incl. polish #148; site **28050**). PR1 only on M4 host: **M4 2130→2310 (+180)**; M1 moves in the same PR on its own plan. Site **28050→28380**, still 71 lessons.
+
+- **H2 / 4.4 gazebo-sim: 270→450 (+180).** Physics step size (`max_step_size`) vs contact stability on a synthetic linear Kelvin–Voigt stand-in (not DART, not bit-exact; ≠ MuJoCo `solref` sweep; ≠ `inertia_check.py`). Semi-implicit Euler criterion `ωΔt < 2(√(ζ²+1) − ζ)` (3.279 ms here) and explicit Euler `ωΔt < 2ζ` (0.800 ms), checked by spectral radius and by tests. Shared drop heights and step-averaged disturbance `f(t)` (common random numbers, 5 seeds); arms 3 ms / 1 ms / 0.1 ms vs a 10 µs reference; impact: coarse loses; gentle rest: **near-tie / small gap**, not a tie. Added a whole-lesson final Summary in en/zh (the host had none). Real Gazebo / DART 本页未运行.
+
+**Allocation / 安排:** 30+40+40+40+30=180 minutes.
+
+**Site accounting / 全站核算:** **28380=28050+330** with M1 +150 on month-1-plan.md; **M4=2310**, **71 lessons**.
+
 ## Batch-7 PR2 / 本月 H3 (+210)
 
 4.6 slam-nav240→450; M4 **1620→1830**, six lessons. This PR only: site **22830→23190** (+210+150), M5 **1800→1950**, still71 lessons; no arithmetic mismatch. No PR3 minutes included.
