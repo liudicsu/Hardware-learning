@@ -839,8 +839,11 @@ f(t) (zero-order hold on a 0.1 ms grid) are drawn once; every arm and the
 reference apply the SAME f(t), averaged over their own step so that every arm
 receives the same impulse (integral of f) over any whole step.
 
-Regimes (5 seeds): impact_drop (coarse loses) and gentle_rest (no impact:
-near-tie / small gap). No presumed winner. Real Gazebo / DART: 本页未运行.
+Regimes (5 seeds): impact_drop (coarse loses to fine on every seed; A vs B is
+erratic) and gentle_rest (no impact: every error is small next to the static
+sag, but the gaps are consistent, not a near-tie). "Consistent" means only
+|paired mean| > paired sd over seeds; the sign count says how many seeds
+disagree with the paired mean. No presumed winner. Real Gazebo / DART: 本页未运行.
 """
 from __future__ import annotations
 
@@ -960,6 +963,30 @@ def mean_sd(xs: list[float]) -> tuple[float, float]:
     return mu, math.sqrt(var)
 
 
+def sign_note(diffs: list[float], m: float) -> str:
+    """How many seeds disagree in sign with the paired mean (zeros listed apart)."""
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def paired(xa: list[float], xb: list[float], digits: int) -> tuple[float, float, str]:
+    """Paired per-seed difference xa - xb: mean, sd and its label.
+    tie: identical on every seed; within seed noise: |mean| <= sd;
+    consistent gap: |mean| > sd (the only meaning of "consistent" here)."""
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return 0.0, 0.0, f"{0.0:.{digits}f}+-{0.0:.{digits}f}: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) <= s:
+        label = f"within seed noise (|m| <= sd), not a consistent gap; {sign_note(diffs, m)}"
+    else:
+        label = f"consistent gap (|m| > sd), not a tie; {sign_note(diffs, m)}"
+    return m, s, f"{m:.{digits}f}+-{s:.{digits}f}: {label}"
+
+
 def run_regime(regime: str, t_end: float) -> dict:
     """Per arm: lists over seeds of |max_pen - ref| (um), bounces, |COR - ref|, max_pen."""
     out = {name: {"pen_err_um": [], "bounces": [], "cor_err": [], "pen_um": []} for name, _ in ARMS}
@@ -1000,6 +1027,7 @@ def main() -> None:
         )
     print("regime arm steps_per_sim_s max_pen_um |pen-ref|_um bounces |COR-ref| (mean+-sd over seeds)")
     summary = {}
+    pairs = {}
     for regime, t_end in REGIMES:
         res = run_regime(regime, t_end)
         refs = res["_ref"]
@@ -1025,16 +1053,31 @@ def main() -> None:
                 f"{regime} {name} {1 / dt:.0f} {pm:.2f}+-{ps:.2f} {em:.2f}+-{es:.2f} "
                 f"{bm:.2f}+-{bs:.2f} {cor}"
             )
+        a, b, c = (res[n] for n, _ in ARMS)
+        digits = 2 if regime == "impact_drop" else 3
+        rows = [("A-B", "|pen-ref|_um", a, b, "pen_err_um", digits),
+                ("A-C", "|pen-ref|_um", a, c, "pen_err_um", digits),
+                ("B-C", "|pen-ref|_um", b, c, "pen_err_um", digits),
+                ("A-B", "bounces", a, b, "bounces", 2)]
+        if regime == "impact_drop":
+            rows += [("A-B", "|COR-ref|", a, b, "cor_err", 4), ("B-C", "|COR-ref|", b, c, "cor_err", 4)]
+        for tag, metric, x, y, key, dg in rows:
+            pairs[(regime, tag, key)] = paired(x[key], y[key], dg)
+            print(f"{regime} paired {tag} {metric} {pairs[(regime, tag, key)][2]}")
     ia, ib, ic = (summary[("impact_drop", n)] for n, _ in ARMS)
     print(
         f"impact_drop: |pen-ref| A {ia[0]:.2f}+-{ia[1]:.2f} um, B {ib[0]:.2f}+-{ib[1]:.2f} um, "
-        f"C {ic[0]:.2f}+-{ic[1]:.2f} um (A is stable, rho<1, yet about two steps per contact: coarse loses)"
+        f"C {ic[0]:.2f}+-{ic[1]:.2f} um (A is stable, rho<1, yet about two steps per contact): A and B lose to C "
+        f"on every seed; A vs B is erratic, not a consistent gap (paired A-B {pairs[('impact_drop', 'A-B', 'pen_err_um')][0]:.2f}"
+        f"+-{pairs[('impact_drop', 'A-B', 'pen_err_um')][1]:.2f} um)"
     )
     ga, gb, gc = (summary[("gentle_rest", n)] for n, _ in ARMS)
     print(
         f"gentle_rest: |pen-ref| A {ga[0]:.3f}+-{ga[1]:.3f} um, B {gb[0]:.3f}+-{gb[1]:.3f} um, "
-        f"C {gc[0]:.3f}+-{gc[1]:.3f} um on a {M * G / K * 1e6:.2f} um static sag; "
-        f"near-tie / small gap, not a tie (bounce counts are identical: 0)"
+        f"C {gc[0]:.3f}+-{gc[1]:.3f} um: all small relative to the {M * G / K * 1e6:.2f} um static sag, "
+        f"but the gaps are consistent, not a near-tie (paired A-B {pairs[('gentle_rest', 'A-B', 'pen_err_um')][0]:.3f}"
+        f"+-{pairs[('gentle_rest', 'A-B', 'pen_err_um')][1]:.3f} um, B-C {pairs[('gentle_rest', 'B-C', 'pen_err_um')][0]:.3f}"
+        f"+-{pairs[('gentle_rest', 'B-C', 'pen_err_um')][1]:.3f} um; bounce counts are identical: 0)"
     )
     print("No winner declared: smaller steps cost compute (steps per simulated second); a step past the criterion diverges however cheap it is")
     print("Real Gazebo / DART contact solver: 本页未运行; SDFormat/Gazebo docs 以原文为准")
@@ -1062,12 +1105,22 @@ impact_drop reference_10us 100000 2146.50+-142.81 - 3.00+-0.00 COR=0.5181+-0.000
 impact_drop A_coarse_3ms 333 2182.56+-967.46 624.23+-554.20 3.00+-1.73 0.2690+-0.3767
 impact_drop B_default_1ms 1000 1986.63+-143.06 159.87+-37.34 2.80+-0.45 0.0067+-0.0011
 impact_drop C_fine_0.1ms 10000 2142.79+-138.56 6.04+-6.15 3.00+-0.00 0.0050+-0.0008
+impact_drop paired A-B |pen-ref|_um 464.36+-572.63: within seed noise (|m| <= sd), not a consistent gap; 1 of 5 seeds has the opposite sign
+impact_drop paired A-C |pen-ref|_um 618.19+-549.08: consistent gap (|m| > sd), not a tie; same sign on all 5 seeds
+impact_drop paired B-C |pen-ref|_um 153.83+-40.77: consistent gap (|m| > sd), not a tie; same sign on all 5 seeds
+impact_drop paired A-B bounces 0.20+-2.17: within seed noise (|m| <= sd), not a consistent gap; 3 of 5 seeds have the opposite sign, 1 of 5 equal
+impact_drop paired A-B |COR-ref| 0.2623+-0.3771: within seed noise (|m| <= sd), not a consistent gap; same sign on all 5 seeds
+impact_drop paired B-C |COR-ref| 0.0018+-0.0017: consistent gap (|m| > sd), not a tie; same sign on all 5 seeds
 gentle_rest reference_10us 100000 40.34+-0.14 - 0.00+-0.00
 gentle_rest A_coarse_3ms 333 41.88+-0.29 1.54+-0.28 0.00+-0.00 -
 gentle_rest B_default_1ms 1000 40.43+-0.12 0.09+-0.08 0.00+-0.00 -
 gentle_rest C_fine_0.1ms 10000 40.34+-0.14 0.00+-0.00 0.00+-0.00 -
-impact_drop: |pen-ref| A 624.23+-554.20 um, B 159.87+-37.34 um, C 6.04+-6.15 um (A is stable, rho<1, yet about two steps per contact: coarse loses)
-gentle_rest: |pen-ref| A 1.539+-0.277 um, B 0.093+-0.079 um, C 0.004+-0.003 um on a 39.24 um static sag; near-tie / small gap, not a tie (bounce counts are identical: 0)
+gentle_rest paired A-B |pen-ref|_um 1.446+-0.261: consistent gap (|m| > sd), not a tie; same sign on all 5 seeds
+gentle_rest paired A-C |pen-ref|_um 1.534+-0.276: consistent gap (|m| > sd), not a tie; same sign on all 5 seeds
+gentle_rest paired B-C |pen-ref|_um 0.088+-0.077: consistent gap (|m| > sd), not a tie; same sign on all 5 seeds
+gentle_rest paired A-B bounces 0.00+-0.00: tie: identical on every seed
+impact_drop: |pen-ref| A 624.23+-554.20 um, B 159.87+-37.34 um, C 6.04+-6.15 um (A is stable, rho<1, yet about two steps per contact): A and B lose to C on every seed; A vs B is erratic, not a consistent gap (paired A-B 464.36+-572.63 um)
+gentle_rest: |pen-ref| A 1.539+-0.277 um, B 0.093+-0.079 um, C 0.004+-0.003 um: all small relative to the 39.24 um static sag, but the gaps are consistent, not a near-tie (paired A-B 1.446+-0.261 um, B-C 0.088+-0.077 um; bounce counts are identical: 0)
 No winner declared: smaller steps cost compute (steps per simulated second); a step past the criterion diverges however cheap it is
 Real Gazebo / DART contact solver: 本页未运行; SDFormat/Gazebo docs 以原文为准
 ```
@@ -1078,8 +1131,10 @@ Real Gazebo / DART contact solver: 本页未运行; SDFormat/Gazebo docs 以原�
 
 判据表就是检验：半隐式欧拉直到 3.2 ms，单步谱半径 `ρ` 都小于 1，到 3.4 ms 跳到 1.3293；显式欧拉在 1 ms 就已经不稳定（`ρ = 1.0247`）。`tools/test_b12_thevenin_gazebo_toys.py` 里的测试还在极限的 0.98 倍和 1.02 倍处积分一个自由弹簧-阻尼，分别看到衰减和发散。
 
-- **impact_drop：** 参考运行的 COR 为 0.5181±0.0008（无重力公式 `exp(−ζπ/√(1−ζ²))` 给出 0.5266），弹跳 3 次。A 虽然稳定（`ρ = 0.6325`），但每次约 6.4 ms 的接触只采样到大约两步：压入误差 624.23±554.20 µm，COR 误差 0.2690±0.3767，弹跳次数 3.00±1.73——均值和参考相同只是碰巧，离散非常大。B 的压入误差 159.87±37.34 µm，C 为 6.04±6.15 µm。**粗步长输了。** 在 COR 上，B（0.0067±0.0011）和 C（0.0050±0.0008）**接近打平、差距很小**：多花 10 倍步数在这里换不来多少 COR 精度，因为接触仍然只在步长边界上开始和结束。
-- **gentle_rest：** 压入误差 A 1.539±0.277 µm，B 0.093±0.079 µm，C 0.004±0.003 µm，静态下沉是 39.24 µm；各组弹跳都是 0 次（次数完全相同）。这是**接近打平、差距很小**，不是打平：静平衡 `m·g/k` 对任何步长都一样，剩下的差距来自 3 ms 步长对共享扰动的滤波方式。
+`paired` 那几行是在同一批抽样上逐个种子把两组相减。本页所说的**稳定**差距只指配对均值的绝对值大于种子间的标准差（`|m| > sd`）；`|m| ≤ sd` 就是在种子噪声之内。同号种子计数说明 5 个种子里有几个和均值方向相反，这是另一项、更强的检查。
+
+- **impact_drop：** 参考运行的 COR 为 0.5181±0.0008（无重力公式 `exp(−ζπ/√(1−ζ²))` 给出 0.5266），弹跳 3 次。A 虽然稳定（`ρ = 0.6325`），但每次约 6.4 ms 的接触只采样到大约两步：压入误差 624.23±554.20 µm，COR 误差 0.2690±0.3767，弹跳次数 3.00±1.73——均值和参考相同只是碰巧，离散非常大。B 的压入误差 159.87±37.34 µm，C 为 6.04±6.15 µm。**粗步长输给细步长：** 配对 A−C 为 618.19±549.08 µm，B−C 为 153.83±40.77 µm，都是稳定差距，5 个种子全部同号。**A 与 B 之间忽大忽小，不是稳定差距：** 配对 A−B 为 464.36±572.63 µm（|m| ≤ sd；A 在 5 个种子中有 4 个更差，1 个种子符号相反）；COR 误差的配对 A−B 为 0.2623±0.3771，虽然 5 个种子里 A 都更差，也仍在种子噪声之内——离散主要来自一个种子（A 的 COR 误差 0.93）。在 COR 上，B（0.0067±0.0011）和 C（0.0050±0.0008）之间是**小而稳定的差距**，不是接近打平：配对 B−C 为 0.0018±0.0017，|m| 刚好大于 sd，5 个种子全部同号。多花 10 倍步数在这里只换来这么一点 COR 精度，因为接触仍然只在步长边界上开始和结束。
+- **gentle_rest：** 压入误差 A 1.539±0.277 µm，B 0.093±0.079 µm，C 0.004±0.003 µm，静态下沉是 39.24 µm；各组弹跳都是 0 次（次数完全相同，这一项是打平）。压入误差**相对约 39 µm 的静沉都很小，但差距是稳定的**，不是接近打平：配对 A−B 为 1.446±0.261 µm，B−C 为 0.088±0.077 µm，都满足 |m| > sd，5 个种子全部同号（5/5）。静平衡 `m·g/k` 对任何步长都一样；剩下的差距来自较粗步长对共享扰动的滤波方式，所以它随步长缩小，但不会消失。
 
 本页**不宣布普遍赢家**。步长越小越费算力——C 的步数是 B 的 10 倍，这也是下面的排错表说不要靠缩小 `max_step_size` 来修 RTF 的原因——而超过判据的步长，无论多省算力都会发散。对真实世界的做法是：找出最硬的接触或关节，让 `ωΔt` 远在所用积分器的极限以内，再把步长减半，确认压入深度和弹跳不再变化。真实 Gazebo / DART 运行：**本页未运行**。
 
@@ -1091,7 +1146,7 @@ Real Gazebo / DART contact solver: 本页未运行; SDFormat/Gazebo docs 以原�
 2. 证明显式欧拉需要 `ωΔt < 2ζ`，并解释为什么模型里 1 ms 这一行对显式欧拉不稳定、对半隐式欧拉却没问题。
 3. 从 `shared_draws` 和按步平均的扰动力说明：A、B、C 和参考运行拿到同一个落下高度，并且在每个完整的 3 ms 步长内收到相同的冲量。
 4. 固定种子把 `K` 加倍。运行前先预测新的半隐式极限，以及哪一组会变得不稳定。
-5. 在任何 Gazebo 运行之前（本页未运行），说明为什么静置情形下的**接近打平、差距很小**并**不**说明一个会掉落或碰撞的机器人可以用 3 ms 的 `max_step_size`。
+5. 在任何 Gazebo 运行之前（本页未运行），说明为什么静置情形下**相对静沉很小、但稳定**的差距并**不**说明一个会掉落或碰撞的机器人可以用 3 ms 的 `max_step_size`。
 
 ## 出了问题怎么办
 
@@ -1139,6 +1194,6 @@ Real Gazebo / DART contact solver: 本页未运行; SDFormat/Gazebo docs 以原�
 - 带四个系统插件和静态障碍物的 SDF 世界里，红色方块前表面在 1.80 m，墙内表面在 2.95 m；仿真前先把这两个数写下来。
 - 360 束、10 Hz 的 `gpu_lidar` 和 640×480 相机通过 `ros_gz_bridge` 进入 ROS 2，`gz_frame_id` 用 URDF 里真实的连杆名；正前方扫描按 1.80 − 0.12 = 1.68 m 核对，开动之后里程计加激光读数仍然加回到这个数。
 - `max_step_size` 0.001 s 就是一个物理步长；传感器或步进更贵时实时因子会下降，所以先让传感器便宜一些，再考虑动步长。
-- 物理步长与接触稳定性：接触相当于一根刚性弹簧-阻尼，步长必须满足稳定判据（半隐式欧拉为 `ωΔt < 2(√(ζ² + 1) − ζ)`）；稳定的 3 ms 步长在撞击时仍然会输，静置时也只是**接近打平、差距很小**——这是合成替身，不是 DART。
+- 物理步长与接触稳定性：接触相当于一根刚性弹簧-阻尼，步长必须满足稳定判据（半隐式欧拉为 `ωΔt < 2(√(ζ² + 1) − ζ)`）；稳定的 3 ms 步长在撞击时仍然会输；静置时各组差距相对静沉都很小，但是**稳定的**（`|配对均值| > sd`，5 个种子全部同号）——这是合成替身，不是 DART。
 
 </Summary>

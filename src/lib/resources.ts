@@ -4835,6 +4835,26 @@ export const resources: Record<string, Resource> = {
     },
     extra: true,
   },
+  "wiki-max-power-transfer": {
+    id: "wiki-max-power-transfer",
+    url: "https://en.wikipedia.org/wiki/Maximum_power_transfer_theorem",
+    title: {
+      zh: "Wikipedia：最大功率传输定理",
+      en: "Wikipedia: Maximum power transfer theorem",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "负载电阻等于源电阻时负载功率最大，但效率 η = RL/(RL+RS) 只有 50 %；要效率最高，源电阻应尽量接近零。HTML 正文已核验。",
+      en: "Load power peaks when load resistance equals source resistance, but efficiency η = RL/(RL+RS) is then only 50 %; maximum efficiency needs source resistance near zero. HTML body verified.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
   "wiki-norton": {
     id: "wiki-norton",
     url: "https://en.wikipedia.org/wiki/Norton%27s_theorem",

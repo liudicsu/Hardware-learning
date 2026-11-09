@@ -13,11 +13,21 @@ impact_drop reference_10us 100000 2146.50+-142.81 - 3.00+-0.00 COR=0.5181+-0.000
 impact_drop A_coarse_3ms 333 2182.56+-967.46 624.23+-554.20 3.00+-1.73 0.2690+-0.3767
 impact_drop B_default_1ms 1000 1986.63+-143.06 159.87+-37.34 2.80+-0.45 0.0067+-0.0011
 impact_drop C_fine_0.1ms 10000 2142.79+-138.56 6.04+-6.15 3.00+-0.00 0.0050+-0.0008
+impact_drop paired A-B |pen-ref|_um 464.36+-572.63: within seed noise (|m| <= sd), not a consistent gap; 1 of 5 seeds has the opposite sign
+impact_drop paired A-C |pen-ref|_um 618.19+-549.08: consistent gap (|m| > sd), not a tie; same sign on all 5 seeds
+impact_drop paired B-C |pen-ref|_um 153.83+-40.77: consistent gap (|m| > sd), not a tie; same sign on all 5 seeds
+impact_drop paired A-B bounces 0.20+-2.17: within seed noise (|m| <= sd), not a consistent gap; 3 of 5 seeds have the opposite sign, 1 of 5 equal
+impact_drop paired A-B |COR-ref| 0.2623+-0.3771: within seed noise (|m| <= sd), not a consistent gap; same sign on all 5 seeds
+impact_drop paired B-C |COR-ref| 0.0018+-0.0017: consistent gap (|m| > sd), not a tie; same sign on all 5 seeds
 gentle_rest reference_10us 100000 40.34+-0.14 - 0.00+-0.00
 gentle_rest A_coarse_3ms 333 41.88+-0.29 1.54+-0.28 0.00+-0.00 -
 gentle_rest B_default_1ms 1000 40.43+-0.12 0.09+-0.08 0.00+-0.00 -
 gentle_rest C_fine_0.1ms 10000 40.34+-0.14 0.00+-0.00 0.00+-0.00 -
-impact_drop: |pen-ref| A 624.23+-554.20 um, B 159.87+-37.34 um, C 6.04+-6.15 um (A is stable, rho<1, yet about two steps per contact: coarse loses)
-gentle_rest: |pen-ref| A 1.539+-0.277 um, B 0.093+-0.079 um, C 0.004+-0.003 um on a 39.24 um static sag; near-tie / small gap, not a tie (bounce counts are identical: 0)
+gentle_rest paired A-B |pen-ref|_um 1.446+-0.261: consistent gap (|m| > sd), not a tie; same sign on all 5 seeds
+gentle_rest paired A-C |pen-ref|_um 1.534+-0.276: consistent gap (|m| > sd), not a tie; same sign on all 5 seeds
+gentle_rest paired B-C |pen-ref|_um 0.088+-0.077: consistent gap (|m| > sd), not a tie; same sign on all 5 seeds
+gentle_rest paired A-B bounces 0.00+-0.00: tie: identical on every seed
+impact_drop: |pen-ref| A 624.23+-554.20 um, B 159.87+-37.34 um, C 6.04+-6.15 um (A is stable, rho<1, yet about two steps per contact): A and B lose to C on every seed; A vs B is erratic, not a consistent gap (paired A-B 464.36+-572.63 um)
+gentle_rest: |pen-ref| A 1.539+-0.277 um, B 0.093+-0.079 um, C 0.004+-0.003 um: all small relative to the 39.24 um static sag, but the gaps are consistent, not a near-tie (paired A-B 1.446+-0.261 um, B-C 0.088+-0.077 um; bounce counts are identical: 0)
 No winner declared: smaller steps cost compute (steps per simulated second); a step past the criterion diverges however cheap it is
 Real Gazebo / DART contact solver: 本页未运行; SDFormat/Gazebo docs 以原文为准

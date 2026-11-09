@@ -24,7 +24,7 @@ const month1Lessons: Lesson[] = [
       { zh: "能解释 10 kΩ 负载为何使 1.6 V 分压输出降到约 1.2 V，以及何时应改用稳压器。", en: "Explain why a 10 kΩ load drops the 1.6 V divider output to about 1.2 V, and when to use a regulator." },
     ],
     prereqs: [],
-    resources: ["falstad", "aac", "afrotechmods", "wiki-thevenin", "wiki-norton"],
+    resources: ["falstad", "aac", "afrotechmods", "wiki-thevenin", "wiki-norton", "wiki-max-power-transfer"],
     tasks: [
       { id: "b12p1-thevenin", text: { zh: "运行 thevenin_loaded_divider_toy.py，比较重载 / 本课负载 / 轻载下三组的带载误差，并手算 Vth、Rth 与 1.2113 V", en: "Run thevenin_loaded_divider_toy.py, compare the three arms' loaded-voltage errors under heavy / lesson / light load, and work out Vth, Rth and 1.2113 V by hand" } },
       { id: "falstad-ohms", text: { zh: "在 Falstad 中打开欧姆定律示例，改变电阻值并观察电流变化", en: "Open the Ohm's-law example in Falstad, change the resistor and watch the current change" } },
@@ -558,7 +558,7 @@ const month4Lessons: Lesson[] = [
       { zh: "能为 ROS 2 Jazzy 选择 Gazebo Harmonic，并识别 ign 或 gazebo_ros_pkgs 这类过时教程。", en: "Select Gazebo Harmonic for ROS 2 Jazzy and identify outdated ign or gazebo_ros_pkgs tutorials." },
       { zh: "能搭建带四个系统插件和静态障碍物的 SDF 世界，并算出红色方块前表面 1.80 m、墙内表面 2.95 m。", en: "Build an SDF world with the four system plugins and static obstacles, and compute the red-box face at 1.80 m and walls at 2.95 m." },
       { zh: "能配置 360 束、10 Hz 的 gpu_lidar 和 640×480 相机，把 gz_frame_id 设为 lidar_link 与 camera_optical_link，并用 ros_gz_bridge 桥接。", en: "Configure a 360-beam, 10 Hz gpu_lidar and a 640×480 camera with gz_frame_id lidar_link and camera_optical_link, then bridge them with ros_gz_bridge." },
-      { zh: "能写出半隐式欧拉在接触弹簧-阻尼上的步长判据 ωΔt < 2(√(ζ²+1) − ζ) 与显式欧拉的 ωΔt < 2ζ，在共享落高与扰动下比较 3 ms / 1 ms / 0.1 ms 步长的压入、弹跳与恢复系数，并指出静置时只是接近打平、差距很小；不声称 DART 逐位一致。", en: "State the semi-implicit Euler step criterion ωΔt < 2(√(ζ²+1) − ζ) and explicit Euler's ωΔt < 2ζ on a contact spring-damper, compare 3 ms / 1 ms / 0.1 ms penetration, bounces and restitution on shared drops and disturbances, and show gentle rest is only a near-tie / small gap; no DART bit-exact claim." },
+      { zh: "能写出半隐式欧拉在接触弹簧-阻尼上的步长判据 ωΔt < 2(√(ζ²+1) − ζ) 与显式欧拉的 ωΔt < 2ζ，在共享落高与扰动下比较 3 ms / 1 ms / 0.1 ms 步长的压入、弹跳与恢复系数，并指出静置时各组差距相对静沉都很小、但是稳定的（|配对均值| > sd）；不声称 DART 逐位一致。", en: "State the semi-implicit Euler step criterion ωΔt < 2(√(ζ²+1) − ζ) and explicit Euler's ωΔt < 2ζ on a contact spring-damper, compare 3 ms / 1 ms / 0.1 ms penetration, bounces and restitution on shared drops and disturbances, and show gentle-rest gaps are small relative to the static sag but consistent (|paired mean| > sd); no DART bit-exact claim." },
       { zh: "能用 1.80 − 0.12 = 1.68 m 核对正前方扫描，并把相机图像与世界文件对照。", en: "Cross-check the straight-ahead scan with 1.80 − 0.12 = 1.68 m and compare the camera image against the world file." },
     ],
     prereqs: ["ros2-graph", "urdf-tf"],

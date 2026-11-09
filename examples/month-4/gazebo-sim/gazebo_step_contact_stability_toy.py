@@ -25,8 +25,11 @@ f(t) (zero-order hold on a 0.1 ms grid) are drawn once; every arm and the
 reference apply the SAME f(t), averaged over their own step so that every arm
 receives the same impulse (integral of f) over any whole step.
 
-Regimes (5 seeds): impact_drop (coarse loses) and gentle_rest (no impact:
-near-tie / small gap). No presumed winner. Real Gazebo / DART: 本页未运行.
+Regimes (5 seeds): impact_drop (coarse loses to fine on every seed; A vs B is
+erratic) and gentle_rest (no impact: every error is small next to the static
+sag, but the gaps are consistent, not a near-tie). "Consistent" means only
+|paired mean| > paired sd over seeds; the sign count says how many seeds
+disagree with the paired mean. No presumed winner. Real Gazebo / DART: 本页未运行.
 """
 from __future__ import annotations
 
@@ -146,6 +149,30 @@ def mean_sd(xs: list[float]) -> tuple[float, float]:
     return mu, math.sqrt(var)
 
 
+def sign_note(diffs: list[float], m: float) -> str:
+    """How many seeds disagree in sign with the paired mean (zeros listed apart)."""
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def paired(xa: list[float], xb: list[float], digits: int) -> tuple[float, float, str]:
+    """Paired per-seed difference xa - xb: mean, sd and its label.
+    tie: identical on every seed; within seed noise: |mean| <= sd;
+    consistent gap: |mean| > sd (the only meaning of "consistent" here)."""
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return 0.0, 0.0, f"{0.0:.{digits}f}+-{0.0:.{digits}f}: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) <= s:
+        label = f"within seed noise (|m| <= sd), not a consistent gap; {sign_note(diffs, m)}"
+    else:
+        label = f"consistent gap (|m| > sd), not a tie; {sign_note(diffs, m)}"
+    return m, s, f"{m:.{digits}f}+-{s:.{digits}f}: {label}"
+
+
 def run_regime(regime: str, t_end: float) -> dict:
     """Per arm: lists over seeds of |max_pen - ref| (um), bounces, |COR - ref|, max_pen."""
     out = {name: {"pen_err_um": [], "bounces": [], "cor_err": [], "pen_um": []} for name, _ in ARMS}
@@ -186,6 +213,7 @@ def main() -> None:
         )
     print("regime arm steps_per_sim_s max_pen_um |pen-ref|_um bounces |COR-ref| (mean+-sd over seeds)")
     summary = {}
+    pairs = {}
     for regime, t_end in REGIMES:
         res = run_regime(regime, t_end)
         refs = res["_ref"]
@@ -211,16 +239,31 @@ def main() -> None:
                 f"{regime} {name} {1 / dt:.0f} {pm:.2f}+-{ps:.2f} {em:.2f}+-{es:.2f} "
                 f"{bm:.2f}+-{bs:.2f} {cor}"
             )
+        a, b, c = (res[n] for n, _ in ARMS)
+        digits = 2 if regime == "impact_drop" else 3
+        rows = [("A-B", "|pen-ref|_um", a, b, "pen_err_um", digits),
+                ("A-C", "|pen-ref|_um", a, c, "pen_err_um", digits),
+                ("B-C", "|pen-ref|_um", b, c, "pen_err_um", digits),
+                ("A-B", "bounces", a, b, "bounces", 2)]
+        if regime == "impact_drop":
+            rows += [("A-B", "|COR-ref|", a, b, "cor_err", 4), ("B-C", "|COR-ref|", b, c, "cor_err", 4)]
+        for tag, metric, x, y, key, dg in rows:
+            pairs[(regime, tag, key)] = paired(x[key], y[key], dg)
+            print(f"{regime} paired {tag} {metric} {pairs[(regime, tag, key)][2]}")
     ia, ib, ic = (summary[("impact_drop", n)] for n, _ in ARMS)
     print(
         f"impact_drop: |pen-ref| A {ia[0]:.2f}+-{ia[1]:.2f} um, B {ib[0]:.2f}+-{ib[1]:.2f} um, "
-        f"C {ic[0]:.2f}+-{ic[1]:.2f} um (A is stable, rho<1, yet about two steps per contact: coarse loses)"
+        f"C {ic[0]:.2f}+-{ic[1]:.2f} um (A is stable, rho<1, yet about two steps per contact): A and B lose to C "
+        f"on every seed; A vs B is erratic, not a consistent gap (paired A-B {pairs[('impact_drop', 'A-B', 'pen_err_um')][0]:.2f}"
+        f"+-{pairs[('impact_drop', 'A-B', 'pen_err_um')][1]:.2f} um)"
     )
     ga, gb, gc = (summary[("gentle_rest", n)] for n, _ in ARMS)
     print(
         f"gentle_rest: |pen-ref| A {ga[0]:.3f}+-{ga[1]:.3f} um, B {gb[0]:.3f}+-{gb[1]:.3f} um, "
-        f"C {gc[0]:.3f}+-{gc[1]:.3f} um on a {M * G / K * 1e6:.2f} um static sag; "
-        f"near-tie / small gap, not a tie (bounce counts are identical: 0)"
+        f"C {gc[0]:.3f}+-{gc[1]:.3f} um: all small relative to the {M * G / K * 1e6:.2f} um static sag, "
+        f"but the gaps are consistent, not a near-tie (paired A-B {pairs[('gentle_rest', 'A-B', 'pen_err_um')][0]:.3f}"
+        f"+-{pairs[('gentle_rest', 'A-B', 'pen_err_um')][1]:.3f} um, B-C {pairs[('gentle_rest', 'B-C', 'pen_err_um')][0]:.3f}"
+        f"+-{pairs[('gentle_rest', 'B-C', 'pen_err_um')][1]:.3f} um; bounce counts are identical: 0)"
     )
     print("No winner declared: smaller steps cost compute (steps per simulated second); a step past the criterion diverges however cheap it is")
     print("Real Gazebo / DART contact solver: 本页未运行; SDFormat/Gazebo docs 以原文为准")
