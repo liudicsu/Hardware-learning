@@ -17,3 +17,12 @@ python3 multimodal.py
 No hardware needed. Output quoted in the lesson as **simulated output / 仿真输出**; checked by
 `examples/month-6/check.sh` against `examples/month-6/expected/multimodal.txt`.
 不需要硬件。课程中以“仿真输出”引用；由 `examples/month-6/check.sh` 与 `examples/month-6/expected/multimodal.txt` 比对。
+
+## hybridvla_action_ensemble_toy.py
+
+HybridVLA-style collaborative action ensemble (arXiv 2503.10631, Section 3.3): one AR head (64 bins, token confidence) and one diffusion head as error models, and the confidence-gated average at θ = 0.96; four regimes (precision, semantic, mixed, easy_precision), five seeds, common random numbers. No training and no time step. Checked by `examples/month-6/check.sh`. HybridVLA weights and a GPU are not run here; paper numbers are per the paper. Not CogACT's ensemble over time, not ACT vs DP.
+HybridVLA 式协同动作集成（arXiv 2503.10631 第 3.3 节）：一个 AR 头（64 个区间、词元置信度）和一个扩散头作为误差模型，θ = 0.96 时按置信度门控取平均；四种情形（precision、semantic、mixed、easy_precision），5 个种子，共用随机数。没有训练，也没有时间步。由 `examples/month-6/check.sh` 核对。HybridVLA 权重与 GPU 本页未运行；论文数字以论文为准。不是 CogACT 的时间集成，也不是 ACT 对比 DP。
+
+```bash
+python3 hybridvla_action_ensemble_toy.py
+```

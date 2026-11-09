@@ -1,0 +1,38 @@
+Synthetic HybridVLA-style ensemble toy; two head error models, no training, no time step; arms differ only in the executed action; shared episodes / evidence / noise
+episodes=400 per seed, seeds=5, AR bins=64 (width 0.03125), head noise sd=0.01, theta=0.96, kappa=1.2
+confidence passes theta when |z_ar| > 2.1048; tolerances: precision 0.012 (easy 0.1), semantic 0.15; semantic modes (-0.6, 0.0, 0.6)
+regime arm success_% mean_abs_err_x1000 ar_gate_%  (mean+-sd over seeds)
+precision (semantic share 0%; mu_ar precision 3.0, semantic 1.8; mu_d semantic 0.5; precision tol 0.012)
+  A_ar_only 61.4000+-1.6260 10.8475+-0.2670 0.0000+-0.0000
+  B_diffusion_only 76.2000+-1.8990 8.0900+-0.3071 0.0000+-0.0000
+  C_hybrid_ensemble 83.2500+-1.0897 6.8379+-0.2118 82.0500+-2.1823
+  paired C-A succ: 21.8500+-1.3647: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A err: -4.0095+-0.1329: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B succ: 7.0500+-2.0797: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B err: -1.2520+-0.4165: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+semantic (semantic share 100%; mu_ar precision 3.0, semantic 1.8; mu_d semantic 0.5; precision tol 0.012)
+  A_ar_only 96.5500+-0.6225 38.4342+-5.4745 0.0000+-0.0000
+  B_diffusion_only 69.7000+-2.8799 247.5123+-25.1765 0.0000+-0.0000
+  C_hybrid_ensemble 69.7000+-2.8799 200.3352+-22.2543 38.5500+-1.9154
+  paired C-A succ: -26.8500+-2.5593: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A err: 161.9010+-20.3899: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B succ: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B err: -47.1771+-9.1652: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+mixed (semantic share 50%; mu_ar precision 3.0, semantic 1.8; mu_d semantic 0.5; precision tol 0.012)
+  A_ar_only 79.0000+-1.6956 29.5775+-7.5755 0.0000+-0.0000
+  B_diffusion_only 73.6000+-2.5471 138.7528+-16.4562 0.0000+-0.0000
+  C_hybrid_ensemble 76.1000+-1.0695 113.0848+-15.2822 59.0000+-2.4238
+  paired C-A succ: -2.9000+-1.5268: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A err: 83.5072+-15.0658: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B succ: 2.5000+-1.9203: small but consistent gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  paired C-B err: -25.6680+-6.7709: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+easy_precision (semantic share 0%; mu_ar precision 3.0, semantic 1.8; mu_d semantic 0.5; precision tol 0.1)
+  A_ar_only 100.0000+-0.0000 11.0530+-0.3726 0.0000+-0.0000
+  B_diffusion_only 100.0000+-0.0000 7.9306+-0.1468 0.0000+-0.0000
+  C_hybrid_ensemble 100.0000+-0.0000 7.0030+-0.3586 81.1000+-2.2542
+  paired C-A succ: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A err: -4.0500+-0.1511: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B succ: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B err: -0.9276+-0.3680: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: averaging helps when both heads pick the same mode, and hurts when a confident AR head and the diffusion head pick different modes
+Real HybridVLA weights / GPU: 本页未运行; paper numbers 以论文为准

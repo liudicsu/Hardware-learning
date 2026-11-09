@@ -5493,6 +5493,86 @@ export const resources: Record<string, Resource> = {
     },
     extra: true,
   },
+  "hybridvla-html": {
+    id: "hybridvla-html",
+    url: "https://arxiv.org/html/2503.10631",
+    title: {
+      zh: "HybridVLA：在统一的 VLA 模型中协同扩散与自回归（HTML）",
+      en: "HybridVLA: Collaborative Diffusion and Autoregression in a Unified Vision-Language-Action Model (HTML)",
+    },
+    author: "Jiaming Liu, Hao Chen, Pengju An, Zhuoyang Liu, Renrui Zhang, Chenyang Gu, Xiaoqi Li, Ziyu Guo, Sixiang Chen, Mengzhen Liu, Chengkai Hou, Mengdi Zhao, KC alex Zhou, Pheng-Ann Heng, Shanghang Zhang",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已读 LaTeXML HTML 正文：一个 LLM 同时做扩散去噪与自回归动作词元预测；<BOD>/<EOD> 包住的扩散词元放在 AR 词元之前；L_hybrid = L_dif + L_ce；4 步 DDIM 与 KV cache；协同动作集成在 AR 词元平均置信度超过 θ = 0.96 时取两者平均，否则只用扩散动作。RLBench 0.74 / 0.66 / 0.62（集成 / 仅扩散 / 仅 AR）等数字以论文为准；7B 模型与 GPU 本页未运行。",
+      en: "LaTeXML HTML body read: one LLM does both diffusion denoising and autoregressive action-token prediction; diffusion tokens wrapped in <BOD>/<EOD> come before the AR tokens; L_hybrid = L_dif + L_ce; 4-step DDIM with a KV cache; the collaborative action ensemble averages both actions when the mean AR token confidence exceeds θ = 0.96 and otherwise uses diffusion alone. Numbers such as RLBench 0.74 / 0.66 / 0.62 (ensemble / diffusion only / AR only) 以论文为准; the 7B model and GPU 本页未运行.",
+    },
+    license: {
+      zh: "以原文为准",
+      en: "See original terms",
+    },
+    extra: true,
+  },
+  "hybridvla-pdf": {
+    id: "hybridvla-pdf",
+    url: "https://arxiv.org/pdf/2503.10631",
+    title: {
+      zh: "HybridVLA：在统一的 VLA 模型中协同扩散与自回归（PDF）",
+      en: "HybridVLA: Collaborative Diffusion and Autoregression in a Unified Vision-Language-Action Model (PDF)",
+    },
+    author: "Jiaming Liu, Hao Chen, Pengju An, Zhuoyang Liu, Renrui Zhang, Chenyang Gu, Xiaoqi Li, Ziyu Guo, Sixiang Chen, Mengzhen Liu, Chengkai Hou, Mengdi Zhao, KC alex Zhou, Pheng-Ann Heng, Shanghang Zhang",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已用 pdftotext 读正文（v3）：表 1 词元序列四种排法、表 3 消融、附录 B.1 表 7 中 AR 在 4 个任务、扩散在 6 个任务上更好（Wine at rack 仅扩散 0.70 高于集成 0.50），附录 B.2 表 8 阈值 0.90–0.98 对应 0.66 / 0.64 / 0.70 / 0.74 / 0.69。数字以论文为准；本页未运行。",
+      en: "Body read via pdftotext (v3): Table 1 token-sequence layouts, Table 3 ablation, Appendix B.1 Table 7 where AR leads on 4 tasks and diffusion on 6 (Wine at rack: diffusion only 0.70 above the ensemble's 0.50), Appendix B.2 Table 8 thresholds 0.90–0.98 giving 0.66 / 0.64 / 0.70 / 0.74 / 0.69. Numbers 以论文为准; 本页未运行.",
+    },
+    license: {
+      zh: "以原文为准",
+      en: "See original terms",
+    },
+    extra: true,
+  },
+  "cotvla-html": {
+    id: "cotvla-html",
+    url: "https://arxiv.org/html/2503.22020",
+    title: {
+      zh: "CoT-VLA：视觉-语言-动作模型的视觉思维链推理（HTML）",
+      en: "CoT-VLA: Visual Chain-of-Thought Reasoning for Vision-Language-Action Models (HTML)",
+    },
+    author: "Qingqing Zhao, Yao Lu, Moo Jin Kim, Zipeng Fu, Zhuoyang Zhang, Yecheng Wu, Zhaoshuo Li, Qianli Ma, Song Han, Chelsea Finn, Ankur Handa, Ming-Yu Liu, Donglai Xiang, Gordon Wetzstein, Tsung-Yi Lin",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已读 LaTeXML HTML 正文：基于 VILA-U（7B），先自回归生成 n 帧之后的子目标图像（式 2），再以当前图像和子目标为条件生成长 10 的动作块（式 3）；子目标一步也用无动作视频训练；图像和文本用因果注意力、动作用全注意力；算法 1 为闭环。LIBERO 81.13 % 等数字以论文为准；模型与 GPU 本页未运行。",
+      en: "LaTeXML HTML body read: built on VILA-U (7B), it first generates a subgoal image n frames ahead autoregressively (Eq. 2), then a chunk of 10 actions conditioned on the current image and the subgoal (Eq. 3); the subgoal step also trains on action-less video; causal attention for image and text, full attention for actions; Algorithm 1 is closed loop. Numbers such as LIBERO 81.13 % 以论文为准; the model and GPU 本页未运行.",
+    },
+    license: {
+      zh: "以原文为准",
+      en: "See original terms",
+    },
+    extra: true,
+  },
+  "cotvla-pdf": {
+    id: "cotvla-pdf",
+    url: "https://arxiv.org/pdf/2503.22020",
+    title: {
+      zh: "CoT-VLA：视觉-语言-动作模型的视觉思维链推理（PDF）",
+      en: "CoT-VLA: Visual Chain-of-Thought Reasoning for Vision-Language-Action Models (PDF)",
+    },
+    author: "Qingqing Zhao, Yao Lu, Moo Jin Kim, Zipeng Fu, Zhuoyang Zhang, Yecheng Wu, Zhaoshuo Li, Qianli Ma, Song Han, Chelsea Finn, Ankur Handa, Ming-Yu Liu, Donglai Xiang, Gordon Wetzstein, Tsung-Yi Lin",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已用 pdftotext 读正文（v1）：表 2 Bridge-V2 上视觉 65 % 对 OpenVLA 75 %、语言 70 % 对 75 %；Franka-Tabletop 单指令任务 Diffusion Policy 最好；表 3 真值子目标图像把两个分布外任务从 20 % / 0 % 提到 60 % / 40 %；第 5 节：先生成 256 个图像词元，动作块长 10 时平均慢约 7 倍。数字以论文为准；本页未运行。",
+      en: "Body read via pdftotext (v1): Table 2 on Bridge-V2, visual 65 % vs OpenVLA 75 % and language 70 % vs 75 %; on Franka-Tabletop Diffusion Policy is best on single-instruction tasks; Table 3, ground-truth subgoal images raise two out-of-distribution tasks from 20 % / 0 % to 60 % / 40 %; Section 5, generating 256 image tokens first makes inference about 7× slower on average with a chunk of 10. Numbers 以论文为准; 本页未运行.",
+    },
+    license: {
+      zh: "以原文为准",
+      en: "See original terms",
+    },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

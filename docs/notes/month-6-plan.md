@@ -1,6 +1,6 @@
 # Month 6 plan: Robot learning, specialisation & getting hired
 
-Current / 当前：**M6 2400 min**, Batch-11 PR3. Earlier entries below retain their historical totals.
+Current / 当前：**M6 2820 min**, Batch-14 PR3. Earlier entries below retain their historical totals.
 
 Course source: @DeRonin_'s 6-month roadmap (`COURSE_SOURCE` in src/lib/curriculum.ts). Month 6 topics there:
 imitation learning (behaviour cloning, ACT, diffusion policy), VLA models and which have open weights,
@@ -94,3 +94,14 @@ Base `777543d` (batch-11 PR2 #146 merged; site **27630**). PR3 only: **M6 2190�
 - **H5 / 6.2 act-diffusion: 450→**660** (+210).** CogACT componentized VLM→specialized action module (Qixiu Li et al. arXiv:2411.19650, abs+HTML+PDF opened; numbers 以论文为准). Toy `cogact_dit_action_toy.py`: shared demos/noise/budget; A ridge-linear MLP-head stand-in, B pairwise-expanded+iterative DiT-style expressivity stand-in (not a real transformer), C quantized tokens; unimodal_short exact tie (|ΔMSE|≈0), multimodal_long DiT-style edge; five seeds, common random numbers. ≠ OpenHelix / VQ-BeT / RDT2. GPU/weights 本页未运行. Sources: batch-11-pr3-sources.md.
 
 **Site accounting / 全站核算:** **28050=27630+420** with M8 +210 on month-8-plan.md; **M6=2400**, **71 lessons**.
+
+## Batch-14 PR3 / 本月 H5 + H6 (+420)
+
+Base `386f359` (batch-14 PR2 merged as #158; site **30960**). PR3 only: **M6 2400→2820 (+420)**; site **30960→31380**, still 71 lessons; no arithmetic mismatch with proposal §9 or curriculum.ts. Batch 14 content is complete at 31380.
+
+- **H5 / 6.2 act-diffusion: 660→**870** (+210).** HybridVLA (Jiaming Liu et al., arXiv 2503.10631, HTML + PDF opened; numbers 以论文为准): diffusion and AR actions from one LLM, collaborative action ensemble at θ = 0.96. Toy `hybridvla_action_ensemble_toy.py`: two head error models (no training, no time step), arms A AR only / B diffusion only / C confidence-gated average; shared episodes, evidence and noise (common random numbers, 5 seeds). precision: C−A 21.8500±1.3647, C−B 7.0500±2.0797, both 5/5; semantic: C−B success **tie** (identical on every seed), C−A −26.8500±2.5593 (C loses to the AR specialist, 5/5); mixed: C−A −2.9000±1.5268 (C loses to the best single head, 5/5); easy_precision: success **tie**. ≠ ACT vs DP, ≠ CogACT AAE, ≠ OneDP, ≠ Diffusion Forcing. GPU 本页未运行.
+- **H6 / 6.3 vla-models: 780→**990** (+210).** CoT-VLA (Qingqing Zhao et al., arXiv 2503.22020, HTML + PDF opened; numbers 以论文为准): subgoal image first, then an action chunk. Toy `cot_vla_subgoal_toy.py`: count tables on a 1-D track (no time-step integration), arms A direct / B subgoal every chunk / C subgoal every 2nd chunk; shared task, demos, videos and starts (common random numbers, 5 seeds). multi_stage_video: B−A success 62.0000±44.8400 (5/5); multi_stage_no_video, multi_stage_action_rich, single_reach: B−A success **near-tie**, B loses on tokens (clear, 5/5); C loses to B on multi-stage success (clear). New section after Common mistakes, before the Summary; RDT2 section unchanged. ≠ DreamGen / TraceVLA / MAP-VLA / WorldVLA. GPU 本页未运行.
+
+**Allocation / 安排:** each host 40+30+50+50+40=210 minutes. Sources: batch-14-pr3-sources.md.
+
+**Site accounting / 全站核算:** **31380=30960+420**; **M6=2820**, **71 lessons**.
