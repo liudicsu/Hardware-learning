@@ -837,6 +837,17 @@ def main():
             for m in ("ise", "over", "settle"):
                 xa, xb = [x[m] for x in res[r][other]], [x[m] for x in res[r]["B_smith"]]
                 print(f"  paired {other[0]}-B {m}: {verdict(xa, xb)}")
+    # Seeds 0–1 of wrong_delay_big round k_hat to 0, so C≡A; also print the pure-mismatch subset.
+    subset = (2, 3, 4)
+    print("wrong_delay_big pure-mismatch subset (seeds 2-4 only; seeds 0-1 have k_hat=0 so C≡A and inflate the 5-seed mean and sd)")
+    for a in ARMS:
+        rows = [res["wrong_delay_big"][a][s] for s in subset]
+        print(f"  {a} " + " ".join(cell([x[m] for x in rows]) for m in ("ise", "over", "settle")))
+    for other in ("A_pi_ignore", "C_smith_wrong"):
+        for m in ("ise", "over", "settle"):
+            xa = [res["wrong_delay_big"][other][s][m] for s in subset]
+            xb = [res["wrong_delay_big"]["B_smith"][s][m] for s in subset]
+            print(f"  paired {other[0]}-B {m}: {verdict(xa, xb)}")
     print("No winner declared: with a true model the Smith predictor takes the delay out of the loop; with no delay it is the same PI; with the wrong delay it can lose")
     print("Real delayed plant / bench: 本页未运行; Smith-predictor statements 以原文为准")
 
@@ -902,6 +913,16 @@ wrong_delay_big (delay 20 samples = 0.20 s; C delay model off by 90%-110%, gain 
   paired C-B ise: 0.2594+-0.2363: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
   paired C-B over: 43.0091+-40.3948: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
   paired C-B settle: 2.7340+-0.0055: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+wrong_delay_big pure-mismatch subset (seeds 2-4 only; seeds 0-1 have k_hat=0 so C≡A and inflate the 5-seed mean and sd)
+  A_pi_ignore 0.7562+-0.1002 87.4215+-0.2708 3.5000+-0.0000
+  B_smith 0.2769+-0.0348 0.1988+-0.0282 0.7633+-0.0058
+  C_smith_wrong 0.3865+-0.0304 13.7160+-1.3731 3.5000+-0.0000
+  paired A-B ise: 0.4793+-0.0654: clear gap, not a tie (|m| > sd); same sign on all 3 seeds
+  paired A-B over: 87.2227+-0.2800: clear gap, not a tie (|m| > sd); same sign on all 3 seeds
+  paired A-B settle: 2.7367+-0.0058: clear gap, not a tie (|m| > sd); same sign on all 3 seeds
+  paired C-B ise: 0.1096+-0.0054: clear gap, not a tie (|m| > sd); same sign on all 3 seeds
+  paired C-B over: 13.5172+-1.3548: clear gap, not a tie (|m| > sd); same sign on all 3 seeds
+  paired C-B settle: 2.7367+-0.0058: clear gap, not a tie (|m| > sd); same sign on all 3 seeds
 No winner declared: with a true model the Smith predictor takes the delay out of the loop; with no delay it is the same PI; with the wrong delay it can lose
 Real delayed plant / bench: 本页未运行; Smith-predictor statements 以原文为准
 ```
@@ -915,7 +936,7 @@ How the labels are used on this page, in this order: **tie: identical on every s
 - **zero_delay:** with `k = 0` the Smith bracket `ŷ − ŷ_delayed` is exactly zero whatever the model, so all three arms run the same PI: **tie: identical on every seed** on every metric, for A−B and C−B alike. This tie is structural, not tuned.
 - **long_delay:** **A loses with a clear gap.** Its overshoot is 87.5436±0.1121 % against 0.2247±0.0487 % for B (paired A−B 87.3189±0.1214), its ISE 0.8114±0.1880 against 0.2955±0.0673 (A−B 0.5159±0.1210), and it never settles before the load step (A−B settle 2.7320±0.0045, a lower bound because A is capped). All three are the same sign on all 5 seeds. The 13.6° margin of the worked example is what that ringing looks like. With a delay model 30–50 % off, C **loses with a clear gap only on settling** (C−B settle 0.6180±0.2675, same sign on all 5 seeds). On ISE (0.0218±0.0248, 1 of 5 seeds of the opposite sign) and overshoot (5.9267±9.4293, 2 of 5 of the opposite sign) C and B are a **near-tie / small gap, within seed noise**. Seed 1, with `k̂ = 12` against a true 20, overshoots by about 22 % but still has a slightly lower ISE than B.
 - **short_delay:** here the **Smith predictor loses.** The plain PI is faster: A−B settle −0.1920±0.0045 is a clear gap, and A−B ISE −0.0156±0.0032 a small but consistent gap, both same sign on all 5 seeds. B only gains a small but consistent 0.0260±0.0060 points less overshoot, on overshoots of 0.14–0.17 %. With 74.7° of margin left, the PI tolerates the short delay and responds faster than the delay-free target `λ_c`, which is exactly what B reproduces. C−B is a near-tie on ISE (−0.0026±0.0047) and settling (−0.0360±0.0716). On overshoot it is a small but consistent 0.0059±0.0058, with 1 of 5 seeds of the opposite sign.
-- **wrong_delay_big:** **C loses with a clear gap on every metric**, all same sign on all 5 seeds: ISE C−B 0.2594±0.2363, overshoot 43.0091±40.3948, settle 2.7340±0.0055 (C never settles, capped). On seeds 0 and 1 the wrong model rounds to `k̂ = 0`, so the bracket is zero and C **is** A, with 87 % overshoot. On seeds 2–4 the model doubles the delay (`k̂` = 39–40) and C overshoots by 13–15 % and does not settle within 2 % before the load step. That is the classic Smith weakness: the prediction is only as good as the delay model.
+- **wrong_delay_big:** **C loses with a clear gap on every metric**, all same sign on all 5 seeds: ISE C−B 0.2594±0.2363, overshoot 43.0091±40.3948, settle 2.7340±0.0055 (C never settles, capped). On seeds 0 and 1 the wrong model rounds to `k̂ = 0`, so the bracket is zero and C **is** A, with 87 % overshoot; that collapse to the delay-ignoring PI is what inflates both the 5-seed mean and the sd. The toy also prints a **pure-mismatch subset on seeds 2–4 only**, where C−B overshoot is 13.5172±1.3548 (clear, same sign on all 3 seeds), ISE 0.1096±0.0054 and settle 2.7367±0.0058 — against the 5-seed overshoot 43.0091±40.3948. On those three seeds the model doubles the delay (`k̂` = 39–40) and C overshoots by 13–15 % and does not settle within 2 % before the load step. That is the classic Smith weakness: the prediction is only as good as the delay model.
 
 The page **does not declare a universal winner**. With a true model and a long delay the Smith predictor takes the delay out of the loop. With no delay it is the same PI. With a short delay a plain PI is faster. With a badly wrong delay model it can do as badly as ignoring the delay. A real delayed plant on a bench: **本页未运行**.
 

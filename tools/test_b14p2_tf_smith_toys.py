@@ -45,6 +45,8 @@ class Labels(unittest.TestCase):
             self.assertIn("clear gap", mod.verdict([5.0, 5.1, 4.9, 5.2, 5.0], [1.0] * 5))
             self.assertIn("same sign on all 5 seeds", mod.verdict([5.0, 5.1, 4.9, 5.2, 5.0], [1.0] * 5))
             self.assertIn("1 of 5 seeds has the opposite sign", mod.verdict([5.0, 5.1, 4.9, 5.2, 0.5], [1.0] * 5))
+            self.assertIn("same sign on all 3 seeds", mod.verdict([5.0, 5.1, 4.9], [1.0] * 3))
+            self.assertIn("1 of 3 seeds has the opposite sign", mod.verdict([5.0, 5.1, 0.5], [1.0] * 3))
             src = (ROOT / rel).read_text()
             self.assertLess(src.index("all(d == 0.0 for d in diffs)"), src.index("abs(m) < NUM_ZERO"))
             self.assertLess(src.index("abs(m) < NUM_ZERO"), src.index("if abs(m) <= s:"))
@@ -172,6 +174,26 @@ class Smith(unittest.TestCase):
         self.assertRegex(self.out, r"long_delay[\s\S]*paired A-B ise: [\d.]+\+-[\d.]+: clear gap, not a tie \(\|m\| > sd\); same sign on all 5 seeds")
         self.assertRegex(self.out, r"short_delay[\s\S]*paired A-B ise: -[\d.]+\+-[\d.]+: small but consistent gap")
         self.assertRegex(self.out, r"wrong_delay_big[\s\S]*paired C-B ise: [\d.]+\+-[\d.]+: clear gap, not a tie \(\|m\| > sd\); same sign on all 5 seeds")
+        self.assertIn("wrong_delay_big pure-mismatch subset (seeds 2-4 only; seeds 0-1 have k_hat=0 so C≡A and inflate the 5-seed mean and sd)", self.out)
+        self.assertRegex(self.out, r"pure-mismatch subset[\s\S]*paired C-B over: 13\.5172\+-1\.3548: clear gap, not a tie \(\|m\| > sd\); same sign on all 3 seeds")
+        self.assertRegex(self.out, r"pure-mismatch subset[\s\S]*paired C-B ise: 0\.1096\+-0\.0054: clear gap, not a tie \(\|m\| > sd\); same sign on all 3 seeds")
+        self.assertRegex(self.out, r"pure-mismatch subset[\s\S]*paired C-B settle: 2\.7367\+-0\.0058: clear gap, not a tie \(\|m\| > sd\); same sign on all 3 seeds")
+
+    def test_wrong_delay_big_pure_mismatch_subset(self):
+        # Seeds 0–1 collapse to A (k_hat=0); seeds 2–4 are the pure mismatch.
+        for seed in (0, 1):
+            d = sm.shared_draws("wrong_delay_big", seed)
+            self.assertEqual(d["k_hat_wrong"], 0)
+            self.assertEqual(sm.run("wrong_delay_big", seed, "C_smith_wrong"), sm.run("wrong_delay_big", seed, "A_pi_ignore"))
+        for seed in (2, 3, 4):
+            self.assertGreater(sm.shared_draws("wrong_delay_big", seed)["k_hat_wrong"], 0)
+        subset = (2, 3, 4)
+        over_c = [sm.run("wrong_delay_big", s, "C_smith_wrong")["over"] for s in subset]
+        over_b = [sm.run("wrong_delay_big", s, "B_smith")["over"] for s in subset]
+        v = sm.verdict(over_c, over_b)
+        self.assertIn("13.5172+-1.3548", v)
+        self.assertIn("same sign on all 3 seeds", v)
+        self.assertIn("clear gap", v)
 
 
 def trace(d, arm):
@@ -207,7 +229,7 @@ class ExpectedFiles(unittest.TestCase):
                     self.assertLessEqual(abs(mu), sd, line)
                 elif "gap" in line:
                     self.assertGreater(abs(mu), sd, line)
-                    self.assertRegex(line, r"same sign on all 5 seeds|1 of 5 seeds has the opposite sign|no seed has")
+                    self.assertRegex(line, r"same sign on all [35] seeds|1 of [35] seeds has the opposite sign|no seed has")
 
 
 if __name__ == "__main__":
