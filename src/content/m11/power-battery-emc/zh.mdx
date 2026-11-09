@@ -513,11 +513,211 @@ ok: shared profile; shunt drift ~linear; Q and SoC0 errors separated; derate fir
 
 延伸阅读：Novanta 人形 EMC 布线用例、Roboteq EMI 博文、ARK Power and Grounding。
 
+## 共享回流地环与星形接地
+
+前面的 EMC 要点已经说过：逻辑地与电机地应在电源入口附近星形汇合。本节把它做成共享脉冲的 IR 实验：电机回流走共享传感地导体，对比星形（以及开尔文传感）。它**不是** SoC 分流偏置库仑玩具，也**不是**只谈屏蔽端接的空话。
+
+<Resource id="ti-slyt512" />
+
+**实际打开的来源（PDF 正文经 pdftotext 核验）。**
+
+- **TI SLYT512（《Grounding in mixed-signal systems demystified, Part 2》）：** 回流跨过分割平面会形成**大环路**；只在电源处把平面接在一起环路更大。更宜连续平面，或在跨线下方搭桥。单板上在转换器处连接 AGND/DGND 形成**系统星形接地点**；多卡上每个转换器都把模拟地与数字地接在一起会**形成地环**。当星形落在混合信号器件、连线很短时，**单点星形接地**（single-point star ground）是常见做法；多点乱接则会形成地环（ground loop）。
+
+数字 以原文为准。机箱布线 / 环路示波器：**本页未运行**。不是 EMC 暗室认证。此处**不建模** `L·di/dt`。
+
+### 公平设定
+
+`ground_loop_return_ir_toy.py` 是**合成**的，只用标准库。每个臂共享**同一**电机电流脉冲形状（标称峰值 8 A，±10 % 种子抖动）和**同一**电阻地图（`R_MOTOR_FEED` 作为馈线侧 IR 单独打印，**不**计入传感跳动）：
+
+| 臂 | 回流 / 传感安排 |
+|---|---|
+| A_shared_return | 电机回流与传感地导体共用（`V = I·R_shared`） |
+| B_star | 电源入口单点星形（`V = I·R_star`） |
+| C_star_kelvin | 星形 + 开尔文传感（传感线只承载物理 `I_ADC_BIAS`） |
+
+入门要点：**A 与 B 只是在所选回流 R 上算 V = I·R**，不是机箱实测。指标：传感峰值/平均跳动（mV）、10 位 ADC 误码，以及馈线压降峰值（mV，仅供参考）。五多种子 mean±sd。
+
+### 运行标准库玩具
+
+```bash
+cd ~/Hardware-learning/examples/month-11/power-battery-emc
+python3 ground_loop_return_ir_toy.py
+```
+
+<CodeSource path="examples/month-11/power-battery-emc/ground_loop_return_ir_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic shared-return ground-loop IR toy. Stdlib only.
+
+Shared motor pulse current waveform and shared resistance map for every arm
+(TI SLYT512: large return loops / star-ground joining). Arms differ only in
+how the sense/ADC reference returns to the supply entry:
+  A_shared_return   motor return shares the sense ground conductor (loop IR)
+  B_star            star/single-point at supply entry (sense return separate)
+  C_star_kelvin     star + kelvin sense pair (sense wires carry ADC bias only)
+
+Literacy: A vs B is V = I·R on the chosen return R (shared vs star), not a
+chassis measurement. R_MOTOR_FEED drop is reported separately and does NOT
+enter the sense bounce (feed IR ≠ return IR into the ADC). Kelvin residual is
+physical I_ADC_BIAS × R_SENSE_LEAD (no fudge factor). L·di/dt is not modelled.
+
+Metrics: peak sense-node bounce (mV), false ADC counts (10-bit, 5 V, LSB),
+peak feed drop (mV, informational). ≥5 seeds with pulse-amplitude jitter.
+Not an EMC chamber certification. Chassis wiring 本页未运行.
+"""
+from __future__ import annotations
+
+import math
+import random
+
+# Shared resistance map (synthetic lesson ohms, not a chassis measurement)
+R_MOTOR_FEED = 0.020  # feed-side IR; reported, not added to sense bounce
+R_SHARED_RETURN = 0.045  # shared segment used by A
+R_STAR_RETURN = 0.008  # short star return at entry
+R_SENSE_LEAD = 0.120  # sense wire resistance
+I_ADC_BIAS = 50e-6  # physical ADC/sense bias through kelvin leads (A)
+# Shared motor current pulse (A), triangular-ish burst
+I_PEAK0 = 8.0
+PULSE_SAMPLES = 40
+SEEDS = (0, 1, 2, 3, 4)
+JITTER = 0.10
+VREF = 5.0
+N_BITS = 10
+LSB = VREF / (1 << N_BITS)
+ARMS = ("A_shared_return", "B_star", "C_star_kelvin")
+
+
+def pulse(i_peak: float) -> list[float]:
+    """Deterministic shared shape: rise, hold, fall."""
+    rise, hold, fall = 8, 16, 16
+    assert rise + hold + fall == PULSE_SAMPLES
+    out = []
+    for k in range(rise):
+        out.append(i_peak * (k + 1) / rise)
+    out.extend([i_peak] * hold)
+    for k in range(fall):
+        out.append(i_peak * (fall - k) / fall)
+    return out
+
+
+def run(arm: str, i_peak: float) -> tuple[float, float, int, float]:
+    """Return peak |bounce| V, mean |bounce| V, false ADC counts, peak feed drop V."""
+    i_wave = pulse(i_peak)
+    peaks = []
+    false = 0
+    feed_peaks = []
+    # Ideal sense voltage is mid-rail stub; bounce adds series IR on the return
+    v_true = 2.5
+    for i in i_wave:
+        # Feed-side drop is always I * R_MOTOR_FEED; never added to sense bounce.
+        v_feed = i * R_MOTOR_FEED
+        feed_peaks.append(abs(v_feed))
+        if arm == "A_shared_return":
+            # motor current through shared return; sense references that node
+            v_bounce = i * R_SHARED_RETURN
+        elif arm == "B_star":
+            # motor return goes to star; sense still shares a tiny star impedance
+            v_bounce = i * R_STAR_RETURN
+        else:
+            # kelvin: sense pair carries ADC bias only (physical I_bias * R_lead)
+            v_bounce = I_ADC_BIAS * R_SENSE_LEAD
+        peaks.append(abs(v_bounce))
+        v_sense = v_true + v_bounce
+        code = int(min(max(v_sense / LSB, 0), (1 << N_BITS) - 1))
+        true_code = int(v_true / LSB)
+        if code != true_code:
+            false += 1
+    peak = max(peaks)
+    mean = sum(peaks) / len(peaks)
+    return peak, mean, false, max(feed_peaks)
+
+
+def mean_sd(xs: list[float]) -> tuple[float, float]:
+    mu = sum(xs) / len(xs)
+    var = sum((x - mu) ** 2 for x in xs) / (len(xs) - 1)
+    return mu, math.sqrt(var)
+
+
+def main() -> None:
+    print(
+        "Synthetic ground-loop return IR toy; shared motor pulses + R map; "
+        "not an EMC certification"
+    )
+    print(
+        f"R_shared={R_SHARED_RETURN*1e3:.1f}mohm R_star={R_STAR_RETURN*1e3:.1f}mohm "
+        f"R_feed={R_MOTOR_FEED*1e3:.1f}mohm (reported, not in bounce) "
+        f"R_sense={R_SENSE_LEAD*1e3:.1f}mohm I_bias={I_ADC_BIAS*1e6:.0f}uA "
+        f"I_peak0={I_PEAK0:.1f}A samples={PULSE_SAMPLES} "
+        f"ADC {N_BITS}-bit Vref={VREF:.1f}V LSB={LSB*1e3:.4f}mV "
+        f"seeds={len(SEEDS)} amp_jitter=±{JITTER:.0%}; "
+        f"A vs B = V=I*R on chosen return R (literacy, not a measurement); "
+        f"L*di/dt not modelled"
+    )
+    print(
+        "arm peak_bounce_mV mean_bounce_mV false_adc_counts peak_feed_mV "
+        "(mean+-sd over seeds)"
+    )
+    for arm in ARMS:
+        peaks, means, falses, feeds = [], [], [], []
+        for seed in SEEDS:
+            rng = random.Random(40_000 + seed)
+            ip = I_PEAK0 * (1.0 + rng.uniform(-JITTER, JITTER))
+            peak, mean, false, feed = run(arm, ip)
+            peaks.append(peak * 1e3)
+            means.append(mean * 1e3)
+            falses.append(float(false))
+            feeds.append(feed * 1e3)
+        cols = [mean_sd(peaks), mean_sd(means), mean_sd(falses), mean_sd(feeds)]
+        print(f"{arm} " + " ".join(f"{m:.4f}+-{s:.4f}" for m, s in cols))
+    print(
+        "No winner declared beyond the defined metric: A vs B is literacy V=I*R "
+        "on chosen R; kelvin residual is I_bias*R_sense; feed IR stays off the "
+        "sense node; L*di/dt not modelled"
+    )
+    print("Chassis wiring / scope-on-a-loop: 本页未运行; TI SLYT512 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic ground-loop return IR toy; shared motor pulses + R map; not an EMC certification
+R_shared=45.0mohm R_star=8.0mohm R_feed=20.0mohm (reported, not in bounce) R_sense=120.0mohm I_bias=50uA I_peak0=8.0A samples=40 ADC 10-bit Vref=5.0V LSB=4.8828mV seeds=5 amp_jitter=±10%; A vs B = V=I*R on chosen return R (literacy, not a measurement); L*di/dt not modelled
+arm peak_bounce_mV mean_bounce_mV false_adc_counts peak_feed_mV (mean+-sd over seeds)
+A_shared_return 382.2967+-7.8133 277.1651+-5.6646 40.0000+-0.0000 169.9096+-3.4726
+B_star 67.9639+-1.3890 49.2738+-1.0070 39.0000+-0.0000 169.9096+-3.4726
+C_star_kelvin 0.0060+-0.0000 0.0060+-0.0000 0.0000+-0.0000 169.9096+-3.4726
+No winner declared beyond the defined metric: A vs B is literacy V=I*R on chosen R; kelvin residual is I_bias*R_sense; feed IR stays off the sense node; L*di/dt not modelled
+Chassis wiring / scope-on-a-loop: 本页未运行; TI SLYT512 以原文为准
+```
+
+</SimOutput>
+
+### 读跳动
+
+**A_shared_return** 在传感节点上造成约 **382 mV** 峰值跳动——数十个 LSB——脉冲内**每个**采样都是误码（`8 A × 45 mΩ`）。**B_star** 是同一套入门算法、更小的 R：约 **68 mV**（`8 A × 8 mΩ`）；多数采样仍跨过一个 LSB。**C_star_kelvin** 残余是物理量 `I_ADC_BIAS × R_SENSE_LEAD` ≈ **6 µV**，误码 **0**；馈线侧 IR（约 170 mV）被打印且不进入传感节点。在既定指标上递进清楚；本页仍**不宣布**普遍赢家。**不建模** `L·di/dt`。环路示波器 / 真实线束：**本页未运行**。
+
+**210 分钟工作计划：** 45 分钟读 SLYT512 星形/环路段落；45 分钟推导 I·R 跳动与 LSB（A 对 B 入门）；45 分钟跑共享脉冲各臂；45 分钟在多种子固定下改 `R_SHARED_RETURN` / `I_PEAK0`；30 分钟为自己的机械臂草绘星形与共享回流。
+
+### 练习
+
+1. 由 `I_peak = 8 A`、`R_shared = 45 mΩ` 在运行前预测 A 的峰值跳动；再用 `R_star = 8 mΩ` 预测 B。
+2. 68 mV 等于多少个 5 V 10 位 LSB？解释 B 几乎满误码的那一行。
+3. 多种子不变，把 `R_STAR_RETURN` 加倍。运行前预测 B；C 应几乎不动。
+4. 手算 `I_ADC_BIAS × R_SENSE_LEAD`，确认与 C 的打印跳动一致；确认馈线压降等于 `I × R_MOTOR_FEED` 且不在跳动里。
+5. 任何真机实验前（本页未运行），列出为何本玩具不是 EMC 暗室结果（`L·di/dt` 未建模）。
+
 <Summary>
 
 **本课要点**
 
 - 逻辑轨与电机总线分开；公共地单点星形汇合。
+
+- 共享回流地环：A 与 B 是在所选回流 R 上的 V=I·R 入门；开尔文残余为 I_bias·R_sense；馈线 IR 不进传感节点；不建模 L·di/dt——不是 EMC 暗室结果。
 - 单程玩具：峰值 10.80 A、压降 0.432 V、负载端 11.568 V；fuse_margin 0.926 只是比值。
 - 往返玩具：短线负载端 11.136 V、长线 10.380 V 为 long_only；I²R 峰值 9.3312 W；默认 `insufficient_data`。
 - EMC 三条：电机线远离信号线；功率/逻辑地策略分清；屏蔽按频段与规范端接（高频两端连续，禁用 GND_D 作屏蔽回流）。

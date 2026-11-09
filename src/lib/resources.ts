@@ -4458,6 +4458,67 @@ export const resources: Record<string, Resource> = {
     extra: true,
   },
 
+  "ti-ssya010": {
+    id: "ti-ssya010",
+    url: "https://www.ti.com/lit/an/ssya010/ssya010.pdf",
+    title: {
+      zh: "TI SSYA010A：静电放电（ESD）",
+      en: "TI SSYA010A: Electrostatic Discharge (ESD)",
+    },
+    author: "Texas Instruments (Tom Diep & Roger Cline)",
+    kind: "guide",
+    cost: { zh: "免费 PDF", en: "Free PDF" },
+    summary: {
+      zh: "HBM 为 100 pF + 1500 Ω 串联 RC；并讨论 CDM/IEC 与钳位防护策略。正文经 pdftotext 核验。",
+      en: "HBM is a 100 pF + 1500 Ω series RC; also covers CDM/IEC and clamp protection strategy. Body verified with pdftotext.",
+    },
+    license: {
+      zh: "© Texas Instruments；仅提供外链，条款以原站为准",
+      en: "© Texas Instruments; external link only, see original terms",
+    },
+    extra: true,
+  },
+  "ti-slvae37": {
+    id: "ti-slvae37",
+    url: "https://www.ti.com/lit/an/slvae37/slvae37.pdf",
+    title: {
+      zh: "TI SLVAE37：如何选择浪涌二极管（TVS）",
+      en: "TI SLVAE37: How to select a Surge Diode",
+    },
+    author: "Texas Instruments (Alec Forbes)",
+    kind: "guide",
+    cost: { zh: "免费 PDF", en: "Free PDF" },
+    summary: {
+      zh: "TVS 旁路浪涌并钳位；关键规格 VRWM / VBR / VCLAMP / IPP。正文经 pdftotext 核验。",
+      en: "TVS shunts surge current and clamps voltage; key specs VRWM / VBR / VCLAMP / IPP. Body verified with pdftotext.",
+    },
+    license: {
+      zh: "© Texas Instruments；仅提供外链，条款以原站为准",
+      en: "© Texas Instruments; external link only, see original terms",
+    },
+    extra: true,
+  },
+  "ti-slyt512": {
+    id: "ti-slyt512",
+    url: "https://www.ti.com/lit/an/slyt512/slyt512.pdf",
+    title: {
+      zh: "TI SLYT512：混合信号系统接地（第 2 部分）",
+      en: "TI SLYT512: Grounding in mixed-signal systems demystified, Part 2",
+    },
+    author: "Texas Instruments (Sanjay Pithadia & Shridhar More)",
+    kind: "guide",
+    cost: { zh: "免费 PDF", en: "Free PDF" },
+    summary: {
+      zh: "分割回流的大环路、系统星形接地点，以及多转换器接地点形成地环。正文经 pdftotext 核验。",
+      en: "Large return loops across splits, system star-ground points, and ground loops from joining AGND/DGND at every converter. Body verified with pdftotext.",
+    },
+    license: {
+      zh: "© Texas Instruments；仅提供外链，条款以原站为准",
+      en: "© Texas Instruments; external link only, see original terms",
+    },
+    extra: true,
+  },
+
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {
