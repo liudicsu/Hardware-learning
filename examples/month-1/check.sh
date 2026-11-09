@@ -47,6 +47,11 @@ if python3 "$M1/components/wheatstone_bridge_sense_toy.py" > "$TMP/wheatstone_br
 else
   echo "DIFF  wheatstone_bridge_sense_toy.txt"; fail=1
 fi
+if python3 "$M1/components/bridge_rectifier_ripple_toy.py" > "$TMP/bridge_rectifier_ripple_toy.txt" && diff -u "$M1/expected/bridge_rectifier_ripple_toy.txt" "$TMP/bridge_rectifier_ripple_toy.txt"; then
+  echo "same  bridge_rectifier_ripple_toy.txt"
+else
+  echo "DIFF  bridge_rectifier_ripple_toy.txt"; fail=1
+fi
 if python3 "$M1/ohms-law/thevenin_loaded_divider_toy.py" > "$TMP/thevenin_loaded_divider_toy.txt" && diff -u "$M1/expected/thevenin_loaded_divider_toy.txt" "$TMP/thevenin_loaded_divider_toy.txt"; then
   echo "same  thevenin_loaded_divider_toy.txt"
 else

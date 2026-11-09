@@ -1,6 +1,16 @@
 # Month 1 plan / 第 1 个月计划
 
-Current / 当前：**M1 1950 min**, Batch-15 PR1. Earlier entries below retain their historical totals.
+Current / 当前：**M1 2100 min**, Batch-16 PR1. Earlier entries below retain their historical totals.
+
+## Batch-16 PR1 / 本月 H1 (+150)
+
+Base `c60dee9` (batch-15 closed incl. polish #164; site **32490**). PR1 only on M1 host: **M1 1950→2100 (+150)**; M3 moves in the same PR on its own plan. Site **32490→32820**, still 71 lessons.
+
+- **H1 / 1.2 components: 600→750 (+150).** Bridge rectifier and ripple. Toy `bridge_rectifier_ripple_toy.py`: ideal 50 Hz source behind RS = 0.5 Ω, ideal diodes + series VF, forward Euler DT = 5 µs with DT ≤ 2/(1/(RS C) + 1/(R C)) asserted (tests at 0.98× / 1.02×); arms A half-wave + C / B bridge + C / C bridge without C; shared line amplitude, C, R and VF (common random numbers, 5 seeds). small_C_heavy: B−A ripple −5.2981±0.2119 V, clear, 5/5; medium: B−A ripple −2.3476±0.2445 V, clear, 5/5, law I/(2fC) within 25 % (0.76–0.78); large_C_light: B−A vdc −0.4146±0.0308 V, **small but consistent** (proposal expected near-tie; disclosed), ripple clear, both DC; tiny_C_heavy: all not DC; C_noC not DC everywhere and lowest peak diode current. ≠ Wheatstone (batch-11); ≠ TVS (batch-10). Real mains / PSU bench 本页未运行.
+
+**Allocation / 安排:** 25+30+35+30+30=150 minutes.
+
+**Site accounting / 全站核算:** **32820=32490+330** with M3 +180 on month-3-plan.md; **M1=2100**, **71 lessons**.
 
 ## Batch-15 PR1 / 本月 H1 (+150)
 

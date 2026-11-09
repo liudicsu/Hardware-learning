@@ -1435,6 +1435,459 @@ The page **does not declare a universal winner**: a notch helps only when a ligh
 4. Set `MISTUNE` to 0.9 with seeds fixed. Predict whether D still diverges in `resonant_sharp` before you run.
 5. Before any modal test or bench run (本页未运行), explain why B's win in `resonant_sharp` does **not** mean a notch should be added to every joint.
 
+## Two-degree-of-freedom PID: setpoint weighting
+
+The notch and lead–lag sections change the loop itself. Some problems are not in the loop at all: a PID that rejects load torque well can still overshoot badly when the **target** jumps, because the step goes straight through the proportional and derivative terms. Setpoint weighting fixes that without touching the loop, which is why it is called a two-degree-of-freedom (2DOF) controller: one set of gains shapes disturbance rejection, two extra weights shape the setpoint response. This section compares plain PID, a weighted PID and a PID with only the derivative kick removed on the rigid joint used above. It is **not** a notch, **not** a lead–lag compensator and **not** a Smith predictor; it extends the earlier "differentiate the measurement" tip.
+
+<Resource id="wiki-pid-controller" />
+
+**Source actually opened (HTML body read).** **Wikipedia — Proportional–integral–derivative controller**, section on setpoint weighting: setpoint weighting adds adjustable factors (usually between 0 and 1) to the setpoint in the error of the proportional and derivative terms; the error in the integral term must be the true control error, or there will be steady-state error; and these two extra parameters do not affect the response to load disturbances and measurement noise, so they can be tuned for the setpoint response. The same article calls taking the derivative of the measured value instead of the error "a simple case of setpoint weighting". 以原文为准. Real servo bench: **本页未运行**.
+
+### Weights on the setpoint, not on the loop
+
+<Formula label="ISA PID with setpoint weights b and c">u = Kc · ((b·r − y) + (1/TI) · ∫(r − y) dt + TD · d(c·r − y)/dt)</Formula>
+
+With `b = c = 1` this is ordinary PID on the error `e = r − y`. With `c = 0` the derivative acts on `−y` only, so a step in `r` no longer produces a derivative kick. With `b` below 1 the proportional term reacts to only part of the step, and the integral, which still sees the full error, brings `y` the rest of the way. Every term that contains `y` is unchanged, so the loop transfer function from `y` back to `u`, the closed-loop poles and the margins are **the same** for every `b` and `c`.
+
+**Worked example.** With the toy's gains (`Kc = 26.35`, `TI = 0.25 s`) and a 1 rad target step at rest, plain PID sends an instant proportional jump of `Kc · 1 = 26.35` plus a derivative spike; with `b = 0.5` and `c = 0` the jump is `Kc · 0.5 = 13.18` and there is no spike. After that the integral adds only about `Kc · TS / TI · 1 = 0.105` per sample, so the weighted controller starts gentler and relies on I for the last half of the step. Gentler start, slower finish: that is the trade the regimes below measure.
+
+**Loop-stability criterion.** As in the earlier pid toys, an arm counts as stable when its discrete Bode proxy shows `GM > 0 dB` and `PM > 0°`, and the simulated angle stays within 10 rad on every seed. The toy prints PM 60.6° and GM 42.37 dB for the base recipe and PM 67.9° and GM 42.77 dB with the slower integral; because `b` and `c` never enter the loop, one line covers all three arms. The **pass rule** for 2DOF is that its load-step ISE stays within 5 % of A's (or is a tie or numerically zero), and the toy prints that band for every regime with load steps.
+
+**Integration step and its stability criterion.** The plant is integrated with RK4 at `H = TS/4 = 0.25 ms` under a zero-order hold. RK4 is stable on the plant mode `λ = −1/TM` when `|R(H·λ)| ≤ 1` with `R(z) = 1 + z + z²/2 + z³/6 + z⁴/24`; the toy prints `h_max = 139.26 ms` and `|R(H·λ)| = 0.995012` and asserts both. The tests check decay at 0.98× and growth at 1.02× of that limit, and that `H` and `H/2` agree.
+
+### Fair setup
+
+`pid_setpoint_weighting_2dof_toy.py` is **synthetic** and stdlib only. **Model assumptions:** the rigid joint `G(s) = 1 / (s (TM s + 1))` with `TM = 0.05 s`; load torque at the plant input; **no** actuator limit; 0.5 mrad Gaussian sensor noise where a regime turns it on; **no** reference prefilter (a prefilter would hide the kicks this section is about). `Kc` gives `|L(j·WC)| = 1` at `WC = 20 rad/s`, `TD = 0.025 s`, `N = 8`, trapezoid I and Tustin-filtered D at `TS = 1 ms`. Each run starts at rest at a random target, with the integral preset so that `u = 0`.
+
+| Arm | b | c | Meaning |
+|---|---|---|---|
+| A_1dof | 1 | 1 | plain PID on the error |
+| B_2dof | 0.5 | 0 | setpoint weighting, D on the measurement |
+| C_aggr | 1 | 0 | same gains, full proportional kick, only the derivative kick removed |
+
+**Common random numbers:** for each seed the starting target, three setpoint steps (0.5–1.5 rad, random sign), three load steps and the noise sequence are drawn once and fed to every arm. Metrics: worst overshoot (% of the step), ISE in the 1 s after each setpoint step (`ise_sp`) and in the 0.8 s after each load step (`ise_load`), both in 10⁻³ rad²·s, the mean 10–90 % rise time (ms; a step that never reaches 90 % within 1 s counts as 1000 ms) and `du_rms`.
+
+| Regime | Setpoint steps | Load steps | Noise | B's b | TI |
+|---|---|---|---|---|---|
+| setpoint_large | yes | no | no | 0.5 | 0.25 s |
+| load_step | no | yes | no | 0.5 | 0.25 s |
+| mixed_noise | yes | yes | yes | 0.5 | 0.25 s |
+| tiny_b | yes | no | no | 0.1 | 1.0 s |
+
+**Choices made after seeing results.** None of the weights, gains or regimes was changed after the first run; `tiny_b` was declared beforehand as the case where 2DOF may lose. After the first run a `sub` argument was added to `simulate` so a test can halve the step; the printed output did not change.
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-3/pid-control
+python3 pid_setpoint_weighting_2dof_toy.py
+```
+
+<CodeSource path="examples/month-3/pid-control/pid_setpoint_weighting_2dof_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic 1DOF PID vs 2DOF PID with setpoint weighting on one joint. Stdlib only.
+
+Plant (linear, LTI, no actuator limit): G(s) = 1 / (s (TM s + 1)), TM = 0.05 s, a motor +
+inertia measured at the motor angle; a load torque enters at the plant input.
+Controller (ISA form, sampled at TS = 1 ms, trapezoid I, Tustin-filtered D, D filter TD/N):
+  u = Kc [ (b r - y) + 1/TI * integral(r - y) + TD d/dt (c r - y) ]
+The integral always acts on the true error r - y. Arms (gains fixed before any run):
+  A_1dof     b = 1,   c = 1   (plain PID on the error: P and D both kick on a step)
+  B_2dof     b = 0.5, c = 0   (setpoint weighting; D on the measurement)
+  C_aggr     b = 1,   c = 0   (same gains, full P kick; only the D kick removed)
+All three share Kc, TI, TD, N, so they share the loop transfer function, the closed-loop
+poles and the margins (b and c only enter through r). Kc gives |L(j WC)| = 1 at WC = 20 rad/s.
+Regime tiny_b changes the shared recipe on purpose (B uses b = 0.1 and every arm uses a slower
+integral TI x 4): the pre-declared case where 2DOF may lose on rise time.
+Common random numbers: per seed the setpoint steps, load-torque steps and sensor noise
+(sd 0.5 mrad) are drawn once and fed to every arm. Integration: RK4 with H = TS/4 under
+zero-order-hold control. RK4 is stable for a mode lambda when |R(H lambda)| <= 1,
+R(z) = 1+z+z^2/2+z^3/6+z^4/24; the toy prints h_max and max |R| for the plant mode -1/TM
+and asserts both; the tests check |R| at 0.98x and 1.02x of h_max.
+Metrics: overshoot (% of each setpoint step, worst step), ISE_sp (1e-3 rad^2 s, windows after
+setpoint steps), ISE_load (1e-3 rad^2 s, windows after load steps), rise (ms, 10-90 %, mean
+over steps), du_rms. Pass rule: no divergence (|y| < 10 rad) and the same PM / GM as the earlier
+pid toys print; 2DOF load ISE must stay within 5 % of A's (or be a tie / numerically zero).
+Labels: tie = identical on every seed; numerically zero = |paired mean| and sd both < 1e-9
+(effectively a tie, no sign count); |m| <= sd = near-tie; |m| > sd = consistent gap (small if
+|m| < 20 % of the smaller arm mean, else clear), with a sign count.
+Not a notch, not a lead-lag, not a Smith predictor. Real servo bench: 本页未运行.
+Wikipedia PID controller (setpoint weighting): 以原文为准.
+"""
+import cmath
+import math
+import random
+
+TS = 1e-3
+SUB = 4
+H = TS / SUB
+TM = 0.05
+WC = 20.0
+TI0, TD, N = 5.0 / WC, 0.5 / WC, 8.0
+T_END = 6.0
+NOISE = 5e-4
+DIVERGED = 10.0
+LOAD_BAND = 0.05
+NUM_ZERO = 1e-9
+SEEDS = (0, 1, 2, 3, 4)
+ARMS = ("A_1dof", "B_2dof", "C_aggr")
+# name: (setpoint steps?, load steps?, noise?, B's b, TI multiplier); pre-declared before the first run
+REGIMES = {
+    "setpoint_large": (True, False, False, 0.5, 1.0),
+    "load_step": (False, True, False, 0.5, 1.0),
+    "mixed_noise": (True, True, True, 0.5, 1.0),
+    "tiny_b": (True, False, False, 0.1, 4.0),
+}
+
+
+def weights(arm, b_b):
+    return {"A_1dof": (1.0, 1.0), "B_2dof": (b_b, 0.0), "C_aggr": (1.0, 0.0)}[arm]
+
+
+def plant(w):
+    s = 1j * w
+    return 1.0 / (s * (TM * s + 1.0))
+
+
+def shape(w, ti):
+    s = 1j * w
+    return 1.0 + 1.0 / (ti * s) + TD * s / (TD / N * s + 1.0)
+
+
+def gain(ti):
+    return 1.0 / abs(shape(WC, ti) * plant(WC))
+
+
+def margins(ti):
+    """Phase margin at |L| = 1 and gain margin (dB) at -180 deg, discrete Bode proxy (ZOH delay)."""
+    k = gain(ti)
+    pm, gm, prev = None, math.inf, None
+    n = 20000
+    for i in range(n + 1):
+        w = 10 ** (-1 + i * (math.log10(math.pi / TS) + 1) / n)
+        loop = k * shape(w, ti) * plant(w) * cmath.exp(-0.5j * w * TS)
+        mag = abs(loop)
+        ph = math.degrees(cmath.phase(loop))
+        ph = ph - 360.0 if ph > 0 else ph
+        if prev is not None:
+            if pm is None and (prev[0] - 1.0) * (mag - 1.0) < 0:
+                pm = 180.0 + ph
+            if prev[1] > -180.0 >= ph and mag < 1.0:
+                gm = min(gm, -20 * math.log10(mag))
+        prev = (mag, ph)
+    return pm, gm
+
+
+class Controller:
+    def __init__(self, k, ti, b, c):
+        cc = 2.0 / TS
+        tf = TD / N
+        self.k, self.ti, self.b, self.c = k, ti, b, c
+        self.i, self.e_prev, self.dprev, self.d = 0.0, 0.0, 0.0, 0.0
+        self.db0, self.da1 = TD * cc / (tf * cc + 1.0), (1.0 - tf * cc) / (tf * cc + 1.0)
+
+    def preset(self, r, y):
+        """Start in steady state at r = y: the integral cancels the constant (b - 1) r term."""
+        self.i = -(self.b * r - y)
+        self.e_prev = r - y
+        self.dprev = self.c * r - y
+
+    def step(self, r, y):
+        e = r - y
+        self.i += TS / self.ti * (e + self.e_prev) / 2.0
+        self.e_prev = e
+        ed = self.c * r - y
+        self.d = self.db0 * (ed - self.dprev) - self.da1 * self.d
+        self.dprev = ed
+        return self.k * ((self.b * r - y) + self.i + self.d)
+
+
+def deriv(x, u):
+    v, th = x
+    return [(u - v) / TM, v]
+
+
+def rk4(x, u, h=H):
+    k1 = deriv(x, u)
+    k2 = deriv([a + h / 2 * b for a, b in zip(x, k1)], u)
+    k3 = deriv([a + h / 2 * b for a, b in zip(x, k2)], u)
+    k4 = deriv([a + h * b for a, b in zip(x, k3)], u)
+    return [a + h / 6 * (p + 2 * q + 2 * r + s) for a, p, q, r, s in zip(x, k1, k2, k3, k4)]
+
+
+def rk4_amp(z):
+    return abs(1 + z + z * z / 2 + z ** 3 / 6 + z ** 4 / 24)
+
+
+def rk4_h_max(lam):
+    lo, hi = 0.0, 10.0 / abs(lam)
+    for _ in range(60):
+        mid = (lo + hi) / 2
+        lo, hi = (mid, hi) if rk4_amp(mid * lam) <= 1.0 else (lo, mid)
+    return lo
+
+
+def shared_draws(seed):
+    """Common random numbers: one draw per seed, fed to every arm and regime."""
+    rng = random.Random(seed)
+    r0 = rng.uniform(-0.5, 0.5)
+    steps = [(0.2 + 2.0 * i, rng.choice((-1.0, 1.0)) * rng.uniform(0.5, 1.5)) for i in range(3)]
+    loads = [(1.2 + 2.0 * i, 0.3 * rng.choice((-1.0, 1.0)) * rng.uniform(0.3, 1.0)) for i in range(3)]
+    noise = [rng.gauss(0.0, NOISE) for _ in range(round(T_END / TS))]
+    return r0, steps, loads, noise
+
+
+def simulate(arm, regime, draws, sub=SUB):
+    use_sp, use_load, use_noise, b_b, ti_mult = REGIMES[regime]
+    r0, steps, loads, noise = draws
+    steps = steps if use_sp else []
+    loads = loads if use_load else []
+    ti = TI0 * ti_mult
+    b, c = weights(arm, b_b)
+    ctrl = Controller(gain(ti), ti, b, c)
+    ctrl.preset(r0, r0)
+    x = [0.0, r0]
+    ise_sp = ise_ld = du2 = 0.0
+    u_prev = 0.0
+    over = [0.0] * len(steps)
+    t10 = [None] * len(steps)
+    t90 = [None] * len(steps)
+    for i, nz in enumerate(noise):
+        t = i * TS
+        r = r0 + sum(a for t0, a in steps if t >= t0)
+        u = ctrl.step(r, x[1] + (nz if use_noise else 0.0))
+        d = sum(a for t0, a in loads if t >= t0)
+        for _ in range(sub):
+            x = rk4(x, u + d, TS / sub)
+        y = x[1]
+        if abs(y) > DIVERGED:
+            return None
+        if any(t0 <= t < t0 + 1.0 for t0, _ in steps):
+            ise_sp += (r - y) ** 2 * TS
+        if any(t0 <= t < t0 + 0.8 for t0, _ in loads):
+            ise_ld += (r - y) ** 2 * TS
+        if i:
+            du2 += (u - u_prev) ** 2
+        u_prev = u
+        for j, (t0, a) in enumerate(steps):
+            if t0 <= t < t0 + 1.0:
+                base = r - a
+                frac = (y - base) / a
+                over[j] = max(over[j], frac - 1.0)
+                if t10[j] is None and frac >= 0.1:
+                    t10[j] = t
+                if t90[j] is None and frac >= 0.9:
+                    t90[j] = t
+    rise = [(b9 - a1) for a1, b9 in zip(t10, t90) if a1 is not None and b9 is not None]
+    out = {"over": 100.0 * max(over) if over else 0.0, "ise_sp": 1e3 * ise_sp, "ise_load": 1e3 * ise_ld,
+           "rise": 1e3 * sum(rise) / len(rise) if rise else 0.0, "du": math.sqrt(du2 / (len(noise) - 1))}
+    if steps and len(rise) < len(steps):
+        out["rise"] = 1e3  # a step that never reached 90 % inside 1 s counts as 1000 ms
+    return out
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-5:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{num(m)}+-{num(s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{num(m)}+-{num(s)}: {label}; {sign_note(diffs, m)}"
+
+
+KEYS = ("over", "ise_sp", "ise_load", "rise", "du")
+
+
+def main():
+    print("Synthetic 1DOF PID vs 2DOF setpoint weighting; shared steps / load torques / sensor noise; not a motor bench")
+    lam = -1.0 / TM
+    h_max = rk4_h_max(complex(lam))
+    amp = rk4_amp(H * lam)
+    assert H < h_max and amp < 1.0
+    print(f"TS={TS} s RK4 H={H} s TM={TM} s WC={WC} rad/s TI={TI0} s TD={TD} s N={N:.0f} seeds={len(SEEDS)}")
+    print(f"RK4 mode -1/TM: h_max={h_max * 1e3:.2f} ms > H, |R(H lambda)|={amp:.6f} < 1")
+    for mult in sorted({v[4] for v in REGIMES.values()}):
+        pm, gm = margins(TI0 * mult)
+        print(f"TI x{mult:.0f}: Kc={gain(TI0 * mult):.4f} PM={pm:.1f} deg GM={'inf' if math.isinf(gm) else f'{gm:.2f}'} dB (shared by all arms: b, c do not enter the loop)")
+    print("regime arm overshoot_% ISE_sp ISE_load rise_ms du_rms  (mean+-sd over seeds)")
+    draws = [shared_draws(s) for s in SEEDS]
+    for regime, (_, _, _, b_b, mult) in REGIMES.items():
+        print(f"{regime} (B uses b={b_b}, c=0; TI x{mult:.0f})")
+        res = {arm: [simulate(arm, regime, d) for d in draws] for arm in ARMS}
+        if any(r is None for arm in ARMS for r in res[arm]):
+            print(f"  diverged (|y| > {DIVERGED:.0f} rad); not compared")
+            continue
+        for arm in ARMS:
+            print(f"  {arm} " + " ".join("{}+-{}".format(*map(num, mean_sd([r[k] for r in res[arm]]))) for k in KEYS))
+        for x, y in (("B_2dof", "A_1dof"), ("B_2dof", "C_aggr"), ("C_aggr", "A_1dof")):
+            for k in KEYS:
+                print(f"  paired {x[0]}-{y[0]} {k}: {verdict([r[k] for r in res[x]], [r[k] for r in res[y]])}")
+        la, lb = mean_sd([r["ise_load"] for r in res["A_1dof"]])[0], mean_sd([r["ise_load"] for r in res["B_2dof"]])[0]
+        if la > 0:
+            rel = abs(lb - la) / la
+            print(f"  load band: |ISE_load B - A| / A = {100 * rel:.4f} % -> {'within' if rel <= LOAD_BAND else 'outside'} 5 %")
+        else:
+            print("  load band: no load steps in this regime")
+    print("setpoint_large: b < 1 and c = 0 remove the proportional and derivative kicks, so B overshoots less at the same loop")
+    print("load_step: with r constant the weights only shift a constant the integral absorbs, so load rejection is unchanged")
+    print("tiny_b: with b = 0.1 and a slow integral the setpoint is reached mostly through I, so rise time suffers")
+    print("No winner declared; the weights trade setpoint overshoot against rise time and leave the loop untouched")
+    print("Real servo / motor bench: 本页未运行; Wikipedia PID setpoint weighting 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic 1DOF PID vs 2DOF setpoint weighting; shared steps / load torques / sensor noise; not a motor bench
+TS=0.001 s RK4 H=0.00025 s TM=0.05 s WC=20.0 rad/s TI=0.25 s TD=0.025 s N=8 seeds=5
+RK4 mode -1/TM: h_max=139.26 ms > H, |R(H lambda)|=0.995012 < 1
+TI x1: Kc=26.3516 PM=60.6 deg GM=42.37 dB (shared by all arms: b, c do not enter the loop)
+TI x4: Kc=25.1579 PM=67.9 deg GM=42.77 dB (shared by all arms: b, c do not enter the loop)
+regime arm overshoot_% ISE_sp ISE_load rise_ms du_rms  (mean+-sd over seeds)
+setpoint_large (B uses b=0.5, c=0; TI x1)
+  A_1dof 19.2551+-0.0001 89.6734+-15.8746 0.0000+-0.0000 64.0000+-0.0000 4.9125+-0.4505
+  B_2dof 0.0000+-0.0000 208.6432+-36.9361 0.0000+-0.0000 196.0000+-0.0000 0.2948+-0.0270
+  C_aggr 25.3495+-0.0002 152.9546+-27.0770 0.0000+-0.0000 75.0000+-0.0000 0.5891+-0.0540
+  paired B-A over: -19.2551+-0.0001: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A ise_sp: 118.9698+-21.0614: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A ise_load: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A rise: 132.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A du: -4.6177+-0.4234: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C over: -25.3495+-0.0002: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C ise_sp: 55.6886+-9.8591: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C ise_load: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C rise: 121.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C du: -0.2943+-0.0270: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A over: 6.0945+-0.0001: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A ise_sp: 63.2812+-11.2024: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A ise_load: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A rise: 11.0000+-0.0000: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A du: -4.3234+-0.3965: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  load band: no load steps in this regime
+load_step (B uses b=0.5, c=0; TI x1)
+  A_1dof 0.0000+-0.0000 0.0000+-0.0000 0.0249+-0.0099 0.0000+-0.0000 0.0005+-0.0001
+  B_2dof 0.0000+-0.0000 0.0000+-0.0000 0.0249+-0.0099 0.0000+-0.0000 0.0005+-0.0001
+  C_aggr 0.0000+-0.0000 0.0000+-0.0000 0.0249+-0.0099 0.0000+-0.0000 0.0005+-0.0001
+  paired B-A over: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A ise_sp: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A ise_load: -2.359e-17+-3.854e-16: numerically zero (floating-point residue), effectively a tie
+  paired B-A rise: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A du: 1.084e-18+-1.750e-18: numerically zero (floating-point residue), effectively a tie
+  paired B-C over: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C ise_sp: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C ise_load: -2.359e-17+-3.854e-16: numerically zero (floating-point residue), effectively a tie
+  paired B-C rise: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C du: 1.084e-18+-1.750e-18: numerically zero (floating-point residue), effectively a tie
+  paired C-A over: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A ise_sp: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A ise_load: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A rise: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A du: 0.0000+-0.0000: tie: identical on every seed
+  load band: |ISE_load B - A| / A = 0.0000 % -> within 5 %
+mixed_noise (B uses b=0.5, c=0; TI x1)
+  A_1dof 19.2653+-0.0104 89.6726+-15.8701 0.0240+-0.0107 64.0000+-0.0000 4.9174+-0.4502
+  B_2dof 0.0000+-0.0000 208.6402+-36.9441 0.0274+-0.0092 196.0000+-0.0000 0.3398+-0.0224
+  C_aggr 25.3569+-0.0092 152.9550+-27.0726 0.0235+-0.0117 75.0000+-0.0000 0.6138+-0.0513
+  paired B-A over: -19.2653+-0.0104: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A ise_sp: 118.9676+-21.0741: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A ise_load: 0.0034+-0.0044: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired B-A rise: 132.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A du: -4.5776+-0.4279: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C over: -25.3569+-0.0092: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C ise_sp: 55.6851+-9.8715: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C ise_load: 0.0039+-0.0062: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired B-C rise: 121.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C du: -0.2741+-0.0289: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A over: 6.0916+-0.0022: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A ise_sp: 63.2825+-11.2026: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A ise_load: -0.0004+-0.0019: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired C-A rise: 11.0000+-0.0000: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A du: -4.3036+-0.3990: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  load band: |ISE_load B - A| / A = 14.2940 % -> outside 5 %
+tiny_b (B uses b=0.1, c=0; TI x4)
+  A_1dof 8.9819+-0.3260 84.1586+-14.7790 0.0000+-0.0000 73.4000+-0.1491 4.6898+-0.4300
+  B_2dof 0.0000+-0.0000 1149.5072+-277.6763 0.0000+-0.0000 1000.0000+-0.0000 0.0563+-0.0052
+  C_aggr 10.0906+-0.5204 141.7481+-24.7759 0.0000+-0.0000 90.0000+-0.2357 0.5617+-0.0515
+  paired B-A over: -8.9819+-0.3260: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A ise_sp: 1065.3485+-264.8766: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A ise_load: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A rise: 926.6000+-0.1491: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A du: -4.6335+-0.4249: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C over: -10.0906+-0.5204: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C ise_sp: 1007.7591+-256.5384: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C ise_load: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C rise: 910.0000+-0.2357: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C du: -0.5055+-0.0464: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A over: 1.1087+-0.1944: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A ise_sp: 57.5894+-10.0011: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A ise_load: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A rise: 16.6000+-0.2789: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A du: -4.1280+-0.3785: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  load band: no load steps in this regime
+setpoint_large: b < 1 and c = 0 remove the proportional and derivative kicks, so B overshoots less at the same loop
+load_step: with r constant the weights only shift a constant the integral absorbs, so load rejection is unchanged
+tiny_b: with b = 0.1 and a slow integral the setpoint is reached mostly through I, so rise time suffers
+No winner declared; the weights trade setpoint overshoot against rise time and leave the loop untouched
+Real servo / motor bench: 本页未运行; Wikipedia PID setpoint weighting 以原文为准
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used on this page, in this order: **tie: identical on every seed** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when `|paired mean|` and its sd are both below 1e-9 (no sign count is printed on such a line); **near-tie / small gap, within seed noise** when `|paired mean| ≤ sd`; otherwise a **consistent** gap (`|paired mean| > sd`), called **small** if `|m|` is under 20 % of the smaller arm mean and **clear** otherwise; the 20 % rule only chooses between those two words. Every consistent line carries a same-sign count over the 5 seeds, and any seed with the opposite sign is reported; a sign count alone never makes a gap consistent. Gaps are computed from unrounded values. Paired differences are B−A, B−C and C−A. In regimes without load steps the `ise_load` lines are a tie because there is nothing to measure; in regimes without setpoint steps the same holds for `over`, `ise_sp` and `rise`.
+
+- **setpoint_large:** **B wins on overshoot with a clear gap:** 0.0000 % against 19.2551 % for A and 25.3495 % for C (paired B−A −19.2551±0.0001, same sign on all 5 seeds). **B loses on tracking with a clear gap:** rise 196 ms against 64 ms (paired B−A 132.0000±0.0000, 5/5) and `ise_sp` paired 118.9698±21.0614 (5/5). Its command is far calmer (`du_rms` paired −4.6177±0.4234, clear, 5/5). Removing only the derivative kick (C) makes overshoot **worse** than plain PID (C−A 6.0945±0.0001, clear, 5/5): C drops the derivative zeros that A puts in the setpoint path, and in this loop that raises the overshoot, so removing a kick is not the same as damping the response.
+- **load_step:** the target is constant, so the weights only shift a constant that the preset integral absorbs. B−A `ise_load` is **numerically zero (floating-point residue), effectively a tie** (−2.359e-17±3.854e-16), C−A is a **tie: identical on every seed**, and the load band prints 0.0000 %. This is the article's claim, reproduced.
+- **mixed_noise:** setpoint and load steps plus sensor noise. Overshoot repeats `setpoint_large` (B−A −19.2653±0.0104, clear, 5/5). Load ISE is a **near-tie / small gap, within seed noise** (B−A 0.0034±0.0044, 1 of 5 seeds of the opposite sign), but **the 5 % pass rule fails here:** the band prints 14.2940 %. Each load window opens 1.0 s after a setpoint step, and B's slower, integral-driven tail is still settling there, so this metric mixes setpoint and load response; the toy does not separate them.
+- **tiny_b:** with `b = 0.1` and a four-times slower integral, **B loses with a clear gap:** no step reaches 90 % within 1 s (rise counted as 1000 ms; paired B−A 926.6000±0.1491, 5/5) and `ise_sp` paired 1065.3485±264.8766 (5/5), even though it never overshoots (A 8.9819 %, C 10.0906 %).
+
+The page **does not declare a universal winner**: setpoint weighting removes the overshoot at no cost to the loop, but it buys that with a slower rise and larger setpoint ISE, and too small a `b` with a weak integral barely moves the joint. Real servo bench: **本页未运行**.
+
+**180-minute work plan:** 30 min read the setpoint-weighting paragraph and redo the worked example; 40 min show on paper that `b` and `c` drop out of the loop transfer function; 40 min run the toy and read the four regimes; 40 min move `b` between 0.1 and 1 with seeds fixed and plot overshoot against rise time; 30 min decide which `b` you would ship on the balancer and why.
+
+### Exercises
+
+1. Write the controller output one sample after a 1 rad step for `b = 1, c = 1` and for `b = 0.5, c = 0`, and compare the jumps with the worked example.
+2. Show from `shared_draws` and `simulate` that A, B and C see the same targets, load steps and noise samples for a given seed.
+3. Use `rk4_h_max` to find the largest stable RK4 step on `λ = −1/TM`, and check that the 0.98× and 1.02× steps behave as the tests say.
+4. Rerun `mixed_noise` with the noise off and seeds fixed. Predict whether the 14.2940 % load band shrinks before you run, and explain what that says about the windows.
+5. Before any bench run (本页未运行), write why B's zero overshoot in `setpoint_large` does **not** mean `b = 0.5` is right for every joint.
+
 <Summary>
 
 **Key points**
@@ -1448,6 +1901,7 @@ The page **does not declare a universal winner**: a notch helps only when a ligh
 - Cascade: a 40 ms speed window resolves 0.057 m/s per count (5 ms would give 0.45 m/s), and a 3° lean needs only 0.51 m/s² of the 6 m/s² available.
 - Lead–lag: with one fixed recipe and a shared 20 rad/s crossover, adding lead–lag to the PID wins ISE on the resonant joint by a **small but consistent gap** (paired −2.8025±0.6749, same sign on all 5 seeds) while the gain margin shrinks from 3.00 to 2.01 dB, loses ISE by a small but consistent gap on the well-damped joint, always adds actuator chatter, and destabilises the lightly damped plant — a synthetic model, not a bench run.
 - Notch: on the joint with `zr = 0.05` PID alone and lead–lag diverge on 5 of 5 seeds while PID + notch stays stable (PM 38.3°, GM 2.03 dB); on the rigid and `zr = 0.3` joints the notch **loses** ISE with a clear gap (paired 5.5960±1.4179 and 27.4063±6.9473, same sign on all 5 seeds), and a notch 30 % off the mode loses everywhere — a synthetic model, not a bench run.
+- 2DOF setpoint weighting: with `b = 0.5` and `c = 0` the same loop loses all overshoot on large setpoint steps (paired −19.2551±0.0001 %, same sign on all 5 seeds) but rises 132 ms slower, its load-step ISE is numerically zero against plain PID, and with `b = 0.1` and a slow integral it loses clearly on rise time — a synthetic model, not a bench run.
 
 **Common mistakes**
 

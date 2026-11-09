@@ -5733,6 +5733,86 @@ export const resources: Record<string, Resource> = {
     },
     extra: true,
   },
+  "wiki-diode-bridge": {
+    id: "wiki-diode-bridge",
+    url: "https://en.wikipedia.org/wiki/Diode_bridge",
+    title: {
+      zh: "Wikipedia：二极管整流桥（Diode bridge）",
+      en: "Wikipedia: Diode bridge",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "四个二极管接成桥，从两线交流输入得到全波整流；任一时刻只有 2 个二极管正偏；输出是幅值相同、频率为输入两倍的脉动电压，通常后接电容或滤波器；归功于 Pollak（1895 专利）与 Graetz（1897）。HTML 正文已核验（rev 1373727385）；以原文为准。",
+      en: "Four diodes in a bridge give full-wave rectification from a two-wire AC input; only 2 diodes are forward-biased at a time; the output pulsates at the input amplitude and twice the input frequency and is normally followed by a capacitor or filter; credited to Pollak (1895 patent) and Graetz (1897). HTML body verified (rev 1373727385); 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "wiki-rectifier": {
+    id: "wiki-rectifier",
+    url: "https://en.wikipedia.org/wiki/Rectifier",
+    title: {
+      zh: "Wikipedia：整流器（Rectifier）",
+      en: "Wikipedia: Rectifier",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "不加平滑时半波平均 Vpeak/π、全波 2Vpeak/π；硅二极管压降约 0.7 V（肖特基 0.3 V），半波损失一个压降、整流桥两个；纹波在半波时位于电源频率、全波时两倍，通常给峰峰值；电容随负载电流增大、随频率和每周期峰数减小，加大电容是用纹波电压换纹波电流，峰值电流受绕组电阻限制。HTML 正文已核验（rev 1367200865）；以原文为准。",
+      en: "Without smoothing, half-wave averages Vpeak/π and full-wave 2Vpeak/π; a silicon diode drops about 0.7 V (0.3 V Schottky), half-wave loses one drop and a bridge two; ripple is at the source frequency for half-wave and twice it for full-wave, usually quoted peak-to-peak; the capacitor grows with load current and shrinks with frequency and peaks per cycle, and a bigger capacitor trades ripple voltage for ripple current, whose peak is limited by the winding resistance. HTML body verified (rev 1367200865); 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "wiki-ripple": {
+    id: "wiki-ripple",
+    url: "https://en.wikipedia.org/wiki/Ripple_(electrical)",
+    title: {
+      zh: "Wikipedia：纹波（Ripple (electrical)）",
+      en: "Wikipedia: Ripple (electrical)",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "RC 很大、纹波很小时电容近似线性放电，Q = C·Vpp = I·t，全波 t = 1/(2f)，得 Vpp = I/(2fC)；Vrms = Vpp/(2√3)，纹波系数 γ = 1/(4√3 fCR)。HTML 正文已核验（rev 1381025481）；以原文为准。",
+      en: "For a large RC and small ripple the capacitor discharges almost linearly: Q = C·Vpp = I·t with t = 1/(2f) for full-wave, so Vpp = I/(2fC); Vrms = Vpp/(2√3) and the ripple factor γ = 1/(4√3 fCR). HTML body verified (rev 1381025481); 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "wiki-pid-controller": {
+    id: "wiki-pid-controller",
+    url: "https://en.wikipedia.org/wiki/PID_controller",
+    title: {
+      zh: "Wikipedia：PID 控制器（设定值加权）",
+      en: "Wikipedia: PID controller (setpoint weighting)",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "设定值加权在比例项和微分项的误差中给设定值乘上可调系数（通常 0 到 1）；积分项必须用真实误差以免稳态误差；这两个参数不影响对负载扰动和测量噪声的响应，可专门调设定值响应；对测量值求微分是设定值加权的一个简单特例。HTML 正文已核验（rev 1383929606）；以原文为准。",
+      en: "Setpoint weighting adds adjustable factors (usually 0 to 1) to the setpoint in the proportional and derivative errors; the integral must use the true error to avoid steady-state error; the two parameters do not affect the response to load disturbances and measurement noise and can be tuned for the setpoint response; differentiating the measurement is a simple case of setpoint weighting. HTML body verified (rev 1383929606); 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

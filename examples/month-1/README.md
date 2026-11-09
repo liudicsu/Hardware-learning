@@ -33,3 +33,7 @@ The legacy python-terminal examples are real program runs. / 原 python-terminal
 ## python-terminal/ — Nyquist and aliasing / 奈奎斯特与混叠
 
 `python-terminal/nyquist_aliasing_toy.py`: standard-library synthetic sampling model (ideal samples, plain DFT) comparing a 50 Hz rate, 200 Hz with an anti-alias prefilter and 200 Hz without one; no hardware; expected output in `expected/nyquist_aliasing_toy.txt`, included in `check.sh`. / 标准库合成采样模型（理想采样、普通 DFT），比较 50 Hz、带抗混叠前置滤波的 200 Hz 与不滤波的 200 Hz；不是硬件测量，输出由 `check.sh` 核对。
+
+## components/ — Bridge rectifier and ripple / 整流桥与纹波
+
+`components/bridge_rectifier_ripple_toy.py`: standard-library synthetic model of a half-wave rectifier, a four-diode bridge and the bridge without its smoothing capacitor (ideal diodes plus forward drop, forward Euler on the capacitor node); no mains or hardware; expected output in `expected/bridge_rectifier_ripple_toy.txt`, included in `check.sh`. / 标准库合成模型，比较半波整流、四二极管整流桥和不接滤波电容的整流桥（理想二极管加正向压降，电容节点用前向欧拉积分）；不接市电、不是硬件测量，输出由 `check.sh` 核对。

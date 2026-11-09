@@ -1,6 +1,16 @@
 # Month 3 plan / 第 3 个月计划
 
-Current / 当前：**M3 2490 min**, Batch-15 PR1. Earlier entries below retain their historical totals.
+Current / 当前：**M3 2670 min**, Batch-16 PR1. Earlier entries below retain their historical totals.
+
+## Batch-16 PR1 — 2DOF setpoint weighting on pid-control (+180)
+
+Base `c60dee9` (batch-15 closed incl. polish #164; site **32490**). PR1 on M3 host: **M3 2490→2670 (+180)**; M1 moves in the same PR on its own plan. Site **32490→32820**, still 71 lessons.
+
+**H2 / 3.4 pid-control:** `pid-control` 540→**720**. Toy `pid_setpoint_weighting_2dof_toy.py`: rigid joint 1/(s(TM s + 1)), ISA PID with setpoint weights b, c (I on the true error), Kc for a 20 rad/s crossover (PM 60.6°, GM 42.37 dB, shared by every arm); arms A b = c = 1 / B b = 0.5, c = 0 / C b = 1, c = 0; shared targets, setpoint steps, load steps and noise (common random numbers, 5 seeds); RK4 H = 0.25 ms with |R(Hλ)| ≤ 1 asserted (h_max 139.26 ms; tests at 0.98× / 1.02×). setpoint_large: B−A overshoot −19.2551±0.0001 %, clear, 5/5, but rise +132 ms and ise_sp +118.9698±21.0614 (B loses, clear, 5/5); load_step: B−A ise_load **numerically zero**, C−A tie; mixed_noise: load ISE near-tie but the 5 % load band fails (14.2940 %, disclosed); tiny_b (b = 0.1, TI × 4): B loses rise time clearly (926.6000±0.1491 ms). ≠ notch; ≠ lead–lag; ≠ Smith. Real servo 本页未运行.
+
+**Allocation / 安排:** 30+40+40+40+30=180 minutes.
+
+**Site accounting / 全站核算:** **32820=32490+330** with M1 +150 on month-1-plan.md; **M3=2670**, **71 lessons**.
 
 ## Batch-15 PR1 — notch filter on pid-control (+180)
 
