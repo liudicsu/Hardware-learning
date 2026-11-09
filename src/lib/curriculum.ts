@@ -374,8 +374,9 @@ const month3Lessons: Lesson[] = [
       zh: "减速比怎样用速度换扭矩，回差为什么会毁掉定位精度而软件补不回来，以及轴承预紧、皮带与直驱的取舍。",
       en: "How a gear ratio trades speed for torque, why backlash ruins position accuracy in a way software cannot fully fix, and choosing bearings, preload, belts or direct drive.",
     },
-    minutes: 330,
+    minutes: 510,
     objectives: [
+      { zh: "在共享 τ–ω 与传动比下比较恒定 η、与负载无关的库仑+粘滞拖曳与重载拟合 η 的输出功率误差与热代理，说明固定转速下损耗功率恒定、轻载 η 因 P_in 下降而下降；不声称齿轮箱测功。", en: "On a shared τ–ω schedule and ratio, compare constant η, load-independent Coulomb+viscous drag and heavy-load-fit η on output-power error and heat proxy; show fixed-speed loss power and a light-load η drop as P_in falls; no gearbox-dyno claim." },
       { zh: "解释负载摩擦与积分如何 hunting，披露负载编码器额外信息及死区误差带和设错失效。", en: "Explain load friction/integral hunting, disclose extra load-encoder information, and report deadband error bands and mis-setting failures." },
       { zh: "能计算输出扭矩 = 电机扭矩 × n × 效率（0.1 N·m × 10 × 0.9 = 0.9 N·m）。", en: "Calculate output torque as motor torque × n × efficiency (0.1 N·m × 10 × 0.9 = 0.9 N·m)." },
       { zh: "能验算行星装配规则：行星轮 = (齿圈 − 太阳轮)/2 为整数齿数，且 (太阳轮 + 齿圈)/N 为整数。", en: "Check planetary assembly rules: planet = (ring − sun)/2 is a whole tooth count and (sun + ring)/N is a whole number." },
@@ -383,8 +384,9 @@ const month3Lessons: Lesson[] = [
       { zh: "能解释反向拖动：摩擦按 n、转子惯量按 n² 放大，345:1 的惯量感是 147:1 的 5.51 倍。", en: "Explain backdriving: friction scales with n and rotor inertia with n², so 345:1 feels 5.51× the inertia of 147:1." },
     ],
     prereqs: ["fdm-printing"],
-    resources: ["wescott-friction", "opencycloid", "sts3215"],
+    resources: ["wiki-gear-train", "wescott-friction", "opencycloid", "sts3215"],
     tasks: [
+      { id: "b11p2-gear", text: { zh: "运行 gear_efficiency_load_toy.py，比较重载接近打平与轻载功率误差，并手算库仑+粘滞损耗", en: "Run gear_efficiency_load_toy.py, compare heavy-load near-tie and light-load power error, and compute Coulomb+viscous loss by hand" } },
       { id: "b5p1", text: { zh: "运行 backlash_loop_toy.py 并审计假设、预算和 expected 表格", en: "Run backlash_loop_toy.py and audit assumptions, budgets and expected tables" } },
       { id: "ratio-calc", text: { zh: "用本课的脚本设计一个能装配的行星级（齿数、行星数、减速比）", en: "Use the lesson's script to design a planetary stage that assembles (teeth, planet count, ratio)" } },
       { id: "reducer", text: { zh: "为步进电机或玩具电机设计并打印一个行星或摆线减速器", en: "Design and print a planetary or cycloidal reducer for a NEMA17 stepper or a hobby motor" } },
@@ -649,8 +651,9 @@ const month5Lessons: Lesson[] = [
       zh: "把关节和倒立摆小车写成状态空间形式，用离散 Riccati 方程算出 LQR 增益，调 Q 和 R 看取舍，再放到完整的非线性模型上检验；最后用一个小 MPC 在力矩限制下移动关节，和输出被削顶的 LQR 比一比。lqr_model_error_toy.py 在名义模型上极点配置，在扰动对象上比较 oracle_fullstate 与仅用 y 的观测器反馈（非同信息基线，非 H∞）。",
       en: "Write the joint and a cart-pole in state space, get LQR gains from the discrete Riccati equation, trade Q against R and test the result on the full nonlinear model; then move the joint under a torque limit with a small MPC and compare it with LQR whose output is clipped. lqr_model_error_toy.py places poles on the nominal model and, on a perturbed plant, compares oracle_fullstate with observer feedback from y only (not a same-info baseline, not H∞).",
     },
-    minutes: 420,
+    minutes: 600,
     objectives: [
+      { zh: "在共享连续对象与 Q/R 下比较连续 LQR+ZOH 与粗/细采样离散 LQR 的代价与沉降，验证 |λ(A−BK)|<1，并指出细采样接近打平；不是 Bode 重做。", en: "On a shared continuous plant and Q/R, compare continuous LQR+ZOH vs coarse/fine discrete LQR on cost and settling; verify |λ(A−BK)|<1; show a fine-Ts near-tie; not a Bode redo." },
       { zh: "能把关节和小车倒立摆写成状态空间 x' = A x + B u，为关节推出 A = [[0, 1], [0, −12.5]]、B = [[0], [250]]。", en: "Write the joint and cart-pole in state space x' = A x + B u, deriving A = [[0, 1], [0, −12.5]] and B = [[0], [250]] for the joint." },
       { zh: "能迭代离散 Riccati 方程求出 LQR 增益，并用 u = −K x、K = [−0.92, −1.75, −18.76, −3.03] 控制倒立摆。", en: "Compute LQR gains by iterating the discrete Riccati equation and apply u = −K x with K = [−0.92, −1.75, −18.76, −3.03]." },
       { zh: "能调整 Q 和 R 并解释取舍：把位置权重提到 100，最终位置降到 0.000 m，但峰值力升到 5.19 N。", en: "Tune Q and R and explain the trade-off: raising the position weight to 100 drops the final position to 0.000 m but raises peak force to 5.19 N." },
@@ -658,8 +661,9 @@ const month5Lessons: Lesson[] = [
       { zh: "能说明观测器只用 y=Cx+噪声，而 oracle_fullstate 读取特权真状态 x，二者不是同信息基线。", en: "State that the observer uses only y=Cx+noise, while oracle_fullstate reads the privileged true state x — not a same-information baseline." },
       { zh: "能在扰动对象、共享过程噪声下比较三臂代价：oracle_fullstate < observer_output_feedback < open_loop，并说明这不是 H∞ 设计。", en: "Compare the three-arm cost on a perturbed plant with shared process noise: oracle_fullstate < observer_output_feedback < open_loop, and state that this is not H∞ design." },],
     prereqs: ["control-modelling", "first-robots"],
-    resources: ["underactuated-lqr", "mathworks-state-space", "ce295-state-est"],
+    resources: ["ua-lqr", "scipy-dare", "underactuated-lqr", "mathworks-state-space", "ce295-state-est"],
     tasks: [
+      { id: "b11p2-dlqr", text: { zh: "运行 discrete_lqr_zoh_toy.py，比较粗/细 Ts 下连续+ZOH 与离散 LQR，并核对闭环特征值模", en: "Run discrete_lqr_zoh_toy.py, compare cont+ZOH vs discrete LQR at coarse/fine Ts, and check closed-loop eigenvalue moduli" } },
       { id: "state-space", text: { zh: "自己推导倒立摆小车线性化后的 A 和 B，与 lqr_sim.py 打印的数值逐项核对", en: "Derive the cart-pole's linearised A and B yourself and check every entry against what lqr_sim.py prints" } },
       { id: "lqr", text: { zh: "运行 lqr_sim.py，至少再试两组自己的 Q 和 R，记录增益、峰值力和 4 s 后小车的位置", en: "Run lqr_sim.py and try at least two Q and R choices of your own; log the gains, the peak force and where the cart is after 4 s" } },
       { id: "nonlinear", text: { zh: "找出你的增益在非线性模型上还能救回的最大起始角，并解释它为什么比线性模型预测的小", en: "Find the largest start angle your gains still recover from on the nonlinear model, and explain why the linear model cannot tell you this" } },

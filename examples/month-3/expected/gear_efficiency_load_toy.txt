@@ -1,0 +1,16 @@
+Synthetic gear η-under-load toy; shared τ–ω / ratio / friction draws; not a gearbox dyno
+n=25:1 ETA0=0.9 seeds=5 tau_c0=0.12 b_v0=0.00035 (Coulomb+viscous at output)
+model: B load-independent drag τ_loss=τ_c*sign(ω)+b_v*ω (no τ_in); τ_out=n*τ_in−τ_loss; A uses fixed η0; C fits η on heavy_load only; backdrive threshold = τ_c+|b_v|·ω_crawl (separate from forward η)
+regime arm eta p_err_W heat_W (mean+-sd over seeds; p_err = |P_out_arm − P_out_B|)
+heavy_load A_constant_eta 0.9000+-0.0000 0.2125+-0.0806 3.1400+-0.0000
+heavy_load B_coulomb_viscous 0.8954+-0.0061 0.0000+-0.0000 3.2856+-0.1909
+heavy_load C_heavy_fit_eta 0.8954+-0.0061 0.0000+-0.0000 3.2856+-0.1909
+light_load A_constant_eta 0.9000+-0.0000 2.7832+-0.1909 0.5024+-0.0000
+light_load B_coulomb_viscous 0.3460+-0.0380 0.0000+-0.0000 3.2856+-0.1909
+light_load C_heavy_fit_eta 0.8954+-0.0061 2.7599+-0.1604 0.5257+-0.0305
+heavy_load: |η_A − η_B| = 0.0046 (near-tie / small gap on design point — A’s η0≈B’s drag-model η; p_err_A=0.2125 W)
+heavy_load: C_heavy_fit p_err = 0.0000e+00 W (fitted on this point — matches B by construction)
+light_load: p_err_A = 2.7832 W, p_err_C = 2.7599 W (constant η misses fixed-drag heat when P_in drops)
+backdrive threshold (seed0) = 0.1106 N*m at output (τ_c+|b_v|·1 rad/s; forward η does not equal backdrive η_b)
+No winner declared: heavy-load design point makes constant η look fine; light load drops P_in against fixed drag so η falls; C’s fit does not transfer
+Real gearbox / dyno lab: 本页未运行; Wikipedia Gear train numbers 以原文为准

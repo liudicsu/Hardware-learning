@@ -1,0 +1,15 @@
+Synthetic discrete-LQR / ZOH toy; shared plant Q/R / noise; not a hardware plant
+plant m=1.0 b=0.4 Q=diag(25.0,1.0) R=0.05 Ts_coarse=0.1 Ts_fine=0.01 RICCATI_TOL=1e-12 SUBSTEP=0.001 seeds=5
+model: ZOH via expm(augmented); DARE iterate to ‖ΔP‖_F<1e-12; stability |λ(A_d−B_dK)|<1; Kc=22.3607,7.6549 Kd_coarse=15.3018,5.9715 (iters=39, max|λ|=0.670767) Kd_fine=21.5211,7.4614 (iters=355, max|λ|=0.960529)
+regime arm cost settle_s max_eig_mod (mean+-sd over seeds; C always uses fine Ts)
+coarse_Ts A_cont_zoh 9.7014+-0.0002 1.0000+-0.0000 0.565043+-0.000000
+coarse_Ts B_disc 9.1343+-0.0008 1.1000+-0.0000 0.670767+-0.000000
+coarse_Ts C_disc_fine 9.0303+-0.0007 1.0900+-0.0000 0.960529+-0.000000
+fine_Ts A_cont_zoh 9.0338+-0.0007 1.0780+-0.0045 0.959545+-0.000000
+fine_Ts B_disc 9.0303+-0.0007 1.0900+-0.0000 0.960529+-0.000000
+fine_Ts C_disc_fine 9.0303+-0.0007 1.0900+-0.0000 0.960529+-0.000000
+coarse_Ts: cost_A − cost_B = 0.5671 (discrete-at-hold beats cont+ZOH; C_fine=9.0303)
+fine_Ts: |cost_A − cost_B| = 0.0035 (near-tie / small gap as Ts→0; relative 0.0004; remaining gap from ZOH hold of Kc vs DARE K_d plus shared noise)
+stability: max|λ| coarse=0.670767 fine=0.960529 (both < 1)
+No winner declared: coarse Ts needs discrete design; fine Ts makes cont+ZOH approach discrete; C’s fine rate is a budget, not free
+Real discrete-LQR / embedded plant lab: 本页未运行; Underactuated / SciPy DARE numbers 以原文为准

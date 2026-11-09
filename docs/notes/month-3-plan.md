@@ -1,6 +1,17 @@
 # Month 3 plan / 第 3 个月计划
 
-Current / 当前：**M3 1770 min**, Batch-11 PR1. Earlier entries below retain their historical totals.
+Current / 当前：**M3 1950 min**, Batch-11 PR2. Earlier entries below retain their historical totals.
+
+## Batch-11 PR2 — load-dependent gear η on transmissions (+180)
+
+Base `014a8ba` (batch-11 PR1 merged; site **27270**). PR2 on M3 host: **M3 1770→1950 (+180)**; M5 moves in the same PR on its own plan. Site **27270→27630**, still 71 lessons.
+
+**Host / 宿主:** `transmissions` 330→**510**. Toy `gear_efficiency_load_toy.py`: shared τ–ω / ratio / friction CRN; constant η vs Coulomb+viscous vs heavy-fit η; heavy-load near-tie; light-load gap; ≠ backlash-in-loop.
+
+**Allocation / 安排:** 30+30+45+45+30=180 minutes.
+
+**Site accounting / 全站核算:** **27630=27270+360** with M5 +180 on month-5-plan.md; **M3=1950**, **71 lessons**.
+
 
 ## Batch-11 PR1 / 本月 H2 (+150)
 

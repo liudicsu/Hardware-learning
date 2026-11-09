@@ -1,6 +1,17 @@
 # Month 5 current plan / 第5个月当前计划
 
-Current / 当前：M5 **1950 min** (Batch-7 PR2). Older batch entries retain historical totals.
+Current / 当前：M5 **2130 min** (Batch-11 PR2). Older batch entries retain historical totals.
+
+## Batch-11 PR2 — discrete LQR / ZOH on state-space-lqr (+180)
+
+Base `014a8ba` (site **27270**). PR2 on M5 host: **M5 1950→2130 (+180)**; M3 +180 on month-3-plan. Site **27270→27630**, still 71 lessons.
+
+**Host / 宿主:** `state-space-lqr` 420→**600**. Toy `discrete_lqr_zoh_toy.py`: shared plant/Q/R/noise CRN; cont+ZOH vs discrete at coarse/fine Ts; ZOH via expm; DARE tol explicit; |λ|<1; fine-Ts near-tie; ≠ Bode redo.
+
+**Allocation / 安排:** 30+30+45+45+30=180 minutes.
+
+**Site accounting / 全站核算:** **27630=27270+360**; **M5=2130**, **71 lessons**.
+
 
 Batch-5 PR2 base e5ac703 (20310). Historical observability additions remain in month-5-followup-pr3.md.
 
