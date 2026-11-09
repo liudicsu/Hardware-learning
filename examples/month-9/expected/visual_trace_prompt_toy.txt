@@ -1,0 +1,13 @@
+Synthetic visual-trace prompting toy; 7x7 grid, blob-coordinate encoder, k-NN BC; not TraceVLA / not a VLA
+k=3 demos=20 eval_episodes=30 trace_frames=3 lag=2 jitter=0.2 seeds=5
+shared per seed: demo episodes, eval starts/goals, jitter stream; trace drawn only from past frames
+wipe expert reference: about 5.0 edge-to-edge strokes in 36 steps
+task arm score features (mean+-sd over seeds; wipe score = strokes/episode, reach score = success rate)
+wipe A_raw 0.000+-0.000 2
+wipe B_raw_trace 4.807+-0.306 6
+wipe C_lagged_trace 4.193+-0.569 6
+reach A_raw 0.960+-0.072 2 steps=4.89+-0.90
+reach B_raw_trace 0.920+-0.077 6 steps=6.77+-0.95
+reach C_lagged_trace 0.867+-0.047 6 steps=8.53+-0.56
+No winner is declared: history helps only where the frame hides it, and extra inputs cost data
+TraceVLA SimplerEnv / WidowX gains: 以论文为准; OpenVLA weights / GPU / real robot: 本页未运行

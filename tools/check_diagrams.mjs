@@ -3936,8 +3936,8 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 25020, "deadtime-rs485 PR1 curriculum: 25020 minutes");
-  for (const [month, expected] of [[1, 1020], [2, 2670], [3, 1470], [4, 2130], [5, 1950], [6, 1980], [7, 2070], [8, 3180], [9, 3270], [10, 2280], [11, 3000]]) {
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 25380, "absenc-tracevla PR2 curriculum: 25380 minutes");
+  for (const [month, expected] of [[1, 1020], [2, 2670], [3, 1620], [4, 2130], [5, 1950], [6, 1980], [7, 2070], [8, 3180], [9, 3480], [10, 2280], [11, 3000]]) {
     ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `current curriculum M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
@@ -4923,7 +4923,7 @@ for (const m of readdirSync(content)) {
   for (const id of ["dreamgen-paper", "lapa-paper", "smolvla-paper", "lerobot-async"]) {
     ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `wm2 resource ${id}: present + extra`);
   }
-  ok(/25 020/.test(read("README.md")), "b9p1 README: 25 020 minutes");
+  ok(/25 380/.test(read("README.md")), "b9p2 README: 25 380 minutes");
   console.log("worldmodel-smolvla PR2: neural trajectories + async chunk locks checked");
 }
 
@@ -5703,7 +5703,7 @@ print("protocol pass")
 {
   const read=p=>readFileSync(join(root,p),"utf8"), env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
   const cases=[
-    ["visual-servoing","ibvs_interaction_matrix_toy",420,
+    ["visual-servoing","ibvs_interaction_matrix_toy",630,
       ["-2.000   0.000   0.400   0.040  -1.040   0.200","cond=4035.3","null directions=2","wrong_Z_k1.5 PBVS 0/5 7.99e-02","t_err","near_edge PBVS 5/5","near_edge IBVS 0/5","roll_170 IBVS 0/5 9.67e-07±4.38e-07 10.641±0.951 0.003±0.002 5.087±0.441","seeds=5"],
       ["−λ L⁺ e","2×6","1/Z","PBVS","IBVS","camera retreat|相机后退","wrong_Z_k1.5","near_edge","roll_170","visp-doc.inria.fr","en.wikipedia.org/wiki/Visual_servoing","9.2","10.4"],
       ["ArUco","PBVS","IBVS","λ","本页未运行"]],
@@ -5882,7 +5882,69 @@ print("protocol pass")
   ok(read("docs/notes/batch-9-pr1-sources.md").includes("All 199 prior expected"),"b9p1 prior-output/source/model audit");
   execFileSync("python3",[join(root,"tools/test_b9_deadtime_rs485_toys.py")],{cwd:root,encoding:"utf8",env,stdio:"pipe"});
   ok(true,"b9p1 independent R-L exactness, diode clamp, volt-second, Γ, UART decode and shared-noise tests executed");
-  console.log("deadtime-rs485 PR1: dead-time volt-seconds, RS-485 termination trade-offs and M2 2670 / site 25020 locked");
+  console.log("deadtime-rs485 PR1: dead-time volt-seconds, RS-485 termination trade-offs and M2 2670 locked");
+}
+
+// Batch-9 PR2: absolute vs incremental encoders at power-on (3.5) and TraceVLA visual trace prompting (9.8).
+{
+  const read=p=>readFileSync(join(root,p),"utf8"), env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
+  const cur=read("src/lib/curriculum.ts"), res=read("src/lib/resources.ts");
+  const cases=[
+    [3,"m3","so101-arm","abs_vs_incr_power_on_toy",390,"+150 min",["## Absolute vs incremental","## 绝对式与增量式"],["<Summary>","<Summary>"],
+      ["CPR=4096 deg_per_count=0.0879","seeds=5 glitches_per_seed=20","single_turn_joint A_single_abs 0.06+-0.00 0.13+-0.01 100.00+-0.00 0.00+-0.00 0.00+-0.00","single_turn_joint B_incremental 72.41+-10.23 144.34+-5.82 0.00+-0.00 100.00+-0.00","single_turn_joint C_incr_home 0.06+-0.00 0.13+-0.01 100.00+-0.00 0.00+-0.00 6.17+-0.20","three_turn_shaft A_single_abs 234.02+-38.20 576.00+-197.06 38.00+-12.55 62.00+-12.55","three_turn_shaft B_incremental 539.48+-63.44","three_turn_shaft C_incr_home 0.07+-0.01 0.13+-0.00 100.00+-0.00 0.00+-0.00 10.49+-0.70","three_turn_shaft D_multi_batt 0.07+-0.01 0.13+-0.00 100.00+-0.00 0.00+-0.00 0.00+-0.00","three_turn_flat_battery D_multi_batt 0.07+-0.01 0.13+-0.00 100.00+-0.00 0.00+-0.00 10.49+-0.70 20.00+-0.00","No winner is declared"],
+      ["encoder_index_cal_toy.py","/month/month-2/motors-drivers","A_single_abs","B_incremental","C_incr_home","D_multi_batt","single_turn_joint","three_turn_shaft","three_turn_flat_battery","Extended Position Control Mode","−256","4096","XL330-M288","Wiegand","0.0879°","72.41°","234.02°","576.00°","10.49 s","以原文为准","本页未运行"],
+      {en:["power glitch","multi-turn","**No winner is declared.**","not repeated here","not in the SO-101 BOM"],zh:["掉电毛刺","多圈","**不宣布赢家。**","这里不重复","不在 SO-101 物料清单里"]},
+      {en:["abs_vs_incr_power_on_toy.py","five seeds","single-turn absolute","本页未运行"],zh:["abs_vs_incr_power_on_toy.py","五个种子","单圈绝对式","本页未运行"]},
+      ["wiki-rotary-encoder","dxl-xl330-emanual"],"b9p2-absenc"],
+    [9,"m9","visual-servoing","visual_trace_prompt_toy",630,"+210 min",["## Visual trace prompting (TraceVLA)","## 视觉轨迹提示（TraceVLA）"],["## Common mistakes","## 常见错误"],
+      ["k=3 demos=20 eval_episodes=30 trace_frames=3 lag=2 jitter=0.2 seeds=5","trace drawn only from past frames","wipe A_raw 0.000+-0.000 2","wipe B_raw_trace 4.807+-0.306 6","wipe C_lagged_trace 4.193+-0.569 6","reach A_raw 0.960+-0.072 2 steps=4.89+-0.90","reach B_raw_trace 0.920+-0.077 6 steps=6.77+-0.95","reach C_lagged_trace 0.867+-0.047 6 steps=8.53+-0.56","No winner is declared"],
+      ["2412.10345","Co-Tracker","K=40","M=5","N=6","150K","137","3.5x","α","IBVS","A_raw","B_raw_trace","C_lagged_trace","wipe","reach","4.807±0.306","0.960","以论文为准","本页未运行"],
+      {en:["**not** another servo law","**No privileged pose leak.**","**No arm wins everywhere.**","**both**","distract"],zh:["**不是**又一条伺服律","**没有特权位姿泄漏。**","**没有哪一臂处处胜出。**","**同时**","分散"]},
+      {en:["visual_trace_prompt_toy.py","five seeds","TraceVLA","以论文为准","本页未运行"],zh:["visual_trace_prompt_toy.py","五个种子","TraceVLA","以论文为准","本页未运行"]},
+      ["tracevla-paper"],"b9p2-trace"],
+  ];
+  for(const [mon,dir,slug,toy,minutes,plus,heads,nexts,outputs,markers,langMarkers,summaryMarkers,ids,task] of cases){
+    const file=`examples/month-${mon}/${slug}/${toy}.py`,py=read(file).trim(),expected=read(`examples/month-${mon}/expected/${toy}.txt`).trim(),harness=read(`examples/month-${mon}/check.sh`);
+    ok(execFileSync("python3",[join(root,file)],{cwd:root,encoding:"utf8",env}).trim()===expected,`b9p2 ${toy}: actual expected output`);
+    for(const x of outputs)ok(expected.includes(x),`b9p2 ${toy}: result ${x}`);
+    ok(cur.match(new RegExp(`slug: "${slug}"[\\s\\S]*?minutes: (\\d+)`))?.[1]===String(minutes),`b9p2 ${slug}: ${minutes} min`);
+    const host=cur.slice(cur.indexOf(`slug: "${slug}"`)).split("\n  },")[0];
+    ok(host.includes(`id: "${task}"`)&&host.includes(toy)&&ids.every(id=>host.includes(`"${id}"`)),`b9p2 ${slug}: task names toy and resources wired`);
+    for(const id of ids)ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res),`b9p2 opened source ${id}`);
+    ok(harness.includes(`${slug}/${toy}.py`)&&harness.includes(`check ${toy}.txt`),`b9p2 ${toy}: month-${mon} harness compares stdout`);
+    for(const [index,lang] of ["en","zh"].entries()){
+      const md=read(`src/content/${dir}/${slug}/${lang}.mdx`),summary=md.indexOf("<Summary>"),end=md.indexOf("</Summary>");
+      ok(summary>0&&summary===md.lastIndexOf("<Summary>")&&md.slice(end+10).trim()==="",`b9p2 ${slug} ${lang}: sole whole-lesson Summary ends page`);
+      const head=md.indexOf(heads[index]),next=md.indexOf(nexts[index],head);
+      ok(head>0&&next>head&&next<=summary,`b9p2 ${slug} ${lang}: new section before ${nexts[index]} / Summary`);
+      const sec=md.slice(head,next);
+      ok(sec.includes(py)&&sec.includes(expected)&&sec.includes(`<CodeSource path="${file}" />`)&&sec.includes(plus),`b9p2 ${slug} ${lang}: exact source/stdout in section`);
+      const ex=sec.lastIndexOf(lang==="en"?"### Exercises":"### 练习");
+      ok(ex>sec.indexOf("</SimOutput>")&&(sec.slice(ex).match(/^\d\. /gm)||[]).length===5,`b9p2 ${slug} ${lang}: five exercises after output`);
+      for(const x of [...markers,...langMarkers[lang]])ok(sec.includes(x),`b9p2 ${slug} ${lang}: mechanism/scope ${x}`);
+      ok(lang==="en"?/\*\*synthetic\*\*/.test(sec)&&sec.includes("mean±sd"):sec.includes("**合成**")&&sec.includes("mean±sd"),`b9p2 ${slug} ${lang}: synthetic label and spread`);
+      const summ=md.slice(summary,end);
+      for(const x of summaryMarkers[lang])ok(summ.includes(x),`b9p2 ${slug} ${lang}: Summary sentence ${x}`);
+      ok(summ.split(`${toy}.py`).length===2,`b9p2 ${slug} ${lang}: exactly one added Summary sentence names the toy`);
+    }
+    const en=read(`src/content/${dir}/${slug}/en.mdx`),zh=read(`src/content/${dir}/${slug}/zh.mdx`);
+    ok((en.match(/```/g)||[]).length===(zh.match(/```/g)||[]).length&&(en.match(/^### /gm)||[]).length===(zh.match(/^### /gm)||[]).length,`b9p2 ${slug}: en/zh structurally symmetric`);
+  }
+  for(const lang of ["en","zh"]){
+    const sec=read(`src/content/m3/so101-arm/${lang}.mdx`).split(lang==="en"?"## Absolute vs incremental":"## 绝对式与增量式")[1].split("<Summary>")[0];
+    ok(!/index_pulse_seen|def find_index|quadrature_decode/.test(sec),`b9p2 so101-arm ${lang}: Z-index calibration referenced, not re-implemented`);
+    const vs=read(`src/content/m9/visual-servoing/${lang}.mdx`),tr=vs.split(lang==="en"?"## Visual trace prompting (TraceVLA)":"## 视觉轨迹提示（TraceVLA）")[1].split(lang==="en"?"## Common mistakes":"## 常见错误")[0];
+    ok(vs.indexOf(lang==="en"?"## IBVS interaction-matrix lite":"## IBVS 交互矩阵 lite")<vs.indexOf(lang==="en"?"## Visual trace prompting":"## 视觉轨迹提示")&&!/interaction_matrix|v_c = −λL⁺e/.test(tr.replace(/```[\s\S]*?```/g,"")),`b9p2 visual-servoing ${lang}: TraceVLA section after and distinct from IBVS`);
+  }
+  const toyTr=read("examples/month-9/visual-servoing/visual_trace_prompt_toy.py");
+  ok(/SEEDS = \(0, 1, 2, 3, 4\)/.test(toyTr)&&/SEEDS = \(0, 1, 2, 3, 4\)/.test(read("examples/month-3/so101-arm/abs_vs_incr_power_on_toy.py")),"b9p2 both toys use five seeds");
+  for(const [p,x] of [["docs/notes/month-3-plan.md",["Current / 当前：**M3 1620 min**, Batch-9 PR2","1470→1620","25020→25380","240→390","Batch-9 PR2"]],["docs/notes/month-9-plan.md",["Current / 当前：**M9 3480 min**, Batch-9 PR2","3270→3480","25020→25380","420→630","Batch-9 PR2"]]]){
+    const plan=read(p); ok(x.every(y=>plan.includes(y))&&!plan.endsWith("\n\n"),`b9p2 ${p}: header and PR2-only accounting`);
+  }
+  ok(read("docs/notes/batch-9-pr2-sources.md").includes("All 201 prior expected"),"b9p2 prior-output/source/model audit");
+  execFileSync("python3",[join(root,"tools/test_b9_absenc_trace_toys.py")],{cwd:root,encoding:"utf8",env,stdio:"pipe"});
+  ok(true,"b9p2 independent wrap-mapping, homing-time, no-leak trace and shared-stream tests executed");
+  console.log("absenc-tracevla PR2: power-on encoder trade-offs, visual-trace prompting and M3 1620 / M9 3480 / site 25380 locked");
 }
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);

@@ -15,7 +15,7 @@ FULL = [
     "cad-bracket.txt", "cad-bracket-tight.txt", "cad-bracket-assert.txt",
     "fdm-snap_fit.txt", "fdm-case.txt", "fdm-case-clash.txt", "fdm-case-clash-tight.txt",
     "tr-gear_calc.txt", "arm-sts_packet.txt", "grip-finger.txt", "grip-force.txt",
-    "fingertip_retarget_toy.txt", "backlash_loop_toy.txt",
+    "fingertip_retarget_toy.txt", "backlash_loop_toy.txt", "abs_vs_incr_power_on_toy.txt",
 ]
 CAD = {name for name in FULL if name.startswith(("cad-bracket", "fdm-case")) or name == "grip-finger.txt"}
 script = (ROOT / "examples/month-3/check.sh").read_text()

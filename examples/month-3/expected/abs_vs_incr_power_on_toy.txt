@@ -1,0 +1,19 @@
+Synthetic absolute vs incremental power-on toy; not a servo driver; homing = time cost only
+CPR=4096 deg_per_count=0.0879 read_noise=+-1count seeds=5 glitches_per_seed=20 home_speed=90deg/s settle=0.5s tol=1.0deg
+shared: true angle, glitch, unpowered drift and read-noise streams per seed
+scenario arm wake_err_deg max_err_deg within_tol_% silent_wrong_% time_to_valid_s alarms (mean+-sd over seeds)
+single_turn_joint A_single_abs 0.06+-0.00 0.13+-0.01 100.00+-0.00 0.00+-0.00 0.00+-0.00 0.00+-0.00
+single_turn_joint B_incremental 72.41+-10.23 144.34+-5.82 0.00+-0.00 100.00+-0.00 0.00+-0.00 0.00+-0.00
+single_turn_joint C_incr_home 0.06+-0.00 0.13+-0.01 100.00+-0.00 0.00+-0.00 6.17+-0.20 0.00+-0.00
+single_turn_joint D_multi_batt 0.06+-0.00 0.13+-0.01 100.00+-0.00 0.00+-0.00 0.00+-0.00 0.00+-0.00
+three_turn_shaft A_single_abs 234.02+-38.20 576.00+-197.06 38.00+-12.55 62.00+-12.55 0.00+-0.00 0.00+-0.00
+three_turn_shaft B_incremental 539.48+-63.44 1052.64+-38.08 2.00+-2.74 98.00+-2.74 0.00+-0.00 0.00+-0.00
+three_turn_shaft C_incr_home 0.07+-0.01 0.13+-0.00 100.00+-0.00 0.00+-0.00 10.49+-0.70 0.00+-0.00
+three_turn_shaft D_multi_batt 0.07+-0.01 0.13+-0.00 100.00+-0.00 0.00+-0.00 0.00+-0.00 0.00+-0.00
+three_turn_flat_battery A_single_abs 234.02+-38.20 576.00+-197.06 38.00+-12.55 62.00+-12.55 0.00+-0.00 0.00+-0.00
+three_turn_flat_battery B_incremental 539.48+-63.44 1052.64+-38.08 2.00+-2.74 98.00+-2.74 0.00+-0.00 0.00+-0.00
+three_turn_flat_battery C_incr_home 0.07+-0.01 0.13+-0.00 100.00+-0.00 0.00+-0.00 10.49+-0.70 0.00+-0.00
+three_turn_flat_battery D_multi_batt 0.07+-0.01 0.13+-0.00 100.00+-0.00 0.00+-0.00 10.49+-0.70 20.00+-0.00
+single-turn absolute is exact only when the range fits one turn; multi-turn needs a kept turn count
+XL330 Extended Position: power-off resets Present Position to one turn (e-Manual, 以原文为准)
+No winner is declared; real servos / encoders / battery packs: 本页未运行
