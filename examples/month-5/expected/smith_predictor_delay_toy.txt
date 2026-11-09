@@ -1,0 +1,56 @@
+Synthetic first-order-plus-delay toy; one PI designed on the delay-free model; arms differ only in the controller; shared plant / reference / load / noise draws
+TS=0.01 s, Euler H=0.0010 s (10 sub-steps), LAMBDA_C=0.15 s, step at 0.5 s, load at 4.0 s, T=8.0 s; seeds=5
+Euler stability: need H < 2*tau_min = 0.8233 s; H=0.0010 s ok
+  long_delay seed 0: K=0.873 tau=0.553 s k=20 C model k_hat=29 K_hat=1.019
+  long_delay seed 1: K=1.090 tau=0.539 s k=20 C model k_hat=12 K_hat=0.971
+  long_delay seed 2: K=1.019 tau=0.422 s k=20 C model k_hat=30 K_hat=1.122
+  long_delay seed 3: K=1.046 tau=0.449 s k=20 C model k_hat=13 K_hat=1.242
+  long_delay seed 4: K=0.867 tau=0.503 s k=20 C model k_hat=29 K_hat=0.851
+  wrong_delay_big seed 0: K=1.060 tau=0.455 s k=20 C model k_hat=0 K_hat=1.062
+  wrong_delay_big seed 1: K=1.102 tau=0.539 s k=20 C model k_hat=0 K_hat=1.138
+  wrong_delay_big seed 2: K=1.157 tau=0.412 s k=20 C model k_hat=40 K_hat=1.179
+  wrong_delay_big seed 3: K=1.026 tau=0.475 s k=20 C model k_hat=39 K_hat=1.031
+  wrong_delay_big seed 4: K=1.017 tau=0.481 s k=20 C model k_hat=39 K_hat=1.021
+regime arm ISE overshoot_% settle_s  (mean+-sd over seeds; 2 % band; settle capped at 3.50 s = not settled before the load step)
+zero_delay (delay 0 samples = 0.00 s; C delay model off by 30%-50%, gain -20%..+20%)
+  A_pi_ignore 0.0736+-0.0116 0.1622+-0.0373 0.5660+-0.0089
+  B_smith 0.0736+-0.0116 0.1622+-0.0373 0.5660+-0.0089
+  C_smith_wrong 0.0736+-0.0116 0.1622+-0.0373 0.5660+-0.0089
+  paired A-B ise: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B over: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B settle: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B ise: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B over: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B settle: 0.0000+-0.0000: tie: identical on every seed
+long_delay (delay 20 samples = 0.20 s; C delay model off by 30%-50%, gain -20%..+20%)
+  A_pi_ignore 0.8114+-0.1880 87.5436+-0.1121 3.5000+-0.0000
+  B_smith 0.2955+-0.0673 0.2247+-0.0487 0.7680+-0.0045
+  C_smith_wrong 0.3173+-0.0841 6.1515+-9.4528 1.3860+-0.2715
+  paired A-B ise: 0.5159+-0.1210: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B over: 87.3189+-0.1214: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B settle: 2.7320+-0.0045: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B ise: 0.0218+-0.0248: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired C-B over: 5.9267+-9.4293: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired C-B settle: 0.6180+-0.2675: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+short_delay (delay 4 samples = 0.04 s; C delay model off by 30%-50%, gain -20%..+20%)
+  A_pi_ignore 0.0875+-0.0186 0.1700+-0.0706 0.4120+-0.0084
+  B_smith 0.1031+-0.0219 0.1440+-0.0739 0.6040+-0.0055
+  C_smith_wrong 0.1005+-0.0247 0.1499+-0.0732 0.5680+-0.0719
+  paired A-B ise: -0.0156+-0.0032: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B over: 0.0260+-0.0060: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B settle: -0.1920+-0.0045: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B ise: -0.0026+-0.0047: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired C-B over: 0.0059+-0.0058: small but consistent gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  paired C-B settle: -0.0360+-0.0716: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+wrong_delay_big (delay 20 samples = 0.20 s; C delay model off by 90%-110%, gain -5%..+5%)
+  A_pi_ignore 0.7581+-0.1962 87.4310+-0.1945 3.5000+-0.0000
+  B_smith 0.2769+-0.0702 0.1986+-0.0229 0.7660+-0.0055
+  C_smith_wrong 0.5363+-0.2757 43.2077+-40.3949 3.5000+-0.0000
+  paired A-B ise: 0.4812+-0.1260: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B over: 87.2324+-0.1994: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B settle: 2.7340+-0.0055: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B ise: 0.2594+-0.2363: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B over: 43.0091+-40.3948: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B settle: 2.7340+-0.0055: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: with a true model the Smith predictor takes the delay out of the loop; with no delay it is the same PI; with the wrong delay it can lose
+Real delayed plant / bench: 本页未运行; Smith-predictor statements 以原文为准

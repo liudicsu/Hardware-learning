@@ -1,6 +1,16 @@
 # Month 4 plan / 第4个月计划
 
-Current / 当前：**M4 2310 min**, Batch-12 PR1. Earlier entries below retain their historical totals.
+Current / 当前：**M4 2490 min**, Batch-14 PR2. Earlier entries below retain their historical totals.
+
+## Batch-14 PR2 / 本月 H3 (+180)
+
+Base `4b996f7` (batch-14 PR1 merged as #157; site **30600**). PR2 on M4 host: **M4 2310→2490 (+180)**; M5 moves in the same PR on its own plan. Site **30600→30960**, still 71 lessons.
+
+- **H3 / 4.3 urdf-tf: 240→420 (+180).** tf2 Buffer lookup time. Toy `tf_buffer_time_lookup_toy.py`: closed-form joint trajectory and a lookup-table buffer (no time step), arms A time 0 / B stamped lookup with a 50 ms timeout / C hand-written extrapolation; shared trajectory, broadcast stamps and latencies, image stamps and delivery lags (common random numbers, 5 seeds). static_tree: all **tie** (identical on every seed); lagging_stamp: A−B err 170.5300±37.6692 mm, clear, 5/5, C−B **tie**; fresh_stamp: C−B err 15.5360±3.4333, clear, 5/5, B waits 30.4452±0.4321 ms (B loses on latency); tf_dropout: B fails on 19.7531±0.5040 % of images (B loses on failures, clear, 5/5). Added a whole-lesson final Summary in en/zh (the host had none). ≠ SROS2 / composition; ≠ Gazebo Δt. Real `ros2 run tf2_ros` 本页未运行.
+
+**Allocation / 安排:** 30+30+40+40+40=180 minutes.
+
+**Site accounting / 全站核算:** **30960=30600+360** with M5 +180 on month-5-plan.md; **M4=2490**, **71 lessons**.
 
 ## Batch-12 PR1 / 本月 H2 (+180)
 

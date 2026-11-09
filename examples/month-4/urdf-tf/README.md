@@ -15,3 +15,12 @@ check_urdf /tmp/robot.urdf && python3 inertia_check.py /tmp/robot.urdf
 
 Needs ROS 2 Jazzy (see [`../README.md`](../README.md)). These are real runs on a computer; RViz only draws the model, there is no simulator and no robot. `../check.sh` repeats every command quoted in the lesson, and `../render_figures.sh` re-renders the two pictures in `public/m4/` (also needs graphviz, xvfb and Pillow). The package licence is left as the `TODO` placeholder on purpose.
 需要 ROS 2 Jazzy（见 [`../README.md`](../README.md)）。这些都是电脑上的真实运行；RViz 只是把模型画出来，没有仿真器，也没有机器人。`../check.sh` 会重复课程里引用的每一条命令，`../render_figures.sh` 会重新渲染 `public/m4/` 里的两张图（另需 graphviz、xvfb 和 Pillow）。包的许可证故意保留 `TODO` 占位符。
+
+## tf_buffer_time_lookup_toy.py — lookup time / 查询时间
+
+Standard-library synthetic tf2 Buffer stand-in, no ROS needed: one pan joint at 50 Hz, a 30 Hz camera, and three lookup rules (time 0, the image stamp with a 50 ms timeout, hand-written extrapolation); five seeds, common random numbers. Expected output in `../expected/tf_buffer_time_lookup_toy.txt`, compared by `../check.sh` even without ROS. Not tf2 itself; real `ros2 run tf2_ros …` 本页未运行.
+标准库合成的 tf2 缓冲区替身，不需要 ROS：50 Hz 的云台关节、30 Hz 的相机，比较三种查询规则（时间 0、带 50 ms 超时的图像时间戳、手写外推）；5 个种子，共用随机数。输出在 `../expected/tf_buffer_time_lookup_toy.txt`，没有 ROS 时 `../check.sh` 也会核对。不是 tf2 本身；真实 `ros2 run tf2_ros …` 本页未运行。
+
+```bash
+python3 tf_buffer_time_lookup_toy.py
+```

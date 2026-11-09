@@ -19,6 +19,7 @@ check() {
 }
 
 check sysid_pe_compare_toy.txt "$PY" "$M5/control-modelling/sysid_pe_compare_toy.py"
+check smith_predictor_delay_toy.txt "$PY" "$M5/control-modelling/smith_predictor_delay_toy.py"
 check lqr_model_error_toy.txt "$PY" "$M5/state-space-lqr/lqr_model_error_toy.py"
 check discrete_lqr_zoh_toy.txt "$PY" "$M5/state-space-lqr/discrete_lqr_zoh_toy.py"
 
