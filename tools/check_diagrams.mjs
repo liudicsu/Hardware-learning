@@ -7442,5 +7442,23 @@ print("protocol pass")
   console.log("forge-thinkact PR3: FORGE-Tree segment search, ThinkAct plan latent and M10 3330 / site 32490 locked");
 }
 
+// Batch-15 polish: Nav2 RPP std::min basis (4.6), MAP-VLA 8 authors (10.5), two samples per period (1.x). Minutes unchanged.
+{
+  const read=p=>readFileSync(join(root,p),"utf8");
+  for(const lang of ["en","zh"]){
+    const sn=read(`src/content/m4/slam-nav/${lang}.mdx`);
+    ok(sn.includes("linear_vel = std::min(cost_vel, curvature_vel)")&&sn.includes("nav2_regulated_pure_pursuit_controller/src/regulated_pure_pursuit_controller.cpp")&&sn.includes("Use the lowest of the 2 constraints")&&sn.includes("regulated_linear_scaling_min_speed")&&sn.includes("以原文为准"),`b15pol slam-nav ${lang}: Nav2 RPP source uses std::min`);
+    const il=read(`src/content/m10/intervention-logging/${lang}.mdx`);
+    ok(il.includes("Runhao Li et al.")&&il.includes(lang==="en"?"8 authors with the full list on the resource card":"Runhao Li 等 8 位作者"),`b15pol intervention-logging ${lang}: MAP-VLA 8 authors`);
+    const pt=read(`src/content/m1/python-terminal/${lang}.mdx`);
+    ok(pt.includes(lang==="en"?"**Why about two samples per period.**":"**为什么每个周期至少要约两个采样。**")&&pt.includes(lang==="en"?"at least one in every half-cycle":"每半个周期至少一个"),`b15pol python-terminal ${lang}: two samples per period`);
+  }
+  ok(read("src/lib/resources.ts").includes("Runhao Li, Wenkai Guo, Zhenyu Wu, Changyuan Wang, Haoyuan Deng, Zhenyu Weng, Yap-Peng Tan, Ziwei Wang"),"b15pol MAP-VLA full author list (8) in resources");
+  const note=read("docs/notes/batch-15-polish-sources.md");
+  ok(["8ad7892","32490","raw.githubusercontent.com/ros-navigation/navigation2/main/nav2_regulated_pure_pursuit_controller/src/regulated_pure_pursuit_controller.cpp","raw.githubusercontent.com/ros-navigation/navigation2/jazzy/","HTTP **200**","**line 390**","**line 473**","std::min(cost_vel, curvature_vel)","404","2511.09516","**8 authors**","J-STD-020","No lock relaxed"].every(x=>note.includes(x)),"b15pol sources note");
+  ok(/32 490/.test(read("README.md"))&&/约 32 490 分钟/.test(read("README.md")),"b15pol README site minutes unchanged (en + zh)");
+  console.log("batch-15 polish: Nav2 RPP std::min, MAP-VLA 8 authors, two samples per period; minutes 32490; no lock relaxed");
+}
+
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
 process.exit(failed ? 1 : 0);

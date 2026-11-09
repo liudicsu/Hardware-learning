@@ -1079,7 +1079,7 @@ Open3D / real lidar / SLAM Toolbox registration: 本页未运行
 - 这里的 DWA 瞄准前视点而不是最终目标，所以两种控制器追的是同一个目标。
 - `heading` 在一个周期后到达的位姿上打分。Fox 预测的是一个周期再加最大制动之后的位姿，这里做了简化。
 - 没有平滑 `σ`，只用式 14 的平移部分。
-- RPP 取曲率速度和接近速度中**较小**的一个。这是保守的读法；论文正文写的是最大值。它的速度不低于 0.25 m/s，碰撞圆弧被挡住时就停下。
+- RPP 取曲率速度和接近速度中**较小**的一个。这是保守的读法；论文正文写的是最大值。Nav2 自己的实现也是这样读的：`nav2_regulated_pure_pursuit_controller/src/regulated_pure_pursuit_controller.cpp` 里的 `applyConstraints()` 在注释 "Use the lowest of the 2 constraints" 下写 `linear_vel = std::min(cost_vel, curvature_vel)`，再用 `std::max` 抬到 `regulated_linear_scaling_min_speed`（main 与 jazzy 分支，2026-11-10 读取；以原文为准）。它的速度不低于 0.25 m/s，碰撞圆弧被挡住时就停下。
 
 | 组 | 速度选择 | 安全检查 |
 |---|---|---|

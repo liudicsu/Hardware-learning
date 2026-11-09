@@ -687,6 +687,8 @@ A real tone at `f` sampled at `fs` is read at the folded frequency, the distance
 
 **Worked example.** With `fs = 50 Hz` the Nyquist frequency is 25 Hz. A 40 Hz tone gives `40 mod 50 = 40`, and `50 − 40 = 10`, so the samples look exactly like a 10 Hz tone. With `fs = 200 Hz` the same 40 Hz tone is below `fs/2 = 100 Hz` and is read at 40 Hz, but a 150 Hz vibration on the same wire folds to `200 − 150 = 50 Hz` and appears as a peak that was never in the band you wanted. At the boundary: with `fs = 100 Hz`, a 49 Hz tone (0.98 × fs/2) is read at 49 Hz and a 51 Hz tone (1.02 × fs/2) is also read at 49 Hz.
 
+**Why about two samples per period.** To tell a sinusoid apart from slower ones, the samples must catch it going both up and down, so you need more than two samples per period, at least one in every half-cycle; with fewer, a slower sinusoid passes through exactly the same sample points and the two cannot be told apart.
+
 An anti-alias prefilter is a low-pass placed **before** the sampler. This toy uses a 4th-order Butterworth magnitude with its corner at a quarter of the sample rate:
 
 <Formula label="Prefilter magnitude">|H(f)| = 1 / √(1 + (f / FC)^8), FC = 0.25 × fs</Formula>

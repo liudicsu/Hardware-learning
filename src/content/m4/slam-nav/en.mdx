@@ -1079,7 +1079,7 @@ With the same 1.0 m obstacle this gives `v² + 0.25·v − 1 = 0`, so `v ≤ 0.8
 - DWA here aims at the carrot, not at the final goal, so the two controllers chase the same target.
 - `heading` is scored at the pose reached after one period. Fox predicts the pose after one period plus maximal braking; that is simplified here.
 - There is no smoothing `σ`, and only the translational half of eq. 14 is used.
-- RPP takes the **smaller** of its curvature and proximity speeds. That is the conservative reading; the paper's text says maximum. It never goes below 0.25 m/s, and it stops when its collision arc is blocked.
+- RPP takes the **smaller** of its curvature and proximity speeds. That is the conservative reading; the paper's text says maximum. Nav2's own implementation takes the same reading: `applyConstraints()` in `nav2_regulated_pure_pursuit_controller/src/regulated_pure_pursuit_controller.cpp` sets `linear_vel = std::min(cost_vel, curvature_vel)` under the comment "Use the lowest of the 2 constraints" and then raises it to `regulated_linear_scaling_min_speed` with `std::max` (main and jazzy branches, read 2026-11-10; 以原文为准). It never goes below 0.25 m/s, and it stops when its collision arc is blocked.
 
 | Arm | Velocity choice | Safety test |
 |---|---|---|
