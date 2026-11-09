@@ -1,6 +1,16 @@
 # Month 1 plan / 第 1 个月计划
 
-Current / 当前：**M1 1170 min**, Batch-10 PR2. Earlier entries below retain their historical totals.
+Current / 当前：**M1 1350 min**, Batch-11 PR1. Earlier entries below retain their historical totals.
+
+## Batch-11 PR1 / 本月 H1 (+180)
+
+Base `262adda` (batch-10 closed; site **26940**). PR1 only on M1 host: **M1 1170→1350 (+180)**; M3 moves in the same PR on its own plan. Site **26940→27270**, still 71 lessons.
+
+- **H1 / 1.2 components: 420→600 (+180).** Wheatstone bridge + INA sense: shared ΔR/excitation; single-ended vs ideal bridge vs bridge+offset; small-δ noisy-CM bridge SNR win; large-δ quiet-CM single-ended tie; ≥5 seeds; ≠ ESD/ENOB. Real bridge 本页未运行. / 电桥与仪表放，不宣布应变片实验。
+
+**Allocation / 安排:** 30+45+45+45+15=180 minutes.
+
+**Site accounting / 全站核算:** **27270=26940+330** with M3 +150 on month-3-plan.md; **M1=1350**, **71 lessons**.
 
 ## Batch-10 PR2 / 本月 H3 (+150)
 

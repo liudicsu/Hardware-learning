@@ -1,6 +1,16 @@
 # Month 3 plan / 第 3 个月计划
 
-Current / 当前：**M3 1620 min**, Batch-9 PR2. Earlier entries below retain their historical totals.
+Current / 当前：**M3 1770 min**, Batch-11 PR1. Earlier entries below retain their historical totals.
+
+## Batch-11 PR1 / 本月 H2 (+150)
+
+Base `262adda` (batch-10 closed; site **26940**). PR1 only on M3 host: **M3 1620→1770 (+150)**; M1 moves in the same PR on its own plan. Site **26940→27270**, still 71 lessons.
+
+- **H2 / 3.1 cad-parametric: 150→300 (+150).** GD&T bilateral / stack-up: shared chain; worst-case vs RSS vs datum re-root; short-chain exact tie; skewed MC shows RSS unsafe; ≥5 seeds; no ASME certification. CMM 本页未运行. / 公差累积，不宣布 ASME 认证。
+
+**Allocation / 安排:** 30+30+45+30+15=150 minutes.
+
+**Site accounting / 全站核算:** **27270=26940+330** with M1 +180 on month-1-plan.md; **M3=1770**, **71 lessons**.
 
 Batch-5 PR1, base39215d6: six lessons retained, **1290→1470 min (+180)**. Only `transmissions` deepened; other lesson minutes unchanged. / 保留六课，只深化 `transmissions`，其余课时不变。
 

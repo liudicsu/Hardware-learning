@@ -3936,8 +3936,8 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 26940, "b10p2 curriculum: 26940 minutes (tip after PR3)");
-  for (const [month, expected] of [[1, 1170], [2, 3030], [3, 1620], [4, 2130], [5, 1950], [6, 2190], [7, 2070], [8, 3180], [9, 3690], [10, 2490], [11, 3420]]) {
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 27270, "b11p1 curriculum: 27270 minutes (tip after PR1)");
+  for (const [month, expected] of [[1, 1350], [2, 3030], [3, 1770], [4, 2130], [5, 1950], [6, 2190], [7, 2070], [8, 3180], [9, 3690], [10, 2490], [11, 3420]]) {
     ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `current curriculum M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
@@ -4923,7 +4923,7 @@ for (const m of readdirSync(content)) {
   for (const id of ["dreamgen-paper", "lapa-paper", "smolvla-paper", "lerobot-async"]) {
     ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `wm2 resource ${id}: present + extra`);
   }
-  ok(/26 940/.test(read("README.md")), "b10p2 README: 26 940 minutes (tip after PR3)");
+  ok(/27 270/.test(read("README.md")), "b11p1 README: 27 270 minutes (tip after PR1)");
   console.log("worldmodel-smolvla PR2: neural trajectories + async chunk locks checked");
 }
 
@@ -5363,7 +5363,7 @@ print("protocol pass")
   for (const [month,slug,toy,minutes,added,summaryMarkers,markers] of [
     [2,"motors-drivers","winding_thermal_rc_toy",720,180,["I²R(T)","I²R(T)"],["R20","α20","20 °C","1.01965","P·Rθ","P·t/Cθ","t ≪ τ","Rθ","Cθ","11.1","4800","153.001","6709.332","70.025","2843.554","2 trips","0.2 s","本页未运行"]],
     [2,"arduino-io","i2c_risetime_toy",660,150,["I2C RC","I2C RC"],["30 %–70 %","ln(7/3)","SLVA689A Table 2-1","1000 ns","300 ns","120 ns","Sm","Fm+","1300 ns","1500 ns","2500 ns","0.12","100 pF / 400 pF","A5 00 FF 5A","847.298 / 186.406 / 745.622","36 / 0 / 36","0/36/36","0/0/36","966.667","885.167","本页未运行"]],
-    [1,"components","supply_dip_decoupling_toy",420,150,["ESL+ESR+C","ESL+ESR+C"],["ESL+ESR+C","10 µF","SRF","0.711763 / 1.591549 / 5.626977 / 5.626977 MHz","20 MHz","11.1","SCLS085L","0.1 µF","3.233928 / 3.275589 / 3.278804 / 3.226711","0.066072 / 0.024411 / 0.021196 / 0.073289","0.237254 / 0.795775 / 0.906869 / 0.159091","0.376991","0.010053","0.000796","ESR","ESL","FCC/CE","本页未运行"]],
+    [1,"components","supply_dip_decoupling_toy",600,150,["ESL+ESR+C","ESL+ESR+C"],["ESL+ESR+C","10 µF","SRF","0.711763 / 1.591549 / 5.626977 / 5.626977 MHz","20 MHz","11.1","SCLS085L","0.1 µF","3.233928 / 3.275589 / 3.278804 / 3.226711","0.066072 / 0.024411 / 0.021196 / 0.073289","0.237254 / 0.795775 / 0.906869 / 0.159091","0.376991","0.010053","0.000796","ESR","ESL","FCC/CE","本页未运行"]],
   ]) {
     const source=read(`examples/month-${month}/${slug}/${toy}.py`), expected=read(`examples/month-${month}/expected/${toy}.txt`);
     ok(execFileSync("python3",[join(root,`examples/month-${month}/${slug}/${toy}.py`)],{encoding:"utf8",env})===expected,`b6p1 ${toy}: actual stdout matches new expected`);
@@ -5938,7 +5938,7 @@ print("protocol pass")
   }
   const toyTr=read("examples/month-9/visual-servoing/visual_trace_prompt_toy.py");
   ok(/SEEDS = \(0, 1, 2, 3, 4\)/.test(toyTr)&&/SEEDS = \(0, 1, 2, 3, 4\)/.test(read("examples/month-3/so101-arm/abs_vs_incr_power_on_toy.py")),"b9p2 both toys use five seeds");
-  for(const [p,x] of [["docs/notes/month-3-plan.md",["Current / 当前：**M3 1620 min**, Batch-9 PR2","1470→1620","25020→25380","240→390","Batch-9 PR2"]],["docs/notes/month-9-plan.md",["3270→3480","25020→25380","420→630","Batch-9 PR2","Batch-10 PR3"]]]){
+  for(const [p,x] of [["docs/notes/month-3-plan.md",["## Batch-9 PR2","1470→1620","25020→25380","240→390","Batch-9 PR2"]],["docs/notes/month-9-plan.md",["3270→3480","25020→25380","420→630","Batch-9 PR2","Batch-10 PR3"]]]){
     const plan=read(p); ok(x.every(y=>plan.includes(y))&&!plan.endsWith("\n\n"),`b9p2 ${p}: header and PR2-only accounting`);
   }
   ok(read("docs/notes/batch-9-pr2-sources.md").includes("All 201 prior expected"),"b9p2 prior-output/source/model audit");
@@ -6093,7 +6093,7 @@ print("protocol pass")
   }
   const plan=read("docs/notes/month-2-plan.md");
   ok(plan.startsWith("# Month 2")&&["Current / 当前：**M2 3030 min**, Batch-10 PR1","2670→3030","25800→26160","480→660","540→720","Batch-10 PR1"].every(x=>plan.includes(x)),"b10p1 month-2 plan header and PR1-only accounting");
-  ok(/26 940/.test(read("README.md")),"b10p2 README site minutes (tip after PR3)");
+  ok(/27 270/.test(read("README.md")),"b11p1 README site minutes (tip after batch-10)");
   console.log("enob-magcal PR1: ADC ENOB / front-end noise, mag hard/soft-iron and M2 3030 / site 26160 locked");
 }
 
@@ -6103,7 +6103,7 @@ print("protocol pass")
   const read=p=>readFileSync(join(root,p),"utf8"), env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
   const cur=read("src/lib/curriculum.ts"), res=read("src/lib/resources.ts");
   const cases=[
-    [1,"components","esd_tvs_clamp_toy",420,["## ESD and TVS","## ESD 与 TVS"],
+    [1,"components","esd_tvs_clamp_toy",600,["## ESD and TVS","## ESD 与 TVS"],
       ["HBM C=100pF R=1500ohm","seeds=5","Isc≈1.333A","A_unprotected 1848.1879+-94.2503","B_tvs 9.9293+-0.0988","C_series_tvs 9.8460+-0.0946","No winner declared"],
       ["100 pF","1500 Ω","VRWM","VBR","VCLAMP","RDYN","A_unprotected","B_tvs","C_series_tvs","以原文为准","本页未运行"],
       {en:["**not** the supply-dip","**synthetic**","No winner is declared","not** an IEC","VRWM < VBR < VCLAMP"],zh:["**不是**上面的电源跌落","**合成**","不宣布赢家","不是** IEC","VRWM < VBR < VCLAMP"]},
@@ -6145,9 +6145,9 @@ print("protocol pass")
     ok((en.match(/```/g)||[]).length===(zh.match(/```/g)||[]).length&&(en.match(/^### /gm)||[]).length===(zh.match(/^### /gm)||[]).length,`b10p2 ${slug}: en/zh structurally symmetric`);
   }
   const p1=read("docs/notes/month-1-plan.md"), p11=read("docs/notes/month-11-plan.md");
-  ok(p1.startsWith("# Month 1")&&["Current / 当前：**M1 1170 min**, Batch-10 PR2","1020→1170","26160→26520","270→420","Batch-10 PR2"].every(x=>p1.includes(x)),"b10p2 month-1 plan header");
+  ok(p1.startsWith("# Month 1")&&["## Batch-10 PR2","1020→1170","26160→26520","270→420","Batch-10 PR2"].every(x=>p1.includes(x)),"b10p2 month-1 plan header");
   ok(p11.includes("Current / 当前：**M11 3420 min**, Batch-10 PR2")&&["3210→3420","26160→26520","480→690","Batch-10 PR2"].every(x=>p11.includes(x)),"b10p2 month-11 plan header");
-  ok(/26 940/.test(read("README.md")),"b10p2 README site minutes (tip after PR3)");
+  ok(/27 270/.test(read("README.md")),"b11p1 README site minutes (tip after batch-10)");
   console.log("esd-groundloop PR2: ESD/TVS clamp, shared-return ground loop and M1 1170 / M11 3420 / site 26520 locked");
 }
 
@@ -6202,8 +6202,63 @@ print("protocol pass")
   const p9=read("docs/notes/month-9-plan.md"), p10=read("docs/notes/month-10-plan.md");
   ok(p9.startsWith("# Month 9")&&["Current / 当前：**M9 3690 min**, Batch-10 PR3","3480→3690","26520→26940","420→630","Batch-10 PR3"].every(x=>p9.includes(x)),"b10p3 month-9 plan header");
   ok(p10.includes("Current / 当前：**M10 2490 min**, Batch-10 PR3")&&["2280→2490","26520→26940","240→450","Batch-10 PR3"].every(x=>p10.includes(x)),"b10p3 month-10 plan header");
-  ok(/26 940/.test(read("README.md")),"b10p3 README site minutes");
+  ok(/27 270/.test(read("README.md")),"b11p1 README site minutes");
   console.log("spatialvla-memoryvla PR3: SpatialVLA Ego3D/grids, MemoryVLA bank and M10 2490 / M9 3690 / site 26940 locked");
+}
+
+
+
+// Batch-11 PR1: Wheatstone/INA (1.2) and GD&T stack (3.1).
+{
+  const read=p=>readFileSync(join(root,p),"utf8"), env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
+  const cur=read("src/lib/curriculum.ts"), res=read("src/lib/resources.ts");
+  const cases=[
+    [1,"components","wheatstone_bridge_sense_toy",600,["## Wheatstone bridge and instrumentation-amp sense","## 惠斯通电桥与仪表放大器传感"],
+      ["seeds=5","small_delta_noisy_cm A_single_ended","large_delta_quiet_cm A_single_ended","No winner declared","|SNR_A - SNR_B|"],
+      ["Wheatstone","quarter-bridge","A_single_ended","B_bridge_ideal","C_bridge_offset","INA","以原文为准","本页未运行"],
+      {en:["**not** the ESD/TVS","**synthetic**","does not declare a universal winner","strain-gauge"],zh:["**不是** ESD/TVS","**合成**","不宣布普遍赢家","应变片"]},
+      {en:["Wheatstone / INA","single-ended tie","INA offset"],zh:["惠斯通 / INA","单端追平","INA 失调"]},
+      ["ti-sloa034","ina126-ds","wiki-wheatstone"]],
+    [3,"cad-parametric","gdt_tolerance_stack_toy",300,["## GD&T bilateral tolerances and stack-up","## GD&T 双边公差与累积"],
+      ["seeds=5","short_chain A_worst_case","long_skew B_rss","No winner declared","RSS under-covers"],
+      ["worst-case","RSS","datum","A_worst_case","B_rss","C_datum_reroot","ASME","以原文为准","本页未运行"],
+      {en:["**not** the datum-chaining quiz alone","**synthetic**","does not declare a universal winner","ASME Y14.5"],zh:["**不是**单独的基准串联","**合成**","不宣布普遍赢家","ASME Y14.5"]},
+      {en:["GD&T stack","RSS can be unsafe","ASME Y14.5"],zh:["GD&T 累积","RSS 可能不安全","ASME Y14.5"]},
+      ["wiki-gdt","wiki-tol-analysis"]],
+  ];
+  for(const [month,slug,toy,minutes,heads,outputs,markers,langMarkers,summaryMarkers,ids] of cases){
+    const file=`examples/month-${month}/${slug}/${toy}.py`,py=read(file).trim(),expected=read(`examples/month-${month}/expected/${toy}.txt`).trim();
+    const harness=read(`examples/month-${month}/check.sh`);
+    ok(execFileSync("python3",[join(root,file)],{cwd:root,encoding:"utf8",env}).trim()===expected,`b11p1 ${toy}: actual expected output`);
+    for(const x of outputs)ok(expected.includes(x),`b11p1 ${toy}: result ${x}`);
+    ok(cur.match(new RegExp(`slug: "${slug}"[\\s\\S]*?minutes: (\\d+)`))?.[1]===String(minutes),`b11p1 ${slug}: ${minutes} min`);
+    const host=cur.slice(cur.indexOf(`slug: "${slug}"`)).split("\n  },")[0];
+    ok(host.includes(toy)&&ids.every(id=>host.includes(`"${id}"`)),`b11p1 ${slug}: task names toy and resources wired`);
+    for(const id of ids)ok(res.includes(`"${id}": {`),`b11p1 opened source ${id}`);
+    ok(harness.includes(`${slug}/${toy}.py`)||harness.includes(`${toy}.py`),`b11p1 ${toy}: month harness`);
+    ok(harness.includes(`${toy}.txt`),`b11p1 ${toy}: expected compare`);
+    for(const [index,lang] of ["en","zh"].entries()){
+      const md=read(`src/content/m${month}/${slug}/${lang}.mdx`),summary=md.indexOf("<Summary>"),end=md.indexOf("</Summary>");
+      ok(summary>0&&summary===md.lastIndexOf("<Summary>")&&md.slice(end+10).trim()==="",`b11p1 ${slug} ${lang}: sole whole-lesson Summary ends page`);
+      const head=md.indexOf(heads[index]);
+      ok(head>0&&head<summary,`b11p1 ${slug} ${lang}: new section before Summary`);
+      const sec=md.slice(head,summary);
+      ok(sec.includes(py)&&sec.includes(expected)&&sec.includes(`<CodeSource path="${file}" />`),`b11p1 ${slug} ${lang}: exact source/stdout in section`);
+      const ex=sec.lastIndexOf(lang==="en"?"### Exercises":"### 练习");
+      ok(ex>sec.indexOf("</SimOutput>")&&(sec.slice(ex).match(/^\d\. /gm)||[]).length===5,`b11p1 ${slug} ${lang}: five exercises after output`);
+      for(const x of [...markers,...langMarkers[lang]])ok(sec.includes(x),`b11p1 ${slug} ${lang}: mechanism/scope ${x}`);
+      ok(lang==="en"?/\*\*synthetic\*\*/.test(sec)&&sec.includes("mean±sd"):sec.includes("**合成**")&&sec.includes("mean±sd"),`b11p1 ${slug} ${lang}: synthetic label and spread`);
+      const summ=md.slice(summary,end);
+      for(const x of summaryMarkers[lang])ok(summ.includes(x),`b11p1 ${slug} ${lang}: Summary sentence ${x}`);
+    }
+    const en=read(`src/content/m${month}/${slug}/en.mdx`),zh=read(`src/content/m${month}/${slug}/zh.mdx`);
+    ok((en.match(/```/g)||[]).length===(zh.match(/```/g)||[]).length&&(en.match(/^### /gm)||[]).length===(zh.match(/^### /gm)||[]).length,`b11p1 ${slug}: en/zh structurally symmetric`);
+  }
+  const p1=read("docs/notes/month-1-plan.md"), p3=read("docs/notes/month-3-plan.md");
+  ok(p1.startsWith("# Month 1")&&["Current / 当前：**M1 1350 min**, Batch-11 PR1","1170→1350","26940→27270","420→600","Batch-11 PR1"].every(x=>p1.includes(x)),"b11p1 month-1 plan header");
+  ok(p3.startsWith("# Month 3")&&["Current / 当前：**M3 1770 min**, Batch-11 PR1","1620→1770","26940→27270","150→300","Batch-11 PR1"].every(x=>p3.includes(x)),"b11p1 month-3 plan header");
+  ok(/27 270/.test(read("README.md")),"b11p1 README site minutes");
+  console.log("bridge-gdt PR1: Wheatstone/INA, GD&T stack and M1 1350 / M3 1770 / site 27270 locked");
 }
 
 

@@ -829,6 +829,247 @@ ESD gun / real TVS / IEC 61000 lab: 本页未运行; TI numbers 以原文为准
 4. 在 C 臂上比较打印的 IC 引脚峰值与 IC 钳位电流相对连接器 / TVS；不要编造上升时间结论。
 5. 任何真机实验前（本页未运行），写明为何本玩具不能当作 IEC 61000 结果引用。
 
+## 惠斯通电桥与仪表放大器传感
+
+前面的分压与 LED 计算把单端电压对地处理。应变、力与压力传感器更常用**惠斯通电桥**：四个电阻、差分中点电压，以及抑制共享共模轨的仪表放大器。本节讲这条路径。它**不是** ESD/TVS 钳位玩具，也**不是** ADC ENOB 噪声玩具。
+
+<Resource id="ti-sloa034" />
+<Resource id="ina126-ds" />
+<Resource id="wiki-wheatstone" />
+
+**实际打开的来源（PDF/HTML 正文已核验）。**
+
+- **TI SLOA034（《Signal Conditioning Wheatstone Resistive Bridge Sensors》）：** 电阻桥传感器（应变 / 压力）在约 `½ Vexc` 的共模上产生差分 `Vsig = (SIG+) − (SIG−)`；满量程桥输出通常 **10–100 mV**，需要能抑制共模的差分 / 仪表放大器。
+- **TI INAx126 数据手册：** 微功耗仪表放大器；增益 **`G = 5 + (80 kΩ / RG)`**（5 V/V 至 10 000 V/V）；低输入失调（250 µV 最大量级）。数字 以原文为准。
+- **Wikipedia — Wheatstone bridge：** 两条分压腿；检流计 / 差分电压 `V_G` 是中点之差；平衡时 `V_G = 0` 且 `R2/R1 = Rx/R3`。数字 以原文为准。真实电桥 / INA / 应变片实验：**本页未运行**。
+
+### 四分之一桥入门
+
+三臂为 `R0`、一臂为有源应变片 `R0(1+δ)` 时，右中点为 `Vexc · (1+δ)/(2+δ)`，左中点保持 `Vexc/2`，故
+
+<Formula label="四分之一桥差分">V_G = Vexc · ((1+δ)/(2+δ) − 1/2)</Formula>
+
+小 `δ` 时约为 `Vexc · δ/4`。相对中点的单端应变片分压看到**同一**应变片规律，但保留全部共模毛刺。INA 式级再把 `V_G` 乘以 `G`，并可叠加输入端折合失调。
+
+### 公平设置
+
+`wheatstone_bridge_sense_toy.py` 是**合成**的，只用标准库。每个臂共享**同一** `Vexc = 5 V`、`R0 = 350 Ω`、后级增益 `G = 100`，以及**同一**制度 `(δ, CM)` 日程：
+
+| 臂 | 读出 |
+|---|---|
+| A_single_ended | 应变片分压对中点，再乘 `G`（保留 CM） |
+| B_bridge_ideal | 四分之一桥 `V_G`，再理想 `G`（CM 抵消） |
+| C_bridge_offset | 同一电桥 + INA 式 RTI 失调，再乘 `G` |
+
+制度：`small_delta_noisy_cm`（桥 SNR 胜出）与 `large_delta_quiet_cm`（单端 SNR **追平**理想桥——不预设赢家）。指标：灵敏度、失调误差、SNR。五多种子 mean±sd。
+
+### 运行标准库玩具
+
+```bash
+cd ~/Hardware-learning/examples/month-1/components
+python3 wheatstone_bridge_sense_toy.py
+```
+
+<CodeSource path="examples/month-1/components/wheatstone_bridge_sense_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic Wheatstone bridge vs single-ended sense literacy toy. Stdlib only.
+
+Shared excitation, gauge R0 and fractional ΔR within each regime for every arm.
+Arms differ only in how the same resistors are read:
+  A_single_ended   one active divider vs mid-rail reference, then gain G
+  B_bridge_ideal   quarter-bridge differential V_G then ideal gain G
+  C_bridge_offset  same bridge + input-referred offset (INA-like) then G
+
+Regimes (shared ΔR + CM schedule per regime; ≥5 seeds):
+  small_delta_noisy_cm  — small ΔR, large CM: bridge SNR wins
+  large_delta_quiet_cm  — large ΔR, tiny CM: single-ended SNR ties ideal bridge
+No presumed winner across regimes. Not a strain-gauge lab.
+Real bridge / INA hardware: 本页未运行.
+"""
+from __future__ import annotations
+
+import math
+import random
+
+VEXC = 5.0  # synthetic excitation
+R0 = 350.0  # synthetic gauge ohms (TI SLOA034-style order)
+G_AMP = 100.0  # post gain (synthetic; INA126 G=5+80k/Rg can hit ~100)
+VOS_NOM = 250e-6  # INA126-class input offset, synthetic RTI max order
+DIFF_NOISE = 5.0e-5  # independent residual after differencing, V
+SEEDS = (0, 1, 2, 3, 4)
+ARMS = ("A_single_ended", "B_bridge_ideal", "C_bridge_offset")
+_ARM_SALT = {"A_single_ended": 11, "B_bridge_ideal": 22, "C_bridge_offset": 33}
+# (name, delta, cm_noise_V) — CM is part of the shared regime schedule
+REGIMES = (
+    ("small_delta_noisy_cm", 0.002, 2.0e-3),
+    ("large_delta_quiet_cm", 0.20, 4.0e-5),
+)
+
+
+def quarter_bridge_nodes(delta: float) -> tuple[float, float]:
+    """Left mid (fixed R0/R0) and right mid (R0 over R0*(1+delta))."""
+    v_left = VEXC * 0.5
+    r_g = R0 * (1.0 + delta)
+    v_right = VEXC * r_g / (R0 + r_g)
+    return v_left, v_right
+
+
+def v_bridge(delta: float) -> float:
+    v_l, v_r = quarter_bridge_nodes(delta)
+    return v_r - v_l
+
+
+def v_single_ended(delta: float) -> float:
+    _, v_r = quarter_bridge_nodes(delta)
+    return v_r - VEXC * 0.5
+
+
+def apply_arm(delta: float, cm_sigma: float, arm: str, seed: int) -> float:
+    rng = random.Random(30_000 + seed * 17 + _ARM_SALT[arm])
+    cm = rng.gauss(0.0, cm_sigma)
+    diff_n = rng.gauss(0.0, DIFF_NOISE)
+    if arm == "A_single_ended":
+        raw = v_single_ended(delta) + cm + diff_n
+        return G_AMP * raw
+    if arm == "B_bridge_ideal":
+        raw = v_bridge(delta) + diff_n  # shared CM cancels differentially
+        return G_AMP * raw
+    if arm == "C_bridge_offset":
+        vos = VOS_NOM * (0.6 + 0.8 * rng.random())
+        if rng.random() < 0.5:
+            vos = -vos
+        raw = v_bridge(delta) + vos + diff_n
+        return G_AMP * raw
+    raise ValueError(arm)
+
+
+def metrics_for(
+    delta: float, cm_sigma: float, arm: str, seed: int
+) -> tuple[float, float, float]:
+    y0 = apply_arm(0.0, cm_sigma, arm, seed)
+    y1 = apply_arm(delta, cm_sigma, arm, seed)
+    signal = y1 - y0
+    offset_err = abs(y0)
+    if arm == "A_single_ended":
+        noise_floor = max(abs(y0), G_AMP * cm_sigma * 0.5, G_AMP * DIFF_NOISE)
+    else:
+        noise_floor = max(G_AMP * DIFF_NOISE, abs(y0) * 0.25 + G_AMP * DIFF_NOISE)
+    snr = 20.0 * math.log10(max(abs(signal), 1e-30) / max(noise_floor, 1e-30))
+    sens = signal / delta if delta else 0.0
+    return sens, offset_err, snr
+
+
+def mean_sd(xs: list[float]) -> tuple[float, float]:
+    mu = sum(xs) / len(xs)
+    var = sum((x - mu) ** 2 for x in xs) / (len(xs) - 1)
+    return mu, math.sqrt(var)
+
+
+def main() -> None:
+    print(
+        "Synthetic Wheatstone/INA sense toy; shared ΔR/excitation; not a strain-gauge lab"
+    )
+    print(
+        f"Vexc={VEXC}V R0={R0}ohm G={G_AMP} Vos_nom={VOS_NOM*1e6:.0f}uV "
+        f"seeds={len(SEEDS)}"
+    )
+    print(
+        "model: quarter-bridge V_G=Vexc*(r_g/(R0+r_g)-1/2); "
+        "single-ended uses gauge divider vs mid-rail; "
+        "C adds INA-like RTI offset (TI INA126 G=5+80k/Rg literacy; SLOA034 bridge)"
+    )
+    print(
+        "regime arm sens_V_per_delta offset_err_V snr_dB (mean+-sd over seeds)"
+    )
+    summary = {}
+    for reg_name, delta, cm in REGIMES:
+        for arm in ARMS:
+            sens_l, off_l, snr_l = [], [], []
+            for seed in SEEDS:
+                s, o, sn = metrics_for(delta, cm, arm, seed)
+                sens_l.append(s)
+                off_l.append(o)
+                snr_l.append(sn)
+            sm, ss = mean_sd(sens_l)
+            om, os_ = mean_sd(off_l)
+            nm, ns = mean_sd(snr_l)
+            summary[(reg_name, arm)] = (nm, om)
+            print(
+                f"{reg_name} {arm} {sm:.4f}+-{ss:.4f} "
+                f"{om:.4f}+-{os_:.4f} {nm:.4f}+-{ns:.4f}"
+            )
+    a_s, b_s = summary[("small_delta_noisy_cm", "A_single_ended")][0], summary[
+        ("small_delta_noisy_cm", "B_bridge_ideal")
+    ][0]
+    a_l, b_l = summary[("large_delta_quiet_cm", "A_single_ended")][0], summary[
+        ("large_delta_quiet_cm", "B_bridge_ideal")
+    ][0]
+    print(
+        f"small_delta_noisy_cm: bridge SNR advantage B-A = {b_s - a_s:.2f} dB "
+        f"(bridge wins on CM rejection)"
+    )
+    print(
+        f"large_delta_quiet_cm: |SNR_A - SNR_B| = {abs(a_l - b_l):.2f} dB "
+        f"(single-ended ties ideal bridge — CM tiny, no presumed winner)"
+    )
+    c_off = summary[("small_delta_noisy_cm", "C_bridge_offset")][1]
+    b_off = summary[("small_delta_noisy_cm", "B_bridge_ideal")][1]
+    print(
+        f"small_delta offset: C_bridge_offset {c_off:.4f} V > "
+        f"B_bridge_ideal {b_off:.4f} V (INA RTI offset cost)"
+    )
+    print(
+        "No winner declared: quiet high-ΔR single-ended can match bridge SNR; "
+        "noisy small-ΔR needs the bridge; C's offset is a real INA cost"
+    )
+    print(
+        "Real Wheatstone / INA / strain-gauge lab: 本页未运行; "
+        "TI/Wikipedia numbers 以原文为准"
+    )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic Wheatstone/INA sense toy; shared ΔR/excitation; not a strain-gauge lab
+Vexc=5.0V R0=350.0ohm G=100.0 Vos_nom=250uV seeds=5
+model: quarter-bridge V_G=Vexc*(r_g/(R0+r_g)-1/2); single-ended uses gauge divider vs mid-rail; C adds INA-like RTI offset (TI INA126 G=5+80k/Rg literacy; SLOA034 bridge)
+regime arm sens_V_per_delta offset_err_V snr_dB (mean+-sd over seeds)
+small_delta_noisy_cm A_single_ended 124.8751+-0.0000 0.0971+-0.0996 6.2386+-3.8270
+small_delta_noisy_cm B_bridge_ideal 124.8751+-0.0000 0.0057+-0.0028 31.8203+-0.9240
+small_delta_noisy_cm C_bridge_offset 124.8751+-0.0000 0.0257+-0.0088 26.9210+-1.6604
+large_delta_quiet_cm A_single_ended 113.6364+-0.0000 0.0053+-0.0018 71.8634+-1.7736
+large_delta_quiet_cm B_bridge_ideal 113.6364+-0.0000 0.0057+-0.0028 71.0011+-0.9240
+large_delta_quiet_cm C_bridge_offset 113.6364+-0.0000 0.0257+-0.0088 66.1018+-1.6604
+small_delta_noisy_cm: bridge SNR advantage B-A = 25.58 dB (bridge wins on CM rejection)
+large_delta_quiet_cm: |SNR_A - SNR_B| = 0.86 dB (single-ended ties ideal bridge — CM tiny, no presumed winner)
+small_delta offset: C_bridge_offset 0.0257 V > B_bridge_ideal 0.0057 V (INA RTI offset cost)
+No winner declared: quiet high-ΔR single-ended can match bridge SNR; noisy small-ΔR needs the bridge; C's offset is a real INA cost
+Real Wheatstone / INA / strain-gauge lab: 本页未运行; TI/Wikipedia numbers 以原文为准
+```
+
+</SimOutput>
+
+### 读制度
+
+在 **small_delta_noisy_cm** 上，理想桥 SNR 比单端高约 **26 dB**，因为共享 CM 在差分中抵消；臂 C 在小信号上付出 INA 失调代价。在 **large_delta_quiet_cm** 上，`|SNR_A − SNR_B| ≈ 0.9 dB`——当 CM 很小且 `δ` 很大时，单端**追平**理想桥。本页**不宣布普遍赢家**：嘈杂微应变需要电桥；安静的大 `ΔR` 可让分压够用；INA 失调是真实的小信号代价。真实惠斯通 / INA 实验：**本页未运行**。
+
+**180 分钟工作计划：** 30 分钟读 SLOA034 电桥与 INA126 `G = 5 + 80k/RG`；45 分钟推导四分之一桥 `V_G`；45 分钟跑共享 ΔR 各臂；45 分钟在多种子固定下改 `δ` / CM；15 分钟列出真实应变片实验还缺什么。
+
+### 练习
+
+1. 由 `R0(1+δ)` 与 `Vexc` 推导 `V_G`，并把小 `δ` 极限 `Vexc·δ/4` 与打印的灵敏度/`G` 对照。
+2. 用玩具里共享的 `cm` 抽样，说明为何臂 A 保留 CM 而 B 抵消它。
+3. 用 INA126 `G = 5 + 80k/RG` 求 `G ≈ 100` 时的 `RG`，并与玩具固定 `G` 比较。
+4. 多种子不变，把 `small_delta_noisy_cm` 的 `CM` 减半。运行前预测哪一臂 SNR 动得最多。
+5. 任何真机实验前（本页未运行），写明为何安静大 `ΔR` 的追平**不能**授权在微应变片上省掉电桥。
+
 <Summary>
 
 **本课要点**
@@ -844,6 +1085,8 @@ ESD gun / real TVS / IEC 61000 lab: 本页未运行; TI numbers 以原文为准
 - 等总电容的串联 ESL+ESR+C 模型展示 SRF 与高频环路电感限制，并比较瞬态电压跌落，不声称 EMC 认证。
 
 - ESD/TVS 入门：共享 HBM 风格脉冲（100 pF / 1500 Ω，I_sc ≈ V/1500 Ω）下无保护引脚接近预充；钳位遵循 `VRWM < VBR < VCLAMP` 与 `VCLAMP ≈ VBR + I·RDYN`（SLVAE37）；大部分能量落在 1500 Ω——不是 IEC 认证。
+
+- 惠斯通 / INA 入门：共享 ΔR 显示嘈杂小 δ 时电桥 SNR 胜出、安静大 δ 时单端追平，以及 INA 失调代价——不是应变片实验。
 
 **下一课会用到**
 

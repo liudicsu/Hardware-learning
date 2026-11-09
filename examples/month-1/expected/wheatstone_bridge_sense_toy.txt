@@ -1,0 +1,15 @@
+Synthetic Wheatstone/INA sense toy; shared ΔR/excitation; not a strain-gauge lab
+Vexc=5.0V R0=350.0ohm G=100.0 Vos_nom=250uV seeds=5
+model: quarter-bridge V_G=Vexc*(r_g/(R0+r_g)-1/2); single-ended uses gauge divider vs mid-rail; C adds INA-like RTI offset (TI INA126 G=5+80k/Rg literacy; SLOA034 bridge)
+regime arm sens_V_per_delta offset_err_V snr_dB (mean+-sd over seeds)
+small_delta_noisy_cm A_single_ended 124.8751+-0.0000 0.0971+-0.0996 6.2386+-3.8270
+small_delta_noisy_cm B_bridge_ideal 124.8751+-0.0000 0.0057+-0.0028 31.8203+-0.9240
+small_delta_noisy_cm C_bridge_offset 124.8751+-0.0000 0.0257+-0.0088 26.9210+-1.6604
+large_delta_quiet_cm A_single_ended 113.6364+-0.0000 0.0053+-0.0018 71.8634+-1.7736
+large_delta_quiet_cm B_bridge_ideal 113.6364+-0.0000 0.0057+-0.0028 71.0011+-0.9240
+large_delta_quiet_cm C_bridge_offset 113.6364+-0.0000 0.0257+-0.0088 66.1018+-1.6604
+small_delta_noisy_cm: bridge SNR advantage B-A = 25.58 dB (bridge wins on CM rejection)
+large_delta_quiet_cm: |SNR_A - SNR_B| = 0.86 dB (single-ended ties ideal bridge — CM tiny, no presumed winner)
+small_delta offset: C_bridge_offset 0.0257 V > B_bridge_ideal 0.0057 V (INA RTI offset cost)
+No winner declared: quiet high-ΔR single-ended can match bridge SNR; noisy small-ΔR needs the bridge; C's offset is a real INA cost
+Real Wheatstone / INA / strain-gauge lab: 本页未运行; TI/Wikipedia numbers 以原文为准

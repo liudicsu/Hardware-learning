@@ -42,4 +42,9 @@ if python3 "$M1/components/esd_tvs_clamp_toy.py" > "$TMP/esd_tvs_clamp_toy.txt" 
 else
   echo "DIFF  esd_tvs_clamp_toy.txt"; fail=1
 fi
+if python3 "$M1/components/wheatstone_bridge_sense_toy.py" > "$TMP/wheatstone_bridge_sense_toy.txt" && diff -u "$M1/expected/wheatstone_bridge_sense_toy.txt" "$TMP/wheatstone_bridge_sense_toy.txt"; then
+  echo "same  wheatstone_bridge_sense_toy.txt"
+else
+  echo "DIFF  wheatstone_bridge_sense_toy.txt"; fail=1
+fi
 exit $fail
