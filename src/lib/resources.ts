@@ -4541,6 +4541,26 @@ export const resources: Record<string, Resource> = {
     },
     extra: true,
   },
+  "ti-slyt492": {
+    id: "ti-slyt492",
+    url: "https://www.ti.com/lit/an/slyt492/slyt492.pdf",
+    title: {
+      zh: "TI SLYT492：系统级 ESD 电路防护设计要点",
+      en: "TI SLYT492: Design considerations for system-level ESD circuit protection",
+    },
+    author: "Texas Instruments (Roger Liang)",
+    kind: "guide",
+    cost: { zh: "免费 PDF", en: "Free PDF" },
+    summary: {
+      zh: "HBM 等器件级模型 ≠ IEC 61000-4-2 系统级接触/空气放电；TVS 寄生电容计入带宽预算。正文经 pdftotext 核验。",
+      en: "Device-level HBM ≠ IEC 61000-4-2 system contact/air discharge; TVS parasitic capacitance in the bandwidth budget. Body verified with pdftotext.",
+    },
+    license: {
+      zh: "© Texas Instruments；仅提供外链，条款以原站为准",
+      en: "© Texas Instruments; external link only, see original terms",
+    },
+    extra: true,
+  },
 
 }
 

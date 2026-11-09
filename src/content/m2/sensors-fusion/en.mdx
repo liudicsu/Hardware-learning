@@ -1107,6 +1107,8 @@ Mag turntable / real IMU: 本页未运行; VectorNav/Wikipedia definitions 以�
 
 **A_raw** keeps both errors: mean |heading| error **17.50°**, radius residual RMS **0.37**. **B_hard_only** recenters the cloud and cuts heading error to **11.30°** and radius RMS to **0.22**, but the ellipse stretch remains. **C_hard_soft** also equalizes the axes: heading error **1.54°**, radius RMS **0.032**. On the defined metrics the progression is clear; the page still **does not declare a universal winner** for every robot or every soft-iron model — a non-diagonal `S_I`, time-varying loads or a bad motion path can change the ranking; this is **not an AHRS certification**. Mag turntable / real IMU: **本页未运行**.
 
+Further reading: VectorNav's compensation model uses a full **3×3** soft-iron matrix `S_I` (with off-diagonal terms) to map a biased ellipsoid back to a centred sphere; this toy only fits a **diagonal** stretch, so a full ellipsoid fit is left as further reading.
+
 **180-minute work plan:** 30 min read VectorNav hard/soft definitions; 45 min derive centre shift vs axis stretch; 45 min run shared-path arms; 45 min change `S_SOFT` or bias with seeds fixed; 15 min list what a 3D HSI lab still needs.
 
 ### Exercises

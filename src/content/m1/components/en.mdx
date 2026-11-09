@@ -510,13 +510,15 @@ Decoupling keeps a rail stiff against load steps. ESD is a different threat: a s
 
 <Resource id="ti-ssya010" />
 <Resource id="ti-slvae37" />
+<Resource id="ti-slyt492" />
 
 **Sources actually opened (PDF body verified with pdftotext).**
 
 - **TI SSYA010A (*Electrostatic Discharge (ESD)*):** the Human Body Model (HBM) is a component-level stress that simulates a person discharging through a device; it uses a series RC of **100 pF** and **1500 Ω**. The short-circuit peak current of that network is about **V / 1500 Ω** (about **1.33 A at 2 kV**). The protection discussion describes clamps that discharge ESD current safely to ground, with a series resistor isolating a secondary clamp that protects a gate oxide.
 - **TI SLVAE37 (*How to select a Surge Diode*):** a TVS diode should be invisible at nominal voltage, then **shunt** surge current to ground while **clamping** the voltage (`VCLAMP`) to a safe level. Key datasheet ideas include `VRWM` (max working voltage with low leakage), `VBR` (breakdown / turn-on, typically at 1 mA), `RDYN` (dynamic resistance), and `IPP` (peak pulse current). The PDF states **`VCLAMP = VBR + ISURGE × RDYN`**, so `VCLAMP` rises with surge current, and **`VBR` is always higher than `VRWM`** — during a surge, **`VRWM < VBR < VCLAMP`**. Pick `VRWM` above the nominal rail; do not trust `VBR` alone for leakage.
+- **TI SLYT492 (*Design considerations for system-level ESD circuit protection*):** HBM / MM / CDM are **device-level** manufacturing stresses; **IEC 61000-4-2** is the **system-level** end-user test, with **contact** and **air-gap** discharge methods (table up to ±8 kV contact / ±15 kV air). Do not confuse an HBM rating with an IEC rating. A TVS also presents a **parasitic capacitance** shunt to ground that must sit in the signal-chain bandwidth budget; high-speed paths use lower parasitic capacitance.
 
-Numbers 以原文为准. This toy is **not** an IEC 61000 pass/fail. Real ESD gun / TVS lab: **本页未运行**. TVS capacitance vs signal speed, and trace inductance, are out of scope here.
+Numbers 以原文为准. This toy is **not** an IEC 61000 pass/fail. Real ESD gun / TVS lab: **本页未运行**. HBM is a device-level rating and is not the same as the IEC 61000-4-2 system-level contact/air discharge levels. TVS junction capacitance slows high-speed lines such as USB, so high-speed lines need low-capacitance TVS parts. Trace inductance remains out of scope here.
 
 ### Shared pulse, three paths
 
@@ -815,9 +817,9 @@ ESD gun / real TVS / IEC 61000 lab: 本页未运行; TI numbers 以原文为准
 
 ### Read the clamp trade
 
-**A_unprotected** lets the pin see roughly **1.85 kV** peak — charge-sharing with the tiny pin C, almost the whole HBM precharge — with **0** clamp energy. **B_tvs** holds the pin near **9.93 V**, matching `VBR + I·RDYN` (about 8 V + 1.33 A × 1.5 Ω), and dumps about **1.7 µJ** into the TVS while most of the **200 µJ** stored energy dissipates in the **1500 Ω**. **C_series_tvs** (connector TVS → series R → IC clamp) reports an IC-pin peak of about **8.08 V** and an IC-clamp current of about **54 mA**, both lower than the connector / TVS figures on the same run — those are the measured metrics; this page does not claim a rise-time or dV/dt change. **No winner is declared**: unprotected is cheapest and lethal to the pin model; clamping spends a small energy slice in the TVS/IC path; series+secondary is another trade, not a universal rule. ESD gun / IEC lab: **本页未运行**. TVS C vs signal speed / trace L: out of scope.
+**A_unprotected** lets the pin see roughly **1.85 kV** peak — charge-sharing with the tiny pin C, almost the whole HBM precharge — with **0** clamp energy. **B_tvs** holds the pin near **9.93 V**, matching `VBR + I·RDYN` (about 8 V + 1.33 A × 1.5 Ω), and dumps about **1.7 µJ** into the TVS while most of the **200 µJ** stored energy dissipates in the **1500 Ω**. **C_series_tvs** (connector TVS → series R → IC clamp) reports an IC-pin peak of about **8.08 V** and an IC-clamp current of about **54 mA**, both lower than the connector / TVS figures on the same run — those are the measured metrics; this page does not claim a rise-time or dV/dt change. **No winner is declared**: unprotected is cheapest and lethal to the pin model; clamping spends a small energy slice in the TVS/IC path; series+secondary is another trade, not a universal rule. ESD gun / IEC lab: **本页未运行**. HBM ≠ IEC 61000-4-2 contact/air; TVS C slows high-speed lines (use low-C parts); trace L remains out of scope.
 
-**150-minute work plan:** 30 min read SSYA010A HBM + SLVAE37 (`VRWM < VBR < VCLAMP`, `VCLAMP = VBR + I·RDYN`); 30 min derive ½CV² and V/1500 Ω; 45 min run shared-pulse arms; 30 min change `VBR` / `RDYN` / `R_SERIES` with seeds fixed; 15 min list what a real gun lab still needs.
+**150-minute work plan:** 30 min read SSYA010A HBM + SLVAE37 (`VRWM < VBR < VCLAMP`, `VCLAMP = VBR + I·RDYN`) + SLYT492 (HBM ≠ IEC contact/air, TVS C); 30 min derive ½CV² and V/1500 Ω; 45 min run shared-pulse arms; 30 min change `VBR` / `RDYN` / `R_SERIES` with seeds fixed; 15 min list what a real gun lab still needs.
 
 ### Exercises
 
