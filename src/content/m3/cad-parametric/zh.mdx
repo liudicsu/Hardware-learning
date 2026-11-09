@@ -390,6 +390,249 @@ volume: 4.95 cm^3, solid mass at 1.24 g/cm^3: 6.1 g
 
 下一步是第 2 课。打印一个公差测试件，找到你打印机的真实间隙，把本课里的 0.3 mm 占位值换成属于你这台机器的数字。支架在屏幕上看着对不算完成；装得上才算完成。
 
+## GD&T 双边公差与累积
+
+前面的 CAD 已经警告不要边到边串联尺寸，并要求从基准标注。本节给这句忠告配上数字：**双边**公差尺寸链、**最坏情况**与 **RSS** 累积预测、缩短链条的**基准重根**，以及蒙特卡洛核对。它**不是**单独的基准串联测验，也**不是**第 1 月 DMM GUM 不确定度玩具。
+
+<Resource id="wiki-gdt" />
+<Resource id="wiki-tol-analysis" />
+
+**实际打开的来源（HTML 正文已核验）。**
+
+- **Wikipedia — Geometric dimensioning and tolerancing：** GD&T 传达工程公差；特征控制框；等边 / 不等边双边公差；基准与基准引用。数字 以原文为准。
+- **Wikipedia — Tolerance analysis：** 公差累积；两种基本工具——**最坏情况**与**统计**（含 **RSS（平方和开方）** 与蒙特卡洛）。数字 以原文为准。真实三坐标 / ASME Y14.5 实验：**本页未运行**。
+
+### 双边尺寸链入门
+
+一维装配链的每一环带有双边半宽 `t_i`（尺寸可动 `±t_i`）。累积半宽预测：
+
+| 方法 | 半宽 |
+|---|---|
+| 最坏情况 | `Σ \|t_i\|` |
+| RSS | `√(Σ t_i²)` |
+| 基准重根 | 在中间基准之后的**更短**链上做最坏情况 |
+
+**RSS 假设：** 平方和开方预测假定各件误差**相互独立**、**居中**（均值靠近名义值），且近似**正态**。玩具的 `long_skew` 制度正因**违反**这些假设（单侧、非正态累积）而对 RSS 不安全。
+
+**3σ 约定：** 正态蒙特卡洛把每个双边半宽当作 `±t ≈ ±3σ`，故 **`σ = t/3`**。
+
+MMC/LMC 入门：材料条件修饰符会随特征离开最大 / 最小实体而改变可用公差；本玩具停留在双边尺寸累积数学，**不声称** ASME Y14.5 认证。
+
+### 公平设置
+
+`gdt_tolerance_stack_toy.py` 是**合成**的，只用标准库。每个臂在同一制度内共享**同一**名义尺寸链与**同一**双边半宽：
+
+| 臂 | 预测 |
+|---|---|
+| A_worst_case | 全链 `Σ\|t_i\|` |
+| B_rss | 全链 `√(Σ t_i²)` |
+| C_datum_reroot | 丢掉中间基准之前的尺寸后做最坏情况 |
+
+制度：`short_chain`（1 维——最坏**等于** RSS，平局）、`long_normal`（6 维，正态 MC）、`long_skew`（相同公差，单侧偏斜 MC——**RSS 覆盖不足**，不安全）。指标：预测半宽 vs 蒙特卡洛命中率。五多种子 mean±sd。
+
+### 运行标准库玩具
+
+```bash
+cd ~/Hardware-learning/examples/month-3/cad-parametric
+python3 gdt_tolerance_stack_toy.py
+```
+
+<CodeSource path="examples/month-3/cad-parametric/gdt_tolerance_stack_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic GD&T bilateral / tolerance stack-up literacy toy. Stdlib only.
+
+Shared nominal chain and shared bilateral half-widths within each regime.
+Arms differ only in how the stack prediction is formed:
+  A_worst_case   half-width = sum |t_i|  (linear worst-case)
+  B_rss          half-width = sqrt(sum t_i^2)  (root-sum-square)
+  C_datum_reroot re-root on a mid datum → shorter chain, then worst-case on that chain
+
+Regimes (≥5 Monte Carlo seeds):
+  short_chain   1 dim — worst-case == RSS (exact tie)
+  long_normal   6 dims, normal MC — RSS covers most hits; worst is wider
+  long_skew     6 dims, one-sided skew MC — violates RSS iid/centered/normal assumptions (unsafe)
+
+Not an ASME Y14.5 certification. Real CMM / GD&T drawing lab: 本页未运行.
+"""
+from __future__ import annotations
+
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+ARMS = ("A_worst_case", "B_rss", "C_datum_reroot")
+N_MC = 2000  # samples per seed
+
+
+def worst_half(tols: list[float]) -> float:
+    return sum(abs(t) for t in tols)
+
+
+def rss_half(tols: list[float]) -> float:
+    return math.sqrt(sum(t * t for t in tols))
+
+
+def predict(arm: str, tols: list[float], reroot_idx: int) -> float:
+    if arm == "A_worst_case":
+        return worst_half(tols)
+    if arm == "B_rss":
+        return rss_half(tols)
+    if arm == "C_datum_reroot":
+        # Re-root: keep only dims after the datum (shorter stack)
+        short = tols[reroot_idx:]
+        return worst_half(short)
+    raise ValueError(arm)
+
+
+def mc_stack(
+    tols: list[float], seed: int, dist: str
+) -> list[float]:
+    """Return N_MC signed stack errors for the full chain."""
+    rng = random.Random(40_000 + seed)
+    out = []
+    for _ in range(N_MC):
+        s = 0.0
+        for t in tols:
+            if dist == "normal":
+                # 3σ convention: ±t ≈ ±3σ ⇒ σ = t/3
+                s += rng.gauss(0.0, abs(t) / 3.0)
+            elif dist == "skew":
+                # One-sided: exponential excess toward +tol (non-normal)
+                # mean shift so mass sits near + side; unsafe for symmetric RSS
+                u = rng.random()
+                # triangular-ish toward +t
+                s += abs(t) * (1.0 - math.sqrt(1.0 - u))  # in [0, t]
+            else:
+                raise ValueError(dist)
+        out.append(s)
+    return out
+
+
+def hit_rate(samples: list[float], half: float) -> float:
+    return sum(1 for x in samples if abs(x) <= half + 1e-15) / len(samples)
+
+
+def mean_sd(xs: list[float]) -> tuple[float, float]:
+    mu = sum(xs) / len(xs)
+    var = sum((x - mu) ** 2 for x in xs) / (len(xs) - 1)
+    return mu, math.sqrt(var)
+
+
+REGIMES = (
+    # name, tols (bilateral half-widths, mm synthetic), reroot_idx, dist
+    ("short_chain", [0.15], 0, "normal"),  # 1 dim: worst == RSS (exact tie)
+    ("long_normal", [0.05, 0.08, 0.06, 0.10, 0.07, 0.09], 3, "normal"),
+    ("long_skew", [0.05, 0.08, 0.06, 0.10, 0.07, 0.09], 3, "skew"),
+)
+
+
+def main() -> None:
+    print(
+        "Synthetic GD&T / tolerance-stack toy; shared chain/tolerances; "
+        "not an ASME Y14.5 certification"
+    )
+    print(
+        f"N_MC={N_MC} seeds={len(SEEDS)}; "
+        "A=worst-case sum|t|; B=RSS sqrt(sum t^2); C=datum re-root then worst"
+    )
+    print(
+        "regime arm pred_half_mm mc_hit_rate mean_abs_stack_mm "
+        "(pred fixed; hit/mean over seeds mean+-sd)"
+    )
+    summary = {}
+    for reg_name, tols, reroot, dist in REGIMES:
+        for arm in ARMS:
+            pred = predict(arm, tols, reroot)
+            hits, means = [], []
+            for seed in SEEDS:
+                samples = mc_stack(tols, seed, dist)
+                # For C, MC should be on the shortened chain for a fair hit test
+                if arm == "C_datum_reroot":
+                    samples = mc_stack(tols[reroot:], seed, dist)
+                hits.append(hit_rate(samples, pred))
+                means.append(sum(abs(x) for x in samples) / len(samples))
+            hm, hs = mean_sd(hits)
+            mm, ms = mean_sd(means)
+            summary[(reg_name, arm)] = (pred, hm)
+            print(
+                f"{reg_name} {arm} {pred:.4f} {hm:.4f}+-{hs:.4f} "
+                f"{mm:.4f}+-{ms:.4f}"
+            )
+    # Short-chain tie: worst ≈ RSS
+    pw = predict("A_worst_case", REGIMES[0][1], REGIMES[0][2])
+    pr = predict("B_rss", REGIMES[0][1], REGIMES[0][2])
+    print(
+        f"short_chain: |worst - RSS| = {abs(pw - pr):.4e} mm "
+        f"(exact tie — one dim; worst==RSS)"
+    )
+    # Long skew: RSS hit rate low (unsafe) vs worst
+    hit_rss = summary[("long_skew", "B_rss")][1]
+    hit_wc = summary[("long_skew", "A_worst_case")][1]
+    print(
+        f"long_skew: RSS mc_hit={hit_rss:.3f} vs worst mc_hit={hit_wc:.3f} "
+        f"(RSS unsafe: skew violates independent/centered/approx-normal assumptions)"
+    )
+    pred_c = summary[("long_normal", "C_datum_reroot")][0]
+    pred_a = summary[("long_normal", "A_worst_case")][0]
+    print(
+        f"long_normal: datum re-root half {pred_c:.4f} mm < "
+        f"full worst {pred_a:.4f} mm (shorter stack)"
+    )
+    print(
+        "No winner declared: short chains make worst≈RSS; "
+        "skewed stacks make RSS look safe on paper but fail MC; "
+        "re-root helps only when the datum is real"
+    )
+    print(
+        "Real CMM / GD&T drawing / ASME Y14.5 lab: 本页未运行; "
+        "Wikipedia GD&T and Tolerance analysis 以原文为准"
+    )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic GD&T / tolerance-stack toy; shared chain/tolerances; not an ASME Y14.5 certification
+N_MC=2000 seeds=5; A=worst-case sum|t|; B=RSS sqrt(sum t^2); C=datum re-root then worst
+regime arm pred_half_mm mc_hit_rate mean_abs_stack_mm (pred fixed; hit/mean over seeds mean+-sd)
+short_chain A_worst_case 0.1500 0.9969+-0.0009 0.0398+-0.0006
+short_chain B_rss 0.1500 0.9969+-0.0009 0.0398+-0.0006
+short_chain C_datum_reroot 0.1500 0.9969+-0.0009 0.0398+-0.0006
+long_normal A_worst_case 0.4500 1.0000+-0.0000 0.0493+-0.0005
+long_normal B_rss 0.1884 0.9972+-0.0013 0.0493+-0.0005
+long_normal C_datum_reroot 0.2600 1.0000+-0.0000 0.0403+-0.0006
+long_skew A_worst_case 0.4500 1.0000+-0.0000 0.1501+-0.0006
+long_skew B_rss 0.1884 0.8047+-0.0118 0.1501+-0.0006
+long_skew C_datum_reroot 0.2600 1.0000+-0.0000 0.0869+-0.0009
+short_chain: |worst - RSS| = 0.0000e+00 mm (exact tie — one dim; worst==RSS)
+long_skew: RSS mc_hit=0.805 vs worst mc_hit=1.000 (RSS unsafe: skew violates independent/centered/approx-normal assumptions)
+long_normal: datum re-root half 0.2600 mm < full worst 0.4500 mm (shorter stack)
+No winner declared: short chains make worst≈RSS; skewed stacks make RSS look safe on paper but fail MC; re-root helps only when the datum is real
+Real CMM / GD&T drawing / ASME Y14.5 lab: 本页未运行; Wikipedia GD&T and Tolerance analysis 以原文为准
+```
+
+</SimOutput>
+
+### 读制度
+
+在 **short_chain** 上，最坏情况与 RSS **相同**（一维）——统计捷径买不到任何东西。在 **long_normal** 上，RSS 远窄于最坏情况且仍覆盖几乎全部正态 MC（`σ = t/3`）；基准重根削减最坏半宽。在 **long_skew** 上，RSS 命中率降到约 **0.80** 而最坏情况仍覆盖——RSS 在纸面干净，却因单侧偏斜违反独立 / 居中 / 近似正态假设而**不安全**。本页**不宣布普遍赢家**，也**不声称** ASME Y14.5 认证。真实三坐标实验：**本页未运行**。
+
+**150 分钟工作计划：** 30 分钟读 GD&T 双边与 Tolerance analysis 最坏/RSS；30 分钟在打印链上推导 `Σ\|t\|` 与 `√(Σ t²)`；45 分钟跑共享链各臂；30 分钟在链固定下改偏斜 / 种子；15 分钟列出真实三坐标还缺什么。
+
+### 练习
+
+1. 根据打印的长链 `t_i`，手算最坏与 RSS 半宽并与玩具对照。
+2. 说明为何一维时最坏情况 == RSS。
+3. 解释为何偏斜蒙特卡洛使 RSS 命中率下降而最坏情况保持 1.0。
+4. 多种子不变，移动基准重根下标。运行前预测哪个预测半宽会变。
+5. 任何真机实验前（本页未运行），写明为何正态噪声下的高 RSS 命中率**不是** ASME Y14.5 合格。
+
 <Summary>
 
 **本课要点**
@@ -414,6 +657,8 @@ volume: 4.95 cm^3, solid mass at 1.24 g/cm^3: 6.1 g
 - 你能数出一个自由圆的自由度，并说出全约束的矩形还剩几个吗？
 - 你能算出 servo_l = 22.2 mm、clearance = 0.4 mm 时的 `cut_l` 吗？
 - 你能解释为什么想改你孔径的朋友必须拿到 STEP 文件吗？
+
+- GD&T 累积入门：共享双边尺寸链比较最坏情况、RSS 与基准重根；短链平局，偏斜 MC 显示 RSS 可能不安全——不是 ASME Y14.5 认证。
 
 **下一课会用到**
 

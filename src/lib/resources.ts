@@ -4561,6 +4561,106 @@ export const resources: Record<string, Resource> = {
     },
     extra: true,
   },
+  "ti-sloa034": {
+    id: "ti-sloa034",
+    url: "https://www.ti.com/lit/an/sloa034/sloa034.pdf",
+    title: {
+      zh: "TI SLOA034：惠斯通电阻桥传感器信号调理",
+      en: "TI SLOA034: Signal Conditioning Wheatstone Resistive Bridge Sensors",
+    },
+    author: "Texas Instruments",
+    kind: "guide",
+    cost: { zh: "免费 PDF", en: "Free PDF" },
+    summary: {
+      zh: "桥传感器差分 Vsig 叠在约 ½Vexc 共模上；满量程约 10–100 mV，需仪表放大。正文经 pdftotext 核验。",
+      en: "Bridge sensors put differential Vsig on a ~½Vexc common mode; full-scale ~10–100 mV needs an instrumentation amp. Body verified with pdftotext.",
+    },
+    license: {
+      zh: "© Texas Instruments；仅提供外链，条款以原站为准",
+      en: "© Texas Instruments; external link only, see original terms",
+    },
+    extra: true,
+  },
+  "ina126-ds": {
+    id: "ina126-ds",
+    url: "https://www.ti.com/lit/ds/symlink/ina126.pdf",
+    title: {
+      zh: "TI INAx126：微功耗仪表放大器数据手册",
+      en: "TI INAx126: MicroPower Instrumentation Amplifiers datasheet",
+    },
+    author: "Texas Instruments",
+    kind: "guide",
+    cost: { zh: "免费 PDF", en: "Free PDF" },
+    summary: {
+      zh: "增益 G = 5 + (80 kΩ / RG)；低输入失调。正文经 pdftotext 核验。",
+      en: "Gain G = 5 + (80 kΩ / RG); low input offset. Body verified with pdftotext.",
+    },
+    license: {
+      zh: "© Texas Instruments；仅提供外链，条款以原站为准",
+      en: "© Texas Instruments; external link only, see original terms",
+    },
+    extra: true,
+  },
+  "wiki-wheatstone": {
+    id: "wiki-wheatstone",
+    url: "https://en.wikipedia.org/wiki/Wheatstone_bridge",
+    title: {
+      zh: "Wikipedia：惠斯通电桥",
+      en: "Wikipedia: Wheatstone bridge",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "两条分压腿；平衡时 V_G = 0 且比例相等。HTML 正文已核验。",
+      en: "Two divider legs; at balance V_G = 0 with equal ratios. HTML body verified.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "wiki-gdt": {
+    id: "wiki-gdt",
+    url: "https://en.wikipedia.org/wiki/Geometric_dimensioning_and_tolerancing",
+    title: {
+      zh: "Wikipedia：几何尺寸与公差（GD&T）",
+      en: "Wikipedia: Geometric dimensioning and tolerancing",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "特征控制框、双边公差、基准。HTML 正文已核验。",
+      en: "Feature control frames, bilateral tolerances, datums. HTML body verified.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "wiki-tol-analysis": {
+    id: "wiki-tol-analysis",
+    url: "https://en.wikipedia.org/wiki/Tolerance_analysis",
+    title: {
+      zh: "Wikipedia：公差分析",
+      en: "Wikipedia: Tolerance analysis",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "最坏情况与统计（RSS / 蒙特卡洛）累积。HTML 正文已核验。",
+      en: "Worst-case and statistical (RSS / Monte Carlo) stack-up. HTML body verified.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
 
 }
 

@@ -1,0 +1,15 @@
+Synthetic Wheatstone/INA sense toy; shared ΔR/excitation/CM draws; not a strain-gauge lab
+Vexc=5.0V R0=350.0ohm G=100.0 Vos_nom=250uV CMRR=80dB(INA126 min) N_samples=64 seeds=5
+model: quarter-bridge V_G=Vexc*(r_g/(R0+r_g)-1/2)≈Vexc*δ/4 (small δ); δ=GF*ε → V_G≈Vexc*GF*ε/4; shared cm on both bridge legs then differential + residual cm/CMRR_linear; multi-sample SNR=|Δmean|/pooled_std (TI INA126 CMRR min 80 dB; SLOA034 bridge)
+regime arm sens_V_per_delta offset_err_V snr_dB (mean+-sd over seeds)
+small_delta_noisy_cm A_single_ended 131.8417+-18.2227 0.0350+-0.0152 2.1378+-1.5498
+small_delta_noisy_cm B_bridge_ideal 125.0313+-0.3155 0.0004+-0.0003 33.9841+-0.3582
+small_delta_noisy_cm C_bridge_offset 124.9222+-0.6302 0.0242+-0.0061 34.0823+-0.5959
+large_delta_quiet_cm A_single_ended 113.6384+-0.0016 0.0003+-0.0002 70.6035+-0.5797
+large_delta_quiet_cm B_bridge_ideal 113.6379+-0.0031 0.0004+-0.0003 73.1542+-0.3506
+large_delta_quiet_cm C_bridge_offset 113.6368+-0.0063 0.0242+-0.0061 73.2588+-0.5990
+small_delta_noisy_cm: bridge SNR advantage B-A = 31.85 dB (finite CMRR still beats full-CM single-ended)
+large_delta_quiet_cm: |SNR_A - SNR_B| = 2.55 dB (near-tie / small gap — remaining ~2.6 dB from finite-CMRR residual + private DIFF_NOISE; no presumed winner)
+small_delta offset: C_bridge_offset 0.0242 V > B_bridge_ideal 0.0004 V (INA RTI offset cost; multi-sample SNR cannot see static Vos — it cancels in Δmean, so C SNR ≳ B does not mean C wins)
+No winner declared: quiet high-ΔR is a near-tie / small gap, not a true tie; noisy small-ΔR needs the bridge+CMRR; C's cost is offset/absolute accuracy, not SNR
+Real Wheatstone / INA / strain-gauge lab: 本页未运行; TI/Wikipedia numbers 以原文为准
