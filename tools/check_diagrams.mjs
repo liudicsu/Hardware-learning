@@ -3936,8 +3936,8 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 23610, "dpo-bimanual PR3 curriculum: 23610 minutes");
-  for (const [month, expected] of [[1, 1020], [2, 2310], [3, 1470], [4, 1830], [5, 1950], [6, 1560], [7, 2070], [8, 3180], [9, 2940], [10, 2280], [11, 3000]]) {
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 23910, "sros-composition PR1 curriculum: 23910 minutes");
+  for (const [month, expected] of [[1, 1020], [2, 2310], [3, 1470], [4, 2130], [5, 1950], [6, 1560], [7, 2070], [8, 3180], [9, 2940], [10, 2280], [11, 3000]]) {
     ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `current curriculum M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
@@ -5660,6 +5660,43 @@ print("protocol pass")
   const audit=read("docs/notes/batch-7-polish-sources.md");
   ok(["then500","WebFetch403","202","404","23610","citation-metadata"].every(x=>audit.includes(x)),"b7polish honest link-status/selection audit and unchanged minutes");
   console.log("batch7-polish: primary Koopman/ICP citations, bilingual placement, working reading choices and honest DOI-access audit checked");
+}
+
+// Batch-8 PR1: policy-table literacy and explicit shared-work/process-fault counters.
+{
+  const read=p=>readFileSync(join(root,p),"utf8"), env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
+  const cases=[
+    ["ros2-setup","sros_enclave_acl_toy",360,["domain_only 12 9 0","missing_enclave_Enforce 0 0 3","enclave_ACL_Enforce 3 0 0"],["ROS_SECURITY_KEYSTORE","ROS_SECURITY_ENABLE=true","ROS_SECURITY_STRATEGY=Enforce","ROS_SECURITY_ENCLAVE_OVERRIDE","create_keystore","create_enclave","Permissive","rt/chatter","24","visitor","unknown"]],
+    ["ros2-graph","composition_container_toy",390,["4 separate 4 48 16 248 0 0","4 container 1 12 16 248 0 0","4 separate 4 41 13 194 3 1","4 container 1 5 7 52 9 4"],["component_container","ros2 component load /ComponentManager composition composition::Talker","composition::Listener","ComposableNodeContainer","ComposableNode","use_intra_process_comms","std::unique_ptr","N=2/4/8","lost_callbacks","poll_ticks"]]
+  ];
+  const cur=read("src/lib/curriculum.ts"),harness=read("examples/month-4/check.sh");
+  for(const [slug,toy,minutes,outputs,markers] of cases){
+    const file=`examples/month-4/${slug}/${toy}.py`,py=read(file).trim(),expected=read(`examples/month-4/expected/${toy}.txt`).trim();
+    ok(execFileSync("python3",[join(root,file)],{cwd:root,encoding:"utf8",env}).trim()===expected,`b8p1 ${toy}: actual expected output`);
+    for(const x of outputs)ok(expected.includes(x),`b8p1 ${toy}: result ${x}`);
+    const host=cur.slice(cur.indexOf(`slug: "${slug}"`)).split("\n  },")[0];
+    ok(host.includes(`minutes: ${minutes}`),`b8p1 ${slug}: host +150 minutes`);
+    ok(harness.includes(`${slug}/${toy}.py`)&&harness.indexOf(`${toy}.txt`)<harness.indexOf('if [[ "${ROS_DISTRO:-}"'),`b8p1 ${toy}: stdlib comparison before ROS guard`);
+    for(const lang of ["en","zh"]){
+      const md=read(`src/content/m4/${slug}/${lang}.mdx`),summary=md.indexOf("<Summary>"),end=md.indexOf("</Summary>");
+      ok(summary>0&&summary===md.lastIndexOf("<Summary>")&&end>summary&&md.slice(end+10).trim()==="",`b8p1 ${slug} ${lang}: sole whole-lesson Summary ends page`);
+      ok(md.includes(py)&&md.includes(expected)&&md.indexOf(py)<summary&&md.indexOf(expected)<summary,`b8p1 ${slug} ${lang}: exact source/stdout before Summary`);
+      ok(md.includes(`<CodeSource path="${file}" />`)&&md.indexOf(lang==="en"?"### Exercises":"### 练习")>=0&&md.indexOf(lang==="en"?"### Exercises":"### 练习")<summary,`b8p1 ${slug} ${lang}: executable path/exercises before Summary`);
+      const prose=md.slice(0,md.indexOf(`<CodeSource path="${file}"`)),summ=md.slice(summary,end);
+      for(const x of [...markers,"本页未运行"])ok(prose.includes(x),`b8p1 ${slug} ${lang}: mechanism/scope ${x}`);
+      for(const x of slug==="ros2-setup"?["Jazzy","colcon","SROS2","DOMAIN_ID","enclave"]:["QoS","EMA","Composition","launch"])ok(summ.includes(x),`b8p1 ${slug} ${lang}: whole lesson summary ${x}`);
+      ok(lang==="en"?prose.includes("synthetic")||prose.includes("Synthetic"):prose.includes("合成"),`b8p1 ${slug} ${lang}: synthetic labelled`);
+      ok(slug==="ros2-setup"?(lang==="en"?prose.includes("by construction")&&prose.includes("not signature verification"):prose.includes("按构造")&&prose.includes("不是验签")):(lang==="en"?prose.includes("not automatically faster or zero-copy")&&prose.includes("not measured speed"):prose.includes("不会自动零拷贝")&&prose.includes("不是实测提速")),`b8p1 ${slug} ${lang}: table/counter inference boundaries`);
+    }
+  }
+  const plan=read("docs/notes/month-4-plan.md");
+  ok(plan.startsWith("# Month 4")&&["1830→2130","23610→23910","PR1","H3 IBVS in PR2"].every(x=>plan.includes(x)),"b8p1 correct-month, PR1-only accounting and H3 exclusion");
+  const res=read("src/lib/resources.ts");
+  for(const id of ["ros2-sros-intro","ros2-sros-keystore","ros2-sros-acl","ros2-composition","ros2-intraprocess","ros2-composable-launch"])ok(res.includes(`"${id}": {`)&&cur.includes(`"${id}"`),`b8p1 opened primary source ${id}`);
+  ok(read("docs/notes/batch-8-pr1-sources.md").includes("All193 prior expected"),"b8p1 prior-output/source/model audit");
+  execFileSync("python3",[join(root,"tools/test_b8_sros_composition_toys.py")],{cwd:root,encoding:"utf8",env,stdio:"pipe"});
+  ok(true,"b8p1 independent exhaustive ACL, grant/material perturbation and shared-work/fault tests executed");
+  console.log("sros-composition PR1: exhaustive ACL, shared-work/fault counters, opened Jazzy sources and final whole-lesson summaries locked");
 }
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
