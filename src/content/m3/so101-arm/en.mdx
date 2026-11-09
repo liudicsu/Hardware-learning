@@ -534,8 +534,7 @@ If the full pair is out of reach, the cheaper paths still teach most of the less
 
 Lesson 6 takes the next step: gripper fingers. They are small, they are cheap to iterate, and they are the part that proves you can design as well as assemble. A working arm with a gripper you designed for it is a much better answer to "can you build a robot?" than a kit that only runs the manufacturer's demo.
 
-## Absolute vs incremental: what the arm knows at power-on (+150 min)
-
+## Absolute vs incremental: what the arm knows at power-on
 Calibration works because each STS3215 reports where it is the moment it powers up. That is the **absolute** half of the story: LeRobot sets the homing offset, the encoder already reads an angle, and nothing has to move first. This section asks what happens after a **power glitch**, and when "absolute" is not enough. It is not the Z-index homing from [2.4](/en/month/month-2/motors-drivers); that procedure lives in `encoder_index_cal_toy.py` and is not repeated here. In this section homing is only a time cost.
 
 <Resource id="wiki-rotary-encoder" />

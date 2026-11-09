@@ -448,8 +448,7 @@ ok: CPU bus jitter toy (no real STS3215 bus, page not run)
 - **不做 JointLimiter。** 8.5 的软件看门狗不能代替向 ros2_control 声明位置/速度限制。
 - **指望本站 CI 加载你的 `.so`。** 学员包 CI ≠ Hardware-learning 网站 CI。
 
-## Batch-6 H2：CAN 故障限制（+180 min）
-
+## Batch-6 H2：CAN 故障限制
 通用 **CAN 后端**可以把通信故障上报硬件接口，但这不表示 SO-101 的串口舵机总线变成了 CAN。本节新增独立的 Classic CAN 诊断模型，不重做生命周期状态机。**不是 CiA402 状态位，也不是 EtherCAT**；bus-off 恢复**不是急停**，也不代表允许重新使能执行器；继续保留独立的 [8.5 故障锁存 / 操作员确认路径](/zh/month/month-8/safety-reliability)。
 
 ### 实际打开的规则与精确边界

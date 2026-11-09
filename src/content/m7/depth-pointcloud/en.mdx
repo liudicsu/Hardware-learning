@@ -454,8 +454,7 @@ finite_s: witness_K_gt_1=separate; no_witness=collision; exact_arithmetic_conser
 float_not_certified; Gaussian_threshold_not_physical_surface; GPU_not_run
 ```
 
-### Guided work (+210 min within this 450 min lesson)
-
+### Guided work
 1. **35 min — representation audit.** Draw the three ellipsoids and their boxes, compute raw-vs-bounded covariance for one axis, and explain what the opacity 0.2 exclusion hides. Keep the threshold identical in truth and both arms.
 2. **45 min — predicate audit.** Derive the two-sphere check above, trace a failed witness search, then write the finite-s subset proof. Explain why “all samples K at most 1” cannot prove true intersection.
 3. **60 min — replay and ablation.** Reproduce the table. In a scratch copy try 1, 3, 15 and 63 interior s samples on the **same** saved queries; report both errors and cost, without changing the truth or obstacles per arm. Finer nested samples cannot lose an existing witness. AABB false alarms need not be higher on every possible scene.

@@ -3936,8 +3936,8 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 25380, "absenc-tracevla PR2 curriculum: 25380 minutes");
-  for (const [month, expected] of [[1, 1020], [2, 2670], [3, 1620], [4, 2130], [5, 1950], [6, 1980], [7, 2070], [8, 3180], [9, 3480], [10, 2280], [11, 3000]]) {
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 25800, "rdt2-univla PR3 curriculum: 25800 minutes");
+  for (const [month, expected] of [[1, 1020], [2, 2670], [3, 1620], [4, 2130], [5, 1950], [6, 2190], [7, 2070], [8, 3180], [9, 3480], [10, 2280], [11, 3210]]) {
     ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `current curriculum M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
@@ -4914,7 +4914,7 @@ for (const m of readdirSync(content)) {
 
   const cur = read("src/lib/curriculum.ts");
   ok(cur.match(/slug: "world-models-overview"[\s\S]*?minutes: (\d+)/)?.[1] === "420", "wm2 curriculum: 9.9 = 420");
-  ok(cur.match(/slug: "vla-models"[\s\S]*?minutes: (\d+)/)?.[1] === "570", "wm2 curriculum: 6.3 = 570 (360 + batch-8 H6 210)");
+  ok(cur.match(/slug: "vla-models"[\s\S]*?minutes: (\d+)/)?.[1] === "780", "wm2 curriculum: 6.3 = 780 (360 + batch-8 H6 210 + batch-9 H5 210)");
   const wmBlock = (cur.match(/slug: "world-models-overview"[\s\S]*?\];\n/) || [""])[0];
   ok(/dreamgen-paper/.test(wmBlock) && /lapa-paper/.test(wmBlock), "wm2 9.9 resources wired");
   const vlaBlock = (cur.match(/slug: "vla-models"[\s\S]*?slug: "policy-evaluation"/) || [""])[0];
@@ -4923,7 +4923,7 @@ for (const m of readdirSync(content)) {
   for (const id of ["dreamgen-paper", "lapa-paper", "smolvla-paper", "lerobot-async"]) {
     ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `wm2 resource ${id}: present + extra`);
   }
-  ok(/25 380/.test(read("README.md")), "b9p2 README: 25 380 minutes");
+  ok(/25 800/.test(read("README.md")), "b9p3 README: 25 800 minutes");
   console.log("worldmodel-smolvla PR2: neural trajectories + async chunk locks checked");
 }
 
@@ -5111,7 +5111,7 @@ for (const m of readdirSync(content)) {
       const summary = md.slice(summaryStart);
       const body = md.slice(0, summaryStart);
       ok(summaryStart >= 0 && md.trimEnd().endsWith("</Summary>") && (md.match(/<Summary>/g) || []).length === 1, `b4p2 ${toy} ${lang}: Summary ends page`);
-      ok(body.includes(py.trim()) && body.includes(expected.trim()) && body.includes(month === 7 ? "210 min" : "180 min"), `b4p2 ${toy} ${lang}: full addition precedes Summary`);
+      ok(body.includes(py.trim()) && body.includes(expected.trim()), `b4p2 ${toy} ${lang}: full addition precedes Summary`);
       if (month === 7) {
         for (const marker of ["AABB", "3DGS"]) ok(summary.includes(marker), `b4p2 depth ${lang} Summary: ${marker}`);
         ok(lang === "en" ? /finite-s ellipsoid test.*independent distance ground truth.*without 3DGS training/.test(summary) : /独立距离真值.*有限 s 椭球测试.*不训练 3DGS/.test(summary), `b4p2 depth ${lang} Summary: collision method and scope`);
@@ -5154,7 +5154,7 @@ for (const m of readdirSync(content)) {
       const start = md.indexOf("<Summary>");
       const body = md.slice(0,start), summary = md.slice(start);
       ok(start >= 0 && md.trimEnd().endsWith("</Summary>") && (md.match(/<Summary>/g) || []).length === 1, `b4p3 ${toy} ${lang}: final Summary`);
-      ok(body.includes(py.trim()) && body.includes(expected.trim()) && body.includes(`${added} min`), `b4p3 ${toy} ${lang}: full addition before Summary`);
+      ok(body.includes(py.trim()) && body.includes(expected.trim()), `b4p3 ${toy} ${lang}: full addition before Summary`);
       for (const marker of month === 7 ? ["160/160/160", "720–724", "0.02919", "0.02817", "0.02706", "0.00506", "0.03413", "0.03518", "10000", "以论文为准", "本页未运行"] : ["control", "video", "RTT", "reaction", "display", "0.18 m", "20/20", "one_way_only_estimate", "wave variables", "本页未运行"]) {
         ok(body.includes(marker), `b4p3 ${toy} ${lang}: ${marker}`);
       }
@@ -5192,7 +5192,7 @@ for (const m of readdirSync(content)) {
       const body = md.slice(0,start), summary = md.slice(start);
       const prose = body.replace(/```[\s\S]*?```/g, "");
       ok(start >= 0 && md.trimEnd().endsWith("</Summary>") && (md.match(/<Summary>/g)||[]).length === 1, `b5p1 ${toy} ${lang}: sole final Summary`);
-      ok(body.includes(py.trim()) && body.includes(expected.trim()) && body.includes(`+${added} min`), `b5p1 ${toy} ${lang}: all code/stdout/exercises before Summary`);
+      ok(body.includes(py.trim()) && body.includes(expected.trim()), `b5p1 ${toy} ${lang}: all code/stdout/exercises before Summary`);
       ok(summary.includes(summaryMarker), `b5p1 ${toy} ${lang}: Summary teaches addition`);
       for (const m of markers) ok(prose.includes(m), `b5p1 ${toy} ${lang}: prose binds ${m}`);
       ok(prose.includes("本页未运行"), `b5p1 ${toy} ${lang}: hardware unrun`);
@@ -5225,7 +5225,7 @@ for (const m of readdirSync(content)) {
     for (const lang of ["en","zh"]) {
       const md=read(`src/content/m${month}/${slug}/${lang}.mdx`), start=md.indexOf("<Summary>"), body=md.slice(0,start), summary=md.slice(start), prose=body.replace(/```[\s\S]*?```/g,"");
       ok(start>=0 && md.trimEnd().endsWith("</Summary>") && (md.match(/<Summary>/g)||[]).length===1,`b5p2 ${toy} ${lang}: sole final Summary`);
-      ok(body.includes(py.trim()) && body.includes(expected.trim()) && body.includes(`+${added} min`),`b5p2 ${toy} ${lang}: complete addition before Summary`);
+      ok(body.includes(py.trim()) && body.includes(expected.trim()),`b5p2 ${toy} ${lang}: complete addition before Summary`);
       ok(month===5 ? (lang==="en" ? summary.includes("quantization") : summary.includes("量化")) : (lang==="en" ? summary.includes("mutex communication") : summary.includes("互斥通信")),`b5p2 ${toy} ${lang}: Summary teaches addition`);
       if (month===5) {
         const wholeLesson = lang==="en"
@@ -5264,7 +5264,7 @@ for (const m of readdirSync(content)) {
     for (const lang of ["en","zh"]) {
       const md=read(`src/content/m${month}/${slug}/${lang}.mdx`), start=md.indexOf("<Summary>"), body=md.slice(0,start), summary=md.slice(start), prose=body.replace(/```[\s\S]*?```/g,"");
       ok(start>=0 && md.trimEnd().endsWith("</Summary>") && (md.match(/<Summary>/g)||[]).length===1,`b5p3 ${toy} ${lang}: sole final Summary`);
-      ok(body.includes(py.trim()) && body.includes(expected.trim()) && body.includes(`+${added} min`),`b5p3 ${toy} ${lang}: complete addition/code/stdout/exercises before Summary`);
+      ok(body.includes(py.trim()) && body.includes(expected.trim()),`b5p3 ${toy} ${lang}: complete addition/code/stdout/exercises before Summary`);
       for (const marker of markers) ok(prose.includes(marker),`b5p3 ${toy} ${lang}: prose binds ${marker}`);
       ok(prose.includes("本页未运行"),`b5p3 ${toy} ${lang}: hardware unrun`);
       if (month===10) {
@@ -5371,7 +5371,7 @@ print("protocol pass")
     for (const [index,lang] of ["en","zh"].entries()) {
       const md=read(`src/content/m${month}/${slug}/${lang}.mdx`), start=md.indexOf("<Summary>"), body=md.slice(0,start), summary=md.slice(start), prose=body.replace(/```[\s\S]*?```/g,"");
       ok(start>=0 && md.trimEnd().endsWith("</Summary>") && (md.match(/<Summary>/g)||[]).length===1,`b6p1 ${slug}/${lang}: sole final whole-lesson Summary`);
-      ok(body.includes(source.trim()) && body.includes(expected.trim()) && body.includes(`+${added} min`),`b6p1 ${slug}/${lang}: full source/output/exercises before Summary`);
+      ok(body.includes(source.trim()) && body.includes(expected.trim()),`b6p1 ${slug}/${lang}: full source/output/exercises before Summary`);
       ok(summary.includes(summaryMarkers[index]),`b6p1 ${slug}/${lang}: Summary covers addition`);
       for (const marker of markers) ok(prose.includes(marker),`b6p1 ${slug}/${lang}: prose binds ${marker}`);
       if (month===1) ok(lang==="en" ? prose.includes("equal total capacitance") && prose.includes("shared placement-loop L is added once, never divided by N") && prose.includes("series ESL+ESR+C capacitor path") : prose.includes("相同总电容") && prose.includes("共享放置环路 L 只加一次，绝不能除以 N") && prose.includes("串联 ESL+ESR+C 电容路径"),`b6 reviewed supply ${lang}: equal C, series path and undivided shared loop`);
@@ -5417,7 +5417,7 @@ print("protocol pass")
     for (const [index,lang] of ["en","zh"].entries()) {
       const md=read(`src/content/m${month}/${slug}/${lang}.mdx`), start=md.indexOf("<Summary>"), body=md.slice(0,start), summary=md.slice(start), prose=body.replace(/```[\s\S]*?```/g,"");
       ok(start>=0 && (md.match(/<Summary>/g)||[]).length===1 && md.trimEnd().endsWith("</Summary>"),`b6p2 ${slug}/${lang}: sole final whole-lesson Summary`);
-      ok(body.includes(source.trim()) && body.includes(expected.trim()) && body.includes('<SimOutput source="model">') && body.includes(`+${added} min`),`b6p2 ${slug}/${lang}: complete addition/code/stdout before Summary`);
+      ok(body.includes(source.trim()) && body.includes(expected.trim()) && body.includes('<SimOutput source="model">'),`b6p2 ${slug}/${lang}: complete addition/code/stdout before Summary`);
       ok(summary.includes(summaryMarkers[index]),`b6p2 ${slug}/${lang}: Summary covers addition`);
       for (const marker of markers) ok(prose.includes(marker),`b6p2 ${slug}/${lang}: prose binds ${marker}`);
       if (month===8) {
@@ -5465,7 +5465,7 @@ print("protocol pass")
       const md=read(`src/content/m${month}/${slug}/${lang}.mdx`), pos=md.indexOf("<Summary>"), body=md.slice(0,pos), summary=md.slice(pos), prose=body.replace(/```[\s\S]*?```/g,"");
       bodies.push(body);
       ok(pos>=0 && (md.match(/<Summary>/g)||[]).length===1 && md.trimEnd().endsWith("</Summary>"),`b6p3 ${slug}/${lang}: sole final Summary`);
-      ok(body.includes(source.trim()) && body.includes(expected.trim()) && body.includes('<SimOutput source="model">') && body.includes(`+${added} min`),`b6p3 ${slug}/${lang}: complete addition/code/stdout/exercises before Summary`);
+      ok(body.includes(source.trim()) && body.includes(expected.trim()) && body.includes('<SimOutput source="model">'),`b6p3 ${slug}/${lang}: complete addition/code/stdout/exercises before Summary`);
       ok(summary.includes(summaryMarkers[index]),`b6p3 ${slug}/${lang}: additive whole-lesson summary sentence`);
       for (const marker of markers) ok(prose.includes(marker),`b6p3 ${slug}/${lang}: prose binds ${marker}`);
       if (month===10) {
@@ -5534,7 +5534,7 @@ print("protocol pass")
     for (const [index,lang] of ["en","zh"].entries()) {
       const md=read(`src/content/m${month}/${slug}/${lang}.mdx`), pos=md.indexOf("<Summary>"), body=md.slice(0,pos), summary=md.slice(pos), prose=body.replace(/```[\s\S]*?```/g,"");
       ok(pos>=0 && (md.match(/<Summary>/g)||[]).length===1 && md.trimEnd().endsWith("</Summary>"),`b7p1 ${slug}/${lang}: sole final Summary`);
-      ok(body.includes(source.trim()) && body.includes(expected.trim()) && body.includes('<SimOutput source="model">') && body.includes(`+${added} min`),`b7p1 ${slug}/${lang}: entire addition/code/stdout before Summary`);
+      ok(body.includes(source.trim()) && body.includes(expected.trim()) && body.includes('<SimOutput source="model">'),`b7p1 ${slug}/${lang}: entire addition/code/stdout before Summary`);
       ok(summary.includes(summaries[index]),`b7p1 ${slug}/${lang}: Summary sentence covers addition`);
       for (const marker of markers) ok(prose.includes(marker),`b7p1 ${slug}/${lang}: binds ${marker}`);
       if (toy==="spi_mode_mismatch_toy") ok(lang==="en" ? prose.includes("same wire") && prose.includes("synthetic arbitrary units") && prose.includes("not a model of real metastability") : prose.includes("同一导线") && prose.includes("合成任意单位") && prose.includes("不模拟真实亚稳态"),`b7p1 SPI ${lang}: shared edges and explicit capture assumptions`);
@@ -5767,7 +5767,7 @@ print("protocol pass")
       ["5 seeds","kmeans K=8; rvq 4x4; 12 Lloyd iterations each","MSE 0.66±0.24","kmeans 0.00±0.00 0.53±0.07 1.0±0.0","rvq 0.00±0.00 0.49±0.08 1.0±0.0","16 codebook + 16x30 head + 32x30 offset","以论文为准","本页未运行"],
       ["2403.03181","2206.11251","sjlee.cc/vq-bet","primary","secondary","offset","k-means","5×","以论文为准","FAST/DCT","6.2","DAgger"],
       ["vqbet_residual_vq_toy.py","MSE","k-means","residual VQ","以论文为准"]],
-    ["vla-models","dual_system_vla_cadence_toy",570,
+    ["vla-models","dual_system_vla_cadence_toy",780,
       ["8 seeds","[moving_switch]","C_dual_rt 1.00±0.00 0.126±0.053 0.80±0.07 28.2±12.8 0/8","B_fast_single 1.00±0.00 0.288±0.066 0.01±0.03 125.9±55.4 6/8","D_dual_no_rt 1.00±0.00 0.215±0.017","[static_no_switch]","No winner is declared"],
       ["2505.03912","openhelix-robot.github.io","System 2","System 1","π0","GR00T N1","<ACT>","3D Diffuser Actor","CALVIN","TwinVLA","以论文为准","A_slow_single","B_fast_single","C_dual_rt","D_dual_no_rt"],
       ["dual_system_vla_cadence_toy.py","OpenHelix","System 1","π0","以论文为准","本页未运行"]]
@@ -5806,7 +5806,7 @@ print("protocol pass")
     ok(lang==="en"?md.includes("does not call π0 dual-system"):md.includes("不把 π0 称为双系统"),`b8p3 vla-models ${lang}: explicit π0 exclusion`);
   }
   const plan=read("docs/notes/month-6-plan.md");
-  ok(plan.startsWith("# Month 6")&&["1560→1980","24240→24660","Batch-8 PR3","240→450","360→570","Current / 当前 Batch-8 PR3: M6 **1980 min**"].every(x=>plan.includes(x)),"b8p3 correct-month plan header and PR3-only accounting");
+  ok(plan.startsWith("# Month 6")&&["1560→1980","24240→24660","Batch-8 PR3","240→450","360→570"].every(x=>plan.includes(x)),"b8p3 correct-month plan header and PR3-only accounting");
   const res=read("src/lib/resources.ts");
   for(const id of ["vqbet-paper","vqbet-project","bet-paper","openhelix-paper","openhelix-project"])ok(res.includes(`"${id}": {`)&&cur.includes(`"${id}"`),`b8p3 opened source ${id}`);
   ok(!res.includes("huggingface.co/docs/lerobot/policy_vqbet"),"b8p3 unresolved LeRobot VQ-BeT doc not cited");
@@ -5862,7 +5862,7 @@ print("protocol pass")
       const head=md.indexOf(heads[index]);
       ok(head>0&&head<summary,`b9p1 ${slug} ${lang}: new section before Summary`);
       const sec=md.slice(head,summary);
-      ok(sec.includes(py)&&sec.includes(expected)&&sec.includes(`<CodeSource path="${file}" />`)&&sec.includes("+180 min"),`b9p1 ${slug} ${lang}: exact source/stdout in section`);
+      ok(sec.includes(py)&&sec.includes(expected)&&sec.includes(`<CodeSource path="${file}" />`)&&sec.includes("180"),`b9p1 ${slug} ${lang}: exact source/stdout in section`);
       const ex=sec.lastIndexOf(lang==="en"?"### Exercises":"### 练习");
       ok(ex>sec.indexOf("</SimOutput>")&&(sec.slice(ex).match(/^\d\. /gm)||[]).length===5,`b9p1 ${slug} ${lang}: five exercises after output`);
       for(const x of [...markers,...langMarkers[lang]])ok(sec.includes(x),`b9p1 ${slug} ${lang}: mechanism/scope ${x}`);
@@ -5890,13 +5890,13 @@ print("protocol pass")
   const read=p=>readFileSync(join(root,p),"utf8"), env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
   const cur=read("src/lib/curriculum.ts"), res=read("src/lib/resources.ts");
   const cases=[
-    [3,"m3","so101-arm","abs_vs_incr_power_on_toy",390,"+150 min",["## Absolute vs incremental","## 绝对式与增量式"],["<Summary>","<Summary>"],
+    [3,"m3","so101-arm","abs_vs_incr_power_on_toy",390,"150",["## Absolute vs incremental","## 绝对式与增量式"],["<Summary>","<Summary>"],
       ["CPR=4096 deg_per_count=0.0879","seeds=5 glitches_per_seed=20","single_turn_joint A_single_abs 0.06+-0.00 0.13+-0.01 100.00+-0.00 0.00+-0.00 0.00+-0.00","single_turn_joint B_incremental 72.41+-10.23 144.34+-5.82 0.00+-0.00 100.00+-0.00","single_turn_joint C_incr_home 0.06+-0.00 0.13+-0.01 100.00+-0.00 0.00+-0.00 6.17+-0.20","three_turn_shaft A_single_abs 234.02+-38.20 576.00+-197.06 38.00+-12.55 62.00+-12.55","three_turn_shaft B_incremental 539.48+-63.44","three_turn_shaft C_incr_home 0.07+-0.01 0.13+-0.00 100.00+-0.00 0.00+-0.00 10.49+-0.70","three_turn_shaft D_multi_batt 0.07+-0.01 0.13+-0.00 100.00+-0.00 0.00+-0.00 0.00+-0.00","three_turn_flat_battery D_multi_batt 0.07+-0.01 0.13+-0.00 100.00+-0.00 0.00+-0.00 10.49+-0.70 20.00+-0.00","No winner is declared"],
       ["encoder_index_cal_toy.py","/month/month-2/motors-drivers","A_single_abs","B_incremental","C_incr_home","D_multi_batt","single_turn_joint","three_turn_shaft","three_turn_flat_battery","Extended Position Control Mode","−256","4096","XL330-M288","Wiegand","0.0879°","72.41°","234.02°","576.00°","10.49 s","以原文为准","本页未运行"],
       {en:["power glitch","multi-turn","**No winner is declared.**","not repeated here","not in the SO-101 BOM"],zh:["掉电毛刺","多圈","**不宣布赢家。**","这里不重复","不在 SO-101 物料清单里"]},
       {en:["abs_vs_incr_power_on_toy.py","five seeds","single-turn absolute","本页未运行"],zh:["abs_vs_incr_power_on_toy.py","五个种子","单圈绝对式","本页未运行"]},
       ["wiki-rotary-encoder","dxl-xl330-emanual"],"b9p2-absenc"],
-    [9,"m9","visual-servoing","visual_trace_prompt_toy",630,"+210 min",["## Visual trace prompting (TraceVLA)","## 视觉轨迹提示（TraceVLA）"],["## Common mistakes","## 常见错误"],
+    [9,"m9","visual-servoing","visual_trace_prompt_toy",630,"210",["## Visual trace prompting (TraceVLA)","## 视觉轨迹提示（TraceVLA）"],["## Common mistakes","## 常见错误"],
       ["k=3 demos=20 eval_episodes=30 trace_frames=3 lag=2 jitter=0.2 seeds=5","trace drawn only from past frames","wipe A_raw 0.000+-0.000 2","wipe B_raw_trace 4.807+-0.306 6","wipe C_lagged_trace 4.193+-0.569 6","reach A_raw 0.960+-0.072 2 steps=4.89+-0.90","reach B_raw_trace 0.920+-0.077 6 steps=6.77+-0.95","reach C_lagged_trace 0.867+-0.047 6 steps=8.53+-0.56","No winner is declared"],
       ["2412.10345","Co-Tracker","K=40","M=5","N=6","150K","137","3.5x","α","IBVS","A_raw","B_raw_trace","C_lagged_trace","wipe","reach","4.807±0.306","0.960","以论文为准","本页未运行"],
       {en:["**not** another servo law","**No privileged pose leak.**","**No arm wins everywhere.**","**both**","distract"],zh:["**不是**又一条伺服律","**没有特权位姿泄漏。**","**没有哪一臂处处胜出。**","**同时**","分散"]},
@@ -5944,7 +5944,76 @@ print("protocol pass")
   ok(read("docs/notes/batch-9-pr2-sources.md").includes("All 201 prior expected"),"b9p2 prior-output/source/model audit");
   execFileSync("python3",[join(root,"tools/test_b9_absenc_trace_toys.py")],{cwd:root,encoding:"utf8",env,stdio:"pipe"});
   ok(true,"b9p2 independent wrap-mapping, homing-time, no-leak trace and shared-stream tests executed");
-  console.log("absenc-tracevla PR2: power-on encoder trade-offs, visual-trace prompting and M3 1620 / M9 3480 / site 25380 locked");
+  console.log("absenc-tracevla PR2: power-on encoder trade-offs, visual-trace prompting and M3 1620 / M9 3480 locked");
+}
+
+// Batch-9 PR3: RDT2 three-stage recipe (6.3) and UniVLA task-centric latent actions (11.5); headings carry no minute counts.
+{
+  const read=p=>readFileSync(join(root,p),"utf8"), env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
+  const cur=read("src/lib/curriculum.ts"), res=read("src/lib/resources.ts");
+  const cases=[
+    [6,"m6","vla-models","rdt2_rvq_fm_distill_toy",780,["## RDT2's three-stage recipe","## RDT2 的三阶段做法"],["## Common mistakes","## 常见错误"],
+      ["seeds=5 tokenizer_train=768 expert_train=256 test=200 generated=200","equal 8-bit budget per chunk","bins_4x4 4 16 0.0261±0.0012","single_vq_256 1 256 0.0024±0.0005","rvq_2x16 2 32 0.0037±0.0005","rvq_4x4 4 16 0.0060±0.0014","fm_1 1 0 1.062±0.067 1.411±0.012 100.0±0.0 0.5±0.0","fm_5 5 0 0.109±0.005 0.122±0.006 6.8±1.0 100.0±0.0","distill_1_nn 1 2000 0.110±0.007 0.129±0.008 7.1±1.0 77.2±3.0","distill_1_avg3 1 2000 0.231±0.011 0.144±0.009 37.0±4.4 96.7±1.0","No winner is declared"],
+      ["2602.03310","Qwen2.5-VL","10,000","RVQ","1024","128K","400M","RDT-1B","five forward passes|前向 5 次","G(A⁰) = A⁰ + v_θ′(0, A⁰, ·)","two-thirds|三分之二","A^τ = (1 − τ)ε + τA","bins_4x4","single_vq_256","rvq_2x16","rvq_4x4","fm_5","distill_1_nn","distill_1_avg3","2000","/month/month-6/behaviour-cloning","/month/month-10/flow-matching-policies","以论文为准","本页未运行"],
+      {en:["**The expert is not trained.**","**The toy does not pick a winner.**","not the dual-system cadence above","**frozen**","**distilled**"],zh:["**专家不经过训练。**","**玩具不替你选赢家。**","不是上面的双系统节拍","**冻结**","**蒸馏**"]},
+      {en:["rdt2_rvq_fm_distill_toy.py","five seeds","RDT2","8-bit","以论文为准","本页未运行"],zh:["rdt2_rvq_fm_distill_toy.py","五个种子","RDT2","8 bit","以论文为准","本页未运行"]},
+      ["rdt2-paper"],"b9p3-rdt2"],
+    [11,"m11","cross-embodiment-datasets","univla_latent_action_toy",540,["## UniVLA: task-centric latent actions","## UniVLA：以任务为中心的潜动作"],["## Hardware / compute: not run here","## 硬件 / 算力：本页未运行"],
+      ["seeds=5 video_episodes_per_embodiment=80 codes=12 lloyd_iters=10 decoder_labels=20","wanderer A_raw_bc_A 0.890±0.052 0.000±0.000 0.340±0.029","wanderer B_latent_lang 0.840±0.078 0.865±0.072 0.050±0.040","wanderer C_latent_no_lang 0.125±0.040 0.125±0.035 0.575±0.211","wanderer D_raw_bc_small 0.455±0.148 0.355±0.210 0.295±0.145","still_scene C_latent_no_lang 0.840±0.078 0.865±0.072 0.050±0.040","No winner is declared"],
+      ["2505.06111","DINOv2","VQ-VAE","T5","Prismatic-7B","N = 4","16⁴","256⁷","10.8M","960","21,500","LIBERO-Long","18.5 %","29.6 %","36.7 %","A_raw_bc_A","B_latent_lang","C_latent_no_lang","D_raw_bc_small","wanderer","still_scene","/month/month-9/world-models-overview","OXE-AugE","LAPA","以论文为准","本页未运行"],
+      {en:["**Equal budgets.**","**The toy does not pick a winner.**","**not** modelled here","(labelled)","**task-irrelevant**"],zh:["**预算相同。**","**玩具不替你选赢家。**","**没有**建模","（已标明）","**与任务无关**"]},
+      {en:["univla_latent_action_toy.py","five seeds","UniVLA","**synthetic**","以论文为准","本页未运行"],zh:["univla_latent_action_toy.py","五个种子","UniVLA","**合成**","以论文为准","本页未运行"]},
+      ["univla-paper"],"b9p3-univla"],
+  ];
+  for(const [mon,dir,slug,toy,minutes,heads,nexts,outputs,markers,langMarkers,summaryMarkers,ids,task] of cases){
+    const file=`examples/month-${mon}/${slug}/${toy}.py`,py=read(file).trim(),expected=read(`examples/month-${mon}/expected/${toy}.txt`).trim(),harness=read(`examples/month-${mon}/check.sh`);
+    ok(execFileSync("python3",[join(root,file)],{cwd:root,encoding:"utf8",env}).trim()===expected,`b9p3 ${toy}: actual expected output`);
+    for(const x of outputs)ok(expected.includes(x),`b9p3 ${toy}: result ${x}`);
+    ok(cur.match(new RegExp(`slug: "${slug}"[\\s\\S]*?minutes: (\\d+)`))?.[1]===String(minutes),`b9p3 ${slug}: ${minutes} min`);
+    const host=cur.slice(cur.indexOf(`slug: "${slug}"`)).split("\n  },")[0];
+    ok(host.includes(`id: "${task}"`)&&host.includes(toy)&&ids.every(id=>host.includes(`"${id}"`)),`b9p3 ${slug}: task names toy and resources wired`);
+    for(const id of ids)ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res),`b9p3 opened source ${id}`);
+    ok(harness.includes(`${slug}/${toy}.py`)&&harness.includes(`check ${toy}.txt`),`b9p3 ${toy}: month-${mon} harness compares stdout`);
+    for(const [index,lang] of ["en","zh"].entries()){
+      const md=read(`src/content/${dir}/${slug}/${lang}.mdx`),summary=md.indexOf("<Summary>"),end=md.indexOf("</Summary>");
+      ok(summary>0&&summary===md.lastIndexOf("<Summary>")&&md.slice(end+10).trim()==="",`b9p3 ${slug} ${lang}: sole whole-lesson Summary ends page`);
+      const head=md.indexOf(heads[index]),next=md.indexOf(nexts[index],head);
+      ok(head>0&&next>head&&next<summary,`b9p3 ${slug} ${lang}: new section before ${nexts[index]} and Summary`);
+      const sec=md.slice(head,next);
+      ok(sec.includes(py)&&sec.includes(expected)&&sec.includes(`<CodeSource path="${file}" />`)&&sec.includes(lang==="en"?"**210-minute work plan:**":"**210 分钟计划：**"),`b9p3 ${slug} ${lang}: exact source/stdout and work plan in section`);
+      const ex=sec.lastIndexOf(lang==="en"?"### Exercises":"### 练习");
+      ok(ex>sec.indexOf("</SimOutput>")&&(sec.slice(ex).match(/^\d\. /gm)||[]).length===5,`b9p3 ${slug} ${lang}: five exercises after output`);
+      for(const x of [...markers,...langMarkers[lang]])ok(x.split("|").some(y=>sec.includes(y)),`b9p3 ${slug} ${lang}: mechanism/scope ${x}`);
+      ok(lang==="en"?/\*\*synthetic\*\*/.test(sec)&&sec.includes("mean±sd"):sec.includes("**合成**")&&sec.includes("mean±sd"),`b9p3 ${slug} ${lang}: synthetic label and spread`);
+      const summ=md.slice(summary,end);
+      for(const x of summaryMarkers[lang])ok(summ.includes(x),`b9p3 ${slug} ${lang}: Summary sentence ${x}`);
+      ok(summ.split(`${toy}.py`).length===2,`b9p3 ${slug} ${lang}: exactly one added Summary sentence names the toy`);
+    }
+    const en=read(`src/content/${dir}/${slug}/en.mdx`),zh=read(`src/content/${dir}/${slug}/zh.mdx`);
+    ok(en.split("\n").length===zh.split("\n").length&&(en.match(/```/g)||[]).length===(zh.match(/```/g)||[]).length&&(en.match(/^### /gm)||[]).length===(zh.match(/^### /gm)||[]).length,`b9p3 ${slug}: en/zh structurally symmetric`);
+  }
+  for(const lang of ["en","zh"]){
+    const vla=read(`src/content/m6/vla-models/${lang}.mdx`),sec=vla.split(lang==="en"?"## RDT2's three-stage recipe":"## RDT2 的三阶段做法")[1].split(lang==="en"?"## Common mistakes":"## 常见错误")[0];
+    ok(vla.indexOf(lang==="en"?"## Dual-system VLAs":"## 双系统 VLA")<vla.indexOf(lang==="en"?"## RDT2's three-stage recipe":"## RDT2 的三阶段做法")&&!/π0|System 1|System 2|OneDP-S|consistency/.test(sec),`b9p3 vla-models ${lang}: RDT2 after OpenHelix and not a dual-system / OneDP rewrite`);
+    const ce=read(`src/content/m11/cross-embodiment-datasets/${lang}.mdx`),uni=ce.split(lang==="en"?"## UniVLA: task-centric":"## UniVLA：以任务为中心")[1].split("<Summary>")[0].replace(/```[\s\S]*?```/g,"");
+    ok(!/top4_share|max_weight|partial_score_mean|neural trajector|DreamGen/.test(uni),`b9p3 cross-embodiment ${lang}: UniVLA section is not an OXE-AugE / DreamGen re-teach`);
+  }
+  const toyR=read("examples/month-6/vla-models/rdt2_rvq_fm_distill_toy.py"),toyU=read("examples/month-11/cross-embodiment-datasets/univla_latent_action_toy.py");
+  ok(/SEEDS = \(0, 1, 2, 3, 4\)/.test(toyR)&&/SEEDS = \(0, 1, 2, 3, 4\)/.test(toyU),"b9p3 both toys use five seeds");
+  // No lesson heading carries a minute count (e.g. "(+210 min)", "（+150 分钟）", "（本课 450 min 中新增 210 min）").
+  const mdxFiles=execFileSync("git",["ls-files","src/content"],{cwd:root,encoding:"utf8"}).split("\n").filter(f=>f.endsWith(".mdx"));
+  let headN=0;
+  for(const f of mdxFiles){
+    const text=readFileSync(join(root,f),"utf8").replace(/```[\s\S]*?```/g,"");
+    for(const line of text.split("\n").filter(l=>/^#{1,6} /.test(l))){headN++;ok(!/[（(]\+?\d+ ?(min|分钟)|\d+ ?min 中新增|\+\d+ ?min\b/.test(line),`b9p3 heading without minute count: ${f}: ${line}`);}
+  }
+  for(const [p,x] of [["docs/notes/month-6-plan.md",["Current / 当前：**M6 2190 min**, Batch-9 PR3","1980→2190","25380→25800","570→780","Batch-9 PR3"]],["docs/notes/month-11-plan.md",["Current / 当前：**M11 3210 min**, Batch-9 PR3","3000→3210","25380→25800","330→540","Batch-9 PR3"]]]){
+    const plan=read(p); ok(x.every(y=>plan.includes(y))&&!plan.endsWith("\n\n"),`b9p3 ${p}: header and PR3-only accounting`);
+  }
+  ok(read("docs/notes/batch-9-pr3-sources.md").includes("All 203 prior expected"),"b9p3 prior-output/source/model audit");
+  execFileSync("python3",[join(root,"tools/test_b9_rdt2_univla_toys.py")],{cwd:root,encoding:"utf8",env,stdio:"pipe"});
+  ok(true,"b9p3 independent RVQ, FM-field, student, motor-map and shared-stream tests executed");
+  console.log(`rdt2-univla PR3: RDT2 tokens / steps / students, UniVLA latent transfer, ${headN} headings without minute counts and M6 2190 / M11 3210 / site 25800 locked`);
 }
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);

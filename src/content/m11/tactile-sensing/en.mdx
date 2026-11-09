@@ -112,8 +112,7 @@ How to read it:
 
 Optical gels usually need recalibration after a swap; 3D Cal turns a cheap FDM printer into an automated indenter (reading only here). Magnetic skins that separate electronics from the skin and keep cross-instance signal consistent lose less policy performance after a swap — that is what AnySkin emphasises against ReSkin / DIGIT in the plug table. Replaceability is the precondition for "touch at data scale"; 11.7 picks that up.
 
-### Axes, rest bias and first contact (+180 min)
-
+### Axes, rest bias and first contact
 This is a **synthetic calibration exercise**, not a validated AnySkin force estimator. Define skin-frame x right, y up the surface, z inward. In the fictitious replacement skin, sensor channel a measures negative y, b positive x, c inward load; gains also change. A label such as Bx in a real magnetometer refers to magnetic field, not a force axis: field units cannot be relabelled Newtons. The older marker toy's `force_N=2.5` is an assumed deformation input, not a measured force. Here all loads are **dimensionless proxies**, and positions/errors use synthetic skin units.
 
 1. At rest, average 80 samples to estimate each channel's bias. Subtract this vector before detection or localisation; do not zero the sensor while it is already in contact.

@@ -1,0 +1,17 @@
+Synthetic RDT2-style toy: 4-number action chunks, four heading modes; not RDT2, no VLM, no GPU
+seeds=5 tokenizer_train=768 expert_train=256 test=200 generated=200 lloyd_iters=8 distill_pairs=400 (mean±sd over seeds)
+[part1 tokenizer, equal 8-bit budget per chunk]
+arm tokens_per_chunk codebook_entries heldout_mse dead_entries_%
+bins_4x4 4 16 0.0261±0.0012 0.0±0.0
+single_vq_256 1 256 0.0024±0.0005 0.0±0.0
+rvq_2x16 2 32 0.0037±0.0005 0.0±0.0
+rvq_4x4 4 16 0.0060±0.0014 0.0±0.0
+[part2 generator, shared noise draws; expert = exact FM field of smoothed train chunks]
+arm online_nfe offline_expert_nfe precision recall off_manifold_% distinct_outputs_%
+fm_1 1 0 1.062±0.067 1.411±0.012 100.0±0.0 0.5±0.0
+fm_2 2 0 0.465±0.036 0.270±0.010 75.5±4.8 100.0±0.0
+fm_5 5 0 0.109±0.005 0.122±0.006 6.8±1.0 100.0±0.0
+distill_1_nn 1 2000 0.110±0.007 0.129±0.008 7.1±1.0 77.2±3.0
+distill_1_avg3 1 2000 0.231±0.011 0.144±0.009 37.0±4.4 96.7±1.0
+RDT2 recipe (per the paper): Stage 1 RVQ tokens + cross-entropy, Stage 2 frozen VLM + flow-matching expert, Stage 3 one-step distillation
+No winner is declared; RDT2 task scores 以论文为准; 7B training / GPU / robots: 本页未运行

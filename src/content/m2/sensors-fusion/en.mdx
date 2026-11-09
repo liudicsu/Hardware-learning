@@ -677,16 +677,14 @@ KF 0.213477 0.049114 0.143872 0.297265
 shared data/prior model; neither filter knows true bias; no universal winner; IMU hardware 本页未运行
 ```
 
-### Exercises (+150 min)
-
+### Exercises
 1. (35 min) Derive F,H,Q0,R0 and units from the sample-held bias model; explain why a different continuous-time bias model changes Q cross terms.
 2. (35 min) Run all 9-candidate grids using tuning seeds only; verify equal 40500-update budgets and frozen choices before eval.
 3. (35 min) Recompute the five held-out rows and mean/SD; explain the seed 223 reversal instead of deleting it.
 4. (30 min) In a separate stress experiment inject translational-angle contamination or alter bias random walk; do not retune on held-out seeds or claim a hardware result.
 5. (15 min) Audit function arguments for oracle bias leakage and contrast plain vs bias-adaptive capacity.
 
-## SPI modes: share the wire, change the sampling edge (+180 min)
-
+## SPI modes: share the wire, change the sampling edge
 SPI sends synchronous bits over SCK, COPI/MOSI and CIPO/MISO, with a CS line selecting a peripheral; CS is not an I2C address. The [Arduino SPI documentation](https://docs.arduino.cc/learn/communication/spi/) gives the following modes. **Leading** means the first transition away from idle; **trailing** returns to idle. CPOL sets idle level; CPHA=0 samples leading and launches on trailing (first bit must already be ready), CPHA=1 launches leading and samples trailing.
 
 <Resource id="arduino-spi-modes" />

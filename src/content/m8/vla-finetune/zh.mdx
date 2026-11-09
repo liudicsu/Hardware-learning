@@ -160,8 +160,7 @@ ok: floors from openpi README / Isaac-GR00T README / LeRobot smolvla+pi05 (page 
 - **假定 N1.5 还能加载。** 当前 LeRobot 会拒绝，除非固定 `lerobot==0.5.1`。
 - **把本页当成一次微调。** 这里从不加载权重。
 
-## RPD 风格教师引导 RL 替身（+180 min）
-
+## RPD 风格教师引导 RL 替身
 已打开的 [RPD 论文](https://arxiv.org/abs/2503.05833)给 on-policy RL 加教师动作 / 均值 MSE：在 PPO 回报目标上补充模仿。论文用固定方差高斯说明动作均值 MSE 类似 BC。下面是**离散 Bernoulli** 替身，不声称这个高斯等价：使用 REINFORCE，没有 PPO clipping / critic；只在访问状态上做均值 MSE 监督梯度，不对状态占据分布求完整导数。ManiSkill 结果及论文百分比**以论文为准**；GPU / VLA / ManiSkill / 真机均为**本页未运行**。它不是 10.7 Cal-ConRFT 的离线保守 Q+BC，也不是 10.6 HIL-SERL，更不是 10.1 的扩散采样蒸馏。
 
 论文中的 Hz 与成功率数字仅供阅读对比，不是本页实测或复现结果。

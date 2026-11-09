@@ -156,8 +156,7 @@ Open X-Embodiment（arXiv **2310.08864**）把许多机器人数据集合进同�
 - **以为一集一个文件。** v3 多集共用 Parquet/MP4；边界在元数据。
 - **无视缺帧。** `cube_C` 里一个缺口已是数据事故；用审计脚本找，别靠眼扫。
 
-## 日志分块 CRC：查损坏，不是身份认证（+150 min）
-
+## 日志分块 CRC：查损坏，不是身份认证
 字节完好的日志也可能标签差、缺帧或录制规程单薄；有用的演示也可能悄悄损坏。因此把接收阶段的完整性筛查当作独立问题。本玩具用**合成 16 字节块**，不处理真实 Parquet/MP4/bag，**不声称 LeRobotDataset v3 存储这种 CRC**。原有数据审计与留出起始纪律仍保留；这里不是 CAN/EtherCAT 故障隔离、QoS 接收或 Dynamixel 包教程。
 
 <Resource id="crc-polynomial-reference" />

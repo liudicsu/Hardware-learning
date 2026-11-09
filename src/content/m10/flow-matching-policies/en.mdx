@@ -182,8 +182,7 @@ A SE(2) toy that pins absolute / delta / relative end error under a calibration 
 - **Mixing action representations.** Training on relative actions and executing them as absolute targets sends the arm to the wrong place.
 - **Reading the 73 ms as your robot's latency.** It is an RTX 4090 figure from the paper, not measured here.
 
-## OneDP-style one-step regression surrogate (+210 min)
-
+## OneDP-style one-step regression surrogate
 The original [OneDP paper](https://arxiv.org/abs/2410.21257) distils a pretrained diffusion policy by matching **diffused action distributions along the chain with reverse KL**. Its gradient uses a difference of scores; OneDP-S introduces an auxiliary score estimator and OneDP-D uses an analytic simplification. That KL-along-chain objective is **reading only**, not ordinary pointwise teacher MSE. [Consistency Policy](https://arxiv.org/abs/2405.07503) uses consistency trajectory modelling/self-consistency along a probability-flow ODE (with a denoising objective); neither paper is implemented here. OneDP's 2 %–10 % additional cost and 1.5→62 Hz, and any Consistency Policy figures, are **以论文为准**. Real diffusion/GPU/robot work: **本页未运行**.
 
 The papers' Hz and success-rate numbers are for reading comparison only, not measurements or reproduced results on this page.

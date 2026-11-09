@@ -457,8 +457,7 @@ deploy=policy_only_without_delta_model; residual_is_not_dynamics_SysID
 model_families_differ; no_universal_winner; fall_proxy_not_humanoid_fall; Isaac_real_robot_not_run
 ```
 
-### 引导练习（本课 450 min 中新增 210 min）
-
+### 引导练习
 1. **35 min — 流程审计。** 阅读 ASAP Figure 2 与 III-B/C/D，分开画校准、仿真微调、部署三框。解释把 delta 放入真实部署为何改变了方法。
 2. **45 min — 预算审计。** 追踪实际 B 调用直到 160 条，核对共用噪声/数据对象与保留的评估命名空间。计算每臂 81 × 4 × 100 仿真步，说明等计数控制了什么、没控制什么。
 3. **50 min — 模型审计。** 追踪三种模型族，以及真实执行器较弱时修正的符号。解释动作修正为何不是唯一可识别物理参数，记录 DR 四角点及其间未覆盖之处。

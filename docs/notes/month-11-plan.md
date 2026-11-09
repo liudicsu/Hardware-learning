@@ -1,5 +1,7 @@
 # Month 11 plan: Actuator hardware, tactile contact & cross-embodiment collection
 
+Current / 当前：**M11 3210 min**, Batch-9 PR3. Earlier entries below retain their historical totals.
+
 Site supplement beyond @DeRonin_'s 6-month roadmap (Months 7–11). Lessons open with "This lesson is a site supplement — Months 7–11 are not part of the original six-month course." / 「本课是本站补充内容——第 7–11 个月不属于原六个月课程。」
 
 **PR1–PR3:** full MDX + examples for **11.1–11.7** (PR1 #99: 11.1–11.3, PR2 #100: 11.4–11.5, PR3: 11.6–11.7 + this plan). Month 11 deliberately adds hardware back (power / EMC, FOC, touch) next to the newest collection, data and control directions. It does not replace the 8.7 capstone and does not open a new track; 11.7's "contact-modality experiment" is an optional advanced portfolio section.
@@ -12,7 +14,7 @@ Constraints: no required purchases — not DIGIT / GelSight Mini, a BLDC kit, a 
 | 2 | `foc-actuator-lab` | 480 | `clarke_park_toy.py`, `foc_current_loop_toy.py` | SimpleFOC home + `foc_theory` / `foc_implementation` / alignment / voltage_torque docs |
 | 3 | `tactile-sensing` | 420 | `tactile_marker_toy.py`, `tactile_debias_recal_toy.py` | AnySkin arXiv 2409.08276; DIGIT design / interface repos; GelSight (Yuan 2017); 3D Cal arXiv 2511.03078 (abstract) |
 | 4 | `umi-style-collection` | 420 | `relative_traj_toy.py` | UMI arXiv 2402.10329 v3 + project page / Hardware Guide; LeRobot action representations |
-| 5 | `cross-embodiment-datasets` | 330 | `oxe_imbalance_toy.py`, `oxe_auge_score_toy.py` | OXE project page + GitHub; OXE-AugE arXiv 2512.13100v1 HTML §4.2 + A.5 + project page |
+| 5 | `cross-embodiment-datasets` | 540 | `oxe_imbalance_toy.py`, `oxe_auge_score_toy.py`, `univla_latent_action_toy.py` | OXE project page + GitHub; OXE-AugE arXiv 2512.13100v1 HTML §4.2 + A.5 + project page; UniVLA arXiv 2505.06111 |
 | 6 | `humanoid-wbc-overview` | 480 | `lipm_track_toy.py`, `floating_base_contact_toy.py` | ALIP arXiv 2408.05308 §II-A (3) / §III (20); ASAP arXiv 2502.01143 (abs + HTML, Table V) + code; HugWBC / Holosoma / TWIST / WBC-AGILE repos (README level) |
 | 7 | `contact-rich-policies` | 390 | `tactile_gate_toy.py`, `contact_slip_residual_toy.py` | AnySkin Table III; BAKU arXiv 2406.07539; ViTaMIn 2504.06156 / exUMI 2509.14688 (abstract level, no numbers) |
 
@@ -45,3 +47,11 @@ Batch-4 PR1 (+150 on 11.1 only in this PR): `power-battery-emc` 330→480 — co
 H7 11.4 240→420 (+180): unilateral position teleop; distinct one-way/control/video RTT; explicit display-age plus operator reaction; stop-advance/miss metrics; passivity/wave-variable survey reading, not bilateral proof. M11 **3000 min** (2820+180).
 
 Site **71 lessons /19830 min** (19440+390); M7=2070,M11=3000. New material precedes final bilingual Summary. Source/limit audit: `batch-4-pr3-sources.md`.
+
+## Batch-9 PR3 / 本月 H6 (+210)
+
+Base `64579b5`. PR3 only: **M11 3000→3210 (+210)** and M6 **1980→2190 (+210**, own host in month-6-plan.md); site **25380→25800**, still 71 lessons; no arithmetic mismatch with proposal §9 or curriculum.ts.
+
+- **H6 / 11.5 cross-embodiment-datasets: 330→540 (+210).** UniVLA task-centric latent actions (arXiv 2505.06111, opened; numbers 以论文为准). Toy: two embodiments with different motor maps, shared video / wanderer / evaluation starts; A raw BC from A only, B latent with the actor split + per-embodiment linear decoder, C latent over the whole frame change (no language split), D raw BC on the decoder's 20 labels only; equal codebook, Lloyd iterations, grid and decoder labels (decoder input 2 vs 4 numbers, labelled); wanderer vs still scene; five seeds; no winner. ≠ OXE-AugE count / score toys on this lesson; ≠ 9.9 LAPA / IDM curve. VLM / GPU / robots 本页未运行. / 潜动作跨本体，不宣布赢家。
+
+**Allocation / 安排:** 40+30+50+60+30=210 minutes. Sources: batch-9-pr3-sources.md.

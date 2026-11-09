@@ -763,8 +763,7 @@ Before you move on, you should be able to say yes to all of these:
 - I can compute counts per revolution from encoder CPR and gear ratio.
 - I have a wheel turning exactly one revolution at two different battery voltages, and I can explain what the encoder contributed.
 
-## Winding copper loss and a thermal RC (+180 min)
-
+## Winding copper loss and a thermal RC
 A winding is not a harness. [11.1 power distribution](/en/month/month-11/power-battery-emc) already covers round-trip wire I²R and fuse data gates; here the heat is **inside the motor winding**, with stored heat and a cooling path. We do not redo FOC or use a driver IC's package θJA as a winding thermal resistance. The opened TI SLVA505 package-thermal note explains why PCB/copper/package conditions matter; it does **not** identify this motor's winding parameters.
 
 <Resource id="ti-driver-package-thermal" />
@@ -946,8 +945,7 @@ The ignore and monitor physical peaks both equal **153.001 °C**, with **6709.33
 3. Remove the cutoff but keep the 3.5 A derating limit: predict whether the prolonged stall can still exceed 70 °C. Keep the shared demand fixed.
 4. Separate measured case T, estimated winding T and simulator truth in your notes; list what experiments would identify Rθ/Cθ before any hardware use. Do not infer an insulation class or permitted stall time from this toy.
 
-## PWM dead time: lost volt-seconds and zero-crossing distortion (+180 min)
-
+## PWM dead time: lost volt-seconds and zero-crossing distortion
 The H-bridge section said that real driver chips include dead time so that S1 and S2 (or S3 and S4) are never closed together. This section puts a number on what that protection costs. It is **not** FOC current-loop tuning or electrical-angle work (that is [11.2](/en/month/month-11/foc-actuator-lab)), and it is not the winding heat model above. It is the volt-second bookkeeping of one half-bridge leg.
 
 <Resource id="esp-idf-mcpwm-deadtime" />

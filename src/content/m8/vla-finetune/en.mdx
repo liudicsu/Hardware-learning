@@ -160,8 +160,7 @@ All seven rows print `UNDER` on the toy estimator — that is intentional. Real 
 - **Assuming N1.5 still loads.** Current LeRobot rejects it unless you pin `lerobot==0.5.1`.
 - **Calling this page a fine-tune run.** Weights are never loaded here.
 
-## RPD-style teacher-guided RL surrogate (+180 min)
-
+## RPD-style teacher-guided RL surrogate
 The opened [RPD paper](https://arxiv.org/abs/2503.05833) guides on-policy RL with an MSE between policy action mean and teacher action/mean: its PPO reward objective is supplemented by teacher imitation. The paper's fixed-variance Gaussian argument makes that mean MSE BC-like. Our **discrete Bernoulli** surrogate below does not claim that Gaussian equivalence: it uses REINFORCE, no PPO clipping/critic, and a supervised mean-MSE gradient at visited states (not a full derivative through state occupancy). ManiSkill results and paper percentages are **以论文为准**; GPU/VLA/ManiSkill/real robot: **本页未运行**. It is neither Cal-ConRFT's offline conservative Q+BC (10.7) nor HIL-SERL (10.6), and does not distil a diffusion sampler like 10.1.
 
 The papers' Hz and success-rate numbers are for reading comparison only, not measurements or reproduced results on this page.

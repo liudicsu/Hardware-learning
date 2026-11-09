@@ -97,8 +97,7 @@ oxe_auge_success_lift_hi=45
 - 截断逆频 `max_weight=7.188`；再加权质量仍是 **1150000.0**，因为权重只重缩放行，不发明新示范。
 - 论文常量 **1**（M+）、**22**、**85**、**4.4**、**3**、**24** / **45** 与表无关；以论文 / 项目页为准。
 
-### 分阶段增强，以及不能转移什么（+150 分钟）
-
+### 分阶段增强，以及不能转移什么
 已打开 [OXE-AugE HTML §4.2 与附录 A.5](https://arxiv.org/html/2512.13100v1)，以论文为准。把流程读成四道检查，而不是「给机械臂换颜色就宣布迁移」：
 
 | 阶段 | 输入 → 输出 | 审核 / 失败模式 |
@@ -203,6 +202,337 @@ paper_24_45_percent_denominator=uncertain_absolute_vs_relative
 
 同一批 **40** 个合成试验：部分得分均值 **0.5575 ± 0.0546**（SE），而二值完整放置均值 **0.2250 ± 0.0669**（SE），共 **9/40** 次完整放置。两者都不是 OXE 实测。把一次只抓住的 0.5 改为携物的 0.8：部分均值会变，二值完成率不变。报告时写清两个分母，不把部分均值命名成二值成功率。
 
+## UniVLA：以任务为中心的潜动作，按本体解码
+
+上面的偏斜讲的是每种臂贡献**多少**轨迹。本节问的是另一件事：当目标臂只有少量步带电机标签时，一个策略怎样从**许多**臂的视频里学习？它不是又一个 OXE-AugE 计数或打分玩具，也不是 [9.9](/zh/month/month-9/world-models-overview) 的 LAPA / IDM 伪标签曲线（那是给单个机器人的生成视频打标签）。这里的问题是通过共享的潜动作空间实现跨本体迁移。
+
+<Resource id="univla-paper" />
+
+**论文做了什么（已在 arXiv 2505.06111 打开；数值以论文为准）。** UniVLA（Bu 等，RSS 2025）在 DINOv2 特征空间里，从视频帧对中学习潜动作，使用 VQ-VAE 码本。训练分两个阶段：
+
+- **第 1 阶段：** 把指令（T5 嵌入）输入潜动作模型，让它的码吸收**与任务无关**的动态，例如其他主体或相机抖动。
+- **第 2 阶段：** 复用这个码本，再学习一组新的**以任务为中心**的潜动作。
+
+策略是 Prismatic-7B，词表扩展了 |C| 个动作词元，每步 N = 4 个词元（|C| = 16，因此是 16⁴ 种选择，而不是 OpenVLA 的 256⁷）。每个本体有一个小解码头（10.8M 参数），把潜动作变成机器人动作。论文指出，LAPA 式潜动作会编码所有视觉变化；用与任务无关的潜动作训练，在 LIBERO-Long 上成功率接近零。论文报告预训练只用了 960 A100 小时（OpenVLA 为 21,500），并且相对 OpenVLA 在 LIBERO 上提升 18.5 %、导航提升 29.6 %、真实机器人提升 36.7 %。这些本页都没有复现：7B 预训练、GPU 与机器人均**本页未运行**。
+
+### 公平设置
+
+`univla_latent_action_toy.py` 是**合成**的，只用标准库。末端执行器要到达指令指定的目标（"left" 或 "right"），并绕过一个圆形障碍物；碰到它就算失败。另一个色块，即**游荡者**，自己随意移动。两个本体看到同样的场景，但 **B** 对电机指令的映射不同：两轴互换、一轴反向、增益也不同。视频回合、起点、游荡者路径与评估起点按种子共享，共五个种子。
+
+| 臂 | 训练数据 | 输出 |
+|---|---|---|
+| A_raw_bc_A | 只用 A 带标签的电机指令 | 电机指令，原样用在 A 和 B 上 |
+| B_latent_lang | **末端**帧间变化的潜码，来自 A 与 B 的无标签视频 | 潜码 → 各本体的线性解码器 |
+| C_latent_no_lang | **整帧**变化（末端与游荡者）的潜码，同样的视频 | 潜码 → 各本体的线性解码器 |
+| D_raw_bc_small | 只用解码器拿到的那 20 个带标签步 | 电机指令 |
+
+**预算相同。** B 与 C 使用同样的 12 条目码本、10 次 Lloyd 迭代、同样的视频、表格策略网格，以及每个本体 20 个带标签的解码步。解码器输入是潜码的质心：B 为 2 个数，C 为 4 个数（已标明）。语言被建模为一个已知掩码，指出哪个色块是执行者。真实的 UniVLA 用 DINOv2 特征分两阶段学出这种区分，这里**没有**建模。指标是每个本体 40 个回合上的成功率与碰撞率，结果为五个种子的 mean±sd。共有两个场景：**wanderer**（每步 σ 0.06）和 **still_scene**（游荡者不动）。
+
+### 运行标准库玩具
+
+```bash
+cd ~/Hardware-learning/examples/month-11/cross-embodiment-datasets
+python3 univla_latent_action_toy.py
+```
+
+<CodeSource path="examples/month-11/cross-embodiment-datasets/univla_latent_action_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""univla_latent_action_toy.py: task-centric latent actions vs raw motor BC (stdlib).
+
+Synthetic 2-D world in [0, 1]^2: an end-effector (EE) must reach the goal named
+by the instruction ("left" or "right") and go around a round obstacle in the
+middle; touching it ends the episode as a failure. A second blob (another agent,
+the task-irrelevant dynamics) wanders on its own. Frames show both blobs.
+
+Two embodiments see the SAME scenes but map a motor command m to an EE step
+differently: A: step = m; B: step = (-0.6 * m_y, 1.4 * m_x) (axes swapped, one
+flipped, different gains). Shared per seed: video episodes, starts, wanderer
+paths and evaluation starts (common random numbers). Arms:
+  A_raw_bc_A         tabular BC from EE cell + instruction to motor, trained on
+                     A's labelled episodes only
+  B_latent_lang      latent action = codebook index of the EE's frame-to-frame
+                     change (the instruction marks which blob is the actor; real
+                     UniVLA learns this split from DINOv2 features in two stages,
+                     not modelled); policy on unlabelled video of A AND B; a
+                     per-embodiment linear decoder from the code's centroid
+  C_latent_no_lang   the same, but the code covers the whole frame change (EE and
+                     wanderer), as in latent models without language conditioning
+  D_raw_bc_small     tabular BC trained only on the decoder's labelled steps
+Equal budgets: the same codebook size, Lloyd iterations, video, grid and decoder
+labels (DEC_LABELS labelled steps per embodiment) for B, C and D; decoder input
+is 2 numbers for B and 4 for C (labelled). Not UniVLA, no VLM, no GPU.
+usage: python3 univla_latent_action_toy.py
+"""
+from __future__ import annotations
+
+import math
+import random
+import statistics
+
+SEEDS = (0, 1, 2, 3, 4)
+STEP = 0.05
+OBST, OBST_R = (0.5, 0.5), 0.17
+GOALS = {"left": (0.12, 0.88), "right": (0.88, 0.88)}
+GRID = 10
+VIDEO_EPISODES = 80        # per embodiment
+DEC_LABELS = 20            # labelled steps per embodiment for decoders (and D)
+CODES = 12
+LLOYD_ITERS = 10
+T_MAX = 40
+N_EVAL = 40
+SCENARIOS = (("wanderer", 0.06), ("still_scene", 0.0))
+ARMS = ("A_raw_bc_A", "B_latent_lang", "C_latent_no_lang", "D_raw_bc_small")
+
+
+def to_step(emb, m):
+    return (m[0], m[1]) if emb == "A" else (-0.6 * m[1], 1.4 * m[0])
+
+
+def to_motor(emb, d):
+    return (d[0], d[1]) if emb == "A" else (d[1] / 1.4, -d[0] / 0.6)
+
+
+def blocked(a, b):
+    """Does the segment a->b pass within OBST_R + 0.04 of the obstacle centre?"""
+    vx, vy = b[0] - a[0], b[1] - a[1]
+    t = max(0.0, min(1.0, ((OBST[0] - a[0]) * vx + (OBST[1] - a[1]) * vy) / (vx * vx + vy * vy + 1e-12)))
+    return math.hypot(a[0] + t * vx - OBST[0], a[1] + t * vy - OBST[1]) < OBST_R + 0.04
+
+
+def expert_step(ee, goal):
+    """Straight to the goal, or first to a waypoint below and beside the obstacle."""
+    tgt = goal
+    if blocked(ee, goal):
+        side = 1.0 if goal[0] > OBST[0] else -1.0
+        tgt = (OBST[0] + side * 0.3, min(ee[1], 0.26))
+        if math.hypot(tgt[0] - ee[0], tgt[1] - ee[1]) < 1e-9:
+            tgt = goal
+    dx, dy = tgt[0] - ee[0], tgt[1] - ee[1]
+    dist = math.hypot(dx, dy)
+    s = min(STEP, dist)
+    return (s * dx / dist, s * dy / dist)
+
+
+def clip(p):
+    return (min(max(p[0], 0.0), 1.0), min(max(p[1], 0.0), 1.0))
+
+
+def hit(p):
+    return math.hypot(p[0] - OBST[0], p[1] - OBST[1]) < OBST_R
+
+
+def start(rng):
+    while True:
+        p = (rng.uniform(0.05, 0.95), rng.uniform(0.05, 0.4))
+        if not hit(p):
+            return p
+
+
+def cell(ee, task):
+    return (min(GRID - 1, int(ee[0] * GRID)), min(GRID - 1, int(ee[1] * GRID)), task)
+
+
+def wander(w, rng, sigma):
+    return clip((w[0] + rng.gauss(0.0, sigma), w[1] + rng.gauss(0.0, sigma)))
+
+
+def video(emb, rng, sigma):
+    """Expert episodes: (cell, motor, ee_change, wanderer_change) per step."""
+    rows = []
+    for _ in range(VIDEO_EPISODES):
+        task = rng.choice(("left", "right"))
+        ee, w = start(rng), (rng.random(), rng.random())
+        for _ in range(T_MAX):
+            d = expert_step(ee, GOALS[task])
+            m = to_motor(emb, d)
+            m = (m[0] + rng.gauss(0.0, 0.002), m[1] + rng.gauss(0.0, 0.002))
+            st = to_step(emb, m)
+            nee = clip((ee[0] + st[0], ee[1] + st[1]))
+            nw = wander(w, rng, sigma)
+            rows.append((cell(ee, task), m, (nee[0] - ee[0], nee[1] - ee[1]), (nw[0] - w[0], nw[1] - w[1])))
+            ee, w = nee, nw
+            if math.hypot(ee[0] - GOALS[task][0], ee[1] - GOALS[task][1]) < 0.06:
+                break
+    return rows
+
+
+def d2(a, b):
+    return sum((x - y) ** 2 for x, y in zip(a, b))
+
+
+def kmeans(data, k, rng):
+    cent = [list(p) for p in rng.sample(data, k)]
+    for _ in range(LLOYD_ITERS):
+        sums, cnt = [[0.0] * len(data[0]) for _ in cent], [0] * k
+        for p in data:
+            i = min(range(k), key=lambda c: d2(p, cent[c]))
+            cnt[i] += 1
+            sums[i] = [s + v for s, v in zip(sums[i], p)]
+        cent = [[s / cnt[i] for s in sums[i]] if cnt[i] else cent[i] for i in range(k)]
+    return cent
+
+
+def lstsq(xs, ys):
+    """Least squares y = W x (no bias), solved with normal equations + tiny ridge."""
+    n = len(xs[0])
+    a = [[sum(x[i] * x[j] for x in xs) + (1e-6 if i == j else 0.0) for j in range(n)] for i in range(n)]
+    W = []
+    for k in range(len(ys[0])):
+        b = [sum(x[i] * y[k] for x, y in zip(xs, ys)) for i in range(n)]
+        m = [row[:] + [bb] for row, bb in zip(a, b)]
+        for c in range(n):
+            piv = max(range(c, n), key=lambda r: abs(m[r][c]))
+            m[c], m[piv] = m[piv], m[c]
+            for r in range(n):
+                if r != c:
+                    f = m[r][c] / m[c][c]
+                    m[r] = [u - f * v for u, v in zip(m[r], m[c])]
+        W.append([m[i][n] / m[i][i] for i in range(n)])
+    return W
+
+
+def table(pairs):
+    """cell -> mean value (motor) or majority value (code)."""
+    acc = {}
+    for c, v in pairs:
+        acc.setdefault(c, []).append(v)
+    return acc
+
+
+def lookup(tab, key, reduce):
+    if key in tab:
+        return reduce(tab[key])
+    near = min((k for k in tab if k[2] == key[2]), key=lambda k: (k[0] - key[0]) ** 2 + (k[1] - key[1]) ** 2)
+    return reduce(tab[near])
+
+
+def mean_vec(vs):
+    return tuple(sum(v[i] for v in vs) / len(vs) for i in range(len(vs[0])))
+
+
+def majority(vs):
+    return max(sorted(set(vs)), key=vs.count)
+
+
+def rollout(emb, act, rng, sigma):
+    task = rng.choice(("left", "right"))
+    ee, w = start(rng), (rng.random(), rng.random())
+    for t in range(T_MAX):
+        m = act(cell(ee, task))
+        s = to_step(emb, m)
+        n = math.hypot(s[0], s[1])
+        if n > 2 * STEP:                       # actuator saturation, same for every arm
+            s = (s[0] * 2 * STEP / n, s[1] * 2 * STEP / n)
+        ee = clip((ee[0] + s[0], ee[1] + s[1]))
+        w = wander(w, rng, sigma)
+        if hit(ee):
+            return 0, 1
+        if math.hypot(ee[0] - GOALS[task][0], ee[1] - GOALS[task][1]) < 0.06:
+            return 1, 0
+    return 0, 0
+
+
+def run_seed(seed, sigma):
+    vids = {e: video(e, random.Random(100 * seed + (1 if e == "A" else 2)), sigma) for e in ("A", "B")}
+    feats = {"B_latent_lang": lambda r: list(r[2]), "C_latent_no_lang": lambda r: list(r[2]) + list(r[3])}
+    pol, books = {}, {}
+    for arm, f in feats.items():
+        allrows = vids["A"] + vids["B"]
+        book = kmeans([f(r) for r in allrows], CODES, random.Random(500 + seed))
+        books[arm] = book
+        code = lambda r, f=f, book=book: min(range(CODES), key=lambda c: d2(f(r), book[c]))
+        pol[arm] = table([(r[0], code(r)) for r in allrows])
+    raw_A = table([(r[0], r[1]) for r in vids["A"]])
+    out = {}
+    for emb in ("A", "B"):
+        lab = random.Random(700 + seed).sample(vids[emb], DEC_LABELS)
+        dec = {}
+        for arm, f in feats.items():
+            book = books[arm]
+            xs = [book[min(range(CODES), key=lambda c: d2(f(r), book[c]))] for r in lab]
+            dec[arm] = lstsq(xs, [r[1] for r in lab])
+        small = table([(r[0], r[1]) for r in lab])
+        acts = {
+            "A_raw_bc_A": lambda c: lookup(raw_A, c, mean_vec),
+            "B_latent_lang": lambda c: tuple(sum(w * x for w, x in zip(row, books["B_latent_lang"][lookup(pol["B_latent_lang"], c, majority)])) for row in dec["B_latent_lang"]),
+            "C_latent_no_lang": lambda c: tuple(sum(w * x for w, x in zip(row, books["C_latent_no_lang"][lookup(pol["C_latent_no_lang"], c, majority)])) for row in dec["C_latent_no_lang"]),
+            "D_raw_bc_small": lambda c: lookup(small, c, mean_vec),
+        }
+        for arm in ARMS:
+            re = random.Random(900 + seed)
+            res = [rollout(emb, acts[arm], re, sigma) for _ in range(N_EVAL)]
+            out[(arm, emb)] = (sum(r[0] for r in res) / N_EVAL, sum(r[1] for r in res) / N_EVAL)
+    return out
+
+
+def ms(xs):
+    return f"{statistics.mean(xs):.3f}±{statistics.stdev(xs):.3f}"
+
+
+def main():
+    print("Synthetic UniVLA-style latent-action toy: 2-D reach around an obstacle, two embodiments; not UniVLA, no VLM, no GPU")
+    print(f"seeds={len(SEEDS)} video_episodes_per_embodiment={VIDEO_EPISODES} codes={CODES} lloyd_iters={LLOYD_ITERS} "
+          f"decoder_labels={DEC_LABELS} grid={GRID}x{GRID}x2 eval_episodes={N_EVAL} (mean±sd over seeds)")
+    print("B motor map: step = (-0.6*m_y, 1.4*m_x); labels from B exist only for the decoder budget")
+    print("scenario arm success_on_A success_on_B collision_on_B")
+    for name, sigma in SCENARIOS:
+        res = [run_seed(seed, sigma) for seed in SEEDS]
+        for arm in ARMS:
+            sa = [r[(arm, "A")][0] for r in res]
+            sb = [r[(arm, "B")][0] for r in res]
+            cb = [r[(arm, "B")][1] for r in res]
+            print(f"{name} {arm} {ms(sa)} {ms(sb)} {ms(cb)}")
+    print("No winner is declared; UniVLA LIBERO / R2R / real-robot gains 以论文为准; VLM pretraining / GPU / robots: 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic UniVLA-style latent-action toy: 2-D reach around an obstacle, two embodiments; not UniVLA, no VLM, no GPU
+seeds=5 video_episodes_per_embodiment=80 codes=12 lloyd_iters=10 decoder_labels=20 grid=10x10x2 eval_episodes=40 (mean±sd over seeds)
+B motor map: step = (-0.6*m_y, 1.4*m_x); labels from B exist only for the decoder budget
+scenario arm success_on_A success_on_B collision_on_B
+wanderer A_raw_bc_A 0.890±0.052 0.000±0.000 0.340±0.029
+wanderer B_latent_lang 0.840±0.078 0.865±0.072 0.050±0.040
+wanderer C_latent_no_lang 0.125±0.040 0.125±0.035 0.575±0.211
+wanderer D_raw_bc_small 0.455±0.148 0.355±0.210 0.295±0.145
+still_scene A_raw_bc_A 0.890±0.052 0.000±0.000 0.340±0.029
+still_scene B_latent_lang 0.840±0.078 0.865±0.072 0.050±0.040
+still_scene C_latent_no_lang 0.840±0.078 0.865±0.072 0.050±0.040
+still_scene D_raw_bc_small 0.455±0.148 0.355±0.210 0.295±0.145
+No winner is declared; UniVLA LIBERO / R2R / real-robot gains 以论文为准; VLM pretraining / GPU / robots: 本页未运行
+```
+
+</SimOutput>
+
+### 读出其中的取舍
+
+**来自 A 的原始 BC** 在 A 上是最好的一臂（**0.890**），在 B 上得 **0.000**：同样的电机数值让 B 的末端往侧面走，**0.340** 的回合撞上障碍物。
+
+**以任务为中心的潜动作**在 A 上达到 **0.840**，在 B 上 **0.865**。策略从两种臂的无标签视频里学习，20 个带标签步就足以拟合每个线性解码器。
+
+**没有执行者区分时**，码本把 12 个条目花在游荡者的运动上。策略于是无法从场景预测潜码，C 在 B 上跌到 **0.125**。在 still_scene 中两种潜动作完全相同（B 上 **0.865**），所以这种渗漏来自与任务无关的运动，而不是潜动作这个想法本身。
+
+**只用这 20 个标签**（D）在 B 上得 **0.355**：够拟合一个小解码器，却不够覆盖整条路线。
+
+**玩具不替你选赢家。** 在自己的本体上，标签充足的原始 BC 最好。只有当目标臂标签很少、而潜码又忽略任务控制不了的东西时，潜动作路线才划算。
+
+**210 分钟计划：** 40 min 读论文的两个潜动作阶段与解码器；30 min 审计共享视频与相同预算；50 min 运行并读两个场景；60 min 扰动；30 min 做下面的练习。
+
+### 练习
+
+1. 把 CODES 设为 24。C 在 B 上能恢复吗？用游荡者能吸收多少个码来解释。
+2. 把 DEC_LABELS 减到 4。B 上哪些臂会变化？为什么线性解码器只需要这么少的标签？
+3. 让 B 的映射变成非线性（例如把一个电机轴取平方）。运行前先预测线性解码器会怎样。
+4. 给 D 与 A_raw_bc_A 在 A 上同样多的 80 个 B 带标签回合。潜动作路线还值得吗？
+5. 用两句话，把本课的潜动作与 9.9 的 LAPA / IDM 伪标签、以及上面 OXE-AugE 的外观增强区分开。论文数值以论文为准；本页不运行机器人。
+
 ## 硬件 / 算力：本页未运行
 
 - **CPU 玩具**是必做交付。
@@ -223,6 +553,7 @@ paper_24_45_percent_denominator=uncertain_absolute_vs_relative
 - OXE 汇聚多种臂；项目页：1M+ 轨迹、22 种本体。OXE-AugE：top-4 >85 %，外观增强后约 4.4M，未见臂–夹爪组合报告约提升 24–45 %（分母不确定；A.5 分数均值 ≠ 二值成功率；以论文为准）。
 - 玩具 top4_share=0.8957 来自**合成**计数；max_weight=7.188。真实 OXE 计数不进 CI。
 - 统一 7D 动作（xyz + rpy + gripper）是阅读约定；下载 / 训练步骤本页未运行。
+- UniVLA：`univla_latent_action_toy.py` 在五个种子上表明，从两种臂的无标签视频学到的以任务为中心的潜动作，加上 20 个标签的解码器，能迁移到电机映射不同的臂；来自另一臂的原始 BC 会失败，没有执行者区分的潜动作会混入与任务无关的运动（**合成**结果；论文数值以论文为准，本页未运行）。
 
 **常见错误**
 

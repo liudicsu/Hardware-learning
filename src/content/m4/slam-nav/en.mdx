@@ -761,8 +761,7 @@ The folder `examples/month-4/slam-nav` has the package and the three scripts; `t
 
 Month 5 goes underneath what you have been using. Nav2's controller, the PID loops of Month 3 and the balancer all rest on control theory; the planner and the arm in Month 3 rest on kinematics; the camera you simulated is waiting for calibration and perception. Next month is the maths that makes those parts work.
 
-## ICP: two local registration updates, one shared scan pair (+210 min)
-
+## ICP: two local registration updates, one shared scan pair
 The [Open3D ICP tutorial](https://www.open3d.org/docs/release/tutorial/pipelines/icp_registration.html) distinguishes point-to-point `Σ||Rp_i+t−q_i||²` from point-to-plane `Σ[n_iᵀ(Rp_i+t−q_i)]²`, with target normals. Both need a reasonable initial pose; neither guarantees the correct alignment. This section adds registration mathematics rather than redoing the odometry turn check or 3DGS. Open3D, real lidar and SLAM Toolbox registration for this experiment: **本页未运行**. Tutorial numbers are reading examples, not results measured here.
 
 <Resource id="open3d-icp-objectives" />

@@ -334,8 +334,7 @@ Real stacks do not write their own IK for every robot. MoveIt uses plug-ins such
 - <strong>Too little damping near singularities.</strong> λ = 0.01 chattered at the straight arm and never settled. λ = 0.03 is stable but gives up on the unreachable direction. Choose damping against the expected conditioning, and check the residual.
 - <strong>Trusting IK without an FK check.</strong> A solver can stop on a local minimum or after 200 iterations with a large error. Compute FK at the returned q and compare with the target before commanding motion.
 
-## Attitude coordinates: Euler rank loss versus quaternion paths (+150 min)
-
+## Attitude coordinates: Euler rank loss versus quaternion paths
 The arm Jacobian above maps joint rates to tip translation and can lose **physical task directions**. Gimbal lock below is different: a singular **orientation coordinate chart**, not a robot losing a physical rotational DOF. This section uses an independent, right-handed **active intrinsic ZYX yaw-pitch-roll** convention, column vectors, **`R=Rz(yaw)Ry(pitch)Rx(roll)`**; positive pitch here is about +y. Do not silently substitute it for the earlier planar arm's deliberately chosen −y pitch sign. Quaternion storage is **(w,x,y,z)**, not ROS message field order. The [Euler/quaternion conversion reference](https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles) and [slerp reference](https://en.wikipedia.org/wiki/Slerp) are **secondary** readings; neither is a robot calibration specification.
 
 <Resource id="quat-euler-chart" />
