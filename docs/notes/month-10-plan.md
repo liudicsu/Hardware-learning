@@ -1,8 +1,21 @@
 # Month 10 plan: Modern policy heads, deployment & real-world improvement
 
-Current / 当前：**M10 2910 min**, Batch-13 PR3. Older sections retain historical totals.
+Current / 当前：**M10 3330 min**, Batch-15 PR3. Older sections retain historical totals.
+
+## Batch-15 PR3 / 本月 H5+H6 (+420)
+
+Base `2e88830` (batch-15 PR2 merged as #162; site **32070**). PR3 only on M10 hosts: **M10 2910→3330 (+420)**. Site **32070→32490**, still 71 lessons.
+
+- **H5 / 10.2 real-time-chunking: 180→390 (+210).** FORGE-Tree (arXiv 2510.21744 v1, PDF body read): stage-aligned Diffusion Forcing head on a frozen VLA, partial denoising of one segment with the complement frozen, stage-aware MCTD with P-UCT, fast heuristic and scene-graph return, executed prefix preserved. Toy `forge_tree_mctd_toy.py`: displacement tokens, depth-1 segment search (uniform prior, `c_puct = 1.0`), accept-if-better on a noisy geometry return; arms one-shot / tree / random segments; common random numbers, 5 seeds × 40 trials; no integration step, prefix violations 0 in every arm. long_tight: B−A final 0.1400±0.0548 clear 5/5; low_budget: B−A final **near-tie**, random picks ahead on stage (C−B 0.0363±0.0284, 5/5); noisy_graph: B−A final **tie**; single_stage: B−A clear (§9-adjacent mismatch with the proposal's single-stage near-tie, disclosed); budget sweep B−A final tie at N = 1, near-tie at 2 and 4, clear from 8. No parameter changed after the first run. LIBERO % 以论文为准, 本页未运行.
+- **H6 / 10.6 real-world-rl: 450→660 (+210).** ThinkAct (arXiv 2507.16815 v2, PDF body read): reasoning MLLM writes a visual plan latent, GRPO on goal + DTW trajectory + format rewards, DiT action model conditioned through a Q-Former, asynchronous N actions per latent. Toy `thinkact_visual_latent_toy.py`: grid stages with revisits, stage indicator hidden with q_hide; arms direct / plan latent / rotated (scrambled) latent; shared demos, slips and hides; 5 seeds × 40 trials; no integration step. single_step: **tie**; multi_stage (per-step hide): **near-tie** (§9 mismatch, disclosed); ambiguous / multi_stage_block / ambiguous_block: small but consistent B wins; noisy_plan: B loses; drop_dense: small B win, drop_sparse: near-tie; scrambled C−B clear in multi_stage, near-tie in ambiguous_block. Post-hoc (disclosed, alternatives printed): shared fallback, rotated C, `_block` regimes. Paper % 以论文为准, 本页未运行.
+
+**Allocation / 安排:** H5 45+30+45+50+40=210; H6 45+30+45+50+40=210 minutes.
+
+**Site accounting / 全站核算:** **32490=32070+420**; **M10=3330**, **71 lessons**.
 
 ## Batch-13 PR3 / 本月 H5+H6 (+420)
+
+（历史）Batch-13 PR3 header: M10 2910 min.
 
 Base `e0c9ccf` (batch-13 PR2 merged; site **29850**). PR3 only on M10 host: **M10 2490→2910 (+420)**. Site **29850→30270**, still 71 lessons.
 

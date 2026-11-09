@@ -492,10 +492,509 @@ DPO paper figures: 以论文为准; this is loss/budget literacy, not a robot be
 3. 五种子重跑25 % 翻转，保留相同留出上下文，报成功 / 遗憾及离散，保留偏好 BC 更好的地方。
 4. 从核心组记录移除二元标签，验证更新不变；说明 success-filter 为何是额外监督，以及它与 SARM 时间进度加权的区别。
 
+## 先推理再行动：视觉规划潜变量（ThinkAct）
+
+上面的 RLPD 与 HIL-SERL 用奖励改进一个策略。预训练 VLA 还会因为另一个原因失败。它把当前观测直接映射成动作，当任务的两个阶段在相机里看起来一样时，它不知道自己处在哪个阶段。**ThinkAct** 把工作拆成两半。一个多模态大模型根据指令和图像推理，写出**视觉规划潜变量**（一条很短的二维轨迹），并用从这条规划算出的奖励做强化学习训练。另一个动作模型再以这个潜变量为条件行动。本节为"规划潜变量"这个想法搭一个**合成**替身。它不是 Qwen2.5-VL，不是 GRPO 训练，也不是 DiT 策略，也不重做 CoT-VLA、MAP-VLA（10.5）或 TraceVLA。
+
+<Resource id="thinkact-paper" />
+
+**实际打开过的来源（经 pdftotext 读过 PDF 正文，arXiv 2507.16815 v2，cs.CV）。**
+
+- **Huang、Wu、Chen、Wang 与 Yang，《ThinkAct: Vision-Language-Action Reasoning via Reinforced Visual Latent Planning》（NVIDIA、台湾大学）。**
+  - 推理用的多模态大模型 `F_θ`（Qwen2.5-VL 7B）输出推理文本和视觉规划潜变量 `c_t`。潜变量解码成 [0, 1]² 中的 K = 8 个夹爪点。
+  - **目标奖励**（式 1）是 `r_goal = ½ (f(p_1, p̂_1) + f(p_K, p̂_K))`，其中 `f(p, p′) = max(0, 1 − ‖p − p′‖²)`。**轨迹奖励**（式 2）是 `r_traj = max(0, 1 − d(τ, τ̂))`，距离用动态时间规整。式 3 把它们合成 `r = 0.9 · r_visual + 0.1 · r_format`，其中 `r_visual = 0.5 · r_goal + 0.5 · r_traj`。
+  - 训练用 GRPO（式 4），优势按组归一化，β = 1e-2，每组 5 个 rollout，6K 次迭代。
+  - 动作模型 `π_φ` 是 432M 的 DiT 策略，经 Q-Former（32 个查询）以 `c_t` 为条件，在 `F_θ` 冻结时用模仿学习（式 5）训练。它**异步**运行：一个潜变量服务 N 个动作（SimplerEnv 上 N = 15，LIBERO 上 75）。附录 B.6 报告 LIBERO 上 N = 25 / 50 / 75 / 100 → 84.0 / 84.6 / 84.4 / 83.7 %。
+  - **报告的结果（以论文为准）。** 表 1 给出 LIBERO 总体 84.4（OpenVLA 76.5，DiT-Policy 76.8，CoT-VLA 83.9）、LIBERO-Long 70.9，以及 SimplerEnv Google-VM 71.5、Google-VA 65.1、Bridge-VM 43.8。表 3（SimplerEnv）对奖励做消融：完整 60.1，去掉 `r_traj` 59.2，去掉 `r_goal` 59.1，两者都去掉 56.9，只做 SFT 56.4。附录 B.7 报告 ThinkAct 比 OpenVLA 慢约 17 %，那里按子集给出的差值与表 1 的差并不全部一致；本页不解决这个差异。
+  - 论文还报告了少样本适应（每个任务 10 条示范）和根据一段短视频自我纠正，并把多模态大模型的幻觉列为局限。训练用了 16 块 A100 GPU（本页未运行）。
+
+### 规划奖励与潜变量携带的信息
+
+<Formula label="目标奖励（ThinkAct 式 1）">r_goal = ½ · (f(p_1, q_1) + f(p_K, q_K))，f(p, q) = max(0, 1 − ‖p − q‖²)</Formula>
+
+<Formula label="轨迹奖励（ThinkAct 式 2）">r_traj = max(0, 1 − DTW(p, q))</Formula>
+
+<Formula label="视觉奖励（ThinkAct 式 3，不含格式项）">r_visual = 0.5 · r_goal + 0.5 · r_traj</Formula>
+
+本 toy 里，潜变量是剩下的**阶段目标**列表，在 9 × 9 网格上缩放到 [0, 1]²。它不是 ThinkAct 的 8 个夹爪点。
+
+**算例。** 取任务 P → Q → P，网格上 P = (2, 6)、Q = (6, 2)，缩放后每格是 1/8。正确的潜变量得到 `r_visual = 1`。**轮换**后的潜变量 Q → P → P 终点正确，终点误差为 0 格，但第一个点偏了 (0.5, 0.5)：`f = 1 − 0.5 = 0.5`，`r_goal = 0.75`，DTW = 0.7071，`r_traj = 0.2929`，`r_visual = 0.5214`。第一个点抖动一格的潜变量得 0.9336。**只看终点误差看不出顺序错了，轨迹项能看出来。**
+
+**这里没有积分步长。** 机器人每步走一格，不按连续时间步进，不涉及步长稳定性判据。扮演这个角色的量是**潜变量刷新**间隔，即本 toy 版本的 ThinkAct "每个潜变量 N 个动作"。
+
+### 公平设置
+
+`thinkact_visual_latent_toy.py` 是**合成**的，只用标准库。**模型假设**如下。
+- 任务是一个有序的目标格列表，有些格要去两次（PQP、PQPQ）。机器人站到下一个目标上时阶段前进。
+- 相机以概率 `1 − q_hide` 显示阶段指示；被遮住时，同一个格在不同阶段看起来一样。
+- **共享示范。** 每次试验 20 条专家回合（先走 x 再走 y；每步有 0.1 的概率打滑成随机移动），为每个学习出来的表提供标签。
+- 推理替身写出剩下的目标。每个目标以概率 `p_plan` 被移到相邻格（幻觉的替身）；若阶段可见，潜变量每隔 `refresh` 步重写一次。
+- 没见过的键先退回"阶段被遮住"的多数动作，再退回"原地不动"。
+
+| 组 | 动作表的输入 |
+|---|---|
+| A_direct | （格，可见的阶段或"被遮住"） |
+| B_latent | （格，当前规划点）；到达一个点后转向下一个点 |
+| C_scrambled | B 的表，目标相同但顺序轮换（t_2, …, t_K, t_1）；只有一个阶段时等同于不变 |
+
+**共同随机数。** 每个（情形、种子、试验）的场景、任务、示范、规划抖动、打滑抽样和遮挡抽样只抽一次，三组共用。共 5 个种子 × 40 次试验。
+
+指标：
+- `stage`：完成的阶段比例。
+- `full`：所有阶段都完成。
+- `endpoint`：潜变量终点误差（格）。
+- `r_visual`：第一个潜变量的式 3 视觉奖励；A 没有潜变量，打印 0。
+
+| 情形 | 阶段 | q_hide | 遮挡块 | p_plan | 刷新 | 掉落 |
+|---|---|---|---|---|---|---|
+| single_step | P | 0.5 | 1 | 0.1 | 只在开始 | 否 |
+| multi_stage | PQP | 0.5 | 1 | 0.1 | 只在开始 | 否 |
+| ambiguous | PQPQ | 0.8 | 1 | 0.1 | 只在开始 | 否 |
+| multi_stage_block | PQP | 0.5 | 8 | 0.1 | 只在开始 | 否 |
+| ambiguous_block | PQPQ | 0.8 | 8 | 0.1 | 只在开始 | 否 |
+| noisy_plan | PQP | 0.5 | 1 | 0.5 | 只在开始 | 否 |
+| drop_dense | PQP | 0.5 | 1 | 0.1 | 每 5 步 | 是 |
+| drop_sparse | PQP | 0.5 | 1 | 0.1 | 只在开始 | 是 |
+
+`drop` 情形里，回合中间三分之一的某一步，阶段计数回退一格（物体滑落）。这时潜变量必须重写，否则它会指向一个已经不算完成的阶段之后。
+
+**看过结果后做的选择。** 第一次完整运行后改了三处；toy 会打印每处的第一版。
+- **退回规则。** 起初，没见过的（格，规划点）键让 B 原地不动，A 却保留（格，被遮住）退回。决定结果的是这个不对称，而不是潜变量：B 在每个情形都输给 A，例如 multi_stage B−A full −0.2000±0.0901，noisy_plan −0.6850±0.0576。现在所有组用同一个退回规则。旧的那一行对每个情形都会打印。
+- **C 是什么。** C 起初用同一场景里另一个任务的潜变量。它的键在示范里从未出现，于是退回 A 的"被遮住"表，实际上忽略了潜变量（single_step 的 C−B 在每个种子上都打平）。现在 C 轮换真实目标的顺序，键在示范里出现过，但顺序错了。第一版 C 也会打印（C−B full）。
+- **`_block` 情形。** 遮挡每步重新抽时，multi_stage 的差距只是接近打平。相机连续 8 步看不到指示，正是潜变量要应对的情况，所以加了两个分块情形。逐步遮挡的情形仍留在表里和输出里。
+
+### 运行标准库 toy
+
+```bash
+cd ~/Hardware-learning/examples/month-10/real-world-rl
+python3 thinkact_visual_latent_toy.py
+```
+
+<CodeSource path="examples/month-10/real-world-rl/thinkact_visual_latent_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic ThinkAct-style toy: direct policy vs plan-latent policy vs a scrambled latent. Stdlib only.
+
+A 9 x 9 grid; a task is an ordered list of target cells (stages), possibly revisiting a cell.
+The stage counter advances when the robot stands on the next target. A camera shows the stage
+indicator with probability 1 - Q_HIDE per step; otherwise the observation is the cell only, so
+a revisited cell looks the same in different stages (perceptual aliasing).
+Shared demos: N_DEMO expert episodes per trial (x first, then y; each step slips to a random
+move with probability SLIP) give the labels for every learned table.
+
+Arms (same task, same demos, same slip draws, same hide draws):
+  A_direct   obs -> action: majority demo action for (cell, visible stage or "hidden")
+  B_latent   a reasoner stand-in writes a plan latent = the remaining targets (each cell jittered
+             to a neighbour with probability P_PLAN, a hallucination stand-in); the action model is
+             the majority demo action for (cell, current plan point) and moves to the next point when
+             it stands on one; the latent is rewritten every REFRESH steps when the stage is visible
+             (REFRESH = 0: written once at the start)
+  C_scrambled  B's action model with the same targets in a rotated order (t_2, ..., t_K, t_1);
+             with one stage the rotation is the identity, so C equals B there by construction
+  The first version's C used the targets of a different task in the same scene; its (cell, point)
+  keys never occur in the demos, so it fell back to A's hidden-stage table; it is printed as an
+  alternative.
+An unseen key falls back to the (cell, hidden) majority for every arm, then to "stay"; the first
+version let B stay at once and is printed as the fallback alternative.
+Plan metrics for a latent (points scaled to [0, 1]^2 as in ThinkAct eq. 1-3):
+  r_goal = (f(p_1, q_1) + f(p_K, q_K)) / 2 with f = max(0, 1 - |p - q|^2)
+  r_traj = max(0, 1 - DTW(p, q)) (DTW: sum of Euclidean distances along the best alignment)
+  r_visual = 0.5 r_goal + 0.5 r_traj; endpoint error = |p_K - q_K| in cells
+The latent is a list of stage targets, not ThinkAct's 8 gripper points; no MLLM, no GRPO, no DiT.
+No integration step: the grid moves one cell per step, nothing is stepped in continuous time.
+Common random numbers: per (regime, seed, trial) the scene, the tasks, the demos, the plan jitter,
+the slip draws and the hide draws are drawn once and shared by every arm.
+Metrics per trial, averaged over TRIALS per seed: stage (share of stages completed), full
+(all stages completed), endpoint, r_visual (latent arms only).
+Labels: tie = identical on every seed; numerically zero = |paired mean| and sd both < 1e-9
+(effectively a tie, no sign count); |m| <= sd = near-tie; |m| > sd = consistent gap (small if
+|m| < 20 % of the smaller arm mean, else clear), with a sign count.
+Qwen2.5-VL / LIBERO / SimplerEnv / a GPU: 本页未运行. Paper numbers: 以论文为准.
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+TRIALS = 40
+SIZE = 9
+N_DEMO = 20
+SLIP = 0.1
+MOVES = ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1))
+NUM_ZERO = 1e-9
+ARMS = ("A_direct", "B_latent", "C_scrambled")
+# name: (stage pattern, Q_HIDE, P_PLAN, REFRESH, drop, HIDE_BLOCK)
+# HIDE_BLOCK = steps per hide draw (1 = a fresh draw every step); the two *_block regimes were
+# added after the per-step regimes had run (see the en / zh prose); every regime is printed.
+REGIMES = {
+    "single_step": ("P", 0.5, 0.1, 0, False, 1),
+    "multi_stage": ("PQP", 0.5, 0.1, 0, False, 1),
+    "ambiguous": ("PQPQ", 0.8, 0.1, 0, False, 1),
+    "multi_stage_block": ("PQP", 0.5, 0.1, 0, False, 8),
+    "ambiguous_block": ("PQPQ", 0.8, 0.1, 0, False, 8),
+    "noisy_plan": ("PQP", 0.5, 0.5, 0, False, 1),
+    "drop_dense": ("PQP", 0.5, 0.1, 5, True, 1),
+    "drop_sparse": ("PQP", 0.5, 0.1, 0, True, 1),
+}
+
+
+def cell(rng):
+    return (rng.randrange(SIZE), rng.randrange(SIZE))
+
+
+def expert(c, t):
+    if c[0] != t[0]:
+        return 1 if t[0] > c[0] else 2
+    if c[1] != t[1]:
+        return 3 if t[1] > c[1] else 4
+    return 0
+
+
+def step(c, a):
+    return (min(SIZE - 1, max(0, c[0] + MOVES[a][0])), min(SIZE - 1, max(0, c[1] + MOVES[a][1])))
+
+
+def world(regime, seed, trial):
+    pattern, q_hide, p_plan, refresh, drop, block = REGIMES[regime]
+    rng = random.Random(f"{regime}-{seed}-{trial}")
+    start = cell(rng)
+    names = sorted(set(pattern))
+    while True:
+        spots = {n: cell(rng) for n in names}
+        other = {n: cell(rng) for n in names}
+        allc = list(spots.values()) + list(other.values()) + [start]
+        if len(set(allc)) == len(allc):
+            break
+    task = [spots[n] for n in pattern]
+    wrong = [other[n] for n in pattern]
+    horizon = 2 * sum(abs(a[0] - b[0]) + abs(a[1] - b[1]) for a, b in zip([start] + task, task)) + 6
+    demos = []
+    for _ in range(N_DEMO):
+        c, s, rec = start, 0, []
+        for _ in range(horizon):
+            if s == len(task):
+                break
+            a = expert(c, task[s])
+            rec.append((c, s, rng.random() < q_hide, task[s], a))
+            c = step(c, rng.randrange(5) if rng.random() < SLIP else a)
+            if c == task[s]:
+                s += 1
+        demos.append(rec)
+    jit = [[(rng.random(), rng.randrange(4)) for _ in range(len(task))] for _ in range(horizon + 1)]
+    slips = [(rng.random(), rng.randrange(5)) for _ in range(horizon)]
+    draws = [rng.random() < q_hide for _ in range(horizon)]
+    hides = [draws[t // block] for t in range(horizon)]
+    t_drop = rng.randrange(horizon // 3, 2 * horizon // 3) if drop else -1
+    return start, task, wrong, horizon, demos, jit, slips, hides, t_drop, p_plan, refresh
+
+
+def majority(table, key):
+    votes = table.get(key)
+    if not votes:
+        return None
+    return max(range(5), key=lambda a: (votes[a], -a))
+
+
+def tables(demos):
+    ta, tb = {}, {}
+    for rec in demos:
+        for c, s, hid, tgt, a in rec:
+            for key in ((c, s if not hid else -1), (c, -1)):
+                ta.setdefault(key, [0] * 5)[a] += 1
+            tb.setdefault((c, tgt), [0] * 5)[a] += 1
+    return ta, tb
+
+
+def jitter(points, draws, p_plan):
+    out = []
+    for p, (u, d) in zip(points, draws):
+        if u < p_plan:
+            m = MOVES[1 + d]
+            p = (min(SIZE - 1, max(0, p[0] + m[0])), min(SIZE - 1, max(0, p[1] + m[1])))
+        out.append(p)
+    return out
+
+
+def dtw(p, q):
+    inf = float("inf")
+    d = [[inf] * (len(q) + 1) for _ in range(len(p) + 1)]
+    d[0][0] = 0.0
+    for i in range(1, len(p) + 1):
+        for j in range(1, len(q) + 1):
+            c = math.dist(p[i - 1], q[j - 1])
+            d[i][j] = c + min(d[i - 1][j], d[i][j - 1], d[i - 1][j - 1])
+    return d[len(p)][len(q)]
+
+
+def plan_scores(plan, task):
+    p = [(x / (SIZE - 1), y / (SIZE - 1)) for x, y in plan]
+    q = [(x / (SIZE - 1), y / (SIZE - 1)) for x, y in task]
+    f = lambda a, b: max(0.0, 1.0 - math.dist(a, b) ** 2)
+    r_goal = 0.5 * (f(p[0], q[0]) + f(p[-1], q[-1]))
+    r_traj = max(0.0, 1.0 - dtw(p, q))
+    return math.dist(plan[-1], task[-1]), 0.5 * r_goal + 0.5 * r_traj
+
+
+def rotate(points):
+    return points[1:] + points[:1]
+
+
+def latent_source(arm, task, wrong):
+    if arm == "B_latent":
+        return task
+    if arm == "C_scrambled":
+        return rotate(task)
+    return wrong
+
+
+def run(arm, regime, seed, trial, fallback="table"):
+    start, task, wrong, horizon, demos, jit, slips, hides, t_drop, p_plan, refresh = world(regime, seed, trial)
+    ta, tb = tables(demos)
+    c, s = start, 0
+    source = latent_source(arm, task, wrong)
+    plan = jitter(source, jit[0], p_plan)
+    endpoint, r_vis = plan_scores(plan, task)
+    ptr = 0
+    for t in range(horizon):
+        if s == len(task):
+            break
+        if t == t_drop and s > 0:
+            s -= 1
+        if arm == "A_direct":
+            a = majority(ta, (c, -1 if hides[t] else s))
+            a = majority(ta, (c, -1)) if a is None and fallback == "table" else a
+        else:
+            if refresh and t > 0 and t % refresh == 0 and not hides[t]:
+                remaining = latent_source(arm, task[s:], wrong[s:]) or source[-1:]
+                plan, ptr = jitter(remaining, jit[t], p_plan), 0
+            a = majority(tb, (c, plan[ptr])) if ptr < len(plan) else None
+            a = majority(ta, (c, -1)) if a is None and fallback == "table" else a
+        a = 0 if a is None else a
+        u, r = slips[t]
+        c = step(c, r if u < SLIP else a)
+        if c == task[s]:
+            s += 1
+        if arm != "A_direct" and ptr < len(plan) and c == plan[ptr]:
+            ptr += 1
+    out = {"stage": s / len(task), "full": 1.0 if s == len(task) else 0.0}
+    out["endpoint"] = endpoint if arm != "A_direct" else 0.0
+    out["r_visual"] = r_vis if arm != "A_direct" else 0.0
+    return out
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-5:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{num(m)}+-{num(s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{num(m)}+-{num(s)}: {label}; {sign_note(diffs, m)}"
+
+
+KEYS = ("stage", "full", "endpoint", "r_visual")
+
+
+def main():
+    print("Synthetic ThinkAct-style toy; grid stages, plan latent = remaining targets; not Qwen2.5-VL / LIBERO / SimplerEnv")
+    print(f"seeds={len(SEEDS)} trials={TRIALS} grid={SIZE} demos={N_DEMO} slip={SLIP}; no integration step (one cell per step); A has no latent, so its endpoint and r_visual print 0")
+    print("regime arm stage full endpoint r_visual  (mean+-sd over seeds of per-seed trial means)")
+    for regime, (pattern, q_hide, p_plan, refresh, drop, block) in REGIMES.items():
+        print(f"{regime} (stages={len(pattern)} pattern={pattern}, q_hide={q_hide}, hide_block={block}, p_plan={p_plan}, refresh={refresh or 'start only'}, drop={drop})")
+        res = {}
+        for arm in ARMS:
+            res[arm] = []
+            for seed in SEEDS:
+                rs = [run(arm, regime, seed, t) for t in range(TRIALS)]
+                res[arm].append({k: sum(r[k] for r in rs) / TRIALS for k in KEYS})
+            cells = " ".join("{}+-{}".format(*map(num, mean_sd([r[k] for r in res[arm]]))) for k in KEYS)
+            print(f"  {arm} {cells}")
+        for x, y in (("B_latent", "A_direct"), ("C_scrambled", "B_latent"), ("C_scrambled", "A_direct")):
+            for k in ("stage", "full"):
+                print(f"  paired {x[0]}-{y[0]} {k}: {verdict([r[k] for r in res[x]], [r[k] for r in res[y]])}")
+    print("fallback alternative (first version: an unseen (cell, plan point) key makes B stay; A keeps its (cell, hidden) fallback); paired B-A full")
+    for regime in REGIMES:
+        xa = [sum(run("A_direct", regime, seed, t)["full"] for t in range(TRIALS)) / TRIALS for seed in SEEDS]
+        xb = [sum(run("B_latent", regime, seed, t, "stay")["full"] for t in range(TRIALS)) / TRIALS for seed in SEEDS]
+        print(f"  {regime}: {verdict(xb, xa)}")
+    print("C alternative (first version: the latent of a different task in the same scene); paired C-B full")
+    for regime in REGIMES:
+        xb = [sum(run("B_latent", regime, seed, t)["full"] for t in range(TRIALS)) / TRIALS for seed in SEEDS]
+        xc = [sum(run("C_wrong_task", regime, seed, t)["full"] for t in range(TRIALS)) / TRIALS for seed in SEEDS]
+        print(f"  {regime}: {verdict(xc, xb)}")
+    print("No winner declared: the latent carries stage context the camera can hide; a hallucinated or stale latent costs it back")
+    print("Real ThinkAct (Qwen2.5-VL 7B + DiT policy, GRPO), LIBERO, SimplerEnv, a GPU: 本页未运行; Huang et al. results 以论文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic ThinkAct-style toy; grid stages, plan latent = remaining targets; not Qwen2.5-VL / LIBERO / SimplerEnv
+seeds=5 trials=40 grid=9 demos=20 slip=0.1; no integration step (one cell per step); A has no latent, so its endpoint and r_visual print 0
+regime arm stage full endpoint r_visual  (mean+-sd over seeds of per-seed trial means)
+single_step (stages=1 pattern=P, q_hide=0.5, hide_block=1, p_plan=0.1, refresh=start only, drop=False)
+  A_direct 0.9300+-0.0481 0.9300+-0.0481 0.0000+-0.0000 0.0000+-0.0000
+  B_latent 0.9300+-0.0481 0.9300+-0.0481 0.0650+-0.0285 0.9954+-0.0020
+  C_scrambled 0.9300+-0.0481 0.9300+-0.0481 0.0650+-0.0285 0.9954+-0.0020
+  paired B-A stage: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A full: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B stage: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B full: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A stage: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A full: 0.0000+-0.0000: tie: identical on every seed
+multi_stage (stages=3 pattern=PQP, q_hide=0.5, hide_block=1, p_plan=0.1, refresh=start only, drop=False)
+  A_direct 0.8967+-0.0419 0.8400+-0.0627 0.0000+-0.0000 0.0000+-0.0000
+  B_latent 0.8883+-0.0484 0.8150+-0.0912 0.0650+-0.0137 0.9832+-0.0051
+  C_scrambled 0.7833+-0.0901 0.6650+-0.1207 0.0650+-0.0137 0.5928+-0.0169
+  paired B-A stage: -0.0083+-0.0083: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 2 of 5 equal
+  paired B-A full: -0.0250+-0.0306: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 2 of 5 equal
+  paired C-B stage: -0.1050+-0.0427: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B full: -0.1500+-0.0661: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A stage: -0.1133+-0.0484: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A full: -0.1750+-0.0685: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+ambiguous (stages=4 pattern=PQPQ, q_hide=0.8, hide_block=1, p_plan=0.1, refresh=start only, drop=False)
+  A_direct 0.8512+-0.0284 0.7600+-0.0518 0.0000+-0.0000 0.0000+-0.0000
+  B_latent 0.8975+-0.0324 0.8400+-0.0518 0.0700+-0.0371 0.9790+-0.0054
+  C_scrambled 0.8575+-0.0505 0.7700+-0.0758 4.7388+-0.4729 0.3661+-0.0477
+  paired B-A stage: 0.0463+-0.0244: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A full: 0.0800+-0.0597: small but consistent gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+  paired C-B stage: -0.0400+-0.0298: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B full: -0.0700+-0.0326: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A stage: 0.0063+-0.0403: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired C-A full: 0.0100+-0.0652: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+multi_stage_block (stages=3 pattern=PQP, q_hide=0.5, hide_block=8, p_plan=0.1, refresh=start only, drop=False)
+  A_direct 0.8933+-0.0370 0.8200+-0.0647 0.0000+-0.0000 0.0000+-0.0000
+  B_latent 0.9117+-0.0361 0.8500+-0.0637 0.0800+-0.0326 0.9853+-0.0024
+  C_scrambled 0.7900+-0.0576 0.6800+-0.0891 0.0800+-0.0326 0.5976+-0.0299
+  paired B-A stage: 0.0183+-0.0137: small but consistent gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+  paired B-A full: 0.0300+-0.0209: small but consistent gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+  paired C-B stage: -0.1217+-0.0233: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B full: -0.1700+-0.0274: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A stage: -0.1033+-0.0286: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A full: -0.1400+-0.0379: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+ambiguous_block (stages=4 pattern=PQPQ, q_hide=0.8, hide_block=8, p_plan=0.1, refresh=start only, drop=False)
+  A_direct 0.8700+-0.0471 0.7500+-0.0586 0.0000+-0.0000 0.0000+-0.0000
+  B_latent 0.9163+-0.0302 0.8450+-0.0371 0.1100+-0.0379 0.9757+-0.0041
+  C_scrambled 0.8838+-0.0205 0.8150+-0.0224 4.5103+-0.4376 0.3893+-0.0425
+  paired B-A stage: 0.0462+-0.0236: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A full: 0.0950+-0.0371: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B stage: -0.0325+-0.0173: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B full: -0.0300+-0.0326: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 2 of 5 equal
+  paired C-A stage: 0.0137+-0.0346: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign, 1 of 5 equal
+  paired C-A full: 0.0650+-0.0518: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+noisy_plan (stages=3 pattern=PQP, q_hide=0.5, hide_block=1, p_plan=0.5, refresh=start only, drop=False)
+  A_direct 0.8683+-0.0563 0.8050+-0.0671 0.0000+-0.0000 0.0000+-0.0000
+  B_latent 0.8083+-0.0664 0.7100+-0.0894 0.4800+-0.1242 0.9134+-0.0120
+  C_scrambled 0.7517+-0.0665 0.6550+-0.0975 0.4800+-0.1242 0.5191+-0.0073
+  paired B-A stage: -0.0600+-0.0370: small but consistent gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+  paired B-A full: -0.0950+-0.0622: small but consistent gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+  paired C-B stage: -0.0567+-0.0207: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B full: -0.0550+-0.0411: small but consistent gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+  paired C-A stage: -0.1167+-0.0475: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A full: -0.1500+-0.0935: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+drop_dense (stages=3 pattern=PQP, q_hide=0.5, hide_block=1, p_plan=0.1, refresh=5, drop=True)
+  A_direct 0.7950+-0.0375 0.6850+-0.0627 0.0000+-0.0000 0.0000+-0.0000
+  B_latent 0.8250+-0.0373 0.7300+-0.0597 0.1000+-0.0250 0.9834+-0.0018
+  C_scrambled 0.6450+-0.0477 0.5000+-0.0637 0.1000+-0.0250 0.5908+-0.0328
+  paired B-A stage: 0.0300+-0.0126: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A full: 0.0450+-0.0447: small but consistent gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  paired C-B stage: -0.1800+-0.0326: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B full: -0.2300+-0.0326: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A stage: -0.1500+-0.0312: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A full: -0.1850+-0.0379: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+drop_sparse (stages=3 pattern=PQP, q_hide=0.5, hide_block=1, p_plan=0.1, refresh=start only, drop=True)
+  A_direct 0.8450+-0.0342 0.7450+-0.0671 0.0000+-0.0000 0.0000+-0.0000
+  B_latent 0.8233+-0.0401 0.7250+-0.1016 0.0800+-0.0209 0.9857+-0.0032
+  C_scrambled 0.6783+-0.0594 0.5000+-0.0771 0.0800+-0.0209 0.5880+-0.0242
+  paired B-A stage: -0.0217+-0.0526: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired B-A full: -0.0200+-0.0622: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign, 1 of 5 equal
+  paired C-B stage: -0.1450+-0.0730: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B full: -0.2250+-0.0884: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A stage: -0.1667+-0.0417: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A full: -0.2450+-0.0371: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+fallback alternative (first version: an unseen (cell, plan point) key makes B stay; A keeps its (cell, hidden) fallback); paired B-A full
+  single_step: -0.0600+-0.0379: small but consistent gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+  multi_stage: -0.2000+-0.0901: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  ambiguous: -0.1600+-0.0742: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  multi_stage_block: -0.1350+-0.0487: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  ambiguous_block: -0.1850+-0.0487: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  noisy_plan: -0.6850+-0.0576: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  drop_dense: -0.2150+-0.1040: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  drop_sparse: -0.3950+-0.0447: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+C alternative (first version: the latent of a different task in the same scene); paired C-B full
+  single_step: 0.0000+-0.0000: tie: identical on every seed
+  multi_stage: -0.1300+-0.0481: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  ambiguous: -0.1200+-0.0855: small but consistent gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+  multi_stage_block: -0.1700+-0.0512: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  ambiguous_block: -0.1450+-0.0274: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  noisy_plan: -0.0250+-0.0306: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  drop_dense: -0.1850+-0.0379: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  drop_sparse: -0.0800+-0.0873: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+No winner declared: the latent carries stage context the camera can hide; a hallucinated or stale latent costs it back
+Real ThinkAct (Qwen2.5-VL 7B + DiT policy, GRPO), LIBERO, SimplerEnv, a GPU: 本页未运行; Huang et al. results 以论文为准
+```
+
+</SimOutput>
+
+### 读这些情形
+
+本页标签按以下顺序使用。**打平：每个种子都完全相同**只用于配对的逐种子差值在每个种子上都严格为零；`|配对均值|` 和它的标准差都小于 1e-9 时标为**数值上为零（浮点残差），等同打平**（这种行不打印同号计数）；`|配对均值| ≤ sd` 时为**接近打平、差距很小，在种子噪声之内**；否则是**稳定**差距（`|配对均值| > sd`），`|m|` 小于两组中较小均值的 20 % 时叫**小**，否则叫**明显**；20 % 规则只用来在这两个词之间选择。每条稳定的行都带 5 个种子上的同号计数，符号相反的种子都会报告；只有同号计数不能让差距变成稳定。差距都由未四舍五入的数值计算。 配对差值是 B−A、C−B 与 C−A。
+
+- **single_step。** 两个指标上 B−A 都是**打平：每个种子都完全相同**；C−B 也打平，因为轮换一个目标什么都不变。只有一个阶段时，没有被遮住的上下文需要潜变量携带。
+- **multi_stage（遮挡每步重抽）。** **接近打平**，B−A full −0.0250±0.0306，没有种子符号相反，5 个中 2 个相等。一半的步能看到阶段，这对 A 已经够了。
+- **ambiguous。** 潜变量**赢**，差距小但稳定：B−A full 0.0800±0.0597，没有种子符号相反，5 个中 1 个相等。
+- **multi_stage_block 与 ambiguous_block。** 潜变量小而稳定地赢，B−A full 分别为 0.0300±0.0209（5 个中 1 个相等）和 0.0950±0.0371（5 个种子同号）。
+- **顺序被打乱的潜变量。** C−B full 在 multi_stage（−0.1500±0.0661）和 multi_stage_block（−0.1700±0.0274）中明显，5/5。在 ambiguous 中小但稳定（−0.0700±0.0326），在 ambiguous_block 中**接近打平**（−0.0300±0.0326，5 个中 2 个相等）。那里 PQPQ 轮换后是 QPQP，一路上仍会经过许多正确的格。
+- **noisy_plan。** **潜变量输了。** `p_plan = 0.5` 时 B−A full 为 −0.0950±0.0622，小但稳定，没有种子符号相反（5 个中 1 个相等）。在这里，带幻觉的规划比没有规划还差。
+- **drop_dense 与 drop_sparse。** 掉落之后，每 5 步重写的潜变量小而稳定地赢（B−A full 0.0450±0.0447，5 个种子中 1 个符号相反）。只在开始写一次时**接近打平**（−0.0200±0.0622）。过期的潜变量失去优势，就像 ThinkAct 要重新推理才能自我纠正。
+
+本页**不宣布普遍赢家**。在这个 toy 里，规划潜变量在携带相机遮住的阶段上下文时有帮助，而且优势不大。没有被遮住的信息时它打平，规划有幻觉时它输。顺序重要时，顺序错误的代价最大。ThinkAct（Qwen2.5-VL、GRPO、LIBERO、SimplerEnv、GPU）均**本页未运行**；论文数字以论文为准。
+
+**210 分钟安排**如下。45 分钟读 ThinkAct 第 3 节（式 1–5）与附录 B.6–B.7；30 分钟手算 `r_visual` 算例，包括轮换后的潜变量；45 分钟运行 toy，读八个情形和两个打印出的替代版本；50 分钟固定种子，改 `q_hide`、`p_plan` 和 `refresh`；40 分钟做练习。
+
+### 练习
+
+1. 对算例中的任务 P → Q → P，计算潜变量 P → P → Q 的 `r_goal`、DTW、`r_traj` 和 `r_visual`。
+2. 从 `world()` 说明 A、B、C 在同一个（情形、种子、试验）下看到相同的示范、打滑和遮挡。再解释为什么 single_step 的 B−A 必然在每个种子上都相同。
+3. 固定种子，把 `noisy_plan` 的 `p_plan` 设为 0.2 和 0.3。报告 B−A full 在哪里换了标签，并给出 k/5 的种子符号；保留 0.5 那一行。
+4. 在 `drop_dense` 中把 refresh 设为 15 和 30，与 ThinkAct 附录 B.6（LIBERO 上 N = 25 到 100，以论文为准）比较。解释为什么 toy 的敏感度可能比论文大得多。
+5. 解释为什么第一版 C 实际上被 B 的表忽略，以及为什么这并不说明错误的潜变量无害。
+
 <Summary>
 
 RLPD 在每个批次里都放离线数据（50/50 对称采样），配合 LayerNorm 和较高的更新/数据比；HIL-SERL 加上 20–30 条示范、学习得到的二值奖励分类器、短促的人工介入和 actor–learner 分离，报告几乎所有任务训练 1 到 2.5 小时。玩具里只用在线的 Q 学习在 11/20 个种子里到达终点、每次运行复位 411.2 次，而 3 条示范加对称采样解决了所有种子、复位 33.2 次；示范占比保持在 49.2 %，而不是降到 5.5 %。LeRobot 里由 `lerobot.rl.learner` + `lerobot.rl.actor` 跑这个循环（本页未运行）。机器人策略之后是预训练 VLA：[10.7](/zh/month/month-10/vla-rl-finetune)。
 
-独立偏好 bandit 在共享成对数据 /240 次总更新下，对照 DPO、奖励模型+RL 与偏好 BC 的留出标签噪声指标，并明示辅助二元成功基线的额外监督。
+独立偏好 bandit 在共享成对数据 /240 次总更新下，对照 DPO、奖励模型+RL 与偏好 BC 的留出标签噪声指标，并明示辅助二元成功基线的额外监督。ThinkAct 的规划潜变量在共享示范上与直接策略和打乱顺序的潜变量比较：单步时打平，只在相机遮住阶段时小而稳定地赢（ambiguous_block 0.0950±0.0371，5/5），一半规划点有幻觉时输（−0.0950±0.0622），顺序错误最多损失 0.1700——合成模型，不是 Qwen2.5-VL 运行。
 
 </Summary>

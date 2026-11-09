@@ -201,8 +201,426 @@ $ lerobot-rollout --strategy.type=base --policy.path=<your/policy> \
 - **只按模型耗时设 `inference_delay`。** 相机、网络和预处理也要算（10.3）。
 - **指望 RTC 消除空等帧。** 那是异步推理（8.3）的事；两者一起用。
 
+## 分段测试时搜索：FORGE-Tree
+
+上面的 RTC 让新块与已经执行的动作保持一致。长时程、多阶段任务里还有另一个问题：策略一次解码整个时域，小误差不断累积，前面每一步看起来都没问题，后面一次精确放置却失败了。**FORGE-Tree** 保持预训练 VLA 冻结，在测试时多花算力：它只对规划好的动作 token 中**一个片段**重新加噪、重新去噪，用树搜索挑选要改的片段，并且从不碰已经执行的部分。本节为这个想法搭一个**合成**替身。它不是 OpenVLA、Octo 或 LIBERO，也不是 RTC 的引导。
+
+<Resource id="forge-tree-pdf" />
+
+**实际打开过的来源（经 pdftotext 读过 PDF 正文，arXiv 2510.21744 v1，cs.RO）。**
+
+- **Huang、Liu、Liu、Xu、Wu、Gao 与 Tu，《FORGE-Tree: Diffusion-Forcing Tree Search for Long-Horizon Robot Manipulation》（Texas A&M、华盛顿大学、KIT）。**
+  - 在冻结的 VLA 编码器（OpenVLA 或 Octo）上接一个**按阶段对齐的 Diffusion Forcing 头**（带 FiLM 的 Transformer），建模 64 个 7 维动作 token。每个 token 有自己的噪声水平，子任务 j 的所有 token 共用 `t_j`（"noise = mask"）。训练时 T = 1000，`t_j` 取自 U[400, 900]。
+  - **部分去噪**（算法 1）：片段掩码 `s_i = 1[k ≤ i ≤ k+m−1]` 选出 token；只有这个片段按步长 s 的跳步 DDIM 演化，其余部分冻结。几何引导从预测噪声里减去 `w · ∇U`。
+  - **Monte Carlo Tree Diffusion**（算法 2，式 III.6–III.8）：元动作是 `(k, m, s, w, τ)`，其中 `m ∈ (8, 12, 16)`、`s ∈ (2, 4, 8)`、`w ∈ [0, 5]`、`τ ∈ [0.5, 1.0]`，k 限制在下一个阶段边界之前 16 个 token 以内。子节点按带 Laplace 平滑的 P-UCT 打分。未访问的子节点按**快速启发式**奖励排序，回传的值则是**场景图**给出的真实几何回报。搜索逐阶段进行，每阶段预算 B，提交最佳子节点的第一个片段，"保留已执行的前缀"。
+  - **报告的结果（以论文为准）。** LIBERO 上，表 II 给出 OpenVLA 76.5 → 89.9（+13.4 个百分点；Long +29.5），Octo 75.1 → 92.3（+17.2 个百分点；Long +39.9）。表 III 去掉阶段引导后，Goal 88.2 → 75.9，Long 83.2 → 60.7，正文称下降 14 % 和 27 %。表 III 完整模型的 Goal 值（88.2）与表 II 的 89.3 不一致；本页不解决这个差异。
+  - **报告的失败模式。** 场景图出错会误导搜索；搜索要花时间；搜索可能卡在第一次抓取，反复访问同一个短片段。论文说没有场景图时需要更大的搜索预算，但没有给出预算缩放表。
+  - 训练使用 4 × 48 GB Ada GPU，在 EMMA-X 上训练，在 LIBERO 上零样本评测（本页未运行）。
+
+### 部分去噪、P-UCT 与冻结的前缀
+
+<Formula label="位移 token（本 toy 的一次性解码）">δ_i = μ_i + b_j + σ · ε_i，阶段 j 的终点位置是它各 token 的 δ_i 之和</Formula>
+
+<Formula label="片段 k 的部分去噪（只有这 M 个 token 改变）">δ′_i = μ_i + b_k + σ · (√(1 − ρ) · ε_i + √ρ · η_i) − w · ê_k / M</Formula>
+
+<Formula label="带 Laplace 平滑的 P-UCT（论文式 III.6，此处先验均匀）">Score(a) = Q(a) + c_puct · P(a) · √(log(N + 1) / (N(a) + 1))</Formula>
+
+<Formula label="几何回报（本 toy）">R = − Σ（对未来各阶段）max(0, |ê_j| − TOL)</Formula>
+
+token 是以 cm 为单位的二维末端位移，所以一个 token 的误差会平移之后所有位置；长时程上误差就是这样累积的。`ρ` 表示旧噪声被替换的比例（本 toy 用它代替片段重新加噪的深度），`w` 是引导强度，`ê_k` 是阶段 k 终点误差的**带噪**估计，噪声 `σ_eval` 代表场景图误差。
+
+**算例。** 一次性解码时，阶段 1 终点误差每个轴的标准差是 `√(8 · 0.4² + (8 · 0.15)²) = √2.72 = 1.649 cm`。二维高斯落在半径 r 以内的概率是 `1 − exp(−r² / (2 · 2.72))`：r = 1.0 cm 时为 0.168，r = 1.5 cm 时为 0.339。toy 的 200 次单阶段试验在 r = 1.5 时给出 0.2550。现在假设估计为 `ê = (1.2, −0.8)` cm，用 `w = 0.6`、`M = 8`、`ρ = 0.5` 编辑这个片段。引导让每个 token 移动 (−0.09, +0.06)，终点移动 (−0.72, +0.48)，即估计值的 60 %。重新加噪的部分还会在每个轴上叠加标准差 `√0.5 · 1.131 = 0.80 cm` 的新误差。所以一次编辑可能让结果更差，搜索只在估计回报变好时才保留候选，原因就在这里。
+
+**完整性判据（没有积分步长）。** 每次部分去噪都是一次闭式跳跃，不按时间步进，不涉及步长稳定性判据。真正重要的是论文的判据。**一个阶段提交后，它的 token 永不改变**。编辑算子原样复制片段 k 以外的每个 token，当前阶段之前的片段也从不作为元动作出现。toy 统计每一组的前缀违例，独立测试要求为 0。它还打印反例：不加掩码的重新去噪会改变已提交阶段 1 的 8 个 token 中的 8 个。
+
+### 公平设置
+
+`forge_tree_mctd_toy.py` 是**合成**的，只用标准库。**模型假设**如下。
+- 共 S 个阶段，每个阶段 M = 8 个 token。目标在 x 方向相隔 6–10 cm，y 方向最多 ±4 cm，示范位移 `μ` 从一个目标直线通到下一个目标。
+- 冻结的解码器加上每阶段偏置 `b_j`（每个 token 标准差 0.15 cm）和每个 token 的噪声（σ = 0.4 cm）。没有网络，没有 VLA 似然，也没有场景图。
+- 元动作是（从当前阶段起的片段 k，`ρ ∈ (0.5, 1.0)`，`w ∈ (0.3, 0.6)`）。片段长度固定为 M，没有步长。
+- 树只有**一层**，根是当前计划，子节点是元动作。先验 P 均匀（1 / 子节点数），`c_puct = 1.0`。未访问的子节点先试，按快速启发式 `|ê_k| / TOL` 排序（相同时取较小的 ρ 和 w）。阶段 1 有 16 个子节点，预算 8 全部花在这个排序上；只有每个子节点都被访问过之后 UCT 项才起作用（阶段 4 只有 4 个子节点）。
+- 候选的回报用新的噪声估计，若超过当前计划用同样方式估计的回报就保留。预算用完后提交当前阶段。
+
+| 组 | 编辑哪个片段 | 预算 |
+|---|---|---|
+| A_oneshot | 不编辑（执行一次性解码） | 0 |
+| B_tree | 一层 P-UCT，加快速启发式排序 | 每阶段 N 次模拟 |
+| C_random | 在同样的元动作里均匀随机 | 同样的 N |
+
+**共同随机数。** 每个（情形、种子、试验）的目标、一次性解码噪声、阶段偏置、候选噪声池和评估噪声池只抽一次。第 n 次模拟在 B 和 C 中都用池里的第 n 项。共 5 个种子 × 40 次试验。
+
+指标：
+- `stage`：在 TOL 以内到达的阶段目标比例。
+- `final`：所有阶段都在 TOL 以内。
+- `edits`：被接受的编辑次数。
+- `prefix`：前缀违例次数。
+
+| 情形 | 阶段数 | TOL | 每阶段模拟次数 | σ_eval |
+|---|---|---|---|---|
+| single_stage | 1 | 1.5 cm | 8 | 0.3 cm |
+| long_loose | 4 | 4.0 cm | 8 | 0.3 cm |
+| long_tight | 4 | 1.0 cm | 8 | 0.3 cm |
+| low_budget | 4 | 1.0 cm | 1 | 0.3 cm |
+| noisy_graph | 4 | 1.0 cm | 8 | 1.5 cm |
+
+预算扫描用 N = 1、2、4、8、16 重跑 `long_tight`。
+
+**看过结果后做的选择。** 第一次完整运行后，上面的参数一个都没改。之后只做了清理：删掉一个没用的 `mask` 参数，完整性那一行改为计算加掩码时的计数，而不是打印常数。运行过的每个情形都打印出来，包括搜索没有帮助的两个。
+
+### 运行标准库 toy
+
+```bash
+cd ~/Hardware-learning/examples/month-10/real-time-chunking
+python3 forge_tree_mctd_toy.py
+```
+
+<CodeSource path="examples/month-10/real-time-chunking/forge_tree_mctd_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic FORGE-Tree-style toy: one-shot decoding vs segment search with a frozen prefix. Stdlib only.
+
+A trajectory is L = S x M action tokens; each token is a 2-D end-effector displacement (cm), so
+positions are cumulative sums and an error in one token shifts every later position (drift
+compounds). Stage j ends at token (j + 1) M - 1 and must land within TOL of its goal G_j.
+The frozen "VLA + Diffusion Forcing head" stand-in decodes token i as the demo displacement
+plus noise: delta_i = mu_i + b_j + SIGMA * eps_i (b_j a per-stage bias, eps_i ~ N(0, 1)).
+
+Arms (same decoded trajectory, same candidate noise pool, same evaluation noise pool):
+  A_oneshot  execute the one-shot decode (fixed schedule, no test-time search)
+  B_tree     stage by stage: spend BUDGET partial-denoise simulations on future segments, chosen
+             by P-UCT with Laplace smoothing (Score = Q + C_PUCT P sqrt(log(N + 1) / (N_a + 1)))
+             over meta-actions a = (segment, strength, guidance); unvisited children are ordered by
+             a fast heuristic (estimated end error / TOL); keep a candidate if its noisy geometry
+             return beats the current plan's; then commit the current stage (prefix frozen)
+  C_random   the same budget, edit operator, acceptance rule and commit, segment and meta-action
+             picked uniformly at random (no tree value)
+The tree here is depth 1 (root = current plan, children = meta-actions), a stand-in for the
+paper's stage-aware MCTD; there is no scene graph, no VLA likelihood and no learned network.
+Partial denoise of segment k at strength rho with guidance w (only segment k changes):
+  delta'_i = mu_i + b_k + SIGMA (sqrt(1 - rho) eps_i + sqrt(rho) eta_i) - w e_hat / M
+with eta from the shared candidate pool and e_hat the noisy estimate of stage k's end error.
+Geometry return = - sum over future stages of max(0, |e_hat_j| - TOL)  (e_hat = e + N(0, SIGMA_EVAL)).
+
+Integrity criterion (the paper preserves the executed prefix): once a stage is committed its
+tokens never change; prefix violations are counted for every arm (must be 0 for B and C) and an
+unmasked edit is printed as a check. No integration step: each partial denoise is one closed-form
+jump, nothing is stepped in time.
+Common random numbers: per (regime, seed, trial) the goals, the one-shot decode noise, the stage
+biases, the candidate noise pool and the evaluation noise pool are drawn once; simulation number
+n uses pool entry n in both B and C.
+Metrics per trial, averaged over TRIALS per seed: stage (share of stage goals within TOL), final
+(all stages within TOL), edits (accepted edits), prefix (prefix violations).
+Labels: tie = identical on every seed; numerically zero = |paired mean| and sd both < 1e-9
+(effectively a tie, no sign count); |m| <= sd = near-tie; |m| > sd = consistent gap (small if
+|m| < 20 % of the smaller arm mean, else clear), with a sign count.
+OpenVLA / Octo / LIBERO / a GPU: 本页未运行. Paper numbers: 以论文为准.
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+TRIALS = 40
+M = 8  # tokens per stage
+SIGMA = 0.4  # per-token decode noise (cm)
+BIAS = 0.15  # per-stage bias sd (cm per token)
+SIGMA_EVAL = 0.3  # geometry-score noise (cm)
+C_PUCT = 1.0
+STRENGTHS = (0.5, 1.0)
+GUIDES = (0.3, 0.6)
+POOL = 400
+NUM_ZERO = 1e-9
+ARMS = ("A_oneshot", "B_tree", "C_random")
+# name: (stages S, TOL cm, simulations per stage, SIGMA_EVAL)
+REGIMES = {
+    "single_stage": (1, 1.5, 8, SIGMA_EVAL),
+    "long_loose": (4, 4.0, 8, SIGMA_EVAL),
+    "long_tight": (4, 1.0, 8, SIGMA_EVAL),
+    "low_budget": (4, 1.0, 1, SIGMA_EVAL),
+    "noisy_graph": (4, 1.0, 8, 1.5),
+}
+BUDGETS = (1, 2, 4, 8, 16)
+
+
+def world(stages, seed, trial, tag):
+    """Common random numbers for one (regime, seed, trial)."""
+    rng = random.Random(f"{tag}-{seed}-{trial}")
+    goals, mu, p = [], [], (0.0, 0.0)
+    for _ in range(stages):
+        g = (p[0] + rng.uniform(6.0, 10.0), p[1] + rng.uniform(-4.0, 4.0))
+        mu += [((g[0] - p[0]) / M, (g[1] - p[1]) / M)] * M
+        goals.append(g)
+        p = g
+    bias = [(rng.gauss(0.0, BIAS), rng.gauss(0.0, BIAS)) for _ in range(stages)]
+    eps = [(rng.gauss(0.0, 1.0), rng.gauss(0.0, 1.0)) for _ in range(stages * M)]
+    pool = [[(rng.gauss(0.0, 1.0), rng.gauss(0.0, 1.0)) for _ in range(M)] for _ in range(POOL)]
+    evals = [[(rng.gauss(0.0, 1.0), rng.gauss(0.0, 1.0)) for _ in range(stages)] for _ in range(2 * POOL + 2)]
+    picks = [rng.random() for _ in range(2 * POOL)]
+    return goals, mu, bias, eps, pool, evals, picks
+
+
+def decode(mu, bias, eps):
+    return [(mu[i][0] + bias[i // M][0] + SIGMA * eps[i][0], mu[i][1] + bias[i // M][1] + SIGMA * eps[i][1]) for i in range(len(mu))]
+
+
+def stage_errors(tokens, goals):
+    x = y = 0.0
+    errs = []
+    for i, (dx, dy) in enumerate(tokens):
+        x += dx
+        y += dy
+        if (i + 1) % M == 0:
+            g = goals[i // M]
+            errs.append((x - g[0], y - g[1]))
+    return errs
+
+
+def estimate(errs, noise, sig):
+    return [(e[0] + sig * n[0], e[1] + sig * n[1]) for e, n in zip(errs, noise)]
+
+
+def ret(est, tol, first):
+    return -sum(max(0.0, math.hypot(*e) - tol) for e in est[first:])
+
+
+def edit(tokens, mu, bias, eps_now, k, rho, w, e_hat, eta):
+    """Partial denoise of segment k only: every other token is copied unchanged."""
+    out = list(tokens)
+    new_eps = []
+    for t in range(M):
+        i = k * M + t
+        ex = math.sqrt(1.0 - rho) * eps_now[i][0] + math.sqrt(rho) * eta[t][0]
+        ey = math.sqrt(1.0 - rho) * eps_now[i][1] + math.sqrt(rho) * eta[t][1]
+        new_eps.append((ex, ey))
+        out[i] = (mu[i][0] + bias[k][0] + SIGMA * ex - w * e_hat[0] / M, mu[i][1] + bias[k][1] + SIGMA * ey - w * e_hat[1] / M)
+    return out, new_eps
+
+
+def run(arm, regime, seed, trial, budget=None):
+    stages, tol, sims, sig = REGIMES[regime]
+    sims = sims if budget is None else budget
+    goals, mu, bias, eps, pool, evals, picks = world(stages, seed, trial, regime)
+    tokens = decode(mu, bias, eps)
+    eps_now = list(eps)
+    edits = viol = 0
+    n = 0  # simulation counter: pool entry n is used by B and C alike
+    if arm != "A_oneshot":
+        for s in range(stages):
+            actions = [(k, rho, w) for k in range(s, stages) for rho in STRENGTHS for w in GUIDES]
+            visits, value = {a: 0 for a in actions}, {a: 0.0 for a in actions}
+            for _ in range(sims):
+                cur = estimate(stage_errors(tokens, goals), evals[2 * n], sig)
+                if arm == "B_tree":
+                    unvisited = [a for a in actions if visits[a] == 0]
+                    if unvisited:
+                        a = max(unvisited, key=lambda a: (math.hypot(*cur[a[0]]) / tol, -a[1], -a[2]))
+                    else:
+                        tot = sum(visits.values())
+                        a = max(actions, key=lambda a: value[a] / visits[a] + C_PUCT / len(actions) * math.sqrt(math.log(tot + 1) / (visits[a] + 1)))
+                else:
+                    a = actions[int(picks[n] * len(actions))]
+                k, rho, w = a
+                cand, cand_eps = edit(tokens, mu, bias, eps_now, k, rho, w, cur[k], pool[n % POOL])
+                new = estimate(stage_errors(cand, goals), evals[2 * n + 1], sig)
+                gain = ret(new, tol, s) - ret(cur, tol, s)
+                visits[a] += 1
+                value[a] += gain
+                if gain > 0.0:
+                    before = tokens[: s * M]
+                    tokens = cand
+                    for t in range(M):
+                        eps_now[k * M + t] = cand_eps[t]
+                    edits += 1
+                    viol += sum(1 for p, q in zip(before, tokens[: s * M]) if p != q)
+                n += 1
+    errs = stage_errors(tokens, goals)
+    ok = [math.hypot(*e) <= tol for e in errs]
+    return {"stage": sum(ok) / len(ok), "final": 1.0 if all(ok) else 0.0, "edits": float(edits), "prefix": float(viol)}
+
+
+def unmasked_edit_check():
+    """Stage 1 committed: a masked edit of segment 2 vs a re-denoise of the whole trajectory (no mask)."""
+    goals, mu, bias, eps, pool, evals, picks = world(4, 0, 0, "long_tight")
+    tokens = decode(mu, bias, eps)
+    masked, _ = edit(tokens, mu, bias, eps, 1, 1.0, 0.3, (0.0, 0.0), pool[0])
+    redo = decode(mu, bias, [(math.sqrt(0.5) * a[0] + math.sqrt(0.5) * b[0], math.sqrt(0.5) * a[1] + math.sqrt(0.5) * b[1]) for a, b in zip(eps, [p for seg in pool[:4] for p in seg])])
+    changed = lambda new: sum(1 for p, q in zip(tokens[:M], new[:M]) if p != q)
+    return changed(redo), changed(masked)
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-5:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{num(m)}+-{num(s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{num(m)}+-{num(s)}: {label}; {sign_note(diffs, m)}"
+
+
+KEYS = ("stage", "final", "edits", "prefix")
+
+
+def per_seed(arm, regime, budget=None):
+    out = []
+    for seed in SEEDS:
+        rs = [run(arm, regime, seed, t, budget) for t in range(TRIALS)]
+        out.append({k: sum(r[k] for r in rs) / TRIALS for k in KEYS})
+    return out
+
+
+def main():
+    print("Synthetic FORGE-Tree-style toy; displacement tokens, depth-1 segment search, frozen prefix; not OpenVLA / Octo / LIBERO")
+    print(f"seeds={len(SEEDS)} trials={TRIALS} tokens/stage={M} sigma={SIGMA} bias={BIAS} c_puct={C_PUCT} strengths={STRENGTHS} guidance={GUIDES}; no integration step (closed-form partial denoise)")
+    bad, good = unmasked_edit_check()
+    print(f"integrity check: a re-denoise without the segment mask changes {bad} of the {M} committed stage-1 tokens; a masked edit of segment 2 changes {good}")
+    print("regime arm stage final edits prefix  (mean+-sd over seeds of per-seed trial means)")
+    for regime, (stages, tol, sims, sig) in REGIMES.items():
+        print(f"{regime} (stages={stages}, tol={tol} cm, simulations/stage={sims}, sigma_eval={sig} cm)")
+        res = {arm: per_seed(arm, regime) for arm in ARMS}
+        for arm in ARMS:
+            cells = " ".join("{}+-{}".format(*map(num, mean_sd([r[k] for r in res[arm]]))) for k in KEYS)
+            print(f"  {arm} {cells}")
+        for x, y in (("B_tree", "A_oneshot"), ("C_random", "B_tree"), ("C_random", "A_oneshot")):
+            for k in ("stage", "final"):
+                print(f"  paired {x[0]}-{y[0]} {k}: {verdict([r[k] for r in res[x]], [r[k] for r in res[y]])}")
+    print("budget sweep on long_tight (final: mean over seeds; paired B-A final)")
+    a = per_seed("A_oneshot", "long_tight")
+    for b in BUDGETS:
+        rb = per_seed("B_tree", "long_tight", budget=b)
+        rc = per_seed("C_random", "long_tight", budget=b)
+        print(f"  budget={b}: A {num(mean_sd([r['final'] for r in a])[0])} B {num(mean_sd([r['final'] for r in rb])[0])} C {num(mean_sd([r['final'] for r in rc])[0])}; B-A final: {verdict([r['final'] for r in rb], [r['final'] for r in a])}")
+    print("No winner declared: search helps where clearances are tight and the score is informative; it costs edits and can hurt when the score is noisy or the budget tiny")
+    print("Real FORGE-Tree on OpenVLA / Octo, LIBERO, a GPU: 本页未运行; Huang et al. results 以论文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic FORGE-Tree-style toy; displacement tokens, depth-1 segment search, frozen prefix; not OpenVLA / Octo / LIBERO
+seeds=5 trials=40 tokens/stage=8 sigma=0.4 bias=0.15 c_puct=1.0 strengths=(0.5, 1.0) guidance=(0.3, 0.6); no integration step (closed-form partial denoise)
+integrity check: a re-denoise without the segment mask changes 8 of the 8 committed stage-1 tokens; a masked edit of segment 2 changes 0
+regime arm stage final edits prefix  (mean+-sd over seeds of per-seed trial means)
+single_stage (stages=1, tol=1.5 cm, simulations/stage=8, sigma_eval=0.3 cm)
+  A_oneshot 0.2550+-0.0371 0.2550+-0.0371 0.0000+-0.0000 0.0000+-0.0000
+  B_tree 0.9500+-0.0468 0.9500+-0.0468 1.6050+-0.1137 0.0000+-0.0000
+  C_random 0.9350+-0.0285 0.9350+-0.0285 1.5600+-0.1957 0.0000+-0.0000
+  paired B-A stage: 0.6950+-0.0326: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A final: 0.6950+-0.0326: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B stage: -0.0150+-0.0224: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired C-B final: -0.0150+-0.0224: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired C-A stage: 0.6800+-0.0326: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A final: 0.6800+-0.0326: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+long_loose (stages=4, tol=4.0 cm, simulations/stage=8, sigma_eval=0.3 cm)
+  A_oneshot 0.6738+-0.0263 0.3800+-0.0411 0.0000+-0.0000 0.0000+-0.0000
+  B_tree 0.9975+-0.0034 0.9900+-0.0137 1.8400+-0.1607 0.0000+-0.0000
+  C_random 0.9963+-0.0056 0.9850+-0.0224 1.9850+-0.2428 0.0000+-0.0000
+  paired B-A stage: 0.3237+-0.0288: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A final: 0.6100+-0.0518: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B stage: -0.0012+-0.0081: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign, 1 of 5 equal
+  paired C-B final: -0.0050+-0.0326: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign, 1 of 5 equal
+  paired C-A stage: 0.3225+-0.0252: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A final: 0.6050+-0.0411: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+long_tight (stages=4, tol=1.0 cm, simulations/stage=8, sigma_eval=0.3 cm)
+  A_oneshot 0.0950+-0.0346 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+  B_tree 0.5837+-0.0463 0.1400+-0.0548 7.9400+-0.3426 0.0000+-0.0000
+  C_random 0.5338+-0.0656 0.0850+-0.0652 7.7950+-0.5450 0.0000+-0.0000
+  paired B-A stage: 0.4888+-0.0314: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A final: 0.1400+-0.0548: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B stage: -0.0500+-0.0407: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B final: -0.0550+-0.0758: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired C-A stage: 0.4388+-0.0531: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A final: 0.0850+-0.0652: clear gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+low_budget (stages=4, tol=1.0 cm, simulations/stage=1, sigma_eval=0.3 cm)
+  A_oneshot 0.1050+-0.0081 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+  B_tree 0.2050+-0.0376 0.0050+-0.0112 2.2450+-0.2225 0.0000+-0.0000
+  C_random 0.2413+-0.0130 0.0000+-0.0000 2.2350+-0.1084 0.0000+-0.0000
+  paired B-A stage: 0.1000+-0.0359: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A final: 0.0050+-0.0112: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 4 of 5 equal
+  paired C-B stage: 0.0363+-0.0284: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B final: -0.0050+-0.0112: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 4 of 5 equal
+  paired C-A stage: 0.1363+-0.0156: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A final: 0.0000+-0.0000: tie: identical on every seed
+noisy_graph (stages=4, tol=1.0 cm, simulations/stage=8, sigma_eval=1.5 cm)
+  A_oneshot 0.1113+-0.0081 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+  B_tree 0.2913+-0.0295 0.0000+-0.0000 14.0100+-0.1876 0.0000+-0.0000
+  C_random 0.2375+-0.0370 0.0050+-0.0112 13.7750+-0.4089 0.0000+-0.0000
+  paired B-A stage: 0.1800+-0.0298: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A final: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B stage: -0.0538+-0.0382: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  paired C-B final: 0.0050+-0.0112: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 4 of 5 equal
+  paired C-A stage: 0.1263+-0.0326: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A final: 0.0050+-0.0112: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 4 of 5 equal
+budget sweep on long_tight (final: mean over seeds; paired B-A final)
+  budget=1: A 0.0000 B 0.0000 C 0.0050; B-A final: 0.0000+-0.0000: tie: identical on every seed
+  budget=2: A 0.0000 B 0.0100 C 0.0150; B-A final: 0.0100+-0.0137: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+  budget=4: A 0.0000 B 0.0350 C 0.0300; B-A final: 0.0350+-0.0379: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 2 of 5 equal
+  budget=8: A 0.0000 B 0.1400 C 0.0850; B-A final: 0.1400+-0.0548: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  budget=16: A 0.0000 B 0.1700 C 0.1550; B-A final: 0.1700+-0.0647: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: search helps where clearances are tight and the score is informative; it costs edits and can hurt when the score is noisy or the budget tiny
+Real FORGE-Tree on OpenVLA / Octo, LIBERO, a GPU: 本页未运行; Huang et al. results 以论文为准
+```
+
+</SimOutput>
+
+### 读这些情形
+
+本页标签按以下顺序使用。**打平：每个种子都完全相同**只用于配对的逐种子差值在每个种子上都严格为零；`|配对均值|` 和它的标准差都小于 1e-9 时标为**数值上为零（浮点残差），等同打平**（这种行不打印同号计数）；`|配对均值| ≤ sd` 时为**接近打平、差距很小，在种子噪声之内**；否则是**稳定**差距（`|配对均值| > sd`），`|m|` 小于两组中较小均值的 20 % 时叫**小**，否则叫**明显**；20 % 规则只用来在这两个词之间选择。每条稳定的行都带 5 个种子上的同号计数，符号相反的种子都会报告；只有同号计数不能让差距变成稳定。差距都由未四舍五入的数值计算。 配对差值是 B−A、C−B 与 C−A；"final" 是要求所有阶段都成功的严格指标。
+
+- **前缀完整性。** 每个情形里每一组的 `prefix` 都是 0.0000±0.0000，已提交的前缀从未被改动。
+- **single_stage。** 搜索相对一次性解码明显**赢**（B−A final 0.6950±0.0326，5 个种子同号）。只有一个片段时无从选择，随机挑选与树**接近打平**（C−B −0.0150±0.0224，5 个种子中 1 个符号相反）。赢来自带引导的编辑加上接受检验，而不是树。
+- **long_loose。** 两个搜索组几乎到达所有目标（final：B 0.9900，C 0.9850），B−A final 0.6100±0.0518 明显，C−B **接近打平**。
+- **long_tight。** 这是 FORGE-Tree 针对的情形。B−A 在阶段目标（0.4888±0.0314）和 final（0.1400±0.0548）上都明显，5 个种子同号。随机挑选在阶段成功上稳定地少一小截（C−B −0.0500±0.0407，5/5），但在 final 上只是**接近打平**（−0.0550±0.0758，5 个种子中 1 个符号相反）。即便在这里，86 % 的试验仍至少错过一个阶段。
+- **预算扫描（long_tight）。** B−A final 在 N = 1 时**打平**（每个种子都是 0.0000），N = 2 和 N = 4 时**接近打平**，从 N = 8（0.1400）到 N = 16（0.1700）明显。B 的均值依次为 0.0000 → 0.0100 → 0.0350 → 0.1400 → 0.1700；N = 1（0.0050）和 N = 2（0.0150）时 C 高于 B。
+- **low_budget。** **搜索对严格指标没有帮助。** B−A final **接近打平**（0.0050±0.0112）。随机挑选在阶段目标上**赢过**树：C−B 0.0363±0.0284，小但稳定，5 个种子同号。每阶段只有一次模拟时，启发式总把它花在当前看起来最差的片段上。
+- **noisy_graph。** `σ_eval = 1.5 cm` 时评分噪声比容差还大。B 每次试验接受约 14 次编辑，阶段成功只从 0.1113 升到 0.2913，B−A final 是**打平：每个种子都完全相同**，都是 0.0000。这就是论文第一种失败模式的缩影。
+
+本页**不宣布普遍赢家**。带冻结前缀的分段搜索在容差紧、评分可信、预算足够时有回报。只有一次模拟或评分有误导时，它与一次性解码打平，随机挑选也能做到一样好。真实的 FORGE-Tree（OpenVLA 或 Octo、LIBERO、GPU）均**本页未运行**；论文数字以论文为准。
+
+**210 分钟安排**如下。45 分钟读 FORGE-Tree 第 III 节（算法 1–2，式 III.6–III.8）和第 IV 节；30 分钟手算终点误差算例和一次 P-UCT 选择；45 分钟运行 toy，读五个情形和预算扫描；50 分钟固定种子，改 `SIGMA_EVAL`、`GUIDES` 和预算；40 分钟做练习。
+
+### 练习
+
+1. 从代码说明 `edit()` 原样复制片段 k 以外的每个 token，并解释元动作为什么从当前阶段开始。运行前先预测 `prefix` 列。
+2. 计算阶段 4（4 个子节点）各访问一次后每个子节点的 Score。若增益分别是 0.2、0.0、−0.1 和 0.4，B 下一次选哪个？
+3. 固定种子，把 `C_PUCT` 先设为 0、再设为 5。解释为什么 N = 8 的 `long_tight` 几乎不变；数一数在每个子节点都被访问之前阶段 1 选了多少次。
+4. 用 `σ_eval` = 0.6 和 1.0 cm 重跑 `noisy_graph`。报告 B−A final 从哪里开始不再打平，并给出 k/5 的种子符号；不要删掉 1.5 cm 那一行。
+5. 在任何 OpenVLA、Octo 或 LIBERO 运行之前（本页未运行），写下本 toy 的哪项简化（一层树、没有步长、没有场景图）最可能改变预算扫描。
+
 <Summary>
 
-异步推理（8.3）消除空等帧，实时动作块消除接缝。RTC 冻结前 d = floor(δ/Δt) 个动作，用式 5 的软掩码把新块后续一段引导向旧块，无需重训。在线性替身 `rtc_blend_toy.py` 里，d = 0 / 2 / 4 时最大单步从 0.150 / 0.190 / 0.230（naive）降到 0.030 / 0.050 / 0.070（blend）。LeRobot：`execution_horizon=10`、`max_guidance_weight=10.0`、EXP 形状，运行时传 `inference_delay`。
+异步推理（8.3）消除空等帧，实时动作块消除接缝。RTC 冻结前 d = floor(δ/Δt) 个动作，用式 5 的软掩码把新块后续一段引导向旧块，无需重训。在线性替身 `rtc_blend_toy.py` 里，d = 0 / 2 / 4 时最大单步从 0.150 / 0.190 / 0.230（naive）降到 0.030 / 0.050 / 0.070（blend）。LeRobot：`execution_horizon=10`、`max_guidance_weight=10.0`、EXP 形状，运行时传 `inference_delay`。FORGE-Tree 每次只在一个片段上花测试时算力，从不碰已提交的前缀：在合成的一层树替身里（前缀违例为 0），分段搜索在长而紧的任务上赢过一次性解码（每阶段 8 次模拟时 final 0.1400 对 0.0000），但每阶段只有 1 次模拟或评分有噪声时与之打平，随机挑片段也一样——这是模型，不是 OpenVLA 运行。
 
 </Summary>
