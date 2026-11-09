@@ -25,3 +25,12 @@ No hardware needed. Output quoted in the lesson as **simulated output / 仿真�
 ```bash
 python3 vla_async_chunk_toy.py
 ```
+
+## cot_vla_subgoal_toy.py
+
+CoT-VLA-style visual chain of thought (arXiv 2503.22020, Eq. 2–3): count-table policies on a 1-D track compare a direct chunk policy, a subgoal refreshed every chunk and a stale subgoal; four regimes (multi-stage with and without videos, action-rich, single reach), five seeds, common random numbers; tokens are counted at the paper's sizes (7 per action, 256 per subgoal image). No time-step integration. Checked by `examples/month-6/check.sh`. CoT-VLA weights and a GPU are not run here; paper numbers are per the paper. Not DreamGen, TraceVLA or MAP-VLA.
+CoT-VLA 式视觉思维链（arXiv 2503.22020 式 2–3）：在一维轨道上用计数表比较直接动作块策略、每块刷新的子目标和过时的子目标；四种情形（有 / 无视频的多阶段、动作示范充足、单次到达），5 个种子，共用随机数；词元按论文尺寸计数（每个动作 7 个、每张子目标图像 256 个）。没有时间步积分。由 `examples/month-6/check.sh` 核对。CoT-VLA 权重与 GPU 本页未运行；论文数字以论文为准。不是 DreamGen、TraceVLA 或 MAP-VLA。
+
+```bash
+python3 cot_vla_subgoal_toy.py
+```

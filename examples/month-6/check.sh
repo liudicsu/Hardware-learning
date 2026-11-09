@@ -50,5 +50,7 @@ check cogact_dit_action_toy.txt python3 "$M6/act-diffusion/cogact_dit_action_toy
 check vqbet_residual_vq_toy.txt python3 "$M6/behaviour-cloning/vqbet_residual_vq_toy.py"
 check dual_system_vla_cadence_toy.txt python3 "$M6/vla-models/dual_system_vla_cadence_toy.py"
 check rdt2_rvq_fm_distill_toy.txt python3 "$M6/vla-models/rdt2_rvq_fm_distill_toy.py"
+check hybridvla_action_ensemble_toy.txt python3 "$M6/act-diffusion/hybridvla_action_ensemble_toy.py"
+check cot_vla_subgoal_toy.txt python3 "$M6/vla-models/cot_vla_subgoal_toy.py"
 
 exit $fail

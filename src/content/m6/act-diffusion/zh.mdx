@@ -768,9 +768,322 @@ Real CogACT / VLA GPU lab: 本页未运行; Qixiu Li et al. arXiv:2411.19650 以
 4. 提高 N_BINS，预测 C 的 MSE 底噪是否下降；再用相同种子重跑。
 5. 在任何 CogACT GPU 实验之前（**本页未运行**），写明本页的迭代扩展只是表达力替身，不得当作 Li 等的 DiT 成功率引用（**以论文为准**）。
 
+## HybridVLA：一个模型里同时有扩散和自回归，再做集成
+
+前面几节比较了 ACT 动作块和扩散头，CogACT 则在 VLM 后面接一个 DiT 风格的扩散头。**HybridVLA** 问的是另一件事：如果一个语言模型**同时**输出一个自回归（AR）动作（离散词元）**和**一个扩散动作，机器人在运行时再在两者之间选择或取平均，会怎样？本节**不是**本页前面那种普通的 ACT 对比 Diffusion Policy，**不是** CogACT 的 Adaptive Action Ensemble（那个是在**时间**上平均多个动作块，这里是在**同一步**平均两个头），**不是** OneDP 蒸馏，也**不是** Diffusion Forcing。
+
+<Resource id="hybridvla-html" />
+
+<Resource id="hybridvla-pdf" />
+
+**实际打开并读过正文的来源。** **HybridVLA（Jiaming Liu et al.，arXiv 2503.10631，LaTeXML HTML 与 PDF（pdftotext），v3）。** 一个 LLM（7B LLaMA-2，或 2.7B Phi-2）同时承载两种范式。词元序列里，机器人状态经 MLP 进入，然后是包在 `<BOD>` … `<EOD>` 标记之间的扩散词元，再后面是 AR 动作词元；因此 AR 词元以扩散潜变量为条件，离散真值也不会泄漏进扩散的条件（表 1，Type 1）。训练时在共享主干上把两个损失相加，`L_hybrid = L_dif + L_ce`。推理用 **4** 步 DDIM 和 KV cache。**协同动作集成**（第 3.3 节）：去词元器给出 AR 动作词元的平均置信度 `c`；若 `c > θ`（`θ = 0.96`），执行平均值 `(a_dif + a_ar) / 2`，否则只用扩散动作。论文报告扩散在精细任务上更好（Phone on base、Close laptop lid），AR 在需要场景语义的任务上更好（Water plants、Frame off hanger），并且在 80 % 以上的成功样本里 AR 置信度超过 0.96。报告的数字：RLBench 平均成功率 HybridVLA (7B) 0.74、HybridVLA-dif 0.66、HybridVLA-ar 0.62（表 7）；阈值扫描 0.90 / 0.92 / 0.94 / 0.96 / 0.98 → 0.66 / 0.64 / 0.70 / 0.74 / 0.69（表 8）；仿真比先前 VLA 高 14 %、真机高 19 %（摘要）。表 7 里也有单一方式胜过集成的任务：Wine at rack，只用扩散 0.70，集成 0.50。以上都**以论文为准**；7B 模型、A800 训练和 RLBench **本页未运行**。
+
+### 集成规则：平均能修好什么、修不好什么
+
+<Formula label="HybridVLA 协同动作集成（第 3.3 节）">a = (a_dif + a_ar) / 2  if  c_ar > θ = 0.96,   otherwise  a = a_dif</Formula>
+
+对两个动作取平均会做两件不同的事。两个头指向**同一个**模式时，它平均了两者的误差：两个标准差为 σ 的独立误差变成一个标准差为 σ/√2 的误差，AR 头的取整误差也减半。两个头指向**不同**模式时，平均值落在两者之间，那是任何示范都没去过的地方。置信度门控就是让第二种情况少发生的机制，而它只看 AR 头。
+
+**算例：一个精细步和一个语义步。**
+
+```text
+AR bins on [-1, 1]: width 2/64 = 0.03125, rounding error up to 0.015625
+precision tolerance 0.012, head noise sd 0.010 for both heads
+B (diffusion alone):  P(|N(0, 0.010)| < 0.012) = P(|Z| < 1.2) = 0.770
+C (gate passed):      rounding error halved to <= 0.0078, noise sd 0.010/√2 = 0.0071
+gate: c = 1 - 0.5 exp(-1.2 |z|) > 0.96  <=>  |z| > ln(12.5)/1.2 = 2.1048
+      with z ~ N(3, 1): P(|z| > 2.1048) = 0.815
+semantic: modes -0.6, 0, 0.6, tolerance 0.15
+      AR right with P(z > 0) = Φ(1.8) = 0.964, diffusion right with Φ(0.5) = 0.691
+      average of two different modes: 0.3 away from either, outside 0.15
+```
+
+精细步上门控约有 82 % 的时间通过，每次通过都让误差变窄，所以集成应当胜过两个头。语义步上 AR 头更会选，但平均没法把扩散头选错的模式变成对的：扩散对时平均也对（两者一致），扩散错时平均就落空。所以按这些数字，集成在语义步上的成功率应当等于扩散头，而不是 AR 头。
+
+**这里没有积分步长。** 两个头是每个回合抽一次的误差模型，没有任何量按时间推进，4 步 DDIM 采样器也**没有**模拟，所以不存在步长稳定性判据。独立测试检查 toy 里没有时间步常数，并且每组读的是同一份回合列表。
+
+### 公平设置
+
+`hybridvla_action_ensemble_toy.py` 是**合成**模型，只用标准库。**模型假设**如下。每个回合要求一个 [-1, 1] 内的标量动作。精细回合只有一个模式，中心随机，容差 0.012（`easy_precision` 中为 0.1）。语义回合有 −0.6、0、0.6 三个候选模式，其中一个是对的，容差 0.15。每个头都是**误差模型，不是训练出来的网络**，它从自己的证据 `z ~ N(μ, 1)` 选模式（`z > 0` 时选对，否则选一个错误模式），再加标准差**相同**的 0.010 高斯噪声。AR 头随后取整到 64 个区间之一，并报告置信度 `c = 1 − 0.5·exp(−1.2·|z_ar|)`。两个头的选模式错误**相互独立**，这是本 toy 的假设。HybridVLA 里 AR 词元以扩散潜变量为条件，所以论文中的两个头很可能比这里更相关。这里没有训练，所以两个头的数据量和步数自然相同。指标：成功率（%）、平均绝对动作误差 ×1000，以及 C 采用 AR 动作的回合比例。
+
+| 组 | 执行的动作 |
+|---|---|
+| A_ar_only | AR 动作（64 个区间） |
+| B_diffusion_only | 扩散动作 |
+| C_hybrid_ensemble | `c > 0.96` 时取两者平均，否则用扩散动作 |
+
+**共用随机数（common random numbers）**。每个（情形，种子）中，每个回合的类型、模式、目标、两份证据、两份噪声和错误模式的选择都只抽一次，三组共用。三组**只**在执行哪个输出上不同。每个种子 400 个回合，5 个种子；报告种子间的均值±标准差。
+
+| 情形 | 语义回合比例 | AR 证据 μ（精细 / 语义） | 扩散证据 μ（语义） | 精细容差 |
+|---|---|---|---|---|
+| precision | 0 % | 3.0 / – | – | 0.012 |
+| semantic | 100 % | – / 1.8 | 0.5 | – |
+| mixed | 50 % | 3.0 / 1.8 | 0.5 | 0.012 |
+| easy_precision | 0 % | 3.0 / – | – | 0.1 |
+
+### 运行标准库 toy
+
+```bash
+cd ~/Hardware-learning/examples/month-6/act-diffusion
+python3 hybridvla_action_ensemble_toy.py
+```
+
+<CodeSource path="examples/month-6/act-diffusion/hybridvla_action_ensemble_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""HybridVLA-style collaborative action ensemble vs an AR-only and a diffusion-only head.
+
+Synthetic, stdlib only.  Not plain ACT vs Diffusion Policy (earlier on this
+page), not CogACT's Adaptive Action Ensemble over time (also on this page),
+not OneDP, not Diffusion Forcing.  Real HybridVLA weights / GPU training:
+本页未运行.  Paper numbers and the rule "average both when the mean AR token
+confidence exceeds theta = 0.96, otherwise use diffusion alone" are
+以论文为准 (arXiv 2503.10631, Section 3.3).
+
+Each episode asks for one scalar action a* in [-1, 1].  Two task kinds:
+    precision  one mode at a random centre; success if |a - a*| < TOL_PRECISION
+    semantic   three candidate modes (-0.6, 0, 0.6), one is right; success if |a - a*| < TOL_SEMANTIC
+Two heads are error models, not trained networks (no training, no time step):
+    AR head         picks a mode from evidence z_ar ~ N(mu_ar, 1) (right if z_ar > 0),
+                    adds N(0, SIGMA) and rounds to one of BINS bins on [-1, 1];
+                    its mean token confidence is c = 1 - 0.5 * exp(-KAPPA * |z_ar|)
+    diffusion head  picks a mode from its own evidence z_d ~ N(mu_d, 1) and adds N(0, SIGMA)
+The two heads' mode errors are drawn independently (an assumption of this toy).
+Arms:
+    A_ar_only          the AR action
+    B_diffusion_only   the diffusion action
+    C_hybrid_ensemble  (AR + diffusion) / 2 if c > THETA, else the diffusion action
+Common random numbers: per (regime, seed) every episode's task, target, evidence,
+noise and wrong-mode pick are drawn once and shared by all three arms.  The arms
+differ only in which output is executed.
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+EPISODES = 400            # per regime and seed
+BINS = 64                 # AR bins on [-1, 1]: width 2/64 = 0.03125
+SIGMA = 0.010             # continuous noise of each head (same for both)
+THETA = 0.96              # paper's confidence threshold
+KAPPA = 1.2               # confidence slope: c > 0.96 when |z_ar| > ln(12.5)/1.2 = 2.105
+TOL_PRECISION = 0.012
+TOL_SEMANTIC = 0.15
+SEMANTIC_MODES = (-0.6, 0.0, 0.6)
+NUM_ZERO = 1e-9           # |m| and sd both below this: floating-point residue, not a gap
+
+# name: (share of semantic episodes, mu_ar precision, mu_ar semantic, mu_d semantic, precision tolerance)
+REGIMES = {
+    "precision": (0.0, 3.0, 1.8, 0.5, TOL_PRECISION),
+    "semantic": (1.0, 3.0, 1.8, 0.5, TOL_PRECISION),
+    "mixed": (0.5, 3.0, 1.8, 0.5, TOL_PRECISION),
+    "easy_precision": (0.0, 3.0, 1.8, 0.5, 0.1),
+}
+ARMS = ("A_ar_only", "B_diffusion_only", "C_hybrid_ensemble")
+
+
+def shared_draws(regime, seed):
+    """Common random numbers: one list of episodes, used by every arm."""
+    sem_share, mu_ar_p, mu_ar_s, mu_d_s, _ = REGIMES[regime]
+    rng = random.Random(f"{regime}/{seed}")
+    eps = []
+    for _ in range(EPISODES):
+        semantic = rng.random() < sem_share
+        if semantic:
+            modes = SEMANTIC_MODES
+            right = rng.randrange(3)
+            mu_ar, mu_d = mu_ar_s, mu_d_s
+        else:
+            modes = (rng.uniform(-0.8, 0.8),)
+            right = 0
+            mu_ar, mu_d = mu_ar_p, mu_ar_p
+        eps.append({
+            "semantic": semantic, "modes": modes, "right": right,
+            "target": modes[right] + (rng.uniform(-0.01, 0.01) if semantic else 0.0),
+            "z_ar": rng.gauss(mu_ar, 1.0), "z_d": rng.gauss(mu_d, 1.0),
+            "n_ar": rng.gauss(0.0, SIGMA), "n_d": rng.gauss(0.0, SIGMA),
+            "wrong_ar": rng.randrange(2), "wrong_d": rng.randrange(2),
+        })
+    return eps
+
+
+def pick(ep, z, wrong):
+    if len(ep["modes"]) == 1 or z > 0.0:
+        return ep["modes"][ep["right"]]
+    others = [m for i, m in enumerate(ep["modes"]) if i != ep["right"]]
+    return others[wrong]
+
+
+def quantize(v):
+    w = 2.0 / BINS
+    i = min(BINS - 1, max(0, int((v + 1.0) / w)))
+    return -1.0 + (i + 0.5) * w
+
+
+def heads(ep):
+    a_ar = quantize(pick(ep, ep["z_ar"], ep["wrong_ar"]) + ep["n_ar"])
+    a_d = pick(ep, ep["z_d"], ep["wrong_d"]) + ep["n_d"]
+    conf = 1.0 - 0.5 * math.exp(-KAPPA * abs(ep["z_ar"]))
+    return a_ar, a_d, conf
+
+
+def run(regime, seed, arm):
+    tol_p = REGIMES[regime][4]
+    hits, errs, used = 0, 0.0, 0
+    for ep in shared_draws(regime, seed):
+        a_ar, a_d, conf = heads(ep)
+        if arm == "A_ar_only":
+            a = a_ar
+        elif arm == "B_diffusion_only":
+            a = a_d
+        elif conf > THETA:
+            a, used = 0.5 * (a_ar + a_d), used + 1
+        else:
+            a = a_d
+        err = abs(a - ep["target"])
+        hits += err < (TOL_SEMANTIC if ep["semantic"] else tol_p)
+        errs += err
+    return {"succ": 100.0 * hits / EPISODES, "err": 1000.0 * errs / EPISODES, "gate": 100.0 * used / EPISODES}
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def cell(xs):
+    mu, sd = mean_sd(xs)
+    return f"{num(mu)}+-{num(sd)}"
+
+
+def main():
+    print("Synthetic HybridVLA-style ensemble toy; two head error models, no training, no time step; arms differ only in the executed action; shared episodes / evidence / noise")
+    print(f"episodes={EPISODES} per seed, seeds={len(SEEDS)}, AR bins={BINS} (width {2.0 / BINS:.5f}), head noise sd={SIGMA}, theta={THETA}, kappa={KAPPA}")
+    print(f"confidence passes theta when |z_ar| > {math.log(0.5 / (1.0 - THETA)) / KAPPA:.4f}; tolerances: precision {TOL_PRECISION} (easy 0.1), semantic {TOL_SEMANTIC}; semantic modes {SEMANTIC_MODES}")
+    res = {r: {a: [run(r, s, a) for s in SEEDS] for a in ARMS} for r in REGIMES}
+    print("regime arm success_% mean_abs_err_x1000 ar_gate_%  (mean+-sd over seeds)")
+    for r, (share, mu_p, mu_s, mu_ds, tol) in REGIMES.items():
+        print(f"{r} (semantic share {share:.0%}; mu_ar precision {mu_p}, semantic {mu_s}; mu_d semantic {mu_ds}; precision tol {tol})")
+        for a in ARMS:
+            print(f"  {a} " + " ".join(cell([x[m] for x in res[r][a]]) for m in ("succ", "err", "gate")))
+        for other in ("A_ar_only", "B_diffusion_only"):
+            for m in ("succ", "err"):
+                xc, xo = [x[m] for x in res[r]["C_hybrid_ensemble"]], [x[m] for x in res[r][other]]
+                print(f"  paired C-{other[0]} {m}: {verdict(xc, xo)}")
+    print("No winner declared: averaging helps when both heads pick the same mode, and hurts when a confident AR head and the diffusion head pick different modes")
+    print("Real HybridVLA weights / GPU: 本页未运行; paper numbers 以论文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic HybridVLA-style ensemble toy; two head error models, no training, no time step; arms differ only in the executed action; shared episodes / evidence / noise
+episodes=400 per seed, seeds=5, AR bins=64 (width 0.03125), head noise sd=0.01, theta=0.96, kappa=1.2
+confidence passes theta when |z_ar| > 2.1048; tolerances: precision 0.012 (easy 0.1), semantic 0.15; semantic modes (-0.6, 0.0, 0.6)
+regime arm success_% mean_abs_err_x1000 ar_gate_%  (mean+-sd over seeds)
+precision (semantic share 0%; mu_ar precision 3.0, semantic 1.8; mu_d semantic 0.5; precision tol 0.012)
+  A_ar_only 61.4000+-1.6260 10.8475+-0.2670 0.0000+-0.0000
+  B_diffusion_only 76.2000+-1.8990 8.0900+-0.3071 0.0000+-0.0000
+  C_hybrid_ensemble 83.2500+-1.0897 6.8379+-0.2118 82.0500+-2.1823
+  paired C-A succ: 21.8500+-1.3647: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A err: -4.0095+-0.1329: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B succ: 7.0500+-2.0797: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B err: -1.2520+-0.4165: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+semantic (semantic share 100%; mu_ar precision 3.0, semantic 1.8; mu_d semantic 0.5; precision tol 0.012)
+  A_ar_only 96.5500+-0.6225 38.4342+-5.4745 0.0000+-0.0000
+  B_diffusion_only 69.7000+-2.8799 247.5123+-25.1765 0.0000+-0.0000
+  C_hybrid_ensemble 69.7000+-2.8799 200.3352+-22.2543 38.5500+-1.9154
+  paired C-A succ: -26.8500+-2.5593: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A err: 161.9010+-20.3899: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B succ: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B err: -47.1771+-9.1652: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+mixed (semantic share 50%; mu_ar precision 3.0, semantic 1.8; mu_d semantic 0.5; precision tol 0.012)
+  A_ar_only 79.0000+-1.6956 29.5775+-7.5755 0.0000+-0.0000
+  B_diffusion_only 73.6000+-2.5471 138.7528+-16.4562 0.0000+-0.0000
+  C_hybrid_ensemble 76.1000+-1.0695 113.0848+-15.2822 59.0000+-2.4238
+  paired C-A succ: -2.9000+-1.5268: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A err: 83.5072+-15.0658: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B succ: 2.5000+-1.9203: small but consistent gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  paired C-B err: -25.6680+-6.7709: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+easy_precision (semantic share 0%; mu_ar precision 3.0, semantic 1.8; mu_d semantic 0.5; precision tol 0.1)
+  A_ar_only 100.0000+-0.0000 11.0530+-0.3726 0.0000+-0.0000
+  B_diffusion_only 100.0000+-0.0000 7.9306+-0.1468 0.0000+-0.0000
+  C_hybrid_ensemble 100.0000+-0.0000 7.0030+-0.3586 81.1000+-2.2542
+  paired C-A succ: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A err: -4.0500+-0.1511: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B succ: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B err: -0.9276+-0.3680: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: averaging helps when both heads pick the same mode, and hurts when a confident AR head and the diffusion head pick different modes
+Real HybridVLA weights / GPU: 本页未运行; paper numbers 以论文为准
+```
+
+</SimOutput>
+
+### 读四种情形
+
+本节标签按以下顺序使用。**打平：每个种子都完全相同**只用于配对的逐种子差值在每个种子上都严格为零；`|配对均值|` 和它的标准差都小于 1e-9 时标为**数值上为零（浮点残差），等同打平**（这种行不打印同号计数）；`|配对均值| ≤ sd` 时为**接近打平、差距很小，在种子噪声之内**；否则是**稳定**差距（`|配对均值| > sd`），`|m|` 小于两组中较小均值的 20 % 时叫**小**，否则叫**明显**；20 % 规则只用来在这两个词之间选择。每条稳定的行都带 5 个种子上的同号计数，符号相反的种子都会报告。差距都由未四舍五入的数值计算。
+
+- **precision** 情形，**集成赢了**。C 的成功率 83.2500±1.0897 %，扩散 76.2000±1.8990 %，AR 61.4000±1.6260 %。配对 C−A 为 21.8500±1.3647 个百分点，差距明显；C−B 为 7.0500±2.0797，是小但稳定的差距；两者都是 5 个种子同号。误差也下降了（C−B −1.2520±0.4165，小但稳定）。门控在 82.0500±2.1823 % 的步上通过，和算例的预测一致。
+- **semantic** 情形，**C 输给了 AR 专长头，差距明显**，C−A 成功率 −26.8500±2.5593 个百分点，5 个种子同号。和扩散相比，成功率是**打平：每个种子都完全相同**，正如算例所预测：扩散头对的时候平均才对。C 的误差比 B 低（C−B −47.1771±9.1652，明显），因为平均把错误的扩散动作拉回了一半，但一半仍在容差之外，所以没有变成成功。这个打平是结构性的，不是调出来的。
+- **mixed** 情形，**C 输给了最好的单头**。C−A 成功率 −2.9000±1.5268 个百分点，是小但稳定的差距，5 个种子同号；C 仍比扩散高 2.5000±1.9203 个百分点（小但稳定，5 个种子中有 1 个符号相反）。语义那一半的损失大于精细那一半的收益。这与提案“混合任务上集成不低于最好的单头”的预期相反；论文中的集成平均起来确实胜过两个头（以论文为准），所以 toy 里的输来自它自己的假设：两个头的误差独立，以及简单平均。
+- **easy_precision** 情形，容差 0.1 时每组每步都成功，所以 C−A 和 C−B 的成功率都是**打平：每个种子都完全相同**。误差仍然能区分它们：C−A −4.0500±0.1511（明显），C−B −0.9276±0.3680（小但稳定），都是 5 个种子同号。
+
+本页**不宣布普遍赢家**。两个头在模式上一致、剩下的只是噪声或取整误差时，取平均有好处。它修不好选错的模式；在 AR 头更会选的任务集上，单独的 AR 头可以胜过集成。这和论文自己的 Wine at rack 一行一致，那里只用扩散胜过了集成。没有哪组发散或运行失败。真实的 HybridVLA 权重和 GPU **本页未运行**。
+
+**210 分钟安排**如下。40 分钟读论文第 3.2–3.3 节和表 7–8；30 分钟手算区间和门控的算例；50 分钟运行 toy 并读四种情形；50 分钟固定种子，改 `THETA`、`KAPPA`、`BINS` 和证据均值；40 分钟做练习。
+
+### 练习
+
+1. 用 256 个 AR 区间重做算例。`precision` 中 AR 头还会输吗？集成还剩多少可赚？
+2. 从 `shared_draws` 和 `heads` 说明：对给定的情形和种子，A、B、C 执行的输出来自同一份回合抽样。
+3. 固定种子，设 `THETA = 0.98`。运行前先预测 `precision` 中的门控比例，以及 C−B 成功率是否仍然稳定；再与论文中 0.98 那一行比较（以论文为准）。
+4. 说明为什么 `semantic` 中 C−B 成功率是**打平**而 C−B 误差不是，以及一个不同于简单平均的规则需要什么才能利用 AR 头更好的选模式能力。
+5. 在信任一个真实的集成之前（本页未运行），列出每步应当记录的两项内容，用来区分精细情形和语义情形。
+
 <Summary>
 
 多模态示范取均值可能走到不安全的中间动作，采样保留不同选择；ACT 分块 / 时间集成在平滑执行与开环暴露间权衡。扩散逐步去噪动作块并付出推理成本，玩具精确去噪器 / 示范回放并非通用已学习机器人策略；应用同一数据与评估起点，检查失败和块长，LeRobot GPU 训练命令本页未运行。新增等信息共享带条实验用全时域预算对照独立、主从、联合耦合，并把运动学指标与 TwinVLA 学习架构分开。
 
 - CogACT 认知→动作：共享演示下单模态短时域 **接近打平 / 差距很小**，多模态长 chunk 有 DiT 风格优势——表达力替身，不是 Li 等的 GPU 成功率。
+- HybridVLA 集成：AR 置信度超过 0.96 时对 AR 动作和扩散动作取平均，在精细步上胜过两个头（C−A 21.8500±1.3647 个百分点，明显，5/5），在语义步上与扩散**打平**，并在语义步和混合任务上输给 AR 头（C−A −2.9000±1.5268）——`hybridvla_action_ensemble_toy.py`，合成误差模型，不是 HybridVLA 的 7B GPU 结果。
 </Summary>
