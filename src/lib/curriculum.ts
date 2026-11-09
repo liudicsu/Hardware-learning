@@ -1033,7 +1033,7 @@ const month7Lessons: Lesson[] = [
       { zh: "能写出平面两接触的力旋量 (fx, fy, τ/L) 与 L1 抓取力旋量空间，推出过直径圆盘抓取 ε = μ/√(μ²+2) 与偏移上限 o < r·sin(atan μ)；在共享候选与扰动下读出：中心看错的圆盘上 B−A 力封闭率 0.3500±0.0685（明显，5/5 同号），面对面候选时力封闭打平，盒子位姿看错时举起提升接近打平，无摩擦两指永不力封闭；不声称真实夹爪实验。", en: "Write the planar two-contact wrenches (fx, fy, τ/L) and the L1 grasp wrench space, derive ε = μ/√(μ²+2) for a diametric disc grasp and the offset limit o < r·sin(atan μ); on shared candidates and disturbances read B−A force-closure rate 0.3500±0.0685 on a misperceived disc (clear, 5/5 same sign), a force-closure tie for face-to-face candidates, a near-tie lift gain under box pose error, and no force closure ever for two frictionless fingers; no real-gripper claim." },
     ],
     prereqs: ["depth-pointcloud", "moveit-pick-place", "camera-calibration"],
-    resources: ["open3d", "moveit-docs", "opencv-calibration", "sam2", "quickgrasp-html", "dexnet2-pdf", "minwork-pdf"],
+    resources: ["open3d", "moveit-docs", "opencv-calibration", "sam2", "quickgrasp-html", "dexnet2-pdf", "minwork-pdf", "ferrari-canny-pdf"],
     tasks: [
       { id: "b13p2-force-closure", text: { zh: "运行 antipodal_force_closure_toy.py，手推圆盘的 ε 与偏移上限，比较三个情形下三组的 fc、eps、lift，并解释 L 减半与感知误差各让 B 的选择错几次", en: "Run antipodal_force_closure_toy.py, derive the disc's ε and offset limit by hand, compare the three arms' fc, eps and lift in the three regimes, and explain how often halving L and perception error change or fool B's pick" } },
       { id: "handeye", text: { zh: "运行 handeye_toy.py，核对旋转/平移误差与 expected/handeye_toy.txt 一致", en: "Run handeye_toy.py and check rotation/translation errors match expected/handeye_toy.txt" } },
