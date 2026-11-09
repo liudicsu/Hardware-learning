@@ -1,0 +1,62 @@
+Synthetic FORGE-Tree-style toy; displacement tokens, depth-1 segment search, frozen prefix; not OpenVLA / Octo / LIBERO
+seeds=5 trials=40 tokens/stage=8 sigma=0.4 bias=0.15 c_puct=1.0 strengths=(0.5, 1.0) guidance=(0.3, 0.6); no integration step (closed-form partial denoise)
+integrity check: a re-denoise without the segment mask changes 8 of the 8 committed stage-1 tokens; a masked edit of segment 2 changes 0
+regime arm stage final edits prefix  (mean+-sd over seeds of per-seed trial means)
+single_stage (stages=1, tol=1.5 cm, simulations/stage=8, sigma_eval=0.3 cm)
+  A_oneshot 0.2550+-0.0371 0.2550+-0.0371 0.0000+-0.0000 0.0000+-0.0000
+  B_tree 0.9500+-0.0468 0.9500+-0.0468 1.6050+-0.1137 0.0000+-0.0000
+  C_random 0.9350+-0.0285 0.9350+-0.0285 1.5600+-0.1957 0.0000+-0.0000
+  paired B-A stage: 0.6950+-0.0326: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A final: 0.6950+-0.0326: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B stage: -0.0150+-0.0224: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired C-B final: -0.0150+-0.0224: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired C-A stage: 0.6800+-0.0326: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A final: 0.6800+-0.0326: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+long_loose (stages=4, tol=4.0 cm, simulations/stage=8, sigma_eval=0.3 cm)
+  A_oneshot 0.6738+-0.0263 0.3800+-0.0411 0.0000+-0.0000 0.0000+-0.0000
+  B_tree 0.9975+-0.0034 0.9900+-0.0137 1.8400+-0.1607 0.0000+-0.0000
+  C_random 0.9963+-0.0056 0.9850+-0.0224 1.9850+-0.2428 0.0000+-0.0000
+  paired B-A stage: 0.3237+-0.0288: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A final: 0.6100+-0.0518: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B stage: -0.0012+-0.0081: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign, 1 of 5 equal
+  paired C-B final: -0.0050+-0.0326: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign, 1 of 5 equal
+  paired C-A stage: 0.3225+-0.0252: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A final: 0.6050+-0.0411: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+long_tight (stages=4, tol=1.0 cm, simulations/stage=8, sigma_eval=0.3 cm)
+  A_oneshot 0.0950+-0.0346 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+  B_tree 0.5837+-0.0463 0.1400+-0.0548 7.9400+-0.3426 0.0000+-0.0000
+  C_random 0.5338+-0.0656 0.0850+-0.0652 7.7950+-0.5450 0.0000+-0.0000
+  paired B-A stage: 0.4888+-0.0314: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A final: 0.1400+-0.0548: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B stage: -0.0500+-0.0407: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B final: -0.0550+-0.0758: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired C-A stage: 0.4388+-0.0531: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A final: 0.0850+-0.0652: clear gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+low_budget (stages=4, tol=1.0 cm, simulations/stage=1, sigma_eval=0.3 cm)
+  A_oneshot 0.1050+-0.0081 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+  B_tree 0.2050+-0.0376 0.0050+-0.0112 2.2450+-0.2225 0.0000+-0.0000
+  C_random 0.2413+-0.0130 0.0000+-0.0000 2.2350+-0.1084 0.0000+-0.0000
+  paired B-A stage: 0.1000+-0.0359: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A final: 0.0050+-0.0112: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 4 of 5 equal
+  paired C-B stage: 0.0363+-0.0284: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B final: -0.0050+-0.0112: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 4 of 5 equal
+  paired C-A stage: 0.1363+-0.0156: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A final: 0.0000+-0.0000: tie: identical on every seed
+noisy_graph (stages=4, tol=1.0 cm, simulations/stage=8, sigma_eval=1.5 cm)
+  A_oneshot 0.1113+-0.0081 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000
+  B_tree 0.2913+-0.0295 0.0000+-0.0000 14.0100+-0.1876 0.0000+-0.0000
+  C_random 0.2375+-0.0370 0.0050+-0.0112 13.7750+-0.4089 0.0000+-0.0000
+  paired B-A stage: 0.1800+-0.0298: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A final: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B stage: -0.0538+-0.0382: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  paired C-B final: 0.0050+-0.0112: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 4 of 5 equal
+  paired C-A stage: 0.1263+-0.0326: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A final: 0.0050+-0.0112: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 4 of 5 equal
+budget sweep on long_tight (final: mean over seeds; paired B-A final)
+  budget=1: A 0.0000 B 0.0000 C 0.0050; B-A final: 0.0000+-0.0000: tie: identical on every seed
+  budget=2: A 0.0000 B 0.0100 C 0.0150; B-A final: 0.0100+-0.0137: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+  budget=4: A 0.0000 B 0.0350 C 0.0300; B-A final: 0.0350+-0.0379: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 2 of 5 equal
+  budget=8: A 0.0000 B 0.1400 C 0.0850; B-A final: 0.1400+-0.0548: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  budget=16: A 0.0000 B 0.1700 C 0.1550; B-A final: 0.1700+-0.0647: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: search helps where clearances are tight and the score is informative; it costs edits and can hurt when the score is noisy or the budget tiny
+Real FORGE-Tree on OpenVLA / Octo, LIBERO, a GPU: 本页未运行; Huang et al. results 以论文为准

@@ -5713,6 +5713,26 @@ export const resources: Record<string, Resource> = {
     },
     extra: true,
   },
+  "thinkact-paper": {
+    id: "thinkact-paper",
+    url: "https://arxiv.org/abs/2507.16815",
+    title: {
+      zh: "ThinkAct：基于强化视觉潜变量规划的视觉-语言-动作推理（ThinkAct: Vision-Language-Action Reasoning via Reinforced Visual Latent Planning）",
+      en: "ThinkAct: Vision-Language-Action Reasoning via Reinforced Visual Latent Planning",
+    },
+    author: "Chi-Pin Huang, Yueh-Hua Wu, Min-Hung Chen, Yu-Chiang Frank Wang, Fu-En Yang",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已用 pdftotext 读 arXiv PDF 正文（v2）：Qwen2.5-VL 7B 推理并输出视觉规划潜变量（K = 8 个二维点），用目标奖励（式 1）、DTW 轨迹奖励（式 2）和格式奖励（式 3，0.9 / 0.1）做 GRPO；432M DiT 动作模型经 Q-Former 以潜变量为条件、模仿学习训练，异步运行（每个潜变量 N 个动作，LIBERO 上 75）；LIBERO 总体 84.4、表 3 奖励消融 60.1 → 56.4（SFT）。数字以论文为准；本页未运行。",
+      en: "arXiv PDF body read via pdftotext (v2): Qwen2.5-VL 7B reasons and emits a visual plan latent (K = 8 2-D points), trained by GRPO on a goal reward (eq. 1), a DTW trajectory reward (eq. 2) and a format reward (eq. 3, 0.9 / 0.1); a 432M DiT action model is conditioned on the latent through a Q-Former, trained by imitation and run asynchronously (N actions per latent, 75 on LIBERO); LIBERO overall 84.4, Table 3 reward ablation 60.1 → 56.4 (SFT). Numbers 以论文为准; 本页未运行.",
+    },
+    license: {
+      zh: "以原文为准",
+      en: "See original terms",
+    },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

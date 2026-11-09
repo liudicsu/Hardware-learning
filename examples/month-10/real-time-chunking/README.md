@@ -6,6 +6,16 @@
 python3 rtc_blend_toy.py   # compare with ../expected/rtc_blend_toy.txt
 ```
 
+`forge_tree_mctd_toy.py` — a synthetic FORGE-Tree-style stand-in (arXiv 2510.21744; stdlib, five seeds,
+common random numbers): one-shot decoding vs depth-1 segment search with a frozen prefix vs random segment
+picks, five regimes plus a budget sweep, prefix violations counted (0 in every arm).
+
+```bash
+python3 forge_tree_mctd_toy.py   # compare with ../expected/forge_tree_mctd_toy.txt
+```
+
+OpenVLA / Octo / LIBERO 本页未运行; paper numbers 以论文为准.
+
 Optional, not run here / 本页未运行 (needs a GPU and a robot or dataset; follow the LeRobot v0.6.x RTC docs, flags may change):
 
 ```bash

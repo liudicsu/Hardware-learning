@@ -1,0 +1,53 @@
+# Batch-15 PR3 source, scope and validation audit
+
+Base: `2e88830` (batch-15 PR2 merged as #162; site **32070**). Proposal `batch-15-proposal.md` §9 PR3 locks: H5 10.2 real-time-chunking FORGE-Tree +210, H6 10.6 real-world-rl ThinkAct +210. No arithmetic mismatch: curriculum.ts on base gives M10 2910 / site 32070 (real-time-chunking 180, real-world-rl 450, as the proposal states); after this PR M10 **3330**, site **32490** (= 32070 + 420); 71 lessons.
+
+## Opened sources (curl -L + body read, 2026-11-10, Asia/Shanghai UTC+8)
+
+Both papers were verified on arXiv before writing: the abstract page id, title and author list match the PDF body.
+
+- `forge-tree-pdf` (existing card, reused) / arXiv **2510.21744** v1 (7 Oct 2025, cs.RO), "FORGE-Tree: Diffusion-Forcing Tree Search for Long-Horizon Robot Manipulation", Yanjia Huang, Shuo Liu, Sheng Liu, Qingxiao Xu, Mingyang Wu, Xiangbo Gao, Zhengzhong Tu (Texas A&M, University of Washington, KIT). https://arxiv.org/abs/2510.21744 HTTP 200 (abstract read); https://arxiv.org/pdf/2510.21744 HTTP 200, full PDF body read via pdftotext (501 lines). Used: stage-aligned DF head on frozen OpenVLA / Octo encoder, 64 tokens × 7, "noise = mask", T = 1000, t_j ~ U[400, 900], loss weights; Algorithm 1 partial denoising with segment mask and jumpy DDIM stride s; meta-actions (k, m, s, w, τ) with m ∈ {8, 12, 16}, s ∈ {2, 4, 8}, w ∈ [0, 5], τ ∈ [0.5, 1.0], k within 16 tokens before the next stage boundary; P-UCT with Laplace smoothing (eq. III.6), fast heuristic for unvisited children (III.7), softmax prior (III.8); Algorithm 2 stage-aware MCTD with per-stage budget, "preserving the executed prefix"; Table II LIBERO (OpenVLA 76.5 → 89.9, Octo 75.1 → 92.3), Table III without stage guidance (Goal 88.2 → 75.9, Long 83.2 → 60.7; text "14% and 27%"); failure modes (scene-graph errors, overhead, stall at first grasp); 4 × 48 GB Ada GPUs. Noted inconsistency: Table III full-model Goal 88.2 vs Table II 89.3 — reported, not resolved. No budget-scaling table in the paper.
+- `thinkact-paper` (new card) / arXiv **2507.16815** (v1 22 Jul 2025, v2 18 Sep 2025, cs.CV), "ThinkAct: Vision-Language-Action Reasoning via Reinforced Visual Latent Planning", Chi-Pin Huang, Yueh-Hua Wu, Min-Hung Chen, Yu-Chiang Frank Wang, Fu-En Yang (NVIDIA, National Taiwan University). https://arxiv.org/abs/2507.16815 HTTP 200 (abstract read); https://arxiv.org/pdf/2507.16815 (v2) HTTP 200, PDF body read via pdftotext (main text, §3 method, §4 experiments, appendix B.6–B.7). Used: Qwen2.5-VL 7B reasoner, visual plan latent of K = 8 points, eq. 1 goal reward, eq. 2 DTW trajectory reward, eq. 3 (0.9 / 0.1, r_visual = 0.5 / 0.5), eq. 4 GRPO (β = 1e-2, rollout 5, 6K iterations), eq. 5 imitation for the 432M DiT action model via Q-Former (32 queries), asynchronous N actions per latent (15 SimplerEnv, 75 LIBERO), B.6 N = 25/50/75/100 → 84.0/84.6/84.4/83.7, B.7 ~17 % slower than OpenVLA; Table 1 (LIBERO 84.4, Long 70.9; Simpler Google-VM 71.5, VA 65.1, Bridge-VM 43.8), Table 3 reward ablation (60.1 / 59.2 / 59.1 / 56.9 / 56.4); few-shot, self-correction, hallucination limitation; 16 A100. Noted inconsistency: B.7 per-suite deltas do not all match Table 1 differences — reported, not resolved.
+- The arXiv HTML renderings (https://arxiv.org/html/2510.21744, https://arxiv.org/html/2507.16815) were also fetched (HTTP 200) but the PDF text was the body actually read and cited.
+- Existing `real-time-chunking` (RTC) and `real-world-rl` (RLPD / HIL-SERL / DPO) prose read in-repo and extended in place; `flow-matching-policies`' Diffusion Forcing toy was read to avoid redoing it.
+
+Cached under `/workspace/b15p3-sources/` on the worktree host (not committed): `forge-abs.html`, `forge.html`, `forge.pdf/.txt`, `thinkact-abs.html`, `thinkact.html`, `thinkact.pdf/.txt`.
+
+Derived in the lesson, not quoted: the one-shot end-error variance 2.72 cm² (sd 1.649 cm; 0.168 / 0.339 inside 1.0 / 1.5 cm), the guided-edit example ((−0.72, +0.48), 0.80 cm re-noise sd), the r_visual examples (0.5214 rotated, 0.9336 jittered); each is verified in `tools/test_b15p3_forge_thinkact_toys.py`.
+
+## Toy design
+
+- `forge_tree_mctd_toy.py` (10.2): 2-D displacement tokens (M = 8 per stage), positions are cumulative sums; frozen-decoder stand-in μ + per-stage bias (0.15) + per-token noise (σ 0.4 cm). Partial denoise of one segment k: δ′ = μ + b_k + σ(√(1−ρ)ε + √ρ η) − w ê_k / M, all other tokens copied. Arms A_oneshot / B_tree (depth-1 P-UCT, uniform prior, c_puct 1.0, unvisited children ordered by |ê|/TOL) / C_random (uniform meta-action); accept a candidate if its noisy geometry return beats the current one; commit the current stage after N simulations. **Common random numbers** per (regime, seed, trial): goals, decode noise, biases, candidate pool, evaluation pool; simulation n uses pool entry n in both B and C. 5 seeds × 40 trials. Integrity criterion: prefix violations counted in every arm (0 everywhere) and an unmasked re-denoise printed (8 of 8 committed tokens change). No integration step.
+- `thinkact_visual_latent_toy.py` (10.6): 9 × 9 grid, ordered stage targets with revisits (P, PQP, PQPQ), stage indicator hidden with q_hide (per step or in blocks of 8), 20 shared expert demos per trial with 0.1 slip; arms A_direct (cell, visible stage) / B_latent (cell, plan point; plan = remaining targets jittered with p_plan, rewritten every `refresh` steps if visible) / C_scrambled (rotated order); same fallback for all arms. Plan metrics: endpoint error and r_visual (eq. 1–3, DTW). **Common random numbers** per (regime, seed, trial): scene, task, demos, jitter, slips, hides. 5 seeds × 40 trials. No integration step.
+
+No line in either expected file triggers the numerically-zero rule; the rule (|m| and sd < 1e-9, after the exact-tie test, before the sd test, no sign count) is implemented, unit-tested and defined in the prose.
+
+Key numbers (FORGE): prefix 0 in every arm / regime; single_stage B−A final 0.6950±0.0326 clear 5/5, C−B near-tie; long_loose B−A final 0.6100±0.0518 clear 5/5, C−B near-tie; long_tight B−A stage 0.4888±0.0314, final 0.1400±0.0548 clear 5/5, C−B stage −0.0500±0.0407 small 5/5, final −0.0550±0.0758 near-tie; low_budget B−A final 0.0050±0.0112 near-tie, C−B stage +0.0363±0.0284 small 5/5 (random ahead); noisy_graph B−A final tie (identical on every seed), C−B stage −0.0538±0.0382 clear (1 of 5 opposite); budget sweep B−A final: N=1 tie, N=2/4 near-tie, N=8 0.1400 and N=16 0.1700 clear 5/5.
+Key numbers (ThinkAct): single_step B−A tie (and C−B tie, rotation = identity); multi_stage B−A full −0.0250±0.0306 near-tie; ambiguous +0.0800±0.0597 small (1 of 5 equal); multi_stage_block +0.0300±0.0209 small; ambiguous_block +0.0950±0.0371 small 5/5; noisy_plan −0.0950±0.0622 small (B loses); drop_dense +0.0450±0.0447 small (1 of 5 opposite); drop_sparse −0.0200±0.0622 near-tie. C−B full: multi_stage −0.1500±0.0661 clear 5/5, ambiguous −0.0700±0.0326 small 5/5, multi_stage_block −0.1700±0.0274 clear 5/5, ambiguous_block −0.0300±0.0326 near-tie, noisy_plan −0.0550±0.0411 small, drop_dense −0.2300±0.0326 clear 5/5, drop_sparse −0.2250±0.0884 clear 5/5.
+
+Independent tests: `tools/test_b15p3_forge_thinkact_toys.py` (also executed by the batch-15 PR3 block in `tools/check_diagrams.mjs`).
+
+## Post-hoc choices (stated in the en/zh prose; alternatives printed)
+
+1. FORGE toy: no parameter or regime changed after the first full run. Cleanup only: an unused `mask` argument removed; the integrity line now computes the masked count instead of printing the constant 0.
+2. ThinkAct fallback: first version let B stay on an unseen (cell, plan point) key while A kept its (cell, hidden) fallback; B lost everywhere (e.g. multi_stage B−A full −0.2000±0.0901, noisy_plan −0.6850±0.0576). Now one shared fallback; the first version is printed per regime.
+3. ThinkAct C: first version used another task's targets in the same scene; its keys never occur in the demos, so it fell back to A's hidden table (single_step C−B tie). Now C rotates the true targets; the first version is printed (C−B full per regime).
+4. ThinkAct `multi_stage_block` / `ambiguous_block`: added after per-step multi_stage gave a near-tie; per-step regimes kept.
+No regime was deleted in either toy.
+
+## Mismatch with §9
+
+- H5: "prefix **frozen** (0 violations on B)" ✔ (0 in every arm). "low-budget **tie/lose** ok" ✔ (low_budget final near-tie; random ahead on stage; N = 1 tie in the sweep; noisy_graph tie). Proposal regime text: "long-horizon tight → B consistent better than A as N grows" ✔ from N = 8 (N = 2/4 near-tie). "short single-stage → (A)(B) near-tie" ✗ — measured B−A clear (0.6950±0.0326) because the guided edit plus the accept test fixes one stage; only C−B is a near-tie there. "random (C) consistent worse than tree" partly ✗ — stage success small 5/5 in long_tight and clear in noisy_graph, but final only near-tie, and C is ahead on stage in low_budget. "≠ DF toy / RTC blend redo" ✔. Paper % 以论文为准 ✔.
+- H6: "multi-stage **consistent** win" ✗ for per-step-hide multi_stage (near-tie); ✔ small but consistent in ambiguous, multi_stage_block, ambiguous_block (the block regimes were added post hoc, disclosed). "single-step **near-tie**" ✔ (measured tie: identical on every seed, stronger). Proposal "scrambled (C) consistent lose" ✔ in multi_stage, ambiguous, multi_stage_block, noisy_plan, drop_dense, drop_sparse; near-tie in ambiguous_block; tie in single_step by construction. "≠ CoT-VLA / MAP / TraceVLA" ✔. Paper % 以论文为准 ✔.
+
+## Lock changes
+
+Totals only: site 32070→32490 in the two curriculum-total locks (labels b15p2→b15p3), month table M10 2910→3330, all README `32 070` / `约 32 070 分钟` tips → `32 490` (labels b15p2→b15p3); the b7p3 real-world-rl own-host minutes lock 450→660 (host total, as earlier per-host locks were moved); the b13p3 month-10 plan-header lock moved from the "Current" line to its `## Batch-13 PR3` section (a historical header line was added there). No lock relaxed. New b15p3 block added after the b15p2 block.
+
+## Models / reproducibility
+
+opencode free models were tried first with a toy brief (`/workspace/b15p3-opencode/`, 150 s timeout each): `deepseek-v4.1-flash-free`, `glm-5.3-flash-free`, `mimo-v2.6-flash-free`, `longcat-2.5-free` all timed out (exit 124) with no file output; `minimax-m2.5-free` returned an UnknownError "Unexpected server error" (exit 1). Toys, tests and lesson text implemented locally in `/workspace/hl-b15p3`.
+
+## Local validation
+
+`tools/test_b15p3_forge_thinkact_toys.py`, month-10 `check.sh`, `check_quotes`, `check_diagrams`, `check_widgets`, `check_wokwi`, lint, next typegen, `tsc --noEmit`, production build with postbuild. No workflow edits. Minutes **71 / 32490**.

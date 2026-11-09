@@ -20,6 +20,7 @@ check() {
 
 check flow_match_toy.txt "$PY" "$M10/flow-matching-policies/flow_match_toy.py"
 check rtc_blend_toy.txt "$PY" "$M10/real-time-chunking/rtc_blend_toy.py"
+check forge_tree_mctd_toy.txt "$PY" "$M10/real-time-chunking/forge_tree_mctd_toy.py"
 check int8_quant_toy.txt "$PY" "$M10/edge-deploy-checklist/int8_quant_toy.py"
 check latency_budget.txt "$PY" "$M10/edge-deploy-checklist/latency_budget.py"
 check vla_edge_budget_toy.txt "$PY" "$M10/edge-deploy-checklist/vla_edge_budget_toy.py"
@@ -37,5 +38,6 @@ check policy_distill_onestep_toy.txt "$PY" "$M10/flow-matching-policies/policy_d
 check diffusion_forcing_token_noise_toy.txt "$PY" "$M10/flow-matching-policies/diffusion_forcing_token_noise_toy.py"
 
 check preference_dpo_lite_toy.txt "$PY" "$M10/real-world-rl/preference_dpo_lite_toy.py"
+check thinkact_visual_latent_toy.txt "$PY" "$M10/real-world-rl/thinkact_visual_latent_toy.py"
 
 exit $fail
