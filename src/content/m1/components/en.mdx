@@ -504,6 +504,186 @@ Mounted-path SRFs are **0.237254 / 0.795775 / 0.906869 / 0.159091 MHz**. At SRF 
 3. Swap only the loop L between local_split and long_trace, retaining identical parts/pulses. Then lengthen the pulse plateau to expose charge depletion and source recharge.
 4. Halve the step, check convergence, and list the missing real-board data before choosing a part or claiming a minimum rail. No FCC/CE or fuse suitability claim.
 
+## ESD and TVS clamp literacy
+
+Decoupling keeps a rail stiff against load steps. ESD is a different threat: a short, high-voltage pulse into a pin. This section is about that pulse and a TVS-style clamp path. It is **not** the supply-dip ESL+ESR+C toy above, and it is **not** a fuse IR or certification exercise.
+
+<Resource id="ti-ssya010" />
+<Resource id="ti-slvae37" />
+
+**Sources actually opened (PDF body verified with pdftotext).**
+
+- **TI SSYA010A (*Electrostatic Discharge (ESD)*):** the Human Body Model (HBM) is a component-level stress that simulates a person discharging through a device; it uses a series RC of **100 pF** and **1500 Ω**. The protection discussion describes clamps that discharge ESD current safely to ground, with a series resistor isolating a secondary clamp that protects a gate oxide.
+- **TI SLVAE37 (*How to select a Surge Diode*):** a TVS diode should be invisible at nominal voltage, then **shunt** surge current to ground while **clamping** the voltage (`VCLAMP`) to a safe level. Key datasheet ideas include `VRWM` (max working voltage with low leakage), `VBR` (breakdown / turn-on, typically at 1 mA), and `IPP` (peak pulse current the part can absorb).
+
+Numbers 以原文为准. This toy is **not** an IEC 61000 pass/fail. Real ESD gun / TVS lab: **本页未运行**.
+
+### Shared pulse, three paths
+
+`esd_tvs_clamp_toy.py` is **synthetic** and stdlib only. Every arm sees the **same** HBM-style charged source (100 pF / 1500 Ω, nominal 2 kV precharge with ±8 % seed jitter) into a tiny pin capacitance:
+
+| Arm | Path at the pin |
+|---|---|
+| A_unprotected | pin C only |
+| B_tvs | TVS-like clamp to a synthetic `VCLAMP = 8 V` window |
+| C_series_tvs | 33 Ω series + the same clamp |
+
+Metrics: peak pin voltage, energy into the clamp (nJ), residual energy on the pin C. Five-seed mean±sd.
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-1/components
+python3 esd_tvs_clamp_toy.py
+```
+
+<CodeSource path="examples/month-1/components/esd_tvs_clamp_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic ESD / TVS clamp literacy toy. Stdlib only.
+
+Shared HBM-style pulse energy and shared rise for every arm (TI SSYA010A:
+HBM uses 100 pF + 1500 ohm). Arms differ only in the protection path at the
+pin node:
+  A_unprotected   pin capacitance only (no clamp)
+  B_tvs           TVS-like clamp to a rail window (SLVAE37: shunt + VCLAMP)
+  C_series_tvs    series resistance + same TVS
+
+Metrics: peak pin voltage, energy into clamp (0 for unprotected), residual
+energy on the pin capacitance. ≥5 seeds with pulse-charge jitter.
+Not an IEC 61000 certification. ESD gun / real TVS lab: 本页未运行.
+"""
+from __future__ import annotations
+
+import math
+import random
+
+# HBM network (SSYA010A): 100 pF, 1500 ohm — cited, then used as the charge source
+C_HBM = 100e-12
+R_HBM = 1500.0
+V_HBM0 = 2000.0  # synthetic precharge; not a pass/fail claim
+# Pin / clamp model (synthetic lesson values, not a datasheet part)
+C_PIN = 5e-12
+R_SERIES = 33.0  # C arm only
+V_CLAMP = 8.0  # synthetic VCLAMP window (above a 5 V rail)
+R_CLAMP_ON = 1.5  # dynamic resistance while clamping (synthetic)
+DT = 0.05e-9  # 50 ps
+T_END = 80e-9
+SEEDS = (0, 1, 2, 3, 4)
+JITTER = 0.08  # ±8 % charge voltage jitter
+ARMS = ("A_unprotected", "B_tvs", "C_series_tvs")
+
+
+def simulate(arm: str, v_hbm: float) -> tuple[float, float, float]:
+    """Return (peak_pin_V, clamp_energy_J, pin_resid_energy_J)."""
+    n = int(T_END / DT)
+    v_c = v_hbm  # HBM capacitor
+    v_pin = 0.0
+    e_clamp = 0.0
+    peak = 0.0
+    for _ in range(n):
+        # series path into pin
+        if arm == "A_unprotected":
+            r_series = 0.0
+            clamp_on = False
+        elif arm == "B_tvs":
+            r_series = 0.0
+            clamp_on = abs(v_pin) > V_CLAMP
+        else:
+            r_series = R_SERIES
+            clamp_on = abs(v_pin) > V_CLAMP
+
+        # Current from HBM cap through R_HBM (+ optional series) into pin
+        r_path = R_HBM + r_series
+        i_in = (v_c - v_pin) / r_path
+        # Clamp current to ground once above VCLAMP (unidirectional positive model)
+        i_clamp = 0.0
+        if clamp_on and v_pin > V_CLAMP:
+            i_clamp = (v_pin - V_CLAMP) / R_CLAMP_ON
+        # Capacitor updates
+        dv_c = -i_in * DT / C_HBM
+        dv_pin = (i_in - i_clamp) * DT / C_PIN
+        v_c += dv_c
+        v_pin += dv_pin
+        if v_pin < 0:
+            v_pin = 0.0
+        peak = max(peak, v_pin)
+        e_clamp += i_clamp * v_pin * DT
+    e_pin = 0.5 * C_PIN * v_pin * v_pin
+    return peak, e_clamp, e_pin
+
+
+def mean_sd(xs: list[float]) -> tuple[float, float]:
+    mu = sum(xs) / len(xs)
+    var = sum((x - mu) ** 2 for x in xs) / (len(xs) - 1)
+    return mu, math.sqrt(var)
+
+
+def main() -> None:
+    print(
+        "Synthetic ESD/TVS clamp toy; shared HBM-style pulse; not an IEC certification"
+    )
+    print(
+        f"HBM C={C_HBM*1e12:.0f}pF R={R_HBM:.0f}ohm V0={V_HBM0:.0f}V "
+        f"(SSYA010A network); C_pin={C_PIN*1e12:.1f}pF "
+        f"VCLAMP={V_CLAMP:.1f}V Rseries={R_SERIES:.0f}ohm seeds={len(SEEDS)} "
+        f"charge_jitter=±{JITTER:.0%}"
+    )
+    print(
+        "arm peak_pin_V clamp_energy_nJ pin_resid_energy_nJ (mean+-sd over seeds)"
+    )
+    for arm in ARMS:
+        peaks, eclamps, epins = [], [], []
+        for seed in SEEDS:
+            rng = random.Random(30_000 + seed)
+            v0 = V_HBM0 * (1.0 + rng.uniform(-JITTER, JITTER))
+            peak, e_c, e_p = simulate(arm, v0)
+            peaks.append(peak)
+            eclamps.append(e_c * 1e9)
+            epins.append(e_p * 1e9)
+        cols = [mean_sd(peaks), mean_sd(eclamps), mean_sd(epins)]
+        print(f"{arm} " + " ".join(f"{m:.4f}+-{s:.4f}" for m, s in cols))
+    print(
+        "No winner declared: clamp trades pin peak for clamp energy; "
+        "series R further softens the edge"
+    )
+    print("ESD gun / real TVS / IEC 61000 lab: 本页未运行; TI numbers 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic ESD/TVS clamp toy; shared HBM-style pulse; not an IEC certification
+HBM C=100pF R=1500ohm V0=2000V (SSYA010A network); C_pin=5.0pF VCLAMP=8.0V Rseries=33ohm seeds=5 charge_jitter=±8%
+arm peak_pin_V clamp_energy_nJ pin_resid_energy_nJ (mean+-sd over seeds)
+A_unprotected 1848.1636+-94.2491 0.0000+-0.0000 8557.0376+-889.8531
+B_tvs 17.6306+-0.0041 99.6015+-0.8719 0.3063+-0.2125
+C_series_tvs 17.6225+-0.0148 101.8039+-0.4604 0.1357+-0.2312
+No winner declared: clamp trades pin peak for clamp energy; series R further softens the edge
+ESD gun / real TVS / IEC 61000 lab: 本页未运行; TI numbers 以原文为准
+```
+
+</SimOutput>
+
+### Read the clamp trade
+
+**A_unprotected** lets the pin see roughly **1.85 kV** peak — almost the whole HBM precharge — with **0** clamp energy. **B_tvs** holds the pin near **17.6 V** (above the 8 V window by the synthetic on-resistance) and dumps about **100 nJ** into the clamp. **C_series_tvs** keeps a similar clamp peak while the series resistor softens the edge. **No winner is declared**: unprotected is cheapest and lethal to the pin model; clamping spends energy in the TVS path; series R is another trade, not a universal rule. ESD gun / IEC lab: **本页未运行**.
+
+**150-minute work plan:** 30 min read SSYA010A HBM + SLVAE37 clamp terms; 30 min derive ½CV² for the HBM cap; 45 min run shared-pulse arms; 30 min change `VCLAMP` / `R_SERIES` with seeds fixed; 15 min list what a real gun lab still needs.
+
+### Exercises
+
+1. Compute HBM stored energy at 2 kV with C = 100 pF. Compare it with the printed clamp energies.
+2. From SLVAE37, explain why a designer picks `VRWM` above the nominal rail rather than trusting `VBR` alone.
+3. Halve `R_CLAMP_ON` with the same seeds. Predict which metric moves most before you run.
+4. Set `R_SERIES = 0` on C and confirm it collapses toward B.
+5. Before any hardware run (本页未运行), write why this toy must not be quoted as an IEC 61000 result.
+
 <Summary>
 
 **Key points**
@@ -517,6 +697,8 @@ Mounted-path SRFs are **0.237254 / 0.795775 / 0.906869 / 0.159091 MHz**. At SRF 
 - V = L × dI/dt and the flyback diode: interrupting 50 mA in a 1 H coil gives a peak of about 2.24 kV without the diode.
 
 - The equal-capacitance series ESL+ESR+C model shows SRF and the inductive high-frequency loop limit, and compares transient rail dip without claiming EMC certification.
+
+- ESD/TVS literacy: a shared HBM-style pulse (100 pF / 1500 Ω) shows an unprotected pin near the precharge, while a clamp path trades pin peak for clamp energy — not an IEC certification.
 
 **Used next**
 

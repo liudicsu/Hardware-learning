@@ -37,4 +37,6 @@ check contact_slip_residual_toy.txt "$PY" "$M11/contact-rich-policies/contact_sl
 
 check teleop_rtt_budget_toy.txt "$PY" "$M11/umi-style-collection/teleop_rtt_budget_toy.py"
 
+check ground_loop_return_ir_toy.txt "$PY" "$M11/power-battery-emc/ground_loop_return_ir_toy.py"
+
 exit $fail

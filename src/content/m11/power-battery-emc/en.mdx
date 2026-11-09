@@ -513,11 +513,195 @@ Bus servos (e.g. STS3215) share the motor rail and a TTL bus. Logic 5 V often co
 
 Further reading: Novanta humanoid EMC wiring use case, Roboteq EMI blog, ARK Power and Grounding.
 
+## Shared-return ground loop versus star ground
+
+Earlier EMC notes already said to star logic and motor grounds near the supply entry. This section turns that into a shared-pulse IR experiment: motor return current on a shared sense ground conductor versus a star (and a kelvin sense). It is **not** the SoC shunt-bias coulomb toy, and it is **not** shield-termination prose alone.
+
+<Resource id="ti-slyt512" />
+
+**Sources actually opened (PDF body verified with pdftotext).**
+
+- **TI SLYT512 (*Grounding in mixed-signal systems demystified, Part 2*):** running returns across a split forces a **large loop**; joining planes only at the power supply makes an even bigger loop. Prefer a continuous plane or a bridge under the crossing traces. On one board, tying AGND/DGND at the converter creates a **system star ground**; joining analog and digital grounds at every converter on multicard systems **creates ground loops**. A **single-point star ground** is a common mixed-signal approach when the star sits at the mixed-signal device with short connections; joining grounds carelessly creates a ground loop.
+
+Numbers 以原文为准. Chassis wiring / scope-on-a-loop: **本页未运行**. Not an EMC chamber certification.
+
+### Fair setup
+
+`ground_loop_return_ir_toy.py` is **synthetic** and stdlib only. Every arm shares the **same** motor current pulse shape (nominal 8 A peak, ±10 % seed jitter) and the **same** resistance map:
+
+| Arm | Return / sense arrangement |
+|---|---|
+| A_shared_return | motor return shares the sense ground conductor |
+| B_star | star/single-point at supply entry |
+| C_star_kelvin | star + kelvin sense (sense pair carries ~0 motor current) |
+
+Metrics: peak and mean sense-node bounce (mV), and false 10-bit ADC counts about a 2.5 V true level. Five-seed mean±sd.
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-11/power-battery-emc
+python3 ground_loop_return_ir_toy.py
+```
+
+<CodeSource path="examples/month-11/power-battery-emc/ground_loop_return_ir_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic shared-return ground-loop IR toy. Stdlib only.
+
+Shared motor pulse current waveform and shared resistance map for every arm
+(TI SLYT512: large return loops / star-ground joining). Arms differ only in
+how the sense/ADC reference returns to the supply entry:
+  A_shared_return   motor return shares the sense ground conductor (loop IR)
+  B_star            star/single-point at supply entry (sense return separate)
+  C_star_kelvin     star + kelvin sense pair (sense wires carry negligible I)
+
+Metrics: peak sense-node bounce (mV), false ADC counts (10-bit, 5 V, LSB).
+≥5 seeds with pulse-amplitude jitter. Not an EMC chamber certification.
+Chassis wiring 本页未运行.
+"""
+from __future__ import annotations
+
+import math
+import random
+
+# Shared resistance map (synthetic lesson ohms, not a chassis measurement)
+R_MOTOR_FEED = 0.020
+R_SHARED_RETURN = 0.045  # shared segment used by A
+R_STAR_RETURN = 0.008  # short star return at entry
+R_SENSE_LEAD = 0.120  # sense wire (kelvin: current ~0)
+# Shared motor current pulse (A), triangular-ish burst
+I_PEAK0 = 8.0
+PULSE_SAMPLES = 40
+SEEDS = (0, 1, 2, 3, 4)
+JITTER = 0.10
+VREF = 5.0
+N_BITS = 10
+LSB = VREF / (1 << N_BITS)
+ARMS = ("A_shared_return", "B_star", "C_star_kelvin")
+
+
+def pulse(i_peak: float) -> list[float]:
+    """Deterministic shared shape: rise, hold, fall."""
+    rise, hold, fall = 8, 16, 16
+    assert rise + hold + fall == PULSE_SAMPLES
+    out = []
+    for k in range(rise):
+        out.append(i_peak * (k + 1) / rise)
+    out.extend([i_peak] * hold)
+    for k in range(fall):
+        out.append(i_peak * (fall - k) / fall)
+    return out
+
+
+def run(arm: str, i_peak: float) -> tuple[float, float, int]:
+    """Return peak |bounce| V, mean |bounce| V, false ADC counts over pulse."""
+    i_wave = pulse(i_peak)
+    peaks = []
+    false = 0
+    # Ideal sense voltage is mid-rail stub; bounce adds series IR on the return
+    v_true = 2.5
+    for i in i_wave:
+        if arm == "A_shared_return":
+            # motor current through shared return; sense references that node
+            v_bounce = i * R_SHARED_RETURN
+        elif arm == "B_star":
+            # motor return goes to star; sense still shares a tiny star impedance
+            v_bounce = i * R_STAR_RETURN
+        else:
+            # kelvin: sense pair carries ~0 motor current
+            v_bounce = i * 0.0 + (0.001 * i * R_SENSE_LEAD)  # residual coupling, tiny
+        peaks.append(abs(v_bounce))
+        v_sense = v_true + v_bounce
+        code = int(min(max(v_sense / LSB, 0), (1 << N_BITS) - 1))
+        true_code = int(v_true / LSB)
+        if code != true_code:
+            false += 1
+    peak = max(peaks)
+    mean = sum(peaks) / len(peaks)
+    return peak, mean, false
+
+
+def mean_sd(xs: list[float]) -> tuple[float, float]:
+    mu = sum(xs) / len(xs)
+    var = sum((x - mu) ** 2 for x in xs) / (len(xs) - 1)
+    return mu, math.sqrt(var)
+
+
+def main() -> None:
+    print(
+        "Synthetic ground-loop return IR toy; shared motor pulses + R map; "
+        "not an EMC certification"
+    )
+    print(
+        f"R_shared={R_SHARED_RETURN*1e3:.1f}mohm R_star={R_STAR_RETURN*1e3:.1f}mohm "
+        f"I_peak0={I_PEAK0:.1f}A samples={PULSE_SAMPLES} "
+        f"ADC {N_BITS}-bit Vref={VREF:.1f}V LSB={LSB*1e3:.4f}mV "
+        f"seeds={len(SEEDS)} amp_jitter=±{JITTER:.0%}"
+    )
+    print(
+        "arm peak_bounce_mV mean_bounce_mV false_adc_counts "
+        "(mean+-sd over seeds)"
+    )
+    for arm in ARMS:
+        peaks, means, falses = [], [], []
+        for seed in SEEDS:
+            rng = random.Random(40_000 + seed)
+            ip = I_PEAK0 * (1.0 + rng.uniform(-JITTER, JITTER))
+            peak, mean, false = run(arm, ip)
+            peaks.append(peak * 1e3)
+            means.append(mean * 1e3)
+            falses.append(float(false))
+        cols = [mean_sd(peaks), mean_sd(means), mean_sd(falses)]
+        print(f"{arm} " + " ".join(f"{m:.4f}+-{s:.4f}" for m, s in cols))
+    print(
+        "No winner declared beyond the defined metric: star shrinks IR bounce; "
+        "kelvin removes sense-lead drop; shared return couples motor I into ADC"
+    )
+    print("Chassis wiring / scope-on-a-loop: 本页未运行; TI SLYT512 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic ground-loop return IR toy; shared motor pulses + R map; not an EMC certification
+R_shared=45.0mohm R_star=8.0mohm I_peak0=8.0A samples=40 ADC 10-bit Vref=5.0V LSB=4.8828mV seeds=5 amp_jitter=±10%
+arm peak_bounce_mV mean_bounce_mV false_adc_counts (mean+-sd over seeds)
+A_shared_return 382.2967+-7.8133 277.1651+-5.6646 40.0000+-0.0000
+B_star 67.9639+-1.3890 49.2738+-1.0070 39.0000+-0.0000
+C_star_kelvin 1.0195+-0.0208 0.7391+-0.0151 0.0000+-0.0000
+No winner declared beyond the defined metric: star shrinks IR bounce; kelvin removes sense-lead drop; shared return couples motor I into ADC
+Chassis wiring / scope-on-a-loop: 本页未运行; TI SLYT512 以原文为准
+```
+
+</SimOutput>
+
+### Read the bounce
+
+**A_shared_return** puts about **382 mV** peak bounce on the sense node — tens of LSBs — so **every** sample in the pulse is a false ADC count. **B_star** shrinks the shared impedance and peak bounce to about **68 mV**; most samples still cross an LSB. **C_star_kelvin** keeps bounce around **1 mV** and **0** false counts on this map. On the defined metrics the progression is clear; the page still **does not declare a universal wiring winner** for every chassis. Scope-on-a-loop / real harness: **本页未运行**.
+
+**210-minute work plan:** 45 min read SLYT512 star/loop passages; 45 min derive I·R bounce vs LSB; 45 min run shared-pulse arms; 45 min change `R_SHARED_RETURN` / `I_PEAK0` with seeds fixed; 30 min sketch a star vs shared-return for your own arm.
+
+### Exercises
+
+1. From `I_peak = 8 A` and `R_shared = 45 mΩ`, predict A’s peak bounce before running.
+2. How many 5 V 10-bit LSBs is 68 mV? Explain B’s near-full false-count row.
+3. Double `R_STAR_RETURN` with the same seeds. Predict B before you run; C should barely move.
+4. Set kelvin residual coupling to 0 and confirm C stays at 0 false counts.
+5. Before any hardware run (本页未运行), list why this toy is not an EMC chamber result.
+
 <Summary>
 
 **Takeaways**
 
 - Separate logic and motor buses; single-point star ground.
+
+- Shared-return ground loop: on a shared motor pulse the sense bounce falls from hundreds of mV on a shared return to ~1 mV with star+kelvin — not an EMC chamber result.
 - One-way toy: peak 10.80 A, drop 0.432 V, load 11.568 V; fuse_margin 0.926 is a ratio only.
 - Round-trip toy: short load 11.136 V, long 10.380 V is long_only; peak I²R 9.3312 W; default `insufficient_data`.
 - EMC three: keep motor leads off signal lines; separate power/logic ground strategy; terminate shields by band and device spec (HF both ends; never use GND_D as shield return).

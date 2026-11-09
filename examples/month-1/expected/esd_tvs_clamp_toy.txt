@@ -1,0 +1,8 @@
+Synthetic ESD/TVS clamp toy; shared HBM-style pulse; not an IEC certification
+HBM C=100pF R=1500ohm V0=2000V (SSYA010A network); C_pin=5.0pF VCLAMP=8.0V Rseries=33ohm seeds=5 charge_jitter=±8%
+arm peak_pin_V clamp_energy_nJ pin_resid_energy_nJ (mean+-sd over seeds)
+A_unprotected 1848.1636+-94.2491 0.0000+-0.0000 8557.0376+-889.8531
+B_tvs 17.6306+-0.0041 99.6015+-0.8719 0.3063+-0.2125
+C_series_tvs 17.6225+-0.0148 101.8039+-0.4604 0.1357+-0.2312
+No winner declared: clamp trades pin peak for clamp energy; series R further softens the edge
+ESD gun / real TVS / IEC 61000 lab: 本页未运行; TI numbers 以原文为准

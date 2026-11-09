@@ -1,0 +1,8 @@
+Synthetic ground-loop return IR toy; shared motor pulses + R map; not an EMC certification
+R_shared=45.0mohm R_star=8.0mohm I_peak0=8.0A samples=40 ADC 10-bit Vref=5.0V LSB=4.8828mV seeds=5 amp_jitter=±10%
+arm peak_bounce_mV mean_bounce_mV false_adc_counts (mean+-sd over seeds)
+A_shared_return 382.2967+-7.8133 277.1651+-5.6646 40.0000+-0.0000
+B_star 67.9639+-1.3890 49.2738+-1.0070 39.0000+-0.0000
+C_star_kelvin 1.0195+-0.0208 0.7391+-0.0151 0.0000+-0.0000
+No winner declared beyond the defined metric: star shrinks IR bounce; kelvin removes sense-lead drop; shared return couples motor I into ADC
+Chassis wiring / scope-on-a-loop: 本页未运行; TI SLYT512 以原文为准

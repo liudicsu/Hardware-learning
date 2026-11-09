@@ -35,11 +35,12 @@ const month1Lessons: Lesson[] = [
     slug: "components",
     title: { zh: "元件、原理图与晶体管开关", en: "Components, schematics & the transistor switch" },
     summary: {
-      zh: "认识电阻、电容、二极管/LED、晶体管，读懂原理图，理解上拉/下拉、去耦电容与电池安全。",
-      en: "Meet resistors, capacitors, diodes/LEDs and transistors, read schematics, and understand pull-ups, decoupling and battery safety.",
+      zh: "认识电阻、电容、二极管/LED、晶体管，读懂原理图，理解上拉/下拉、去耦电容与电池安全。再用共享 HBM 风格脉冲比较无保护 / TVS 钳位 / 串联+TVS 的引脚峰值与钳位能量。",
+      en: "Meet resistors, capacitors, diodes/LEDs and transistors, read schematics, and understand pull-ups, decoupling and battery safety. Then compare unprotected / TVS / series+TVS pin peak and clamp energy on a shared HBM-style pulse.",
     },
-    minutes: 270,
+    minutes: 420,
     objectives: [
+      { zh: "在共享 HBM 风格脉冲下比较无保护 / TVS / 串联+TVS 的引脚峰值与钳位能量，说明 VRWM/VCLAMP，不声称 IEC 认证。", en: "Compare unprotected / TVS / series+TVS pin peak and clamp energy on a shared HBM-style pulse; explain VRWM/VCLAMP; no IEC certification claim." },
       { zh: "用串联 ESL+ESR+C、等总电容与共享脉冲比较放置 / 单颗容量、SRF 和最低电压；不声称 EMC 认证。", en: "Use series ESL+ESR+C, equal total capacitance and shared pulses to compare placement/part values, SRF and minimum rail; no EMC certification claim." },
       { zh: "能识别电阻、电容、二极管、LED、NPN 三极管和 GND 的符号，并读懂连接点、交叉无点和同名网络标号。", en: "Read resistor, capacitor, diode, LED, NPN transistor and GND symbols, junction dots, dot-less crossings and same-net labels." },
       { zh: "能计算 τ = R × C 并掌握 63 % 与 99 % 两个节点，会在每个 IC 的 VCC 与 GND 之间放置 100 nF 去耦电容。", en: "Calculate τ = R × C with the 63 % and 99 % milestones, and place a 100 nF decoupling capacitor at each IC's VCC and GND." },
@@ -47,8 +48,9 @@ const month1Lessons: Lesson[] = [
       { zh: "能解释悬空输入与 INPUT_PULLUP、LiPo 的 3.7 V/4.2 V 限制和 C 数，以及用 V = I × R 解释堵转导致的欠压复位。", en: "Explain floating inputs and INPUT_PULLUP, LiPo 3.7 V/4.2 V limits and C ratings, and stall brownout with V = I × R." },
     ],
     prereqs: ["ohms-law"],
-    resources: ["falstad", "tinkercad", "aac", "make-electronics", "ti-sn74hc14-decoupling"],
+    resources: ["falstad", "tinkercad", "aac", "make-electronics", "ti-sn74hc14-decoupling", "ti-ssya010", "ti-slvae37"],
     tasks: [
+      { id: "b10p2-esd", text: { zh: "运行 esd_tvs_clamp_toy.py，比较无保护 / TVS / 串联+TVS 的峰值与钳位能量，并手算 HBM ½CV²", en: "Run esd_tvs_clamp_toy.py, compare unprotected/TVS/series+TVS peak and clamp energy, and compute HBM ½CV² by hand" } },
       { id: "b6p1", text: { zh: "运行 supply_dip_decoupling_toy.py，核对等总电容的串联 ESL+ESR+C、SRF 与同一脉冲下最低电压", en: "Run supply_dip_decoupling_toy.py, check equal-total-C series ESL+ESR+C, SRF and minimum rail under identical pulses" } },
       { id: "led-resistor", text: { zh: "为 5V 驱动的红色 LED（2V，10mA）计算限流电阻", en: "Calculate the current-limiting resistor for a red LED (2 V, 10 mA) on 5 V" } },
       { id: "transistor-sim", text: { zh: "在 Falstad 中运行晶体管开关电路，用开关模拟 3.3V 逻辑引脚控制 LED", en: "Run the transistor-switch circuit in Falstad and use the switch as a 3.3 V logic pin driving the LED" } },
@@ -1638,11 +1640,12 @@ const month11Lessons: Lesson[] = [
     slug: "power-battery-emc",
     title: { zh: "机器人电源、电池包与 EMC 卫生", en: "Robot power, battery packs and EMC hygiene" },
     summary: {
-      zh: "接 M1 测电压与 M2 电压跌落：整机配电（逻辑轨与电机总线分开）、单程与往返导线压降、I²R 热卫生、熔断器数据门禁（仅 insufficient_data / reject_known_constraint，绝不凭峰值比给 ok_slow_blow）、电机线与编码器线分离的 EMC。标准库玩具；真机测电流与更换熔断器本页未运行。不要求新购电源分析仪；不教改 BMS、不拆包；玩具不算认证选型。",
-      en: "Builds on Month 1 voltage checks and Month 2 battery sag: whole-robot power (separate logic and motor buses), one-way and round-trip IR drop, I²R thermal hygiene, fuse data gates (only insufficient_data / reject_known_constraint — never ok_slow_blow from a peak-current ratio), and EMC that keeps motor leads away from encoder wiring. Standard-library toys; real current probing and fuse swaps are not run here. No power-analyser purchase; no BMS edits, no pack teardown; the toy is not a fuse certification.",
+      zh: "接 M1 测电压与 M2 电压跌落：整机配电（逻辑轨与电机总线分开）、单程与往返导线压降、I²R 热卫生、熔断器数据门禁（仅 insufficient_data / reject_known_constraint，绝不凭峰值比给 ok_slow_blow）、电机线与编码器线分离的 EMC。再用共享电机脉冲比较共享回流 / 星形 / 开尔文传感的跳动与误码。标准库玩具；真机测电流与更换熔断器本页未运行。不要求新购电源分析仪；不教改 BMS、不拆包；玩具不算认证选型。",
+      en: "Builds on Month 1 voltage checks and Month 2 battery sag: whole-robot power (separate logic and motor buses), one-way and round-trip IR drop, I²R thermal hygiene, fuse data gates (only insufficient_data / reject_known_constraint — never ok_slow_blow from a peak-current ratio), and EMC that keeps motor leads away from encoder wiring. Then compare shared-return / star / kelvin sense bounce and false ADC counts on a shared motor pulse. Standard-library toys; real current probing and fuse swaps are not run here. No power-analyser purchase; no BMS edits, no pack teardown; the toy is not a fuse certification.",
     },
-    minutes: 480,
+    minutes: 690,
     objectives: [
+      { zh: "在共享电机脉冲与电阻地图下比较共享回流 / 星形 / 开尔文的传感跳动与 ADC 误码，不声称 EMC 暗室结果。", en: "Compare shared-return / star / kelvin sense bounce and ADC false counts on a shared motor pulse and R map; no EMC chamber claim." },
       { zh: "能画出逻辑轨与电机总线分开、公共地单点汇合的星形配电。", en: "Draw a star power plan with separate logic and motor buses and a single-point common ground." },
       { zh: "能算出单程与往返压降、I²R 损耗，并比较两条线长谁先撞 V_floor。", en: "Compute one-way and round-trip drop, I²R loss, and which of two wire lengths hits V_floor first." },
       { zh: "能列出熔断器选型前必须从数据手册拿到的项（DC 电压额定、分断能力、导线载流量降额、故障电流、时间–电流 / I²t），并说明未测不能称适配。", en: "List the datasheet fields required before choosing a fuse (DC voltage rating, interrupting capacity, wire ampacity derating, fault current, time–current / I²t), and state that without them you cannot claim a fuse is suitable." },
@@ -1650,8 +1653,9 @@ const month11Lessons: Lesson[] = [
       { zh: "能说明本课电流是示例假设，真机测量、改 BMS 与更换熔断器都不在范围内。", en: "State that currents here are example assumptions, and that real measurements, BMS edits and fuse swaps are out of scope." },
     ],
     prereqs: ["components", "motors-drivers", "so101-arm"],
-    resources: ["novanta-emc-wiring", "roboteq-emi", "ark-power-grounding"],
+    resources: ["novanta-emc-wiring", "roboteq-emi", "ark-power-grounding", "ti-slyt512"],
     tasks: [
+      { id: "b10p2-groundloop", text: { zh: "运行 ground_loop_return_ir_toy.py，比较共享回流 / 星形 / 开尔文的跳动与误码，并手算 I·R", en: "Run ground_loop_return_ir_toy.py, compare shared-return/star/kelvin bounce and false counts, and compute I·R by hand" } },
       { id: "run", text: { zh: "运行 power_budget_toy.py，核对 expected/power_budget_toy.txt", en: "Run power_budget_toy.py and match expected/power_budget_toy.txt" } },
       { id: "roundtrip", text: { zh: "运行 power_roundtrip_loss_toy.py，核对往返压降与 protection_status_default=insufficient_data", en: "Run power_roundtrip_loss_toy.py and confirm round-trip drop plus protection_status_default=insufficient_data" } },
       { id: "wire", text: { zh: "比较 0.8 m 与 1.5 m 谁先撞 11 V 地板（仅电压约束）", en: "Compare 0.8 m vs 1.5 m for which hits the 11 V floor first (voltage constraint only)" } },

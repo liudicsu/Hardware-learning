@@ -1,6 +1,17 @@
 # Month 11 plan: Actuator hardware, tactile contact & cross-embodiment collection
 
-Current / 当前：**M11 3210 min**, Batch-9 PR3. Earlier entries below retain their historical totals.
+Current / 当前：**M11 3420 min**, Batch-10 PR2. Earlier entries below retain their historical totals.
+
+## Batch-10 PR2 / 本月 H6 (+210)
+
+Base `59aa6df`. PR2 only on M11 host: **M11 3210→3420 (+210)**; M1 +150 on month-1-plan.md. Site **26160→26520**, still 71 lessons.
+
+- **H6 / 11.1 power-battery-emc: 480→690 (+210).** Shared-return ground-loop IR vs star vs kelvin; shared motor pulses + R map; bounce / false ADC counts; ≥5 seeds; ≠ SoC shunt-bias; ≠ shield prose-only. Chassis 本页未运行. / 共享回流跳动，不宣布暗室结果。
+
+**Allocation / 安排:** 45+45+45+45+30=210 minutes.
+
+**Site accounting / 全站核算:** **26520=26160+360**, **M11=3420**, **71 lessons**.
+
 
 Site supplement beyond @DeRonin_'s 6-month roadmap (Months 7–11). Lessons open with "This lesson is a site supplement — Months 7–11 are not part of the original six-month course." / 「本课是本站补充内容——第 7–11 个月不属于原六个月课程。」
 
@@ -10,7 +21,7 @@ Constraints: no required purchases — not DIGIT / GelSight Mini, a BLDC kit, a 
 
 | # | slug | minutes | runnable | verified against |
 |---|------|---------|----------|------------------|
-| 1 | `power-battery-emc` | 480 | `power_budget_toy.py`, `power_roundtrip_loss_toy.py`, `soc_coulomb_thermal_toy.py` | Novanta EMC wiring KB; Roboteq EMI blog; ARK power & grounding |
+| 1 | `power-battery-emc` | 690 | `power_budget_toy.py`, `power_roundtrip_loss_toy.py`, `soc_coulomb_thermal_toy.py` | Novanta EMC wiring KB; Roboteq EMI blog; ARK power & grounding |
 | 2 | `foc-actuator-lab` | 480 | `clarke_park_toy.py`, `foc_current_loop_toy.py` | SimpleFOC home + `foc_theory` / `foc_implementation` / alignment / voltage_torque docs |
 | 3 | `tactile-sensing` | 420 | `tactile_marker_toy.py`, `tactile_debias_recal_toy.py` | AnySkin arXiv 2409.08276; DIGIT design / interface repos; GelSight (Yuan 2017); 3D Cal arXiv 2511.03078 (abstract) |
 | 4 | `umi-style-collection` | 420 | `relative_traj_toy.py` | UMI arXiv 2402.10329 v3 + project page / Hardware Guide; LeRobot action representations |

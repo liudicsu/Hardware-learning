@@ -37,4 +37,9 @@ if python3 "$M1/components/supply_dip_decoupling_toy.py" > "$TMP/supply_dip_deco
 else
   echo "DIFF  supply_dip_decoupling_toy.txt"; fail=1
 fi
+if python3 "$M1/components/esd_tvs_clamp_toy.py" > "$TMP/esd_tvs_clamp_toy.txt" && diff -u "$M1/expected/esd_tvs_clamp_toy.txt" "$TMP/esd_tvs_clamp_toy.txt"; then
+  echo "same  esd_tvs_clamp_toy.txt"
+else
+  echo "DIFF  esd_tvs_clamp_toy.txt"; fail=1
+fi
 exit $fail
