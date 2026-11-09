@@ -898,6 +898,8 @@ Earlier sections already warned that an IMU “is not a compass”: gyro integra
 
 In the horizontal plane a clean field of fixed magnitude traces a circle centred at the origin as you yaw. Hard-iron only moves that centre. Soft-iron changes the radii along different axes. Heading from `atan2(my, mx)` on the raw cloud therefore carries a yaw-dependent error until both are removed.
 
+**Scope.** Geographic declination and platform tilt / magnetic dip are out of scope; heading here is measured against the synthetic horizontal `B_true` only.
+
 ### Fair setup
 
 `mag_hard_soft_iron_toy.py` is **synthetic** and stdlib only. Every arm shares the **same** true horizontal field `B_true = (1, 0)`, the **same** 72 yaw samples (5° steps), the **same** diagonal soft stretch `S = (1.35, 0.72)`, the **same** hard bias `b = (0.35, −0.22)`, and the **same** per-seed Gaussian noise (σ = 0.03):

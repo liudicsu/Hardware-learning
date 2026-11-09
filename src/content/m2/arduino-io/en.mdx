@@ -948,7 +948,7 @@ The Analog section treated the Uno ADC as an ideal 10-bit ruler: `V = raw × 5.0
 
 - **Wikipedia — Effective number of bits:** `ENOB = (SINAD_dB − 1.76) / 6.02`. ENOB may be fractional; a converter that uses 12 codes bits can still report fewer effective bits once noise and distortion are counted.
 - **TI SLAA013 (*Understanding Data Converters*):** ideal mid-riser quantization error is ±½ LSB; mean-square quantization noise is `q²/12`; for a full-scale sine the ideal SNR is **`6.02n + 1.76 dB`** (about **61.96 dB** at n = 10).
-- **Arduino analog-input guide:** `analogRead` returns 0…1023 on a 10-bit Uno ADC referenced to the board supply. Numbers from these documents are 以原文为准. A real SAR datasheet ENOB, INA front-end or scope lab: **本页未运行**.
+- **Arduino analog-input page (curl only):** the URL returns a **JS-rendered shell**; this page did **not** verify `analogRead`, `1023` or “10-bit” text from that body. Nominal 10-bit / `5.0/1023` facts above come from this lesson’s earlier Analog section and from Wikipedia+TI, not from that curl. A real SAR datasheet ENOB, INA front-end or scope lab: **本页未运行**.
 
 ### Ideal bits versus effective bits
 

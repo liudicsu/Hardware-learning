@@ -948,7 +948,7 @@ Real transceiver, cable and TDR: 本页未运行; SLLA272 numbers 以原文为�
 
 - **Wikipedia — Effective number of bits：** `ENOB = (SINAD_dB − 1.76) / 6.02`。ENOB 可以是小数；即使用 12 个码位的转换器，计入噪声与失真后有效位仍可能更少。
 - **TI SLAA013（《Understanding Data Converters》）：** 理想 mid-riser 量化误差为 ±½ LSB；均方量化噪声为 `q²/12`；满幅正弦的理想 SNR 为 **`6.02n + 1.76 dB`**（n = 10 时约 **61.96 dB**）。
-- **Arduino analog-input 指南：** 10 位 Uno ADC 上 `analogRead` 返回 0…1023，参考为板载电源。上述文档数字 以原文为准。真实 SAR 手册 ENOB、仪表放大前端或示波器实验：**本页未运行**。
+- **Arduino analog-input 页面（仅 curl）：** 该 URL 返回的是 **JS 渲染壳**；本页**未**从该正文核验 `analogRead`、`1023` 或「10 位」字样。上文的标称 10 位 / `5.0/1023` 来自本课前面的模拟输入一节以及 Wikipedia+TI，不来自这次 curl。真实 SAR 手册 ENOB、仪表放大前端或示波器实验：**本页未运行**。
 
 ### 理想位数与有效位数
 

@@ -4408,8 +4408,8 @@ export const resources: Record<string, Resource> = {
     kind: "guide",
     cost: { zh: "免费", en: "Free" },
     summary: {
-      zh: "Uno 等板上 analogRead 的 10 位范围与参考电源约定；本课 ENOB 玩具在此标称分辨率之上讨论噪声。",
-      en: "10-bit analogRead range and supply-reference convention on Uno-class boards; the ENOB toy discusses noise on top of that nominal resolution.",
+      zh: "官方模拟输入文档入口；本站 curl 仅见 JS 渲染壳，未在此核验 analogRead / 1023 / 10 位正文。ENOB 主依据为 Wikipedia 与 TI SLAA013。",
+      en: "Official analog-input docs entry; curl here sees only a JS-rendered shell — analogRead / 1023 / 10-bit body text not verified on this page. ENOB primaries are Wikipedia and TI SLAA013.",
     },
     license: {
       zh: "© Arduino；仅提供外链，条款以原站为准",
