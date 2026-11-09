@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import math
 import random
+import re
 import subprocess
 import sys
 import unittest
@@ -109,12 +110,24 @@ class Manipulability(unittest.TestCase):
         self.assertIn("near-tie", ma.verdict([1.0, 2.0, 3.0], [1.01, 1.98, 3.0]))
         self.assertIn("small but consistent", ma.verdict([1.1, 2.1, 3.1], [1.0, 2.02, 3.0]))
         self.assertIn("clear gap", ma.verdict([5.0, 6.0, 7.0], [1.0, 1.1, 1.0]))
+        self.assertTrue(ma.verdict([5.0, 6.0, 7.0], [1.0, 1.1, 1.0]).endswith("same sign on all 3 seeds"))
+        self.assertIn("1 of 3 seeds has the opposite sign", ma.verdict([3.0, 3.0, 0.9], [1.0, 1.0, 1.0]))
+        self.assertIn("indistinguishable from 0 within +-", ma.verdict([1.0, 2.0, 3.0], [1.01, 1.98, 3.0], " mm"))
+        self.assertEqual(ma.fmt_pair(-4.29e-5, 2.53e-4), "-0.000043+-0.000253")
+        self.assertEqual(ma.fmt_pair(0.0, 0.0), "0.0000+-0.0000")
+        self.assertEqual(ma.fmt_pair(-0.0026, 0.0206), "-0.0026+-0.0206")
 
     def test_expected_file(self):
         exp = (ROOT / "examples/month-5/expected/manipulability_yoshikawa_toy.txt").read_text()
         self.assertEqual(run(MA_REL), exp)
         self.assertEqual(run(MA_REL), exp)
         self.assertIn("tie: identical on every seed", exp)
+        self.assertIsNone(re.search(r"(?<![+\d])-0\.0000(?!\d)", exp))  # no signed zero printed
+        self.assertIn("far_from_singularity paired C-A final_mm -0.000043+-0.000253: near-tie / small gap, within seed noise "
+                      "(indistinguishable from 0 within +-0.0003 mm)", exp)
+        for line in exp.splitlines():
+            if "consistent gap" in line or "clear gap" in line:
+                self.assertTrue(line.endswith("same sign on all 5 seeds"), line)
         self.assertNotIn("exact tie", exp)
 
 
@@ -192,6 +205,11 @@ class Normals(unittest.TestCase):
         self.assertEqual(run(PN_REL), exp)
         self.assertIn("No winner declared", exp)
         self.assertNotIn("exact tie", exp)
+        paired = [line for line in exp.splitlines() if " paired " in line]
+        self.assertEqual(len(paired), 12)
+        for line in paired:
+            self.assertTrue(line.endswith("same sign on all 5 seeds"), line)
+        self.assertEqual(pn.sign_note([1.0, -1.0, 2.0], 0.7), "1 of 3 seeds has the opposite sign")
 
 
 if __name__ == "__main__":

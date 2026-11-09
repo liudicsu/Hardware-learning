@@ -11,8 +11,8 @@ lesson_load 10000 C_norton 9.1280+-0.0451
 light_load 10000000 A_voc_only 0.9879+-0.0646
 light_load 10000000 B_thevenin 0.8726+-0.0370
 light_load 10000000 C_norton 0.8729+-0.0364
-light_load B vs C: B 0.8726+-0.0370 mV, C 0.8729+-0.0364 mV, gap 0.0004 mV (paired C-B 0.0004+-0.0015 mV): near-tie / small gap, within seed noise (at RL >> Rth the burden / Rth error barely matters, so both reconstructions converge)
-light_load A vs B: A 0.9879+-0.0646 mV, paired A-B 0.1153+-0.0588 mV: small but consistent gap, not a tie (A's bias Vth*Rth/(Rth+RL) ~0.51 mV from ignoring Rth is diluted by the 1 mV meter noise)
-heavy_load: A 786.8 mV >> B 2.02 mV; C 12.29 mV (Norton = Thevenin on paper; C's extra error is the ammeter burden, a measurement cost)
+light_load B vs C: B 0.8726+-0.0370 mV, C 0.8729+-0.0364 mV, gap 0.0004 mV (paired C-B 0.0004+-0.0015 mV, |m| <= sd; 2 of 5 seeds have the opposite sign): near-tie / small gap, within seed noise (at RL >> Rth the burden / Rth error barely matters, so both reconstructions converge)
+light_load A vs B: A 0.9879+-0.0646 mV, paired A-B 0.1153+-0.0588 mV (|m| > sd; same sign on all 5 seeds): small but consistent gap, not a tie (A's bias Vth*Rth/(Rth+RL) ~0.51 mV from ignoring Rth is diluted by the 1 mV meter noise)
+heavy_load: A 786.8 mV >> B 2.02 mV (paired A-B 784.7439+-1.5259 mV; same sign on all 5 seeds); C 12.29 mV (paired C-B 10.2726+-0.3258 mV; same sign on all 5 seeds) (Norton = Thevenin on paper; C's extra error is the ammeter burden, a measurement cost)
 No winner declared: Voc alone is fine only when RL >> Rth; B and C differ only by how they were measured
 Real DMM / bench Thevenin lab: 本页未运行; Wikipedia numbers 以原文为准

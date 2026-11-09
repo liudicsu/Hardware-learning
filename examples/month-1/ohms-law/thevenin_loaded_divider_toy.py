@@ -23,7 +23,8 @@ once and shared by every arm. The meter is otherwise ideal (no input loading).
 
 Regimes (5 seeds x 32 boards): heavy_load RL = 3.3 kOhm (about Rth),
 lesson_load RL = 10 kOhm, light_load RL = 10 MOhm (B and C: near-tie / small gap;
-A-B: small but consistent gap, not a tie).
+A-B: small but consistent gap, not a tie). "Consistent" means only |paired
+mean| > paired sd over seeds; the sign count says how many seeds disagree.
 No presumed winner. Real DMM / bench Thevenin lab: 本页未运行.
 """
 from __future__ import annotations
@@ -95,6 +96,15 @@ def mean_sd(xs: list[float]) -> tuple[float, float]:
     return mu, math.sqrt(var)
 
 
+def sign_note(diffs: list[float], m: float) -> str:
+    """How many seeds disagree in sign with the paired mean (zeros listed apart)."""
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
 def run_regime(rl_nom: float) -> dict:
     """Per arm: per-seed mean |V_pred - V_true| over the boards, in mV."""
     out = {arm: [] for arm in ARMS}
@@ -123,29 +133,30 @@ def main() -> None:
     paired = {}
     for name, rl in REGIMES:
         res = run_regime(rl)
-        paired[name] = (
-            mean_sd([x - y for x, y in zip(res["A_voc_only"], res["B_thevenin"])]),
-            mean_sd([x - y for x, y in zip(res["C_norton"], res["B_thevenin"])]),
-        )
+        ab = [x - y for x, y in zip(res["A_voc_only"], res["B_thevenin"])]
+        cb = [x - y for x, y in zip(res["C_norton"], res["B_thevenin"])]
+        paired[name] = (mean_sd(ab), mean_sd(cb), sign_note(ab, mean_sd(ab)[0]), sign_note(cb, mean_sd(cb)[0]))
         for arm in ARMS:
             m, s = mean_sd(res[arm])
             summary[(name, arm)] = (m, s)
             print(f"{name} {rl:.0f} {arm} {m:.4f}+-{s:.4f}")
     a, b, c = (summary[("light_load", x)] for x in ARMS)
-    (pm, ps), (qm, qs) = paired["light_load"]
+    (pm, ps), (qm, qs), sab, scb = paired["light_load"]
     print(
         f"light_load B vs C: B {b[0]:.4f}+-{b[1]:.4f} mV, C {c[0]:.4f}+-{c[1]:.4f} mV, "
-        f"gap {abs(c[0] - b[0]):.4f} mV (paired C-B {qm:.4f}+-{qs:.4f} mV): near-tie / small gap, "
+        f"gap {abs(c[0] - b[0]):.4f} mV (paired C-B {qm:.4f}+-{qs:.4f} mV, |m| <= sd; {scb}): near-tie / small gap, "
         f"within seed noise (at RL >> Rth the burden / Rth error barely matters, so both reconstructions converge)"
     )
     print(
-        f"light_load A vs B: A {a[0]:.4f}+-{a[1]:.4f} mV, paired A-B {pm:.4f}+-{ps:.4f} mV: "
+        f"light_load A vs B: A {a[0]:.4f}+-{a[1]:.4f} mV, paired A-B {pm:.4f}+-{ps:.4f} mV (|m| > sd; {sab}): "
         f"small but consistent gap, not a tie (A's bias Vth*Rth/(Rth+RL) ~{vth * rth / (rth + 1e7) * 1e3:.2f} mV "
         f"from ignoring Rth is diluted by the 1 mV meter noise)"
     )
     a, b, c = (summary[("heavy_load", x)] for x in ARMS)
+    (hm, hs), (km, ks), shab, shcb = paired["heavy_load"]
     print(
-        f"heavy_load: A {a[0]:.1f} mV >> B {b[0]:.2f} mV; C {c[0]:.2f} mV "
+        f"heavy_load: A {a[0]:.1f} mV >> B {b[0]:.2f} mV (paired A-B {hm:.4f}+-{hs:.4f} mV; {shab}); C {c[0]:.2f} mV "
+        f"(paired C-B {km:.4f}+-{ks:.4f} mV; {shcb}) "
         f"(Norton = Thevenin on paper; C's extra error is the ammeter burden, a measurement cost)"
     )
     print("No winner declared: Voc alone is fine only when RL >> Rth; B and C differ only by how they were measured")

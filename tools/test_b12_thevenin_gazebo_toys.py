@@ -105,6 +105,13 @@ class Thevenin(unittest.TestCase):
         self.assertNotIn("not a tie", bc)
         self.assertIn("small but consistent gap, not a tie", ab)
         self.assertNotIn("near-tie", ab)
+        self.assertIn("(|m| > sd; same sign on all 5 seeds)", ab)
+        self.assertIn("|m| <= sd; 2 of 5 seeds have the opposite sign", bc)
+
+    def test_sign_note(self):
+        self.assertEqual(th.sign_note([1.0, 2.0, 3.0], 2.0), "same sign on all 3 seeds")
+        self.assertEqual(th.sign_note([1.0, -2.0, 3.0], 0.6), "1 of 3 seeds has the opposite sign")
+        self.assertEqual(th.sign_note([1.0, 0.0, -3.0], -0.6), "1 of 3 seeds has the opposite sign, 1 of 3 equal")
 
 
 def free_oscillation(dt: float, steps: int, explicit: bool) -> float:
@@ -180,8 +187,42 @@ class GazeboStep(unittest.TestCase):
     def test_expected_file(self):
         exp = (ROOT / "examples/month-4/expected/gazebo_step_contact_stability_toy.txt").read_text()
         self.assertEqual(run(GZ_REL), exp)
-        self.assertIn("near-tie / small gap, not a tie", exp)
+        self.assertNotIn("near-tie / small gap", exp)
+        rest = next(line for line in exp.splitlines() if line.startswith("gentle_rest: |pen-ref|"))
+        self.assertIn("all small relative to the 39.24 um static sag, but the gaps are consistent, not a near-tie", rest)
+        self.assertIn("paired A-B 1.446+-0.261 um, B-C 0.088+-0.077 um", rest)
+        self.assertIn("bounce counts are identical: 0", rest)
+        for line in (
+            "gentle_rest paired A-B |pen-ref|_um 1.446+-0.261: consistent gap (|m| > sd), not a tie; same sign on all 5 seeds",
+            "gentle_rest paired B-C |pen-ref|_um 0.088+-0.077: consistent gap (|m| > sd), not a tie; same sign on all 5 seeds",
+            "gentle_rest paired A-B bounces 0.00+-0.00: tie: identical on every seed",
+            "impact_drop paired A-B |pen-ref|_um 464.36+-572.63: within seed noise (|m| <= sd), not a consistent gap; 1 of 5 seeds has the opposite sign",
+            "impact_drop paired A-C |pen-ref|_um 618.19+-549.08: consistent gap (|m| > sd), not a tie; same sign on all 5 seeds",
+            "impact_drop paired B-C |COR-ref| 0.0018+-0.0017: consistent gap (|m| > sd), not a tie; same sign on all 5 seeds",
+        ):
+            self.assertIn(line, exp)
         self.assertIn("UNSTABLE", exp)
+
+    def test_paired_rule_gentle_rest(self):
+        """Independent recomputation: gentle-rest gaps are |m| > sd with one sign; A-B impact is not."""
+        rest = gz.run_regime("gentle_rest", 0.2)
+        imp = gz.run_regime("impact_drop", 0.6)
+
+        def msd(xs):
+            m = sum(xs) / len(xs)
+            return m, math.sqrt(sum((x - m) ** 2 for x in xs) / (len(xs) - 1))
+
+        for x, y in (("A_coarse_3ms", "B_default_1ms"), ("B_default_1ms", "C_fine_0.1ms")):
+            d = [p - q for p, q in zip(rest[x]["pen_err_um"], rest[y]["pen_err_um"])]
+            m, sd = msd(d)
+            self.assertGreater(abs(m), sd)
+            self.assertTrue(all(v > 0 for v in d))
+            self.assertLess(m, 0.05 * gz.M * gz.G / gz.K * 1e6)  # small next to the static sag
+        d = [p - q for p, q in zip(imp["A_coarse_3ms"]["pen_err_um"], imp["B_default_1ms"]["pen_err_um"])]
+        m, sd = msd(d)
+        self.assertLessEqual(abs(m), sd)  # erratic, not a consistent gap
+        self.assertEqual(sum(1 for v in d if v < 0), 1)
+        self.assertTrue(gz.paired([1.0, 2.0], [1.0, 2.0], 2)[2].endswith("tie: identical on every seed"))
 
 
 if __name__ == "__main__":

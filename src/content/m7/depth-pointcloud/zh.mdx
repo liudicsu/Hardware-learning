@@ -663,16 +663,36 @@ def ms(xs: list[float]) -> tuple[float, float]:
     return m, math.sqrt(sum((x - m) ** 2 for x in xs) / (len(xs) - 1))
 
 
-def verdict(xa: list[float], xb: list[float]) -> str:
+def sign_note(diffs: list[float], m: float) -> str:
+    """How many seeds disagree in sign with the paired mean (zeros listed apart)."""
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def verdict(xa: list[float], xb: list[float], unit: str = "") -> str:
+    """tie: identical on every seed; near-tie: |paired mean| <= paired sd.
+    "Consistent" means only |paired mean| > paired sd; the 20 % rule (|mean| <
+    20 % of the smaller arm mean) only decides whether a consistent gap is
+    called "small" or "clear". The appended sign count says how many seeds
+    disagree in sign with the paired mean."""
     diffs = [a - b for a, b in zip(xa, xb)]
     if all(d == 0.0 for d in diffs):
         return "tie: identical on every seed"
     m, s = ms(diffs)
     if abs(m) <= s:
-        return "near-tie / small gap, within seed noise"
-    if abs(m) < 0.2 * min(ms(xa)[0], ms(xb)[0]):
-        return "small but consistent gap, not a tie"
-    return "clear gap, not a tie"
+        return f"near-tie / small gap, within seed noise (indistinguishable from 0 within +-{s:.4f}{unit})"
+    base = "small but consistent gap, not a tie" if abs(m) < 0.2 * min(ms(xa)[0], ms(xb)[0]) else "clear gap, not a tie"
+    return base + "; " + sign_note(diffs, m)
+
+
+def fmt_pair(m: float, s: float) -> str:
+    """Paired mean+-sd; extra decimals when 4 would print a signed zero such as -0.0000."""
+    if m != 0.0 and abs(m) < 5e-5:
+        return f"{m:.6f}+-{s:.6f}"
+    return f"{m:.4f}+-{s:.4f}"
 
 
 def main() -> None:
@@ -695,7 +715,8 @@ def main() -> None:
         for x, y in (("B_pca_k20", "A_global_plane"), ("B_pca_k20", "C_pca_k4")):
             for k, name in (("ang", "angle_deg"), ("res", "residual_mm")):
                 d = ms([u - v for u, v in zip(per[x][k], per[y][k])])
-                print(f"{regime} paired {x[0]}-{y[0]} {name} {d[0]:.4f}+-{d[1]:.4f}: {verdict(per[x][k], per[y][k])}")
+                unit = " deg" if k == "ang" else " mm"
+                print(f"{regime} paired {x[0]}-{y[0]} {name} {fmt_pair(*d)}: {verdict(per[x][k], per[y][k], unit)}")
     print("flat_low_noise: one global plane is already the right normal everywhere; local PCA only adds noise")
     print("ripple_noisy: k=4 is noise-dominated, the global plane ignores curvature; k=20 averages the noise")
     print("fine_ripple_low_noise: k=20 spans a large part of a 40 mm ripple and smooths the curvature; k=4 resolves it")
@@ -716,24 +737,24 @@ regime arm angle_deg residual_mm raw_sign_flipped/queries  (mean+-sd over seeds)
 flat_low_noise A_global_plane 0.0050+-0.0058 0.2778+-0.0052 300/300
 flat_low_noise B_pca_k20 0.7499+-0.0447 0.2708+-0.0075 300/300
 flat_low_noise C_pca_k4 4.6774+-0.5880 0.4691+-0.0490 300/300
-flat_low_noise paired B-A angle_deg 0.7449+-0.0397: clear gap, not a tie
-flat_low_noise paired B-A residual_mm -0.0070+-0.0036: small but consistent gap, not a tie
-flat_low_noise paired B-C angle_deg -3.9275+-0.6306: clear gap, not a tie
-flat_low_noise paired B-C residual_mm -0.1983+-0.0447: clear gap, not a tie
+flat_low_noise paired B-A angle_deg 0.7449+-0.0397: clear gap, not a tie; same sign on all 5 seeds
+flat_low_noise paired B-A residual_mm -0.0070+-0.0036: small but consistent gap, not a tie; same sign on all 5 seeds
+flat_low_noise paired B-C angle_deg -3.9275+-0.6306: clear gap, not a tie; same sign on all 5 seeds
+flat_low_noise paired B-C residual_mm -0.1983+-0.0447: clear gap, not a tie; same sign on all 5 seeds
 ripple_noisy A_global_plane 19.1355+-0.5304 2.2837+-0.0496 300/300
 ripple_noisy B_pca_k20 5.3848+-0.3418 1.6855+-0.0468 300/300
 ripple_noisy C_pca_k4 25.6248+-2.6967 2.5549+-0.1568 284/300
-ripple_noisy paired B-A angle_deg -13.7507+-0.6334: clear gap, not a tie
-ripple_noisy paired B-A residual_mm -0.5982+-0.0525: clear gap, not a tie
-ripple_noisy paired B-C angle_deg -20.2400+-2.7704: clear gap, not a tie
-ripple_noisy paired B-C residual_mm -0.8694+-0.1401: clear gap, not a tie
+ripple_noisy paired B-A angle_deg -13.7507+-0.6334: clear gap, not a tie; same sign on all 5 seeds
+ripple_noisy paired B-A residual_mm -0.5982+-0.0525: clear gap, not a tie; same sign on all 5 seeds
+ripple_noisy paired B-C angle_deg -20.2400+-2.7704: clear gap, not a tie; same sign on all 5 seeds
+ripple_noisy paired B-C residual_mm -0.8694+-0.1401: clear gap, not a tie; same sign on all 5 seeds
 fine_ripple_low_noise A_global_plane 22.5345+-0.4940 1.5739+-0.0227 300/300
 fine_ripple_low_noise B_pca_k20 11.1983+-0.2312 0.9425+-0.0278 300/300
 fine_ripple_low_noise C_pca_k4 5.9507+-0.4287 1.0946+-0.0259 299/300
-fine_ripple_low_noise paired B-A angle_deg -11.3362+-0.3298: clear gap, not a tie
-fine_ripple_low_noise paired B-A residual_mm -0.6314+-0.0290: clear gap, not a tie
-fine_ripple_low_noise paired B-C angle_deg 5.2476+-0.4954: clear gap, not a tie
-fine_ripple_low_noise paired B-C residual_mm -0.1522+-0.0143: small but consistent gap, not a tie
+fine_ripple_low_noise paired B-A angle_deg -11.3362+-0.3298: clear gap, not a tie; same sign on all 5 seeds
+fine_ripple_low_noise paired B-A residual_mm -0.6314+-0.0290: clear gap, not a tie; same sign on all 5 seeds
+fine_ripple_low_noise paired B-C angle_deg 5.2476+-0.4954: clear gap, not a tie; same sign on all 5 seeds
+fine_ripple_low_noise paired B-C residual_mm -0.1522+-0.0143: small but consistent gap, not a tie; same sign on all 5 seeds
 flat_low_noise: one global plane is already the right normal everywhere; local PCA only adds noise
 ripple_noisy: k=4 is noise-dominated, the global plane ignores curvature; k=20 averages the noise
 fine_ripple_low_noise: k=20 spans a large part of a 40 mm ripple and smooths the curvature; k=4 resolves it
@@ -745,9 +766,11 @@ Open3D estimate_normals / PCL NormalEstimation on a real sensor: 本页未运行
 
 ### 读三种情形
 
-- **flat_low_noise：** 全局平面在每一处都已经是正确的法向，所以**在夹角上 B 输给 A**：A 0.0050±0.0058°，B 0.7499±0.0447°，C 4.6774±0.5880°（配对 B−A 0.7449±0.0397°，明显差距，尽管两者都不到 1°）。在残差上顺序反过来：B 0.2708±0.0075 mm，A 0.2778±0.0052 mm，配对 B−A −0.0070±0.0036 mm，是**小而稳定的差距，不是打平**，偏向 B。原因在指标，而不是法向更好：B 的局部平面跟着一个与评估点重叠的邻域里的噪声走，而残差奖励这种拟合。
-- **ripple_noisy：** **B 在两个指标上都赢。** 夹角：B 5.3848±0.3418°，A 19.1355±0.5304°（全局平面忽略了曲率），C 25.6248±2.6967°（四个点被 2 mm 噪声主导）；配对 B−A −13.7507±0.6334°，B−C −20.2400±2.7704°，都是明显差距。残差：B 1.6855±0.0468 mm，A 2.2837±0.0496 mm，C 2.5549±0.1568 mm。
-- **fine_ripple_low_noise：** **在夹角上 B 输给 C**：C 5.9507±0.4287°，B 11.1983±0.2312°，A 22.5345±0.4940°（配对 B−C 5.2476±0.4954°，明显差距）。噪声只有 0.1 mm，没什么可平均的；而 12.6 mm 的邻域覆盖了波峰曲率半径约 10 mm 的波纹的很大一部分，所以 `k = 20` 把 `k = 4` 还能分辨的曲率抹平了。残差又一次唱反调：B 0.9425±0.0278 mm，C 1.0946±0.0259 mm，配对 B−C −0.1522±0.0143 mm，是**小而稳定的差距，不是打平**，偏向 B，因为 B 的 20 点邻域和 12 点评估邻域很像。残差看不见法向在查询点处到底对不对。
+`paired` 那几行是在同一批抽样上逐个种子把两组相减。标签只按一条规则：**打平**指每个种子都完全相同；**接近打平、差距很小，在种子噪声之内**指 `|配对均值| ≤ sd`；**稳定**差距只指 `|配对均值| > sd`。20 % 那条（`|均值|` 小于两组中较小均值的 20 %）只用来判定一个稳定差距叫**小**还是**明显**，从不用来判定是否稳定。行尾的同号计数说明 5 个种子里有几个与均值方向相反——本页所有稳定或明显差距的行，5 个种子全部同号。
+
+- **flat_low_noise：** 全局平面在每一处都已经是正确的法向，所以**在夹角上 B 输给 A**：A 0.0050±0.0058°，B 0.7499±0.0447°，C 4.6774±0.5880°（配对 B−A 0.7449±0.0397°，明显差距，5 个种子全部同号，尽管两者都不到 1°）。在残差上顺序反过来：B 0.2708±0.0075 mm，A 0.2778±0.0052 mm，配对 B−A −0.0070±0.0036 mm（5 个种子全部同号），是**小而稳定的差距，不是打平**，偏向 B。原因在指标，而不是法向更好：B 的局部平面跟着一个与评估点重叠的邻域里的噪声走，而残差奖励这种拟合。
+- **ripple_noisy：** **B 在两个指标上都赢。** 夹角：B 5.3848±0.3418°，A 19.1355±0.5304°（全局平面忽略了曲率），C 25.6248±2.6967°（四个点被 2 mm 噪声主导）；配对 B−A −13.7507±0.6334°，B−C −20.2400±2.7704°，都是明显差距，5 个种子全部同号。残差：B 1.6855±0.0468 mm，A 2.2837±0.0496 mm，C 2.5549±0.1568 mm。
+- **fine_ripple_low_noise：** **在夹角上 B 输给 C**：C 5.9507±0.4287°，B 11.1983±0.2312°，A 22.5345±0.4940°（配对 B−C 5.2476±0.4954°，明显差距，5 个种子全部同号）。噪声只有 0.1 mm，没什么可平均的；而 12.6 mm 的邻域覆盖了波峰曲率半径约 10 mm 的波纹的很大一部分，所以 `k = 20` 把 `k = 4` 还能分辨的曲率抹平了。残差又一次唱反调：B 0.9425±0.0278 mm，C 1.0946±0.0259 mm，配对 B−C −0.1522±0.0143 mm（5 个种子全部同号），是**小而稳定的差距，不是打平**，偏向 B，因为 B 的 20 点邻域和 12 点评估邻域很像。残差看不见法向在查询点处到底对不对。
 - **定向：** 翻转之前，在平面情形的全部 300 个查询点上，每组的原始法向都背离相机（Jacobi 求解器恰好返回了 `+z`）；在 ripple_noisy 上 C 有 284/300 需要翻转，在细波纹上是 299/300。如果不翻转，这些法向的误差会接近 180°。定向是单独的一步，而简单的翻转假设只有一个视点。
 
 本页**不宣布普遍赢家**：`k` 在平均噪声和抹平曲率之间取舍，只有表面真的是一个平面时，全局平面才是正确答案。要按噪声水平和你需要的最小细节来选尺度。真实传感器上的 Open3D `estimate_normals` / PCL `NormalEstimation`：**本页未运行**。

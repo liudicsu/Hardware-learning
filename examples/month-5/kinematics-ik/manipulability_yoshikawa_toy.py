@@ -150,16 +150,36 @@ def ms(xs: list[float]) -> tuple[float, float]:
     return m, math.sqrt(sum((x - m) ** 2 for x in xs) / (len(xs) - 1))
 
 
-def verdict(xa: list[float], xb: list[float]) -> str:
+def sign_note(diffs: list[float], m: float) -> str:
+    """How many seeds disagree in sign with the paired mean (zeros listed apart)."""
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def verdict(xa: list[float], xb: list[float], unit: str = "") -> str:
+    """tie: identical on every seed; near-tie: |paired mean| <= paired sd.
+    "Consistent" means only |paired mean| > paired sd; the 20 % rule (|mean| <
+    20 % of the smaller arm mean) only decides whether a consistent gap is
+    called "small" or "clear". The appended sign count says how many seeds
+    disagree in sign with the paired mean."""
     diffs = [a - b for a, b in zip(xa, xb)]
     if all(d == 0.0 for d in diffs):
         return "tie: identical on every seed"
     m, s = ms(diffs)
     if abs(m) <= s:
-        return "near-tie / small gap, within seed noise"
-    if abs(m) < 0.2 * min(ms(xa)[0], ms(xb)[0]):
-        return "small but consistent gap, not a tie"
-    return "clear gap, not a tie"
+        return f"near-tie / small gap, within seed noise (indistinguishable from 0 within +-{s:.4f}{unit})"
+    base = "small but consistent gap, not a tie" if abs(m) < 0.2 * min(ms(xa)[0], ms(xb)[0]) else "clear gap, not a tie"
+    return base + "; " + sign_note(diffs, m)
+
+
+def fmt_pair(m: float, s: float) -> str:
+    """Paired mean+-sd; extra decimals when 4 would print a signed zero such as -0.0000."""
+    if m != 0.0 and abs(m) < 5e-5:
+        return f"{m:.6f}+-{s:.6f}"
+    return f"{m:.4f}+-{s:.4f}"
 
 
 def main() -> None:
@@ -191,7 +211,8 @@ def main() -> None:
         for a, b in (("A_ignore_w", "B_keep_w"), ("C_dls", "A_ignore_w")):
             for k in ("rms_mm", "final_mm", "hold_dps"):
                 d = ms([x - y for x, y in zip(res[a][k], res[b][k])])
-                print(f"{regime} paired {a[0]}-{b[0]} {k} {d[0]:.4f}+-{d[1]:.4f}: {verdict(res[a][k], res[b][k])}")
+                unit = " mm" if k.endswith("_mm") else " deg/s"
+                print(f"{regime} paired {a[0]}-{b[0]} {k} {fmt_pair(*d)}: {verdict(res[a][k], res[b][k], unit)}")
     far, near = summary["far_from_singularity"], summary["near_singularity"]
     print(f"far_from_singularity: lowest w over all seeds {far['B_keep_w']:.6f} > W_MIN, so B's monitor never fires and A and B "
           "run the same commands on the same draws")

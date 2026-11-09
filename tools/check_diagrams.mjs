@@ -5143,7 +5143,7 @@ for (const m of readdirSync(content)) {
 // Batch-4 PR3 H2/H7: equal-data transfer and explicit operator RTT model.
 {
   const read = p => readFileSync(join(root, p), "utf8");
-  for (const [month, slug, toy, minutes, added] of [[7,"rl-foundations","residual_action_mismatch_toy",450,210], [11,"umi-style-collection","teleop_rtt_budget_toy",420,180]]) {
+  for (const [month, slug, toy, minutes] of [[7,"rl-foundations","residual_action_mismatch_toy",450,210], [11,"umi-style-collection","teleop_rtt_budget_toy",420,180]]) {
     const py = read(`examples/month-${month}/${slug}/${toy}.py`);
     const expected = read(`examples/month-${month}/expected/${toy}.txt`);
     const stdout = execFileSync("python3", [join(root, `examples/month-${month}/${slug}/${toy}.py`)], { encoding: "utf8", env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" } });
@@ -5178,7 +5178,7 @@ for (const m of readdirSync(content)) {
 // Batch-5 PR1 §9: physical hunting, Type-B limits, equal-tuning IMU comparison.
 {
   const read = p => readFileSync(join(root, p), "utf8");
-  for (const [month, slug, toy, minutes, added, markers, summaryMarker] of [
+  for (const [month, slug, toy, minutes, , markers, summaryMarker] of [
     [1,"bench-multimeter","dmm_uncertainty_toy",240,150,["√3","RSS","0.004272","0.009400","0.009514","0.038991","0.091000","20000"],"√3"],
     [2,"sensors-fusion","imu_kf_vs_complementary_toy",720,150,["Q0","R0","40500","201/202/203","221–225","0.259680","0.222922","0.213477","0.297265","0.295811"],"Q/R"],
     [3,"transmissions","backlash_loop_toy",510,180,["P/I","FS=0.4","FC=0.02","0.047514","0.033429","0.053333","0.014043","0.067457","0.570"],"hunting"],
@@ -5215,7 +5215,7 @@ for (const m of readdirSync(content)) {
 // Batch-5 PR2 H5/H2: nonlinear stereo and disclosed multi-robot information.
 {
   const read = p => readFileSync(join(root,p),"utf8");
-  for (const [month,slug,toy,minutes,added,markers] of [
+  for (const [month,slug,toy,minutes, ,markers] of [
     [5,"camera-calibration","stereo_depth_sigma_toy",420,180,["3DGS","0.125","0.600","20000","0.5625","2.2500","25.000000","41.901502","15.575066","16.878823","2991/20000","11637/20000","E[fB/d]"]],
     [9,"nav-arm-compose","multi_robot_corridor_toy",450,210,["926–930","vmax=0.6","amax=0.8","24 s","ORCA","0.004718","1.096968","0.518211","12.740","18.295","以论文为准"]],
   ]) {
@@ -5253,7 +5253,7 @@ for (const m of readdirSync(content)) {
 // Batch-5 PR3 H1/H7: calibration mechanism, representation control and stale memory.
 {
   const read = p => readFileSync(join(root,p),"utf8");
-  for (const [month,slug,toy,minutes,added,markers] of [
+  for (const [month,slug,toy,minutes, ,markers] of [
     [10,"vla-rl-finetune","cal_conrft_offline_toy",450,210,["1071–1075","max(Q, V_MC)","1000","48","0.135372","0.439094","0.419844","0.2142","0.1958","0.1628","0.457688/0.604030","--tabular","96.3 %","以论文为准"]],
     [9,"mtc-long-horizon","mtc_stage_memory_toy",420,180,["world_change","place_blocked","total_nodes = search_nodes + revalidation_nodes","20+3=23","73","70","58","6/8","2/8"]],
   ]) {
@@ -5360,7 +5360,7 @@ print("protocol pass")
 {
   const read = p => readFileSync(join(root,p),"utf8");
   const env = {...process.env,PYTHONDONTWRITEBYTECODE:"1"};
-  for (const [month,slug,toy,minutes,added,summaryMarkers,markers] of [
+  for (const [month,slug,toy,minutes, ,summaryMarkers,markers] of [
     [2,"motors-drivers","winding_thermal_rc_toy",720,180,["I²R(T)","I²R(T)"],["R20","α20","20 °C","1.01965","P·Rθ","P·t/Cθ","t ≪ τ","Rθ","Cθ","11.1","4800","153.001","6709.332","70.025","2843.554","2 trips","0.2 s","本页未运行"]],
     [2,"arduino-io","i2c_risetime_toy",660,150,["I2C RC","I2C RC"],["30 %–70 %","ln(7/3)","SLVA689A Table 2-1","1000 ns","300 ns","120 ns","Sm","Fm+","1300 ns","1500 ns","2500 ns","0.12","100 pF / 400 pF","A5 00 FF 5A","847.298 / 186.406 / 745.622","36 / 0 / 36","0/36/36","0/0/36","966.667","885.167","本页未运行"]],
     [1,"components","supply_dip_decoupling_toy",600,150,["ESL+ESR+C","ESL+ESR+C"],["ESL+ESR+C","10 µF","SRF","0.711763 / 1.591549 / 5.626977 / 5.626977 MHz","20 MHz","11.1","SCLS085L","0.1 µF","3.233928 / 3.275589 / 3.278804 / 3.226711","0.066072 / 0.024411 / 0.021196 / 0.073289","0.237254 / 0.795775 / 0.906869 / 0.159091","0.376991","0.010053","0.000796","ESR","ESL","FCC/CE","本页未运行"]],
@@ -5402,7 +5402,7 @@ print("protocol pass")
   const read = path => readFileSync(join(root, path), "utf8");
   const env = {...process.env, PYTHONDONTWRITEBYTECODE: "1"};
   const cur = read("src/lib/curriculum.ts");
-  for (const [month, slug, toy, minutes, added, markers, summaryMarkers] of [
+  for (const [month, slug, toy, minutes, , markers, summaryMarkers] of [
     [8, "ros2-hardware-interface", "can_fault_confinement_toy", 600, 180,
       ["Bosch CAN 2.0, Part A pp. 24–26", "BCANPSV2.0 Rev. 3 §5.2", "TEC +8", "TEC −1", "REC +1", "REC −1", "REC +8", "REC >127", "119…127", "TEC >255", "128×11=1408", "1407R", "1408R", "operator_ack", "SocketCAN", "本页未运行", "以规范为准"],
       ["CAN TEC/REC", "CAN TEC/REC"]],
@@ -5448,7 +5448,7 @@ print("protocol pass")
   const read = path => readFileSync(join(root,path),"utf8");
   const env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
   const cur=read("src/lib/curriculum.ts");
-  for (const [month,slug,toy,minutes,added,markers,summaryMarkers] of [
+  for (const [month,slug,toy,minutes, ,markers,summaryMarkers] of [
     [10,"flow-matching-policies","policy_distill_onestep_toy",450,210,
       ["2410.21257","2405.07503","KL-along-chain","regression surrogate","以论文为准","本页未运行","11/23/37/53/71","0.00000808","0.712500","0.145438","0.500000…0.937500","NFE","240","64"],
       ["OneDP-style regression surrogate","OneDP 风格回归替身"]],
@@ -5516,7 +5516,7 @@ print("protocol pass")
 {
   const read=path=>readFileSync(join(root,path),"utf8"), cur=read("src/lib/curriculum.ts");
   const env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
-  for (const [month,slug,toy,minutes,added,markers,summaries] of [
+  for (const [month,slug,toy,minutes, ,markers,summaries] of [
     [2,"sensors-fusion","spi_mode_mismatch_toy",720,180,
       ["SPI_MODE0","SPI_MODE1","SPI_MODE2","SPI_MODE3","MSBFIRST/LSBFIRST","CPOL","CPHA","CS","A5 00 FF 3C 81 01 96 69","27/64=0.421875","00→00","96→4B","本页未运行"],
       ["SPI mode/bit-order/CS choices","SPI 模式 / 位序 / CS"]],
@@ -6380,16 +6380,16 @@ print("protocol pass")
   ok(true,"b12p1 independent tests tools/test_b12_thevenin_gazebo_toys.py pass");
   const cases=[
     [1,"ohms-law","thevenin_loaded_divider_toy",240,["## Thévenin and Norton equivalents","## 戴维南与诺顿等效"],
-      ["seeds=5","boards=32","Vth=1.5986V","Rth=3197.3ohm","1.2113 V","heavy_load 3300 A_voc_only","light_load 10000000 B_thevenin","light_load B vs C: B 0.8726+-0.0370 mV, C 0.8729+-0.0364 mV, gap 0.0004 mV (paired C-B 0.0004+-0.0015 mV): near-tie / small gap, within seed noise","light_load A vs B: A 0.9879+-0.0646 mV, paired A-B 0.1153+-0.0588 mV: small but consistent gap, not a tie","No winner declared"],
+      ["seeds=5","boards=32","Vth=1.5986V","Rth=3197.3ohm","1.2113 V","heavy_load 3300 A_voc_only","light_load 10000000 B_thevenin","light_load B vs C: B 0.8726+-0.0370 mV, C 0.8729+-0.0364 mV, gap 0.0004 mV (paired C-B 0.0004+-0.0015 mV, |m| <= sd; 2 of 5 seeds have the opposite sign): near-tie / small gap, within seed noise","light_load A vs B: A 0.9879+-0.0646 mV, paired A-B 0.1153+-0.0588 mV (|m| > sd; same sign on all 5 seeds): small but consistent gap, not a tie","No winner declared"],
       ["Vth","Rth","A_voc_only","B_thevenin","C_norton","100 Ω","以原文为准","本页未运行","0.1153±0.0588","786.7609±1.2073","0.9879±0.0646","0.8726±0.0370","0.0004±0.0015"],
       {en:["**not** the Wheatstone","**synthetic**","does not declare a universal winner","**Model assumptions:**","**blind**","**B vs C is a near-tie / small gap:**","within seed noise","**A vs B is a small but consistent gap, not a tie:**","same circuit on paper"],zh:["**不是**下一课的惠斯通电桥","**合成**","不宣布普遍赢家","**模型假设：**","**看不见**","**B 与 C 接近打平、差距很小：**","在种子噪声之内","**A 与 B 是一个小而稳定的差距，不是打平：**","在纸面上是同一个电路"]},
       {en:["Thévenin / Norton","near-tie / small gap","small but consistent gap (not a tie)","1.21 V"],zh:["戴维南 / 诺顿","接近打平、差距很小","小而稳定的差距（不是打平）","1.21 V"]},
       ["wiki-thevenin","wiki-norton"],"150-minute work plan","150 分钟安排"],
     [4,"gazebo-sim","gazebo_step_contact_stability_toy",450,["## Physics step size and contact stability","## 物理步长与接触稳定性"],
-      ["seeds=5","dt < 3.279 ms","dt < 0.800 ms","3.4 1.700 1.3293 UNSTABLE","1.0 0.500 0.8944 1.0247 UNSTABLE","impact_drop A_coarse_3ms","gentle_rest C_fine_0.1ms","near-tie / small gap, not a tie","No winner declared"],
+      ["seeds=5","dt < 3.279 ms","dt < 0.800 ms","3.4 1.700 1.3293 UNSTABLE","1.0 0.500 0.8944 1.0247 UNSTABLE","impact_drop A_coarse_3ms","gentle_rest C_fine_0.1ms","all small relative to the 39.24 um static sag, but the gaps are consistent, not a near-tie","No winner declared"],
       ["(ωΔt)_max = 2(√(ζ² + 1) − ζ)","`(ωΔt)² + 4ζ(ωΔt) < 4`","`ωΔt < 2ζ`","Kelvin–Voigt","A_coarse_3ms","B_default_1ms","C_fine_0.1ms","以原文为准","本页未运行","624.23±554.20","1.539±0.277","0.0067±0.0011","0.0050±0.0008","`solref`"],
-      {en:["**not** the inertia check","**synthetic**","does not declare a universal winner","**Model assumptions:**","**blind**","**not** DART","**not** Gazebo knobs","near-tie / small gap","not a tie","JavaScript shell"],zh:["**不是**第 3 课的惯量检查","**合成**","不宣布普遍赢家","**模型假设：**","**看不见**","**不是** DART","**不是** Gazebo 的旋钮","接近打平、差距很小","不是打平","JavaScript 外壳"]},
-      {en:["Physics step size and contact stability","near-tie / small gap","not DART"],zh:["物理步长与接触稳定性","接近打平、差距很小","不是 DART"]},
+      {en:["**not** the inertia check","**synthetic**","does not declare a universal winner","**Model assumptions:**","**blind**","**not** DART","**not** Gazebo knobs","**all small relative to the ~39 µm static sag, but the gaps are consistent**","not a near-tie","JavaScript shell"],zh:["**不是**第 3 课的惯量检查","**合成**","不宣布普遍赢家","**模型假设：**","**看不见**","**不是** DART","**不是** Gazebo 的旋钮","**相对约 39 µm 的静沉都很小，但差距是稳定的**","不是接近打平","JavaScript 外壳"]},
+      {en:["Physics step size and contact stability","small relative to the static sag but **consistent**","not DART"],zh:["物理步长与接触稳定性","相对静沉都很小，但是**稳定的**","不是 DART"]},
       ["sdf-physics-spec","gz-physics-engines","wiki-euler-method","wiki-semi-implicit-euler"],"180-minute work plan","180 分钟安排"],
   ];
   for(const [month,slug,toy,minutes,heads,outputs,markers,langMarkers,summaryMarkers,ids,planEn,planZh] of cases){
@@ -6442,8 +6442,8 @@ print("protocol pass")
   ok(true,"b12p2 independent tests tools/test_b12_manip_normals_toys.py pass");
   const cases=[
     [5,"kinematics-ik","manipulability_yoshikawa_toy",570,["## Manipulability: how far from a singularity","## 可操作度：离奇异点有多远"],
-      ["seeds=5","W_MIN=0.3*W_MAX=0.004698 m^2 -> R_CAP=0.2481 m","-60.0 0.25026 0.054192 0.013562 0.013562","far_from_singularity paired A-B rms_mm 0.0000+-0.0000: tie: identical on every seed","far_from_singularity paired C-A final_mm -0.0000+-0.0003: near-tie / small gap, within seed noise","far_from_singularity paired C-A rms_mm 0.0106+-0.0036: small but consistent gap, not a tie","near_singularity paired A-B final_mm -2.3639+-0.0415: clear gap, not a tie","near_singularity paired C-A final_mm -0.0026+-0.0206: near-tie / small gap, within seed noise","sits just below W_MIN","No winner declared"],
-      ["w = √det(J Jᵀ) = σ1 σ2 = |det J| = L1 L2 |sin q2|","κ = σ1 / σ2","µ1","µ2","µ3","KP·DT = 0.1 < 2","A_ignore_w","B_keep_w","C_dls","以原文为准","本页未运行","0.057±0.002","2.393±0.032","0.029±0.014","0.004621±0.000006","19.742±1.326","6.982±0.726","−0.0000±0.0003","0.0106±0.0036","−2.3639±0.0415","−3.0069±1.1883","2.39 mm"],
+      ["seeds=5","W_MIN=0.3*W_MAX=0.004698 m^2 -> R_CAP=0.2481 m","-60.0 0.25026 0.054192 0.013562 0.013562","far_from_singularity paired A-B rms_mm 0.0000+-0.0000: tie: identical on every seed","far_from_singularity paired C-A final_mm -0.000043+-0.000253: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.0003 mm)","far_from_singularity paired C-A rms_mm 0.0106+-0.0036: small but consistent gap, not a tie","near_singularity paired A-B final_mm -2.3639+-0.0415: clear gap, not a tie","near_singularity paired C-A final_mm -0.0026+-0.0206: near-tie / small gap, within seed noise","sits just below W_MIN","No winner declared"],
+      ["w = √det(J Jᵀ) = σ1 σ2 = |det J| = L1 L2 |sin q2|","κ = σ1 / σ2","µ1","µ2","µ3","KP·DT = 0.1 < 2","A_ignore_w","B_keep_w","C_dls","以原文为准","本页未运行","0.057±0.002","2.393±0.032","0.029±0.014","0.004621±0.000006","19.742±1.326","6.982±0.726","−0.000043±0.000253","0.0106±0.0036","−2.3639±0.0415","−3.0069±1.1883","2.39 mm"],
       {en:["**not** a redo of damped least squares","**synthetic**","does not declare a universal winner","**Model assumptions:**","**blind**","**tie: identical on every seed**","**near-tie / small gap, within seed noise**","**small but consistent gap, not a tie**","**B loses on tracking**","not a hard barrier","**original**"],zh:["**不是**把阻尼最小二乘重讲一遍","**合成**","不宣布普遍赢家","**模型假设：**","**看不见**","**打平：每个种子都完全相同**","**接近打平、差距很小，在种子噪声之内**","**小而稳定的差距，不是打平**","**B 在跟踪上输了**","不是硬屏障","**原始**"]},
       {en:["Manipulability","σ1 σ2","identical on every seed","2.39 mm","not a robot run"],zh:["可操作度","σ1 σ2","每个种子都完全相同","2.39 mm","不是机器人实验"]},
       ["mr-manipulability","wiki-manipulability"],"180-minute work plan","180 分钟安排"],
@@ -6563,6 +6563,50 @@ print("protocol pass")
   ok(["worldvla-paper","xvla-paper","2506.21539","2510.10274","Cen","Zheng","pdftotext","Common random numbers","opencode","Review follow-up","opposite sign"].every(x=>src.includes(x)),"b12p3 sources note");
   ok(/29 160/.test(read("README.md")),"b12p3 README site minutes");
   console.log("worldvla-xvla PR3: WorldVLA action mask, X-VLA soft prompts and M9 3900 / M11 3630 / site 29160 locked");
+}
+
+
+
+// Batch-12 polish: |paired mean| > sd labels with sign counts, max power transfer, no signed zero.
+{
+  const read=p=>readFileSync(join(root,p),"utf8");
+  const cur=read("src/lib/curriculum.ts"), res=read("src/lib/resources.ts");
+  const section=(md,head)=>{const s=md.indexOf(head),sum=md.indexOf("<Summary>"),n=md.indexOf("\n## ",s+5);return md.slice(s,n>0&&n<sum?n:sum);};
+  const gzOut=read("examples/month-4/expected/gazebo_step_contact_stability_toy.txt");
+  for(const x of ["gentle_rest paired A-B |pen-ref|_um 1.446+-0.261: consistent gap (|m| > sd), not a tie; same sign on all 5 seeds",
+    "gentle_rest paired B-C |pen-ref|_um 0.088+-0.077: consistent gap (|m| > sd), not a tie; same sign on all 5 seeds",
+    "gentle_rest paired A-B bounces 0.00+-0.00: tie: identical on every seed",
+    "impact_drop paired A-B |pen-ref|_um 464.36+-572.63: within seed noise (|m| <= sd), not a consistent gap; 1 of 5 seeds has the opposite sign",
+    "impact_drop paired B-C |COR-ref| 0.0018+-0.0017: consistent gap (|m| > sd), not a tie; same sign on all 5 seeds",
+    "all small relative to the 39.24 um static sag, but the gaps are consistent, not a near-tie"])ok(gzOut.includes(x),`b12pol gazebo output: ${x}`);
+  ok(!gzOut.includes("near-tie / small gap"),"b12pol gazebo output: no near-tie label on consistent gaps");
+  const heads={gz:["## Physics step size and contact stability","## 物理步长与接触稳定性"],oh:["## Thévenin and Norton equivalents","## 戴维南与诺顿等效"],ik:["## Manipulability: how far from a singularity","## 可操作度：离奇异点有多远"],pc:["## Surface normals by local PCA","## 用局部 PCA 估计表面法向"]};
+  for(const [i,lang] of ["en","zh"].entries()){
+    const gz=section(read(`src/content/m4/gazebo-sim/${lang}.mdx`),heads.gz[i]), gzProse=gz.replace(/```[\s\S]*?```/g,"");
+    for(const x of (lang==="en"?["**all small relative to the ~39 µm static sag, but the gaps are consistent**","paired A−B 1.446±0.261 µm and B−C 0.088±0.077 µm","same sign on all 5 seeds (5/5)","(`|m| > sd`)","**small but consistent gap**","0.0018±0.0017","464.36±572.63","1 of 5 seeds has the opposite sign","identical counts: that part is a tie"]:["**相对约 39 µm 的静沉都很小，但差距是稳定的**","配对 A−B 为 1.446±0.261 µm，B−C 为 0.088±0.077 µm","5 个种子全部同号（5/5）","（`|m| > sd`）","**小而稳定的差距**","0.0018±0.0017","464.36±572.63","1 个种子符号相反","次数完全相同，这一项是打平"]))ok(gz.includes(x),`b12pol gazebo-sim ${lang}: ${x}`);
+    ok(!/near-tie \/ small gap|接近打平、差距很小/.test(gzProse),`b12pol gazebo-sim ${lang}: no near-tie wording left in prose`);
+    const oh=section(read(`src/content/m1/ohms-law/${lang}.mdx`),heads.oh[i]);
+    for(const x of (lang==="en"?["**Maximum power transfer:**","largest at `RL = Rth`","only 50 %","do not aim for impedance matching","Wikipedia — Maximum power transfer theorem","2 of 5 seeds have the opposite sign","same sign on all 5 seeds"]:["**最大功率传输：**","在 `RL = Rth` 时最大","只有 50 %","并不追求阻抗匹配","Wikipedia — Maximum power transfer theorem","5 个种子中有 2 个符号相反","5 个种子全部同号"]))ok(oh.includes(x),`b12pol ohms-law ${lang}: ${x}`);
+    for(const [k,slug,m] of [["ik","kinematics-ik",5],["pc","depth-pointcloud",7]]){
+      const sec=section(read(`src/content/m${m}/${slug}/${lang}.mdx`),heads[k][i]), prose=sec.replace(/```[\s\S]*?```/g,"");
+      for(const x of (lang==="en"?["a **consistent** gap means only `|paired mean| > sd`","only decides whether a consistent gap is called **small** or **clear**; it never decides consistency","same sign on all 5 seeds"]:["**稳定**差距只指 `|配对均值| > sd`","只用来判定一个稳定差距叫**小**还是**明显**，从不用来判定是否稳定","5 个种子全部同号"]))ok(sec.includes(x),`b12pol ${slug} ${lang}: ${x}`);
+      ok(!/(?<![+\d])[−-]0\.0000(?!\d)/.test(prose),`b12pol ${slug} ${lang}: no signed zero quoted in prose`);
+      ok(!/\b(exact tie|ties exactly)\b|精确打平/.test(prose),`b12pol ${slug} ${lang}: no exact-tie wording`);
+    }
+    ok(section(read(`src/content/m5/kinematics-ik/${lang}.mdx`),heads.ik[i]).includes(lang==="en"?"−0.000043±0.000253 mm: indistinguishable from 0 within ±0.0003 mm":"−0.000043±0.000253 mm：在 ±0.0003 mm 内与 0 无法区分"),`b12pol kinematics-ik ${lang}: C−A final indistinguishable from 0`);
+  }
+  const ik=read("examples/month-5/expected/manipulability_yoshikawa_toy.txt"), pc=read("examples/month-7/expected/pointcloud_pca_normals_toy.txt");
+  ok(ik.includes("far_from_singularity paired C-A final_mm -0.000043+-0.000253: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.0003 mm)"),"b12pol kinematics-ik output: C−A final with extra decimals");
+  for(const out of [ik,pc])ok(!/(?<![+\d])-0\.0000(?!\d)/.test(out),"b12pol #150 outputs: no signed zero printed");
+  for(const out of [ik,pc])for(const line of out.split("\n").filter(l=>/consistent gap|clear gap/.test(l)))ok(line.endsWith("same sign on all 5 seeds"),`b12pol sign count: ${line.slice(0,60)}`);
+  ok(res.includes('"wiki-max-power-transfer": {')&&/"wiki-max-power-transfer": \{[\s\S]*?extra: true/.test(res),"b12pol opened source wiki-max-power-transfer");
+  ok(cur.slice(cur.indexOf('slug: "ohms-law"')).split("\n  },")[0].includes('"wiki-max-power-transfer"'),"b12pol ohms-law: max-power source wired");
+  const note=read("docs/notes/batch-12-polish-sources.md");
+  ok(["b6175dc","29160","wiki-max-power-transfer","mw-parser-output","gentle_rest","1.446±0.261","0.0018±0.0017","464.36±572.63","no sign flips","added","opencode"].every(x=>note.includes(x)),"b12pol notes");
+  const cd=read("tools/check_diagrams.mjs");
+  ok(!/const \[[^\]]*\badded\b[^\]]*\] of/.test(cd),"b12pol check_diagrams: no unused added bindings");
+  ok(/29 160/.test(read("README.md")),"b12pol README site minutes unchanged");
+  console.log("batch-12 polish: |m|>sd labels with sign counts, gentle-rest consistent gaps, max power transfer, no signed zero locked");
 }
 
 

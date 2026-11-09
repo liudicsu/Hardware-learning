@@ -15,18 +15,18 @@ far_from_singularity C_dls 0.013806+-0.000000 0.068+-0.005 0.056+-0.050 40.340+-
 far_from_singularity paired A-B rms_mm 0.0000+-0.0000: tie: identical on every seed
 far_from_singularity paired A-B final_mm 0.0000+-0.0000: tie: identical on every seed
 far_from_singularity paired A-B hold_dps 0.0000+-0.0000: tie: identical on every seed
-far_from_singularity paired C-A rms_mm 0.0106+-0.0036: small but consistent gap, not a tie
-far_from_singularity paired C-A final_mm -0.0000+-0.0003: near-tie / small gap, within seed noise
-far_from_singularity paired C-A hold_dps -0.0278+-0.0166: small but consistent gap, not a tie
+far_from_singularity paired C-A rms_mm 0.0106+-0.0036: small but consistent gap, not a tie; same sign on all 5 seeds
+far_from_singularity paired C-A final_mm -0.000043+-0.000253: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.0003 mm)
+far_from_singularity paired C-A hold_dps -0.0278+-0.0166: small but consistent gap, not a tie; same sign on all 5 seeds
 near_singularity A_ignore_w 0.001900+-0.000024 0.078+-0.004 0.029+-0.014 171.887+-0.000 19.742+-1.326
 near_singularity B_keep_w 0.004621+-0.000006 1.081+-0.004 2.393+-0.032 150.864+-3.686 6.982+-0.726
 near_singularity C_dls 0.002010+-0.000031 0.197+-0.004 0.026+-0.011 165.770+-4.434 16.736+-0.388
-near_singularity paired A-B rms_mm -1.0027+-0.0017: clear gap, not a tie
-near_singularity paired A-B final_mm -2.3639+-0.0415: clear gap, not a tie
-near_singularity paired A-B hold_dps 12.7605+-0.7330: clear gap, not a tie
-near_singularity paired C-A rms_mm 0.1187+-0.0036: clear gap, not a tie
-near_singularity paired C-A final_mm -0.0026+-0.0206: near-tie / small gap, within seed noise
-near_singularity paired C-A hold_dps -3.0069+-1.1883: small but consistent gap, not a tie
+near_singularity paired A-B rms_mm -1.0027+-0.0017: clear gap, not a tie; same sign on all 5 seeds
+near_singularity paired A-B final_mm -2.3639+-0.0415: clear gap, not a tie; same sign on all 5 seeds
+near_singularity paired A-B hold_dps 12.7605+-0.7330: clear gap, not a tie; same sign on all 5 seeds
+near_singularity paired C-A rms_mm 0.1187+-0.0036: clear gap, not a tie; same sign on all 5 seeds
+near_singularity paired C-A final_mm -0.0026+-0.0206: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.0206 mm)
+near_singularity paired C-A hold_dps -3.0069+-1.1883: small but consistent gap, not a tie; same sign on all 5 seeds
 far_from_singularity: lowest w over all seeds 0.013806 > W_MIN, so B's monitor never fires and A and B run the same commands on the same draws
 near_singularity: B's lowest w over all seeds 0.004614 sits just below W_MIN 0.004698 (a reshaped reference, not a hard barrier: shared noise jitters the held pose); it stops 2.39 mm short of 0.2505 m by design
 near_singularity: A's lowest w 0.001869; A hits the 171.9 deg/s rate limit and has the largest hold-phase joint rate (its reaction to the shared noise)
