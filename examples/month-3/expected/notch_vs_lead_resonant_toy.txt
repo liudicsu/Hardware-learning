@@ -1,0 +1,66 @@
+Synthetic PID vs PID+notch vs PID+lead-lag; shared steps / load torques / sensor noise; not a motor bench
+TS=0.001 s RK4 H=0.00025 s TM=0.05 s WC=20.0 rad/s TI=0.25 s TD=0.025 s N=8 notch w0=40 rad/s wc/w0=0.5 mistuned w0=28 rad/s lead PHI=30 deg seeds=5
+stable margins = PM > 0 deg and GM > 0 dB on the Bode proxy, and no divergence (|y| <= 10 rad) on >= 4 of 5 seeds
+regime arm Kc PM_deg GM_dB
+well_damped (wr=0, zr=0.0) RK4 h_max=139.3 ms > H: A_pid 26.35 60.6 42.37 | B_notch 27.78 42.1 12.65 | C_leadlag 45.44 86.8 38.26 | D_mistuned 32.61 24.4 6.82
+resonant (wr=40, zr=0.3) RK4 h_max=70.9 ms > H: A_pid 21.29 38.7 3.00 | B_notch 22.44 20.3 2.21 | C_leadlag 36.71 64.9 2.01 | D_mistuned 26.34 2.6 0.40
+resonant_light (wr=40, zr=0.2) RK4 h_max=73.5 ms > H: A_pid 20.45 45.6 0.80 | B_notch 21.56 27.2 2.35 | C_leadlag 35.27 -16.3 inf | D_mistuned 25.31 9.5 1.46
+resonant_sharp (wr=40, zr=0.05) RK4 h_max=72.7 ms > H: A_pid 19.81 -92.2 inf | B_notch 20.88 38.3 2.03 | C_leadlag 34.16 -76.9 inf | D_mistuned 24.51 -67.5 3.88
+notch width check (B_notch margins only, wc/w0 = 0.25 / 0.5 / 1.0; 0.5 was fixed before the first run):
+  well_damped: wc/w0=0.25 PM 51.1 GM 13.76 | wc/w0=0.5 PM 42.1 GM 12.65 | wc/w0=1.0 PM 26.8 GM 9.96
+  resonant: wc/w0=0.25 PM 29.3 GM 2.52 | wc/w0=0.5 PM 20.3 GM 2.21 | wc/w0=1.0 PM 5.0 GM 0.79
+  resonant_light: wc/w0=0.25 PM 36.1 GM 1.84 | wc/w0=0.5 PM 27.2 GM 2.35 | wc/w0=1.0 PM 11.9 GM 1.76
+  resonant_sharp: wc/w0=0.25 PM -42.8 GM 2.59 | wc/w0=0.5 PM 38.3 GM 2.03 | wc/w0=1.0 PM 23.0 GM 3.46
+resonant_sharp alternative zr=0.1 (zr=0.05 was picked after a margin-only prototype): A_pid PM -66.8 GM inf | B_notch PM 34.5 GM 2.19 | C_leadlag PM -58.3 GM inf | D_mistuned PM -42.7 GM 2.88
+regime arm ISE_1e-3rad2s overshoot_% du_rms  (mean+-sd over seeds)
+well_damped A_pid 12.7681+-3.2321 13.1263+-0.0096 0.1858+-0.0038
+well_damped B_notch 18.3641+-4.6499 24.0788+-0.0114 0.1950+-0.0038
+well_damped C_leadlag 13.4831+-3.4238 13.1321+-0.1840 0.3171+-0.0057
+well_damped D_mistuned 23.4636+-5.9974 31.3511+-0.3660 0.2295+-0.0045
+well_damped paired B-A ise: 5.5960+-1.4179: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+well_damped paired B-A over: 10.9526+-0.0092: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+well_damped paired B-A du: 0.0092+-4.760e-05: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+well_damped paired C-A ise: 0.7150+-0.1951: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+well_damped paired C-A over: 0.0058+-0.1814: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+well_damped paired C-A du: 0.1313+-0.0019: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+well_damped paired D-A ise: 10.6955+-2.7663: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+well_damped paired D-A over: 18.2248+-0.3668: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+well_damped paired D-A du: 0.0437+-0.0008: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant A_pid 31.8025+-8.0515 30.4564+-0.0353 0.1538+-0.0039
+resonant B_notch 59.2088+-14.9987 54.9461+-0.0233 0.1621+-0.0041
+resonant C_leadlag 29.0000+-7.3783 27.8022+-0.2003 0.2603+-0.0056
+resonant D_mistuned 213.4608+-22.7295 80.1948+-41.3285 0.2021+-0.0008
+resonant paired B-A ise: 27.4063+-6.9473: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant paired B-A over: 24.4897+-0.0409: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant paired B-A du: 0.0083+-0.0002: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant paired C-A ise: -2.8025+-0.6749: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant paired C-A over: -2.6542+-0.1663: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant paired C-A du: 0.1065+-0.0017: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant paired D-A ise: 181.6583+-30.2807: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant paired D-A over: 49.7384+-41.2963: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant paired D-A du: 0.0483+-0.0031: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant_light A_pid 39.5028+-8.5902 31.8691+-3.6884 0.1537+-0.0042
+resonant_light B_notch 47.0174+-11.8777 46.7562+-0.1103 0.1545+-0.0037
+resonant_light C_leadlag diverged (|y| > 10 rad) on 5 of 5 seeds
+resonant_light D_mistuned 83.0990+-18.7348 48.5690+-3.4680 0.1844+-0.0047
+resonant_light paired B-A ise: 7.5146+-3.5371: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant_light paired B-A over: 14.8871+-3.5792: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant_light paired B-A du: 0.0008+-0.0009: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+resonant_light paired C-A: not compared (C_leadlag diverged)
+resonant_light paired D-A ise: 43.5963+-10.2238: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant_light paired D-A over: 16.7000+-1.0065: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant_light paired D-A du: 0.0306+-0.0007: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant_sharp A_pid diverged (|y| > 10 rad) on 5 of 5 seeds
+resonant_sharp B_notch 35.4985+-8.9765 32.2176+-0.1922 0.1482+-0.0032
+resonant_sharp C_leadlag diverged (|y| > 10 rad) on 5 of 5 seeds
+resonant_sharp D_mistuned diverged (|y| > 10 rad) on 5 of 5 seeds
+resonant_sharp paired B-A: not compared (A_pid diverged)
+resonant_sharp paired C-A: not compared (A_pid and C_leadlag diverged)
+resonant_sharp paired D-A: not compared (A_pid and D_mistuned diverged)
+well_damped: there is no mode to cut; the notch only adds phase lag at crossover and tracks worse
+resonant: the mode is damped enough for PID alone; the notch costs phase margin and gain margin here
+resonant_light: the notch buys gain margin (0.80 -> 2.35 dB) but tracks worse; lead diverges
+resonant_sharp: PID and lead diverge; only the notch on the mode keeps the loop stable
+D_mistuned: a notch 30 % below the mode adds lag without removing the peak
+No winner declared; ISE is blind to actuator chatter (du_rms) and to the gain margin
+Real servo / modal test: 本页未运行; Wikipedia definitions 以原文为准

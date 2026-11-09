@@ -5115,6 +5115,66 @@ export const resources: Record<string, Resource> = {
     },
     extra: true,
   },
+  "wiki-nyquist-shannon": {
+    id: "wiki-nyquist-shannon",
+    url: "https://en.wikipedia.org/wiki/Nyquist–Shannon_sampling_theorem",
+    title: {
+      zh: "Wikipedia：奈奎斯特–香农采样定理（Nyquist–Shannon sampling theorem）",
+      en: "Wikipedia: Nyquist–Shannon sampling theorem",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "不含高于 B 赫兹频率的函数，由间隔小于 1/(2B) 秒的采样完全确定，所以大于 2B 的采样率就足够；2B 是奈奎斯特速率（输入的属性），fs/2 是奈奎斯特频率（采样设备的属性）；带宽太高时重建出现混叠。HTML 正文已核验；以原文为准。",
+      en: "A function with no frequencies above B hertz is completely determined by samples spaced less than 1/(2B) seconds apart, so any rate above 2B suffices; 2B is the Nyquist rate (a property of the input), fs/2 the Nyquist frequency (a property of the sampler); a bandlimit that is too high shows up as aliasing. HTML body verified; 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "wiki-aliasing": {
+    id: "wiki-aliasing",
+    url: "https://en.wikipedia.org/wiki/Aliasing",
+    title: {
+      zh: "Wikipedia：混叠（Aliasing）",
+      en: "Wikipedia: Aliasing",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "原信号含有高于 fs/2 的分量时，重建信号里出现原本没有的低频分量；实正弦的混叠频率为 |f + N·fs|，在 fs/2（折叠频率）处对称；一般在采样前加低通抗混叠滤波器，被衰减的分量仍会混叠，但幅值通常小到无害。HTML 正文已核验；以原文为准。",
+      en: "When a signal has components above fs/2, the reconstruction contains low-frequency components that were not there; the aliases of a real sinusoid are |f + N·fs|, symmetric about fs/2 (the folding frequency); a low-pass anti-aliasing filter before sampling is the usual fix, and the attenuated components still alias but usually at harmless amplitudes. HTML body verified; 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "wiki-band-stop": {
+    id: "wiki-band-stop",
+    url: "https://en.wikipedia.org/wiki/Band-stop_filter",
+    title: {
+      zh: "Wikipedia：带阻滤波器与陷波滤波器（Band-stop filter）",
+      en: "Wikipedia: Band-stop filter",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "带阻滤波器让大多数频率通过、把一段频率衰减到很低；陷波是阻带很窄（Q 高）的带阻；标准陷波 H(s) = (s² + ω0²)/(s² + ωc s + ω0²)，ω0 为中心抑制频率，ωc 为抑制带宽；例子有 59–61 Hz 去嗡声滤波器和扩声系统中的防啸叫陷波。HTML 正文已核验；以原文为准。",
+      en: "A band-stop filter passes most frequencies and attenuates one range to very low levels; a notch is a band-stop with a narrow stopband (high Q); the standard notch is H(s) = (s² + ω0²)/(s² + ωc s + ω0²) with ω0 the central rejected frequency and ωc the rejected bandwidth; examples include a 59–61 Hz anti-hum filter and feedback-suppressing notches in PA systems. HTML body verified; 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
   "wiki-four-terminal": {
     id: "wiki-four-terminal",
     url: "https://en.wikipedia.org/wiki/Four-terminal_sensing",

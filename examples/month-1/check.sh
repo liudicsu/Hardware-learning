@@ -62,4 +62,9 @@ if python3 "$M1/bench-multimeter/kelvin_four_wire_sense_toy.py" > "$TMP/kelvin_f
 else
   echo "DIFF  kelvin_four_wire_sense_toy.txt"; fail=1
 fi
+if python3 "$M1/python-terminal/nyquist_aliasing_toy.py" > "$TMP/nyquist_aliasing_toy.txt" && diff -u "$M1/expected/nyquist_aliasing_toy.txt" "$TMP/nyquist_aliasing_toy.txt"; then
+  echo "same  nyquist_aliasing_toy.txt"
+else
+  echo "DIFF  nyquist_aliasing_toy.txt"; fail=1
+fi
 exit $fail

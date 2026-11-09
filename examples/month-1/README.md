@@ -29,3 +29,7 @@ The legacy python-terminal examples are real program runs. / 原 python-terminal
 ## bench-multimeter/ — Kelvin four-wire / 开尔文四线
 
 `bench-multimeter/kelvin_four_wire_sense_toy.py`: standard-library synthetic DC model of two-wire vs Kelvin (four-terminal) resistance measurement, no hardware; expected output in `expected/kelvin_four_wire_sense_toy.txt`, included in `check.sh`. / 标准库合成直流模型，对比两线法与开尔文四线法，不是硬件测量，输出由 `check.sh` 核对。
+
+## python-terminal/ — Nyquist and aliasing / 奈奎斯特与混叠
+
+`python-terminal/nyquist_aliasing_toy.py`: standard-library synthetic sampling model (ideal samples, plain DFT) comparing a 50 Hz rate, 200 Hz with an anti-alias prefilter and 200 Hz without one; no hardware; expected output in `expected/nyquist_aliasing_toy.txt`, included in `check.sh`. / 标准库合成采样模型（理想采样、普通 DFT），比较 50 Hz、带抗混叠前置滤波的 200 Hz 与不滤波的 200 Hz；不是硬件测量，输出由 `check.sh` 核对。

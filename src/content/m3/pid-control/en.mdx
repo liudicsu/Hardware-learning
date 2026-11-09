@@ -943,6 +943,498 @@ The page **does not declare a universal winner**: lead–lag helps exactly when 
 4. Set `PHI` to 15° with seeds fixed. Predict B's phase margin and whether it still diverges in resonant_light before you run.
 5. Before any bench run (本页未运行), explain why B's small but consistent ISE win in **resonant** does **not** mean B is the safer controller on that plant.
 
+## Notch filter on a resonant joint
+
+The lead–lag section above ends with a lightly damped mode that more lead destabilises, and it leaves the notch filter out. This section adds that notch on the same joint, with the same PID recipe, crossover and shared draws, and compares it with PID alone, the lead–lag arm and a notch tuned to the wrong frequency. It is **not** a Smith predictor, **not** the discrete LQR from Month 5, and **not** another pass over the lead–lag design.
+
+<Resource id="wiki-band-stop" />
+
+**Source actually opened (HTML body read).** **Wikipedia — Band-stop filter:** a band-stop filter passes most frequencies unaltered but attenuates those in a specific range to very low levels; a notch filter is a band-stop filter with a narrow stopband (high Q factor). The standard notch is `H(s) = (s² + ω0²) / (s² + ωc s + ω0²)`, where `ω0` is the central rejected frequency and `ωc > 0` is the width of the rejected band. The article's examples include a 59–61 Hz anti-hum filter for 60 Hz mains, and notch filters in public address systems and instrument amplifiers that reduce audio feedback with little effect on the rest of the spectrum. 以原文为准.
+
+### What a notch removes and what it costs
+
+<Formula label="Notch section">N(s) = (s² + ω0²) / (s² + ωc s + ω0²)</Formula>
+
+At `ω0` the numerator is zero, so the loop gain at the resonance is cut to nothing (in theory; after Tustin discretisation the toy's notch is about 5 × 10⁻⁴ at 40 rad/s). Below `ω0` the section is not free: it has phase **lag**.
+
+**Worked example.** With `ω0 = 40 rad/s` and `ωc = 0.5 × ω0 = 20 rad/s`, at the 20 rad/s crossover: numerator `1600 − 400 = 1200`, denominator `1200 + j·400`, so `|N| = 1200 / 1264.9 = 0.949` and the phase is `−atan(400 / 1200) = −18.4°`. On the rigid joint the toy prints A's phase margin as 60.6° and the notch arm's as 42.1°: almost exactly that 18.4°. A notch trades phase at crossover for gain at the resonance. It pays off only when the resonance is what limits the loop.
+
+**Loop-stability criterion.** An arm counts as stable when its discrete Bode proxy shows `GM > 0 dB` and `PM > 0°`, **and** the simulated link angle stays within 10 rad on at least 4 of 5 seeds. The toy prints the margins of every arm and every regime, and a "diverged on k of 5 seeds" line whenever a run leaves that bound.
+
+**Integration step and its stability criterion.** As in the lead–lag toy, the plant is integrated with RK4 at `H = TS/4 = 0.25 ms` under a zero-order hold. RK4 is stable for a plant mode `λ` when `|R(H·λ)| ≤ 1` with `R(z) = 1 + z + z²/2 + z³/6 + z⁴/24`. The toy prints the largest stable step along the plant's modes (139.3 ms for the rigid joint, 70.9, 73.5 and 72.7 ms with the three compliant modes) and asserts `H` is far below it. The tests check decay at 0.98× and growth at 1.02× of that limit for the `zr = 0.05` mode, and that `H` and `H/2` agree to 10⁻⁶. **A stable integrator is not a stable loop:** several arms below diverge while the integrator stays accurate.
+
+### Fair setup
+
+`notch_vs_lead_resonant_toy.py` is **synthetic** and stdlib only. **Model assumptions:** the same linear, time-invariant joint as the lead–lag toy, `G(s) = 1 / (s (TM s + 1))` with `TM = 0.05 s`, followed by a compliant mode `wr² / (s² + 2 zr wr s + wr²)` (non-collocated sensor); load torque at the plant input; **no** actuator limit; 0.5 mrad Gaussian sensor noise; a shared 50 ms reference prefilter. The designer knows `wr = 40 rad/s` exactly for B; D is the same notch built on a 30 % low estimate.
+
+| Arm | Controller (sampled at 1 ms, every section discretised with Tustin) |
+|---|---|
+| A_pid | `Kc × (1 + 1/(TI s) + TD s / (TD/N s + 1))`, `TI = 0.25 s`, `TD = 0.025 s`, `N = 8` |
+| B_notch | A's shape × notch with `ω0 = 40 rad/s`, `ωc = 0.5 × ω0` |
+| C_leadlag | A's shape × the lead (`φ = 30°`) and lag of the lead–lag section |
+| D_mistuned | B's notch centred at `0.7 × 40 = 28 rad/s` |
+
+**One recipe for every arm and every regime:** the shapes are fixed, and each arm's `Kc` is chosen so that `|L(j·WC)| = 1` on the actual plant, so all arms share the 20 rad/s crossover. **Common random numbers:** for each seed the three reference steps, the three load steps and the whole noise sequence are drawn once and fed to every arm. C reproduces the lead–lag toy's lead–lag arm to 10⁻⁹ (an independent test checks it), so the two sections share one baseline. Metrics are ISE (10⁻³ rad²·s), worst step overshoot (%) and `du_rms` (RMS sample-to-sample change of the command); **ISE is blind** to chatter and to the gain margin, so all three and the margins are printed.
+
+| Regime | Compliant mode |
+|---|---|
+| well_damped | none (rigid joint) |
+| resonant | `wr = 40 rad/s`, `zr = 0.3` |
+| resonant_light | `wr = 40 rad/s`, `zr = 0.2` |
+| resonant_sharp | `wr = 40 rad/s`, `zr = 0.05` |
+
+**Choices made after seeing results.** The notch width `ωc / ω0 = 0.5` and the mistune factor 0.7 were set before the first run and not changed; the toy still prints B's margins at `ωc / ω0 = 0.25` and 1.0 so you can see the choice. The `resonant_sharp` damping `zr = 0.05` was picked after a margins-only prototype that also tried `zr = 0.1`; the toy prints the margins for `zr = 0.1` too, and they show the same pattern (A −66.8°, B 34.5° / 2.19 dB, C −58.3°, D −42.7°). A first version of the toy had a bug in its first-order Tustin sections; it was fixed before any number on this page was recorded, and the test that C reproduces the lead–lag toy guards it.
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-3/pid-control
+python3 notch_vs_lead_resonant_toy.py
+```
+
+<CodeSource path="examples/month-3/pid-control/notch_vs_lead_resonant_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic PID vs PID + notch vs PID + lead-lag on a joint with a resonance. Stdlib only.
+
+Plant (linear, LTI, no actuator limit), the same joint as lead_lag_vs_pid_toy.py:
+  G(s) = 1 / (s (TM s + 1)) * wr^2 / (s^2 + 2 zr wr s + wr^2)
+  motor + inertia (TM = 0.05 s), then a compliant transmission mode (wr, zr) between
+  motor and the measured link angle (non-collocated sensor). The rigid case drops
+  the mode. Torque disturbance enters at the plant input.
+
+Controllers (sampled at TS = 1 ms, every section discretised with Tustin):
+  A_pid        Kc * (1 + 1/(TI s) + TD s / (TD/N s + 1))
+  B_notch      A's shape * notch (s^2 + w0^2) / (s^2 + wc s + w0^2), w0 = WN = 40 rad/s
+               (the designer's estimate of the mode), width wc = WIDTH * w0
+  C_leadlag    A's shape * the lead (PHI = 30 deg) and lag of the lead-lag section
+  D_mistuned   B's notch centred at MISTUNE * WN = 28 rad/s instead of 40 rad/s
+  Same design rule for every arm: one fixed recipe (not tuned per regime), and Kc
+  is chosen so |L(j WC)| = 1 on the actual plant, so all arms share crossover WC.
+
+Common random numbers: per seed the three reference steps, three load-torque
+steps and the measurement-noise sequence (sd 0.5 mrad) are drawn once and fed to
+every arm. Integration: RK4 with H = TS/4 under zero-order-hold control. RK4 is
+stable for a mode lambda when |R(H lambda)| <= 1, R(z) = 1+z+z^2/2+z^3/6+z^4/24;
+the toy prints the largest stable step along the plant's modes and asserts H < it.
+
+Labels: tie = identical on every seed; numerically zero = |paired mean| and sd both
+< 1e-9 (floating-point residue, effectively a tie, no sign count); |m| <= sd =
+near-tie / small gap within seed noise; |m| > sd = consistent gap (small if |m| <
+20 % of the smaller arm mean, else clear), always with a sign count. Margins are a
+discrete Bode proxy (continuous controller x continuous plant x ZOH half-sample delay).
+Real servo / modal test: 本页未运行. Wikipedia definitions: 以原文为准.
+"""
+from __future__ import annotations
+
+import cmath
+import math
+import random
+
+TS = 1e-3  # s, controller sample time
+SUB = 4  # RK4 sub-steps per sample
+H = TS / SUB
+TM = 0.05  # s, motor mechanical time constant
+WC = 20.0  # rad/s, shared crossover target
+TI, TD, N = 5.0 / WC, 0.5 / WC, 8.0
+PHI = math.radians(30.0)
+ALPHA = (1 + math.sin(PHI)) / (1 - math.sin(PHI))
+BETA = 3.0
+WN = 40.0  # rad/s, notch centre = the designer's estimate of the mode
+WIDTH = 0.5  # notch width wc / w0, fixed before the first run
+MISTUNE = 0.7  # D_mistuned centres its notch at MISTUNE * WN
+T_END = 6.0
+NOISE = 5e-4  # rad, measurement noise sd
+DIVERGED = 10.0  # rad, abort threshold (the references never exceed 3 rad)
+NUM_ZERO = 1e-9
+SEEDS = (0, 1, 2, 3, 4)
+ARMS = ("A_pid", "B_notch", "C_leadlag", "D_mistuned")
+# name, wr (0 = rigid), zr
+REGIMES = (("well_damped", 0.0, 0.0), ("resonant", 40.0, 0.3), ("resonant_light", 40.0, 0.2),
+           ("resonant_sharp", 40.0, 0.05))
+ALT_SHARP_ZR = 0.1  # margins-only alternative for resonant_sharp (reported, not simulated)
+
+
+def sections(arm: str, width: float = WIDTH) -> list[tuple[str, tuple[float, ...]]]:
+    """Sections cascaded after the PID: ('lead', z, p) first order or ('notch', w0, wc)."""
+    if arm == "B_notch":
+        return [("notch", (WN, width * WN))]
+    if arm == "D_mistuned":
+        return [("notch", (MISTUNE * WN, width * MISTUNE * WN))]
+    if arm == "C_leadlag":
+        z, p = WC / math.sqrt(ALPHA), WC * math.sqrt(ALPHA)
+        return [("lead", (z, p)), ("lead", (WC / 10.0, WC / 10.0 / BETA))]
+    return []
+
+
+def plant(w: float, wr: float, zr: float) -> complex:
+    s = 1j * w
+    g = 1.0 / (s * (TM * s + 1.0))
+    return g * wr * wr / (s * s + 2 * zr * wr * s + wr * wr) if wr else g
+
+
+def notch(w: float, w0: float, wc: float) -> complex:
+    s = 1j * w
+    return (s * s + w0 * w0) / (s * s + wc * s + w0 * w0)
+
+
+def shape(arm: str, w: float, width: float = WIDTH) -> complex:
+    s = 1j * w
+    c = 1.0 + 1.0 / (TI * s) + TD * s / (TD / N * s + 1.0)
+    for kind, par in sections(arm, width):
+        if kind == "lead":
+            z, p = par
+            c *= (s / z + 1.0) / (s / p + 1.0)
+        else:
+            c *= notch(w, *par)
+    return c
+
+
+def gain(arm: str, wr: float, zr: float, width: float = WIDTH) -> float:
+    return 1.0 / abs(shape(arm, WC, width) * plant(WC, wr, zr))
+
+
+def margins(arm: str, wr: float, zr: float, width: float = WIDTH) -> tuple[float, float]:
+    """Smallest phase margin over all |L| = 1 crossings and smallest gain margin
+    (dB) over -180 deg crossings with |L| < 1; unwrapped phase from 0.1 rad/s."""
+    k = gain(arm, wr, zr, width)
+    pms, gms = [], []
+    prev = None
+    off = 0.0
+    n = 20000
+    for i in range(n + 1):
+        w = 10 ** (-1 + i * (math.log10(math.pi / TS) + 1) / n)
+        loop = k * shape(arm, w, width) * plant(w, wr, zr) * cmath.exp(-0.5j * w * TS)
+        mag, ph = abs(loop), math.degrees(cmath.phase(loop))
+        if prev is None:
+            while ph > -90.0:
+                ph -= 360.0
+            off = ph - math.degrees(cmath.phase(loop))
+        else:
+            ph += off
+            while ph - prev[1] > 180.0:
+                ph -= 360.0
+                off -= 360.0
+            while ph - prev[1] < -180.0:
+                ph += 360.0
+                off += 360.0
+            if (prev[0] - 1.0) * (mag - 1.0) < 0:
+                pms.append(180.0 + ph)
+            for line in (-180.0, -540.0):
+                if (prev[1] - line) * (ph - line) < 0 and mag < 1.0:
+                    gms.append(-20 * math.log10(mag))
+        prev = (mag, ph)
+    return min(pms), (min(gms) if gms else math.inf)
+
+
+def tustin2(b: tuple[float, float, float], a: tuple[float, float, float]) -> list[float]:
+    """b = (b0, b1, b2), a = (a0, a1, a2): (b2 s^2 + b1 s + b0) / (a2 s^2 + a1 s + a0)
+    -> biquad via s = c (z - 1) / (z + 1)."""
+    c = 2.0 / TS
+    nb = (b[2] * c * c + b[1] * c + b[0], 2 * b[0] - 2 * b[2] * c * c, b[2] * c * c - b[1] * c + b[0])
+    na = (a[2] * c * c + a[1] * c + a[0], 2 * a[0] - 2 * a[2] * c * c, a[2] * c * c - a[1] * c + a[0])
+    return [nb[0] / na[0], nb[1] / na[0], nb[2] / na[0], na[1] / na[0], na[2] / na[0], 0.0, 0.0, 0.0, 0.0]
+
+
+class Controller:
+    """PI (trapezoid) + filtered D (Tustin), then Tustin sections (first or second order)."""
+
+    def __init__(self, arm: str, k: float) -> None:
+        self.k, self.i, self.e_prev, self.d = k, 0.0, 0.0, 0.0
+        tf = TD / N
+        c = 2.0 / TS
+        self.db0, self.da1 = TD * c / (tf * c + 1.0), (1.0 - tf * c) / (tf * c + 1.0)
+        self.secs = []
+        for kind, par in sections(arm):
+            if kind == "lead":
+                z, p = par
+                a0 = c / p + 1.0
+                self.secs.append([(c / z + 1.0) / a0, (1.0 - c / z) / a0, 0.0, (1.0 - c / p) / a0, 0.0,
+                                  0.0, 0.0, 0.0, 0.0])
+            else:
+                w0, wc = par
+                self.secs.append(tustin2((w0 * w0, 0.0, 1.0), (w0 * w0, wc, 1.0)))
+
+    def step(self, e: float) -> float:
+        self.i += TS / TI * (e + self.e_prev) / 2.0
+        self.d = self.db0 * (e - self.e_prev) - self.da1 * self.d
+        self.e_prev = e
+        x = e + self.i + self.d
+        for sec in self.secs:
+            b0, b1, b2, a1, a2, x1, x2, y1, y2 = sec
+            y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2
+            sec[5:] = [x, x1, y, y1]
+            x = y
+        return self.k * x
+
+
+def deriv(x: list[float], u: float, wr: float, zr: float) -> list[float]:
+    v, th, y, yd = x
+    if not wr:
+        return [(u - v) / TM, v, v, 0.0]
+    return [(u - v) / TM, v, yd, wr * wr * (th - y) - 2 * zr * wr * yd]
+
+
+def rk4(x: list[float], u: float, wr: float, zr: float, h: float = H) -> list[float]:
+    k1 = deriv(x, u, wr, zr)
+    k2 = deriv([a + h / 2 * b for a, b in zip(x, k1)], u, wr, zr)
+    k3 = deriv([a + h / 2 * b for a, b in zip(x, k2)], u, wr, zr)
+    k4 = deriv([a + h * b for a, b in zip(x, k3)], u, wr, zr)
+    return [a + h / 6 * (b + 2 * c + 2 * d + e) for a, b, c, d, e in zip(x, k1, k2, k3, k4)]
+
+
+def rk4_amp(z: complex) -> float:
+    return abs(1 + z + z * z / 2 + z ** 3 / 6 + z ** 4 / 24)
+
+
+def rk4_h_max(lam: complex) -> float:
+    """Largest step with |R(h lambda)| <= 1 along this mode (bisection)."""
+    lo, hi = 0.0, 10.0 / abs(lam)
+    for _ in range(60):
+        mid = (lo + hi) / 2
+        lo, hi = (mid, hi) if rk4_amp(mid * lam) <= 1.0 else (lo, mid)
+    return lo
+
+
+def modes(wr: float, zr: float) -> list[complex]:
+    out = [complex(-1.0 / TM)]
+    if wr:
+        out += [complex(-zr * wr, s * wr * math.sqrt(1 - zr * zr)) for s in (1, -1)]
+    return out
+
+
+def shared_draws(seed: int) -> tuple[list, list, list]:
+    """Common random numbers: one draw per seed, fed to every arm and regime."""
+    rng = random.Random(seed)
+    steps = [(0.2 + 2.0 * i, rng.choice((-1.0, 1.0)) * rng.uniform(0.2, 1.0)) for i in range(3)]
+    loads = [(1.2 + 2.0 * i, 0.3 * rng.uniform(-1.0, 1.0)) for i in range(3)]
+    noise = [rng.gauss(0.0, NOISE) for _ in range(round(T_END / TS))]
+    return steps, loads, noise
+
+
+def simulate(arm: str, wr: float, zr: float, draws: tuple, sub: int = SUB) -> dict | None:
+    steps, loads, noise = draws
+    ctrl = Controller(arm, gain(arm, wr, zr))
+    x, rf, u_prev = [0.0] * 4, 0.0, 0.0
+    ise = du2 = 0.0
+    over = [0.0] * len(steps)
+    for i, nz in enumerate(noise):
+        t = i * TS
+        r = sum(a for t0, a in steps if t >= t0)
+        rf += TS / 0.05 * (r - rf)  # shared reference prefilter, 50 ms
+        u = ctrl.step(rf - (x[2] + nz))
+        d = sum(a for t0, a in loads if t >= t0)
+        for _ in range(sub):
+            x = rk4(x, u + d, wr, zr, TS / sub)
+        if abs(x[2]) > DIVERGED:
+            return None
+        ise += (rf - x[2]) ** 2 * TS
+        du2 += (u - u_prev) ** 2
+        u_prev = u
+        for j, (t0, a) in enumerate(steps):
+            if t0 <= t < t0 + 1.0:
+                over[j] = max(over[j], math.copysign(1.0, a) * (x[2] - r) / abs(a))
+    return {"ise": 1e3 * ise, "over": 100.0 * max(over), "du": math.sqrt(du2 / len(noise))}
+
+
+def mean_sd(xs: list[float]) -> tuple[float, float]:
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x: float) -> str:
+    """4 decimals; scientific notation when 4 decimals would print a signed or bare zero."""
+    if x != 0.0 and abs(x) < 5e-5:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs: list[float], m: float) -> str:
+    """How many seeds disagree in sign with the paired mean (zeros listed apart)."""
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def verdict(xa: list[float], xb: list[float]) -> str:
+    """Paired xa - xb per seed: mean+-sd, then the label and the sign count."""
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{num(m)}+-{num(s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{num(m)}+-{num(s)}: {label}; {sign_note(diffs, m)}"
+
+
+def gm_text(gm: float) -> str:
+    return "inf" if math.isinf(gm) else f"{gm:.2f}"
+
+
+def main() -> None:
+    print("Synthetic PID vs PID+notch vs PID+lead-lag; shared steps / load torques / sensor noise; not a motor bench")
+    print(f"TS={TS} s RK4 H={H} s TM={TM} s WC={WC} rad/s TI={TI} s TD={TD} s N={N:.0f} "
+          f"notch w0={WN:.0f} rad/s wc/w0={WIDTH} mistuned w0={MISTUNE * WN:.0f} rad/s lead PHI=30 deg seeds={len(SEEDS)}")
+    print("stable margins = PM > 0 deg and GM > 0 dB on the Bode proxy, and no divergence (|y| <= 10 rad) on >= 4 of 5 seeds")
+    print("regime arm Kc PM_deg GM_dB")
+    for regime, wr, zr in REGIMES:
+        h_max = min(rk4_h_max(lam) for lam in modes(wr, zr))
+        amp = max(rk4_amp(H * lam) for lam in modes(wr, zr))
+        assert amp < 1.0 and H < h_max
+        cells = []
+        for arm in ARMS:
+            pm, gm = margins(arm, wr, zr)
+            cells.append(f"{arm} {gain(arm, wr, zr):.2f} {pm:.1f} {gm_text(gm)}")
+        print(f"{regime} (wr={wr:.0f}, zr={zr}) RK4 h_max={h_max * 1e3:.1f} ms > H: " + " | ".join(cells))
+    print("notch width check (B_notch margins only, wc/w0 = 0.25 / 0.5 / 1.0; 0.5 was fixed before the first run):")
+    for regime, wr, zr in REGIMES:
+        cells = []
+        for width in (0.25, 0.5, 1.0):
+            pm, gm = margins("B_notch", wr, zr, width)
+            cells.append(f"wc/w0={width} PM {pm:.1f} GM {gm_text(gm)}")
+        print(f"  {regime}: " + " | ".join(cells))
+    alt = []
+    for arm in ARMS:
+        pm, gm = margins(arm, 40.0, ALT_SHARP_ZR)
+        alt.append(f"{arm} PM {pm:.1f} GM {gm_text(gm)}")
+    print(f"resonant_sharp alternative zr={ALT_SHARP_ZR} (zr=0.05 was picked after a margin-only prototype): " + " | ".join(alt))
+    print("regime arm ISE_1e-3rad2s overshoot_% du_rms  (mean+-sd over seeds)")
+    draws = [shared_draws(seed) for seed in SEEDS]
+    for regime, wr, zr in REGIMES:
+        res = {arm: [simulate(arm, wr, zr, dr) for dr in draws] for arm in ARMS}
+        for arm in ARMS:
+            ok = [r for r in res[arm] if r is not None]
+            if len(ok) < len(SEEDS):
+                print(f"{regime} {arm} diverged (|y| > {DIVERGED:.0f} rad) on {len(SEEDS) - len(ok)} of {len(SEEDS)} seeds")
+                continue
+            print(f"{regime} {arm} " + " ".join("{}+-{}".format(*map(num, mean_sd([r[k] for r in ok])))
+                                                 for k in ("ise", "over", "du")))
+        for x in ("B_notch", "C_leadlag", "D_mistuned"):
+            if any(r is None for r in res[x] + res["A_pid"]):
+                bad = [a for a in ("A_pid", x) if any(r is None for r in res[a])]
+                print(f"{regime} paired {x[0]}-A: not compared ({' and '.join(bad)} diverged)")
+                continue
+            for k in ("ise", "over", "du"):
+                print(f"{regime} paired {x[0]}-A {k}: {verdict([r[k] for r in res[x]], [r[k] for r in res['A_pid']])}")
+    print("well_damped: there is no mode to cut; the notch only adds phase lag at crossover and tracks worse")
+    print("resonant: the mode is damped enough for PID alone; the notch costs phase margin and gain margin here")
+    print("resonant_light: the notch buys gain margin (0.80 -> 2.35 dB) but tracks worse; lead diverges")
+    print("resonant_sharp: PID and lead diverge; only the notch on the mode keeps the loop stable")
+    print("D_mistuned: a notch 30 % below the mode adds lag without removing the peak")
+    print("No winner declared; ISE is blind to actuator chatter (du_rms) and to the gain margin")
+    print("Real servo / modal test: 本页未运行; Wikipedia definitions 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic PID vs PID+notch vs PID+lead-lag; shared steps / load torques / sensor noise; not a motor bench
+TS=0.001 s RK4 H=0.00025 s TM=0.05 s WC=20.0 rad/s TI=0.25 s TD=0.025 s N=8 notch w0=40 rad/s wc/w0=0.5 mistuned w0=28 rad/s lead PHI=30 deg seeds=5
+stable margins = PM > 0 deg and GM > 0 dB on the Bode proxy, and no divergence (|y| <= 10 rad) on >= 4 of 5 seeds
+regime arm Kc PM_deg GM_dB
+well_damped (wr=0, zr=0.0) RK4 h_max=139.3 ms > H: A_pid 26.35 60.6 42.37 | B_notch 27.78 42.1 12.65 | C_leadlag 45.44 86.8 38.26 | D_mistuned 32.61 24.4 6.82
+resonant (wr=40, zr=0.3) RK4 h_max=70.9 ms > H: A_pid 21.29 38.7 3.00 | B_notch 22.44 20.3 2.21 | C_leadlag 36.71 64.9 2.01 | D_mistuned 26.34 2.6 0.40
+resonant_light (wr=40, zr=0.2) RK4 h_max=73.5 ms > H: A_pid 20.45 45.6 0.80 | B_notch 21.56 27.2 2.35 | C_leadlag 35.27 -16.3 inf | D_mistuned 25.31 9.5 1.46
+resonant_sharp (wr=40, zr=0.05) RK4 h_max=72.7 ms > H: A_pid 19.81 -92.2 inf | B_notch 20.88 38.3 2.03 | C_leadlag 34.16 -76.9 inf | D_mistuned 24.51 -67.5 3.88
+notch width check (B_notch margins only, wc/w0 = 0.25 / 0.5 / 1.0; 0.5 was fixed before the first run):
+  well_damped: wc/w0=0.25 PM 51.1 GM 13.76 | wc/w0=0.5 PM 42.1 GM 12.65 | wc/w0=1.0 PM 26.8 GM 9.96
+  resonant: wc/w0=0.25 PM 29.3 GM 2.52 | wc/w0=0.5 PM 20.3 GM 2.21 | wc/w0=1.0 PM 5.0 GM 0.79
+  resonant_light: wc/w0=0.25 PM 36.1 GM 1.84 | wc/w0=0.5 PM 27.2 GM 2.35 | wc/w0=1.0 PM 11.9 GM 1.76
+  resonant_sharp: wc/w0=0.25 PM -42.8 GM 2.59 | wc/w0=0.5 PM 38.3 GM 2.03 | wc/w0=1.0 PM 23.0 GM 3.46
+resonant_sharp alternative zr=0.1 (zr=0.05 was picked after a margin-only prototype): A_pid PM -66.8 GM inf | B_notch PM 34.5 GM 2.19 | C_leadlag PM -58.3 GM inf | D_mistuned PM -42.7 GM 2.88
+regime arm ISE_1e-3rad2s overshoot_% du_rms  (mean+-sd over seeds)
+well_damped A_pid 12.7681+-3.2321 13.1263+-0.0096 0.1858+-0.0038
+well_damped B_notch 18.3641+-4.6499 24.0788+-0.0114 0.1950+-0.0038
+well_damped C_leadlag 13.4831+-3.4238 13.1321+-0.1840 0.3171+-0.0057
+well_damped D_mistuned 23.4636+-5.9974 31.3511+-0.3660 0.2295+-0.0045
+well_damped paired B-A ise: 5.5960+-1.4179: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+well_damped paired B-A over: 10.9526+-0.0092: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+well_damped paired B-A du: 0.0092+-4.760e-05: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+well_damped paired C-A ise: 0.7150+-0.1951: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+well_damped paired C-A over: 0.0058+-0.1814: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+well_damped paired C-A du: 0.1313+-0.0019: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+well_damped paired D-A ise: 10.6955+-2.7663: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+well_damped paired D-A over: 18.2248+-0.3668: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+well_damped paired D-A du: 0.0437+-0.0008: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant A_pid 31.8025+-8.0515 30.4564+-0.0353 0.1538+-0.0039
+resonant B_notch 59.2088+-14.9987 54.9461+-0.0233 0.1621+-0.0041
+resonant C_leadlag 29.0000+-7.3783 27.8022+-0.2003 0.2603+-0.0056
+resonant D_mistuned 213.4608+-22.7295 80.1948+-41.3285 0.2021+-0.0008
+resonant paired B-A ise: 27.4063+-6.9473: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant paired B-A over: 24.4897+-0.0409: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant paired B-A du: 0.0083+-0.0002: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant paired C-A ise: -2.8025+-0.6749: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant paired C-A over: -2.6542+-0.1663: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant paired C-A du: 0.1065+-0.0017: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant paired D-A ise: 181.6583+-30.2807: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant paired D-A over: 49.7384+-41.2963: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant paired D-A du: 0.0483+-0.0031: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant_light A_pid 39.5028+-8.5902 31.8691+-3.6884 0.1537+-0.0042
+resonant_light B_notch 47.0174+-11.8777 46.7562+-0.1103 0.1545+-0.0037
+resonant_light C_leadlag diverged (|y| > 10 rad) on 5 of 5 seeds
+resonant_light D_mistuned 83.0990+-18.7348 48.5690+-3.4680 0.1844+-0.0047
+resonant_light paired B-A ise: 7.5146+-3.5371: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant_light paired B-A over: 14.8871+-3.5792: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant_light paired B-A du: 0.0008+-0.0009: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+resonant_light paired C-A: not compared (C_leadlag diverged)
+resonant_light paired D-A ise: 43.5963+-10.2238: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant_light paired D-A over: 16.7000+-1.0065: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant_light paired D-A du: 0.0306+-0.0007: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant_sharp A_pid diverged (|y| > 10 rad) on 5 of 5 seeds
+resonant_sharp B_notch 35.4985+-8.9765 32.2176+-0.1922 0.1482+-0.0032
+resonant_sharp C_leadlag diverged (|y| > 10 rad) on 5 of 5 seeds
+resonant_sharp D_mistuned diverged (|y| > 10 rad) on 5 of 5 seeds
+resonant_sharp paired B-A: not compared (A_pid diverged)
+resonant_sharp paired C-A: not compared (A_pid and C_leadlag diverged)
+resonant_sharp paired D-A: not compared (A_pid and D_mistuned diverged)
+well_damped: there is no mode to cut; the notch only adds phase lag at crossover and tracks worse
+resonant: the mode is damped enough for PID alone; the notch costs phase margin and gain margin here
+resonant_light: the notch buys gain margin (0.80 -> 2.35 dB) but tracks worse; lead diverges
+resonant_sharp: PID and lead diverge; only the notch on the mode keeps the loop stable
+D_mistuned: a notch 30 % below the mode adds lag without removing the peak
+No winner declared; ISE is blind to actuator chatter (du_rms) and to the gain margin
+Real servo / modal test: 本页未运行; Wikipedia definitions 以原文为准
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used on this page, in this order: **tie: identical on every seed** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when `|paired mean|` and its sd are both below 1e-9 (no sign count is printed on such a line); **near-tie / small gap, within seed noise** when `|paired mean| ≤ sd`; otherwise a **consistent** gap (`|paired mean| > sd`), called **small** if `|m|` is under 20 % of the smaller arm mean and **clear** otherwise; the 20 % rule only chooses between those two words. Every consistent line carries a same-sign count over the 5 seeds, and any seed with the opposite sign is reported; a sign count alone never makes a gap consistent. Gaps are computed from unrounded values. Paired differences are B−A, C−A and D−A.
+
+- **well_damped:** there is no mode to cut, so the notch only adds lag. **B loses with a clear gap:** ISE 18.3641±4.6499 against 12.7681±3.2321 (paired B−A 5.5960±1.4179), overshoot 24.0788±0.0114 % against 13.1263±0.0096 % (paired 10.9526±0.0092), both same sign on all 5 seeds; chatter is a small but consistent loss (paired 0.0092±4.760e-05, 5/5). D loses more (ISE paired 10.6955±2.7663, clear, 5/5).
+- **resonant:** with `zr = 0.3` PID alone already has 38.7° and 3.00 dB. **B loses again with a clear gap:** phase margin 20.3°, gain margin 2.21 dB, ISE paired 27.4063±6.9473 and overshoot paired 24.4897±0.0409, same sign on all 5 seeds. Here the lead–lag arm is the better add-on (ISE paired C−A −2.8025±0.6749, small but consistent, 5/5), exactly as in the lead–lag section. D is far worse (ISE paired 181.6583±30.2807, clear, 5/5).
+- **resonant_light:** with `zr = 0.2` A survives on a 0.80 dB gain margin and C diverges on 5 of 5 seeds. The notch lifts the gain margin to 2.35 dB, so B is the more **robust** loop, but it still tracks worse: ISE paired 7.5146±3.5371 (small but consistent, 5/5), overshoot paired 14.8871±3.5792 (clear, 5/5). Chatter is a **near-tie / small gap, within seed noise** (0.0008±0.0009, 1 of 5 seeds of the opposite sign). D loses on all three metrics (ISE paired 43.5963±10.2238 and overshoot paired 16.7000±1.0065 clear, chatter paired 0.0306±0.0007 small but consistent, all 5/5).
+- **resonant_sharp:** with `zr = 0.05` the resonant peak crosses 0 dB with no phase left: A (PM −92.2°), C (−76.9°) and D (−67.5°) **diverge on 5 of 5 seeds**. Only B stays stable (PM 38.3°, GM 2.03 dB; ISE 35.4985±8.9765, overshoot 32.2176±0.1922 %). No paired line is printed, because every comparison would be against a diverged arm. This is the one regime where the notch wins, and it wins by keeping the loop stable at all.
+- **Notch width:** a narrower notch (`ωc / ω0 = 0.25`) costs less phase on the first three plants but fails on `resonant_sharp` (PM −42.8°); a wider one (1.0) costs more phase everywhere and leaves the `resonant` loop with 0.79 dB. **D_mistuned loses wherever it is compared:** a notch 30 % below the mode adds lag at crossover and leaves the peak in place.
+
+The page **does not declare a universal winner**: a notch helps only when a lightly damped mode near crossover is what limits the loop, it needs a good estimate of that mode, and on a rigid or well-damped joint it makes tracking worse. Real servo or modal test: **本页未运行**.
+
+**180-minute work plan:** 30 min read the band-stop page and compute `|N|` and the phase at 20 rad/s by hand; 40 min reproduce the margins table with the toy's `margins`; 40 min run the toy and read the four regimes; 40 min move `WIDTH`, `MISTUNE` and `zr` with seeds fixed; 30 min write down when you would reach for a notch, a lower crossover or lead.
+
+### Exercises
+
+1. Compute `|N(jω)|` and its phase at `ω = 20 rad/s` for `ωc / ω0 = 0.25` and 1.0, and compare the phase loss with the printed width check on the rigid joint.
+2. Show from `shared_draws` and `simulate` that A, B, C and D see the same reference steps, load steps and noise samples for a given seed.
+3. Find the largest stable RK4 step for the `zr = 0.05` mode with `rk4_h_max`, and explain why A still diverges with `H = 0.25 ms`.
+4. Set `MISTUNE` to 0.9 with seeds fixed. Predict whether D still diverges in `resonant_sharp` before you run.
+5. Before any modal test or bench run (本页未运行), explain why B's win in `resonant_sharp` does **not** mean a notch should be added to every joint.
+
 <Summary>
 
 **Key points**
@@ -955,6 +1447,7 @@ The page **does not declare a universal winner**: lead–lag helps exactly when 
 - Model constants come from the joint: gravity torque m × g × r (measure F × L with a scale), J ≥ m × r² plus n² × J_rotor, a torque limit between the servo's rated load and its stall torque (an optimistic short-term peak; at 5 V, budget ≤0.4 N·m for a continuous load: Feetech gives no 5 V rating, and linear scaling by voltage gives ≈0.33 N·m, an unverified estimate), and a loop rate of 20 to 60 times ωn = √(Kp / J) (200 Hz is 47 times here).
 - Cascade: a 40 ms speed window resolves 0.057 m/s per count (5 ms would give 0.45 m/s), and a 3° lean needs only 0.51 m/s² of the 6 m/s² available.
 - Lead–lag: with one fixed recipe and a shared 20 rad/s crossover, adding lead–lag to the PID wins ISE on the resonant joint by a **small but consistent gap** (paired −2.8025±0.6749, same sign on all 5 seeds) while the gain margin shrinks from 3.00 to 2.01 dB, loses ISE by a small but consistent gap on the well-damped joint, always adds actuator chatter, and destabilises the lightly damped plant — a synthetic model, not a bench run.
+- Notch: on the joint with `zr = 0.05` PID alone and lead–lag diverge on 5 of 5 seeds while PID + notch stays stable (PM 38.3°, GM 2.03 dB); on the rigid and `zr = 0.3` joints the notch **loses** ISE with a clear gap (paired 5.5960±1.4179 and 27.4063±6.9473, same sign on all 5 seeds), and a notch 30 % off the mode loses everywhere — a synthetic model, not a bench run.
 
 **Common mistakes**
 

@@ -76,4 +76,5 @@ check gdt_tolerance_stack_toy.txt python3 "$M3/cad-parametric/gdt_tolerance_stac
 check gear_efficiency_load_toy.txt python3 "$M3/transmissions/gear_efficiency_load_toy.py"
 check lead_lag_vs_pid_toy.txt python3 "$M3/pid-control/lead_lag_vs_pid_toy.py"
 check pressure_advance_corner_toy.txt python3 "$M3/fdm-printing/pressure_advance_corner_toy.py"
+check notch_vs_lead_resonant_toy.txt python3 "$M3/pid-control/notch_vs_lead_resonant_toy.py"
 exit $fail
