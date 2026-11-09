@@ -425,6 +425,209 @@ ok: async_g0.7 cuts idle 4.17->0.00s and staleness 1.101->0.559s but costs infer
 
 VLA 并没有免除前几课的工作，只是把工作转移到另一个环节。你仍然需要一个关于你自己机器人的好数据集，包含你希望它应对的变化和恢复动作。你仍然需要在一组固定条件下评估它。“零样本”（zero-shot）的说法只对与预训练数据相似的机器人和场景成立：OpenVLA 自己的模型卡就写明，不经微调它无法泛化到没见过的机器人形态。你得到的是语言条件（一个模型、多种指令）和一个更好的起点，于是每个任务需要的示范更少。
 
+## 双系统 VLA：慢速规划者与快速、看得见的控制器
+
+上面的一切都是**单主干**：从图像和指令到动作只有一条前向路径，无论是写成词元还是经过动作头。**双系统** VLA 把它拆成以不同频率运行的两部分。OpenHelix 综述（[arXiv:2505.03912](https://arxiv.org/abs/2505.03912)，[项目页](https://openhelix-robot.github.io/)）这样描述：较慢的 **System 2** 通常是多模态大模型，更新较少，负责审慎的高层决策；较快的 **System 1** 是轻量策略，以更高频率更新，生成低层动作；慢系统的信息到达时带有延迟。综述还给出一条决定归类的判据：**System 1 必须自己接收实时感知输入（如 RGB 图像）。** 按这条判据，它认为 π0、GR00T N1 及类似模型不能被恰当地归为双系统——所以本页不把 π0 称为双系统，尽管它有单独的动作专家。它把 LCB、DP-VLA、HiRT、RoboDual 等列为这一家族。
+
+OpenHelix 自己的模型（以论文为准）：LLaVA 作为 System 2（冻结或微调），其输出的 `<ACT>` 词元就是潜在目标（在提示微调变体中只训练新词元的输出头），一个线性投影层，以及预训练的 3D Diffuser Actor 作为 System 1，后者同样看 RGB-D 视图和本体感知。有两个发现值得记住：投影层和 MLLM 从一开始就一起训练可能导致训练崩溃；其分析表明 MLLM 的动作词元主要携带指令语义，对图像的适应很少。其 CALVIN 成功率，包括物体运动的 CALVIN-D 变体，**以论文为准**；这里不运行任何权重、GPU 或 CALVIN。这与 6.2 中 TwinVLA 的双臂协调是不同主题，也不同于上面的异步动作块。
+
+### 公平的节拍玩具
+
+`dual_system_vla_cadence_toy.py` 是**合成**的：一个二维点以每秒 50 个节拍、共 300 个节拍跟随两个运动目标（红、蓝）之一；指令在第 100 到 200 节拍之间的随机时刻由红切换为蓝。每一臂拿到**同样的平均每节拍 1.0 单位计算预算**，同样的目标、感知噪声和切换时刻（每个种子用公共随机数），同样的速度上限与增益。每一臂**看到**什么各不相同，并逐一声明：
+
+| 臂 | 模型调用 | 是否看到指令 | 每个节拍是否看到当前图像 |
+| --- | --- | --- | --- |
+| `A_slow_single` | 大模型每 10 节拍一次（10 单位），延迟 10 节拍，输出保持 | 是（调用时） | 否 |
+| `B_fast_single` | 小模型每节拍一次（1 单位） | 只在 t = 0 时一次（不计成本） | 是 |
+| `C_dual_rt` | System 2 每 20 节拍一次（10 单位，延迟 10 节拍）+ System 1 每节拍（0.5 单位） | 只有 System 2 | 是（System 1） |
+| `D_dual_no_rt` | 同 C | 只有 System 2 | 否——System 1 只拿到 System 2 的目标快照 |
+
+切换后的指标：到指令目标的 `rmse`、`on_target_frac`、`react_ticks`（到新目标 0.05 以内所需节拍数）、`never_reached`、`underrun`（没有新模型输出的节拍比例）和 `goal_age_ticks`（所用目标信息的年龄）。八个切换时刻种子，报 mean±sd。第二个场景让两个目标静止且从不切换。
+
+### 读结果
+
+- **运动目标且切换指令：** `C_dual_rt` 约 28 个节拍做出反应，80 % 时间在目标上。`B_fast_single` 看得很清楚，却永远不知道指令变了（8 个种子中 6 个从未到达蓝色目标）。`A_slow_single` 目标是对的，却朝 10–20 个节拍之前的图像去追，90 % 的节拍没有新输出。`D_dual_no_rt` 与 C 节拍和计算相同，但 System 1 没有实时感知，结果和 A 差不多——这是 OpenHelix 判据的玩具版。
+- **静止目标且不切换：** 每一臂都停在目标上；B 和 C 误差并列最低，A 和 D 只略差。世界不变时，双系统拆分什么也换不来。
+
+收益取决于世界和指令相对慢模型频率变化得多快；玩具不替你选赢家，而它略去的恰恰是真实的 System 2 延迟、目标嵌入质量和训练稳定性。**真实 VLA 权重、GPU 与机器人：本页未运行。**
+
+```bash
+$ cd ~/Hardware-learning/examples/month-6/vla-models
+$ python3 dual_system_vla_cadence_toy.py
+```
+
+<CodeSource path="examples/month-6/vla-models/dual_system_vla_cadence_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""dual_system_vla_cadence_toy.py: slow planner / fast controller vs single-rate arms (stdlib).
+
+Synthetic 2-D reaching: two moving targets (red, blue); the instruction says
+which one to follow and switches from "red" to "blue" at a random tick.
+A second scenario holds both targets still and never switches (scored over the
+same tick window), to show when a single-rate arm loses nothing. Control
+runs at 50 ticks/s for 300 ticks. Compute is counted in units; every arm gets
+the SAME 1.0 unit per tick on average, the SAME targets, perception noise and
+switch times (common random numbers per seed), the SAME speed limit and gain.
+What each arm sees:
+  A slow_single   big model (instruction + image) every 10 ticks, 10 units/call,
+                  result after 10 ticks of latency; action held in between
+  B fast_single   small model (image only) every tick, 1 unit/call; the goal is
+                  the instruction parsed once at t=0 (that parse is not charged)
+                  and never refreshed
+  C dual_rt       System 2 (instruction + image) every 20 ticks, 10 units/call,
+                  10-tick latency -> goal = which target; System 1 every tick,
+                  0.5 units, uses the latest goal AND the current image
+  D dual_no_rt    like C, but System 1 only gets System 2's target snapshot,
+                  no current image (fails OpenHelix's real-time criterion)
+Not a VLA, not trained, no GPU. Numbers depend on the lesson-chosen rates.
+usage: python3 dual_system_vla_cadence_toy.py
+"""
+from __future__ import annotations
+
+import math
+import random
+import statistics
+
+SEEDS = (0, 1, 2, 3, 4, 5, 6, 7)
+TICKS = 300
+HZ = 50
+VMAX = 0.02            # max move per tick
+GAIN = 0.3
+PERC = 0.005           # perception noise on target positions
+REACH = 0.05           # "on target" radius
+COST = {"A": (10, 10.0, 0.0), "B": (1, 1.0, 0.0), "C": (20, 10.0, 0.5), "D": (20, 10.0, 0.5)}
+LATENCY = 10           # ticks for a big-model call (A, and System 2 in C/D)
+ARMS = {"A": "slow_single", "B": "fast_single", "C": "dual_rt", "D": "dual_no_rt"}
+
+
+def targets(t, phase, moving=True):
+    w = 2 * math.pi * 0.25 / HZ * t if moving else 0.0
+    red = (0.5 + 0.25 * math.cos(w + phase), 0.5 + 0.25 * math.sin(w + phase))
+    blue = (0.5 - 0.25 * math.cos(1.3 * w + phase), 0.5 + 0.20 * math.sin(1.3 * w))
+    return {"red": red, "blue": blue}
+
+
+def step_to(p, goal):
+    dx, dy = GAIN * (goal[0] - p[0]), GAIN * (goal[1] - p[1])
+    n = math.hypot(dx, dy)
+    if n > VMAX:
+        dx, dy = dx * VMAX / n, dy * VMAX / n
+    return (p[0] + dx, p[1] + dy)
+
+
+def episode(arm, seed, scenario="moving_switch"):
+    rng = random.Random(seed)
+    switch = rng.randint(100, 200)
+    moving = scenario == "moving_switch"
+    score_from = switch
+    if not moving:  # static targets, no instruction switch; score the same window
+        switch = TICKS + 1
+    phase = rng.uniform(0, 2 * math.pi)
+    noise = [(rng.gauss(0, PERC), rng.gauss(0, PERC), rng.gauss(0, PERC), rng.gauss(0, PERC)) for _ in range(TICKS)]
+    every, big, small = COST[arm]
+
+    def seen(t):  # noisy image at tick t (shared draws)
+        tg, n = targets(t, phase, moving), noise[t]
+        return {"red": (tg["red"][0] + n[0], tg["red"][1] + n[1]), "blue": (tg["blue"][0] + n[2], tg["blue"][1] + n[3])}
+
+    def instr(t):
+        return "red" if t < switch else "blue"
+
+    p = (0.5, 0.5)
+    compute = 0.0
+    held = None            # A: held action target
+    goal_name, goal_snap, goal_age_t = "red", seen(0)["red"], 0
+    pending = []           # (ready_tick, payload)
+    err, fresh, ages, reached = [], 0, [], None
+    for t in range(TICKS):
+        if t % every == 0 and arm != "B":
+            compute += big
+            obs = seen(t)
+            pending.append((t + LATENCY, (instr(t), obs[instr(t)], t)))
+        if arm == "B":
+            compute += big
+        for item in [x for x in pending if x[0] <= t]:
+            pending.remove(item)
+            goal_name, goal_snap, goal_age_t = item[1]
+            held = goal_snap
+            if arm == "A":
+                fresh += 1
+        now = seen(t)
+        if arm == "A":
+            target = held if held is not None else p
+            age = t - goal_age_t
+        elif arm == "B":
+            target, age = now["red"], 0     # instruction parsed once at t=0
+            fresh += 1
+        else:
+            compute += small
+            fresh += 1
+            target = now[goal_name] if arm == "C" else goal_snap
+            age = t - goal_age_t
+        p = step_to(p, target)
+        true = targets(t + 1, phase, moving)[instr(t)]
+        d = math.hypot(p[0] - true[0], p[1] - true[1])
+        if t >= score_from:
+            err.append(d)
+            if reached is None and d < REACH:
+                reached = t - score_from
+        ages.append(age)
+    follow = sum(e < REACH for e in err) / len(err)
+    return {"rmse": math.sqrt(statistics.mean(e * e for e in err)), "follow": follow,
+            "react": reached if reached is not None else TICKS - score_from, "miss": reached is None,
+            "underrun": 1 - fresh / TICKS, "age": statistics.mean(ages), "unit": compute / TICKS}
+
+
+def ms(v, f):
+    return f"{statistics.mean(v):{f}}±{statistics.pstdev(v):{f}}"
+
+
+def main():
+    print(f"Synthetic cadence: {TICKS} ticks at {HZ} Hz, {len(SEEDS)} seeds (switch tick 100..200), "
+          f"big call latency {LATENCY} ticks, vmax {VMAX}/tick, reach {REACH}")
+    for scenario in ("moving_switch", "static_no_switch"):
+        print(f"[{scenario}] arm units/tick rmse on_target_frac react_ticks never_reached underrun goal_age_ticks")
+        for arm, name in ARMS.items():
+            rs = [episode(arm, s, scenario) for s in SEEDS]
+            print(f"{arm}_{name} {ms([r['unit'] for r in rs], '.2f')} {ms([r['rmse'] for r in rs], '.3f')} "
+                  f"{ms([r['follow'] for r in rs], '.2f')} {ms([r['react'] for r in rs], '.1f')} "
+                  f"{sum(r['miss'] for r in rs)}/{len(SEEDS)} {ms([r['underrun'] for r in rs], '.2f')} "
+                  f"{ms([r['age'] for r in rs], '.1f')}")
+    print("Same targets, noise, switch ticks and compute per tick; what each arm sees differs and is declared.")
+    print("No winner is declared; real VLA weights, GPUs and robots: 本页未运行.")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic cadence: 300 ticks at 50 Hz, 8 seeds (switch tick 100..200), big call latency 10 ticks, vmax 0.02/tick, reach 0.05
+[moving_switch] arm units/tick rmse on_target_frac react_ticks never_reached underrun goal_age_ticks
+A_slow_single 1.00±0.00 0.173±0.023 0.06±0.07 54.9±56.8 1/8 0.90±0.00 14.2±0.0
+B_fast_single 1.00±0.00 0.288±0.066 0.01±0.03 125.9±55.4 6/8 0.00±0.00 0.0±0.0
+C_dual_rt 1.00±0.00 0.126±0.053 0.80±0.07 28.2±12.8 0/8 0.00±0.00 18.8±0.0
+D_dual_no_rt 1.00±0.00 0.215±0.017 0.06±0.06 58.4±55.6 1/8 0.00±0.00 18.8±0.0
+[static_no_switch] arm units/tick rmse on_target_frac react_ticks never_reached underrun goal_age_ticks
+A_slow_single 1.00±0.00 0.006±0.001 1.00±0.00 0.0±0.0 0/8 0.90±0.00 14.2±0.0
+B_fast_single 1.00±0.00 0.003±0.000 1.00±0.00 0.0±0.0 0/8 0.00±0.00 0.0±0.0
+C_dual_rt 1.00±0.00 0.003±0.000 1.00±0.00 0.0±0.0 0/8 0.00±0.00 18.8±0.0
+D_dual_no_rt 1.00±0.00 0.007±0.001 1.00±0.00 0.0±0.0 0/8 0.00±0.00 18.8±0.0
+Same targets, noise, switch ticks and compute per tick; what each arm sees differs and is declared.
+No winner is declared; real VLA weights, GPUs and robots: 本页未运行.
+```
+
+</SimOutput>
+
+### 练习
+
+1. 给 `C` 的 System 1 全部 1.0 单位，System 2 改为每 40 节拍一次（平均约 1.25，要写明）。`react_ticks` 与 `goal_age_ticks` 怎样变化？
+2. 去掉指令切换但让目标继续运动。A、B、D 中哪一个现在能追平 C？
+3. 用 OpenHelix 的判据，判断上面下载表里某个 VLA 是否是双系统，并引用起决定作用的那个输入。
+
 ## 常见错误
 
 - <strong>把“开源”当成“开放权重”，再当成“可以免费商用”。</strong>要看权重的许可证，不只是代码的。GR00T N1.6 的代码是 Apache-2.0，权重却仅限研究用途。
@@ -435,3 +638,9 @@ VLA 并没有免除前几课的工作，只是把工作转移到另一个环节�
 - <strong>把异步推理、RTC 和时间戳同步混为一谈。</strong>异步决定何时请求下一块（本课）；RTC 用软掩码平滑拼接处（10.2）；流对齐按时间匹配传感器样本（8.3）。
 - <strong>把 SmolVLA 论文的数字当成你自己的。</strong>450M 的规模、约 30 % 的提速和 19 对 9 次循环都以论文为准；请在你自己的机械臂上测。
 - <strong>不看范围就用区间法。</strong>如果你的任务里有比数据集中任何动作都大的运动，区间分词会把它截断，如上面 6.2 度的误差所示。
+
+<Summary>
+
+VLA 从预训练的视觉语言模型出发，把相机图像加指令映射为动作，方式是写成词元或经过单独的动作头；通常你下载一个，再用约 50 条示范微调。逐步分词为每维划 256 个区间（RT-2 用数据的最小/最大值，OpenVLA 用第 1 到第 99 百分位），范围内误差至多半个区间，范围外被截断；FAST 则用 DCT 压缩整个动作块，用缩放系数在词元数与误差之间权衡。下载表区分代码许可与权重许可，SmolVLA 的规模适合单块消费级 GPU（其结构与耗时以论文为准），`vla_async_chunk_toy.py` 展示异步动作块推理围绕阈值 g ≥ (E[ℓ_S] / Δt) / n，用更多推理调用与拼接换取更少空闲与更新鲜的观测。`dual_system_vla_cadence_toy.py` 补上来自 OpenHelix 的双系统素养：慢速 System 2 设定目标，快速 System 1 每个节拍行动并且必须看到实时感知（因此不把 π0 称为双系统）；在同等计算、中途切换指令时，只有 System 1 看到当前图像的双系统臂既能跟随新指令又能跟踪运动目标，而目标静止时单速率臂毫无损失——真实权重、GPU 与 CALVIN 数字以论文为准 / 本页未运行。
+
+</Summary>

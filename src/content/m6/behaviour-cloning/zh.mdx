@@ -286,6 +286,276 @@ lerobot-rollout --strategy.type=base --policy.path=outputs/train/act_pick_cube/c
 
 走廊教给你的东西可以直接搬过去。在不同回合里改变方块的位置（指南建议 5 个位置、每个位置 10 个回合），相机保持固定，加入几次恢复动作（比如打滑后重新抓），并在一组固定的测试位置上数成功次数，而不是凭一段好看的视频下结论。
 
+## 绕过障碍的两种走法：MSE、k-means 分箱与残差 VQ
+
+上面的走廊在每个位置只有一个正确动作。真实示范常常有**好几个**：一位操作员从杯子左边绕，另一位从右边绕。本页开头的平方损失公式这时会预测两者的**均值**，也就是直接撞向杯子。Behavior Transformers（BeT，[arXiv:2206.11251](https://arxiv.org/abs/2206.11251)）的做法是：用 k-means 把动作聚成若干箱，预测一个关于箱的类别分布，再在选中的箱中心上加一个连续的**偏移**。VQ-BeT（[arXiv:2403.03181](https://arxiv.org/abs/2403.03181)，[项目页](https://sjlee.cc/vq-bet/)）把 k-means 换成**残差向量量化**：第一个码本量化动作（**主码**，粗聚类），第二个码本量化剩下的残差（**次码**，细节），解码动作是所选向量之和，同样再加偏移头。论文使用两层残差，并认为 k-means 难以扩展到高维动作或长动作块，也没有梯度。论文报告的结论——模式捕获优于 BeT 与 Diffusion Policy、仿真中推理比 Diffusion Policy 快约 5 倍——都是**论文的说法：以论文为准**。这里不测任何速度。
+
+### 公平设置
+
+`vqbet_residual_vq_toy.py` 是**合成**的，只用标准库。一个点沿 +x 运动，必须从左或右绕过障碍框（0.40 ≤ x ≤ 0.60，|y| < 0.12）；每条示范以 0.5 的概率选一边，速度有 ±20 % 变化。观测是 x 的粗分箱（10 个）和当前所在一侧（3 个）。每一臂拿到**每个种子同样的 60 条训练示范与 60 条留出示范、同样的观测分箱、同样的计数式预测头**（每个观测下的经验频率）和**同样的 rollout 噪声流**：
+
+| 臂 | 动作表示 | 存储的码本向量 | 码组合数 |
+| --- | --- | --- | --- |
+| `MSE` | 每个观测的平均动作 | — | — |
+| `kmeans`（BeT 式） | 一个码本，K = 8，加每个（观测, 码）偏移 | 8 | 8 |
+| `rvq`（VQ-BeT 式） | 主码 4 + 残差上的次码 4，加偏移 | 8 | 16 |
+
+两个量化器都做 12 次 Lloyd 迭代（`rvq` 每级 6 次）。码本大小相同，`rvq` 的组合数仍是两倍，所以它的预测头和偏移表也大一倍；程序把参数量打印出来，不加掩饰。五个种子，每个 100 次 rollout，报 mean±sd。这不是 transformer，也不是 FAST/DCT 分词（6.3）、扩散（6.2）或上面的 DAgger 循环。
+
+### 读结果
+
+- **MSE 把模式平均掉。** 起点处两边相互抵消，平均动作几乎没有侧向分量，66 % 的 rollout 撞上障碍；五个种子里没有一个同时用到两边。
+- **两个离散臂都保住了两种模式。** `kmeans` 与 `rvq` 从不碰撞，约一半时间走左边（0.53 与 0.49），因为采样一个码就是选一边，而不是取两边的平均。
+- **重建误差接近。** 在留出动作上，`rvq` 量化误差略低（偏移前 9.0e-06 对 1.15e-05），但种子间离散更大；在训练示范上拟合的偏移表对留出误差几乎没有改变。在这个二维、每臂八个向量的任务上，k-means 分箱已经够用；论文声称的残差码本优势针对的是本玩具没有的高维动作与动作块。
+
+所以本节的结论是均值的失败，而不是给两个离散分词器排名。**VQ-BeT 的 GPU 训练与 LeRobot 运行：本页未运行。**
+
+```bash
+$ cd ~/Hardware-learning/examples/month-6/behaviour-cloning
+$ python3 vqbet_residual_vq_toy.py
+```
+
+<CodeSource path="examples/month-6/behaviour-cloning/vqbet_residual_vq_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""vqbet_residual_vq_toy.py: MSE BC vs k-means bins vs residual VQ + offset (stdlib).
+
+Synthetic two-mode demonstrations: a point moves +x through a corridor and must
+pass an obstacle box (0.40 <= x <= 0.60, |y| < 0.12) either LEFT or RIGHT; each
+demo picks a side with probability 0.5. Action a = (dx, dy) per step.
+Observation = (x bin of 10, side bin of 3: y<-0.02 / |y|<=0.02 / y>0.02).
+Every arm gets the SAME demos, the SAME observation bins and the SAME
+count-based heads; only the action representation differs:
+  MSE    : per-observation mean action (least squares with one-hot features)
+  kmeans : one codebook of K=8 vectors (Lloyd, 12 iterations), categorical
+           over codes per observation + per-(obs, code) mean offset (BeT-style)
+  rvq    : residual VQ, 2 stages x 4 vectors (6 + 6 Lloyd iterations; stage 2
+           quantizes stage-1 residuals), categorical over the 16 (primary,
+           secondary) pairs per observation + per-(obs, pair) mean offset
+Both quantizers store 8 codebook vectors and get 12 Lloyd iterations; rvq has
+16 code combinations against 8, so its head and offset tables are 2x larger
+(printed). Not a transformer, not a trained network, no GPU.
+usage: python3 vqbet_residual_vq_toy.py
+"""
+from __future__ import annotations
+
+import math
+import random
+import statistics
+
+SEEDS = (0, 1, 2, 3, 4)
+N_DEMOS = 60
+N_ROLLOUTS = 100
+STEPS = 20
+DX = 0.05
+OBST = (0.40, 0.60, 0.12)
+NOISE = 0.004          # per-step actuator noise (demos and rollouts)
+K = 8                  # k-means codebook vectors
+K1, K2 = 4, 4          # residual VQ: primary and secondary codebook sizes
+ITERS = 12             # Lloyd iterations per quantizer (rvq: split 6 + 6)
+
+
+def obs_of(x, y):
+    xb = min(9, max(0, int(x * 10)))
+    sb = 0 if y < -0.02 else (2 if y > 0.02 else 1)
+    return xb * 3 + sb
+
+
+def demo(rng):
+    side = rng.choice((-1, 1))
+    x, y, rows = 0.0, rng.gauss(0, 0.005), []
+    gain = 1 + 0.2 * rng.gauss(0, 1)
+    for _ in range(STEPS):
+        if x < 0.35:
+            dy = side * 0.045 * gain
+        elif x < 0.65:
+            dy = 0.0
+        else:
+            dy = -side * 0.045 * gain
+        a = (DX, dy)
+        rows.append((obs_of(x, y), a))
+        x += a[0] + rng.gauss(0, NOISE)
+        y += a[1] + rng.gauss(0, NOISE)
+    return rows
+
+
+def d2(a, b):
+    return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2
+
+
+def lloyd(points, k, iters, rng):
+    cents = [points[i] for i in rng.sample(range(len(points)), k)]
+    for _ in range(iters):
+        groups = [[] for _ in range(k)]
+        for p in points:
+            groups[min(range(k), key=lambda j: d2(p, cents[j]))].append(p)
+        cents = [(sum(p[0] for p in g) / len(g), sum(p[1] for p in g) / len(g)) if g else cents[j]
+                 for j, g in enumerate(groups)]
+    return cents
+
+
+def nearest(p, cents):
+    return min(range(len(cents)), key=lambda j: d2(p, cents[j]))
+
+
+class Quantizer:
+    def __init__(self, kind, actions, rng):
+        self.kind = kind
+        if kind == "kmeans":
+            self.books = [lloyd(actions, K, ITERS, rng)]
+        else:
+            b1 = lloyd(actions, K1, ITERS // 2, rng)
+            res = [(a[0] - b1[nearest(a, b1)][0], a[1] - b1[nearest(a, b1)][1]) for a in actions]
+            self.books = [b1, lloyd(res, K2, ITERS // 2, rng)]
+
+    def encode(self, a):
+        codes, r = [], a
+        for b in self.books:
+            j = nearest(r, b)
+            codes.append(j)
+            r = (r[0] - b[j][0], r[1] - b[j][1])
+        return tuple(codes)
+
+    def decode(self, codes):
+        return (sum(b[j][0] for b, j in zip(self.books, codes)), sum(b[j][1] for b, j in zip(self.books, codes)))
+
+    def combos(self):
+        return K if self.kind == "kmeans" else K1 * K2
+
+
+def fit(kind, rows, rng):
+    if kind == "MSE":
+        acc = {}
+        for o, a in rows:
+            s = acc.setdefault(o, [0.0, 0.0, 0])
+            s[0] += a[0]; s[1] += a[1]; s[2] += 1
+        return {"kind": kind, "mean": {o: (s[0] / s[2], s[1] / s[2]) for o, s in acc.items()}}
+    q = Quantizer(kind, [a for _, a in rows], rng)
+    counts, off = {}, {}
+    for o, a in rows:
+        c = q.encode(a)
+        counts.setdefault(o, {}).setdefault(c, 0)
+        counts[o][c] += 1
+        dec = q.decode(c)
+        s = off.setdefault((o, c), [0.0, 0.0, 0])
+        s[0] += a[0] - dec[0]; s[1] += a[1] - dec[1]; s[2] += 1
+    return {"kind": kind, "q": q, "counts": counts,
+            "off": {k: (s[0] / s[2], s[1] / s[2]) for k, s in off.items()}}
+
+
+def act(model, o, rng):
+    if model["kind"] == "MSE":
+        return model["mean"].get(o, (DX, 0.0))
+    cs = model["counts"].get(o)
+    if not cs:
+        return (DX, 0.0)
+    r, acc = rng.random() * sum(cs.values()), 0.0
+    for c, n in sorted(cs.items()):
+        acc += n
+        if r < acc:
+            break
+    dec, of = model["q"].decode(c), model["off"][(o, c)]
+    return (dec[0] + of[0], dec[1] + of[1])
+
+
+def recon(model, rows):
+    """Held-out demo actions: decode-only and decode+offset squared error."""
+    if model["kind"] == "MSE":
+        e = [d2(a, model["mean"].get(o, (DX, 0.0))) for o, a in rows]
+        return statistics.mean(e), statistics.mean(e)
+    q, e0, e1 = model["q"], [], []
+    for o, a in rows:
+        c = q.encode(a)
+        dec = q.decode(c)
+        of = model["off"].get((o, c), (0.0, 0.0))
+        e0.append(d2(a, dec))
+        e1.append(d2(a, (dec[0] + of[0], dec[1] + of[1])))
+    return statistics.mean(e0), statistics.mean(e1)
+
+
+def rollout(model, rng):
+    x, y, hit, ymin, ymax = 0.0, rng.gauss(0, 0.005), False, 0.0, 0.0
+    for _ in range(STEPS):
+        a = act(model, obs_of(x, y), rng)
+        x += a[0] + rng.gauss(0, NOISE)
+        y += a[1] + rng.gauss(0, NOISE)
+        if OBST[0] <= x <= OBST[1]:
+            hit = hit or abs(y) < OBST[2]
+            ymin, ymax = min(ymin, y), max(ymax, y)
+    side = "L" if ymin < -OBST[2] else ("R" if ymax > OBST[2] else "-")
+    return hit, side, abs(y)
+
+
+def params(model):
+    if model["kind"] == "MSE":
+        return f"{2 * len(model['mean'])} (means)"
+    q = model["q"]
+    book = 2 * sum(len(b) for b in q.books)
+    return f"{book} codebook + {q.combos()}x30 head + {2 * q.combos()}x30 offset"
+
+
+def ms(v, f):
+    return f"{statistics.mean(v):{f}}±{statistics.pstdev(v):{f}}"
+
+
+def main():
+    print(f"Synthetic 2-mode demos: {N_DEMOS} train + {N_DEMOS} held-out per seed, {len(SEEDS)} seeds, "
+          f"{N_ROLLOUTS} rollouts/seed, obstacle x∈[{OBST[0]},{OBST[1]}] |y|<{OBST[2]}, noise {NOISE}")
+    print(f"kmeans K={K}; rvq {K1}x{K2}; {ITERS} Lloyd iterations each; same heads/offset rule")
+    rows_out = {}
+    for kind in ("MSE", "kmeans", "rvq"):
+        res = {"col": [], "left": [], "both": [], "end": [], "q": [], "qo": []}
+        for seed in SEEDS:
+            drng = random.Random(seed)
+            train = [r for _ in range(N_DEMOS) for r in demo(drng)]
+            held = [r for _ in range(N_DEMOS) for r in demo(drng)]
+            model = fit(kind, train, random.Random(100 + seed))
+            q0, q1 = recon(model, held)
+            rrng = random.Random(200 + seed)  # same rollout stream for every arm
+            outs = [rollout(model, rrng) for _ in range(N_ROLLOUTS)]
+            left = sum(s == "L" for _, s, _ in outs)
+            right = sum(s == "R" for _, s, _ in outs)
+            res["col"].append(sum(h for h, _, _ in outs) / N_ROLLOUTS)
+            res["left"].append(left / max(1, left + right))
+            res["both"].append(1.0 if left and right else 0.0)
+            res["end"].append(statistics.mean(e for _, _, e in outs))
+            res["q"].append(q0)
+            res["qo"].append(q1)
+        rows_out[kind] = (res, params(model))
+    print("arm collision left_share both_modes_seen quant_MSE quant+offset_MSE end_|y| params")
+    for kind, (r, p) in rows_out.items():
+        print(f"{kind} {ms(r['col'], '.2f')} {ms(r['left'], '.2f')} {ms(r['both'], '.1f')} "
+              f"{ms(r['q'], '.2e')} {ms(r['qo'], '.2e')} {ms(r['end'], '.3f')} {p}")
+    print("MSE regression has no codes: its quant columns are the regression error.")
+    print("Paper speed-ups (e.g. 5x vs diffusion) are not measured here: 以论文为准. GPU training: 本页未运行.")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic 2-mode demos: 60 train + 60 held-out per seed, 5 seeds, 100 rollouts/seed, obstacle x∈[0.4,0.6] |y|<0.12, noise 0.004
+kmeans K=8; rvq 4x4; 12 Lloyd iterations each; same heads/offset rule
+arm collision left_share both_modes_seen quant_MSE quant+offset_MSE end_|y| params
+MSE 0.66±0.24 0.40±0.49 0.0±0.0 2.69e-04±1.31e-05 2.69e-04±1.31e-05 0.020±0.005 44 (means)
+kmeans 0.00±0.00 0.53±0.07 1.0±0.0 1.15e-05±1.11e-06 1.24e-05±7.91e-07 0.061±0.008 16 codebook + 8x30 head + 16x30 offset
+rvq 0.00±0.00 0.49±0.08 1.0±0.0 9.00e-06±4.61e-06 7.88e-06±2.79e-06 0.062±0.005 16 codebook + 16x30 head + 32x30 offset
+MSE regression has no codes: its quant columns are the regression error.
+Paper speed-ups (e.g. 5x vs diffusion) are not measured here: 以论文为准. GPU training: 本页未运行.
+```
+
+</SimOutput>
+
+### 练习
+
+1. 把 `K` 降到 2，把 `K1, K2` 降到 2, 1。哪一臂先把两种模式合并？`collision` 怎样变化？
+2. 让示范变成单峰（总是 `side = 1`）。MSE 还会输给离散臂吗？
+3. 修改 `act`，让离散臂返回出现最多的码而不是采样。运行前先预测 `left_share`。
+
 ## 常见错误
 
 - <strong>只录完美的示范。</strong>没有失误的数据集里也就没有恢复动作，而策略一定会遇到专家从没展示过的状态。有意示范从小失误中恢复。
@@ -293,3 +563,9 @@ lerobot-rollout --strategy.type=base --policy.path=outputs/train/act_pick_cube/c
 - <strong>两次运行之间改了好几样东西。</strong>模型对每个策略用同样的种子、同样的运行次数和噪声，让策略成为主要的区别。在硬件上比较两个策略时，保持物体、光照和起始位置不变。
 - <strong>一味加同样的数据。</strong>策略在某处失败时，先确定失败位置（“wall hits at” 那一行），再在那里录制或重新标注数据。同样的 80 条示范没有赢过 20 条。
 - <strong>用机器人实际做了什么来训练，而不是命令了什么。</strong>动作列必须是命令（主臂的关节目标），而不是从臂下一帧测到的位置，否则策略会学会滞后。
+
+<Summary>
+
+行为克隆把 LeRobot 风格的示范表（episode、frame、观测、动作）当作监督学习：拟合使动作平方误差最小的策略。在 L 形走廊上，用无噪声示范训练的 1-最近邻 BC 无论 20 条还是 80 条示范都是 100 次成功 67 次，原因是协变量偏移：执行器噪声把夹爪推离中心线，那里没有任何一帧展示过恢复动作，失败集中在终点一端。把恢复放进数据就能修好——20 条带噪声的示范达到 99/100，一轮 DAgger 让 5 条示范的策略从 61 提升到 100/100——同样的规则也适用于用 `lerobot-record` 录制的 SO-101 数据集（本页未运行）：变化场景、示范恢复、记录指令动作、在固定条件下统计成功次数。`vqbet_residual_vq_toy.py` 补上平方损失的多模态失败：示范从障碍两侧绕过时，MSE 把两者平均后撞上障碍（五个种子中 66 % 碰撞），而 k-means 分箱与带偏移的残差 VQ 在同样的数据和码预算下保住两种模式，二者之间不分胜负，VQ-BeT 的 5 倍提速以论文为准。
+
+</Summary>

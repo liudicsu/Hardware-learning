@@ -46,5 +46,7 @@ for lang in ('en', 'zh'):
 sys.exit(1 if bad else 0)
 PY
 check bimanual_coord_modes_toy.txt python3 "$M6/act-diffusion/bimanual_coord_modes_toy.py"
+check vqbet_residual_vq_toy.txt python3 "$M6/behaviour-cloning/vqbet_residual_vq_toy.py"
+check dual_system_vla_cadence_toy.txt python3 "$M6/vla-models/dual_system_vla_cadence_toy.py"
 
 exit $fail

@@ -3936,8 +3936,8 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 24240, "ibvs-escalate PR2 curriculum: 24240 minutes");
-  for (const [month, expected] of [[1, 1020], [2, 2310], [3, 1470], [4, 2130], [5, 1950], [6, 1560], [7, 2070], [8, 3180], [9, 3270], [10, 2280], [11, 3000]]) {
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 24660, "vqbet-dualsystem PR3 curriculum: 24660 minutes");
+  for (const [month, expected] of [[1, 1020], [2, 2310], [3, 1470], [4, 2130], [5, 1950], [6, 1980], [7, 2070], [8, 3180], [9, 3270], [10, 2280], [11, 3000]]) {
     ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `current curriculum M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
@@ -4914,7 +4914,7 @@ for (const m of readdirSync(content)) {
 
   const cur = read("src/lib/curriculum.ts");
   ok(cur.match(/slug: "world-models-overview"[\s\S]*?minutes: (\d+)/)?.[1] === "420", "wm2 curriculum: 9.9 = 420");
-  ok(cur.match(/slug: "vla-models"[\s\S]*?minutes: (\d+)/)?.[1] === "360", "wm2 curriculum: 6.3 = 360");
+  ok(cur.match(/slug: "vla-models"[\s\S]*?minutes: (\d+)/)?.[1] === "570", "wm2 curriculum: 6.3 = 570 (360 + batch-8 H6 210)");
   const wmBlock = (cur.match(/slug: "world-models-overview"[\s\S]*?\];\n/) || [""])[0];
   ok(/dreamgen-paper/.test(wmBlock) && /lapa-paper/.test(wmBlock), "wm2 9.9 resources wired");
   const vlaBlock = (cur.match(/slug: "vla-models"[\s\S]*?slug: "policy-evaluation"/) || [""])[0];
@@ -4923,7 +4923,7 @@ for (const m of readdirSync(content)) {
   for (const id of ["dreamgen-paper", "lapa-paper", "smolvla-paper", "lerobot-async"]) {
     ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `wm2 resource ${id}: present + extra`);
   }
-  ok(/23 610/.test(read("README.md")), "b7p3 README: 23 610 minutes");
+  ok(/24 660/.test(read("README.md")), "b8p3 README: 24 660 minutes (batch-8 final)");
   console.log("worldmodel-smolvla PR2: neural trajectories + async chunk locks checked");
 }
 
@@ -5757,6 +5757,63 @@ print("protocol pass")
   execFileSync("python3",[join(root,"tools/test_b8_ibvs_escalate_toys.py")],{cwd:root,encoding:"utf8",env,stdio:"pipe"});
   ok(true,"b8p2 independent finite-difference L, pose-scale, rank, CRN and budget tests executed");
   console.log("ibvs-escalate PR2: shared-estimate PBVS/IBVS, priced escalation ladder, opened sources and Summary placement locked");
+}
+
+// Batch-8 PR3: VQ-BeT-style residual VQ vs k-means vs MSE; dual-system cadence with OpenHelix criterion.
+{
+  const read=p=>readFileSync(join(root,p),"utf8"), env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
+  const cases=[
+    ["behaviour-cloning","vqbet_residual_vq_toy",450,
+      ["5 seeds","kmeans K=8; rvq 4x4; 12 Lloyd iterations each","MSE 0.66±0.24","kmeans 0.00±0.00 0.53±0.07 1.0±0.0","rvq 0.00±0.00 0.49±0.08 1.0±0.0","16 codebook + 16x30 head + 32x30 offset","以论文为准","本页未运行"],
+      ["2403.03181","2206.11251","sjlee.cc/vq-bet","primary","secondary","offset","k-means","5×","以论文为准","FAST/DCT","6.2","DAgger"],
+      ["vqbet_residual_vq_toy.py","MSE","k-means","residual VQ","以论文为准"]],
+    ["vla-models","dual_system_vla_cadence_toy",570,
+      ["8 seeds","[moving_switch]","C_dual_rt 1.00±0.00 0.126±0.053 0.80±0.07 28.2±12.8 0/8","B_fast_single 1.00±0.00 0.288±0.066 0.01±0.03 125.9±55.4 6/8","D_dual_no_rt 1.00±0.00 0.215±0.017","[static_no_switch]","No winner is declared"],
+      ["2505.03912","openhelix-robot.github.io","System 2","System 1","π0","GR00T N1","<ACT>","3D Diffuser Actor","CALVIN","TwinVLA","以论文为准","A_slow_single","B_fast_single","C_dual_rt","D_dual_no_rt"],
+      ["dual_system_vla_cadence_toy.py","OpenHelix","System 1","π0","以论文为准","本页未运行"]]
+  ];
+  const cur=read("src/lib/curriculum.ts"),harness=read("examples/month-6/check.sh");
+  for(const [slug,toy,minutes,outputs,markers,summaryMarkers] of cases){
+    const file=`examples/month-6/${slug}/${toy}.py`,py=read(file).trim(),expected=read(`examples/month-6/expected/${toy}.txt`).trim();
+    ok(execFileSync("python3",[join(root,file)],{cwd:root,encoding:"utf8",env}).trim()===expected,`b8p3 ${toy}: actual expected output`);
+    for(const x of outputs)ok(expected.includes(x),`b8p3 ${toy}: result ${x}`);
+    const host=cur.slice(cur.indexOf(`slug: "${slug}"`)).split("\n  },")[0];
+    ok(host.includes(`minutes: ${minutes}`)&&host.includes(toy),`b8p3 ${slug}: host minutes ${minutes} and toy named`);
+    ok(harness.includes(`${slug}/${toy}.py`)&&harness.includes(`check ${toy}.txt`),`b8p3 ${toy}: month-6 harness compares stdout`);
+    for(const lang of ["en","zh"]){
+      const md=read(`src/content/m6/${slug}/${lang}.mdx`),summary=md.indexOf("<Summary>"),end=md.indexOf("</Summary>");
+      ok(summary>0&&summary===md.lastIndexOf("<Summary>")&&end>summary&&md.slice(end+10).trim()==="",`b8p3 ${slug} ${lang}: sole whole-lesson Summary ends page`);
+      ok(md.includes(py)&&md.includes(expected)&&md.indexOf(py)<summary&&md.indexOf(expected)<summary,`b8p3 ${slug} ${lang}: exact source/stdout before Summary`);
+      const ex=md.lastIndexOf(lang==="en"?"### Exercises":"### 练习");
+      ok(md.includes(`<CodeSource path="${file}" />`)&&ex>md.indexOf(`<CodeSource path="${file}" />`)&&ex<summary,`b8p3 ${slug} ${lang}: code path then exercises before Summary`);
+      const head=lang==="en"?(slug==="vla-models"?"## Dual-system VLAs":"## Two ways round an obstacle"):(slug==="vla-models"?"## 双系统 VLA":"## 绕过障碍的两种走法");
+      const sec=md.slice(md.indexOf(head),summary);
+      ok(md.indexOf(head)>0,`b8p3 ${slug} ${lang}: new section heading`);
+      for(const x of [...markers.map(y=>lang==="zh"&&y==="5×"?"5 倍":y),"本页未运行"])ok(sec.includes(x),`b8p3 ${slug} ${lang}: mechanism/scope ${x}`);
+      ok(lang==="en"?/synthetic/i.test(sec):sec.includes("合成"),`b8p3 ${slug} ${lang}: synthetic labelled`);
+      ok(sec.includes("mean±sd"),`b8p3 ${slug} ${lang}: spread reported`);
+      ok(lang==="en"?/does not pick a winner|not a ranking/.test(sec):/不替你选赢家|不是给两个离散分词器排名/.test(sec),`b8p3 ${slug} ${lang}: no presumed winner`);
+      const summ=md.slice(summary,end);
+      for(const x of summaryMarkers.map(y=>lang==="zh"&&y==="residual VQ"?"残差 VQ":y))ok(summ.includes(x),`b8p3 ${slug} ${lang}: whole-lesson Summary ${x}`);
+      for(const x of slug==="vla-models"?["256","FAST","SmolVLA","vla_async_chunk_toy.py"]:["DAgger","67","lerobot-record","covariate"].map(y=>lang==="zh"&&y==="covariate"?"协变量偏移":y))ok(summ.includes(x),`b8p3 ${slug} ${lang}: Summary covers earlier lesson ${x}`);
+    }
+    const en=read(`src/content/m6/${slug}/en.mdx`),zh=read(`src/content/m6/${slug}/zh.mdx`);
+    ok(en.split("\n").length===zh.split("\n").length&&(en.match(/```/g)||[]).length===(zh.match(/```/g)||[]).length,`b8p3 ${slug}: en/zh structurally symmetric`);
+  }
+  for(const lang of ["en","zh"]){
+    const md=read(`src/content/m6/vla-models/${lang}.mdx`);
+    ok(!/π0[^.。\n]{0,40}(is|是)[^.。\n]{0,10}(a )?dual-system|π0 是双系统/.test(md),`b8p3 vla-models ${lang}: π0 never called dual-system`);
+    ok(lang==="en"?md.includes("does not call π0 dual-system"):md.includes("不把 π0 称为双系统"),`b8p3 vla-models ${lang}: explicit π0 exclusion`);
+  }
+  const plan=read("docs/notes/month-6-plan.md");
+  ok(plan.startsWith("# Month 6")&&["1560→1980","24240→24660","Batch-8 PR3","240→450","360→570","Current / 当前 Batch-8 PR3: M6 **1980 min**"].every(x=>plan.includes(x)),"b8p3 correct-month plan header and PR3-only accounting");
+  const res=read("src/lib/resources.ts");
+  for(const id of ["vqbet-paper","vqbet-project","bet-paper","openhelix-paper","openhelix-project"])ok(res.includes(`"${id}": {`)&&cur.includes(`"${id}"`),`b8p3 opened source ${id}`);
+  ok(!res.includes("huggingface.co/docs/lerobot/policy_vqbet"),"b8p3 unresolved LeRobot VQ-BeT doc not cited");
+  ok(read("docs/notes/batch-8-pr3-sources.md").includes("All 197 prior expected"),"b8p3 prior-output/source/model audit");
+  execFileSync("python3",[join(root,"tools/test_b8_vqbet_dualsystem_toys.py")],{cwd:root,encoding:"utf8",env,stdio:"pipe"});
+  ok(true,"b8p3 independent bimodality, codebook-budget, residual-sum, equal-compute and scenario tests executed");
+  console.log("vqbet-dualsystem PR3: multimodal BC tokenisers, OpenHelix cadence criterion, full Summaries and batch-8 total locked");
 }
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
