@@ -5,28 +5,28 @@ single_embodiment E=1 R=2 demos=24 A_pooled 0.0651+-0.0179 1.0589+-0.3141
 single_embodiment E=1 R=2 demos=24 B_hard_id 0.0651+-0.0179 0.5999+-0.3989
 single_embodiment E=1 R=2 demos=24 C_soft_prompt 0.0643+-0.0180 0.8406+-0.5117
 single_embodiment paired C-B seen_rmse -0.0007+-0.0009: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.0009)
-single_embodiment paired C-B new_emb_rmse 0.2406+-0.2119: clear gap, not a tie
+single_embodiment paired C-B new_emb_rmse 0.2406+-0.2119: clear gap, not a tie; 1 of 5 seeds has the opposite sign
 single_embodiment paired C-A seen_rmse -0.0007+-0.0009: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.0009)
 single_embodiment paired C-A new_emb_rmse -0.2183+-0.4182: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.4182)
 single_embodiment paired B-A seen_rmse 0.0000+-0.0000: tie: identical on every seed
-single_embodiment paired B-A new_emb_rmse -0.4590+-0.3328: clear gap, not a tie
+single_embodiment paired B-A new_emb_rmse -0.4590+-0.3328: clear gap, not a tie; same sign on all 5 seeds
 shared_low_rank E=6 R=2 demos=8 A_pooled 1.2427+-0.1303 0.6318+-0.4109
 shared_low_rank E=6 R=2 demos=8 B_hard_id 0.1812+-0.0351 0.5149+-0.3261
 shared_low_rank E=6 R=2 demos=8 C_soft_prompt 0.0690+-0.0118 0.0721+-0.0327
-shared_low_rank paired C-B seen_rmse -0.1122+-0.0401: clear gap, not a tie
-shared_low_rank paired C-B new_emb_rmse -0.4428+-0.3071: clear gap, not a tie
-shared_low_rank paired C-A seen_rmse -1.1738+-0.1270: clear gap, not a tie
-shared_low_rank paired C-A new_emb_rmse -0.5597+-0.3882: clear gap, not a tie
-shared_low_rank paired B-A seen_rmse -1.0616+-0.1145: clear gap, not a tie
-shared_low_rank paired B-A new_emb_rmse -0.1169+-0.1065: clear gap, not a tie
+shared_low_rank paired C-B seen_rmse -0.1122+-0.0401: clear gap, not a tie; same sign on all 5 seeds
+shared_low_rank paired C-B new_emb_rmse -0.4428+-0.3071: clear gap, not a tie; same sign on all 5 seeds
+shared_low_rank paired C-A seen_rmse -1.1738+-0.1270: clear gap, not a tie; same sign on all 5 seeds
+shared_low_rank paired C-A new_emb_rmse -0.5597+-0.3882: clear gap, not a tie; same sign on all 5 seeds
+shared_low_rank paired B-A seen_rmse -1.0616+-0.1145: clear gap, not a tie; same sign on all 5 seeds
+shared_low_rank paired B-A new_emb_rmse -0.1169+-0.1065: clear gap, not a tie; same sign on all 5 seeds
 unrelated_full_rank E=6 R=6 demos=30 A_pooled 0.8695+-0.0653 1.2747+-0.5434
 unrelated_full_rank E=6 R=6 demos=30 B_hard_id 0.0530+-0.0052 1.2388+-0.4554
 unrelated_full_rank E=6 R=6 demos=30 C_soft_prompt 0.6029+-0.0457 1.4080+-0.5846
-unrelated_full_rank paired C-B seen_rmse 0.5499+-0.0422: clear gap, not a tie
-unrelated_full_rank paired C-B new_emb_rmse 0.1692+-0.1618: small but consistent gap, not a tie
-unrelated_full_rank paired C-A seen_rmse -0.2666+-0.0370: clear gap, not a tie
+unrelated_full_rank paired C-B seen_rmse 0.5499+-0.0422: clear gap, not a tie; same sign on all 5 seeds
+unrelated_full_rank paired C-B new_emb_rmse 0.1692+-0.1618: small but consistent gap, not a tie; 1 of 5 seeds has the opposite sign
+unrelated_full_rank paired C-A seen_rmse -0.2666+-0.0370: clear gap, not a tie; same sign on all 5 seeds
 unrelated_full_rank paired C-A new_emb_rmse 0.1333+-0.2764: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.2764)
-unrelated_full_rank paired B-A seen_rmse -0.8165+-0.0637: clear gap, not a tie
+unrelated_full_rank paired B-A seen_rmse -0.8165+-0.0637: clear gap, not a tie; same sign on all 5 seeds
 unrelated_full_rank paired B-A new_emb_rmse -0.0359+-0.1828: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.1828)
 No winner declared: K = 2 prompts help only when embodiments share a few hardware factors
 Benchmark success rates 以论文为准; GPU X-VLA run 本页未运行

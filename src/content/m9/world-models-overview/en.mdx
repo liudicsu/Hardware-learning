@@ -753,7 +753,7 @@ The memory-bank section above is about a cue from the **past**. WorldVLA is abou
 
 **Common random numbers:** per seed, one set of 40 training demos and 200 test scenes, with their observation-noise, demo-noise and decode-error draws, is generated once and fed to all three arms **and** all four regimes (a regime only changes H and `σ_obs`); no arm skips a noise source. Five seeds; every table entry is mean±sd over seeds. Metrics against the noiseless `c_k · s`: chunk RMSE, last-step RMSE, and success = share of scenes whose **worst** step error in the chunk is below 0.5. They are **open-loop**, so they are **blind** to decode latency, to closed-loop recovery and to the reactivity a long chunk gives up (the paper reports that very long chunks hurt for that reason).
 
-**How pairs are labelled** (computed from unrounded per-seed values): **tie** only if the two arms are identical on every seed; **near-tie / small gap, within seed noise** if the mean paired difference is no larger than its sd. Otherwise the gap is **consistent**, which means `|paired mean| > sd`; it is called **small but consistent gap, not a tie** if it is under 20 % of the smaller arm's mean, and **clear gap** otherwise. The 20 % rule only decides whether a consistent gap is small; it never decides consistency. A paired mean that would round to zero is printed with more digits, never as a signed zero.
+**How pairs are labelled** (computed from unrounded per-seed values): **tie** only if the two arms are identical on every seed; **near-tie / small gap, within seed noise** if the mean paired difference is no larger than its sd. Otherwise the gap is **consistent**, which means `|paired mean| > sd`; it is called **small but consistent gap, not a tie** if it is under 20 % of the smaller arm's mean, and **clear gap** otherwise. The 20 % rule only decides whether a consistent gap is small; it never decides consistency. "Consistent" means only `|paired mean| > sd`; it does **not** mean every seed agrees in sign. So every consistent or clear print line also carries a sign count: **same sign on all 5 seeds** is the stronger claim, and **k of 5 seeds has / have the opposite sign** marks a gap that some seeds reverse. A paired mean that would round to zero is printed with more digits, never as a signed zero.
 
 Regimes: **H1_noisy_obs** (H = 1, `σ_obs = 0.3`); **H5_noisy_obs** (H = 5, the paper's default chunk); **H10_noisy_obs** (H = 10, the paper's LIBERO-Long chunk); **H10_clean_obs** (H = 10, `σ_obs = 0.05`).
 
@@ -911,18 +911,28 @@ def fmt(x, nd=4):
     return f"{x:.{nd}f}"
 
 
+def sign_note(diffs, m):
+    """How many seeds disagree in sign with the paired mean (zeros listed apart)."""
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
 def label(diffs, mean_a, mean_b, scale=1):
     """tie: identical on every seed; near-tie: |paired mean| <= paired sd;
     otherwise consistent (|mean| > sd), called small if |mean| < 20 % of the
-    smaller arm mean. The 20 % rule only decides "small"."""
+    smaller arm mean. The 20 % rule only decides "small". "Consistent" means
+    only |mean| > sd; the appended sign count (seeds whose paired difference
+    has the opposite sign to the mean) separates sign-consistent gaps."""
     if all(d == 0 for d in diffs):
         return "tie: identical on every seed"
     m, sd = ms(diffs)
     if abs(m) <= sd:
         return f"near-tie / small gap, within seed noise (indistinguishable from 0 within +-{sd / scale:.4f})"
-    if abs(m) < 0.2 * min(abs(mean_a), abs(mean_b)):
-        return "small but consistent gap, not a tie"
-    return "clear gap, not a tie"
+    base = "small but consistent gap, not a tie" if abs(m) < 0.2 * min(abs(mean_a), abs(mean_b)) else "clear gap, not a tie"
+    return base + "; " + sign_note(diffs, m)
 
 
 def main():
@@ -979,9 +989,9 @@ H5_noisy_obs H=5 sigma_obs=0.3 A_causal 0.4259+-0.0303 0.4442+-0.0350 0.5700+-0.
 H5_noisy_obs H=5 sigma_obs=0.3 B_mask 0.3863+-0.0288 0.3839+-0.0249 0.5990+-0.0334
 H5_noisy_obs H=5 sigma_obs=0.3 C_parallel 0.3863+-0.0288 0.3839+-0.0249 0.5990+-0.0334
 H5_noisy_obs A_causal weight on its previous action token, mean over steps 2..H and seeds: 0.898
-H5_noisy_obs paired A-B chunk_rmse 0.0396+-0.0114: small but consistent gap, not a tie
-H5_noisy_obs paired A-B last_step_rmse 0.0603+-0.0148: small but consistent gap, not a tie
-H5_noisy_obs paired A-B success -0.0290+-0.0282: small but consistent gap, not a tie
+H5_noisy_obs paired A-B chunk_rmse 0.0396+-0.0114: small but consistent gap, not a tie; same sign on all 5 seeds
+H5_noisy_obs paired A-B last_step_rmse 0.0603+-0.0148: small but consistent gap, not a tie; same sign on all 5 seeds
+H5_noisy_obs paired A-B success -0.0290+-0.0282: small but consistent gap, not a tie; 1 of 5 seeds has the opposite sign
 H5_noisy_obs paired C-B chunk_rmse 0.0000+-0.0000: tie: identical on every seed
 H5_noisy_obs paired C-B last_step_rmse 0.0000+-0.0000: tie: identical on every seed
 H5_noisy_obs paired C-B success 0.0000+-0.0000: tie: identical on every seed
@@ -989,9 +999,9 @@ H10_noisy_obs H=10 sigma_obs=0.3 A_causal 0.4455+-0.0251 0.4660+-0.0235 0.3740+-
 H10_noisy_obs H=10 sigma_obs=0.3 B_mask 0.3821+-0.0180 0.3645+-0.0235 0.4590+-0.0301
 H10_noisy_obs H=10 sigma_obs=0.3 C_parallel 0.3821+-0.0180 0.3645+-0.0235 0.4590+-0.0301
 H10_noisy_obs A_causal weight on its previous action token, mean over steps 2..H and seeds: 0.889
-H10_noisy_obs paired A-B chunk_rmse 0.0634+-0.0117: small but consistent gap, not a tie
-H10_noisy_obs paired A-B last_step_rmse 0.1015+-0.0254: clear gap, not a tie
-H10_noisy_obs paired A-B success -0.0850+-0.0296: clear gap, not a tie
+H10_noisy_obs paired A-B chunk_rmse 0.0634+-0.0117: small but consistent gap, not a tie; same sign on all 5 seeds
+H10_noisy_obs paired A-B last_step_rmse 0.1015+-0.0254: clear gap, not a tie; same sign on all 5 seeds
+H10_noisy_obs paired A-B success -0.0850+-0.0296: clear gap, not a tie; same sign on all 5 seeds
 H10_noisy_obs paired C-B chunk_rmse 0.0000+-0.0000: tie: identical on every seed
 H10_noisy_obs paired C-B last_step_rmse 0.0000+-0.0000: tie: identical on every seed
 H10_noisy_obs paired C-B success 0.0000+-0.0000: tie: identical on every seed
@@ -999,8 +1009,8 @@ H10_clean_obs H=10 sigma_obs=0.05 A_causal 0.2016+-0.0271 0.1719+-0.0097 0.9380+
 H10_clean_obs H=10 sigma_obs=0.05 B_mask 0.1965+-0.0267 0.1667+-0.0093 0.9380+-0.0321
 H10_clean_obs H=10 sigma_obs=0.05 C_parallel 0.1965+-0.0267 0.1667+-0.0093 0.9380+-0.0321
 H10_clean_obs A_causal weight on its previous action token, mean over steps 2..H and seeds: 0.265
-H10_clean_obs paired A-B chunk_rmse 0.0051+-0.0024: small but consistent gap, not a tie
-H10_clean_obs paired A-B last_step_rmse 0.0051+-0.0050: small but consistent gap, not a tie
+H10_clean_obs paired A-B chunk_rmse 0.0051+-0.0024: small but consistent gap, not a tie; same sign on all 5 seeds
+H10_clean_obs paired A-B last_step_rmse 0.0051+-0.0050: small but consistent gap, not a tie; same sign on all 5 seeds
 H10_clean_obs paired A-B success 0.0000+-0.0094: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.0094)
 H10_clean_obs paired C-B chunk_rmse 0.0000+-0.0000: tie: identical on every seed
 H10_clean_obs paired C-B last_step_rmse 0.0000+-0.0000: tie: identical on every seed
@@ -1016,12 +1026,12 @@ LIBERO success rates 以论文为准; GPU WorldVLA run 本页未运行
 ### Read the four regimes
 
 - **H1_noisy_obs:** A, B and C are a **tie: identical on every seed** (chunk RMSE 0.3907±0.0452 and success 0.7980±0.0437 for all three). This is structural, not luck: a one-step chunk has no prior action to attend to, so the mask changes nothing.
-- **H5_noisy_obs:** A's weight on its previous action token averages 0.898. With noisy vision, the demo's previous action was the best clue about `s` during training; at test time that input is A's own prediction, which already carries the decode error, so the error is passed on. Chunk RMSE A 0.4259±0.0303 against B 0.3863±0.0288 (paired A−B 0.0396±0.0114) and last-step RMSE 0.4442±0.0350 against 0.3839±0.0249 (paired 0.0603±0.0148) are **small but consistent gaps, not ties**. Success 0.5700±0.0359 against 0.5990±0.0334 (paired −0.0290±0.0282) gets the same label only just: `|paired mean|` exceeds the sd by less than 0.001.
+- **H5_noisy_obs:** A's weight on its previous action token averages 0.898. With noisy vision, the demo's previous action was the best clue about `s` during training; at test time that input is A's own prediction, which already carries the decode error, so the error is passed on. Chunk RMSE A 0.4259±0.0303 against B 0.3863±0.0288 (paired A−B 0.0396±0.0114) and last-step RMSE 0.4442±0.0350 against 0.3839±0.0249 (paired 0.0603±0.0148) are **small but consistent gaps, not ties**. Success 0.5700±0.0359 against 0.5990±0.0334 (paired −0.0290±0.0282) gets the same label only just: `|paired mean|` exceeds the sd by less than 0.001, and **1 of 5 seeds has the opposite sign** (A succeeds more often on that seed), so it is weakly consistent. Every other consistent or clear A−B gap in this toy has the same sign on all 5 seeds.
 - **H10_noisy_obs:** the gap grows with the chunk. Chunk RMSE A 0.4455±0.0251 against B 0.3821±0.0180 (paired 0.0634±0.0117) is a **small but consistent gap, not a tie** (16.6 % of B's mean); last-step RMSE 0.4660±0.0235 against 0.3645±0.0235 (paired 0.1015±0.0254) and success 0.3740±0.0261 against 0.4590±0.0301 (paired −0.0850±0.0296) are **clear gaps**. A's previous-action weight is 0.889.
 - **H10_clean_obs:** with clean vision, `x` already pins down `s`, so A's previous-action weight drops to 0.265 and little error is passed on. Chunk RMSE A 0.2016±0.0271 against B 0.1965±0.0267 (paired 0.0051±0.0024) and last-step RMSE 0.1719±0.0097 against 0.1667±0.0093 (paired 0.0051±0.0050, where `|paired mean|` exceeds the sd by about 0.0001) are **small but consistent gaps, not ties**. Success is a **near-tie / small gap, within seed noise**: both average 0.9380, paired 0.0000±0.0094, and the per-seed counts differ, so it is not a tie.
 - **B against C:** a **tie: identical on every seed** in every regime. Once prior actions are masked, each step is a function of `x` alone, so token-by-token decoding and one parallel head compute the same chunk. Here the mask buys nothing over plain parallel decoding; what differs in a real model is decode latency, which these metrics cannot see.
 
-**Why the decode error is needed.** In this linear-Gaussian stand-in, A's chained predictor is still a linear function of `x`; without the decode error and with enough demos it approaches B's predictor, so the gap would shrink toward zero. The toy therefore shows the propagation mechanism the paper names, not a proof that it happens in WorldVLA.
+**Why the decode error is needed.** In this linear-Gaussian stand-in, A's chained predictor is still a linear function of `x`; without the decode error it approaches B's predictor only as the demos grow. With `SIGMA_DEC = 0` and this page's 40 demos the A−B gap only shrinks, it does not vanish (local run, not printed: H10_noisy_obs chunk RMSE gap 0.0089±0.0064, still a small but consistent gap, against 0.0634±0.0117 here), because finite-sample ridge fits and the 256-bin quantization still differ between the arms; only with many demos (1500 in the test file) does every A−B RMSE gap fall below 0.002. The toy therefore shows the propagation mechanism the paper names, not a proof that it happens in WorldVLA.
 
 The page **does not declare a universal winner**. On seed averages the mask never does worse than the causal arm in this toy (single seeds can differ), but at H = 1 it is identical to the causal arm on every seed, gains little when vision is clean, and is identical to a parallel head. The paper's larger LIBERO gaps come from a real backbone and stay 以论文为准; GPU WorldVLA run: **本页未运行**.
 

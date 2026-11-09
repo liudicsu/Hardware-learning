@@ -559,7 +559,7 @@ UniVLA above shares a **latent action** space and decodes it per embodiment. X-V
 
 **Common random numbers:** per (regime, seed), the hardware vectors, the maps `T_j`, the training demos and their noise, the 4 adaptation demos and the 100 test inputs are drawn once and fed to all three arms; C's prompt initialisation comes from its own fixed seed. Five seeds; every entry is mean±sd over seeds. Metrics: action RMSE against the noiseless action, averaged over the seen embodiments (**seen_rmse**) and on the held-out one after adaptation (**new_emb_rmse**). Both are **blind** to cameras, compute, training stability and closed-loop success.
 
-**How pairs are labelled** (computed from unrounded per-seed values): **tie** only if the two arms are identical on every seed; **near-tie / small gap, within seed noise** if the mean paired difference is no larger than its sd. Otherwise the gap is **consistent**, which means `|paired mean| > sd`; it is called **small but consistent gap, not a tie** if it is under 20 % of the smaller arm's mean, and **clear gap** otherwise. The 20 % rule only decides whether a consistent gap is small; it never decides consistency.
+**How pairs are labelled** (computed from unrounded per-seed values): **tie** only if the two arms are identical on every seed; **near-tie / small gap, within seed noise** if the mean paired difference is no larger than its sd. Otherwise the gap is **consistent**, which means `|paired mean| > sd`; it is called **small but consistent gap, not a tie** if it is under 20 % of the smaller arm's mean, and **clear gap** otherwise. The 20 % rule only decides whether a consistent gap is small; it never decides consistency. "Consistent" means only `|paired mean| > sd`; it does **not** mean every seed agrees in sign. So every consistent or clear print line also carries a sign count: **same sign on all 5 seeds** is the stronger claim, and **k of 5 seeds has / have the opposite sign** marks a gap that some seeds reverse.
 
 Regimes: **single_embodiment** (one embodiment, R = 2, 24 demos); **shared_low_rank** (six embodiments whose hardware lies on R = 2 shared factors, only 8 demos each: the paper's premise); **unrelated_full_rank** (six embodiments with one private factor each, R = 6, 30 demos each: the premise fails).
 
@@ -740,18 +740,28 @@ def fmt(x, nd=4):
     return f"{x:.{nd}f}"
 
 
+def sign_note(diffs, m):
+    """How many seeds disagree in sign with the paired mean (zeros listed apart)."""
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
 def label(diffs, mean_a, mean_b):
     """tie: identical on every seed; near-tie: |paired mean| <= paired sd;
     otherwise consistent (|mean| > sd), called small if |mean| < 20 % of the
-    smaller arm mean. The 20 % rule only decides "small"."""
+    smaller arm mean. The 20 % rule only decides "small". "Consistent" means
+    only |mean| > sd; the appended sign count (seeds whose paired difference
+    has the opposite sign to the mean) separates sign-consistent gaps."""
     if all(d == 0 for d in diffs):
         return "tie: identical on every seed"
     m, sd = ms(diffs)
     if abs(m) <= sd:
         return f"near-tie / small gap, within seed noise (indistinguishable from 0 within +-{sd:.4f})"
-    if abs(m) < 0.2 * min(abs(mean_a), abs(mean_b)):
-        return "small but consistent gap, not a tie"
-    return "clear gap, not a tie"
+    base = "small but consistent gap, not a tie" if abs(m) < 0.2 * min(abs(mean_a), abs(mean_b)) else "clear gap, not a tie"
+    return base + "; " + sign_note(diffs, m)
 
 
 def main():
@@ -786,28 +796,28 @@ single_embodiment E=1 R=2 demos=24 A_pooled 0.0651+-0.0179 1.0589+-0.3141
 single_embodiment E=1 R=2 demos=24 B_hard_id 0.0651+-0.0179 0.5999+-0.3989
 single_embodiment E=1 R=2 demos=24 C_soft_prompt 0.0643+-0.0180 0.8406+-0.5117
 single_embodiment paired C-B seen_rmse -0.0007+-0.0009: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.0009)
-single_embodiment paired C-B new_emb_rmse 0.2406+-0.2119: clear gap, not a tie
+single_embodiment paired C-B new_emb_rmse 0.2406+-0.2119: clear gap, not a tie; 1 of 5 seeds has the opposite sign
 single_embodiment paired C-A seen_rmse -0.0007+-0.0009: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.0009)
 single_embodiment paired C-A new_emb_rmse -0.2183+-0.4182: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.4182)
 single_embodiment paired B-A seen_rmse 0.0000+-0.0000: tie: identical on every seed
-single_embodiment paired B-A new_emb_rmse -0.4590+-0.3328: clear gap, not a tie
+single_embodiment paired B-A new_emb_rmse -0.4590+-0.3328: clear gap, not a tie; same sign on all 5 seeds
 shared_low_rank E=6 R=2 demos=8 A_pooled 1.2427+-0.1303 0.6318+-0.4109
 shared_low_rank E=6 R=2 demos=8 B_hard_id 0.1812+-0.0351 0.5149+-0.3261
 shared_low_rank E=6 R=2 demos=8 C_soft_prompt 0.0690+-0.0118 0.0721+-0.0327
-shared_low_rank paired C-B seen_rmse -0.1122+-0.0401: clear gap, not a tie
-shared_low_rank paired C-B new_emb_rmse -0.4428+-0.3071: clear gap, not a tie
-shared_low_rank paired C-A seen_rmse -1.1738+-0.1270: clear gap, not a tie
-shared_low_rank paired C-A new_emb_rmse -0.5597+-0.3882: clear gap, not a tie
-shared_low_rank paired B-A seen_rmse -1.0616+-0.1145: clear gap, not a tie
-shared_low_rank paired B-A new_emb_rmse -0.1169+-0.1065: clear gap, not a tie
+shared_low_rank paired C-B seen_rmse -0.1122+-0.0401: clear gap, not a tie; same sign on all 5 seeds
+shared_low_rank paired C-B new_emb_rmse -0.4428+-0.3071: clear gap, not a tie; same sign on all 5 seeds
+shared_low_rank paired C-A seen_rmse -1.1738+-0.1270: clear gap, not a tie; same sign on all 5 seeds
+shared_low_rank paired C-A new_emb_rmse -0.5597+-0.3882: clear gap, not a tie; same sign on all 5 seeds
+shared_low_rank paired B-A seen_rmse -1.0616+-0.1145: clear gap, not a tie; same sign on all 5 seeds
+shared_low_rank paired B-A new_emb_rmse -0.1169+-0.1065: clear gap, not a tie; same sign on all 5 seeds
 unrelated_full_rank E=6 R=6 demos=30 A_pooled 0.8695+-0.0653 1.2747+-0.5434
 unrelated_full_rank E=6 R=6 demos=30 B_hard_id 0.0530+-0.0052 1.2388+-0.4554
 unrelated_full_rank E=6 R=6 demos=30 C_soft_prompt 0.6029+-0.0457 1.4080+-0.5846
-unrelated_full_rank paired C-B seen_rmse 0.5499+-0.0422: clear gap, not a tie
-unrelated_full_rank paired C-B new_emb_rmse 0.1692+-0.1618: small but consistent gap, not a tie
-unrelated_full_rank paired C-A seen_rmse -0.2666+-0.0370: clear gap, not a tie
+unrelated_full_rank paired C-B seen_rmse 0.5499+-0.0422: clear gap, not a tie; same sign on all 5 seeds
+unrelated_full_rank paired C-B new_emb_rmse 0.1692+-0.1618: small but consistent gap, not a tie; 1 of 5 seeds has the opposite sign
+unrelated_full_rank paired C-A seen_rmse -0.2666+-0.0370: clear gap, not a tie; same sign on all 5 seeds
 unrelated_full_rank paired C-A new_emb_rmse 0.1333+-0.2764: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.2764)
-unrelated_full_rank paired B-A seen_rmse -0.8165+-0.0637: clear gap, not a tie
+unrelated_full_rank paired B-A seen_rmse -0.8165+-0.0637: clear gap, not a tie; same sign on all 5 seeds
 unrelated_full_rank paired B-A new_emb_rmse -0.0359+-0.1828: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.1828)
 No winner declared: K = 2 prompts help only when embodiments share a few hardware factors
 Benchmark success rates 以论文为准; GPU X-VLA run 本页未运行
@@ -817,9 +827,9 @@ Benchmark success rates 以论文为准; GPU X-VLA run 本页未运行
 
 ### Read the three regimes
 
-- **single_embodiment:** on seen data A and B are a **tie: identical on every seed** (0.0651±0.0179): with one embodiment, the one-hot head is the pooled map. C gives 0.0643±0.0180, and paired C−B −0.0007±0.0009 is a **near-tie / small gap, within seed noise**; the bilinear fit is only regularised differently. On the held-out embodiment nothing has taught the backbone how hardware varies, so **C loses to B**: 0.8406±0.5117 against the fresh head's 0.5999±0.3989 (paired C−B 0.2406±0.2119). That counts as a clear gap because it exceeds 20 % of B's mean, but `|paired mean|` exceeds the sd by only about 0.03 and C is better on one of the five seeds, so it is weakly consistent. A's fine-tuned pooled map is worst at 1.0589±0.3141 (paired B−A −0.4590±0.3328, clear gap): pulling toward another robot's map is a bad prior.
-- **shared_low_rank:** C wins both metrics. Seen: 0.0690±0.0118 against B 0.1812±0.0351 and A 1.2427±0.1303 (paired C−B −0.1122±0.0401, clear gap). New embodiment: 0.0721±0.0327 against B 0.5149±0.3261 and A 0.6318±0.4109 (paired C−B −0.4428±0.3071, clear gap). With 8 demos each separate head must estimate 12 numbers alone, while C shares the backbone and fits 2 per embodiment; pooling with no embodiment input averages incompatible maps. B against A on the new embodiment (paired −0.1169±0.1065) is labelled clear because it exceeds 20 % of B's mean, though `|paired mean|` exceeds the sd by only about 0.01.
-- **unrelated_full_rank:** **C loses.** Seen: 0.6029±0.0457 against B 0.0530±0.0052 (paired C−B 0.5499±0.0422, clear gap): two prompt numbers cannot span six unrelated maps. On the held-out embodiment all three are poor (A 1.2747±0.5434, B 1.2388±0.4554, C 1.4080±0.5846), because 4 demos cannot pin down 12 numbers and the new map lies outside C's span. C−B 0.1692±0.1618 is a **small but consistent gap, not a tie**, only just; C−A 0.1333±0.2764 and B−A −0.0359±0.1828 are **near-ties / small gaps, within seed noise**.
+- **single_embodiment:** on seen data A and B are a **tie: identical on every seed** (0.0651±0.0179): with one embodiment, the one-hot head is the pooled map. C gives 0.0643±0.0180, and paired C−B −0.0007±0.0009 is a **near-tie / small gap, within seed noise**; the bilinear fit is only regularised differently. On the held-out embodiment nothing has taught the backbone how hardware varies, so **C loses to B**: 0.8406±0.5117 against the fresh head's 0.5999±0.3989 (paired C−B 0.2406±0.2119). That counts as a clear gap because it exceeds 20 % of B's mean, but `|paired mean|` exceeds the sd by only about 0.03 and **1 of 5 seeds has the opposite sign** (C is better on that seed), so it is weakly consistent. A's fine-tuned pooled map is worst at 1.0589±0.3141 (paired B−A −0.4590±0.3328, clear gap): pulling toward another robot's map is a bad prior.
+- **shared_low_rank:** C wins both metrics. Seen: 0.0690±0.0118 against B 0.1812±0.0351 and A 1.2427±0.1303 (paired C−B −0.1122±0.0401, clear gap). New embodiment: 0.0721±0.0327 against B 0.5149±0.3261 and A 0.6318±0.4109 (paired C−B −0.4428±0.3071, clear gap). With 8 demos each separate head must estimate 12 numbers alone, while C shares the backbone and fits 2 per embodiment; pooling with no embodiment input averages incompatible maps. B against A on the new embodiment (paired −0.1169±0.1065) is labelled clear because it exceeds 20 % of B's mean, though `|paired mean|` exceeds the sd by only about 0.01 (its sign is the same on all 5 seeds). Apart from the two single-seed reversals named for single_embodiment and unrelated_full_rank, every consistent or clear gap in this toy has the same sign on all 5 seeds.
+- **unrelated_full_rank:** **C loses.** Seen: 0.6029±0.0457 against B 0.0530±0.0052 (paired C−B 0.5499±0.0422, clear gap): two prompt numbers cannot span six unrelated maps. On the held-out embodiment all three are poor (A 1.2747±0.5434, B 1.2388±0.4554, C 1.4080±0.5846), because 4 demos cannot pin down 12 numbers and the new map lies outside C's span. C−B 0.1692±0.1618 is a **small but consistent gap, not a tie**, only just: `|paired mean|` exceeds the sd by under 0.01 and **1 of 5 seeds has the opposite sign** (C is better on that seed); C−A 0.1333±0.2764 and B−A −0.0359±0.1828 are **near-ties / small gaps, within seed noise**.
 
 The page **does not declare a universal winner**. Soft prompts pay off when embodiments share a few hardware factors and each has little data, which is the paper's premise. With one embodiment they add nothing on seen data and lose to a fresh head on a new embodiment; when embodiments are unrelated a short prompt is too narrow and separate heads win on seen data. Benchmark numbers stay 以论文为准; GPU X-VLA run: **本页未运行**.
 

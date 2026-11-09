@@ -37,8 +37,11 @@ class Labels(unittest.TestCase):
         for mod in (wv, xv):
             self.assertEqual(mod.label([0.0] * 5, 1.0, 1.0), "tie: identical on every seed")
             self.assertTrue(mod.label([0.1, -0.1, 0.1, -0.1, 0.0], 1.0, 1.0).startswith("near-tie / small gap"))
-            self.assertEqual(mod.label([0.10, 0.11, 0.09, 0.10, 0.10], 1.0, 1.0), "small but consistent gap, not a tie")
-            self.assertEqual(mod.label([0.50, 0.51, 0.49, 0.50, 0.50], 1.0, 1.0), "clear gap, not a tie")
+            self.assertEqual(mod.label([0.10, 0.11, 0.09, 0.10, 0.10], 1.0, 1.0), "small but consistent gap, not a tie; same sign on all 5 seeds")
+            self.assertEqual(mod.label([0.50, 0.51, 0.49, 0.50, 0.50], 1.0, 1.0), "clear gap, not a tie; same sign on all 5 seeds")
+            # "consistent" is only |m| > sd: a gap one seed reverses keeps its label but discloses the flip
+            self.assertEqual(mod.label([0.30, 0.30, 0.30, 0.30, -0.05], 1.0, 1.0), "clear gap, not a tie; 1 of 5 seeds has the opposite sign")
+            self.assertEqual(mod.sign_note([0.2, 0.0, -0.1, -0.1, 0.3], 0.06), "2 of 5 seeds have the opposite sign, 1 of 5 equal")
             # the 20 % rule never decides consistency: a huge but noisy gap is still a near-tie
             self.assertTrue(mod.label([3.0, -1.0, 3.0, -1.0, 0.0], 1.0, 1.0).startswith("near-tie"))
 
@@ -62,6 +65,10 @@ class Labels(unittest.TestCase):
                 if " paired " in line:
                     m = re.search(r" (-?[0-9.e-]+)\+-([0-9.]+): (.*)$", line)
                     self.assertIsNotNone(m, line)
+                    if "consistent" in m.group(3) or "clear" in m.group(3):
+                        self.assertRegex(m.group(3), r"; (same sign on all 5 seeds|[1-4] of 5 seeds (has|have) the opposite sign)")
+                    else:
+                        self.assertNotIn("opposite sign", m.group(3))
                     if m.group(3).startswith("tie"):
                         self.assertEqual(float(m.group(1)), 0.0)
                         self.assertEqual(float(m.group(2)), 0.0)
@@ -145,6 +152,35 @@ class WorldVLA(unittest.TestCase):
             self.assertLess(abs(ra - rb), 0.005)
         finally:
             wv.SIGMA_DEC, wv.N_TRAIN = old
+
+
+    def test_gap_only_shrinks_with_few_demos_and_no_decode_error(self):
+        """With SIGMA_DEC = 0 but the page's 40 demos, A-B shrinks but does not vanish."""
+        def gap(sigma_dec):
+            old = wv.SIGMA_DEC
+            try:
+                wv.SIGMA_DEC = sigma_dec
+                g = []
+                for seed in wv.SEEDS:
+                    tr, te = wv.shared_draws(seed, 10, 0.3)
+                    ra = wv.metrics(wv.fit_predict("A_causal", tr, te, 10)[0], te, 10)[0]
+                    rb = wv.metrics(wv.fit_predict("B_mask", tr, te, 10)[0], te, 10)[0]
+                    g.append(ra - rb)
+                return sum(g) / len(g)
+            finally:
+                wv.SIGMA_DEC = old
+        g0, g15 = gap(0.0), gap(0.15)
+        self.assertGreater(g0, 0.002)
+        self.assertLess(g0, 0.25 * g15)
+
+
+class SignDisclosure(unittest.TestCase):
+    def test_reviewer_flagged_flips_are_printed(self):
+        wv_out, xv_out = run(WV_REL), run(XV_REL)
+        self.assertIn("H5_noisy_obs paired A-B success -0.0290+-0.0282: small but consistent gap, not a tie; 1 of 5 seeds has the opposite sign", wv_out)
+        self.assertIn("unrelated_full_rank paired C-B new_emb_rmse 0.1692+-0.1618: small but consistent gap, not a tie; 1 of 5 seeds has the opposite sign", xv_out)
+        self.assertIn("single_embodiment paired C-B new_emb_rmse 0.2406+-0.2119: clear gap, not a tie; 1 of 5 seeds has the opposite sign", xv_out)
+        self.assertEqual((wv_out + xv_out).count("opposite sign"), 3)
 
 
 class XVLA(unittest.TestCase):

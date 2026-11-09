@@ -559,7 +559,7 @@ No winner is declared; UniVLA LIBERO / R2R / real-robot gains 以论文为准; V
 
 **公共随机数：** 每个（情形、种子）的硬件向量、映射 `T_j`、训练示范及其噪声、4 条适配示范和 100 个测试输入都只抽一次，三组共用；C 的提示初始化来自它自己的固定种子。5 个种子；每项都是各种子之间的 mean±sd。指标：相对无噪声动作的动作 RMSE，分别在见过的本体上取平均（**seen_rmse**）和在适配后的留出本体上计算（**new_emb_rmse**）。两者都**看不见**相机、算力、训练稳定性和闭环成功率。
 
-**配对比较怎么贴标签**（用未取整的逐种子数值计算）：只有两组在每个种子上都完全相同才叫**打平**；配对差的均值不大于它的 sd，叫**接近打平、差距很小，在种子噪声之内**。否则差距是**稳定的**，即 `|配对均值| > sd`；稳定差距小于较小一组均值的 20 %，叫**小而稳定的差距，不是打平**，否则叫**明显差距**。20 % 规则只用来判断稳定差距是否算「小」，从不用来判断是否「稳定」。
+**配对比较怎么贴标签**（用未取整的逐种子数值计算）：只有两组在每个种子上都完全相同才叫**打平**；配对差的均值不大于它的 sd，叫**接近打平、差距很小，在种子噪声之内**。否则差距是**稳定的**，即 `|配对均值| > sd`；稳定差距小于较小一组均值的 20 %，叫**小而稳定的差距，不是打平**，否则叫**明显差距**。20 % 规则只用来判断稳定差距是否算「小」，从不用来判断是否「稳定」。「稳定」只表示 `|配对均值| > sd`，**并不**表示每个种子的符号都一致。所以每条稳定或明显差距的打印行还附带符号计数：**5 个种子符号全部相同**（same sign on all 5 seeds）是更强的结论；**5 个种子中 k 个符号相反**（k of 5 seeds has / have the opposite sign）表示有些种子的差距方向反过来。
 
 三种情形：**single_embodiment**（一个本体，R = 2，24 条示范）；**shared_low_rank**（六个本体，硬件落在 R = 2 个共享因子上，每个只有 8 条示范：论文的前提）；**unrelated_full_rank**（六个本体各有一个私有因子，R = 6，每个 30 条示范：前提不成立）。
 
@@ -740,18 +740,28 @@ def fmt(x, nd=4):
     return f"{x:.{nd}f}"
 
 
+def sign_note(diffs, m):
+    """How many seeds disagree in sign with the paired mean (zeros listed apart)."""
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
 def label(diffs, mean_a, mean_b):
     """tie: identical on every seed; near-tie: |paired mean| <= paired sd;
     otherwise consistent (|mean| > sd), called small if |mean| < 20 % of the
-    smaller arm mean. The 20 % rule only decides "small"."""
+    smaller arm mean. The 20 % rule only decides "small". "Consistent" means
+    only |mean| > sd; the appended sign count (seeds whose paired difference
+    has the opposite sign to the mean) separates sign-consistent gaps."""
     if all(d == 0 for d in diffs):
         return "tie: identical on every seed"
     m, sd = ms(diffs)
     if abs(m) <= sd:
         return f"near-tie / small gap, within seed noise (indistinguishable from 0 within +-{sd:.4f})"
-    if abs(m) < 0.2 * min(abs(mean_a), abs(mean_b)):
-        return "small but consistent gap, not a tie"
-    return "clear gap, not a tie"
+    base = "small but consistent gap, not a tie" if abs(m) < 0.2 * min(abs(mean_a), abs(mean_b)) else "clear gap, not a tie"
+    return base + "; " + sign_note(diffs, m)
 
 
 def main():
@@ -786,28 +796,28 @@ single_embodiment E=1 R=2 demos=24 A_pooled 0.0651+-0.0179 1.0589+-0.3141
 single_embodiment E=1 R=2 demos=24 B_hard_id 0.0651+-0.0179 0.5999+-0.3989
 single_embodiment E=1 R=2 demos=24 C_soft_prompt 0.0643+-0.0180 0.8406+-0.5117
 single_embodiment paired C-B seen_rmse -0.0007+-0.0009: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.0009)
-single_embodiment paired C-B new_emb_rmse 0.2406+-0.2119: clear gap, not a tie
+single_embodiment paired C-B new_emb_rmse 0.2406+-0.2119: clear gap, not a tie; 1 of 5 seeds has the opposite sign
 single_embodiment paired C-A seen_rmse -0.0007+-0.0009: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.0009)
 single_embodiment paired C-A new_emb_rmse -0.2183+-0.4182: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.4182)
 single_embodiment paired B-A seen_rmse 0.0000+-0.0000: tie: identical on every seed
-single_embodiment paired B-A new_emb_rmse -0.4590+-0.3328: clear gap, not a tie
+single_embodiment paired B-A new_emb_rmse -0.4590+-0.3328: clear gap, not a tie; same sign on all 5 seeds
 shared_low_rank E=6 R=2 demos=8 A_pooled 1.2427+-0.1303 0.6318+-0.4109
 shared_low_rank E=6 R=2 demos=8 B_hard_id 0.1812+-0.0351 0.5149+-0.3261
 shared_low_rank E=6 R=2 demos=8 C_soft_prompt 0.0690+-0.0118 0.0721+-0.0327
-shared_low_rank paired C-B seen_rmse -0.1122+-0.0401: clear gap, not a tie
-shared_low_rank paired C-B new_emb_rmse -0.4428+-0.3071: clear gap, not a tie
-shared_low_rank paired C-A seen_rmse -1.1738+-0.1270: clear gap, not a tie
-shared_low_rank paired C-A new_emb_rmse -0.5597+-0.3882: clear gap, not a tie
-shared_low_rank paired B-A seen_rmse -1.0616+-0.1145: clear gap, not a tie
-shared_low_rank paired B-A new_emb_rmse -0.1169+-0.1065: clear gap, not a tie
+shared_low_rank paired C-B seen_rmse -0.1122+-0.0401: clear gap, not a tie; same sign on all 5 seeds
+shared_low_rank paired C-B new_emb_rmse -0.4428+-0.3071: clear gap, not a tie; same sign on all 5 seeds
+shared_low_rank paired C-A seen_rmse -1.1738+-0.1270: clear gap, not a tie; same sign on all 5 seeds
+shared_low_rank paired C-A new_emb_rmse -0.5597+-0.3882: clear gap, not a tie; same sign on all 5 seeds
+shared_low_rank paired B-A seen_rmse -1.0616+-0.1145: clear gap, not a tie; same sign on all 5 seeds
+shared_low_rank paired B-A new_emb_rmse -0.1169+-0.1065: clear gap, not a tie; same sign on all 5 seeds
 unrelated_full_rank E=6 R=6 demos=30 A_pooled 0.8695+-0.0653 1.2747+-0.5434
 unrelated_full_rank E=6 R=6 demos=30 B_hard_id 0.0530+-0.0052 1.2388+-0.4554
 unrelated_full_rank E=6 R=6 demos=30 C_soft_prompt 0.6029+-0.0457 1.4080+-0.5846
-unrelated_full_rank paired C-B seen_rmse 0.5499+-0.0422: clear gap, not a tie
-unrelated_full_rank paired C-B new_emb_rmse 0.1692+-0.1618: small but consistent gap, not a tie
-unrelated_full_rank paired C-A seen_rmse -0.2666+-0.0370: clear gap, not a tie
+unrelated_full_rank paired C-B seen_rmse 0.5499+-0.0422: clear gap, not a tie; same sign on all 5 seeds
+unrelated_full_rank paired C-B new_emb_rmse 0.1692+-0.1618: small but consistent gap, not a tie; 1 of 5 seeds has the opposite sign
+unrelated_full_rank paired C-A seen_rmse -0.2666+-0.0370: clear gap, not a tie; same sign on all 5 seeds
 unrelated_full_rank paired C-A new_emb_rmse 0.1333+-0.2764: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.2764)
-unrelated_full_rank paired B-A seen_rmse -0.8165+-0.0637: clear gap, not a tie
+unrelated_full_rank paired B-A seen_rmse -0.8165+-0.0637: clear gap, not a tie; same sign on all 5 seeds
 unrelated_full_rank paired B-A new_emb_rmse -0.0359+-0.1828: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.1828)
 No winner declared: K = 2 prompts help only when embodiments share a few hardware factors
 Benchmark success rates 以论文为准; GPU X-VLA run 本页未运行
@@ -817,9 +827,9 @@ Benchmark success rates 以论文为准; GPU X-VLA run 本页未运行
 
 ### 读三种情形
 
-- **single_embodiment：** 在见过的数据上 A 和 B **打平：每个种子都完全相同**（0.0651±0.0179）：只有一个本体时，one-hot 头就是共享映射。C 为 0.0643±0.0180，配对 C−B −0.0007±0.0009，**接近打平、差距很小，在种子噪声之内**；双线性拟合只是正则化方式不同。在留出本体上，没有任何数据教过主干硬件如何变化，所以 **C 输给 B**：0.8406±0.5117 对全新头的 0.5999±0.3989（配对 C−B 0.2406±0.2119）。因为超过 B 均值的 20 %，它被标为明显差距，但 `|配对均值|` 只比 sd 大约 0.03，而且五个种子里有一个 C 更好，所以只是勉强稳定。A 微调共享映射最差，为 1.0589±0.3141（配对 B−A −0.4590±0.3328，明显差距）：向另一台机器人的映射靠拢是个坏先验。
-- **shared_low_rank：** C 在两个指标上都赢。见过的本体：0.0690±0.0118，B 为 0.1812±0.0351，A 为 1.2427±0.1303（配对 C−B −0.1122±0.0401，明显差距）。新本体：0.0721±0.0327，B 为 0.5149±0.3261，A 为 0.6318±0.4109（配对 C−B −0.4428±0.3071，明显差距）。只有 8 条示范时，每个独立的头都要单独估 12 个数，而 C 共享主干、每个本体只拟合 2 个数；不带本体输入的共享映射会把互不兼容的映射平均掉。新本体上 B 对 A（配对 −0.1169±0.1065）因为超过 B 均值的 20 % 被标为明显差距，但 `|配对均值|` 只比 sd 大约 0.01。
-- **unrelated_full_rank：** **C 输了。** 见过的本体：0.6029±0.0457，B 为 0.0530±0.0052（配对 C−B 0.5499±0.0422，明显差距）：两个提示数撑不起六个互不相关的映射。在留出本体上三组都很差（A 1.2747±0.5434，B 1.2388±0.4554，C 1.4080±0.5846），因为 4 条示范定不下 12 个数，而新映射又在 C 的张成空间之外。C−B 0.1692±0.1618 是**小而稳定的差距，不是打平**，但只是勉强；C−A 0.1333±0.2764 和 B−A −0.0359±0.1828 都**接近打平、差距很小，在种子噪声之内**。
+- **single_embodiment：** 在见过的数据上 A 和 B **打平：每个种子都完全相同**（0.0651±0.0179）：只有一个本体时，one-hot 头就是共享映射。C 为 0.0643±0.0180，配对 C−B −0.0007±0.0009，**接近打平、差距很小，在种子噪声之内**；双线性拟合只是正则化方式不同。在留出本体上，没有任何数据教过主干硬件如何变化，所以 **C 输给 B**：0.8406±0.5117 对全新头的 0.5999±0.3989（配对 C−B 0.2406±0.2119）。因为超过 B 均值的 20 %，它被标为明显差距，但 `|配对均值|` 只比 sd 大约 0.03，而且 **5 个种子中 1 个符号相反**（那个种子上 C 更好），所以只是勉强稳定。A 微调共享映射最差，为 1.0589±0.3141（配对 B−A −0.4590±0.3328，明显差距）：向另一台机器人的映射靠拢是个坏先验。
+- **shared_low_rank：** C 在两个指标上都赢。见过的本体：0.0690±0.0118，B 为 0.1812±0.0351，A 为 1.2427±0.1303（配对 C−B −0.1122±0.0401，明显差距）。新本体：0.0721±0.0327，B 为 0.5149±0.3261，A 为 0.6318±0.4109（配对 C−B −0.4428±0.3071，明显差距）。只有 8 条示范时，每个独立的头都要单独估 12 个数，而 C 共享主干、每个本体只拟合 2 个数；不带本体输入的共享映射会把互不兼容的映射平均掉。新本体上 B 对 A（配对 −0.1169±0.1065）因为超过 B 均值的 20 % 被标为明显差距，但 `|配对均值|` 只比 sd 大约 0.01（5 个种子符号全部相同）。除了 single_embodiment 和 unrelated_full_rank 里点名的两处单个种子反向，这个玩具里其余稳定或明显的差距，5 个种子符号全部相同。
+- **unrelated_full_rank：** **C 输了。** 见过的本体：0.6029±0.0457，B 为 0.0530±0.0052（配对 C−B 0.5499±0.0422，明显差距）：两个提示数撑不起六个互不相关的映射。在留出本体上三组都很差（A 1.2747±0.5434，B 1.2388±0.4554，C 1.4080±0.5846），因为 4 条示范定不下 12 个数，而新映射又在 C 的张成空间之外。C−B 0.1692±0.1618 是**小而稳定的差距，不是打平**，但只是勉强：`|配对均值|` 只比 sd 大不到 0.01，而且 **5 个种子中 1 个符号相反**（那个种子上 C 更好）；C−A 0.1333±0.2764 和 B−A −0.0359±0.1828 都**接近打平、差距很小，在种子噪声之内**。
 
 本页**不宣布普遍赢家**。各本体共享少数几个硬件因子、而每个本体数据又少时，软提示才划算，这正是论文的前提。只有一个本体时，它在见过的数据上不带来任何好处，在新本体上输给全新的头；本体互不相关时，短提示太窄，独立的头在见过的数据上会赢。基准数字以论文为准；GPU 上运行 X-VLA：**本页未运行**。
 

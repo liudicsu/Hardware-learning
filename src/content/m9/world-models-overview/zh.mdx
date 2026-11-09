@@ -753,7 +753,7 @@ GPU / MemoryVLA weights / robot: 本页未运行; Shi et al. 2508.19236 以论�
 
 **公共随机数：** 每个种子只生成一次 40 条训练示范和 200 个测试场景，连同它们的观测噪声、示范噪声和解码误差，三组**以及**四种情形全部共用（情形只改 H 和 `σ_obs`）；没有哪一组少了某个噪声源。5 个种子；表中每项都是各种子之间的 mean±sd。指标都相对无噪声的 `c_k · s`：整块 RMSE、最后一步 RMSE，以及成功率 = 块内**最差**一步误差小于 0.5 的场景比例。这些都是**开环**指标，**看不见**解码延迟、闭环纠错，以及块太长时损失的反应速度（论文报告过块太长会因此变差）。
 
-**配对比较怎么贴标签**（用未取整的逐种子数值计算）：只有两组在每个种子上都完全相同才叫**打平**；配对差的均值不大于它的 sd，叫**接近打平、差距很小，在种子噪声之内**。否则差距是**稳定的**，即 `|配对均值| > sd`；稳定差距小于较小一组均值的 20 %，叫**小而稳定的差距，不是打平**，否则叫**明显差距**。20 % 规则只用来判断稳定差距是否算「小」，从不用来判断是否「稳定」。会被取整成零的配对均值用更多位数打印，绝不打印带符号的零。
+**配对比较怎么贴标签**（用未取整的逐种子数值计算）：只有两组在每个种子上都完全相同才叫**打平**；配对差的均值不大于它的 sd，叫**接近打平、差距很小，在种子噪声之内**。否则差距是**稳定的**，即 `|配对均值| > sd`；稳定差距小于较小一组均值的 20 %，叫**小而稳定的差距，不是打平**，否则叫**明显差距**。20 % 规则只用来判断稳定差距是否算「小」，从不用来判断是否「稳定」。「稳定」只表示 `|配对均值| > sd`，**并不**表示每个种子的符号都一致。所以每条稳定或明显差距的打印行还附带符号计数：**5 个种子符号全部相同**（same sign on all 5 seeds）是更强的结论；**5 个种子中 k 个符号相反**（k of 5 seeds has / have the opposite sign）表示有些种子的差距方向反过来。会被取整成零的配对均值用更多位数打印，绝不打印带符号的零。
 
 四种情形：**H1_noisy_obs**（H = 1，`σ_obs = 0.3`）；**H5_noisy_obs**（H = 5，论文默认块长）；**H10_noisy_obs**（H = 10，论文 LIBERO-Long 的块长）；**H10_clean_obs**（H = 10，`σ_obs = 0.05`）。
 
@@ -911,18 +911,28 @@ def fmt(x, nd=4):
     return f"{x:.{nd}f}"
 
 
+def sign_note(diffs, m):
+    """How many seeds disagree in sign with the paired mean (zeros listed apart)."""
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
 def label(diffs, mean_a, mean_b, scale=1):
     """tie: identical on every seed; near-tie: |paired mean| <= paired sd;
     otherwise consistent (|mean| > sd), called small if |mean| < 20 % of the
-    smaller arm mean. The 20 % rule only decides "small"."""
+    smaller arm mean. The 20 % rule only decides "small". "Consistent" means
+    only |mean| > sd; the appended sign count (seeds whose paired difference
+    has the opposite sign to the mean) separates sign-consistent gaps."""
     if all(d == 0 for d in diffs):
         return "tie: identical on every seed"
     m, sd = ms(diffs)
     if abs(m) <= sd:
         return f"near-tie / small gap, within seed noise (indistinguishable from 0 within +-{sd / scale:.4f})"
-    if abs(m) < 0.2 * min(abs(mean_a), abs(mean_b)):
-        return "small but consistent gap, not a tie"
-    return "clear gap, not a tie"
+    base = "small but consistent gap, not a tie" if abs(m) < 0.2 * min(abs(mean_a), abs(mean_b)) else "clear gap, not a tie"
+    return base + "; " + sign_note(diffs, m)
 
 
 def main():
@@ -979,9 +989,9 @@ H5_noisy_obs H=5 sigma_obs=0.3 A_causal 0.4259+-0.0303 0.4442+-0.0350 0.5700+-0.
 H5_noisy_obs H=5 sigma_obs=0.3 B_mask 0.3863+-0.0288 0.3839+-0.0249 0.5990+-0.0334
 H5_noisy_obs H=5 sigma_obs=0.3 C_parallel 0.3863+-0.0288 0.3839+-0.0249 0.5990+-0.0334
 H5_noisy_obs A_causal weight on its previous action token, mean over steps 2..H and seeds: 0.898
-H5_noisy_obs paired A-B chunk_rmse 0.0396+-0.0114: small but consistent gap, not a tie
-H5_noisy_obs paired A-B last_step_rmse 0.0603+-0.0148: small but consistent gap, not a tie
-H5_noisy_obs paired A-B success -0.0290+-0.0282: small but consistent gap, not a tie
+H5_noisy_obs paired A-B chunk_rmse 0.0396+-0.0114: small but consistent gap, not a tie; same sign on all 5 seeds
+H5_noisy_obs paired A-B last_step_rmse 0.0603+-0.0148: small but consistent gap, not a tie; same sign on all 5 seeds
+H5_noisy_obs paired A-B success -0.0290+-0.0282: small but consistent gap, not a tie; 1 of 5 seeds has the opposite sign
 H5_noisy_obs paired C-B chunk_rmse 0.0000+-0.0000: tie: identical on every seed
 H5_noisy_obs paired C-B last_step_rmse 0.0000+-0.0000: tie: identical on every seed
 H5_noisy_obs paired C-B success 0.0000+-0.0000: tie: identical on every seed
@@ -989,9 +999,9 @@ H10_noisy_obs H=10 sigma_obs=0.3 A_causal 0.4455+-0.0251 0.4660+-0.0235 0.3740+-
 H10_noisy_obs H=10 sigma_obs=0.3 B_mask 0.3821+-0.0180 0.3645+-0.0235 0.4590+-0.0301
 H10_noisy_obs H=10 sigma_obs=0.3 C_parallel 0.3821+-0.0180 0.3645+-0.0235 0.4590+-0.0301
 H10_noisy_obs A_causal weight on its previous action token, mean over steps 2..H and seeds: 0.889
-H10_noisy_obs paired A-B chunk_rmse 0.0634+-0.0117: small but consistent gap, not a tie
-H10_noisy_obs paired A-B last_step_rmse 0.1015+-0.0254: clear gap, not a tie
-H10_noisy_obs paired A-B success -0.0850+-0.0296: clear gap, not a tie
+H10_noisy_obs paired A-B chunk_rmse 0.0634+-0.0117: small but consistent gap, not a tie; same sign on all 5 seeds
+H10_noisy_obs paired A-B last_step_rmse 0.1015+-0.0254: clear gap, not a tie; same sign on all 5 seeds
+H10_noisy_obs paired A-B success -0.0850+-0.0296: clear gap, not a tie; same sign on all 5 seeds
 H10_noisy_obs paired C-B chunk_rmse 0.0000+-0.0000: tie: identical on every seed
 H10_noisy_obs paired C-B last_step_rmse 0.0000+-0.0000: tie: identical on every seed
 H10_noisy_obs paired C-B success 0.0000+-0.0000: tie: identical on every seed
@@ -999,8 +1009,8 @@ H10_clean_obs H=10 sigma_obs=0.05 A_causal 0.2016+-0.0271 0.1719+-0.0097 0.9380+
 H10_clean_obs H=10 sigma_obs=0.05 B_mask 0.1965+-0.0267 0.1667+-0.0093 0.9380+-0.0321
 H10_clean_obs H=10 sigma_obs=0.05 C_parallel 0.1965+-0.0267 0.1667+-0.0093 0.9380+-0.0321
 H10_clean_obs A_causal weight on its previous action token, mean over steps 2..H and seeds: 0.265
-H10_clean_obs paired A-B chunk_rmse 0.0051+-0.0024: small but consistent gap, not a tie
-H10_clean_obs paired A-B last_step_rmse 0.0051+-0.0050: small but consistent gap, not a tie
+H10_clean_obs paired A-B chunk_rmse 0.0051+-0.0024: small but consistent gap, not a tie; same sign on all 5 seeds
+H10_clean_obs paired A-B last_step_rmse 0.0051+-0.0050: small but consistent gap, not a tie; same sign on all 5 seeds
 H10_clean_obs paired A-B success 0.0000+-0.0094: near-tie / small gap, within seed noise (indistinguishable from 0 within +-0.0094)
 H10_clean_obs paired C-B chunk_rmse 0.0000+-0.0000: tie: identical on every seed
 H10_clean_obs paired C-B last_step_rmse 0.0000+-0.0000: tie: identical on every seed
@@ -1016,12 +1026,12 @@ LIBERO success rates 以论文为准; GPU WorldVLA run 本页未运行
 ### 读四种情形
 
 - **H1_noisy_obs：** A、B、C **打平：每个种子都完全相同**（三组整块 RMSE 都是 0.3907±0.0452，成功率都是 0.7980±0.0437）。这是结构决定的，不是巧合：只有一步的块没有先前动作可看，掩码什么也没改变。
-- **H5_noisy_obs：** A 对上一个动作词元的权重平均为 0.898。视觉有噪声时，训练中示范的上一个动作是关于 `s` 的最好线索；测试时这个输入换成了 A 自己的预测，而预测已经带着解码误差，于是误差被传了下去。整块 RMSE A 0.4259±0.0303 对 B 0.3863±0.0288（配对 A−B 0.0396±0.0114），最后一步 RMSE 0.4442±0.0350 对 0.3839±0.0249（配对 0.0603±0.0148），都是**小而稳定的差距，不是打平**。成功率 0.5700±0.0359 对 0.5990±0.0334（配对 −0.0290±0.0282）勉强得到同样的标签：`|配对均值|` 只比 sd 大不到 0.001。
+- **H5_noisy_obs：** A 对上一个动作词元的权重平均为 0.898。视觉有噪声时，训练中示范的上一个动作是关于 `s` 的最好线索；测试时这个输入换成了 A 自己的预测，而预测已经带着解码误差，于是误差被传了下去。整块 RMSE A 0.4259±0.0303 对 B 0.3863±0.0288（配对 A−B 0.0396±0.0114），最后一步 RMSE 0.4442±0.0350 对 0.3839±0.0249（配对 0.0603±0.0148），都是**小而稳定的差距，不是打平**。成功率 0.5700±0.0359 对 0.5990±0.0334（配对 −0.0290±0.0282）勉强得到同样的标签：`|配对均值|` 只比 sd 大不到 0.001，而且 **5 个种子中 1 个符号相反**（那个种子上 A 成功得更多），所以只是勉强稳定。这个玩具里其余稳定或明显的 A−B 差距，5 个种子符号全部相同。
 - **H10_noisy_obs：** 差距随块长变大。整块 RMSE A 0.4455±0.0251 对 B 0.3821±0.0180（配对 0.0634±0.0117）是**小而稳定的差距，不是打平**（为 B 均值的 16.6 %）；最后一步 RMSE 0.4660±0.0235 对 0.3645±0.0235（配对 0.1015±0.0254）和成功率 0.3740±0.0261 对 0.4590±0.0301（配对 −0.0850±0.0296）都是**明显差距**。A 对上一个动作的权重为 0.889。
 - **H10_clean_obs：** 视觉干净时，`x` 已经足以确定 `s`，A 对上一个动作的权重降到 0.265，传下去的误差很少。整块 RMSE A 0.2016±0.0271 对 B 0.1965±0.0267（配对 0.0051±0.0024）和最后一步 RMSE 0.1719±0.0097 对 0.1667±0.0093（配对 0.0051±0.0050，`|配对均值|` 只比 sd 大约 0.0001）都是**小而稳定的差距，不是打平**。成功率是**接近打平、差距很小，在种子噪声之内**：两组平均都是 0.9380，配对 0.0000±0.0094，但逐种子的计数不同，所以不是打平。
 - **B 对 C：** 在每种情形下都**打平：每个种子都完全相同**。屏蔽先前动作后，每一步只是 `x` 的函数，所以逐词元解码和一个并行头算出的是同一块动作。在这里，掩码相对普通并行解码没有任何收益；真实模型里两者的差别是解码延迟，而这些指标看不见它。
 
-**为什么需要解码误差。** 在这个线性高斯替身里，A 串起来的预测器仍是 `x` 的线性函数；没有解码误差、示范又足够多时，它会逼近 B 的预测器，差距会缩向零。所以这个玩具展示的是论文所说的误差传播机制，并不证明 WorldVLA 里一定如此。
+**为什么需要解码误差。** 在这个线性高斯替身里，A 串起来的预测器仍是 `x` 的线性函数；没有解码误差时，它只会随着示范增多才逼近 B 的预测器。设 `SIGMA_DEC = 0`、仍用本页的 40 条示范，A−B 差距只会缩小，并不消失（本地运行，未打印：H10_noisy_obs 整块 RMSE 差距 0.0089±0.0064，仍是小而稳定的差距，而这里是 0.0634±0.0117），因为有限样本的岭回归拟合和 256 箱量化在两组之间仍有差别；只有示范很多时（测试文件里用 1500 条），每个 A−B RMSE 差距才都低于 0.002。所以这个玩具展示的是论文所说的误差传播机制，并不证明 WorldVLA 里一定如此。
 
 本页**不宣布普遍赢家**。按种子平均，这个玩具里掩码从未比因果那一组差（单个种子可能不同），但在 H = 1 时它在每个种子上都与因果那一组完全相同，视觉干净时收益很小，而且与并行头完全相同。论文里 LIBERO 上更大的差距来自真实主干，以论文为准；GPU 上运行 WorldVLA：**本页未运行**。
 

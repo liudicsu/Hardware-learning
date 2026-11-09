@@ -165,18 +165,28 @@ def fmt(x, nd=4):
     return f"{x:.{nd}f}"
 
 
+def sign_note(diffs, m):
+    """How many seeds disagree in sign with the paired mean (zeros listed apart)."""
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
 def label(diffs, mean_a, mean_b):
     """tie: identical on every seed; near-tie: |paired mean| <= paired sd;
     otherwise consistent (|mean| > sd), called small if |mean| < 20 % of the
-    smaller arm mean. The 20 % rule only decides "small"."""
+    smaller arm mean. The 20 % rule only decides "small". "Consistent" means
+    only |mean| > sd; the appended sign count (seeds whose paired difference
+    has the opposite sign to the mean) separates sign-consistent gaps."""
     if all(d == 0 for d in diffs):
         return "tie: identical on every seed"
     m, sd = ms(diffs)
     if abs(m) <= sd:
         return f"near-tie / small gap, within seed noise (indistinguishable from 0 within +-{sd:.4f})"
-    if abs(m) < 0.2 * min(abs(mean_a), abs(mean_b)):
-        return "small but consistent gap, not a tie"
-    return "clear gap, not a tie"
+    base = "small but consistent gap, not a tie" if abs(m) < 0.2 * min(abs(mean_a), abs(mean_b)) else "clear gap, not a tie"
+    return base + "; " + sign_note(diffs, m)
 
 
 def main():
