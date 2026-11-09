@@ -52,4 +52,9 @@ if python3 "$M1/ohms-law/thevenin_loaded_divider_toy.py" > "$TMP/thevenin_loaded
 else
   echo "DIFF  thevenin_loaded_divider_toy.txt"; fail=1
 fi
+if python3 "$M1/soldering/soldering_thermal_window_toy.py" > "$TMP/soldering_thermal_window_toy.txt" && diff -u "$M1/expected/soldering_thermal_window_toy.txt" "$TMP/soldering_thermal_window_toy.txt"; then
+  echo "same  soldering_thermal_window_toy.txt"
+else
+  echo "DIFF  soldering_thermal_window_toy.txt"; fail=1
+fi
 exit $fail

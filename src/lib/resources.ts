@@ -5035,6 +5035,86 @@ export const resources: Record<string, Resource> = {
     },
     extra: true,
   },
+  "wiki-soldering": {
+    id: "wiki-soldering",
+    url: "https://en.wikipedia.org/wiki/Soldering",
+    title: {
+      zh: "Wikipedia：焊接（Soldering）",
+      en: "Wikipedia: Soldering",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "冷焊：工件未超过焊锡液相线，常因烙铁加热焊锡而不是工件，可能完全不通或时通时断；PCB 过热可使铜线从基材剥离，过冷烙铁长时间加热也会造成热损伤。HTML 正文已核验；以原文为准。",
+      en: "Cold joint: the parts never pass the solder's liquidus, often because the iron heated the solder rather than the parts; it may not conduct or conduct intermittently. Excessive PCB heating can lift copper traces, and protracted heating by a too-cool iron also causes heat damage. HTML body verified; 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "wiki-reflow": {
+    id: "wiki-reflow",
+    url: "https://en.wikipedia.org/wiki/Reflow_soldering",
+    title: {
+      zh: "Wikipedia：回流焊（Reflow soldering）",
+      en: "Wikipedia: Reflow soldering",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "四个温区：预热（常见最大升温 3.0 °C/s）、恒温浸润（通常 60–120 s）、回流（峰值常比液相线高 20–40 °C，TAL 多数焊膏至少 30 s、最好不超过 60 s）、冷却（常建议约 4 °C/s）。HTML 正文已核验；以原文为准。",
+      en: "Four zones: preheat (common maximum ramp 3.0 °C/s), thermal soak (typically 60–120 s), reflow (peak commonly 20–40 °C above liquidus; most pastes want TAL of at least 30 s, ideally under 60 s) and cooling (about 4 °C/s commonly suggested). HTML body verified; 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "sparkfun-through-hole-soldering": {
+    id: "sparkfun-through-hole-soldering",
+    url: "https://learn.sparkfun.com/tutorials/how-to-solder-through-hole-soldering/all",
+    title: {
+      zh: "SparkFun：通孔焊接教程（How to Solder: Through-Hole Soldering）",
+      en: "SparkFun: How to Solder — Through-Hole Soldering",
+    },
+    author: "SparkFun Electronics",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "中等温度 325–375 °C，焊前给烙铁头上锡，同时加热焊盘和元件；连地平面的焊盘或大的金属化孔需要更大的烙铁头、更高的温度、助焊剂和多停一会儿。HTML 正文已核验；以原文为准。",
+      en: "Medium heat 325–375 °C, tin the tip before each joint, heat pad and part together; ground-plane pads and large plated holes need a larger tip, a higher setpoint, flux and a little longer on the joint. HTML body verified; 以原文为准.",
+    },
+    license: {
+      zh: "以原站条款为准；仅提供外链",
+      en: "See the site's terms; external link only",
+    },
+    extra: true,
+  },
+  "wiki-leadlag": {
+    id: "wiki-leadlag",
+    url: "https://en.wikipedia.org/wiki/Lead–lag_compensator",
+    title: {
+      zh: "Wikipedia：超前–滞后校正器（Lead–lag compensator）",
+      en: "Wikipedia: Lead–lag compensator",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "超前与滞后都加入一对零极点 Y/X = (s − z)/(s − p)：超前 |z| < |p|，在高频提供相位超前；滞后 |z| > |p|，减小稳态误差，零极点应靠近原点且彼此接近；串联成超前–滞后。HTML 正文已核验；以原文为准。",
+      en: "Lead and lag each add a pole–zero pair Y/X = (s − z)/(s − p): lead has |z| < |p| and gives phase lead at high frequency; lag has |z| > |p|, reduces steady-state error, and its pole and zero sit close together near the origin; cascaded they form a lead–lag compensator. HTML body verified; 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

@@ -1,6 +1,16 @@
 # Month 3 plan / 第 3 个月计划
 
-Current / 当前：**M3 1950 min**, Batch-11 PR2. Earlier entries below retain their historical totals.
+Current / 当前：**M3 2130 min**, Batch-13 PR1. Earlier entries below retain their historical totals.
+
+## Batch-13 PR1 — lead–lag compensation on pid-control (+180)
+
+Base `bc1e7ce` (batch-12 closed; site **29160**). PR1 on M3 host: **M3 1950→2130 (+180)**; M1 moves in the same PR on its own plan. Site **29160→29490**, still 71 lessons.
+
+**H2 / 3.4 pid-control:** `pid-control` 180→**360**. Toy `lead_lag_vs_pid_toy.py`: joint 1/(s(TM s+1)) with an optional compliant mode; PID / PID + lead–lag (φ = 30° at WC = 20 rad/s, lag z2 = 2, p2 = 0.667 rad/s) / swapped lead pole–zero; one recipe, Kc set for |L(j·WC)| = 1 on every arm; shared steps, load torques and sensor noise (common random numbers, 5 seeds); RK4 H = 0.25 ms with |R(Hλ)| ≤ 1 checked. resonant (wr = 40, zr = 0.3): B−A ISE −2.8025±0.6749, small but consistent, 5/5, but GM 3.00→2.01 dB; well_damped: B−A ISE +0.7150±0.1951, small but consistent loss, 5/5; resonant_light (zr = 0.2): B diverges 5/5 (PM −16.3°). ≠ Smith; ≠ notch; ≠ discrete LQR. Real motor bench 本页未运行.
+
+**Allocation / 安排:** 30+40+40+40+30=180 minutes.
+
+**Site accounting / 全站核算:** **29490=29160+330** with M1 +150 on month-1-plan.md; **M3=2130**, **71 lessons**.
 
 ## Batch-11 PR2 — load-dependent gear η on transmissions (+180)
 

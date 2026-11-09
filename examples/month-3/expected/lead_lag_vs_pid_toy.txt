@@ -1,0 +1,37 @@
+Synthetic PID vs PID+lead-lag; shared steps / load torques / sensor noise; not a motor bench
+TS=0.001 s RK4 H=0.00025 s TM=0.05 s WC=20.0 rad/s TI=0.25 s TD=0.025 s N=8 lead PHI=30 deg p/z=3.000 lag z2=2.0 p2=0.6667 rad/s seeds=5
+regime arm Kc PM_deg GM_dB
+well_damped (wr=0, zr=0.0) RK4 h_max=139.3 ms > H, max|R(H lambda)|=0.995012 < 1: A_pid 26.35 60.6 42.37 | B_leadlag 45.44 86.8 38.26 | C_swapped 136.32 26.8 46.40
+resonant (wr=40, zr=0.3) RK4 h_max=70.9 ms > H, max|R(H lambda)|=0.997004 < 1: A_pid 21.29 38.7 3.00 | B_leadlag 36.71 64.9 2.01 | C_swapped 110.12 4.9 1.81
+resonant_light (wr=40, zr=0.2) RK4 h_max=73.5 ms > H, max|R(H lambda)|=0.998002 < 1: A_pid 20.45 45.6 0.80 | B_leadlag 35.27 -16.3 inf | C_swapped 105.82 11.8 2.75
+regime arm ISE_1e-3rad2s overshoot_% du_rms  (mean+-sd over seeds)
+well_damped A_pid 12.7681+-3.2321 13.1263+-0.0096 0.1858+-0.0038
+well_damped B_leadlag 13.4831+-3.4238 13.1321+-0.1840 0.3171+-0.0057
+well_damped C_swapped 24.5240+-6.2158 35.2800+-0.0781 0.1124+-0.0035
+well_damped paired B-A ise: 0.7150+-0.1951: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+well_damped paired B-A over: 0.0058+-0.1814: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+well_damped paired B-A du: 0.1313+-0.0019: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+well_damped paired C-A ise: 11.7559+-2.9837: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+well_damped paired C-A over: 22.1537+-0.0760: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+well_damped paired C-A du: -0.0734+-0.0004: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant A_pid 31.8025+-8.0515 30.4564+-0.0353 0.1538+-0.0039
+resonant B_leadlag 29.0000+-7.3783 27.8022+-0.2003 0.2603+-0.0056
+resonant C_swapped 210.0716+-47.2771 94.4654+-7.4189 0.1218+-0.0081
+resonant paired B-A ise: -2.8025+-0.6749: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant paired B-A over: -2.6542+-0.1663: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant paired B-A du: 0.1065+-0.0017: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant paired C-A ise: 178.2691+-39.3474: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant paired C-A over: 64.0090+-7.3838: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant paired C-A du: -0.0320+-0.0044: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant_light A_pid 39.5028+-8.5902 31.8691+-3.6884 0.1537+-0.0042
+resonant_light B_leadlag diverged (|y| > 10 rad) on 5 of 5 seeds
+resonant_light C_swapped 91.8638+-23.2433 80.0239+-0.1924 0.1000+-0.0055
+resonant_light paired B-A: not compared (B_leadlag closed loop unstable)
+resonant_light paired C-A ise: 52.3610+-14.7691: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant_light paired C-A over: 48.1548+-3.4996: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+resonant_light paired C-A du: -0.0537+-0.0013: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+well_damped: PID alone already has margin; the extra lead adds phase it does not need and passes more sensor noise
+resonant: the lead restores phase margin at the same crossover, but its high-frequency gain shrinks the gain margin
+resonant_light: the lead lifts the resonant peak through 0 dB; a lightly damped mode needs a notch, not more lead
+No winner declared; ISE is blind to actuator chatter (du_rms) and to the gain margin
+Real servo / motor bench: 本页未运行; Wikipedia definitions 以原文为准
