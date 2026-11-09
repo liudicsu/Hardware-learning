@@ -1,6 +1,6 @@
 # Month 6 plan: Robot learning, specialisation & getting hired
 
-Current / 当前 Batch-7 PR3: M6 **1560 min**; older sections retain historical totals.
+Current / 当前 Batch-8 PR3: M6 **1980 min**; older sections retain historical totals.
 
 Course source: @DeRonin_'s 6-month roadmap (`COURSE_SOURCE` in src/lib/curriculum.ts). Month 6 topics there:
 imitation learning (behaviour cloning, ACT, diffusion policy), VLA models and which have open weights,
@@ -69,3 +69,12 @@ G4 `vla-models` 180→360 — `vla_async_chunk_toy.py`: SmolVLA read per the pap
 Allocation:45+45+45+45+30=210 min (model/loss or information declaration / implementation / shared-seed experiment / limits and reading / exercises).
 Shared compliant-object kinematic task, all arms/modes receive full noisy snapshot and goals, independent deliberately factorizes it; no local-only versus oracle information advantage. All400 ticks, same noise/gains/caps, arrival/collision/censoring rules explicit; five-seed full-horizon metrics. TwinVLA architecture only from opened original section4; no robots/weights. Add full whole-lesson final Summary because both languages lacked one.
 New symmetric en/zh code/stdout/exercises before final Summary, stdlib expected+harness, independent regression locks, opened-source audit in batch-7-pr3-sources.md. No workflows changed.
+
+## Batch-8 PR3 / 本月 H5 + H6 (+420)
+
+Base 1d2717b, after #134. H5 6.1 behaviour-cloning 240→450 (+210), H6 6.3 vla-models 360→570 (+210).
+M6 **1560→1980**; site **24240→24660** (+420), still 71 lessons. No arithmetic mismatch with proposal §9 or curriculum.ts on 1d2717b. Batch-8 final total 24660; README site copy updated from the stale 23 610 to 24 660.
+
+- H5: 45 min multimodal BC and the mean failure +45 min BeT k-means bins / VQ-BeT residual VQ + offsets (opened papers) +45 min shared demos, observation bins, heads, rollout stream; equal codebook vectors (8) and Lloyd iterations (12), unequal combinations (8 vs 16) printed +45 min five-seed results (MSE 66 % collisions; k-means and rvq tie on modes) +30 min exercises =210. 5× speed-up 以论文为准; GPU 本页未运行. Not FAST/DCT (6.3), diffusion (6.2) or DAgger.
+- H6: 45 min single trunk vs dual system and OpenHelix's real-time perception criterion (π0 not dual-system) +45 min OpenHelix architecture/findings per the paper +45 min equal-compute cadence toy, declared information per arm, eight switch-time seeds +45 min moving-switch vs static scenarios, no winner +30 min exercises =210. Separate from TwinVLA (6.2) and async chunking. Weights/GPU/CALVIN 本页未运行.
+- Neither host had a Summary: each now ends with a full whole-lesson Summary in en and zh whose last sentence covers the new section. New code/stdout/exercises precede it.

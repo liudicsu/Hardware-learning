@@ -1,0 +1,13 @@
+Synthetic cadence: 300 ticks at 50 Hz, 8 seeds (switch tick 100..200), big call latency 10 ticks, vmax 0.02/tick, reach 0.05
+[moving_switch] arm units/tick rmse on_target_frac react_ticks never_reached underrun goal_age_ticks
+A_slow_single 1.00±0.00 0.173±0.023 0.06±0.07 54.9±56.8 1/8 0.90±0.00 14.2±0.0
+B_fast_single 1.00±0.00 0.288±0.066 0.01±0.03 125.9±55.4 6/8 0.00±0.00 0.0±0.0
+C_dual_rt 1.00±0.00 0.126±0.053 0.80±0.07 28.2±12.8 0/8 0.00±0.00 18.8±0.0
+D_dual_no_rt 1.00±0.00 0.215±0.017 0.06±0.06 58.4±55.6 1/8 0.00±0.00 18.8±0.0
+[static_no_switch] arm units/tick rmse on_target_frac react_ticks never_reached underrun goal_age_ticks
+A_slow_single 1.00±0.00 0.006±0.001 1.00±0.00 0.0±0.0 0/8 0.90±0.00 14.2±0.0
+B_fast_single 1.00±0.00 0.003±0.000 1.00±0.00 0.0±0.0 0/8 0.00±0.00 0.0±0.0
+C_dual_rt 1.00±0.00 0.003±0.000 1.00±0.00 0.0±0.0 0/8 0.00±0.00 18.8±0.0
+D_dual_no_rt 1.00±0.00 0.007±0.001 1.00±0.00 0.0±0.0 0/8 0.00±0.00 18.8±0.0
+Same targets, noise, switch ticks and compute per tick; what each arm sees differs and is declared.
+No winner is declared; real VLA weights, GPUs and robots: 本页未运行.
