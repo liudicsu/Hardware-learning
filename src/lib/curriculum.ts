@@ -48,7 +48,7 @@ const month1Lessons: Lesson[] = [
       { zh: "能解释悬空输入与 INPUT_PULLUP、LiPo 的 3.7 V/4.2 V 限制和 C 数，以及用 V = I × R 解释堵转导致的欠压复位。", en: "Explain floating inputs and INPUT_PULLUP, LiPo 3.7 V/4.2 V limits and C ratings, and stall brownout with V = I × R." },
     ],
     prereqs: ["ohms-law"],
-    resources: ["falstad", "tinkercad", "aac", "make-electronics", "ti-sn74hc14-decoupling", "ti-ssya010", "ti-slvae37"],
+    resources: ["falstad", "tinkercad", "aac", "make-electronics", "ti-sn74hc14-decoupling", "ti-ssya010", "ti-slvae37", "ti-slyt492"],
     tasks: [
       { id: "b10p2-esd", text: { zh: "运行 esd_tvs_clamp_toy.py，比较无保护 / 连接器 TVS / 串联+IC 钳位的峰值与钳位电流，并手算 HBM ½CV² 与 V/1500 Ω", en: "Run esd_tvs_clamp_toy.py, compare unprotected/connector-TVS/series+IC-clamp peaks and clamp currents, and compute HBM ½CV² and V/1500 Ω by hand" } },
       { id: "b6p1", text: { zh: "运行 supply_dip_decoupling_toy.py，核对等总电容的串联 ESL+ESR+C、SRF 与同一脉冲下最低电压", en: "Run supply_dip_decoupling_toy.py, check equal-total-C series ESL+ESR+C, SRF and minimum rail under identical pulses" } },
