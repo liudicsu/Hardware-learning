@@ -463,8 +463,307 @@ float_not_certified; Gaussian_threshold_not_physical_surface; GPU_not_run
 
 The paper reports replanning at **5 Hz** and pose estimation at **20 Hz** on the authors' setup — **以论文为准**, not this site's benchmark. GPU reconstruction / 3DGS training / weights and real-robot navigation: **本页未运行 (not run on this page)**. We train nothing, implement no complete Splat-Nav corridor, and make no GPU or Jetson throughput claim.
 
+## Surface normals by local PCA
+
+The pipeline above fits one desk plane and clusters what is left; it never asks which way the surface faces at each point. Grasp approach directions, point-to-plane registration and many shape features need exactly that: a **normal per point**. This section estimates them. It is **not** another voxel / RANSAC pass, and it is **not** the point-to-plane ICP from the SLAM lesson; it produces the normals those methods consume.
+
+<Resource id="pcl-normal-estimation" />
+
+<Resource id="o3d-pcd-normals" />
+
+**Sources actually opened (HTML body read).**
+
+- **PCL tutorial — Estimating Surface Normals in a PointCloud:** the normal at a point is approximated by the normal of a least-squares tangent plane, which reduces to an eigen-analysis (PCA) of the covariance matrix of the point's nearest neighbours. The sign is ambiguous and not consistently oriented over a cloud; with a known viewpoint, flip each normal so that it points toward the viewpoint (`flipNormalTowardsViewpoint`; default viewpoint `(0, 0, 0)`), and with several acquisition viewpoints that simple rule no longer holds. On scale: a too-large `k` or radius pulls in points from adjacent surfaces, rotates normals at edges and suppresses fine detail, so the scale has to match the level of detail needed. `computePointNormal` also returns a curvature estimate from the eigenvalues. The page's equations are rendered as images, so only its prose is quoted here. Numbers 以原文为准.
+- **Open3D tutorial — Point cloud (release docs):** `estimate_normals` finds adjacent points and takes the principal axis by covariance analysis, with `KDTreeSearchParamHybrid(radius = 0.1, max_nn = 30)` in the example; covariance analysis gives two opposite candidates (the "normal orientation problem"); Open3D aligns with an existing normal if there is one and otherwise guesses, and `orient_normals_to_align_with_direction` / `orient_normals_towards_camera_location` exist for when orientation matters. Numbers 以原文为准.
+
+### The estimator
+
+For a query point `p`:
+
+1. take its `k` nearest neighbours (the query included);
+2. compute their centroid `c` and covariance `C = (1/k) Σ (pᵢ − c)(pᵢ − c)ᵀ`;
+3. eigen-decompose the 3 × 3 `C` (the toy uses a cyclic Jacobi solver, stdlib only) and take the eigenvector of the **smallest** eigenvalue as the normal;
+4. orient it: if `n · (vp − p) < 0`, replace `n` by `−n`.
+
+Why the smallest one: on a plane the points spread widely in the two in-plane directions and only by noise across it, so the direction of least variance is the plane normal. Two errors compete. Depth noise tilts the fitted plane, and more neighbours average it down. Curvature bends the neighbourhood, and more neighbours see more of the bend. At 5 mm grid spacing the neighbourhood radius is roughly `spacing × √(k/π)`: about 5.6 mm for `k = 4` and 12.6 mm for `k = 20`.
+
+### Fair setup
+
+`pointcloud_pca_normals_toy.py` is **synthetic** and stdlib only. **Model assumptions:** a camera at the origin looking along `+z`; the surface is a height field `z = 0.40 m − A sin(2πx/Λ) sin(2πy/Λ)` on a 41 × 41 grid with 5 mm spacing (each `x, y` jittered by ±1.25 mm); depth noise is Gaussian along `z` only (a stand-in for noise along the ray); no outliers, no missing pixels, one viewpoint. The true normal of `z = f(x, y)` is `(f_x, f_y, −1)` normalised, which already faces the camera. Truth comes from this formula, not from any arm.
+
+| Arm | Normal at each query |
+|---|---|
+| A_global_plane | no per-point normals: one PCA plane fitted to the whole cloud |
+| B_pca_k20 | local PCA with `k = 20` |
+| C_pca_k4 | local PCA with `k = 4` (a deliberately small neighbourhood) |
+
+Every arm's normal is oriented toward the viewpoint `(0, 0, 0)` before scoring. **Common random numbers:** for each (regime, seed) the grid jitter, every point's depth-noise draw and the 60 interior query points are drawn once; all arms see the same noisy cloud and the same queries. Five seeds. Metrics per seed, reported as mean±sd over seeds: the mean angle between the oriented normal and the true normal (deg); and a **local plane residual**, the RMS distance of the query's 12 nearest noisy points (one evaluation neighbourhood shared by all arms) to the plane through their centroid with the arm's normal (mm). The toy also counts how many raw PCA normals had to be flipped. Pairs are labelled with the same rule as in the manipulability toy of Month 5: **tie** only if identical on every seed, **near-tie / small gap, within seed noise** if the mean paired difference is no larger than its sd, **small but consistent gap, not a tie** if larger but under 20 % of the smaller arm's mean, otherwise **clear gap**. The residual still **rewards fitting the noise**, and it favours the arm whose neighbourhood looks like the evaluation neighbourhood; the angle metric is **blind** to run time, multi-view orientation and outliers.
+
+Regimes: **flat_low_noise** (`A = 0`, noise sd 0.3 mm); **ripple_noisy** (`A = 8 mm`, `Λ = 100 mm`, noise sd 2 mm; radius of curvature at the crests `1/(A (2π/Λ)²) ≈ 31.7 mm`); **fine_ripple_low_noise** (`A = 4 mm`, `Λ = 40 mm`, noise sd 0.1 mm; crest radius ≈ 10.1 mm).
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-7/depth-pointcloud
+python3 pointcloud_pca_normals_toy.py
+```
+
+<CodeSource path="examples/month-7/depth-pointcloud/pointcloud_pca_normals_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic PCA normal estimation on a depth-camera height field. Stdlib only.
+
+Model (stated in the lesson prose too): camera at the origin looking along +z; the
+surface is a height field z = 0.40 m - A sin(2 pi x / LAM) sin(2 pi y / LAM) on a
+41 x 41 grid with 5 mm spacing (x, y jittered by +-1.25 mm); depth noise is
+Gaussian along z only (a stand-in for noise along the ray); no outliers, no
+missing pixels, one viewpoint. True normal of z = f(x, y): (f_x, f_y, -1)
+normalised, which already faces the camera.
+
+Arms (each gives a unit normal at every query point):
+  A_global_plane  no per-point normals: one PCA plane fitted to the whole cloud
+  B_pca_k20       local PCA: covariance of the k = 20 nearest neighbours (query
+                  included), eigenvector of the smallest eigenvalue
+  C_pca_k4        the same with k = 4
+Every normal is then flipped toward the viewpoint (0, 0, 0): if n . (vp - p) < 0,
+n = -n. Raw PCA signs are arbitrary (the eigen-solver returns either sign).
+
+Common random numbers: per (regime, seed) the grid jitter, the depth-noise draw of
+every point and the 60 interior query points are drawn once; all arms see the same
+noisy cloud and the same queries.
+Metrics per seed: mean angle to the true normal after orientation (deg); local
+plane residual = RMS distance of the query's 12 nearest noisy points (a fixed
+evaluation neighbourhood shared by all arms) to the plane through their centroid
+with the arm's normal (mm). The residual still rewards fitting the noise; the
+angle metric is blind to run time, to multi-view orientation and to outliers.
+No presumed winner. Open3D / PCL on a real sensor: 本页未运行.
+"""
+from __future__ import annotations
+
+import math
+import random
+
+Z0 = 0.40  # m, desk depth
+N_GRID = 41
+SPACING = 0.005  # m
+QUERIES = 60
+K_EVAL = 12
+SEEDS = (0, 1, 2, 3, 4)
+ARMS = ("A_global_plane", "B_pca_k20", "C_pca_k4")
+K_OF = {"B_pca_k20": 20, "C_pca_k4": 4}
+# regime, amplitude A (m), wavelength LAM (m), depth-noise sd (m)
+REGIMES = (("flat_low_noise", 0.0, 0.10, 0.0003), ("ripple_noisy", 0.008, 0.10, 0.002),
+           ("fine_ripple_low_noise", 0.004, 0.04, 0.0001))
+
+
+def height(a: float, lam: float, x: float, y: float) -> tuple[float, float, float]:
+    k = 2 * math.pi / lam
+    z = Z0 - a * math.sin(k * x) * math.sin(k * y)
+    return z, -a * k * math.cos(k * x) * math.sin(k * y), -a * k * math.sin(k * x) * math.cos(k * y)
+
+
+def unit(v: tuple[float, float, float]) -> tuple[float, float, float]:
+    n = math.sqrt(sum(c * c for c in v))
+    return (v[0] / n, v[1] / n, v[2] / n)
+
+
+def covariance(pts: list[tuple[float, float, float]]) -> tuple[list[list[float]], tuple[float, float, float]]:
+    n = len(pts)
+    c = tuple(sum(p[i] for p in pts) / n for i in range(3))
+    m = [[sum((p[i] - c[i]) * (p[j] - c[j]) for p in pts) / n for j in range(3)] for i in range(3)]
+    return m, c
+
+
+def jacobi_eig(m: list[list[float]]) -> tuple[list[float], list[list[float]]]:
+    """Cyclic Jacobi for a symmetric 3x3 matrix: eigenvalues and eigenvectors (columns)."""
+    a = [row[:] for row in m]
+    v = [[1.0 if i == j else 0.0 for j in range(3)] for i in range(3)]
+    for _ in range(50):
+        off = a[0][1] ** 2 + a[0][2] ** 2 + a[1][2] ** 2
+        if off < 1e-30:
+            break
+        for p, q in ((0, 1), (0, 2), (1, 2)):
+            if abs(a[p][q]) < 1e-300:
+                continue
+            theta = (a[q][q] - a[p][p]) / (2 * a[p][q])
+            t = math.copysign(1.0, theta) / (abs(theta) + math.sqrt(theta * theta + 1))
+            c = 1 / math.sqrt(t * t + 1)
+            s = t * c
+            for k in range(3):  # A <- A G
+                akp, akq = a[k][p], a[k][q]
+                a[k][p], a[k][q] = c * akp - s * akq, s * akp + c * akq
+            for k in range(3):  # A <- G^T A
+                apk, aqk = a[p][k], a[q][k]
+                a[p][k], a[q][k] = c * apk - s * aqk, s * apk + c * aqk
+            for k in range(3):
+                vkp, vkq = v[k][p], v[k][q]
+                v[k][p], v[k][q] = c * vkp - s * vkq, s * vkp + c * vkq
+    return [a[i][i] for i in range(3)], v
+
+
+def pca_normal(pts: list[tuple[float, float, float]]) -> tuple[float, float, float]:
+    """Eigenvector of the smallest covariance eigenvalue, with whatever sign Jacobi returns."""
+    m, _ = covariance(pts)
+    vals, vecs = jacobi_eig(m)
+    i = min(range(3), key=lambda j: vals[j])
+    return unit((vecs[0][i], vecs[1][i], vecs[2][i]))
+
+
+def orient(n: tuple[float, float, float], p: tuple[float, float, float]) -> tuple[tuple[float, float, float], bool]:
+    """Flip n toward the viewpoint at the origin; report whether it was flipped."""
+    if -(n[0] * p[0] + n[1] * p[1] + n[2] * p[2]) < 0:
+        return (-n[0], -n[1], -n[2]), True
+    return n, False
+
+
+def knn(cloud: list[tuple[float, float, float]], p: tuple[float, float, float], k: int) -> list[tuple[float, float, float]]:
+    return sorted(cloud, key=lambda c: (c[0] - p[0]) ** 2 + (c[1] - p[1]) ** 2 + (c[2] - p[2]) ** 2)[:k]
+
+
+def shared_scene(regime: str, a: float, lam: float, sd: float, seed: int):
+    rng = random.Random(f"{regime}:{seed}")
+    half = (N_GRID - 1) / 2
+    cloud, truth = [], []
+    for i in range(N_GRID):
+        for j in range(N_GRID):
+            x = (i - half) * SPACING + rng.uniform(-SPACING / 4, SPACING / 4)
+            y = (j - half) * SPACING + rng.uniform(-SPACING / 4, SPACING / 4)
+            z, fx, fy = height(a, lam, x, y)
+            cloud.append((x, y, z + rng.gauss(0.0, sd)))
+            truth.append(unit((fx, fy, -1.0)))
+    interior = [i * N_GRID + j for i in range(5, N_GRID - 5) for j in range(5, N_GRID - 5)]
+    return cloud, truth, rng.sample(interior, QUERIES)
+
+
+def angle_deg(n: tuple[float, float, float], t: tuple[float, float, float]) -> float:
+    return math.degrees(math.acos(max(-1.0, min(1.0, n[0] * t[0] + n[1] * t[1] + n[2] * t[2]))))
+
+
+def evaluate(regime: str, a: float, lam: float, sd: float, seed: int) -> dict:
+    cloud, truth, queries = shared_scene(regime, a, lam, sd, seed)
+    g = pca_normal(cloud)
+    out = {arm: {"ang": 0.0, "res": 0.0, "flip": 0} for arm in ARMS}
+    for qi in queries:
+        p = cloud[qi]
+        ev = knn(cloud, p, K_EVAL)
+        _, c = covariance(ev)
+        for arm in ARMS:
+            raw = g if arm == "A_global_plane" else pca_normal(knn(cloud, p, K_OF[arm]))
+            n, flipped = orient(raw, p)
+            r2 = sum(((e[0] - c[0]) * n[0] + (e[1] - c[1]) * n[1] + (e[2] - c[2]) * n[2]) ** 2 for e in ev) / len(ev)
+            out[arm]["ang"] += angle_deg(n, truth[qi]) / QUERIES
+            out[arm]["res"] += math.sqrt(r2) * 1e3 / QUERIES
+            out[arm]["flip"] += flipped
+    return out
+
+
+def ms(xs: list[float]) -> tuple[float, float]:
+    m = sum(xs) / len(xs)
+    return m, math.sqrt(sum((x - m) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def verdict(xa: list[float], xb: list[float]) -> str:
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "tie: identical on every seed"
+    m, s = ms(diffs)
+    if abs(m) <= s:
+        return "near-tie / small gap, within seed noise"
+    if abs(m) < 0.2 * min(ms(xa)[0], ms(xb)[0]):
+        return "small but consistent gap, not a tie"
+    return "clear gap, not a tie"
+
+
+def main() -> None:
+    print(f"height field z=0.40-A*sin(2pi x/LAM)*sin(2pi y/LAM); grid {N_GRID}x{N_GRID} spacing 5 mm; "
+          f"queries={QUERIES} k_eval={K_EVAL} seeds={len(SEEDS)}")
+    print("sign check: PCA of an exact z=0.40 plane ->", ", ".join(
+        f"{v:.6f}" for v in pca_normal([(0.01 * i, 0.01 * j, Z0) for i in range(5) for j in range(5)])),
+          "(either sign is a valid eigenvector; orient toward the viewpoint)")
+    print("regime arm angle_deg residual_mm raw_sign_flipped/queries  (mean+-sd over seeds)")
+    for regime, a, lam, sd in REGIMES:
+        per = {arm: {"ang": [], "res": [], "flip": []} for arm in ARMS}
+        for seed in SEEDS:
+            out = evaluate(regime, a, lam, sd, seed)
+            for arm in ARMS:
+                for k in ("ang", "res", "flip"):
+                    per[arm][k].append(out[arm][k])
+        for arm in ARMS:
+            (am, asd), (rm, rsd) = ms(per[arm]["ang"]), ms(per[arm]["res"])
+            print(f"{regime} {arm} {am:.4f}+-{asd:.4f} {rm:.4f}+-{rsd:.4f} {sum(per[arm]['flip'])}/{QUERIES * len(SEEDS)}")
+        for x, y in (("B_pca_k20", "A_global_plane"), ("B_pca_k20", "C_pca_k4")):
+            for k, name in (("ang", "angle_deg"), ("res", "residual_mm")):
+                d = ms([u - v for u, v in zip(per[x][k], per[y][k])])
+                print(f"{regime} paired {x[0]}-{y[0]} {name} {d[0]:.4f}+-{d[1]:.4f}: {verdict(per[x][k], per[y][k])}")
+    print("flat_low_noise: one global plane is already the right normal everywhere; local PCA only adds noise")
+    print("ripple_noisy: k=4 is noise-dominated, the global plane ignores curvature; k=20 averages the noise")
+    print("fine_ripple_low_noise: k=20 spans a large part of a 40 mm ripple and smooths the curvature; k=4 resolves it")
+    print("No winner declared: k trades noise averaging against curvature smoothing; the scale is a task choice")
+    print("Open3D estimate_normals / PCL NormalEstimation on a real sensor: 本页未运行; tutorial text 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+height field z=0.40-A*sin(2pi x/LAM)*sin(2pi y/LAM); grid 41x41 spacing 5 mm; queries=60 k_eval=12 seeds=5
+sign check: PCA of an exact z=0.40 plane -> 0.000000, 0.000000, 1.000000 (either sign is a valid eigenvector; orient toward the viewpoint)
+regime arm angle_deg residual_mm raw_sign_flipped/queries  (mean+-sd over seeds)
+flat_low_noise A_global_plane 0.0050+-0.0058 0.2778+-0.0052 300/300
+flat_low_noise B_pca_k20 0.7499+-0.0447 0.2708+-0.0075 300/300
+flat_low_noise C_pca_k4 4.6774+-0.5880 0.4691+-0.0490 300/300
+flat_low_noise paired B-A angle_deg 0.7449+-0.0397: clear gap, not a tie
+flat_low_noise paired B-A residual_mm -0.0070+-0.0036: small but consistent gap, not a tie
+flat_low_noise paired B-C angle_deg -3.9275+-0.6306: clear gap, not a tie
+flat_low_noise paired B-C residual_mm -0.1983+-0.0447: clear gap, not a tie
+ripple_noisy A_global_plane 19.1355+-0.5304 2.2837+-0.0496 300/300
+ripple_noisy B_pca_k20 5.3848+-0.3418 1.6855+-0.0468 300/300
+ripple_noisy C_pca_k4 25.6248+-2.6967 2.5549+-0.1568 284/300
+ripple_noisy paired B-A angle_deg -13.7507+-0.6334: clear gap, not a tie
+ripple_noisy paired B-A residual_mm -0.5982+-0.0525: clear gap, not a tie
+ripple_noisy paired B-C angle_deg -20.2400+-2.7704: clear gap, not a tie
+ripple_noisy paired B-C residual_mm -0.8694+-0.1401: clear gap, not a tie
+fine_ripple_low_noise A_global_plane 22.5345+-0.4940 1.5739+-0.0227 300/300
+fine_ripple_low_noise B_pca_k20 11.1983+-0.2312 0.9425+-0.0278 300/300
+fine_ripple_low_noise C_pca_k4 5.9507+-0.4287 1.0946+-0.0259 299/300
+fine_ripple_low_noise paired B-A angle_deg -11.3362+-0.3298: clear gap, not a tie
+fine_ripple_low_noise paired B-A residual_mm -0.6314+-0.0290: clear gap, not a tie
+fine_ripple_low_noise paired B-C angle_deg 5.2476+-0.4954: clear gap, not a tie
+fine_ripple_low_noise paired B-C residual_mm -0.1522+-0.0143: small but consistent gap, not a tie
+flat_low_noise: one global plane is already the right normal everywhere; local PCA only adds noise
+ripple_noisy: k=4 is noise-dominated, the global plane ignores curvature; k=20 averages the noise
+fine_ripple_low_noise: k=20 spans a large part of a 40 mm ripple and smooths the curvature; k=4 resolves it
+No winner declared: k trades noise averaging against curvature smoothing; the scale is a task choice
+Open3D estimate_normals / PCL NormalEstimation on a real sensor: 本页未运行; tutorial text 以原文为准
+```
+
+</SimOutput>
+
+### Read the regimes
+
+- **flat_low_noise:** the global plane is already the right normal everywhere, so **B loses to A on angle**: A 0.0050±0.0058°, B 0.7499±0.0447°, C 4.6774±0.5880° (paired B−A 0.7449±0.0397°, a clear gap, although both are under 1°). On the residual the order flips: B 0.2708±0.0075 mm against A 0.2778±0.0052 mm, paired B−A −0.0070±0.0036 mm, a **small but consistent gap, not a tie**, in B's favour. The reason is the metric, not a better normal: B's local plane follows the noise of a neighbourhood that overlaps the evaluation points, and the residual rewards that.
+- **ripple_noisy:** **B wins on both metrics.** Angle: B 5.3848±0.3418°, A 19.1355±0.5304° (the global plane ignores the curvature), C 25.6248±2.6967° (four points are dominated by 2 mm noise); paired B−A −13.7507±0.6334°, B−C −20.2400±2.7704°, both clear gaps. Residual: B 1.6855±0.0468 mm, A 2.2837±0.0496 mm, C 2.5549±0.1568 mm.
+- **fine_ripple_low_noise:** **B loses to C on angle**: C 5.9507±0.4287°, B 11.1983±0.2312°, A 22.5345±0.4940° (paired B−C 5.2476±0.4954°, a clear gap). With 0.1 mm noise there is little to average, and a 12.6 mm neighbourhood covers a large part of a ripple whose crests bend with a ≈ 10 mm radius, so `k = 20` smooths the curvature that `k = 4` still resolves. The residual again disagrees: B 0.9425±0.0278 mm against C 1.0946±0.0259 mm, paired B−C −0.1522±0.0143 mm, a **small but consistent gap, not a tie**, in B's favour, because B's 20-point neighbourhood resembles the 12-point evaluation neighbourhood. The residual is blind to whether the normal is right at the query.
+- **Orientation:** before the viewpoint flip, every arm's raw normal pointed away from the camera at all 300 flat queries (the Jacobi solver happened to return `+z`); C needed 284 of 300 flips on ripple_noisy and 299 of 300 on the fine ripple. Without the flip, those normals would score about 180° off. Orientation is a separate step, and the simple flip assumes a single viewpoint.
+
+The page **does not declare a universal winner**: `k` trades noise averaging against curvature smoothing, and a global plane is the right answer only when the surface really is one plane. Choose the scale from the noise level and the smallest detail you need. Open3D `estimate_normals` / PCL `NormalEstimation` on a real sensor: **本页未运行**.
+
+**180-minute work plan:** 30 min read the PCL and Open3D pages; 30 min derive why the smallest eigenvector is the normal and estimate the neighbourhood radii; 40 min run the toy and read the three regimes; 50 min change `k` (8, 12, 30) and the noise with seeds fixed; 30 min write down when a global plane, a small `k` or a large `k` is the right choice.
+
+### Exercises
+
+1. The toy's sign check prints `0.000000, 0.000000, 1.000000` for an exact `z = 0.40` plane. Show why that is a valid PCA normal, and which sign faces a camera at the origin.
+2. Estimate the neighbourhood radius for `k = 4` and `k = 20` at 5 mm spacing and compare it with the 31.7 mm and 10.1 mm crest radii. Predict in which regime `k = 20` smears the normal.
+3. Show from `shared_scene` that all arms get the same cloud and the same queries; then explain why the residual favours B on flat_low_noise while the angle favours A.
+4. Set `K_EVAL = 4` with seeds fixed. Before running, predict which arm the residual will favour in fine_ripple_low_noise.
+5. Before any real-sensor run (本页未运行), explain why orienting every normal toward `(0, 0, 0)` fails for a cloud merged from two camera poses, and name the Open3D calls the tutorial points to.
+
 <Summary>
 
-Depth plus intrinsics makes a point cloud; voxel down-sampling, RANSAC plane removal and DBSCAN centroids turn a desk scene into grasp seeds. The stdlib toy recovers three box centres within 1 cm; Open3D names the same steps. Prefer metric depth for poses in metres, and read Depth Anything V2's licence per checkpoint size. The thresholded Gaussian-ellipsoid collision check compares an enclosing AABB with a finite-s ellipsoid test using independent distance ground truth, without 3DGS training.
+Depth plus intrinsics makes a point cloud; voxel down-sampling, RANSAC plane removal and DBSCAN centroids turn a desk scene into grasp seeds. The stdlib toy recovers three box centres within 1 cm; Open3D names the same steps. Prefer metric depth for poses in metres, and read Depth Anything V2's licence per checkpoint size. The thresholded Gaussian-ellipsoid collision check compares an enclosing AABB with a finite-s ellipsoid test using independent distance ground truth, without 3DGS training. PCA normals: the smallest eigenvector of a k-nearest-neighbour covariance, flipped toward the viewpoint, beats a single global plane on curved surfaces, but on a flat low-noise desk the global plane wins on angle and on a fine ripple `k = 4` beats `k = 20` — the neighbourhood size trades noise averaging against curvature smoothing, and a plane residual can disagree with the angle; a synthetic toy, not a real-sensor run.
 
 </Summary>
