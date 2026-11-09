@@ -14,7 +14,7 @@ Arms:
 
 Regimes (≥5 seeds; multi-sample SNR = |Δmean| / pooled sample std):
   small_delta_noisy_cm  — small ΔR, large CM: bridge SNR wins
-  large_delta_quiet_cm  — large ΔR, tiny CM: single-ended SNR ties B
+  large_delta_quiet_cm  — large ΔR, tiny CM: near-tie / small SNR gap (~2.6 dB)
 No presumed winner. Not a strain-gauge lab. Real bridge / INA: 本页未运行.
 """
 from __future__ import annotations
@@ -179,17 +179,21 @@ def main() -> None:
     )
     print(
         f"large_delta_quiet_cm: |SNR_A - SNR_B| = {abs(a_l - b_l):.2f} dB "
-        f"(single-ended ties bridge — CM tiny, no presumed winner)"
+        f"(near-tie / small gap — remaining ~2.6 dB from finite-CMRR residual "
+        f"+ private DIFF_NOISE; no presumed winner)"
     )
     c_off = summary[("small_delta_noisy_cm", "C_bridge_offset")][1]
     b_off = summary[("small_delta_noisy_cm", "B_bridge_ideal")][1]
     print(
         f"small_delta offset: C_bridge_offset {c_off:.4f} V > "
-        f"B_bridge_ideal {b_off:.4f} V (INA RTI offset cost)"
+        f"B_bridge_ideal {b_off:.4f} V (INA RTI offset cost; multi-sample "
+        f"SNR cannot see static Vos — it cancels in Δmean, so C SNR ≳ B "
+        f"does not mean C wins)"
     )
     print(
-        "No winner declared: quiet high-ΔR single-ended can match bridge SNR; "
-        "noisy small-ΔR needs the bridge+CMRR; C's offset is a real INA cost"
+        "No winner declared: quiet high-ΔR is a near-tie / small gap, not a "
+        "true tie; noisy small-ΔR needs the bridge+CMRR; C's cost is offset/"
+        "absolute accuracy, not SNR"
     )
     print(
         "Real Wheatstone / INA / strain-gauge lab: 本页未运行; "

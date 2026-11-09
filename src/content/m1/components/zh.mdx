@@ -863,7 +863,7 @@ ESD gun / real TVS / IEC 61000 lab: 本页未运行; TI numbers 以原文为准
 | B_bridge_ideal | 两臂 + CM → 差分 + **CMRR 残差**，再乘 `G`（无 Vos） |
 | C_bridge_offset | 同一电桥路径 + INA 式 RTI 失调，再乘 `G` |
 
-制度：`small_delta_noisy_cm`（桥 SNR 胜出）与 `large_delta_quiet_cm`（单端 SNR **追平**桥——不预设赢家）。指标：灵敏度、失调误差，以及 64 次抽样的**多样本 SNR** `|Δmean| / 合并样本标准差`（不是单次 `|signal|/noise_floor` 且噪声底不对称）。五多种子 mean±sd。
+制度：`small_delta_noisy_cm`（桥 SNR 胜出）与 `large_delta_quiet_cm`（**接近打平 / 差距很小**——约 2.6 dB，并非真正平局；不预设赢家）。指标：灵敏度、失调误差，以及 64 次抽样的**多样本 SNR** `|Δmean| / 合并样本标准差`（不是单次 `|signal|/noise_floor` 且噪声底不对称）。**多样本 SNR 看不见静态失调 `Vos`：** 它在每个样本里是同一常数，故在 `Δmean` 中抵消。因此臂 C 的 SNR 略高于 B **并不**表示 C 更好——C 的代价体现在失调与绝对精度（约 0.024 V 对约 0.0004 V），C 并不胜出。五多种子 mean±sd。
 
 ### 运行标准库玩具
 
@@ -891,7 +891,7 @@ Arms:
 
 Regimes (≥5 seeds; multi-sample SNR = |Δmean| / pooled sample std):
   small_delta_noisy_cm  — small ΔR, large CM: bridge SNR wins
-  large_delta_quiet_cm  — large ΔR, tiny CM: single-ended SNR ties B
+  large_delta_quiet_cm  — large ΔR, tiny CM: near-tie / small SNR gap (~2.6 dB)
 No presumed winner. Not a strain-gauge lab. Real bridge / INA: 本页未运行.
 """
 from __future__ import annotations
@@ -1056,17 +1056,21 @@ def main() -> None:
     )
     print(
         f"large_delta_quiet_cm: |SNR_A - SNR_B| = {abs(a_l - b_l):.2f} dB "
-        f"(single-ended ties bridge — CM tiny, no presumed winner)"
+        f"(near-tie / small gap — remaining ~2.6 dB from finite-CMRR residual "
+        f"+ private DIFF_NOISE; no presumed winner)"
     )
     c_off = summary[("small_delta_noisy_cm", "C_bridge_offset")][1]
     b_off = summary[("small_delta_noisy_cm", "B_bridge_ideal")][1]
     print(
         f"small_delta offset: C_bridge_offset {c_off:.4f} V > "
-        f"B_bridge_ideal {b_off:.4f} V (INA RTI offset cost)"
+        f"B_bridge_ideal {b_off:.4f} V (INA RTI offset cost; multi-sample "
+        f"SNR cannot see static Vos — it cancels in Δmean, so C SNR ≳ B "
+        f"does not mean C wins)"
     )
     print(
-        "No winner declared: quiet high-ΔR single-ended can match bridge SNR; "
-        "noisy small-ΔR needs the bridge+CMRR; C's offset is a real INA cost"
+        "No winner declared: quiet high-ΔR is a near-tie / small gap, not a "
+        "true tie; noisy small-ΔR needs the bridge+CMRR; C's cost is offset/"
+        "absolute accuracy, not SNR"
     )
     print(
         "Real Wheatstone / INA / strain-gauge lab: 本页未运行; "
@@ -1092,9 +1096,9 @@ large_delta_quiet_cm A_single_ended 113.6384+-0.0016 0.0003+-0.0002 70.6035+-0.5
 large_delta_quiet_cm B_bridge_ideal 113.6379+-0.0031 0.0004+-0.0003 73.1542+-0.3506
 large_delta_quiet_cm C_bridge_offset 113.6368+-0.0063 0.0242+-0.0061 73.2588+-0.5990
 small_delta_noisy_cm: bridge SNR advantage B-A = 31.85 dB (finite CMRR still beats full-CM single-ended)
-large_delta_quiet_cm: |SNR_A - SNR_B| = 2.55 dB (single-ended ties bridge — CM tiny, no presumed winner)
-small_delta offset: C_bridge_offset 0.0242 V > B_bridge_ideal 0.0004 V (INA RTI offset cost)
-No winner declared: quiet high-ΔR single-ended can match bridge SNR; noisy small-ΔR needs the bridge+CMRR; C's offset is a real INA cost
+large_delta_quiet_cm: |SNR_A - SNR_B| = 2.55 dB (near-tie / small gap — remaining ~2.6 dB from finite-CMRR residual + private DIFF_NOISE; no presumed winner)
+small_delta offset: C_bridge_offset 0.0242 V > B_bridge_ideal 0.0004 V (INA RTI offset cost; multi-sample SNR cannot see static Vos — it cancels in Δmean, so C SNR ≳ B does not mean C wins)
+No winner declared: quiet high-ΔR is a near-tie / small gap, not a true tie; noisy small-ΔR needs the bridge+CMRR; C's cost is offset/absolute accuracy, not SNR
 Real Wheatstone / INA / strain-gauge lab: 本页未运行; TI/Wikipedia numbers 以原文为准
 ```
 
@@ -1102,7 +1106,7 @@ Real Wheatstone / INA / strain-gauge lab: 本页未运行; TI/Wikipedia numbers 
 
 ### 读制度
 
-在 **small_delta_noisy_cm** 上，桥 SNR（有限 **80 dB CMRR**）比单端高约 **32 dB**，因为 A 保留全部共享 CM，而 B/C 只看到 `cm/CMRR_linear`；臂 C 仍在零 ΔR 读数上付出 INA 失调代价。在 **large_delta_quiet_cm** 上，`|SNR_A − SNR_B| ≈ 2.6 dB`——当 CM 很小且 `δ` 很大时，单端**追平**桥。本页**不宣布普遍赢家**：嘈杂微应变需要电桥+CMRR；安静的大 `ΔR` 可让分压够用；INA 失调是真实的小信号代价。真实惠斯通 / INA 实验：**本页未运行**。
+在 **small_delta_noisy_cm** 上，桥 SNR（有限 **80 dB CMRR**）比单端高约 **32 dB**，因为 A 保留全部共享 CM，而 B/C 只看到 `cm/CMRR_linear`；臂 C 仍在零 ΔR 读数上付出 INA 失调代价。在 **large_delta_quiet_cm** 上，`|SNR_A − SNR_B| ≈ 2.6 dB`——这是**接近打平 / 差距很小**，并非真正平局。剩余约 2.6 dB 来自**有限 CMRR 残差**与各臂私有的 **`DIFF_NOISE`**。本页**不宣布普遍赢家**：嘈杂微应变需要电桥+CMRR；安静的大 `ΔR` 只是接近。因多样本 SNR 抵消静态 `Vos`，C 的 SNR 略高于 B **并不**表示 C 胜出——应用失调 / 绝对精度评判 C。真实惠斯通 / INA 实验：**本页未运行**。
 
 **180 分钟工作计划：** 30 分钟读 SLOA034 电桥与 INA126 `G = 5 + 80k/RG` 及 CMRR 最小 80 dB；45 分钟推导四分之一桥 `V_G`；45 分钟跑共享 ΔR 各臂；45 分钟在多种子固定下改 `δ` / CM；15 分钟列出真实应变片实验还缺什么。
 
@@ -1112,7 +1116,7 @@ Real Wheatstone / INA / strain-gauge lab: 本页未运行; TI/Wikipedia numbers 
 2. 用共享 `cm` 序列证明同一种子下 A、B、C 抽到相同值，并说明 B/C 如何把它加到两臂后只保留 CMRR 残差，而 A 保留全部 CM。
 3. 用 INA126 `G = 5 + 80k/RG` 求 `G ≈ 100` 时的 `RG`，并与玩具固定 `G` 比较。
 4. 多种子不变，把 `small_delta_noisy_cm` 的 `CM` 减半。运行前预测哪一臂 SNR 动得最多。
-5. 任何真机实验前（本页未运行），写明为何安静大 `ΔR` 的追平**不能**授权在微应变片上省掉电桥。
+5. 任何真机实验前（本页未运行），写明为何安静大 `ΔR` 的**接近打平 / 差距很小**（约 2.6 dB，来自有限 CMRR 残差 + 私有 `DIFF_NOISE`）**不能**授权在微应变片上省掉电桥。
 
 <Summary>
 
@@ -1130,7 +1134,7 @@ Real Wheatstone / INA / strain-gauge lab: 本页未运行; TI/Wikipedia numbers 
 
 - ESD/TVS 入门：共享 HBM 风格脉冲（100 pF / 1500 Ω，I_sc ≈ V/1500 Ω）下无保护引脚接近预充；钳位遵循 `VRWM < VBR < VCLAMP` 与 `VCLAMP ≈ VBR + I·RDYN`（SLVAE37）；大部分能量落在 1500 Ω——不是 IEC 认证。
 
-- 惠斯通 / INA 入门：共享 ΔR 显示嘈杂小 δ 时电桥 SNR 胜出、安静大 δ 时单端追平，以及 INA 失调代价——不是应变片实验。
+- 惠斯通 / INA 入门：共享 ΔR 显示嘈杂小 δ 时电桥 SNR 胜出、安静大 δ 时**接近打平 / 差距很小**（约 2.6 dB），以及多样本 SNR 看不见的 INA 失调代价——不是应变片实验。
 
 **下一课会用到**
 

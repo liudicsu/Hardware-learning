@@ -81,18 +81,41 @@ class Wheatstone(unittest.TestCase):
         snr_b = [wb.metrics_for(delta, cm, "B_bridge_ideal", s)[2] for s in wb.SEEDS]
         self.assertGreater(sum(snr_b) / 5, sum(snr_a) / 5 + 10.0)
 
-    def test_large_delta_quiet_tie(self):
+    def test_large_delta_quiet_near_tie(self):
+        """Quiet large-δ is a near-tie / small gap (~2.6 dB), not a true tie."""
         name, delta, cm = wb.REGIMES[1]
         self.assertEqual(name, "large_delta_quiet_cm")
         snr_a = sum(wb.metrics_for(delta, cm, "A_single_ended", s)[2] for s in wb.SEEDS) / 5
         snr_b = sum(wb.metrics_for(delta, cm, "B_bridge_ideal", s)[2] for s in wb.SEEDS) / 5
-        self.assertLess(abs(snr_a - snr_b), 3.0)
+        gap = abs(snr_a - snr_b)
+        self.assertGreater(gap, 2.0)
+        self.assertLess(gap, 3.0)
+        src = (
+            Path(__file__).resolve().parents[1]
+            / "examples/month-1/components/wheatstone_bridge_sense_toy.py"
+        ).read_text()
+        self.assertIn("near-tie / small gap", src)
+        self.assertIn("DIFF_NOISE", src)
+        self.assertNotIn("single-ended ties bridge", src)
+        # Multi-sample SNR cannot see static Vos (cancels in Δmean)
+        self.assertIn("cannot see static Vos", src)
 
     def test_offset_arm_c_worse_than_b(self):
         _, delta, cm = wb.REGIMES[0]
         off_b = sum(wb.metrics_for(delta, cm, "B_bridge_ideal", s)[1] for s in wb.SEEDS) / 5
         off_c = sum(wb.metrics_for(delta, cm, "C_bridge_offset", s)[1] for s in wb.SEEDS) / 5
         self.assertGreater(off_c, off_b)
+
+    def test_vos_invisible_to_multisample_snr(self):
+        """Static Vos cancels in Δmean; C may show SNR ≳ B but loses on offset."""
+        _, delta, cm = wb.REGIMES[0]
+        snr_b = sum(wb.metrics_for(delta, cm, "B_bridge_ideal", s)[2] for s in wb.SEEDS) / 5
+        snr_c = sum(wb.metrics_for(delta, cm, "C_bridge_offset", s)[2] for s in wb.SEEDS) / 5
+        off_b = sum(wb.metrics_for(delta, cm, "B_bridge_ideal", s)[1] for s in wb.SEEDS) / 5
+        off_c = sum(wb.metrics_for(delta, cm, "C_bridge_offset", s)[1] for s in wb.SEEDS) / 5
+        # C's SNR is not meaningfully worse (Vos cancels); offset is clearly worse
+        self.assertGreater(snr_c + 1.0, snr_b)  # C not a SNR loser
+        self.assertGreater(off_c, 10 * off_b)
 
 
 class GdtStack(unittest.TestCase):

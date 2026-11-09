@@ -863,7 +863,7 @@ A single-ended gauge divider against mid-rail sees the **same** gauge law but ke
 | B_bridge_ideal | both legs + CM → differential + **CMRR residual**, then `G` (no Vos) |
 | C_bridge_offset | same bridge path + INA-like RTI offset, then `G` |
 
-Regimes: `small_delta_noisy_cm` (bridge SNR wins) and `large_delta_quiet_cm` (single-ended SNR **ties** the bridge — no presumed winner). Metrics: sensitivity, offset error, and **multi-sample SNR** `|Δmean| / pooled sample std` over 64 draws (not a single-shot `|signal|/noise_floor` with asymmetric floors). Five-seed mean±sd.
+Regimes: `small_delta_noisy_cm` (bridge SNR wins) and `large_delta_quiet_cm` (**near-tie / small gap** — about 2.6 dB, not a true tie; no presumed winner). Metrics: sensitivity, offset error, and **multi-sample SNR** `|Δmean| / pooled sample std` over 64 draws (not a single-shot `|signal|/noise_floor` with asymmetric floors). **Multi-sample SNR cannot see the static offset `Vos`:** the same constant appears in every sample, so it cancels in `Δmean`. Arm C’s slightly higher SNR than B therefore does **not** mean C is better — C’s cost shows up in offset and absolute accuracy (~0.024 V vs ~0.0004 V), and C does not win. Five-seed mean±sd.
 
 ### Run the stdlib toy
 
@@ -891,7 +891,7 @@ Arms:
 
 Regimes (≥5 seeds; multi-sample SNR = |Δmean| / pooled sample std):
   small_delta_noisy_cm  — small ΔR, large CM: bridge SNR wins
-  large_delta_quiet_cm  — large ΔR, tiny CM: single-ended SNR ties B
+  large_delta_quiet_cm  — large ΔR, tiny CM: near-tie / small SNR gap (~2.6 dB)
 No presumed winner. Not a strain-gauge lab. Real bridge / INA: 本页未运行.
 """
 from __future__ import annotations
@@ -1056,17 +1056,21 @@ def main() -> None:
     )
     print(
         f"large_delta_quiet_cm: |SNR_A - SNR_B| = {abs(a_l - b_l):.2f} dB "
-        f"(single-ended ties bridge — CM tiny, no presumed winner)"
+        f"(near-tie / small gap — remaining ~2.6 dB from finite-CMRR residual "
+        f"+ private DIFF_NOISE; no presumed winner)"
     )
     c_off = summary[("small_delta_noisy_cm", "C_bridge_offset")][1]
     b_off = summary[("small_delta_noisy_cm", "B_bridge_ideal")][1]
     print(
         f"small_delta offset: C_bridge_offset {c_off:.4f} V > "
-        f"B_bridge_ideal {b_off:.4f} V (INA RTI offset cost)"
+        f"B_bridge_ideal {b_off:.4f} V (INA RTI offset cost; multi-sample "
+        f"SNR cannot see static Vos — it cancels in Δmean, so C SNR ≳ B "
+        f"does not mean C wins)"
     )
     print(
-        "No winner declared: quiet high-ΔR single-ended can match bridge SNR; "
-        "noisy small-ΔR needs the bridge+CMRR; C's offset is a real INA cost"
+        "No winner declared: quiet high-ΔR is a near-tie / small gap, not a "
+        "true tie; noisy small-ΔR needs the bridge+CMRR; C's cost is offset/"
+        "absolute accuracy, not SNR"
     )
     print(
         "Real Wheatstone / INA / strain-gauge lab: 本页未运行; "
@@ -1092,9 +1096,9 @@ large_delta_quiet_cm A_single_ended 113.6384+-0.0016 0.0003+-0.0002 70.6035+-0.5
 large_delta_quiet_cm B_bridge_ideal 113.6379+-0.0031 0.0004+-0.0003 73.1542+-0.3506
 large_delta_quiet_cm C_bridge_offset 113.6368+-0.0063 0.0242+-0.0061 73.2588+-0.5990
 small_delta_noisy_cm: bridge SNR advantage B-A = 31.85 dB (finite CMRR still beats full-CM single-ended)
-large_delta_quiet_cm: |SNR_A - SNR_B| = 2.55 dB (single-ended ties bridge — CM tiny, no presumed winner)
-small_delta offset: C_bridge_offset 0.0242 V > B_bridge_ideal 0.0004 V (INA RTI offset cost)
-No winner declared: quiet high-ΔR single-ended can match bridge SNR; noisy small-ΔR needs the bridge+CMRR; C's offset is a real INA cost
+large_delta_quiet_cm: |SNR_A - SNR_B| = 2.55 dB (near-tie / small gap — remaining ~2.6 dB from finite-CMRR residual + private DIFF_NOISE; no presumed winner)
+small_delta offset: C_bridge_offset 0.0242 V > B_bridge_ideal 0.0004 V (INA RTI offset cost; multi-sample SNR cannot see static Vos — it cancels in Δmean, so C SNR ≳ B does not mean C wins)
+No winner declared: quiet high-ΔR is a near-tie / small gap, not a true tie; noisy small-ΔR needs the bridge+CMRR; C's cost is offset/absolute accuracy, not SNR
 Real Wheatstone / INA / strain-gauge lab: 本页未运行; TI/Wikipedia numbers 以原文为准
 ```
 
@@ -1102,7 +1106,7 @@ Real Wheatstone / INA / strain-gauge lab: 本页未运行; TI/Wikipedia numbers 
 
 ### Read the regimes
 
-On **small_delta_noisy_cm**, bridge SNR (finite **80 dB CMRR**) beats single-ended by about **32 dB** because A keeps the full shared CM while B/C only see `cm/CMRR_linear`; arm C still pays an INA offset cost on the zero-ΔR reading. On **large_delta_quiet_cm**, `|SNR_A − SNR_B| ≈ 2.6 dB` — single-ended **ties** the bridge when CM is tiny and `δ` is large. The page **does not declare a universal winner**: noisy micro-strain needs the bridge+CMRR; a quiet large `ΔR` can make a divider enough; INA offset is a real small-signal cost. Real Wheatstone / INA lab: **本页未运行**.
+On **small_delta_noisy_cm**, bridge SNR (finite **80 dB CMRR**) beats single-ended by about **32 dB** because A keeps the full shared CM while B/C only see `cm/CMRR_linear`; arm C still pays an INA offset cost on the zero-ΔR reading. On **large_delta_quiet_cm**, `|SNR_A − SNR_B| ≈ 2.6 dB` — a **near-tie / small gap**, not a true tie. The remaining ~2.6 dB comes from the **finite-CMRR residual** plus each arm’s private **`DIFF_NOISE`**. The page **does not declare a universal winner**: noisy micro-strain needs the bridge+CMRR; a quiet large `ΔR` only gets close. Because multi-sample SNR cancels static `Vos`, C’s slightly higher SNR than B does **not** mean C wins — judge C by offset / absolute accuracy instead. Real Wheatstone / INA lab: **本页未运行**.
 
 **180-minute work plan:** 30 min read SLOA034 bridge + INA126 `G = 5 + 80k/RG` and CMRR min 80 dB; 45 min derive quarter-bridge `V_G`; 45 min run shared-ΔR arms; 45 min change `δ` / CM with seeds fixed; 15 min list what a real gauge lab still needs.
 
@@ -1112,7 +1116,7 @@ On **small_delta_noisy_cm**, bridge SNR (finite **80 dB CMRR**) beats single-end
 2. Using the shared `cm` sequence, show that A, B and C get the same draw per seed, and explain how B/C add it to both legs then keep only a CMRR residual while A keeps the full CM.
 3. Using INA126 `G = 5 + 80k/RG`, find `RG` for `G ≈ 100` and compare with the toy’s fixed `G`.
 4. Halve `CM` on `small_delta_noisy_cm` with seeds fixed. Predict which arm’s SNR moves most before you run.
-5. Before any hardware run (本页未运行), write why a quiet high-`ΔR` tie does **not** license skipping a bridge on a micro-strain gauge.
+5. Before any hardware run (本页未运行), write why a quiet high-`ΔR` **near-tie / small gap** (~2.6 dB from finite CMRR residual + private `DIFF_NOISE`) does **not** license skipping a bridge on a micro-strain gauge.
 
 <Summary>
 
@@ -1130,7 +1134,7 @@ On **small_delta_noisy_cm**, bridge SNR (finite **80 dB CMRR**) beats single-end
 
 - ESD/TVS literacy: a shared HBM-style pulse (100 pF / 1500 Ω, I_sc ≈ V/1500 Ω) shows an unprotected pin near the precharge; a clamp follows `VRWM < VBR < VCLAMP` with `VCLAMP ≈ VBR + I·RDYN` (SLVAE37); most energy lands in the 1500 Ω — not an IEC certification.
 
-- Wheatstone / INA literacy: shared ΔR shows a noisy small-δ bridge SNR win, a quiet large-δ single-ended tie, and an INA offset cost — not a strain-gauge lab.
+- Wheatstone / INA literacy: shared ΔR shows a noisy small-δ bridge SNR win, a quiet large-δ **near-tie / small gap** (~2.6 dB), and an INA offset cost that multi-sample SNR cannot see — not a strain-gauge lab.
 
 **Used next**
 

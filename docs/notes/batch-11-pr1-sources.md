@@ -14,7 +14,7 @@ Cached under `/workspace/b11p1-sources/` on the worktree host (not committed).
 
 ## Toy design
 
-- `wheatstone_bridge_sense_toy.py` (1.2): shared `Vexc`/`R0`/`G` and per-regime `(δ, CM σ)`; **common random numbers** for CM across A/B/C; CM added to both bridge legs then differential + residual `cm/10^(CMRR/20)` with **CMRR = 80 dB** (INA126 min); multi-sample SNR (`N=64`); regimes small-δ noisy-CM (bridge wins) and large-δ quiet-CM (A ties B); five seeds; ≠ ESD/ENOB.
+- `wheatstone_bridge_sense_toy.py` (1.2): shared `Vexc`/`R0`/`G` and per-regime `(δ, CM σ)`; **common random numbers** for CM across A/B/C; CM added to both bridge legs then differential + residual `cm/10^(CMRR/20)` with **CMRR = 80 dB** (INA126 min); multi-sample SNR (`N=64`); regimes small-δ noisy-CM (bridge wins) and large-δ quiet-CM (near-tie / small gap ~2.6 dB from finite CMRR residual + DIFF_NOISE; multi-sample SNR cannot see static Vos); five seeds; ≠ ESD/ENOB.
 - `gdt_tolerance_stack_toy.py` (3.1): shared bilateral half-widths per regime; arms A worst-case / B RSS / C datum re-root; short_chain (1 dim, worst==RSS tie); long_normal (`σ = t/3`); long_skew (violates RSS iid/centered/normal assumptions — unsafe); five seeds; no ASME certification claim.
 
 Independent tests: `tools/test_b11_bridge_gdt_toys.py`.
@@ -32,3 +32,8 @@ opencode free model `deepseek-v4.1-flash-free` was tried first (45 s); returned 
 - Wheatstone: shared CM draws across arms; CM on both bridge legs; finite CMRR 80 dB (INA126 min); multi-sample SNR; δ=GF·ε literacy; comments/prose/expected synced.
 - GD&T prose: RSS needs independent/centered/approx-normal parts; `long_skew` unsafe because it violates them; 3σ convention `±t ≈ ±3σ` ⇒ `σ = t/3`.
 - Minutes unchanged (27270 / M1 1350 / M3 1770).
+
+## NEEDS_FIX follow-up 2 (same PR)
+
+- Relabel `large_delta_quiet_cm` as **near-tie / small gap** (接近打平 / 差距很小), not a true tie; remaining ~2.6 dB from finite-CMRR residual + private `DIFF_NOISE`.
+- Explicit prose: multi-sample SNR cannot see static `Vos` (cancels in Δmean); C’s slightly higher SNR does not mean C wins — cost is offset / absolute accuracy.

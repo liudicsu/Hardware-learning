@@ -9,7 +9,7 @@ large_delta_quiet_cm A_single_ended 113.6384+-0.0016 0.0003+-0.0002 70.6035+-0.5
 large_delta_quiet_cm B_bridge_ideal 113.6379+-0.0031 0.0004+-0.0003 73.1542+-0.3506
 large_delta_quiet_cm C_bridge_offset 113.6368+-0.0063 0.0242+-0.0061 73.2588+-0.5990
 small_delta_noisy_cm: bridge SNR advantage B-A = 31.85 dB (finite CMRR still beats full-CM single-ended)
-large_delta_quiet_cm: |SNR_A - SNR_B| = 2.55 dB (single-ended ties bridge — CM tiny, no presumed winner)
-small_delta offset: C_bridge_offset 0.0242 V > B_bridge_ideal 0.0004 V (INA RTI offset cost)
-No winner declared: quiet high-ΔR single-ended can match bridge SNR; noisy small-ΔR needs the bridge+CMRR; C's offset is a real INA cost
+large_delta_quiet_cm: |SNR_A - SNR_B| = 2.55 dB (near-tie / small gap — remaining ~2.6 dB from finite-CMRR residual + private DIFF_NOISE; no presumed winner)
+small_delta offset: C_bridge_offset 0.0242 V > B_bridge_ideal 0.0004 V (INA RTI offset cost; multi-sample SNR cannot see static Vos — it cancels in Δmean, so C SNR ≳ B does not mean C wins)
+No winner declared: quiet high-ΔR is a near-tie / small gap, not a true tie; noisy small-ΔR needs the bridge+CMRR; C's cost is offset/absolute accuracy, not SNR
 Real Wheatstone / INA / strain-gauge lab: 本页未运行; TI/Wikipedia numbers 以原文为准

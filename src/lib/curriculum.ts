@@ -40,7 +40,7 @@ const month1Lessons: Lesson[] = [
     },
     minutes: 600,
     objectives: [
-      { zh: "在共享 ΔR 与激励下比较单端分压 / 理想惠斯通桥 / 带 INA 失调的灵敏度、失调误差与 SNR，并指出安静大 ΔR 时单端可追平桥，不声称应变片实验。", en: "On a shared ΔR and excitation, compare single-ended / ideal Wheatstone / INA-offset sensitivity, offset error and SNR; show a quiet large-ΔR single-ended tie; no strain-gauge lab claim." },
+      { zh: "在共享 ΔR 与激励下比较单端分压 / 理想惠斯通桥 / 带 INA 失调的灵敏度、失调误差与 SNR，并指出安静大 ΔR 时为接近打平 / 差距很小（非真正平局），不声称应变片实验。", en: "On a shared ΔR and excitation, compare single-ended / ideal Wheatstone / INA-offset sensitivity, offset error and SNR; show a quiet large-ΔR near-tie / small gap (not a true tie); no strain-gauge lab claim." },
       { zh: "在共享 HBM 风格脉冲下比较无保护 / 连接器 TVS / 串联+IC 钳位的连接器与 IC 引脚峰值及钳位电流，说明 VRWM < VBR < VCLAMP，不声称 IEC 认证。", en: "Compare unprotected / connector-TVS / series+IC-clamp connector and IC-pin peaks and clamp currents on a shared HBM-style pulse; explain VRWM < VBR < VCLAMP; no IEC certification claim." },
       { zh: "用串联 ESL+ESR+C、等总电容与共享脉冲比较放置 / 单颗容量、SRF 和最低电压；不声称 EMC 认证。", en: "Use series ESL+ESR+C, equal total capacitance and shared pulses to compare placement/part values, SRF and minimum rail; no EMC certification claim." },
       { zh: "能识别电阻、电容、二极管、LED、NPN 三极管和 GND 的符号，并读懂连接点、交叉无点和同名网络标号。", en: "Read resistor, capacitor, diode, LED, NPN transistor and GND symbols, junction dots, dot-less crossings and same-net labels." },
