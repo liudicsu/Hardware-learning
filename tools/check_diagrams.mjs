@@ -69,7 +69,7 @@ function checkText(where, text, { mono = false } = {}) {
 const variants = (t) => (t === undefined ? [] : typeof t === "string" ? [t] : [t.zh, t.en]);
 
 // ---------- circuit diagrams ----------
-const TWO_TERMINAL = new Set(["switch", "button", "resistor", "motor"]);
+const TWO_TERMINAL = new Set(["switch", "button", "resistor", "motor", "diode", "ac"]);
 function terminals(p) {
   const half = (p.len ?? 36) / 2;
   const [x, y] = p.at;
@@ -112,7 +112,7 @@ function checkCircuit(spec, tag) {
   for (const st of spec.states) {
     const sw = `${tag} state ${st.id}`;
     checkText(`${sw} label`, st.label); checkText(`${sw} text`, st.text); checkText(`${sw} readout`, st.readout);
-    for (const c of st.closed) ok(["switch", "button"].includes(ids.get(c)?.type), `${sw}: closed "${c}" is not a switch or button`);
+    for (const c of st.closed) ok(["switch", "button", "diode"].includes(ids.get(c)?.type), `${sw}: closed "${c}" is not a switch, button or diode`);
     for (const h of st.hidden ?? []) ok(ids.has(h), `${sw}: hidden "${h}" does not exist`);
     if (st.readout) {
       ok(spec.readoutAt, `${tag}: readout without readoutAt`);
@@ -128,8 +128,8 @@ function checkCircuit(spec, tag) {
     const segs = [];
     for (const w of spec.wires) if (!hidden.has(w.id)) for (let i = 1; i < w.pts.length; i++) segs.push([w.pts[i - 1], w.pts[i]]);
     for (const p of spec.parts) {
-      if (hidden.has(p.id) || !TWO_TERMINAL.has(p.type)) continue;
-      if ((p.type === "switch" || p.type === "button") && !closed.has(p.id)) continue;
+      if (hidden.has(p.id) || !TWO_TERMINAL.has(p.type) || p.type === "ac") continue; // an ac source is never crossed
+      if ((p.type === "switch" || p.type === "button" || p.type === "diode") && !closed.has(p.id)) continue;
       segs.push(terminals(p));
     }
     let bad = null;
@@ -151,9 +151,30 @@ function checkCircuit(spec, tag) {
     if (st.loopReason) {
       ok(same(first, last), `${sw}: loop path (loopReason) must end where it starts`);
       ok(!supplies.some((p) => onFlow(p.at)), `${sw}: loop path (loopReason) must not touch a supply`);
+    } else if (spec.parts.some((p) => p.type === "ac" && !hidden.has(p.id) && terminals(p).some((t) => same(t, first)))) {
+      // an ac source: the path leaves one of its terminals and returns to the other, outside the source
+      const ac = spec.parts.find((p) => p.type === "ac" && !hidden.has(p.id) && terminals(p).some((t) => same(t, first)));
+      const other = terminals(ac).find((t) => !same(t, first));
+      ok(same(other, last), `${sw}: path from ac source ${ac.id} must end at its other terminal`);
     } else {
       ok(supplies.some((p) => same(p.at, first)), `${sw}: current path must start at a supply`);
       ok(grounds.some((p) => same(p.at, last)), `${sw}: current path must end at a ground`);
+    }
+    // a diode conducts only anode → cathode: along the path the anode comes before the cathode
+    const along = (pt) => {
+      let s = 0;
+      for (let i = 1; i < st.flow.length; i++) {
+        const [a, b] = [st.flow[i - 1], st.flow[i]];
+        if (distToSeg(pt, a, b) <= 0.6) return s + Math.hypot(pt[0] - a[0], pt[1] - a[1]);
+        s += Math.hypot(b[0] - a[0], b[1] - a[1]);
+      }
+      return NaN;
+    };
+    for (const p of spec.parts) {
+      if (p.type !== "diode" || hidden.has(p.id)) continue;
+      const [t0, t1] = terminals(p), [an, ca] = p.flip ? [t1, t0] : [t0, t1];
+      if (closed.has(p.id)) ok(along(an) < along(ca), `${sw}: diode ${p.id} is crossed cathode → anode (reverse-biased)`);
+      else ok(!(onFlow(p.at)), `${sw}: blocking diode ${p.id} lies on the current path`);
     }
     // every closed switch or button carries the current: both terminals lie on the path
     for (const c of st.closed) {
@@ -7691,6 +7712,44 @@ print("protocol pass")
   ok(["b162a86","33600","molmoact-paper","hamster-paper","2508.07917","2502.05485","citation_title","Common random numbers","opencode","Lock changes","No lock relaxed","Post-hoc choices","Mismatch with §9","no_appearance","steer_depth","以论文为准"].every(x=>src.includes(x)),"b16p3 sources note");
   ok(/33 600/.test(read("README.md"))&&/约 33 600 分钟/.test(read("README.md")),"b16p3 README site minutes (en + zh)");
   console.log("molmoact-hamster PR3: MolmoAct trace, HAMSTER 2-D path and M6 3240 / site 33600 locked");
+}
+
+// Batch-16 polish: four-diode bridge topology diagram (1.2 components) and MAP-VLA 8 authors in prose (10.5). Minutes unchanged.
+{
+  const read=p=>readFileSync(join(root,p),"utf8");
+  const br=specs.find(s=>s.spec.id==="bridge-rectifier-paths")?.spec;
+  ok(br&&br.kind==="circuit","b16pol bridge-rectifier-paths diagram registered");
+  if(br){
+    const P=id=>br.parts.find(p=>p.id===id);
+    ok(["D1","D2","D3","D4"].every(d=>P(d)?.type==="diode")&&P("src")?.type==="ac"&&P("RL")?.type==="resistor","b16pol bridge: four diodes D1–D4, ac source, load RL");
+    const pos=br.states.find(s=>s.id==="positive"), neg=br.states.find(s=>s.id==="negative");
+    ok(pos&&neg&&br.states.length===2,"b16pol bridge: positive and negative half-cycle states");
+    ok(pos&&[...pos.closed].sort().join()==="D1,D3"&&neg&&[...neg.closed].sort().join()==="D2,D4","b16pol bridge: D1+D3 conduct on the positive half-cycle, D2+D4 on the negative");
+    const [ra,rb]=[[P("RL").at[0],P("RL").at[1]-(P("RL").len??36)/2],[P("RL").at[0],P("RL").at[1]+(P("RL").len??36)/2]];
+    const pos_of=(st,pt)=>{let s=0;for(let i=1;i<st.flow.length;i++){const a=st.flow[i-1],b=st.flow[i];if(distToSeg(pt,a,b)<=0.6)return s+Math.hypot(pt[0]-a[0],pt[1]-a[1]);s+=Math.hypot(b[0]-a[0],b[1]-a[1]);}return NaN;};
+    for(const st of [pos,neg].filter(Boolean))ok(pos_of(st,ra)<pos_of(st,rb),`b16pol bridge ${st.id}: RL crossed from the + rail (top) to the − rail (bottom)`);
+    const half=(P("src").len??36)/2;
+    ok(pos&&pos.flow[0][0]===P("src").at[0]-half&&neg&&neg.flow[0][0]===P("src").at[0]+half,"b16pol bridge: positive path leaves terminal a (left), negative leaves terminal b");
+    for(const lang of ["en","zh"])ok(/D1/.test(br.caption[lang])&&/D2/.test(br.caption[lang])&&br.caption[lang].includes("RL"),`b16pol bridge caption ${lang}: numbering and load`);
+  }
+  for(const lang of ["en","zh"]){
+    const md=read(`src/content/m1/components/${lang}.mdx`);
+    const h=md.indexOf(lang==="en"?"## Bridge rectifier and ripple":"## 整流桥与纹波"), d=md.indexOf('<Diagram id="bridge-rectifier-paths" />'), r=md.indexOf(lang==="en"?"### Ripple from charge balance":"### 从电荷平衡算纹波");
+    ok(h>0&&h<d&&d<r&&md.indexOf('<Diagram id="bridge-rectifier-paths" />',d+1)<0,`b16pol components ${lang}: bridge diagram once, in the bridge section before the ripple formula`);
+    const para=md.slice(h,d);
+    ok((lang==="en"?["D1 upper-left, D2 upper-right, D3 lower-right, D4 lower-left","on the positive half-cycle D1 and D3 conduct; on the negative half-cycle D2 and D4 conduct","from the + rail to the − rail in both half-cycles","`|v| − 2 VF`"]:["D1 左上、D2 右上、D3 右下、D4 左下","正半周 D1 与 D3 导通；负半周 D2 与 D4 导通","两个半周里都从 + 轨流向 − 轨","`|v| − 2 VF`"]).every(x=>para.includes(x)),`b16pol components ${lang}: diode numbering, conducting pairs and load direction in prose`);
+    const il=read(`src/content/m10/intervention-logging/${lang}.mdx`);
+    const names=["Runhao Li","Wenkai Guo","Zhenyu Wu","Changyuan Wang","Haoyuan Deng","Zhenyu Weng","Yap-Peng Tan","Ziwei Wang"];
+    const line=il.split("\n").find(l=>l.includes("2511.09516")&&l.includes("Runhao Li et al."))||"";
+    const idx=names.map(n=>line.indexOf(n, n==="Runhao Li"?line.indexOf(lang==="en"?"resource card:":"8 位作者："):0));
+    ok(idx.every(i=>i>0)&&idx.every((v,i)=>i===0||v>idx[i-1]),`b16pol intervention-logging ${lang}: all 8 MAP-VLA authors in prose, in arXiv order`);
+    ok(il.includes("Runhao Li et al.")&&il.includes(lang==="en"?"8 authors with the full list on the resource card":"Runhao Li 等 8 位作者"),`b16pol intervention-logging ${lang}: earlier MAP-VLA wording kept`);
+  }
+  ok(read("src/lib/resources.ts").includes("Runhao Li, Wenkai Guo, Zhenyu Wu, Changyuan Wang, Haoyuan Deng, Zhenyu Weng, Yap-Peng Tan, Ziwei Wang"),"b16pol MAP-VLA author list in resources matches the prose");
+  const note=read("docs/notes/batch-16-polish-sources.md");
+  ok(["25fb8f23382c7f59f5cf1e93a940dbae06d0f89f","33600","bridge-rectifier-paths","D1 + D3","D2 + D4","https://arxiv.org/abs/2511.09516","HTTP **200**","Tan, Yap-Peng","opencode","Lock changes","No lock relaxed"].every(x=>note.includes(x)),"b16pol sources note");
+  ok(/33 600/.test(read("README.md"))&&/约 33 600 分钟/.test(read("README.md")),"b16pol README site minutes unchanged (en + zh)");
+  console.log("batch-16 polish: bridge rectifier D1+D3 / D2+D4 diagram, MAP-VLA 8 authors in prose; minutes 33600; no lock relaxed");
 }
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);

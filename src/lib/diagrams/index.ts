@@ -1,6 +1,7 @@
 import type { DiagramSpec } from "./types";
 import { actBlockTask } from "./specs/actBlockTask";
 import { bcCorridor } from "./specs/bcCorridor";
+import { bridgeRectifierPaths } from "./specs/bridgeRectifier";
 import { cartPoleSigns } from "./specs/cartPole";
 import { gzBridge } from "./specs/gzBridge";
 import { firstRobotsCascade, pidCascade } from "./specs/cascade";
@@ -35,6 +36,7 @@ export const DIAGRAMS: Record<string, DiagramSpec> = {
   [gitBranches.id]: gitBranches,
   [pwmDuty.id]: pwmDuty,
   [hbridgeCurrentPath.id]: hbridgeCurrentPath,
+  [bridgeRectifierPaths.id]: bridgeRectifierPaths,
   [pullupInternal.id]: pullupInternal,
   [pullupExternal.id]: pullupExternal,
   [i2cWhoAmI.id]: i2cWhoAmI,

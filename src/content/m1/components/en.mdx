@@ -1134,6 +1134,10 @@ The sections above take a DC rail for granted: decoupling, TVS clamps and the br
 
 Real mains, transformer or PSU bench: **本页未运行**.
 
+**Which two diodes conduct.** Number the bridge D1 upper-left, D2 upper-right, D3 lower-right, D4 lower-left, with every anode below its cathode, so the top rail is + and the bottom rail is −. Call the half-cycle with terminal a above terminal b the positive one: on the positive half-cycle D1 and D3 conduct; on the negative half-cycle D2 and D4 conduct. The other pair is reverse-biased each time. Either way the load current flows from the + rail to the − rail in both half-cycles, which is why the output never changes sign, and either way the path holds two diodes, which is where the two drops `|v| − 2 VF` in the toy come from. The diagram leaves out the smoothing capacitor; with it, the same pairs conduct, only for a short time near each peak.
+
+<Diagram id="bridge-rectifier-paths" />
+
 ### Ripple from charge balance
 
 <Formula label="Peak-to-peak ripple, linear discharge (full-wave)">Vpp ≈ I / (2 f C)</Formula>

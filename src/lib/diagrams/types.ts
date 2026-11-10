@@ -108,10 +108,13 @@ export type BlockBinding =
 /* ---------- circuit (current path) diagrams ---------- */
 
 /**
- * Two-terminal parts (switch, button, resistor, motor) sit at `at`, run along `dir` and have their
+ * Two-terminal parts (switch, button, resistor, motor, diode, ac) sit at `at`, run along `dir` and have their
  * terminals at at ± len/2. A switch or button conducts only in the states that list it in `closed`.
+ * A diode conducts only in the states that list it in `closed`, and only from anode to cathode: the anode is
+ * the first terminal (top / left) unless `flip` is set. An `ac` source is never part of a current path; a path
+ * may instead start at one of its terminals and end at the other (current leaves the positive terminal).
  */
-export type CircuitPartType = "switch" | "button" | "resistor" | "motor" | "supply" | "ground" | "node" | "box" | "text";
+export type CircuitPartType = "switch" | "button" | "resistor" | "motor" | "diode" | "ac" | "supply" | "ground" | "node" | "box" | "text";
 
 export interface CircuitPart {
   id: string;
@@ -120,6 +123,8 @@ export interface CircuitPart {
   dir?: "v" | "h";
   /** Terminal-to-terminal length of a two-terminal part (default 36). */
   len?: number;
+  /** diode only: the anode is the second terminal (bottom / right) instead of the first. */
+  flip?: boolean;
   /** box only: width and height, with `at` as the top-left corner. */
   size?: [number, number];
   label?: L10n;
@@ -140,7 +145,7 @@ export interface CircuitState {
   label: L10n;
   /** One or two sentences shown under the diagram for this state. */
   text: L10n;
-  /** Switch and button ids that are closed (all others are open). */
+  /** Switch and button ids that are closed, and diode ids that conduct (all others are open / blocking). */
   closed: string[];
   /** Parts and wires not drawn in this state (e.g. a resistor that is not fitted). */
   hidden?: string[];
