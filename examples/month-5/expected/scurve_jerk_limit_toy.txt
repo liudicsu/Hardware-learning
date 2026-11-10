@@ -1,0 +1,36 @@
+Synthetic 1-D move: trapezoid vs 7-segment jerk-limited S-curve vs S-curve with too-small jerk limit; not MoveIt scaling, not Pilz/OMPL
+VMAX=0.5 m/s AMAX=2.0 m/s^2 JMAX=8.0 m/s^3 JMAX_C=2.0 m/s^3 ZETA=0.05 DT=0.0005 s T_OBS=6.0 s SETTLE_TOL=0.1 mm seeds=5
+stable step (semi-implicit Euler, damped oscillator): H_STAR = 2*(sqrt(1+ZETA^2)-ZETA)/W = 6.0558 ms at f = 50 Hz; DT/H_STAR = 0.0826
+  0.98 x H_STAR: spectral radius 0.901973; free run |y|+|v|/W after 2000 steps from 1: 1.9447e-89 (decays)
+  1.02 x H_STAR: spectral radius 1.372628; free run |y|+|v|/W after 2000 steps from 1: 6.6916e+275 (grows)
+regime arm vpeak_m/s profile_s bound_ok end_p_v_ok a_reaches_0_continuously max|v| max|a| max|j|  (deterministic)
+  flexible A_trap 0.5000 0.8500 True True False 0.5000 2.0000 unbounded (a steps by AMAX at 4 corners)
+  flexible B_scurve 0.5000 1.1000 True True True 0.5000 2.0000 8.0000
+  flexible C_slowj 0.3557 1.6869 True True True 0.3557 0.8434 2.0000
+  rigid_short A_trap 0.2000 0.2000 True True False 0.2000 2.0000 unbounded (a steps by AMAX at 4 corners)
+  rigid_short B_scurve 0.0928 0.4309 True True True 0.0928 0.8618 8.0000
+  rigid_short C_slowj 0.0585 0.6840 True True True 0.0585 0.3420 2.0000
+regime arm residual_mm profile_s cycle_s settled  (mean+-sd over seeds)
+flexible (DIST 0.3 m; f in U(3.0, 5.0) Hz, drawn 4.689, 3.269, 4.912, 3.476, 3.472; T_WIN 1.5 s)
+  A_trap 1.8034+-0.2236 0.8500+-0.0000 3.2337+-0.5222 5/5 (within T_WIN)
+  B_scurve 0.2729+-0.0940 1.1000+-0.0000 1.8882+-0.3557 5/5 (within T_WIN)
+  C_slowj 0.2368+-0.2218 1.6869+-0.0000 2.4513+-0.7329 5/5 (misses T_WIN)
+  paired B-A residual: -1.5305+-0.1620: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A profile: 0.2500+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A cycle: -1.3455+-0.2599: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B residual: -0.0361+-0.1469: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired C-B profile: 0.5869+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B cycle: 0.5631+-0.4518: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+rigid_short (DIST 0.02 m; f in U(30.0, 50.0) Hz, drawn 45.547, 45.933, 40.419, 39.947, 38.422; T_WIN 0.5 s)
+  A_trap 0.0248+-0.0092 0.2000+-0.0000 0.2000+-0.0000 5/5 (within T_WIN)
+  B_scurve 0.0004+-0.0002 0.4309+-6.206e-17 0.4310+-6.206e-17 5/5 (within T_WIN)
+  C_slowj 0.0001+-3.648e-05 0.6840+-0.0000 0.6840+-0.0000 5/5 (misses T_WIN)
+  paired B-A residual: -0.0244+-0.0094: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A profile: 0.2309+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A cycle: 0.2310+-3.103e-17: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B residual: -0.0003+-0.0002: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B profile: 0.2531+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B cycle: 0.2530+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+half-step check (DT/2): max relative residual change 0.0347; max cycle-time change 1.00 ms
+No winner declared: the jerk limit buys less ringing on a flexible axis and costs time on a stiff short move
+Real arm / controller: 本页未运行; Wikipedia Jerk (physics) 以原文为准

@@ -20,3 +20,12 @@ python3 pick_place.py                # terminal 2 / 终端 2
 
 Output quoted in the lesson as **simulated output / 仿真输出** (real MoveIt 2 on mock hardware); checked by `tools/sim/m5/run.sh` against `tools/sim/expected/m5-moveit_pick_place.txt` and `m5-moveit_goal_invalid.txt`. OMPL is a random planner, so the OMPL waypoint counts, the carry's waypoint count and the `route:` line are masked in the comparison.
 课程中以“仿真输出”引用（mock 硬件上的真实 MoveIt 2）；由 `tools/sim/m5/run.sh` 与 `tools/sim/expected/m5-moveit_pick_place.txt`、`m5-moveit_goal_invalid.txt` 比对。OMPL 是随机规划器，所以比对时屏蔽了 OMPL 的路点数、搬运路径的路点数和 `route:` 一行。
+
+## scurve_jerk_limit_toy.py — jerk-limited S-curve / 加加速度受限 S 曲线
+
+```bash
+python3 examples/month-5/moveit-pick-place/scurve_jerk_limit_toy.py
+```
+
+Stdlib only, no ROS needed. One 1-D move: trapezoid vs seven-segment S-curve vs an S-curve with too small a jerk limit, driving a spring-damper plant integrated with semi-implicit Euler (stable step H* = 2(√(1+ζ²) − ζ)/ω, checked at 0.98× / 1.02× and at half step); five seeds, common random numbers. Real arm 本页未运行.
+只用标准库，不需要 ROS。一个一维移动：比较梯形曲线、七段 S 曲线和加加速度上限过小的 S 曲线，驱动用半隐式 Euler 积分的弹簧阻尼对象（稳定步长 H* = 2(√(1+ζ²) − ζ)/ω，在 0.98× / 1.02× 和半步长下检查）；5 个种子，共用随机数。真实机械臂本页未运行。

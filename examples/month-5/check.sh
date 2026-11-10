@@ -20,6 +20,7 @@ check() {
 
 check sysid_pe_compare_toy.txt "$PY" "$M5/control-modelling/sysid_pe_compare_toy.py"
 check smith_predictor_delay_toy.txt "$PY" "$M5/control-modelling/smith_predictor_delay_toy.py"
+check computed_torque_inverse_dynamics_toy.txt "$PY" "$M5/control-modelling/computed_torque_inverse_dynamics_toy.py"
 check lqr_model_error_toy.txt "$PY" "$M5/state-space-lqr/lqr_model_error_toy.py"
 check discrete_lqr_zoh_toy.txt "$PY" "$M5/state-space-lqr/discrete_lqr_zoh_toy.py"
 
@@ -29,5 +30,7 @@ check eight_point_essential_toy.txt "$PY" "$M5/camera-calibration/eight_point_es
 check quat_vs_euler_gimbal_toy.txt "$PY" "$M5/kinematics-ik/quat_vs_euler_gimbal_toy.py"
 check manipulability_yoshikawa_toy.txt "$PY" "$M5/kinematics-ik/manipulability_yoshikawa_toy.py"
 check poe_vs_dh_fk_toy.txt "$PY" "$M5/kinematics-ik/poe_vs_dh_fk_toy.py"
+
+check scurve_jerk_limit_toy.txt "$PY" "$M5/moveit-pick-place/scurve_jerk_limit_toy.py"
 
 exit $fail

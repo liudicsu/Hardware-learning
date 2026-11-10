@@ -36,3 +36,12 @@ python3 examples/month-5/control-modelling/smith_predictor_delay_toy.py
 
 First-order plant with a pure input delay, explicit Euler at 1 ms (asserts `H < 2τ`); a PI that ignores the delay vs the same PI in a Smith predictor with the true model vs one with a wrong delay / gain model; five seeds, common random numbers. Real delayed plant 本页未运行.
 带纯输入延迟的一阶对象，1 ms 显式 Euler（断言 `H < 2τ`）；比较忽略延迟的 PI、放进真实模型 Smith 预估器的同一个 PI、以及延迟/增益模型错误的 Smith 预估器；5 个种子，共用随机数。真实带延迟对象本页未运行。
+
+## computed_torque_inverse_dynamics_toy.py — computed torque / 计算力矩
+
+```bash
+python3 examples/month-5/control-modelling/computed_torque_inverse_dynamics_toy.py
+```
+
+Planar 2R arm with point masses, unmodelled friction and held measurement noise, semi-implicit Euler at 1 ms (stable step H* = 41.4214 ms for the matched error dynamics, checked at 0.98× / 1.02× and at half step); PD + gravity vs computed torque with the true model vs computed torque with the payload left out; five seeds, common random numbers. Real arm 本页未运行.
+带点质量、未建模摩擦和保持测量噪声的平面 2R 机械臂，1 ms 半隐式 Euler（模型准确时误差动态的稳定步长 H* = 41.4214 ms，在 0.98× / 1.02× 和半步长下检查）；比较 PD + 重力、模型准确的计算力矩和漏掉负载的计算力矩；5 个种子，共用随机数。真实机械臂本页未运行。
