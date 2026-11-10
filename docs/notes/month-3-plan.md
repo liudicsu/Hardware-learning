@@ -1,6 +1,16 @@
 # Month 3 plan / 第 3 个月计划
 
-Current / 当前：**M3 2670 min**, Batch-16 PR1. Earlier entries below retain their historical totals.
+Current / 当前：**M3 2820 min**, Batch-17 PR1. Earlier entries below retain their historical totals.
+
+## Batch-17 PR1 — interference (press / shrink) fit on cad-parametric (+150)
+
+Base `2df7604` (batch-16 closed incl. polish #168; site **33600**). PR1 on M3 host: **M3 2670→2820 (+150)**; M4 moves in the same PR on its own plan. Site **33600→33930**, still 71 lessons.
+
+**H1 / 3.1 cad-parametric:** `cad-parametric` 300→**450**. Wikipedia "Interference fit" (HTML body read; 以原文为准). Toy `interference_press_fit_toy.py`: one steel shaft (20 mm) in one steel hub (40 mm, 15 mm engaged), thick-walled-hub pressure stand-in p = E δ / (2d) (1 − (d/D)²), hoop stress vs a 250 MPa yield value, friction press force and holding torque, shrink fitting through α ΔT d; arms A clearance + set screw / B light interference 0.025 mm (shrink) / C excessive 0.070 mm; shared tolerance positions, set-screw torques and loads (common random numbers, 5 seeds); no integration step (closed form). loaded_vibration B−A slip −25.4300±4.5789 clear 5/5; no_load B−A slip and press force tie (identical on every seed); press_no_oven B−A press +13.2461±0.3928 kN clear 5/5 (B loses), C yields in every regime. Not the CAD clash check; not GD&T. Real press / oven: 本页未运行.
+
+**Allocation / 安排:** 30+30+40+30+20=150 minutes.
+
+**Site accounting / 全站核算:** **33930=33600+330** with M4 +180 on month-4-plan.md; **M3=2820**, **71 lessons**.
 
 ## Batch-16 PR1 — 2DOF setpoint weighting on pid-control (+180)
 

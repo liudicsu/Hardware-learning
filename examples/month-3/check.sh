@@ -78,4 +78,5 @@ check lead_lag_vs_pid_toy.txt python3 "$M3/pid-control/lead_lag_vs_pid_toy.py"
 check pressure_advance_corner_toy.txt python3 "$M3/fdm-printing/pressure_advance_corner_toy.py"
 check notch_vs_lead_resonant_toy.txt python3 "$M3/pid-control/notch_vs_lead_resonant_toy.py"
 check pid_setpoint_weighting_2dof_toy.txt python3 "$M3/pid-control/pid_setpoint_weighting_2dof_toy.py"
+check interference_press_fit_toy.txt python3 "$M3/cad-parametric/interference_press_fit_toy.py"
 exit $fail

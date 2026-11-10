@@ -633,6 +633,339 @@ On **short_chain**, worst-case and RSS are **identical** (one dimension) — the
 4. Move the datum re-root index with seeds fixed. Predict which predicted half-width changes before you run.
 5. Before any hardware run (本页未运行), write why a high RSS hit rate on normal noise is **not** an ASME Y14.5 pass.
 
+## Interference fits: press and shrink
+
+Everything earlier in this lesson treats an overlap between two parts as a mistake: the assembly's interference check finds volume that two parts share and you fix it. An **interference fit** makes the overlap on purpose. The shaft is made slightly larger than the hole, the two are forced or thermally grown together, and the joint then holds by friction. This section compares that with a clearance fit on one shared shaft and hub. It is **not** the CAD interference (clash) check above, and it is **not** a redo of the GD&T tolerance stack: there is no dimension chain here, only one shaft and one hole.
+
+<Resource id="wiki-interference-fit" />
+
+**Source actually opened (HTML body read).**
+
+- **Wikipedia — Interference fit:**
+  - An interference fit, also called a press fit or friction fit, is a fastening between two tight-fitting parts that "is held together by friction after the parts are pushed together".
+  - The tightness of fit is controlled by the amount of interference, the **allowance** (planned difference from nominal size). Allowances depend on material, size and the tightness wanted, and are normally taken from tables.
+  - Its examples: a 10 mm stainless shaft forms a tight fit with an allowance of 3–10 µm; a common rule of thumb is 0.1–0.25 % of the diameter (0.15 % a fair average), with the allowance per unit diameter falling as the diameter grows.
+  - Assembly is by **force** (a press, with chamfered edges to guide the parts) or by **thermal expansion or contraction**: heat the outer part, or cool the inner one, assemble with little or no force, and the interference returns as the temperature does (shrink fitting).
+  - Numbers 以原文为准. A real press, oven or torque test: **本页未运行**.
+
+### Allowance, pressure and holding torque
+
+The page gives no pressure formula, so the toy uses a textbook-style stand-in and says so: a thick-walled hub on a solid shaft of the same material, elastic until the hub's bore stress reaches a yield value.
+
+<Formula label="Interference after assembly (positive = interference, negative = clearance)">δ = d_shaft − d_hole</Formula>
+
+<Formula label="Contact pressure, same material, solid shaft (toy stand-in)">p = E · δ / (2 · d) · (1 − (d / D)²)</Formula>
+
+<Formula label="Friction force to press or slide, and holding torque">F = μ · p · π · d · L,  T = F · d / 2</Formula>
+
+<Formula label="Shrink fitting: bore growth when the hub is heated by ΔT">Δd = α · ΔT · d</Formula>
+
+**Worked example.** With `d = 20 mm`, `D = 40 mm`, `E = 200000 MPa`, the pressure is `200000 / 40 × 0.75 = 3750 MPa` per millimetre of interference. The specified light fit `δ = 0.025 mm` gives `p = 93.75 MPa`; the hub's bore hoop stress is `p × (40² + 20²) / (40² − 20²) = 93.75 × 1.6667 = 156.25 MPa`, `0.625` of the 250 MPa yield value. With `μ = 0.15` and `L = 15 mm`, pressing it in cold takes `F = 0.15 × 93.75 × π × 20 × 15 ≈ 13.25 kN`, and the joint then holds `T = F × 0.01 m ≈ 132.5 N m`, far above a 30 N m load. Heating the hub by 150 K grows the bore by `12e-6 × 150 × 20 = 0.036 mm`, more than the largest interference the tolerances allow (0.035 mm), so it slides on with no force. The excessive fit `δ = 0.070 mm` gives `p = 262.5 MPa` and a hoop stress of `437.5 MPa`, `1.75` times yield, and with the same oven 0.034 mm of interference is still left while hot.
+
+**Correctness criterion for the fit.** The toy reports `δ` after the hub has cooled back and prints its sign range for every arm (clearance, interference or mixed). For the shrink fit it checks the interference left while hot, `δ − α · ΔT · d`; the press force is computed from that value, and it is zero only when the hot bore is larger than the shaft.
+
+**No integration step here.** Every number is a closed-form value per part and per load cycle; there is no time stepping, so there is no step-size criterion to state. A test checks that the toy has no step variable and that the hand values above match its functions.
+
+### Fair setup
+
+`interference_press_fit_toy.py` is **synthetic** and stdlib only. **Model assumptions:**
+- One steel shaft (nominal 20 mm) in one steel hub (outer 40 mm, engaged length 15 mm), friction coefficient 0.15, yield value 250 MPa. Each diameter is drawn uniformly within ±0.005 mm of its arm's nominal.
+- If the hub's bore stress passes yield, the pressure the joint keeps is capped at the first-yield value and the part counts as yielded, a stand-in for a damaged hub. No plasticity, fretting or creep is modelled.
+- A part slips on a load cycle when the load torque exceeds the holding torque. The clearance fit holds only through a set screw whose friction torque is drawn per part from N(40, 8) N m.
+
+| Arm | Fit | Allowance | Assembly |
+|---|---|---|---|
+| A_clear | clearance + set screw | −0.020 mm (hole larger) | slides on |
+| B_fit | specified light interference | +0.025 mm | shrink fit with the regime's oven ΔT |
+| C_heavy | excessive interference | +0.070 mm | same oven ΔT as B |
+
+**Common random numbers:** for each (regime, seed), 20 parts are drawn once: a position in the tolerance band for the shaft and for the hole, the set-screw torque, and 200 load torques per part. All three arms use the same draws. Metrics: slip % of load cycles, press force (kN, mean over parts), bore hoop stress / yield, and yielded % of parts. Five seeds.
+
+| Regime | Load (N m) | Oven ΔT | Expected (written before the first run) |
+|---|---|---|---|
+| loaded_vibration | 30 ± 15 | 150 K | B consistent win over A on slip |
+| no_load | 0 | 150 K | A and B tie on slip and press force |
+| press_no_oven | 30 ± 15 | 0 K | B loses to A on press force; C loses to B on stress and force |
+
+**Choices made after seeing results.** None. The three regimes, the allowances, the tolerance band, the oven temperatures and the yield value were written down before the first run and not changed; every regime that was run is printed, including the two where B ties or loses. Alternatives not taken: tuning the set-screw torque or the load so that A's slip came out closer to B's; dropping `press_no_oven`, where B clearly loses on press force.
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-3/cad-parametric
+python3 interference_press_fit_toy.py
+```
+
+<CodeSource path="examples/month-3/cad-parametric/interference_press_fit_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Interference (press / shrink) fit vs clearance fit on one shared shaft and hub.
+
+Synthetic, stdlib only.  Not this lesson's CAD *interference check* (that finds overlapping
+volume in an assembly and treats it as a clash to fix); here the overlap is the design intent,
+the allowance.  Not the GD&T tolerance-stack toy above (no dimension chain, no RSS).  Real press,
+oven, strain gauges or a torque test: 本页未运行.  Wikipedia "Interference fit" statements are
+以原文为准; the pressure / stress formulas below are a textbook-style stand-in, not a design code.
+
+Part: steel shaft, nominal diameter D_NOM mm, in a steel hub of outer diameter D_OUT mm over an
+engaged length L_ENG mm.  Diameters are measured at the same (room) temperature after assembly.
+Model assumptions (a stand-in):
+  delta = d_shaft - d_hole                     (> 0 interference, < 0 clearance)
+  p     = E * delta / (2 * D_NOM) * (1 - (D_NOM / D_OUT)^2)   contact pressure, MPa
+          (thick-walled hub on a solid shaft of the same material, elastic)
+  hoop  = p * (D_OUT^2 + D_NOM^2) / (D_OUT^2 - D_NOM^2)       hub bore hoop stress, MPa
+  F     = MU * p * pi * D_NOM * L_ENG                          axial force to press / to slide, N
+  T     = F * D_NOM / 2 / 1000                                 friction holding torque, N m
+If hoop > SIGMA_Y the hub yields: the pressure that the joint keeps is capped at the value that
+gives hoop = SIGMA_Y, and the part is counted as yielded (a stand-in for a damaged hub).
+Shrink fitting: the hub is heated by DT_OVEN before assembly; its bore grows by
+ALPHA * DT_OVEN * D_NOM.  The press force is computed from the interference that remains while
+hot, max(0, delta - ALPHA * DT_OVEN * D_NOM); once the hub cools back, delta is the full value.
+No integration step: every quantity is a closed-form value per part and per load cycle; there is
+no time stepping, so there is no step-size criterion to state (a test checks that the output does
+not depend on any step).
+Arms (same nominal size, same tolerance draws):
+  A_clear   clearance fit, hole ALLOW_A larger than the shaft; held by a set screw whose friction
+            torque is drawn per part (N(SET_MEAN, SET_SD) N m); no oven.
+  B_fit     specified light interference ALLOW_B, shrink-fitted with the regime's DT_OVEN.
+  C_heavy   excessive interference ALLOW_C, same DT_OVEN as B.
+Common random numbers: for each (regime, seed), PARTS parts are drawn once: a uniform position in
+the tolerance band for the shaft and for the hole (each +-TOL mm around its arm's nominal), the
+set-screw torque, and CYCLES load torques per part from N(load mean, load sd) clipped at 0.  The
+same draws are used by all three arms.
+Metrics per seed: slip % (load cycles whose torque exceeds the holding torque), press force in kN
+(mean over parts), hoop / SIGMA_Y (mean over parts), yielded % of parts.
+Regimes and expectations, written before the first run:
+  loaded_vibration  load 30 +- 15 N m, DT_OVEN 150 K   B consistent win over A on slip
+  no_load           load 0,            DT_OVEN 150 K   A and B tie on slip and press force
+  press_no_oven     load 30 +- 15 N m, DT_OVEN 0 K     B loses to A on press force (pressed cold);
+                                                       C loses to B on stress (yields) and force
+  C never beats B on stress or press force.
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+D_NOM = 20.0      # mm
+D_OUT = 40.0      # mm
+L_ENG = 15.0      # mm
+E = 200000.0      # MPa
+MU = 0.15
+SIGMA_Y = 250.0   # MPa, hub yield stand-in
+ALPHA = 12e-6     # 1/K, steel
+TOL = 0.005       # mm, +- band on each diameter
+ALLOW_A = -0.020  # mm, clearance (hole larger)
+ALLOW_B = 0.025   # mm, light interference
+ALLOW_C = 0.070   # mm, excessive interference
+SET_MEAN, SET_SD = 40.0, 8.0  # N m, set screw friction torque
+PARTS = 20
+CYCLES = 200
+NUM_ZERO = 1e-9
+ARMS = ("A_clear", "B_fit", "C_heavy")
+ALLOW = {"A_clear": ALLOW_A, "B_fit": ALLOW_B, "C_heavy": ALLOW_C}
+# name: (load mean N m, load sd N m, DT_OVEN K); written before the first run
+REGIMES = {
+    "loaded_vibration": (30.0, 15.0, 150.0),
+    "no_load": (0.0, 0.0, 150.0),
+    "press_no_oven": (30.0, 15.0, 0.0),
+}
+STREAM = {"loaded_vibration": 0, "no_load": 1, "press_no_oven": 2}
+
+K_P = E / (2.0 * D_NOM) * (1.0 - (D_NOM / D_OUT) ** 2)          # MPa per mm of interference
+K_HOOP = (D_OUT ** 2 + D_NOM ** 2) / (D_OUT ** 2 - D_NOM ** 2)  # hoop / p
+P_YIELD = SIGMA_Y / K_HOOP                                       # pressure at first yield
+
+
+def pressure(delta):
+    return K_P * delta if delta > 0.0 else 0.0
+
+
+def axial_force(p):
+    return MU * p * math.pi * D_NOM * L_ENG
+
+
+def torque(p):
+    return axial_force(p) * D_NOM / 2.0 / 1000.0
+
+
+def shared_draws(regime, seed):
+    rng = random.Random(1000 * STREAM[regime] + seed)
+    mean, sd, _ = REGIMES[regime]
+    parts = []
+    for _ in range(PARTS):
+        u_shaft, u_hole = rng.uniform(-1.0, 1.0), rng.uniform(-1.0, 1.0)
+        t_set = max(0.0, rng.gauss(SET_MEAN, SET_SD))
+        loads = [max(0.0, rng.gauss(mean, sd)) if sd > 0 else mean for _ in range(CYCLES)]
+        parts.append((u_shaft, u_hole, t_set, loads))
+    return parts
+
+
+def part_result(arm, part, dt_oven):
+    u_shaft, u_hole, t_set, loads = part
+    d_shaft = D_NOM + ALLOW[arm] / 2.0 + TOL * u_shaft
+    d_hole = D_NOM - ALLOW[arm] / 2.0 + TOL * u_hole
+    delta = d_shaft - d_hole                      # after the hub has cooled back
+    oven = dt_oven if arm != "A_clear" else 0.0
+    hot_delta = delta - ALPHA * oven * D_NOM      # interference left while the hub is hot
+    press = axial_force(pressure(hot_delta))
+    p = pressure(delta)
+    hoop = K_HOOP * p
+    yielded = hoop > SIGMA_Y
+    hold = t_set if delta <= 0.0 else torque(min(p, P_YIELD))
+    slips = sum(1 for q in loads if q > hold)
+    return {"delta": delta, "hot": hot_delta, "slip": 100.0 * slips / len(loads), "press": press / 1000.0,
+            "stress": hoop / SIGMA_Y, "yield": 100.0 if yielded else 0.0}
+
+
+def evaluate(arm, regime, parts):
+    dt_oven = REGIMES[regime][2]
+    rs = [part_result(arm, pt, dt_oven) for pt in parts]
+    out = {k: sum(r[k] for r in rs) / len(rs) for k in ("slip", "press", "stress", "yield")}
+    out["dmin"] = min(r["delta"] for r in rs)
+    out["dmax"] = max(r["delta"] for r in rs)
+    out["hotmax"] = max(r["hot"] for r in rs)
+    return out
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-5:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{num(m)}+-{num(s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{num(m)}+-{num(s)}: {label}; {sign_note(diffs, m)}"
+
+
+def main():
+    print("Synthetic shaft-hub fit: clearance + set screw vs light shrink fit vs excessive interference; not a CAD clash check, not GD&T")
+    print(f"D_NOM={D_NOM} mm D_OUT={D_OUT} mm L_ENG={L_ENG} mm E={E:.0f} MPa MU={MU} SIGMA_Y={SIGMA_Y} MPa ALPHA={ALPHA} 1/K TOL=+-{TOL} mm parts={PARTS} cycles={CYCLES} seeds={len(SEEDS)}")
+    print(f"allowance A={ALLOW_A} B={ALLOW_B} C={ALLOW_C} mm; p per mm of interference {K_P:.1f} MPa; hoop/p {K_HOOP:.4f}; p at first yield {P_YIELD:.2f} MPa")
+    print(f"oven growth at 150 K: ALPHA*DT*D_NOM = {ALPHA * 150.0 * D_NOM:.4f} mm")
+    print("no integration step: closed-form pressure, force and torque per part and per load cycle")
+    print("regime arm slip_% press_kN hoop/yield yielded_% delta_min..max_mm hot_delta_max_mm  (mean+-sd over seeds)")
+    for regime, (mean, sd, dt_oven) in REGIMES.items():
+        print(f"{regime} (load {mean} +- {sd} N m; oven {dt_oven} K)")
+        draws = [shared_draws(regime, s) for s in SEEDS]
+        res = {arm: [evaluate(arm, regime, d) for d in draws] for arm in ARMS}
+        for arm in ARMS:
+            cols = ["{}+-{}".format(*map(num, mean_sd([r[k] for r in res[arm]]))) for k in ("slip", "press", "stress", "yield")]
+            dmin = min(r["dmin"] for r in res[arm])
+            dmax = max(r["dmax"] for r in res[arm])
+            hot = max(r["hotmax"] for r in res[arm])
+            sign = "interference" if dmin > 0 else ("clearance" if dmax < 0 else "mixed")
+            print(f"  {arm} " + " ".join(cols) + f" {dmin:+.4f}..{dmax:+.4f} ({sign}) {hot:+.4f}")
+        for x, y in (("B_fit", "A_clear"), ("C_heavy", "B_fit")):
+            for key in ("slip", "press", "stress"):
+                print(f"  paired {x[0]}-{y[0]} {key}: {verdict([r[key] for r in res[x]], [r[key] for r in res[y]])}")
+    print("No winner declared: interference holds by friction under load, costs press force without an oven, and too much of it yields the hub")
+    print("Real press / oven / torque test: 本页未运行; Wikipedia Interference fit 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic shaft-hub fit: clearance + set screw vs light shrink fit vs excessive interference; not a CAD clash check, not GD&T
+D_NOM=20.0 mm D_OUT=40.0 mm L_ENG=15.0 mm E=200000 MPa MU=0.15 SIGMA_Y=250.0 MPa ALPHA=1.2e-05 1/K TOL=+-0.005 mm parts=20 cycles=200 seeds=5
+allowance A=-0.02 B=0.025 C=0.07 mm; p per mm of interference 3750.0 MPa; hoop/p 1.6667; p at first yield 150.00 MPa
+oven growth at 150 K: ALPHA*DT*D_NOM = 0.0360 mm
+no integration step: closed-form pressure, force and torque per part and per load cycle
+regime arm slip_% press_kN hoop/yield yielded_% delta_min..max_mm hot_delta_max_mm  (mean+-sd over seeds)
+loaded_vibration (load 30.0 +- 15.0 N m; oven 150.0 K)
+  A_clear 25.4300+-4.5789 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000 -0.0289..-0.0114 (clearance) -0.0114
+  B_fit 0.0000+-0.0000 0.0000+-0.0000 0.6212+-0.0112 0.0000+-0.0000 +0.0161..+0.0336 (interference) -0.0024
+  C_heavy 0.0000+-0.0000 17.9435+-0.2383 1.7462+-0.0112 100.0000+-0.0000 +0.0611..+0.0786 (interference) +0.0426
+  paired B-A slip: -25.4300+-4.5789: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A press: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A stress: 0.6212+-0.0112: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B slip: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B press: 17.9435+-0.2383: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B stress: 1.1250+-1.110e-16: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+no_load (load 0.0 +- 0.0 N m; oven 150.0 K)
+  A_clear 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000 -0.0287..-0.0103 (clearance) -0.0103
+  B_fit 0.0000+-0.0000 0.0000+-0.0000 0.6208+-0.0202 0.0000+-0.0000 +0.0163..+0.0347 (interference) -0.0013
+  C_heavy 0.0000+-0.0000 17.9361+-0.4291 1.7458+-0.0202 100.0000+-0.0000 +0.0613..+0.0797 (interference) +0.0437
+  paired B-A slip: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A press: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A stress: 0.6208+-0.0202: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B slip: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B press: 17.9361+-0.4291: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B stress: 1.1250+-1.570e-16: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+press_no_oven (load 30.0 +- 15.0 N m; oven 0.0 K)
+  A_clear 32.3100+-2.3000 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000 -0.0285..-0.0112 (clearance) -0.0112
+  B_fit 0.0000+-0.0000 13.2461+-0.3928 0.6246+-0.0185 0.0000+-0.0000 +0.0165..+0.0338 (interference) +0.0338
+  C_heavy 0.0000+-0.0000 37.1025+-0.3928 1.7496+-0.0185 100.0000+-0.0000 +0.0615..+0.0788 (interference) +0.0788
+  paired B-A slip: -32.3100+-2.3000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A press: 13.2461+-0.3928: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A stress: 0.6246+-0.0185: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B slip: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B press: 23.8565+-2.512e-15: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B stress: 1.1250+-1.570e-16: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: interference holds by friction under load, costs press force without an oven, and too much of it yields the hub
+Real press / oven / torque test: 本页未运行; Wikipedia Interference fit 以原文为准
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used on this page, in this order: **tie: identical on every seed** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when `|paired mean|` and its sd are both below 1e-9 (no sign count is printed on such a line); **near-tie / small gap, within seed noise** when `|paired mean| ≤ sd`; otherwise a **consistent** gap (`|paired mean| > sd`), called **small** if `|m|` is under 20 % of the smaller arm mean and **clear** otherwise; the 20 % rule only chooses between those two words. Every consistent line carries a same-sign count over the 5 seeds, and any seed with the opposite sign is reported; a sign count alone never makes a gap consistent. Gaps are computed from unrounded values. Paired differences are B−A and C−B. `slip` is slip in % of load cycles, `press` the press force in kN, `stress` the bore hoop stress divided by yield.
+
+- **loaded_vibration:**
+  - **The interference fit wins with a clear gap:** B−A slip −25.4300±4.5789 points, same sign on all 5 seeds. A's set screw gives way whenever a load peak passes its friction torque; B's fit holds between about 80 and 186 N m across the tolerance band and never slips.
+  - B−A press force is a **tie: identical on every seed**: the 150 K oven opens the bore past the largest shaft, so B slides on as freely as A.
+- **no_load:**
+  - With no load, slip is a **tie: identical on every seed** (all zero), and so is the press force. Without load and with an oven, the interference fit buys nothing that this toy can see.
+  - B still carries a bore stress of about 0.62 of yield (B−A stress 0.6208±0.0202, clear, 5/5); that is the price of holding, paid even when nothing pulls.
+- **press_no_oven:**
+  - **B loses on press force with a clear gap:** B−A press 13.2461±0.3928 kN, same sign on all 5 seeds; A slides on.
+  - C loses to B on both stress (C−B 1.1250, clear, 5/5; every C part yields) and press force (C−B 23.8565 kN, clear, 5/5). C's extra interference adds no holding in this toy, because yield caps the pressure and B already never slips.
+- In every regime, C−B slip is a tie at zero: more interference than needed does not help with this load.
+
+The page **does not declare a universal winner**: an interference fit holds by friction where a clearance fit needs a fastener, it costs press force or an oven, and too much allowance yields the hub. Wikipedia statements are 以原文为准, and a real press, oven or torque test is **本页未运行**.
+
+**150-minute work plan:** 30 min read the Wikipedia article and redo the worked example; 30 min check the printed δ ranges and the hot interference by hand; 40 min run the toy and read the three regimes; 30 min change the load, the oven ΔT and `ALLOW_B` with seeds fixed; 20 min list what a real press-fit test still needs.
+
+### Exercises
+
+1. From the formulas above, compute the pressure, hoop stress and press force for `δ = 0.015 mm`, and say whether that fit would slip under a 30 N m load.
+2. Show from `shared_draws` and `part_result` that A, B and C use the same tolerance positions, set-screw torques and loads for a given seed.
+3. Find the smallest oven ΔT at which every B part in the toy slides on with zero force, using the tolerance band and `α · ΔT · d`.
+4. Raise the load to 150 ± 30 N m in `REGIMES` with seeds fixed. Predict which of B and C starts to slip first before you run.
+5. Before any real press or oven run (本页未运行), write how you would tell, on a returned part, a fit that was too loose from one that yielded the hub.
+
 <Summary>
 
 **Key points**
@@ -659,6 +992,7 @@ On **short_chain**, worst-case and RSS are **identical** (one dimension) — the
 - Can you explain why a friend who wants to change your hole size must receive the STEP file?
 
 - GD&T stack literacy: shared bilateral chain compares worst-case, RSS and datum re-root; short-chain ties, skewed MC shows RSS can be unsafe — not an ASME Y14.5 certification.
+- Interference fit literacy: on one shared shaft and hub, a light shrink fit clearly beats a clearance fit with a set screw on slip under a vibrating load (paired slip −25.4300±4.5789 points, 5/5), ties it on slip and press force with no load and an oven, and clearly loses on press force when pressed cold; excessive interference yields the hub — `interference_press_fit_toy.py`, a stand-in, not the CAD clash check or a press test.
 
 **Used next**
 

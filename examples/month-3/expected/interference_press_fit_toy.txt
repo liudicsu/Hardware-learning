@@ -1,0 +1,38 @@
+Synthetic shaft-hub fit: clearance + set screw vs light shrink fit vs excessive interference; not a CAD clash check, not GD&T
+D_NOM=20.0 mm D_OUT=40.0 mm L_ENG=15.0 mm E=200000 MPa MU=0.15 SIGMA_Y=250.0 MPa ALPHA=1.2e-05 1/K TOL=+-0.005 mm parts=20 cycles=200 seeds=5
+allowance A=-0.02 B=0.025 C=0.07 mm; p per mm of interference 3750.0 MPa; hoop/p 1.6667; p at first yield 150.00 MPa
+oven growth at 150 K: ALPHA*DT*D_NOM = 0.0360 mm
+no integration step: closed-form pressure, force and torque per part and per load cycle
+regime arm slip_% press_kN hoop/yield yielded_% delta_min..max_mm hot_delta_max_mm  (mean+-sd over seeds)
+loaded_vibration (load 30.0 +- 15.0 N m; oven 150.0 K)
+  A_clear 25.4300+-4.5789 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000 -0.0289..-0.0114 (clearance) -0.0114
+  B_fit 0.0000+-0.0000 0.0000+-0.0000 0.6212+-0.0112 0.0000+-0.0000 +0.0161..+0.0336 (interference) -0.0024
+  C_heavy 0.0000+-0.0000 17.9435+-0.2383 1.7462+-0.0112 100.0000+-0.0000 +0.0611..+0.0786 (interference) +0.0426
+  paired B-A slip: -25.4300+-4.5789: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A press: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A stress: 0.6212+-0.0112: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B slip: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B press: 17.9435+-0.2383: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B stress: 1.1250+-1.110e-16: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+no_load (load 0.0 +- 0.0 N m; oven 150.0 K)
+  A_clear 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000 -0.0287..-0.0103 (clearance) -0.0103
+  B_fit 0.0000+-0.0000 0.0000+-0.0000 0.6208+-0.0202 0.0000+-0.0000 +0.0163..+0.0347 (interference) -0.0013
+  C_heavy 0.0000+-0.0000 17.9361+-0.4291 1.7458+-0.0202 100.0000+-0.0000 +0.0613..+0.0797 (interference) +0.0437
+  paired B-A slip: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A press: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A stress: 0.6208+-0.0202: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B slip: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B press: 17.9361+-0.4291: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B stress: 1.1250+-1.570e-16: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+press_no_oven (load 30.0 +- 15.0 N m; oven 0.0 K)
+  A_clear 32.3100+-2.3000 0.0000+-0.0000 0.0000+-0.0000 0.0000+-0.0000 -0.0285..-0.0112 (clearance) -0.0112
+  B_fit 0.0000+-0.0000 13.2461+-0.3928 0.6246+-0.0185 0.0000+-0.0000 +0.0165..+0.0338 (interference) +0.0338
+  C_heavy 0.0000+-0.0000 37.1025+-0.3928 1.7496+-0.0185 100.0000+-0.0000 +0.0615..+0.0788 (interference) +0.0788
+  paired B-A slip: -32.3100+-2.3000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A press: 13.2461+-0.3928: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A stress: 0.6246+-0.0185: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B slip: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B press: 23.8565+-2.512e-15: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B stress: 1.1250+-1.570e-16: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: interference holds by friction under load, costs press force without an oven, and too much of it yields the hub
+Real press / oven / torque test: 本页未运行; Wikipedia Interference fit 以原文为准

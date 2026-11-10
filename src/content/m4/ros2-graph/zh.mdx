@@ -1025,11 +1025,342 @@ Composition does not prove zero-copy; real intra-process demo is reading only.
 3. **40 分钟**：在本地副本中移动共享崩溃 tick，重算直接受害组件与丢失的计划回调。在纸上增加下游依赖，解释为什么玩具不模拟其级联。
 4. **40 分钟**：设计真实 intra-process 后续实验，使用相容的 C++ 所有权与发布 / 订阅地址，并在匹配负载下跟踪独立进程对容器。在有这些运行前不报告零拷贝或提速；本页未运行。
 
+## QoS 的 Deadline 与 Lifespan：话题上的时间保证
+
+上面的 QoS 一节讲的是发布者和订阅者到底连不连得上：可靠性或持久性不兼容时，订阅者静悄悄地收不到任何东西。另外两个策略不管样本到不到，只管**什么时候**到。**Deadline** 是订阅端预期两条消息之间最多等多久，**Lifespan** 是消息到达时最多能有多旧，超过就丢掉。本节把这两个策略放到一条共享时间线上，和只设置可靠性的订阅作比较。这**不是**上面的可靠性不兼容（这里每一对都兼容、都已连接），**不是** bag 的 QoS 回放，**不是** composition，也**不是**第 2 个月 FreeRTOS 任务的截止时间。
+
+<Resource id="ros2-qos" />
+
+**实际打开的来源（已读 HTML 正文）是 ROS 2 Jazzy 的《Quality of Service settings》。**
+
+- **Deadline** 是“话题上相邻两条消息发布之间预期的最长时间”（the expected maximum amount of time between subsequent messages being published to a topic）。
+- **Lifespan** 是“从发布到接收之间、消息还不被视为陈旧或过期的最长时间”（the maximum amount of time between the publishing and the reception of a message without the message being considered stale or expired）；过期消息“被静默丢弃，实际上永远不会被接收”（are silently dropped and are effectively never received）。
+- **Liveliness 和 lease duration** 的意思是，发布者必须在租约时长内表明自己还活着，可以是自动的（节点的任一发布者发布消息即可），也可以是按话题手动声明。toy 不模拟 liveliness。
+- 默认值方面，deadline、lifespan 和 lease duration 都是“default”，中间件通常把它解释为无限长。
+- **兼容性**按“请求对提供”判断：提供的 deadline 为 x、请求的为 y，只有 y 不短于 x 时才能连接；提供方为 default 而请求方设了值时不能连接。lease duration 的规则相同。
+- **QoS 事件**包括“offered deadline missed”（发布者没在 deadline 内发布）和“requested deadline missed”（订阅者没在 deadline 内收到消息），另外还有 liveliness 丢失 / 改变和 QoS 不兼容。
+- 以上说法以原文为准。真实的 `ros2 topic` 运行或 rclpy 的 QoS 事件回调**本页未运行**。
+
+### Deadline、Lifespan 与你所用样本的年龄
+
+<Formula label="Lifespan：样本在到达时被丢弃的条件">t_recv − t_stamp > lifespan</Formula>
+
+<Formula label="相邻两次接收之间的间隔 g 中请求方 deadline 未满足的次数（toy 的计数）">misses = ⌈g / deadline⌉ − 1</Formula>
+
+<Formula label="设置 deadline + lifespan 的订阅者能用到的最旧样本">age ≤ lifespan + deadline</Formula>
+
+**算例。** toy 每 10 ms 发布一次。B 组设 lifespan 10 ms、deadline 20 ms。只有在打时间戳后 10 ms 内到达的样本才会被接受，而且只有当上一个被接受的样本到达不超过 20 ms 时控制器才会动作，所以 B 能用到的最旧样本是 `10 + 20 = 30 ms`；只设置可靠性的订阅者则完全没有上界。两个被接受的样本之间隔了 50 ms 时，B 记 `⌈50 / 20⌉ − 1 = 2` 次 deadline 未满足（在间隔开始后 20 ms 和 40 ms）；间隔恰好为 20 ms 不算未满足。C 组在 10 ms 的周期上设 5 ms 的 deadline，所以每个 9 到 11 ms 的间隔按构造就会记一到两次未满足：20 s 内约 2000 个间隔，给出约 3000 次。
+
+**计数的正确性判据。** 只有当两次被接受的接收之间的间隔超过 deadline 时才记一次未满足；只有当 `t_recv − t_stamp` 大于 lifespan 时才记一次 lifespan 丢弃；重传的样本两者都不是，它只是晚到。有一个测试手工搭了五个样本的时间线，检查丢弃、未满足、保持和陈旧使用的次数。
+
+**这里没有积分步长。** toy 没有被控对象，也没有时间推进：它只比较以整数微秒表示的事件时间，所以每次比较都是精确的，没有需要说明的步长判据。有一个测试检查所有时间都是整数。
+
+### 公平设置
+
+`qos_deadline_lifespan_toy.py` 是**合成**模型，只用标准库，是一个发布者和一个订阅的离散事件替身，**不是** rmw 或 DDS 实现。**模型假设**如下。
+- 发布者每 10 ms ± 1 ms 给一个样本打时间戳；在 `late_sensor` 里它有时会停顿。每个样本 1–3 ms 后到达；在 `lossy_reliable` 里，首次发送丢失的样本在 10–30 ms 后由重传补上。可靠传输只体现为这段额外延迟。
+- 订阅者保留它收到的最新时间戳；之后才到达的较旧样本对每一组都被忽略。
+- 控制器每 10 ms 执行一次，相位按种子抽取。每次执行时，一组要么用当前样本动作，要么保持。使用时超过 25 ms 的样本记为一次**陈旧使用**。
+
+| 组 | 请求的 deadline | Lifespan | 行为 |
+|---|---|---|---|
+| A_rel | default（无限） | default（无限） | 不论多旧都用最新样本动作 |
+| B_dl | 20 ms | 10 ms | 到达时超过 10 ms 的样本丢弃；deadline 未满足期间保持 |
+| C_tight | 5 ms（提供方也是 5 ms） | 10 ms | 同 B，但 deadline 比发布周期短 |
+
+**共用随机数**（common random numbers）的做法是，每个（情形、种子）的发布时间、停顿、延迟、丢包和控制器相位只抽一次，三组共用；每个种子 20 s，5 个种子。指标：陈旧使用占执行次数的百分比、保持占执行次数的百分比、所用样本的平均年龄（ms）、请求方 deadline 未满足次数和 lifespan 丢弃数。
+
+| 情形 | 停顿 | 丢包与重传 | 预期（第一次运行之前写下） |
+|---|---|---|---|
+| late_sensor | 概率 0.01，40–120 ms | 无 | B 的陈旧使用稳定少于 A；B 付出保持次数 |
+| on_time | 无 | 无 | A 与 B 打平 |
+| lossy_reliable | 无 | 0.15，10–30 ms 后补上 | 陈旧使用上 B 与 A 打平，保持上 B 落败 |
+
+**看过结果后做的选择。** 没有改任何参数。三个情形、周期、25 ms 的陈旧界限和各 QoS 数值都在第一次运行之前写下。有一个预期**没有**成立（见 `lossy_reliable`），按实际结果打印。第一次运行后，toy 的 docstring 里补了一句关于共用随机数的说明；输出逐字节相同。没有采用的做法：把陈旧界限提高到 30 ms 或更多，这会让 A 在 `lossy_reliable` 里的陈旧使用消失，让预先声明的打平成立；删掉 `lossy_reliable`。
+
+### 运行标准库 toy
+
+```bash
+cd ~/Hardware-learning/examples/month-4/ros2-graph
+python3 qos_deadline_lifespan_toy.py
+```
+
+<CodeSource path="examples/month-4/ros2-graph/qos_deadline_lifespan_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""ROS 2 QoS Deadline and Lifespan vs a reliability-only subscription, on one shared timeline.
+
+Synthetic, stdlib only.  A discrete-event stand-in for one publisher and one subscription; it is
+not an rmw / DDS implementation and makes no claim about bit-exact middleware behaviour.  Not the
+reliability / durability *mismatch* earlier on this page (there every pair here is compatible and
+connected), not the bag QoS replay, not composition, and not a FreeRTOS task deadline (Month 2).
+Real `ros2 topic` / rclpy QoS events: 本页未运行.  ROS 2 Jazzy "Quality of Service settings"
+definitions are 以原文为准:
+  Deadline: the expected maximum amount of time between subsequent messages being published.
+  Lifespan: the maximum time between publishing and reception before a message is stale or
+            expired; expired messages are silently dropped.
+  Requested deadline missed: the subscription has not received a message within the deadline.
+  Offered deadline missed: the publisher has not published within the deadline.
+  Compatibility: a subscription requesting a deadline shorter than the one offered is not
+            connected (offered x, requested y < x: No).
+Timeline (integer microseconds, so every comparison is exact): the publisher stamps a sample
+every PERIOD with jitter; in late_sensor it sometimes stalls.  Each sample reaches the subscriber
+after a network delay; a lost first transmission is repaired by a retransmission (reliable
+delivery), modelled only as extra delay.  The subscriber keeps the newest stamp it has received
+(an older sample arriving later is ignored by every arm).  A controller tick runs every PERIOD
+with a per-seed phase; at each tick an arm either acts on its current sample or holds.
+No integration step: there is no plant and no time stepping, only event times in microseconds,
+so there is no step-size criterion (a test checks that all times are integers).
+Common random numbers: for each (regime, seed) the publication times, stalls, delays, losses and
+the controller phase are drawn once and shared by all three arms; five seeds.
+Arms (same publication, delay, loss and tick draws):
+  A_rel     reliability only (deadline and lifespan left at default, i.e. infinite): acts on the
+            newest received sample whatever its age.
+  B_dl      requested deadline DL_B and lifespan LS_B: a sample older than LS_B on arrival is
+            dropped; if no sample has been accepted for longer than DL_B (requested deadline
+            missed) the controller holds instead of acting.
+  C_tight   the same with deadline DL_C shorter than the publish period, offered and requested
+            alike (compatible), so the deadline is missed on almost every gap by construction.
+Metrics per seed: stale-use % (ticks that act on a sample older than STALE), hold % (ticks with
+no action), mean age of the samples acted on (ms), requested-deadline-missed events, lifespan
+drops.  A deadline miss is counted per gap g between accepted receptions as ceil(g / DL) - 1, so
+a gap exactly equal to the deadline is not a miss.
+Regimes and expectations, written before the first run:
+  late_sensor     stalls (prob 0.01, 40-120 ms), delay 1-3 ms, no loss
+                  B consistent fewer stale uses than A (B pays hold ticks)
+  on_time         no stalls, delay 1-3 ms, no loss       A and B tie (no misses, no drops)
+  lossy_reliable  no stalls, loss 0.15 repaired after 10-30 ms
+                  B ties A on stale uses and loses on hold % (lifespan drops the repaired samples)
+  C_tight holds on most ticks in every regime (consistent loss to B on hold %).
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+MS = 1000                # microseconds per millisecond
+PERIOD = 10 * MS         # publish and control period
+JITTER = 1 * MS          # publish jitter, uniform +-
+DURATION = 20000 * MS    # 20 s
+STALE = 25 * MS          # a sample older than this at use is stale for the controller
+DL_B, LS_B = 20 * MS, 10 * MS
+DL_C, LS_C = 5 * MS, 10 * MS
+NUM_ZERO = 1e-9
+ARMS = ("A_rel", "B_dl", "C_tight")
+# name: (stall prob, stall min ms, stall max ms, loss prob, repair min ms, repair max ms); before the first run
+REGIMES = {
+    "late_sensor": (0.01, 40, 120, 0.0, 0, 0),
+    "on_time": (0.0, 0, 0, 0.0, 0, 0),
+    "lossy_reliable": (0.0, 0, 0, 0.15, 10, 30),
+}
+STREAM = {"late_sensor": 0, "on_time": 1, "lossy_reliable": 2}
+QOS = {"A_rel": (None, None), "B_dl": (DL_B, LS_B), "C_tight": (DL_C, LS_C)}
+
+
+def compatible(offered, requested):
+    """Deadline compatibility table of the Jazzy page; None stands for 'default' (infinite)."""
+    if requested is None:
+        return True
+    if offered is None:
+        return False
+    return requested >= offered
+
+
+def shared_draws(regime, seed):
+    rng = random.Random(1000 * STREAM[regime] + seed)
+    p_stall, s_min, s_max, p_loss, r_min, r_max = REGIMES[regime]
+    samples, t = [], 0
+    while True:
+        t += PERIOD + rng.randint(-JITTER, JITTER)
+        if p_stall and rng.random() < p_stall:
+            t += rng.randint(s_min * MS, s_max * MS)
+        if t > DURATION:
+            break
+        delay = rng.randint(1 * MS, 3 * MS)
+        if p_loss and rng.random() < p_loss:
+            delay += rng.randint(r_min * MS, r_max * MS)
+        samples.append((t, t + delay))
+    phase = rng.randint(0, PERIOD - 1)
+    ticks = list(range(PERIOD + phase, DURATION + 1, PERIOD))
+    return samples, ticks
+
+
+def run_arm(arm, draw):
+    samples, ticks = draw
+    deadline, lifespan = QOS[arm]
+    arrivals = sorted(samples, key=lambda s: (s[1], s[0]))
+    accepted, drops = [], 0
+    newest = -1
+    for stamp, recv in arrivals:
+        if lifespan is not None and recv - stamp > lifespan:
+            drops += 1
+            continue
+        if stamp > newest:
+            newest = stamp
+            accepted.append((recv, stamp))
+    misses = 0
+    if deadline is not None:
+        for (r0, _), (r1, _) in zip(accepted, accepted[1:]):
+            gap = r1 - r0
+            misses += max(0, -(-gap // deadline) - 1)
+    stale = hold = 0
+    ages = []
+    k, cur, last_recv = 0, None, None
+    for t in ticks:
+        while k < len(accepted) and accepted[k][0] <= t:
+            last_recv, cur = accepted[k]
+            k += 1
+        if cur is None or (deadline is not None and t - last_recv > deadline):
+            hold += 1
+            continue
+        age = t - cur
+        ages.append(age)
+        if age > STALE:
+            stale += 1
+    n = len(ticks)
+    return {"stale": 100.0 * stale / n, "hold": 100.0 * hold / n,
+            "age": (sum(ages) / len(ages) / MS) if ages else 0.0, "miss": float(misses), "drop": float(drops)}
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-5:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{num(m)}+-{num(s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{num(m)}+-{num(s)}: {label}; {sign_note(diffs, m)}"
+
+
+def main():
+    print("Synthetic ROS 2 QoS stand-in: reliability only vs deadline + lifespan vs a deadline tighter than the period; not rmw / DDS")
+    print(f"PERIOD={PERIOD // MS} ms JITTER=+-{JITTER // MS} ms DURATION={DURATION // MS // 1000} s STALE={STALE // MS} ms "
+          f"B: deadline {DL_B // MS} ms lifespan {LS_B // MS} ms; C: deadline {DL_C // MS} ms lifespan {LS_C // MS} ms; seeds={len(SEEDS)}")
+    print("no integration step: integer-microsecond event times, no plant")
+    print(f"compatibility (Jazzy table): offered 20 ms / requested 20 ms -> {compatible(20, 20)}; offered 20 / requested 5 -> "
+          f"{compatible(20, 5)} (no connection); offered 5 / requested 20 -> {compatible(5, 20)}; offered default / requested 20 -> {compatible(None, 20)}")
+    print("regime arm stale_use_% hold_% mean_age_ms deadline_misses lifespan_drops  (mean+-sd over seeds)")
+    for regime, (p_stall, s_min, s_max, p_loss, r_min, r_max) in REGIMES.items():
+        print(f"{regime} (stall prob {p_stall}, {s_min}-{s_max} ms; loss {p_loss}, repaired after {r_min}-{r_max} ms)")
+        draws = [shared_draws(regime, s) for s in SEEDS]
+        res = {arm: [run_arm(arm, d) for d in draws] for arm in ARMS}
+        for arm in ARMS:
+            cols = ["{}+-{}".format(*map(num, mean_sd([r[k] for r in res[arm]]))) for k in ("stale", "hold", "age", "miss", "drop")]
+            print(f"  {arm} " + " ".join(cols))
+        for x, y in (("B_dl", "A_rel"), ("C_tight", "B_dl")):
+            for key in ("stale", "hold", "age"):
+                print(f"  paired {x[0]}-{y[0]} {key}: {verdict([r[key] for r in res[x]], [r[key] for r in res[y]])}")
+    print("No winner declared: deadline + lifespan trade stale actions for hold ticks; they cost nothing on an on-time stream and cost holds when late repairs are dropped")
+    print("Real ros2 topic / rclpy QoS events: 本页未运行; ROS 2 Jazzy QoS definitions 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic ROS 2 QoS stand-in: reliability only vs deadline + lifespan vs a deadline tighter than the period; not rmw / DDS
+PERIOD=10 ms JITTER=+-1 ms DURATION=20 s STALE=25 ms B: deadline 20 ms lifespan 10 ms; C: deadline 5 ms lifespan 10 ms; seeds=5
+no integration step: integer-microsecond event times, no plant
+compatibility (Jazzy table): offered 20 ms / requested 20 ms -> True; offered 20 / requested 5 -> False (no connection); offered 5 / requested 20 -> True; offered default / requested 20 -> False
+regime arm stale_use_% hold_% mean_age_ms deadline_misses lifespan_drops  (mean+-sd over seeds)
+late_sensor (stall prob 0.01, 40-120 ms; loss 0.0, repaired after 0-0 ms)
+  A_rel 6.6633+-1.6806 0.0000+-0.0000 10.6388+-1.0109 0.0000+-0.0000 0.0000+-0.0000
+  B_dl 0.0000+-0.0000 6.9535+-1.8594 6.9572+-0.2590 80.4000+-19.4499 0.0000+-0.0000
+  C_tight 0.0000+-0.0000 51.2356+-3.7802 4.3234+-0.0536 3062.6000+-15.5660 0.0000+-0.0000
+  paired B-A stale: -6.6633+-1.6806: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A hold: 6.9535+-1.8594: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A age: -3.6816+-0.9901: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B stale: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B hold: 44.2821+-3.8528: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B age: -2.6339+-0.2531: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+on_time (stall prob 0.0, 0-0 ms; loss 0.0, repaired after 0-0 ms)
+  A_rel 0.0000+-0.0000 0.0200+-0.0274 7.1090+-0.1998 0.0000+-0.0000 0.0000+-0.0000
+  B_dl 0.0000+-0.0000 0.0200+-0.0274 7.1090+-0.1998 0.0000+-0.0000 0.0000+-0.0000
+  C_tight 0.0000+-0.0000 52.5663+-4.3056 4.5185+-0.1261 3001.8000+-20.0175 0.0000+-0.0000
+  paired B-A stale: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A hold: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A age: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B stale: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B hold: 52.5463+-4.3280: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B age: -2.5906+-0.2810: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+lossy_reliable (stall prob 0.0, 0-0 ms; loss 0.15, repaired after 10-30 ms)
+  A_rel 1.0705+-0.1824 0.0200+-0.0274 8.5811+-0.2243 0.0000+-0.0000 0.0000+-0.0000
+  B_dl 0.0000+-0.0000 2.8014+-0.3520 8.1344+-0.2582 152.0000+-9.5656 299.4000+-8.3546
+  C_tight 0.0000+-0.0000 55.7779+-3.1424 4.4189+-0.1394 3155.0000+-9.0277 299.4000+-8.3546
+  paired B-A stale: -1.0705+-0.1824: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A hold: 2.7814+-0.3652: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A age: -0.4466+-0.0695: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B stale: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B hold: 52.9765+-3.4326: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B age: -3.7155+-0.1345: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: deadline + lifespan trade stale actions for hold ticks; they cost nothing on an on-time stream and cost holds when late repairs are dropped
+Real ros2 topic / rclpy QoS events: 本页未运行; ROS 2 Jazzy QoS definitions 以原文为准
+```
+
+</SimOutput>
+
+### 解读各情形
+
+本页标签按以下顺序使用。**打平：每个种子都完全相同**只用于配对的逐种子差值在每个种子上都严格为零；`|配对均值|` 和它的标准差都小于 1e-9 时标为**数值上为零（浮点残差），等同打平**（这种行不打印同号计数）；`|配对均值| ≤ sd` 时为**接近打平、差距很小，在种子噪声之内**；否则是**稳定**差距（`|配对均值| > sd`），`|m|` 小于两组中较小均值的 20 % 时叫**小**，否则叫**明显**；20 % 规则只用来在这两个词之间选择。每条稳定的行都带 5 个种子上的同号计数，符号相反的种子都会报告；只有同号计数不能让差距变成稳定。差距都由未四舍五入的数值计算。配对差值是 B−A 和 C−B。`stale` 是陈旧使用占执行次数的百分比，`hold` 是保持占执行次数的百分比，`age` 是所用样本的平均年龄（ms）。
+
+- **late_sensor** 的结果如下。
+  - **在陈旧使用上，deadline + lifespan 赢了，差距明显。** B−A 陈旧使用 −6.6633±1.6806 个百分点，5 个种子全部同号。停顿期间 A 一直用最后一个样本动作，它可以变得超过 100 ms 旧；B 在 deadline 未满足后就停止动作。
+  - 代价差不多一样大：B−A 保持 6.9535±1.8594 个百分点，明显，5/5。B 并没有让数据更新鲜，它只是把陈旧动作变成了保持，而保持时做什么（停止、滑行、刹车）由控制器决定。
+- **on_time** 的结果如下。
+  - 没有停顿也没有丢包时，每个间隔都短于 20 ms，每次延迟都短于 10 ms，所以 B 从不丢样本、也从不出现 deadline 未满足，两组都只在第一个样本到达前保持：B−A 的陈旧使用、保持和年龄都是**打平：每个种子都完全相同**。
+- **lossy_reliable** 的结果如下。
+  - 预期的陈旧使用打平**没有**出现：B−A 陈旧使用 −1.0705±0.1824 个百分点，明显，5/5。连续两个样本都需要重传时，A 会用一个超过 25 ms 的样本动作；B 早已把它们丢掉了。
+  - **在保持上 B 落败，差距明显。** B−A 保持 2.7814±0.3652 个百分点，5 个种子全部同号。lifespan 丢掉了每一个重传补上的样本（每个种子约 300 个），尽管其中大多数在使用时并不会陈旧。
+- **C_tight** 在每个情形里都有约一半的执行处于保持（C−B 保持 44.2821 到 52.9765 个百分点，明显，5/5），20 s 内记约 3000 次 deadline 未满足。比发布周期还短的 deadline 不会让任何东西变快，它只会报告注定发生的未满足。
+
+本页**不宣布普遍赢家**。Deadline 和 lifespan 在准时的数据流上没有代价，在传感器停顿时把陈旧动作变成保持，在网络丢包时把晚到的重传变成保持。ROS 2 文档以原文为准，真实的 `ros2 topic` 运行和 QoS 事件回调**本页未运行**。
+
+**180 分钟安排**如下。30 分钟读 Jazzy 的 QoS 页面，包括兼容性表和 QoS 事件；30 分钟手算重做算例和五个样本的测试；40 分钟运行 toy、读三个情形；50 分钟固定种子，改停顿率、丢包率、`LS_B` 和 `DL_B`；30 分钟写下你自己机器人上哪些话题需要 deadline，以及保持时控制器该做什么。
+
+### 练习
+
+1. 用上面的公式求：如果 B 的 lifespan 是 15 ms、deadline 是 25 ms，它能用到的最旧样本有多旧；一个 70 ms 的间隔记几次未满足。
+2. 从 `shared_draws` 和 `run_arm` 说明：对同一个种子，A、B、C 看到的是同样的发布、延迟和执行时刻。
+3. 用兼容性规则说明：请求 20 ms deadline 的订阅能否连接到提供 10 ms 的发布者、提供 50 ms 的发布者、以及保持 default 的发布者。
+4. 固定种子，把 `LS_B` 设为 40 ms。运行前预测 `lossy_reliable` 里 B−A 陈旧使用和 B−A 保持会怎样变化。
+5. 在任何真实 ROS 2 运行之前（本页未运行），写出你如何在实际系统上判断一次 requested deadline missed 事件来自发布者（同时出现 offered deadline missed）还是来自网络。
+
 <Summary>
 
 - 用话题、自定义消息与服务、action、参数和 EMA 处理节点构建 ROS 图。
 - 用 launch 参数、命名空间与重映射配置图；用 ROS CLI 工具与 bag 检查、录制和回放。
 - 发布却无订阅接收时，先排查 QoS 兼容性，再查域和名称；保持消息 frame ID 有意义，为下一课 TF 做准备。
 - Composition 把组件加载进共享进程；相等工作量的合成轮询计数和注入崩溃展示进程数与崩溃波及范围的取舍，不是实测提速或零拷贝结果。
+- QoS 的 Deadline 和 Lifespan 约束的是样本何时到达，而不是能否连接：在共享时间线上，deadline 20 ms + lifespan 10 ms 在传感器停顿时明显减少陈旧动作（配对陈旧使用 −6.6633±1.6806 个百分点，5/5），代价是同样多的保持；在准时的数据流上与只设可靠性的订阅打平；当 lifespan 丢掉晚到的重传时在保持上落败；比周期还短的 deadline 只会报告注定的未满足——`qos_deadline_lifespan_toy.py`，不是 rmw。
 
 </Summary>
