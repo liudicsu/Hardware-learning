@@ -1,0 +1,39 @@
+Synthetic 2R arm: PD + gravity vs computed torque (matched) vs computed torque with the payload left out; not LQR, Smith or 2-DOF
+L1=0.3 L2=0.25 m M1=1.5 M2=1.0 kg FC=0.3 N m KP=400.0 KD=40.0 DT=0.001 s noise q 0.0002 rad q' 0.01 rad/s seeds=5
+stable step (matched error dynamics, semi-implicit Euler): H_STAR = 2*(sqrt(1+Z^2)-Z)/W = 41.4214 ms (W=20.0 rad/s, Z=1.00); DT/H_STAR = 0.0241
+  0.98 x H_STAR: matched arm, |e| after 300 steps from 0.0707 rad: 4.0202e-10 rad (decays)
+  1.02 x H_STAR: matched arm, |e| after 300 steps from 0.0707 rad: 2.4418e+05 rad (grows)
+regime arm rms_mrad peak_mrad fb_torque_rms_Nm  (mean+-sd over seeds)
+fast_coupled (f 1.0 Hz, 4.0 s; payload 0.5 kg, C models 0.0 kg)
+  A_pdg 120.5553+-30.2238 208.6609+-54.1085 14.4477+-3.3638
+  B_ct 19.6472+-4.1567 39.5704+-7.9126 0.4922+-0.0041
+  C_ctwrong 80.4381+-29.5496 133.5276+-48.2096 5.3770+-1.1692
+  paired B-A rms: -100.9081+-33.6992: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A fb: -13.9555+-3.3677: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B rms: 60.7909+-32.6981: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B fb: 4.8848+-1.1732: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A rms: -40.1172+-17.0697: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A fb: -9.0707+-2.2024: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+slow_quasi_static (f 0.05 Hz, 6.0 s; payload 0.5 kg, C models 0.0 kg)
+  A_pdg 7.6105+-0.1161 8.3596+-0.1288 0.4606+-0.0203
+  B_ct 24.3691+-13.5816 33.2824+-17.2852 0.4660+-0.0227
+  C_ctwrong 42.0248+-20.4132 65.0529+-22.1818 2.0357+-0.4154
+  paired B-A rms: 16.7587+-13.6344: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A fb: 0.0054+-0.0094: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired C-B rms: 17.6557+-15.2735: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  paired C-B fb: 1.5697+-0.4050: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A rms: 34.4144+-20.3881: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A fb: 1.5751+-0.4038: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+payload_mismatch (f 0.25 Hz, 6.0 s; payload 2.0 kg, C models 0.0 kg)
+  A_pdg 5.9946+-2.5194 10.0044+-3.3419 1.1382+-0.2402
+  B_ct 23.6544+-4.2505 46.4073+-0.3320 0.5922+-0.0124
+  C_ctwrong 139.6579+-30.8099 230.9676+-27.5257 8.3212+-0.6984
+  paired B-A rms: 17.6598+-4.9639: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A fb: -0.5461+-0.2425: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B rms: 116.0034+-33.1360: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B fb: 7.7290+-0.6987: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A rms: 133.6632+-28.8934: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A fb: 7.1829+-0.5173: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+half-step check (DT/2): max relative change in rms error 0.0143
+No winner declared: the model helps when inertia and coupling matter, adds little when gravity dominates, and hurts when the payload is wrong
+Real arm / identification lab: 本页未运行; Wikipedia Inverse dynamics 以原文为准

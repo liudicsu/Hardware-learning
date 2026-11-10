@@ -962,11 +962,388 @@ Real delayed plant / bench: 本页未运行; Smith-predictor statements 以原�
 - **对带噪 y 的方程误差 OLS 声称无偏。** 在 `y = z + v` 下，滞后测量 y 进了 `Φ` → EIV / EE-OLS 偏差；要明示，或改用 OE / IV。不要与 ARX 新息模型（那种下 OLS 一致）混淆。
 - **把有限窗口 `cond(ΦᵀΦ)` 当成严格 PE 证书。** 打印的条件数是时域诊断；严格 PE 要求存在固定窗口长度 `N` 与 `α>0`，使对所有滑动起点 `k`，`Σ_{i=k}^{k+N-1} φᵢφᵢᵀ ⪰ αI`（统一下界）——不是「窗口增长时有正定下界」。
 
+## 计算力矩：把逆动力学放进回路
+
+本课的重力前馈只算一项，即重力力矩 `0.4 N·m × cos(q)`，再把它加到指令上。**逆动力学**算出一段规定运动所需的全部力矩，包括惯性和耦合；**计算力矩**把这个模型放进反馈回路。本节在同一个两关节机械臂上比较 PD + 重力补偿与计算力矩，并保留一个负载模型错误时计算力矩落败的情形。它扩展上面的重力前馈（那只是 `ĝ` 这一项，保留为 A 组）。它**不是**离散 LQR 或 MPC，**不是** Smith 预估器，**不是**二自由度设定值加权，也**不是**人形机器人的全身控制器。
+
+<Resource id="wiki-invdyn" />
+
+**实际打开的来源（已读 HTML 正文）。**
+
+- **Wikipedia — Inverse dynamics** 的内容如下。
+  - 逆刚体动力学是根据物体的运动学（运动）和惯性参数（质量和转动惯量）计算力和/或力矩的方法（"Inverse rigid-body dynamics is a method for computing forces and/or moments of force (torques) based on the kinematics (motion) of a body and the body's inertial properties (mass and moment of inertia)."）。
+  - 在机器人学里，逆动力学算法用来“计算机器人的电机必须输出的力矩，使末端按当前任务规定的方式运动”（calculate the torques that a robot's motors must deliver to make the robot's end-point move in the way prescribed by its current task）。由电机力矩预测运动则是正动力学问题。
+  - 当有外力作用、而单看运动又看不出这些外力时，用逆动力学算力会很难。
+  - 该页面没有给出控制律，也没有机械臂模型；下面的方程是教科书式的替身，并明确标注。以上说法以原文为准。真实机械臂或辨识实验**本页未运行**。
+
+### 力矩映射、控制律与步长上限
+
+<Formula label="刚性两关节机械臂（逆动力学：给定运动所需的力矩）">τ = M(q) q'' + C(q, q') + g(q)</Formula>
+
+<Formula label="计算力矩，模型在回路里（e = q_d − q）">τ = M̂(q) (q_d'' + KP e + KD e') + Ĉ + ĝ</Formula>
+
+<Formula label="PD + 重力补偿（A 组；D0 为起始位姿处 M 的对角线）">τ = D0 (KP e + KD e') + ĝ(q)</Formula>
+
+<Formula label="模型准确、无摩擦、无噪声时的误差动态">e'' + KD e' + KP e = 0</Formula>
+
+<Formula label="半隐式 Euler 在该误差动态上的稳定步长：DT 必须低于 H*">H* = 2 (√(1 + Z²) − Z) / W,  W = √KP,  Z = KD / (2 W)</Formula>
+
+**算例。** `KP = 400 1/s²`、`KD = 40 1/s` 给出 `W = 20 rad/s`、`Z = 1`，所以 `H* = 2 × (√2 − 1) / 20 = 41.4214 ms`；toy 的步长 `DT = 1 ms`，是 `0.0241 H*`。肘部点质量 1.5 kg，末端 1.0 + 0.5 kg，连杆长 0.30 m 和 0.25 m，在中心位姿 `q2 = 0.8 rad` 处：`M22 = 1.5 × 0.25² = 0.09375`，`M12 = 0.09375 + 1.5 × 0.30 × 0.25 × cos 0.8 = 0.1721`，`M11 = 3.0 × 0.30² + 0.09375 + 2 × 0.0784 = 0.5205 kg m²`。
+
+**模型的正确性判据。** 有测试把质量矩阵、科氏项和重力项与这些手算值对照，并检查无摩擦、无噪声时模型准确的组跟踪 1 Hz 轨迹的误差低于 5 mrad。摩擦 `FC tanh(q' / 0.02)`（`FC = 0.3 N m`）在对象里，但**不在**任何一组的模型里。
+
+**稳定步长判据。** 对象和控制器一起用半隐式 Euler 步进。模型准确时，误差满足上面的线性方程，`DT` 低于 `H*` 时稳定。toy 让模型准确的组从 0.0707 rad 的误差出发、目标固定：`0.98 H*` 时 300 步后误差为 4.0202e-10 rad（衰减）；`1.02 H*` 时为 2.4418e+05 rad（增长）。A 和 C 的误差动态是非线性的，所以 toy 用 `DT / 2` 把整张表再跑一次来检查它们：rms 误差的最大相对变化为 0.0143。
+
+### 公平设置
+
+`computed_torque_inverse_dynamics_toy.py` 是**合成**模型，只用标准库。**模型假设**如下。
+- 竖直平面内的平面机械臂，两个转动关节，点质量在肘部和末端；负载加到末端质量上。没有电机限制、力矩饱和或柔性。
+- 每个关节有 0.3 N m 的未建模类库仑摩擦；测量噪声为角度 0.2 mrad、速度 0.01 rad/s，每 1 ms 采样抽取一次并保持，所以半步长运行看到同样的噪声。
+- 各组用同样的 `KP` 和 `KD`。A 用起始位姿处真实质量矩阵的对角线把它们换成力矩增益，并且有真实的重力项。C 是把负载从 `M̂`、`Ĉ`、`ĝ` 里漏掉的计算力矩。
+
+| 组 | 控制律 | 模型 |
+|---|---|---|
+| A_pdg | PD + 重力 | 真实的 `ĝ`，`D0` 来自真实质量矩阵 |
+| B_ct | 计算力矩 | 准确的 `M̂`、`Ĉ`、`ĝ` |
+| C_ctwrong | 计算力矩 | 漏掉负载（惯性和重力都错） |
+
+**共用随机数**（common random numbers）的做法是，每个（情形、种子）只抽一次轨迹幅值系数、两个关节的相位和噪声序列，三组共用。轨迹是每个关节围绕 `(0.3, 0.8) rad` 的正弦，幅值 0.8 和 1.0 rad 乘以 U(0.8, 1.0) 中的系数。指标：rms 跟踪误差（mrad，两个关节）、峰值误差（mrad）、rms 反馈力矩（N m，τ 中来自 `e` 和 `e'` 的部分）。5 个种子。
+
+| 情形 | 频率 | 负载 | C 模型中的负载 | 预期（第一次运行之前写下） |
+|---|---|---|---|---|
+| fast_coupled | 1.0 Hz | 0.5 kg | 0 kg | rms 误差上 B 稳定胜过 A |
+| slow_quasi_static | 0.05 Hz | 0.5 kg | 0 kg | A 与 B 接近打平 |
+| payload_mismatch | 0.25 Hz | 2.0 kg | 0 kg | C 稳定地输给 A |
+
+预期 C 在每个情形里都输给 B。
+
+**看过结果后做的选择。** 没有改任何参数，也没有删掉任何情形。有一个预期**没有**成立，按原样打印：在 `slow_quasi_static` 里 B 明显输给 A，而不是打平。下面的解释是在第一次运行之后才得出的。第一次运行之后做过一次旁路运行，把摩擦设为零；它的数字在下文引用，toy 不打印它们。没有采用的做法：提高 B 的 `KP`，直到它的关节刚度与 A 相当；把摩擦加进模型；删掉 `slow_quasi_static`。
+
+### 运行标准库 toy
+
+```bash
+cd ~/Hardware-learning/examples/month-5/control-modelling
+python3 computed_torque_inverse_dynamics_toy.py
+```
+
+<CodeSource path="examples/month-5/control-modelling/computed_torque_inverse_dynamics_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Computed torque (inverse dynamics in the loop) vs PD + gravity compensation on one shared 2R arm.
+
+Synthetic, stdlib only.  Not this lesson's single-joint gravity feedforward (that is the g(q)
+term alone, kept here as arm A); not discrete LQR / MPC, not the Smith predictor, not 2-DOF
+setpoint weighting, not a humanoid whole-body controller.  Real arm or identification lab:
+本页未运行.  Wikipedia "Inverse dynamics" statements (robot motor torques from a prescribed
+motion and the inertial properties) are 以原文为准; the arm model and the control law below are
+a textbook-style stand-in.
+
+Plant: planar 2R arm moving in a vertical plane, point masses at the link ends (M1 at the elbow,
+M2 + payload at the tip), link lengths L1, L2.  With c2 = cos q2, s2 = sin q2:
+  M11 = (m1 + m2) L1^2 + m2 L2^2 + 2 m2 L1 L2 c2,  M12 = m2 L2^2 + m2 L1 L2 c2,  M22 = m2 L2^2
+  C   = (-m2 L1 L2 s2 (2 q1' q2' + q2'^2),  m2 L1 L2 s2 q1'^2)
+  g   = ((m1 + m2) G L1 cos q1 + m2 G L2 cos(q1 + q2),  m2 G L2 cos(q1 + q2))
+  M q'' + C + g = tau - friction,  friction = FC tanh(q' / 0.02) per joint (in no arm's model).
+Controllers (e = q_d - q measured, KP, KD per joint in 1/s^2 and 1/s):
+  A_pdg     tau = D0 (KP e + KD e') + g_hat(q)          D0 = diag of M at the start pose,
+                                                         correct payload (PD + gravity)
+  B_ct      tau = M_hat(q) (q_d'' + KP e + KD e') + C_hat + g_hat   matched model (computed torque)
+  C_ctwrong the same law with the payload left out of M_hat, C_hat, g_hat (wrong inertia)
+Integration: semi-implicit Euler at step DT, the controller is evaluated every step.  Stable-step
+criterion: with a matched model and no friction or noise, the error obeys e'' + KD e' + KP e = 0
+integrated by this scheme, which is stable for DT < H_STAR = 2 (sqrt(1 + Z^2) - Z) / W with
+W = sqrt(KP), Z = KD / (2 W).  Printed checks: matched arm from a 0.05 rad error at 0.98 x and
+1.02 x H_STAR, and the whole table again at DT / 2.  A and C have nonlinear error dynamics; they
+are covered by the half-step check only.
+Measurement noise (q and q') is drawn per 1 ms sample and held, so DT / 2 sees the same noise.
+Metrics per seed: rms tracking error (mrad, both joints), peak error (mrad), rms feedback torque
+(N m, the part of tau that comes from e and e').
+Common random numbers: per (regime, seed) the trajectory amplitude scale, both phases and the
+noise sequence are drawn once and used by all three arms.
+Regimes and expectations, written before the first run:
+  fast_coupled       f 1.0 Hz, payload 0.5 kg   B consistent win over A on rms error
+  slow_quasi_static  f 0.05 Hz, payload 0.5 kg  A and B near-tie (gravity dominates, both have it)
+  payload_mismatch   f 0.25 Hz, payload 2.0 kg  C (computed torque, wrong inertia) loses to A
+                                                 (PD + gravity with the right payload), consistent
+  C loses to B in every regime.
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+L1, L2 = 0.30, 0.25        # m
+M1, M2 = 1.5, 1.0          # kg, point masses at elbow and tip (tip mass without payload)
+G = 9.81
+FC = 0.3                   # N m, Coulomb-like friction, unmodelled
+KP, KD = 400.0, 40.0       # 1/s^2, 1/s
+DT = 1e-3                  # s
+SAMPLE = 1e-3              # s, noise sample period
+SIG_Q, SIG_QD = 2e-4, 0.01  # rad, rad/s
+Q0 = (0.3, 0.8)            # rad, centre pose
+AMP = (0.8, 1.0)           # rad
+NUM_ZERO = 1e-9
+ARMS = ("A_pdg", "B_ct", "C_ctwrong")
+# name: (f Hz, duration s, real payload kg, payload in C's model kg); written before the first run
+REGIMES = {
+    "fast_coupled": (1.0, 4.0, 0.5, 0.0),
+    "slow_quasi_static": (0.05, 6.0, 0.5, 0.0),
+    "payload_mismatch": (0.25, 6.0, 2.0, 0.0),
+}
+STREAM = {"fast_coupled": 0, "slow_quasi_static": 1, "payload_mismatch": 2}
+
+
+def h_star(kp=KP, kd=KD):
+    w = math.sqrt(kp)
+    z = kd / (2.0 * w)
+    return 2.0 * (math.sqrt(1.0 + z * z) - z) / w
+
+
+def dyn(q, qd, payload):
+    m2 = M2 + payload
+    c2, s2 = math.cos(q[1]), math.sin(q[1])
+    m11 = (M1 + m2) * L1 * L1 + m2 * L2 * L2 + 2.0 * m2 * L1 * L2 * c2
+    m12 = m2 * L2 * L2 + m2 * L1 * L2 * c2
+    m22 = m2 * L2 * L2
+    h = m2 * L1 * L2 * s2
+    cv = (-h * (2.0 * qd[0] * qd[1] + qd[1] * qd[1]), h * qd[0] * qd[0])
+    c12 = math.cos(q[0] + q[1])
+    gv = ((M1 + m2) * G * L1 * math.cos(q[0]) + m2 * G * L2 * c12, m2 * G * L2 * c12)
+    return (m11, m12, m22), cv, gv
+
+
+def desired(t, f, scale, ph):
+    w = 2.0 * math.pi * f
+    q = [Q0[i] + scale * AMP[i] * math.sin(w * t + ph[i]) for i in (0, 1)]
+    qd = [scale * AMP[i] * w * math.cos(w * t + ph[i]) for i in (0, 1)]
+    qdd = [-scale * AMP[i] * w * w * math.sin(w * t + ph[i]) for i in (0, 1)]
+    return q, qd, qdd
+
+
+def shared_draws(regime, seed):
+    rng = random.Random(1000 * STREAM[regime] + seed)
+    scale = rng.uniform(0.8, 1.0)
+    ph = (rng.uniform(0.0, 2.0 * math.pi), rng.uniform(0.0, 2.0 * math.pi))
+    n = int(round(REGIMES[regime][1] / SAMPLE)) + 1
+    noise = [(rng.gauss(0.0, SIG_Q), rng.gauss(0.0, SIG_Q), rng.gauss(0.0, SIG_QD), rng.gauss(0.0, SIG_QD)) for _ in range(n)]
+    return scale, ph, noise
+
+
+def control(arm, qm, qdm, qr, qdr, qddr, payload_real, payload_c, d0):
+    e = (qr[0] - qm[0], qr[1] - qm[1])
+    ed = (qdr[0] - qdm[0], qdr[1] - qdm[1])
+    v = (KP * e[0] + KD * ed[0], KP * e[1] + KD * ed[1])
+    if arm == "A_pdg":
+        _, _, gh = dyn(qm, qdm, payload_real)
+        fb = (d0[0] * v[0], d0[1] * v[1])
+        return (fb[0] + gh[0], fb[1] + gh[1]), fb
+    mh, ch, gh = dyn(qm, qdm, payload_real if arm == "B_ct" else payload_c)
+    a = (qddr[0] + v[0], qddr[1] + v[1])
+    tau = (mh[0] * a[0] + mh[1] * a[1] + ch[0] + gh[0], mh[1] * a[0] + mh[2] * a[1] + ch[1] + gh[1])
+    fb = (mh[0] * v[0] + mh[1] * v[1], mh[1] * v[0] + mh[2] * v[1])
+    return tau, fb
+
+
+def step_plant(q, qd, tau, payload, dt, friction=True):
+    m, cv, gv = dyn(q, qd, payload)
+    f = (FC * math.tanh(qd[0] / 0.02), FC * math.tanh(qd[1] / 0.02)) if friction else (0.0, 0.0)
+    r0 = tau[0] - cv[0] - gv[0] - f[0]
+    r1 = tau[1] - cv[1] - gv[1] - f[1]
+    det = m[0] * m[2] - m[1] * m[1]
+    a0 = (m[2] * r0 - m[1] * r1) / det
+    a1 = (-m[1] * r0 + m[0] * r1) / det
+    qd = [qd[0] + dt * a0, qd[1] + dt * a1]
+    q = [q[0] + dt * qd[0], q[1] + dt * qd[1]]
+    return q, qd
+
+
+def run_arm(arm, regime, draws, dt):
+    f, dur, payload, payload_c = REGIMES[regime]
+    scale, ph, noise = draws
+    q, qd, _ = desired(0.0, f, scale, ph)
+    m0, _, _ = dyn(desired(0.0, f, scale, ph)[0], (0.0, 0.0), payload)
+    d0 = (m0[0], m0[2])
+    n = int(round(dur / dt))
+    se = peak = sfb = 0.0
+    for k in range(n):
+        t = k * dt
+        qr, qdr, qddr = desired(t, f, scale, ph)
+        nz = noise[int(t / SAMPLE + 1e-9)]
+        qm = (q[0] + nz[0], q[1] + nz[1])
+        qdm = (qd[0] + nz[2], qd[1] + nz[3])
+        tau, fb = control(arm, qm, qdm, qr, qdr, qddr, payload, payload_c, d0)
+        e2 = (qr[0] - q[0]) ** 2 + (qr[1] - q[1]) ** 2
+        se += e2
+        peak = max(peak, math.sqrt(e2))
+        sfb += fb[0] ** 2 + fb[1] ** 2
+        q, qd = step_plant(q, qd, tau, payload, dt)
+    return {"rms": 1000.0 * math.sqrt(se / n), "peak": 1000.0 * peak, "fb": math.sqrt(sfb / n)}
+
+
+def matched_error_run(h, steps=300):
+    """B_ct with a constant target, no friction, no noise, 0.05 rad start error; |e| at the end."""
+    qr = list(Q0)
+    q, qd = [Q0[0] - 0.05, Q0[1] - 0.05], [0.0, 0.0]
+    for _ in range(steps):
+        tau, _ = control("B_ct", q, qd, qr, (0.0, 0.0), (0.0, 0.0), 0.5, 0.5, None)
+        q, qd = step_plant(q, qd, tau, 0.5, h, friction=False)
+    return math.hypot(qr[0] - q[0], qr[1] - q[1])
+
+
+def run(dt):
+    out = {}
+    for regime in REGIMES:
+        draws = [shared_draws(regime, s) for s in SEEDS]
+        out[regime] = {arm: [run_arm(arm, regime, d, dt) for d in draws] for arm in ARMS}
+    return out
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-5:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{num(m)}+-{num(s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{num(m)}+-{num(s)}: {label}; {sign_note(diffs, m)}"
+
+
+def main():
+    print("Synthetic 2R arm: PD + gravity vs computed torque (matched) vs computed torque with the payload left out; not LQR, Smith or 2-DOF")
+    print(f"L1={L1} L2={L2} m M1={M1} M2={M2} kg FC={FC} N m KP={KP} KD={KD} DT={DT} s noise q {SIG_Q} rad q' {SIG_QD} rad/s seeds={len(SEEDS)}")
+    hs = h_star()
+    print(f"stable step (matched error dynamics, semi-implicit Euler): H_STAR = 2*(sqrt(1+Z^2)-Z)/W = {hs * 1000:.4f} ms (W={math.sqrt(KP):.1f} rad/s, Z={KD / 2 / math.sqrt(KP):.2f}); DT/H_STAR = {DT / hs:.4f}")
+    for k in (0.98, 1.02):
+        e = matched_error_run(k * hs)
+        print(f"  {k:.2f} x H_STAR: matched arm, |e| after 300 steps from 0.0707 rad: {e:.4e} rad ({'decays' if e < 0.0707 else 'grows'})")
+    tab = run(DT)
+    half = run(DT / 2.0)
+    print("regime arm rms_mrad peak_mrad fb_torque_rms_Nm  (mean+-sd over seeds)")
+    for regime, (f, dur, payload, payload_c) in REGIMES.items():
+        print(f"{regime} (f {f} Hz, {dur} s; payload {payload} kg, C models {payload_c} kg)")
+        res = tab[regime]
+        for arm in ARMS:
+            cols = ["{}+-{}".format(*map(num, mean_sd([r[k] for r in res[arm]]))) for k in ("rms", "peak", "fb")]
+            print(f"  {arm} " + " ".join(cols))
+        for x, y in (("B_ct", "A_pdg"), ("C_ctwrong", "B_ct"), ("C_ctwrong", "A_pdg")):
+            for key in ("rms", "fb"):
+                print(f"  paired {x[0]}-{y[0]} {key}: {verdict([r[key] for r in res[x]], [r[key] for r in res[y]])}")
+    drel = max(abs(a["rms"] - b["rms"]) / b["rms"] for rg in REGIMES for arm in ARMS for a, b in zip(tab[rg][arm], half[rg][arm]))
+    print(f"half-step check (DT/2): max relative change in rms error {drel:.4f}")
+    print("No winner declared: the model helps when inertia and coupling matter, adds little when gravity dominates, and hurts when the payload is wrong")
+    print("Real arm / identification lab: 本页未运行; Wikipedia Inverse dynamics 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic 2R arm: PD + gravity vs computed torque (matched) vs computed torque with the payload left out; not LQR, Smith or 2-DOF
+L1=0.3 L2=0.25 m M1=1.5 M2=1.0 kg FC=0.3 N m KP=400.0 KD=40.0 DT=0.001 s noise q 0.0002 rad q' 0.01 rad/s seeds=5
+stable step (matched error dynamics, semi-implicit Euler): H_STAR = 2*(sqrt(1+Z^2)-Z)/W = 41.4214 ms (W=20.0 rad/s, Z=1.00); DT/H_STAR = 0.0241
+  0.98 x H_STAR: matched arm, |e| after 300 steps from 0.0707 rad: 4.0202e-10 rad (decays)
+  1.02 x H_STAR: matched arm, |e| after 300 steps from 0.0707 rad: 2.4418e+05 rad (grows)
+regime arm rms_mrad peak_mrad fb_torque_rms_Nm  (mean+-sd over seeds)
+fast_coupled (f 1.0 Hz, 4.0 s; payload 0.5 kg, C models 0.0 kg)
+  A_pdg 120.5553+-30.2238 208.6609+-54.1085 14.4477+-3.3638
+  B_ct 19.6472+-4.1567 39.5704+-7.9126 0.4922+-0.0041
+  C_ctwrong 80.4381+-29.5496 133.5276+-48.2096 5.3770+-1.1692
+  paired B-A rms: -100.9081+-33.6992: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A fb: -13.9555+-3.3677: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B rms: 60.7909+-32.6981: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B fb: 4.8848+-1.1732: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A rms: -40.1172+-17.0697: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A fb: -9.0707+-2.2024: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+slow_quasi_static (f 0.05 Hz, 6.0 s; payload 0.5 kg, C models 0.0 kg)
+  A_pdg 7.6105+-0.1161 8.3596+-0.1288 0.4606+-0.0203
+  B_ct 24.3691+-13.5816 33.2824+-17.2852 0.4660+-0.0227
+  C_ctwrong 42.0248+-20.4132 65.0529+-22.1818 2.0357+-0.4154
+  paired B-A rms: 16.7587+-13.6344: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A fb: 0.0054+-0.0094: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired C-B rms: 17.6557+-15.2735: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  paired C-B fb: 1.5697+-0.4050: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A rms: 34.4144+-20.3881: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A fb: 1.5751+-0.4038: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+payload_mismatch (f 0.25 Hz, 6.0 s; payload 2.0 kg, C models 0.0 kg)
+  A_pdg 5.9946+-2.5194 10.0044+-3.3419 1.1382+-0.2402
+  B_ct 23.6544+-4.2505 46.4073+-0.3320 0.5922+-0.0124
+  C_ctwrong 139.6579+-30.8099 230.9676+-27.5257 8.3212+-0.6984
+  paired B-A rms: 17.6598+-4.9639: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A fb: -0.5461+-0.2425: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B rms: 116.0034+-33.1360: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B fb: 7.7290+-0.6987: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A rms: 133.6632+-28.8934: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A fb: 7.1829+-0.5173: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+half-step check (DT/2): max relative change in rms error 0.0143
+No winner declared: the model helps when inertia and coupling matter, adds little when gravity dominates, and hurts when the payload is wrong
+Real arm / identification lab: 本页未运行; Wikipedia Inverse dynamics 以原文为准
+```
+
+</SimOutput>
+
+### 解读各情形
+
+本页标签按以下顺序使用。**打平：每个种子都完全相同**只用于配对的逐种子差值在每个种子上都严格为零；`|配对均值|` 和它的标准差都小于 1e-9 时标为**数值上为零（浮点残差），等同打平**（这种行不打印同号计数）；`|配对均值| ≤ sd` 时为**接近打平、差距很小，在种子噪声之内**；否则是**稳定**差距（`|配对均值| > sd`），`|m|` 小于两组中较小均值的 20 % 时叫**小**，否则叫**明显**；20 % 规则只用来在这两个词之间选择。每条稳定的行都带 5 个种子上的同号计数，符号相反的种子都会报告；只有同号计数不能让差距变成稳定。差距都由未四舍五入的数值计算。配对差值是 B−A、C−B 和 C−A。`rms` 是 rms 跟踪误差（mrad），`fb` 是 rms 反馈力矩（N m）。
+
+- **fast_coupled** 的结果如下。
+  - **计算力矩赢了，差距明显。** B−A rms −100.9081±33.6992 mrad，5 个种子全部同号。在 1 Hz 下惯性力矩和耦合力矩都很大，PD + 重力只能靠误差把它们产生出来；B 直接算出它们，所以它的反馈力矩也下降了（B−A fb −13.9555±3.3677 N m，明显，5/5）。
+  - C 输给 B（C−B rms +60.7909±32.6981，明显，5/5），但仍然胜过 A（C−A −40.1172±17.0697，明显，5/5）：惯性占主导时，部分错误的模型也比没有模型好。
+- **slow_quasi_static** 的结果如下。
+  - 预期的接近打平**没有**出现。**B 落败，差距明显。** B−A rms +16.7587±13.6344 mrad，5 个种子全部同号；反馈力矩接近打平（0.0054±0.0094）。
+  - 原因是未建模的摩擦。关节 2 上的误差力矩，在计算力矩下遇到的刚度是 `KP / (M⁻¹)22`，在 PD 下是 `D0 KP`。中心位姿处 `(M⁻¹)22 = 27.15`，而 `1 / M22 = 10.67`，所以刚度约为 14.7 对 37.5 N m/rad，0.3 N m 的摩擦留下约 20 mrad 对 8 mrad 的误差。运动很慢时，剩下要对付的就是摩擦。把 `FC` 设为 0 的旁路运行（第一次运行之后做的，不在打印输出里）把这里变成 B 获胜：B−A rms −0.1168±0.0515 mrad，明显，5/5。所以没有摩擦时慢速情形也不是接近打平；B 只是好了不到 1 毫弧度。
+  - C 输给 B（C−B rms +17.6557±15.2735，明显，5 个种子中有 1 个符号相反）。
+- **payload_mismatch** 的结果如下。
+  - **负载模型错误的计算力矩落败，差距明显。** C−A rms +133.6632±28.8934 mrad，5 个种子全部同号。C 的模型里没有 2 kg 负载，所以既漏掉了它的重量，也把自己的增益缩小了；A 的重力项是对的。
+  - B 在这里也输给 A（B−A rms +17.6598±4.9639，明显，5/5），原因与慢速情形相同，是摩擦；这一点事先没有声明。在 `FC = 0` 的旁路运行里，B 在这里也胜过 A（B−A −5.1016±1.3586 mrad，明显，5/5）。
+
+本页**不宣布普遍赢家**。惯性和耦合重要时计算力矩获胜；慢速运动只剩未建模摩擦时它输给 PD + 重力；模型里的负载错了时它输得很惨。Wikipedia 的说法以原文为准，真实机械臂**本页未运行**。
+
+**180 分钟安排**如下。30 分钟读 Wikipedia 条目并重做算例；30 分钟核对稳定步长和半步长那两行；40 分钟运行 toy、读三个情形；40 分钟固定种子，改 `KP`、`FC` 和负载；40 分钟做练习。
+
+### 练习
+
+1. 在 `q2 = 0`、负载 2.0 kg 时计算 `M11`、`M12`、`M22`，以及刚度 `KP / (M⁻¹)22` 与 `D0 KP`。
+2. 从 `shared_draws` 和 `run_arm` 说明：对同一情形和种子，A、B、C 看到的轨迹和噪声相同。
+3. 从 `qd += DT · q''; q += DT · qd` 和模型准确时的误差方程推出 `H*`，再与 0.98 和 1.02 两行核对。
+4. 固定种子，把 `KP` 设为 1600、`KD` 设为 80。重新计算 `H*`，并在运行前预测 `slow_quasi_static` 里 B−A rms 会怎样变化。
+5. 在真实机械臂之前（本页未运行），写出你如何辨识负载质量和摩擦，以及如何在跟踪日志里区分负载错误和未建模摩擦。
+
 <Summary>
 
 - 加上重力前馈后，关节为 `G(s) = 1 / (s (J s + B))`，一个自由积分加一个 `J/B = 0.08 s` 的滞后；第 3 个月的 0.05 N·m/deg 在模型里是 2.86 N·m/rad。
 - 从回路增益读裕度：默认 PD 在 34.6 rad/s 处 PM = 56°，增益裕度 14.2 dB；5 ms 的保持和采样延迟约占 15°，连续 Bode 图看不出来。
 - 辨识需要足够丰富的输入：能量相同时 PRBS 的 `cond(ΦᵀΦ)` 是 4.97，阶跃是 164；对带噪声的 `y` 做方程误差 OLS 并不无偏。
 - Smith 预估器：0.20 s 延迟下，忽略延迟的 PI 比使用真实模型的 Smith 预估器多超调 87.3189±0.1214 个百分点（明显，5 个种子同号）；没有延迟时三组**打平**（每个种子都完全相同）；0.04 s 延迟下普通 PI 调节更快（A−B −0.1920±0.0045，明显）；延迟模型偏 90–110 % 时每个指标都输——合成对象，不是实验台实验。
+- 计算力矩把逆动力学放进回路：在同一个 2R 机械臂上，快速耦合轨迹下明显胜过 PD + 重力（配对 rms −100.9081±33.6992 mrad，5/5）；慢速轨迹下只剩未建模摩擦，它明显落败（+16.7587±13.6344，声明的接近打平没有成立）；模型漏掉负载时明显落败（C−A +133.6632±28.8934）——`computed_torque_inverse_dynamics_toy.py`，是替身，不是实验室运行。
 
 </Summary>

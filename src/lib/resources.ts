@@ -5889,6 +5889,34 @@ export const resources: Record<string, Resource> = {
     license: { zh: "CC BY-SA 4.0，© Wikipedia 贡献者；仅提供外链", en: "CC BY-SA 4.0, © Wikipedia contributors; external link only" },
     extra: true,
   },
+  "wiki-jerk": {
+    id: "wiki-jerk",
+    url: "https://en.wikipedia.org/wiki/Jerk_(physics)",
+    title: { zh: "Wikipedia：加加速度（Jerk）", en: "Wikipedia: Jerk (physics)" },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "In motion control 一节：在不超过速度、加速度和加加速度上限的前提下让过渡时间最短；三者都受限时点到点曲线分七段，以零速度、零加速度到达；移动太短时先缩短匀加速段，再缩短加加速度段。HTML 正文已读；以原文为准。",
+      en: "Section In motion control: minimise the transition time without exceeding speed, acceleration or jerk limits; with all three limited a point-to-point profile has seven segments and arrives at zero speed and zero acceleration; for short moves the constant-acceleration segments shrink first, then the jerk segments. HTML body read; 以原文为准.",
+    },
+    license: { zh: "CC BY-SA 4.0，© Wikipedia 贡献者；仅提供外链", en: "CC BY-SA 4.0, © Wikipedia contributors; external link only" },
+    extra: true,
+  },
+  "wiki-invdyn": {
+    id: "wiki-invdyn",
+    url: "https://en.wikipedia.org/wiki/Inverse_dynamics",
+    title: { zh: "Wikipedia：逆动力学", en: "Wikipedia: Inverse dynamics" },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "逆刚体动力学根据运动和惯性参数（质量、转动惯量）计算力和力矩；在机器人学里用来算出电机必须输出的力矩，使末端按任务规定的方式运动；由力矩预测运动则是正动力学。页面不给控制律。HTML 正文已读；以原文为准。",
+      en: "Inverse rigid-body dynamics computes forces and torques from the motion and the inertial properties (mass, moment of inertia); in robotics it gives the torques the motors must deliver for the end-point to move as the task prescribes; predicting motion from torques is forward dynamics. The page gives no control law. HTML body read; 以原文为准.",
+    },
+    license: { zh: "CC BY-SA 4.0，© Wikipedia 贡献者；仅提供外链", en: "CC BY-SA 4.0, © Wikipedia contributors; external link only" },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

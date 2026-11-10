@@ -1,6 +1,17 @@
 # Month 5 current plan / 第5个月当前计划
 
-Current / 当前：**M5 2850 min**, Batch-16 PR2. Older batch entries retain historical totals.
+Current / 当前：**M5 3210 min**, Batch-17 PR2. Older batch entries retain historical totals.
+
+## Batch-17 PR2 — S-curve on moveit-pick-place and computed torque on control-modelling (+360)
+
+Base `d6e1f35` (batch-17 PR1 merged as #169; site **33930**). PR2 is M5 only: **M5 2850→3210 (+360)**. Site **33930→34290**, still 71 lessons.
+
+- **H3 / moveit-pick-place: 300→**480** (+180).** Seven-segment jerk-limited S-curve vs trapezoid. Toy `scurve_jerk_limit_toy.py`: shared VMAX 0.5 m/s, AMAX 2 m/s²; A trapezoid / B S-curve JMAX 8 m/s³ / C JMAX 2 m/s³; spring-damper plant (ζ 0.05, f per seed, common random numbers, 5 seeds), semi-implicit Euler DT 0.5 ms, stable step H* = 2(√(1+ζ²) − ζ)/ω = 6.0558 ms at 50 Hz, checked at 0.98× / 1.02× and half step. flexible: B−A residual −1.5305±0.1620 mm and cycle −1.3455±0.2599 s, clear, 5/5; B−A profile +0.2500 s. rigid_short (declared lose): B−A profile +0.2309 s and cycle +0.2310 s, clear, 5/5. C misses the window in both. ≠ MoveIt scaling; ≠ Pilz / OMPL. Real arm 本页未运行.
+- **H4 / control-modelling: 600→**780** (+180).** Computed torque vs PD + gravity. Toy `computed_torque_inverse_dynamics_toy.py`: planar 2R, point masses, unmodelled friction 0.3 N m, held noise; KP 400, KD 40; semi-implicit Euler DT 1 ms, H* = 41.4214 ms for the matched error dynamics, checked at 0.98× / 1.02× and half step. fast_coupled: B−A rms −100.9081±33.6992 mrad, clear, 5/5; slow_quasi_static: declared near-tie did not hold, B−A +16.7587±13.6344, clear, 5/5 (friction; FC = 0 side run −0.1168±0.0515); payload_mismatch (declared lose): C−A +133.6632±28.8934, clear, 5/5. ≠ LQR / MPC; ≠ Smith; ≠ 2-DOF. Real arm 本页未运行.
+
+**Allocation / 安排:** 2 × (30+30+40+40+40) = 360 minutes.
+
+**Site accounting / 全站核算:** **34290=33930+360**; **M5=3210**, **71 lessons**.
 
 ## Batch-16 PR2 — product of exponentials on kinematics-ik (+180)
 
