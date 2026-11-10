@@ -19,3 +19,6 @@ python3 stl_info.py servo_bracket.stl                             # size, watert
 切片前检查 STL（尺寸、网格是否封闭、体积、实心质量），不需要第三方库。
 
 Rendered and checked in software only; not printed by the site editor. / 只在软件中渲染和检查过，本站编者没有打印过。
+
+**`interference_press_fit_toy.py`**: clearance fit + set screw vs a light shrink fit vs excessive interference on one shared shaft and hub (stdlib, 5 seeds, common random numbers). Not the CAD clash check, not GD&T. Expected output: `../expected/interference_press_fit_toy.txt`.
+同一根轴和轮毂上比较间隙配合 + 紧定螺钉、轻度热装和过大过盈（标准库，5 个种子，共用随机数）。不是 CAD 碰撞检查，也不是 GD&T。期望输出见 `../expected/interference_press_fit_toy.txt`。真实压入实验本页未运行。

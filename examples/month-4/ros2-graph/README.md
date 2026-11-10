@@ -21,3 +21,6 @@ ros2 run m4_graph collect_client 5
 
 Needs ROS 2 Jazzy (see [`../README.md`](../README.md)). These are real runs on a computer, no robot and no simulator; `../check.sh` repeats every command quoted in the lesson. The package licences are left as the `TODO` placeholder on purpose.
 需要 ROS 2 Jazzy（见 [`../README.md`](../README.md)）。这些都是电脑上的真实运行，不需要机器人，也不涉及仿真；`../check.sh` 会重复课程里引用的每一条命令。包的许可证故意保留 `TODO` 占位符。
+
+**`qos_deadline_lifespan_toy.py`** (no ROS needed): a discrete-event stand-in for QoS Deadline and Lifespan vs a reliability-only subscription on one shared timeline (stdlib, 5 seeds, common random numbers). Not rmw / DDS. Expected output: `../expected/qos_deadline_lifespan_toy.txt`.
+**`qos_deadline_lifespan_toy.py`**（不需要 ROS）：在同一条时间线上，用离散事件替身比较 QoS Deadline + Lifespan 与只设可靠性的订阅（标准库，5 个种子，共用随机数）。不是 rmw / DDS。期望输出见 `../expected/qos_deadline_lifespan_toy.txt`。真实 ros2 运行本页未运行。

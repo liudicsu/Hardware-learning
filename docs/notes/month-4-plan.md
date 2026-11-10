@@ -1,6 +1,16 @@
 # Month 4 plan / 第4个月计划
 
-Current / 当前：**M4 2670 min**, Batch-15 PR2. Earlier entries below retain their historical totals.
+Current / 当前：**M4 2850 min**, Batch-17 PR1. Earlier entries below retain their historical totals.
+
+## Batch-17 PR1 / 本月 H2 (+180)
+
+Base `2df7604` (batch-16 closed incl. polish #168; site **33600**). PR1 on M4 host: **M4 2670→2850 (+180)**; M3 moves in the same PR on its own plan. Site **33600→33930**, still 71 lessons.
+
+- **H2 / 4.2 ros2-graph: 390→570 (+180).** QoS Deadline and Lifespan vs reliability only. ROS 2 Jazzy "Quality of Service settings" (HTML body read; 以原文为准; existing `ros2-qos` card extended). Toy `qos_deadline_lifespan_toy.py`: discrete-event stand-in (integer microseconds, no integration step), 10 ms period, controller ticks with a per-seed phase; arms A reliability only / B deadline 20 ms + lifespan 10 ms / C deadline 5 ms (offered = requested); shared publications, stalls, delays, losses (common random numbers, 5 seeds). late_sensor B−A stale −6.6633±1.6806 clear 5/5 (hold +6.9535±1.8594); on_time B−A stale / hold / age tie; lossy_reliable B−A hold +2.7814±0.3652 clear 5/5 (B loses), stale −1.0705±0.1824 clear (declared tie did not hold; printed as is). Not the reliability mismatch; not bag QoS; not FreeRTOS deadlines. Real ros2: 本页未运行.
+
+**Allocation / 安排:** 30+30+40+50+30=180 minutes.
+
+**Site accounting / 全站核算:** **33930=33600+330** with M3 +150 on month-3-plan.md; **M4=2850**, **71 lessons**.
 
 ## Batch-15 PR2 / 本月 H3 (+180)
 

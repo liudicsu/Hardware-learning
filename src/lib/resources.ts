@@ -1358,8 +1358,8 @@ export const resources: Record<string, Resource> = {
     kind: "guide",
     cost: { zh: "免费", en: "Free" },
     summary: {
-      zh: "可靠性、持久性、历史深度等策略各自是什么意思，以及发布者和订阅者在什么组合下才兼容。课程作者指出没有哪门课把 QoS 讲好，遇到“发了收不到”时就读这一页。",
-      en: "What reliability, durability, history and the other policies mean, and which publisher/subscriber combinations are compatible. The course notes that no tutorial covers QoS well; this is the page to read when a topic publishes but nothing receives.",
+      zh: "可靠性、持久性、历史深度等策略各自是什么意思，以及发布者和订阅者在什么组合下才兼容。课程作者指出没有哪门课把 QoS 讲好，遇到“发了收不到”时就读这一页。页面还定义了 Deadline（相邻消息之间预期的最长时间）、Lifespan（接收时消息最多能有多旧，超过即丢弃）和 Liveliness / 租约时长，并给出兼容性表和 QoS 事件。HTML 正文已读；以原文为准。",
+      en: "What reliability, durability, history and the other policies mean, and which publisher/subscriber combinations are compatible. The course notes that no tutorial covers QoS well; this is the page to read when a topic publishes but nothing receives. Also defines Deadline (expected maximum time between messages), Lifespan (maximum age on reception before a message is dropped) and Liveliness / lease duration, with their compatibility tables and QoS events. HTML body read; 以原文为准.",
     },
     license: { zh: "文档以 CC BY 4.0 发布，© Open Robotics；仅提供外链", en: "Docs under CC BY 4.0, © Open Robotics; external link only" },
     extra: true,
@@ -5873,6 +5873,20 @@ export const resources: Record<string, Resource> = {
       en: "HAMSTER: Hierarchical Action Models For Open-World Robot Manipulation: a high-level VLM (VILA-1.5-13B) fine-tuned only on off-domain data outputs a coarse 2-D path with gripper states; a low-level 3-D policy (RVT-2 / 3D-DA) is conditioned on the path drawn on the image and trained on a little in-domain data with oracle paths. Reports an average 20 % real-robot gain over OpenVLA; some Table 3 variations are within the spread. arXiv 2502.05485 v4 body read; 以论文为准.",
     },
     license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
+  "wiki-interference-fit": {
+    id: "wiki-interference-fit",
+    url: "https://en.wikipedia.org/wiki/Interference_fit",
+    title: { zh: "Wikipedia：过盈配合", en: "Wikipedia: Interference fit" },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "过盈（压入、摩擦）配合靠零件推到一起后的摩擦保持；松紧由配合余量（相对公称尺寸的计划差值）控制，通常查表；用压力机压入，或加热外件 / 冷却内件热装。HTML 正文已读；以原文为准。",
+      en: "An interference (press, friction) fit holds by friction after the parts are pushed together; tightness is set by the allowance (planned difference from nominal size), normally taken from tables; assembled with a press or by heating the outer part / cooling the inner one (shrink fitting). HTML body read; 以原文为准.",
+    },
+    license: { zh: "CC BY-SA 4.0，© Wikipedia 贡献者；仅提供外链", en: "CC BY-SA 4.0, © Wikipedia contributors; external link only" },
     extra: true,
   },
 }

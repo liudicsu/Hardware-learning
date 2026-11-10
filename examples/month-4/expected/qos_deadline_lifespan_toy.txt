@@ -1,0 +1,37 @@
+Synthetic ROS 2 QoS stand-in: reliability only vs deadline + lifespan vs a deadline tighter than the period; not rmw / DDS
+PERIOD=10 ms JITTER=+-1 ms DURATION=20 s STALE=25 ms B: deadline 20 ms lifespan 10 ms; C: deadline 5 ms lifespan 10 ms; seeds=5
+no integration step: integer-microsecond event times, no plant
+compatibility (Jazzy table): offered 20 ms / requested 20 ms -> True; offered 20 / requested 5 -> False (no connection); offered 5 / requested 20 -> True; offered default / requested 20 -> False
+regime arm stale_use_% hold_% mean_age_ms deadline_misses lifespan_drops  (mean+-sd over seeds)
+late_sensor (stall prob 0.01, 40-120 ms; loss 0.0, repaired after 0-0 ms)
+  A_rel 6.6633+-1.6806 0.0000+-0.0000 10.6388+-1.0109 0.0000+-0.0000 0.0000+-0.0000
+  B_dl 0.0000+-0.0000 6.9535+-1.8594 6.9572+-0.2590 80.4000+-19.4499 0.0000+-0.0000
+  C_tight 0.0000+-0.0000 51.2356+-3.7802 4.3234+-0.0536 3062.6000+-15.5660 0.0000+-0.0000
+  paired B-A stale: -6.6633+-1.6806: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A hold: 6.9535+-1.8594: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A age: -3.6816+-0.9901: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B stale: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B hold: 44.2821+-3.8528: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B age: -2.6339+-0.2531: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+on_time (stall prob 0.0, 0-0 ms; loss 0.0, repaired after 0-0 ms)
+  A_rel 0.0000+-0.0000 0.0200+-0.0274 7.1090+-0.1998 0.0000+-0.0000 0.0000+-0.0000
+  B_dl 0.0000+-0.0000 0.0200+-0.0274 7.1090+-0.1998 0.0000+-0.0000 0.0000+-0.0000
+  C_tight 0.0000+-0.0000 52.5663+-4.3056 4.5185+-0.1261 3001.8000+-20.0175 0.0000+-0.0000
+  paired B-A stale: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A hold: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A age: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B stale: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B hold: 52.5463+-4.3280: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B age: -2.5906+-0.2810: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+lossy_reliable (stall prob 0.0, 0-0 ms; loss 0.15, repaired after 10-30 ms)
+  A_rel 1.0705+-0.1824 0.0200+-0.0274 8.5811+-0.2243 0.0000+-0.0000 0.0000+-0.0000
+  B_dl 0.0000+-0.0000 2.8014+-0.3520 8.1344+-0.2582 152.0000+-9.5656 299.4000+-8.3546
+  C_tight 0.0000+-0.0000 55.7779+-3.1424 4.4189+-0.1394 3155.0000+-9.0277 299.4000+-8.3546
+  paired B-A stale: -1.0705+-0.1824: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A hold: 2.7814+-0.3652: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A age: -0.4466+-0.0695: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B stale: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B hold: 52.9765+-3.4326: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B age: -3.7155+-0.1345: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: deadline + lifespan trade stale actions for hold ticks; they cost nothing on an on-time stream and cost holds when late repairs are dropped
+Real ros2 topic / rclpy QoS events: 本页未运行; ROS 2 Jazzy QoS definitions 以原文为准
