@@ -34,3 +34,12 @@ CoT-VLA 式视觉思维链（arXiv 2503.22020 式 2–3）：在一维轨道上�
 ```bash
 python3 cot_vla_subgoal_toy.py
 ```
+
+## molmoact_reasoning_trace_toy.py
+
+MolmoAct-style action reasoning (arXiv 2508.07917, Eq. 3–5): depth perception tokens, then an editable 2-D visual reasoning trace of at most 5 points, then a trajectory-conditioned action, compared with a direct k-nearest-neighbour policy and a mirrored (wrong) trace; five regimes (wall with 5 / 200 demos, no wall, in-plane steering edit, depth steering edit), five seeds, common random numbers. No integration step (kinematic steps; the wall check asserts V / SUB < WALL_T). Checked by `examples/month-6/check.sh`. MolmoAct weights and a GPU are not run here; paper numbers are per the paper. Not ThinkAct, CoT-VLA or TraceVLA.
+MolmoAct 式动作推理（arXiv 2508.07917 式 3–5）：深度感知词元 → 最多 5 个点、可编辑的二维视觉推理轨迹 → 以轨迹为条件的动作，与直接 k 近邻策略和左右镜像（错误）的轨迹比较；五种情形（有墙且 5 / 200 条示范、无墙、像平面内转向编辑、沿深度的转向编辑），5 个种子，共用随机数。没有积分步长（运动学步进；墙检查断言 V / SUB < WALL_T）。由 `examples/month-6/check.sh` 核对。MolmoAct 权重与 GPU 本页未运行；论文数字以论文为准。不是 ThinkAct、CoT-VLA 或 TraceVLA。
+
+```bash
+python3 molmoact_reasoning_trace_toy.py
+```

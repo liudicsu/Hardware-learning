@@ -1,0 +1,38 @@
+Synthetic HAMSTER-style 2-D path + path-conditioned low level vs a monolithic kNN policy vs an off-task path; not a VLM
+V=0.05 R=0.06 T_MAX=60 PIX_SD=0.01 Z_SD=0.02 APP=4 BG_SD=0.1 K_NN=3 tests=40 seeds=5
+no integration step: kinematic steps of at most V, no obstacles
+regime arm success_% final_err_x100 path_ade_x100 track_err_x100  (mean+-sd over seeds)
+visual_shift (background shift 0.5; background sd 0.1; in-domain demos 20; path sd 0.02)
+  A_mono 2.0000+-4.4721 203.5755+-26.8733 n/a n/a
+  B_hier 78.5000+-5.4772 36.1733+-7.9211 2.9518+-0.1370 14.6573+-3.1100
+  C_wrong 0.5000+-1.1180 152.1238+-22.1275 7.9150+-0.3189 60.7133+-7.6241
+  paired B-A succ: 76.5000+-7.4162: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A err: -167.4022+-29.2251: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B succ: -78.0000+-6.2249: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B err: 115.9505+-21.9771: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+matched_easy (background shift 0.0; background sd 0.1; in-domain demos 200; path sd 0.02)
+  A_mono 33.5000+-6.9821 96.7311+-11.5865 n/a n/a
+  B_hier 96.0000+-2.8504 8.3083+-3.0440 2.7656+-0.0481 2.7996+-1.2666
+  C_wrong 0.0000+-0.0000 96.8866+-5.7301 7.9051+-0.2559 36.5110+-2.8741
+  paired B-A succ: 62.5000+-5.3033: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A err: -88.4228+-9.4133: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B succ: -96.0000+-2.8504: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B err: 88.5783+-4.3375: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+coarse_path (background shift 0.0; background sd 0.1; in-domain demos 200; path sd 0.06)
+  A_mono 37.0000+-12.9180 90.2084+-18.7731 n/a n/a
+  B_hier 54.5000+-5.4199 46.5461+-7.8233 7.4559+-0.6231 16.8666+-2.7824
+  C_wrong 0.0000+-0.0000 95.5451+-9.2617 11.5935+-0.7728 34.5741+-4.4595
+  paired B-A succ: 17.5000+-15.0000: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  paired B-A err: -43.6623+-22.7760: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B succ: -54.5000+-5.4199: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B err: 48.9990+-5.7958: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+no_appearance (background shift 0.0; background sd 0.0; in-domain demos 200; path sd 0.02)
+  A_mono 98.5000+-3.3541 5.3956+-3.2988 n/a n/a
+  B_hier 96.0000+-4.5415 8.2666+-4.4516 2.7934+-0.1764 2.7381+-1.6991
+  C_wrong 0.5000+-1.1180 102.5611+-16.5149 7.2970+-0.4784 37.9205+-6.7815
+  paired B-A succ: -2.5000+-4.3301: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+  paired B-A err: 2.8710+-4.3003: near-tie / small gap, within seed noise (|m| <= sd); same sign on all 5 seeds
+  paired C-B succ: -95.5000+-4.1079: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B err: 94.2946+-14.5995: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: the path helps when appearance shifts; a coarse or off-task path is followed faithfully
+HAMSTER VLM / RVT-2 / 3D-DA / real robot / GPU: 本页未运行; paper numbers 以论文为准

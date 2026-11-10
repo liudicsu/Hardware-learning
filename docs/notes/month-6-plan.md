@@ -1,6 +1,6 @@
 # Month 6 plan: Robot learning, specialisation & getting hired
 
-Current / 当前：**M6 2820 min**, Batch-14 PR3. Earlier entries below retain their historical totals.
+Current / 当前：**M6 3240 min**, Batch-16 PR3. Earlier entries below retain their historical totals.
 
 Course source: @DeRonin_'s 6-month roadmap (`COURSE_SOURCE` in src/lib/curriculum.ts). Month 6 topics there:
 imitation learning (behaviour cloning, ACT, diffusion policy), VLA models and which have open weights,
@@ -94,6 +94,17 @@ Base `777543d` (batch-11 PR2 #146 merged; site **27630**). PR3 only: **M6 2190�
 - **H5 / 6.2 act-diffusion: 450→**660** (+210).** CogACT componentized VLM→specialized action module (Qixiu Li et al. arXiv:2411.19650, abs+HTML+PDF opened; numbers 以论文为准). Toy `cogact_dit_action_toy.py`: shared demos/noise/budget; A ridge-linear MLP-head stand-in, B pairwise-expanded+iterative DiT-style expressivity stand-in (not a real transformer), C quantized tokens; unimodal_short exact tie (|ΔMSE|≈0), multimodal_long DiT-style edge; five seeds, common random numbers. ≠ OpenHelix / VQ-BeT / RDT2. GPU/weights 本页未运行. Sources: batch-11-pr3-sources.md.
 
 **Site accounting / 全站核算:** **28050=27630+420** with M8 +210 on month-8-plan.md; **M6=2400**, **71 lessons**.
+
+## Batch-16 PR3 / 本月 H5 + H6 (+420)
+
+Base `b162a86` (batch-16 PR2 merged as #166; site **33180**). PR3 only: **M6 2820→3240 (+420)**; site **33180→33600**, still 71 lessons. Batch 16 content is complete at 33600.
+
+- **H5 / 6.3 vla-models: 990→**1200** (+210).** MolmoAct (Jason Lee et al., arXiv 2508.07917; abs + PDF body read, HTML fetched; numbers 以论文为准): depth perception tokens → 2-D visual reasoning trace (1–5 points) → action tokens; steering by editing the trace. Toy `molmoact_reasoning_trace_toy.py`: kinematic gripper, wall check V/SUB < WALL_T asserted (no integration step); arms A direct kNN / B depth-token + trace / C mirrored or frozen wrong trace; 5 regimes, 5 seeds, CRN. multi_stage_few B−A success +72.0000±8.5513 clear 5/5; multi_stage_many near-tie (−4.5000±4.8088); single_step clear B win (expected near-tie, disclosed); steer_in_plane B beats A and C clearly; steer_depth edited vs frozen near-tie (2-D edit cannot choose along depth). ≠ ThinkAct / CoT-VLA / TraceVLA. 7B / LIBERO / GPU 本页未运行.
+- **H6 / 6.1 behaviour-cloning: 450→**660** (+210).** HAMSTER (Yi Li et al., arXiv 2502.05485; abs + PDF body read, HTML fetched; numbers 以论文为准): high-level VLM draws a coarse 2-D path with gripper states, low-level 3-D policy follows it. Toy `hamster_hierarchical_path_toy.py`: arms A monolithic kNN (sees background appearance) / B path + path-relative kNN low level / C off-task path; 4 regimes, 5 seeds, CRN. visual_shift B−A +76.5000±7.4162 clear 5/5; matched_easy clear B win (expected near-tie, disclosed); coarse_path B still ahead (expected loss, disclosed); no_appearance (added after the first run, disclosed) near-tie −2.5000±4.3301. ≠ ACT / DP head; ≠ MolmoAct traces. VLM / real robot 本页未运行.
+
+**Allocation / 安排:** each host 40+30+50+50+40=210 minutes. Sources: batch-16-pr3-sources.md.
+
+**Site accounting / 全站核算:** **33600=33180+420**; **M6=3240**, **71 lessons**.
 
 ## Batch-14 PR3 / 本月 H5 + H6 (+420)
 

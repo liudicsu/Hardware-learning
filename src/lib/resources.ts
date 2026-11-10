@@ -5847,6 +5847,34 @@ export const resources: Record<string, Resource> = {
     license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
     extra: true,
   },
+  "molmoact-paper": {
+    id: "molmoact-paper",
+    url: "https://arxiv.org/abs/2508.07917",
+    title: { zh: "MolmoAct 论文（Lee 等，2025）", en: "MolmoAct paper (Lee et al., 2025)" },
+    author: "Jason Lee, Jiafei Duan, Haoquan Fang, Yuquan Deng, Shuo Liu, et al. (Ai2 / University of Washington)",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "MolmoAct: Action Reasoning Models that can Reason in Space：按深度感知词元（128 码 VQVAE，每图 100 个）→ 最多 5 点的二维视觉推理轨迹 → 动作词元的顺序解码（式 4），可通过编辑轨迹引导（式 5）；附录 G 指出二维轨迹缺少深度。报告 SimplerEnv 70.5 %、LIBERO 平均 86.6 %，但表 2 中 Spatial / Object / Goal 低于 π0-FAST。arXiv 2508.07917 v4 正文已读；以论文为准。",
+      en: "MolmoAct: Action Reasoning Models that can Reason in Space: decodes depth perception tokens (128-code VQVAE, 100 per image), then a 2-D visual reasoning trace of at most 5 points, then action tokens (eq. 4), steerable by editing the trace (eq. 5); Appendix G notes the 2-D trace lacks depth. Reports SimplerEnv 70.5 % and LIBERO average 86.6 %, though Table 2 has Spatial / Object / Goal below π0-FAST. arXiv 2508.07917 v4 body read; 以论文为准.",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
+  "hamster-paper": {
+    id: "hamster-paper",
+    url: "https://arxiv.org/abs/2502.05485",
+    title: { zh: "HAMSTER 论文（Li 等，2025）", en: "HAMSTER paper (Li et al., 2025)" },
+    author: "Yi Li, Yuquan Deng, Jesse Zhang, Joel Jang, Marius Memmel, et al. (NVIDIA / University of Washington)",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "HAMSTER: Hierarchical Action Models For Open-World Robot Manipulation：上层 VLM（VILA-1.5-13B）只用非本域数据微调，输出带夹爪状态的粗略二维路径；下层三维策略（RVT-2 / 3D-DA）以画在图像上的路径为条件，用真值路径在少量本域数据上训练。报告真机比 OpenVLA 平均高 20 %；表 3 中部分变化项在离散范围内。arXiv 2502.05485 v4 正文已读；以论文为准。",
+      en: "HAMSTER: Hierarchical Action Models For Open-World Robot Manipulation: a high-level VLM (VILA-1.5-13B) fine-tuned only on off-domain data outputs a coarse 2-D path with gripper states; a low-level 3-D policy (RVT-2 / 3D-DA) is conditioned on the path drawn on the image and trained on a little in-domain data with oracle paths. Reports an average 20 % real-robot gain over OpenVLA; some Table 3 variations are within the spread. arXiv 2502.05485 v4 body read; 以论文为准.",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

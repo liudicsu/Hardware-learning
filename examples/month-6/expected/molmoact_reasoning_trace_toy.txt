@@ -1,0 +1,46 @@
+Synthetic MolmoAct-style depth tokens -> 2-D trace -> action vs a direct kNN policy vs a mirrored trace; not a 7B model
+V=0.05 SUB=10 R=0.06 T_MAX=80 WALL_T=0.06 WALL_H=0.45 PIX_SD=0.01 Z_SD=0.02 N_DEPTH=16 K_NN=3 tests=40 seeds=5
+no integration step: kinematic steps of at most V, wall checked at 10 points per step (V/SUB=0.005 < WALL_T=0.06)
+regime arm success_% final_err_x100 trace_end_err_x100  (mean+-sd over seeds)
+multi_stage_few (wall yes; in-task demos 5; steering none)
+  A_direct 20.5000+-9.9058 170.4544+-68.2030 n/a
+  B_trace 92.5000+-3.5355 3.8200+-0.2570 1.1971+-0.0966
+  C_wrong 0.0000+-0.0000 40.6362+-1.0010 60.5414+-2.1104
+  paired B-A succ: 72.0000+-8.5513: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A err: -166.6343+-67.9518: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B succ: -92.5000+-3.5355: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B err: 36.8162+-0.8894: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+multi_stage_many (wall yes; in-task demos 200; steering none)
+  A_direct 97.0000+-2.0917 6.7928+-2.3647 n/a
+  B_trace 92.5000+-4.6771 3.9352+-0.1257 1.2602+-0.0872
+  C_wrong 0.0000+-0.0000 39.9804+-0.8635 59.9082+-1.6151
+  paired B-A succ: -4.5000+-4.8088: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired B-A err: -2.8577+-2.3265: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B succ: -92.5000+-4.6771: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B err: 36.0452+-0.8760: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+single_step (wall no; in-task demos 5; steering none)
+  A_direct 37.0000+-13.5093 146.2008+-31.7537 n/a
+  B_trace 95.0000+-5.0000 4.1361+-0.1324 1.3075+-0.0886
+  C_wrong 0.0000+-0.0000 62.0234+-1.1061 59.6124+-1.3276
+  paired B-A succ: 58.0000+-17.1756: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A err: -142.0647+-31.8400: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B succ: -95.0000+-5.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B err: 57.8873+-1.0685: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+steer_in_plane (wall no; in-task demos 5; steering plane)
+  A_direct 11.0000+-7.8262 250.2991+-26.2073 n/a
+  B_trace 93.0000+-3.2596 3.9801+-0.2670 1.2602+-0.1411
+  C_wrong 16.5000+-2.8504 29.9327+-1.5754 29.9322+-1.2676
+  paired B-A succ: 82.0000+-8.9093: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A err: -246.3190+-26.1515: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B succ: -76.5000+-4.5415: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B err: 25.9526+-1.3736: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+steer_depth (wall no; in-task demos 5; steering depth)
+  A_direct 17.0000+-8.9093 228.5403+-26.6607 n/a
+  B_trace 48.0000+-4.1079 16.9566+-0.9544 1.2282+-0.0638
+  C_wrong 47.5000+-4.6771 16.8990+-0.9561 1.2916+-0.1535
+  paired B-A succ: 31.0000+-10.6946: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A err: -211.5837+-26.6263: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B succ: -0.5000+-1.1180: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 4 of 5 equal
+  paired C-B err: -0.0576+-0.0686: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+No winner declared: a correct, editable trace helps where the path has stages; a 2-D edit cannot choose along depth
+MolmoAct-7B / LIBERO / SimplerEnv / GPU: 本页未运行; paper numbers 以论文为准

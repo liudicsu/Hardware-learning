@@ -1342,9 +1342,510 @@ The page **does not declare a universal winner**. A subgoal learned from action-
 4. The toy already prints `STALE = 2` and `STALE_ALT = 3`. Set `STALE_ALT = 4` with seeds fixed, predict C−B success in `single_reach` and in `multi_stage_video`, then check.
 5. Before a real robot (本页未运行), explain why `multi_stage_no_video` is the fair control for the claim "visual chain of thought helps", and what the paper's Table 3 adds to it.
 
+## MolmoAct: reason in space, then act
+
+The CoT-VLA section above predicts one subgoal image before acting, and the ThinkAct section in Month 10 (real-world-rl) reasons in a visual plan latent rewarded by RL. **MolmoAct** takes a third route. It decodes three token chains in order: depth perception tokens, a short **visual reasoning trace** drawn on the image, and then the action tokens. Because the trace is an explicit set of image points, a user can edit it to steer the robot. This section tests that idea on a small synthetic stand-in. It is **not** a redo of CoT-VLA, **not** ThinkAct, and **not** TraceVLA (which draws a tracker's history onto the input image as a prompt).
+
+<Resource id="molmoact-paper" />
+
+**Source actually opened (arXiv 2508.07917 abs page checked; v4 PDF body read via pdftotext; HTML version fetched).**
+
+- **Lee, Duan, Fang, Deng, Liu, Li, Fang, Zhang, Wang, Lee, Han, Pumacay, Wu, Hendrix, Farley, VanderBilt, Farhadi, Fox and Krishna, "MolmoAct: Action Reasoning Models that can Reason in Space" (Ai2 / University of Washington, 2025):**
+  - An **Action Reasoning Model** factorises its output as depth tokens, then trace tokens, then action tokens (eq. 4), so each stage is conditioned on the ones before it.
+  - **Depth perception tokens** (eqs. 1–2): a VQVAE codebook of N = 128 codes, M = 100 tokens per image, distilled from a depth specialist trained on Depth Anything V2 depth maps.
+  - **Visual reasoning trace** (eq. 3): a polyline of 1 to 5 image points, coordinates in 0–255; the first point is the current gripper position and the rest are later gripper positions subsampled from the episode. Labels come from Molmo pointing at the gripper in every frame.
+  - **Steering** (eq. 5): the user draws a trace, it is overlaid on the image, and the model predicts actions from the overlaid image and the instruction.
+  - Actions are discretised into 256 bins per dimension.
+  - Appendix G lists limitations: an occluded end-effector degrades trace prediction, and a purely 2-D steering trace "lacks an explicit notion of depth", so the robot follows the drawn path in the image plane but moves imprecisely along the camera's depth axis.
+- **Reported results (以论文为准):**
+  - Abstract: 70.5 % zero-shot on SimplerEnv visual matching, 86.6 % average on LIBERO (+6.3 % over ThinkAct on the long-horizon suite), +10 % (single-arm) and +22.7 % (bimanual) task progression over π0-FAST in real-world fine-tuning, +23.3 % out of distribution, and +5.5 % from the MolmoAct Dataset mid-training.
+  - Table 2 per suite: MolmoAct 87.0 / 95.4 / 87.6 / 77.2 (Spatial / Object / Goal / Long) against π0-FAST 96.4 / 96.8 / 88.6 / 60.2. MolmoAct leads on Long and on the average, but not on Spatial, Object or Goal.
+  - Section 5.6: steering by visual trace reaches 0.75 success over 15 trials and beats open-ended language steering by 33 %.
+- MolmoAct-7B weights, LIBERO, SimplerEnv, the real Franka setups and GPU training: **本页未运行**.
+
+### Depth, then trace, then action
+
+<Formula label="Action reasoning factorisation (MolmoAct eq. 4)">p(d, τ, a ∣ I, T) = ∏ p(d_i ∣ I, T, d_before_i) · ∏ p(τ_j ∣ I, T, d, τ_before_j) · ∏ p(a_k ∣ I, T, d, τ, a_before_k)</Formula>
+
+<Formula label="Visual reasoning trace (MolmoAct eq. 3)">τ = (p1, …, pL),  1 ≤ L ≤ 5,  pi = (ui, vi)</Formula>
+
+The trace is only 2-D. It says where the gripper should appear in the image, not how far it is from the camera; depth has to come from somewhere else, and in MolmoAct that is the depth token chain. That split is exactly what the toy's last regime probes.
+
+**Worked example.** The toy quantises depth into `N_DEPTH = 16` levels, a coarse stand-in for the paper's 128 codes. A bin at depth `z = 0.43` falls in level `int(0.43 · 16) = 6`, whose token depth is `(6 + 0.5) / 16 = 0.40625`: an error of 0.024, under the worst case `1 / (2 · 16) = 0.03125`. With the 0.06 placing tolerance, quantisation alone never fails a placement, but it adds to the perception noise.
+
+**No integration step here.** The gripper is kinematic: each step moves it at most `V = 0.05` towards the commanded point. **Correctness criterion for the wall.** Every step's segment is checked for the wall at `SUB = 10` points, and the toy asserts `V / SUB = 0.005 < WALL_T = 0.06`, so a step cannot pass through the wall between two checks. A test checks that a segment through the wall is caught and one above it is not.
+
+### Fair setup
+
+`molmoact_reasoning_trace_toy.py` is **synthetic** and stdlib only. **Model assumptions:**
+- A front camera sees the image plane (`u` left-right, `v` height); `z` is depth. The gripper must pick an object from the table and place it in a bin within 80 steps.
+- In the wall regimes a wall (height 0.45) stands between object and bin, so the path needs a lift; touching the wall fails the episode.
+- Every arm sees the same scene with the same pixel noise (sd 0.01) and depth noise (sd 0.02).
+- The trace is built by a fixed rule from the perceived scene. It stands in for a trace head trained on plenty of trace data, so the toy measures what a correct, editable trace buys and what a wrong one costs, **not** how hard a trace is to predict.
+
+| Arm | Model |
+|---|---|
+| A_direct | k-nearest-neighbour policy (k = 3) from observation features straight to the action, learned from the regime's in-task demonstrations |
+| B_trace | depth tokens, then a trace of at most 5 points (gripper, object, lift, over, bin), then a step towards the next trace point at the depth read from the depth token under it |
+| C_wrong | B with the trace mirrored left-right (`u → 1 − u`); in the steering regimes, the frozen trace to the other bin |
+
+**Common random numbers:** for each (regime, seed) the demonstrations, test scenes, perception noise, start points and intended bins are drawn once and shared by all three arms; 40 test episodes per seed, five seeds.
+
+| Regime | Wall | In-task demos | Steering | Expected before the run |
+|---|---|---|---|---|
+| multi_stage_few | yes | 5 | none | B consistent win over A |
+| multi_stage_many | yes | 200 | none | near-tie (A has enough data) |
+| single_step | no | 5 | none | near-tie; B may lose a little to depth quantisation |
+| steer_in_plane | no | 5 | two bins left and right, edited trace | B beats A and the frozen C |
+| steer_depth | no | 5 | two bins at the same image point, one behind the other | B ties or loses: a 2-D edit cannot choose along depth |
+
+`single_step` means no wall, so there is no lift stage; it is still a pick followed by a place.
+
+**Choices made after seeing results.** No parameter, regime or seed was changed. Two code changes came after a run and are disclosed here:
+- The first invocation stopped with an error inside the first regime, before any arm's numbers were printed: C's trace looked up a bin index that only exists in the steering regimes. The fix gives C the mirrored trace to the intended bin, as the docstring already described.
+- After the first full run the neighbour search was rewritten with an early exit (`nearest`) to cut the run time from about 57 s to about 22 s. The output is byte-identical (compared with `cmp`), and a test checks `nearest` against a full sort.
+- Alternatives not taken: keeping the slower `heapq` search; renaming `single_step`.
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-6/vla-models
+python3 molmoact_reasoning_trace_toy.py
+```
+
+<CodeSource path="examples/month-6/vla-models/molmoact_reasoning_trace_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""MolmoAct-style action reasoning: depth tokens -> editable 2-D visual trace -> action, vs a direct policy.
+
+Synthetic, stdlib only.  Not ThinkAct (language reasoning plans), not CoT-VLA (one predicted
+subgoal image), not TraceVLA (trace drawn as a visual prompt from a tracker).  Real MolmoAct
+(7B, 100 depth tokens from a VQVAE, LIBERO / SimplerEnv) / GPU: 本页未运行.  Paper numbers are
+以论文为准 (arXiv 2508.07917).
+
+World: a front camera sees the image plane (u = left-right, v = height); z is depth (distance
+from the camera).  Coordinates are in [0, 1].  A gripper starts at a random point and must pick an
+object resting on the table (v = V_TABLE) and place it in a bin, within T_MAX steps.  In wall
+regimes a wall (thickness WALL_T, height WALL_H, all depths) stands between object and bin, so
+the gripper must lift over it; touching the wall fails the episode.  A step moves the gripper by
+at most V towards the commanded point.  No integration step: the gripper is kinematic; every step's
+segment is checked for the wall at SUB points, and V / SUB < WALL_T is asserted so a step cannot
+tunnel through the wall.
+Perception, shared by every arm (common random numbers): the object, bin and wall positions are
+seen with pixel noise PIX_SD in u, v and depth noise Z_SD in z.
+Arms:
+  A_direct     k-nearest-neighbour policy (K_NN = 3) from observation features straight to the
+               action, learned from DEMOS in-task demonstrations (state-action pairs of a noisy
+               demonstrator on random scenes of the same regime).
+  B_trace      MolmoAct-style: depth perception tokens (observed depth quantised to N_DEPTH
+               levels), then a visual reasoning trace of at most 5 image-plane points (gripper,
+               object, lift, over, bin, as in the paper's 1 <= L <= 5 polyline), then a
+               trajectory-conditioned action: step towards the next trace point, at the depth
+               read from the depth token under that point.  The trace is built by a fixed rule
+               from the perceived scene: it stands in for a trace head trained on plenty of
+               trace data, so this toy measures what a correct, editable trace buys and what a
+               wrong one costs, not how hard a trace is to predict.
+  C_wrong      B with the trace mirrored left-right (u -> 1 - u): a wrong / frozen trace.
+Steering regimes: the instruction names no bin and there are two bins.  The intended bin is
+drawn per episode.  A cannot be steered (its features see both bins).  B's trace is edited by
+the user to end at the intended bin (the edit is 2-D: image-plane points only).  C keeps the
+trace to the other bin.
+Regimes and expectations, written before the first run:
+  multi_stage_few     wall, DEMOS = 5      B consistent win over A
+  multi_stage_many    wall, DEMOS = 200    near-tie (A has enough in-task data)
+  single_step         no wall, DEMOS = 5   near-tie (B may lose a little to depth quantisation)
+  steer_in_plane      two bins left / right, edited trace: B beats A and the frozen C
+  steer_depth         two bins at the same (u, v), one behind the other: a 2-D edit cannot say
+                      which; B ties or loses (the paper's out-of-plane limitation)
+Metrics per seed (TESTS episodes): success %, final 3-D distance to the intended bin (x100), and
+for B / C the 2-D distance from the trace end to the intended bin (x100).
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+V = 0.05            # max step length
+SUB = 10            # wall check points per step
+R = 0.06            # pick / place tolerance (3-D)
+R_TRACE = 0.04      # advance to the next trace point within this distance
+T_MAX = 80
+V_TABLE = 0.05
+WALL_T = 0.06
+WALL_H = 0.45
+LIFT = 0.12         # demonstrator / trace clearance above the wall
+PIX_SD = 0.01
+Z_SD = 0.02
+N_DEPTH = 16        # depth token levels (the paper uses a 128-code VQVAE; a coarse stand-in)
+A_SD = 0.005        # demonstrator action noise
+K_NN = 3
+TESTS = 40
+NUM_ZERO = 1e-9
+ARMS = ("A_direct", "B_trace", "C_wrong")
+# name: (wall, in-task demos, steering: None / "plane" / "depth")
+REGIMES = {
+    "multi_stage_few": (True, 5, None),
+    "multi_stage_many": (True, 200, None),
+    "single_step": (False, 5, None),
+    "steer_in_plane": (False, 5, "plane"),
+    "steer_depth": (False, 5, "depth"),
+}
+
+
+def sub(a, b):
+    return [x - y for x, y in zip(a, b)]
+
+
+def norm(a):
+    return math.sqrt(sum(x * x for x in a))
+
+
+def scene(rng, wall, steer):
+    """True scene: object, bins (one or two), wall u; the object is left of the bin."""
+    obj = [rng.uniform(0.1, 0.3), V_TABLE, rng.uniform(0.3, 0.7)]
+    if steer == "plane":
+        bins = [[rng.uniform(0.45, 0.6), V_TABLE, rng.uniform(0.3, 0.7)], [rng.uniform(0.75, 0.9), V_TABLE, 0.0]]
+        bins[1][2] = rng.uniform(0.3, 0.7)
+    elif steer == "depth":
+        u, z = rng.uniform(0.6, 0.9), rng.uniform(0.25, 0.4)
+        bins = [[u, V_TABLE, z], [u, V_TABLE, z + 0.3]]
+    else:
+        bins = [[rng.uniform(0.7, 0.9), V_TABLE, rng.uniform(0.3, 0.7)]]
+    wall_u = rng.uniform(0.45, 0.55) if wall else None
+    return {"obj": obj, "bins": bins, "wall": wall_u}
+
+
+def hits_wall(p, q, wall_u):
+    if wall_u is None:
+        return False
+    for i in range(SUB + 1):
+        u = p[0] + (q[0] - p[0]) * i / SUB
+        v = p[1] + (q[1] - p[1]) * i / SUB
+        if abs(u - wall_u) <= WALL_T / 2 and v <= WALL_H:
+            return True
+    return False
+
+
+def step_to(g, target):
+    d = sub(target, g)
+    n = norm(d)
+    if n <= V:
+        return list(target)
+    return [x + V * y / n for x, y in zip(g, d)]
+
+
+def waypoints(sc, b, wall_u):
+    """Demonstrator / trace points after the object: lift, over, bin (lift only with a wall)."""
+    o, k = sc["obj"], sc["bins"][b]
+    if wall_u is None:
+        return [k]
+    top = WALL_H + LIFT
+    return [[o[0], top, o[2]], [k[0], top, k[2]], k]
+
+
+def features(g, held, sc, wall_u):
+    """A's observation features, relative to the gripper; with two bins both are seen."""
+    f = [float(held)]
+    if not held:
+        f += sub(sc["obj"], g)
+    else:
+        f += [0.0, 0.0, 0.0]
+    for k in sc["bins"]:
+        f += sub(k, g) if held else [0.0, 0.0, 0.0]
+    if wall_u is not None:
+        f += [wall_u - g[0], WALL_H - g[1]]
+    return f
+
+
+def demos(rng, wall, steer, n):
+    """State-action pairs from a noisy demonstrator; in steering regimes the bin is 50/50."""
+    data = []
+    for _ in range(n):
+        sc = scene(rng, wall, steer)
+        b = rng.randrange(len(sc["bins"]))
+        g = [rng.uniform(0.05, 0.35), rng.uniform(0.2, 0.4), rng.uniform(0.3, 0.7)]
+        plan = [sc["obj"]] + waypoints(sc, b, sc["wall"])
+        held, i = 0, 0
+        for _ in range(T_MAX):
+            nxt = step_to(g, plan[i])
+            a = [x - y + rng.gauss(0.0, A_SD) for x, y in zip(nxt, g)]
+            data.append((features(g, held, sc, sc["wall"]), a))
+            g = [x + y for x, y in zip(g, a)]
+            if norm(sub(g, plan[i])) <= R / 2:
+                if i == 0:
+                    held = 1
+                i += 1
+                if i == len(plan):
+                    break
+    return data
+
+
+def perceive(sc, rng):
+    def p(x):
+        return [x[0] + rng.gauss(0.0, PIX_SD), x[1] + rng.gauss(0.0, PIX_SD), x[2] + rng.gauss(0.0, Z_SD)]
+    return {"obj": p(sc["obj"]), "bins": [p(k) for k in sc["bins"]], "wall": None if sc["wall"] is None else sc["wall"] + rng.gauss(0.0, PIX_SD)}
+
+
+def depth_token(z):
+    lvl = min(N_DEPTH - 1, max(0, int(z * N_DEPTH)))
+    return (lvl + 0.5) / N_DEPTH
+
+
+def depth_under(seen, uv):
+    """Depth token at an image point: the nearest surface (smallest z) among scene items there."""
+    zs = [x[2] for x in [seen["obj"]] + seen["bins"] if abs(x[0] - uv[0]) < 0.05 and abs(x[1] - uv[1]) < 0.05]
+    return depth_token(min(zs)) if zs else None
+
+
+def trace(seen, g, b, mirror):
+    pts = [seen["obj"]] + waypoints(seen, b, seen["wall"])
+    uv = [[p[0], p[1]] for p in [g] + pts][:5]
+    if mirror:
+        uv = [uv[0]] + [[1.0 - u, v] for u, v in uv[1:]]
+    return uv
+
+
+def run_trace(sc, seen, g, b_trace, mirror):
+    """B / C: follow the 2-D trace; depth from the depth token under each point (else hold depth)."""
+    uv = trace(seen, g, b_trace, mirror)
+    zt = depth_token(seen["obj"][2])
+    pts = []
+    for i, (u, v) in enumerate(uv[1:]):
+        z = depth_under(seen, (u, v))
+        if z is None:
+            z = depth_token(seen["obj"][2]) if i == 0 else zt
+        zt = z
+        pts.append([u, v, z])
+    return pts, uv[-1]
+
+
+def episode(arm, sc, seen, g, want, wall, table, mirror_other):
+    held, i = 0, 0
+    if arm != "A_direct":
+        b_trace = mirror_other if (arm == "C_wrong" and mirror_other is not None) else want
+        pts, end = run_trace(sc, seen, g, b_trace, arm == "C_wrong" and mirror_other is None)
+    for _ in range(T_MAX):
+        if arm == "A_direct":
+            f = features(g, held, seen, seen["wall"])
+            near = nearest(table, f)
+            a = [sum(r[j] for r in near) / K_NN for j in range(3)]
+            n = norm(a)
+            q = [x + y * (min(1.0, V / n) if n > 0 else 0.0) for x, y in zip(g, a)]
+        else:
+            q = step_to(g, pts[i])
+            if norm(sub(q, pts[i])) <= R_TRACE and i < len(pts) - 1:
+                i += 1
+        if hits_wall(g, q, sc["wall"]):
+            return 0.0, norm(sub(g, sc["bins"][want])), None if arm == "A_direct" else norm(sub(end, sc["bins"][want][:2]))
+        g = q
+        if not held and norm(sub(g, sc["obj"])) <= R:
+            held = 1
+        if held and norm(sub(g, sc["bins"][want])) <= R:
+            return 1.0, norm(sub(g, sc["bins"][want])), None if arm == "A_direct" else norm(sub(end, sc["bins"][want][:2]))
+    return 0.0, norm(sub(g, sc["bins"][want])), None if arm == "A_direct" else norm(sub(end, sc["bins"][want][:2]))
+
+
+def shared_draws(regime, seed):
+    """Common random numbers: demos, scenes, perception noise, starts and intended bins drawn once."""
+    wall, n, steer = REGIMES[regime]
+    rng = random.Random(1000 * seed + sorted(REGIMES).index(regime))
+    table = demos(rng, wall, steer, n)
+    tests = []
+    for _ in range(TESTS):
+        sc = scene(rng, wall, steer)
+        seen = perceive(sc, rng)
+        g = [rng.uniform(0.05, 0.35), rng.uniform(0.2, 0.4), rng.uniform(0.3, 0.7)]
+        want = rng.randrange(len(sc["bins"]))
+        tests.append((sc, seen, g, want))
+    return table, tests
+
+
+def evaluate(arm, regime, draw):
+    wall, _, steer = REGIMES[regime]
+    table, tests = draw
+    succ, err, terr = [], [], []
+    for sc, seen, g, want in tests:
+        other = None if steer is None else 1 - want
+        s, e, t = episode(arm, sc, seen, list(g), want, wall, table, other)
+        succ.append(s)
+        err.append(e)
+        if t is not None:
+            terr.append(t)
+    out = {"succ": 100.0 * sum(succ) / len(succ), "err": 100.0 * sum(err) / len(err)}
+    out["trace"] = 100.0 * sum(terr) / len(terr) if terr else None
+    return out
+
+
+def nearest(table, f):
+    """The K_NN rows nearest to f, ordered by (distance, row index): same as heapq.nsmallest, with early exit."""
+    best = []
+    worst = float("inf")
+    for idx, (row, act) in enumerate(table):
+        d = 0.0
+        for x, y in zip(row, f):
+            d += (x - y) * (x - y)
+            if d >= worst:
+                break
+        else:
+            best.append((d, idx, act))
+            best.sort(key=lambda b: (b[0], b[1]))
+            if len(best) > K_NN:
+                best.pop()
+            if len(best) == K_NN:
+                worst = best[-1][0]
+    return [b[2] for b in best]
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-5:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{num(m)}+-{num(s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{num(m)}+-{num(s)}: {label}; {sign_note(diffs, m)}"
+
+
+def main():
+    assert V / SUB < WALL_T
+    print("Synthetic MolmoAct-style depth tokens -> 2-D trace -> action vs a direct kNN policy vs a mirrored trace; not a 7B model")
+    print(f"V={V} SUB={SUB} R={R} T_MAX={T_MAX} WALL_T={WALL_T} WALL_H={WALL_H} PIX_SD={PIX_SD} Z_SD={Z_SD} N_DEPTH={N_DEPTH} K_NN={K_NN} tests={TESTS} seeds={len(SEEDS)}")
+    print(f"no integration step: kinematic steps of at most V, wall checked at {SUB} points per step (V/SUB={V / SUB:.3f} < WALL_T={WALL_T})")
+    print("regime arm success_% final_err_x100 trace_end_err_x100  (mean+-sd over seeds)")
+    for regime, (wall, n, steer) in REGIMES.items():
+        print(f"{regime} (wall {'yes' if wall else 'no'}; in-task demos {n}; steering {steer or 'none'})")
+        draws = [shared_draws(regime, s) for s in SEEDS]
+        res = {arm: [evaluate(arm, regime, d) for d in draws] for arm in ARMS}
+        for arm in ARMS:
+            cols = ["{}+-{}".format(*map(num, mean_sd([r[k] for r in res[arm]]))) for k in ("succ", "err")]
+            cols.append("n/a" if res[arm][0]["trace"] is None else "{}+-{}".format(*map(num, mean_sd([r["trace"] for r in res[arm]]))))
+            print(f"  {arm} " + " ".join(cols))
+        for x, y in (("B_trace", "A_direct"), ("C_wrong", "B_trace")):
+            for key in ("succ", "err"):
+                print(f"  paired {x[0]}-{y[0]} {key}: {verdict([r[key] for r in res[x]], [r[key] for r in res[y]])}")
+    print("No winner declared: a correct, editable trace helps where the path has stages; a 2-D edit cannot choose along depth")
+    print("MolmoAct-7B / LIBERO / SimplerEnv / GPU: 本页未运行; paper numbers 以论文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic MolmoAct-style depth tokens -> 2-D trace -> action vs a direct kNN policy vs a mirrored trace; not a 7B model
+V=0.05 SUB=10 R=0.06 T_MAX=80 WALL_T=0.06 WALL_H=0.45 PIX_SD=0.01 Z_SD=0.02 N_DEPTH=16 K_NN=3 tests=40 seeds=5
+no integration step: kinematic steps of at most V, wall checked at 10 points per step (V/SUB=0.005 < WALL_T=0.06)
+regime arm success_% final_err_x100 trace_end_err_x100  (mean+-sd over seeds)
+multi_stage_few (wall yes; in-task demos 5; steering none)
+  A_direct 20.5000+-9.9058 170.4544+-68.2030 n/a
+  B_trace 92.5000+-3.5355 3.8200+-0.2570 1.1971+-0.0966
+  C_wrong 0.0000+-0.0000 40.6362+-1.0010 60.5414+-2.1104
+  paired B-A succ: 72.0000+-8.5513: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A err: -166.6343+-67.9518: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B succ: -92.5000+-3.5355: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B err: 36.8162+-0.8894: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+multi_stage_many (wall yes; in-task demos 200; steering none)
+  A_direct 97.0000+-2.0917 6.7928+-2.3647 n/a
+  B_trace 92.5000+-4.6771 3.9352+-0.1257 1.2602+-0.0872
+  C_wrong 0.0000+-0.0000 39.9804+-0.8635 59.9082+-1.6151
+  paired B-A succ: -4.5000+-4.8088: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired B-A err: -2.8577+-2.3265: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B succ: -92.5000+-4.6771: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B err: 36.0452+-0.8760: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+single_step (wall no; in-task demos 5; steering none)
+  A_direct 37.0000+-13.5093 146.2008+-31.7537 n/a
+  B_trace 95.0000+-5.0000 4.1361+-0.1324 1.3075+-0.0886
+  C_wrong 0.0000+-0.0000 62.0234+-1.1061 59.6124+-1.3276
+  paired B-A succ: 58.0000+-17.1756: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A err: -142.0647+-31.8400: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B succ: -95.0000+-5.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B err: 57.8873+-1.0685: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+steer_in_plane (wall no; in-task demos 5; steering plane)
+  A_direct 11.0000+-7.8262 250.2991+-26.2073 n/a
+  B_trace 93.0000+-3.2596 3.9801+-0.2670 1.2602+-0.1411
+  C_wrong 16.5000+-2.8504 29.9327+-1.5754 29.9322+-1.2676
+  paired B-A succ: 82.0000+-8.9093: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A err: -246.3190+-26.1515: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B succ: -76.5000+-4.5415: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B err: 25.9526+-1.3736: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+steer_depth (wall no; in-task demos 5; steering depth)
+  A_direct 17.0000+-8.9093 228.5403+-26.6607 n/a
+  B_trace 48.0000+-4.1079 16.9566+-0.9544 1.2282+-0.0638
+  C_wrong 47.5000+-4.6771 16.8990+-0.9561 1.2916+-0.1535
+  paired B-A succ: 31.0000+-10.6946: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A err: -211.5837+-26.6263: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B succ: -0.5000+-1.1180: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 4 of 5 equal
+  paired C-B err: -0.0576+-0.0686: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+No winner declared: a correct, editable trace helps where the path has stages; a 2-D edit cannot choose along depth
+MolmoAct-7B / LIBERO / SimplerEnv / GPU: 本页未运行; paper numbers 以论文为准
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used on this page, in this order: **tie: identical on every seed** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when `|paired mean|` and its sd are both below 1e-9 (no sign count is printed on such a line); **near-tie / small gap, within seed noise** when `|paired mean| ≤ sd`; otherwise a **consistent** gap (`|paired mean| > sd`), called **small** if `|m|` is under 20 % of the smaller arm mean and **clear** otherwise; the 20 % rule only chooses between those two words. Every consistent line carries a same-sign count over the 5 seeds, and any seed with the opposite sign is reported; a sign count alone never makes a gap consistent. Gaps are computed from unrounded values. Paired differences are B−A and C−B. `succ` is success in %, `err` the final 3-D distance to the intended bin (×100).
+
+- **multi_stage_few:**
+  - **The trace wins with a clear gap:** B−A success 72.0000±8.5513 points, same sign on all 5 seeds (A 20.5 %, B 92.5 %).
+  - A fails by drifting: once its gripper leaves the states seen in five demonstrations, the nearest neighbours keep pushing it the same way. This is the covariate shift of the behaviour-cloning lesson, not a wall-specific effect.
+  - The mirrored trace loses with a clear gap: C−B success −92.5000±3.5355, same sign on all 5 seeds.
+- **multi_stage_many:**
+  - With 200 demonstrations A catches up: B−A success is a **near-tie / small gap, within seed noise** (−4.5000±4.8088, 1 of 5 seeds of the opposite sign). On the mean, B is the lower one (92.5 % against 97.0 %).
+  - B still ends closer to the bin when it succeeds or fails (B−A `err` −2.8577±2.3265, clear, 5/5), because it heads for the bin point instead of averaging neighbours.
+- **single_step:**
+  - The expected near-tie did **not** happen: B−A success 58.0000±17.1756, clear, 5/5. Five demonstrations are too few for A even without a wall, for the same drift reason.
+- **steer_in_plane:**
+  - With an edited trace **B beats A with a clear gap** (B−A success 82.0000±8.9093, 5/5) and beats the frozen trace (C−B −76.5000±4.5415, 5/5). A cannot be told which bin, and its neighbours mix the two.
+- **steer_depth:**
+  - **The 2-D edit cannot choose along depth.** Both bins sit at the same image point, so the edited trace and the frozen one are the same points. Both arms read the nearer bin's depth token and succeed only when the nearer bin was the intended one.
+  - C−B success is a near-tie (−0.5000±1.1180, no seed of the opposite sign, 4 of 5 equal), and so is `err` (−0.0576±0.0686).
+  - B still beats A (31.0000±10.6946, clear, 5/5), only because A also cannot choose and drifts.
+
+The page **does not declare a universal winner**: a correct trace helps most where the path has stages and data are scarce, A catches up with data, and a 2-D trace cannot carry a depth choice, the limitation the paper itself names. Paper numbers are 以论文为准, and MolmoAct-7B, LIBERO, SimplerEnv and GPU training are **本页未运行**.
+
+**210-minute work plan:** 40 min read Sections 2.3–2.4, 5.6 and Appendix G of the paper; 30 min redo the depth-token example and the wall bound by hand; 50 min run the toy and read the five regimes; 50 min change `N_DEPTH`, the demo counts in `REGIMES` and `PIX_SD` with seeds fixed; 40 min write down which steering edits a 2-D trace can and cannot express on your robot.
+
+### Exercises
+
+1. For `z = 0.72` and `N_DEPTH = 16`, compute the depth token and its error; then repeat for `N_DEPTH = 128`, the paper's codebook size.
+2. Show from `shared_draws` and `evaluate` that A, B and C see the same demonstrations, scenes, noise, starts and intended bins for a given seed.
+3. Write the trace the toy builds for a wall scene, point by point, and say which point the mirror changes first.
+4. Set the `multi_stage_few` demo count to 20 with seeds fixed. Predict whether B−A success stays a clear gap before you run.
+5. Before any run on a real robot (本页未运行), write how you would give a user a way to choose between two bins that line up along the camera axis.
+
 <Summary>
 
 A VLA starts from a pretrained vision-language model and maps camera images plus an instruction to actions, either as tokens or through a separate action head; you usually download one and fine-tune it on about 50 demonstrations. Per-step tokenisation uses 256 bins per dimension (RT-2 over the data's min/max, OpenVLA between the 1st and 99th percentiles), with at most half a bin of error inside the range and clipping outside it, while FAST compresses a whole chunk with a DCT so a scale trades token count against error. The download table separates code licences from weight licences, SmolVLA is the size that fits one consumer GPU (its architecture and timings per the paper), and `vla_async_chunk_toy.py` shows asynchronous chunk inference trading idle time and staleness against more inference calls and splices around the threshold g ≥ (E[ℓ_S] / Δt) / n. `dual_system_vla_cadence_toy.py` adds dual-system literacy from OpenHelix: a slow System 2 sets the goal and a fast System 1 acts every tick and must see real-time perception (so π0 is not called dual-system), and at equal compute with a mid-episode instruction switch only the dual arm whose System 1 sees the current image both follows the new instruction and tracks moving targets, while with static targets the single-rate arms lose nothing — real weights, GPUs and CALVIN numbers stay 以论文为准 / 本页未运行. `rdt2_rvq_fm_distill_toy.py` adds RDT2's three-stage recipe (RVQ tokens with cross-entropy, a frozen-VLM flow-matching expert, one-step distillation) and shows over five seeds that at an equal 8-bit budget fewer tokens cost codebook entries, and that one-step sampling costs either quality or an offline distillation budget, without declaring a winner; RDT2's scores stay 以论文为准 and its 7B training / GPU 本页未运行.
 
-- CoT-VLA visual subgoals: with one action demo and 30 videos a subgoal-then-chunk policy beats a direct one (B−A 62.0000±44.8400 points, clear, 5/5), is a **near-tie** with no video, with plenty of action demos or on a single reach, always costs more tokens, and loses when the subgoal goes stale (refresh every 2nd chunk, chosen after seeing every 3rd, which fails every multi-stage episode) — `cot_vla_subgoal_toy.py`, count tables, not CoT-VLA's 7B GPU results.
+- CoT-VLA visual subgoals: with one action demo and 30 videos a subgoal-then-chunk policy beats a direct one (B−A 62.0000±44.8400 points, clear, 5/5), is a **near-tie** with no video, with plenty of action demos or on a single reach, always costs more tokens, and loses when the subgoal goes stale (refresh every 2nd chunk, chosen after seeing every 3rd, which fails every multi-stage episode) — `cot_vla_subgoal_toy.py`, count tables, not CoT-VLA's 7B GPU results. MolmoAct reasons in space before acting — depth tokens, then an editable 2-D trace of at most five points, then actions: on shared scenes a correct trace wins clearly when a wall forces a lift and demonstrations are few (paired success +72.0000±8.5513 points, 5/5) and an edited trace steers to the intended bin, but with 200 demonstrations the direct policy reaches a near-tie, and a 2-D edit cannot choose between bins lined up in depth (edited vs frozen trace near-tie) — `molmoact_reasoning_trace_toy.py`, not MolmoAct-7B; paper numbers 以论文为准.
 </Summary>
