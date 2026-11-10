@@ -564,8 +564,434 @@ Paper speed-ups (e.g. 5x vs diffusion) are not measured here: 以论文为准. G
 - <strong>一味加同样的数据。</strong>策略在某处失败时，先确定失败位置（“wall hits at” 那一行），再在那里录制或重新标注数据。同样的 80 条示范没有赢过 20 条。
 - <strong>用机器人实际做了什么来训练，而不是命令了什么。</strong>动作列必须是命令（主臂的关节目标），而不是从臂下一帧测到的位置，否则策略会学会滞后。
 
+## HAMSTER：上层画二维路径，下层三维策略
+
+本页到目前为止的每个策略都把相机看到的东西直接映射成动作，所以图像里的任何东西都可能进入决策：杯子，也包括桌布和光照。**HAMSTER** 把策略拆成两层。上层是一个视觉语言模型，在图像上为夹爪画一条粗略的**二维路径**；下层是一个使用三维输入的小策略，沿路径执行。路径可以从视频、手绘草图或仿真中标注出来，所以上层可以用便宜的非本域数据学习，下层只需学局部几何。本节在一个合成替身上检验这种拆分。这**不是** ACT 或 Diffusion Policy 动作头（第 6 个月 act-diffusion），**不是** MolmoAct 的深度词元和可编辑轨迹（第 6 个月 vla-models），也**不是** OpenVLA 微调。
+
+<Resource id="hamster-paper" />
+
+**实际打开的来源（核对了 arXiv 2502.05485 摘要页；用 pdftotext 读了 v4 PDF 正文；HTML 版本已抓取）。**
+
+- **Li、Deng、Zhang、Jang、Memmel、Yu、Garrett、Ramos、Fox、Li、Gupta 和 Goyal，《HAMSTER: Hierarchical Action Models For Open-World Robot Manipulation》（NVIDIA / 华盛顿大学 / 南加州大学，2025）**，要点如下。
+  - 第 4.1 节：上层 VLM（VILA-1.5-13B）根据一张 RGB 图像和指令预测粗略路径 `p = [(x_t, y_t, gripper_open_t)]`，其中 `x_t, y_t` 取值于 [0, 1]。
+  - 它只用非本域数据微调：77 万条 RoboPoint 像素点任务、32 万条 RLBench 仿真路径、11 万条 Bridge / DROID 真机路径。用论文的话说，“用来训练 VLM 的非本域数据没有一条来自部署环境”（none of this off-domain data used to train the VLM comes from the deployment environment）。
+  - 第 4.2 节：下层策略 `πθ(a ∣ s, o, z, p)` 的输入是本体感知、三维观测（RVT-2 或 3D Diffuser Actor）和画在图像上的路径。它用少量本域数据训练，路径用由本体感知投影得到的**真值**路径。
+  - 每个回合只调用 VLM 一次或几次，而不是每步都调用。
+  - 附录 E 列出的失败方式：路径错误（误解目标、选错物体），路径在开始时就固定而场景在变，以及二维路径的三维歧义（点在物体上方还是后方）。
+- **论文报告的结果**（以论文为准）如下。
+  - 摘要：在真机上，七个泛化维度平均比 OpenVLA 成功率高 20 %，相对提升 50 %。
+  - 表 3（Colosseum，5 个种子）：HAMSTER 配 3D-DA 平均 0.46 ± 0.04，普通 3D-DA 为 0.35 ± 0.04。有些变化项落在离散范围之内：相机位姿 0.39 ± 0.06 对 0.35 ± 0.11，干扰物 0.41 ± 0.05 对 0.39 ± 0.11。
+  - 表 1：HAMSTER 配 3D-DA、只用一半示范时为 0.36 ± 0.04，3D-DA 为 0.18 ± 0.10。
+  - 表 4：微调后的 VLM 在部分 VQA 基准上低于其 VILA-1.5-13B 基座，例如 ScienceQA-IMG 78.0 对 80.1，TextVQA 61.4 对 65.0。
+- HAMSTER VLM、RVT-2 / 3D-DA、真机和 GPU 训练均**本页未运行**。
+
+### 上层画路径，下层执行
+
+<Formula label="上层路径（HAMSTER 第 4.1 节）">p = [(x_t, y_t, gripper_open_t)],  x_t, y_t ∈ [0, 1]</Formula>
+
+<Formula label="以路径为条件的下层策略（HAMSTER 第 4.2 节）">a ∼ πθ(a ∣ s, o, z, p)</Formula>
+
+路径携带的是**做什么**和大致**在哪里**；它不说明怎么抓，作为二维图画也不携带深度。下层从自己的三维观测中获得深度。
+
+**算例。** toy 里每个路径点等于感知到的位置（每轴像素噪声标准差 0.01）加上每轴标准差为 `PATH_SD` 的路径噪声。`PATH_SD = 0.02` 时，一个点的二维误差每轴标准差为 `√(0.02² + 0.01²) = 0.0224`。其平均长度为它乘以 `√(π/2) = 1.2533`，即 `0.0280`，按 toy 的 ×100 单位为 2.80。在三个 `PATH_SD = 0.02` 的情形中，打印的 B 路径 ADE 为 2.7656 到 2.9518。`PATH_SD = 0.06` 时同一公式给出 7.62，打印值为 7.4559。
+
+**这里没有积分步长。** 夹爪是运动学模型：每步朝指令点最多移动 `V = 0.05`，而且没有障碍物，所以没有需要说明的步长判据。
+
+### 公平设置
+
+`hamster_hierarchical_path_toy.py` 是**合成**模型，只用标准库。**模型假设**如下。
+- 前置相机看到像平面（`u`、`v`）；`z` 是深度。夹爪要在 60 步内抓起指定物体并放进料箱；桌上还有一个干扰物。
+- 每个场景有一个背景外观向量（四个数，代表纹理、光照和颜色）。本域示范中每个数取自 N(0, 0.1)；偏移情形的测试场景取自 N(0.5, 0.1)。
+- 上层路径等于感知到的位置加上标准差为 `PATH_SD` 的噪声。因为 VLM 在非本域数据上训练，它的误差与背景无关。这是替身，**不是**训练出来的 VLM。
+- 两个需要学习的部分用同一种学习器：在同样的本域示范上做 k 近邻（k = 3）。
+
+| 组 | 模型 |
+|---|---|
+| A_mono | 整体式：kNN，从全部观测特征（物体或料箱相对夹爪的位置、是否抓着、四个背景数）到动作 |
+| B_hier | 路径为起点、物体（闭合）、料箱（张开）；下层只用相对路径的特征做 kNN（下一个路径点减夹爪的 `u`、`v`；该点在三维观测中的深度减夹爪深度；是否抓着），用真值路径学习 |
+| C_wrong | B 的下层，但给它偏离任务的路径：起点、干扰物（闭合）、料箱（张开） |
+
+**共用随机数**（common random numbers）的做法是，每个（情形、种子）的示范、测试场景、感知噪声、起点和路径噪声都只抽一次，三组共用；每个种子 40 个测试回合，5 个种子。指标：成功率 %、到料箱的最终三维距离（×100）、路径 ADE（×100，仅 B 和 C）和跟踪误差（夹爪到自身路径的平均二维距离，×100，仅 B 和 C）。
+
+| 情形 | 背景偏移 | 背景标准差 | 本域示范 | 路径标准差 | 预期 |
+|---|---|---|---|---|---|
+| visual_shift | 0.5 | 0.1 | 20 | 0.02 | B 稳定胜过 A |
+| matched_easy | 0 | 0.1 | 200 | 0.02 | 接近打平 |
+| coarse_path | 0 | 0.1 | 200 | 0.06 | B 落败 |
+| no_appearance | 0 | 0 | 200 | 0.02 | 接近打平或 B 落败（第一次运行后加入） |
+
+**看过结果后做的选择。**
+- **`no_appearance` 是在第一次运行后加入的**，因为预先声明的三个情形都没有让 B 打平或落败。它的预期在运行之前就写下了。预先声明的三个情形保留各自的随机流（用固定的 `STREAM` 表代替按字母排序的下标），所以它们的数字与第一次运行逐字节相同。情形标题行增加了一个“background sd”字段。
+- 第一次运行后，近邻搜索改写为带提前退出的版本（`nearest`）以提速；输出逐字节相同，并有测试把它与完整排序对照。
+- 没有采用的做法：在所有情形中都调低背景标准差，那会改变预先声明的情形；只保留预先声明的三个情形，那样就没有一个让 B 打平或落败的情形。
+
+### 运行标准库 toy
+
+```bash
+cd ~/Hardware-learning/examples/month-6/behaviour-cloning
+python3 hamster_hierarchical_path_toy.py
+```
+
+<CodeSource path="examples/month-6/behaviour-cloning/hamster_hierarchical_path_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""HAMSTER-style hierarchy: a high-level 2-D path, then a path-conditioned 3-D low-level policy.
+
+Synthetic, stdlib only.  Not an ACT / Diffusion Policy head (earlier sections), not MolmoAct's
+depth tokens and trace (Month 6 vla-models), not an OpenVLA-OFT fine-tune.  Real HAMSTER
+(VILA-1.5-13B path VLM, RVT-2 / 3D-DA low level, real robot) / GPU: 本页未运行.  Paper numbers
+are 以论文为准 (arXiv 2502.05485).
+
+World: a front camera sees the image plane (u, v); z is depth.  The gripper must pick the named
+object (on the table) and place it in the bin within T_MAX steps; a distractor object also sits
+on the table.  A step moves the gripper by at most V.  No integration step: the gripper is
+kinematic and there are no obstacles, so a step's length is the only motion constraint.
+Appearance: every scene has a background appearance vector (APP numbers: texture, lighting,
+colour).  In-domain demonstrations have background N(0, BG_SD); test scenes have N(SHIFT, BG_SD)
+per number, the visual domain gap.
+Data, shared by every arm (common random numbers): DEMOS in-domain demonstrations (state-action
+pairs of a noisy demonstrator on random in-domain scenes), test scenes, starts, perception noise
+and high-level path noise are drawn once per (regime, seed).
+Arms:
+  A_mono    monolithic policy: k-nearest-neighbour (K_NN = 3) from all observation features
+            (object and bin position relative to the gripper, held flag, and the background
+            appearance numbers, as an image-in policy sees them) to the action.
+  B_hier    high level: a coarse 2-D path [(u, v, gripper)] = start, object (close), bin (open),
+            each point off by PATH_SD (the VLM's coarseness; it is trained off-domain, so its
+            error does not depend on SHIFT; a stand-in, not a trained VLM).  Low level: the same
+            kNN learner on path-relative features only (next path point minus gripper in u, v;
+            the point's depth from the 3-D observation minus gripper depth; held flag), learned
+            from the same DEMOS with oracle paths, as in the paper.
+  C_wrong   B's low level given an off-task path: start, distractor (close), bin (open).
+Regimes and expectations, written before the first run:
+  visual_shift   SHIFT 0.5, DEMOS 20, PATH_SD 0.02   B consistent win over A
+  matched_easy   SHIFT 0,   DEMOS 200, PATH_SD 0.02  near-tie
+  coarse_path    SHIFT 0,   DEMOS 200, PATH_SD 0.06  B loses (path error the low level follows)
+  C loses to B in every regime.
+Added after the first run (none of the three regimes above gave B a tie or a loss):
+  no_appearance  SHIFT 0,   DEMOS 200, PATH_SD 0.02, BG_SD 0  near-tie or B loses (without
+                 appearance numbers A sees the same geometry as B's low level, and B adds path
+                 error); written down before this regime was run.  The three regimes above are
+                 unchanged (each keeps its own random stream) and still printed.
+Metrics per seed (TESTS episodes): success %, final 3-D distance to the bin (x100), path ADE
+(mean 2-D distance of the path points to the true ones, x100; B and C only) and tracking error
+(mean 2-D distance from the gripper to its path polyline, x100; B and C only).
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+V = 0.05
+R = 0.06
+T_MAX = 60
+V_TABLE = 0.05
+PIX_SD = 0.01
+Z_SD = 0.02
+APP = 4
+BG_SD = 0.1
+A_SD = 0.005
+K_NN = 3
+TESTS = 40
+NUM_ZERO = 1e-9
+ARMS = ("A_mono", "B_hier", "C_wrong")
+# name: (SHIFT, DEMOS, PATH_SD, background sd); the first three were declared before the first run
+REGIMES = {
+    "visual_shift": (0.5, 20, 0.02, BG_SD),
+    "matched_easy": (0.0, 200, 0.02, BG_SD),
+    "coarse_path": (0.0, 200, 0.06, BG_SD),
+    "no_appearance": (0.0, 200, 0.02, 0.0),  # added after the first run
+}
+STREAM = {"coarse_path": 0, "matched_easy": 1, "visual_shift": 2, "no_appearance": 3}  # random stream per regime
+
+
+def sub(a, b):
+    return [x - y for x, y in zip(a, b)]
+
+
+def norm(a):
+    return math.sqrt(sum(x * x for x in a))
+
+
+def scene(rng, shift, bg_sd=BG_SD):
+    obj = [rng.uniform(0.1, 0.4), V_TABLE, rng.uniform(0.3, 0.7)]
+    dis = [rng.uniform(0.1, 0.4), V_TABLE, rng.uniform(0.3, 0.7)]
+    while norm(sub(dis, obj)) < 0.15:
+        dis = [rng.uniform(0.1, 0.4), V_TABLE, rng.uniform(0.3, 0.7)]
+    bin_ = [rng.uniform(0.6, 0.9), V_TABLE, rng.uniform(0.3, 0.7)]
+    bg = [rng.gauss(shift, bg_sd) for _ in range(APP)]
+    return {"obj": obj, "dis": dis, "bin": bin_, "bg": bg}
+
+
+def start(rng):
+    return [rng.uniform(0.05, 0.45), rng.uniform(0.25, 0.45), rng.uniform(0.3, 0.7)]
+
+
+def step_to(g, target):
+    d = sub(target, g)
+    n = norm(d)
+    return list(target) if n <= V else [x + V * y / n for x, y in zip(g, d)]
+
+
+def mono_features(g, held, sc):
+    tgt = sc["bin"] if held else sc["obj"]
+    return [float(held)] + sub(tgt, g) + list(sc["bg"])
+
+
+def low_features(g, held, point_uv, depth):
+    return [float(held), point_uv[0] - g[0], point_uv[1] - g[1], depth - g[2]]
+
+
+def demos(rng, n, bg_sd):
+    mono, low = [], []
+    for _ in range(n):
+        sc = scene(rng, 0.0, bg_sd)
+        g = start(rng)
+        held = 0
+        for _ in range(T_MAX):
+            tgt = sc["bin"] if held else sc["obj"]
+            nxt = step_to(g, tgt)
+            a = [x - y + rng.gauss(0.0, A_SD) for x, y in zip(nxt, g)]
+            mono.append((mono_features(g, held, sc), a))
+            low.append((low_features(g, held, tgt[:2], tgt[2]), a))
+            g = [x + y for x, y in zip(g, a)]
+            if norm(sub(g, tgt)) <= R / 2:
+                if held:
+                    break
+                held = 1
+    return mono, low
+
+
+def knn_step(table, f, g):
+    near = nearest(table, f)
+    a = [sum(r[j] for r in near) / K_NN for j in range(3)]
+    n = norm(a)
+    return [x + y * (min(1.0, V / n) if n > 0 else 0.0) for x, y in zip(g, a)]
+
+
+def seg_dist(p, a, b):
+    d = sub(b, a)
+    L = d[0] * d[0] + d[1] * d[1]
+    t = 0.0 if L == 0 else max(0.0, min(1.0, ((p[0] - a[0]) * d[0] + (p[1] - a[1]) * d[1]) / L))
+    return norm([p[0] - a[0] - t * d[0], p[1] - a[1] - t * d[1]])
+
+
+def episode(arm, sc, seen, g, path, tables):
+    mono, low = tables
+    held, track = 0, []
+    for _ in range(T_MAX):
+        if arm == "A_mono":
+            q = knn_step(mono, mono_features(g, held, seen), g)
+        else:
+            k = 2 if held else 1
+            pick = seen["dis"] if arm == "C_wrong" else seen["obj"]
+            depth = seen["bin"][2] if held else pick[2]
+            q = knn_step(low, low_features(g, held, path[k][:2], depth), g)
+            track.append(min(seg_dist(g, path[i], path[i + 1]) for i in range(2)))
+        g = q
+        if not held and norm(sub(g, sc["obj"])) <= R:
+            held = 1
+        if held and norm(sub(g, sc["bin"])) <= R:
+            return 1.0, norm(sub(g, sc["bin"])), track
+    return 0.0, norm(sub(g, sc["bin"])), track
+
+
+def shared_draws(regime, seed):
+    """Common random numbers: demos, scenes, perception, starts and path noise drawn once."""
+    shift, n, path_sd, bg_sd = REGIMES[regime]
+    rng = random.Random(1000 * seed + STREAM[regime])
+    tables = demos(rng, n, bg_sd)
+    tests = []
+    for _ in range(TESTS):
+        sc = scene(rng, shift, bg_sd)
+        seen = {k: [x + rng.gauss(0.0, s) for x, s in zip(sc[k], (PIX_SD, PIX_SD, Z_SD))] for k in ("obj", "dis", "bin")}
+        seen["bg"] = sc["bg"]
+        g = start(rng)
+        noise = [[rng.gauss(0.0, path_sd), rng.gauss(0.0, path_sd)] for _ in range(2)]
+        tests.append((sc, seen, g, noise))
+    return tables, tests
+
+
+def make_path(arm, seen, g, noise):
+    pick = seen["dis"] if arm == "C_wrong" else seen["obj"]
+    return [[g[0], g[1], 1], [pick[0] + noise[0][0], pick[1] + noise[0][1], 0], [seen["bin"][0] + noise[1][0], seen["bin"][1] + noise[1][1], 1]]
+
+
+def evaluate(arm, regime, draw):
+    tables, tests = draw
+    succ, err, ade, trk = [], [], [], []
+    for sc, seen, g, noise in tests:
+        path = make_path(arm, seen, g, noise)
+        s, e, track = episode(arm, sc, seen, list(g), path, tables)
+        succ.append(s)
+        err.append(e)
+        if arm != "A_mono":
+            ade.append((norm(sub(path[1][:2], sc["obj"][:2])) + norm(sub(path[2][:2], sc["bin"][:2]))) / 2)
+            trk.append(sum(track) / len(track))
+    out = {"succ": 100.0 * sum(succ) / len(succ), "err": 100.0 * sum(err) / len(err)}
+    out["ade"] = 100.0 * sum(ade) / len(ade) if ade else None
+    out["trk"] = 100.0 * sum(trk) / len(trk) if trk else None
+    return out
+
+
+def nearest(table, f):
+    """The K_NN rows nearest to f, ordered by (distance, row index): same as heapq.nsmallest, with early exit."""
+    best = []
+    worst = float("inf")
+    for idx, (row, act) in enumerate(table):
+        d = 0.0
+        for x, y in zip(row, f):
+            d += (x - y) * (x - y)
+            if d >= worst:
+                break
+        else:
+            best.append((d, idx, act))
+            best.sort(key=lambda b: (b[0], b[1]))
+            if len(best) > K_NN:
+                best.pop()
+            if len(best) == K_NN:
+                worst = best[-1][0]
+    return [b[2] for b in best]
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-5:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{num(m)}+-{num(s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{num(m)}+-{num(s)}: {label}; {sign_note(diffs, m)}"
+
+
+def main():
+    print("Synthetic HAMSTER-style 2-D path + path-conditioned low level vs a monolithic kNN policy vs an off-task path; not a VLM")
+    print(f"V={V} R={R} T_MAX={T_MAX} PIX_SD={PIX_SD} Z_SD={Z_SD} APP={APP} BG_SD={BG_SD} K_NN={K_NN} tests={TESTS} seeds={len(SEEDS)}")
+    print("no integration step: kinematic steps of at most V, no obstacles")
+    print("regime arm success_% final_err_x100 path_ade_x100 track_err_x100  (mean+-sd over seeds)")
+    for regime, (shift, n, path_sd, bg_sd) in REGIMES.items():
+        print(f"{regime} (background shift {shift}; background sd {bg_sd}; in-domain demos {n}; path sd {path_sd})")
+        draws = [shared_draws(regime, s) for s in SEEDS]
+        res = {arm: [evaluate(arm, regime, d) for d in draws] for arm in ARMS}
+        for arm in ARMS:
+            cols = []
+            for k in ("succ", "err", "ade", "trk"):
+                cols.append("n/a" if res[arm][0][k] is None else "{}+-{}".format(*map(num, mean_sd([r[k] for r in res[arm]]))))
+            print(f"  {arm} " + " ".join(cols))
+        for x, y in (("B_hier", "A_mono"), ("C_wrong", "B_hier")):
+            for key in ("succ", "err"):
+                print(f"  paired {x[0]}-{y[0]} {key}: {verdict([r[key] for r in res[x]], [r[key] for r in res[y]])}")
+    print("No winner declared: the path helps when appearance shifts; a coarse or off-task path is followed faithfully")
+    print("HAMSTER VLM / RVT-2 / 3D-DA / real robot / GPU: 本页未运行; paper numbers 以论文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic HAMSTER-style 2-D path + path-conditioned low level vs a monolithic kNN policy vs an off-task path; not a VLM
+V=0.05 R=0.06 T_MAX=60 PIX_SD=0.01 Z_SD=0.02 APP=4 BG_SD=0.1 K_NN=3 tests=40 seeds=5
+no integration step: kinematic steps of at most V, no obstacles
+regime arm success_% final_err_x100 path_ade_x100 track_err_x100  (mean+-sd over seeds)
+visual_shift (background shift 0.5; background sd 0.1; in-domain demos 20; path sd 0.02)
+  A_mono 2.0000+-4.4721 203.5755+-26.8733 n/a n/a
+  B_hier 78.5000+-5.4772 36.1733+-7.9211 2.9518+-0.1370 14.6573+-3.1100
+  C_wrong 0.5000+-1.1180 152.1238+-22.1275 7.9150+-0.3189 60.7133+-7.6241
+  paired B-A succ: 76.5000+-7.4162: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A err: -167.4022+-29.2251: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B succ: -78.0000+-6.2249: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B err: 115.9505+-21.9771: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+matched_easy (background shift 0.0; background sd 0.1; in-domain demos 200; path sd 0.02)
+  A_mono 33.5000+-6.9821 96.7311+-11.5865 n/a n/a
+  B_hier 96.0000+-2.8504 8.3083+-3.0440 2.7656+-0.0481 2.7996+-1.2666
+  C_wrong 0.0000+-0.0000 96.8866+-5.7301 7.9051+-0.2559 36.5110+-2.8741
+  paired B-A succ: 62.5000+-5.3033: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A err: -88.4228+-9.4133: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B succ: -96.0000+-2.8504: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B err: 88.5783+-4.3375: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+coarse_path (background shift 0.0; background sd 0.1; in-domain demos 200; path sd 0.06)
+  A_mono 37.0000+-12.9180 90.2084+-18.7731 n/a n/a
+  B_hier 54.5000+-5.4199 46.5461+-7.8233 7.4559+-0.6231 16.8666+-2.7824
+  C_wrong 0.0000+-0.0000 95.5451+-9.2617 11.5935+-0.7728 34.5741+-4.4595
+  paired B-A succ: 17.5000+-15.0000: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  paired B-A err: -43.6623+-22.7760: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B succ: -54.5000+-5.4199: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B err: 48.9990+-5.7958: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+no_appearance (background shift 0.0; background sd 0.0; in-domain demos 200; path sd 0.02)
+  A_mono 98.5000+-3.3541 5.3956+-3.2988 n/a n/a
+  B_hier 96.0000+-4.5415 8.2666+-4.4516 2.7934+-0.1764 2.7381+-1.6991
+  C_wrong 0.5000+-1.1180 102.5611+-16.5149 7.2970+-0.4784 37.9205+-6.7815
+  paired B-A succ: -2.5000+-4.3301: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+  paired B-A err: 2.8710+-4.3003: near-tie / small gap, within seed noise (|m| <= sd); same sign on all 5 seeds
+  paired C-B succ: -95.5000+-4.1079: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B err: 94.2946+-14.5995: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: the path helps when appearance shifts; a coarse or off-task path is followed faithfully
+HAMSTER VLM / RVT-2 / 3D-DA / real robot / GPU: 本页未运行; paper numbers 以论文为准
+```
+
+</SimOutput>
+
+### 读懂各情形
+
+本页标签按以下顺序使用。**打平：每个种子都完全相同**只用于配对的逐种子差值在每个种子上都严格为零；`|配对均值|` 和它的标准差都小于 1e-9 时标为**数值上为零（浮点残差），等同打平**（这种行不打印同号计数）；`|配对均值| ≤ sd` 时为**接近打平、差距很小，在种子噪声之内**；否则是**稳定**差距（`|配对均值| > sd`），`|m|` 小于两组中较小均值的 20 % 时叫**小**，否则叫**明显**；20 % 规则只用来在这两个词之间选择。每条稳定的行都带 5 个种子上的同号计数，符号相反的种子都会报告；只有同号计数不能让差距变成稳定。差距都由未四舍五入的数值计算。配对差值为 B−A 和 C−B。`succ` 是成功率（%），`err` 是到料箱的最终距离（×100）。
+
+- **visual_shift** 情形如下。
+  - **分层赢了，差距明显**，B−A 成功率 76.5000±7.4162 个百分点，5 个种子同号（A 2.0 %，B 78.5 %）。
+  - A 的每个背景数都偏移了 0.5，所以它的最近邻是按背景挑出来的，而不是按物体在哪里。
+  - 偏离任务的路径输了，差距明显：C−B 成功率 −78.0000±6.2249，5/5。C 朝干扰物走去，从未抓到物体；下层无法修复错误的路径。
+- **matched_easy** 情形如下。
+  - 预期的接近打平**没有**出现：B−A 成功率 62.5000±5.3033，明显，5/5（A 33.5 %）。
+  - 即使在本域内，四个标准差 0.1 的背景数也足以打乱 A 在 200 条示范中的近邻。看到干扰输入的整体式学习器，即使没有偏移也要为它们付出代价。
+- **coarse_path** 情形如下。
+  - 路径标准差变为三倍时，B 从 96.0 % 降到 54.5 %，但预期的输给 A **没有**出现：B−A 成功率 17.5000±15.0000，明显，5 个种子中 1 个符号相反。
+- **no_appearance** 情形（第一次运行后加入）如下。
+  - 没有背景数时，A 看到的几何信息与 B 的下层相同。B−A 成功率为**接近打平、差距很小，在种子噪声之内**（−2.5000±4.3301，没有种子符号相反，5 个中 3 个相等），按均值 B 是较低的一方（96.0 % 对 98.5 %）。
+  - B−A `err` 也是接近打平（2.8710±4.3003），尽管 5 个种子上 B 都离料箱更远；在没有什么需要抗干扰时，路径噪声就是分层的代价。
+
+本页**不宣布普遍赢家**。二维路径恰好在整体式策略的输入里含有训练与测试之间会变化的东西时才有帮助，否则什么也买不到；错误的路径会被忠实地执行到错误的地方。论文数字以论文为准，HAMSTER VLM、三维策略和真机**本页未运行**。
+
+**210 分钟安排**如下。40 分钟读论文第 4–5 节和附录 E；30 分钟手算路径 ADE 算例；50 分钟运行 toy，读懂四种情形；50 分钟固定种子，改 `BG_SD`、`REGIMES` 中的偏移和 `PATH_SD`；40 分钟列出你自己的策略有哪些输入会在实验室和部署之间变化。
+
+### 练习
+
+1. 用 toy 的像素噪声，计算 `PATH_SD = 0.04` 时的期望路径 ADE，并说出应和打印的哪一列比较。
+2. 从 `shared_draws` 和 `evaluate` 说明，同一个种子下 A、B、C 看到相同的示范、场景、噪声、起点和路径噪声。
+3. 对一个状态写出 `mono_features` 和 `low_features`，说出 B 的下层从不看到哪些输入。
+4. 固定种子，把 `visual_shift` 的背景偏移改成 0.2。运行前先预测 B−A 成功率是否仍是明显差距。
+5. 在任何真机运行之前（本页未运行），写下你会如何判断一次失败来自路径（附录 E 的轨迹失败），还是来自沿路径执行的下层。
+
 <Summary>
 
-行为克隆把 LeRobot 风格的示范表（episode、frame、观测、动作）当作监督学习：拟合使动作平方误差最小的策略。在 L 形走廊上，用无噪声示范训练的 1-最近邻 BC 无论 20 条还是 80 条示范都是 100 次成功 67 次，原因是协变量偏移：执行器噪声把夹爪推离中心线，那里没有任何一帧展示过恢复动作，失败集中在终点一端。把恢复放进数据就能修好——20 条带噪声的示范达到 99/100，一轮 DAgger 让 5 条示范的策略从 61 提升到 100/100——同样的规则也适用于用 `lerobot-record` 录制的 SO-101 数据集（本页未运行）：变化场景、示范恢复、记录指令动作、在固定条件下统计成功次数。`vqbet_residual_vq_toy.py` 补上平方损失的多模态失败：示范从障碍两侧绕过时，MSE 把两者平均后撞上障碍（五个种子中 66 % 碰撞），而 k-means 分箱与带偏移的残差 VQ 在同样的数据和码预算下保住两种模式，二者之间不分胜负，VQ-BeT 的 5 倍提速以论文为准。
+行为克隆把 LeRobot 风格的示范表（episode、frame、观测、动作）当作监督学习：拟合使动作平方误差最小的策略。在 L 形走廊上，用无噪声示范训练的 1-最近邻 BC 无论 20 条还是 80 条示范都是 100 次成功 67 次，原因是协变量偏移：执行器噪声把夹爪推离中心线，那里没有任何一帧展示过恢复动作，失败集中在终点一端。把恢复放进数据就能修好——20 条带噪声的示范达到 99/100，一轮 DAgger 让 5 条示范的策略从 61 提升到 100/100——同样的规则也适用于用 `lerobot-record` 录制的 SO-101 数据集（本页未运行）：变化场景、示范恢复、记录指令动作、在固定条件下统计成功次数。`vqbet_residual_vq_toy.py` 补上平方损失的多模态失败：示范从障碍两侧绕过时，MSE 把两者平均后撞上障碍（五个种子中 66 % 碰撞），而 k-means 分箱与带偏移的残差 VQ 在同样的数据和码预算下保住两种模式，二者之间不分胜负，VQ-BeT 的 5 倍提速以论文为准。HAMSTER 把策略拆成上层二维路径和以路径为条件、使用三维输入的下层：当背景在示范与测试之间偏移时，分层明显胜过整体式 kNN 策略（配对成功率 +76.5000±7.4162 个百分点，5/5），偏离任务的路径会被执行到错误的物体，而完全没有外观输入时两者接近打平（−2.5000±4.3301，第一次运行后加入）——`hamster_hierarchical_path_toy.py`，不是 VLM 或真机；论文数字以论文为准。
 
 </Summary>

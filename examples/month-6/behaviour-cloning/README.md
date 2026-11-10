@@ -20,3 +20,12 @@ No hardware needed. Output quoted in the lesson as **simulated output / 仿真�
 
 The real-robot version (LeRobot `lerobot-record`, `lerobot-train`, `lerobot-rollout` on an SO-101) is in the lesson;
 those commands were not run here. 真机版本（SO-101 上的 LeRobot 命令）见课程正文，这里没有运行。
+
+## hamster_hierarchical_path_toy.py
+
+HAMSTER-style hierarchy (arXiv 2502.05485, Sections 4.1–4.2): a coarse 2-D path with gripper states, then a path-conditioned low-level k-nearest-neighbour policy on 3-D features, compared with a monolithic k-nearest-neighbour policy that also sees background appearance and with an off-task path; four regimes (visual shift, matched, coarse path, and no appearance variation — the last added after the first run and disclosed), five seeds, common random numbers. No integration step (kinematic steps, no obstacles). Checked by `examples/month-6/check.sh`. The HAMSTER VLM, RVT-2 / 3D-DA, a real robot and a GPU are not run here; paper numbers are per the paper. Not an ACT / Diffusion Policy head, not MolmoAct traces.
+HAMSTER 式分层（arXiv 2502.05485 第 4.1–4.2 节）：带夹爪状态的粗略二维路径 → 以路径为条件、使用三维特征的底层 k 近邻策略，与同时看到背景外观的整体式 k 近邻策略和偏离任务的路径比较；四种情形（视觉偏移、匹配、粗路径、无外观变化，最后一种在第一次运行后加入并已说明），5 个种子，共用随机数。没有积分步长（运动学步进，无障碍物）。由 `examples/month-6/check.sh` 核对。HAMSTER VLM、RVT-2 / 3D-DA、真机与 GPU 本页未运行；论文数字以论文为准。不是 ACT / Diffusion Policy 动作头，也不是 MolmoAct 轨迹。
+
+```bash
+python3 hamster_hierarchical_path_toy.py
+```
