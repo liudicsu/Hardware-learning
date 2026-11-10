@@ -904,8 +904,337 @@ The page **does not declare a universal winner**. The tip-error metrics favour A
 4. Set `W_MIN = 0.1 × L1 L2` with seeds fixed. Predict before running how B's final error and hold rate change in near_singularity.
 5. Before any hardware run (本页未运行), explain why A's 0.029 mm final error near the singularity does **not** mean ignoring `w` is safe: use the peak rate and the hold rate.
 
+## Product of exponentials: the same chain without DH frames
+
+The forward-kinematics section at the top multiplies one rotation and one offset per joint. The usual textbook way to write such a chain for a general arm is **Denavit–Hartenberg (DH)**: four numbers per joint, with frames placed so that some terms cancel. The **product of exponentials (PoE)** writes the same chain with one screw axis per joint, all expressed in the base frame, and a single home pose. This section builds both for the lesson's three-joint SO-101 model and checks that they agree. It is **not** a redo of the manipulability or DLS sections (singularities are not touched), and it is **not** about orientation coordinates (that is the quaternion section).
+
+<Resource id="wiki-poe" />
+
+**Source actually opened (HTML body read).** **Wikipedia — Product of exponentials formula:** PoE is a robotics convention for mapping the links of a spatial kinematic chain and an alternative to DH. DH uses the minimal number of parameters; PoE has "uniform treatment of prismatic and revolute joints, definition of only two reference frames, and an easy geometric interpretation from the use of screw axes". The method: pick a zero configuration with base-to-tool transform `gst(0)`; for each revolute joint choose an axis `ω` and a point `q` on it, giving the twist `ξ = (ω, −ω × q)` (a prismatic joint has `ξ = (0, v)`); build each `e^(ξ̂θ)` from Rodrigues' formula `e^(ω̂θ) = I + ω̂ sin θ + ω̂² (1 − cos θ)` and the translation `t = (I − e^(ω̂θ)) (ω × v) + ω ωᵀ v θ`; multiply `gd = e^(ξ̂1 θ1) ⋯ e^(ξ̂n θn) gst(0)`. DH needs a careful choice of frames so a twist fits in four parameters, and DH has several frame conventions; PoE twists are written directly, without considering neighbouring joints. The article dates the method to Roger W. Brockett in 1984 while its reference is dated 1983; 以原文为准. Real arm FK check: **本页未运行**.
+
+### Two ways to write one chain
+
+<Formula label="DH row (standard convention)">T_i = Rz(θ_i) · Tz(d_i) · Tx(a_i) · Rx(α_i)</Formula>
+
+<Formula label="Product of exponentials (space frame)">T(q) = e^(ξ̂0 q0) · e^(ξ̂1 q1) · e^(ξ̂2 q2) · M</Formula>
+
+For this arm the DH rows are `(θ, d, a, α) = (q0, H, 0, +90°)`, `(q1, 0, L1, 0)`, `(q2, 0, L2, 0)`. The `+90°` twist turns the shoulder's `z` axis into the pitch axis, so the DH tool frame ends up rotated relative to the lesson's tool frame; one fixed `Rx(−90°)` at the end lines them up. That bookkeeping is the frame placement the Wikipedia article warns about.
+
+For PoE, take the home pose with the arm straight out: `M` has identity rotation and the tip at `(L1 + L2, 0, H) = (0.2510, 0, 0.1166) m`. The base joint turns about `ω0 = (0, 0, 1)` through the origin. The shoulder and elbow pitch about `ω = (0, −1, 0)` (the lesson's positive pitch lifts the arm) through `(0, 0, H)` and `(L1, 0, H)`.
+
+**Worked example.** For the elbow, `ω × q = (−1 · 0.1166 − 0, 0 − 0, 0 − (−1) · 0.1160) = (−0.1166, 0, 0.1160)`, so `v = −ω × q = (0.1166, 0, −0.1160)` and the elbow twist is `ξ2 = (0, −1, 0, 0.1166, 0, −0.1160)`. Six numbers per joint against DH's four, but each one is read off the drawing: an axis direction and a point on it. At `q = [30, 45, −60]°` the toy prints the tip `(0.1840, 0.1062, 0.1637) m` for both DH and PoE, the same numbers as the worked example at the top of the page.
+
+**No integration step here.** Every pose is a closed-form product of 4 × 4 matrices, so no step-size stability criterion applies. **Correctness criterion.** On the noise-free regimes the toy asserts `max ||T_DH − T_PoE||_F < 10⁻¹²` and that every rotation block satisfies `||RᵀR − I||_F < 10⁻¹²`, and prints both maxima (3.799e-16 and 8.926e-16 on `matched`). The independent tests also check one twist exponential against `Trans(p) · Rot(ω, θ) · Trans(−p)` to 12 decimals.
+
+### Fair setup
+
+`poe_vs_dh_fk_toy.py` is **synthetic** and stdlib only. **Model assumptions:** rigid links, revolute joints, the lesson's simplified geometry (`H = 0.1166 m`, `L1 = 0.1160 m`, `L2 = 0.1350 m`, shoulder offsets left out as in the lesson); the reference ("truth") is the lesson's closed-form planar solution, which neither arm uses.
+
+| Arm | Model |
+|---|---|
+| A_dh | three standard DH rows plus the fixed `Rx(−90°)` tool rotation |
+| B_poe | space-frame PoE with the three twists above and home pose `M` |
+| C_poe_tilt | B with the elbow axis tilted 2° about `x` (one wrong twist, everything else equal) |
+
+**Common random numbers:** for each (regime, seed) 200 joint configurations and the encoder noise are drawn once and fed to all three arms; five seeds. Metrics per seed (mean over the 200 configurations): `pose = ||T_arm − T_truth||_F` and the tip position error in mm.
+
+| Regime | q1 range | q2 range | Encoder noise |
+|---|---|---|---|
+| matched | −60° to 90° | −135° to 135° | none |
+| near_singular | −60° to 90° | −1° to 1° (arm almost straight) | none |
+| encoder_noise | −60° to 90° | −135° to 135° | 0.2° sd on every joint, same draw for every arm |
+
+**Choices made after seeing results.** None: the 2° tilt, the ranges, the noise level and the 10⁻¹² bound were fixed before the first run, and all three regimes are printed.
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-5/kinematics-ik
+python3 poe_vs_dh_fk_toy.py
+```
+
+<CodeSource path="examples/month-5/kinematics-ik/poe_vs_dh_fk_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic forward kinematics: Denavit-Hartenberg vs product of exponentials (PoE). Stdlib only.
+
+Arm: the lesson's three-joint SO-101 model (base yaw q0, shoulder pitch q1, elbow pitch q2; H = 0.1166 m,
+L1 = 0.1160 m, L2 = 0.1350 m; positive pitch lifts the arm, q1 = q2 = 0 points it straight out along x).
+Truth: the closed-form planar solution of the lesson, r = L1 cos q1 + L2 cos(q1 + q2),
+z = H + L1 sin q1 + L2 sin(q1 + q2), tip orientation Rz(q0) Ry'(q1 + q2) (Ry' pitches about -y).
+Arms (same joint angles, same geometry):
+  A_dh        standard DH rows (theta, d, a, alpha) = (q0, H, 0, +90 deg), (q1, 0, L1, 0), (q2, 0, L2, 0),
+              then a fixed tool rotation Rx(-90 deg) so the DH tool frame matches the lesson's tool frame
+  B_poe       space-frame PoE T = e^[xi0]q0 e^[xi1]q1 e^[xi2]q2 M with revolute twists xi = (w, -w x q):
+              w0 = (0, 0, 1) through the origin, w1 = w2 = (0, -1, 0) through (0, 0, H) and (L1, 0, H),
+              M = home pose (L1 + L2, 0, H) with identity rotation; e^[xi]theta from Rodrigues + the
+              Wikipedia translation t = (I - e^[w]theta)(w x v) + w w^T v theta
+  C_poe_tilt  B with the elbow axis tilted TILT_DEG = 2 deg about x (a wrong twist, everything else equal)
+Common random numbers: per (regime, seed) the N joint configurations and the encoder noise are drawn once
+and fed to all three arms. No integration step: every pose is a closed-form product of 4 x 4 matrices, so
+no step-size stability criterion applies. Correctness criterion instead: on noise-free regimes
+max ||T_DH - T_PoE||_F must be below 1e-12 (asserted), and every rotation block must satisfy
+||R^T R - I||_F < 1e-12 (asserted).
+Metrics per seed (mean over N configurations): pose = ||T_arm - T_truth||_F, pos_mm = tip position error.
+Labels: tie = identical on every seed; numerically zero = |paired mean| and sd both < 1e-9 (floating-point
+residue, effectively a tie, no sign count); |m| <= sd = near-tie; |m| > sd = consistent gap (small if
+|m| < 20 % of the smaller arm mean, else clear), with a sign count.
+Not a manipulability / Yoshikawa or DLS redo, not quaternions. Real arm FK check: 本页未运行.
+Wikipedia formulas: 以原文为准.
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+H, L1, L2 = 0.1166, 0.1160, 0.1350
+TILT_DEG = 2.0
+N = 200
+NUM_ZERO = 1e-9
+ARMS = ("A_dh", "B_poe", "C_poe_tilt")
+# name: (q1 range deg, q2 range deg, encoder noise sd deg); pre-declared before the first run
+REGIMES = {
+    "matched": ((-60.0, 90.0), (-135.0, 135.0), 0.0),
+    "near_singular": ((-60.0, 90.0), (-1.0, 1.0), 0.0),
+    "encoder_noise": ((-60.0, 90.0), (-135.0, 135.0), 0.2),
+}
+
+
+def matmul(a, b):
+    return [[sum(a[i][k] * b[k][j] for k in range(4)) for j in range(4)] for i in range(4)]
+
+
+def frob(a, b):
+    return math.sqrt(sum((a[i][j] - b[i][j]) ** 2 for i in range(4) for j in range(4)))
+
+
+def rot_z(t):
+    c, s = math.cos(t), math.sin(t)
+    return [[c, -s, 0.0, 0.0], [s, c, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]]
+
+
+def rot_x(t):
+    c, s = math.cos(t), math.sin(t)
+    return [[1.0, 0.0, 0.0, 0.0], [0.0, c, -s, 0.0], [0.0, s, c, 0.0], [0.0, 0.0, 0.0, 1.0]]
+
+
+def dh_row(theta, d, a, alpha):
+    ct, st, ca, sa = math.cos(theta), math.sin(theta), math.cos(alpha), math.sin(alpha)
+    return [[ct, -st * ca, st * sa, a * ct], [st, ct * ca, -ct * sa, a * st], [0.0, sa, ca, d], [0.0, 0.0, 0.0, 1.0]]
+
+
+def fk_dh(q):
+    t = dh_row(q[0], H, 0.0, math.pi / 2)
+    t = matmul(t, dh_row(q[1], 0.0, L1, 0.0))
+    t = matmul(t, dh_row(q[2], 0.0, L2, 0.0))
+    return matmul(t, rot_x(-math.pi / 2))
+
+
+def cross(a, b):
+    return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
+
+
+def twist_exp(w, p, theta):
+    """e^[xi]theta for a revolute twist with unit axis w through point p; v = -w x p."""
+    v = tuple(-x for x in cross(w, p))
+    c, s = math.cos(theta), math.sin(theta)
+    wh = [[0.0, -w[2], w[1]], [w[2], 0.0, -w[0]], [-w[1], w[0], 0.0]]
+    wh2 = [[sum(wh[i][k] * wh[k][j] for k in range(3)) for j in range(3)] for i in range(3)]
+    r = [[(1.0 if i == j else 0.0) + s * wh[i][j] + (1 - c) * wh2[i][j] for j in range(3)] for i in range(3)]
+    wxv = cross(w, v)
+    wv = sum(a * b for a, b in zip(w, v))
+    t = [sum(((1.0 if i == j else 0.0) - r[i][j]) * wxv[j] for j in range(3)) + w[i] * wv * theta for i in range(3)]
+    return [r[0] + [t[0]], r[1] + [t[1]], r[2] + [t[2]], [0.0, 0.0, 0.0, 1.0]]
+
+
+def axes(arm):
+    w2 = (0.0, -1.0, 0.0)
+    if arm == "C_poe_tilt":
+        g = math.radians(TILT_DEG)
+        w2 = (0.0, -math.cos(g), math.sin(g))
+    return [((0.0, 0.0, 1.0), (0.0, 0.0, 0.0)), ((0.0, -1.0, 0.0), (0.0, 0.0, H)), (w2, (L1, 0.0, H))]
+
+
+def fk_poe(q, arm="B_poe"):
+    m = [[1.0, 0.0, 0.0, L1 + L2], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, H], [0.0, 0.0, 0.0, 1.0]]
+    t = [[1.0 if i == j else 0.0 for j in range(4)] for i in range(4)]
+    for (w, p), th in zip(axes(arm), q):
+        t = matmul(t, twist_exp(w, p, th))
+    return matmul(t, m)
+
+
+def truth(q):
+    q0, q1, q2 = q
+    r = L1 * math.cos(q1) + L2 * math.cos(q1 + q2)
+    z = H + L1 * math.sin(q1) + L2 * math.sin(q1 + q2)
+    c0, s0, c, s = math.cos(q0), math.sin(q0), math.cos(q1 + q2), math.sin(q1 + q2)
+    return [[c0 * c, -s0, -c0 * s, r * c0], [s0 * c, c0, -s0 * s, r * s0], [s, 0.0, c, z], [0.0, 0.0, 0.0, 1.0]]
+
+
+def fk(arm, q):
+    return fk_dh(q) if arm == "A_dh" else fk_poe(q, arm)
+
+
+def orth_err(t):
+    return math.sqrt(sum((sum(t[k][i] * t[k][j] for k in range(3)) - (1.0 if i == j else 0.0)) ** 2 for i in range(3) for j in range(3)))
+
+
+def shared_draws(regime, seed):
+    """Common random numbers: configurations and encoder noise drawn once per (regime, seed)."""
+    (a1, b1), (a2, b2), noise = REGIMES[regime]
+    rng = random.Random(1000 * seed + len(regime))
+    out = []
+    for _ in range(N):
+        q = (math.radians(rng.uniform(-180.0, 180.0)), math.radians(rng.uniform(a1, b1)), math.radians(rng.uniform(a2, b2)))
+        e = tuple(math.radians(rng.gauss(0.0, noise)) for _ in range(3))
+        out.append((q, e))
+    return out
+
+
+def evaluate(arm, draws):
+    pose = pos = 0.0
+    for q, e in draws:
+        t = fk(arm, tuple(a + b for a, b in zip(q, e)))
+        g = truth(q)
+        pose += frob(t, g)
+        pos += 1e3 * math.sqrt(sum((t[i][3] - g[i][3]) ** 2 for i in range(3)))
+    return {"pose": pose / len(draws), "pos_mm": pos / len(draws)}
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-5:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{num(m)}+-{num(s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{num(m)}+-{num(s)}: {label}; {sign_note(diffs, m)}"
+
+
+KEYS = ("pose", "pos_mm")
+
+
+def main():
+    print("Synthetic FK: DH vs product of exponentials vs PoE with a 2 deg wrong elbow twist; SO-101 3-joint model; not a real arm")
+    print(f"H={H} L1={L1} L2={L2} m TILT_DEG={TILT_DEG} N={N} configurations per seed seeds={len(SEEDS)}; no integration step (closed-form products)")
+    q = tuple(math.radians(x) for x in (30.0, 45.0, -60.0))
+    for arm in ARMS:
+        t = fk(arm, q)
+        print(f"q=[30, 45, -60] deg {arm}: tip=({t[0][3]:.4f}, {t[1][3]:.4f}, {t[2][3]:.4f}) m")
+    print("regime arm pose_frob pos_mm  (mean+-sd over seeds)")
+    for regime in REGIMES:
+        _, _, noise = REGIMES[regime]
+        print(f"{regime} (encoder noise sd={noise} deg)")
+        draws = [shared_draws(regime, s) for s in SEEDS]
+        if noise == 0.0:
+            gap = max(frob(fk_dh(qq), fk_poe(qq)) for d in draws for qq, _ in d)
+            orth = max(orth_err(fk(arm, qq)) for arm in ARMS for d in draws for qq, _ in d)
+            assert gap < 1e-12 and orth < 1e-12
+            print(f"  correctness: max ||T_DH - T_PoE||_F = {gap:.3e} < 1e-12; max ||R^T R - I||_F = {orth:.3e} < 1e-12")
+        res = {arm: [evaluate(arm, d) for d in draws] for arm in ARMS}
+        for arm in ARMS:
+            print(f"  {arm} " + " ".join("{}+-{}".format(*map(num, mean_sd([r[k] for r in res[arm]]))) for k in KEYS))
+        for x, y in (("B_poe", "A_dh"), ("C_poe_tilt", "B_poe")):
+            for key in KEYS:
+                print(f"  paired {x[0]}-{y[0]} {key}: {verdict([r[key] for r in res[x]], [r[key] for r in res[y]])}")
+    print("No winner declared: DH and PoE are two parameterisations of the same chain; a wrong twist is a modelling error either way")
+    print("Real arm FK check: 本页未运行; Wikipedia formulas 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic FK: DH vs product of exponentials vs PoE with a 2 deg wrong elbow twist; SO-101 3-joint model; not a real arm
+H=0.1166 L1=0.116 L2=0.135 m TILT_DEG=2.0 N=200 configurations per seed seeds=5; no integration step (closed-form products)
+q=[30, 45, -60] deg A_dh: tip=(0.1840, 0.1062, 0.1637) m
+q=[30, 45, -60] deg B_poe: tip=(0.1840, 0.1062, 0.1637) m
+q=[30, 45, -60] deg C_poe_tilt: tip=(0.1860, 0.1027, 0.1637) m
+regime arm pose_frob pos_mm  (mean+-sd over seeds)
+matched (encoder noise sd=0.0 deg)
+  correctness: max ||T_DH - T_PoE||_F = 3.799e-16 < 1e-12; max ||R^T R - I||_F = 8.926e-16 < 1e-12
+  A_dh 1.997e-16+-5.041e-18 2.338e-14+-8.772e-16
+  B_poe 1.970e-16+-6.315e-18 3.844e-14+-9.057e-16
+  C_poe_tilt 0.0507+-0.0025 3.3504+-0.1425
+  paired B-A pose: -2.712e-18+-3.790e-18: numerically zero (floating-point residue), effectively a tie
+  paired B-A pos_mm: 1.506e-14+-1.371e-15: numerically zero (floating-point residue), effectively a tie
+  paired C-B pose: 0.0507+-0.0025: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B pos_mm: 3.3504+-0.1425: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+near_singular (encoder noise sd=0.0 deg)
+  correctness: max ||T_DH - T_PoE||_F = 2.726e-16 < 1e-12; max ||R^T R - I||_F = 7.450e-16 < 1e-12
+  A_dh 1.500e-16+-3.935e-18 2.469e-14+-1.027e-15
+  B_poe 1.583e-16+-2.143e-18 3.373e-14+-1.498e-15
+  C_poe_tilt 0.0004+-2.056e-05 0.0397+-0.0020
+  paired B-A pose: 8.369e-18+-4.354e-18: numerically zero (floating-point residue), effectively a tie
+  paired B-A pos_mm: 9.037e-15+-1.412e-15: numerically zero (floating-point residue), effectively a tie
+  paired C-B pose: 0.0004+-2.056e-05: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B pos_mm: 0.0397+-0.0020: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+encoder_noise (encoder noise sd=0.2 deg)
+  A_dh 0.0077+-0.0004 0.8681+-0.0357
+  B_poe 0.0077+-0.0004 0.8681+-0.0357
+  C_poe_tilt 0.0514+-0.0023 3.5382+-0.1205
+  paired B-A pose: 2.776e-18+-8.573e-18: numerically zero (floating-point residue), effectively a tie
+  paired B-A pos_mm: -1.776e-16+-1.363e-15: numerically zero (floating-point residue), effectively a tie
+  paired C-B pose: 0.0437+-0.0020: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B pos_mm: 2.6701+-0.0984: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: DH and PoE are two parameterisations of the same chain; a wrong twist is a modelling error either way
+Real arm FK check: 本页未运行; Wikipedia formulas 以原文为准
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used on this page, in this order: **tie: identical on every seed** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when `|paired mean|` and its sd are both below 1e-9 (no sign count is printed on such a line); **near-tie / small gap, within seed noise** when `|paired mean| ≤ sd`; otherwise a **consistent** gap (`|paired mean| > sd`), called **small** if `|m|` is under 20 % of the smaller arm mean and **clear** otherwise; the 20 % rule only chooses between those two words. Every consistent line carries a same-sign count over the 5 seeds, and any seed with the opposite sign is reported; a sign count alone never makes a gap consistent. Gaps are computed from unrounded values. Paired differences are B−A and C−B.
+
+- **matched:** DH and PoE agree to rounding. B−A `pose` is **numerically zero (floating-point residue), effectively a tie** (−2.712e-18±3.790e-18), and so is B−A tip error (1.506e-14±1.371e-15 mm); both arms sit about 2e-16 from the closed form. They are not bit-identical, because the two products round differently, so the label is not "tie". **The wrong twist loses with a clear gap:** C−B `pose` 0.0507±0.0025 and tip error 3.3504±0.1425 mm, same sign on all 5 seeds.
+- **near_singular:** with the arm almost straight, FK is still well defined and DH and PoE still agree: B−A `pose` is numerically zero (8.369e-18±4.354e-18). What goes wrong near a singularity is the **inverse** (see the manipulability section), not the forward map. The tilted twist still **loses with a clear gap**, but only by 0.0397±0.0020 mm, because a wrong elbow axis moves the tip only once the elbow bends away from zero.
+- **encoder_noise:** both arms see the same noisy angles and land 0.8681±0.0357 mm from the true tip; B−A is again numerically zero (−1.776e-16±1.363e-15 mm). A different parameterisation does not filter sensor noise. C−B tip error 2.6701±0.0984 mm (clear, 5/5).
+
+The page **does not declare a universal winner**: DH and PoE are two ways to write the same chain and give the same pose to rounding. PoE is easier to read off a drawing and treats prismatic joints the same way; DH uses fewer numbers; a wrong axis is a modelling error in either. Real arm FK check: **本页未运行**.
+
+**180-minute work plan:** 30 min read the Wikipedia page and write the three twists by hand; 40 min derive the DH rows and the tool rotation; 40 min run the toy and read the three regimes; 40 min change `TILT_DEG` and the q2 range with seeds fixed; 30 min write down which parameterisation you would hand to a colleague who has to add a fourth joint, and why.
+
+### Exercises
+
+1. Compute the shoulder twist `ξ1` for `ω = (0, −1, 0)` through `(0, 0, H)` by hand and compare it with `axes` in the toy.
+2. Show from `shared_draws` and `evaluate` that A, B and C see the same 200 configurations and the same encoder noise for a given seed.
+3. Multiply the three DH rows for `q = [30, 45, −60]°` without the final `Rx(−90°)` and say which columns change and which stay the same.
+4. Set `TILT_DEG` to 0.5 with seeds fixed. Predict the `matched` C−B tip error before you run (the error grows with `L2 · |sin q2| · sin(tilt)`).
+5. Before any check on a real arm (本页未运行), write why B−A being numerically zero does **not** mean your arm's measured link lengths are right.
+
 <Summary>
 
-The simplified three-joint SO-101 model connects transform-chain and planar FK; its numerical Jacobian maps joint rates to tip motion. Damped least-squares IK depends on starting branch, reach and damping, so verify every result with FK and retain residuals for unreachable targets. Position-Jacobian rank loss, unit/sign mistakes, joint limits and collision-aware planning remain practical constraints. The separate ZYX attitude experiment shows Euler-chart rank loss at pitch±90°, compares equal-endpoint Euler/slerp paths, and makes quaternion double cover and normalization explicit. Manipulability: Yoshikawa's `w = √det(J Jᵀ) = σ1 σ2` (`L1 L2 |sin q2|` on the planar 2R arm) and the condition number `κ = σ1/σ2` measure how close the arm is to a singularity; far from one, the `w` monitor never fires and ties plain tracking (identical on every seed), while near one, capping the reach where `w` reaches the threshold costs 2.39 mm of reach — a synthetic toy, not a robot run.
+The simplified three-joint SO-101 model connects transform-chain and planar FK; its numerical Jacobian maps joint rates to tip motion. Damped least-squares IK depends on starting branch, reach and damping, so verify every result with FK and retain residuals for unreachable targets. Position-Jacobian rank loss, unit/sign mistakes, joint limits and collision-aware planning remain practical constraints. The separate ZYX attitude experiment shows Euler-chart rank loss at pitch±90°, compares equal-endpoint Euler/slerp paths, and makes quaternion double cover and normalization explicit. Manipulability: Yoshikawa's `w = √det(J Jᵀ) = σ1 σ2` (`L1 L2 |sin q2|` on the planar 2R arm) and the condition number `κ = σ1/σ2` measure how close the arm is to a singularity; far from one, the `w` monitor never fires and ties plain tracking (identical on every seed), while near one, capping the reach where `w` reaches the threshold costs 2.39 mm of reach — a synthetic toy, not a robot run. Product of exponentials: writing the same chain with one screw axis per joint in the base frame instead of DH frames gives the same pose to floating-point residue (paired pose error numerically zero against DH in every regime), while a 2° wrong elbow twist loses with a clear gap (3.3504±0.1425 mm, same sign on all 5 seeds) — a synthetic toy, not a robot run.
 
 </Summary>

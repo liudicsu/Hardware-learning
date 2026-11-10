@@ -12,3 +12,12 @@ What it does / 它做什么: forward kinematics by a chain of homogeneous transf
 
 To use it with your own arm, change `H`, `L1`, `L2` to your link lengths (measured joint axis to joint axis) and check the sign of each joint against the real arm before trusting any IK result. Output quoted in the lesson as **simulated output / 仿真输出**; checked by `tools/sim/reproduce.sh` against `tools/sim/expected/m5-kinematics.txt`.
 用于你自己的机械臂时，把 `H`、`L1`、`L2` 改成实测的连杆长度（关节轴到关节轴），并先对照真机确认每个关节的正方向，再相信 IK 结果。课程中以“仿真输出”引用；由 `tools/sim/reproduce.sh` 与 `tools/sim/expected/m5-kinematics.txt` 比对。
+
+## poe_vs_dh_fk_toy.py
+
+```bash
+python3 examples/month-5/kinematics-ik/poe_vs_dh_fk_toy.py
+```
+
+Standard-library synthetic forward kinematics on the same three-joint SO-101 model: Denavit–Hartenberg rows, a product of exponentials (screw twists) and a PoE with a 2° wrong elbow twist, on shared joint configurations and encoder noise (five seeds, common random numbers). Closed-form, no integration step; expected output in `expected/poe_vs_dh_fk_toy.txt`, checked by `check.sh`. No real arm was run.
+标准库合成正运动学，用同一个三关节 SO-101 模型比较 DH 参数、指数积（螺旋运动旋量）和肘部旋量偏 2° 的指数积，共用关节构型和编码器噪声（5 个种子，共用随机数）。闭式计算，没有积分步长；期望输出在 `expected/poe_vs_dh_fk_toy.txt`，由 `check.sh` 核对。本页未运行真实机械臂。

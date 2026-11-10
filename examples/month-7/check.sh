@@ -56,5 +56,6 @@ check gsplat_collision_toy.txt "$PY" "$M7/depth-pointcloud/gsplat_collision_toy.
 check pointcloud_pca_normals_toy.txt "$PY" "$M7/depth-pointcloud/pointcloud_pca_normals_toy.py"
 
 check residual_action_mismatch_toy.txt "$PY" "$M7/rl-foundations/residual_action_mismatch_toy.py"
+check td3_clipped_double_q_toy.txt "$PY" "$M7/rl-foundations/td3_clipped_double_q_toy.py"
 
 exit $fail

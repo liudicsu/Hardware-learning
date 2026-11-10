@@ -1,6 +1,16 @@
 # Month 7 plan: Simulation, reinforcement learning & 3D perception
 
-Current / 当前：**M7 2610 min**, Batch-15 PR2. Earlier entries below retain their historical totals.
+Current / 当前：**M7 2790 min**, Batch-16 PR2. Earlier entries below retain their historical totals.
+
+## Batch-16 PR2 — TD3 on rl-foundations (+180)
+
+Base `208706f` (batch-16 PR1 merged as #165; site **32820**). PR2 on M7 host: **M7 2610→2790 (+180)**; M5 moves in the same PR on its own plan. Site **32820→33180**, still 71 lessons.
+
+**H / 7.x rl-foundations:** `rl-foundations` 450→**630**. Toy `td3_clipped_double_q_toy.py`: 1-D continuing plant, critics linear in (1, s, a, s², a², s·a), actor a = clip(k·s + b); arms A DDPG-style single critic / B TD3 (two critics, minimum, target smoothing N(0, 0.2) clipped ±0.5, actor and targets every d = 2) / C TD3 without the delay; shared start states, exploration, reward noise, minibatches, smoothing noise and initial weights (common random numbers, 5 seeds). No integration step; critic SGD stability LR·max|φ|² = 0.2700 < 2 asserted (limit LR 0.0741; tests at 0.98× / 1.02×). noisy_reward: B−A bias −0.3451±0.0468 clear 5/5, return near-tie; easy: B−A bias −0.3765±0.0563 and absbias −0.2847±0.1360 clear 5/5, return near-tie; bandit_no_bootstrap (γ = 0): TD3 loses return −0.2140±0.0683 clear 5/5, C−A tie on every seed. C−A line added after the first run (disclosed). Paper numbers 以论文为准; MuJoCo / GPU 本页未运行.
+
+**Allocation / 安排:** 30+30+40+50+30=180 minutes.
+
+**Site accounting / 全站核算:** **33180=32820+360** with M5 +180 on month-5-plan.md; **M7=2790**, **71 lessons**.
 
 ## Batch-15 PR2 / 本月 H4 (+180)
 
