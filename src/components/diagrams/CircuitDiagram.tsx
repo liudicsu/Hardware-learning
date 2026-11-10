@@ -92,6 +92,36 @@ function Part({ p, closed }: { p: CircuitPart; closed: boolean }) {
         </g>
       );
     }
+    case "diode": {
+      // triangle pointing from anode to cathode, bar at the cathode; filled while the diode conducts
+      const [t0, t1] = terminals(p);
+      const [an, ca] = p.flip ? [t1, t0] : [t0, t1];
+      const ux = Math.sign(ca[0] - an[0]), uy = Math.sign(ca[1] - an[1]);
+      const s = 8;
+      const base: Point = [x - ux * s, y - uy * s];
+      const tip: Point = [x + ux * s, y + uy * s];
+      const tri = `${base[0] - uy * s},${base[1] - ux * s} ${base[0] + uy * s},${base[1] + ux * s} ${tip[0]},${tip[1]}`;
+      const ink = closed ? TONE.ok : INK;
+      return (
+        <g>
+          {line(an, base)}{line(tip, ca)}
+          <polygon points={tri} style={{ fill: closed ? TONE.ok : "var(--dg-card)", stroke: ink, strokeWidth: 1.6 }} />
+          {line([tip[0] - uy * s, tip[1] - ux * s], [tip[0] + uy * s, tip[1] + ux * s], { style: { stroke: ink, strokeWidth: 2.2 } })}
+        </g>
+      );
+    }
+    case "ac": {
+      const [a, b] = terminals(p);
+      const r = len / 2 - 2;
+      const sine = `M${x - r * 0.6},${y} q${r * 0.3},${-r * 0.7} ${r * 0.6},0 t${r * 0.6},0`;
+      return (
+        <g>
+          {line(a, v ? [x, y - r] : [x - r, y])}{line(v ? [x, y + r] : [x + r, y], b)}
+          <circle cx={x} cy={y} r={r} style={{ fill: "var(--dg-card)", stroke: INK, strokeWidth: 1.6 }} />
+          <path d={sine} style={{ fill: "none", stroke: INK, strokeWidth: 1.6 }} />
+        </g>
+      );
+    }
     case "supply":
       return <g>{line([x - 10, y], [x + 10, y], { style: { stroke: INK, strokeWidth: 2.4 } })}</g>;
     case "ground":
