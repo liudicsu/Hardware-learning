@@ -1,6 +1,16 @@
 # Month 5 current plan / 第5个月当前计划
 
-Current / 当前：**M5 2670 min**, Batch-14 PR2. Older batch entries retain historical totals.
+Current / 当前：**M5 2850 min**, Batch-16 PR2. Older batch entries retain historical totals.
+
+## Batch-16 PR2 — product of exponentials on kinematics-ik (+180)
+
+Base `208706f` (batch-16 PR1 merged as #165; site **32820**). PR2 on M5 host: **M5 2670→2850 (+180)**; M7 moves in the same PR on its own plan. Site **32820→33180**, still 71 lessons.
+
+**H / 5.x kinematics-ik:** `kinematics-ik` 570→**750**. Toy `poe_vs_dh_fk_toy.py`: the lesson's three-joint SO-101 model written as standard DH rows (q0, H, 0, +90°), (q1, 0, L1, 0), (q2, 0, L2, 0) plus a fixed Rx(−90°) tool rotation (A), as a space-frame product of exponentials with twists ξ = (ω, −ω × q) and home pose M (B), and as PoE with the elbow axis tilted 2° about x (C, a wrong twist); truth is the lesson's closed form; 200 shared configurations per seed (common random numbers, 5 seeds). No integration step; correctness criterion: max ||T_DH − T_PoE||_F and ||RᵀR − I||_F below 1e-12 asserted on noise-free regimes. matched / near_singular / encoder_noise: B−A **numerically zero** in every regime (floating-point residue, not a bit tie); C−B tip error 3.3504±0.1425 / 0.0397±0.0020 / 2.6701±0.0984 mm, clear, 5/5. Real-arm FK check 本页未运行.
+
+**Allocation / 安排:** 30+40+40+40+30=180 minutes.
+
+**Site accounting / 全站核算:** **33180=32820+360** with M7 +180 on month-7-plan.md; **M5=2850**, **71 lessons**.
 
 ## Batch-14 PR2 / 本月 H4 (+180)
 

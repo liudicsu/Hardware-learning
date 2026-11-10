@@ -28,5 +28,6 @@ check eight_point_essential_toy.txt "$PY" "$M5/camera-calibration/eight_point_es
 
 check quat_vs_euler_gimbal_toy.txt "$PY" "$M5/kinematics-ik/quat_vs_euler_gimbal_toy.py"
 check manipulability_yoshikawa_toy.txt "$PY" "$M5/kinematics-ik/manipulability_yoshikawa_toy.py"
+check poe_vs_dh_fk_toy.txt "$PY" "$M5/kinematics-ik/poe_vs_dh_fk_toy.py"
 
 exit $fail

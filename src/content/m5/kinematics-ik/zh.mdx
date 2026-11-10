@@ -904,8 +904,337 @@ Real SO-101 / MoveIt run: 本页未运行; Modern Robotics numbers 以原文为�
 4. 在固定种子下把 `W_MIN` 设为 `0.1 × L1 L2`。运行前先预测 near_singularity 里 B 的终点误差和保持阶段速度会怎样变化。
 5. 在任何硬件实验之前（本页未运行），用峰值速度和保持阶段速度解释：A 在奇异点附近只有 0.029 mm 的终点误差，**并不**说明忽略 `w` 是安全的。
 
+## 指数积：不用 DH 坐标系写同一条运动链
+
+页首的正运动学一节，每个关节乘一个旋转和一个偏移。教科书里给一般机械臂写这种链的常用方法是 **Denavit–Hartenberg（DH）**，每个关节四个数，坐标系要摆得让某些项相互抵消。**指数积**（product of exponentials，PoE）用每个关节一条螺旋轴（screw axis）写同一条链，所有轴都在基座坐标系里表示，再加一个初始位姿。本节为本课的三关节 SO-101 模型同时写出两种形式，并检查它们是否一致。这**不是**把可操作度或 DLS 两节再讲一遍（不碰奇异点），也**不是**讲姿态坐标（那是四元数一节）。
+
+<Resource id="wiki-poe" />
+
+**实际打开的来源（已读 HTML 正文）。** **Wikipedia — Product of exponentials formula** 的内容如下。PoE 是描述空间运动链各连杆的一种机器人学约定，是 DH 的替代方案。DH 用最少的参数；PoE 的优点是“统一处理移动关节和转动关节、只定义两个参考坐标系、用每个关节的螺旋轴带来直观的几何解释”。方法是：选一个零位形，基座到工具的变换为 `gst(0)`；对每个转动关节选轴 `ω` 和轴上一点 `q`，得到运动旋量（twist）`ξ = (ω, −ω × q)`（移动关节为 `ξ = (0, v)`）；用 Rodrigues 公式 `e^(ω̂θ) = I + ω̂ sin θ + ω̂² (1 − cos θ)` 和平移 `t = (I − e^(ω̂θ)) (ω × v) + ω ωᵀ v θ` 组成每个 `e^(ξ̂θ)`；连乘得到 `gd = e^(ξ̂1 θ1) ⋯ e^(ξ̂n θn) gst(0)`。DH 需要仔细选坐标系，才能让一个运动旋量只用四个参数表示，而且 DH 有多种坐标系约定；PoE 的运动旋量可以直接写出，不用考虑相邻关节。条目说该方法由 Roger W. Brockett 于 1984 年提出，而它引用的文献标注为 1983 年；以原文为准。真实机械臂 FK 核对**本页未运行**。
+
+### 同一条链的两种写法
+
+<Formula label="DH 行（标准约定）">T_i = Rz(θ_i) · Tz(d_i) · Tx(a_i) · Rx(α_i)</Formula>
+
+<Formula label="指数积（空间坐标系）">T(q) = e^(ξ̂0 q0) · e^(ξ̂1 q1) · e^(ξ̂2 q2) · M</Formula>
+
+这条臂的 DH 行为 `(θ, d, a, α) = (q0, H, 0, +90°)`、`(q1, 0, L1, 0)`、`(q2, 0, L2, 0)`。`+90°` 的扭角把肩部的 `z` 轴转成俯仰轴，所以 DH 的工具坐标系相对本课的工具坐标系是转过的；最后乘一个固定的 `Rx(−90°)` 就对齐了。这正是 Wikipedia 条目提醒的坐标系摆放工作。
+
+PoE 取手臂水平伸直的初始位姿：`M` 的旋转为单位阵，末端在 `(L1 + L2, 0, H) = (0.2510, 0, 0.1166) m`。底座关节绕过原点的 `ω0 = (0, 0, 1)` 转动。肩和肘绕 `ω = (0, −1, 0)` 俯仰（本课规定正俯仰抬起手臂），分别过 `(0, 0, H)` 和 `(L1, 0, H)`。
+
+**算例。** 对肘关节，`ω × q = (−1 · 0.1166 − 0, 0 − 0, 0 − (−1) · 0.1160) = (−0.1166, 0, 0.1160)`，所以 `v = −ω × q = (0.1166, 0, −0.1160)`，肘关节运动旋量为 `ξ2 = (0, −1, 0, 0.1166, 0, −0.1160)`。每个关节六个数，比 DH 的四个多，但每个数都能直接从图上读出：一个轴方向加轴上一点。在 `q = [30, 45, −60]°` 时，toy 对 DH 和 PoE 都打印末端 `(0.1840, 0.1062, 0.1637) m`，与页首算例的数字相同。
+
+**这里没有积分步长。** 每个位姿都是 4 × 4 矩阵的闭式乘积，不存在步长稳定性判据。**正确性判据。** 在无噪声情形中，toy 断言 `max ||T_DH − T_PoE||_F < 10⁻¹²`，并断言每个旋转块满足 `||RᵀR − I||_F < 10⁻¹²`，两个最大值都打印出来（`matched` 中为 3.799e-16 和 8.926e-16）。独立测试还把一个运动旋量指数与 `Trans(p) · Rot(ω, θ) · Trans(−p)` 对照到小数点后 12 位。
+
+### 公平设置
+
+`poe_vs_dh_fk_toy.py` 是**合成**模型，只用标准库。**模型假设**如下。刚性连杆、转动关节，本课的简化几何（`H = 0.1166 m`、`L1 = 0.1160 m`、`L2 = 0.1350 m`，和本课一样省略肩部偏置）；参考值（“真值”）是本课的闭式平面解，两组都不用它。
+
+| 组 | 模型 |
+|---|---|
+| A_dh | 三行标准 DH，加固定的 `Rx(−90°)` 工具旋转 |
+| B_poe | 用上面三个运动旋量和初始位姿 `M` 的空间坐标系 PoE |
+| C_poe_tilt | B，但肘关节轴绕 `x` 倾斜 2°（一个错误的运动旋量，其余都相同） |
+
+**共用随机数**（common random numbers）的做法是，每个（情形、种子）的 200 个关节构型和编码器噪声只抽一次，喂给三组；5 个种子。每个种子的指标（200 个构型的平均）为 `pose = ||T_arm − T_truth||_F` 和以 mm 计的末端位置误差。
+
+| 情形 | q1 范围 | q2 范围 | 编码器噪声 |
+|---|---|---|---|
+| matched | −60° 到 90° | −135° 到 135° | 无 |
+| near_singular | −60° 到 90° | −1° 到 1°（手臂几乎伸直） | 无 |
+| encoder_noise | −60° 到 90° | −135° 到 135° | 每个关节 0.2° 标准差，各组同一份抽样 |
+
+**看过结果后做的选择。** 没有。2° 倾斜、角度范围、噪声大小和 10⁻¹² 的界都在第一次运行前定下，三种情形都打印。
+
+### 运行标准库 toy
+
+```bash
+cd ~/Hardware-learning/examples/month-5/kinematics-ik
+python3 poe_vs_dh_fk_toy.py
+```
+
+<CodeSource path="examples/month-5/kinematics-ik/poe_vs_dh_fk_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic forward kinematics: Denavit-Hartenberg vs product of exponentials (PoE). Stdlib only.
+
+Arm: the lesson's three-joint SO-101 model (base yaw q0, shoulder pitch q1, elbow pitch q2; H = 0.1166 m,
+L1 = 0.1160 m, L2 = 0.1350 m; positive pitch lifts the arm, q1 = q2 = 0 points it straight out along x).
+Truth: the closed-form planar solution of the lesson, r = L1 cos q1 + L2 cos(q1 + q2),
+z = H + L1 sin q1 + L2 sin(q1 + q2), tip orientation Rz(q0) Ry'(q1 + q2) (Ry' pitches about -y).
+Arms (same joint angles, same geometry):
+  A_dh        standard DH rows (theta, d, a, alpha) = (q0, H, 0, +90 deg), (q1, 0, L1, 0), (q2, 0, L2, 0),
+              then a fixed tool rotation Rx(-90 deg) so the DH tool frame matches the lesson's tool frame
+  B_poe       space-frame PoE T = e^[xi0]q0 e^[xi1]q1 e^[xi2]q2 M with revolute twists xi = (w, -w x q):
+              w0 = (0, 0, 1) through the origin, w1 = w2 = (0, -1, 0) through (0, 0, H) and (L1, 0, H),
+              M = home pose (L1 + L2, 0, H) with identity rotation; e^[xi]theta from Rodrigues + the
+              Wikipedia translation t = (I - e^[w]theta)(w x v) + w w^T v theta
+  C_poe_tilt  B with the elbow axis tilted TILT_DEG = 2 deg about x (a wrong twist, everything else equal)
+Common random numbers: per (regime, seed) the N joint configurations and the encoder noise are drawn once
+and fed to all three arms. No integration step: every pose is a closed-form product of 4 x 4 matrices, so
+no step-size stability criterion applies. Correctness criterion instead: on noise-free regimes
+max ||T_DH - T_PoE||_F must be below 1e-12 (asserted), and every rotation block must satisfy
+||R^T R - I||_F < 1e-12 (asserted).
+Metrics per seed (mean over N configurations): pose = ||T_arm - T_truth||_F, pos_mm = tip position error.
+Labels: tie = identical on every seed; numerically zero = |paired mean| and sd both < 1e-9 (floating-point
+residue, effectively a tie, no sign count); |m| <= sd = near-tie; |m| > sd = consistent gap (small if
+|m| < 20 % of the smaller arm mean, else clear), with a sign count.
+Not a manipulability / Yoshikawa or DLS redo, not quaternions. Real arm FK check: 本页未运行.
+Wikipedia formulas: 以原文为准.
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+H, L1, L2 = 0.1166, 0.1160, 0.1350
+TILT_DEG = 2.0
+N = 200
+NUM_ZERO = 1e-9
+ARMS = ("A_dh", "B_poe", "C_poe_tilt")
+# name: (q1 range deg, q2 range deg, encoder noise sd deg); pre-declared before the first run
+REGIMES = {
+    "matched": ((-60.0, 90.0), (-135.0, 135.0), 0.0),
+    "near_singular": ((-60.0, 90.0), (-1.0, 1.0), 0.0),
+    "encoder_noise": ((-60.0, 90.0), (-135.0, 135.0), 0.2),
+}
+
+
+def matmul(a, b):
+    return [[sum(a[i][k] * b[k][j] for k in range(4)) for j in range(4)] for i in range(4)]
+
+
+def frob(a, b):
+    return math.sqrt(sum((a[i][j] - b[i][j]) ** 2 for i in range(4) for j in range(4)))
+
+
+def rot_z(t):
+    c, s = math.cos(t), math.sin(t)
+    return [[c, -s, 0.0, 0.0], [s, c, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]]
+
+
+def rot_x(t):
+    c, s = math.cos(t), math.sin(t)
+    return [[1.0, 0.0, 0.0, 0.0], [0.0, c, -s, 0.0], [0.0, s, c, 0.0], [0.0, 0.0, 0.0, 1.0]]
+
+
+def dh_row(theta, d, a, alpha):
+    ct, st, ca, sa = math.cos(theta), math.sin(theta), math.cos(alpha), math.sin(alpha)
+    return [[ct, -st * ca, st * sa, a * ct], [st, ct * ca, -ct * sa, a * st], [0.0, sa, ca, d], [0.0, 0.0, 0.0, 1.0]]
+
+
+def fk_dh(q):
+    t = dh_row(q[0], H, 0.0, math.pi / 2)
+    t = matmul(t, dh_row(q[1], 0.0, L1, 0.0))
+    t = matmul(t, dh_row(q[2], 0.0, L2, 0.0))
+    return matmul(t, rot_x(-math.pi / 2))
+
+
+def cross(a, b):
+    return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
+
+
+def twist_exp(w, p, theta):
+    """e^[xi]theta for a revolute twist with unit axis w through point p; v = -w x p."""
+    v = tuple(-x for x in cross(w, p))
+    c, s = math.cos(theta), math.sin(theta)
+    wh = [[0.0, -w[2], w[1]], [w[2], 0.0, -w[0]], [-w[1], w[0], 0.0]]
+    wh2 = [[sum(wh[i][k] * wh[k][j] for k in range(3)) for j in range(3)] for i in range(3)]
+    r = [[(1.0 if i == j else 0.0) + s * wh[i][j] + (1 - c) * wh2[i][j] for j in range(3)] for i in range(3)]
+    wxv = cross(w, v)
+    wv = sum(a * b for a, b in zip(w, v))
+    t = [sum(((1.0 if i == j else 0.0) - r[i][j]) * wxv[j] for j in range(3)) + w[i] * wv * theta for i in range(3)]
+    return [r[0] + [t[0]], r[1] + [t[1]], r[2] + [t[2]], [0.0, 0.0, 0.0, 1.0]]
+
+
+def axes(arm):
+    w2 = (0.0, -1.0, 0.0)
+    if arm == "C_poe_tilt":
+        g = math.radians(TILT_DEG)
+        w2 = (0.0, -math.cos(g), math.sin(g))
+    return [((0.0, 0.0, 1.0), (0.0, 0.0, 0.0)), ((0.0, -1.0, 0.0), (0.0, 0.0, H)), (w2, (L1, 0.0, H))]
+
+
+def fk_poe(q, arm="B_poe"):
+    m = [[1.0, 0.0, 0.0, L1 + L2], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, H], [0.0, 0.0, 0.0, 1.0]]
+    t = [[1.0 if i == j else 0.0 for j in range(4)] for i in range(4)]
+    for (w, p), th in zip(axes(arm), q):
+        t = matmul(t, twist_exp(w, p, th))
+    return matmul(t, m)
+
+
+def truth(q):
+    q0, q1, q2 = q
+    r = L1 * math.cos(q1) + L2 * math.cos(q1 + q2)
+    z = H + L1 * math.sin(q1) + L2 * math.sin(q1 + q2)
+    c0, s0, c, s = math.cos(q0), math.sin(q0), math.cos(q1 + q2), math.sin(q1 + q2)
+    return [[c0 * c, -s0, -c0 * s, r * c0], [s0 * c, c0, -s0 * s, r * s0], [s, 0.0, c, z], [0.0, 0.0, 0.0, 1.0]]
+
+
+def fk(arm, q):
+    return fk_dh(q) if arm == "A_dh" else fk_poe(q, arm)
+
+
+def orth_err(t):
+    return math.sqrt(sum((sum(t[k][i] * t[k][j] for k in range(3)) - (1.0 if i == j else 0.0)) ** 2 for i in range(3) for j in range(3)))
+
+
+def shared_draws(regime, seed):
+    """Common random numbers: configurations and encoder noise drawn once per (regime, seed)."""
+    (a1, b1), (a2, b2), noise = REGIMES[regime]
+    rng = random.Random(1000 * seed + len(regime))
+    out = []
+    for _ in range(N):
+        q = (math.radians(rng.uniform(-180.0, 180.0)), math.radians(rng.uniform(a1, b1)), math.radians(rng.uniform(a2, b2)))
+        e = tuple(math.radians(rng.gauss(0.0, noise)) for _ in range(3))
+        out.append((q, e))
+    return out
+
+
+def evaluate(arm, draws):
+    pose = pos = 0.0
+    for q, e in draws:
+        t = fk(arm, tuple(a + b for a, b in zip(q, e)))
+        g = truth(q)
+        pose += frob(t, g)
+        pos += 1e3 * math.sqrt(sum((t[i][3] - g[i][3]) ** 2 for i in range(3)))
+    return {"pose": pose / len(draws), "pos_mm": pos / len(draws)}
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-5:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{num(m)}+-{num(s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{num(m)}+-{num(s)}: {label}; {sign_note(diffs, m)}"
+
+
+KEYS = ("pose", "pos_mm")
+
+
+def main():
+    print("Synthetic FK: DH vs product of exponentials vs PoE with a 2 deg wrong elbow twist; SO-101 3-joint model; not a real arm")
+    print(f"H={H} L1={L1} L2={L2} m TILT_DEG={TILT_DEG} N={N} configurations per seed seeds={len(SEEDS)}; no integration step (closed-form products)")
+    q = tuple(math.radians(x) for x in (30.0, 45.0, -60.0))
+    for arm in ARMS:
+        t = fk(arm, q)
+        print(f"q=[30, 45, -60] deg {arm}: tip=({t[0][3]:.4f}, {t[1][3]:.4f}, {t[2][3]:.4f}) m")
+    print("regime arm pose_frob pos_mm  (mean+-sd over seeds)")
+    for regime in REGIMES:
+        _, _, noise = REGIMES[regime]
+        print(f"{regime} (encoder noise sd={noise} deg)")
+        draws = [shared_draws(regime, s) for s in SEEDS]
+        if noise == 0.0:
+            gap = max(frob(fk_dh(qq), fk_poe(qq)) for d in draws for qq, _ in d)
+            orth = max(orth_err(fk(arm, qq)) for arm in ARMS for d in draws for qq, _ in d)
+            assert gap < 1e-12 and orth < 1e-12
+            print(f"  correctness: max ||T_DH - T_PoE||_F = {gap:.3e} < 1e-12; max ||R^T R - I||_F = {orth:.3e} < 1e-12")
+        res = {arm: [evaluate(arm, d) for d in draws] for arm in ARMS}
+        for arm in ARMS:
+            print(f"  {arm} " + " ".join("{}+-{}".format(*map(num, mean_sd([r[k] for r in res[arm]]))) for k in KEYS))
+        for x, y in (("B_poe", "A_dh"), ("C_poe_tilt", "B_poe")):
+            for key in KEYS:
+                print(f"  paired {x[0]}-{y[0]} {key}: {verdict([r[key] for r in res[x]], [r[key] for r in res[y]])}")
+    print("No winner declared: DH and PoE are two parameterisations of the same chain; a wrong twist is a modelling error either way")
+    print("Real arm FK check: 本页未运行; Wikipedia formulas 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic FK: DH vs product of exponentials vs PoE with a 2 deg wrong elbow twist; SO-101 3-joint model; not a real arm
+H=0.1166 L1=0.116 L2=0.135 m TILT_DEG=2.0 N=200 configurations per seed seeds=5; no integration step (closed-form products)
+q=[30, 45, -60] deg A_dh: tip=(0.1840, 0.1062, 0.1637) m
+q=[30, 45, -60] deg B_poe: tip=(0.1840, 0.1062, 0.1637) m
+q=[30, 45, -60] deg C_poe_tilt: tip=(0.1860, 0.1027, 0.1637) m
+regime arm pose_frob pos_mm  (mean+-sd over seeds)
+matched (encoder noise sd=0.0 deg)
+  correctness: max ||T_DH - T_PoE||_F = 3.799e-16 < 1e-12; max ||R^T R - I||_F = 8.926e-16 < 1e-12
+  A_dh 1.997e-16+-5.041e-18 2.338e-14+-8.772e-16
+  B_poe 1.970e-16+-6.315e-18 3.844e-14+-9.057e-16
+  C_poe_tilt 0.0507+-0.0025 3.3504+-0.1425
+  paired B-A pose: -2.712e-18+-3.790e-18: numerically zero (floating-point residue), effectively a tie
+  paired B-A pos_mm: 1.506e-14+-1.371e-15: numerically zero (floating-point residue), effectively a tie
+  paired C-B pose: 0.0507+-0.0025: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B pos_mm: 3.3504+-0.1425: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+near_singular (encoder noise sd=0.0 deg)
+  correctness: max ||T_DH - T_PoE||_F = 2.726e-16 < 1e-12; max ||R^T R - I||_F = 7.450e-16 < 1e-12
+  A_dh 1.500e-16+-3.935e-18 2.469e-14+-1.027e-15
+  B_poe 1.583e-16+-2.143e-18 3.373e-14+-1.498e-15
+  C_poe_tilt 0.0004+-2.056e-05 0.0397+-0.0020
+  paired B-A pose: 8.369e-18+-4.354e-18: numerically zero (floating-point residue), effectively a tie
+  paired B-A pos_mm: 9.037e-15+-1.412e-15: numerically zero (floating-point residue), effectively a tie
+  paired C-B pose: 0.0004+-2.056e-05: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B pos_mm: 0.0397+-0.0020: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+encoder_noise (encoder noise sd=0.2 deg)
+  A_dh 0.0077+-0.0004 0.8681+-0.0357
+  B_poe 0.0077+-0.0004 0.8681+-0.0357
+  C_poe_tilt 0.0514+-0.0023 3.5382+-0.1205
+  paired B-A pose: 2.776e-18+-8.573e-18: numerically zero (floating-point residue), effectively a tie
+  paired B-A pos_mm: -1.776e-16+-1.363e-15: numerically zero (floating-point residue), effectively a tie
+  paired C-B pose: 0.0437+-0.0020: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B pos_mm: 2.6701+-0.0984: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: DH and PoE are two parameterisations of the same chain; a wrong twist is a modelling error either way
+Real arm FK check: 本页未运行; Wikipedia formulas 以原文为准
+```
+
+</SimOutput>
+
+### 读懂各情形
+
+本页标签按以下顺序使用。**打平：每个种子都完全相同**只用于配对的逐种子差值在每个种子上都严格为零；`|配对均值|` 和它的标准差都小于 1e-9 时标为**数值上为零（浮点残差），等同打平**（这种行不打印同号计数）；`|配对均值| ≤ sd` 时为**接近打平、差距很小，在种子噪声之内**；否则是**稳定**差距（`|配对均值| > sd`），`|m|` 小于两组中较小均值的 20 % 时叫**小**，否则叫**明显**；20 % 规则只用来在这两个词之间选择。每条稳定的行都带 5 个种子上的同号计数，符号相反的种子都会报告；只有同号计数不能让差距变成稳定。差距都由未四舍五入的数值计算。配对差值为 B−A 和 C−B。
+
+- **matched** 情形，DH 和 PoE 在舍入误差内一致。B−A `pose` 为**数值上为零（浮点残差），等同打平**（−2.712e-18±3.790e-18），B−A 末端误差也是如此（1.506e-14±1.371e-15 mm）；两组离闭式解都约 2e-16。它们并非逐位相同，因为两种乘法的舍入方式不同，所以标签不是“打平”。**错误的运动旋量输了，差距明显**，C−B `pose` 0.0507±0.0025，末端误差 3.3504±0.1425 mm，5 个种子同号。
+- **near_singular** 情形，手臂几乎伸直时，FK 依然有定义，DH 和 PoE 依然一致：B−A `pose` 数值上为零（8.369e-18±4.354e-18）。奇异点附近出问题的是**逆**运动学（见可操作度一节），不是正向映射。倾斜的运动旋量仍然**输了，差距明显**，但只差 0.0397±0.0020 mm，因为肘轴错了，只有肘部弯离零位时末端才会偏。
+- **encoder_noise** 情形，两组看到同样带噪声的角度，离真实末端都是 0.8681±0.0357 mm；B−A 又是数值上为零（−1.776e-16±1.363e-15 mm）。换一种参数化并不能滤掉传感器噪声。C−B 末端误差 2.6701±0.0984 mm（明显，5/5）。
+
+本页**不宣布普遍赢家**。DH 和 PoE 是同一条链的两种写法，在舍入误差内给出相同位姿。PoE 更容易从图上读出，对移动关节一视同仁；DH 用的数更少；轴写错了，在两种写法里都是建模错误。真实机械臂 FK 核对**本页未运行**。
+
+**180 分钟安排**如下。30 分钟读 Wikipedia 页面，手写三个运动旋量；40 分钟推导 DH 行和工具旋转；40 分钟运行 toy，读懂三种情形；40 分钟固定种子，改 `TILT_DEG` 和 q2 范围；30 分钟写下如果同事要加第四个关节，你会交给他哪种参数化，以及原因。
+
+### 练习
+
+1. 手算 `ω = (0, −1, 0)`、过 `(0, 0, H)` 的肩关节运动旋量 `ξ1`，与 toy 里的 `axes` 对照。
+2. 从 `shared_draws` 和 `evaluate` 说明，同一个种子下 A、B、C 看到相同的 200 个构型和相同的编码器噪声。
+3. 对 `q = [30, 45, −60]°` 连乘三行 DH，不乘最后的 `Rx(−90°)`，说出哪些列变了、哪些没变。
+4. 固定种子，把 `TILT_DEG` 改成 0.5。运行前先预测 `matched` 中 C−B 的末端误差（误差随 `L2 · |sin q2| · sin(tilt)` 增大）。
+5. 在真实机械臂上核对之前（本页未运行），写下为什么 B−A 数值上为零，**并不**说明你量的连杆长度是对的。
+
 <Summary>
 
-简化三关节 SO-101 模型把变换链和平面 FK 联系起来，数值 Jacobian 映射关节速度到末端运动。阻尼最小二乘 IK 依赖初始分支、可达范围和阻尼；每次都用 FK 核对，并保留不可达目标残差。位置 Jacobian 秩亏、单位/符号、关节限制和避碰规划仍是实际约束。独立 ZYX 姿态实验展示 pitch±90° 的 Euler 坐标图秩亏，对照相同端点的 Euler/slerp 路径，并明确四元数双覆盖与归一化。可操作度：Yoshikawa 的 `w = √det(J Jᵀ) = σ1 σ2`（平面 2R 上为 `L1 L2 |sin q2|`）和条件数 `κ = σ1/σ2` 衡量机械臂离奇异点有多近；远离奇异点时 `w` 监测器从不触发，与普通跟踪打平（每个种子都完全相同），靠近奇异点时在 `w` 到达阈值处封顶伸展距离，要放弃 2.39 mm——这是合成模型，不是机器人实验。
+简化三关节 SO-101 模型把变换链和平面 FK 联系起来，数值 Jacobian 映射关节速度到末端运动。阻尼最小二乘 IK 依赖初始分支、可达范围和阻尼；每次都用 FK 核对，并保留不可达目标残差。位置 Jacobian 秩亏、单位/符号、关节限制和避碰规划仍是实际约束。独立 ZYX 姿态实验展示 pitch±90° 的 Euler 坐标图秩亏，对照相同端点的 Euler/slerp 路径，并明确四元数双覆盖与归一化。可操作度：Yoshikawa 的 `w = √det(J Jᵀ) = σ1 σ2`（平面 2R 上为 `L1 L2 |sin q2|`）和条件数 `κ = σ1/σ2` 衡量机械臂离奇异点有多近；远离奇异点时 `w` 监测器从不触发，与普通跟踪打平（每个种子都完全相同），靠近奇异点时在 `w` 到达阈值处封顶伸展距离，要放弃 2.39 mm——这是合成模型，不是机器人实验。指数积：每个关节用一条在基座坐标系里表示的螺旋轴写同一条链，不用 DH 坐标系，得到的位姿与 DH 只差浮点残差（各情形配对位姿误差都数值上为零），而肘关节运动旋量错 2° 则明显输掉（3.3504±0.1425 mm，5 个种子同号）——这是合成模型，不是机器人实验。
 
 </Summary>

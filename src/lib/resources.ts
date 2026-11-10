@@ -5813,6 +5813,40 @@ export const resources: Record<string, Resource> = {
     },
     extra: true,
   },
+  "wiki-poe": {
+    id: "wiki-poe",
+    url: "https://en.wikipedia.org/wiki/Product_of_exponentials_formula",
+    title: {
+      zh: "Wikipedia：指数积公式（Product of exponentials formula）",
+      en: "Wikipedia: Product of exponentials formula",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "PoE 是 DH 的替代约定：统一处理移动与转动关节、只定义两个参考坐标系、用螺旋轴给出几何解释；转动关节运动旋量 ξ = (ω, −ω × q)，用 Rodrigues 公式求 e^(ω̂θ)，末端位姿 gd = e^(ξ̂1 θ1)⋯e^(ξ̂n θn) gst(0)；DH 需仔细选坐标系且有多种约定，PoE 运动旋量不必考虑相邻关节。HTML 正文已核验（rev 1356253030）；以原文为准。",
+      en: "PoE is an alternative to DH: uniform treatment of prismatic and revolute joints, only two reference frames, and a geometric reading from screw axes; a revolute twist is ξ = (ω, −ω × q), e^(ω̂θ) comes from Rodrigues' formula, and the end pose is gd = e^(ξ̂1 θ1)⋯e^(ξ̂n θn) gst(0); DH needs careful frame choice and has several conventions, while PoE twists ignore adjacent joints. HTML body verified (rev 1356253030); 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "td3-paper": {
+    id: "td3-paper",
+    url: "https://arxiv.org/abs/1802.09477",
+    title: { zh: "TD3 论文（Fujimoto 等，2018）", en: "TD3 paper (Fujimoto et al., 2018)" },
+    author: "Scott Fujimoto, Herke van Hoof, David Meger",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "Addressing Function Approximation Error in Actor-Critic Methods（ICML 2018）：演员-评论家中的高估偏差；截断双 Q（两个评论家取最小值）、每 d = 2 步延迟更新演员与目标网络、目标策略平滑 ε ~ clip(N(0, 0.2), −0.5, 0.5)。表 1 中 InvertedPendulum 各方法打平、InvertedDoublePendulum 上 DDPG 略高；表 2 消融中去掉延迟在 HalfCheetah 与 Walker2d 上更高。arXiv 1802.09477 v3 正文已读；以论文为准。",
+      en: "Addressing Function Approximation Error in Actor-Critic Methods (ICML 2018): overestimation bias in actor-critic; clipped double Q (minimum of two critics), actor and target updates delayed to every d = 2 steps, and target policy smoothing ε ~ clip(N(0, 0.2), −0.5, 0.5). In Table 1 all methods tie on InvertedPendulum and DDPG is slightly ahead on InvertedDoublePendulum; in the Table 2 ablation removing the delay scores higher on HalfCheetah and Walker2d. arXiv 1802.09477 v3 body read; 以论文为准.",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

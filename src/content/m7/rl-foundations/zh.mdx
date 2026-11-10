@@ -464,10 +464,396 @@ model_families_differ; no_universal_winner; fall_proxy_not_humanoid_fall; Isaac_
 4. **50 min — 重放与压力。** 复现每个种子并重算总体离散度。在临时副本一次只改隐藏非线性阻力范围或校准噪声，用相同新数据/评估抽样重跑全部臂。保留退步与打平，不按评估成绩调参。
 5. **30 min — 迁移边界。** 解释标量误差阈值为何不能判断接触可行性、跌倒或全身平衡。链接回 11.6，不追加接触 DR/PPO/PE 教程。
 
+## TD3：两个评论家、取最小值和延迟的演员
+
+上面的 PPO 式 toy 从新采的轨迹学习随机策略。DDPG 这类离策略演员-评论家方法则反复使用回放缓冲区：评论家学 `Q(s, a)`，确定性的演员沿它往上爬。这种复用有一个已知的失败方式：演员专挑评论家恰好估高了的动作，自举目标把误差抄过去，价值估计逐渐往上漂。**TD3**（Twin Delayed Deep Deterministic policy gradient）在 DDPG 上加了三处修正。本节在一个很小的线性替身上检验它们。这**不是**把 PPO toy 再做一遍，**不是** HER，也**不是**对 MuJoCo 分数的断言。
+
+<Resource id="td3-paper" />
+
+**实际打开的来源（用 pdftotext 读了 arXiv 1802.09477 v3 PDF 正文，并核对了摘要页）。**
+
+- **Fujimoto、van Hoof 和 Meger，《Addressing Function Approximation Error in Actor-Critic Methods》（ICML 2018）**，要点如下。
+  - 论文表明 Q-learning 中已知的高估偏差在演员-评论家方法中依然存在，而 Double DQN 的演员-评论家版本并不能消除它。
+  - **截断双 Q 学习**（Clipped Double Q-learning），式 (10)：两个评论家，目标取二者的最小值，`y1 = r + γ min over i of Qθi′(s′, πφ1(s′))`。论文指出这会偏向低估，而低估不会像高估那样经由策略更新传播。
+  - **延迟策略更新**，每 `d` 次评论家更新才更新一次演员和目标网络（`d = 2`），“直到价值误差尽可能小”。
+  - **目标策略平滑**，式 (15)：`ã = πφ′(s′) + ε`，其中 `ε ~ clip(N(0, 0.2), −0.5, 0.5)`。
+  - 算法 1 把三者合在一起。实验用 `τ = 0.005`、探索噪声 `N(0, 0.1)`、400-300 网络、学习率 10⁻³ 的 Adam、批大小 100、10 个种子，在 OpenAI Gym 的 MuJoCo 上跑 100 万步。
+- **论文报告的结果**（以论文为准）如下。
+  - 表 1 的最大平均回报：HalfCheetah 上 TD3 为 9636.95 ± 859.065，DDPG 为 3305.60。InvertedPendulum 上列出的七种方法都是 1000.00，打平；InvertedDoublePendulum 上 DDPG 的 9355.52 高于 TD3 的 9337.47。
+  - 表 2 的消融：去掉延迟（TD3 − DP）在 HalfCheetah（9590.65 对 9532.99）和 Walker2d（4695.50 对 4565.24）上比完整 TD3 分数更高。
+  - 所以论文自己的表格里就有打平和落败。
+- MuJoCo、Gym、SB3 和 GPU 训练均**本页未运行**。
+
+### 为什么取最小值能对抗高估
+
+<Formula label="DDPG 式目标（一个评论家）">y = r + γ · Q′(s′, π′(s′))</Formula>
+
+<Formula label="TD3 目标（论文式 15）">y = r + γ · min(Q1′, Q2′)(s′, π′(s′) + ε),  ε ~ clip(N(0, 0.2), −0.5, 0.5)</Formula>
+
+演员会去找高值，所以评论家在演员所选动作上的误差平均为正，由它构造的每个目标都会继承这个误差。在同样数据上训练的两个评论家取较小者，可以去掉一部分向上的误差；代价是两者都准确时会带来向下的偏差。
+
+**算例。** 设下一状态的真值为 −2.0，两个评论家分别读出 −1.6 和 −2.3。DDPG 的目标用 −1.6，取 `r = −0.5`、`γ = 0.8`，得 `y = −0.5 + 0.8 · (−1.6) = −1.78`，而真值为 −2.10，高估 0.32。TD3 用 −2.3，得 `y = −0.5 + 0.8 · (−2.3) = −2.34`，低估 0.24。取最小值并不能让目标变对，只是让误差倾向于向下。
+
+**这里没有积分步长。** 被控对象是一行映射 `s′ = clip(s + 0.5a, −2, 2)`，不是常微分方程。**稳定性判据。** 评论家用 SGD 学习平方 TD 误差。一步 SGD 把一个样本上的误差乘以 `1 − LR · |φ|²`，所以 `LR · |φ|² ≤ 2` 时稳定。toy 打印状态-动作盒子内最大的 `|φ|²`（27.0，对应上限 `LR = 0.0741`），并断言 `LR · max|φ|² = 0.2700 < 2`。测试检查在 `2 / |φ|²` 的 0.98× 处单样本更新使误差缩小，在 1.02× 处使误差变大。任何权重超出 ±10⁴ 就标记该次运行发散；没有一次运行被标记。
+
+### 公平设置
+
+`td3_clipped_double_q_toy.py` 是**合成**模型，只用标准库。**模型假设**如下。
+- 一维连续任务，奖励为 `−s′² − 0.1a²` 加零均值噪声。每 10 步重置到新的初始状态，重置不视为终止。
+- 评论家对六个二次特征 `(1, s, a, s², a², s·a)` 是线性的。演员为 `a = clip(k·s + b, −1, 1)`。
+- 3000 步，其中前 200 步为预热。批大小 8，评论家 `LR = 0.01`，演员 `LR = 0.002`，`τ = 0.01`，探索噪声 `N(0, 0.3)`。
+- **没有**神经网络，也没有 MuJoCo；超参数是 toy 自己的，不是论文的。
+
+| 组 | 评论家和目标 | 演员和目标网络的更新 |
+|---|---|---|
+| A_ddpg | 一个评论家，`y = r + γ Q′(s′, π′(s′))` | 每步 |
+| B_td3 | 两个评论家，取最小值，目标动作加平滑 | 每 `d = 2` 次评论家更新 |
+| C_cdq_nodelay | 同 B | 每步（去掉延迟的 TD3） |
+
+**共用随机数**（common random numbers）的做法是，每个种子的初始状态、探索噪声、奖励噪声、批次抽样、平滑噪声和评论家初始权重都来自各自独立的随机流，只抽一次，所有组共用。指标在 13 个固定评估状态上计算，不加探索。
+- `bias`：评论家在最终策略动作上的值，减去该策略无噪声的折扣蒙特卡洛回报；
+- `absbias`：`|bias|`；
+- `ret`：最终策略的 10 步平均回报。
+
+| 情形 | 奖励噪声标准差 | γ | 运行前的预期 |
+|---|---|---|---|
+| noisy_reward | 1.0 | 0.8 | TD3 高估更少 |
+| easy | 0 | 0.8 | 接近打平 |
+| bandit_no_bootstrap | 0 | 0 | 没有自举，就没有可修正的估计偏差：TD3 应打平或落败 |
+
+**看过结果后做的选择。** 第一次运行后没有改任何参数或情形。事后只加了一行输出，就是 C−A 的比较；加它是因为第一次运行显示 `bandit_no_bootstrap` 中 C 的数字与 A 相同。这一行在每个情形都打印，其余都没变。
+
+### 运行标准库 toy
+
+```bash
+cd ~/Hardware-learning/examples/month-7/rl-foundations
+python3 td3_clipped_double_q_toy.py
+```
+
+<CodeSource path="examples/month-7/rl-foundations/td3_clipped_double_q_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic DDPG-style single critic vs TD3 vs clipped double Q without delay. Stdlib only.
+
+Plant (continuing, 1-D): s' = clip(s + 0.5 a, -2, 2), a in [-1, 1], reward r = -s'^2 - 0.1 a^2 + noise
+(noise sd SIGMA_R per regime, zero mean). The agent resets to a fresh start state every EP steps; the reset is
+not treated as terminal, so every target bootstraps with discount GAMMA.
+Function approximation: each critic is linear in quadratic features phi(s, a) = (1, s, a, s^2, a^2, s a);
+the actor is a = clip(k s + b, -1, 1). Critics learn by minibatch SGD on squared TD error; the actor follows the
+deterministic policy gradient dQ1/da * da/d(k, b). Targets are Polyak copies (TAU). Arms:
+  A_ddpg      one critic, target y = r + GAMMA Q'(s', pi'(s')), actor and targets updated every step
+  B_td3       two critics, y = r + GAMMA min(Q1', Q2')(s', pi'(s') + eps), eps ~ clip(N(0, 0.2), -0.5, 0.5),
+              actor and targets updated every D = 2 critic steps (Fujimoto et al. 2018, Algorithm 1)
+  C_cdq_nodelay  B with D = 1 (clipped double Q and smoothing, no delay)
+Common random numbers: per seed the start states, exploration noise, reward noise, minibatch picks, target
+smoothing noise and initial critic weights are drawn once and shared by every arm (one stream per role).
+No integration step: the plant is a one-line map, not an ODE. Stability criterion instead: SGD on the critic
+is stable when LR * |phi|^2 < 2 (the toy prints the largest |phi|^2 over the feature box and asserts
+LR * max|phi|^2 < 2; the tests check a single-sample update shrinks the error at 0.98x and grows it at 1.02x
+of LR = 2/|phi|^2). A run is flagged "diverged" if any weight leaves [-1e4, 1e4].
+Metrics (on fixed evaluation start states, no exploration): bias = mean of Q1(s, pi(s)) minus the
+noise-free discounted Monte Carlo return of the final policy (60 steps); ret = mean undiscounted 10-step
+return of the final policy; absbias = |bias|.
+Labels: tie = identical on every seed; numerically zero = |paired mean| and sd both < 1e-9 (effectively a
+tie, no sign count); |m| <= sd = near-tie; |m| > sd = consistent gap (small if |m| < 20 % of the smaller arm
+mean, else clear), with a sign count.
+Not PPO (the clipped-ratio toy above) and not HER. MuJoCo / Gym / SB3 / GPU training: 本页未运行.
+Paper numbers: 以论文为准.
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+GAMMA = 0.8
+EP = 10
+STEPS = 3000
+WARMUP = 200
+BATCH = 8
+LR = 0.01
+LR_ACTOR = 0.002
+TAU = 0.01
+EXPL = 0.3
+D = 2
+SMOOTH_SD, SMOOTH_CLIP = 0.2, 0.5
+BOUND = 1e4
+NUM_ZERO = 1e-9
+ARMS = ("A_ddpg", "B_td3", "C_cdq_nodelay")
+# name: (reward noise sd, discount); pre-declared before the first run
+REGIMES = {
+    "noisy_reward": (1.0, GAMMA),
+    "easy": (0.0, GAMMA),
+    "bandit_no_bootstrap": (0.0, 0.0),
+}
+EVAL = [-1.5 + 0.25 * i for i in range(13)]
+
+
+def phi(s, a):
+    return (1.0, s, a, s * s, a * a, s * a)
+
+
+def q(w, s, a):
+    return sum(x * y for x, y in zip(w, phi(s, a)))
+
+
+def dq_da(w, s, a):
+    return w[2] + 2.0 * w[4] * a + w[5] * s
+
+
+def act(k, b, s):
+    return max(-1.0, min(1.0, k * s + b))
+
+
+def step(s, a):
+    return max(-2.0, min(2.0, s + 0.5 * a))
+
+
+def max_phi2():
+    """Largest |phi|^2 over the box s in [-2, 2], a in [-1, 1] (attained at a corner)."""
+    return max(sum(x * x for x in phi(s, a)) for s in (-2.0, 2.0) for a in (-1.0, 1.0))
+
+
+def shared_draws(seed):
+    """Common random numbers: one stream per role, shared by every arm."""
+    rngs = [random.Random(seed * 100 + i) for i in range(6)]
+    n = STEPS
+    return {
+        "start": [rngs[0].uniform(-1.5, 1.5) for _ in range(n // EP + 1)],
+        "expl": [rngs[1].gauss(0.0, EXPL) for _ in range(n)],
+        "rnoise": [rngs[2].gauss(0.0, 1.0) for _ in range(n)],
+        "pick": [[rngs[3].random() for _ in range(BATCH)] for _ in range(n)],
+        "smooth": [[max(-SMOOTH_CLIP, min(SMOOTH_CLIP, rngs[4].gauss(0.0, SMOOTH_SD))) for _ in range(BATCH)] for _ in range(n)],
+        "w0": [[rngs[5].uniform(-0.1, 0.1) for _ in range(6)] for _ in range(2)],
+    }
+
+
+def mc_return(k, b, s, gamma):
+    g, disc = 0.0, 1.0
+    for _ in range(60):
+        a = act(k, b, s)
+        s = step(s, a)
+        g += disc * (-s * s - 0.1 * a * a)
+        disc *= gamma
+        if gamma == 0.0:
+            break
+    return g
+
+
+def run(arm, regime, dr):
+    sigma_r, gamma = REGIMES[regime]
+    twin = arm != "A_ddpg"
+    d = D if arm == "B_td3" else 1
+    w = [list(dr["w0"][0]), list(dr["w0"][1])]
+    wt = [list(w[0]), list(w[1])]
+    k, b = 0.0, 0.0
+    kt, bt = k, b
+    buf = []
+    s = dr["start"][0]
+    for t in range(STEPS):
+        if t % EP == 0:
+            s = dr["start"][t // EP]
+        a = max(-1.0, min(1.0, act(k, b, s) + dr["expl"][t]))
+        s2 = step(s, a)
+        r = -s2 * s2 - 0.1 * a * a + sigma_r * dr["rnoise"][t]
+        buf.append((s, a, r, s2))
+        s = s2
+        if t < WARMUP:
+            continue
+        batch = [buf[int(u * len(buf))] for u in dr["pick"][t]]
+        for j, (bs, ba, br, bs2) in enumerate(batch):
+            a2 = act(kt, bt, bs2)
+            if twin:
+                a2 = max(-1.0, min(1.0, a2 + dr["smooth"][t][j]))
+                nxt = min(q(wt[0], bs2, a2), q(wt[1], bs2, a2))
+            else:
+                nxt = q(wt[0], bs2, a2)
+            y = br + gamma * nxt
+            f = phi(bs, ba)
+            for c in ((0, 1) if twin else (0,)):
+                err = y - q(w[c], bs, ba)
+                w[c] = [wi + LR / BATCH * err * fi for wi, fi in zip(w[c], f)]
+        if any(abs(x) > BOUND for c in w for x in c):
+            return None
+        if (t - WARMUP) % d == 0:
+            gk = gb = 0.0
+            for bs, _, _, _ in batch:
+                a0 = k * bs + b
+                if -1.0 < a0 < 1.0:
+                    g = dq_da(w[0], bs, a0)
+                    gk += g * bs
+                    gb += g
+            k += LR_ACTOR * gk / BATCH
+            b += LR_ACTOR * gb / BATCH
+            for c in range(2):
+                wt[c] = [TAU * x + (1 - TAU) * y_ for x, y_ in zip(w[c], wt[c])]
+            kt, bt = TAU * k + (1 - TAU) * kt, TAU * b + (1 - TAU) * bt
+    bias = sum(q(w[0], s0, act(k, b, s0)) - mc_return(k, b, s0, gamma) for s0 in EVAL) / len(EVAL)
+    ret = 0.0
+    for s0 in EVAL:
+        x = s0
+        for _ in range(EP):
+            a = act(k, b, x)
+            x = step(x, a)
+            ret += -x * x - 0.1 * a * a
+    return {"bias": bias, "absbias": abs(bias), "ret": ret / len(EVAL), "k": k}
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-5:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{num(m)}+-{num(s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{num(m)}+-{num(s)}: {label}; {sign_note(diffs, m)}"
+
+
+KEYS = ("bias", "absbias", "ret")
+
+
+def main():
+    print("Synthetic DDPG-style vs TD3 vs clipped double Q without delay; linear critics on a 1-D plant; not MuJoCo / Gym")
+    m2 = max_phi2()
+    assert LR * m2 < 2.0
+    print(f"GAMMA={GAMMA} EP={EP} STEPS={STEPS} BATCH={BATCH} LR={LR} LR_ACTOR={LR_ACTOR} TAU={TAU} D={D} smooth N(0,{SMOOTH_SD}) clip {SMOOTH_CLIP} seeds={len(SEEDS)}")
+    print(f"critic SGD stability: max|phi|^2={m2:.1f}, LR*max|phi|^2={LR * m2:.4f} < 2 (limit LR={2 / m2:.4f}); no integration step")
+    print("regime arm bias absbias ret  (mean+-sd over seeds)")
+    draws = [shared_draws(s) for s in SEEDS]
+    for regime, (sigma_r, gamma) in REGIMES.items():
+        print(f"{regime} (reward noise sd={sigma_r}, gamma={gamma})")
+        res = {arm: [run(arm, regime, d) for d in draws] for arm in ARMS}
+        for arm in ARMS:
+            ok = [r for r in res[arm] if r is not None]
+            if len(ok) < len(SEEDS):
+                print(f"  {arm} diverged (|w| > {BOUND:.0f}) on {len(SEEDS) - len(ok)} of {len(SEEDS)} seeds")
+                continue
+            print(f"  {arm} " + " ".join("{}+-{}".format(*map(num, mean_sd([r[k] for r in ok]))) for k in KEYS))
+        for x, y in (("B_td3", "A_ddpg"), ("C_cdq_nodelay", "B_td3"), ("C_cdq_nodelay", "A_ddpg")):  # C-A added after the first run
+            if any(r is None for r in res[x] + res[y]):
+                print(f"  paired {x[0]}-{y[0]}: not compared (diverged)")
+                continue
+            for key in KEYS:
+                print(f"  paired {x[0]}-{y[0]} {key}: {verdict([r[key] for r in res[x]], [r[key] for r in res[y]])}")
+    print("No winner declared: the min of two critics trades overestimation for underestimation, and the delay halves actor updates")
+    print("MuJoCo / Gym / SB3 / GPU training: 本页未运行; paper numbers 以论文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic DDPG-style vs TD3 vs clipped double Q without delay; linear critics on a 1-D plant; not MuJoCo / Gym
+GAMMA=0.8 EP=10 STEPS=3000 BATCH=8 LR=0.01 LR_ACTOR=0.002 TAU=0.01 D=2 smooth N(0,0.2) clip 0.5 seeds=5
+critic SGD stability: max|phi|^2=27.0, LR*max|phi|^2=0.2700 < 2 (limit LR=0.0741); no integration step
+regime arm bias absbias ret  (mean+-sd over seeds)
+noisy_reward (reward noise sd=1.0, gamma=0.8)
+  A_ddpg 0.2828+-0.2102 0.2828+-0.2102 -0.5230+-0.0664
+  B_td3 -0.0623+-0.2233 0.1862+-0.1066 -0.5232+-0.0190
+  C_cdq_nodelay 0.2103+-0.2117 0.2308+-0.1830 -0.5160+-0.0539
+  paired B-A bias: -0.3451+-0.0468: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A absbias: -0.0965+-0.2627: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired B-A ret: -0.0002+-0.0488: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired C-B bias: 0.2726+-0.0443: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B absbias: 0.0446+-0.2271: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired C-B ret: 0.0071+-0.0369: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired C-A bias: -0.0725+-0.0064: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A absbias: -0.0519+-0.0484: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  paired C-A ret: 0.0070+-0.0130: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+easy (reward noise sd=0.0, gamma=0.8)
+  A_ddpg 0.3428+-0.1101 0.3428+-0.1101 -0.5273+-0.0525
+  B_td3 -0.0337+-0.0715 0.0581+-0.0480 -0.5075+-0.0053
+  C_cdq_nodelay 0.2685+-0.1034 0.2685+-0.1034 -0.5221+-0.0485
+  paired B-A bias: -0.3765+-0.0563: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A absbias: -0.2847+-0.1360: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A ret: 0.0198+-0.0554: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired C-B bias: 0.3022+-0.0489: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B absbias: 0.2104+-0.1301: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B ret: -0.0146+-0.0513: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired C-A bias: -0.0743+-0.0090: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A absbias: -0.0743+-0.0090: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A ret: 0.0051+-0.0062: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+bandit_no_bootstrap (reward noise sd=0.0, gamma=0.0)
+  A_ddpg -0.0233+-0.0125 0.0233+-0.0125 -0.5192+-0.0186
+  B_td3 -0.0296+-0.0124 0.0296+-0.0124 -0.7332+-0.0618
+  C_cdq_nodelay -0.0233+-0.0125 0.0233+-0.0125 -0.5192+-0.0186
+  paired B-A bias: -0.0064+-0.0024: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A absbias: 0.0064+-0.0024: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A ret: -0.2140+-0.0683: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B bias: 0.0064+-0.0024: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B absbias: -0.0064+-0.0024: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B ret: 0.2140+-0.0683: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A bias: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A absbias: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A ret: 0.0000+-0.0000: tie: identical on every seed
+No winner declared: the min of two critics trades overestimation for underestimation, and the delay halves actor updates
+MuJoCo / Gym / SB3 / GPU training: 本页未运行; paper numbers 以论文为准
+```
+
+</SimOutput>
+
+### 读懂各情形
+
+本页标签按以下顺序使用。**打平：每个种子都完全相同**只用于配对的逐种子差值在每个种子上都严格为零；`|配对均值|` 和它的标准差都小于 1e-9 时标为**数值上为零（浮点残差），等同打平**（这种行不打印同号计数）；`|配对均值| ≤ sd` 时为**接近打平、差距很小，在种子噪声之内**；否则是**稳定**差距（`|配对均值| > sd`），`|m|` 小于两组中较小均值的 20 % 时叫**小**，否则叫**明显**；20 % 规则只用来在这两个词之间选择。每条稳定的行都带 5 个种子上的同号计数，符号相反的种子都会报告；只有同号计数不能让差距变成稳定。差距都由未四舍五入的数值计算。配对差值为 B−A、C−B 和 C−A。`bias` 带符号，所以值越低表示高估越小（或低估越大）；`absbias` 是不分方向的误差大小。
+
+- **noisy_reward** 情形如下。
+  - **TD3 降低了带符号偏差，差距明显**，B−A −0.3451±0.0468，5 个种子同号。A 高估 0.2828±0.2102，B 为 −0.0623±0.2233。
+  - 回报是**接近打平、差距很小，在种子噪声之内**（B−A −0.0002±0.0488，5 个种子中 1 个符号相反），`absbias` 也是如此（−0.0965±0.2627）。
+  - 去掉延迟后，C 保留了 A 的大部分高估：C−B bias 0.2726±0.0443（明显，5/5）。
+- **easy** 情形如下。
+  - 去掉奖励噪声并没有去掉高估（A 0.3428±0.1101）：高估来自追着演员跑的线性评论家，而不是来自噪声。
+  - TD3 降低了高估，差距明显（B−A bias −0.3765±0.0563，`absbias` −0.2847±0.1360，都是 5/5）。
+  - 回报又是接近打平（B−A 0.0198±0.0554，5 个种子中 3 个符号相反）。
+- **bandit_no_bootstrap** 情形如下。
+  - `γ = 0` 时目标就是 `r`，取最小值和平滑都无从作用。C 与 A 在三个指标上都是**打平：每个种子都完全相同**。
+  - **TD3 落败，差距明显**，回报 B−A −0.2140±0.0683，5 个种子同号；`absbias` +0.0064±0.0024（明显，5/5）。
+  - 没有偏差可去时，延迟只是让同样 3000 步内的演员更新次数减半。论文也提醒过同一件事：演员训练迭代太少“会削弱学习”（would cripple learning）。
+
+本页**不宣布普遍赢家**。两个评论家取最小值是用高估换低估；只有当评论家有误差需要等它收敛时，延迟才有帮助；在这个 toy 里，更好的价值估计并没有变成更好的回报。论文数字以论文为准，MuJoCo / GPU 训练**本页未运行**。
+
+**180 分钟安排**如下。30 分钟读论文第 4–6 节和算法 1；30 分钟手算算例和 SGD 界；40 分钟运行 toy，读懂三种情形；50 分钟固定种子，改 `D`、`REGIMES` 中的奖励噪声标准差和 `STEPS`；30 分钟写下什么时候该用 TD3、什么时候一个评论家就够了。
+
+### 练习
+
+1. 两个评论家改为读出 −2.1 和 −2.2，重做算例，说出 TD3 目标误差现在的符号。
+2. 从 `shared_draws` 和 `run` 说明，同一个种子下 A、B、C 使用相同的初始状态、探索噪声、奖励噪声和批次抽样。
+3. 手算 `|φ(2, 1)|²`，核对打印的上限 `LR = 0.0741`；再说出 `LR = 0.08` 时一步 SGD 会怎样。
+4. 固定种子，把 `STEPS` 改成 6000。运行前先预测 `bandit_no_bootstrap` 中 B 的回报损失会不会缩小。
+5. 在任何 Gym 或 MuJoCo 运行之前（本页未运行），写下为什么 `easy` 中 B 的偏差更低，**并不**说明 TD3 在你的机器人任务上会得分更高。
+
 <Summary>
 
 MDP 就是状态、动作、奖励、回报与策略。RL 优化折扣回报而不是抄示范；糟糕的奖励会招来 hacking。标准库裁剪比率玩具在 1-D 到达上三个种子都有进步（最终回报均值 ≈ −8.6）；SB3 PPO 是库路径，不用 CNN 时主要跑在 CPU 上。
 
-等数据 Plant-A→B 迁移用五个共用种子对比 SysID-retune、DR-widen 与残差动作；delta 仅留在仿真微调，不随策略部署。
+等数据 Plant-A→B 迁移用五个共用种子对比 SysID-retune、DR-widen 与残差动作；delta 仅留在仿真微调，不随策略部署。TD3（两个评论家取最小值、目标平滑、延迟演员）在线性评论家 toy 上明显降低了高估（配对 bias −0.3765±0.0563，5/5），但回报没有更好（接近打平）；没有自举时它在回报上明显输掉（−0.2140±0.0683，5/5），因为延迟让演员更新次数减半——这是合成模型，不是 MuJoCo；论文数字以论文为准。
 
 </Summary>

@@ -1,0 +1,34 @@
+Synthetic FK: DH vs product of exponentials vs PoE with a 2 deg wrong elbow twist; SO-101 3-joint model; not a real arm
+H=0.1166 L1=0.116 L2=0.135 m TILT_DEG=2.0 N=200 configurations per seed seeds=5; no integration step (closed-form products)
+q=[30, 45, -60] deg A_dh: tip=(0.1840, 0.1062, 0.1637) m
+q=[30, 45, -60] deg B_poe: tip=(0.1840, 0.1062, 0.1637) m
+q=[30, 45, -60] deg C_poe_tilt: tip=(0.1860, 0.1027, 0.1637) m
+regime arm pose_frob pos_mm  (mean+-sd over seeds)
+matched (encoder noise sd=0.0 deg)
+  correctness: max ||T_DH - T_PoE||_F = 3.799e-16 < 1e-12; max ||R^T R - I||_F = 8.926e-16 < 1e-12
+  A_dh 1.997e-16+-5.041e-18 2.338e-14+-8.772e-16
+  B_poe 1.970e-16+-6.315e-18 3.844e-14+-9.057e-16
+  C_poe_tilt 0.0507+-0.0025 3.3504+-0.1425
+  paired B-A pose: -2.712e-18+-3.790e-18: numerically zero (floating-point residue), effectively a tie
+  paired B-A pos_mm: 1.506e-14+-1.371e-15: numerically zero (floating-point residue), effectively a tie
+  paired C-B pose: 0.0507+-0.0025: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B pos_mm: 3.3504+-0.1425: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+near_singular (encoder noise sd=0.0 deg)
+  correctness: max ||T_DH - T_PoE||_F = 2.726e-16 < 1e-12; max ||R^T R - I||_F = 7.450e-16 < 1e-12
+  A_dh 1.500e-16+-3.935e-18 2.469e-14+-1.027e-15
+  B_poe 1.583e-16+-2.143e-18 3.373e-14+-1.498e-15
+  C_poe_tilt 0.0004+-2.056e-05 0.0397+-0.0020
+  paired B-A pose: 8.369e-18+-4.354e-18: numerically zero (floating-point residue), effectively a tie
+  paired B-A pos_mm: 9.037e-15+-1.412e-15: numerically zero (floating-point residue), effectively a tie
+  paired C-B pose: 0.0004+-2.056e-05: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B pos_mm: 0.0397+-0.0020: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+encoder_noise (encoder noise sd=0.2 deg)
+  A_dh 0.0077+-0.0004 0.8681+-0.0357
+  B_poe 0.0077+-0.0004 0.8681+-0.0357
+  C_poe_tilt 0.0514+-0.0023 3.5382+-0.1205
+  paired B-A pose: 2.776e-18+-8.573e-18: numerically zero (floating-point residue), effectively a tie
+  paired B-A pos_mm: -1.776e-16+-1.363e-15: numerically zero (floating-point residue), effectively a tie
+  paired C-B pose: 0.0437+-0.0020: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B pos_mm: 2.6701+-0.0984: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: DH and PoE are two parameterisations of the same chain; a wrong twist is a modelling error either way
+Real arm FK check: 本页未运行; Wikipedia formulas 以原文为准

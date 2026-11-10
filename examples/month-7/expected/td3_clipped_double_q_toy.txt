@@ -1,0 +1,45 @@
+Synthetic DDPG-style vs TD3 vs clipped double Q without delay; linear critics on a 1-D plant; not MuJoCo / Gym
+GAMMA=0.8 EP=10 STEPS=3000 BATCH=8 LR=0.01 LR_ACTOR=0.002 TAU=0.01 D=2 smooth N(0,0.2) clip 0.5 seeds=5
+critic SGD stability: max|phi|^2=27.0, LR*max|phi|^2=0.2700 < 2 (limit LR=0.0741); no integration step
+regime arm bias absbias ret  (mean+-sd over seeds)
+noisy_reward (reward noise sd=1.0, gamma=0.8)
+  A_ddpg 0.2828+-0.2102 0.2828+-0.2102 -0.5230+-0.0664
+  B_td3 -0.0623+-0.2233 0.1862+-0.1066 -0.5232+-0.0190
+  C_cdq_nodelay 0.2103+-0.2117 0.2308+-0.1830 -0.5160+-0.0539
+  paired B-A bias: -0.3451+-0.0468: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A absbias: -0.0965+-0.2627: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired B-A ret: -0.0002+-0.0488: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired C-B bias: 0.2726+-0.0443: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B absbias: 0.0446+-0.2271: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired C-B ret: 0.0071+-0.0369: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired C-A bias: -0.0725+-0.0064: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A absbias: -0.0519+-0.0484: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  paired C-A ret: 0.0070+-0.0130: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+easy (reward noise sd=0.0, gamma=0.8)
+  A_ddpg 0.3428+-0.1101 0.3428+-0.1101 -0.5273+-0.0525
+  B_td3 -0.0337+-0.0715 0.0581+-0.0480 -0.5075+-0.0053
+  C_cdq_nodelay 0.2685+-0.1034 0.2685+-0.1034 -0.5221+-0.0485
+  paired B-A bias: -0.3765+-0.0563: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A absbias: -0.2847+-0.1360: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A ret: 0.0198+-0.0554: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired C-B bias: 0.3022+-0.0489: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B absbias: 0.2104+-0.1301: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B ret: -0.0146+-0.0513: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired C-A bias: -0.0743+-0.0090: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A absbias: -0.0743+-0.0090: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A ret: 0.0051+-0.0062: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+bandit_no_bootstrap (reward noise sd=0.0, gamma=0.0)
+  A_ddpg -0.0233+-0.0125 0.0233+-0.0125 -0.5192+-0.0186
+  B_td3 -0.0296+-0.0124 0.0296+-0.0124 -0.7332+-0.0618
+  C_cdq_nodelay -0.0233+-0.0125 0.0233+-0.0125 -0.5192+-0.0186
+  paired B-A bias: -0.0064+-0.0024: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A absbias: 0.0064+-0.0024: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A ret: -0.2140+-0.0683: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B bias: 0.0064+-0.0024: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B absbias: -0.0064+-0.0024: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B ret: 0.2140+-0.0683: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A bias: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A absbias: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A ret: 0.0000+-0.0000: tie: identical on every seed
+No winner declared: the min of two critics trades overestimation for underestimation, and the delay halves actor updates
+MuJoCo / Gym / SB3 / GPU training: 本页未运行; paper numbers 以论文为准
