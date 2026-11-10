@@ -30,3 +30,10 @@ The lesson's output for this sketch comes from simavr with the simulated MPU-605
 ```bash
 python3 notch_vs_lead_resonant_toy.py
 ```
+
+**`pid_setpoint_weighting_2dof_toy.py`**: synthetic LTI rigid joint; plain PID, PID with setpoint weights (b = 0.5, c = 0) and PID with only the derivative kick removed, on shared setpoint steps, load steps and sensor noise (five seeds, common random numbers). No servo was run.
+合成线性时不变刚性关节：在共用设定值阶跃、负载阶跃和传感器噪声下比较普通 PID、设定值加权 PID（b = 0.5、c = 0）和只去掉微分冲击的 PID（5 个种子，共用随机数）。本页未运行真实伺服。
+
+```bash
+python3 pid_setpoint_weighting_2dof_toy.py
+```

@@ -1118,6 +1118,329 @@ Real Wheatstone / INA / strain-gauge lab: 本页未运行; TI/Wikipedia numbers 
 4. 多种子不变，把 `small_delta_noisy_cm` 的 `CM` 减半。运行前预测哪一臂 SNR 动得最多。
 5. 任何真机实验前（本页未运行），写明为何安静大 `ΔR` 的**接近打平 / 差距很小**（约 2.6 dB，来自有限 CMRR 残差 + 私有 `DIFF_NOISE`）**不能**授权在微应变片上省掉电桥。
 
+## 整流桥与纹波
+
+上面几节都默认手里已经有一条直流电源轨：去耦、TVS 钳位和电桥传感器都接在一条已经平滑的电源上。本节往前看一步，看墙上变压器的交流是怎么变成这条电源轨的。在共享元件上比较单个二极管（半波）、四个二极管组成的整流桥（全波），以及去掉滤波电容的同一个整流桥。这**不是**上面的惠斯通测量电桥（那个电桥感知电阻变化，这个电桥给电流指路），也**不是** TVS 浪涌钳位。
+
+<Resource id="wiki-diode-bridge" />
+<Resource id="wiki-rectifier" />
+<Resource id="wiki-ripple" />
+
+**实际打开的来源（已读 HTML 正文）。**
+
+- **Wikipedia — Diode bridge** 的内容如下。四个二极管接成桥，可以从两线交流输入得到全波整流；任一时刻只有 2 个二极管正偏；交流输入时，输出是幅值相同、频率为输入两倍的脉动电压，通常后面再接电容或其他滤波器。该电路归功于 Karol Pollak（1895 年专利）以及独立发表的 Leo Graetz（1897 年）。以原文为准。
+- **Wikipedia — Rectifier** 的内容如下。不加平滑时，半波的平均值为 `Vpeak / π`，全波为 `2 Vpeak / π`；每个导通的硅二极管压降约 0.7 V（肖特基约 0.3 V），所以半波整流损失一个压降，整流桥损失两个；纹波在半波时位于电源频率，全波时位于两倍电源频率，通常给峰峰值；所需电容随负载电流增大，随频率和每周期峰数增加而减小；电容加大是用纹波电压换**纹波电流**，其峰值由正弦上升沿决定，并受绕组电阻限制。以原文为准。
+- **Wikipedia — Ripple (electrical)** 的内容如下。RC 很大、纹波很小时，电容近似线性放电，`Q = C·Vpp = I·t`，全波时 `t = 1 / (2f)`，得到 `Vpp = I / (2fC)`。以原文为准。
+
+真实市电、变压器或电源实验台**本页未运行**。
+
+### 从电荷平衡算纹波
+
+<Formula label="峰峰纹波，线性放电（全波）">Vpp ≈ I / (2 f C)</Formula>
+
+<Formula label="半波：每周期补充一次">Vpp ≈ I / (f C)</Formula>
+
+两次补充之间，负载抽走近似恒定的电流 `I`，电容失去 `ΔQ = I · t`，电压下降 `ΔQ / C`。整流桥每半个周期补充一次（`t = 1/(2f)`），单个二极管每个周期只补充一次（`t = 1/f`），所以同样的 `I` 和 `C` 下，半波纹波是全波的两倍。
+
+**算例。** 12 V rms 次级的峰值为 `12 × √2 = 16.97 V`；减去两个 0.7 V 压降，整流桥充到约 15.6 V。`R = 50 Ω` 时 `I ≈ 0.3 A`。取 `f = 50 Hz`、`C = 1000 µF`：整流桥 `Vpp ≈ 0.3 / (2 × 50 × 0.001) = 3.0 V`，半波 `0.3 / (50 × 0.001) = 6.0 V`。14 V 上有 3 V 纹波约为 20 %，按下面的 10 % 规则这条电源轨不算“直流”；要让整流桥纹波低于 1.4 V，需要 `C ≥ 0.3 / (2 × 50 × 1.4) ≈ 2.1 mF`。这个公式忽略了二极管导通所占的时间，所以会**高估**纹波：在这个负载下，toy 测得整流桥纹波是公式值的 0.76–0.78。
+
+**公式的正确性判据。** 每次运行，toy 都把仿真纹波除以 `I / (k f C)`（半波 `k = 1`，整流桥 `k = 2`，`I = vdc / R`）。纹波小时要求两者相差不超过 25 %；纹波超过平均输出的 10 % 时，该次运行标为**不是直流**（not DC），也不要求公式成立。
+
+**积分步长与稳定性判据。** 电容节点用前向欧拉法积分，`DT = 5 µs`。二极管导通时，节点是速率为 `1/(RS C) + 1/(R C)` 的线性衰减，前向欧拉在上面稳定的条件是 `DT ≤ 2 / (1/(RS C) + 1/(R C))`。toy 按每种情形抽到的最小 C 和 R 打印这个极限（`tiny_C_heavy` 为 169.7 µs，`large_C_light` 最大为 3749.6 µs），并断言 `DT` 小于它的 5 %。测试检查欧拉因子在极限的 0.98 倍处衰减、1.02 倍处增长，并检查 `DT` 与 `DT/2` 的结果一致（toy 对一个算例打印 vdc 相差 5.969e-04 V）。
+
+### 公平设置
+
+`bridge_rectifier_ripple_toy.py` 是**合成**模型，只用标准库。**模型假设**如下。
+- 电源是理想 50 Hz 正弦，串一个绕组电阻 `RS = 0.5 Ω`；**没有**变压器电压调整率、漏感或铁心饱和（真实半波负载还会让直流流过绕组，这里忽略）。
+- 每个二极管是理想开关加串联正向压降 `VF`；整流桥通路里始终有两个压降。没有反向恢复，没有电容 ESR。
+- 负载是电阻。toy 运行 20 个周期，只测最后 10 个。
+
+| 组 | 电路 | 通路中的压降数 |
+|---|---|---|
+| A_half | 一个二极管，再接 C 与 R 并联 | 1 |
+| B_bridge | 四二极管整流桥，再接 C 与 R 并联 | 2 |
+| C_noC | 同一个整流桥，不接电容 | 2 |
+
+**共用随机数**（common random numbers）的做法是，每个种子的电网幅值（±5 %）、电容容差（±20 %）、负载（±10 %）和 `VF`（0.65–0.75 V）只抽一次，所有组、所有情形都用它。指标为 `vdc`（平均输出，V）、`ripple`（峰峰值，V）和 `ipk`（二极管峰值电流，A，代表 Rectifier 条目提醒的纹波电流应力）。
+
+| 情形 | 标称 C | 标称 R |
+|---|---|---|
+| small_C_heavy | 470 µF | 20 Ω |
+| medium | 1000 µF | 50 Ω |
+| large_C_light | 4700 µF | 200 Ω |
+| tiny_C_heavy | 220 µF | 15 Ω |
+
+**看过结果后做的选择。** 没有。四种情形、25 % 容差、10 % 直流规则、`RS` 和 `DT` 都在第一次运行前写定，之后没有改；运行过的每种情形都打印出来，包括整流桥输掉的情形。有一个独立测试在第一次运行后重写过：它原来用 47 mF 电容，20 个周期内到不了稳态，现在改为检查比值从 `medium` 到 `large_C_light` 向 1 上升。
+
+### 运行标准库 toy
+
+```bash
+cd ~/Hardware-learning/examples/month-1/components
+python3 bridge_rectifier_ripple_toy.py
+```
+
+<CodeSource path="examples/month-1/components/bridge_rectifier_ripple_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic half-wave vs diode-bridge rectifier with a smoothing capacitor. Stdlib only.
+
+Source: v(t) = VPK sin(2 pi F t) behind a winding resistance RS (no transformer regulation,
+no leakage inductance). Diodes are ideal switches with a series forward drop VF each:
+  A_half     one diode then C || R            rectified source = v - VF when v > VF
+  B_bridge   four-diode bridge then C || R    rectified source = |v| - 2 VF (two diodes conduct)
+  C_noC      the same bridge, no capacitor    v_out = max(0, |v| - 2 VF) R / (R + RS)
+Capacitor node (A, B): C dV/dt = i_d - V / R, with i_d = max(0, v_rect - V) / RS while the
+diodes conduct. Integrated with forward Euler at step DT. Euler is stable for this linear node
+when DT <= 2 / (1/(RS C) + 1/(R C)) (the conducting phase is the stiff one); the toy prints the
+limit for every regime and asserts DT is far below it; the tests check decay at 0.98x and
+growth at 1.02x of that limit, and that DT and DT/2 agree.
+Correctness criterion: with ripple pp small, the linear-discharge law V_pp ~= I / (k F C)
+(k = 1 half-wave, k = 2 full-wave; Wikipedia Ripple (electrical): V_pp = I / (2 f C) for
+full-wave) must agree with the simulated pp within 25 % (the law ignores the conduction time,
+so it over-predicts). A run whose ripple pp exceeds 10 % of its mean is labelled "not DC".
+Common random numbers: per seed the line amplitude (+-5 %), the capacitor tolerance (+-20 %),
+the load (+-10 %) and VF (0.65-0.75 V) are drawn once and shared by every arm and regime
+(each regime scales the nominal C and R). Metrics over the last 10 cycles of 20:
+vdc (mean output, V), ripple (pp, V), ipk (peak diode current, A; stress proxy).
+Labels: tie = identical on every seed; numerically zero = |paired mean| and sd both < 1e-9
+(effectively a tie, no sign count); |m| <= sd = near-tie; |m| > sd = consistent gap (small if
+|m| < 20 % of the smaller arm mean, else clear), with a sign count.
+Not a Wheatstone bridge (a measurement bridge) and not TVS surge clamping.
+Real mains / transformer / PSU bench: 本页未运行. Wikipedia formulas: 以原文为准.
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+F = 50.0  # Hz line frequency
+VPK = 12.0 * math.sqrt(2.0)  # V, 12 V rms secondary
+RS = 0.5  # ohm, winding + wiring resistance
+DT = 5e-6  # s, Euler step
+CYCLES, MEASURE = 20, 10
+TOL_LAW = 0.25
+DC_LIMIT = 0.10
+NUM_ZERO = 1e-9
+ARMS = ("A_half", "B_bridge", "C_noC")
+# name: (nominal C in uF, nominal R in ohm); pre-declared before the first run
+REGIMES = {
+    "small_C_heavy": (470.0, 20.0),
+    "medium": (1000.0, 50.0),
+    "large_C_light": (4700.0, 200.0),
+    "tiny_C_heavy": (220.0, 15.0),
+}
+
+
+def shared_draws(seed):
+    """Common random numbers: one draw per seed, shared by every arm and regime."""
+    rng = random.Random(seed)
+    return {"amp": rng.uniform(0.95, 1.05), "c": rng.uniform(0.8, 1.2), "r": rng.uniform(0.9, 1.1), "vf": rng.uniform(0.65, 0.75)}
+
+
+def euler_h_max(c, r):
+    return 2.0 / (1.0 / (RS * c) + 1.0 / (r * c))
+
+
+def euler_amp(h, c, r):
+    """Growth factor of one Euler step on the conducting node, |1 - h (1/(RS C) + 1/(R C))|."""
+    return abs(1.0 - h * (1.0 / (RS * c) + 1.0 / (r * c)))
+
+
+def simulate(arm, regime, draws, dt=DT):
+    c_nom, r_nom = REGIMES[regime]
+    c, r = c_nom * 1e-6 * draws["c"], r_nom * draws["r"]
+    vpk, vf = VPK * draws["amp"], draws["vf"]
+    n = round(CYCLES / F / dt)
+    start = round((CYCLES - MEASURE) / F / dt)
+    v = 0.0
+    vs, ipk = [], 0.0
+    for i in range(n):
+        src = vpk * math.sin(2.0 * math.pi * F * i * dt)
+        rect = src - vf if arm == "A_half" else abs(src) - 2.0 * vf
+        if arm == "C_noC":
+            v = max(0.0, rect) * r / (r + RS)
+            i_d = v / r
+        else:
+            i_d = max(0.0, rect - v) / RS
+            v += dt * (i_d - v / r) / c
+        if i >= start:
+            vs.append(v)
+            ipk = max(ipk, i_d)
+    vdc = sum(vs) / len(vs)
+    return {"vdc": vdc, "ripple": max(vs) - min(vs), "ipk": ipk, "c": c, "r": r}
+
+
+def law(arm, res):
+    k = 1.0 if arm == "A_half" else 2.0
+    return (res["vdc"] / res["r"]) / (k * F * res["c"])
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-5:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{num(m)}+-{num(s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{num(m)}+-{num(s)}: {label}; {sign_note(diffs, m)}"
+
+
+KEYS = ("vdc", "ripple", "ipk")
+
+
+def main():
+    print("Synthetic half-wave vs bridge rectifier with C || R; ideal diodes + series VF; not a PSU bench, not a Wheatstone bridge")
+    print(f"F={F} Hz VPK={VPK:.4f} V RS={RS} ohm DT={DT * 1e6:.0f} us cycles={CYCLES} (last {MEASURE} measured) seeds={len(SEEDS)}")
+    draws = [shared_draws(s) for s in SEEDS]
+    for regime, (c_nom, r_nom) in REGIMES.items():
+        c_min = c_nom * 1e-6 * 0.8
+        h = euler_h_max(c_min, r_nom * 0.9)
+        assert DT < 0.05 * h
+        print(f"Euler limit {regime}: h_max={h * 1e6:.1f} us at the smallest C and R drawn; DT={DT * 1e6:.0f} us; |1 - DT/tau|={euler_amp(DT, c_min, r_nom * 0.9):.6f} < 1")
+    print("regime arm vdc_V ripple_pp_V ipk_A  (mean+-sd over seeds)")
+    for regime, (c_nom, r_nom) in REGIMES.items():
+        print(f"{regime} (C={c_nom:.0f} uF, R={r_nom:.0f} ohm nominal)")
+        res = {arm: [simulate(arm, regime, d) for d in draws] for arm in ARMS}
+        for arm in ARMS:
+            cells = " ".join("{}+-{}".format(*map(num, mean_sd([x[k] for x in res[arm]]))) for k in KEYS)
+            share = max(x["ripple"] / x["vdc"] for x in res[arm])
+            tag = "DC" if share <= DC_LIMIT else "not DC (ripple > 10 % of vdc)"
+            print(f"  {arm} {cells}; worst ripple/vdc {100 * share:.1f} % -> {tag}")
+        for arm in ("A_half", "B_bridge"):
+            ratios = [x["ripple"] / law(arm, x) for x in res[arm]]
+            lo, hi = min(ratios), max(ratios)
+            ok = all(abs(q - 1.0) <= TOL_LAW for q in ratios)
+            small = all(x["ripple"] / x["vdc"] <= DC_LIMIT for x in res[arm])
+            state = "within 25 %" if ok else ("outside 25 %" + ("" if small else " (ripple not small; law not expected to hold)"))
+            print(f"  law {arm}: simulated / (I/({1 if arm == 'A_half' else 2} F C)) = {lo:.4f}..{hi:.4f} -> {state}")
+        for x, y in (("B_bridge", "A_half"), ("C_noC", "B_bridge")):
+            for k in KEYS:
+                print(f"  paired {x[0]}-{y[0]} {k}: {verdict([r[k] for r in res[x]], [r[k] for r in res[y]])}")
+    d0 = draws[0]
+    a, b = simulate("B_bridge", "medium", d0), simulate("B_bridge", "medium", d0, DT / 2)
+    print(f"step check (B, medium, seed 0): DT vs DT/2 vdc {abs(a['vdc'] - b['vdc']):.3e} V, ripple {abs(a['ripple'] - b['ripple']):.3e} V")
+    print("No winner declared: the bridge halves the ripple period and the charge per refill, but pays a second diode drop; without C the output is not DC")
+    print("Real mains / transformer / PSU bench: 本页未运行; Wikipedia formulas 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic half-wave vs bridge rectifier with C || R; ideal diodes + series VF; not a PSU bench, not a Wheatstone bridge
+F=50.0 Hz VPK=16.9706 V RS=0.5 ohm DT=5 us cycles=20 (last 10 measured) seeds=5
+Euler limit small_C_heavy: h_max=365.8 us at the smallest C and R drawn; DT=5 us; |1 - DT/tau|=0.972665 < 1
+Euler limit medium: h_max=791.2 us at the smallest C and R drawn; DT=5 us; |1 - DT/tau|=0.987361 < 1
+Euler limit large_C_light: h_max=3749.6 us at the smallest C and R drawn; DT=5 us; |1 - DT/tau|=0.997333 < 1
+Euler limit tiny_C_heavy: h_max=169.7 us at the smallest C and R drawn; DT=5 us; |1 - DT/tau|=0.941077 < 1
+regime arm vdc_V ripple_pp_V ipk_A  (mean+-sd over seeds)
+small_C_heavy (C=470 uF, R=20 ohm nominal)
+  A_half 8.8699+-0.6353 12.4552+-0.7076 2.5890+-0.3309; worst ripple/vdc 165.3 % -> not DC (ripple > 10 % of vdc)
+  B_bridge 11.7645+-0.6076 7.1571+-0.5686 2.2721+-0.2464; worst ripple/vdc 71.1 % -> not DC (ripple > 10 % of vdc)
+  C_noC 9.2282+-0.4153 15.1965+-0.6440 0.7777+-0.0674; worst ripple/vdc 165.3 % -> not DC (ripple > 10 % of vdc)
+  law A_half: simulated / (I/(1 F C)) = 0.6398..0.7045 -> outside 25 % (ripple not small; law not expected to hold)
+  law B_bridge: simulated / (I/(2 F C)) = 0.5506..0.6125 -> outside 25 % (ripple not small; law not expected to hold)
+  paired B-A vdc: 2.8946+-0.2236: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A ripple: -5.2981+-0.2119: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A ipk: -0.3169+-0.0960: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B vdc: -2.5363+-0.2745: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B ripple: 8.0394+-0.7472: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B ipk: -1.4944+-0.2016: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+medium (C=1000 uF, R=50 ohm nominal)
+  A_half 13.5966+-0.6451 4.4796+-0.5048 2.7753+-0.2288; worst ripple/vdc 40.5 % -> not DC (ripple > 10 % of vdc)
+  B_bridge 14.1828+-0.6342 2.1320+-0.2605 1.8757+-0.1436; worst ripple/vdc 18.4 % -> not DC (ripple > 10 % of vdc)
+  C_noC 9.3685+-0.4267 15.4274+-0.6621 0.3158+-0.0276; worst ripple/vdc 165.3 % -> not DC (ripple > 10 % of vdc)
+  law A_half: simulated / (I/(1 F C)) = 0.8332..0.8499 -> within 25 %
+  law B_bridge: simulated / (I/(2 F C)) = 0.7590..0.7771 -> within 25 %
+  paired B-A vdc: 0.5862+-0.1365: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A ripple: -2.3476+-0.2445: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A ipk: -0.8996+-0.0907: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B vdc: -4.8144+-0.2235: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B ripple: 13.2954+-0.7010: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B ipk: -1.5598+-0.1176: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+large_C_light (C=4700 uF, R=200 ohm nominal)
+  A_half 15.5826+-0.6231 0.2983+-0.0393 1.3364+-0.0917; worst ripple/vdc 2.4 % -> DC
+  B_bridge 15.1680+-0.6478 0.1364+-0.0186 0.8261+-0.0578; worst ripple/vdc 1.1 % -> DC
+  C_noC 9.4402+-0.4325 15.5455+-0.6714 0.0796+-0.0070; worst ripple/vdc 165.3 % -> not DC (ripple > 10 % of vdc)
+  law A_half: simulated / (I/(1 F C)) = 0.9119..0.9257 -> within 25 %
+  law B_bridge: simulated / (I/(2 F C)) = 0.8592..0.8661 -> within 25 %
+  paired B-A vdc: -0.4146+-0.0308: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A ripple: -0.1619+-0.0207: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A ipk: -0.5103+-0.0339: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B vdc: -5.7278+-0.2157: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B ripple: 15.4091+-0.6714: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B ipk: -0.7465+-0.0509: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+tiny_C_heavy (C=220 uF, R=15 ohm nominal)
+  A_half 6.0346+-0.3699 15.4263+-0.6030 1.5950+-0.1677; worst ripple/vdc 274.9 % -> not DC (ripple > 10 % of vdc)
+  B_bridge 10.0603+-0.4934 11.2412+-0.5627 1.5504+-0.1670; worst ripple/vdc 122.0 % -> not DC (ripple > 10 % of vdc)
+  C_noC 9.1521+-0.4093 15.0711+-0.6343 1.0283+-0.0887; worst ripple/vdc 165.3 % -> not DC (ripple > 10 % of vdc)
+  law A_half: simulated / (I/(1 F C)) = 0.3737..0.4784 -> outside 25 % (ripple not small; law not expected to hold)
+  law B_bridge: simulated / (I/(2 F C)) = 0.3317..0.4144 -> outside 25 % (ripple not small; law not expected to hold)
+  paired B-A vdc: 4.0258+-0.1922: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A ripple: -4.1851+-0.4101: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A ipk: -0.0446+-0.0022: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B vdc: -0.9082+-0.1617: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B ripple: 3.8300+-0.5352: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B ipk: -0.5221+-0.1155: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+step check (B, medium, seed 0): DT vs DT/2 vdc 5.969e-04 V, ripple 4.327e-04 V
+No winner declared: the bridge halves the ripple period and the charge per refill, but pays a second diode drop; without C the output is not DC
+Real mains / transformer / PSU bench: 本页未运行; Wikipedia formulas 以原文为准
+```
+
+</SimOutput>
+
+### 读懂各情形
+
+本页标签按以下顺序使用。**打平：每个种子都完全相同**只用于配对的逐种子差值在每个种子上都严格为零；`|配对均值|` 和它的标准差都小于 1e-9 时标为**数值上为零（浮点残差），等同打平**（这种行不打印同号计数）；`|配对均值| ≤ sd` 时为**接近打平、差距很小，在种子噪声之内**；否则是**稳定**差距（`|配对均值| > sd`），`|m|` 小于两组中较小均值的 20 % 时叫**小**，否则叫**明显**；20 % 规则只用来在这两个词之间选择。每条稳定的行都带 5 个种子上的同号计数，符号相反的种子都会报告；只有同号计数不能让差距变成稳定。差距都由未四舍五入的数值计算。配对差值为 B−A 和 C−B。
+
+- **small_C_heavy** 情形，两个带电容的组都**不是直流**（最差纹波 A 为 vdc 的 165.3 %，B 为 71.1 %）。整流桥仍然**在纹波上明显胜出**（配对 B−A −5.2981±0.2119 V，5 个种子同号），平均输出也更高（2.8946±0.2236 V，明显，5/5），因为每半个周期补充一次，电容不会掉得那么深；二极管峰值电流低一个小而稳定的差距（−0.3169±0.0960 A，5/5）。这里线性公式偏差很大（整流桥只有公式值的 0.55–0.61），纹波大时本来就如此。
+- **medium** 情形，整流桥把纹波减半（配对 −2.3476±0.2445 V，明显，5/5），并降低二极管峰值电流（−0.8996±0.0907 A，明显，5/5）；平均输出高一个小而稳定的差距（0.5862±0.1365 V，5/5）。两组都仍然**不是直流**（A 40.5 %，B 18.4 %）。公式在 25 % 之内成立（A 0.83–0.85，B 0.76–0.78）。
+- **large_C_light** 情形，两组都是直流（A 2.4 %，B 1.1 %），公式在 25 % 之内（A 0.91–0.93，B 0.86–0.87）。**B 在平均输出上输了，差距小而稳定**，配对 B−A −0.4146±0.0308 V，5 个种子同号，因为 A 不再深度下垂，第二个二极管压降就露出来了。B 的纹波仍然只有一半（−0.1619±0.0207 V，明显，5/5），峰值电流也更低（−0.5103±0.0339 A，明显，5/5）。
+- **tiny_C_heavy** 情形，全部**不是直流**。B−A 纹波 −4.1851±0.4101 V（明显，5/5）；峰值电流差距缩小为小而稳定的 −0.0446±0.0022 A（5/5）。
+- **C_noC** 组，不接电容时，输出就是整流后的正弦本身，每种情形的纹波都约为 vdc 的 165 %，所以处处**不是直流**；C−B 纹波在四种情形里都明显更差。**B 在二极管峰值电流上输给 C，差距明显**，每种情形都如此（例如 `medium` 中 −1.5598±0.1176 A）：让输出变平滑的电容，同时也让二极管输出又短又高的电流脉冲。在 `tiny_C_heavy` 中 C−B vdc 只是小而稳定的差距（−0.9082±0.1617 V，5/5），因为 220 µF 电容在 15 Ω 下几乎存不住电荷。
+
+本页**不宣布普遍赢家**。整流桥把纹波和每次补充的电荷减半，但要多付一个二极管压降，电容一大这个代价就显出来；电容加大降低纹波电压、抬高纹波电流；不接电容时没有哪一组能给出直流。真实市电或变压器实验台**本页未运行**。
+
+**150 分钟安排**如下。25 分钟读三篇 Wikipedia 条目并重做算例；30 分钟手算 `I / (k f C)`，与打印的比值对照；35 分钟运行 toy，读懂四种情形；30 分钟固定种子，改 `RS`、`C` 和 `R`；30 分钟为 5 % 纹波的电源轨选电容，并列出真实实验台还需要什么（保险丝、变压器额定值、电容纹波电流额定值）。
+
+### 练习
+
+1. 对标称元件的 `medium`，手算 `I / (2 f C)` 和 `I / (f C)`，与打印的比值对照，并解释为什么公式会高估。
+2. 从 `shared_draws` 和 `simulate` 说明，同一个种子下 A、B、C 用的是同一个电容、负载、电网幅值和 `VF`。
+3. 对 `tiny_C_heavy`，用抽到的最小 C 和 R 计算欧拉极限 `2 / (1/(RS C) + 1/(R C))`，与打印的 169.7 µs 对照。
+4. 固定种子，把 `RS` 改成 0.1 Ω。运行前先预测 `large_C_light` 中二极管峰值电流会升还是降。
+5. 在做任何市电或变压器实验之前（本页未运行），写下为什么 B 在 `small_C_heavy` 里赢了纹波，**并不**意味着这条电源轨能给单片机用。
+
 <Summary>
 
 **本课要点**
@@ -1135,6 +1458,8 @@ Real Wheatstone / INA / strain-gauge lab: 本页未运行; TI/Wikipedia numbers 
 - ESD/TVS 入门：共享 HBM 风格脉冲（100 pF / 1500 Ω，I_sc ≈ V/1500 Ω）下无保护引脚接近预充；钳位遵循 `VRWM < VBR < VCLAMP` 与 `VCLAMP ≈ VBR + I·RDYN`（SLVAE37）；大部分能量落在 1500 Ω——不是 IEC 认证。
 
 - 惠斯通 / INA 入门：共享 ΔR 显示嘈杂小 δ 时电桥 SNR 胜出、安静大 δ 时**接近打平 / 差距很小**（约 2.6 dB），以及多样本 SNR 看不见的 INA 失调代价——不是应变片实验。
+
+- 整流桥：在共享元件上，四二极管整流桥把单个二极管的纹波减半（小电容重负载：配对 −5.2981±0.2119 V，5 个种子同号），纹波小时线性放电公式 I / (2fC) 在 25 % 之内成立；但电容很大时，第二个二极管压降让输出低一个小而稳定的 0.4146±0.0308 V，不接电容时没有哪一组能给出直流——这是合成模型，不是市电实验。
 
 **下一课会用到**
 
