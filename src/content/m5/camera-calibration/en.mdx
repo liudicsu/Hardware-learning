@@ -963,6 +963,330 @@ The page **does not declare a universal winner**: Hartley normalisation is cheap
 4. Change the clustered patch half-width from 100 px to 150 px with seeds fixed. Predict whether C−B `e_err` stays within seed noise before you run, then explain the result with the printed `log10(s₁/s₈)` values.
 5. Before any real rig (本页未运行), explain why a small `epi_px` in **tiny_baseline** does **not** mean the pose is right, and name one check that would catch the wrong translation direction.
 
+## Rolling shutter versus global shutter
+
+<Resource id="wiki-rolling-shutter" />
+
+The Wikipedia **Rolling shutter** article (wikitext body read, revision 1381766604; 以原文为准) defines a rolling shutter as image capture that does **not** take a snapshot of the whole scene at one instant but **scans across the scene** rapidly, vertically, horizontally or rotationally. Not all parts of the image are recorded at the same instant, yet playback shows the frame as if it were one instant, which produces **predictable distortions of fast-moving objects** or rapid flashes. A **global shutter** captures the entire frame at the same instant. The article says the electronic rolling shutter is found on many digital cameras using CMOS sensors and that the majority of consumer CMOS sensors use it; it lists **wobble** (the jello effect), **skew**, spatial aliasing (a spinning propeller) and temporal aliasing with **partial exposure** (a flash lighting only some rows), and says the result depends on the **readout speed** of the sensor. Rectification or compensation algorithms exist, and the article calls them an active area of research.
+
+This section is **not** a redo of the pinhole model, the stereo depth σ or the eight-point algorithm above, and it does **not** change the `solvePnP` paragraph. What it adds is the time axis: those sections, like `calibrateCamera`, treat every image as one instant. On a rolling-shutter camera that holds only if nothing moves during readout, which is why the board must be **still**, not waved, while you capture calibration views.
+
+<Formula label="Row timestamp">t_r = t0 + r·Δt_row</Formula>
+
+<Formula label="Skew of a moving edge">skew = v·(H − 1)·Δt_row</Formula>
+
+**Worked example — a labelled hand calculation, also printed by the toy.** With H = 480 rows and Δt_row = 30.0 µs the readout takes 479 × 30.0 µs = 14.3700 ms. An edge moving at 300.0 px/s therefore leans by 4.3110 px between the first and the last row, and an estimator that averages all rows and stamps the result at t0 is biased by half of that, 2.1555 px. At 1500.0 px/s the skew is 21.5550 px and the bias 10.7775 px; a readout four times slower at 300.0 px/s gives 17.2440 px of skew.
+
+**No integration step here.** The toy evaluates closed-form positions; there is no ODE and no step-size criterion.
+
+### Fair setup
+
+`rolling_vs_global_shutter_toy.py` is **synthetic** and stdlib only. **Model assumptions:** one vertical edge moving horizontally at a constant speed within the frame; the detected edge column in each row is the true column plus Gaussian noise of 0.3 px; no exposure time, no lens distortion, no blur. H = 480, Δt_row = 30.0 µs, SLOW = 4 and the speeds are **declared toy parameters**, not a datasheet value and not a measured sensor. The frame is stamped t0, the time of row 0.
+
+| Arm | Row r is sampled at | Estimator |
+|---|---|---|
+| A_global | t0 for every row | mean column over rows, stamped t0 |
+| B_rolling | t0 + r·Δt_row | the same, so it **ignores** the rolling shutter |
+| C_slow | t0 + r·4·Δt_row | the same |
+
+**Common random numbers:** for each (regime, seed) the start column, the ±10 % speed jitter and the per-row detection noise are drawn once and shared by all three arms. A, B and C differ **only** in the row timestamps. Five seeds. Metrics are `pos_err_px`, the absolute error of the estimated position at t0, and `skew_px`, the absolute fitted slope times H − 1, reported as mean±sd over seeds.
+
+| Regime | Speed | What was pre-declared |
+|---|---|---|
+| static | 0 px/s | A, B and C **tie**: a static scene cannot invent motion; **keep** |
+| moderate | 300.0 px/s | B **consistent** warp against A on skew and position; C **consistent** loses against B; **keep** |
+| fast | 1500.0 px/s | the same expectations, larger; **keep** |
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-5/camera-calibration
+python3 rolling_vs_global_shutter_toy.py
+```
+
+<CodeSource path="examples/month-5/camera-calibration/rolling_vs_global_shutter_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Rolling shutter vs global shutter: one frame of a moving vertical edge.
+
+Synthetic row-scan stand-in, stdlib only.  Not a real CMOS sensor, not a
+camera driver, not the eight-point toy and not the stereo-sigma toy on this
+page.  Real camera / rolling-shutter lab: 本页未运行.  Wikipedia Rolling
+shutter statements 以原文为准.
+
+What the Wikipedia "Rolling shutter" body says (and what this toy keeps): a
+rolling shutter captures a frame by scanning across the scene, so not all
+parts of the image are recorded at the same instant, although playback shows
+the whole frame at once; this gives predictable distortions of fast-moving
+objects (skew, wobble).  A global shutter captures the entire frame at the
+same instant.  The result depends on the readout speed of the sensor.
+
+Model: an image of H rows sees one vertical edge that moves horizontally at
+v px/s.  The frame is stamped t0.  Row r is sampled at
+  A_global  : t0                      (every row at one instant)
+  B_rolling : t0 + r * DT_ROW         (declared row readout time)
+  C_slow    : t0 + r * DT_ROW * SLOW  (a much slower readout)
+The detected edge column in row r is x0 + v * t_r + noise_r.  Every arm is
+read by the same naive estimator that treats the frame as global: edge
+position at t0 = mean column over rows, skew = |fitted slope| * (H - 1).
+Metrics: pos_err_px = |estimate - true x(t0)|, skew_px.
+
+Common random numbers: for each (regime, seed) the start column x0, the
+speed jitter and the per-row detection noise are drawn once and shared by
+every arm.  A, B and C differ only in the row timestamps.
+No integration step: closed-form positions, no ODE, no time-step criterion.
+
+Regimes and parameters were written before the first run:
+  static   : v = 0 px/s; A, B, C must tie (a static scene cannot invent
+             motion); keep
+  moderate : v = 300 px/s; B consistent warp (skew, pos_err) vs A; C
+             consistent lose vs B; keep
+  fast     : v = 1500 px/s; same expectations, larger; keep
+Alternatives, also written before the first run and run on the same seeds:
+  DT_ROW = 15 us (a faster readout) on moderate;
+  an RS-aware estimator (line-fit intercept at row 0, i.e. at t0) on fast.
+H, DT_ROW, SLOW, SIGMA_PX and the speeds are declared toy parameters, not a
+datasheet or a measured sensor.
+"""
+from __future__ import annotations
+
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+H = 480                 # rows (toy)
+DT_ROW = 30e-6          # s per row (toy readout)
+SLOW = 4                # C reads out SLOW times slower (toy)
+SIGMA_PX = 0.3          # per-row edge detection noise, px (toy)
+V_JITTER = 0.10         # +-10 % speed jitter per seed
+ARMS = ("A_global", "B_rolling", "C_slow")
+REGIMES = {"static": 0.0, "moderate": 300.0, "fast": 1500.0}
+
+
+def shared_draws(regime, seed):
+    """Common random numbers for one (regime, seed): x0, speed, row noise."""
+    rng = random.Random(f"rs|{regime}|{seed}")
+    x0 = rng.uniform(200.0, 440.0)
+    v = REGIMES[regime] * (1.0 + rng.uniform(-V_JITTER, V_JITTER))
+    noise = [rng.gauss(0.0, SIGMA_PX) for _ in range(H)]
+    return x0, v, noise
+
+
+def row_time(arm, r, dt_row=DT_ROW):
+    if arm == "A_global":
+        return 0.0
+    if arm == "B_rolling":
+        return r * dt_row
+    return r * dt_row * SLOW
+
+
+def capture(arm, regime, seed, dt_row=DT_ROW):
+    x0, v, noise = shared_draws(regime, seed)
+    cols = [x0 + v * row_time(arm, r, dt_row) + noise[r] for r in range(H)]
+    return x0, cols
+
+
+def fit_line(cols):
+    n = len(cols)
+    rbar = (n - 1) / 2.0
+    cbar = sum(cols) / n
+    sxx = sum((r - rbar) ** 2 for r in range(n))
+    sxy = sum((r - rbar) * (c - cbar) for r, c in enumerate(cols))
+    b = sxy / sxx
+    return cbar - b * rbar, b, cbar
+
+
+def measure(arm, regime, seed, dt_row=DT_ROW, rs_aware=False):
+    x0, cols = capture(arm, regime, seed, dt_row)
+    a, b, cbar = fit_line(cols)
+    est = a if rs_aware else cbar
+    return {"pos_err": abs(est - x0), "skew": abs(b) * (H - 1)}
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+METRICS = ("pos_err", "skew")
+
+
+def collect(regime, **kw):
+    return {arm: [measure(arm, regime, s, **kw) for s in SEEDS] for arm in ARMS}
+
+
+def col(rows, key):
+    return [r[key] for r in rows]
+
+
+def report(regime):
+    res = collect(regime)
+    vs = [shared_draws(regime, s)[1] for s in SEEDS]
+    print(f"{regime} (V_NOM={REGIMES[regime]:.1f} px/s):")
+    print("  speed per seed px/s: " + " ".join(f"{v:.4f}" for v in vs))
+    for arm in ARMS:
+        parts = [f"{key} {fmt_pair(*mean_sd(col(res[arm], key)))}" for key in METRICS]
+        print(f"  {arm} " + " ".join(parts))
+    for key in METRICS:
+        print(f"  paired B-A {key}: {verdict(col(res['B_rolling'], key), col(res['A_global'], key))}")
+    for key in METRICS:
+        print(f"  paired C-B {key}: {verdict(col(res['C_slow'], key), col(res['B_rolling'], key))}")
+    return res
+
+
+def main():
+    print("Synthetic row-scan toy: one moving vertical edge, global vs rolling vs slow rolling readout; not a real CMOS")
+    print(f"seeds={len(SEEDS)} H={H} rows DT_ROW={DT_ROW * 1e6:.1f} us SLOW={SLOW} SIGMA_PX={SIGMA_PX:.1f} px "
+          f"V_JITTER=+-{V_JITTER * 100:.0f} % (declared toy parameters, not datasheet values)")
+    print("No integration step: closed-form positions, no time-step criterion")
+    print("Regimes and parameters were written before the first run")
+    print(f"row_stamp rule: row r sampled at t0 + r*DT_ROW; r=0 -> {row_time('B_rolling', 0) * 1e3:.4f} ms, "
+          f"r=1 -> {row_time('B_rolling', 1) * 1e3:.4f} ms, r={H - 1} -> {row_time('B_rolling', H - 1) * 1e3:.4f} ms "
+          f"(C: r={H - 1} -> {row_time('C_slow', H - 1) * 1e3:.4f} ms; A: every row at t0)")
+    ro = (H - 1) * DT_ROW
+    v = REGIMES["moderate"]
+    print(f"hand_calc readout=(H-1)*DT_ROW={H - 1}*{DT_ROW * 1e6:.1f} us={ro * 1e3:.4f} ms; "
+          f"skew at v={v:.1f} px/s = v*readout = {v * ro:.4f} px; "
+          f"naive mean-row bias = v*(H-1)/2*DT_ROW = {v * ro / 2:.4f} px")
+    vf = REGIMES["fast"]
+    print(f"hand_calc fast v={vf:.1f} px/s: skew={vf * ro:.4f} px bias={vf * ro / 2:.4f} px; "
+          f"C (SLOW={SLOW}) at v={v:.1f} px/s: skew={v * ro * SLOW:.4f} px")
+    print("estimator: every arm is read as if global (mean column over rows = position at t0)")
+    for regime in REGIMES:
+        report(regime)
+    print("alternative DT_ROW=15.0 us on moderate (same seeds):")
+    alt = collect("moderate", dt_row=15e-6)
+    for key in METRICS:
+        print(f"  paired B-A {key}@alt: {verdict(col(alt['B_rolling'], key), col(alt['A_global'], key))}")
+    print("alternative RS-aware estimator on fast (same seeds; line-fit intercept at row 0 = position at t0):")
+    alt = collect("fast", rs_aware=True)
+    for arm in ARMS:
+        print(f"  {arm}@rs_aware pos_err {fmt_pair(*mean_sd(col(alt[arm], 'pos_err')))}")
+    print(f"  paired B-A pos_err@rs_aware: {verdict(col(alt['B_rolling'], 'pos_err'), col(alt['A_global'], 'pos_err'))}")
+    print(f"  paired C-B pos_err@rs_aware: {verdict(col(alt['C_slow'], 'pos_err'), col(alt['B_rolling'], 'pos_err'))}")
+    print("No winner declared: a global shutter freezes motion; a rolling shutter warps it in proportion to speed times readout time and ties on a static scene")
+    print("Real camera / rolling-shutter lab: 本页未运行; Wikipedia Rolling shutter statements 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic row-scan toy: one moving vertical edge, global vs rolling vs slow rolling readout; not a real CMOS
+seeds=5 H=480 rows DT_ROW=30.0 us SLOW=4 SIGMA_PX=0.3 px V_JITTER=+-10 % (declared toy parameters, not datasheet values)
+No integration step: closed-form positions, no time-step criterion
+Regimes and parameters were written before the first run
+row_stamp rule: row r sampled at t0 + r*DT_ROW; r=0 -> 0.0000 ms, r=1 -> 0.0300 ms, r=479 -> 14.3700 ms (C: r=479 -> 57.4800 ms; A: every row at t0)
+hand_calc readout=(H-1)*DT_ROW=479*30.0 us=14.3700 ms; skew at v=300.0 px/s = v*readout = 4.3110 px; naive mean-row bias = v*(H-1)/2*DT_ROW = 2.1555 px
+hand_calc fast v=1500.0 px/s: skew=21.5550 px bias=10.7775 px; C (SLOW=4) at v=300.0 px/s: skew=17.2440 px
+estimator: every arm is read as if global (mean column over rows = position at t0)
+static (V_NOM=0.0 px/s):
+  speed per seed px/s: 0.0000 0.0000 0.0000 0.0000 0.0000
+  A_global pos_err 0.0189+-0.0123 skew 0.0208+-0.0232
+  B_rolling pos_err 0.0189+-0.0123 skew 0.0208+-0.0232
+  C_slow pos_err 0.0189+-0.0123 skew 0.0208+-0.0232
+  paired B-A pos_err: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A skew: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B pos_err: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B skew: 0.0000+-0.0000: tie: identical on every seed
+moderate (V_NOM=300.0 px/s):
+  speed per seed px/s: 298.0877 294.6412 291.1262 275.3933 308.3665
+  A_global pos_err 0.0090+-0.0049 skew 0.0174+-0.0110
+  B_rolling pos_err 2.1163+-0.0810 skew 4.2208+-0.1654
+  C_slow pos_err 8.4432+-0.3397 skew 16.8746+-0.6821
+  paired B-A pos_err: 2.1073+-0.0837: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A skew: 4.2034+-0.1754: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B pos_err: 6.3269+-0.2589: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B skew: 12.6538+-0.5177: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+fast (V_NOM=1500.0 px/s):
+  speed per seed px/s: 1384.3153 1507.4066 1483.2212 1567.3752 1386.8351
+  A_global pos_err 0.0078+-0.0059 skew 0.0267+-0.0156
+  B_rolling pos_err 10.5339+-0.5689 skew 21.0656+-1.1462
+  C_slow pos_err 42.1299+-2.2806 skew 84.2575+-4.5695
+  paired B-A pos_err: 10.5261+-0.5669: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A skew: 21.0389+-1.1377: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B pos_err: 31.5960+-1.7118: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B skew: 63.1920+-3.4236: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative DT_ROW=15.0 us on moderate (same seeds):
+  paired B-A pos_err@alt: 1.0528+-0.0406: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A skew@alt: 2.0945+-0.0907: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative RS-aware estimator on fast (same seeds; line-fit intercept at row 0 = position at t0):
+  A_global@rs_aware pos_err 0.0095+-0.0089
+  B_rolling@rs_aware pos_err 0.0095+-0.0089
+  C_slow@rs_aware pos_err 0.0095+-0.0089
+  paired B-A pos_err@rs_aware: -1.137e-14+-4.756e-14: numerically zero (floating-point residue), effectively a tie
+  paired C-B pos_err@rs_aware: -1.137e-14+-4.756e-14: numerically zero (floating-point residue), effectively a tie
+No winner declared: a global shutter freezes motion; a rolling shutter warps it in proportion to speed times readout time and ties on a static scene
+Real camera / rolling-shutter lab: 本页未运行; Wikipedia Rolling shutter statements 以原文为准
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used here, in this order: **tie** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when both the paired mean and its sd are below 1e-9 (no sign count is attached); **near-tie / small gap, within seed noise** when the absolute paired mean is at most the sd; otherwise a **consistent** gap, called **small but consistent** under 20 % of the smaller arm mean and **clear** above it. Every consistent line carries a same-sign count over the 5 seeds. Paired differences are B−A and C−B; a positive value means B (or C) has the larger error.
+
+- **static.** Every paired line is **tie: identical on every seed**: with zero speed all three arms read the same columns, so the pre-declared tie held exactly, not just within noise.
+- **moderate.** Paired B−A pos_err 2.1073±0.0837 px and paired B−A skew 4.2034±0.1754 px are both **clear gap, not a tie**, same sign on all 5 seeds. The measured B skew, 4.2208±0.1654 px, sits a little under the 4.3110 px hand calculation because the five jittered speeds average below 300.0 px/s. The slow readout loses again: paired C−B pos_err 6.3269±0.2589 px and paired C−B skew 12.6538±0.5177 px, **clear**, 5/5, **kept**.
+- **fast.** The same picture scaled up: paired B−A pos_err 10.5261±0.5669 px, paired B−A skew 21.0389±1.1377 px, paired C−B pos_err 31.5960±1.7118 px, all **clear**, 5/5.
+
+**Choices made after seeing results.** None. H, Δt_row, SLOW, the noise, the speeds and both alternatives were written before the first run. Alternatives on the same seeds: a faster readout of Δt_row = 15.0 µs halves the warp but does not remove it (paired B−A pos_err 1.0528±0.0406 px, paired B−A skew 2.0945±0.0907 px, both **clear**, 5/5). An **RS-aware** estimator that fits a line through the rows and reads its intercept at row 0, which is stamped t0, removes the bias on the fast regime: paired B−A pos_err `-1.137e-14±4.756e-14` and paired C−B pos_err the same, both **numerically zero (floating-point residue), effectively a tie**. That works only because the toy's motion is exactly linear in the row index; rotation, acceleration or a vibrating mount (wobble) need a real rectification model, which the article calls an active research area. Neither alternative was adopted; the defaults stand.
+
+**Code change after the first run.** None: the first accepted run is the `expected/` file.
+
+The page **does not declare a universal winner**: a global shutter freezes motion, a rolling shutter warps it in proportion to speed times readout time and ties on a static scene, and a model of the readout can undo simple motion. Real camera, rolling-shutter calibration and OpenCV runs: **本页未运行**.
+
+**180-minute work plan:** 30 min read the Wikipedia Rolling shutter article and list its distortion types; 30 min work the row-time hand calculation for your own camera's row count; 45 min run the toy and read the three regimes; 40 min compare the faster-readout and RS-aware alternatives with seeds fixed; 35 min the exercises.
+
+### Exercises
+
+1. From t_r = t0 + r·Δt_row, derive the skew v·(H − 1)·Δt_row and the mean-row bias, and check both against the printed hand calculation.
+2. Show from `shared_draws` that A, B and C read the same start column, speed and per-row noise for a given regime and seed, and explain why the static regime must be an exact tie.
+3. Using the printed numbers, explain why C loses to B by roughly three times B's own warp at the same speed.
+4. The RS-aware estimator is numerically zero against A on the fast regime. Name one motion for which its straight-line fit would leave a bias, and say what it would need instead.
+5. Before any real camera (本页未运行), describe how you would capture calibration views on a rolling-shutter sensor so that the board is effectively static during readout, and how you would check that it was.
+
 <Summary>
 
 The pinhole model projects with `u = fx x/z + cx`; fx is focal length in pixels (500 px with 3 µm pixels means a 1.5 mm lens). Checkerboard corners across varied views let `calibrateCamera` fit intrinsics, distortion and a pose per image. Reprojection error measures projected-versus-detected corner residuals: fitting distortion reduces this synthetic example's RMS from 0.702 to 0.189 px. `solvePnP` estimates the board-to-camera pose; after `undistortPoints`, ray–plane intersection with the known board/table plane turns a pixel into a 3D point. Common mistakes include mismatched resolution or focus, bent boards or centre-only views, wrong square units, skipping undistortion and mixing board/camera frames.
@@ -970,5 +1294,7 @@ The pinhole model projects with `u = fx x/z + cx`; fx is focal length in pixels 
 Stereo depth uses pixel/metre-consistent `σ_z ≈ (z²/(fB)) σ_d`, shared-noise Monte Carlo and quantization to expose the limits of linearization, reciprocal bias and the min-range/occlusion cost of longer baselines; real stereo rectification/matching remain 本页未运行.
 
 Eight-point essential matrix: on shared noisy correspondences, Hartley normalisation beats raw-pixel eight-point on `E` and on the translation direction with clear gaps (clustered `epi_px` paired −204.7447±197.8867 px, same sign on all 5 seeds), barely matters without noise or once points are in calibrated `K⁻¹` coordinates (every noisy C−B line is a near-tie), and cannot rescue a 1 cm baseline, where `epi_px` stays near 1 px while the translation direction is lost — a synthetic model; real cameras 本页未运行.
+
+Rolling shutter: row r is read at t0 + r·Δt_row, so on shared edges and noise a static scene ties exactly with a global shutter, while a moving edge leans and its naive position is biased (paired B−A skew 4.2034±0.1754 px at 300.0 px/s, 5/5) and a four-times-slower readout loses further (paired C−B pos_err 6.3269±0.2589 px, 5/5, kept) — a synthetic row-scan stand-in; real cameras 本页未运行.
 
 </Summary>

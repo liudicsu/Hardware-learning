@@ -493,8 +493,417 @@ Isaac Lab (README: GPU-accelerated; Isaac Sim workflows target Isaac Sim 6.2) ca
 - **Calling DR tuning system identification.** `contact_dr_toy.py` estimates nothing; it picks one controller parameter across a distribution. Sysid (above) and persistent excitation (5.1) are separate jobs.
 - **Reporting a single success rate without an interval.** The Wilson column exists so 21/40 and 37/40 are not treated as equally precise.
 
+## Visual domain randomisation after Tobin et al.
+
+<Resource id="tobin-dr" />
+
+The opening of this page cites Tobin et al. and *Common mistakes* warns that Tobin-style visual DR does not fix a wrong τ. This section reads the paper and adds the missing toy. The arXiv abstract page gives the title **Domain Randomization for Transferring Deep Neural Networks from Simulation to the Real World** and six authors: Josh Tobin, Rachel Fong, Alex Ray, Jonas Schneider, Wojciech Zaremba and Pieter Abbeel. From the PDF body (以论文为准): domain randomisation trains models on simulated images that transfer to real images **by randomising rendering in the simulator**; with enough variability the real world may appear to the model **as just another variation**. For each training sample the authors randomise the number and shape of distractor objects, the position and **texture** of every object, the textures of the table, floor, skybox and robot, the camera's position, orientation and field of view, the number of lights and their position, orientation and specular characteristics, and the type and amount of image noise. Textures are **non-realistic**: a random RGB value, a gradient between two random RGB values, or a checker between two random RGB values. The detector **does not have access to the colour** of the object of interest, only its size and shape, and the MuJoCo renderer they use is not intended to be photo-realistic.
+
+Their reported results, 以论文为准 and **not** reproduced here: a real-world object detector trained only on simulated images is accurate to about 1.5 cm on average, robust to distractors and partial occlusions; a Fetch robot using it picked the target in 38 of 40 trials; and in the ablation, performance **degrades significantly when fewer than 1,000 textures** are used, while adding noise had a negligible effect on accuracy. The toy below is a **k-NN stand-in**, not their CNN, and its pixel errors are not centimetres.
+
+This section is **not** the contact-DR toy above (that randomises µ and mass for a push controller), **not** the lag sysid fit and **not** Peng-style dynamics randomisation. It randomises **appearance only**, and then shows what appearance cannot buy.
+
+**Worked example — a labelled hand calculation, also printed by the toy.** The object rides a conveyor at 30.0 px/s and the gripper arrives 0.10 s after the frame, so the object moves 3.0000 px in that time. A controller that assumes the simulator's τ = 0.05 s aims 30.0 × (0.10 − 0.05) = 1.5000 px short, which is not below the 1.0 px tolerance **even with a perfect detector**. No texture changes that number.
+
+**No integration step here.** The toy evaluates closed-form positions; there is no ODE and no step-size criterion.
+
+### Fair setup
+
+`tobin_visual_domain_randomization_toy.py` is **synthetic** and stdlib only. **Model assumptions:** a 24-pixel grey-scale camera row shows one object 4.0 px wide at a continuous position on a background; each surface has a flat, gradient or checker texture, a lighting gain multiplies the row and Gaussian pixel noise is added. The detector is 3-nearest-neighbour regression on raw pixels from 600 training rows. All sizes, colours, gains, the conveyor speed and both τ values are **declared toy parameters**.
+
+| Arm | Training appearance | τ used by the grasp controller |
+|---|---|---|
+| A_canonical | one canonical texture: bright flat object on a dark flat background, gain 1 | TAU_REAL (dynamics-aware) |
+| B_random | 200 random textures from a palette, random gain in 0.6–1.4 (Tobin-style) | TAU_REAL (dynamics-aware) |
+| C_rand_tau | B's detector, unchanged | TAU_SIM, the wrong τ |
+
+**Common random numbers:** for each seed one set of training positions and pixel noise is drawn once and shared by A and B, so they differ **only** in textures and gains; for each (regime, seed) one test set of positions, textures, gains and noise is shared by every arm. C reuses B's detector exactly. B **never sees** the held-out test textures: the printed peek check confirms that neither the held-out textures nor the canonical one are in B's palette on any seed. Five seeds, 40 test rows each. Metrics are `loc_err` (px), `grasp_err` (px) and the success fraction, where a grasp succeeds only when `grasp_err` is **strictly** below TOL.
+
+| Regime | Test appearance and motion | What was pre-declared |
+|---|---|---|
+| heldout | four held-out textures, static object | B **consistent** better transfer than A; C equals B because nothing moves |
+| canonical | A's own training texture, static | A and B may **near-tie**, or B may **lose** (over-randomisation); **keep** |
+| moving | held-out textures, 30.0 px/s | C **consistent** loses against B even with visual DR; **keep** |
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-7/sim-to-real
+python3 tobin_visual_domain_randomization_toy.py
+```
+
+<CodeSource path="examples/month-7/sim-to-real/tobin_visual_domain_randomization_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Tobin-style visual domain randomisation: canonical texture vs random textures vs random textures + wrong tau.
+
+Synthetic 1-D "camera row" and a k-nearest-neighbour detector, stdlib only.
+Not a deep network, not MuJoCo rendering, not a real camera and not the
+contact-DR or lag-sysid toys on this page.  GPU training / real camera /
+robot: 本页未运行.  Tobin et al. (arXiv 1703.06907) statements and numbers
+(for example their 1.5 cm) 以论文为准; nothing here reproduces them.
+
+What the paper body says (and what this toy keeps): train a detector only on
+simulated images whose rendering is randomised (non-realistic random
+textures: a random RGB value, a gradient between two random values or a
+checker between two random values; lights; noise), so that with enough
+variability the real world may look like just another variation.  The
+detector never sees the colour of the object, only its size and shape.  The
+paper's ablation reports that fewer unique textures hurt transfer.
+
+Toy: a W-pixel grey-scale row shows one object of width OBJ_W at a
+continuous position x (anti-aliased coverage) on a background.  Each surface
+has a texture: flat, gradient or checker between grey values.  A lighting
+gain multiplies the row and Gaussian pixel noise is added.  The detector is
+k-NN regression (K_NN neighbours, squared pixel distance) from the row to x.
+Arms:
+  A_canonical : trained on ONE canonical texture (bright flat object on a
+                dark flat background, gain 1)
+  B_random    : trained on PALETTE random textures (Tobin-style) and random
+                gains; the held-out test textures are never in the palette
+  C_rand_tau  : B's detector unchanged, but the grasp controller uses a wrong
+                latency tau (TAU_SIM) instead of the real TAU_REAL
+Grasp proxy: the object moves at U px/s on a conveyor; the gripper arrives
+TAU_REAL after the frame and aims at x_hat + U * tau_model.  grasp_err =
+|aim - true position at arrival|; success iff grasp_err < TOL (strict).
+A and B use tau_model = TAU_REAL (dynamics-aware); C uses TAU_SIM.
+
+Common random numbers: for each seed one training set of positions and
+pixel noise is drawn once and shared by A and B (they differ only in
+textures and gains); for each (regime, seed) one test set (positions,
+textures, gains, noise) is shared by every arm.
+No integration step: closed-form positions, no ODE, no time-step criterion.
+
+Regimes and parameters were written before the first run:
+  heldout   : held-out "real" textures, static object (U = 0)
+              - B consistent better transfer than A; keep
+              - C equals B (tau does not matter when nothing moves)
+  canonical : test texture identical to A's training texture, U = 0
+              - A and B may near-tie, or B may lose (over-randomisation); keep
+  moving    : held-out textures, U = U_MOVE px/s
+              - C consistent lose vs B even with visual DR (appearance does
+                not fix a wrong tau); keep
+Alternatives, also written before the first run, on the same seeds:
+  PALETTE = 10 random textures instead of 200 (heldout);
+  TOL = 2.0 px instead of 1.0 px (moving).
+All sizes, colours, gains, U and tau values are declared toy parameters.
+"""
+from __future__ import annotations
+
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+W = 24                  # pixels in the camera row (toy)
+OBJ_W = 4.0             # object width, px (toy)
+X_LO, X_HI = 2.0, 18.0  # object left edge range, px
+N_TRAIN = 600
+N_TEST = 40
+K_NN = 3
+PIX_SIGMA = 0.02        # pixel noise (toy)
+PALETTE = 200           # unique random texturizations for B (toy)
+GAIN_LO, GAIN_HI = 0.6, 1.4
+U_MOVE = 30.0           # conveyor speed, px/s (toy)
+TAU_REAL = 0.10         # s, real camera-to-gripper latency (toy)
+TAU_SIM = 0.05          # s, the wrong latency C's controller uses (toy)
+TOL = 1.0               # px, grasp succeeds iff grasp_err < TOL
+ARMS = ("A_canonical", "B_random", "C_rand_tau")
+CANON = (("flat", 0.80, 0.80), ("flat", 0.20, 0.20))   # (object, background)
+# Held-out "real" textures: fixed, never drawn into B's palette.
+REAL = (
+    (("flat", 0.35, 0.35), ("checker", 0.60, 0.75)),
+    (("gradient", 0.90, 0.70), ("flat", 0.50, 0.50)),
+    (("checker", 0.10, 0.30), ("gradient", 0.30, 0.60)),
+    (("flat", 0.60, 0.60), ("flat", 0.85, 0.85)),
+)
+REGIMES = {"heldout": ("real", 0.0), "canonical": ("canon", 0.0), "moving": ("real", U_MOVE)}
+KINDS = ("flat", "gradient", "checker")
+
+
+def texture_value(tex, i):
+    kind, a, b = tex
+    if kind == "flat":
+        return a
+    if kind == "gradient":
+        return a + (b - a) * i / (W - 1)
+    return a if i % 2 == 0 else b
+
+
+def render(x, obj, bg, gain, noise):
+    row = []
+    for i in range(W):
+        cover = max(0.0, min(i + 1.0, x + OBJ_W) - max(float(i), x))
+        v = cover * texture_value(obj, i) + (1.0 - cover) * texture_value(bg, i)
+        row.append(gain * v + noise[i])
+    return row
+
+
+def random_texture(rng):
+    kind = KINDS[rng.randrange(3)]
+    a = rng.random()
+    b = a if kind == "flat" else rng.random()
+    return (kind, a, b)
+
+
+def palette(seed, size):
+    rng = random.Random(f"tobin-palette|{seed}|{size}")
+    return [(random_texture(rng), random_texture(rng)) for _ in range(size)]
+
+
+def train_draws(seed):
+    """Shared by A and B: positions, pixel noise, palette picks, gains."""
+    rng = random.Random(f"tobin-train|{seed}")
+    xs = [rng.uniform(X_LO, X_HI) for _ in range(N_TRAIN)]
+    noise = [[rng.gauss(0.0, PIX_SIGMA) for _ in range(W)] for _ in range(N_TRAIN)]
+    picks = [rng.random() for _ in range(N_TRAIN)]
+    gains = [rng.uniform(GAIN_LO, GAIN_HI) for _ in range(N_TRAIN)]
+    return xs, noise, picks, gains
+
+
+def train_set(arm, seed, size=PALETTE):
+    xs, noise, picks, gains = train_draws(seed)
+    if arm == "A_canonical":
+        return [(render(x, CANON[0], CANON[1], 1.0, n), x) for x, n in zip(xs, noise)]
+    pal = palette(seed, size)
+    return [(render(x, *pal[int(p * size)], g, n), x) for x, n, p, g in zip(xs, noise, picks, gains)]
+
+
+def test_draws(regime, seed):
+    rng = random.Random(f"tobin-test|{regime}|{seed}")
+    which = REGIMES[regime][0]
+    out = []
+    for _ in range(N_TEST):
+        x = rng.uniform(X_LO, X_HI)
+        if which == "canon":
+            obj, bg, gain = CANON[0], CANON[1], 1.0
+        else:
+            obj, bg = REAL[rng.randrange(len(REAL))]
+            gain = rng.uniform(0.8, 1.2)
+        noise = [rng.gauss(0.0, PIX_SIGMA) for _ in range(W)]
+        out.append((render(x, obj, bg, gain, noise), x))
+    return out
+
+
+def knn(train, row):
+    best = sorted((sum((a - b) ** 2 for a, b in zip(img, row)), x) for img, x in train)[:K_NN]
+    return sum(x for _, x in best) / K_NN
+
+
+def evaluate(arm, regime, seed, train, tol=TOL):
+    u = REGIMES[regime][1]
+    tau_model = TAU_SIM if arm == "C_rand_tau" else TAU_REAL
+    loc, grasp, ok = [], [], 0
+    for row, x in test_draws(regime, seed):
+        xh = knn(train, row)
+        aim = xh + u * tau_model
+        err = abs(aim - (x + u * TAU_REAL))
+        loc.append(abs(xh - x))
+        grasp.append(err)
+        ok += 1 if err < tol else 0
+    return {"loc_err": sum(loc) / len(loc), "grasp_err": sum(grasp) / len(grasp), "success": ok / N_TEST}
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+METRICS = ("loc_err", "grasp_err", "success")
+_TRAIN = {}
+
+
+def trained(arm, seed, size=PALETTE):
+    key = ("A_canonical" if arm == "A_canonical" else "B_random", seed, size)
+    if key not in _TRAIN:
+        _TRAIN[key] = train_set(key[0], seed, size)
+    return _TRAIN[key]
+
+
+def collect(regime, size=PALETTE, tol=TOL):
+    return {arm: [evaluate(arm, regime, s, trained(arm, s, size), tol) for s in SEEDS] for arm in ARMS}
+
+
+def col(rows, key):
+    return [r[key] for r in rows]
+
+
+def report(regime):
+    res = collect(regime)
+    which, u = REGIMES[regime]
+    print(f"{regime} (test textures={which}, U={u:.1f} px/s):")
+    for arm in ARMS:
+        parts = [f"{key} {fmt_pair(*mean_sd(col(res[arm], key)))}" for key in METRICS]
+        print(f"  {arm} " + " ".join(parts))
+    for key in METRICS:
+        print(f"  paired B-A {key}: {verdict(col(res['B_random'], key), col(res['A_canonical'], key))}")
+    for key in METRICS:
+        print(f"  paired C-B {key}: {verdict(col(res['C_rand_tau'], key), col(res['B_random'], key))}")
+    return res
+
+
+def main():
+    print("Synthetic 1-D camera-row toy with a k-NN detector; canonical vs random textures vs random textures + wrong tau; not a DNN")
+    print(f"seeds={len(SEEDS)} W={W} px OBJ_W={OBJ_W:.1f} px N_TRAIN={N_TRAIN} N_TEST={N_TEST} K_NN={K_NN} "
+          f"PIX_SIGMA={PIX_SIGMA:.2f} PALETTE={PALETTE} GAIN=[{GAIN_LO:.1f}, {GAIN_HI:.1f}] (declared toy parameters)")
+    print(f"U_MOVE={U_MOVE:.1f} px/s TAU_REAL={TAU_REAL:.2f} s TAU_SIM={TAU_SIM:.2f} s TOL={TOL:.1f} px "
+          f"(success iff grasp_err < TOL, strict; declared toy parameters)")
+    print("No integration step: closed-form positions, no time-step criterion")
+    print("Regimes and parameters were written before the first run")
+    leaked = any(p in REAL or p == CANON for s in SEEDS for p in palette(s, PALETTE))
+    print(f"peek_check: any held-out real texture or the canonical texture inside B's palette on any seed: {leaked}")
+    bias = U_MOVE * (TAU_REAL - TAU_SIM)
+    print(f"hand_calc wrong tau: aim error = U*(TAU_REAL - TAU_SIM) = {U_MOVE:.1f}*({TAU_REAL:.2f} - {TAU_SIM:.2f}) "
+          f"= {bias:.4f} px, which is not < TOL={TOL:.1f} px even with a perfect detector")
+    print(f"hand_calc object travel during TAU_REAL: U*TAU_REAL = {U_MOVE * TAU_REAL:.4f} px")
+    for regime in REGIMES:
+        report(regime)
+    print("alternative PALETTE=10 on heldout (same seeds, same training positions and noise):")
+    alt = collect("heldout", size=10)
+    base = collect("heldout")
+    print(f"  B_random@alt loc_err {fmt_pair(*mean_sd(col(alt['B_random'], 'loc_err')))} "
+          f"(PALETTE={PALETTE}: {fmt_pair(*mean_sd(col(base['B_random'], 'loc_err')))})")
+    print(f"  paired B-A loc_err@alt: {verdict(col(alt['B_random'], 'loc_err'), col(alt['A_canonical'], 'loc_err'))}")
+    print(f"  paired B200-B10 loc_err: {verdict(col(base['B_random'], 'loc_err'), col(alt['B_random'], 'loc_err'))}")
+    print("alternative TOL=2.0 px on moving (same seeds):")
+    alt = collect("moving", tol=2.0)
+    for arm in ARMS:
+        print(f"  {arm}@alt success {fmt_pair(*mean_sd(col(alt[arm], 'success')))}")
+    print(f"  paired C-B success@alt: {verdict(col(alt['C_rand_tau'], 'success'), col(alt['B_random'], 'success'))}")
+    print("No winner declared: random textures buy transfer to unseen appearance, cost accuracy on the one texture A was trained on, and do nothing for a wrong tau")
+    print("GPU training / real camera / robot: 本页未运行; Tobin et al. arXiv 1703.06907 statements and numbers 以论文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic 1-D camera-row toy with a k-NN detector; canonical vs random textures vs random textures + wrong tau; not a DNN
+seeds=5 W=24 px OBJ_W=4.0 px N_TRAIN=600 N_TEST=40 K_NN=3 PIX_SIGMA=0.02 PALETTE=200 GAIN=[0.6, 1.4] (declared toy parameters)
+U_MOVE=30.0 px/s TAU_REAL=0.10 s TAU_SIM=0.05 s TOL=1.0 px (success iff grasp_err < TOL, strict; declared toy parameters)
+No integration step: closed-form positions, no time-step criterion
+Regimes and parameters were written before the first run
+peek_check: any held-out real texture or the canonical texture inside B's palette on any seed: False
+hand_calc wrong tau: aim error = U*(TAU_REAL - TAU_SIM) = 30.0*(0.10 - 0.05) = 1.5000 px, which is not < TOL=1.0 px even with a perfect detector
+hand_calc object travel during TAU_REAL: U*TAU_REAL = 3.0000 px
+heldout (test textures=real, U=0.0 px/s):
+  A_canonical loc_err 5.6907+-0.3947 grasp_err 5.6907+-0.3947 success 0.2750+-0.0685
+  B_random loc_err 2.2700+-0.6663 grasp_err 2.2700+-0.6663 success 0.4700+-0.1137
+  C_rand_tau loc_err 2.2700+-0.6663 grasp_err 2.2700+-0.6663 success 0.4700+-0.1137
+  paired B-A loc_err: -3.4207+-0.8743: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A grasp_err: -3.4207+-0.8743: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success: 0.1950+-0.0758: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B loc_err: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B grasp_err: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B success: 0.0000+-0.0000: tie: identical on every seed
+canonical (test textures=canon, U=0.0 px/s):
+  A_canonical loc_err 0.0322+-0.0020 grasp_err 0.0322+-0.0020 success 1.0000+-0.0000
+  B_random loc_err 0.2150+-0.0438 grasp_err 0.2150+-0.0438 success 0.9950+-0.0112
+  C_rand_tau loc_err 0.2150+-0.0438 grasp_err 0.2150+-0.0438 success 0.9950+-0.0112
+  paired B-A loc_err: 0.1828+-0.0448: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A grasp_err: 0.1828+-0.0448: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success: -0.0050+-0.0112: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 4 of 5 equal
+  paired C-B loc_err: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B grasp_err: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B success: 0.0000+-0.0000: tie: identical on every seed
+moving (test textures=real, U=30.0 px/s):
+  A_canonical loc_err 5.4776+-0.6971 grasp_err 5.4776+-0.6971 success 0.2950+-0.0837
+  B_random loc_err 2.0712+-0.2356 grasp_err 2.0712+-0.2356 success 0.5050+-0.0798
+  C_rand_tau loc_err 2.0712+-0.2356 grasp_err 2.4445+-0.2529 success 0.1750+-0.0433
+  paired B-A loc_err: -3.4064+-0.8660: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A grasp_err: -3.4064+-0.8660: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success: 0.2100+-0.1616: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  paired C-B loc_err: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B grasp_err: 0.3734+-0.2150: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: -0.3300+-0.1110: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative PALETTE=10 on heldout (same seeds, same training positions and noise):
+  B_random@alt loc_err 1.5310+-0.8132 (PALETTE=200: 2.2700+-0.6663)
+  paired B-A loc_err@alt: -4.1596+-0.9999: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B200-B10 loc_err: 0.7390+-0.3862: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative TOL=2.0 px on moving (same seeds):
+  A_canonical@alt success 0.3300+-0.0873
+  B_random@alt success 0.6200+-0.0597
+  C_rand_tau@alt success 0.5750+-0.0919
+  paired C-B success@alt: -0.0450+-0.0818: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign, 2 of 5 equal
+No winner declared: random textures buy transfer to unseen appearance, cost accuracy on the one texture A was trained on, and do nothing for a wrong tau
+GPU training / real camera / robot: 本页未运行; Tobin et al. arXiv 1703.06907 statements and numbers 以论文为准
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used here, in this order: **tie** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when both the paired mean and its sd are below 1e-9 (no sign count is attached); **near-tie / small gap, within seed noise** when the absolute paired mean is at most the sd; otherwise a **consistent** gap, called **small but consistent** under 20 % of the smaller arm mean and **clear** above it. Every consistent line carries a same-sign count over the 5 seeds. Paired differences are B−A and C−B; a negative `loc_err` or `grasp_err` difference, or a positive success difference, favours B (or C).
+
+- **heldout.** Random textures transfer better: paired B−A loc_err -3.4207±0.8743 px and paired B−A success 0.1950±0.0758 are both **clear gap, not a tie**, same sign on all 5 seeds. The pre-declared DR win held. B is still far from good: its loc_err is 2.2700±0.6663 px and it succeeds on 0.4700±0.1137 of the rows, against A's 5.6907±0.3947 px and 0.2750±0.0685. C−B is **tie: identical on every seed** on every metric, because with a static object τ does not enter the grasp.
+- **canonical.** On the one texture A was trained on, B **loses** a little: paired B−A loc_err 0.1828±0.0448 px, **clear**, 5/5, the over-randomisation cost that was pre-declared as possible and is **kept**. On success it is a **near-tie** (paired B−A success -0.0050±0.0112, 4 of 5 seeds equal), because both errors sit far inside the tolerance.
+- **moving.** Appearance DR does **not** fix a wrong τ. The detector is identical, so paired C−B loc_err is a **tie**, but paired C−B grasp_err 0.3734±0.2150 px is **small but consistent** and paired C−B success -0.3300±0.1110 is **clear**, both 5/5: C succeeds on 0.1750±0.0433 of the rows against B's 0.5050±0.0798. The pre-declared loss held and is **kept**. B still beats A on appearance here (paired B−A loc_err -3.4064±0.8660 px, 5/5; paired B−A success 0.2100±0.1616, 1 of 5 seeds has the opposite sign).
+
+**Choices made after seeing results.** None. The image model, the detector, both palettes, U, both τ values, both tolerances and both alternatives were written before the first run. Alternatives on the same seeds:
+
+- **Palette size.** With **10** random textures instead of 200, B's held-out loc_err is 1.5310±0.8132 px against 2.2700±0.6663 px (paired B200−B10 loc_err 0.7390±0.3862, **clear**, 5/5), and B still beats A (paired B−A loc_err@alt -4.1596±0.9999). **This goes the opposite way from the paper's ablation**, where fewer than 1,000 textures hurt (以论文为准). It is printed as it came out and was not retuned. A likely reason, not tested here: with 600 training rows a 200-texture palette leaves 3 rows per texture (手算: 600 / 200 = 3), so k-NN rarely finds a neighbour that matches both colours and position, whereas the paper trains a CNN on far more images. The toy shows the mechanism of visual DR, not its scaling law.
+- **Tolerance.** With TOL = 2.0 px on the moving regime, the τ error no longer crosses the tolerance on most rows: paired C−B success@alt -0.0450±0.0818 is a **near-tie** (1 of 5 seeds opposite, 2 of 5 equal). A loose success threshold can hide a wrong τ; the grasp_err line above does not.
+
+Neither alternative was adopted; the defaults stand.
+
+**Code change after the first run.** None: the first accepted run is the `expected/` file.
+
+The page **does not declare a universal winner**: random textures buy transfer to appearance the detector never saw, cost a little accuracy on the one texture a canonical detector was trained on, and do nothing for a wrong τ, which still needs sysid or dynamics DR. GPU training, a real camera and a real robot: **本页未运行**.
+
+**150-minute work plan:** 25 min read the paper's abstract, Section III-A and the ablation; 25 min work the wrong-τ hand calculation; 40 min run the toy and read the three regimes; 35 min compare the palette and tolerance alternatives with seeds fixed; 25 min the exercises.
+
+### Exercises
+
+1. List the aspects Tobin et al. randomise and mark which ones this toy keeps (texture, lighting gain, noise) and which it drops (distractors, camera pose, field of view).
+2. Show from `train_draws` and `test_draws` that A and B share training positions and noise, that every arm sees the same test rows, and that B's palette cannot contain a held-out texture.
+3. Using the printed hand calculation, explain why C fails the 1.0 px tolerance on a moving object even when its detector is perfect, and why the same C ties B when the object is static.
+4. The 10-texture palette beat the 200-texture palette here. Without changing the seeds, propose one change to the toy that would test the reason given above, and say what result would support it.
+5. Before any real camera or robot (本页未运行), list what you would measure to set τ, and how you would check that a visually randomised detector's errors come from appearance rather than timing.
+
 <Summary>
 
 The reality gap is mass, friction, damping, bandwidth, appearance, noise and delay. Sysid fits a nominal plant (τ relative error &lt; 5 % in the toy); DR measures how success falls when friction, delay and bias wander (Wilson intervals). Tuning one push speed with contact DR (µ, mass) instead of latency-only, on the same budget and seed stream, keeps 200/200 at µ = 0.55 and 0.85 kg where latency-only drops to 81/200 and 156/200, but costs cycle time at nominal (0.72 → 1.08 s) and still fails outside the randomised range; the friction is a toy proxy, not MuJoCo. Move 7.1 / 7.3 policies only after zeroing, limits, e-stop and a failure log — hardware steps marked needs hardware.
+
+Tobin-style visual DR: on shared positions and noise, random textures beat one canonical texture on held-out appearance (paired B−A loc_err -3.4207±0.8743 px, 5/5), lose a little on the canonical texture itself (paired B−A loc_err 0.1828±0.0448 px, kept) and do nothing for a wrong τ (paired C−B success -0.3300±0.1110, 5/5, kept) — a k-NN stand-in, not Tobin's CNN; the paper's numbers 以论文为准 and real cameras 本页未运行.
 
 </Summary>

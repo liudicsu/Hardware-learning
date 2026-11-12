@@ -1,6 +1,14 @@
 # Month 5 current plan / 第5个月当前计划
 
-Current / 当前：**M5 3210 min**, Batch-17 PR2. Older batch entries retain historical totals.
+Current / 当前：**M5 3390 min**, Batch-20 PR2. Older batch entries retain historical totals.
+
+## Batch-20 PR2 / 本月 H3 (+180)
+
+Base `bf2716c4ad5d843f4e1c5a8cf4e62b0bd357d81c` (batch-20 PR1 #181 merged; site **37230**). PR2 on M5 host: **M5 3210→3390 (+180)**; M7 moves in the same PR on its own plan. Site **37230→37560** (37560=37230+180+150), still 71 lessons.
+
+- **H3 / 5.4 camera-calibration: 600→780 (+180).** Rolling versus global shutter (`rolling_vs_global_shutter_toy.py`; common random numbers, 5 seeds). Wikipedia Rolling shutter wikitext body read (rev 1381766604; 以原文为准): a rolling shutter scans across the scene so not all parts are recorded at the same instant; a global shutter captures the whole frame at once; skew / wobble / partial exposure; results depend on readout speed. Declared toy parameters H=480 rows, DT_ROW=30.0 µs, SLOW=4, SIGMA_PX=0.3 px, speeds 0 / 300.0 / 1500.0 px/s. Hand calc (printed): readout 14.3700 ms, skew 4.3110 px and naive bias 2.1555 px at 300.0 px/s. static: every paired line **tie: identical on every seed** — pre-declared tie held. moderate: paired B−A skew `4.2034±0.1754`, paired B−A pos_err `2.1073±0.0837`, **clear**, 5/5; paired C−B pos_err `6.3269±0.2589`, **clear**, 5/5, **kept**. fast: paired B−A pos_err `10.5261±0.5669`. Alternatives on the same seeds, written before the first run: DT_ROW=15.0 µs (paired B−A skew `2.0945±0.0907`), RS-aware intercept estimator on fast (paired B−A pos_err numerically zero). ≠ eight-point; ≠ stereo-σ; `solvePnP` paragraph unchanged. Real camera 本页未运行. / 卷帘快门与全局快门：静止场景严格打平，运动时卷帘变形，慢速读出更差。
+
+**Allocation / 安排:** 30+30+45+40+35=180 minutes.
 
 ## Batch-17 PR2 — S-curve on moveit-pick-place and computed torque on control-modelling (+360)
 
