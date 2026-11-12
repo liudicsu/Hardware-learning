@@ -822,7 +822,7 @@ No winner declared; Diffusion Forcing video / planning / Franka results 以论�
 
 ## Knowledge Insulation：离散动作与被截断的专家梯度
 
-把一个新初始化的连续**扩散 / 流匹配动作专家**接到预训练 VLM 上，正是 [Knowledge Insulation](https://arxiv.org/abs/2505.23705)（Danny Driess、Jost Tobias Springenberg、Brian Ichter、Lili Yu、Adrian Li-Bell、Karl Pertsch、Allen Z. Ren、Homer Walke、Quan Vuong、Lucy Xiaoyang Shi、Sergey Levine；arXiv **2505.23705**）研究的设定。摘要、引言和第 5.2 节的主张是：把专家梯度朴素地反传到主干，会损害训练速度和知识迁移。做法是**用离散动作的 next-token 损失微调 VLM**（他们的完整配方里还有 VLM 数据），连续专家仍用流匹配训练，**但不把梯度传回 VLM**。截断做在注意力层里（文中式 5–6）：主干词元收不到来自专家一侧的梯度。论文里的速度、语言跟随和 LIBERO / DROID 数字均**以论文为准**。GPU 训练、π0 权重和这些基准都**本页未运行**。
+把一个新初始化的连续**扩散 / 流匹配动作专家**接到预训练 VLM 上，正是 [Knowledge Insulation](https://arxiv.org/abs/2505.23705)（官方标题为 Knowledge Insulating Vision-Language-Action Models: Train Fast, Run Fast, Generalize Better；Danny Driess、Jost Tobias Springenberg、Brian Ichter、Lili Yu、Adrian Li-Bell、Karl Pertsch、Allen Z. Ren、Homer Walke、Quan Vuong、Lucy Xiaoyang Shi、Sergey Levine；arXiv **2505.23705**）研究的设定。摘要、引言和第 5.2 节的主张是：把专家梯度朴素地反传到主干，会损害训练速度和知识迁移。做法是**用离散动作的 next-token 损失微调 VLM**（他们的完整配方里还有 VLM 数据），连续专家仍用流匹配训练，**但不把梯度传回 VLM**。截断做在注意力层里（文中式 5–6）：主干词元收不到来自专家一侧的梯度。论文里的速度、语言跟随和 LIBERO / DROID 数字均**以论文为准**。GPU 训练、π0 权重和这些基准都**本页未运行**。
 
 这**不是** ChatVLA 的分阶段对齐（只做机器人 SFT 就会冲掉 VQA 头，已在 VLA 微调那课），也**不是**本页已有的 OneDP 单步回归。
 

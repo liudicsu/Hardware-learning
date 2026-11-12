@@ -78,4 +78,26 @@ alternative C_damp=0.0 on moderate_h (same seeds):
   paired A-B |dE|: 77.9906+-14.0143: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
   paired A-C |dE|: 77.9906+-14.0143: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
   paired B-C |dE|: 0.0000+-0.0000: tie: identical on every seed
+
+damped semi-implicit criterion (added in polish; not a pre-declared regime):
+  toy update: damping in a_t (old velocity), then x += h v_new; c = 2 zeta omega0
+  Jury: asymptotically stable iff (omega0 h)^2 + 4 zeta omega0 h < 4 (strict)
+  zeta=0.0079818857 c=0.0500000000 h_star_damped=0.6334743577 s  (equals 2/omega0 at zeta=0)
+  default moderate h=0.1500 s  h/h_star_damped=0.2368  assert_below_hstar_damped=1
+  spectral-radius checks at this page's zeta:
+    0.98x_hstar_damped h=0.6208048706 spectral_radius=0.984358 jury_lhs=3.842842 rho_lt_one=1
+    1.00x_hstar_damped h=0.6334743577 spectral_radius=1.000000 jury_lhs=4.000000 rho_lt_one=0
+    1.02x_hstar_damped h=0.6461438449 spectral_radius=1.469468 jury_lhs=4.160308 rho_lt_one=0
+    default_h h=0.1500000000 spectral_radius=0.996243 jury_lhs=0.235725 rho_lt_one=1
+  below_hstar_damped_rho_lt_one=1  above_hstar_damped_rho_gt_one=1
+  at_hstar_damped spectral_radius=1.000000  (simple eigenvalue -1 when zeta>0; Jordan block only at zeta=0; analytic)
+  (zeta, h) spectral-radius table (0.98x / 1.02x of that zeta's h_star_damped):
+    zeta=0.00 0.98x h_star_damped=0.6385508568 h=0.6257798397 spectral_radius=1.000000 jury_lhs=3.841600
+    zeta=0.00 1.02x h_star_damped=0.6385508568 h=0.6513218740 spectral_radius=1.490835 jury_lhs=4.161600
+    zeta=0.05 0.98x h_star_damped=0.6074210043 h=0.5952725842 spectral_radius=0.901973 jury_lhs=3.849058
+    zeta=0.05 1.02x h_star_damped=0.6074210043 h=0.6195694244 spectral_radius=1.372628 jury_lhs=4.153838
+    zeta=0.20 0.98x h_star_damped=0.5234864845 h=0.5130167548 spectral_radius=0.745058 jury_lhs=3.867309
+    zeta=0.20 1.02x h_star_damped=0.5234864845 h=0.5339562142 spectral_radius=1.186992 jury_lhs=4.134842
+    zeta=1.00 0.98x h_star_damped=0.2644964252 h=0.2592064967 spectral_radius=0.943735 jury_lhs=3.906549
+    zeta=1.00 1.02x h_star_damped=0.2644964252 h=0.2697863537 spectral_radius=1.056871 jury_lhs=4.094000
 Real MuJoCo / Menagerie: 本页未运行; MuJoCo Computation documentation 以原文为准

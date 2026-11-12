@@ -12,13 +12,14 @@ Model assumptions (also stated in the lesson prose):
   MLP on the same raw features, trained from scratch, not a pre-selected answer). There is
   no plant integration step (discrete SGD, L1 action regression, one-shot readout).
 
-  After the first run, three changes were made and are not claimed to have been fixed
+  After the first run, four changes were made and are not claimed to have been fixed
   before that run: (1) ActionQuery is a trained MLP rather than a frozen random mix;
   (2) the tiny readout concatenates the bridge output with the ActionQuery vector and
   proprio (a residual injection), and the bridge-output block of that readout starts at 0;
   (3) the large arm uses a two-layer 48-wide backbone stand-in so the tiny arm wins the
   size and FLOP proxy (the first run had a 24-wide single hidden layer whose parameter
-  count was below the tiny policy). The first-run short_id table is still produced by
+  count was below the tiny policy); (4) STEPS and LR moved from 250 / 0.05 to 300 / 0.10.
+  The first-run short_id table is still produced by
   `_vla_adapter_firstrun.py` on the same seeds and printed below.
 
 Arms (Common random numbers: per (regime, seed) every demo, every test point, and C's

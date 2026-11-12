@@ -418,7 +418,7 @@ check: 30 Hz, l_S=0.293 s, n=50 -> g_min=0.176 (matches the 6.3 toy); weights on
 
 `vla_adapter_bridge_attention_toy.py` 是**合成的**，只用标准库。**模型假设。** 每个演示有二维本体感受、二维动作、存放两个物体位置的视觉向量（precise 体制里还有填充维），以及一个二元指令。条件是中间层风格的原始潜变量，以及一个**学出来的** ActionQuery（在同一组原始特征上的单隐层 MLP，从头训练，不是预先选好的答案）。**没有对象积分步**（离散 SGD、L1 动作回归、一次性读出）。
 
-首跑之后做了三处改动，并且**不会**写成首跑前已经写定：ActionQuery 改为训练出来的 MLP，而不再是冻结的随机混合；小策略的读出把桥接输出与 ActionQuery 向量、本体感受拼在一起，其中桥接输出那一块从 0 开始；大对照臂改用两层、宽 48 的主干替身，好让小主干在参数量和乘加代理上胜出（首跑时大头只是宽 24 的单隐层，参数量比小策略还少）。首跑的 `short_id` 表仍由 `_vla_adapter_firstrun.py` 在相同种子上生成，并打印在下面。
+首跑之后做了四处改动，并且**不会**写成首跑前已经写定：ActionQuery 改为训练出来的 MLP，而不再是冻结的随机混合；小策略的读出把桥接输出与 ActionQuery 向量、本体感受拼在一起，其中桥接输出那一块从 0 开始；大对照臂改用两层、宽 48 的主干替身，好让小主干在参数量和乘加代理上胜出（首跑时大头只是宽 24 的单隐层，参数量比小策略还少）；`STEPS` 与学习率从 250 / 0.05 改到 300 / 0.10。首跑的 `short_id` 表仍由 `_vla_adapter_firstrun.py` 在相同种子上生成，并打印在下面。
 
 **对照臂**，使用**公共随机数**（每个体制与种子上，所有演示、测试点和 C 的打乱置换都只抽一次；第 `i` 批对每个臂都是同一组演示；B 与 C 共用同一初始化）；同等预算 `STEPS = 300`、批次 8、学习率 0.10，五个种子：
 
@@ -458,13 +458,14 @@ Model assumptions (also stated in the lesson prose):
   MLP on the same raw features, trained from scratch, not a pre-selected answer). There is
   no plant integration step (discrete SGD, L1 action regression, one-shot readout).
 
-  After the first run, three changes were made and are not claimed to have been fixed
+  After the first run, four changes were made and are not claimed to have been fixed
   before that run: (1) ActionQuery is a trained MLP rather than a frozen random mix;
   (2) the tiny readout concatenates the bridge output with the ActionQuery vector and
   proprio (a residual injection), and the bridge-output block of that readout starts at 0;
   (3) the large arm uses a two-layer 48-wide backbone stand-in so the tiny arm wins the
   size and FLOP proxy (the first run had a 24-wide single hidden layer whose parameter
-  count was below the tiny policy). The first-run short_id table is still produced by
+  count was below the tiny policy); (4) STEPS and LR moved from 250 / 0.05 to 300 / 0.10.
+  The first-run short_id table is still produced by
   `_vla_adapter_firstrun.py` on the same seeds and printed below.
 
 Arms (Common random numbers: per (regime, seed) every demo, every test point, and C's
@@ -1219,7 +1220,7 @@ alternative first-run architecture on short_id (frozen random AQ, no proprio/AQ 
 
 1. 根据 `flops_large` 和 `flops_bridge`，在原始向量为 6 维时还原打印出来的乘加次数 2784 与 748，并说明为什么这些计数不随种子变化。
 2. 在 `need_vl` 里，动作是被指令选中的物体位置。结合 C−B 成功率这一行，解释打乱原始条件会怎样破坏这一信息。
-3. 首跑的 short_id 表里，B 的参数比 A 多，而且成功率明显更差。玩具文档字符串里写了哪三处首跑后的改动？哪些首跑打印数字说明了规模是反过来的？
+3. 首跑的 short_id 表里，B 的参数比 A 多，而且成功率明显更差。玩具文档字符串里写了哪四处首跑后的改动？哪些首跑打印数字说明了规模是反过来的？
 4. 在 precise 上，写出 B−A 成功率的均值 ± sd 及其标签。为什么这一格要保留，而不是重新调参？
 5. 在把玩具的规模优势当成 0.5B 结果之前（本页未运行），说出一项必须保持以论文为准的论文主张，以及这个标准库注意力替身与论文 Policy 的一个差别。
 
