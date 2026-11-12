@@ -1,0 +1,52 @@
+Synthetic true-RMS vs average-responding toy; shared waveforms; not a real DMM
+seeds=5 F=50 Hz FS=10000 Hz N=8000 VP=1.0 V sine_form_factor=1.1107207345 CF_CAP=3.0 DUTY_PWM=0.0625
+No integration step: finite sum over samples, no time-step criterion
+Regimes and CF_CAP were written before the first run
+hand_calc 1V_peak_sine: RMS=Vp/sqrt(2)=0.7071067812 V (0.7071 V); pp/RMS=2*sqrt(2)=2.8284271247 (~2.8); form_factor=pi/(2*sqrt(2))=1.1107207345
+hand_calc +/-1V_square: true_RMS=1.0000000000 V; average_responding=1.1107207345 V; error=0.1107207345 V (11.0721 %)
+hand_calc crest_factors: sine=1.4142135624 square=1.0000000000 triangle=1.7320508076 pwm_D=0.0625 cf=4.0000000000
+regime arm reading_V err_vs_analytic_V  (mean+-sd over seeds)
+sine (analytic_RMS=0.7071067812 V, analytic_CF=1.4142135624, noise_rms=0 V)
+  A_true_rms 0.7071+-0.0000 1.110e-16+-0.0000
+  B_avg_responding 0.7071+-1.805e-05 -6.112e-06+-1.805e-05
+  C_peak_sine 0.7071+-1.142e-05 -1.476e-05+-1.142e-05
+  measured_CF 1.4142+-2.283e-05
+  A_cf_capped 0.7071+-0.0000 1.110e-16+-0.0000
+  paired B-A reading: -6.112e-06+-1.805e-05: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired C-A reading: -1.476e-05+-1.142e-05: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A_cf_capped-A reading: 0.0000+-0.0000: tie: identical on every seed
+square (analytic_RMS=1.0000000000 V, analytic_CF=1.0000000000, noise_rms=0.001 V)
+  A_true_rms 1.0000+-7.512e-06 3.257e-06+-7.512e-06
+  B_avg_responding 1.1107+-8.339e-06 0.1107+-8.339e-06
+  C_peak_sine 0.7098+-2.410e-04 -0.2902+-2.410e-04
+  measured_CF 1.0038+-3.473e-04
+  A_cf_capped 1.0000+-7.512e-06 3.257e-06+-7.512e-06
+  paired B-A reading: 0.1107+-8.278e-07: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A reading: -0.2902+-2.475e-04: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A_cf_capped-A reading: 0.0000+-0.0000: tie: identical on every seed
+triangle (analytic_RMS=0.5773502692 V, analytic_CF=1.7320508076, noise_rms=0.001 V)
+  A_true_rms 0.5773+-2.718e-05 -4.872e-06+-2.718e-05
+  B_avg_responding 0.5554+-1.250e-05 -0.0220+-1.250e-05
+  C_peak_sine 0.7045+-0.0016 0.1271+-0.0016
+  measured_CF 1.7256+-0.0037
+  A_cf_capped 0.5773+-2.718e-05 -4.872e-06+-2.718e-05
+  paired B-A reading: -0.0220+-2.386e-05: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A reading: 0.1271+-0.0015: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A_cf_capped-A reading: 0.0000+-0.0000: tie: identical on every seed
+pwm_high_crest (analytic_RMS=0.2500000000 V, analytic_CF=4.0000000000, noise_rms=0.001 V)
+  A_true_rms 0.2489+-0.0055 -0.0011+-0.0055
+  B_avg_responding 0.0697+-0.0030 -0.1803+-0.0030
+  C_peak_sine 0.7092+-2.334e-04 0.4592+-2.334e-04
+  measured_CF 4.0306+-0.0870
+  A_cf_capped 0.1860+-0.0082 -0.0640+-0.0082
+  paired B-A reading: -0.1793+-0.0024: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A reading: 0.4603+-0.0053: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A_cf_capped-A reading: -0.0629+-0.0027: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative CF_CAP=2.0 on pwm_high_crest (same seeds):
+  A_cf_capped@2 0.1240+-0.0055 err -0.1260+-0.0055
+  paired A_cf_capped@2-A: -0.1249+-5.952e-06: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative CF_CAP=4.0 on pwm_high_crest (same seeds):
+  A_cf_capped@4 0.2460+-0.0082 err -0.0040+-0.0082
+  paired A_cf_capped@4-A: -0.0030+-0.0027: small but consistent gap, not a tie (|m| > sd); no seed has the opposite sign, 2 of 5 equal
+No winner declared: on a sampled sine A vs B is a near-tie (not a numerical-zero / identical tie); B and C consistent-lose on square, triangle and high-crest PWM; peak/sqrt(2) is a sine assumption
+Real DMM: 本页未运行; Wikipedia statements 以原文为准

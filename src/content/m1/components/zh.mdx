@@ -1445,6 +1445,391 @@ Real mains / transformer / PSU bench: 本页未运行; Wikipedia formulas 以原
 4. 固定种子，把 `RS` 改成 0.1 Ω。运行前先预测 `large_C_light` 中二极管峰值电流会升还是降。
 5. 在做任何市电或变压器实验之前（本页未运行），写下为什么 B 在 `small_C_heavy` 里赢了纹波，**并不**意味着这条电源轨能给单片机用。
 
+## 齐纳并联稳压与 LDO 压差裕量
+
+<Resource id="wiki-zener" />
+<Resource id="wiki-ldo" />
+
+把**齐纳**当成**并联稳压**用时，它与负载并联并处于反向偏置：电压到达击穿（齐纳）电压后，二极管的低阻抗把该节点维持在这个值附近，串联电阻则用来限流（Wikipedia, Zener diode；以原文为准）。同一页要求串联电阻必须大到使 I_D × V_B < P_max，这是**严格**不等式，以免烧毁器件。**LDO** 是一种线性稳压器，能在输入已经**非常接近**输出时仍然稳压；剩下的压差来自可被驱动进入饱和的通流元件，损耗为 (V_IN − V_OUT) I_OUT + V_IN I_Q（Wikipedia, Low-dropout regulator；以原文为准）。我们读到的 LDO 正文**没有**给出压差的毫伏数，因此这里也不编造：HEADROOM = 0.40 V 是声明的玩具参数。
+
+这一节**不是** ESD/TVS 钳位，**不是**本页已经写过的整流桥纹波，**不是**欠压复位笔记里那句「用一颗 LDO」，也**不是**惠斯通电桥。
+
+<Formula label="并联电流">I_Z = (V_in − V_Z) / R − I_L</Formula>
+
+<Formula label="LDO 损耗">P_LOSS = (V_IN − V_OUT) I_OUT + V_IN I_Q</Formula>
+
+**手算例题，已由 toy 打印。** 在 V_in = 12.0 V、R = 100 Ω、V_Z = 5.0 V、I_L = 0.020 A 时：I_R = (V_in − V_Z) / R = 0.0700000000 A，I_Z = I_R − I_L = 0.0500000000 A，P_Z = V_Z × I_Z = 0.2500000000 W。为给 I_L = 0.200 A 供电而选的小电阻 R = 22 Ω：I_R = 0.3181818182 A，I_Z = 0.1181818182 A，P_Z = 0.5909090909 W，相对 P_THERMAL = 0.50 W 不在限额内，因为判据是严格不等式 P < P_THERMAL（thermal_ok = 0）。同一只电阻在 I_L = 0.010 A 时，I_Z = 0.3081818182 A，P_Z = 1.5409090909 W（thermal_ok = 0）。
+
+**压差边界。** 当且仅当 V_in − V_set ≥ HEADROOM 时处于稳压（等号允许：此时通流元件正好落在声明压差上，而不是低于它）。玩具打印了这条边界：V_in = 5.4000000000 V 时 in_reg = 1；V_in = 5.3990000000 V 时 in_reg = 0。
+
+**这里没有积分步长。** 这个 toy 是直流求解：没有时间步进，因此也没有步长稳定性判据（独立测试会检查脚本里没有时间步）。
+
+### 公平设置
+
+`zener_shunt_ldo_headroom_toy.py` 是**合成**的，只用标准库。**模型假设:** 刚性齐纳（动态电阻为零），带串联电阻和电流阱负载；LDO 在 V_in − V_set 至少为 HEADROOM = 0.40 V 时稳住 V_set，否则落到 V_in − HEADROOM；无串联电阻的一臂只用 0.05 Ω 的残余源电阻来代替缺失的串联电阻。每个种子为 V_Z 和 LDO 基准各抽一次独立的 ±0.05 V 容差。静态电流 I_Q = 0.002 A 和热限额 P_THERMAL = 0.50 W 都是玩具常数。HEADROOM **不是**数据手册里的压差。
+
+| 臂 | 稳压方式 |
+|---|---|
+| A_zener_shunt | 刚性齐纳加上该情形的串联电阻 |
+| B_ldo | 在 V_in − V_set ≥ HEADROOM 时稳住 V_set |
+| C_uncapped | 同一只齐纳，只剩 0.05 Ω 残余电阻 |
+
+**共用随机数:** 每个（情形, 种子）的 V_in 和负载电流只抽一次，三臂共享。三臂**只**在稳压方式上不同（再加上各自独立的 V_Z / V_set 容差）。五个种子。指标是 V_out、相对 5 V 的误差、耗散、是否稳压以及 thermal_ok，按种子报 mean±sd。
+
+| 情形 | V_in、负载、R | 预先声明 |
+|---|---|---|
+| in_regulation | 12.0 V，20 mA，100 Ω | A 与 B 在 V_out 上**接近打平** |
+| below_headroom | 5.15 V，20 mA，100 Ω（只剩 0.15 V，低于 0.40 V） | A 和 B **稳定地输**（失稳）；**保留** |
+| thermal_small_R | 12.0 V，200 mA，22 Ω（电阻按重载来选） | 齐纳耗散相对热限额**稳定地输**；**保留** |
+
+### 运行标准库 toy
+
+```bash
+cd ~/Hardware-learning/examples/month-1/components
+python3 zener_shunt_ldo_headroom_toy.py
+```
+
+<CodeSource path="examples/month-1/components/zener_shunt_ldo_headroom_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Zener shunt regulator vs LDO headroom.
+
+Synthetic DC model, stdlib only.  Not a TI/NXP datasheet part, not a TVS
+clamp, not a bridge rectifier, and not a Wheatstone bridge.
+Real regulator bench: 本页未运行.  Wikipedia statements 以原文为准.
+
+A Zener used as a shunt regulator is reverse-biased in parallel with the
+load; a series resistor limits current, and once the voltage reaches the
+Zener voltage the diode's low impedance holds the node near that value.
+An LDO holds Vout while Vin - Vset stays at or above a declared headroom
+(the remaining drop of a pass element that can be driven into saturation).
+Power in the LDO is (Vin - Vout)*Iout + Vin*Iq.  Headroom and Vz are
+declared toy parameters: the LDO article we read does not quote a dropout
+in millivolts, so none is invented here.
+
+Common random numbers: one shared Vin and one load per regime and seed.
+Arms, shared Vin and load (per regime and seed):
+  A_zener_shunt  : stiff Zener (rz = 0) plus series R
+  B_ldo          : holds Vset when Vin - Vset >= HEADROOM, else Vin - HEADROOM
+  C_uncapped     : same Zener but with only a tiny residual source R
+                   (stand-in for a missing series resistor)
+The arms differ only in the regulator.  Each seed also draws an independent
+Zener and LDO reference tolerance.  No integration step: DC solve, so no
+step-size stability criterion applies.
+
+Regimes were written before the first run:
+  in_regulation   : Vin well above Vz / headroom, moderate load
+                    — A vs B near-tie on Vout
+  below_headroom  : Vin - Vset < HEADROOM (and Vin close to / below Vz)
+                    — B and A consistent lose (out of regulation); keep
+  thermal_small_R : series R sized for a heavy load; Zener dissipation
+                    compared with a declared thermal cap (in budget iff
+                    P < P_THERMAL, a strict inequality matching
+                    I_D * V_B < P_max); keep the loss against the cap
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+
+# Declared model parameters, written before the first run.  Not datasheet mV.
+VZ_NOM = 5.0          # V
+VSET_NOM = 5.0        # V
+HEADROOM = 0.40       # V, toy headroom; not a quoted dropout
+IQ = 0.002            # A, LDO quiescent (toy)
+R_SERIES = 100.0      # ohm, nominal series R
+R_HEAVY = 22.0        # ohm, sized so a 200 mA load still leaves IZ > 0
+R_UNCAPPED = 0.05     # ohm, stand-in for a missing series resistor
+TOL = 0.05            # V, +/- reference / Vz tolerance, independent per device
+VIN_NOM = 12.0        # V, in-regulation and thermal regimes
+VIN_LOW = 5.15        # V, 0.15 V above Vset, below HEADROOM 0.40 V
+IL_MOD = 0.020        # A, moderate load
+IL_HEAVY = 0.200      # A, heavy load the small R was sized for
+IL_LIGHT = 0.010      # A, light load on the same small R (printed too)
+VIN_SIGMA = 0.10      # V, shared Vin noise
+IL_SIGMA = 0.002      # A, shared load noise
+P_THERMAL = 0.50      # W, toy cap; in budget iff P < P_THERMAL (strict)
+
+REGIMES = {
+    "in_regulation":  {"vin": VIN_NOM, "il": IL_MOD, "r": R_SERIES},
+    "below_headroom": {"vin": VIN_LOW, "il": IL_MOD, "r": R_SERIES},
+    "thermal_small_R": {"vin": VIN_NOM, "il": IL_HEAVY, "r": R_HEAVY},
+}
+ARMS = ("A_zener_shunt", "B_ldo", "C_uncapped")
+
+
+def shared_draw(regime, seed):
+    """Common random numbers: one Vin and one load, used by every arm."""
+    rng = random.Random(f"{regime}/{seed}")
+    cfg = REGIMES[regime]
+    return {
+        "vin": cfg["vin"] + rng.gauss(0.0, VIN_SIGMA),
+        "il": max(0.0, cfg["il"] + rng.gauss(0.0, IL_SIGMA)),
+        "r": cfg["r"],
+        "vz": VZ_NOM + rng.uniform(-TOL, TOL),
+        "vset": VSET_NOM + rng.uniform(-TOL, TOL),
+    }
+
+
+def zener_solve(vin, il, r, vz):
+    """Stiff Zener (rz = 0) with series R and a current-sink load."""
+    if r <= 0.0:
+        raise ValueError("r")
+    # If the node can reach vz, Vout = vz and IZ = (vin - vz)/r - il.
+    iz = (vin - vz) / r - il
+    if iz >= 0.0 and vin >= vz:
+        vout = vz
+    else:
+        vout = max(0.0, vin - il * r)
+        iz = 0.0
+    p = vz * iz if iz > 0.0 else 0.0
+    in_reg = 1.0 if iz > 0.0 else 0.0
+    thermal_ok = 1.0 if p < P_THERMAL else 0.0
+    return {"vout": vout, "iz": iz, "p": p, "in_reg": in_reg, "thermal_ok": thermal_ok}
+
+
+def ldo_solve(vin, il, vset):
+    """Holds vset iff vin - vset >= HEADROOM (equality allowed)."""
+    in_reg = 1.0 if (vin - vset) >= HEADROOM else 0.0
+    if in_reg:
+        vout = vset
+    else:
+        vout = max(0.0, vin - HEADROOM)
+    iout = il
+    p = (vin - vout) * iout + vin * IQ
+    return {"vout": vout, "iz": 0.0, "p": p, "in_reg": in_reg, "thermal_ok": 1.0}
+
+
+def measure(d, arm):
+    if arm == "B_ldo":
+        return ldo_solve(d["vin"], d["il"], d["vset"])
+    r = R_UNCAPPED if arm == "C_uncapped" else d["r"]
+    return zener_solve(d["vin"], d["il"], r, d["vz"])
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def seed_row(regime, seed, arm):
+    return measure(shared_draw(regime, seed), arm)
+
+
+def main():
+    print("Synthetic Zener-shunt vs LDO-headroom toy; shared Vin/load; not a datasheet part")
+    print(f"seeds={len(SEEDS)} VZ_NOM={VZ_NOM:.1f} V VSET_NOM={VSET_NOM:.1f} V "
+          f"HEADROOM={HEADROOM:.2f} V (toy, not a datasheet dropout) IQ={IQ:.3f} A "
+          f"TOL=+/-{TOL:.2f} V P_THERMAL={P_THERMAL:.2f} W")
+    print("No integration step: DC solve, no time-step criterion")
+    print("Regimes, HEADROOM and P_THERMAL were written before the first run")
+    print("headroom_rule: in regulation iff Vin - Vset >= HEADROOM (equality allowed)")
+    print(f"headroom_boundary: Vin={VSET_NOM + HEADROOM:.10f} V in_reg="
+          f"{1.0 if (VSET_NOM + HEADROOM - VSET_NOM) >= HEADROOM else 0.0:.0f}; "
+          f"Vin={VSET_NOM + HEADROOM - 0.001:.10f} V in_reg="
+          f"{1.0 if ((VSET_NOM + HEADROOM - 0.001) - VSET_NOM) >= HEADROOM else 0.0:.0f}")
+    # Hand calc, also printed from the same closed form (rz = 0, nominal values)
+    ir = (VIN_NOM - VZ_NOM) / R_SERIES
+    iz = ir - IL_MOD
+    pz = VZ_NOM * iz
+    print(f"hand_calc Vin={VIN_NOM:.1f} V R={R_SERIES:.0f} ohm VZ={VZ_NOM:.1f} V IL={IL_MOD:.3f} A: "
+          f"IR=(Vin-VZ)/R={ir:.10f} A; IZ=IR-IL={iz:.10f} A; PZ=VZ*IZ={pz:.10f} W")
+    ir_h = (VIN_NOM - VZ_NOM) / R_HEAVY
+    iz_h = ir_h - IL_HEAVY
+    pz_h = VZ_NOM * iz_h
+    print(f"hand_calc thermal heavy: R={R_HEAVY:.0f} ohm IL={IL_HEAVY:.3f} A: "
+          f"IR={ir_h:.10f} A IZ={iz_h:.10f} A PZ={pz_h:.10f} W "
+          f"P_THERMAL={P_THERMAL:.2f} W thermal_ok={1 if pz_h < P_THERMAL else 0} "
+          f"(strict P < P_THERMAL)")
+    iz_l = ir_h - IL_LIGHT
+    pz_l = VZ_NOM * iz_l
+    print(f"hand_calc thermal light on same R: IL={IL_LIGHT:.3f} A: "
+          f"IZ={iz_l:.10f} A PZ={pz_l:.10f} W thermal_ok={1 if pz_l < P_THERMAL else 0}")
+    print("regime arm vout_V err_vs_5V p_W in_reg thermal_ok  (mean+-sd over seeds)")
+    res = {}
+    for regime in REGIMES:
+        res[regime] = {a: {"vout": [], "err": [], "p": [], "in_reg": [], "thermal_ok": []} for a in ARMS}
+        for seed in SEEDS:
+            d = shared_draw(regime, seed)
+            for a in ARMS:
+                m = measure(d, a)
+                res[regime][a]["vout"].append(m["vout"])
+                res[regime][a]["err"].append(m["vout"] - VSET_NOM)
+                res[regime][a]["p"].append(m["p"])
+                res[regime][a]["in_reg"].append(m["in_reg"])
+                res[regime][a]["thermal_ok"].append(m["thermal_ok"])
+        cfg = REGIMES[regime]
+        print(f"{regime} (Vin_nom={cfg['vin']:.2f} V, IL_nom={cfg['il']:.3f} A, R={cfg['r']:.2f} ohm)")
+        for a in ARMS:
+            row = res[regime][a]
+            print(f"  {a} vout {fmt_pair(*mean_sd(row['vout']))} "
+                  f"err {fmt_pair(*mean_sd(row['err']))} "
+                  f"p {fmt_pair(*mean_sd(row['p']))} "
+                  f"in_reg {fmt_pair(*mean_sd(row['in_reg']))} "
+                  f"thermal_ok {fmt_pair(*mean_sd(row['thermal_ok']))}")
+        print(f"  paired A-B vout: {verdict(res[regime]['A_zener_shunt']['vout'], res[regime]['B_ldo']['vout'])}")
+        print(f"  paired A-B |err|: {verdict([abs(x) for x in res[regime]['A_zener_shunt']['err']], [abs(x) for x in res[regime]['B_ldo']['err']])}")
+        print(f"  paired B in_reg vs 1: {verdict(res[regime]['B_ldo']['in_reg'], [1.0]*len(SEEDS))}")
+        print(f"  paired A in_reg vs 1: {verdict(res[regime]['A_zener_shunt']['in_reg'], [1.0]*len(SEEDS))}")
+        print(f"  paired C-A p: {verdict(res[regime]['C_uncapped']['p'], res[regime]['A_zener_shunt']['p'])}")
+        print(f"  paired A thermal_ok vs 1: {verdict(res[regime]['A_zener_shunt']['thermal_ok'], [1.0]*len(SEEDS))}")
+    # Light load on the same small R, same seeds as thermal_small_R (shared Vin, new IL)
+    print("thermal_small_R light-load companion (same Vin draws, IL_nom=0.010 A, same R, not a deleted regime):")
+    light_p, light_ok = [], []
+    for seed in SEEDS:
+        d = shared_draw("thermal_small_R", seed)
+        d = dict(d)
+        rng = random.Random(f"thermal_small_R/{seed}/light")
+        d["il"] = max(0.0, IL_LIGHT + rng.gauss(0.0, IL_SIGMA))
+        m = zener_solve(d["vin"], d["il"], R_HEAVY, d["vz"])
+        light_p.append(m["p"])
+        light_ok.append(m["thermal_ok"])
+    print(f"  A_zener_shunt light p {fmt_pair(*mean_sd(light_p))} thermal_ok {fmt_pair(*mean_sd(light_ok))}")
+    print(f"  paired light thermal_ok vs 1: {verdict(light_ok, [1.0]*len(SEEDS))}")
+    # Alternatives on the same seeds
+    print("alternative HEADROOM=0.20 V on below_headroom (same seeds):")
+    alt_in = []
+    base_in = []
+    for seed in SEEDS:
+        d = shared_draw("below_headroom", seed)
+        base_in.append(ldo_solve(d["vin"], d["il"], d["vset"])["in_reg"])
+        alt_in.append(1.0 if (d["vin"] - d["vset"]) >= 0.20 else 0.0)
+    print(f"  B_ldo in_reg@0.20 {fmt_pair(*mean_sd(alt_in))} (default {fmt_pair(*mean_sd(base_in))})")
+    print(f"  paired in_reg@0.20 vs default: {verdict(alt_in, base_in)}")
+    print("alternative P_THERMAL=0.80 W on thermal_small_R (same seeds):")
+    alt_ok = []
+    base_ok = res["thermal_small_R"]["A_zener_shunt"]["thermal_ok"]
+    alt_p = res["thermal_small_R"]["A_zener_shunt"]["p"]
+    for p in alt_p:
+        alt_ok.append(1.0 if p < 0.80 else 0.0)
+    print(f"  A thermal_ok@0.80 {fmt_pair(*mean_sd(alt_ok))} (default {fmt_pair(*mean_sd(base_ok))})")
+    print(f"  paired thermal_ok@0.80 vs default: {verdict(alt_ok, base_ok)}")
+    print("No winner declared: in regulation the two hold nearby voltages; below headroom both drop out; a small series R that can feed a heavy load dumps too much into the Zener against the thermal cap; an uncapped shunt is worse")
+    print("Real regulator bench: 本页未运行; Wikipedia statements 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic Zener-shunt vs LDO-headroom toy; shared Vin/load; not a datasheet part
+seeds=5 VZ_NOM=5.0 V VSET_NOM=5.0 V HEADROOM=0.40 V (toy, not a datasheet dropout) IQ=0.002 A TOL=+/-0.05 V P_THERMAL=0.50 W
+No integration step: DC solve, no time-step criterion
+Regimes, HEADROOM and P_THERMAL were written before the first run
+headroom_rule: in regulation iff Vin - Vset >= HEADROOM (equality allowed)
+headroom_boundary: Vin=5.4000000000 V in_reg=1; Vin=5.3990000000 V in_reg=0
+hand_calc Vin=12.0 V R=100 ohm VZ=5.0 V IL=0.020 A: IR=(Vin-VZ)/R=0.0700000000 A; IZ=IR-IL=0.0500000000 A; PZ=VZ*IZ=0.2500000000 W
+hand_calc thermal heavy: R=22 ohm IL=0.200 A: IR=0.3181818182 A IZ=0.1181818182 A PZ=0.5909090909 W P_THERMAL=0.50 W thermal_ok=0 (strict P < P_THERMAL)
+hand_calc thermal light on same R: IL=0.010 A: IZ=0.3081818182 A PZ=1.5409090909 W thermal_ok=0
+regime arm vout_V err_vs_5V p_W in_reg thermal_ok  (mean+-sd over seeds)
+in_regulation (Vin_nom=12.00 V, IL_nom=0.020 A, R=100.00 ohm)
+  A_zener_shunt vout 4.9832+-0.0272 err -0.0168+-0.0272 p 0.2516+-0.0071 in_reg 1.0000+-0.0000 thermal_ok 1.0000+-0.0000
+  B_ldo vout 5.0065+-0.0436 err 0.0065+-0.0436 p 0.1653+-0.0170 in_reg 1.0000+-0.0000 thermal_ok 1.0000+-0.0000
+  C_uncapped vout 4.9832+-0.0272 err -0.0168+-0.0272 p 702.9278+-8.8282 in_reg 1.0000+-0.0000 thermal_ok 0.0000+-0.0000
+  paired A-B vout: -0.0233+-0.0516: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired A-B |err|: -0.0120+-0.0110: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B in_reg vs 1: 0.0000+-0.0000: tie: identical on every seed
+  paired A in_reg vs 1: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A p: 702.6763+-8.8323: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A thermal_ok vs 1: 0.0000+-0.0000: tie: identical on every seed
+below_headroom (Vin_nom=5.15 V, IL_nom=0.020 A, R=100.00 ohm)
+  A_zener_shunt vout 3.1481+-0.3549 err -1.8519+-0.3549 p 0.0000+-0.0000 in_reg 0.0000+-0.0000 thermal_ok 1.0000+-0.0000
+  B_ldo vout 4.7719+-0.1180 err -0.2281+-0.1180 p 0.0184+-0.0010 in_reg 0.0000+-0.0000 thermal_ok 1.0000+-0.0000
+  C_uncapped vout 5.0123+-0.0277 err 0.0123+-0.0277 p 15.8986+-11.1698 in_reg 1.0000+-0.0000 thermal_ok 0.0000+-0.0000
+  paired A-B vout: -1.6238+-0.2818: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B |err|: 1.6238+-0.2818: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B in_reg vs 1: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A in_reg vs 1: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A p: 15.8986+-11.1698: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A thermal_ok vs 1: 0.0000+-0.0000: tie: identical on every seed
+thermal_small_R (Vin_nom=12.00 V, IL_nom=0.200 A, R=22.00 ohm)
+  A_zener_shunt vout 5.0020+-0.0241 err 0.0020+-0.0241 p 0.5828+-0.0229 in_reg 1.0000+-0.0000 thermal_ok 0.0000+-0.0000
+  B_ldo vout 4.9912+-0.0314 err -0.0088+-0.0314 p 1.4067+-0.0211 in_reg 1.0000+-0.0000 thermal_ok 1.0000+-0.0000
+  C_uncapped vout 5.0020+-0.0241 err 0.0020+-0.0241 p 693.2885+-7.5353 in_reg 1.0000+-0.0000 thermal_ok 0.0000+-0.0000
+  paired A-B vout: 0.0108+-0.0495: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired A-B |err|: -0.0065+-0.0247: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired B in_reg vs 1: 0.0000+-0.0000: tie: identical on every seed
+  paired A in_reg vs 1: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A p: 692.7056+-7.5157: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A thermal_ok vs 1: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+thermal_small_R light-load companion (same Vin draws, IL_nom=0.010 A, same R, not a deleted regime):
+  A_zener_shunt light p 1.5368+-0.0231 thermal_ok 0.0000+-0.0000
+  paired light thermal_ok vs 1: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative HEADROOM=0.20 V on below_headroom (same seeds):
+  B_ldo in_reg@0.20 0.4000+-0.5477 (default 0.0000+-0.0000)
+  paired in_reg@0.20 vs default: 0.4000+-0.5477: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+alternative P_THERMAL=0.80 W on thermal_small_R (same seeds):
+  A thermal_ok@0.80 1.0000+-0.0000 (default 0.0000+-0.0000)
+  paired thermal_ok@0.80 vs default: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: in regulation the two hold nearby voltages; below headroom both drop out; a small series R that can feed a heavy load dumps too much into the Zener against the thermal cap; an uncapped shunt is worse
+Real regulator bench: 本页未运行; Wikipedia statements 以原文为准
+```
+
+</SimOutput>
+
+### 读三种情形
+
+本页标签的用法，按这个顺序。**打平：每个种子都完全相同** 只在按种子配对的差在每个种子上都恰好为零时使用；**数值上为零（浮点残差），等同打平** 用于 |配对均值| 和它的 sd 都低于 1e-9 时（这类行不打印同号计数）；**接近打平、差距很小，在种子噪声之内** 用于 |配对均值| ≤ sd；否则是**稳定的**差距（|配对均值| > sd），若 |m| 不到较小那一臂均值的 20 % 就叫**小**，否则叫**明显**；20 % 规则只用来选这两个词。每条稳定差距的行都带 5 个种子的同号计数，有反号的种子也会写出来。差距用未四舍五入的值计算。
+
+- **in_regulation。** A 读 4.9832±0.0272 V，B 读 5.0065±0.0436 V，每个种子都在稳压（in_reg 相对 1 是**打平：每个种子都完全相同**）。成对 A−B 的 V_out 是 -0.0233±0.0516，为**接近打平、差距很小，在种子噪声之内**（|m| ≤ sd；5 个种子里有 2 个反号），这正是 §9 要的格子。绝对误差那一行**不是**接近打平：成对 A−B |err| 是 -0.0120±0.0110，**明显差距，不是打平**（5 个种子全部同号），因为独立的 ±0.05 V 容差在有符号差里比在 |误差| 里更容易抵消。两行都打印了。无串联电阻的那一臂电压与 A 相同，但耗散 702.9278±8.8282 W；成对 C−A 的 p 是 702.6763±8.8323，为**明显差距，不是打平**（5 个种子全部同号）。**保留**这个失败。
+- **below_headroom。** V_in 只比 5 V 设定值高 0.15 V，低于 0.40 V 的裕量。A 的 V_out 降到 3.1481±0.3549 V（齐纳关断），B 的 V_out 是 4.7719±0.1180 V（LDO 落在 V_in − HEADROOM）。两条 in_reg 相对 1 的线都是 -1.0000±0.0000，为**明显差距，不是打平**（5 个种子全部同号）。**保留**这个失稳结果。无串联电阻的并联臂仍然「稳压」（15.8986±11.1698 W），因为几乎没有串联电阻在掉电压——这不是安全的设计。
+- **thermal_small_R。** V_out 再次是**接近打平**（成对 A−B 0.0108±0.0495，5 个种子里有 1 个反号），两臂都在稳压，但 A 的耗散是 0.5828±0.0229 W，对着 0.50 W 的限额。thermal_ok 相对 1 是 -1.0000±0.0000，为**明显差距，不是打平**（5 个种子全部同号）。**保留**这个热失败。同一只电阻、同一组 V_in 抽样下的轻载对照更差：1.5368±0.0231 W，thermal_ok 相对 1 同样是 -1.0000±0.0000，**明显差距，不是打平**（5 个种子全部同号）。LDO 在这个重载上的通流元件耗散是 1.4067±0.0211 W——当 (V_in − V_out) I_out 很大时，线性稳压器也会发烫。
+
+**看过结果后做的选择。** 没有。HEADROOM = 0.40 V、P_THERMAL = 0.50 W 以及 22 Ω / 200 mA 的选型都在首次运行前写定。同一组种子上的替代：把 HEADROOM 降到 0.20 V，会把 below-headroom 的 in_reg 提到 0.4000±0.5477（相对默认的全零线是**接近打平**；没有种子反号，5 个里有 3 个相等）——没有采用 0.20 V。把 P_THERMAL 提到 0.80 W，会让 thermal_small_R 的每个种子都通过（thermal_ok@0.80 是 1.0000±0.0000，相对默认是**明显**的改变）。这个更松的限额**没有**被用来删掉失败的情形。
+
+本页**不宣布普遍赢家**，稳压时两臂的电压靠近；低于裕量时都失稳；为重载选的小串联电阻会把太多电流丢进齐纳，超过热限额；没有串联电阻的并联臂更糟。真实稳压实验台。**本页未运行**。
+
+**150 分钟安排:** 30 分钟读 Zener diode 与 Low-dropout regulator 两页；30 分钟手算 12 V / 100 Ω / 20 mA 以及严格的热不等式；40 分钟运行玩具、读懂三种情形；30 分钟固定种子对照打印的 HEADROOM = 0.20 V 与 P_THERMAL = 0.80 W 替代；20 分钟做练习。
+
+### 练习
+
+1. 用打印的手算块确认：在 12 V、100 Ω、5 V、20 mA 下，I_R = 0.0700000000 A，I_Z = 0.0500000000 A，P_Z = 0.2500000000 W。
+2. 从 `shared_draw` 说明：对给定情形和种子，A、B、C 看到的是同一个 V_in 和负载。
+3. 为什么稳压时的 V_out 是**接近打平**，而同一情形里的 |err| 行却是**明显**差距？
+4. 打印的替代 P_THERMAL = 0.80 W 会让 `thermal_small_R` 的每个种子都通过。为什么不能据此删掉热失败的情形？
+5. 在动手做任何真实稳压实验之前（本页未运行），说明为什么 `below_headroom` 里 B 的失稳并**不**意味着 LDO 没用，以及 C 在 5.15 V 上仍能「稳压」并**不**意味着可以省掉串联电阻。
+
 <Summary>
 
 **本课要点**
@@ -1464,6 +1849,8 @@ Real mains / transformer / PSU bench: 本页未运行; Wikipedia formulas 以原
 - 惠斯通 / INA 入门：共享 ΔR 显示嘈杂小 δ 时电桥 SNR 胜出、安静大 δ 时**接近打平 / 差距很小**（约 2.6 dB），以及多样本 SNR 看不见的 INA 失调代价——不是应变片实验。
 
 - 整流桥：在共享元件上，四二极管整流桥把单个二极管的纹波减半（小电容重负载：配对 −5.2981±0.2119 V，5 个种子同号），纹波小时线性放电公式 I / (2fC) 在 25 % 之内成立；但电容很大时，第二个二极管压降让输出低一个小而稳定的 0.4146±0.0308 V，不接电容时没有哪一组能给出直流——这是合成模型，不是市电实验。
+
+- 齐纳并联 / LDO 压差：共享 Vin 与负载时，稳压输出是**接近打平**（A−B -0.0233±0.0516 V，5 个种子里有 2 个反号）；低于声明的 0.40 V 裕量时两臂都失稳（in_reg 相对 1 为 -1.0000±0.0000，明显，5/5）；为 200 mA 所选的 22 Ω 电阻达不到严格的 0.50 W 热限额（thermal_ok 相对 1 为 -1.0000±0.0000，明显，5/5）——合成模型，不是稳压实验台。
 
 **下一课会用到**
 

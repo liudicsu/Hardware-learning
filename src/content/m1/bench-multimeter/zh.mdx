@@ -592,6 +592,355 @@ Real 4-wire bench: 本页未运行; Wikipedia statements 以原文为准
 4. 固定种子，把热电动势范围设为零。运行前先预测 `shunt_small_dut` 中 B 的误差和 `zero_lead` 中 C−B 那一行会怎样变化。
 5. 在动手做真实实验之前（本页未运行），说明为什么 zero_lead 中 A 与 B 的**打平**并**不**意味着在真实分流电阻上两线法和开尔文一样好。
 
+## 真有效值与平均值响应万用表
+
+<Resource id="wiki-multimeter" />
+<Resource id="wiki-rms" />
+
+有效值是均方的平方根（Wikipedia, Root mean square；以原文为准）。零均值正弦的峰-峰值是 2√2 × RMS ≈ 2.8 × RMS；**其他波形不共用这个比值**（同一页）。除非标明 **true-RMS**，否则可把万用表当成**平均值响应**，平均值响应表只在**纯正弦**的交流电压/电流上满足标称精度；真有效值表对其他波形也满足精度，但只到声明的**峰值因数**为止（Wikipedia, Multimeter；以原文为准）。
+
+这一节**不是**上面开尔文四线法的重写，也**不是**欧姆定律课上的戴维南 / 最大功率传输讨论。
+
+<Formula label="有效值">RMS = √(均方)</Formula>
+
+<Formula label="正弦波形因数">\pi / (2 √2) = 1.1107207345</Formula>
+
+**手算例题，已由 toy 打印。** 1 V 峰值正弦的有效值 = 1/√2 = 0.7071067812 V（0.7071 V），峰-峰值 / RMS = 2√2 = 2.8284271247（约 2.8）。±1 V 方波的真有效值是 1.0000000000 V；平均值响应替身读出 1.1107207345 V，偏高 0.1107207345 V（11.0721 %）。同一手算块打印的峰值因数：正弦 1.4142135624，方波 1.0000000000，三角波 1.7320508076，占空比 0.0625 的脉冲为 4.0000000000。
+
+**这里没有积分步长。** 这个 toy 是对样本做有限求和：没有时间步进，因此也没有步长稳定性判据（独立测试会检查脚本里没有时间步）。
+
+### 公平设置
+
+`true_rms_vs_average_responding_toy.py` 是**合成**的，只用标准库。**模型假设:** 50 Hz 波形、10 kHz 采样、8000 个样本（正好 40 个周期），每种波形峰值都是 1 V。B 臂用连续正弦波形因数 1.1107207345 乘以平均绝对值。C 臂报告峰值 / √2，也就是假定每种波都是正弦。峰值因数上限 CF_CAP = 3.0 是**事先写定的玩具参数**，在首次运行前就写好，不是数据手册数字；另外还打印了一条把峰值限制在 CF_CAP 倍未限幅有效值处的真有效值路径。正弦情形是干净的（只有相位）。方波、三角波和 PWM 共用 1 mV rms 的附加噪声。这些都是本玩具自己的选择。**没有打开真实万用表数据手册**。
+
+| 臂 | 估计器 |
+|---|---|
+| A_true_rms | 均方的平方根 |
+| B_avg_responding | 平均绝对值 × 正弦波形因数 |
+| C_peak_sine | 峰值 / √2（正弦假设） |
+
+**共用随机数:** 每个（情形, 种子）的相位和噪声序列只抽一次，三臂共享。三臂**只**在估计器上不同。五个种子。指标是读数以及相对干净波解析有效值的误差，按种子报 mean±sd。
+
+| 情形 | 波形 | 预先声明 |
+|---|---|---|
+| sine | 1 V 峰值正弦，无噪声 | A 与 B **打平**或数值上为零 |
+| square | 双极 ±1 V 方波 | B 和 C 相对 A **稳定地输** |
+| triangle | 双极 1 V 峰值三角波 | B 相对 A **稳定地输** |
+| pwm_high_crest | 单极脉冲，占空比 0.0625，峰值因数 4 大于上限 3 | B 和 C 相对 A **稳定地输** |
+
+### 运行标准库 toy
+
+```bash
+cd ~/Hardware-learning/examples/month-1/bench-multimeter
+python3 true_rms_vs_average_responding_toy.py
+```
+
+<CodeSource path="examples/month-1/bench-multimeter/true_rms_vs_average_responding_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""True RMS vs sine-calibrated average-responding meters.
+
+Synthetic sampled-waveform model, stdlib only.  Not a Fluke/Keysight
+bench, not a Kelvin four-wire measurement, and not a Thevenin source.
+Real DMM: 本页未运行.  Wikipedia statements 以原文为准.
+
+RMS is the square root of the mean of the square.  An average-responding
+meter measures mean(|v|) and multiplies by the sine form factor
+pi/(2*sqrt(2)), so it agrees with true RMS on a pure sine and is out of
+spec on other shapes.  A true-RMS meter is specified up to a crest-factor
+cap (a declared toy parameter, not a datasheet claim).  Arm C reports
+peak/sqrt(2), i.e. it assumes every wave is a sine.
+
+Common random numbers: one shared waveform (phase and noise) per regime and seed.
+Arms, shared waveforms (per regime and seed):
+  A_true_rms        : sqrt(mean(v^2))
+  B_avg_responding  : mean(|v|) * sine form factor
+  C_peak_sine       : max(|v|) / sqrt(2)
+The arms differ only in the estimator.  No integration step: the model
+is a finite sum over samples, so no step-size stability criterion applies.
+
+Regimes were written before the first run:
+  sine            : pure sine, 1 V peak — A vs B must tie / be numerically zero
+  square          : bipolar square, 1 V peak — B and C consistent lose vs A
+  triangle        : bipolar triangle, 1 V peak — B consistent lose vs A
+  pwm_high_crest  : unipolar pulse, duty 0.0625, crest factor 4 > CF_CAP 3
+                    — B and C consistent lose vs A; C is the sine-assumption
+                    path; a clipped true-RMS (peaks limited at CF_CAP * RMS)
+                    is also printed.
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+F = 50.0                 # Hz
+FS = 10000.0             # Hz; 40 periods in N samples
+N = 8000
+VP = 1.0                 # V, peak used for every regime
+SINE_FF = math.pi / (2.0 * math.sqrt(2.0))  # RMS / mean(|sine|)
+CF_CAP = 3.0             # declared toy crest-factor cap; written before the first run
+DUTY_PWM = 0.0625        # 1/16; crest factor 1/sqrt(D) = 4 > CF_CAP
+NOISE_RMS = 0.0          # V; sine tie is demonstrated on a clean wave (phase only)
+NOISE_RMS_OTHER = 0.001  # V; square / triangle / pwm share this draw
+
+# name: wave kind (noise uses NOISE_RMS on sine, NOISE_RMS_OTHER otherwise)
+REGIMES = ("sine", "square", "triangle", "pwm_high_crest")
+ARMS = ("A_true_rms", "B_avg_responding", "C_peak_sine")
+
+
+def _frac(t, phase):
+    return (F * t + phase / (2.0 * math.pi)) % 1.0
+
+
+def waveform(kind, t, phase):
+    u = _frac(t, phase)
+    if kind == "sine":
+        return VP * math.sin(2.0 * math.pi * F * t + phase)
+    if kind == "square":
+        return VP if u < 0.5 else -VP
+    if kind == "triangle":
+        return VP * (4.0 * abs(u - 0.5) - 1.0)
+    if kind == "pwm_high_crest":
+        return VP if u < DUTY_PWM else 0.0
+    raise ValueError(kind)
+
+
+def analytic_rms(kind):
+    if kind == "sine":
+        return VP / math.sqrt(2.0)
+    if kind == "square":
+        return VP
+    if kind == "triangle":
+        return VP / math.sqrt(3.0)
+    if kind == "pwm_high_crest":
+        return VP * math.sqrt(DUTY_PWM)
+    raise ValueError(kind)
+
+
+def analytic_cf(kind):
+    return VP / analytic_rms(kind)
+
+
+def shared_wave(kind, seed):
+    """Common random numbers: one phase and one noise sequence per (kind, seed)."""
+    rng = random.Random(f"{kind}/{seed}")
+    phase = rng.uniform(0.0, 2.0 * math.pi)
+    sigma = NOISE_RMS if kind == "sine" else NOISE_RMS_OTHER
+    noise = [rng.gauss(0.0, sigma) for _ in range(N)]
+    samples = []
+    for i in range(N):
+        t = i / FS
+        samples.append(waveform(kind, t, phase) + noise[i])
+    return {"phase": phase, "sigma": sigma, "v": samples}
+
+
+def estimators(v):
+    mean_sq = sum(x * x for x in v) / len(v)
+    mean_abs = sum(abs(x) for x in v) / len(v)
+    peak = max(abs(x) for x in v)
+    a = math.sqrt(mean_sq)
+    b = mean_abs * SINE_FF
+    c = peak / math.sqrt(2.0)
+    clipped = [x if abs(x) <= CF_CAP * a else math.copysign(CF_CAP * a, x) for x in v]
+    a_capped = math.sqrt(sum(x * x for x in clipped) / len(v))
+    return {"A_true_rms": a, "B_avg_responding": b, "C_peak_sine": c,
+            "crest": (peak / a if a else float("inf")), "A_cf_capped": a_capped}
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def main():
+    print("Synthetic true-RMS vs average-responding toy; shared waveforms; not a real DMM")
+    print(f"seeds={len(SEEDS)} F={F:.0f} Hz FS={FS:.0f} Hz N={N} VP={VP:.1f} V "
+          f"sine_form_factor={SINE_FF:.10f} CF_CAP={CF_CAP:.1f} DUTY_PWM={DUTY_PWM:.4f}")
+    print("No integration step: finite sum over samples, no time-step criterion")
+    print("Regimes and CF_CAP were written before the first run")
+    rms_sine = VP / math.sqrt(2.0)
+    pp_ratio = 2.0 * math.sqrt(2.0)
+    print(f"hand_calc 1V_peak_sine: RMS=Vp/sqrt(2)={rms_sine:.10f} V ({num(rms_sine)} V); "
+          f"pp/RMS=2*sqrt(2)={pp_ratio:.10f} (~2.8); form_factor=pi/(2*sqrt(2))={SINE_FF:.10f}")
+    err_sq = SINE_FF * VP - VP
+    print(f"hand_calc +/-1V_square: true_RMS={VP:.10f} V; average_responding={SINE_FF:.10f} V; "
+          f"error={err_sq:.10f} V ({100.0 * err_sq / VP:.4f} %)")
+    print(f"hand_calc crest_factors: sine={math.sqrt(2.0):.10f} square=1.0000000000 "
+          f"triangle={math.sqrt(3.0):.10f} pwm_D={DUTY_PWM:.4f} cf={1.0 / math.sqrt(DUTY_PWM):.10f}")
+    print("regime arm reading_V err_vs_analytic_V  (mean+-sd over seeds)")
+    res = {}
+    for kind in REGIMES:
+        res[kind] = {a: [] for a in list(ARMS) + ["A_cf_capped", "crest"]}
+        target = analytic_rms(kind)
+        for seed in SEEDS:
+            est = estimators(shared_wave(kind, seed)["v"])
+            for a in ARMS:
+                res[kind][a].append(est[a])
+            res[kind]["A_cf_capped"].append(est["A_cf_capped"])
+            res[kind]["crest"].append(est["crest"])
+        print(f"{kind} (analytic_RMS={target:.10f} V, analytic_CF={analytic_cf(kind):.10f}, "
+              f"noise_rms={(NOISE_RMS if kind == 'sine' else NOISE_RMS_OTHER):g} V)")
+        for a in ARMS:
+            xs = res[kind][a]
+            err = [x - target for x in xs]
+            print(f"  {a} {fmt_pair(*mean_sd(xs))} {fmt_pair(*mean_sd(err))}")
+        print(f"  measured_CF {fmt_pair(*mean_sd(res[kind]['crest']))}")
+        print(f"  A_cf_capped {fmt_pair(*mean_sd(res[kind]['A_cf_capped']))} "
+              f"{fmt_pair(*mean_sd([x - target for x in res[kind]['A_cf_capped']]))}")
+        for other in ("B_avg_responding", "C_peak_sine"):
+            print(f"  paired {other[0]}-A reading: {verdict(res[kind][other], res[kind]['A_true_rms'])}")
+        print(f"  paired A_cf_capped-A reading: {verdict(res[kind]['A_cf_capped'], res[kind]['A_true_rms'])}")
+    # Alternatives on the same seeds (pre-planned sensitivity, not a retune)
+    print("alternative CF_CAP=2.0 on pwm_high_crest (same seeds):")
+    alt = []
+    base_a = []
+    target = analytic_rms("pwm_high_crest")
+    for seed in SEEDS:
+        v = shared_wave("pwm_high_crest", seed)["v"]
+        a = math.sqrt(sum(x * x for x in v) / len(v))
+        cap = 2.0
+        clipped = [x if abs(x) <= cap * a else math.copysign(cap * a, x) for x in v]
+        alt.append(math.sqrt(sum(x * x for x in clipped) / len(v)))
+        base_a.append(a)
+    print(f"  A_cf_capped@2 {fmt_pair(*mean_sd(alt))} err {fmt_pair(*mean_sd([x - target for x in alt]))}")
+    print(f"  paired A_cf_capped@2-A: {verdict(alt, base_a)}")
+    print("alternative CF_CAP=4.0 on pwm_high_crest (same seeds):")
+    alt4 = []
+    for seed in SEEDS:
+        v = shared_wave("pwm_high_crest", seed)["v"]
+        a = math.sqrt(sum(x * x for x in v) / len(v))
+        cap = 4.0
+        clipped = [x if abs(x) <= cap * a else math.copysign(cap * a, x) for x in v]
+        alt4.append(math.sqrt(sum(x * x for x in clipped) / len(v)))
+    print(f"  A_cf_capped@4 {fmt_pair(*mean_sd(alt4))} err {fmt_pair(*mean_sd([x - target for x in alt4]))}")
+    print(f"  paired A_cf_capped@4-A: {verdict(alt4, base_a)}")
+    print("No winner declared: on a sampled sine A vs B is a near-tie (not a numerical-zero / identical tie); B and C consistent-lose on square, triangle and high-crest PWM; peak/sqrt(2) is a sine assumption")
+    print("Real DMM: 本页未运行; Wikipedia statements 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic true-RMS vs average-responding toy; shared waveforms; not a real DMM
+seeds=5 F=50 Hz FS=10000 Hz N=8000 VP=1.0 V sine_form_factor=1.1107207345 CF_CAP=3.0 DUTY_PWM=0.0625
+No integration step: finite sum over samples, no time-step criterion
+Regimes and CF_CAP were written before the first run
+hand_calc 1V_peak_sine: RMS=Vp/sqrt(2)=0.7071067812 V (0.7071 V); pp/RMS=2*sqrt(2)=2.8284271247 (~2.8); form_factor=pi/(2*sqrt(2))=1.1107207345
+hand_calc +/-1V_square: true_RMS=1.0000000000 V; average_responding=1.1107207345 V; error=0.1107207345 V (11.0721 %)
+hand_calc crest_factors: sine=1.4142135624 square=1.0000000000 triangle=1.7320508076 pwm_D=0.0625 cf=4.0000000000
+regime arm reading_V err_vs_analytic_V  (mean+-sd over seeds)
+sine (analytic_RMS=0.7071067812 V, analytic_CF=1.4142135624, noise_rms=0 V)
+  A_true_rms 0.7071+-0.0000 1.110e-16+-0.0000
+  B_avg_responding 0.7071+-1.805e-05 -6.112e-06+-1.805e-05
+  C_peak_sine 0.7071+-1.142e-05 -1.476e-05+-1.142e-05
+  measured_CF 1.4142+-2.283e-05
+  A_cf_capped 0.7071+-0.0000 1.110e-16+-0.0000
+  paired B-A reading: -6.112e-06+-1.805e-05: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired C-A reading: -1.476e-05+-1.142e-05: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A_cf_capped-A reading: 0.0000+-0.0000: tie: identical on every seed
+square (analytic_RMS=1.0000000000 V, analytic_CF=1.0000000000, noise_rms=0.001 V)
+  A_true_rms 1.0000+-7.512e-06 3.257e-06+-7.512e-06
+  B_avg_responding 1.1107+-8.339e-06 0.1107+-8.339e-06
+  C_peak_sine 0.7098+-2.410e-04 -0.2902+-2.410e-04
+  measured_CF 1.0038+-3.473e-04
+  A_cf_capped 1.0000+-7.512e-06 3.257e-06+-7.512e-06
+  paired B-A reading: 0.1107+-8.278e-07: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A reading: -0.2902+-2.475e-04: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A_cf_capped-A reading: 0.0000+-0.0000: tie: identical on every seed
+triangle (analytic_RMS=0.5773502692 V, analytic_CF=1.7320508076, noise_rms=0.001 V)
+  A_true_rms 0.5773+-2.718e-05 -4.872e-06+-2.718e-05
+  B_avg_responding 0.5554+-1.250e-05 -0.0220+-1.250e-05
+  C_peak_sine 0.7045+-0.0016 0.1271+-0.0016
+  measured_CF 1.7256+-0.0037
+  A_cf_capped 0.5773+-2.718e-05 -4.872e-06+-2.718e-05
+  paired B-A reading: -0.0220+-2.386e-05: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A reading: 0.1271+-0.0015: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A_cf_capped-A reading: 0.0000+-0.0000: tie: identical on every seed
+pwm_high_crest (analytic_RMS=0.2500000000 V, analytic_CF=4.0000000000, noise_rms=0.001 V)
+  A_true_rms 0.2489+-0.0055 -0.0011+-0.0055
+  B_avg_responding 0.0697+-0.0030 -0.1803+-0.0030
+  C_peak_sine 0.7092+-2.334e-04 0.4592+-2.334e-04
+  measured_CF 4.0306+-0.0870
+  A_cf_capped 0.1860+-0.0082 -0.0640+-0.0082
+  paired B-A reading: -0.1793+-0.0024: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A reading: 0.4603+-0.0053: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A_cf_capped-A reading: -0.0629+-0.0027: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative CF_CAP=2.0 on pwm_high_crest (same seeds):
+  A_cf_capped@2 0.1240+-0.0055 err -0.1260+-0.0055
+  paired A_cf_capped@2-A: -0.1249+-5.952e-06: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative CF_CAP=4.0 on pwm_high_crest (same seeds):
+  A_cf_capped@4 0.2460+-0.0082 err -0.0040+-0.0082
+  paired A_cf_capped@4-A: -0.0030+-0.0027: small but consistent gap, not a tie (|m| > sd); no seed has the opposite sign, 2 of 5 equal
+No winner declared: on a sampled sine A vs B is a near-tie (not a numerical-zero / identical tie); B and C consistent-lose on square, triangle and high-crest PWM; peak/sqrt(2) is a sine assumption
+Real DMM: 本页未运行; Wikipedia statements 以原文为准
+```
+
+</SimOutput>
+
+### 读四种情形
+
+本页标签的用法，按这个顺序。**打平：每个种子都完全相同** 只在按种子配对的差在每个种子上都恰好为零时使用；**数值上为零（浮点残差），等同打平** 用于 |配对均值| 和它的 sd 都低于 1e-9 时（这类行不打印同号计数）；**接近打平、差距很小，在种子噪声之内** 用于 |配对均值| ≤ sd；否则是**稳定的**差距（|配对均值| > sd），若 |m| 不到较小那一臂均值的 20 % 就叫**小**，否则叫**明显**；20 % 规则只用来选这两个词。每条稳定差距的行都带 5 个种子的同号计数，有反号的种子也会写出来。差距用未四舍五入的值计算。
+
+- **sine。** A 的读数是 0.7071±0.0000 V，与手算 0.7071067812 V 在四位小数上一致（相对解析值的残差是 1.110e-16±0.0000 V）。成对 B−A 是 -6.112e-06±1.805e-05，为**接近打平、差距很小，在种子噪声之内**（|m| ≤ sd；5 个种子里有 2 个反号）。§9 要求正弦上是**打平**或**数值上为零（浮点残差），等同打平**。首次接受的运行是接近打平，不是数值上为零，因为 8000 个样本上 |sin| 的离散平均并不恰好等于 2/π。这里按接近打平如实写；看到数字之后**没有**改采样网格。成对 C−A 是 -1.476e-05±1.142e-05，为**小而稳定的差距，不是打平**（5 个种子全部同号），因为采样正弦很少正好打到峰值，所以峰值 / √2 会略微偏低。
+- **square。** B 读 1.1107±8.339e-06 V，A 读 1.0000±7.512e-06 V。成对 B−A 是 0.1107±8.278e-07，为**小而稳定的差距，不是打平**（5 个种子全部同号）。官方标签是「小」，只因为 0.1107 不到 1 V 臂均值的 20 %；同一差距就是手算的 11.0721 % 偏高。C−A 是 -0.2902±2.475e-04，为**明显差距，不是打平**（5 个种子全部同号）——峰值 / √2 是把方波当成正弦。
+- **triangle。** 成对 B−A 是 -0.0220±2.386e-05，为**小而稳定的差距，不是打平**（5 个种子全部同号）。C−A 是 0.1271±0.0015，为**明显差距，不是打平**（5 个种子全部同号）。
+- **pwm_high_crest。** 占空比 0.0625 的解析有效值是 0.2500000000 V，峰值因数 4.0000000000，高于事先声明的上限 3.0。成对 B−A 是 -0.1793±0.0024，为**明显差距，不是打平**（5 个种子全部同号）。C−A 是 0.4603±0.0053，为**明显差距，不是打平**（5 个种子全部同号）。限幅真有效值路径相对 A 是 -0.0629±0.0027，为**明显差距，不是打平**（5 个种子全部同号）。
+
+**看过结果后做的选择。** 没有。CF_CAP = 3.0、占空比 0.0625 和样本数都在首次运行前写定。同一组种子上的替代：CF_CAP = 2.0 时限幅路径相对 A 是 -0.1249±5.952e-06，**明显**偏（5 个种子全部同号）；CF_CAP = 4.0 与这个脉冲的峰值因数相等，还留下一个**小而稳定**的残差 -0.0030±0.0027（没有种子反号，5 个里有 2 个相等），因为 1 mV 噪声可能把峰值刚好推过上限。这两个替代都没有被采用。
+
+本页**不宣布普遍赢家**，平均值响应在采样正弦上与真有效值是接近打平，在方波、三角波和高峰值因数 PWM 上则稳定地输。真实万用表。**本页未运行**。
+
+**150 分钟安排:** 30 分钟读 Multimeter 与 Root mean square 两页；30 分钟手算 1 V 峰值正弦和 ±1 V 方波，并与打印的手算块对照；40 分钟运行玩具、读懂四种情形；30 分钟固定种子对照打印的 CF_CAP = 2.0 与 4.0 替代；20 分钟做练习。
+
+### 练习
+
+1. 用打印的手算块确认：1 V 峰值正弦的有效值是 0.7071067812 V，±1 V 方波在平均值响应臂上偏高 0.1107207345 V（11.0721 %）。
+2. 从 `shared_wave` 说明：对给定情形和种子，A、B、C 看到的是同一组样本。
+3. 为什么正弦的 A−B 行是**接近打平**，而不是**数值上为零（浮点残差），等同打平**？即使 A 相对 0.7071067812 V 的残差已经是 1.110e-16。
+4. 在 `pwm_high_crest` 上先预测：把 CF_CAP 从 3.0 提到 4.0，限幅路径会不会与 A 完全相同，再去对打印的替代。
+5. 在使用任何真实万用表之前（本页未运行），说明为什么正弦上的**接近打平**并**不**意味着可以在 PWM 电机驱动上用平均值响应表。
+
 <Summary>
 
 合成 DMM 的 V/R 预算把矩形规格限值除以 √3，再对照带灵敏度系数的 RSS 标准不确定度与最坏限值。
@@ -603,6 +952,8 @@ Real 4-wire bench: 本页未运行; Wikipedia statements 以原文为准
 - 色环：黄-紫-红为 47 × 10² = 4700 Ω，金环表示 ±5 %。
 - CAT 等级：绝不用没有 CAT 等级的表或表笔测量市电。
 - 开尔文四线：5–20 mΩ 分流电阻上两线法偏高 764.0166±61.6550 %，开尔文只差 0.0892±0.0161 %（配对 763.9274±61.6410，明显，5 个种子同号）；5–20 kΩ 零件上引线项在绝对误差上接近打平；引线为零时两线法与开尔文**打平**（每个种子都完全相同）——合成模型，不是实验台实验。
+
+- 真有效值与平均值响应：共享波形上，采样正弦是**接近打平**（A−B -6.112e-06±1.805e-05，5 个种子里有 2 个反号），不是数值上为零；方波偏高 0.1107 V（11.0721 %，小而稳定，5/5），高峰值因数 PWM 则是**明显**的偏差（-0.1793±0.0024，5/5）——合成模型，不是真实万用表。
 
 **下一课会用到**
 
