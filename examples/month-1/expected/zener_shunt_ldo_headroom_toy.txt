@@ -1,0 +1,53 @@
+Synthetic Zener-shunt vs LDO-headroom toy; shared Vin/load; not a datasheet part
+seeds=5 VZ_NOM=5.0 V VSET_NOM=5.0 V HEADROOM=0.40 V (toy, not a datasheet dropout) IQ=0.002 A TOL=+/-0.05 V P_THERMAL=0.50 W
+No integration step: DC solve, no time-step criterion
+Regimes, HEADROOM and P_THERMAL were written before the first run
+headroom_rule: in regulation iff Vin - Vset >= HEADROOM (equality allowed)
+headroom_boundary: Vin=5.4000000000 V in_reg=1; Vin=5.3990000000 V in_reg=0
+below_headroom_spare: Vin-Vset=0.1500000000 V (5.15-5.0), below HEADROOM 0.40 V
+zener_in_reg_rule: in regulation iff I_Z>0 (rz=0 model; not a datasheet knee current I_Z,min)
+hand_calc Vin=12.0 V R=100 ohm VZ=5.0 V IL=0.020 A: IR=(Vin-VZ)/R=0.0700000000 A; IZ=IR-IL=0.0500000000 A; PZ=VZ*IZ=0.2500000000 W
+hand_calc thermal heavy: R=22 ohm IL=0.200 A: IR=0.3181818182 A IZ=0.1181818182 A PZ=0.5909090909 W P_THERMAL=0.50 W thermal_ok=0 (strict P < P_THERMAL)
+hand_calc thermal light on same R: IL=0.010 A: IZ=0.3081818182 A PZ=1.5409090909 W thermal_ok=0
+regime arm vout_V err_vs_5V p_W in_reg thermal_ok  (mean+-sd over seeds)
+in_regulation (Vin_nom=12.00 V, IL_nom=0.020 A, R=100.00 ohm)
+  A_zener_shunt vout 4.9832+-0.0272 err -0.0168+-0.0272 p 0.2516+-0.0071 in_reg 1.0000+-0.0000 thermal_ok 1.0000+-0.0000
+  B_ldo vout 5.0065+-0.0436 err 0.0065+-0.0436 p 0.1653+-0.0170 in_reg 1.0000+-0.0000 thermal_ok 1.0000+-0.0000
+  C_uncapped vout 4.9832+-0.0272 err -0.0168+-0.0272 p 702.9278+-8.8282 in_reg 1.0000+-0.0000 thermal_ok 0.0000+-0.0000
+  paired A-B vout: -0.0233+-0.0516: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired A-B |err|: -0.0120+-0.0110: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B in_reg vs 1: 0.0000+-0.0000: tie: identical on every seed
+  paired A in_reg vs 1: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A p: 702.6763+-8.8323: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A thermal_ok vs 1: 0.0000+-0.0000: tie: identical on every seed
+below_headroom (Vin_nom=5.15 V, IL_nom=0.020 A, R=100.00 ohm)
+  A_zener_shunt vout 3.1481+-0.3549 err -1.8519+-0.3549 p 0.0000+-0.0000 in_reg 0.0000+-0.0000 thermal_ok 1.0000+-0.0000
+  B_ldo vout 4.7719+-0.1180 err -0.2281+-0.1180 p 0.0184+-0.0010 in_reg 0.0000+-0.0000 thermal_ok 1.0000+-0.0000
+  C_uncapped vout 5.0123+-0.0277 err 0.0123+-0.0277 p 15.8986+-11.1698 in_reg 1.0000+-0.0000 thermal_ok 0.0000+-0.0000
+  paired A-B vout: -1.6238+-0.2818: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B |err|: 1.6238+-0.2818: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B in_reg vs 1: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A in_reg vs 1: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A p: 15.8986+-11.1698: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A thermal_ok vs 1: 0.0000+-0.0000: tie: identical on every seed
+thermal_small_R (Vin_nom=12.00 V, IL_nom=0.200 A, R=22.00 ohm)
+  A_zener_shunt vout 5.0020+-0.0241 err 0.0020+-0.0241 p 0.5828+-0.0229 in_reg 1.0000+-0.0000 thermal_ok 0.0000+-0.0000
+  B_ldo vout 4.9912+-0.0314 err -0.0088+-0.0314 p 1.4067+-0.0211 in_reg 1.0000+-0.0000 thermal_ok 1.0000+-0.0000
+  C_uncapped vout 5.0020+-0.0241 err 0.0020+-0.0241 p 693.2885+-7.5353 in_reg 1.0000+-0.0000 thermal_ok 0.0000+-0.0000
+  paired A-B vout: 0.0108+-0.0495: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired A-B |err|: -0.0065+-0.0247: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired B in_reg vs 1: 0.0000+-0.0000: tie: identical on every seed
+  paired A in_reg vs 1: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A p: 692.7056+-7.5157: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A thermal_ok vs 1: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+thermal_small_R light-load companion (same Vin draws, IL_nom=0.010 A, same R, not a deleted regime):
+  A_zener_shunt light p 1.5368+-0.0231 thermal_ok 0.0000+-0.0000
+  paired light thermal_ok vs 1: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative HEADROOM=0.20 V on below_headroom (same seeds):
+  B_ldo in_reg@0.20 0.4000+-0.5477 (default 0.0000+-0.0000)
+  paired in_reg@0.20 vs default: 0.4000+-0.5477: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+alternative P_THERMAL=0.80 W on thermal_small_R (same seeds):
+  A thermal_ok@0.80 1.0000+-0.0000 (default 0.0000+-0.0000)
+  paired thermal_ok@0.80 vs default: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: in regulation the two hold nearby voltages; below headroom both drop out; a small series R that can feed a heavy load dumps too much into the Zener against the thermal cap; an uncapped shunt is worse
+Real regulator bench: 本页未运行; Wikipedia statements 以原文为准

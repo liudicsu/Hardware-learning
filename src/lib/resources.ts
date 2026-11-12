@@ -6114,6 +6114,87 @@ export const resources: Record<string, Resource> = {
     extra: true,
   },
 
+  "wiki-multimeter": {
+    id: "wiki-multimeter",
+    url: "https://en.wikipedia.org/wiki/Multimeter",
+    title: {
+      zh: "Wikipedia：万用表（Multimeter）",
+      en: "Wikipedia: Multimeter",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "除非标明 true RMS，否则可把万用表当成平均值响应：平均值响应表只在纯正弦的交流电压/电流上满足标称精度；真有效值表对其他波形也满足精度，但只到声明的峰值因数为止。HTML 正文已核验（rev 1384382275）；以原文为准。",
+      en: "A multimeter can be assumed average-responding unless it is stated true-RMS: an average-responding meter meets its AC accuracy only on pure sinusoids; a true-RMS meter meets it on other waveforms up to a specified crest factor. HTML body verified (rev 1384382275); 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "wiki-rms": {
+    id: "wiki-rms",
+    url: "https://en.wikipedia.org/wiki/Root_mean_square",
+    title: {
+      zh: "Wikipedia：均方根（Root mean square）",
+      en: "Wikipedia: Root mean square",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "有效值是均方的平方根。零均值正弦的峰-峰值 = 2√2 × RMS ≈ 2.8 × RMS；其他波形不共用这个比值。HTML 正文已核验（rev 1381647998）；以原文为准。",
+      en: "RMS is the square root of the mean of the square. For a zero-mean sine, peak-to-peak = 2√2 × RMS ≈ 2.8 × RMS; other waveforms do not share that ratio. HTML body verified (rev 1381647998); 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "wiki-zener": {
+    id: "wiki-zener",
+    url: "https://en.wikipedia.org/wiki/Zener_diode",
+    title: {
+      zh: "Wikipedia：齐纳二极管（Zener diode）",
+      en: "Wikipedia: Zener diode",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "齐纳二极管常用作电压基准和并联稳压：反向偏置并联在可变电源上，电压到达反向击穿（齐纳）电压后，二极管的低阻抗把电压维持在该值附近；串联电阻必须大到使 I_D V_B < P_max，以免烧毁器件。HTML 正文已核验（rev 1373728185）；以原文为准。",
+      en: "Zener diodes are used as voltage references and as shunt regulators: reverse-biased in parallel with a variable source, they conduct once the voltage reaches reverse breakdown, and the diode's low impedance then holds the voltage near that value; the series resistor must be large enough that I_D V_B < P_max so the device is not destroyed. HTML body verified (rev 1373728185); 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "wiki-ldo": {
+    id: "wiki-ldo",
+    url: "https://en.wikipedia.org/wiki/Low-dropout_regulator",
+    title: {
+      zh: "Wikipedia：低压差线性稳压器（Low-dropout regulator）",
+      en: "Wikipedia: Low-dropout regulator",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "LDO 是一种线性稳压器，能在输入已经非常接近输出时仍然稳压；其通流元件可被驱动进入饱和，压差可以低到饱和压降。损耗为 P_LOSS = (V_IN − V_OUT) I_OUT + V_IN I_Q。正文未给出具体的压差毫伏数。HTML 正文已核验（rev 1378921240）；以原文为准。",
+      en: "An LDO is a linear regulator that can still regulate when the supply is already very close to the output; the pass element can be driven into saturation, so the remaining drop can be as low as the saturation voltage. Dissipated power is P_LOSS = (V_IN − V_OUT) I_OUT + V_IN I_Q. The body we read does not quote a dropout in millivolts. HTML body verified (rev 1378921240); 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

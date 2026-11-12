@@ -73,6 +73,17 @@ else
   echo "DIFF  nyquist_aliasing_toy.txt"; fail=1
 fi
 
+if python3 "$M1/bench-multimeter/true_rms_vs_average_responding_toy.py" > "$TMP/true_rms_vs_average_responding_toy.txt" && diff -u "$M1/expected/true_rms_vs_average_responding_toy.txt" "$TMP/true_rms_vs_average_responding_toy.txt"; then
+  echo "same  true_rms_vs_average_responding_toy.txt"
+else
+  echo "DIFF  true_rms_vs_average_responding_toy.txt"; fail=1
+fi
+if python3 "$M1/components/zener_shunt_ldo_headroom_toy.py" > "$TMP/zener_shunt_ldo_headroom_toy.txt" && diff -u "$M1/expected/zener_shunt_ldo_headroom_toy.txt" "$TMP/zener_shunt_ldo_headroom_toy.txt"; then
+  echo "same  zener_shunt_ldo_headroom_toy.txt"
+else
+  echo "DIFF  zener_shunt_ldo_headroom_toy.txt"; fail=1
+fi
+
 if python3 "$M1/ohms-law/superposition_linear_circuit_toy.py" > "$TMP/superposition_linear_circuit_toy.txt" && diff -u "$M1/expected/superposition_linear_circuit_toy.txt" "$TMP/superposition_linear_circuit_toy.txt"; then
   echo "same  superposition_linear_circuit_toy.txt"
 else

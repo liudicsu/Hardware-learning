@@ -37,3 +37,11 @@ The legacy python-terminal examples are real program runs. / 原 python-terminal
 ## components/ — Bridge rectifier and ripple / 整流桥与纹波
 
 `components/bridge_rectifier_ripple_toy.py`: standard-library synthetic model of a half-wave rectifier, a four-diode bridge and the bridge without its smoothing capacitor (ideal diodes plus forward drop, forward Euler on the capacitor node); no mains or hardware; expected output in `expected/bridge_rectifier_ripple_toy.txt`, included in `check.sh`. / 标准库合成模型，比较半波整流、四二极管整流桥和不接滤波电容的整流桥（理想二极管加正向压降，电容节点用前向欧拉积分）；不接市电、不是硬件测量，输出由 `check.sh` 核对。
+
+## bench-multimeter/ — True RMS vs average-responding / 真有效值与平均值响应
+
+`bench-multimeter/true_rms_vs_average_responding_toy.py`: standard-library synthetic sampled-waveform model of a true-RMS estimator, a sine-calibrated average-responding meter and a peak/sqrt(2) sine assumption; no hardware; expected output in `expected/true_rms_vs_average_responding_toy.txt`, included in `check.sh`. / 标准库合成采样波形模型，比较真有效值、按正弦校准的平均值响应表和峰值/√2 的正弦假设；不是硬件测量，输出由 `check.sh` 核对。
+
+## components/ — Zener shunt and LDO headroom / 齐纳并联稳压与 LDO 压差裕量
+
+`components/zener_shunt_ldo_headroom_toy.py`: standard-library synthetic DC model of a Zener shunt regulator, an LDO stand-in with a declared headroom, and an uncapped shunt; no hardware; expected output in `expected/zener_shunt_ldo_headroom_toy.txt`, included in `check.sh`. / 标准库合成直流模型，比较齐纳并联稳压、带声明压差裕量的 LDO 替身和无串联电阻的齐纳；不是硬件测量，输出由 `check.sh` 核对。

@@ -1,6 +1,19 @@
 # Month 1 plan / 第 1 个月计划
 
-Current / 当前：**M1 2250 min**, Batch-18 PR1. Earlier entries below retain their historical totals.
+Current / 当前：**M1 2550 min**, Batch-19 PR1. Earlier entries below retain their historical totals.
+
+## Batch-19 PR1 / 本月 H1+H2 (+300)
+
+Base `13471fe8c009af353b0f30abc99b6068154447aa` (batch-18 closed incl. polish #176; site **35820**). PR1 only on M1 hosts: **M1 2250→2550 (+300)**. Site **35820→36120**, still 71 lessons.
+
+- **H1 / 1.3 bench-multimeter: 390→540 (+150).** True-RMS vs sine-calibrated average-responding vs peak/√2 sine assumption (`true_rms_vs_average_responding_toy.py`). Shared sampled waveforms (common random numbers, 5 seeds, phase; sine is clean, other waves have 1 mV rms noise). No integration step (finite sum over samples). sine: B−A **near-tie** `-6.112e-06±1.805e-05` (2 of 5 opposite sign) — §9 asked for tie / numerically-zero; the first accepted run is a near-tie because discrete mean(|sin|) is not exactly 2/π, reported honestly, not retuned. square: B−A `0.1107±8.278e-07`, **small but consistent**, 5/5 (hand-calc over-read `0.1107207345 V` / `11.0721 %`). triangle: B−A `-0.0220±2.386e-05`, **small but consistent**, 5/5. pwm_high_crest (D=0.0625, CF=4 > CF_CAP=3): B−A `-0.1793±0.0024`, **clear**, 5/5; C−A `0.4603±0.0053`, **clear**, 5/5; clipped true-RMS vs A `-0.0629±0.0027`, **clear**, 5/5. Alternatives CF_CAP=2.0 / 4.0 printed on the same seeds; no post-hoc retune. ≠ Kelvin; ≠ Thévenin. Real DMM 本页未运行. / 真有效值与平均值响应，不宣布万用表实验。
+
+- **H2 / 1.2 components: 750→900 (+150).** Zener shunt vs LDO headroom (`zener_shunt_ldo_headroom_toy.py`). Shared Vin and load (common random numbers, 5 seeds). Declared toy parameters `HEADROOM=0.40 V` (not a datasheet dropout) and `P_THERMAL=0.50 W` with strict `P < P_THERMAL`. No integration step (DC solve). in_regulation: A−B Vout **near-tie** `-0.0233±0.0516 V` (2 of 5 opposite sign). below_headroom: A and B in_reg vs 1 is `-1.0000±0.0000`, **clear**, 5/5, **kept**. thermal_small_R (R=22 Ω sized for 200 mA): Zener thermal_ok vs 1 is `-1.0000±0.0000`, **clear**, 5/5, **kept**; light-load companion on the same R is `1.5368±0.0231 W`, also a clear miss. Uncapped shunt dissipation C−A `702.6763±8.8323 W`, **clear**, 5/5, **kept**. Hand calc `IR=0.0700000000 A`, `IZ=0.0500000000 A`, `PZ=0.2500000000 W`. Alternatives HEADROOM=0.20 V and P_THERMAL=0.80 W printed on the same seeds; no post-hoc retune. ≠ TVS; ≠ rectifier; ≠ Wheatstone. Real regulator bench 本页未运行. / 齐纳并联与 LDO 压差，不宣布稳压实验台。
+
+**Allocation / 安排:** 30+30+40+30+20=150 minutes per host (300 total).
+
+**Site accounting / 全站核算:** **36120=35820+300**; **M1=2550**, **71 lessons**.
+
 
 ## Batch-18 PR1 / 本月 H1 (+150)
 

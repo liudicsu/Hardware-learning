@@ -592,6 +592,355 @@ The page **does not declare a universal winner**: Kelvin wins wherever the part 
 4. Set the thermal EMF range to zero with seeds fixed. Predict what happens to B's error in `shunt_small_dut` and to the C−B line in `zero_lead` before you run.
 5. Before any real bench (本页未运行), explain why the zero_lead **tie** between A and B does **not** mean two-wire is as good as Kelvin on a real shunt.
 
+## True RMS versus average-responding meters
+
+<Resource id="wiki-multimeter" />
+<Resource id="wiki-rms" />
+
+RMS is the square root of the mean of the square (Wikipedia, Root mean square; 以原文为准). For a zero-mean sine the peak-to-peak amplitude is 2√2 × RMS ≈ 2.8 × RMS; **other waveforms do not share that ratio** (same page). A meter may be assumed **average-responding** unless it is stated **true-RMS**: an average-responding meter meets its AC accuracy **only for pure sinusoids**; a true-RMS meter meets it for other waveforms **up to a specified crest factor** (Wikipedia, Multimeter; 以原文为准). The same page notes that the meter manual may also state the **frequency** (bandwidth) limits for which that true-RMS calibration remains valid. This toy does not model a finite bandwidth.
+
+This section is **not** a redo of Kelvin four-wire sensing above, and **not** the Thévenin / max-power prose on the Ohm's law page.
+
+<Formula label="RMS">RMS = √(mean of the square)</Formula>
+
+<Formula label="Sine form factor">\pi / (2 √2) = 1.1107207345</Formula>
+
+**Worked examples — labelled hand calculations, also printed by the toy.** A 1 V-peak sine has RMS = 1/√2 = 0.7071067812 V (0.7071 V) and peak-to-peak / RMS = 2√2 = 2.8284271247 (about 2.8). A ±1 V square has true RMS = 1.0000000000 V; the average-responding stand-in reads 1.1107207345 V, so it is high by 0.1107207345 V (11.0721 %). Crest factors printed by the same hand-calc block: sine 1.4142135624, square 1.0000000000, triangle 1.7320508076, and a pulse of duty 0.0625 has crest factor 4.0000000000.
+
+**No integration step here.** The toy is a finite sum over samples: there is no time stepping, so no step-size stability criterion applies (the independent tests check that the script has no time step).
+
+### Fair setup
+
+`true_rms_vs_average_responding_toy.py` is **synthetic** and stdlib only. **Model assumptions:** 50 Hz waves, 10 kHz sampling (FS = 10000 Hz, printed), 8000 samples (exactly 40 periods, from N × F / FS), 1 V peak on every wave. Arm B multiplies mean-abs by the continuous sine form factor 1.1107207345. Arm C reports peak / √2, i.e. it assumes every wave is a sine. The crest-factor cap CF_CAP = 3.0 is a **declared toy parameter**, written before the first run, not a datasheet claim; a clipped true-RMS path that limits peaks at CF_CAP times the unclipped RMS is printed as well. The sine regime is clean (phase only). Square, triangle and PWM share 1 mV rms additive noise. These are this toy's own choices: **no real DMM datasheet was opened**.
+
+| Arm | Estimator |
+|---|---|
+| A_true_rms | square root of the mean of the square |
+| B_avg_responding | mean-abs × sine form factor |
+| C_peak_sine | peak / √2 (sine assumption) |
+
+**Common random numbers:** for each (regime, seed) the phase and the noise sequence are drawn once and shared by all three arms. The arms differ **only** in the estimator. Five seeds. Metrics are the reading and the error versus the analytic RMS of the clean wave, reported as mean±sd over seeds.
+
+| Regime | Wave | What was pre-declared |
+|---|---|---|
+| sine | 1 V-peak sine, no noise | A vs B **tie** or numerically zero |
+| square | bipolar ±1 V square | B and C **consistent** lose vs A |
+| triangle | bipolar 1 V-peak triangle | B **consistent** lose vs A |
+| pwm_high_crest | unipolar pulse, duty 0.0625, crest factor 4 > cap 3 | B and C **consistent** lose vs A |
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-1/bench-multimeter
+python3 true_rms_vs_average_responding_toy.py
+```
+
+<CodeSource path="examples/month-1/bench-multimeter/true_rms_vs_average_responding_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""True RMS vs sine-calibrated average-responding meters.
+
+Synthetic sampled-waveform model, stdlib only.  Not a Fluke/Keysight
+bench, not a Kelvin four-wire measurement, and not a Thevenin source.
+Real DMM: 本页未运行.  Wikipedia statements 以原文为准.
+
+RMS is the square root of the mean of the square.  An average-responding
+meter measures mean(|v|) and multiplies by the sine form factor
+pi/(2*sqrt(2)), so it agrees with true RMS on a pure sine and is out of
+spec on other shapes.  A true-RMS meter is specified up to a crest-factor
+cap (a declared toy parameter, not a datasheet claim).  Arm C reports
+peak/sqrt(2), i.e. it assumes every wave is a sine.
+
+Common random numbers: one shared waveform (phase and noise) per regime and seed.
+Arms, shared waveforms (per regime and seed):
+  A_true_rms        : sqrt(mean(v^2))
+  B_avg_responding  : mean(|v|) * sine form factor
+  C_peak_sine       : max(|v|) / sqrt(2)
+The arms differ only in the estimator.  No integration step: the model
+is a finite sum over samples, so no step-size stability criterion applies.
+
+Regimes were written before the first run:
+  sine            : pure sine, 1 V peak — A vs B must tie / be numerically zero
+  square          : bipolar square, 1 V peak — B and C consistent lose vs A
+  triangle        : bipolar triangle, 1 V peak — B consistent lose vs A
+  pwm_high_crest  : unipolar pulse, duty 0.0625, crest factor 4 > CF_CAP 3
+                    — B and C consistent lose vs A; C is the sine-assumption
+                    path; a clipped true-RMS (peaks limited at CF_CAP * RMS)
+                    is also printed.
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+F = 50.0                 # Hz
+FS = 10000.0             # Hz; 40 periods in N samples
+N = 8000
+VP = 1.0                 # V, peak used for every regime
+SINE_FF = math.pi / (2.0 * math.sqrt(2.0))  # RMS / mean(|sine|)
+CF_CAP = 3.0             # declared toy crest-factor cap; written before the first run
+DUTY_PWM = 0.0625        # 1/16; crest factor 1/sqrt(D) = 4 > CF_CAP
+NOISE_RMS = 0.0          # V; sine tie is demonstrated on a clean wave (phase only)
+NOISE_RMS_OTHER = 0.001  # V; square / triangle / pwm share this draw
+
+# name: wave kind (noise uses NOISE_RMS on sine, NOISE_RMS_OTHER otherwise)
+REGIMES = ("sine", "square", "triangle", "pwm_high_crest")
+ARMS = ("A_true_rms", "B_avg_responding", "C_peak_sine")
+
+
+def _frac(t, phase):
+    return (F * t + phase / (2.0 * math.pi)) % 1.0
+
+
+def waveform(kind, t, phase):
+    u = _frac(t, phase)
+    if kind == "sine":
+        return VP * math.sin(2.0 * math.pi * F * t + phase)
+    if kind == "square":
+        return VP if u < 0.5 else -VP
+    if kind == "triangle":
+        return VP * (4.0 * abs(u - 0.5) - 1.0)
+    if kind == "pwm_high_crest":
+        return VP if u < DUTY_PWM else 0.0
+    raise ValueError(kind)
+
+
+def analytic_rms(kind):
+    if kind == "sine":
+        return VP / math.sqrt(2.0)
+    if kind == "square":
+        return VP
+    if kind == "triangle":
+        return VP / math.sqrt(3.0)
+    if kind == "pwm_high_crest":
+        return VP * math.sqrt(DUTY_PWM)
+    raise ValueError(kind)
+
+
+def analytic_cf(kind):
+    return VP / analytic_rms(kind)
+
+
+def shared_wave(kind, seed):
+    """Common random numbers: one phase and one noise sequence per (kind, seed)."""
+    rng = random.Random(f"{kind}/{seed}")
+    phase = rng.uniform(0.0, 2.0 * math.pi)
+    sigma = NOISE_RMS if kind == "sine" else NOISE_RMS_OTHER
+    noise = [rng.gauss(0.0, sigma) for _ in range(N)]
+    samples = []
+    for i in range(N):
+        t = i / FS
+        samples.append(waveform(kind, t, phase) + noise[i])
+    return {"phase": phase, "sigma": sigma, "v": samples}
+
+
+def estimators(v):
+    mean_sq = sum(x * x for x in v) / len(v)
+    mean_abs = sum(abs(x) for x in v) / len(v)
+    peak = max(abs(x) for x in v)
+    a = math.sqrt(mean_sq)
+    b = mean_abs * SINE_FF
+    c = peak / math.sqrt(2.0)
+    clipped = [x if abs(x) <= CF_CAP * a else math.copysign(CF_CAP * a, x) for x in v]
+    a_capped = math.sqrt(sum(x * x for x in clipped) / len(v))
+    return {"A_true_rms": a, "B_avg_responding": b, "C_peak_sine": c,
+            "crest": (peak / a if a else float("inf")), "A_cf_capped": a_capped}
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def main():
+    print("Synthetic true-RMS vs average-responding toy; shared waveforms; not a real DMM")
+    print(f"seeds={len(SEEDS)} F={F:.0f} Hz FS={FS:.0f} Hz N={N} VP={VP:.1f} V "
+          f"sine_form_factor={SINE_FF:.10f} CF_CAP={CF_CAP:.1f} DUTY_PWM={DUTY_PWM:.4f}")
+    print("No integration step: finite sum over samples, no time-step criterion")
+    print("Regimes and CF_CAP were written before the first run")
+    rms_sine = VP / math.sqrt(2.0)
+    pp_ratio = 2.0 * math.sqrt(2.0)
+    print(f"hand_calc 1V_peak_sine: RMS=Vp/sqrt(2)={rms_sine:.10f} V ({num(rms_sine)} V); "
+          f"pp/RMS=2*sqrt(2)={pp_ratio:.10f} (~2.8); form_factor=pi/(2*sqrt(2))={SINE_FF:.10f}")
+    err_sq = SINE_FF * VP - VP
+    print(f"hand_calc +/-1V_square: true_RMS={VP:.10f} V; average_responding={SINE_FF:.10f} V; "
+          f"error={err_sq:.10f} V ({100.0 * err_sq / VP:.4f} %)")
+    print(f"hand_calc crest_factors: sine={math.sqrt(2.0):.10f} square=1.0000000000 "
+          f"triangle={math.sqrt(3.0):.10f} pwm_D={DUTY_PWM:.4f} cf={1.0 / math.sqrt(DUTY_PWM):.10f}")
+    print("regime arm reading_V err_vs_analytic_V  (mean+-sd over seeds)")
+    res = {}
+    for kind in REGIMES:
+        res[kind] = {a: [] for a in list(ARMS) + ["A_cf_capped", "crest"]}
+        target = analytic_rms(kind)
+        for seed in SEEDS:
+            est = estimators(shared_wave(kind, seed)["v"])
+            for a in ARMS:
+                res[kind][a].append(est[a])
+            res[kind]["A_cf_capped"].append(est["A_cf_capped"])
+            res[kind]["crest"].append(est["crest"])
+        print(f"{kind} (analytic_RMS={target:.10f} V, analytic_CF={analytic_cf(kind):.10f}, "
+              f"noise_rms={(NOISE_RMS if kind == 'sine' else NOISE_RMS_OTHER):g} V)")
+        for a in ARMS:
+            xs = res[kind][a]
+            err = [x - target for x in xs]
+            print(f"  {a} {fmt_pair(*mean_sd(xs))} {fmt_pair(*mean_sd(err))}")
+        print(f"  measured_CF {fmt_pair(*mean_sd(res[kind]['crest']))}")
+        print(f"  A_cf_capped {fmt_pair(*mean_sd(res[kind]['A_cf_capped']))} "
+              f"{fmt_pair(*mean_sd([x - target for x in res[kind]['A_cf_capped']]))}")
+        for other in ("B_avg_responding", "C_peak_sine"):
+            print(f"  paired {other[0]}-A reading: {verdict(res[kind][other], res[kind]['A_true_rms'])}")
+        print(f"  paired A_cf_capped-A reading: {verdict(res[kind]['A_cf_capped'], res[kind]['A_true_rms'])}")
+    # Alternatives on the same seeds (pre-planned sensitivity, not a retune)
+    print("alternative CF_CAP=2.0 on pwm_high_crest (same seeds):")
+    alt = []
+    base_a = []
+    target = analytic_rms("pwm_high_crest")
+    for seed in SEEDS:
+        v = shared_wave("pwm_high_crest", seed)["v"]
+        a = math.sqrt(sum(x * x for x in v) / len(v))
+        cap = 2.0
+        clipped = [x if abs(x) <= cap * a else math.copysign(cap * a, x) for x in v]
+        alt.append(math.sqrt(sum(x * x for x in clipped) / len(v)))
+        base_a.append(a)
+    print(f"  A_cf_capped@2 {fmt_pair(*mean_sd(alt))} err {fmt_pair(*mean_sd([x - target for x in alt]))}")
+    print(f"  paired A_cf_capped@2-A: {verdict(alt, base_a)}")
+    print("alternative CF_CAP=4.0 on pwm_high_crest (same seeds):")
+    alt4 = []
+    for seed in SEEDS:
+        v = shared_wave("pwm_high_crest", seed)["v"]
+        a = math.sqrt(sum(x * x for x in v) / len(v))
+        cap = 4.0
+        clipped = [x if abs(x) <= cap * a else math.copysign(cap * a, x) for x in v]
+        alt4.append(math.sqrt(sum(x * x for x in clipped) / len(v)))
+    print(f"  A_cf_capped@4 {fmt_pair(*mean_sd(alt4))} err {fmt_pair(*mean_sd([x - target for x in alt4]))}")
+    print(f"  paired A_cf_capped@4-A: {verdict(alt4, base_a)}")
+    print("No winner declared: on a sampled sine A vs B is a near-tie (not a numerical-zero / identical tie); B and C consistent-lose on square, triangle and high-crest PWM; peak/sqrt(2) is a sine assumption")
+    print("Real DMM: 本页未运行; Wikipedia statements 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic true-RMS vs average-responding toy; shared waveforms; not a real DMM
+seeds=5 F=50 Hz FS=10000 Hz N=8000 VP=1.0 V sine_form_factor=1.1107207345 CF_CAP=3.0 DUTY_PWM=0.0625
+No integration step: finite sum over samples, no time-step criterion
+Regimes and CF_CAP were written before the first run
+hand_calc 1V_peak_sine: RMS=Vp/sqrt(2)=0.7071067812 V (0.7071 V); pp/RMS=2*sqrt(2)=2.8284271247 (~2.8); form_factor=pi/(2*sqrt(2))=1.1107207345
+hand_calc +/-1V_square: true_RMS=1.0000000000 V; average_responding=1.1107207345 V; error=0.1107207345 V (11.0721 %)
+hand_calc crest_factors: sine=1.4142135624 square=1.0000000000 triangle=1.7320508076 pwm_D=0.0625 cf=4.0000000000
+regime arm reading_V err_vs_analytic_V  (mean+-sd over seeds)
+sine (analytic_RMS=0.7071067812 V, analytic_CF=1.4142135624, noise_rms=0 V)
+  A_true_rms 0.7071+-0.0000 1.110e-16+-0.0000
+  B_avg_responding 0.7071+-1.805e-05 -6.112e-06+-1.805e-05
+  C_peak_sine 0.7071+-1.142e-05 -1.476e-05+-1.142e-05
+  measured_CF 1.4142+-2.283e-05
+  A_cf_capped 0.7071+-0.0000 1.110e-16+-0.0000
+  paired B-A reading: -6.112e-06+-1.805e-05: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired C-A reading: -1.476e-05+-1.142e-05: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A_cf_capped-A reading: 0.0000+-0.0000: tie: identical on every seed
+square (analytic_RMS=1.0000000000 V, analytic_CF=1.0000000000, noise_rms=0.001 V)
+  A_true_rms 1.0000+-7.512e-06 3.257e-06+-7.512e-06
+  B_avg_responding 1.1107+-8.339e-06 0.1107+-8.339e-06
+  C_peak_sine 0.7098+-2.410e-04 -0.2902+-2.410e-04
+  measured_CF 1.0038+-3.473e-04
+  A_cf_capped 1.0000+-7.512e-06 3.257e-06+-7.512e-06
+  paired B-A reading: 0.1107+-8.278e-07: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A reading: -0.2902+-2.475e-04: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A_cf_capped-A reading: 0.0000+-0.0000: tie: identical on every seed
+triangle (analytic_RMS=0.5773502692 V, analytic_CF=1.7320508076, noise_rms=0.001 V)
+  A_true_rms 0.5773+-2.718e-05 -4.872e-06+-2.718e-05
+  B_avg_responding 0.5554+-1.250e-05 -0.0220+-1.250e-05
+  C_peak_sine 0.7045+-0.0016 0.1271+-0.0016
+  measured_CF 1.7256+-0.0037
+  A_cf_capped 0.5773+-2.718e-05 -4.872e-06+-2.718e-05
+  paired B-A reading: -0.0220+-2.386e-05: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A reading: 0.1271+-0.0015: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A_cf_capped-A reading: 0.0000+-0.0000: tie: identical on every seed
+pwm_high_crest (analytic_RMS=0.2500000000 V, analytic_CF=4.0000000000, noise_rms=0.001 V)
+  A_true_rms 0.2489+-0.0055 -0.0011+-0.0055
+  B_avg_responding 0.0697+-0.0030 -0.1803+-0.0030
+  C_peak_sine 0.7092+-2.334e-04 0.4592+-2.334e-04
+  measured_CF 4.0306+-0.0870
+  A_cf_capped 0.1860+-0.0082 -0.0640+-0.0082
+  paired B-A reading: -0.1793+-0.0024: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A reading: 0.4603+-0.0053: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A_cf_capped-A reading: -0.0629+-0.0027: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative CF_CAP=2.0 on pwm_high_crest (same seeds):
+  A_cf_capped@2 0.1240+-0.0055 err -0.1260+-0.0055
+  paired A_cf_capped@2-A: -0.1249+-5.952e-06: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative CF_CAP=4.0 on pwm_high_crest (same seeds):
+  A_cf_capped@4 0.2460+-0.0082 err -0.0040+-0.0082
+  paired A_cf_capped@4-A: -0.0030+-0.0027: small but consistent gap, not a tie (|m| > sd); no seed has the opposite sign, 2 of 5 equal
+No winner declared: on a sampled sine A vs B is a near-tie (not a numerical-zero / identical tie); B and C consistent-lose on square, triangle and high-crest PWM; peak/sqrt(2) is a sine assumption
+Real DMM: 本页未运行; Wikipedia statements 以原文为准
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used on this page, in this order: **tie: identical on every seed** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when |paired mean| and its sd are both below 1e-9 (no sign count is printed on such a line); **near-tie / small gap, within seed noise** when |paired mean| ≤ sd; otherwise a **consistent** gap (|paired mean| > sd), called **small** if |m| is under 20 % of the smaller arm mean and **clear** otherwise; the 20 % rule only chooses between those two words. Every consistent line carries a same-sign count over the 5 seeds, and any seed with the opposite sign is reported. Gaps are computed from unrounded values.
+
+- **sine.** A's reading is 0.7071±0.0000 V, which matches the hand calc 0.7071067812 V to four decimals (the residual versus analytic is 1.110e-16±0.0000 V). Paired B−A is -6.112e-06±1.805e-05: **near-tie / small gap, within seed noise** (|m| ≤ sd; 2 of 5 seeds have the opposite sign). §9 asked for a sine **tie** or **numerically zero (floating-point residue), effectively a tie**. The first accepted run is a near-tie, not a numerical zero, because the discrete mean of |sin| over 8000 samples is not exactly 2/π. This is reported as a near-tie; the sampling grid was **not** retuned after seeing the numbers. Paired C−A is -1.476e-05±1.142e-05: a **small but consistent gap, not a tie** (same sign on all 5 seeds), because a sampled sine rarely hits the exact peak, so peak / √2 slightly under-reads.
+- **square.** B reads 1.1107±8.339e-06 V against A's 1.0000±7.512e-06 V. Paired B−A is 0.1107±8.278e-07: a **small but consistent gap, not a tie** (same sign on all 5 seeds). The official label is "small" only because 0.1107 is under 20 % of the 1 V arm mean; the same gap is the hand-calc 11.0721 % over-read. C−A is -0.2902±2.475e-04: a **clear gap, not a tie** (same sign on all 5 seeds) — peak / √2 is the sine assumption on a square.
+- **triangle.** Paired B−A is -0.0220±2.386e-05: a **small but consistent gap, not a tie** (same sign on all 5 seeds). C−A is 0.1271±0.0015: a **clear gap, not a tie** (same sign on all 5 seeds).
+- **pwm_high_crest.** Duty 0.0625 gives analytic RMS 0.2500000000 V and crest factor 4.0000000000, above the declared cap of 3.0. Paired B−A is -0.1793±0.0024: a **clear gap, not a tie** (same sign on all 5 seeds). C−A is 0.4603±0.0053: a **clear gap, not a tie** (same sign on all 5 seeds). The clipped true-RMS path versus A is -0.0629±0.0027: a **clear gap, not a tie** (same sign on all 5 seeds).
+
+**Choices made after seeing results.** None. CF_CAP = 3.0, the duty 0.0625 and the sample count were written before the first run. Alternatives on the same seeds: CF_CAP = 2.0 makes the clipped path versus A -0.1249±5.952e-06, a **clear** miss (same sign on all 5 seeds); CF_CAP = 4.0, equal to this pulse's crest factor, leaves a **small but consistent** residual -0.0030±0.0027 (no seed has the opposite sign, 2 of 5 equal) because 1 mV noise can push a peak just over the cap. Neither alternative was adopted.
+
+The page **does not declare a universal winner**: average-responding is a near-tie with true RMS on a sampled sine and consistently loses on square, triangle and high-crest PWM. Real DMM: **本页未运行**.
+
+**150-minute work plan:** 30 min read the Multimeter and Root mean square pages; 30 min work the 1 V-peak sine and the ±1 V square by hand and check them against the printed hand-calc block; 40 min run the toy and read the four regimes; 30 min compare the printed CF_CAP = 2.0 and 4.0 alternatives with seeds fixed; 20 min the exercises.
+
+### Exercises
+
+1. From the printed hand-calc block, confirm that a 1 V-peak sine has RMS 0.7071067812 V and that a ±1 V square is over-read by 0.1107207345 V (11.0721 %) on the average-responding arm.
+2. Show from `shared_wave` that A, B and C see the same samples for a given regime and seed.
+3. Why is the sine B−A line a **near-tie** rather than **numerically zero (floating-point residue), effectively a tie**, even though A's residual versus 0.7071067812 V is 1.110e-16?
+4. On `pwm_high_crest`, predict whether raising CF_CAP from 3.0 to 4.0 can make the clipped path identical to A, then check the printed alternative.
+5. Before any real DMM (本页未运行), explain why the sine **near-tie** does **not** license an average-responding meter on a PWM motor drive.
+
 <Summary>
 
 The synthetic DMM V/R budget divides rectangular spec limits by √3, then contrasts sensitivity-weighted RSS standard uncertainty with worst-case limits.
@@ -603,6 +952,8 @@ The synthetic DMM V/R budget divides rectangular spec limits by √3, then contr
 - Colour code: yellow-violet-red is 47 × 10² = 4700 Ω, with gold for ±5 %.
 - CAT rating: never measure mains with a meter or leads that carry no CAT rating.
 - Kelvin four-wire: on a 5–20 mΩ shunt two-wire reads 764.0166±61.6550 % high while Kelvin stays within 0.0892±0.0161 % (paired 763.9274±61.6410, a clear gap, same sign on all 5 seeds); on 5–20 kΩ parts the lead term is a near-tie in absolute error, and with zero leads two-wire and Kelvin **tie** (identical on every seed) — a synthetic model, not a bench run.
+
+- True RMS versus average-responding: on shared waveforms a sampled sine is a **near-tie** (B−A -6.112e-06±1.805e-05, 2 of 5 opposite sign), not a numerical zero; a square is over-read by 0.1107 V (11.0721 %, small but consistent, 5/5) and a high-crest PWM is a **clear** miss (-0.1793±0.0024, 5/5) — a synthetic model, not a real DMM.
 
 **Used next**
 
