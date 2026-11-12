@@ -2022,8 +2022,8 @@ export const resources: Record<string, Resource> = {
     kind: "model",
     cost: { zh: "免费 · 开源", en: "Free · open source" },
     summary: {
-      zh: "可提示分割模型。上游 LICENSE 为 Apache-2.0（本批核对）。本课只作可选掩码来源，不下载权重。",
-      en: "Promptable segmentation. Upstream LICENSE is Apache-2.0 (re-checked this batch). Optional mask source only; weights not downloaded here.",
+      zh: "可提示分割模型。上游 LICENSE 为 Apache-2.0（已对照上游 LICENSE 文件核对）。本课只作可选掩码来源，不下载权重。",
+      en: "Promptable segmentation. Upstream LICENSE is Apache-2.0 (checked against the upstream LICENSE file). Optional mask source only; weights not downloaded here.",
     },
     license: { zh: "开源（Apache-2.0），© Meta；仅提供外链", en: "Open source (Apache-2.0), © Meta; external link only" },
     extra: true,
@@ -2998,7 +2998,7 @@ export const resources: Record<string, Resource> = {
     id: "openvla-oft-paper",
     url: "https://arxiv.org/abs/2502.19645",
     title: { zh: "OpenVLA-OFT 论文：优化的 VLA 微调配方", en: "OpenVLA-OFT paper: an optimised fine-tuning recipe for VLAs" },
-    author: "Kim et al.",
+    author: "Moo Jin Kim, Chelsea Finn, Percy Liang",
     kind: "textbook",
     cost: { zh: "免费", en: "Free" },
     summary: {
@@ -3926,8 +3926,8 @@ export const resources: Record<string, Resource> = {
       "en": "Free"
     },
     "summary": {
-      "zh": "本批次未能解析 UM10204，改用 TI SLVA689A。已打开并 curl200；Table 2-1 列出 Sm/Fm/Fm+ 的 t_r 最大值 1000/300/120 ns；30 %–70 % 上升沿 0.8473 Rp Cbus，灌电流下限与电容上限；2.1 的 Rp / Cbus 均标合成，不以固定米数断言成败。",
-      "en": "UM10204 could not be resolved during this batch; TI SLVA689A is used instead. Opened and curl200; Table 2-1 gives Sm/Fm/Fm+ t_r maxima 1000/300/120 ns; 30 %–70 % rise 0.8473 Rp Cbus, sink lower bound and capacitance upper bound. Lesson 2.1 Rp/Cbus are synthetic, not a universal cable-length claim."
+      "zh": "核对资料时未能解析 UM10204，改用 TI SLVA689A。已打开并 curl200；Table 2-1 列出 Sm/Fm/Fm+ 的 t_r 最大值 1000/300/120 ns；30 %–70 % 上升沿 0.8473 Rp Cbus，灌电流下限与电容上限；2.1 的 Rp / Cbus 均标合成，不以固定米数断言成败。",
+      "en": "UM10204 could not be resolved when the sources were checked; TI SLVA689A is used instead. Opened and curl200; Table 2-1 gives Sm/Fm/Fm+ t_r maxima 1000/300/120 ns; 30 %–70 % rise 0.8473 Rp Cbus, sink lower bound and capacitance upper bound. Lesson 2.1 Rp/Cbus are synthetic, not a universal cable-length claim."
     },
     "license": {
       "zh": "版权归原作者；仅提供外链",
@@ -5997,8 +5997,8 @@ export const resources: Record<string, Resource> = {
     kind: "guide",
     cost: { zh: "免费", en: "Free" },
     summary: {
-      zh: "OctoMap 在八叉树上实现三维占据栅格：同时表示占用与空闲，未知被隐式编码，并以概率方式融合新读数、传感器噪声与动态变化；地图是多分辨率且紧凑的。2026-11-12 正文已读（HTTP 200）；以原文为准。Hornung 等 AURO PDF 本轮 HTTP 500，未引用。",
-      en: "OctoMap implements a 3-D occupancy grid on an octree: it models occupied and free space, encodes unknown implicitly, and updates probabilistically so new readings, sensor noise and dynamic changes can be fused; the map is multi-resolution and compact. Body read 2026-11-12 (HTTP 200); 以原文为准. The Hornung et al. AURO PDF returned HTTP 500 this round and is not cited.",
+      zh: "OctoMap 在八叉树上实现三维占据栅格：同时表示占用与空闲，未知被隐式编码，并以概率方式融合新读数、传感器噪声与动态变化；地图是多分辨率且紧凑的。2026-11-12 正文已读（HTTP 200）；以原文为准。Hornung 等 AURO PDF 核对时 HTTP 500，未引用。",
+      en: "OctoMap implements a 3-D occupancy grid on an octree: it models occupied and free space, encodes unknown implicitly, and updates probabilistically so new readings, sensor noise and dynamic changes can be fused; the map is multi-resolution and compact. Body read 2026-11-12 (HTTP 200); 以原文为准. The Hornung et al. AURO PDF returned HTTP 500 when checked and is not cited.",
     },
     license: { zh: "New BSD；以原站为准", en: "New BSD; see original terms" },
     extra: true,
