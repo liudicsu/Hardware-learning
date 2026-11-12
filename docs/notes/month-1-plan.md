@@ -1,6 +1,14 @@
 # Month 1 plan / 第 1 个月计划
 
-Current / 当前：**M1 2550 min**, Batch-19 PR1. Earlier entries below retain their historical totals.
+Current / 当前：**M1 2730 min**, Batch-21 PR1. Earlier entries below retain their historical totals.
+
+## Batch-21 PR1 / 本月 H1 (+180)
+
+Base `b918527ab417d2fec73c736169bae90d1a773ae5` (batch-20 polish #184 merged; site **37980**). PR1 on M1 host: **M1 2550→2730 (+180)**; M3 moves in the same PR on its own plan. Site **37980→38340** (38340=37980+180+180), still 71 lessons.
+
+- **H1 / 1.2 components: 900→1080 (+180).** Peukert rate-capacity vs the nameplate clock (`peukert_rate_capacity_toy.py`; common random numbers, 5 seeds; one shared k_true per regime and seed feeds a declared synthetic generator). Wikipedia Peukert's law body read (rev 1345423657; 以原文为准): t = H(C/(IH))^k, k = 1 means capacity independent of current, lead–acid k typically 1.1–1.3, limits (temperature not in the equation, k grows with age, self-discharge at low current, less capacity than fixed-k at very high current). Declared toy parameters: generator k_true U[1.15, 1.25] (lead–acid) and U[1.00, 1.03] (k≈1 pack), I_KNEE=50 A, GAMMA=0.25, D_DERATE=0.80, I_SD=0.05 A; rating 100 Ah / 20 h and K_DECL=1.2 from Wikipedia's worked example. Hand calc (printed): 100 Ah, 20 h, k=1.2, 10 A → 8.7055 h, 87.0551 Ah; rated 5 A → t=H=20.0000 h for any k. rated: A−B t and abs_err **tie** (identical on every seed), as declared. high: paired A−B abs_err `1.0280±0.2552`, **clear**, 5/5 (nameplate loses). very_high: B over-predicts on 5/5 (B err `0.0714±0.0417`); the pre-declared "B can lose to D" came out a **near-tie**, paired D−B abs_err `-0.0277±0.0757` (2 of 5 opposite sign), printed, not retuned. low: B predicts 158.4893 Ah from 100 Ah and over-predicts on 5/5; A−B abs_err `38.3430±39.5659` near-tie (not pre-declared). misapplied: paired A−B abs_err `-1.0787±0.1315`, **clear**, 5/5 — lead–acid k on a k≈1 pack loses, **kept**. Two code changes after the first run (identical-value sd shortcut; over/under-predict count lines), no label changed, disclosed on the page. ≠ C-rate quiz; ≠ power-battery-emc SoC derate. Real pack 本页未运行. / Peukert 放电率–容量与铭牌时钟。
+
+**Allocation / 安排:** 30+30+50+40+30=180 minutes.
 
 ## Batch-19 PR1 / 本月 H1+H2 (+300)
 

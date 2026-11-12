@@ -1,6 +1,14 @@
 # Month 3 plan / 第 3 个月计划
 
-Current / 当前：**M3 3150 min**, Batch-20 PR1. Earlier entries below retain their historical totals.
+Current / 当前：**M3 3330 min**, Batch-21 PR1. Earlier entries below retain their historical totals.
+
+## Batch-21 PR1 / 本月 H2 (+180)
+
+Base `b918527ab417d2fec73c736169bae90d1a773ae5` (batch-20 polish #184 merged; site **37980**). PR1 on M3 host: **M3 3150→3330 (+180)**; M1 moves in the same PR on its own plan. Site **37980→38340** (38340=37980+180+180), still 71 lessons.
+
+- **H2 / 3.2 fdm-printing: 360→540 (+180).** FDM build-orientation anisotropy (`fdm_build_orientation_anisotropy_toy.py`; common random numbers, 5 seeds; shared load, strength and modulus print-quality draws). Santosh Rajkumar, arXiv 2202.05692 (abs: one author, Santosh Rajkumar; PDF byline Santosh Mohan Rajkumar; abs + PDF body read; 以论文为准): flatwise / edgewise / upright PLA beams, six infills, three-point bending; upright much lower maximum flexural stress, flatwise higher median stress and modulus, zigzag–edgewise lowest modulus. Paper MPa / GPa stay in the citation, not toy outputs. Declared toy parameters: span 80 mm (not stated in the text read), 15 × 5 mm section, strengths 90/85/55 MPa and moduli 3.2/3.0/2.7 GPa (default), zigzag-like 80/78/50 MPa and 3.0/2.2/2.5 GPa. Hand calc (printed): 220 N → σ=70.4000 MPa; I=156.2500 mm⁴; 100 N at 3.2 GPa → 2.1333 mm. Strict boundary: survives iff σ < S. light: B−A snap **tie**, as declared (B−A util `0.2330±0.0133` clear). mid: paired B−A snap `1.0000±0.0000`, **clear**, 5/5; the isotropic guess (arm C) predicts no snap on any seed while upright snaps on all 5. modulus: paired D−A defl `0.8295±0.0478`, **clear**, 5/5 — side-on rule loses on stiffness, **kept**. Alternatives on the same seeds: SPAN=60 mm B−A snap `0.2000±0.4472` near-tie; S_UP=65 MPa `1.0000±0.0000`; load ×0.80 `0.4000±0.5477` near-tie. No code change after the first run. ≠ pressure-advance toy; ≠ wet-nylon note. Real printer / Instron 本页未运行. / FDM 打印方向各向异性。
+
+**Allocation / 安排:** 30+30+40+40+40=180 minutes.
 
 ## Batch-20 PR1 / 本月 H1 (+150)
 

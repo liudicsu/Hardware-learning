@@ -1844,6 +1844,429 @@ Real regulator bench: 本页未运行; Wikipedia statements 以原文为准
 4. 打印的替代 P_THERMAL = 0.80 W 会让 `thermal_small_R` 的每个种子都通过。为什么不能据此删掉热失败的情形？
 5. 在动手做任何真实稳压实验之前（本页未运行），说明为什么 `below_headroom` 里 B 的失稳并**不**意味着 LDO 没用，以及 C 在 5.15 V 上仍能「稳压」并**不**意味着可以省掉串联电阻。
 
+## Peukert 定律：铭牌容量与放电电流
+
+<Resource id="wiki-peukert" />
+
+上面的电池一节把电池包的铭牌 mAh 和 C 数读成**最大持续电流**。这一节问的是另一件事：在某个电流下，电池包实际能用多久？铭牌容量是**在规定放电倍率下**的容量。Wikipedia 的 *Peukert's law*（正文已读，rev 1345423657；以原文为准）把它写成一条针对**可充电铅酸**电池的近似定律，由 Wilhelm Peukert 于 1897 年提出：放电倍率升高，可用容量下降。已知额定值（H 小时率下的容量 C）时，以电流 I 放完所需时间为 t = H (C / (I H))^k。如果指数 k 等于 1，放出的容量就**不**随电流变化；真实铅酸电池的 k 大于 1，一般**在 1.1 到 1.3 之间**（该页还分别给出 AGM、胶体和富液式的范围；以原文为准）。在额定电流 I = C / H 时公式给出 t = H，正好等于铭牌时钟 C / I。
+
+同一页列出的局限和公式本身一样重要：一是**方程里没有温度**；指数会**随老化变大**；**小**电流时必须考虑**自放电**（按字面理解，电流越小，总放电量会一直涨）；**很大**电流时，实际电池给出的容量**少于**固定指数的预测。该页讲的是铅酸电池。这里没有说 k ≈ 1.3 适用于 LiPo，下面的 toy 也没有从任何来源取 LiPo 的指数。该页引用的一篇 2006 年评述需要订阅，**没有**读过，因此这里**不**引用。
+
+这一节**不是**上面的 C 数（最大电流）说明，也**不是**电源一课里的库仑计数 SoC / 温度降额 toy。
+
+<Formula label="按额定值写的 Peukert 公式">t = H × (C / (I × H))^k,   放出电荷 = I × t</Formula>
+
+**手算例题，已由 toy 打印。** 这是 Wikipedia 自己的例子：20 小时率额定 100 Ah、k = 1.2 的电池以 10 A 放电，可用 t = 20 × (100 / (10 × 20))^1.2 = 8.7055 h，放出 87.0551 Ah，而铭牌时钟是 10.0000 h（该页四舍五入为约 8.7 h 和 87 Ah；以原文为准）。在额定电流 I = C / H = 5.0000 A 时，C / (I H) 为 1.0000，所以**任何** k 都给出 t = H = 20.0000 h。
+
+**边界。** toy 中的大电流额外损失和 D 臂的上限**当且仅当** I > I_KNEE（**严格**）时生效：I = I_KNEE 时打印的 D/B 比值为 1.0000，略高于它时为 0.8000。
+
+**这里没有积分步长。** 这个 toy 是闭式的放电时间：没有时间步进，因此也没有步长判据。
+
+### 公平设置
+
+`peukert_rate_capacity_toy.py` 是**合成**的，只用标准库。**模型假设:** 恒流放电；不考虑温度和老化；用一个声明的**生成器**（所有臂都拿它打分的合成电池包）：它用 Peukert 形式和自己的指数 k_true，铅酸包在 [1.15, 1.25] 内均匀抽取，「k ≈ 1」的包（容量几乎不随电流变化）在 [1.00, 1.03] 内均匀抽取；高于 I_KNEE = 50 A 时生成器再损失一个系数 (I_KNEE / I)^GAMMA，GAMMA = 0.25；只有 `low` 情形加入自放电电流 I_SD = 0.05 A。这些都是**声明的玩具参数**，不是数据手册数值：Wikipedia 对大电流和自放电只给了文字说明。100 Ah / 20 h 的额定值和 K_DECL = 1.2 取自 Wikipedia 的算例（以原文为准）。
+
+| 臂 | 预测规则 |
+|---|---|
+| A_nameplate | t = C / I（铭牌 / 库仑时钟） |
+| B_peukert | t = H (C / (I H))^K_DECL，固定铅酸 K_DECL = 1.2 |
+| C_k1 | 同一公式取 k = 1 |
+| D_cap | I > I_KNEE 时 B 乘以 D_DERATE = 0.80（声明的大电流上限，不是文档数值） |
+
+**共用随机数:** 每个（情形, 种子）只抽一次 k_true，四个臂共用；它只进入生成器。各臂**只**在预测规则上不同。5 个种子。指标是预测时间 t、放出电荷 I × t、带符号误差 t − t_true 和 |误差|，以种子上的均值±标准差报告，并统计每个臂在几个种子上高估或低估。
+
+| 情形 | 电流、电池包 | 预先声明 |
+|---|---|---|
+| rated | 5 A = C/H，铅酸 | A 与 B **打平**（t 正好等于 H） |
+| high | 20 A = 4 C/H，铅酸 | A **稳定**高估；铭牌在绝对误差上输 |
+| very_high | 100 A = 20 C/H，铅酸并带大电流损失 | 固定 k 的 B 高估；B 在绝对误差上**可能输**给 D；**保留** |
+| low | 0.5 A，铅酸并带自放电 | B 预测的 Ah 多于铭牌，并高估生成器；A 与 B **未**预先声明 |
+| misapplied | 20 A，k ≈ 1 的包 | 用铅酸 k 的 B **稳定**输给铭牌；**保留** |
+
+### 运行标准库 toy
+
+```bash
+cd ~/Hardware-learning/examples/month-1/components
+python3 peukert_rate_capacity_toy.py
+```
+
+<CodeSource path="examples/month-1/components/peukert_rate_capacity_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Peukert rate-capacity vs the nameplate clock on a shared (C, H) rating.
+
+Synthetic constant-current discharge, stdlib only.  Not a pack test, not a
+BMS, not the C-rate quiz on this page and not the coulomb SoC / temperature
+derate toy in the power lesson.  Real pack / BMS / calorimeter: 本页未运行.
+Wikipedia "Peukert's law" statements 以原文为准.
+
+What the Wikipedia body says (and what this toy keeps): Peukert's law is an
+approximate law for rechargeable lead-acid batteries.  At a known rating
+(capacity C at an H-hour rate) the time to discharge at current I is
+  t = H * (C / (I * H)) ** k
+If k were 1 the delivered capacity would not depend on current; for a real
+lead-acid battery k is typically between 1.1 and 1.3.  At the rated current
+I = C / H the formula gives t = H, the same as the nameplate clock C / I.
+The page also lists limits: temperature is not in the equation, k grows
+with age, at low current self-discharge must be taken into account, and at
+very high currents practical batteries give less capacity than a fixed
+exponent predicts.  Nothing here says k is 1.3 for a LiPo.
+
+Common random numbers: for each (regime, seed) one "true" exponent k_true is
+drawn once and shared by every arm; it only feeds the declared generator
+(the synthetic pack every arm is scored against).  Arms:
+  A_nameplate : t = C / I (the nameplate / Coulomb clock)
+  B_peukert   : t = H * (C / (I*H)) ** K_DECL, fixed lead-acid K_DECL
+  C_k1        : the same formula with k = 1 (should equal A)
+  D_cap       : B times D_DERATE when I > I_KNEE (a declared high-current cap)
+The arms differ only in the prediction rule.  No integration step: closed
+form, no time stepping, so no step-size criterion applies.
+
+Declared generator (synthetic pack, toy assumptions, not a measured cell):
+  lead-acid pack : k_true uniform in [K_LA_LO, K_LA_HI]
+  k~1 pack       : k_true uniform in [K_ONE_LO, K_ONE_HI] (a toy stand-in for
+                   a pack whose capacity barely depends on current)
+  t_true = H * (C / (I_eff * H)) ** k_true, times (I_KNEE / I) ** GAMMA only
+  when I > I_KNEE (strict); I_eff = I + I_SD only in the "low" cell.
+
+Regimes and parameters were written before the first run:
+  rated      : I = C/H on the lead-acid pack - A vs B tie (t = H exactly)
+  high       : I = 4 C/H, lead-acid - A consistent over-predicts vs B
+               (nameplate loses on |error|)
+  very_high  : I = 20 C/H, lead-acid with the generator's high-current loss -
+               fixed-k B over-predicts (signed error > 0) and can lose to the
+               cap D on |error|; keep whatever comes out
+  low        : I = C/(10 H), lead-acid with self-discharge I_SD - B predicts
+               more Ah than the nameplate; B over-predicts vs the generator;
+               A vs B on |error| not pre-declared, printed as it comes
+  misapplied : I = 4 C/H on the k~1 pack scored with lead-acid K_DECL -
+               B consistent loses vs nameplate on |error|; keep
+"""
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+
+# Declared parameters, written before the first run.
+C_RATED = 100.0   # Ah at the H-hour rate (Wikipedia's worked-example rating)
+H_RATED = 20.0    # h
+K_DECL = 1.2      # lead-acid exponent used by B (Wikipedia's worked example; inside 1.1-1.3)
+K_LA_LO, K_LA_HI = 1.15, 1.25    # generator lead-acid k_true (toy)
+K_ONE_LO, K_ONE_HI = 1.00, 1.03  # generator k~1 pack k_true (toy, not a LiPo datasheet)
+I_KNEE = 50.0     # A, generator / D high-current threshold (toy)
+GAMMA = 0.25      # generator extra loss exponent above I_KNEE (toy)
+D_DERATE = 0.80   # D's fixed cap above I_KNEE (toy rule, not a documented value)
+I_SD = 0.05       # A, self-discharge stand-in, "low" cell only (toy)
+
+I_RATED = C_RATED / H_RATED
+REGIMES = {
+    "rated": {"i": I_RATED, "pack": "lead_acid", "sd": False},
+    "high": {"i": 4.0 * I_RATED, "pack": "lead_acid", "sd": False},
+    "very_high": {"i": 20.0 * I_RATED, "pack": "lead_acid", "sd": False},
+    "low": {"i": 0.1 * I_RATED, "pack": "lead_acid", "sd": True},
+    "misapplied": {"i": 4.0 * I_RATED, "pack": "k_one", "sd": False},
+}
+ARMS = ("A_nameplate", "B_peukert", "C_k1", "D_cap")
+
+
+def peukert_t(i, k, c=C_RATED, h=H_RATED):
+    return h * (c / (i * h)) ** k
+
+
+def shared_k(regime, seed):
+    """Common random numbers: one k_true per (regime, seed), shared by all arms."""
+    rng = random.Random(f"{regime}/{seed}")
+    lo, hi = (K_LA_LO, K_LA_HI) if REGIMES[regime]["pack"] == "lead_acid" else (K_ONE_LO, K_ONE_HI)
+    return rng.uniform(lo, hi)
+
+
+def true_t(regime, seed, gamma=GAMMA, i_sd=I_SD):
+    cfg = REGIMES[regime]
+    i = cfg["i"]
+    i_eff = i + (i_sd if cfg["sd"] else 0.0)
+    t = peukert_t(i_eff, shared_k(regime, seed))
+    if i > I_KNEE:
+        t *= (I_KNEE / i) ** gamma
+    return t
+
+
+def predict(arm, i, k_decl=K_DECL, derate=D_DERATE):
+    if arm == "A_nameplate":
+        return C_RATED / i
+    if arm == "B_peukert":
+        return peukert_t(i, k_decl)
+    if arm == "C_k1":
+        return peukert_t(i, 1.0)
+    t = peukert_t(i, k_decl)
+    return t * derate if i > I_KNEE else t
+
+
+def run_arm(arm, regime, seed, **kw):
+    gen = {k: kw.pop(k) for k in ("gamma", "i_sd") if k in kw}
+    i = REGIMES[regime]["i"]
+    t = predict(arm, i, **kw)
+    tt = true_t(regime, seed, **gen)
+    return {"t": t, "q": i * t, "err": t - tt, "abs_err": abs(t - tt), "t_true": tt}
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0  # identical values: no floating residue in mean or sd
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    """Half-up rounding on the shortest decimal repr; tiny non-zero values in scientific form."""
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+METRICS = ("t", "q", "err", "abs_err")
+
+
+def collect(regime, **kw):
+    return {arm: [run_arm(arm, regime, s, **dict(kw)) for s in SEEDS] for arm in ARMS}
+
+
+def col(rows, key):
+    return [r[key] for r in rows]
+
+
+def report(regime):
+    cfg = REGIMES[regime]
+    res = collect(regime)
+    ks = [shared_k(regime, s) for s in SEEDS]
+    tts = col(res["A_nameplate"], "t_true")
+    print(f"{regime} (I={num(cfg['i'])} A = {num(cfg['i'] / I_RATED)} x C/H; pack={cfg['pack']}; "
+          f"self_discharge={'I_SD' if cfg['sd'] else 'off'}; high_current_loss={'on' if cfg['i'] > I_KNEE else 'off'}):")
+    print("  k_true per seed: " + " ".join(num(k) for k in ks))
+    print("  t_true per seed (h): " + " ".join(num(t) for t in tts))
+    for arm in ARMS:
+        rows = res[arm]
+        print(f"  {arm} " + " ".join(f"{key} {fmt_pair(*mean_sd(col(rows, key)))}" for key in METRICS))
+    for arm in ("A_nameplate", "B_peukert", "D_cap"):
+        over = sum(1 for r in res[arm] if r["err"] > 0.0)
+        under = sum(1 for r in res[arm] if r["err"] < 0.0)
+        print(f"  {arm} over-predicts (err > 0) on {over}/5 seeds, under-predicts on {under}/5")
+    for a, b, keys in (("A_nameplate", "B_peukert", ("t", "abs_err")), ("C_k1", "A_nameplate", ("t",)),
+                       ("B_peukert", "A_nameplate", ("err",)), ("D_cap", "B_peukert", ("abs_err",))):
+        for key in keys:
+            print(f"  paired {a[0]}-{b[0]} {key}: {verdict(col(res[a], key), col(res[b], key))}")
+    return res
+
+
+def main():
+    print("Synthetic Peukert rate-capacity toy; shared (C, H) rating and shared k_true draws; not a pack measurement")
+    print(f"seeds={len(SEEDS)} C={num(C_RATED)} Ah H={num(H_RATED)} h (I_rated=C/H={num(I_RATED)} A) K_DECL={num(K_DECL)} "
+          f"k_true lead-acid U[{num(K_LA_LO)}, {num(K_LA_HI)}] k~1 pack U[{num(K_ONE_LO)}, {num(K_ONE_HI)}] "
+          f"I_KNEE={num(I_KNEE)} A GAMMA={num(GAMMA)} D_DERATE={num(D_DERATE)} I_SD={num(I_SD)} A (declared toy parameters, not a datasheet)")
+    print("No integration step: closed form, no time-step criterion")
+    print("Regimes and parameters were written before the first run")
+    print("rule: t = H * (C / (I*H)) ** k; nameplate clock t = C / I; high-current loss and D's cap apply iff I > I_KNEE (strict)")
+    # Labelled hand calculation: Wikipedia's worked example (100 Ah, 20 h, k = 1.2, 10 A).
+    t_ex = peukert_t(10.0, 1.2)
+    print(f"hand_calc C=100.0 Ah H=20.0 h k=1.2 I=10.0 A: t=20*(100/(10*20))^1.2={num(t_ex)} h, "
+          f"delivered I*t={num(10.0 * t_ex)} Ah (Wikipedia worked example: about 8.7 h and 87 Ah, 以原文为准); nameplate C/I={num(C_RATED / 10.0)} h")
+    print(f"hand_calc rated I=C/H={num(I_RATED)} A: (C/(I*H))={num(C_RATED / (I_RATED * H_RATED))} so t=H={num(peukert_t(I_RATED, K_DECL))} h for any k; "
+          f"C/I={num(C_RATED / I_RATED)} h")
+    eq, above = predict("D_cap", I_KNEE) / predict("B_peukert", I_KNEE), predict("D_cap", I_KNEE + 1e-6) / predict("B_peukert", I_KNEE + 1e-6)
+    print(f"boundary_rule: I=I_KNEE={num(I_KNEE)} A -> D/B={num(eq)} (no cap at equality); I=I_KNEE+1e-6 A -> D/B={num(above)}")
+    for regime in REGIMES:
+        report(regime)
+    print("alternative K_DECL on high (same seeds; B uses the alternative exponent):")
+    for k in (1.1, 1.3):
+        alt = collect("high", k_decl=k)
+        print(f"  K_DECL={num(k)}: paired A-B abs_err@alt: {verdict(col(alt['A_nameplate'], 'abs_err'), col(alt['B_peukert'], 'abs_err'))}")
+    print("alternative K_DECL=1.3 on misapplied (same seeds; top of the lead-acid range on the k~1 pack):")
+    alt = collect("misapplied", k_decl=1.3)
+    print(f"  paired A-B abs_err@alt: {verdict(col(alt['A_nameplate'], 'abs_err'), col(alt['B_peukert'], 'abs_err'))}")
+    print("alternative D_DERATE=0.90 and GAMMA=0.10 on very_high (same seeds):")
+    alt = collect("very_high", derate=0.90)
+    print(f"  D_DERATE=0.90: paired D-B abs_err@alt: {verdict(col(alt['D_cap'], 'abs_err'), col(alt['B_peukert'], 'abs_err'))}")
+    alt = collect("very_high", gamma=0.10)
+    print(f"  GAMMA=0.10: paired D-B abs_err@alt: {verdict(col(alt['D_cap'], 'abs_err'), col(alt['B_peukert'], 'abs_err'))}")
+    print(f"  GAMMA=0.10: paired B-A err@alt: {verdict(col(alt['B_peukert'], 'err'), col(alt['A_nameplate'], 'err'))}")
+    print("alternative I_SD=0.0 on low (same seeds; no self-discharge in the generator):")
+    alt = collect("low", i_sd=0.0)
+    print(f"  B_peukert err@alt {fmt_pair(*mean_sd(col(alt['B_peukert'], 'err')))}")
+    print(f"  paired A-B abs_err@alt: {verdict(col(alt['A_nameplate'], 'abs_err'), col(alt['B_peukert'], 'abs_err'))}")
+    print("No winner declared: at the rated current every rule agrees; a lead-acid exponent beats the nameplate clock at high current, "
+          "over-predicts at very high current, and loses when it is applied to a pack whose capacity barely depends on current")
+    print("Real pack / BMS / calorimeter: 本页未运行; Wikipedia Peukert's law statements 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic Peukert rate-capacity toy; shared (C, H) rating and shared k_true draws; not a pack measurement
+seeds=5 C=100.0000 Ah H=20.0000 h (I_rated=C/H=5.0000 A) K_DECL=1.2000 k_true lead-acid U[1.1500, 1.2500] k~1 pack U[1.0000, 1.0300] I_KNEE=50.0000 A GAMMA=0.2500 D_DERATE=0.8000 I_SD=0.0500 A (declared toy parameters, not a datasheet)
+No integration step: closed form, no time-step criterion
+Regimes and parameters were written before the first run
+rule: t = H * (C / (I*H)) ** k; nameplate clock t = C / I; high-current loss and D's cap apply iff I > I_KNEE (strict)
+hand_calc C=100.0 Ah H=20.0 h k=1.2 I=10.0 A: t=20*(100/(10*20))^1.2=8.7055 h, delivered I*t=87.0551 Ah (Wikipedia worked example: about 8.7 h and 87 Ah, 以原文为准); nameplate C/I=10.0000 h
+hand_calc rated I=C/H=5.0000 A: (C/(I*H))=1.0000 so t=H=20.0000 h for any k; C/I=20.0000 h
+boundary_rule: I=I_KNEE=50.0000 A -> D/B=1.0000 (no cap at equality); I=I_KNEE+1e-6 A -> D/B=0.8000
+rated (I=5.0000 A = 1.0000 x C/H; pack=lead_acid; self_discharge=off; high_current_loss=off):
+  k_true per seed: 1.2185 1.1964 1.1757 1.2419 1.2043
+  t_true per seed (h): 20.0000 20.0000 20.0000 20.0000 20.0000
+  A_nameplate t 20.0000+-0.0000 q 100.0000+-0.0000 err 0.0000+-0.0000 abs_err 0.0000+-0.0000
+  B_peukert t 20.0000+-0.0000 q 100.0000+-0.0000 err 0.0000+-0.0000 abs_err 0.0000+-0.0000
+  C_k1 t 20.0000+-0.0000 q 100.0000+-0.0000 err 0.0000+-0.0000 abs_err 0.0000+-0.0000
+  D_cap t 20.0000+-0.0000 q 100.0000+-0.0000 err 0.0000+-0.0000 abs_err 0.0000+-0.0000
+  A_nameplate over-predicts (err > 0) on 0/5 seeds, under-predicts on 0/5
+  B_peukert over-predicts (err > 0) on 0/5 seeds, under-predicts on 0/5
+  D_cap over-predicts (err > 0) on 0/5 seeds, under-predicts on 0/5
+  paired A-B t: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B abs_err: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A t: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A err: 0.0000+-0.0000: tie: identical on every seed
+  paired D-B abs_err: 0.0000+-0.0000: tie: identical on every seed
+high (I=20.0000 A = 4.0000 x C/H; pack=lead_acid; self_discharge=off; high_current_loss=off):
+  k_true per seed: 1.2068 1.2199 1.1514 1.2159 1.1643
+  t_true per seed (h): 3.7537 3.6860 4.0534 3.7069 3.9818
+  A_nameplate t 5.0000+-0.0000 q 100.0000+-0.0000 err 1.1636+-0.1692 abs_err 1.1636+-0.1692
+  B_peukert t 3.7893+-0.0000 q 75.7858+-0.0000 err -0.0471+-0.1692 abs_err 0.1356+-0.0917
+  C_k1 t 5.0000+-0.0000 q 100.0000+-0.0000 err 1.1636+-0.1692 abs_err 1.1636+-0.1692
+  D_cap t 3.7893+-0.0000 q 75.7858+-0.0000 err -0.0471+-0.1692 abs_err 0.1356+-0.0917
+  A_nameplate over-predicts (err > 0) on 5/5 seeds, under-predicts on 0/5
+  B_peukert over-predicts (err > 0) on 3/5 seeds, under-predicts on 2/5
+  D_cap over-predicts (err > 0) on 3/5 seeds, under-predicts on 2/5
+  paired A-B t: 1.2107+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B abs_err: 1.0280+-0.2552: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A t: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A err: -1.2107+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-B abs_err: 0.0000+-0.0000: tie: identical on every seed
+very_high (I=100.0000 A = 20.0000 x C/H; pack=lead_acid; self_discharge=off; high_current_loss=on):
+  k_true per seed: 1.1781 1.1704 1.1585 1.2267 1.2147
+  t_true per seed (h): 0.4931 0.5047 0.5231 0.4263 0.4420
+  A_nameplate t 1.0000+-0.0000 q 100.0000+-0.0000 err 0.5221+-0.0417 abs_err 0.5221+-0.0417
+  B_peukert t 0.5493+-0.0000 q 54.9280+-0.0000 err 0.0714+-0.0417 abs_err 0.0714+-0.0417
+  C_k1 t 1.0000+-0.0000 q 100.0000+-0.0000 err 0.5221+-0.0417 abs_err 0.5221+-0.0417
+  D_cap t 0.4394+-0.0000 q 43.9424+-0.0000 err -0.0384+-0.0417 abs_err 0.0437+-0.0346
+  A_nameplate over-predicts (err > 0) on 5/5 seeds, under-predicts on 0/5
+  B_peukert over-predicts (err > 0) on 5/5 seeds, under-predicts on 0/5
+  D_cap over-predicts (err > 0) on 1/5 seeds, under-predicts on 4/5
+  paired A-B t: 0.4507+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B abs_err: 0.4507+-5.551e-17: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A t: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A err: -0.4507+-5.551e-17: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-B abs_err: -0.0277+-0.0757: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+low (I=0.5000 A = 0.1000 x C/H; pack=lead_acid; self_discharge=I_SD; high_current_loss=off):
+  k_true per seed: 1.2458 1.1722 1.1812 1.1806 1.1749
+  t_true per seed (h): 312.8178 265.9016 271.2247 270.8971 267.4628
+  A_nameplate t 200.0000+-0.0000 q 100.0000+-0.0000 err -77.6608+-19.7830 abs_err 77.6608+-19.7830
+  B_peukert t 316.9786+-0.0000 q 158.4893+-0.0000 err 39.3178+-19.7830 abs_err 39.3178+-19.7830
+  C_k1 t 200.0000+-0.0000 q 100.0000+-0.0000 err -77.6608+-19.7830 abs_err 77.6608+-19.7830
+  D_cap t 316.9786+-0.0000 q 158.4893+-0.0000 err 39.3178+-19.7830 abs_err 39.3178+-19.7830
+  A_nameplate over-predicts (err > 0) on 0/5 seeds, under-predicts on 5/5
+  B_peukert over-predicts (err > 0) on 5/5 seeds, under-predicts on 0/5
+  D_cap over-predicts (err > 0) on 5/5 seeds, under-predicts on 0/5
+  paired A-B t: -116.9786+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B abs_err: 38.3430+-39.5659: near-tie / small gap, within seed noise (|m| <= sd); same sign on all 5 seeds
+  paired C-A t: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A err: 116.9786+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-B abs_err: 0.0000+-0.0000: tie: identical on every seed
+misapplied (I=20.0000 A = 4.0000 x C/H; pack=k_one; self_discharge=off; high_current_loss=off):
+  k_true per seed: 1.0016 1.0169 1.0054 1.0227 1.0016
+  t_true per seed (h): 4.9887 4.8844 4.9629 4.8448 4.9891
+  A_nameplate t 5.0000+-0.0000 q 100.0000+-0.0000 err 0.0660+-0.0658 abs_err 0.0660+-0.0658
+  B_peukert t 3.7893+-0.0000 q 75.7858+-0.0000 err -1.1447+-0.0658 abs_err 1.1447+-0.0658
+  C_k1 t 5.0000+-0.0000 q 100.0000+-0.0000 err 0.0660+-0.0658 abs_err 0.0660+-0.0658
+  D_cap t 3.7893+-0.0000 q 75.7858+-0.0000 err -1.1447+-0.0658 abs_err 1.1447+-0.0658
+  A_nameplate over-predicts (err > 0) on 5/5 seeds, under-predicts on 0/5
+  B_peukert over-predicts (err > 0) on 0/5 seeds, under-predicts on 5/5
+  D_cap over-predicts (err > 0) on 0/5 seeds, under-predicts on 5/5
+  paired A-B t: 1.2107+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B abs_err: -1.0787+-0.1315: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A t: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A err: -1.2107+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-B abs_err: 0.0000+-0.0000: tie: identical on every seed
+alternative K_DECL on high (same seeds; B uses the alternative exponent):
+  K_DECL=1.1000: paired A-B abs_err@alt: 0.6472+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  K_DECL=1.3000: paired A-B abs_err@alt: 0.6260+-0.3383: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative K_DECL=1.3 on misapplied (same seeds; top of the lead-acid range on the k~1 pack):
+  paired A-B abs_err@alt: -1.5692+-0.1315: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative D_DERATE=0.90 and GAMMA=0.10 on very_high (same seeds):
+  D_DERATE=0.90: paired D-B abs_err@alt: -0.0393+-0.0251: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  GAMMA=0.10: paired D-B abs_err@alt: 0.0550+-0.0743: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  GAMMA=0.10: paired B-A err@alt: -0.4507+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative I_SD=0.0 on low (same seeds; no self-discharge in the generator):
+  B_peukert err@alt 5.8889+-23.1640
+  paired A-B abs_err@alt: 91.0895+-15.4044: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: at the rated current every rule agrees; a lead-acid exponent beats the nameplate clock at high current, over-predicts at very high current, and loses when it is applied to a pack whose capacity barely depends on current
+Real pack / BMS / calorimeter: 本页未运行; Wikipedia Peukert's law statements 以原文为准
+```
+
+</SimOutput>
+
+### 读懂五种情形
+
+本页标签按以下顺序使用。**打平：每个种子都完全相同**只用于配对的逐种子差值在每个种子上都严格为零；`|配对均值|` 和它的标准差都小于 1e-9 时标为**数值上为零（浮点残差），等同打平**（这种行不打印同号计数）；`|配对均值| ≤ sd` 时为**接近打平、差距很小，在种子噪声之内**；否则是**稳定**差距（`|配对均值| > sd`），`|m|` 小于两组中较小均值的 20 % 时叫**小**，否则叫**明显**。每条稳定的行都带 5 个种子上的同号计数。差距都由未四舍五入的数值计算。
+
+- **rated** 情形，每个臂都预测 20.0000 h，生成器在每个种子上也给出 20.0000 h，与 k_true 无关：配对 A−B t 和 A−B abs_err 都是**打平：每个种子都完全相同**，与预先声明一致。在额定电流下铭牌时钟与 Peukert 一致。
+- **high** 情形，铭牌时钟说 5.0000 h，用 K_DECL 的 Peukert 说 3.7893 h。A 在 5/5 个种子上高估（A err 1.1636±0.1692 h）；B 的误差为 -0.0471±0.1692 h，符号会变（3/5 高估，2/5 低估），因为电池包自己的 k_true 围绕 1.2 散布。**铭牌输了，差距明显**。配对 A−B abs_err 1.0280±0.2552，5 个种子同号。**C−A t 在每种情形都打平**。k = 1 就是铭牌时钟。
+- **very_high** 情形，B 在 5/5 个种子上高估（B err 0.0714±0.0417 h），这正是 Wikipedia 的提醒：电池包有额外的大电流损失时，固定指数会许诺太多。铭牌差得多（A err 0.5221±0.0417 h）。预先声明的「B 可能输给 D」**没有**成为稳定的输：配对 D−B abs_err 为 -0.0277±0.0757，**接近打平、差距很小，在种子噪声之内**（5 个种子里有 2 个反号），因为 D 固定的 0.80 上限现在在 4/5 个种子上低估。按结果照实打印，没有重调。
+- **low** 情形，B 从 100 Ah 的铭牌预测出 158.4893 Ah，比标签还多，并在 5/5 个种子上高估带自放电的生成器（B err 39.3178±19.7830 h）；A 在 5/5 个种子上低估（A err -77.6608±19.7830 h）。A 与 B 在 |误差| 上没有预先声明：配对 A−B abs_err 为 38.3430±39.5659，**接近打平**（|m| ≤ sd，尽管没有种子反号）。去掉自放电项（见下面的替代值）后 B 会接近得多。
+- **misapplied** 情形，用铅酸 K_DECL 去估一个容量几乎不随电流变化的包，误差超过一小时（B err -1.1447±0.0658 h，5/5 低估），而铭牌很接近（A err 0.0660±0.0658 h）。**B 输了，差距明显**。配对 A−B abs_err -1.0787±0.1315，5 个种子同号。**保留**这个输：指数属于某种化学体系和某个电池包，而不是属于「电池」。
+
+**首次运行后的代码改动。** 两处改动，没有改任何参数或情形：(1) `mean_sd` 在五个值完全相同时返回 sd 0，因为首次运行对常数预测打印了 `3.7893+-4.965e-16` 这类浮点残差；(2) 增加了每个臂「在 k/5 个种子上高估」的行，让预先声明的高估结论直接打印出来，而不是靠推断。没有标签改变；首次运行的输出保留在来源笔记里。
+
+**看过结果后做的选择。** 没有。K_DECL、生成器范围、I_KNEE、GAMMA、D_DERATE 和 I_SD 都在首次运行前写定。同一组种子上的替代值：`high` 中 K_DECL = 1.1 和 1.3 仍然是铭牌输（A−B abs_err 0.6472±0.0000 和 0.6260±0.3383，都明显，5/5）；`misapplied` 中 K_DECL = 1.3 让 B 输得更多（A−B abs_err -1.5692±0.1315）；`very_high` 中 D_DERATE = 0.90 让 D−B abs_err 变成 -0.0393±0.0251（稳定，但 5 个种子里有 1 个反号），GAMMA = 0.10 给出 0.0550±0.0743（**接近打平**）；`low` 中 I_SD = 0 把 B 的误差缩小到 5.8889±23.1640 h，A−B abs_err 变成 91.0895±15.4044。这些都没有取代默认值。
+
+本页**不宣布普遍赢家**。在额定电流下所有规则一致；铅酸指数在大电流下胜过铭牌时钟，在很大电流下仍然高估，用在容量几乎不随电流变化的包上则会输。真实电池包、BMS 或量热计，均**本页未运行**。
+
+**180 分钟安排**如下。30 分钟读 Peukert's law 条目，包括 Limitations；30 分钟重做 100 Ah / 10 A 手算和额定电流恒等式；50 分钟运行 toy，读懂五种情形；40 分钟固定种子，对照打印的 K_DECL、D_DERATE、GAMMA 和 I_SD 替代值；30 分钟做练习。
+
+### 练习
+
+1. 从打印的手算行确认：100 Ah、20 h、k = 1.2、10 A 时 t = 8.7055 h、放出 87.0551 Ah，并说明 5 A 时任何 k 都得到 20 h。
+2. 从 `shared_k` 和 `run_arm` 说明，同一情形、同一种子下四个臂都对照同一个 k_true 打分。
+3. 为什么 C−A t 在每种情形都是**打平**？这说明把「k = 1」当模型意味着什么？
+4. `very_high` 中 D 在多数种子上低估，D−B 却只是**接近打平**。用打印的误差解释，并说明为什么没有重调上限。
+5. 在做任何真实电池测试之前（本页未运行），解释为什么 `misapplied` 的输意味着不能把铅酸的 k 抄进 LiPo 续航估算。
+
 <Summary>
 
 **本课要点**
@@ -1865,6 +2288,7 @@ Real regulator bench: 本页未运行; Wikipedia statements 以原文为准
 - 整流桥：在共享元件上，四二极管整流桥把单个二极管的纹波减半（小电容重负载：配对 −5.2981±0.2119 V，5 个种子同号），纹波小时线性放电公式 I / (2fC) 在 25 % 之内成立；但电容很大时，第二个二极管压降让输出低一个小而稳定的 0.4146±0.0308 V，不接电容时没有哪一组能给出直流——这是合成模型，不是市电实验。
 
 - 齐纳并联 / LDO 压差：共享 Vin 与负载时，稳压输出是**接近打平**（A−B -0.0233±0.0516 V，5 个种子里有 2 个反号）；低于声明的 0.40 V 裕量时两臂都失稳（in_reg 相对 1 为 -1.0000±0.0000，明显，5/5）；为 200 mA 所选的 22 Ω 电阻达不到严格的 0.50 W 热限额（thermal_ok 相对 1 为 -1.0000±0.0000，明显，5/5）——合成模型，不是稳压实验台。
+- Peukert 定律：额定电流下铭牌时钟与 t = H (C / (I H))^k 一致（**打平**，每个种子都完全相同）；铅酸包在 4 C/H 时铭牌输（A−B abs_err 1.0280±0.2552，明显，5 个种子同号），20 C/H 时固定指数仍然高估，把铅酸 k 用在 k ≈ 1 的包上会输（A−B abs_err -1.0787±0.1315，明显，保留）——合成电池包，不是电池测试。
 
 **下一课会用到**
 

@@ -35,3 +35,7 @@ Different OpenSCAD versions write a different number of triangles; `check.sh` ig
 ## Batch-20 PR1 / 第20批 PR1
 
 `transmissions/leadscrew_self_locking_toy.py`: standard-library synthetic square-thread statics (steep vs fine vs vibrated lead), no hardware; expected output in `expected/leadscrew_self_locking_toy.txt`, included in `check.sh`. Real jack 本页未运行. / 标准库合成的方螺纹丝杠静力学（粗导程、细导程、振动），不是硬件测量，输出由 `check.sh` 核对。
+
+## Batch-21 PR1 / 第21批 PR1
+
+`fdm-printing/fdm_build_orientation_anisotropy_toy.py`: standard-library synthetic three-point-bending beam (flatwise vs upright vs an isotropic guess vs edgewise), no hardware; expected output in `expected/fdm_build_orientation_anisotropy_toy.txt`, included in `check.sh`. Real printer / Instron 本页未运行. / 标准库合成的三点弯曲梁（平放、直立、各向同性猜测、侧放），不是实验室测量，输出由 `check.sh` 核对。

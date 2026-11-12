@@ -816,6 +816,359 @@ Real printer / tuning tower: 本页未运行; Marlin / Klipper numbers 以原文
 4. 固定种子，设 `OVER = 1.5`。运行前先预测 `sharp_corner` 中 C−B 缺料是否仍然明显。
 5. 在动手用真实打印机之前（本页未运行），说明为什么 steady_straight 的**打平**并**不**意味着压力提前对长外壁没有用。
 
+## 打印方向：平放与直立
+
+<Resource id="rajkumar-fdm-orientation" />
+
+上面的设计一节已经用一句话说过：钩子竖着打会在层线处断，同样的钩子躺着打会弯。这一节把这条规则放到共享几何的 toy 和一篇论文上。Santosh Rajkumar，*Effect of infill pattern and build orientation on mechanical properties of FDM printed parts: An experimental modal analysis approach*（arXiv 2202.05692；摘要页只列**一位**作者 Santosh Rajkumar，PDF 署名为 Santosh Mohan Rajkumar；摘要和 PDF 正文已读），用 PLA 打印 100 × 15 × 5 mm 的梁，取**平放（flatwise）、侧放（edgewise）和直立（upright）**三种方向、六种填充图案，每种五件，做三点弯曲试验。正文报告的内容全部**以论文为准。**立方填充侧放的最大弯曲应力最高，107.95 MPa；三角填充直立最低，62.32 MPa；跨填充图案看，平放的最大弯曲应力**中位数**最高，直立「要低得多」；平放的弯曲模量也偏高，直立偏低；三角填充平放模量最高，3.36 GPa，**锯齿填充侧放最低，2.185 GPa**；侧放的最大弯曲**应变**偏高，这是韧性读数，不是强度读数。这是一篇单作者的研究生研究，只用一台打印机和一种材料；下面不把它的任何 MPa 或 GPa 数值当成 toy 输出重印。
+
+机理在层间结合。直立打印的梁受弯时，拉应力**横跨**层，由较弱的层间结合承担；平放打印时，同样的应力**沿着**挤出的线条走。这一节**不是**压力提前拐角 toy，**不是**卡扣应变公式，也**不是**湿尼龙的说明。
+
+<Formula label="三点弯曲（论文的梁理论）">σ = 3 P L / (2 w t²),   d = P L³ / (48 E I),   I = w t³ / 12</Formula>
+
+**手算例题，已由 toy 打印。** P = 220.0 N，L = 80.0 mm，w = 15.0 mm，t = 5.0 mm：σ = 3 × 220 × 80 / (2 × 15 × 5²) = 70.4000 MPa。对 toy 的平放强度 90.0 MPa，利用率为 0.7822；对 toy 的直立强度 55.0 MPa，利用率为 1.2800，所以直立的梁会断。I = 15 × 5³ / 12 = 156.2500 mm⁴；P = 100.0 N、E = 3.2 GPa 时跨中挠度为 2.1333 mm。
+
+**边界。** σ ≥ S 时零件断裂，**当且仅当** σ < S（**严格**）时保持：toy 打印出 σ = S 时 snap = 1，S 高 1e-6 MPa 时 snap = 0。
+
+**这里没有积分步长。** 这个 toy 是闭式静力学：没有时间步进，因此也没有步长判据。
+
+### 公平设置
+
+`fdm_build_orientation_anisotropy_toy.py` 是**合成**的，只用标准库。**模型假设:** 三点弯曲下的线弹性矩形梁，截面取论文的 15 × 5 mm，跨距 L = 80 mm 是**声明的玩具参数**（我们读到的正文没有给出跨距）；每个方向只有一个强度和一个模量。强度（MPa，平放 / 侧放 / 直立：90 / 85 / 55）和模量（GPa：3.2 / 3.0 / 2.7）是**声明的玩具参数**，顺序参照论文的定性结论，但**不是**论文数值；第二组「类锯齿」参数（强度 80 / 78 / 50，模量 3.0 / 2.2 / 2.5）让侧放模量最低，参照论文中锯齿–侧放那一格。
+
+| 臂 | 方向 |
+|---|---|
+| A_flatwise | 平放强度与模量 |
+| B_upright | 直立强度（层间结合）与模量 |
+| C_isotropic | 所有方向用同一个数（平放值）来预测直立零件——天真的「数据表」猜测 |
+| D_edgewise | 侧放强度与模量——「侧着打」的规则 |
+
+**共用随机数:** 每个（情形, 种子）只抽一次载荷抖动（±5 %）、一次强度打印质量系数（±8 %）和一次模量打印质量系数（±5 %），四个臂共用（同一卷料、同一台打印机）。几何和载荷共用，所以每个臂的峰值应力完全相同（配对 A−B sigma 在每种情形都**打平**）。各臂**只**在随方向变化的强度和模量上不同。5 个种子。指标是峰值应力、利用率 σ / S、断裂标志和跨中挠度。
+
+| 情形 | 载荷、参数组 | 预先声明 |
+|---|---|---|
+| light | 100 N，默认 | A 与 B 断裂标志**打平**（都保持）；**保留** |
+| mid | 220 N，默认 | B **稳定**断裂而 A 保持；C 漏掉断裂 |
+| modulus | 100 N，类锯齿 | 侧放规则 D 在刚度上**可能输**；**保留** |
+
+### 运行标准库 toy
+
+```bash
+cd ~/Hardware-learning/examples/month-3/fdm-printing
+python3 fdm_build_orientation_anisotropy_toy.py
+```
+
+<CodeSource path="examples/month-3/fdm-printing/fdm_build_orientation_anisotropy_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""FDM build-orientation anisotropy: flatwise vs upright vs an isotropic guess.
+
+Synthetic three-point-bending beam, stdlib only.  Not a tensile lab, not an
+Instron run, not a modal-hammer test, not the pressure-advance corner toy on
+this page and not a moisture / wet-nylon section.
+Real printer / Instron / modal hammer: 本页未运行.  Rajkumar (arXiv
+2202.05692) statements and MPa / GPa values 以论文为准; none of them is
+reprinted below as a toy output.
+
+What the cited paper body says (and what this toy keeps): PLA beams printed
+flatwise, edgewise and upright were tested in three-point bending.  Upright
+tends to much lower maximum flexural stress (the load opens the layer
+lines, so the inter-layer bond carries it); flatwise tends to higher median
+maximum flexural stress and higher flexural modulus; one edgewise cell
+(zigzag infill) has the lowest flexural modulus.  The paper's beam-theory
+equations, with P the load, L the span, w the width and t the thickness:
+  sigma = 3 P L / (2 w t^2)        d = P L^3 / (48 E I)        I = w t^3 / 12
+
+Common random numbers: for each (regime, seed) one load jitter, one shared
+print-quality factor on strength and one on modulus are drawn once and
+shared by every arm (same spool, same printer, same day).  Arms:
+  A_flatwise  : strength S_FLAT, modulus E_FLAT
+  B_upright   : strength S_UP (inter-layer bond), modulus E_UP
+  C_isotropic : one number for every orientation (S_FLAT, E_FLAT) used to
+                predict the upright part - the naive "datasheet" guess
+  D_edgewise  : strength S_EDGE, modulus E_EDGE (the "print it on its side" rule)
+The arms differ only in the orientation-dependent strength and modulus;
+geometry and load are shared, so the peak stress is the same for every arm.
+A part snaps iff sigma >= S; it survives iff sigma < S (strict).
+No integration step: closed-form statics, no time stepping.
+
+Regimes and parameters were written before the first run:
+  light   : load well below every strength - A vs B snap flag tie (both
+            survive); keep
+  mid     : load between the upright and flatwise strengths - B consistent
+            snaps where A holds; C (isotropic) misses the snap
+  modulus : zigzag-like parameter set, light load - the edgewise rule D can
+            lose on stiffness (deflects more than A); keep
+All strengths and moduli are declared toy parameters, ordered after the
+paper's qualitative statements; they are not the paper's measured values.
+"""
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+
+# Declared parameters, written before the first run.  Toy values.
+SPAN = 80.0       # mm, support span (toy)
+WIDTH = 15.0      # mm, beam width (Rajkumar's 100 x 15 x 5 mm beam; 以论文为准)
+THICK = 5.0       # mm, beam thickness
+P_JITTER = 0.05   # +/- fraction on the load, shared
+Q_JITTER = 0.08   # +/- fraction print quality on strength, shared
+R_JITTER = 0.05   # +/- fraction print quality on modulus, shared
+SETS = {
+    # strengths in MPa, moduli in GPa (toy stand-ins, not paper values)
+    "default": {"S": {"flat": 90.0, "edge": 85.0, "up": 55.0}, "E": {"flat": 3.2, "edge": 3.0, "up": 2.7}},
+    "zigzag_like": {"S": {"flat": 80.0, "edge": 78.0, "up": 50.0}, "E": {"flat": 3.0, "edge": 2.2, "up": 2.5}},
+}
+REGIMES = {
+    "light": {"p": 100.0, "set": "default"},
+    "mid": {"p": 220.0, "set": "default"},
+    "modulus": {"p": 100.0, "set": "zigzag_like"},
+}
+ARMS = ("A_flatwise", "B_upright", "C_isotropic", "D_edgewise")
+ORIENT = {"A_flatwise": "flat", "B_upright": "up", "C_isotropic": "flat", "D_edgewise": "edge"}
+
+
+def second_moment(w=WIDTH, t=THICK):
+    return w * t ** 3 / 12.0
+
+
+def peak_stress(p, span=SPAN, w=WIDTH, t=THICK):
+    return 3.0 * p * span / (2.0 * w * t ** 2)
+
+
+def deflection(p, e_gpa, span=SPAN, w=WIDTH, t=THICK):
+    return p * span ** 3 / (48.0 * e_gpa * 1000.0 * second_moment(w, t))
+
+
+def shared_draws(regime, seed):
+    """Common random numbers: one load, one strength factor, one modulus factor."""
+    rng = random.Random(f"{regime}/{seed}")
+    dp = rng.uniform(-P_JITTER, P_JITTER)
+    q = 1.0 + rng.uniform(-Q_JITTER, Q_JITTER)
+    r = 1.0 + rng.uniform(-R_JITTER, R_JITTER)
+    return REGIMES[regime]["p"] * (1.0 + dp), q, r
+
+
+def run_arm(arm, regime, seed, span=SPAN, p_scale=1.0, s_up=None):
+    p, q, r = shared_draws(regime, seed)
+    p *= p_scale
+    params = SETS[REGIMES[regime]["set"]]
+    o = ORIENT[arm]
+    s = params["S"][o]
+    if o == "up" and s_up is not None:
+        s = s_up
+    strength, modulus = s * q, params["E"][o] * r
+    sigma = peak_stress(p, span)
+    return {"sigma": sigma, "util": sigma / strength, "snap": 1.0 if sigma >= strength else 0.0,
+            "defl": deflection(p, modulus, span)}
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0  # identical values: no floating residue in mean or sd
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    """Half-up rounding on the shortest decimal repr; tiny non-zero values in scientific form."""
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+METRICS = ("sigma", "util", "snap", "defl")
+
+
+def collect(regime, **kw):
+    return {arm: [run_arm(arm, regime, s, **kw) for s in SEEDS] for arm in ARMS}
+
+
+def col(rows, key):
+    return [r[key] for r in rows]
+
+
+def report(regime):
+    cfg = REGIMES[regime]
+    res = collect(regime)
+    print(f"{regime} (P_nom={num(cfg['p'])} N, sigma_nom={num(peak_stress(cfg['p']))} MPa, parameter set {cfg['set']}):")
+    for arm in ARMS:
+        rows = res[arm]
+        print(f"  {arm} " + " ".join(f"{key} {fmt_pair(*mean_sd(col(rows, key)))}" for key in METRICS)
+              + f" snaps_on {int(sum(col(rows, 'snap')))}/5")
+    for a, b, keys in (("B_upright", "A_flatwise", ("snap", "util")), ("B_upright", "C_isotropic", ("snap", "util")),
+                       ("D_edgewise", "A_flatwise", ("defl", "util")), ("A_flatwise", "B_upright", ("sigma",))):
+        for key in keys:
+            print(f"  paired {a[0]}-{b[0]} {key}: {verdict(col(res[a], key), col(res[b], key))}")
+    return res
+
+
+def main():
+    print("Synthetic FDM build-orientation toy; shared geometry, load and print-quality draws; not a lab measurement")
+    print(f"seeds={len(SEEDS)} SPAN={num(SPAN)} mm WIDTH={num(WIDTH)} mm THICK={num(THICK)} mm P_JITTER=+-{num(P_JITTER)} "
+          f"Q_JITTER=+-{num(Q_JITTER)} R_JITTER=+-{num(R_JITTER)} (declared toy parameters)")
+    for name, ps in SETS.items():
+        print(f"set {name}: S flat/edge/up = {num(ps['S']['flat'])}/{num(ps['S']['edge'])}/{num(ps['S']['up'])} MPa; "
+              f"E flat/edge/up = {num(ps['E']['flat'])}/{num(ps['E']['edge'])}/{num(ps['E']['up'])} GPa (toy stand-ins, not paper values)")
+    print("No integration step: closed-form statics, no time-step criterion")
+    print("Regimes and parameters were written before the first run")
+    print("rule: snaps iff sigma >= S; survives iff sigma < S (strict); sigma = 3PL/(2wt^2), d = PL^3/(48EI), I = wt^3/12")
+    # Labelled hand calculation on one orientation, printed.
+    i2 = second_moment()
+    print(f"hand_calc flatwise P=220.0 N L=80.0 mm w=15.0 mm t=5.0 mm: sigma=3*220*80/(2*15*5^2)={num(peak_stress(220.0))} MPa; "
+          f"util vs S_FLAT 90.0 MPa = {num(peak_stress(220.0) / 90.0)}; vs S_UP 55.0 MPa = {num(peak_stress(220.0) / 55.0)}")
+    print(f"hand_calc I=15*5^3/12={num(i2)} mm^4; d at P=100.0 N, E=3.2 GPa: 100*80^3/(48*3200*{num(i2)})={num(deflection(100.0, 3.2))} mm")
+    s_eq = peak_stress(220.0)
+    print(f"boundary_rule: S=sigma={num(s_eq)} MPa -> snap={1 if s_eq >= s_eq else 0} (equality snaps); "
+          f"S=sigma+1e-6 -> snap={1 if s_eq >= s_eq + 1e-6 else 0}")
+    for regime in REGIMES:
+        report(regime)
+    base = collect("mid")
+    print("alternative SPAN=60.0 mm on mid (same seeds; lower peak stress at the same load):")
+    alt = collect("mid", span=60.0)
+    print(f"  B_upright@alt snaps_on {int(sum(col(alt['B_upright'], 'snap')))}/5 (default {int(sum(col(base['B_upright'], 'snap')))}/5)")
+    print(f"  paired B-A snap@alt: {verdict(col(alt['B_upright'], 'snap'), col(alt['A_flatwise'], 'snap'))}")
+    print("alternative S_UP=65.0 MPa on mid (same seeds; a better inter-layer bond):")
+    alt = collect("mid", s_up=65.0)
+    print(f"  B_upright@alt snaps_on {int(sum(col(alt['B_upright'], 'snap')))}/5")
+    print(f"  paired B-A snap@alt: {verdict(col(alt['B_upright'], 'snap'), col(alt['A_flatwise'], 'snap'))}")
+    print("alternative load x0.80 on mid (same seeds; P_nom 176.0 N):")
+    alt = collect("mid", p_scale=0.80)
+    print(f"  B_upright@alt snaps_on {int(sum(col(alt['B_upright'], 'snap')))}/5")
+    print(f"  paired B-A snap@alt: {verdict(col(alt['B_upright'], 'snap'), col(alt['A_flatwise'], 'snap'))}")
+    print("No winner declared: flatwise is the safer default for bending here, upright snaps first at the layer lines, "
+          "an isotropic guess hides that, and the side-on rule can cost stiffness")
+    print("Real printer / Instron / modal hammer: 本页未运行; Rajkumar (arXiv 2202.05692) values 以论文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic FDM build-orientation toy; shared geometry, load and print-quality draws; not a lab measurement
+seeds=5 SPAN=80.0000 mm WIDTH=15.0000 mm THICK=5.0000 mm P_JITTER=+-0.0500 Q_JITTER=+-0.0800 R_JITTER=+-0.0500 (declared toy parameters)
+set default: S flat/edge/up = 90.0000/85.0000/55.0000 MPa; E flat/edge/up = 3.2000/3.0000/2.7000 GPa (toy stand-ins, not paper values)
+set zigzag_like: S flat/edge/up = 80.0000/78.0000/50.0000 MPa; E flat/edge/up = 3.0000/2.2000/2.5000 GPa (toy stand-ins, not paper values)
+No integration step: closed-form statics, no time-step criterion
+Regimes and parameters were written before the first run
+rule: snaps iff sigma >= S; survives iff sigma < S (strict); sigma = 3PL/(2wt^2), d = PL^3/(48EI), I = wt^3/12
+hand_calc flatwise P=220.0 N L=80.0 mm w=15.0 mm t=5.0 mm: sigma=3*220*80/(2*15*5^2)=70.4000 MPa; util vs S_FLAT 90.0 MPa = 0.7822; vs S_UP 55.0 MPa = 1.2800
+hand_calc I=15*5^3/12=156.2500 mm^4; d at P=100.0 N, E=3.2 GPa: 100*80^3/(48*3200*156.2500)=2.1333 mm
+boundary_rule: S=sigma=70.4000 MPa -> snap=1 (equality snaps); S=sigma+1e-6 -> snap=0
+light (P_nom=100.0000 N, sigma_nom=32.0000 MPa, parameter set default):
+  A_flatwise sigma 32.1710+-0.7412 util 0.3662+-0.0210 snap 0.0000+-0.0000 defl 2.1537+-0.0806 snaps_on 0/5
+  B_upright sigma 32.1710+-0.7412 util 0.5992+-0.0343 snap 0.0000+-0.0000 defl 2.5525+-0.0955 snaps_on 0/5
+  C_isotropic sigma 32.1710+-0.7412 util 0.3662+-0.0210 snap 0.0000+-0.0000 defl 2.1537+-0.0806 snaps_on 0/5
+  D_edgewise sigma 32.1710+-0.7412 util 0.3877+-0.0222 snap 0.0000+-0.0000 defl 2.2972+-0.0859 snaps_on 0/5
+  paired B-A snap: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A util: 0.2330+-0.0133: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C snap: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C util: 0.2330+-0.0133: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A defl: 0.1436+-0.0054: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A util: 0.0215+-0.0012: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B sigma: 0.0000+-0.0000: tie: identical on every seed
+mid (P_nom=220.0000 N, sigma_nom=70.4000 MPa, parameter set default):
+  A_flatwise sigma 70.4967+-1.5026 util 0.7665+-0.0437 snap 0.0000+-0.0000 defl 4.7094+-0.1878 snaps_on 0/5
+  B_upright sigma 70.4967+-1.5026 util 1.2543+-0.0716 snap 1.0000+-0.0000 defl 5.5815+-0.2225 snaps_on 5/5
+  C_isotropic sigma 70.4967+-1.5026 util 0.7665+-0.0437 snap 0.0000+-0.0000 defl 4.7094+-0.1878 snaps_on 0/5
+  D_edgewise sigma 70.4967+-1.5026 util 0.8116+-0.0463 snap 0.0000+-0.0000 defl 5.0234+-0.2003 snaps_on 0/5
+  paired B-A snap: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A util: 0.4878+-0.0278: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C snap: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C util: 0.4878+-0.0278: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A defl: 0.3140+-0.0125: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A util: 0.0451+-0.0026: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B sigma: 0.0000+-0.0000: tie: identical on every seed
+modulus (P_nom=100.0000 N, sigma_nom=32.0000 MPa, parameter set zigzag_like):
+  A_flatwise sigma 31.6990+-1.1750 util 0.3967+-0.0101 snap 0.0000+-0.0000 defl 2.2813+-0.1315 snaps_on 0/5
+  B_upright sigma 31.6990+-1.1750 util 0.6348+-0.0161 snap 0.0000+-0.0000 defl 2.7375+-0.1578 snaps_on 0/5
+  C_isotropic sigma 31.6990+-1.1750 util 0.3967+-0.0101 snap 0.0000+-0.0000 defl 2.2813+-0.1315 snaps_on 0/5
+  D_edgewise sigma 31.6990+-1.1750 util 0.4069+-0.0103 snap 0.0000+-0.0000 defl 3.1108+-0.1793 snaps_on 0/5
+  paired B-A snap: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A util: 0.2380+-0.0060: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C snap: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C util: 0.2380+-0.0060: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A defl: 0.8295+-0.0478: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A util: 0.0102+-2.579e-4: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B sigma: 0.0000+-0.0000: tie: identical on every seed
+alternative SPAN=60.0 mm on mid (same seeds; lower peak stress at the same load):
+  B_upright@alt snaps_on 1/5 (default 5/5)
+  paired B-A snap@alt: 0.2000+-0.4472: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 4 of 5 equal
+alternative S_UP=65.0 MPa on mid (same seeds; a better inter-layer bond):
+  B_upright@alt snaps_on 5/5
+  paired B-A snap@alt: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative load x0.80 on mid (same seeds; P_nom 176.0 N):
+  B_upright@alt snaps_on 2/5
+  paired B-A snap@alt: 0.4000+-0.5477: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+No winner declared: flatwise is the safer default for bending here, upright snaps first at the layer lines, an isotropic guess hides that, and the side-on rule can cost stiffness
+Real printer / Instron / modal hammer: 本页未运行; Rajkumar (arXiv 2202.05692) values 以论文为准
+```
+
+</SimOutput>
+
+### 读懂三种情形
+
+本页标签按以下顺序使用。**打平：每个种子都完全相同**只用于配对的逐种子差值在每个种子上都严格为零；`|配对均值|` 和它的标准差都小于 1e-9 时标为**数值上为零（浮点残差），等同打平**；`|配对均值| ≤ sd` 时为**接近打平、差距很小，在种子噪声之内**；否则是**稳定**差距，`|m|` 小于两组中较小均值的 20 % 时叫**小**，否则叫**明显**。每条稳定的行都带 5 个种子上的同号计数。
+
+- **light** 情形，任何臂在任何种子上都没有断：配对 B−A snap 是**打平：每个种子都完全相同**，与预先声明一致。这个**打平**只在通过 / 不通过的标志上：直立梁仍然更吃力（配对 B−A util 0.2330±0.0133，明显，5 个种子同号），所以轻载通过不说明裕量。
+- **mid** 情形，A 在 5/5 个种子上保持（util 0.7665±0.0437），B 在 5/5 个种子上断裂（util 1.2543±0.0716）。**B 输了，差距明显。**配对 B−A snap 1.0000±0.0000，5 个种子同号。各向同性猜测 C 预测直立零件能保持，所以配对 B−C snap 也是 1.0000±0.0000：所有方向用同一个强度数会**漏掉**断裂。
+- **modulus** 情形，用类锯齿参数组时，侧放梁挠度 3.1108±0.1793 mm，平放为 2.2813±0.1315 mm。**侧放规则在刚度上输了，差距明显。**配对 D−A defl 0.8295±0.0478，5 个种子同号。**保留**这一格：「侧着打」可能在应变或强度上对，在刚度上错。用默认参数组时同一方向只是**小**差距（轻载时配对 D−A defl 0.1436±0.0054，中载时 0.3140±0.0125，都是 5 个种子同号）。
+
+**首次运行后的代码改动。** 没有：首次运行就是上面的输出。
+
+**看过结果后做的选择。** 没有。跨距、载荷和两组参数都在首次运行前写定。同一组种子上的替代值：SPAN = 60.0 mm 降低中载峰值应力，B 只在 1/5 个种子上断（配对 B−A snap 0.2000±0.4472，**接近打平**）；层间结合更好的 S_UP = 65.0 MPa 仍然 5/5 断裂（配对 B−A snap 1.0000±0.0000）；载荷乘 0.80（176.0 N）时 2/5 断裂（配对 B−A snap 0.4000±0.5477，**接近打平**）。所以 `mid` 的结论取决于载荷落在两个强度之间的哪里；这些都没有取代默认值。
+
+本页**不宣布普遍赢家**。在这里受弯时平放是更安全的默认，直立先在层线处断，各向同性猜测把这一点藏起来，侧放规则可能损失刚度。真实打印机、Instron 或模态力锤，均**本页未运行**。
+
+**180 分钟安排**如下。30 分钟读论文的方法、结果和结论；30 分钟手算 220 N 的应力和 100 N 的挠度；40 分钟运行 toy，读懂三种情形；40 分钟固定种子，对照打印的跨距、S_UP 和载荷替代值；40 分钟做练习。
+
+### 练习
+
+1. 从打印的手算行确认 σ = 70.4000 MPa、I = 156.2500 mm⁴ 和 d = 2.1333 mm。
+2. 从 `shared_draws` 说明，同一情形、同一种子下四个臂看到同一个载荷和同样的打印质量系数，并解释为什么配对 A−B sigma 是**打平**。
+3. 为什么 `light` 的断裂**打平**不能证明方向无关紧要？
+4. 用打印的替代值找出 B 只在部分种子上断裂的跨距，并解释为什么这会把明显差距变成**接近打平**。
+5. 在做任何真实的打印—破坏试验之前（本页未运行），解释为什么 `modulus` 这一格意味着「让它沿层弯曲」的钩子规则必须同时对照刚度，而不只看强度。
+
 <Summary>
 
 **本课要点**
@@ -830,6 +1183,7 @@ Real printer / tuning tower: 本页未运行; Marlin / Klipper numbers 以原文
 - 卡扣应变 ε = 1.5 × y × t / L²：L = 10 mm、t = 1.2 mm、y = 0.8 mm 得到 1.44 %，在 PLA 的 1.5 % 上限以内。
 - 盈亏平衡：每轮省 $7.60，所以 $219 的打印机约 29 轮就能回本。
 - 压力提前：100 mm/s 的拐角上，调好的 K 比 K = 0 少鼓包 165.9007±18.7792 个百分点（明显，5 个种子同号），3 倍的 K 则改成缺料（C−B 缺料 89.2661±10.3383，明显），恒速直线上三组**打平**（每个种子都完全相同）——合成熔体，不是真实打印。
+- 打印方向：在共享的 15 × 5 mm 梁上，轻载时各方向都通过（断裂标志**打平**），中载时直立件断裂而平放件保持（B−A snap 1.0000±0.0000，明显，5 个种子同号），各向同性猜测漏掉这一点；类锯齿参数下侧放件在刚度上输（D−A defl 0.8295±0.0478，明显，保留）——玩具参数，不是 Rajkumar 的实测值。
 
 **常见错误**
 
