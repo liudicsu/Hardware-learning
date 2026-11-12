@@ -72,6 +72,10 @@ Tipped site-total, host-minute and Current-header locks only; no lock relaxed. N
 - Curriculum sum checks `37980` → `38340`; month-total lists M1 2550→2730, M3 3150→3330.
 - Host-minute locks for `components` (900→1080) and `fdm-printing` (360→540) in earlier cases.
 - month-1 / month-3 plan Current header locks → Batch-21 PR1 (**M1 2730**, **M3 3330**); historical section markers kept.
+- Labels of moved tip locks now name the live total ("tip after batch-21 PR1"), and the b18pol label-reference check follows them.
+- b20p1 month-3 month-total list `[3,3150]` → `[3,3330]`.
+- The month-3 plan's batch-21 line words the isotropic comparison without a `B−C` difference, because the b20p1 difference-direction scan of the whole month-3 plan pairs `1.0000±0.0000` with B−A only; the b20p1 lock itself is unchanged.
+- Inside the new block, the curriculum m±sd check scans only the batch-21 objective and task lines (Peukert, `σ = 3PL`, `b21p1-`), and the prose-decimal check skips the mantissa of a number in e-notation (the disclosed first-run residue `4.965e-16`, which is not in `expected/`).
 - `tools/test_m3_optional_cad.py` call list gains `fdm_build_orientation_anisotropy_toy.txt` (the month-3 harness gained one check).
 
 No lock relaxed.
