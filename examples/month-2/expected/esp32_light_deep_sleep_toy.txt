@@ -1,0 +1,49 @@
+Synthetic ESP32 Light-sleep vs Deep-sleep toy; shared event timeline; not a board measurement
+seeds=5 I_ACTIVE=40.0 mA I_LIGHT=0.80 mA I_DEEP=0.01 mA I_BOOT=50.0 mA (declared toy currents, not datasheet values)
+T_WAKE_LIGHT=0.001 s T_BOOT_DEEP=0.300 s WORK=0.050 s V_SUPPLY=3.3 V (declared toy wake costs, not a documented latency)
+No integration step: event-driven I x t bookkeeping, no time-step criterion
+Regimes and parameters were written before the first run
+wake_sources: A all; B timer+rtc_gpio+digital_gpio (Light-sleep GPIO wakeup on any IO); C timer+rtc_gpio (Deep-sleep GPIO wakeup on RTC IOs only)
+state_rule: Light-sleep keeps RAM; Deep-sleep loses RAM on every wake, RTC SLOW counter kept; Wi-Fi down in both sleep arms (one link drop per wake, reconnect energy not modelled)
+hand_calc per-cycle charge at gap g (mA*s): A=40.0*g; B=1.9992+0.80*g; C=16.9965+0.01*g (valid for g >= T_BOOT_DEEP+WORK=0.350 s)
+hand_calc break-even: C<A iff g>0.4250 s; C<B iff g>18.9839 s (strict; equality is a tie)
+hand_calc g=60.00 s: A=2400.0000 B=49.9992 C=17.5965 mA*s per cycle (valid)
+hand_calc g=0.25 s: A=10.0000 B=2.1992 C=16.9990 mA*s per cycle (below T_BOOT_DEEP+WORK: C cannot sleep between back-to-back events, formula not valid)
+long_idle (window=3600 s timer~60 s gpio_mean_gap=none; events/seed 59..60):
+  A_active avg_mA 40.0000+-0.0000 mAh 40.0000+-0.0000 J 475.2000+-0.0000 missed 0.0000+-0.0000 wakes 0.0000+-0.0000 latency_ms 0.0000+-0.0000
+  B_light avg_mA 0.8331+-3.042e-04 mAh 0.8331+-3.042e-04 J 9.8972+-0.0036 missed 0.0000+-0.0000 wakes 59.6000+-0.5477 latency_ms 1.0000+-1.180e-12
+  C_deep avg_mA 0.2914+-0.0026 mAh 0.2914+-0.0026 J 3.4617+-0.0307 missed 0.0000+-0.0000 wakes 59.6000+-0.5477 latency_ms 300.0000+-1.121e-12
+  state_check: B ram==served and rtc==served on every seed: True; C rtc==served on every seed: True; C ram<served (RAM lost) on every seed: True
+  paired B-A avg_mA: -39.1669+-3.042e-04: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A avg_mA: -39.7086+-0.0026: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B avg_mA: -0.5417+-0.0023: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B missed: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B latency_ms: 299.0000+-6.355e-14: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+high_wake_rate (window=600 s timer~60 s gpio_mean_gap=0.25 s on rtc_gpio; events/seed 2431..2483):
+  A_active avg_mA 40.0000+-0.0000 mAh 6.6667+-0.0000 J 79.2000+-0.0000 missed 0.0000+-0.0000 wakes 0.0000+-0.0000 latency_ms 6.4624+-0.3645
+  B_light avg_mA 8.9650+-0.0711 mAh 1.4942+-0.0119 J 17.7507+-0.1408 missed 0.0000+-0.0000 wakes 1944.8000+-20.5597 latency_ms 7.4598+-0.3644
+  C_deep avg_mA 30.0956+-0.2135 mAh 5.0159+-0.0356 J 59.5892+-0.4227 missed 0.0000+-0.0000 wakes 875.6000+-9.4763 latency_ms 222.3878+-1.4790
+  state_check: B ram==served and rtc==served on every seed: True; C rtc==served on every seed: True; C ram<served (RAM lost) on every seed: True
+  paired B-A avg_mA: -31.0350+-0.0711: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A avg_mA: -9.9044+-0.2135: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B avg_mA: 21.1306+-0.2356: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B missed: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B latency_ms: 214.9280+-1.3372: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+missed_wake_source (window=3600 s timer~60 s gpio_mean_gap=30.00 s on digital_gpio; events/seed 167..193):
+  A_active avg_mA 40.0000+-0.0000 mAh 40.0000+-0.0000 J 475.2000+-0.0000 missed 0.0000+-0.0000 wakes 0.0000+-0.0000 latency_ms 0.0607+-0.0892
+  B_light avg_mA 0.9011+-0.0056 mAh 0.9011+-0.0056 J 10.7047+-0.0661 missed 0.0000+-0.0000 wakes 181.6000+-9.8641 latency_ms 1.0607+-0.0892
+  C_deep avg_mA 0.2899+-0.0022 mAh 0.2899+-0.0022 J 3.4445+-0.0260 missed 122.0000+-10.3199 wakes 59.2000+-0.4472 latency_ms 298.0294+-1.9930
+  state_check: B ram==served and rtc==served on every seed: True; C rtc==served on every seed: True; C ram<served (RAM lost) on every seed: True
+  paired B-A avg_mA: -39.0989+-0.0056: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A avg_mA: -39.7101+-0.0022: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B avg_mA: -0.6111+-0.0074: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B missed: 122.0000+-10.3199: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B latency_ms: 296.9688+-1.9139: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative I_BOOT=40.0 mA (= I_ACTIVE) on high_wake_rate (same seeds; C-vs-A break-even g>0.3500 s):
+  C_deep avg_mA@alt 25.7176+-0.1689 (default 30.0956+-0.2135)
+  paired C-A avg_mA@alt: -14.2824+-0.1689: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative T_BOOT_DEEP=0.100 s on high_wake_rate (same seeds; C-vs-A break-even g>0.1750 s):
+  C_deep avg_mA@alt 19.7376+-0.0965 (default 30.0956+-0.2135)
+  paired C-A avg_mA@alt: -20.2624+-0.0965: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: long idle favours Deep-sleep, a high wake rate erodes or reverses it, and Deep-sleep misses events on a source it did not enable
+Real ESP32: 本页未运行; ESP-IDF Sleep Modes statements 以文档为准

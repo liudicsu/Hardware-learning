@@ -231,11 +231,12 @@ const month2Lessons: Lesson[] = [
     slug: "esp32",
     title: { zh: "ESP32：Wi-Fi、3.3 V 逻辑与框架选择", en: "ESP32: Wi-Fi, 3.3 V logic & choosing a framework" },
     summary: {
-      zh: "从 Uno 迁移到 ESP32：选对型号、避开引脚陷阱，在 Arduino / ESP-IDF / MicroPython 之间做选择，用手机网页控制舵机，并用标准库玩具看清 FreeRTOS 优先级反转（含中等任务）与互斥量优先级继承。真机 FreeRTOS / Zephyr 本页未运行。",
-      en: "Move from the Uno to the ESP32: pick a variant, avoid the pin traps, choose between Arduino, ESP-IDF and MicroPython, drive a servo from a phone web page, and use a stdlib toy to see FreeRTOS priority inversion (with a medium task) and mutex priority inheritance. Real FreeRTOS / Zephyr builds are not run on this page.",
+      zh: "从 Uno 迁移到 ESP32：选对型号、避开引脚陷阱，在 Arduino / ESP-IDF / MicroPython 之间做选择，用手机网页控制舵机，并用标准库玩具看清 FreeRTOS 优先级反转（含中等任务）与互斥量优先级继承。真机 FreeRTOS / Zephyr 本页未运行。再在共享事件时间线和声明的玩具电流下比较常开、Light-sleep 与 Deep-sleep：长时间空闲时 Deep-sleep 电流最低，高唤醒率时输给 Light-sleep，并会漏掉不是 Deep-sleep 唤醒源的引脚事件；真板本页未运行。",
+      en: "Move from the Uno to the ESP32: pick a variant, avoid the pin traps, choose between Arduino, ESP-IDF and MicroPython, drive a servo from a phone web page, and use a stdlib toy to see FreeRTOS priority inversion (with a medium task) and mutex priority inheritance. Real FreeRTOS / Zephyr builds are not run on this page. Then compare always-on, Light-sleep and Deep-sleep on a shared event timeline with declared toy currents: Deep-sleep draws least on long idle, loses to Light-sleep at a high wake rate, and misses events on a pin that is not a Deep-sleep wake source; real board 本页未运行.",
     },
-    minutes: 360,
+    minutes: 540,
     objectives: [
+      { zh: "能说明 ESP-IDF 里 Light-sleep 保留 RAM 与 CPU 状态、Deep-sleep 只保留 RTC 部分且唤醒后重新加载应用、两种休眠都不保持 Wi-Fi，并在共享事件时间线和声明的玩具电流下指出：长时间空闲时 Deep-sleep 电流最低（成对 C−A -39.7086±0.0026 mA，明显，5/5）；平均唤醒间隔 0.25 s 时 Deep-sleep 输给 Light-sleep（成对 C−B 21.1306±0.2356 mA，明显，5/5，保留）；只接数字 GPIO 的事件 Deep-sleep 会漏掉（成对 C−B missed 122.0000±10.3199，明显，5/5）；手算 C 低于 A 当且仅当 g > 0.4250 s；不把玩具电流当成数据手册数值；真板本页未运行。", en: "Explain that in ESP-IDF Light-sleep keeps RAM and CPU state, Deep-sleep keeps only the RTC parts and reloads the app on wake, and neither keeps Wi-Fi; on a shared event timeline with declared toy currents show that Deep-sleep draws least on long idle (paired C−A -39.7086±0.0026 mA, clear, 5/5), loses to Light-sleep at a 0.25 s mean wake gap (paired C−B 21.1306±0.2356 mA, clear, 5/5, kept) and misses events on a digital-only GPIO (paired C−B missed 122.0000±10.3199, clear, 5/5); by hand C < A iff g > 0.4250 s; toy currents are not datasheet values; real board 本页未运行." },
       { zh: "能为项目挑选 ESP32 型号，并说明为什么课程主力是 S3、同时经典板仍值得备一块。", en: "Choose an ESP32 variant for a project and explain why the S3 is the main board while a classic board is still worth owning." },
       { zh: "能用上 1 kΩ、下 2 kΩ 的分压器把 5 V 信号降到 3.333 V，接进不耐 5 V 的 3.3 V 引脚。", en: "Make a 5 V signal safe for a 3.3 V pin with a 1 kΩ / 2 kΩ divider giving 3.333 V." },
       { zh: "能按 duty = pulse / period × 2^bits 算出 LEDC 占空比：50 Hz、14 位下 1.5 ms 脉冲对应 1228。", en: "Calculate an LEDC duty value with duty = pulse / period × 2^bits: 1.5 ms at 50 Hz and 14 bits gives 1228." },
@@ -243,8 +244,9 @@ const month2Lessons: Lesson[] = [
       { zh: "能用玩具说明：无优先级继承时中等任务抢占持锁低任务会造成无界反转；FreeRTOS 互斥量有继承、二值信号量没有；继承只限制阻塞不消除。", en: "Show on the toy that a medium task preempting a lock-holding low task causes unbounded inversion without inheritance; FreeRTOS mutexes inherit, binary semaphores do not; inheritance bounds blocking, it does not eliminate it." },
     ],
     prereqs: ["arduino-io", "timing-interrupts"],
-    resources: ["rnt-esp32", "arduino-esp32", "esp-idf", "dronebot-esp32", "esp32-s3-devkit", "esp32-classic", "wokwi", "freertos-kernel-semphr", "esp-idf-freertos-overview", "zephyr-threads"],
+    resources: ["rnt-esp32", "arduino-esp32", "esp-idf", "dronebot-esp32", "esp32-s3-devkit", "esp32-classic", "wokwi", "freertos-kernel-semphr", "esp-idf-freertos-overview", "zephyr-threads", "idf-sleep-modes"],
     tasks: [
+      { id: "b19p2-sleep", text: { zh: "运行 esp32_light_deep_sleep_toy.py，手算每周期电荷与两个盈亏平衡间隔，并比较 long_idle、high_wake_rate 与 missed_wake_source 三种情形下常开、Light-sleep 与 Deep-sleep 的电流、漏检与延迟", en: "Run esp32_light_deep_sleep_toy.py, compute the per-cycle charge and both break-even gaps by hand, and compare always-on, Light-sleep and Deep-sleep current, misses and latency in the long_idle, high_wake_rate and missed_wake_source regimes" } },
       { id: "esp32-blink", text: { zh: "安装 ESP32 开发板支持包，上传 Blink，并在串口看到芯片型号", en: "Install the ESP32 board package, upload Blink and print the chip model to serial" } },
       { id: "servo-duty", text: { zh: "手算 50 Hz、14 位 LEDC 下 1.0 / 1.5 / 2.0 ms 脉宽对应的占空比数值", en: "Calculate the LEDC duty values for 1.0 / 1.5 / 2.0 ms pulses at 50 Hz and 14-bit resolution" } },
       { id: "web-servo", text: { zh: "完成网页舵机控制：手机打开 ESP32 网页，看到实时读数，并用按钮转动舵机", en: "Finish the web servo: open the ESP32 page on your phone, see the live reading and move the servo with buttons" } },
@@ -283,11 +285,12 @@ const month2Lessons: Lesson[] = [
     slug: "sensors-fusion",
     title: { zh: "传感器、I2C 与互补滤波", en: "Sensors, I2C & the complementary filter" },
     summary: {
-      zh: "只看数据手册接好并读取 I2C 传感器，理解陀螺仪漂移和加速度计噪声，用四行互补滤波得到稳定的倾角。用共享 SPI 边沿比较四模式、错采样、位序与 CS。再在共享偏航路径上标定磁力计硬铁偏置与软铁拉伸。",
-      en: "Wire and read an I2C sensor from its datasheet, understand gyro drift and accelerometer noise, and get a stable tilt angle from a four-line complementary filter. Compare four SPI modes, wrong-edge capture, bit order and CS on shared edges. Then calibrate magnetometer hard-iron bias and soft-iron stretch on a shared yaw path.",
+      zh: "只看数据手册接好并读取 I2C 传感器，理解陀螺仪漂移和加速度计噪声，用四行互补滤波得到稳定的倾角。用共享 SPI 边沿比较四模式、错采样、位序与 CS。再在共享偏航路径上标定磁力计硬铁偏置与软铁拉伸。再在共享字节时间表上比较不读 SCL、等待 SCL 变高和带超时的控制器：不拉伸时打平，拉伸时只有等待的控制器读对，拉伸超过超时会中止。",
+      en: "Wire and read an I2C sensor from its datasheet, understand gyro drift and accelerometer noise, and get a stable tilt angle from a four-line complementary filter. Compare four SPI modes, wrong-edge capture, bit order and CS on shared edges. Then calibrate magnetometer hard-iron bias and soft-iron stretch on a shared yaw path. Then compare a controller that ignores SCL, one that waits for SCL high and one with a timeout on a shared byte schedule: no stretch is a tie, with stretching only the waiting controller reads correctly, and a stretch beyond the timeout aborts.",
     },
-    minutes: 720,
+    minutes: 900,
     objectives: [
+      { zh: "能说明 I²C 时钟拉伸是目标器件的流控手段、控制器必须等到 SCL 真正变高，并在共享字节时间表上指出：不拉伸时三种控制器打平；拉伸 20.0..60.0 us 时不读 SCL 的控制器出坏字节（成对 A−B bad_rate 0.8681±0.0111，明显，5/5），等待则多花总线时间（成对 B−A bus_ms 12.0501±0.1307）；拉伸超过 200.0 us 超时会中止（成对 C−B bad_rate 0.9375±0.0000，明显，5/5，保留）；与 I²C 上升时间信号完整性区分开；真实总线本页未运行。", en: "Explain that I²C clock stretching is target flow control and that the controller must wait until SCL actually goes high; on a shared byte schedule show that no stretch is a tie for all three controllers, that 20.0..60.0 us stretches give a controller that ignores SCL bad bytes (paired A−B bad_rate 0.8681±0.0111, clear, 5/5) while waiting costs bus time (paired B−A bus_ms 12.0501±0.1307), and that stretches beyond the 200.0 us timeout abort (paired C−B bad_rate 0.9375±0.0000, clear, 5/5, kept); keep it distinct from I²C rise-time signal integrity; real bus 本页未运行." },
       { zh: "在共享磁场与偏航路径上比较原始 / 仅硬铁 / 硬+软铁的航向误差与半径残差，区分圆心平移与椭圆拉伸，不把玩具当成 AHRS 认证。", en: "Compare raw, hard-iron-only and hard+soft arms on heading error and radius residual with a shared field and yaw path; separate centre shift from ellipse stretch; not an AHRS certification." },
       {"zh": "用共享 SPI 边沿比较四模式、错采样、位序与 CS。", "en": "Compare four SPI modes, wrong-edge capture, bit order and CS on shared edges."},
       { zh: "从声明噪声推导 KF Q/R，用等调参预算和五个留出种子比较互补变体，不给真零偏。", en: "Derive KF Q/R from declared noise and compare complementary variants with equal tuning budgets and five held-out seeds, without true bias." },
@@ -297,8 +300,9 @@ const month2Lessons: Lesson[] = [
       { zh: "能在开机时静止平均 100–200 个采样测出陀螺仪零偏，并在积分前把它减掉。", en: "Measure the gyro bias at startup by averaging 100–200 stationary samples and subtract it before integrating." },
     ],
     prereqs: ["arduino-io", "timing-interrupts"],
-    resources: ["arduino-spi-modes", "arduino-docs", "labbe-kalman", "mathworks-fusion", "adafruit-bno085", "wokwi", "vn-hsi-calibration", "wiki-magnetometer"],
+    resources: ["arduino-spi-modes", "arduino-docs", "labbe-kalman", "mathworks-fusion", "adafruit-bno085", "wokwi", "vn-hsi-calibration", "wiki-magnetometer", "wiki-i2c"],
     tasks: [
+      { id: "b19p2-stretch", text: { zh: "运行 i2c_clock_stretch_toy.py，手算 100.0 kHz 位时间、过早采样规则与严格超时，并比较 no_stretch、moderate_stretch 与 overtime_stretch 三种情形下三种控制器的坏字节率、中止与总线时间", en: "Run i2c_clock_stretch_toy.py, compute the 100.0 kHz bit time, the early-sample rule and the strict timeout by hand, and compare the three controllers on bad-byte rate, aborts and bus time in the no_stretch, moderate_stretch and overtime_stretch regimes" } },
       { id: "b10p1-magcal", text: { zh: "运行 mag_hard_soft_iron_toy.py，比较原始 / 仅硬铁 / 硬+软铁的航向误差与半径残差，并解释为何仅硬铁不够", en: "Run mag_hard_soft_iron_toy.py, compare raw / hard-only / hard+soft heading error and radius residual, and explain why hard-only is not enough" } },
       {"id": "bus-reset-integrity", "text": {"zh": "运行 spi_mode_mismatch_toy.py，核对 expected 并解释模型边界", "en": "Run spi_mode_mismatch_toy.py, match expected and explain model limits"}},
       { id: "b5p1", text: { zh: "运行 imu_kf_vs_complementary_toy.py 并审计假设、预算和 expected 表格", en: "Run imu_kf_vs_complementary_toy.py and audit assumptions, budgets and expected tables" } },

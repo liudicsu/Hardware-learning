@@ -1,0 +1,47 @@
+Synthetic I2C clock-stretch toy; shared byte schedule; not an analyser capture
+seeds=5 T_LOW=5.0 us T_HIGH=5.0 us T_BIT=10.0 us CLOCKS_PER_BYTE=9 N_BYTES=16 N_TX=20 TIMEOUT_US=200.0 (toy)
+No integration step: summed event times, no time-step criterion
+Regimes and TIMEOUT_US were written before the first run
+hand_calc bit rate: 1/T_BIT = 1/10.0 us = 100.0 kHz; T_HIGH=5.0 us >= 4 us standard-mode minimum (以原文为准)
+hand_calc unstretched transaction: 16*9*10.0 us = 1440.0 us
+early_rule: deaf controller samples bit j at j*T_BIT+T_LOW+T_HIGH/2; early iff that is strictly before release at T_LOW+stretch
+  stretch=2.5000 us -> early bits 0
+  stretch=2.5001 us -> early bits 1
+  stretch=20.0000 us -> early bits 2
+  stretch=60.0000 us -> early bits 6
+timeout_rule: C aborts iff stretch > TIMEOUT_US (strict); stretch=200.0000 us aborts=0; stretch=200.0010 us aborts=1
+no_stretch (stretch 0.0..0.0 us per byte after the first; 20x16 bytes per seed):
+  A_ignore bad_rate 0.0000+-0.0000 byte_errors 0.0000+-0.0000 lost 0.0000+-0.0000 aborts 0.0000+-0.0000 early_samples 0.0000+-0.0000 bus_ms 28.8000+-0.0000
+  B_wait bad_rate 0.0000+-0.0000 byte_errors 0.0000+-0.0000 lost 0.0000+-0.0000 aborts 0.0000+-0.0000 early_samples 0.0000+-0.0000 bus_ms 28.8000+-0.0000
+  C_timeout bad_rate 0.0000+-0.0000 byte_errors 0.0000+-0.0000 lost 0.0000+-0.0000 aborts 0.0000+-0.0000 early_samples 0.0000+-0.0000 bus_ms 28.8000+-0.0000
+  paired A-B bad_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B bad_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B aborts: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A bus_ms: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B early_samples: 0.0000+-0.0000: tie: identical on every seed
+moderate_stretch (stretch 20.0..60.0 us per byte after the first; 20x16 bytes per seed):
+  A_ignore bad_rate 0.8681+-0.0111 byte_errors 277.8000+-3.5637 lost 0.0000+-0.0000 aborts 0.0000+-0.0000 early_samples 1281.0000+-15.3134 bus_ms 28.8000+-0.0000
+  B_wait bad_rate 0.0000+-0.0000 byte_errors 0.0000+-0.0000 lost 0.0000+-0.0000 aborts 0.0000+-0.0000 early_samples 0.0000+-0.0000 bus_ms 40.8501+-0.1307
+  C_timeout bad_rate 0.0000+-0.0000 byte_errors 0.0000+-0.0000 lost 0.0000+-0.0000 aborts 0.0000+-0.0000 early_samples 0.0000+-0.0000 bus_ms 40.8501+-0.1307
+  paired A-B bad_rate: 0.8681+-0.0111: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B bad_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B aborts: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A bus_ms: 12.0501+-0.1307: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B early_samples: 1281.0000+-15.3134: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+overtime_stretch (stretch 300.0..600.0 us per byte after the first; 20x16 bytes per seed):
+  A_ignore bad_rate 0.9338+-0.0041 byte_errors 298.8000+-1.3038 lost 0.0000+-0.0000 aborts 0.0000+-0.0000 early_samples 2400.0000+-0.0000 bus_ms 28.8000+-0.0000
+  B_wait bad_rate 0.0000+-0.0000 byte_errors 0.0000+-0.0000 lost 0.0000+-0.0000 aborts 0.0000+-0.0000 early_samples 0.0000+-0.0000 bus_ms 163.9400+-0.7771
+  C_timeout bad_rate 0.9375+-0.0000 byte_errors 0.0000+-0.0000 lost 300.0000+-0.0000 aborts 20.0000+-0.0000 early_samples 0.0000+-0.0000 bus_ms 5.8000+-0.0000
+  paired A-B bad_rate: 0.9338+-0.0041: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B bad_rate: 0.9375+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B aborts: 20.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A bus_ms: 135.1400+-0.7771: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B early_samples: 2400.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative TIMEOUT_US=1000.0 on overtime_stretch (same seeds):
+  C_timeout bad_rate@alt 0.0000+-0.0000 aborts@alt 0.0000+-0.0000 (default bad_rate 0.9375+-0.0000)
+  paired C-B bad_rate@alt: 0.0000+-0.0000: tie: identical on every seed
+alternative TIMEOUT_US=50.0 on moderate_stretch (same seeds):
+  C_timeout bad_rate@alt 0.7800+-0.0216 aborts@alt 19.8000+-0.4472 (default bad_rate 0.0000+-0.0000)
+  paired C-B bad_rate@alt: 0.7800+-0.0216: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: without stretching all three tie; with stretching only a controller that waits for SCL reads correctly, and a timeout shorter than the target's stretch turns a slow read into a failed one
+Real bus / analyser: 本页未运行; Wikipedia statements 以原文为准

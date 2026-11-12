@@ -1119,6 +1119,348 @@ Further reading: VectorNav's compensation model uses a full **3×3** soft-iron m
 4. Halve `NOISE_SIGMA`. Which metric shrinks most for C? Keep field, path and seeds fixed.
 5. Before any hardware run (本页未运行), write whether your robot can do a 2D yaw calibration or needs a 3D figure-eight; do not claim AHRS certification from this toy.
 
+## I²C clock stretching: when the target holds SCL low
+
+<Resource id="wiki-i2c" />
+
+**Clock stretching** is a **flow-control** mechanism for I²C targets (Wikipedia, I²C; 以原文为准). An addressed target may hold **SCL** low after receiving or sending a byte, to say it is not ready yet. Because the lines are open-drain, SCL simply stays low, and the controller **must wait until it observes SCL actually going high**, then a minimal time (4 μs for standard 100 kbit/s I²C) before pulling SCL low again. The same page notes that stretching usually happens around the acknowledgement bit, that some controllers do not support it at all (often labelled *two-wire interface*), and that pure I²C sets **no** limit on how long a target may stretch, while SMBus does.
+
+This section is **not** the I²C rise-time / pull-up / bus-capacitance toy in the Arduino I/O lesson: here edges are ideal and the only reason SCL stays low is the target. It is also **not** the I²C scanner above, and **not** RS-485.
+
+<Formula label="Deaf controller, early sample">bit j is early iff j T_BIT + T_HIGH / 2 < stretch</Formula>
+
+<Formula label="Timeout">abort iff stretch > TIMEOUT_US</Formula>
+
+**Worked example — a labelled hand calculation, also printed by the toy.** T_LOW = 5.0 us and T_HIGH = 5.0 us give T_BIT = 10.0 us, so 1 / 10.0 us = 100.0 kHz, and T_HIGH = 5.0 us meets the 4 us standard-mode minimum quoted above (以原文为准). One unstretched 16-byte read takes 16 × 9 × 10.0 us = 1440.0 us. A deaf controller samples bit j of a stretched byte at j × T_BIT + T_LOW + T_HIGH/2; the target releases SCL at T_LOW + stretch. The comparison is **strict**: a stretch of 2.5000 us gives 0 early bits (the sample lands exactly at the release), 2.5001 us gives 1, 20.0000 us gives 2 and 60.0000 us gives 6. The timeout is strict too: a stretch of exactly 200.0000 us is still accepted (aborts = 0), 200.0010 us aborts (aborts = 1). By hand (手算, not a separate print): an abort on the second byte loses 15 of 16 bytes, 15 / 16 = 0.9375.
+
+**No integration step here.** The toy sums event times; there is no ODE and no step-size stability criterion.
+
+### Fair setup
+
+`i2c_clock_stretch_toy.py` is **synthetic** and stdlib only. **Model assumptions:** ideal open-drain edges (no RC rise time); the target stretches the first clock of every byte after the first, while it prepares the next byte; a bit sampled strictly before the target releases SCL reads a garbage bit instead of the data bit; a byte with any wrong bit is a byte error; an aborted transaction loses its remaining bytes. T_LOW, T_HIGH and TIMEOUT_US = 200.0 us are declared toy parameters, not values from a controller datasheet.
+
+| Arm | Controller |
+|---|---|
+| A_ignore | releases SCL and samples on a fixed schedule, never reads SCL back |
+| B_wait | waits until SCL is observed high, then samples |
+| C_timeout | like B, but aborts when SCL stays low strictly longer than TIMEOUT_US |
+
+**Common random numbers:** for each (regime, seed) the data bytes, the stretch of every byte and the garbage bits are drawn once and shared by all three arms. The arms differ **only** in how the controller treats SCL. Five seeds, 20 transactions of 16 bytes per seed. Metrics are the bad-byte rate (wrong plus lost bytes over all bytes), aborts, early samples and bus time, reported as mean±sd over seeds.
+
+| Regime | Stretch per byte | What was pre-declared |
+|---|---|---|
+| no_stretch | 0.0 us | A, B and C **tie** |
+| moderate_stretch | 20.0..60.0 us, below the timeout | B **consistent** fewer bad bytes than A; C ties B |
+| overtime_stretch | 300.0..600.0 us, above TIMEOUT_US = 200.0 us | C **consistent** fail (abort); B succeeds, slowly; **keep** |
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-2/sensors-fusion
+python3 i2c_clock_stretch_toy.py
+```
+
+<CodeSource path="examples/month-2/sensors-fusion/i2c_clock_stretch_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""I2C clock stretching: a deaf controller vs one that waits for SCL high.
+
+Synthetic bit-timing model, stdlib only.  Not a logic-analyser capture, not
+the I2C rise-time / pull-up signal-integrity toy (arduino-io), not the I2C
+scanner sketch and not RS-485.  Real bus / analyser: 本页未运行.
+Wikipedia I2C statements 以原文为准.
+
+What the Wikipedia I2C page says (and what this toy keeps):
+  Clock stretching is a flow-control mechanism for targets: an addressed
+  target may hold SCL low after receiving or sending a byte.  Because the
+  lines are open-drain, SCL stays low; the controller must wait until it
+  observes SCL actually going high, then a minimal time (4 us for standard
+  100 kbit/s) before pulling SCL low again.  Some controllers do not support
+  clock stretching (often labelled two-wire interface).  Pure I2C gives no
+  stretch limit; SMBus does.
+Edges are ideal here: RC rise time is not modelled (that is the arduino-io
+rise-time toy), so the only reason SCL stays low is the target.
+
+Common random numbers: per (regime, seed) one byte schedule, one stretch per
+byte and one garbage bit stream, shared by every arm.  Arms:
+  A_ignore  : releases SCL and samples after T_HIGH/2 on a fixed schedule,
+              never reads SCL back (a controller without stretch support)
+  B_wait    : waits until SCL is observed high, then samples (legal I2C)
+  C_timeout : like B, but aborts the transaction when SCL stays low strictly
+              longer than TIMEOUT_US (equality is still accepted)
+The arms differ only in how the controller treats SCL.  The target stretches
+the first clock of every byte after the first (it is preparing the next
+byte, after the ACK).  A bit sampled strictly before the target releases SCL
+reads the garbage bit instead of the data bit.  No integration step: event
+times are summed, no ODE.
+
+Regimes and the timeout were written before the first run:
+  no_stretch       : target never stretches - A, B, C tie
+  moderate_stretch : stretch 20..60 us per byte, below the timeout
+                     - B consistent fewer byte errors than A; C ties B
+  overtime_stretch : stretch 300..600 us per byte, above TIMEOUT_US=200 us
+                     - C consistent fail (abort); B succeeds slowly; keep
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+
+# Declared model parameters, written before the first run (toy values).
+T_LOW_US = 5.0        # us, controller low phase
+T_HIGH_US = 5.0       # us, controller high phase (>= 4 us minimum, 以原文为准)
+T_BIT_US = T_LOW_US + T_HIGH_US   # 10 us -> 100 kHz
+CLOCKS_PER_BYTE = 9   # 8 data bits + ACK
+N_BYTES = 16          # bytes per read transaction
+N_TX = 20             # transactions per seed
+TIMEOUT_US = 200.0    # us, C's SCL-low timeout (toy; pure I2C sets no limit)
+
+REGIMES = {
+    "no_stretch": (0.0, 0.0),
+    "moderate_stretch": (20.0, 60.0),
+    "overtime_stretch": (300.0, 600.0),
+}
+ARMS = ("A_ignore", "B_wait", "C_timeout")
+
+
+def shared_bus(regime, seed):
+    """Common random numbers: data, stretch and garbage bits, used by every arm."""
+    rng = random.Random(f"{regime}/{seed}")
+    lo, hi = REGIMES[regime]
+    txs = []
+    for _ in range(N_TX):
+        data = [rng.randrange(256) for _ in range(N_BYTES)]
+        stretch = [0.0] + [rng.uniform(lo, hi) if hi > 0.0 else 0.0 for _ in range(N_BYTES - 1)]
+        garbage = [rng.randrange(256) for _ in range(N_BYTES)]
+        txs.append({"data": data, "stretch": stretch, "garbage": garbage})
+    return txs
+
+
+def early_bits(stretch_us):
+    """Bits a deaf controller samples strictly before the target releases SCL.
+
+    Bit j of the byte is sampled at j*T_BIT + T_LOW + T_HIGH/2 after the byte
+    starts; SCL is released at T_LOW + stretch.  Early iff sample < release.
+    """
+    return [j for j in range(8) if j * T_BIT_US + T_HIGH_US / 2.0 < stretch_us]
+
+
+def read_byte_ignore(true_byte, garbage_byte, stretch_us):
+    out = true_byte
+    early = early_bits(stretch_us)
+    for j in early:
+        bit = 7 - j  # MSB first
+        mask = 1 << bit
+        out = (out & ~mask) | (garbage_byte & mask)
+    return out, len(early)
+
+
+def run_tx(arm, tx, timeout_us=TIMEOUT_US):
+    t = 0.0
+    errors = early = lost = 0
+    aborted = 0
+    for k in range(N_BYTES):
+        s = tx["stretch"][k]
+        if arm == "A_ignore":
+            got, e = read_byte_ignore(tx["data"][k], tx["garbage"][k], s)
+            early += e
+            errors += int(got != tx["data"][k])
+            t += CLOCKS_PER_BYTE * T_BIT_US
+            continue
+        if arm == "C_timeout" and s > timeout_us:   # strict: equality accepted
+            t += timeout_us
+            lost += N_BYTES - k
+            aborted = 1
+            break
+        t += CLOCKS_PER_BYTE * T_BIT_US + s
+    return {"time_us": t, "errors": errors, "early": early, "lost": lost, "aborted": aborted}
+
+
+def run_seed(regime, seed, arm, timeout_us=TIMEOUT_US):
+    agg = {"time_us": 0.0, "errors": 0, "early": 0, "lost": 0, "aborted": 0}
+    for tx in shared_bus(regime, seed):
+        r = run_tx(arm, tx, timeout_us)
+        for key in agg:
+            agg[key] += r[key]
+    total = N_TX * N_BYTES
+    agg["bad_rate"] = (agg["errors"] + agg["lost"]) / total
+    agg["bus_ms"] = agg["time_us"] / 1000.0
+    return agg
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def table(regime, timeout_us=TIMEOUT_US):
+    return {arm: [run_seed(regime, seed, arm, timeout_us) for seed in SEEDS] for arm in ARMS}
+
+
+def col(res, arm, key):
+    return [float(r[key]) for r in res[arm]]
+
+
+def main():
+    print("Synthetic I2C clock-stretch toy; shared byte schedule; not an analyser capture")
+    print(f"seeds={len(SEEDS)} T_LOW={T_LOW_US:.1f} us T_HIGH={T_HIGH_US:.1f} us T_BIT={T_BIT_US:.1f} us "
+          f"CLOCKS_PER_BYTE={CLOCKS_PER_BYTE} N_BYTES={N_BYTES} N_TX={N_TX} TIMEOUT_US={TIMEOUT_US:.1f} (toy)")
+    print("No integration step: summed event times, no time-step criterion")
+    print("Regimes and TIMEOUT_US were written before the first run")
+    print(f"hand_calc bit rate: 1/T_BIT = 1/{T_BIT_US:.1f} us = {1000.0 / T_BIT_US:.1f} kHz; "
+          f"T_HIGH={T_HIGH_US:.1f} us >= 4 us standard-mode minimum (以原文为准)")
+    print(f"hand_calc unstretched transaction: {N_BYTES}*{CLOCKS_PER_BYTE}*{T_BIT_US:.1f} us = "
+          f"{N_BYTES * CLOCKS_PER_BYTE * T_BIT_US:.1f} us")
+    print("early_rule: deaf controller samples bit j at j*T_BIT+T_LOW+T_HIGH/2; early iff that is strictly before "
+          "release at T_LOW+stretch")
+    for s in (2.5, 2.5001, 20.0, 60.0):
+        print(f"  stretch={s:.4f} us -> early bits {len(early_bits(s))}")
+    print(f"timeout_rule: C aborts iff stretch > TIMEOUT_US (strict); stretch={TIMEOUT_US:.4f} us aborts="
+          f"{int(TIMEOUT_US > TIMEOUT_US)}; stretch={TIMEOUT_US + 0.001:.4f} us aborts={int(TIMEOUT_US + 0.001 > TIMEOUT_US)}")
+    for regime, (lo, hi) in REGIMES.items():
+        res = table(regime)
+        print(f"{regime} (stretch {lo:.1f}..{hi:.1f} us per byte after the first; {N_TX}x{N_BYTES} bytes per seed):")
+        for arm in ARMS:
+            print(f"  {arm} bad_rate {fmt_pair(*mean_sd(col(res, arm, 'bad_rate')))} "
+                  f"byte_errors {fmt_pair(*mean_sd(col(res, arm, 'errors')))} lost {fmt_pair(*mean_sd(col(res, arm, 'lost')))} "
+                  f"aborts {fmt_pair(*mean_sd(col(res, arm, 'aborted')))} early_samples {fmt_pair(*mean_sd(col(res, arm, 'early')))} "
+                  f"bus_ms {fmt_pair(*mean_sd(col(res, arm, 'bus_ms')))}")
+        print(f"  paired A-B bad_rate: {verdict(col(res, 'A_ignore', 'bad_rate'), col(res, 'B_wait', 'bad_rate'))}")
+        print(f"  paired C-B bad_rate: {verdict(col(res, 'C_timeout', 'bad_rate'), col(res, 'B_wait', 'bad_rate'))}")
+        print(f"  paired C-B aborts: {verdict(col(res, 'C_timeout', 'aborted'), col(res, 'B_wait', 'aborted'))}")
+        print(f"  paired B-A bus_ms: {verdict(col(res, 'B_wait', 'bus_ms'), col(res, 'A_ignore', 'bus_ms'))}")
+        print(f"  paired A-B early_samples: {verdict(col(res, 'A_ignore', 'early'), col(res, 'B_wait', 'early'))}")
+    for regime, alt in (("overtime_stretch", 1000.0), ("moderate_stretch", 50.0)):
+        base = table(regime)
+        res = table(regime, alt)
+        print(f"alternative TIMEOUT_US={alt:.1f} on {regime} (same seeds):")
+        print(f"  C_timeout bad_rate@alt {fmt_pair(*mean_sd(col(res, 'C_timeout', 'bad_rate')))} "
+              f"aborts@alt {fmt_pair(*mean_sd(col(res, 'C_timeout', 'aborted')))} "
+              f"(default bad_rate {fmt_pair(*mean_sd(col(base, 'C_timeout', 'bad_rate')))})")
+        print(f"  paired C-B bad_rate@alt: {verdict(col(res, 'C_timeout', 'bad_rate'), col(res, 'B_wait', 'bad_rate'))}")
+    print("No winner declared: without stretching all three tie; with stretching only a controller that waits for SCL "
+          "reads correctly, and a timeout shorter than the target's stretch turns a slow read into a failed one")
+    print("Real bus / analyser: 本页未运行; Wikipedia statements 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic I2C clock-stretch toy; shared byte schedule; not an analyser capture
+seeds=5 T_LOW=5.0 us T_HIGH=5.0 us T_BIT=10.0 us CLOCKS_PER_BYTE=9 N_BYTES=16 N_TX=20 TIMEOUT_US=200.0 (toy)
+No integration step: summed event times, no time-step criterion
+Regimes and TIMEOUT_US were written before the first run
+hand_calc bit rate: 1/T_BIT = 1/10.0 us = 100.0 kHz; T_HIGH=5.0 us >= 4 us standard-mode minimum (以原文为准)
+hand_calc unstretched transaction: 16*9*10.0 us = 1440.0 us
+early_rule: deaf controller samples bit j at j*T_BIT+T_LOW+T_HIGH/2; early iff that is strictly before release at T_LOW+stretch
+  stretch=2.5000 us -> early bits 0
+  stretch=2.5001 us -> early bits 1
+  stretch=20.0000 us -> early bits 2
+  stretch=60.0000 us -> early bits 6
+timeout_rule: C aborts iff stretch > TIMEOUT_US (strict); stretch=200.0000 us aborts=0; stretch=200.0010 us aborts=1
+no_stretch (stretch 0.0..0.0 us per byte after the first; 20x16 bytes per seed):
+  A_ignore bad_rate 0.0000+-0.0000 byte_errors 0.0000+-0.0000 lost 0.0000+-0.0000 aborts 0.0000+-0.0000 early_samples 0.0000+-0.0000 bus_ms 28.8000+-0.0000
+  B_wait bad_rate 0.0000+-0.0000 byte_errors 0.0000+-0.0000 lost 0.0000+-0.0000 aborts 0.0000+-0.0000 early_samples 0.0000+-0.0000 bus_ms 28.8000+-0.0000
+  C_timeout bad_rate 0.0000+-0.0000 byte_errors 0.0000+-0.0000 lost 0.0000+-0.0000 aborts 0.0000+-0.0000 early_samples 0.0000+-0.0000 bus_ms 28.8000+-0.0000
+  paired A-B bad_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B bad_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B aborts: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A bus_ms: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B early_samples: 0.0000+-0.0000: tie: identical on every seed
+moderate_stretch (stretch 20.0..60.0 us per byte after the first; 20x16 bytes per seed):
+  A_ignore bad_rate 0.8681+-0.0111 byte_errors 277.8000+-3.5637 lost 0.0000+-0.0000 aborts 0.0000+-0.0000 early_samples 1281.0000+-15.3134 bus_ms 28.8000+-0.0000
+  B_wait bad_rate 0.0000+-0.0000 byte_errors 0.0000+-0.0000 lost 0.0000+-0.0000 aborts 0.0000+-0.0000 early_samples 0.0000+-0.0000 bus_ms 40.8501+-0.1307
+  C_timeout bad_rate 0.0000+-0.0000 byte_errors 0.0000+-0.0000 lost 0.0000+-0.0000 aborts 0.0000+-0.0000 early_samples 0.0000+-0.0000 bus_ms 40.8501+-0.1307
+  paired A-B bad_rate: 0.8681+-0.0111: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B bad_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B aborts: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A bus_ms: 12.0501+-0.1307: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B early_samples: 1281.0000+-15.3134: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+overtime_stretch (stretch 300.0..600.0 us per byte after the first; 20x16 bytes per seed):
+  A_ignore bad_rate 0.9338+-0.0041 byte_errors 298.8000+-1.3038 lost 0.0000+-0.0000 aborts 0.0000+-0.0000 early_samples 2400.0000+-0.0000 bus_ms 28.8000+-0.0000
+  B_wait bad_rate 0.0000+-0.0000 byte_errors 0.0000+-0.0000 lost 0.0000+-0.0000 aborts 0.0000+-0.0000 early_samples 0.0000+-0.0000 bus_ms 163.9400+-0.7771
+  C_timeout bad_rate 0.9375+-0.0000 byte_errors 0.0000+-0.0000 lost 300.0000+-0.0000 aborts 20.0000+-0.0000 early_samples 0.0000+-0.0000 bus_ms 5.8000+-0.0000
+  paired A-B bad_rate: 0.9338+-0.0041: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B bad_rate: 0.9375+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B aborts: 20.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A bus_ms: 135.1400+-0.7771: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B early_samples: 2400.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative TIMEOUT_US=1000.0 on overtime_stretch (same seeds):
+  C_timeout bad_rate@alt 0.0000+-0.0000 aborts@alt 0.0000+-0.0000 (default bad_rate 0.9375+-0.0000)
+  paired C-B bad_rate@alt: 0.0000+-0.0000: tie: identical on every seed
+alternative TIMEOUT_US=50.0 on moderate_stretch (same seeds):
+  C_timeout bad_rate@alt 0.7800+-0.0216 aborts@alt 19.8000+-0.4472 (default bad_rate 0.0000+-0.0000)
+  paired C-B bad_rate@alt: 0.7800+-0.0216: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: without stretching all three tie; with stretching only a controller that waits for SCL reads correctly, and a timeout shorter than the target's stretch turns a slow read into a failed one
+Real bus / analyser: 本页未运行; Wikipedia statements 以原文为准
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used on this page, in this order: **tie: identical on every seed** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when |paired mean| and its sd are both below 1e-9 (no sign count is printed on such a line); **near-tie / small gap, within seed noise** when |paired mean| ≤ sd; otherwise a **consistent** gap (|paired mean| > sd), called **small but consistent gap, not a tie** when |m| is under 20 % of the smaller arm mean and **clear gap, not a tie** otherwise. Every consistent line carries a same-sign count over the 5 seeds.
+
+- **no_stretch.** Every paired line is a **tie: identical on every seed**: no early samples, no bad bytes, and all three arms spend 28.8000 ms on the bus. Without stretching, a controller that ignores SCL is indistinguishable from one that waits.
+- **moderate_stretch.** A samples early 1281.0000±15.3134 times per seed and gets a bad-byte rate of 0.8681±0.0111. Paired A−B bad_rate is 0.8681±0.0111, a **clear gap, not a tie** (same sign on all 5 seeds). B reads every byte correctly and pays for it with bus time: paired B−A bus_ms is 12.0501±0.1307 (40.8501 ms against 28.8000 ms), also **clear** (same sign on all 5 seeds). C never reaches its timeout here, so paired C−B bad_rate is a **tie: identical on every seed**.
+- **overtime_stretch.** Every stretch is longer than the 200.0 us timeout. C aborts all 20 transactions per seed: paired C−B bad_rate is 0.9375±0.0000 and paired C−B aborts 20.0000±0.0000, both a **clear gap, not a tie** (same sign on all 5 seeds). **Keep** this failure. B still reads every byte, but paired B−A bus_ms grows to 135.1400±0.7771; A's paired A−B bad_rate is 0.9338±0.0041 (**clear**, same sign on all 5 seeds) because it samples all 8 data bits of every stretched byte early.
+
+**Choices made after seeing results.** None. The three stretch ranges and TIMEOUT_US = 200.0 us were written before the first run. Alternatives on the same seeds: TIMEOUT_US = 1000.0 on overtime_stretch makes C a **tie: identical on every seed** with B (paired C−B bad_rate@alt); TIMEOUT_US = 50.0 on moderate_stretch turns a working read into a failing one, paired C−B bad_rate@alt 0.7800±0.0216, a **clear gap, not a tie** (same sign on all 5 seeds). Neither replaced the default, and the overtime failure stays on the page.
+
+The page **does not declare a universal winner**: without stretching all three tie; with stretching only a controller that waits for SCL reads correctly, and a timeout shorter than the target's stretch turns a slow read into a failed one. A real bus with a logic analyser: **本页未运行**.
+
+**180-minute work plan:** 30 min read the clock-stretching and bit-transfer paragraphs of the Wikipedia I²C page; 30 min work the 100.0 kHz bit time, the early-sample rule and the strict timeout by hand; 50 min run the toy and read the three regimes; 40 min compare the printed TIMEOUT_US = 1000.0 and 50.0 alternatives with seeds fixed; 30 min the exercises.
+
+### Exercises
+
+1. From the printed boundary lines, explain why a 2.5000 us stretch gives 0 early bits and 2.5001 us gives 1.
+2. Show from `shared_bus` that A, B and C see the same data, stretches and garbage bits for a given regime and seed.
+3. In moderate_stretch, B costs 12.0501±0.1307 ms more bus time than A. Why is that the right trade for a sensor read?
+4. The printed TIMEOUT_US = 1000.0 alternative makes C tie B on overtime_stretch. Why does that not license deleting the overtime regime?
+5. Before any real bus capture (本页未运行), write how you would tell a stretching target from a slow RC rise on a logic-analyser trace, and which controller setting you would check first.
+
 <Summary>
 
 The equal-budget held-out IMU comparison derives KF Q/R from its declared noise model, tunes complementary alternatives separately, and gives no arm the true bias.
@@ -1140,4 +1482,6 @@ The equal-budget held-out IMU comparison derives KF Q/R from its declared noise 
 SPI mode/bit-order/CS choices are checked on a shared synthetic wire; wrong-edge captures can shift bits or accidentally pass, so varied patterns and device timing specifications matter.
 
 Hard-iron bias recenters the mag cloud and soft-iron stretch un-ellipses it; on the shared yaw path raw ≈ 17.5° heading error falls to ≈ 11.3° with hard-only and ≈ 1.5° with hard+soft — not an AHRS certification.
+
+I²C clock stretching: on a shared byte schedule, no stretch is a tie for all three controllers; with 20.0..60.0 us stretches a controller that ignores SCL gets bad bytes (paired A−B bad_rate 0.8681±0.0111, clear, 5/5) while waiting costs bus time (paired B−A bus_ms 12.0501±0.1307); stretches above the 200.0 us timeout make the timeout controller abort (paired C−B bad_rate 0.9375±0.0000, clear, 5/5, kept) — a synthetic model, not an analyser capture.
 </Summary>

@@ -6195,6 +6195,43 @@ export const resources: Record<string, Resource> = {
     extra: true,
   },
 
+  "idf-sleep-modes": {
+    id: "idf-sleep-modes",
+    url: "https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/sleep_modes.html",
+    title: {
+      zh: "ESP-IDF 编程指南：休眠模式（Sleep Modes，ESP32）",
+      en: "ESP-IDF Programming Guide: Sleep Modes (ESP32)",
+    },
+    author: "Espressif",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "ESP32 有 Light-sleep 与 Deep-sleep 两种主要省电模式。Light-sleep 时数字外设、大部分 RAM 与 CPU 被时钟门控并降压，退出后内部状态保留；Deep-sleep 时 CPU、大部分 RAM 与 APB 时钟的数字外设断电，只剩 RTC 控制器、ULP 协处理器、RTC FAST / SLOW 内存。唤醒源可组合：定时器、触摸、ext0 / ext1（仅 RTC IO）、ULP、Light-sleep 下任意 IO 的 GPIO 唤醒、Deep-sleep 下仅 RTC 电源域 GPIO。两种休眠下 Wi-Fi / 蓝牙连接都不保持。Deep-sleep 唤醒先运行唤醒桩再加载应用。正文没有给出休眠电流表或唤醒延迟数值。HTML 正文已读；以文档为准。",
+      en: "ESP32 has two major power-saving modes, Light-sleep and Deep-sleep. In Light-sleep the digital peripherals, most RAM and the CPUs are clock-gated with reduced supply and keep their internal state on exit; in Deep-sleep the CPUs, most RAM and APB-clocked digital peripherals are powered off, leaving the RTC controller, ULP coprocessor and RTC FAST / SLOW memory. Wakeup sources can be combined: timer, touchpad, ext0 / ext1 (RTC IOs only), ULP, GPIO wakeup from Light-sleep on any IO, and Deep-sleep GPIO wakeup on RTC-domain pins only. Wi-Fi / Bluetooth connections are not maintained in either mode. A Deep-sleep wake runs the wake stub and then loads the app. The body gives no sleep-current table and no wake-latency figure. HTML body read; 以文档为准.",
+    },
+    license: { zh: "文档，© Espressif；仅提供外链", en: "Docs, © Espressif; external link only" },
+    extra: true,
+  },
+  "wiki-i2c": {
+    id: "wiki-i2c",
+    url: "https://en.wikipedia.org/wiki/I²C",
+    title: {
+      zh: "Wikipedia：I²C（时钟拉伸）",
+      en: "Wikipedia: I²C (clock stretching)",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "时钟拉伸是 I²C 目标器件的流控手段：被寻址的目标可以在收发一个字节后把 SCL 拉低；线路是开漏，所以 SCL 保持为低，控制器必须等到观察到 SCL 真正变高，再等一个最短时间（标准 100 kbit/s 为 4 μs）才能再次拉低 SCL。有些控制器不支持时钟拉伸（常标成 two-wire interface）。纯 I²C 不限制拉伸时长，SMBus 有限制。HTML 正文已核验（rev 1384185777）；以原文为准。",
+      en: "Clock stretching is a flow-control mechanism for I²C targets: an addressed target may hold SCL low after receiving or sending a byte; the lines are open-drain, so SCL stays low, and the controller must wait until it observes SCL actually going high, then a minimal time (4 μs for standard 100 kbit/s) before pulling SCL low again. Some controllers do not support clock stretching (often labelled two-wire interface). Pure I²C sets no stretch limit; SMBus does. HTML body verified (rev 1384185777); 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {
