@@ -1452,6 +1452,14 @@ The page **does not declare a universal winner**: the bridge halves the ripple a
 
 A **Zener** used as a **shunt regulator** is reverse-biased in parallel with the load: once the voltage reaches the breakdown (Zener) voltage, the diode's low impedance holds the node near that value, and a series resistor limits the current (Wikipedia, Zener diode; 以原文为准). The same page requires the series resistor to be large enough that I_D × V_B < P_max, a **strict** inequality, so the device is not destroyed. An **LDO** is a linear regulator that can still regulate when the supply is already **very close** to the output; the remaining drop is that of a pass element that can be driven into saturation, and the dissipated power is (V_IN − V_OUT) I_OUT + V_IN I_Q (Wikipedia, Low-dropout regulator; 以原文为准). The LDO page we read does **not** quote a dropout in millivolts, so none is invented here: HEADROOM = 0.40 V is a declared toy parameter.
 
+<Resource id="ti-slaa414" />
+
+<Resource id="onsemi-hbd854" />
+
+**Headroom is not filtering: PSRR falls with frequency.** Dropout headroom only says whether the LDO can still regulate; it says nothing about how well it rejects ripple. The same Wikipedia LDO page notes that the error amplifier is limited in its ability to correct small spikes at high frequencies, that most LDOs have relatively high PSRR only at lower frequencies (10 Hz – 1 kHz), and that PSRR varies over frequency, temperature, current, output voltage and voltage differential (以原文为准). TI's application report SLAA414A defines PSRR = 20 log(ripple input / ripple output), quoted over a frequency range (10 Hz to 1 MHz is common), and says LDOs have historically had poor high-frequency PSRR (以文档为准). So an LDO with plenty of headroom can still pass a switcher's ripple: read the PSRR curve at the ripple frequency you actually have. The toy below is a DC solve and does **not** model PSRR.
+
+**A real Zener's output slopes with load.** onsemi's *Zener Theory and Design Considerations* (HBD854/D) defines the zener impedance Z_Z as the incremental ΔV / ΔI on the breakdown plateau, and its shunt-regulator equation has the load term −(R_S R_Z / (R_S + R_Z)) ΔI_L (以文档为准). With R_Z > 0 the output therefore falls in proportion to the load current: load regulation is a **slope**, not the ideal flat step of the r_z = 0 model used below. No datasheet Z_Z value is quoted here, and the toy keeps r_z = 0.
+
 This section is **not** the ESD/TVS clamp, **not** the bridge-rectifier ripple already on this page, and **not** the one-line "use an LDO" in the brownout note, and **not** a Wheatstone bridge.
 
 <Formula label="Shunt current">I_Z = (V_in − V_Z) / R − I_L</Formula>

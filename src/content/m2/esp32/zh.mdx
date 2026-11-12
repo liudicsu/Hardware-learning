@@ -756,6 +756,14 @@ Zephyr 线程文档（<Resource id="zephyr-threads" />）写明：**数字越小
 
 ESP-IDF 的 **Sleep Modes** 页面介绍了两种主要省电模式（以文档为准）。**Light-sleep** 时，数字外设、大部分 RAM 和 CPU 被时钟门控并降低供电电压；退出后它们恢复运行，**内部状态保留**。**Deep-sleep** 时，CPU、大部分 RAM 以及所有由 APB 时钟驱动的数字外设**断电**；只剩 RTC 控制器、ULP 协处理器和 RTC FAST / RTC SLOW 内存保持供电，从 Deep-sleep 唤醒时先运行唤醒桩，再加载应用。唤醒源可以**组合**，包括 RTC 定时器、触摸、ext0 / ext1（仅 RTC IO）、ULP 协处理器、Light-sleep 下的 GPIO 唤醒（任意 IO，RTC 或数字均可），以及 Deep-sleep 下的 GPIO 唤醒（仅 VDD3P3_RTC 电源域的引脚）。两种模式下 Wi-Fi 和蓝牙连接都**不保持**。我们读到的正文**没有休眠电流表，也没有唤醒延迟数值**，所以下面所有电流和唤醒代价都是**声明的玩具参数**，不是数据手册数值。
 
+同一段 ESP-IDF 文字接着说，如果需要保持 Wi-Fi / 蓝牙连接，就启用 Wi-Fi / 蓝牙的 **Modem-sleep** 模式和**自动 Light-sleep** 功能（见 Power Management APIs）；系统会在 Wi-Fi / 蓝牙驱动需要时自动唤醒，从而保持连接（以文档为准）。下面的玩具**没有**建模这种组合，休眠臂里 Wi-Fi 都视为断开。
+
+<Resource id="esp32-datasheet" />
+
+<Resource id="esp32-s3-datasheet" />
+
+**经典 ESP32 与 ESP32-S3，玩具电流按经典 ESP32 取。** 课程主力板是 ESP32-S3，但声明的 I_LIGHT = 0.80 mA 和 I_DEEP = 0.01 mA 取自**经典 ESP32** 数据手册（ESP32 Series Datasheet v5.3，表 4-2）：Light-sleep 0.8 mA；Deep-sleep（RTC 定时器 + RTC 内存）10 µA；另有单独的 **Hibernation** 模式（仅 RTC 定时器）5 µA；断电 1 µA（以文档为准）。**ESP32-S3** 数据手册（v2.2，表 5-10）给出的典型值不同：Light-sleep 240 µA（VDD_SPI 与 Wi-Fi 断电，所有 GPIO 高阻）；Deep-sleep 在 RTC 内存和 RTC 外设都上电时 8 µA，RTC 外设断电时 7 µA；断电 1 µA（以文档为准）。它列出 Active、Modem-sleep、Light-sleep、Deep-sleep 四种功耗模式，**没有单独的 Hibernation** 一行。玩具数值**没有**改动：请把 I_LIGHT 与 I_DEEP 看作**按经典 ESP32 取的玩具参数**，不是 S3 数值，下面打印的盈亏平衡间隔只对这些参数成立。真实 S3 电流测量本页未运行。
+
 这一节**不是**上面的 ADC 衰减 / Wi-Fi 下的 ADC2 内容，也**不是**本页的 FreeRTOS 优先级玩具；它也**不是** FreeRTOS 的 tickless 空闲。
 
 <Formula label="每周期电荷，Light-sleep">Q_B(g) = I_ACTIVE (T_WAKE_LIGHT + WORK) + I_LIGHT (g − T_WAKE_LIGHT − WORK)</Formula>
@@ -768,7 +776,7 @@ ESP-IDF 的 **Sleep Modes** 页面介绍了两种主要省电模式（以文档�
 
 ### 公平设置
 
-`esp32_light_deep_sleep_toy.py` 是**合成**的，只用标准库。**模型假设:** 芯片一空闲就立即进入休眠（没有进入开销）；芯片醒着（工作或启动中）时到达的事件排队处理；休眠期间到达、且来源**没有**被设为唤醒源的事件算作**漏掉**；每个处理的事件在 I_ACTIVE 下花 WORK = 0.050 s。声明的玩具电流：I_ACTIVE = 40.0 mA，I_LIGHT = 0.80 mA，I_DEEP = 0.01 mA，I_BOOT = 50.0 mA；声明的唤醒代价：T_WAKE_LIGHT = 0.001 s，T_BOOT_DEEP = 0.300 s。这些都不是从 Espressif 引来的。两个休眠臂里 Wi-Fi 都视为断开：每次唤醒记一次掉线，重连能耗**没有**建模。
+`esp32_light_deep_sleep_toy.py` 是**合成**的，只用标准库。**模型假设:** 芯片一空闲就立即进入休眠（没有进入开销）；芯片醒着（工作或启动中）时到达的事件排队处理；休眠期间到达、且来源**没有**被设为唤醒源的事件算作**漏掉**；每个处理的事件在 I_ACTIVE 下花 WORK = 0.050 s。声明的玩具电流：I_ACTIVE = 40.0 mA，I_LIGHT = 0.80 mA，I_DEEP = 0.01 mA，I_BOOT = 50.0 mA；声明的唤醒代价：T_WAKE_LIGHT = 0.001 s，T_BOOT_DEEP = 0.300 s。这些都是声明的玩具参数：I_LIGHT 与 I_DEEP 等于经典 ESP32 数据手册的典型值（见上文说明），其余都不是从 Espressif 引来的。两个休眠臂里 Wi-Fi 都视为断开：每次唤醒记一次掉线，重连能耗**没有**建模。
 
 | 臂 | 休眠策略 |
 |---|---|
@@ -1147,6 +1155,8 @@ Real ESP32: 本页未运行; ESP-IDF Sleep Modes statements 以文档为准
 
 **看过结果后做的选择。** 没有。电流、唤醒代价、窗口、0.25 s 间隔以及下面两个替代都在首次运行前写定。high_wake_rate 上同一组种子的替代：I_BOOT = 40.0 mA（等于 I_ACTIVE）把 C 对 A 的盈亏平衡移到 g > 0.3500 s，成对 C−A 为 -14.2824±0.1689；T_BOOT_DEEP = 0.100 s 把它移到 g > 0.1750 s，成对 C−A 为 -20.2624±0.0965。两者都是有利于 C 的**明显差距，不是打平**；都没有采用，默认启动代价不变。
 
+**首次运行后的代码改动。** 一处，输出**逐字节相同**：`simulate()` 在某一臂没有处理任何事件时返回延迟 0.0（一个只有一次漏掉事件的独立测试触发了除以零）。没有哪个情形处理零个事件，所以 `expected/` 没有变化（用 `cmp` 核对）。
+
 本页**不宣布普遍赢家**。长时间空闲有利于 Deep-sleep，高唤醒率会侵蚀它的优势并让 Light-sleep 胜出，而 Deep-sleep 会漏掉它无法被唤醒的引脚上的事件。真实 ESP32 以及板上的 `esp_deep_sleep_start()` 均**本页未运行**。
 
 **180 分钟安排:** 30 分钟读 ESP-IDF Sleep Modes 页面（模式、唤醒源、Wi-Fi）；30 分钟手算每周期电荷和两个盈亏平衡间隔；50 分钟运行玩具，读三种情形和状态检查；40 分钟固定种子对照打印的 I_BOOT = 40.0 mA 与 T_BOOT_DEEP = 0.100 s 替代；30 分钟做练习。
@@ -1173,7 +1183,7 @@ Real ESP32: 本页未运行; ESP-IDF Sleep Modes statements 以文档为准
 - 舵机用独立的 5–6 V 电源供电并共地，并测量它们的堵转电流。
 - FreeRTOS：数字越大优先级越高；无界反转需要中等任务；互斥量有继承、二值信号量没有；继承只限制阻塞。
 - ESP-IDF FreeRTOS 是 SMP 双核；本课调度玩具是单核。Zephyr：数字越小优先级越高（仅文字）。
-- ESP32 休眠：在共享事件时间线和声明的玩具电流（不是数据手册数值）下，长时间空闲时 Deep-sleep 电流最低（成对 C−A -39.7086±0.0026 mA，明显，5/5）；平均唤醒间隔 0.25 s 时 Deep-sleep 输给 Light-sleep（成对 C−B 21.1306±0.2356 mA，明显，5/5，保留），并会漏掉它无法被唤醒的引脚上的事件（成对 C−B missed 122.0000±10.3199，明显，5/5）——合成模型，不是真板实测。
+- ESP32 休眠：在共享事件时间线和声明的玩具电流（I_LIGHT / I_DEEP 按经典 ESP32 典型值取，不是 ESP32-S3 数值）下，长时间空闲时 Deep-sleep 电流最低（成对 C−A -39.7086±0.0026 mA，明显，5/5）；平均唤醒间隔 0.25 s 时 Deep-sleep 输给 Light-sleep（成对 C−B 21.1306±0.2356 mA，明显，5/5，保留），并会漏掉它无法被唤醒的引脚上的事件（成对 C−B missed 122.0000±10.3199，明显，5/5）——合成模型，不是真板实测。
 
 **下一课会用到**
 

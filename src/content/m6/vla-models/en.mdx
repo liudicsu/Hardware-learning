@@ -2205,6 +2205,8 @@ How the labels are used on this page, in this order: **tie: identical on every s
 
 **Choices made after seeing results.** None. The four regimes, G_ITEMS = 600, TOL, SIGMA_EXEC and the alternative were written before the first run. Alternative on the same seeds: G_ITEMS = 60 (B then knows 28.8000±1.3038 pairs on cluttered) gives paired B−A success_pct@alt 12.1000±7.0480 on cluttered (**small but consistent gap, not a tie**, same sign on all 5 seeds) and -21.1000±3.6125 on camera_shift (**clear gap, not a tie**, same sign on all 5 seeds). Neither replaced the default, and the camera_shift loss stays on the page.
 
+**Code changes after the first run.** One, with no number changed: the first printed line now names the paper's arXiv id (2510.13778), so the id quoted on this page is printed by the toy; every other line of `expected/` is unchanged (checked line by line). The batch-19 polish edited only a docstring line (the spatial prompt is prepended or appended), and the output is unchanged (checked with `cmp`).
+
 The page **does not declare a universal winner**: grounding helps when clutter makes "which object" the hard part and demonstrations are few; with one object or plenty of demonstrations it adds nothing here, and a grounding corpus that disagrees with the robot camera can hurt. InternVLA-M1 on real hardware or in SimplerEnv: **本页未运行**.
 
 **210-minute work plan:** 40 min read §2.1–2.2 and §3.1 of the InternVLA-M1 paper; 30 min work the 95.6063 % reach probability and the 12.5000 % chance level by hand; 60 min run the toy and read the four regimes; 40 min compare the printed G_ITEMS = 60 alternative with seeds fixed; 40 min the exercises.

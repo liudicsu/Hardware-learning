@@ -756,6 +756,14 @@ Before you move on, you should be able to say yes to all of these:
 
 The ESP-IDF **Sleep Modes** page describes two major power-saving modes (以文档为准). In **Light-sleep** the digital peripherals, most of the RAM and the CPUs are clock-gated and their supply voltage is reduced; on exit they resume and their **internal state is preserved**. In **Deep-sleep** the CPUs, most of the RAM and all APB-clocked digital peripherals are **powered off**; only the RTC controller, the ULP coprocessor and RTC FAST / RTC SLOW memory stay on, and a Deep-sleep wake runs the wake stub and then loads the application. Wakeup sources can be **combined**: the RTC timer, touchpad, ext0 / ext1 (RTC IOs only), the ULP coprocessor, GPIO wakeup from Light-sleep (any IO, RTC or digital), and GPIO wakeup from Deep-sleep (only pins in the VDD3P3_RTC power domain). Wi-Fi and Bluetooth connections are **not maintained** in either mode. The page body we read gives **no sleep-current table and no wake-latency figure**, so every current and wake cost below is a **declared toy parameter**, not a datasheet value.
 
+The same ESP-IDF passage goes on: if Wi-Fi / Bluetooth connections need to be maintained, enable Wi-Fi / Bluetooth **Modem-sleep** together with the **automatic Light-sleep** feature (Power Management APIs); the system then wakes automatically when the Wi-Fi / Bluetooth driver needs it, and the connection is kept (以文档为准). That combination is **not** modelled below: the toy's sleep arms treat Wi-Fi as down.
+
+<Resource id="esp32-datasheet" />
+
+<Resource id="esp32-s3-datasheet" />
+
+**Classic ESP32 versus ESP32-S3: the toy currents are classic-ESP32-shaped.** The course's main board is an ESP32-S3, but the declared I_LIGHT = 0.80 mA and I_DEEP = 0.01 mA follow the **classic ESP32** datasheet (ESP32 Series Datasheet v5.3, Table 4-2): Light-sleep 0.8 mA; Deep-sleep with RTC timer + RTC memory 10 µA; a separate **Hibernation** mode (RTC timer only) 5 µA; power off 1 µA (以文档为准). The **ESP32-S3** datasheet (v2.2, Table 5-10) gives different typical values: Light-sleep 240 µA (VDD_SPI and Wi-Fi powered down, all GPIOs high-impedance); Deep-sleep 8 µA with RTC memory and RTC peripherals powered up and 7 µA with RTC peripherals powered down; power off 1 µA (以文档为准). It lists four power modes, Active, Modem-sleep, Light-sleep and Deep-sleep, and has **no separate Hibernation** row. The toy numbers were **not** changed: read I_LIGHT and I_DEEP as **toy parameters modelled on classic ESP32**, not S3 values, so the break-even gaps printed below hold only for these parameters. A real S3 current measurement: 本页未运行.
+
 This section is **not** the ADC attenuation / ADC2-under-Wi-Fi material above, and **not** the FreeRTOS priority toy on this page; it is **not** FreeRTOS tickless idle either.
 
 <Formula label="Per-cycle charge, Light-sleep">Q_B(g) = I_ACTIVE (T_WAKE_LIGHT + WORK) + I_LIGHT (g − T_WAKE_LIGHT − WORK)</Formula>
@@ -768,7 +776,7 @@ This section is **not** the ADC attenuation / ADC2-under-Wi-Fi material above, a
 
 ### Fair setup
 
-`esp32_light_deep_sleep_toy.py` is **synthetic** and stdlib only. **Model assumptions:** the chip enters sleep the instant it is idle (no entry overhead); an event that arrives while the chip is awake (working or booting) is queued and served; an event on a source that is **not** enabled while the chip sleeps is **missed**; every served event costs WORK = 0.050 s at I_ACTIVE. Declared toy currents: I_ACTIVE = 40.0 mA, I_LIGHT = 0.80 mA, I_DEEP = 0.01 mA and I_BOOT = 50.0 mA; declared wake costs T_WAKE_LIGHT = 0.001 s and T_BOOT_DEEP = 0.300 s. None of these is quoted from Espressif. Wi-Fi is treated as down in both sleep arms: each wake counts one link drop, and reconnect energy is **not** modelled.
+`esp32_light_deep_sleep_toy.py` is **synthetic** and stdlib only. **Model assumptions:** the chip enters sleep the instant it is idle (no entry overhead); an event that arrives while the chip is awake (working or booting) is queued and served; an event on a source that is **not** enabled while the chip sleeps is **missed**; every served event costs WORK = 0.050 s at I_ACTIVE. Declared toy currents: I_ACTIVE = 40.0 mA, I_LIGHT = 0.80 mA, I_DEEP = 0.01 mA and I_BOOT = 50.0 mA; declared wake costs T_WAKE_LIGHT = 0.001 s and T_BOOT_DEEP = 0.300 s. These are declared toy parameters: I_LIGHT and I_DEEP equal classic-ESP32 datasheet typicals (see the note above); the others are not quoted from Espressif. Wi-Fi is treated as down in both sleep arms: each wake counts one link drop, and reconnect energy is **not** modelled.
 
 | Arm | Sleep policy |
 |---|---|
@@ -1147,6 +1155,8 @@ How the labels are used on this page, in this order: **tie: identical on every s
 
 **Choices made after seeing results.** None. The currents, wake costs, windows, the 0.25 s gap and both alternatives below were written before the first run. Alternatives on the same seeds for high_wake_rate: I_BOOT = 40.0 mA (equal to I_ACTIVE) moves the C-versus-A break-even to g > 0.3500 s and gives paired C−A -14.2824±0.1689; T_BOOT_DEEP = 0.100 s moves it to g > 0.1750 s and gives paired C−A -20.2624±0.0965. Both are a **clear gap, not a tie** in C's favour; neither was adopted, and the default boot cost stays.
 
+**Code change after the first run.** One, with **byte-identical output**: `simulate()` now returns latency 0.0 when an arm serves no event (an independent test with a single missed event hit a division by zero). No regime serves zero events, so `expected/` did not change (checked with `cmp`).
+
 The page **does not declare a universal winner**: long idle favours Deep-sleep, a high wake rate erodes its advantage and lets Light-sleep win, and Deep-sleep misses events on a pin it cannot wake from. Real ESP32 and `esp_deep_sleep_start()` on a board: **本页未运行**.
 
 **180-minute work plan:** 30 min read the ESP-IDF Sleep Modes page (modes, wakeup sources, Wi-Fi); 30 min work the per-cycle charge and the two break-even gaps by hand; 50 min run the toy and read the three regimes and the state check; 40 min compare the printed I_BOOT = 40.0 mA and T_BOOT_DEEP = 0.100 s alternatives with seeds fixed; 30 min the exercises.
@@ -1173,7 +1183,7 @@ The page **does not declare a universal winner**: long idle favours Deep-sleep, 
 - Power servos from a separate 5–6 V supply with a common ground, and measure their stall current.
 - FreeRTOS: higher numeric priority runs first; unbounded inversion needs a medium task; mutexes inherit, binary semaphores do not; inheritance bounds blocking.
 - ESP-IDF FreeRTOS is SMP dual-core; this lesson's scheduler toy is single-core. Zephyr: lower number = higher priority (text only).
-- ESP32 sleep: on a shared event timeline with declared toy currents (not datasheet values), long idle gives Deep-sleep the lowest current (paired C−A -39.7086±0.0026 mA, clear, 5/5); at a 0.25 s mean wake gap Deep-sleep loses to Light-sleep (paired C−B 21.1306±0.2356 mA, clear, 5/5, kept) and misses events on a pin it cannot wake from (paired C−B missed 122.0000±10.3199, clear, 5/5) — a synthetic model, not a board measurement.
+- ESP32 sleep: on a shared event timeline with declared toy currents (I_LIGHT / I_DEEP modelled on classic-ESP32 typicals, not ESP32-S3 values), long idle gives Deep-sleep the lowest current (paired C−A -39.7086±0.0026 mA, clear, 5/5); at a 0.25 s mean wake gap Deep-sleep loses to Light-sleep (paired C−B 21.1306±0.2356 mA, clear, 5/5, kept) and misses events on a pin it cannot wake from (paired C−B missed 122.0000±10.3199, clear, 5/5) — a synthetic model, not a board measurement.
 
 **Used next**
 
