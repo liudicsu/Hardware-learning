@@ -6470,6 +6470,26 @@ export const resources: Record<string, Resource> = {
     license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
     extra: true,
   },
+  "wiki-screw-thread": {
+    id: "wiki-screw-thread",
+    url: "https://en.wikipedia.org/wiki/Screw_thread",
+    title: {
+      zh: "Wikipedia：Screw thread（螺纹：导程、螺距与头数）",
+      en: "Wikipedia: Screw thread (lead, pitch and starts)",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "HTML 正文已读（rev 1378437137，HTTP 200，2026-11-12）。Lead, pitch, and starts 一节：导程是螺纹转一整圈（360°）沿轴向走过的距离，螺距是相邻两道螺纹牙顶之间的距离；绝大多数螺纹是单线，导程等于螺距；一般地，导程等于螺距乘以头数。以原文为准。",
+      en: "HTML body read (rev 1378437137, HTTP 200, 2026-11-12). Lead, pitch, and starts: lead is the axial distance covered by one complete rotation (360°), pitch the distance from one crest to the next; most threads are single-start, so lead equals pitch; in general lead equals pitch times the number of starts. 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
   "wiki-leadscrew": {
     id: "wiki-leadscrew",
     url: "https://en.wikipedia.org/wiki/Leadscrew",
@@ -6481,8 +6501,8 @@ export const resources: Record<string, Resource> = {
     kind: "guide",
     cost: { zh: "免费", en: "Free" },
     summary: {
-      zh: "HTML 正文已读（rev 1372857424，HTTP 200，2026-11-12）。Mechanics：把方螺纹一圈展开成直角三角形，T_raise = (F·d_m/2)·tan(φ+λ)，T_lower = (F·d_m/2)·tan(φ−λ)；摩擦系数大于导程角正切（φ > λ）时自锁，但这一性质不是绝对的：振动或冲击下等效摩擦系数可能降到动摩擦水平，丝杠会意外被反向驱动，安全攸关场合常另加保持制动器。Efficiency：η = tan λ / tan(φ+λ)；非零牙型角用 μ·sec α 修正。螺纹摩擦表（钢对青铜干摩擦一行的下端为 0.15）。以原文为准。",
-      en: "HTML body read (rev 1372857424, HTTP 200, 2026-11-12). Mechanics: unwrap one square-thread revolution into a right triangle, T_raise = (F·d_m/2)·tan(φ+λ), T_lower = (F·d_m/2)·tan(φ−λ); self-locking when the friction coefficient exceeds the tangent of the lead angle (φ > λ), but not absolute: under vibration or shock the effective friction coefficient may drop to dynamic levels and the screw can back-drive unexpectedly, so safety-critical uses often add a holding brake. Efficiency: η = tan λ / tan(φ+λ); non-zero thread angles use μ·sec α. Thread-friction table (dry steel-on-bronze row starts at 0.15). 以原文为准.",
+      zh: "HTML 正文已读（rev 1372857424，HTTP 200，2026-11-12）。Mechanics：把方螺纹一圈展开成直角三角形，T_raise = (F·d_m/2)·tan(φ+λ)，T_lower = (F·d_m/2)·tan(φ−λ)；摩擦系数大于导程角正切（φ > λ）时自锁，但这一性质不是绝对的：振动或冲击下等效摩擦系数可能降到动摩擦水平，丝杠会意外被反向驱动，安全攸关场合常另加保持制动器。Efficiency：η = tan λ / tan(φ+λ)；非零牙型角用 μ·sec α 修正。螺纹摩擦表（钢对青铜干摩擦一行的下端为 0.15）。轴环：载荷压在轴环上时要加上端面摩擦扭矩 T_c = F·μ_c·d_c/2，用推力轴承时可忽略。以原文为准。",
+      en: "HTML body read (rev 1372857424, HTTP 200, 2026-11-12). Mechanics: unwrap one square-thread revolution into a right triangle, T_raise = (F·d_m/2)·tan(φ+λ), T_lower = (F·d_m/2)·tan(φ−λ); self-locking when the friction coefficient exceeds the tangent of the lead angle (φ > λ), but not absolute: under vibration or shock the effective friction coefficient may drop to dynamic levels and the screw can back-drive unexpectedly, so safety-critical uses often add a holding brake. Efficiency: η = tan λ / tan(φ+λ); non-zero thread angles use μ·sec α. Thread-friction table (dry steel-on-bronze row starts at 0.15). Collar: if the load rides on a collar, add its friction torque T_c = F·μ_c·d_c/2; negligible with a thrust bearing. 以原文为准.",
     },
     license: {
       zh: "CC BY-SA；以原站为准",

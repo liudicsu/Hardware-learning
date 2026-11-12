@@ -9241,5 +9241,62 @@ print("protocol pass")
   console.log("internvla-a1-graspvla PR3: InternVLA-A1 foresight, GraspVLA synthetic pre-training, and M7 3330 / M9 4110 / site 37980 locked");
 }
 
+// Batch-20 polish: lead vs pitch + collar friction (3.3), rolling-shutter skew sign (5.x), GraspVLA Table 1 range (7.6), InternVLA-A1 λ attribution. No minutes, no toy output changed.
+{
+  const read=p=>readFileSync(join(root,p),"utf8"), env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
+  const cur=read("src/lib/curriculum.ts"), res=read("src/lib/resources.ts"), note=read("docs/notes/batch-20-polish-sources.md");
+  const md=(m,s,l)=>read(`src/content/m${m}/${s}/${l}.mdx`);
+  execFileSync("python3",[join(root,"tools/test_b20pol_shutter_skew_sign.py")],{cwd:root,encoding:"utf8",env,stdio:"pipe"});
+  ok(true,"b20pol independent tests tools/test_b20pol_shutter_skew_sign.py pass");
+  // toy outputs untouched
+  for(const [m,slug,toy] of [[3,"transmissions","leadscrew_self_locking_toy"],[5,"camera-calibration","rolling_vs_global_shutter_toy"],[7,"perception-to-grasp","graspvla_syngrasp_pretrain_toy"]]){
+    const out=execFileSync("python3",[join(root,`examples/month-${m}/${slug}/${toy}.py`)],{cwd:root,encoding:"utf8",env});
+    ok(out===read(`examples/month-${m}/expected/${toy}.txt`),`b20pol ${toy}: output byte-identical to expected/`);
+  }
+  const lsExp=read("examples/month-3/expected/leadscrew_self_locking_toy.txt");
+  ok(["17.6568","8.5308","3.6426"].every(x=>lsExp.includes(x)),"b20pol leadscrew: λ/φ values quoted in the lead note are printed by the toy");
+  // 1. lead vs pitch
+  const tEn=md(3,"transmissions","en"), tZh=md(3,"transmissions","zh");
+  const lp=(t,head)=>t.split(head)[1].split("\n\n")[0];
+  const lpEn=lp(tEn,"**Lead versus pitch.**"), lpZh=lp(tZh,"**导程与螺距。**");
+  for(const x of ["**lead**","**single-start** screw lead = pitch","**multi-start** screw lead = number of starts × pitch","**no longer self-locks**","Do **not** plug the \"pitch\" printed on a package","**Hand calculation (手算):**","5 × 2.0 = 10.0 mm","λ = 17.6568°","φ = 8.5308°","λ = 3.6426°","revision 1378437137","以原文为准","only defines l as the lead"])ok(lpEn.includes(x),`b20pol transmissions en lead/pitch: ${x}`);
+  for(const x of ["**导程**","**单线**丝杠的导程等于螺距","**多线**丝杠的导程等于头数 × 螺距","**不再自锁**","**不要**把包装或商品页上写的“螺距”直接代入","手算：","5 × 2.0 = 10.0 mm","λ = 17.6568°","φ = 8.5308°","λ = 3.6426°","revision 1378437137","以原文为准","只把 l 定义为导程"])ok(lpZh.includes(x),`b20pol transmissions zh lead/pitch: ${x}`);
+  for(const t of [tEn,tZh]){
+    ok(t.indexOf("<Resource id=\"wiki-screw-thread\" />")>t.indexOf("## "+(t===tEn?"Leadscrew efficiency and self-locking":"丝杠效率与自锁"))&&t.indexOf("<Resource id=\"wiki-screw-thread\" />")<t.indexOf(t===tEn?"**Lead versus pitch.**":"**导程与螺距。**"),"b20pol transmissions: Screw thread card sits before the lead/pitch note");
+  }
+  ok(/"wiki-screw-thread": \{[\s\S]*?Screw_thread[\s\S]*?rev 1378437137[\s\S]*?pitch times the number of starts[\s\S]*?导程等于螺距乘以头数[\s\S]*?extra: true/.test(res),"b20pol resources: wiki-screw-thread rev + starts rule");
+  ok(/"wiki-screw-thread": \{[\s\S]*?导程等于螺距乘以头数[\s\S]*?pitch times the number of starts/.test(res),"b20pol resources: wiki-screw-thread en/zh summaries");
+  // 2. collar friction
+  const cEn=lp(tEn,"**Collar friction can also hold a load.**"), cZh=lp(tZh,"**端面（轴环）摩擦也可能把载荷锁住。**");
+  for(const x of ["assumes a thrust bearing","T_c = F·μ_c·d_c / 2","negligible","not a sentence in the article","high-lead screw","same vibration caveat","no collar coefficient","以原文为准"])ok(cEn.includes(x),`b20pol transmissions en collar: ${x}`);
+  for(const x of ["假定用了推力轴承","T_c = F·μ_c·d_c / 2","可以忽略","不是条目原话","大导程丝杠","振动的提醒同样适用","不引用任何轴环摩擦系数","以原文为准"])ok(cZh.includes(x),`b20pol transmissions zh collar: ${x}`);
+  ok(!/\d\.\d/.test(cEn.replace("T_c = F·μ_c·d_c / 2",""))&&!/\d\.\d/.test(cZh),"b20pol collar: no decimal number invented");
+  ok(/"wiki-leadscrew": \{[\s\S]*?T_c = F·μ_c·d_c\/2[\s\S]*?thrust bearing[\s\S]*?extra: true/.test(res),"b20pol resources: wiki-leadscrew collar term");
+  // 3. skew sign
+  const rsPy=read("examples/month-5/camera-calibration/rolling_vs_global_shutter_toy.py");
+  ok(rsPy.includes("x0 + v * row_time(arm, r, dt_row) + noise[r]")&&rsPy.includes("return r * dt_row\n")&&rsPy.includes("\"skew\": abs(b) * (H - 1)"),"b20pol shutter toy: column = x0 + v*t_r, t_r grows with r, printed skew is |slope|");
+  const sEn=lp(md(5,"camera-calibration","en"),"**Sign convention, checked against the toy.**"), sZh=lp(md(5,"camera-calibration","zh"),"**符号约定（已与 toy 核对）。**");
+  for(const x of ["**top to bottom**","**v > 0 means the edge moves right**","x0 + v·t_r","**signed** skew v·(H − 1)·Δt_row has the **same sign as v**","only the magnitude","`expected/` carries no sign","tools/test_b20pol_shutter_skew_sign.py","±300.0 and ±1500.0 px/s"])ok(sEn.includes(x),`b20pol camera-calibration en sign: ${x}`);
+  for(const x of ["**从上到下**","**v > 0 表示边缘向右运动**","x0 + v·t_r","**有符号**的倾斜 v·(H − 1)·Δt_row 与 v **同号**","只打印幅值","`expected/` 里没有符号","tools/test_b20pol_shutter_skew_sign.py","±300.0 和 ±1500.0 px/s"])ok(sZh.includes(x),`b20pol camera-calibration zh sign: ${x}`);
+  ok(!/：\*\*|\*\*：/.test(sZh)&&!/：\*\*|\*\*：/.test(lpZh)&&!/：\*\*|\*\*：/.test(cZh),"b20pol zh: no ** glued to a full-width colon in new paragraphs");
+  ok(![sEn,sZh,lpEn,lpZh,cEn,cZh].some(t=>/[{}]/.test(t)),"b20pol: no curly braces in new prose");
+  // 4. GraspVLA Table 1 range
+  for(const l of ["en","zh"]){
+    const g=md(7,"perception-to-grasp",l);
+    ok(!g.includes("around 90 %")&&!g.includes("90 % 左右"),`b20pol perception-to-grasp ${l}: 'around 90 %' gone`);
+    ok(l==="en"?g.includes("between 86.6 % and 96.6 % across the ten test sets of Table 1 (synthetic categories 90.0–96.6 %, web categories 86.6–93.3 %"):g.includes("表 1 的十个测试集上零样本真实成功率在 86.6 % 到 96.6 % 之间（合成类别 90.0–96.6 %，网络类别 86.6–93.3 %"),`b20pol perception-to-grasp ${l}: Table 1 range`);
+    ok(/以论文为准/.test(g.split(l==="en"?"Their reported results":"他们报告的结果")[1].split("\n")[0]),`b20pol perception-to-grasp ${l}: Table 1 range 以论文为准`);
+  }
+  // λ attribution
+  const p3=read("docs/notes/batch-20-pr3-sources.md");
+  ok(p3.includes("Eq. (4) L_total = λ·L_gen + L_act")&&p3.includes("§3.4 (Training Protocol and Hyperparameters) then sets λ to 0.01")&&p3.includes("not Table 2's weight decay 0.01")&&!p3.includes("flow-matching action loss, λ = 0.01."),"b20pol pr3 note: λ attribution corrected (Eq. 4 in §3.3, value in §3.4)");
+  // note
+  for(const x of ["f3fc6e6b926089573712c386239aff369f036e6b","37980","**71**","no minute count changed","No toy number and no `expected/` file changed","1372857424","1378437137","https://en.wikipedia.org/wiki/Screw_thread","86.6 % to 96.6 %","90.0–96.6 %","86.6–93.3 %","**λ = 0.01 confirmed**","same sign as v","not an article sentence","opencode","No lock relaxed","本页未运行"])ok(note.includes(x),`b20pol note: ${x}`);
+  // totals unchanged
+  ok((()=>{const months=[...cur.matchAll(/const month(\d+)Lessons[\s\S]*?\];/g)]; let s=0; for(const m of months){for(const x of m[0].matchAll(/minutes:\s*(\d+)/g))s+=+x[1];} return s===37980;})(),"b20pol curriculum: 37980 minutes unchanged");
+  ok(/37 980/.test(read("README.md"))&&/约 37 980 分钟/.test(read("README.md")),"b20pol README: 37 980 unchanged");
+  console.log("batch-20 polish: lead vs pitch, collar friction, skew sign, GraspVLA Table 1 range, InternVLA-A1 λ locked; totals 71 / 37980 unchanged");
+}
+
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
 process.exit(failed ? 1 : 0);
