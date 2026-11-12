@@ -1,6 +1,16 @@
 # Month 7 plan: Simulation, reinforcement learning & 3D perception
 
-Current / 当前：**M7 2790 min**, Batch-16 PR2. Earlier entries below retain their historical totals.
+Current / 当前：**M7 2970 min**, Batch-18 PR2. Earlier entries below retain their historical totals.
+
+## Batch-18 PR2 / 本月 H4 (+180)
+
+Base `26d4664edc52abc3a0c35b8c960ddc29d35b5057` (batch-18 PR1 merged as #173; site **35040**). PR2 on M7 host: **M7 2790→2970 (+180)**; M4 moves in the same PR on its own plan. Site **35040→35400**, still 71 lessons.
+
+- **H4 / 7.1 mujoco-so101: 240→420 (+180).** Semi-implicit / implicit-in-velocity vs explicit Euler energy drift. Toy `mujoco_integrator_energy_toy.py`: stdlib stand-in of the MuJoCo Computation updates (not `mujoco.step`, not a redo of `grip_sweep`); shared lightly damped pendulum and a tumbling asymmetric spinner; arms A explicit / B semi-implicit / C implicit-in-velocity / C_bad flipped D. Common random numbers, 5 seeds. Stable-step: `h*=2/ω0=0.6385508568 s`; default `h=0.1500 s` is below it; 0.98× `h*` energy-bounded=1, 1.02× grows (spectral radius 1.490835), half step bounded. moderate_h: A−B |dE| 62.9097±3.0587 **clear** 5/5 (A blows 2/5). tiny_h: declared near-tie on |dE| **did not hold** — A |dE| 0.0346±0.0091 looks smaller because energy gain cancels damping, but |E−Eref| 0.4553±0.0855 vs B 0.0019±0.0005 is **clear** (kept). large_h_spin: pendulum A blows 5/5, |dE| 92.5926±16.7441; spinner A and B **tie** (identical velocity update) at 52.8938±16.4901, C 13.3682±0.2701, A−C **clear** 39.5256±16.3407 5/5. inconsistent_D: C_bad blows 5/5, C_bad−C 12514.0224±6611.4795 **clear** (kept). Alternative `C_damp=0`: B and C **tie**, A still loses. Real MuJoCo / Menagerie 本页未运行.
+
+**Allocation / 安排:** 30+30+40+50+30=180 minutes.
+
+**Site accounting / 全站核算:** **35400=35040+360** with M4 +180 on month-4-plan.md; **M7=2970**, **71 lessons**.
 
 ## Batch-16 PR2 — TD3 on rl-foundations (+180)
 

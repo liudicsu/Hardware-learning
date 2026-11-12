@@ -30,6 +30,7 @@ check_py gazebo_step_contact_stability_toy.txt python3 "$M4/gazebo-sim/gazebo_st
 check_py tf_buffer_time_lookup_toy.txt python3 "$M4/urdf-tf/tf_buffer_time_lookup_toy.py"
 check_py dwa_vs_pure_pursuit_toy.txt python3 "$M4/slam-nav/dwa_vs_pure_pursuit_toy.py"
 check_py qos_deadline_lifespan_toy.txt python3 "$M4/ros2-graph/qos_deadline_lifespan_toy.py"
+check_py octomap_tsdf_volume_toy.txt python3 "$M4/slam-nav/octomap_tsdf_volume_toy.py"
 
 if [[ "${ROS_DISTRO:-}" != "jazzy" ]] || ! command -v colcon >/dev/null; then
   echo "ROS 2 Jazzy is not sourced (ROS_DISTRO=${ROS_DISTRO:-unset}); see examples/month-4/README.md"

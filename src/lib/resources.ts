@@ -5989,6 +5989,62 @@ export const resources: Record<string, Resource> = {
     license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
     extra: true,
   },
+  "octomap-site": {
+    id: "octomap-site",
+    url: "https://octomap.github.io/",
+    title: { zh: "OctoMap 主页（八叉树占据地图）", en: "OctoMap homepage (octree occupancy maps)" },
+    author: "Kai M. Wurm, Armin Hornung and contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "OctoMap 在八叉树上实现三维占据栅格：同时表示占用与空闲，未知被隐式编码，并以概率方式融合新读数、传感器噪声与动态变化；地图是多分辨率且紧凑的。2026-11-12 正文已读（HTTP 200）；以原文为准。Hornung 等 AURO PDF 本轮 HTTP 500，未引用。",
+      en: "OctoMap implements a 3-D occupancy grid on an octree: it models occupied and free space, encodes unknown implicitly, and updates probabilistically so new readings, sensor noise and dynamic changes can be fused; the map is multi-resolution and compact. Body read 2026-11-12 (HTTP 200); 以原文为准. The Hornung et al. AURO PDF returned HTTP 500 this round and is not cited.",
+    },
+    license: { zh: "New BSD；以原站为准", en: "New BSD; see original terms" },
+    extra: true,
+  },
+  "curless-volrange": {
+    id: "curless-volrange",
+    url: "https://graphics.stanford.edu/papers/volrange/volrange.pdf",
+    title: { zh: "Curless 与 Levoy：体累积的加权符号距离（SIGGRAPH 1996）", en: "Curless & Levoy: a volumetric method for building complex models (SIGGRAPH 1996)" },
+    author: "Brian Curless, Marc Levoy",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "体表示是累积的加权符号距离函数；按增量规则 D_{i+1}=(W_i D_i + w_{i+1} d_{i+1})/(W_i+w_{i+1})、W_{i+1}=W_i+w_{i+1} 融合距离像，并在表面附近截断，再提取等值面。2026-11-12 PDF 正文已读（HTTP 200）；以论文为准。",
+      en: "The volumetric representation is a cumulative weighted signed distance function; range images are fused incrementally by D_{i+1}=(W_i D_i + w_{i+1} d_{i+1})/(W_i+w_{i+1}) and W_{i+1}=W_i+w_{i+1}, truncated near the surface, and an isosurface is extracted. PDF body read 2026-11-12 (HTTP 200); 以论文为准.",
+    },
+    license: { zh: "论文 PDF，© 原作者；仅提供外链", en: "Paper PDF, © authors; external link only" },
+    extra: true,
+  },
+  "open3d-tsdf": {
+    id: "open3d-tsdf",
+    url: "https://www.open3d.org/docs/latest/tutorial/pipelines/rgbd_integration.html",
+    title: { zh: "Open3D RGBD integration（TSDF 体）", en: "Open3D RGBD integration (TSDF volume)" },
+    author: "Open3D contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "ScalableTSDFVolume 的 sdf_trunc 是截断符号距离的截断值；说明写到 “TSDF volume works like a weighted average filter in 3D space. If more frames are integrated, the volume produces a smoother and nicer mesh.” Open3D 0.20.0 文档，2026-11-12 正文已读（HTTP 200）；以原文为准。",
+      en: "ScalableTSDFVolume takes sdf_trunc as the truncation of the signed distance; the page says “TSDF volume works like a weighted average filter in 3D space. If more frames are integrated, the volume produces a smoother and nicer mesh.” Open3D 0.20.0 docs, body read 2026-11-12 (HTTP 200); 以原文为准.",
+    },
+    license: { zh: "开源文档，以原站为准", en: "Open-source docs; see original terms" },
+    extra: true,
+  },
+  "mujoco-computation": {
+    id: "mujoco-computation",
+    url: "https://mujoco.readthedocs.io/en/stable/computation/index.html",
+    title: { zh: "MuJoCo Computation（积分器）", en: "MuJoCo Computation (integrators)" },
+    author: "Google DeepMind",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "正文写明：显式 Euler 有教学价值但未实现，因为半隐式 Euler（先更新速度，再用新速度更新位置）严格更好；implicit 与 implicitfast 是对速度相关力的隐式（Taylor 展开只对速度），把部分陀螺项显式积分“can lead to energy gain and divergence of fast-spinning free bodies”。2026-11-12 正文已读（HTTP 200）；以原文为准。",
+      en: "The body states that explicit Euler has pedagogical value but is not implemented because semi-implicit Euler (velocity first, then position with the new velocity) is strictly better; implicit and implicitfast are implicit-in-velocity (the Taylor expansion is in velocity only), and integrating some gyroscopic terms explicitly “can lead to energy gain and divergence of fast-spinning free bodies.” Body read 2026-11-12 (HTTP 200); 以原文为准.",
+    },
+    license: { zh: "© Google DeepMind，仅提供外链", en: "© Google DeepMind; external link only" },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {
