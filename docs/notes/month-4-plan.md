@@ -1,6 +1,16 @@
 # Month 4 plan / 第4个月计划
 
-Current / 当前：**M4 2850 min**, Batch-17 PR1. Earlier entries below retain their historical totals.
+Current / 当前：**M4 3030 min**, Batch-18 PR2. Earlier entries below retain their historical totals.
+
+## Batch-18 PR2 / 本月 H3 (+180)
+
+Base `26d4664edc52abc3a0c35b8c960ddc29d35b5057` (batch-18 PR1 merged as #173; site **35040**). PR2 on M4 host: **M4 2850→3030 (+180)**; M7 moves in the same PR on its own plan. Site **35040→35400**, still 71 lessons.
+
+- **H3 / 4.6 slam-nav: 630→810 (+180).** OctoMap-style octree occupancy and TSDF fusion vs a 2-D floor grid. Toy `octomap_tsdf_volume_toy.py`: shared multi-view range of a hanging box (stdlib octree / TSDF stand-in, not liboctomap or Open3D); arms A 2-D floor projection / B octree log-odds (hit at the endpoint, miss along the ray, unknown otherwise) / C TSDF weighted average / S single-frame hit occupancy / C_bad TSDF with one mis-registered frame. Common random numbers, 5 seeds. overhang_multiview: B−A and C−A overhang recall **clear** (B 0.9861 on every seed, C 0.9833±0.0062 vs A 0.0000±0.0000). single_frame_clean: declared B vs S occupied-IoU **near-tie did not hold** — paired B−S 0.0316±0.0000, **small but consistent**, 5/5 (kept). noisy_multiview: C surface MAE 0.0631±0.0018 m vs raw 0.0953±0.0015 m, paired C−raw −0.0322±0.0024 **clear**, 5/5. bad_pose: C_bad−C 0.0026±0.0004 **small but consistent**, 5/5 (kept). `sdf_trunc=0.25` chosen after the first run; 0.50 printed as the alternative (at 0.50 C did not beat raw: +0.0131±0.0034, kept). Unknown voxels have seen neither a hit nor a clearing ray (count 0.0000±0.0000). ≠ PGM / DWA / depth-lesson voxels. Hornung AURO PDF HTTP 500, not cited. Real lidar / Open3D / octomap_server 本页未运行.
+
+**Allocation / 安排:** 30+30+40+50+30=180 minutes.
+
+**Site accounting / 全站核算:** **35400=35040+360** with M7 +180 on month-7-plan.md; **M4=3030**, **71 lessons**.
 
 ## Batch-17 PR1 / 本月 H2 (+180)
 

@@ -35,3 +35,12 @@ Standard-library synthetic local-controller comparison, no ROS needed: a unicycl
 ```bash
 python3 dwa_vs_pure_pursuit_toy.py
 ```
+
+## octomap_tsdf_volume_toy.py — volumetric maps / 体素地图
+
+Standard-library stand-in of an octree occupancy map and a TSDF volume versus a 2-D floor grid on a shared multi-view range of a hanging box. Five seeds, common random numbers. Expected output in `../expected/octomap_tsdf_volume_toy.txt`, compared by `../check.sh` even without ROS. Not liboctomap, not Open3D, not the lesson PGM / DWA path; real lidar / Open3D / octomap_server 本页未运行.
+标准库替身：在共享的多视角距离观测上，比较八叉树占据、TSDF 体与二维地面栅格，场景带悬空盒。五个种子，共用随机数。输出在 `../expected/octomap_tsdf_volume_toy.txt`，没有 ROS 时 `../check.sh` 也会核对。不是 liboctomap，不是 Open3D，也不是本课的 PGM / DWA 路径；真实雷达 / Open3D / octomap_server 本页未运行。
+
+```bash
+python3 octomap_tsdf_volume_toy.py
+```

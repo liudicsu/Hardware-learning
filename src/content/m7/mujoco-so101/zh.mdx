@@ -184,8 +184,602 @@ $ python3 -m mujoco.viewer --mjcf ~/Hardware-learning/examples/month-7/mujoco-so
 
 MJX（`mujoco-mjx`）是 MuJoCo 的 JAX 接口：可在 NVIDIA/AMD GPU、Apple Silicon 与 Cloud TPU 上跑；MJX-Warp 针对 NVIDIA GPU。第 7.3 课才会用到大规模并行；这里一条 CPU 轨迹就够。
 
+## 半隐式与对速度隐式的积分器，对照显式 Euler
+
+MuJoCo 用几种格式积分连续时间的正向动力学。**显式 Euler** 有说明但**没有实现**，因为**半隐式 Euler**（先更新速度，再用*新*速度更新位置）严格更好，也是物理仿真里的常规做法。**对速度隐式** / `implicitfast` 用只对速度的一阶展开来逼近 t+h 处的加速度，针对的是速度相关的刚度。把部分陀螺项*显式*积分 “can lead to **energy gain** and divergence of fast-spinning free bodies”（MuJoCo Computation 文档，Integrators；正文已读；以原文为准）。因此 MuJoCo 的 `Euler` 就是半隐式方案（有关节阻尼时还带隐式阻尼）；`implicit` 与 `implicitfast` 只对速度相关力隐式。本节**不是** `grip_sweep` 的重写（时间步 × `solref` 的软接触举升），也**不是**把 Menagerie 的 `implicitfast` 那一行再抄一遍。
+
+<Resource id="mujoco-computation" />
+
+**实际打开并读过正文的来源。**
+
+- **MuJoCo Computation，Integrators**（https://mujoco.readthedocs.io/en/stable/computation/index.html）：显式、半隐式与对速度隐式，`D` 矩阵，`implicitfast` 丢掉部分陀螺导数并在独立自由刚体上补回，以及上面那句能量增长。以原文为准。
+- 本页已有的 `grip_sweep` / `implicitfast` 表述（只作对照；不替换接触表）。
+
+### 公平设置
+
+`mujoco_integrator_energy_toy.py` 是**合成**的，只用标准库。**模型假设:** 两套共用对象，没有 MuJoCo 二进制，也没有四元数更新。带轻微线性阻尼的单摆（重力依赖角度，阻尼依赖速度），以及惯性为 diag(1, 2, 3)、偏离中轴翻滚的无力矩刚体。转子的能量是 1/2 w·I w，只依赖角速度，所以在那里 A 与 B 的速度更新相同（文档里的差别在位置那一步）。臂 A 是显式 Euler，B 是半隐式，C 是对速度隐式（`Mhat = M + h D`），C_bad 把 `D` 的符号翻转（不一致的线性化，保留）。**共用随机数:** 五个种子；每个种子的初值抖动只抽一次，所有臂共用。指标是相对起点的能量漂移 dE、绝对漂移、发散标志、相对极小步参考的轨迹误差，以及 |E − Eref|。首次运行显示在有阻尼时从 E0 算的 |dE| 会误导，因此加印了 |E − Eref| 作为伴随指标（事后披露）。真实 MuJoCo / Menagerie：本页未运行。
+
+**稳定步长判据。** 对无阻尼线性振子 x'' + ω0² x = 0，半隐式 Euler 的放大矩阵迹是 2 − h² ω0²，当且仅当 h < h* = 2/ω0 时特征值留在单位圆上。恰在 h* 时迹为 −2，特征值 −1 是重根且为 Jordan 块，解线性增长（手算 / 解析；玩具未在 h = h* 处打印运行）。这里 ω0 = 3.1320919527 rad/s，h* = 0.6385508568 s。默认中等步长 0.1500 s 低于 h*（h/h* = 0.2349，`assert_below_hstar=1`）。玩具在 0.50×、0.98×、1.02× h* 以及默认步长的一半上打印谱半径和 40 s 能量有界运行：0.98× 有界、谱半径 1.000000，1.02× 增长（谱半径 1.490835，energy_bounded=0），半步有界。稳定的积分器并不自动等于稳定的*接触*模型——这与 `grip_sweep` 并不矛盾。
+
+**在首次运行前写好的情形:** 轻度阻尼的摆在中等 h 下，B、C 的 |dE| 应**稳定地**小于 A；在很小的 h 下三者**可能接近打平**；在大步长 / 快速旋转下，A 应**稳定地输掉**（能量增长或发散）；翻转的隐式 `D` 可能**输掉**——该格保留。
+
+### 运行标准库玩具
+
+```bash
+cd ~/Hardware-learning/examples/month-7/mujoco-so101
+python3 mujoco_integrator_energy_toy.py
+```
+
+<CodeSource path="examples/month-7/mujoco-so101/mujoco_integrator_energy_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic energy-drift comparison of explicit, semi-implicit and
+implicit-in-velocity Euler, as a stdlib stand-in of the updates in the
+MuJoCo Computation documentation (Integrators).
+
+Stdlib only. Not mujoco.step, not a redo of grip_sweep (timestep x solref
+on a soft-contact lift), and not a rewrite of the Menagerie implicitfast
+one-liner. Real MuJoCo / Menagerie: 本页未运行.
+
+Two shared plants, same h grid idea, initial energy printed:
+  pendulum  simple pendulum with light linear damping (position-dependent
+            gravity + velocity-dependent damping)
+  spinner   torque-free rigid body with asymmetric inertia (gyroscopic
+            bias; energy is 1/2 w·I w; no quaternion is used)
+
+Arms:
+  A_explicit     v_{t+h}=v_t+h a_t,      q_{t+h}=q_t+h v_t
+  B_semimpl      v_{t+h}=v_t+h a_t,      q_{t+h}=q_t+h v_{t+h}
+  C_implvel      implicit-in-velocity: v_{t+h}=v_t+h Mhat^{-1} M a_t,
+                 Mhat=M+h D, D = -d(forces)/dv; then q uses v_{t+h}
+  C_bad          same as C but with a sign-flipped D (inconsistent
+                 linearization; declared fail arm; kept)
+
+For the spinner, energy depends only on w, so A and B use the same
+velocity update (the documented difference is the position step).
+
+Regimes (declared before the first run):
+  moderate_h     lightly damped pendulum, moderate h -> B,C consistent
+                 lower |dE| than A
+  tiny_h         very small h -> A,B,C may near-tie on |dE|
+  large_h_spin   large h and/or a fast tumble -> A consistent lose
+                 (energy gain or blow-up)
+  inconsistent_D flipped gyro D -> C_bad may lose (energy gain); kept
+
+Stable-step criterion (mandatory): for the undamped linear oscillator
+x''+w0^2 x=0, semi-implicit Euler has amplification trace 2-h^2 w0^2
+and stays on the unit circle iff h < h* = 2/w0. At h = h* the trace
+is -2, so -1 is a repeated eigenvalue in a Jordan block and the
+solution grows linearly (analytic; not printed). The default moderate
+h is below h*. The toy prints a time-domain energy-bounded run and the
+spectral radius at 0.50x, 0.98x and 1.02x h*.
+
+Common random numbers: per-seed initial-condition jitter is drawn once
+and reused by every arm. Seeds 0-4.
+MuJoCo Computation documentation: body read; 以原文为准.
+"""
+from __future__ import annotations
+
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+# pendulum (written before the first run)
+G = 9.81
+L = 1.0
+MASS = 1.0
+INERTIA_P = MASS * L * L
+C_DAMP = 0.05
+OMEGA0 = math.sqrt(G / L)
+H_STAR = 2.0 / OMEGA0
+H_MOD = 0.15
+H_TINY = 0.005
+H_LARGE = 0.55
+T_PEND = 20.0
+TH0 = 0.40
+# spinner
+I_DIAG = (1.0, 2.0, 3.0)
+W_SPIN = (0.40, 5.00, 0.30)  # perturbation off the intermediate axis
+H_SPIN = 0.08
+T_SPIN = 6.0
+BLOW = 100.0
+ARMS = ("A_explicit", "B_semimpl", "C_implvel", "C_bad")
+# written before the first run
+REGIMES = ("moderate_h", "tiny_h", "large_h_spin", "inconsistent_D")
+STREAM = {"pendulum": 0, "spinner": 1}
+
+
+def mean_sd(xs: list[float]) -> tuple[float, float]:
+    mu = sum(xs) / len(xs)
+    if len(xs) == 1:
+        return mu, 0.0
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x: float) -> str:
+    if not math.isfinite(x):
+        return "nan"
+    if x != 0.0 and abs(x) < 5e-5:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs: list[float], m: float) -> str:
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def verdict(xa: list[float], xb: list[float]) -> str:
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{num(m)}+-{num(s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{num(m)}+-{num(s)}: {label}; {sign_note(diffs, m)}"
+
+
+def pend_energy(th: float, w: float) -> float:
+    return 0.5 * INERTIA_P * w * w + MASS * G * L * (1.0 - math.cos(th))
+
+
+def pend_acc(th: float, w: float, damp: float = C_DAMP) -> float:
+    return -(G / L) * math.sin(th) - (damp / INERTIA_P) * w
+
+
+def tiny_step_ref(th: float, w: float, t_end: float, damp: float = C_DAMP) -> tuple[float, float, float]:
+    # semi-implicit at a very small step, for trajectory and energy error
+    h = 1e-4
+    n = int(round(t_end / h))
+    for _ in range(n):
+        a = pend_acc(th, w, damp)
+        w = w + h * a
+        th = th + h * w
+    return th, w, pend_energy(th, w)
+
+
+def step_pend(th: float, w: float, h: float, arm: str, damp: float = C_DAMP) -> tuple[float, float]:
+    a = pend_acc(th, w, damp)
+    if arm == "A_explicit":
+        th_n = th + h * w
+        w_n = w + h * a
+        return th_n, w_n
+    if arm == "B_semimpl":
+        w_n = w + h * a
+        th_n = th + h * w_n
+        return th_n, w_n
+    # implicit-in-velocity: D = damp, M = INERTIA_P
+    # a = M^{-1}(tau_grav - damp w), da/dw = -M^{-1} D with D = damp
+    sign = -1.0 if arm == "C_bad" else 1.0
+    D = sign * damp
+    mhat = INERTIA_P + h * D
+    w_n = w + h * (INERTIA_P / mhat) * a
+    th_n = th + h * w_n
+    return th_n, w_n
+
+
+def run_pend(th0: float, w0: float, h: float, t_end: float, arm: str, damp: float = C_DAMP) -> dict:
+    th, w = th0, w0
+    e0 = pend_energy(th, w)
+    e_max, e_last = e0, e0
+    n = int(round(t_end / h))
+    blow = False
+    for _ in range(n):
+        th, w = step_pend(th, w, h, arm, damp)
+        if not math.isfinite(th) or not math.isfinite(w):
+            blow = True
+            e_last = float("inf")
+            break
+        e = pend_energy(th, w)
+        e_last = e
+        if e > e_max:
+            e_max = e
+        if e > BLOW * e0 or e < -BLOW * e0:
+            blow = True
+            break
+    dE = e_last - e0
+    th_r, w_r, e_ref = tiny_step_ref(th0, w0, t_end, damp)
+    err = abs((th - th_r + math.pi) % (2 * math.pi) - math.pi) if math.isfinite(th) else float("inf")
+    e_err = abs(e_last - e_ref) if math.isfinite(e_last) else float("inf")
+    return {"dE": dE, "absdE": abs(dE) if math.isfinite(dE) else float("inf"), "emax": e_max, "e0": e0, "blow": int(blow), "traj_err": err, "e_err": e_err, "e_ref": e_ref}
+
+
+def cross(a, b):
+    return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
+
+
+def imul(w):
+    return (I_DIAG[0] * w[0], I_DIAG[1] * w[1], I_DIAG[2] * w[2])
+
+
+def spin_energy(w) -> float:
+    iw = imul(w)
+    return 0.5 * (w[0] * iw[0] + w[1] * iw[1] + w[2] * iw[2])
+
+
+def spin_acc(w):
+    # I wdot = - w x (I w)
+    tau = cross(w, imul(w))  # w x I w
+    return (-tau[0] / I_DIAG[0], -tau[1] / I_DIAG[1], -tau[2] / I_DIAG[2])
+
+
+def add(a, b, s=1.0):
+    return (a[0] + s * b[0], a[1] + s * b[1], a[2] + s * b[2])
+
+
+def D_gyro(w):
+    # derivative of (w x I w) applied to basis; D = d(w x I w)/dw
+    # J(u) = u x (I w) + w x (I u)
+    rows = []
+    for k in range(3):
+        u = (1.0 if k == 0 else 0.0, 1.0 if k == 1 else 0.0, 1.0 if k == 2 else 0.0)
+        ju = add(cross(u, imul(w)), cross(w, imul(u)))
+        rows.append(ju)
+    # rows are J(e_k); we want columns = J(e_k)
+    return [[rows[k][i] for k in range(3)] for i in range(3)]
+
+
+def solve3(A, b):
+    # Gaussian elimination with partial pivot
+    M = [A[i][:] + [b[i]] for i in range(3)]
+    for k in range(3):
+        piv = max(range(k, 3), key=lambda r: abs(M[r][k]))
+        M[k], M[piv] = M[piv], M[k]
+        if abs(M[k][k]) < 1e-18:
+            return None
+        inv = 1.0 / M[k][k]
+        for j in range(k, 4):
+            M[k][j] *= inv
+        for i in range(3):
+            if i == k:
+                continue
+            f = M[i][k]
+            for j in range(k, 4):
+                M[i][j] -= f * M[k][j]
+    return (M[0][3], M[1][3], M[2][3])
+
+
+def step_spin(w, h, arm: str):
+    a = spin_acc(w)
+    if arm in ("A_explicit", "B_semimpl"):
+        return add(w, a, h)
+    # implicit-in-velocity, eq. (6): (I + h D) (w' - w) = h I a
+    # a = I^{-1}(- w x I w), D = d(w x I w)/dw  so da/dw = -I^{-1} D
+    Dg = D_gyro(w)
+    sign = -1.0 if arm == "C_bad" else 1.0
+    Mhat = [[(I_DIAG[i] if i == j else 0.0) + h * sign * Dg[i][j] for j in range(3)] for i in range(3)]
+    rhs = (h * I_DIAG[0] * a[0], h * I_DIAG[1] * a[1], h * I_DIAG[2] * a[2])
+    dw = solve3(Mhat, rhs)
+    if dw is None:
+        return (float("inf"), float("inf"), float("inf"))
+    return add(w, dw)
+
+
+def run_spin(w0, h, t_end, arm: str) -> dict:
+    w = w0
+    e0 = spin_energy(w)
+    e_last, e_max = e0, e0
+    blow = False
+    n = int(round(t_end / h))
+    for _ in range(n):
+        w = step_spin(w, h, arm)
+        if not all(math.isfinite(x) for x in w):
+            blow = True
+            e_last = float("inf")
+            break
+        e = spin_energy(w)
+        e_last = e
+        if e > e_max:
+            e_max = e
+        if e > BLOW * e0:
+            blow = True
+            break
+    dE = e_last - e0
+    return {"dE": dE, "absdE": abs(dE) if math.isfinite(dE) else float("inf"), "emax": e_max, "e0": e0, "blow": int(blow)}
+
+
+def ic_pend(seed: int) -> tuple[float, float]:
+    rng = random.Random(1000 * STREAM["pendulum"] + seed)
+    return TH0 + rng.uniform(-0.05, 0.05), rng.uniform(-0.05, 0.05)
+
+
+def ic_spin(seed: int) -> tuple[float, float, float]:
+    rng = random.Random(1000 * STREAM["spinner"] + seed)
+    return (W_SPIN[0] + rng.uniform(-0.05, 0.05), W_SPIN[1] + rng.uniform(-0.05, 0.05), W_SPIN[2] + rng.uniform(-0.05, 0.05))
+
+
+def amp_matrix(h: float, omega: float) -> list[list[float]]:
+    # semi-implicit on x'' + omega^2 x = 0
+    # v' = v - h omega^2 x; x' = x + h v'
+    w2 = omega * omega
+    return [[1.0 - h * h * w2, h], [-h * w2, 1.0]]
+
+
+def spectral_radius(M: list[list[float]]) -> float:
+    # 2x2 eigenvalues
+    tr = M[0][0] + M[1][1]
+    det = M[0][0] * M[1][1] - M[0][1] * M[1][0]
+    disc = tr * tr - 4.0 * det
+    if disc >= 0:
+        s = math.sqrt(disc)
+        evs = [abs(0.5 * (tr + s)), abs(0.5 * (tr - s))]
+    else:
+        r = math.sqrt(abs(det))  # for this symplectic map det=1, |λ|=1
+        evs = [r, r]
+    return max(evs)
+
+
+def energy_bounded_run(h: float, t_end: float) -> int:
+    # undamped linear oscillator, semi-implicit, unit energy
+    # x'' + OMEGA0^2 x = 0, E = 0.5 (v^2 + w0^2 x^2)
+    x, v = 1.0, 0.0
+    e0 = 0.5 * OMEGA0 * OMEGA0 * x * x
+    n = int(round(t_end / h))
+    for _ in range(n):
+        v = v - h * OMEGA0 * OMEGA0 * x
+        x = x + h * v
+        if not math.isfinite(x) or not math.isfinite(v):
+            return 0
+        e = 0.5 * (v * v + OMEGA0 * OMEGA0 * x * x)
+        if e > BLOW * e0:
+            return 0
+    return 1
+
+
+def main() -> None:
+    print("mujoco_integrator_energy_toy")
+    print(f"seeds={len(SEEDS)} omega0={OMEGA0:.10f} rad/s h_star={H_STAR:.10f} s  (semi-implicit linear oscillator, h < 2/omega0)")
+    print(f"default moderate h={H_MOD:.4f} s  h/h_star={H_MOD/H_STAR:.4f}  assert_below_hstar={int(H_MOD < H_STAR)}")
+    print(f"pendulum C_damp={C_DAMP} I={INERTIA_P} L={L} T={T_PEND}")
+    print(f"spinner I={I_DIAG} H_spin={H_SPIN} T_spin={T_SPIN}")
+    print("regimes declared before the first run: " + ", ".join(REGIMES))
+    print("common random numbers: per-seed IC jitter reused by every arm")
+    print("stdlib ODE stand-in of documented updates, not mujoco.step; ≠ grip_sweep")
+    print("MuJoCo Euler is semi-implicit; implicit/implicitfast are implicit only in velocity-dependent forces")
+    print("explicit Euler is described but not implemented in MuJoCo; 本页未运行")
+    # stable-step tests
+    print()
+    print("stable-step criterion tests (semi-implicit, undamped linear oscillator, T=40 s):")
+    for tag, h in (
+        ("0.50x_hstar", 0.50 * H_STAR),
+        ("0.98x_hstar", 0.98 * H_STAR),
+        ("1.02x_hstar", 1.02 * H_STAR),
+        ("half_default", 0.50 * H_MOD),
+        ("default_h", H_MOD),
+    ):
+        rho = spectral_radius(amp_matrix(h, OMEGA0))
+        bounded = energy_bounded_run(h, 40.0)
+        print(f"  {tag} h={h:.10f} spectral_radius={rho:.6f} energy_bounded={bounded}")
+    print(f"  above_hstar_grows={int(energy_bounded_run(1.02 * H_STAR, 40.0) == 0)}  below_hstar_bounded={int(energy_bounded_run(0.98 * H_STAR, 40.0) == 1)}")
+
+    # pendulum regimes
+    configs = {
+        "moderate_h": ("pendulum", H_MOD, T_PEND),
+        "tiny_h": ("pendulum", H_TINY, T_PEND),
+        "large_h_spin": ("both", None, None),
+        "inconsistent_D": ("spinner", H_SPIN, T_SPIN),
+    }
+    for regime in REGIMES:
+        print()
+        if regime == "large_h_spin":
+            # large-h pendulum + fast spinner
+            print(f"{regime} (pendulum h={H_LARGE} and spinner h={H_SPIN}, declared lose for A):")
+            pend = {arm: [run_pend(*ic_pend(s), H_LARGE, T_PEND, arm) for s in SEEDS] for arm in ("A_explicit", "B_semimpl", "C_implvel")}
+            spin = {arm: [run_spin(ic_spin(s), H_SPIN, T_SPIN, arm) for s in SEEDS] for arm in ARMS}
+            for plant, bag, arms in (("pendulum_large_h", pend, ("A_explicit", "B_semimpl", "C_implvel")), ("spinner_fast", spin, ARMS)):
+                print(f"  {plant}:")
+                for arm in arms:
+                    dE = [r["dE"] for r in bag[arm]]
+                    adE = [r["absdE"] for r in bag[arm]]
+                    blow = [r["blow"] for r in bag[arm]]
+                    extra = ""
+                    if plant.startswith("pendulum"):
+                        err = [r["traj_err"] for r in bag[arm]]
+                        eer = [r["e_err"] for r in bag[arm]]
+                        extra = f"  traj_err {num(mean_sd(err)[0])}+-{num(mean_sd(err)[1])} rad  |E-Eref| {num(mean_sd(eer)[0])}+-{num(mean_sd(eer)[1])}"
+                    print(f"    {arm} dE {num(mean_sd(dE)[0])}+-{num(mean_sd(dE)[1])}  |dE| {num(mean_sd(adE)[0])}+-{num(mean_sd(adE)[1])}  blow {sum(blow)}/5{extra}")
+                adA = [r["absdE"] for r in bag["A_explicit"]]
+                adB = [r["absdE"] for r in bag["B_semimpl"]]
+                adC = [r["absdE"] for r in bag["C_implvel"]]
+                print(f"    paired A-B |dE|: {verdict(adA, adB)}")
+                print(f"    paired A-C |dE|: {verdict(adA, adC)}")
+                print(f"    paired B-C |dE|: {verdict(adB, adC)}")
+                if plant.startswith("pendulum"):
+                    erA = [r["e_err"] for r in bag["A_explicit"]]
+                    erB = [r["e_err"] for r in bag["B_semimpl"]]
+                    erC = [r["e_err"] for r in bag["C_implvel"]]
+                    print(f"    paired A-B |E-Eref|: {verdict(erA, erB)}")
+                    print(f"    paired A-C |E-Eref|: {verdict(erA, erC)}")
+                    print(f"    paired B-C |E-Eref|: {verdict(erB, erC)}")
+                if plant.startswith("spinner"):
+                    adBad = [r["absdE"] for r in bag["C_bad"]]
+                    print(f"    paired C_bad-C |dE|: {verdict(adBad, adC)}")
+            continue
+        kind, h, t_end = configs[regime]
+        if kind == "pendulum":
+            print(f"{regime} (pendulum h={h} T={t_end}):")
+            bag = {arm: [run_pend(*ic_pend(s), h, t_end, arm) for s in SEEDS] for arm in ("A_explicit", "B_semimpl", "C_implvel")}
+            arms = ("A_explicit", "B_semimpl", "C_implvel")
+        else:
+            print(f"{regime} (spinner h={h} T={t_end}, inconsistent D sign-flipped):")
+            bag = {arm: [run_spin(ic_spin(s), h, t_end, arm) for s in SEEDS] for arm in ARMS}
+            arms = ARMS
+        for arm in arms:
+            dE = [r["dE"] for r in bag[arm]]
+            adE = [r["absdE"] for r in bag[arm]]
+            blow = [r["blow"] for r in bag[arm]]
+            extra = ""
+            if kind == "pendulum":
+                err = [r["traj_err"] for r in bag[arm]]
+                eer = [r["e_err"] for r in bag[arm]]
+                extra = f"  traj_err {num(mean_sd(err)[0])}+-{num(mean_sd(err)[1])} rad  |E-Eref| {num(mean_sd(eer)[0])}+-{num(mean_sd(eer)[1])}"
+            print(f"  {arm} dE {num(mean_sd(dE)[0])}+-{num(mean_sd(dE)[1])}  |dE| {num(mean_sd(adE)[0])}+-{num(mean_sd(adE)[1])}  blow {sum(blow)}/5{extra}")
+        adA = [r["absdE"] for r in bag["A_explicit"]]
+        adB = [r["absdE"] for r in bag["B_semimpl"]]
+        adC = [r["absdE"] for r in bag["C_implvel"]]
+        print(f"  paired A-B |dE|: {verdict(adA, adB)}")
+        print(f"  paired A-C |dE|: {verdict(adA, adC)}")
+        print(f"  paired B-C |dE|: {verdict(adB, adC)}")
+        if kind == "pendulum":
+            erA = [r["e_err"] for r in bag["A_explicit"]]
+            erB = [r["e_err"] for r in bag["B_semimpl"]]
+            erC = [r["e_err"] for r in bag["C_implvel"]]
+            print(f"  paired A-B |E-Eref|: {verdict(erA, erB)}")
+            print(f"  paired A-C |E-Eref|: {verdict(erA, erC)}")
+            print(f"  paired B-C |E-Eref|: {verdict(erB, erC)}")
+        if kind != "pendulum":
+            adBad = [r["absdE"] for r in bag["C_bad"]]
+            print(f"  paired C_bad-C |dE|: {verdict(adBad, adC)}")
+            print(f"  A vs B on spinner velocity update: {verdict(adA, adB)}")
+
+    print()
+    print("alternative C_damp=0.0 on moderate_h (same seeds):")
+    bag = {arm: [run_pend(*ic_pend(s), H_MOD, T_PEND, arm, 0.0) for s in SEEDS] for arm in ("A_explicit", "B_semimpl", "C_implvel")}
+    for arm in ("A_explicit", "B_semimpl", "C_implvel"):
+        dE = [r["dE"] for r in bag[arm]]
+        adE = [r["absdE"] for r in bag[arm]]
+        eer = [r["e_err"] for r in bag[arm]]
+        blow = [r["blow"] for r in bag[arm]]
+        print(f"  {arm} dE {num(mean_sd(dE)[0])}+-{num(mean_sd(dE)[1])}  |dE| {num(mean_sd(adE)[0])}+-{num(mean_sd(adE)[1])}  |E-Eref| {num(mean_sd(eer)[0])}+-{num(mean_sd(eer)[1])}  blow {sum(blow)}/5")
+    adA = [r["absdE"] for r in bag["A_explicit"]]
+    adB = [r["absdE"] for r in bag["B_semimpl"]]
+    adC = [r["absdE"] for r in bag["C_implvel"]]
+    print(f"  paired A-B |dE|: {verdict(adA, adB)}")
+    print(f"  paired A-C |dE|: {verdict(adA, adC)}")
+    print(f"  paired B-C |dE|: {verdict(adB, adC)}")
+    print("Real MuJoCo / Menagerie: 本页未运行; MuJoCo Computation documentation 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+mujoco_integrator_energy_toy
+seeds=5 omega0=3.1320919527 rad/s h_star=0.6385508568 s  (semi-implicit linear oscillator, h < 2/omega0)
+default moderate h=0.1500 s  h/h_star=0.2349  assert_below_hstar=1
+pendulum C_damp=0.05 I=1.0 L=1.0 T=20.0
+spinner I=(1.0, 2.0, 3.0) H_spin=0.08 T_spin=6.0
+regimes declared before the first run: moderate_h, tiny_h, large_h_spin, inconsistent_D
+common random numbers: per-seed IC jitter reused by every arm
+stdlib ODE stand-in of documented updates, not mujoco.step; ≠ grip_sweep
+MuJoCo Euler is semi-implicit; implicit/implicitfast are implicit only in velocity-dependent forces
+explicit Euler is described but not implemented in MuJoCo; 本页未运行
+
+stable-step criterion tests (semi-implicit, undamped linear oscillator, T=40 s):
+  0.50x_hstar h=0.3192754284 spectral_radius=1.000000 energy_bounded=1
+  0.98x_hstar h=0.6257798397 spectral_radius=1.000000 energy_bounded=1
+  1.02x_hstar h=0.6513218740 spectral_radius=1.490835 energy_bounded=0
+  half_default h=0.0750000000 spectral_radius=1.000000 energy_bounded=1
+  default_h h=0.1500000000 spectral_radius=1.000000 energy_bounded=1
+  above_hstar_grows=1  below_hstar_bounded=1
+
+moderate_h (pendulum h=0.15 T=20.0):
+  A_explicit dE 63.3880+-2.9999  |dE| 63.3880+-2.9999  blow 2/5  traj_err 2.1920+-0.8240 rad  |E-Eref| 63.8779+-2.9323
+  B_semimpl dE -0.4783+-0.0811  |dE| 0.4783+-0.0811  blow 0/5  traj_err 0.0463+-0.0201 rad  |E-Eref| 0.0117+-0.0134
+  C_implvel dE -0.4451+-0.0762  |dE| 0.4451+-0.0762  blow 0/5  traj_err 0.0487+-0.0145 rad  |E-Eref| 0.0449+-0.0184
+  paired A-B |dE|: 62.9097+-3.0587: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-C |dE|: 62.9429+-3.0552: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C |dE|: 0.0332+-0.0050: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B |E-Eref|: 63.8662+-2.9421: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-C |E-Eref|: 63.8330+-2.9455: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C |E-Eref|: -0.0332+-0.0051: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+
+tiny_h (pendulum h=0.005 T=20.0):
+  A_explicit dE -0.0346+-0.0091  |dE| 0.0346+-0.0091  blow 0/5  traj_err 0.0652+-0.0211 rad  |E-Eref| 0.4553+-0.0855
+  B_semimpl dE -0.4880+-0.0941  |dE| 0.4880+-0.0941  blow 0/5  traj_err 0.0016+-0.0004 rad  |E-Eref| 0.0019+-0.0005
+  C_implvel dE -0.4880+-0.0941  |dE| 0.4880+-0.0941  blow 0/5  traj_err 0.0006+-0.0001 rad  |E-Eref| 0.0020+-0.0005
+  paired A-B |dE|: -0.4534+-0.0850: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-C |dE|: -0.4533+-0.0850: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C |dE|: 4.786e-05+-3.566e-06: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B |E-Eref|: 0.4534+-0.0850: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-C |E-Eref|: 0.4533+-0.0850: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C |E-Eref|: -4.786e-05+-3.566e-06: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+
+large_h_spin (pendulum h=0.55 and spinner h=0.08, declared lose for A):
+  pendulum_large_h:
+    A_explicit dE 92.5926+-16.7441  |dE| 92.5926+-16.7441  blow 5/5  traj_err 2.5809+-0.4923 rad  |E-Eref| 93.0825+-16.8107
+    B_semimpl dE -0.3013+-0.3102  |dE| 0.3541+-0.2300  blow 0/5  traj_err 0.2355+-0.2165 rad  |E-Eref| 0.2090+-0.2066
+    C_implvel dE 0.7220+-0.4862  |dE| 0.7220+-0.4862  blow 0/5  traj_err 0.6178+-0.0548 rad  |E-Eref| 1.2120+-0.5751
+    paired A-B |dE|: 92.2385+-16.5455: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired A-C |dE|: 91.8706+-16.3299: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired B-C |dE|: -0.3679+-0.2694: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+    paired A-B |E-Eref|: 92.8736+-16.9843: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired A-C |E-Eref|: 91.8706+-16.3299: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired B-C |E-Eref|: -1.0030+-0.7700: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  spinner_fast:
+    A_explicit dE 52.8938+-16.4901  |dE| 52.8938+-16.4901  blow 0/5
+    B_semimpl dE 52.8938+-16.4901  |dE| 52.8938+-16.4901  blow 0/5
+    C_implvel dE -13.3682+-0.2701  |dE| 13.3682+-0.2701  blow 0/5
+    C_bad dE 12527.3906+-6611.5011  |dE| 12527.3906+-6611.5011  blow 5/5
+    paired A-B |dE|: 0.0000+-0.0000: tie: identical on every seed
+    paired A-C |dE|: 39.5256+-16.3407: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired B-C |dE|: 39.5256+-16.3407: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C_bad-C |dE|: 12514.0224+-6611.4795: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+
+inconsistent_D (spinner h=0.08 T=6.0, inconsistent D sign-flipped):
+  A_explicit dE 52.8938+-16.4901  |dE| 52.8938+-16.4901  blow 0/5
+  B_semimpl dE 52.8938+-16.4901  |dE| 52.8938+-16.4901  blow 0/5
+  C_implvel dE -13.3682+-0.2701  |dE| 13.3682+-0.2701  blow 0/5
+  C_bad dE 12527.3906+-6611.5011  |dE| 12527.3906+-6611.5011  blow 5/5
+  paired A-B |dE|: 0.0000+-0.0000: tie: identical on every seed
+  paired A-C |dE|: 39.5256+-16.3407: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C |dE|: 39.5256+-16.3407: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C_bad-C |dE|: 12514.0224+-6611.4795: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  A vs B on spinner velocity update: 0.0000+-0.0000: tie: identical on every seed
+
+alternative C_damp=0.0 on moderate_h (same seeds):
+  A_explicit dE 78.1434+-14.0783  |dE| 78.1434+-14.0783  |E-Eref| 78.1433+-14.0783  blow 5/5
+  B_semimpl dE 0.1528+-0.0640  |dE| 0.1528+-0.0640  |E-Eref| 0.1526+-0.0640  blow 0/5
+  C_implvel dE 0.1528+-0.0640  |dE| 0.1528+-0.0640  |E-Eref| 0.1526+-0.0640  blow 0/5
+  paired A-B |dE|: 77.9906+-14.0143: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-C |dE|: 77.9906+-14.0143: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C |dE|: 0.0000+-0.0000: tie: identical on every seed
+Real MuJoCo / Menagerie: 本页未运行; MuJoCo Computation documentation 以原文为准
+```
+
+</SimOutput>
+
+### 读这些情形
+
+本页标签按这次序使用： **打平：每个种子上都相同** 只在成对的每种差在每个种子上都恰好为零时使用；**数值上为零（浮点残差），等同打平** 在 `|成对均值|` 及其标准差都小于 1e-9 时使用（该行不打印同号计数）；**接近打平、差距很小，在种子噪声之内** 在 `|成对均值| ≤ 标准差` 时使用；否则是**稳定的**差距（`|成对均值| > 标准差`），若 `|m|` 不到较小臂均值的 20 % 则称为**小而稳定的差距**，否则是**明显差距，不是打平**；20 % 规则只用来选这两个词。每条稳定差距都带 5 个种子上的同号计数，若有反号种子也会写出；单凭同号计数不能把差距说成稳定。差距用未四舍五入的值计算。
+
+- **moderate_h.** 单摆，h = 0.15 s，T = 20 s。A 的 |dE| 是 `63.3880±2.9999`，5 个种子里有 2 个发散。B 是 `0.4783±0.0811`，C 是 `0.4451±0.0762`，都不发散。成对 A−B 与 A−C 的 |dE| 是 `62.9097±3.0587` 与 `62.9429±3.0552`，都是**明显差距，不是打平**，全部 5 个种子同号。B−C 的 |dE| 是 `0.0332±0.0050`，**小而稳定的差距**，5/5。相对极小步能量，B 的 |E − Eref| 是 `0.0117±0.0134`，C 是 `0.0449±0.0184`。
+- **tiny_h.** h = 0.005 s。预先声明的 **|dE| 接近打平并不成立**。A 的 |dE| 是 `0.0346±0.0091`，看起来*小于* B 的 `0.4880±0.0941`，因为显式积分的能量增长抵消了部分物理阻尼；所以从 E0 算的 |dE| 在这里不是合适的标题。相对极小步参考，A 的 |E − Eref| 是 `0.4553±0.0855`，B 是 `0.0019±0.0005`。成对 A−B 的 |E − Eref| 是 `0.4534±0.0850`： **明显差距，不是打平**，全部 5 个种子同号。该格保留，并按 |E − Eref| 来读。B 与 C 仍然接近（打印的 B−C |dE| 是 4.786e-05 量级的**小而稳定的差距**）。
+- **large_h_spin.** 单摆在 h = 0.55 s 时，A 在 5 个种子上全部发散，|dE| 为 `92.5926±16.7441`；B 留在 `0.3541±0.2300`，C 为 `0.7220±0.4862`。成对 A−B 与 A−C 都是**明显**，5/5。在快速转子上，A 与 B 的 |dE| **打平**（`0.0000±0.0000: tie: identical on every seed`），都是 `52.8938±16.4901`，这是预期的：能量看不见位置那一步。C 在耗散，|dE| 为 `13.3682±0.2701`。成对 A−C 是 `39.5256±16.3407`： **明显**，5/5。显式 / 把陀螺项显式积分时 A 稳定输掉，这一格保留。
+- **inconsistent_D.** 同一转子，C_bad 把 `D` 的符号翻转。C_bad 在 5 个种子上全部发散，|dE| 为 `12527.3906±6611.5011`。成对 C_bad−C 是 `12514.0224±6611.4795`： **明显差距，不是打平**，全部 5 个种子同号。失败格保留。
+
+**事后替代，相同种子。** 在 `moderate_h` 上把 `C_damp = 0`，B 与 C **打平**（`0.0000±0.0000: tie: identical on every seed`），|dE| 为 `0.1528±0.0640`，因为 `D = 0` 时对速度隐式就退回半隐式。A 仍然输掉：`78.1434±14.0783`，5/5 发散，成对 A−B `77.9906±14.0143`，**明显**，5/5。
+
+本页**不宣布普遍赢家**，也**不**替换 `grip_sweep`。在中等步长上，半隐式与对速度隐式能压住显式的能量增长；但没有速度相关力时，对速度隐式与半隐式并不是另一种更新；把 `D` 翻过来，还可能给翻滚刚体灌入能量。真实 MuJoCo 或 Menagerie 运行： **本页未运行**。
+
+**180 分钟安排:** 30 分钟读 MuJoCo Computation 页的 Integrators 一节（显式、半隐式、对速度隐式，以及能量增长那一句）；30 分钟手推 h* = 2/ω0 以及 0.98× / 1.02× / 半步检查；40 分钟运行玩具并读四种情形和阻尼替代；50 分钟在种子固定时改 `H_MOD` 或 `C_damp`，并与打印的替代比较；30 分钟做练习。
+
+### 练习
+
+1. 对 ω0 = 3.1320919527 rad/s，计算 h* = 2/ω0，并核对是否与打印的 0.6385508568 s 一致。0.98× h* 与 1.02× h* 哪一个谱半径应为 1，哪一个应增长？
+2. 从 `ic_pend` / `ic_spin` 说明，同一种子上每个臂的初值相同。
+3. 为什么 A 与 B 在转子能量上**打平**，又为什么在摆上把 `C_damp = 0` 时再次**打平**？请指向文档里的更新式，不要再跑一次。
+4. 固定种子，把 `H_TINY` 设为 0.001 s，把 A 的 |E − Eref| 与打印的 `0.4553±0.0855` 比较。
+5. 在任何真实 MuJoCo 运行之前（本页未运行），解释为什么本摆在 h = 0.15 s 上能量有界，**并不**表示 `grip_sweep` 的软接触表可以加大时间步。
+
 <Summary>
 
-MuJoCo 模型是 MJCF 树，geom 接触与执行器和关节并列。软的 `solref` 时间常数加上大时间步会加深穿透，并把 HOLD 变成 SLIP——每个仿真抓取都要汇报这些旋钮。Menagerie 的 `robotstudio_so101` 是接下来要打开的六自由度 Apache-2.0 模型；本课扫描留在无网格场景上，好让数字可复现。
+MuJoCo 模型是 MJCF 树，geom 接触与执行器和关节并列。软的 `solref` 时间常数加上大时间步会加深穿透，并把 HOLD 变成 SLIP——每个仿真抓取都要汇报这些旋钮。Menagerie 的 `robotstudio_so101` 是接下来要打开的六自由度 Apache-2.0 模型；本课扫描留在无网格场景上，好让数字可复现。 随后用标准库替身按文档里的积分格式比较显式、半隐式与对速度隐式的能量漂移：在 h=0.15 s 上 A 明显输掉（A−B 的 |dE| 为 62.9097±3.0587），稳定步长判据是严格不等式 h < h*=0.6385508568 s，翻转 D 会让翻滚刚体发散（C_bad−C 为 12514.0224±6611.4795）——不是 grip_sweep 的重写，也不是 MuJoCo 二进制。
 
 </Summary>

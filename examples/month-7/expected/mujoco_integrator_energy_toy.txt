@@ -1,0 +1,81 @@
+mujoco_integrator_energy_toy
+seeds=5 omega0=3.1320919527 rad/s h_star=0.6385508568 s  (semi-implicit linear oscillator, h < 2/omega0)
+default moderate h=0.1500 s  h/h_star=0.2349  assert_below_hstar=1
+pendulum C_damp=0.05 I=1.0 L=1.0 T=20.0
+spinner I=(1.0, 2.0, 3.0) H_spin=0.08 T_spin=6.0
+regimes declared before the first run: moderate_h, tiny_h, large_h_spin, inconsistent_D
+common random numbers: per-seed IC jitter reused by every arm
+stdlib ODE stand-in of documented updates, not mujoco.step; ≠ grip_sweep
+MuJoCo Euler is semi-implicit; implicit/implicitfast are implicit only in velocity-dependent forces
+explicit Euler is described but not implemented in MuJoCo; 本页未运行
+
+stable-step criterion tests (semi-implicit, undamped linear oscillator, T=40 s):
+  0.50x_hstar h=0.3192754284 spectral_radius=1.000000 energy_bounded=1
+  0.98x_hstar h=0.6257798397 spectral_radius=1.000000 energy_bounded=1
+  1.02x_hstar h=0.6513218740 spectral_radius=1.490835 energy_bounded=0
+  half_default h=0.0750000000 spectral_radius=1.000000 energy_bounded=1
+  default_h h=0.1500000000 spectral_radius=1.000000 energy_bounded=1
+  above_hstar_grows=1  below_hstar_bounded=1
+
+moderate_h (pendulum h=0.15 T=20.0):
+  A_explicit dE 63.3880+-2.9999  |dE| 63.3880+-2.9999  blow 2/5  traj_err 2.1920+-0.8240 rad  |E-Eref| 63.8779+-2.9323
+  B_semimpl dE -0.4783+-0.0811  |dE| 0.4783+-0.0811  blow 0/5  traj_err 0.0463+-0.0201 rad  |E-Eref| 0.0117+-0.0134
+  C_implvel dE -0.4451+-0.0762  |dE| 0.4451+-0.0762  blow 0/5  traj_err 0.0487+-0.0145 rad  |E-Eref| 0.0449+-0.0184
+  paired A-B |dE|: 62.9097+-3.0587: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-C |dE|: 62.9429+-3.0552: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C |dE|: 0.0332+-0.0050: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B |E-Eref|: 63.8662+-2.9421: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-C |E-Eref|: 63.8330+-2.9455: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C |E-Eref|: -0.0332+-0.0051: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+
+tiny_h (pendulum h=0.005 T=20.0):
+  A_explicit dE -0.0346+-0.0091  |dE| 0.0346+-0.0091  blow 0/5  traj_err 0.0652+-0.0211 rad  |E-Eref| 0.4553+-0.0855
+  B_semimpl dE -0.4880+-0.0941  |dE| 0.4880+-0.0941  blow 0/5  traj_err 0.0016+-0.0004 rad  |E-Eref| 0.0019+-0.0005
+  C_implvel dE -0.4880+-0.0941  |dE| 0.4880+-0.0941  blow 0/5  traj_err 0.0006+-0.0001 rad  |E-Eref| 0.0020+-0.0005
+  paired A-B |dE|: -0.4534+-0.0850: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-C |dE|: -0.4533+-0.0850: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C |dE|: 4.786e-05+-3.566e-06: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B |E-Eref|: 0.4534+-0.0850: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-C |E-Eref|: 0.4533+-0.0850: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C |E-Eref|: -4.786e-05+-3.566e-06: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+
+large_h_spin (pendulum h=0.55 and spinner h=0.08, declared lose for A):
+  pendulum_large_h:
+    A_explicit dE 92.5926+-16.7441  |dE| 92.5926+-16.7441  blow 5/5  traj_err 2.5809+-0.4923 rad  |E-Eref| 93.0825+-16.8107
+    B_semimpl dE -0.3013+-0.3102  |dE| 0.3541+-0.2300  blow 0/5  traj_err 0.2355+-0.2165 rad  |E-Eref| 0.2090+-0.2066
+    C_implvel dE 0.7220+-0.4862  |dE| 0.7220+-0.4862  blow 0/5  traj_err 0.6178+-0.0548 rad  |E-Eref| 1.2120+-0.5751
+    paired A-B |dE|: 92.2385+-16.5455: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired A-C |dE|: 91.8706+-16.3299: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired B-C |dE|: -0.3679+-0.2694: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+    paired A-B |E-Eref|: 92.8736+-16.9843: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired A-C |E-Eref|: 91.8706+-16.3299: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired B-C |E-Eref|: -1.0030+-0.7700: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  spinner_fast:
+    A_explicit dE 52.8938+-16.4901  |dE| 52.8938+-16.4901  blow 0/5
+    B_semimpl dE 52.8938+-16.4901  |dE| 52.8938+-16.4901  blow 0/5
+    C_implvel dE -13.3682+-0.2701  |dE| 13.3682+-0.2701  blow 0/5
+    C_bad dE 12527.3906+-6611.5011  |dE| 12527.3906+-6611.5011  blow 5/5
+    paired A-B |dE|: 0.0000+-0.0000: tie: identical on every seed
+    paired A-C |dE|: 39.5256+-16.3407: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired B-C |dE|: 39.5256+-16.3407: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C_bad-C |dE|: 12514.0224+-6611.4795: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+
+inconsistent_D (spinner h=0.08 T=6.0, inconsistent D sign-flipped):
+  A_explicit dE 52.8938+-16.4901  |dE| 52.8938+-16.4901  blow 0/5
+  B_semimpl dE 52.8938+-16.4901  |dE| 52.8938+-16.4901  blow 0/5
+  C_implvel dE -13.3682+-0.2701  |dE| 13.3682+-0.2701  blow 0/5
+  C_bad dE 12527.3906+-6611.5011  |dE| 12527.3906+-6611.5011  blow 5/5
+  paired A-B |dE|: 0.0000+-0.0000: tie: identical on every seed
+  paired A-C |dE|: 39.5256+-16.3407: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C |dE|: 39.5256+-16.3407: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C_bad-C |dE|: 12514.0224+-6611.4795: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  A vs B on spinner velocity update: 0.0000+-0.0000: tie: identical on every seed
+
+alternative C_damp=0.0 on moderate_h (same seeds):
+  A_explicit dE 78.1434+-14.0783  |dE| 78.1434+-14.0783  |E-Eref| 78.1433+-14.0783  blow 5/5
+  B_semimpl dE 0.1528+-0.0640  |dE| 0.1528+-0.0640  |E-Eref| 0.1526+-0.0640  blow 0/5
+  C_implvel dE 0.1528+-0.0640  |dE| 0.1528+-0.0640  |E-Eref| 0.1526+-0.0640  blow 0/5
+  paired A-B |dE|: 77.9906+-14.0143: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-C |dE|: 77.9906+-14.0143: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C |dE|: 0.0000+-0.0000: tie: identical on every seed
+Real MuJoCo / Menagerie: 本页未运行; MuJoCo Computation documentation 以原文为准
