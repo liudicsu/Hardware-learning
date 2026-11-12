@@ -3958,7 +3958,7 @@ const lessonRef = (n, slug, lang) => {
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
   ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) ===39420, "b17p3 curriculum: 39420 minutes (tip after batch-22 PR1)");
-  for (const [month, expected] of [[1, 2730], [2, 3570], [3, 3330], [4, 3390], [5, 3390], [6, 3840], [7, 3330], [8, 3990], [9, 4110], [10, 3750], [11, 3630]]) {
+  for (const [month, expected] of [[1, 2910], [2, 3570], [3, 3510], [4, 3390], [5, 3390], [6, 3840], [7, 3330], [8, 3990], [9, 4110], [10, 3750], [11, 3630]]) {
     ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `current curriculum M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
@@ -5911,7 +5911,7 @@ print("protocol pass")
   const read=p=>readFileSync(join(root,p),"utf8"), env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
   const cur=read("src/lib/curriculum.ts"), res=read("src/lib/resources.ts");
   const cases=[
-    [3,"m3","so101-arm","abs_vs_incr_power_on_toy",390,"150",["## Absolute vs incremental","## 绝对式与增量式"],["<Summary>","<Summary>"],
+    [3,"m3","so101-arm","abs_vs_incr_power_on_toy",570,"150",["## Absolute vs incremental","## 绝对式与增量式"],["<Summary>","<Summary>"],
       ["CPR=4096 deg_per_count=0.0879","seeds=5 glitches_per_seed=20","single_turn_joint A_single_abs 0.06+-0.00 0.13+-0.01 100.00+-0.00 0.00+-0.00 0.00+-0.00","single_turn_joint B_incremental 72.41+-10.23 144.34+-5.82 0.00+-0.00 100.00+-0.00","single_turn_joint C_incr_home 0.06+-0.00 0.13+-0.01 100.00+-0.00 0.00+-0.00 6.17+-0.20","three_turn_shaft A_single_abs 234.02+-38.20 576.00+-197.06 38.00+-12.55 62.00+-12.55","three_turn_shaft B_incremental 539.48+-63.44","three_turn_shaft C_incr_home 0.07+-0.01 0.13+-0.00 100.00+-0.00 0.00+-0.00 10.49+-0.70","three_turn_shaft D_multi_batt 0.07+-0.01 0.13+-0.00 100.00+-0.00 0.00+-0.00 0.00+-0.00","three_turn_flat_battery D_multi_batt 0.07+-0.01 0.13+-0.00 100.00+-0.00 0.00+-0.00 10.49+-0.70 20.00+-0.00","No winner is declared"],
       ["encoder_index_cal_toy.py","/month/month-2/motors-drivers","A_single_abs","B_incremental","C_incr_home","D_multi_batt","single_turn_joint","three_turn_shaft","three_turn_flat_battery","Extended Position Control Mode","−256","4096","XL330-M288","Wiegand","0.0879°","72.41°","234.02°","576.00°","10.49 s","以原文为准","本页未运行"],
       {en:["power glitch","multi-turn","**No winner is declared.**","not repeated here","not in the SO-101 BOM"],zh:["掉电毛刺","多圈","**不宣布赢家。**","这里不重复","不在 SO-101 物料清单里"]},
@@ -6638,7 +6638,7 @@ print("protocol pass")
   execFileSync("python3",[join(root,"tools/test_b13_solder_leadlag_toys.py")],{cwd:root,encoding:"utf8",env,stdio:"pipe"});
   ok(true,"b13p1 independent tests tools/test_b13_solder_leadlag_toys.py pass");
   const cases=[
-    [1,"soldering","soldering_thermal_window_toy",270,["## The thermal window: cold joints, lifted pads and reflow zones","## 热窗口：冷焊、掀盘与回流温区"],
+    [1,"soldering","soldering_thermal_window_toy",450,["## The thermal window: cold joints, lifted pads and reflow zones","## 热窗口：冷焊、掀盘与回流温区"],
       ["seeds=5 joints=40","lambda_max=4.367 1/s -> need DT < 2/lambda_max = 0.458 s","paired A-B cold: 0.7700+-0.0737: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired A-B dose: -0.1090+-0.1168: near-tie / small gap, within seed noise (|m| <= sd); same sign on all 5 seeds","paired C-B lift: 0.9750+-0.0177: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired A-B cold: 0.0000+-0.0000: tie: identical on every seed","paired A-B lift: 0.0000+-0.0000: tie: identical on every seed","paired A-B dose: -114.1083+-1.3103: clear gap","mean tip oxide 0.421 on 46 cold vs 0.207 on 154 good joints","profile_ok: ramp 2.08 C/s","TAL < 30 s: cold/dull joint and void risk","No winner declared"],
       ["C_j × dTj/dt = G_c × (Tt − Tj) − G_loss × (Tj − T_amb)","DT < 2 / λ_max(M)","4.367 1/s","0.458 s","A_short","B_lesson","C_long","277.0 °C","235.0 °C","1.31 s","3.34 s","0.7700±0.0737","0.2300±0.0737","0.9750±0.0177","−0.1090±0.1168","−114.1083±1.3103","0.421","0.207","以原文为准","本页未运行","20 %"],
       {en:["**not** another pass over the inspection quiz","**synthetic**","**Model assumptions:**","**blind**","**toy stand-ins**","**tie: identical on every seed**","**near-tie / small gap, within seed noise**","**consistent**","**A loses with a clear gap:**","**C loses with a clear gap:**","does not declare a universal winner","a sign count alone never makes a gap consistent","this toy's own choice"],zh:["**不是**把检查测验再讲一遍","**合成**","**模型假设：**","**看不见**","**toy 的替身**","**打平：每个种子都完全相同**","**接近打平、差距很小，在种子噪声之内**","**稳定**","**A 输了，差距明显：**","**C 输了，差距明显：**","不宣布普遍赢家","只靠同号计数，永远不能把差距叫成稳定","本 toy 自己选的"]},
@@ -8705,7 +8705,7 @@ print("protocol pass")
   for(const m of [...src.matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g),...sec6.matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g),...sec8.matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g)])ok(bag.includes(`${m[1]}+-${m[2]}`),`b19p3 notes: ${m[0]} matches expected/`);
   ok(/39 420/.test(read("README.md"))&&/约 39 420 分钟/.test(read("README.md")),"b19p3 README site minutes (en + zh)");
   ok((()=>{const months=[...cur.matchAll(/const month(\d+)Lessons[\s\S]*?\];/g)]; let s=0; for(const m of months){for(const x of m[0].matchAll(/minutes:\s*(\d+)/g))s+=+x[1];} return s;})()===39420,"b19p3 curriculum: 36900 minutes (tip after batch-22 PR1: 38700)");
-  for(const [mo,want] of [[6,3840],[8,3990]])ok((()=>{const m=cur.match(new RegExp(`const month${mo}Lessons[\\s\\S]*?\\];`)); return [...m[0].matchAll(/minutes:\s*(\d+)/g)].reduce((a,x)=>a+(+x[1]),0);})()===want,`b19p3 curriculum: M${mo} ${want} minutes (tip after batch-22 PR1)`);
+  for(const [mo,want] of [[6,3840],[8,3990]])ok((()=>{const m=cur.match(new RegExp(`const month${mo}Lessons[\\s\\S]*?\\];`)); return [...m[0].matchAll(/minutes:\s*(\d+)/g)].reduce((a,x)=>a+(+x[1]),0);})()===want,`b19p3 curriculum: M${mo} ${want} minutes (tip after batch-21 PR3)`);
   // Difference-direction tags (B−A, C−B) in prose, Summary, curriculum, plans and note must match expected/ paired lines.
   const dirOf=new Map();
   for(const line of bag.split("\n")){
@@ -8909,7 +8909,7 @@ print("protocol pass")
   for(const m of [...src.matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g),...planSec(p3,"## Batch-20 PR1").matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g),...planSec(p4,"## Batch-20 PR1").matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g)])ok(bag.includes(`${m[1]}+-${m[2]}`),`b20p1 notes: ${m[0]} matches expected/`);
   ok(/39 420/.test(read("README.md"))&&/约 39 420 分钟/.test(read("README.md")),"b20p1 README site minutes (en + zh)");
   ok((()=>{const months=[...cur.matchAll(/const month(\d+)Lessons[\s\S]*?\];/g)]; let s=0; for(const m of months){for(const x of m[0].matchAll(/minutes:\s*(\d+)/g))s+=+x[1];} return s;})()===39420,"b20p1 curriculum: 37230 minutes (tip after batch-22 PR1: 38700)");
-  for(const [mo,want] of [[3,3510],[4,3390]])ok((()=>{const m=cur.match(new RegExp(`const month${mo}Lessons[\\s\\S]*?\\];`)); return [...m[0].matchAll(/minutes:\s*(\d+)/g)].reduce((a,x)=>a+(+x[1]),0);})()===want,`b20p1 curriculum: M${mo} ${want} minutes (M3 tip after batch-21 PR1, M4 tip after batch-22 PR1)`);
+  for(const [mo,want] of [[3,3510],[4,3390]])ok((()=>{const m=cur.match(new RegExp(`const month${mo}Lessons[\\s\\S]*?\\];`)); return [...m[0].matchAll(/minutes:\s*(\d+)/g)].reduce((a,x)=>a+(+x[1]),0);})()===want,`b20p1 curriculum: M${mo} ${want} minutes (M3 tip after batch-22 PR1, M4 tip after batch-21 PR3)`);
   // Difference-direction tags (A−B vs B−A, C−A, C−B) in prose, Summary, curriculum, plan and note must match expected/ paired lines.
   const dirOf=new Map();
   for(const line of bag.split("\n")){
