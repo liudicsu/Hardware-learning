@@ -6,7 +6,7 @@ Lesson 7.5 turned a depth image into clusters in the camera frame. Grasping need
 
 Data flow:
 
-1. **Prompt or click** → binary mask on the RGB image (<Term id="open-vocabulary-segmentation">open-vocabulary segmentation</Term>; SAM2 is Apache-2.0 — re-checked on the upstream LICENSE this batch).
+1. **Prompt or click** → binary mask on the RGB image (<Term id="open-vocabulary-segmentation">open-vocabulary segmentation</Term>; SAM2 is Apache-2.0 — checked against the upstream LICENSE).
 2. **Mask + depth + intrinsics** → camera-frame centroid (lesson 7.5 back-projection).
 3. **Hand-eye extrinsics** → point in gripper or base.
 4. **Grasp representation** → at minimum a point, an approach axis and a width; classical GraspNet-style 6-DoF hypotheses are the research counterpart, not required here.
@@ -17,7 +17,7 @@ Data flow:
 
 ## Eye-in-hand vs eye-to-hand
 
-OpenCV `calib3d` documents `calibrateHandEye(R_gripper2base, t_gripper2base, R_target2cam, t_target2cam, R_cam2gripper, t_cam2gripper, method=CALIB_HAND_EYE_PARK)` (signature re-read from `opencv/opencv` `calib3d.hpp` this batch; the HTML mirror had previously returned 403).
+OpenCV `calib3d` documents `calibrateHandEye(R_gripper2base, t_gripper2base, R_target2cam, t_target2cam, R_cam2gripper, t_cam2gripper, method=CALIB_HAND_EYE_PARK)` (signature re-read from `opencv/opencv` `calib3d.hpp`; the HTML mirror had previously returned 403).
 
 - **Eye-in-hand.** Camera fixed on the gripper. The solve returns cam2gripper (gripper←camera). Relative motions satisfy `A_i X = X B_i` with `A` from gripper↔base and `B` from target↔camera.
 - **Eye-to-hand.** Static camera watching a target on the end-effector. Same API; feed the **inverted** gripper↔base poses so the estimated X becomes base↔camera. Two or more static cameras, robot–world hand–eye (`AX = ZB`) and a chain-closure check are in [10.4 multi-camera extrinsics](/en/month/month-10/multi-view-extrinsics).

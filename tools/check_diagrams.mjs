@@ -5520,7 +5520,7 @@ print("protocol pass")
       ok(prose.includes(marker),`b6 polish thermal ${lang}: ${marker}`);
     ok(md.includes(source.trim()) && md.includes(expected.trim()),`b6 polish thermal ${lang}: synchronized full code/stdout`);
     const i2c=read(`src/content/m2/arduino-io/${lang}.mdx`);
-    const note=lang==="en" ? "NXP UM10204 could not be resolved during this batch’s source check, so the opened TI SLVA689A is used instead." : "本批次资料核对时未能解析 NXP UM10204，因此改用已打开的 TI SLVA689A。";
+    const note=lang==="en" ? "NXP UM10204 could not be resolved when this lesson's sources were checked, so the opened TI SLVA689A is used instead." : "核对本课资料时未能解析 NXP UM10204，因此改用已打开的 TI SLVA689A。";
     ok(i2c.includes(note) && i2c.indexOf(note)<i2c.indexOf('<Resource id="ti-i2c-pullup-calculation" />'),`b6 polish I2C ${lang}: unresolved-original note next to substitute resource`);
     for (const [month,slug] of [[10,"flow-matching-policies"],[8,"vla-finetune"]]) {
       const body=read(`src/content/m${month}/${slug}/${lang}.mdx`).split("<Summary>")[0].replace(/```[\s\S]*?```/g,"");
@@ -5529,7 +5529,7 @@ print("protocol pass")
     }
   }
   const resources=read("src/lib/resources.ts");
-  ok(resources.includes("UM10204 could not be resolved during this batch; TI SLVA689A is used instead.") && resources.includes("本批次未能解析 UM10204，改用 TI SLVA689A。"),"b6 polish resources: symmetric substitute-source note");
+  ok(resources.includes("UM10204 could not be resolved when the sources were checked; TI SLVA689A is used instead.") && resources.includes("核对资料时未能解析 UM10204，改用 TI SLVA689A。"),"b6 polish resources: symmetric substitute-source note");
   console.log("batch6-polish: verified ambient-reference threshold algebra, critical current, reading-only paper figures and I2C source fallback checked");
 }
 
@@ -8318,8 +8318,8 @@ print("protocol pass")
   ok(zhE.includes("四处改动")&&zhE.includes("从 250 / 0.05 改到 300 / 0.10")&&zhE.includes("哪四处首跑后的改动")&&!zhE.includes("三处改动")&&!zhE.includes("哪三处首跑后的改动"),"b18pol VLA zh: four changes in prose and exercise");
   const en3=read("src/content/m3/gripper-fingers/en.mdx");
   const zh3=read("src/content/m3/gripper-fingers/zh.mdx");
-  ok(en3.includes("Zhang traces the planar")&&en3.includes("Reuleaux")&&en3.includes("Markenscoff, Ni and Papadimitriou")&&en3.includes("necessary and sufficient for a 3-D polyhedron")&&en3.includes("were not opened this round"),"b18pol gripper-fingers en: n&s sentence via already-read sources");
-  ok(zh3.includes("Reuleaux")&&zh3.includes("Markenscoff")&&zh3.includes("必要且充分")&&zh3.includes("本轮未打开"),"b18pol gripper-fingers zh: n&s sentence via already-read sources");
+  ok(en3.includes("Zhang traces the planar")&&en3.includes("Reuleaux")&&en3.includes("Markenscoff, Ni and Papadimitriou")&&en3.includes("necessary and sufficient for a 3-D polyhedron")&&en3.includes("were not opened for this lesson"),"b18pol gripper-fingers en: n&s sentence via already-read sources");
+  ok(zh3.includes("Reuleaux")&&zh3.includes("Markenscoff")&&zh3.includes("必要且充分")&&zh3.includes("未为本课打开"),"b18pol gripper-fingers zh: n&s sentence via already-read sources");
   const en4=read("src/content/m4/slam-nav/en.mdx");
   const zh4=read("src/content/m4/slam-nav/zh.mdx");
   ok(en4.includes("negative inside / behind the surface and positive outside / in front")&&en4.includes("sdf = r − t_c")&&en4.includes("A truncation band that is too wide averages in far-away samples"),"b18pol slam-nav en: TSDF sign and wide truncation");
@@ -9750,9 +9750,10 @@ print("protocol pass")
   const files=[]; const walk=d=>{for(const e of readdirSync(join(root,d),{withFileTypes:true})){const p=`${d}/${e.name}`; if(e.isDirectory())walk(p); else if(/\/(en|zh)\.mdx$/.test(p))files.push(p);}};
   walk("src/content");
   const strip=t=>t.replace(/```[\s\S]*?```/g,"").replace(/<SimOutput[\s\S]*?<\/SimOutput>/g,"").replace(/`[^`\n]*`/g,"").replace(/\]\([^)]*\)/g,"]");
-  const bad=/\bbatch-\d+\b|\bPR ?\d+\b|sources? notes?\b|来源说明|来源笔记|\b[bB]\d{1,2}p(?:\d|ol)\b|\b(?:polish|收尾) PR\b/i;
+  const bad=/\bbatch-\d+\b|\bPR ?\d+\b|sources? notes?\b|来源说明|来源笔记|\bthis batch\b|本批|\bthis round\b|本轮|\b[bB]\d{1,2}p(?:\d|ol)\b|\b(?:polish|收尾) PR\b/i;
   ok(files.length>=142,`b21pol process-label sweep covers ${files.length} lesson pages`);
   for(const f of files){const t=strip(read(f)), m=t.match(bad); ok(!m,`b21pol ${f}: no dev-process label in learner-visible prose${m?` (${JSON.stringify(t.slice(Math.max(0,m.index-40),m.index+40))})`:""}`);}
+  ok(!/this batch|本批|this round|本轮/.test(read("src/lib/resources.ts")),"b21pol resources: no \"this batch\" / 本批 / \"this round\" / 本轮 process label in learner-visible resource text");
   console.log("batch-21 polish: archived ROS wiki citation, OpenVLA-OFT authors, process-label sweep locked");
 }
 

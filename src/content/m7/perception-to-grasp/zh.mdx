@@ -6,7 +6,7 @@
 
 数据流：
 
-1. **提示或点击** → RGB 上的二值掩码（<Term id="open-vocabulary-segmentation">开放词汇分割</Term>；SAM2 为 Apache-2.0——本批已对照上游 LICENSE）。
+1. **提示或点击** → RGB 上的二值掩码（<Term id="open-vocabulary-segmentation">开放词汇分割</Term>；SAM2 为 Apache-2.0——已对照上游 LICENSE）。
 2. **掩码 + 深度 + 内参** → 相机系质心（第 7.5 课反投影）。
 3. **手眼外参** → 夹爪系或基座系中的点。
 4. **抓取表示** → 至少要有点、接近轴与宽度；经典 GraspNet 式 6-DoF 假设是研究侧对照，本页不强制。
@@ -17,7 +17,7 @@
 
 ## 眼在手上 vs 眼在手外
 
-OpenCV `calib3d` 文档中的 `calibrateHandEye(R_gripper2base, t_gripper2base, R_target2cam, t_target2cam, R_cam2gripper, t_cam2gripper, method=CALIB_HAND_EYE_PARK)`（本批从 `opencv/opencv` 的 `calib3d.hpp` 重读签名；HTML 镜像此前曾返回 403）。
+OpenCV `calib3d` 文档中的 `calibrateHandEye(R_gripper2base, t_gripper2base, R_target2cam, t_target2cam, R_cam2gripper, t_cam2gripper, method=CALIB_HAND_EYE_PARK)`（从 `opencv/opencv` 的 `calib3d.hpp` 重读签名；HTML 镜像此前曾返回 403）。
 
 - **眼在手上。** 相机固定在夹爪上。求解返回 cam2gripper（夹爪←相机）。相对运动满足 `A_i X = X B_i`，`A` 来自夹爪↔基座，`B` 来自标定板↔相机。
 - **眼在手外。** 相机固定、标定板在末端。同一 API；把夹爪↔基座位姿**取逆**再喂入，使估计的 X 变成基座↔相机。两台及以上静态相机、机器人–世界手眼（`AX = ZB`）与外参链闭合检查见 [10.4 多相机外参](/zh/month/month-10/multi-view-extrinsics)。

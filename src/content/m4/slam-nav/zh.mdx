@@ -1680,7 +1680,7 @@ Real Nav2 / DWB / RPP plugins, lidar, robot: 本页未运行; Fox et al. and Mac
 
 ## 八叉树占据与 TSDF 融合，对照二维栅格
 
-本页的二维 `OccupancyGrid` / 代价地图 / DWA 把世界压到地板上。另一种表示是建在**八叉树**上的三维占据地图：它同时表示占用**和空闲**，**未知**被隐式编码，并以**概率**方式更新，从而融合新读数、传感器噪声与动态变化；地图是多分辨率且紧凑的（OctoMap 主页，正文已读；以原文为准）。**TSDF**（截断符号距离）体则按符号距离函数的**加权平均**融合距离帧。Curless 与 Levoy 写的是累积加权符号距离，按增量规则 Di+1 = (Wi Di + wi+1 di+1) / (Wi + wi+1)、Wi+1 = Wi + wi+1 更新，在表面附近截断，再提取等值面（volrange.pdf，正文已读；以论文为准）。Open3D 的 RGBD integration 页写到 TSDF 体 “works like a weighted average filter in 3D space”，并把 `sdf_trunc` 当作截断值（Open3D 0.20.0 文档，正文已读；以原文为准）。本节**不是**本课 PGM / 代价地图膨胀 / DWA 的重写，也**不是** depth-pointcloud 课上的体素 / RANSAC / PCA 流程。Hornung 等在 Autonomous Robots 上的 PDF 本轮返回 HTTP 500，**不予引用**。
+本页的二维 `OccupancyGrid` / 代价地图 / DWA 把世界压到地板上。另一种表示是建在**八叉树**上的三维占据地图：它同时表示占用**和空闲**，**未知**被隐式编码，并以**概率**方式更新，从而融合新读数、传感器噪声与动态变化；地图是多分辨率且紧凑的（OctoMap 主页，正文已读；以原文为准）。**TSDF**（截断符号距离）体则按符号距离函数的**加权平均**融合距离帧。Curless 与 Levoy 写的是累积加权符号距离，按增量规则 Di+1 = (Wi Di + wi+1 di+1) / (Wi + wi+1)、Wi+1 = Wi + wi+1 更新，在表面附近截断，再提取等值面（volrange.pdf，正文已读；以论文为准）。Open3D 的 RGBD integration 页写到 TSDF 体 “works like a weighted average filter in 3D space”，并把 `sdf_trunc` 当作截断值（Open3D 0.20.0 文档，正文已读；以原文为准）。本节**不是**本课 PGM / 代价地图膨胀 / DWA 的重写，也**不是** depth-pointcloud 课上的体素 / RANSAC / PCA 流程。Hornung 等在 Autonomous Robots 上的 PDF 在核对资料时返回 HTTP 500，**不予引用**。
 
 <Resource id="octomap-site" />
 <Resource id="curless-volrange" />
@@ -1688,7 +1688,7 @@ Real Nav2 / DWB / RPP plugins, lidar, robot: 本页未运行; Fox et al. and Mac
 
 **实际打开并读过正文的来源。**
 
-- **OctoMap 主页**（https://octomap.github.io/）：占用与空闲、未知被隐式编码、概率更新、多分辨率八叉树。以原文为准。该页提到 2013 年 Auton. Robots 论文；本轮未能读到该 PDF（HTTP 500），不作为来源。
+- **OctoMap 主页**（https://octomap.github.io/）：占用与空闲、未知被隐式编码、概率更新、多分辨率八叉树。以原文为准。该页提到 2013 年 Auton. Robots 论文；核对资料时未能读到该 PDF（HTTP 500），不作为来源。
 - **Curless 与 Levoy**，A volumetric method for building complex models from range images，SIGGRAPH 1996，volrange.pdf：累积加权符号距离及上面的增量 D、W 更新。以论文为准。
 - **Open3D RGBD integration**（0.20.0）：ScalableTSDFVolume、`sdf_trunc`，以及加权平均滤波器那一句。以原文为准。
 
