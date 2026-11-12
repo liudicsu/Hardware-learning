@@ -747,6 +747,390 @@ No winner is declared; real servos / encoders / battery packs: 本页未运行
 4. 写一个上电检查：比较上次保存的位姿与醒来时读到的位姿，并决定多大的差异应当禁止运动，直到机械臂完成回零。
 5. 对一个行为像上面 XL330 注释那样的舵机，写出程序在断电重启后、信任多圈 Present Position 之前必须做什么。只写计划，本页不运行舵机。
 
+## 共享舵机电源轨上的电压跌落
+
+<Resource id="wiki-voltage-drop" />
+
+上面的"供电"一节把六只 C001 舵机的电流加了起来：额定时约 3.0 A，所有关节都堵转时约 12.0 A，对照物料清单里 5 V 电源的 4 A 额定值。这个加法默认电源就紧挨着每一只舵机，实际并非如此。六只舵机经菊花链共用一个电源（控制板 → shoulder_pan → … → gripper），每只舵机的电流都要流过供电线和它前面的每一段连线。Wikipedia 的 *Voltage drop*（已读正文，rev 1384299568；以原文为准）给出直流下的规则：导体上的压降是 V = I R。文中说压降**在供电线和回流线上都存在**，导体、触点和连接器都会产生压降，而减小压降最简单的办法是**加大导体直径**。
+
+本节**不是**元器件一课里单片机欠压复位的例子，也不模拟舵机自身的保护逻辑。它只问一个问题：一个或几个关节堵转时，链末端的舵机看到多少电压，是否仍不低于 C001 输入范围下限 4 V？
+
+<Formula label="菊花链上第 k 只舵机处的电源电压">V_k = V_SUP − R_LEAD × I_sum − Σ_(j &lt; k) R_SEG_j × I_downstream(j)；   V_min = 对 k 取 V_k 的最小值</Formula>
+
+**算例（标明的手算，toy 也会打印）。** 所有关节都堵转时，六只舵机共取 6 × 2.0 A = 12.0000 A。供电线（两根导体合计）为 0.10 Ω 时，单这一段就压降 12.0 A × 0.10 Ω = 1.2000 V。之后每段 0.05 Ω 的连线只承载它后面舵机的电流，依次为 10、8、6、4、2 A，所以 gripper 处的电压是 5.0 − 1.2 − 0.05 × 30 = 2.3000 V。同样的布线在额定电流下，gripper 处为 4.3250 V。这两个数都没有用测量得到的电阻。这些电阻是**声明的玩具参数**。
+
+**这里没有积分步长。** toy 解的是恒流负载下的直流电阻链，没有按时间步进，所以也没有步长判据。
+
+### 公平设置
+
+`so101_shared_rail_sag_toy.py` 是**合成**的，只用标准库。它不是 SPICE，也不是在真实机械臂上用示波器测的波形。**模型假设:** 每只舵机都是恒流负载，取本课已引用的 C001 数值（额定 0.5 A，堵转 2.0 A，两者都在 6 V 下给出；以该课已引用规格为准）。电源看作理想的 5.0 V 源，不计它自身的内阻和限流。4 V 门限是上面引用的 4–7.4 V 输入范围的下限，4 A 是电源铭牌值。每个布线电阻乘以 ±20 % 内的均匀系数，每只舵机的电流乘以 ±10 % 内的系数。所有布线数值都是**声明的玩具参数**，不是测量值。
+
+| 组 | 供电线 R_LEAD | 每段连线 R_SEG |
+|---|---|---|
+| A_ideal | 0 Ω | 0 Ω：即"供电"一节的加法，忽略布线 |
+| B_wired | 0.10 Ω | 0.05 Ω |
+| C_thick | 0.03 Ω：更粗更短的供电线 | 0.025 Ω：更粗的连线 |
+
+**共用随机数:** 每个（情形，种子）的六个电阻系数和六个电流系数都只抽一次，三组共用。各组**只**在布线电阻上不同。五个种子。指标：v_min（各舵机中最低的电压，单位 V）、i_sum（总电流，单位 A）、v_ok（v_min ≥ 4 V 时为 1）和 i_ok（i_sum ≤ 4 A 时为 1），都按种子取均值±sd。
+
+| 情形 | 堵转的关节 | 事先声明的内容 |
+|---|---|---|
+| rated | 无 | B 的电压低于 A，但 B 对 A 的 v_ok **可能**接近打平或打平；每组 i_ok 都为 1 |
+| one_stall | gripper（6 号舵机） | B 的 v_min 接近或低于 4 V；按结果保留 |
+| multi_stall | shoulder_lift、elbow_flex、gripper | B **稳定**低于 4 V（v_ok 输给 A）；每组 i_sum 都超过 4 A；C 的 v_min 不低于 4 V；**保留** |
+| all_stall | 全部六只 | 每组都超过 4 A；C **可能**也低于 4 V；按结果保留 |
+
+### 运行标准库 toy
+
+```bash
+cd ~/Hardware-learning/examples/month-3/so101-arm
+python3 so101_shared_rail_sag_toy.py
+```
+
+<CodeSource path="examples/month-3/so101-arm/so101_shared_rail_sag_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Voltage sag on the SO-101 follower arm's shared 5 V servo rail: a toy.
+
+Six bus servos are daisy-chained on one 5 V supply, so the voltage seen at a
+servo is the supply voltage minus the I*R drops along the shared wiring
+(Wikipedia "Voltage drop": V = I R, drops in the supply and return conductors
+and connectors; 以原文为准).  This is a lumped-resistance stand-in, not SPICE
+and not a bench scope on a real arm.  It is not the components-lesson MCU
+brownout example.
+
+Where the inputs come from:
+  * the per-servo currents are the lesson's ST-3215-C001 figures (rated 0.5 A,
+    stall 2.0 A, both given at 6 V; 以该课已引用规格为准) used as constant
+    currents;
+  * the 4 V floor is the lower end of Feetech's 4-7.4 V input range quoted in
+    the lesson;
+  * 4 A is the nameplate of the 5 V supply the lesson's BOM links;
+  * the wiring resistances are declared toy parameters, not measured.
+Real arm / PSU / stall test: 本页未运行.
+
+Chain order from the supply: servo 1 shoulder_pan, 2 shoulder_lift,
+3 elbow_flex, 4 wrist_flex, 5 wrist_roll, 6 gripper.  A supply lead (both
+conductors, R_LEAD) feeds servo 1 and carries the total current; link k
+(k = 1..5, servo k to servo k+1, both conductors, R_SEG) carries the sum of
+the currents of servos k+1..6, hence
+  V_k = V_SUP - R_LEAD*I_sum - sum over links j < k of R_SEG_j * I_downstream(j)
+and V_min = min over k of V_k (the far end).
+
+Common random numbers: for each (regime, seed) the six resistance jitter
+factors (lead + five links) and the six current jitter factors are drawn once
+from random.Random(f"{regime}/{seed}") and shared by all three arms.
+
+Arms:
+  A_ideal : no wiring resistance (all R = 0).
+  B_wired : R_LEAD and R_SEG as declared (times the jitter).
+  C_thick : a thicker, shorter supply lead and thicker links:
+            R_LEAD_C = 0.03 ohm and R_SEG_C = 0.025 ohm (the SAME jitter).
+
+Metrics per seed: v_min (V), i_sum (A), v_ok (1 if v_min >= V_FLOOR else 0),
+i_ok (1 if i_sum <= I_NAMEPLATE else 0).  Pairs B-A and C-B on every metric
+in every regime.  An alternatives block is declared before the run and is
+not adopted.
+
+Regimes and parameters were written before the first run:
+  rated       : none stalled -> B sags below A but v_ok of B vs A may near-tie
+                or tie (the rail stays valid); i_ok all 1
+  one_stall   : gripper, servo 6 -> B's v_min near or below 4 V, kept as it
+                comes
+  multi_stall : servos 2, 3 and 6 -> B consistently drops below 4 V (v_ok
+                loses to A) and i_sum exceeds 4 A for every arm, so "a 4 A
+                supply is enough" loses; C keeps v_min at or above 4 V - keep
+  all_stall   : all six -> every arm exceeds 4 A; C may also fall below 4 V
+                - keep as it comes
+"""
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+
+# Declared parameters, written before the first run.
+V_SUP = 5.0                     # V, the lesson's 5 V rail
+I_RATED = 0.5                   # A, ST-3215-C001 rated current at 6 V
+I_STALL = 2.0                   # A, ST-3215-C001 stall current at 6 V
+V_FLOOR = 4.0                   # V, lower end of Feetech's 4-7.4 V input range
+I_NAMEPLATE = 4.0               # A, nameplate of the 5 V supply in the BOM
+R_LEAD = 0.10                   # ohm, supply lead, both conductors (toy)
+R_SEG = 0.05                    # ohm, each link, both conductors (toy)
+R_LEAD_C = 0.03                 # ohm, thicker/shorter supply lead (toy)
+R_SEG_C = 0.025                 # ohm, thicker links (toy)
+R_JITTER = 0.2                  # each wiring resistance times uniform(0.8, 1.2)
+I_JITTER = 0.1                  # each servo current times uniform(0.9, 1.1)
+
+JOINTS = ("shoulder_pan", "shoulder_lift", "elbow_flex",
+          "wrist_flex", "wrist_roll", "gripper")
+ARMS = ("A_ideal", "B_wired", "C_thick")
+METRICS = ("v_min", "i_sum", "v_ok", "i_ok")
+ARM_R = {"A_ideal": (0.0, 0.0), "B_wired": (R_LEAD, R_SEG),
+         "C_thick": (R_LEAD_C, R_SEG_C)}
+STALLED = {"rated": (), "one_stall": (6,), "multi_stall": (2, 3, 6),
+           "all_stall": (1, 2, 3, 4, 5, 6)}
+DECLARED = {
+    "rated": "B sags below A but v_ok of B vs A may near-tie or tie (the rail stays valid); i_ok all 1",
+    "one_stall": "B's v_min near or below 4 V, kept as it comes",
+    "multi_stall": "B consistently drops below 4 V (v_ok loses to A) and i_sum exceeds 4 A for every arm, "
+                   "so \"a 4 A supply is enough\" loses; C keeps v_min at or above 4 V - keep",
+    "all_stall": "every arm exceeds 4 A; C may also fall below 4 V - keep as it comes",
+}
+
+
+def shared_draw(regime, seed):
+    """Common random numbers: six resistance jitter factors and six current jitter factors, once per (regime, seed)."""
+    rng = random.Random(f"{regime}/{seed}")
+    rj = [rng.uniform(1 - R_JITTER, 1 + R_JITTER) for _ in range(6)]
+    ij = [rng.uniform(1 - I_JITTER, 1 + I_JITTER) for _ in range(6)]
+    return rj, ij
+
+
+def run_arm(arm, regime, seed, lead=None, seg=None):
+    rj, ij = shared_draw(regime, seed)
+    stalls = STALLED[regime]
+    base_lead, base_seg = ARM_R[arm]
+    lead = base_lead if lead is None else lead
+    seg = base_seg if seg is None else seg
+    r_lead = 0.0 if arm == "A_ideal" else lead * rj[0]
+    r_link = [0.0] * 5 if arm == "A_ideal" else [seg * f for f in rj[1:]]
+    cur = [(I_STALL if (k + 1) in stalls else I_RATED) * ij[k] for k in range(6)]
+    i_sum = sum(cur)
+    down = [sum(cur[j + 1:]) for j in range(5)]
+    drop, v_min = 0.0, V_SUP
+    for k in range(6):
+        if k > 0:
+            drop += r_link[k - 1] * down[k - 1]
+        v_min = min(v_min, V_SUP - r_lead * i_sum - drop)
+    return {"v_min": v_min, "i_sum": i_sum,
+            "v_ok": 1 if v_min >= V_FLOOR else 0,
+            "i_ok": 1 if i_sum <= I_NAMEPLATE else 0}
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0  # identical values: no floating residue in mean or sd
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    """Half-up rounding on the shortest decimal repr; tiny non-zero values in scientific form."""
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def collect(regime, lead=None, seg=None):
+    return {arm: [run_arm(arm, regime, s, lead, seg) for s in SEEDS] for arm in ARMS}
+
+
+def col(rows, key):
+    return [x[key] for x in rows]
+
+
+def report(regime):
+    stalls = STALLED[regime]
+    res = collect(regime)
+    txt = ", ".join(f"{k} {JOINTS[k - 1]}" for k in stalls)
+    desc = f"stalled: {txt}; the rest draw rated current" if txt else "no stalled servo; all six draw rated current"
+    print(f"{regime} ({desc}):")
+    print("  declared: " + DECLARED[regime])
+    print("  i_sum per seed (A, shared currents): " + " ".join(num(x) for x in col(res["A_ideal"], "i_sum")))
+    for arm in ARMS:
+        print(f"  {arm} " + " ".join(f"{key} {fmt_pair(*mean_sd(col(res[arm], key)))}" for key in METRICS))
+    for a, b in (("B_wired", "A_ideal"), ("C_thick", "B_wired")):
+        for key in METRICS:
+            print(f"  paired {a[0]}-{b[0]} {key}: {verdict(col(res[a], key), col(res[b], key))}")
+    return res
+
+
+def main():
+    print("SO-101 shared 5 V servo rail voltage sag toy; lumped-resistance stand-in for the daisy-chained bus servos")
+    print(f"seeds={len(SEEDS)} V_SUP={num(V_SUP)} V V_floor={num(V_FLOOR)} V I_nameplate={num(I_NAMEPLATE)} A "
+          f"rated={num(I_RATED)} A stall={num(I_STALL)} A R_lead={num(R_LEAD)} ohm R_seg={num(R_SEG)} ohm "
+          f"jitter +-{num(100 * R_JITTER)} % on each R and +-{num(100 * I_JITTER)} % on each I "
+          "(declared toy parameters, not measured)")
+    print("chain from the supply: lead -> 1 shoulder_pan -> 2 shoulder_lift -> 3 elbow_flex -> 4 wrist_flex -> 5 wrist_roll -> 6 gripper; "
+          "the lead carries the total current and link k carries the sum of the currents downstream of it")
+    print("Common random numbers: one resistance-jitter draw and one current-jitter draw per (regime, seed), shared by all three arms")
+    print("Not SPICE and not a bench scope on a real arm; not the components-lesson MCU brownout example")
+    print("Regimes and parameters were written before the first run")
+    print("rule: V_k = V_SUP - R_LEAD*I_sum - sum over links j < k of R_SEG_j * I_downstream(j); V_min = min over the six servos; "
+          "V = I R in the supply and return conductors and connectors")
+    # Labelled hand calculation on the nominal chain (no jitter draw).
+    print(f"hand_calc nominal currents: rated 6 x {num(I_RATED)} = {num(6 * I_RATED)} A; stall 6 x {num(I_STALL)} = "
+          f"{num(6 * I_STALL)} A (the lesson's existing totals, echoed)")
+    print(f"hand_calc one IR drop: {num(6 * I_STALL)} A x {num(R_LEAD)} ohm = {num(6 * I_STALL * R_LEAD)} V on the supply lead")
+    print(f"hand_calc nominal B_wired v_min in all_stall = 5.0 - 1.2 - 0.05*(10+8+6+4+2) = {num(V_SUP - 6 * I_STALL * R_LEAD - R_SEG * 30)} V")
+    print(f"hand_calc nominal B_wired v_min in rated = 5.0 - 0.3 - 0.05*(2.5+2.0+1.5+1.0+0.5) = "
+          f"{num(V_SUP - 6 * I_RATED * R_LEAD - R_SEG * 7.5)} V")
+    for regime in STALLED:
+        report(regime)
+    print("alternatives (declared before the run, not adopted; same seeds):")
+    alt = collect("multi_stall", seg=0.03)
+    print(f"  multi_stall with R_SEG={num(0.03)} ohm: paired B-A v_ok@alt: "
+          f"{verdict(col(alt['B_wired'], 'v_ok'), col(alt['A_ideal'], 'v_ok'))}")
+    alt = collect("rated", lead=0.20)
+    print(f"  rated with R_LEAD={num(0.20)} ohm: paired B-A v_ok@alt: "
+          f"{verdict(col(alt['B_wired'], 'v_ok'), col(alt['A_ideal'], 'v_ok'))}")
+    alt = collect("multi_stall", lead=0.05)
+    std = collect("multi_stall")
+    print(f"  multi_stall with C_thick R_LEAD_C={num(0.05)} ohm: paired C-B v_ok@alt: "
+          f"{verdict(col(alt['C_thick'], 'v_ok'), col(std['B_wired'], 'v_ok'))}")
+    print("No winner beyond the arithmetic: thicker, shorter wiring keeps the far-end voltage legal under several stalls, "
+          "but no wiring change makes 4 A cover them")
+    print("Real SO-101 arm / PSU / stall test: 本页未运行; per-servo currents 以该课已引用规格为准; "
+          "Wikipedia Voltage drop statements 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+SO-101 shared 5 V servo rail voltage sag toy; lumped-resistance stand-in for the daisy-chained bus servos
+seeds=5 V_SUP=5.0000 V V_floor=4.0000 V I_nameplate=4.0000 A rated=0.5000 A stall=2.0000 A R_lead=0.1000 ohm R_seg=0.0500 ohm jitter +-20.0000 % on each R and +-10.0000 % on each I (declared toy parameters, not measured)
+chain from the supply: lead -> 1 shoulder_pan -> 2 shoulder_lift -> 3 elbow_flex -> 4 wrist_flex -> 5 wrist_roll -> 6 gripper; the lead carries the total current and link k carries the sum of the currents downstream of it
+Common random numbers: one resistance-jitter draw and one current-jitter draw per (regime, seed), shared by all three arms
+Not SPICE and not a bench scope on a real arm; not the components-lesson MCU brownout example
+Regimes and parameters were written before the first run
+rule: V_k = V_SUP - R_LEAD*I_sum - sum over links j < k of R_SEG_j * I_downstream(j); V_min = min over the six servos; V = I R in the supply and return conductors and connectors
+hand_calc nominal currents: rated 6 x 0.5000 = 3.0000 A; stall 6 x 2.0000 = 12.0000 A (the lesson's existing totals, echoed)
+hand_calc one IR drop: 12.0000 A x 0.1000 ohm = 1.2000 V on the supply lead
+hand_calc nominal B_wired v_min in all_stall = 5.0 - 1.2 - 0.05*(10+8+6+4+2) = 2.3000 V
+hand_calc nominal B_wired v_min in rated = 5.0 - 0.3 - 0.05*(2.5+2.0+1.5+1.0+0.5) = 4.3250 V
+rated (no stalled servo; all six draw rated current):
+  declared: B sags below A but v_ok of B vs A may near-tie or tie (the rail stays valid); i_ok all 1
+  i_sum per seed (A, shared currents): 3.0056 2.9199 2.9318 2.9062 3.0137
+  A_ideal v_min 5.0000+-0.0000 i_sum 2.9554+-0.0504 v_ok 1.0000+-0.0000 i_ok 1.0000+-0.0000
+  B_wired v_min 4.3346+-0.0455 i_sum 2.9554+-0.0504 v_ok 1.0000+-0.0000 i_ok 1.0000+-0.0000
+  C_thick v_min 4.7282+-0.0173 i_sum 2.9554+-0.0504 v_ok 1.0000+-0.0000 i_ok 1.0000+-0.0000
+  paired B-A v_min: -0.6654+-0.0455: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A i_sum: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A v_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A i_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B v_min: 0.3935+-0.0283: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B i_sum: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B v_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B i_ok: 0.0000+-0.0000: tie: identical on every seed
+one_stall (stalled: 6 gripper; the rest draw rated current):
+  declared: B's v_min near or below 4 V, kept as it comes
+  i_sum per seed (A, shared currents): 4.3538 4.4125 4.3434 4.4912 4.2775
+  A_ideal v_min 5.0000+-0.0000 i_sum 4.3757+-0.0804 v_ok 1.0000+-0.0000 i_ok 0.0000+-0.0000
+  B_wired v_min 3.8588+-0.0415 i_sum 4.3757+-0.0804 v_ok 0.0000+-0.0000 i_ok 0.0000+-0.0000
+  C_thick v_min 4.5120+-0.0160 i_sum 4.3757+-0.0804 v_ok 1.0000+-0.0000 i_ok 0.0000+-0.0000
+  paired B-A v_min: -1.1412+-0.0415: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A i_sum: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A v_ok: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A i_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B v_min: 0.6532+-0.0269: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B i_sum: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B v_ok: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B i_ok: 0.0000+-0.0000: tie: identical on every seed
+multi_stall (stalled: 2 shoulder_lift, 3 elbow_flex, 6 gripper; the rest draw rated current):
+  declared: B consistently drops below 4 V (v_ok loses to A) and i_sum exceeds 4 A for every arm, so "a 4 A supply is enough" loses; C keeps v_min at or above 4 V - keep
+  i_sum per seed (A, shared currents): 7.8174 7.8424 7.5006 7.3200 7.1353
+  A_ideal v_min 5.0000+-0.0000 i_sum 7.5232+-0.3085 v_ok 1.0000+-0.0000 i_ok 0.0000+-0.0000
+  B_wired v_min 3.2611+-0.0548 i_sum 7.5232+-0.3085 v_ok 0.0000+-0.0000 i_ok 0.0000+-0.0000
+  C_thick v_min 4.2776+-0.0237 i_sum 7.5232+-0.3085 v_ok 1.0000+-0.0000 i_ok 0.0000+-0.0000
+  paired B-A v_min: -1.7389+-0.0548: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A i_sum: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A v_ok: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A i_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B v_min: 1.0165+-0.0336: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B i_sum: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B v_ok: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B i_ok: 0.0000+-0.0000: tie: identical on every seed
+all_stall (stalled: 1 shoulder_pan, 2 shoulder_lift, 3 elbow_flex, 4 wrist_flex, 5 wrist_roll, 6 gripper; the rest draw rated current):
+  declared: every arm exceeds 4 A; C may also fall below 4 V - keep as it comes
+  i_sum per seed (A, shared currents): 11.7397 11.9284 12.0224 11.9316 12.0112
+  A_ideal v_min 5.0000+-0.0000 i_sum 11.9266+-0.1133 v_ok 1.0000+-0.0000 i_ok 0.0000+-0.0000
+  B_wired v_min 2.3751+-0.1700 i_sum 11.9266+-0.1133 v_ok 0.0000+-0.0000 i_ok 0.0000+-0.0000
+  C_thick v_min 3.9067+-0.0644 i_sum 11.9266+-0.1133 v_ok 0.0000+-0.0000 i_ok 0.0000+-0.0000
+  paired B-A v_min: -2.6249+-0.1700: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A i_sum: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A v_ok: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A i_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B v_min: 1.5317+-0.1076: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B i_sum: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B v_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B i_ok: 0.0000+-0.0000: tie: identical on every seed
+alternatives (declared before the run, not adopted; same seeds):
+  multi_stall with R_SEG=0.0300 ohm: paired B-A v_ok@alt: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  rated with R_LEAD=0.2000 ohm: paired B-A v_ok@alt: -0.4000+-0.5477: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+  multi_stall with C_thick R_LEAD_C=0.0500 ohm: paired C-B v_ok@alt: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner beyond the arithmetic: thicker, shorter wiring keeps the far-end voltage legal under several stalls, but no wiring change makes 4 A cover them
+Real SO-101 arm / PSU / stall test: 本页未运行; per-servo currents 以该课已引用规格为准; Wikipedia Voltage drop statements 以原文为准
+```
+
+</SimOutput>
+
+### 读懂各情形
+
+本页标签按以下顺序使用：只有每个种子的配对差都恰好为零时，才写**打平：每个种子都完全相同**；`|配对均值|` 与其 sd 都小于 1e-9 时写**数值上为零（浮点残差），等同打平**；`|配对均值| ≤ sd` 时写**接近打平 / 小差距，在种子噪声之内**；否则是**稳定**差距（`|配对均值| > sd`），若 `|m|` 小于两组中较小均值的 20 % 叫**小**，否则叫**明显**。每条稳定差距都附 5 个种子上的同号计数。
+
+- **rated** 情形，即使正常运行，布线也会吃掉电压。B 的 v_min 为 4.3346±0.0455 V，A 为 5.0000±0.0000，所以配对 B−A v_min 为 -0.6654±0.0455，是**小**而稳定的差距，5 个种子同号。B 在每个种子上仍高于 4 V，所以 B−A v_ok 是**打平：每个种子都完全相同**。每组 i_sum 都是 2.9554±0.0504 A，在 4 A 以内。声明**成立**。
+- **one_stall** 情形，堵转一只 gripper 就够了。B 的 v_min 降到 3.8588±0.0415 V，所以配对 B−A v_ok 为 -1.0000±0.0000，**明显**，5 个种子同号；C 保持在 4.5120±0.0160 V（C−B v_ok 1.0000±0.0000，明显）。事先没有声明、但值得注意的是：i_sum 已经是 4.3757±0.0804 A，每个种子都超过 4 A 铭牌值（每组 i_ok 都是 0.0000±0.0000）。手算核对：五只 0.5 A 加一只 2.0 A 是 4.5 A。声明（"接近或低于 4 V"）**成立**，落在"低于"一侧。
+- **multi_stall** 情形，三个关节堵转把 B 拉到 3.2611±0.0548 V（B−A v_min -1.7389±0.0548，B−A v_ok -1.0000±0.0000，都明显，5 个种子同号）。C 保持在 4.2776±0.0237 V（C−B v_ok 1.0000±0.0000，明显）。每组 i_sum 都是 7.5232±0.3085 A，所以无论怎么布线，4 A 电源都不够。声明的三部分都**成立**。
+- **all_stall** 情形，每组都取 11.9266±0.1133 A。B 降到 2.3751±0.1700 V，C 降到 3.9067±0.0644 V。C−B v_min 为 1.5317±0.1076，明显，但 C−B v_ok 是**打平：每个种子都完全相同**，因为两者在每个种子上都低于 4 V。声明的"C 可能也低于 4 V"**成立**。
+
+理想组 A 按构造永远不跌落。它就是"供电"一节的加法，只作为参照保留。
+
+**首次运行后的代码改动。** 没有。首次运行的输出与 `expected/` 文件逐字节相同。
+
+**看过结果后做的选择。** 没有。电阻、电流数值、抖动和四种情形都在首次运行前写定。打印的备选与它们一起声明，并在相同种子上运行。把连线减到 R_SEG = 0.03 Ω，multi_stall 中 B 仍低于 4 V（B−A v_ok -1.0000±0.0000）。供电线加倍到 R_LEAD = 0.20 Ω，B 在部分种子上连额定电流都撑不住（B−A v_ok -0.4000±0.5477，接近打平，在种子噪声之内）。C 的供电线增大到 0.05 Ω，multi_stall 中 C 仍高于 4 V（C−B v_ok 1.0000±0.0000）。这些都没有替换默认值。
+
+本页**除了算术之外不宣布赢家**。更粗更短的布线能在几个关节堵转时让末端电压保持在 4 V 及以上，但任何布线改动都不能让 4 A 电源撑住它们。真实 SO-101 机械臂、电源或堵转测试都**本页未运行**。要检查自己的臂，可以在臂运动时测 gripper 舵机接头处的电压，做法同上面故障排查清单里测控制板输入端电压的建议。
+
+**180 分钟安排:** 30 分钟阅读 Voltage drop 页面和上面的"供电"一节；25 分钟为 B_wired 重做额定与全部堵转的手算；50 分钟运行 toy 并读懂四种情形；40 分钟在固定种子下比较打印的备选；35 分钟做练习。
+
+### 练习
+
+1. 根据打印的手算，确认所有关节堵转时 B_wired 的 gripper 处为 2.3000 V，并指出哪一项最大。
+2. 从 `shared_draw` 和 `run_arm` 说明，对给定的情形和种子，A、B、C 用的是同一组电阻系数和同一组电流系数。
+3. all_stall 中 C−B v_min 差距明显，而 C−B v_ok 打平。用打印的 v_min 数值解释这两点。
+4. 运行前先预测：one_stall 中如果堵转的是 shoulder_pan（1 号舵机）而不是 gripper，B 能否通过 v_ok；然后修改 `STALLED`，在固定种子下运行验证。
+5. 在任何真实测试之前（本页未运行），为自己的臂写一条布线与电源检查项：你会在哪里测末端电压，如果低于 4 V 你会改什么。
+
 <Summary>
 
 **本课要点**
@@ -757,6 +1141,7 @@ No winner is declared; real servos / encoders / battery packs: 本页未运行
 - 减速比：从臂 6 个关节全是 1/345，而主臂混用 1/191、1/147 和 1/345，所以 345 / 147 = 2.35 倍摩擦、(345/147)² ≈ 5.51 倍转子惯量。
 - 供电与成本：标准装机用 5 V，落在 4–7.4 V 范围内；物料清单一对 $229.88（单从臂 $121.94），打印件估计约 1 kg PLA+（15 % 填充、0.2 mm 层高；实际用量看切片软件）。
 - 上电：`abs_vs_incr_power_on_toy.py` 在五个种子上表明，单圈绝对式编码器只有在行程不超过一圈时醒来才正确，增量式不回零就会悄悄出错，多圈计数需要可用的后备（合成结果；真实舵机本页未运行）。
+- 共享舵机电源轨的电压跌落，直流电阻链替身（`so101_shared_rail_sag_toy.py`）：按声明的 0.10 Ω 供电线和 0.05 Ω 连线，一个关节堵转时 gripper 末端就低于 4 V（B v_min 3.8588±0.0415 V，B−A v_ok -1.0000±0.0000，明显）；更粗的布线在三个关节堵转时仍高于 4 V（C 4.2776±0.0237 V）；任何布线都不能让 4 A 电源撑住堵转（堵转一只就要 4.3757±0.0804 A）——这是合成模型，不是实测。
 
 **常见错误**
 
