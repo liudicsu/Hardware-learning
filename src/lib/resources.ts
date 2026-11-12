@@ -6277,8 +6277,8 @@ export const resources: Record<string, Resource> = {
     kind: "guide",
     cost: { zh: "免费", en: "Free" },
     summary: {
-      zh: "经典 ESP32 数据手册 v5.3，PDF 正文用 pdftotext 读过（HTTP 200，2026-11-12）。表 4-2 按功耗模式列出：Light-sleep 0.8 mA；Deep-sleep 中 ULP 协处理器上电 150 µA、ULP 传感器监测模式 100 µA @1% 占空比、RTC 定时器 + RTC 内存 10 µA；单独的 Hibernation 模式（仅 RTC 定时器）5 µA；断电 1 µA。esp32 课 Light/Deep-sleep 玩具的 I_LIGHT = 0.80 mA 与 I_DEEP = 0.01 mA 按这里的典型值取，作为声明的玩具参数使用。以文档为准；真板本页未运行。",
-      en: "Classic ESP32 datasheet v5.3, PDF body read via pdftotext (HTTP 200, 2026-11-12). Table 4-2, power consumption by power mode: Light-sleep 0.8 mA; Deep-sleep with the ULP coprocessor powered up 150 µA, ULP sensor-monitored pattern 100 µA @1% duty, RTC timer + RTC memory 10 µA; a separate Hibernation mode (RTC timer only) 5 µA; power off 1 µA. The esp32 lesson's Light/Deep-sleep toy uses I_LIGHT = 0.80 mA and I_DEEP = 0.01 mA modelled on these typicals, as declared toy parameters. 以文档为准; real board 本页未运行.",
+      zh: "经典 ESP32 数据手册 v5.3，PDF 正文用 pdftotext 读过（HTTP 200，2026-11-12）。表 4-2 按功耗模式列出：Light-sleep 0.8 mA；Deep-sleep 中 ULP 协处理器上电 150 µA、ULP 传感器监测模式 100 µA（1 % 占空比）、RTC 定时器 + RTC 内存 10 µA；单独的 Hibernation 模式（仅 RTC 定时器）5 µA；断电 1 µA。esp32 课 Light/Deep-sleep 玩具的 I_LIGHT = 0.80 mA 与 I_DEEP = 0.01 mA 按这里的典型值取，作为声明的玩具参数使用。以文档为准；真板本页未运行。",
+      en: "Classic ESP32 datasheet v5.3, PDF body read via pdftotext (HTTP 200, 2026-11-12). Table 4-2, power consumption by power mode: Light-sleep 0.8 mA; Deep-sleep with the ULP coprocessor powered up 150 µA, ULP sensor-monitored pattern 100 µA at 1 % duty, RTC timer + RTC memory 10 µA; a separate Hibernation mode (RTC timer only) 5 µA; power off 1 µA. The esp32 lesson's Light/Deep-sleep toy uses I_LIGHT = 0.80 mA and I_DEEP = 0.01 mA modelled on these typicals, as declared toy parameters. 以文档为准; real board 本页未运行.",
     },
     license: { zh: "数据手册，© Espressif；仅提供外链", en: "Datasheet, © Espressif; external link only" },
     extra: true,
