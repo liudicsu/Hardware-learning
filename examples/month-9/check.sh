@@ -45,4 +45,6 @@ check visual_trace_prompt_toy.txt "$PY" "$M9/visual-servoing/visual_trace_prompt
 
 check worldvla_action_mask_toy.txt "$PY" "$M9/world-models-overview/worldvla_action_mask_toy.py"
 
+check internvla_a1_mot_foresight_toy.txt "$PY" "$M9/world-models-overview/internvla_a1_mot_foresight_toy.py"
+
 exit $fail

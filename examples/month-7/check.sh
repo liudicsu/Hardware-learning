@@ -63,4 +63,6 @@ check td3_clipped_double_q_toy.txt "$PY" "$M7/rl-foundations/td3_clipped_double_
 
 check tobin_visual_domain_randomization_toy.txt "$PY" "$M7/sim-to-real/tobin_visual_domain_randomization_toy.py"
 
+check graspvla_syngrasp_pretrain_toy.txt "$PY" "$M7/perception-to-grasp/graspvla_syngrasp_pretrain_toy.py"
+
 exit $fail

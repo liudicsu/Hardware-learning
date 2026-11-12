@@ -18,3 +18,7 @@ Batch-4 PR3: `rl-foundations/residual_action_mismatch_toy.py` (stdlib CPU); `che
 ## Batch-20 PR2 / 第20批 PR2
 
 `sim-to-real/tobin_visual_domain_randomization_toy.py`: standard-library synthetic 1-D camera row with a k-NN detector (canonical texture vs Tobin-style random textures vs random textures plus a wrong τ), no GPU, no hardware; expected output in `expected/tobin_visual_domain_randomization_toy.txt`, included in `check.sh`. Real camera / robot 本页未运行. / 标准库合成的一维相机行与 k 近邻检测器（固定纹理、Tobin 式随机纹理、随机纹理加错误 τ），不是 GPU 训练或硬件结果，输出由 `check.sh` 核对。
+
+## Batch-20 PR3 / 第20批 PR3
+
+`perception-to-grasp/graspvla_syngrasp_pretrain_toy.py`: standard-library synthetic appearance vectors with a nearest-sample grounding step (geometry only vs grounding first with DR vs no DR vs shuffled labels), no GPU, no weights; expected output in `expected/graspvla_syngrasp_pretrain_toy.txt`, included in `check.sh`. GraspVLA numbers 以论文为准; real grasp cell 本页未运行. / 标准库合成外观向量与最近样本定位（只看几何、先定位加 DR、不做 DR、标签错乱），不是 GPU 训练或真机结果，输出由 `check.sh` 核对。

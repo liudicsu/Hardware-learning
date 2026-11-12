@@ -1,6 +1,14 @@
 # Month 9 plan: Long-horizon tasks, contact control & mobile manipulation
 
-Current / 当前：**M9 3900 min**, Batch-12 PR3. Earlier entries below retain their historical totals.
+Current / 当前：**M9 4110 min**, Batch-20 PR3. Earlier entries below retain their historical totals.
+
+## Batch-20 PR3 / 本月 H5 (+210)
+
+Base `38f5083ba5eaf0de84cc822c6eb698b277596d73` (batch-20 PR2 #182 merged; site **37560**). PR3 on M9 host: **M9 3900→4110 (+210)**; M7 moves in the same PR on its own plan. Site **37560→37980** (37980=37560+210+210), still 71 lessons.
+
+- **H5 / 9.9 world-models-overview: 840→1050 (+210).** InternVLA-A1 (`internvla_a1_mot_foresight_toy.py`; common random numbers, 5 seeds). arXiv 2601.02456 abs page checked (title *InternVLA-A1: Unifying Understanding, Generation and Action for Robotic Manipulation*; **42 authors**, full names in arXiv order on the lesson pages and in `internvla-a1-pdf`) and PDF body (v2) read: one Mixture-of-Transformers, three experts (understanding, visual foresight generation, action), masked self-attention understanding → generation → action; paper numbers (692M frames, +4.4 % / +2.6 % / +26.7 % vs π0.5, 77.0 % → 57.6 % without the generation expert) 以论文为准, not reproduced. Declared toy parameters: 50 scenes, H=0.5 s, V=10.0–30.0 cm/s, SIGMA 0.3 / 1.2 cm, P_CORRUPT=0.3, CORRUPT_CM=6.0 cm, TOL=2.0 cm. Hand calcs (printed): travel 5.0000–15.0000 cm; extrapolation noise sd 0.6708 / 2.6833 cm. dynamic: paired B−A success `0.9920±0.0110`, **clear**, 5/5 — pre-declared foresight win held. static: paired B−A success `-0.0040±0.0089`, **near-tie** — held. static_noisy: paired B−A success `-0.3720±0.0729`, **clear**, 5/5 — pre-declared possible loss happened, **kept**. Corrupted foresight: paired C−B success `-0.3120±0.0576` (dynamic), **clear**, 5/5 — **kept**. Alternatives on the same seeds, written before the first run: TOL=3.0 cm (static_noisy paired B−A success@alt `-0.2960±0.0410`), P_CORRUPT=0.1 (paired C−B success@alt `-0.1080±0.0642`, small but consistent). No post-hoc choice; no code change after the first run. ≠ InternVLA-M1; ≠ DreamGen IDM; ≠ WorldVLA; ≠ MemoryVLA. GPU / RoboTwin / real robot 本页未运行. / InternVLA-A1：目标运动时前瞻胜，静止带噪时输，前瞻出错稳定地输。
+
+**Allocation / 安排:** 30+25+50+45+60=210 minutes.
 
 ## Batch-12 PR3 / 本月 H5 (+210)
 

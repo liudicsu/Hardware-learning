@@ -1,0 +1,51 @@
+Synthetic appearance-vector toy with nearest-sample grounding; geometry only vs grounding-first chain with DR vs no DR vs shuffled labels; not GraspVLA
+seeds=5 DIM=8 S_CAT=6 W_CAT=4 N_PER=30 N_OBJ=3 N_SCENES=60 INST_SIGMA=0.15 PIX_SIGMA=0.05 (declared toy parameters)
+DR gain=[0.4, 1.6] offset=[-0.5, 0.5]; web gain=[0.5, 1.5] offset=[-0.4, 0.4]; real gain=0.60 offset=0.35 (declared toy parameters)
+ORI_SIGMA=5.0 deg ORI_TOL=10.0 deg (grasp succeeds iff the named object is picked and its orientation error < ORI_TOL, strict; declared toy parameters)
+No integration step: no dynamics, no time-step criterion
+Regimes and parameters were written before the first run
+domain_check: real domain inside the wide DR range: True; equal to the canonical no-DR domain: False; inside the narrow DR range: False
+hand_calc A_geom names nothing, so it picks the named object by chance: 1/N_OBJ = 1/3 = 0.3333; with 5 objects 1/5 = 0.2000
+hand_calc P(|N(0, ORI_SIGMA)| < ORI_TOL) = erf(10.0/(5.0*sqrt(2))) = 0.9545, the ceiling for every arm
+in_family:
+  A_geom pick_ok 0.3433+-0.0596 success 0.3300+-0.0558
+  B_cot_dr pick_ok 0.9133+-0.0617 success 0.8700+-0.0853
+  C_no_dr pick_ok 0.9333+-0.0565 success 0.8933+-0.0619
+  D_shuffled pick_ok 0.2400+-0.0535 success 0.2233+-0.0548
+  paired B-A pick_ok: 0.5700+-0.1083: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success: 0.5400+-0.1217: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: 0.0233+-0.0630: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign, 1 of 5 equal
+  paired D-B success: -0.6467+-0.1114: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+web_category:
+  A_geom pick_ok 0.3267+-0.1109 success 0.3133+-0.1133
+  B_cot_dr pick_ok 0.9167+-0.0486 success 0.8800+-0.0492
+  C_no_dr pick_ok 0.9167+-0.0486 success 0.8800+-0.0492
+  D_shuffled pick_ok 0.3767+-0.1494 success 0.3600+-0.1392
+  paired B-A pick_ok: 0.5900+-0.0990: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success: 0.5667+-0.1074: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: 0.0000+-0.0000: tie: identical on every seed
+  paired D-B success: -0.5200+-0.1114: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+single_object:
+  A_geom pick_ok 1.0000+-0.0000 success 0.9467+-0.0398
+  B_cot_dr pick_ok 1.0000+-0.0000 success 0.9467+-0.0398
+  C_no_dr pick_ok 1.0000+-0.0000 success 0.9467+-0.0398
+  D_shuffled pick_ok 1.0000+-0.0000 success 0.9467+-0.0398
+  paired B-A pick_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B success: 0.0000+-0.0000: tie: identical on every seed
+  paired D-B success: 0.0000+-0.0000: tie: identical on every seed
+alternative narrow DR (gain [0.9, 1.1], offset [-0.1, 0.1]) on in_family (same seeds, same draws):
+  B_cot_dr@alt success 0.9067+-0.0585 (wide: 0.8700+-0.0853)
+  paired Bwide-Bnarrow success: -0.0367+-0.0492: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 2 of 5 equal
+  paired Bnarrow-C success: 0.0133+-0.0247: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign, 1 of 5 equal
+alternative N_OBJ=5 on in_family (same seeds, same training draws):
+  A_geom@alt success 0.2233+-0.0585
+  B_cot_dr@alt success 0.8567+-0.0976
+  C_no_dr@alt success 0.8600+-0.0630
+  D_shuffled@alt success 0.0767+-0.0384
+  paired B-A pick_ok@alt: 0.6600+-0.1058: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success@alt: 0.6333+-0.1054: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success@alt: 0.0033+-0.0861: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired D-B success@alt: -0.7800+-0.1293: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: grounding-first beats a language-blind grasp when the scene has a choice and is useless with shuffled labels; here the canonical no-DR arm did not lose
+GPU / weights / SynGrasp-1B / Isaac Sim / LIBERO / real grasp cell: 本页未运行; GraspVLA arXiv 2505.03233 statements and numbers 以论文为准

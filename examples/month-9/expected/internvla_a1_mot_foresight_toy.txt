@@ -1,0 +1,51 @@
+Synthetic 1-D conveyor toy; action only vs understanding + foresight + action vs corrupted foresight; not InternVLA-A1
+seeds=5 N_SCENES=50 H=0.5 s V=[10.0, 30.0] cm/s SIGMA_LO=0.3 cm SIGMA_HI=1.2 cm (declared toy parameters)
+P_CORRUPT=0.3 CORRUPT_CM=6.0 cm TOL=2.0 cm (success iff aim_err < TOL, strict; declared toy parameters)
+No integration step: closed-form positions x(t) = x0 + v*t, no time-step criterion
+Regimes and parameters were written before the first run
+hand_calc target travel during H: |v|*H from 10.0*0.5 = 5.0000 cm to 30.0*0.5 = 15.0000 cm, never < TOL=2.0 cm
+hand_calc foresight noise sd = sqrt(5)*SIGMA: 0.6708 cm at SIGMA_LO, 2.6833 cm at SIGMA_HI (A's sd is SIGMA)
+static (moving=False, SIGMA=0.3 cm):
+  A_action_only aim_err 0.2327+-0.0258 success 1.0000+-0.0000
+  B_foresight aim_err 0.5175+-0.0494 success 0.9960+-0.0089
+  C_corrupt aim_err 2.3947+-0.5168 success 0.6560+-0.0921
+  paired B-A aim_err: 0.2848+-0.0321: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success: -0.0040+-0.0089: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 4 of 5 equal
+  paired C-B aim_err: 1.8772+-0.5450: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: -0.3400+-0.0949: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A success: -0.3440+-0.0921: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+dynamic (moving=True, SIGMA=0.3 cm):
+  A_action_only aim_err 9.6026+-0.3035 success 0.0000+-0.0000
+  B_foresight aim_err 0.5507+-0.0425 success 0.9920+-0.0110
+  C_corrupt aim_err 2.2108+-0.3047 success 0.6800+-0.0490
+  paired B-A aim_err: -9.0519+-0.3205: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success: 0.9920+-0.0110: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B aim_err: 1.6601+-0.3237: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: -0.3120+-0.0576: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A success: 0.6800+-0.0490: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+static_noisy (moving=False, SIGMA=1.2 cm):
+  A_action_only aim_err 0.9968+-0.0553 success 0.8960+-0.0573
+  B_foresight aim_err 2.3166+-0.1775 success 0.5240+-0.0684
+  C_corrupt aim_err 3.1624+-0.3014 success 0.4160+-0.0623
+  paired B-A aim_err: 1.3198+-0.1251: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success: -0.3720+-0.0729: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B aim_err: 0.8458+-0.3973: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: -0.1080+-0.0522: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A success: -0.4800+-0.0678: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative TOL=3.0 cm on dynamic (same seeds):
+  A_action_only@alt success 0.0000+-0.0000
+  B_foresight@alt success 1.0000+-0.0000
+  C_corrupt@alt success 0.6880+-0.0576
+  paired B-A success@alt: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success@alt: -0.3120+-0.0576: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative TOL=3.0 cm on static_noisy (same seeds):
+  A_action_only@alt success 0.9920+-0.0110
+  B_foresight@alt success 0.6960+-0.0329
+  C_corrupt@alt success 0.5600+-0.0762
+  paired B-A success@alt: -0.2960+-0.0410: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success@alt: -0.1360+-0.0713: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative P_CORRUPT=0.1 on dynamic (same seeds, same corruption draws):
+  C_corrupt@alt success 0.8840+-0.0607
+  paired C-B success@alt: -0.1080+-0.0642: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: foresight pays when the target moves, costs precision on still noisy frames, and a wrong foresight frame is trusted blindly
+GPU / weights / RoboTwin / real robot: 本页未运行; InternVLA-A1 arXiv 2601.02456 statements and numbers 以论文为准
