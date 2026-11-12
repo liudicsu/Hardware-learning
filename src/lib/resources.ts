@@ -6232,6 +6232,40 @@ export const resources: Record<string, Resource> = {
     },
     extra: true,
   },
+  "fluke-truerms-facts": {
+    id: "fluke-truerms-facts",
+    url: "https://www.fluke.com/en-gb/learn/blog/digital-multimeters/facts-about-true-rms-measurement",
+    title: {
+      zh: "Fluke：关于真有效值测量的事实",
+      en: "Fluke: Facts about true-rms measurement",
+    },
+    author: "Fluke",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "正文已读（HTTP 200，2026-11-12）。多数数字万用表测交流耦合的真有效值，去掉直流分量；少数型号（如 Fluke 189）另有 ac+dc 真有效值；只有交流耦合表时，可分别测交流与直流，平方相加再开方得到 ac+dc 值；未滤波直流电源输出上叠加明显纹波时，ac+dc 读数更能反映电阻性负载的反应。以文档为准；本页未运行。",
+      en: "Body read (HTTP 200, 2026-11-12). Most DMMs measure the ac-coupled true-RMS value and reject the DC component; a few models (for example the Fluke 189) also offer ac+dc true-RMS; with only an ac-coupled meter, measure AC and DC separately, square, add and take the square root to get the ac+dc value; on an unfiltered DC supply with significant ripple, an ac+dc reading better reflects how a resistive load responds. 以文档为准; 本页未运行.",
+    },
+    license: { zh: "网页，© Fluke；仅提供外链", en: "Web page, © Fluke; external link only" },
+    extra: true,
+  },
+  "keysight-ac-errors": {
+    id: "keysight-ac-errors",
+    url: "https://keysight.zinfi.net/concierge/OEMs/keysight/wwwcontent/Attachments/pdf/5988-5513.pdf",
+    title: {
+      zh: "Keysight 应用笔记：数字万用表的交流电压测量误差",
+      en: "Keysight application note: AC Voltage Measurement Errors in Digital Multimeters",
+    },
+    author: "Keysight Technologies",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "应用笔记 5988-5513，PDF 正文用 pdftotext 读过（HTTP 200，2026-11-12）。其万用表的交流电压与交流电流功能测的是交流耦合真有效值（直流被去掉）；正弦、三角和方波不含直流偏置，交流耦合值与 ac+dc 值相等；脉冲串等不对称波形含直流，交流耦合测量会去掉它；需要 ac+dc 值时可由直流与交流两次测量合成。以文档为准；本页未运行。",
+      en: "Application note 5988-5513, PDF body read via pdftotext (HTTP 200, 2026-11-12). Its DMMs' AC voltage and AC current functions measure the ac-coupled true-RMS value (DC is rejected); sine, triangle and square waves carry no DC offset, so ac-coupled and ac+dc values are equal; non-symmetrical waveforms such as pulse trains contain DC, which the ac-coupled measurement rejects; the ac+dc value can be combined from a DC and an AC measurement. 以文档为准; 本页未运行.",
+    },
+    license: { zh: "应用笔记，© Keysight；仅提供外链", en: "Application note, © Keysight; external link only" },
+    extra: true,
+  },
   "esp32-datasheet": {
     id: "esp32-datasheet",
     url: "https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf",
