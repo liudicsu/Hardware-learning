@@ -1,6 +1,14 @@
 # Month 11 plan: Actuator hardware, tactile contact & cross-embodiment collection
 
-Current / 当前：**M11 3630 min**, Batch-12 PR3. Earlier entries below retain their historical totals.
+Current / 当前：**M11 3810 min**, Batch-22 PR2. Earlier entries below retain their historical totals.
+
+## Batch-22 PR2 / 本月 H4 (+180)
+
+Base `833aac3e5ab0a197f7f1dcb155ad3c4f7c956b15` (batch-22 PR1 #189 merged; site **39420**). PR2 on M11 host: **M11 3630→3810 (+180)**; M5 moves in the same PR on its own plan. Site **39420→39780** (39780=39420+180+180), still 71 lessons.
+
+- **H4 / 11.1 power-battery-emc: 690→870 (+180).** NTC inrush limiter (`ntc_inrush_limiter_toy.py`; common random numbers, 5 seeds; one capacitor, source-resistance, tolerance and ambient draw per regime and seed, shared by all four arms). Wikipedia Inrush current body read (rev 1326751079; 以原文为准): a discharged capacitor looks like a short, limited only by source resistance and ESR; NTC self-heats; just after switch-off a hot NTC cannot limit inrush unless it cools for more than 1 minute. Wikipedia Inrush current limiter body read (rev 1312732367; 以原文为准): high cold resistance, self-heating, 100 % of supply voltage cannot reach the load, fixed resistor never falls, relay / MOSFET bypass. Declared toy parameters: 24 V source, R_SRC 0.05 ohm, 2200 µF, 12 ohm load (6 ohm heavy), R25 5 ohm, BETA 3500 K, R_TH 60 K/W, C_TH 0.5 J/K, 0.05 s window, I²t budget 1.0 A²s. Hand calc (printed): 480.0000 A, 4.7525 A, 12.6720 A²s, 0.1255 A²s, 0.6336 J, 1.9917 A. cold_start: A−B peak_a `483.8672±62.9814`, **clear**, 5/5; B peak `4.2502±0.2690` A; A fails the budget; C−B peak_a `0.3278±0.0755`, **small** (declared "may near-tie" did **not** hold as a near-tie); B−D v_drop_ss `0.7479±0.0153`, clear; C−B p_ss `8.6198±0.2385`, clear, **kept**. hot_restart (declared model assumption, no cooling time): B peak `56.1052±0.8280` A, B i2t `1.7419±0.1192` A²s fails the budget on every seed; A−B fuse_ok **tie** (both fail). heavy_load: C−B p_ss `21.3877±0.1482`, clear; C−B peak_a `-0.1153±0.3361` near-tie. Alternatives (declared, same seeds): R25=10 → C−B p_ss `10.0913±0.0408`; R_TH=30 → A−B peak_a `510.6694±38.8185`; budget 0.25 → A still fails; none adopted. No code change after the first run. ≠ fuse certification; ≠ coulomb SoC + derate; ≠ Peukert. Real PSU / NTC / fuse 本页未运行. / NTC 浪涌限流，不宣布实测。
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
 
 ## Batch-12 PR3 / 本月 H6 (+210)
 
