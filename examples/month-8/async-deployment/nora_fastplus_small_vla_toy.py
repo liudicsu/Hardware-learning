@@ -38,6 +38,7 @@ Regimes and parameters were written before the first run:
 """
 import math
 import random
+from decimal import Decimal, ROUND_HALF_UP
 
 SEEDS = (0, 1, 2, 3, 4)
 NUM_ZERO = 1e-9
@@ -61,6 +62,13 @@ ARMS = ("A_large_bins", "B_small_fast", "C_shuffled")
 
 _COS = {}
 
+
+
+def fmt6(x):
+    """Six decimals with ROUND_HALF_UP (2/256 = 0.0078125 -> 0.007813, not the
+    round-half-even 0.007812 of a plain :.6f). Batch-19 polish; helper drafted by
+    opencode DeepSeek."""
+    return f"{Decimal(str(x)).quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP):.6f}"
 
 def cos_table(n):
     """cos(pi*(t+0.5)*k/n) for every (k, t), cached per chunk length."""
@@ -214,7 +222,7 @@ def main():
     print("No integration step: chunks are scored, not simulated; no time-step criterion")
     print("Regimes and parameters were written before the first run")
     print(f"hand_calc A tokens: one per joint per step, D*H = {D}*10 = {D * 10} (H=10) and {D}*30 = {D * 30} (H=30)")
-    print(f"hand_calc A bin error: bin width 2/{BINS} = {2.0 / BINS:.6f}, at most half a bin = {1.0 / BINS:.6f}")
+    print(f"hand_calc A bin error: bin width 2/{BINS} = {fmt6(2.0 / BINS)}, at most half a bin = {fmt6(1.0 / BINS)}")
     print(f"hand_calc rounding RMS per coefficient (uniform error): 1/(GAMMA*sqrt(12)) = {1.0 / (GAMMA * math.sqrt(12.0)):.6f}")
     print(f"hand_calc cost ratio at equal tokens: P_SMALL/P_LARGE = {P_SMALL / P_LARGE:.4f}")
     print("success_rule: success iff chunk RMSE < TOL (strict); "

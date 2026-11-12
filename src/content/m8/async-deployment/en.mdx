@@ -363,7 +363,7 @@ The sections above schedule chunks so the arm does not idle. A second way to cut
 
 The large stand-in writes one token per joint per step (256 bins, the per-step scheme from the action-token section of the vla-models lesson in Month 6). The small stand-in writes FAST-style tokens: per joint, a DCT over the chunk's time axis, scaled by GAMMA = 10.0 and rounded, keeping only nonzero integers. Byte-pair encoding is **not** modelled, so the toy undercounts FAST+'s compression. NORA's §2.3 words its DCT as running across the action dimensions; the toy uses the time-axis DCT of the FAST section in the Month 6 vla-models lesson, a stand-in, said so here.
 
-**Worked example — labelled hand calculations, also printed by the toy.** The per-step head needs D × H = 7 × 10 = 70 tokens on a 10-step chunk and 7 × 30 = 210 on a 30-step chunk. Its bin width is 2 / 256 = 0.007812, so the binning error is at most half a bin, 0.003906. Rounding a coefficient scaled by GAMMA = 10.0 leaves an RMS error of 1 / (GAMMA √12) = 0.028868 per coefficient if the error is uniform. At equal token counts the cost ratio is P_SMALL / P_LARGE = 0.4286. Success is **strict**: RMSE 0.0600 fails, 0.0599 succeeds.
+**Worked example — labelled hand calculations, also printed by the toy.** The per-step head needs D × H = 7 × 10 = 70 tokens on a 10-step chunk and 7 × 30 = 210 on a 30-step chunk. Its bin width is 2 / 256 = 0.007813, so the binning error is at most half a bin, 0.003906. Rounding a coefficient scaled by GAMMA = 10.0 leaves an RMS error of 1 / (GAMMA √12) = 0.028868 per coefficient if the error is uniform. At equal token counts the cost ratio is P_SMALL / P_LARGE = 0.4286. Success is **strict**: RMSE 0.0600 fails, 0.0599 succeeds.
 
 **No integration step here.** Chunks are scored, not simulated; there is no ODE.
 
@@ -653,7 +653,7 @@ seeds=5 D=7 N_EP=200 BINS=256 GAMMA=10.0 P_LARGE=7.0 P_SMALL=3.0 TOL=0.060 VOCAB
 No integration step: chunks are scored, not simulated; no time-step criterion
 Regimes and parameters were written before the first run
 hand_calc A tokens: one per joint per step, D*H = 7*10 = 70 (H=10) and 7*30 = 210 (H=30)
-hand_calc A bin error: bin width 2/256 = 0.007812, at most half a bin = 0.003906
+hand_calc A bin error: bin width 2/256 = 0.007813, at most half a bin = 0.003906
 hand_calc rounding RMS per coefficient (uniform error): 1/(GAMMA*sqrt(12)) = 0.028868
 hand_calc cost ratio at equal tokens: P_SMALL/P_LARGE = 0.4286
 success_rule: success iff chunk RMSE < TOL (strict); rmse 0.0600 -> success 0; rmse 0.0599 -> success 1

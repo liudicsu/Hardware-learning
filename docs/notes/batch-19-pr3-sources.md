@@ -37,7 +37,7 @@ Common random numbers, five seeds `(0, 1, 2, 3, 4)`, stdlib CPU only, byte-ident
 
 ### H6 NORA (`nora_fastplus_small_vla_toy.txt`)
 
-- Hand calc (printed): per-step tokens 7*10 = 70 and 7*30 = 210; bin width 0.007812, half a bin 0.003906; rounding RMS 0.028868; P_SMALL / P_LARGE = 0.4286; success strict (0.0600 fails, 0.0599 succeeds).
+- Hand calc (printed): per-step tokens 7*10 = 70 and 7*30 = 210; bin width 0.007813, half a bin 0.003906; rounding RMS 0.028868; P_SMALL / P_LARGE = 0.4286; success strict (0.0600 fails, 0.0599 succeeds).
 - short_in_dist (H=10, SIG 0.030 both): paired B−A success_pct tie: identical on every seed (pre-declared "may near-tie"); paired B−A tokens -39.7370±0.2105, clear, 5/5; paired B−A cost -399.2110±0.6314, clear, 5/5; paired C−B success_pct -100.0000±0.0000, clear, 5/5.
 - long_horizon (H=30, SIG_LARGE 0.040, SIG_SMALL 0.055): paired B−A success_pct -72.9000±1.7819, clear, 5/5 — the small model **loses**, kept; paired B−A tokens -114.7840±0.7102; paired B−A cost -1184.3520±2.1307; paired C−B success_pct -27.1000±1.7819, clear, 5/5.
 
@@ -46,6 +46,8 @@ Common random numbers, five seeds `(0, 1, 2, 3, 4)`, stdlib CPU only, byte-ident
 None for parameters or regimes: the four InternVLA regimes, G_ITEMS = 600, TOL, SIGMA_EXEC, the colour swap, the two NORA regimes, all SIG values, GAMMA = 10.0, TOL, P_LARGE / P_SMALL, and both alternatives were written before the first run. Alternatives printed on the same seeds as a pre-planned sensitivity and not adopted: G_ITEMS = 60 (paired B−A success_pct@alt 12.1000±7.0480 on cluttered, -21.1000±3.6125 on camera_shift; B knows 28.8000±1.3038 pairs on cluttered) and GAMMA = 20.0 (short_in_dist success tie, paired B−A cost@alt -353.5390±0.7962, tokens 45.4870±0.2654; long_horizon B success 89.8000±2.1966 %, paired B−A success_pct@alt -10.2000±2.1966, small but consistent, 5/5, tokens 147.0000±0.5566, paired B−A cost@alt -1029.0000±1.6697).
 
 Code changes after the first run, none of which changed a number: (1) the NORA toy caches its DCT cosine table and its per-(regime, GAMMA) result tables to cut runtime from about 12 s to about 4 s, with **byte-identical output** (checked with `cmp`); (2) the first printed line of each toy now names its arXiv id (2510.13778 / 2504.19854) so the id quoted on the page is printed; every other line of `expected/` is unchanged (checked line by line).
+
+Batch-19 polish (after merge, reviewer nit): the NORA toy's bin-width hand calc now formats with decimal ROUND_HALF_UP, so 2/256 = 0.0078125 prints as **0.007813** instead of the round-half-even 0.007812; only that one line of `expected/` changed (half a bin still 0.003906), reruns stay byte-identical. See `batch-19-polish-sources.md`.
 
 ## Mismatch with §9
 

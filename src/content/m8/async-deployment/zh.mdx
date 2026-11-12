@@ -363,7 +363,7 @@ arrived_brackets_only=True extrapolation=False live_success_claim=False
 
 大模型替身每个关节每一步写一个词元（256 个区间，即第 6 个月 vla-models 课里动作词元一节的逐步方案）。小模型替身写 FAST 式词元：每个关节沿动作块的时间轴做 DCT，乘 GAMMA = 10.0 后取整，只保留非零整数。**没有**建模字节对编码，所以玩具低估了 FAST+ 的压缩。NORA 的 §2.3 把它的 DCT 表述为跨动作维度进行；玩具用的是第 6 个月 vla-models 课 FAST 一节里沿时间轴的 DCT，这是替身，本页如实说明。
 
-**算例——标明的手算，玩具也打印。** 逐步方案在 10 步的动作块上需要 D × H = 7 × 10 = 70 个词元，在 30 步的动作块上需要 7 × 30 = 210 个。区间宽度 2 / 256 = 0.007812，所以分箱误差最多半个区间，0.003906。按 GAMMA = 10.0 缩放后取整，若误差均匀分布，每个系数的 RMS 误差是 1 / (GAMMA √12) = 0.028868。词元数相同时，代价比是 P_SMALL / P_LARGE = 0.4286。成功判据是**严格**的：RMSE 0.0600 算失败，0.0599 算成功。
+**算例——标明的手算，玩具也打印。** 逐步方案在 10 步的动作块上需要 D × H = 7 × 10 = 70 个词元，在 30 步的动作块上需要 7 × 30 = 210 个。区间宽度 2 / 256 = 0.007813，所以分箱误差最多半个区间，0.003906。按 GAMMA = 10.0 缩放后取整，若误差均匀分布，每个系数的 RMS 误差是 1 / (GAMMA √12) = 0.028868。词元数相同时，代价比是 P_SMALL / P_LARGE = 0.4286。成功判据是**严格**的：RMSE 0.0600 算失败，0.0599 算成功。
 
 **这里没有积分步长。** 只对动作块打分，不做仿真；没有常微分方程。
 
@@ -653,7 +653,7 @@ seeds=5 D=7 N_EP=200 BINS=256 GAMMA=10.0 P_LARGE=7.0 P_SMALL=3.0 TOL=0.060 VOCAB
 No integration step: chunks are scored, not simulated; no time-step criterion
 Regimes and parameters were written before the first run
 hand_calc A tokens: one per joint per step, D*H = 7*10 = 70 (H=10) and 7*30 = 210 (H=30)
-hand_calc A bin error: bin width 2/256 = 0.007812, at most half a bin = 0.003906
+hand_calc A bin error: bin width 2/256 = 0.007813, at most half a bin = 0.003906
 hand_calc rounding RMS per coefficient (uniform error): 1/(GAMMA*sqrt(12)) = 0.028868
 hand_calc cost ratio at equal tokens: P_SMALL/P_LARGE = 0.4286
 success_rule: success iff chunk RMSE < TOL (strict); rmse 0.0600 -> success 0; rmse 0.0599 -> success 1
