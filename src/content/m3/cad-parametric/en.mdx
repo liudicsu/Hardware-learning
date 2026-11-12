@@ -650,7 +650,11 @@ Everything earlier in this lesson treats an overlap between two parts as a mista
 
 ### Allowance, pressure and holding torque
 
-The page gives no pressure formula, so the toy uses a textbook-style stand-in and says so: a thick-walled hub on a solid shaft of the same material, elastic until the hub's bore stress reaches a yield value.
+The page gives no pressure formula, so the toy uses a textbook-style stand-in and says so: a thick-walled hub on a solid shaft of the same material, elastic until the hub's bore stress reaches a yield value. The general Lamé contact-pressure relation, for a hub and shaft that may differ in material and for a possibly hollow shaft, is given by RoyMech (Thick-Walled Cylinders; body read). It is written in the radial interference `δ_r` at the interface radius `c`:
+
+<Formula label="General Lamé contact pressure (dissimilar materials, shaft may be hollow)">p = δ_r / ( c · ( (1/E_h) · ((b² + c²)/(b² − c²) + ν_h) + (1/E_s) · ((c² + a²)/(c² − a²) − ν_s) ) )</Formula>
+
+Here `a` is the shaft inner radius (0 for a solid shaft), `b` the hub outer radius, and `E_h`, `ν_h` and `E_s`, `ν_s` the hub and shaft moduli and Poisson ratios. RoyMech's `δ_r` is radial; the toy's `δ` is diametral, so `δ_r = δ / 2`, with `d = 2c` and `D = 2b`. When the shaft is solid the shaft term reduces to `(1 − ν_s)/E_s`. When the two parts also share the same `E` and the same `ν`, the `ν` terms cancel, and the relation becomes the toy formula below.
 
 <Formula label="Interference after assembly (positive = interference, negative = clearance)">δ = d_shaft − d_hole</Formula>
 

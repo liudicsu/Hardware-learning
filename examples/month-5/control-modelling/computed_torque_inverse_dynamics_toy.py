@@ -36,6 +36,8 @@ Regimes and expectations, written before the first run:
   payload_mismatch   f 0.25 Hz, payload 2.0 kg  C (computed torque, wrong inertia) loses to A
                                                  (PD + gravity with the right payload), consistent
   C loses to B in every regime.
+The FC=0 sensitivity block and the centre-pose stiffness lines were added after
+the first run; they are not pre-declared regimes.
 """
 import math
 import random
@@ -113,9 +115,11 @@ def control(arm, qm, qdm, qr, qdr, qddr, payload_real, payload_c, d0):
     return tau, fb
 
 
-def step_plant(q, qd, tau, payload, dt, friction=True):
+def step_plant(q, qd, tau, payload, dt, friction=True, fc=None):
     m, cv, gv = dyn(q, qd, payload)
-    f = (FC * math.tanh(qd[0] / 0.02), FC * math.tanh(qd[1] / 0.02)) if friction else (0.0, 0.0)
+    # plant friction is FC * math.tanh(qd / 0.02) per joint (unmodelled); fc overrides FC
+    fval = 0.0 if not friction else (FC if fc is None else fc)
+    f = (fval * math.tanh(qd[0] / 0.02), fval * math.tanh(qd[1] / 0.02)) if fval else (0.0, 0.0)
     r0 = tau[0] - cv[0] - gv[0] - f[0]
     r1 = tau[1] - cv[1] - gv[1] - f[1]
     det = m[0] * m[2] - m[1] * m[1]
@@ -126,7 +130,7 @@ def step_plant(q, qd, tau, payload, dt, friction=True):
     return q, qd
 
 
-def run_arm(arm, regime, draws, dt):
+def run_arm(arm, regime, draws, dt, fc=None):
     f, dur, payload, payload_c = REGIMES[regime]
     scale, ph, noise = draws
     q, qd, _ = desired(0.0, f, scale, ph)
@@ -145,7 +149,7 @@ def run_arm(arm, regime, draws, dt):
         se += e2
         peak = max(peak, math.sqrt(e2))
         sfb += fb[0] ** 2 + fb[1] ** 2
-        q, qd = step_plant(q, qd, tau, payload, dt)
+        q, qd = step_plant(q, qd, tau, payload, dt, fc=fc)
     return {"rms": 1000.0 * math.sqrt(se / n), "peak": 1000.0 * peak, "fb": math.sqrt(sfb / n)}
 
 
@@ -157,6 +161,20 @@ def matched_error_run(h, steps=300):
         tau, _ = control("B_ct", q, qd, qr, (0.0, 0.0), (0.0, 0.0), 0.5, 0.5, None)
         q, qd = step_plant(q, qd, tau, 0.5, h, friction=False)
     return math.hypot(qr[0] - q[0], qr[1] - q[1])
+
+
+
+def centre_pose_stiffness(payload=0.5):
+    """M, (M^{-1})22 and joint-2 stiffness at Q0; used by the post-hoc FC=0 block."""
+    m, _, _ = dyn(Q0, (0.0, 0.0), payload)
+    det = m[0] * m[2] - m[1] * m[1]
+    minv22 = m[0] / det
+    inv_m22 = 1.0 / m[2]
+    k_ct = KP / minv22
+    k_pd = m[2] * KP
+    e_ct = 1000.0 * FC / k_ct
+    e_pd = 1000.0 * FC / k_pd
+    return m, minv22, inv_m22, k_ct, k_pd, e_ct, e_pd
 
 
 def run(dt):
@@ -228,6 +246,19 @@ def main():
     print(f"half-step check (DT/2): max relative change in rms error {drel:.4f}")
     print("No winner declared: the model helps when inertia and coupling matter, adds little when gravity dominates, and hurts when the payload is wrong")
     print("Real arm / identification lab: 本页未运行; Wikipedia Inverse dynamics 以原文为准")
+    # FC=0 sensitivity, added after the first run (not a pre-declared regime).
+    print("FC=0 sensitivity (added after the first run; not a pre-declared regime)")
+    m, minv22, inv_m22, k_ct, k_pd, e_ct, e_pd = centre_pose_stiffness()
+    print(f"centre pose q=({Q0[0]}, {Q0[1]}) rad, payload 0.5 kg:")
+    print(f"  M11={m[0]:.4f} M12={m[1]:.4f} M22={m[2]:.5f}")
+    print(f"  (M⁻¹)22={num(minv22)}  1/M22={num(inv_m22)}")
+    print(f"  stiffness KP/(M⁻¹)22={num(k_ct)} N m/rad vs D0 KP=M22 KP={num(k_pd)} N m/rad")
+    print(f"  0.3 N m friction leaves {num(e_ct)} mrad vs {num(e_pd)} mrad")
+    for regime in ("slow_quasi_static", "payload_mismatch"):
+        draws = [shared_draws(regime, s) for s in SEEDS]
+        res = {arm: [run_arm(arm, regime, d, DT, fc=0.0) for d in draws] for arm in ("A_pdg", "B_ct")}
+        print(f"{regime} FC=0")
+        print(f"  paired B-A rms: {verdict([r['rms'] for r in res['B_ct']], [r['rms'] for r in res['A_pdg']])}")
 
 
 if __name__ == "__main__":
