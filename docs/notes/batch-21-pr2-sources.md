@@ -63,8 +63,17 @@ Gazebo / a real inertia measurement, a real MPU-6050 / optical reference / the r
 
 ## opencode
 
-Tried free models in order DeepSeek (`opencode/deepseek-v4.1-flash-free`), GLM (`opencode/glm-5.3-flash-free`), MiMo (`opencode/mimo-v2.6-flash-free`), LongCat (`opencode/longcat-2.5-free`), MiniMax (`opencode/minimax-m3.1-flash-free`), 300 s each, on the parallel-axis toy. @@OPENCODE@@ Both toys, the pages and the locks were written locally.
+Tried free models in order DeepSeek (`opencode/deepseek-v4.1-flash-free`), GLM (`opencode/glm-5.3-flash-free`), MiMo (`opencode/mimo-v2.6-flash-free`), LongCat (`opencode/longcat-2.5-free`), MiniMax (`opencode/minimax-m3.1-flash-free`), 300 s each, on the parallel-axis toy. The loop ran in the background while the local implementation proceeded, and stopped at the first model whose file ran: DeepSeek and GLM timed out (exit 124) with no file; MiMo wrote a runnable parallel-axis toy (three arms, d = 0 / 0.005 / 0.1 m, physical-pendulum period) after the local toy had already been written and first-run, so LongCat and MiniMax were not reached. MiMo's file was **not** used: the shipped toy is the locally written one, which adds the tensor-form regimes (along-axis shift, product of inertia) and the gravity-torque metric that the lesson needs. The Madgwick toy was not sent to opencode. This ordering is a deviation from "opencode first, then local" and is disclosed here. Both toys, the pages and the locks were written locally.
 
 ## Lock changes
 
-@@LOCKS@@
+Tipped site-total, host-minute and Current-header locks only; no lock relaxed. New batch-21 PR2 block added (toys, expected, CRN, label order, difference directions, sources, plans, README, declared regimes that did not hold stated on both pages, no post-first-run code change stated) plus `tools/test_b21p2_parallel_axis_madgwick_toys.py`.
+
+- README `/38 340/` and `约 38 340 分钟` → `/38 700/` and `约 38 700 分钟` (including earlier "unchanged" tips).
+- Curriculum sum checks `38340` → `38700`; month-total lists M2 3390→3570, M4 3210→3390 (including the b20p1 `[4,3210]` → `[4,3390]` and b19p2's M2 3390 → 3570 check).
+- Host-minute lock for `urdf-tf` (420→600) in the b14p2 case.
+- month-2 / month-4 plan Current header locks → Batch-21 PR2 (**M2 3570**, **M4 3390**); historical section markers kept.
+- Labels of moved tip locks now name the live total ("tip after batch-21 PR2"), and the b18pol label-reference check follows them.
+- b19p2's month-2-plan m±sd scan started at the top of the file and ran to the end of its own section, so it would now also read the newer batch-21 section above it. Its start moved to its own `## Batch-19 PR2` heading: the batch-19 section it locks is scanned exactly as before, and the batch-21 section is locked by the new block.
+
+No lock relaxed.
