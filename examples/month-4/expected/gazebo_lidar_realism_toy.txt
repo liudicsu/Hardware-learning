@@ -10,6 +10,7 @@ blind_rule (R and C, toy): true range < MIN -> no return; A (ideal) reports the 
   boundary above MIN: true=0.2001 m -> A 0.2001 B 0.2001 C 0.2001 (no noise, no bias)
 hand_calc straight-ahead wall: 1.80 - 0.12 = 1.68 m; beam at 30 deg: 1.68 / cos(30 deg) = 1.9399 m
 clear_wall (beams 61; geometric hits 61; true range below MIN on 0 beams; nearest true 1.6800 m):
+  scene: x=1.68 m y=[-1.50, 1.50] visual+collision
   R_real_unit returns 61.0000+-0.0000 mean_err 0.0195+-0.0017
   A_ideal returns 61.0000+-0.0000 mean_err 0.0000+-0.0000 ret_err 0.0000+-0.0000 mismatch 0.0000+-0.0000 near_err 0.0063+-0.0066
   B_lesson returns 61.0000+-0.0000 mean_err 0.0011+-0.0013 ret_err 0.0000+-0.0000 mismatch 0.0000+-0.0000 near_err 0.0122+-0.0095
@@ -26,6 +27,7 @@ clear_wall (beams 61; geometric hits 61; true range below MIN on 0 beams; neares
   paired B-C near_err: 0.0041+-0.0128: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
   paired C-A mean_err: 0.0161+-0.0013: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
 glossy (beams 61; geometric hits 61; true range below MIN on 0 beams; nearest true 1.2000 m):
+  scene: x=1.20 m y=[-0.35, 0.35] visual+collision+glossy; x=2.50 m y=[-2.00, 2.00] visual+collision
   R_real_unit returns 39.2000+-2.6833 mean_err 0.0207+-0.0015
   A_ideal returns 61.0000+-0.0000 mean_err 0.0000+-0.0000 ret_err 0.3574+-0.0440 mismatch 21.8000+-2.6833 near_err 0.0155+-0.0088
   B_lesson returns 61.0000+-0.0000 mean_err 3.824e-04+-4.110e-04 ret_err 0.3574+-0.0440 mismatch 21.8000+-2.6833 near_err 0.0277+-0.0085
@@ -41,6 +43,7 @@ glossy (beams 61; geometric hits 61; true range below MIN on 0 beams; nearest tr
   paired A-C near_err: 0.0034+-0.0035: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
   paired B-C near_err: 0.0156+-0.0010: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
 min_range (beams 61; geometric hits 61; true range below MIN on 19 beams; nearest true 0.1200 m):
+  scene: x=0.12 m y=[-0.02, 0.02] visual+collision; x=1.68 m y=[-1.50, 1.50] visual+collision
   R_real_unit returns 42.0000+-0.0000 mean_err 0.0195+-0.0019
   A_ideal returns 61.0000+-0.0000 mean_err 0.0000+-0.0000 ret_err 0.3115+-0.0000 mismatch 19.0000+-0.0000 near_err 1.5954+-0.0112
   B_lesson returns 61.0000+-0.0000 mean_err 0.0244+-4.562e-04 ret_err 0.3115+-0.0000 mismatch 19.0000+-0.0000 near_err 1.5154+-0.0112
@@ -56,6 +59,7 @@ min_range (beams 61; geometric hits 61; true range below MIN on 19 beams; neares
   paired A-C near_err: 1.5834+-0.0089: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
   paired B-C near_err: 1.5034+-0.0089: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
 visual_only (beams 61; geometric hits 61; true range below MIN on 0 beams; nearest true 1.0223 m):
+  scene: x=0.90 m y=[0.30, 0.60] visual; x=1.00 m y=[-0.50, -0.20] collision; x=2.50 m y=[-2.00, 2.00] visual+collision
   R_real_unit returns 61.0000+-0.0000 mean_err 0.0203+-0.0016
   A_ideal returns 61.0000+-0.0000 mean_err 0.0447+-0.0000 ret_err 0.0000+-0.0000 mismatch 27.0000+-0.0000 near_err 0.0796+-0.0127
   B_lesson returns 61.0000+-0.0000 mean_err 0.0445+-0.0006 ret_err 0.0000+-0.0000 mismatch 27.0000+-0.0000 near_err 0.0873+-0.0154

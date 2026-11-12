@@ -229,6 +229,9 @@ def report(regime):
     below = sum(1 for g in hit if g < MIN)
     print(f"{regime} (beams {N_BEAMS}; geometric hits {len(hit)}; true range below MIN on {below} beams; "
           f"nearest true {min(hit):.4f} m):")
+    flags = lambda v, c, g: "+".join(n for n, f in (("visual", v), ("collision", c), ("glossy", g)) if f)
+    print("  scene: " + "; ".join(f"x={x:.2f} m y=[{y0:.2f}, {y1:.2f}] {flags(v, c, g)}"
+                                  for x, y0, y1, v, c, g in REGIMES[regime]))
     r_ret = col(res["R"], "returns")
     print(f"  R_real_unit returns {fmt_pair(*mean_sd(r_ret))} mean_err {fmt_pair(*mean_sd(col(res['R'], 'mean_err')))}")
     for arm in ARMS:

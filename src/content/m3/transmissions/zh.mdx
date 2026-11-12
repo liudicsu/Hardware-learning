@@ -864,6 +864,369 @@ Real gearbox / dyno lab: 本页未运行; Wikipedia Gear train numbers 以原文
 5. 任何测功前（本页未运行），写明为何在拖曳功率固定时重载**接近打平**不能授权在轻载工况用恒定 η，为何正向 η ≠ 反驱 η_b，以及与负载成正比的啮合损耗不在本页范围。
 
 
+## 丝杠效率与自锁
+
+<Resource id="wiki-leadscrew" />
+
+Wikipedia 的 **Leadscrew** 条目（Mechanics 与 Efficiency 两节，HTML 正文已读；以原文为准）把方螺纹的一圈展开成一个直角三角形，底边是 π·d_m，高是导程 l。记导程角 λ = atan(l / (π·d_m))、摩擦角 φ = atan(μ)，举升和下放轴向载荷 F 所需的扭矩是：
+
+<Formula label="举升载荷">T_raise = (F·d_m / 2)·tan(φ + λ)</Formula>
+
+<Formula label="下放载荷">T_lower = (F·d_m / 2)·tan(φ − λ)</Formula>
+
+<Formula label="效率">η = tan λ / tan(φ + λ)</Formula>
+
+条目指出，摩擦系数大于导程角的正切时丝杠**自锁**，等价地说就是 φ > λ。它接着补充，这一性质**不是绝对的**：在振动或冲击载荷下，等效摩擦系数可能降到动摩擦水平（通常低于静摩擦），丝杠会意外地被反向驱动；所以安全攸关的场合常常另加一个保持制动器（以原文为准）。对于牙型角不为零的螺纹（梯形或 Acme），条目把 μ 换成 μ·sec α，α 是牙型角的一半。
+
+这一节**不是**上面的齿轮负载效率 toy，也**不是**重做《反向拖动》里那句「蜗杆或细牙丝杠无法反向拖动」：那句话只是点出自锁；这里把条件推出来、打印出来，再用振动把它打破。它也不是回差或轴承预紧的内容。
+
+**符号约定。** T_lower 为正，表示下放载荷时你必须施加扭矩，丝杠自己就能**保持**住载荷；T_lower 为负，表示载荷会**反向驱动**丝杠。`T_lower = 0` 即 φ 恰好等于 λ 时，丝杠处在边界上，本页把它算作**不**自锁：条件是**严格**的，**当且仅当** φ > λ 时才保持。
+
+**手算例题，已由 toy 打印。** 取 F = 500.0 N、d_m = 10.0 mm、l = 2.0 mm、μ = 0.15：λ = atan(2.0 / (π·10.0)) = 3.6426°，φ = atan(0.15) = 8.5308°。于是 T_raise = 500.0 × 0.010 / 2 × tan(12.1734°) = 0.5393 N·m，T_lower = 500.0 × 0.010 / 2 × tan(4.8881°) = 0.2138 N·m（为正，能保持），η = 0.2951。导程换成 10.0 mm 时，λ = 17.6568° 大于 φ，T_lower = -0.4016 N·m（被反向驱动），η = 0.6472。若振动把 μ 降到 0.0450，低于 2.0 mm 丝杠的 tan λ = 0.0637，它的 T_lower 变成 -0.0465 N·m，同一根丝杠就会被反向驱动。
+
+**这里没有积分步长。** 这个 toy 只计算闭式静力学；没有微分方程，也没有步长判据。
+
+### 公平设置
+
+`leadscrew_self_locking_toy.py` 是**合成**的，只用标准库。**模型假设:** 方螺纹（牙型角为零），除非打印的梯形螺纹替代另有说明；不计轴环摩擦（假定用了推力轴承）；静态轴向载荷。摩擦数值是**声明的玩具参数**，不是实测的螺母：MU_NOM = 0.15 落在条目螺纹摩擦表里干摩擦钢对青铜那一行的下端（以原文为准），VIB_FACTOR = 0.30（振动时 μ 相对静摩擦 μ 的比例）是玩具取值，**没有**文档来源。载荷 F = 500.0 N ± 10 %，d_m = 10.0 mm，静摩擦 μ = 0.15 ± 0.03。
+
+| 臂 | 导程 | 摩擦 |
+|---|---|---|
+| A_steep | 10.0 mm | 静摩擦 μ |
+| B_fine | 2.0 mm（nominal）或 4.7124 mm（borderline） | 静摩擦 μ |
+| C_vibrated | 与 B 相同的导程 | 静摩擦 μ × VIB_FACTOR |
+
+**共用随机数:** 每个（情形, 种子）只抽一次 μ 抖动和一次载荷抖动，三臂共享。A 与 B **只**差导程；B 与 C **只**差等效 μ。五个种子。指标是 η、T_raise、T_lower（N·m）和保持标志（φ > λ 时为 1），按种子报 mean±sd。标志检查确认：每一臂、每个种子上，保持标志、φ > λ 和 T_lower 为正三者一致。
+
+| 情形 | 设置 | 预先声明 |
+|---|---|---|
+| nominal | A 10.0 mm，B 2.0 mm | A 被反向驱动时 B **稳定地**保持；B 为此付出 η，是**取舍**；C 相对 B **稳定地**失去自锁；**保留** |
+| borderline | B 导程 4.7124 mm，使 tan λ = 0.1500 = MU_NOM | 能否保持取决于 μ 抖动的符号；B 对 A 的保持标志可能**接近打平**；**保留** |
+
+### 运行标准库 toy
+
+```bash
+cd ~/Hardware-learning/examples/month-3/transmissions
+python3 leadscrew_self_locking_toy.py
+```
+
+<CodeSource path="examples/month-3/transmissions/leadscrew_self_locking_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Leadscrew efficiency and self-locking: steep lead vs fine lead vs vibrated fine lead.
+
+Synthetic square-thread statics, stdlib only.  Not a jack, not a printer Z
+axis, not a dyno and not the gear-efficiency-under-load toy on this page.
+Real leadscrew / jack / printer axis: 本页未运行.  Wikipedia Leadscrew
+statements 以原文为准.
+
+What the Wikipedia Leadscrew "Mechanics" / "Efficiency" body says (and what
+this toy keeps): unwrap one revolution of a square thread (thread angle 0),
+  T_raise = F*dm/2 * tan(phi + lambda)
+  T_lower = F*dm/2 * tan(phi - lambda)
+with lead angle lambda = atan(l / (pi*dm)) and friction angle phi = atan(mu).
+The screw is self-locking when mu > tan(lambda), equivalently phi > lambda.
+Efficiency = tan(lambda) / tan(phi + lambda).  The self-locking property is
+not absolute: under vibration or shock the effective coefficient of friction
+may drop to dynamic levels and the screw can back-drive unexpectedly.
+
+Sign convention: T_lower > 0 means torque must be applied to lower the load,
+so the screw holds the load by itself (self-locking).  T_lower < 0 means the
+load back-drives the screw.  At T_lower == 0 (phi == lambda exactly) the
+screw is on the boundary and is NOT counted as self-locking: holds iff
+phi > lambda, strictly.
+
+Common random numbers: for each (regime, seed) one static-mu jitter and one
+load jitter are drawn once and shared by every arm.  Arms:
+  A_steep    : coarse lead LEAD_A, static mu
+  B_fine     : fine lead LEAD_B (designed so phi > lambda at MU_NOM), static mu
+  C_vibrated : the same fine lead LEAD_B, effective mu = static mu * VIB_FACTOR
+The arms differ only in the lead (A vs B) or only in the effective mu (B vs C).
+No integration step: closed-form statics, no ODE, no time step.
+
+Regimes and parameters were written before the first run:
+  nominal    : LEAD_A=10 mm, LEAD_B=2 mm
+               - B consistent holds where A back-drives (T_lower sign); keep
+               - B pays for it in efficiency: a trade, not a universal win
+               - C (vibrated mu) consistent loss of the lock vs B; keep
+  borderline : LEAD_B chosen so tan(lambda) = MU_NOM exactly (phi = lambda
+               at the nominal mu); the hold depends on the sign of the mu
+               jitter - B vs A on the hold flag may near-tie; keep
+Friction values are declared model parameters, not a measured nut.  MU_NOM
+sits inside the steel-on-bronze dry range of Wikipedia's thread-friction
+table (以原文为准); VIB_FACTOR is a toy parameter, not a documented value.
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+
+# Declared model parameters, written before the first run.  Toy values.
+F_NOM = 500.0         # N, axial load
+F_JITTER = 0.10       # +/- fraction, uniform, shared across arms
+DM = 0.010            # m, mean thread diameter
+MU_NOM = 0.15         # static thread friction (toy; inside Wikipedia's 0.15-0.23 dry steel/bronze row)
+MU_JITTER = 0.03      # +/- absolute, uniform, shared across arms
+VIB_FACTOR = 0.30     # effective mu under vibration = static mu * VIB_FACTOR (toy)
+LEAD_A = 0.010        # m, steep lead
+LEAD_B = 0.002        # m, fine lead
+
+ARMS = ("A_steep", "B_fine", "C_vibrated")
+REGIMES = {
+    "nominal": {"lead_a": LEAD_A, "lead_b": LEAD_B},
+    "borderline": {"lead_a": LEAD_A, "lead_b": math.pi * DM * MU_NOM},
+}
+
+
+def lead_angle(lead, dm=DM):
+    return math.atan(lead / (math.pi * dm))
+
+
+def screw(force, lead, mu, dm=DM, half_angle=0.0):
+    """Square thread (half_angle=0) or Wikipedia's sec(alpha) compensation."""
+    lam = lead_angle(lead, dm)
+    mus = mu / math.cos(half_angle)
+    phi = math.atan(mus)
+    t_raise = force * dm / 2.0 * (mus + math.tan(lam)) / (1.0 - mus * math.tan(lam))
+    t_lower = force * dm / 2.0 * (mus - math.tan(lam)) / (1.0 + mus * math.tan(lam))
+    eta = force * lead / (2.0 * math.pi * t_raise)
+    return {"lam": lam, "phi": phi, "t_raise": t_raise, "t_lower": t_lower,
+            "eta": eta, "holds": 1.0 if phi > lam else 0.0}
+
+
+def shared_draws(regime, seed):
+    """Common random numbers: one mu jitter and one load jitter per (regime, seed)."""
+    rng = random.Random(f"{regime}/{seed}")
+    du = rng.uniform(-MU_JITTER, MU_JITTER)
+    df = rng.uniform(-F_JITTER, F_JITTER)
+    return MU_NOM + du, F_NOM * (1.0 + df)
+
+
+def run_arm(arm, regime, seed, vib=VIB_FACTOR, half_angle=0.0, mu_nom=MU_NOM):
+    mu, force = shared_draws(regime, seed)
+    mu += mu_nom - MU_NOM
+    cfg = REGIMES[regime]
+    if arm == "A_steep":
+        return screw(force, cfg["lead_a"], mu, half_angle=half_angle)
+    if arm == "B_fine":
+        return screw(force, cfg["lead_b"], mu, half_angle=half_angle)
+    return screw(force, cfg["lead_b"], mu * vib, half_angle=half_angle)
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+METRICS = ("eta", "t_raise", "t_lower", "holds")
+
+
+def collect(regime, **kw):
+    return {arm: [run_arm(arm, regime, s, **kw) for s in SEEDS] for arm in ARMS}
+
+
+def col(rows, key):
+    return [r[key] for r in rows]
+
+
+def report(regime):
+    cfg = REGIMES[regime]
+    res = collect(regime)
+    lam_a, lam_b = math.degrees(lead_angle(cfg["lead_a"])), math.degrees(lead_angle(cfg["lead_b"]))
+    mus = [shared_draws(regime, s)[0] for s in SEEDS]
+    print(f"{regime} (LEAD_A={cfg['lead_a'] * 1000:.4f} mm lambda_A={lam_a:.4f} deg; "
+          f"LEAD_B={cfg['lead_b'] * 1000:.4f} mm lambda_B={lam_b:.4f} deg; tan(lambda_B)={math.tan(math.radians(lam_b)):.4f}):")
+    print("  static mu per seed: " + " ".join(f"{m:.4f}" for m in mus))
+    for arm in ARMS:
+        rows = res[arm]
+        parts = []
+        for key in METRICS:
+            m, s = mean_sd(col(rows, key))
+            parts.append(f"{key} {fmt_pair(m, s)}")
+        print(f"  {arm} " + " ".join(parts) + f" holds_on {int(sum(col(rows, 'holds')))}/5")
+    flag_ok = all((r["phi"] > r["lam"]) == (r["holds"] == 1.0) and ((r["t_lower"] > 0) == (r["holds"] == 1.0))
+                  for arm in ARMS for r in res[arm])
+    print(f"  self_lock_flag_check: holds == (phi > lambda) == (T_lower > 0) on every arm and seed: {flag_ok}")
+    for key in METRICS:
+        print(f"  paired B-A {key}: {verdict(col(res['B_fine'], key), col(res['A_steep'], key))}")
+    for key in ("t_lower", "holds", "eta"):
+        print(f"  paired C-B {key}: {verdict(col(res['C_vibrated'], key), col(res['B_fine'], key))}")
+    return res
+
+
+def main():
+    print("Synthetic square-thread leadscrew toy; shared mu/load draws; not a jack or printer axis measurement")
+    print(f"seeds={len(SEEDS)} F_NOM={F_NOM:.1f} N (+-{F_JITTER * 100:.0f} %) DM={DM * 1000:.1f} mm "
+          f"MU_NOM={MU_NOM:.2f} (+-{MU_JITTER:.2f}) VIB_FACTOR={VIB_FACTOR:.2f} (declared toy parameters, not a measured nut)")
+    print("No integration step: closed-form statics, no time-step criterion")
+    print("Regimes and parameters were written before the first run")
+    print("rule: self-locking iff phi > lambda (strict), i.e. mu > tan(lambda); T_lower > 0 holds, T_lower < 0 back-drives")
+    # Labelled hand calculation on one (lambda, mu), printed.
+    h = screw(F_NOM, LEAD_B, MU_NOM)
+    print(f"hand_calc F={F_NOM:.1f} N dm={DM * 1000:.1f} mm l={LEAD_B * 1000:.1f} mm mu={MU_NOM:.2f}: "
+          f"lambda=atan({LEAD_B * 1000:.1f}/(pi*{DM * 1000:.1f}))={math.degrees(h['lam']):.4f} deg "
+          f"phi=atan({MU_NOM:.2f})={math.degrees(h['phi']):.4f} deg")
+    print(f"hand_calc T_raise={F_NOM:.1f}*{DM:.3f}/2*tan({math.degrees(h['phi'] + h['lam']):.4f} deg)={h['t_raise']:.4f} N*m "
+          f"T_lower={F_NOM:.1f}*{DM:.3f}/2*tan({math.degrees(h['phi'] - h['lam']):.4f} deg)={h['t_lower']:.4f} N*m "
+          f"eta=tan(lambda)/tan(phi+lambda)={h['eta']:.4f}")
+    a = screw(F_NOM, LEAD_A, MU_NOM)
+    print(f"hand_calc steep l={LEAD_A * 1000:.1f} mm: lambda={math.degrees(a['lam']):.4f} deg > phi -> "
+          f"T_lower={a['t_lower']:.4f} N*m (back-drives) eta={a['eta']:.4f}")
+    v = screw(F_NOM, LEAD_B, MU_NOM * VIB_FACTOR)
+    print(f"hand_calc vibrated mu={MU_NOM * VIB_FACTOR:.4f} < tan(lambda_B)={math.tan(h['lam']):.4f} -> "
+          f"T_lower={v['t_lower']:.4f} N*m (back-drives)")
+    lb = REGIMES["borderline"]["lead_b"]
+    tl = math.tan(lead_angle(lb))
+    eq = screw(F_NOM, lb, tl)
+    above = screw(F_NOM, lb, tl + 1e-6)
+    below = screw(F_NOM, lb, tl - 1e-6)
+    print(f"boundary_rule: lead={lb * 1000:.4f} mm, mu=tan(lambda)={tl:.4f}: T_lower={num(abs(eq['t_lower']))} N*m holds={int(eq['holds'])} "
+          f"(equality is the boundary, not self-locking); mu+1e-6 holds={int(above['holds'])}; mu-1e-6 holds={int(below['holds'])}")
+    for regime in REGIMES:
+        report(regime)
+    print(f"alternative VIB_FACTOR=0.60 on nominal (same seeds; vibrated mu = 0.60 * static):")
+    alt = collect("nominal", vib=0.60)
+    base = collect("nominal")
+    print(f"  C_vibrated@alt holds_on {int(sum(col(alt['C_vibrated'], 'holds')))}/5 (default {int(sum(col(base['C_vibrated'], 'holds')))}/5)")
+    print(f"  paired C-B t_lower@alt: {verdict(col(alt['C_vibrated'], 't_lower'), col(alt['B_fine'], 't_lower'))}")
+    print(f"  paired C-B holds@alt: {verdict(col(alt['C_vibrated'], 'holds'), col(alt['B_fine'], 'holds'))}")
+    print(f"alternative MU_NOM=0.10 on nominal (same seeds; oiled-thread stand-in):")
+    alt = collect("nominal", mu_nom=0.10)
+    print(f"  B_fine@alt holds_on {int(sum(col(alt['B_fine'], 'holds')))}/5 C_vibrated@alt holds_on {int(sum(col(alt['C_vibrated'], 'holds')))}/5")
+    print(f"  paired B-A holds@alt: {verdict(col(alt['B_fine'], 'holds'), col(alt['A_steep'], 'holds'))}")
+    print(f"  paired C-B t_lower@alt: {verdict(col(alt['C_vibrated'], 't_lower'), col(alt['B_fine'], 't_lower'))}")
+    alpha = math.radians(15.0)
+    print(f"alternative trapezoidal half-angle alpha=15.0 deg on borderline (same seeds; mu*sec(alpha)={MU_NOM / math.cos(alpha):.4f} at MU_NOM):")
+    alt = collect("borderline", half_angle=alpha)
+    print(f"  B_fine@alt holds_on {int(sum(col(alt['B_fine'], 'holds')))}/5 (square thread default {int(sum(col(collect('borderline')['B_fine'], 'holds')))}/5)")
+    print(f"  paired B-A holds@alt: {verdict(col(alt['B_fine'], 'holds'), col(alt['A_steep'], 'holds'))}")
+    print("No winner declared: a steep lead is efficient but back-drives, a fine lead holds but wastes most input work, and vibration can undo the hold")
+    print("Real leadscrew / jack / printer axis: 本页未运行; Wikipedia Leadscrew statements 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic square-thread leadscrew toy; shared mu/load draws; not a jack or printer axis measurement
+seeds=5 F_NOM=500.0 N (+-10 %) DM=10.0 mm MU_NOM=0.15 (+-0.03) VIB_FACTOR=0.30 (declared toy parameters, not a measured nut)
+No integration step: closed-form statics, no time-step criterion
+Regimes and parameters were written before the first run
+rule: self-locking iff phi > lambda (strict), i.e. mu > tan(lambda); T_lower > 0 holds, T_lower < 0 back-drives
+hand_calc F=500.0 N dm=10.0 mm l=2.0 mm mu=0.15: lambda=atan(2.0/(pi*10.0))=3.6426 deg phi=atan(0.15)=8.5308 deg
+hand_calc T_raise=500.0*0.010/2*tan(12.1734 deg)=0.5393 N*m T_lower=500.0*0.010/2*tan(4.8881 deg)=0.2138 N*m eta=tan(lambda)/tan(phi+lambda)=0.2951
+hand_calc steep l=10.0 mm: lambda=17.6568 deg > phi -> T_lower=-0.4016 N*m (back-drives) eta=0.6472
+hand_calc vibrated mu=0.0450 < tan(lambda_B)=0.0637 -> T_lower=-0.0465 N*m (back-drives)
+boundary_rule: lead=4.7124 mm, mu=tan(lambda)=0.1500: T_lower=0.0000 N*m holds=0 (equality is the boundary, not self-locking); mu+1e-6 holds=1; mu-1e-6 holds=0
+nominal (LEAD_A=10.0000 mm lambda_A=17.6568 deg; LEAD_B=2.0000 mm lambda_B=3.6426 deg; tan(lambda_B)=0.0637):
+  static mu per seed: 0.1438 0.1627 0.1730 0.1622 0.1277
+  A_steep eta 0.6419+-0.0289 t_raise 1.1764+-0.1019 t_lower -0.3696+-0.0297 holds 0.0000+-0.0000 holds_on 0/5
+  B_fine eta 0.2914+-0.0256 t_raise 0.5211+-0.0651 t_lower 0.2126+-0.0504 holds 1.0000+-0.0000 holds_on 5/5
+  C_vibrated eta 0.5791+-0.0294 t_raise 0.2610+-0.0240 t_lower -0.0409+-0.0112 holds 0.0000+-0.0000 holds_on 0/5
+  self_lock_flag_check: holds == (phi > lambda) == (T_lower > 0) on every arm and seed: True
+  paired B-A eta: -0.3505+-0.0034: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A t_raise: -0.6553+-0.0376: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A t_lower: 0.5823+-0.0264: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A holds: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B t_lower: -0.2535+-0.0395: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B holds: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B eta: 0.2876+-0.0039: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+borderline (LEAD_A=10.0000 mm lambda_A=17.6568 deg; LEAD_B=4.7124 mm lambda_B=8.5308 deg; tan(lambda_B)=0.1500):
+  static mu per seed: 0.1486 0.1719 0.1584 0.1202 0.1619
+  A_steep eta 0.6449+-0.0324 t_raise 1.2263+-0.0968 t_lower -0.3934+-0.0561 holds 0.0000+-0.0000 holds_on 0/5
+  B_fine eta 0.4869+-0.0352 t_raise 0.7669+-0.0704 t_lower 0.0050+-0.0478 holds 0.6000+-0.5477 holds_on 3/5
+  C_vibrated eta 0.7620+-0.0243 t_raise 0.4885+-0.0344 t_lower -0.2571+-0.0226 holds 0.0000+-0.0000 holds_on 0/5
+  self_lock_flag_check: holds == (phi > lambda) == (T_lower > 0) on every arm and seed: True
+  paired B-A eta: -0.1580+-0.0028: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A t_raise: -0.4595+-0.0301: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A t_lower: 0.3984+-0.0258: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A holds: 0.6000+-0.5477: clear gap, not a tie (|m| > sd); no seed has the opposite sign, 2 of 5 equal
+  paired C-B t_lower: -0.2621+-0.0365: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B holds: -0.6000+-0.5477: clear gap, not a tie (|m| > sd); no seed has the opposite sign, 2 of 5 equal
+  paired C-B eta: 0.2751+-0.0109: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative VIB_FACTOR=0.60 on nominal (same seeds; vibrated mu = 0.60 * static):
+  C_vibrated@alt holds_on 5/5 (default 0/5)
+  paired C-B t_lower@alt: -0.1444+-0.0225: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B holds@alt: 0.0000+-0.0000: tie: identical on every seed
+alternative MU_NOM=0.10 on nominal (same seeds; oiled-thread stand-in):
+  B_fine@alt holds_on 5/5 C_vibrated@alt holds_on 0/5
+  paired B-A holds@alt: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B t_lower@alt: -0.1721+-0.0363: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative trapezoidal half-angle alpha=15.0 deg on borderline (same seeds; mu*sec(alpha)=0.1553 at MU_NOM):
+  B_fine@alt holds_on 4/5 (square thread default 3/5)
+  paired B-A holds@alt: 0.8000+-0.4472: clear gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+No winner declared: a steep lead is efficient but back-drives, a fine lead holds but wastes most input work, and vibration can undo the hold
+Real leadscrew / jack / printer axis: 本页未运行; Wikipedia Leadscrew statements 以原文为准
+```
+
+</SimOutput>
+
+### 读两种情形
+
+本页标签的用法，按这个顺序。**打平：每个种子都完全相同** 只在按种子配对的差在每个种子上都恰好为零时使用；**数值上为零（浮点残差），等同打平** 用于 |配对均值| 和它的 sd 都低于 1e-9 时（这类行不打印同号计数）；**接近打平、差距很小，在种子噪声之内** 用于 |配对均值| ≤ sd；否则是**稳定的**差距（|配对均值| > sd），若 |m| 不到较小那一臂均值的 20 % 就叫**小而稳定的差距，不是打平**，否则叫**明显差距，不是打平**。每条稳定差距的行都带 5 个种子的同号计数。
+
+- **nominal。** B 在 5/5 个种子上保持，A 在 0/5 个种子上保持。成对 B−A T_lower 0.5823±0.0264 与成对 B−A holds 1.0000±0.0000 都是**明显差距，不是打平**（5 个种子全部同号）。代价是效率：成对 B−A η -0.3505±0.0034，同样 5/5 明显；A 把 0.6419±0.0289 的输入功变成举升，B 只有 0.2914±0.0256。这是**取舍**，不是普遍的赢：粗导程举升损耗小但需要制动器，细导程能自己保持，但大部分功变成了热。**振动:** μ × 0.30 时同一根 2.0 mm 丝杠在 5/5 个种子上被反向驱动；成对 C−B T_lower -0.2535±0.0395 与成对 C−B holds -1.0000±0.0000 都是**明显差距，不是打平**（5/5）。**保留**这个失败：它正是条目的警告。成对 C−B η 0.2876±0.0039 说明了其中的讽刺：让 η 变高的摩擦下降，正是让丝杠失去自锁的那个下降。
+- **borderline。** B 在 3/5 个种子上保持（μ 抖动为正的那几个），它的 T_lower 平均 0.0050±0.0478 N·m，与零的差在种子噪声之内。预先声明的保持标志上「可能**接近打平**」按本页规则**没有**出现：成对 B−A holds 是 0.6000±0.5477，|m| 刚好大于 sd，所以打印的标签是**明显差距，不是打平**，尽管只有 3/5 个种子不同、2/5 个相等。按原样打印，没有重调；应读作「有些种子能保持」，而不是设计裕度。成对 B−A T_lower 0.3984±0.0258 明显，是因为 A 被反向驱动得很厉害；成对 C−B holds -0.6000±0.5477 说明振动在每个原本能保持的种子上都去掉了保持。
+
+边界行也打印了：导程 4.7124 mm、μ = tan λ = 0.1500 恰好相等时，T_lower = 0.0000 N·m，保持标志为 0；μ + 1e-6 能保持，μ − 1e-6 不能。
+
+**看过结果后做的选择。** 没有。载荷、μ、VIB_FACTOR、两个导程以及下面三个替代都在首次运行前写定。同一组种子上的替代：VIB_FACTOR = 0.60 时 5/5 个种子都保住了自锁（成对 C−B holds 0.0000±0.0000，**打平：每个种子都完全相同**），只是裕度变小（成对 C−B T_lower -0.1444±0.0225），所以振动会不会让丝杠失锁取决于 μ 降多少，而本页对任何真实螺母都**不知道**这个数。MU_NOM = 0.10（加油螺纹的替身）静态时仍在 5/5 个种子上保持，振动时 5 个种子全部失锁（成对 C−B T_lower -0.1721±0.0363）。梯形螺纹半角 α = 15.0° 把 μ·sec α 提高到 0.1553，使 borderline 丝杠在 4/5 个种子上保持（成对 B−A holds 0.8000±0.4472）。都没有采用，默认值不变。
+
+**首次运行后的代码改动。** 没有：首次接受的运行就是 `expected/` 文件。
+
+本页**不宣布普遍赢家**：粗导程效率高但会被反向驱动，细导程能保持但浪费大部分输入功，而振动可以解除保持。真实丝杠、千斤顶或打印机轴均**本页未运行**。
+
+**150 分钟安排:** 25 分钟读 Wikipedia Leadscrew 的 Mechanics 与 Efficiency 两节；30 分钟从展开三角形推出 T_raise、T_lower 和 η，并核对打印的手算；40 分钟运行 toy，读两种情形和标志检查；30 分钟固定种子对照打印的三个替代；25 分钟做练习。
+
+### 练习
+
+1. 从展开三角形推出 T_lower，并说明它恰好在 φ = λ 处变号；说明本页为什么把取等号算作不自锁。
+2. 从 `shared_draws` 说明：对给定情形和种子，A、B、C 拿到同一个 μ 抖动和同一个载荷。
+3. 用打印的手算说明：同样 μ = 0.15，为什么 2.0 mm 丝杠能保持而 10.0 mm 丝杠会被反向驱动。
+4. 在 VIB_FACTOR = 0.60 的替代下自锁保住了。手算 μ = 0.15 时让 nominal 的 2.0 mm 丝杠被反向驱动的最大 VIB_FACTOR，并说明为什么这个系数不能从数据手册上读出来。
+5. 在任何真实千斤顶或打印机轴之前（本页未运行），列出你要测什么来替换声明的 μ 和 VIB_FACTOR；如果电机断电时轴必须保持载荷，你会把制动器加在哪里。
+
 <Summary>
 
 物理回差闭环玩具区分摩擦加积分导致的 hunting 与传感器位置，明示负载臂额外信息，并报告死区误差带及设错后的失效。
@@ -892,6 +1255,7 @@ Real gearbox / dyno lab: 本页未运行; Wikipedia Gear train numbers 以原文
 - 你能把 0.40 m 手臂上 1.5° 的回差换算成末端的毫米数吗？
 
 - 负载工况下的齿轮效率：共享 τ–ω 与**与负载无关**的库仑+粘滞拖曳，显示重载接近打平，以及轻载时 `P_in` 下降、固定热量下 η 下降——不是齿轮箱测功。
+- 丝杠自锁：T_lower = (F·d_m / 2)·tan(φ − λ)，只有 φ > λ（严格）时才保持；在共享的 μ 与载荷抽样下，2.0 mm 导程能保持而 10.0 mm 导程被反向驱动（成对 B−A T_lower 0.5823±0.0264，5/5），代价是 η；振动使 μ 下降后它失去自锁（成对 C−B T_lower -0.2535±0.0395，5/5，保留）。这是合成替身，不是真实千斤顶。
 
 **下一课会用到**
 
