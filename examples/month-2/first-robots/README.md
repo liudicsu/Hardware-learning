@@ -28,3 +28,9 @@ arduino-cli compile -b arduino:avr:uno examples/month-2/first-robots/balancer
 ```
 
 The balancer output in the lesson comes from simavr with a simulated MPU-6050 and no motors or physics (**simulated output / 仿真输出**). The toy models are [`line_sim.py`](../../../tools/sim/models/line_sim.py) and [`balance_sim.py`](../../../tools/sim/models/balance_sim.py).
+
+**`madgwick_vs_complementary_balancer_toy.py`**: standard-library synthetic IMU stream for the balancer's pitch (gyro only, the lesson's 0.5 s complementary filter, and the Madgwick 2010 IMU update at beta 0.033 and 0.5); five seeds, common random numbers; expected output in `../expected/madgwick_vs_complementary_balancer_toy.txt`, compared by `../check.sh`. Not an MPU-6050; a real IMU 本页未运行. / 标准库合成的平衡车俯仰 IMU 数据，比较纯陀螺积分、课程的 0.5 s 互补滤波与 beta 为 0.033 和 0.5 的 Madgwick 2010 IMU 更新；5 个种子，共用随机数；不是 MPU-6050，真实 IMU 本页未运行。
+
+```bash
+python3 madgwick_vs_complementary_balancer_toy.py
+```

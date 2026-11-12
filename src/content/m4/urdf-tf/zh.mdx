@@ -1035,11 +1035,393 @@ Real ros2 / tf2_ros / camera: 本页未运行; tf2 behaviour 以原文为准
 
 第 4 课里，同一份 xacro 会进入 Gazebo，那时重力、惯量和你在这里写的碰撞盒子突然都成了真的，激光雷达和相机也开始产出数据——盖的正是你在这里选定的坐标系名字。现在把树写对，仿真就轻松；写错，没有哪个算法救得了你。
 
+## 平行轴惯量与惯性原点
+
+<Resource id="wiki-parallel-axis" />
+
+上面的惯量一节把每个惯量都取**绕质心**的值，并让它跟着几何体移动：底盘的 `<inertial>` 用的就是底盘盒子的原点。本节要问的是，原点和矩阵对不上时会发生什么。在 URDF 里，`<inertial><origin>` **就是**质心，`ixx`…`izz` 都是绕**这个**原点取的。物理引擎让连杆绕别处的关节转动时，必须自己把矩阵搬过去。Wikipedia 的 *Parallel axis theorem*（已读正文，rev 1337841361；以原文为准）给出规则：对一条与过质心的轴平行、**垂直**距离为 d 的轴，I = I_cm + m d²。它的张量形式把整个矩阵搬到位移为 R 的新点：J = I + m [(R · R) E₃ − R ⊗ R]。这里有两个推论最重要。沿某根轴**平移**不会改变绕这根轴的惯量；在两个方向上同时平移会产生**惯性积**，J_xy = −m R_x R_y。
+
+本节**不是**重做盒子 / 圆柱公式或 `inertia_check.py`，也**不是**第 4 课 Gazebo 步长或接触那一节。ROS wiki 上 URDF `<link>` 元素的页面对编者的 `curl` 返回了机器人验证页，所以这里**不**引用它；上面的约定就是本课宏已经在用的约定。
+
+<Formula label="平行轴定理">I = I_cm + m × d²   （d 垂直于轴）；   J = I + m [(R · R) E₃ − R ⊗ R]</Formula>
+
+**算例（手算，toy 也会打印）。** 取算例 1 的底盘，m = 2.0 kg，尺寸 0.30 × 0.24 × 0.08 m，所以 Izz_cm = 0.0246 kg·m²，回转半径 √(Izz_cm / m) 为 0.1109 m。把一个偏航关节放在后缘，离质心 d = 0.15 m：m d² = 2.0 × 0.15² = 0.0450 kg·m²，所以绕关节的惯量是 0.0246 + 0.0450 = 0.0696 kg·m²。把质心矩阵直接写在关节处的文件只声称了其中的 0.3534。d = 0.01 m 时附加项是 2.000e-4 kg·m²，占 Izz_cm 的 0.8130 %。偏移 r = (0.10, 0.08, 0) 时惯性积为 J_xy = −2.0 × 0.10 × 0.08 = -0.0160 kg·m²。
+
+**这里没有积分步长。** toy 用闭式规则搬运矩阵，没有按时间步进，所以不涉及步长判据。
+
+### 公平设置
+
+`urdf_parallel_axis_inertia_toy.py` 是**合成**的，只用标准库。它不是 Gazebo，也不解析 URDF。**模型假设:** 一个刚性均匀盒子，即本课的底盘，质量公差 ±3 %，每边尺寸公差 ±2 %（**声明的玩具参数**，不是实测机器人）；质心位于离关节偏移 r 处；共用偏航力矩 TAU = 0.05 N·m。"引擎"做的是任何仿真器拿到一个 `<inertial>` 都必须做的事：用张量形式把写下的矩阵从写下的原点搬到关节处。绕关节 y 轴的重力矩为 m g x，其中 x 是写下的原点的 x，因为原点就是文件声称质量所在的位置。
+
+| 组 | `<inertial>` 怎么写 |
+|---|---|
+| A_com | 原点 = r（质心），矩阵 = I_cm，即 URDF 约定 |
+| B_typo | 原点 = 关节，矩阵 = I_cm，即常见笔误 |
+| C_shifted | 原点 = 关节，矩阵 = 用张量形式搬到关节处的 I_cm |
+
+**共用随机数:** 每个（情形，种子）只抽一次质量和三条边长，三组共用。三组**只**在 `<inertial>` 的写法上不同。5 个种子。指标：绕关节的 J_zz、J_xx 和 J_xy，偏航角加速度 alpha_z = TAU / J_zz，以及重力矩 tau_g，按种子报告 mean±sd。
+
+| 情形 | 偏移 r (m) | 事先声明 |
+|---|---|---|
+| zero | (0, 0, 0) | A、B、C 在每个指标上**打平** |
+| small | (0.01, 0, 0) | B 低估 J_zz；差距**可能**是接近打平；结果如何就保留如何 |
+| large | (0.15, 0, 0)，关节在后缘 | B **稳定**低估 J_zz、高估 alpha_z（笔误输）；C 在 J_zz 上与 A 打平；C 在重力矩上输给 A；**保留** |
+| along_axis | (0, 0, 0.04) | B 在 J_zz 上与 A 打平（沿 z 平移）；B 低估 J_xx |
+| diagonal | (0.10, 0.08, 0) | B 漏掉惯性积 J_xy；C 与 A 打平 |
+
+### 运行标准库 toy
+
+```bash
+cd ~/Hardware-learning/examples/month-4/urdf-tf
+python3 urdf_parallel_axis_inertia_toy.py
+```
+
+<CodeSource path="examples/month-4/urdf-tf/urdf_parallel_axis_inertia_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""URDF <inertial><origin> and the parallel-axis theorem, on a shared chassis box.
+
+Synthetic rigid-body bookkeeping, stdlib only.  Not Gazebo, not a URDF
+parser, not inertia_check.py and not the "inertia without guessing" macros
+(this toy reuses their box formula).  Gazebo / a real inertia measurement:
+本页未运行.  Wikipedia "Parallel axis theorem" statements 以原文为准.
+
+What the Wikipedia body says (and what this toy keeps): for an axis z'
+parallel to an axis z through the centre of mass and a perpendicular
+distance d away, I = I_cm + m d^2.  The tensor form moves the whole inertia
+tensor from the centre of mass to a new point at displacement R:
+  J = I + m [ (R . R) E3 - R (x) R ]
+so a shift along an axis does not change the moment about that axis, and a
+shift in two directions creates a product of inertia J_xy = -m R_x R_y.
+
+The URDF convention used by the lesson: <inertial><origin> is the centre of
+mass, and ixx..izz are taken about that origin.  The "engine" below does what
+any physics engine has to do with that pair: it moves the written matrix
+from the written origin to the joint point with the tensor form.
+
+Common random numbers: for each (regime, seed) the chassis mass and its
+three sizes are drawn once (manufacturing tolerance) and shared by all three
+arms.  The true centre of mass sits at the regime's offset r from the joint.
+Arms (how the <inertial> is written):
+  A_com      : origin = r (the COM), matrix = I_cm         (correct URDF)
+  B_typo     : origin = 0 (the joint), matrix = I_cm        (the common typo)
+  C_shifted  : origin = 0 (the joint), matrix = I_cm moved to the joint
+               with the tensor form (J at the joint)
+Metrics: J_zz, J_xx and J_xy about the joint point, alpha_z = TAU / J_zz,
+and the static gravity torque about the joint's y axis, m g x_origin (it
+depends only on where the origin says the mass is).
+No integration step: closed form, no time stepping.
+
+Regimes and parameters were written before the first run:
+  zero       : r = (0, 0, 0)        - A, B, C tie on every metric
+  small      : r = (0.01, 0, 0)     - B under-estimates J_zz; may near-tie
+                                      (kept as it comes)
+  large      : r = (0.15, 0, 0)     - pivot at the rear edge: B consistent
+                                      under-estimates J_zz and over-estimates
+                                      alpha_z (typo loses); C ties A on J_zz;
+                                      C loses to A on gravity torque (it puts
+                                      the mass at the joint); keep
+  along_axis : r = (0, 0, 0.04)     - B ties A on J_zz (shift along z), B
+                                      under-estimates J_xx
+  diagonal   : r = (0.10, 0.08, 0)  - B misses the product J_xy; C ties A
+"""
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+
+# Declared parameters, written before the first run.
+MASS = 2.0                    # kg, the lesson's m4bot chassis
+SIZE = (0.30, 0.24, 0.08)     # m, x y z, the lesson's chassis box
+MASS_TOL = 0.03               # +-3 % uniform (toy tolerance)
+SIZE_TOL = 0.02               # +-2 % uniform per side (toy tolerance)
+TAU = 0.05                    # N m, shared yaw torque at the joint (toy)
+G = 9.81                      # m/s^2
+
+REGIMES = {
+    "zero": (0.0, 0.0, 0.0),
+    "small": (0.01, 0.0, 0.0),
+    "large": (0.15, 0.0, 0.0),
+    "along_axis": (0.0, 0.0, 0.04),
+    "diagonal": (0.10, 0.08, 0.0),
+}
+ARMS = ("A_com", "B_typo", "C_shifted")
+
+
+def box_icm(m, x, y, z):
+    """The lesson's inertial_box macro: diagonal, about the centre of mass."""
+    return [[m / 12 * (y * y + z * z), 0.0, 0.0],
+            [0.0, m / 12 * (x * x + z * z), 0.0],
+            [0.0, 0.0, m / 12 * (x * x + y * y)]]
+
+
+def shift(mat, m, r):
+    """Tensor parallel-axis form: J = I + m[(R.R)E3 - R(x)R]."""
+    rr = r[0] * r[0] + r[1] * r[1] + r[2] * r[2]
+    return [[mat[i][j] + m * ((rr if i == j else 0.0) - r[i] * r[j]) for j in range(3)] for i in range(3)]
+
+
+def shared_body(regime, seed):
+    """Common random numbers: one mass and one set of sizes per (regime, seed)."""
+    rng = random.Random(f"{regime}/{seed}")
+    m = MASS * rng.uniform(1 - MASS_TOL, 1 + MASS_TOL)
+    dims = [s * rng.uniform(1 - SIZE_TOL, 1 + SIZE_TOL) for s in SIZE]
+    return m, dims
+
+
+def written(arm, m, icm, r):
+    """(origin, matrix) as the arm writes them in <inertial>."""
+    if arm == "A_com":
+        return list(r), icm
+    if arm == "B_typo":
+        return [0.0, 0.0, 0.0], icm
+    return [0.0, 0.0, 0.0], shift(icm, m, r)
+
+
+def run_arm(arm, regime, seed, r=None):
+    r = REGIMES[regime] if r is None else r
+    m, dims = shared_body(regime, seed)
+    icm = box_icm(m, *dims)
+    origin, mat = written(arm, m, icm, r)
+    j = shift(mat, m, origin)  # the engine: move the written matrix to the joint point
+    return {"J_zz": j[2][2], "J_xx": j[0][0], "J_xy": j[0][1], "alpha_z": TAU / j[2][2],
+            "tau_g": m * G * origin[0], "m": m}
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0  # identical values: no floating residue in mean or sd
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    """Half-up rounding on the shortest decimal repr; tiny non-zero values in scientific form."""
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+METRICS = ("J_zz", "J_xx", "J_xy", "alpha_z", "tau_g")
+
+
+def collect(regime, r=None):
+    return {arm: [run_arm(arm, regime, s, r) for s in SEEDS] for arm in ARMS}
+
+
+def col(rows, key):
+    return [x[key] for x in rows]
+
+
+def report(regime):
+    r = REGIMES[regime]
+    res = collect(regime)
+    print(f"{regime} (COM offset r = ({num(r[0])}, {num(r[1])}, {num(r[2])}) m from the joint):")
+    print("  mass per seed (kg): " + " ".join(num(m) for m in col(res["A_com"], "m")))
+    for arm in ARMS:
+        print(f"  {arm} " + " ".join(f"{key} {fmt_pair(*mean_sd(col(res[arm], key)))}" for key in METRICS))
+    for a, b in (("B_typo", "A_com"), ("C_shifted", "A_com")):
+        for key in METRICS:
+            print(f"  paired {a[0]}-{b[0]} {key}: {verdict(col(res[a], key), col(res[b], key))}")
+    return res
+
+
+def main():
+    print("Synthetic URDF parallel-axis toy; shared chassis mass and size draws; not a Gazebo run")
+    print(f"seeds={len(SEEDS)} mass={num(MASS)} kg +-{num(100 * MASS_TOL)} % size={num(SIZE[0])} x {num(SIZE[1])} x {num(SIZE[2])} m "
+          f"+-{num(100 * SIZE_TOL)} % TAU={num(TAU)} N m g={num(G)} m/s^2 (declared toy parameters, not a measured robot)")
+    print("No integration step: closed form, no time-step criterion")
+    print("Regimes and parameters were written before the first run")
+    print("rule: engine J = M + m[(o.o)E3 - o(x)o] from the written origin o to the joint; gravity torque = m g x_o")
+    # Labelled hand calculation on the nominal chassis (no tolerance draw).
+    icm = box_icm(MASS, *SIZE)
+    md2 = MASS * 0.15 ** 2
+    print(f"hand_calc nominal chassis m=2.0 kg 0.30 x 0.24 x 0.08 m: Izz_cm=2.0/12*(0.30^2+0.24^2)={num(icm[2][2])} kg m^2; "
+          f"radius of gyration sqrt(Izz_cm/m)={num(math.sqrt(icm[2][2] / MASS))} m")
+    print(f"hand_calc d=0.15 m: m d^2=2.0*0.15^2={num(md2)} kg m^2; I=Izz_cm+m d^2={num(icm[2][2] + md2)} kg m^2; "
+          f"typo/true={num(icm[2][2] / (icm[2][2] + md2))}")
+    print(f"hand_calc d=0.01 m: m d^2=2.0*0.01^2={num(MASS * 0.01 ** 2)} kg m^2 ({num(100 * MASS * 0.01 ** 2 / icm[2][2])} % of Izz_cm)")
+    print(f"hand_calc r=(0.10, 0.08, 0): J_xy=-m*0.10*0.08={num(-MASS * 0.10 * 0.08)} kg m^2")
+    for regime in REGIMES:
+        report(regime)
+    print("alternative offsets (post-hoc check of the declared d; same seeds):")
+    for regime, r in (("large", (0.10, 0.0, 0.0)), ("large", (0.20, 0.0, 0.0)), ("small", (0.005, 0.0, 0.0))):
+        alt = collect(regime, r)
+        print(f"  {regime} with r=({num(r[0])}, 0, 0): paired B-A J_zz@alt: {verdict(col(alt['B_typo'], 'J_zz'), col(alt['A_com'], 'J_zz'))}")
+    print("No winner declared beyond the bookkeeping: writing the origin at the COM (A) is the URDF convention; "
+          "a shifted matrix at the joint (C) gives the same inertia about the joint but puts the mass at the joint for gravity")
+    print("Gazebo / a real inertia measurement: 本页未运行; Wikipedia Parallel axis theorem statements 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic URDF parallel-axis toy; shared chassis mass and size draws; not a Gazebo run
+seeds=5 mass=2.0000 kg +-3.0000 % size=0.3000 x 0.2400 x 0.0800 m +-2.0000 % TAU=0.0500 N m g=9.8100 m/s^2 (declared toy parameters, not a measured robot)
+No integration step: closed form, no time-step criterion
+Regimes and parameters were written before the first run
+rule: engine J = M + m[(o.o)E3 - o(x)o] from the written origin o to the joint; gravity torque = m g x_o
+hand_calc nominal chassis m=2.0 kg 0.30 x 0.24 x 0.08 m: Izz_cm=2.0/12*(0.30^2+0.24^2)=0.0246 kg m^2; radius of gyration sqrt(Izz_cm/m)=0.1109 m
+hand_calc d=0.15 m: m d^2=2.0*0.15^2=0.0450 kg m^2; I=Izz_cm+m d^2=0.0696 kg m^2; typo/true=0.3534
+hand_calc d=0.01 m: m d^2=2.0*0.01^2=2.000e-4 kg m^2 (0.8130 % of Izz_cm)
+hand_calc r=(0.10, 0.08, 0): J_xy=-m*0.10*0.08=-0.0160 kg m^2
+zero (COM offset r = (0.0000, 0.0000, 0.0000) m from the joint):
+  mass per seed (kg): 2.0110 2.0117 1.9444 1.9604 2.0179
+  A_com J_zz 0.0243+-3.570e-4 J_xx 0.0105+-2.681e-4 J_xy 0.0000+-0.0000 alpha_z 2.0581+-0.0298 tau_g 0.0000+-0.0000
+  B_typo J_zz 0.0243+-3.570e-4 J_xx 0.0105+-2.681e-4 J_xy 0.0000+-0.0000 alpha_z 2.0581+-0.0298 tau_g 0.0000+-0.0000
+  C_shifted J_zz 0.0243+-3.570e-4 J_xx 0.0105+-2.681e-4 J_xy 0.0000+-0.0000 alpha_z 2.0581+-0.0298 tau_g 0.0000+-0.0000
+  paired B-A J_zz: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A J_xx: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A J_xy: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A alpha_z: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A tau_g: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A J_zz: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A J_xx: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A J_xy: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A alpha_z: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A tau_g: 0.0000+-0.0000: tie: identical on every seed
+small (COM offset r = (0.0100, 0.0000, 0.0000) m from the joint):
+  mass per seed (kg): 2.0263 2.0427 1.9878 2.0147 1.9744
+  A_com J_zz 0.0249+-0.0006 J_xx 0.0107+-3.759e-4 J_xy 0.0000+-0.0000 alpha_z 2.0111+-0.0519 tau_g 0.1971+-0.0027
+  B_typo J_zz 0.0247+-0.0006 J_xx 0.0107+-3.759e-4 J_xy 0.0000+-0.0000 alpha_z 2.0275+-0.0526 tau_g 0.0000+-0.0000
+  C_shifted J_zz 0.0249+-0.0006 J_xx 0.0107+-3.759e-4 J_xy 0.0000+-0.0000 alpha_z 2.0111+-0.0519 tau_g 0.0000+-0.0000
+  paired B-A J_zz: -2.009e-4+-2.789e-6: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A J_xx: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A J_xy: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A alpha_z: 0.0164+-0.0007: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A tau_g: -0.1971+-0.0027: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A J_zz: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A J_xx: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A J_xy: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A alpha_z: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A tau_g: -0.1971+-0.0027: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+large (COM offset r = (0.1500, 0.0000, 0.0000) m from the joint):
+  mass per seed (kg): 1.9859 1.9630 1.9859 2.0172 1.9971
+  A_com J_zz 0.0688+-0.0006 J_xx 0.0106+-1.950e-4 J_xy 0.0000+-0.0000 alpha_z 0.7265+-0.0066 tau_g 2.9280+-0.0290
+  B_typo J_zz 0.0241+-2.479e-4 J_xx 0.0106+-1.950e-4 J_xy 0.0000+-0.0000 alpha_z 2.0785+-0.0214 tau_g 0.0000+-0.0000
+  C_shifted J_zz 0.0688+-0.0006 J_xx 0.0106+-1.950e-4 J_xy 0.0000+-0.0000 alpha_z 0.7265+-0.0066 tau_g 0.0000+-0.0000
+  paired B-A J_zz: -0.0448+-4.431e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A J_xx: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A J_xy: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A alpha_z: 1.3520+-0.0164: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A tau_g: -2.9280+-0.0290: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A J_zz: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A J_xx: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A J_xy: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A alpha_z: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A tau_g: -2.9280+-0.0290: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+along_axis (COM offset r = (0.0000, 0.0000, 0.0400) m from the joint):
+  mass per seed (kg): 2.0589 1.9742 1.9465 2.0011 1.9737
+  A_com J_zz 0.0241+-4.383e-4 J_xx 0.0138+-1.409e-4 J_xy 0.0000+-0.0000 alpha_z 2.0719+-0.0373 tau_g 0.0000+-0.0000
+  B_typo J_zz 0.0241+-4.383e-4 J_xx 0.0106+-1.165e-4 J_xy 0.0000+-0.0000 alpha_z 2.0719+-0.0373 tau_g 0.0000+-0.0000
+  C_shifted J_zz 0.0241+-4.383e-4 J_xx 0.0138+-1.409e-4 J_xy 0.0000+-0.0000 alpha_z 2.0719+-0.0373 tau_g 0.0000+-0.0000
+  paired B-A J_zz: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A J_xx: -0.0032+-6.824e-5: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A J_xy: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A alpha_z: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A tau_g: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A J_zz: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A J_xx: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A J_xy: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A alpha_z: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A tau_g: 0.0000+-0.0000: tie: identical on every seed
+diagonal (COM offset r = (0.1000, 0.0800, 0.0000) m from the joint):
+  mass per seed (kg): 2.0147 2.0150 2.0151 1.9608 1.9891
+  A_com J_zz 0.0574+-0.0006 J_xx 0.0235+-2.371e-4 J_xy -0.0160+-1.924e-4 alpha_z 0.8709+-0.0085 tau_g 1.9610+-0.0236
+  B_typo J_zz 0.0246+-4.238e-4 J_xx 0.0107+-1.757e-4 J_xy 0.0000+-0.0000 alpha_z 2.0300+-0.0350 tau_g 0.0000+-0.0000
+  C_shifted J_zz 0.0574+-0.0006 J_xx 0.0235+-2.371e-4 J_xy -0.0160+-1.924e-4 alpha_z 0.8709+-0.0085 tau_g 0.0000+-0.0000
+  paired B-A J_zz: -0.0328+-3.945e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A J_xx: -0.0128+-1.539e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A J_xy: 0.0160+-1.924e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A alpha_z: 1.1591+-0.0295: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A tau_g: -1.9610+-0.0236: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A J_zz: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A J_xx: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A J_xy: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A alpha_z: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A tau_g: -1.9610+-0.0236: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative offsets (post-hoc check of the declared d; same seeds):
+  large with r=(0.1000, 0, 0): paired B-A J_zz@alt: -0.0199+-1.969e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  large with r=(0.2000, 0, 0): paired B-A J_zz@alt: -0.0796+-0.0008: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  small with r=(0.0050, 0, 0): paired B-A J_zz@alt: -5.023e-5+-6.972e-7: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared beyond the bookkeeping: writing the origin at the COM (A) is the URDF convention; a shifted matrix at the joint (C) gives the same inertia about the joint but puts the mass at the joint for gravity
+Gazebo / a real inertia measurement: 本页未运行; Wikipedia Parallel axis theorem statements 以原文为准
+```
+
+</SimOutput>
+
+### 读懂各情形
+
+本页标签按以下顺序使用：只有每个种子的配对差都恰好为零时，才写**打平：每个种子都完全相同**；`|配对均值|` 与其 sd 都小于 1e-9 时写**数值上为零（浮点残差），等同打平**（这种行不打印同号计数）；`|配对均值| ≤ sd` 时写**接近打平 / 小差距，在种子噪声之内**；否则是**稳定**差距（`|配对均值| > sd`），若 `|m|` 小于两组中较小均值的 20 % 叫**小**，否则叫**明显**。每条稳定差距都附 5 个种子上的同号计数。差值用未取整的数计算。
+
+- **zero** 情形，质心就在关节上，三种写法其实是同一个文件：每条配对行都是**打平：每个种子都完全相同**，与事先声明一致。
+- **small** 情形，B 正好少了 m d²：配对 B−A J_zz 为 -2.009e-4±2.789e-6，B−A alpha_z 为 0.0164±0.0007，都是**小但稳定的差距**，5 个种子同号。事先声明的"可能接近打平"**没有**出现：公差抽样让 A 和 B 一起变化，它们的配对差几乎没有离散。照实打印。1 cm 时笔误很小，但它不是噪声。
+- **large** 情形，**笔误输了，差距明显**。配对 B−A J_zz 为 -0.0448±4.431e-4，B−A alpha_z 为 1.3520±0.0164，5 个种子同号；B 声称 0.0241±2.479e-4 kg·m²，而引擎应当看到 0.0688±0.0006，所以同样的力矩给出 alpha_z 2.0785±0.0214 rad/s²，而不是 0.7265±0.0066。C−A J_zz 与 C−A alpha_z 都是**打平：每个种子都完全相同**，搬过去的矩阵给出了绕关节的正确惯量。但 **C 在重力上输了，差距明显**，C−A tau_g 为 -2.9280±0.0290，5 个种子同号，因为把原点写在关节处，也就告诉引擎质量在关节处。**保留**这一格：C 是绕某一点的正确惯量，加上一个错误的质心。
+- **along_axis** 情形，质心沿 z 移动 4 cm 不改变偏航惯量：B−A J_zz 是**打平：每个种子都完全相同**。它改变了横滚惯量：B−A J_xx 为 -0.0032±6.824e-5，**明显**，5 个种子同号。每个惯量只计入垂直距离。
+- **diagonal** 情形，B 漏掉了惯性积：B−A J_xy 为 0.0160±1.924e-4，**明显**，5 个种子同号，对应 A 的 -0.0160±1.924e-4，即打印的手算值。C−A J_xy 是**打平：每个种子都完全相同**，C 在重力上又输了（C−A tau_g -1.9610±0.0236，明显，5 个种子同号）。
+
+**首次运行后的代码改动。** 没有。首次运行的输出与 `expected/` 文件逐字节相同。
+
+**看过结果后做的选择。** 没有。偏移、公差和 TAU 都在首次运行前写定。打印的备选在相同种子上检验声明的 d：d = 0.10 m 和 0.20 m 时笔误仍然明显地输（B−A J_zz -0.0199±1.969e-4 和 -0.0796±0.0008），d = 0.005 m 时仍是小但稳定的差距（-5.023e-5±6.972e-7）。这些都没有替换默认值。
+
+本页**除记账之外不宣布赢家**。把原点写在质心（A）是 URDF 约定；只要关节不在质心、且转轴不是偏移方向，笔误（B）就是错的；搬过去的矩阵（C）修正了绕关节的惯量，却把质量的位置也搬走了，重力就错了。Gazebo 或真实惯量测量（**本页未运行**）。
+
+**180 分钟安排:** 30 分钟阅读 Parallel axis theorem 页面，包括张量形式；30 分钟重做 d = 0.15 m 的底盘手算和 J_xy 项；50 分钟运行 toy 并读懂五种情形；40 分钟在固定种子下比较打印的偏移备选；30 分钟做练习。
+
+### 练习
+
+1. 根据打印的手算，确认底盘绕 0.15 m 外关节的 m d² = 0.0450 kg·m² 和 0.0696 kg·m²，并算出笔误声称的比例。
+2. 从 `shared_body` 和 `run_arm` 说明，对给定的情形和种子，A、B、C 用的是同一个质量和同一组尺寸。
+3. 用张量形式解释，为什么 `along_axis` 中 B−A J_zz **打平**，而 B−A J_xx 不打平。
+4. `large` 中 C 在每个惯量上都与 A 打平。为什么它在 tau_g 上仍然输？在 Gazebo 里哪根连杆会往错误方向倒？
+5. 在任何 Gazebo 运行之前（本页未运行），从你自己的机器人里挑一根关节不在质心的连杆，用 A 的方式写出它的 `<inertial>`。
+
 <Summary>
 
 - 用带命名属性和一个轮子宏的 xacro 描述，由 fixed、continuous、revolute 关节搭出 m4bot；惯量靠计算而不是猜（底盘 Ixx = 0.010667 kg·m²），并用 `inertia_check.py` 核对。
 - `robot_state_publisher` 把 `/joint_states` 和 URDF 变成 `/tf`；云台转到 pan 30° 时，base_link → camera_link 为 [-0.043, 0.010, 0.305]。
 - 用 `tf2_echo`、`view_frames` 和消息里的坐标系名诊断损坏的 TF 树；时间错误要查时钟和时间戳。
 - 查询时间：关节运动时，时间 0 比按图像时间戳查询多差 170.5300±37.6692 mm（明显，5 个种子同号）；变换滞后时按时间戳查询要等 30.4452±0.4321 ms，TF 沉默时 19.7531±0.5040 % 的图像查不到；关节静止时三种查法**打平**（每个种子都完全相同）——合成缓冲区，不是 ROS 运行。
+- 平行轴惯量：质心在关节上时 `<inertial>` 的各种写法都**打平**（每个种子都完全相同）；关节在底盘后缘时，把质心矩阵写在关节处的笔误输（B−A J_zz -0.0448±4.431e-4，明显，5 个种子同号），1 cm 也是小但稳定的差距；搬到关节处的矩阵在惯量上打平，却在重力矩上输（C−A tau_g -2.9280±0.0290，明显，保留）——合成记账，不是 Gazebo 运行。
 
 </Summary>

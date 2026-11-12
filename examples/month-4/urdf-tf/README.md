@@ -24,3 +24,12 @@ Standard-library synthetic tf2 Buffer stand-in, no ROS needed: one pan joint at 
 ```bash
 python3 tf_buffer_time_lookup_toy.py
 ```
+
+## urdf_parallel_axis_inertia_toy.py — parallel-axis inertia / 平行轴惯量
+
+Standard-library synthetic bookkeeping, no ROS needed: the lesson's chassis box (2.0 kg, 0.30 × 0.24 × 0.08 m, with a small tolerance draw) whose COM sits at an offset from the joint, and three ways to write its `<inertial>` (origin at the COM, the same matrix at the joint, the matrix moved to the joint with I = I_cm + m d²); five seeds, common random numbers. Expected output in `../expected/urdf_parallel_axis_inertia_toy.txt`, compared by `../check.sh` even without ROS. Not Gazebo; a real inertia measurement 本页未运行.
+标准库合成的惯量记账，不需要 ROS：课程里的底盘盒（2.0 kg、0.30 × 0.24 × 0.08 m，带少量公差抽样），质心偏离关节一段距离，比较 `<inertial>` 的三种写法（原点在质心、同一矩阵写在关节处、用 I = I_cm + m d² 移到关节处）；5 个种子，共用随机数。输出在 `../expected/urdf_parallel_axis_inertia_toy.txt`，没有 ROS 时 `../check.sh` 也会核对。不是 Gazebo；真实惯量测量本页未运行。
+
+```bash
+python3 urdf_parallel_axis_inertia_toy.py
+```

@@ -6601,6 +6601,43 @@ export const resources: Record<string, Resource> = {
     license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
     extra: true,
   },
+  "wiki-parallel-axis": {
+    id: "wiki-parallel-axis",
+    url: "https://en.wikipedia.org/wiki/Parallel_axis_theorem",
+    title: {
+      zh: "Wikipedia：平行轴定理（Parallel axis theorem）",
+      en: "Wikipedia: Parallel axis theorem",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "HTML 正文已读（rev 1337841361，HTTP 200，2026-11-12）。也称 Huygens–Steiner 定理：已知绕过质心轴的惯量 I_cm，绕与之平行、垂直距离为 d 的轴的惯量为 I = I_cm + m d²；推导中交叉项因质心在原点而为零。张量形式：J = I + m [(R · R) E₃ − R ⊗ R]，R 为从质心到新点的位移；对角元只计入垂直于转轴的位移。同一规则也用于截面二次矩。ROS wiki 的 URDF link 页面对 curl 返回机器人验证页，未引用。以原文为准。",
+      en: "HTML body read (rev 1337841361, HTTP 200, 2026-11-12). Also called the Huygens–Steiner theorem: given the moment I_cm about an axis through the centre of mass, the moment about a parallel axis a perpendicular distance d away is I = I_cm + m d²; the cross term vanishes because the centre of mass is at the origin. Tensor form: J = I + m [(R · R) E₃ − R ⊗ R] with R the displacement from the centre of mass to the new point; diagonal elements count only displacement perpendicular to the axis. The same rule applies to the second moment of area. The ROS wiki URDF link page returned a bot wall to curl and is not cited. 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "madgwick-2010-report": {
+    id: "madgwick-2010-report",
+    url: "https://web.archive.org/web/20190715000000/https://x-io.co.uk/res/doc/madgwick_internal_report.pdf",
+    title: {
+      zh: "一种适用于惯性与惯性 / 磁传感器阵列的高效姿态滤波器（Madgwick 2010 内部报告）",
+      en: "An efficient orientation filter for inertial and inertial/magnetic sensor arrays",
+    },
+    author: "Sebastian O.H. Madgwick",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "Wayback Machine 保存的 PDF 正文已读（HTTP 200，application/pdf，1 536 828 字节，2026-11-12）；x-io.co.uk 实时下载链接返回验证码，未当作已读页面引用。2010 年 4 月 30 日内部报告。IMU（陀螺仪 + 加速度计）与 MARG（再加磁力计）姿态滤波：四元数表示，陀螺仪积分为四元数导数，加速度计（与磁力计）通过解析推导的梯度下降给出陀螺误差方向；融合式 q̇_est = q̇_ω − β ∇f / ‖∇f‖（式 42–44）。β 为陀螺测量误差发散率，β = √(3/4) ω̃β；IMU 只有 1 个可调增益。推导起初假设加速度计只测重力；讨论部分指出运动加速度会污染重力方向，β 可取小以限制误差。实验 IMU β = 0.033、MARG β = 0.041（β 在 0 到 0.5 间扫描），静态 RMS 误差 < 0.6°、动态 < 0.8°，优于商用卡尔曼算法；IMU 每次更新 109 次标量运算。全部以报告为准；真实 IMU / 光学参考本页未运行。",
+      en: "PDF body read from the Wayback Machine copy (HTTP 200, application/pdf, 1 536 828 bytes, 2026-11-12); the live x-io.co.uk download returned a captcha and is not cited as a page that was read. Internal report dated 30 April 2010. Orientation filter for IMUs (gyroscope + accelerometer) and MARG arrays (plus magnetometer): quaternion representation, gyroscope integrated as a quaternion derivative, accelerometer (and magnetometer) giving the direction of the gyroscope error through an analytically derived gradient-descent step; fused q̇_est = q̇_ω − β ∇f / ‖∇f‖ (eqs 42–44). β is the divergence rate of the gyroscope measurement error, β = √(3/4) ω̃β; one adjustable gain for the IMU. The derivation initially assumes the accelerometer measures only gravity; the discussion notes that accelerations due to motion corrupt the gravity direction and that β may be chosen low to limit the error. Experiments: IMU β = 0.033, MARG β = 0.041 (β swept from 0 to 0.5), < 0.6° static and < 0.8° dynamic RMS error, better than a commercial Kalman-based algorithm; 109 scalar operations per IMU update. All 以报告为准; real IMU / optical reference 本页未运行.",
+    },
+    license: { zh: "内部报告，© 原作者；仅提供存档外链", en: "Internal report, © author; archived external link only" },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

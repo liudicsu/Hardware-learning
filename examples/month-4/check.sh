@@ -32,6 +32,7 @@ check_py dwa_vs_pure_pursuit_toy.txt python3 "$M4/slam-nav/dwa_vs_pure_pursuit_t
 check_py qos_deadline_lifespan_toy.txt python3 "$M4/ros2-graph/qos_deadline_lifespan_toy.py"
 check_py octomap_tsdf_volume_toy.txt python3 "$M4/slam-nav/octomap_tsdf_volume_toy.py"
 check_py gazebo_lidar_realism_toy.txt python3 "$M4/gazebo-sim/gazebo_lidar_realism_toy.py"
+check_py urdf_parallel_axis_inertia_toy.txt python3 "$M4/urdf-tf/urdf_parallel_axis_inertia_toy.py"
 
 if [[ "${ROS_DISTRO:-}" != "jazzy" ]] || ! command -v colcon >/dev/null; then
   echo "ROS 2 Jazzy is not sourced (ROS_DISTRO=${ROS_DISTRO:-unset}); see examples/month-4/README.md"
