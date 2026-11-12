@@ -1282,7 +1282,7 @@ The page **does not declare a universal winner**: a global shutter freezes motio
 ### Exercises
 
 1. From t_r = t0 + r·Δt_row, derive the skew v·(H − 1)·Δt_row and the mean-row bias, and check both against the printed hand calculation.
-2. Show from `shared_draws` that A, B and C read the same start column, speed and per-row noise for a given regime and seed, and explain why the static regime must be an exact tie.
+2. Show from `shared_draws` that A, B and C read the same start column, speed and per-row noise for a given regime and seed, and explain why the static regime must tie on every seed.
 3. Using the printed numbers, explain why C loses to B by roughly three times B's own warp at the same speed.
 4. The RS-aware estimator is numerically zero against A on the fast regime. Name one motion for which its straight-line fit would leave a bias, and say what it would need instead.
 5. Before any real camera (本页未运行), describe how you would capture calibration views on a rolling-shutter sensor so that the board is effectively static during readout, and how you would check that it was.
@@ -1295,6 +1295,6 @@ Stereo depth uses pixel/metre-consistent `σ_z ≈ (z²/(fB)) σ_d`, shared-nois
 
 Eight-point essential matrix: on shared noisy correspondences, Hartley normalisation beats raw-pixel eight-point on `E` and on the translation direction with clear gaps (clustered `epi_px` paired −204.7447±197.8867 px, same sign on all 5 seeds), barely matters without noise or once points are in calibrated `K⁻¹` coordinates (every noisy C−B line is a near-tie), and cannot rescue a 1 cm baseline, where `epi_px` stays near 1 px while the translation direction is lost — a synthetic model; real cameras 本页未运行.
 
-Rolling shutter: row r is read at t0 + r·Δt_row, so on shared edges and noise a static scene ties exactly with a global shutter, while a moving edge leans and its naive position is biased (paired B−A skew 4.2034±0.1754 px at 300.0 px/s, 5/5) and a four-times-slower readout loses further (paired C−B pos_err 6.3269±0.2589 px, 5/5, kept) — a synthetic row-scan stand-in; real cameras 本页未运行.
+Rolling shutter: row r is read at t0 + r·Δt_row, so on shared edges and noise a static scene ties with a global shutter on every seed, while a moving edge leans and its naive position is biased (paired B−A skew 4.2034±0.1754 px at 300.0 px/s, 5/5) and a four-times-slower readout loses further (paired C−B pos_err 6.3269±0.2589 px, 5/5, kept) — a synthetic row-scan stand-in; real cameras 本页未运行.
 
 </Summary>
