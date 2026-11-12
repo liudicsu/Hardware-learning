@@ -1,6 +1,14 @@
 # Month 2 plan / 第 2 个月计划
 
-Current / 当前：**M2 3390 min**, Batch-19 PR2. Earlier entries below retain their historical totals.
+Current / 当前：**M2 3570 min**, Batch-21 PR2. Earlier entries below retain their historical totals.
+
+## Batch-21 PR2 / 本月 H4 (+180)
+
+Base `33a4a703eced7372f71e0decc6b733655ee1cbb4` (batch-21 PR1 #185 merged; site **38340**). PR2 on M2 host: **M2 3390→3570 (+180)**; M4 moves in the same PR on its own plan. Site **38340→38700** (38700=38340+180+180), still 71 lessons.
+
+- **H4 / 2.6 first-robots: 240→420 (+180).** Madgwick vs the lesson's complementary filter on the balancer pitch (`madgwick_vs_complementary_balancer_toy.py`; common random numbers, 5 seeds; shared initial pitch, gyro bias and every noise sample). Madgwick 2010 internal report body read from the Wayback PDF (以报告为准); the captcha-gated live x-io link is not cited. Arms A gyro only / B complementary τ = 0.5 s / C Madgwick β = 0.033 (the report's IMU value) / D Madgwick β = 0.5. static: A−B end_err `35.5376±23.4941`, **clear**, 5/5; the declared B vs C near-tie did **not** hold — C−B rmse `0.2661±0.2218`, **clear**, 5/5 (C loses); D−B rmse `0.1542±0.1725` **near-tie**. slow_tilt: A−B rmse `8.4331±7.2937` clear; C−B rmse `0.2049±0.2241` **near-tie** (held). accelerate: D−B rmse `0.7386±0.0326`, **small but consistent**, 5/5 (declared loss held, kept); C−B rmse `-2.9664±0.3624`, **clear**, 5/5 (not pre-declared); A−B rmse `1.0716±2.8608` near-tie, A−B end_err `7.6907±4.8046` clear. Alternatives τ = 0.25 / 1.0 s, β_high = 0.1 / 0.2, β_low = 0.1 printed; none replaced the defaults. No code change after the first run. Real MPU-6050 本页未运行.
+
+**Allocation / 安排:** 30+30+50+40+30=180 minutes.
 
 ## Batch-19 PR2 / 本月 H3+H4 (+360)
 

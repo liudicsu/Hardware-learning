@@ -1,6 +1,14 @@
 # Month 4 plan / 第4个月计划
 
-Current / 当前：**M4 3210 min**, Batch-20 PR1. Earlier entries below retain their historical totals.
+Current / 当前：**M4 3390 min**, Batch-21 PR2. Earlier entries below retain their historical totals.
+
+## Batch-21 PR2 / 本月 H3 (+180)
+
+Base `33a4a703eced7372f71e0decc6b733655ee1cbb4` (batch-21 PR1 #185 merged; site **38340**). PR2 on M4 host: **M4 3210→3390 (+180)**; M2 moves in the same PR on its own plan. Site **38340→38700** (38700=38340+180+180), still 71 lessons.
+
+- **H3 / 4.3 urdf-tf: 420→600 (+180).** Parallel-axis inertia and the URDF inertial origin (`urdf_parallel_axis_inertia_toy.py`; common random numbers, 5 seeds; one shared chassis mass and size draw per regime and seed). Wikipedia Parallel axis theorem body read (rev 1337841361; 以原文为准): I = I_cm + m d², tensor form J = I + m[(R·R)E₃ − R⊗R]. The ROS wiki URDF link page was a bot wall and is not cited. Arms A origin at the COM / B the same matrix at the joint (typo) / C the matrix moved to the joint. zero: every pair **tie** (identical). small (1 cm): B−A J_zz `-2.009e-4±2.789e-6`, **small but consistent**, 5/5 — the declared "may near-tie" did **not** happen. large (rear-edge joint, 0.15 m): B−A J_zz `-0.0448±4.431e-4`, **clear**, 5/5; B−A alpha_z `1.3520±0.0164`, clear, 5/5; C−A J_zz **tie**; C−A tau_g `-2.9280±0.0290`, **clear**, 5/5 (kept: C puts the mass at the joint). along_axis: B−A J_zz **tie**, B−A J_xx `-0.0032±6.824e-5`, clear. diagonal: B−A J_xy `0.0160±1.924e-4`, clear; C−A tau_g `-1.9610±0.0236`, clear. Alternatives d = 0.10 / 0.20 / 0.005 m printed; none replaced the defaults. No code change after the first run. Gazebo 本页未运行.
+
+**Allocation / 安排:** 30+30+50+40+30=180 minutes.
 
 ## Batch-20 PR1 / 本月 H2 (+180)
 
