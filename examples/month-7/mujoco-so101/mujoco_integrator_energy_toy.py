@@ -40,6 +40,13 @@ solution grows linearly (analytic; not printed). The default moderate
 h is below h*. The toy prints a time-domain energy-bounded run and the
 spectral radius at 0.50x, 0.98x and 1.02x h*.
 
+Damped criterion (this toy's update: damping sits in a_t, i.e. the old
+velocity): v_n=(1-h c)v - h w0^2 x, x_n=x+h v_n, c=2 zeta w0. Jury:
+asymptotically stable iff (w0 h)^2 + 4 zeta w0 h < 4 (strict). The toy
+prints zeta, h_star_damped and spectral radii at 0.98x / 1.02x, plus a
+small (zeta, h) table. At equality a simple eigenvalue is -1 when
+zeta>0 (analytic; the Jordan block is only the zeta=0 case).
+
 Common random numbers: per-seed initial-condition jitter is drawn once
 and reused by every arm. Seeds 0-4.
 MuJoCo Computation documentation: body read; 以原文为准.
@@ -286,11 +293,12 @@ def ic_spin(seed: int) -> tuple[float, float, float]:
     return (W_SPIN[0] + rng.uniform(-0.05, 0.05), W_SPIN[1] + rng.uniform(-0.05, 0.05), W_SPIN[2] + rng.uniform(-0.05, 0.05))
 
 
-def amp_matrix(h: float, omega: float) -> list[list[float]]:
-    # semi-implicit on x'' + omega^2 x = 0
-    # v' = v - h omega^2 x; x' = x + h v'
+def amp_matrix(h: float, omega: float, c: float = 0.0) -> list[list[float]]:
+    # semi-implicit; damping (if any) is evaluated at the old velocity:
+    # v_n = (1 - h c) v - h omega^2 x; x_n = x + h v_n
+    # c = 0 recovers the undamped map used by the h* tests above
     w2 = omega * omega
-    return [[1.0 - h * h * w2, h], [-h * w2, 1.0]]
+    return [[1.0 - h * h * w2, h * (1.0 - h * c)], [-h * w2, 1.0 - h * c]]
 
 
 def spectral_radius(M: list[list[float]]) -> float:
@@ -445,6 +453,63 @@ def main() -> None:
     print(f"  paired A-B |dE|: {verdict(adA, adB)}")
     print(f"  paired A-C |dE|: {verdict(adA, adC)}")
     print(f"  paired B-C |dE|: {verdict(adB, adC)}")
+
+    # Damped Jury criterion for this toy's B_semimpl update (polish addition).
+    zeta = C_DAMP / (2.0 * OMEGA0 * INERTIA_P)
+    c_lin = 2.0 * zeta * OMEGA0
+    h_star_d = 2.0 / (OMEGA0 * (zeta + math.sqrt(zeta * zeta + 1.0)))
+
+    def jury_lhs(h: float, z: float) -> float:
+        return (OMEGA0 * h) ** 2 + 4.0 * z * OMEGA0 * h
+
+    print()
+    print("damped semi-implicit criterion (added in polish; not a pre-declared regime):")
+    print("  toy update: damping in a_t (old velocity), then x += h v_new; c = 2 zeta omega0")
+    print("  Jury: asymptotically stable iff (omega0 h)^2 + 4 zeta omega0 h < 4 (strict)")
+    print(
+        f"  zeta={zeta:.10f} c={c_lin:.10f} h_star_damped={h_star_d:.10f} s  "
+        f"(equals 2/omega0 at zeta=0)"
+    )
+    print(
+        f"  default moderate h={H_MOD:.4f} s  h/h_star_damped={H_MOD / h_star_d:.4f}  "
+        f"assert_below_hstar_damped={int(H_MOD < h_star_d)}"
+    )
+    print("  spectral-radius checks at this page's zeta:")
+    for tag, h in (
+        ("0.98x_hstar_damped", 0.98 * h_star_d),
+        ("1.00x_hstar_damped", 1.00 * h_star_d),
+        ("1.02x_hstar_damped", 1.02 * h_star_d),
+        ("default_h", H_MOD),
+    ):
+        rr = spectral_radius(amp_matrix(h, OMEGA0, c_lin))
+        lhs = jury_lhs(h, zeta)
+        print(
+            f"    {tag} h={h:.10f} spectral_radius={rr:.6f} "
+            f"jury_lhs={lhs:.6f} rho_lt_one={int(rr < 1.0 - 1e-12)}"
+        )
+    r098 = spectral_radius(amp_matrix(0.98 * h_star_d, OMEGA0, c_lin))
+    r102 = spectral_radius(amp_matrix(1.02 * h_star_d, OMEGA0, c_lin))
+    req = spectral_radius(amp_matrix(h_star_d, OMEGA0, c_lin))
+    print(
+        f"  below_hstar_damped_rho_lt_one={int(r098 < 1.0 - 1e-12)}  "
+        f"above_hstar_damped_rho_gt_one={int(r102 > 1.0 + 1e-12)}"
+    )
+    print(
+        f"  at_hstar_damped spectral_radius={req:.6f}  "
+        f"(simple eigenvalue -1 when zeta>0; Jordan block only at zeta=0; analytic)"
+    )
+    print("  (zeta, h) spectral-radius table (0.98x / 1.02x of that zeta's h_star_damped):")
+    for z in (0.0, 0.05, 0.20, 1.00):
+        hs = 2.0 / (OMEGA0 * (z + math.sqrt(z * z + 1.0)))
+        cz = 2.0 * z * OMEGA0
+        for scale, tag in ((0.98, "0.98x"), (1.02, "1.02x")):
+            h = scale * hs
+            rr = spectral_radius(amp_matrix(h, OMEGA0, cz))
+            lhs = jury_lhs(h, z)
+            print(
+                f"    zeta={z:.2f} {tag} h_star_damped={hs:.10f} h={h:.10f} "
+                f"spectral_radius={rr:.6f} jury_lhs={lhs:.6f}"
+            )
     print("Real MuJoCo / Menagerie: 本页未运行; MuJoCo Computation documentation 以原文为准")
 
 

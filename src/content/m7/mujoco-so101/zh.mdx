@@ -186,7 +186,7 @@ MJX（`mujoco-mjx`）是 MuJoCo 的 JAX 接口：可在 NVIDIA/AMD GPU、Apple S
 
 ## 半隐式与对速度隐式的积分器，对照显式 Euler
 
-MuJoCo 用几种格式积分连续时间的正向动力学。**显式 Euler** 有说明但**没有实现**，因为**半隐式 Euler**（先更新速度，再用*新*速度更新位置）严格更好，也是物理仿真里的常规做法。**对速度隐式** / `implicitfast` 用只对速度的一阶展开来逼近 t+h 处的加速度，针对的是速度相关的刚度。把部分陀螺项*显式*积分 “can lead to **energy gain** and divergence of fast-spinning free bodies”（MuJoCo Computation 文档，Integrators；正文已读；以原文为准）。因此 MuJoCo 的 `Euler` 就是半隐式方案（有关节阻尼时还带隐式阻尼）；`implicit` 与 `implicitfast` 只对速度相关力隐式。本节**不是** `grip_sweep` 的重写（时间步 × `solref` 的软接触举升），也**不是**把 Menagerie 的 `implicitfast` 那一行再抄一遍。
+MuJoCo 用几种格式积分连续时间的正向动力学。**显式 Euler** 有说明但**没有实现**，因为**半隐式 Euler**（先更新速度，再用*新*速度更新位置）严格更好，也是物理仿真里的常规做法。**对速度隐式** / `implicitfast` 用只对速度的一阶展开来逼近 t+h 处的加速度，针对的是速度相关的刚度。把部分陀螺项*显式*积分 “can lead to **energy gain** and divergence of fast-spinning free bodies”（MuJoCo Computation 文档，Integrators；正文已读；以原文为准）。因此 MuJoCo 的 `Euler` 就是半隐式方案（有关节阻尼时还带隐式阻尼）；`implicit` 与 `implicitfast` 只对速度相关力隐式。在无阻尼线性振子上，**显式 Euler 对任意 h > 0 都不稳定。** 放大特征值满足 |λ| = √(1 + (h ω0)²) > 1（手算 / 解析）。只有**全隐式后向 Euler**（速度与加速度都取在 t+h；Computation 式 4）是无条件稳定的，并且会引入数值阻尼（手算 / 解析）。那并不是 MuJoCo 的格式：`implicit` 与 `implicitfast` 仍然只对速度相关力隐式，因此当 D = 0 时 M̂ = M，该更新与半隐式 Euler 相同（Computation，Integrators；正文已读；以原文为准）。同一页还写到，没有关节阻尼时，`Euler` 用的是半隐式更新（3）而不是（6）。玩具已经在 `C_damp = 0` 时把 B 与 C 打成 **tie: identical on every seed**。本节**不是** `grip_sweep` 的重写（时间步 × `solref` 的软接触举升），也**不是**把 Menagerie 的 `implicitfast` 那一行再抄一遍。
 
 <Resource id="mujoco-computation" />
 
@@ -199,7 +199,9 @@ MuJoCo 用几种格式积分连续时间的正向动力学。**显式 Euler** �
 
 `mujoco_integrator_energy_toy.py` 是**合成**的，只用标准库。**模型假设:** 两套共用对象，没有 MuJoCo 二进制，也没有四元数更新。带轻微线性阻尼的单摆（重力依赖角度，阻尼依赖速度），以及惯性为 diag(1, 2, 3)、偏离中轴翻滚的无力矩刚体。转子的能量是 1/2 w·I w，只依赖角速度，所以在那里 A 与 B 的速度更新相同（文档里的差别在位置那一步）。臂 A 是显式 Euler，B 是半隐式，C 是对速度隐式（`Mhat = M + h D`），C_bad 把 `D` 的符号翻转（不一致的线性化，保留）。**共用随机数:** 五个种子；每个种子的初值抖动只抽一次，所有臂共用。指标是相对起点的能量漂移 dE、绝对漂移、发散标志、相对极小步参考的轨迹误差，以及 |E − Eref|。首次运行显示在有阻尼时从 E0 算的 |dE| 会误导，因此加印了 |E − Eref| 作为伴随指标（事后披露）。真实 MuJoCo / Menagerie：本页未运行。
 
-**稳定步长判据。** 对无阻尼线性振子 x'' + ω0² x = 0，半隐式 Euler 的放大矩阵迹是 2 − h² ω0²，当且仅当 h < h* = 2/ω0 时特征值留在单位圆上。恰在 h* 时迹为 −2，特征值 −1 是重根且为 Jordan 块，解线性增长（手算 / 解析；玩具未在 h = h* 处打印运行）。这里 ω0 = 3.1320919527 rad/s，h* = 0.6385508568 s。默认中等步长 0.1500 s 低于 h*（h/h* = 0.2349，`assert_below_hstar=1`）。玩具在 0.50×、0.98×、1.02× h* 以及默认步长的一半上打印谱半径和 40 s 能量有界运行：0.98× 有界、谱半径 1.000000，1.02× 增长（谱半径 1.490835，energy_bounded=0），半步有界。稳定的积分器并不自动等于稳定的*接触*模型——这与 `grip_sweep` 并不矛盾。
+**稳定步长判据。** 对无阻尼线性振子 x'' + ω0² x = 0，半隐式 Euler 的放大矩阵迹是 2 − h² ω0²，当且仅当 h < h* = 2/ω0 时特征值留在单位圆上。恰在 h* 时迹为 −2，特征值 −1 是重根且为 Jordan 块，解线性增长（手算 / 解析；玩具未在 h = h* 处打印运行）。这里 ω0 = 3.1320919527 rad/s，h* = 0.6385508568 s。默认中等步长 0.1500 s 低于 h*（h/h* = 0.2349，`assert_below_hstar=1`）。玩具在 0.50×、0.98×、1.02× h* 以及默认步长的一半上打印谱半径和 40 s 能量有界运行：0.98× 有界、谱半径 1.000000，1.02× 增长（谱半径 1.490835，energy_bounded=0），半步有界。
+
+**有阻尼判据，与本玩具的更新式一致。** 臂 B 在*旧*速度处计算线性阻尼（阻尼写在 a_t 里），再用新速度更新位置：v(t+h) = (1 − h c) v(t) − h ω0² x(t)，x(t+h) = x(t) + h v(t+h)，其中 c = 2 ζ ω0。对该映射，Jury 判据给出渐近稳定当且仅当 (ω0 h)² + 4 ζ ω0 h < 4（严格不等式；手算，再由玩具核对）。等号处有一个单重特征值 −1，周期为 2 的模态既不增长也不衰减；重根的 Jordan 块和线性增长只出现在 ζ = 0 的无阻尼情形（手算 / 解析）。本页 `C_damp = 0.05` 时，玩具打印 ζ = 0.0079818857，h*_damped = 0.6334743577 s。0.98× h*_damped 的谱半径是 0.984358（小于 1），1.02× 是 1.469468（大于 1），默认中等步长是 0.996243。上面的无阻尼 0.50× / 0.98× / 1.02× 检查保持不变。稳定的积分器并不自动等于稳定的*接触*模型——这与 `grip_sweep` 并不矛盾。
 
 **在首次运行前写好的情形:** 轻度阻尼的摆在中等 h 下，B、C 的 |dE| 应**稳定地**小于 A；在很小的 h 下三者**可能接近打平**；在大步长 / 快速旋转下，A 应**稳定地输掉**（能量增长或发散）；翻转的隐式 `D` 可能**输掉**——该格保留。
 
@@ -254,6 +256,13 @@ is -2, so -1 is a repeated eigenvalue in a Jordan block and the
 solution grows linearly (analytic; not printed). The default moderate
 h is below h*. The toy prints a time-domain energy-bounded run and the
 spectral radius at 0.50x, 0.98x and 1.02x h*.
+
+Damped criterion (this toy's update: damping sits in a_t, i.e. the old
+velocity): v_n=(1-h c)v - h w0^2 x, x_n=x+h v_n, c=2 zeta w0. Jury:
+asymptotically stable iff (w0 h)^2 + 4 zeta w0 h < 4 (strict). The toy
+prints zeta, h_star_damped and spectral radii at 0.98x / 1.02x, plus a
+small (zeta, h) table. At equality a simple eigenvalue is -1 when
+zeta>0 (analytic; the Jordan block is only the zeta=0 case).
 
 Common random numbers: per-seed initial-condition jitter is drawn once
 and reused by every arm. Seeds 0-4.
@@ -501,11 +510,12 @@ def ic_spin(seed: int) -> tuple[float, float, float]:
     return (W_SPIN[0] + rng.uniform(-0.05, 0.05), W_SPIN[1] + rng.uniform(-0.05, 0.05), W_SPIN[2] + rng.uniform(-0.05, 0.05))
 
 
-def amp_matrix(h: float, omega: float) -> list[list[float]]:
-    # semi-implicit on x'' + omega^2 x = 0
-    # v' = v - h omega^2 x; x' = x + h v'
+def amp_matrix(h: float, omega: float, c: float = 0.0) -> list[list[float]]:
+    # semi-implicit; damping (if any) is evaluated at the old velocity:
+    # v_n = (1 - h c) v - h omega^2 x; x_n = x + h v_n
+    # c = 0 recovers the undamped map used by the h* tests above
     w2 = omega * omega
-    return [[1.0 - h * h * w2, h], [-h * w2, 1.0]]
+    return [[1.0 - h * h * w2, h * (1.0 - h * c)], [-h * w2, 1.0 - h * c]]
 
 
 def spectral_radius(M: list[list[float]]) -> float:
@@ -660,6 +670,63 @@ def main() -> None:
     print(f"  paired A-B |dE|: {verdict(adA, adB)}")
     print(f"  paired A-C |dE|: {verdict(adA, adC)}")
     print(f"  paired B-C |dE|: {verdict(adB, adC)}")
+
+    # Damped Jury criterion for this toy's B_semimpl update (polish addition).
+    zeta = C_DAMP / (2.0 * OMEGA0 * INERTIA_P)
+    c_lin = 2.0 * zeta * OMEGA0
+    h_star_d = 2.0 / (OMEGA0 * (zeta + math.sqrt(zeta * zeta + 1.0)))
+
+    def jury_lhs(h: float, z: float) -> float:
+        return (OMEGA0 * h) ** 2 + 4.0 * z * OMEGA0 * h
+
+    print()
+    print("damped semi-implicit criterion (added in polish; not a pre-declared regime):")
+    print("  toy update: damping in a_t (old velocity), then x += h v_new; c = 2 zeta omega0")
+    print("  Jury: asymptotically stable iff (omega0 h)^2 + 4 zeta omega0 h < 4 (strict)")
+    print(
+        f"  zeta={zeta:.10f} c={c_lin:.10f} h_star_damped={h_star_d:.10f} s  "
+        f"(equals 2/omega0 at zeta=0)"
+    )
+    print(
+        f"  default moderate h={H_MOD:.4f} s  h/h_star_damped={H_MOD / h_star_d:.4f}  "
+        f"assert_below_hstar_damped={int(H_MOD < h_star_d)}"
+    )
+    print("  spectral-radius checks at this page's zeta:")
+    for tag, h in (
+        ("0.98x_hstar_damped", 0.98 * h_star_d),
+        ("1.00x_hstar_damped", 1.00 * h_star_d),
+        ("1.02x_hstar_damped", 1.02 * h_star_d),
+        ("default_h", H_MOD),
+    ):
+        rr = spectral_radius(amp_matrix(h, OMEGA0, c_lin))
+        lhs = jury_lhs(h, zeta)
+        print(
+            f"    {tag} h={h:.10f} spectral_radius={rr:.6f} "
+            f"jury_lhs={lhs:.6f} rho_lt_one={int(rr < 1.0 - 1e-12)}"
+        )
+    r098 = spectral_radius(amp_matrix(0.98 * h_star_d, OMEGA0, c_lin))
+    r102 = spectral_radius(amp_matrix(1.02 * h_star_d, OMEGA0, c_lin))
+    req = spectral_radius(amp_matrix(h_star_d, OMEGA0, c_lin))
+    print(
+        f"  below_hstar_damped_rho_lt_one={int(r098 < 1.0 - 1e-12)}  "
+        f"above_hstar_damped_rho_gt_one={int(r102 > 1.0 + 1e-12)}"
+    )
+    print(
+        f"  at_hstar_damped spectral_radius={req:.6f}  "
+        f"(simple eigenvalue -1 when zeta>0; Jordan block only at zeta=0; analytic)"
+    )
+    print("  (zeta, h) spectral-radius table (0.98x / 1.02x of that zeta's h_star_damped):")
+    for z in (0.0, 0.05, 0.20, 1.00):
+        hs = 2.0 / (OMEGA0 * (z + math.sqrt(z * z + 1.0)))
+        cz = 2.0 * z * OMEGA0
+        for scale, tag in ((0.98, "0.98x"), (1.02, "1.02x")):
+            h = scale * hs
+            rr = spectral_radius(amp_matrix(h, OMEGA0, cz))
+            lhs = jury_lhs(h, z)
+            print(
+                f"    zeta={z:.2f} {tag} h_star_damped={hs:.10f} h={h:.10f} "
+                f"spectral_radius={rr:.6f} jury_lhs={lhs:.6f}"
+            )
     print("Real MuJoCo / Menagerie: 本页未运行; MuJoCo Computation documentation 以原文为准")
 
 
@@ -750,6 +817,28 @@ alternative C_damp=0.0 on moderate_h (same seeds):
   paired A-B |dE|: 77.9906+-14.0143: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
   paired A-C |dE|: 77.9906+-14.0143: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
   paired B-C |dE|: 0.0000+-0.0000: tie: identical on every seed
+
+damped semi-implicit criterion (added in polish; not a pre-declared regime):
+  toy update: damping in a_t (old velocity), then x += h v_new; c = 2 zeta omega0
+  Jury: asymptotically stable iff (omega0 h)^2 + 4 zeta omega0 h < 4 (strict)
+  zeta=0.0079818857 c=0.0500000000 h_star_damped=0.6334743577 s  (equals 2/omega0 at zeta=0)
+  default moderate h=0.1500 s  h/h_star_damped=0.2368  assert_below_hstar_damped=1
+  spectral-radius checks at this page's zeta:
+    0.98x_hstar_damped h=0.6208048706 spectral_radius=0.984358 jury_lhs=3.842842 rho_lt_one=1
+    1.00x_hstar_damped h=0.6334743577 spectral_radius=1.000000 jury_lhs=4.000000 rho_lt_one=0
+    1.02x_hstar_damped h=0.6461438449 spectral_radius=1.469468 jury_lhs=4.160308 rho_lt_one=0
+    default_h h=0.1500000000 spectral_radius=0.996243 jury_lhs=0.235725 rho_lt_one=1
+  below_hstar_damped_rho_lt_one=1  above_hstar_damped_rho_gt_one=1
+  at_hstar_damped spectral_radius=1.000000  (simple eigenvalue -1 when zeta>0; Jordan block only at zeta=0; analytic)
+  (zeta, h) spectral-radius table (0.98x / 1.02x of that zeta's h_star_damped):
+    zeta=0.00 0.98x h_star_damped=0.6385508568 h=0.6257798397 spectral_radius=1.000000 jury_lhs=3.841600
+    zeta=0.00 1.02x h_star_damped=0.6385508568 h=0.6513218740 spectral_radius=1.490835 jury_lhs=4.161600
+    zeta=0.05 0.98x h_star_damped=0.6074210043 h=0.5952725842 spectral_radius=0.901973 jury_lhs=3.849058
+    zeta=0.05 1.02x h_star_damped=0.6074210043 h=0.6195694244 spectral_radius=1.372628 jury_lhs=4.153838
+    zeta=0.20 0.98x h_star_damped=0.5234864845 h=0.5130167548 spectral_radius=0.745058 jury_lhs=3.867309
+    zeta=0.20 1.02x h_star_damped=0.5234864845 h=0.5339562142 spectral_radius=1.186992 jury_lhs=4.134842
+    zeta=1.00 0.98x h_star_damped=0.2644964252 h=0.2592064967 spectral_radius=0.943735 jury_lhs=3.906549
+    zeta=1.00 1.02x h_star_damped=0.2644964252 h=0.2697863537 spectral_radius=1.056871 jury_lhs=4.094000
 Real MuJoCo / Menagerie: 本页未运行; MuJoCo Computation documentation 以原文为准
 ```
 

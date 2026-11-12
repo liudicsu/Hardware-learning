@@ -3957,7 +3957,7 @@ const lessonRef = (n, slug, lang) => {
     month: Number(m[1]), minutes: [...m[2].matchAll(/    minutes: (\d+),/g)].map(n => Number(n[1]))
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
-  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 35820, "b17p3 curriculum: 34710 minutes (tip after batch-17 PR3) (tip after batch-18 PR3: 35820)");
+  ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) === 35820, "b17p3 curriculum: 35820 minutes (tip after batch-18 PR3)");
   for (const [month, expected] of [[1, 2250], [2, 3030], [3, 3000], [4, 3030], [5, 3210], [6, 3450], [7, 2970], [8, 3600], [9, 3900], [10, 3750], [11, 3630]]) {
     ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `current curriculum M${month}: ${expected} minutes`);
   }
@@ -4944,7 +4944,7 @@ for (const m of readdirSync(content)) {
   for (const id of ["dreamgen-paper", "lapa-paper", "smolvla-paper", "lerobot-async"]) {
     ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `wm2 resource ${id}: present + extra`);
   }
-  ok(/35 820/.test(read("README.md")), "b17p3 README: 34 710 minutes (tip after batch-17 PR3)");
+  ok(/35 820/.test(read("README.md")), "b17p3 README: 35 820 minutes (tip after batch-18 PR3)");
   console.log("worldmodel-smolvla PR2: neural trajectories + async chunk locks checked");
 }
 
@@ -6383,7 +6383,7 @@ print("protocol pass")
     ok((en.match(/```/g)||[]).length===(zh.match(/```/g)||[]).length&&(en.match(/^### /gm)||[]).length===(zh.match(/^### /gm)||[]).length,`b11p3 ${slug}: en/zh structurally symmetric`);
   }
   ok((()=>{try{execFileSync("python3",[join(root,"tools/test_b11_cogact_continual_toys.py")],{cwd:root,encoding:"utf8",env,stdio:"pipe"});return true;}catch{return false;}})(),"b11p3 independent tests");
-  ok(cur.match(/minutes:\s*(\d+)/g)&&(()=>{const months=[...cur.matchAll(/const month(\d+)Lessons[\s\S]*?\];/g)]; let s=0; for(const m of months){for(const x of m[0].matchAll(/minutes:\s*(\d+)/g))s+=+x[1];} return s;})()===35820,"b17p3 curriculum: 34710 minutes (tip after batch-17 PR3)");
+  ok(cur.match(/minutes:\s*(\d+)/g)&&(()=>{const months=[...cur.matchAll(/const month(\d+)Lessons[\s\S]*?\];/g)]; let s=0; for(const m of months){for(const x of m[0].matchAll(/minutes:\s*(\d+)/g))s+=+x[1];} return s;})()===35820,"b17p3 curriculum: 35820 minutes (tip after batch-18 PR3)");
   const p6=read("docs/notes/month-6-plan.md"), p8=read("docs/notes/month-8-plan.md");
   ok(p6.startsWith("# Month 6")&&["## Batch-11 PR3","2190→2400","27630→28050","450→**660**","Batch-11 PR3"].every(x=>p6.includes(x)),"b11p3 month-6 plan header");
   ok(p8.startsWith("# Month 8")&&["3180→3390","27630→28050","420→**630**","Batch-11 PR3"].every(x=>p8.includes(x)),"b11p3 month-8 plan header");
@@ -8132,7 +8132,7 @@ print("protocol pass")
     ok(bag.includes(`${m[1]}+-${m[2]}`),`b18p1 sources note: ${m[0]} matches expected/`);
   }
   ok(/35 820/.test(read("README.md"))&&/约 35 820 分钟/.test(read("README.md")),"b18p1 README site minutes (en + zh)");
-  ok((()=>{const months=[...cur.matchAll(/const month(\d+)Lessons[\s\S]*?\];/g)]; let s=0; for(const m of months){for(const x of m[0].matchAll(/minutes:\s*(\d+)/g))s+=+x[1];} return s;})()===35820,"b18p1 curriculum: 35040 minutes (tip after batch-18 PR2: 35400)");
+  ok((()=>{const months=[...cur.matchAll(/const month(\d+)Lessons[\s\S]*?\];/g)]; let s=0; for(const m of months){for(const x of m[0].matchAll(/minutes:\s*(\d+)/g))s+=+x[1];} return s;})()===35820,"b18p1 curriculum: 35820 minutes (tip after batch-18 PR3)");
   console.log("superposition-form-closure PR1: superposition vs joint vs diode, frictionless form-closure and M1 2250 / M3 3000 / site 35040 locked");
 }
 
@@ -8282,6 +8282,58 @@ print("protocol pass")
   ok(/35 820/.test(read("README.md"))&&/约 35 820 分钟/.test(read("README.md")),"b18p3 README site minutes (en + zh)");
   ok((()=>{const months=[...cur.matchAll(/const month(\d+)Lessons[\s\S]*?\];/g)]; let s=0; for(const m of months){for(const x of m[0].matchAll(/minutes:\s*(\d+)/g))s+=+x[1];} return s;})()===35820,"b18p3 curriculum: 35820 minutes");
   console.log("ki-vla-adapter PR3: Knowledge Insulation + VLA-Adapter Bridge Attention and M10 3750 / site 35820 locked");
+{
+  const cur=read("src/lib/curriculum.ts");
+  const note=read("docs/notes/batch-18-polish-sources.md");
+  const en7=read("src/content/m7/mujoco-so101/en.mdx");
+  const zh7=read("src/content/m7/mujoco-so101/zh.mdx");
+  const toy=read("examples/month-7/mujoco-so101/mujoco_integrator_energy_toy.py");
+  const exp=read("examples/month-7/expected/mujoco_integrator_energy_toy.txt");
+  const actual=execFileSync("python3",[join(root,"examples/month-7/mujoco-so101/mujoco_integrator_energy_toy.py")],{cwd:root,encoding:"utf8",env}).trim();
+  ok(actual===exp.trim(),"b18pol integrator: actual stdout matches expected/");
+  ok(exp.includes("damped semi-implicit criterion (added in polish; not a pre-declared regime)")&&exp.includes("zeta=0.0079818857")&&exp.includes("h_star_damped=0.6334743577")&&exp.includes("0.98x_hstar_damped")&&exp.includes("spectral_radius=0.984358")&&exp.includes("1.02x_hstar_damped")&&exp.includes("spectral_radius=1.469468")&&exp.includes("default_h h=0.1500000000 spectral_radius=0.996243")&&exp.includes("below_hstar_damped_rho_lt_one=1  above_hstar_damped_rho_gt_one=1")&&exp.includes("(omega0 h)^2 + 4 zeta omega0 h < 4")&&exp.includes("h < 2/omega0")&&exp.includes("spectral_radius=1.490835")&&exp.startsWith("mujoco_integrator_energy_toy")&&exp.includes("alternative C_damp=0.0 on moderate_h (same seeds):"),"b18pol integrator expected: damped Jury block after the original table");
+  ok(toy.includes("damping sits in a_t")&&toy.includes("asymptotically stable iff (w0 h)^2 + 4 zeta w0 h < 4")&&toy.includes("c: float = 0.0"),"b18pol integrator toy: damped map and Jury docstring");
+  for(const [lang,md] of [["en",en7],["zh",zh7]]){
+    ok(md.includes("|λ| = √(1 + (h ω0)²) > 1")&&(lang==="en"?md.includes("explicit Euler is unstable for every h > 0"):md.includes("显式 Euler 对任意 h > 0 都不稳定")),`b18pol mujoco-so101 ${lang}: explicit Euler theorem`);
+    ok(lang==="en"?md.includes("fully implicit backward Euler"):md.includes("全隐式后向 Euler"),`b18pol mujoco-so101 ${lang}: backward Euler`);
+    ok(md.includes("hand calculation / analytic")||md.includes("手算 / 解析"),`b18pol mujoco-so101 ${lang}: analytic label`);
+    ok(lang==="en"?md.includes("when D = 0 one has")&&md.includes("the update equals semi-implicit Euler"):md.includes("当 D = 0 时")&&md.includes("与半隐式 Euler 相同"),`b18pol mujoco-so101 ${lang}: D=0 equals semi-implicit`);
+    ok(md.includes("0.0079818857")&&md.includes("0.6334743577")&&md.includes("0.984358")&&md.includes("1.469468")&&md.includes("0.996243"),`b18pol mujoco-so101 ${lang}: printed damped numbers`);
+    ok(lang==="en"?md.includes("(ω0 h)² + 4 ζ ω0 h < 4"):md.includes("(ω0 h)² + 4 ζ ω0 h < 4"),`b18pol mujoco-so101 ${lang}: damped Jury inequality`);
+  }
+  const en10=read("src/content/m10/flow-matching-policies/en.mdx");
+  const zh10=read("src/content/m10/flow-matching-policies/zh.mdx");
+  for(const [lang,md] of [["en",en10],["zh",zh10]]){
+    ok(md.includes("Knowledge Insulating Vision-Language-Action Models: Train Fast, Run Fast, Generalize Better"),`b18pol flow-matching-policies ${lang}: official title in the lesson`);
+  }
+  const vla=read("examples/month-10/edge-deploy-checklist/vla_adapter_bridge_attention_toy.py");
+  ok(vla.includes("four changes were made")&&vla.includes("(4) STEPS and LR moved from 250 / 0.05 to 300 / 0.10")&&!vla.includes("three changes were made"),"b18pol VLA toy: four post-hoc changes in the docstring");
+  const enE=read("src/content/m10/edge-deploy-checklist/en.mdx");
+  const zhE=read("src/content/m10/edge-deploy-checklist/zh.mdx");
+  ok(enE.includes("four changes were made")&&enE.includes("STEPS and LR moved from 250 / 0.05 to 300 / 0.10")&&enE.includes("Which four post-first-run changes")&&!enE.includes("three changes were made")&&!enE.includes("Which three post-first-run"),"b18pol VLA en: four changes in prose and exercise");
+  ok(zhE.includes("四处改动")&&zhE.includes("从 250 / 0.05 改到 300 / 0.10")&&zhE.includes("哪四处首跑后的改动")&&!zhE.includes("三处改动")&&!zhE.includes("哪三处首跑后的改动"),"b18pol VLA zh: four changes in prose and exercise");
+  const en3=read("src/content/m3/gripper-fingers/en.mdx");
+  const zh3=read("src/content/m3/gripper-fingers/zh.mdx");
+  ok(en3.includes("Zhang traces the planar")&&en3.includes("Reuleaux")&&en3.includes("Markenscoff, Ni and Papadimitriou")&&en3.includes("necessary and sufficient for a 3-D polyhedron")&&en3.includes("were not opened this round"),"b18pol gripper-fingers en: n&s sentence via already-read sources");
+  ok(zh3.includes("Reuleaux")&&zh3.includes("Markenscoff")&&zh3.includes("必要且充分")&&zh3.includes("本轮未打开"),"b18pol gripper-fingers zh: n&s sentence via already-read sources");
+  const en4=read("src/content/m4/slam-nav/en.mdx");
+  const zh4=read("src/content/m4/slam-nav/zh.mdx");
+  ok(en4.includes("negative inside / behind the surface and positive outside / in front")&&en4.includes("sdf = r − t_c")&&en4.includes("A truncation band that is too wide averages in far-away samples"),"b18pol slam-nav en: TSDF sign and wide truncation");
+  ok(zh4.includes("内负")&&zh4.includes("外正")&&zh4.includes("sdf = r − t_c")&&zh4.includes("截断带过宽"),"b18pol slam-nav zh: TSDF sign and wide truncation");
+  ok(cur.match(/slug: "mujoco-so101"[\s\S]*?minutes: (\d+)/)?.[1]==="420","b18pol mujoco-so101 minutes unchanged at 420");
+  ok(cur.match(/slug: "slam-nav"[\s\S]*?minutes: (\d+)/)?.[1]==="810","b18pol slam-nav minutes unchanged at 810");
+  ok(cur.match(/slug: "flow-matching-policies"[\s\S]*?minutes: (\d+)/)?.[1]==="870","b18pol flow-matching-policies minutes unchanged at 870");
+  ok(cur.match(/slug: "edge-deploy-checklist"[\s\S]*?minutes: (\d+)/)?.[1]==="540","b18pol edge-deploy-checklist minutes unchanged at 540");
+  ok(cur.match(/slug: "gripper-fingers"[\s\S]*?minutes: (\d+)/)?.[1]==="570","b18pol gripper-fingers minutes unchanged at 570");
+  ok((()=>{const months=[...cur.matchAll(/const month(\d+)Lessons[\s\S]*?\];/g)]; let s=0; for(const m of months){for(const x of m[0].matchAll(/minutes:\s*(\d+)/g))s+=+x[1];} return s;})()===35820,"b18pol curriculum: minutes unchanged at 35820");
+  ok(["b40f95f80583b290ad4952385f4e4f32562bc2c9","35820","h_star_damped=0.6334743577","0.0079818857","0.984358","1.469468","(ω0 h)² + 4 ζ ω0 h < 4","backward Euler","Knowledge Insulating Vision-Language-Action Models: Train Fast, Run Fast, Generalize Better","four changes","250 / 0.05","Reuleaux","Markenscoff","not opened this round","negative inside","sdf = r − t_c","opencode","Lock changes","No lock relaxed"].every(x=>note.includes(x)),"b18pol sources note");
+  const bag=read("examples/month-7/expected/mujoco_integrator_energy_toy.txt")+read("examples/month-4/expected/octomap_tsdf_volume_toy.txt");
+  for(const m of note.matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g))ok(bag.includes(`${m[1]}+-${m[2]}`),`b18pol sources note: ${m[0]} matches expected/`);
+  ok(/35 820/.test(read("README.md"))&&/约 35 820 分钟/.test(read("README.md")),"b18pol README site minutes unchanged (en + zh)");
+  const locks=read("tools/check_diagrams.mjs");
+  ok(locks.includes("b17p3 curriculum: 35820 minutes (tip after batch-18 PR3)")&&locks.includes("b17p3 README: 35 820 minutes (tip after batch-18 PR3)")&&locks.includes("b18p1 curriculum: 35820 minutes (tip after batch-18 PR3)"),"b18pol tip-lock comments name the live total 35820");
+  console.log("batch-18 polish: damped Jury criterion printed; explicit/backward Euler and D=0; KI official title; four VLA post-hoc changes; form-closure n&s; TSDF sign; minutes 35820; no lock relaxed");
+}
 }
 
 

@@ -418,7 +418,7 @@ The paper's §3.2 findings, read in the HTML and PDF, are that mid-layer raw fea
 
 `vla_adapter_bridge_attention_toy.py` is **synthetic** and stdlib only. **Model assumptions:** each demo has a 2-D proprio state, a 2-D action, a vision vector that stores two object positions (plus filler in the precise regime), and a binary instruction. Conditions are a mid-layer-style raw latent and a **learned** ActionQuery (a one-hidden-layer MLP on the same raw features, trained from scratch, not a pre-selected answer). **There is no plant integration step** (discrete SGD, L1 action regression, one-shot readout).
 
-After the first run, three changes were made and are **not** claimed to have been fixed before that run: ActionQuery is a trained MLP rather than a frozen random mix; the tiny readout concatenates the bridge output with the ActionQuery vector and proprio, and the bridge-output block of that readout starts at 0; the large arm uses a two-layer 48-wide backbone stand-in so the tiny arm wins the size and FLOP proxy (the first run had a 24-wide single hidden layer whose parameter count was below the tiny policy). The first-run `short_id` table is still produced by `_vla_adapter_firstrun.py` on the same seeds and printed below.
+After the first run, four changes were made and are **not** claimed to have been fixed before that run: ActionQuery is a trained MLP rather than a frozen random mix; the tiny readout concatenates the bridge output with the ActionQuery vector and proprio, and the bridge-output block of that readout starts at 0; the large arm uses a two-layer 48-wide backbone stand-in so the tiny arm wins the size and FLOP proxy (the first run had a 24-wide single hidden layer whose parameter count was below the tiny policy); STEPS and LR moved from 250 / 0.05 to 300 / 0.10. The first-run `short_id` table is still produced by `_vla_adapter_firstrun.py` on the same seeds and printed below.
 
 **Arms**, with **common random numbers** (per regime and seed every demo, every test point, and C's shuffle permutation are drawn once; batch `i` is the same set of demos for every arm; B and C share the same initialization); equal budget `STEPS = 300`, batch 8, learning rate 0.10, five seeds:
 
@@ -458,13 +458,14 @@ Model assumptions (also stated in the lesson prose):
   MLP on the same raw features, trained from scratch, not a pre-selected answer). There is
   no plant integration step (discrete SGD, L1 action regression, one-shot readout).
 
-  After the first run, three changes were made and are not claimed to have been fixed
+  After the first run, four changes were made and are not claimed to have been fixed
   before that run: (1) ActionQuery is a trained MLP rather than a frozen random mix;
   (2) the tiny readout concatenates the bridge output with the ActionQuery vector and
   proprio (a residual injection), and the bridge-output block of that readout starts at 0;
   (3) the large arm uses a two-layer 48-wide backbone stand-in so the tiny arm wins the
   size and FLOP proxy (the first run had a 24-wide single hidden layer whose parameter
-  count was below the tiny policy). The first-run short_id table is still produced by
+  count was below the tiny policy); (4) STEPS and LR moved from 250 / 0.05 to 300 / 0.10.
+  The first-run short_id table is still produced by
   `_vla_adapter_firstrun.py` on the same seeds and printed below.
 
 Arms (Common random numbers: per (regime, seed) every demo, every test point, and C's
@@ -1219,7 +1220,7 @@ The page **does not declare a universal winner** on success: the tiny + Bridge A
 
 1. From `flops_large` and `flops_bridge`, recover the printed multiply-add counts 2784 and 748 when the raw vector is 6-D, and say why those counts do not change across seeds.
 2. In `need_vl`, the action is the instructed object's position. Using the C−B success line, explain what shuffling the raw conditions does to that information.
-3. The first-run short_id table has B with more parameters than A and a clear success loss. Which three post-first-run changes are named in the toy's docstring, and which printed first-run numbers show the size inversion?
+3. The first-run short_id table has B with more parameters than A and a clear success loss. Which four post-first-run changes are named in the toy's docstring, and which printed first-run numbers show the size inversion?
 4. On precise, quote the B−A success mean ± sd and its label. Why is that cell kept rather than retuned?
 5. Before treating the toy's size win as a 0.5B result (本页未运行), name one paper claim that must stay 以论文为准, and one difference between this stdlib attention stand-in and the paper's 97M Policy.
 
