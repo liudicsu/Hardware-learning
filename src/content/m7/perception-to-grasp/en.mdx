@@ -787,7 +787,7 @@ Their reported results, 以论文为准 and **not** reproduced here: zero-shot r
 
 This section is **not** the ε / force-closure toy above, **not** a Dex-Net-style grasp-quality network and **not** Tobin's detector-only visual DR in `sim-to-real`. It isolates the grounding step: what a language cue buys over a language-blind grasp, and whether randomising the synthetic side matters.
 
-**Worked example — a labelled hand calculation, also printed by the toy.** A grasp that ignores the instruction picks the named object by chance: 1/3 = 0.3333 with three objects and 1/5 = 0.2000 with five. The shared geometric step succeeds when the orientation error is below 10.0 deg with a 5.0 deg spread, erf(10.0/(5.0·√2)) = 0.9545, so no arm can exceed that ceiling.
+**Worked example — a labelled hand calculation, also printed by the toy.** A grasp that ignores the instruction picks the named object by chance: 1/3 = 0.3333 with three objects and 1/5 = 0.2000 with five. The shared geometric step succeeds when the orientation error is below 10.0 deg with a 5.0 deg spread, erf(10.0/(5.0·√2)) = 0.9545 (手算, matching the printed line), so no arm can exceed that ceiling.
 
 **No integration step here.** The toy has no dynamics, no ODE and no step-size criterion.
 
