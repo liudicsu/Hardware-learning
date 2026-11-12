@@ -785,8 +785,501 @@ The page **does not declare a universal winner**: `k` trades noise averaging aga
 4. Set `K_EVAL = 4` with seeds fixed. Before running, predict which arm the residual will favour in fine_ripple_low_noise.
 5. Before any real-sensor run (本页未运行), explain why orienting every normal toward `(0, 0, 0)` fails for a cloud merged from two camera poses, and name the Open3D calls the tutorial points to.
 
+## PointVLA: adding a point cloud to a frozen 2D policy
+
+<Resource id="pointvla-paper" />
+
+Everything above turns depth into a point cloud and then into geometry: centroids, a collision proxy, surface normals. This section asks a different question. If a robot policy was already trained on large amounts of 2D (RGB) data, can a point cloud be **added** without retraining it? *PointVLA: Injecting the 3D World into Vision-Language-Action Models* (Chengmeng Li, Junjie Wen, Yan Peng, Yaxin Peng, Feifei Feng, Yichen Zhu; arXiv 2503.07511; abstract, HTML and PDF body read; 以论文为准) builds on DexVLA, whose action expert is a diffusion transformer with 32 blocks. The paper **freezes** that vanilla action expert and **injects** point-cloud features through a lightweight module: each selected block gets an MLP adapter followed by an **addition**. It does not blend 3D tokens into the language model, which it argues works poorly with small 3D datasets.
+
+Which blocks? A **skip-block analysis** on shirt folding finds that the first 11 blocks are crucial. Skipping any one of them drops performance, and the gripper fails to close tightly. From block 11 on, a single block can be skipped, and up to five consecutive blocks can be skipped before the task fails. So the paper injects only into **later, less critical blocks** and trains five injection blocks. It reports two failures of 2D policies that the point cloud fixes. In **height adaptability**, the bread sits on 3 mm of foam in training and 52 mm at test; OpenVLA, DP, ScaleDP-1B and DexVLA grasp at the trained height and fail. In **real-vs-photo**, a photo of the detergent on a screen looks like the real bottle from the top camera, and OpenVLA and DexVLA keep trying to grasp it. All of these are the paper's statements, 以论文为准; none of them is a toy output below.
+
+This is **not** OctoMap, TSDF, 3DGS or the PCA normals on this page, which build geometry from the cloud. It is **not** SpatialVLA's 3D position encoding, and it is **not** a full 3D retraining of the backbone. DexVLA weights, a GPU, the UR5e / AgileX arms and the RealSense cameras: **本页未运行**.
+
+<Formula label="Additive injection and the grip stand-in (declared toy model)">z_cmd = z₂D + G (z₃D − z₂D);   grasp only if z₃D − table_est > PRES_THR;   q = 1 − ETA · W_BLOCK[k];   closes if q + SIG_GRIP · g > GRIP_THR</Formula>
+
+**Worked example — a labelled hand calculation, also printed by the toy.** The frozen 2D head sees the table height only weakly (RGB_CUE = 0.1). Raising the table from 3 mm to 52 mm therefore leaves it with a systematic error of (1 − 0.1) × (52 mm − 3 mm) = 0.0441 m, more than four times the 0.0100 m tolerance. The mean of 32 cloud points with 4 mm noise has an sd of 4 mm / √32 = 0.0007 m. On the grip side, injecting into block 6 (importance 0.06) gives q = 1 − 0.5 × 0.06 = 0.9700 and a closing probability of 0.9599. Injecting into block 0 (importance 0.30) gives q = 0.8500 and only 0.1056, against 0.9938 with no injection. The skip-block proxy 1 − W_BLOCK[j] runs from 0.7000 for block 0 to 0.9400 for the last four blocks.
+
+**Integration step.** None: each scene is a closed-form height estimate and one grip draw.
+
+### Fair setup
+
+`pointvla_frozen_injector_toy.py` is **synthetic** and stdlib only. **Model assumptions:** a scalar grasp-height model. The block importance W_BLOCK, 0.30 for block 0 falling to 0.06 for each of blocks 4 to 7 and summing to 1, is a **declared stand-in** for the paper's skip-block finding, not a measurement, and injecting into block k displaces half of that block's contribution. Objects are 40–60 mm tall, the 2D head's RGB noise is 3 mm, the cloud has 32 object-top and 32 table points, the presence threshold is 20 mm and the success tolerance 10 mm. A photo is a flat screen 5 mm above the table. All values are **declared toy parameters**; the arm ordering follows from them.
+
+| Arm | Height from | Presence check | Grip quality q |
+|---|---|---|---|
+| A_2d | frozen 2D head only | none: always grasps | 1.0 |
+| B_late | 2D head + additive cloud correction | yes | injection at block 6 |
+| C_early | the same correction | yes | injection at block 0 |
+
+**Common random numbers:** for each (regime, seed), one stream draws every scene's photo flag, foam jitter, object height, RGB noise, grip noise and point noises, and all three arms use them. Five seeds, 40 scenes per seed. Metrics: success (fraction of scenes), height_err_mm (mean height error over real scenes where the arm grasped) and false_grasp (fraction of photo scenes grasped), each as mean±sd over seeds.
+
+| Regime | Scene | What was pre-declared |
+|---|---|---|
+| train_height | table at the training height | A vs B **may** near-tie, **keep**; C **consistent** below B on success, **keep** |
+| height_shift | table raised to 52 mm | B **consistent** above A; C below B, **keep** |
+| real_vs_photo | half the scenes are photos on a screen | B **consistent** above A; C below B, **keep** |
+| corrupted_cloud | training height; 30 % of the object points replaced by outliers | B **may** lose to A, **keep** as it comes |
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-7/depth-pointcloud
+python3 pointvla_frozen_injector_toy.py
+```
+
+<CodeSource path="examples/month-7/depth-pointcloud/pointvla_frozen_injector_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""PointVLA frozen-injector toy: a frozen 2D VLA head with a lightweight
+additive point-cloud injection at one declared block.
+
+Synthetic stand-in and a scalar grasp-height model; not DexVLA; not a
+GPU / RealSense / UR5e run (本页未运行); not OctoMap / TSDF / 3DGS /
+SpatialVLA.  PointVLA (arXiv 2503.07511) keeps a pre-trained 2D VLA,
+FREEZES its action expert, and injects point-cloud features additively
+through a lightweight block into a few later, less critical blocks found
+by a skip-block analysis (the paper: skipping any of the early blocks
+breaks the task and the gripper fails to close tightly).  The paper
+reports that 2D VLAs fail a table-height shift and a grasp at photos on
+a screen; those are paper statements (以论文为准), NOT toy outputs.
+Paper scores are not reproduced here.
+
+Model (declared): N_BLOCKS = 8 blocks with importance
+W_BLOCK = (0.30, 0.22, 0.16, 0.08, 0.06, 0.06, 0.06, 0.06) (sums to 1; a
+declared stand-in for the skip-block profile).  Injection at block k
+displaces a fraction ETA = 0.5 of that block's contribution, so grip
+quality is q = 1 - ETA * W_BLOCK[k] (no injection: q = 1.0); the gripper
+closes when q + SIG_GRIP * g > GRIP_THR with SIG_GRIP = 0.04,
+GRIP_THR = 0.90.  LATE_BLOCK = 6, EARLY_BLOCK = 0.  Heights in metres:
+H_TRAIN = 0.003 (training foam), H_SHIFT = 0.052, foam jitter sd 0.001,
+object height OBJ_H ~ uniform(0.04, 0.06), object top
+z_true = table + OBJ_H.  2D estimate
+z2d = H_TRAIN + RGB_CUE * (table - H_TRAIN) + OBJ_H + SIG_RGB * g with
+RGB_CUE = 0.1, SIG_RGB = 0.003.  Point cloud: N_PTS = 32 points on the
+object top (z_true + SIG_PC * g, SIG_PC = 0.004) plus N_PTS table
+points (table + SIG_PC * g); z3d = mean of the object-top points,
+table_est = mean of the table points; injector gain G = 1.0 gives
+z_cmd = z2d + G * (z3d - z2d).  Presence check (arms with a cloud):
+grasp only if z3d - table_est > PRES_THR = 0.02.  Photo scene: the RGB
+sees the object (z2d computed as if present) but the object-top points
+lie on a flat screen at table + 0.005.  TOL = 0.010, N_SCENES = 40 per
+seed.
+
+Arms: A_2d (frozen 2D head only, no cloud, always grasps, z_cmd = z2d,
+q = 1.0); B_late (frozen 2D head + injection at LATE_BLOCK, uses the
+cloud and the presence check); C_early (same injection and presence
+check but at EARLY_BLOCK).
+
+Per scene success: real object -> attempted grasp with
+|z_cmd - z_true| < TOL AND the gripper closes; photo scene -> success
+only if the arm does NOT grasp.  Metrics per seed: success (fraction of
+scenes), height_err_mm (mean |z_cmd - z_true| in mm over real scenes
+where a grasp was attempted; 0.0 if none), false_grasp (fraction of
+photo scenes grasped; 0.0 when the regime has no photo scenes).
+
+Common random numbers: for each (regime, seed), random.Random draws,
+per scene in this fixed order: photo flag u (uniform), foam jitter,
+OBJ_H, RGB noise g, grip noise g, N_PTS object-point noises, N_PTS
+table-point noises, N_PTS outlier uniforms and N_PTS outlier heights
+(drawn in every regime even if unused); all arms use the same draws.
+
+Regimes: "train_height" (table = H_TRAIN + jitter, no photos);
+"height_shift" (table = H_SHIFT + jitter, no photos); "real_vs_photo"
+(table = H_TRAIN + jitter, a photo when u < 0.5); "corrupted_cloud"
+(table = H_TRAIN + jitter, no photos; each object-top point is
+replaced, when its outlier uniform < P_OUT = 0.3, by
+table + 0.15 * outlier height).
+
+Pairs, every metric in every regime: B-A, C-B, C-A.
+
+Regimes and parameters were written before the first run.  Declared
+expectations (not tuned; print whatever comes):
+  train_height    : A vs B may near-tie - keep; C consistently below B
+                    on success - keep
+  height_shift    : B consistently above A on success; C below B - keep
+  real_vs_photo   : B consistently above A on success (A grasps at
+                    photos); C below B - keep
+  corrupted_cloud : B may lose to A - keep as it comes
+
+The arm ordering follows from the declared block-importance profile and
+noise levels; the toy shows magnitudes and seed scatter, not evidence
+that one arm always wins.
+
+Alternatives (same seeds, declared before the run, not adopted):
+  height_shift with injection at block 3 (paired X-B success, X the
+  block-3 arm);
+  corrupted_cloud with a median instead of a mean for z3d in B (paired
+  B_median-A success);
+  train_height with TOL = 0.02 (paired B-A success);
+  height_shift with RGB_CUE = 0.3 (paired B-A success).
+"""
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+
+# Declared parameters, written before the first run.
+N_BLOCKS = 8
+W_BLOCK = (0.30, 0.22, 0.16, 0.08, 0.06, 0.06, 0.06, 0.06)  # sums to 1
+ETA = 0.5
+SIG_GRIP = 0.04
+GRIP_THR = 0.90
+LATE_BLOCK = 6
+EARLY_BLOCK = 0
+H_TRAIN = 0.003                # m, training foam
+H_SHIFT = 0.052                # m
+FOAM_SD = 0.001                # m, jitter sd on the table height
+OBJ_LO, OBJ_HI = 0.04, 0.06    # m, OBJ_H ~ uniform(OBJ_LO, OBJ_HI)
+RGB_CUE = 0.1
+SIG_RGB = 0.003
+N_PTS = 32
+SIG_PC = 0.004                 # m, per-point cloud noise
+G = 1.0                        # injector gain
+PRES_THR = 0.02                # m, presence check
+SCREEN_H = 0.005               # m, photo scene: flat screen above the table
+TOL = 0.010                    # m
+N_SCENES = 40
+P_OUT = 0.3                    # corrupted_cloud outlier fraction
+OUT_SCALE = 0.15               # outlier height = table + OUT_SCALE * uniform(0, 1)
+
+ARMS = ("A_2d", "B_late", "C_early")
+METRICS = ("success", "height_err_mm", "false_grasp")
+PAIRS = (("B_late", "A_2d"), ("C_early", "B_late"), ("C_early", "A_2d"))
+DECLARED = {
+    "train_height": "A vs B may near-tie - keep; C consistently below B on "
+                    "success - keep",
+    "height_shift": "B consistently above A on success; C below B - keep",
+    "real_vs_photo": "B consistently above A on success (A grasps at photos); "
+                     "C below B - keep",
+    "corrupted_cloud": "B may lose to A - keep as it comes",
+}
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0  # identical values: no floating residue in mean or sd
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    """Half-up rounding on the shortest decimal repr; tiny non-zero values in scientific form."""
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def median_of(xs):
+    s = sorted(xs)
+    n = len(s)
+    return 0.5 * (s[n // 2 - 1] + s[n // 2]) if n % 2 == 0 else s[n // 2]
+
+
+def q_of(block):
+    return 1.0 if block is None else 1.0 - ETA * W_BLOCK[block]
+
+
+def run_seed(regime, seed, late_block=LATE_BLOCK, median=False, tol=TOL,
+             rgb_cue=RGB_CUE):
+    """One seed of one regime: shared draws, all arms scored on the same scenes."""
+    rng = random.Random(f"{regime}/{seed}")
+    blocks = {"A_2d": None, "B_late": late_block, "C_early": EARLY_BLOCK}
+    acc = {arm: {"succ": 0, "err_sum": 0.0, "err_n": 0, "photo": 0, "fg": 0}
+           for arm in ARMS}
+    base = {"train_height": H_TRAIN, "height_shift": H_SHIFT,
+            "real_vs_photo": H_TRAIN, "corrupted_cloud": H_TRAIN}[regime]
+    for _ in range(N_SCENES):
+        u = rng.random()
+        jitter = rng.gauss(0.0, FOAM_SD)
+        obj_h = rng.uniform(OBJ_LO, OBJ_HI)
+        g_rgb = rng.gauss(0.0, 1.0)
+        g_grip = rng.gauss(0.0, 1.0)
+        obj_n = [rng.gauss(0.0, 1.0) for _ in range(N_PTS)]
+        tab_n = [rng.gauss(0.0, 1.0) for _ in range(N_PTS)]
+        out_u = [rng.random() for _ in range(N_PTS)]
+        out_h = [rng.uniform(0.0, 1.0) for _ in range(N_PTS)]
+        is_photo = regime == "real_vs_photo" and u < 0.5
+        table = base + jitter
+        z_true = table + obj_h
+        z2d = H_TRAIN + rgb_cue * (table - H_TRAIN) + obj_h + SIG_RGB * g_rgb
+        if is_photo:
+            obj_pts = [table + SCREEN_H + SIG_PC * n for n in obj_n]
+        else:
+            obj_pts = [z_true + SIG_PC * n for n in obj_n]
+        if regime == "corrupted_cloud":
+            obj_pts = [table + OUT_SCALE * h if ou < P_OUT else p
+                       for p, ou, h in zip(obj_pts, out_u, out_h)]
+        tab_pts = [table + SIG_PC * n for n in tab_n]
+        table_est = sum(tab_pts) / N_PTS
+        z3d = sum(obj_pts) / N_PTS
+        z3d_med = median_of(obj_pts)
+        for arm in ARMS:
+            q = q_of(blocks[arm])
+            if arm == "A_2d":
+                z_cmd = z2d
+                grasp = True
+            else:
+                z = z3d_med if (median and arm == "B_late") else z3d
+                z_cmd = z2d + G * (z - z2d)
+                grasp = (z - table_est) > PRES_THR
+            closes = q + SIG_GRIP * g_grip > GRIP_THR
+            if is_photo:
+                acc[arm]["photo"] += 1
+                if grasp:
+                    acc[arm]["fg"] += 1
+                ok = not grasp
+            else:
+                if grasp:
+                    acc[arm]["err_sum"] += abs(z_cmd - z_true) * 1000.0
+                    acc[arm]["err_n"] += 1
+                ok = grasp and abs(z_cmd - z_true) < tol and closes
+            if ok:
+                acc[arm]["succ"] += 1
+    out = {}
+    for arm in ARMS:
+        a = acc[arm]
+        out[arm] = {"success": a["succ"] / N_SCENES,
+                    "height_err_mm": a["err_sum"] / a["err_n"] if a["err_n"] else 0.0,
+                    "false_grasp": a["fg"] / a["photo"] if a["photo"] else 0.0}
+    return out
+
+
+def collect(regime, **kw):
+    rows = [run_seed(regime, s, **kw) for s in SEEDS]
+    return {arm: [row[arm] for row in rows] for arm in ARMS}
+
+
+def col(rows, key):
+    return [x[key] for x in rows]
+
+
+def report(regime):
+    res = collect(regime)
+    print(f"{regime}:")
+    print(f"  declared: {DECLARED[regime]}")
+    for arm in ARMS:
+        print(f"  {arm} " + " ".join(
+            f"{key} {fmt_pair(*mean_sd(col(res[arm], key)))}" for key in METRICS))
+    for a, b in PAIRS:
+        for key in METRICS:
+            print(f"  paired {a[0]}-{b[0]} {key}: "
+                  f"{verdict(col(res[a], key), col(res[b], key))}")
+    return res
+
+
+def main():
+    print("PointVLA frozen-injector toy: frozen 2D VLA head plus a lightweight "
+          "additive point-cloud injection at one declared block")
+    print("synthetic stand-in, scalar grasp-height model, not DexVLA; not a "
+          "GPU / RealSense / UR5e run (本页未运行); not OctoMap / TSDF / 3DGS / "
+          "SpatialVLA; PointVLA paper scores are not reproduced; paper "
+          "statements 以论文为准")
+    print(f"seeds={len(SEEDS)} n_blocks={N_BLOCKS} eta={num(ETA)} "
+          f"sig_grip={num(SIG_GRIP)} grip_thr={num(GRIP_THR)} tol={num(TOL)} "
+          f"n_pts={N_PTS} n_scenes={N_SCENES} (declared)")
+    print("arm ordering follows from the declared block-importance profile and "
+          "noise levels")
+    print("Regimes and parameters were written before the first run")
+    print("rule: real scene grasp needs |z_cmd - z_true| < TOL and a closed "
+          "gripper; photo scene success = no grasp; presence check "
+          "z3d - table_est > PRES_THR")
+    print(f"hand_calc A systematic height error under the shift: "
+          f"(1-rgb_cue)*(H_SHIFT-H_TRAIN) = "
+          f"{num((1.0 - RGB_CUE) * (H_SHIFT - H_TRAIN))} m vs TOL {num(TOL)}")
+    print(f"hand_calc sd of cloud mean = SIG_PC/sqrt(N_PTS) = "
+          f"{num(SIG_PC / math.sqrt(N_PTS))} m")
+    for name, blk in (("no injection", None), ("LATE_BLOCK", LATE_BLOCK),
+                      ("EARLY_BLOCK", EARLY_BLOCK)):
+        q = q_of(blk)
+        phi = 0.5 * (1.0 + math.erf((q - GRIP_THR) / SIG_GRIP / math.sqrt(2.0)))
+        print(f"hand_calc q ({name}) = {num(q)}, closing probability "
+              f"Phi((q-{num(GRIP_THR)})/{num(SIG_GRIP)}) = {num(phi)}")
+    print("hand_calc skip-block proxy 1-W_BLOCK[j]: " +
+          " ".join(num(1.0 - w) for w in W_BLOCK))
+    base = {}
+    for regime in ("train_height", "height_shift", "real_vs_photo",
+                   "corrupted_cloud"):
+        base[regime] = report(regime)
+    print("alternative parameters (declared before the run, same seeds, not "
+          "adopted):")
+    alt = collect("height_shift", late_block=3)
+    q3 = q_of(3)
+    print(f"  height_shift injection at block 3 (q={num(q3)}): "
+          f"paired X-B success: "
+          f"{verdict(col(alt['B_late'], 'success'),
+                     col(base['height_shift']['B_late'], 'success'))}")
+    alt = collect("corrupted_cloud", median=True)
+    print(f"  corrupted_cloud z3d as median in B: paired B_median-A success: "
+          f"{verdict(col(alt['B_late'], 'success'),
+                     col(base['corrupted_cloud']['A_2d'], 'success'))}")
+    alt = collect("train_height", tol=0.02)
+    print(f"  train_height TOL=0.02: paired B-A success: "
+          f"{verdict(col(alt['B_late'], 'success'),
+                     col(alt['A_2d'], 'success'))}")
+    alt = collect("height_shift", rgb_cue=0.3)
+    print(f"  height_shift RGB_CUE=0.3: paired B-A success: "
+          f"{verdict(col(alt['B_late'], 'success'),
+                     col(alt['A_2d'], 'success'))}")
+    print("No winner beyond the declared block profile: late injection keeps "
+          "the frozen 2D grip and adds height and presence from the cloud; "
+          "early injection or a corrupted cloud can hurt")
+    print("DexVLA / GPU / RealSense / UR5e: 本页未运行; PointVLA paper results "
+          "以论文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+PointVLA frozen-injector toy: frozen 2D VLA head plus a lightweight additive point-cloud injection at one declared block
+synthetic stand-in, scalar grasp-height model, not DexVLA; not a GPU / RealSense / UR5e run (本页未运行); not OctoMap / TSDF / 3DGS / SpatialVLA; PointVLA paper scores are not reproduced; paper statements 以论文为准
+seeds=5 n_blocks=8 eta=0.5000 sig_grip=0.0400 grip_thr=0.9000 tol=0.0100 n_pts=32 n_scenes=40 (declared)
+arm ordering follows from the declared block-importance profile and noise levels
+Regimes and parameters were written before the first run
+rule: real scene grasp needs |z_cmd - z_true| < TOL and a closed gripper; photo scene success = no grasp; presence check z3d - table_est > PRES_THR
+hand_calc A systematic height error under the shift: (1-rgb_cue)*(H_SHIFT-H_TRAIN) = 0.0441 m vs TOL 0.0100
+hand_calc sd of cloud mean = SIG_PC/sqrt(N_PTS) = 0.0007 m
+hand_calc q (no injection) = 1.0000, closing probability Phi((q-0.9000)/0.0400) = 0.9938
+hand_calc q (LATE_BLOCK) = 0.9700, closing probability Phi((q-0.9000)/0.0400) = 0.9599
+hand_calc q (EARLY_BLOCK) = 0.8500, closing probability Phi((q-0.9000)/0.0400) = 0.1056
+hand_calc skip-block proxy 1-W_BLOCK[j]: 0.7000 0.7800 0.8400 0.9200 0.9400 0.9400 0.9400 0.9400
+train_height:
+  declared: A vs B may near-tie - keep; C consistently below B on success - keep
+  A_2d success 0.9900+-0.0137 height_err_mm 2.4331+-0.3670 false_grasp 0.0000+-0.0000
+  B_late success 0.9600+-0.0379 height_err_mm 0.6309+-0.0492 false_grasp 0.0000+-0.0000
+  C_early success 0.1700+-0.0597 height_err_mm 0.6309+-0.0492 false_grasp 0.0000+-0.0000
+  paired B-A success: -0.0300+-0.0326: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 2 of 5 equal
+  paired B-A height_err_mm: -1.8022+-0.4029: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A false_grasp: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B success: -0.7900+-0.0783: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B height_err_mm: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B false_grasp: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A success: -0.8200+-0.0694: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A height_err_mm: -1.8022+-0.4029: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A false_grasp: 0.0000+-0.0000: tie: identical on every seed
+height_shift:
+  declared: B consistently above A on success; C below B - keep
+  A_2d success 0.0000+-0.0000 height_err_mm 44.5741+-0.5399 false_grasp 0.0000+-0.0000
+  B_late success 0.9750+-0.0177 height_err_mm 0.6238+-0.0636 false_grasp 0.0000+-0.0000
+  C_early success 0.1100+-0.0548 height_err_mm 0.6238+-0.0636 false_grasp 0.0000+-0.0000
+  paired B-A success: 0.9750+-0.0177: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A height_err_mm: -43.9503+-0.5670: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A false_grasp: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B success: -0.8650+-0.0548: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B height_err_mm: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B false_grasp: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A success: 0.1100+-0.0548: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A height_err_mm: -43.9503+-0.5670: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A false_grasp: 0.0000+-0.0000: tie: identical on every seed
+real_vs_photo:
+  declared: B consistently above A on success (A grasps at photos); C below B - keep
+  A_2d success 0.5750+-0.1000 height_err_mm 2.9037+-0.3294 false_grasp 1.0000+-0.0000
+  B_late success 0.9750+-0.0000 height_err_mm 0.5021+-0.0997 false_grasp 0.0000+-0.0000
+  C_early success 0.4950+-0.0694 height_err_mm 0.5021+-0.0997 false_grasp 0.0000+-0.0000
+  paired B-A success: 0.4000+-0.1000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A height_err_mm: -2.4015+-0.3658: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A false_grasp: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: -0.4800+-0.0694: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B height_err_mm: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B false_grasp: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A success: -0.0800+-0.1605: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired C-A height_err_mm: -2.4015+-0.3658: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A false_grasp: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+corrupted_cloud:
+  declared: B may lose to A - keep as it comes
+  A_2d success 0.9900+-0.0137 height_err_mm 2.5405+-0.1604 false_grasp 0.0000+-0.0000
+  B_late success 0.6850+-0.0978 height_err_mm 7.3992+-0.7443 false_grasp 0.0000+-0.0000
+  C_early success 0.1100+-0.0762 height_err_mm 7.3992+-0.7443 false_grasp 0.0000+-0.0000
+  paired B-A success: -0.3050+-0.0925: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A height_err_mm: 4.8587+-0.6799: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A false_grasp: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B success: -0.5750+-0.1571: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B height_err_mm: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B false_grasp: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A success: -0.8800+-0.0818: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A height_err_mm: 4.8587+-0.6799: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A false_grasp: 0.0000+-0.0000: tie: identical on every seed
+alternative parameters (declared before the run, same seeds, not adopted):
+  height_shift injection at block 3 (q=0.9600): paired X-B success: -0.0250+-0.0177: small but consistent gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+  corrupted_cloud z3d as median in B: paired B_median-A success: -0.0300+-0.0326: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 2 of 5 equal
+  train_height TOL=0.02: paired B-A success: -0.0300+-0.0326: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 2 of 5 equal
+  height_shift RGB_CUE=0.3: paired B-A success: 0.9750+-0.0177: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner beyond the declared block profile: late injection keeps the frozen 2D grip and adds height and presence from the cloud; early injection or a corrupted cloud can hurt
+DexVLA / GPU / RealSense / UR5e: 本页未运行; PointVLA paper results 以论文为准
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used on this page, in this order: **tie: identical on every seed** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when `|paired mean|` and its sd are both below 1e-9; **near-tie / small gap, within seed noise** when `|paired mean| ≤ sd`; otherwise a **consistent** gap (`|paired mean| > sd`), called **small** if `|m|` is under 20 % of the smaller arm mean and **clear** otherwise. Every consistent line carries a same-sign count over the 5 seeds.
+
+- **train_height.** The 2D head succeeds on 0.9900±0.0137 of scenes and late injection on 0.9600±0.0379, so B−A success is -0.0300±0.0326, a **near-tie** with no seed of the opposite sign and 2 of 5 equal. The cloud still sharpens the height: B−A height_err_mm is -1.8022±0.4029, clear. Early injection breaks the grip: C succeeds on 0.1700±0.0597 and C−B success is -0.7900±0.0783, clear. Both declarations **held**, and the C loss is **kept**.
+- **height_shift.** The 2D head misses every grasp (A 0.0000±0.0000, height error 44.5741±0.5399 mm), while late injection succeeds on 0.9750±0.0177: B−A success is 0.9750±0.0177, clear, same sign on all 5 seeds. Early injection gets the height right but rarely closes (C 0.1100±0.0548; C−B success -0.8650±0.0548, clear), although it still beats the 2D head (C−A success 0.1100±0.0548). The declaration **held**.
+- **real_vs_photo.** A has no way to refuse, so it grasps every photo (false_grasp 1.0000±0.0000 is built into the arm) and succeeds on 0.5750±0.1000 of scenes. B refuses every photo and succeeds on 0.9750±0.0000: B−A success is 0.4000±0.1000 and B−A false_grasp is -1.0000±0.0000, both clear. C also refuses photos but fails real grasps, so C−B success is -0.4800±0.0694, clear, and C−A success is -0.0800±0.1605, a near-tie. The declaration **held**.
+- **corrupted_cloud.** With 30 % outliers averaged into the height, late injection drops to 0.6850±0.0978 with a height error of 7.3992±0.7443 mm, while the 2D head stays at 0.9900±0.0137. B−A success is -0.3050±0.0925, clear, same sign on all 5 seeds: a bad cloud makes the injected policy worse than the frozen 2D policy. This is the declared "B may lose to A", **kept** as it came.
+
+**Keep** the early-injection and corrupted-cloud cells in view. In this toy the point cloud helps only when it is clean and goes into a block the frozen policy can spare.
+
+**Code change after the first run.** The first attempt stopped with a data-structure error after the hand-calculation lines and before any regime result. The per-arm results were changed from tuples to named fields so the report could read them. No parameter, regime or rule changed, and the output of the corrected run is byte-identical to the `expected/` file.
+
+**Choices made after seeing results.** None. The block profile, noise levels, thresholds, regimes and printed alternatives were written before the first run and run on the same seeds. Injecting at block 3 instead of block 6 costs a little on height_shift (block-3 arm minus B, success -0.0250±0.0177, small). A median instead of a mean on the corrupted cloud brings B back to a near-tie with A (-0.0300±0.0326). A looser 20 mm tolerance on train_height leaves B−A success at -0.0300±0.0326, because the remaining failures are grip failures. A stronger RGB height cue of 0.3 still leaves the 2D head failing the shift (B−A success 0.9750±0.0177). None of them replaced the defaults.
+
+The page **does not declare a winner beyond the declared block profile**. Clean cloud, later block: the 3D injection wins on a height shift or a photo and near-ties at the training height. Early block or corrupted cloud: it can lose to the frozen 2D policy. DexVLA, a GPU and a real camera: **本页未运行**.
+
+**180-minute work plan:** 30 min read the PointVLA paper's method, skip-block and generalisation sections; 25 min redo the height-error and grip-quality hand calculations; 50 min run the toy and read the four regimes; 40 min compare the printed alternatives with seeds fixed; 35 min the exercises.
+
+### Exercises
+
+1. From the printed hand calc, confirm 0.0441 m and explain why it is more than the 0.0100 m tolerance however small the RGB noise is.
+2. Show from `run_seed` that all three arms use the same scene draws, and that B and C differ only in the injected block.
+3. Change nothing but the block profile in your head: if W_BLOCK[6] were 0.30, what would q and the closing probability be for B?
+4. Before running it, predict corrupted_cloud B−A success with P_OUT = 0.1, then run it with the seeds fixed.
+5. Before any real robot (本页未运行), write down how you would check whether a block in your own policy can be skipped, and what a corrupted depth image would look like on your camera.
+
 <Summary>
 
 Depth plus intrinsics makes a point cloud; voxel down-sampling, RANSAC plane removal and DBSCAN centroids turn a desk scene into grasp seeds. The stdlib toy recovers three box centres within 1 cm; Open3D names the same steps. Prefer metric depth for poses in metres, and read Depth Anything V2's licence per checkpoint size. The thresholded Gaussian-ellipsoid collision check compares an enclosing AABB with a finite-s ellipsoid test using independent distance ground truth, without 3DGS training. PCA normals: the smallest eigenvector of a k-nearest-neighbour covariance, flipped toward the viewpoint, beats a single global plane on curved surfaces, but on a flat low-noise desk the global plane wins on angle and on a fine ripple `k = 4` beats `k = 20` — the neighbourhood size trades noise averaging against curvature smoothing, and a plane residual can disagree with the angle; a synthetic toy, not a real-sensor run.
+
+PointVLA keeps a 2D policy frozen and adds point-cloud features through small adapters into later blocks; in the synthetic toy a clean cloud injected late wins on a raised table and on photos and near-ties at the training height, while injecting into an early block or averaging in a corrupted cloud loses to the frozen 2D policy; paper results 以论文为准, DexVLA and a real camera 本页未运行.
 
 </Summary>
