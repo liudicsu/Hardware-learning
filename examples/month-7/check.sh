@@ -61,4 +61,6 @@ check pointcloud_pca_normals_toy.txt "$PY" "$M7/depth-pointcloud/pointcloud_pca_
 check residual_action_mismatch_toy.txt "$PY" "$M7/rl-foundations/residual_action_mismatch_toy.py"
 check td3_clipped_double_q_toy.txt "$PY" "$M7/rl-foundations/td3_clipped_double_q_toy.py"
 
+check tobin_visual_domain_randomization_toy.txt "$PY" "$M7/sim-to-real/tobin_visual_domain_randomization_toy.py"
+
 exit $fail

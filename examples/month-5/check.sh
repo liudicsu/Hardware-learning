@@ -33,4 +33,6 @@ check poe_vs_dh_fk_toy.txt "$PY" "$M5/kinematics-ik/poe_vs_dh_fk_toy.py"
 
 check scurve_jerk_limit_toy.txt "$PY" "$M5/moveit-pick-place/scurve_jerk_limit_toy.py"
 
+check rolling_vs_global_shutter_toy.txt "$PY" "$M5/camera-calibration/rolling_vs_global_shutter_toy.py"
+
 exit $fail

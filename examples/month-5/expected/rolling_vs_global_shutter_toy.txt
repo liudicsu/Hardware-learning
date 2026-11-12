@@ -1,0 +1,46 @@
+Synthetic row-scan toy: one moving vertical edge, global vs rolling vs slow rolling readout; not a real CMOS
+seeds=5 H=480 rows DT_ROW=30.0 us SLOW=4 SIGMA_PX=0.3 px V_JITTER=+-10 % (declared toy parameters, not datasheet values)
+No integration step: closed-form positions, no time-step criterion
+Regimes and parameters were written before the first run
+row_stamp rule: row r sampled at t0 + r*DT_ROW; r=0 -> 0.0000 ms, r=1 -> 0.0300 ms, r=479 -> 14.3700 ms (C: r=479 -> 57.4800 ms; A: every row at t0)
+hand_calc readout=(H-1)*DT_ROW=479*30.0 us=14.3700 ms; skew at v=300.0 px/s = v*readout = 4.3110 px; naive mean-row bias = v*(H-1)/2*DT_ROW = 2.1555 px
+hand_calc fast v=1500.0 px/s: skew=21.5550 px bias=10.7775 px; C (SLOW=4) at v=300.0 px/s: skew=17.2440 px
+estimator: every arm is read as if global (mean column over rows = position at t0)
+static (V_NOM=0.0 px/s):
+  speed per seed px/s: 0.0000 0.0000 0.0000 0.0000 0.0000
+  A_global pos_err 0.0189+-0.0123 skew 0.0208+-0.0232
+  B_rolling pos_err 0.0189+-0.0123 skew 0.0208+-0.0232
+  C_slow pos_err 0.0189+-0.0123 skew 0.0208+-0.0232
+  paired B-A pos_err: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A skew: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B pos_err: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B skew: 0.0000+-0.0000: tie: identical on every seed
+moderate (V_NOM=300.0 px/s):
+  speed per seed px/s: 298.0877 294.6412 291.1262 275.3933 308.3665
+  A_global pos_err 0.0090+-0.0049 skew 0.0174+-0.0110
+  B_rolling pos_err 2.1163+-0.0810 skew 4.2208+-0.1654
+  C_slow pos_err 8.4432+-0.3397 skew 16.8746+-0.6821
+  paired B-A pos_err: 2.1073+-0.0837: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A skew: 4.2034+-0.1754: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B pos_err: 6.3269+-0.2589: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B skew: 12.6538+-0.5177: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+fast (V_NOM=1500.0 px/s):
+  speed per seed px/s: 1384.3153 1507.4066 1483.2212 1567.3752 1386.8351
+  A_global pos_err 0.0078+-0.0059 skew 0.0267+-0.0156
+  B_rolling pos_err 10.5339+-0.5689 skew 21.0656+-1.1462
+  C_slow pos_err 42.1299+-2.2806 skew 84.2575+-4.5695
+  paired B-A pos_err: 10.5261+-0.5669: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A skew: 21.0389+-1.1377: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B pos_err: 31.5960+-1.7118: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B skew: 63.1920+-3.4236: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative DT_ROW=15.0 us on moderate (same seeds):
+  paired B-A pos_err@alt: 1.0528+-0.0406: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A skew@alt: 2.0945+-0.0907: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative RS-aware estimator on fast (same seeds; line-fit intercept at row 0 = position at t0):
+  A_global@rs_aware pos_err 0.0095+-0.0089
+  B_rolling@rs_aware pos_err 0.0095+-0.0089
+  C_slow@rs_aware pos_err 0.0095+-0.0089
+  paired B-A pos_err@rs_aware: -1.137e-14+-4.756e-14: numerically zero (floating-point residue), effectively a tie
+  paired C-B pos_err@rs_aware: -1.137e-14+-4.756e-14: numerically zero (floating-point residue), effectively a tie
+No winner declared: a global shutter freezes motion; a rolling shutter warps it in proportion to speed times readout time and ties on a static scene
+Real camera / rolling-shutter lab: 本页未运行; Wikipedia Rolling shutter statements 以原文为准
