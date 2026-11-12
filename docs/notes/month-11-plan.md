@@ -1,6 +1,6 @@
 # Month 11 plan: Actuator hardware, tactile contact & cross-embodiment collection
 
-Current / 当前：**M11 3810 min**, Batch-22 PR2. Earlier entries below retain their historical totals.
+Current / 当前：**M11 3990 min**, Batch-22 PR3. Earlier entries below retain their historical totals.
 
 ## Batch-22 PR2 / 本月 H4 (+180)
 

@@ -3958,7 +3958,7 @@ const lessonRef = (n, slug, lang) => {
   }));
   ok(totals.reduce((s, m) => s + m.minutes.length, 0) === 71, "deepen3 curriculum: still 71 lessons");
   ok(totals.reduce((s, m) => s + m.minutes.reduce((a, b) => a + b, 0), 0) ===40140, "b17p3 curriculum: 40140 minutes (tip after batch-22 PR3)");
-  for (const [month, expected] of [[1, 2910], [2, 3570], [3, 3510], [4, 3390], [5, 3570], [6, 3840], [7, 3330], [8, 3990], [9, 4110], [10, 3750], [11, 3810]]) {
+  for (const [month, expected] of [[1, 2910], [2, 3570], [3, 3510], [4, 3390], [5, 3570], [6, 3840], [7, 3510], [8, 3990], [9, 4110], [10, 3750], [11, 3990]]) {
     ok(totals.find(m => m.month === month)?.minutes.reduce((a, b) => a + b, 0) === expected, `current curriculum M${month}: ${expected} minutes`);
   }
   ok(/"alip-feet-paper": \{[\s\S]*?extra: true/.test(read("src/lib/resources.ts")), "deepen3 primary WBC source: extra resource");
@@ -5157,14 +5157,14 @@ for (const m of readdirSync(content)) {
 
 {
   const cur = readFileSync(join(root,"src/lib/curriculum.ts"),"utf8");
-  ok(cur.match(/slug: "depth-pointcloud"[\s\S]*?minutes: (\d+)/)?.[1] === "630", "b4p2 curriculum: 7.5=630 (450 + b12p2 normals 180)");
+  ok(cur.match(/slug: "depth-pointcloud"[\s\S]*?minutes: (\d+)/)?.[1] === "810", "b4p2 curriculum: 7.5=630 (450 + b12p2 normals 180) (tip after batch-22 PR3: 810)");
   ok(cur.match(/slug: "safety-reliability"[\s\S]*?minutes: (\d+)/)?.[1] === "540", "b4p2 curriculum: 8.5=540");
   console.log("3dgs-iso-pl PR2: collision/PLr locks checked (reachable before exit)");
 }
 // Batch-4 PR3 H2/H7: equal-data transfer and explicit operator RTT model.
 {
   const read = p => readFileSync(join(root, p), "utf8");
-  for (const [month, slug, toy, minutes] of [[7,"rl-foundations","residual_action_mismatch_toy",630,210], [11,"umi-style-collection","teleop_rtt_budget_toy",420,180]]) {
+  for (const [month, slug, toy, minutes] of [[7,"rl-foundations","residual_action_mismatch_toy",630,210], [11,"umi-style-collection","teleop_rtt_budget_toy",600,180]]) {
     const py = read(`examples/month-${month}/${slug}/${toy}.py`);
     const expected = read(`examples/month-${month}/expected/${toy}.txt`);
     const stdout = execFileSync("python3", [join(root, `examples/month-${month}/${slug}/${toy}.py`)], { encoding: "utf8", env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" } });
@@ -6468,7 +6468,7 @@ print("protocol pass")
       {en:["**not** a redo of damped least squares","**synthetic**","does not declare a universal winner","**Model assumptions:**","**blind**","**tie: identical on every seed**","**near-tie / small gap, within seed noise**","**small but consistent gap, not a tie**","**B loses on tracking**","not a hard barrier","**original**"],zh:["**不是**把阻尼最小二乘重讲一遍","**合成**","不宣布普遍赢家","**模型假设：**","**看不见**","**打平：每个种子都完全相同**","**接近打平、差距很小，在种子噪声之内**","**小而稳定的差距，不是打平**","**B 在跟踪上输了**","不是硬屏障","**原始**"]},
       {en:["Manipulability","σ1 σ2","identical on every seed","2.39 mm","not a robot run"],zh:["可操作度","σ1 σ2","每个种子都完全相同","2.39 mm","不是机器人实验"]},
       ["mr-manipulability","wiki-manipulability"],"180-minute work plan","180 分钟安排"],
-    [7,"depth-pointcloud","pointcloud_pca_normals_toy",630,["## Surface normals by local PCA","## 用局部 PCA 估计表面法向"],
+    [7,"depth-pointcloud","pointcloud_pca_normals_toy",810,["## Surface normals by local PCA","## 用局部 PCA 估计表面法向"],
       ["seeds=5","queries=60 k_eval=12","sign check: PCA of an exact z=0.40 plane -> 0.000000, 0.000000, 1.000000","flat_low_noise paired B-A angle_deg 0.7449+-0.0397: clear gap, not a tie","flat_low_noise paired B-A residual_mm -0.0070+-0.0036: small but consistent gap, not a tie","ripple_noisy paired B-C angle_deg -20.2400+-2.7704: clear gap, not a tie","fine_ripple_low_noise paired B-C angle_deg 5.2476+-0.4954: clear gap, not a tie","fine_ripple_low_noise paired B-C residual_mm -0.1522+-0.0143: small but consistent gap, not a tie","No winner declared"],
       ["C = (1/k) Σ (pᵢ − c)(pᵢ − c)ᵀ","n · (vp − p) < 0","A_global_plane","B_pca_k20","C_pca_k4","estimate_normals","flipNormalTowardsViewpoint","orient_normals_towards_camera_location","以原文为准","本页未运行","0.0050±0.0058","0.7499±0.0447","0.7449±0.0397","−0.0070±0.0036","5.3848±0.3418","5.9507±0.4287","11.1983±0.2312","5.2476±0.4954","−0.1522±0.0143","31.7 mm","10.1 mm","284","299"],
       {en:["**not** another voxel / RANSAC pass","**not** the point-to-plane ICP","**synthetic**","does not declare a universal winner","**Model assumptions:**","**blind**","**rewards fitting the noise**","**B loses to A on angle**","**B loses to C on angle**","**small but consistent gap, not a tie**"],zh:["**不是**再做一遍体素 / RANSAC","**不是** SLAM 那一课的点到面 ICP","**合成**","不宣布普遍赢家","**模型假设：**","**看不见**","**会奖励拟合噪声**","**在夹角上 B 输给 A**","**在夹角上 B 输给 C**","**小而稳定的差距，不是打平**"]},
@@ -6579,7 +6579,7 @@ print("protocol pass")
   }
   const p9=read("docs/notes/month-9-plan.md"), p11=read("docs/notes/month-11-plan.md");
   ok(p9.startsWith("# Month 9")&&["Current / 当前：**M9 4110 min**, Batch-20 PR3","3690→3900","28740→29160","630→840","Batch-12 PR3"].every(x=>p9.includes(x)),"b12p3 month-9 plan header");
-  ok(p11.startsWith("# Month 11")&&["Current / 当前：**M11 3810 min**, Batch-22 PR2","3420→3630","28740→29160","540→750","Batch-12 PR3"].every(x=>p11.includes(x)),"b12p3 month-11 plan header");
+  ok(p11.startsWith("# Month 11")&&["Current / 当前：**M11 3990 min**, Batch-22 PR3","3420→3630","28740→29160","540→750","Batch-12 PR3"].every(x=>p11.includes(x)),"b12p3 month-11 plan header");
   const src=read("docs/notes/batch-12-pr3-sources.md");
   ok(["worldvla-paper","xvla-paper","2506.21539","2510.10274","Cen","Zheng","pdftotext","Common random numbers","opencode","Review follow-up","opposite sign"].every(x=>src.includes(x)),"b12p3 sources note");
   ok(/40 140/.test(read("README.md")),"b18p1 README site minutes (tip after batch-17)");
@@ -7630,7 +7630,7 @@ print("protocol pass")
   ok(td.includes("Not PPO (the clipped-ratio toy above) and not HER"),"b16p2 TD3 toy: scope excludes PPO / HER");
   const p5=read("docs/notes/month-5-plan.md"), p7=read("docs/notes/month-7-plan.md");
   ok(p5.startsWith("# Month 5")&&["## Batch-16 PR2","2670→2850","32820→33180","570→**750**"].every(x=>p5.includes(x)),"b16p2 month-5 plan header");
-  ok(p7.startsWith("# Month 7")&&["Current / 当前：**M7 3330 min**, Batch-20 PR3","## Batch-16 PR2","2610→2790","32820→33180","450→**630**"].every(x=>p7.includes(x)),"b16p2 month-7 plan header");
+  ok(p7.startsWith("# Month 7")&&["Current / 当前：**M7 3510 min**, Batch-22 PR3","## Batch-16 PR2","2610→2790","32820→33180","450→**630**"].every(x=>p7.includes(x)),"b16p2 month-7 plan header");
   const src=read("docs/notes/batch-16-pr2-sources.md");
   ok(["208706f","33180","wiki-poe","td3-paper","1802.09477","mw-parser-output","Common random numbers","opencode","Lock changes","No lock relaxed","Post-hoc choices","Mismatch with §9","bandit_no_bootstrap","−0.2140±0.0683","以论文为准"].every(x=>src.includes(x)),"b16p2 sources note");
   ok(/40 140/.test(read("README.md"))&&/约 40 140 分钟/.test(read("README.md")),"b18p1 README site minutes (tip after batch-17) (en + zh)");
@@ -8207,7 +8207,7 @@ print("protocol pass")
   ok(!/hornung13auro/.test(res),"b18p2 resources: Hornung AURO PDF not added as a cited resource");
   const p4=read("docs/notes/month-4-plan.md"), p7=read("docs/notes/month-7-plan.md");
   ok(p4.startsWith("# Month 4")&&["Current / 当前：**M4 3390 min**, Batch-21 PR2","## Batch-18 PR2","2850→3030","35040→35400","630→810"].every(x=>p4.includes(x)),"b18p2 month-4 plan header");
-  ok(p7.startsWith("# Month 7")&&["Current / 当前：**M7 3330 min**, Batch-20 PR3","## Batch-18 PR2","2790→2970","35040→35400","240→420"].every(x=>p7.includes(x)),"b18p2 month-7 plan header");
+  ok(p7.startsWith("# Month 7")&&["Current / 当前：**M7 3510 min**, Batch-22 PR3","## Batch-18 PR2","2790→2970","35040→35400","240→420"].every(x=>p7.includes(x)),"b18p2 month-7 plan header");
   const src=read("docs/notes/batch-18-pr2-sources.md");
   ok(["26d4664edc52abc3a0c35b8c960ddc29d35b5057","35040","35400","octomap-site","curless-volrange","open3d-tsdf","mujoco-computation","HTTP **200**","HTTP **500**","not cited","Common random numbers","opencode","Lock changes","No lock relaxed","Post-hoc choices","Mismatch with §9","0.9833±0.0062","0.0316±0.0000","-0.0322±0.0024","0.0131±0.0034","62.9097±3.0587","12514.0224±6611.4795","0.6385508568","sdf_trunc=0.25","after the first run","printed by the toys","以论文为准","grip_sweep","h < h*","Jordan","hand/analytic"].every(x=>src.includes(x)),"b18p2 sources note");
   ok(!/hornung13auro\.pdf/.test(src.split("not cited")[0]+src.split("not cited")[2]||""),"b18p2 sources note: Hornung PDF listed only as not cited");
@@ -9049,7 +9049,7 @@ print("protocol pass")
   ok(/"tobin-dr": \{[\s\S]*?Josh Tobin, Rachel Fong, Alex Ray, Jonas Schneider, Wojciech Zaremba, Pieter Abbeel[\s\S]*?PDF body read[\s\S]*?以论文为准[\s\S]*?extra: true/.test(res),"b20p2 tobin-dr: full author list, body read, 以论文为准");
   const p5=read("docs/notes/month-5-plan.md"), p7=read("docs/notes/month-7-plan.md");
   ok(p5.startsWith("# Month 5")&&["Current / 当前：**M5 3570 min**, Batch-22 PR2","## Batch-20 PR2","3210→3390","37230→37560","600→780","bf2716c4ad5d843f4e1c5a8cf4e62b0bd357d81c","37560=37230+180+150","## Batch-17 PR2"].every(x=>p5.includes(x)),"b20p2 month-5 plan header");
-  ok(p7.startsWith("# Month 7")&&["Current / 当前：**M7 3330 min**, Batch-20 PR3","## Batch-20 PR2","2970→3120","37230→37560","390→540","bf2716c4ad5d843f4e1c5a8cf4e62b0bd357d81c","37560=37230+180+150","## Batch-18 PR2"].every(x=>p7.includes(x)),"b20p2 month-7 plan header");
+  ok(p7.startsWith("# Month 7")&&["Current / 当前：**M7 3510 min**, Batch-22 PR3","## Batch-20 PR2","2970→3120","37230→37560","390→540","bf2716c4ad5d843f4e1c5a8cf4e62b0bd357d81c","37560=37230+180+150","## Batch-18 PR2"].every(x=>p7.includes(x)),"b20p2 month-7 plan header");
   const src=read("docs/notes/batch-20-pr2-sources.md");
   ok(["bf2716c4ad5d843f4e1c5a8cf4e62b0bd357d81c","37230","37560","wiki-rolling-shutter","tobin-dr","https://en.wikipedia.org/wiki/Rolling_shutter","1381766604","https://arxiv.org/abs/1703.06907","https://arxiv.org/pdf/1703.06907","**6 authors**","Josh Tobin, Rachel Fong, Alex Ray, Jonas Schneider, Wojciech Zaremba, Pieter Abbeel","HTTP **200**","Common random numbers","opencode","Lock changes","No lock relaxed","Post-hoc choices","Mismatch with §9","declared toy parameter","4.2034±0.1754","6.3269±0.2589","-3.4207±0.8743","0.1828±0.0448","-0.3300±0.1110","0.7390±0.3862","opposite direction from the paper's ablation","本页未运行","以论文为准","first accepted run"].every(x=>src.includes(x)),"b20p2 sources note");
   const planSec=(p,h)=>p.slice(p.indexOf(h),p.indexOf("\n## ",p.indexOf(h)+5));
@@ -9057,7 +9057,7 @@ print("protocol pass")
   ok(/40 140/.test(read("README.md"))&&/约 40 140 分钟/.test(read("README.md")),"b20p2 README site minutes (en + zh)");
   ok((()=>{const months=[...cur.matchAll(/const month(\d+)Lessons[\s\S]*?\];/g)]; let s=0; for(const m of months){for(const x of m[0].matchAll(/minutes:\s*(\d+)/g))s+=+x[1];} return s;})()===40140,"b20p2 curriculum: 37560 minutes (tip after batch-22 PR3: 38700)");
   ok([...cur.matchAll(/    minutes: (\d+),/g)].length===71,"b20p2 curriculum: still 71 lessons");
-  for(const [mo,want] of [[5,3570],[7,3330]])ok((()=>{const m=cur.match(new RegExp(`const month${mo}Lessons[\\s\\S]*?\\];`)); return [...m[0].matchAll(/minutes:\s*(\d+)/g)].reduce((a,x)=>a+(+x[1]),0);})()===want,`b20p2 curriculum: M${mo} ${want} minutes`);
+  for(const [mo,want] of [[5,3570],[7,3510]])ok((()=>{const m=cur.match(new RegExp(`const month${mo}Lessons[\\s\\S]*?\\];`)); return [...m[0].matchAll(/minutes:\s*(\d+)/g)].reduce((a,x)=>a+(+x[1]),0);})()===want,`b20p2 curriculum: M${mo} ${want} minutes`);
   // Difference-direction tags (A−B vs B−A, C−B) in prose, Summary, curriculum, plans and note must match expected/ paired lines.
   const dirOf=new Map();
   for(const line of bag.split("\n")){
@@ -9209,7 +9209,7 @@ print("protocol pass")
   for(const id of ["internvla-a1-pdf","graspvla-pdf"]){const e=res.slice(res.indexOf(`"${id}": {`)).split("\n  },")[0]; ok(/PDF body \(v[23]\) read/.test(e)&&e.includes("以论文为准")&&!/\d%/.test(e),`b20p3 ${id}: body read, 以论文为准, spaced percentages`);}
   const p9=read("docs/notes/month-9-plan.md"), p7=read("docs/notes/month-7-plan.md");
   ok(p9.startsWith("# Month 9")&&["Current / 当前：**M9 4110 min**, Batch-20 PR3","## Batch-20 PR3","3900→4110","37560→37980","840→1050","38f5083ba5eaf0de84cc822c6eb698b277596d73","37980=37560+210+210","## Batch-12 PR3"].every(x=>p9.includes(x)),"b20p3 month-9 plan header");
-  ok(p7.startsWith("# Month 7")&&["Current / 当前：**M7 3330 min**, Batch-20 PR3","## Batch-20 PR3","3120→3330","37560→37980","480→690","38f5083ba5eaf0de84cc822c6eb698b277596d73","37980=37560+210+210","## Batch-20 PR2"].every(x=>p7.includes(x)),"b20p3 month-7 plan header");
+  ok(p7.startsWith("# Month 7")&&["Current / 当前：**M7 3510 min**, Batch-22 PR3","## Batch-20 PR3","3120→3330","37560→37980","480→690","38f5083ba5eaf0de84cc822c6eb698b277596d73","37980=37560+210+210","## Batch-20 PR2"].every(x=>p7.includes(x)),"b20p3 month-7 plan header");
   const planSec=(p,h)=>{const i=p.indexOf(h),j=p.indexOf("\n## ",i+5);return p.slice(i,j>0?j:p.length);};
   ok([...planSec(p9,"## Batch-20 PR3").matchAll(/(\d+)\+(\d+)\+(\d+)\+(\d+)\+(\d+)=210/g)].length>=1&&[...planSec(p7,"## Batch-20 PR3").matchAll(/(\d+)\+(\d+)\+(\d+)\+(\d+)\+(\d+)=210/g)].length>=1,"b20p3 plans: allocation printed and summing label 210");
   for(const p of [planSec(p9,"## Batch-20 PR3"),planSec(p7,"## Batch-20 PR3")])for(const m of p.matchAll(/(\d+)\+(\d+)\+(\d+)\+(\d+)\+(\d+)=(\d+)/g))ok(+m[1]+ +m[2]+ +m[3]+ +m[4]+ +m[5]===+m[6],`b20p3 plan allocation ${m[0]} adds up`);
@@ -9219,7 +9219,7 @@ print("protocol pass")
   ok(/40 140/.test(read("README.md"))&&/约 40 140 分钟/.test(read("README.md")),"b20p3 README site minutes (en + zh)");
   ok((()=>{const months=[...cur.matchAll(/const month(\d+)Lessons[\s\S]*?\];/g)]; let s=0; for(const m of months){for(const x of m[0].matchAll(/minutes:\s*(\d+)/g))s+=+x[1];} return s;})()===40140,"b20p3 curriculum: 37980 minutes (tip after batch-22 PR3: 38700)");
   ok([...cur.matchAll(/    minutes: (\d+),/g)].length===71,"b20p3 curriculum: still 71 lessons");
-  for(const [mo,want] of [[7,3330],[9,4110]])ok((()=>{const m=cur.match(new RegExp(`const month${mo}Lessons[\\s\\S]*?\\];`)); return [...m[0].matchAll(/minutes:\s*(\d+)/g)].reduce((a,x)=>a+(+x[1]),0);})()===want,`b20p3 curriculum: M${mo} ${want} minutes`);
+  for(const [mo,want] of [[7,3510],[9,4110]])ok((()=>{const m=cur.match(new RegExp(`const month${mo}Lessons[\\s\\S]*?\\];`)); return [...m[0].matchAll(/minutes:\s*(\d+)/g)].reduce((a,x)=>a+(+x[1]),0);})()===want,`b20p3 curriculum: M${mo} ${want} minutes`);
   ok(["b20p3-internvla-a1","b20p3-graspvla"].every(id=>cur.includes(`id: "${id}"`)),"b20p3 curriculum: both tasks present");
   // Difference-direction tags (A−B vs B−A, C−B, D−B) in prose, Summary, curriculum, plans and note must match expected/ paired lines.
   const dirOf=new Map();
@@ -10005,7 +10005,7 @@ print("protocol pass")
   }
   const p5=read("docs/notes/month-5-plan.md"), p11=read("docs/notes/month-11-plan.md");
   ok(p5.startsWith("# Month 5")&&["Current / 当前：**M5 3570 min**, Batch-22 PR2","## Batch-22 PR2","3390→3570","39420→39780","600→780","833aac3e5ab0a197f7f1dcb155ad3c4f7c956b15","39780=39420+180+180","30+25+50+40+35=180","## Batch-20 PR2"].every(x=>p5.includes(x)),"b22p2 month-5 plan header");
-  ok(/# Month 11/.test(p11.split("\n")[0])&&["Current / 当前：**M11 3810 min**, Batch-22 PR2","## Batch-22 PR2","3630→3810","39420→39780","690→870","833aac3e5ab0a197f7f1dcb155ad3c4f7c956b15","39780=39420+180+180","30+25+50+40+35=180","## Batch-12 PR3"].every(x=>p11.includes(x)),"b22p2 month-11 plan header");
+  ok(/# Month 11/.test(p11.split("\n")[0])&&["Current / 当前：**M11 3990 min**, Batch-22 PR3","## Batch-22 PR2","3630→3810","39420→39780","690→870","833aac3e5ab0a197f7f1dcb155ad3c4f7c956b15","39780=39420+180+180","30+25+50+40+35=180","## Batch-12 PR3"].every(x=>p11.includes(x)),"b22p2 month-11 plan header");
   const src=read("docs/notes/batch-22-pr2-sources.md");
   ok(["833aac3e5ab0a197f7f1dcb155ad3c4f7c956b15","39420","39780","wiki-lqg","wiki-inrush","wiki-inrush-limiter","https://en.wikipedia.org/wiki/Linear–quadratic–Gaussian_control","https://en.wikipedia.org/wiki/Inrush_current","https://en.wikipedia.org/wiki/Inrush_current_limiter","rev 1337444202","rev 1326751079","rev 1312732367","Common random numbers","Lock changes","No lock relaxed","Post-hoc choices","Mismatch with §9","Code changes after the first run","declared toy parameter","declared model assumption","-0.0049±0.0026","0.0127±0.0147","0.3278±0.0755","1.7419±0.1192","本页未运行","以原文为准","手算"].every(x=>src.includes(x)),"b22p2 sources note");
   ok(!/opencode|DeepSeek|LongCat|MiniMax|MiMo|GLM/.test(src),"b22p2 sources note: no tools/process narrative");
@@ -10014,7 +10014,7 @@ print("protocol pass")
   ok(/40 140/.test(read("README.md"))&&/约 40 140 分钟/.test(read("README.md")),"b22p2 README site minutes (en + zh)");
   ok((()=>{const months=[...cur.matchAll(/const month(\d+)Lessons[\s\S]*?\];/g)]; let s=0; for(const m of months){for(const x of m[0].matchAll(/minutes:\s*(\d+)/g))s+=+x[1];} return s;})()===40140,"b22p2 curriculum: 40140 minutes");
   ok([...cur.matchAll(/slug: "/g)].length>=71,"b22p2 curriculum: catalogue still 71 lessons");
-  for(const [mo,want] of [[5,3570],[11,3810]])ok((()=>{const m=cur.match(new RegExp(`const month${mo}Lessons[\\s\\S]*?\\];`)); return [...m[0].matchAll(/minutes:\s*(\d+)/g)].reduce((a,x)=>a+(+x[1]),0);})()===want,`b22p2 curriculum: M${mo} ${want} minutes`);
+  for(const [mo,want] of [[5,3570],[11,3990]])ok((()=>{const m=cur.match(new RegExp(`const month${mo}Lessons[\\s\\S]*?\\];`)); return [...m[0].matchAll(/minutes:\s*(\d+)/g)].reduce((a,x)=>a+(+x[1]),0);})()===want,`b22p2 curriculum: M${mo} ${want} minutes`);
   const r1=read("examples/month-5/README.md"), r3=read("examples/month-11/README.md");
   ok(r1.includes("state-space-lqr/lqg_kalman_lqr_separation_toy.py")&&r3.includes("power-battery-emc/ntc_inrush_limiter_toy.py"),"b22p2 examples READMEs list the new toys");
   for(const [r,t] of [[r1,"lqg_kalman_lqr_separation_toy"],[r3,"ntc_inrush_limiter_toy"]]){const h=r.slice(0,r.indexOf(t)).split("\n## ").pop().split("\n")[0]; ok(!/Batch|批|PR\d/.test(h),`b22p2 examples README heading for ${t} is descriptive: ${h}`);}

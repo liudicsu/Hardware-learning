@@ -1,6 +1,6 @@
 # Month 7 plan: Simulation, reinforcement learning & 3D perception
 
-Current / 当前：**M7 3330 min**, Batch-20 PR3. Earlier entries below retain their historical totals.
+Current / 当前：**M7 3510 min**, Batch-22 PR3. Earlier entries below retain their historical totals.
 
 ## Batch-20 PR3 / 本月 H6 (+210)
 
