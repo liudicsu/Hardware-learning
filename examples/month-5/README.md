@@ -47,3 +47,7 @@ bash examples/month-5/check.sh
 ## Batch-20 PR2 / 第20批 PR2
 
 `camera-calibration/rolling_vs_global_shutter_toy.py`: standard-library synthetic row-scan model (global vs rolling vs slow rolling readout of one moving edge), no hardware; expected output in `expected/rolling_vs_global_shutter_toy.txt`, included in `check.sh`. Real camera 本页未运行. / 标准库合成的逐行扫描模型（全局快门、卷帘快门与慢速读出），不是硬件测量，输出由 `check.sh` 核对。
+
+## state-space-lqr/ — LQG: a Kalman filter with the same LQR gain / LQG：卡尔曼滤波器配同一个 LQR 增益
+
+`state-space-lqr/lqg_kalman_lqr_separation_toy.py`: standard-library synthetic mass-damper with a full-state oracle, a Kalman filter from the true noise covariances, two pole-placed Luenberger observers and a misspecified Kalman filter, all with the same LQR gain (matched, noisy and quiet sensor) on shared initial-state and noise draws; no hardware; expected output in `expected/lqg_kalman_lqr_separation_toy.txt`, included in `check.sh`. Real plant / IMU 本页未运行. / 标准库合成的质量-阻尼对象：全状态 oracle、按真实噪声协方差设计的卡尔曼滤波器、两个极点配置的 Luenberger 观测器和噪声模型写错的卡尔曼滤波器共用同一 LQR 增益，不是实测，输出由 `check.sh` 核对。

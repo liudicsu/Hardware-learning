@@ -1,6 +1,14 @@
 # Month 5 current plan / 第5个月当前计划
 
-Current / 当前：**M5 3390 min**, Batch-20 PR2. Older batch entries retain historical totals.
+Current / 当前：**M5 3570 min**, Batch-22 PR2. Older batch entries retain historical totals.
+
+## Batch-22 PR2 / 本月 H3 (+180)
+
+Base `833aac3e5ab0a197f7f1dcb155ad3c4f7c956b15` (batch-22 PR1 #189 merged; site **39420**). PR2 on M5 host: **M5 3390→3570 (+180)**; M11 moves in the same PR on its own plan. Site **39420→39780** (39780=39420+180+180), still 71 lessons.
+
+- **H3 / 5.2 state-space-lqr: 600→780 (+180).** LQG = Kalman filter + the same LQR gain (`lqg_kalman_lqr_separation_toy.py`; common random numbers, 5 seeds; one x0, process-noise and sensor-noise draw per regime and seed, shared by all five arms). Wikipedia Linear–quadratic–Gaussian control body read (rev 1337444202; 以原文为准): LQG = linear–quadratic estimator (Kalman filter) + LQR; separation principle; discrete predictive estimator with the gain from the noise covariances; LQG optimality does not automatically ensure good robustness. Same known mass-damper as the observer toy, no model error; declared toy parameters DT 0.02 s, M 1.0 kg, damping 0.40, SIG_W 0.04, Q diag(1.0, 0.1), R 0.01, 500 steps, P0 diag(0.25, 0.01). Hand calc (printed): K = [9.5023, 5.0042]; matched Kalman L = [0.1576, 0.6712]; page Lp = [0.3420, 1.3632]; first-step L1 = [0.9901, 0.0000]. matched: paired B−A cost `0.0284±0.0202`, **clear**, 5/5 (oracle privileged); paired B−C cost `-0.0049±0.0026`, **small**, 5/5; paired E−C cost `0.0807±0.0444`, **clear**, misspecified Kalman loses, **kept**. noisy_sensor: paired B−C cost `-0.1084±0.0036`, **clear**, 5/5. quiet_sensor: paired B−C cost `0.0127±0.0235`, near-tie; paired E−C cost `0.0127±0.0147`, near-tie (declared "E loses to C" did **not** hold as a consistent gap); paired B−A cost `0.0253±0.0355`, near-tie (oracle bound not consistent here, not pre-declared). Alternatives (declared, same seeds): V×100 / W×0.01 paired E−C cost `1.1922±0.2001`; page poles 0.90 / 0.85 paired B−C cost `0.0058±0.0064`; 1000 steps noisy paired B−C cost `-0.1120±0.0068`; none adopted. No code change after the first run. ≠ Luenberger model-error toy; ≠ H∞. Real plant / IMU 本页未运行. / LQG：卡尔曼滤波器配同一 LQR 增益，噪声模型对时胜出，写错时输给手放观测器。
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
 
 ## Batch-20 PR2 / 本月 H3 (+180)
 
