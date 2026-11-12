@@ -1,0 +1,97 @@
+Synthetic Peukert rate-capacity toy; shared (C, H) rating and shared k_true draws; not a pack measurement
+seeds=5 C=100.0000 Ah H=20.0000 h (I_rated=C/H=5.0000 A) K_DECL=1.2000 k_true lead-acid U[1.1500, 1.2500] k~1 pack U[1.0000, 1.0300] I_KNEE=50.0000 A GAMMA=0.2500 D_DERATE=0.8000 I_SD=0.0500 A (declared toy parameters, not a datasheet)
+No integration step: closed form, no time-step criterion
+Regimes and parameters were written before the first run
+rule: t = H * (C / (I*H)) ** k; nameplate clock t = C / I; high-current loss and D's cap apply iff I > I_KNEE (strict)
+hand_calc C=100.0 Ah H=20.0 h k=1.2 I=10.0 A: t=20*(100/(10*20))^1.2=8.7055 h, delivered I*t=87.0551 Ah (Wikipedia worked example: about 8.7 h and 87 Ah, 以原文为准); nameplate C/I=10.0000 h
+hand_calc rated I=C/H=5.0000 A: (C/(I*H))=1.0000 so t=H=20.0000 h for any k; C/I=20.0000 h
+boundary_rule: I=I_KNEE=50.0000 A -> D/B=1.0000 (no cap at equality); I=I_KNEE+1e-6 A -> D/B=0.8000
+rated (I=5.0000 A = 1.0000 x C/H; pack=lead_acid; self_discharge=off; high_current_loss=off):
+  k_true per seed: 1.2185 1.1964 1.1757 1.2419 1.2043
+  t_true per seed (h): 20.0000 20.0000 20.0000 20.0000 20.0000
+  A_nameplate t 20.0000+-0.0000 q 100.0000+-0.0000 err 0.0000+-0.0000 abs_err 0.0000+-0.0000
+  B_peukert t 20.0000+-0.0000 q 100.0000+-0.0000 err 0.0000+-0.0000 abs_err 0.0000+-0.0000
+  C_k1 t 20.0000+-0.0000 q 100.0000+-0.0000 err 0.0000+-0.0000 abs_err 0.0000+-0.0000
+  D_cap t 20.0000+-0.0000 q 100.0000+-0.0000 err 0.0000+-0.0000 abs_err 0.0000+-0.0000
+  A_nameplate over-predicts (err > 0) on 0/5 seeds, under-predicts on 0/5
+  B_peukert over-predicts (err > 0) on 0/5 seeds, under-predicts on 0/5
+  D_cap over-predicts (err > 0) on 0/5 seeds, under-predicts on 0/5
+  paired A-B t: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B abs_err: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A t: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A err: 0.0000+-0.0000: tie: identical on every seed
+  paired D-B abs_err: 0.0000+-0.0000: tie: identical on every seed
+high (I=20.0000 A = 4.0000 x C/H; pack=lead_acid; self_discharge=off; high_current_loss=off):
+  k_true per seed: 1.2068 1.2199 1.1514 1.2159 1.1643
+  t_true per seed (h): 3.7537 3.6860 4.0534 3.7069 3.9818
+  A_nameplate t 5.0000+-0.0000 q 100.0000+-0.0000 err 1.1636+-0.1692 abs_err 1.1636+-0.1692
+  B_peukert t 3.7893+-0.0000 q 75.7858+-0.0000 err -0.0471+-0.1692 abs_err 0.1356+-0.0917
+  C_k1 t 5.0000+-0.0000 q 100.0000+-0.0000 err 1.1636+-0.1692 abs_err 1.1636+-0.1692
+  D_cap t 3.7893+-0.0000 q 75.7858+-0.0000 err -0.0471+-0.1692 abs_err 0.1356+-0.0917
+  A_nameplate over-predicts (err > 0) on 5/5 seeds, under-predicts on 0/5
+  B_peukert over-predicts (err > 0) on 3/5 seeds, under-predicts on 2/5
+  D_cap over-predicts (err > 0) on 3/5 seeds, under-predicts on 2/5
+  paired A-B t: 1.2107+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B abs_err: 1.0280+-0.2552: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A t: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A err: -1.2107+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-B abs_err: 0.0000+-0.0000: tie: identical on every seed
+very_high (I=100.0000 A = 20.0000 x C/H; pack=lead_acid; self_discharge=off; high_current_loss=on):
+  k_true per seed: 1.1781 1.1704 1.1585 1.2267 1.2147
+  t_true per seed (h): 0.4931 0.5047 0.5231 0.4263 0.4420
+  A_nameplate t 1.0000+-0.0000 q 100.0000+-0.0000 err 0.5221+-0.0417 abs_err 0.5221+-0.0417
+  B_peukert t 0.5493+-0.0000 q 54.9280+-0.0000 err 0.0714+-0.0417 abs_err 0.0714+-0.0417
+  C_k1 t 1.0000+-0.0000 q 100.0000+-0.0000 err 0.5221+-0.0417 abs_err 0.5221+-0.0417
+  D_cap t 0.4394+-0.0000 q 43.9424+-0.0000 err -0.0384+-0.0417 abs_err 0.0437+-0.0346
+  A_nameplate over-predicts (err > 0) on 5/5 seeds, under-predicts on 0/5
+  B_peukert over-predicts (err > 0) on 5/5 seeds, under-predicts on 0/5
+  D_cap over-predicts (err > 0) on 1/5 seeds, under-predicts on 4/5
+  paired A-B t: 0.4507+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B abs_err: 0.4507+-5.551e-17: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A t: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A err: -0.4507+-5.551e-17: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-B abs_err: -0.0277+-0.0757: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+low (I=0.5000 A = 0.1000 x C/H; pack=lead_acid; self_discharge=I_SD; high_current_loss=off):
+  k_true per seed: 1.2458 1.1722 1.1812 1.1806 1.1749
+  t_true per seed (h): 312.8178 265.9016 271.2247 270.8971 267.4628
+  A_nameplate t 200.0000+-0.0000 q 100.0000+-0.0000 err -77.6608+-19.7830 abs_err 77.6608+-19.7830
+  B_peukert t 316.9786+-0.0000 q 158.4893+-0.0000 err 39.3178+-19.7830 abs_err 39.3178+-19.7830
+  C_k1 t 200.0000+-0.0000 q 100.0000+-0.0000 err -77.6608+-19.7830 abs_err 77.6608+-19.7830
+  D_cap t 316.9786+-0.0000 q 158.4893+-0.0000 err 39.3178+-19.7830 abs_err 39.3178+-19.7830
+  A_nameplate over-predicts (err > 0) on 0/5 seeds, under-predicts on 5/5
+  B_peukert over-predicts (err > 0) on 5/5 seeds, under-predicts on 0/5
+  D_cap over-predicts (err > 0) on 5/5 seeds, under-predicts on 0/5
+  paired A-B t: -116.9786+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B abs_err: 38.3430+-39.5659: near-tie / small gap, within seed noise (|m| <= sd); same sign on all 5 seeds
+  paired C-A t: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A err: 116.9786+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-B abs_err: 0.0000+-0.0000: tie: identical on every seed
+misapplied (I=20.0000 A = 4.0000 x C/H; pack=k_one; self_discharge=off; high_current_loss=off):
+  k_true per seed: 1.0016 1.0169 1.0054 1.0227 1.0016
+  t_true per seed (h): 4.9887 4.8844 4.9629 4.8448 4.9891
+  A_nameplate t 5.0000+-0.0000 q 100.0000+-0.0000 err 0.0660+-0.0658 abs_err 0.0660+-0.0658
+  B_peukert t 3.7893+-0.0000 q 75.7858+-0.0000 err -1.1447+-0.0658 abs_err 1.1447+-0.0658
+  C_k1 t 5.0000+-0.0000 q 100.0000+-0.0000 err 0.0660+-0.0658 abs_err 0.0660+-0.0658
+  D_cap t 3.7893+-0.0000 q 75.7858+-0.0000 err -1.1447+-0.0658 abs_err 1.1447+-0.0658
+  A_nameplate over-predicts (err > 0) on 5/5 seeds, under-predicts on 0/5
+  B_peukert over-predicts (err > 0) on 0/5 seeds, under-predicts on 5/5
+  D_cap over-predicts (err > 0) on 0/5 seeds, under-predicts on 5/5
+  paired A-B t: 1.2107+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B abs_err: -1.0787+-0.1315: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A t: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A err: -1.2107+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-B abs_err: 0.0000+-0.0000: tie: identical on every seed
+alternative K_DECL on high (same seeds; B uses the alternative exponent):
+  K_DECL=1.1000: paired A-B abs_err@alt: 0.6472+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  K_DECL=1.3000: paired A-B abs_err@alt: 0.6260+-0.3383: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative K_DECL=1.3 on misapplied (same seeds; top of the lead-acid range on the k~1 pack):
+  paired A-B abs_err@alt: -1.5692+-0.1315: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative D_DERATE=0.90 and GAMMA=0.10 on very_high (same seeds):
+  D_DERATE=0.90: paired D-B abs_err@alt: -0.0393+-0.0251: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  GAMMA=0.10: paired D-B abs_err@alt: 0.0550+-0.0743: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  GAMMA=0.10: paired B-A err@alt: -0.4507+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative I_SD=0.0 on low (same seeds; no self-discharge in the generator):
+  B_peukert err@alt 5.8889+-23.1640
+  paired A-B abs_err@alt: 91.0895+-15.4044: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: at the rated current every rule agrees; a lead-acid exponent beats the nameplate clock at high current, over-predicts at very high current, and loses when it is applied to a pack whose capacity barely depends on current
+Real pack / BMS / calorimeter: 本页未运行; Wikipedia Peukert's law statements 以原文为准
