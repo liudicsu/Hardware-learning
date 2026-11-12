@@ -1,6 +1,19 @@
 # Month 2 plan / 第 2 个月计划
 
-Current / 当前：**M2 3030 min**, Batch-10 PR1. Earlier entries below retain their historical totals.
+Current / 当前：**M2 3390 min**, Batch-19 PR2. Earlier entries below retain their historical totals.
+
+## Batch-19 PR2 / 本月 H3+H4 (+360)
+
+Base `37181b1f9c6c64acdea478415ea7febdefc6e92d` (batch-19 PR1 #177 merged; site **36120**). PR2 only on M2 hosts: **M2 3030→3390 (+360)**. Site **36120→36480**, still 71 lessons.
+
+- **H3 / 2.3 esp32: 360→540 (+180).** Always-on vs Light-sleep vs Deep-sleep on a shared event timeline (`esp32_light_deep_sleep_toy.py`; common random numbers, 5 seeds). Declared toy currents I_ACTIVE=40.0 mA, I_LIGHT=0.80 mA, I_DEEP=0.01 mA, I_BOOT=50.0 mA and wake costs T_WAKE_LIGHT=0.001 s, T_BOOT_DEEP=0.300 s — not datasheet values; the ESP-IDF Sleep Modes body gives no current table or wake latency. Hand calc (printed): C<A iff g>0.4250 s, C<B iff g>18.9839 s (strict). long_idle: paired C−A `-39.7086±0.0026`, **clear**, 5/5; paired C−B `-0.5417±0.0023`, **clear**, 5/5. high_wake_rate (mean gap 0.25 s): paired C−B `21.1306±0.2356`, **clear**, 5/5 — Deep-sleep loses to Light-sleep, **kept**; the pre-declared possible loss vs A did not occur: paired C−A `-9.9044±0.2135`, **clear**, 5/5, printed as it came out, not retuned. missed_wake_source (digital-only GPIO): paired C−B missed `122.0000±10.3199`, **clear**, 5/5, **kept**. Alternatives I_BOOT=40.0 mA (C−A `-14.2824±0.1689`) and T_BOOT_DEEP=0.100 s (C−A `-20.2624±0.0965`) printed on the same seeds; no post-hoc retune. ≠ ADC section; ≠ FreeRTOS toy. Real ESP32 本页未运行. / 休眠能耗账，玩具电流不是数据手册数值。
+
+- **H4 / 2.5 sensors-fusion: 720→900 (+180).** I²C clock stretching (`i2c_clock_stretch_toy.py`; common random numbers, 5 seeds, 20×16 bytes per seed). Controller ignores SCL vs waits for SCL high vs waits with TIMEOUT_US=200.0 us (toy, strict `stretch > TIMEOUT_US` aborts). no_stretch: every paired line **tie: identical on every seed**. moderate_stretch: paired A−B bad_rate `0.8681±0.0111`, **clear**, 5/5; paired B−A bus_ms `12.0501±0.1307`, **clear**, 5/5; C−B tie. overtime_stretch: paired C−B bad_rate `0.9375±0.0000`, **clear**, 5/5, **kept**; paired B−A bus_ms `135.1400±0.7771`. Alternatives TIMEOUT_US=1000.0 (C−B tie on overtime) and 50.0 (C−B `0.7800±0.0216` on moderate) printed on the same seeds; no post-hoc retune. Ideal edges; ≠ I²C rise-time SI (arduino-io); ≠ scanner; ≠ RS-485. Real bus / analyser 本页未运行. / 时钟拉伸流控，不是上升时间。
+
+**Allocation / 安排:** 30+30+50+40+30=180 minutes per host (360 total).
+
+**Site accounting / 全站核算:** **36480=36120+360**; **M2=3390**, **71 lessons**.
+
 
 ## Batch-10 PR1 / 本月 H1 + H2 (+360)
 

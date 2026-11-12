@@ -750,6 +750,415 @@ Before you move on, you should be able to say yes to all of these:
 - I can explain when to use the Arduino core, ESP-IDF or MicroPython.
 - I have the web servo working from my phone, with the servo on its own supply and a shared ground.
 
+## ESP32 Light-sleep versus Deep-sleep energy
+
+<Resource id="idf-sleep-modes" />
+
+The ESP-IDF **Sleep Modes** page describes two major power-saving modes (以文档为准). In **Light-sleep** the digital peripherals, most of the RAM and the CPUs are clock-gated and their supply voltage is reduced; on exit they resume and their **internal state is preserved**. In **Deep-sleep** the CPUs, most of the RAM and all APB-clocked digital peripherals are **powered off**; only the RTC controller, the ULP coprocessor and RTC FAST / RTC SLOW memory stay on, and a Deep-sleep wake runs the wake stub and then loads the application. Wakeup sources can be **combined**: the RTC timer, touchpad, ext0 / ext1 (RTC IOs only), the ULP coprocessor, GPIO wakeup from Light-sleep (any IO, RTC or digital), and GPIO wakeup from Deep-sleep (only pins in the VDD3P3_RTC power domain). Wi-Fi and Bluetooth connections are **not maintained** in either mode. The page body we read gives **no sleep-current table and no wake-latency figure**, so every current and wake cost below is a **declared toy parameter**, not a datasheet value.
+
+This section is **not** the ADC attenuation / ADC2-under-Wi-Fi material above, and **not** the FreeRTOS priority toy on this page; it is **not** FreeRTOS tickless idle either.
+
+<Formula label="Per-cycle charge, Light-sleep">Q_B(g) = I_ACTIVE (T_WAKE_LIGHT + WORK) + I_LIGHT (g − T_WAKE_LIGHT − WORK)</Formula>
+
+<Formula label="Per-cycle charge, Deep-sleep">Q_C(g) = I_BOOT T_BOOT_DEEP + I_ACTIVE WORK + I_DEEP (g − T_BOOT_DEEP − WORK)</Formula>
+
+**Worked example — a labelled hand calculation, also printed by the toy.** With the declared parameters, one wake cycle of period g costs A = 40.0 × g, B = 1.9992 + 0.80 × g and C = 16.9965 + 0.01 × g in mA·s (the C formula is valid only for g ≥ T_BOOT_DEEP + WORK = 0.350 s). Setting them equal gives the break-even gaps: Deep-sleep uses strictly less charge than always-on **if and only if g > 0.4250 s**, and strictly less than Light-sleep **if and only if g > 18.9839 s**; at equality the two are a tie. At g = 60.00 s the toy prints A = 2400.0000, B = 49.9992, C = 17.5965 mA·s per cycle. At g = 0.25 s the C formula is **not valid**: Deep-sleep cannot finish its 0.300 s boot before the next event, so the event-driven run below is what counts.
+
+**No integration step here.** The toy adds up current × time between events; there is no ODE and no step-size stability criterion.
+
+### Fair setup
+
+`esp32_light_deep_sleep_toy.py` is **synthetic** and stdlib only. **Model assumptions:** the chip enters sleep the instant it is idle (no entry overhead); an event that arrives while the chip is awake (working or booting) is queued and served; an event on a source that is **not** enabled while the chip sleeps is **missed**; every served event costs WORK = 0.050 s at I_ACTIVE. Declared toy currents: I_ACTIVE = 40.0 mA, I_LIGHT = 0.80 mA, I_DEEP = 0.01 mA and I_BOOT = 50.0 mA; declared wake costs T_WAKE_LIGHT = 0.001 s and T_BOOT_DEEP = 0.300 s. None of these is quoted from Espressif. Wi-Fi is treated as down in both sleep arms: each wake counts one link drop, and reconnect energy is **not** modelled.
+
+| Arm | Sleep policy |
+|---|---|
+| A_active | never sleeps |
+| B_light | Light-sleep when idle; RAM kept; wakes on timer, RTC-IO GPIO and digital GPIO |
+| C_deep | Deep-sleep when idle; RAM lost on every wake, RTC SLOW counter kept; wakes on timer and RTC-IO GPIO only |
+
+**Common random numbers:** for each (regime, seed) the event timeline is drawn once and shared by all three arms. The arms differ **only** in the sleep mode, its wake sources and its wake cost. Five seeds. Metrics are mean current over the window, missed events, wakes and the mean time from an event to the start of its work, reported as mean±sd over seeds. A state check confirms that B keeps its RAM counter and that C keeps only its RTC SLOW counter.
+
+| Regime | Timeline | What was pre-declared |
+|---|---|---|
+| long_idle | RTC timer about every 60 s, 3600 s window | C **consistent** lowest energy vs A (and vs B) |
+| high_wake_rate | RTC-IO GPIO events, mean gap 0.25 s, plus the timer, 600 s window | C may **near-tie or lose** to A and loses to B because of wake overhead; **keep** |
+| missed_wake_source | timer about every 60 s plus events on a digital-only GPIO (mean gap 30.00 s) | C **consistent** miss, because that pin is not a Deep-sleep wake source; **keep** |
+
+The 0.25 s mean gap was chosen before the first run so that it sits below the hand-calculated 0.4250 s C-versus-A break-even.
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-2/esp32
+python3 esp32_light_deep_sleep_toy.py
+```
+
+<CodeSource path="examples/month-2/esp32/esp32_light_deep_sleep_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""ESP32 Light-sleep vs Deep-sleep energy over a shared event timeline.
+
+Synthetic charge bookkeeping, stdlib only.  Not esp_light_sleep_start() or
+esp_deep_sleep_start() on a board, not a power-analyser capture, not the
+FreeRTOS scheduler toy and not the ADC section.  Real ESP32: 本页未运行.
+ESP-IDF Sleep Modes statements 以文档为准.
+
+What the ESP-IDF Sleep Modes page says (and what this toy keeps):
+  Light-sleep: digital peripherals, most RAM and the CPUs are clock-gated and
+    their supply is reduced; on exit their internal state is preserved.
+  Deep-sleep: CPUs, most RAM and APB-clocked digital peripherals are powered
+    off; RTC controller, ULP, RTC FAST and RTC SLOW memory can stay on.  On a
+    Deep-sleep wake the chip runs the wake stub and then loads the app.
+  Wakeup sources can be combined.  ext0 / ext1 use RTC IOs only; GPIO wakeup
+    from Light-sleep works on any IO; Deep-sleep GPIO wakeup is limited to
+    RTC-domain pins.  Wi-Fi / Bluetooth connections are not maintained in
+    either sleep mode.
+The page body we read gives no sleep-current or wake-latency table, so every
+current and wake cost below is a declared toy parameter, printed, and NOT a
+datasheet value.
+
+Common random numbers: one event timeline per (regime, seed), shared by every
+arm.  Arms:
+  A_active : never sleeps (I_ACTIVE the whole window)
+  B_light  : Light-sleep whenever idle; T_WAKE_LIGHT wake cost; RAM kept;
+             wake sources timer + any GPIO
+  C_deep   : Deep-sleep whenever idle; T_BOOT_DEEP wake (stub + app load) at
+             I_BOOT; RAM lost on every wake, RTC SLOW counter kept;
+             wake sources timer + RTC-IO GPIO only
+The arms differ only in the sleep mode (and its wake sources and costs).
+An event that arrives while the chip is awake is queued and served; an event
+on a source that is not enabled while the chip sleeps is missed.  Sleep is
+entered immediately when idle (no entry overhead).  Wi-Fi is down in both
+sleep arms: each wake counts one link drop, but reconnect energy is NOT
+modelled.  No integration step: event-driven bookkeeping of I x t, no ODE.
+
+Regimes and parameters were written before the first run:
+  long_idle          : RTC timer wake every ~60 s, nothing else
+                       - C consistent lowest energy vs A (and vs B); keep
+  high_wake_rate     : RTC-IO GPIO events, mean gap 0.25 s (chosen below the
+                       hand-calculated C-vs-A break-even before the run)
+                       - C may near-tie or LOSE to A, and loses to B; keep
+  missed_wake_source : timer every ~60 s plus events on a digital-only GPIO
+                       - C consistent miss (not an enabled Deep-sleep wake
+                       source); B catches them; keep
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+
+# Declared model parameters, written before the first run.  Toy values, not
+# datasheet mA / uA, not measured here.
+I_ACTIVE = 40.0       # mA, CPU awake (toy)
+I_LIGHT = 0.8         # mA, Light-sleep floor (toy)
+I_DEEP = 0.01         # mA, Deep-sleep floor (toy)
+I_BOOT = 50.0         # mA, Deep-sleep wake: stub + app load + re-init (toy)
+T_WAKE_LIGHT = 0.001  # s, Light-sleep wake cost at I_ACTIVE (toy)
+T_BOOT_DEEP = 0.300   # s, Deep-sleep wake cost at I_BOOT (toy)
+WORK = 0.050          # s, work per served event at I_ACTIVE
+V_SUPPLY = 3.3        # V, only to convert charge to energy
+
+ARMS = ("A_active", "B_light", "C_deep")
+WAKE_SOURCES = {
+    "A_active": ("timer", "rtc_gpio", "digital_gpio"),
+    "B_light": ("timer", "rtc_gpio", "digital_gpio"),
+    "C_deep": ("timer", "rtc_gpio"),
+}
+REGIMES = {
+    "long_idle": {"window": 3600.0, "timer": 60.0, "gpio_gap": None, "gpio_src": None},
+    "high_wake_rate": {"window": 600.0, "timer": 60.0, "gpio_gap": 0.25, "gpio_src": "rtc_gpio"},
+    "missed_wake_source": {"window": 3600.0, "timer": 60.0, "gpio_gap": 30.0, "gpio_src": "digital_gpio"},
+}
+TIMER_JITTER = 0.5    # s, +/- uniform on each timer period
+
+
+def shared_timeline(regime, seed):
+    """Common random numbers: one event list used by every arm."""
+    rng = random.Random(f"{regime}/{seed}")
+    cfg = REGIMES[regime]
+    ev = []
+    t = 0.0
+    while True:
+        t += cfg["timer"] + rng.uniform(-TIMER_JITTER, TIMER_JITTER)
+        if t >= cfg["window"]:
+            break
+        ev.append((t, "timer"))
+    if cfg["gpio_gap"]:
+        t = 0.0
+        while True:
+            t += rng.expovariate(1.0 / cfg["gpio_gap"])
+            if t >= cfg["window"]:
+                break
+            ev.append((t, cfg["gpio_src"]))
+    ev.sort()
+    return ev
+
+
+def simulate(arm, events, window, i_boot=I_BOOT, t_boot=T_BOOT_DEEP):
+    charge = 0.0          # mA*s
+    busy_until = 0.0      # chip awake until this time; idle afterwards
+    served = missed = wakes = 0
+    lat = []
+    ram = rtc = 0         # RAM counter (lost in Deep-sleep) and RTC SLOW counter
+    ram_ok = True
+    if arm == "A_active":
+        for t, _src in events:
+            start = max(t, busy_until)
+            lat.append(start - t)
+            busy_until = start + WORK
+            served += 1
+            ram += 1
+            rtc += 1
+        charge = I_ACTIVE * max(window, busy_until)
+        return {"charge": charge, "served": served, "missed": 0, "wakes": 0,
+                "lat": sum(lat) / len(lat), "ram": ram, "rtc": rtc, "ram_ok": ram == served}
+    i_sleep = I_LIGHT if arm == "B_light" else I_DEEP
+    for t, src in events:
+        if t > busy_until:  # strictly after the last work ended: the chip is asleep
+            charge += i_sleep * (t - busy_until)
+            if src not in WAKE_SOURCES[arm]:
+                missed += 1
+                busy_until = t  # still asleep; sleep charge already counted up to t
+                continue
+            wakes += 1
+            if arm == "B_light":
+                charge += I_ACTIVE * T_WAKE_LIGHT
+                start = t + T_WAKE_LIGHT
+            else:
+                charge += i_boot * t_boot
+                start = t + t_boot
+                ram = 0  # RAM powered off in Deep-sleep
+        else:              # awake (working or booting): queue, any source is seen
+            start = busy_until
+        lat.append(start - t)
+        charge += I_ACTIVE * WORK
+        busy_until = start + WORK
+        served += 1
+        ram += 1
+        rtc += 1
+    if busy_until < window:
+        charge += i_sleep * (window - busy_until)
+    ram_ok = (ram == served) if arm == "B_light" else (ram <= served)
+    return {"charge": charge, "served": served, "missed": missed, "wakes": wakes,
+            "lat": (sum(lat) / len(lat)) if lat else 0.0, "ram": ram, "rtc": rtc, "ram_ok": ram_ok}
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def per_cycle_charge(arm, gap, i_boot=I_BOOT, t_boot=T_BOOT_DEEP):
+    """Hand calculation: charge (mA*s) for one wake cycle of period gap."""
+    if arm == "A_active":
+        return I_ACTIVE * gap
+    if arm == "B_light":
+        return I_ACTIVE * (T_WAKE_LIGHT + WORK) + I_LIGHT * (gap - T_WAKE_LIGHT - WORK)
+    return i_boot * t_boot + I_ACTIVE * WORK + I_DEEP * (gap - t_boot - WORK)
+
+
+def breakeven(i_boot=I_BOOT, t_boot=T_BOOT_DEEP):
+    # C < A  iff  gap > g_ca ;  C < B  iff  gap > g_cb  (strict; equality is a tie)
+    g_ca = (i_boot * t_boot + I_ACTIVE * WORK - I_DEEP * (t_boot + WORK)) / (I_ACTIVE - I_DEEP)
+    g_cb = ((i_boot * t_boot + I_ACTIVE * WORK - I_DEEP * (t_boot + WORK))
+            - (I_ACTIVE * (T_WAKE_LIGHT + WORK) - I_LIGHT * (T_WAKE_LIGHT + WORK))) / (I_LIGHT - I_DEEP)
+    return g_ca, g_cb
+
+
+def run_regime(regime, i_boot=I_BOOT, t_boot=T_BOOT_DEEP):
+    window = REGIMES[regime]["window"]
+    res = {arm: [] for arm in ARMS}
+    for seed in SEEDS:
+        ev = shared_timeline(regime, seed)
+        for arm in ARMS:
+            r = simulate(arm, ev, window, i_boot, t_boot)
+            r["avg_mA"] = r["charge"] / window
+            r["n_events"] = len(ev)
+            res[arm].append(r)
+    return res
+
+
+def col(res, arm, key):
+    return [r[key] for r in res[arm]]
+
+
+def main():
+    print("Synthetic ESP32 Light-sleep vs Deep-sleep toy; shared event timeline; not a board measurement")
+    print(f"seeds={len(SEEDS)} I_ACTIVE={I_ACTIVE:.1f} mA I_LIGHT={I_LIGHT:.2f} mA I_DEEP={I_DEEP:.2f} mA "
+          f"I_BOOT={I_BOOT:.1f} mA (declared toy currents, not datasheet values)")
+    print(f"T_WAKE_LIGHT={T_WAKE_LIGHT:.3f} s T_BOOT_DEEP={T_BOOT_DEEP:.3f} s WORK={WORK:.3f} s "
+          f"V_SUPPLY={V_SUPPLY:.1f} V (declared toy wake costs, not a documented latency)")
+    print("No integration step: event-driven I x t bookkeeping, no time-step criterion")
+    print("Regimes and parameters were written before the first run")
+    print("wake_sources: A all; B timer+rtc_gpio+digital_gpio (Light-sleep GPIO wakeup on any IO); "
+          "C timer+rtc_gpio (Deep-sleep GPIO wakeup on RTC IOs only)")
+    print("state_rule: Light-sleep keeps RAM; Deep-sleep loses RAM on every wake, RTC SLOW counter kept; "
+          "Wi-Fi down in both sleep arms (one link drop per wake, reconnect energy not modelled)")
+    g_ca, g_cb = breakeven()
+    print(f"hand_calc per-cycle charge at gap g (mA*s): A={I_ACTIVE:.1f}*g; B={I_ACTIVE*(T_WAKE_LIGHT+WORK)-I_LIGHT*(T_WAKE_LIGHT+WORK):.4f}+{I_LIGHT:.2f}*g; "
+          f"C={I_BOOT*T_BOOT_DEEP+I_ACTIVE*WORK-I_DEEP*(T_BOOT_DEEP+WORK):.4f}+{I_DEEP:.2f}*g (valid for g >= T_BOOT_DEEP+WORK={T_BOOT_DEEP+WORK:.3f} s)")
+    print(f"hand_calc break-even: C<A iff g>{g_ca:.4f} s; C<B iff g>{g_cb:.4f} s (strict; equality is a tie)")
+    for g in (60.0, 0.25):
+        qa, qb, qc = (per_cycle_charge(a, g) for a in ARMS)
+        valid = "valid" if g >= T_BOOT_DEEP + WORK else "below T_BOOT_DEEP+WORK: C cannot sleep between back-to-back events, formula not valid"
+        print(f"hand_calc g={g:.2f} s: A={qa:.4f} B={qb:.4f} C={qc:.4f} mA*s per cycle ({valid})")
+    for regime in REGIMES:
+        cfg = REGIMES[regime]
+        res = run_regime(regime)
+        n_ev = col(res, "A_active", "n_events")
+        gap = "none" if cfg["gpio_gap"] is None else f"{cfg['gpio_gap']:.2f} s on {cfg['gpio_src']}"
+        print(f"{regime} (window={cfg['window']:.0f} s timer~{cfg['timer']:.0f} s gpio_mean_gap={gap}; "
+              f"events/seed {min(n_ev)}..{max(n_ev)}):")
+        for arm in ARMS:
+            a, s = mean_sd(col(res, arm, "avg_mA"))
+            mh = [r["charge"] / 3600.0 for r in res[arm]]
+            ej = [r["charge"] * V_SUPPLY / 1000.0 for r in res[arm]]
+            print(f"  {arm} avg_mA {fmt_pair(a, s)} mAh {fmt_pair(*mean_sd(mh))} J {fmt_pair(*mean_sd(ej))} "
+                  f"missed {fmt_pair(*mean_sd(col(res, arm, 'missed')))} wakes {fmt_pair(*mean_sd(col(res, arm, 'wakes')))} "
+                  f"latency_ms {fmt_pair(*mean_sd([1000.0 * x for x in col(res, arm, 'lat')]))}")
+        ok_b = all(r["ram_ok"] and r["rtc"] == r["served"] for r in res["B_light"])
+        ok_c = all(r["ram_ok"] and r["rtc"] == r["served"] for r in res["C_deep"])
+        lost_c = all(r["ram"] < r["served"] for r in res["C_deep"])
+        print(f"  state_check: B ram==served and rtc==served on every seed: {ok_b}; "
+              f"C rtc==served on every seed: {ok_c}; C ram<served (RAM lost) on every seed: {lost_c}")
+        print(f"  paired B-A avg_mA: {verdict(col(res, 'B_light', 'avg_mA'), col(res, 'A_active', 'avg_mA'))}")
+        print(f"  paired C-A avg_mA: {verdict(col(res, 'C_deep', 'avg_mA'), col(res, 'A_active', 'avg_mA'))}")
+        print(f"  paired C-B avg_mA: {verdict(col(res, 'C_deep', 'avg_mA'), col(res, 'B_light', 'avg_mA'))}")
+        print(f"  paired C-B missed: {verdict(col(res, 'C_deep', 'missed'), col(res, 'B_light', 'missed'))}")
+        print(f"  paired C-B latency_ms: {verdict([1000.0 * x for x in col(res, 'C_deep', 'lat')], [1000.0 * x for x in col(res, 'B_light', 'lat')])}")
+    base = run_regime("high_wake_rate")
+    for label, ib, tb in (("I_BOOT=40.0 mA (= I_ACTIVE)", 40.0, T_BOOT_DEEP), ("T_BOOT_DEEP=0.100 s", I_BOOT, 0.100)):
+        alt = run_regime("high_wake_rate", ib, tb)
+        g_ca2, _ = breakeven(ib, tb)
+        print(f"alternative {label} on high_wake_rate (same seeds; C-vs-A break-even g>{g_ca2:.4f} s):")
+        print(f"  C_deep avg_mA@alt {fmt_pair(*mean_sd(col(alt, 'C_deep', 'avg_mA')))} "
+              f"(default {fmt_pair(*mean_sd(col(base, 'C_deep', 'avg_mA')))})")
+        print(f"  paired C-A avg_mA@alt: {verdict(col(alt, 'C_deep', 'avg_mA'), col(alt, 'A_active', 'avg_mA'))}")
+    print("No winner declared: long idle favours Deep-sleep, a high wake rate erodes or reverses it, "
+          "and Deep-sleep misses events on a source it did not enable")
+    print("Real ESP32: 本页未运行; ESP-IDF Sleep Modes statements 以文档为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic ESP32 Light-sleep vs Deep-sleep toy; shared event timeline; not a board measurement
+seeds=5 I_ACTIVE=40.0 mA I_LIGHT=0.80 mA I_DEEP=0.01 mA I_BOOT=50.0 mA (declared toy currents, not datasheet values)
+T_WAKE_LIGHT=0.001 s T_BOOT_DEEP=0.300 s WORK=0.050 s V_SUPPLY=3.3 V (declared toy wake costs, not a documented latency)
+No integration step: event-driven I x t bookkeeping, no time-step criterion
+Regimes and parameters were written before the first run
+wake_sources: A all; B timer+rtc_gpio+digital_gpio (Light-sleep GPIO wakeup on any IO); C timer+rtc_gpio (Deep-sleep GPIO wakeup on RTC IOs only)
+state_rule: Light-sleep keeps RAM; Deep-sleep loses RAM on every wake, RTC SLOW counter kept; Wi-Fi down in both sleep arms (one link drop per wake, reconnect energy not modelled)
+hand_calc per-cycle charge at gap g (mA*s): A=40.0*g; B=1.9992+0.80*g; C=16.9965+0.01*g (valid for g >= T_BOOT_DEEP+WORK=0.350 s)
+hand_calc break-even: C<A iff g>0.4250 s; C<B iff g>18.9839 s (strict; equality is a tie)
+hand_calc g=60.00 s: A=2400.0000 B=49.9992 C=17.5965 mA*s per cycle (valid)
+hand_calc g=0.25 s: A=10.0000 B=2.1992 C=16.9990 mA*s per cycle (below T_BOOT_DEEP+WORK: C cannot sleep between back-to-back events, formula not valid)
+long_idle (window=3600 s timer~60 s gpio_mean_gap=none; events/seed 59..60):
+  A_active avg_mA 40.0000+-0.0000 mAh 40.0000+-0.0000 J 475.2000+-0.0000 missed 0.0000+-0.0000 wakes 0.0000+-0.0000 latency_ms 0.0000+-0.0000
+  B_light avg_mA 0.8331+-3.042e-04 mAh 0.8331+-3.042e-04 J 9.8972+-0.0036 missed 0.0000+-0.0000 wakes 59.6000+-0.5477 latency_ms 1.0000+-1.180e-12
+  C_deep avg_mA 0.2914+-0.0026 mAh 0.2914+-0.0026 J 3.4617+-0.0307 missed 0.0000+-0.0000 wakes 59.6000+-0.5477 latency_ms 300.0000+-1.121e-12
+  state_check: B ram==served and rtc==served on every seed: True; C rtc==served on every seed: True; C ram<served (RAM lost) on every seed: True
+  paired B-A avg_mA: -39.1669+-3.042e-04: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A avg_mA: -39.7086+-0.0026: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B avg_mA: -0.5417+-0.0023: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B missed: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B latency_ms: 299.0000+-6.355e-14: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+high_wake_rate (window=600 s timer~60 s gpio_mean_gap=0.25 s on rtc_gpio; events/seed 2431..2483):
+  A_active avg_mA 40.0000+-0.0000 mAh 6.6667+-0.0000 J 79.2000+-0.0000 missed 0.0000+-0.0000 wakes 0.0000+-0.0000 latency_ms 6.4624+-0.3645
+  B_light avg_mA 8.9650+-0.0711 mAh 1.4942+-0.0119 J 17.7507+-0.1408 missed 0.0000+-0.0000 wakes 1944.8000+-20.5597 latency_ms 7.4598+-0.3644
+  C_deep avg_mA 30.0956+-0.2135 mAh 5.0159+-0.0356 J 59.5892+-0.4227 missed 0.0000+-0.0000 wakes 875.6000+-9.4763 latency_ms 222.3878+-1.4790
+  state_check: B ram==served and rtc==served on every seed: True; C rtc==served on every seed: True; C ram<served (RAM lost) on every seed: True
+  paired B-A avg_mA: -31.0350+-0.0711: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A avg_mA: -9.9044+-0.2135: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B avg_mA: 21.1306+-0.2356: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B missed: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B latency_ms: 214.9280+-1.3372: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+missed_wake_source (window=3600 s timer~60 s gpio_mean_gap=30.00 s on digital_gpio; events/seed 167..193):
+  A_active avg_mA 40.0000+-0.0000 mAh 40.0000+-0.0000 J 475.2000+-0.0000 missed 0.0000+-0.0000 wakes 0.0000+-0.0000 latency_ms 0.0607+-0.0892
+  B_light avg_mA 0.9011+-0.0056 mAh 0.9011+-0.0056 J 10.7047+-0.0661 missed 0.0000+-0.0000 wakes 181.6000+-9.8641 latency_ms 1.0607+-0.0892
+  C_deep avg_mA 0.2899+-0.0022 mAh 0.2899+-0.0022 J 3.4445+-0.0260 missed 122.0000+-10.3199 wakes 59.2000+-0.4472 latency_ms 298.0294+-1.9930
+  state_check: B ram==served and rtc==served on every seed: True; C rtc==served on every seed: True; C ram<served (RAM lost) on every seed: True
+  paired B-A avg_mA: -39.0989+-0.0056: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A avg_mA: -39.7101+-0.0022: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B avg_mA: -0.6111+-0.0074: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B missed: 122.0000+-10.3199: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B latency_ms: 296.9688+-1.9139: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative I_BOOT=40.0 mA (= I_ACTIVE) on high_wake_rate (same seeds; C-vs-A break-even g>0.3500 s):
+  C_deep avg_mA@alt 25.7176+-0.1689 (default 30.0956+-0.2135)
+  paired C-A avg_mA@alt: -14.2824+-0.1689: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative T_BOOT_DEEP=0.100 s on high_wake_rate (same seeds; C-vs-A break-even g>0.1750 s):
+  C_deep avg_mA@alt 19.7376+-0.0965 (default 30.0956+-0.2135)
+  paired C-A avg_mA@alt: -20.2624+-0.0965: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: long idle favours Deep-sleep, a high wake rate erodes or reverses it, and Deep-sleep misses events on a source it did not enable
+Real ESP32: 本页未运行; ESP-IDF Sleep Modes statements 以文档为准
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used on this page, in this order: **tie: identical on every seed** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when |paired mean| and its sd are both below 1e-9 (no sign count is printed on such a line); **near-tie / small gap, within seed noise** when |paired mean| ≤ sd; otherwise a **consistent** gap (|paired mean| > sd), called **small but consistent gap, not a tie** when |m| is under 20 % of the smaller arm mean and **clear gap, not a tie** otherwise. Every consistent line carries a same-sign count over the 5 seeds.
+
+- **long_idle.** A draws 40.0000 mA all the time; B averages 0.8331±3.042e-04 mA and C 0.2914±0.0026 mA. Paired C−A -39.7086±0.0026 and paired C−B -0.5417±0.0023 are both a **clear gap, not a tie** (same sign on all 5 seeds): with one wake a minute, Deep-sleep's lower floor beats its 0.300 s boot. The price is latency: C needs 300.0000 ms to be ready, B 1.0000 ms. The state check is True for both arms: B's RAM counter equals the served count; C's RAM counter is reset on every wake while its RTC SLOW counter still equals the served count.
+- **high_wake_rate.** With RTC-IO events every 0.25 s on average, B averages 8.9650±0.0711 mA and C 30.0956±0.2135 mA. Paired C−B 21.1306±0.2356 is a **clear gap, not a tie** (same sign on all 5 seeds): here Deep-sleep **loses** to Light-sleep, and C's mean latency is worse by paired C−B 214.9280±1.3372 ms. **Keep** this loss. The pre-declared possible loss **against A** did **not** happen with these parameters: paired C−A -9.9044±0.2135 is still a **clear gap, not a tie** in C's favour (same sign on all 5 seeds), although far smaller than in long_idle; C wakes 875.6000 times per seed against B's 1944.8000 because short gaps arrive while C is still booting. The cell is printed as it came out; it was not retuned toward a loss.
+- **missed_wake_source.** The digital-only GPIO can wake Light-sleep but is not a Deep-sleep wake source. C misses 122.0000±10.3199 events per seed while B misses none: paired C−B missed is 122.0000±10.3199, a **clear gap, not a tie** (same sign on all 5 seeds). **Keep** this miss. C still has the lowest current (paired C−A -39.7101±0.0022), which is exactly why the miss matters: the cheapest arm is also the one that does not hear the pin.
+
+**Choices made after seeing results.** None. The currents, wake costs, windows, the 0.25 s gap and both alternatives below were written before the first run. Alternatives on the same seeds for high_wake_rate: I_BOOT = 40.0 mA (equal to I_ACTIVE) moves the C-versus-A break-even to g > 0.3500 s and gives paired C−A -14.2824±0.1689; T_BOOT_DEEP = 0.100 s moves it to g > 0.1750 s and gives paired C−A -20.2624±0.0965. Both are a **clear gap, not a tie** in C's favour; neither was adopted, and the default boot cost stays.
+
+The page **does not declare a universal winner**: long idle favours Deep-sleep, a high wake rate erodes its advantage and lets Light-sleep win, and Deep-sleep misses events on a pin it cannot wake from. Real ESP32 and `esp_deep_sleep_start()` on a board: **本页未运行**.
+
+**180-minute work plan:** 30 min read the ESP-IDF Sleep Modes page (modes, wakeup sources, Wi-Fi); 30 min work the per-cycle charge and the two break-even gaps by hand; 50 min run the toy and read the three regimes and the state check; 40 min compare the printed I_BOOT = 40.0 mA and T_BOOT_DEEP = 0.100 s alternatives with seeds fixed; 30 min the exercises.
+
+### Exercises
+
+1. From the printed hand-calc lines, confirm that C uses strictly less charge than A if and only if g > 0.4250 s, and say why equality is a tie, not a win.
+2. Show from `shared_timeline` that A, B and C see the same events for a given regime and seed.
+3. In high_wake_rate, why does C wake fewer times than B and still draw more current?
+4. The digital-only GPIO in missed_wake_source wakes B but not C. Which ESP-IDF wakeup source would you move the signal to so that Deep-sleep can hear it, and what does that cost?
+5. Before any real board (本页未运行), write which currents and wake costs you would have to measure to replace the declared toy parameters, and why the Wi-Fi reconnect after each wake could change the high_wake_rate verdict.
+
 <Summary>
 
 **Key points**
@@ -764,6 +1173,7 @@ Before you move on, you should be able to say yes to all of these:
 - Power servos from a separate 5–6 V supply with a common ground, and measure their stall current.
 - FreeRTOS: higher numeric priority runs first; unbounded inversion needs a medium task; mutexes inherit, binary semaphores do not; inheritance bounds blocking.
 - ESP-IDF FreeRTOS is SMP dual-core; this lesson's scheduler toy is single-core. Zephyr: lower number = higher priority (text only).
+- ESP32 sleep: on a shared event timeline with declared toy currents (not datasheet values), long idle gives Deep-sleep the lowest current (paired C−A -39.7086±0.0026 mA, clear, 5/5); at a 0.25 s mean wake gap Deep-sleep loses to Light-sleep (paired C−B 21.1306±0.2356 mA, clear, 5/5, kept) and misses events on a pin it cannot wake from (paired C−B missed 122.0000±10.3199, clear, 5/5) — a synthetic model, not a board measurement.
 
 **Used next**
 

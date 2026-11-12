@@ -36,4 +36,7 @@ check rs485_termination_toy.txt "$PY" "$M2/arduino-io/rs485_termination_toy.py"
 check adc_enob_noise_toy.txt "$PY" "$M2/arduino-io/adc_enob_noise_toy.py"
 check mag_hard_soft_iron_toy.txt "$PY" "$M2/sensors-fusion/mag_hard_soft_iron_toy.py"
 
+check esp32_light_deep_sleep_toy.txt "$PY" "$M2/esp32/esp32_light_deep_sleep_toy.py"
+check i2c_clock_stretch_toy.txt "$PY" "$M2/sensors-fusion/i2c_clock_stretch_toy.py"
+
 exit $fail
