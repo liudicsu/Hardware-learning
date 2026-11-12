@@ -977,6 +977,8 @@ This section is **not** a redo of the pinhole model, the stereo depth σ or the 
 
 **Worked example — a labelled hand calculation, also printed by the toy.** With H = 480 rows and Δt_row = 30.0 µs the readout takes 479 × 30.0 µs = 14.3700 ms. An edge moving at 300.0 px/s therefore leans by 4.3110 px between the first and the last row, and an estimator that averages all rows and stamps the result at t0 is biased by half of that, 2.1555 px. At 1500.0 px/s the skew is 21.5550 px and the bias 10.7775 px; a readout four times slower at 300.0 px/s gives 17.2440 px of skew.
 
+**Sign convention, checked against the toy.** Row r = 0 is read first, at t0, and r grows down the frame (the usual image convention, row 0 at the top), so rows are read **top to bottom**; columns grow to the right, so **v > 0 means the edge moves right**. The toy draws the edge in row r at column x0 + v·t_r, so the fitted slope in columns per row is v·Δt_row plus noise, and the **signed** skew v·(H − 1)·Δt_row has the **same sign as v**: moving right, the lower rows sit further right. The toy prints only the magnitude, `skew_px` = |slope|·(H − 1), and every printed toy speed is positive, so `expected/` carries no sign; `tools/test_b20pol_shutter_skew_sign.py` checks the sign for v = ±300.0 and ±1500.0 px/s on the five seeds without changing the toy or its output.
+
 **No integration step here.** The toy evaluates closed-form positions; there is no ODE and no step-size criterion.
 
 ### Fair setup
