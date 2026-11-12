@@ -9729,5 +9729,32 @@ print("protocol pass")
   console.log("flare-openvla-oft PR3: FLARE future-latent alignment, OpenVLA-OFT parallel L1, and M6 3840 / M8 3990 / site 39060 locked");
 }
 
+// Batch-21 polish: learner-facing citation of the archived ROS wiki page, OpenVLA-OFT card authors, and no dev-process labels in lesson prose.
+{
+  const read=p=>readFileSync(join(root,p),"utf8"), res=read("src/lib/resources.ts");
+  for(const lang of ["en","zh"]){
+    const u=read(`src/content/m4/urdf-tf/${lang}.mdx`);
+    ok(lang==="en"?u.includes("the 2024-12-25 archived copy of the ROS wiki urdf/XML/link page (Wayback Machine; body read; the live page is the bot wall mentioned below) says URDF assumes a negative product-of-inertia convention, so ixy = −∫ x y dm"):u.includes("ROS wiki urdf/XML/link 页面的 2024-12-25 存档（Wayback Machine；已读正文；在线页面就是下文提到的机器人验证页）写明 URDF 采用负号的惯性积约定，即 ixy = −∫ x y dm"),`b21pol urdf-tf ${lang}: sign convention cited to the 2024-12-25 archived copy`);
+    ok(lang==="en"?u.includes("so the live URL is **not** cited here and is not in this lesson's resources; what is cited is the 2024-12-25 archived copy above"):u.includes("所以这里**不**引用它的在线网址，本课资源里也没有它；引用的是上面那份 2024-12-25 存档"),`b21pol urdf-tf ${lang}: archive cited, live URL not cited and not in resources`);
+    ok(!u.includes("batch-21 PR3 sources")&&!u.includes("来源说明")&&!/sources note/i.test(u),`b21pol urdf-tf ${lang}: no pointer to a development sources note`);
+    ok(!/wiki\.ros\.org/.test(u),`b21pol urdf-tf ${lang}: live ROS wiki URL still absent`);
+  }
+  ok(/"openvla-oft-paper": \{\n    id: "openvla-oft-paper",\n    url: "https:\/\/arxiv\.org\/abs\/2502\.19645",\n[^\n]*\n    author: "Moo Jin Kim, Chelsea Finn, Percy Liang",/.test(res)&&!/"openvla-oft-paper": \{[^}]*Kim et al\./.test(res),"b21pol openvla-oft-paper card: full author names Moo Jin Kim, Chelsea Finn, Percy Liang");
+  for(const lang of ["en","zh"]){
+    const v=read(`src/content/m6/vla-models/${lang}.mdx`), a=read(`src/content/m8/async-deployment/${lang}.mdx`), c=read(`src/content/m1/components/${lang}.mdx`);
+    ok(v.includes(lang==="en"?"A later revision edited only a docstring line":"后来的一次修订只改了一行文档字符串"),`b21pol vla-models ${lang}: docstring revision disclosed without a process label`);
+    ok(a.includes(lang==="en"?"A third change came in a later revision after review:":"第三处改动来自审阅后的一次修订："),`b21pol async-deployment ${lang}: third change disclosed without a process label`);
+    ok(c.includes(lang==="en"?"No label changed.":"没有标签改变。")&&!c.includes(lang==="en"?"kept in the sources note":"来源笔记"),`b21pol components ${lang}: no pointer to a development sources note`);
+  }
+  // Site-wide: lesson prose (outside code fences, SimOutput, inline code and link targets) carries no dev-process labels.
+  const files=[]; const walk=d=>{for(const e of readdirSync(join(root,d),{withFileTypes:true})){const p=`${d}/${e.name}`; if(e.isDirectory())walk(p); else if(/\/(en|zh)\.mdx$/.test(p))files.push(p);}};
+  walk("src/content");
+  const strip=t=>t.replace(/```[\s\S]*?```/g,"").replace(/<SimOutput[\s\S]*?<\/SimOutput>/g,"").replace(/`[^`\n]*`/g,"").replace(/\]\([^)]*\)/g,"]");
+  const bad=/\bbatch-\d+\b|\bPR ?\d+\b|sources? notes?\b|来源说明|来源笔记|\b[bB]\d{1,2}p(?:\d|ol)\b|\b(?:polish|收尾) PR\b/i;
+  ok(files.length>=142,`b21pol process-label sweep covers ${files.length} lesson pages`);
+  for(const f of files){const t=strip(read(f)), m=t.match(bad); ok(!m,`b21pol ${f}: no dev-process label in learner-visible prose${m?` (${JSON.stringify(t.slice(Math.max(0,m.index-40),m.index+40))})`:""}`);}
+  console.log("batch-21 polish: archived ROS wiki citation, OpenVLA-OFT authors, process-label sweep locked");
+}
+
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
 process.exit(failed ? 1 : 0);
