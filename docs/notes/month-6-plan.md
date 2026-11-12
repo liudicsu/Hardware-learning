@@ -1,6 +1,14 @@
 # Month 6 plan: Robot learning, specialisation & getting hired
 
-Current / 当前：**M6 3240 min**, Batch-16 PR3. Earlier entries below retain their historical totals.
+Current / 当前：**M6 3450 min**, Batch-17 PR3. Earlier entries below retain their historical totals.
+
+## Batch-17 PR3 — Magma Set-of-Mark / Trace-of-Mark on policy-evaluation (+210)
+
+Base `5825c94` (batch-17 PR2 merged as #170; site **34290**). PR3 touches M6 and M8: **M6 3240→3450 (+210)**, M8 3390→3600 (+210). Site **34290→34710**, still 71 lessons.
+
+- **H5 / policy-evaluation: 330→**540** (+210).** Set-of-Mark + Trace-of-Mark vs a direct point vs shuffled marks. Toy `magma_som_tom_toy.py`: K candidates in [0, 1]², shared scores (target SIGNAL 3.0 + N(0, 1)), A softmax-weighted point + SIG_REG 0.01, B argmax mark quantised to 256 bins + trace with tracked velocity, C permuted labels; 400 scenes × 5 seeds, common random numbers; no integration step. cluttered: B−A grounding +70.6000±1.9653 and success +82.1000±0.6982, clear, 5/5; C−B grounding −78.7500±1.2119. single_target: B−A grounding and success tie (identical on every seed); C = B (identity permutation). static_jitter (declared tie/lose): B−A success −62.1500±1.2324, clear, 5/5. ≠ HAMSTER / MolmoAct / TraceVLA / ThinkAct. Magma numbers 以论文为准; GPU / UI / robot 本页未运行.
+
+**Allocation / 安排:** 30+30+40+40+40+30 = 210 minutes.
 
 Course source: @DeRonin_'s 6-month roadmap (`COURSE_SOURCE` in src/lib/curriculum.ts). Month 6 topics there:
 imitation learning (behaviour cloning, ACT, diffusion policy), VLA models and which have open weights,

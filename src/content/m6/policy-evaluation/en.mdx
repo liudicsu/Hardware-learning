@@ -519,6 +519,313 @@ On `shared_IC`, the five draws land at 62.5 %, 67.5 %, 72.5 %, 85.0 %, 70.0 %. T
 
 <Quiz id="q5" question="On shared_IC, best_seed_cherry_pick is 85.0 % and median is 70.0 %. What should a report include?" options={["Only 85.0 %", "The median (and ideally every draw), not the best alone", "Only the Wilson interval of the best draw", "A single blended percentage of Wilson and across-draw spread"]} answer={1} explanation="Cherry-picking the best synthetic seed is the anti-pattern. Report the median (and the full set); keep count intervals and across-draw dispersion as separate layers." />
 
+## Set-of-Mark and Trace-of-Mark (Magma)
+
+The protocol above compares two policies on the same trials. This section applies the same habit to an **output interface** instead of a policy: should a model write a continuous point directly, or choose one of several numbered marks drawn on the image and then predict where that mark goes next? Magma, a foundation model for multimodal agents, uses the second form. The toy below is a **discrete stand-in** for that idea. It is **not** Magma's model, data or benchmarks, **not** a UI agent, and **not** HAMSTER's 2-D path, MolmoAct's traces, TraceVLA or ThinkAct.
+
+<Resource id="magma-paper" />
+
+**Source actually opened (arXiv abstract page, HTML and PDF body read).**
+
+- **Yang et al., Magma: A Foundation Model for Multimodal AI Agents (arXiv 2502.13130 v1, 13 authors, submitted 18 Feb 2025), section 3.2:**
+  - **Set-of-Mark.** Candidate regions or points are proposed (for example by segmentation or detection models), numeric marks are overlaid on them, and the model outputs a mark instead of raw coordinates. The paper's reason: the model "faces much less difficulties to predict the numeric marks".
+  - Coordinates are normalised by the image size and "quantized into 256 bins" (Figure 3 caption).
+  - **Trace-of-Mark.** On video, the model predicts the future traces of the marks. The paper says this forces the model to understand temporal dynamics and to "look ahead of time" before acting, and that "predicting traces uses much fewer tokens" than predicting next frames. Traces are extracted with the CoTracker point tracker, so unlabelled video can supervise them.
+  - Benchmark numbers are 以论文为准. GPU, UI or robot runs: **本页未运行**.
+
+### Marks, traces and what is measured
+
+With candidate positions `p_k`, shared relevance scores `s_k` and the target's true trace `p_target(τ)`:
+
+<Formula label="Direct arm A: a regressor's single point averages the candidates by softmax weight">p_A = Σ_k softmax(s)_k · p_k + ε</Formula>
+
+<Formula label="Set-of-Mark arm B: pick the best mark, then read its quantised position">p_B = q(p_k*),  k* = argmax_k s_k,  q(u) = (⌊256 u⌋ + 0.5) / 256</Formula>
+
+<Formula label="Trace-of-Mark: the chosen mark's trace over τ = 1 … L, with a tracked velocity">p_B(τ) = p_B + (v_k* + η) · τ</Formula>
+
+<Formula label="Trace error over the L future steps (printed × 100)">ADE = (1 / L) · Σ_τ ‖p(τ) − p_target(τ)‖</Formula>
+
+**Worked example.** The toy prints the weight a regressor would give the target with no score noise at all. In `cluttered` it is `0.7416` with `K 8`: the remaining weight goes to the other `K − 1` candidates, so the averaged point is pulled away from the target even before noise, and `RADIUS 0.05` is small. The target also moves `0.0800` over `L`, more than `RADIUS`, so a plan that stays where it starts can only succeed at step `L` by luck. In `single_target` the weight is `1.0000`: A's only error is the regression noise `SIG_REG 0.01`, and B's only error is quantisation, at most `0.001953` per axis. In `static_jitter` the weight is `0.9526` and the target moves `0.0000` over `L`, but B's tracked velocity carries an error with `SIG_TRK 0.012` per step, which grows with every step of the trace.
+
+**Correctness criterion.** The quantised point must stay within `0.5 / BINS` of the true coordinate on each axis; the toy prints that bound (`0.001953`) and the test file checks it on several coordinates, and checks A, B and C on a hand-built two-object scene. **No integration step:** every position is the closed form `p + v · τ`, so there is no step size to test.
+
+### Fair setup
+
+`magma_som_tom_toy.py` is **synthetic** and stdlib only. **Model assumptions:**
+- Image coordinates in `[0, 1]`, `K` candidates at uniform positions; object 0 is the instructed target; each object moves at a constant velocity of the regime's speed in a random direction.
+- One shared belief: the target's score is `SIGNAL` plus Gaussian noise, distractors get noise only, with `SIG_B`. A and B read the same scores; neither is a trained network.
+- A has no trace, so its plan for every future step is its one point. B and C use the same trace step; C's numeric labels sit on the wrong objects (a random permutation).
+- Grounding means the point is within `RADIUS` of the target now; success means the planned point at step `L` is within `RADIUS` of where the target is then.
+
+| Arm | Output | Trace |
+|---|---|---|
+| A_direct | one continuous point, softmax-weighted average plus `SIG_REG` noise | none (holds the point) |
+| B_somtom | the top-scoring mark, quantised to `BINS` bins | mark velocity plus `SIG_TRK` noise |
+| C_shuffle | the same choice, but marks drawn on the wrong objects | same as B |
+
+**Common random numbers:** for each (regime, seed) the positions, velocities, scores, regression noise, tracking noise and permutation of every scene are drawn once and used by all three arms. Five seeds of `SCENES 400` each.
+
+| Regime | Candidates | Target speed | Tracking noise | Expected (written before the first run) |
+|---|---|---|---|---|
+| cluttered | K 8 | 0.01 per step | 0.002 | B consistent win over A on grounding and success |
+| single_target | K 1 | static | 0 | A and B tie on grounding and success |
+| static_jitter | K 2 | static | 0.012 | B ties or loses to A on success |
+
+C was expected to lose to B on grounding in every regime with more than one candidate.
+
+**Choices made after seeing results.** None. No constant, arm, metric or regime was changed after the first run, and the table below is that first run. The proposal for this section expected a near-tie for a single obvious target; the toy instead declared a tie on grounding and success for `single_target`, and added `static_jitter` as a regime where B was expected to tie or lose. Alternatives not taken, so no numbers for them appear here: a larger `RADIUS`, which would let A's averaged point count as grounded more often; and a velocity estimate for A, which would turn it into a trace model.
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-6/policy-evaluation
+python3 magma_som_tom_toy.py
+```
+
+<CodeSource path="examples/month-6/policy-evaluation/magma_som_tom_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Magma-style Set-of-Mark + Trace-of-Mark vs direct coordinate output vs shuffled marks, on shared scenes.
+
+Synthetic, stdlib only.  Not Magma's model, data or benchmarks: a discrete stand-in for the two
+ideas in the paper's section 3.2 (select a numbered mark instead of regressing a coordinate; then
+predict the mark's future trace).  Not a UI agent, not HAMSTER's 2-D path, not MolmoAct traces,
+not TraceVLA, not ThinkAct.  Magma benchmark numbers are 以论文为准; GPU, UI or robot runs:
+本页未运行.
+
+Scene (image coordinates normalised to [0, 1], as in the paper): K candidate objects at uniform
+positions; object 0 is the instructed target.  Each object moves with a constant velocity per
+step (speed set by the regime, random direction); its true trace is p + v * tau, tau = 1..L.
+Shared belief: the same noisy relevance score per candidate, target SIGNAL + N(0, SIG_B),
+distractors N(0, SIG_B); softmax weights w_k.
+Arms (same scene, same scores):
+  A_direct  outputs one continuous point: sum_k w_k p_k plus N(0, SIG_REG) per axis (a regressor
+            averages its candidates); no trace, so its plan for every future step is that point
+  B_somtom  selects the mark with the highest score; the point is that mark's position quantised
+            to BINS bins per axis (the paper quantises coordinates into 256 bins); then predicts
+            the mark's trace with a tracked velocity v + N(0, SIG_TRK) per axis
+  C_shuffle same selection and trace step as B, but the numeric labels are drawn on the wrong
+            objects (a uniform random permutation; with K = 1 it can only be the identity)
+Metrics per seed (SCENES scenes): grounding % (point within RADIUS of the target now), trace ADE
+(mean distance to the target's true trace over L steps, x 100), success % (planned point at step
+L within RADIUS of the target then).  No integration step: positions are closed form per step.
+Common random numbers: per (regime, seed), the positions, velocities, scores, regression noise,
+tracking noise and permutations are drawn once per scene and used by all three arms.
+Regimes and expectations, written before the first run:
+  cluttered      K 8, speed 0.01 per step, SIG_TRK 0.002   B consistent win over A on grounding
+                                                            and success
+  single_target  K 1, static, SIG_TRK 0                      A and B tie on grounding and success
+  static_jitter  K 2, static, SIG_TRK 0.012                 B ties or loses to A on success (the
+                                                            trace adds error to a static target)
+  C loses to B on grounding in every regime with K > 1.
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+SCENES = 400
+L = 8              # trace length (steps)
+RADIUS = 0.05
+BINS = 256
+SIGNAL, SIG_B = 3.0, 1.0
+SIG_REG = 0.01
+NUM_ZERO = 1e-9
+ARMS = ("A_direct", "B_somtom", "C_shuffle")
+# name: (K, speed per step, SIG_TRK); written before the first run
+REGIMES = {
+    "cluttered": (8, 0.01, 0.002),
+    "single_target": (1, 0.0, 0.0),
+    "static_jitter": (2, 0.0, 0.012),
+}
+STREAM = {"cluttered": 0, "single_target": 1, "static_jitter": 2}
+
+
+def quantise(u):
+    k = min(BINS - 1, max(0, int(u * BINS)))
+    return (k + 0.5) / BINS
+
+
+def shared_draws(regime, seed):
+    rng = random.Random(1000 * STREAM[regime] + seed)
+    k, speed, sig_trk = REGIMES[regime]
+    scenes = []
+    for _ in range(SCENES):
+        pos = [(rng.uniform(0.05, 0.95), rng.uniform(0.05, 0.95)) for _ in range(k)]
+        vel = []
+        for _ in range(k):
+            th = rng.uniform(0.0, 2.0 * math.pi)
+            vel.append((speed * math.cos(th), speed * math.sin(th)))
+        score = [(SIGNAL if i == 0 else 0.0) + rng.gauss(0.0, SIG_B) for i in range(k)]
+        reg = (rng.gauss(0.0, SIG_REG), rng.gauss(0.0, SIG_REG))
+        trk = (rng.gauss(0.0, sig_trk), rng.gauss(0.0, sig_trk)) if sig_trk > 0 else (0.0, 0.0)
+        perm = list(range(k))
+        rng.shuffle(perm)
+        scenes.append((pos, vel, score, reg, trk, perm))
+    return scenes
+
+
+def plan(arm, scene):
+    pos, vel, score, reg, trk, perm = scene
+    if arm == "A_direct":
+        mx = max(score)
+        w = [math.exp(s - mx) for s in score]
+        tot = sum(w)
+        px = sum(wi * p[0] for wi, p in zip(w, pos)) / tot + reg[0]
+        py = sum(wi * p[1] for wi, p in zip(w, pos)) / tot + reg[1]
+        return [(px, py)] * (L + 1)
+    sel = max(range(len(score)), key=lambda i: score[i])
+    obj = perm[sel] if arm == "C_shuffle" else sel
+    p = (quantise(pos[obj][0]), quantise(pos[obj][1]))
+    v = (vel[obj][0] + trk[0], vel[obj][1] + trk[1])
+    return [(p[0] + v[0] * t, p[1] + v[1] * t) for t in range(L + 1)]
+
+
+def evaluate(arm, scenes):
+    g = s = ade = 0.0
+    for sc in scenes:
+        pos, vel = sc[0], sc[1]
+        tr = [(pos[0][0] + vel[0][0] * t, pos[0][1] + vel[0][1] * t) for t in range(L + 1)]
+        pl = plan(arm, sc)
+        g += math.dist(pl[0], tr[0]) <= RADIUS
+        s += math.dist(pl[L], tr[L]) <= RADIUS
+        ade += sum(math.dist(pl[t], tr[t]) for t in range(1, L + 1)) / L
+    n = len(scenes)
+    return {"ground": 100.0 * g / n, "ade": 100.0 * ade / n, "success": 100.0 * s / n}
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-5:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{num(m)}+-{num(s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{num(m)}+-{num(s)}: {label}; {sign_note(diffs, m)}"
+
+
+def main():
+    print("Synthetic Magma-style probe: direct point vs Set-of-Mark + Trace-of-Mark vs shuffled marks; discrete stand-in, not Magma")
+    print(f"SCENES={SCENES} L={L} RADIUS={RADIUS} BINS={BINS} SIGNAL={SIGNAL} SIG_B={SIG_B} SIG_REG={SIG_REG} seeds={len(SEEDS)}")
+    print(f"quantisation error at most {0.5 / BINS:.6f} per axis; no integration step (closed-form positions per step)")
+    print("regime arm grounding_% trace_ADE_x100 success_%  (mean+-sd over seeds)")
+    for regime, (k, speed, sig_trk) in REGIMES.items():
+        w0 = math.exp(SIGNAL) / (math.exp(SIGNAL) + (k - 1))
+        print(f"{regime} (K {k}; speed {speed} per step, target moves {speed * L:.4f} over L; SIG_TRK {sig_trk}; noise-free target weight {w0:.4f})")
+        draws = [shared_draws(regime, s) for s in SEEDS]
+        res = {arm: [evaluate(arm, d) for d in draws] for arm in ARMS}
+        for arm in ARMS:
+            cols = ["{}+-{}".format(*map(num, mean_sd([r[key] for r in res[arm]]))) for key in ("ground", "ade", "success")]
+            print(f"  {arm} " + " ".join(cols))
+        for x, y in (("B_somtom", "A_direct"), ("C_shuffle", "B_somtom")):
+            for key in ("ground", "ade", "success"):
+                print(f"  paired {x[0]}-{y[0]} {key}: {verdict([r[key] for r in res[x]], [r[key] for r in res[y]])}")
+    print("No winner declared: marks help where a regressor averages many candidates, change nothing with one target, and a noisy trace hurts a static target; wrong marks hurt")
+    print("Magma benchmark numbers 以论文为准; GPU / UI / robot: 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic Magma-style probe: direct point vs Set-of-Mark + Trace-of-Mark vs shuffled marks; discrete stand-in, not Magma
+SCENES=400 L=8 RADIUS=0.05 BINS=256 SIGNAL=3.0 SIG_B=1.0 SIG_REG=0.01 seeds=5
+quantisation error at most 0.001953 per axis; no integration step (closed-form positions per step)
+regime arm grounding_% trace_ADE_x100 success_%  (mean+-sd over seeds)
+cluttered (K 8; speed 0.01 per step, target moves 0.0800 over L; SIG_TRK 0.002; noise-free target weight 0.7416)
+  A_direct 21.1500+-1.8507 14.7151+-0.4753 8.9000+-0.7202
+  B_somtom 91.7500+-0.7071 4.7943+-0.4859 91.0000+-1.1456
+  C_shuffle 13.0000+-1.1592 41.6208+-1.1449 12.9000+-1.1673
+  paired B-A ground: 70.6000+-1.9653: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A ade: -9.9207+-0.7258: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success: 82.1000+-0.6982: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B ground: -78.7500+-1.2119: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B ade: 36.8265+-1.1706: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: -78.1000+-1.4427: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+single_target (K 1; speed 0.0 per step, target moves 0.0000 over L; SIG_TRK 0.0; noise-free target weight 1.0000)
+  A_direct 100.0000+-0.0000 1.2746+-0.0277 100.0000+-0.0000
+  B_somtom 100.0000+-0.0000 0.1497+-0.0029 100.0000+-0.0000
+  C_shuffle 100.0000+-0.0000 0.1497+-0.0029 100.0000+-0.0000
+  paired B-A ground: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A ade: -1.1249+-0.0282: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B ground: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B ade: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B success: 0.0000+-0.0000: tie: identical on every seed
+static_jitter (K 2; speed 0.0 per step, target moves 0.0000 over L; SIG_TRK 0.012; noise-free target weight 0.9526)
+  A_direct 74.3000+-1.1096 4.7114+-0.2342 74.3000+-1.1096
+  B_somtom 98.4000+-0.6275 7.5920+-0.2921 12.1500+-1.2942
+  C_shuffle 50.1500+-0.8216 27.4193+-1.0790 6.4000+-1.0398
+  paired B-A ground: 24.1000+-0.8023: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A ade: 2.8806+-0.1251: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success: -62.1500+-1.2324: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B ground: -48.2500+-1.1592: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B ade: 19.8272+-1.0252: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: -5.7500+-0.3953: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: marks help where a regressor averages many candidates, change nothing with one target, and a noisy trace hurts a static target; wrong marks hurt
+Magma benchmark numbers 以论文为准; GPU / UI / robot: 本页未运行
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used on this page, in this order: **tie: identical on every seed** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when `|paired mean|` and its sd are both below 1e-9 (no sign count is printed on such a line); **near-tie / small gap, within seed noise** when `|paired mean| ≤ sd`; otherwise a **consistent** gap (`|paired mean| > sd`), called **small** if `|m|` is under 20 % of the smaller arm mean and **clear** otherwise; the 20 % rule only chooses between those two words. Every consistent line carries a same-sign count over the 5 seeds, and any seed with the opposite sign is reported; a sign count alone never makes a gap consistent. Gaps are computed from unrounded values. Paired differences are B−A and C−B. Grounding and success are in percent; trace ADE is printed × 100.
+
+- **cluttered:**
+  - **Marks win with a clear gap:** B−A grounding +70.6000±1.9653 and B−A success +82.1000±0.6982, same sign on all 5 seeds. A grounds 21.1500 % of scenes and B 91.7500 %. B−A trace ADE is −9.9207±0.7258, also clear on all 5 seeds.
+  - **Wrong marks lose with a clear gap:** C−B grounding −78.7500±1.2119 and C−B success −78.1000±1.4427, same sign on all 5 seeds. C (13.0000 % grounding) is below even A: a confident pick of the wrong object is worse than an average.
+- **single_target:**
+  - **A and B tie on grounding and success:** both lines read tie: identical on every seed, with both arms at 100.0000 %.
+  - The trace error still differs: B−A ADE −1.1249±0.0282, clear on all 5 seeds. With one static target, A's error is its regression noise and B's is quantisation.
+  - C−B is a tie on all three metrics. With `K 1` the shuffle can only be the identity, so this regime cannot test wrong marks.
+- **static_jitter:**
+  - **B loses on success with a clear gap:** B−A success −62.1500±1.2324, same sign on all 5 seeds; A reaches 74.3000 % and B 12.1500 %. B−A trace ADE is +2.8806±0.1251, also clear. The target does not move, so B's trace only adds the tracked-velocity error.
+  - B still wins grounding now: B−A +24.1000±0.8023, clear on all 5 seeds. The mark is right at the start; the trace walks it away.
+  - C again loses to B: grounding −48.2500±1.1592 and success −5.7500±0.3953, both clear on all 5 seeds.
+
+The page **does not declare a universal winner**: marks help where a regressor would average many candidates, change nothing with one obvious target, and a noisy trace hurts on a target that does not move; marks on the wrong objects hurt everywhere they can. Magma's numbers are 以论文为准, and GPU, UI or robot runs are **本页未运行**.
+
+**210-minute work plan:** 30 min read section 3.2 and redo the worked example; 30 min check the formulas and the quantisation bound against the code; 40 min run the toy and read the three regimes; 40 min change `K`, the target speed and `SIG_TRK` with seeds fixed; 40 min the exercises; 30 min add grounding, trace ADE and success per seed to your evaluation protocol.
+
+### Exercises
+
+1. The printed noise-free target weight for `K 8` is 0.7416. Write it as a formula in `SIGNAL` and `K`, then work out the weight for `K 4` by hand.
+2. Show from `shared_draws` and `plan` that A, B and C see the same positions, velocities, scores and noise for a given regime and seed.
+3. Explain why C ties B in `single_target` and why that tie says nothing about mark quality. Which regime change would make C informative there?
+4. Set `SIG_TRK` in `static_jitter` to 0 with seeds fixed. Predict B−A success before you run, then run it and make the toy print the line you quote.
+5. Before a real UI or robot run (本页未运行), write the protocol: how marks are proposed, how traces are labelled, what counts as grounding and success, and which numbers you report per seed.
+
 ## Common mistakes
 
 - **Reporting the best session.** If you ran three **independent evaluation sessions of the same fixed policy**, report all three or their total (a pooled Wilson is then meaningful). Picking the best one is how 40 % becomes 90 %. Do **not** pool multiple synthetic draws × shared IC as if they were i.i.d. Bernoulli trials of one policy.
@@ -531,3 +838,10 @@ On `shared_IC`, the five draws land at 62.5 %, 67.5 %, 72.5 %, 85.0 %, 70.0 %. T
 - **Mixing Wilson/Beta with across-draw min/max into one unlabeled %.** Count uncertainty and seed dispersion are different layers.
 - **Pooling draws × shared IC into one Wilson.** Different `synthetic_policy_draw_k` are different policies; a pooled count interval is reserved for repeated evals of one fixed policy.
 - **Reporting only the best synthetic seed.** Print the median (and the full set). Cherry-picking is how 70 % becomes 85 %.
+
+<Summary>
+
+Report a success rate with its interval, compare policies on the same trials, work out the trial count before you start, read the failure table, and keep synthetic draws, paired and unpaired tables, and the two uncertainty layers apart. Arm runs: 本页未运行.
+
+- Set-of-Mark + Trace-of-Mark, a Magma-style discrete stand-in (`magma_som_tom_toy.py`): in a cluttered scene choosing a mark clearly beats a direct point (paired grounding +70.6000±1.9653, 5/5); with one target, grounding and success tie; on a static target a noisy trace clearly loses on success (−62.1500±1.2324); shuffled marks lose — not Magma's benchmarks.
+</Summary>

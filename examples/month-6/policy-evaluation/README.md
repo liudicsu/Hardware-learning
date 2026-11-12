@@ -25,3 +25,12 @@ python3 examples/month-6/policy-evaluation/eval_seed_layers_toy.py
 
 `synthetic_policy_draw_k` are scripted policies, not real training. `shared_IC` and `independent_IC` in separate tables; Wilson/Beta count intervals ≠ across-draw dispersion; best-seed vs median. Checklist → arXiv 2409.09491v2 §4. Real training 本页未运行.
 `synthetic_policy_draw_k` 是脚本化策略，不是真训练。`shared_IC` 与 `independent_IC` 分表；Wilson/Beta 计数区间 ≠ 跨 draw 离散；best-seed 对 median。清单 → arXiv 2409.09491v2 §4。真训练本页未运行。
+
+## magma_som_tom_toy.py — Set-of-Mark + Trace-of-Mark / 标记与轨迹
+
+```bash
+python3 examples/month-6/policy-evaluation/magma_som_tom_toy.py
+```
+
+Stdlib only. A Magma-style discrete stand-in on shared scenes: a direct point (softmax-weighted average) vs choosing a numbered mark (256-bin quantisation) and predicting its trace vs marks drawn on the wrong objects; grounding, trace ADE and success over five seeds with common random numbers; no integration step. Magma benchmarks 以论文为准; GPU / UI / robot 本页未运行.
+只用标准库。共享场景上的 Magma 风格离散替身：比较直接输出坐标点（softmax 加权平均）、选编号标记（256 区间量化）并预测其轨迹、以及标记画在错误物体上；5 个种子、共用随机数，报告 grounding、轨迹 ADE 和成功率；没有积分步。Magma 基准以论文为准；GPU / UI / 机器人本页未运行。

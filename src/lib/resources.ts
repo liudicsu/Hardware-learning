@@ -5917,6 +5917,34 @@ export const resources: Record<string, Resource> = {
     license: { zh: "CC BY-SA 4.0，© Wikipedia 贡献者；仅提供外链", en: "CC BY-SA 4.0, © Wikipedia contributors; external link only" },
     extra: true,
   },
+  "magma-paper": {
+    id: "magma-paper",
+    url: "https://arxiv.org/abs/2502.13130",
+    title: { zh: "Magma 论文（Yang 等，2025）", en: "Magma paper (Yang et al., 2025)" },
+    author: "Jianwei Yang, Reuben Tan, Qianhui Wu, Ruijie Zheng, Baolin Peng, Yongyuan Liang, Yu Gu, Mu Cai, Seonghyeon Ye, Joel Jang, Yuquan Deng, Lars Liden, Jianfeng Gao",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "Magma: A Foundation Model for Multimodal AI Agents：Set-of-Mark 在图像的候选区域上叠加数字标记，模型输出标记而不是原始坐标（坐标归一化后量化为 256 个区间）；Trace-of-Mark 在视频上预测标记的未来轨迹（用 CoTracker 提取），以“提前看”并利用无标注视频。arXiv 2502.13130 v1 第 3.2 节正文已读；基准数字以论文为准。",
+      en: "Magma: A Foundation Model for Multimodal AI Agents: Set-of-Mark overlays numeric marks on candidate regions and the model outputs a mark instead of raw coordinates (coordinates normalised and quantised into 256 bins); Trace-of-Mark predicts the marks' future traces on video (extracted with CoTracker) to look ahead and use unlabelled video. arXiv 2502.13130 v1 section 3.2 body read; benchmark numbers 以论文为准.",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
+  "chatvla-paper": {
+    id: "chatvla-paper",
+    url: "https://arxiv.org/abs/2502.14420",
+    title: { zh: "ChatVLA 论文（Zhou 等，2025）", en: "ChatVLA paper (Zhou et al., 2025)" },
+    author: "Zhongyi Zhou, Yichen Zhu, Minjie Zhu, Junjie Wen, Ning Liu, Zhiyuan Xu, Weibin Meng, Ran Cheng, Yaxin Peng, Chaomin Shen, Feifei Feng",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "ChatVLA: Unified Multimodal Understanding and Robot Control with Vision-Language-Action Model：只用机器人数据训练会在所有多模态基准上得 0（虚假遗忘），联合训练会损失控制（任务干扰）；补救是分阶段对齐（先控制，再逐步加入多模态数据）和共享注意力、分控制 / 理解两个 FFN 专家的 MoE。arXiv 2502.14420 v1 正文已读；以论文为准。",
+      en: "ChatVLA: Unified Multimodal Understanding and Robot Control with Vision-Language-Action Model: robot-only training scores 0 on every multimodal benchmark (spurious forgetting) and co-training costs control (task interference); the remedies are Phased Alignment (control first, then multimodal data added incrementally) and an MoE with shared attention and separate control / understanding FFN experts. arXiv 2502.14420 v1 body read; 以论文为准.",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

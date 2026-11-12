@@ -1,0 +1,36 @@
+Synthetic Magma-style probe: direct point vs Set-of-Mark + Trace-of-Mark vs shuffled marks; discrete stand-in, not Magma
+SCENES=400 L=8 RADIUS=0.05 BINS=256 SIGNAL=3.0 SIG_B=1.0 SIG_REG=0.01 seeds=5
+quantisation error at most 0.001953 per axis; no integration step (closed-form positions per step)
+regime arm grounding_% trace_ADE_x100 success_%  (mean+-sd over seeds)
+cluttered (K 8; speed 0.01 per step, target moves 0.0800 over L; SIG_TRK 0.002; noise-free target weight 0.7416)
+  A_direct 21.1500+-1.8507 14.7151+-0.4753 8.9000+-0.7202
+  B_somtom 91.7500+-0.7071 4.7943+-0.4859 91.0000+-1.1456
+  C_shuffle 13.0000+-1.1592 41.6208+-1.1449 12.9000+-1.1673
+  paired B-A ground: 70.6000+-1.9653: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A ade: -9.9207+-0.7258: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success: 82.1000+-0.6982: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B ground: -78.7500+-1.2119: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B ade: 36.8265+-1.1706: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: -78.1000+-1.4427: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+single_target (K 1; speed 0.0 per step, target moves 0.0000 over L; SIG_TRK 0.0; noise-free target weight 1.0000)
+  A_direct 100.0000+-0.0000 1.2746+-0.0277 100.0000+-0.0000
+  B_somtom 100.0000+-0.0000 0.1497+-0.0029 100.0000+-0.0000
+  C_shuffle 100.0000+-0.0000 0.1497+-0.0029 100.0000+-0.0000
+  paired B-A ground: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A ade: -1.1249+-0.0282: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B ground: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B ade: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B success: 0.0000+-0.0000: tie: identical on every seed
+static_jitter (K 2; speed 0.0 per step, target moves 0.0000 over L; SIG_TRK 0.012; noise-free target weight 0.9526)
+  A_direct 74.3000+-1.1096 4.7114+-0.2342 74.3000+-1.1096
+  B_somtom 98.4000+-0.6275 7.5920+-0.2921 12.1500+-1.2942
+  C_shuffle 50.1500+-0.8216 27.4193+-1.0790 6.4000+-1.0398
+  paired B-A ground: 24.1000+-0.8023: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A ade: 2.8806+-0.1251: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success: -62.1500+-1.2324: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B ground: -48.2500+-1.1592: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B ade: 19.8272+-1.0252: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: -5.7500+-0.3953: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: marks help where a regressor averages many candidates, change nothing with one target, and a noisy trace hurts a static target; wrong marks hurt
+Magma benchmark numbers 以论文为准; GPU / UI / robot: 本页未运行
