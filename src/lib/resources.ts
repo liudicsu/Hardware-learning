@@ -6661,7 +6661,64 @@ export const resources: Record<string, Resource> = {
     },
     extra: true,
   },
-  "madgwick-2010-report": {
+  "wiki-lqg": {
+    id: "wiki-lqg",
+    url: "https://en.wikipedia.org/wiki/Linear%E2%80%93quadratic%E2%80%93Gaussian_control",
+    title: {
+      zh: "Wikipedia：线性二次高斯控制（Linear–quadratic–Gaussian control）",
+      en: "Wikipedia: Linear–quadratic–Gaussian control",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "HTML 正文已读（rev 1337444202，HTTP 200，2026-11-13）。LQG 针对受加性高斯白噪声驱动的线性系统，求使二次代价期望最小的输出反馈律；LQG 控制器唯一，就是卡尔曼滤波器（线性二次估计器 LQE）加上线性二次调节器（LQR）。分离原理：状态估计器和状态反馈可以独立设计。卡尔曼增益由系统矩阵和过程、测量噪声的协方差决定；离散时间下给出了预测形式的估计器和两个 Riccati 差分方程。LQG 最优不自动保证鲁棒性。以原文为准。",
+      en: "HTML body read (rev 1337444202, HTTP 200, 2026-11-13). LQG concerns linear systems driven by additive white Gaussian noise and seeks the output-feedback law that minimises the expected quadratic cost; the LQG controller is unique and is a Kalman filter (a linear–quadratic estimator, LQE) combined with a linear–quadratic regulator (LQR). The separation principle: the state estimator and the state feedback can be designed independently. The Kalman gain follows from the system matrices and the process and measurement noise covariances; the discrete-time section gives the predictive estimator and two Riccati difference equations. LQG optimality does not automatically ensure good robustness. 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },  "wiki-inrush": {
+    id: "wiki-inrush",
+    url: "https://en.wikipedia.org/wiki/Inrush_current",
+    title: {
+      zh: "Wikipedia：浪涌电流（Inrush current）",
+      en: "Wikipedia: Inrush current",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "HTML 正文已读（rev 1326751079，HTTP 200，2026-11-13）。浪涌电流是设备刚接通时的最大瞬时输入电流；放电的电容对电源看起来像短路，从直流源充电时只受电源内阻和电容 ESR 限制。串联电阻能限制充电电流但会持续压降和耗电；NTC 热敏电阻自热后阻值下降；缺点是刚断电后 NTC 仍热、阻值低，冷却超过 1 分钟前限不住浪涌，而且不耐短路。以原文为准。",
+      en: "HTML body read (rev 1326751079, HTTP 200, 2026-11-13). Inrush current is the maximal instantaneous input current drawn when a device is first turned on; a discharged capacitor appears as a short circuit, and from a DC source the current is limited only by the source's internal resistance and the capacitor's ESR. A series resistor limits the charging current but keeps dropping voltage and dissipating power; an NTC thermistor's resistance falls as it self-heats; a disadvantage is that just after switch-off the NTC is still hot and cannot limit inrush unless it cools for more than 1 minute, and it is not short-circuit-proof. 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },  "wiki-inrush-limiter": {
+    id: "wiki-inrush-limiter",
+    url: "https://en.wikipedia.org/wiki/Inrush_current_limiter",
+    title: {
+      zh: "Wikipedia：浪涌电流限制器（Inrush current limiter）",
+      en: "Wikipedia: Inrush current limiter",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "HTML 正文已读（rev 1312732367，HTTP 200，2026-11-13）。NTC 热敏电阻串联在被保护电路中，初始阻值高，阻止接通时的大电流；电流流过后发热、阻值下降。热敏电阻必须持续耗散功率才能保持低阻，所以被保护电路不可能得到 100 % 的电源电压，工作电阻上的压降和功耗必须计入。固定电阻也常用来限浪涌，但阻值从不下降，效率更低；可以在浪涌结束后用继电器或 MOSFET 把它切出电路。以原文为准。",
+      en: "HTML body read (rev 1312732367, HTTP 200, 2026-11-13). An NTC thermistor in series with the protected circuit presents a higher initial resistance that prevents large turn-on currents, then heats up and its resistance falls. It must keep dissipating power to stay low-resistance, so it is inherently impossible for 100 % of the supply voltage to appear on the protected circuit; the voltage drop and power at its operating resistance must be taken into account. Fixed resistors are also used but are less efficient because their resistance never falls; they can be switched out with a relay or MOSFET after inrush. 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },  "madgwick-2010-report": {
     id: "madgwick-2010-report",
     url: "https://web.archive.org/web/20190715000000/https://x-io.co.uk/res/doc/madgwick_internal_report.pdf",
     title: {
