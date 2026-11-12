@@ -664,7 +664,7 @@ The 7-point 3-D count is a paper figure, **not** measured by the planar toy.
 
 ### Fair setup
 
-`form_closure_frictionless_toy.py` is **synthetic** and stdlib only. **Model assumptions:** a rigid square of half-width `1`, first-order rigid point contacts, Coulomb friction only when a force-closure flag is requested. Each frictionless wrench is `(fx, fy, px fy − py fx)` with the inward normal; a first-order escape twist `t` exists if some `t ≠ 0` has `w_i · t ≥ 0` for every wrench. Force-closure uses the two cone-edge wrenches at each contact. Mid-edge contacts on a square have `r` parallel to the normal, so the first-order moment vanishes and a pure rotation looks like an escape — that layout was tried first and dropped, and the toy still prints it as a disclosed alternative. The four form-closing contacts are therefore cyclically offset from the mid-points (`s = 0.75, 0.75, 0.75, 0.25`) **before** the first run.
+`form_closure_frictionless_toy.py` is **synthetic** and stdlib only. **Model assumptions:** a rigid square of half-width `1`, first-order rigid point contacts, Coulomb friction only when a force-closure flag is requested. Each frictionless wrench is `(fx, fy, px fy − py fx)` with the inward normal; a first-order escape twist `t` exists if some `t ≠ 0` has `w_i · t ≥ 0` for every wrench. Force-closure uses the two cone-edge wrenches at each contact. Mid-edge contacts on a square have `r` parallel to the normal, so the first-order moment vanishes and a pure rotation looks like an escape — that mid-edge layout was tried on the first run and then dropped, and the toy still prints it as a disclosed alternative. The four form-closing contacts of the first accepted run are cyclically offset from the mid-points (`s = 0.75, 0.75, 0.75, 0.25`); that offset was chosen after the first run.
 
 | Arm | Contacts on the shared square |
 |---|---|
@@ -876,8 +876,10 @@ def verdict(xa: list[float], xb: list[float]) -> str:
 
 
 # Cyclic offset from mid-edge: mid-edge contacts on a square have r || n, so
-# the first-order moment is zero and a pure rotation is an "escape". Offsets
-# are written before the first run; jitter stays on the same side of mid-edge.
+# the first-order moment is zero and a pure rotation is an "escape". That
+# mid-edge layout was tried on the first run and then dropped. The offsets
+# below are the layout of the first accepted run (changed after that first
+# run); jitter stays on the same side of mid-edge.
 NOMINAL_B = (("right", 0.75), ("top", 0.75), ("left", 0.75), ("bottom", 0.25))
 NOMINAL_C = (("left", 0.50), ("right", 0.50))
 NOMINAL_ALIGNED = (("left", 0.30), ("left", 0.70), ("right", 0.30), ("right", 0.70))
@@ -1075,7 +1077,7 @@ The toy also prints the paper counts `paper_min_frictionless_wrenches_2d_polygon
 - **large_mu_force.** The contacts are the same as in `mu0_form`; only `μ` changes. Form-closure is unchanged: B still leads A and C by `1.0000±0.0000`, clear, same sign on all 5 seeds, and C is still not form-closure. On force-closure at `μ = 1`, A, B and C are all `1.0000±0.0000`. Paired C−A and C−B on force-closure are both `0.0000±0.0000: tie: identical on every seed`. That cell is kept: a two-finger frictional grasp can be force-closure without being form-closure.
 - **aligned_normals.** Four contacts on only the two vertical edges have form-closure `0.0000±0.0000` on every seed (the normals are all horizontal, so a vertical translation is a first-order escape). Paired against the proper four-contact B, `B_four − B_aligned` is `1.0000±0.0000`: **clear gap, not a tie** (same sign on all 5 seeds). Four contacts are necessary, not sufficient.
 
-**Post-hoc alternatives, same seeds.** Narrowing the jitter to `0.05` leaves B−A form-closure at `1.0000±0.0000`, still a clear gap, same sign on all 5 seeds. Dropping `μ` to `0.2` on the same large-`μ` contacts is different: C stays force-closure `1.0000±0.0000` and still **ties** B, but A drops to force-closure `0.0000±0.0000`, so C−A becomes a **clear** `1.0000±0.0000` (same sign on all 5 seeds). Form-closure is unchanged. The mid-edge four-contact layout that was tried first has nominal form-closure `0` and escape `(+0.0000, +0.0000, +1.0000)` (pure rotation). With jitter about the mid-points it reaches form-closure `0.8000±0.4472` (it locks on 4 of 5 seeds); paired against the offset B the gap is `0.2000±0.4472`, a **near-tie** (no seed has the opposite sign, 4 of 5 equal). The offset layout was kept because of the nominal first-order degeneracy, not because the jittered mid-edge score was shopped.
+**Post-hoc alternatives, same seeds.** Narrowing the jitter to `0.05` leaves B−A form-closure at `1.0000±0.0000`, still a clear gap, same sign on all 5 seeds. Dropping `μ` to `0.2` on the same large-`μ` contacts is different: C stays force-closure `1.0000±0.0000` and still **ties** B, but A drops to force-closure `0.0000±0.0000`, so C−A becomes a **clear** `1.0000±0.0000` (same sign on all 5 seeds). Form-closure is unchanged. The mid-edge four-contact layout that was tried first has nominal form-closure `0` and escape `(+0.0000, +0.0000, +1.0000)` (pure rotation). With jitter about the mid-points it reaches form-closure `0.6000±0.5477` (it locks on 3 of 5 seeds); paired against the offset B the gap is `0.4000±0.5477`, a **near-tie** (`|m| ≤ sd`; no seed has the opposite sign, 3 of 5 equal). The offset layout was kept because of the nominal first-order degeneracy, not because the jittered mid-edge score was shopped.
 
 No arm is declared a universal winner: four well-placed frictionless contacts immobilize the square; two frictional fingers can be force-closure without being form-closure; four aligned normals are not enough.
 

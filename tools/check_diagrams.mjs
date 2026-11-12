@@ -8044,9 +8044,9 @@ print("protocol pass")
       {en:["Superposition","**tie**","**near-tie**","**clear**","3.7142857143 V","0.1750±0.0000 V"],zh:["叠加定理","**打平**","**接近打平**","**明显的**","3.7142857143 V","0.1750±0.0000 V"]},
       ["wiki-superposition"],"150-minute work plan","150 分钟安排"],
     [3,"gripper-fingers","form_closure_frictionless_toy",570,["## Form-closure without friction","## 无摩擦的形状封闭"],
-      ["seeds=5","paper_min_frictionless_wrenches_2d_polygon=4","paper_min_contact_points_3d=7","nominal B_four n=4 form_mu0=1","nominal A_three n=3 form_mu0=0","paired B-A form_mu0: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired C-A force_at_regime_mu: 0.0000+-0.0000: tie: identical on every seed","paired C-B force_at_regime_mu: 0.0000+-0.0000: tie: identical on every seed","paired B_four-B_aligned form_mu0: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","alternative four mid-edge contacts","alternative mu=0.2"],
+      ["seeds=5","paper_min_frictionless_wrenches_2d_polygon=4","paper_min_contact_points_3d=7","nominal B_four n=4 form_mu0=1","nominal A_three n=3 form_mu0=0","paired B-A form_mu0: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired C-A force_at_regime_mu: 0.0000+-0.0000: tie: identical on every seed","paired C-B force_at_regime_mu: 0.0000+-0.0000: tie: identical on every seed","paired B_four-B_aligned form_mu0: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","alternative four mid-edge contacts","jittered mid-edge form_mu0 0.6000+-0.5477","paired B_four-mid_edge form_mu0: 0.4000+-0.5477: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal","alternative mu=0.2"],
       ["form-closure","ψ(u + du, q) ≥ 0 ⇒ du = 0","1.0000±0.0000","以论文为准","本页未运行","Ferrari–Canny","aligned","Carpin","Zhang"],
-      {en:["**not** a redo of the Ferrari–Canny","**does not rely on friction**","**but not vice versa**","**synthetic**","**Model assumptions:**","**no integration step**","force-closure","**clear gap, not a tie**","**tie**","necessary, not sufficient","mid-edge"],zh:["**不是**感知到抓取课上 Ferrari–Canny","**不依赖摩擦**","**反之不然**","**合成**","**模型假设:**","**没有积分步长**","**明显差距，不是打平**","**打平**","必要的，但不是充分的","边中点"]},
+      {en:["**not** a redo of the Ferrari–Canny","**does not rely on friction**","**but not vice versa**","**synthetic**","**Model assumptions:**","**no integration step**","force-closure","**clear gap, not a tie**","**tie**","necessary, not sufficient","mid-edge","first accepted run","after the first run","0.6000±0.5477","0.4000±0.5477","3 of 5 equal","locks on 3 of 5 seeds"],zh:["**不是**感知到抓取课上 Ferrari–Canny","**不依赖摩擦**","**反之不然**","**合成**","**模型假设:**","**没有积分步长**","**明显差距，不是打平**","**打平**","必要的，但不是充分的","边中点","首次接受的运行","第一次运行之后","0.6000±0.5477","0.4000±0.5477","5 个里有 3 个相等","5 个种子里有 3 个锁住"]},
       {en:["Form-closure","**clear**","**ties**","1.0000±0.0000","at least 4","7 contact points","本页未运行"],zh:["形状封闭","**明显**","**打平**","1.0000±0.0000","至少 4","7 个接触点","本页未运行"]},
       ["grasp-primer-carpin","grasp-survey-zhang"],"180-minute work plan","180 分钟安排"],
   ];
@@ -8098,18 +8098,39 @@ print("protocol pass")
       ok(sec.includes(lang==="en"?planEn:planZh),`b18p1 ${slug} ${lang}: work plan minutes`);
       ok(!/\b(exact tie|ties exactly)\b|精确打平|−0\.0000(?!\d)/.test(prose),`b18p1 ${slug} ${lang}: no exact-tie wording or signed zero in prose`);
       ok(!/：\*\*|\*\*：/.test(sec),`b18p1 ${slug} ${lang}: no ** glued to a full-width colon`);
+      for(const m of prose.matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g))ok(expected.includes(`${m[1]}+-${m[2]}`),`b18p1 ${slug} ${lang}: prose ${m[0]} matches expected/`);
+      ok(!/0\.8000\s*±\s*0\.4472|0\.2000\s*±\s*0\.4472/.test(prose),`b18p1 ${slug} ${lang}: stale mid-edge 0.8000±0.4472 / 0.2000±0.4472 not in section prose`);
+      if(slug==="gripper-fingers"){
+        ok(!/locks on 4 of 5|4 of 5 equal|5 个种子里有 4 个锁住|5 个里有 4 个相等/.test(prose),`b18p1 ${slug} ${lang}: stale mid-edge 4-of-5 counts not in prose`);
+        ok(lang==="en"?(!/cyclically offset[\s\S]{0,120}\*\*before\*\* the first run/.test(prose)&&!prose.includes("**before** the first run")):(!prose.includes("在首次运行前就")&&!prose.includes("首次运行前就从边中点")),`b18p1 ${slug} ${lang}: offset layout is not claimed as written before the first run`);
+      }
       for(const h of sec.match(/^#{2,3} .*$/gm)||[])ok(!/\d+\s*(min|分钟)|Batch|PR\d|\bH\d\b/.test(h),`b18p1 ${slug} ${lang}: heading without minutes/process label ${h}`);
       const summ=md.slice(summary,end);
       for(const x of summaryMarkers[lang])ok(summ.includes(x),`b18p1 ${slug} ${lang}: Summary sentence ${x}`);
+      ok(!/0\.8000\s*±\s*0\.4472|0\.2000\s*±\s*0\.4472/.test(summ),`b18p1 ${slug} ${lang}: stale mid-edge numbers not in Summary`);
+      const newBullet=[...summ.split(/\n- /)].find(b=>summaryMarkers[lang].every(x=>b.includes(x)))||"";
+      for(const m of newBullet.matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g))ok(expected.includes(`${m[1]}+-${m[2]}`),`b18p1 ${slug} ${lang}: Summary ${m[0]} matches expected/`);
     }
     const en=read(`src/content/m${month}/${slug}/en.mdx`),zh=read(`src/content/m${month}/${slug}/zh.mdx`);
     ok((en.match(/```/g)||[]).length===(zh.match(/```/g)||[]).length&&(en.match(/^#{2,3} /gm)||[]).length===(zh.match(/^#{2,3} /gm)||[]).length,`b18p1 ${slug}: en/zh structurally symmetric`);
+    if(toy==="form_closure_frictionless_toy"){
+      const mid=expected.match(/jittered mid-edge form_mu0 ([\d.]+)\+-([\d.]+)/);
+      const pair=expected.match(/paired B_four-mid_edge form_mu0: ([\d.]+)\+-([\d.]+): near-tie/);
+      ok(mid&&pair&&mid[1]==="0.6000"&&mid[2]==="0.5477"&&pair[1]==="0.4000"&&pair[2]==="0.5477","b18p1 mid-edge printed values are 0.6000±0.5477 and 0.4000±0.5477");
+      ok(Math.abs(+pair[1])<=+pair[2],"b18p1 mid-edge paired gap remains a near-tie (|m| <= sd)");
+      ok(expected.includes("3 of 5 equal")&&!expected.includes("4 of 5 equal"),"b18p1 mid-edge equal-count is 3 of 5");
+    }
   }
   const p1=read("docs/notes/month-1-plan.md"), p3=read("docs/notes/month-3-plan.md");
   ok(p1.startsWith("# Month 1")&&["Current / 当前：**M1 2250 min**, Batch-18 PR1","## Batch-18 PR1","2100→2250","34710→35040","240→390"].every(x=>p1.includes(x)),"b18p1 month-1 plan header");
   ok(p3.startsWith("# Month 3")&&["Current / 当前：**M3 3000 min**, Batch-18 PR1","## Batch-18 PR1","2820→3000","34710→35040","390→**570**"].every(x=>p3.includes(x)),"b18p1 month-3 plan header");
   const src=read("docs/notes/batch-18-pr1-sources.md");
-  ok(["846242497217aa53313dfa1a006246386344bec6","34710","35040","wiki-superposition","grasp-primer-carpin","grasp-survey-zhang","https://arxiv.org/abs/1607.06620","https://arxiv.org/abs/2202.03631","HTTP **200**","Common random numbers","opencode","Lock changes","No lock relaxed","Post-hoc choices","Mismatch with §9","0.1750±0.0000","1.0000±0.0000","mid-edge","printed by the toy","以论文为准"].every(x=>src.includes(x)),"b18p1 sources note");
+  ok(["846242497217aa53313dfa1a006246386344bec6","34710","35040","wiki-superposition","grasp-primer-carpin","grasp-survey-zhang","https://arxiv.org/abs/1607.06620","https://arxiv.org/abs/2202.03631","HTTP **200**","Common random numbers","opencode","Lock changes","No lock relaxed","Post-hoc choices","Mismatch with §9","0.1750±0.0000","1.0000±0.0000","mid-edge","printed by the toy","以论文为准","0.6000±0.5477","0.4000±0.5477","3 of 5 equal","after the first run","first accepted run"].every(x=>src.includes(x)),"b18p1 sources note");
+  ok(!/0\.8000\s*±\s*0\.4472|0\.2000\s*±\s*0\.4472|written before the first accepted run|4 of 5 equal/.test(src),"b18p1 sources note: stale mid-edge numbers and pre-first-run offset wording removed");
+  for(const m of src.matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g)){
+    const bag=read("examples/month-1/expected/superposition_linear_circuit_toy.txt")+read("examples/month-3/expected/form_closure_frictionless_toy.txt");
+    ok(bag.includes(`${m[1]}+-${m[2]}`),`b18p1 sources note: ${m[0]} matches expected/`);
+  }
   ok(/35 040/.test(read("README.md"))&&/约 35 040 分钟/.test(read("README.md")),"b18p1 README site minutes (en + zh)");
   ok((()=>{const months=[...cur.matchAll(/const month(\d+)Lessons[\s\S]*?\];/g)]; let s=0; for(const m of months){for(const x of m[0].matchAll(/minutes:\s*(\d+)/g))s+=+x[1];} return s;})()===35040,"b18p1 curriculum: 35040 minutes");
   console.log("superposition-form-closure PR1: superposition vs joint vs diode, frictionless form-closure and M1 2250 / M3 3000 / site 35040 locked");

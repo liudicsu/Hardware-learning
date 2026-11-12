@@ -187,8 +187,10 @@ def verdict(xa: list[float], xb: list[float]) -> str:
 
 
 # Cyclic offset from mid-edge: mid-edge contacts on a square have r || n, so
-# the first-order moment is zero and a pure rotation is an "escape". Offsets
-# are written before the first run; jitter stays on the same side of mid-edge.
+# the first-order moment is zero and a pure rotation is an "escape". That
+# mid-edge layout was tried on the first run and then dropped. The offsets
+# below are the layout of the first accepted run (changed after that first
+# run); jitter stays on the same side of mid-edge.
 NOMINAL_B = (("right", 0.75), ("top", 0.75), ("left", 0.75), ("bottom", 0.25))
 NOMINAL_C = (("left", 0.50), ("right", 0.50))
 NOMINAL_ALIGNED = (("left", 0.30), ("left", 0.70), ("right", 0.30), ("right", 0.70))
