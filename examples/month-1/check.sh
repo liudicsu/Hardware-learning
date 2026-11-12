@@ -94,4 +94,9 @@ if python3 "$M1/components/peukert_rate_capacity_toy.py" > "$TMP/peukert_rate_ca
 else
   echo "DIFF  peukert_rate_capacity_toy.txt"; fail=1
 fi
+if python3 "$M1/soldering/crimp_vs_solder_strain_relief_toy.py" > "$TMP/crimp_vs_solder_strain_relief_toy.txt" && diff -u "$M1/expected/crimp_vs_solder_strain_relief_toy.txt" "$TMP/crimp_vs_solder_strain_relief_toy.txt"; then
+  echo "same  crimp_vs_solder_strain_relief_toy.txt"
+else
+  echo "DIFF  crimp_vs_solder_strain_relief_toy.txt"; fail=1
+fi
 exit $fail
