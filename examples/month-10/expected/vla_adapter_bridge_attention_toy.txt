@@ -1,0 +1,81 @@
+Synthetic VLA-Adapter probe: large plain head vs tiny + Bridge Attention vs tiny + shuffled conditions; stdlib stand-in, not a 0.5B backbone
+STEPS=300 BATCH=8 LR=0.1 TOL=0.25 TEST=200 D_TINY=6 D_BB=48 D_HID=48 HQ=8 seeds=5
+no plant integration step (discrete SGD, L1, one-shot readout)
+regime arm success_% l1 params flops  (mean+-sd over seeds; params/flops are deterministic)
+param counts A/B: d_raw=6 2882/489; d_raw=16 3362/689
+flop proxy A/B: d_raw=6 2784/748; d_raw=16 3264/948
+short_id (d_raw=6; A params 2882 flops 2784; B/C params 489 flops 748)
+  A_large success_%=94.4000+-7.9009 l1=0.1796+-0.0682 params=2882.0000+-0.0000 flops=2784.0000+-0.0000
+  B_bridge success_%=100.0000+-0.0000 l1=0.1095+-0.0396 params=489.0000+-0.0000 flops=748.0000+-0.0000
+  C_shuffle success_%=100.0000+-0.0000 l1=0.0819+-0.0263 params=489.0000+-0.0000 flops=748.0000+-0.0000
+  paired B_bridge-A_large success_%: 5.6000+-7.9009: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 2 of 5 equal
+  paired C_shuffle-B_bridge success_%: 0.0000+-0.0000: tie: identical on every seed
+  paired C_shuffle-A_large success_%: 5.6000+-7.9009: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 2 of 5 equal
+  paired B_bridge-A_large l1: -0.0701+-0.0795: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired C_shuffle-B_bridge l1: -0.0276+-0.0399: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired C_shuffle-A_large l1: -0.0977+-0.0645: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B_bridge-A_large params: -2393.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C_shuffle-B_bridge params: 0.0000+-0.0000: tie: identical on every seed
+  paired C_shuffle-A_large params: -2393.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B_bridge-A_large flops: -2036.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C_shuffle-B_bridge flops: 0.0000+-0.0000: tie: identical on every seed
+  paired C_shuffle-A_large flops: -2036.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+need_vl (d_raw=6; A params 2882 flops 2784; B/C params 489 flops 748)
+  A_large success_%=57.9000+-7.7169 l1=0.3052+-0.0269 params=2882.0000+-0.0000 flops=2784.0000+-0.0000
+  B_bridge success_%=47.5000+-13.3182 l1=0.3629+-0.0645 params=489.0000+-0.0000 flops=748.0000+-0.0000
+  C_shuffle success_%=5.6000+-1.6355 l1=1.0231+-0.0450 params=489.0000+-0.0000 flops=748.0000+-0.0000
+  paired B_bridge-A_large success_%: -10.4000+-15.0889: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired C_shuffle-B_bridge success_%: -41.9000+-12.6461: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C_shuffle-A_large success_%: -52.3000+-8.5484: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B_bridge-A_large l1: 0.0577+-0.0590: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired C_shuffle-B_bridge l1: 0.6602+-0.0671: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C_shuffle-A_large l1: 0.7179+-0.0482: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B_bridge-A_large params: -2393.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C_shuffle-B_bridge params: 0.0000+-0.0000: tie: identical on every seed
+  paired C_shuffle-A_large params: -2393.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B_bridge-A_large flops: -2036.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C_shuffle-B_bridge flops: 0.0000+-0.0000: tie: identical on every seed
+  paired C_shuffle-A_large flops: -2036.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+precise (d_raw=16; A params 3362 flops 3264; B/C params 689 flops 948)
+  A_large success_%=58.7000+-18.4140 l1=0.3024+-0.0712 params=3362.0000+-0.0000 flops=3264.0000+-0.0000
+  B_bridge success_%=38.5000+-12.6145 l1=0.4203+-0.0734 params=689.0000+-0.0000 flops=948.0000+-0.0000
+  C_shuffle success_%=1.9000+-1.2942 l1=1.5690+-0.1916 params=689.0000+-0.0000 flops=948.0000+-0.0000
+  paired B_bridge-A_large success_%: -20.2000+-14.4075: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  paired C_shuffle-B_bridge success_%: -36.6000+-13.3623: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C_shuffle-A_large success_%: -56.8000+-18.6835: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B_bridge-A_large l1: 0.1180+-0.0522: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C_shuffle-B_bridge l1: 1.1487+-0.1301: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C_shuffle-A_large l1: 1.2667+-0.1603: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B_bridge-A_large params: -2673.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C_shuffle-B_bridge params: 0.0000+-0.0000: tie: identical on every seed
+  paired C_shuffle-A_large params: -2673.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B_bridge-A_large flops: -2316.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C_shuffle-B_bridge flops: 0.0000+-0.0000: tie: identical on every seed
+  paired C_shuffle-A_large flops: -2316.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared on success: the tiny + bridge arm is built to win the size and FLOP proxy; shuffled conditions test whether the VL condition is actually used
+VLA-Adapter paper numbers (0.5B, 8 hours, LIBERO) 以论文为准; GPU / 0.5B train: 本页未运行
+not SmolVLA; not the weights-only budget table; not OpenVLA-OFT
+alternative first-run architecture on short_id (frozen random AQ, no proprio/AQ residual, A was a 24-wide single hidden layer, STEPS=250 LR=0.05; same seeds). Not fixed before the first run:
+  Synthetic VLA-Adapter probe: large plain head vs tiny + Bridge Attention vs tiny + shuffled conditions; stdlib stand-in, not a 0.5B backbone
+  STEPS=250 BATCH=8 LR=0.05 TOL=0.25 TEST=200 D_TINY=6 D_LARGE=24 seeds=5
+  no plant integration step (discrete SGD, L1, one-shot readout)
+  regime arm success_% l1 params flops  (mean+-sd over seeds; params/flops are deterministic)
+  short_id (d_raw=6; A params 266 flops 240; B/C params 381 flops 648)
+    A_large success_%=98.7000+-2.0797 l1=0.1460+-0.0370 params=266.0000+-0.0000 flops=240.0000+-0.0000
+    B_bridge success_%=11.3000+-9.9411 l1=0.8297+-0.1169 params=381.0000+-0.0000 flops=648.0000+-0.0000
+    C_shuffle success_%=11.8000+-10.5155 l1=0.8286+-0.1249 params=381.0000+-0.0000 flops=648.0000+-0.0000
+    paired B_bridge-A_large success_%: -87.4000+-9.6138: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C_shuffle-B_bridge success_%: 0.5000+-0.7906: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign, 1 of 5 equal
+    paired C_shuffle-A_large success_%: -86.9000+-10.2738: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired B_bridge-A_large l1: 0.6837+-0.0961: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C_shuffle-B_bridge l1: -0.0011+-0.0081: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+    paired C_shuffle-A_large l1: 0.6826+-0.1037: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired B_bridge-A_large params: 115.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C_shuffle-B_bridge params: 0.0000+-0.0000: tie: identical on every seed
+    paired C_shuffle-A_large params: 115.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired B_bridge-A_large flops: 408.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C_shuffle-B_bridge flops: 0.0000+-0.0000: tie: identical on every seed
+    paired C_shuffle-A_large flops: 408.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  No winner declared on success: the tiny + bridge arm is built to win the size and FLOP proxy; shuffled conditions test whether the VL condition is actually used
+  VLA-Adapter paper numbers (0.5B, 8 hours, LIBERO) 以论文为准; GPU / 0.5B train: 本页未运行
+  not SmolVLA; not the weights-only budget table; not OpenVLA-OFT

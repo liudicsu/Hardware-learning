@@ -1,4 +1,19 @@
-# Month 10 plan: Modern policy heads, deployment & real-world improvement
+# Month 10 plan / 第 10 个月计划
+
+Current / 当前：**M10 3750 min**, Batch-18 PR3. Earlier entries below retain their historical totals.
+
+## Batch-18 PR3 / 本月 H5+H6 (+420)
+
+Base `e055b90690d7655f9810d49fff920c193f1e7338` (batch-18 PR2 merged as #174; site **35400**). PR3 only on M10 hosts: **M10 3330→3750 (+420)**. Site **35400→35820**, still 71 lessons.
+
+- **H5 / flow-matching-policies: 660→870 (+210).** Knowledge Insulation (arXiv 2505.23705, HTML + PDF body read; 11 authors verified). Toy `knowledge_insulation_flow_toy.py`: linear VLM-stand-in + flow-matching expert + frozen semantic probe; arms A naive FM grads into the backbone / B discrete-action CE with stopped expert grads / C frozen backbone. Common random numbers, 5 seeds. No plant integration step. conflict: B−A probe 33.9000±6.9991 **clear**, 5/5 (A consistent semantic drop); B−A control 0.8500±4.2815 **near-tie**; C−B probe **tie: identical on every seed**, C−B control −10.1500±6.3161 **clear**, 5/5 (frozen probe-win / control-lose kept). A is *faster* on `fit_mid` (B−A 2.1921±0.6843 clear, 5/5) — §9's "and/or slower residual drop" for A did not hold; kept and printed. After the first run the discrete head was restricted to action-slot units `h[SEM:]`; the first-run full-`h` head is still printed (B−A probe −12.7500±12.1861, B worse). ≠ ChatVLA / OneDP. Paper numbers 以论文为准; GPU / π0 / LIBERO 本页未运行.
+
+- **H6 / edge-deploy-checklist: 330→540 (+210).** VLA-Adapter Bridge Attention (arXiv 2509.09372, HTML + PDF body read; 16 authors verified). Toy `vla_adapter_bridge_attention_toy.py`: shared demos; arms A larger two-layer 48-wide plain head / B tiny + Bridge Attention / C same tiny policy with shuffled VL conditions. short_id: B−A success 5.6000±7.9009 **near-tie**; B consistent-wins params −2393.0000±0.0000 and flops −2036.0000±0.0000, **clear**, 5/5. need_vl: C−B success −41.9000±12.6461 **clear**, 5/5 (shuffled lose). precise: B−A success −20.2000±14.4075 **clear** (tiny+bridge loses to the large head; kept). After the first run: learned AQ MLP, proprio/AQ residual, larger A backbone, STEPS=300 / LR=0.10; first-run short_id is replayed by `_vla_adapter_firstrun.py` (B params 381 > A 266; B success 11.3000±9.9411). ≠ SmolVLA / weights-only budget / OpenVLA-OFT. Paper 0.5B / 8 h 以论文为准; GPU 本页未运行.
+
+**Allocation / 安排:** 45+30+45+50+40=210 minutes per host.
+
+**Site accounting / 全站核算:** **35820=35400+420**; **M10=3750**, **71 lessons**.
+
 
 Current / 当前：**M10 3330 min**, Batch-15 PR3. Older sections retain historical totals.
 
