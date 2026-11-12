@@ -1,5 +1,5 @@
 mujoco_integrator_energy_toy
-seeds=5 omega0=3.1320919527 rad/s h_star=0.6385508568 s  (semi-implicit linear oscillator, h <= 2/omega0)
+seeds=5 omega0=3.1320919527 rad/s h_star=0.6385508568 s  (semi-implicit linear oscillator, h < 2/omega0)
 default moderate h=0.1500 s  h/h_star=0.2349  assert_below_hstar=1
 pendulum C_damp=0.05 I=1.0 L=1.0 T=20.0
 spinner I=(1.0, 2.0, 3.0) H_spin=0.08 T_spin=6.0

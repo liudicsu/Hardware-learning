@@ -8150,10 +8150,10 @@ print("protocol pass")
       {en:["octree","TSDF","0.9833±0.0062","0.0316±0.0000","-0.0322±0.0024"],zh:["八叉树","TSDF","0.9833±0.0062","0.0316±0.0000","-0.0322±0.0024"]},
       ["octomap-site","curless-volrange","open3d-tsdf"],"180-minute work plan","180 分钟安排"],
     [7,"mujoco-so101","mujoco_integrator_energy_toy",420,["## Semi-implicit and implicit-in-velocity integrators versus explicit Euler","## 半隐式与对速度隐式的积分器，对照显式 Euler"],
-      ["seeds=5","h_star=0.6385508568","assert_below_hstar=1","0.98x_hstar","1.02x_hstar","half_default","above_hstar_grows=1  below_hstar_bounded=1","paired A-B |dE|: 62.9097+-3.0587: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired A-B |dE|: -0.4534+-0.0850: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired A-B |dE|: 0.0000+-0.0000: tie: identical on every seed","paired C_bad-C |dE|: 12514.0224+-6611.4795: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","alternative C_damp=0.0 on moderate_h (same seeds):","spectral_radius=1.490835","not mujoco.step; ≠ grip_sweep"],
+      ["seeds=5","h_star=0.6385508568","h < 2/omega0","assert_below_hstar=1","0.98x_hstar","1.02x_hstar","half_default","above_hstar_grows=1  below_hstar_bounded=1","paired A-B |dE|: 62.9097+-3.0587: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired A-B |dE|: -0.4534+-0.0850: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired A-B |dE|: 0.0000+-0.0000: tie: identical on every seed","paired C_bad-C |dE|: 12514.0224+-6611.4795: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","alternative C_damp=0.0 on moderate_h (same seeds):","spectral_radius=1.490835","not mujoco.step; ≠ grip_sweep"],
       ["62.9097±3.0587","0.6385508568","12514.0224±6611.4795","0.4553±0.0855","以原文为准","本页未运行","grip_sweep"],
-      {en:["**not** a redo of `grip_sweep`","**synthetic**","**Model assumptions:**","**Common random numbers:**","**clear gap, not a tie**","**small but consistent**","**near-tie on |dE| did not hold**","Stable-step criterion"],zh:["**不是** `grip_sweep` 的重写","**合成**","**模型假设:**","**共用随机数:**","**明显差距，不是打平**","**小而稳定的差距**","|dE| 接近打平并不成立","稳定步长判据","数值上为零（浮点残差），等同打平"]},
-      {en:["semi-implicit","implicit-in-velocity","62.9097±3.0587","0.6385508568","12514.0224±6611.4795"],zh:["半隐式","对速度隐式","62.9097±3.0587","0.6385508568","12514.0224±6611.4795"]},
+      {en:["**not** a redo of `grip_sweep`","**synthetic**","**Model assumptions:**","**Common random numbers:**","**clear gap, not a tie**","**small but consistent**","**near-tie on |dE| did not hold**","Stable-step criterion","if and only if h < h*","Jordan block","hand calculation"],zh:["**不是** `grip_sweep` 的重写","**合成**","**模型假设:**","**共用随机数:**","**明显差距，不是打平**","**小而稳定的差距**","|dE| 接近打平并不成立","稳定步长判据","当且仅当 h < h*","Jordan 块","手算","数值上为零（浮点残差），等同打平"]},
+      {en:["semi-implicit","implicit-in-velocity","62.9097±3.0587","0.6385508568","12514.0224±6611.4795","h < h*"],zh:["半隐式","对速度隐式","62.9097±3.0587","0.6385508568","12514.0224±6611.4795","h < h*"]},
       ["mujoco-computation"],"180-minute work plan","180 分钟安排"]
   ];
   for(const [month,slug,toy,minutes,heads,stdoutMarks,proseMarks,langMarkers,summaryMarkers,ids,planEn,planZh] of cases){
@@ -8184,6 +8184,11 @@ print("protocol pass")
       ok(sec.includes(lang==="en"?planEn:planZh),`b18p2 ${slug} ${lang}: work plan minutes`);
       ok(!/\b(exact tie|ties exactly)\b|精确打平|−0\.0000(?!\d)/.test(prose),`b18p2 ${slug} ${lang}: no exact-tie wording or signed zero in prose`);
       ok(!/：\*\*|\*\*：/.test(sec),`b18p2 ${slug} ${lang}: no ** glued to a full-width colon`);
+      if(month===7){
+        ok(expected.includes("h < 2/omega0")&&!expected.includes("h <= 2/omega0"),`b18p2 ${toy}: expected uses strict h < 2/omega0`);
+        ok(!/h ≤ h\*|h <= h\*|h <= 2\/omega0/.test(sec),`b18p2 ${slug} ${lang}: criterion is strict h < h*, not h ≤ h*`);
+        ok(/h < h\*/.test(prose),`b18p2 ${slug} ${lang}: prose states h < h*`);
+      }
       for(const m of prose.matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g))ok(expected.includes(`${m[1]}+-${m[2]}`),`b18p2 ${slug} ${lang}: prose ${m[0]} matches expected/`);
       for(const h of sec.match(/^#{2,3} .*$/gm)||[])ok(!/\d+\s*(min|分钟)|Batch|PR\d|\bH\d\b/.test(h),`b18p2 ${slug} ${lang}: heading without minutes/process label ${h}`);
       const summ=md.slice(summary,end);
@@ -8200,7 +8205,7 @@ print("protocol pass")
   ok(p4.startsWith("# Month 4")&&["Current / 当前：**M4 3030 min**, Batch-18 PR2","## Batch-18 PR2","2850→3030","35040→35400","630→810"].every(x=>p4.includes(x)),"b18p2 month-4 plan header");
   ok(p7.startsWith("# Month 7")&&["Current / 当前：**M7 2970 min**, Batch-18 PR2","## Batch-18 PR2","2790→2970","35040→35400","240→420"].every(x=>p7.includes(x)),"b18p2 month-7 plan header");
   const src=read("docs/notes/batch-18-pr2-sources.md");
-  ok(["26d4664edc52abc3a0c35b8c960ddc29d35b5057","35040","35400","octomap-site","curless-volrange","open3d-tsdf","mujoco-computation","HTTP **200**","HTTP **500**","not cited","Common random numbers","opencode","Lock changes","No lock relaxed","Post-hoc choices","Mismatch with §9","0.9833±0.0062","0.0316±0.0000","-0.0322±0.0024","0.0131±0.0034","62.9097±3.0587","12514.0224±6611.4795","0.6385508568","sdf_trunc=0.25","after the first run","printed by the toys","以论文为准","grip_sweep"].every(x=>src.includes(x)),"b18p2 sources note");
+  ok(["26d4664edc52abc3a0c35b8c960ddc29d35b5057","35040","35400","octomap-site","curless-volrange","open3d-tsdf","mujoco-computation","HTTP **200**","HTTP **500**","not cited","Common random numbers","opencode","Lock changes","No lock relaxed","Post-hoc choices","Mismatch with §9","0.9833±0.0062","0.0316±0.0000","-0.0322±0.0024","0.0131±0.0034","62.9097±3.0587","12514.0224±6611.4795","0.6385508568","sdf_trunc=0.25","after the first run","printed by the toys","以论文为准","grip_sweep","h < h*","Jordan","hand/analytic"].every(x=>src.includes(x)),"b18p2 sources note");
   ok(!/hornung13auro\.pdf/.test(src.split("not cited")[0]+src.split("not cited")[2]||""),"b18p2 sources note: Hornung PDF listed only as not cited");
   const bag=read("examples/month-4/expected/octomap_tsdf_volume_toy.txt")+read("examples/month-7/expected/mujoco_integrator_energy_toy.txt");
   for(const m of src.matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g))ok(bag.includes(`${m[1]}+-${m[2]}`),`b18p2 sources note: ${m[0]} matches expected/`);

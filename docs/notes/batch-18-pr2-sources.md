@@ -19,7 +19,7 @@ Statements from the opened sources are marked 以原文为准 / 以论文为准 
 ## Toy design
 
 - `examples/month-4/slam-nav/octomap_tsdf_volume_toy.py`: shared 4 m cube, 0.25 m voxels, floor slab plus a hanging box (72 overhang voxels, 328 occupied). Arms A_grid2d (project hits to the floor) / B_octree (log-odds hit at the endpoint, miss along the ray, unknown otherwise) / C_tsdf (Curless incremental D, W update) / S_single (first-frame hit occupancy, same walk as B's hits) / C_bad (TSDF with the first camera shifted 0.5 m). Common random numbers; seeds 0–4; per-seed range noise reused by every arm. C surface MAE is mean |D - sdf_true| on updated voxels with |sdf_true| ≤ sdf_trunc; raw surface MAE is mean |range_meas - range_gt|. Unknown means neither a hit nor a clearing ray (printed count 0.0000±0.0000). Not the PGM / DWA / costmap path, not the depth-pointcloud voxel pass.
-- `examples/month-7/mujoco-so101/mujoco_integrator_energy_toy.py`: shared stdlib pendulum (light damping) and a tumbling asymmetric spinner (no quaternion). Arms A_explicit / B_semimpl / C_implvel / C_bad (sign-flipped D). Common random numbers; seeds 0–4; per-seed initial-condition jitter reused by every arm. Stable-step: h* = 2/ω0 = 0.6385508568 s for the undamped linear oscillator; default h = 0.1500 s is below it; tests at 0.50× / 0.98× / 1.02× h* and a half default step. Not `mujoco.step`, not a redo of `grip_sweep`.
+- `examples/month-7/mujoco-so101/mujoco_integrator_energy_toy.py`: shared stdlib pendulum (light damping) and a tumbling asymmetric spinner (no quaternion). Arms A_explicit / B_semimpl / C_implvel / C_bad (sign-flipped D). Common random numbers; seeds 0–4; per-seed initial-condition jitter reused by every arm. Stable-step: the criterion is the strict inequality h < h* = 2/ω0 = 0.6385508568 s (at h = h* the trace is −2, a repeated eigenvalue −1 in a Jordan block, solution grows linearly: hand/analytic, not a printed toy number); default h = 0.1500 s is below it; tests at 0.50× / 0.98× / 1.02× h* and a half default step. Not `mujoco.step`, not a redo of `grip_sweep`.
 - Labels as in batch-15/16/17/18 PR1 (tie → numerically zero below 1e-9 → near-tie `|m| ≤ sd` → consistent, small under 20 % of the smaller arm mean else clear, with sign count).
 
 ## Results (k/N = seeds with the reported sign)
@@ -33,7 +33,7 @@ OctoMap / TSDF (printed):
 
 Integrator energy (printed):
 
-- Stable-step: 0.98× h* energy_bounded=1, spectral radius 1.000000; 1.02× grows, spectral radius 1.490835; half default step bounded; assert_below_hstar=1.
+- Stable-step: criterion is strictly h < h* (not h ≤ h*). 0.98× h* energy_bounded=1, spectral radius 1.000000; 1.02× grows, spectral radius 1.490835; half default step bounded; assert_below_hstar=1. The linear growth at exactly h* is hand/analytic and is not printed.
 - moderate_h: A |dE| 63.3880±2.9999 (blow 2/5); B 0.4783±0.0811; C 0.4451±0.0762. Paired A-B 62.9097±3.0587 **clear** 5/5.
 - tiny_h: declared near-tie on |dE| did not hold. A |dE| 0.0346±0.0091 looks smaller than B 0.4880±0.0941 because energy gain cancels damping; |E-Eref| A 0.4553±0.0855 vs B 0.0019±0.0005, paired A-B 0.4534±0.0850 **clear** 5/5 (kept).
 - large_h_spin: pendulum A blows 5/5, |dE| 92.5926±16.7441; spinner A and B **tie** at 52.8938±16.4901 (identical velocity update); C |dE| 13.3682±0.2701; A-C 39.5256±16.3407 **clear** 5/5.

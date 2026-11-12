@@ -199,7 +199,7 @@ MuJoCo integrates continuous-time forward dynamics with several schemes. **Expli
 
 `mujoco_integrator_energy_toy.py` is **synthetic** and stdlib only. **Model assumptions:** two shared plants, no MuJoCo binary and no quaternion update. A simple pendulum with light linear damping (gravity depends on angle; damping depends on velocity) and a torque-free rigid body with inertia diag(1, 2, 3), tumbling off the intermediate axis. Energy of the spinner is 1/2 w·I w and depends only on angular velocity, so A and B use the same velocity update there (the documented difference is the position step). Arm A is explicit Euler, B is semi-implicit, C is implicit-in-velocity with `Mhat = M + h D`, and C_bad flips the sign of `D` (an inconsistent linearisation, kept). **Common random numbers:** five seeds; per-seed initial-condition jitter is drawn once and reused by every arm. Metrics are energy drift dE from the start, the absolute drift, a blow-up flag, trajectory error versus a tiny-step reference, and |E − Eref|. After the first run showed that |dE| from E0 can be misleading under damping, |E − Eref| was added as a printed companion metric (disclosed). Real MuJoCo / Menagerie: 本页未运行.
 
-**Stable-step criterion.** For the undamped linear oscillator x'' + ω0² x = 0, semi-implicit Euler has amplification trace 2 − h² ω0² and stays on the unit circle if and only if h ≤ h* = 2/ω0. Here ω0 = 3.1320919527 rad/s and h* = 0.6385508568 s. The default moderate step 0.1500 s is below h* (h/h* = 0.2349, `assert_below_hstar=1`). The toy prints a spectral radius and a 40 s energy-bounded run at 0.50×, 0.98× and 1.02× h*, and at a half default step: 0.98× is bounded with spectral radius 1.000000, 1.02× grows (spectral radius 1.490835, energy_bounded=0), and the half step is bounded. A stable integrator is not automatically a stable *contact* model — this does not contradict `grip_sweep`.
+**Stable-step criterion.** For the undamped linear oscillator x'' + ω0² x = 0, semi-implicit Euler has amplification trace 2 − h² ω0² and stays on the unit circle if and only if h < h* = 2/ω0. At exactly h* the trace is −2, so −1 is a repeated eigenvalue in a Jordan block and the solution grows linearly (hand calculation / analytic; the toy does not print a run at h = h*). Here ω0 = 3.1320919527 rad/s and h* = 0.6385508568 s. The default moderate step 0.1500 s is below h* (h/h* = 0.2349, `assert_below_hstar=1`). The toy prints a spectral radius and a 40 s energy-bounded run at 0.50×, 0.98× and 1.02× h*, and at a half default step: 0.98× is bounded with spectral radius 1.000000, 1.02× grows (spectral radius 1.490835, energy_bounded=0), and the half step is bounded. A stable integrator is not automatically a stable *contact* model — this does not contradict `grip_sweep`.
 
 **Regimes, written before the first run:** on a lightly damped pendulum at moderate h, B and C should **consistently** show lower |dE| than A; at a very small h the three may **near-tie**; at a large h / fast spin, A should **consistently lose** (energy gain or blow-up); a flipped implicit `D` may **lose** — that cell is kept.
 
@@ -249,7 +249,9 @@ Regimes (declared before the first run):
 
 Stable-step criterion (mandatory): for the undamped linear oscillator
 x''+w0^2 x=0, semi-implicit Euler has amplification trace 2-h^2 w0^2
-and stays on the unit circle iff h <= h* = 2/w0. The default moderate
+and stays on the unit circle iff h < h* = 2/w0. At h = h* the trace
+is -2, so -1 is a repeated eigenvalue in a Jordan block and the
+solution grows linearly (analytic; not printed). The default moderate
 h is below h*. The toy prints a time-domain energy-bounded run and the
 spectral radius at 0.50x, 0.98x and 1.02x h*.
 
@@ -539,7 +541,7 @@ def energy_bounded_run(h: float, t_end: float) -> int:
 
 def main() -> None:
     print("mujoco_integrator_energy_toy")
-    print(f"seeds={len(SEEDS)} omega0={OMEGA0:.10f} rad/s h_star={H_STAR:.10f} s  (semi-implicit linear oscillator, h <= 2/omega0)")
+    print(f"seeds={len(SEEDS)} omega0={OMEGA0:.10f} rad/s h_star={H_STAR:.10f} s  (semi-implicit linear oscillator, h < 2/omega0)")
     print(f"default moderate h={H_MOD:.4f} s  h/h_star={H_MOD/H_STAR:.4f}  assert_below_hstar={int(H_MOD < H_STAR)}")
     print(f"pendulum C_damp={C_DAMP} I={INERTIA_P} L={L} T={T_PEND}")
     print(f"spinner I={I_DIAG} H_spin={H_SPIN} T_spin={T_SPIN}")
@@ -669,7 +671,7 @@ if __name__ == "__main__":
 
 ```text
 mujoco_integrator_energy_toy
-seeds=5 omega0=3.1320919527 rad/s h_star=0.6385508568 s  (semi-implicit linear oscillator, h <= 2/omega0)
+seeds=5 omega0=3.1320919527 rad/s h_star=0.6385508568 s  (semi-implicit linear oscillator, h < 2/omega0)
 default moderate h=0.1500 s  h/h_star=0.2349  assert_below_hstar=1
 pendulum C_damp=0.05 I=1.0 L=1.0 T=20.0
 spinner I=(1.0, 2.0, 3.0) H_spin=0.08 T_spin=6.0
@@ -778,6 +780,6 @@ The page **does not declare a universal winner** and does **not** replace `grip_
 
 <Summary>
 
-MuJoCo models are MJCF trees where geom contact and actuators sit beside joints. A soft `solref` time constant plus a large timestep deepens penetration and can turn a HOLD into a SLIP — report those knobs with every simulated grasp. Menagerie's `robotstudio_so101` is the six-DoF Apache-2.0 model to open next; this lesson's sweep stays on a mesh-free scene so the numbers stay reproducible. A stdlib stand-in of the documented integrators then compares explicit, semi-implicit and implicit-in-velocity energy drift: at h=0.15 s A loses clearly (A−B |dE| 62.9097±3.0587), the stable-step test grows only above h*=0.6385508568 s, and a flipped D on a tumbling body blows up (C_bad−C 12514.0224±6611.4795) — not a redo of grip_sweep, and not a MuJoCo binary.
+MuJoCo models are MJCF trees where geom contact and actuators sit beside joints. A soft `solref` time constant plus a large timestep deepens penetration and can turn a HOLD into a SLIP — report those knobs with every simulated grasp. Menagerie's `robotstudio_so101` is the six-DoF Apache-2.0 model to open next; this lesson's sweep stays on a mesh-free scene so the numbers stay reproducible. A stdlib stand-in of the documented integrators then compares explicit, semi-implicit and implicit-in-velocity energy drift: at h=0.15 s A loses clearly (A−B |dE| 62.9097±3.0587), the stable-step criterion is the strict inequality h < h*=0.6385508568 s, and a flipped D on a tumbling body blows up (C_bad−C 12514.0224±6611.4795) — not a redo of grip_sweep, and not a MuJoCo binary.
 
 </Summary>

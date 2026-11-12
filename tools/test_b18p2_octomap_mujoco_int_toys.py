@@ -75,6 +75,13 @@ class TestIntegratorEnergy(unittest.TestCase):
         rho_lo = ie.spectral_radius(ie.amp_matrix(0.98 * ie.H_STAR, ie.OMEGA0))
         self.assertGreater(rho_hi, 1.0)
         self.assertAlmostEqual(rho_lo, 1.0, places=6)
+        src = (ROOT / INT_REL).read_text()
+        self.assertIn("iff h < h*", src)
+        self.assertNotIn("iff h <= h*", src)
+        self.assertNotIn("h <= 2/omega0", src)
+        # Analytic check only: at h = h* the trace is -2 (Jordan block). Not printed.
+        M = ie.amp_matrix(ie.H_STAR, ie.OMEGA0)
+        self.assertAlmostEqual(M[0][0] + M[1][1], -2.0, places=12)
 
     def test_crn_shared_ic(self):
         self.assertEqual(ie.ic_pend(2), ie.ic_pend(2))
@@ -90,6 +97,8 @@ class TestIntegratorEnergy(unittest.TestCase):
     def test_declared_regimes_and_expected(self):
         self.assertEqual(list(ie.REGIMES), ["moderate_h", "tiny_h", "large_h_spin", "inconsistent_D"])
         out = run(INT_REL)
+        self.assertIn("h < 2/omega0", out)
+        self.assertNotIn("h <= 2/omega0", out)
         self.assertIn("assert_below_hstar=1", out)
         self.assertIn("0.98x_hstar", out)
         self.assertIn("1.02x_hstar", out)

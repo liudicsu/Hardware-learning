@@ -199,7 +199,7 @@ MuJoCo 用几种格式积分连续时间的正向动力学。**显式 Euler** �
 
 `mujoco_integrator_energy_toy.py` 是**合成**的，只用标准库。**模型假设:** 两套共用对象，没有 MuJoCo 二进制，也没有四元数更新。带轻微线性阻尼的单摆（重力依赖角度，阻尼依赖速度），以及惯性为 diag(1, 2, 3)、偏离中轴翻滚的无力矩刚体。转子的能量是 1/2 w·I w，只依赖角速度，所以在那里 A 与 B 的速度更新相同（文档里的差别在位置那一步）。臂 A 是显式 Euler，B 是半隐式，C 是对速度隐式（`Mhat = M + h D`），C_bad 把 `D` 的符号翻转（不一致的线性化，保留）。**共用随机数:** 五个种子；每个种子的初值抖动只抽一次，所有臂共用。指标是相对起点的能量漂移 dE、绝对漂移、发散标志、相对极小步参考的轨迹误差，以及 |E − Eref|。首次运行显示在有阻尼时从 E0 算的 |dE| 会误导，因此加印了 |E − Eref| 作为伴随指标（事后披露）。真实 MuJoCo / Menagerie：本页未运行。
 
-**稳定步长判据。** 对无阻尼线性振子 x'' + ω0² x = 0，半隐式 Euler 的放大矩阵迹是 2 − h² ω0²，当且仅当 h ≤ h* = 2/ω0 时特征值留在单位圆上。这里 ω0 = 3.1320919527 rad/s，h* = 0.6385508568 s。默认中等步长 0.1500 s 低于 h*（h/h* = 0.2349，`assert_below_hstar=1`）。玩具在 0.50×、0.98×、1.02× h* 以及默认步长的一半上打印谱半径和 40 s 能量有界运行：0.98× 有界、谱半径 1.000000，1.02× 增长（谱半径 1.490835，energy_bounded=0），半步有界。稳定的积分器并不自动等于稳定的*接触*模型——这与 `grip_sweep` 并不矛盾。
+**稳定步长判据。** 对无阻尼线性振子 x'' + ω0² x = 0，半隐式 Euler 的放大矩阵迹是 2 − h² ω0²，当且仅当 h < h* = 2/ω0 时特征值留在单位圆上。恰在 h* 时迹为 −2，特征值 −1 是重根且为 Jordan 块，解线性增长（手算 / 解析；玩具未在 h = h* 处打印运行）。这里 ω0 = 3.1320919527 rad/s，h* = 0.6385508568 s。默认中等步长 0.1500 s 低于 h*（h/h* = 0.2349，`assert_below_hstar=1`）。玩具在 0.50×、0.98×、1.02× h* 以及默认步长的一半上打印谱半径和 40 s 能量有界运行：0.98× 有界、谱半径 1.000000，1.02× 增长（谱半径 1.490835，energy_bounded=0），半步有界。稳定的积分器并不自动等于稳定的*接触*模型——这与 `grip_sweep` 并不矛盾。
 
 **在首次运行前写好的情形:** 轻度阻尼的摆在中等 h 下，B、C 的 |dE| 应**稳定地**小于 A；在很小的 h 下三者**可能接近打平**；在大步长 / 快速旋转下，A 应**稳定地输掉**（能量增长或发散）；翻转的隐式 `D` 可能**输掉**——该格保留。
 
@@ -249,7 +249,9 @@ Regimes (declared before the first run):
 
 Stable-step criterion (mandatory): for the undamped linear oscillator
 x''+w0^2 x=0, semi-implicit Euler has amplification trace 2-h^2 w0^2
-and stays on the unit circle iff h <= h* = 2/w0. The default moderate
+and stays on the unit circle iff h < h* = 2/w0. At h = h* the trace
+is -2, so -1 is a repeated eigenvalue in a Jordan block and the
+solution grows linearly (analytic; not printed). The default moderate
 h is below h*. The toy prints a time-domain energy-bounded run and the
 spectral radius at 0.50x, 0.98x and 1.02x h*.
 
@@ -539,7 +541,7 @@ def energy_bounded_run(h: float, t_end: float) -> int:
 
 def main() -> None:
     print("mujoco_integrator_energy_toy")
-    print(f"seeds={len(SEEDS)} omega0={OMEGA0:.10f} rad/s h_star={H_STAR:.10f} s  (semi-implicit linear oscillator, h <= 2/omega0)")
+    print(f"seeds={len(SEEDS)} omega0={OMEGA0:.10f} rad/s h_star={H_STAR:.10f} s  (semi-implicit linear oscillator, h < 2/omega0)")
     print(f"default moderate h={H_MOD:.4f} s  h/h_star={H_MOD/H_STAR:.4f}  assert_below_hstar={int(H_MOD < H_STAR)}")
     print(f"pendulum C_damp={C_DAMP} I={INERTIA_P} L={L} T={T_PEND}")
     print(f"spinner I={I_DIAG} H_spin={H_SPIN} T_spin={T_SPIN}")
@@ -669,7 +671,7 @@ if __name__ == "__main__":
 
 ```text
 mujoco_integrator_energy_toy
-seeds=5 omega0=3.1320919527 rad/s h_star=0.6385508568 s  (semi-implicit linear oscillator, h <= 2/omega0)
+seeds=5 omega0=3.1320919527 rad/s h_star=0.6385508568 s  (semi-implicit linear oscillator, h < 2/omega0)
 default moderate h=0.1500 s  h/h_star=0.2349  assert_below_hstar=1
 pendulum C_damp=0.05 I=1.0 L=1.0 T=20.0
 spinner I=(1.0, 2.0, 3.0) H_spin=0.08 T_spin=6.0
@@ -778,6 +780,6 @@ Real MuJoCo / Menagerie: 本页未运行; MuJoCo Computation documentation 以�
 
 <Summary>
 
-MuJoCo 模型是 MJCF 树，geom 接触与执行器和关节并列。软的 `solref` 时间常数加上大时间步会加深穿透，并把 HOLD 变成 SLIP——每个仿真抓取都要汇报这些旋钮。Menagerie 的 `robotstudio_so101` 是接下来要打开的六自由度 Apache-2.0 模型；本课扫描留在无网格场景上，好让数字可复现。 随后用标准库替身按文档里的积分格式比较显式、半隐式与对速度隐式的能量漂移：在 h=0.15 s 上 A 明显输掉（A−B 的 |dE| 为 62.9097±3.0587），稳定步长只在高于 h*=0.6385508568 s 时增长，翻转 D 会让翻滚刚体发散（C_bad−C 为 12514.0224±6611.4795）——不是 grip_sweep 的重写，也不是 MuJoCo 二进制。
+MuJoCo 模型是 MJCF 树，geom 接触与执行器和关节并列。软的 `solref` 时间常数加上大时间步会加深穿透，并把 HOLD 变成 SLIP——每个仿真抓取都要汇报这些旋钮。Menagerie 的 `robotstudio_so101` 是接下来要打开的六自由度 Apache-2.0 模型；本课扫描留在无网格场景上，好让数字可复现。 随后用标准库替身按文档里的积分格式比较显式、半隐式与对速度隐式的能量漂移：在 h=0.15 s 上 A 明显输掉（A−B 的 |dE| 为 62.9097±3.0587），稳定步长判据是严格不等式 h < h*=0.6385508568 s，翻转 D 会让翻滚刚体发散（C_bad−C 为 12514.0224±6611.4795）——不是 grip_sweep 的重写，也不是 MuJoCo 二进制。
 
 </Summary>

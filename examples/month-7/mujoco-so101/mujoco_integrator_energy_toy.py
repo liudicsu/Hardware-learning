@@ -34,7 +34,9 @@ Regimes (declared before the first run):
 
 Stable-step criterion (mandatory): for the undamped linear oscillator
 x''+w0^2 x=0, semi-implicit Euler has amplification trace 2-h^2 w0^2
-and stays on the unit circle iff h <= h* = 2/w0. The default moderate
+and stays on the unit circle iff h < h* = 2/w0. At h = h* the trace
+is -2, so -1 is a repeated eigenvalue in a Jordan block and the
+solution grows linearly (analytic; not printed). The default moderate
 h is below h*. The toy prints a time-domain energy-bounded run and the
 spectral radius at 0.50x, 0.98x and 1.02x h*.
 
@@ -324,7 +326,7 @@ def energy_bounded_run(h: float, t_end: float) -> int:
 
 def main() -> None:
     print("mujoco_integrator_energy_toy")
-    print(f"seeds={len(SEEDS)} omega0={OMEGA0:.10f} rad/s h_star={H_STAR:.10f} s  (semi-implicit linear oscillator, h <= 2/omega0)")
+    print(f"seeds={len(SEEDS)} omega0={OMEGA0:.10f} rad/s h_star={H_STAR:.10f} s  (semi-implicit linear oscillator, h < 2/omega0)")
     print(f"default moderate h={H_MOD:.4f} s  h/h_star={H_MOD/H_STAR:.4f}  assert_below_hstar={int(H_MOD < H_STAR)}")
     print(f"pendulum C_damp={C_DAMP} I={INERTIA_P} L={L} T={T_PEND}")
     print(f"spinner I={I_DIAG} H_spin={H_SPIN} T_spin={T_SPIN}")
