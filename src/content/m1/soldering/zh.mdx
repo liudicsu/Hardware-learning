@@ -546,6 +546,411 @@ Real iron / reflow oven: 本页未运行; Wikipedia / SparkFun numbers 以原文
 4. 在 heavy_pad_underheat 里，固定种子，把氧化范围改成 (0.0, 0.0)。运行前先预测 B 的冷焊率。
 5. 在任何真实烙铁实验之前（本页未运行），解释为什么 matched_clean 在两个缺陷率上**打平**，**并不**说明 1 s 和 3 s 的停留是等价的。
 
+## 压接还是焊接：气密接头、焊锡渗吸与应力释放
+
+<Resource id="wiki-crimp" />
+
+上面的导线一节提醒过：上过锡的多股线焊点是硬的，反复弯折会断，所以会动的地方都要做应力释放。本节补上端接多股线的另一种常见做法。Wikipedia 的 *Crimp (joining)*（已读正文，rev 1380146082；以原文为准）把电气压接描述为一种**不用焊锡**的连接：把剥好的多股线插进连接器上**尺寸合适**的开口，用压接钳把开口紧紧压在线上。文中列出的、相对焊接的优点里，有三条和这里有关。做得好的压接设计成**气密**，氧气和湿气到不了金属，金属就不会腐蚀。压接不用焊料合金，所以焊锡**不会顺着线股渗吸**上去。文中还说这种接头"机械强度更高"，这是文章的说法，不是本页测出来的。
+
+本节**不是**重做上面的热窗口 / 冷焊模型，也**不**声称每个压接都胜过每个焊点。用错端子或压力不够的压接**不**气密；**加了**应力释放的焊点也是好焊点。
+
+<Formula label="线股弯曲应变与疲劳寿命">ε = d / (2 ρ)；   N_i = N_REF × (EPS_REF / ε)^K_FAT × z_i；   当且仅当 N_i > 弯折次数时线股完好</Formula>
+
+**算例（标明的手算，toy 也会打印）。** 直径 d = 0.16 mm 的线股弯到半径 ρ 时，外层纤维应变 ε = d / (2ρ)。渗进线股的焊锡会形成一段硬区，弯曲集中在它的边缘：取 ρ = 3.0 mm，ε = 0.0267。好压接的喇叭口把弯曲分散到约 ρ = 6.0 mm（ε = 0.0133），应力释放夹把弯曲移到约 ρ = 12.0 mm（ε = 0.0067）。这些半径是**声明的玩具参数**，不是测量值。按 toy 的疲劳规则 N = 2000 × (0.02 / ε)²，线股寿命中位数分别是 1125.0000、4500.0000 和 18000.0000 次。应变减半，寿命变成四倍。19 股里如果只剩 3 股，接头电阻里线股那部分就是完好时的 19/3 = 6.3333 倍。
+
+**这里没有积分步长。** 线股寿命和接触电阻都来自闭式规则，没有按时间步进。
+
+### 公平设置
+
+`crimp_vs_solder_strain_relief_toy.py` 是**合成**的，只用标准库。它不是 IPC-A-610 检验，也不是拉力测试仪。**模型假设:** 一根 19 股、每股 0.16 mm 的导线，约相当于 22 AWG 的 19 股线（声明的玩具数值，不是规格书）。每次弯折都在接头由硬变软的过渡处弯曲线股。线股寿命按上面的规则计算，N_REF = 2000，EPS_REF = 0.02，K_FAT = 2.0，每股寿命有对数正态离散 SIGMA_LIFE = 0.3。接触电阻从 R_C0 = 0.50 毫欧开始。不气密的接头起点高 UNDER_X = 3.0 倍，并且每 1000 次弯折增长 FRET_PER_KCYCLE = 0.5，在潮湿空气中每 1000 h 增长 OX_PER_KHOUR = 0.5。这些都是**声明的玩具参数**。几组的先后顺序来自声明的弯曲半径和接触电阻增长；toy 给出的是这些声明下的数量级和种子离散，不是"某种做法总会赢"的证据。
+
+| 组 | 接头 | 弯曲半径 ρ | 气密 |
+|---|---|---|---|
+| A_solder_bare | 上锡线股直接焊接，无应力释放；焊锡渗进线股 | 3.0 mm | 是 |
+| B_crimp_good | 尺寸合适的气密压接，不用焊锡，无额外护套 | 6.0 mm | 是 |
+| C_crimp_under | 压接不足或端子用错 | 6.0 mm | **否** |
+| D_solder_relief | 焊点**加上**上面提示框里的应力释放 | 12.0 mm | 是 |
+
+**共用随机数:** 每个（情形，种子）的 19 个线股系数和接触系数都只抽一次，四组共用。各组**只**在弯曲半径和接触电阻行为上不同。五个种子。指标：弯折结束时完好的线股数、life_half（第 10 股断开时的弯折次数）、接触电阻（毫欧）和气密标志，都按种子取均值±sd。
+
+| 情形 | 工况 | 事先声明的内容 |
+|---|---|---|
+| flex | 弯折 1500 次 | A 在完好线股和 life_half 上**稳定**输给 B；C 不气密，在接触电阻上输给 D；**保留** |
+| light_flex | 弯折 300 次 | A 与 B 的完好线股**可能**接近打平；保留 |
+| static | 不弯折，在潮湿空气中放 2000 h：一根短而有支撑的引线 | A 与 B **可能**接近打平或打平；C 在接触电阻上输给 D；**保留** |
+
+### 运行标准库 toy
+
+```bash
+cd ~/Hardware-learning/examples/month-1/soldering
+python3 crimp_vs_solder_strain_relief_toy.py
+```
+
+<CodeSource path="examples/month-1/soldering/crimp_vs_solder_strain_relief_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Crimp versus solder on a stranded wire lead, with strain relief.
+
+Synthetic mechanical / resistance stand-in, stdlib only, deterministic.  Not an
+IPC-A-610 inspection and not a pull tester.  Not the thermal-window / cold-joint
+toy.  A real crimp tool / IPC inspection: 本页未运行.  Wikipedia "Crimp
+(joining)" statements (solderless, gas-tight, no solder wicking, "mechanically
+stronger") are 以原文为准 and are not toy outputs.
+
+Model.  One stranded lead with N_STRANDS = 19 strands of diameter
+D_STRAND = 0.16 mm (declared toy values, roughly a 22 AWG 19-strand wire, not a
+datasheet).  Each flex cycle bends the strands at the joint's stiff-to-flexible
+transition with outer-fibre strain eps = D_STRAND / (2 * rho), where rho is the
+bend radius at that transition.  Strand fatigue life (cycles) is
+N_i = N_REF * (EPS_REF / eps) ** K_FAT * z_i with N_REF = 2000, EPS_REF = 0.02,
+K_FAT = 2.0, and z_i = exp(gauss(0, SIGMA_LIFE)) with SIGMA_LIFE = 0.3 per
+strand.  A strand is intact at the end if N_i > cycles.  Contact resistance is
+R_c = R_C0 * u * (base multiplier) * (1 + growth), R_C0 = 0.50 milliohm,
+u = uniform(0.9, 1.1).
+
+Arms:
+  A_solder_bare   : soldered tinned strand, no strain relief; solder wicks into
+                    the strands and the bend concentrates at the wick edge:
+                    rho = 3.0 mm; gas-tight (solder fills the joint): growth 0;
+                    base multiplier 1.0.
+  B_crimp_good    : correctly sized gas-tight crimp, no solder, no extra sleeve:
+                    rho = 6.0 mm (bellmouth at the barrel edge, no wicking);
+                    growth 0; base multiplier 1.0.
+  C_crimp_under   : under-crimp / wrong barrel: same rho = 6.0 mm as B, NOT
+                    gas-tight and the strands can fret: base multiplier
+                    UNDER_X = 3.0 and
+                    growth = FRET_PER_KCYCLE * cycles / 1000
+                             + OX_PER_KHOUR * hours / 1000
+                    with FRET_PER_KCYCLE = 0.5, OX_PER_KHOUR = 0.5.
+  D_solder_relief : soldered joint WITH the lesson's strain relief (cable fixed
+                    close to the joint): rho = 12.0 mm; gas-tight; growth 0;
+                    base multiplier 1.0.
+
+Common random numbers: for each (regime, seed) draw ONCE from
+random.Random(f"{regime}/{seed}") the 19 strand factors z_i and the contact
+factor u, shared by all four arms.
+
+Regimes (cycles, hours):
+  flex       : (1500, 0)
+  light_flex : (300, 0)
+  static     : (0, 2000) - a short, well-supported pigtail that never flexes but
+               sits in humid air.
+
+Metrics per seed: intact (count of intact strands at the end), life_half
+(cycles at which the 10th strand breaks = the 10th smallest N_i, independent of
+the schedule), contact_mohm (R_c), gas_tight (1 or 0).
+
+Pairs, every metric in every regime: B-A, C-D, C-B.
+
+Regimes and parameters were written before the first run.  Pre-declared
+expectations (not tuned; print whatever comes):
+  flex       : A consistently loses to B on intact and life_half; C is not
+               gas-tight and loses to D (D = soldered with strain relief) on
+               contact_mohm - keep.
+  light_flex : A vs B may near-tie on intact - keep.
+  static     : A vs B may near-tie or tie (pigtail never flexes); C loses to D
+               on contact_mohm - keep.
+
+The ordering of arms follows from the declared bend radii and contact-growth
+parameters; the toy shows magnitudes and seed scatter, not evidence that one
+method always wins.
+
+Alternatives (same seeds, declared before the run, not adopted):
+  flex with K_FAT = 3.0 (paired B-A intact);
+  flex with A's rho = 4.0 mm (paired B-A intact);
+  static with OX_PER_KHOUR = 0.1 (paired C-D contact_mohm).
+"""
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+
+# Declared parameters, written before the first run.
+N_STRANDS = 19
+D_STRAND = 0.16              # mm, toy value roughly a 22 AWG 19-strand wire
+N_REF = 2000                 # cycles
+EPS_REF = 0.02
+K_FAT = 2.0
+SIGMA_LIFE = 0.3
+R_C0 = 0.50                  # milliohm
+U_LOW, U_HIGH = 0.9, 1.1
+UNDER_X = 3.0
+FRET_PER_KCYCLE = 0.5
+OX_PER_KHOUR = 0.5
+
+REGIMES = {
+    "flex": (1500, 0),
+    "light_flex": (300, 0),
+    "static": (0, 2000),
+}
+ARMS = ("A_solder_bare", "B_crimp_good", "C_crimp_under", "D_solder_relief")
+RHO = {"A_solder_bare": 3.0, "B_crimp_good": 6.0,
+       "C_crimp_under": 6.0, "D_solder_relief": 12.0}
+BASE = {"A_solder_bare": 1.0, "B_crimp_good": 1.0,
+        "C_crimp_under": UNDER_X, "D_solder_relief": 1.0}
+GAS = {"A_solder_bare": 1, "B_crimp_good": 1,
+       "C_crimp_under": 0, "D_solder_relief": 1}
+
+DECLARED = {
+    "flex": "A consistently loses to B on intact and life_half; C is not "
+            "gas-tight and loses to D (D = soldered with strain relief) on "
+            "contact_mohm - keep",
+    "light_flex": "A vs B may near-tie on intact - keep",
+    "static": "A vs B may near-tie or tie (pigtail never flexes); C loses to D "
+              "on contact_mohm - keep",
+}
+
+
+def shared_draws(regime, seed):
+    """Common random numbers: one set of strands and one contact factor per (regime, seed)."""
+    rng = random.Random(f"{regime}/{seed}")
+    z = [math.exp(rng.gauss(0.0, SIGMA_LIFE)) for _ in range(N_STRANDS)]
+    u = rng.uniform(U_LOW, U_HIGH)
+    return z, u
+
+
+def run_arm(arm, regime, seed, k_fat=K_FAT, rho=None, ox=OX_PER_KHOUR):
+    cycles, hours = REGIMES[regime]
+    z, u = shared_draws(regime, seed)
+    r = RHO[arm] if rho is None else rho
+    eps = D_STRAND / (2.0 * r)
+    lives = sorted(N_REF * (EPS_REF / eps) ** k_fat * zi for zi in z)
+    intact = sum(1 for n in lives if n > cycles)
+    if arm == "C_crimp_under":
+        growth = FRET_PER_KCYCLE * cycles / 1000.0 + ox * hours / 1000.0
+    else:
+        growth = 0.0
+    contact = R_C0 * u * BASE[arm] * (1.0 + growth)
+    return {"intact": intact, "life_half": lives[9],
+            "contact_mohm": contact, "gas_tight": GAS[arm]}
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0  # identical values: no floating residue in mean or sd
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    """Half-up rounding on the shortest decimal repr; tiny non-zero values in scientific form."""
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+METRICS = ("intact", "life_half", "contact_mohm", "gas_tight")
+PAIRS = (("B_crimp_good", "A_solder_bare"),
+         ("C_crimp_under", "D_solder_relief"),
+         ("C_crimp_under", "B_crimp_good"))
+
+
+def collect(regime, **kw):
+    return {arm: [run_arm(arm, regime, s, **kw) for s in SEEDS] for arm in ARMS}
+
+
+def arm_col(regime, arm, **kw):
+    return [run_arm(arm, regime, s, **kw) for s in SEEDS]
+
+
+def col(rows, key):
+    return [x[key] for x in rows]
+
+
+def report(regime):
+    cycles, hours = REGIMES[regime]
+    res = collect(regime)
+    print(f"{regime} (cycles={cycles}, hours={hours}):")
+    print(f"  declared: {DECLARED[regime]}")
+    for arm in ARMS:
+        print(f"  {arm} " + " ".join(
+            f"{key} {fmt_pair(*mean_sd(col(res[arm], key)))}" for key in METRICS))
+    for a, b in PAIRS:
+        for key in METRICS:
+            print(f"  paired {a[0]}-{b[0]} {key}: {verdict(col(res[a], key), col(res[b], key))}")
+    return res
+
+
+def main():
+    print("Synthetic crimp-versus-solder strain-relief toy; shared strand and contact draws; "
+          "not an IPC-A-610 inspection or pull tester")
+    print(f"seeds={len(SEEDS)} strands={N_STRANDS} d={num(D_STRAND)} mm N_REF={num(N_REF)} "
+          f"EPS_REF={num(EPS_REF)} K_FAT={num(K_FAT)} SIGMA_LIFE={num(SIGMA_LIFE)} "
+          f"R_C0={num(R_C0)} mOhm (declared toy values, not a datasheet)")
+    print("No pull test and no thermal cycle: closed-form strand life and contact resistance")
+    print("Regimes and parameters were written before the first run")
+    print("rule: eps=d/(2*rho); N_i=N_REF*(EPS_REF/eps)^K_FAT*z_i; intact if N_i>cycles; "
+          "R_c=R_C0*u*base*(1+growth)")
+    for rho in (3.0, 6.0, 12.0):
+        eps = D_STRAND / (2.0 * rho)
+        life = N_REF * (EPS_REF / eps) ** K_FAT
+        print(f"hand_calc rho={rho:.1f} mm: eps=0.16/(2*{rho:.1f})={num(eps)}; "
+              f"median life N_REF*(EPS_REF/eps)^2={num(life)} cycles")
+    print(f"hand_calc if only 3 of 19 strands remain the strand part of the resistance is "
+          f"19/3 = {num(N_STRANDS / 3.0)} times the intact value")
+    for regime in REGIMES:
+        report(regime)
+    print("alternative parameters (declared before the run, same seeds, not adopted):")
+    alt_a = arm_col("flex", "A_solder_bare", k_fat=3.0)
+    alt_b = arm_col("flex", "B_crimp_good", k_fat=3.0)
+    print(f"  flex K_FAT=3.0: paired B-A intact: "
+          f"{verdict(col(alt_b, 'intact'), col(alt_a, 'intact'))}")
+    alt_a4 = arm_col("flex", "A_solder_bare", rho=4.0)
+    alt_b2 = arm_col("flex", "B_crimp_good")
+    print(f"  flex A rho=4.0 mm: paired B-A intact: "
+          f"{verdict(col(alt_b2, 'intact'), col(alt_a4, 'intact'))}")
+    alt_c = arm_col("static", "C_crimp_under", ox=0.1)
+    alt_d = arm_col("static", "D_solder_relief")
+    print(f"  static OX_PER_KHOUR=0.1: paired C-D contact_mohm: "
+          f"{verdict(col(alt_c, 'contact_mohm'), col(alt_d, 'contact_mohm'))}")
+    print("No universal winner: a good crimp and a relieved solder joint both survive this flex; "
+          "the unrelieved solder joint and the under-crimp are the losers here")
+    print("Crimp tool / IPC-A-610 inspection / pull test: 本页未运行; "
+          "Wikipedia Crimp (joining) statements 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic crimp-versus-solder strain-relief toy; shared strand and contact draws; not an IPC-A-610 inspection or pull tester
+seeds=5 strands=19 d=0.1600 mm N_REF=2000.0000 EPS_REF=0.0200 K_FAT=2.0000 SIGMA_LIFE=0.3000 R_C0=0.5000 mOhm (declared toy values, not a datasheet)
+No pull test and no thermal cycle: closed-form strand life and contact resistance
+Regimes and parameters were written before the first run
+rule: eps=d/(2*rho); N_i=N_REF*(EPS_REF/eps)^K_FAT*z_i; intact if N_i>cycles; R_c=R_C0*u*base*(1+growth)
+hand_calc rho=3.0 mm: eps=0.16/(2*3.0)=0.0267; median life N_REF*(EPS_REF/eps)^2=1125.0000 cycles
+hand_calc rho=6.0 mm: eps=0.16/(2*6.0)=0.0133; median life N_REF*(EPS_REF/eps)^2=4500.0000 cycles
+hand_calc rho=12.0 mm: eps=0.16/(2*12.0)=0.0067; median life N_REF*(EPS_REF/eps)^2=18000.0000 cycles
+hand_calc if only 3 of 19 strands remain the strand part of the resistance is 19/3 = 6.3333 times the intact value
+flex (cycles=1500, hours=0):
+  declared: A consistently loses to B on intact and life_half; C is not gas-tight and loses to D (D = soldered with strain relief) on contact_mohm - keep
+  A_solder_bare intact 2.8000+-1.6432 life_half 1070.6541+-94.8988 contact_mohm 0.4986+-0.0158 gas_tight 1.0000+-0.0000
+  B_crimp_good intact 19.0000+-0.0000 life_half 4282.6166+-379.5950 contact_mohm 0.4986+-0.0158 gas_tight 1.0000+-0.0000
+  C_crimp_under intact 19.0000+-0.0000 life_half 4282.6166+-379.5950 contact_mohm 2.6179+-0.0828 gas_tight 0.0000+-0.0000
+  D_solder_relief intact 19.0000+-0.0000 life_half 17130.4662+-1518.3801 contact_mohm 0.4986+-0.0158 gas_tight 1.0000+-0.0000
+  paired B-A intact: 16.2000+-1.6432: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A life_half: 3211.9624+-284.6963: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A contact_mohm: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A gas_tight: 0.0000+-0.0000: tie: identical on every seed
+  paired C-D intact: 0.0000+-0.0000: tie: identical on every seed
+  paired C-D life_half: -12847.8497+-1138.7851: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-D contact_mohm: 2.1192+-0.0670: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-D gas_tight: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B intact: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B life_half: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B contact_mohm: 2.1192+-0.0670: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B gas_tight: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+light_flex (cycles=300, hours=0):
+  declared: A vs B may near-tie on intact - keep
+  A_solder_bare intact 19.0000+-0.0000 life_half 1190.2694+-120.1981 contact_mohm 0.5041+-0.0362 gas_tight 1.0000+-0.0000
+  B_crimp_good intact 19.0000+-0.0000 life_half 4761.0775+-480.7924 contact_mohm 0.5041+-0.0362 gas_tight 1.0000+-0.0000
+  C_crimp_under intact 19.0000+-0.0000 life_half 4761.0775+-480.7924 contact_mohm 1.7392+-0.1248 gas_tight 0.0000+-0.0000
+  D_solder_relief intact 19.0000+-0.0000 life_half 19044.3098+-1923.1696 contact_mohm 0.5041+-0.0362 gas_tight 1.0000+-0.0000
+  paired B-A intact: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A life_half: 3570.8081+-360.5943: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A contact_mohm: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A gas_tight: 0.0000+-0.0000: tie: identical on every seed
+  paired C-D intact: 0.0000+-0.0000: tie: identical on every seed
+  paired C-D life_half: -14283.2324+-1442.3772: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-D contact_mohm: 1.2351+-0.0886: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-D gas_tight: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B intact: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B life_half: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B contact_mohm: 1.2351+-0.0886: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B gas_tight: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+static (cycles=0, hours=2000):
+  declared: A vs B may near-tie or tie (pigtail never flexes); C loses to D on contact_mohm - keep
+  A_solder_bare intact 19.0000+-0.0000 life_half 1074.0960+-35.5744 contact_mohm 0.4849+-0.0309 gas_tight 1.0000+-0.0000
+  B_crimp_good intact 19.0000+-0.0000 life_half 4296.3838+-142.2977 contact_mohm 0.4849+-0.0309 gas_tight 1.0000+-0.0000
+  C_crimp_under intact 19.0000+-0.0000 life_half 4296.3838+-142.2977 contact_mohm 2.9092+-0.1856 gas_tight 0.0000+-0.0000
+  D_solder_relief intact 19.0000+-0.0000 life_half 17185.5353+-569.1906 contact_mohm 0.4849+-0.0309 gas_tight 1.0000+-0.0000
+  paired B-A intact: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A life_half: 3222.2879+-106.7232: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A contact_mohm: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A gas_tight: 0.0000+-0.0000: tie: identical on every seed
+  paired C-D intact: 0.0000+-0.0000: tie: identical on every seed
+  paired C-D life_half: -12889.1515+-426.8930: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-D contact_mohm: 2.4243+-0.1546: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-D gas_tight: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B intact: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B life_half: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B contact_mohm: 2.4243+-0.1546: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B gas_tight: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative parameters (declared before the run, same seeds, not adopted):
+  flex K_FAT=3.0: paired B-A intact: 18.6000+-0.5477: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  flex A rho=4.0 mm: paired B-A intact: 3.4000+-0.5477: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  static OX_PER_KHOUR=0.1: paired C-D contact_mohm: 1.2607+-0.0804: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No universal winner: a good crimp and a relieved solder joint both survive this flex; the unrelieved solder joint and the under-crimp are the losers here
+Crimp tool / IPC-A-610 inspection / pull test: 本页未运行; Wikipedia Crimp (joining) statements 以原文为准
+```
+
+</SimOutput>
+
+### 读懂各情形
+
+本页标签按以下顺序使用：只有每个种子的配对差都恰好为零时，才写**打平：每个种子都完全相同**；`|配对均值|` 与其 sd 都小于 1e-9 时写**数值上为零（浮点残差），等同打平**；`|配对均值| ≤ sd` 时写**接近打平 / 小差距，在种子噪声之内**；否则是**稳定**差距（`|配对均值| > sd`），若 `|m|` 小于两组中较小均值的 20 % 叫**小**，否则叫**明显**。每条稳定差距都附 5 个种子上的同号计数。
+
+- **flex** 情形，**没有应力释放的焊点输了，差距明显**。弯折 1500 次后，A 的 19 股只剩 2.8000±1.6432 股，B 全部 19 股完好，所以配对 B−A intact 为 16.2000±1.6432，5 个种子同号。B−A life_half 为 3211.9624±284.6963 次（A 1070.6541±94.8988，B 4282.6166±379.5950），同样明显，5 个种子同号。声明的 A 落败**成立**。**压接不足的接头在接触电阻上输给加了应力释放的焊点。** C−D contact_mohm 为 2.1192±0.0670，明显，5 个种子同号（C 2.6179±0.0828，对 0.4986±0.0158），C−D gas_tight 为 -1.0000±0.0000。C−D intact 是**打平：每个种子都完全相同**，因为这里两者都保住了全部 19 股。C 输在接触，不在线股。声明的 C 落败**成立**。D 的 life_half 为 17130.4662±1518.3801 次，四组里最长：应力释放对线股的帮助比压接端子更大。
+- **light_flex** 情形，弯折 300 次后哪一组都没有断股，所以 B−A intact 是**打平：每个种子都完全相同**，符合声明的"可能接近打平"。life_half 的差距和 flex 中同类：接头用掉的寿命少了，但寿命本身没有变长。C−D contact_mohm 为 1.2351±0.0886，明显，5 个种子同号。
+- **static** 情形，从不弯折的引线不会断股：B−A intact 与 B−A contact_mohm 都是**打平：每个种子都完全相同**，与声明一致。不气密的 C 在潮湿空气中仍会漂移：C−D contact_mohm 为 2.4243±0.1546，明显，5 个种子同号（C 2.9092±0.1856）。声明的 C 落败**成立**。
+
+两个输家都要**保留**在视野里。会动的引线上，没有应力释放的焊点会把线股耗尽；端子用错的压接，即使一股没断，也只和它的接触一样好。
+
+**首次运行后的代码改动。** 没有。首次运行的输出与 `expected/` 文件逐字节相同。
+
+**看过结果后做的选择。** 没有。半径、疲劳规则、接触电阻增长和工况都在首次运行前写定。打印的备选与它们一起声明，并在相同种子上运行。K_FAT = 3.0 让 flex 中的差距变大（B−A intact 18.6000±0.5477）。把 A 的弯曲半径改为 4.0 mm，差距缩小到 3.4000±0.5477，但仍然明显。氧化速率降到每 1000 h 0.1 时，static 中 C 仍明显落后于 D（C−D contact_mohm 1.2607±0.0804）。这些都没有替换默认值。
+
+本页**不宣布普遍赢家**。好的压接（B）和加了应力释放的焊点（D）都撑过了这次弯折；没有应力释放的焊点（A）和压接不足的接头（C）输了。真实压接钳、IPC-A-610 检验或拉力测试都**本页未运行**。
+
+**180 分钟安排:** 30 分钟阅读 Crimp (joining) 页面和上面的应力释放提示框；25 分钟对三个弯曲半径重做应变与寿命手算；50 分钟运行 toy 并读懂三种情形；40 分钟在固定种子下比较打印的备选；35 分钟做练习。
+
+### 练习
+
+1. 根据打印的手算，确认 ρ = 6.0 mm 时 ε = 0.0133、寿命中位数 4500.0000 次，并解释为什么 K_FAT = 2 时应变减半会让寿命变成四倍。
+2. 从 `shared_draws` 和 `run_arm` 说明，对给定的情形和种子，A、B、C、D 用的是同一组线股系数和同一个接触系数。
+3. flex 中 C−D intact 打平，而 C−D contact_mohm 差距明显。分别是 `run_arm` 的哪一行造成的？
+4. 运行前先预测 SIGMA_LIFE = 0.6 时 flex 中的 B−A intact，再在固定种子下运行验证。
+5. 在任何真实压接之前（本页未运行），从你的机器人上挑一根会动的引线，决定它用尺寸合适的压接还是加应力释放的焊点，并写下理由。
+
 <Summary>
 
 **本课要点**
@@ -556,6 +961,7 @@ Real iron / reflow oven: 本页未运行; Wikipedia / SparkFun numbers 以原文
 - 单股线适合面包板和通孔焊盘；多股线适合会弯折的位置，电机引线需要热缩管和应力释放。
 - 引脚剪平，用灯检查，并对每根针做通断测试：到自己的焊盘要响，与相邻针之间不能响。
 - 热窗口：在只改停留时间的两节点热模型里，停留 1 s 时连地平面的焊点全部冷焊（冷焊率 1.00 对 3 s 的 0.23，明显差距，5 个种子全部同号），停留 8 s 时 380 °C 下 0.975 的 SAC305 小焊盘脱落，而在干净的普通焊盘上 1 s 和 3 s 在两个缺陷率上**打平**（每个种子都完全相同）——这是合成模型，不是实验台实验。
+- 压接还是焊接的线股疲劳替身（`crimp_vs_solder_strain_relief_toy.py`）：弯折的引线上，没有应力释放的焊点会断股（B−A intact 16.2000±1.6432，明显，5 个种子同号）；压接不足的接头不气密，在接触电阻上输给加了应力释放的焊点（C−D contact_mohm 2.1192±0.0670，保留）；不弯折的引线打平——这是合成模型，不是压接钳或 IPC-A-610 测试。
 
 **下一课会用到**
 

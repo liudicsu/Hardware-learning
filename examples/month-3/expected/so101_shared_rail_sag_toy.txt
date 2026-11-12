@@ -1,0 +1,73 @@
+SO-101 shared 5 V servo rail voltage sag toy; lumped-resistance stand-in for the daisy-chained bus servos
+seeds=5 V_SUP=5.0000 V V_floor=4.0000 V I_nameplate=4.0000 A rated=0.5000 A stall=2.0000 A R_lead=0.1000 ohm R_seg=0.0500 ohm jitter +-20.0000 % on each R and +-10.0000 % on each I (declared toy parameters, not measured)
+chain from the supply: lead -> 1 shoulder_pan -> 2 shoulder_lift -> 3 elbow_flex -> 4 wrist_flex -> 5 wrist_roll -> 6 gripper; the lead carries the total current and link k carries the sum of the currents downstream of it
+Common random numbers: one resistance-jitter draw and one current-jitter draw per (regime, seed), shared by all three arms
+Not SPICE and not a bench scope on a real arm; not the components-lesson MCU brownout example
+Regimes and parameters were written before the first run
+rule: V_k = V_SUP - R_LEAD*I_sum - sum over links j < k of R_SEG_j * I_downstream(j); V_min = min over the six servos; V = I R in the supply and return conductors and connectors
+hand_calc nominal currents: rated 6 x 0.5000 = 3.0000 A; stall 6 x 2.0000 = 12.0000 A (the lesson's existing totals, echoed)
+hand_calc one IR drop: 12.0000 A x 0.1000 ohm = 1.2000 V on the supply lead
+hand_calc nominal B_wired v_min in all_stall = 5.0 - 1.2 - 0.05*(10+8+6+4+2) = 2.3000 V
+hand_calc nominal B_wired v_min in rated = 5.0 - 0.3 - 0.05*(2.5+2.0+1.5+1.0+0.5) = 4.3250 V
+rated (no stalled servo; all six draw rated current):
+  declared: B sags below A but v_ok of B vs A may near-tie or tie (the rail stays valid); i_ok all 1
+  i_sum per seed (A, shared currents): 3.0056 2.9199 2.9318 2.9062 3.0137
+  A_ideal v_min 5.0000+-0.0000 i_sum 2.9554+-0.0504 v_ok 1.0000+-0.0000 i_ok 1.0000+-0.0000
+  B_wired v_min 4.3346+-0.0455 i_sum 2.9554+-0.0504 v_ok 1.0000+-0.0000 i_ok 1.0000+-0.0000
+  C_thick v_min 4.7282+-0.0173 i_sum 2.9554+-0.0504 v_ok 1.0000+-0.0000 i_ok 1.0000+-0.0000
+  paired B-A v_min: -0.6654+-0.0455: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A i_sum: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A v_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A i_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B v_min: 0.3935+-0.0283: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B i_sum: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B v_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B i_ok: 0.0000+-0.0000: tie: identical on every seed
+one_stall (stalled: 6 gripper; the rest draw rated current):
+  declared: B's v_min near or below 4 V, kept as it comes
+  i_sum per seed (A, shared currents): 4.3538 4.4125 4.3434 4.4912 4.2775
+  A_ideal v_min 5.0000+-0.0000 i_sum 4.3757+-0.0804 v_ok 1.0000+-0.0000 i_ok 0.0000+-0.0000
+  B_wired v_min 3.8588+-0.0415 i_sum 4.3757+-0.0804 v_ok 0.0000+-0.0000 i_ok 0.0000+-0.0000
+  C_thick v_min 4.5120+-0.0160 i_sum 4.3757+-0.0804 v_ok 1.0000+-0.0000 i_ok 0.0000+-0.0000
+  paired B-A v_min: -1.1412+-0.0415: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A i_sum: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A v_ok: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A i_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B v_min: 0.6532+-0.0269: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B i_sum: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B v_ok: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B i_ok: 0.0000+-0.0000: tie: identical on every seed
+multi_stall (stalled: 2 shoulder_lift, 3 elbow_flex, 6 gripper; the rest draw rated current):
+  declared: B consistently drops below 4 V (v_ok loses to A) and i_sum exceeds 4 A for every arm, so "a 4 A supply is enough" loses; C keeps v_min at or above 4 V - keep
+  i_sum per seed (A, shared currents): 7.8174 7.8424 7.5006 7.3200 7.1353
+  A_ideal v_min 5.0000+-0.0000 i_sum 7.5232+-0.3085 v_ok 1.0000+-0.0000 i_ok 0.0000+-0.0000
+  B_wired v_min 3.2611+-0.0548 i_sum 7.5232+-0.3085 v_ok 0.0000+-0.0000 i_ok 0.0000+-0.0000
+  C_thick v_min 4.2776+-0.0237 i_sum 7.5232+-0.3085 v_ok 1.0000+-0.0000 i_ok 0.0000+-0.0000
+  paired B-A v_min: -1.7389+-0.0548: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A i_sum: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A v_ok: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A i_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B v_min: 1.0165+-0.0336: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B i_sum: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B v_ok: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B i_ok: 0.0000+-0.0000: tie: identical on every seed
+all_stall (stalled: 1 shoulder_pan, 2 shoulder_lift, 3 elbow_flex, 4 wrist_flex, 5 wrist_roll, 6 gripper; the rest draw rated current):
+  declared: every arm exceeds 4 A; C may also fall below 4 V - keep as it comes
+  i_sum per seed (A, shared currents): 11.7397 11.9284 12.0224 11.9316 12.0112
+  A_ideal v_min 5.0000+-0.0000 i_sum 11.9266+-0.1133 v_ok 1.0000+-0.0000 i_ok 0.0000+-0.0000
+  B_wired v_min 2.3751+-0.1700 i_sum 11.9266+-0.1133 v_ok 0.0000+-0.0000 i_ok 0.0000+-0.0000
+  C_thick v_min 3.9067+-0.0644 i_sum 11.9266+-0.1133 v_ok 0.0000+-0.0000 i_ok 0.0000+-0.0000
+  paired B-A v_min: -2.6249+-0.1700: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A i_sum: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A v_ok: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A i_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B v_min: 1.5317+-0.1076: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B i_sum: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B v_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B i_ok: 0.0000+-0.0000: tie: identical on every seed
+alternatives (declared before the run, not adopted; same seeds):
+  multi_stall with R_SEG=0.0300 ohm: paired B-A v_ok@alt: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  rated with R_LEAD=0.2000 ohm: paired B-A v_ok@alt: -0.4000+-0.5477: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+  multi_stall with C_thick R_LEAD_C=0.0500 ohm: paired C-B v_ok@alt: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner beyond the arithmetic: thicker, shorter wiring keeps the far-end voltage legal under several stalls, but no wiring change makes 4 A cover them
+Real SO-101 arm / PSU / stall test: 本页未运行; per-servo currents 以该课已引用规格为准; Wikipedia Voltage drop statements 以原文为准

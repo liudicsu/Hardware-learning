@@ -6621,6 +6621,46 @@ export const resources: Record<string, Resource> = {
     },
     extra: true,
   },
+  "wiki-crimp": {
+    id: "wiki-crimp",
+    url: "https://en.wikipedia.org/wiki/Crimp_(joining)",
+    title: {
+      zh: "Wikipedia：压接（Crimp (joining)）",
+      en: "Wikipedia: Crimp (joining)",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "HTML 正文已读（rev 1380146082，HTTP 200，2026-11-13）。电气压接是一种不用焊锡的连接：把剥好的多股线插入尺寸合适的端子开口，用压接钳把开口紧紧压在线上；压接端子通常用于多股线。列出的优点：做得好的压接设计成气密，阻止氧气和湿气到达（常常不同的）金属而腐蚀；因为不用焊料合金，接头机械强度更高；有时更受青睐的原因之一是应力释放和没有焊锡渗吸（wicking）带来的机械特性。压接端子是永久的，不能重复使用。以原文为准。",
+      en: "HTML body read (rev 1380146082, HTTP 200, 2026-11-13). An electrical crimp is a solderless connection: stripped stranded wire goes into the correctly sized opening of a connector and a crimper squeezes the opening tightly against the wire; crimp connectors are typically used on stranded wire. Listed benefits: a well-engineered and well-executed crimp is designed to be gas-tight, keeping oxygen and moisture off the (often different) metals so they do not corrode; because no alloy is used, the joint is mechanically stronger; among the reasons crimps are sometimes preferred, potentially superior mechanical characteristics due to strain relief and lack of solder wicking. Crimped contacts are permanent and cannot be reused. 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "wiki-voltage-drop": {
+    id: "wiki-voltage-drop",
+    url: "https://en.wikipedia.org/wiki/Voltage_drop",
+    title: {
+      zh: "Wikipedia：电压降（Voltage drop）",
+      en: "Wikipedia: Voltage drop",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "HTML 正文已读（rev 1384299568，HTTP 200，2026-11-13）。电压降是电流流过电路时沿路径的电位下降；电源内阻、导线、触点和连接器上的压降都不希望出现，因为一部分能量变成热。直流下用欧姆定律 V = I R；供电线和回线上都有压降。导体的直流电阻取决于长度、截面积、材料和温度；减小压降最简单的办法是加粗导体。以原文为准。",
+      en: "HTML body read (rev 1384299568, HTTP 200, 2026-11-13). Voltage drop is the decrease of electric potential along the path of a current; drops in the source's internal resistance, across conductors, contacts and connectors are undesirable because some energy becomes heat. For DC, Ohm's law gives V = I R; the drop exists in both the supply and the return wires. A conductor's DC resistance depends on its length, cross-section, material and temperature; the simplest way to reduce the drop is a thicker conductor. 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
   "madgwick-2010-report": {
     id: "madgwick-2010-report",
     url: "https://web.archive.org/web/20190715000000/https://x-io.co.uk/res/doc/madgwick_internal_report.pdf",

@@ -1,0 +1,69 @@
+Synthetic crimp-versus-solder strain-relief toy; shared strand and contact draws; not an IPC-A-610 inspection or pull tester
+seeds=5 strands=19 d=0.1600 mm N_REF=2000.0000 EPS_REF=0.0200 K_FAT=2.0000 SIGMA_LIFE=0.3000 R_C0=0.5000 mOhm (declared toy values, not a datasheet)
+No pull test and no thermal cycle: closed-form strand life and contact resistance
+Regimes and parameters were written before the first run
+rule: eps=d/(2*rho); N_i=N_REF*(EPS_REF/eps)^K_FAT*z_i; intact if N_i>cycles; R_c=R_C0*u*base*(1+growth)
+hand_calc rho=3.0 mm: eps=0.16/(2*3.0)=0.0267; median life N_REF*(EPS_REF/eps)^2=1125.0000 cycles
+hand_calc rho=6.0 mm: eps=0.16/(2*6.0)=0.0133; median life N_REF*(EPS_REF/eps)^2=4500.0000 cycles
+hand_calc rho=12.0 mm: eps=0.16/(2*12.0)=0.0067; median life N_REF*(EPS_REF/eps)^2=18000.0000 cycles
+hand_calc if only 3 of 19 strands remain the strand part of the resistance is 19/3 = 6.3333 times the intact value
+flex (cycles=1500, hours=0):
+  declared: A consistently loses to B on intact and life_half; C is not gas-tight and loses to D (D = soldered with strain relief) on contact_mohm - keep
+  A_solder_bare intact 2.8000+-1.6432 life_half 1070.6541+-94.8988 contact_mohm 0.4986+-0.0158 gas_tight 1.0000+-0.0000
+  B_crimp_good intact 19.0000+-0.0000 life_half 4282.6166+-379.5950 contact_mohm 0.4986+-0.0158 gas_tight 1.0000+-0.0000
+  C_crimp_under intact 19.0000+-0.0000 life_half 4282.6166+-379.5950 contact_mohm 2.6179+-0.0828 gas_tight 0.0000+-0.0000
+  D_solder_relief intact 19.0000+-0.0000 life_half 17130.4662+-1518.3801 contact_mohm 0.4986+-0.0158 gas_tight 1.0000+-0.0000
+  paired B-A intact: 16.2000+-1.6432: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A life_half: 3211.9624+-284.6963: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A contact_mohm: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A gas_tight: 0.0000+-0.0000: tie: identical on every seed
+  paired C-D intact: 0.0000+-0.0000: tie: identical on every seed
+  paired C-D life_half: -12847.8497+-1138.7851: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-D contact_mohm: 2.1192+-0.0670: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-D gas_tight: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B intact: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B life_half: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B contact_mohm: 2.1192+-0.0670: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B gas_tight: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+light_flex (cycles=300, hours=0):
+  declared: A vs B may near-tie on intact - keep
+  A_solder_bare intact 19.0000+-0.0000 life_half 1190.2694+-120.1981 contact_mohm 0.5041+-0.0362 gas_tight 1.0000+-0.0000
+  B_crimp_good intact 19.0000+-0.0000 life_half 4761.0775+-480.7924 contact_mohm 0.5041+-0.0362 gas_tight 1.0000+-0.0000
+  C_crimp_under intact 19.0000+-0.0000 life_half 4761.0775+-480.7924 contact_mohm 1.7392+-0.1248 gas_tight 0.0000+-0.0000
+  D_solder_relief intact 19.0000+-0.0000 life_half 19044.3098+-1923.1696 contact_mohm 0.5041+-0.0362 gas_tight 1.0000+-0.0000
+  paired B-A intact: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A life_half: 3570.8081+-360.5943: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A contact_mohm: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A gas_tight: 0.0000+-0.0000: tie: identical on every seed
+  paired C-D intact: 0.0000+-0.0000: tie: identical on every seed
+  paired C-D life_half: -14283.2324+-1442.3772: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-D contact_mohm: 1.2351+-0.0886: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-D gas_tight: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B intact: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B life_half: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B contact_mohm: 1.2351+-0.0886: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B gas_tight: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+static (cycles=0, hours=2000):
+  declared: A vs B may near-tie or tie (pigtail never flexes); C loses to D on contact_mohm - keep
+  A_solder_bare intact 19.0000+-0.0000 life_half 1074.0960+-35.5744 contact_mohm 0.4849+-0.0309 gas_tight 1.0000+-0.0000
+  B_crimp_good intact 19.0000+-0.0000 life_half 4296.3838+-142.2977 contact_mohm 0.4849+-0.0309 gas_tight 1.0000+-0.0000
+  C_crimp_under intact 19.0000+-0.0000 life_half 4296.3838+-142.2977 contact_mohm 2.9092+-0.1856 gas_tight 0.0000+-0.0000
+  D_solder_relief intact 19.0000+-0.0000 life_half 17185.5353+-569.1906 contact_mohm 0.4849+-0.0309 gas_tight 1.0000+-0.0000
+  paired B-A intact: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A life_half: 3222.2879+-106.7232: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A contact_mohm: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A gas_tight: 0.0000+-0.0000: tie: identical on every seed
+  paired C-D intact: 0.0000+-0.0000: tie: identical on every seed
+  paired C-D life_half: -12889.1515+-426.8930: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-D contact_mohm: 2.4243+-0.1546: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-D gas_tight: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B intact: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B life_half: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B contact_mohm: 2.4243+-0.1546: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B gas_tight: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative parameters (declared before the run, same seeds, not adopted):
+  flex K_FAT=3.0: paired B-A intact: 18.6000+-0.5477: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  flex A rho=4.0 mm: paired B-A intact: 3.4000+-0.5477: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  static OX_PER_KHOUR=0.1: paired C-D contact_mohm: 1.2607+-0.0804: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No universal winner: a good crimp and a relieved solder joint both survive this flex; the unrelieved solder joint and the under-crimp are the losers here
+Crimp tool / IPC-A-610 inspection / pull test: 本页未运行; Wikipedia Crimp (joining) statements 以原文为准
