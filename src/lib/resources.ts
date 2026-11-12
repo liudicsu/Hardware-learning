@@ -6564,6 +6564,43 @@ export const resources: Record<string, Resource> = {
     license: { zh: "Apache-2.0；以原站为准", en: "Apache-2.0; see original terms" },
     extra: true,
   },
+  "wiki-peukert": {
+    id: "wiki-peukert",
+    url: "https://en.wikipedia.org/wiki/Peukert%27s_law",
+    title: {
+      zh: "Wikipedia：Peukert 定律（Peukert's law）",
+      en: "Wikipedia: Peukert's law",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "HTML 正文已读（rev 1345423657，HTTP 200，2026-11-12）。Wilhelm Peukert 1897 年提出的可充电铅酸电池近似定律：放电倍率升高，可用容量下降。C_p = I^k t；按额定值写为 t = H (C / (I H))^k。k = 1 时放出容量与电流无关；铅酸电池 k 一般在 1.1 到 1.3 之间（另给 AGM、胶体、富液式范围）。算例：100 Ah、20 小时率、k = 1.2、10 A 约 8.7 h、87 Ah。局限：方程不含温度；k 随老化变大；小电流时须考虑自放电；很大电流时实际容量少于固定指数的预测。该页引用的 2006 年评述需订阅，未读、不引用。以原文为准。",
+      en: "HTML body read (rev 1345423657, HTTP 200, 2026-11-12). An approximate law for rechargeable lead–acid batteries presented by Wilhelm Peukert in 1897: as the discharge rate rises the available capacity falls. C_p = I^k t; at a rating, t = H (C / (I H))^k. With k = 1 the delivered capacity is independent of current; for lead–acid k is typically between 1.1 and 1.3 (separate AGM, gel and flooded ranges are given). Worked example: 100 Ah at the 20-hour rate, k = 1.2, 10 A gives about 8.7 h and 87 Ah. Limits: temperature is not in the equation; k grows with age; self-discharge must be considered at low current; at very high currents practical batteries give less capacity than a fixed exponent predicts. The 2006 review the page cites is paywalled, not read and not cited. 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "rajkumar-fdm-orientation": {
+    id: "rajkumar-fdm-orientation",
+    url: "https://arxiv.org/abs/2202.05692",
+    title: {
+      zh: "填充图案与打印方向对 FDM 打印件力学性能的影响：一种实验模态分析方法",
+      en: "Effect of infill pattern and build orientation on mechanical properties of FDM printed parts: An experimental modal analysis approach",
+    },
+    author: "Santosh Rajkumar",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已核对 arXiv 摘要页（1 位作者：Santosh Rajkumar；PDF 署名 Santosh Mohan Rajkumar），PDF 正文已读（HTTP 200，2026-11-12）。PLA 梁 100 × 15 × 5 mm，平放 / 侧放 / 直立三种方向、六种填充（100 % 填充、0.2 mm 层高），每种 5 件，按 ASTM D7264 做三点弯曲，并用实验模态分析比较固有频率与弹性模量。正文：立方 + 侧放最大弯曲应力最高 107.95 MPa，三角 + 直立最低 62.32 MPa；平放最大弯曲应力中位数最高，直立低得多；平放模量偏高、直立偏低；三角 + 平放模量最高 3.36 GPa，锯齿 + 侧放最低 2.185 GPa；侧放最大弯曲应变偏高。全部以论文为准；打印机 / Instron / 模态力锤本页未运行。arXiv 2202.05692。",
+      en: "arXiv abs page checked (1 author: Santosh Rajkumar; PDF byline Santosh Mohan Rajkumar), PDF body read (HTTP 200, 2026-11-12). PLA beams 100 × 15 × 5 mm in flatwise / edgewise / upright orientations with six infills (100 % infill, 0.2 mm layers), five each, three-point bending per ASTM D7264, plus experimental modal analysis relating natural frequency to elastic modulus. Body: cubic + edgewise has the highest maximum flexural stress, 107.95 MPa, triangles + upright the lowest, 62.32 MPa; flatwise has the highest median maximum flexural stress and upright much lower; flatwise tends to higher modulus and upright lower; triangles + flatwise has the highest modulus, 3.36 GPa, zigzag + edgewise the lowest, 2.185 GPa; edgewise tends to higher maximum flexural strain. All 以论文为准; printer / Instron / modal hammer 本页未运行. arXiv 2202.05692.",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {
