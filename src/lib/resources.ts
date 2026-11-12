@@ -6663,7 +6663,7 @@ export const resources: Record<string, Resource> = {
   },
   "wiki-lqg": {
     id: "wiki-lqg",
-    url: "https://en.wikipedia.org/wiki/Linear%E2%80%93quadratic%E2%80%93Gaussian_control",
+    url: "https://en.wikipedia.org/wiki/Linear–quadratic–Gaussian_control",
     title: {
       zh: "Wikipedia：线性二次高斯控制（Linear–quadratic–Gaussian control）",
       en: "Wikipedia: Linear–quadratic–Gaussian control",
