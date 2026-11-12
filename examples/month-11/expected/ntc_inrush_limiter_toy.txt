@@ -1,0 +1,80 @@
+Synthetic NTC inrush-limiter toy; shared capacitor, source, tolerance and ambient draws; lumped electrical + one-node thermal model, not a manufacturer NTC curve, not SPICE, not an IEC 61000 lab
+seeds=5 V_S=24.0000 V R_SRC=0.0500 ohm C_BUS=0.0022 F R25=5.0000 ohm BETA=3500.0000 K T25=298.1500 K R_TH=60.0000 K/W C_TH=0.5000 J/K (declared toy parameters, not datasheet values)
+Every value is a declared toy parameter, not a datasheet value; real PSU / NTC disc / fuse: 本页未运行
+Regimes and parameters were written before the first run
+rule: R_s=R_SRC+R_lim; v_inf=V_S*R_LOAD/(R_s+R_LOAD); tau=C_BUS*R_s*R_LOAD/(R_s+R_LOAD); v_c<-v_inf+(v_c-v_inf)*exp(-DT/tau); i=(V_S-v_c)/R_s; C_TH*dT/dt=i^2*R(T)-(T-T_amb)/R_TH
+hand_calc first-instant peak unprotected: V_S/R_SRC = 24/0.05 = 480.0000 A
+hand_calc first-instant peak cold NTC: V_S/(R_SRC+R25) = 24/5.05 = 4.7525 A
+hand_calc capacitor-charging I2t unprotected: V^2*C/(2R) = 24^2*0.0022/(2*0.05) = 12.6720 A^2 s
+hand_calc capacitor-charging I2t through 5.05 ohm: V^2*C/(2R) = 24^2*0.0022/(2*5.05) = 0.1255 A^2 s
+hand_calc energy into the capacitor: 0.5*C*V^2 = 0.5*0.0022*24^2 = 0.6336 J
+hand_calc steady load current without a limiter: 24/(0.05+12) = 1.9917 A
+cold_start:
+  declared: A consistently higher peak than B and A fails the fuse budget; C vs B peak may near-tie; C consistently wastes more p_ss than B - keep; B keeps a residual v_drop_ss and p_ss above D's bypass - keep
+  A_none peak_a 488.1174+-63.0625 i2t 12.7441+-1.3442 fuse_ok 0.0000+-0.0000 v_drop_ss 0.0000+-0.0000 p_ss 0.0000+-0.0000
+  B_ntc peak_a 4.2502+-0.2690 i2t 0.1989+-0.0080 fuse_ok 1.0000+-0.0000 v_drop_ss 0.7479+-0.0153 p_ss 1.4432+-0.0284
+  C_fixed peak_a 4.5781+-0.3104 i2t 0.2053+-0.0104 fuse_ok 1.0000+-0.0000 v_drop_ss 7.2399+-0.3241 p_ss 10.0630+-0.2666
+  D_bypass peak_a 4.2502+-0.2690 i2t 0.1989+-0.0080 fuse_ok 1.0000+-0.0000 v_drop_ss 0.0000+-0.0000 p_ss 0.0000+-0.0000
+  paired A-B peak_a: 483.8672+-62.9814: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B i2t: 12.5452+-1.3457: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B fuse_ok: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B v_drop_ss: -0.7479+-0.0153: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B p_ss: -1.4432+-0.0284: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B peak_a: 0.3278+-0.0755: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B i2t: 0.0064+-0.0031: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B fuse_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B v_drop_ss: 6.4921+-0.3090: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B p_ss: 8.6198+-0.2385: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-D peak_a: 0.0000+-0.0000: tie: identical on every seed
+  paired B-D i2t: 0.0000+-0.0000: tie: identical on every seed
+  paired B-D fuse_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired B-D v_drop_ss: 0.7479+-0.0153: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-D p_ss: 1.4432+-0.0284: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+hot_restart:
+  declared: B's peak rises toward A and B may fail the fuse budget - keep as it comes; D keeps its cold-start peak
+  A_none peak_a 546.8363+-39.0766 i2t 14.8193+-1.6069 fuse_ok 0.0000+-0.0000 v_drop_ss 0.0000+-0.0000 p_ss 0.0000+-0.0000
+  B_ntc peak_a 56.1052+-0.8280 i2t 1.7419+-0.1192 fuse_ok 0.0000+-0.0000 v_drop_ss 0.7411+-0.0090 p_ss 1.4312+-0.0168
+  C_fixed peak_a 4.5770+-0.2442 i2t 0.2097+-0.0172 fuse_ok 1.0000+-0.0000 v_drop_ss 7.2447+-0.2643 p_ss 10.0739+-0.2113
+  D_bypass peak_a 4.4456+-0.2159 i2t 0.2120+-0.0109 fuse_ok 1.0000+-0.0000 v_drop_ss 0.0000+-0.0000 p_ss 0.0000+-0.0000
+  paired A-B peak_a: 490.7311+-38.5248: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B i2t: 13.0774+-1.5093: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B fuse_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B v_drop_ss: -0.7411+-0.0090: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B p_ss: -1.4312+-0.0168: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B peak_a: -51.5281+-0.6936: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B i2t: -1.5322+-0.1033: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B fuse_ok: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B v_drop_ss: 6.5036+-0.2592: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B p_ss: 8.6427+-0.2020: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-D peak_a: 51.6595+-0.7186: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-D i2t: 1.5299+-0.1124: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-D fuse_ok: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-D v_drop_ss: 0.7411+-0.0090: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-D p_ss: 1.4312+-0.0168: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+heavy_load:
+  declared: A fails the fuse budget; C consistently wastes more p_ss than B - keep; B residual above D - keep
+  A_none peak_a 506.8928+-54.2020 i2t 14.4287+-1.3609 fuse_ok 0.0000+-0.0000 v_drop_ss 0.0000+-0.0000 p_ss 0.0000+-0.0000
+  B_ntc peak_a 4.9814+-0.5004 i2t 0.3658+-0.0414 fuse_ok 1.0000+-0.0000 v_drop_ss 0.5509+-0.0129 p_ss 2.1360+-0.0505
+  C_fixed peak_a 4.8661+-0.3202 i2t 0.3332+-0.0261 fuse_ok 1.0000+-0.0000 v_drop_ss 10.7340+-0.4053 p_ss 23.5236+-0.1913
+  D_bypass peak_a 4.9814+-0.5004 i2t 0.3658+-0.0414 fuse_ok 1.0000+-0.0000 v_drop_ss 0.0000+-0.0000 p_ss 0.0000+-0.0000
+  paired A-B peak_a: 501.9114+-54.5607: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B i2t: 14.0629+-1.3840: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B fuse_ok: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B v_drop_ss: -0.5509+-0.0129: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B p_ss: -2.1360+-0.0505: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B peak_a: -0.1153+-0.3361: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired C-B i2t: -0.0326+-0.0267: small but consistent gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  paired C-B fuse_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B v_drop_ss: 10.1831+-0.3937: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B p_ss: 21.3877+-0.1482: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-D peak_a: 0.0000+-0.0000: tie: identical on every seed
+  paired B-D i2t: 0.0000+-0.0000: tie: identical on every seed
+  paired B-D fuse_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired B-D v_drop_ss: 0.5509+-0.0129: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-D p_ss: 2.1360+-0.0505: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative parameters (declared before the run, same seeds, not adopted):
+  cold_start R25=10.0 ohm: paired C-B p_ss: 10.0913+-0.0408: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  hot_restart R_TH=30.0 K/W: paired A-B peak_a: 510.6694+-38.8185: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  cold_start I2T_BUDGET=0.25: paired A-B fuse_ok: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No universal winner: the NTC cuts the cold turn-on peak at a small steady cost, a fixed resistor cuts it at a large one, and a hot NTC limits little unless it has cooled or was bypassed
+Real PSU / NTC disc / fuse: 本页未运行; Wikipedia Inrush current and Inrush current limiter statements 以原文为准; every value is a declared toy parameter

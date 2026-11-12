@@ -1,0 +1,87 @@
+Synthetic LQG separation toy: Kalman filter plus LQR on a known mass-damper plant; common random numbers; not a real IMU or plant
+seeds=5 dt=0.0200 s m=1.0000 kg b=0.4000 N*s/m sig_w=0.0400 q=diag(1.0,0.1) r=0.0100 horizon=500 (declared)
+No model error: the plant is known exactly; the full-state arm is a privileged oracle, not an equal-information baseline
+Regimes and parameters were written before the first run
+rule: u=-K*xhat; x_pred=A*xhat+B*u; xhat=x_pred+L*(y-C*x_pred); Luenberger xhat+=A*xhat+B*u+Lp*(y-C*xhat)
+hand_calc LQR K = [9.5023, 5.0042]
+hand_calc Kalman L (matched, SIG_V=0.0500) = [0.1576, 0.6712]
+hand_calc Kalman L (noisy_sensor, SIG_V=0.2500) = [0.0700, 0.1263]
+hand_calc Kalman L (quiet_sensor, SIG_V=0.0050) = [0.4303, 5.8664]
+hand_calc Luenberger Lp (page poles 0.85, 0.80) = [0.3420, 1.3632]
+hand_calc Luenberger Lp (fast poles 0.20, 0.20) = [1.5920, 31.3632]
+hand_calc max|eig(A-BK)| = 0.9464
+hand_calc max|eig(A-LC)| (Kalman, matched) = 0.9215
+hand_calc max|eig(A-LpC)| (page poles) = 0.8500
+hand_calc first-step Kalman gain from P0=diag(0.25,0.01) with SIG_V=0.05: L1=[0.25/(0.25+0.0025), 0]=[0.9901, 0.0000]
+matched (SIG_V=0.0500):
+  declared: A is the oracle bound (B-A cost consistent > 0); B consistently below D on cost; B vs C either a consistent B win or a near-tie; E may lose to C on cost - keep
+  A_oracle cost 0.0270+-0.0202 est_rms 0.0000+-0.0000 u_rms 0.7485+-0.2350
+  B_lqg cost 0.0553+-0.0401 est_rms 0.0511+-0.0257 u_rms 1.4345+-0.6641
+  C_luen_page cost 0.0602+-0.0421 est_rms 0.0448+-0.0155 u_rms 1.6719+-0.6939
+  D_luen_fast cost 1.4436+-0.2831 est_rms 0.0881+-0.0060 u_rms 11.8628+-1.1109
+  E_kf_misspec cost 0.1409+-0.0452 est_rms 0.2760+-0.0497 u_rms 0.1842+-0.0408
+  paired B-A cost: 0.0284+-0.0202: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A est_rms: 0.0511+-0.0257: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A u_rms: 0.6860+-0.4602: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C cost: -0.0049+-0.0026: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C est_rms: 0.0063+-0.0102: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired B-C u_rms: -0.2373+-0.0428: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-D cost: -1.3883+-0.2447: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-D est_rms: -0.0370+-0.0202: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-D u_rms: -10.4283+-0.5164: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired E-C cost: 0.0807+-0.0444: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired E-C est_rms: 0.2312+-0.0427: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired E-C u_rms: -1.4876+-0.6644: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired E-B cost: 0.0855+-0.0426: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired E-B est_rms: 0.2249+-0.0400: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired E-B u_rms: -1.2503+-0.6334: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+noisy_sensor (SIG_V=0.2500):
+  declared: B consistently below C and D on cost (fast observers pass sensor noise into u); E keep as it comes
+  A_oracle cost 0.0119+-0.0097 est_rms 0.0000+-0.0000 u_rms 0.6133+-0.1320
+  B_lqg cost 0.0352+-0.0106 est_rms 0.0771+-0.0097 u_rms 0.8624+-0.0767
+  C_luen_page cost 0.1437+-0.0110 est_rms 0.1219+-0.0051 u_rms 3.4771+-0.0922
+  D_luen_fast cost 27.8235+-1.4225 est_rms 0.4018+-0.0106 u_rms 52.6443+-1.3506
+  E_kf_misspec cost 0.5450+-0.2953 est_rms 0.6545+-0.1716 u_rms 0.0771+-0.0182
+  paired B-A cost: 0.0234+-0.0036: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A est_rms: 0.0771+-0.0097: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A u_rms: 0.2491+-0.0749: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C cost: -0.1084+-0.0036: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C est_rms: -0.0448+-0.0128: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C u_rms: -2.6147+-0.0569: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-D cost: -27.7882+-1.4261: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-D est_rms: -0.3247+-0.0153: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-D u_rms: -51.7818+-1.3658: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired E-C cost: 0.4013+-0.2864: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired E-C est_rms: 0.5326+-0.1742: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired E-C u_rms: -3.3999+-0.0816: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired E-B cost: 0.5097+-0.2875: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired E-B est_rms: 0.5774+-0.1665: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired E-B u_rms: -0.7853+-0.0686: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+quiet_sensor (SIG_V=0.0050):
+  declared: B vs D may near-tie; B consistently below C or a near-tie; E loses to C - keep
+  A_oracle cost 0.0105+-0.0087 est_rms 0.0000+-0.0000 u_rms 0.5877+-0.1069
+  B_lqg cost 0.0358+-0.0440 est_rms 0.0158+-0.0123 u_rms 1.4052+-0.8922
+  C_luen_page cost 0.0231+-0.0210 est_rms 0.0188+-0.0131 u_rms 0.8939+-0.4654
+  D_luen_fast cost 0.1074+-0.1385 est_rms 0.0177+-0.0111 u_rms 2.7242+-1.7385
+  E_kf_misspec cost 0.0358+-0.0156 est_rms 0.0736+-0.0197 u_rms 0.4474+-0.1269
+  paired B-A cost: 0.0253+-0.0355: near-tie / small gap, within seed noise (|m| <= sd); same sign on all 5 seeds
+  paired B-A est_rms: 0.0158+-0.0123: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A u_rms: 0.8174+-0.8371: near-tie / small gap, within seed noise (|m| <= sd); same sign on all 5 seeds
+  paired B-C cost: 0.0127+-0.0235: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired B-C est_rms: -0.0031+-0.0010: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C u_rms: 0.5113+-0.4373: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-D cost: -0.0716+-0.0946: near-tie / small gap, within seed noise (|m| <= sd); same sign on all 5 seeds
+  paired B-D est_rms: -0.0019+-0.0013: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-D u_rms: -1.3191+-0.8491: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired E-C cost: 0.0127+-0.0147: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired E-C est_rms: 0.0548+-0.0124: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired E-C u_rms: -0.4464+-0.3707: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired E-B cost: -2.582e-6+-0.0368: near-tie / small gap, within seed noise (|m| <= sd); 4 of 5 seeds have the opposite sign
+  paired E-B est_rms: 0.0578+-0.0131: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired E-B u_rms: -0.9577+-0.8067: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative parameters (declared before the run, same seeds, not adopted):
+  matched V_design=100*V, W_design=0.01*W: paired E-C cost: 1.1922+-0.2001: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  matched C page poles (0.90,0.85): paired B-C cost: 0.0058+-0.0064: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  noisy_sensor HORIZON=1000: paired B-C cost: -0.1120+-0.0068: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+Separation: one K for every arm; only the estimator changes. No winner beyond the noise model: the Kalman gain is best when its V and W match the plant, and a misspecified Kalman can lose to a placed observer
+Real plant / IMU / MATLAB toolbox: 本页未运行; not H-infinity; Wikipedia LQG statements 以原文为准

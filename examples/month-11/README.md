@@ -18,3 +18,7 @@ Set `M11_PYTHON` to override the interpreter (default `python3`).
 - `power-battery-emc/soc_coulomb_thermal_toy.py` — coulomb SoC drift + thermal derate (batch-4).
 
 Batch-4 PR3: `umi-style-collection/teleop_rtt_budget_toy.py` (stdlib CPU); `check.sh` compares `expected/teleop_rtt_budget_toy.txt`. Unilateral positions, control/video RTT, explicit display+reaction model; one_way_only_estimate is accounting, not physical performance.
+
+## power-battery-emc/ — Inrush current and an NTC limiter / 浪涌电流与 NTC 限流
+
+`power-battery-emc/ntc_inrush_limiter_toy.py`: standard-library synthetic capacitor-charging circuit with a one-node NTC thermal model (no limiter vs NTC vs fixed resistor vs relay bypass; cold start, hot restart, heavy load) on shared capacitor, source, tolerance and ambient draws; no hardware; expected output in `expected/ntc_inrush_limiter_toy.txt`, included in `check.sh`. Real PSU / NTC disc / fuse 本页未运行. / 标准库合成的电容充电电路与单节点 NTC 热模型（无限流、NTC、固定电阻、旁路继电器；冷启动、热重启、重载），不是实测，输出由 `check.sh` 核对。

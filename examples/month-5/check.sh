@@ -35,4 +35,5 @@ check scurve_jerk_limit_toy.txt "$PY" "$M5/moveit-pick-place/scurve_jerk_limit_t
 
 check rolling_vs_global_shutter_toy.txt "$PY" "$M5/camera-calibration/rolling_vs_global_shutter_toy.py"
 
+check lqg_kalman_lqr_separation_toy.txt "$PY" "$M5/state-space-lqr/lqg_kalman_lqr_separation_toy.py"
 exit $fail

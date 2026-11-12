@@ -711,6 +711,493 @@ Chassis wiring / scope-on-a-loop: 本页未运行; TI SLYT512 以原文为准
 4. 手算 `I_ADC_BIAS × R_SENSE_LEAD`，确认与 C 的打印跳动一致；确认馈线压降等于 `I × R_MOTOR_FEED` 且不在跳动里。
 5. 任何真机实验前（本页未运行），列出为何本玩具不是 EMC 暗室结果（`L·di/dt` 未建模）。
 
+## 浪涌电流与 NTC 限流
+
+<Resource id="wiki-inrush" />
+<Resource id="wiki-inrush-limiter" />
+
+上面的熔断器清单要求拿到**浪涌波形**，但没有给出任何曲线。本节为机器人直流母线上最常见的情形补上一条：接通电源给大电容充电。Wikipedia 的 *Inrush current*（已读正文，rev 1326751079；以原文为准）说，放电的电容对电源**看起来像短路**；从直流源充电时，电流只受电源内阻和电容 ESR 限制。配套的 *Inrush current limiter*（已读正文，rev 1312732367；以原文为准）介绍了常用的解决办法。串联一只 **NTC 热敏电阻**，它**冷态阻值高**，能限制接通电流；之后**自热**，阻值下降。它必须持续耗散功率才能保持高温，所以"被保护电路不可能得到 100 % 的电源电压"。**固定电阻**同样能限制峰值，但阻值从不下降，所以一直在浪费功率。浪涌结束后，可以用继电器或 MOSFET 把两者切出电路。*Inrush current* 页面还说，刚断电时 NTC 仍然是热的，"冷却超过 1 分钟"之前限不住浪涌；限流器页面没有这样说。
+
+本节**不是**熔断器选型，也不作任何认证：上面的清单仍然适用。它**不是**库仑计数 SoC 与热降额 toy，也**不是**元器件一课里的 Peukert 放电率–容量 toy。
+
+<Formula label="经串联电阻 R 给电容充电">i(0) = V_S / R；   单看充电电流，∫ i² dt = V_S² C / (2 R)；   NTC：R(T) = R25 · exp(BETA · (1/T − 1/T25))</Formula>
+
+**算例（标明的手算，toy 也会打印）。** 不加限流时，接通瞬间电流是 24 V / 0.05 Ω = 480.0000 A，给 2200 µF 充电存入 0.6336 J，按公式 I²t 为 12.6720 A²s。冷态 5 Ω 的 NTC 把串联电阻提高到 5.05 Ω：接通瞬间电流降到 4.7525 A，充电 I²t 降到 0.1255 A²s。不加限流时的稳态负载电流是 1.9917 A。这里所有数值都是**声明的玩具参数**，不是规格书数值。
+
+**积分步长。** 每个 2 µs 步长内把限流电阻看作常数，用 RC 的精确解更新，所以电气部分不会失稳。NTC 温度在同一步长上用欧拉法推进。它的热时间常数 R_TH × C_TH 为 30 s（手算），远长于 0.05 s 的窗口，所以浪涌期间 NTC 几乎没有变热；热稳态单独按热平衡求解。
+
+### 公平设置
+
+`ntc_inrush_limiter_toy.py` 是**合成**的，只用标准库。它不是 SPICE，不是厂家的 NTC 曲线，也不是 IEC 61000 实验室。**模型假设:** 理想 24 V 直流源在 t = 0 接通，这是声明的替身，与上面 12 V 的预算 toy 无关。电源、导线和 ESR 合计 0.05 Ω，母线电容 2200 µF、初始放电，负载 12 Ω。NTC 在 25 °C 时 R25 = 5 Ω，BETA = 3500 K；它的热节点对环境 R_TH = 60 K/W，C_TH = 0.5 J/K。熔断预算是 0.05 s 窗口内 1.0 A²s，这是声明的数，不是熔断器曲线。这些都是**声明的玩具参数**。
+
+| 组 | 限流 |
+|---|---|
+| A_none | 无 |
+| B_ntc | 串联 NTC，阻值由温度决定 |
+| C_fixed | 固定电阻，等于 NTC 的冷态阻值，从不下降 |
+| D_bypass | 同一只 NTC，启动后由继电器短接 |
+
+**共用随机数:** 每个（情形，种子）抽一次电容系数、电源电阻系数、电阻公差系数和环境温度，四组共用。五个种子。指标：peak_a（窗口内最大线电流）、i2t（窗口内的 A²s）、fuse_ok（i2t 不超预算时为 1），以及限流元件上的稳态压降 v_drop_ss 和功耗 p_ss，都按种子取均值±sd。
+
+| 情形 | 起始状态 | 事先声明的内容 |
+|---|---|---|
+| cold_start | NTC 处于环境温度 | A 的峰值**稳定**高于 B 且超出预算；C 对 B 的峰值**可能**接近打平；C 的 p_ss 比 B 浪费更多，**保留**；B 相对 D 留有残余压降和功耗，**保留** |
+| hot_restart | B 的 NTC 已在热稳态温度，电容已放电，没有冷却时间（**声明的模型假设**）；D 的 NTC 因被旁路而处于环境温度 | B 的峰值向 A 靠近，B **可能**超出预算，按结果保留；D 保持冷启动的峰值 |
+| heavy_load | 冷启动，6 Ω 负载 | A 超出预算；C 的 p_ss 比 B 浪费更多，**保留**；B 的残余高于 D，**保留** |
+
+### 运行标准库 toy
+
+```bash
+cd ~/Hardware-learning/examples/month-11/power-battery-emc
+python3 ntc_inrush_limiter_toy.py
+```
+
+<CodeSource path="examples/month-11/power-battery-emc/ntc_inrush_limiter_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""NTC thermistor as an inrush-current limiter on a robot's 24 V DC bus.
+
+Synthetic lumped electrical + one-node thermal model, stdlib only,
+deterministic.  Not a manufacturer NTC curve, not SPICE, not an IEC 61000 lab.
+Every value is a declared toy parameter, not a datasheet value.  A real PSU /
+NTC disc / fuse: 本页未运行.  Not the lesson's fuse I2t certification text and
+not the coulomb SoC + derate toy.  Wikipedia "Inrush current" and "Inrush
+current limiter" statements are 以原文为准 and are not toy outputs.
+
+Model.  V_S = 24.0 V ideal DC source switched on at t = 0; R_SRC = 0.05 ohm
+(source + wiring + capacitor ESR); C_BUS = 2200e-6 F initially discharged; a
+resistive load R_LOAD = 12.0 ohm across the capacitor.  The limiter resistance
+R_lim is in series between source and capacitor.  Each electrical step holds
+R_lim constant: R_s = R_SRC + R_lim; v_inf = V_S*R_LOAD/(R_s + R_LOAD);
+tau = C_BUS*R_s*R_LOAD/(R_s + R_LOAD); v_c <- v_inf + (v_c - v_inf) *
+exp(-DT/tau); line current i = (V_S - v_c)/R_s.  The NTC is
+R(T) = R25*exp(BETA*(1/T - 1/T25)) with R25 = 5.0 ohm, BETA = 3500 K,
+T25 = 298.15 K.  One thermal node: C_TH dT/dt = i^2 R(T) - (T - T_amb)/R_TH
+with R_TH = 60.0 K/W, C_TH = 0.5 J/K, Euler on the same DT.  DT = 2e-6 s for
+WINDOW = 0.05 s.  Peak current is the largest line current in the window and
+the first sample at t = 0 counts.  I2t is the trapezoid integral of i^2 over
+the window; a declared fuse budget I2T_BUDGET = 1.0 A^2 s gives fuse_ok = 1 if
+I2t <= budget else 0.  Steady state solves T = T_amb + I^2 R(T) R_TH with
+I = V_S/(R_SRC + R(T) + R_LOAD) by bisection on T in [T_amb, 800 K], then
+v_drop_ss = I*R_lim_ss and p_ss = I^2*R_lim_ss.
+
+Arms:
+  A_none     : no limiter (R_lim = 0).
+  B_ntc      : series NTC, R(T) from its temperature.
+  C_fixed    : fixed resistor equal to the NTC cold resistance (R25 times the
+               same tolerance factor), never falls.
+  D_bypass   : the same NTC, switched out by a relay after start (ideal short
+               in steady state: v_drop_ss = 0, p_ss = 0).  Declared model
+               assumption: the bypassed NTC carries no current and has cooled
+               to ambient before any restart.
+
+Common random numbers: for each (regime, seed) draw ONCE from
+random.Random(f"{regime}/{seed}") a capacitor factor uniform(0.9, 1.1), a
+source-resistance factor uniform(0.8, 1.2), an NTC/fixed-resistor tolerance
+factor uniform(0.9, 1.1) (applied to R25 for B, C and D) and an ambient
+temperature T_amb = 298.15 + uniform(-3, 3) K; shared by all arms.
+
+Regimes: "cold_start" (NTC starts at T_amb); "hot_restart" (declared model
+assumption, not a Wikipedia value: supply off and on again with the capacitor
+discharged but no cooling time, so B's NTC starts at its steady-state
+temperature, while D's NTC starts at T_amb because it was bypassed and C has no
+temperature dependence); "heavy_load" (cold start with R_LOAD = 6.0 ohm).
+
+Metrics per seed: peak_a, i2t, fuse_ok, v_drop_ss, p_ss.
+
+Pairs, every metric in every regime: A-B, C-B, B-D.
+
+Regimes and parameters were written before the first run.  Pre-declared
+expectations (not tuned; print whatever comes):
+  cold_start  : A consistently higher peak than B and A fails the fuse budget;
+                C vs B peak may near-tie; C consistently wastes more p_ss than
+                B - keep; B keeps a residual v_drop_ss and p_ss above D's
+                bypass - keep.
+  hot_restart : B's peak rises toward A and B may fail the fuse budget - keep
+                as it comes; D keeps its cold-start peak.
+  heavy_load  : A fails the fuse budget; C consistently wastes more p_ss than
+                B - keep; B residual above D - keep.
+
+Alternatives (same seeds, declared before the run, not adopted):
+  cold_start with R25 = 10.0 ohm (paired C-B p_ss);
+  hot_restart with R_TH = 30.0 K/W (paired A-B peak_a);
+  cold_start with I2T_BUDGET = 0.25 (paired A-B fuse_ok).
+"""
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+
+# Declared parameters, written before the first run.
+V_S = 24.0
+R_SRC = 0.05
+C_BUS = 2200e-6
+R_LOAD = 12.0
+R_LOAD_HEAVY = 6.0
+R25 = 5.0
+BETA = 3500.0
+T25 = 298.15
+T_AMB_NOM = 298.15
+R_TH = 60.0
+C_TH = 0.5
+DT = 2e-6
+WINDOW = 0.05
+I2T_BUDGET = 1.0
+STEPS = int(WINDOW / DT)
+
+REGIMES = ("cold_start", "hot_restart", "heavy_load")
+ARMS = ("A_none", "B_ntc", "C_fixed", "D_bypass")
+
+DECLARED = {
+    "cold_start": "A consistently higher peak than B and A fails the fuse "
+                  "budget; C vs B peak may near-tie; C consistently wastes "
+                  "more p_ss than B - keep; B keeps a residual v_drop_ss and "
+                  "p_ss above D's bypass - keep",
+    "hot_restart": "B's peak rises toward A and B may fail the fuse budget - "
+                   "keep as it comes; D keeps its cold-start peak",
+    "heavy_load": "A fails the fuse budget; C consistently wastes more p_ss "
+                  "than B - keep; B residual above D - keep",
+}
+
+METRICS = ("peak_a", "i2t", "fuse_ok", "v_drop_ss", "p_ss")
+PAIRS = (("A_none", "B_ntc"),
+         ("C_fixed", "B_ntc"),
+         ("B_ntc", "D_bypass"))
+
+
+def shared_draws(regime, seed):
+    """Common random numbers: one shared draw set per (regime, seed)."""
+    rng = random.Random(f"{regime}/{seed}")
+    cap_f = rng.uniform(0.9, 1.1)
+    src_f = rng.uniform(0.8, 1.2)
+    tol = rng.uniform(0.9, 1.1)
+    t_amb = T_AMB_NOM + rng.uniform(-3.0, 3.0)
+    return cap_f, src_f, tol, t_amb
+
+
+def ntc_r(t, r25_eff):
+    return r25_eff * math.exp(BETA * (1.0 / t - 1.0 / T25))
+
+
+def steady_ntc(t_amb, r25_eff, r_load, r_src, r_th):
+    lo, hi = t_amb, 800.0
+    for _ in range(60):
+        mid = 0.5 * (lo + hi)
+        r = ntc_r(mid, r25_eff)
+        i = V_S / (r_src + r + r_load)
+        if mid - t_amb - i * i * r * r_th > 0.0:
+            hi = mid
+        else:
+            lo = mid
+    t_eq = 0.5 * (lo + hi)
+    r_eq = ntc_r(t_eq, r25_eff)
+    i_eq = V_S / (r_src + r_eq + r_load)
+    return t_eq, r_eq, i_eq
+
+
+def simulate(kind, r25_eff, t_start, t_amb, r_load, cap, r_src, r_th):
+    v_c = 0.0
+    t = t_start
+    peak = 0.0
+    i2t = 0.0
+    for _ in range(STEPS):
+        if kind == "ntc":
+            r_lim = ntc_r(t, r25_eff)
+        elif kind == "fixed":
+            r_lim = r25_eff
+        else:
+            r_lim = 0.0
+        r_s = r_src + r_lim
+        i_start = (V_S - v_c) / r_s
+        if i_start > peak:
+            peak = i_start
+        v_inf = V_S * r_load / (r_s + r_load)
+        tau = cap * r_s * r_load / (r_s + r_load)
+        v_next = v_inf + (v_c - v_inf) * math.exp(-DT / tau)
+        i_next = (V_S - v_next) / r_s
+        if i_next > peak:
+            peak = i_next
+        i2t += 0.5 * DT * (i_start * i_start + i_next * i_next)
+        if kind == "ntc":
+            t += DT * (i_start * i_start * r_lim - (t - t_amb) / r_th) / C_TH
+        v_c = v_next
+    return peak, i2t
+
+
+def run_arm(arm, regime, seed, r25=R25, r_th=R_TH, budget=I2T_BUDGET):
+    cap_f, src_f, tol, t_amb = shared_draws(regime, seed)
+    r_load = R_LOAD_HEAVY if regime == "heavy_load" else R_LOAD
+    cap = C_BUS * cap_f
+    r_src = R_SRC * src_f
+    r25_eff = r25 * tol
+    if arm == "A_none":
+        peak, i2t = simulate("none", r25_eff, t_amb, t_amb,
+                             r_load, cap, r_src, r_th)
+        v_drop, p_ss = 0.0, 0.0
+    elif arm == "C_fixed":
+        peak, i2t = simulate("fixed", r25_eff, t_amb, t_amb,
+                             r_load, cap, r_src, r_th)
+        i_ss = V_S / (r_src + r25_eff + r_load)
+        v_drop = i_ss * r25_eff
+        p_ss = i_ss * i_ss * r25_eff
+    else:
+        if regime == "hot_restart" and arm == "B_ntc":
+            t_start = steady_ntc(t_amb, r25_eff, r_load, r_src, r_th)[0]
+        else:
+            t_start = t_amb
+        peak, i2t = simulate("ntc", r25_eff, t_start, t_amb,
+                             r_load, cap, r_src, r_th)
+        if arm == "B_ntc":
+            _, r_eq, i_eq = steady_ntc(t_amb, r25_eff, r_load, r_src, r_th)
+            v_drop = i_eq * r_eq
+            p_ss = i_eq * i_eq * r_eq
+        else:
+            v_drop, p_ss = 0.0, 0.0
+    fuse_ok = 1 if i2t <= budget else 0
+    return {"peak_a": peak, "i2t": i2t, "fuse_ok": fuse_ok,
+            "v_drop_ss": v_drop, "p_ss": p_ss}
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0  # identical values: no floating residue in mean or sd
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    """Half-up rounding on the shortest decimal repr; tiny non-zero values in scientific form."""
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def collect(regime, **kw):
+    return {arm: [run_arm(arm, regime, s, **kw) for s in SEEDS] for arm in ARMS}
+
+
+def arm_col(regime, arm, **kw):
+    return [run_arm(arm, regime, s, **kw) for s in SEEDS]
+
+
+def col(rows, key):
+    return [x[key] for x in rows]
+
+
+def report(regime):
+    res = collect(regime)
+    print(f"{regime}:")
+    print(f"  declared: {DECLARED[regime]}")
+    for arm in ARMS:
+        print(f"  {arm} " + " ".join(
+            f"{key} {fmt_pair(*mean_sd(col(res[arm], key)))}" for key in METRICS))
+    for a, b in PAIRS:
+        for key in METRICS:
+            print(f"  paired {a[0]}-{b[0]} {key}: {verdict(col(res[a], key), col(res[b], key))}")
+    return res
+
+
+def main():
+    print("Synthetic NTC inrush-limiter toy; shared capacitor, source, tolerance and ambient "
+          "draws; lumped electrical + one-node thermal model, not a manufacturer NTC curve, "
+          "not SPICE, not an IEC 61000 lab")
+    print(f"seeds={len(SEEDS)} V_S={num(V_S)} V R_SRC={num(R_SRC)} ohm C_BUS={num(C_BUS)} F "
+          f"R25={num(R25)} ohm BETA={num(BETA)} K T25={num(T25)} K R_TH={num(R_TH)} K/W "
+          f"C_TH={num(C_TH)} J/K (declared toy parameters, not datasheet values)")
+    print("Every value is a declared toy parameter, not a datasheet value; "
+          "real PSU / NTC disc / fuse: 本页未运行")
+    print("Regimes and parameters were written before the first run")
+    print("rule: R_s=R_SRC+R_lim; v_inf=V_S*R_LOAD/(R_s+R_LOAD); "
+          "tau=C_BUS*R_s*R_LOAD/(R_s+R_LOAD); v_c<-v_inf+(v_c-v_inf)*exp(-DT/tau); "
+          "i=(V_S-v_c)/R_s; C_TH*dT/dt=i^2*R(T)-(T-T_amb)/R_TH")
+    print(f"hand_calc first-instant peak unprotected: V_S/R_SRC = 24/0.05 = "
+          f"{num(V_S / R_SRC)} A")
+    print(f"hand_calc first-instant peak cold NTC: V_S/(R_SRC+R25) = 24/5.05 = "
+          f"{num(V_S / (R_SRC + R25))} A")
+    print(f"hand_calc capacitor-charging I2t unprotected: V^2*C/(2R) = "
+          f"24^2*0.0022/(2*0.05) = {num(V_S * V_S * C_BUS / (2.0 * R_SRC))} A^2 s")
+    print(f"hand_calc capacitor-charging I2t through 5.05 ohm: V^2*C/(2R) = "
+          f"24^2*0.0022/(2*5.05) = "
+          f"{num(V_S * V_S * C_BUS / (2.0 * (R_SRC + R25)))} A^2 s")
+    print(f"hand_calc energy into the capacitor: 0.5*C*V^2 = 0.5*0.0022*24^2 = "
+          f"{num(0.5 * C_BUS * V_S * V_S)} J")
+    print(f"hand_calc steady load current without a limiter: 24/(0.05+12) = "
+          f"{num(V_S / (R_SRC + R_LOAD))} A")
+    for regime in REGIMES:
+        report(regime)
+    print("alternative parameters (declared before the run, same seeds, not adopted):")
+    alt_c = arm_col("cold_start", "C_fixed", r25=10.0)
+    alt_b = arm_col("cold_start", "B_ntc", r25=10.0)
+    print(f"  cold_start R25=10.0 ohm: paired C-B p_ss: "
+          f"{verdict(col(alt_c, 'p_ss'), col(alt_b, 'p_ss'))}")
+    alt_a = arm_col("hot_restart", "A_none", r_th=30.0)
+    alt_b2 = arm_col("hot_restart", "B_ntc", r_th=30.0)
+    print(f"  hot_restart R_TH=30.0 K/W: paired A-B peak_a: "
+          f"{verdict(col(alt_a, 'peak_a'), col(alt_b2, 'peak_a'))}")
+    alt_a2 = arm_col("cold_start", "A_none", budget=0.25)
+    alt_b3 = arm_col("cold_start", "B_ntc", budget=0.25)
+    print(f"  cold_start I2T_BUDGET=0.25: paired A-B fuse_ok: "
+          f"{verdict(col(alt_a2, 'fuse_ok'), col(alt_b3, 'fuse_ok'))}")
+    print("No universal winner: the NTC cuts the cold turn-on peak at a small steady cost, "
+          "a fixed resistor cuts it at a large one, and a hot NTC limits little unless it has "
+          "cooled or was bypassed")
+    print("Real PSU / NTC disc / fuse: 本页未运行; Wikipedia Inrush current and Inrush current "
+          "limiter statements 以原文为准; every value is a declared toy parameter")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic NTC inrush-limiter toy; shared capacitor, source, tolerance and ambient draws; lumped electrical + one-node thermal model, not a manufacturer NTC curve, not SPICE, not an IEC 61000 lab
+seeds=5 V_S=24.0000 V R_SRC=0.0500 ohm C_BUS=0.0022 F R25=5.0000 ohm BETA=3500.0000 K T25=298.1500 K R_TH=60.0000 K/W C_TH=0.5000 J/K (declared toy parameters, not datasheet values)
+Every value is a declared toy parameter, not a datasheet value; real PSU / NTC disc / fuse: 本页未运行
+Regimes and parameters were written before the first run
+rule: R_s=R_SRC+R_lim; v_inf=V_S*R_LOAD/(R_s+R_LOAD); tau=C_BUS*R_s*R_LOAD/(R_s+R_LOAD); v_c<-v_inf+(v_c-v_inf)*exp(-DT/tau); i=(V_S-v_c)/R_s; C_TH*dT/dt=i^2*R(T)-(T-T_amb)/R_TH
+hand_calc first-instant peak unprotected: V_S/R_SRC = 24/0.05 = 480.0000 A
+hand_calc first-instant peak cold NTC: V_S/(R_SRC+R25) = 24/5.05 = 4.7525 A
+hand_calc capacitor-charging I2t unprotected: V^2*C/(2R) = 24^2*0.0022/(2*0.05) = 12.6720 A^2 s
+hand_calc capacitor-charging I2t through 5.05 ohm: V^2*C/(2R) = 24^2*0.0022/(2*5.05) = 0.1255 A^2 s
+hand_calc energy into the capacitor: 0.5*C*V^2 = 0.5*0.0022*24^2 = 0.6336 J
+hand_calc steady load current without a limiter: 24/(0.05+12) = 1.9917 A
+cold_start:
+  declared: A consistently higher peak than B and A fails the fuse budget; C vs B peak may near-tie; C consistently wastes more p_ss than B - keep; B keeps a residual v_drop_ss and p_ss above D's bypass - keep
+  A_none peak_a 488.1174+-63.0625 i2t 12.7441+-1.3442 fuse_ok 0.0000+-0.0000 v_drop_ss 0.0000+-0.0000 p_ss 0.0000+-0.0000
+  B_ntc peak_a 4.2502+-0.2690 i2t 0.1989+-0.0080 fuse_ok 1.0000+-0.0000 v_drop_ss 0.7479+-0.0153 p_ss 1.4432+-0.0284
+  C_fixed peak_a 4.5781+-0.3104 i2t 0.2053+-0.0104 fuse_ok 1.0000+-0.0000 v_drop_ss 7.2399+-0.3241 p_ss 10.0630+-0.2666
+  D_bypass peak_a 4.2502+-0.2690 i2t 0.1989+-0.0080 fuse_ok 1.0000+-0.0000 v_drop_ss 0.0000+-0.0000 p_ss 0.0000+-0.0000
+  paired A-B peak_a: 483.8672+-62.9814: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B i2t: 12.5452+-1.3457: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B fuse_ok: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B v_drop_ss: -0.7479+-0.0153: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B p_ss: -1.4432+-0.0284: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B peak_a: 0.3278+-0.0755: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B i2t: 0.0064+-0.0031: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B fuse_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B v_drop_ss: 6.4921+-0.3090: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B p_ss: 8.6198+-0.2385: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-D peak_a: 0.0000+-0.0000: tie: identical on every seed
+  paired B-D i2t: 0.0000+-0.0000: tie: identical on every seed
+  paired B-D fuse_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired B-D v_drop_ss: 0.7479+-0.0153: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-D p_ss: 1.4432+-0.0284: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+hot_restart:
+  declared: B's peak rises toward A and B may fail the fuse budget - keep as it comes; D keeps its cold-start peak
+  A_none peak_a 546.8363+-39.0766 i2t 14.8193+-1.6069 fuse_ok 0.0000+-0.0000 v_drop_ss 0.0000+-0.0000 p_ss 0.0000+-0.0000
+  B_ntc peak_a 56.1052+-0.8280 i2t 1.7419+-0.1192 fuse_ok 0.0000+-0.0000 v_drop_ss 0.7411+-0.0090 p_ss 1.4312+-0.0168
+  C_fixed peak_a 4.5770+-0.2442 i2t 0.2097+-0.0172 fuse_ok 1.0000+-0.0000 v_drop_ss 7.2447+-0.2643 p_ss 10.0739+-0.2113
+  D_bypass peak_a 4.4456+-0.2159 i2t 0.2120+-0.0109 fuse_ok 1.0000+-0.0000 v_drop_ss 0.0000+-0.0000 p_ss 0.0000+-0.0000
+  paired A-B peak_a: 490.7311+-38.5248: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B i2t: 13.0774+-1.5093: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B fuse_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B v_drop_ss: -0.7411+-0.0090: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B p_ss: -1.4312+-0.0168: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B peak_a: -51.5281+-0.6936: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B i2t: -1.5322+-0.1033: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B fuse_ok: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B v_drop_ss: 6.5036+-0.2592: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B p_ss: 8.6427+-0.2020: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-D peak_a: 51.6595+-0.7186: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-D i2t: 1.5299+-0.1124: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-D fuse_ok: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-D v_drop_ss: 0.7411+-0.0090: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-D p_ss: 1.4312+-0.0168: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+heavy_load:
+  declared: A fails the fuse budget; C consistently wastes more p_ss than B - keep; B residual above D - keep
+  A_none peak_a 506.8928+-54.2020 i2t 14.4287+-1.3609 fuse_ok 0.0000+-0.0000 v_drop_ss 0.0000+-0.0000 p_ss 0.0000+-0.0000
+  B_ntc peak_a 4.9814+-0.5004 i2t 0.3658+-0.0414 fuse_ok 1.0000+-0.0000 v_drop_ss 0.5509+-0.0129 p_ss 2.1360+-0.0505
+  C_fixed peak_a 4.8661+-0.3202 i2t 0.3332+-0.0261 fuse_ok 1.0000+-0.0000 v_drop_ss 10.7340+-0.4053 p_ss 23.5236+-0.1913
+  D_bypass peak_a 4.9814+-0.5004 i2t 0.3658+-0.0414 fuse_ok 1.0000+-0.0000 v_drop_ss 0.0000+-0.0000 p_ss 0.0000+-0.0000
+  paired A-B peak_a: 501.9114+-54.5607: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B i2t: 14.0629+-1.3840: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B fuse_ok: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B v_drop_ss: -0.5509+-0.0129: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B p_ss: -2.1360+-0.0505: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B peak_a: -0.1153+-0.3361: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired C-B i2t: -0.0326+-0.0267: small but consistent gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  paired C-B fuse_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B v_drop_ss: 10.1831+-0.3937: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B p_ss: 21.3877+-0.1482: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-D peak_a: 0.0000+-0.0000: tie: identical on every seed
+  paired B-D i2t: 0.0000+-0.0000: tie: identical on every seed
+  paired B-D fuse_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired B-D v_drop_ss: 0.5509+-0.0129: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-D p_ss: 2.1360+-0.0505: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative parameters (declared before the run, same seeds, not adopted):
+  cold_start R25=10.0 ohm: paired C-B p_ss: 10.0913+-0.0408: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  hot_restart R_TH=30.0 K/W: paired A-B peak_a: 510.6694+-38.8185: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  cold_start I2T_BUDGET=0.25: paired A-B fuse_ok: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No universal winner: the NTC cuts the cold turn-on peak at a small steady cost, a fixed resistor cuts it at a large one, and a hot NTC limits little unless it has cooled or was bypassed
+Real PSU / NTC disc / fuse: 本页未运行; Wikipedia Inrush current and Inrush current limiter statements 以原文为准; every value is a declared toy parameter
+```
+
+</SimOutput>
+
+### 读懂各情形
+
+本页标签按以下顺序使用：只有每个种子的配对差都恰好为零时，才写**打平：每个种子都完全相同**；`|配对均值|` 与其 sd 都小于 1e-9 时写**数值上为零（浮点残差），等同打平**；`|配对均值| ≤ sd` 时写**接近打平 / 小差距，在种子噪声之内**；否则是**稳定**差距（`|配对均值| > sd`），若 `|m|` 小于两组中较小均值的 20 % 叫**小**，否则叫**明显**。每条稳定差距都附 5 个种子上的同号计数。
+
+- **cold_start** 情形，不加限流时峰值为 488.1174±63.0625 A，配对 A−B peak_a 为 483.8672±62.9814，**明显**，5 个种子同号。A 的 i2t 为 12.7441±1.3442 A²s，远超预算，所以 A−B fuse_ok 为 -1.0000±0.0000。NTC 把峰值压到 4.2502±0.2690 A。声明的 A 落败**成立**。固定电阻的峰值为 4.5781±0.3104 A，所以 C−B peak_a 为 0.3278±0.0755，是**小**而稳定的差距，5 个种子同号，**不是**声明的接近打平。NTC 随环境温度抽样变化，固定电阻不随温度变化；在这组抽样下，冷态 NTC 略高于固定电阻，练习 2 会找出环境温度抽样从哪里进入。热起来以后，NTC 仍有 0.7479±0.0153 V 压降、耗散 1.4432±0.0284 W，所以 B−D v_drop_ss 为 0.7479±0.0153，明显：这就是文章所说的残余。固定电阻压降 7.2399±0.3241 V、浪费 10.0630±0.2666 W，所以 C−B p_ss 为 8.6198±0.2385，明显，5 个种子同号。两条**保留**的声明都**成立**。
+- **hot_restart** 情形，热态 NTC 限流作用很小。B 的峰值升到 56.1052±0.8280 A，i2t 升到 1.7419±0.1192 A²s，每个种子都超出预算。B−D fuse_ok 为 -1.0000±0.0000，明显；而 A−B fuse_ok 是**打平：每个种子都完全相同**，因为两者都超出。A−B peak_a 仍是 490.7311±38.5248，明显。被旁路的 NTC 从冷态开始，峰值为 4.4456±0.2159 A。声明的"B 可能超出预算"**成立**。
+- **heavy_load** 情形，6 Ω 负载让 NTC 更热，压降缩小到 0.5509±0.0129 V，功耗增大到 2.1360±0.0505 W。固定电阻浪费 23.5236±0.1913 W，所以 C−B p_ss 为 21.3877±0.1482，明显，5 个种子同号。这里 C−B peak_a 为 -0.1153±0.3361，**接近打平**，在种子噪声之内，5 个种子中有 1 个反号。A 在每个种子上都超出预算（A−B fuse_ok -1.0000±0.0000）。声明的各部分都**成立**。
+
+两个落败的单元都要**保留**在视野里：固定电阻为限峰值付出的代价贯穿每一秒运行；热态 NTC 几乎限不住重新上电的浪涌。
+
+**首次运行后的代码改动。** 没有。首次运行的输出与 `expected/` 文件逐字节相同。
+
+**看过结果后做的选择。** 没有。所有电阻、温度常数、电容、预算、窗口和情形都在首次运行前写定。写 toy 之前，用一个独立的热平衡手算选定 R_TH，使热态 NTC 在 2 A 负载下落在零点几欧（手算）；这个核对不是 toy 运行。打印的备选与默认值一起声明，并在相同种子上运行。NTC 和固定电阻都改为 10 Ω 时，稳态差距缩小到 C−B p_ss 10.0913±0.0408，但仍然明显。R_TH = 30 K/W 的 NTC 运行温度更低，重新上电时限流稍多一些（A−B peak_a 510.6694±38.8185）。预算收紧到 0.25 A²s，A 仍在每个种子上超出（A−B fuse_ok -1.0000±0.0000）。这些都没有替换默认值。
+
+本页**不宣布普遍赢家**。NTC 以很小的稳态代价削减冷启动峰值，固定电阻以很大的代价做到同样的事；热态 NTC 除非已经冷却或被旁路，否则限流作用很小。真实电源、NTC 圆片或熔断器都**本页未运行**。
+
+**180 分钟安排:** 30 分钟阅读 Inrush current 和 Inrush current limiter 页面；25 分钟重做接通瞬间峰值与 I²t 手算；50 分钟运行 toy 并读懂三种情形；40 分钟在固定种子下比较打印的备选；35 分钟做练习。
+
+### 练习
+
+1. 根据打印的手算，确认冷态 5 Ω NTC 时为 4.7525 A 和 0.1255 A²s，并解释为什么电容充满后，充电 I²t 不再随等待时间增加。
+2. 从 `shared_draws` 和 `run_arm` 说明，对给定的情形和种子，A、B、C、D 用的是同一组电容、电源、公差和环境温度抽样。
+3. cold_start 中 B−D peak_a 打平，而 B−D v_drop_ss 差距明显。分别是 `run_arm` 的哪几行造成的？
+4. 运行前先预测 R_TH = 120 K/W 时 B 在 hot_restart 中的峰值，再在固定种子下运行验证。
+5. 在接触任何真实电源之前（本页未运行），写下你会给自己机器人的母线用哪种限流，以及如何应对快速断电重启。
+
 <Summary>
 
 **本课要点**
@@ -722,6 +1209,7 @@ Chassis wiring / scope-on-a-loop: 本页未运行; TI SLYT512 以原文为准
 - 往返玩具：短线负载端 11.136 V、长线 10.380 V 为 long_only；I²R 峰值 9.3312 W；默认 `insufficient_data`。
 - EMC 三条：电机线远离信号线；功率/逻辑地策略分清；屏蔽按频段与规范端接（高频两端连续，禁用 GND_D 作屏蔽回流）。
 - 电池只读 C 率与 BMS 切断概念；库仑 SoC + 课内降额只读；不拆包、不改 BMS、不教充电；不更换熔断器。
+- NTC 浪涌限流的电容充电替身（`ntc_inrush_limiter_toy.py`）：冷态 NTC 把接通峰值从约 488 A 降到 4.2502±0.2690 A（A−B peak_a 483.8672±62.9814，明显，5 个种子同号），但留有 0.7479±0.0153 V 的残余压降；固定电阻在运行中浪费多得多（C−B p_ss 8.6198±0.2385，保留）；不冷却就重新上电时超出声明的 I²t 预算（B i2t 1.7419±0.1192 A²s）——这是数值均为声明值的合成模型，不是规格书或熔断器测试。
 
 **常见错误**
 

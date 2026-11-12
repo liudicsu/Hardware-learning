@@ -11,12 +11,12 @@ external resources are shown as cards with a link, and their copyright stays wit
 
 ## What the site contains / 网站内容
 
-Eleven months, 71 lessons (about 39 420 minutes of study time), all in Chinese (default, `/zh`) and English (`/en`).
+Eleven months, 71 lessons (about 39 780 minutes of study time), all in Chinese (default, `/zh`) and English (`/en`).
 Months 1–6 follow the original course; Months 7–11 are site supplements written here and are not part of it.
 Month 11 is complete: 7 of 7 lessons.
 Month 10 is complete: 7 of 7 lessons.
 
-十一个月、71 课（约 39 420 分钟）；第 1–6 个月沿用原课程，第 7–11 个月是本站补充内容；第 11 个月 7 课已全部写完。
+十一个月、71 课（约 39 780 分钟）；第 1–6 个月沿用原课程，第 7–11 个月是本站补充内容；第 11 个月 7 课已全部写完。
 
 | Month | Topic | Lessons |
 | --- | --- | --- |
