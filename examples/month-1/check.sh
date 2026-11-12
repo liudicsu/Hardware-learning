@@ -89,4 +89,9 @@ if python3 "$M1/ohms-law/superposition_linear_circuit_toy.py" > "$TMP/superposit
 else
   echo "DIFF  superposition_linear_circuit_toy.txt"; fail=1
 fi
+if python3 "$M1/components/peukert_rate_capacity_toy.py" > "$TMP/peukert_rate_capacity_toy.txt" && diff -u "$M1/expected/peukert_rate_capacity_toy.txt" "$TMP/peukert_rate_capacity_toy.txt"; then
+  echo "same  peukert_rate_capacity_toy.txt"
+else
+  echo "DIFF  peukert_rate_capacity_toy.txt"; fail=1
+fi
 exit $fail

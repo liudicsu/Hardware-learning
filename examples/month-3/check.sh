@@ -81,4 +81,5 @@ check pid_setpoint_weighting_2dof_toy.txt python3 "$M3/pid-control/pid_setpoint_
 check interference_press_fit_toy.txt python3 "$M3/cad-parametric/interference_press_fit_toy.py"
 check form_closure_frictionless_toy.txt python3 "$M3/gripper-fingers/form_closure_frictionless_toy.py"
 check leadscrew_self_locking_toy.txt python3 "$M3/transmissions/leadscrew_self_locking_toy.py"
+check fdm_build_orientation_anisotropy_toy.txt python3 "$M3/fdm-printing/fdm_build_orientation_anisotropy_toy.py"
 exit $fail

@@ -1,0 +1,57 @@
+Synthetic FDM build-orientation toy; shared geometry, load and print-quality draws; not a lab measurement
+seeds=5 SPAN=80.0000 mm WIDTH=15.0000 mm THICK=5.0000 mm P_JITTER=+-0.0500 Q_JITTER=+-0.0800 R_JITTER=+-0.0500 (declared toy parameters)
+set default: S flat/edge/up = 90.0000/85.0000/55.0000 MPa; E flat/edge/up = 3.2000/3.0000/2.7000 GPa (toy stand-ins, not paper values)
+set zigzag_like: S flat/edge/up = 80.0000/78.0000/50.0000 MPa; E flat/edge/up = 3.0000/2.2000/2.5000 GPa (toy stand-ins, not paper values)
+No integration step: closed-form statics, no time-step criterion
+Regimes and parameters were written before the first run
+rule: snaps iff sigma >= S; survives iff sigma < S (strict); sigma = 3PL/(2wt^2), d = PL^3/(48EI), I = wt^3/12
+hand_calc flatwise P=220.0 N L=80.0 mm w=15.0 mm t=5.0 mm: sigma=3*220*80/(2*15*5^2)=70.4000 MPa; util vs S_FLAT 90.0 MPa = 0.7822; vs S_UP 55.0 MPa = 1.2800
+hand_calc I=15*5^3/12=156.2500 mm^4; d at P=100.0 N, E=3.2 GPa: 100*80^3/(48*3200*156.2500)=2.1333 mm
+boundary_rule: S=sigma=70.4000 MPa -> snap=1 (equality snaps); S=sigma+1e-6 -> snap=0
+light (P_nom=100.0000 N, sigma_nom=32.0000 MPa, parameter set default):
+  A_flatwise sigma 32.1710+-0.7412 util 0.3662+-0.0210 snap 0.0000+-0.0000 defl 2.1537+-0.0806 snaps_on 0/5
+  B_upright sigma 32.1710+-0.7412 util 0.5992+-0.0343 snap 0.0000+-0.0000 defl 2.5525+-0.0955 snaps_on 0/5
+  C_isotropic sigma 32.1710+-0.7412 util 0.3662+-0.0210 snap 0.0000+-0.0000 defl 2.1537+-0.0806 snaps_on 0/5
+  D_edgewise sigma 32.1710+-0.7412 util 0.3877+-0.0222 snap 0.0000+-0.0000 defl 2.2972+-0.0859 snaps_on 0/5
+  paired B-A snap: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A util: 0.2330+-0.0133: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C snap: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C util: 0.2330+-0.0133: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A defl: 0.1436+-0.0054: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A util: 0.0215+-0.0012: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B sigma: 0.0000+-0.0000: tie: identical on every seed
+mid (P_nom=220.0000 N, sigma_nom=70.4000 MPa, parameter set default):
+  A_flatwise sigma 70.4967+-1.5026 util 0.7665+-0.0437 snap 0.0000+-0.0000 defl 4.7094+-0.1878 snaps_on 0/5
+  B_upright sigma 70.4967+-1.5026 util 1.2543+-0.0716 snap 1.0000+-0.0000 defl 5.5815+-0.2225 snaps_on 5/5
+  C_isotropic sigma 70.4967+-1.5026 util 0.7665+-0.0437 snap 0.0000+-0.0000 defl 4.7094+-0.1878 snaps_on 0/5
+  D_edgewise sigma 70.4967+-1.5026 util 0.8116+-0.0463 snap 0.0000+-0.0000 defl 5.0234+-0.2003 snaps_on 0/5
+  paired B-A snap: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A util: 0.4878+-0.0278: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C snap: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C util: 0.4878+-0.0278: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A defl: 0.3140+-0.0125: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A util: 0.0451+-0.0026: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B sigma: 0.0000+-0.0000: tie: identical on every seed
+modulus (P_nom=100.0000 N, sigma_nom=32.0000 MPa, parameter set zigzag_like):
+  A_flatwise sigma 31.6990+-1.1750 util 0.3967+-0.0101 snap 0.0000+-0.0000 defl 2.2813+-0.1315 snaps_on 0/5
+  B_upright sigma 31.6990+-1.1750 util 0.6348+-0.0161 snap 0.0000+-0.0000 defl 2.7375+-0.1578 snaps_on 0/5
+  C_isotropic sigma 31.6990+-1.1750 util 0.3967+-0.0101 snap 0.0000+-0.0000 defl 2.2813+-0.1315 snaps_on 0/5
+  D_edgewise sigma 31.6990+-1.1750 util 0.4069+-0.0103 snap 0.0000+-0.0000 defl 3.1108+-0.1793 snaps_on 0/5
+  paired B-A snap: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A util: 0.2380+-0.0060: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C snap: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C util: 0.2380+-0.0060: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A defl: 0.8295+-0.0478: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A util: 0.0102+-2.579e-4: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B sigma: 0.0000+-0.0000: tie: identical on every seed
+alternative SPAN=60.0 mm on mid (same seeds; lower peak stress at the same load):
+  B_upright@alt snaps_on 1/5 (default 5/5)
+  paired B-A snap@alt: 0.2000+-0.4472: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 4 of 5 equal
+alternative S_UP=65.0 MPa on mid (same seeds; a better inter-layer bond):
+  B_upright@alt snaps_on 5/5
+  paired B-A snap@alt: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative load x0.80 on mid (same seeds; P_nom 176.0 N):
+  B_upright@alt snaps_on 2/5
+  paired B-A snap@alt: 0.4000+-0.5477: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+No winner declared: flatwise is the safer default for bending here, upright snaps first at the layer lines, an isotropic guess hides that, and the side-on rule can cost stiffness
+Real printer / Instron / modal hammer: 本页未运行; Rajkumar (arXiv 2202.05692) values 以论文为准

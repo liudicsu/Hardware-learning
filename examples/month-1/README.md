@@ -45,3 +45,7 @@ The legacy python-terminal examples are real program runs. / 原 python-terminal
 ## components/ — Zener shunt and LDO headroom / 齐纳并联稳压与 LDO 压差裕量
 
 `components/zener_shunt_ldo_headroom_toy.py`: standard-library synthetic DC model of a Zener shunt regulator, an LDO stand-in with a declared headroom, and an uncapped shunt; no hardware; expected output in `expected/zener_shunt_ldo_headroom_toy.txt`, included in `check.sh`. / 标准库合成直流模型，比较齐纳并联稳压、带声明压差裕量的 LDO 替身和无串联电阻的齐纳；不是硬件测量，输出由 `check.sh` 核对。
+
+## Batch-21 PR1 / 第21批 PR1
+
+`components/peukert_rate_capacity_toy.py`: standard-library synthetic constant-current discharge (nameplate clock vs Peukert vs k = 1 vs a high-current cap) on a shared 100 Ah / 20 h rating, no hardware; expected output in `expected/peukert_rate_capacity_toy.txt`, included in `check.sh`. Real pack 本页未运行. / 标准库合成的恒流放电（铭牌时钟、Peukert、k = 1、大电流上限），不是电池实测，输出由 `check.sh` 核对。
