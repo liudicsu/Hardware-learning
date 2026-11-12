@@ -1845,7 +1845,7 @@ MolmoAct-7B / LIBERO / SimplerEnv / GPU: 本页未运行; paper numbers 以论�
 
 ## InternVLA-M1：先定位在哪里，再决定怎么动
 
-上面的 CoT-VLA 与 MolmoAct 两节都在指令和动作之间放了一个显式的中间输出（子目标图像、深度加轨迹链）。**InternVLA-M1** 的切法不同：它把**训练**分成两个阶段。先在一个与具体机器人无关的大型空间定位语料上教视觉–语言模型**在哪里动作**，再在示范数据上教整个模型**怎么动作**，并在指令后面附加一句**空间提示**来引导。本节用一个小型合成替身检验这种拆分。它**不是** SpatialVLA 的 Ego3D 位置编码与自适应动作网格（第 10 个月 multi-view-extrinsics），**不是** Magma 的 Set-of-Mark / Trace-of-Mark（第 6 个月 policy-evaluation），**不是** HAMSTER 的二维路径（第 6 个月 behaviour-cloning），也**不是**上面 MolmoAct 的轨迹。
+上面的 CoT-VLA 与 MolmoAct 两节都在指令和动作之间放了一个显式的中间输出（子目标图像、深度加轨迹链）。**InternVLA-M1** 的切法不同：它把**训练**分成两个阶段。先在一个与具体机器人无关的大型空间定位语料上教视觉–语言模型**在哪里动作**，再在示范数据上教整个模型**怎么动作**，并在指令前面或后面附加一句**空间提示**来引导。本节用一个小型合成替身检验这种拆分。它**不是** SpatialVLA 的 Ego3D 位置编码与自适应动作网格（第 10 个月 multi-view-extrinsics），**不是** Magma 的 Set-of-Mark / Trace-of-Mark（第 6 个月 policy-evaluation），**不是** HAMSTER 的二维路径（第 6 个月 behaviour-cloning），也**不是**上面 MolmoAct 的轨迹。
 
 <Resource id="internvla-m1-html" />
 
@@ -1853,7 +1853,7 @@ MolmoAct-7B / LIBERO / SimplerEnv / GPU: 本页未运行; paper numbers 以论�
 
 **实际打开的来源（已核对 arXiv 2510.13778 摘要页的标题与全部 29 位作者；已获取 HTML 正文；v1 PDF 正文用 pdftotext 读过）。**
 
-- **Chen、Chen、Fu、Gao、Jia、Jin、Li、Mu、Pang、Qiao、Tian、Wang、Wang、Wang、Wang、Wang、Wang、Wei、Wu、Yang、Ye、Yu、Zeng、Zhang、Zhang、Zhang、Zheng、Zhou、Zhu，《InternVLA-M1: A Spatially Guided Vision-Language-Action Framework for Generalist Robot Policy》（Intern Robotics，上海人工智能实验室，2025）:**
+- **Xinyi Chen、Yilun Chen、Yanwei Fu、Ning Gao、Jiaya Jia、Weiyang Jin、Hao Li、Yao Mu、Jiangmiao Pang、Yu Qiao、Yang Tian、Bin Wang、Bolun Wang、Fangjing Wang、Hanqing Wang、Tai Wang、Ziqin Wang、Xueyuan Wei、Chao Wu、Shuai Yang、Jinhui Ye、Junqiu Yu、Jia Zeng、Jingjing Zhang、Jinyu Zhang、Shi Zhang、Feng Zheng、Bowen Zhou、Yangkun Zhu（全部 29 位，按 arXiv 2510.13778 摘要页的顺序），《InternVLA-M1: A Spatially Guided Vision-Language-Action Framework for Generalist Robot Policy》（Intern Robotics，上海人工智能实验室，2025）:**
   - **双系统**（§2.1）：Qwen2.5-VL-3B-instruct 作 System 2 规划器，扩散策略动作专家（基于 DINOv2 编码器的 DiT actor）作 System 1 执行器，总计约 4.1B 参数；查询 Transformer 把规划器的潜在规划词元交给专家，并对回传到 VLM 的梯度乘一个衰减系数（例如 0.5）。
   - **第一阶段，空间定位预训练**（§2.2）：只训练 VLM，数据是框、点、轨迹三类问答；论文统计超过 3M 条多模态数据里有超过 2.3M 条空间推理数据（§3.1）。
   - **第二阶段，空间引导的动作后训练**（§2.2）：VLM 与动作专家在示范上联合训练。在指令前后加一句空间提示（例如 "Figure out how to execute it, then locate the key object needed."）；VLM **不**显式输出对这句提示的回答。训练还会把机器人轨迹数据与定位数据交替使用（协同训练）。
@@ -1916,8 +1916,8 @@ What the InternVLA-M1 paper (arXiv 2510.13778) says, and what this toy keeps:
   Stage 1, spatial grounding pre-training, trains only the VLM on box / point /
   trace QA data ("where to act", embodiment-agnostic).  Stage 2, spatially
   guided action post-training, trains the VLM and the action expert on
-  demonstrations, with a spatial prompt appended to the instruction ("how to
-  act").  This toy keeps only the split: a grounding stage that learns which
+  demonstrations, with a spatial prompt prepended or appended to the
+  instruction ("how to act").  This toy keeps only the split: a grounding stage that learns which
   object an instruction names from a large grounding corpus, then an action
   stage that reaches the grounded point.  The paper's spatial prompt is a text
   cue whose answer is not decoded; here the "where" is an explicit point, a
