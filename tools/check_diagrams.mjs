@@ -9757,5 +9757,144 @@ print("protocol pass")
   console.log("batch-21 polish: archived ROS wiki citation, OpenVLA-OFT authors, process-label sweep locked");
 }
 
+// Batch-22 PR1: crimp vs solder and strain relief (1.4 soldering) and voltage sag on the SO-101 shared servo rail (3.5 so101-arm).
+{
+  const read=p=>readFileSync(join(root,p),"utf8"), env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
+  const cur=read("src/lib/curriculum.ts"), res=read("src/lib/resources.ts");
+  execFileSync("python3",[join(root,"tools/test_b22p1_crimp_so101_sag_toys.py")],{cwd:root,encoding:"utf8",env,stdio:"pipe"});
+  ok(true,"b22p1 independent tests tools/test_b22p1_crimp_so101_sag_toys.py pass");
+  const NUM="-?\\d+\\.\\d+(?:e-?\\d+)?";
+  const CITED=new Set([]);
+  const cases=[
+    [1,"soldering","crimp_vs_solder_strain_relief_toy",450,["## Crimp or solder: gas-tight joints, wicking and strain relief","## 压接还是焊接：气密接头、焊锡渗吸与应力释放"],
+      ["hand_calc", "paired B-A intact: 16.2000+-1.6432: clear gap", "paired C-D contact_mohm: 2.1192+-0.0670: clear gap", "paired C-D intact: 0.0000+-0.0000: tie: identical on every seed", "本页未运行"],
+      ["16.2000±1.6432", "3211.9624±284.6963", "2.1192±0.0670", "1.2351±0.0886", "2.4243±0.1546", "18.6000±0.5477", "3.4000±0.5477", "1.2607±0.0804", "0.0267", "0.0133", "0.0067", "1125.0000", "4500.0000", "18000.0000", "6.3333", "rev 1380146082", "以原文为准", "本页未运行"],
+      {"en": ["**solderless**", "**gas-tight**", "**no solder wicking**", "**declared toy parameters**", "**synthetic**", "**Model assumptions:**", "**Common random numbers:**", "**No integration step here.**", "**Code change after the first run.** None.", "**does not declare a universal winner**", "**held**"],
+       "zh": ["**不用焊锡**", "**气密**", "**不会顺着线股渗吸**", "**声明的玩具参数**", "**合成**", "**模型假设:**", "**共用随机数:**", "**这里没有积分步长。**", "**首次运行后的代码改动。** 没有。", "**不宣布普遍赢家**", "**成立**", "手算"]},
+      {"en": ["crimp_vs_solder_strain_relief_toy.py", "16.2000±1.6432", "2.1192±0.0670", "kept"], "zh": ["crimp_vs_solder_strain_relief_toy.py", "16.2000±1.6432", "2.1192±0.0670", "保留"]},
+      ["wiki-crimp"],"**180-minute work plan:**","**180 分钟安排:**",180],
+    [3,"so101-arm","so101_shared_rail_sag_toy",570,["## Voltage sag on the shared servo rail","## 共享舵机电源轨上的电压跌落"],
+      ["hand_calc nominal currents: rated 6 x 0.5000 = 3.0000 A; stall 6 x 2.0000 = 12.0000 A", "12.0000 A x 0.1000 ohm = 1.2000 V", "= 2.3000 V", "= 4.3250 V", "paired B-A v_ok: -1.0000+-0.0000: clear gap", "paired C-B v_ok: 0.0000+-0.0000: tie: identical on every seed", "not the components-lesson MCU brownout example", "本页未运行"],
+      ["-0.6654±0.0455", "3.8588±0.0415", "-1.0000±0.0000", "4.3757±0.0804", "7.5232±0.3085", "4.2776±0.0237", "11.9266±0.1133", "2.3751±0.1700", "3.9067±0.0644", "1.5317±0.1076", "-0.4000±0.5477", "12.0000", "1.2000", "2.3000", "4.3250", "4.5 A", "rev 1384299568", "以原文为准", "以该课已引用规格为准", "本页未运行"],
+      {"en": ["**both the supply and return wires**", "**increase the conductor's diameter**", "**not** the microcontroller brownout example", "**declared toy parameters**", "**synthetic**", "**Model assumptions:**", "**Common random numbers:**", "**No integration step here.**", "**Code change after the first run.** None.", "**does not declare a winner beyond the arithmetic**", "**held**", "手算"],
+       "zh": ["**在供电线和回流线上都存在**", "**加大导体直径**", "**不是**元器件一课里单片机欠压复位的例子", "**声明的玩具参数**", "**合成**", "**模型假设:**", "**共用随机数:**", "**这里没有积分步长。**", "**首次运行后的代码改动。** 没有。", "**除了算术之外不宣布赢家**", "**成立**", "手算"]},
+      {"en": ["so101_shared_rail_sag_toy.py", "3.8588±0.0415", "-1.0000±0.0000", "4.2776±0.0237", "4.3757±0.0804"], "zh": ["so101_shared_rail_sag_toy.py", "3.8588±0.0415", "-1.0000±0.0000", "4.2776±0.0237", "4.3757±0.0804"]},
+      ["wiki-voltage-drop"],"**180-minute work plan:**","**180 分钟安排:**",180],
+  ];
+  const bag=read("examples/month-1/expected/crimp_vs_solder_strain_relief_toy.txt")+read("examples/month-3/expected/so101_shared_rail_sag_toy.txt");
+  for(const [month,slug,toy,minutes,heads,outputs,markers,langMarkers,summaryMarkers,ids,planEn,planZh,planSum] of cases){
+    const file=`examples/month-${month}/${slug}/${toy}.py`,py=read(file).trim(),expected=read(`examples/month-${month}/expected/${toy}.txt`).trim();
+    const harness=read(`examples/month-${month}/check.sh`);
+    const run1=execFileSync("python3",[join(root,file)],{cwd:root,encoding:"utf8",env}), run2=execFileSync("python3",[join(root,file)],{cwd:root,encoding:"utf8",env});
+    ok(run1===run2&&run1===read(`examples/month-${month}/expected/${toy}.txt`),`b22p1 ${toy}: byte-identical rerun equals expected/`);
+    for(const x of outputs)ok(expected.includes(x),`b22p1 ${toy}: printed line ${x}`);
+    ok(/SEEDS = \(0, 1, 2, 3, 4\)/.test(py)&&/Common random numbers/.test(py)&&py.includes("本页未运行")&&py.includes("written before the first run")&&py.includes("ROUND_HALF_UP"),`b22p1 ${toy}: five seeds, CRN, pre-declared, half-up, 本页未运行`);
+    ok(!/^\s*(import|from)\s+(numpy|scipy|torch|pandas|control)/m.test(py),`b22p1 ${toy}: stdlib only`);
+    ok(!/(?<![+\d.e])-0\.0+(?![\d.e])/.test(expected),`b22p1 ${toy}: no signed zero printed`);
+    for(const line of expected.split("\n").filter(l=>l.includes("numerically zero (floating-point residue), effectively a tie"))){
+      const mm=line.match(new RegExp(`: (${NUM})\\+-(${NUM}): `));
+      ok(mm&&Math.abs(+mm[1])<1e-9&&+mm[2]<1e-9&&!/seeds/.test(line.split("effectively a tie")[1]),`b22p1 ${toy}: numerically-zero rule: ${line.slice(0,70)}`);
+    }
+    ok(py.includes("NUM_ZERO = 1e-9")&&py.indexOf("all(d == 0.0 for d in diffs)")<py.indexOf("abs(m) < NUM_ZERO")&&py.indexOf("abs(m) < NUM_ZERO")<py.indexOf("if abs(m) <= s:"),`b22p1 ${toy}: tie, then numerically-zero, then the sd test`);
+    for(const line of expected.split("\n").filter(l=>l.includes("tie: identical on every seed")))ok(line.includes("0.0000+-0.0000: tie: identical on every seed"),`b22p1 ${toy}: tie line is exactly zero: ${line.slice(0,70)}`);
+    for(const line of expected.split("\n")){
+      if(!line.includes("paired ")) continue;
+      const mm=line.match(new RegExp(`: (${NUM})\\+-(${NUM}): `));
+      ok(!!mm,`b22p1 ${toy}: paired line carries m+-sd: ${line.slice(0,70)}`);
+      if(!mm) continue;
+      ok(line.includes("near-tie")?Math.abs(+mm[1])<=+mm[2]:(line.includes("tie: identical")||line.includes("numerically zero")||Math.abs(+mm[1])>+mm[2]),`b22p1 ${toy}: label matches |m| vs sd: ${line.slice(0,70)}`);
+      if(!line.includes("near-tie")&&!line.includes("tie: identical")&&!line.includes("numerically zero")){
+        ok(/same sign on all 5 seeds|of 5 seeds ha(s|ve) the opposite sign|no seed has the opposite sign/.test(line),`b22p1 ${toy}: sign count on ${line.slice(0,70)}`);
+        const o=line.match(/(\d) of 5 seeds ha/);ok(!o||+o[1]<=1,`b22p1 ${toy}: consistent label has a clear same-sign majority: ${line.slice(0,70)}`);
+      }
+    }
+    ok(cur.match(new RegExp(`slug: "${slug}"[\\s\\S]*?minutes: (\\d+)`))?.[1]===String(minutes),`b22p1 ${slug}: ${minutes} min`);
+    const host=cur.slice(cur.indexOf(`slug: "${slug}"`)).split("\n  },")[0];
+    ok(host.includes(toy)&&ids.every(id=>host.includes(`"${id}"`)),`b22p1 ${slug}: task names toy and resources wired`);
+    for(const m of host.split("\n").filter(l=>/b22p1-|能说明电气压接|Explain that an electrical crimp|能用 V = I R 解释共享电源轨|Use V = I R to explain voltage sag/.test(l)).join("\n").matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g))ok(bag.includes(`${m[1]}+-${m[2]}`),`b22p1 ${slug} curriculum: ${m[0]} matches expected/`);
+    for(const id of ids)ok(res.includes(`"${id}": {`)&&new RegExp(`"${id}": \\{[\\s\\S]*?以(原文|文档|论文|报告)为准[\\s\\S]*?extra: true`).test(res),`b22p1 opened source ${id}`);
+    ok(harness.includes(`${slug}/${toy}.py`)&&harness.includes(`${toy}.txt`),`b22p1 ${toy}: month harness compares expected`);
+    for(const [index,lang] of ["en","zh"].entries()){
+      const md=read(`src/content/m${month}/${slug}/${lang}.mdx`),summary=md.indexOf("<Summary>"),end=md.indexOf("</Summary>");
+      ok(summary>0&&summary===md.lastIndexOf("<Summary>")&&md.slice(end+10).trim()==="",`b22p1 ${slug} ${lang}: sole whole-lesson Summary ends page`);
+      const head=md.indexOf(heads[index]);
+      ok(head>0&&head<summary,`b22p1 ${slug} ${lang}: new section before Summary`);
+      const next=md.indexOf("\n## ",head+5), sec=md.slice(head,next>0&&next<summary?next:summary);
+      ok(next<0||next>=summary,`b22p1 ${slug} ${lang}: new section is the last before Summary`);
+      ok(sec.includes(py)&&sec.includes(expected)&&sec.includes(`<CodeSource path="${file}" />`),`b22p1 ${slug} ${lang}: exact source/stdout in section`);
+      for(const id of ids)ok(sec.includes(`<Resource id="${id}" />`),`b22p1 ${slug} ${lang}: Resource ${id} in section`);
+      const ex=sec.lastIndexOf(lang==="en"?"### Exercises":"### 练习");
+      ok(ex>sec.indexOf("</SimOutput>")&&(sec.slice(ex).match(/^\d\. /gm)||[]).length===5,`b22p1 ${slug} ${lang}: five exercises after output`);
+      const prose=sec.replace(expected,"").replace(py,"");
+      const bare=prose.replace(/```[\s\S]*?```/g,"").replace(/`[^`\n]*`/g,"");
+      ok(!/[{}]/.test(bare),`b22p1 ${slug} ${lang}: no curly braces in MDX prose`);
+      ok(!/<[A-Za-z](?![A-Za-z]*[ />])/.test(bare.replace(/<(Resource|Formula|CodeSource|SimOutput)\b[^>]*>|<\/(Formula|SimOutput)>/g,"")),`b22p1 ${slug} ${lang}: no stray JSX-like < in prose`);
+      for(const x of [...markers,...langMarkers[lang]])ok(prose.includes(x),`b22p1 ${slug} ${lang}: mechanism/scope/label ${x}`);
+      ok(sec.includes(lang==="en"?planEn:planZh),`b22p1 ${slug} ${lang}: work plan minutes`);
+      const plan=sec.slice(sec.indexOf(lang==="en"?planEn:planZh)+(lang==="en"?planEn:planZh).length).split("\n")[0];
+      ok([...plan.matchAll(/(\d+) (min|分钟)/g)].reduce((a,m)=>a+(+m[1]),0)===planSum,`b22p1 ${slug} ${lang}: work plan sums to ${planSum}`);
+      ok(!/\b(exact tie|ties exactly)\b|精确打平|−0\.0000(?!\d)/.test(prose),`b22p1 ${slug} ${lang}: no exact-tie wording or signed zero in prose`);
+      ok(!/：\*\*|\*\*：/.test(sec),`b22p1 ${slug} ${lang}: no ** glued to a full-width colon`);
+      ok(!/\|[^|\n]*\|error\|/.test(sec.split("\n").filter(l=>l.startsWith("| ")).join("\n")),`b22p1 ${slug} ${lang}: no bare |error| inside a table row`);
+      for(const m of prose.matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g))ok(expected.includes(`${m[1]}+-${m[2]}`),`b22p1 ${slug} ${lang}: prose ${m[0]} matches expected/`);
+      for(const m of prose.matchAll(/(?<![\w.])(\d+\.\d{2,})(?![\d±]|e-\d)/g))ok(expected.includes(m[1])||CITED.has(m[1]),`b22p1 ${slug} ${lang}: decimal ${m[1]} in prose is printed or a cited paper value`);
+      for(const c of CITED)for(const m of prose.matchAll(new RegExp(c.replace(".","\\."),"g"))){const ctx=prose.slice(Math.max(0,m.index-400),m.index+400); ok(/以(论文|报告)为准/.test(ctx)&&!expected.includes(c),`b22p1 ${slug} ${lang}: cited ${c} carries 以报告为准 and is not a toy output`);}
+      for(const h of sec.match(/^#{2,3} .*$/gm)||[])ok(!/\d+\s*(min|分钟)|Batch|PR\d|\bH\d\b/.test(h),`b22p1 ${slug} ${lang}: heading without minutes/process label ${h}`);
+      const summ=md.slice(summary,end);
+      for(const x of summaryMarkers[lang])ok(summ.includes(x),`b22p1 ${slug} ${lang}: Summary sentence ${x}`);
+      const newLine=summ.split("\n").find(l=>summaryMarkers[lang].every(x=>l.includes(x)))||"";
+      ok(newLine.length>0,`b22p1 ${slug} ${lang}: one Summary sentence carries all markers`);
+      for(const m of newLine.matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g))ok(expected.includes(`${m[1]}+-${m[2]}`),`b22p1 ${slug} ${lang}: Summary ${m[0]} matches expected/`);
+    }
+    const en=read(`src/content/m${month}/${slug}/en.mdx`),zh=read(`src/content/m${month}/${slug}/zh.mdx`);
+    ok((en.match(/```/g)||[]).length===(zh.match(/```/g)||[]).length&&(en.match(/^#{2,3} /gm)||[]).length===(zh.match(/^#{2,3} /gm)||[]).length,`b22p1 ${slug}: en/zh structurally symmetric`);
+    const nums=t=>[...t.matchAll(/-?\d+\.\d+±-?\d+\.\d+/g)].map(m=>m[0]).sort().join(" ");
+    const enSec=en.slice(en.indexOf(heads[0]),en.indexOf("<Summary>")), zhSec=zh.slice(zh.indexOf(heads[1]),zh.indexOf("<Summary>"));
+    ok(nums(enSec)===nums(zhSec),`b22p1 ${slug}: en/zh sections cite the same m±sd values`);
+  }
+  // New toys and their printed output carry no dev-process labels.
+  for(const f of ["examples/month-1/soldering/crimp_vs_solder_strain_relief_toy.py","examples/month-1/expected/crimp_vs_solder_strain_relief_toy.txt","examples/month-3/so101-arm/so101_shared_rail_sag_toy.py","examples/month-3/expected/so101_shared_rail_sag_toy.txt"])ok(!/\bbatch\b|\bPR ?\d+\b|sources? notes?\b|来源说明|this batch|本批|this round|本轮|\b[bB]\d{1,2}p(?:\d|ol)\b/i.test(read(f)),`b22p1 ${f}: no dev-process label`);
+  ok(/"wiki-crimp": \{[\s\S]*?url: "https:\/\/en\.wikipedia\.org\/wiki\/Crimp_\(joining\)[\s\S]*?1380146082[\s\S]*?以原文为准[\s\S]*?extra: true/.test(res),"b22p1 wiki-crimp card: URL, rev, 以原文为准");
+  ok(/"wiki-voltage-drop": \{[\s\S]*?url: "https:\/\/en\.wikipedia\.org\/wiki\/Voltage_drop[\s\S]*?1384299568[\s\S]*?以原文为准[\s\S]*?extra: true/.test(res),"b22p1 wiki-voltage-drop card: URL, rev, 以原文为准");
+  // The sag section reuses the lesson's existing Feetech figures and adds no new Feetech citation.
+  for(const lang of ["en","zh"]){const t=read(`src/content/m3/so101-arm/${lang}.mdx`); const h=t.indexOf(lang==="en"?"## Voltage sag on the shared servo rail":"## 共享舵机电源轨上的电压跌落"); const sec=t.slice(h,t.indexOf("<Summary>")); ok(h>0&&!/feetechrc\.com|ftservo/.test(sec)&&sec.includes("以该课已引用规格为准"),`b22p1 so101-arm ${lang}: no new Feetech citation in the sag section`);}
+  const p1=read("docs/notes/month-1-plan.md"), p3=read("docs/notes/month-3-plan.md");
+  ok(p1.startsWith("# Month 1")&&["Current / 当前：**M1 2910 min**, Batch-22 PR1","## Batch-22 PR1","2730→2910","39060→39420","270→450","5c0a2058860b3776983f1a4e19ef0ecf5cf51f0a","39420=39060+180+180","30+25+50+40+35=180","## Batch-21 PR1"].every(x=>p1.includes(x)),"b22p1 month-1 plan header");
+  ok(p3.startsWith("# Month 3")&&["Current / 当前：**M3 3510 min**, Batch-22 PR1","## Batch-22 PR1","3330→3510","39060→39420","390→570","5c0a2058860b3776983f1a4e19ef0ecf5cf51f0a","39420=39060+180+180","30+25+50+40+35=180","## Batch-21 PR1"].every(x=>p3.includes(x)),"b22p1 month-3 plan header");
+  const src=read("docs/notes/batch-22-pr1-sources.md");
+  ok(["5c0a2058860b3776983f1a4e19ef0ecf5cf51f0a","39060","39420","wiki-crimp","wiki-voltage-drop","https://en.wikipedia.org/wiki/Crimp_(joining)","https://en.wikipedia.org/wiki/Voltage_drop","rev 1380146082","rev 1384299568","Common random numbers","Lock changes","No lock relaxed","Post-hoc choices","Mismatch with §9","Code changes after the first run","declared toy parameter","16.2000±1.6432","2.1192±0.0670","-0.6654±0.0455","3.8588±0.0415","4.3757±0.0804","本页未运行","以原文为准","not re-fetched"].every(x=>src.includes(x)),"b22p1 sources note");
+  ok(!/opencode|DeepSeek|LongCat|MiniMax|MiMo|GLM/.test(src),"b22p1 sources note: no tools/process narrative");
+  const planSec=(p,h)=>p.slice(p.indexOf(h),p.indexOf("\n## ",p.indexOf(h)+5));
+  for(const m of [...src.matchAll(/(-?\d+\.\d+(?:e-?\d+)?)±(-?\d+\.\d+(?:e-?\d+)?)/g),...planSec(p1,"## Batch-22 PR1").matchAll(/(-?\d+\.\d+(?:e-?\d+)?)±(-?\d+\.\d+(?:e-?\d+)?)/g),...planSec(p3,"## Batch-22 PR1").matchAll(/(-?\d+\.\d+(?:e-?\d+)?)±(-?\d+\.\d+(?:e-?\d+)?)/g)])ok(bag.includes(`${m[1]}+-${m[2]}`),`b22p1 notes: ${m[0]} matches expected/`);
+  ok(/39 420/.test(read("README.md"))&&/约 39 420 分钟/.test(read("README.md")),"b22p1 README site minutes (en + zh)");
+  ok((()=>{const months=[...cur.matchAll(/const month(\d+)Lessons[\s\S]*?\];/g)]; let s=0; for(const m of months){for(const x of m[0].matchAll(/minutes:\s*(\d+)/g))s+=+x[1];} return s;})()===39420,"b22p1 curriculum: 39420 minutes");
+  ok([...cur.matchAll(/slug: "/g)].length>=71,"b22p1 curriculum: catalogue still 71 lessons");
+  for(const [mo,want] of [[1,2910],[3,3510]])ok((()=>{const m=cur.match(new RegExp(`const month${mo}Lessons[\\s\\S]*?\\];`)); return [...m[0].matchAll(/minutes:\s*(\d+)/g)].reduce((a,x)=>a+(+x[1]),0);})()===want,`b22p1 curriculum: M${mo} ${want} minutes`);
+  const r1=read("examples/month-1/README.md"), r3=read("examples/month-3/README.md");
+  ok(r1.includes("soldering/crimp_vs_solder_strain_relief_toy.py")&&r3.includes("so101-arm/so101_shared_rail_sag_toy.py"),"b22p1 examples READMEs list the new toys");
+  for(const [r,t] of [[r1,"crimp_vs_solder_strain_relief_toy"],[r3,"so101_shared_rail_sag_toy"]]){const h=r.slice(0,r.indexOf(t)).split("\n## ").pop().split("\n")[0]; ok(!/Batch|批|PR\d/.test(h),`b22p1 examples README heading for ${t} is descriptive: ${h}`);}
+  // Difference-direction tags must match expected/ paired lines.
+  const dirOf=new Map();
+  for(const line of bag.split("\n")){
+    const m=line.match(/paired\s+([A-Za-z0-9_]+)-([A-Za-z0-9_]+)[^:]*:\s*(-?[\d.e+-]+)\+-(-?[\d.e+-]+)/);
+    if(!m) continue;
+    const key=`${m[3]}+-${m[4]}`;
+    if(!dirOf.has(key)) dirOf.set(key,new Set());
+    dirOf.get(key).add(`${m[1]}-${m[2]}`);
+  }
+  const dirRe=/([A-Z])[−-]([A-Z])(?![A-Za-z])(?:[^0-9A-Z]{0,80}?)(-?\d+(?:\.\d+)?(?:e-?\d+)?)±(-?\d+(?:\.\d+)?(?:e-?\d+)?)/g;
+  const checkDiffDirs=(text,tag)=>{let n=0; for(const m of text.matchAll(dirRe)){const key=`${m[3]}+-${m[4]}`; if(!dirOf.has(key)) continue; n++; ok(dirOf.get(key).has(`${m[1]}-${m[2]}`),`${tag}: ${m[1]}-${m[2]} ${m[3]}±${m[4]} must match expected paired ${[...dirOf.get(key)].join("|")}`);} return n;};
+  let dirHits=0;
+  for(const [m,slug,he,hz] of [[1,"soldering","## Crimp or solder:","## 压接还是焊接："],[3,"so101-arm","## Voltage sag on the shared servo rail","## 共享舵机电源轨上的电压跌落"]])for(const lang of ["en","zh"]){const t=read(`src/content/m${m}/${slug}/${lang}.mdx`); dirHits+=checkDiffDirs(t.slice(t.indexOf(lang==="en"?he:hz)),`b22p1 ${slug} ${lang} diff-dir`);}
+  dirHits+=checkDiffDirs(planSec(p1,"## Batch-22 PR1"),"b22p1 month-1-plan diff-dir")+checkDiffDirs(planSec(p3,"## Batch-22 PR1"),"b22p1 month-3-plan diff-dir");
+  dirHits+=checkDiffDirs(src,"b22p1 sources-note diff-dir");
+  ok(dirHits>=40,`b22p1 difference-direction lock ran on ${dirHits} printed pairs`);
+  for(const lang of ["en","zh"]){
+    const s=read(`src/content/m3/so101-arm/${lang}.mdx`);
+    ok(lang==="en"?s.includes("Not pre-declared, and worth noticing: i_sum is already 4.3757±0.0804 A"):s.includes("事先没有声明、但值得注意的是：i_sum 已经是 4.3757±0.0804 A"),`b22p1 so101-arm ${lang}: one-stall current above 4 A, not pre-declared, is stated`);
+  }
+  console.log("crimp-so101-sag PR1: crimp vs solder strain relief, SO-101 shared-rail sag, and M1 2910 / M3 3510 / site 39420 locked");
+}
+
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
 process.exit(failed ? 1 : 0);

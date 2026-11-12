@@ -39,3 +39,7 @@ Different OpenSCAD versions write a different number of triangles; `check.sh` ig
 ## Batch-21 PR1 / 第21批 PR1
 
 `fdm-printing/fdm_build_orientation_anisotropy_toy.py`: standard-library synthetic three-point-bending beam (flatwise vs upright vs an isotropic guess vs edgewise), no hardware; expected output in `expected/fdm_build_orientation_anisotropy_toy.txt`, included in `check.sh`. Real printer / Instron 本页未运行. / 标准库合成的三点弯曲梁（平放、直立、各向同性猜测、侧放），不是实验室测量，输出由 `check.sh` 核对。
+
+## so101-arm/ — Voltage sag on the shared servo rail / 共享舵机电源轨的电压跌落
+
+`so101-arm/so101_shared_rail_sag_toy.py`: standard-library synthetic DC resistor chain for the SO-101's daisy-chained 5 V servo rail (ideal wiring vs declared thin wiring vs thicker wiring, four stall regimes) on shared resistance and current draws; no hardware; expected output in `expected/so101_shared_rail_sag_toy.txt`, included in `check.sh`. Real arm / PSU / stall test 本页未运行. / 标准库合成的 SO-101 菊花链 5 V 舵机电源轨直流电阻链（理想布线、声明的细线、粗线，四种堵转情形），不是实测，输出由 `check.sh` 核对。

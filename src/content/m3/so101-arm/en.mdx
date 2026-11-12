@@ -769,7 +769,7 @@ This section is **not** the microcontroller brownout example from the components
 |---|---|---|
 | A_ideal | 0 Ω | 0 Ω: the Power section's sum, wiring ignored |
 | B_wired | 0.10 Ω | 0.05 Ω |
-| C_thick | 0.03 Ω: thicker, shorter lead | 0.025 Ω: thicker links |
+| C_thick | 30 mΩ (0.03 Ω): thicker, shorter lead | 25 mΩ: thicker links |
 
 **Common random numbers:** for each (regime, seed) the six resistance factors and the six current factors are drawn once and shared by all three arms. The arms differ **only** in their wiring resistances. Five seeds. Metrics: v_min (the lowest servo voltage, in volts), i_sum (the total current, in amps), v_ok (1 when v_min ≥ 4 V) and i_ok (1 when i_sum ≤ 4 A), each as mean±sd over seeds.
 

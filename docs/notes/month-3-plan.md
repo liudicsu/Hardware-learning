@@ -1,6 +1,14 @@
 # Month 3 plan / 第 3 个月计划
 
-Current / 当前：**M3 3330 min**, Batch-21 PR1. Earlier entries below retain their historical totals.
+Current / 当前：**M3 3510 min**, Batch-22 PR1. Earlier entries below retain their historical totals.
+
+## Batch-22 PR1 / 本月 H2 (+180)
+
+Base `5c0a2058860b3776983f1a4e19ef0ecf5cf51f0a` (batch-21 polish #188 merged; site **39060**). PR1 on M3 host: **M3 3330→3510 (+180)**; M1 moves in the same PR on its own plan. Site **39060→39420** (39420=39060+180+180), still 71 lessons.
+
+- **H2 / 3.5 so101-arm: 390→570 (+180).** Voltage sag on the shared servo rail (`so101_shared_rail_sag_toy.py`; common random numbers, 5 seeds; six resistance factors and six current factors per regime and seed, shared by all three arms). Wikipedia Voltage drop body read (rev 1384299568; 以原文为准): V = I R, drop in both supply and return wires and across contacts and connectors, a larger conductor diameter reduces the drop. Per-servo currents are the lesson's existing C001 figures (rated 0.5 A, stall 2.0 A at 6 V; 以该课已引用规格为准), the 4 V floor and 4 A nameplate are the lesson's; Feetech documents not re-fetched or newly cited. Declared toy parameters: V_SUP=5.0 V ideal source, R_LEAD 0.10 / R_SEG 0.05 ohm (B_wired), 0.03 / 0.025 ohm (C_thick), jitter ±20 % on R and ±10 % on I. Hand calc (printed): 3.0000 A, 12.0000 A, 1.2000 V, B all_stall 2.3000 V, B rated 4.3250 V. rated: B−A v_min `-0.6654±0.0455`, **small**, 5/5; B−A v_ok **tie**; i_sum `2.9554±0.0504` A. one_stall (gripper): B v_min `3.8588±0.0415` V, B−A v_ok `-1.0000±0.0000`, **clear**, 5/5; i_sum `4.3757±0.0804` A already above 4 A (not pre-declared). multi_stall: B `3.2611±0.0548` V, C `4.2776±0.0237` V, C−B v_ok `1.0000±0.0000`, **clear**, 5/5; i_sum `7.5232±0.3085` A. all_stall: i_sum `11.9266±0.1133` A, B `2.3751±0.1700` V, C `3.9067±0.0644` V, C−B v_ok **tie** (both below 4 V). Every pre-declared regime held. Alternatives (declared, same seeds): R_SEG=0.03 → B−A v_ok `-1.0000±0.0000`; R_LEAD=0.20 at rated → `-0.4000±0.5477` near-tie; C R_LEAD=0.05 → C−B v_ok `1.0000±0.0000`; none adopted. No code change after the first run. ≠ components MCU brownout example. Real arm / PSU / stall test 本页未运行. / 共享舵机电源轨的电压跌落，不宣布实测。
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
 
 ## Batch-21 PR1 / 本月 H2 (+180)
 
