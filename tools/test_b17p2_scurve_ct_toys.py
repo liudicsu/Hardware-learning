@@ -102,6 +102,29 @@ class ComputedTorque(unittest.TestCase):
         out = subprocess.run([sys.executable, str(ROOT / CT_REL)], capture_output=True, text=True, check=True).stdout
         self.assertEqual(out, (ROOT / "examples/month-5/expected/computed_torque_inverse_dynamics_toy.txt").read_text())
 
+    def test_centre_pose_stiffness_and_fc0_block(self):
+        m, minv22, inv_m22, k_ct, k_pd, e_ct, e_pd = ct.centre_pose_stiffness()
+        self.assertAlmostEqual(m[2], 1.5 * 0.25 ** 2, places=12)
+        det = m[0] * m[2] - m[1] * m[1]
+        self.assertAlmostEqual(minv22, m[0] / det, places=12)
+        self.assertAlmostEqual(inv_m22, 1.0 / m[2], places=12)
+        self.assertAlmostEqual(k_ct, ct.KP / minv22, places=12)
+        self.assertAlmostEqual(k_pd, m[2] * ct.KP, places=12)
+        self.assertAlmostEqual(e_ct, 1000.0 * ct.FC / k_ct, places=12)
+        self.assertAlmostEqual(e_pd, 1000.0 * ct.FC / k_pd, places=12)
+        src = (ROOT / CT_REL).read_text()
+        self.assertIn("added after the first run", src)
+        self.assertIn("not a pre-declared regime", src)
+        out = (ROOT / "examples/month-5/expected/computed_torque_inverse_dynamics_toy.txt").read_text()
+        self.assertIn("FC=0 sensitivity (added after the first run; not a pre-declared regime)", out)
+        self.assertIn("(M⁻¹)22=27.1535  1/M22=10.6667", out)
+        self.assertIn("stiffness KP/(M⁻¹)22=14.7311 N m/rad vs D0 KP=M22 KP=37.5000 N m/rad", out)
+        self.assertIn("0.3 N m friction leaves 20.3651 mrad vs 8.0000 mrad", out)
+        self.assertIn("slow_quasi_static FC=0", out)
+        self.assertIn("payload_mismatch FC=0", out)
+        self.assertIn("  paired B-A rms: -0.1168+-0.0515: clear gap, not a tie (|m| > sd); same sign on all 5 seeds", out)
+        self.assertIn("  paired B-A rms: -5.1016+-1.3586: clear gap, not a tie (|m| > sd); same sign on all 5 seeds", out)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

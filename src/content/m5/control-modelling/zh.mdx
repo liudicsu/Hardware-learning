@@ -1067,6 +1067,8 @@ Regimes and expectations, written before the first run:
   payload_mismatch   f 0.25 Hz, payload 2.0 kg  C (computed torque, wrong inertia) loses to A
                                                  (PD + gravity with the right payload), consistent
   C loses to B in every regime.
+The FC=0 sensitivity block and the centre-pose stiffness lines were added after
+the first run; they are not pre-declared regimes.
 """
 import math
 import random
@@ -1144,9 +1146,11 @@ def control(arm, qm, qdm, qr, qdr, qddr, payload_real, payload_c, d0):
     return tau, fb
 
 
-def step_plant(q, qd, tau, payload, dt, friction=True):
+def step_plant(q, qd, tau, payload, dt, friction=True, fc=None):
     m, cv, gv = dyn(q, qd, payload)
-    f = (FC * math.tanh(qd[0] / 0.02), FC * math.tanh(qd[1] / 0.02)) if friction else (0.0, 0.0)
+    # plant friction is FC * math.tanh(qd / 0.02) per joint (unmodelled); fc overrides FC
+    fval = 0.0 if not friction else (FC if fc is None else fc)
+    f = (fval * math.tanh(qd[0] / 0.02), fval * math.tanh(qd[1] / 0.02)) if fval else (0.0, 0.0)
     r0 = tau[0] - cv[0] - gv[0] - f[0]
     r1 = tau[1] - cv[1] - gv[1] - f[1]
     det = m[0] * m[2] - m[1] * m[1]
@@ -1157,7 +1161,7 @@ def step_plant(q, qd, tau, payload, dt, friction=True):
     return q, qd
 
 
-def run_arm(arm, regime, draws, dt):
+def run_arm(arm, regime, draws, dt, fc=None):
     f, dur, payload, payload_c = REGIMES[regime]
     scale, ph, noise = draws
     q, qd, _ = desired(0.0, f, scale, ph)
@@ -1176,7 +1180,7 @@ def run_arm(arm, regime, draws, dt):
         se += e2
         peak = max(peak, math.sqrt(e2))
         sfb += fb[0] ** 2 + fb[1] ** 2
-        q, qd = step_plant(q, qd, tau, payload, dt)
+        q, qd = step_plant(q, qd, tau, payload, dt, fc=fc)
     return {"rms": 1000.0 * math.sqrt(se / n), "peak": 1000.0 * peak, "fb": math.sqrt(sfb / n)}
 
 
@@ -1188,6 +1192,20 @@ def matched_error_run(h, steps=300):
         tau, _ = control("B_ct", q, qd, qr, (0.0, 0.0), (0.0, 0.0), 0.5, 0.5, None)
         q, qd = step_plant(q, qd, tau, 0.5, h, friction=False)
     return math.hypot(qr[0] - q[0], qr[1] - q[1])
+
+
+
+def centre_pose_stiffness(payload=0.5):
+    """M, (M^{-1})22 and joint-2 stiffness at Q0; used by the post-hoc FC=0 block."""
+    m, _, _ = dyn(Q0, (0.0, 0.0), payload)
+    det = m[0] * m[2] - m[1] * m[1]
+    minv22 = m[0] / det
+    inv_m22 = 1.0 / m[2]
+    k_ct = KP / minv22
+    k_pd = m[2] * KP
+    e_ct = 1000.0 * FC / k_ct
+    e_pd = 1000.0 * FC / k_pd
+    return m, minv22, inv_m22, k_ct, k_pd, e_ct, e_pd
 
 
 def run(dt):
@@ -1259,6 +1277,19 @@ def main():
     print(f"half-step check (DT/2): max relative change in rms error {drel:.4f}")
     print("No winner declared: the model helps when inertia and coupling matter, adds little when gravity dominates, and hurts when the payload is wrong")
     print("Real arm / identification lab: 本页未运行; Wikipedia Inverse dynamics 以原文为准")
+    # FC=0 sensitivity, added after the first run (not a pre-declared regime).
+    print("FC=0 sensitivity (added after the first run; not a pre-declared regime)")
+    m, minv22, inv_m22, k_ct, k_pd, e_ct, e_pd = centre_pose_stiffness()
+    print(f"centre pose q=({Q0[0]}, {Q0[1]}) rad, payload 0.5 kg:")
+    print(f"  M11={m[0]:.4f} M12={m[1]:.4f} M22={m[2]:.5f}")
+    print(f"  (M⁻¹)22={num(minv22)}  1/M22={num(inv_m22)}")
+    print(f"  stiffness KP/(M⁻¹)22={num(k_ct)} N m/rad vs D0 KP=M22 KP={num(k_pd)} N m/rad")
+    print(f"  0.3 N m friction leaves {num(e_ct)} mrad vs {num(e_pd)} mrad")
+    for regime in ("slow_quasi_static", "payload_mismatch"):
+        draws = [shared_draws(regime, s) for s in SEEDS]
+        res = {arm: [run_arm(arm, regime, d, DT, fc=0.0) for d in draws] for arm in ("A_pdg", "B_ct")}
+        print(f"{regime} FC=0")
+        print(f"  paired B-A rms: {verdict([r['rms'] for r in res['B_ct']], [r['rms'] for r in res['A_pdg']])}")
 
 
 if __name__ == "__main__":
@@ -1307,6 +1338,16 @@ payload_mismatch (f 0.25 Hz, 6.0 s; payload 2.0 kg, C models 0.0 kg)
 half-step check (DT/2): max relative change in rms error 0.0143
 No winner declared: the model helps when inertia and coupling matter, adds little when gravity dominates, and hurts when the payload is wrong
 Real arm / identification lab: 本页未运行; Wikipedia Inverse dynamics 以原文为准
+FC=0 sensitivity (added after the first run; not a pre-declared regime)
+centre pose q=(0.3, 0.8) rad, payload 0.5 kg:
+  M11=0.5205 M12=0.1721 M22=0.09375
+  (M⁻¹)22=27.1535  1/M22=10.6667
+  stiffness KP/(M⁻¹)22=14.7311 N m/rad vs D0 KP=M22 KP=37.5000 N m/rad
+  0.3 N m friction leaves 20.3651 mrad vs 8.0000 mrad
+slow_quasi_static FC=0
+  paired B-A rms: -0.1168+-0.0515: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+payload_mismatch FC=0
+  paired B-A rms: -5.1016+-1.3586: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
 ```
 
 </SimOutput>
@@ -1320,11 +1361,11 @@ Real arm / identification lab: 本页未运行; Wikipedia Inverse dynamics 以�
   - C 输给 B（C−B rms +60.7909±32.6981，明显，5/5），但仍然胜过 A（C−A −40.1172±17.0697，明显，5/5）：惯性占主导时，部分错误的模型也比没有模型好。
 - **slow_quasi_static** 的结果如下。
   - 预期的接近打平**没有**出现。**B 落败，差距明显。** B−A rms +16.7587±13.6344 mrad，5 个种子全部同号；反馈力矩接近打平（0.0054±0.0094）。
-  - 原因是未建模的摩擦。关节 2 上的误差力矩，在计算力矩下遇到的刚度是 `KP / (M⁻¹)22`，在 PD 下是 `D0 KP`。中心位姿处 `(M⁻¹)22 = 27.15`，而 `1 / M22 = 10.67`，所以刚度约为 14.7 对 37.5 N m/rad，0.3 N m 的摩擦留下约 20 mrad 对 8 mrad 的误差。运动很慢时，剩下要对付的就是摩擦。把 `FC` 设为 0 的旁路运行（第一次运行之后做的，不在打印输出里）把这里变成 B 获胜：B−A rms −0.1168±0.0515 mrad，明显，5/5。所以没有摩擦时慢速情形也不是接近打平；B 只是好了不到 1 毫弧度。
+  - 原因是未建模的摩擦。关节 2 上的误差力矩，在计算力矩下遇到的刚度是 `KP / (M⁻¹)22`，在 PD 下是 `D0 KP`。中心位姿处 toy 打印 `(M⁻¹)22 = 27.1535`，而 `1 / M22 = 10.6667`，所以刚度是 14.7311 对 37.5000 N m/rad，0.3 N m 的摩擦留下 20.3651 mrad 对 8.0000 mrad 的误差。运动很慢时，剩下要对付的就是摩擦。首跑后加入的 `FC = 0` 敏感性分析（第一次运行之后加入，并打在单独的块里）把这里变成 B 获胜：B−A rms −0.1168±0.0515 mrad，明显，5/5。所以没有摩擦时慢速情形也不是接近打平；B 只是好了不到 1 毫弧度。
   - C 输给 B（C−B rms +17.6557±15.2735，明显，5 个种子中有 1 个符号相反）。
 - **payload_mismatch** 的结果如下。
   - **负载模型错误的计算力矩落败，差距明显。** C−A rms +133.6632±28.8934 mrad，5 个种子全部同号。C 的模型里没有 2 kg 负载，所以既漏掉了它的重量，也把自己的增益缩小了；A 的重力项是对的。
-  - B 在这里也输给 A（B−A rms +17.6598±4.9639，明显，5/5），原因与慢速情形相同，是摩擦；这一点事先没有声明。在 `FC = 0` 的旁路运行里，B 在这里也胜过 A（B−A −5.1016±1.3586 mrad，明显，5/5）。
+  - B 在这里也输给 A（B−A rms +17.6598±4.9639，明显，5/5），原因与慢速情形相同，是摩擦；这一点事先没有声明。在首跑后加入的 `FC = 0` 敏感性分析里（第一次运行之后加入，打在同一块里），B 在这里也胜过 A（B−A −5.1016±1.3586 mrad，明显，5/5）。
 
 本页**不宣布普遍赢家**。惯性和耦合重要时计算力矩获胜；慢速运动只剩未建模摩擦时它输给 PD + 重力；模型里的负载错了时它输得很惨。Wikipedia 的说法以原文为准，真实机械臂**本页未运行**。
 

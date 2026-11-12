@@ -37,3 +37,13 @@ payload_mismatch (f 0.25 Hz, 6.0 s; payload 2.0 kg, C models 0.0 kg)
 half-step check (DT/2): max relative change in rms error 0.0143
 No winner declared: the model helps when inertia and coupling matter, adds little when gravity dominates, and hurts when the payload is wrong
 Real arm / identification lab: 本页未运行; Wikipedia Inverse dynamics 以原文为准
+FC=0 sensitivity (added after the first run; not a pre-declared regime)
+centre pose q=(0.3, 0.8) rad, payload 0.5 kg:
+  M11=0.5205 M12=0.1721 M22=0.09375
+  (M⁻¹)22=27.1535  1/M22=10.6667
+  stiffness KP/(M⁻¹)22=14.7311 N m/rad vs D0 KP=M22 KP=37.5000 N m/rad
+  0.3 N m friction leaves 20.3651 mrad vs 8.0000 mrad
+slow_quasi_static FC=0
+  paired B-A rms: -0.1168+-0.0515: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+payload_mismatch FC=0
+  paired B-A rms: -5.1016+-1.3586: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
