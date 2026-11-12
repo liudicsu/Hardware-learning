@@ -4944,7 +4944,7 @@ for (const m of readdirSync(content)) {
   for (const id of ["dreamgen-paper", "lapa-paper", "smolvla-paper", "lerobot-async"]) {
     ok(new RegExp(`"${id}": \\{[\\s\\S]*?extra: true`).test(res), `wm2 resource ${id}: present + extra`);
   }
-  ok(/37 560/.test(read("README.md")), "b17p3 README: 37 560 minutes (tip after batch-20 PR1)");
+  ok(/37 560/.test(read("README.md")), "b17p3 README: 37 560 minutes (tip after batch-20 PR2)");
   console.log("worldmodel-smolvla PR2: neural trajectories + async chunk locks checked");
 }
 
@@ -8331,7 +8331,7 @@ print("protocol pass")
   for(const m of note.matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g))ok(bag.includes(`${m[1]}+-${m[2]}`),`b18pol sources note: ${m[0]} matches expected/`);
   ok(/37 560/.test(read("README.md"))&&/约 37 560 分钟/.test(read("README.md")),"b18pol README site minutes unchanged (en + zh)");
   const locks=read("tools/check_diagrams.mjs");
-  ok(locks.includes("b17p3 curriculum: 37560 minutes (tip after batch-20 PR2)")&&locks.includes("b17p3 README: 37 560 minutes (tip after batch-20 PR1)")&&locks.includes("b18p1 curriculum: 37560 minutes (tip after batch-20 PR2)"),"b18pol tip-lock comments name the live total 35820");
+  ok(locks.includes("b17p3 curriculum: 37560 minutes (tip after batch-20 PR2)")&&locks.includes("b17p3 README: 37 560 minutes (tip after batch-20 PR2)")&&locks.includes("b18p1 curriculum: 37560 minutes (tip after batch-20 PR2)"),"b18pol tip-lock comments name the live total 35820");
   console.log("batch-18 polish: damped Jury criterion printed; explicit/backward Euler and D=0; KI official title; four VLA post-hoc changes; form-closure n&s; TSDF sign; minutes 35820; no lock relaxed");
 }
 }
@@ -8798,7 +8798,7 @@ print("protocol pass")
   // note + totals
   for(const x of ["0f3b2541f10579cf8d0e05dcb94208ea86c33c77","36900","**71**","no minute count changed","Access Denied","pololu.com/file/0J435/UM10204.pdf","240 µA","**8 µA**","**7 µA**","**0.8 mA**","**10 µA**","**5 µA**","scl_wait_us","xfer_timeout_ms","does not support clock stretching when operating as a slave","0.007813","opencode","No lock relaxed"])ok(note.includes(x),`b19pol note: ${x}`);
   ok((()=>{const months=[...cur.matchAll(/const month(\d+)Lessons[\s\S]*?\];/g)]; let s=0; for(const m of months){for(const x of m[0].matchAll(/minutes:\s*(\d+)/g))s+=+x[1];} return s===37560;})(),"b19pol curriculum: 37560 minutes (tip after batch-20 PR2)");
-  ok(/37 560/.test(read("README.md"))&&/约 37 560 分钟/.test(read("README.md")),"b19pol README: 37 560 (tip after batch-20 PR1)");
+  ok(/37 560/.test(read("README.md"))&&/约 37 560 分钟/.test(read("README.md")),"b19pol README: 37 560 (tip after batch-20 PR2)");
   console.log("batch-19 polish: author lists, 0.007813, code-change disclosures, ESP32 vs S3, UM10204 / ESP-IDF I²C, PSRR, Zener slope, ac+dc locked");
 }
 
