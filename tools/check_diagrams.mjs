@@ -8572,7 +8572,7 @@ print("protocol pass")
   for(const m of [...src.matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g),...p2.slice(p2.indexOf("## Batch-19 PR2"),p2.indexOf("\n## ",p2.indexOf("## Batch-19 PR2")+5)).matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g)])ok(bag.includes(`${m[1]}+-${m[2]}`),`b19p2 notes: ${m[0]} matches expected/`);
   ok(/39 060/.test(read("README.md"))&&/约 39 060 分钟/.test(read("README.md")),"b19p2 README site minutes (en + zh, tip after batch-19 PR3)");
   ok((()=>{const months=[...cur.matchAll(/const month(\d+)Lessons[\s\S]*?\];/g)]; let s=0; for(const m of months){for(const x of m[0].matchAll(/minutes:\s*(\d+)/g))s+=+x[1];} return s;})()===39060,"b19p2 curriculum: 39060 minutes (tip after batch-21 PR3)");
-  ok((()=>{const m=cur.match(/const month2Lessons[\s\S]*?\];/); return [...m[0].matchAll(/minutes:\s*(\d+)/g)].reduce((a,x)=>a+(+x[1]),0);})()===3570,"b19p2 curriculum: M2 3390 minutes (tip after batch-21 PR3: 3570)");
+  ok((()=>{const m=cur.match(/const month2Lessons[\s\S]*?\];/); return [...m[0].matchAll(/minutes:\s*(\d+)/g)].reduce((a,x)=>a+(+x[1]),0);})()===3570,"b19p2 curriculum: M2 3390 minutes (tip after batch-21 PR2: 3570)");
   // Difference-direction tags (A−B vs B−A, C−A, C−B) in prose, Summary, curriculum, plan and note must match expected/ paired lines.
   const dirOf=new Map();
   for(const line of bag.split("\n")){

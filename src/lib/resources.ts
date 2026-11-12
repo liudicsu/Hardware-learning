@@ -2998,7 +2998,7 @@ export const resources: Record<string, Resource> = {
     id: "openvla-oft-paper",
     url: "https://arxiv.org/abs/2502.19645",
     title: { zh: "OpenVLA-OFT 论文：优化的 VLA 微调配方", en: "OpenVLA-OFT paper: an optimised fine-tuning recipe for VLAs" },
-    author: "Kim et al.",
+    author: "Moo Jin Kim, Chelsea Finn, Percy Liang",
     kind: "textbook",
     cost: { zh: "免费", en: "Free" },
     summary: {
