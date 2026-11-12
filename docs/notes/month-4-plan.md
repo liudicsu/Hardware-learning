@@ -1,6 +1,14 @@
 # Month 4 plan / 第4个月计划
 
-Current / 当前：**M4 3030 min**, Batch-18 PR2. Earlier entries below retain their historical totals.
+Current / 当前：**M4 3210 min**, Batch-20 PR1. Earlier entries below retain their historical totals.
+
+## Batch-20 PR1 / 本月 H2 (+180)
+
+Base `73b59b39de82a388c0a89514269680b5c04048f9` (batch-19 polish #180 merged; site **36900**). PR1 on M4 host: **M4 3030→3210 (+180)**; M3 moves in the same PR on its own plan. Site **36900→37230** (37230=36900+150+180), still 71 lessons.
+
+- **H2 / 4.4 gazebo-sim: 450→630 (+180).** Lidar realism vs ideal rays (`gazebo_lidar_realism_toy.py`; common random numbers across arms, real-unit stand-in R on its own stream, 5 seeds). SDFormat 1.11 lidar.sdf / noise.sdf source and gz-sensors 8 Lidar.cc bodies read (以文档为准): per-beam Gaussian noise only; finite ranges clamped to [min, max]. MIN=0.20 m, MAX=8.0 m, SIGMA=0.01 m from this lesson's xacro; C_BIAS=0.015 m, P_DROP_C=0.50, R_BIAS=0.020 m, R_SIGMA=0.012 m, P_DROP_R=0.60, TOL=0.10 m declared toy parameters. clear_wall: paired B−A mean_err `0.0011±0.0013`, **near-tie** as declared; paired C−A mean_err `0.0161±0.0013`, **clear**, 5/5 (C's bias vs geometry, **kept**). glossy: paired A−C ret_err `0.2689±0.0563`, **clear**, 5/5, **kept**; beam-level paired A−C mismatch `3.6000±2.7928`, small but consistent (not declared a C win). min_range: paired A−C mismatch `19.0000±0.0000`, near_err `1.5834±0.0089`, **clear**, 5/5, **kept**. visual_only: paired A−C mismatch `27.0000±0.0000`, **clear**, 5/5, **kept**. Alternatives on the same seeds: TOL=0.05 m (clear_wall A−C mismatch `0.4000±0.5477`), P_DROP_C=0.90 (glossy A−C ret_err `0.2492±0.1052`), C_BIAS=0.000 (clear_wall C−A mean_err `0.0011±0.0013`). ≠ OctoMap/TSDF; ≠ DWA; ≠ physics-step section. Real lidar / Gazebo 本页未运行. / 雷达真实感：光亮、盲区、visual/collision 不一致时理想射线输。
+
+**Allocation / 安排:** 30+30+50+40+30=180 minutes.
 
 ## Batch-18 PR2 / 本月 H3 (+180)
 

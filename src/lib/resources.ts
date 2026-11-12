@@ -6436,6 +6436,60 @@ export const resources: Record<string, Resource> = {
     license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
     extra: true,
   },
+  "wiki-leadscrew": {
+    id: "wiki-leadscrew",
+    url: "https://en.wikipedia.org/wiki/Leadscrew",
+    title: {
+      zh: "Wikipedia：Leadscrew（丝杠：力学、自锁与效率）",
+      en: "Wikipedia: Leadscrew (mechanics, self-locking, efficiency)",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "HTML 正文已读（rev 1372857424，HTTP 200，2026-11-12）。Mechanics：把方螺纹一圈展开成直角三角形，T_raise = (F·d_m/2)·tan(φ+λ)，T_lower = (F·d_m/2)·tan(φ−λ)；摩擦系数大于导程角正切（φ > λ）时自锁，但这一性质不是绝对的：振动或冲击下等效摩擦系数可能降到动摩擦水平，丝杠会意外被反向驱动，安全攸关场合常另加保持制动器。Efficiency：η = tan λ / tan(φ+λ)；非零牙型角用 μ·sec α 修正。螺纹摩擦表（钢对青铜干摩擦一行的下端为 0.15）。以原文为准。",
+      en: "HTML body read (rev 1372857424, HTTP 200, 2026-11-12). Mechanics: unwrap one square-thread revolution into a right triangle, T_raise = (F·d_m/2)·tan(φ+λ), T_lower = (F·d_m/2)·tan(φ−λ); self-locking when the friction coefficient exceeds the tangent of the lead angle (φ > λ), but not absolute: under vibration or shock the effective friction coefficient may drop to dynamic levels and the screw can back-drive unexpectedly, so safety-critical uses often add a holding brake. Efficiency: η = tan λ / tan(φ+λ); non-zero thread angles use μ·sec α. Thread-friction table (dry steel-on-bronze row starts at 0.15). 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "sdf-lidar-spec": {
+    id: "sdf-lidar-spec",
+    url: "https://github.com/gazebosim/sdformat/blob/sdf14/sdf/1.11/lidar.sdf",
+    title: {
+      zh: "SDFormat 1.11 规范源文件：lidar.sdf 与 noise.sdf",
+      en: "SDFormat 1.11 spec source: lidar.sdf and noise.sdf",
+    },
+    author: "Open Robotics / Gazebo contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "规范源文件正文已读（raw.githubusercontent.com，sdf14 分支，HTTP 200，2026-11-12；sdformat.org 的渲染页面返回 HTTP 500，未引用）。lidar.sdf：range 的 min / max 是每条射线的最小 / 最大距离，resolution 是线性分辨率；noise 只支持 gaussian，对每条射线独立抽取（mean、stddev）；visibility_mask 与物体的 visibility_flags 按位与非零时可见。noise.sdf 另列 bias_mean、gaussian_quantized 等通用噪声字段。以文档为准。",
+      en: "Spec source body read (raw.githubusercontent.com, sdf14 branch, HTTP 200, 2026-11-12; the rendered sdformat.org page returned HTTP 500 and is not cited). lidar.sdf: range min / max are the minimum / maximum distance for each lidar ray, resolution is the linear resolution; noise supports only gaussian, drawn independently for each beam (mean, stddev); an object is visible when visibility_mask AND its visibility_flags is non-zero. noise.sdf also lists generic fields such as bias_mean and gaussian_quantized. 以文档为准.",
+    },
+    license: { zh: "Apache-2.0；以原站为准", en: "Apache-2.0; see original terms" },
+    extra: true,
+  },
+  "gz-sensors-lidar-src": {
+    id: "gz-sensors-lidar-src",
+    url: "https://github.com/gazebosim/gz-sensors/blob/gz-sensors8/src/Lidar.cc",
+    title: {
+      zh: "gz-sensors 8 源码：Lidar.cc（噪声与距离夹取）",
+      en: "gz-sensors 8 source: Lidar.cc (noise and range clamp)",
+    },
+    author: "Open Robotics / Gazebo contributors",
+    kind: "software",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "源码正文已读（raw.githubusercontent.com，gz-sensors8 分支，HTTP 200，2026-11-12）。雷达只支持高斯噪声（其他类型会警告）；ApplyNoise 对每条射线加噪声后调用 Clamp；Clamp 把有限距离 std::clamp 到 [RangeMin, RangeMax]，NaN 变成 RangeMax，无穷保持不变。以文档为准。",
+      en: "Source body read (raw.githubusercontent.com, gz-sensors8 branch, HTTP 200, 2026-11-12). The lidar supports only Gaussian noise (other types warn); ApplyNoise adds noise per ray and then calls Clamp; Clamp std::clamps a finite range to [RangeMin, RangeMax], turns NaN into RangeMax and leaves infinities unchanged. 以文档为准.",
+    },
+    license: { zh: "Apache-2.0；以原站为准", en: "Apache-2.0; see original terms" },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

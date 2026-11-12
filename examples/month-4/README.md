@@ -37,3 +37,7 @@ examples/month-4/check.sh             # with ROS 2 Jazzy sourced, or: cd example
 
 `check.sh` builds the packages in a temporary workspace, runs every command the lessons quote and compares the output with `expected/`. Timestamps, build timings and process numbers change from run to run and are masked by `compare.py`.
 `check.sh` 在临时工作空间里构建这些包，运行课程中引用的每条命令，并与 `expected/` 比较。时间戳、构建耗时和进程编号每次都不同，由 `compare.py` 屏蔽。
+
+## Batch-20 PR1 / 第20批 PR1
+
+`gazebo-sim/gazebo_lidar_realism_toy.py`: standard-library synthetic 2D lidar realism toy (ideal vs lesson-Gaussian vs realism rays against a real-unit stand-in), not `gz sim`; expected output in `expected/gazebo_lidar_realism_toy.txt`, run by `check.sh` without ROS. Real lidar / Gazebo 本页未运行. / 标准库合成的二维雷达真实感对照，不是 gz sim，输出由 `check.sh` 核对（不需要 ROS）。
