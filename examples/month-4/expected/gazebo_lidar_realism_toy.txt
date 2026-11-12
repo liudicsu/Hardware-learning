@@ -1,0 +1,86 @@
+Synthetic 2D lidar realism toy; shared sim noise stream; real-unit stand-in R on its own stream; not gz sim
+seeds=5 N_BEAMS=61 FOV=+-30.0 deg MIN=0.20 m MAX=8.0 m SIGMA=0.01 m (MIN/MAX/SIGMA from this lesson's sensors.gazebo.xacro)
+C_BIAS=0.015 m P_DROP_C=0.50; R_BIAS=0.020 m R_SIGMA=0.012 m P_DROP_R=0.60; TOL=0.10 m (declared toy parameters, not datasheet values)
+No integration step: one static scan per seed, no time-step criterion
+Regimes and parameters were written before the first run
+clamp_rule (gz-sensors Lidar::Clamp): finite range -> clamp to [MIN, MAX]; B reports MIN for a surface closer than MIN
+blind_rule (R and C, toy): true range < MIN -> no return; A (ideal) reports the true range
+  boundary below MIN: true=0.1200 m -> A 0.1200 B 0.2000 C none (no noise, no bias)
+  boundary at MIN: true=0.2000 m -> A 0.2000 B 0.2000 C 0.2000 (no noise, no bias)
+  boundary above MIN: true=0.2001 m -> A 0.2001 B 0.2001 C 0.2001 (no noise, no bias)
+hand_calc straight-ahead wall: 1.80 - 0.12 = 1.68 m; beam at 30 deg: 1.68 / cos(30 deg) = 1.9399 m
+clear_wall (beams 61; geometric hits 61; true range below MIN on 0 beams; nearest true 1.6800 m):
+  scene: x=1.68 m y=[-1.50, 1.50] visual+collision
+  R_real_unit returns 61.0000+-0.0000 mean_err 0.0195+-0.0017
+  A_ideal returns 61.0000+-0.0000 mean_err 0.0000+-0.0000 ret_err 0.0000+-0.0000 mismatch 0.0000+-0.0000 near_err 0.0063+-0.0066
+  B_lesson returns 61.0000+-0.0000 mean_err 0.0011+-0.0013 ret_err 0.0000+-0.0000 mismatch 0.0000+-0.0000 near_err 0.0122+-0.0095
+  C_realism returns 61.0000+-0.0000 mean_err 0.0161+-0.0013 ret_err 0.0000+-0.0000 mismatch 0.0000+-0.0000 near_err 0.0080+-0.0045
+  paired B-A mean_err: 0.0011+-0.0013: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired B-A ret_err: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A mismatch: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A near_err: 0.0059+-0.0145: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired A-C ret_err: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C ret_err: 0.0000+-0.0000: tie: identical on every seed
+  paired A-C mismatch: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C mismatch: 0.0000+-0.0000: tie: identical on every seed
+  paired A-C near_err: -0.0017+-0.0027: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired B-C near_err: 0.0041+-0.0128: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired C-A mean_err: 0.0161+-0.0013: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+glossy (beams 61; geometric hits 61; true range below MIN on 0 beams; nearest true 1.2000 m):
+  scene: x=1.20 m y=[-0.35, 0.35] visual+collision+glossy; x=2.50 m y=[-2.00, 2.00] visual+collision
+  R_real_unit returns 39.2000+-2.6833 mean_err 0.0207+-0.0015
+  A_ideal returns 61.0000+-0.0000 mean_err 0.0000+-0.0000 ret_err 0.3574+-0.0440 mismatch 21.8000+-2.6833 near_err 0.0155+-0.0088
+  B_lesson returns 61.0000+-0.0000 mean_err 3.824e-04+-4.110e-04 ret_err 0.3574+-0.0440 mismatch 21.8000+-2.6833 near_err 0.0277+-0.0085
+  C_realism returns 44.6000+-3.4351 mean_err 0.0158+-3.944e-04 ret_err 0.0885+-0.0274 mismatch 18.2000+-1.0954 near_err 0.0121+-0.0087
+  paired B-A mean_err: 3.824e-04+-4.110e-04: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired B-A ret_err: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A mismatch: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A near_err: 0.0121+-0.0029: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-C ret_err: 0.2689+-0.0563: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C ret_err: 0.2689+-0.0563: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-C mismatch: 3.6000+-2.7928: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C mismatch: 3.6000+-2.7928: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-C near_err: 0.0034+-0.0035: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired B-C near_err: 0.0156+-0.0010: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+min_range (beams 61; geometric hits 61; true range below MIN on 19 beams; nearest true 0.1200 m):
+  scene: x=0.12 m y=[-0.02, 0.02] visual+collision; x=1.68 m y=[-1.50, 1.50] visual+collision
+  R_real_unit returns 42.0000+-0.0000 mean_err 0.0195+-0.0019
+  A_ideal returns 61.0000+-0.0000 mean_err 0.0000+-0.0000 ret_err 0.3115+-0.0000 mismatch 19.0000+-0.0000 near_err 1.5954+-0.0112
+  B_lesson returns 61.0000+-0.0000 mean_err 0.0244+-4.562e-04 ret_err 0.3115+-0.0000 mismatch 19.0000+-0.0000 near_err 1.5154+-0.0112
+  C_realism returns 42.0000+-0.0000 mean_err 0.0145+-0.0007 ret_err 0.0000+-0.0000 mismatch 0.0000+-0.0000 near_err 0.0120+-0.0088
+  paired B-A mean_err: 0.0244+-4.562e-04: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A ret_err: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A mismatch: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A near_err: -0.0800+-1.218e-16: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-C ret_err: 0.3115+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C ret_err: 0.3115+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-C mismatch: 19.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C mismatch: 19.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-C near_err: 1.5834+-0.0089: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C near_err: 1.5034+-0.0089: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+visual_only (beams 61; geometric hits 61; true range below MIN on 0 beams; nearest true 1.0223 m):
+  scene: x=0.90 m y=[0.30, 0.60] visual; x=1.00 m y=[-0.50, -0.20] collision; x=2.50 m y=[-2.00, 2.00] visual+collision
+  R_real_unit returns 61.0000+-0.0000 mean_err 0.0203+-0.0016
+  A_ideal returns 61.0000+-0.0000 mean_err 0.0447+-0.0000 ret_err 0.0000+-0.0000 mismatch 27.0000+-0.0000 near_err 0.0796+-0.0127
+  B_lesson returns 61.0000+-0.0000 mean_err 0.0445+-0.0006 ret_err 0.0000+-0.0000 mismatch 27.0000+-0.0000 near_err 0.0873+-0.0154
+  C_realism returns 61.0000+-0.0000 mean_err 0.0148+-0.0006 ret_err 0.0000+-0.0000 mismatch 0.0000+-0.0000 near_err 0.0076+-0.0068
+  paired B-A mean_err: -2.298e-04+-0.0006: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired B-A ret_err: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A mismatch: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A near_err: 0.0077+-0.0124: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired A-C ret_err: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C ret_err: 0.0000+-0.0000: tie: identical on every seed
+  paired A-C mismatch: 27.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C mismatch: 27.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-C near_err: 0.0720+-0.0193: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C near_err: 0.0797+-0.0194: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative TOL=0.05 m (same seeds) on min_range, visual_only and clear_wall:
+  min_range paired A-C mismatch@TOL0.05: 19.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  visual_only paired A-C mismatch@TOL0.05: 27.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  clear_wall paired A-C mismatch@TOL0.05: 0.4000+-0.5477: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+alternative P_DROP_C=0.90 on glossy (same seeds; C over-estimates drop-outs):
+  paired A-C ret_err@alt: 0.2492+-0.1052: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative C_BIAS=0.000 on clear_wall (same seeds; C without the bias guess):
+  paired C-A mean_err@alt: 0.0011+-0.0013: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+No winner declared: ideal rays match geometry best on a clear wall, and lose where the real unit drops, clips or sees other geometry
+Real lidar / Gazebo run: 本页未运行; SDFormat lidar spec and gz-sensors Lidar.cc statements 以文档为准

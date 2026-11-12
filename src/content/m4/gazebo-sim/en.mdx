@@ -1188,6 +1188,458 @@ The folder `examples/month-4/gazebo-sim` contains the package and both scripts. 
 
 Lesson 5 removes the DiffDrive plugin and drives m4bot through `ros2_control` instead, the same way a real robot's motors are driven — the hand-off described in *Who drives the wheels*. The lidar and camera stay exactly as they are, because sensors do not care who commands the wheels. Once you have seen the scan numbers match the world file, you own a test bench that costs nothing and never breaks. Environment setup and deep ros2-setup polishing are outside this lesson; the concepts above are the thickening this course needed, not a second simulator product track.
 
+## Lidar realism versus ideal rays
+
+<Resource id="sdf-lidar-spec" />
+
+<Resource id="gz-sensors-lidar-src" />
+
+*Sensors: simulation versus the datasheet* above says it in prose: a simulated lidar is ideal geometry plus optional noise. This section turns that prose into a fair comparison and asks one question: **which parts of a real scan does an ideal ray caster fail to predict?** Two bodies were read for it (以文档为准). The SDFormat spec source `lidar.sdf` (sdf14 branch) defines `<range><min>` and `<max>` as the minimum and maximum distance for each lidar ray, offers only a `gaussian` noise type that draws noise **independently for each beam** (mean, stddev), and a `visibility_mask` that decides which objects' `visibility_flags` the lidar sees. gz-sensors `Lidar.cc` warns that the lidar **only supports Gaussian noise**, and after noise it clamps every finite range to `[RangeMin, RangeMax]` with `std::clamp`; a NaN becomes `RangeMax`. So a surface closer than `<min>` is reported **at** `<min>`, not dropped. Nothing in either body models glossy drop-outs, a close-range blind zone that returns nothing, or a real unit's bias table; a constant offset can be written as the noise `<mean>`. The rendered sdformat.org spec page returned HTTP 500 to our fetch and is **not** cited; the spec text was read from the sdformat repository source.
+
+This section is **not** the OctoMap / TSDF mapping toy in the SLAM lesson, **not** DWA, and **not** the physics-step-size section above: the scan here is one static frame.
+
+**Worked example — a labelled hand calculation, also printed by the toy.** The straight-ahead check of this lesson, 1.80 − 0.12 = 1.68 m, is the clear-wall regime; the edge beam at 30° sees the same wall at 1.68 / cos(30°) = 1.9399 m. The boundary lines show the clamp: a surface at 0.1200 m is reported as 0.1200 by the ideal arm, as 0.2000 by the clamped arm, and not at all by the blind-zone arm; at exactly 0.2000 m all three report 0.2000, because the blind zone is **strict** (true range below `MIN`).
+
+**No integration step here.** Each seed is one static scan; there is no time step.
+
+### Fair setup
+
+`gazebo_lidar_realism_toy.py` is **synthetic** 2D ray casting, stdlib only, **not** `gz sim`. **Model assumptions:** 61 beams over ±30.0°, MIN = 0.20 m, MAX = 8.0 m and SIGMA = 0.01 m copied from this lesson's `sensors.gazebo.xacro`; surfaces are straight segments flagged visual, collision or glossy; the **geometric truth** is the nearest collision (physical) surface. The reference R is a **real-unit stand-in**, a declared toy and not a datasheet unit: physical surfaces, bias R_BIAS = 0.020 m, noise R_SIGMA = 0.012 m on its **own** random stream, glossy drop-out probability P_DROP_R = 0.60 and no return inside the blind zone. C's realism parameters (C_BIAS = 0.015 m, P_DROP_C = 0.50) are deliberately **guesses**, not R's values. TOL = 0.10 m is the beam-level agreement tolerance. All of these are **declared toy parameters**.
+
+| Arm | Geometry | Noise and range handling |
+|---|---|---|
+| A_ideal | visual | none; no blind zone (reports the true range even below MIN); no drop-outs |
+| B_lesson | visual | Gaussian SIGMA, then the gz-sensors clamp to MIN and MAX |
+| C_realism | collision | C_BIAS + Gaussian SIGMA; glossy drop-out P_DROP_C; blind zone returns nothing |
+
+**Common random numbers:** for each (regime, seed) one sim noise stream is drawn and shared by all three arms; R draws from a separate stream that no arm sees, so no arm can copy R's noise. Five seeds. Metrics: `mean_err`, the mean of (sim range − geometric truth) over beams where both exist; `ret_err`, the scan-level return-count error against R as a fraction of 61 beams; `mismatch`, the number of beams where the arm and R disagree (one returns and the other does not, or both return and differ by more than TOL); `near_err`, the error in the nearest return.
+
+| Regime | Scene | What was pre-declared |
+|---|---|---|
+| clear_wall | matte wall at 1.68 m | A versus B **near-tie** on mean_err; C **consistent** worse than A on mean_err, because it adds a bias the geometry does not have; **keep** |
+| glossy | glossy panel at 1.20 m in front of a 2.50 m wall | A **consistent** lose to C on ret_err; **keep**. Beam-level mismatch is **not** declared a C win: a drop-out rate cannot say which beam drops |
+| min_range | a 4 cm post at 0.12 m, below MIN, in front of the 1.68 m wall | A and B **consistent** lose to C on mismatch and near_err; **keep** |
+| visual_only | a visual-only banner at 0.90 m and a collision-only box at 1.00 m in front of a 2.50 m wall | A and B **consistent** lose to C on mismatch and near_err; **keep** |
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-4/gazebo-sim
+python3 gazebo_lidar_realism_toy.py
+```
+
+<CodeSource path="examples/month-4/gazebo-sim/gazebo_lidar_realism_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Lidar realism vs ideal rays: what a simulated scan does and does not predict.
+
+Synthetic 2D ray casting, stdlib only.  Not `gz sim`, not gpu_lidar, not the
+OctoMap/TSDF toy (slam-nav), not DWA and not the physics-step-size section
+on this page.  Real lidar / Gazebo run: 本页未运行.  SDFormat lidar / noise
+spec and gz-sensors Lidar.cc statements 以文档为准.
+
+What the bodies we read say (and what this toy keeps):
+  SDFormat 1.11 lidar.sdf: <range><min>/<max> are "the minimum / maximum
+    distance for each lidar ray"; <noise> type "gaussian" draws noise values
+    independently for each beam (mean, stddev); visibility_mask decides
+    which objects' visibility_flags the lidar sees.
+  gz-sensors Lidar.cc: the lidar only supports Gaussian noise; after noise
+    every finite range is clamped to [RangeMin, RangeMax] (std::clamp), NaN
+    becomes RangeMax.
+  This lesson's "simulation versus the datasheet" prose: gpu_lidar rays hit
+    the visual geometry, not collision shapes; no dust / glass multipath /
+    glossy drop-outs / blind zone unless modelled.
+
+Scene: sensor at the origin facing +x, N_BEAMS beams from -30 to +30 deg.
+Surfaces are segments x = d, y in [y0, y1], each flagged visual / collision
+/ glossy.  "Geometric truth" is the nearest physical (collision) surface.
+
+Real-unit stand-in R (the reference the sims try to predict; a declared toy,
+not a datasheet unit): physical surfaces, range bias R_BIAS, Gaussian noise
+R_SIGMA from its OWN random stream, glossy beams drop out with probability
+P_DROP_R, and nothing is returned inside the blind zone (true range < MIN).
+
+Common random numbers: one sim noise stream per (regime, seed) shared by
+every sim arm; R uses a separate stream that no arm sees.  Arms:
+  A_ideal   : visual geometry, no noise, no blind zone (reports the true
+              range even below MIN), no drop-outs
+  B_lesson  : visual geometry + Gaussian SIGMA (the lesson's 0.01 m knob),
+              then the gz-sensors clamp to [MIN, MAX]
+  C_realism : physical geometry + declared bias C_BIAS + Gaussian SIGMA,
+              glossy drop-out with probability P_DROP_C, blind zone = no
+              return.  C's parameters are guesses, not R's true values.
+No integration step: one static scan per seed, no time step.
+
+Metrics per arm and seed:
+  mean_err : mean(sim range - geometric truth) over beams where both exist (m)
+  ret_err  : |returns(sim) - returns(R)| / N_BEAMS  (scan-level count error)
+  mismatch : beams where sim and R disagree: one returns and the other does
+             not, or both return but differ by more than TOL (beam-level)
+  near_err : |nearest return(sim) - nearest return(R)| (m), no return -> MAX
+
+Regimes and parameters were written before the first run:
+  clear_wall  : matte wall at 1.68 m (the lesson's 1.80 - 0.12 check)
+                - A vs B near-tie on mean_err; C consistent worse than A on
+                  mean_err (it adds a bias the geometry does not have); keep
+  glossy      : glossy panel at 1.20 m in front of a 2.50 m wall
+                - A consistent lose to C on ret_err; keep.  Beam-level
+                  mismatch is NOT declared a C win: a drop-out rate cannot
+                  say which beam drops
+  min_range   : a 4 cm post at 0.12 m (below MIN) in front of the 1.68 m wall
+                - A and B consistent lose to C on mismatch and near_err; keep
+  visual_only : a visual-only banner at 0.90 m and a collision-only box at
+                1.00 m in front of a 2.50 m wall
+                - A and B consistent lose to C on mismatch and near_err; keep
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+
+# Declared model parameters, written before the first run.  MIN / MAX / SIGMA
+# are this lesson's sensors.gazebo.xacro values; the rest are toy values.
+N_BEAMS = 61
+FOV_DEG = 30.0
+MIN = 0.20            # m, <range><min> in this lesson's xacro
+MAX = 8.0             # m, <range><max> in this lesson's xacro
+SIGMA = 0.01          # m, <noise><stddev> in this lesson's xacro (teaching knob)
+C_BIAS = 0.015        # m, C's guess of the range bias (toy)
+P_DROP_C = 0.5        # C's guess of the glossy drop-out probability (toy)
+R_BIAS = 0.02         # m, real-unit stand-in bias (toy, not a datasheet value)
+R_SIGMA = 0.012       # m, real-unit stand-in noise (toy)
+P_DROP_R = 0.6        # real-unit stand-in glossy drop-out probability (toy)
+TOL = 0.10            # m, beam-level agreement tolerance
+
+ARMS = ("A_ideal", "B_lesson", "C_realism")
+# (x, y0, y1, visual, collision, glossy)
+REGIMES = {
+    "clear_wall": [(1.68, -1.5, 1.5, True, True, False)],
+    "glossy": [(1.20, -0.35, 0.35, True, True, True), (2.50, -2.0, 2.0, True, True, False)],
+    "min_range": [(0.12, -0.02, 0.02, True, True, False), (1.68, -1.5, 1.5, True, True, False)],
+    "visual_only": [(0.90, 0.30, 0.60, True, False, False), (1.00, -0.50, -0.20, False, True, False),
+                    (2.50, -2.0, 2.0, True, True, False)],
+}
+
+
+def beam_angles():
+    step = 2.0 * FOV_DEG / (N_BEAMS - 1)
+    return [math.radians(-FOV_DEG + i * step) for i in range(N_BEAMS)]
+
+
+def cast(theta, surfaces, use):
+    """Nearest surface hit along the beam; use='visual' or 'collision'."""
+    best, glossy = None, False
+    c, s = math.cos(theta), math.sin(theta)
+    for x, y0, y1, vis, col, gl in surfaces:
+        if (use == "visual" and not vis) or (use == "collision" and not col):
+            continue
+        r = x / c
+        y = r * s
+        if y0 <= y <= y1 and (best is None or r < best):
+            best, glossy = r, gl
+    return best, glossy
+
+
+def shared_draws(regime, seed):
+    """Common random numbers: one sim stream shared by every arm; R has its own."""
+    rs = random.Random(f"{regime}/{seed}/sim")
+    rr = random.Random(f"{regime}/{seed}/real")
+    sim = [(rs.gauss(0.0, 1.0), rs.random()) for _ in range(N_BEAMS)]
+    real = [(rr.gauss(0.0, 1.0), rr.random()) for _ in range(N_BEAMS)]
+    return sim, real
+
+
+def scan(arm, regime, draws, c_bias=C_BIAS, p_drop_c=P_DROP_C):
+    surf = REGIMES[regime]
+    out = []
+    for theta, (z, u) in zip(beam_angles(), draws):
+        if arm == "R":
+            r, gl = cast(theta, surf, "collision")
+            if r is None or r < MIN or (gl and u < P_DROP_R):
+                out.append(None)
+                continue
+            r = r + R_BIAS + R_SIGMA * z
+            out.append(r if r <= MAX else None)
+            continue
+        if arm == "A_ideal":
+            r, _ = cast(theta, surf, "visual")
+            out.append(r if r is not None and r <= MAX else None)
+        elif arm == "B_lesson":
+            r, _ = cast(theta, surf, "visual")
+            out.append(None if r is None else min(max(r + SIGMA * z, MIN), MAX))
+        else:
+            r, gl = cast(theta, surf, "collision")
+            if r is None or r < MIN or (gl and u < p_drop_c):
+                out.append(None)
+                continue
+            r = r + c_bias + SIGMA * z
+            out.append(r if r <= MAX else None)
+    return out
+
+
+def truth(regime):
+    return [cast(t, REGIMES[regime], "collision")[0] for t in beam_angles()]
+
+
+def metrics(sim, real, geo, tol=TOL):
+    errs = [s - g for s, g in zip(sim, geo) if s is not None and g is not None]
+    n_sim = sum(1 for s in sim if s is not None)
+    n_real = sum(1 for r in real if r is not None)
+    mism = sum(1 for s, r in zip(sim, real)
+               if (s is None) != (r is None) or (s is not None and abs(s - r) > tol))
+    near = lambda xs: min([x for x in xs if x is not None], default=MAX)
+    return {"mean_err": sum(errs) / len(errs), "ret_err": abs(n_sim - n_real) / N_BEAMS,
+            "mismatch": float(mism), "near_err": abs(near(sim) - near(real)),
+            "returns": float(n_sim)}
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+KEYS = ("mean_err", "ret_err", "mismatch", "near_err")
+
+
+def collect(regime, **kw):
+    geo = truth(regime)
+    res = {arm: [] for arm in ARMS + ("R",)}
+    for seed in SEEDS:
+        sim_d, real_d = shared_draws(regime, seed)
+        real = scan("R", regime, real_d)
+        for arm in ARMS:
+            res[arm].append(metrics(scan(arm, regime, sim_d, **kw), real, geo))
+        res["R"].append(metrics(real, real, geo))
+    return res
+
+
+def col(rows, key):
+    return [r[key] for r in rows]
+
+
+def report(regime):
+    res = collect(regime)
+    geo = truth(regime)
+    hit = [g for g in geo if g is not None]
+    below = sum(1 for g in hit if g < MIN)
+    print(f"{regime} (beams {N_BEAMS}; geometric hits {len(hit)}; true range below MIN on {below} beams; "
+          f"nearest true {min(hit):.4f} m):")
+    flags = lambda v, c, g: "+".join(n for n, f in (("visual", v), ("collision", c), ("glossy", g)) if f)
+    print("  scene: " + "; ".join(f"x={x:.2f} m y=[{y0:.2f}, {y1:.2f}] {flags(v, c, g)}"
+                                  for x, y0, y1, v, c, g in REGIMES[regime]))
+    r_ret = col(res["R"], "returns")
+    print(f"  R_real_unit returns {fmt_pair(*mean_sd(r_ret))} mean_err {fmt_pair(*mean_sd(col(res['R'], 'mean_err')))}")
+    for arm in ARMS:
+        rows = res[arm]
+        print(f"  {arm} returns {fmt_pair(*mean_sd(col(rows, 'returns')))} "
+              + " ".join(f"{k} {fmt_pair(*mean_sd(col(rows, k)))}" for k in KEYS))
+    for k in KEYS:
+        print(f"  paired B-A {k}: {verdict(col(res['B_lesson'], k), col(res['A_ideal'], k))}")
+    for k in KEYS[1:]:
+        print(f"  paired A-C {k}: {verdict(col(res['A_ideal'], k), col(res['C_realism'], k))}")
+        print(f"  paired B-C {k}: {verdict(col(res['B_lesson'], k), col(res['C_realism'], k))}")
+    if regime == "clear_wall":
+        print(f"  paired C-A mean_err: {verdict(col(res['C_realism'], 'mean_err'), col(res['A_ideal'], 'mean_err'))}")
+    return res
+
+
+def main():
+    print("Synthetic 2D lidar realism toy; shared sim noise stream; real-unit stand-in R on its own stream; not gz sim")
+    print(f"seeds={len(SEEDS)} N_BEAMS={N_BEAMS} FOV=+-{FOV_DEG:.1f} deg MIN={MIN:.2f} m MAX={MAX:.1f} m SIGMA={SIGMA:.2f} m "
+          f"(MIN/MAX/SIGMA from this lesson's sensors.gazebo.xacro)")
+    print(f"C_BIAS={C_BIAS:.3f} m P_DROP_C={P_DROP_C:.2f}; R_BIAS={R_BIAS:.3f} m R_SIGMA={R_SIGMA:.3f} m P_DROP_R={P_DROP_R:.2f}; "
+          f"TOL={TOL:.2f} m (declared toy parameters, not datasheet values)")
+    print("No integration step: one static scan per seed, no time-step criterion")
+    print("Regimes and parameters were written before the first run")
+    print("clamp_rule (gz-sensors Lidar::Clamp): finite range -> clamp to [MIN, MAX]; B reports MIN for a surface closer than MIN")
+    print("blind_rule (R and C, toy): true range < MIN -> no return; A (ideal) reports the true range")
+    for x, label in ((0.12, "below"), (0.20, "at"), (0.2001, "above")):
+        b = min(max(x, MIN), MAX)
+        c = None if x < MIN else x
+        print(f"  boundary {label} MIN: true={x:.4f} m -> A {x:.4f} B {b:.4f} C {'none' if c is None else f'{c:.4f}'} (no noise, no bias)")
+    print(f"hand_calc straight-ahead wall: 1.80 - 0.12 = {1.80 - 0.12:.2f} m; beam at 30 deg: 1.68 / cos(30 deg) = {1.68 / math.cos(math.radians(30)):.4f} m")
+    for regime in REGIMES:
+        report(regime)
+    print("alternative TOL=0.05 m (same seeds) on min_range, visual_only and clear_wall:")
+    for regime in ("min_range", "visual_only", "clear_wall"):
+        geo = truth(regime)
+        rows = {arm: [] for arm in ARMS}
+        for seed in SEEDS:
+            sim_d, real_d = shared_draws(regime, seed)
+            real = scan("R", regime, real_d)
+            for arm in ARMS:
+                rows[arm].append(metrics(scan(arm, regime, sim_d), real, geo, tol=0.05))
+        print(f"  {regime} paired A-C mismatch@TOL0.05: {verdict(col(rows['A_ideal'], 'mismatch'), col(rows['C_realism'], 'mismatch'))}")
+    print("alternative P_DROP_C=0.90 on glossy (same seeds; C over-estimates drop-outs):")
+    alt = collect("glossy", p_drop_c=0.90)
+    print(f"  paired A-C ret_err@alt: {verdict(col(alt['A_ideal'], 'ret_err'), col(alt['C_realism'], 'ret_err'))}")
+    print("alternative C_BIAS=0.000 on clear_wall (same seeds; C without the bias guess):")
+    alt = collect("clear_wall", c_bias=0.0)
+    print(f"  paired C-A mean_err@alt: {verdict(col(alt['C_realism'], 'mean_err'), col(alt['A_ideal'], 'mean_err'))}")
+    print("No winner declared: ideal rays match geometry best on a clear wall, and lose where the real unit drops, clips or sees other geometry")
+    print("Real lidar / Gazebo run: 本页未运行; SDFormat lidar spec and gz-sensors Lidar.cc statements 以文档为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic 2D lidar realism toy; shared sim noise stream; real-unit stand-in R on its own stream; not gz sim
+seeds=5 N_BEAMS=61 FOV=+-30.0 deg MIN=0.20 m MAX=8.0 m SIGMA=0.01 m (MIN/MAX/SIGMA from this lesson's sensors.gazebo.xacro)
+C_BIAS=0.015 m P_DROP_C=0.50; R_BIAS=0.020 m R_SIGMA=0.012 m P_DROP_R=0.60; TOL=0.10 m (declared toy parameters, not datasheet values)
+No integration step: one static scan per seed, no time-step criterion
+Regimes and parameters were written before the first run
+clamp_rule (gz-sensors Lidar::Clamp): finite range -> clamp to [MIN, MAX]; B reports MIN for a surface closer than MIN
+blind_rule (R and C, toy): true range < MIN -> no return; A (ideal) reports the true range
+  boundary below MIN: true=0.1200 m -> A 0.1200 B 0.2000 C none (no noise, no bias)
+  boundary at MIN: true=0.2000 m -> A 0.2000 B 0.2000 C 0.2000 (no noise, no bias)
+  boundary above MIN: true=0.2001 m -> A 0.2001 B 0.2001 C 0.2001 (no noise, no bias)
+hand_calc straight-ahead wall: 1.80 - 0.12 = 1.68 m; beam at 30 deg: 1.68 / cos(30 deg) = 1.9399 m
+clear_wall (beams 61; geometric hits 61; true range below MIN on 0 beams; nearest true 1.6800 m):
+  scene: x=1.68 m y=[-1.50, 1.50] visual+collision
+  R_real_unit returns 61.0000+-0.0000 mean_err 0.0195+-0.0017
+  A_ideal returns 61.0000+-0.0000 mean_err 0.0000+-0.0000 ret_err 0.0000+-0.0000 mismatch 0.0000+-0.0000 near_err 0.0063+-0.0066
+  B_lesson returns 61.0000+-0.0000 mean_err 0.0011+-0.0013 ret_err 0.0000+-0.0000 mismatch 0.0000+-0.0000 near_err 0.0122+-0.0095
+  C_realism returns 61.0000+-0.0000 mean_err 0.0161+-0.0013 ret_err 0.0000+-0.0000 mismatch 0.0000+-0.0000 near_err 0.0080+-0.0045
+  paired B-A mean_err: 0.0011+-0.0013: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired B-A ret_err: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A mismatch: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A near_err: 0.0059+-0.0145: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired A-C ret_err: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C ret_err: 0.0000+-0.0000: tie: identical on every seed
+  paired A-C mismatch: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C mismatch: 0.0000+-0.0000: tie: identical on every seed
+  paired A-C near_err: -0.0017+-0.0027: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired B-C near_err: 0.0041+-0.0128: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired C-A mean_err: 0.0161+-0.0013: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+glossy (beams 61; geometric hits 61; true range below MIN on 0 beams; nearest true 1.2000 m):
+  scene: x=1.20 m y=[-0.35, 0.35] visual+collision+glossy; x=2.50 m y=[-2.00, 2.00] visual+collision
+  R_real_unit returns 39.2000+-2.6833 mean_err 0.0207+-0.0015
+  A_ideal returns 61.0000+-0.0000 mean_err 0.0000+-0.0000 ret_err 0.3574+-0.0440 mismatch 21.8000+-2.6833 near_err 0.0155+-0.0088
+  B_lesson returns 61.0000+-0.0000 mean_err 3.824e-04+-4.110e-04 ret_err 0.3574+-0.0440 mismatch 21.8000+-2.6833 near_err 0.0277+-0.0085
+  C_realism returns 44.6000+-3.4351 mean_err 0.0158+-3.944e-04 ret_err 0.0885+-0.0274 mismatch 18.2000+-1.0954 near_err 0.0121+-0.0087
+  paired B-A mean_err: 3.824e-04+-4.110e-04: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired B-A ret_err: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A mismatch: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A near_err: 0.0121+-0.0029: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-C ret_err: 0.2689+-0.0563: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C ret_err: 0.2689+-0.0563: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-C mismatch: 3.6000+-2.7928: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C mismatch: 3.6000+-2.7928: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-C near_err: 0.0034+-0.0035: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired B-C near_err: 0.0156+-0.0010: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+min_range (beams 61; geometric hits 61; true range below MIN on 19 beams; nearest true 0.1200 m):
+  scene: x=0.12 m y=[-0.02, 0.02] visual+collision; x=1.68 m y=[-1.50, 1.50] visual+collision
+  R_real_unit returns 42.0000+-0.0000 mean_err 0.0195+-0.0019
+  A_ideal returns 61.0000+-0.0000 mean_err 0.0000+-0.0000 ret_err 0.3115+-0.0000 mismatch 19.0000+-0.0000 near_err 1.5954+-0.0112
+  B_lesson returns 61.0000+-0.0000 mean_err 0.0244+-4.562e-04 ret_err 0.3115+-0.0000 mismatch 19.0000+-0.0000 near_err 1.5154+-0.0112
+  C_realism returns 42.0000+-0.0000 mean_err 0.0145+-0.0007 ret_err 0.0000+-0.0000 mismatch 0.0000+-0.0000 near_err 0.0120+-0.0088
+  paired B-A mean_err: 0.0244+-4.562e-04: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A ret_err: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A mismatch: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A near_err: -0.0800+-1.218e-16: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-C ret_err: 0.3115+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C ret_err: 0.3115+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-C mismatch: 19.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C mismatch: 19.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-C near_err: 1.5834+-0.0089: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C near_err: 1.5034+-0.0089: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+visual_only (beams 61; geometric hits 61; true range below MIN on 0 beams; nearest true 1.0223 m):
+  scene: x=0.90 m y=[0.30, 0.60] visual; x=1.00 m y=[-0.50, -0.20] collision; x=2.50 m y=[-2.00, 2.00] visual+collision
+  R_real_unit returns 61.0000+-0.0000 mean_err 0.0203+-0.0016
+  A_ideal returns 61.0000+-0.0000 mean_err 0.0447+-0.0000 ret_err 0.0000+-0.0000 mismatch 27.0000+-0.0000 near_err 0.0796+-0.0127
+  B_lesson returns 61.0000+-0.0000 mean_err 0.0445+-0.0006 ret_err 0.0000+-0.0000 mismatch 27.0000+-0.0000 near_err 0.0873+-0.0154
+  C_realism returns 61.0000+-0.0000 mean_err 0.0148+-0.0006 ret_err 0.0000+-0.0000 mismatch 0.0000+-0.0000 near_err 0.0076+-0.0068
+  paired B-A mean_err: -2.298e-04+-0.0006: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired B-A ret_err: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A mismatch: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A near_err: 0.0077+-0.0124: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired A-C ret_err: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C ret_err: 0.0000+-0.0000: tie: identical on every seed
+  paired A-C mismatch: 27.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C mismatch: 27.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-C near_err: 0.0720+-0.0193: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C near_err: 0.0797+-0.0194: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative TOL=0.05 m (same seeds) on min_range, visual_only and clear_wall:
+  min_range paired A-C mismatch@TOL0.05: 19.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  visual_only paired A-C mismatch@TOL0.05: 27.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  clear_wall paired A-C mismatch@TOL0.05: 0.4000+-0.5477: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+alternative P_DROP_C=0.90 on glossy (same seeds; C over-estimates drop-outs):
+  paired A-C ret_err@alt: 0.2492+-0.1052: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative C_BIAS=0.000 on clear_wall (same seeds; C without the bias guess):
+  paired C-A mean_err@alt: 0.0011+-0.0013: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+No winner declared: ideal rays match geometry best on a clear wall, and lose where the real unit drops, clips or sees other geometry
+Real lidar / Gazebo run: 本页未运行; SDFormat lidar spec and gz-sensors Lidar.cc statements 以文档为准
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used here, in this order: **tie: identical on every seed** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when |paired mean| and its sd are both below 1e-9; **near-tie / small gap, within seed noise** when |paired mean| ≤ sd; otherwise a **consistent** gap (|paired mean| > sd), called **small but consistent gap, not a tie** when |m| is under 20 % of the smaller arm mean and **clear gap, not a tie** otherwise, always with a same-sign count over the 5 seeds.
+
+- **clear_wall.** Paired B−A mean_err 0.0011±0.0013 is a **near-tie / small gap, within seed noise** (1 of 5 seeds has the opposite sign), as declared: the 0.01 m knob averages out over 61 beams. Return counts and beam mismatches are a **tie: identical on every seed** for every pair. Against geometry C is worse: paired C−A mean_err 0.0161±0.0013 is a **clear gap, not a tie** (5/5), because C adds its bias guess. **Keep** it: matching the world file and matching the real unit are different targets, and R itself sits 0.0195±0.0017 m off the geometry.
+- **glossy.** R returns only 39.2000±2.6833 of 61 beams, A and B return all 61, C returns 44.6000±3.4351. Paired A−C ret_err 0.2689±0.0563 is a **clear gap, not a tie** (5/5): the ideal scan over-promises returns on a glossy surface. **Keep.** Beam by beam C does only a little better: paired A−C mismatch 3.6000±2.7928 is a **small but consistent gap, not a tie** (same sign on all 5 seeds), because a drop-out probability predicts how many beams vanish, not which ones. It was not declared a C win and is reported as it came out.
+- **min_range.** 19 beams hit the post closer than MIN. R and C return nothing there; A reports the true 0.12 m and B the clamped 0.20 m. Paired A−C mismatch 19.0000±0.0000 and paired A−C near_err 1.5834±0.0089 m are a **clear gap, not a tie** (5/5), and so is paired B−C near_err 1.5034±0.0089 m. **Keep**: a planner validated on A or B believes it can see an obstacle that the real unit, inside its blind zone, does not report at all, and its nearest return is the wall behind.
+- **visual_only.** A and B see the banner that has no collision and miss the box that has no visual. Paired A−C mismatch 27.0000±0.0000 is a **clear gap, not a tie** (5/5), and paired A−C near_err 0.0720±0.0193 m and paired B−C near_err 0.0797±0.0194 m are clear as well. **Keep.** The fix in a real world file is to make visual and collision agree, or to hide decorations with `visibility_flags`, not to add noise.
+
+**Choices made after seeing results.** None for parameters. All scene positions, the realism parameters, TOL and the alternatives were written before the first run. Alternatives on the same seeds: TOL = 0.05 m leaves min_range and visual_only unchanged (19.0000±0.0000 and 27.0000±0.0000) and turns clear_wall's paired A−C mismatch into 0.4000±0.5477, a near-tie; P_DROP_C = 0.90, a C that over-estimates drop-outs, still beats A on glossy ret_err (paired A−C 0.2492±0.1052, clear, 5/5); C_BIAS = 0.000 removes C's geometric penalty on clear_wall (paired C−A mean_err 0.0011±0.0013, near-tie). None was adopted.
+
+**Code changes after the first run.** Two, neither changing a number. The heading of the TOL alternative named two regimes while the loop printed three, so its text was corrected, and an unused helper was removed. A `scene:` line per regime was then added so that every scene position quoted on this page is printed by the toy. Every other line of the first run is unchanged.
+
+The page **does not declare a universal winner**: ideal rays match the geometry best on a clear wall, and they lose where the real unit drops, clips or sees different geometry. C wins those regimes partly because R contains the same mechanisms, so this toy shows what an ideal sim **misses**; it does not show that C's parameters are right for any real lidar. Real lidar and Gazebo runs: **本页未运行**.
+
+**180-minute work plan:** 30 min read the SDFormat lidar and noise spec and the gz-sensors clamp; 30 min work the 1.68 m straight-ahead and 1.9399 m edge-beam checks and the MIN boundary by hand; 50 min run the toy and read the four regimes; 40 min compare the printed TOL, P_DROP_C and C_BIAS alternatives with seeds fixed; 30 min the exercises.
+
+### Exercises
+
+1. From the boundary lines, explain why a surface at 0.1200 m is reported at 0.2000 m by B, and what a downstream obstacle check would conclude from that.
+2. Show from `shared_draws` that A, B and C share one noise stream per regime and seed, and that R does not.
+3. In glossy, why does C beat A on ret_err by a clear gap but on mismatch only by a small one?
+4. Rewrite the visual_only scene so that visual and collision agree, predict the new paired A−C mismatch before running, and say which SDF element would hide the banner from the lidar instead.
+5. Before any real lidar (本页未运行), list what you would measure to replace R_BIAS, R_SIGMA, P_DROP_R and the blind zone, and why a vendor accuracy band is not the same thing.
+
 <Summary>
 
 - Pick Gazebo Harmonic for ROS 2 Jazzy and close tutorials that use `ign gazebo` or `gazebo_ros_pkgs`; MuJoCo, Isaac and Webots are named for when to reach for them.
@@ -1195,5 +1647,6 @@ Lesson 5 removes the DiffDrive plugin and drives m4bot through `ros2_control` in
 - A 360-beam 10 Hz `gpu_lidar` and a 640×480 camera reach ROS 2 through `ros_gz_bridge`, with `gz_frame_id` set to real URDF link names; the scan straight ahead checks as 1.80 − 0.12 = 1.68 m, and odometry plus lidar add back to it after driving.
 - `max_step_size` 0.001 s is one physics tick; the real-time factor drops when sensors or steps get more expensive, so make sensors cheaper before touching the step.
 - Physics step size and contact stability: a contact behaves like a stiff spring-damper, so the step must satisfy a stability criterion (`ωΔt < 2(√(ζ² + 1) − ζ)` for semi-implicit Euler); a stable 3 ms step still loses on impacts, while at gentle rest the gaps are small relative to the static sag but **consistent** (`|paired mean| > sd`, same sign on 5/5 seeds) — a synthetic stand-in, not DART.
+- Lidar realism versus ideal rays: on a shared scan, ideal and lesson-Gaussian rays near-tie on a clear wall (paired B−A mean_err 0.0011±0.0013) but lose where a real unit drops glossy returns (paired A−C ret_err 0.2689±0.0563, 5/5), cannot see inside its blind zone (paired A−C mismatch 19.0000±0.0000) or sees collision rather than visual geometry (paired A−C mismatch 27.0000±0.0000) — kept; a synthetic stand-in, not gz sim.
 
 </Summary>

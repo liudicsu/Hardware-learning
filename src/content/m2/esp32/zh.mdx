@@ -754,7 +754,7 @@ Zephyr 线程文档（<Resource id="zephyr-threads" />）写明：**数字越小
 
 <Resource id="idf-sleep-modes" />
 
-ESP-IDF 的 **Sleep Modes** 页面介绍了两种主要省电模式（以文档为准）。**Light-sleep** 时，数字外设、大部分 RAM 和 CPU 被时钟门控并降低供电电压；退出后它们恢复运行，**内部状态保留**。**Deep-sleep** 时，CPU、大部分 RAM 以及所有由 APB 时钟驱动的数字外设**断电**；只剩 RTC 控制器、ULP 协处理器和 RTC FAST / RTC SLOW 内存保持供电，从 Deep-sleep 唤醒时先运行唤醒桩，再加载应用。唤醒源可以**组合**，包括 RTC 定时器、触摸、ext0 / ext1（仅 RTC IO）、ULP 协处理器、Light-sleep 下的 GPIO 唤醒（任意 IO，RTC 或数字均可），以及 Deep-sleep 下的 GPIO 唤醒（仅 VDD3P3_RTC 电源域的引脚）。两种模式下 Wi-Fi 和蓝牙连接都**不保持**。我们读到的正文**没有休眠电流表，也没有唤醒延迟数值**，所以下面所有电流和唤醒代价都是**声明的玩具参数**，不是数据手册数值。
+ESP-IDF 的 **Sleep Modes** 页面介绍了两种主要省电模式（以文档为准）。**Light-sleep** 时，数字外设、大部分 RAM 和 CPU 被时钟门控并降低供电电压；退出后它们恢复运行，**内部状态保留**。**Deep-sleep** 时，CPU、大部分 RAM 以及所有由 APB 时钟驱动的数字外设**断电**；只剩 RTC 控制器、ULP 协处理器和 RTC FAST / RTC SLOW 内存保持供电，从 Deep-sleep 唤醒时先运行唤醒桩，再加载应用。唤醒源可以**组合**，包括 RTC 定时器、触摸、ext0 / ext1（仅 RTC IO）、ULP 协处理器、Light-sleep 下的 GPIO 唤醒（任意 IO，RTC 或数字均可），以及 Deep-sleep 下的 GPIO 唤醒（仅 VDD3P3_RTC 电源域的引脚）。两种模式下 Wi-Fi 和蓝牙连接都**不保持**。我们读到的正文**没有休眠电流表，也没有唤醒延迟数值**，所以下面所有电流和唤醒代价都是**声明的玩具参数**，既不是板上实测，也不是 ESP32-S3 的数值。I_LIGHT 与 I_DEEP 确实等于经典 ESP32 数据手册的典型值（见下面经典 ESP32 与 S3 的说明）；toy 输出里打印的 `not datasheet values` 只表示这个更窄的意思：不是本课程板子上测的，也不是取自 ESP32-S3 数据手册。
 
 同一段 ESP-IDF 文字接着说，如果需要保持 Wi-Fi / 蓝牙连接，就启用 Wi-Fi / 蓝牙的 **Modem-sleep** 模式和**自动 Light-sleep** 功能（见 Power Management APIs）；系统会在 Wi-Fi / 蓝牙驱动需要时自动唤醒，从而保持连接（以文档为准）。下面的玩具**没有**建模这种组合，休眠臂里 Wi-Fi 都视为断开。
 

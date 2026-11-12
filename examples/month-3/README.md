@@ -31,3 +31,7 @@ Different OpenSCAD versions write a different number of triangles; `check.sh` ig
 ## Batch-5 PR1 / 第5批 PR1
 
 `transmissions/backlash_loop_toy.py`: standard-library synthetic simulation, no hardware; expected output in `expected/backlash_loop_toy.txt`, included in `check.sh`. / 标准库合成仿真，不是硬件测量，输出由 `check.sh` 核对。
+
+## Batch-20 PR1 / 第20批 PR1
+
+`transmissions/leadscrew_self_locking_toy.py`: standard-library synthetic square-thread statics (steep vs fine vs vibrated lead), no hardware; expected output in `expected/leadscrew_self_locking_toy.txt`, included in `check.sh`. Real jack 本页未运行. / 标准库合成的方螺纹丝杠静力学（粗导程、细导程、振动），不是硬件测量，输出由 `check.sh` 核对。
