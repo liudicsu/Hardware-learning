@@ -9264,11 +9264,11 @@ print("protocol pass")
   for(const t of [tEn,tZh]){
     ok(t.indexOf("<Resource id=\"wiki-screw-thread\" />")>t.indexOf("## "+(t===tEn?"Leadscrew efficiency and self-locking":"丝杠效率与自锁"))&&t.indexOf("<Resource id=\"wiki-screw-thread\" />")<t.indexOf(t===tEn?"**Lead versus pitch.**":"**导程与螺距。**"),"b20pol transmissions: Screw thread card sits before the lead/pitch note");
   }
-  ok(/"wiki-screw-thread": \{[\s\S]*?Screw_thread[\s\S]*?rev 1378437137[\s\S]*?pitch times the number of starts[\s\S]*?导程等于螺距乘以头数[\s\S]*?extra: true/.test(res),"b20pol resources: wiki-screw-thread rev + starts rule");
+  ok(/"wiki-screw-thread": \{[\s\S]*?Screw_thread[\s\S]*?rev 1378437137[\s\S]*?导程等于螺距乘以头数[\s\S]*?rev 1378437137[\s\S]*?pitch times the number of starts[\s\S]*?extra: true/.test(res),"b20pol resources: wiki-screw-thread rev + starts rule");
   ok(/"wiki-screw-thread": \{[\s\S]*?导程等于螺距乘以头数[\s\S]*?pitch times the number of starts/.test(res),"b20pol resources: wiki-screw-thread en/zh summaries");
   // 2. collar friction
   const cEn=lp(tEn,"**Collar friction can also hold a load.**"), cZh=lp(tZh,"**端面（轴环）摩擦也可能把载荷锁住。**");
-  for(const x of ["assumes a thrust bearing","T_c = F·μ_c·d_c / 2","negligible","not a sentence in the article","high-lead screw","same vibration caveat","no collar coefficient","以原文为准"])ok(cEn.includes(x),`b20pol transmissions en collar: ${x}`);
+  for(const x of ["assumes a thrust bearing","T_c = F·μ_c·d_c / 2","negligible","rather than a sentence in the article","high-lead screw","same vibration caveat","no collar coefficient","以原文为准"])ok(cEn.includes(x),`b20pol transmissions en collar: ${x}`);
   for(const x of ["假定用了推力轴承","T_c = F·μ_c·d_c / 2","可以忽略","不是条目原话","大导程丝杠","振动的提醒同样适用","不引用任何轴环摩擦系数","以原文为准"])ok(cZh.includes(x),`b20pol transmissions zh collar: ${x}`);
   ok(!/\d\.\d/.test(cEn.replace("T_c = F·μ_c·d_c / 2",""))&&!/\d\.\d/.test(cZh),"b20pol collar: no decimal number invented");
   ok(/"wiki-leadscrew": \{[\s\S]*?T_c = F·μ_c·d_c\/2[\s\S]*?thrust bearing[\s\S]*?extra: true/.test(res),"b20pol resources: wiki-leadscrew collar term");
