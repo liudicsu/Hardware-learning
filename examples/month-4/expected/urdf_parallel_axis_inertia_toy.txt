@@ -1,0 +1,90 @@
+Synthetic URDF parallel-axis toy; shared chassis mass and size draws; not a Gazebo run
+seeds=5 mass=2.0000 kg +-3.0000 % size=0.3000 x 0.2400 x 0.0800 m +-2.0000 % TAU=0.0500 N m g=9.8100 m/s^2 (declared toy parameters, not a measured robot)
+No integration step: closed form, no time-step criterion
+Regimes and parameters were written before the first run
+rule: engine J = M + m[(o.o)E3 - o(x)o] from the written origin o to the joint; gravity torque = m g x_o
+hand_calc nominal chassis m=2.0 kg 0.30 x 0.24 x 0.08 m: Izz_cm=2.0/12*(0.30^2+0.24^2)=0.0246 kg m^2; radius of gyration sqrt(Izz_cm/m)=0.1109 m
+hand_calc d=0.15 m: m d^2=2.0*0.15^2=0.0450 kg m^2; I=Izz_cm+m d^2=0.0696 kg m^2; typo/true=0.3534
+hand_calc d=0.01 m: m d^2=2.0*0.01^2=2.000e-4 kg m^2 (0.8130 % of Izz_cm)
+hand_calc r=(0.10, 0.08, 0): J_xy=-m*0.10*0.08=-0.0160 kg m^2
+zero (COM offset r = (0.0000, 0.0000, 0.0000) m from the joint):
+  mass per seed (kg): 2.0110 2.0117 1.9444 1.9604 2.0179
+  A_com J_zz 0.0243+-3.570e-4 J_xx 0.0105+-2.681e-4 J_xy 0.0000+-0.0000 alpha_z 2.0581+-0.0298 tau_g 0.0000+-0.0000
+  B_typo J_zz 0.0243+-3.570e-4 J_xx 0.0105+-2.681e-4 J_xy 0.0000+-0.0000 alpha_z 2.0581+-0.0298 tau_g 0.0000+-0.0000
+  C_shifted J_zz 0.0243+-3.570e-4 J_xx 0.0105+-2.681e-4 J_xy 0.0000+-0.0000 alpha_z 2.0581+-0.0298 tau_g 0.0000+-0.0000
+  paired B-A J_zz: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A J_xx: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A J_xy: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A alpha_z: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A tau_g: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A J_zz: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A J_xx: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A J_xy: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A alpha_z: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A tau_g: 0.0000+-0.0000: tie: identical on every seed
+small (COM offset r = (0.0100, 0.0000, 0.0000) m from the joint):
+  mass per seed (kg): 2.0263 2.0427 1.9878 2.0147 1.9744
+  A_com J_zz 0.0249+-0.0006 J_xx 0.0107+-3.759e-4 J_xy 0.0000+-0.0000 alpha_z 2.0111+-0.0519 tau_g 0.1971+-0.0027
+  B_typo J_zz 0.0247+-0.0006 J_xx 0.0107+-3.759e-4 J_xy 0.0000+-0.0000 alpha_z 2.0275+-0.0526 tau_g 0.0000+-0.0000
+  C_shifted J_zz 0.0249+-0.0006 J_xx 0.0107+-3.759e-4 J_xy 0.0000+-0.0000 alpha_z 2.0111+-0.0519 tau_g 0.0000+-0.0000
+  paired B-A J_zz: -2.009e-4+-2.789e-6: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A J_xx: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A J_xy: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A alpha_z: 0.0164+-0.0007: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A tau_g: -0.1971+-0.0027: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A J_zz: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A J_xx: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A J_xy: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A alpha_z: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A tau_g: -0.1971+-0.0027: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+large (COM offset r = (0.1500, 0.0000, 0.0000) m from the joint):
+  mass per seed (kg): 1.9859 1.9630 1.9859 2.0172 1.9971
+  A_com J_zz 0.0688+-0.0006 J_xx 0.0106+-1.950e-4 J_xy 0.0000+-0.0000 alpha_z 0.7265+-0.0066 tau_g 2.9280+-0.0290
+  B_typo J_zz 0.0241+-2.479e-4 J_xx 0.0106+-1.950e-4 J_xy 0.0000+-0.0000 alpha_z 2.0785+-0.0214 tau_g 0.0000+-0.0000
+  C_shifted J_zz 0.0688+-0.0006 J_xx 0.0106+-1.950e-4 J_xy 0.0000+-0.0000 alpha_z 0.7265+-0.0066 tau_g 0.0000+-0.0000
+  paired B-A J_zz: -0.0448+-4.431e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A J_xx: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A J_xy: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A alpha_z: 1.3520+-0.0164: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A tau_g: -2.9280+-0.0290: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A J_zz: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A J_xx: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A J_xy: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A alpha_z: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A tau_g: -2.9280+-0.0290: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+along_axis (COM offset r = (0.0000, 0.0000, 0.0400) m from the joint):
+  mass per seed (kg): 2.0589 1.9742 1.9465 2.0011 1.9737
+  A_com J_zz 0.0241+-4.383e-4 J_xx 0.0138+-1.409e-4 J_xy 0.0000+-0.0000 alpha_z 2.0719+-0.0373 tau_g 0.0000+-0.0000
+  B_typo J_zz 0.0241+-4.383e-4 J_xx 0.0106+-1.165e-4 J_xy 0.0000+-0.0000 alpha_z 2.0719+-0.0373 tau_g 0.0000+-0.0000
+  C_shifted J_zz 0.0241+-4.383e-4 J_xx 0.0138+-1.409e-4 J_xy 0.0000+-0.0000 alpha_z 2.0719+-0.0373 tau_g 0.0000+-0.0000
+  paired B-A J_zz: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A J_xx: -0.0032+-6.824e-5: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A J_xy: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A alpha_z: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A tau_g: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A J_zz: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A J_xx: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A J_xy: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A alpha_z: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A tau_g: 0.0000+-0.0000: tie: identical on every seed
+diagonal (COM offset r = (0.1000, 0.0800, 0.0000) m from the joint):
+  mass per seed (kg): 2.0147 2.0150 2.0151 1.9608 1.9891
+  A_com J_zz 0.0574+-0.0006 J_xx 0.0235+-2.371e-4 J_xy -0.0160+-1.924e-4 alpha_z 0.8709+-0.0085 tau_g 1.9610+-0.0236
+  B_typo J_zz 0.0246+-4.238e-4 J_xx 0.0107+-1.757e-4 J_xy 0.0000+-0.0000 alpha_z 2.0300+-0.0350 tau_g 0.0000+-0.0000
+  C_shifted J_zz 0.0574+-0.0006 J_xx 0.0235+-2.371e-4 J_xy -0.0160+-1.924e-4 alpha_z 0.8709+-0.0085 tau_g 0.0000+-0.0000
+  paired B-A J_zz: -0.0328+-3.945e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A J_xx: -0.0128+-1.539e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A J_xy: 0.0160+-1.924e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A alpha_z: 1.1591+-0.0295: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A tau_g: -1.9610+-0.0236: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A J_zz: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A J_xx: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A J_xy: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A alpha_z: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A tau_g: -1.9610+-0.0236: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative offsets (post-hoc check of the declared d; same seeds):
+  large with r=(0.1000, 0, 0): paired B-A J_zz@alt: -0.0199+-1.969e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  large with r=(0.2000, 0, 0): paired B-A J_zz@alt: -0.0796+-0.0008: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  small with r=(0.0050, 0, 0): paired B-A J_zz@alt: -5.023e-5+-6.972e-7: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared beyond the bookkeeping: writing the origin at the COM (A) is the URDF convention; a shifted matrix at the joint (C) gives the same inertia about the joint but puts the mass at the joint for gravity
+Gazebo / a real inertia measurement: 本页未运行; Wikipedia Parallel axis theorem statements 以原文为准

@@ -41,3 +41,7 @@ examples/month-4/check.sh             # with ROS 2 Jazzy sourced, or: cd example
 ## Batch-20 PR1 / 第20批 PR1
 
 `gazebo-sim/gazebo_lidar_realism_toy.py`: standard-library synthetic 2D lidar realism toy (ideal vs lesson-Gaussian vs realism rays against a real-unit stand-in), not `gz sim`; expected output in `expected/gazebo_lidar_realism_toy.txt`, run by `check.sh` without ROS. Real lidar / Gazebo 本页未运行. / 标准库合成的二维雷达真实感对照，不是 gz sim，输出由 `check.sh` 核对（不需要 ROS）。
+
+## Batch-21 PR2 / 第21批 PR2
+
+`urdf-tf/urdf_parallel_axis_inertia_toy.py`: standard-library synthetic bookkeeping of a URDF `<inertial>` written three ways (origin at the COM, the same matrix at the joint, the matrix moved to the joint with the parallel-axis tensor form) on a shared chassis box, not Gazebo; expected output in `expected/urdf_parallel_axis_inertia_toy.txt`, run by `check.sh` without ROS. Gazebo / a real inertia measurement 本页未运行. / 标准库合成的 URDF `<inertial>` 三种写法对照（原点在质心、同一矩阵写在关节处、用平行轴张量公式移到关节处），不是 Gazebo，输出由 `check.sh` 核对（不需要 ROS）。

@@ -35,3 +35,7 @@ The Python toy models used in these lessons are in [`tools/sim/models/`](../../t
 `esp32/esp32_light_deep_sleep_toy.py`: standard-library synthetic charge-bookkeeping model of always-on, Light-sleep and Deep-sleep over a shared event timeline, with declared toy currents and wake costs (not datasheet values); no board; expected output in `expected/esp32_light_deep_sleep_toy.txt`, included in `check.sh`. / 标准库合成电荷账模型，在共享事件时间线上比较常开、Light-sleep 与 Deep-sleep；电流与唤醒代价是声明的玩具参数，不是数据手册数值；不是真板测量，输出由 `check.sh` 核对。
 
 `sensors-fusion/i2c_clock_stretch_toy.py`: standard-library synthetic bit-timing model of I²C clock stretching: a controller that ignores SCL, one that waits for SCL high and one with a timeout, on a shared byte schedule; ideal edges (not the rise-time toy); expected output in `expected/i2c_clock_stretch_toy.txt`, included in `check.sh`. / 标准库合成位时序模型，在共享字节时间表上比较不读 SCL、等待 SCL 变高和带超时的控制器；理想边沿（不是上升时间玩具）；输出由 `check.sh` 核对。
+
+## Batch-21 PR2 / 第21批 PR2
+
+`first-robots/madgwick_vs_complementary_balancer_toy.py`: standard-library synthetic balancer pitch IMU stream (gyro only, the lesson's 0.5 s complementary filter, and the Madgwick 2010 IMU gradient-descent update at two beta values), shared noise draws, no hardware; expected output in `expected/madgwick_vs_complementary_balancer_toy.txt`, included in `check.sh`. Real MPU-6050 本页未运行. / 标准库合成的平衡车俯仰 IMU 数据（纯陀螺积分、课程的 0.5 s 互补滤波、两种 beta 的 Madgwick 2010 IMU 梯度下降更新），共用噪声抽样，不是硬件测量，输出由 `check.sh` 核对。

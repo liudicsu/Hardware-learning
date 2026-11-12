@@ -1,0 +1,58 @@
+Synthetic balancer IMU toy; shared pitch, bias and noise draws; Madgwick IMU update vs the lesson's complementary filter; not an MPU-6050
+seeds=5 rate=200.0000 Hz TAU=0.5000 s BETA_LOW=0.0330 BETA_HIGH=0.5000 rad/s theta0 U[-3.0000, 3.0000] deg bias U[-1.0000, 1.0000] deg/s gyro_noise=0.1000 deg/s acc_noise=0.0400 g A_LIN=2.0000 m/s^2 LEAN_TAU=0.3000 s WARMUP=2.0000 s (declared toy parameters, not a datasheet)
+Integration step: dt=1/200.0000 s forward Euler on the filters only (the report's equation (42) form); the truth is closed form
+Regimes and parameters were written before the first run
+hand_calc lean while accelerating: atan(A_LIN/g)=atan(2.0000/9.8100)=11.5232 deg; the accelerometer then reads straight up, accel angle 0.0000 deg
+hand_calc complementary: a=TAU/(TAU+dt)=0.5/(0.5+0.005)=0.9901; steady error from a bias b is b*TAU, for b=1.0 deg/s 0.5000 deg
+hand_calc gyro only: a bias of 1.0 deg/s drifts 1.0*60=60.0000 deg in 60 s
+hand_calc report beta=sqrt(3/4)*w_beta: BETA_LOW=0.0330 rad/s <-> w_beta=2.1833 deg/s
+static (60.0000 s at 200.0000 Hz; axle acceleration none):
+  gyro bias per seed (deg/s): -0.9992 -0.1735 -0.9912 0.7225 -0.1639
+  A_gyro rmse 22.2021+-14.3825 deg end_err 35.8593+-23.6712 deg
+  B_complementary rmse 0.3640+-0.1779 deg end_err 0.3217+-0.1940 deg
+  C_madgwick rmse 0.6301+-0.3996 deg end_err 0.6155+-0.4241 deg
+  D_madgwick_big rmse 0.5182+-0.0092 deg end_err 0.3962+-0.0462 deg
+  paired A-B rmse: 21.8381+-14.2048: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B end_err: 35.5376+-23.4941: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B rmse: 0.2661+-0.2218: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B end_err: 0.2938+-0.2460: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-B rmse: 0.1542+-0.1725: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired D-B end_err: 0.0745+-0.1992: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired D-C rmse: -0.1119+-0.3942: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired D-C end_err: -0.2193+-0.4289: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+slow_tilt (30.0000 s at 200.0000 Hz; axle acceleration none):
+  gyro bias per seed (deg/s): -0.0301 0.4863 0.9396 -0.9625 0.0157
+  A_gyro rmse 8.7662+-7.4751 deg end_err 13.4129+-11.8283 deg
+  B_complementary rmse 0.3331+-0.1827 deg end_err 0.2804+-0.1921 deg
+  C_madgwick rmse 0.5380+-0.4061 deg end_err 0.5203+-0.4423 deg
+  D_madgwick_big rmse 0.5254+-0.0190 deg end_err 0.4211+-0.0520 deg
+  paired A-B rmse: 8.4331+-7.2937: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B end_err: 13.1325+-11.6443: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B rmse: 0.2049+-0.2241: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired C-B end_err: 0.2399+-0.2540: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired D-B rmse: 0.1923+-0.1807: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  paired D-B end_err: 0.1406+-0.1691: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired D-C rmse: -0.0126+-0.4047: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired D-C end_err: -0.0992+-0.4204: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+accelerate (30.0000 s at 200.0000 Hz; axle acceleration +-2.0000 m/s^2 for 3 s at a time):
+  gyro bias per seed (deg/s): -0.7621 -0.7183 0.2694 0.3611 -0.5860
+  A_gyro rmse 9.4533+-2.8783 deg end_err 14.5568+-4.7509 deg
+  B_complementary rmse 8.3817+-0.0246 deg end_err 6.8662+-0.0674 deg
+  C_madgwick rmse 5.4153+-0.3831 deg end_err 4.3495+-0.1745 deg
+  D_madgwick_big rmse 9.1203+-0.0189 deg end_err 7.0727+-0.0462 deg
+  paired A-B rmse: 1.0716+-2.8608: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired A-B end_err: 7.6907+-4.8046: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B rmse: -2.9664+-0.3624: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B end_err: -2.5167+-0.2360: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-B rmse: 0.7386+-0.0326: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-B end_err: 0.2065+-0.0374: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-C rmse: 3.7050+-0.3796: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-C end_err: 2.7232+-0.2036: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternatives (post-hoc check of the declared TAU and beta; same seeds):
+  accelerate TAU=0.2500 s: paired D-B rmse@alt: 0.2814+-0.0276: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  accelerate TAU=1.0000 s: paired D-B rmse@alt: 1.7716+-0.0575: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  accelerate BETA_HIGH=0.1000: paired D-B rmse@alt: 0.0526+-0.0354: small but consistent gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  accelerate BETA_HIGH=0.2000: paired D-B rmse@alt: 0.4900+-0.0352: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  static BETA_LOW=0.1000: paired C-B rmse@alt: -0.0458+-0.0919: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+No universal winner: both fusion filters remove the gyro's drift; a large beta follows apparent gravity while the axle accelerates
+Real IMU / optical reference / the report's Kalman comparison: 本页未运行; Madgwick (2010) report figures 以报告为准
