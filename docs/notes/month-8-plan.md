@@ -1,6 +1,16 @@
 # Month 8 plan
 
-Current / 当前：**M8 3600 min**, Batch-17 PR3. Earlier entries below retain their historical totals.
+Current / 当前：**M8 3810 min**, Batch-19 PR3. Earlier entries below retain their historical totals.
+
+## Batch-19 PR3 / 本月 H6 (+210)
+
+Base `61bb8f769f2d87901bfe1d504ffc25b4fe4d947e` (batch-19 PR2 #178 merged; site **36480**). PR3 touches M6 and M8: M6 3450→3660 (+210), **M8 3600→3810 (+210)**. Site **36480→36900**, still 71 lessons.
+
+- **H6 / 8.3 async-deployment: 300→510 (+210).** NORA (arXiv 2504.19854, 8 authors checked on the abs page; PDF body read, HTML fetched), a 3B VLA on Qwen-2.5-VL-3B with FAST+ action tokens: a 7.0 B-parameter stand-in with one 256-bin token per joint per step (A) vs a 3.0 B-parameter stand-in with FAST-style DCT tokens (B, BPE not modelled) vs B through a shuffled codebook (C) (`nora_fastplus_small_vla_toy.py`; common random numbers, 5 seeds, 200 chunks per seed). short_in_dist: paired B−A success_pct **tie: identical on every seed**; paired B−A cost `-399.2110±0.6314`, **clear**, 5/5. long_horizon (SIG_SMALL=0.055 > SIG_LARGE=0.040, declared): paired B−A success_pct `-72.9000±1.7819`, **clear**, 5/5 — the small model **loses**, **kept**; paired B−A cost `-1184.3520±2.1307`. Shuffled codebook: paired C−B success_pct `-100.0000±0.0000` (short), **clear**, 5/5. Alternative GAMMA=20.0 printed on the same seeds (long_horizon paired B−A success_pct@alt `-10.2000±2.1966`, small but consistent, 5/5); no post-hoc retune. ≠ VLA-Adapter / SmolVLA / π0-FAST catalogue. Paper numbers 以论文为准; checkpoint / LIBERO / GPU 本页未运行. / NORA 小模型 + FAST 式词元，论文数字以论文为准。
+
+**Allocation / 安排:** 40+30+60+40+40 = 210 minutes.
+
+**Site accounting / 全站核算:** **36900=36480+420**; **M6=3660**, **M8=3810**, **71 lessons**.
 
 ## Batch-17 PR3 — ChatVLA phased alignment + MoE on vla-finetune (+210)
 

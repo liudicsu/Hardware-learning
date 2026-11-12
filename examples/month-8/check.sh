@@ -45,4 +45,6 @@ check chatvla_phased_alignment_toy.txt "$PY" "$M8/vla-finetune/chatvla_phased_al
 
 check dataset_crc_integrity_toy.txt "$PY" "$M8/dataset-engineering/dataset_crc_integrity_toy.py"
 
+check nora_fastplus_small_vla_toy.txt "$PY" "$M8/async-deployment/nora_fastplus_small_vla_toy.py"
+
 exit $fail

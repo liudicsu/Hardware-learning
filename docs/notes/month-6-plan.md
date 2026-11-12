@@ -1,6 +1,16 @@
 # Month 6 plan: Robot learning, specialisation & getting hired
 
-Current / 当前：**M6 3450 min**, Batch-17 PR3. Earlier entries below retain their historical totals.
+Current / 当前：**M6 3660 min**, Batch-19 PR3. Earlier entries below retain their historical totals.
+
+## Batch-19 PR3 / 本月 H5 (+210)
+
+Base `61bb8f769f2d87901bfe1d504ffc25b4fe4d947e` (batch-19 PR2 #178 merged; site **36480**). PR3 touches M6 and M8: **M6 3450→3660 (+210)**, M8 3600→3810 (+210). Site **36480→36900**, still 71 lessons.
+
+- **H5 / 6.3 vla-models: 1200→1410 (+210).** InternVLA-M1 (arXiv 2510.13778, 29 authors checked on the abs page; PDF body read, HTML fetched) spatially guided where-then-how: a direct head without grounding (A) vs a grounding stage trained on a toy grounding corpus, then the same reach (B) vs a shuffled spatial prompt (C) (`internvla_m1_spatial_prompt_toy.py`; common random numbers, 5 seeds, 200 test scenes per seed; G_ITEMS=600 is a toy count, not the paper's 2.3M). cluttered: paired B−A success_pct `14.6000±7.3263`, **small but consistent**, 5/5 (equal to the paper's +14.6 % by coincidence, not a reproduction). single_object and many_demos: paired B−A success_pct **tie: identical on every seed** (many_demos was pre-declared "may near-tie"). camera_shift: paired B−A success_pct `-23.8000±4.4385`, **clear**, 5/5 — B **loses**, **kept**. Shuffled prompt: paired C−B success_pct `-94.2000±1.7176` (cluttered), **clear**, 5/5. Alternative G_ITEMS=60 printed on the same seeds (paired B−A success_pct@alt `12.1000±7.0480` cluttered, `-21.1000±3.6125` camera_shift); no post-hoc retune. ≠ SpatialVLA / Magma / HAMSTER / MolmoAct. Paper numbers 以论文为准; weights / SimplerEnv / GPU 本页未运行. / InternVLA-M1 先定位再动作，论文数字以论文为准。
+
+**Allocation / 安排:** 40+30+60+40+40 = 210 minutes.
+
+**Site accounting / 全站核算:** **36900=36480+420**; **M6=3660**, **M8=3810**, **71 lessons**.
 
 ## Batch-17 PR3 — Magma Set-of-Mark / Trace-of-Mark on policy-evaluation (+210)
 

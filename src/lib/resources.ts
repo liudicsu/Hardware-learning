@@ -6232,6 +6232,74 @@ export const resources: Record<string, Resource> = {
     },
     extra: true,
   },
+  "internvla-m1-html": {
+    id: "internvla-m1-html",
+    url: "https://arxiv.org/html/2510.13778",
+    title: {
+      zh: "InternVLA-M1：面向通用机器人策略的空间引导视觉–语言–动作框架（HTML）",
+      en: "InternVLA-M1: A Spatially Guided Vision-Language-Action Framework for Generalist Robot Policy (HTML)",
+    },
+    author: "Xinyi Chen, Yilun Chen, Yanwei Fu, Ning Gao, Jiaya Jia, Weiyang Jin, Hao Li, Yao Mu, Jiangmiao Pang, Yu Qiao, Yang Tian, Bin Wang, Bolun Wang, Fangjing Wang, Hanqing Wang, Tai Wang, Ziqin Wang, Xueyuan Wei, Chao Wu, Shuai Yang, Jinhui Ye, Junqiu Yu, Jia Zeng, Jingjing Zhang, Jinyu Zhang, Shi Zhang, Feng Zheng, Bowen Zhou, Yangkun Zhu",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已核对 arXiv 摘要页（29 位作者），PDF 正文已读，HTML 正文已获取并抽查：两阶段「空间引导」训练——第一阶段只训练 VLM，在超过 2.3M 条空间推理数据（框 / 点 / 轨迹问答）上做空间定位预训练，决定「在哪里动作」；第二阶段联合训练 VLM 规划器与动作专家，在指令后附加空间提示（模型不显式输出对提示的回答），决定「怎么动作」。Qwen2.5-VL-3B 作 System 2，扩散策略动作专家作 System 1，共约 4.1B 参数。2.3M、4.1B 与 SimplerEnv / LIBERO 提升均以论文为准；GPU 本页未运行。arXiv 2510.13778。2026-11-12 正文已读（HTTP 200）。",
+      en: "arXiv abs page checked (29 authors), PDF body read, HTML body fetched and spot-checked: a two-stage spatially guided recipe. Stage 1 trains only the VLM on over 2.3M spatial-reasoning items (box / point / trace QA) to decide where to act; Stage 2 trains the VLM planner and the action expert together, appending a spatial prompt to the instruction (the model does not explicitly answer the prompt) to decide how to act. Qwen2.5-VL-3B as System 2, a diffusion-policy action expert as System 1, about 4.1B parameters in total. 2.3M, 4.1B and the SimplerEnv / LIBERO gains 以论文为准; GPU 本页未运行. arXiv 2510.13778. Body read 2026-11-12 (HTTP 200).",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
+  "internvla-m1-pdf": {
+    id: "internvla-m1-pdf",
+    url: "https://arxiv.org/pdf/2510.13778.pdf",
+    title: {
+      zh: "InternVLA-M1：面向通用机器人策略的空间引导视觉–语言–动作框架（PDF）",
+      en: "InternVLA-M1: A Spatially Guided Vision-Language-Action Framework for Generalist Robot Policy (PDF)",
+    },
+    author: "Xinyi Chen, Yilun Chen, Yanwei Fu, Ning Gao, Jiaya Jia, Weiyang Jin, Hao Li, Yao Mu, Jiangmiao Pang, Yu Qiao, Yang Tian, Bin Wang, Bolun Wang, Fangjing Wang, Hanqing Wang, Tai Wang, Ziqin Wang, Xueyuan Wei, Chao Wu, Shuai Yang, Jinhui Ye, Junqiu Yu, Jia Zeng, Jingjing Zhang, Jinyu Zhang, Shi Zhang, Feng Zheng, Bowen Zhou, Yangkun Zhu",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已核对 arXiv 摘要页（29 位作者），PDF 正文已读，HTML 正文已获取并抽查：两阶段「空间引导」训练——第一阶段只训练 VLM，在超过 2.3M 条空间推理数据（框 / 点 / 轨迹问答）上做空间定位预训练，决定「在哪里动作」；第二阶段联合训练 VLM 规划器与动作专家，在指令后附加空间提示（模型不显式输出对提示的回答），决定「怎么动作」。Qwen2.5-VL-3B 作 System 2，扩散策略动作专家作 System 1，共约 4.1B 参数。2.3M、4.1B 与 SimplerEnv / LIBERO 提升均以论文为准；GPU 本页未运行。arXiv 2510.13778。2026-11-12 正文已读（HTTP 200）。",
+      en: "arXiv abs page checked (29 authors), PDF body read, HTML body fetched and spot-checked: a two-stage spatially guided recipe. Stage 1 trains only the VLM on over 2.3M spatial-reasoning items (box / point / trace QA) to decide where to act; Stage 2 trains the VLM planner and the action expert together, appending a spatial prompt to the instruction (the model does not explicitly answer the prompt) to decide how to act. Qwen2.5-VL-3B as System 2, a diffusion-policy action expert as System 1, about 4.1B parameters in total. 2.3M, 4.1B and the SimplerEnv / LIBERO gains 以论文为准; GPU 本页未运行. arXiv 2510.13778. Body read 2026-11-12 (HTTP 200).",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
+  "nora-html": {
+    id: "nora-html",
+    url: "https://arxiv.org/html/2504.19854",
+    title: {
+      zh: "NORA：面向具身任务的小型开源通用视觉–语言–动作模型（HTML）",
+      en: "NORA: A Small Open-Sourced Generalist Vision Language Action Model for Embodied Tasks (HTML)",
+    },
+    author: "Chia-Yu Hung, Qi Sun, Pengfei Hong, Amir Zadeh, Chuan Li, U-Xuan Tan, Navonil Majumder, Soujanya Poria",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已核对 arXiv 摘要页（8 位作者），PDF 正文已读，HTML 正文已获取并抽查：3B 参数的 VLA，以 Qwen-2.5-VL-3B 为主干，自回归生成 FAST+ 动作词元（词表增加 2048 个），再用 FAST+ 解码成动作；摘要称在 970k 条真实机器人示范上训练，目标是比 7B 级 VLA 开销更低、可在消费级 GPU 上微调。NORA 默认动作块长度为 1，NORA-Long 为 5。3B、970k 与成功率均以论文为准；GPU 本页未运行。arXiv 2504.19854。2026-11-12 正文已读（HTTP 200）。",
+      en: "arXiv abs page checked (8 authors), PDF body read, HTML body fetched and spot-checked: a 3B-parameter VLA on a Qwen-2.5-VL-3B backbone that autoregressively generates FAST+ action tokens (2048 added vocabulary tokens) and decodes them with FAST+; the abstract says it is trained on 970k real-world robot demonstrations, aiming at lower overhead than 7B-class VLAs and fine-tuning on consumer GPUs. NORA uses an action chunk of 1, NORA-Long a chunk of 5. 3B, 970k and success rates 以论文为准; GPU 本页未运行. arXiv 2504.19854. Body read 2026-11-12 (HTTP 200).",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
+  "nora-pdf": {
+    id: "nora-pdf",
+    url: "https://arxiv.org/pdf/2504.19854.pdf",
+    title: {
+      zh: "NORA：面向具身任务的小型开源通用视觉–语言–动作模型（PDF）",
+      en: "NORA: A Small Open-Sourced Generalist Vision Language Action Model for Embodied Tasks (PDF)",
+    },
+    author: "Chia-Yu Hung, Qi Sun, Pengfei Hong, Amir Zadeh, Chuan Li, U-Xuan Tan, Navonil Majumder, Soujanya Poria",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已核对 arXiv 摘要页（8 位作者），PDF 正文已读，HTML 正文已获取并抽查：3B 参数的 VLA，以 Qwen-2.5-VL-3B 为主干，自回归生成 FAST+ 动作词元（词表增加 2048 个），再用 FAST+ 解码成动作；摘要称在 970k 条真实机器人示范上训练，目标是比 7B 级 VLA 开销更低、可在消费级 GPU 上微调。NORA 默认动作块长度为 1，NORA-Long 为 5。3B、970k 与成功率均以论文为准；GPU 本页未运行。arXiv 2504.19854。2026-11-12 正文已读（HTTP 200）。",
+      en: "arXiv abs page checked (8 authors), PDF body read, HTML body fetched and spot-checked: a 3B-parameter VLA on a Qwen-2.5-VL-3B backbone that autoregressively generates FAST+ action tokens (2048 added vocabulary tokens) and decodes them with FAST+; the abstract says it is trained on 970k real-world robot demonstrations, aiming at lower overhead than 7B-class VLAs and fine-tuning on consumer GPUs. NORA uses an action chunk of 1, NORA-Long a chunk of 5. 3B, 970k and success rates 以论文为准; GPU 本页未运行. arXiv 2504.19854. Body read 2026-11-12 (HTTP 200).",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

@@ -338,6 +338,376 @@ Async removes the idle frames but not the jump where a new chunk takes over; [10
 - **Running server and client without a clock plan.** 50 Hz control with 80 ms inference is already 4 ticks — write the numbers down.
 - **Skipping the sync baseline.** Always compare both modes on the same starts (Month 6 protocol).
 
+## NORA: a small VLA with FAST+ action tokens
+
+The sections above schedule chunks so the arm does not idle. A second way to cut deployment latency is to make each inference cheaper: a **smaller backbone** and **fewer action tokens per chunk**. **NORA** does both. It is a 3B-parameter VLA that generates FAST+ action tokens autoregressively. This section tests those two cost levers, and the risk that comes with a smaller model, on a synthetic stand-in. It is **not** VLA-Adapter's 0.5B Bridge Attention policy (Month 10, edge-deploy-checklist), **not** SmolVLA (Month 6, vla-models) and **not** the π0-FAST line in the Month 6 model catalogue.
+
+<Resource id="nora-html" />
+
+<Resource id="nora-pdf" />
+
+**Source actually opened (arXiv 2504.19854 abs page checked: title and all 8 authors; HTML body fetched; v1 PDF body read via pdftotext).**
+
+- **Hung, Sun, Hong, Zadeh, Li, Tan, Majumder and Poria, "NORA: A Small Open-Sourced Generalist Vision Language Action Model for Embodied Tasks" (Singapore University of Technology and Design / Lambda Labs, 2025):**
+  - **Backbone and tokens** (abstract, §3, §3.1): Qwen-2.5-VL-3B as the backbone; the VLM autoregressively generates FAST+ action tokens and FAST+ decodes them into actions (eqs. 1–2); 2048 FAST+ tokens are added to the vocabulary; one image frame; the action chunk is 1 for NORA and 5 for the NORA-Long variant (§3.3).
+  - **Tokenizer** (§2.3): the paper describes FAST as applying a DCT and then byte-pair encoding to get shorter, more token-efficient sequences, and reports about 8.3GB of GPU memory at inference.
+  - **Data and training** (abstract, §3.2): the abstract says 970k real-world robot demonstrations (Open X-Embodiment); pre-training took about three weeks on one 8×H100 node.
+- **Reported results (以论文为准):** on nine real WidowX tasks NORA leads the baselines on out-of-distribution objects and spatial instructions, with a much narrower lead on multi-object tasks. On LIBERO (Table 2) NORA-Long fine-tuned has the best average, 87.9 %, but NORA fine-tuned without action chunking averages 73.9 % against OpenVLA's 76.5 % and scores 45 on LIBERO-Long against 53.7: the small model does **not** win everywhere in the paper either. Executing all 5 NORA-Long actions on the real WidowX made the robot crash into the scene.
+- The NORA checkpoint, LIBERO, the WidowX and GPU runs: **本页未运行**.
+
+### Fewer parameters, fewer tokens
+
+<Formula label="Decode-cost proxy">cost = parameters (B) × generated action tokens per chunk</Formula>
+
+<Formula label="Success">success iff chunk RMSE < TOL</Formula>
+
+The large stand-in writes one token per joint per step (256 bins, the per-step scheme from the action-token section of the vla-models lesson in Month 6). The small stand-in writes FAST-style tokens: per joint, a DCT over the chunk's time axis, scaled by GAMMA = 10.0 and rounded, keeping only nonzero integers. Byte-pair encoding is **not** modelled, so the toy undercounts FAST+'s compression. NORA's §2.3 words its DCT as running across the action dimensions; the toy uses the time-axis DCT of the FAST section in the Month 6 vla-models lesson, a stand-in, said so here.
+
+**Worked example — labelled hand calculations, also printed by the toy.** The per-step head needs D × H = 7 × 10 = 70 tokens on a 10-step chunk and 7 × 30 = 210 on a 30-step chunk. Its bin width is 2 / 256 = 0.007812, so the binning error is at most half a bin, 0.003906. Rounding a coefficient scaled by GAMMA = 10.0 leaves an RMS error of 1 / (GAMMA √12) = 0.028868 per coefficient if the error is uniform. At equal token counts the cost ratio is P_SMALL / P_LARGE = 0.4286. Success is **strict**: RMSE 0.0600 fails, 0.0599 succeeds.
+
+**No integration step here.** Chunks are scored, not simulated; there is no ODE.
+
+### Fair setup
+
+`nora_fastplus_small_vla_toy.py` is **synthetic** and stdlib only. **Model assumptions:** each chunk is a smooth 7-joint trajectory; a policy's prediction is the true chunk plus model error SIG × z, with SIG a **declared toy parameter** per arm and regime; P_LARGE = 7.0 and P_SMALL = 3.0 are parameter stand-ins, not measured models; the cost proxy ignores attention length, batching and memory.
+
+| Arm | What it is |
+|---|---|
+| A_large_bins | 7.0 B-parameter stand-in, one 256-bin token per joint per step, SIG_LARGE |
+| B_small_fast | 3.0 B-parameter stand-in, FAST-style DCT tokens, SIG_SMALL |
+| C_shuffled | B's model and tokens, decoded through a shuffled codebook |
+
+**Common random numbers:** for each (regime, seed) the 200 chunks, every standard-normal draw z and C's codebook permutation are drawn once and shared by all three arms; only the declared SIG and the tokenizer differ. Five seeds. Metrics are success in percent, chunk RMSE, tokens per chunk and the cost proxy, as mean±sd over seeds.
+
+| Regime | Setting | What was pre-declared |
+|---|---|---|
+| short_in_dist | H = 10, SIG_LARGE = SIG_SMALL = 0.030 | A and B may **near-tie** on success; B **consistent** lower cost; C **consistent** lose |
+| long_horizon | H = 30, SIG_LARGE = 0.040, SIG_SMALL = 0.055 (the small backbone is declared to fit long horizons worse) | B may **lose** success to A; **keep** |
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-8/async-deployment
+python3 nora_fastplus_small_vla_toy.py
+```
+
+<CodeSource path="examples/month-8/async-deployment/nora_fastplus_small_vla_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""NORA-style small VLA with FAST+-style action tokens vs a large per-step-binning head.
+
+Synthetic action chunks, stdlib only.  Not the NORA 3B checkpoint, not
+Qwen-2.5-VL, not the real FAST+ tokenizer (no BPE here), not LIBERO / WidowX
+and not a GPU: 本页未运行.  Paper numbers (3B, 970k demonstrations, success
+rates) 以论文为准 and are not toy outputs.  Not VLA-Adapter's Bridge Attention,
+not SmolVLA and not the pi0-FAST catalogue line.
+
+What the NORA paper (arXiv 2504.19854) says, and what this toy keeps:
+  NORA is a 3B VLA on a Qwen-2.5-VL-3B backbone that autoregressively
+  generates FAST+ action tokens (2048 extra vocabulary tokens) and decodes them
+  into actions; the motivation is lower overhead than 7B-class VLAs.  This toy
+  keeps two cost levers - fewer parameters and fewer action tokens per chunk -
+  and one risk - a smaller backbone may fit long horizons worse.
+
+Per (regime, seed) the chunks are smooth multi-joint trajectories; a policy's
+prediction is the true chunk plus model error SIG * z, where z is one shared
+standard-normal draw per value (common random numbers: the same z for every
+arm, only the declared SIG differs).  Arms:
+  A_large_bins : P_LARGE=7.0 B-parameter stand-in, one token per joint per step
+                 (256 bins over -1..1, OpenVLA-style), SIG_LARGE
+  B_small_fast : P_SMALL=3.0 B-parameter stand-in, FAST-style tokens: per joint
+                 a DCT over the chunk's time axis, scaled by GAMMA and rounded;
+                 tokens = nonzero rounded coefficients (BPE not modelled), SIG_SMALL
+  C_shuffled   : B's model and tokens, but the decoder reads them through a
+                 shuffled codebook (a fixed random permutation of token values)
+Success: chunk RMSE against the true chunk strictly below TOL.  Cost proxy:
+parameters x generated tokens (B-param x token), a stand-in for decode work.
+No integration step: chunks are evaluated, not simulated.
+
+Regimes and parameters were written before the first run:
+  short_in_dist : H=10 steps, SIG_LARGE=SIG_SMALL=0.030 - A and B may near-tie
+                  on success; B consistent lower cost; C consistent lose
+  long_horizon  : H=30 steps, SIG_LARGE=0.040, SIG_SMALL=0.055 (the small
+                  backbone fits long horizons worse - a declared assumption)
+                  - B may LOSE success to A; keep and print whatever happens
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+
+# Declared model parameters, written before the first run (toy values).
+D = 7                 # joints / action dimensions
+N_EP = 200            # chunks per seed
+BINS = 256            # A: per-step bins over -1..1
+GAMMA = 10.0          # B/C: DCT coefficient scale before rounding (FAST-style)
+P_LARGE = 7.0         # B-parameter stand-in for a 7B-class head
+P_SMALL = 3.0         # B-parameter stand-in for a 3B head
+TOL = 0.060           # success iff chunk RMSE < TOL (strict)
+VOCAB = 64            # C: shuffled codebook over integer values -VOCAB..VOCAB
+
+REGIMES = {
+    "short_in_dist": {"H": 10, "SIG_LARGE": 0.030, "SIG_SMALL": 0.030},
+    "long_horizon": {"H": 30, "SIG_LARGE": 0.040, "SIG_SMALL": 0.055},
+}
+ARMS = ("A_large_bins", "B_small_fast", "C_shuffled")
+
+
+_COS = {}
+
+
+def cos_table(n):
+    """cos(pi*(t+0.5)*k/n) for every (k, t), cached per chunk length."""
+    if n not in _COS:
+        _COS[n] = [[math.cos(math.pi * (t + 0.5) * k / n) for t in range(n)] for k in range(n)]
+    return _COS[n]
+
+
+def dct(x):
+    n = len(x)
+    cs = cos_table(n)
+    out = []
+    for k in range(n):
+        s = sum(x[t] * cs[k][t] for t in range(n))
+        out.append(s * math.sqrt((1.0 if k == 0 else 2.0) / n))
+    return out
+
+
+def idct(c):
+    n = len(c)
+    cs = cos_table(n)
+    w = [math.sqrt((1.0 if k == 0 else 2.0) / n) for k in range(n)]
+    out = []
+    for t in range(n):
+        s = sum(c[k] * w[k] * cs[k][t] for k in range(n))
+        out.append(s)
+    return out
+
+
+def shared_chunks(regime, seed):
+    """Common random numbers: chunks, model-error draws and the codebook permutation."""
+    h = REGIMES[regime]["H"]
+    rng = random.Random(f"{regime}/{seed}")
+    eps = []
+    for _ in range(N_EP):
+        truth, z = [], []
+        for _ in range(D):
+            a, f, ph, off = rng.uniform(0.2, 0.6), rng.uniform(0.2, 1.0), rng.uniform(0.0, 2 * math.pi), rng.uniform(-0.2, 0.2)
+            truth.append([off + a * math.sin(2 * math.pi * f * t / h + ph) for t in range(h)])
+            z.append([rng.gauss(0.0, 1.0) for _ in range(h)])
+        eps.append({"truth": truth, "z": z})
+    vals = list(range(-VOCAB, VOCAB + 1))
+    perm = vals[:]
+    rng.shuffle(perm)
+    return eps, dict(zip(vals, perm))
+
+
+def clip(v):
+    return max(-1.0, min(1.0, v))
+
+
+def bins_roundtrip(row):
+    w = 2.0 / BINS
+    return [-1.0 + (min(int((clip(v) + 1.0) / w), BINS - 1) + 0.5) * w for v in row]
+
+
+def fast_tokens(row, gamma):
+    return [int(round(gamma * c)) for c in dct([clip(v) for v in row])]
+
+
+def run_seed(regime, seed, arm, gamma=GAMMA):
+    cfg = REGIMES[regime]
+    sig = cfg["SIG_LARGE"] if arm == "A_large_bins" else cfg["SIG_SMALL"]
+    params = P_LARGE if arm == "A_large_bins" else P_SMALL
+    eps, book = shared_chunks(regime, seed)
+    succ = 0
+    tok_sum = rmse_sum = 0.0
+    for ep in eps:
+        se = 0.0
+        tokens = 0
+        for d in range(D):
+            truth = ep["truth"][d]
+            pred = [x + sig * e for x, e in zip(truth, ep["z"][d])]
+            if arm == "A_large_bins":
+                rec = bins_roundtrip(pred)
+                tokens += len(pred)
+            else:
+                q = fast_tokens(pred, gamma)
+                tokens += sum(1 for v in q if v != 0)
+                if arm == "C_shuffled":
+                    q = [book.get(v, v) if v != 0 else 0 for v in q]
+                rec = idct([v / gamma for v in q])
+            se += sum((r - x) ** 2 for r, x in zip(rec, truth))
+        rmse = math.sqrt(se / (D * len(ep["truth"][0])))
+        rmse_sum += rmse
+        tok_sum += tokens
+        succ += int(rmse < TOL)
+    tok = tok_sum / len(eps)
+    return {"success_pct": 100.0 * succ / len(eps), "rmse": rmse_sum / len(eps),
+            "tokens": tok, "cost": params * tok}
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+_TABLES = {}
+
+
+def table(regime, gamma=GAMMA):
+    if (regime, gamma) not in _TABLES:
+        _TABLES[(regime, gamma)] = {arm: [run_seed(regime, seed, arm, gamma) for seed in SEEDS] for arm in ARMS}
+    return _TABLES[(regime, gamma)]
+
+
+def col(res, arm, key):
+    return [float(r[key]) for r in res[arm]]
+
+
+def main():
+    print("Synthetic NORA-style small-VLA + FAST-style token toy (arXiv 2504.19854); shared chunks; not the NORA checkpoint")
+    print(f"seeds={len(SEEDS)} D={D} N_EP={N_EP} BINS={BINS} GAMMA={GAMMA:.1f} P_LARGE={P_LARGE:.1f} P_SMALL={P_SMALL:.1f} "
+          f"TOL={TOL:.3f} VOCAB={VOCAB} (toy values; BPE not modelled)")
+    print("No integration step: chunks are scored, not simulated; no time-step criterion")
+    print("Regimes and parameters were written before the first run")
+    print(f"hand_calc A tokens: one per joint per step, D*H = {D}*10 = {D * 10} (H=10) and {D}*30 = {D * 30} (H=30)")
+    print(f"hand_calc A bin error: bin width 2/{BINS} = {2.0 / BINS:.6f}, at most half a bin = {1.0 / BINS:.6f}")
+    print(f"hand_calc rounding RMS per coefficient (uniform error): 1/(GAMMA*sqrt(12)) = {1.0 / (GAMMA * math.sqrt(12.0)):.6f}")
+    print(f"hand_calc cost ratio at equal tokens: P_SMALL/P_LARGE = {P_SMALL / P_LARGE:.4f}")
+    print("success_rule: success iff chunk RMSE < TOL (strict); "
+          f"rmse {TOL:.4f} -> success {int(TOL < TOL)}; rmse {TOL - 0.0001:.4f} -> success {int(TOL - 0.0001 < TOL)}")
+    for regime, cfg in REGIMES.items():
+        res = table(regime)
+        print(f"{regime} (H={cfg['H']} steps, SIG_LARGE={cfg['SIG_LARGE']:.3f}, SIG_SMALL={cfg['SIG_SMALL']:.3f}; "
+              f"{N_EP} chunks per seed):")
+        for arm in ARMS:
+            print(f"  {arm} success_pct {fmt_pair(*mean_sd(col(res, arm, 'success_pct')))} "
+                  f"rmse {fmt_pair(*mean_sd(col(res, arm, 'rmse')))} tokens {fmt_pair(*mean_sd(col(res, arm, 'tokens')))} "
+                  f"cost {fmt_pair(*mean_sd(col(res, arm, 'cost')))}")
+        print(f"  paired B-A success_pct: {verdict(col(res, 'B_small_fast', 'success_pct'), col(res, 'A_large_bins', 'success_pct'))}")
+        print(f"  paired B-A tokens: {verdict(col(res, 'B_small_fast', 'tokens'), col(res, 'A_large_bins', 'tokens'))}")
+        print(f"  paired B-A cost: {verdict(col(res, 'B_small_fast', 'cost'), col(res, 'A_large_bins', 'cost'))}")
+        print(f"  paired C-B success_pct: {verdict(col(res, 'C_shuffled', 'success_pct'), col(res, 'B_small_fast', 'success_pct'))}")
+    for regime, alt in (("short_in_dist", 20.0), ("long_horizon", 20.0)):
+        base = table(regime)
+        res = table(regime, alt)
+        print(f"alternative GAMMA={alt:.1f} on {regime} (same seeds):")
+        print(f"  B_small_fast success_pct@alt {fmt_pair(*mean_sd(col(res, 'B_small_fast', 'success_pct')))} "
+              f"tokens@alt {fmt_pair(*mean_sd(col(res, 'B_small_fast', 'tokens')))} "
+              f"(default success_pct {fmt_pair(*mean_sd(col(base, 'B_small_fast', 'success_pct')))})")
+        print(f"  paired B-A success_pct@alt: {verdict(col(res, 'B_small_fast', 'success_pct'), col(res, 'A_large_bins', 'success_pct'))}")
+        print(f"  paired B-A cost@alt: {verdict(col(res, 'B_small_fast', 'cost'), col(res, 'A_large_bins', 'cost'))}")
+    print("No winner declared: fewer parameters and fewer action tokens cut the decode-cost proxy on every chunk, "
+          "but success depends on whether the small backbone fits the task, and a decoder with the wrong codebook fails")
+    print("NORA checkpoint / LIBERO / WidowX / GPU: 本页未运行; paper numbers 以论文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic NORA-style small-VLA + FAST-style token toy (arXiv 2504.19854); shared chunks; not the NORA checkpoint
+seeds=5 D=7 N_EP=200 BINS=256 GAMMA=10.0 P_LARGE=7.0 P_SMALL=3.0 TOL=0.060 VOCAB=64 (toy values; BPE not modelled)
+No integration step: chunks are scored, not simulated; no time-step criterion
+Regimes and parameters were written before the first run
+hand_calc A tokens: one per joint per step, D*H = 7*10 = 70 (H=10) and 7*30 = 210 (H=30)
+hand_calc A bin error: bin width 2/256 = 0.007812, at most half a bin = 0.003906
+hand_calc rounding RMS per coefficient (uniform error): 1/(GAMMA*sqrt(12)) = 0.028868
+hand_calc cost ratio at equal tokens: P_SMALL/P_LARGE = 0.4286
+success_rule: success iff chunk RMSE < TOL (strict); rmse 0.0600 -> success 0; rmse 0.0599 -> success 1
+short_in_dist (H=10 steps, SIG_LARGE=0.030, SIG_SMALL=0.030; 200 chunks per seed):
+  A_large_bins success_pct 100.0000+-0.0000 rmse 0.0299+-2.432e-04 tokens 70.0000+-0.0000 cost 490.0000+-0.0000
+  B_small_fast success_pct 100.0000+-0.0000 rmse 0.0375+-4.127e-04 tokens 30.2630+-0.2105 cost 90.7890+-0.6314
+  C_shuffled success_pct 0.0000+-0.0000 rmse 2.5090+-0.2635 tokens 30.2630+-0.2105 cost 90.7890+-0.6314
+  paired B-A success_pct: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A tokens: -39.7370+-0.2105: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A cost: -399.2110+-0.6314: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success_pct: -100.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+long_horizon (H=30 steps, SIG_LARGE=0.040, SIG_SMALL=0.055; 200 chunks per seed):
+  A_large_bins success_pct 100.0000+-0.0000 rmse 0.0400+-1.913e-04 tokens 210.0000+-0.0000 cost 1470.0000+-0.0000
+  B_small_fast success_pct 27.1000+-1.7819 rmse 0.0617+-2.363e-04 tokens 95.2160+-0.7102 cost 285.6480+-2.1307
+  C_shuffled success_pct 0.0000+-0.0000 rmse 1.8226+-0.5617 tokens 95.2160+-0.7102 cost 285.6480+-2.1307
+  paired B-A success_pct: -72.9000+-1.7819: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A tokens: -114.7840+-0.7102: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A cost: -1184.3520+-2.1307: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success_pct: -27.1000+-1.7819: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative GAMMA=20.0 on short_in_dist (same seeds):
+  B_small_fast success_pct@alt 100.0000+-0.0000 tokens@alt 45.4870+-0.2654 (default success_pct 100.0000+-0.0000)
+  paired B-A success_pct@alt: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A cost@alt: -353.5390+-0.7962: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative GAMMA=20.0 on long_horizon (same seeds):
+  B_small_fast success_pct@alt 89.8000+-2.1966 tokens@alt 147.0000+-0.5566 (default success_pct 27.1000+-1.7819)
+  paired B-A success_pct@alt: -10.2000+-2.1966: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A cost@alt: -1029.0000+-1.6697: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: fewer parameters and fewer action tokens cut the decode-cost proxy on every chunk, but success depends on whether the small backbone fits the task, and a decoder with the wrong codebook fails
+NORA checkpoint / LIBERO / WidowX / GPU: 本页未运行; paper numbers 以论文为准
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used on this page, in this order: **tie: identical on every seed** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when |paired mean| and its sd are both below 1e-9 (no sign count on such a line); **near-tie / small gap, within seed noise** when |paired mean| ≤ sd; otherwise a **consistent** gap (|paired mean| > sd), called **small but consistent gap, not a tie** when |m| is under 20 % of the smaller arm mean and **clear gap, not a tie** otherwise. Every consistent line carries a same-sign count over the 5 seeds.
+
+- **short_in_dist.** Both A and B succeed on every chunk, so paired B−A success_pct is a **tie: identical on every seed** (the pre-declared "may near-tie" came out as a tie). B's chunk RMSE is higher (0.0375 against 0.0299) because of coefficient rounding, but still below TOL. B writes 30.2630±0.2105 tokens per chunk against 70.0000: paired B−A tokens is -39.7370±0.2105 and paired B−A cost is -399.2110±0.6314, both a **clear gap, not a tie** (same sign on all 5 seeds). C fails every chunk: paired C−B success_pct is -100.0000±0.0000, **clear**, same sign on all 5 seeds.
+- **long_horizon.** B is still far cheaper (paired B−A tokens -114.7840±0.7102, paired B−A cost -1184.3520±2.1307, both **clear**, same sign on all 5 seeds), but it **loses** on success: B succeeds 27.1000±1.7819 % against A's 100.0000±0.0000 %, paired B−A success_pct -72.9000±1.7819, a **clear gap, not a tie** (same sign on all 5 seeds). **Keep** this split: a cheaper chunk is worth nothing if the small model cannot hit the target. Part of the loss is rounding (B's RMSE 0.0617 against A's 0.0400), part is the declared SIG_SMALL. C is worse still: paired C−B success_pct -27.1000±1.7819, **clear**, same sign on all 5 seeds.
+
+**Choices made after seeing results.** None. Both regimes, the SIG values, TOL, GAMMA = 10.0 and the GAMMA = 20.0 alternative were written before the first run. Alternative on the same seeds: GAMMA = 20.0 keeps short_in_dist a **tie: identical on every seed** on success at a higher token count (45.4870±0.2654), paired B−A cost@alt -353.5390±0.7962; on long_horizon it lifts B to 89.8000±2.1966 % success with 147.0000±0.5566 tokens, but paired B−A success_pct@alt is still -10.2000±2.1966, a **small but consistent gap, not a tie** (same sign on all 5 seeds), and paired B−A cost@alt -1029.0000±1.6697. Neither replaced the default, and the long-horizon loss stays on the page.
+
+The page **does not declare a universal winner**: fewer parameters and fewer action tokens cut the decode-cost proxy on every chunk, but success depends on whether the small backbone fits the task, and a decoder with the wrong codebook fails. The paper's own LIBERO table shows the same shape: NORA without chunking trails OpenVLA on the long-horizon suite (以论文为准). A real NORA checkpoint on a GPU: **本页未运行**.
+
+**210-minute work plan:** 40 min read the abstract, §2.3 and §3–3.3 of the NORA paper; 30 min work the 70 / 210 token counts, the 0.003906 bin error and the 0.028868 rounding RMS by hand; 60 min run the toy and read the two regimes; 40 min compare the printed GAMMA = 20.0 alternative with seeds fixed; 40 min the exercises.
+
+### Exercises
+
+1. From `fast_tokens`, explain why a smooth chunk needs fewer nonzero tokens than D × H, and why the count grows with H more slowly than the per-step head's.
+2. Show from `shared_chunks` that A, B and C see the same chunks and the same z draws for a given regime and seed.
+3. In long_horizon, how much of B's success loss would you attribute to rounding and how much to SIG_SMALL? Use the printed GAMMA = 20.0 alternative.
+4. The cost proxy ignores memory and batching. Name one deployment situation (from the sync/async sections above) where a lower cost proxy would not shorten the robot's idle time.
+5. Before any real deployment (本页未运行), write the three numbers you would log to decide between a 3B FAST+ model and a 7B per-step model on your own task.
+
 <Summary>
 
 Sync waits through every inference (idle ratio 0.200 in the toy); async keeps moving (0.020) and pays with larger boundary jumps. PolicyServer / RobotClient, `actions_per_chunk` and `chunk_size_threshold` are the LeRobot async knobs. `chunk_latency_sim.py` is CPU-only; real GPU/arm runs are marked not run here. ChunkTimelineWidget is deferred.
@@ -346,4 +716,5 @@ Sync waits through every inference (idle ratio 0.200 in the toy); async keeps mo
 
 Stream alignment corrects known clock offsets and uses only already-arrived interpolation brackets at a lagged query. Timestamp, transport delay and clock offset differ; catch-window hits are a synthetic retrospective proxy.
 
+NORA-style small VLA: on shared chunks a 3.0 B-parameter stand-in with FAST-style DCT tokens ties a 7.0 B per-step-bin head on short in-distribution success while cutting the decode-cost proxy (paired B−A cost -399.2110±0.6314, clear, 5/5), loses success on long horizons where the small model is declared to fit worse (paired B−A success_pct -72.9000±1.7819, clear, 5/5, kept), and a shuffled codebook fails — `nora_fastplus_small_vla_toy.py`, not the NORA checkpoint; paper numbers 以论文为准.
 </Summary>
