@@ -1,6 +1,14 @@
 # Month 6 plan: Robot learning, specialisation & getting hired
 
-Current / 当前：**M6 3660 min**, Batch-19 PR3. Earlier entries below retain their historical totals.
+Current / 当前：**M6 3840 min**, Batch-21 PR3. Earlier entries below retain their historical totals.
+
+## Batch-21 PR3 / 本月 H5 (+180)
+
+Base `122d224c91dfa02e5e7c867354dc246b02d7737e` (batch-21 PR2 #186 merged; site **38700**). PR3 touches M6 and M8: **M6 3660→3840 (+180)**; M8 moves in the same PR on its own plan. Site **38700→39060** (39060=38700+180+180), still 71 lessons.
+
+- **H5 / 6.2 act-diffusion: 870→1050 (+180).** FLARE future-latent alignment (arXiv 2505.15659, 21 authors checked on the abs page in arXiv order; abs, HTML and PDF body read) as a linear stdlib stand-in (`flare_future_latent_alignment_toy.py`; common random numbers, 5 seeds; shared data, frozen target embedding and initial weights). Arms A action loss only / B + λ·(−cos) with λ = 0.2 (the paper's value) / C λ = 2.0. delayed: the declared B win did **not** hold — B−A action_mse `-0.1002±0.1756`, **near-tie**; the declared C loss did **not** hold either — C−B action_mse `0.1016±0.2475`, near-tie. reactive: B−A action_mse `1.343e-4±2.827e-4` **near-tie** (held), B−A success tie; C−B action_mse `0.0166±0.0154`, **clear**, 5/5 (declared loss held, kept). Alternatives λ = 0.05 / 1.0, 12 labelled samples, reactive λ = 1.0 printed; none replaced the defaults. No code change after the first run. Table 2 % and "up to 26 %" 以论文为准; GR00T N1 / RoboCasa / GR-1 / GPU 本页未运行. / FLARE 未来潜变量对齐，论文数字以论文为准。
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
 
 ## Batch-19 PR3 / 本月 H5 (+210)
 

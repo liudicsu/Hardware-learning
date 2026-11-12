@@ -1,6 +1,14 @@
 # Month 8 plan
 
-Current / 当前：**M8 3810 min**, Batch-19 PR3. Earlier entries below retain their historical totals.
+Current / 当前：**M8 3990 min**, Batch-21 PR3. Earlier entries below retain their historical totals.
+
+## Batch-21 PR3 / 本月 H6 (+180)
+
+Base `122d224c91dfa02e5e7c867354dc246b02d7737e` (batch-21 PR2 #186 merged; site **38700**). PR3 touches M6 and M8: **M8 3810→3990 (+180)**; M6 moves in the same PR on its own plan. Site **38700→39060** (39060=38700+180+180), still 71 lessons.
+
+- **H6 / 8.2 vla-finetune: 840→1020 (+180).** OpenVLA-OFT (arXiv 2502.19645, Moo Jin Kim, Chelsea Finn, Percy Liang checked on the abs page in arXiv order; abs, HTML and PDF v2 body read) as a per-cell lookup stdlib stand-in (`openvla_oft_parallel_l1_toy.py`; common random numbers, 5 seeds; shared demonstrations). Arms A 256-bin tokens (K·D passes) / B parallel continuous L1 (1 pass) / C 10-step diffusion head / D instruction-conditioned L1 (OFT+ / FiLM idea). unimodal: B−A abs_err `-0.0015±1.281e-4`, **clear**, 5/5; B−A passes `-15.0000±0.0000`; C−B success **tie** (declared may near-tie); C−B passes `9.0000±0.0000`; C−B abs_err `-8.507e-5±2.293e-5` small (not pre-declared). bimodal: the declared B loss did **not** hold as a consistent gap — C−B success `0.2000±0.2592` **near-tie**, and B−A success `0.5000±0.3062` is clear in B's favour. language: D−B follow_err `-0.4000±0.0713`, **clear**, 5/5 (declared loss held, kept). k1: B−A passes `-1.0000±0.0000` (held). Alternatives tolerance 0.002 / 0.005, noise 0.01, bimodal 11 demos printed; none replaced the defaults. Code change after the first run: integer-count formatting only, no value changed. ≠ ChatVLA / SimpleVLA-RL. 76.5→97.1 % / 26× / 43× 以论文为准; 7B / LIBERO / ALOHA / GPU 本页未运行. / OpenVLA-OFT 并行解码 + 连续 L1，论文数字以论文为准。
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
 
 ## Batch-19 PR3 / 本月 H6 (+210)
 

@@ -26,3 +26,12 @@ HybridVLA 式协同动作集成（arXiv 2503.10631 第 3.3 节）：一个 AR �
 ```bash
 python3 hybridvla_action_ensemble_toy.py
 ```
+
+## flare_future_latent_alignment_toy.py
+
+FLARE-style future latent alignment (arXiv 2505.15659, eqs 2–3) as a linear stand-in: action loss only vs action loss + λ·(−cos) between future tokens and a frozen embedding of the future observation (λ = 0.2, the paper's value) vs λ = 2.0; two regimes (delayed with action-free samples, reactive), five seeds, common random numbers, full-batch gradient descent. Checked by `examples/month-6/check.sh`. GR00T N1 / RoboCasa / GR-1 / GPU are not run here; paper numbers are per the paper. Not CogACT, not HybridVLA, not InternVLA-A1's explicit foresight.
+FLARE 式未来潜变量对齐（arXiv 2505.15659 式 2–3）的线性替身：仅动作损失 vs 动作损失 + λ·(−cos)（未来 token 与未来观测冻结嵌入的余弦，λ = 0.2 为论文取值）vs λ = 2.0；两种情形（含无动作样本的 delayed、reactive），5 个种子，共用随机数，全批量梯度下降。由 `examples/month-6/check.sh` 核对。GR00T N1 / RoboCasa / GR-1 / GPU 本页未运行；论文数字以论文为准。不是 CogACT、HybridVLA，也不是 InternVLA-A1 的显式预见。
+
+```bash
+python3 flare_future_latent_alignment_toy.py
+```
