@@ -6638,6 +6638,40 @@ export const resources: Record<string, Resource> = {
     license: { zh: "内部报告，© 原作者；仅提供存档外链", en: "Internal report, © author; archived external link only" },
     extra: true,
   },
+  "flare-paper": {
+    id: "flare-paper",
+    url: "https://arxiv.org/abs/2505.15659",
+    title: {
+      zh: "FLARE：用隐式世界建模做机器人学习",
+      en: "FLARE: Robot Learning with Implicit World Modeling",
+    },
+    author: "Ruijie Zheng, Jing Wang, Scott Reed, Johan Bjorck, Yu Fang, Fengyuan Hu, Joel Jang, Kaushil Kundalia, Zongyu Lin, Loic Magne, Avnish Narayan, You Liang Tan, Guanzhi Wang, Qi Wang, Jiannan Xiang, Yinzhen Xu, Seonghyeon Ye, Jan Kautz, Furong Huang, Yuke Zhu, Linxi Fan",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已读摘要页（21 位作者按 arXiv 顺序）、HTML 与 PDF 正文（v1，HTTP 200，2026-11-13）。在流匹配 DiT 策略的输入里加 M 个可学习未来 token，取第 L 层这些 token 的激活经 MLP 投影，与未来观测的冻结视觉-语言嵌入做余弦对齐：L_align = −E[cos(f_θ, g(φ_{t+H}))]，L = L_fm + λ L_align（式 2–3），λ = 0.2；损失加在 8 层中的第 6 层，过早（第 4 层）明显变差；无动作标签的人类视频只用对齐损失。表 2：无 FLARE 损失 43.9 %、SigLIP2 49.6 %、平均池化 SigLIP2 50.9 %、动作感知嵌入 55.0 %；摘要称最多高 26 %。全部以论文为准；GPU / RoboCasa / GR-1 本页未运行。",
+      en: "Abstract page (21 authors in arXiv order), HTML and PDF body read (v1, HTTP 200, 2026-11-13). Adds M learnable future tokens to a flow-matching DiT policy, slices their activations at layer L, projects them with an MLP and cosine-aligns them with a frozen vision-language embedding of the future observation: L_align = −E[cos(f_θ, g(φ_{t+H}))], L = L_fm + λ L_align (eqs 2–3), λ = 0.2; applied at layer 6 of 8, with a notable drop when applied too early (layer 4); action-free human videos use the alignment loss alone. Table 2: no FLARE loss 43.9 %, SigLIP2 49.6 %, average-pooled SigLIP2 50.9 %, action-aware embedding 55.0 %; the abstract claims up to 26 %. All 以论文为准; GPU / RoboCasa / GR-1 本页未运行.",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
+  "openvla-oft-pdf": {
+    id: "openvla-oft-pdf",
+    url: "https://arxiv.org/pdf/2502.19645",
+    title: {
+      zh: "微调视觉-语言-动作模型：优化速度与成功率（OpenVLA-OFT，PDF）",
+      en: "Fine-Tuning Vision-Language-Action Models: Optimizing Speed and Success (PDF)",
+    },
+    author: "Moo Jin Kim, Chelsea Finn, Percy Liang",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已读摘要页（3 位作者按 arXiv 顺序）、HTML 与 PDF 正文（v2，HTTP 200，2026-11-13）。OFT 配方 = 并行解码（空动作嵌入 + 双向注意力，一次前向）+ 动作块 + 连续动作 + L1 回归；OpenVLA 原本是 256 个均匀分箱的离散 token、自回归逐个预测，块长 K、维数 D 时需 KD 次串行前向。并行解码「理论上可能表达力较弱」，但实验中未见性能下降；L1 与扩散微调「表现相当」，扩散推理要多步去噪。LIBERO 平均 76.5 % → 97.1 %、8 步块 26× 吞吐、OFT+（加 FiLM）在 ALOHA 上 43×，去掉 FiLM 时语言跟随降到随机水平。全部以论文为准；7B 模型 / GPU / LIBERO / ALOHA 本页未运行。",
+      en: "Abstract page (3 authors in arXiv order), HTML and PDF body read (v2, HTTP 200, 2026-11-13). The OFT recipe = parallel decoding (empty action embeddings + bidirectional attention, one forward pass) + action chunking + continuous actions + L1 regression; base OpenVLA predicts 256-bin uniformly discretised tokens autoregressively, so a chunk of K steps and D dims costs KD sequential passes. Parallel decoding \"may theoretically be less expressive\" but showed no degradation in their experiments; L1 \"yields comparable performance\" to diffusion fine-tuning, while diffusion needs several denoising steps at inference. LIBERO average 76.5 % → 97.1 %, 26× throughput with 8-step chunks, OFT+ (adds FiLM) 43× on ALOHA, and language following drops to chance without FiLM. All 以论文为准; the 7B model / GPU / LIBERO / ALOHA 本页未运行.",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

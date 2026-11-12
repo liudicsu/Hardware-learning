@@ -1131,6 +1131,576 @@ Naive joint training never beats B on either metric here; the proposal allowed f
 4. Change C's interleaving from 3:1 to 1:1 with seeds fixed. Predict C−B control and VQA in `conflict` before you run, then make the toy print the lines you quote.
 5. Before a real VLA fine-tune (本页未运行), write how you would measure forgetting: which VQA benchmark, which control tasks, how many trials, and what counts as a regression.
 
+## OpenVLA-OFT: parallel decoding, action chunks and a continuous L1 head
+
+<Resource id="openvla-oft-pdf" />
+
+The ChatVLA section above is about **what** a fine-tuned VLA keeps (robot control versus VQA). This section is about **how the actions come out** of the fine-tuned model. The source is *Fine-Tuning Vision-Language-Action Models: Optimizing Speed and Success* by Moo Jin Kim, Chelsea Finn and Percy Liang (arXiv 2502.19645; abstract page, HTML and PDF v2 read; the three authors in arXiv order). OpenVLA-OFT is the paper's instantiation of its **Optimized Fine-Tuning** recipe on OpenVLA.
+
+What the paper says, and what this section keeps. Base OpenVLA turns each action dimension, normalised to [−1, +1], into one of **256 uniform bins** and predicts the tokens **autoregressively**, so a chunk of K steps with D dimensions costs K·D sequential decoder passes. The recipe replaces that with four pieces: **parallel decoding** (empty action embeddings and a bidirectional attention mask, so the whole chunk comes out in **one** forward pass), **action chunking**, **continuous** actions, and a simple **L1 regression** head. The authors note that parallel decoding "may theoretically be less expressive" than autoregression but showed no performance degradation in their experiments, and that L1 "yields comparable performance" to diffusion-based fine-tuning while a diffusion head still needs several denoising steps at inference. They report LIBERO average success going from 76.5 % to 97.1 % and 26× action-generation throughput with 8-step chunks; **OFT+** adds FiLM for language grounding, reaches 43× throughput with 25-step chunks on the bimanual ALOHA robot, and without FiLM its language following drops to chance. All of these are **以论文为准** and none is a toy output. The 7B model, LoRA, the GPU, LIBERO and ALOHA: **本页未运行**.
+
+This section is **not** ChatVLA's phased alignment and mixture of experts (above), **not** SimpleVLA-RL (which starts from the OFT family and is taught in the VLA RL fine-tuning lesson), **not** VLA-Adapter and **not** NORA or FAST+ tokens.
+
+<Formula label="Forward passes per action chunk (paper Section IV)">autoregressive discrete tokens: K · D passes;   parallel decoding: 1 pass;   a diffusion head: one pass per denoising step</Formula>
+
+**Worked example — labelled hand calculations, printed by the toy.** 256 bins on [−1, 1] are 2/256 = 0.0078 wide, so rounding to a bin centre can be off by up to half a bin, 0.0039. A chunk of K = 8 steps and D = 2 dimensions costs 8 × 2 = 16 autoregressive passes against 1 parallel pass, 16× fewer in this toy (the paper's 26× is measured as throughput on a GPU and is 以论文为准); the toy's diffusion head takes 10 passes. With ten bimodal demonstrations split 5–5, the median sits between the modes, and that split has probability C(10, 5) / 2¹⁰ = 0.2461. In the language regime a (cell, instruction) pair that disagrees with the visual cue has no demonstration at all with probability 0.9000¹⁰ = 0.3487.
+
+**No physics integration here.** Every arm is a closed-form lookup fitted to demonstrations; nothing is stepped in time.
+
+### Fair setup
+
+`openvla_oft_parallel_l1_toy.py` is **synthetic** and stdlib only. **Model assumptions:** the observation is one of 8 cells plus an instruction bit, and every arm is a **per-cell lookup** fitted to that cell's 10 demonstrations, a perfect-capacity stand-in so that only the action representation and the decoding differ. An action chunk is K = 8 steps × 2 dimensions. The autoregressive arm takes the most frequent bin **for each token separately**; a real autoregressive decoder conditions each token on the earlier ones, so on bimodal demonstrations this arm is a pessimistic stand-in. It is not the 7B OpenVLA and not a LoRA fine-tune. These are **declared toy parameters**.
+
+| Arm | Action head | Passes per chunk |
+|---|---|---|
+| A_ar_256bin | most frequent 256-bin token per value, decoded at the bin centre | K · D |
+| B_oft_l1 | median per value (the L1 minimiser), continuous | 1 |
+| C_diffusion | 10 kernel-score denoising steps toward the cell's demonstration chunks | 10 |
+| D_oft_film | like B, but looked up per (cell, instruction): the OFT+ / FiLM idea | 1 |
+
+**Common random numbers:** for each (regime, seed) the demonstrations are drawn once and shared by all four arms; the diffusion head's own noise comes from a fixed per-seed stream. Five seeds. Metrics: mean absolute action error, success (every value of the chunk within the tolerance), follow error in the language regime, and forward passes per chunk, as mean±sd over seeds.
+
+| Regime | Demonstrations | What was pre-declared |
+|---|---|---|
+| unimodal | one true chunk per cell plus 0.002 noise; success needs every value within 0.003 | B **consistent** better than A on error and on passes; B vs C **may** near-tie on success while C **consistent** costs more passes |
+| bimodal | each demonstration is all left (−0.5) or all right (+0.5) | B **can** average the modes and lose to C (and A) (**keep**) |
+| language | the instruction says left or right and agrees with a cell-parity cue in 90 % of demonstrations | B, without the instruction, **consistent** higher follow error than D (**keep**) |
+| k1 | unimodal with K = 1 | B vs A passes differ only by D |
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-8/vla-finetune
+python3 openvla_oft_parallel_l1_toy.py
+```
+
+<CodeSource path="examples/month-8/vla-finetune/openvla_oft_parallel_l1_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""OpenVLA-OFT action-token toy: 256-bin autoregressive tokens vs a parallel L1 continuous action chunk vs a small diffusion head.
+
+A stdlib stand-in for the fine-tuning recipe of "Fine-Tuning Vision-Language-Action
+Models: Optimizing Speed and Success" (OpenVLA-OFT; Moo Jin Kim, Chelsea Finn,
+Percy Liang; arXiv 2502.19645): discrete 256-bin action tokens decoded
+autoregressively, versus parallel decoding of a continuous action chunk trained
+with an L1 loss, versus a small diffusion action head.
+
+This is a stdlib stand-in, not the 7B OpenVLA model and not a LoRA fine-tune:
+the paper's 97.1 % and 26x are 以论文为准, not toy outputs.  GPU / LIBERO /
+ALOHA: 本页未运行.  Not ChatVLA, not SimpleVLA-RL.
+
+Stand-in model.  The observation is a cell index c in 0..NCELL-1 (NCELL=8) plus
+an instruction bit l in {0,1}.  Every arm is a per-cell lookup fitted to the
+demos in that cell (a perfect-capacity stand-in, so that only the action
+representation and the decoding differ, not the model capacity).  An action
+chunk has K steps x DA=2 dims, each value in [-1,1].
+  A_ar_256bin : tokenise every demo value into 256 uniform bins on [-1,1] (bin
+                width 2/256); per cell and per (step, dim) take the most frequent
+                bin (ties -> lowest bin index) and decode its centre.  Forward
+                passes per chunk = K*DA (one per token, autoregressive).
+  B_oft_l1    : per cell and per (step, dim) the median of the demo values (the
+                minimiser of L1; for an even count the mean of the two middle
+                values).  Forward passes per chunk = 1 (parallel decoding).
+  C_diffusion : per cell, start from x ~ gauss(0,1) per value and run T_DIFF=10
+                denoising steps toward the demo set with a kernel score: at step
+                i (sigma_i = 1.0 * (0.02/1.0)**(i/(T_DIFF-1))) replace x by the
+                softmax(-|x - d|^2 / (2 sigma_i^2))-weighted mean of the cell's
+                demo chunks d (whole-chunk distance), then add gauss(0,
+                sigma_i*0.1) except after the last step.  Forward passes =
+                T_DIFF.  Its random draws come from random.Random(5000+seed) and
+                are consumed in a fixed order (cells in order, then steps in
+                order, the noise of a step drawn after that step's update).
+  D_oft_film  : like B but the lookup is per (cell, instruction) pair
+                (language-conditioned, the OFT+ / FiLM idea); it differs from B
+                only in the "language" regime and falls back to the per-cell
+                median if a (cell, instruction) pair has no demo.
+
+Common random numbers: for each (regime, seed) the demos are drawn once from
+random.Random(seed*100 + regime_index) and shared by every arm; the test set is
+one query per cell (and per instruction where relevant).
+
+Regimes and parameters were written before the first run:
+  unimodal : per cell a true chunk mu_c[k][j] = U[-0.8, 0.8] fixed per cell,
+             demo = mu + gauss(0, NOISE) per value.  Metrics: abs_err = mean
+             |pred - mu| over all values and cells, success = fraction of cells
+             whose chunk has max |pred - mu| < SUCCESS_TOL, passes = forward
+             passes per chunk.
+  bimodal  : per cell each demo goes left (all values = -0.5 + gauss(0,0.01))
+             or right (+0.5 + gauss(0,0.01)) with probability 1/2.  Metric:
+             success = fraction of cells whose predicted chunk has every value
+             within MODE_TOL of -0.5 or every value within MODE_TOL of +0.5.
+  language : l=0 means "left" (target chunk all -0.5) and l=1 "right" (+0.5);
+             the instruction agrees with a visual cue (cue = cell parity, even
+             cells -> left) in 90 % of demos; the action follows l plus
+             gauss(0,0.01).  At test every cell is queried with BOTH
+             instructions.  Metric: follow_err = fraction of the 2*NCELL queries
+             whose predicted chunk mean has the wrong sign for the instruction
+             (a mean of exactly 0 counts as wrong for both instructions).
+  k1       : as unimodal but K=1 (a single step).  Metrics: abs_err, passes.
+
+Pairs: B-A, C-B, D-B on every metric of every regime, on the per-seed values
+(first minus second).  passes is deterministic, so its verdict shows plainly.
+Pre-declared expectations (printed, not tuned): unimodal -> B consistently
+better than A on abs_err and on passes, and B vs C may near-tie on success while
+C consistently costs more passes; bimodal -> B can average the modes and lose to
+C (and A); language -> B (no language conditioning) consistently higher
+follow_err than D; k1 -> the passes of B vs A differ only by DA.
+"""
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+
+# Declared constants, written before the first run.
+NCELL = 8
+K = 8
+DA = 2
+N_DEMO = 10
+NOISE = 0.002
+SUCCESS_TOL = 0.003
+MODE_TOL = 0.1
+T_DIFF = 10
+NBIN = 256
+BIN_W = 2.0 / NBIN
+SIGMA_MAX = 1.0
+SIGMA_MIN = 0.02
+MU_RANGE = 0.8        # unimodal per-cell true chunk, U[-0.8, 0.8]
+MODE_VALUE = 0.5      # bimodal / language targets, +-0.5
+FIT_NOISE = 0.01      # demo noise in the bimodal and language regimes
+CUE_AGREE = 0.9       # language: the instruction agrees with the cell-parity cue
+DIFF_SEED_BASE = 5000  # the diffusion head's random.Random(5000 + seed)
+
+ARMS = ("A_ar_256bin", "B_oft_l1", "C_diffusion", "D_oft_film")
+REGIMES = ("unimodal", "bimodal", "language", "k1")
+REGIME_INDEX = {r: i for i, r in enumerate(REGIMES)}
+REGIME_METRICS = {
+    "unimodal": ("abs_err", "success", "passes"),
+    "bimodal": ("success", "passes"),
+    "language": ("follow_err", "passes"),
+    "k1": ("abs_err", "passes"),
+}
+METRIC_UNIT = {"abs_err": "", "success": " frac", "follow_err": " frac", "passes": " fwd/chunk"}
+PAIRS = (("B_oft_l1", "A_ar_256bin"), ("C_diffusion", "B_oft_l1"), ("D_oft_film", "B_oft_l1"))
+DECLARED = {
+    "unimodal": "declared: B consistently better than A on abs_err and on passes; B vs C may near-tie on success while C consistently costs more passes",
+    "bimodal": "declared: B can average the modes and lose to C (and A)",
+    "language": "declared: B (no language conditioning) consistently higher follow_err than D",
+    "k1": "declared: the passes of B vs A differ only by DA",
+}
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0  # identical values: no floating residue in mean or sd
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    """Half-up rounding on the shortest decimal repr; tiny non-zero values in scientific form."""
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def k_steps_of(regime):
+    return 1 if regime == "k1" else K
+
+
+def passes_of(arm, k_steps):
+    if arm == "A_ar_256bin":
+        return float(k_steps * DA)
+    if arm == "C_diffusion":
+        return float(T_DIFF)
+    return 1.0
+
+
+def gen_demos(regime, seed, n_demo=N_DEMO, noise=NOISE):
+    """Common random numbers: one draw per (regime, seed), shared by every arm."""
+    rng = random.Random(seed * 100 + REGIME_INDEX[regime])
+    k_steps, n = k_steps_of(regime), k_steps_of(regime) * DA
+    cells = []
+    for c in range(NCELL):
+        mu = None
+        if regime in ("unimodal", "k1"):
+            mu = [rng.uniform(-MU_RANGE, MU_RANGE) for _ in range(n)]
+        chunks, labels = [], []
+        for _ in range(n_demo):
+            if regime in ("unimodal", "k1"):
+                chunk = [mu[q] + rng.gauss(0.0, noise) for q in range(n)]
+                label = 0
+            elif regime == "bimodal":
+                side = -MODE_VALUE if rng.random() < 0.5 else MODE_VALUE
+                chunk = [side + rng.gauss(0.0, FIT_NOISE) for _ in range(n)]
+                label = 0
+            else:  # language
+                cue = c % 2
+                label = cue if rng.random() < CUE_AGREE else 1 - cue
+                target = -MODE_VALUE if label == 0 else MODE_VALUE
+                chunk = [target + rng.gauss(0.0, FIT_NOISE) for _ in range(n)]
+            chunks.append(chunk)
+            labels.append(label)
+        cells.append({"mu": mu, "chunks": chunks, "labels": labels})
+    return cells
+
+
+def bin_index(v):
+    b = int(math.floor((v + 1.0) / BIN_W))
+    return 0 if b < 0 else (NBIN - 1 if b > NBIN - 1 else b)
+
+
+def bin_centre(b):
+    return -1.0 + (b + 0.5) * BIN_W
+
+
+def median_pred(chunks, n):
+    """Per (step, dim) the median of the demo values: the minimiser of the L1 loss."""
+    out = []
+    for q in range(n):
+        vals = sorted(d[q] for d in chunks)
+        m = len(vals)
+        out.append(vals[m // 2] if m % 2 else 0.5 * (vals[m // 2 - 1] + vals[m // 2]))
+    return out
+
+
+def arm_a_pred(cell, n):
+    """Most frequent 256-bin token per (step, dim), ties -> lowest bin index; decode its centre."""
+    out = []
+    for q in range(n):
+        counts = [0] * NBIN
+        for d in cell["chunks"]:
+            counts[bin_index(d[q])] += 1
+        best = 0
+        for b in range(1, NBIN):
+            if counts[b] > counts[best]:
+                best = b
+        out.append(bin_centre(best))
+    return out
+
+
+def arm_c_pred(cells, n, seed):
+    """Kernel-score denoising toward the cell's demo chunks; draws from random.Random(5000+seed) in a fixed order."""
+    rng = random.Random(DIFF_SEED_BASE + seed)
+    out = []
+    for cell in cells:
+        chunks = cell["chunks"]
+        x = [rng.gauss(0.0, 1.0) for _ in range(n)]
+        for i in range(T_DIFF):
+            sigma = SIGMA_MAX * (SIGMA_MIN / SIGMA_MAX) ** (i / (T_DIFF - 1))
+            dists = [sum((x[q] - d[q]) ** 2 for q in range(n)) for d in chunks]
+            low = min(dists)
+            exps = [math.exp(-(dd - low) / (2.0 * sigma * sigma)) for dd in dists]
+            tot = sum(exps)
+            x = [sum(w * d[q] for w, d in zip(exps, chunks)) / tot for q in range(n)]
+            if i < T_DIFF - 1:
+                x = [x[q] + rng.gauss(0.0, sigma * 0.1) for q in range(n)]
+        out.append(x)
+    return out
+
+
+def arm_d_pred(cell, n):
+    """Per (cell, instruction) lookup; fall back to the per-cell median when a pair has no demo."""
+    fallback = median_pred(cell["chunks"], n)
+    out = {}
+    for l in (0, 1):
+        sel = [ch for ch, lab in zip(cell["chunks"], cell["labels"]) if lab == l]
+        out[l] = median_pred(sel, n) if sel else list(fallback)
+    return out
+
+
+def predict_arm(arm, cells, k_steps, seed):
+    n = k_steps * DA
+    if arm == "A_ar_256bin":
+        base = [arm_a_pred(cell, n) for cell in cells]
+    elif arm == "B_oft_l1":
+        base = [median_pred(cell["chunks"], n) for cell in cells]
+    elif arm == "C_diffusion":
+        base = arm_c_pred(cells, n, seed)
+    else:
+        base = [arm_d_pred(cell, n) for cell in cells]
+    out = []
+    for c in range(NCELL):
+        out.append({l: (base[c][l] if arm == "D_oft_film" else list(base[c])) for l in (0, 1)})
+    return out
+
+
+def evaluate(arm, regime, seed, cells, k_steps, success_tol=SUCCESS_TOL):
+    preds = predict_arm(arm, cells, k_steps, seed)
+    if regime in ("unimodal", "k1"):
+        total_err, good = 0.0, 0
+        for c, cell in enumerate(cells):
+            mu, p = cell["mu"], preds[c][0]
+            errs = [abs(p[q] - mu[q]) for q in range(k_steps * DA)]
+            total_err += sum(errs) / len(errs)
+            if max(errs) < success_tol:
+                good += 1
+        return {"abs_err": total_err / NCELL, "success": good / NCELL, "passes": passes_of(arm, k_steps)}
+    if regime == "bimodal":
+        good = 0
+        for c in range(NCELL):
+            p = preds[c][0]
+            left = all(abs(v + MODE_VALUE) < MODE_TOL for v in p)
+            right = all(abs(v - MODE_VALUE) < MODE_TOL for v in p)
+            if left or right:
+                good += 1
+        return {"success": good / NCELL, "passes": passes_of(arm, k_steps)}
+    wrong, total = 0, 0
+    for c in range(NCELL):
+        for l in (0, 1):
+            p = preds[c][l]
+            m = sum(p) / len(p)
+            sign = 1 if m > 0.0 else (-1 if m < 0.0 else 0)
+            want = -1 if l == 0 else 1
+            if sign != want:
+                wrong += 1
+            total += 1
+    return {"follow_err": wrong / total, "passes": passes_of(arm, k_steps)}
+
+
+def collect(regime, n_demo=N_DEMO, noise=NOISE, success_tol=SUCCESS_TOL):
+    demos = {s: gen_demos(regime, s, n_demo=n_demo, noise=noise) for s in SEEDS}
+    k_steps = k_steps_of(regime)
+    return {arm: [evaluate(arm, regime, s, demos[s], k_steps, success_tol) for s in SEEDS]
+            for arm in ARMS}
+
+
+def col(rows, key):
+    return [x[key] for x in rows]
+
+
+def regime_note(regime, demos):
+    if regime in ("unimodal", "k1"):
+        vals = []
+        for s in SEEDS:
+            worst = 0.0
+            for cell in demos[s]:
+                mu = cell["mu"]
+                for d in cell["chunks"]:
+                    worst = max(worst, max(abs(d[q] - mu[q]) for q in range(len(mu))))
+            vals.append(worst)
+        return "  per-seed max |demo - mu| over all cells: " + " ".join(num(v) for v in vals)
+    if regime == "bimodal":
+        vals = []
+        for s in SEEDS:
+            even = 0
+            for cell in demos[s]:
+                left = sum(1 for d in cell["chunks"] if d[0] < 0.0)
+                if 2 * left == len(cell["chunks"]):
+                    even += 1
+            vals.append(even)
+        return "  per-seed cells with an even left/right split (the median collapses): " + " ".join(str(v) for v in vals)
+    vals = []
+    for s in SEEDS:
+        empty = 0
+        for c, cell in enumerate(demos[s]):
+            for l in (0, 1):
+                if l != c % 2 and not any(lab == l for lab in cell["labels"]):
+                    empty += 1
+        vals.append(empty)
+    return "  per-seed empty mismatched (cell,instruction) pairs (D falls back to the per-cell median): " + " ".join(str(v) for v in vals)
+
+
+def report(regime):
+    res = collect(regime)
+    demos = {s: gen_demos(regime, s) for s in SEEDS}
+    metrics = REGIME_METRICS[regime]
+    if regime == "unimodal":
+        head = (f"unimodal (per-cell true chunk mu ~ U[-{num(MU_RANGE)}, {num(MU_RANGE)}] fixed per cell; "
+                f"demo = mu + N(0,{num(NOISE)}); success tol {num(SUCCESS_TOL)} on max |pred - mu| per cell):")
+    elif regime == "bimodal":
+        head = (f"bimodal (each demo is all -{num(MODE_VALUE)} + N(0,{num(FIT_NOISE)}) or all +{num(MODE_VALUE)} + "
+                f"N(0,{num(FIT_NOISE)}) with probability 1/2; success tol {num(MODE_TOL)} on every value):")
+    elif regime == "language":
+        head = (f"language (l=0 'left' = all -{num(MODE_VALUE)}, l=1 'right' = all +{num(MODE_VALUE)}; the instruction "
+                f"matches the cell-parity cue in {int(CUE_AGREE * 100)} % of demos; every cell queried with both instructions):")
+    else:
+        head = (f"k1 (as unimodal with K=1: a single step x {DA} dims; demo = mu + N(0,{num(NOISE)}); "
+                f"success tol {num(SUCCESS_TOL)} on max |pred - mu| per cell):")
+    print(head)
+    print("  " + DECLARED[regime])
+    print(regime_note(regime, demos))
+    for arm in ARMS:
+        print(f"  {arm} " + " ".join(
+            f"{key} {fmt_pair(*mean_sd(col(res[arm], key)))}{METRIC_UNIT[key]}" for key in metrics))
+    for a, b in PAIRS:
+        for key in metrics:
+            print(f"  paired {a[0]}-{b[0]} {key}: {verdict(col(res[a], key), col(res[b], key))}")
+    return res
+
+
+def main():
+    print("OpenVLA-OFT action-token toy; 256-bin autoregressive tokens vs a parallel L1 continuous chunk vs a small diffusion head; stdlib stand-in, not the 7B OpenVLA / LoRA model")
+    print(f"seeds={len(SEEDS)} cells={NCELL} K={K} DA={DA} demos/cell={N_DEMO} bins={NBIN} noise={num(NOISE)} "
+          f"success_tol={num(SUCCESS_TOL)} mode_tol={num(MODE_TOL)} T_DIFF={T_DIFF} (declared toy parameters, not the paper's)")
+    print(f"Action chunk: {K} steps x {DA} dims, each value in [-1,1]; every arm is a per-cell lookup fitted to that cell's demos (perfect-capacity stand-in), so only the action representation and the decoding differ")
+    print("Common random numbers: the demos of each (regime, seed) are drawn once from random.Random(seed*100+regime_index) and shared by every arm; the diffusion head draws from random.Random(5000+seed) in a fixed order")
+    print("Regimes and parameters were written before the first run")
+    # Labelled hand calculations.
+    print(f"hand_calc binning: {NBIN} uniform bins on [-1,1] -> bin width 2/{NBIN}={num(BIN_W)}; worst-case quantisation error half a bin={num(BIN_W / 2)}")
+    print(f"hand_calc forward passes: AR tokens K*DA={K}*{DA}={K * DA} (one per token, autoregressive) vs parallel L1 1 "
+          f"({K * DA}x fewer passes in this toy; the paper's 26x is 以论文为准 and measured differently) vs diffusion steps {T_DIFF}")
+    print(f"hand_calc bimodal: with a 5-5 left/right split the median of {N_DEMO} demos sits between the modes, "
+          f"~(-{num(MODE_VALUE)}+{num(MODE_VALUE)})/2={num(0.0)}, outside MODE_TOL={num(MODE_TOL)} of both; "
+          f"P(even split)=C({N_DEMO},5)/2^{N_DEMO}={num(math.comb(N_DEMO, 5) / 2.0 ** N_DEMO)}")
+    print(f"hand_calc language: a mismatched (cell,instruction) pair holds no demo with prob {num(CUE_AGREE)}^{N_DEMO}={num(CUE_AGREE ** N_DEMO)} "
+          f"(D falls back to the per-cell median there); B has no instruction input at all, so it can only follow the cell-parity cue")
+    for regime in REGIMES:
+        report(regime)
+    print("alternatives (post-hoc checks of the declared tolerances, noise and demo count; same seeds, declared before the run, not adopted):")
+    for tol in (0.002, 0.005):
+        alt = collect("unimodal", success_tol=tol)
+        print(f"  unimodal SUCCESS_TOL={num(tol)}: paired B-A success@alt: {verdict(col(alt['B_oft_l1'], 'success'), col(alt['A_ar_256bin'], 'success'))}")
+    alt = collect("unimodal", noise=0.01)
+    print(f"  unimodal NOISE={num(0.01)}: paired B-A abs_err@alt: {verdict(col(alt['B_oft_l1'], 'abs_err'), col(alt['A_ar_256bin'], 'abs_err'))}")
+    alt = collect("bimodal", n_demo=11)
+    print(f"  bimodal N_DEMO=11: paired C-B success@alt: {verdict(col(alt['C_diffusion'], 'success'), col(alt['B_oft_l1'], 'success'))}")
+    print("No universal winner: parallel L1 is precise and cheap on unimodal chunks, averages bimodal demos, and ignores an instruction it is not conditioned on")
+    print("7B OpenVLA / LoRA / LIBERO / ALOHA / GPU: 本页未运行; OpenVLA-OFT paper numbers 以论文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+OpenVLA-OFT action-token toy; 256-bin autoregressive tokens vs a parallel L1 continuous chunk vs a small diffusion head; stdlib stand-in, not the 7B OpenVLA / LoRA model
+seeds=5 cells=8 K=8 DA=2 demos/cell=10 bins=256 noise=0.0020 success_tol=0.0030 mode_tol=0.1000 T_DIFF=10 (declared toy parameters, not the paper's)
+Action chunk: 8 steps x 2 dims, each value in [-1,1]; every arm is a per-cell lookup fitted to that cell's demos (perfect-capacity stand-in), so only the action representation and the decoding differ
+Common random numbers: the demos of each (regime, seed) are drawn once from random.Random(seed*100+regime_index) and shared by every arm; the diffusion head draws from random.Random(5000+seed) in a fixed order
+Regimes and parameters were written before the first run
+hand_calc binning: 256 uniform bins on [-1,1] -> bin width 2/256=0.0078; worst-case quantisation error half a bin=0.0039
+hand_calc forward passes: AR tokens K*DA=8*2=16 (one per token, autoregressive) vs parallel L1 1 (16x fewer passes in this toy; the paper's 26x is 以论文为准 and measured differently) vs diffusion steps 10
+hand_calc bimodal: with a 5-5 left/right split the median of 10 demos sits between the modes, ~(-0.5000+0.5000)/2=0.0000, outside MODE_TOL=0.1000 of both; P(even split)=C(10,5)/2^10=0.2461
+hand_calc language: a mismatched (cell,instruction) pair holds no demo with prob 0.9000^10=0.3487 (D falls back to the per-cell median there); B has no instruction input at all, so it can only follow the cell-parity cue
+unimodal (per-cell true chunk mu ~ U[-0.8000, 0.8000] fixed per cell; demo = mu + N(0,0.0020); success tol 0.0030 on max |pred - mu| per cell):
+  declared: B consistently better than A on abs_err and on passes; B vs C may near-tie on success while C consistently costs more passes
+  per-seed max |demo - mu| over all cells: 0.0071 0.0067 0.0073 0.0059 0.0067
+  A_ar_256bin abs_err 0.0021+-1.541e-4 success 0.0000+-0.0000 frac passes 16.0000+-0.0000 fwd/chunk
+  B_oft_l1 abs_err 0.0006+-4.008e-5 success 1.0000+-0.0000 frac passes 1.0000+-0.0000 fwd/chunk
+  C_diffusion abs_err 0.0005+-3.880e-5 success 1.0000+-0.0000 frac passes 10.0000+-0.0000 fwd/chunk
+  D_oft_film abs_err 0.0006+-4.008e-5 success 1.0000+-0.0000 frac passes 1.0000+-0.0000 fwd/chunk
+  paired B-A abs_err: -0.0015+-1.281e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A passes: -15.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B abs_err: -8.507e-5+-2.293e-5: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B passes: 9.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-B abs_err: 0.0000+-0.0000: tie: identical on every seed
+  paired D-B success: 0.0000+-0.0000: tie: identical on every seed
+  paired D-B passes: 0.0000+-0.0000: tie: identical on every seed
+bimodal (each demo is all -0.5000 + N(0,0.0100) or all +0.5000 + N(0,0.0100) with probability 1/2; success tol 0.1000 on every value):
+  declared: B can average the modes and lose to C (and A)
+  per-seed cells with an even left/right split (the median collapses): 5 2 0 1 0
+  A_ar_256bin success 0.3000+-0.0685 frac passes 16.0000+-0.0000 fwd/chunk
+  B_oft_l1 success 0.8000+-0.2592 frac passes 1.0000+-0.0000 fwd/chunk
+  C_diffusion success 1.0000+-0.0000 frac passes 10.0000+-0.0000 fwd/chunk
+  D_oft_film success 0.8000+-0.2592 frac passes 1.0000+-0.0000 fwd/chunk
+  paired B-A success: 0.5000+-0.3062: clear gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+  paired B-A passes: -15.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: 0.2000+-0.2592: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 2 of 5 equal
+  paired C-B passes: 9.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-B success: 0.0000+-0.0000: tie: identical on every seed
+  paired D-B passes: 0.0000+-0.0000: tie: identical on every seed
+language (l=0 'left' = all -0.5000, l=1 'right' = all +0.5000; the instruction matches the cell-parity cue in 90 % of demos; every cell queried with both instructions):
+  declared: B (no language conditioning) consistently higher follow_err than D
+  per-seed empty mismatched (cell,instruction) pairs (D falls back to the per-cell median): 2 2 0 1 3
+  A_ar_256bin follow_err 0.5000+-0.0000 frac passes 16.0000+-0.0000 fwd/chunk
+  B_oft_l1 follow_err 0.5000+-0.0000 frac passes 1.0000+-0.0000 fwd/chunk
+  C_diffusion follow_err 0.5000+-0.0000 frac passes 10.0000+-0.0000 fwd/chunk
+  D_oft_film follow_err 0.1000+-0.0713 frac passes 1.0000+-0.0000 fwd/chunk
+  paired B-A follow_err: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A passes: -15.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B follow_err: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B passes: 9.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-B follow_err: -0.4000+-0.0713: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-B passes: 0.0000+-0.0000: tie: identical on every seed
+k1 (as unimodal with K=1: a single step x 2 dims; demo = mu + N(0,0.0020); success tol 0.0030 on max |pred - mu| per cell):
+  declared: the passes of B vs A differ only by DA
+  per-seed max |demo - mu| over all cells: 0.0072 0.0074 0.0059 0.0061 0.0059
+  A_ar_256bin abs_err 0.0023+-2.082e-4 passes 2.0000+-0.0000 fwd/chunk
+  B_oft_l1 abs_err 0.0007+-7.214e-5 passes 1.0000+-0.0000 fwd/chunk
+  C_diffusion abs_err 0.0006+-5.847e-5 passes 10.0000+-0.0000 fwd/chunk
+  D_oft_film abs_err 0.0007+-7.214e-5 passes 1.0000+-0.0000 fwd/chunk
+  paired B-A abs_err: -0.0016+-2.270e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A passes: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B abs_err: -9.943e-5+-4.960e-5: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B passes: 9.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-B abs_err: 0.0000+-0.0000: tie: identical on every seed
+  paired D-B passes: 0.0000+-0.0000: tie: identical on every seed
+alternatives (post-hoc checks of the declared tolerances, noise and demo count; same seeds, declared before the run, not adopted):
+  unimodal SUCCESS_TOL=0.0020: paired B-A success@alt: 0.9000+-0.1046: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  unimodal SUCCESS_TOL=0.0050: paired B-A success@alt: 0.1500+-0.2054: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 2 of 5 equal
+  unimodal NOISE=0.0100: paired B-A abs_err@alt: -0.0022+-4.498e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  bimodal N_DEMO=11: paired C-B success@alt: 0.0000+-0.0000: tie: identical on every seed
+No universal winner: parallel L1 is precise and cheap on unimodal chunks, averages bimodal demos, and ignores an instruction it is not conditioned on
+7B OpenVLA / LoRA / LIBERO / ALOHA / GPU: 本页未运行; OpenVLA-OFT paper numbers 以论文为准
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used on this page, in this order: **tie: identical on every seed** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when `|paired mean|` and its sd are both below 1e-9 (no sign count is printed on such a line); **near-tie / small gap, within seed noise** when `|paired mean| ≤ sd`; otherwise a **consistent** gap (`|paired mean| > sd`), called **small** if `|m|` is under 20 % of the smaller arm mean and **clear** otherwise. Every consistent line carries a same-sign count over the 5 seeds, and any seed with the opposite sign is reported. Gaps are computed from unrounded values. Forward passes are deterministic, so their sd is 0 and their lines read as clear gaps or ties by construction.
+
+- **unimodal.** **The L1 head beats the 256-bin tokens with a clear gap**, as pre-declared: B−A abs_err -0.0015±1.281e-4, same sign on all 5 seeds (B 0.0006±4.008e-5 against A 0.0021±1.541e-4), B−A success 1.0000±0.0000 and B−A passes -15.0000±0.0000. The worst-case bin rounding, 0.0039, is larger than the 0.003 tolerance, and with 16 values per chunk at least one value in every cell lands outside it. The pre-declared "B vs C may near-tie on success" came out as a **tie** (C−B success identical on every seed), and C costs more passes (C−B passes 9.0000±0.0000). Not pre-declared: C has a **small but consistent** edge on error, C−B abs_err -8.507e-5±2.293e-5, same sign on all 5 seeds. One reading, not a measurement: at its last step the kernel is wider than the demonstration noise, so C returns close to the demonstration **mean**, which beats the median for Gaussian noise.
+- **bimodal.** The pre-declared loss did **not** hold as a consistent gap. C−B success 0.2000±0.2592 is a **near-tie / small gap, within seed noise** (no seed has the opposite sign, 2 of 5 equal): B fails only in cells whose ten demonstrations split exactly 5–5, and the printed counts per seed are 5, 2, 0, 1 and 0 such cells. Against A the declaration went the **other** way: B−A success 0.5000±0.3062 is a **clear gap in B's favour** (no seed has the opposite sign, 1 of 5 equal), because the token-by-token mode arm mixes left and right values inside one chunk. **Keep** both: L1 still averages a tied split, and this toy's A is a pessimistic stand-in for an autoregressive decoder.
+- **language.** **Without the instruction, B loses**, as pre-declared: D−B follow_err -0.4000±0.0713, a **clear gap**, same sign on all 5 seeds (D 0.1000±0.0713 against B 0.5000±0.0000). A, B and C all follow the cell cue and **tie** on follow error; D's remaining errors are the pairs with no matching demonstration, where it falls back to the cell median. **Keep** this: it is the failure the paper's OFT+ adds FiLM for, here as a lookup, not FiLM itself.
+- **k1.** As declared, with one step A needs D = 2 passes and B needs 1 (B−A passes -1.0000±0.0000), and the bin rounding still costs A: B−A abs_err -0.0016±2.270e-4, clear, same sign on all 5 seeds.
+
+**Code change after the first run.** One formatting edit, made before the output was committed: integer counts in five printed lines (the hand-calculation pass counts, the 5–5 split, the 90 % agreement and the two per-seed count lists) were printed as `16.0000`, `5.0000` and so on in the first run and as plain integers now. No parameter, regime, arm or computed value changed; every m±sd and every label is identical to the first run.
+
+**Choices made after seeing results.** None. The success tolerance 0.003, the noise 0.002, the 10 demonstrations per cell, the diffusion schedule and every regime were written before the first run. The printed alternatives use the same seeds: in `unimodal`, a tolerance of 0.002 keeps B ahead (B−A success 0.9000±0.1046, clear) but a tolerance of 0.005 turns it into a **near-tie** (0.1500±0.2054), so the success gap depends on the tolerance while the error gap does not; noise 0.01 keeps B ahead on error (B−A abs_err -0.0022±4.498e-4, clear); in `bimodal`, 11 demonstrations per cell (no 5–5 split possible) make C and B **tie** on success. None replaced the defaults.
+
+The page **does not declare a universal winner**: in this toy the parallel L1 head is precise and cheap on unimodal chunks, can average a tied bimodal split, and ignores an instruction it is not conditioned on. The paper's results come from a 7B model on GPUs (以论文为准; 本页未运行).
+
+**180-minute work plan:** 30 min read Sections III–IV and the ALOHA language-following results; 25 min redo the hand calculations; 50 min run the toy and read the four regimes; 40 min compare the printed tolerance, noise and demo-count alternatives with seeds fixed; 35 min the exercises.
+
+### Exercises
+
+1. From the printed hand calc, confirm the bin width 0.0078, the worst-case rounding 0.0039 and why A cannot meet a 0.003 tolerance on every value of a 16-value chunk.
+2. Show from `gen_demos` and `collect` that all four arms see the same demonstrations for a given regime and seed, and where the diffusion head's own noise comes from.
+3. In `bimodal`, the printed per-seed counts of 5–5 cells are 5, 2, 0, 1 and 0. Use them to explain B's 0.8000 mean success without rerunning anything.
+4. A real autoregressive decoder conditions each token on the earlier ones. Explain why that would change A's bimodal result, and why the toy's A is a pessimistic stand-in.
+5. Before any GPU fine-tune (本页未运行), say how you would decide between an L1 head and a diffusion head for your own demonstrations, and what the `language` regime warns you to check.
+
 <Summary>
 
 Fine-tune practice for VLAs: `smolvla_base` (450M; ~4 h / 20k on A100; Colab if no GPU). Compare ACT vs SmolVLA on Month 6's 20 starts. Read openpi (>8 / >22.5 / >70 GB), GR00T (16 GB+ / 40 GB+), and LeRobot π₀.₅ (80 GB recipe) floors. `compute_budget.py` shows optimistic UNDER estimates against those floors. GPU / Colab / arm paths: 本页未运行.
@@ -1139,4 +1709,5 @@ The RPD-style discrete surrogate compares BC-only, scratch RL and teacher-MSE RL
 
 - Continual ER: no-shift **near-tie / small gap**; under shift ER can cut NBT forget vs sequential (not monotonically with buffer size) at explicit buffer_cap and compute_samples — not a LIBERO claim.
 - ChatVLA-style phased alignment + MoE, a linear stand-in (`chatvla_phased_alignment_toy.py`): when control and VQA compete for features it clearly restores VQA lost to robot-only fine-tuning (paired +40.9500±2.0721, 5/5) and naive 3:1 joint training loses on VQA (−29.6500±3.7442); with aligned tasks the declared near-tie became small consistent gaps — not ChatVLA's benchmarks.
+- OpenVLA-OFT, a per-cell lookup stand-in (`openvla_oft_parallel_l1_toy.py`): the parallel L1 chunk beats 256-bin autoregressive tokens on unimodal error (B−A abs_err -0.0015±1.281e-4, clear, same sign on all 5 seeds) with 1 pass instead of 16, ties a diffusion head on success, does **not** lose consistently on bimodal demos (C−B success 0.2000±0.2592, near-tie) and loses on instructions it ignores (D−B follow_err -0.4000±0.0713, kept) — not OpenVLA-OFT's LIBERO results.
 </Summary>

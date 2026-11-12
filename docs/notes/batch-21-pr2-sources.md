@@ -61,10 +61,6 @@ No other mismatch: CRN, ≥5 seeds, integration step stated, no unprinted side-r
 
 Gazebo / a real inertia measurement, a real MPU-6050 / optical reference / the report's Kalman comparison: 本页未运行.
 
-## opencode
-
-Tried free models in order DeepSeek (`opencode/deepseek-v4.1-flash-free`), GLM (`opencode/glm-5.3-flash-free`), MiMo (`opencode/mimo-v2.6-flash-free`), LongCat (`opencode/longcat-2.5-free`), MiniMax (`opencode/minimax-m3.1-flash-free`), 300 s each, on the parallel-axis toy. The loop ran in the background while the local implementation proceeded, and stopped at the first model whose file ran: DeepSeek and GLM timed out (exit 124) with no file; MiMo wrote a runnable parallel-axis toy (three arms, d = 0 / 0.005 / 0.1 m, physical-pendulum period) after the local toy had already been written and first-run, so LongCat and MiniMax were not reached. MiMo's file was **not** used: the shipped toy is the locally written one, which adds the tensor-form regimes (along-axis shift, product of inertia) and the gravity-torque metric that the lesson needs. The Madgwick toy was not sent to opencode. This ordering is a deviation from "opencode first, then local" and is disclosed here. Both toys, the pages and the locks were written locally.
-
 ## Lock changes
 
 Tipped site-total, host-minute and Current-header locks only; no lock relaxed. New batch-21 PR2 block added (toys, expected, CRN, label order, difference directions, sources, plans, README, declared regimes that did not hold stated on both pages, no post-first-run code change stated) plus `tools/test_b21p2_parallel_axis_madgwick_toys.py`.

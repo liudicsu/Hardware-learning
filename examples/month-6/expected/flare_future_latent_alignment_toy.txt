@@ -1,0 +1,41 @@
+Synthetic FLARE future-latent alignment toy; shared data, frozen G and initial params; action loss + lambda * cosine alignment; not GR00T N1 / SigLIP2 / a DiT
+seeds=5 D=8 K=2 LAMBDA=0.2000 LAMBDA_BIG=2.0000 LR=0.0500 EPOCHS=400 SUCCESS_TOL=0.2500 N_TEST=200 (declared toy parameters; FLARE paper numbers 以论文为准)
+Full-batch gradient descent with exact analytic gradients; W is KxD, v is K, P is KxK; z=P W x is aligned to the frozen G x_future
+Regimes and parameters were written before the first run
+hand_calc alignment weight at cos=1: -LAMBDA=-0.2000; -LAMBDA_BIG=-2.0000
+hand_calc delayed goal/distractor std ratio: current obs 0.3*sqrt(1/3)/1.0=0.1732; future obs 1.0*sqrt(1/3)=0.5774
+delayed (N_LAB=6 labelled, N_VID=60 action-free; hidden goal g, x[0]=0.3g+noise, x_future[0]=1.0g+noise, dims 1..7 distractors):
+  declared: B consistently better than A on action_mse and success; C consistently higher action_mse than B
+  A_action_only action_mse 1.4271+-0.9760 success 0.1820+-0.0600 latent_cos 0.0236+-0.0390
+  B_flare action_mse 1.3269+-0.8224 success 0.1840+-0.0456 latent_cos 0.0338+-0.0604
+  C_big_lambda action_mse 1.4285+-0.6774 success 0.1830+-0.0445 latent_cos 0.0413+-0.0759
+  paired B-A action_mse: -0.1002+-0.1756: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired B-A success: 0.0020+-0.0179: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired B-A latent_cos: 0.0102+-0.0570: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired C-A action_mse: 0.0014+-0.3397: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired C-A success: 0.0010+-0.0268: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign, 1 of 5 equal
+  paired C-A latent_cos: 0.0177+-0.1058: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired C-B action_mse: 0.1016+-0.2475: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired C-B success: -0.0010+-0.0147: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign, 1 of 5 equal
+  paired C-B latent_cos: 0.0076+-0.0767: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+reactive (N_LAB=60 labelled, N_VID=0 action-free; a=0.5x[0]-0.3x[1]+noise, x_future independent fresh noise (no future information)):
+  declared: A and B may near-tie or B loses; C consistently higher action_mse than B
+  A_action_only action_mse 0.0031+-0.0005 success 1.0000+-0.0000 latent_cos -0.0028+-0.0544
+  B_flare action_mse 0.0033+-0.0007 success 1.0000+-0.0000 latent_cos -0.0044+-0.0407
+  C_big_lambda action_mse 0.0199+-0.0160 success 0.9190+-0.0866 latent_cos -0.0322+-0.0463
+  paired B-A action_mse: 1.343e-4+-2.827e-4: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A latent_cos: -0.0017+-0.0430: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired C-A action_mse: 0.0167+-0.0156: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A success: -0.0810+-0.0866: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 2 of 5 equal
+  paired C-A latent_cos: -0.0295+-0.0763: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired C-B action_mse: 0.0166+-0.0154: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: -0.0810+-0.0866: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 2 of 5 equal
+  paired C-B latent_cos: -0.0278+-0.0659: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+alternatives (same seeds, declared before the run, not adopted):
+  delayed LAMBDA=0.0500: paired B-A action_mse@alt: -0.1001+-0.1581: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  delayed LAMBDA=1.0000: paired B-A action_mse@alt: -0.3742+-0.6972: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  delayed N_LAB=12: paired B-A action_mse@alt: -0.0172+-0.0202: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  reactive LAMBDA=1.0000: paired B-A action_mse@alt: 0.0042+-0.0046: near-tie / small gap, within seed noise (|m| <= sd); same sign on all 5 seeds
+No universal winner: alignment helps when the future reveals what the action needs and is noise when it does not
+GR00T N1 / RoboCasa / GR-1 / GPU: 本页未运行; FLARE paper numbers 以论文为准

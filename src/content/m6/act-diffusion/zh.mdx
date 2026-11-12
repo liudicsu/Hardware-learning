@@ -1080,10 +1080,428 @@ Real HybridVLA weights / GPU: 本页未运行; paper numbers 以论文为准
 4. 说明为什么 `semantic` 中 C−B 成功率是**打平**而 C−B 误差不是，以及一个不同于简单平均的规则需要什么才能利用 AR 头更好的选模式能力。
 5. 在信任一个真实的集成之前（本页未运行），列出每步应当记录的两项内容，用来区分精细情形和语义情形。
 
+## FLARE：让未来 token 对齐冻结的未来嵌入
+
+<Resource id="flare-paper" />
+
+上面几节都是把当前观测交给扩散头或 DiT 风格的动作头，让它输出动作。**FLARE** 只多加一个训练信号：策略还要在自己的激活里预测**之后会看到的画面的嵌入**。来源是 *FLARE: Robot Learning with Implicit World Modeling*，作者 Ruijie Zheng、Jing Wang、Scott Reed、Johan Bjorck、Yu Fang、Fengyuan Hu、Joel Jang、Kaushil Kundalia、Zongyu Lin、Loic Magne、Avnish Narayan、You Liang Tan、Guanzhi Wang、Qi Wang、Jiannan Xiang、Yinzhen Xu、Seonghyeon Ye、Jan Kautz、Furong Huang、Yuke Zhu、Linxi Fan（arXiv 2505.15659；已读摘要页、HTML 与 PDF；21 位作者按 arXiv 顺序）。
+
+论文怎么说，本节保留什么。流匹配 DiT 策略把本体状态、加噪的动作块和 **M 个可学习的未来 token** 放进同一个序列。在内部第 L 层取出这些未来 token 的激活，经 MLP 投影后，与未来观测的冻结视觉-语言嵌入做**余弦对齐**（论文式 2）：`L_align = −E[cos(f_θ(φ_t, A_t^τ, q_t), g(φ_(t+H)))]`，总损失为 `L = L_fm + λ L_align`（式 3）。论文报告 λ = 0.2 效果最好，损失加在 8 层中的第 6 层，并指出对齐放得太早（第 4 层）会"明显降低性能"。对**没有**动作标签的人类第一视角视频，它去掉动作项，只用对齐损失。目标嵌入的消融（表 2）为：不加 FLARE 损失 43.9 %，SigLIP2 token 49.6 %，平均池化 SigLIP2 50.9 %，动作感知嵌入 55.0 %；摘要称比此前基线最多高 26 %。这些都**以论文为准**，没有一个是玩具输出。GR00T N1、GPU 训练、RoboCasa、GR-1 与 GoPro 联合训练均**本页未运行**。
+
+本节**不是**上面的 CogACT 认知 token，也**不是** HybridVLA 的扩散 / 自回归集成；**不是** InternVLA-A1 的显式视觉预见专家，**不是** MemoryVLA 的记忆库，也**不是** DreamGen 的逆动力学模型。FLARE 从不生成未来图像，它只塑造策略自己的特征。
+
+<Formula label="FLARE 目标（论文式 2–3）">L_align = −E[ cos( f_θ(φ_t, A_t^τ, q_t), g(φ_(t+H)) ) ]，   L = L_fm + λ · L_align，   论文取 λ = 0.2</Formula>
+
+**算例（手算，除标明「手算」者外均由玩具打印）。** 未来 token 与目标方向完全一致时 cos = 1，对齐项给损失加上 −λ：论文的 λ 下是 −0.2000，λ = 2.0 时是 −2.0000。玩具的 `delayed` 情形里，目标 g 在 [−1, 1] 上均匀分布（标准差 √(1/3)）；它以 0.3 g 进入当前观测，旁边是七个单位方差的干扰维，比值 0.1732；在未来观测里是 1.0 g，比值 0.5774。永远输出 0 的策略动作 MSE 为 1/3（手算，即 U[−1, 1] 的方差；玩具不打印）。
+
+**这里没有物理积分。** 玩具用全批量梯度下降（400 轮，步长 0.05）和精确解析梯度训练一个线性模型，没有任何量按时间步推进。
+
+### 公平设置
+
+`flare_future_latent_alignment_toy.py` 是**合成**的，只用标准库。**模型假设:** 8 维观测 x；2 维特征 h = W x；动作 â = v · h；「未来 token」z = P h；目标嵌入是未来观测的一个**冻结**随机投影 G（从不训练）。这是线性替身，不是 GR00T N1、SigLIP2、Q-former，也不是 DiT，所以没有「层」可选；论文里对齐过早的冲突只由大 λ 一臂代表。这些都是**声明的玩具参数**。
+
+| 臂 | 训练损失 |
+|---|---|
+| A_action_only | 只在有标签样本上算动作 MSE（λ = 0） |
+| B_flare | 动作 MSE + λ · (−cos)，λ = 0.2；对齐项也用无动作样本 |
+| C_big_lambda | 同上，λ = 2.0 |
+
+**共同随机数:** 每个（情形，种子）的训练数据、测试集、冻结的 G 和初始 W、v、P 都只抽一次，三臂共用。各臂**只**在 λ 上不同（A 用不了无动作样本）。五个种子。在 200 个新测试样本上的指标：动作 MSE、成功率（|â − a| < 0.25）以及 z 与目标嵌入的平均余弦，记为种子间的均值±标准差。
+
+| 情形 | 数据 | 事先声明 |
+|---|---|---|
+| delayed | 隐藏目标决定动作；它现在很弱（0.3 g），未来很清楚（1.0 g）；6 个有标签样本和 60 个无动作样本 | B 在动作 MSE 和成功率上**稳定**优于 A；C 的动作 MSE **稳定**高于 B |
+| reactive | 动作是当前观测的固定函数；未来是独立噪声；60 个有标签样本 | A 与 B **可能**接近打平，或 B 输（**保留**）；C 的动作 MSE **稳定**高于 B |
+
+### 运行标准库玩具
+
+```bash
+cd ~/Hardware-learning/examples/month-6/act-diffusion
+python3 flare_future_latent_alignment_toy.py
+```
+
+<CodeSource path="examples/month-6/act-diffusion/flare_future_latent_alignment_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Tiny stdlib stand-in for FLARE (arXiv 2505.15659): action loss plus lambda times a
+cosine alignment loss between learnable future tokens z = P W x and a frozen embedding
+g(x_future) = G x_future.  This is a stdlib stand-in, not GR00T N1 / SigLIP2 / a DiT.
+FLARE paper numbers 以论文为准.  GPU / RoboCasa / GR-1 本页未运行.
+
+Shared by every arm: the same data draws, the same frozen G and the same initial
+(W, v, P).  Full-batch gradient descent with exact analytic gradients.  The alignment
+loss for one sample is -cos(z, g); its gradient with respect to z is
+-(g/|g| - cos * z/|z|) / |z|.  Arms: A_action_only (lam = 0, labelled only),
+B_flare (lam = LAMBDA, alignment on labelled + action-free), C_big_lambda
+(lam = LAMBDA_BIG, otherwise as B).  Parameters were declared before the first run.
+"""
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+# Declared parameters, written before the first run.
+SEEDS = (0, 1, 2, 3, 4)
+D = 8                    # observation dimension
+K = 2                    # latent / future-token dimension
+LAMBDA = 0.2             # the paper's alignment weight
+LAMBDA_BIG = 2.0         # deliberately large lambda
+LR = 0.05                # full-batch gradient-descent step
+EPOCHS = 400             # full-batch passes
+SUCCESS_TOL = 0.25       # |a_hat - a| below this counts as a success
+N_TEST = 200             # fresh test samples per (regime, seed)
+
+REGIMES = {
+    "delayed": {"n_lab": 6, "n_vid": 60},
+    "reactive": {"n_lab": 60, "n_vid": 0},
+}
+ARMS = ("A_action_only", "B_flare", "C_big_lambda")
+METRICS = ("action_mse", "success", "latent_cos")
+PAIRS = (("B_flare", "A_action_only"), ("C_big_lambda", "A_action_only"),
+         ("C_big_lambda", "B_flare"))
+
+
+def matvec(M, x):
+    return [sum(M[k][j] * x[j] for j in range(len(x))) for k in range(len(M))]
+
+
+def init_params(seed):
+    """Common random numbers: identical W, v, P for every arm at this seed."""
+    rng = random.Random(2000 + seed)
+    W = [[rng.gauss(0.0, 0.1) for _ in range(D)] for _ in range(K)]
+    v = [rng.gauss(0.0, 0.1) for _ in range(K)]
+    P = [[rng.gauss(0.0, 0.1) for _ in range(K)] for _ in range(K)]
+    return W, v, P
+
+
+def frozen_G(seed):
+    """Frozen target embedding matrix G (K x D), drawn once and never trained."""
+    rng = random.Random(1000 + seed)
+    return [[rng.gauss(0.0, 1.0) / math.sqrt(D) for _ in range(D)] for _ in range(K)]
+
+
+def delayed_labelled(rng):
+    goal = rng.uniform(-1.0, 1.0)
+    x = [0.3 * goal + rng.gauss(0.0, 0.05)] + [rng.gauss(0.0, 1.0) for _ in range(D - 1)]
+    xf = [1.0 * goal + rng.gauss(0.0, 0.05)] + [rng.gauss(0.0, 1.0) for _ in range(D - 1)]
+    return x, goal, xf
+
+
+def delayed_video(rng):
+    goal = rng.uniform(-1.0, 1.0)
+    x = [0.3 * goal + rng.gauss(0.0, 0.05)] + [rng.gauss(0.0, 1.0) for _ in range(D - 1)]
+    xf = [1.0 * goal + rng.gauss(0.0, 0.05)] + [rng.gauss(0.0, 1.0) for _ in range(D - 1)]
+    return x, xf
+
+
+def make_labelled(rng, regime):
+    if regime == "delayed":
+        return delayed_labelled(rng)
+    x = [rng.gauss(0.0, 1.0) for _ in range(D)]
+    a = 0.5 * x[0] - 0.3 * x[1] + rng.gauss(0.0, 0.05)
+    xf = [rng.gauss(0.0, 1.0) for _ in range(D)]
+    return x, a, xf
+
+
+def make_video(rng, regime):
+    if regime == "delayed":
+        return delayed_video(rng)
+    x = [rng.gauss(0.0, 1.0) for _ in range(D)]
+    xf = [rng.gauss(0.0, 1.0) for _ in range(D)]
+    return x, xf
+
+
+def generate(regime, seed, n_lab=None, n_vid=None):
+    """One rng stream per (regime, seed): train data first, then the fresh test set."""
+    index = list(REGIMES).index(regime)
+    rng = random.Random(seed * 100 + index)
+    nl = REGIMES[regime]["n_lab"] if n_lab is None else n_lab
+    nv = REGIMES[regime]["n_vid"] if n_vid is None else n_vid
+    lab = [make_labelled(rng, regime) for _ in range(nl)]
+    vid = [make_video(rng, regime) for _ in range(nv)]
+    test = [make_labelled(rng, regime) for _ in range(N_TEST)]
+    return lab, vid, test
+
+
+def train(W, v, P, G, lam, lab, vid):
+    """Full-batch GD; exact analytic gradients for the action and cosine alignment terms."""
+    n_lab = len(lab)
+    align = [(x, xf) for x, _, xf in lab] + list(vid)
+    n_align = len(align)
+    for _ in range(EPOCHS):
+        gW = [[0.0] * D for _ in range(K)]
+        gv = [0.0] * K
+        gP = [[0.0] * K for _ in range(K)]
+        # Action loss: mean over labelled samples of (v.h - a)^2.
+        for x, a, _ in lab:
+            h = matvec(W, x)
+            ahat = sum(v[k] * h[k] for k in range(K))
+            d = 2.0 * (ahat - a) / n_lab
+            for k in range(K):
+                gv[k] += d * h[k]
+                for j in range(D):
+                    gW[k][j] += d * v[k] * x[j]
+        # Alignment loss: lam * mean over alignment samples of -cos(P.h, G.xf).
+        if lam != 0.0 and n_align:
+            w = lam / n_align
+            for x, xf in align:
+                h = matvec(W, x)
+                z = matvec(P, h)
+                t = matvec(G, xf)
+                nz = math.sqrt(sum(z[k] * z[k] for k in range(K)))
+                nt = math.sqrt(sum(t[k] * t[k] for k in range(K)))
+                nzt = nz * nt
+                if nzt < 1e-12:
+                    continue
+                c = sum(z[k] * t[k] for k in range(K)) / nzt
+                # d(-cos)/dz = -(t/|t| - c * z/|z|) / |z|, scaled by the mean weight.
+                dz = [(-(t[k] / nt - c * z[k] / nz) / nz) * w for k in range(K)]
+                for k in range(K):
+                    for l in range(K):
+                        gP[k][l] += dz[k] * h[l]
+                dh = [sum(dz[k] * P[k][l] for k in range(K)) for l in range(K)]
+                for k in range(K):
+                    for j in range(D):
+                        gW[k][j] += dh[k] * x[j]
+        for k in range(K):
+            v[k] -= LR * gv[k]
+            for j in range(D):
+                W[k][j] -= LR * gW[k][j]
+            for l in range(K):
+                P[k][l] -= LR * gP[k][l]
+    return W, v, P
+
+
+def evaluate(W, v, P, G, test):
+    n = len(test)
+    se = 0.0
+    hits = 0
+    cosum = 0.0
+    for x, a, xf in test:
+        h = matvec(W, x)
+        ahat = sum(v[k] * h[k] for k in range(K))
+        e = ahat - a
+        se += e * e
+        if abs(e) < SUCCESS_TOL:
+            hits += 1
+        z = matvec(P, h)
+        t = matvec(G, xf)
+        nz = math.sqrt(sum(z[k] * z[k] for k in range(K)))
+        nt = math.sqrt(sum(t[k] * t[k] for k in range(K)))
+        cosum += (sum(z[k] * t[k] for k in range(K)) / (nz * nt)) if nz * nt > 0.0 else 0.0
+    return {"action_mse": se / n, "success": hits / n, "latent_cos": cosum / n}
+
+
+def run(lam, seed, data):
+    lab, vid, test = data
+    G = frozen_G(seed)
+    W, v, P = init_params(seed)
+    W, v, P = train(W, v, P, G, lam, lab, vid)
+    return evaluate(W, v, P, G, test)
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0  # identical values: no floating residue in mean or sd
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    """Half-up rounding on the shortest decimal repr; tiny non-zero values in scientific form."""
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+NUM_ZERO = 1e-9
+
+
+def collect(regime, lam_b=LAMBDA, n_lab=None, n_vid=None, arms=ARMS):
+    res = {arm: [] for arm in arms}
+    for s in SEEDS:
+        data = generate(regime, s, n_lab, n_vid)
+        for arm in arms:
+            lam = 0.0 if arm == "A_action_only" else (lam_b if arm == "B_flare" else LAMBDA_BIG)
+            res[arm].append(run(lam, s, data))
+    return res
+
+
+def col(rows, key):
+    return [x[key] for x in rows]
+
+
+def report(regime):
+    res = collect(regime)
+    p = REGIMES[regime]
+    if regime == "delayed":
+        declared = ("declared: B consistently better than A on action_mse and success; "
+                    "C consistently higher action_mse than B")
+        detail = "hidden goal g, x[0]=0.3g+noise, x_future[0]=1.0g+noise, dims 1..7 distractors"
+    else:
+        declared = ("declared: A and B may near-tie or B loses; "
+                    "C consistently higher action_mse than B")
+        detail = "a=0.5x[0]-0.3x[1]+noise, x_future independent fresh noise (no future information)"
+    print(f"{regime} (N_LAB={p['n_lab']} labelled, N_VID={p['n_vid']} action-free; {detail}):")
+    print("  " + declared)
+    for arm in ARMS:
+        print(f"  {arm} " + " ".join(
+            f"{key} {fmt_pair(*mean_sd(col(res[arm], key)))}" for key in METRICS))
+    for a, b in PAIRS:
+        for key in METRICS:
+            print(f"  paired {a[0]}-{b[0]} {key}: "
+                  f"{verdict(col(res[a], key), col(res[b], key))}")
+    return res
+
+
+def main():
+    print("Synthetic FLARE future-latent alignment toy; shared data, frozen G and initial params; "
+          "action loss + lambda * cosine alignment; not GR00T N1 / SigLIP2 / a DiT")
+    print(f"seeds={len(SEEDS)} D={D} K={K} LAMBDA={num(LAMBDA)} LAMBDA_BIG={num(LAMBDA_BIG)} "
+          f"LR={num(LR)} EPOCHS={EPOCHS} SUCCESS_TOL={num(SUCCESS_TOL)} N_TEST={N_TEST} "
+          f"(declared toy parameters; FLARE paper numbers 以论文为准)")
+    print("Full-batch gradient descent with exact analytic gradients; "
+          "W is KxD, v is K, P is KxK; z=P W x is aligned to the frozen G x_future")
+    print("Regimes and parameters were written before the first run")
+    print(f"hand_calc alignment weight at cos=1: -LAMBDA={num(-LAMBDA)}; "
+          f"-LAMBDA_BIG={num(-LAMBDA_BIG)}")
+    print(f"hand_calc delayed goal/distractor std ratio: current obs "
+          f"0.3*sqrt(1/3)/1.0={num(0.3 * math.sqrt(1.0 / 3.0))}; "
+          f"future obs 1.0*sqrt(1/3)={num(math.sqrt(1.0 / 3.0))}")
+    for regime in REGIMES:
+        report(regime)
+    print("alternatives (same seeds, declared before the run, not adopted):")
+    alt = collect("delayed", lam_b=0.05, arms=("A_action_only", "B_flare"))
+    print(f"  delayed LAMBDA={num(0.05)}: paired B-A action_mse@alt: "
+          f"{verdict(col(alt['B_flare'], 'action_mse'), col(alt['A_action_only'], 'action_mse'))}")
+    alt = collect("delayed", lam_b=1.0, arms=("A_action_only", "B_flare"))
+    print(f"  delayed LAMBDA={num(1.0)}: paired B-A action_mse@alt: "
+          f"{verdict(col(alt['B_flare'], 'action_mse'), col(alt['A_action_only'], 'action_mse'))}")
+    alt = collect("delayed", n_lab=12, arms=("A_action_only", "B_flare"))
+    print(f"  delayed N_LAB=12: paired B-A action_mse@alt: "
+          f"{verdict(col(alt['B_flare'], 'action_mse'), col(alt['A_action_only'], 'action_mse'))}")
+    alt = collect("reactive", lam_b=1.0, arms=("A_action_only", "B_flare"))
+    print(f"  reactive LAMBDA={num(1.0)}: paired B-A action_mse@alt: "
+          f"{verdict(col(alt['B_flare'], 'action_mse'), col(alt['A_action_only'], 'action_mse'))}")
+    print("No universal winner: alignment helps when the future reveals what the action needs and is noise when it does not")
+    print("GR00T N1 / RoboCasa / GR-1 / GPU: 本页未运行; FLARE paper numbers 以论文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic FLARE future-latent alignment toy; shared data, frozen G and initial params; action loss + lambda * cosine alignment; not GR00T N1 / SigLIP2 / a DiT
+seeds=5 D=8 K=2 LAMBDA=0.2000 LAMBDA_BIG=2.0000 LR=0.0500 EPOCHS=400 SUCCESS_TOL=0.2500 N_TEST=200 (declared toy parameters; FLARE paper numbers 以论文为准)
+Full-batch gradient descent with exact analytic gradients; W is KxD, v is K, P is KxK; z=P W x is aligned to the frozen G x_future
+Regimes and parameters were written before the first run
+hand_calc alignment weight at cos=1: -LAMBDA=-0.2000; -LAMBDA_BIG=-2.0000
+hand_calc delayed goal/distractor std ratio: current obs 0.3*sqrt(1/3)/1.0=0.1732; future obs 1.0*sqrt(1/3)=0.5774
+delayed (N_LAB=6 labelled, N_VID=60 action-free; hidden goal g, x[0]=0.3g+noise, x_future[0]=1.0g+noise, dims 1..7 distractors):
+  declared: B consistently better than A on action_mse and success; C consistently higher action_mse than B
+  A_action_only action_mse 1.4271+-0.9760 success 0.1820+-0.0600 latent_cos 0.0236+-0.0390
+  B_flare action_mse 1.3269+-0.8224 success 0.1840+-0.0456 latent_cos 0.0338+-0.0604
+  C_big_lambda action_mse 1.4285+-0.6774 success 0.1830+-0.0445 latent_cos 0.0413+-0.0759
+  paired B-A action_mse: -0.1002+-0.1756: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired B-A success: 0.0020+-0.0179: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired B-A latent_cos: 0.0102+-0.0570: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired C-A action_mse: 0.0014+-0.3397: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired C-A success: 0.0010+-0.0268: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign, 1 of 5 equal
+  paired C-A latent_cos: 0.0177+-0.1058: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired C-B action_mse: 0.1016+-0.2475: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired C-B success: -0.0010+-0.0147: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign, 1 of 5 equal
+  paired C-B latent_cos: 0.0076+-0.0767: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+reactive (N_LAB=60 labelled, N_VID=0 action-free; a=0.5x[0]-0.3x[1]+noise, x_future independent fresh noise (no future information)):
+  declared: A and B may near-tie or B loses; C consistently higher action_mse than B
+  A_action_only action_mse 0.0031+-0.0005 success 1.0000+-0.0000 latent_cos -0.0028+-0.0544
+  B_flare action_mse 0.0033+-0.0007 success 1.0000+-0.0000 latent_cos -0.0044+-0.0407
+  C_big_lambda action_mse 0.0199+-0.0160 success 0.9190+-0.0866 latent_cos -0.0322+-0.0463
+  paired B-A action_mse: 1.343e-4+-2.827e-4: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A latent_cos: -0.0017+-0.0430: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired C-A action_mse: 0.0167+-0.0156: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A success: -0.0810+-0.0866: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 2 of 5 equal
+  paired C-A latent_cos: -0.0295+-0.0763: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired C-B action_mse: 0.0166+-0.0154: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: -0.0810+-0.0866: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 2 of 5 equal
+  paired C-B latent_cos: -0.0278+-0.0659: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+alternatives (same seeds, declared before the run, not adopted):
+  delayed LAMBDA=0.0500: paired B-A action_mse@alt: -0.1001+-0.1581: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  delayed LAMBDA=1.0000: paired B-A action_mse@alt: -0.3742+-0.6972: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  delayed N_LAB=12: paired B-A action_mse@alt: -0.0172+-0.0202: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  reactive LAMBDA=1.0000: paired B-A action_mse@alt: 0.0042+-0.0046: near-tie / small gap, within seed noise (|m| <= sd); same sign on all 5 seeds
+No universal winner: alignment helps when the future reveals what the action needs and is noise when it does not
+GR00T N1 / RoboCasa / GR-1 / GPU: 本页未运行; FLARE paper numbers 以论文为准
+```
+
+</SimOutput>
+
+### 解读各情形
+
+本页标签按以下顺序使用：只有配对的逐种子差值在每个种子上都恰好为零时，才写 **tie: identical on every seed**（打平）；`|配对均值|` 和标准差都小于 1e-9 时写 **numerically zero (floating-point residue), effectively a tie**（数值为零，实际打平；这种行不打印同号计数）；`|配对均值| ≤ 标准差` 时写 **near-tie / small gap, within seed noise**（接近打平）；否则是**稳定**差距（`|配对均值| > 标准差`），`|m|` 小于两臂均值中较小者的 20 % 时称为**小**，否则称为**明显**。每条稳定差距都附 5 个种子上的同号计数，并报告符号相反的种子。差值用未舍入的数计算。
+
+- **delayed。** 事先声明的对齐优势**没有**成立。B−A action_mse -0.1002±0.1756 是**接近打平**（5 个种子中 2 个符号相反），B−A success 0.0020±0.0179 也接近打平。事先声明的大 λ 落败在这里**也没有**成立：C−B action_mse 0.1016±0.2475 接近打平（2 个种子相反）。三臂都很差：A 的动作 MSE 是 1.4271±0.9760，比永远输出 0 的 1/3（手算）还差，因为 6 个有标签样本定不住 8 个权重。一种解读（不是测量）：冻结目标 G x_future 把未来的目标和七个新的干扰维混在一起，B 被要求对齐的大部分是噪声，它能学到的目标方向很弱。按原样打印，没有重新调参。
+- **reactive。** 声明的接近打平**成立**。B−A action_mse 1.343e-4±2.827e-4 **接近打平**（2 个种子相反），B−A success **打平**（每个种子都完全相同）。声明的大 λ 落败**成立**。C−B action_mse 0.0166±0.0154，**明显**差距，5 个种子同号（C 0.0199±0.0160，B 0.0033±0.0007）。未来不含信息时，大的对齐权重只会把特征从动作上拉开。**保留**这一格。
+
+玩具最后一行（"alignment helps when the future reveals what the action needs and is noise when it does not"）是写玩具时、运行之前写下的。这次运行只显示了后半句；请把它当作假设，而不是结果。
+
+**首次运行后的代码改动。** 没有。首次运行的输出与 `expected/` 文件逐字节相同。
+
+**看到结果后做的选择。** 没有。λ = 0.2 是论文的值；λ = 2.0、步长、轮数、成功阈值和两个数据生成器都在首次运行前写好。打印的备选用同样的种子，没有改变任何结论：`delayed` 中 λ = 0.05 时 B−A action_mse 为 -0.1001±0.1581，λ = 1.0 时 -0.3742±0.6972，12 个有标签样本时 -0.0172±0.0202，全部**接近打平**；`reactive` 中 λ = 1.0 时为 0.0042±0.0046，接近打平，5 个种子上 B 都更差。没有一个替换默认值。
+
+本页**不宣布赢家**。在这个线性替身里，未来对齐救不了样本不足的动作头；权重大且未来不含信息时，它还会损失精度。论文的 GPU 结果是另一个大得多的设置（以论文为准；本页未运行）。
+
+**180 分钟学习计划:** 30 分钟读论文 3.1、4.3、4.4 节；25 分钟重做手算；50 分钟运行玩具、解读两个情形；40 分钟在固定种子下对照打印的 λ 与标签数备选；35 分钟做练习。
+
+### 练习
+
+1. 根据 `train` 写出 −cos(z, t) 对 z 的梯度，并与文档字符串核对。
+2. 根据 `generate`、`init_params` 和 `frozen_G` 说明：同一情形、同一种子下三臂看到相同的数据、相同的目标嵌入和相同的初始权重。
+3. `delayed` 中 A 的动作 MSE 比永远输出 0 还差（手算 1/3）。为什么 6 个有标签样本定不住 8 个权重？为什么无动作样本在这里没帮到 B？
+4. 只在脑中改目标嵌入：如果 G 只看未来的目标维，你预计 B−A 会怎样？先写下预测再去试，不要改动随附的玩具。
+5. 在任何 GPU 运行之前（本页未运行），说明你会如何为真实 DiT 策略选择对齐层和 λ，以及 `reactive` 情形提醒了你什么。
+
 <Summary>
 
 多模态示范取均值可能走到不安全的中间动作，采样保留不同选择；ACT 分块 / 时间集成在平滑执行与开环暴露间权衡。扩散逐步去噪动作块并付出推理成本，玩具精确去噪器 / 示范回放并非通用已学习机器人策略；应用同一数据与评估起点，检查失败和块长，LeRobot GPU 训练命令本页未运行。新增等信息共享带条实验用全时域预算对照独立、主从、联合耦合，并把运动学指标与 TwinVLA 学习架构分开。
 
 - CogACT 认知→动作：共享演示下单模态短时域 **接近打平 / 差距很小**，多模态长 chunk 有 DiT 风格优势——表达力替身，不是 Li 等的 GPU 成功率。
 - HybridVLA 集成：AR 置信度超过 0.96 时对 AR 动作和扩散动作取平均，在精细步上胜过两个头（C−A 21.8500±1.3647 个百分点，明显，5/5），在语义步上与扩散**打平**，并在语义步和混合任务上输给 AR 头（C−A −2.9000±1.5268）——`hybridvla_action_ensemble_toy.py`，合成误差模型，不是 HybridVLA 的 7B GPU 结果。
+- FLARE 未来潜变量对齐的线性替身（`flare_future_latent_alignment_toy.py`）：延迟后果任务上声明的对齐优势**没有**成立（B−A action_mse -0.1002±0.1756，接近打平）；反应式任务上对齐与仅动作一臂接近打平，大 λ 明显变差（C−B action_mse 0.0166±0.0154，5 个种子同号，保留）——不是 FLARE 的 GPU 结果。
 </Summary>

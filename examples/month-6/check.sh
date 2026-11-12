@@ -52,6 +52,7 @@ check vqbet_residual_vq_toy.txt python3 "$M6/behaviour-cloning/vqbet_residual_vq
 check dual_system_vla_cadence_toy.txt python3 "$M6/vla-models/dual_system_vla_cadence_toy.py"
 check rdt2_rvq_fm_distill_toy.txt python3 "$M6/vla-models/rdt2_rvq_fm_distill_toy.py"
 check hybridvla_action_ensemble_toy.txt python3 "$M6/act-diffusion/hybridvla_action_ensemble_toy.py"
+check flare_future_latent_alignment_toy.txt python3 "$M6/act-diffusion/flare_future_latent_alignment_toy.py"
 check cot_vla_subgoal_toy.txt python3 "$M6/vla-models/cot_vla_subgoal_toy.py"
 check molmoact_reasoning_trace_toy.txt python3 "$M6/vla-models/molmoact_reasoning_trace_toy.py"
 check hamster_hierarchical_path_toy.txt python3 "$M6/behaviour-cloning/hamster_hierarchical_path_toy.py"
