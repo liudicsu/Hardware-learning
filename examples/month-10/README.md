@@ -4,9 +4,9 @@ CPU-reproducible scripts for Month 10 (site supplement). Run `./check.sh` from t
 
 | lesson | script | needs |
 |--------|--------|-------|
-| flow-matching-policies | `flow-matching-policies/flow_match_toy.py` | stdlib |
+| flow-matching-policies | `flow-matching-policies/flow_match_toy.py`, `policy_distill_onestep_toy.py`, `diffusion_forcing_token_noise_toy.py`, `knowledge_insulation_flow_toy.py` | stdlib |
 | real-time-chunking | `real-time-chunking/rtc_blend_toy.py`, `forge_tree_mctd_toy.py` | stdlib |
-| edge-deploy-checklist | `edge-deploy-checklist/int8_quant_toy.py`, `edge-deploy-checklist/latency_budget.py`, `edge-deploy-checklist/vla_edge_budget_toy.py` | stdlib |
+| edge-deploy-checklist | `edge-deploy-checklist/int8_quant_toy.py`, `edge-deploy-checklist/latency_budget.py`, `edge-deploy-checklist/vla_edge_budget_toy.py`, `edge-deploy-checklist/vla_adapter_bridge_attention_toy.py` | stdlib |
 | multi-view-extrinsics | `multi-view-extrinsics/extrinsics_chain_toy.py` | stdlib |
 | intervention-logging | `intervention-logging/intervention_log_toy.py` | stdlib |
 | real-world-rl | `real-world-rl/rlpd_chain_toy.py`, `thinkact_visual_latent_toy.py` | stdlib |

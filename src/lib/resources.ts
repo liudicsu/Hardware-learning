@@ -6045,6 +6045,75 @@ export const resources: Record<string, Resource> = {
     license: { zh: "© Google DeepMind，仅提供外链", en: "© Google DeepMind; external link only" },
     extra: true,
   },
+  "knowledge-insulation-html": {
+    id: "knowledge-insulation-html",
+    url: "https://arxiv.org/html/2505.23705",
+    title: {
+      zh: "Knowledge Insulation：让 VLA 训练更快、推理更快、泛化更好（HTML）",
+      en: "Knowledge Insulating Vision-Language-Action Models: Train Fast, Run Fast, Generalize Better (HTML)",
+    },
+    author: "Danny Driess, Jost Tobias Springenberg, Brian Ichter, Lili Yu, Adrian Li-Bell, Karl Pertsch, Allen Z. Ren, Homer Walke, Quan Vuong, Lucy Xiaoyang Shi, Sergey Levine",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已读 LaTeXML HTML 与摘要：把连续扩散 / 流匹配动作专家接到预训练 VLM 时，若把专家梯度朴素反传到主干，会损害训练速度与知识迁移。方法是用离散动作（及 VLM 数据）的 next-token 损失微调主干，同时用 stop-gradient 截断专家到主干的注意力反传。π0 对照、语言跟随、LIBERO / DROID 等数字以论文为准；GPU / 真机本页未运行。arXiv 2505.23705。2026-11-12 正文已读（HTTP 200）。",
+      en: "LaTeXML HTML and abstract read: naively back-propagating a continuous diffusion / flow-matching action expert into a pretrained VLM harms training speed and knowledge transfer. The recipe fine-tunes the backbone with a next-token loss on discretized actions (and VLM data) and stop-gradients expert-to-backbone attention. π0 comparisons, language following, LIBERO / DROID numbers 以论文为准; GPU / robots 本页未运行. arXiv 2505.23705. Body read 2026-11-12 (HTTP 200).",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
+  "knowledge-insulation-pdf": {
+    id: "knowledge-insulation-pdf",
+    url: "https://arxiv.org/pdf/2505.23705.pdf",
+    title: {
+      zh: "Knowledge Insulation：让 VLA 训练更快、推理更快、泛化更好（PDF）",
+      en: "Knowledge Insulating Vision-Language-Action Models: Train Fast, Run Fast, Generalize Better (PDF)",
+    },
+    author: "Danny Driess, Jost Tobias Springenberg, Brian Ichter, Lili Yu, Adrian Li-Bell, Karl Pertsch, Allen Z. Ren, Homer Walke, Quan Vuong, Lucy Xiaoyang Shi, Sergey Levine",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已用 pdftotext 读正文：引言与图 1、第 5.2 节（式 5–6 的 stop-gradient 注意力）与第 6–7 节实验。联合训练（无 stop-gradient）或 π0 会损害语言跟随；冻结主干在 items-in-drawer / shirt-folding 上不可行；π0 达到相近表现需要约 7.5 倍训练步。LIBERO-90 / Spatial 等数字以论文为准；GPU / 真机本页未运行。",
+      en: "Body read via pdftotext: introduction and Figure 1, §5.2 (stop-gradient attention in eqs. 5–6) and the §6–7 experiments. Joint training without stop-gradient, or π0, harms language following; freezing the backbone is not viable on items-in-drawer / shirt-folding; π0 needs about 7.5 times as many training steps to reach a similar performance. LIBERO-90 / Spatial and other scores 以论文为准; GPU / robots 本页未运行.",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
+  "vla-adapter-html": {
+    id: "vla-adapter-html",
+    url: "https://arxiv.org/html/2509.09372",
+    title: {
+      zh: "VLA-Adapter：面向小规模视觉–语言–动作模型的有效范式（HTML）",
+      en: "VLA-Adapter: An Effective Paradigm for Tiny-Scale Vision-Language-Action Model (HTML)",
+    },
+    author: "Yihao Wang, Pengxiang Ding, Lingxiao Li, Can Cui, Zirui Ge, Xinyang Tong, Wenxuan Song, Han Zhao, Wei Zhao, Pengxu Hou, Siteng Huang, Yifan Tang, Wenhui Wang, Ru Zhang, Jianyi Liu, Donglin Wang",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已读 LaTeXML HTML 与摘要：用带 Bridge Attention 的轻量 Policy 把视觉–语言条件（层与类型，含 ActionQuery 与原始潜变量）注入动作空间，目标是在 0.5B 主干、且不做机器人数据预训练的情况下仍有强控制；并报告在单张消费级 GPU 上约 8 小时完成训练。0.5B / 8 小时 / LIBERO 等数字以论文为准；GPU 本页未运行。arXiv 2509.09372。2026-11-12 正文已读（HTTP 200）。",
+      en: "LaTeXML HTML and abstract read: a lightweight Policy with Bridge Attention injects VL conditions (layer and type, including ActionQuery vs raw latents) into the action space, aiming for strong control with a 0.5B backbone and without robotic data pre-training; the paper also reports training in just 8 hours on a single consumer-grade GPU. 0.5B / 8-hour / LIBERO numbers 以论文为准; GPU 本页未运行. arXiv 2509.09372. Body read 2026-11-12 (HTTP 200).",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
+  "vla-adapter-pdf": {
+    id: "vla-adapter-pdf",
+    url: "https://arxiv.org/pdf/2509.09372.pdf",
+    title: {
+      zh: "VLA-Adapter：面向小规模视觉–语言–动作模型的有效范式（PDF）",
+      en: "VLA-Adapter: An Effective Paradigm for Tiny-Scale Vision-Language-Action Model (PDF)",
+    },
+    author: "Yihao Wang, Pengxiang Ding, Lingxiao Li, Can Cui, Zirui Ge, Xinyang Tong, Wenxuan Song, Han Zhao, Wei Zhao, Pengxu Hou, Siteng Huang, Yifan Tang, Wenhui Wang, Ru Zhang, Jianyi Liu, Donglin Wang",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已用 pdftotext 读正文：第 3.2 节关于层与类型的三条发现（中间层原始特征、深层 ActionQuery、多层更好），第 3.3 节 Bridge Attention（两次交叉注意力、一次自注意力，tanh(g) 门控原始条件，g 初值为 0）与 L1 目标（式 1–2）。Policy 在 Qwen2.5-0.5B 时约 97M。基准数字以论文为准；GPU / 0.5B 训练本页未运行。",
+      en: "Body read via pdftotext: §3.2's three findings on layer and type (mid-layer raw features, deep ActionQuery, all-layer better), §3.3's Bridge Attention (two cross-attentions and one self-attention, a tanh(g) gate on raw conditions with g initialised at 0) and the L1 objective (eqs. 1–2). The Policy is about 97M parameters when the backbone is Qwen2.5-0.5B. Benchmark numbers 以论文为准; GPU / 0.5B training 本页未运行.",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
+
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

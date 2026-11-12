@@ -24,6 +24,7 @@ check forge_tree_mctd_toy.txt "$PY" "$M10/real-time-chunking/forge_tree_mctd_toy
 check int8_quant_toy.txt "$PY" "$M10/edge-deploy-checklist/int8_quant_toy.py"
 check latency_budget.txt "$PY" "$M10/edge-deploy-checklist/latency_budget.py"
 check vla_edge_budget_toy.txt "$PY" "$M10/edge-deploy-checklist/vla_edge_budget_toy.py"
+check vla_adapter_bridge_attention_toy.txt "$PY" "$M10/edge-deploy-checklist/vla_adapter_bridge_attention_toy.py"
 check extrinsics_chain_toy.txt "$PY" "$M10/multi-view-extrinsics/extrinsics_chain_toy.py"
 check spatialvla_ego3d_grid_toy.txt "$PY" "$M10/multi-view-extrinsics/spatialvla_ego3d_grid_toy.py"
 check intervention_log_toy.txt "$PY" "$M10/intervention-logging/intervention_log_toy.py"
@@ -36,6 +37,7 @@ check cal_conrft_offline_tabular.txt "$PY" "$M10/vla-rl-finetune/cal_conrft_offl
 
 check policy_distill_onestep_toy.txt "$PY" "$M10/flow-matching-policies/policy_distill_onestep_toy.py"
 check diffusion_forcing_token_noise_toy.txt "$PY" "$M10/flow-matching-policies/diffusion_forcing_token_noise_toy.py"
+check knowledge_insulation_flow_toy.txt "$PY" "$M10/flow-matching-policies/knowledge_insulation_flow_toy.py"
 
 check preference_dpo_lite_toy.txt "$PY" "$M10/real-world-rl/preference_dpo_lite_toy.py"
 check thinkact_visual_latent_toy.txt "$PY" "$M10/real-world-rl/thinkact_visual_latent_toy.py"
