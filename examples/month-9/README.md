@@ -23,3 +23,7 @@ CPU-reproducible scripts for Month 9 (site supplement). Run `./check.sh` from th
 ## Batch-5 PR3
 
 `mtc_stage_memory_toy.py`: same eight requests, full/cached/bounded search, stale-prefix failures, charged revalidation and global fallback; node-expansion counts only, not timing. / 共享八请求，完整 / 缓存 / 有界搜索，陈旧失败、重验证与回退记账，只计展开不测时间。
+
+## Batch-20 PR3 / 第20批 PR3
+
+`world-models-overview/internvla_a1_mot_foresight_toy.py`: standard-library synthetic 1-D conveyor scenes (action only vs understanding + foresight + action vs corrupted foresight), no GPU, no weights; expected output in `expected/internvla_a1_mot_foresight_toy.txt`, included in `check.sh`. InternVLA-A1 numbers 以论文为准; real robot 本页未运行. / 标准库合成的一维传送带场景（只做动作、先前瞻再动作、前瞻出错），不是 GPU 训练或真机结果，输出由 `check.sh` 核对。

@@ -1,6 +1,14 @@
 # Month 7 plan: Simulation, reinforcement learning & 3D perception
 
-Current / 当前：**M7 3120 min**, Batch-20 PR2. Earlier entries below retain their historical totals.
+Current / 当前：**M7 3330 min**, Batch-20 PR3. Earlier entries below retain their historical totals.
+
+## Batch-20 PR3 / 本月 H6 (+210)
+
+Base `38f5083ba5eaf0de84cc822c6eb698b277596d73` (batch-20 PR2 #182 merged; site **37560**). PR3 on M7 host: **M7 3120→3330 (+210)**; M9 moves in the same PR on its own plan. Site **37560→37980** (37980=37560+210+210), still 71 lessons.
+
+- **H6 / 7.6 perception-to-grasp: 480→690 (+210).** GraspVLA (`graspvla_syngrasp_pretrain_toy.py`; common random numbers, 5 seeds). arXiv 2505.03233 abs page checked (title *GraspVLA: a Grasping Foundation Model Pre-trained on Billion-scale Synthetic Action Data*; **13 authors**: Shengliang Deng, Mi Yan, Songlin Wei, Haixin Ma, Yuxin Yang, Jiayi Chen, Zhiqi Zhang, Taoyu Yang, Xuheng Zhang, Wenhao Zhang, Heming Cui, Zhizheng Zhang, He Wang) and PDF body (v3) read: SynGrasp-1B with domain randomisation; Progressive Action Generation box → grasp pose → flow-matching action; Internet grounding supervises only the box step; paper success rates 以论文为准, not reproduced. Declared toy parameters: 8-D appearance, 6 synthetic + 4 web categories, 30 samples per category, 3 objects, 60 scenes, DR gain 0.4–1.6 / offset −0.5–0.5, real gain 0.60 / offset 0.35, ORI_SIGMA=5.0 deg, ORI_TOL=10.0 deg. Hand calcs (printed): chance pick 0.3333 (0.2000 with 5 objects); grasp ceiling 0.9545. in_family: paired B−A success `0.5400±0.1217`, **clear**, 5/5 — pre-declared win held; shuffled labels paired D−B success `-0.6467±0.1114`, **clear**, 5/5, **kept**; **no-DR did not lose**: paired C−B success `0.0233±0.0630`, near-tie — the expected DR benefit did not appear, printed as it came out. web_category: paired B−A success `0.5667±0.1074`, **clear**, 5/5; C ties B on every seed (pre-declared possible). single_object: every arm identical on every seed (pre-declared near-tie or tie). Alternatives on the same seeds, written before the first run: narrow DR (paired Bwide−Bnarrow success `-0.0367±0.0492`, near-tie), N_OBJ=5 (paired B−A success@alt `0.6333±0.1054`). One code change after the first run, to the closing printed sentence only (it claimed DR was needed); disclosed on the lesson pages. ≠ force-closure ε; ≠ Dex-Net; ≠ Tobin detector DR. GPU / SynGrasp-1B / LIBERO / real grasp cell 本页未运行. / GraspVLA：先定位在杂乱和网络类别上胜，标签错乱输，不做 DR 没有输。
+
+**Allocation / 安排:** 30+20+50+50+60=210 minutes.
 
 ## Batch-20 PR2 / 本月 H4 (+150)
 
