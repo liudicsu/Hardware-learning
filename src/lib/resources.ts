@@ -3685,6 +3685,29 @@ export const resources: Record<string, Resource> = {
     extra: true,
   },
 
+  "grasp-primer-carpin": {
+    id: "grasp-primer-carpin",
+    url: "https://arxiv.org/abs/1607.06620",
+    title: { zh: "多指机器人抓取入门（Carpin 等，2016）", en: "Multi-Fingered Robotic Grasping: A Primer (Carpin et al., 2016)" },
+    author: "Stefano Carpin, Shuo Liu, Joe Falco, Karl Van Wyk",
+    kind: "textbook",
+    cost: { zh: "免费（arXiv）", en: "Free (arXiv)" },
+    summary: { zh: "arXiv 1607.06620。§2.5 讲述形状封闭与力封闭、间隙函数，以及三维中至少 7 个接触点的必要计数。形状封闭与力封闭的定义和计数以论文为准。", en: "arXiv 1607.06620. §2.5 covers form closure vs force closure, the gap function, and the necessary count of at least seven contact points in 3-D. Definitions and counts 以论文为准." },
+    license: { zh: "预印本（arXiv 非独占分发许可），© 原作者；仅提供外链", en: "Preprint (arXiv non-exclusive distribution licence), © authors; external link only" },
+    extra: true,
+  },
+  "grasp-survey-zhang": {
+    id: "grasp-survey-zhang",
+    url: "https://arxiv.org/abs/2202.03631",
+    title: { zh: "机器人抓取综述：从经典到现代（Zhang 等，2022）", en: "Robotic Grasping from Classical to Modern: A Survey (Zhang et al., 2022)" },
+    author: "Hanbo Zhang, Jian Tang, Shiguang Sun, Xuguang Lan",
+    kind: "textbook",
+    cost: { zh: "免费（arXiv）", en: "Free (arXiv)" },
+    summary: { zh: "arXiv 2202.03631。定义 1 把形状封闭当作无摩擦抓取封闭，并写到平面多边形至少需要 4 个无摩擦扳手、三维多边形至少需要 7 个接触点。计数以论文为准。", en: "arXiv 2202.03631. Definition 1 treats form-closure as frictionless grasp-closure, and states that a 2-D polygon needs at least 4 frictionless wrenches and a 3-D polygon at least 7 contact points. Counts 以论文为准." },
+    license: { zh: "预印本（arXiv 非独占分发许可），© 原作者；仅提供外链", en: "Preprint (arXiv non-exclusive distribution licence), © authors; external link only" },
+    extra: true,
+  },
+
   "ethercat-technology": {
     id: "ethercat-technology",
     url: "https://www.ethercat.org/en/technology.html",
@@ -4875,6 +4898,27 @@ export const resources: Record<string, Resource> = {
     },
     extra: true,
   },
+  "wiki-superposition": {
+    id: "wiki-superposition",
+    url: "https://en.wikipedia.org/wiki/Superposition_theorem",
+    title: {
+      zh: "Wikipedia：叠加定理（重定向到叠加原理）",
+      en: "Wikipedia: Superposition theorem (redirects to Superposition principle)",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "线性电路中输入与输出是线性变换，输入的叠加给出响应的叠加。由 Superposition theorem 重定向到 Superposition principle；电气工程段已核验。以原文为准。",
+      en: "In a linear circuit an input is related to an output by a linear transformation, so a superposition of inputs yields the superposition of the responses. Superposition theorem redirects to Superposition principle; electrical-engineering paragraph verified. 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+
   "sdf-physics-spec": {
     id: "sdf-physics-spec",
     url: "https://raw.githubusercontent.com/gazebosim/sdformat/sdf14/sdf/1.11/physics.sdf",

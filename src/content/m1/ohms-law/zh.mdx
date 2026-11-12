@@ -441,6 +441,325 @@ Real DMM / bench Thevenin lab: 本页未运行; Wikipedia numbers 以原文为�
 4. 固定种子，把负担电阻改成 10 Ω。运行前先预测哪种情形下 C 的误差变化最大。
 5. 在任何实验台测量之前（本页未运行），说明为什么轻载下 A−B 的差距**很小**（0.1153±0.0588 mV，不是打平）并**不**意味着 `Voc` 可以用来预测 3.3 kΩ 负载下的电压。
 
+## 线性电路中的叠加定理
+
+基尔霍夫定律已经允许你给整个网络写出一组联立方程。这一节是另一种捷径，而且只在每个元件都线性时成立：多个源的净响应，等于每个源单独作用时响应之和。在电气工程里，线性电路中输入（外加电压或电流）与输出（电路中任一处的电压或电流）之间是线性变换，所以输入的叠加会给出响应的叠加（Wikipedia — Superposition principle，电气工程段；Superposition theorem 标题会重定向到该页；以原文为准）。这**不是**上面「用基尔霍夫定律理解分压器」的重写，**不是**带载分压器的戴维南 / 诺顿压缩，**不是**下一课的惠斯通电桥，也**不是**元件课上的整流纹波玩具。
+
+<Resource id="wiki-superposition" />
+
+**实际打开过的来源（已读 HTML 正文）。**
+
+- **Wikipedia — Superposition principle**（由 Superposition theorem 重定向，修订 1383626364，最后编辑 2026 年 11 月 3 日 19:52 UTC，即 2026 年 11 月 4 日 03:52 亚太/上海）：上文概括的电气工程段。以原文为准。
+
+### 公平设置
+
+`superposition_linear_circuit_toy.py` 是**合成**模型，只用标准库。**模型假设:** 集总直流；两个理想独立电压源和三个线性电阻，非线性情形下把对地电阻换成理想二极管串 `Rf`；电源没有内阻，元件不漂移；有表噪声时，每次读数是独立的高斯噪声。共享网络是 `Vs1 = 5 V` 经 `R1 = 1000 Ω` 进入节点 `V`，`Vs2 = 3 V` 经 `R2 = 2000 Ω` 进入同一节点，再经 `R3 = 4000 Ω`（或二极管支路）到地。
+
+| 臂 | 计算内容 |
+|---|---|
+| A_joint | 两个源同时打开时的一次节点 KCL 求解 |
+| B_super | 两个单源响应之和；另一个独立电压源置零（换成短路） |
+| residual | 在二极管支路上，叠加结果减去联合求解的残差 |
+
+**公共随机数:** 五个种子。无噪声与二极管两种情形是确定性的（五个种子重复同一个直流值）。在 `linear_meter` 里，每个种子有 32 块板；A 的一次读数和 B 的两次单源读数的三个高斯抽样按固定顺序每块板抽一次并共享。指标是每个种子的平均节点电压，再对种子报均值±标准差。**没有积分步长**（直流节点方程；线性网是闭式，二极管网是单节点二分）。比较**看不见**接线错误、电表负载，以及任何交流或时变故事。真实面包板 / 万用表：本页未运行。
+
+**预先声明的情形:** 线性电阻、无表噪声 — A 与 B 应为**打平**，或**数值上为零（浮点残差），等同打平**；线性电阻加微小表噪声（`σ = 0.001 V`）— **接近打平**；二极管支路 — 叠加相对联合求解应**稳定地输**。
+
+### 运行标准库模型
+
+```bash
+cd ~/Hardware-learning/examples/month-1/ohms-law
+python3 superposition_linear_circuit_toy.py
+```
+
+<CodeSource path="examples/month-1/ohms-law/superposition_linear_circuit_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic superposition theorem vs a joint nodal solve vs a nonlinear element.
+
+Stdlib only. Shared linear net: Vs1 -- R1 -- node V -- R2 -- Vs2, with R3 (or a
+series ideal-diode + Rf stand-in) from V to ground. Arms:
+
+  A_joint     one KCL nodal solve with both independent sources on
+  B_super     sum of the two single-source responses (the other independent
+              source is set to zero, i.e. a voltage source is replaced by a short)
+  C_nonlinear same topology with R3 replaced by a series ideal diode + Rf; the
+              sum of single-source responses is compared with the joint solve
+
+Common random numbers: when a regime has meter noise, the 32 board indices and
+the Gaussian draws are shared in a fixed order across arms on each seed (A uses
+z0, B uses z1 then z2 on the two single-source readings). Seeds 0-4.
+
+No integration step: DC nodal equation, closed form on the linear net, bisection
+on the one-node nonlinear residual. Written before the first run.
+
+Regimes (declared before the first run):
+  linear_noiseless  resistors only, no meter noise  -> A vs B numerically zero / tie
+  linear_meter      same linear net + tiny meter noise -> A vs B near-tie
+  nonlinear_diode   series diode + Rf to ground     -> B (superposition) consistent lose
+
+Not a Thévenin collapse, not a Wheatstone bridge, not a rectifier-ripple toy.
+Real breadboard / DMM: 本页未运行. Wikipedia Superposition principle 以原文为准.
+"""
+from __future__ import annotations
+
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+BOARDS = 32
+NUM_ZERO = 1e-9
+VS1 = 5.0
+VS2 = 3.0
+R1 = 1000.0
+R2 = 2000.0
+R3 = 4000.0
+VF = 0.7
+RF = 2000.0
+SIGMA = 0.001  # V, tiny meter noise (linear_meter)
+SIGMA_ALT = 0.010  # V, alternative printed on the same seeds
+ARMS = ("A_joint", "B_super", "C_nonlinear")
+# name: kind; written before the first run
+REGIMES = ("linear_noiseless", "linear_meter", "nonlinear_diode")
+STREAM = {"linear_noiseless": 0, "linear_meter": 1, "nonlinear_diode": 2}
+
+
+def g_parallel() -> float:
+    return 1.0 / R1 + 1.0 / R2 + 1.0 / R3
+
+
+def linear_node(vs1: float, vs2: float) -> float:
+    """1x1 nodal KCL solve: V * (1/R1+1/R2+1/R3) = vs1/R1 + vs2/R2."""
+    return (vs1 / R1 + vs2 / R2) / g_parallel()
+
+
+def diode_current(v: float, vf: float, rf: float) -> float:
+    return 0.0 if v <= vf else (v - vf) / rf
+
+
+def nonlinear_residual(v: float, vs1: float, vs2: float, vf: float, rf: float) -> float:
+    return (v - vs1) / R1 + (v - vs2) / R2 + diode_current(v, vf, rf)
+
+
+def nonlinear_node(vs1: float, vs2: float, vf: float = VF, rf: float = RF) -> float:
+    """Bisection on the one-node KCL residual. No time step."""
+    lo, hi = -20.0, 20.0
+    flo, fhi = nonlinear_residual(lo, vs1, vs2, vf, rf), nonlinear_residual(hi, vs1, vs2, vf, rf)
+    if flo == 0.0:
+        return lo
+    if fhi == 0.0:
+        return hi
+    if flo * fhi > 0.0:
+        raise RuntimeError("nonlinear bracket failed")
+    for _ in range(80):
+        mid = 0.5 * (lo + hi)
+        fmid = nonlinear_residual(mid, vs1, vs2, vf, rf)
+        if fmid == 0.0 or 0.5 * (hi - lo) < 1e-15:
+            return mid
+        if flo * fmid <= 0.0:
+            hi, fhi = mid, fmid
+        else:
+            lo, flo = mid, fmid
+    return 0.5 * (lo + hi)
+
+
+def mean_sd(xs: list[float]) -> tuple[float, float]:
+    mu = sum(xs) / len(xs)
+    if len(xs) == 1:
+        return mu, 0.0
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x: float) -> str:
+    if x != 0.0 and abs(x) < 5e-5:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs: list[float], m: float) -> str:
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def verdict(xa: list[float], xb: list[float]) -> str:
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{num(m)}+-{num(s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{num(m)}+-{num(s)}: {label}; {sign_note(diffs, m)}"
+
+
+def shared_noise(regime: str, seed: int, sigma: float) -> list[tuple[float, float, float]]:
+    rng = random.Random(1000 * STREAM[regime] + seed)
+    return [(rng.gauss(0.0, sigma), rng.gauss(0.0, sigma), rng.gauss(0.0, sigma)) for _ in range(BOARDS)]
+
+
+def arm_voltage(arm: str, kind: str, vs1: float, vs2: float, noise: tuple[float, float, float], vf: float, rf: float) -> float:
+    z0, z1, z2 = noise
+    if kind == "linear":
+        v_joint = linear_node(vs1, vs2)
+        v_s1 = linear_node(vs1, 0.0)
+        v_s2 = linear_node(0.0, vs2)
+    else:
+        v_joint = nonlinear_node(vs1, vs2, vf, rf)
+        v_s1 = nonlinear_node(vs1, 0.0, vf, rf)
+        v_s2 = nonlinear_node(0.0, vs2, vf, rf)
+    if arm == "A_joint":
+        return v_joint + z0
+    if arm == "B_super":
+        return (v_s1 + z1) + (v_s2 + z2)
+    return v_joint + z0  # C reports the joint nonlinear voltage when kind is nonlinear
+
+
+def seed_means(kind: str, sigma: float, regime: str, vf: float = VF, rf: float = RF) -> dict[str, list[float]]:
+    out = {arm: [] for arm in ARMS}
+    for seed in SEEDS:
+        if sigma == 0.0:
+            draws = [(0.0, 0.0, 0.0)]
+        else:
+            draws = shared_noise(regime, seed, sigma)
+        acc = {arm: 0.0 for arm in ARMS}
+        for noise in draws:
+            for arm in ARMS:
+                acc[arm] += arm_voltage(arm, kind, VS1, VS2, noise, vf, rf)
+        n = len(draws)
+        for arm in ARMS:
+            out[arm].append(acc[arm] / n)
+    return out
+
+
+def main() -> None:
+    v_joint = linear_node(VS1, VS2)
+    v_s1 = linear_node(VS1, 0.0)
+    v_s2 = linear_node(0.0, VS2)
+    v_sum = v_s1 + v_s2
+    residual = v_joint - v_sum
+    i1 = (VS1 - v_joint) / R1
+    i2 = (v_joint - VS2) / R2
+    i3 = v_joint / R3
+    # hand values 26/7, 20/7, 6/7 V
+    print("Synthetic superposition toy; shared two-source linear net; not Thevenin, not Wheatstone, not a rectifier")
+    print(f"VS1={VS1} V VS2={VS2} V R1={R1:.0f}ohm R2={R2:.0f}ohm R3={R3:.0f}ohm VF={VF} V RF={RF:.0f}ohm")
+    print(f"seeds={len(SEEDS)} boards={BOARDS} meter_sigma={SIGMA} V alt_sigma={SIGMA_ALT} V")
+    print("no integration step: DC nodal KCL, closed form on the linear net, bisection on the one-node nonlinear residual")
+    print(f"linear_hand V_joint={v_joint:.10f} V (hand 26/7 V) V_s1_only={v_s1:.10f} V (hand 20/7 V) V_s2_only={v_s2:.10f} V (hand 6/7 V)")
+    print(f"linear_hand V_sum={v_sum:.10f} V residual_A-B={residual:.3e} V I_R1={i1:.10f} A I_R2={i2:.10f} A I_R3={i3:.10f} A")
+    print(f"KCL check I_R1-I_R2-I_R3={i1 - i2 - i3:.3e} A")
+
+    v_nl = nonlinear_node(VS1, VS2)
+    v_nl_s1 = nonlinear_node(VS1, 0.0)
+    v_nl_s2 = nonlinear_node(0.0, VS2)
+    print(f"nonlinear_hand V_joint={v_nl:.10f} V V_s1_only={v_nl_s1:.10f} V V_s2_only={v_nl_s2:.10f} V V_sum={v_nl_s1 + v_nl_s2:.10f} V residual_B-A={(v_nl_s1 + v_nl_s2) - v_nl:.10f} V")
+
+    for regime in REGIMES:
+        if regime == "linear_noiseless":
+            kind, sigma, tag = "linear", 0.0, "linear resistors, no meter noise"
+        elif regime == "linear_meter":
+            kind, sigma, tag = "linear", SIGMA, f"linear resistors, meter noise N(0, {SIGMA} V)"
+        else:
+            kind, sigma, tag = "nonlinear", 0.0, f"series ideal diode + Rf, VF={VF} V RF={RF:.0f}ohm"
+        print(f"{regime} ({tag})")
+        res = seed_means(kind, sigma, regime)
+        for arm in ("A_joint", "B_super"):
+            m, s = mean_sd(res[arm])
+            print(f"  {arm} {num(m)}+-{num(s)} V")
+        residual = [b - a for a, b in zip(res["A_joint"], res["B_super"])]
+        zeros = [0.0] * len(residual)
+        print(f"  residual B-A {num(mean_sd(residual)[0])}+-{num(mean_sd(residual)[1])} V")
+        print(f"  paired A-B nodeV: {verdict(res['A_joint'], res['B_super'])}")
+        print(f"  paired residual B-A vs 0: {verdict(residual, zeros)}")
+
+    # Alternative meter sigma on the same seeds (linear_meter stream), disclosed
+    res_alt = seed_means("linear", SIGMA_ALT, "linear_meter")
+    print(f"alternative linear_meter sigma={SIGMA_ALT} V (same seeds, same board indices, rescaled draws)")
+    print(f"  paired A-B nodeV: {verdict(res_alt['A_joint'], res_alt['B_super'])}")
+    # Alternative Rf on the same nonlinear net (deterministic)
+    v_alt = nonlinear_node(VS1, VS2, VF, 1000.0)
+    v_alt_s1 = nonlinear_node(VS1, 0.0, VF, 1000.0)
+    v_alt_s2 = nonlinear_node(0.0, VS2, VF, 1000.0)
+    print(f"alternative nonlinear Rf=1000ohm V_joint={v_alt:.10f} V V_sum={v_alt_s1 + v_alt_s2:.10f} V residual_B-A={(v_alt_s1 + v_alt_s2) - v_alt:.10f} V")
+    print("No winner declared: superposition matches the joint solve on a linear net and fails once a diode is in the branch")
+    print("Real breadboard / DMM: 本页未运行; Wikipedia Superposition principle 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic superposition toy; shared two-source linear net; not Thevenin, not Wheatstone, not a rectifier
+VS1=5.0 V VS2=3.0 V R1=1000ohm R2=2000ohm R3=4000ohm VF=0.7 V RF=2000ohm
+seeds=5 boards=32 meter_sigma=0.001 V alt_sigma=0.01 V
+no integration step: DC nodal KCL, closed form on the linear net, bisection on the one-node nonlinear residual
+linear_hand V_joint=3.7142857143 V (hand 26/7 V) V_s1_only=2.8571428571 V (hand 20/7 V) V_s2_only=0.8571428571 V (hand 6/7 V)
+linear_hand V_sum=3.7142857143 V residual_A-B=0.000e+00 V I_R1=0.0012857143 A I_R2=0.0003571429 A I_R3=0.0009285714 A
+KCL check I_R1-I_R2-I_R3=-1.084e-19 A
+nonlinear_hand V_joint=3.4250000000 V V_s1_only=2.6750000000 V V_s2_only=0.9250000000 V V_sum=3.6000000000 V residual_B-A=0.1750000000 V
+linear_noiseless (linear resistors, no meter noise)
+  A_joint 3.7143+-0.0000 V
+  B_super 3.7143+-0.0000 V
+  residual B-A 0.0000+-0.0000 V
+  paired A-B nodeV: 0.0000+-0.0000: tie: identical on every seed
+  paired residual B-A vs 0: 0.0000+-0.0000: tie: identical on every seed
+linear_meter (linear resistors, meter noise N(0, 0.001 V))
+  A_joint 3.7143+-0.0002 V
+  B_super 3.7144+-0.0003 V
+  residual B-A 0.0001+-0.0003 V
+  paired A-B nodeV: -0.0001+-0.0003: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired residual B-A vs 0: 0.0001+-0.0003: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+nonlinear_diode (series ideal diode + Rf, VF=0.7 V RF=2000ohm)
+  A_joint 3.4250+-0.0000 V
+  B_super 3.6000+-0.0000 V
+  residual B-A 0.1750+-0.0000 V
+  paired A-B nodeV: -0.1750+-0.0000: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired residual B-A vs 0: 0.1750+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative linear_meter sigma=0.01 V (same seeds, same board indices, rescaled draws)
+  paired A-B nodeV: -0.0010+-0.0026: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+alternative nonlinear Rf=1000ohm V_joint=2.8800000000 V V_sum=3.1600000000 V residual_B-A=0.2800000000 V
+No winner declared: superposition matches the joint solve on a linear net and fails once a diode is in the branch
+Real breadboard / DMM: 本页未运行; Wikipedia Superposition principle 以原文为准
+```
+
+</SimOutput>
+
+### 读懂各情形
+
+手算值（标明为手算，模型也打印了）：两源同时作用时 `V = 26/7 V ≈ 3.7142857143 V`，只有 `Vs1` 时 `20/7 V ≈ 2.8571428571 V`，只有 `Vs2` 时 `6/7 V ≈ 0.8571428571 V`。二者之和等于联合电压，打印的残差是 `0.000e+00 V`。支路电流的 KCL 核对（`I_R1 = 0.0012857143 A`，`I_R2 = 0.0003571429 A`，`I_R3 = 0.0009285714 A`）留下浮点残差 `-1.084e-19 A`。
+
+- **linear_noiseless。** A 与 B 都打印 `3.7143±0.0000 V`。成对的 A−B 节点电压，以及 B−A 残差相对 0，都是 `0.0000±0.0000: tie: identical on every seed`。在这个线性网上，叠加与联合求解完全一致。这是**打平**，不要标成「明显」，也不是数值上为零的浮点残差（电压残差打印为 `0.000e+00 V`）。
+- **linear_meter。** 加上 1 mV 表噪声后，A 是 `3.7143±0.0002 V`，B 是 `3.7144±0.0003 V`。成对 A−B 残差是 `-0.0001±0.0003 V`:**接近打平、差距很小，在种子噪声之内**（`|m| ≤ sd`；5 个种子里有 1 个反号）。
+- **nonlinear_diode。** 二极管支路的联合电压是 `3.4250000000 V`；两个单源电压 `2.6750000000 V` 与 `0.9250000000 V` 之和是 `3.6000000000 V`。叠加减去联合求解的残差是 `0.1750000000 V`。五个种子上该残差相对 0 是 `0.1750±0.0000`:**明显差距，不是打平**（`|m| > sd`；5 个种子全部同号）。支路里有二极管时，叠加定理不成立。若只把原始节点电压 `3.4250 V` 与 `3.6000 V` 互相比较，标签是**小而稳定的差距**（`-0.1750±0.0000`；5 个种子全部同号），因为 `|m|` 不到节点电压的 20 %；用来给定理打分的是残差相对 0 的标签。
+
+**事后替代，同一组种子。** 把表噪声提高到 `σ = 0.01 V`，A−B 仍是**接近打平**（`-0.0010±0.0026 V`；5 个种子里有 1 个反号）。把 `Rf` 改成 `1000 Ω`（已披露的替代）后，二极管支路残差是 `0.2800000000 V`（`V_joint = 2.8800000000 V`，`V_sum = 3.1600000000 V`）；叠加仍然失败。
+
+不宣布普遍赢家：叠加在线性网上与联合求解一致，支路里有二极管时就会失败。
+
+### 练习
+
+1. 由节点方程 `V × (1/R1 + 1/R2 + 1/R3) = Vs1/R1 + Vs2/R2` 推出手算值 `26/7 V`、`20/7 V` 和 `6/7 V`，并与模型打印对照。
+2. 为什么「去掉」一个电压源是把它换成短路，而不是把那条支路删掉？
+3. 在二极管支路上，用手把两个单源电压相加，拿你的 `3.6000 V` 去对联合求解的 `3.4250 V`。那 0.175 V 到哪里去了？
+4. 对照打印的替代 `σ = 0.01 V` 想一想：为什么更大的表噪声仍可能是接近打平？
+5. 举出这个直流替身没告诉你的一件事（例如面包板上的测量，或维基段落里那种时变输入）。
+
+**150 分钟安排:** 30 分钟读 Superposition principle 的电气工程段，并和本页的基尔霍夫、戴维南笔记对照；30 分钟手推三个电压和 KCL 核对；40 分钟运行模型、读懂三种情形；30 分钟固定种子改 `Rf` 或表噪声，并与打印的替代比较；20 分钟写下叠加何时成立、有二极管时为何失败。
+
 <Summary>
 
 **本课要点**
@@ -452,6 +771,7 @@ Real DMM / bench Thevenin lab: 本页未运行; Wikipedia numbers 以原文为�
 - 带载不可忽略：给 R2 并上 10 kΩ 负载，输出掉到约 1.2 V，下降 25 %，所以负载至少要是 R2 的 10 倍。
 - 电池接 ADC：8.4 V 经 10 kΩ / 10 kΩ 分压得到 4.20 V，静态电流 0.42 mA。
 - 戴维南 / 诺顿：练习分压器可以压缩成 `Vth = 1.5986 V` 串 `Rth ≈ 3.2 kΩ`（诺顿形式 0.5 mA ∥ 3.2 kΩ），`V_L = Vth × RL / (Rth + RL)` 在 10 kΩ 下复现 1.21 V；RL ≫ Rth 时戴维南与诺顿**接近打平、差距很小**，单看 `Voc` 也只落后一个小而稳定的差距（不是打平）——不是实验台实验。
+- 叠加定理：在共享的双源线性网上，联合节点求解与单源响应之和是**打平**（每个种子都相同），电压为 `3.7142857143 V`（手算 `26/7 V`）；1 mV 表噪声是**接近打平**（`-0.0001±0.0003 V`，5 个种子里有 1 个反号）；串入二极管后叠加以**明显的** `0.1750±0.0000 V` 残差失败（5 个种子全部同号）——不是面包板实验。
 
 **常见错误**
 
