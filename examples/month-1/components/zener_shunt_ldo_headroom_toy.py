@@ -172,6 +172,10 @@ def main():
           f"{1.0 if (VSET_NOM + HEADROOM - VSET_NOM) >= HEADROOM else 0.0:.0f}; "
           f"Vin={VSET_NOM + HEADROOM - 0.001:.10f} V in_reg="
           f"{1.0 if ((VSET_NOM + HEADROOM - 0.001) - VSET_NOM) >= HEADROOM else 0.0:.0f}")
+    spare = VIN_LOW - VSET_NOM
+    print(f"below_headroom_spare: Vin-Vset={spare:.10f} V ({VIN_LOW:.2f}-{VSET_NOM:.1f}), "
+          f"below HEADROOM {HEADROOM:.2f} V")
+    print("zener_in_reg_rule: in regulation iff I_Z>0 (rz=0 model; not a datasheet knee current I_Z,min)")
     # Hand calc, also printed from the same closed form (rz = 0, nominal values)
     ir = (VIN_NOM - VZ_NOM) / R_SERIES
     iz = ir - IL_MOD

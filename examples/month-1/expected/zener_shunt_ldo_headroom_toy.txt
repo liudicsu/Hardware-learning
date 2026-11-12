@@ -4,6 +4,8 @@ No integration step: DC solve, no time-step criterion
 Regimes, HEADROOM and P_THERMAL were written before the first run
 headroom_rule: in regulation iff Vin - Vset >= HEADROOM (equality allowed)
 headroom_boundary: Vin=5.4000000000 V in_reg=1; Vin=5.3990000000 V in_reg=0
+below_headroom_spare: Vin-Vset=0.1500000000 V (5.15-5.0), below HEADROOM 0.40 V
+zener_in_reg_rule: in regulation iff I_Z>0 (rz=0 model; not a datasheet knee current I_Z,min)
 hand_calc Vin=12.0 V R=100 ohm VZ=5.0 V IL=0.020 A: IR=(Vin-VZ)/R=0.0700000000 A; IZ=IR-IL=0.0500000000 A; PZ=VZ*IZ=0.2500000000 W
 hand_calc thermal heavy: R=22 ohm IL=0.200 A: IR=0.3181818182 A IZ=0.1181818182 A PZ=0.5909090909 W P_THERMAL=0.50 W thermal_ok=0 (strict P < P_THERMAL)
 hand_calc thermal light on same R: IL=0.010 A: IZ=0.3081818182 A PZ=1.5409090909 W thermal_ok=0

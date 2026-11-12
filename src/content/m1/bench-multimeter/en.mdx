@@ -597,7 +597,7 @@ The page **does not declare a universal winner**: Kelvin wins wherever the part 
 <Resource id="wiki-multimeter" />
 <Resource id="wiki-rms" />
 
-RMS is the square root of the mean of the square (Wikipedia, Root mean square; 以原文为准). For a zero-mean sine the peak-to-peak amplitude is 2√2 × RMS ≈ 2.8 × RMS; **other waveforms do not share that ratio** (same page). A meter may be assumed **average-responding** unless it is stated **true-RMS**: an average-responding meter meets its AC accuracy **only for pure sinusoids**; a true-RMS meter meets it for other waveforms **up to a specified crest factor** (Wikipedia, Multimeter; 以原文为准).
+RMS is the square root of the mean of the square (Wikipedia, Root mean square; 以原文为准). For a zero-mean sine the peak-to-peak amplitude is 2√2 × RMS ≈ 2.8 × RMS; **other waveforms do not share that ratio** (same page). A meter may be assumed **average-responding** unless it is stated **true-RMS**: an average-responding meter meets its AC accuracy **only for pure sinusoids**; a true-RMS meter meets it for other waveforms **up to a specified crest factor** (Wikipedia, Multimeter; 以原文为准). The same page notes that the meter manual may also state the **frequency** (bandwidth) limits for which that true-RMS calibration remains valid. This toy does not model a finite bandwidth.
 
 This section is **not** a redo of Kelvin four-wire sensing above, and **not** the Thévenin / max-power prose on the Ohm's law page.
 
@@ -611,7 +611,7 @@ This section is **not** a redo of Kelvin four-wire sensing above, and **not** th
 
 ### Fair setup
 
-`true_rms_vs_average_responding_toy.py` is **synthetic** and stdlib only. **Model assumptions:** 50 Hz waves, 10 kHz sampling, 8000 samples (exactly 40 periods), 1 V peak on every wave. Arm B multiplies mean-abs by the continuous sine form factor 1.1107207345. Arm C reports peak / √2, i.e. it assumes every wave is a sine. The crest-factor cap CF_CAP = 3.0 is a **declared toy parameter**, written before the first run, not a datasheet claim; a clipped true-RMS path that limits peaks at CF_CAP times the unclipped RMS is printed as well. The sine regime is clean (phase only). Square, triangle and PWM share 1 mV rms additive noise. These are this toy's own choices: **no real DMM datasheet was opened**.
+`true_rms_vs_average_responding_toy.py` is **synthetic** and stdlib only. **Model assumptions:** 50 Hz waves, 10 kHz sampling (FS = 10000 Hz, printed), 8000 samples (exactly 40 periods, from N × F / FS), 1 V peak on every wave. Arm B multiplies mean-abs by the continuous sine form factor 1.1107207345. Arm C reports peak / √2, i.e. it assumes every wave is a sine. The crest-factor cap CF_CAP = 3.0 is a **declared toy parameter**, written before the first run, not a datasheet claim; a clipped true-RMS path that limits peaks at CF_CAP times the unclipped RMS is printed as well. The sine regime is clean (phase only). Square, triangle and PWM share 1 mV rms additive noise. These are this toy's own choices: **no real DMM datasheet was opened**.
 
 | Arm | Estimator |
 |---|---|
@@ -937,7 +937,7 @@ The page **does not declare a universal winner**: average-responding is a near-t
 
 1. From the printed hand-calc block, confirm that a 1 V-peak sine has RMS 0.7071067812 V and that a ±1 V square is over-read by 0.1107207345 V (11.0721 %) on the average-responding arm.
 2. Show from `shared_wave` that A, B and C see the same samples for a given regime and seed.
-3. Why is the sine A−B line a **near-tie** rather than **numerically zero (floating-point residue), effectively a tie**, even though A's residual versus 0.7071067812 V is 1.110e-16?
+3. Why is the sine B−A line a **near-tie** rather than **numerically zero (floating-point residue), effectively a tie**, even though A's residual versus 0.7071067812 V is 1.110e-16?
 4. On `pwm_high_crest`, predict whether raising CF_CAP from 3.0 to 4.0 can make the clipped path identical to A, then check the printed alternative.
 5. Before any real DMM (本页未运行), explain why the sine **near-tie** does **not** license an average-responding meter on a PWM motor drive.
 
@@ -953,7 +953,7 @@ The synthetic DMM V/R budget divides rectangular spec limits by √3, then contr
 - CAT rating: never measure mains with a meter or leads that carry no CAT rating.
 - Kelvin four-wire: on a 5–20 mΩ shunt two-wire reads 764.0166±61.6550 % high while Kelvin stays within 0.0892±0.0161 % (paired 763.9274±61.6410, a clear gap, same sign on all 5 seeds); on 5–20 kΩ parts the lead term is a near-tie in absolute error, and with zero leads two-wire and Kelvin **tie** (identical on every seed) — a synthetic model, not a bench run.
 
-- True RMS versus average-responding: on shared waveforms a sampled sine is a **near-tie** (A−B -6.112e-06±1.805e-05, 2 of 5 opposite sign), not a numerical zero; a square is over-read by 0.1107 V (11.0721 %, small but consistent, 5/5) and a high-crest PWM is a **clear** miss (-0.1793±0.0024, 5/5) — a synthetic model, not a real DMM.
+- True RMS versus average-responding: on shared waveforms a sampled sine is a **near-tie** (B−A -6.112e-06±1.805e-05, 2 of 5 opposite sign), not a numerical zero; a square is over-read by 0.1107 V (11.0721 %, small but consistent, 5/5) and a high-crest PWM is a **clear** miss (-0.1793±0.0024, 5/5) — a synthetic model, not a real DMM.
 
 **Used next**
 

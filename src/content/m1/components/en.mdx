@@ -1466,7 +1466,7 @@ This section is **not** the ESD/TVS clamp, **not** the bridge-rectifier ripple a
 
 ### Fair setup
 
-`zener_shunt_ldo_headroom_toy.py` is **synthetic** and stdlib only. **Model assumptions:** a stiff Zener (dynamic resistance zero) with a series R and a current-sink load; an LDO that holds V_set when V_in − V_set is at least HEADROOM = 0.40 V and otherwise falls to V_in − HEADROOM; an uncapped arm that uses only a 0.05 Ω residual source resistance as a stand-in for a missing series resistor. Each seed draws an independent ±0.05 V tolerance on V_Z and on the LDO reference. Quiet current I_Q = 0.002 A and the thermal cap P_THERMAL = 0.50 W are toy constants. HEADROOM is **not** a datasheet dropout.
+`zener_shunt_ldo_headroom_toy.py` is **synthetic** and stdlib only. **Model assumptions:** a stiff Zener (dynamic resistance zero) with a series R and a current-sink load — in this r_z = 0 model the Zener is counted in regulation only when I_Z > 0, which is not a datasheet knee current I_Z,min; an LDO that holds V_set when V_in − V_set is at least HEADROOM = 0.40 V and otherwise falls to V_in − HEADROOM; an uncapped arm that uses only a 0.05 Ω residual source resistance as a stand-in for a missing series resistor. Each seed draws an independent ±0.05 V tolerance on V_Z and on the LDO reference. Quiet current I_Q = 0.002 A and the thermal cap P_THERMAL = 0.50 W are toy constants. HEADROOM is **not** a datasheet dropout.
 
 | Arm | Regulator |
 |---|---|
@@ -1479,7 +1479,7 @@ This section is **not** the ESD/TVS clamp, **not** the bridge-rectifier ripple a
 | Regime | V_in, load, R | What was pre-declared |
 |---|---|---|
 | in_regulation | 12.0 V, 20 mA, 100 Ω | A vs B **near-tie** on V_out |
-| below_headroom | 5.15 V, 20 mA, 100 Ω (0.15 V of spare, below 0.40 V) | A and B **consistent** lose (out of regulation); **keep** |
+| below_headroom | 5.15 V, 20 mA, 100 Ω (Vin − Vset = 0.1500000000 V, below 0.40 V) | A and B **consistent** lose (out of regulation); **keep** |
 | thermal_small_R | 12.0 V, 200 mA, 22 Ω (R sized for the heavy load) | Zener dissipation **consistent** lose against the thermal cap; **keep** |
 
 ### Run the stdlib toy
@@ -1666,6 +1666,10 @@ def main():
           f"{1.0 if (VSET_NOM + HEADROOM - VSET_NOM) >= HEADROOM else 0.0:.0f}; "
           f"Vin={VSET_NOM + HEADROOM - 0.001:.10f} V in_reg="
           f"{1.0 if ((VSET_NOM + HEADROOM - 0.001) - VSET_NOM) >= HEADROOM else 0.0:.0f}")
+    spare = VIN_LOW - VSET_NOM
+    print(f"below_headroom_spare: Vin-Vset={spare:.10f} V ({VIN_LOW:.2f}-{VSET_NOM:.1f}), "
+          f"below HEADROOM {HEADROOM:.2f} V")
+    print("zener_in_reg_rule: in regulation iff I_Z>0 (rz=0 model; not a datasheet knee current I_Z,min)")
     # Hand calc, also printed from the same closed form (rz = 0, nominal values)
     ir = (VIN_NOM - VZ_NOM) / R_SERIES
     iz = ir - IL_MOD
@@ -1759,6 +1763,8 @@ No integration step: DC solve, no time-step criterion
 Regimes, HEADROOM and P_THERMAL were written before the first run
 headroom_rule: in regulation iff Vin - Vset >= HEADROOM (equality allowed)
 headroom_boundary: Vin=5.4000000000 V in_reg=1; Vin=5.3990000000 V in_reg=0
+below_headroom_spare: Vin-Vset=0.1500000000 V (5.15-5.0), below HEADROOM 0.40 V
+zener_in_reg_rule: in regulation iff I_Z>0 (rz=0 model; not a datasheet knee current I_Z,min)
 hand_calc Vin=12.0 V R=100 ohm VZ=5.0 V IL=0.020 A: IR=(Vin-VZ)/R=0.0700000000 A; IZ=IR-IL=0.0500000000 A; PZ=VZ*IZ=0.2500000000 W
 hand_calc thermal heavy: R=22 ohm IL=0.200 A: IR=0.3181818182 A IZ=0.1181818182 A PZ=0.5909090909 W P_THERMAL=0.50 W thermal_ok=0 (strict P < P_THERMAL)
 hand_calc thermal light on same R: IL=0.010 A: IZ=0.3081818182 A PZ=1.5409090909 W thermal_ok=0
@@ -1813,7 +1819,7 @@ Real regulator bench: 本页未运行; Wikipedia statements 以原文为准
 How the labels are used on this page, in this order: **tie: identical on every seed** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when |paired mean| and its sd are both below 1e-9 (no sign count is printed on such a line); **near-tie / small gap, within seed noise** when |paired mean| ≤ sd; otherwise a **consistent** gap (|paired mean| > sd), called **small** if |m| is under 20 % of the smaller arm mean and **clear** otherwise; the 20 % rule only chooses between those two words. Every consistent line carries a same-sign count over the 5 seeds, and any seed with the opposite sign is reported. Gaps are computed from unrounded values.
 
 - **in_regulation.** A reads 4.9832±0.0272 V and B reads 5.0065±0.0436 V, both in regulation on every seed (in_reg vs 1 is a **tie: identical on every seed**). Paired A−B V_out is -0.0233±0.0516: **near-tie / small gap, within seed noise** (|m| ≤ sd; 2 of 5 seeds have the opposite sign), which is the §9 cell. The absolute-error line is **not** a near-tie: paired A−B |err| is -0.0120±0.0110, a **clear gap, not a tie** (same sign on all 5 seeds), because the independent ±0.05 V tolerances cancel more in the signed difference than in |error|. Both lines are printed. The uncapped arm holds the same voltage as A but dissipates 702.9278±8.8282 W; paired C−A p is 702.6763±8.8323: a **clear gap, not a tie** (same sign on all 5 seeds). **Keep** that loss.
-- **below_headroom.** V_in is only 0.15 V above the 5 V set point, below the 0.40 V headroom. A's V_out falls to 3.1481±0.3549 V (the Zener is off), B's V_out is 4.7719±0.1180 V (the LDO is at V_in − HEADROOM). Both in_reg vs 1 lines are -1.0000±0.0000: a **clear gap, not a tie** (same sign on all 5 seeds). **Keep** this out-of-regulation loss. The uncapped shunt still "regulates" (15.8986±11.1698 W) because almost no series resistor is dropping voltage — that is not a safe design.
+- **below_headroom.** V_in − V_set is only 0.1500000000 V (5.15 − 5.0), below the 0.40 V headroom. A's V_out falls to 3.1481±0.3549 V (the Zener is off), B's V_out is 4.7719±0.1180 V (the LDO is at V_in − HEADROOM). Both in_reg vs 1 lines are -1.0000±0.0000: a **clear gap, not a tie** (same sign on all 5 seeds). **Keep** this out-of-regulation loss. The uncapped shunt still "regulates" (15.8986±11.1698 W) because almost no series resistor is dropping voltage — that is not a safe design.
 - **thermal_small_R.** V_out is again a **near-tie** (paired A−B 0.0108±0.0495, 1 of 5 seeds has the opposite sign) and both arms are in regulation, but A's dissipation is 0.5828±0.0229 W against the 0.50 W cap. Paired thermal_ok vs 1 is -1.0000±0.0000: a **clear gap, not a tie** (same sign on all 5 seeds). **Keep** this thermal loss. The light-load companion on the same R, same V_in draws, is worse: 1.5368±0.0231 W, and thermal_ok vs 1 is again -1.0000±0.0000, a **clear gap, not a tie** (same sign on all 5 seeds). The LDO's pass-element dissipation on this heavy load is 1.4067±0.0211 W — linear regulators also get hot when (V_in − V_out) I_out is large.
 
 **Choices made after seeing results.** None. HEADROOM = 0.40 V, P_THERMAL = 0.50 W and the 22 Ω / 200 mA sizing were written before the first run. Alternatives on the same seeds: lowering HEADROOM to 0.20 V raises below-headroom in_reg to 0.4000±0.5477 (a **near-tie** versus the default all-zero line; no seed has the opposite sign, 3 of 5 equal) — 0.20 V was not adopted. Raising P_THERMAL to 0.80 W would have made every thermal_small_R seed pass (thermal_ok@0.80 is 1.0000±0.0000, a **clear** change versus the default). That looser cap was **not** used to delete the loss.

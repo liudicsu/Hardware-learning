@@ -1466,7 +1466,7 @@ Real mains / transformer / PSU bench: 本页未运行; Wikipedia formulas 以原
 
 ### 公平设置
 
-`zener_shunt_ldo_headroom_toy.py` 是**合成**的，只用标准库。**模型假设:** 刚性齐纳（动态电阻为零），带串联电阻和电流阱负载；LDO 在 V_in − V_set 至少为 HEADROOM = 0.40 V 时稳住 V_set，否则落到 V_in − HEADROOM；无串联电阻的一臂只用 0.05 Ω 的残余源电阻来代替缺失的串联电阻。每个种子为 V_Z 和 LDO 基准各抽一次独立的 ±0.05 V 容差。静态电流 I_Q = 0.002 A 和热限额 P_THERMAL = 0.50 W 都是玩具常数。HEADROOM **不是**数据手册里的压差。
+`zener_shunt_ldo_headroom_toy.py` 是**合成**的，只用标准库。**模型假设:** 刚性齐纳（动态电阻为零），带串联电阻和电流阱负载——在这个 r_z = 0 的模型里，齐纳只在 I_Z > 0 时算作稳压，这个条件不是数据手册里的膝点电流 I_Z,min；LDO 在 V_in − V_set 至少为 HEADROOM = 0.40 V 时稳住 V_set，否则落到 V_in − HEADROOM；无串联电阻的一臂只用 0.05 Ω 的残余源电阻来代替缺失的串联电阻。每个种子为 V_Z 和 LDO 基准各抽一次独立的 ±0.05 V 容差。静态电流 I_Q = 0.002 A 和热限额 P_THERMAL = 0.50 W 都是玩具常数。HEADROOM **不是**数据手册里的压差。
 
 | 臂 | 稳压方式 |
 |---|---|
@@ -1479,7 +1479,7 @@ Real mains / transformer / PSU bench: 本页未运行; Wikipedia formulas 以原
 | 情形 | V_in、负载、R | 预先声明 |
 |---|---|---|
 | in_regulation | 12.0 V，20 mA，100 Ω | A 与 B 在 V_out 上**接近打平** |
-| below_headroom | 5.15 V，20 mA，100 Ω（只剩 0.15 V，低于 0.40 V） | A 和 B **稳定地输**（失稳）；**保留** |
+| below_headroom | 5.15 V，20 mA，100 Ω（Vin − Vset = 0.1500000000 V，低于 0.40 V） | A 和 B **稳定地输**（失稳）；**保留** |
 | thermal_small_R | 12.0 V，200 mA，22 Ω（电阻按重载来选） | 齐纳耗散相对热限额**稳定地输**；**保留** |
 
 ### 运行标准库 toy
@@ -1666,6 +1666,10 @@ def main():
           f"{1.0 if (VSET_NOM + HEADROOM - VSET_NOM) >= HEADROOM else 0.0:.0f}; "
           f"Vin={VSET_NOM + HEADROOM - 0.001:.10f} V in_reg="
           f"{1.0 if ((VSET_NOM + HEADROOM - 0.001) - VSET_NOM) >= HEADROOM else 0.0:.0f}")
+    spare = VIN_LOW - VSET_NOM
+    print(f"below_headroom_spare: Vin-Vset={spare:.10f} V ({VIN_LOW:.2f}-{VSET_NOM:.1f}), "
+          f"below HEADROOM {HEADROOM:.2f} V")
+    print("zener_in_reg_rule: in regulation iff I_Z>0 (rz=0 model; not a datasheet knee current I_Z,min)")
     # Hand calc, also printed from the same closed form (rz = 0, nominal values)
     ir = (VIN_NOM - VZ_NOM) / R_SERIES
     iz = ir - IL_MOD
@@ -1759,6 +1763,8 @@ No integration step: DC solve, no time-step criterion
 Regimes, HEADROOM and P_THERMAL were written before the first run
 headroom_rule: in regulation iff Vin - Vset >= HEADROOM (equality allowed)
 headroom_boundary: Vin=5.4000000000 V in_reg=1; Vin=5.3990000000 V in_reg=0
+below_headroom_spare: Vin-Vset=0.1500000000 V (5.15-5.0), below HEADROOM 0.40 V
+zener_in_reg_rule: in regulation iff I_Z>0 (rz=0 model; not a datasheet knee current I_Z,min)
 hand_calc Vin=12.0 V R=100 ohm VZ=5.0 V IL=0.020 A: IR=(Vin-VZ)/R=0.0700000000 A; IZ=IR-IL=0.0500000000 A; PZ=VZ*IZ=0.2500000000 W
 hand_calc thermal heavy: R=22 ohm IL=0.200 A: IR=0.3181818182 A IZ=0.1181818182 A PZ=0.5909090909 W P_THERMAL=0.50 W thermal_ok=0 (strict P < P_THERMAL)
 hand_calc thermal light on same R: IL=0.010 A: IZ=0.3081818182 A PZ=1.5409090909 W thermal_ok=0
@@ -1813,7 +1819,7 @@ Real regulator bench: 本页未运行; Wikipedia statements 以原文为准
 本页标签的用法，按这个顺序。**打平：每个种子都完全相同** 只在按种子配对的差在每个种子上都恰好为零时使用；**数值上为零（浮点残差），等同打平** 用于 |配对均值| 和它的 sd 都低于 1e-9 时（这类行不打印同号计数）；**接近打平、差距很小，在种子噪声之内** 用于 |配对均值| ≤ sd；否则是**稳定的**差距（|配对均值| > sd），若 |m| 不到较小那一臂均值的 20 % 就叫**小**，否则叫**明显**；20 % 规则只用来选这两个词。每条稳定差距的行都带 5 个种子的同号计数，有反号的种子也会写出来。差距用未四舍五入的值计算。
 
 - **in_regulation。** A 读 4.9832±0.0272 V，B 读 5.0065±0.0436 V，每个种子都在稳压（in_reg 相对 1 是**打平：每个种子都完全相同**）。成对 A−B 的 V_out 是 -0.0233±0.0516，为**接近打平、差距很小，在种子噪声之内**（|m| ≤ sd；5 个种子里有 2 个反号），这正是 §9 要的格子。绝对误差那一行**不是**接近打平：成对 A−B |err| 是 -0.0120±0.0110，**明显差距，不是打平**（5 个种子全部同号），因为独立的 ±0.05 V 容差在有符号差里比在 |误差| 里更容易抵消。两行都打印了。无串联电阻的那一臂电压与 A 相同，但耗散 702.9278±8.8282 W；成对 C−A 的 p 是 702.6763±8.8323，为**明显差距，不是打平**（5 个种子全部同号）。**保留**这个失败。
-- **below_headroom。** V_in 只比 5 V 设定值高 0.15 V，低于 0.40 V 的裕量。A 的 V_out 降到 3.1481±0.3549 V（齐纳关断），B 的 V_out 是 4.7719±0.1180 V（LDO 落在 V_in − HEADROOM）。两条 in_reg 相对 1 的线都是 -1.0000±0.0000，为**明显差距，不是打平**（5 个种子全部同号）。**保留**这个失稳结果。无串联电阻的并联臂仍然「稳压」（15.8986±11.1698 W），因为几乎没有串联电阻在掉电压——这不是安全的设计。
+- **below_headroom。** V_in − V_set 只有 0.1500000000 V（5.15 − 5.0），低于 0.40 V 的裕量。A 的 V_out 降到 3.1481±0.3549 V（齐纳关断），B 的 V_out 是 4.7719±0.1180 V（LDO 落在 V_in − HEADROOM）。两条 in_reg 相对 1 的线都是 -1.0000±0.0000，为**明显差距，不是打平**（5 个种子全部同号）。**保留**这个失稳结果。无串联电阻的并联臂仍然「稳压」（15.8986±11.1698 W），因为几乎没有串联电阻在掉电压——这不是安全的设计。
 - **thermal_small_R。** V_out 再次是**接近打平**（成对 A−B 0.0108±0.0495，5 个种子里有 1 个反号），两臂都在稳压，但 A 的耗散是 0.5828±0.0229 W，对着 0.50 W 的限额。thermal_ok 相对 1 是 -1.0000±0.0000，为**明显差距，不是打平**（5 个种子全部同号）。**保留**这个热失败。同一只电阻、同一组 V_in 抽样下的轻载对照更差：1.5368±0.0231 W，thermal_ok 相对 1 同样是 -1.0000±0.0000，**明显差距，不是打平**（5 个种子全部同号）。LDO 在这个重载上的通流元件耗散是 1.4067±0.0211 W——当 (V_in − V_out) I_out 很大时，线性稳压器也会发烫。
 
 **看过结果后做的选择。** 没有。HEADROOM = 0.40 V、P_THERMAL = 0.50 W 以及 22 Ω / 200 mA 的选型都在首次运行前写定。同一组种子上的替代：把 HEADROOM 降到 0.20 V，会把 below-headroom 的 in_reg 提到 0.4000±0.5477（相对默认的全零线是**接近打平**；没有种子反号，5 个里有 3 个相等）——没有采用 0.20 V。把 P_THERMAL 提到 0.80 W，会让 thermal_small_R 的每个种子都通过（thermal_ok@0.80 是 1.0000±0.0000，相对默认是**明显**的改变）。这个更松的限额**没有**被用来删掉失败的情形。

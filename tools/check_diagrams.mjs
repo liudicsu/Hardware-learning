@@ -8348,13 +8348,13 @@ print("protocol pass")
     [1,"bench-multimeter","true_rms_vs_average_responding_toy",540,["## True RMS versus average-responding meters","## 真有效值与平均值响应万用表"],
       ["seeds=5","sine_form_factor=1.1107207345","CF_CAP=3.0","hand_calc 1V_peak_sine: RMS=Vp/sqrt(2)=0.7071067812 V","error=0.1107207345 V (11.0721 %)","paired B-A reading: -6.112e-06+-1.805e-05: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign","paired B-A reading: 0.1107+-8.278e-07: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds","paired C-A reading: -0.2902+-2.475e-04: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired B-A reading: -0.0220+-2.386e-05: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds","paired B-A reading: -0.1793+-0.0024: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired C-A reading: 0.4603+-0.0053: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired A_cf_capped-A reading: -0.0629+-0.0027: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","alternative CF_CAP=2.0 on pwm_high_crest (same seeds):","alternative CF_CAP=4.0 on pwm_high_crest (same seeds):"],
       ["1.1107207345","0.7071067812 V","0.1107207345 V","11.0721 %","-0.1793±0.0024","0.4603±0.0053","-0.0629±0.0027","以原文为准","本页未运行"],
-      {en:["**not** a redo of Kelvin","**not** the Thévenin","**synthetic**","**Model assumptions:**","**Common random numbers:**","**No integration step here.**","**near-tie / small gap, within seed noise**","**small but consistent gap, not a tie**","**clear gap, not a tie**","numerically zero (floating-point residue), effectively a tie","tie: identical on every seed","does not declare a universal winner","first accepted run","was **not** retuned","§9 asked"],zh:["**不是**上面开尔文","**不是**欧姆定律课上的戴维南","**合成**","**模型假设:**","**共用随机数:**","**这里没有积分步长。**","**接近打平、差距很小，在种子噪声之内**","**小而稳定的差距，不是打平**","**明显差距，不是打平**","数值上为零（浮点残差），等同打平","打平：每个种子都完全相同","不宣布普遍赢家","首次接受的运行","**没有**改采样网格","§9 要求"]},
+      {en:["**not** a redo of Kelvin","**not** the Thévenin","**synthetic**","**Model assumptions:**","**Common random numbers:**","**No integration step here.**","**near-tie / small gap, within seed noise**","**small but consistent gap, not a tie**","**clear gap, not a tie**","numerically zero (floating-point residue), effectively a tie","tie: identical on every seed","does not declare a universal winner","first accepted run","was **not** retuned","§9 asked","**frequency** (bandwidth) limits"],zh:["**不是**上面开尔文","**不是**欧姆定律课上的戴维南","**合成**","**模型假设:**","**共用随机数:**","**这里没有积分步长。**","**接近打平、差距很小，在种子噪声之内**","**小而稳定的差距，不是打平**","**明显差距，不是打平**","数值上为零（浮点残差），等同打平","打平：每个种子都完全相同","不宣布普遍赢家","首次接受的运行","**没有**改采样网格","§9 要求","频率（带宽）"]},
       {en:["True RMS versus average-responding","near-tie","-6.112e-06±1.805e-05","0.1107 V","-0.1793±0.0024"],zh:["真有效值与平均值响应","接近打平","-6.112e-06±1.805e-05","0.1107 V","-0.1793±0.0024"]},
       ["wiki-multimeter","wiki-rms"],"150-minute work plan","150 分钟安排"],
     [1,"components","zener_shunt_ldo_headroom_toy",900,["## Zener shunt regulators and LDO headroom","## 齐纳并联稳压与 LDO 压差裕量"],
-      ["seeds=5","HEADROOM=0.40 V (toy, not a datasheet dropout)","headroom_boundary: Vin=5.4000000000 V in_reg=1; Vin=5.3990000000 V in_reg=0","hand_calc Vin=12.0 V R=100 ohm VZ=5.0 V IL=0.020 A: IR=(Vin-VZ)/R=0.0700000000 A; IZ=IR-IL=0.0500000000 A; PZ=VZ*IZ=0.2500000000 W","PZ=0.5909090909 W P_THERMAL=0.50 W thermal_ok=0 (strict P < P_THERMAL)","paired A-B vout: -0.0233+-0.0516: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign","paired B in_reg vs 1: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired A in_reg vs 1: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired A thermal_ok vs 1: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired C-A p: 702.6763+-8.8323: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","A_zener_shunt light p 1.5368+-0.0231","alternative HEADROOM=0.20 V on below_headroom (same seeds):","alternative P_THERMAL=0.80 W on thermal_small_R (same seeds):"],
-      ["0.0700000000 A","0.0500000000 A","0.2500000000 W","-0.0233±0.0516","-1.0000±0.0000","702.6763±8.8323","1.5368±0.0231","以原文为准","本页未运行"],
-      {en:["**not** the ESD/TVS","**not** the bridge-rectifier","**not** a Wheatstone","**synthetic**","**Model assumptions:**","**Common random numbers:**","**No integration step here.**","**near-tie / small gap, within seed noise**","**clear gap, not a tie**","**Keep**","does not declare a universal winner","written before the first run","HEADROOM is **not** a datasheet dropout.","strict inequality"],zh:["**不是** ESD/TVS","**不是**本页已经写过的整流桥纹波","**不是**惠斯通电桥","**合成**","**模型假设:**","**共用随机数:**","**这里没有积分步长。**","**接近打平、差距很小，在种子噪声之内**","**明显差距，不是打平**","**保留**","不宣布普遍赢家","首次运行前写定","HEADROOM **不是**数据手册里的压差。","严格不等式"]},
+      ["seeds=5","HEADROOM=0.40 V (toy, not a datasheet dropout)","headroom_boundary: Vin=5.4000000000 V in_reg=1; Vin=5.3990000000 V in_reg=0","below_headroom_spare: Vin-Vset=0.1500000000 V (5.15-5.0), below HEADROOM 0.40 V","zener_in_reg_rule: in regulation iff I_Z>0 (rz=0 model; not a datasheet knee current I_Z,min)","hand_calc Vin=12.0 V R=100 ohm VZ=5.0 V IL=0.020 A: IR=(Vin-VZ)/R=0.0700000000 A; IZ=IR-IL=0.0500000000 A; PZ=VZ*IZ=0.2500000000 W","PZ=0.5909090909 W P_THERMAL=0.50 W thermal_ok=0 (strict P < P_THERMAL)","paired A-B vout: -0.0233+-0.0516: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign","paired B in_reg vs 1: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired A in_reg vs 1: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired A thermal_ok vs 1: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired C-A p: 702.6763+-8.8323: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","A_zener_shunt light p 1.5368+-0.0231","alternative HEADROOM=0.20 V on below_headroom (same seeds):","alternative P_THERMAL=0.80 W on thermal_small_R (same seeds):"],
+      ["0.0700000000 A","0.0500000000 A","0.2500000000 W","0.1500000000 V","-0.0233±0.0516","-1.0000±0.0000","702.6763±8.8323","1.5368±0.0231","以原文为准","本页未运行"],
+      {en:["**not** the ESD/TVS","**not** the bridge-rectifier","**not** a Wheatstone","**synthetic**","**Model assumptions:**","**Common random numbers:**","**No integration step here.**","**near-tie / small gap, within seed noise**","**clear gap, not a tie**","**Keep**","does not declare a universal winner","written before the first run","HEADROOM is **not** a datasheet dropout.","strict inequality","not a datasheet knee current I_Z,min"],zh:["**不是** ESD/TVS","**不是**本页已经写过的整流桥纹波","**不是**惠斯通电桥","**合成**","**模型假设:**","**共用随机数:**","**这里没有积分步长。**","**接近打平、差距很小，在种子噪声之内**","**明显差距，不是打平**","**保留**","不宣布普遍赢家","首次运行前写定","HEADROOM **不是**数据手册里的压差。","严格不等式","不是数据手册里的膝点电流 I_Z,min"]},
       {en:["Zener shunt / LDO headroom","-0.0233±0.0516 V","-1.0000±0.0000"],zh:["齐纳并联 / LDO 压差","-0.0233±0.0516 V","-1.0000±0.0000"]},
       ["wiki-zener","wiki-ldo"],"150-minute work plan","150 分钟安排"],
   ];
@@ -8419,13 +8419,52 @@ print("protocol pass")
   const p1=read("docs/notes/month-1-plan.md");
   ok(p1.startsWith("# Month 1")&&["Current / 当前：**M1 2550 min**, Batch-19 PR1","## Batch-19 PR1","2250→2550","35820→36120","390→540","750→900"].every(x=>p1.includes(x)),"b19p1 month-1 plan header");
   const src=read("docs/notes/batch-19-pr1-sources.md");
-  ok(["13471fe8c009af353b0f30abc99b6068154447aa","35820","36120","wiki-multimeter","wiki-rms","wiki-zener","wiki-ldo","https://en.wikipedia.org/wiki/Multimeter","https://en.wikipedia.org/wiki/Root_mean_square","https://en.wikipedia.org/wiki/Zener_diode","https://en.wikipedia.org/wiki/Low-dropout_regulator","HTTP **200**","Common random numbers","opencode","Lock changes","No lock relaxed","Post-hoc choices","Mismatch with §9","-0.0233±0.0516","-1.0000±0.0000","0.1107±8.278e-07","-0.1793±0.0024","702.6763±8.8323","1.5368±0.0231","0.2500000000 W","printed by the toys","本页未运行","first accepted run","not retuned"].every(x=>src.includes(x)),"b19p1 sources note");
+  ok(["13471fe8c009af353b0f30abc99b6068154447aa","35820","36120","wiki-multimeter","wiki-rms","wiki-zener","wiki-ldo","https://en.wikipedia.org/wiki/Multimeter","https://en.wikipedia.org/wiki/Root_mean_square","https://en.wikipedia.org/wiki/Zener_diode","https://en.wikipedia.org/wiki/Low-dropout_regulator","HTTP **200**","Common random numbers","opencode","Lock changes","No lock relaxed","Post-hoc choices","Mismatch with §9","-0.0233±0.0516","-1.0000±0.0000","0.1107±8.278e-07","-0.1793±0.0024","702.6763±8.8323","1.5368±0.0231","0.2500000000 W","0.1500000000 V","printed by the toys","本页未运行","first accepted run","not retuned"].every(x=>src.includes(x)),"b19p1 sources note");
   for(const m of src.matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g)){
     const bag=read("examples/month-1/expected/true_rms_vs_average_responding_toy.txt")+read("examples/month-1/expected/zener_shunt_ldo_headroom_toy.txt");
     ok(bag.includes(`${m[1]}+-${m[2]}`),`b19p1 sources note: ${m[0]} matches expected/`);
   }
   ok(/36 120/.test(read("README.md"))&&/约 36 120 分钟/.test(read("README.md")),"b19p1 README site minutes (en + zh)");
   ok((()=>{const months=[...cur.matchAll(/const month(\d+)Lessons[\s\S]*?\];/g)]; let s=0; for(const m of months){for(const x of m[0].matchAll(/minutes:\s*(\d+)/g))s+=+x[1];} return s;})()===36120,"b19p1 curriculum: 36120 minutes");
+  // Difference-direction labels in prose, Summary, curriculum and the plan
+  // must match the toy print (B−A for the sine near-tie, A−B for in-regulation Vout).
+  const bag = read("examples/month-1/expected/true_rms_vs_average_responding_toy.txt")+read("examples/month-1/expected/zener_shunt_ldo_headroom_toy.txt");
+  const dirOf = new Map();
+  for (const line of bag.split("\n")) {
+    const m = line.match(/paired\s+([A-Za-z0-9_]+)-([A-Za-z0-9_]+)[^:]*:\s*(-?[\d.e+-]+)\+-(-?[\d.e+-]+)/);
+    if (!m) continue;
+    const key = `${m[3]}+-${m[4]}`;
+    if (!dirOf.has(key)) dirOf.set(key, new Set());
+    dirOf.get(key).add(`${m[1]}-${m[2]}`);
+  }
+  const dirRe = /([A-Z])[−-]([A-Z])(?![A-Za-z])(?:[^0-9A-Z]{0,80}?)(-?\d+(?:\.\d+)?(?:e-?\d+)?)±(-?\d+(?:\.\d+)?(?:e-?\d+)?)/g;
+  function checkDiffDirs(text, tag) {
+    let n = 0;
+    for (const m of text.matchAll(dirRe)) {
+      const used = `${m[1]}-${m[2]}`;
+      const key = `${m[3]}+-${m[4]}`;
+      if (!dirOf.has(key)) continue;
+      n++;
+      ok(dirOf.get(key).has(used), `${tag}: ${used} ${m[3]}±${m[4]} must match expected paired ${[...dirOf.get(key)].join("|")}`);
+    }
+    return n;
+  }
+  let dirHits = 0;
+  for (const slug of ["bench-multimeter", "components"]) {
+    for (const lang of ["en", "zh"]) {
+      dirHits += checkDiffDirs(read(`src/content/m1/${slug}/${lang}.mdx`), `b19p1 ${slug} ${lang} diff-dir`);
+    }
+  }
+  dirHits += checkDiffDirs(cur, "b19p1 curriculum diff-dir");
+  dirHits += checkDiffDirs(p1, "b19p1 month-1-plan diff-dir");
+  dirHits += checkDiffDirs(src, "b19p1 sources-note diff-dir");
+  ok(dirHits >= 8, `b19p1 difference-direction lock ran on ${dirHits} printed pairs`);
+  const sineCorpus = read("src/content/m1/bench-multimeter/en.mdx")+read("src/content/m1/bench-multimeter/zh.mdx")+cur+p1+src;
+  ok(!/A−B[^0-9]{0,80}-6\.112e-06/.test(sineCorpus) && /B−A[^0-9]{0,80}-6\.112e-06/.test(sineCorpus), "b19p1 sine near-tie is labelled B−A, matching expected/");
+  const zenCorpus = read("src/content/m1/components/en.mdx")+read("src/content/m1/components/zh.mdx")+cur+p1+src;
+  ok(/A−B[^0-9]{0,80}-0\.0233±0\.0516/.test(zenCorpus), "b19p1 in-regulation Vout near-tie stays A−B, matching expected/");
+  ok(bag.includes("below_headroom_spare: Vin-Vset=0.1500000000 V (5.15-5.0), below HEADROOM 0.40 V"), "b19p1 expected/ prints the 0.1500000000 V spare");
+
   console.log("truerms-zener PR1: true-RMS vs average-responding, Zener shunt vs LDO headroom, and M1 2550 / site 36120 locked");
 }
 

@@ -115,6 +115,8 @@ class ZenerLdo(unittest.TestCase):
         self.assertEqual(list(zen.REGIMES), ["in_regulation", "below_headroom", "thermal_small_R"])
         out = run(ZEN_REL)
         self.assertIn("headroom_boundary: Vin=5.4000000000 V in_reg=1; Vin=5.3990000000 V in_reg=0", out)
+        self.assertIn("below_headroom_spare: Vin-Vset=0.1500000000 V (5.15-5.0), below HEADROOM 0.40 V", out)
+        self.assertIn("zener_in_reg_rule: in regulation iff I_Z>0 (rz=0 model; not a datasheet knee current I_Z,min)", out)
         self.assertIn("hand_calc Vin=12.0 V R=100 ohm VZ=5.0 V IL=0.020 A: IR=(Vin-VZ)/R=0.0700000000 A; IZ=IR-IL=0.0500000000 A; PZ=VZ*IZ=0.2500000000 W", out)
         reg = out.split("in_regulation (")[1].split("below_headroom (")[0]
         self.assertIn("paired A-B vout: -0.0233+-0.0516: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign", reg)
