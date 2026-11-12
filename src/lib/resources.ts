@@ -6436,6 +6436,40 @@ export const resources: Record<string, Resource> = {
     license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
     extra: true,
   },
+  "internvla-a1-pdf": {
+    id: "internvla-a1-pdf",
+    url: "https://arxiv.org/pdf/2601.02456.pdf",
+    title: {
+      zh: "InternVLA-A1：统一理解、生成与动作的机器人操作模型（PDF）",
+      en: "InternVLA-A1: Unifying Understanding, Generation and Action for Robotic Manipulation (PDF)",
+    },
+    author: "Junhao Cai, Zetao Cai, Jiafei Cao, Yilun Chen, Zeyu He, Lei Jiang, Hang Li, Hengjie Li, Yang Li, Yufei Liu, Yanan Lu, Qi Lv, Haoxiang Ma, Jiangmiao Pang, Yu Qiao, Zherui Qiu, Yanqing Shen, Xu Shi, Yang Tian, Bolun Wang, Hanqing Wang, Jiaheng Wang, Tai Wang, Xueyuan Wei, Chao Wu, Yiman Xie, Boyang Xing, Yuqiang Yang, Yuyin Yang, Qiaojun Yu, Feng Yuan, Jia Zeng, Jingjing Zhang, Shenghan Zhang, Shi Zhang, Zhuoma Zhaxi, Bowen Zhou, Yuanzhen Zhou, Yunsong Zhou, Hongrui Zhu, Yangkun Zhu, Yuchen Zhu",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已核对 arXiv 摘要页（42 位作者，PDF 署名为 InternVLA-A1 Team），PDF 正文（v2）已读：统一的 Mixture-of-Transformers，三个专家——场景理解、视觉前瞻生成、动作执行——通过统一的掩码自注意力交互，信息流严格为理解 → 生成 → 动作。生成专家输入当前帧与 m 帧之前的历史帧，预测 m 帧之后未来帧的 COSMOS 潜变量；动作专家以流匹配输出动作块。基于 InternVL3 与 Qwen3-VL，有 2B 与 3B 两档；在真实机器人、仿真合成与人类视频数据上预训练，覆盖超过 692M 帧。相对 π0.5 静态任务 +4.4%、RoboTwin 2.0 +2.6%、动态任务 +26.7%；去掉生成专家时平均成功率由 77.0% 降到 57.6%。全部以论文为准；GPU / 真机本页未运行。arXiv 2601.02456。2026-11-12 正文已读（HTTP 200）。",
+      en: "arXiv abs page checked (42 authors; the PDF byline is InternVLA-A1 Team), PDF body (v2) read: a unified Mixture-of-Transformers whose three experts — scene understanding, visual foresight generation and action execution — interact through one masked self-attention with a strict understanding → generation → action flow. The generation expert takes the current frame and a historical frame m steps back and predicts the COSMOS latent of the frame m steps ahead; the action expert outputs an action chunk by flow matching. Built on InternVL3 and Qwen3-VL at 2B and 3B; pre-trained on real-robot, synthetic simulation and human-video data covering over 692M frames. Against π0.5: +4.4% on static tasks, +2.6% on RoboTwin 2.0, +26.7% on dynamic tasks; removing the generation expert drops the average success from 77.0% to 57.6%. All 以论文为准; GPU / real robots 本页未运行. arXiv 2601.02456. Body read 2026-11-12 (HTTP 200).",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
+  "graspvla-pdf": {
+    id: "graspvla-pdf",
+    url: "https://arxiv.org/pdf/2505.03233.pdf",
+    title: {
+      zh: "GraspVLA：在十亿级合成动作数据上预训练的抓取基础模型（PDF）",
+      en: "GraspVLA: a Grasping Foundation Model Pre-trained on Billion-scale Synthetic Action Data (PDF)",
+    },
+    author: "Shengliang Deng, Mi Yan, Songlin Wei, Haixin Ma, Yuxin Yang, Jiayi Chen, Zhiqi Zhang, Taoyu Yang, Xuheng Zhang, Wenhao Zhang, Heming Cui, Zhizheng Zhang, He Wang",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已核对 arXiv 摘要页（13 位作者），PDF 正文（v3）已读：完全用合成动作数据预训练抓取 VLA。SynGrasp-1B 是在仿真中生成的十亿帧抓取数据集，含照片级渲染和对材质、光照、相机视角与背景的大量域随机化（240 个类别、10,680 个物体网格）。Progressive Action Generation 把感知当作动作生成的中间步骤组成思维链：先预测目标的 2D 边界框，再预测抓取位姿，最后由流匹配动作专家生成动作块；互联网定位数据只监督边界框这一步，从而把抓取迁移到合成动作数据里没有的类别（开放词汇）。论文的抓取标签用力封闭合成，不考虑可变形物体。零样本 / 少样本成功率与消融全部以论文为准；GPU / 真机本页未运行。arXiv 2505.03233。2026-11-12 正文已读（HTTP 200）。",
+      en: "arXiv abs page checked (13 authors), PDF body (v3) read: a grasping VLA pre-trained entirely on synthetic action data. SynGrasp-1B is a billion-frame grasping set generated in simulation with photorealistic rendering and extensive domain randomisation of materials, lighting, camera views and backgrounds (240 categories, 10,680 object meshes). Progressive Action Generation treats perception as intermediate steps of action generation in a chain of thought: first a 2-D bounding box of the target, then a grasp pose, then an action chunk from a flow-matching action expert; Internet grounding data supervises only the bounding-box step, which transfers grasping to categories absent from the synthetic action data (open vocabulary). The paper synthesises grasp labels with force closure and does not model deformable objects. Zero-shot / few-shot success rates and ablations all 以论文为准; GPU / real robots 本页未运行. arXiv 2505.03233. Body read 2026-11-12 (HTTP 200).",
+    },
+    license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
+    extra: true,
+  },
   "wiki-leadscrew": {
     id: "wiki-leadscrew",
     url: "https://en.wikipedia.org/wiki/Leadscrew",

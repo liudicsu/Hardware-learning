@@ -777,10 +777,445 @@ Real gripper / Dex-Net GQ-CNN / GPU: 本页未运行; paper statements 以论文
 4. 固定种子，在 `run_trial` 里把排序和评估用的 `L` 都减半。运行前先预测哪些打印的数字会变、哪些不可能变。
 5. 在任何真实举起之前（本页未运行），解释为什么 **box_pose_error** 里 B 在 `fc` 上的明显胜利**没有**延续到 `lift`，并说出一项能减少那 100/200 次“感知上力封闭、实际不是”的测量。
 
+## GraspVLA：用合成数据预训练抓取
+
+<Resource id="graspvla-pdf" />
+
+上面的力封闭一节从接触几何给抓取打分。GraspVLA 问的是另一个问题：抓取策略能不能**完全用合成动作数据**预训练，还能抓起人点名的那个物体？arXiv 摘要页给出的标题是 **GraspVLA: a Grasping Foundation Model Pre-trained on Billion-scale Synthetic Action Data**，作者 13 人：Shengliang Deng、Mi Yan、Songlin Wei、Haixin Ma、Yuxin Yang、Jiayi Chen、Zhiqi Zhang、Taoyu Yang、Xuheng Zhang、Wenhao Zhang、Heming Cui、Zhizheng Zhang、He Wang。PDF 正文写道（以论文为准）：**SynGrasp-1B** 是在仿真中生成的十亿帧抓取数据集，用照片级光线追踪渲染，并对材质、光照、相机视角和背景做大量**域随机化**，覆盖 240 个类别；其中的抓取是稳定的对跖抓取，用 CuRobo 规划、在 MuJoCo 里验证。**Progressive Action Generation** 把感知变成**思维链**的中间步骤：模型先预测被点名物体的 2D **边界框**，再预测**抓取位姿**，最后由流匹配动作专家生成动作块。互联网定位数据**只监督边界框这一步**，合成动作数据里没有的类别正是这样变得可抓（开放词汇）。
+
+他们报告的结果（以论文为准，本页**不**复现）：在光照、背景、干扰物和高度变化下，合成类别与网络类别的零样本真实成功率都在 90 % 左右；零样本 LIBERO 结果高于微调过的基线；少样本后训练可学会新行为；消融中先加边界框步骤、再加抓取位姿步骤，成功率都高于不带这两步的共训基线。论文还指出，它的抓取标签来自力封闭，不考虑可变形物体，所以上一节的分析是这类数据的**标签来源**，不是竞争者。下面的 toy 是**最近样本替身**，不是他们的 VLM。
+
+这一节**不是**上面的 ε / 力封闭 toy，**不是** Dex-Net 式抓取质量网络，也**不是** `sim-to-real` 里 Tobin 那种只训练检测器的视觉 DR。它只看定位这一步：语言提示比不看语言的抓取多买到什么，以及合成侧的随机化重不重要。
+
+**手算例题，已由 toy 打印。** 不看指令的抓取只能碰运气选中被点名的物体：三个物体时 1/3 = 0.3333，五个物体时 1/5 = 0.2000。共享的几何步骤在朝向误差低于 10.0 deg、散布为 5.0 deg 时成功，erf(10.0/(5.0·√2)) = 0.9545，所以没有哪一臂能超过这个上限。
+
+**这里没有积分步长。** 这个 toy 没有动力学、没有微分方程，也没有步长判据。
+
+### 公平设置
+
+`graspvla_syngrasp_pretrain_toy.py` 是**合成**的，只用标准库。**模型假设:** 每个类别有一个 8 维原型外观，渲染域对它施加增益、偏置再加噪声。六个类别有合成动作数据；四个类别**只出现在网络上**，只在互联网定位集中出现，像照片一样以不同增益渲染。真实测试域是一组固定的增益和偏置。定位步骤选出与“被点名类别的任一训练样本”最近的物体（边界框步骤）；然后由共享的几何步骤去抓它。所有维数、增益、偏置、数量和容差都是**声明的玩具参数**。
+
+| 臂 | 定位 | 合成训练外观 |
+|---|---|---|
+| A_geom | 没有：选几何得分最高的物体，不看指令 | 不用 |
+| B_cot_dr | 先定位，再做共享抓取 | 域随机化（增益 0.4–1.6，偏置 −0.5 到 0.5），加互联网集 |
+| C_no_dr | 同 B | 一种固定渲染，加同一个互联网集 |
+| D_shuffled | 同 B，但每个标签都错移一个类别 | 同 B |
+
+**共用随机数:** 每个种子只抽一次原型、合成样本和互联网样本；B、C、D 看到同样的抽样，**只**差在渲染域或标签。每个（情形, 种子）只生成一次 60 个场景（类别、被点名的物体、外观噪声、几何得分和朝向误差），所有臂共享。打印的域检查确认，真实域落在宽 DR 范围之内，且不同于固定渲染域。五个种子。指标是 `pick_ok`（选中了被点名的物体）和成功比例（选中并抓起）。
+
+| 情形 | 场景 | 预先声明 |
+|---|---|---|
+| in_family | 三个物体，都来自合成类别 | B **稳定地**好于 A；C 和 D 若输则**保留** |
+| web_category | 被点名物体只出现在网络上，另有两个合成类别的干扰物 | B **稳定地**好于 A（开放词汇）；网络样本从不需要 DR，所以 C 可能与 B **打平**；**保留** |
+| single_object | 只有一个物体，无需定位 | A 与 B 可能**接近打平**或打平；**保留** |
+
+### 运行标准库 toy
+
+```bash
+cd ~/Hardware-learning/examples/month-7/perception-to-grasp
+python3 graspvla_syngrasp_pretrain_toy.py
+```
+
+<CodeSource path="examples/month-7/perception-to-grasp/graspvla_syngrasp_pretrain_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""GraspVLA-style synthetic pre-training: geometry only vs grounding-first chain on randomised synthetic data vs no DR vs shuffled labels.
+
+Synthetic appearance vectors and a nearest-sample grounding step, stdlib
+only.  Not GraspVLA, not SynGrasp-1B, not a VLM, not flow matching and not
+the force-closure / epsilon toy above; no weights, no GPU, no Isaac Sim, no
+LIBERO and no real grasp cell: 本页未运行.  Paper statements and numbers
+(arXiv 2505.03233, for example its billion frames or its success rates)
+以论文为准; nothing here reproduces them.
+
+What the paper body says (and what this toy keeps): SynGrasp-1B is rendered
+in simulation with domain randomisation of materials, lighting, camera views
+and backgrounds; GraspVLA's Progressive Action Generation is a chain of
+thought that first predicts a 2-D bounding box of the named object, then a
+grasp pose, then an action chunk.  Internet grounding data supervises only
+the bounding-box step, which is how categories that never appear in the
+synthetic action data become graspable (open vocabulary).
+
+Toy: a scene holds N_OBJ objects of distinct categories; the instruction
+names one.  Each category has a prototype appearance vector; a rendering
+domain applies a per-dimension gain and offset plus noise.  The real test
+domain is one fixed gain / offset.  Categories 0..S_CAT-1 are "synthetic"
+(they have synthetic action data); S_CAT..S_CAT+W_CAT-1 are "web" categories
+that appear only in the Internet grounding set (rendered with varied gains,
+like photos).  Grounding = pick the object whose appearance is nearest to
+any training sample labelled with the named category (box step).  Grasp =
+a shared geometric step: the grasp succeeds iff the chosen object is the
+named one and its observed orientation error is < ORI_TOL (strict).
+Arms:
+  A_geom     : no language: picks the object with the best geometric score
+  B_cot_dr   : grounding-first chain; synthetic samples rendered with DR,
+               plus the Internet grounding set
+  C_no_dr    : same chain, synthetic samples rendered in ONE canonical domain
+  D_shuffled : same as B but every category label is shifted by one
+               (a derangement) in both training sets
+
+Common random numbers: for each seed one set of prototypes, one Internet
+set and one set of synthetic draws (instances, noise, DR gains) is drawn
+once; B, C and D see the same draws and differ only in the rendering domain
+or the labels.  For each (regime, seed) one list of scenes (categories,
+target, test noise, geometric scores, orientation errors) is shared by
+every arm.
+No integration step: no dynamics, no ODE, no time-step criterion.
+
+Regimes and parameters were written before the first run:
+  in_family     : N_OBJ objects from synthetic categories, real domain
+                  - B consistent better than A; keep C and D if they lose
+  web_category  : the named object is a web category, distractors synthetic
+                  - B consistent better than A (open vocabulary); C may tie B
+                    because web samples never needed DR; keep
+  single_object : one object only, nothing to ground
+                  - A and B may near-tie (or tie); keep
+Alternatives, also written before the first run, on the same seeds:
+  narrow DR (gain 0.9..1.1, offset -0.1..0.1) instead of the wide range (in_family);
+  N_OBJ = 5 instead of 3 (in_family).
+All dimensions, gains, offsets, counts and tolerances are declared toy parameters.
+Code change after the first run: only the closing "No winner declared" line.
+It first said the chain "needs DR on the synthetic side"; the first run showed
+C_no_dr near-tying B on in_family and tying it on web_category, so the line
+now says the no-DR arm did not lose.  No parameter, regime or number changed.
+"""
+from __future__ import annotations
+
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+DIM = 8                  # appearance vector length (toy)
+S_CAT = 6                # synthetic categories with action data (toy)
+W_CAT = 4                # web-only categories (toy)
+N_PER = 30               # training samples per category and source (toy)
+INST_SIGMA = 0.15        # per-instance appearance spread (toy)
+PIX_SIGMA = 0.05         # rendering noise (toy)
+DR_GAIN = (0.4, 1.6)     # synthetic domain randomisation, gain range (toy)
+DR_OFF = (-0.5, 0.5)     # synthetic domain randomisation, offset range (toy)
+WEB_GAIN = (0.5, 1.5)    # Internet photos, gain range (toy)
+WEB_OFF = (-0.4, 0.4)    # Internet photos, offset range (toy)
+REAL_GAIN, REAL_OFF = 0.6, 0.35   # the fixed real test domain (toy)
+N_OBJ = 3
+N_SCENES = 60
+ORI_SIGMA = 5.0          # deg, observed orientation error sd (toy)
+ORI_TOL = 10.0           # deg, grasp succeeds iff orientation error < ORI_TOL
+ARMS = ("A_geom", "B_cot_dr", "C_no_dr", "D_shuffled")
+REGIMES = ("in_family", "web_category", "single_object")
+METRICS = ("pick_ok", "success")
+
+
+def prototypes(seed):
+    rng = random.Random(f"graspvla-proto|{seed}")
+    return [[rng.uniform(0.0, 1.0) for _ in range(DIM)] for _ in range(S_CAT + W_CAT)]
+
+
+def render(proto, gain, off, inst, noise):
+    return [gain * (p + i) + off + n for p, i, n in zip(proto, inst, noise)]
+
+
+def train_draws(seed):
+    """Shared by B, C and D: synthetic instances, noise and DR gains, and the Internet set."""
+    rng = random.Random(f"graspvla-train|{seed}")
+    syn = []
+    for c in range(S_CAT):
+        for _ in range(N_PER):
+            inst = [rng.gauss(0.0, INST_SIGMA) for _ in range(DIM)]
+            noise = [rng.gauss(0.0, PIX_SIGMA) for _ in range(DIM)]
+            u_gain, u_off = rng.random(), rng.random()
+            syn.append((c, inst, noise, u_gain, u_off))
+    web = []
+    for c in range(S_CAT, S_CAT + W_CAT):
+        for _ in range(N_PER):
+            inst = [rng.gauss(0.0, INST_SIGMA) for _ in range(DIM)]
+            noise = [rng.gauss(0.0, PIX_SIGMA) for _ in range(DIM)]
+            gain, off = rng.uniform(*WEB_GAIN), rng.uniform(*WEB_OFF)
+            web.append((c, inst, noise, gain, off))
+    return syn, web
+
+
+def train_set(arm, seed, dr=(DR_GAIN, DR_OFF)):
+    protos = prototypes(seed)
+    syn, web = train_draws(seed)
+    out = []
+    for c, inst, noise, u_gain, u_off in syn:
+        if arm == "C_no_dr":
+            gain, off = 1.0, 0.0
+        else:
+            gain = dr[0][0] + (dr[0][1] - dr[0][0]) * u_gain
+            off = dr[1][0] + (dr[1][1] - dr[1][0]) * u_off
+        out.append((c, render(protos[c], gain, off, inst, noise)))
+    for c, inst, noise, gain, off in web:
+        out.append((c, render(protos[c], gain, off, inst, noise)))
+    if arm == "D_shuffled":
+        out = [((c + 1) % (S_CAT + W_CAT), x) for c, x in out]
+    return out
+
+
+def test_scenes(regime, seed, n_obj=N_OBJ):
+    rng = random.Random(f"graspvla-test|{regime}|{seed}|{n_obj}")
+    protos = prototypes(seed)
+    out = []
+    for _ in range(N_SCENES):
+        k = 1 if regime == "single_object" else n_obj
+        if regime == "web_category":
+            cats = [S_CAT + rng.randrange(W_CAT)] + rng.sample(range(S_CAT), k - 1)
+        else:
+            cats = rng.sample(range(S_CAT), k)
+        target = 0                               # cats[0] is the named object
+        objs = []
+        for c in cats:
+            inst = [rng.gauss(0.0, INST_SIGMA) for _ in range(DIM)]
+            noise = [rng.gauss(0.0, PIX_SIGMA) for _ in range(DIM)]
+            app = render(protos[c], REAL_GAIN, REAL_OFF, inst, noise)
+            geom = rng.random()                   # geometric graspability score, category-blind
+            ori = abs(rng.gauss(0.0, ORI_SIGMA))  # observed orientation error, deg
+            objs.append((c, app, geom, ori))
+        order = list(range(k))
+        rng.shuffle(order)                        # object order in the scene is random
+        objs = [objs[i] for i in order]
+        out.append((cats[target], objs))
+    return out
+
+
+def dist2(a, b):
+    return sum((x - y) ** 2 for x, y in zip(a, b))
+
+
+def pick(arm, train, named, objs):
+    if arm == "A_geom" or len(objs) == 1:
+        return max(range(len(objs)), key=lambda i: objs[i][2])
+    pool = [x for c, x in train if c == named]
+    return min(range(len(objs)), key=lambda i: min(dist2(objs[i][1], x) for x in pool))
+
+
+def evaluate(arm, regime, seed, train, n_obj=N_OBJ):
+    picks, ok = 0, 0
+    for named, objs in test_scenes(regime, seed, n_obj):
+        i = pick(arm, train, named, objs)
+        right = objs[i][0] == named
+        picks += 1 if right else 0
+        ok += 1 if right and objs[i][3] < ORI_TOL else 0
+    return {"pick_ok": picks / N_SCENES, "success": ok / N_SCENES}
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    """Half-up rounding on the shortest decimal repr; tiny non-zero values in scientific form."""
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+_TRAIN = {}
+
+
+def trained(arm, seed, dr=(DR_GAIN, DR_OFF)):
+    key = (arm, seed, dr)
+    if key not in _TRAIN:
+        _TRAIN[key] = train_set(arm, seed, dr)
+    return _TRAIN[key]
+
+
+def collect(regime, dr=(DR_GAIN, DR_OFF), n_obj=N_OBJ):
+    return {arm: [evaluate(arm, regime, s, trained(arm, s, dr), n_obj) for s in SEEDS] for arm in ARMS}
+
+
+def col(rows, key):
+    return [r[key] for r in rows]
+
+
+def pairs(res, suffix=""):
+    for key in METRICS:
+        print(f"  paired B-A {key}{suffix}: {verdict(col(res['B_cot_dr'], key), col(res['A_geom'], key))}")
+    for other, tag in (("C_no_dr", "C"), ("D_shuffled", "D")):
+        print(f"  paired {tag}-B success{suffix}: {verdict(col(res[other], 'success'), col(res['B_cot_dr'], 'success'))}")
+
+
+def report(regime):
+    res = collect(regime)
+    print(f"{regime}:")
+    for arm in ARMS:
+        parts = [f"{key} {fmt_pair(*mean_sd(col(res[arm], key)))}" for key in METRICS]
+        print(f"  {arm} " + " ".join(parts))
+    pairs(res)
+
+
+def main():
+    print("Synthetic appearance-vector toy with nearest-sample grounding; geometry only vs grounding-first chain with DR vs no DR vs shuffled labels; not GraspVLA")
+    print(f"seeds={len(SEEDS)} DIM={DIM} S_CAT={S_CAT} W_CAT={W_CAT} N_PER={N_PER} N_OBJ={N_OBJ} N_SCENES={N_SCENES} "
+          f"INST_SIGMA={INST_SIGMA:.2f} PIX_SIGMA={PIX_SIGMA:.2f} (declared toy parameters)")
+    print(f"DR gain=[{DR_GAIN[0]:.1f}, {DR_GAIN[1]:.1f}] offset=[{DR_OFF[0]:.1f}, {DR_OFF[1]:.1f}]; "
+          f"web gain=[{WEB_GAIN[0]:.1f}, {WEB_GAIN[1]:.1f}] offset=[{WEB_OFF[0]:.1f}, {WEB_OFF[1]:.1f}]; "
+          f"real gain={REAL_GAIN:.2f} offset={REAL_OFF:.2f} (declared toy parameters)")
+    print(f"ORI_SIGMA={ORI_SIGMA:.1f} deg ORI_TOL={ORI_TOL:.1f} deg (grasp succeeds iff the named object is picked "
+          f"and its orientation error < ORI_TOL, strict; declared toy parameters)")
+    print("No integration step: no dynamics, no time-step criterion")
+    print("Regimes and parameters were written before the first run")
+    inside = DR_GAIN[0] <= REAL_GAIN <= DR_GAIN[1] and DR_OFF[0] <= REAL_OFF <= DR_OFF[1]
+    print(f"domain_check: real domain inside the wide DR range: {inside}; equal to the canonical no-DR domain: "
+          f"{(REAL_GAIN, REAL_OFF) == (1.0, 0.0)}; inside the narrow DR range: {0.9 <= REAL_GAIN <= 1.1 and -0.1 <= REAL_OFF <= 0.1}")
+    print(f"hand_calc A_geom names nothing, so it picks the named object by chance: 1/N_OBJ = 1/{N_OBJ} = {num(1 / N_OBJ)}; "
+          f"with 5 objects 1/5 = {num(1 / 5)}")
+    print(f"hand_calc P(|N(0, ORI_SIGMA)| < ORI_TOL) = erf({ORI_TOL:.1f}/({ORI_SIGMA:.1f}*sqrt(2))) = "
+          f"{num(math.erf(ORI_TOL / (ORI_SIGMA * math.sqrt(2))))}, the ceiling for every arm")
+    for regime in REGIMES:
+        report(regime)
+    narrow = ((0.9, 1.1), (-0.1, 0.1))
+    print("alternative narrow DR (gain [0.9, 1.1], offset [-0.1, 0.1]) on in_family (same seeds, same draws):")
+    alt = collect("in_family", dr=narrow)
+    base = collect("in_family")
+    print(f"  B_cot_dr@alt success {fmt_pair(*mean_sd(col(alt['B_cot_dr'], 'success')))} "
+          f"(wide: {fmt_pair(*mean_sd(col(base['B_cot_dr'], 'success')))})")
+    print(f"  paired Bwide-Bnarrow success: {verdict(col(base['B_cot_dr'], 'success'), col(alt['B_cot_dr'], 'success'))}")
+    print(f"  paired Bnarrow-C success: {verdict(col(alt['B_cot_dr'], 'success'), col(alt['C_no_dr'], 'success'))}")
+    print("alternative N_OBJ=5 on in_family (same seeds, same training draws):")
+    alt = collect("in_family", n_obj=5)
+    for arm in ARMS:
+        print(f"  {arm}@alt success {fmt_pair(*mean_sd(col(alt[arm], 'success')))}")
+    pairs(alt, "@alt")
+    print("No winner declared: grounding-first beats a language-blind grasp when the scene has a choice and is useless with shuffled labels; here the canonical no-DR arm did not lose")
+    print("GPU / weights / SynGrasp-1B / Isaac Sim / LIBERO / real grasp cell: 本页未运行; GraspVLA arXiv 2505.03233 statements and numbers 以论文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic appearance-vector toy with nearest-sample grounding; geometry only vs grounding-first chain with DR vs no DR vs shuffled labels; not GraspVLA
+seeds=5 DIM=8 S_CAT=6 W_CAT=4 N_PER=30 N_OBJ=3 N_SCENES=60 INST_SIGMA=0.15 PIX_SIGMA=0.05 (declared toy parameters)
+DR gain=[0.4, 1.6] offset=[-0.5, 0.5]; web gain=[0.5, 1.5] offset=[-0.4, 0.4]; real gain=0.60 offset=0.35 (declared toy parameters)
+ORI_SIGMA=5.0 deg ORI_TOL=10.0 deg (grasp succeeds iff the named object is picked and its orientation error < ORI_TOL, strict; declared toy parameters)
+No integration step: no dynamics, no time-step criterion
+Regimes and parameters were written before the first run
+domain_check: real domain inside the wide DR range: True; equal to the canonical no-DR domain: False; inside the narrow DR range: False
+hand_calc A_geom names nothing, so it picks the named object by chance: 1/N_OBJ = 1/3 = 0.3333; with 5 objects 1/5 = 0.2000
+hand_calc P(|N(0, ORI_SIGMA)| < ORI_TOL) = erf(10.0/(5.0*sqrt(2))) = 0.9545, the ceiling for every arm
+in_family:
+  A_geom pick_ok 0.3433+-0.0596 success 0.3300+-0.0558
+  B_cot_dr pick_ok 0.9133+-0.0617 success 0.8700+-0.0853
+  C_no_dr pick_ok 0.9333+-0.0565 success 0.8933+-0.0619
+  D_shuffled pick_ok 0.2400+-0.0535 success 0.2233+-0.0548
+  paired B-A pick_ok: 0.5700+-0.1083: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success: 0.5400+-0.1217: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: 0.0233+-0.0630: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign, 1 of 5 equal
+  paired D-B success: -0.6467+-0.1114: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+web_category:
+  A_geom pick_ok 0.3267+-0.1109 success 0.3133+-0.1133
+  B_cot_dr pick_ok 0.9167+-0.0486 success 0.8800+-0.0492
+  C_no_dr pick_ok 0.9167+-0.0486 success 0.8800+-0.0492
+  D_shuffled pick_ok 0.3767+-0.1494 success 0.3600+-0.1392
+  paired B-A pick_ok: 0.5900+-0.0990: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success: 0.5667+-0.1074: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: 0.0000+-0.0000: tie: identical on every seed
+  paired D-B success: -0.5200+-0.1114: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+single_object:
+  A_geom pick_ok 1.0000+-0.0000 success 0.9467+-0.0398
+  B_cot_dr pick_ok 1.0000+-0.0000 success 0.9467+-0.0398
+  C_no_dr pick_ok 1.0000+-0.0000 success 0.9467+-0.0398
+  D_shuffled pick_ok 1.0000+-0.0000 success 0.9467+-0.0398
+  paired B-A pick_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B success: 0.0000+-0.0000: tie: identical on every seed
+  paired D-B success: 0.0000+-0.0000: tie: identical on every seed
+alternative narrow DR (gain [0.9, 1.1], offset [-0.1, 0.1]) on in_family (same seeds, same draws):
+  B_cot_dr@alt success 0.9067+-0.0585 (wide: 0.8700+-0.0853)
+  paired Bwide-Bnarrow success: -0.0367+-0.0492: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 2 of 5 equal
+  paired Bnarrow-C success: 0.0133+-0.0247: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign, 1 of 5 equal
+alternative N_OBJ=5 on in_family (same seeds, same training draws):
+  A_geom@alt success 0.2233+-0.0585
+  B_cot_dr@alt success 0.8567+-0.0976
+  C_no_dr@alt success 0.8600+-0.0630
+  D_shuffled@alt success 0.0767+-0.0384
+  paired B-A pick_ok@alt: 0.6600+-0.1058: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success@alt: 0.6333+-0.1054: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success@alt: 0.0033+-0.0861: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired D-B success@alt: -0.7800+-0.1293: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: grounding-first beats a language-blind grasp when the scene has a choice and is useless with shuffled labels; here the canonical no-DR arm did not lose
+GPU / weights / SynGrasp-1B / Isaac Sim / LIBERO / real grasp cell: 本页未运行; GraspVLA arXiv 2505.03233 statements and numbers 以论文为准
+```
+
+</SimOutput>
+
+### 读三种情形
+
+本页标签的用法，按这个顺序。**打平：每个种子都完全相同** 只在按种子配对的差在每个种子上都恰好为零时使用；**数值上为零（浮点残差），等同打平** 用于配对均值的绝对值和它的 sd 都低于 1e-9 时（这类行不打印同号计数）；**接近打平、差距很小，在种子噪声之内** 用于配对均值的绝对值不超过 sd；否则是**稳定的**差距，若不到较小那一臂均值的 20 % 就叫**小而稳定的差距，不是打平**，否则叫**明显差距，不是打平**。每条稳定差距的行都带 5 个种子的同号计数。配对差是 B−A、C−B 和 D−B；差为正表示前一臂更好。
+
+- **in_family。** 定位有回报：成对 B−A success 0.5400±0.1217 与成对 B−A pick_ok 0.5700±0.1083 都是**明显差距，不是打平**，5 个种子全部同号；A 的选中率 0.3433±0.0596，接近三选一的碰运气水平。错乱标签输得很惨（成对 D−B success -0.6467±0.1114，5/5，**保留**）。**固定渲染、不做 DR 的一臂没有输**：成对 C−B success 0.0233±0.0630 是**接近打平**（5 个种子中 2 个相反、1 个相等），所以预期的 DR 收益在这个 toy 里**没有**出现。按原样打印，没有重调。一个可能的原因（本页未检验）：固定的真实域只是温和的仿射偏移，而定位只需把三个物体相互排序，固定渲染已经做得到。
+- **web_category。** 开放词汇来自定位集：成对 B−A success 0.5667±0.1074，**明显**，5/5。C 在每个种子上都与 B 打平，因为网络样本从不依赖 DR，与预先声明一致；错乱标签输了（成对 D−B success -0.5200±0.1114，5/5）。
+- **single_object。** 无需定位：每一臂都选中唯一的物体，所以配对差是**打平：每个种子都完全相同**，四臂的成功比例都是 0.9467±0.0398，略低于 0.9545 的上限。
+
+**看过结果后做的选择。** 参数上没有：外观模型、两种 DR 范围、三种情形以及两个替代都在首次运行前写定。同一组种子上的替代：
+
+- **DR 宽度。** 换成不包含真实域的窄 DR 范围（增益 0.9–1.1，偏置 −0.1 到 0.1）时，B 在 in_family 上的成功比例是 0.9067±0.0585，宽范围时是 0.8700±0.0853（成对 Bwide−Bnarrow success -0.0367±0.0492，**接近打平**），B 仍与 C 接近打平（成对 Bnarrow−C success 0.0133±0.0247）。在这里加宽 DR 没有买到可测的东西。
+- **杂乱程度。** 五个物体时，A 降到 0.2233±0.0585，接近五选一的碰运气水平，B 保持 0.8567±0.0976（成对 B−A success@alt 0.6333±0.1054，**明显**，5/5）；错乱标签输得更多（成对 D−B success@alt -0.7800±0.1293），C 仍与 B 接近打平（成对 C−B success@alt 0.0033±0.0861）。
+
+两个替代都没有采用，默认值不变。
+
+**首次运行后的代码改动。** 一处，只改了一句打印文字：结尾的 `No winner declared` 行原先说这条链需要合成侧的 DR；首次运行显示 C 与 B 接近打平和打平后，改成说不做 DR 的一臂没有输。参数、情形和数字都没有改，这处改动也记在 toy 的 docstring 里。
+
+本页**不宣布普遍赢家**，只要场景里有得选，先定位就胜过不看语言的抓取；错乱标签会让它失效；而在这个 toy 里合成侧的 DR 无关紧要；论文用 DR 做仿真到真实迁移，这一点以论文为准。GPU 训练、SynGrasp-1B、Isaac Sim、LIBERO 和真实抓取工位均**本页未运行**。
+
+**210 分钟安排:** 30 分钟读摘要、第 3、4 节和设计选择消融；20 分钟做碰运气水平和上限两个手算；50 分钟运行 toy，读三种情形；50 分钟固定种子对照 DR 宽度和杂乱程度两个替代；60 分钟做练习。
+
+### 练习
+
+1. 写出 GraspVLA 的链（边界框 → 抓取位姿 → 动作），标出互联网数据监督哪一步，并标出这个 toy 保留了什么（边界框步骤和一个共享抓取步骤）、去掉了什么（图像、VLM、流匹配）。
+2. 从 `train_draws`、`train_set` 和 `test_scenes` 说明：B、C、D 共享每一个合成样本和互联网样本，只差在渲染或标签，而且每一臂看到同样的场景。
+3. 用打印的手算解释 A 在 in_family 和五物体替代中的选中率，以及为什么没有哪一臂超过上限。
+4. 这里不做 DR 的一臂没有输。不改种子，提出一处能检验上面那个原因的 toy 改动，并说明什么结果会支持它。
+5. 在任何真实抓取工位之前（本页未运行），列出你要测什么来区分定位失败和抓取失败，以及怎样检查一个只用合成数据的策略能否跨过仿真到真实的外观差距。
+
 <Summary>
 
 感知到抓取是：掩码 → 深度点 → 手眼 → 基座抓取 → 规划。OpenCV `calibrateHandEye` 在眼在手上估计 cam2gripper（眼在手外则取逆输入）；至少 3 个姿态且运动旋转轴不平行。Park 风格玩具把 X 恢复到数值零；掩码管线在 CPU 上给出可复现的基座系候选。SAM2（Apache-2.0）与 MoveIt 可选，本页未运行。
 
 力封闭：在共享的候选和扰动上，选 ε 最大的对跖候选，在中心看错的圆盘上以明显差距提高力封闭率（0.8900 对 0.5400，配对 0.3500±0.0685，5 个种子全部同号）；候选本来就面对面时，它和随机选在力封闭上**打平**（每个种子都完全相同）；盒子位姿看错时，举起上的提升只在种子噪声之内；无摩擦的两指抓取永远不力封闭——这是合成的平面模型，真实夹爪本页未运行。
+
+GraspVLA：`graspvla_syngrasp_pretrain_toy.py` 在共享场景上表明，先定位被点名的物体，在杂乱场景里胜过不看语言的抓取（成对 B−A success 0.5400±0.1217，5/5），在只出现在网络上的类别上也胜（成对 B−A success 0.5667±0.1074，5/5），单个物体时打平，标签错乱时输（成对 D−B success -0.6467±0.1114，保留），而固定渲染、不做 DR 的一臂没有输（成对 C−B success 0.0233±0.0630，接近打平）；这是最近样本替身，不是 SynGrasp-1B；论文数字以论文为准，本页未运行。
 
 </Summary>
