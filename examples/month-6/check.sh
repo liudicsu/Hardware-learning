@@ -31,6 +31,7 @@ check vla_async_chunk_toy.txt python3 "$M6/vla-models/vla_async_chunk_toy.py"
 # ---- Lesson 4: evaluating a policy (Wilson intervals, paired trials, trials needed, failure table) -
 check eval_report.txt python3 "$M6/policy-evaluation/eval_report.py"
 check eval_seed_layers_toy.txt python3 "$M6/policy-evaluation/eval_seed_layers_toy.py"
+check magma_som_tom_toy.txt python3 "$M6/policy-evaluation/magma_som_tom_toy.py"
 
 # ---- Lesson 5: portfolio_check.py on a complete and a thin sample README (a real run, exit code 1) -
 check portfolio_check.txt bash -c "cd '$M6/specialisation-portfolio' && python3 portfolio_check.py samples/arm-pick-place samples/line-follower; echo \"exit code \$?\""

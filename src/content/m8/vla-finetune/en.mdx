@@ -736,6 +736,401 @@ Real continual VLA / LIBERO lab: 本页未运行; Liu et al. arXiv:2603.03818 nu
 4. On task_shift, compare avg success and NBT forget (with ±sd) for A/B/C; note B avg slightly below A within noise, and that C's NBT is slightly worse than B's within noise — larger buffer/compute is not a monotone forgetting cure.
 5. Before any LIBERO / VLA GPU lab (**本页未运行**), write why avg_success is blind to wall-clock GPU time and why paper NBT % stay **以论文为准**.
 
+## Phased alignment and a mixture of experts (ChatVLA)
+
+The sections above fine-tune for control only. ChatVLA reports that doing so with a vision-language backbone wipes out its ability to answer questions, and proposes two remedies: train control first and then add multimodal data, and give the two skills separate feed-forward experts. This section compares robot-only fine-tuning, that phased recipe and naive joint training on one **tiny linear stand-in**. It is **not** Qwen2-VL or ChatVLA's code, **not** DPO or OpenHelix, **not** CoT-VLA, **not** Magma, and **not** the experience-replay toy above (no replay buffer, no task sequence).
+
+<Resource id="chatvla-paper" />
+
+**Source actually opened (arXiv abstract page, HTML and PDF body read).**
+
+- **Zhou et al., ChatVLA: Unified Multimodal Understanding and Robot Control with Vision-Language-Action Model (arXiv 2502.14420 v1, 11 authors, submitted 20 Feb 2025):**
+  - Training the model solely on robot data "yields a performance of 0 across all benchmarks"; it exhibits "only murmuring when asked a question". The paper calls this **spurious forgetting**: robot training overwrites the visual-text alignment rather than deleting the knowledge, and training with a fixed reasoning template seems to "reactivate" it.
+  - **Task interference:** control and understanding compete for shared parameters, so co-training both (at a 3:1 ratio of robot data to visual-text data, following RT-2) costs control.
+  - **Phased Alignment Training:** the model "first masters embodied control before incrementally integrating multimodal data".
+  - **Mixture of experts:** self-attention layers are shared and the MLP is split into a control expert and an understanding expert; "in stage 1 training, only the control expert is activated". System prompts such as "Answer based on question" and "Predict robot action" select the path.
+  - The paper evaluates on 25 real-world tasks against OpenVLA and others; its numbers are 以论文为准. GPU or real-robot runs: **本页未运行**.
+
+### The stand-in model and what is measured
+
+With input `x`, a shared layer `A`, an expert projection `P` to `M=2` features, a new action head `c` and a pretrained answer head `V`:
+
+<Formula label="Shared layer, then the expert chosen by the task">z = A x,  f = P_task z</Formula>
+
+<Formula label="Control output and answer logits">â = c · f,  logits = V f</Formula>
+
+<Formula label="Answer labels are the pretrained model's own answers, so its baseline is printed">y = argmax V0 P0 A0 x</Formula>
+
+<Formula label="Forgetting gap, in points">gap = baseline VQA − arm VQA</Formula>
+
+**Worked example.** The toy prints `NQ=3`, so chance accuracy is `33.3333 %`, and the frozen baseline answers its own labels: `100.0000 %` in every regime. The answer head reads the two features the pretrained projection produces. In `conflict` the robot target is `W = (0, 0, 1, 0, 0, 0)`, a direction outside those two features. With one shared `P`, fitting the action must rotate one of only two feature rows toward that direction, and three answer classes need both: the two tasks compete for the same `M=2` features. With the mixture of experts, `P_ctrl` rotates and `P_vqa` does not. In `aligned` the target is `W = (1, 0, 0, 0, 0, 0)`, already inside the answer features, so there should be little to compete for.
+
+**Correctness criterion.** The frozen model must score `100.0000 %` on its own labels, which the toy prints and the test file checks. In B's stage 1 the test also checks that the answer expert and the answer head are unchanged after robot updates, so any drop in B's stage-1 VQA comes only through the shared layer `A`. **No integration step:** training is discrete SGD updates with no plant; the budget is the number of batches, stated per arm.
+
+### Fair setup
+
+`chatvla_phased_alignment_toy.py` is **synthetic** and stdlib only. **Model assumptions:**
+- `D=6` input dimensions, a shared `A` that starts near the identity with a small per-seed perturbation, `M=2` features, `NQ=3` answer classes; no images, no language.
+- Control is squared error on `a = W · x`; VQA is softmax cross entropy on the frozen model's labels. Plain SGD, `BATCH=8`, `LR=0.05`.
+- Control success means `|â − a|` within `TOL=0.25` on `TEST=400` fresh inputs; VQA accuracy is measured on the same inputs.
+
+| Arm | Robot data | VQA data | Projection |
+|---|---|---|---|
+| A_robot | all `R=300` batches | none | one shared `P` |
+| B_phased | the first `R − R2` batches in stage 1; the last `R2` (100) in stage 2 | `Q` batches, stage 2 only, interleaved | MoE: `P_ctrl` and `P_vqa` |
+| C_joint | all `R=300` batches | `Q` batches, robot : VQA = 3:1 from step 0 | one shared `P` |
+
+**Common random numbers:** for each (regime, seed) the initial perturbation, every robot batch, every VQA batch and the test set are drawn once; batch i is the same batch for every arm that uses it. Five seeds.
+
+| Regime | Robot target | VQA batches | Expected (written before the first run) |
+|---|---|---|---|
+| conflict | `W = (0, 0, 1, 0, 0, 0)` | Q = 100 | A consistent VQA collapse vs B; A and B near-tie on control; C vs B not predicted |
+| aligned | `W = (1, 0, 0, 0, 0, 0)` | Q = 100 | all three near-tie on control and VQA |
+| few_vqa | `W = (0, 0, 1, 0, 0, 0)` | Q = 10 | B still a consistent VQA win over A; C vs B not predicted |
+
+**Choices made after seeing results.** None. No constant, arm, metric or regime was changed after the first run, and the table below is that first run. The `aligned` expectation did **not** hold, and it is printed as it fell. Alternatives not taken, so no numbers for them appear here: a wider bottleneck, which would remove the conflict by construction; and a different robot : VQA ratio for C than the paper's 3:1.
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-8/vla-finetune
+python3 chatvla_phased_alignment_toy.py
+```
+
+<CodeSource path="examples/month-8/vla-finetune/chatvla_phased_alignment_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""ChatVLA-style phased alignment + MoE vs robot-only SFT vs naive joint training, on one tiny shared model.
+
+Synthetic, stdlib only.  Not Qwen2-VL, not DiffusionVLA, not ChatVLA's code: a linear stand-in
+that keeps only the structure the paper describes (a shared layer like the shared self-attention,
+task-specific FFN experts, an action head and a language head).  Not DPO / OpenHelix, not
+CoT-VLA, not Magma, and not this lesson's experience-replay toy (no replay buffer, no task
+sequence).  ChatVLA paper numbers (VQA, 25 real tasks) are 以论文为准; GPU or real-robot runs:
+本页未运行.
+
+Model (dimensions D input, M bottleneck, NQ answer classes):
+  z = A x                 shared layer (D x D), pretrained A0 = I plus a small per-seed perturbation
+  f = P z                 FFN projection to M features (M x D); P0 rows = e1, e2
+  control  a_hat = c . f  action head, new (c = 0 at the start)
+  VQA      logits = V f   language head, pretrained V0 (NQ prototypes at 0, 120, 240 degrees)
+The "pretrained VLM" answers VQA by its own map: label y = argmax V0 P0 A0 x, so its own VQA
+accuracy on fresh inputs is printed as the frozen baseline.  The robot target is a = W . x with
+W set by the regime.
+Arms (equal robot budget R batches; B and C also get the same Q VQA batches):
+  A_robot   robot-only SFT through the single shared P; V is never updated (no VQA data)
+  B_phased  MoE: P_ctrl and P_vqa both start at P0.  Stage 1: first R - R2 robot batches, only
+            the control expert and A train.  Stage 2: remaining R2 robot batches and Q VQA
+            batches, interleaved, robot through P_ctrl and VQA through P_vqa (A shared)
+  C_joint   naive joint training through the single shared P from step 0, robot : VQA = 3 : 1
+            interleaving (the ratio the paper used, following RT-2), same R and Q
+Training: plain SGD, batch BATCH, learning rate LR, squared error for control, softmax cross
+entropy for VQA.  No integration step (discrete SGD updates, no plant); the step count is the
+budget, stated per arm.
+Metrics per seed: control success % (|a_hat - a| <= TOL on TEST inputs), VQA accuracy % on TEST
+inputs, forgetting gap = baseline VQA - arm VQA (points).  B's VQA after stage 1 is printed too.
+Common random numbers: per (regime, seed) the init perturbation, every robot batch, every VQA
+batch and the test set are drawn once; batch i is the same batch for every arm that uses it.
+Regimes and expectations, written before the first run:
+  conflict   W = e3 (outside the VQA features), Q 100   A consistent VQA collapse vs B;
+                                                        A and B near-tie on control;
+                                                        C vs B: no prediction, printed either way
+  aligned    W = e1 (inside the VQA features), Q 100    all three near-tie on control and VQA
+  few_vqa    W = e3, Q 10                               B still consistent VQA win over A;
+                                                        C vs B: no prediction
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+D, M, NQ = 6, 2, 3
+R, R2 = 300, 100          # robot batches per arm; B's stage-2 robot batches
+BATCH = 8
+LR = 0.05
+TOL = 0.25
+TEST = 400
+INIT_SD = 0.05
+NUM_ZERO = 1e-9
+ARMS = ("A_robot", "B_phased", "C_joint")
+# name: (robot target direction W, VQA batches Q); written before the first run
+REGIMES = {
+    "conflict": ((0, 0, 1, 0, 0, 0), 100),
+    "aligned": ((1, 0, 0, 0, 0, 0), 100),
+    "few_vqa": ((0, 0, 1, 0, 0, 0), 10),
+}
+STREAM = {"conflict": 0, "aligned": 1, "few_vqa": 2}
+V0 = [[math.cos(2 * math.pi * k / NQ), math.sin(2 * math.pi * k / NQ)] for k in range(NQ)]
+P0 = [[1.0 if j == i else 0.0 for j in range(D)] for i in range(M)]
+
+
+def matvec(mat, v):
+    return [sum(a * b for a, b in zip(row, v)) for row in mat]
+
+
+def argmax(v):
+    return max(range(len(v)), key=lambda k: v[k])
+
+
+def copy(mat):
+    return [row[:] for row in mat]
+
+
+def shared_draws(regime, seed):
+    rng = random.Random(1000 * STREAM[regime] + seed)
+    w, q = REGIMES[regime]
+    a0 = [[(1.0 if i == j else 0.0) + rng.gauss(0.0, INIT_SD) for j in range(D)] for i in range(D)]
+    teacher = lambda x: argmax(matvec(V0, matvec(P0, matvec(a0, x))))
+    gx = lambda: [rng.gauss(0.0, 1.0) for _ in range(D)]
+    robot = []
+    for _ in range(R):
+        xs = [gx() for _ in range(BATCH)]
+        robot.append([(x, sum(a * b for a, b in zip(w, x))) for x in xs])
+    vqa = []
+    for _ in range(q):
+        xs = [gx() for _ in range(BATCH)]
+        vqa.append([(x, teacher(x)) for x in xs])
+    test = []
+    for _ in range(TEST):
+        x = gx()
+        test.append((x, sum(a * b for a, b in zip(w, x)), teacher(x)))
+    return a0, robot, vqa, test
+
+
+class Net:
+    def __init__(self, a0, moe):
+        self.A = copy(a0)
+        self.P = {"ctrl": copy(P0), "vqa": copy(P0)} if moe else {"ctrl": copy(P0)}
+        self.moe = moe
+        self.c = [0.0] * M
+        self.V = copy(V0)
+        self.train_a = True
+        self.frozen = set()
+
+    def proj(self, task):
+        return self.P["vqa"] if (self.moe and task == "vqa") else self.P["ctrl"]
+
+    def step(self, batch, task):
+        P = self.proj(task)
+        gA = [[0.0] * D for _ in range(D)]
+        gP = [[0.0] * D for _ in range(M)]
+        gc = [0.0] * M
+        gV = [[0.0] * M for _ in range(NQ)]
+        for x, y in batch:
+            z = matvec(self.A, x)
+            f = matvec(P, z)
+            if task == "ctrl":
+                err = sum(a * b for a, b in zip(self.c, f)) - y
+                df = [err * ci for ci in self.c]
+                for i in range(M):
+                    gc[i] += err * f[i]
+            else:
+                logits = matvec(self.V, f)
+                mx = max(logits)
+                ex = [math.exp(l - mx) for l in logits]
+                s = sum(ex)
+                g = [e / s - (1.0 if k == y else 0.0) for k, e in enumerate(ex)]
+                df = [sum(g[k] * self.V[k][i] for k in range(NQ)) for i in range(M)]
+                for k in range(NQ):
+                    for i in range(M):
+                        gV[k][i] += g[k] * f[i]
+            dz = [sum(df[i] * P[i][j] for i in range(M)) for j in range(D)]
+            for i in range(M):
+                for j in range(D):
+                    gP[i][j] += df[i] * z[j]
+            for i in range(D):
+                for j in range(D):
+                    gA[i][j] += dz[i] * x[j]
+        n = float(len(batch))
+        for i in range(M):
+            for j in range(D):
+                P[i][j] -= LR * gP[i][j] / n
+        for i in range(D):
+            for j in range(D):
+                self.A[i][j] -= LR * gA[i][j] / n
+        if task == "ctrl":
+            for i in range(M):
+                self.c[i] -= LR * gc[i] / n
+        else:
+            for k in range(NQ):
+                for i in range(M):
+                    self.V[k][i] -= LR * gV[k][i] / n
+
+    def evaluate(self, test):
+        ok_c = ok_q = 0
+        for x, a, y in test:
+            z = matvec(self.A, x)
+            fc = matvec(self.proj("ctrl"), z)
+            ok_c += abs(sum(p * q for p, q in zip(self.c, fc)) - a) <= TOL
+            ok_q += argmax(matvec(self.V, matvec(self.proj("vqa"), z))) == y
+        return 100.0 * ok_c / len(test), 100.0 * ok_q / len(test)
+
+
+def run_arm(arm, draws):
+    a0, robot, vqa, test = draws
+    net = Net(a0, moe=(arm == "B_phased"))
+    out = {}
+    if arm == "A_robot":
+        for b in robot:
+            net.step(b, "ctrl")
+    elif arm == "B_phased":
+        for b in robot[:R - R2]:
+            net.step(b, "ctrl")
+        out["stage1_vqa"] = net.evaluate(test)[1]
+        rest, qs = robot[R - R2:], list(vqa)
+        n = max(len(rest), len(qs))
+        for i in range(n):
+            if i < len(rest):
+                net.step(rest[i], "ctrl")
+            if i < len(qs):
+                net.step(qs[i], "vqa")
+    else:
+        qi = 0
+        for i, b in enumerate(robot):
+            net.step(b, "ctrl")
+            if i % 3 == 2 and qi < len(vqa):
+                net.step(vqa[qi], "vqa")
+                qi += 1
+        while qi < len(vqa):
+            net.step(vqa[qi], "vqa")
+            qi += 1
+    ctrl, q = net.evaluate(test)
+    base = Net(a0, moe=False).evaluate(test)[1]
+    out.update({"ctrl": ctrl, "vqa": q, "gap": base - q, "base": base})
+    return out
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-5:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{num(m)}+-{num(s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{num(m)}+-{num(s)}: {label}; {sign_note(diffs, m)}"
+
+
+def main():
+    print("Synthetic ChatVLA-style probe: robot-only SFT vs phased alignment + MoE vs naive joint (3:1); linear stand-in, not Qwen2-VL")
+    print(f"D={D} M={M} NQ={NQ} R={R} robot batches (B stage 2: {R2}) BATCH={BATCH} LR={LR} TOL={TOL} TEST={TEST} seeds={len(SEEDS)}")
+    print(f"chance VQA accuracy = {100.0 / NQ:.4f} %; no integration step (discrete SGD updates); C interleaves robot:VQA = 3:1")
+    print("regime arm control_% vqa_% forgetting_gap_pts  (mean+-sd over seeds)")
+    for regime, (w, q) in REGIMES.items():
+        draws = [shared_draws(regime, s) for s in SEEDS]
+        res = {arm: [run_arm(arm, d) for d in draws] for arm in ARMS}
+        base = "{}+-{}".format(*map(num, mean_sd([r["base"] for r in res["A_robot"]])))
+        print(f"{regime} (W = {w}; Q = {q} VQA batches; frozen baseline VQA {base} %)")
+        for arm in ARMS:
+            cols = ["{}+-{}".format(*map(num, mean_sd([r[k] for r in res[arm]]))) for k in ("ctrl", "vqa", "gap")]
+            print(f"  {arm} " + " ".join(cols))
+        s1 = "{}+-{}".format(*map(num, mean_sd([r["stage1_vqa"] for r in res["B_phased"]])))
+        print(f"  B_phased VQA after stage 1 (robot only, before any VQA batch): {s1} %")
+        for x, y in (("B_phased", "A_robot"), ("C_joint", "B_phased")):
+            for key in ("ctrl", "vqa"):
+                print(f"  paired {x[0]}-{y[0]} {key}: {verdict([r[key] for r in res[x]], [r[key] for r in res[y]])}")
+    print("No winner declared: phased alignment + MoE restores VQA lost to robot-only SFT; whether naive joint training costs control depends on whether the tasks compete for features")
+    print("ChatVLA numbers 以论文为准; GPU / 25-task real robot: 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic ChatVLA-style probe: robot-only SFT vs phased alignment + MoE vs naive joint (3:1); linear stand-in, not Qwen2-VL
+D=6 M=2 NQ=3 R=300 robot batches (B stage 2: 100) BATCH=8 LR=0.05 TOL=0.25 TEST=400 seeds=5
+chance VQA accuracy = 33.3333 %; no integration step (discrete SGD updates); C interleaves robot:VQA = 3:1
+regime arm control_% vqa_% forgetting_gap_pts  (mean+-sd over seeds)
+conflict (W = (0, 0, 1, 0, 0, 0); Q = 100 VQA batches; frozen baseline VQA 100.0000+-0.0000 %)
+  A_robot 100.0000+-0.0000 54.2500+-1.0308 45.7500+-1.0308
+  B_phased 100.0000+-0.0000 95.2000+-1.5248 4.8000+-1.5248
+  C_joint 95.3500+-4.1026 65.5500+-3.4839 34.4500+-3.4839
+  B_phased VQA after stage 1 (robot only, before any VQA batch): 72.4500+-1.8235 %
+  paired B-A ctrl: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A vqa: 40.9500+-2.0721: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B ctrl: -4.6500+-4.1026: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B vqa: -29.6500+-3.7442: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+aligned (W = (1, 0, 0, 0, 0, 0); Q = 100 VQA batches; frozen baseline VQA 100.0000+-0.0000 %)
+  A_robot 100.0000+-0.0000 93.3500+-1.0695 6.6500+-1.0695
+  B_phased 100.0000+-0.0000 96.4000+-0.7624 3.6000+-0.7624
+  C_joint 100.0000+-0.0000 95.9500+-0.6937 4.0500+-0.6937
+  B_phased VQA after stage 1 (robot only, before any VQA batch): 95.7500+-1.5512 %
+  paired B-A ctrl: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A vqa: 3.0500+-1.0954: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B ctrl: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B vqa: -0.4500+-0.3260: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+few_vqa (W = (0, 0, 1, 0, 0, 0); Q = 10 VQA batches; frozen baseline VQA 100.0000+-0.0000 %)
+  A_robot 100.0000+-0.0000 53.5500+-1.9558 46.4500+-1.9558
+  B_phased 100.0000+-0.0000 81.2500+-2.3783 18.7500+-2.3783
+  C_joint 100.0000+-0.0000 53.7000+-1.4186 46.3000+-1.4186
+  B_phased VQA after stage 1 (robot only, before any VQA batch): 70.3500+-2.9612 %
+  paired B-A ctrl: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A vqa: 27.7000+-3.0177: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B ctrl: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B vqa: -27.5500+-2.8140: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: phased alignment + MoE restores VQA lost to robot-only SFT; whether naive joint training costs control depends on whether the tasks compete for features
+ChatVLA numbers 以论文为准; GPU / 25-task real robot: 本页未运行
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used on this page, in this order: **tie: identical on every seed** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when `|paired mean|` and its sd are both below 1e-9 (no sign count is printed on such a line); **near-tie / small gap, within seed noise** when `|paired mean| ≤ sd`; otherwise a **consistent** gap (`|paired mean| > sd`), called **small** if `|m|` is under 20 % of the smaller arm mean and **clear** otherwise; the 20 % rule only chooses between those two words. Every consistent line carries a same-sign count over the 5 seeds, and any seed with the opposite sign is reported; a sign count alone never makes a gap consistent. Gaps are computed from unrounded values. Paired differences are B−A and C−B. Control and VQA are in percent.
+
+- **conflict:**
+  - **Phased alignment + MoE wins on VQA with a clear gap:** B−A VQA +40.9500±2.0721, same sign on all 5 seeds. Robot-only SFT leaves A at 54.2500 %; B ends at 95.2000 %.
+  - B−A control is a tie: identical on every seed (both 100.0000 %), which is stronger than the near-tie written before the run.
+  - B's VQA after stage 1, before any VQA batch, is 72.4500 %: the robot updates have already moved the shared layer, and stage 2 realigns it. This is the toy's version of spurious forgetting.
+  - **Naive joint training loses on both metrics:** C−B VQA −29.6500±3.7442, clear, and C−B control −4.6500±4.1026, a small but consistent gap, both same sign on all 5 seeds. C reaches 95.3500 % control and 65.5500 % VQA: the two tasks fight over one shared projection.
+- **aligned:**
+  - Control is a tie on both pairs: identical on every seed.
+  - **The expected near-tie on VQA did not hold:** B−A VQA +3.0500±1.0954 and C−B VQA −0.4500±0.3260 are small but consistent gaps, same sign on all 5 seeds. A ends at 93.3500 %, B at 96.4000 %, C at 95.9500 %: even with no feature conflict, robot-only updates nudge the shared layer.
+- **few_vqa:**
+  - **B wins on VQA with a clear gap:** B−A VQA +27.7000±3.0177, same sign on all 5 seeds; A 53.5500 %, B 81.2500 % after only 10 VQA batches. B's stage-1 VQA is 70.3500 %.
+  - C−B VQA −27.5500±2.8140, clear, 5/5: with so few VQA batches mixed into a shared projection, C (53.7000 %) barely differs from robot-only. Control ties on both pairs.
+
+Naive joint training never beats B on either metric here; the proposal allowed for it winning one, and the table shows that did not happen in these three regimes. The page **does not declare a universal winner**: phased alignment with separate experts restores VQA lost to robot-only fine-tuning, the cost of naive joint training depends on whether the tasks compete for features, and when they do not compete the gaps shrink to a few points. ChatVLA's numbers are 以论文为准, and GPU or 25-task real-robot runs are **本页未运行**.
+
+**210-minute work plan:** 30 min read the spurious-forgetting, phased-alignment and MoE parts of the paper; 30 min redo the worked example and trace one SGD step by hand; 40 min run the toy and read the three regimes; 40 min change `Q`, `R2` and the robot target with seeds fixed; 40 min the exercises; 30 min write which VQA and control checks you would run after fine-tuning your own VLA.
+
+### Exercises
+
+1. From the printed `NQ=3`, derive the chance accuracy 33.3333 % and explain why the frozen baseline prints 100.0000 %.
+2. Show from `shared_draws` and `run_arm` that A, B and C see the same robot batches, VQA batches and test set for a given regime and seed.
+3. Explain why B's stage-1 VQA (72.4500 % in `conflict`) is below the baseline even though the answer expert and head have not changed.
+4. Change C's interleaving from 3:1 to 1:1 with seeds fixed. Predict C−B control and VQA in `conflict` before you run, then make the toy print the lines you quote.
+5. Before a real VLA fine-tune (本页未运行), write how you would measure forgetting: which VQA benchmark, which control tasks, how many trials, and what counts as a regression.
+
 <Summary>
 
 Fine-tune practice for VLAs: `smolvla_base` (450M; ~4 h / 20k on A100; Colab if no GPU). Compare ACT vs SmolVLA on Month 6's 20 starts. Read openpi (>8 / >22.5 / >70 GB), GR00T (16 GB+ / 40 GB+), and LeRobot π₀.₅ (80 GB recipe) floors. `compute_budget.py` shows optimistic UNDER estimates against those floors. GPU / Colab / arm paths: 本页未运行.
@@ -743,4 +1138,5 @@ Fine-tune practice for VLAs: `smolvla_base` (450M; ~4 h / 20k on A100; Colab if 
 The RPD-style discrete surrogate compares BC-only, scratch RL and teacher-MSE RL under equal interaction/update budgets across five seeds with a deliberately suboptimal teacher, preserving early BC wins rather than promising a winner.
 
 - Continual ER: no-shift **near-tie / small gap**; under shift ER can cut NBT forget vs sequential (not monotonically with buffer size) at explicit buffer_cap and compute_samples — not a LIBERO claim.
+- ChatVLA-style phased alignment + MoE, a linear stand-in (`chatvla_phased_alignment_toy.py`): when control and VQA compete for features it clearly restores VQA lost to robot-only fine-tuning (paired +40.9500±2.0721, 5/5) and naive 3:1 joint training loses on VQA (−29.6500±3.7442); with aligned tasks the declared near-tie became small consistent gaps — not ChatVLA's benchmarks.
 </Summary>

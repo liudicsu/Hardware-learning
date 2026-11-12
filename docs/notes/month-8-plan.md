@@ -1,6 +1,14 @@
 # Month 8 plan
 
-Current / 当前：**M8 3390 min**, Batch-11 PR3. Earlier entries below retain their historical totals.
+Current / 当前：**M8 3600 min**, Batch-17 PR3. Earlier entries below retain their historical totals.
+
+## Batch-17 PR3 — ChatVLA phased alignment + MoE on vla-finetune (+210)
+
+Base `5825c94` (batch-17 PR2 merged as #170; site **34290**). PR3 touches M6 and M8: M6 3240→3450 (+210), **M8 3390→3600 (+210)**. Site **34290→34710**, still 71 lessons.
+
+- **H6 / vla-finetune: 630→**840** (+210).** Phased alignment + MoE vs robot-only SFT vs naive 3:1 joint training. Toy `chatvla_phased_alignment_toy.py`: D=6, M=2 shared-bottleneck linear stand-in, NQ=3 answer classes labelled by the frozen model (baseline 100.0000 %); R=300 robot batches per arm, B stage 2 = last 100 with Q VQA batches, C 3:1 from step 0; 5 seeds, common random numbers; no integration step. conflict: B−A VQA +40.9500±2.0721, clear, 5/5; B−A control tie; C−B VQA −29.6500±3.7442 and control −4.6500±4.1026 (small, consistent). aligned (declared near-tie): did not hold — B−A VQA +3.0500±1.0954, C−B −0.4500±0.3260, small consistent. few_vqa: B−A VQA +27.7000±3.0177. Naive joint never wins a metric here. ≠ DPO / OpenHelix / CoT-VLA / Magma. ChatVLA numbers 以论文为准; GPU / 25-task real robot 本页未运行.
+
+**Allocation / 安排:** 30+30+40+40+40+30 = 210 minutes.
 
 Batch 1–2 delivered 8.1–8.7 (dataset → capstone). **Track B (promote electives):** append **8.8 `sim-benchmarks`** after capstone — does **not** replace 8.7.
 

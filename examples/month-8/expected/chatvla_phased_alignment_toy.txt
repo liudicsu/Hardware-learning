@@ -1,0 +1,33 @@
+Synthetic ChatVLA-style probe: robot-only SFT vs phased alignment + MoE vs naive joint (3:1); linear stand-in, not Qwen2-VL
+D=6 M=2 NQ=3 R=300 robot batches (B stage 2: 100) BATCH=8 LR=0.05 TOL=0.25 TEST=400 seeds=5
+chance VQA accuracy = 33.3333 %; no integration step (discrete SGD updates); C interleaves robot:VQA = 3:1
+regime arm control_% vqa_% forgetting_gap_pts  (mean+-sd over seeds)
+conflict (W = (0, 0, 1, 0, 0, 0); Q = 100 VQA batches; frozen baseline VQA 100.0000+-0.0000 %)
+  A_robot 100.0000+-0.0000 54.2500+-1.0308 45.7500+-1.0308
+  B_phased 100.0000+-0.0000 95.2000+-1.5248 4.8000+-1.5248
+  C_joint 95.3500+-4.1026 65.5500+-3.4839 34.4500+-3.4839
+  B_phased VQA after stage 1 (robot only, before any VQA batch): 72.4500+-1.8235 %
+  paired B-A ctrl: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A vqa: 40.9500+-2.0721: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B ctrl: -4.6500+-4.1026: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B vqa: -29.6500+-3.7442: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+aligned (W = (1, 0, 0, 0, 0, 0); Q = 100 VQA batches; frozen baseline VQA 100.0000+-0.0000 %)
+  A_robot 100.0000+-0.0000 93.3500+-1.0695 6.6500+-1.0695
+  B_phased 100.0000+-0.0000 96.4000+-0.7624 3.6000+-0.7624
+  C_joint 100.0000+-0.0000 95.9500+-0.6937 4.0500+-0.6937
+  B_phased VQA after stage 1 (robot only, before any VQA batch): 95.7500+-1.5512 %
+  paired B-A ctrl: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A vqa: 3.0500+-1.0954: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B ctrl: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B vqa: -0.4500+-0.3260: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+few_vqa (W = (0, 0, 1, 0, 0, 0); Q = 10 VQA batches; frozen baseline VQA 100.0000+-0.0000 %)
+  A_robot 100.0000+-0.0000 53.5500+-1.9558 46.4500+-1.9558
+  B_phased 100.0000+-0.0000 81.2500+-2.3783 18.7500+-2.3783
+  C_joint 100.0000+-0.0000 53.7000+-1.4186 46.3000+-1.4186
+  B_phased VQA after stage 1 (robot only, before any VQA batch): 70.3500+-2.9612 %
+  paired B-A ctrl: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A vqa: 27.7000+-3.0177: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B ctrl: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B vqa: -27.5500+-2.8140: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: phased alignment + MoE restores VQA lost to robot-only SFT; whether naive joint training costs control depends on whether the tasks compete for features
+ChatVLA numbers 以论文为准; GPU / 25-task real robot: 本页未运行
