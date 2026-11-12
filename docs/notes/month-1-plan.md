@@ -1,6 +1,14 @@
 # Month 1 plan / 第 1 个月计划
 
-Current / 当前：**M1 2730 min**, Batch-21 PR1. Earlier entries below retain their historical totals.
+Current / 当前：**M1 2910 min**, Batch-22 PR1. Earlier entries below retain their historical totals.
+
+## Batch-22 PR1 / 本月 H1 (+180)
+
+Base `5c0a2058860b3776983f1a4e19ef0ecf5cf51f0a` (batch-21 polish #188 merged; site **39060**). PR1 on M1 host: **M1 2730→2910 (+180)**; M3 moves in the same PR on its own plan. Site **39060→39420** (39420=39060+180+180), still 71 lessons.
+
+- **H1 / 1.4 soldering: 270→450 (+180).** Crimp vs solder and strain relief (`crimp_vs_solder_strain_relief_toy.py`; common random numbers, 5 seeds; 19 strand fatigue factors and one contact factor per regime and seed, shared by all four arms). Wikipedia Crimp (joining) body read (rev 1380146082; 以原文为准): solderless, correctly sized barrel, gas-tight, no solder wicking, "mechanically stronger" (the article's claim, not a toy output). Declared toy parameters: 19 × 0.16 mm strands, ε = d/(2ρ), N = 2000·(0.02/ε)^2·z, SIGMA_LIFE=0.3, bend radius A 3.0 / B 6.0 / C 6.0 / D 12.0 mm, R_C0=0.50 milliohm, UNDER_X=3.0, FRET_PER_KCYCLE=0.5, OX_PER_KHOUR=0.5. Hand calc (printed): ε 0.0267 / 0.0133 / 0.0067, median life 1125.0000 / 4500.0000 / 18000.0000 cycles, 19/3=6.3333. flex (1500 cycles): B−A intact `16.2000±1.6432`, **clear**, 5/5; B−A life_half `3211.9624±284.6963`, clear, 5/5; C−D contact_mohm `2.1192±0.0670`, **clear**, 5/5 (under-crimp loses to the relieved solder joint, **kept**); C−D intact **tie**. light_flex (300 cycles): B−A intact **tie** (declared "may near-tie"). static (2000 h, no flex): B−A intact and contact **tie**; C−D contact_mohm `2.4243±0.1546`, clear, 5/5. Every pre-declared regime held. Alternatives (declared, same seeds): K_FAT=3.0 → B−A intact `18.6000±0.5477`; A ρ=4.0 mm → `3.4000±0.5477`; OX_PER_KHOUR=0.1 → C−D contact `1.2607±0.0804`; none adopted. No code change after the first run. ≠ thermal-window toy. Real crimp tool / IPC-A-610 本页未运行. / 压接与焊接、应力释放，不宣布压接钳实验。
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
 
 ## Batch-21 PR1 / 本月 H1 (+180)
 

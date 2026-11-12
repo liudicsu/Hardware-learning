@@ -49,3 +49,7 @@ The legacy python-terminal examples are real program runs. / 原 python-terminal
 ## Batch-21 PR1 / 第21批 PR1
 
 `components/peukert_rate_capacity_toy.py`: standard-library synthetic constant-current discharge (nameplate clock vs Peukert vs k = 1 vs a high-current cap) on a shared 100 Ah / 20 h rating, no hardware; expected output in `expected/peukert_rate_capacity_toy.txt`, included in `check.sh`. Real pack 本页未运行. / 标准库合成的恒流放电（铭牌时钟、Peukert、k = 1、大电流上限），不是电池实测，输出由 `check.sh` 核对。
+
+## soldering/ — Crimp or solder, and strain relief / 压接还是焊接，以及应力释放
+
+`soldering/crimp_vs_solder_strain_relief_toy.py`: standard-library synthetic strand-fatigue and contact-resistance stand-in comparing an unrelieved solder joint, a correctly sized crimp, an under-crimp and a solder joint with strain relief on shared strand and contact draws; no hardware; expected output in `expected/crimp_vs_solder_strain_relief_toy.txt`, included in `check.sh`. Real crimp tool / IPC-A-610 inspection 本页未运行. / 标准库合成的线股疲劳与接触电阻替身，比较无应力释放的焊点、尺寸合适的压接、压接不足和加应力释放的焊点；不是压接实测，输出由 `check.sh` 核对。
