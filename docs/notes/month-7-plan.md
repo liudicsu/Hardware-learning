@@ -1,6 +1,14 @@
 # Month 7 plan: Simulation, reinforcement learning & 3D perception
 
-Current / 当前：**M7 2970 min**, Batch-18 PR2. Earlier entries below retain their historical totals.
+Current / 当前：**M7 3120 min**, Batch-20 PR2. Earlier entries below retain their historical totals.
+
+## Batch-20 PR2 / 本月 H4 (+150)
+
+Base `bf2716c4ad5d843f4e1c5a8cf4e62b0bd357d81c` (batch-20 PR1 #181 merged; site **37230**). PR2 on M7 host: **M7 2970→3120 (+150)**; M5 moves in the same PR on its own plan. Site **37230→37560** (37560=37230+180+150), still 71 lessons.
+
+- **H4 / 7.4 sim-to-real: 390→540 (+150).** Tobin-style visual domain randomisation (`tobin_visual_domain_randomization_toy.py`; common random numbers, 5 seeds). arXiv 1703.06907 abs page checked (title *Domain Randomization for Transferring Deep Neural Networks from Simulation to the Real World*; 6 authors: Josh Tobin, Rachel Fong, Alex Ray, Jonas Schneider, Wojciech Zaremba, Pieter Abbeel) and PDF body read; paper numbers (1.5 cm, 38/40, fewer than 1,000 textures) 以论文为准, not reproduced. Declared toy parameters: 24-px row, 4.0 px object, 600 training rows, 3-NN, PALETTE=200, U=30.0 px/s, TAU_REAL=0.10 s, TAU_SIM=0.05 s, TOL=1.0 px. Hand calc (printed): wrong-τ aim error 1.5000 px. heldout: paired B−A loc_err `-3.4207±0.8743`, **clear**, 5/5 — pre-declared DR win held. canonical: paired B−A loc_err `0.1828±0.0448`, **clear**, 5/5 — B loses (pre-declared possible), **kept**. moving: paired C−B success `-0.3300±0.1110`, **clear**, 5/5 — wrong τ loses even with visual DR, **kept**. Alternatives on the same seeds, written before the first run: PALETTE=10 beats PALETTE=200 (paired B200−B10 loc_err `0.7390±0.3862`) — the **opposite** direction from the paper's ablation, printed as it came out; TOL=2.0 px hides the τ error (paired C−B success@alt `-0.0450±0.0818`, near-tie). ≠ contact-DR; ≠ lag sysid; ≠ Peng dynamics DR. GPU training / real camera / robot 本页未运行. / Tobin 式视觉域随机化：留出外观上胜，固定纹理上稍输，错误 τ 修不好。
+
+**Allocation / 安排:** 25+25+40+35+25=150 minutes.
 
 ## Batch-18 PR2 / 本月 H4 (+180)
 

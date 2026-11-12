@@ -1,0 +1,49 @@
+Synthetic 1-D camera-row toy with a k-NN detector; canonical vs random textures vs random textures + wrong tau; not a DNN
+seeds=5 W=24 px OBJ_W=4.0 px N_TRAIN=600 N_TEST=40 K_NN=3 PIX_SIGMA=0.02 PALETTE=200 GAIN=[0.6, 1.4] (declared toy parameters)
+U_MOVE=30.0 px/s TAU_REAL=0.10 s TAU_SIM=0.05 s TOL=1.0 px (success iff grasp_err < TOL, strict; declared toy parameters)
+No integration step: closed-form positions, no time-step criterion
+Regimes and parameters were written before the first run
+peek_check: any held-out real texture or the canonical texture inside B's palette on any seed: False
+hand_calc wrong tau: aim error = U*(TAU_REAL - TAU_SIM) = 30.0*(0.10 - 0.05) = 1.5000 px, which is not < TOL=1.0 px even with a perfect detector
+hand_calc object travel during TAU_REAL: U*TAU_REAL = 3.0000 px
+heldout (test textures=real, U=0.0 px/s):
+  A_canonical loc_err 5.6907+-0.3947 grasp_err 5.6907+-0.3947 success 0.2750+-0.0685
+  B_random loc_err 2.2700+-0.6663 grasp_err 2.2700+-0.6663 success 0.4700+-0.1137
+  C_rand_tau loc_err 2.2700+-0.6663 grasp_err 2.2700+-0.6663 success 0.4700+-0.1137
+  paired B-A loc_err: -3.4207+-0.8743: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A grasp_err: -3.4207+-0.8743: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success: 0.1950+-0.0758: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B loc_err: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B grasp_err: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B success: 0.0000+-0.0000: tie: identical on every seed
+canonical (test textures=canon, U=0.0 px/s):
+  A_canonical loc_err 0.0322+-0.0020 grasp_err 0.0322+-0.0020 success 1.0000+-0.0000
+  B_random loc_err 0.2150+-0.0438 grasp_err 0.2150+-0.0438 success 0.9950+-0.0112
+  C_rand_tau loc_err 0.2150+-0.0438 grasp_err 0.2150+-0.0438 success 0.9950+-0.0112
+  paired B-A loc_err: 0.1828+-0.0448: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A grasp_err: 0.1828+-0.0448: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success: -0.0050+-0.0112: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 4 of 5 equal
+  paired C-B loc_err: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B grasp_err: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B success: 0.0000+-0.0000: tie: identical on every seed
+moving (test textures=real, U=30.0 px/s):
+  A_canonical loc_err 5.4776+-0.6971 grasp_err 5.4776+-0.6971 success 0.2950+-0.0837
+  B_random loc_err 2.0712+-0.2356 grasp_err 2.0712+-0.2356 success 0.5050+-0.0798
+  C_rand_tau loc_err 2.0712+-0.2356 grasp_err 2.4445+-0.2529 success 0.1750+-0.0433
+  paired B-A loc_err: -3.4064+-0.8660: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A grasp_err: -3.4064+-0.8660: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success: 0.2100+-0.1616: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  paired C-B loc_err: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B grasp_err: 0.3734+-0.2150: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: -0.3300+-0.1110: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative PALETTE=10 on heldout (same seeds, same training positions and noise):
+  B_random@alt loc_err 1.5310+-0.8132 (PALETTE=200: 2.2700+-0.6663)
+  paired B-A loc_err@alt: -4.1596+-0.9999: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B200-B10 loc_err: 0.7390+-0.3862: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative TOL=2.0 px on moving (same seeds):
+  A_canonical@alt success 0.3300+-0.0873
+  B_random@alt success 0.6200+-0.0597
+  C_rand_tau@alt success 0.5750+-0.0919
+  paired C-B success@alt: -0.0450+-0.0818: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign, 2 of 5 equal
+No winner declared: random textures buy transfer to unseen appearance, cost accuracy on the one texture A was trained on, and do nothing for a wrong tau
+GPU training / real camera / robot: 本页未运行; Tobin et al. arXiv 1703.06907 statements and numbers 以论文为准

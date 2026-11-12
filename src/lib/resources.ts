@@ -1990,12 +1990,12 @@ export const resources: Record<string, Resource> = {
     id: "tobin-dr",
     url: "https://arxiv.org/abs/1703.06907",
     title: { zh: "Tobin 等 2017：视觉域随机化", en: "Tobin et al. 2017: visual domain randomisation" },
-    author: "Tobin, Fong, Ray, Schneider, Zaremba, Abbeel",
+    author: "Josh Tobin, Rachel Fong, Alex Ray, Jonas Schneider, Wojciech Zaremba, Pieter Abbeel",
     kind: "textbook",
     cost: { zh: "免费", en: "Free" },
     summary: {
-      zh: "Domain Randomization for Transferring Deep Neural Networks from Simulation to the Real World。arXiv 1703.06907。",
-      en: "Domain Randomization for Transferring Deep Neural Networks from Simulation to the Real World. arXiv 1703.06907.",
+      zh: "Domain Randomization for Transferring Deep Neural Networks from Simulation to the Real World。arXiv 1703.06907。摘要页（HTTP 200，2026-11-12）核对标题与六位作者；PDF 正文已读（pdftotext）。在仿真器里随机化渲染（干扰物、物体位置与纹理、桌面/地面/天空盒/机器人纹理、相机位置/朝向/视场、灯光、图像噪声），纹理为非写实的随机 RGB、渐变或棋盘格，检测器拿不到物体颜色；真实世界定位约 1.5 cm、Fetch 抓取 38/40、纹理少于 1,000 种时性能明显下降。以论文为准。",
+      en: "Domain Randomization for Transferring Deep Neural Networks from Simulation to the Real World. arXiv 1703.06907. Abstract page (HTTP 200, 2026-11-12) checked for the title and all six authors; PDF body read (pdftotext). Randomise rendering in the simulator (distractors, object positions and textures, table / floor / skybox / robot textures, camera position / orientation / field of view, lights, image noise) with non-realistic random-RGB, gradient or checker textures; the detector never sees the object colour; about 1.5 cm real-world localisation, 38/40 Fetch grasps, and significantly worse performance below 1,000 textures. 以论文为准.",
     },
     license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
     extra: true,
@@ -6449,6 +6449,26 @@ export const resources: Record<string, Resource> = {
     summary: {
       zh: "HTML 正文已读（rev 1372857424，HTTP 200，2026-11-12）。Mechanics：把方螺纹一圈展开成直角三角形，T_raise = (F·d_m/2)·tan(φ+λ)，T_lower = (F·d_m/2)·tan(φ−λ)；摩擦系数大于导程角正切（φ > λ）时自锁，但这一性质不是绝对的：振动或冲击下等效摩擦系数可能降到动摩擦水平，丝杠会意外被反向驱动，安全攸关场合常另加保持制动器。Efficiency：η = tan λ / tan(φ+λ)；非零牙型角用 μ·sec α 修正。螺纹摩擦表（钢对青铜干摩擦一行的下端为 0.15）。以原文为准。",
       en: "HTML body read (rev 1372857424, HTTP 200, 2026-11-12). Mechanics: unwrap one square-thread revolution into a right triangle, T_raise = (F·d_m/2)·tan(φ+λ), T_lower = (F·d_m/2)·tan(φ−λ); self-locking when the friction coefficient exceeds the tangent of the lead angle (φ > λ), but not absolute: under vibration or shock the effective friction coefficient may drop to dynamic levels and the screw can back-drive unexpectedly, so safety-critical uses often add a holding brake. Efficiency: η = tan λ / tan(φ+λ); non-zero thread angles use μ·sec α. Thread-friction table (dry steel-on-bronze row starts at 0.15). 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "wiki-rolling-shutter": {
+    id: "wiki-rolling-shutter",
+    url: "https://en.wikipedia.org/wiki/Rolling_shutter",
+    title: {
+      zh: "Wikipedia：Rolling shutter（卷帘快门与全局快门）",
+      en: "Wikipedia: Rolling shutter (rolling versus global shutter)",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "wikitext 正文已读（rev 1381766604，HTTP 200，2026-11-12）。卷帘快门不在同一瞬间拍下整帧，而是快速扫描过场景，各部分不在同一时刻记录，回放时却当成同一瞬间，于是快速运动的物体或闪光产生可预测的畸变；全局快门在同一瞬间采集整帧。电子卷帘快门常见于 CMOS 相机，消费级 CMOS 多数采用；畸变包括摇晃（果冻效应）、倾斜、空间混叠与部分曝光；结果取决于传感器读出速度；校正 / 补偿仍是活跃研究方向。以原文为准。",
+      en: "Wikitext body read (rev 1381766604, HTTP 200, 2026-11-12). A rolling shutter does not capture the whole frame at one instant but scans across the scene, so not all parts are recorded at the same instant although playback shows one instant, giving predictable distortions of fast-moving objects or flashes; a global shutter captures the entire frame at the same instant. Electronic rolling shutters are common on CMOS cameras and used by most consumer CMOS sensors; effects include wobble (jello), skew, spatial aliasing and partial exposure; results depend on the sensor readout speed; rectification / compensation is an active research area. 以原文为准.",
     },
     license: {
       zh: "CC BY-SA；以原站为准",
