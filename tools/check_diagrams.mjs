@@ -5202,7 +5202,7 @@ for (const m of readdirSync(content)) {
   for (const [month, slug, toy, minutes, , markers, summaryMarker] of [
     [1,"bench-multimeter","dmm_uncertainty_toy",540,150,["√3","RSS","0.004272","0.009400","0.009514","0.038991","0.091000","20000"],"√3"],
     [2,"sensors-fusion","imu_kf_vs_complementary_toy",900,150,["Q0","R0","40500","201/202/203","221–225","0.259680","0.222922","0.213477","0.297265","0.295811"],"Q/R"],
-    [3,"transmissions","backlash_loop_toy",510,180,["P/I","FS=0.4","FC=0.02","0.047514","0.033429","0.053333","0.014043","0.067457","0.570"],"hunting"],
+    [3,"transmissions","backlash_loop_toy",660,180,["P/I","FS=0.4","FC=0.02","0.047514","0.033429","0.053333","0.014043","0.067457","0.570"],"hunting"],
   ]) {
     const src = `examples/month-${month}/${slug}/${toy}.py`;
     const py = read(src), expected = read(`examples/month-${month}/expected/${toy}.txt`);
@@ -6287,7 +6287,7 @@ print("protocol pass")
   const read=p=>readFileSync(join(root,p),"utf8"), env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
   const cur=read("src/lib/curriculum.ts"), res=read("src/lib/resources.ts");
   const cases=[
-    [3,"transmissions","gear_efficiency_load_toy",510,["## Gear efficiency under load","## 负载工况下的齿轮效率"],
+    [3,"transmissions","gear_efficiency_load_toy",660,["## Gear efficiency under load","## 负载工况下的齿轮效率"],
       ["seeds=5","heavy_load A_constant_eta","light_load A_constant_eta","No winner declared","near-tie / small gap"],
       ["Coulomb","viscous","A_constant_eta","B_coulomb_viscous","C_heavy_fit_eta","backdrive","以原文为准","本页未运行"],
       {en:["**not** the backlash-in-loop","**synthetic**","does not declare a universal winner","near-tie","load-independent","out of scope"],zh:["**不是**齿隙闭环","**合成**","不宣布普遍赢家","接近打平","与负载无关","不在本页范围"]},
@@ -6406,7 +6406,7 @@ print("protocol pass")
       {en:["**not** the Wheatstone","**synthetic**","does not declare a universal winner","**Model assumptions:**","**blind**","**B vs C is a near-tie / small gap:**","within seed noise","**A vs B is a small but consistent gap, not a tie:**","same circuit on paper"],zh:["**不是**下一课的惠斯通电桥","**合成**","不宣布普遍赢家","**模型假设：**","**看不见**","**B 与 C 接近打平、差距很小：**","在种子噪声之内","**A 与 B 是一个小而稳定的差距，不是打平：**","在纸面上是同一个电路"]},
       {en:["Thévenin / Norton","near-tie / small gap","small but consistent gap (not a tie)","1.21 V"],zh:["戴维南 / 诺顿","接近打平、差距很小","小而稳定的差距（不是打平）","1.21 V"]},
       ["wiki-thevenin","wiki-norton"],"150-minute work plan","150 分钟安排"],
-    [4,"gazebo-sim","gazebo_step_contact_stability_toy",450,["## Physics step size and contact stability","## 物理步长与接触稳定性"],
+    [4,"gazebo-sim","gazebo_step_contact_stability_toy",630,["## Physics step size and contact stability","## 物理步长与接触稳定性"],
       ["seeds=5","dt < 3.279 ms","dt < 0.800 ms","3.4 1.700 1.3293 UNSTABLE","1.0 0.500 0.8944 1.0247 UNSTABLE","impact_drop A_coarse_3ms","gentle_rest C_fine_0.1ms","all small relative to the 39.24 um static sag, but the gaps are consistent, not a near-tie","No winner declared"],
       ["(ωΔt)_max = 2(√(ζ² + 1) − ζ)","`(ωΔt)² + 4ζ(ωΔt) < 4`","`ωΔt < 2ζ`","Kelvin–Voigt","A_coarse_3ms","B_default_1ms","C_fine_0.1ms","以原文为准","本页未运行","624.23±554.20","1.539±0.277","0.0067±0.0011","0.0050±0.0008","`solref`"],
       {en:["**not** the inertia check","**synthetic**","does not declare a universal winner","**Model assumptions:**","**blind**","**not** DART","**not** Gazebo knobs","**all small relative to the ~39 µm static sag, but the gaps are consistent**","not a near-tie","JavaScript shell"],zh:["**不是**第 3 课的惯量检查","**合成**","不宣布普遍赢家","**模型假设：**","**看不见**","**不是** DART","**不是** Gazebo 的旋钮","**相对约 39 µm 的静沉都很小，但差距是稳定的**","不是接近打平","JavaScript 外壳"]},
@@ -7823,8 +7823,8 @@ print("protocol pass")
   ok(qs.includes('"lossy_reliable": (0.0, 0, 0, 0.15, 10, 30)')&&qs.includes("B ties A on stale uses and loses on hold %"),"b17p1 QoS toy: pre-declared tie/lose regime kept with its original expectation");
   ok(qs.includes("not a FreeRTOS task deadline")&&qs.includes("Not the\nreliability / durability *mismatch*"),"b17p1 QoS toy: scope excludes the reliability mismatch and FreeRTOS deadlines");
   const p3=read("docs/notes/month-3-plan.md"), p4=read("docs/notes/month-4-plan.md");
-  ok(p3.startsWith("# Month 3")&&["Current / 当前：**M3 3000 min**, Batch-18 PR1","## Batch-17 PR1","2670→2820","33600→33930","300→**450**"].every(x=>p3.includes(x)),"b17p1 month-3 plan header (current tip after batch-18 PR1)");
-  ok(p4.startsWith("# Month 4")&&["Current / 当前：**M4 3030 min**, Batch-18 PR2","## Batch-17 PR1","2670→2850","33600→33930","390→570"].every(x=>p4.includes(x)),"b17p1 month-4 plan header");
+  ok(p3.startsWith("# Month 3")&&["Current / 当前：**M3 3150 min**, Batch-20 PR1","## Batch-17 PR1","2670→2820","33600→33930","300→**450**"].every(x=>p3.includes(x)),"b17p1 month-3 plan header (current tip after batch-20 PR1)");
+  ok(p4.startsWith("# Month 4")&&["Current / 当前：**M4 3210 min**, Batch-20 PR1","## Batch-17 PR1","2670→2850","33600→33930","390→570"].every(x=>p4.includes(x)),"b17p1 month-4 plan header");
   const src=read("docs/notes/batch-17-pr1-sources.md");
   ok(["2df7604","33930","wiki-interference-fit","ros2-qos","https://en.wikipedia.org/wiki/Interference_fit","About-Quality-of-Service-Settings","HTTP **200**","Common random numbers","opencode","Lock changes","No lock relaxed","Post-hoc choices","Mismatch with §9","lossy_reliable","no_load","press_no_oven","以原文为准"].every(x=>src.includes(x)),"b17p1 sources note");
   ok(/37 230/.test(read("README.md"))&&/约 37 230 分钟/.test(read("README.md")),"b18p1 README site minutes (tip after batch-17) (en + zh)");
@@ -8123,7 +8123,7 @@ print("protocol pass")
   }
   const p1=read("docs/notes/month-1-plan.md"), p3=read("docs/notes/month-3-plan.md");
   ok(p1.startsWith("# Month 1")&&["Current / 当前：**M1 2550 min**, Batch-19 PR1","## Batch-18 PR1","2100→2250","34710→35040","240→390"].every(x=>p1.includes(x)),"b18p1 month-1 plan header");
-  ok(p3.startsWith("# Month 3")&&["Current / 当前：**M3 3000 min**, Batch-18 PR1","## Batch-18 PR1","2820→3000","34710→35040","390→**570**"].every(x=>p3.includes(x)),"b18p1 month-3 plan header");
+  ok(p3.startsWith("# Month 3")&&["Current / 当前：**M3 3150 min**, Batch-20 PR1","## Batch-18 PR1","2820→3000","34710→35040","390→**570**"].every(x=>p3.includes(x)),"b18p1 month-3 plan header");
   const src=read("docs/notes/batch-18-pr1-sources.md");
   ok(["846242497217aa53313dfa1a006246386344bec6","34710","35040","wiki-superposition","grasp-primer-carpin","grasp-survey-zhang","https://arxiv.org/abs/1607.06620","https://arxiv.org/abs/2202.03631","HTTP **200**","Common random numbers","opencode","Lock changes","No lock relaxed","Post-hoc choices","Mismatch with §9","0.1750±0.0000","1.0000±0.0000","mid-edge","printed by the toy","以论文为准","0.6000±0.5477","0.4000±0.5477","3 of 5 equal","after the first run","first accepted run"].every(x=>src.includes(x)),"b18p1 sources note");
   ok(!/0\.8000\s*±\s*0\.4472|0\.2000\s*±\s*0\.4472|written before the first accepted run|4 of 5 equal/.test(src),"b18p1 sources note: stale mid-edge numbers and pre-first-run offset wording removed");
@@ -8202,7 +8202,7 @@ print("protocol pass")
   for(const id of ["octomap-site","curless-volrange","open3d-tsdf","mujoco-computation"])ok(res.includes(`"${id}": {`)&&res.includes('id: "'+id+'"'),`b18p2 resource ${id} present`);
   ok(!/hornung13auro/.test(res),"b18p2 resources: Hornung AURO PDF not added as a cited resource");
   const p4=read("docs/notes/month-4-plan.md"), p7=read("docs/notes/month-7-plan.md");
-  ok(p4.startsWith("# Month 4")&&["Current / 当前：**M4 3030 min**, Batch-18 PR2","## Batch-18 PR2","2850→3030","35040→35400","630→810"].every(x=>p4.includes(x)),"b18p2 month-4 plan header");
+  ok(p4.startsWith("# Month 4")&&["Current / 当前：**M4 3210 min**, Batch-20 PR1","## Batch-18 PR2","2850→3030","35040→35400","630→810"].every(x=>p4.includes(x)),"b18p2 month-4 plan header");
   ok(p7.startsWith("# Month 7")&&["Current / 当前：**M7 2970 min**, Batch-18 PR2","## Batch-18 PR2","2790→2970","35040→35400","240→420"].every(x=>p7.includes(x)),"b18p2 month-7 plan header");
   const src=read("docs/notes/batch-18-pr2-sources.md");
   ok(["26d4664edc52abc3a0c35b8c960ddc29d35b5057","35040","35400","octomap-site","curless-volrange","open3d-tsdf","mujoco-computation","HTTP **200**","HTTP **500**","not cited","Common random numbers","opencode","Lock changes","No lock relaxed","Post-hoc choices","Mismatch with §9","0.9833±0.0062","0.0316±0.0000","-0.0322±0.0024","0.0131±0.0034","62.9097±3.0587","12514.0224±6611.4795","0.6385508568","sdf_trunc=0.25","after the first run","printed by the toys","以论文为准","grip_sweep","h < h*","Jordan","hand/analytic"].every(x=>src.includes(x)),"b18p2 sources note");
@@ -8800,6 +8800,142 @@ print("protocol pass")
   ok((()=>{const months=[...cur.matchAll(/const month(\d+)Lessons[\s\S]*?\];/g)]; let s=0; for(const m of months){for(const x of m[0].matchAll(/minutes:\s*(\d+)/g))s+=+x[1];} return s===37230;})(),"b19pol curriculum: 37230 minutes (tip after batch-20 PR1)");
   ok(/37 230/.test(read("README.md"))&&/约 37 230 分钟/.test(read("README.md")),"b19pol README: 37 230 (tip after batch-20 PR1)");
   console.log("batch-19 polish: author lists, 0.007813, code-change disclosures, ESP32 vs S3, UM10204 / ESP-IDF I²C, PSRR, Zener slope, ac+dc locked");
+}
+
+
+// Batch-20 PR1: leadscrew efficiency and self-locking (3.3 transmissions) and lidar realism vs ideal rays (4.4 gazebo-sim).
+{
+  const read=p=>readFileSync(join(root,p),"utf8"), env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
+  const cur=read("src/lib/curriculum.ts"), res=read("src/lib/resources.ts");
+  execFileSync("python3",[join(root,"tools/test_b20p1_leadscrew_lidar_toys.py")],{cwd:root,encoding:"utf8",env,stdio:"pipe"});
+  ok(true,"b20p1 independent tests tools/test_b20p1_leadscrew_lidar_toys.py pass");
+  const NUM="-?\\d+\\.\\d+(?:e-?\\d+)?";
+  const cases=[
+    [3,"transmissions","leadscrew_self_locking_toy",660,["## Leadscrew efficiency and self-locking","## 丝杠效率与自锁"],
+      ["seeds=5 F_NOM=500.0 N (+-10 %) DM=10.0 mm MU_NOM=0.15 (+-0.03) VIB_FACTOR=0.30 (declared toy parameters, not a measured nut)","rule: self-locking iff phi > lambda (strict), i.e. mu > tan(lambda); T_lower > 0 holds, T_lower < 0 back-drives","hand_calc T_raise=500.0*0.010/2*tan(12.1734 deg)=0.5393 N*m T_lower=500.0*0.010/2*tan(4.8881 deg)=0.2138 N*m eta=tan(lambda)/tan(phi+lambda)=0.2951","hand_calc steep l=10.0 mm: lambda=17.6568 deg > phi -> T_lower=-0.4016 N*m (back-drives) eta=0.6472","hand_calc vibrated mu=0.0450 < tan(lambda_B)=0.0637 -> T_lower=-0.0465 N*m (back-drives)","boundary_rule: lead=4.7124 mm, mu=tan(lambda)=0.1500: T_lower=0.0000 N*m holds=0 (equality is the boundary, not self-locking); mu+1e-6 holds=1; mu-1e-6 holds=0","paired B-A t_lower: 0.5823+-0.0264: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired B-A eta: -0.3505+-0.0034: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired C-B t_lower: -0.2535+-0.0395: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired C-B holds: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired B-A holds: 0.6000+-0.5477: clear gap, not a tie (|m| > sd); no seed has the opposite sign, 2 of 5 equal","self_lock_flag_check: holds == (phi > lambda) == (T_lower > 0) on every arm and seed: True","paired C-B holds@alt: 0.0000+-0.0000: tie: identical on every seed","Real leadscrew / jack / printer axis: 本页未运行; Wikipedia Leadscrew statements 以原文为准"],
+      ["3.6426°","8.5308°","0.5393 N·m","0.2138 N·m","0.2951","17.6568°","-0.4016 N·m","0.6472","0.0450","0.0637","-0.0465 N·m","4.7124 mm","0.5823±0.0264","-0.3505±0.0034","-0.2535±0.0395","0.6000±0.5477","-0.1444±0.0225","-0.1721±0.0363","0.8000±0.4472","以原文为准","本页未运行"],
+      {en:["**self-locking**","**not absolute**","**strict**","**if and only if** φ > λ","**not** the gear-efficiency-under-load toy","**synthetic**","**Model assumptions:**","**Common random numbers:**","**No integration step here.**","**declared toy parameters**","**no** documented source","**trade**","**Keep**","did **not** come out","was not retuned","does not declare a universal winner","written before the first run","**Code change after the first run.**","**Choices made after seeing results.**"],zh:["**自锁**","**不是绝对的**","**严格**","**当且仅当** φ > λ","**不是**上面的齿轮负载效率 toy","**合成**","**模型假设:**","**共用随机数:**","**这里没有积分步长。**","**声明的玩具参数**","**没有**文档来源","**取舍**","**保留**","**没有**出现","没有重调","**不宣布普遍赢家**","首次运行前写定","**首次运行后的代码改动。**","**看过结果后做的选择。**"]},
+      {en:["Leadscrew self-locking","0.5823±0.0264","-0.2535±0.0395","kept"],zh:["丝杠自锁","0.5823±0.0264","-0.2535±0.0395","保留"]},
+      ["wiki-leadscrew"],"150-minute work plan","150 分钟安排",150],
+    [4,"gazebo-sim","gazebo_lidar_realism_toy",630,["## Lidar realism versus ideal rays","## 激光雷达真实感与理想射线"],
+      ["seeds=5 N_BEAMS=61 FOV=+-30.0 deg MIN=0.20 m MAX=8.0 m SIGMA=0.01 m (MIN/MAX/SIGMA from this lesson's sensors.gazebo.xacro)","C_BIAS=0.015 m P_DROP_C=0.50; R_BIAS=0.020 m R_SIGMA=0.012 m P_DROP_R=0.60; TOL=0.10 m (declared toy parameters, not datasheet values)","clamp_rule (gz-sensors Lidar::Clamp): finite range -> clamp to [MIN, MAX]; B reports MIN for a surface closer than MIN","  boundary below MIN: true=0.1200 m -> A 0.1200 B 0.2000 C none (no noise, no bias)","  boundary at MIN: true=0.2000 m -> A 0.2000 B 0.2000 C 0.2000 (no noise, no bias)","hand_calc straight-ahead wall: 1.80 - 0.12 = 1.68 m; beam at 30 deg: 1.68 / cos(30 deg) = 1.9399 m","paired B-A mean_err: 0.0011+-0.0013: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign","paired C-A mean_err: 0.0161+-0.0013: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired A-C ret_err: 0.2689+-0.0563: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired A-C mismatch: 3.6000+-2.7928: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds","paired A-C mismatch: 19.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired A-C mismatch: 27.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired B-A mismatch: 0.0000+-0.0000: tie: identical on every seed","Real lidar / Gazebo run: 本页未运行; SDFormat lidar spec and gz-sensors Lidar.cc statements 以文档为准"],
+      ["1.68 m","1.9399 m","0.1200","0.2000","0.0011±0.0013","0.0161±0.0013","0.0195±0.0017","0.2689±0.0563","3.6000±2.7928","19.0000±0.0000","1.5834±0.0089","1.5034±0.0089","27.0000±0.0000","0.0720±0.0193","0.0797±0.0194","0.4000±0.5477","0.2492±0.1052","以文档为准","本页未运行"],
+      {en:["**only supports Gaussian noise**","**independently for each beam**","**at** `<min>`, not dropped","HTTP 500","**not** cited","**not** the OctoMap / TSDF mapping toy","**synthetic**","**Model assumptions:**","**Common random numbers:**","**No integration step here.**","**real-unit stand-in**","**guesses**","**declared toy parameters**","**own** random stream","**strict**","**Keep**","is **not** declared a C win","does not declare a universal winner","written before the first run","**Code changes after the first run.**","**Choices made after seeing results.**","**misses**"],zh:["**只支持高斯噪声**","**对每条射线独立**","**正好** `<min>`","HTTP 500","**不**引用","**不是** SLAM 课里的 OctoMap / TSDF 建图 toy","**合成**","**模型假设:**","**共用随机数:**","**这里没有积分步长。**","**真实设备替身**","**猜测**","**声明的玩具参数**","**自己的**随机流","**严格**","**保留**","**不**声明为 C 赢","**不宣布普遍赢家**","首次运行前写定","**首次运行后的代码改动。**","**看过结果后做的选择。**","**漏掉**"]},
+      {en:["Lidar realism versus ideal rays","0.0011±0.0013","0.2689±0.0563","19.0000±0.0000","27.0000±0.0000","kept"],zh:["激光雷达真实感与理想射线","0.0011±0.0013","0.2689±0.0563","19.0000±0.0000","27.0000±0.0000","保留"]},
+      ["sdf-lidar-spec","gz-sensors-lidar-src"],"180-minute work plan","180 分钟安排",180],
+  ];
+  const bag=read("examples/month-3/expected/leadscrew_self_locking_toy.txt")+read("examples/month-4/expected/gazebo_lidar_realism_toy.txt");
+  for(const [month,slug,toy,minutes,heads,outputs,markers,langMarkers,summaryMarkers,ids,planEn,planZh,planSum] of cases){
+    const file=`examples/month-${month}/${slug}/${toy}.py`,py=read(file).trim(),expected=read(`examples/month-${month}/expected/${toy}.txt`).trim();
+    const harness=read(`examples/month-${month}/check.sh`);
+    const run1=execFileSync("python3",[join(root,file)],{cwd:root,encoding:"utf8",env}), run2=execFileSync("python3",[join(root,file)],{cwd:root,encoding:"utf8",env});
+    ok(run1===run2&&run1===read(`examples/month-${month}/expected/${toy}.txt`),`b20p1 ${toy}: byte-identical rerun equals expected/`);
+    for(const x of outputs)ok(expected.includes(x),`b20p1 ${toy}: printed line ${x}`);
+    ok(/SEEDS = \(0, 1, 2, 3, 4\)/.test(py)&&/Common random numbers/.test(py)&&py.includes("本页未运行")&&py.includes("written before the first run"),`b20p1 ${toy}: five seeds, CRN, pre-declared, 本页未运行`);
+    ok(!/^\s*(import|from)\s+(numpy|scipy|torch|pandas|control)/m.test(py),`b20p1 ${toy}: stdlib only`);
+    ok(!/(?<![+\d.e])-0\.0+(?![\d.e])/.test(expected),`b20p1 ${toy}: no signed zero printed`);
+    for(const line of expected.split("\n").filter(l=>l.includes("numerically zero (floating-point residue), effectively a tie"))){
+      const mm=line.match(new RegExp(`: (${NUM})\\+-(${NUM}): `));
+      ok(mm&&Math.abs(+mm[1])<1e-9&&+mm[2]<1e-9&&!/seeds/.test(line.split("effectively a tie")[1]),`b20p1 ${toy}: numerically-zero rule: ${line.slice(0,70)}`);
+    }
+    ok(py.includes("NUM_ZERO = 1e-9")&&py.indexOf("all(d == 0.0 for d in diffs)")<py.indexOf("abs(m) < NUM_ZERO")&&py.indexOf("abs(m) < NUM_ZERO")<py.indexOf("if abs(m) <= s:"),`b20p1 ${toy}: tie, then numerically-zero, then the sd test`);
+    for(const line of expected.split("\n").filter(l=>l.includes("tie: identical on every seed")))ok(line.includes("0.0000+-0.0000: tie: identical on every seed"),`b20p1 ${toy}: tie line is exactly zero: ${line.slice(0,70)}`);
+    for(const line of expected.split("\n")){
+      if(!line.includes("paired ")) continue;
+      const mm=line.match(new RegExp(`: (${NUM})\\+-(${NUM}): `));
+      ok(!!mm,`b20p1 ${toy}: paired line carries m+-sd: ${line.slice(0,70)}`);
+      if(!mm) continue;
+      ok(line.includes("near-tie")?Math.abs(+mm[1])<=+mm[2]:(line.includes("tie: identical")||line.includes("numerically zero")||Math.abs(+mm[1])>+mm[2]),`b20p1 ${toy}: label matches |m| vs sd: ${line.slice(0,70)}`);
+      if(!line.includes("near-tie")&&!line.includes("tie: identical")&&!line.includes("numerically zero")){
+        ok(/same sign on all 5 seeds|of 5 seeds ha(s|ve) the opposite sign|no seed has the opposite sign/.test(line),`b20p1 ${toy}: sign count on ${line.slice(0,70)}`);
+        const o=line.match(/(\d) of 5 seeds ha/);ok(!o||+o[1]<=1,`b20p1 ${toy}: consistent label has a clear same-sign majority: ${line.slice(0,70)}`);
+      }
+    }
+    ok(cur.match(new RegExp(`slug: "${slug}"[\\s\\S]*?minutes: (\\d+)`))?.[1]===String(minutes),`b20p1 ${slug}: ${minutes} min`);
+    const host=cur.slice(cur.indexOf(`slug: "${slug}"`)).split("\n  },")[0];
+    ok(host.includes(toy)&&ids.every(id=>host.includes(`"${id}"`)),`b20p1 ${slug}: task names toy and resources wired`);
+    for(const m of host.matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g))ok(bag.includes(`${m[1]}+-${m[2]}`),`b20p1 ${slug} curriculum: ${m[0]} matches expected/`);
+    for(const id of ids)ok(res.includes(`"${id}": {`)&&new RegExp(`"${id}": \\{[\\s\\S]*?以(原文|文档)为准[\\s\\S]*?extra: true`).test(res),`b20p1 opened source ${id}`);
+    ok(harness.includes(`${slug}/${toy}.py`)&&harness.includes(`${toy}.txt`),`b20p1 ${toy}: month harness compares expected`);
+    for(const [index,lang] of ["en","zh"].entries()){
+      const md=read(`src/content/m${month}/${slug}/${lang}.mdx`),summary=md.indexOf("<Summary>"),end=md.indexOf("</Summary>");
+      ok(summary>0&&summary===md.lastIndexOf("<Summary>")&&md.slice(end+10).trim()==="",`b20p1 ${slug} ${lang}: sole whole-lesson Summary ends page`);
+      const head=md.indexOf(heads[index]);
+      ok(head>0&&head<summary,`b20p1 ${slug} ${lang}: new section before Summary`);
+      const next=md.indexOf("\n## ",head+5), sec=md.slice(head,next>0&&next<summary?next:summary);
+      ok(next<0||next>=summary,`b20p1 ${slug} ${lang}: new section is the last before Summary`);
+      ok(sec.includes(py)&&sec.includes(expected)&&sec.includes(`<CodeSource path="${file}" />`),`b20p1 ${slug} ${lang}: exact source/stdout in section`);
+      for(const id of ids)ok(sec.includes(`<Resource id="${id}" />`),`b20p1 ${slug} ${lang}: Resource ${id} in section`);
+      const ex=sec.lastIndexOf(lang==="en"?"### Exercises":"### 练习");
+      ok(ex>sec.indexOf("</SimOutput>")&&(sec.slice(ex).match(/^\d\. /gm)||[]).length===5,`b20p1 ${slug} ${lang}: five exercises after output`);
+      const prose=sec.replace(expected,"").replace(py,"");
+      const bare=prose.replace(/```[\s\S]*?```/g,"").replace(/`[^`\n]*`/g,"");
+      ok(!/[{}]/.test(bare),`b20p1 ${slug} ${lang}: no curly braces in MDX prose`);
+      ok(!/<[A-Za-z](?![A-Za-z]*[ />])/.test(bare.replace(/<(Resource|Formula|CodeSource|SimOutput)\b[^>]*>|<\/(Formula|SimOutput)>/g,"")),`b20p1 ${slug} ${lang}: no stray JSX-like < in prose`);
+      for(const x of [...markers,...langMarkers[lang]])ok(prose.includes(x),`b20p1 ${slug} ${lang}: mechanism/scope/label ${x}`);
+      ok(sec.includes(lang==="en"?planEn:planZh),`b20p1 ${slug} ${lang}: work plan minutes`);
+      const plan=sec.slice(sec.indexOf(lang==="en"?planEn:planZh)+(lang==="en"?planEn:planZh).length).split("\n")[0];
+      ok([...plan.matchAll(/(\d+) (min|分钟)/g)].reduce((a,m)=>a+(+m[1]),0)===planSum,`b20p1 ${slug} ${lang}: work plan sums to ${planSum}`);
+      ok(!/\b(exact tie|ties exactly)\b|精确打平|−0\.0000(?!\d)/.test(prose),`b20p1 ${slug} ${lang}: no exact-tie wording or signed zero in prose`);
+      ok(!/：\*\*|\*\*：/.test(sec),`b20p1 ${slug} ${lang}: no ** glued to a full-width colon`);
+      for(const m of prose.matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g))ok(expected.includes(`${m[1]}+-${m[2]}`),`b20p1 ${slug} ${lang}: prose ${m[0]} matches expected/`);
+      for(const m of prose.matchAll(/(?<![\w.])(\d+\.\d{2,})(?![\d±])/g))ok(expected.includes(m[1]),`b20p1 ${slug} ${lang}: decimal ${m[1]} in prose is printed`);
+      for(const h of sec.match(/^#{2,3} .*$/gm)||[])ok(!/\d+\s*(min|分钟)|Batch|PR\d|\bH\d\b/.test(h),`b20p1 ${slug} ${lang}: heading without minutes/process label ${h}`);
+      const summ=md.slice(summary,end);
+      for(const x of summaryMarkers[lang])ok(summ.includes(x),`b20p1 ${slug} ${lang}: Summary sentence ${x}`);
+      const newLine=summ.split("\n").find(l=>summaryMarkers[lang].every(x=>l.includes(x)))||"";
+      ok(newLine.length>0,`b20p1 ${slug} ${lang}: one Summary sentence carries all markers`);
+      for(const m of newLine.matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g))ok(expected.includes(`${m[1]}+-${m[2]}`),`b20p1 ${slug} ${lang}: Summary ${m[0]} matches expected/`);
+    }
+    const en=read(`src/content/m${month}/${slug}/en.mdx`),zh=read(`src/content/m${month}/${slug}/zh.mdx`);
+    ok((en.match(/```/g)||[]).length===(zh.match(/```/g)||[]).length&&(en.match(/^#{2,3} /gm)||[]).length===(zh.match(/^#{2,3} /gm)||[]).length,`b20p1 ${slug}: en/zh structurally symmetric`);
+    const nums=t=>[...t.matchAll(/-?\d+\.\d+±-?\d+\.\d+/g)].map(m=>m[0]).sort().join(" ");
+    const enSec=en.slice(en.indexOf(heads[0]),en.indexOf("<Summary>")), zhSec=zh.slice(zh.indexOf(heads[1]),zh.indexOf("<Summary>"));
+    ok(nums(enSec)===nums(zhSec),`b20p1 ${slug}: en/zh sections cite the same m±sd values`);
+  }
+  ok(/"wiki-leadscrew": \{[\s\S]*?rev 1372857424[\s\S]*?not absolute[\s\S]*?以原文为准[\s\S]*?extra: true/.test(res),"b20p1 wiki-leadscrew: rev recorded, vibration caveat, 以原文为准");
+  ok(/"sdf-lidar-spec": \{[\s\S]*?HTTP 500[\s\S]*?independently for each beam[\s\S]*?以文档为准[\s\S]*?extra: true/.test(res),"b20p1 sdf-lidar-spec: source read, rendered page 500 not cited, 以文档为准");
+  ok(/"gz-sensors-lidar-src": \{[\s\S]*?only Gaussian noise[\s\S]*?std::clamps[\s\S]*?以文档为准[\s\S]*?extra: true/.test(res),"b20p1 gz-sensors-lidar-src: clamp read, 以文档为准");
+  const p3=read("docs/notes/month-3-plan.md"), p4=read("docs/notes/month-4-plan.md");
+  ok(p3.startsWith("# Month 3")&&["Current / 当前：**M3 3150 min**, Batch-20 PR1","## Batch-20 PR1","3000→3150","36900→37230","510→660","73b59b39de82a388c0a89514269680b5c04048f9","37230=36900+150+180","## Batch-18 PR1"].every(x=>p3.includes(x)),"b20p1 month-3 plan header");
+  ok(p4.startsWith("# Month 4")&&["Current / 当前：**M4 3210 min**, Batch-20 PR1","## Batch-20 PR1","3030→3210","36900→37230","450→630","73b59b39de82a388c0a89514269680b5c04048f9","37230=36900+150+180","## Batch-18 PR2"].every(x=>p4.includes(x)),"b20p1 month-4 plan header");
+  const src=read("docs/notes/batch-20-pr1-sources.md");
+  ok(["73b59b39de82a388c0a89514269680b5c04048f9","36900","37230","wiki-leadscrew","sdf-lidar-spec","gz-sensors-lidar-src","https://en.wikipedia.org/wiki/Leadscrew","1372857424","raw.githubusercontent.com/gazebosim/sdformat/sdf14/sdf/1.11/lidar.sdf","raw.githubusercontent.com/gazebosim/gz-sensors/gz-sensors8/src/Lidar.cc","HTTP **200**","HTTP **500**","Common random numbers","opencode","Lock changes","No lock relaxed","Post-hoc choices","Mismatch with §9","Folded #180 review nits","declared toy parameter","0.5823±0.0264","-0.2535±0.0395","0.6000±0.5477","0.0011±0.0013","0.2689±0.0563","19.0000±0.0000","27.0000±0.0000","本页未运行","first accepted run","did **not** occur"].every(x=>src.includes(x)),"b20p1 sources note");
+  const planSec=(p,h)=>p.slice(p.indexOf(h),p.indexOf("\n## ",p.indexOf(h)+5));
+  for(const m of [...src.matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g),...planSec(p3,"## Batch-20 PR1").matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g),...planSec(p4,"## Batch-20 PR1").matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g)])ok(bag.includes(`${m[1]}+-${m[2]}`),`b20p1 notes: ${m[0]} matches expected/`);
+  ok(/37 230/.test(read("README.md"))&&/约 37 230 分钟/.test(read("README.md")),"b20p1 README site minutes (en + zh)");
+  ok((()=>{const months=[...cur.matchAll(/const month(\d+)Lessons[\s\S]*?\];/g)]; let s=0; for(const m of months){for(const x of m[0].matchAll(/minutes:\s*(\d+)/g))s+=+x[1];} return s;})()===37230,"b20p1 curriculum: 37230 minutes");
+  for(const [mo,want] of [[3,3150],[4,3210]])ok((()=>{const m=cur.match(new RegExp(`const month${mo}Lessons[\\s\\S]*?\\];`)); return [...m[0].matchAll(/minutes:\s*(\d+)/g)].reduce((a,x)=>a+(+x[1]),0);})()===want,`b20p1 curriculum: M${mo} ${want} minutes`);
+  // Difference-direction tags (A−B vs B−A, C−A, C−B) in prose, Summary, curriculum, plan and note must match expected/ paired lines.
+  const dirOf=new Map();
+  for(const line of bag.split("\n")){
+    const m=line.match(/paired\s+([A-Za-z0-9_]+)-([A-Za-z0-9_]+)[^:]*:\s*(-?[\d.e+-]+)\+-(-?[\d.e+-]+)/);
+    if(!m) continue;
+    const key=`${m[3]}+-${m[4]}`;
+    if(!dirOf.has(key)) dirOf.set(key,new Set());
+    dirOf.get(key).add(`${m[1]}-${m[2]}`);
+  }
+  const dirRe=/([A-Z])[−-]([A-Z])(?![A-Za-z])(?:[^0-9A-Z]{0,80}?)(-?\d+(?:\.\d+)?(?:e-?\d+)?)±(-?\d+(?:\.\d+)?(?:e-?\d+)?)/g;
+  const checkDiffDirs=(text,tag)=>{let n=0; for(const m of text.matchAll(dirRe)){const key=`${m[3]}+-${m[4]}`; if(!dirOf.has(key)) continue; n++; ok(dirOf.get(key).has(`${m[1]}-${m[2]}`),`${tag}: ${m[1]}-${m[2]} ${m[3]}±${m[4]} must match expected paired ${[...dirOf.get(key)].join("|")}`);} return n;};
+  let dirHits=0;
+  for(const [m,slug] of [[3,"transmissions"],[4,"gazebo-sim"]])for(const lang of ["en","zh"])dirHits+=checkDiffDirs(read(`src/content/m${m}/${slug}/${lang}.mdx`),`b20p1 ${slug} ${lang} diff-dir`);
+  dirHits+=checkDiffDirs(cur,"b20p1 curriculum diff-dir");
+  dirHits+=checkDiffDirs(p3,"b20p1 month-3-plan diff-dir")+checkDiffDirs(p4,"b20p1 month-4-plan diff-dir");
+  dirHits+=checkDiffDirs(src,"b20p1 sources-note diff-dir");
+  ok(dirHits>=90,`b20p1 difference-direction lock ran on ${dirHits} printed pairs`);
+  const all=["m3/transmissions/en","m3/transmissions/zh","m4/gazebo-sim/en","m4/gazebo-sim/zh"].map(f=>read(`src/content/${f}.mdx`)).join("")+cur+p3+p4+src;
+  ok(!/A[−-]B[^0-9]{0,80}0\.5823/.test(all)&&!/B[−-]C[^0-9]{0,80}-0\.2535/.test(all)&&!/C[−-]A[^0-9]{0,80}0\.2689/.test(all)&&!/A[−-]B[^0-9]{0,80}0\.0011±/.test(all),"b20p1 no reversed difference tag on the key cells");
+  ok(/B[−-]A T_lower 0\.5823±0\.0264/.test(all)&&/C[−-]B T_lower -0\.2535±0\.0395/.test(all)&&/A[−-]C ret_err 0\.2689±0\.0563/.test(all)&&/B[−-]A mean_err 0\.0011±0\.0013/.test(all)&&/A[−-]C mismatch 19\.0000±0\.0000/.test(all),"b20p1 key cells carry the printed direction");
+  // Strict boundaries are printed and worded as strict.
+  ok(bag.includes("holds iff")===false&&bag.includes("self-locking iff phi > lambda (strict)")&&bag.includes("mu+1e-6 holds=1; mu-1e-6 holds=0"),"b20p1 leadscrew boundary printed strict");
+  // #180 nits folded in (prose only; toy outputs unchanged).
+  for(const lang of ["en","zh"]){
+    const e=read(`src/content/m2/esp32/${lang}.mdx`), sf=read(`src/content/m2/sensors-fusion/${lang}.mdx`);
+    ok(lang==="en"?e.includes("not a board measurement and not ESP32-S3 values"):e.includes("既不是板上实测，也不是 ESP32-S3 的数值"),`b20p1 esp32 ${lang}: toy currents narrowed to not-board / not-S3`);
+    ok(!/not a datasheet value\.|不是数据手册数值。/.test(e),`b20p1 esp32 ${lang}: broad 'not a datasheet value' removed from prose`);
+    ok(sf.includes("pololu.com/file/0J435/UM10204.pdf")&&(lang==="en"?sf.includes("Pololu's hosted mirror"):sf.includes("Pololu 托管的镜像")),`b20p1 sensors-fusion ${lang}: UM10204 Pololu mirror named in body`);
+  }
+  console.log("leadscrew-lidar-realism PR1: leadscrew self-locking, lidar realism vs ideal rays, and M3 3150 / M4 3210 / site 37230 locked");
 }
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
