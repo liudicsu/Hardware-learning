@@ -599,6 +599,12 @@ The page **does not declare a universal winner**: Kelvin wins wherever the part 
 
 RMS is the square root of the mean of the square (Wikipedia, Root mean square; 以原文为准). For a zero-mean sine the peak-to-peak amplitude is 2√2 × RMS ≈ 2.8 × RMS; **other waveforms do not share that ratio** (same page). A meter may be assumed **average-responding** unless it is stated **true-RMS**: an average-responding meter meets its AC accuracy **only for pure sinusoids**; a true-RMS meter meets it for other waveforms **up to a specified crest factor** (Wikipedia, Multimeter; 以原文为准). The same page notes that the meter manual may also state the **frequency** (bandwidth) limits for which that true-RMS calibration remains valid. This toy does not model a finite bandwidth.
 
+<Resource id="fluke-truerms-facts" />
+
+<Resource id="keysight-ac-errors" />
+
+**AC-coupled versus AC+DC true-RMS.** Fluke's *Facts about true-rms measurement* says most DMMs measure the **ac-coupled** true-RMS value and reject any DC component, while a few models also offer **ac+dc** true-RMS; with only an ac-coupled meter you can measure AC and DC separately, square both, add and take the square root (以文档为准). Keysight's application note *AC Voltage Measurement Errors in Digital Multimeters* says the same for its DMMs (DC is rejected) and adds that for sine, triangle and square waves the ac-coupled and ac+dc values are equal because those waveforms carry no DC offset, while non-symmetrical waveforms such as pulse trains do (以文档为准). The toy's A arm computes sqrt(mean(v²)) on the raw samples, which is the **ac+dc** value. Its sine, ±1 V square and triangle are zero-mean, so the distinction does not matter there; its pwm_high_crest pulse is unipolar and has a DC component, so a typical ac-coupled true-RMS meter would read **lower** than arm A on that regime. The toy does **not** model AC coupling, and no real meter was run (本页未运行).
+
 This section is **not** a redo of Kelvin four-wire sensing above, and **not** the Thévenin / max-power prose on the Ohm's law page.
 
 <Formula label="RMS">RMS = √(mean of the square)</Formula>

@@ -599,6 +599,12 @@ Real 4-wire bench: 本页未运行; Wikipedia statements 以原文为准
 
 有效值是均方的平方根（Wikipedia, Root mean square；以原文为准）。零均值正弦的峰-峰值是 2√2 × RMS ≈ 2.8 × RMS；**其他波形不共用这个比值**（同一页）。除非标明 **true-RMS**，否则可把万用表当成**平均值响应**，平均值响应表只在**纯正弦**的交流电压/电流上满足标称精度；真有效值表对其他波形也满足精度，但只到声明的**峰值因数**为止（Wikipedia, Multimeter；以原文为准）。同一页还指出，真有效值的校准只在用户手册给出的峰值因数和频率（带宽）限度内有效。本玩具不模拟有限带宽。
 
+<Resource id="fluke-truerms-facts" />
+
+<Resource id="keysight-ac-errors" />
+
+**交流耦合与 AC+DC 真有效值。** Fluke 的《Facts about true-rms measurement》说，多数数字万用表测的是**交流耦合**的真有效值，会去掉其中的直流分量；少数型号另外提供 **ac+dc** 真有效值；如果手上只有交流耦合的表，可以分别测交流和直流，各自平方相加再开方（以文档为准）。Keysight 应用笔记《AC Voltage Measurement Errors in Digital Multimeters》对自家万用表也这么说（直流被去掉），并补充：正弦、三角和方波没有直流偏置，所以交流耦合值与 ac+dc 值相等，而脉冲串这类不对称波形含有直流（以文档为准）。玩具的 A 臂对原始采样计算 sqrt(mean(v²))，得到的是 **ac+dc** 值。玩具里的正弦、±1 V 方波和三角波都是零均值，所以这里没有区别；pwm_high_crest 的脉冲是单极性的，含直流分量，因此常见的交流耦合真有效值表在这个情形上的读数会比 A 臂**低**。玩具**没有**建模交流耦合，也没有用真表测量（本页未运行）。
+
 这一节**不是**上面开尔文四线法的重写，也**不是**欧姆定律课上的戴维南 / 最大功率传输讨论。
 
 <Formula label="有效值">RMS = √(均方)</Formula>

@@ -11,8 +11,8 @@ What the InternVLA-M1 paper (arXiv 2510.13778) says, and what this toy keeps:
   Stage 1, spatial grounding pre-training, trains only the VLM on box / point /
   trace QA data ("where to act", embodiment-agnostic).  Stage 2, spatially
   guided action post-training, trains the VLM and the action expert on
-  demonstrations, with a spatial prompt appended to the instruction ("how to
-  act").  This toy keeps only the split: a grounding stage that learns which
+  demonstrations, with a spatial prompt prepended or appended to the
+  instruction ("how to act").  This toy keeps only the split: a grounding stage that learns which
   object an instruction names from a large grounding corpus, then an action
   stage that reaches the grounded point.  The paper's spatial prompt is a text
   cue whose answer is not decoded; here the "where" is an explicit point, a

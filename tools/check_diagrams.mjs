@@ -8732,5 +8732,75 @@ print("protocol pass")
 }
 
 
+// Batch-19 polish: full author lists, prepended-or-appended cue, 0.007813 half-up print, code-change disclosures,
+// ESP32 vs ESP32-S3 sleep currents, Modem-sleep + auto Light-sleep, UM10204 + ESP-IDF I²C, PSRR, Zener slope, ac+dc true-RMS.
+{
+  const read=p=>readFileSync(join(root,p),"utf8"), env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
+  const cur=read("src/lib/curriculum.ts"), res=read("src/lib/resources.ts"), note=read("docs/notes/batch-19-polish-sources.md");
+  const md=(m,s,l)=>read(`src/content/m${m}/${s}/${l}.mdx`);
+  const ivla="Xinyi Chen, Yilun Chen, Yanwei Fu, Ning Gao, Jiaya Jia, Weiyang Jin, Hao Li, Yao Mu, Jiangmiao Pang, Yu Qiao, Yang Tian, Bin Wang, Bolun Wang, Fangjing Wang, Hanqing Wang, Tai Wang, Ziqin Wang, Xueyuan Wei, Chao Wu, Shuai Yang, Jinhui Ye, Junqiu Yu, Jia Zeng, Jingjing Zhang, Jinyu Zhang, Shi Zhang, Feng Zheng, Bowen Zhou";
+  const ivlaNames=(ivla+", Yangkun Zhu").split(", ");
+  ok(md(6,"vla-models","en").includes(ivla+" and Yangkun Zhu (all 29, in the order of the arXiv 2510.13778 abs page)"),"b19pol vla-models en: 29 full InternVLA-M1 authors in arXiv order");
+  ok(md(6,"vla-models","zh").includes(ivlaNames.join("、")+"（全部 29 位，按 arXiv 2510.13778 摘要页的顺序）"),"b19pol vla-models zh: 29 full InternVLA-M1 authors in arXiv order");
+  ok(ivlaNames.length===29&&new Set(ivlaNames).size===29,"b19pol InternVLA-M1: 29 distinct full names");
+  for(const l of ["en","zh"])ok(!md(6,"vla-models",l).includes("Wang, Wang")&&!md(6,"vla-models",l).includes("Wang、Wang"),`b19pol vla-models ${l}: no surname-only author list`);
+  ok((res.match(new RegExp(ivla.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+", Yangkun Zhu","g"))||[]).length>=2,"b19pol resources: InternVLA-M1 html + pdf carry the full list");
+  const nora=["Chia-Yu Hung","Qi Sun","Pengfei Hong","Amir Zadeh","Chuan Li","U-Xuan Tan","Navonil Majumder","Soujanya Poria"];
+  ok(md(8,"async-deployment","en").includes(nora.slice(0,7).join(", ")+" and Soujanya Poria (all 8, in the order of the arXiv 2504.19854 abs page)"),"b19pol async-deployment en: 8 full NORA authors");
+  ok(md(8,"async-deployment","zh").includes(nora.join("、")+"（全部 8 位，按 arXiv 2504.19854 摘要页的顺序）"),"b19pol async-deployment zh: 8 full NORA authors");
+  ok((res.match(/author: "Chia-Yu Hung, Qi Sun, Pengfei Hong, Amir Zadeh, Chuan Li, U-Xuan Tan, Navonil Majumder, Soujanya Poria"/g)||[]).length===2,"b19pol resources: NORA html + pdf full list");
+  // prepended or appended
+  ok(cur.includes("with a spatial prompt prepended or appended to the instruction")&&cur.includes("在指令前或后附加空间提示")&&!cur.includes("spatial prompt appended to the instruction"),"b19pol curriculum: spatial prompt prepended or appended (en/zh)");
+  ok(md(6,"vla-models","en").includes("**spatial prompt** prepended or appended")&&md(6,"vla-models","zh").includes("在指令前面或后面附加一句**空间提示**"),"b19pol vla-models: intro says prepended or appended");
+  ok(!/(?<!or )appending a spatial prompt/.test(res)&&(res.match(/prepending or appending a spatial prompt/g)||[]).length===2,"b19pol resources: prepending or appending");
+  // 0.007813
+  const nexp=read("examples/month-8/expected/nora_fastplus_small_vla_toy.txt");
+  const nrun=execFileSync("python3",[join(root,"examples/month-8/async-deployment/nora_fastplus_small_vla_toy.py")],{cwd:root,encoding:"utf8",env});
+  ok(nrun===nexp&&nexp.includes("bin width 2/256 = 0.007813, at most half a bin = 0.003906")&&!nexp.includes("0.007812"),"b19pol NORA toy: half-up 0.007813 printed, byte-identical");
+  ok(read("examples/month-8/async-deployment/nora_fastplus_small_vla_toy.py").includes("ROUND_HALF_UP"),"b19pol NORA toy: decimal ROUND_HALF_UP");
+  for(const l of ["en","zh"]){
+    const a=md(8,"async-deployment",l), v=md(6,"vla-models",l);
+    ok(a.includes("2 / 256 = 0.007813")&&a.includes("2/256 = 0.007813")&&!/2 ?\/ ?256 = 0\.007812(?!\d)/.test(a),`b19pol async-deployment ${l}: hand calc 0.007813`);
+    ok(a.includes(read("examples/month-8/async-deployment/nora_fastplus_small_vla_toy.py"))&&v.includes(read("examples/month-6/vla-models/internvla_m1_spatial_prompt_toy.py")),`b19pol ${l}: embedded PR3 toy code equals the files`);
+    ok(l==="en"?a.includes("**Code changes after the first run.** Two")&&a.includes("cosine table")&&a.includes("(2504.19854)")&&v.includes("**Code changes after the first run.** One")&&v.includes("(2510.13778)"):a.includes("**首次运行后的代码改动。** 两处")&&a.includes("余弦表")&&a.includes("（2504.19854）")&&v.includes("**首次运行后的代码改动。** 一处")&&v.includes("（2510.13778）"),`b19pol ${l}: PR3 post-first-run code changes disclosed on the lesson pages`);
+    const e=md(2,"esp32",l);
+    ok(l==="en"?e.includes("**Code change after the first run.**")&&e.includes("`simulate()` now returns latency 0.0"):e.includes("**首次运行后的代码改动。**")&&e.includes("`simulate()` 在某一臂没有处理任何事件时返回延迟 0.0"),`b19pol esp32 ${l}: PR2 code change disclosed`);
+  }
+  ok(read("docs/notes/batch-19-pr3-sources.md").includes("bin width 0.007813"),"b19pol pr3 note: 0.007813");
+  // ESP32 vs S3
+  for(const l of ["en","zh"]){
+    const e=md(2,"esp32",l);
+    for(const x of ["0.8 mA","10 µA","5 µA","240 µA","8 µA","7 µA","1 µA","Table 4-2".replace("Table",l==="en"?"Table":"表"),l==="en"?"Table 5-10":"表 5-10","v5.3","v2.2","以文档为准","Hibernation","Modem-sleep","Light-sleep","<Resource id=\"esp32-datasheet\" />","<Resource id=\"esp32-s3-datasheet\" />"])ok(e.includes(x),`b19pol esp32 ${l}: ${x}`);
+    ok(l==="en"?e.includes("**no separate Hibernation** row")&&e.includes("**toy parameters modelled on classic ESP32**")&&e.includes("**automatic Light-sleep**")&&e.includes("no sleep-current table and no wake-latency figure"):e.includes("**没有单独的 Hibernation** 一行")&&e.includes("**按经典 ESP32 取的玩具参数**")&&e.includes("**自动 Light-sleep**")&&e.includes("没有休眠电流表，也没有唤醒延迟数值"),`b19pol esp32 ${l}: S3 has no Hibernation, toy params labelled, auto Light-sleep`);
+  }
+  ok(read("examples/month-2/expected/esp32_light_deep_sleep_toy.txt").includes("I_ACTIVE=40.0 mA I_LIGHT=0.80 mA I_DEEP=0.01 mA I_BOOT=50.0 mA"),"b19pol esp32 toy numbers unchanged");
+  ok(cur.includes("toy currents are parameters modelled on classic-ESP32 typicals, not ESP32-S3 values (以文档为准)")&&cur.includes("玩具电流按经典 ESP32 典型值取、不是 ESP32-S3 数值（以文档为准）")&&cur.includes("Modem-sleep with automatic Light-sleep does"),"b19pol curriculum esp32: classic-modelled toy currents, Modem-sleep");
+  // UM10204 + ESP-IDF I²C
+  for(const l of ["en","zh"]){
+    const s=md(2,"sensors-fusion",l);
+    for(const x of ["<Resource id=\"nxp-um10204\" />","<Resource id=\"wiki-i2c\" />","<Resource id=\"idf-i2c\" />","UM10204","Rev. 7.0","§3.1.9","t_LOW = 4.7 µs","t_HIGH = 4.0 µs","`scl_wait_us`","`xfer_timeout_ms`","`ESP_ERR_TIMEOUT`","12 ms","以文档为准","本页未运行"])ok(s.includes(x),`b19pol sensors-fusion ${l}: ${x}`);
+    ok(s.indexOf("<Resource id=\"nxp-um10204\" />")<s.indexOf("<Resource id=\"wiki-i2c\" />"),`b19pol sensors-fusion ${l}: UM10204 is the primary source`);
+    ok(l==="en"?s.includes("**classic ESP32 I²C controller does not support clock stretching when operating as a slave**")&&s.includes("kept as a secondary source"):s.includes("**经典 ESP32 的 I²C 控制器作为从机时不支持时钟拉伸**")&&s.includes("作为辅助来源保留"),`b19pol sensors-fusion ${l}: ESP32 slave no stretch; Wikipedia secondary`);
+  }
+  // PSRR + Zener + ac+dc
+  for(const l of ["en","zh"]){
+    const c=md(1,"components",l), b=md(1,"bench-multimeter",l);
+    ok(c.includes("SLAA414A")&&c.includes("HBD854/D")&&c.includes("−(R_S R_Z / (R_S + R_Z)) ΔI_L")&&c.includes("10 Hz – 1 kHz")&&c.includes("r_z = 0"),`b19pol components ${l}: PSRR and Zener slope sources`);
+    ok(l==="en"?c.includes("**Headroom is not filtering: PSRR falls with frequency.**")&&c.includes("does **not** model PSRR")&&c.includes("a **slope**"):c.includes("**余量不等于滤波，PSRR 随频率下降。**")&&c.includes("**没有**建模 PSRR")&&c.includes("**斜线**"),`b19pol components ${l}: PSRR falls with frequency, slope not step`);
+    ok(b.includes("<Resource id=\"fluke-truerms-facts\" />")&&b.includes("<Resource id=\"keysight-ac-errors\" />")&&b.includes("pwm_high_crest")&&(l==="en"?b.includes("**ac+dc** value")&&b.includes("read **lower** than arm A"):b.includes("**ac+dc** 值")&&b.includes("读数会比 A 臂**低**")),`b19pol bench-multimeter ${l}: ac-coupled vs ac+dc`);
+  }
+  for(const id of ["esp32-datasheet","esp32-s3-datasheet","nxp-um10204","idf-i2c","ti-slaa414","onsemi-hbd854","fluke-truerms-facts","keysight-ac-errors"]){
+    ok(new RegExp(`"${id}": \\{[\\s\\S]*?(以文档为准)[\\s\\S]*?extra: true`).test(res),`b19pol resource ${id}: body read, 以文档为准`);
+    ok(cur.includes(`"${id}"`),`b19pol curriculum lists ${id}`);
+  }
+  ok(/"nxp-um10204": \{[\s\S]*?Access Denied[\s\S]*?pololu\.com\/file\/0J435\/UM10204\.pdf/.test(res),"b19pol UM10204: mirror disclosed");
+  ok(/"esp32-s3-datasheet": \{[\s\S]*?240 µA[\s\S]*?8 µA[\s\S]*?7 µA[\s\S]*?no separate Hibernation/.test(res),"b19pol S3 datasheet resource values");
+  // note + totals
+  for(const x of ["0f3b2541f10579cf8d0e05dcb94208ea86c33c77","36900","**71**","no minute count changed","Access Denied","pololu.com/file/0J435/UM10204.pdf","240 µA","**8 µA**","**7 µA**","**0.8 mA**","**10 µA**","**5 µA**","scl_wait_us","xfer_timeout_ms","does not support clock stretching when operating as a slave","0.007813","opencode","No lock relaxed"])ok(note.includes(x),`b19pol note: ${x}`);
+  ok((()=>{const months=[...cur.matchAll(/const month(\d+)Lessons[\s\S]*?\];/g)]; let s=0; for(const m of months){for(const x of m[0].matchAll(/minutes:\s*(\d+)/g))s+=+x[1];} return s===36900;})(),"b19pol curriculum: still 36900 minutes");
+  ok(/36 900/.test(read("README.md"))&&/约 36 900 分钟/.test(read("README.md")),"b19pol README: still 36 900");
+  console.log("batch-19 polish: author lists, 0.007813, code-change disclosures, ESP32 vs S3, UM10204 / ESP-IDF I²C, PSRR, Zener slope, ac+dc locked");
+}
+
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
 process.exit(failed ? 1 : 0);

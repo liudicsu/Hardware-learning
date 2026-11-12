@@ -1845,7 +1845,7 @@ The page **does not declare a universal winner**: a correct trace helps most whe
 
 ## InternVLA-M1: ground where, then decide how
 
-The CoT-VLA and MolmoAct sections above put an explicit intermediate output (a subgoal image, a depth-and-trace chain) between the instruction and the action. **InternVLA-M1** makes a different cut. It splits *training* into two stages: first teach the vision-language model **where to act** on a large spatial-grounding corpus that has nothing to do with any particular robot, then teach the whole model **how to act** on demonstrations, nudged by a **spatial prompt** appended to the instruction. This section tests that split on a small synthetic stand-in. It is **not** SpatialVLA's Ego3D position encoding and adaptive action grids (Month 10, multi-view-extrinsics), **not** Magma's Set-of-Mark / Trace-of-Mark (Month 6, policy-evaluation), **not** HAMSTER's 2-D paths (Month 6, behaviour-cloning) and **not** MolmoAct's trace above.
+The CoT-VLA and MolmoAct sections above put an explicit intermediate output (a subgoal image, a depth-and-trace chain) between the instruction and the action. **InternVLA-M1** makes a different cut. It splits *training* into two stages: first teach the vision-language model **where to act** on a large spatial-grounding corpus that has nothing to do with any particular robot, then teach the whole model **how to act** on demonstrations, nudged by a **spatial prompt** prepended or appended to the instruction. This section tests that split on a small synthetic stand-in. It is **not** SpatialVLA's Ego3D position encoding and adaptive action grids (Month 10, multi-view-extrinsics), **not** Magma's Set-of-Mark / Trace-of-Mark (Month 6, policy-evaluation), **not** HAMSTER's 2-D paths (Month 6, behaviour-cloning) and **not** MolmoAct's trace above.
 
 <Resource id="internvla-m1-html" />
 
@@ -1853,7 +1853,7 @@ The CoT-VLA and MolmoAct sections above put an explicit intermediate output (a s
 
 **Source actually opened (arXiv 2510.13778 abs page checked: title and all 29 authors; HTML body fetched; v1 PDF body read via pdftotext).**
 
-- **Chen, Chen, Fu, Gao, Jia, Jin, Li, Mu, Pang, Qiao, Tian, Wang, Wang, Wang, Wang, Wang, Wang, Wei, Wu, Yang, Ye, Yu, Zeng, Zhang, Zhang, Zhang, Zheng, Zhou and Zhu, "InternVLA-M1: A Spatially Guided Vision-Language-Action Framework for Generalist Robot Policy" (Intern Robotics, Shanghai AI Laboratory, 2025):**
+- **Xinyi Chen, Yilun Chen, Yanwei Fu, Ning Gao, Jiaya Jia, Weiyang Jin, Hao Li, Yao Mu, Jiangmiao Pang, Yu Qiao, Yang Tian, Bin Wang, Bolun Wang, Fangjing Wang, Hanqing Wang, Tai Wang, Ziqin Wang, Xueyuan Wei, Chao Wu, Shuai Yang, Jinhui Ye, Junqiu Yu, Jia Zeng, Jingjing Zhang, Jinyu Zhang, Shi Zhang, Feng Zheng, Bowen Zhou and Yangkun Zhu (all 29, in the order of the arXiv 2510.13778 abs page), "InternVLA-M1: A Spatially Guided Vision-Language-Action Framework for Generalist Robot Policy" (Intern Robotics, Shanghai AI Laboratory, 2025):**
   - **Dual system** (§2.1): Qwen2.5-VL-3B-instruct as the System 2 planner, a diffusion-policy action expert (DiT actor on a DINOv2 encoder) as the System 1 executor, about 4.1B parameters in total; a querying transformer carries the planner's latent planning tokens to the expert, with a gradient-decay factor (for example 0.5) on the gradient flowing back into the VLM.
   - **Stage 1, spatial grounding pre-training** (§2.2): only the VLM is trained, on box, point and trace question-answering data; the paper counts over 2.3M spatial-reasoning items out of over 3M multimodal items (§3.1).
   - **Stage 2, spatially guided action post-training** (§2.2): VLM and action expert are trained together on demonstrations. A spatial cue is prepended or appended to the instruction (for example "Figure out how to execute it, then locate the key object needed."); the VLM does **not** explicitly output an answer to that cue. Training also alternates robot trajectories with grounding data (co-training).
@@ -1916,8 +1916,8 @@ What the InternVLA-M1 paper (arXiv 2510.13778) says, and what this toy keeps:
   Stage 1, spatial grounding pre-training, trains only the VLM on box / point /
   trace QA data ("where to act", embodiment-agnostic).  Stage 2, spatially
   guided action post-training, trains the VLM and the action expert on
-  demonstrations, with a spatial prompt appended to the instruction ("how to
-  act").  This toy keeps only the split: a grounding stage that learns which
+  demonstrations, with a spatial prompt prepended or appended to the
+  instruction ("how to act").  This toy keeps only the split: a grounding stage that learns which
   object an instruction names from a large grounding corpus, then an action
   stage that reaches the grounded point.  The paper's spatial prompt is a text
   cue whose answer is not decoded; here the "where" is an explicit point, a
@@ -2204,6 +2204,8 @@ How the labels are used on this page, in this order: **tie: identical on every s
 - **Shuffled prompt.** C reaches toward another scene's object and almost never succeeds: paired C−B success_pct is -94.2000±1.7176 (cluttered), -94.9000±2.0433 (single_object), -94.5000±2.0000 (many_demos) and -70.4000±3.9592 (camera_shift), all a **clear gap, not a tie** (same sign on all 5 seeds).
 
 **Choices made after seeing results.** None. The four regimes, G_ITEMS = 600, TOL, SIGMA_EXEC and the alternative were written before the first run. Alternative on the same seeds: G_ITEMS = 60 (B then knows 28.8000±1.3038 pairs on cluttered) gives paired B−A success_pct@alt 12.1000±7.0480 on cluttered (**small but consistent gap, not a tie**, same sign on all 5 seeds) and -21.1000±3.6125 on camera_shift (**clear gap, not a tie**, same sign on all 5 seeds). Neither replaced the default, and the camera_shift loss stays on the page.
+
+**Code changes after the first run.** One, with no number changed: the first printed line now names the paper's arXiv id (2510.13778), so the id quoted on this page is printed by the toy; every other line of `expected/` is unchanged (checked line by line). The batch-19 polish edited only a docstring line (the spatial prompt is prepended or appended), and the output is unchanged (checked with `cmp`).
 
 The page **does not declare a universal winner**: grounding helps when clutter makes "which object" the hard part and demonstrations are few; with one object or plenty of demonstrations it adds nothing here, and a grounding corpus that disagrees with the robot camera can hurt. InternVLA-M1 on real hardware or in SimplerEnv: **本页未运行**.
 

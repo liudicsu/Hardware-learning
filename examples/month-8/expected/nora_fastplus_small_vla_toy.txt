@@ -3,7 +3,7 @@ seeds=5 D=7 N_EP=200 BINS=256 GAMMA=10.0 P_LARGE=7.0 P_SMALL=3.0 TOL=0.060 VOCAB
 No integration step: chunks are scored, not simulated; no time-step criterion
 Regimes and parameters were written before the first run
 hand_calc A tokens: one per joint per step, D*H = 7*10 = 70 (H=10) and 7*30 = 210 (H=30)
-hand_calc A bin error: bin width 2/256 = 0.007812, at most half a bin = 0.003906
+hand_calc A bin error: bin width 2/256 = 0.007813, at most half a bin = 0.003906
 hand_calc rounding RMS per coefficient (uniform error): 1/(GAMMA*sqrt(12)) = 0.028868
 hand_calc cost ratio at equal tokens: P_SMALL/P_LARGE = 0.4286
 success_rule: success iff chunk RMSE < TOL (strict); rmse 0.0600 -> success 0; rmse 0.0599 -> success 1

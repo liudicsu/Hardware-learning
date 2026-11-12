@@ -348,7 +348,7 @@ The sections above schedule chunks so the arm does not idle. A second way to cut
 
 **Source actually opened (arXiv 2504.19854 abs page checked: title and all 8 authors; HTML body fetched; v1 PDF body read via pdftotext).**
 
-- **Hung, Sun, Hong, Zadeh, Li, Tan, Majumder and Poria, "NORA: A Small Open-Sourced Generalist Vision Language Action Model for Embodied Tasks" (Singapore University of Technology and Design / Lambda Labs, 2025):**
+- **Chia-Yu Hung, Qi Sun, Pengfei Hong, Amir Zadeh, Chuan Li, U-Xuan Tan, Navonil Majumder and Soujanya Poria (all 8, in the order of the arXiv 2504.19854 abs page), "NORA: A Small Open-Sourced Generalist Vision Language Action Model for Embodied Tasks" (Singapore University of Technology and Design / Lambda Labs, 2025):**
   - **Backbone and tokens** (abstract, §3, §3.1): Qwen-2.5-VL-3B as the backbone; the VLM autoregressively generates FAST+ action tokens and FAST+ decodes them into actions (eqs. 1–2); 2048 FAST+ tokens are added to the vocabulary; one image frame; the action chunk is 1 for NORA and 5 for the NORA-Long variant (§3.3).
   - **Tokenizer** (§2.3): the paper describes FAST as applying a DCT and then byte-pair encoding to get shorter, more token-efficient sequences, and reports about 8.3GB of GPU memory at inference.
   - **Data and training** (abstract, §3.2): the abstract says 970k real-world robot demonstrations (Open X-Embodiment); pre-training took about three weeks on one 8×H100 node.
@@ -363,7 +363,7 @@ The sections above schedule chunks so the arm does not idle. A second way to cut
 
 The large stand-in writes one token per joint per step (256 bins, the per-step scheme from the action-token section of the vla-models lesson in Month 6). The small stand-in writes FAST-style tokens: per joint, a DCT over the chunk's time axis, scaled by GAMMA = 10.0 and rounded, keeping only nonzero integers. Byte-pair encoding is **not** modelled, so the toy undercounts FAST+'s compression. NORA's §2.3 words its DCT as running across the action dimensions; the toy uses the time-axis DCT of the FAST section in the Month 6 vla-models lesson, a stand-in, said so here.
 
-**Worked example — labelled hand calculations, also printed by the toy.** The per-step head needs D × H = 7 × 10 = 70 tokens on a 10-step chunk and 7 × 30 = 210 on a 30-step chunk. Its bin width is 2 / 256 = 0.007812, so the binning error is at most half a bin, 0.003906. Rounding a coefficient scaled by GAMMA = 10.0 leaves an RMS error of 1 / (GAMMA √12) = 0.028868 per coefficient if the error is uniform. At equal token counts the cost ratio is P_SMALL / P_LARGE = 0.4286. Success is **strict**: RMSE 0.0600 fails, 0.0599 succeeds.
+**Worked example — labelled hand calculations, also printed by the toy.** The per-step head needs D × H = 7 × 10 = 70 tokens on a 10-step chunk and 7 × 30 = 210 on a 30-step chunk. Its bin width is 2 / 256 = 0.007813, so the binning error is at most half a bin, 0.003906. Rounding a coefficient scaled by GAMMA = 10.0 leaves an RMS error of 1 / (GAMMA √12) = 0.028868 per coefficient if the error is uniform. At equal token counts the cost ratio is P_SMALL / P_LARGE = 0.4286. Success is **strict**: RMSE 0.0600 fails, 0.0599 succeeds.
 
 **No integration step here.** Chunks are scored, not simulated; there is no ODE.
 
@@ -434,6 +434,7 @@ Regimes and parameters were written before the first run:
 """
 import math
 import random
+from decimal import Decimal, ROUND_HALF_UP
 
 SEEDS = (0, 1, 2, 3, 4)
 NUM_ZERO = 1e-9
@@ -457,6 +458,13 @@ ARMS = ("A_large_bins", "B_small_fast", "C_shuffled")
 
 _COS = {}
 
+
+
+def fmt6(x):
+    """Six decimals with ROUND_HALF_UP (2/256 = 0.0078125 -> 0.007813, not the
+    round-half-even 0.007812 of a plain :.6f). Batch-19 polish; helper drafted by
+    opencode DeepSeek."""
+    return f"{Decimal(str(x)).quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP):.6f}"
 
 def cos_table(n):
     """cos(pi*(t+0.5)*k/n) for every (k, t), cached per chunk length."""
@@ -610,7 +618,7 @@ def main():
     print("No integration step: chunks are scored, not simulated; no time-step criterion")
     print("Regimes and parameters were written before the first run")
     print(f"hand_calc A tokens: one per joint per step, D*H = {D}*10 = {D * 10} (H=10) and {D}*30 = {D * 30} (H=30)")
-    print(f"hand_calc A bin error: bin width 2/{BINS} = {2.0 / BINS:.6f}, at most half a bin = {1.0 / BINS:.6f}")
+    print(f"hand_calc A bin error: bin width 2/{BINS} = {fmt6(2.0 / BINS)}, at most half a bin = {fmt6(1.0 / BINS)}")
     print(f"hand_calc rounding RMS per coefficient (uniform error): 1/(GAMMA*sqrt(12)) = {1.0 / (GAMMA * math.sqrt(12.0)):.6f}")
     print(f"hand_calc cost ratio at equal tokens: P_SMALL/P_LARGE = {P_SMALL / P_LARGE:.4f}")
     print("success_rule: success iff chunk RMSE < TOL (strict); "
@@ -653,7 +661,7 @@ seeds=5 D=7 N_EP=200 BINS=256 GAMMA=10.0 P_LARGE=7.0 P_SMALL=3.0 TOL=0.060 VOCAB
 No integration step: chunks are scored, not simulated; no time-step criterion
 Regimes and parameters were written before the first run
 hand_calc A tokens: one per joint per step, D*H = 7*10 = 70 (H=10) and 7*30 = 210 (H=30)
-hand_calc A bin error: bin width 2/256 = 0.007812, at most half a bin = 0.003906
+hand_calc A bin error: bin width 2/256 = 0.007813, at most half a bin = 0.003906
 hand_calc rounding RMS per coefficient (uniform error): 1/(GAMMA*sqrt(12)) = 0.028868
 hand_calc cost ratio at equal tokens: P_SMALL/P_LARGE = 0.4286
 success_rule: success iff chunk RMSE < TOL (strict); rmse 0.0600 -> success 0; rmse 0.0599 -> success 1
@@ -695,6 +703,8 @@ How the labels are used on this page, in this order: **tie: identical on every s
 - **long_horizon.** B is still far cheaper (paired B−A tokens -114.7840±0.7102, paired B−A cost -1184.3520±2.1307, both **clear**, same sign on all 5 seeds), but it **loses** on success: B succeeds 27.1000±1.7819 % against A's 100.0000±0.0000 %, paired B−A success_pct -72.9000±1.7819, a **clear gap, not a tie** (same sign on all 5 seeds). **Keep** this split: a cheaper chunk is worth nothing if the small model cannot hit the target. Part of the loss is rounding (B's RMSE 0.0617 against A's 0.0400), part is the declared SIG_SMALL. C is worse still: paired C−B success_pct -27.1000±1.7819, **clear**, same sign on all 5 seeds.
 
 **Choices made after seeing results.** None. Both regimes, the SIG values, TOL, GAMMA = 10.0 and the GAMMA = 20.0 alternative were written before the first run. Alternative on the same seeds: GAMMA = 20.0 keeps short_in_dist a **tie: identical on every seed** on success at a higher token count (45.4870±0.2654), paired B−A cost@alt -353.5390±0.7962; on long_horizon it lifts B to 89.8000±2.1966 % success with 147.0000±0.5566 tokens, but paired B−A success_pct@alt is still -10.2000±2.1966, a **small but consistent gap, not a tie** (same sign on all 5 seeds), and paired B−A cost@alt -1029.0000±1.6697. Neither replaced the default, and the long-horizon loss stays on the page.
+
+**Code changes after the first run.** Two, neither of which changed a number: (1) the toy caches its DCT cosine table and its per-(regime, GAMMA) result tables to cut runtime, with **byte-identical output** (checked with `cmp`); (2) the first printed line now names the paper's arXiv id (2504.19854), so the id quoted on this page is printed; every other line of `expected/` is unchanged (checked line by line). A third change came in the batch-19 polish after review: the bin-width hand calculation now rounds half-up, so 2 / 256 now prints as 0.007813 (the first version rounded half-to-even and printed the last digit one lower); only that line of `expected/` changed.
 
 The page **does not declare a universal winner**: fewer parameters and fewer action tokens cut the decode-cost proxy on every chunk, but success depends on whether the small backbone fits the task, and a decoder with the wrong codebook fails. The paper's own LIBERO table shows the same shape: NORA without chunking trails OpenVLA on the long-horizon suite (以论文为准). A real NORA checkpoint on a GPU: **本页未运行**.
 

@@ -348,7 +348,7 @@ arrived_brackets_only=True extrapolation=False live_success_claim=False
 
 **实际打开的来源（已核对 arXiv 2504.19854 摘要页的标题与全部 8 位作者；已获取 HTML 正文；v1 PDF 正文用 pdftotext 读过）。**
 
-- **Hung、Sun、Hong、Zadeh、Li、Tan、Majumder、Poria，《NORA: A Small Open-Sourced Generalist Vision Language Action Model for Embodied Tasks》（新加坡科技设计大学 / Lambda Labs，2025）:**
+- **Chia-Yu Hung、Qi Sun、Pengfei Hong、Amir Zadeh、Chuan Li、U-Xuan Tan、Navonil Majumder、Soujanya Poria（全部 8 位，按 arXiv 2504.19854 摘要页的顺序），《NORA: A Small Open-Sourced Generalist Vision Language Action Model for Embodied Tasks》（新加坡科技设计大学 / Lambda Labs，2025）:**
   - **主干与词元**（摘要、§3、§3.1）：以 Qwen-2.5-VL-3B 为主干；VLM 自回归生成 FAST+ 动作词元，再由 FAST+ 解码成动作（式 1–2）；词表增加 2048 个 FAST+ 词元；输入单帧图像；NORA 的动作块长度为 1，NORA-Long 变体为 5（§3.3）。
   - **分词器**（§2.3）：论文把 FAST 描述为先做 DCT、再做字节对编码，得到更短、更省词元的序列，并报告推理时约占 8.3GB 显存。
   - **数据与训练**（摘要、§3.2）：摘要称使用 970k 条真实机器人示范（Open X-Embodiment）；预训练在一台 8×H100 节点上约三周。
@@ -363,7 +363,7 @@ arrived_brackets_only=True extrapolation=False live_success_claim=False
 
 大模型替身每个关节每一步写一个词元（256 个区间，即第 6 个月 vla-models 课里动作词元一节的逐步方案）。小模型替身写 FAST 式词元：每个关节沿动作块的时间轴做 DCT，乘 GAMMA = 10.0 后取整，只保留非零整数。**没有**建模字节对编码，所以玩具低估了 FAST+ 的压缩。NORA 的 §2.3 把它的 DCT 表述为跨动作维度进行；玩具用的是第 6 个月 vla-models 课 FAST 一节里沿时间轴的 DCT，这是替身，本页如实说明。
 
-**算例——标明的手算，玩具也打印。** 逐步方案在 10 步的动作块上需要 D × H = 7 × 10 = 70 个词元，在 30 步的动作块上需要 7 × 30 = 210 个。区间宽度 2 / 256 = 0.007812，所以分箱误差最多半个区间，0.003906。按 GAMMA = 10.0 缩放后取整，若误差均匀分布，每个系数的 RMS 误差是 1 / (GAMMA √12) = 0.028868。词元数相同时，代价比是 P_SMALL / P_LARGE = 0.4286。成功判据是**严格**的：RMSE 0.0600 算失败，0.0599 算成功。
+**算例——标明的手算，玩具也打印。** 逐步方案在 10 步的动作块上需要 D × H = 7 × 10 = 70 个词元，在 30 步的动作块上需要 7 × 30 = 210 个。区间宽度 2 / 256 = 0.007813，所以分箱误差最多半个区间，0.003906。按 GAMMA = 10.0 缩放后取整，若误差均匀分布，每个系数的 RMS 误差是 1 / (GAMMA √12) = 0.028868。词元数相同时，代价比是 P_SMALL / P_LARGE = 0.4286。成功判据是**严格**的：RMSE 0.0600 算失败，0.0599 算成功。
 
 **这里没有积分步长。** 只对动作块打分，不做仿真；没有常微分方程。
 
@@ -434,6 +434,7 @@ Regimes and parameters were written before the first run:
 """
 import math
 import random
+from decimal import Decimal, ROUND_HALF_UP
 
 SEEDS = (0, 1, 2, 3, 4)
 NUM_ZERO = 1e-9
@@ -457,6 +458,13 @@ ARMS = ("A_large_bins", "B_small_fast", "C_shuffled")
 
 _COS = {}
 
+
+
+def fmt6(x):
+    """Six decimals with ROUND_HALF_UP (2/256 = 0.0078125 -> 0.007813, not the
+    round-half-even 0.007812 of a plain :.6f). Batch-19 polish; helper drafted by
+    opencode DeepSeek."""
+    return f"{Decimal(str(x)).quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP):.6f}"
 
 def cos_table(n):
     """cos(pi*(t+0.5)*k/n) for every (k, t), cached per chunk length."""
@@ -610,7 +618,7 @@ def main():
     print("No integration step: chunks are scored, not simulated; no time-step criterion")
     print("Regimes and parameters were written before the first run")
     print(f"hand_calc A tokens: one per joint per step, D*H = {D}*10 = {D * 10} (H=10) and {D}*30 = {D * 30} (H=30)")
-    print(f"hand_calc A bin error: bin width 2/{BINS} = {2.0 / BINS:.6f}, at most half a bin = {1.0 / BINS:.6f}")
+    print(f"hand_calc A bin error: bin width 2/{BINS} = {fmt6(2.0 / BINS)}, at most half a bin = {fmt6(1.0 / BINS)}")
     print(f"hand_calc rounding RMS per coefficient (uniform error): 1/(GAMMA*sqrt(12)) = {1.0 / (GAMMA * math.sqrt(12.0)):.6f}")
     print(f"hand_calc cost ratio at equal tokens: P_SMALL/P_LARGE = {P_SMALL / P_LARGE:.4f}")
     print("success_rule: success iff chunk RMSE < TOL (strict); "
@@ -653,7 +661,7 @@ seeds=5 D=7 N_EP=200 BINS=256 GAMMA=10.0 P_LARGE=7.0 P_SMALL=3.0 TOL=0.060 VOCAB
 No integration step: chunks are scored, not simulated; no time-step criterion
 Regimes and parameters were written before the first run
 hand_calc A tokens: one per joint per step, D*H = 7*10 = 70 (H=10) and 7*30 = 210 (H=30)
-hand_calc A bin error: bin width 2/256 = 0.007812, at most half a bin = 0.003906
+hand_calc A bin error: bin width 2/256 = 0.007813, at most half a bin = 0.003906
 hand_calc rounding RMS per coefficient (uniform error): 1/(GAMMA*sqrt(12)) = 0.028868
 hand_calc cost ratio at equal tokens: P_SMALL/P_LARGE = 0.4286
 success_rule: success iff chunk RMSE < TOL (strict); rmse 0.0600 -> success 0; rmse 0.0599 -> success 1
@@ -695,6 +703,8 @@ NORA checkpoint / LIBERO / WidowX / GPU: 本页未运行; paper numbers 以论�
 - **long_horizon。** B 仍然便宜得多（配对 B−A tokens -114.7840±0.7102，配对 B−A cost -1184.3520±2.1307，都**明显**，5 个种子同号），但成功率**输**了：B 成功 27.1000±1.7819 %，A 为 100.0000±0.0000 %，配对 B−A success_pct -72.9000±1.7819，是**明显差距，不是打平**（5 个种子同号）。**保留**这一分化：小模型打不中目标时，便宜的动作块毫无价值。损失一部分来自取整（B 的 RMSE 0.0617 对 A 的 0.0400），一部分来自声明的 SIG_SMALL。C 更差：配对 C−B success_pct -27.1000±1.7819，**明显**，5 个种子同号。
 
 **看到结果后做的选择。** 没有。两种情形、各 SIG 值、TOL、GAMMA = 10.0 以及 GAMMA = 20.0 替代都在首次运行前写定。同一组种子上的替代：GAMMA = 20.0 时 short_in_dist 的成功率仍是**打平：每个种子都完全相同**，词元更多（45.4870±0.2654），配对 B−A cost@alt -353.5390±0.7962；在 long_horizon 上它把 B 的成功率提到 89.8000±2.1966 %，词元 147.0000±0.5566，但配对 B−A success_pct@alt 仍为 -10.2000±2.1966，是**小而一致的差距，不是打平**（5 个种子同号），配对 B−A cost@alt -1029.0000±1.6697。两者都没有替换默认值，长时域的失败留在页面上。
+
+**首次运行后的代码改动。** 两处，都没有改变任何数字：(1) 玩具缓存了 DCT 余弦表和按 (情形, GAMMA) 的结果表以缩短运行时间，输出**逐字节相同**（用 `cmp` 核对）；(2) 第一行输出现在写出论文的 arXiv 编号（2504.19854），让本页引用的编号由玩具打印；`expected/` 其余每一行都没变（逐行核对）。第三处改动来自审阅后的 batch-19 收尾：区间宽度手算改为四舍五入（half-up），所以 2 / 256 现在打印为 0.007813（第一版按“四舍六入五成双”取整，最后一位少 1）；`expected/` 只有这一行变化。
 
 本页**不宣布普遍赢家**。更少参数和更少动作词元让每个动作块的解码代价代理都下降，但成功与否取决于小主干能否拟合任务，而码本错了的解码器一定失败。论文自己的 LIBERO 表也是这个形状：不分块的 NORA 在长时域套件上落后 OpenVLA（以论文为准）。真实 NORA 检查点在 GPU 上运行均**本页未运行**。
 
