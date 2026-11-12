@@ -1843,9 +1843,385 @@ The page **does not declare a universal winner**: a correct trace helps most whe
 4. Set the `multi_stage_few` demo count to 20 with seeds fixed. Predict whether B−A success stays a clear gap before you run.
 5. Before any run on a real robot (本页未运行), write how you would give a user a way to choose between two bins that line up along the camera axis.
 
+## InternVLA-M1: ground where, then decide how
+
+The CoT-VLA and MolmoAct sections above put an explicit intermediate output (a subgoal image, a depth-and-trace chain) between the instruction and the action. **InternVLA-M1** makes a different cut. It splits *training* into two stages: first teach the vision-language model **where to act** on a large spatial-grounding corpus that has nothing to do with any particular robot, then teach the whole model **how to act** on demonstrations, nudged by a **spatial prompt** appended to the instruction. This section tests that split on a small synthetic stand-in. It is **not** SpatialVLA's Ego3D position encoding and adaptive action grids (Month 10, multi-view-extrinsics), **not** Magma's Set-of-Mark / Trace-of-Mark (Month 6, policy-evaluation), **not** HAMSTER's 2-D paths (Month 6, behaviour-cloning) and **not** MolmoAct's trace above.
+
+<Resource id="internvla-m1-html" />
+
+<Resource id="internvla-m1-pdf" />
+
+**Source actually opened (arXiv 2510.13778 abs page checked: title and all 29 authors; HTML body fetched; v1 PDF body read via pdftotext).**
+
+- **Chen, Chen, Fu, Gao, Jia, Jin, Li, Mu, Pang, Qiao, Tian, Wang, Wang, Wang, Wang, Wang, Wang, Wei, Wu, Yang, Ye, Yu, Zeng, Zhang, Zhang, Zhang, Zheng, Zhou and Zhu, "InternVLA-M1: A Spatially Guided Vision-Language-Action Framework for Generalist Robot Policy" (Intern Robotics, Shanghai AI Laboratory, 2025):**
+  - **Dual system** (§2.1): Qwen2.5-VL-3B-instruct as the System 2 planner, a diffusion-policy action expert (DiT actor on a DINOv2 encoder) as the System 1 executor, about 4.1B parameters in total; a querying transformer carries the planner's latent planning tokens to the expert, with a gradient-decay factor (for example 0.5) on the gradient flowing back into the VLM.
+  - **Stage 1, spatial grounding pre-training** (§2.2): only the VLM is trained, on box, point and trace question-answering data; the paper counts over 2.3M spatial-reasoning items out of over 3M multimodal items (§3.1).
+  - **Stage 2, spatially guided action post-training** (§2.2): VLM and action expert are trained together on demonstrations. A spatial cue is prepended or appended to the instruction (for example "Figure out how to execute it, then locate the key object needed."); the VLM does **not** explicitly output an answer to that cue. Training also alternates robot trajectories with grounding data (co-training).
+- **Reported results (以论文为准):** against its own variant without spatial guidance, +14.6 % on SimplerEnv Google Robot, +17 % on WidowX and +4.3 % on LIBERO Franka (abstract); a 6.2 % average improvement over 200 simulated pick-and-place tasks; +7.3 % in real-world cluttered pick-and-place and +20.6 % on unseen objects and novel configurations with synthetic co-training.
+- InternVLA-M1 weights, SimplerEnv, LIBERO, the real robots and GPU training: **本页未运行**.
+
+### Where, then how
+
+<Formula label="Two-stage split (stand-in)">grounded object = ground(instruction, scene);  action = reach(point of grounded object) + execution noise</Formula>
+
+<Formula label="Success">success iff |reach − target| < TOL</Formula>
+
+The toy keeps only the split: a grounding stage that can learn "which object does this phrase name" from a corpus without any robot in it, followed by an action stage that reaches whatever point it is handed. In the paper the spatial prompt is a text cue whose answer is never decoded; here the "where" is an explicit point. That is a **stand-in**, and the page says so.
+
+**Worked example — labelled hand calculations, also printed by the toy.** With per-axis execution noise sd 0.020 and TOL = 0.050, TOL / SIGMA_EXEC = 2.5000 and the chance that a reach aimed at the right object lands inside TOL is 1 − exp(−2.5000² / 2) = 95.6063 %. A uniform guess among 8 objects is right 1 / 8 = 12.5000 % of the time. The success test is **strict**: an error of 0.0500 is a failure, 0.0499 a success.
+
+**No integration step here.** One reach per episode; there is no ODE and no step-size stability criterion.
+
+### Fair setup
+
+`internvla_m1_spatial_prompt_toy.py` is **synthetic** and stdlib only. **Model assumptions:** every object is a distinct (colour, shape) pair out of 6 × 5 = 30; the instruction names the target's pair; a grounder that has seen a pair picks the right object, otherwise it picks uniformly among objects sharing the colour or the shape (all objects if none does) using the shared tie-break draw; the action stage is identical for every arm; G_ITEMS = 600 grounding items is a **toy count**, not the paper's 2.3M.
+
+| Arm | What it is |
+|---|---|
+| A_direct | no grounding stage; learns which object a pair names only from the N_DEMO demonstrations |
+| B_where_how | grounding stage trained on G_ITEMS grounding items plus the demonstrations, then the same reach |
+| C_shuffled | B's pipeline, but the spatial prompt comes from a different test scene (a fixed derangement) |
+
+**Common random numbers:** for each (regime, seed) the demonstrations, the grounding corpus, all 200 test scenes, every tie-break draw, every execution-noise draw and C's derangement are drawn once and shared by all three arms. The arms differ **only** in what the grounding stage knows and which point the action stage is handed. Five seeds. Metrics are success and grounding ("where") accuracy in percent, as mean±sd over seeds.
+
+| Regime | Setting | What was pre-declared |
+|---|---|---|
+| cluttered | K = 8 objects, N_DEMO = 40 | B **consistent** better success than A |
+| single_object | K = 1, N_DEMO = 40 | nothing to ground: A and B **tie** or near-tie |
+| many_demos | K = 8, N_DEMO = 400 | demonstrations cover the pairs: A and B may **near-tie** |
+| camera_shift | K = 8, N_DEMO = 400, two colour words swapped in the grounding corpus | B may **lose** to A; **keep** |
+
+In every regime C was pre-declared to lose consistently against B.
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-6/vla-models
+python3 internvla_m1_spatial_prompt_toy.py
+```
+
+<CodeSource path="examples/month-6/vla-models/internvla_m1_spatial_prompt_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""InternVLA-M1-style "where, then how": a stdlib stand-in for spatially guided action training.
+
+Synthetic tabletop scenes, stdlib only.  Not InternVLA-M1 weights, not its
+Qwen2.5-VL planner or DiT action expert, not SimplerEnv / LIBERO and not a
+real robot: 本页未运行.  Paper numbers 以论文为准 and are not reproduced here.
+Not SpatialVLA (Ego3D position encoding + adaptive action grids), not Magma
+Set-of-Mark / Trace-of-Mark, not HAMSTER 2-D paths and not MolmoAct traces.
+
+What the InternVLA-M1 paper (arXiv 2510.13778) says, and what this toy keeps:
+  Stage 1, spatial grounding pre-training, trains only the VLM on box / point /
+  trace QA data ("where to act", embodiment-agnostic).  Stage 2, spatially
+  guided action post-training, trains the VLM and the action expert on
+  demonstrations, with a spatial prompt appended to the instruction ("how to
+  act").  This toy keeps only the split: a grounding stage that learns which
+  object an instruction names from a large grounding corpus, then an action
+  stage that reaches the grounded point.  The paper's spatial prompt is a text
+  cue whose answer is not decoded; here the "where" is an explicit point, a
+  stand-in, said so on the page.
+
+Scene: K objects, each a distinct (colour, shape) pair out of N_COLOR x N_SHAPE,
+at uniform positions in the unit square.  The instruction names the target's
+(colour, shape).  A grounder knows a pair if it saw that pair in its training
+items.  Known pair: it picks the right object.  Unknown pair: it picks
+uniformly among objects that share the colour or the shape with the
+instruction (all objects if none does), using the shared tie-break draw.
+
+Common random numbers: per (regime, seed) the demonstrations, the grounding
+corpus, every test scene, every tie-break draw, every execution-noise draw and
+the shuffled-prompt permutation are drawn once and shared by all arms.  Arms:
+  A_direct   : no spatial grounding stage; the action head learns which
+               object a pair names only from the N_DEMO robot demonstrations
+  B_where_how: grounding stage trained on G_ITEMS grounding items plus the
+               demonstrations, then the same action stage reaches the point
+  C_shuffled : B's pipeline, but the spatial prompt (the point) comes from a
+               different test scene (a fixed derangement of the batch)
+Success: the arm reaches the right object, i.e. the reached point (grounded
+point + shared execution noise) is strictly within TOL of the target.  No
+integration step: one reach per episode, no ODE.
+
+Regimes and parameters were written before the first run:
+  cluttered      : K=8, N_DEMO=40 - B consistent better success than A
+  single_object  : K=1, N_DEMO=40 - nothing to ground; A and B tie (or near-tie)
+  many_demos     : K=8, N_DEMO=400 - demonstrations cover the pairs; A and B
+                   may near-tie
+  camera_shift   : K=8, N_DEMO=400, but the grounding corpus swaps two colour
+                   words (web photos vs the robot camera); B prefers its
+                   grounding stage - B may LOSE to A; keep whatever happens
+  C (shuffled prompt) consistent lose against B in every regime.
+"""
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+
+# Declared model parameters, written before the first run (toy values).
+N_COLOR = 6
+N_SHAPE = 5
+N_TEST = 200          # test episodes per seed
+G_ITEMS = 600         # grounding QA items (toy count; the paper's 2.3M is 以论文为准)
+SIGMA_EXEC = 0.02     # execution noise per axis (unit square)
+TOL = 0.05            # success iff reach error < TOL (strict)
+SWAP = (0, 1)         # colour words swapped in the camera_shift grounding corpus
+
+REGIMES = {
+    "cluttered": {"K": 8, "N_DEMO": 40, "swap": False},
+    "single_object": {"K": 1, "N_DEMO": 40, "swap": False},
+    "many_demos": {"K": 8, "N_DEMO": 400, "swap": False},
+    "camera_shift": {"K": 8, "N_DEMO": 400, "swap": True},
+}
+ARMS = ("A_direct", "B_where_how", "C_shuffled")
+
+
+def make_scene(rng, k):
+    pairs = rng.sample([(c, s) for c in range(N_COLOR) for s in range(N_SHAPE)], k)
+    objs = [{"pair": p, "xy": (rng.random(), rng.random())} for p in pairs]
+    target = rng.randrange(k)
+    return {"objs": objs, "target": target, "u": rng.random(),
+            "noise": (rng.gauss(0.0, SIGMA_EXEC), rng.gauss(0.0, SIGMA_EXEC))}
+
+
+def shared_world(regime, seed, g_items=G_ITEMS):
+    """Common random numbers: demos, grounding corpus, test scenes, draws; used by every arm."""
+    cfg = REGIMES[regime]
+    rng = random.Random(f"{regime}/{seed}")
+    demos = [make_scene(rng, cfg["K"]) for _ in range(cfg["N_DEMO"])]
+    tests = [make_scene(rng, cfg["K"]) for _ in range(N_TEST)]
+    shift = rng.randrange(1, N_TEST)          # fixed derangement for C
+    grng = random.Random(f"ground/{seed}")    # grounding corpus: same items in every regime
+    corpus = [(grng.randrange(N_COLOR), grng.randrange(N_SHAPE)) for _ in range(g_items)]
+    return {"demos": demos, "tests": tests, "shift": shift, "corpus": corpus}
+
+
+def swap_colour(pair):
+    c, s = pair
+    if c == SWAP[0]:
+        return (SWAP[1], s)
+    if c == SWAP[1]:
+        return (SWAP[0], s)
+    return pair
+
+
+def knowledge(arm, world, regime):
+    """Map instruction pair -> visual pair the arm believes it names."""
+    know = {}
+    if arm != "A_direct":
+        for p in world["corpus"]:
+            know[p] = swap_colour(p) if REGIMES[regime]["swap"] else p
+    for d in world["demos"]:
+        p = d["objs"][d["target"]]["pair"]
+        know.setdefault(p, p)   # B keeps its grounding-stage answer when it has one
+    return know
+
+
+def ground(know, scene, pair):
+    """Index of the object the arm grounds the instruction to."""
+    objs = scene["objs"]
+    if pair in know:
+        vis = know[pair]
+        hits = [i for i, o in enumerate(objs) if o["pair"] == vis]
+        if hits:
+            return hits[0]
+    cands = [i for i, o in enumerate(objs) if o["pair"][0] == pair[0] or o["pair"][1] == pair[1]]
+    if not cands:
+        cands = list(range(len(objs)))
+    return cands[min(int(scene["u"] * len(cands)), len(cands) - 1)]
+
+
+def run_seed(regime, seed, arm, g_items=G_ITEMS):
+    world = shared_world(regime, seed, g_items)
+    know = knowledge(arm, world, regime)
+    tests = world["tests"]
+    where = succ = 0
+    for i, sc in enumerate(tests):
+        pair = sc["objs"][sc["target"]]["pair"]
+        if arm == "C_shuffled":
+            other = tests[(i + world["shift"]) % len(tests)]
+            j = ground(know, other, other["objs"][other["target"]]["pair"])
+            aim = other["objs"][j]["xy"]
+            right = math.dist(aim, sc["objs"][sc["target"]]["xy"]) < TOL
+        else:
+            j = ground(know, sc, pair)
+            aim = sc["objs"][j]["xy"]
+            right = j == sc["target"]
+        reach = (aim[0] + sc["noise"][0], aim[1] + sc["noise"][1])
+        where += int(right)
+        succ += int(math.dist(reach, sc["objs"][sc["target"]]["xy"]) < TOL)
+    return {"where_pct": 100.0 * where / len(tests), "success_pct": 100.0 * succ / len(tests),
+            "known_pairs": float(len(know))}
+
+
+def mean_sd(xs):
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def table(regime, g_items=G_ITEMS):
+    return {arm: [run_seed(regime, seed, arm, g_items) for seed in SEEDS] for arm in ARMS}
+
+
+def col(res, arm, key):
+    return [float(r[key]) for r in res[arm]]
+
+
+def main():
+    print("Synthetic InternVLA-M1-style where-then-how toy (arXiv 2510.13778); shared scenes; not InternVLA-M1 weights")
+    print(f"seeds={len(SEEDS)} N_COLOR={N_COLOR} N_SHAPE={N_SHAPE} pairs={N_COLOR * N_SHAPE} N_TEST={N_TEST} "
+          f"G_ITEMS={G_ITEMS} (toy count) SIGMA_EXEC={SIGMA_EXEC:.3f} TOL={TOL:.3f} SWAP=colours {SWAP[0]}<->{SWAP[1]}")
+    print("No integration step: one reach per episode, no time-step criterion")
+    print("Regimes and parameters were written before the first run")
+    print(f"hand_calc reach: per-axis noise sd {SIGMA_EXEC:.3f}, radial sd ratio TOL/SIGMA_EXEC = {TOL / SIGMA_EXEC:.4f}; "
+          f"P(radius < TOL) = 1-exp(-(TOL/SIGMA_EXEC)^2/2) = {100.0 * (1.0 - math.exp(-(TOL / SIGMA_EXEC) ** 2 / 2.0)):.4f} %")
+    print(f"hand_calc chance: a uniform guess among 8 objects is right 1/8 = {100.0 / 8:.4f} % of the time")
+    print("success_rule: success iff |reach - target| < TOL (strict); "
+          f"error {TOL:.4f} -> success {int(TOL < TOL)}; error {TOL - 0.0001:.4f} -> success {int(TOL - 0.0001 < TOL)}")
+    for regime, cfg in REGIMES.items():
+        res = table(regime)
+        print(f"{regime} (K={cfg['K']} objects, N_DEMO={cfg['N_DEMO']} demos, colour swap in grounding corpus: "
+              f"{'yes' if cfg['swap'] else 'no'}; {N_TEST} test scenes per seed):")
+        for arm in ARMS:
+            print(f"  {arm} success_pct {fmt_pair(*mean_sd(col(res, arm, 'success_pct')))} "
+                  f"where_pct {fmt_pair(*mean_sd(col(res, arm, 'where_pct')))} "
+                  f"known_pairs {fmt_pair(*mean_sd(col(res, arm, 'known_pairs')))}")
+        print(f"  paired B-A success_pct: {verdict(col(res, 'B_where_how', 'success_pct'), col(res, 'A_direct', 'success_pct'))}")
+        print(f"  paired B-A where_pct: {verdict(col(res, 'B_where_how', 'where_pct'), col(res, 'A_direct', 'where_pct'))}")
+        print(f"  paired C-B success_pct: {verdict(col(res, 'C_shuffled', 'success_pct'), col(res, 'B_where_how', 'success_pct'))}")
+    for regime, alt in (("cluttered", 60), ("camera_shift", 60)):
+        base = table(regime)
+        res = table(regime, alt)
+        print(f"alternative G_ITEMS={alt} on {regime} (same seeds):")
+        print(f"  B_where_how success_pct@alt {fmt_pair(*mean_sd(col(res, 'B_where_how', 'success_pct')))} "
+              f"known_pairs@alt {fmt_pair(*mean_sd(col(res, 'B_where_how', 'known_pairs')))} "
+              f"(default success_pct {fmt_pair(*mean_sd(col(base, 'B_where_how', 'success_pct')))})")
+        print(f"  paired B-A success_pct@alt: {verdict(col(res, 'B_where_how', 'success_pct'), col(res, 'A_direct', 'success_pct'))}")
+    print("No winner declared: grounding helps when clutter makes 'which object' the hard part and demonstrations are few; "
+          "with one object or plenty of demonstrations it adds little, and a grounding corpus that disagrees with the robot camera can hurt")
+    print("InternVLA-M1 weights / SimplerEnv / LIBERO / real robot: 本页未运行; paper numbers 以论文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic InternVLA-M1-style where-then-how toy (arXiv 2510.13778); shared scenes; not InternVLA-M1 weights
+seeds=5 N_COLOR=6 N_SHAPE=5 pairs=30 N_TEST=200 G_ITEMS=600 (toy count) SIGMA_EXEC=0.020 TOL=0.050 SWAP=colours 0<->1
+No integration step: one reach per episode, no time-step criterion
+Regimes and parameters were written before the first run
+hand_calc reach: per-axis noise sd 0.020, radial sd ratio TOL/SIGMA_EXEC = 2.5000; P(radius < TOL) = 1-exp(-(TOL/SIGMA_EXEC)^2/2) = 95.6063 %
+hand_calc chance: a uniform guess among 8 objects is right 1/8 = 12.5000 % of the time
+success_rule: success iff |reach - target| < TOL (strict); error 0.0500 -> success 0; error 0.0499 -> success 1
+cluttered (K=8 objects, N_DEMO=40 demos, colour swap in grounding corpus: no; 200 test scenes per seed):
+  A_direct success_pct 80.3000+-7.6616 where_pct 84.2000+-8.4009 known_pairs 22.8000+-3.5637
+  B_where_how success_pct 94.9000+-1.6355 where_pct 100.0000+-0.0000 known_pairs 30.0000+-0.0000
+  C_shuffled success_pct 0.7000+-0.4472 where_pct 0.7000+-0.4472 known_pairs 30.0000+-0.0000
+  paired B-A success_pct: 14.6000+-7.3263: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A where_pct: 15.8000+-8.4009: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success_pct: -94.2000+-1.7176: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+single_object (K=1 objects, N_DEMO=40 demos, colour swap in grounding corpus: no; 200 test scenes per seed):
+  A_direct success_pct 95.5000+-1.8371 where_pct 100.0000+-0.0000 known_pairs 23.0000+-2.7386
+  B_where_how success_pct 95.5000+-1.8371 where_pct 100.0000+-0.0000 known_pairs 30.0000+-0.0000
+  C_shuffled success_pct 0.6000+-0.2236 where_pct 0.8000+-0.4472 known_pairs 30.0000+-0.0000
+  paired B-A success_pct: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A where_pct: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B success_pct: -94.9000+-2.0433: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+many_demos (K=8 objects, N_DEMO=400 demos, colour swap in grounding corpus: no; 200 test scenes per seed):
+  A_direct success_pct 95.2000+-1.9235 where_pct 100.0000+-0.0000 known_pairs 30.0000+-0.0000
+  B_where_how success_pct 95.2000+-1.9235 where_pct 100.0000+-0.0000 known_pairs 30.0000+-0.0000
+  C_shuffled success_pct 0.7000+-0.4472 where_pct 0.6000+-0.4183 known_pairs 30.0000+-0.0000
+  paired B-A success_pct: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A where_pct: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B success_pct: -94.5000+-2.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+camera_shift (K=8 objects, N_DEMO=400 demos, colour swap in grounding corpus: yes; 200 test scenes per seed):
+  A_direct success_pct 95.3000+-1.7536 where_pct 100.0000+-0.0000 known_pairs 30.0000+-0.0000
+  B_where_how success_pct 71.5000+-3.8243 where_pct 75.2000+-4.4244 known_pairs 30.0000+-0.0000
+  C_shuffled success_pct 1.1000+-0.4183 where_pct 1.2000+-0.4472 known_pairs 30.0000+-0.0000
+  paired B-A success_pct: -23.8000+-4.4385: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A where_pct: -24.8000+-4.4244: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success_pct: -70.4000+-3.9592: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative G_ITEMS=60 on cluttered (same seeds):
+  B_where_how success_pct@alt 92.4000+-3.9433 known_pairs@alt 28.8000+-1.3038 (default success_pct 94.9000+-1.6355)
+  paired B-A success_pct@alt: 12.1000+-7.0480: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative G_ITEMS=60 on camera_shift (same seeds):
+  B_where_how success_pct@alt 74.2000+-2.7973 known_pairs@alt 30.0000+-0.0000 (default success_pct 71.5000+-3.8243)
+  paired B-A success_pct@alt: -21.1000+-3.6125: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: grounding helps when clutter makes 'which object' the hard part and demonstrations are few; with one object or plenty of demonstrations it adds little, and a grounding corpus that disagrees with the robot camera can hurt
+InternVLA-M1 weights / SimplerEnv / LIBERO / real robot: 本页未运行; paper numbers 以论文为准
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used on this page, in this order: **tie: identical on every seed** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when |paired mean| and its sd are both below 1e-9 (no sign count on such a line); **near-tie / small gap, within seed noise** when |paired mean| ≤ sd; otherwise a **consistent** gap (|paired mean| > sd), called **small but consistent gap, not a tie** when |m| is under 20 % of the smaller arm mean and **clear gap, not a tie** otherwise. Every consistent line carries a same-sign count over the 5 seeds.
+
+- **cluttered.** A grounds the right object 84.2000±8.4009 % of the time and succeeds 80.3000±7.6616 %; B grounds every target (100.0000±0.0000 %) and succeeds 94.9000±1.6355 %. Paired B−A success_pct is 14.6000±7.3263, a **small but consistent gap, not a tie** (same sign on all 5 seeds): the gap is under 20 % of A's mean, so the label is "small", not "clear". The figure happens to equal the paper's +14.6 % on SimplerEnv Google Robot; that is a coincidence of this count table, **not** a reproduction.
+- **single_object.** With one object there is nothing to ground: paired B−A success_pct is a **tie: identical on every seed**.
+- **many_demos.** With 400 demonstrations A has seen all 30 pairs, so paired B−A success_pct is a **tie: identical on every seed**. The pre-declared outcome was "may near-tie"; it came out as a tie and is printed as it came out.
+- **camera_shift.** The grounding corpus calls colour 0 what the robot camera shows as colour 1 and vice versa, and B trusts its grounding stage. Paired B−A success_pct is -23.8000±4.4385, a **clear gap, not a tie** (same sign on all 5 seeds): B **loses** to A. **Keep** this regime: a grounding corpus that disagrees with the robot's camera is a real way for "where" pre-training to hurt.
+- **Shuffled prompt.** C reaches toward another scene's object and almost never succeeds: paired C−B success_pct is -94.2000±1.7176 (cluttered), -94.9000±2.0433 (single_object), -94.5000±2.0000 (many_demos) and -70.4000±3.9592 (camera_shift), all a **clear gap, not a tie** (same sign on all 5 seeds).
+
+**Choices made after seeing results.** None. The four regimes, G_ITEMS = 600, TOL, SIGMA_EXEC and the alternative were written before the first run. Alternative on the same seeds: G_ITEMS = 60 (B then knows 28.8000±1.3038 pairs on cluttered) gives paired B−A success_pct@alt 12.1000±7.0480 on cluttered (**small but consistent gap, not a tie**, same sign on all 5 seeds) and -21.1000±3.6125 on camera_shift (**clear gap, not a tie**, same sign on all 5 seeds). Neither replaced the default, and the camera_shift loss stays on the page.
+
+The page **does not declare a universal winner**: grounding helps when clutter makes "which object" the hard part and demonstrations are few; with one object or plenty of demonstrations it adds nothing here, and a grounding corpus that disagrees with the robot camera can hurt. InternVLA-M1 on real hardware or in SimplerEnv: **本页未运行**.
+
+**210-minute work plan:** 40 min read §2.1–2.2 and §3.1 of the InternVLA-M1 paper; 30 min work the 95.6063 % reach probability and the 12.5000 % chance level by hand; 60 min run the toy and read the four regimes; 40 min compare the printed G_ITEMS = 60 alternative with seeds fixed; 40 min the exercises.
+
+### Exercises
+
+1. From `knowledge`, explain why B can never ground worse than A in the cluttered regime, and which regime breaks that.
+2. Show from `shared_world` that A, B and C see the same demonstrations, test scenes, tie-break draws and execution noise for a given regime and seed.
+3. In cluttered, paired B−A success_pct is 14.6000±7.3263 and is labelled "small but consistent", not "clear". Recompute the 20 % threshold from A's printed mean.
+4. camera_shift makes B lose. Name one thing the real paper does (co-training, joint post-training) that could reduce this failure, and say why the toy cannot test it.
+5. Before any real run (本页未运行), write how you would check that a spatial grounding corpus uses the same colour and object names as your robot's camera images.
+
 <Summary>
 
 A VLA starts from a pretrained vision-language model and maps camera images plus an instruction to actions, either as tokens or through a separate action head; you usually download one and fine-tune it on about 50 demonstrations. Per-step tokenisation uses 256 bins per dimension (RT-2 over the data's min/max, OpenVLA between the 1st and 99th percentiles), with at most half a bin of error inside the range and clipping outside it, while FAST compresses a whole chunk with a DCT so a scale trades token count against error. The download table separates code licences from weight licences, SmolVLA is the size that fits one consumer GPU (its architecture and timings per the paper), and `vla_async_chunk_toy.py` shows asynchronous chunk inference trading idle time and staleness against more inference calls and splices around the threshold g ≥ (E[ℓ_S] / Δt) / n. `dual_system_vla_cadence_toy.py` adds dual-system literacy from OpenHelix: a slow System 2 sets the goal and a fast System 1 acts every tick and must see real-time perception (so π0 is not called dual-system), and at equal compute with a mid-episode instruction switch only the dual arm whose System 1 sees the current image both follows the new instruction and tracks moving targets, while with static targets the single-rate arms lose nothing — real weights, GPUs and CALVIN numbers stay 以论文为准 / 本页未运行. `rdt2_rvq_fm_distill_toy.py` adds RDT2's three-stage recipe (RVQ tokens with cross-entropy, a frozen-VLM flow-matching expert, one-step distillation) and shows over five seeds that at an equal 8-bit budget fewer tokens cost codebook entries, and that one-step sampling costs either quality or an offline distillation budget, without declaring a winner; RDT2's scores stay 以论文为准 and its 7B training / GPU 本页未运行.
 
 - CoT-VLA visual subgoals: with one action demo and 30 videos a subgoal-then-chunk policy beats a direct one (B−A 62.0000±44.8400 points, clear, 5/5), is a **near-tie** with no video, with plenty of action demos or on a single reach, always costs more tokens, and loses when the subgoal goes stale (refresh every 2nd chunk, chosen after seeing every 3rd, which fails every multi-stage episode) — `cot_vla_subgoal_toy.py`, count tables, not CoT-VLA's 7B GPU results. MolmoAct reasons in space before acting — depth tokens, then an editable 2-D trace of at most five points, then actions: on shared scenes a correct trace wins clearly when a wall forces a lift and demonstrations are few (paired success +72.0000±8.5513 points, 5/5) and an edited trace steers to the intended bin, but with 200 demonstrations the direct policy reaches a near-tie, and a 2-D edit cannot choose between bins lined up in depth (edited vs frozen trace near-tie) — `molmoact_reasoning_trace_toy.py`, not MolmoAct-7B; paper numbers 以论文为准.
+
+- InternVLA-M1 where-then-how: on shared scenes a grounding stage trained on a toy grounding corpus beats a direct head in clutter with few demonstrations (paired B−A success_pct 14.6000±7.3263, small but consistent, 5/5; the match with the paper's +14.6 % is a coincidence), ties it with one object or 400 demonstrations, loses when the grounding corpus swaps two colour words (paired B−A success_pct -23.8000±4.4385, clear, 5/5, kept), and a shuffled spatial prompt always loses — `internvla_m1_spatial_prompt_toy.py`, not InternVLA-M1 weights; paper numbers 以论文为准.
 </Summary>

@@ -1,0 +1,43 @@
+Synthetic InternVLA-M1-style where-then-how toy (arXiv 2510.13778); shared scenes; not InternVLA-M1 weights
+seeds=5 N_COLOR=6 N_SHAPE=5 pairs=30 N_TEST=200 G_ITEMS=600 (toy count) SIGMA_EXEC=0.020 TOL=0.050 SWAP=colours 0<->1
+No integration step: one reach per episode, no time-step criterion
+Regimes and parameters were written before the first run
+hand_calc reach: per-axis noise sd 0.020, radial sd ratio TOL/SIGMA_EXEC = 2.5000; P(radius < TOL) = 1-exp(-(TOL/SIGMA_EXEC)^2/2) = 95.6063 %
+hand_calc chance: a uniform guess among 8 objects is right 1/8 = 12.5000 % of the time
+success_rule: success iff |reach - target| < TOL (strict); error 0.0500 -> success 0; error 0.0499 -> success 1
+cluttered (K=8 objects, N_DEMO=40 demos, colour swap in grounding corpus: no; 200 test scenes per seed):
+  A_direct success_pct 80.3000+-7.6616 where_pct 84.2000+-8.4009 known_pairs 22.8000+-3.5637
+  B_where_how success_pct 94.9000+-1.6355 where_pct 100.0000+-0.0000 known_pairs 30.0000+-0.0000
+  C_shuffled success_pct 0.7000+-0.4472 where_pct 0.7000+-0.4472 known_pairs 30.0000+-0.0000
+  paired B-A success_pct: 14.6000+-7.3263: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A where_pct: 15.8000+-8.4009: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success_pct: -94.2000+-1.7176: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+single_object (K=1 objects, N_DEMO=40 demos, colour swap in grounding corpus: no; 200 test scenes per seed):
+  A_direct success_pct 95.5000+-1.8371 where_pct 100.0000+-0.0000 known_pairs 23.0000+-2.7386
+  B_where_how success_pct 95.5000+-1.8371 where_pct 100.0000+-0.0000 known_pairs 30.0000+-0.0000
+  C_shuffled success_pct 0.6000+-0.2236 where_pct 0.8000+-0.4472 known_pairs 30.0000+-0.0000
+  paired B-A success_pct: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A where_pct: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B success_pct: -94.9000+-2.0433: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+many_demos (K=8 objects, N_DEMO=400 demos, colour swap in grounding corpus: no; 200 test scenes per seed):
+  A_direct success_pct 95.2000+-1.9235 where_pct 100.0000+-0.0000 known_pairs 30.0000+-0.0000
+  B_where_how success_pct 95.2000+-1.9235 where_pct 100.0000+-0.0000 known_pairs 30.0000+-0.0000
+  C_shuffled success_pct 0.7000+-0.4472 where_pct 0.6000+-0.4183 known_pairs 30.0000+-0.0000
+  paired B-A success_pct: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A where_pct: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B success_pct: -94.5000+-2.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+camera_shift (K=8 objects, N_DEMO=400 demos, colour swap in grounding corpus: yes; 200 test scenes per seed):
+  A_direct success_pct 95.3000+-1.7536 where_pct 100.0000+-0.0000 known_pairs 30.0000+-0.0000
+  B_where_how success_pct 71.5000+-3.8243 where_pct 75.2000+-4.4244 known_pairs 30.0000+-0.0000
+  C_shuffled success_pct 1.1000+-0.4183 where_pct 1.2000+-0.4472 known_pairs 30.0000+-0.0000
+  paired B-A success_pct: -23.8000+-4.4385: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A where_pct: -24.8000+-4.4244: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success_pct: -70.4000+-3.9592: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative G_ITEMS=60 on cluttered (same seeds):
+  B_where_how success_pct@alt 92.4000+-3.9433 known_pairs@alt 28.8000+-1.3038 (default success_pct 94.9000+-1.6355)
+  paired B-A success_pct@alt: 12.1000+-7.0480: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative G_ITEMS=60 on camera_shift (same seeds):
+  B_where_how success_pct@alt 74.2000+-2.7973 known_pairs@alt 30.0000+-0.0000 (default success_pct 71.5000+-3.8243)
+  paired B-A success_pct@alt: -21.1000+-3.6125: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: grounding helps when clutter makes 'which object' the hard part and demonstrations are few; with one object or plenty of demonstrations it adds little, and a grounding corpus that disagrees with the robot camera can hurt
+InternVLA-M1 weights / SimplerEnv / LIBERO / real robot: 本页未运行; paper numbers 以论文为准

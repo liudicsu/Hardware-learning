@@ -43,3 +43,9 @@ MolmoAct 式动作推理（arXiv 2508.07917 式 3–5）：深度感知词元 �
 ```bash
 python3 molmoact_reasoning_trace_toy.py
 ```
+
+`internvla_m1_spatial_prompt_toy.py` — InternVLA-M1-style "where, then how" (arXiv 2510.13778): a grounding stage trained on a toy grounding corpus picks the named object, then the same reach stage acts; compared with a direct head that learns grounding only from demonstrations and with a shuffled spatial prompt. Four regimes (cluttered, single object, many demonstrations, a grounding corpus that swaps two colour words), 5 seeds, common random numbers; no integration step. Checked by `examples/month-6/check.sh`. InternVLA-M1 weights, SimplerEnv, LIBERO and GPU: 本页未运行; paper numbers 以论文为准. Not SpatialVLA, Magma, HAMSTER or MolmoAct. / InternVLA-M1 式「先定位、再动作」：玩具定位语料训练的定位阶段先选出被点名的物体，再用同一个到达阶段执行；与只从示范学定位的直接动作头、以及打乱的空间提示比较。四种情形，5 个种子，共用随机数。
+
+```bash
+python3 internvla_m1_spatial_prompt_toy.py
+```

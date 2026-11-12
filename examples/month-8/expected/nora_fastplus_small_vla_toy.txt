@@ -1,0 +1,35 @@
+Synthetic NORA-style small-VLA + FAST-style token toy (arXiv 2504.19854); shared chunks; not the NORA checkpoint
+seeds=5 D=7 N_EP=200 BINS=256 GAMMA=10.0 P_LARGE=7.0 P_SMALL=3.0 TOL=0.060 VOCAB=64 (toy values; BPE not modelled)
+No integration step: chunks are scored, not simulated; no time-step criterion
+Regimes and parameters were written before the first run
+hand_calc A tokens: one per joint per step, D*H = 7*10 = 70 (H=10) and 7*30 = 210 (H=30)
+hand_calc A bin error: bin width 2/256 = 0.007812, at most half a bin = 0.003906
+hand_calc rounding RMS per coefficient (uniform error): 1/(GAMMA*sqrt(12)) = 0.028868
+hand_calc cost ratio at equal tokens: P_SMALL/P_LARGE = 0.4286
+success_rule: success iff chunk RMSE < TOL (strict); rmse 0.0600 -> success 0; rmse 0.0599 -> success 1
+short_in_dist (H=10 steps, SIG_LARGE=0.030, SIG_SMALL=0.030; 200 chunks per seed):
+  A_large_bins success_pct 100.0000+-0.0000 rmse 0.0299+-2.432e-04 tokens 70.0000+-0.0000 cost 490.0000+-0.0000
+  B_small_fast success_pct 100.0000+-0.0000 rmse 0.0375+-4.127e-04 tokens 30.2630+-0.2105 cost 90.7890+-0.6314
+  C_shuffled success_pct 0.0000+-0.0000 rmse 2.5090+-0.2635 tokens 30.2630+-0.2105 cost 90.7890+-0.6314
+  paired B-A success_pct: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A tokens: -39.7370+-0.2105: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A cost: -399.2110+-0.6314: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success_pct: -100.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+long_horizon (H=30 steps, SIG_LARGE=0.040, SIG_SMALL=0.055; 200 chunks per seed):
+  A_large_bins success_pct 100.0000+-0.0000 rmse 0.0400+-1.913e-04 tokens 210.0000+-0.0000 cost 1470.0000+-0.0000
+  B_small_fast success_pct 27.1000+-1.7819 rmse 0.0617+-2.363e-04 tokens 95.2160+-0.7102 cost 285.6480+-2.1307
+  C_shuffled success_pct 0.0000+-0.0000 rmse 1.8226+-0.5617 tokens 95.2160+-0.7102 cost 285.6480+-2.1307
+  paired B-A success_pct: -72.9000+-1.7819: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A tokens: -114.7840+-0.7102: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A cost: -1184.3520+-2.1307: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success_pct: -27.1000+-1.7819: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative GAMMA=20.0 on short_in_dist (same seeds):
+  B_small_fast success_pct@alt 100.0000+-0.0000 tokens@alt 45.4870+-0.2654 (default success_pct 100.0000+-0.0000)
+  paired B-A success_pct@alt: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A cost@alt: -353.5390+-0.7962: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative GAMMA=20.0 on long_horizon (same seeds):
+  B_small_fast success_pct@alt 89.8000+-2.1966 tokens@alt 147.0000+-0.5566 (default success_pct 27.1000+-1.7819)
+  paired B-A success_pct@alt: -10.2000+-2.1966: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A cost@alt: -1029.0000+-1.6697: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: fewer parameters and fewer action tokens cut the decode-cost proxy on every chunk, but success depends on whether the small backbone fits the task, and a decoder with the wrong codebook fails
+NORA checkpoint / LIBERO / WidowX / GPU: 本页未运行; paper numbers 以论文为准
