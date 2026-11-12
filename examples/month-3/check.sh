@@ -80,4 +80,5 @@ check notch_vs_lead_resonant_toy.txt python3 "$M3/pid-control/notch_vs_lead_reso
 check pid_setpoint_weighting_2dof_toy.txt python3 "$M3/pid-control/pid_setpoint_weighting_2dof_toy.py"
 check interference_press_fit_toy.txt python3 "$M3/cad-parametric/interference_press_fit_toy.py"
 check form_closure_frictionless_toy.txt python3 "$M3/gripper-fingers/form_closure_frictionless_toy.py"
+check leadscrew_self_locking_toy.txt python3 "$M3/transmissions/leadscrew_self_locking_toy.py"
 exit $fail
