@@ -1,0 +1,31 @@
+Synthetic superposition toy; shared two-source linear net; not Thevenin, not Wheatstone, not a rectifier
+VS1=5.0 V VS2=3.0 V R1=1000ohm R2=2000ohm R3=4000ohm VF=0.7 V RF=2000ohm
+seeds=5 boards=32 meter_sigma=0.001 V alt_sigma=0.01 V
+no integration step: DC nodal KCL, closed form on the linear net, bisection on the one-node nonlinear residual
+linear_hand V_joint=3.7142857143 V (hand 26/7 V) V_s1_only=2.8571428571 V (hand 20/7 V) V_s2_only=0.8571428571 V (hand 6/7 V)
+linear_hand V_sum=3.7142857143 V residual_A-B=0.000e+00 V I_R1=0.0012857143 A I_R2=0.0003571429 A I_R3=0.0009285714 A
+KCL check I_R1-I_R2-I_R3=-1.084e-19 A
+nonlinear_hand V_joint=3.4250000000 V V_s1_only=2.6750000000 V V_s2_only=0.9250000000 V V_sum=3.6000000000 V residual_B-A=0.1750000000 V
+linear_noiseless (linear resistors, no meter noise)
+  A_joint 3.7143+-0.0000 V
+  B_super 3.7143+-0.0000 V
+  residual B-A 0.0000+-0.0000 V
+  paired A-B nodeV: 0.0000+-0.0000: tie: identical on every seed
+  paired residual B-A vs 0: 0.0000+-0.0000: tie: identical on every seed
+linear_meter (linear resistors, meter noise N(0, 0.001 V))
+  A_joint 3.7143+-0.0002 V
+  B_super 3.7144+-0.0003 V
+  residual B-A 0.0001+-0.0003 V
+  paired A-B nodeV: -0.0001+-0.0003: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired residual B-A vs 0: 0.0001+-0.0003: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+nonlinear_diode (series ideal diode + Rf, VF=0.7 V RF=2000ohm)
+  A_joint 3.4250+-0.0000 V
+  B_super 3.6000+-0.0000 V
+  residual B-A 0.1750+-0.0000 V
+  paired A-B nodeV: -0.1750+-0.0000: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired residual B-A vs 0: 0.1750+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative linear_meter sigma=0.01 V (same seeds, same board indices, rescaled draws)
+  paired A-B nodeV: -0.0010+-0.0026: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+alternative nonlinear Rf=1000ohm V_joint=2.8800000000 V V_sum=3.1600000000 V residual_B-A=0.2800000000 V
+No winner declared: superposition matches the joint solve on a linear net and fails once a diode is in the branch
+Real breadboard / DMM: 本页未运行; Wikipedia Superposition principle 以原文为准

@@ -648,6 +648,447 @@ ok: embodiment gap + limits + scaled variant; IK better on RMSE; joint_copy keep
 
 摩擦与鳍条几何是夹持力学；接触传感（GelSight / DIGIT 光学、AnySkin 磁传感）见 [11.3 触觉传感](/zh/month/month-11/tactile-sensing)，本课不要求新购传感器。
 
+## 无摩擦的形状封闭
+
+本页开头的夹紧力公式讲的是摩擦。**形状封闭**（form-closure）是另一种性质：接触阻止物体的一切运动，包括无穷小运动，所以物体要动就必然碰到手。一份入门讲义把间隙函数检验写成 `ψ(u + du, q) ≥ 0 ⇒ du = 0`，并指出该定义**不依赖摩擦**（无摩擦抓取）。每个形状封闭抓取同时也是力封闭，**反之不然**（Carpin、Liu、Falco、Van Wyk，arXiv 1607.06620，§2.5；以论文为准）。一份综述把形状封闭当作抓取封闭的无摩擦情形，并写到 2-D 多边形至少需要 **4** 个无摩擦扳手，3-D多边形至少需要 **7** 个接触点（Zhang、Tang、Sun、Lan，arXiv 2202.03631，定义 1 及随后段落；以论文为准）。这一节**不是**感知到抓取课上 Ferrari–Canny ε / 对跖力封闭玩具的重做，**不是**指尖材料，也**不是**过盈配合。
+
+<Resource id="grasp-primer-carpin" />
+<Resource id="grasp-survey-zhang" />
+
+**实际打开过的来源（已读 PDF / 摘要正文）。**
+
+- **Carpin、Liu、Falco、Van Wyk，《Multi-Fingered Robotic Grasping: A Primer》，arXiv 1607.06620，§2.5:** 形状封闭与力封闭、间隙函数与式 (2)、「不依赖摩擦」，以及 Somov 关于3-D中至少七个接触点的必要计数（必要但不充分）。以论文为准。
+- **Zhang、Tang、Sun、Lan，《Robotic Grasping from Classical to Modern: A Survey》，arXiv 2202.03631:** 定义 1（无摩擦接触对应形状封闭，有摩擦接触对应力封闭）以及上面的2-D / 3-D计数。以论文为准。
+
+7 个接触点的3-D计数是论文数字，**不是**这个平面模型测出来的。
+
+### 公平设置
+
+`form_closure_frictionless_toy.py` 是**合成**模型，只用标准库。**模型假设:** 半宽为 `1` 的刚体正方形，一阶刚性点接触，只有在需要力封闭标志时才使用库仑摩擦。每个无摩擦扳手是带内法向的 `(fx, fy, px fy − py fx)`；若存在某个 `t ≠ 0` 使所有 `w_i · t ≥ 0`，就存在一阶逃逸旋量 `t`。力封闭使用每个接触的两条摩擦锥边扳手。正方形边中点处 `r` 与法向平行，一阶力矩为零，纯转动看起来像逃逸 — 这个布置先试过再放弃，模型仍把它作为已披露的替代打印出来。因此四个形状封闭接触在首次运行前就从边中点做了循环偏置（`s = 0.75, 0.75, 0.75, 0.25`）。
+
+| 臂 | 共享正方形上的接触 |
+|---|---|
+| A_three | 三个循环偏置接触（右、上、左）— 在 `μ = 0` 时欠约束 |
+| B_four | 四边各一个循环偏置接触 — 在 `μ = 0` 时形状封闭 |
+| C_two_finger | 左右两边中点的两个接触 — 大 `μ` 下可以力封闭，但不是形状封闭 |
+| B_aligned（失败格子） | 只在左右两边放四个接触，法向全是水平的 — 4 是必要但非充分 |
+
+**公共随机数:** 五个种子。接触参数在标称值附近抖动 `±0.15`；每个种子上先抽 B 的四个、再抽 C 的两个，只改 `μ` 时复用同一组接触（`mu0_form` 与 `large_mu_force` 共享接触）。**没有积分步长**（一阶代数扳手检验，没有时间离散）。指标是 `μ = 0` 时的形状封闭 0/1 标志，以及该情形 `μ` 下的力封闭标志，对种子报均值±标准差。真实夹爪：本页未运行。
+
+**预先声明的情形:** 在 `μ = 0` 时，B 相对 A 和 C 应**稳定地**卡住；在大 `μ`（`μ = 1`）时，两指臂 C 在*力*封闭上可能与 A 甚至 B **打平**，但 C 仍然不是形状封闭 — 这格要保留；一个 4-contact 法向对齐的接触集应在形状封闭上**稳定地输**。
+
+### 运行标准库模型
+
+```bash
+cd ~/Hardware-learning/examples/month-3/gripper-fingers
+python3 form_closure_frictionless_toy.py
+```
+
+<CodeSource path="examples/month-3/gripper-fingers/form_closure_frictionless_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic first-order form-closure vs force-closure on a shared 2-D square.
+
+Stdlib only. The object is a square of half-width 1 centred at the origin.
+Frictionless contact wrenches are w = (nx, ny, px*ny - py*nx) with inward
+normals. A first-order escape twist t exists iff some t != 0 has w_i · t >= 0
+for every wrench (the gap-function test psi(u+du, q) >= 0 not implying du = 0).
+Force-closure uses the two Coulomb cone-edge wrenches at each contact.
+
+Arms (shared polygon; contact jitter along the edges is shared):
+  A_three       3 contacts (right, top, left) — under-constrained at mu=0
+  B_four        4 edge contacts, cyclically offset from the mid-points — form-closing at mu=0
+  C_two_finger  2 antipodal contacts (left, right) — force-closure with mu>0,
+                not form-closure (escapes at mu=0)
+
+Regimes (declared before the first run):
+  mu0_form         mu=0; B immobilizes, A and C escape  -> B consistent win
+  large_mu_force   mu=1; C may tie A/B on force-closure; form-closure still fails for C
+  aligned_normals  4 contacts on only the left and right edges (aligned normals);
+                   4 is necessary, not sufficient -> this 4-contact set loses form-closure
+
+Common random numbers: per-seed edge fractions are drawn once and reused by
+every arm on that seed. Seeds 0-4.
+
+No integration step: first-order algebraic wrench test, no time discretisation.
+Not the Ferrari-Canny epsilon / antipodal force-closure toy on perception-to-grasp.
+Not fingertip material, not a press-fit. Real gripper: 本页未运行.
+Paper contact counts 以论文为准 (Carpin, Liu, Falco, Van Wyk, arXiv 1607.06620 §2.5;
+Zhang, Tang, Sun, Lan, arXiv 2202.03631 Def. 1).
+"""
+from __future__ import annotations
+
+import math
+import random
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+HALF = 1.0
+JITTER = 0.15  # fraction units about the nominal edge parameter
+JITTER_ALT = 0.05
+MU = 1.0
+MU_ALT = 0.2
+EPS = 1e-12
+ARMS = ("A_three", "B_four", "C_two_finger")
+# written before the first run
+REGIMES = ("mu0_form", "large_mu_force", "aligned_normals")
+STREAM = {"layout_abc": 0, "aligned_normals": 1, "jitter_alt": 2, "mid_edge_posthoc": 3}
+# mu0_form and large_mu_force share layout_abc so only mu changes
+# paper counts, not measured by this planar toy
+PAPER_MIN_2D = 4
+PAPER_MIN_3D = 7
+
+# edge name -> (origin_point, tangent, inward normal, length)
+# parameter s in [0, 1] runs along the tangent; s=0.5 is the midpoint.
+EDGES = {
+    "right":  ((HALF, -HALF), (0.0, 2.0 * HALF), (-1.0, 0.0)),
+    "top":    ((-HALF, HALF), (2.0 * HALF, 0.0), (0.0, -1.0)),
+    "left":   ((-HALF, HALF), (0.0, -2.0 * HALF), (1.0, 0.0)),
+    "bottom": ((-HALF, -HALF), (2.0 * HALF, 0.0), (0.0, 1.0)),
+}
+
+
+def contact(edge: str, s: float) -> tuple[tuple[float, float], tuple[float, float]]:
+    (ox, oy), (tx, ty), n = EDGES[edge]
+    return (ox + s * tx, oy + s * ty), n
+
+
+def wrench(p: tuple[float, float], fxy: tuple[float, float]) -> tuple[float, float, float]:
+    fx, fy = fxy
+    px, py = p
+    return (fx, fy, px * fy - py * fx)
+
+
+def frictionless_wrenches(contacts: list[tuple[tuple[float, float], tuple[float, float]]]):
+    return [wrench(p, n) for p, n in contacts]
+
+
+def cone_wrenches(contacts, mu: float):
+    out = []
+    for p, n in contacts:
+        nx, ny = n
+        # tangent: rotate the inward normal 90 deg
+        tx, ty = -ny, nx
+        if mu == 0.0:
+            out.append(wrench(p, n))
+        else:
+            out.append(wrench(p, (nx + mu * tx, ny + mu * ty)))
+            out.append(wrench(p, (nx - mu * tx, ny - mu * ty)))
+    return out
+
+
+def cross(a, b):
+    return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
+
+
+def dot(a, b):
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+
+
+def norm(a):
+    return math.sqrt(dot(a, a))
+
+
+def escape_twist(wrenches, eps: float = EPS):
+    """Return a unit first-order escape twist, or None if the cone is {0}."""
+    n = len(wrenches)
+    if n == 0:
+        return (1.0, 0.0, 0.0)
+    # Rank-deficient: a direction orthogonal to span(w_i) has all gap rates 0.
+    # Build an orthonormal basis of the span via Gram-Schmidt, then take a
+    # complement if the span is not all of R^3.
+    basis = []
+    for w in wrenches:
+        v = list(w)
+        for b in basis:
+            s = dot(v, b)
+            v = [v[k] - s * b[k] for k in range(3)]
+        nv = norm(v)
+        if nv > eps:
+            basis.append(tuple(x / nv for x in v))
+    if len(basis) < 3:
+        # a complement vector
+        for e in ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)):
+            v = list(e)
+            for b in basis:
+                s = dot(v, b)
+                v = [v[k] - s * b[k] for k in range(3)]
+            nv = norm(v)
+            if nv > eps:
+                return tuple(x / nv for x in v)
+    # Extreme rays of {t | W t >= 0} lie in intersections of two planes w_i·t=0.
+    for i in range(n):
+        for j in range(i + 1, n):
+            t = cross(wrenches[i], wrenches[j])
+            nt = norm(t)
+            if nt < eps:
+                continue
+            t = tuple(x / nt for x in t)
+            for sign in (1.0, -1.0):
+                ts = tuple(sign * x for x in t)
+                if all(dot(w, ts) >= -eps for w in wrenches):
+                    return ts
+    return None
+
+
+def is_closed(wrenches) -> float:
+    return 0.0 if escape_twist(wrenches) is not None else 1.0
+
+
+def mean_sd(xs: list[float]) -> tuple[float, float]:
+    mu = sum(xs) / len(xs)
+    if len(xs) == 1:
+        return mu, 0.0
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x: float) -> str:
+    if x != 0.0 and abs(x) < 5e-5:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs: list[float], m: float) -> str:
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def verdict(xa: list[float], xb: list[float]) -> str:
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{num(m)}+-{num(s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{num(m)}+-{num(s)}: {label}; {sign_note(diffs, m)}"
+
+
+# Cyclic offset from mid-edge: mid-edge contacts on a square have r || n, so
+# the first-order moment is zero and a pure rotation is an "escape". Offsets
+# are written before the first run; jitter stays on the same side of mid-edge.
+NOMINAL_B = (("right", 0.75), ("top", 0.75), ("left", 0.75), ("bottom", 0.25))
+NOMINAL_C = (("left", 0.50), ("right", 0.50))
+NOMINAL_ALIGNED = (("left", 0.30), ("left", 0.70), ("right", 0.30), ("right", 0.70))
+
+
+def jittered_s(rng: random.Random, nominal: float, jitter: float) -> float:
+    u = rng.uniform(-1.0, 1.0)
+    s = nominal + jitter * u
+    return min(0.95, max(0.05, s))
+
+
+def layout(spec, rng: random.Random, jitter: float):
+    return [contact(edge, jittered_s(rng, s0, jitter)) for edge, s0 in spec]
+
+
+def stream_key(regime: str) -> str:
+    if regime == "aligned_normals":
+        return "aligned_normals"
+    return "layout_abc"
+
+
+def shared_contacts(regime: str, seed: int, jitter: float) -> dict[str, list]:
+    rng = random.Random(1000 * STREAM[stream_key(regime)] + seed)
+    if regime == "aligned_normals":
+        four = layout(NOMINAL_ALIGNED, rng, jitter)
+        return {"B_aligned": four, "A_three": four[:3], "B_four": four, "C_two_finger": four[:2]}
+    # One pool of jittered parameters, reused by every arm (common random numbers).
+    four = layout(NOMINAL_B, rng, jitter)
+    # C is a two-finger mid-edge grasp. Its two jitter draws are taken from the
+    # same RNG after the four B draws so C does not steal B's offsets. A uses
+    # B's first three contacts (under-constrained).
+    two = layout(NOMINAL_C, rng, jitter)
+    return {
+        "A_three": four[:3],
+        "B_four": four,
+        "C_two_finger": two,
+    }
+
+
+def evaluate(contacts, mu: float) -> dict[str, float]:
+    form = is_closed(frictionless_wrenches(contacts))
+    force = is_closed(cone_wrenches(contacts, mu))
+    return {"form": form, "force": force, "n": float(len(contacts))}
+
+
+def seed_rows(regime: str, mu: float, jitter: float) -> dict[str, list[dict[str, float]]]:
+    rows = {arm: [] for arm in list(ARMS) + (["B_aligned"] if regime == "aligned_normals" else [])}
+    for seed in SEEDS:
+        cons = shared_contacts(regime, seed, jitter)
+        for arm in rows:
+            rows[arm].append(evaluate(cons[arm], mu))
+    return rows
+
+
+def col(rows: list[dict[str, float]], key: str) -> list[float]:
+    return [r[key] for r in rows]
+
+
+def main() -> None:
+    print("Synthetic form-closure toy on a shared 2-D square; first-order gap test; not Ferrari-Canny epsilon, not a press-fit")
+    print(f"half_width={HALF} jitter={JITTER} alt_jitter={JITTER_ALT} mu={MU} alt_mu={MU_ALT} seeds={len(SEEDS)}")
+    print("no integration step: first-order algebraic wrench test (escape twist or none); no time discretisation")
+    print(f"paper_min_frictionless_wrenches_2d_polygon={PAPER_MIN_2D} (Zhang, Tang, Sun, Lan, arXiv 2202.03631; 以论文为准)")
+    print(f"paper_min_contact_points_3d={PAPER_MIN_3D} (Somov as stated by Carpin, Liu, Falco, Van Wyk, arXiv 1607.06620 §2.5; Zhang et al. for 3-D polygons; 以论文为准, not measured on this planar toy)")
+
+    # Nominal (no jitter) witness, seed-independent, printed for the prose
+    nom = {
+        "A_three": [contact(e, s) for e, s in NOMINAL_B[:3]],
+        "B_four": [contact(e, s) for e, s in NOMINAL_B],
+        "C_two_finger": [contact(e, s) for e, s in NOMINAL_C],
+        "B_aligned": [contact(e, s) for e, s in NOMINAL_ALIGNED],
+    }
+    for name, cons in nom.items():
+        esc0 = escape_twist(frictionless_wrenches(cons))
+        form0 = 0.0 if esc0 is not None else 1.0
+        force1 = is_closed(cone_wrenches(cons, MU))
+        esc_s = "none" if esc0 is None else f"({esc0[0]:+.4f}, {esc0[1]:+.4f}, {esc0[2]:+.4f})"
+        print(f"nominal {name} n={len(cons)} form_mu0={form0:.0f} force_mu{MU:g}={force1:.0f} escape_mu0={esc_s}")
+
+    for regime in REGIMES:
+        mu = 0.0 if regime == "mu0_form" else MU
+        tag = { "mu0_form": "mu=0, form-closure test",
+                "large_mu_force": f"mu={MU}, force-closure test (form still at mu=0 on the same contacts)",
+                "aligned_normals": "4 contacts on two opposite sides, aligned normals, mu=0" }[regime]
+        print(f"{regime} ({tag})")
+        rows = seed_rows(regime, mu, JITTER)
+        form0_rows = seed_rows(regime, 0.0, JITTER)  # form-closure is always the mu=0 test
+        arms_here = ["B_aligned"] if regime == "aligned_normals" else list(ARMS)
+        if regime == "aligned_normals":
+            # also show A/C slices? keep B_aligned as the declared fail cell
+            for arm in ("B_aligned",):
+                fcol, qcol = col(form0_rows[arm], "form"), col(rows[arm], "force")
+                print(f"  {arm} form_mu0 {num(mean_sd(fcol)[0])}+-{num(mean_sd(fcol)[1])} force_mu{mu:g} {num(mean_sd(qcol)[0])}+-{num(mean_sd(qcol)[1])}")
+            # Compare aligned 4-contact vs a proper 4-contact set on the same seeds
+            proper = seed_rows("mu0_form", 0.0, JITTER)
+            print(f"  paired B_four-B_aligned form_mu0: {verdict(col(proper['B_four'], 'form'), col(form0_rows['B_aligned'], 'form'))}")
+        else:
+            for arm in ARMS:
+                fcol, qcol = col(form0_rows[arm], "form"), col(rows[arm], "force")
+                print(f"  {arm} form_mu0 {num(mean_sd(fcol)[0])}+-{num(mean_sd(fcol)[1])} force_at_regime_mu {num(mean_sd(qcol)[0])}+-{num(mean_sd(qcol)[1])}")
+            print(f"  paired B-A form_mu0: {verdict(col(form0_rows['B_four'], 'form'), col(form0_rows['A_three'], 'form'))}")
+            print(f"  paired B-C form_mu0: {verdict(col(form0_rows['B_four'], 'form'), col(form0_rows['C_two_finger'], 'form'))}")
+            print(f"  paired C-A force_at_regime_mu: {verdict(col(rows['C_two_finger'], 'force'), col(rows['A_three'], 'force'))}")
+            print(f"  paired C-B force_at_regime_mu: {verdict(col(rows['C_two_finger'], 'force'), col(rows['B_four'], 'force'))}")
+
+    # Alternatives on the same mu0 / large_mu streams
+    rows_j = seed_rows("mu0_form", 0.0, JITTER_ALT)
+    print(f"alternative jitter={JITTER_ALT} on mu0_form (same seed keys, narrower edge draws)")
+    print(f"  paired B-A form_mu0: {verdict(col(rows_j['B_four'], 'form'), col(rows_j['A_three'], 'form'))}")
+    rows_m = seed_rows("large_mu_force", MU_ALT, JITTER)
+    form_m = seed_rows("large_mu_force", 0.0, JITTER)
+    print(f"alternative mu={MU_ALT} on large_mu_force (same contacts as mu={MU})")
+    for arm in ARMS:
+        print(f"  {arm} force {num(mean_sd(col(rows_m[arm], 'force'))[0])}+-{num(mean_sd(col(rows_m[arm], 'force'))[1])}")
+    print(f"  paired C-A force: {verdict(col(rows_m['C_two_finger'], 'force'), col(rows_m['A_three'], 'force'))}")
+    print(f"  paired C-B force: {verdict(col(rows_m['C_two_finger'], 'force'), col(rows_m['B_four'], 'force'))}")
+    print(f"  paired B-C form_mu0 (unchanged by mu): {verdict(col(form_m['B_four'], 'form'), col(form_m['C_two_finger'], 'form'))}")
+
+    # Mid-edge 4-contact layout (tried first; first-order moments vanish; disclosed)
+    mid_spec = (("right", 0.50), ("top", 0.50), ("left", 0.50), ("bottom", 0.50))
+    mid_nom = [contact(e, s) for e, s in mid_spec]
+    esc_mid = escape_twist(frictionless_wrenches(mid_nom))
+    esc_s = "none" if esc_mid is None else f"({esc_mid[0]:+.4f}, {esc_mid[1]:+.4f}, {esc_mid[2]:+.4f})"
+    print(f"alternative four mid-edge contacts (tried first; first-order moments vanish; disclosed) nominal form_mu0={is_closed(frictionless_wrenches(mid_nom)):.0f} escape_mu0={esc_s}")
+    b_forms = col(seed_rows("mu0_form", 0.0, JITTER)["B_four"], "form")
+    mid_forms = []
+    for seed in SEEDS:
+        rng = random.Random(1000 * STREAM["mid_edge_posthoc"] + seed)
+        mid = [contact(edge, jittered_s(rng, 0.50, JITTER)) for edge, _ in mid_spec]
+        mid_forms.append(is_closed(frictionless_wrenches(mid)))
+    print(f"  jittered mid-edge form_mu0 {num(mean_sd(mid_forms)[0])}+-{num(mean_sd(mid_forms)[1])}")
+    print(f"  paired B_four-mid_edge form_mu0: {verdict(b_forms, mid_forms)}")
+    print("No winner declared: four well-placed frictionless contacts immobilize the square; two frictional fingers can be force-closure without being form-closure; four aligned normals are not enough")
+    print("Real gripper: 本页未运行; contact counts 以论文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic form-closure toy on a shared 2-D square; first-order gap test; not Ferrari-Canny epsilon, not a press-fit
+half_width=1.0 jitter=0.15 alt_jitter=0.05 mu=1.0 alt_mu=0.2 seeds=5
+no integration step: first-order algebraic wrench test (escape twist or none); no time discretisation
+paper_min_frictionless_wrenches_2d_polygon=4 (Zhang, Tang, Sun, Lan, arXiv 2202.03631; 以论文为准)
+paper_min_contact_points_3d=7 (Somov as stated by Carpin, Liu, Falco, Van Wyk, arXiv 1607.06620 §2.5; Zhang et al. for 3-D polygons; 以论文为准, not measured on this planar toy)
+nominal A_three n=3 form_mu0=0 force_mu1=1 escape_mu0=(+0.4082, -0.4082, +0.8165)
+nominal B_four n=4 form_mu0=1 force_mu1=1 escape_mu0=none
+nominal C_two_finger n=2 form_mu0=0 force_mu1=1 escape_mu0=(+0.0000, +1.0000, +0.0000)
+nominal B_aligned n=4 form_mu0=0 force_mu1=1 escape_mu0=(+0.0000, +1.0000, +0.0000)
+mu0_form (mu=0, form-closure test)
+  A_three form_mu0 0.0000+-0.0000 force_at_regime_mu 0.0000+-0.0000
+  B_four form_mu0 1.0000+-0.0000 force_at_regime_mu 1.0000+-0.0000
+  C_two_finger form_mu0 0.0000+-0.0000 force_at_regime_mu 0.0000+-0.0000
+  paired B-A form_mu0: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C form_mu0: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A force_at_regime_mu: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B force_at_regime_mu: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+large_mu_force (mu=1.0, force-closure test (form still at mu=0 on the same contacts))
+  A_three form_mu0 0.0000+-0.0000 force_at_regime_mu 1.0000+-0.0000
+  B_four form_mu0 1.0000+-0.0000 force_at_regime_mu 1.0000+-0.0000
+  C_two_finger form_mu0 0.0000+-0.0000 force_at_regime_mu 1.0000+-0.0000
+  paired B-A form_mu0: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C form_mu0: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A force_at_regime_mu: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B force_at_regime_mu: 0.0000+-0.0000: tie: identical on every seed
+aligned_normals (4 contacts on two opposite sides, aligned normals, mu=0)
+  B_aligned form_mu0 0.0000+-0.0000 force_mu1 1.0000+-0.0000
+  paired B_four-B_aligned form_mu0: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative jitter=0.05 on mu0_form (same seed keys, narrower edge draws)
+  paired B-A form_mu0: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative mu=0.2 on large_mu_force (same contacts as mu=1.0)
+  A_three force 0.0000+-0.0000
+  B_four force 1.0000+-0.0000
+  C_two_finger force 1.0000+-0.0000
+  paired C-A force: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B force: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C form_mu0 (unchanged by mu): 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative four mid-edge contacts (tried first; first-order moments vanish; disclosed) nominal form_mu0=0 escape_mu0=(+0.0000, +0.0000, +1.0000)
+  jittered mid-edge form_mu0 0.6000+-0.5477
+  paired B_four-mid_edge form_mu0: 0.4000+-0.5477: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+No winner declared: four well-placed frictionless contacts immobilize the square; two frictional fingers can be force-closure without being form-closure; four aligned normals are not enough
+Real gripper: 本页未运行; contact counts 以论文为准
+```
+
+</SimOutput>
+
+### 读懂各情形
+
+模型还打印了论文计数 `paper_min_frictionless_wrenches_2d_polygon=4` 和 `paper_min_contact_points_3d=7`（以论文为准，不是这里测的）。零抖动的标称见证：A 的形状封闭为 `0`，逃逸是 `(+0.4082, -0.4082, +0.8165)`；B 的形状封闭为 `1`，逃逸是 `none`；C 的形状封闭为 `0`，竖直逃逸是 `(+0.0000, +1.0000, +0.0000)`；对齐的四点接触形状封闭也是 `0`，逃逸同样竖直。在 `μ = 1` 时，标称布置上 A、B、C 都是力封闭。
+
+- **mu0_form。** 加上边抖动后，B 的形状封闭是 `1.0000±0.0000`，A 和 C 是 `0.0000±0.0000`。成对的 B−A 与 B−C 都是 `1.0000±0.0000`:**明显差距，不是打平**（`|m| > sd`；5 个种子全部同号）。在 `μ = 0` 时力封闭与形状封闭重合，所以 C 与 A 在该标志上**打平**（`0.0000±0.0000: tie: identical on every seed`），C 明显落后于 B。
+- **large_mu_force。** 接触与 `mu0_form` 相同，只改 `μ`。形状封闭不变：B 仍以 `1.0000±0.0000` 领先 A 和 C，明显，5 个种子全部同号，C 仍然不是形状封闭。在 `μ = 1` 的力封闭上，A、B、C 都是 `1.0000±0.0000`。成对的 C−A 与 C−B 都是 `0.0000±0.0000: tie: identical on every seed`。这格要保留：两指摩擦抓取可以是力封闭，却不必是形状封闭。
+- **aligned_normals。** 只在两条竖边上放四个接触，每个种子的形状封闭都是 `0.0000±0.0000`（法向全是水平的，竖直平移是一阶逃逸）。与正当的四点 B 成对比较，`B_four − B_aligned` 是 `1.0000±0.0000`:**明显差距，不是打平**（5 个种子全部同号）。四个接触是必要的，但不是充分的。
+
+**事后替代，同一组种子。** 把抖动收到 `0.05`，B−A 的形状封闭仍是 `1.0000±0.0000`，还是明显差距，5 个种子全部同号。在同一组大 `μ` 接触上把 `μ` 降到 `0.2` 则不同：C 仍然力封闭 `1.0000±0.0000`，并仍与 B **打平**，但 A 的力封闭掉到 `0.0000±0.0000`，于是 C−A 变成**明显的** `1.0000±0.0000`（5 个种子全部同号）。形状封闭不变。最先试过的边中点四接触，标称形状封闭为 `0`，逃逸是 `(+0.0000, +0.0000, +1.0000)`（纯转动）。在中点附近抖动后，形状封闭达到 `0.8000±0.4472`（5 个种子里有 4 个锁住）；与偏置的 B 成对比较，差距是 `0.2000±0.4472`，属于**接近打平**（没有种子反号，5 个里有 4 个相等）。保留偏置布置，是因为标称一阶退化，不是因为拿抖动后的中点得分去挑选赢家。
+
+不宣布普遍赢家：四个位置得当的无摩擦接触能卡住正方形；两根有摩擦的手指可以力封闭却不必形状封闭；四个对齐法向还不够。
+
+### 练习
+
+1. 为什么正方形边中点接触会让一阶力矩消失？在 `(1, 0)`、法向 `(-1, 0)` 处计算 `px fy − py fx`。
+2. 根据 C 打印的标称逃逸 `(0, 1, 0)`，用一句话说明为什么两根相对的无摩擦手指不能给出形状封闭。
+3. 综述里的2-D计数是至少 4 个无摩擦扳手（以论文为准）。对齐法向那一格怎样说明 4 是必要但非充分？
+4. 在 `μ = 1` 时，C 在力封闭上与 A、B **打平**，却仍然不是形状封闭。保留这格是为了分清什么？
+5. 3-D 7 个接触点的计数是作为论文数字打印的，这里没有测量。它从哪里来？对真实夹爪来说，本页未运行是什么意思？
+
+**180 分钟安排:** 30 分钟读入门讲义 §2.5 和综述定义 1，包括 4 与 7 的计数；40 分钟画出正方形、四个偏置接触和一阶间隙检验；40 分钟运行模型、读懂三种情形；40 分钟把边中点替代和 `μ = 0.2` 替代与打印数字对照；30 分钟写下形状封闭与本页开头有摩擦夹紧、以及 Ferrari–Canny ε 那课有何不同。
+
 <Summary>
 
 **本课要点**
@@ -660,6 +1101,7 @@ ok: embodiment gap + limits + scaled variant; IK better on RMSE; joint_copy keep
 - 安装几何从 SO-101 的 STEP 文件取，不要用 STL；装手指之前先检查夹爪能否完全闭合、张开宽度够不够。
 - 每种物体、每套手指各抓 10 次；抬起 10 cm、保持 5 s、放下时不掉不损坏才算成功。
 - 课内多指玩具：4×3 = 12 DoF；LEAP Hand 论文为 16 DoF（以论文为准）。在杆长比、限位与缩放目标变体下比较指尖 IK 与关节拷贝；报告 RMSE、限位违反与 mean |Δq|——任一臂都不按构造必胜。
+- 形状封闭是无摩擦卡住（间隙检验 `ψ(u + du, q) ≥ 0 ⇒ du = 0`；以论文为准）。在共享正方形上，四个循环偏置接触在 `μ = 0` 时卡住（`form = 1.0000±0.0000`），三点接触和两指抓取都会逃逸（成对 B−A 与 B−C 均为 `1.0000±0.0000`，**明显**，5 个种子全部同号）；在 `μ = 1` 时两指抓取在力封闭上与另外两臂**打平**（每个种子都相同），但仍不是形状封闭；四个对齐法向接触的形状封闭为 `0.0000±0.0000`，尽管四个接触是必要的。论文计数：2-D至少 4 个无摩擦扳手，3-D至少 7 个接触点（以论文为准）。不是 Ferrari–Canny ε 玩具；真实夹爪本页未运行。
 
 **常见错误**
 

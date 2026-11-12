@@ -1,0 +1,42 @@
+Synthetic form-closure toy on a shared 2-D square; first-order gap test; not Ferrari-Canny epsilon, not a press-fit
+half_width=1.0 jitter=0.15 alt_jitter=0.05 mu=1.0 alt_mu=0.2 seeds=5
+no integration step: first-order algebraic wrench test (escape twist or none); no time discretisation
+paper_min_frictionless_wrenches_2d_polygon=4 (Zhang, Tang, Sun, Lan, arXiv 2202.03631; 以论文为准)
+paper_min_contact_points_3d=7 (Somov as stated by Carpin, Liu, Falco, Van Wyk, arXiv 1607.06620 §2.5; Zhang et al. for 3-D polygons; 以论文为准, not measured on this planar toy)
+nominal A_three n=3 form_mu0=0 force_mu1=1 escape_mu0=(+0.4082, -0.4082, +0.8165)
+nominal B_four n=4 form_mu0=1 force_mu1=1 escape_mu0=none
+nominal C_two_finger n=2 form_mu0=0 force_mu1=1 escape_mu0=(+0.0000, +1.0000, +0.0000)
+nominal B_aligned n=4 form_mu0=0 force_mu1=1 escape_mu0=(+0.0000, +1.0000, +0.0000)
+mu0_form (mu=0, form-closure test)
+  A_three form_mu0 0.0000+-0.0000 force_at_regime_mu 0.0000+-0.0000
+  B_four form_mu0 1.0000+-0.0000 force_at_regime_mu 1.0000+-0.0000
+  C_two_finger form_mu0 0.0000+-0.0000 force_at_regime_mu 0.0000+-0.0000
+  paired B-A form_mu0: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C form_mu0: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A force_at_regime_mu: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B force_at_regime_mu: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+large_mu_force (mu=1.0, force-closure test (form still at mu=0 on the same contacts))
+  A_three form_mu0 0.0000+-0.0000 force_at_regime_mu 1.0000+-0.0000
+  B_four form_mu0 1.0000+-0.0000 force_at_regime_mu 1.0000+-0.0000
+  C_two_finger form_mu0 0.0000+-0.0000 force_at_regime_mu 1.0000+-0.0000
+  paired B-A form_mu0: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C form_mu0: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A force_at_regime_mu: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B force_at_regime_mu: 0.0000+-0.0000: tie: identical on every seed
+aligned_normals (4 contacts on two opposite sides, aligned normals, mu=0)
+  B_aligned form_mu0 0.0000+-0.0000 force_mu1 1.0000+-0.0000
+  paired B_four-B_aligned form_mu0: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative jitter=0.05 on mu0_form (same seed keys, narrower edge draws)
+  paired B-A form_mu0: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative mu=0.2 on large_mu_force (same contacts as mu=1.0)
+  A_three force 0.0000+-0.0000
+  B_four force 1.0000+-0.0000
+  C_two_finger force 1.0000+-0.0000
+  paired C-A force: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B force: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C form_mu0 (unchanged by mu): 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative four mid-edge contacts (tried first; first-order moments vanish; disclosed) nominal form_mu0=0 escape_mu0=(+0.0000, +0.0000, +1.0000)
+  jittered mid-edge form_mu0 0.6000+-0.5477
+  paired B_four-mid_edge form_mu0: 0.4000+-0.5477: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+No winner declared: four well-placed frictionless contacts immobilize the square; two frictional fingers can be force-closure without being form-closure; four aligned normals are not enough
+Real gripper: 本页未运行; contact counts 以论文为准

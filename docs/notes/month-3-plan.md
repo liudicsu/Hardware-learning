@@ -1,6 +1,17 @@
 # Month 3 plan / 第 3 个月计划
 
-Current / 当前：**M3 2820 min**, Batch-17 PR1. Earlier entries below retain their historical totals.
+Current / 当前：**M3 3000 min**, Batch-18 PR1. Earlier entries below retain their historical totals.
+
+## Batch-18 PR1 — frictionless form-closure on gripper-fingers (+180)
+
+Base `8462424` (batch-17 closed incl. polish #172; site **34710**). PR1 on M3 host: **M3 2820→3000 (+180)**; M1 moves in the same PR on its own plan. Site **34710→35040**, still 71 lessons.
+
+**H2 / 3.6 gripper-fingers:** `gripper-fingers` 390→**570**. Carpin, Liu, Falco, Van Wyk, arXiv 1607.06620 §2.5 and Zhang, Tang, Sun, Lan, arXiv 2202.03631 Def. 1 (bodies read; counts 以论文为准: 2-D ≥4 frictionless wrenches, 3-D ≥7 contact points). Toy `form_closure_frictionless_toy.py`: shared 2-D square, first-order gap test, arms A three contacts / B four cyclically offset contacts / C two-finger frictional / aligned-normal fail cell; common random numbers, 5 seeds; no integration step. mu0_form B−A form `1.0000±0.0000` clear 5/5; large_mu_force C ties A and B on force-closure (identical on every seed) while C still fails form-closure; aligned_normals B_four−B_aligned form `1.0000±0.0000` clear 5/5. Mid-edge layout tried first and disclosed (nominal form 0, pure rotation). ≠ Ferrari–Canny ε; ≠ fingertip material; ≠ press-fit. Real gripper 本页未运行.
+
+**Allocation / 安排:** 30+40+40+40+30=180 minutes.
+
+**Site accounting / 全站核算:** **35040=34710+330** with M1 +150 on month-1-plan.md; **M3=3000**, **71 lessons**.
+
 
 ## Batch-17 PR1 — interference (press / shrink) fit on cad-parametric (+150)
 

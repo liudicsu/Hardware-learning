@@ -1,6 +1,17 @@
 # Month 1 plan / 第 1 个月计划
 
-Current / 当前：**M1 2100 min**, Batch-16 PR1. Earlier entries below retain their historical totals.
+Current / 当前：**M1 2250 min**, Batch-18 PR1. Earlier entries below retain their historical totals.
+
+## Batch-18 PR1 / 本月 H1 (+150)
+
+Base `8462424` (batch-17 closed incl. polish #172; site **34710**). PR1 on M1 host: **M1 2100→2250 (+150)**; M3 moves in the same PR on its own plan. Site **34710→35040**, still 71 lessons.
+
+- **H1 / 1.1 ohms-law: 240→390 (+150).** Superposition theorem vs a joint nodal solve vs a nonlinear element (`superposition_linear_circuit_toy.py`). Shared two-source linear net (`Vs1 = 5 V`, `R1 = 1000 Ω`, `Vs2 = 3 V`, `R2 = 2000 Ω`, `R3 = 4000 Ω`); arms A joint KCL / B sum of single-source responses / residual on a series diode + `Rf = 2000 Ω`. Common random numbers, 5 seeds (32 boards in the meter-noise regime). No integration step (DC nodal equation). linear_noiseless: A and B **tie** at `3.7142857143 V` (`26/7 V` by hand), identical on every seed; linear_meter (`σ = 0.001 V`): A−B **near-tie** `-0.0001±0.0003 V` (1 of 5 opposite sign); nonlinear_diode: residual vs 0 is `0.1750±0.0000 V`, **clear**, same sign on all 5 seeds. ≠ Thévenin; ≠ Wheatstone; ≠ rectifier. Real breadboard 本页未运行. / 叠加定理与非线性失效，不宣布面包板实验。
+
+**Allocation / 安排:** 30+30+40+30+20=150 minutes.
+
+**Site accounting / 全站核算:** **35040=34710+330** with M3 +180 on month-3-plan.md; **M1=2250**, **71 lessons**.
+
 
 ## Batch-16 PR1 / 本月 H1 (+150)
 

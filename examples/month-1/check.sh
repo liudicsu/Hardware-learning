@@ -72,4 +72,10 @@ if python3 "$M1/python-terminal/nyquist_aliasing_toy.py" > "$TMP/nyquist_aliasin
 else
   echo "DIFF  nyquist_aliasing_toy.txt"; fail=1
 fi
+
+if python3 "$M1/ohms-law/superposition_linear_circuit_toy.py" > "$TMP/superposition_linear_circuit_toy.txt" && diff -u "$M1/expected/superposition_linear_circuit_toy.txt" "$TMP/superposition_linear_circuit_toy.txt"; then
+  echo "same  superposition_linear_circuit_toy.txt"
+else
+  echo "DIFF  superposition_linear_circuit_toy.txt"; fail=1
+fi
 exit $fail
