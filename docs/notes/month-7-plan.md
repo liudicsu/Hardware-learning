@@ -1,6 +1,14 @@
 # Month 7 plan: Simulation, reinforcement learning & 3D perception
 
-Current / 当前：**M7 3510 min**, Batch-22 PR3. Earlier entries below retain their historical totals.
+Current / 当前：**M7 3690 min**, Batch-23 PR2. Earlier entries below retain their historical totals.
+
+## Batch-23 PR2 / 本月 H4 (+180)
+
+Base `5930053b6e4298a41f13906160965fd453365707` (batch-23 PR1 #193 merged; site **40500**). PR2 on M7 host: **M7 3510→3690 (+180)**; M4 moves in the same PR on its own plan. Site **40500→40860** (40860=40500+180+180), still 71 lessons.
+
+- **H4 / 7.2 rl-foundations: 630→810 (+180).** Generalized advantage estimation (`gae_lambda_advantage_toy.py`; common random numbers, 5 seeds; value errors, then every action and reward noise for 40 repetitions of 16 episodes, drawn once per regime and seed and shared by all three arms). arXiv 1506.02438 abs page and PDF body (v6, 20 Oct 2018) read (以原文为准): authors in abs order John Schulman, Philipp Moritz, Sergey Levine, Michael Jordan, Pieter Abbeel (the PDF writes Michael I. Jordan, same order); GAE(γ, λ) as the exponentially-weighted average of k-step estimators, a discounted sum of TD residuals (Eq. 16); λ = 0 one-step residual (Eq. 17), λ = 1 return minus V (Eq. 18); bias–variance statements; cart-pole λ range and the λ = 0 excessive-bias remark 以原文为准, not toy outputs. Declared toy parameters: GAMMA=0.99, P1=0.5, C_R=1, SIG_R=1, N_EP=16, M_DRAW=40, SIG_V=0.3, arms λ = 1 / 0.95 / 0. Hand calc (printed): effective horizon 16.8067 (λ = 0.95) and 100.0000 (λ = 1); g_true 9.8748 / 0.2500 / 5.6038; H = 1 identity. long_noisy: B−A grad_var `-6.7764±0.6108`, **clear**, 5/5 (held); C−B grad_var `-4.1182±1.5598` and grad_mse `-4.0223±1.5024`, **clear** (not declared: λ = 0 wins when V is close and rewards prompt). one_step: all pairs **tie** on both metrics (held). delayed_coarse: C−B grad_mse `18.1442±3.3853` and C−A `18.2344±4.5531`, **clear**, 5/5 (held, kept); B−A grad_mse `0.0902±3.7467` near-tie while B−A grad_var `-7.6030±2.3450` clear. Every pre-declared regime held. Alternatives (declared, same seeds): λ = 0.9 X−A grad_var `-8.4984±1.0608`; λ = 0.98 X−A grad_var `-4.2012±0.4197`; C with the step-indexed true value plus errors on delayed_coarse X−C grad_mse `0.2929±0.5736` near-tie; none adopted. No code change after the first run. ≠ PPO re-derivation, TD3, residual-action. Paper locomotion / GPU / SB3 本页未运行. / 广义优势估计：长回合上中间 λ 方差更低，奖励延迟时 λ = 0 明显估错，不宣布通用的 λ。
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
 
 ## Batch-22 PR3 / 本月 H5 (+180)
 
