@@ -789,7 +789,9 @@ Open3D estimate_normals / PCL NormalEstimation on a real sensor: 本页未运行
 
 <Resource id="pointvla-paper" />
 
-上面各节把深度变成点云，再变成几何：质心、碰撞代理、表面法向。本节问的是另一件事：如果一个机器人策略已经用大量二维（RGB）数据训练好，能不能在不重新训练的前提下**加上**点云？*PointVLA: Injecting the 3D World into Vision-Language-Action Models*（Chengmeng Li、Junjie Wen、Yan Peng、Yaxin Peng、Feifei Feng、Yichen Zhu；arXiv 2503.07511；已读摘要页、HTML 与 PDF 正文；以论文为准）建立在 DexVLA 之上，其动作专家是有 32 个块的扩散 Transformer。论文**冻结**原动作专家，用一个轻量模块**注入**点云特征：每个选中的块配一个 MLP 适配器，然后做**加法**。它不把三维 token 混进大语言模型，论文认为这种做法在三维数据很少时效果差。
+上面各节把深度变成点云，再变成几何：质心、碰撞代理、表面法向。本节问的是另一件事：如果一个机器人策略已经用大量二维（RGB）数据训练好，能不能在不重新训练的前提下**加上**点云？*PointVLA: Injecting the 3D World into Vision-Language-Action Models*（Chengmeng Li、Junjie Wen、Yan Peng、Yaxin Peng、Feifei Feng、Yichen Zhu，按 arXiv 摘要页顺序；arXiv 2503.07511；已读摘要页、HTML 与 PDF 正文；以论文为准）建立在 DexVLA 之上，其动作专家是有 32 个块的扩散 Transformer。论文**冻结**原动作专家，用一个轻量模块**注入**点云特征：每个选中的块配一个 MLP 适配器，然后做**加法**。它不把三维 token 混进大语言模型，论文认为这种做法在三维数据很少时效果差。
+
+关于作者顺序：arXiv 摘要页列出的是 Chengmeng Li、Junjie Wen、Yan Peng、Yaxin Peng、Feifei Feng、Yichen Zhu。PDF 与 HTML 的署名行是 Li、Zhu、Wen、Yan Peng、Yaxin Peng、Feng，其中 Li 和 Zhu 都带星号，这通常表示共同第一作者（论文没有写明星号的含义）。本页采用摘要页的顺序。
 
 注入哪些块？在叠衣服任务上的**跳块分析**发现前 11 个块很关键：跳过其中任何一个，性能都显著下降，夹爪也合不紧。从第 11 块往后，单独跳过一个块可以接受，最多可以连续跳过五个块，任务才会失败。所以论文只把点云注入**靠后、不那么关键的块**，只训练五个注入块。论文报告了二维策略的两种失败，点云能修复它们。在**高度泛化**实验中，训练时面包下垫 3 mm 泡沫，测试时 52 mm；OpenVLA、DP、ScaleDP-1B 和 DexVLA 都按训练高度去抓而失败。在**真假照片**实验中，屏幕上的洗衣液照片在顶部相机里看起来和真瓶子一样，OpenVLA 和 DexVLA 一直去抓它。这些都是论文的陈述，以论文为准；下面没有一个是玩具输出。
 
@@ -1257,6 +1259,8 @@ DexVLA / GPU / RealSense / UR5e: 本页未运行; PointVLA paper results 以论�
 - **height_shift。** 二维头每次都抓空（A 0.0000±0.0000，高度误差 44.5741±0.5399 mm），靠后注入成功率为 0.9750±0.0177：B−A success 为 0.9750±0.0177，clear，5 个种子全部同号。靠前注入高度对了，但很少合拢（C 0.1100±0.0548；C−B success -0.8650±0.0548，clear），不过仍胜过二维头（C−A success 0.1100±0.0548）。声明**成立**。
 - **real_vs_photo。** A 没有办法拒绝，所以每张照片都去抓（false_grasp 1.0000±0.0000 是这个臂的设定决定的），成功率为 0.5750±0.1000。B 拒绝了每张照片，成功率为 0.9750±0.0000：B−A success 为 0.4000±0.1000，B−A false_grasp 为 -1.0000±0.0000，都是 clear。C 也拒绝照片，但真实抓取失败，所以 C−B success 为 -0.4800±0.0694，clear；C−A success 为 -0.0800±0.1605，近似平局。声明**成立**。
 - **corrupted_cloud。** 30 % 的离群点被平均进高度后，靠后注入的成功率降到 0.6850±0.0978，高度误差 7.3992±0.7443 mm；二维头保持 0.9900±0.0137。B−A success 为 -0.3050±0.0925，clear，5 个种子全部同号：坏点云让注入后的策略比冻结的二维策略更差。这正是声明的"B 可能输给 A"，如实**保留**。
+
+每个工况里 C−B 的 height_err_mm 与 false_grasp 都打印为 0.0000±0.0000，标签为 tie。B 和 C 共用同一条高度修正路径和存在检查，只在夹爪质量上不同，所以这两项指标由构造决定必然相等；这不是一个发现。
 
 **保留**靠前注入和坏点云这两格。在这个玩具里，点云只有在干净、并且注入冻结策略可以让出的块时才有帮助。
 
