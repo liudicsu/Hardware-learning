@@ -10037,7 +10037,7 @@ print("protocol pass")
   console.log("lqg-ntc-inrush PR2: LQG separation, NTC inrush limiting, and M5 3570 / M11 3810 / site 39780 locked");
 }
 
-// Batch-22 PR3: PointVLA point-cloud injection into a frozen policy (7.2 depth-pointcloud) and EgoVLA human-video pretraining with retargeting (11.4 umi-style-collection).
+// Batch-22 PR3: PointVLA point-cloud injection into a frozen policy (7.5 depth-pointcloud) and EgoVLA human-video pretraining with retargeting (11.4 umi-style-collection).
 {
   const read=p=>readFileSync(join(root,p),"utf8"), env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
   const cur=read("src/lib/curriculum.ts"), res=read("src/lib/resources.ts");
