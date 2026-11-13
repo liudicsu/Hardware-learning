@@ -9893,7 +9893,7 @@ print("protocol pass")
     const s=read(`src/content/m3/so101-arm/${lang}.mdx`);
     ok(lang==="en"?s.includes("Not pre-declared, and worth noticing: i_sum is already 4.3757±0.0804 A"):s.includes("事先没有声明、但值得注意的是：i_sum 已经是 4.3757±0.0804 A"),`b22p1 so101-arm ${lang}: one-stall current above 4 A, not pre-declared, is stated`);
   }
-  console.log("crimp-so101-sag PR1: crimp vs solder strain relief, SO-101 shared-rail sag, and M1 2910 / M3 3510 / site 39780 locked");
+  console.log("crimp-so101-sag PR1: crimp vs solder strain relief, SO-101 shared-rail sag, and M1 2910 / M3 3510 / site 40140 locked");
 }
 
 // Batch-22 PR2: LQG as a Kalman filter plus the same LQR gain (5.2 state-space-lqr) and NTC inrush limiting (11.1 power-battery-emc).
@@ -10034,7 +10034,7 @@ print("protocol pass")
   dirHits+=checkDiffDirs(planSec(p5,"## Batch-22 PR2"),"b22p2 month-5-plan diff-dir")+checkDiffDirs(planSec(p11,"## Batch-22 PR2"),"b22p2 month-11-plan diff-dir");
   dirHits+=checkDiffDirs(src,"b22p2 sources-note diff-dir");
   ok(dirHits>=40,`b22p2 difference-direction lock ran on ${dirHits} printed pairs`);
-  console.log("lqg-ntc-inrush PR2: LQG separation, NTC inrush limiting, and M5 3570 / M11 3810 / site 39780 locked");
+  console.log("lqg-ntc-inrush PR2: LQG separation, NTC inrush limiting, and M5 3570 / M11 3990 / site 40140 locked");
 }
 
 // Batch-22 PR3: PointVLA point-cloud injection into a frozen policy (7.5 depth-pointcloud) and EgoVLA human-video pretraining with retargeting (11.4 umi-style-collection).
@@ -10177,6 +10177,54 @@ print("protocol pass")
   dirHits+=checkDiffDirs(src,"b22p3 sources-note diff-dir");
   ok(dirHits>=40,`b22p3 difference-direction lock ran on ${dirHits} printed pairs`);
   console.log("pointvla-egovla PR3: PointVLA frozen-policy point-cloud injection, EgoVLA human-video pretraining with retargeting, and M7 3510 / M11 3990 / site 40140 locked");
+}
+
+// Batch-22 polish: EgoVLA pre-fix solver comparison, PointVLA author order and by-construction tie, toy label sweep.
+{
+  const read=p=>readFileSync(join(root,p),"utf8"), env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
+  const {createHash}=require("crypto"); const sha=s=>createHash("sha256").update(s).digest("hex");
+  const numsOf=t=>(t.match(/-?\d+(?:\.\d+)?(?:e-?\d+)?/g)||[]).join(" ");
+  execFileSync("python3",[join(root,"tools/test_b22pol_ego_prefix_and_labels.py")],{cwd:root,encoding:"utf8",env,stdio:"pipe"});
+  ok(true,"b22pol independent tests tools/test_b22pol_ego_prefix_and_labels.py pass");
+  // 1. EgoVLA: the comparison adds lines only; every earlier printed line is unchanged.
+  const egPy="examples/month-11/umi-style-collection/egovla_human_pretrain_retarget_toy.py", egExp=read("examples/month-11/expected/egovla_human_pretrain_retarget_toy.txt");
+  const run=execFileSync("python3",[join(root,egPy)],{cwd:root,encoding:"utf8",env});
+  ok(run===egExp,"b22pol egovla: rerun equals expected/");
+  const kept=egExp.split("\n").filter(l=>!/^comparison only, not an official verdict: pre-fix solver|^  pre-fix paired |^  solver check \(noise-free/.test(l)).join("\n");
+  ok(sha(kept)==="79b63fbf1280c5f7918fffde66163a5415c23365552df140c467420ee48101b7","b22pol egovla: all earlier printed lines byte-identical (only the comparison lines added)");
+  for(const x of ["comparison only, not an official verdict: pre-fix solver with the symmetric intercept row left unfilled (erroneous version, kept only for comparison / 漏填对称截距行的错误版本，仅作对照), same seeds:","  pre-fix paired B(half_data)-B(in_domain_full) long_sr: 0.0400+-0.1012: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign","  solver check (noise-free demos of seed 0 task 0, lam 0): pre-fix max |theta error| 0.0736 |b error| 0.1240; corrected max |theta error| 4.253e-8 |b error| 7.161e-8"])ok(egExp.includes(x),`b22pol egovla printed: ${x.slice(0,60)}`);
+  const egSrc=read(egPy);
+  const pre=egSrc.slice(egSrc.indexOf("def ridge_fit_prefix("),egSrc.indexOf("\n\n\n",egSrc.indexOf("def ridge_fit_prefix("))), off=egSrc.slice(egSrc.indexOf("def ridge_fit("),egSrc.indexOf("\n\n\n",egSrc.indexOf("def ridge_fit(")));
+  ok(pre.includes('"""Erroneous pre-fix version, kept only for comparison')&&!pre.replace(/"""[\s\S]*?"""/,"").includes("A[d][a] += xa")&&pre.includes("row_a[d] += xa")&&off.includes("A[d][a] += xa")&&pre.replace(/"""[\s\S]*?"""/,"").replace("def ridge_fit_prefix(","def ridge_fit(")===off.replace(/"""[\s\S]*?"""/,"").replace("            A[d][a] += xa\n",""),"b22pol egovla: pre-fix solver differs from the official one only by the missing symmetric row");
+  ok(/def regime_results\(regime, lam_b=None, tol=TOL, offset=OFFSET_MISMATCH, prefix=False\)/.test(egSrc),"b22pol egovla: official verdicts default to the corrected solver");
+  for(const lang of ["en","zh"]){
+    const t=read(`src/content/m11/umi-style-collection/${lang}.mdx`); const h=t.indexOf(lang==="en"?"## EgoVLA: human egocentric pretraining":"## EgoVLA：先用人类第一人称视频预训练"); const sec=t.slice(h,t.indexOf("<Summary>"));
+    const prose=sec.replace(egExp.trim(),"").replace(egSrc.trim(),"");
+    ok(sec.includes(egSrc.trim())&&sec.includes(egExp.trim()),`b22pol umi-style-collection ${lang}: embedded source and output current`);
+    ok((lang==="en"?["A newly added comparison","0.0400±0.1012","0.0736","0.1240","4.253e-8","7.161e-8","Every verdict above uses the corrected solver","symmetric row","that declaration did not hold"]:["新增的一组对照","漏填对称截距行的错误版本，仅作对照","0.0400±0.1012","0.0736","0.1240","4.253e-8","7.161e-8","上面所有结论都用修正后的求解器","对称的那一行","那项声明没有成立"]).every(x=>prose.includes(x)),`b22pol umi-style-collection ${lang}: pre-fix comparison stated with printed numbers, marked newly added`);
+    ok(!/more than 0\.5|about 1e-7|超过 0\.5|约 1e-7/.test(prose),`b22pol umi-style-collection ${lang}: unprinted solver-error figures gone`);
+  }
+  ok(!/more than 0\.5|about 1e-7/.test(read("docs/notes/batch-22-pr3-sources.md"))&&read("docs/notes/batch-22-pr3-sources.md").includes("4.253e-8"),"b22pol PR3 sources note: solver-error figures are the printed ones");
+  // 2. PointVLA author order.
+  const res=read("src/lib/resources.ts"), card=res.slice(res.indexOf('"pointvla-paper": {'),res.indexOf('"egovla-paper": {'));
+  ok(card.includes('author: "Chengmeng Li, Junjie Wen, Yan Peng, Yaxin Peng, Feifei Feng, Yichen Zhu"')&&card.includes("6 authors in arXiv abstract-page order; the PDF/HTML byline is Li, Zhu (both asterisked, the usual co-first-author mark), Wen, Yan Peng, Yaxin Peng, Feng; this card uses the abstract-page order")&&card.includes("6 位作者按 arXiv 摘要页顺序；PDF/HTML 署名行为 Li、Zhu（两人均带星号，通常表示共同第一作者）、Wen、Yan Peng、Yaxin Peng、Feng；本卡片采用摘要页顺序")&&!/arXiv order\)|按 arXiv 顺序）/.test(card),"b22pol pointvla-paper card: abstract-page order vs PDF/HTML byline stated");
+  for(const lang of ["en","zh"]){
+    const t=read(`src/content/m7/depth-pointcloud/${lang}.mdx`); const h=t.indexOf(lang==="en"?"## PointVLA: adding a point cloud to a frozen 2D policy":"## PointVLA：给冻结的二维策略加上点云"); const sec=t.slice(h,t.indexOf("<Summary>"));
+    ok(lang==="en"?sec.includes("Yichen Zhu, in arXiv abstract-page order;")&&sec.includes("The byline of the PDF and HTML reads Li, Zhu, Wen, Yan Peng, Yaxin Peng, Feng")&&sec.includes("This page uses the abstract-page order."):sec.includes("Yichen Zhu，按 arXiv 摘要页顺序；")&&sec.includes("PDF 与 HTML 的署名行是 Li、Zhu、Wen、Yan Peng、Yaxin Peng、Feng")&&sec.includes("本页采用摘要页的顺序。"),`b22pol depth-pointcloud ${lang}: author-order sentence`);
+    ok(lang==="en"?sec.includes("C−B height_err_mm and false_grasp lines print 0.0000±0.0000")&&sec.includes("equal by construction; this is not a finding"):sec.includes("C−B 的 height_err_mm 与 false_grasp 都打印为 0.0000±0.0000")&&sec.includes("由构造决定必然相等；这不是一个发现"),`b22pol depth-pointcloud ${lang}: C−B by-construction tie stated`);
+  }
+  // 4. Label sweep: four toys cleaned with numbers unchanged; every toy and output free of process labels.
+  for(const [f,want] of [["examples/month-5/expected/eight_point_essential_toy.txt","b3aefcc3c86c13c603ddd04914f02b22921845371831d0d88e9f1e1dbf747746"],["examples/month-8/expected/nora_fastplus_small_vla_toy.txt","7de1195cd4c41d9ac92ff490ea83a8c20a7d664433d80bada2ec79037a39c1ce"],["examples/month-4/expected/octomap_tsdf_volume_toy.txt","c83a440af302a38dd4b5ab9175d25a7c7694db9de6408f6f5d3aaea702b95ac1"]])ok(sha(read(f))===want,`b22pol ${f}: output byte-identical`);
+  ok(sha(numsOf(read("examples/month-7/expected/mujoco_integrator_energy_toy.txt")))==="68bf272477973b74ae683d145460b84ab5b5bf841fafc4aea61cd83471b34c90","b22pol mujoco_integrator_energy_toy: printed numbers unchanged");
+  const LABELS=/\bbatch[- ]\d+\b|\bPR ?\d+\b|sources? notes?\b|来源说明|来源笔记|this batch|本批|this round|本轮|polish|\b[bB]\d{1,2}p(?:\d|ol)\b|opencode|deepseek|\bGLM\b|\bMiMo\b|LongCat|MiniMax/i;
+  const walk=d=>readdirSync(join(root,d),{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(`${d}/${e.name}`):[`${d}/${e.name}`]);
+  const toyFiles=walk("examples").filter(f=>f.endsWith(".py")||/\/expected\/[^/]+\.txt$/.test(f));
+  ok(toyFiles.length>=460,`b22pol label sweep covers ${toyFiles.length} toy sources and outputs`);
+  for(const f of toyFiles){const t=read(f); const m=t.match(LABELS); ok(!m,`b22pol ${f}: no process label${m?` (${m[0]})`:""}`);}
+  for(const [m,slug] of [[4,"slam-nav"],[5,"camera-calibration"],[7,"mujoco-so101"],[8,"async-deployment"]])for(const lang of ["en","zh"])ok(!/batch-13 lead-lag toy|Batch-19 polish|helper drafted by|HTTP 500 this round|polish addition|added in polish/.test(read(`src/content/m${m}/${slug}/${lang}.mdx`)),`b22pol m${m}/${slug} ${lang}: embedded code and output carry no process label`);
+  const note=read("docs/notes/batch-22-polish-sources.md");
+  ok(["bd88324f324ce9c082f5799a715bf8eacf997e27","40140","0.0400±0.1012","4.253e-8","Lock changes","No lock relaxed","numbers-only"].every(x=>note.includes(x))&&!/opencode|DeepSeek|LongCat|MiniMax|MiMo|GLM/.test(note),"b22pol sources note");
+  console.log("batch-22 polish: EgoVLA pre-fix comparison printed, PointVLA author order and C−B construction tie, toy-wide process-label sweep locked; totals 71 / 40140 unchanged");
 }
 
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
