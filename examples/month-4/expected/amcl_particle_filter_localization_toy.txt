@@ -1,0 +1,63 @@
+AMCL-style particle filter localization toy against a known 2-D map (synthetic; not Nav2, not a bag playback, not a real robot run)
+every constant is a declared toy parameter; ROS amcl defaults (min_particles 100, max_particles 5000, kld_err 0.01, recovery_alpha_slow 0.001, recovery_alpha_fast 0.1) are 以原文为准 and are not what this toy uses
+seeds=5 n_min=100 n_max=600 n_c=30 eps=0.0500 z_q=2.3260 a_slow=0.0500 a_fast=0.5000 sig_z=0.1000 sig_l=0.2000 r_max=8.0000 step_len=0.3000 err_tol=0.5000 (declared)
+Regimes and parameters were written before the first run
+hand_calc kld n at k=2: raw 65.8404, clamped to [100, 600] = 100.0000
+hand_calc kld n at k=10: raw 216.9395, clamped to [100, 600] = 216.9395
+hand_calc kld n at k=50: raw 749.3302, clamped to [100, 600] = 600.0000
+hand_calc beam likelihood floor Z_RAND/R_MAX = 0.0125
+hand_calc dead-reckoning drift sd after 25 steps per axis = sqrt(25)*sqrt((0.3*0.05)^2 + 0.02^2) = 0.1250 m
+distinctive_unknown:
+  declared: B consistently lower err than A - keep; C as it comes
+  A_odom err 3.1053+-1.2423 success 0.0000+-0.0000
+  B_amcl err 0.1586+-0.0617 success 1.0000+-0.0000
+  C_few err 3.2738+-2.0654 success 0.2000+-0.4472
+  B_amcl n_particles 159.8160+-48.9166
+  paired B-A err: -2.9468+-1.1879: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B err: 3.1153+-2.1111: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  paired C-B success: -0.8000+-0.4472: clear gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+  paired C-A err: 0.1685+-3.2395: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired C-A success: 0.2000+-0.4472: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 4 of 5 equal
+known_short:
+  declared: A and B may near-tie on err - keep
+  A_odom err 0.0604+-0.0178 success 1.0000+-0.0000
+  B_amcl err 0.0447+-0.0117 success 1.0000+-0.0000
+  C_few err 0.0426+-0.0124 success 1.0000+-0.0000
+  B_amcl n_particles 289.3667+-160.8066
+  paired B-A err: -0.0157+-0.0066: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B err: -0.0021+-0.0053: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired C-B success: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A err: -0.0178+-0.0101: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A success: 0.0000+-0.0000: tie: identical on every seed
+kidnapped:
+  declared: C (too few particles, no recovery) loses to B on err and success - keep; A loses too
+  A_odom err 4.5428+-2.0097 success 0.0000+-0.0000
+  B_amcl err 0.0642+-0.0236 success 1.0000+-0.0000
+  C_few err 4.5418+-2.0030 success 0.0000+-0.0000
+  B_amcl n_particles 492.0080+-83.9168
+  paired B-A err: -4.4787+-2.0026: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B err: 4.4777+-1.9964: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A err: -0.0010+-0.0486: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired C-A success: 0.0000+-0.0000: tie: identical on every seed
+corridor_multimodal:
+  declared: B may fail too (ambiguous along x) - keep as it comes; C as it comes
+  A_odom err 2.5007+-1.0559 success 0.0000+-0.0000
+  B_amcl err 0.1446+-0.0919 success 1.0000+-0.0000
+  C_few err 2.1572+-3.1307 success 0.6000+-0.5477
+  B_amcl n_particles 129.6720+-32.8779
+  paired B-A err: -2.3561+-1.0515: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B err: 2.0126+-3.1586: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired C-B success: -0.4000+-0.5477: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+  paired C-A err: -0.3435+-2.6984: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired C-A success: 0.6000+-0.5477: clear gap, not a tie (|m| > sd); no seed has the opposite sign, 2 of 5 equal
+alternative parameters (declared before the run, same seeds, not adopted):
+  kidnapped with recovery off for B: paired X-B err: 4.4964+-1.9985: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  distinctive_unknown with N_MAX=300 for B: paired X-B err: -0.0115+-0.0566: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  kidnapped with C at 30 particles but recovery on: paired X-C err: -2.7986+-1.3081: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner beyond the declared toy parameters and the printed verdicts: a synthetic map, a declared sensor model and seed scatter, so the numbers show magnitudes only
+Real robot / Nav2 AMCL / live ROS wiki: 本页未运行; Wikipedia and archived ROS wiki text 以原文为准
