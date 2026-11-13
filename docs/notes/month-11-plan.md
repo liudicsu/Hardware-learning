@@ -2,6 +2,14 @@
 
 Current / 当前：**M11 3990 min**, Batch-22 PR3. Earlier entries below retain their historical totals.
 
+## Batch-22 PR3 / 本月 H6 (+180)
+
+Base `0193f7837fcf135a369a678d1abac948651bda88` (batch-22 PR2 #190 merged; site **39780**). PR3 on M11 host: **M11 3810→3990 (+180)**; M7 moves in the same PR on its own plan. Site **39780→40140** (40140=39780+180+180), still 71 lessons.
+
+- **H6 / 11.4 umi-style-collection: 420→600 (+180).** EgoVLA (`egovla_human_pretrain_retarget_toy.py`; common random numbers, 5 seeds, 4 tasks per seed). arXiv 2507.12440 abs page checked (title *EgoVLA: Learning Vision-Language-Action Models from Egocentric Human Videos*; 15 authors in arXiv order: Ruihan Yang, Qinxi Yu, Yecheng Wu, Rui Yan, Borui Li, An-Chieh Cheng, Xueyan Zou, Yunhao Fang, Xuxin Cheng, Ri-Zhao Qiu, Hongxu Yin, Sifei Liu, Song Han, Yao Lu, Xiaolong Wang) and HTML/PDF body (v3) read: wrist pose plus MANO hand parameters, IK and MLP retargeting, robot post-training required (zero-shot 0 % on all tasks); ablation numbers 以论文为准, not reproduced. Declared toy parameters: D=16, P=17, B_ROBOT=1.0, OFFSET_MISMATCH=1.5, SIG_DEMO=0.5, 32 / 16 demos, TOL=0.5, LAM 0.25 (A) / 25 (B). Hand calcs (printed): 0.5510, 0.4000, 0.6358 / 0.1635, 0.7887 / 0.3869, offset 3.0000× tolerance. in_domain_full: C−A short_sr `-0.6320±0.0746`, **clear**, 5/5; B−A long_sr `0.4300±0.1430`, **clear**, 5/5; B−A short_sr `0.2220±0.0968`, clear. half_data: B−A long_sr `0.4900±0.0775`, clear; half-data B minus full-data B long_sr `-0.1620±0.0841`, **clear**, 5/5. large_mismatch: B−A long_sr `-0.2180±0.0955`, **clear**, 5/5 — over-trusted wrong prior loses (declared possible), **kept**. All declared regimes held in the kept output. Alternatives on the same seeds, written before the first run: LAM_B=5 (B−A long_sr `-0.1180±0.1085`); TOL=0.7 (B−A long_sr `0.4140±0.1724`); OFFSET_MISMATCH=0.5 (C−A long_sr `-0.1860±0.0713`); none adopted. Code changes after the first run: a syntax-error fix before any output; then, after a full run had printed, a ridge-solver bug fix (missing symmetric intercept row of the normal equations) that changed results — in the buggy run the half-data drop on long_sr was a near-tie; no parameter changed; disclosed on the lesson pages. ≠ UMI relative / absolute / delta; ≠ FLARE; ≠ GraspVLA. EgoVLA model / MANO / Isaac Lab / humanoid 本页未运行. / EgoVLA：接近的人类先验加后训练胜过只用机器人数据，零样本因偏置失败，过度信任的错误先验落败。
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
+
 ## Batch-22 PR2 / 本月 H4 (+180)
 
 Base `833aac3e5ab0a197f7f1dcb155ad3c4f7c956b15` (batch-22 PR1 #189 merged; site **39420**). PR2 on M11 host: **M11 3630→3810 (+180)**; M5 moves in the same PR on its own plan. Site **39420→39780** (39780=39420+180+180), still 71 lessons.
