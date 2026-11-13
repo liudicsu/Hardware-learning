@@ -37,3 +37,10 @@ python3 notch_vs_lead_resonant_toy.py
 ```bash
 python3 pid_setpoint_weighting_2dof_toy.py
 ```
+
+**`ziegler_nichols_ultimate_gain_toy.py`**: synthetic first-order lag with pure delay; the ultimate gain and period found by a P-only oscillation test, then classic Ziegler–Nichols PID, the no-overshoot row and P only on shared load steps and measurement noise (five seeds, common random numbers). No real plant or autotune was run.
+合成一阶滞后加纯滞后对象：先用只有 P 的振荡试验找出临界增益与周期，再在共用负载阶跃和测量噪声下比较经典 Ziegler–Nichols PID、no overshoot 行和只用 P（5 个种子，共用随机数）。本页未运行真实对象或自整定。
+
+```bash
+python3 ziegler_nichols_ultimate_gain_toy.py
+```

@@ -1,6 +1,14 @@
 # Month 2 plan / 第 2 个月计划
 
-Current / 当前：**M2 3570 min**, Batch-21 PR2. Earlier entries below retain their historical totals.
+Current / 当前：**M2 3750 min**, Batch-23 PR1. Earlier entries below retain their historical totals.
+
+## Batch-23 PR1 / 本月 H1 (+180)
+
+Base `38a8c8d453368df23057812729b96cba251672c3` (batch-22 polish #192 merged; site **40140**). PR1 on M2 host: **M2 3570→3750 (+180)**; M3 moves in the same PR on its own plan. Site **40140→40500** (40500=40140+180+180), still 71 lessons.
+
+- **H1 / 2.1 arduino-io: 660→840 (+180).** Optocoupler isolation, CTR and LED current (`optocoupler_ctr_isolation_toy.py`; common random numbers, 5 seeds; the part's CTR factor and, per bit, the field bit, pin noise, surge flag and surge size drawn once per regime and seed, shared by all three arms). Wikipedia Opto-isolator body read (rev 1381742785; 以原文为准): signals between two isolated circuits by light; up to 10 kV input-to-output and 25 kV/μs transients; main function to block high voltages and transients; breaks ground loops; unidirectional, cannot transmit power; CTR table 0.1–0.2 % / 2–120 % / 100–600 %; generous allowances, worst-case datasheet values; Bob Pease 4N28 CTR 15 % to more than 100 % in one production lot against a 10 % minimum. Declared toy parameters (not datasheet values): VCC=3.3 V, RL=4700 ohm, VCE_SAT=0.2 V, V_IL/V_IH=0.3/0.7 VCC, ABS_MAX=3.6 V, CTR_NOM=0.5 with exp(0.3 g) spread, K_CM=0.1, K_ISO=1e-4, AGE=0.25, I_F 10 mA (B) / 1 mA (C). Hand calc (printed): 0.6596 mA, 1.3191 mA, 0.9500 V vs 0.9900 V, 20.0000 V vs 3.6000 V, aged C 0.1250 mA → 2.7125 V. quiet_legal: B−A logic_err **tie** (held); C−B `0.1930±0.2643` near-tie, 3 of 5 equal. surge: B−A overvolt `-0.1790±0.0444` and logic_err `-0.1050±0.0158`, **clear**, 5/5 (held); C−A logic_err `0.2460±0.2007` (not declared). low_ctr: C−B and C−A logic_err `0.5260±0.0475`, **clear**, 5/5 (held, kept). Every pre-declared regime held. Alternatives (declared, same seeds): RL=10 kΩ C−B `0.5260±0.0475`; K_CM=0.02 B−A overvolt `-0.0980±0.0323`; C at 2 mA C−B `0.5260±0.0475`; none adopted. No code change after the first run. ≠ RS-485, ENOB, hipot. Real coupler / isolation tester 本页未运行. / 光耦隔离：驱动不足时屏障仍挡浪涌但会读错位，不宣布实测。
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
 
 ## Batch-21 PR2 / 本月 H4 (+180)
 

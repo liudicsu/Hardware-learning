@@ -40,5 +40,6 @@ check esp32_light_deep_sleep_toy.txt "$PY" "$M2/esp32/esp32_light_deep_sleep_toy
 check i2c_clock_stretch_toy.txt "$PY" "$M2/sensors-fusion/i2c_clock_stretch_toy.py"
 
 check madgwick_vs_complementary_balancer_toy.txt "$PY" "$M2/first-robots/madgwick_vs_complementary_balancer_toy.py"
+check optocoupler_ctr_isolation_toy.txt "$PY" "$M2/arduino-io/optocoupler_ctr_isolation_toy.py"
 
 exit $fail

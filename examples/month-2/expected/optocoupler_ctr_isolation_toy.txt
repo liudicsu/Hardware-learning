@@ -1,0 +1,50 @@
+Synthetic optocoupler CTR and isolation toy: direct GPIO vs a well-driven and an under-driven coupler
+every constant is a declared toy parameter, not a datasheet value; real coupler / isolation tester: 本页未运行
+VCC=3.3000 V RL=4700.0000 ohm VCE_SAT=0.2000 V V_IL=0.9900 V V_IH=2.3100 V ABS_MAX=3.6000 V
+V_FIELD=24.0000 V K_DIV=0.1250 K_CM=0.1000 K_ISO=1.000e-4 CTR_NOM=0.5000 CTR spread exp(0.3 g) SIG_PIN=0.0500 V
+N_BITS=200 P_SURGE=0.2000 v_cm uniform(20.0000, 200.0000) V AGE=0.2500 I_F B=10.0000 mA C=1.0000 mA
+Regimes and parameters were written before the first run
+hand_calc I_sat = (3.3 - 0.2)/4700 = 0.6596 mA collector current to pull the pin to VCE_SAT
+hand_calc minimum I_F at CTR_NOM = I_sat/CTR_NOM = 1.3191 mA
+hand_calc C at nominal CTR: I_C = 0.5 x 1 mA = 0.5000 mA -> V_out = 3.3 - 0.5e-3 x 4700 = 0.9500 V against V_IL = 0.9900 V
+hand_calc worst surge on the direct pin = 200 x K_CM = 20.0000 V against ABS_MAX = 3.6000 V
+hand_calc aged C: I_C = 0.25 x 0.5 x 1 mA = 0.1250 mA -> V_out = 2.7125 V, above V_IH = 2.3100 V
+quiet_legal:
+  declared: A vs B may near-tie (or tie) on logic_err - keep; C as it comes
+  A_direct logic_err 0.0000+-0.0000 overvolt 0.0000+-0.0000
+  B_opto logic_err 0.0000+-0.0000 overvolt 0.0000+-0.0000
+  C_underdriven logic_err 0.1930+-0.2643 overvolt 0.0000+-0.0000
+  paired B-A logic_err: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A overvolt: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B logic_err: 0.1930+-0.2643: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+  paired C-B overvolt: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A logic_err: 0.1930+-0.2643: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+  paired C-A overvolt: 0.0000+-0.0000: tie: identical on every seed
+surge:
+  declared: B consistently below A on overvolt and logic_err (direct GPIO loses) - keep
+  A_direct logic_err 0.1050+-0.0158 overvolt 0.1790+-0.0444
+  B_opto logic_err 0.0000+-0.0000 overvolt 0.0000+-0.0000
+  C_underdriven logic_err 0.3510+-0.1996 overvolt 0.0000+-0.0000
+  paired B-A logic_err: -0.1050+-0.0158: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A overvolt: -0.1790+-0.0444: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B logic_err: 0.3510+-0.1996: clear gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+  paired C-B overvolt: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A logic_err: 0.2460+-0.2007: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  paired C-A overvolt: -0.1790+-0.0444: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+low_ctr:
+  declared: C consistently above B on logic_err (under-driven coupler loses) and may lose to A on logic_err - keep
+  A_direct logic_err 0.0000+-0.0000 overvolt 0.0000+-0.0000
+  B_opto logic_err 0.0000+-0.0000 overvolt 0.0000+-0.0000
+  C_underdriven logic_err 0.5260+-0.0475 overvolt 0.0000+-0.0000
+  paired B-A logic_err: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A overvolt: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B logic_err: 0.5260+-0.0475: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B overvolt: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A logic_err: 0.5260+-0.0475: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A overvolt: 0.0000+-0.0000: tie: identical on every seed
+alternative parameters (declared before the run, same seeds, not adopted):
+  low_ctr with RL = 10000 ohm: paired C-B logic_err: 0.5260+-0.0475: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  surge with K_CM = 0.02: paired B-A overvolt: -0.0980+-0.0323: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  low_ctr with C at I_F = 2 mA: paired C-B logic_err: 0.5260+-0.0475: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner beyond the declared drive: the barrier blocks the surge only when the LED current times CTR still saturates the output
+Real coupler / isolation tester / vendor CTR curve: 本页未运行; Wikipedia figures 以原文为准
