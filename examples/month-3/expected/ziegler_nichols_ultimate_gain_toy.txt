@@ -1,0 +1,73 @@
+Ziegler-Nichols ultimate-gain PID tuning toy on a first-order-plus-dead-time plant
+deterministic discrete linear stand-in, not a physical joint; real plant / autotune: 本页未运行
+model G(s) = K exp(-L s)/(TAU s + 1), K=1.0000 TAU=1.0000 s, DT=0.0050 s, A=exp(-DT/TAU)=0.9950, ND=int(L/DT+0.5) samples of pure delay
+stable-step criterion: 0 < A < 1 for any DT > 0
+controller u = Kp*(e + I/Ti + Td*D); I forward-Euler integral of e; D = -dy_f/dt on the measurement filter Tf = Td/10; P-only has no Ti or Td
+seeds=5 T_END=20.0000 s T_ID=60.0000 s setpoint step r=1 at t=0; load step at t=10.0000 s with d uniform(0.2, 0.4)
+Regimes and parameters were written before the first run
+hand_calc L=0.1000 analytic Ku=16.3506 Tu=0.3850 (w=16.3199 solves atan(w*TAU)+w*L=pi)
+hand_calc L=0.1000 classic PID from analytic Ku,Tu: Kp=9.8103 Ti=0.1925 Td=0.0481
+hand_calc L=0.5000 analytic Ku=3.8069 Tu=1.7106 (w=3.6732 solves atan(w*TAU)+w*L=pi)
+hand_calc L=0.5000 classic PID from analytic Ku,Tu: Kp=2.2841 Ti=0.8553 Td=0.2138
+hand_calc note: the discrete delay/ZOH adds phase so the identified Ku can be lower than the analytic Ku
+lag:
+  identified Ku=15.9619 Tu=0.3943 (P-only ultimate test, noise-free, 60.0000 s)
+  declared: A and B may near-tie on iae - keep; C may lose on iae (P-only offset) - keep
+  A_classic gains: Kp=9.5772 Ti=0.1971 Td=0.0493
+  B_no_overshoot gains: Kp=3.1924 Ti=0.1971 Td=0.1314
+  C_p_only gains: Kp=7.9810 (P-only, Ti and Td absent)
+  A_classic overshoot 62.1739+-0.1065 iae 0.3411+-0.0023 settle 0.9200+-0.0000
+  B_no_overshoot overshoot 43.6254+-0.0581 iae 0.6573+-0.0102 settle 2.0970+-0.0027
+  C_p_only overshoot 16.9901+-0.0255 iae 2.0447+-0.0949 settle 10.0000+-0.0000
+  paired B-A overshoot: -18.5485+-0.0648: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A iae: 0.3162+-0.0080: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A settle: 1.1770+-0.0027: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B overshoot: -26.6353+-0.0605: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B iae: 1.3874+-0.1051: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B settle: 7.9030+-0.0027: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A overshoot: -45.1838+-0.0937: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A iae: 1.7036+-0.0972: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A settle: 9.0800+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+delay_quiet:
+  identified Ku=3.7913 Tu=1.7179 (P-only ultimate test, noise-free, 60.0000 s)
+  declared: A consistently above B on overshoot (classic ZN overshoots) - keep
+  A_classic gains: Kp=2.2748 Ti=0.8590 Td=0.2147
+  B_no_overshoot gains: Kp=0.7583 Ti=0.8590 Td=0.5726
+  C_p_only gains: Kp=1.8956 (P-only, Ti and Td absent)
+  A_classic overshoot 40.1680+-0.0000 iae 1.2115+-0.0247 settle 2.8950+-0.0000
+  B_no_overshoot overshoot 9.1684+-0.0000 iae 2.0593+-0.0780 settle 5.8900+-0.0000
+  C_p_only overshoot 0.0000+-0.0000 iae 6.0971+-0.2103 settle 10.0000+-0.0000
+  paired B-A overshoot: -30.9996+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A iae: 0.8479+-0.0533: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A settle: 2.9950+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B overshoot: -9.1684+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B iae: 4.0378+-0.2882: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B settle: 4.1100+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A overshoot: -40.1680+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A iae: 4.8857+-0.2350: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A settle: 7.1050+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+delay_noisy:
+  identified Ku=3.7913 Tu=1.7179 (P-only ultimate test, noise-free, 60.0000 s)
+  declared: A consistently above B on overshoot and iae (classic ZN loses) - keep
+  A_classic gains: Kp=2.2748 Ti=0.8590 Td=0.2147
+  B_no_overshoot gains: Kp=0.7583 Ti=0.8590 Td=0.5726
+  C_p_only gains: Kp=1.8956 (P-only, Ti and Td absent)
+  A_classic overshoot 40.5015+-0.4249 iae 1.2174+-0.0149 settle 2.8990+-0.0171
+  B_no_overshoot overshoot 9.4607+-0.1922 iae 1.9480+-0.0445 settle 5.9370+-0.0375
+  C_p_only overshoot 0.0000+-0.0000 iae 6.4064+-0.1240 settle 10.0000+-0.0000
+  paired B-A overshoot: -31.0408+-0.2830: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A iae: 0.7306+-0.0300: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A settle: 3.0380+-0.0422: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B overshoot: -9.4607+-0.1922: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B iae: 4.4584+-0.1685: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B settle: 4.0630+-0.0375: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A overshoot: -40.5015+-0.4249: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A iae: 5.1890+-0.1386: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A settle: 7.1010+-0.0171: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative parameters (declared before the run, same seeds, not adopted):
+  delay_noisy some-overshoot row (Kp=Ku/3, Ti=0.5 Tu, Td=Tu/3) as X: paired X-A overshoot: -21.8736+-0.4418: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  delay_noisy some-overshoot row as X: paired X-A iae: 0.4278+-0.0131: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  delay_noisy classic with Tf=Td/5 as X: paired X-A iae: 0.0023+-0.0033: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  lag classic from analytic Ku,Tu as X: paired X-A iae: 1.549e-4+-1.278e-4: small but consistent gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+No winner beyond the declared expectations: classic ZN trades overshoot for speed, the conservative row reduces overshoot at higher iae, and P-only keeps a load offset, with seed scatter
+Real plant / autotune / Microstar or ASME figures: 本页未运行; Wikipedia table 以原文为准
