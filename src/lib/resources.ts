@@ -6803,6 +6803,46 @@ export const resources: Record<string, Resource> = {
     license: { zh: "预印本，CC BY 4.0（以 arXiv 页面为准）；仅提供外链", en: "Preprint, CC BY 4.0 (per the arXiv page); external link only" },
     extra: true,
   },
+  "wiki-opto": {
+    id: "wiki-opto",
+    url: "https://en.wikipedia.org/w/index.php?title=Opto-isolator&oldid=1381742785",
+    title: {
+      zh: "Wikipedia：光耦（opto-isolator）",
+      en: "Wikipedia: Opto-isolator",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "光耦用光在两个相互隔离的电路之间传递信号，防止高电压影响接收端；主要作用是挡住高电压和瞬变，并能断开地环路；它是单向的、不能传输功率，只调制输出侧已有的能量。CTR 表：光电二极管型 0.1–0.2 %，光电晶体管型 2–120 %，达林顿型 100–600 %；设计要给参数波动留出充足余量，数据手册列的是最坏值；Bob Pease 提到同一生产批次的 4N28 CTR 从 15 % 到 100 % 以上不等，而手册最小值为 10 %。HTML 正文已核验（rev 1381742785）；以原文为准。真实光耦与隔离测试：本页未运行。",
+      en: "An opto-isolator transfers signals between two isolated circuits using light and keeps high voltages from affecting the receiving side; its main job is to block high voltages and transients, and it breaks ground loops; it is unidirectional and cannot transmit power, only modulating energy already on the output side. CTR table: photodiode 0.1–0.2 %, phototransistor 2–120 %, Darlington 100–600 %; designs need generous allowances for parameter fluctuations, and datasheets list worst-case values; Bob Pease reports 4N28 CTR in one production lot ranging from 15 % to more than 100 % against a 10 % datasheet minimum. HTML body checked (rev 1381742785); 以原文为准. Real coupler and isolation tester: 本页未运行.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "wiki-zn": {
+    id: "wiki-zn",
+    url: "https://en.wikipedia.org/w/index.php?title=Ziegler%E2%80%93Nichols_method&oldid=1340563087",
+    title: {
+      zh: "Wikipedia：Ziegler–Nichols 整定法",
+      en: "Wikipedia: Ziegler–Nichols method",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "John G. Ziegler 与 Nathaniel B. Nichols 的启发式 PID 整定法：先把 I、D 设为零，把 P 加大到临界增益 Ku，使输出出现稳定、一致的振荡，再用 Ku 和振荡周期 Tu 查表；经典 PID 行 Kp = 0.6 Ku、Ti = 0.5 Tu、Td = 0.125 Tu，目标是四分之一波衰减和最好的扰动抑制，增益偏激进、会超调；需要少超调时用更温和的行，例如 no overshoot 行 Kp = 0.2 Ku。HTML 正文已核验（rev 1340563087）；以原文为准。真实对象与硬件自整定：本页未运行。",
+      en: "John G. Ziegler and Nathaniel B. Nichols' heuristic PID tuning: set I and D to zero, raise P to the ultimate gain Ku where the output shows stable, consistent oscillations, then read the gains from Ku and the oscillation period Tu; the classic PID row Kp = 0.6 Ku, Ti = 0.5 Tu, Td = 0.125 Tu aims at a quarter-wave decay and the best disturbance rejection and is aggressive with overshoot; milder rows such as no overshoot (Kp = 0.2 Ku) serve applications that need little overshoot. HTML body checked (rev 1340563087); 以原文为准. Real plant and hardware autotune: 本页未运行.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {
