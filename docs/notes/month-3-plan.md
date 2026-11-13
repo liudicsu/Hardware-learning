@@ -1,6 +1,14 @@
 # Month 3 plan / 第 3 个月计划
 
-Current / 当前：**M3 3510 min**, Batch-22 PR1. Earlier entries below retain their historical totals.
+Current / 当前：**M3 3690 min**, Batch-23 PR1. Earlier entries below retain their historical totals.
+
+## Batch-23 PR1 / 本月 H2 (+180)
+
+Base `38a8c8d453368df23057812729b96cba251672c3` (batch-22 polish #192 merged; site **40140**). PR1 on M3 host: **M3 3510→3690 (+180)**; M2 moves in the same PR on its own plan. Site **40140→40500** (40500=40140+180+180), still 71 lessons.
+
+- **H2 / 3.4 pid-control: 720→900 (+180).** Ziegler–Nichols tuning from the ultimate gain (`ziegler_nichols_ultimate_gain_toy.py`; common random numbers, 5 seeds; load-step size and measurement noise drawn once per regime and seed, shared by all three arms). Wikipedia Ziegler–Nichols method body read (rev 1340563087; 以原文为准): I and D set to zero, P raised to the ultimate gain Ku with stable, consistent oscillations of period Tu; classic PID 0.6 Ku / 0.5 Tu / 0.125 Tu, quarter-wave decay, aggressive with overshoot; the no-overshoot row for applications that must avoid overshoot. Declared toy parameters: K=1, TAU=1 s, DT=0.005 s exact ZOH (0 < A < 1 printed), derivative on the measurement with Tf=Td/10, no actuator limit. Ku/Tu identified by the toy's own P-only bisection: 15.9619 / 0.3943 s (L=0.1 s) and 3.7913 / 1.7179 s (L=0.5 s); hand calc 16.3506 / 0.3850 s and 3.8069 / 1.7106 s. lag: B−A iae `0.3162±0.0080`, **clear**, 5/5 (declared near-tie **did not hold**); the no-overshoot row still overshoots `43.6254±0.0581` %; C−A iae `1.7036±0.0972`, **clear** (C loss kept). delay_quiet: B−A overshoot `-30.9996±0.0000`, **clear**, 5/5 (held). delay_noisy: B−A overshoot `-31.0408±0.2830` (held), B−A iae `0.7306±0.0300`, **clear**, 5/5 in A's favour (the declared iae loss for classic ZN **did not hold**). Alternatives (declared, same seeds): some-overshoot row X−A overshoot `-21.8736±0.4418`, iae `0.4278±0.0131`; Tf=Td/5 `0.0023±0.0033` near-tie; analytic Ku/Tu on lag `1.549e-4±1.278e-4`; none adopted. No code change after the first run. ≠ windup, cascade, lead–lag, notch, 2DOF, relay autotune. Real plant / hardware autotune 本页未运行. / 临界增益法整定，不宣布经典 ZN 总是最好。
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
 
 ## Batch-22 PR1 / 本月 H2 (+180)
 

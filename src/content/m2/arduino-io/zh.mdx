@@ -1168,6 +1168,352 @@ Real ADC / scope / INA lab: 本页未运行; Wikipedia+TI numbers 以原文为�
 4. 设 `DISTORT_K3 = 0`，确认 C 向 B 靠拢。说明哪个指标必须一致、哪个仍可能略有差别。
 5. 任何真机实验前（本页未运行），列出本玩具省略的孔径抖动、参考噪声与 INL；不要把玩具 ENOB 当成芯片指标。
 
+## 光耦隔离：CTR、LED 电流与隔离屏障
+
+<Resource id="wiki-opto" />
+
+上面各节的输入引脚都和驱动它们的东西共用 Arduino 的地。机器上一个 24 V 的传感器或继电器触点就不是这样：电机启动或线缆拾取浪涌时，它的地可能跳动几十伏。**实际打开的来源（已读 HTML 正文）。** **Wikipedia — Opto-isolator**（修订版 1381742785；以原文为准）：光耦用光在两个相互隔离的电路之间传递电信号，防止一侧的高电压影响接收端。条目说市售器件能承受最高 10 kV 的输入–输出电压和速度最高 25 kV/μs 的电压瞬变，它的主要作用就是挡住这类高电压和瞬变，它也能断开地环路。它是**单向**的（条目也提到例外），**不能传输功率**，典型器件只能调制输出侧已有的能量，所以 MCU 一侧仍要有自己的电源和上拉。它的电流传输比（**CTR**）表列出：光电二极管型 0.1–0.2 %，光电晶体管型 2–120 %，达林顿型 100–600 %。条目提醒，设计时要给参数波动留出充足余量，数据手册列的是最坏值；它还引用 Bob Pease 的观察：同一生产批次的 4N28，CTR 从 15 % 到 100 % 以上不等，而手册只给出最小值 10 %。这些都是条目的陈述，以原文为准；下面没有一条是玩具的输出。
+
+本节**不是**上面的 RS-485 一节：RS-485 保留共地，只在收发器允许的共模范围内抗共模噪声，而光耦去掉的是电气上的直接通路。它也**不是** ADC ENOB 一节，更**不是**耐压或浪涌实验室测试。真实光耦、厂商 CTR 曲线和隔离测试仪都**本页未运行**。
+
+<Formula label="带上拉的光电晶体管输出（声明的玩具模型）">I_C = min(CTR · I_F, (VCC − VCE_SAT) / RL);   V_out = max(VCE_SAT, VCC − I_C · RL) with the LED on, VCC with it off;   pin < V_IL reads 0, pin > V_IH reads 1</Formula>
+
+**算例（手算，玩具也会打印）。** 取 `VCC = 3.3 V`、`RL = 4700 Ω`、`VCE_SAT = 0.2 V`，把引脚完全拉低所需的集电极电流是 `(3.3 − 0.2) / 4700 = 0.6596 mA`。按玩具的标称 CTR 50 %，至少要 `0.6596 / 0.5 = 1.3191 mA` 的 LED 电流。10 mA 的臂余量很大。1 mA 的臂只得到 `0.5 × 1 mA = 0.5000 mA`，引脚只降到 `3.3 − 0.5000 mA × 4700 Ω = 0.9500 V`，刚好低于 `V_IL = 0.9900 V`：器件稍弱一点就落进无效区。如果 CTR 老化到四分之一，同样的 1 mA 只给出 `0.1250 mA`，引脚停在 `2.7125 V`，高于 `V_IH = 2.3100 V`，点亮的 LED 被读成熄灭。直连路径上，玩具里最大的浪涌会在这个模型中额定 `3.6000 V` 的引脚上加 `200 V × 0.1 = 20.0000 V`。
+
+**积分步长。** 无：每一位都是一个静态工作点，没有 LED 或光电晶体管的时间常数（不模拟上升、下降时间）。
+
+### 公平设置
+
+`optocoupler_ctr_isolation_toy.py` 是**合成**的，只用标准库。**模型假设:** CTR 是集总的，不随电流和温度变化；单个光电晶体管，`VCE_SAT` 固定；读取阈值 `V_IL = 0.3 × VCC`、`V_IH = 0.7 × VCC`；直连路径是 24 V 现场信号经分压（`3.0 / 24`）接入，并且共地，所以现场侧共模浪涌中声明的一部分 `K_CM = 0.1` 会到达引脚；隔离屏障另一侧只有 `K_ISO = 1e-4` 到达，作为杂散电容的替身。每个（工况，种子）一个光耦器件，`CTR = 0.5 × exp(0.3 g)`，两个光耦臂共用。所有数值都是**声明的玩具参数**，不是任何器件的手册值。
+
+| 臂 | 到引脚的路径 | LED 电流 |
+|---|---|---|
+| A_direct | 24 V 信号经分压，共地 | 无 |
+| B_opto | 光耦，带上拉的反相输出 | 10 mA |
+| C_underdriven | 同一个光耦器件 | 1 mA |
+
+**共用随机数:** 每个（工况，种子）用一个随机流先抽器件的 CTR 系数，再为 200 位中的每一位抽现场位、引脚噪声（sd 0.05 V）、浪涌标志（概率 0.2）和浪涌大小（20 到 200 V），全部在任何臂运行之前抽好，三个臂共用。五个种子。指标：`logic_err`（读错或落在无效区的位的比例）和 `overvolt`（引脚超过 3.6 V 的位的比例），都按种子给出均值±sd。
+
+| 工况 | 现场侧 | 预先声明 |
+|---|---|---|
+| quiet_legal | 无浪涌，标称 CTR | A 与 B 的 logic_err **可能**近似平局或打平，**保留**；C 如实给出 |
+| surge | 20 % 的位上有共模浪涌 | B 的 overvolt 和 logic_err **一致**低于 A（直连 GPIO 输），**保留** |
+| low_ctr | 无浪涌，CTR 老化到四分之一 | C 的 logic_err **一致**高于 B，并且**可能**输给 A，**保留** |
+
+### 运行标准库玩具
+
+```bash
+cd ~/Hardware-learning/examples/month-2/arduino-io
+python3 optocoupler_ctr_isolation_toy.py
+```
+
+<CodeSource path="examples/month-2/arduino-io/optocoupler_ctr_isolation_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic optocoupler (opto-isolator) CTR and galvanic-isolation toy for a
+microcontroller digital input. Stdlib only.
+
+Every constant below is a DECLARED TOY PARAMETER, not a datasheet value: no
+vendor part, no real isolation rating, no CTR curve. A 24 V field signal reaches
+a 3.3 V input pin either directly through a divider that shares ground (A), or
+through an optocoupler whose LED is driven at 10 mA (B) or 1 mA (C).
+
+Opto output (inverting, LED on -> pin pulled low):
+  I_avail = CTR * I_F, I_sat = (VCC - VCE_SAT) / RL
+  V_out = max(VCE_SAT, VCC - min(I_avail, I_sat) * RL) with the LED on, VCC off.
+Read rule: pin < V_IL -> 0, pin > V_IH -> 1, in between -> invalid (an error).
+The direct pin sees bit*V_FIELD*K_DIV + K_CM*v_cm + noise; the opto pin sees only
+K_ISO*v_cm of the field-side common-mode surge v_cm (a stray-capacitance stand-in).
+CTR is lumped: one part per (regime, seed), CTR = CTR_NOM * exp(0.3 g), shared by
+both opto arms (same part, different LED current); low_ctr ages it by AGE.
+
+Common random numbers: one random.Random(f"{regime}/{seed}") stream per
+(regime, seed) draws g, then for every bit the field bit, the pin noise, the
+surge flag and the surge amplitude, in that fixed order, before any arm is
+evaluated; all arms share them.
+
+Regimes and parameters were written before the first run.
+
+Labels: tie = identical on every seed; numerically zero = |paired mean| and sd
+both < 1e-9; |m| <= sd = near-tie; |m| > sd = consistent gap (small if |m| < 20 %
+of the smaller arm mean, else clear), with a sign count. ROUND_HALF_UP output.
+Not an RS-485 or ADC model. Real coupler / isolation tester: 本页未运行.
+"""
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+
+VCC = 3.3
+RL = 4700.0
+VCE_SAT = 0.2
+V_IL = 0.3 * VCC
+V_IH = 0.7 * VCC
+ABS_MAX = VCC + 0.3
+V_FIELD = 24.0
+K_DIV = 3.0 / 24.0
+K_CM = 0.1
+K_ISO = 1e-4
+CTR_NOM = 0.5
+CTR_SPREAD = 0.3
+SIG_PIN = 0.05
+N_BITS = 200
+P_SURGE = 0.2
+SURGE_LO, SURGE_HI = 20.0, 200.0
+AGE = 0.25
+I_F_B = 10e-3
+I_F_C = 1e-3
+
+METRICS = ("logic_err", "overvolt")
+ARMS = ("A_direct", "B_opto", "C_underdriven")
+PAIRS = (("B", "A"), ("C", "B"), ("C", "A"))
+
+# name: (surge on?, CTR age factor, declared expectation); written before the first run
+REGIMES = {
+    "quiet_legal": (False, 1.0, "A vs B may near-tie (or tie) on logic_err - keep; C as it comes"),
+    "surge": (True, 1.0, "B consistently below A on overvolt and logic_err (direct GPIO loses) - keep"),
+    "low_ctr": (False, AGE, "C consistently above B on logic_err (under-driven coupler loses) and may lose to A on logic_err - keep"),
+}
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0  # identical values: no floating residue in mean or sd
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    """Half-up rounding on the shortest decimal repr; tiny non-zero values in scientific form."""
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def draws(regime, seed):
+    rng = random.Random(f"{regime}/{seed}")
+    g = rng.gauss(0.0, 1.0)
+    bits = []
+    for _ in range(N_BITS):
+        bit = 1 if rng.random() < 0.5 else 0
+        noise = rng.gauss(0.0, SIG_PIN)
+        flag = rng.random() < P_SURGE
+        v_cm = rng.uniform(SURGE_LO, SURGE_HI)
+        bits.append((bit, noise, flag, v_cm))
+    return g, bits
+
+
+def read_pin(v):
+    if v < V_IL:
+        return 0
+    if v > V_IH:
+        return 1
+    return None
+
+
+def opto_out(bit, ctr, i_f, rl):
+    if not bit:
+        return VCC
+    i_sat = (VCC - VCE_SAT) / rl
+    return max(VCE_SAT, VCC - min(ctr * i_f, i_sat) * rl)
+
+
+def run_arm(arm, g, bits, surge_on, age, k_cm=K_CM, rl=RL, i_f_c=I_F_C):
+    ctr = CTR_NOM * math.exp(CTR_SPREAD * g) * age
+    err = over = 0
+    for bit, noise, flag, v_cm in bits:
+        cm = v_cm if (surge_on and flag) else 0.0
+        if arm == "A_direct":
+            pin = bit * V_FIELD * K_DIV + k_cm * cm + noise
+            got = read_pin(pin)
+        else:
+            i_f = I_F_B if arm == "B_opto" else i_f_c
+            pin = opto_out(bit, ctr, i_f, rl) + K_ISO * cm + noise
+            r = read_pin(pin)
+            got = None if r is None else 1 - r
+        if got != bit:
+            err += 1
+        if pin > ABS_MAX:
+            over += 1
+    return {"logic_err": err / N_BITS, "overvolt": over / N_BITS}
+
+
+def run_regime(regime, **kw):
+    surge_on, age, _ = REGIMES[regime]
+    out = {a: {m: [] for m in METRICS} for a in ARMS}
+    for seed in SEEDS:
+        g, bits = draws(regime, seed)
+        for a in ARMS:
+            r = run_arm(a, g, bits, surge_on, age, **kw)
+            for m in METRICS:
+                out[a][m].append(r[m])
+    return out
+
+
+def letter(arm):
+    return arm[0]
+
+
+def by_letter(res, x):
+    return next(v for k, v in res.items() if letter(k) == x)
+
+
+def main():
+    print("Synthetic optocoupler CTR and isolation toy: direct GPIO vs a well-driven and an under-driven coupler")
+    print("every constant is a declared toy parameter, not a datasheet value; real coupler / isolation tester: 本页未运行")
+    print(f"VCC={num(VCC)} V RL={num(RL)} ohm VCE_SAT={num(VCE_SAT)} V V_IL={num(V_IL)} V V_IH={num(V_IH)} V ABS_MAX={num(ABS_MAX)} V")
+    print(f"V_FIELD={num(V_FIELD)} V K_DIV={num(K_DIV)} K_CM={num(K_CM)} K_ISO={num(K_ISO)} CTR_NOM={num(CTR_NOM)} CTR spread exp(0.3 g) SIG_PIN={num(SIG_PIN)} V")
+    print(f"N_BITS={N_BITS} P_SURGE={num(P_SURGE)} v_cm uniform({num(SURGE_LO)}, {num(SURGE_HI)}) V AGE={num(AGE)} I_F B={num(I_F_B * 1e3)} mA C={num(I_F_C * 1e3)} mA")
+    print("Regimes and parameters were written before the first run")
+    i_sat = (VCC - VCE_SAT) / RL
+    print(f"hand_calc I_sat = (3.3 - 0.2)/4700 = {num(i_sat * 1e3)} mA collector current to pull the pin to VCE_SAT")
+    print(f"hand_calc minimum I_F at CTR_NOM = I_sat/CTR_NOM = {num(i_sat / CTR_NOM * 1e3)} mA")
+    print(f"hand_calc C at nominal CTR: I_C = 0.5 x 1 mA = 0.5000 mA -> V_out = 3.3 - 0.5e-3 x 4700 = {num(VCC - 0.5e-3 * RL)} V against V_IL = {num(V_IL)} V")
+    print(f"hand_calc worst surge on the direct pin = 200 x K_CM = {num(SURGE_HI * K_CM)} V against ABS_MAX = {num(ABS_MAX)} V")
+    print(f"hand_calc aged C: I_C = 0.25 x 0.5 x 1 mA = {num(AGE * CTR_NOM * 1e-3 * 1e3)} mA -> V_out = {num(VCC - AGE * CTR_NOM * 1e-3 * RL)} V, above V_IH = {num(V_IH)} V")
+    for regime, (surge_on, age, declared) in REGIMES.items():
+        res = run_regime(regime)
+        print(f"{regime}:")
+        print(f"  declared: {declared}")
+        for a in ARMS:
+            print("  " + a + " " + " ".join(f"{m} {fmt_pair(*mean_sd(res[a][m]))}" for m in METRICS))
+        for x, y in PAIRS:
+            for m in METRICS:
+                print(f"  paired {x}-{y} {m}: {verdict(by_letter(res, x)[m], by_letter(res, y)[m])}")
+    print("alternative parameters (declared before the run, same seeds, not adopted):")
+    r = run_regime("low_ctr", rl=10000.0)
+    print(f"  low_ctr with RL = 10000 ohm: paired C-B logic_err: {verdict(r['C_underdriven']['logic_err'], r['B_opto']['logic_err'])}")
+    r = run_regime("surge", k_cm=0.02)
+    print(f"  surge with K_CM = 0.02: paired B-A overvolt: {verdict(r['B_opto']['overvolt'], r['A_direct']['overvolt'])}")
+    r = run_regime("low_ctr", i_f_c=2e-3)
+    print(f"  low_ctr with C at I_F = 2 mA: paired C-B logic_err: {verdict(r['C_underdriven']['logic_err'], r['B_opto']['logic_err'])}")
+    print("No winner beyond the declared drive: the barrier blocks the surge only when the LED current times CTR still saturates the output")
+    print("Real coupler / isolation tester / vendor CTR curve: 本页未运行; Wikipedia figures 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic optocoupler CTR and isolation toy: direct GPIO vs a well-driven and an under-driven coupler
+every constant is a declared toy parameter, not a datasheet value; real coupler / isolation tester: 本页未运行
+VCC=3.3000 V RL=4700.0000 ohm VCE_SAT=0.2000 V V_IL=0.9900 V V_IH=2.3100 V ABS_MAX=3.6000 V
+V_FIELD=24.0000 V K_DIV=0.1250 K_CM=0.1000 K_ISO=1.000e-4 CTR_NOM=0.5000 CTR spread exp(0.3 g) SIG_PIN=0.0500 V
+N_BITS=200 P_SURGE=0.2000 v_cm uniform(20.0000, 200.0000) V AGE=0.2500 I_F B=10.0000 mA C=1.0000 mA
+Regimes and parameters were written before the first run
+hand_calc I_sat = (3.3 - 0.2)/4700 = 0.6596 mA collector current to pull the pin to VCE_SAT
+hand_calc minimum I_F at CTR_NOM = I_sat/CTR_NOM = 1.3191 mA
+hand_calc C at nominal CTR: I_C = 0.5 x 1 mA = 0.5000 mA -> V_out = 3.3 - 0.5e-3 x 4700 = 0.9500 V against V_IL = 0.9900 V
+hand_calc worst surge on the direct pin = 200 x K_CM = 20.0000 V against ABS_MAX = 3.6000 V
+hand_calc aged C: I_C = 0.25 x 0.5 x 1 mA = 0.1250 mA -> V_out = 2.7125 V, above V_IH = 2.3100 V
+quiet_legal:
+  declared: A vs B may near-tie (or tie) on logic_err - keep; C as it comes
+  A_direct logic_err 0.0000+-0.0000 overvolt 0.0000+-0.0000
+  B_opto logic_err 0.0000+-0.0000 overvolt 0.0000+-0.0000
+  C_underdriven logic_err 0.1930+-0.2643 overvolt 0.0000+-0.0000
+  paired B-A logic_err: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A overvolt: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B logic_err: 0.1930+-0.2643: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+  paired C-B overvolt: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A logic_err: 0.1930+-0.2643: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+  paired C-A overvolt: 0.0000+-0.0000: tie: identical on every seed
+surge:
+  declared: B consistently below A on overvolt and logic_err (direct GPIO loses) - keep
+  A_direct logic_err 0.1050+-0.0158 overvolt 0.1790+-0.0444
+  B_opto logic_err 0.0000+-0.0000 overvolt 0.0000+-0.0000
+  C_underdriven logic_err 0.3510+-0.1996 overvolt 0.0000+-0.0000
+  paired B-A logic_err: -0.1050+-0.0158: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A overvolt: -0.1790+-0.0444: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B logic_err: 0.3510+-0.1996: clear gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+  paired C-B overvolt: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A logic_err: 0.2460+-0.2007: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  paired C-A overvolt: -0.1790+-0.0444: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+low_ctr:
+  declared: C consistently above B on logic_err (under-driven coupler loses) and may lose to A on logic_err - keep
+  A_direct logic_err 0.0000+-0.0000 overvolt 0.0000+-0.0000
+  B_opto logic_err 0.0000+-0.0000 overvolt 0.0000+-0.0000
+  C_underdriven logic_err 0.5260+-0.0475 overvolt 0.0000+-0.0000
+  paired B-A logic_err: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A overvolt: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B logic_err: 0.5260+-0.0475: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B overvolt: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A logic_err: 0.5260+-0.0475: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A overvolt: 0.0000+-0.0000: tie: identical on every seed
+alternative parameters (declared before the run, same seeds, not adopted):
+  low_ctr with RL = 10000 ohm: paired C-B logic_err: 0.5260+-0.0475: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  surge with K_CM = 0.02: paired B-A overvolt: -0.0980+-0.0323: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  low_ctr with C at I_F = 2 mA: paired C-B logic_err: 0.5260+-0.0475: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner beyond the declared drive: the barrier blocks the surge only when the LED current times CTR still saturates the output
+Real coupler / isolation tester / vendor CTR curve: 本页未运行; Wikipedia figures 以原文为准
+```
+
+</SimOutput>
+
+### 读三个工况
+
+本页标签按以下顺序使用：只有每个种子的配对差都恰好为零才叫 **tie: identical on every seed**；`|配对均值|` 与其 sd 都小于 1e-9 时叫 **numerically zero (floating-point residue), effectively a tie**；`|配对均值| ≤ sd` 时叫 **near-tie / small gap, within seed noise**；否则是**一致**的差距（`|配对均值| > sd`），`|m|` 小于两臂均值中较小者的 20 % 时叫 **small**，否则叫 **clear**。每条一致的结果都带 5 个种子上的同号计数。配对差为 B−A、C−B 和 C−A。每个工况有自己的随机流，所以光耦器件以及 C 的余量在不同工况之间不同。
+
+- **quiet_legal。** 直连引脚和驱动充足的光耦每一位都读对：B−A `logic_err` 是 **tie: identical on every seed**。声明**成立**。C 臂（驱动不足的光耦）读错 0.1930±0.2643 的位，C−B 是**近似平局**，没有种子反号，5 个中有 3 个相等：三个种子上器件够强，另外两个种子上它落进无效区，正如 0.9500 V 的手算所提醒的。
+- **surge。** 直连引脚在 0.1790±0.0444 的位上超过 3.6 V，读错 0.1050±0.0158；驱动充足的光耦两样都没有。B−A `overvolt` 为 -0.1790±0.0444，B−A `logic_err` 为 -0.1050±0.0158，都是 **clear**，5 个种子全部同号。声明**成立**。驱动不足的光耦同样把浪涌挡在引脚之外（C−A `overvolt` -0.1790±0.0444，clear），但读错 0.3510±0.1996 的位：C−B `logic_err` 0.3510±0.1996，C−A `logic_err` 0.2460±0.2007，标签都是 clear，C−A 有 1 个种子反号。屏障保护了引脚，却没有让弱驱动读对。
+- **low_ctr。** CTR 老化到四分之一时，10 mA 仍能让输出饱和，B 每一位都读对；1 mA 则在 LED 点亮时让引脚落在无效区或高电平：C−B `logic_err` 为 0.5260±0.0475，clear，5 个种子全部同号，C−A 同样是 0.5260±0.0475。声明**成立**，这个输也**保留**。在逻辑电平上，驱动不足的光耦连没有遭受浪涌的普通直连引脚都比不过。这是逻辑电平上的输，不是隔离上的输。
+
+**没有成立的预先声明。** 这个玩具里没有：quiet 的打平、surge 中直连引脚的输和 low_ctr 中 C 的输都成立。有两个结果没有预先声明：quiet_legal 里 C 的近似平局掩盖了两个坏种子；surge 里 C 读错的位比直连引脚还多，但仍然保护了引脚。
+
+**首次运行后的代码改动。** 无。玩具按写好的样子运行了一次，首次输出与 `expected/` 文件逐字节相同。
+
+**看到结果后做的选择。** 无。阈值、驱动电流、CTR 分布、浪涌模型和三个打印的备选都在首次运行前写定，并在相同种子上运行。low_ctr 上改用 10 kΩ 上拉，C−B `logic_err` 仍是 0.5260±0.0475；浪涌份额减小到 `K_CM = 0.02`，B−A `overvolt` 仍为 -0.0980±0.0323，clear；low_ctr 上把 C 的驱动加到 2 mA，C−B 仍是 0.5260±0.0475。它们都没有替换默认设置。
+
+本页**不宣布通用的赢家**。只有在驱动仍能让输出饱和的前提下，屏障才能把现场浪涌挡在引脚之外：LED 电流乘以最坏情况的 CTR，必须留有余量地超过手算出的集电极电流。真实光耦与隔离测试仪都**本页未运行**。
+
+**180 分钟安排:** 30 分钟读光耦条目、它的 CTR 表和设计说明；25 分钟重算集电极电流和引脚电压；50 分钟运行玩具，读三个工况；40 分钟在固定种子下比较打印的备选；35 分钟做练习。
+
+### 练习
+
+1. 根据打印的手算确认 0.6596 mA 和 1.3191 mA，再算出：如果最坏情况的 CTR 只有标称值的五分之一，你会选多大的 LED 电流。
+2. 从 `draws` 和 `run_arm` 说明，对同一个种子，A、B、C 看到的是同样的位、引脚噪声和浪涌，并且 B 和 C 用的是同一个 CTR。
+3. 解释为什么这个电路里光耦是反相的，以及 `run_arm` 在哪里把读数翻转回来。
+4. 运行前先预测：把 C 的驱动改成 2 mA 时，quiet_legal 的 C−B `logic_err` 是多少，再在固定种子下运行。
+5. 在接真实光耦之前（本页未运行），写下你会从它的数据手册最坏值表里取哪三个数，以及每个数怎样进入手算。
+
 <Summary>
 
 **本课要点**
@@ -1185,6 +1531,8 @@ Real ADC / scope / INA lab: 本页未运行; Wikipedia+TI numbers 以原文为�
 - RS-485 把同样的 UART 帧放到差分对上，主干两端各接 120 Ω；在共享载荷的反射玩具里，不端接的 120 m 线路在 1 Mbps 下 17 个字节错 16 个，在 125 kbps 下一个不错，端接代价是 62.50 mA 空闲驱动电流，单端线在两种速率下都因共模噪声失败。
 
 - ENOB 把测得的 SINAD 换成有效位：共享音调下理想约 9.92 位，加前端噪声约 6.32 位，再加轻微失真约 5.84 位——码字仍是 10 位，不是手册额定值。
+
+- 光耦：LED 电流乘以 CTR 必须超过把引脚拉低所需的集电极电流（这里是 0.6596 mA）；在合成玩具里，驱动充足的光耦把每次浪涌都挡在引脚之外，而直连 GPIO 会超过 3.6 V（配对 −0.1790±0.0444）；以 1 mA 驱动、CTR 老化的光耦会读错位，在逻辑电平上连直连引脚都比不过（配对 0.5260±0.0475）——Wikipedia 数据以原文为准，真实光耦本页未运行。
 
 **下一课会用到**
 

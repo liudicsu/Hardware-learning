@@ -39,3 +39,7 @@ The Python toy models used in these lessons are in [`tools/sim/models/`](../../t
 ## Batch-21 PR2 / 第21批 PR2
 
 `first-robots/madgwick_vs_complementary_balancer_toy.py`: standard-library synthetic balancer pitch IMU stream (gyro only, the lesson's 0.5 s complementary filter, and the Madgwick 2010 IMU gradient-descent update at two beta values), shared noise draws, no hardware; expected output in `expected/madgwick_vs_complementary_balancer_toy.txt`, included in `check.sh`. Real MPU-6050 本页未运行. / 标准库合成的平衡车俯仰 IMU 数据（纯陀螺积分、课程的 0.5 s 互补滤波、两种 beta 的 Madgwick 2010 IMU 梯度下降更新），共用噪声抽样，不是硬件测量，输出由 `check.sh` 核对。
+
+## arduino-io/ — Optocoupler isolation, CTR and LED current / 光耦隔离、CTR 与 LED 电流
+
+`arduino-io/optocoupler_ctr_isolation_toy.py`: standard-library synthetic 24 V field input reaching a 3.3 V pin directly through a shared-ground divider, through a well-driven optocoupler (10 mA) or through the same coupler under-driven (1 mA), on shared bits, pin noise and common-mode surges (three regimes); CTR, thresholds and surge shares are declared toy parameters, not datasheet values; expected output in `expected/optocoupler_ctr_isolation_toy.txt`, included in `check.sh`. Real coupler / isolation tester 本页未运行. / 标准库合成的 24 V 现场输入：经共地分压直连 3.3 V 引脚、经驱动充足的光耦（10 mA）或同一光耦驱动不足（1 mA），在共用位、引脚噪声和共模浪涌下比较（三种情形）；CTR、阈值和浪涌份额是声明的玩具参数，不是手册值；输出由 `check.sh` 核对。

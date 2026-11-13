@@ -43,3 +43,7 @@ Different OpenSCAD versions write a different number of triangles; `check.sh` ig
 ## so101-arm/ — Voltage sag on the shared servo rail / 共享舵机电源轨的电压跌落
 
 `so101-arm/so101_shared_rail_sag_toy.py`: standard-library synthetic DC resistor chain for the SO-101's daisy-chained 5 V servo rail (ideal wiring vs declared thin wiring vs thicker wiring, four stall regimes) on shared resistance and current draws; no hardware; expected output in `expected/so101_shared_rail_sag_toy.txt`, included in `check.sh`. Real arm / PSU / stall test 本页未运行. / 标准库合成的 SO-101 菊花链 5 V 舵机电源轨直流电阻链（理想布线、声明的细线、粗线，四种堵转情形），不是实测，输出由 `check.sh` 核对。
+
+## pid-control/ — Ziegler–Nichols tuning from the ultimate gain / 从临界增益出发的 Ziegler–Nichols 整定
+
+`pid-control/ziegler_nichols_ultimate_gain_toy.py`: standard-library synthetic first-order lag with pure delay; the ultimate gain and period found by a P-only oscillation test, then classic Ziegler–Nichols PID vs the no-overshoot row vs P only, on shared load steps and measurement noise (three regimes); no hardware; expected output in `expected/ziegler_nichols_ultimate_gain_toy.txt`, included in `check.sh`. Real plant / autotune 本页未运行. / 标准库合成的一阶滞后加纯滞后对象：先用只有 P 的振荡试验找出临界增益与周期，再在共用负载阶跃和测量噪声下比较经典 Ziegler–Nichols PID、no overshoot 行和只用 P（三种情形），不是实测，输出由 `check.sh` 核对。

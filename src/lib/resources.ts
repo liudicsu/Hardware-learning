@@ -6780,8 +6780,8 @@ export const resources: Record<string, Resource> = {
     kind: "textbook",
     cost: { zh: "免费", en: "Free" },
     summary: {
-      zh: "已读摘要页（6 位作者按 arXiv 摘要页顺序；PDF/HTML 署名行为 Li、Zhu（两人均带星号，通常表示共同第一作者）、Wen、Yan Peng、Yaxin Peng、Feng；本卡片采用摘要页顺序）、HTML 与 PDF 正文（v1，HTTP 200，2026-11-13）。在 DexVLA（2B Qwen2-VL 主干 + 1B ScaleDP 动作专家，32 个 DiT 块）上冻结原动作专家，用轻量模块把点云特征经每块一个 MLP 适配器以加法注入少数块，而不是把三维 token 混进大模型。跳块分析（叠衣服任务）：前 11 块关键，跳过任一块性能显著下降、夹爪合不紧；第 11 块以后单块可跳，最多可连续跳 5 块，因此只训练 5 个注入块。高度泛化：训练泡沫 3 mm、测试 52 mm 时 OpenVLA、DP、ScaleDP-1B、DexVLA 都按训练高度去抓而失败；真假照片：屏幕上的洗衣液照片让 OpenVLA、DexVLA 反复去抓。RoboTwin 每格 3 个种子各测 100 次。全部以论文为准；GPU / UR5e / AgileX / RealSense 本页未运行。",
-      en: "Abstract page (6 authors in arXiv abstract-page order; the PDF/HTML byline is Li, Zhu (both asterisked, the usual co-first-author mark), Wen, Yan Peng, Yaxin Peng, Feng; this card uses the abstract-page order), HTML and PDF body read (v1, HTTP 200, 2026-11-13). On DexVLA (a 2B Qwen2-VL backbone plus a 1B ScaleDP action expert with 32 DiT blocks) the vanilla action expert is frozen and point-cloud features are injected additively into a few blocks through a lightweight module with one MLP adapter per block, instead of blending 3D tokens into the language model. Skip-block analysis (shirt folding): the first 11 blocks are crucial, skipping any of them drops performance and the gripper fails to close tightly; from block 11 on a single block can be skipped and up to five consecutive blocks can be skipped, so only five injection blocks are trained. Height adaptability: with 3 mm foam in training and 52 mm at test, OpenVLA, DP, ScaleDP-1B and DexVLA all grasp at the trained height and fail; real-vs-photo: a photo of the detergent on a screen makes OpenVLA and DexVLA keep trying to grasp. RoboTwin cells use 3 seeds with 100 tests each. All 以论文为准; GPU / UR5e / AgileX / RealSense 本页未运行.",
+      zh: "已读摘要页（6 位作者按 arXiv 摘要页顺序；PDF/HTML 署名行为 Li、Zhu、Wen、Yan Peng、Yaxin Peng、Feng（PDF 中两人均带星号，通常理解为同等贡献；星号只在 PDF 中可见，arXiv 的 HTML 转换版丢掉了星号，但作者顺序相同）；本卡片采用摘要页顺序）、HTML 与 PDF 正文（v1，HTTP 200，2026-11-13）。在 DexVLA（2B Qwen2-VL 主干 + 1B ScaleDP 动作专家，32 个 DiT 块）上冻结原动作专家，用轻量模块把点云特征经每块一个 MLP 适配器以加法注入少数块，而不是把三维 token 混进大模型。跳块分析（叠衣服任务）：前 11 块关键，跳过任一块性能显著下降、夹爪合不紧；第 11 块以后单块可跳，最多可连续跳 5 块，因此只训练 5 个注入块。高度泛化：训练泡沫 3 mm、测试 52 mm 时 OpenVLA、DP、ScaleDP-1B、DexVLA 都按训练高度去抓而失败；真假照片：屏幕上的洗衣液照片让 OpenVLA、DexVLA 反复去抓。RoboTwin 每格 3 个种子各测 100 次。全部以论文为准；GPU / UR5e / AgileX / RealSense 本页未运行。",
+      en: "Abstract page (6 authors in arXiv abstract-page order; the PDF/HTML byline is Li, Zhu, Wen, Yan Peng, Yaxin Peng, Feng (in the PDF, Li and Zhu are both asterisked, usually read as equal contribution; the asterisks are visible only in the PDF, as the arXiv HTML conversion dropped them but keeps the same author order); this card uses the abstract-page order), HTML and PDF body read (v1, HTTP 200, 2026-11-13). On DexVLA (a 2B Qwen2-VL backbone plus a 1B ScaleDP action expert with 32 DiT blocks) the vanilla action expert is frozen and point-cloud features are injected additively into a few blocks through a lightweight module with one MLP adapter per block, instead of blending 3D tokens into the language model. Skip-block analysis (shirt folding): the first 11 blocks are crucial, skipping any of them drops performance and the gripper fails to close tightly; from block 11 on a single block can be skipped and up to five consecutive blocks can be skipped, so only five injection blocks are trained. Height adaptability: with 3 mm foam in training and 52 mm at test, OpenVLA, DP, ScaleDP-1B and DexVLA all grasp at the trained height and fail; real-vs-photo: a photo of the detergent on a screen makes OpenVLA and DexVLA keep trying to grasp. RoboTwin cells use 3 seeds with 100 tests each. All 以论文为准; GPU / UR5e / AgileX / RealSense 本页未运行.",
     },
     license: { zh: "预印本，CC BY 4.0（以 arXiv 页面为准）；仅提供外链", en: "Preprint, CC BY 4.0 (per the arXiv page); external link only" },
     extra: true,
@@ -6801,6 +6801,46 @@ export const resources: Record<string, Resource> = {
       en: "Abstract page (15 authors in arXiv order), HTML and PDF body read (v3, HTTP 200, 2026-11-13). Trained on NVILA-2B with egocentric human video (HOI4D, HOT3D, HoloAssist, TACO; about 500,000 image-action pairs) to predict the wrist pose in the camera frame and MANO hand parameters (top 15 PCA components); at deployment the wrist pose goes through 3D transforms and inverse kinematics to arm joint angles, and hand keypoints are retargeted to the robot hand by a small MLP; then post-trained on a small set of robot teleoperation demonstrations. Ego Humanoid Manipulation Benchmark (Isaac Lab, Unitree H1 with Inspire hands, 12 tasks, 100 demonstrations per task). Zero-shot deployment without robot post-training gives 0 % success on all tasks; about 20 % higher long-horizon success than EgoVLA-NoPretrain; NoPretrain drops 23 % on unseen short-horizon backgrounds; with 50 % of the robot demonstrations, long-horizon success falls from 45.93 % to 7.41 %. All 以论文为准; GPU / Isaac Lab / Quest capture 本页未运行.",
     },
     license: { zh: "预印本，CC BY 4.0（以 arXiv 页面为准）；仅提供外链", en: "Preprint, CC BY 4.0 (per the arXiv page); external link only" },
+    extra: true,
+  },
+  "wiki-opto": {
+    id: "wiki-opto",
+    url: "https://en.wikipedia.org/w/index.php?title=Opto-isolator&oldid=1381742785",
+    title: {
+      zh: "Wikipedia：光耦（opto-isolator）",
+      en: "Wikipedia: Opto-isolator",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "光耦用光在两个相互隔离的电路之间传递信号，防止高电压影响接收端；主要作用是挡住高电压和瞬变，并能断开地环路；它是单向的、不能传输功率，只调制输出侧已有的能量。CTR 表：光电二极管型 0.1–0.2 %，光电晶体管型 2–120 %，达林顿型 100–600 %；设计要给参数波动留出充足余量，数据手册列的是最坏值；Bob Pease 提到同一生产批次的 4N28 CTR 从 15 % 到 100 % 以上不等，而手册最小值为 10 %。HTML 正文已核验（rev 1381742785）；以原文为准。真实光耦与隔离测试：本页未运行。",
+      en: "An opto-isolator transfers signals between two isolated circuits using light and keeps high voltages from affecting the receiving side; its main job is to block high voltages and transients, and it breaks ground loops; it is unidirectional and cannot transmit power, only modulating energy already on the output side. CTR table: photodiode 0.1–0.2 %, phototransistor 2–120 %, Darlington 100–600 %; designs need generous allowances for parameter fluctuations, and datasheets list worst-case values; Bob Pease reports 4N28 CTR in one production lot ranging from 15 % to more than 100 % against a 10 % datasheet minimum. HTML body checked (rev 1381742785); 以原文为准. Real coupler and isolation tester: 本页未运行.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "wiki-zn": {
+    id: "wiki-zn",
+    url: "https://en.wikipedia.org/w/index.php?oldid=1340563087",
+    title: {
+      zh: "Wikipedia：Ziegler–Nichols 整定法",
+      en: "Wikipedia: Ziegler–Nichols method",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "John G. Ziegler 与 Nathaniel B. Nichols 的启发式 PID 整定法：先把 I、D 设为零，把 P 加大到临界增益 Ku，使输出出现稳定、一致的振荡，再用 Ku 和振荡周期 Tu 查表；经典 PID 行 Kp = 0.6 Ku、Ti = 0.5 Tu、Td = 0.125 Tu，目标是四分之一波衰减和最好的扰动抑制，增益偏激进、会超调；需要少超调时用更温和的行，例如 no overshoot 行 Kp = 0.2 Ku。HTML 正文已核验（rev 1340563087）；以原文为准。真实对象与硬件自整定：本页未运行。",
+      en: "John G. Ziegler and Nathaniel B. Nichols' heuristic PID tuning: set I and D to zero, raise P to the ultimate gain Ku where the output shows stable, consistent oscillations, then read the gains from Ku and the oscillation period Tu; the classic PID row Kp = 0.6 Ku, Ti = 0.5 Tu, Td = 0.125 Tu aims at a quarter-wave decay and the best disturbance rejection and is aggressive with overshoot; milder rows such as no overshoot (Kp = 0.2 Ku) serve applications that need little overshoot. HTML body checked (rev 1340563087); 以原文为准. Real plant and hardware autotune: 本页未运行.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
     extra: true,
   },
 }

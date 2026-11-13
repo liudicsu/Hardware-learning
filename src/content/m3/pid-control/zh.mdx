@@ -1890,6 +1890,523 @@ Real servo / motor bench: 本页未运行; Wikipedia PID setpoint weighting 以�
 4. 固定种子，关掉噪声重跑 `mixed_noise`。运行前先预测 14.2940 % 的负载范围会不会缩小，并解释这说明了窗口的什么问题。
 5. 在上任何实验台之前（本页未运行），写下为什么 B 在 `setpoint_large` 中零超调，**并不**意味着 `b = 0.5` 适合每个关节。
 
+## Ziegler–Nichols 整定：从临界增益出发
+
+<Resource id="wiki-zn" />
+
+上面整定步骤的第 2 步说：把 Kp 加大到回路开始振荡，再退回到大约一半。这条规则背后有名字也有表。**实际打开的来源（已读 HTML 正文）。** **Wikipedia — Ziegler–Nichols method**（修订版 1340563087；以原文为准）：这是 John G. Ziegler 与 Nathaniel B. Nichols 提出的启发式整定方法。先把 I 和 D 增益设为零，再把 P 增益从零加大，直到**临界增益** `Ku`，此时回路输出出现稳定、一致的振荡。然后用 `Ku` 和振荡周期 `Tu` 按表设定增益。条目中经典 PID 一行（以原文为准）是 `Kp = 0.6 Ku`、`Ti = 0.5 Tu`、`Td = 0.125 Tu`；只用 P 的一行是 `Kp = 0.5 Ku`，也就是第 2 步里的“大约一半”。条目说经典一行的目标是四分之一波衰减和最好的扰动抑制，它给出的增益偏激进、会超调；对需要少超调或不超调的应用，条目给出更温和的几行，其中有 **“no overshoot”（无超调）** 一行：`Kp = 0.2 Ku`、`Ti = 0.5 Tu`、`Td = Tu/3`。这些都是条目的陈述，以原文为准；下面没有一条是玩具的输出。
+
+本节沿用上面各节同样的 PID 结构，只问三个增益最初怎么选。它**不是**抗积分饱和、串级、超前–滞后、陷波或设定值加权，也**不是**继电器自整定。真实对象与硬件自整定都**本页未运行**。
+
+<Formula label="一阶加纯滞后与相位穿越条件（声明的玩具模型）">G(s) = K·e^(−L·s) / (TAU·s + 1);   atan(w·TAU) + w·L = π;   Ku = √(1 + (w·TAU)²) / K;   Tu = 2π / w</Formula>
+
+**算例（手算，玩具也会打印）。** 取 `K = 1`、`TAU = 1 s`。纯一阶滞后的相位永远到不了 −180°，所以只用 P 控制永远不会振荡，`Ku` 不存在；这个方法需要一些纯滞后或额外的滞后环节。纯滞后为 0.1 s 时，相位条件给出 `w = 16.3199 rad/s`，于是 `Ku = 16.3506`、`Tu = 0.3850 s`，经典一行给出 `Kp = 9.8103`、`Ti = 0.1925 s`、`Td = 0.0481 s`。纯滞后为 0.5 s 时，`w = 3.6732 rad/s`、`Ku = 3.8069`、`Tu = 1.7106 s`，经典增益降到 `Kp = 2.2841`、`Ti = 0.8553 s`、`Td = 0.2138 s`：滞后变成四倍，可用的增益大部分没了。
+
+**玩具里的辨识。** 玩具的各个臂不用上面的公式，而是自己做振荡试验：在无噪声的对象上做只用 P 的阶跃试验，在 0.1 到 100 之间对 Kp 二分 40 次；如果最后一个高于后段均值的正峰比前一个大，就算发散。它打印的结果是：0.1 s 滞后时 `Ku = 15.9619`、`Tu = 0.3943 s`，0.5 s 滞后时 `Ku = 3.7913`、`Tu = 1.7179 s`，比手算略低，因为采样后的滞后和零阶保持会再添一些相位。同一工况下三个臂共用辨识出的 `Ku` 与 `Tu`。
+
+**积分步长及其稳定判据。** 对象在零阶保持下以 `DT = 0.005 s` 精确离散：`x[k+1] = A·x[k] + K·(1 − A)·u[k − ND]`，其中 `A = exp(−DT/TAU) = 0.9950`，`ND` 是滞后的采样数。只要 `DT > 0` 就有 `0 < A < 1`，所以这个递推本身对任何步长都稳定；玩具会打印这条判据。**回路**是否稳定取决于增益，玩具检查每个臂、每个种子的 `|y|` 都保持在 10 以下。
+
+### 公平设置
+
+`ziegler_nichols_ultimate_gain_toy.py` 是**合成**的，只用标准库。**模型假设:** 线性一阶滞后加纯滞后，`K = 1`、`TAU = 1 s`；并联 PID `u = Kp·(e + I/Ti + Td·D)`，积分用前向欧拉，微分取在测量值上并经过一阶滤波 `Tf = Td/10`（所以设定值阶跃不会产生微分冲击），**没有**执行器限幅；`t = 0` 时给单位设定值阶跃，`t = 10 s` 时在对象输入端加负载阶跃。所有数值都是**声明的玩具参数**，不是测得的关节。
+
+| 臂 | Wikipedia 表中的行（以原文为准） | Kp | Ti | Td |
+|---|---|---|---|---|
+| A_classic | 经典 PID | 0.6 Ku | 0.5 Tu | 0.125 Tu |
+| B_no_overshoot | “no overshoot” | 0.2 Ku | 0.5 Tu | Tu/3 |
+| C_p_only | 只用 P | 0.5 Ku | 无 | 无 |
+
+**共用随机数:** 每个（工况，种子）用一个随机流先抽负载阶跃大小（0.2 到 0.4），再为每个时间步抽一个测量噪声样本，全部在任何臂运行之前抽好，三个臂共用。五个种子。指标：overshoot（负载阶跃之前超过目标的百分比）、`iae`（20 s 全程误差绝对值的积分，含负载阶跃）和 `settle`（10 s 之前误差最后一次超过 0.05 的时刻；从未稳定的运行记为 10 s），都按种子给出均值±sd。
+
+| 工况 | 滞后 L | 噪声 sd | 预先声明 |
+|---|---|---|---|
+| lag | 0.1 s | 0.002 | A 与 B 的 iae **可能**近似平局，**保留**；C 的 iae **可能**输，**保留** |
+| delay_quiet | 0.5 s | 0 | A 的 overshoot **一致**高于 B，**保留** |
+| delay_noisy | 0.5 s | 0.02 | A 的 overshoot **和** iae 都**一致**高于 B（经典 ZN 输），**保留** |
+
+### 运行标准库玩具
+
+```bash
+cd ~/Hardware-learning/examples/month-3/pid-control
+python3 ziegler_nichols_ultimate_gain_toy.py
+```
+
+<CodeSource path="examples/month-3/pid-control/ziegler_nichols_ultimate_gain_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Ziegler-Nichols ultimate-gain PID tuning toy on a first-order-plus-dead-time
+plant: a deterministic discrete linear stand-in, not a physical joint; real
+plant / autotune: 本页未运行.
+
+Model: G(s) = K exp(-L s) / (TAU s + 1) with K = 1.0 and TAU = 1.0 s.  Exact
+zero-order-hold discretisation with DT = 0.005 s gives
+x[k+1] = A*x[k] + K*(1-A)*(u[k-ND] + d[k]), A = exp(-DT/TAU), and ND samples
+of pure delay.  The stable step criterion is 0 < A < 1 for any DT > 0.
+The controller is a parallel ISA PID, u = Kp*(e + I/Ti + Td*D), with a
+forward-Euler integral of e and a derivative on the filtered measurement only
+(no setpoint kick), filter time Tf = Td/10; the P-only arm has no Ti or Td.
+
+Common random numbers: one random.Random(f"{regime}/{seed}") stream per
+(regime, seed) draws the disturbance amplitude and then one measurement noise
+per sample in a fixed order before any arm is evaluated; all arms share them.
+
+Regimes and parameters were written before the first run.  Declared
+expectations are printed as they come, without tuning.
+"""
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+
+K = 1.0
+TAU = 1.0
+DT = 0.005
+A = math.exp(-DT / TAU)
+T_END = 20.0
+T_ID = 60.0
+T_DIST = 10.0
+
+METRICS = ("overshoot", "iae", "settle")
+
+REGIMES = {
+    "lag": {
+        "L": 0.1,
+        "SIG": 0.002,
+        "declared": "A and B may near-tie on iae - keep; C may lose on iae "
+                    "(P-only offset) - keep",
+    },
+    "delay_quiet": {
+        "L": 0.5,
+        "SIG": 0.0,
+        "declared": "A consistently above B on overshoot (classic ZN "
+                    "overshoots) - keep",
+    },
+    "delay_noisy": {
+        "L": 0.5,
+        "SIG": 0.02,
+        "declared": "A consistently above B on overshoot and iae (classic ZN "
+                    "loses) - keep",
+    },
+}
+
+ARMS = ("A_classic", "B_no_overshoot", "C_p_only")
+PAIRS = (("B_no_overshoot", "A_classic"), ("C_p_only", "B_no_overshoot"),
+         ("C_p_only", "A_classic"))
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0  # identical values: no floating residue in mean or sd
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    """Half-up rounding on the shortest decimal repr; tiny non-zero values in scientific form."""
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def analytic_ku_tu(L):
+    lo, hi = 0.0, 1.0e4
+    for _ in range(120):
+        mid = 0.5 * (lo + hi)
+        if math.atan(mid * TAU) + mid * L < math.pi:
+            lo = mid
+        else:
+            hi = mid
+    w = 0.5 * (lo + hi)
+    ku = math.sqrt(1.0 + (w * TAU) ** 2) / K
+    tu = 2.0 * math.pi / w
+    return w, ku, tu
+
+
+def simulate(nd, kp, ti=None, td=None, tf_div=10.0, r=1.0, d_amp=0.0,
+             noise=None, t_end=T_END, t_dist=T_DIST):
+    n = int(t_end / DT + 0.5) + 1
+    x = 0.0
+    integ = 0.0
+    yf = 0.0
+    u_hist = []
+    xs = []
+    unstable = False
+    tf = None if td is None else td / tf_div
+    for k in range(n):
+        t = k * DT
+        y_meas = x if noise is None else x + noise[k]
+        e = r - y_meas
+        if td is None:
+            d_term = 0.0
+        elif k == 0:
+            yf = y_meas
+            d_term = 0.0
+        else:
+            alpha = math.exp(-DT / tf)
+            yf_new = alpha * yf + (1.0 - alpha) * y_meas
+            d_term = -(yf_new - yf) / DT
+            yf = yf_new
+        if ti is None:
+            u = kp * e
+        else:
+            u = kp * (e + integ / ti + td * d_term)
+        ud = u_hist[k - nd] if k >= nd else 0.0
+        dd = d_amp if t >= t_dist else 0.0
+        xs.append(x)
+        u_hist.append(u)
+        if ti is not None:
+            integ += DT * e
+        x_next = A * x + K * (1.0 - A) * (ud + dd)
+        if not math.isfinite(x_next) or abs(x_next) > 1.0e9:
+            unstable = True
+            x = 1.0e9 if x_next >= 0.0 else -1.0e9
+            break
+        x = x_next
+    if len(xs) < n:
+        xs.extend([x] * (n - len(xs)))
+    return {"y_true": xs, "unstable": unstable}
+
+
+def is_growing(ys, unstable):
+    if unstable:
+        return True
+    n = len(ys)
+    start = int((T_ID - 30.0) / DT + 0.5)
+    if start >= n - 1:
+        return False
+    mu = sum(ys[start:]) / len(ys[start:])
+    peaks = []
+    for k in range(max(1, start), n - 1):
+        if ys[k] > ys[k - 1] and ys[k] >= ys[k + 1] and ys[k] > mu:
+            peaks.append(k)
+    if len(peaks) < 2:
+        return False
+    last_amp = ys[peaks[-1]] - mu
+    prev_amp = ys[peaks[-2]] - mu
+    return last_amp > prev_amp
+
+
+def peak_spacing_tu(ys):
+    n = len(ys)
+    start = int((T_ID - 30.0) / DT + 0.5)
+    mu = sum(ys[start:]) / len(ys[start:])
+    peaks = [k for k in range(max(1, start), n - 1)
+             if ys[k] > ys[k - 1] and ys[k] >= ys[k + 1] and ys[k] > mu]
+    if len(peaks) < 2:
+        start2 = int(5.0 / DT + 0.5)
+        peaks = [k for k in range(start2, n - 1)
+                 if ys[k] > ys[k - 1] and ys[k] >= ys[k + 1] and ys[k] > mu]
+    if len(peaks) < 2:
+        return None
+    spacings = [peaks[i + 1] - peaks[i] for i in range(len(peaks) - 1)]
+    return sum(spacings) / len(spacings) * DT
+
+
+def identify(nd, L):
+    lo, hi = 0.1, 100.0
+    for _ in range(40):
+        mid = 0.5 * (lo + hi)
+        res = simulate(nd, mid, t_end=T_ID)
+        if is_growing(res["y_true"], res["unstable"]):
+            hi = mid
+        else:
+            lo = mid
+    ku = 0.5 * (lo + hi)
+    res = simulate(nd, ku, t_end=T_ID)
+    tu = peak_spacing_tu(res["y_true"])
+    if tu is None:
+        tu = analytic_ku_tu(L)[2]
+    return ku, tu
+
+
+def arm_gains(ku, tu):
+    return {
+        "A_classic": (0.6 * ku, 0.5 * tu, 0.125 * tu),
+        "B_no_overshoot": (0.2 * ku, 0.5 * tu, tu / 3.0),
+        "C_p_only": (0.5 * ku, None, None),
+    }
+
+
+def metrics_from(xs):
+    i10 = int(T_DIST / DT + 0.5)
+    overshoot = max(0.0, max(xs[:i10 + 1]) - 1.0) * 100.0
+    iae = DT * sum(abs(1.0 - y) for y in xs)
+    last_bad = 0.0
+    bad = False
+    for k in range(i10 + 1):
+        if abs(1.0 - xs[k]) > 0.05:
+            last_bad = k * DT
+            bad = True
+    settle = last_bad if bad else 0.0
+    stable = all(abs(y) < 10.0 for y in xs)
+    return {"overshoot": overshoot, "iae": iae, "settle": settle,
+            "stable": stable}
+
+
+def build_crn():
+    crn = {}
+    n = int(T_END / DT + 0.5) + 1
+    for regime, cfg in REGIMES.items():
+        nd = int(cfg["L"] / DT + 0.5)
+        for seed in SEEDS:
+            rng = random.Random(f"{regime}/{seed}")
+            d_amp = rng.uniform(0.2, 0.4)
+            noise = [rng.gauss(0.0, cfg["SIG"]) for _ in range(n)]
+            crn[(regime, seed)] = (d_amp, noise, nd)
+    return crn
+
+
+def run_gains(crn, regime, gains, tf_div=10.0):
+    out = {arm: {m: [] for m in METRICS} for arm in gains}
+    events = []
+    for seed in SEEDS:
+        d_amp, noise, nd = crn[(regime, seed)]
+        for arm in gains:
+            kp, ti, td = gains[arm]
+            res = simulate(nd, kp, ti, td, tf_div=tf_div, d_amp=d_amp,
+                           noise=noise, t_end=T_END)
+            met = metrics_from(res["y_true"])
+            for m in METRICS:
+                out[arm][m].append(met[m])
+            if not met["stable"]:
+                events.append((seed, arm))
+    return out, events
+
+
+def report(regime, ku, tu, gains, res, events):
+    print(f"{regime}:")
+    print(f"  identified Ku={num(ku)} Tu={num(tu)} (P-only ultimate test, "
+          f"noise-free, {num(T_ID)} s)")
+    print(f"  declared: {REGIMES[regime]['declared']}")
+    for arm in ARMS:
+        kp, ti, td = gains[arm]
+        if ti is None:
+            gtext = f"Kp={num(kp)} (P-only, Ti and Td absent)"
+        else:
+            gtext = f"Kp={num(kp)} Ti={num(ti)} Td={num(td)}"
+        print(f"  {arm} gains: {gtext}")
+    for arm in ARMS:
+        body = " ".join(
+            f"{m} {fmt_pair(*mean_sd(res[arm][m]))}" for m in METRICS)
+        print(f"  {arm} {body}")
+    for a, b in PAIRS:
+        for m in METRICS:
+            print(f"  paired {a[0]}-{b[0]} {m}: "
+                  f"{verdict(res[a][m], res[b][m])}")
+    for seed, arm in events:
+        print(f"  unstable: {regime} seed {seed} {arm} |y_true| >= 10")
+
+
+def main():
+    print("Ziegler-Nichols ultimate-gain PID tuning toy on a "
+          "first-order-plus-dead-time plant")
+    print("deterministic discrete linear stand-in, not a physical joint; real "
+          "plant / autotune: 本页未运行")
+    print(f"model G(s) = K exp(-L s)/(TAU s + 1), K={num(K)} TAU={num(TAU)} s, "
+          f"DT={num(DT)} s, A=exp(-DT/TAU)={num(A)}, "
+          f"ND=int(L/DT+0.5) samples of pure delay")
+    print("stable-step criterion: 0 < A < 1 for any DT > 0")
+    print("controller u = Kp*(e + I/Ti + Td*D); I forward-Euler integral of e; "
+          "D = -dy_f/dt on the measurement filter Tf = Td/10; P-only has no "
+          "Ti or Td")
+    print(f"seeds={len(SEEDS)} T_END={num(T_END)} s T_ID={num(T_ID)} s "
+          f"setpoint step r=1 at t=0; load step at t={num(T_DIST)} s with "
+          f"d uniform(0.2, 0.4)")
+    print("Regimes and parameters were written before the first run")
+    for L in (0.1, 0.5):
+        w, kua, tua = analytic_ku_tu(L)
+        print(f"hand_calc L={num(L)} analytic Ku={num(kua)} Tu={num(tua)} "
+              f"(w={num(w)} solves atan(w*TAU)+w*L=pi)")
+        print(f"hand_calc L={num(L)} classic PID from analytic Ku,Tu: "
+              f"Kp={num(0.6 * kua)} Ti={num(0.5 * tua)} "
+              f"Td={num(0.125 * tua)}")
+    print("hand_calc note: the discrete delay/ZOH adds phase so the identified "
+          "Ku can be lower than the analytic Ku")
+    crn = build_crn()
+    results = {}
+    identified = {}
+    gains_by_regime = {}
+    for regime, cfg in REGIMES.items():
+        nd = int(cfg["L"] / DT + 0.5)
+        ku, tu = identify(nd, cfg["L"])
+        identified[regime] = (ku, tu)
+        gains = arm_gains(ku, tu)
+        gains_by_regime[regime] = gains
+        res, events = run_gains(crn, regime, gains)
+        results[regime] = res
+        report(regime, ku, tu, gains, res, events)
+    print("alternative parameters (declared before the run, same seeds, not "
+          "adopted):")
+    ku_n, tu_n = identified["delay_noisy"]
+    xg = (ku_n / 3.0, 0.5 * tu_n, tu_n / 3.0)
+    resx, evx = run_gains(crn, "delay_noisy", {"X": xg})
+    print(f"  delay_noisy some-overshoot row (Kp=Ku/3, Ti=0.5 Tu, Td=Tu/3) "
+          f"as X: paired X-A overshoot: "
+          f"{verdict(resx['X']['overshoot'], results['delay_noisy']['A_classic']['overshoot'])}")
+    print(f"  delay_noisy some-overshoot row as X: paired X-A iae: "
+          f"{verdict(resx['X']['iae'], results['delay_noisy']['A_classic']['iae'])}")
+    cx = gains_by_regime["delay_noisy"]["A_classic"]
+    resx2, evx2 = run_gains(crn, "delay_noisy", {"X": cx}, tf_div=5.0)
+    print(f"  delay_noisy classic with Tf=Td/5 as X: paired X-A iae: "
+          f"{verdict(resx2['X']['iae'], results['delay_noisy']['A_classic']['iae'])}")
+    w, kua, tua = analytic_ku_tu(0.1)
+    xg3 = (0.6 * kua, 0.5 * tua, 0.125 * tua)
+    resx3, evx3 = run_gains(crn, "lag", {"X": xg3})
+    print(f"  lag classic from analytic Ku,Tu as X: paired X-A iae: "
+          f"{verdict(resx3['X']['iae'], results['lag']['A_classic']['iae'])}")
+    print("No winner beyond the declared expectations: classic ZN trades "
+          "overshoot for speed, the conservative row reduces overshoot at "
+          "higher iae, and P-only keeps a load offset, with seed scatter")
+    print("Real plant / autotune / Microstar or ASME figures: 本页未运行; "
+          "Wikipedia table 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Ziegler-Nichols ultimate-gain PID tuning toy on a first-order-plus-dead-time plant
+deterministic discrete linear stand-in, not a physical joint; real plant / autotune: 本页未运行
+model G(s) = K exp(-L s)/(TAU s + 1), K=1.0000 TAU=1.0000 s, DT=0.0050 s, A=exp(-DT/TAU)=0.9950, ND=int(L/DT+0.5) samples of pure delay
+stable-step criterion: 0 < A < 1 for any DT > 0
+controller u = Kp*(e + I/Ti + Td*D); I forward-Euler integral of e; D = -dy_f/dt on the measurement filter Tf = Td/10; P-only has no Ti or Td
+seeds=5 T_END=20.0000 s T_ID=60.0000 s setpoint step r=1 at t=0; load step at t=10.0000 s with d uniform(0.2, 0.4)
+Regimes and parameters were written before the first run
+hand_calc L=0.1000 analytic Ku=16.3506 Tu=0.3850 (w=16.3199 solves atan(w*TAU)+w*L=pi)
+hand_calc L=0.1000 classic PID from analytic Ku,Tu: Kp=9.8103 Ti=0.1925 Td=0.0481
+hand_calc L=0.5000 analytic Ku=3.8069 Tu=1.7106 (w=3.6732 solves atan(w*TAU)+w*L=pi)
+hand_calc L=0.5000 classic PID from analytic Ku,Tu: Kp=2.2841 Ti=0.8553 Td=0.2138
+hand_calc note: the discrete delay/ZOH adds phase so the identified Ku can be lower than the analytic Ku
+lag:
+  identified Ku=15.9619 Tu=0.3943 (P-only ultimate test, noise-free, 60.0000 s)
+  declared: A and B may near-tie on iae - keep; C may lose on iae (P-only offset) - keep
+  A_classic gains: Kp=9.5772 Ti=0.1971 Td=0.0493
+  B_no_overshoot gains: Kp=3.1924 Ti=0.1971 Td=0.1314
+  C_p_only gains: Kp=7.9810 (P-only, Ti and Td absent)
+  A_classic overshoot 62.1739+-0.1065 iae 0.3411+-0.0023 settle 0.9200+-0.0000
+  B_no_overshoot overshoot 43.6254+-0.0581 iae 0.6573+-0.0102 settle 2.0970+-0.0027
+  C_p_only overshoot 16.9901+-0.0255 iae 2.0447+-0.0949 settle 10.0000+-0.0000
+  paired B-A overshoot: -18.5485+-0.0648: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A iae: 0.3162+-0.0080: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A settle: 1.1770+-0.0027: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B overshoot: -26.6353+-0.0605: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B iae: 1.3874+-0.1051: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B settle: 7.9030+-0.0027: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A overshoot: -45.1838+-0.0937: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A iae: 1.7036+-0.0972: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A settle: 9.0800+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+delay_quiet:
+  identified Ku=3.7913 Tu=1.7179 (P-only ultimate test, noise-free, 60.0000 s)
+  declared: A consistently above B on overshoot (classic ZN overshoots) - keep
+  A_classic gains: Kp=2.2748 Ti=0.8590 Td=0.2147
+  B_no_overshoot gains: Kp=0.7583 Ti=0.8590 Td=0.5726
+  C_p_only gains: Kp=1.8956 (P-only, Ti and Td absent)
+  A_classic overshoot 40.1680+-0.0000 iae 1.2115+-0.0247 settle 2.8950+-0.0000
+  B_no_overshoot overshoot 9.1684+-0.0000 iae 2.0593+-0.0780 settle 5.8900+-0.0000
+  C_p_only overshoot 0.0000+-0.0000 iae 6.0971+-0.2103 settle 10.0000+-0.0000
+  paired B-A overshoot: -30.9996+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A iae: 0.8479+-0.0533: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A settle: 2.9950+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B overshoot: -9.1684+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B iae: 4.0378+-0.2882: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B settle: 4.1100+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A overshoot: -40.1680+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A iae: 4.8857+-0.2350: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A settle: 7.1050+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+delay_noisy:
+  identified Ku=3.7913 Tu=1.7179 (P-only ultimate test, noise-free, 60.0000 s)
+  declared: A consistently above B on overshoot and iae (classic ZN loses) - keep
+  A_classic gains: Kp=2.2748 Ti=0.8590 Td=0.2147
+  B_no_overshoot gains: Kp=0.7583 Ti=0.8590 Td=0.5726
+  C_p_only gains: Kp=1.8956 (P-only, Ti and Td absent)
+  A_classic overshoot 40.5015+-0.4249 iae 1.2174+-0.0149 settle 2.8990+-0.0171
+  B_no_overshoot overshoot 9.4607+-0.1922 iae 1.9480+-0.0445 settle 5.9370+-0.0375
+  C_p_only overshoot 0.0000+-0.0000 iae 6.4064+-0.1240 settle 10.0000+-0.0000
+  paired B-A overshoot: -31.0408+-0.2830: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A iae: 0.7306+-0.0300: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A settle: 3.0380+-0.0422: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B overshoot: -9.4607+-0.1922: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B iae: 4.4584+-0.1685: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B settle: 4.0630+-0.0375: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A overshoot: -40.5015+-0.4249: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A iae: 5.1890+-0.1386: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A settle: 7.1010+-0.0171: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative parameters (declared before the run, same seeds, not adopted):
+  delay_noisy some-overshoot row (Kp=Ku/3, Ti=0.5 Tu, Td=Tu/3) as X: paired X-A overshoot: -21.8736+-0.4418: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  delay_noisy some-overshoot row as X: paired X-A iae: 0.4278+-0.0131: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  delay_noisy classic with Tf=Td/5 as X: paired X-A iae: 0.0023+-0.0033: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  lag classic from analytic Ku,Tu as X: paired X-A iae: 1.549e-4+-1.278e-4: small but consistent gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+No winner beyond the declared expectations: classic ZN trades overshoot for speed, the conservative row reduces overshoot at higher iae, and P-only keeps a load offset, with seed scatter
+Real plant / autotune / Microstar or ASME figures: 本页未运行; Wikipedia table 以原文为准
+```
+
+</SimOutput>
+
+### 读三个工况
+
+本页标签按以下顺序使用：只有每个种子的配对差都恰好为零才叫 **tie: identical on every seed**；`|配对均值|` 与其 sd 都小于 1e-9 时叫 **numerically zero (floating-point residue), effectively a tie**；`|配对均值| ≤ sd` 时叫 **near-tie / small gap, within seed noise**；否则是**一致**的差距（`|配对均值| > sd`），`|m|` 小于两臂均值中较小者的 20 % 时叫 **small**，否则叫 **clear**。每条一致的结果都带 5 个种子上的同号计数。配对差为 B−A、C−B 和 C−A。
+
+- **lag。** 经典 ZN 超调 62.1739±0.1065 %，但 `iae` 最低，为 0.3411±0.0023，“no overshoot”一行为 0.6573±0.0102：B−A `iae` 为 0.3162±0.0080，**clear**，5 个种子全部同号。声明的近似平局**没有成立**。在这个滞后不大的对象上，经典一行直接赢下 `iae`。“no overshoot”一行在这里仍然超调 43.6254±0.0581 %，因为 `Ti = 0.5 Tu = 0.1971 s` 相对 1 s 的滞后太短，积分把输出推过了目标。只用 P 留下静差，从未稳定（`settle` 10.0000±0.0000），`iae` 明显输（C−A 1.7036±0.0972，5/5）：声明的 C 输**成立**，并且**保留**。
+- **delay_quiet。** 纯滞后为 0.5 s 时，经典 ZN 超调 40.1680±0.0000 %，B 为 9.1684±0.0000 %：B−A overshoot 为 -30.9996±0.0000，clear，5 个种子全部同号。sd 为零是因为超调窗口在负载阶跃之前结束，又没有噪声，每个种子看到的设定值响应完全相同。声明**成立**。B 为此付出代价：B−A `iae` 为 0.8479±0.0533，B−A `settle` 为 2.9950±0.0000，都是 clear。
+- **delay_noisy。** 同一对象加 0.02 的测量噪声。超调重复 `delay_quiet` 的结果（B−A -31.0408±0.2830，clear，5/5），所以声明的这一半**成立**。`iae` 那一半**没有成立**。B−A `iae` 为 0.7306±0.0300，clear，5 个种子全部同号，也就是经典一行的 `iae` **更低**（1.2174±0.0149 对 1.9480±0.0445）。在这个玩具里，经典 ZN 输在超调上，而不是积分误差上。
+
+**没有成立的预先声明。** lag 的 `iae` 近似平局（B−A 0.3162±0.0080，clear），以及 delay_noisy 的“经典一行 `iae` 输”（B−A 0.7306±0.0300，clear，对 A 有利）。两条声明都按原样留在页面上；超调的声明和只用 P 的输都成立。
+
+**首次运行后的代码改动。** 无。玩具按写好的样子运行了一次，首次输出与 `expected/` 文件逐字节相同。
+
+**看到结果后做的选择。** 无。对象、噪声水平、表中的行、指标和三个打印的备选都在首次运行前写定，并在相同种子上运行。delay_noisy 上的“some overshoot”一行落在 A 和 B 之间：X−A overshoot -21.8736±0.4418，X−A `iae` 0.4278±0.0131，都是 clear。把微分滤波改为 `Tf = Td/5`，经典一行的 `iae` 变化 0.0023±0.0033，近似平局。在 lag 上改用解析的 `Ku`、`Tu` 而不是辨识值来算经典增益，`iae` 变化 1.549e-4±1.278e-4，标签为 small，5 个种子中有 1 个反号。它们都没有替换默认设置。
+
+本页**不宣布通用的赢家**。经典 ZN 用超调换来速度和负载抑制；“no overshoot”一行把它换回来，代价是响应更慢、`iae` 更大，而且 `Ti` 短时仍会超调；只用 P 会留下静差。真实对象与硬件自整定都**本页未运行**。
+
+**180 分钟安排:** 30 分钟读 Ziegler–Nichols 条目和它的表；25 分钟对两种滞后重算相位穿越的手算；50 分钟运行玩具，读三个工况；40 分钟在固定种子下比较打印的备选；35 分钟做练习。
+
+### 练习
+
+1. 根据打印的手算，对 `L = 0.5 s` 求解 `atan(w·TAU) + w·L = π`，确认 `Ku = 3.8069`、`Tu = 1.7106 s`。
+2. 从 `build_crn` 和 `run_gains` 说明，对同一个种子，A、B、C 用的是同一个负载阶跃大小和同一组噪声样本。
+3. 用 `ND` 个采样的滞后和零阶保持，解释为什么辨识出的 `Ku`（3.7913）略低于解析值。
+4. 运行前先预测：在 lag 上把 `Ti` 设为 `Tu` 而不是 `0.5 Tu` 时，“no overshoot”一行还会不会超调，再在固定种子下运行。
+5. 在任何真实对象之前（本页未运行），写下你会怎样在自己的关节上安全地找到 `Ku`，以及什么时候停止加大增益。
+
 <Summary>
 
 **本课要点**
@@ -1904,6 +2421,8 @@ Real servo / motor bench: 本页未运行; Wikipedia PID setpoint weighting 以�
 - 超前–滞后：用同一套固定配方、共用 20 rad/s 的穿越频率，在 PID 上加超前–滞后，在谐振关节上以**小而稳定的差距**赢下 ISE（配对 −2.8025±0.6749，5 个种子全部同号），同时幅值裕度从 3.00 dB 缩到 2.01 dB；在阻尼良好的关节上以小而稳定的差距输掉 ISE；执行器抖动总是更大；在轻阻尼对象上闭环发散——这是合成模型，不是实验台实验。
 - 陷波：在 `zr = 0.05` 的关节上，单独 PID 和超前–滞后在 5 个种子上全部发散，PID + 陷波保持稳定（PM 38.3°，GM 2.03 dB）；在刚性和 `zr = 0.3` 的关节上陷波以明显差距**输掉** ISE（配对 5.5960±1.4179 和 27.4063±6.9473，5 个种子同号）；偏离模态 30 % 的陷波处处都输——这是合成模型，不是实验台实验。
 - 二自由度设定值加权：`b = 0.5`、`c = 0` 时同一个回路在大设定值阶跃上完全不超调（配对 −19.2551±0.0001 %，5 个种子同号），但上升慢 132 ms；负载阶跃 ISE 与普通 PID 相比数值上为零；`b = 0.1` 且积分很慢时在上升时间上明显输掉——这是合成模型，不是实验台实验。
+- Ziegler–Nichols：只用 P 加大到临界增益 Ku（0.5 s 滞后时辨识值 3.7913、手算 3.8069），再查表设增益；在合成玩具里，经典 ZN 在有滞后的对象上比 no overshoot 行明显多超调（配对 −30.9996±0.0000 %），但在每个工况上 iae 都更低，声明的 iae 近似平局和 iae 输都没有成立，只用 P 留下静差——合成模型，不是台架实测。
+
 
 **常见错误**
 
