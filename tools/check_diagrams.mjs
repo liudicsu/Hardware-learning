@@ -10227,5 +10227,146 @@ print("protocol pass")
   console.log("batch-22 polish: EgoVLA pre-fix comparison printed, PointVLA author order and C−B construction tie, toy-wide process-label sweep locked; totals 71 / 40140 unchanged");
 }
 
+// Batch-23 PR1: optocoupler isolation, CTR and LED current (2.1 arduino-io) and Ziegler–Nichols tuning from the ultimate gain (3.4 pid-control).
+{
+  const read=p=>readFileSync(join(root,p),"utf8"), env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
+  const cur=read("src/lib/curriculum.ts"), res=read("src/lib/resources.ts");
+  execFileSync("python3",[join(root,"tools/test_b23p1_opto_zn_toys.py")],{cwd:root,encoding:"utf8",env,stdio:"pipe"});
+  ok(true,"b23p1 independent tests tools/test_b23p1_opto_zn_toys.py pass");
+  const NUM="-?\\d+\\.\\d+(?:e-?\\d+)?";
+  const CITEDBY={"arduino-io":[],"pid-control":["0.125"]};
+  const OH0=["## Optocoupler isolation: CTR, LED current and the barrier", "## 光耦隔离：CTR、LED 电流与隔离屏障"], ZH0=["## Ziegler–Nichols tuning from the ultimate gain", "## Ziegler–Nichols 整定：从临界增益出发"];
+  const cases=[
+    [2,"arduino-io","optocoupler_ctr_isolation_toy",840,["## Optocoupler isolation: CTR, LED current and the barrier", "## 光耦隔离：CTR、LED 电流与隔离屏障"],
+      ["hand_calc", "= 0.6596 mA", "= 1.3191 mA", "= 0.9500 V", "= 20.0000 V", "= 2.7125 V", "paired B-A logic_err: 0.0000+-0.0000: tie: identical on every seed", "paired B-A overvolt: -0.1790+-0.0444: clear gap", "paired B-A logic_err: -0.1050+-0.0158: clear gap", "paired C-B logic_err: 0.5260+-0.0475: clear gap", "paired C-A logic_err: 0.5260+-0.0475: clear gap", "paired C-B logic_err: 0.1930+-0.2643: near-tie", "paired B-A overvolt: -0.0980+-0.0323: clear gap", "本页未运行", "以原文为准"],
+      ["0.1930±0.2643", "0.1790±0.0444", "0.1050±0.0158", "-0.1790±0.0444", "-0.1050±0.0158", "0.3510±0.1996", "0.2460±0.2007", "0.5260±0.0475", "-0.0980±0.0323", "0.6596", "1.3191", "0.9500", "0.9900", "2.7125", "2.3100", "20.0000", "3.6000", "1381742785", "10 kV", "25 kV/μs", "2–120 %", "100–600 %", "15 %", "10 %", "以原文为准", "本页未运行"],
+      {"en": ["**unidirectional**", "**cannot transmit power**", "**CTR**", "Bob Pease", "production lot", "**synthetic**", "**Model assumptions:**", "**declared toy parameters**", "**Common random numbers:**", "**Integration step.**", "**Code change after the first run.**", "**Choices made after seeing results.**", "**Declared expectations that did not hold.**", "**does not declare a universal winner**", "**held**", "**kept**", "**near-tie**", "is **not** the RS-485 section", "not on isolation"],
+       "zh": ["**单向**", "**不能传输功率**", "**CTR**", "Bob Pease", "同一生产批次", "**合成**", "**模型假设:**", "**声明的玩具参数**", "**共用随机数:**", "**积分步长。**", "**首次运行后的代码改动。**", "**看到结果后做的选择。**", "**没有成立的预先声明。**", "**不宣布通用的赢家**", "**成立**", "**保留**", "**近似平局**", "**不是**上面的 RS-485 一节", "不是隔离上的输"]},
+      {"en": ["Optocoupler", "0.6596 mA", "以原文为准", "本页未运行"], "zh": ["光耦", "0.6596 mA", "以原文为准", "本页未运行"]},
+      ["wiki-opto"],"**180-minute work plan:**","**180 分钟安排:**",180],
+    [3,"pid-control","ziegler_nichols_ultimate_gain_toy",900,["## Ziegler–Nichols tuning from the ultimate gain", "## Ziegler–Nichols 整定：从临界增益出发"],
+      ["hand_calc", "Ku=16.3506 Tu=0.3850", "Ku=3.8069 Tu=1.7106", "identified Ku=15.9619 Tu=0.3943", "identified Ku=3.7913 Tu=1.7179", "stable-step criterion: 0 < A < 1", "paired B-A iae: 0.3162+-0.0080: clear gap", "paired C-A iae: 1.7036+-0.0972: clear gap", "paired B-A overshoot: -30.9996+-0.0000: clear gap", "paired B-A overshoot: -31.0408+-0.2830: clear gap", "paired B-A iae: 0.7306+-0.0300: clear gap", "paired X-A iae: 0.0023+-0.0033: near-tie", "本页未运行", "以原文为准"],
+      ["62.1739±0.1065", "0.3411±0.0023", "0.6573±0.0102", "0.3162±0.0080", "43.6254±0.0581", "10.0000±0.0000", "1.7036±0.0972", "40.1680±0.0000", "9.1684±0.0000", "-30.9996±0.0000", "0.8479±0.0533", "2.9950±0.0000", "-31.0408±0.2830", "0.7306±0.0300", "1.2174±0.0149", "1.9480±0.0445", "-21.8736±0.4418", "0.4278±0.0131", "0.0023±0.0033", "1.549e-4±1.278e-4", "16.3199", "16.3506", "0.3850", "3.8069", "1.7106", "15.9619", "0.3943", "3.7913", "1.7179", "0.9950", "1340563087", "0.125 Tu", "以原文为准", "本页未运行"],
+      {"en": ["**ultimate gain**", "**\"no overshoot\"**", "**synthetic**", "**Model assumptions:**", "**declared toy parameters**", "**Common random numbers:**", "**Integration step and its stability criterion.**", "**Code change after the first run.**", "**Choices made after seeing results.**", "**Declared expectations that did not hold.**", "**did not hold**", "**does not declare a universal winner**", "**held**", "**kept**", "quarter-wave decay", "a relay autotuner"],
+       "zh": ["**临界增益**", "**“no overshoot”（无超调）**", "**合成**", "**模型假设:**", "**声明的玩具参数**", "**共用随机数:**", "**积分步长及其稳定判据。**", "**首次运行后的代码改动。**", "**看到结果后做的选择。**", "**没有成立的预先声明。**", "**没有成立**", "**不宣布通用的赢家**", "**成立**", "**保留**", "四分之一波衰减", "继电器自整定"]},
+      {"en": ["Ziegler–Nichols", "3.7913", "did not hold", "not a bench run"], "zh": ["Ziegler–Nichols", "3.7913", "没有成立", "不是台架实测"]},
+      ["wiki-zn"],"**180-minute work plan:**","**180 分钟安排:**",180],
+  ];
+  const bag=read("examples/month-2/expected/optocoupler_ctr_isolation_toy.txt")+read("examples/month-3/expected/ziegler_nichols_ultimate_gain_toy.txt");
+  for(const [month,slug,toy,minutes,heads,outputs,markers,langMarkers,summaryMarkers,ids,planEn,planZh,planSum] of cases){
+    const file=`examples/month-${month}/${slug}/${toy}.py`,py=read(file).trim(),expected=read(`examples/month-${month}/expected/${toy}.txt`).trim();
+    const harness=read(`examples/month-${month}/check.sh`);
+    const run1=execFileSync("python3",[join(root,file)],{cwd:root,encoding:"utf8",env}), run2=execFileSync("python3",[join(root,file)],{cwd:root,encoding:"utf8",env});
+    ok(run1===run2&&run1===read(`examples/month-${month}/expected/${toy}.txt`),`b23p1 ${toy}: byte-identical rerun equals expected/`);
+    for(const x of outputs)ok(expected.includes(x),`b23p1 ${toy}: printed line ${x}`);
+    ok(/SEEDS = \(0, 1, 2, 3, 4\)/.test(py)&&/Common random numbers/.test(py)&&py.includes("本页未运行")&&py.includes("written before the first run")&&py.includes("ROUND_HALF_UP"),`b23p1 ${toy}: five seeds, CRN, pre-declared, half-up, 本页未运行`);
+    ok(!/^\s*(import|from)\s+(numpy|scipy|torch|pandas|control)/m.test(py),`b23p1 ${toy}: stdlib only`);
+    ok(!/(?<![+\d.e])-0\.0+(?![\d.e])/.test(expected),`b23p1 ${toy}: no signed zero printed`);
+    for(const line of expected.split("\n").filter(l=>l.includes("numerically zero (floating-point residue), effectively a tie"))){
+      const mm=line.match(new RegExp(`: (${NUM})\\+-(${NUM}): `));
+      ok(mm&&Math.abs(+mm[1])<1e-9&&+mm[2]<1e-9&&!/seeds/.test(line.split("effectively a tie")[1]),`b23p1 ${toy}: numerically-zero rule: ${line.slice(0,70)}`);
+    }
+    ok(py.includes("NUM_ZERO = 1e-9")&&py.indexOf("all(d == 0.0 for d in diffs)")<py.indexOf("abs(m) < NUM_ZERO")&&py.indexOf("abs(m) < NUM_ZERO")<py.indexOf("if abs(m) <= s:"),`b23p1 ${toy}: tie, then numerically-zero, then the sd test`);
+    for(const line of expected.split("\n").filter(l=>l.includes("tie: identical on every seed")))ok(line.includes("0.0000+-0.0000: tie: identical on every seed"),`b23p1 ${toy}: tie line is exactly zero: ${line.slice(0,70)}`);
+    for(const line of expected.split("\n")){
+      if(!line.includes("paired ")||/:\s*$/.test(line)) continue;
+      const mm=line.match(new RegExp(`: (${NUM})\\+-(${NUM}): `));
+      ok(!!mm,`b23p1 ${toy}: paired line carries m+-sd: ${line.slice(0,70)}`);
+      if(!mm) continue;
+      ok(line.includes("near-tie")?Math.abs(+mm[1])<=+mm[2]:(line.includes("tie: identical")||line.includes("numerically zero")||Math.abs(+mm[1])>+mm[2]),`b23p1 ${toy}: label matches |m| vs sd: ${line.slice(0,70)}`);
+      if(!line.includes("near-tie")&&!line.includes("tie: identical")&&!line.includes("numerically zero")){
+        ok(/same sign on all 5 seeds|of 5 seeds ha(s|ve) the opposite sign|no seed has the opposite sign/.test(line),`b23p1 ${toy}: sign count on ${line.slice(0,70)}`);
+        const o=line.match(/(\d) of 5 seeds ha/);ok(!o||+o[1]<=1,`b23p1 ${toy}: consistent label has a clear same-sign majority: ${line.slice(0,70)}`);
+      }
+    }
+    ok(cur.match(new RegExp(`slug: "${slug}"[\\s\\S]*?minutes: (\\d+)`))?.[1]===String(minutes),`b23p1 ${slug}: ${minutes} min`);
+    const host=cur.slice(cur.indexOf(`slug: "${slug}"`)).split("\n  },")[0];
+    ok(host.includes(toy)&&ids.every(id=>host.includes(`"${id}"`)),`b23p1 ${slug}: task names toy and resources wired`);
+    for(const m of host.split("\n").filter(l=>/b23p1-|I_C = min\(CTR|Ziegler–Nichols 闭环整定|closed-loop Ziegler–Nichols/.test(l)).join("\n").matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g))ok(bag.includes(`${m[1]}+-${m[2]}`),`b23p1 ${slug} curriculum: ${m[0]} matches expected/`);
+    for(const id of ids)ok(res.includes(`"${id}": {`)&&new RegExp(`"${id}": \\{[\\s\\S]*?以原文为准[\\s\\S]*?本页未运行[\\s\\S]*?extra: true`).test(res),`b23p1 opened source ${id}: 以原文为准, 本页未运行`);
+    ok(harness.includes(`${slug}/${toy}.py`)&&harness.includes(`${toy}.txt`),`b23p1 ${toy}: month harness compares expected`);
+    for(const [index,lang] of ["en","zh"].entries()){
+      const md=read(`src/content/m${month}/${slug}/${lang}.mdx`),summary=md.indexOf("<Summary>"),end=md.indexOf("</Summary>");
+      ok(summary>0&&summary===md.lastIndexOf("<Summary>")&&md.slice(end+10).trim()==="",`b23p1 ${slug} ${lang}: sole whole-lesson Summary ends page`);
+      const head=md.indexOf(heads[index]);
+      ok(head>0&&head<summary,`b23p1 ${slug} ${lang}: new section before Summary`);
+      const next=md.indexOf("\n## ",head+5), sec=md.slice(head,next>0&&next<summary?next:summary);
+      ok(next<0||next>=summary,`b23p1 ${slug} ${lang}: new section is the last before Summary`);
+      ok(sec.includes(py)&&sec.includes(expected)&&sec.includes(`<CodeSource path="${file}" />`),`b23p1 ${slug} ${lang}: exact source/stdout in section`);
+      for(const id of ids)ok(sec.includes(`<Resource id="${id}" />`),`b23p1 ${slug} ${lang}: Resource ${id} in section`);
+      const ex=sec.lastIndexOf(lang==="en"?"### Exercises":"### 练习");
+      ok(ex>sec.indexOf("</SimOutput>")&&(sec.slice(ex).match(/^\d\. /gm)||[]).length===5,`b23p1 ${slug} ${lang}: five exercises after output`);
+      const prose=sec.replace(expected,"").replace(py,"");
+      const bare=prose.replace(/```[\s\S]*?```/g,"").replace(/`[^`\n]*`/g,"");
+      ok(!/[{}]/.test(bare),`b23p1 ${slug} ${lang}: no curly braces in MDX prose`);
+      ok(!/<[A-Za-z](?![A-Za-z]*[ />])/.test(bare.replace(/<(Resource|Formula|CodeSource|SimOutput)\b[^>]*>|<\/(Formula|SimOutput)>/g,"")),`b23p1 ${slug} ${lang}: no stray JSX-like < in prose`);
+      for(const x of [...markers,...langMarkers[lang]])ok(prose.includes(x),`b23p1 ${slug} ${lang}: mechanism/scope/label ${x}`);
+      ok(sec.includes(lang==="en"?planEn:planZh),`b23p1 ${slug} ${lang}: work plan minutes`);
+      const plan=sec.slice(sec.indexOf(lang==="en"?planEn:planZh)+(lang==="en"?planEn:planZh).length).split("\n")[0];
+      ok([...plan.matchAll(/(\d+) (min|分钟)/g)].reduce((a,m)=>a+(+m[1]),0)===planSum,`b23p1 ${slug} ${lang}: work plan sums to ${planSum}`);
+      ok(!/\b(exact tie|ties exactly)\b|精确打平|−0\.0000(?!\d)/.test(prose),`b23p1 ${slug} ${lang}: no exact-tie wording or signed zero in prose`);
+      ok(!/：\*\*|\*\*：/.test(sec),`b23p1 ${slug} ${lang}: no ** glued to a full-width colon`);
+      ok(!/\|[^|\n]*\|error\|/.test(sec.split("\n").filter(l=>l.startsWith("| ")).join("\n")),`b23p1 ${slug} ${lang}: no bare |error| inside a table row`);
+      for(const m of prose.matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g))ok(expected.includes(`${m[1]}+-${m[2]}`),`b23p1 ${slug} ${lang}: prose ${m[0]} matches expected/`);
+      for(const m of prose.matchAll(/(?<![\w.])(\d+\.\d{2,})(?![\d±]|e-\d)/g))ok(expected.includes(m[1])||CITEDBY[slug].includes(m[1]),`b23p1 ${slug} ${lang}: decimal ${m[1]} in prose is printed or a cited paper value`);
+      for(const c of CITEDBY[slug])for(const m of prose.matchAll(new RegExp(c.replace(".","\\.")+"(?!\\d)","g"))){const ctx=prose.slice(Math.max(0,m.index-400),m.index+400); ok(/以原文为准/.test(ctx)&&!expected.includes(c),`b23p1 ${slug} ${lang}: cited ${c} carries 以原文为准 and is not a toy output`);}
+      for(const h of sec.match(/^#{2,3} .*$/gm)||[])ok(!/\d+\s*(min|分钟)|Batch|PR\d|\bH\d\b/.test(h),`b23p1 ${slug} ${lang}: heading without minutes/process label ${h}`);
+      const summ=md.slice(summary,end);
+      for(const x of summaryMarkers[lang])ok(summ.includes(x),`b23p1 ${slug} ${lang}: Summary sentence ${x}`);
+      const newLine=summ.split("\n").find(l=>summaryMarkers[lang].every(x=>l.includes(x)))||"";
+      ok(newLine.length>0,`b23p1 ${slug} ${lang}: one Summary sentence carries all markers`);
+      for(const m of newLine.matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g))ok(expected.includes(`${m[1]}+-${m[2]}`),`b23p1 ${slug} ${lang}: Summary ${m[0]} matches expected/`);
+    }
+    const en=read(`src/content/m${month}/${slug}/en.mdx`),zh=read(`src/content/m${month}/${slug}/zh.mdx`);
+    ok((en.match(/```/g)||[]).length===(zh.match(/```/g)||[]).length&&(en.match(/^#{2,3} /gm)||[]).length===(zh.match(/^#{2,3} /gm)||[]).length,`b23p1 ${slug}: en/zh structurally symmetric`);
+    const nums=t=>[...t.matchAll(/-?\d+\.\d+±-?\d+\.\d+/g)].map(m=>m[0]).sort().join(" ");
+    const enSec=en.slice(en.indexOf(heads[0]),en.indexOf("<Summary>")), zhSec=zh.slice(zh.indexOf(heads[1]),zh.indexOf("<Summary>"));
+    ok(nums(enSec)===nums(zhSec),`b23p1 ${slug}: en/zh sections cite the same m±sd values`);
+  }
+  // New toys and their printed output carry no dev-process labels.
+  for(const f of ["examples/month-2/arduino-io/optocoupler_ctr_isolation_toy.py","examples/month-2/expected/optocoupler_ctr_isolation_toy.txt","examples/month-3/pid-control/ziegler_nichols_ultimate_gain_toy.py","examples/month-3/expected/ziegler_nichols_ultimate_gain_toy.txt"])ok(!/\bbatch\b|\bPR ?\d+\b|sources? notes?\b|来源说明|来源笔记|this batch|本批|this round|本轮|polish|\b[bB]\d{1,2}p(?:\d|ol)\b|opencode|deepseek|\bGLM\b|\bMiMo\b|LongCat|MiniMax/i.test(read(f)),`b23p1 ${f}: no dev-process label`);
+  ok(/"wiki-opto": \{[\s\S]*?url: "https:\/\/en\.wikipedia\.org\/w\/index\.php\?title=Opto-isolator&oldid=1381742785"[\s\S]*?rev 1381742785[\s\S]*?以原文为准[\s\S]*?本页未运行[\s\S]*?extra: true/.test(res),"b23p1 wiki-opto card: oldid URL, rev, 以原文为准, 本页未运行");
+  ok(/"wiki-zn": \{[\s\S]*?url: "https:\/\/en\.wikipedia\.org\/w\/index\.php\?title=Ziegler%E2%80%93Nichols_method&oldid=1340563087"[\s\S]*?rev 1340563087[\s\S]*?以原文为准[\s\S]*?本页未运行[\s\S]*?extra: true/.test(res),"b23p1 wiki-zn card: oldid URL, rev, 以原文为准, 本页未运行");
+  ok(!/"wiki-opto": \{[\s\S]*?\bbatch\b[\s\S]*?"wiki-zn": \{/.test(res),"b23p1 wiki-opto card: the 4N28 spread is described as a production lot");
+  // The new sections sit after the existing host sections and state which declarations did not hold.
+  for(const lang of ["en","zh"]){
+    const t=read(`src/content/m2/arduino-io/${lang}.mdx`); const h=t.indexOf(lang==="en"?"## Optocoupler isolation: CTR, LED current and the barrier":"## 光耦隔离：CTR、LED 电流与隔离屏障"); const sec=t.slice(h,t.indexOf("<Summary>"));
+    ok(h>t.indexOf(lang==="en"?"## ADC ENOB: when 10 bits are not 10 bits":"## ADC 有效位数：10 位并不总是 10 位")&&(lang==="en"?sec.includes("C−B `logic_err` is 0.5260±0.0475, clear")&&sec.includes("byte-identical"):sec.includes("C−B `logic_err` 为 0.5260±0.0475，clear")&&sec.includes("逐字节相同")),`b23p1 arduino-io ${lang}: after ENOB, low-CTR loss stated, first run disclosed`);
+    const n=read(`src/content/m3/pid-control/${lang}.mdx`); const hn=n.indexOf(lang==="en"?"## Ziegler–Nichols tuning from the ultimate gain":"## Ziegler–Nichols 整定：从临界增益出发"); const secn=n.slice(hn,n.indexOf("<Summary>"));
+    ok(hn>n.indexOf(lang==="en"?"## Two-degree-of-freedom PID: setpoint weighting":"## 二自由度 PID：设定值加权")&&(lang==="en"?secn.includes("The declared near-tie **did not hold**")&&secn.includes("The `iae` half **did not hold**"):secn.includes("声明的近似平局**没有成立**")&&secn.includes("`iae` 那一半**没有成立**")),`b23p1 pid-control ${lang}: after 2DOF, both failed declarations stated`);
+  }
+  const p2=read("docs/notes/month-2-plan.md"), p3=read("docs/notes/month-3-plan.md");
+  ok(p2.startsWith("# Month 2")&&["Current / 当前：**M2 3750 min**, Batch-23 PR1","## Batch-23 PR1","3570→3750","40140→40500","660→840","38a8c8d453368df23057812729b96cba251672c3","40500=40140+180+180","30+25+50+40+35=180","## Batch-21 PR2"].every(x=>p2.includes(x))&&p2.indexOf("## Batch-23 PR1")<p2.indexOf("## Batch-21 PR2"),"b23p1 month-2 plan header");
+  ok(p3.startsWith("# Month 3")&&["Current / 当前：**M3 3690 min**, Batch-23 PR1","## Batch-23 PR1","3510→3690","40140→40500","720→900","38a8c8d453368df23057812729b96cba251672c3","40500=40140+180+180","30+25+50+40+35=180","## Batch-22 PR1"].every(x=>p3.includes(x))&&p3.indexOf("## Batch-23 PR1")<p3.indexOf("## Batch-22 PR1"),"b23p1 month-3 plan header");
+  const src=read("docs/notes/batch-23-pr1-sources.md");
+  ok(["38a8c8d453368df23057812729b96cba251672c3","40140","40500","wiki-opto","wiki-zn","oldid=1381742785","oldid=1340563087","Common random numbers","Lock changes","No lock relaxed","Post-hoc choices","Mismatch with §9","Code changes after the first run","declared toy parameter","-0.1790±0.0444","0.5260±0.0475","0.3162±0.0080","0.7306±0.0300","PointVLA","usually read as equal contribution","本页未运行","以原文为准"].every(x=>src.includes(x)),"b23p1 sources note");
+  ok(!/opencode|DeepSeek|LongCat|MiniMax|MiMo|GLM/.test(src),"b23p1 sources note: no tools/process narrative");
+  const planSec=(p,h)=>p.slice(p.indexOf(h),p.indexOf("\n## ",p.indexOf(h)+5));
+  for(const m of [...src.matchAll(/(-?\d+\.\d+(?:e-?\d+)?)±(-?\d+\.\d+(?:e-?\d+)?)/g),...planSec(p2,"## Batch-23 PR1").matchAll(/(-?\d+\.\d+(?:e-?\d+)?)±(-?\d+\.\d+(?:e-?\d+)?)/g),...planSec(p3,"## Batch-23 PR1").matchAll(/(-?\d+\.\d+(?:e-?\d+)?)±(-?\d+\.\d+(?:e-?\d+)?)/g)])ok(bag.includes(`${m[1]}+-${m[2]}`),`b23p1 notes: ${m[0]} matches expected/`);
+  ok(/40 500/.test(read("README.md"))&&/约 40 500 分钟/.test(read("README.md")),"b23p1 README site minutes (en + zh)");
+  ok((()=>{const months=[...cur.matchAll(/const month(\d+)Lessons[\s\S]*?\];/g)]; let s=0; for(const m of months){for(const x of m[0].matchAll(/minutes:\s*(\d+)/g))s+=+x[1];} return s;})()===40500,"b23p1 curriculum: 40500 minutes");
+  ok([...cur.matchAll(/slug: "/g)].length>=71,"b23p1 curriculum: catalogue still 71 lessons");
+  for(const [mo,want] of [[2,3750],[3,3690]])ok((()=>{const m=cur.match(new RegExp(`const month${mo}Lessons[\\s\\S]*?\\];`)); return [...m[0].matchAll(/minutes:\s*(\d+)/g)].reduce((a,x)=>a+(+x[1]),0);})()===want,`b23p1 curriculum: M${mo} ${want} minutes`);
+  const r1=read("examples/month-2/README.md"), r3=read("examples/month-3/README.md");
+  ok(r1.includes("arduino-io/optocoupler_ctr_isolation_toy.py")&&r3.includes("pid-control/ziegler_nichols_ultimate_gain_toy.py"),"b23p1 examples READMEs list the new toys");
+  for(const [r,t] of [[r1,"optocoupler_ctr_isolation_toy"],[r3,"ziegler_nichols_ultimate_gain_toy"]]){const h=r.slice(0,r.indexOf(t)).split("\n## ").pop().split("\n")[0]; ok(!/Batch|批|PR\d/.test(h),`b23p1 examples README heading for ${t} is descriptive: ${h}`);}
+  // Difference-direction tags must match expected/ paired lines.
+  const dirOf=new Map();
+  for(const line of bag.split("\n")){
+    const m=line.match(/paired\s+([A-Za-z0-9_]+)-([A-Za-z0-9_]+)[^:]*:\s*(-?[\d.e+-]+)\+-(-?[\d.e+-]+)/);
+    if(!m) continue;
+    const key=`${m[3]}+-${m[4]}`;
+    if(!dirOf.has(key)) dirOf.set(key,new Set());
+    dirOf.get(key).add(`${m[1]}-${m[2]}`);
+  }
+  const dirRe=/([A-Z])[−-]([A-Z])(?![A-Za-z])(?:[^0-9A-Z]{0,80}?)(-?\d+(?:\.\d+)?(?:e-?\d+)?)±(-?\d+(?:\.\d+)?(?:e-?\d+)?)/g;
+  const checkDiffDirs=(text,tag)=>{let n=0; for(const m of text.matchAll(dirRe)){const key=`${m[3]}+-${m[4]}`; if(!dirOf.has(key)) continue; n++; ok(dirOf.get(key).has(`${m[1]}-${m[2]}`),`${tag}: ${m[1]}-${m[2]} ${m[3]}±${m[4]} must match expected paired ${[...dirOf.get(key)].join("|")}`);} return n;};
+  let dirHits=0;
+  for(const [m,slug,he,hz] of [[2,"arduino-io",OH0[0],OH0[1]],[3,"pid-control",ZH0[0],ZH0[1]]])for(const lang of ["en","zh"]){const t=read(`src/content/m${m}/${slug}/${lang}.mdx`); dirHits+=checkDiffDirs(t.slice(t.indexOf(lang==="en"?he:hz)),`b23p1 ${slug} ${lang} diff-dir`);}
+  dirHits+=checkDiffDirs(planSec(p2,"## Batch-23 PR1"),"b23p1 month-2-plan diff-dir")+checkDiffDirs(planSec(p3,"## Batch-23 PR1"),"b23p1 month-3-plan diff-dir");
+  dirHits+=checkDiffDirs(src,"b23p1 sources-note diff-dir");
+  ok(dirHits>=60,`b23p1 difference-direction lock ran on ${dirHits} printed pairs`);
+  console.log("opto-zn PR1: optocoupler CTR and isolation, Ziegler–Nichols ultimate-gain tuning, and M2 3750 / M3 3690 / site 40500 locked");
+}
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
 process.exit(failed ? 1 : 0);
