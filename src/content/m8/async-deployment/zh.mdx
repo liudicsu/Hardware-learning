@@ -462,8 +462,7 @@ _COS = {}
 
 def fmt6(x):
     """Six decimals with ROUND_HALF_UP (2/256 = 0.0078125 -> 0.007813, not the
-    round-half-even 0.007812 of a plain :.6f). Batch-19 polish; helper drafted by
-    opencode DeepSeek."""
+    round-half-even 0.007812 of a plain :.6f)."""
     return f"{Decimal(str(x)).quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP):.6f}"
 
 def cos_table(n):

@@ -454,7 +454,7 @@ def main() -> None:
     print(f"  paired A-C |dE|: {verdict(adA, adC)}")
     print(f"  paired B-C |dE|: {verdict(adB, adC)}")
 
-    # Damped Jury criterion for this toy's B_semimpl update (polish addition).
+    # Damped Jury criterion for this toy's B_semimpl update (added after the original regimes).
     zeta = C_DAMP / (2.0 * OMEGA0 * INERTIA_P)
     c_lin = 2.0 * zeta * OMEGA0
     h_star_d = 2.0 / (OMEGA0 * (zeta + math.sqrt(zeta * zeta + 1.0)))
@@ -463,7 +463,7 @@ def main() -> None:
         return (OMEGA0 * h) ** 2 + 4.0 * z * OMEGA0 * h
 
     print()
-    print("damped semi-implicit criterion (added in polish; not a pre-declared regime):")
+    print("damped semi-implicit criterion (added after the original regimes; not a pre-declared regime):")
     print("  toy update: damping in a_t (old velocity), then x += h v_new; c = 2 zeta omega0")
     print("  Jury: asymptotically stable iff (omega0 h)^2 + 4 zeta omega0 h < 4 (strict)")
     print(

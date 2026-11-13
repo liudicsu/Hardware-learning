@@ -79,7 +79,7 @@ alternative C_damp=0.0 on moderate_h (same seeds):
   paired A-C |dE|: 77.9906+-14.0143: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
   paired B-C |dE|: 0.0000+-0.0000: tie: identical on every seed
 
-damped semi-implicit criterion (added in polish; not a pre-declared regime):
+damped semi-implicit criterion (added after the original regimes; not a pre-declared regime):
   toy update: damping in a_t (old velocity), then x += h v_new; c = 2 zeta omega0
   Jury: asymptotically stable iff (omega0 h)^2 + 4 zeta omega0 h < 4 (strict)
   zeta=0.0079818857 c=0.0500000000 h_star_damped=0.6334743577 s  (equals 2/omega0 at zeta=0)
