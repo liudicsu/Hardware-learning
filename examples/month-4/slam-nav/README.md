@@ -44,3 +44,12 @@ Standard-library stand-in of an octree occupancy map and a TSDF volume versus a 
 ```bash
 python3 octomap_tsdf_volume_toy.py
 ```
+
+## amcl_particle_filter_localization_toy.py — particle-filter localization / 粒子滤波定位
+
+Standard-library stand-in of AMCL-style localization on a known 2-D map: dead reckoning versus a KLD-style adaptive particle filter with random-pose recovery versus a 30-particle filter without recovery, on a shared true path, odometry and beam noise (unknown start, short known-start move, kidnapped robot, corridor). Five seeds, common random numbers. Expected output in `../expected/amcl_particle_filter_localization_toy.txt`, compared by `../check.sh` even without ROS. Not Nav2 AMCL and not a bag playback; real robot / Nav2 本页未运行.
+标准库替身：在已知二维地图上做 AMCL 式定位，在共用的真实路径、里程计和光束噪声上比较航位推算、带随机位姿恢复的 KLD 式自适应粒子滤波和不恢复的 30 粒子滤波（起点未知、已知起点短距离、被绑架、走廊）。五个种子，共用随机数。输出在 `../expected/amcl_particle_filter_localization_toy.txt`，没有 ROS 时 `../check.sh` 也会核对。不是 Nav2 AMCL，也不是 bag 回放；真实机器人 / Nav2 本页未运行。
+
+```bash
+python3 amcl_particle_filter_localization_toy.py
+```

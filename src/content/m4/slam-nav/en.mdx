@@ -2462,8 +2462,738 @@ The page **does not declare a universal winner**. A 2-D floor grid can look comp
 4. With seeds fixed, change the bad-pose shift to 1.0 m and compare C_bad's surface MAE with the printed `0.0466±0.0007` m.
 5. Before any real lidar or `octomap_server` run (本页未运行), explain why A's occupied IoU of `0.6555±0.0048` in `overhang_multiview` does **not** mean a 2-D costmap is enough for a hanging obstacle.
 
+## AMCL: a particle filter that localizes against a known map
+
+<Resource id="wiki-mcl" />
+<Resource id="ros-amcl-archive" />
+
+The Nav2 section above names the classic pairing of `map_server` and AMCL and then uses SLAM Toolbox in localization mode instead. This section opens up the other half of that sentence: how a particle filter finds and keeps the robot's pose on a map that already exists.
+
+**Sources actually opened (HTML bodies read).** **Wikipedia — Monte Carlo localization** (revision 1279828307; 以原文为准): Monte Carlo localization, also known as particle filter localization, estimates the position and orientation of a robot on a given map with a particle filter, each particle being one hypothesis of where the robot is. It typically starts from a uniform distribution of particles; every motion shifts the particles with noise, and every sensing step weights them by how well the reading fits and resamples them. The article explains that a particle filter can hold a **multimodal** belief, such as one peak per door in a corridor of similar doors. Under **particle deprivation** it notes that if the particles converge on a wrong state, or the robot is kidnapped after they have converged, the algorithm cannot recover, that this is more likely with few particles (for example M ≤ 50), and that randomly adding particles on every iteration is one remedy. It describes **KLD sampling**, which adapts the number of particles to how sure the robot is. **ROS wiki `amcl` page, archived snapshot of 2024-12-26** (以原文为准): amcl is a probabilistic localization system for a robot moving in 2D that implements the adaptive (or KLD-sampling) Monte Carlo localization approach and tracks the pose against a known map. Its parameter list gives `min_particles` 100 and `max_particles` 5000, `kld_err` 0.01, `recovery_alpha_slow` and `recovery_alpha_fast` (both 0.0, disabled, by default; the page suggests 0.001 and 0.1) for adding random poses, and `laser_model_type` with `likelihood_field` as the default. The live ROS wiki page and the Nav2 AMCL configuration page were not available as readable bodies and are not cited. These are the pages' statements, 以原文为准; none of them is a toy output, and a real robot or Nav2 AMCL run is **本页未运行**.
+
+This section is **not** the ICP section above: ICP aligns two scans locally from a nearby start, while the filter keeps many pose hypotheses against a fixed map. It is **not** the DWA / Regulated Pure Pursuit comparison, which is about control, and **not** the octree / TSDF section, which builds the map.
+
+<Formula label="One filter step (declared toy model)">x_i ← x_i + u_t;   w_i = Π_beams [Z_HIT · N(z_b; r̂_b(x_i), SIG_L) + Z_RAND / R_MAX],   w_i = 0 inside an obstacle;   estimate = Σ w_i x_i / Σ w_i;   low-variance resampling;   n_next = clamp(KLD(k), N_MIN, N_MAX)</Formula>
+
+**Worked example — a labelled hand calculation, also printed by the toy.** The KLD-style rule turns the number `k` of occupied 0.5 m bins into a particle count: `k = 2` gives `65.8404`, which the toy clamps up to `100.0000`; `k = 10` gives `216.9395`, inside the range; `k = 50` gives `749.3302`, clamped down to `600.0000`. A converged cloud therefore runs on far fewer particles than a spread one. Each beam's likelihood never drops below `Z_RAND / R_MAX = 0.0125`, so one bad beam cannot zero a particle on its own. Dead reckoning with the declared motion noise drifts by about `0.1250 m` per axis after 25 steps, so odometry alone is good for a short known-start move and useless from a wrong start.
+
+**Integration step.** None: each step is one discrete predict–weight–resample cycle; there is no continuous-time model.
+
+### Fair setup
+
+`amcl_particle_filter_localization_toy.py` is **synthetic** and stdlib only. **Model assumptions:** axis-aligned rectangular rooms in metres (a 10 by 6 room with three boxes, and a 12 by 2 corridor with none); the heading is known and fixed, standing in for an IMU, so the filter tracks x and y only; four axis-aligned beams return the exact range to the nearest edge plus noise (sd 0.1 m), capped at 8 m; each step commands a 0.3 m move, the true move scales it by `1 + N(0, 0.05)` per axis and adds `N(0, 0.02)` per axis, and odometry reports the command. Particles move by the odometry command without added noise; new particles enter only when the KLD rule asks for more (uniform draws) and through recovery. The commanded endpoint, not the noisy true endpoint, is checked against the boxes. Every value is a **declared toy parameter**: the particle range 100 to 600 and the recovery rates 0.05 / 0.5 are the toy's own, not the ROS defaults quoted above.
+
+| Arm | What it is | Particles | Recovery |
+|---|---|---|---|
+| A_odom | dead reckoning from an initial guess | none | none |
+| B_amcl | KLD-style adaptive filter | 100 to 600 | on |
+| C_few | the same filter with a fixed small budget | 30 | off |
+
+**Common random numbers:** for each (regime, seed), one stream draws the true start, every candidate motion direction, every motion noise, every beam noise and the kidnap pose, before any arm runs; the true path and the measured ranges are computed once and shared by all three arms. B and C draw their own filter randomness from one stream string per (regime, seed). Five seeds. Metrics: `err` (mean position error over the last 5 steps, metres) and `success` (1 when that error is under 0.5 m), each as mean±sd over seeds.
+
+| Regime | Map and start | What was pre-declared |
+|---|---|---|
+| distinctive_unknown | room, unknown start, 25 steps | B **consistent** below A on err, **keep**; C as it comes |
+| known_short | room, known start, 6 steps | A and B **may** near-tie on err, **keep** |
+| kidnapped | room, known start, moved without notice after step 10 | C **loses** to B on err and success, **keep**; A loses too |
+| corridor_multimodal | corridor, unknown start, 25 steps | B **may** fail too, as it comes; C as it comes |
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-4/slam-nav
+python3 amcl_particle_filter_localization_toy.py
+```
+
+<CodeSource path="examples/month-4/slam-nav/amcl_particle_filter_localization_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""AMCL-style particle filter localization toy against a known 2-D map.
+
+Synthetic stand-in for the Nav2 AMCL particle filter: a 2-D occupancy map of
+axis-aligned rectangles, a robot whose heading is known and fixed (declared
+IMU stand-in), four axis-aligned range beams, a motion model with scale and
+additive noise, a low-variance (systematic) resampler, a KLD-style adaptive
+particle count and an augmented-MCL-style random-pose recovery.  This is not
+Nav2, not a bag playback, not a real robot and not a live ROS wiki run
+(本页未运行).
+
+Every constant in this file is a DECLARED TOY PARAMETER, written before the
+first run.  The ROS amcl defaults (min_particles 100, max_particles 5000,
+kld_err 0.01, recovery_alpha_slow 0.001, recovery_alpha_fast 0.1) are 以原文为准
+and are NOT what this toy uses unless the text here says so; the toy uses
+N_MIN = 100, N_MAX = 600, EPS = 0.05, Z_Q = 2.326, A_SLOW = 0.05,
+A_FAST = 0.5, and N_C = 30 particles for the small arm.
+
+Map (metres, axis-aligned rectangles).  Room "distinctive": outer walls
+0..10 x 0..6 plus three interior boxes (1.5..2.5 x 1..2), (6..7.5 x 3.5..5),
+(4..4.5 x 0..2.5).  Room "corridor": outer walls 0..12 x 0..2 with no
+interior boxes, so the range pattern is translationally ambiguous along x.
+The outer wall rectangle bounds the free space and the interior boxes are
+the obstacles, so the free space is the room rectangle minus those boxes.
+
+Robot state (x, y); heading is known and fixed, so the filter tracks x and y
+only.  Sensor: four axis-aligned beams (+x, -x, +y, -y) returning the range
+to the nearest rectangle edge along that axis (exact axis-aligned ray test),
+plus N(0, SIG_Z = 0.1) noise, capped at R_MAX = 8 m.  Motion: each step the
+commanded move is a vector (dx, dy) of length 0.3 m in a random free
+direction (the direction is redrawn if the move would enter an obstacle or
+leave the map, at most 20 redraws, then the robot stays); the true motion is
+commanded * (1 + N(0, 0.05)) plus N(0, 0.02) per axis, while odometry
+reports the commanded move.
+
+Likelihood per particle: the product over beams of
+Z_HIT * N(z; r_hat, SIG_L = 0.2) + Z_RAND / R_MAX with Z_HIT = 0.9 and
+Z_RAND = 0.1; particles inside an obstacle or outside the map get weight 0;
+log-sum is used for numerical safety.  Low-variance (systematic) resampling
+runs every step.  After each resampling the particle count is set by the
+KLD-style rule over k occupied 0.5 m x 0.5 m bins,
+n = (k-1)/(2*EPS) * (1 - 2/(9(k-1)) + sqrt(2/(9(k-1)))*Z_Q)^3,
+clamped to [N_MIN, N_MAX], and N_MIN when k <= 1.  Recovery: w_avg is the mean
+raw likelihood, w_slow += A_SLOW * (w_avg - w_slow) and
+w_fast += A_FAST * (w_avg - w_fast), both starting at the first w_avg, and at
+resampling each particle is replaced by a uniform random free pose with
+probability max(0, 1 - w_fast / w_slow).  The estimate is the weighted mean
+of the particles.
+
+Arms: A_odom (dead reckoning from the given initial guess, integrating
+odometry only), B_amcl (adaptive count N_MIN = 100, N_MAX = 600, recovery
+on), C_few (fixed 30 particles, recovery off).  Pairs: B-A, C-B, C-A.
+
+Regimes (25 steps each unless stated):
+  distinctive_unknown : distinctive room, true start uniform over free space,
+                        A's initial guess is the room centre (5, 3), B starts
+                        with N_MAX uniform particles, C with 30 uniform
+                        particles.
+  known_short         : distinctive room, start known exactly (A's guess is
+                        the truth; B starts with N_MAX particles and C with 30
+                        particles, each at the truth plus N(0, 0.05)), 6 steps.
+  kidnapped           : distinctive room, start known exactly as in
+                        known_short; after step 10 the robot is moved to a
+                        uniform random free pose without telling odometry.
+  corridor_multimodal : corridor room, true start uniform, A's guess is
+                        (6, 1).
+
+Per (regime, seed) the metrics are err (mean Euclidean error of the estimate
+over the last 5 steps, in metres) and success (1.0 when that mean error is
+below 0.5 m, else 0.0); the mean particle count of B is printed as well.
+
+Common random numbers: one random.Random(f"{regime}/{seed}") stream per
+(regime, seed) draws, in this fixed order before any arm runs, the true
+start, all motion direction candidates and all motion noise, all beam
+noises, and the kidnap pose; the true trajectory and the measured ranges are
+then precomputed from those draws and shared by every arm.  Filter-internal
+randomness (initial particle spread, resampling offset, recovery draws)
+uses a separate random.Random(f"{regime}/{seed}/filter") stream per arm, so B
+and C use the same filter stream string.
+
+Regimes and parameters were written before the first run.  Declared
+expectations (not tuned; printed as they come):
+  distinctive_unknown : B consistently lower err than A - keep; C as it comes
+  known_short         : A and B may near-tie on err - keep
+  kidnapped           : C (too few particles, no recovery) loses to B on err
+                        and success - keep; A loses too
+  corridor_multimodal : B may fail too (ambiguous along x) - keep as it
+                        comes; C as it comes
+
+Alternatives (declared before the run, same seeds, not adopted): kidnapped
+with recovery off for B; distinctive_unknown with N_MAX = 300 for B;
+kidnapped with C at 30 particles but recovery on.
+"""
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+
+# ---------------------------------------------------------------------------
+# Declared toy parameters (every constant used below).
+# ---------------------------------------------------------------------------
+STEP_LEN = 0.3          # m, commanded step length
+MAX_REDRAWS = 20        # direction redraws before the robot stays
+MOT_SCALE_SD = 0.05     # per-axis multiplicative motion noise sd
+MOT_ADD_SD = 0.02       # per-axis additive motion noise sd, m
+SIG_Z = 0.1             # m, beam range noise sd
+SIG_L = 0.2             # m, beam likelihood sd
+Z_HIT = 0.9             # likelihood hit weight
+Z_RAND = 0.1            # likelihood random weight
+R_MAX = 8.0             # m, maximum beam range
+EPS = 0.05              # KLD-style target error
+Z_Q = 2.326             # KLD-style quantile
+BIN_SIZE = 0.5          # m, KLD bin side
+A_SLOW = 0.05           # slow recovery rate
+A_FAST = 0.5            # fast recovery rate
+N_MIN = 100             # minimum particle count (arm B)
+N_MAX = 600             # maximum particle count (arm B)
+N_C = 30                # fixed particle count (arm C)
+N_STEPS = 25            # steps per regime
+N_STEPS_SHORT = 6       # steps in the known_short regime
+KIDNAP_AFTER = 10       # step after which the robot is moved in the kidnap regime
+INIT_SIGMA = 0.05       # m, sd of the initial particle spread around the truth
+ERR_TOL = 0.5           # m, success threshold on the mean tail error
+TAIL_STEPS = 5          # steps averaged for the error metric
+SQRT_2PI = math.sqrt(2.0 * math.pi)
+NEG_INF = float("-inf")
+
+ROOMS = {
+    "distinctive": ((0.0, 0.0, 10.0, 6.0),
+                    ((1.5, 1.0, 2.5, 2.0),
+                     (6.0, 3.5, 7.5, 5.0),
+                     (4.0, 0.0, 4.5, 2.5))),
+    "corridor": ((0.0, 0.0, 12.0, 2.0), ()),
+}
+
+REGIMES = ("distinctive_unknown", "known_short", "kidnapped",
+           "corridor_multimodal")
+REGIME_ROOM = {"distinctive_unknown": "distinctive",
+               "known_short": "distinctive",
+               "kidnapped": "distinctive",
+               "corridor_multimodal": "corridor"}
+REGIME_STEPS = {"distinctive_unknown": N_STEPS,
+                "known_short": N_STEPS_SHORT,
+                "kidnapped": N_STEPS,
+                "corridor_multimodal": N_STEPS}
+REGIME_GUESS = {"distinctive_unknown": (5.0, 3.0),
+                "known_short": None,      # the truth
+                "kidnapped": None,        # the truth
+                "corridor_multimodal": (6.0, 1.0)}
+NEAR_TRUTH_START = ("known_short", "kidnapped")
+
+ARMS = ("A_odom", "B_amcl", "C_few")
+METRICS = ("err", "success")
+PAIRS = (("B_amcl", "A_odom"), ("C_few", "B_amcl"), ("C_few", "A_odom"))
+DECLARED = {
+    "distinctive_unknown": "B consistently lower err than A - keep; C as it comes",
+    "known_short": "A and B may near-tie on err - keep",
+    "kidnapped": "C (too few particles, no recovery) loses to B on err and "
+                 "success - keep; A loses too",
+    "corridor_multimodal": "B may fail too (ambiguous along x) - keep as it "
+                           "comes; C as it comes",
+}
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0  # identical values: no floating residue in mean or sd
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    """Half-up rounding on the shortest decimal repr; tiny non-zero values in scientific form."""
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+# ---------------------------------------------------------------------------
+# Map geometry: exact axis-aligned ray tests against the rectangle list.
+# ---------------------------------------------------------------------------
+def is_free(room, boxes, x, y):
+    """True when the pose is inside the room and outside every interior box."""
+    x0, y0, x1, y1 = room
+    if x < x0 or x > x1 or y < y0 or y > y1:
+        return False
+    for bx0, by0, bx1, by1 in boxes:
+        if bx0 < x < bx1 and by0 < y < by1:
+            return False
+    return True
+
+
+def beam_ranges(room, boxes, x, y):
+    """Ranges to the nearest edge along each axis, in the order +x, -x, +y, -y."""
+    x0, y0, x1, y1 = room
+    rx_p = x1 - x
+    rx_m = x - x0
+    ry_p = y1 - y
+    ry_m = y - y0
+    for bx0, by0, bx1, by1 in boxes:
+        if by0 <= y <= by1:
+            if bx0 > x:
+                rx_p = min(rx_p, bx0 - x)
+            elif bx1 > x:
+                rx_p = min(rx_p, bx1 - x)
+            if bx1 < x:
+                rx_m = min(rx_m, x - bx1)
+            elif bx0 < x:
+                rx_m = min(rx_m, x - bx0)
+        if bx0 <= x <= bx1:
+            if by0 > y:
+                ry_p = min(ry_p, by0 - y)
+            elif by1 > y:
+                ry_p = min(ry_p, by1 - y)
+            if by1 < y:
+                ry_m = min(ry_m, y - by1)
+            elif by0 < y:
+                ry_m = min(ry_m, y - by0)
+    if rx_p > R_MAX:
+        rx_p = R_MAX
+    if rx_m > R_MAX:
+        rx_m = R_MAX
+    if ry_p > R_MAX:
+        ry_p = R_MAX
+    if ry_m > R_MAX:
+        ry_m = R_MAX
+    return rx_p, rx_m, ry_p, ry_m
+
+
+def sample_free(room, boxes, rng, tries=400):
+    """Uniform draw over the free space of the map."""
+    x0, y0, x1, y1 = room
+    for _ in range(tries):
+        x = rng.uniform(x0, x1)
+        y = rng.uniform(y0, y1)
+        if is_free(room, boxes, x, y):
+            return x, y
+    return (x0 + x1) * 0.5, (y0 + y1) * 0.5
+
+
+def kld_count(k):
+    """KLD-style particle count for k occupied bins (clamped by the caller)."""
+    k1 = k - 1
+    term = 1.0 - 2.0 / (9.0 * k1) + math.sqrt(2.0 / (9.0 * k1)) * Z_Q
+    return (k1 / (2.0 * EPS)) * term * term * term
+
+
+def occupied_bins(room, particles):
+    """Number of occupied 0.5 m x 0.5 m bins over the map extent."""
+    x0, y0 = room[0], room[1]
+    cells = set()
+    for px, py in particles:
+        ix = int((px - x0) / BIN_SIZE)
+        iy = int((py - y0) / BIN_SIZE)
+        if ix < 0:
+            ix = 0
+        if iy < 0:
+            iy = 0
+        cells.add((ix, iy))
+    return len(cells)
+
+
+# ---------------------------------------------------------------------------
+# Shared draws: the true trajectory and the measured ranges.
+# ---------------------------------------------------------------------------
+def precompute(regime, seed):
+    """Shared random draws for one (regime, seed): trajectory, commands, ranges."""
+    rng = random.Random(f"{regime}/{seed}")
+    room, boxes = ROOMS[REGIME_ROOM[regime]]
+    n_steps = REGIME_STEPS[regime]
+    start = sample_free(room, boxes, rng)
+    dirs = []
+    mnoise = []
+    for _ in range(n_steps):
+        dirs.append([rng.uniform(0.0, 2.0 * math.pi)
+                     for _ in range(MAX_REDRAWS + 1)])
+        mnoise.append((rng.gauss(0.0, MOT_SCALE_SD),
+                       rng.gauss(0.0, MOT_SCALE_SD),
+                       rng.gauss(0.0, MOT_ADD_SD),
+                       rng.gauss(0.0, MOT_ADD_SD)))
+    bnoise = [[rng.gauss(0.0, SIG_Z) for _ in range(4)] for _ in range(n_steps)]
+    kidnap = sample_free(room, boxes, rng) if regime == "kidnapped" else None
+
+    traj = []
+    cmds = []
+    meas = []
+    px, py = start
+    for step in range(n_steps):
+        dx = 0.0
+        dy = 0.0
+        for k in range(MAX_REDRAWS + 1):
+            ang = dirs[step][k]
+            cdx = STEP_LEN * math.cos(ang)
+            cdy = STEP_LEN * math.sin(ang)
+            if is_free(room, boxes, px + cdx, py + cdy):
+                dx = cdx
+                dy = cdy
+                break
+        gsx, gsy, gax, gay = mnoise[step]
+        px = px + dx * (1.0 + gsx) + gax
+        py = py + dy * (1.0 + gsy) + gay
+        r = beam_ranges(room, boxes, px, py)
+        zn = bnoise[step]
+        z = []
+        for i in range(4):
+            v = r[i] + zn[i]
+            if v < 0.0:
+                v = 0.0
+            if v > R_MAX:
+                v = R_MAX
+            z.append(v)
+        traj.append((px, py))
+        cmds.append((dx, dy))
+        meas.append(z)
+        if regime == "kidnapped" and step == KIDNAP_AFTER - 1:
+            px, py = kidnap
+    return room, boxes, start, traj, cmds, meas
+
+
+# ---------------------------------------------------------------------------
+# Arms.
+# ---------------------------------------------------------------------------
+def run_arm_a(guess, traj, cmds):
+    """Dead reckoning: integrate the odometry commands from the given guess."""
+    x = guess[0]
+    y = guess[1]
+    errs = []
+    for i in range(len(cmds)):
+        x += cmds[i][0]
+        y += cmds[i][1]
+        errs.append(math.hypot(x - traj[i][0], y - traj[i][1]))
+    return errs
+
+
+def run_filter(room, boxes, traj, cmds, meas, rng, particles, n_min, n_max,
+               adaptive, recovery):
+    """Particle filter: motion update, weighted likelihood, resampling,
+    optional random-pose recovery and optional KLD-style count adaptation."""
+    exp = math.exp
+    log = math.log
+    hypot = math.hypot
+    n = len(particles)
+    w_slow = 0.0
+    w_fast = 0.0
+    errs = []
+    counts = []
+    for step in range(len(cmds)):
+        dx = cmds[step][0]
+        dy = cmds[step][1]
+        xs = [p[0] + dx for p in particles]
+        ys = [p[1] + dy for p in particles]
+        z = meas[step]
+        logw = []
+        for i in range(n):
+            px = xs[i]
+            py = ys[i]
+            if not is_free(room, boxes, px, py):
+                logw.append(NEG_INF)
+                continue
+            r = beam_ranges(room, boxes, px, py)
+            lw = 0.0
+            for b in range(4):
+                d = (z[b] - r[b]) / SIG_L
+                p = Z_HIT * exp(-0.5 * d * d) / (SIG_L * SQRT_2PI) + Z_RAND / R_MAX
+                lw += log(p)
+            logw.append(lw)
+        mx = max(logw)
+        if mx == NEG_INF:
+            w = [1.0 / n] * n
+            w_avg = 0.0
+        else:
+            ws = [exp(v - mx) for v in logw]
+            s = sum(ws)
+            w = [v / s for v in ws]
+            w_avg = (s / n) * exp(mx)
+        ex = 0.0
+        ey = 0.0
+        for i in range(n):
+            ex += w[i] * xs[i]
+            ey += w[i] * ys[i]
+        errs.append(hypot(ex - traj[step][0], ey - traj[step][1]))
+        if step == 0:
+            w_slow = w_avg
+            w_fast = w_avg
+        else:
+            w_slow += A_SLOW * (w_avg - w_slow)
+            w_fast += A_FAST * (w_avg - w_fast)
+        cum = []
+        acc = 0.0
+        for i in range(n):
+            acc += w[i]
+            cum.append(acc)
+        u0 = rng.random() / n
+        idx = 0
+        newx = []
+        newy = []
+        for j in range(n):
+            u = u0 + j / n
+            while idx < n - 1 and cum[idx] < u:
+                idx += 1
+            newx.append(xs[idx])
+            newy.append(ys[idx])
+        if recovery:
+            if w_slow > 0.0:
+                p_rec = 1.0 - w_fast / w_slow
+                if p_rec < 0.0:
+                    p_rec = 0.0
+            else:
+                p_rec = 1.0
+            if p_rec > 0.0:
+                for j in range(n):
+                    if rng.random() < p_rec:
+                        ux, uy = sample_free(room, boxes, rng)
+                        newx[j] = ux
+                        newy[j] = uy
+        particles = list(zip(newx, newy))
+        if adaptive:
+            k = occupied_bins(room, particles)
+            if k <= 1:
+                target = n_min
+            else:
+                target = int(round(kld_count(k)))
+                if target < n_min:
+                    target = n_min
+                if target > n_max:
+                    target = n_max
+            if target > n:
+                for _ in range(target - n):
+                    ux, uy = sample_free(room, boxes, rng)
+                    particles.append((ux, uy))
+            elif target < n:
+                keep = rng.sample(range(n), target)
+                particles = [particles[i] for i in keep]
+            n = len(particles)
+        counts.append(n)
+    return errs, counts
+
+
+def initial_particles(room, boxes, start, count, rng, near_truth):
+    if near_truth:
+        return [(start[0] + rng.gauss(0.0, INIT_SIGMA),
+                 start[1] + rng.gauss(0.0, INIT_SIGMA)) for _ in range(count)]
+    return [sample_free(room, boxes, rng) for _ in range(count)]
+
+
+def run_regime(regime, seed, b_recovery=True, b_n_max=N_MAX, c_recovery=False):
+    """One (regime, seed): shared trajectory, all three arms scored on it."""
+    room, boxes, start, traj, cmds, meas = precompute(regime, seed)
+    near = regime in NEAR_TRUTH_START
+    guess = start if near else REGIME_GUESS[regime]
+    errs_a = run_arm_a(guess, traj, cmds)
+    rng_b = random.Random(f"{regime}/{seed}/filter")
+    init_b = initial_particles(room, boxes, start, b_n_max, rng_b, near)
+    errs_b, counts_b = run_filter(room, boxes, traj, cmds, meas, rng_b, init_b,
+                                  N_MIN, b_n_max, True, b_recovery)
+    rng_c = random.Random(f"{regime}/{seed}/filter")
+    init_c = initial_particles(room, boxes, start, N_C, rng_c, near)
+    errs_c, counts_c = run_filter(room, boxes, traj, cmds, meas, rng_c, init_c,
+                                  N_C, N_C, False, c_recovery)
+    return {"A_odom": errs_a, "B_amcl": errs_b, "C_few": errs_c}, counts_b
+
+
+def arm_metrics(errs):
+    tail = errs[-TAIL_STEPS:]
+    e = sum(tail) / len(tail)
+    return e, (1.0 if e < ERR_TOL else 0.0)
+
+
+def collect(regime, **kw):
+    """Metrics for every seed of one regime."""
+    rows = []
+    for seed in SEEDS:
+        errs, counts = run_regime(regime, seed, **kw)
+        row = {}
+        for arm in ARMS:
+            e, ok = arm_metrics(errs[arm])
+            row[arm] = {"err": e, "success": ok}
+        row["npart"] = sum(counts) / len(counts)
+        rows.append(row)
+    return rows
+
+
+def col(rows, arm, key):
+    return [r[arm][key] for r in rows]
+
+
+def report(regime, rows):
+    print(f"{regime}:")
+    print(f"  declared: {DECLARED[regime]}")
+    for arm in ARMS:
+        print(f"  {arm} " + " ".join(
+            f"{key} {fmt_pair(*mean_sd(col(rows, arm, key)))}" for key in METRICS))
+    print(f"  B_amcl n_particles {fmt_pair(*mean_sd([r['npart'] for r in rows]))}")
+    for a, b in PAIRS:
+        for key in METRICS:
+            print(f"  paired {a[0]}-{b[0]} {key}: "
+                  f"{verdict(col(rows, a, key), col(rows, b, key))}")
+
+
+def main():
+    print("AMCL-style particle filter localization toy against a known 2-D map "
+          "(synthetic; not Nav2, not a bag playback, not a real robot run)")
+    print("every constant is a declared toy parameter; ROS amcl defaults "
+          "(min_particles 100, max_particles 5000, kld_err 0.01, "
+          "recovery_alpha_slow 0.001, recovery_alpha_fast 0.1) are 以原文为准 "
+          "and are not what this toy uses")
+    print(f"seeds={len(SEEDS)} n_min={N_MIN} n_max={N_MAX} n_c={N_C} "
+          f"eps={num(EPS)} z_q={num(Z_Q)} a_slow={num(A_SLOW)} "
+          f"a_fast={num(A_FAST)} sig_z={num(SIG_Z)} sig_l={num(SIG_L)} "
+          f"r_max={num(R_MAX)} step_len={num(STEP_LEN)} "
+          f"err_tol={num(ERR_TOL)} (declared)")
+    print("Regimes and parameters were written before the first run")
+    for k in (2, 10, 50):
+        raw = kld_count(k)
+        clamped = min(max(raw, N_MIN), N_MAX)
+        print(f"hand_calc kld n at k={k}: raw {num(raw)}, clamped to "
+              f"[{N_MIN}, {N_MAX}] = {num(clamped)}")
+    print(f"hand_calc beam likelihood floor Z_RAND/R_MAX = "
+          f"{num(Z_RAND / R_MAX)}")
+    drift = math.sqrt(N_STEPS) * math.sqrt((STEP_LEN * MOT_SCALE_SD) ** 2
+                                           + MOT_ADD_SD ** 2)
+    print(f"hand_calc dead-reckoning drift sd after {N_STEPS} steps per axis "
+          f"= sqrt({N_STEPS})*sqrt((0.3*0.05)^2 + 0.02^2) = {num(drift)} m")
+    base = {}
+    for regime in REGIMES:
+        rows = collect(regime)
+        base[regime] = rows
+        report(regime, rows)
+    print("alternative parameters (declared before the run, same seeds, not "
+          "adopted):")
+    alt = collect("kidnapped", b_recovery=False)
+    print(f"  kidnapped with recovery off for B: paired X-B err: "
+          f"{verdict(col(alt, 'B_amcl', 'err'), col(base['kidnapped'], 'B_amcl', 'err'))}")
+    alt = collect("distinctive_unknown", b_n_max=300)
+    print(f"  distinctive_unknown with N_MAX=300 for B: paired X-B err: "
+          f"{verdict(col(alt, 'B_amcl', 'err'), col(base['distinctive_unknown'], 'B_amcl', 'err'))}")
+    alt = collect("kidnapped", c_recovery=True)
+    print(f"  kidnapped with C at 30 particles but recovery on: paired X-C err: "
+          f"{verdict(col(alt, 'C_few', 'err'), col(base['kidnapped'], 'C_few', 'err'))}")
+    print("No winner beyond the declared toy parameters and the printed "
+          "verdicts: a synthetic map, a declared sensor model and seed "
+          "scatter, so the numbers show magnitudes only")
+    print("Real robot / Nav2 AMCL / live ROS wiki: 本页未运行; Wikipedia and "
+          "archived ROS wiki text 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+AMCL-style particle filter localization toy against a known 2-D map (synthetic; not Nav2, not a bag playback, not a real robot run)
+every constant is a declared toy parameter; ROS amcl defaults (min_particles 100, max_particles 5000, kld_err 0.01, recovery_alpha_slow 0.001, recovery_alpha_fast 0.1) are 以原文为准 and are not what this toy uses
+seeds=5 n_min=100 n_max=600 n_c=30 eps=0.0500 z_q=2.3260 a_slow=0.0500 a_fast=0.5000 sig_z=0.1000 sig_l=0.2000 r_max=8.0000 step_len=0.3000 err_tol=0.5000 (declared)
+Regimes and parameters were written before the first run
+hand_calc kld n at k=2: raw 65.8404, clamped to [100, 600] = 100.0000
+hand_calc kld n at k=10: raw 216.9395, clamped to [100, 600] = 216.9395
+hand_calc kld n at k=50: raw 749.3302, clamped to [100, 600] = 600.0000
+hand_calc beam likelihood floor Z_RAND/R_MAX = 0.0125
+hand_calc dead-reckoning drift sd after 25 steps per axis = sqrt(25)*sqrt((0.3*0.05)^2 + 0.02^2) = 0.1250 m
+distinctive_unknown:
+  declared: B consistently lower err than A - keep; C as it comes
+  A_odom err 3.1053+-1.2423 success 0.0000+-0.0000
+  B_amcl err 0.1586+-0.0617 success 1.0000+-0.0000
+  C_few err 3.2738+-2.0654 success 0.2000+-0.4472
+  B_amcl n_particles 159.8160+-48.9166
+  paired B-A err: -2.9468+-1.1879: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B err: 3.1153+-2.1111: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  paired C-B success: -0.8000+-0.4472: clear gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+  paired C-A err: 0.1685+-3.2395: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired C-A success: 0.2000+-0.4472: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 4 of 5 equal
+known_short:
+  declared: A and B may near-tie on err - keep
+  A_odom err 0.0604+-0.0178 success 1.0000+-0.0000
+  B_amcl err 0.0447+-0.0117 success 1.0000+-0.0000
+  C_few err 0.0426+-0.0124 success 1.0000+-0.0000
+  B_amcl n_particles 289.3667+-160.8066
+  paired B-A err: -0.0157+-0.0066: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B err: -0.0021+-0.0053: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired C-B success: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A err: -0.0178+-0.0101: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A success: 0.0000+-0.0000: tie: identical on every seed
+kidnapped:
+  declared: C (too few particles, no recovery) loses to B on err and success - keep; A loses too
+  A_odom err 4.5428+-2.0097 success 0.0000+-0.0000
+  B_amcl err 0.0642+-0.0236 success 1.0000+-0.0000
+  C_few err 4.5418+-2.0030 success 0.0000+-0.0000
+  B_amcl n_particles 492.0080+-83.9168
+  paired B-A err: -4.4787+-2.0026: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B err: 4.4777+-1.9964: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A err: -0.0010+-0.0486: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired C-A success: 0.0000+-0.0000: tie: identical on every seed
+corridor_multimodal:
+  declared: B may fail too (ambiguous along x) - keep as it comes; C as it comes
+  A_odom err 2.5007+-1.0559 success 0.0000+-0.0000
+  B_amcl err 0.1446+-0.0919 success 1.0000+-0.0000
+  C_few err 2.1572+-3.1307 success 0.6000+-0.5477
+  B_amcl n_particles 129.6720+-32.8779
+  paired B-A err: -2.3561+-1.0515: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A success: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B err: 2.0126+-3.1586: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired C-B success: -0.4000+-0.5477: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+  paired C-A err: -0.3435+-2.6984: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired C-A success: 0.6000+-0.5477: clear gap, not a tie (|m| > sd); no seed has the opposite sign, 2 of 5 equal
+alternative parameters (declared before the run, same seeds, not adopted):
+  kidnapped with recovery off for B: paired X-B err: 4.4964+-1.9985: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  distinctive_unknown with N_MAX=300 for B: paired X-B err: -0.0115+-0.0566: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  kidnapped with C at 30 particles but recovery on: paired X-C err: -2.7986+-1.3081: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner beyond the declared toy parameters and the printed verdicts: a synthetic map, a declared sensor model and seed scatter, so the numbers show magnitudes only
+Real robot / Nav2 AMCL / live ROS wiki: 本页未运行; Wikipedia and archived ROS wiki text 以原文为准
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used on this page, in this order: **tie: identical on every seed** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when `|paired mean|` and its sd are both below 1e-9; **near-tie / small gap, within seed noise** when `|paired mean| ≤ sd`; otherwise a **consistent** gap (`|paired mean| > sd`), called **small** if `|m|` is under 20 % of the smaller arm mean and **clear** otherwise. Every consistent line carries a same-sign count over the 5 seeds. Paired differences are B−A, C−B and C−A; lower `err` and higher `success` are better.
+
+- **distinctive_unknown.** From the room centre, odometry ends 3.1053±1.2423 m off; the filter ends 0.1586±0.0617 m off and succeeds on every seed. B−A `err` is -2.9468±1.1879 and B−A `success` 1.0000±0.0000, both **clear**, same sign on all 5 seeds. The declaration **held**. With 30 uniform particles C localizes on 1 seed of 5: C−B `err` 3.1153±2.1111 (clear, 1 of 5 seeds of the opposite sign) and C−B `success` -0.8000±0.4472 (clear); C−A `err` is a **near-tie** (0.1685±3.2395). B ran on 159.8160±48.9166 particles on average.
+- **known_short.** Over a short move from a known start both are accurate, but the filter is still slightly better on every seed: B−A `err` -0.0157±0.0066, **clear**, same sign on all 5 seeds. The declared near-tie **did not hold**. Success is a **tie: identical on every seed** for all pairs, and C−B `err` is a near-tie (-0.0021±0.0053).
+- **kidnapped.** After the robot is moved without notice, the filter with recovery finds it again (0.0642±0.0236 m) while C stays where it was and ends 4.5418±2.0030 m off. C−B `err` 4.4777±1.9964 and C−B `success` -1.0000±0.0000, both **clear**, same sign on all 5 seeds. The declaration **held** and the loss is **kept**. A loses as declared (B−A `err` -4.4787±2.0026, clear), and C ends no better than odometry: C−A `err` is a near-tie (-0.0010±0.0486).
+- **corridor_multimodal.** The declared possible failure of B did not happen: B ends 0.1446±0.0919 m off and succeeds on every seed (B−A `err` -2.3561±1.0515, clear, 5/5). Hand calculation (手算): the corridor is 12 m long and the beams reach 8 m, so from any point at least one end wall is in range, and together with the side walls the scan is not ambiguous along x in this toy. C succeeds on 3 of 5 seeds: C−B `err` 2.0126±3.1586 and C−B `success` -0.4000±0.5477 are near-ties, and C−A `success` is 0.6000±0.5477 (clear, no seed of the opposite sign).
+
+**Declared expectations that did not hold.** One: in known_short the declared A–B near-tie did not hold; the filter was slightly but consistently more accurate. The corridor's declared possible failure for B also did not occur, because the corridor in this toy is short enough for the end walls to be seen.
+
+**Code change after the first run.** None. The toy ran once as written, and its first output is byte-identical to the `expected/` file.
+
+**Choices made after seeing results.** None. The particle range, the recovery rates, the maps and the three printed alternatives were written before the first run and run on the same seeds. Turning recovery off for B in kidnapped gives X−B `err` 4.4964±1.9985 (clear, 5/5): recovery, not the particle count, is what brings B back. Halving `N_MAX` to 300 on distinctive_unknown gives X−B `err` -0.0115±0.0566, a near-tie with 3 of 5 seeds of the opposite sign. Giving C recovery in kidnapped gives X−C `err` -2.7986±1.3081 (clear, 5/5), so even 30 particles partly recover once random poses are injected. None of them replaced the defaults.
+
+The page **does not declare a universal winner**. The filter beats odometry once the start is unknown or the robot is moved, but only with a map that the scan can tell apart, a particle budget that covers the space, and a way to inject fresh hypotheses after a kidnap. A real robot and Nav2 AMCL are **本页未运行**.
+
+**180-minute work plan:** 30 min read the Monte Carlo localization article and the archived amcl parameter list; 25 min redo the KLD-count, likelihood-floor and drift hand calculations; 50 min run the toy and read the four regimes; 40 min compare the printed alternatives with seeds fixed; 35 min the exercises.
+
+### Exercises
+
+1. From the printed hand calc, confirm the KLD counts for `k = 10` and `k = 50`, then work out `k` at which the raw count first exceeds 600.
+2. Show from `precompute` and `run_regime` that A, B and C see the same true path, odometry and beam noise for a given seed, and that B and C start from the same filter stream string.
+3. Explain why C cannot recover from a kidnap in `run_filter`, and which two lines would change that.
+4. Before running it, predict the corridor result with the corridor lengthened to 20 m and the beams still capped at 8 m, then run it with the seeds fixed.
+5. Before tuning AMCL on a real robot (本页未运行), write down which three parameters from the archived list you would change first and what you would watch in RViz to judge each.
+
 <Summary>
 
 SLAM Toolbox corrects odometry through map→odom while odom→base remains smooth; calibrate wheel separation with the lidar turn check before mapping. Tour the room, save the pose graph and PGM, then localize/navigate with Nav2. Diagnose TF/time, scan freshness, command message types and costmap footprint/inflation before tuning; check final goal distance rather than trusting SUCCEEDED alone. The shared-scan 2D ICP experiment adds a five-seed rotation basin/RMSE/iteration comparison and distinguishes the corridor’s physical along-wall null from a frozen-pair rank illusion. A synthetic local-control comparison adds Regulated Pure Pursuit against the Dynamic Window Approach on shared maps: DWA drives around obstacles the global plan does not know where RPP stops (clutter_slow) or collides (clutter_fast, 0.8000 of trials against 0.1333), but in a winding corridor at 1.0 m/s RPP arrives every time while DWA with Fox's literal admissibility test collides every time and the control-period version arrives on half — a model, not a Nav2 run. A synthetic volumetric comparison then adds an octree occupancy map and a TSDF against a 2-D floor grid on shared multi-view range: B and C clearly lead A on overhang recall (B 0.9861 on every seed, C 0.9833±0.0062), the declared single-frame near-tie on occupied IoU does not hold (B−S 0.0316±0.0000, small but consistent), and at sdf_trunc=0.25 m TSDF beats the raw hit grid on noisy-view surface MAE (-0.0322±0.0024, clear) while the first-run 0.50 m truncation does not — a model, not a lidar or Open3D run.
+
+AMCL tracks the pose on a known map with a particle filter whose size follows a KLD-style rule; in the synthetic toy the filter clearly beats dead reckoning from an unknown start (paired err −2.9468±1.1879 m, 5/5), the declared near-tie on a short known-start move did not hold (−0.0157±0.0066, 5/5), and after a kidnap 30 particles without recovery lose clearly (4.4777±1.9964, 5/5) — a model, not a Nav2 run; Wikipedia and archived ROS wiki text 以原文为准, real robot 本页未运行.
 
 </Summary>
