@@ -1004,11 +1004,12 @@ const month7Lessons: Lesson[] = [
     slug: "rl-foundations",
     title: { zh: "强化学习入门：奖励、回报与 PPO", en: "Reinforcement learning basics: rewards, returns and PPO" },
     summary: {
-      zh: "把 MDP 的状态、动作、奖励、回报、折扣、策略讲清，并对照第 6 个月的模仿学习：RL 不需要示范，但需要奖励。在 1-D 到达玩具上用裁剪比率（PPO 思路）训练 3 个种子，读最终平均回报表；说明 SB3 的 PPO 主要应在 CPU 上跑。再用线性评论家 toy 对比 DDPG 式单评论家、TD3 与去掉延迟的 TD3，看高估偏差和回报。",
-      en: "Name the MDP pieces — state, action, reward, return, discount, policy — and contrast Month 6 imitation learning: RL needs a reward, not demos. Train a clipped-ratio (PPO-style) policy on a 1-D reach toy across 3 seeds and read the final-return table; note that SB3's PPO is meant to run primarily on the CPU. Then compare a DDPG-style single critic, TD3 and TD3 without the delay on a linear-critic toy, for overestimation bias and return.",
+      zh: "把 MDP 的状态、动作、奖励、回报、折扣、策略讲清，并对照第 6 个月的模仿学习：RL 不需要示范，但需要奖励。在 1-D 到达玩具上用裁剪比率（PPO 思路）训练 3 个种子，读最终平均回报表；说明 SB3 的 PPO 主要应在 CPU 上跑。再用线性评论家 toy 对比 DDPG 式单评论家、TD3 与去掉延迟的 TD3，看高估偏差和回报。再用广义优势估计（GAE）在 λ = 1、0.95、0 之间比较策略梯度：长回合上 λ = 0.95 方差更低，奖励延迟到价值函数看不到时 λ = 0 明显估错。",
+      en: "Name the MDP pieces — state, action, reward, return, discount, policy — and contrast Month 6 imitation learning: RL needs a reward, not demos. Train a clipped-ratio (PPO-style) policy on a 1-D reach toy across 3 seeds and read the final-return table; note that SB3's PPO is meant to run primarily on the CPU. Then compare a DDPG-style single critic, TD3 and TD3 without the delay on a linear-critic toy, for overestimation bias and return. Then compare generalized advantage estimation (GAE) at λ = 1, 0.95 and 0 on a policy gradient: λ = 0.95 has lower variance on a long episode, and λ = 0 is clearly wrong when the reward is delayed past what the value function can see.",
     },
-    minutes: 630,
+    minutes: 810,
     objectives: [
+      { zh: "能写出 GAE 的倒序递推 Â_t = δ_t + γλ Â_{t+1}，说明 λ = 0 就是一步残差、λ = 1 就是回报减 V，手算有效视野 1/(1 − γλ)（λ = 0.95 时 16.8067 步），并在共享回合下指出 λ = 0.95 相比 λ = 1 明显降低梯度方差（配对 −6.7764±0.6108，5/5），奖励延迟时 λ = 0 在梯度误差上明显输（配对 18.1442±3.3853，5/5）；论文结果以原文为准，不声称 MuJoCo 运行。", en: "Write the GAE backward recursion Â_t = δ_t + γλ Â_{t+1}, show that λ = 0 is the one-step residual and λ = 1 the return minus V, hand-check the effective horizon 1/(1 − γλ) (16.8067 steps at λ = 0.95), and on shared episodes show λ = 0.95 clearly lowering the gradient variance against λ = 1 (paired −6.7764±0.6108, 5/5) and λ = 0 losing clearly on gradient error when the reward is delayed (paired 18.1442±3.3853, 5/5); paper results 以原文为准, no MuJoCo-run claim." },
       { zh: "在相同 Plant-B 数据预算和评估种子下对比三种迁移臂，区分 delta 动作与物理 SysID；部署不带 delta 模型。", en: "Compare three transfer arms with equal Plant-B data and shared evaluation seeds; distinguish delta actions from physical SysID; deploy without the delta model." },
       { zh: "能写出折扣回报 G_t = r_t + γ r_{t+1} + γ² r_{t+2} + …，并说明 γ=0.99、视野 20 时远期奖励仍算进回报。", en: "Write the discounted return G_t = r_t + γ r_{t+1} + γ² r_{t+2} + …, and note that with γ=0.99 and horizon 20 later rewards still count." },
       { zh: "能对比模仿学习与 RL：前者拟合示范动作，后者只优化标量奖励。", en: "Contrast imitation learning with RL: one fits demo actions, the other only maximises a scalar reward." },
@@ -1017,8 +1018,9 @@ const month7Lessons: Lesson[] = [
       { zh: "能写出 TD3 目标 y = r + γ min(Q1′, Q2′)(s′, π′(s′) + ε)，用 LR·|φ|² < 2 检查评论家 SGD 稳定，在共享随机数下指出 TD3 明显降低高估（配对 bias −0.3765±0.0563，5/5）而回报接近打平，没有自举（γ = 0）时 TD3 因延迟在回报上明显输掉（−0.2140±0.0683，5/5）；论文数字以论文为准，不声称 MuJoCo 运行。", en: "Write the TD3 target y = r + γ min(Q1′, Q2′)(s′, π′(s′) + ε), check critic SGD stability with LR·|φ|² < 2, and on common random numbers show TD3 clearly lowering the overestimate (paired bias −0.3765±0.0563, 5/5) with a near-tie return, and losing clearly on return without bootstrapping (γ = 0) because of the delay (−0.2140±0.0683, 5/5); paper numbers 以论文为准, no MuJoCo-run claim." },
     ],
     prereqs: ["python-terminal", "policy-evaluation", "mujoco-so101"],
-    resources: ["asap-paper", "spinningup", "gymnasium", "sb3", "ppo-paper", "td3-paper"],
+    resources: ["asap-paper", "spinningup", "gymnasium", "sb3", "ppo-paper", "td3-paper", "gae-paper"],
     tasks: [
+      { id: "b23p2-gae", text: { zh: "运行 gae_lambda_advantage_toy.py，手算 λ = 0.95 和 λ = 1 的有效视野，比较三种情形下 λ = 1、0.95、0 的梯度方差与梯度误差", en: "Run gae_lambda_advantage_toy.py, hand-check the effective horizon for λ = 0.95 and λ = 1, and compare gradient variance and gradient error for λ = 1, 0.95 and 0 in the three regimes" } },
       { id: "b16p2-td3", text: { zh: "运行 td3_clipped_double_q_toy.py，手算算例中的两个目标和 SGD 上限 LR = 0.0741，比较三种情形下三组的偏差与回报", en: "Run td3_clipped_double_q_toy.py, compute the two worked-example targets and the SGD limit LR = 0.0741 by hand, and compare the three arms' bias and return in the three regimes" } },
       { id: "b4p3", text: { zh: "运行 residual_action_mismatch_toy.py，核对表格与模型边界", en: "Run residual_action_mismatch_toy.py and audit its table and model boundaries" } },
       { id: "run", text: { zh: "运行 ppo_reach.py，核对三个种子的最终回报与 expected/ppo_reach.txt 一致", en: "Run ppo_reach.py and check the three final returns match expected/ppo_reach.txt" } },

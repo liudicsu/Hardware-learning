@@ -850,10 +850,412 @@ The page **does not declare a universal winner**: the minimum of two critics tra
 4. Set `STEPS` to 6000 with seeds fixed. Predict whether B's return loss in `bandit_no_bootstrap` shrinks before you run.
 5. Before any Gym or MuJoCo run (本页未运行), write why B's lower bias in `easy` does **not** mean TD3 will score higher on your robot task.
 
+## Generalized advantage estimation: one λ between Monte Carlo and one-step TD
+
+<Resource id="gae-paper" />
+
+The PPO-style toy above scores each action by its discounted reward-to-go `G`, normalised over the batch: there is no value function, so every action carries the noise of everything that happened after it. The TD3 section uses a critic, but for a deterministic actor. This section names the estimator that sits between those two for a stochastic policy gradient: **generalized advantage estimation** (GAE).
+
+**Source actually opened (abstract page and PDF body read; arXiv 1506.02438 v6, 20 Oct 2018).** **John Schulman, Philipp Moritz, Sergey Levine, Michael Jordan and Pieter Abbeel, "High-Dimensional Continuous Control Using Generalized Advantage Estimation"** (ICLR 2016; authors in the abstract-page order; the PDF byline writes Michael I. Jordan, the same person, in the same order). The paper defines GAE(γ, λ) as the **exponentially-weighted average** of the k-step advantage estimators, which collapses to a discounted sum of TD residuals `δ_t = r_t + γ V(s_{t+1}) − V(s_t)` (Eq. 16). Two special cases follow: λ = 0 gives the one-step residual `δ_t` (Eq. 17), and λ = 1 gives the discounted return minus the value baseline (Eq. 18). In the paper's words, GAE(γ, 1) is γ-just regardless of the accuracy of `V` but has high variance, GAE(γ, 0) is γ-just only for the true value function and otherwise induces bias but typically has much lower variance, and 0 < λ < 1 makes a compromise between bias and variance. On cart-pole the paper reports the fastest policy improvement for intermediate λ in the range 0.92–0.98; elsewhere it found that the one-step return (λ = 0) leads to excessive bias and poor performance. These are the paper's statements and figures, 以原文为准; none of them is a toy output, and the paper's biped and quadruped runs are **本页未运行**.
+
+This section is **not** a second PPO derivation: the clipped ratio stays as it is above, and GAE only changes the advantage that goes into it. It is **not** TD3 and it is **not** the residual-action transfer. No neural network, MuJoCo or Stable-Baselines3 run is involved.
+
+<Formula label="GAE(γ, λ), computed backwards over one episode">δ_t = r_t + γ V(t+1) − V(t),   V(H) = 0;   Â_t = δ_t + γλ Â_{t+1},   Â_H = 0;   λ = 0 → Â_t = δ_t;   λ = 1 → Â_t = Σ_l γ^l r_{t+l} − V(t)</Formula>
+
+**Worked example — a labelled hand calculation, also printed by the toy.** The weight on a residual `l` steps ahead is `(γλ)^l`, so the estimator looks about `1 / (1 − γλ)` steps into the future. With `γ = 0.9900` and λ = 0.95 that is `16.8067` steps; with λ = 1 it is `100.0000` steps, longer than the 50-step episode, so the λ = 1 sum runs to the end. With a single step (`H = 1`) and `V(1) = 0`, every λ gives the same `Â_0 = r_0 − V(0)`, so the three estimators must coincide. For the policy used below, the true gradient is `Σ_t γ^t · P1(1 − P1)` with `P1 = 0.5000`; over 50 steps the toy prints `9.8748`.
+
+**Integration step.** None: each episode is a finite sum computed by one backward pass; there is no time constant and no learning rate, because the policy is not updated.
+
+### Fair setup
+
+`gae_lambda_advantage_toy.py` is **synthetic** and stdlib only. **Model assumptions:** an episode of `H` steps whose state is the step index; a two-action policy with `P(a = 1) = 0.5` (a logistic policy at θ = 0, so the score is `a − P1`); reward `a_t + noise` (sd 1.0) in the immediate mode, or the whole sum paid at the last step in the delayed mode; the true advantage and the true gradient are known in closed form, so bias can be measured directly. The value stand-in is either the true value of each step plus a fixed error (sd 0.3) or a single constant equal to its mean (coarse). Every value is a **declared toy parameter**; λ = 0.95 was chosen before the run from inside the paper's reported range.
+
+| Arm | λ | What it is |
+|---|---|---|
+| A_lam1 | 1 | discounted return minus `V` (Eq. 18) |
+| B_lam | 0.95 | the exponentially weighted compromise |
+| C_lam0 | 0 | the one-step residual `δ_t` (Eq. 17) |
+
+**Common random numbers:** for each (regime, seed), one stream draws the value errors first and then, for each of 40 repetitions of 16 episodes, every action and every reward noise, before any arm runs; all three arms use the same episodes and the same `V`. Five seeds. Metrics: `grad_var` (variance of the 16-episode gradient estimate over the 40 repetitions) and `grad_mse` (its mean squared error against the true gradient), each as mean±sd over seeds.
+
+| Regime | Episode | What was pre-declared |
+|---|---|---|
+| long_noisy | immediate reward, `H = 50`, value with small errors | B **consistent** below A on grad_var, **keep**; C as it comes |
+| one_step | immediate reward, `H = 1` | all three λ **tie** or near-tie, **keep** |
+| delayed_coarse | all reward at the last step, `H = 30`, coarse constant value | C (λ = 0) **loses** to B and to A on grad_mse, **keep** |
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-7/rl-foundations
+python3 gae_lambda_advantage_toy.py
+```
+
+<CodeSource path="examples/month-7/rl-foundations/gae_lambda_advantage_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic generalized advantage estimation (GAE) toy.
+
+A scalar two-action logistic policy (theta = 0, P(a=1) = P1 = 0.5) on a
+finite episode of H steps; not a neural network, not MuJoCo, not SB3.
+Paper biped / quadruped locomotion results 以论文为准; GPU / SB3 are not
+run here (本页未运行).
+
+Arms: A_lam1 (LAM = 1), B_lam (LAM = 0.95, the declared value inside the
+0.92-0.98 range the paper reports as fastest on cart-pole, 以论文为准),
+C_lam0 (LAM = 0).  Regimes: long_noisy (immediate reward, H = 50, reward
+noise sd 1.0, noisy value with per-state sd 0.3); one_step (immediate,
+H = 1, same noise); delayed_coarse (all reward at the final step, H = 30,
+value a single constant equal to the mean true value over time).
+
+True advantages are known in closed form; the value stand-in is either
+the true state value plus a fixed per-state error or a coarse constant.
+Gradients are estimated over N_EP = 16 episodes per repetition and
+M_DRAW = 40 repetitions per seed; metrics are the variance of the
+per-repetition gradient estimate and its mean squared error to g_true.
+
+Common random numbers: one random.Random(f"{regime}/{seed}") stream per
+(regime, seed) draws the value errors first, then all actions and reward
+noises for every repetition and episode, in a fixed order before any arm
+is evaluated; all arms share the same episodes and the same V.
+
+Regimes and parameters were written before the first run.  Declared
+expectations are printed as they come, without tuning.
+"""
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+
+# Declared parameters, written before the first run.
+GAMMA = 0.99
+P1 = 0.5
+C_R = 1.0
+SIG_R = 1.0
+N_EP = 16
+M_DRAW = 40
+LAM_DECL = 0.95
+
+ARMS = ("A_lam1", "B_lam", "C_lam0")
+ARM_LAM = {"A_lam1": 1.0, "B_lam": LAM_DECL, "C_lam0": 0.0}
+METRICS = ("grad_var", "grad_mse")
+PAIRS = (("B_lam", "A_lam1"), ("C_lam0", "B_lam"), ("C_lam0", "A_lam1"))
+
+REGIMES = {
+    "long_noisy": {"H": 50, "mode": "immediate", "value": "noisy", "SIG_V": 0.3},
+    "one_step": {"H": 1, "mode": "immediate", "value": "noisy", "SIG_V": 0.3},
+    "delayed_coarse": {"H": 30, "mode": "delayed", "value": "coarse", "SIG_V": 0.0},
+}
+DECLARED = {
+    "long_noisy": "B consistently lower grad_var than A - keep; C as it comes",
+    "one_step": "all three lambdas tie or near-tie - keep",
+    "delayed_coarse": "C (lambda = 0) loses on grad_mse to B and to A - keep",
+}
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0  # identical values: no floating residue in mean or sd
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    """Half-up rounding on the shortest decimal repr; tiny non-zero values in scientific form."""
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def true_value(regime, t):
+    cfg = REGIMES[regime]
+    H = cfg["H"]
+    if cfg["mode"] == "immediate":
+        return sum(GAMMA ** ell for ell in range(H - t)) * C_R * P1
+    return (GAMMA ** (H - 1 - t)) * H * C_R * P1
+
+
+def true_grad(regime):
+    cfg = REGIMES[regime]
+    H = cfg["H"]
+    total = 0.0
+    for t in range(H):
+        if cfg["mode"] == "immediate":
+            total += (GAMMA ** t) * C_R * P1 * (1.0 - P1)
+        else:
+            total += (GAMMA ** t) * (GAMMA ** (H - 1 - t)) * C_R * P1 * (1.0 - P1)
+    return total
+
+
+def build_data(regime, seed, value_mode=None, sig_v=None):
+    cfg = REGIMES[regime]
+    H = cfg["H"]
+    mode = cfg["mode"]
+    if value_mode is None:
+        value_mode = cfg["value"]
+    if sig_v is None:
+        sig_v = cfg["SIG_V"]
+    rng = random.Random(f"{regime}/{seed}")
+    errs = [rng.gauss(0.0, 1.0) for _ in range(H)]
+    raw = []
+    for _ in range(M_DRAW):
+        eps = []
+        for _ in range(N_EP):
+            actions = [1 if rng.random() < P1 else 0 for _ in range(H)]
+            if mode == "immediate":
+                rewards = [C_R * actions[t] + rng.gauss(0.0, SIG_R) for t in range(H)]
+            else:
+                total = C_R * sum(actions)
+                noise = rng.gauss(0.0, SIG_R) * math.sqrt(H)
+                rewards = [0.0] * H
+                rewards[H - 1] = total + noise
+            eps.append((actions, rewards))
+        raw.append(eps)
+    true_v = [true_value(regime, t) for t in range(H)]
+    if value_mode == "noisy":
+        V = [true_v[t] + sig_v * errs[t] for t in range(H)]
+    else:
+        m = sum(true_v) / H
+        V = [m] * H
+    V.append(0.0)
+    data = []
+    for eps in raw:
+        draw = []
+        for actions, rewards in eps:
+            deltas = [0.0] * H
+            for t in range(H):
+                deltas[t] = rewards[t] + GAMMA * V[t + 1] - V[t]
+            draw.append((actions, deltas))
+        data.append(draw)
+    return H, data
+
+
+def seed_metrics(regime, seed, lams, value_mode=None, sig_v=None):
+    H, data = build_data(regime, seed, value_mode, sig_v)
+    target = true_grad(regime)
+    out = {}
+    for lam in lams:
+        gs = []
+        for draw in data:
+            total = 0.0
+            for actions, deltas in draw:
+                adv = [0.0] * H
+                running = 0.0
+                for t in range(H - 1, -1, -1):
+                    running = deltas[t] + GAMMA * lam * running
+                    adv[t] = running
+                disc = 1.0
+                for t in range(H):
+                    total += disc * adv[t] * (actions[t] - P1)
+                    disc *= GAMMA
+            gs.append(total / N_EP)
+        var = mean_sd(gs)[1] ** 2
+        mse = sum((g - target) ** 2 for g in gs) / len(gs)
+        out[lam] = (var, mse)
+    return out
+
+
+def run_regime(regime):
+    acc = {arm: {key: [] for key in METRICS} for arm in ARMS}
+    for seed in SEEDS:
+        res = seed_metrics(regime, seed, (1.0, LAM_DECL, 0.0))
+        for arm in ARMS:
+            var, mse = res[ARM_LAM[arm]]
+            acc[arm]["grad_var"].append(var)
+            acc[arm]["grad_mse"].append(mse)
+    return acc
+
+
+def report(regime, res):
+    print(f"{regime}:")
+    print(f"  declared: {DECLARED[regime]}")
+    for arm in ARMS:
+        parts = []
+        for key in METRICS:
+            parts.append(f"{key} {fmt_pair(*mean_sd(res[arm][key]))}")
+        print(f"  {arm} " + " ".join(parts))
+    for a, b in PAIRS:
+        for key in METRICS:
+            print(f"  paired {a[0]}-{b[0]} {key}: "
+                  f"{verdict(res[a][key], res[b][key])}")
+
+
+def alt_values(regime, lam, index, value_mode=None, sig_v=None):
+    vals = []
+    for seed in SEEDS:
+        res = seed_metrics(regime, seed, (lam,), value_mode, sig_v)
+        vals.append(res[lam][index])
+    return vals
+
+
+def main():
+    print("GAE lambda toy: synthetic policy-gradient estimate for lambda = 1, 0.95, 0")
+    print("not a neural net; not MuJoCo or SB3; paper locomotion results 以论文为准; "
+          "GPU / SB3: 本页未运行")
+    print(f"seeds={len(SEEDS)} gamma={num(GAMMA)} p1={num(P1)} c_r={num(C_R)} "
+          f"sig_r={num(SIG_R)} n_ep={N_EP} m_draw={M_DRAW} (declared)")
+    print("score d log pi(a)/d theta = a - P1; terminal value V(H) = 0")
+    print("Regimes and parameters were written before the first run")
+    for name in ("long_noisy", "one_step", "delayed_coarse"):
+        print(f"hand_calc g_true {name} = {num(true_grad(name))}")
+    print(f"hand_calc effective horizon 1/(1-GAMMA*LAM) for LAM = 0.95 = "
+          f"{num(1.0 / (1.0 - GAMMA * LAM_DECL))}")
+    print(f"hand_calc effective horizon 1/(1-GAMMA*LAM) for LAM = 1 = "
+          f"{num(1.0 / (1.0 - GAMMA))}")
+    print("hand_calc H = 1 check: A_hat_0 = delta_0 = r_0 - V(0) for LAM = 0, "
+          "0.95, 1, so all three estimators equal r_0 - V(0)")
+    base = {}
+    for regime in ("long_noisy", "one_step", "delayed_coarse"):
+        base[regime] = run_regime(regime)
+        report(regime, base[regime])
+    print("alternative parameters (declared before the run, same seeds, not adopted):")
+    a_var = base["long_noisy"]["A_lam1"]["grad_var"]
+    x = alt_values("long_noisy", 0.9, 0)
+    print(f"  long_noisy with LAM = 0.9 (paired X-A grad_var): "
+          f"{verdict(x, a_var)}")
+    x = alt_values("long_noisy", 0.98, 0)
+    print(f"  long_noisy with LAM = 0.98 (paired X-A grad_var): "
+          f"{verdict(x, a_var)}")
+    c_mse = base["delayed_coarse"]["C_lam0"]["grad_mse"]
+    x = alt_values("delayed_coarse", 0.0, 1, value_mode="noisy", sig_v=0.3)
+    print(f"  delayed_coarse with noisy value (SIG_V = 0.3) for C "
+          f"(paired X-C grad_mse): "
+          f"{verdict(x, c_mse)}")
+    print("No winner beyond the declared lambda trade-off: B keeps grad_var low "
+          "while C trades bias for a simpler estimate; paper biped / quadruped "
+          "numbers stand as reported")
+    print("Paper biped / quadruped results 以论文为准; GPU / SB3 / MuJoCo: 本页未运行")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+GAE lambda toy: synthetic policy-gradient estimate for lambda = 1, 0.95, 0
+not a neural net; not MuJoCo or SB3; paper locomotion results 以论文为准; GPU / SB3: 本页未运行
+seeds=5 gamma=0.9900 p1=0.5000 c_r=1.0000 sig_r=1.0000 n_ep=16 m_draw=40 (declared)
+score d log pi(a)/d theta = a - P1; terminal value V(H) = 0
+Regimes and parameters were written before the first run
+hand_calc g_true long_noisy = 9.8748
+hand_calc g_true one_step = 0.2500
+hand_calc g_true delayed_coarse = 5.6038
+hand_calc effective horizon 1/(1-GAMMA*LAM) for LAM = 0.95 = 16.8067
+hand_calc effective horizon 1/(1-GAMMA*LAM) for LAM = 1 = 100.0000
+hand_calc H = 1 check: A_hat_0 = delta_0 = r_0 - V(0) for LAM = 0, 0.95, 1, so all three estimators equal r_0 - V(0)
+long_noisy:
+  declared: B consistently lower grad_var than A - keep; C as it comes
+  A_lam1 grad_var 11.6254+-1.8869 grad_mse 11.4808+-2.0361
+  B_lam grad_var 4.8490+-1.6394 grad_mse 4.7481+-1.5870
+  C_lam0 grad_var 0.7308+-0.1566 grad_mse 0.7257+-0.1567
+  paired B-A grad_var: -6.7764+-0.6108: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A grad_mse: -6.7328+-0.6732: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B grad_var: -4.1182+-1.5598: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B grad_mse: -4.0223+-1.5024: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A grad_var: -10.8946+-1.8161: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A grad_mse: -10.7551+-1.9542: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+one_step:
+  declared: all three lambdas tie or near-tie - keep
+  A_lam1 grad_var 0.0137+-0.0027 grad_mse 0.0137+-0.0024
+  B_lam grad_var 0.0137+-0.0027 grad_mse 0.0137+-0.0024
+  C_lam0 grad_var 0.0137+-0.0027 grad_mse 0.0137+-0.0024
+  paired B-A grad_var: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A grad_mse: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B grad_var: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B grad_mse: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A grad_var: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A grad_mse: 0.0000+-0.0000: tie: identical on every seed
+delayed_coarse:
+  declared: C (lambda = 0) loses on grad_mse to B and to A - keep
+  A_lam1 grad_var 11.7344+-3.5691 grad_mse 11.7159+-3.3418
+  B_lam grad_var 4.1314+-1.2587 grad_mse 11.8061+-2.9077
+  C_lam0 grad_var 0.3652+-0.1117 grad_mse 29.9503+-1.5403
+  paired B-A grad_var: -7.6030+-2.3450: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A grad_mse: 0.0902+-3.7467: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired C-B grad_var: -3.7662+-1.2717: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B grad_mse: 18.1442+-3.3853: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A grad_var: -11.3692+-3.5756: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A grad_mse: 18.2344+-4.5531: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative parameters (declared before the run, same seeds, not adopted):
+  long_noisy with LAM = 0.9 (paired X-A grad_var): -8.4984+-1.0608: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  long_noisy with LAM = 0.98 (paired X-A grad_var): -4.2012+-0.4197: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  delayed_coarse with noisy value (SIG_V = 0.3) for C (paired X-C grad_mse): 0.2929+-0.5736: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+No winner beyond the declared lambda trade-off: B keeps grad_var low while C trades bias for a simpler estimate; paper biped / quadruped numbers stand as reported
+Paper biped / quadruped results 以论文为准; GPU / SB3 / MuJoCo: 本页未运行
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used on this page, in this order: **tie: identical on every seed** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when `|paired mean|` and its sd are both below 1e-9; **near-tie / small gap, within seed noise** when `|paired mean| ≤ sd`; otherwise a **consistent** gap (`|paired mean| > sd`), called **small** if `|m|` is under 20 % of the smaller arm mean and **clear** otherwise. Every consistent line carries a same-sign count over the 5 seeds. Paired differences are B−A, C−B and C−A; lower is better on both metrics.
+
+- **long_noisy.** The λ = 1 estimate has a variance of 11.6254±1.8869 and the λ = 0.95 estimate 4.8490±1.6394: B−A `grad_var` is -6.7764±0.6108, **clear**, same sign on all 5 seeds. The declaration **held**. Not declared: with a value stand-in this close to the truth and rewards paid at once, λ = 0 is lower still (0.7308±0.1566; C−B `grad_var` -4.1182±1.5598, clear, 5/5) and also wins on `grad_mse` (C−B -4.0223±1.5024), because its bias is small here.
+- **one_step.** With one step every λ computes `r_0 − V(0)`: all three pairs are a **tie: identical on every seed** on both metrics (each arm 0.0137±0.0027 on `grad_var`). The declaration **held**, as the hand calculation required.
+- **delayed_coarse.** When the whole reward arrives at the end, the one-step residual never sees it for earlier actions: C's `grad_mse` is 29.9503±1.5403 against 11.8061±2.9077 for B and 11.7159±3.3418 for A. C−B `grad_mse` is 18.1442±3.3853 and C−A 18.2344±4.5531, both **clear**, same sign on all 5 seeds. The declaration **held** and the loss is **kept**. C still has the lowest variance (0.3652±0.1117): a low-variance estimate of the wrong number. B and A are a **near-tie** on `grad_mse` (B−A 0.0902±3.7467, 3 of 5 seeds of the opposite sign) even though B's variance is clearly lower (B−A `grad_var` -7.6030±2.3450, 5/5): in this regime B pays for its lower variance with bias.
+
+**Declared expectations that did not hold.** None in this toy: B's lower variance on the long horizon, the one-step tie and λ = 0's delayed-reward loss all held. Two results were not declared: on long_noisy λ = 0 beat both other arms, and on delayed_coarse λ = 0.95 did not beat λ = 1 on `grad_mse`.
+
+**Code change after the first run.** None. The toy ran once as written, and its first output is byte-identical to the `expected/` file.
+
+**Choices made after seeing results.** None. λ = 0.95, the episode lengths, the noise levels and the three printed alternatives were written before the first run and run on the same seeds. λ = 0.9 on long_noisy gives X−A `grad_var` -8.4984±1.0608 and λ = 0.98 gives -4.2012±0.4197, both clear on all 5 seeds; giving C the step-indexed true value plus errors on delayed_coarse leaves X−C `grad_mse` at 0.2929±0.5736, a near-tie with 1 of 5 seeds of the opposite sign. That last line matters: in this toy the state is only the step index, so even an exact `V(t)` cannot tell which earlier actions earned the final reward, and λ = 0 stays blind to it. None of them replaced the defaults.
+
+The page **does not declare a universal winner**. λ is a knob on how far the estimator trusts `V`: when `V` is good and rewards are prompt, a small λ is cheap and nearly unbiased; when rewards are delayed past what `V` can represent, λ = 0 is confidently wrong and a large λ is needed. The paper's locomotion results are 以原文为准 and its GPU-scale runs are **本页未运行**.
+
+**180-minute work plan:** 30 min read Sections 2–3 of the paper through Eqs. 16–18; 25 min redo the effective-horizon and one-step hand calculations; 50 min run the toy and read the three regimes; 40 min compare the printed alternatives with seeds fixed; 35 min the exercises.
+
+### Exercises
+
+1. From the printed hand calc, confirm 16.8067 and 100.0000, then work out the effective horizon for λ = 0.9 with the same γ.
+2. Show from `build_data` and `seed_metrics` that A, B and C use the same actions, reward noises and value errors for a given seed.
+3. Write the backward recursion in `seed_metrics` for λ = 0 and λ = 1 and show that it reduces to Eq. 17 and Eq. 18.
+4. Before running it, predict delayed_coarse C−B `grad_mse` with `H = 10`, then run it with the seeds fixed.
+5. Before swapping `G` for GAE in the PPO-style toy above, write down what `V` you would fit, from which data, and why a bad `V` hurts λ = 0 more than λ = 1 (no GPU or SB3 run here: 本页未运行).
+
 <Summary>
 
 An MDP is state, action, reward, return and policy. RL optimises the discounted return instead of cloning demos; a bad reward invites hacking. The stdlib clipped-ratio toy on a 1-D reach improves across three seeds (mean final return ≈ −8.6); SB3 PPO is the library path and is meant for the CPU when you are not using a CNN.
 
 Equal-data Plant-A→B transfer compares SysID-retune, DR-widen and residual-action across five shared seeds; delta stays in simulator fine-tuning and is absent at deployment. TD3 (two critics with a minimum, target smoothing and a delayed actor) clearly lowers the critic's overestimate on a linear-critic toy (paired bias −0.3765±0.0563, 5/5) without a better return (near-tie), and with no bootstrapping it loses clearly on return (−0.2140±0.0683, 5/5) because the delay halves actor updates — a synthetic toy, not MuJoCo; paper numbers 以论文为准.
+
+Generalized advantage estimation sums TD residuals with weight (γλ)^l between λ = 1 (return minus V) and λ = 0 (one-step residual); in the synthetic toy λ = 0.95 clearly lowers the gradient variance against λ = 1 on a 50-step noisy episode (paired −6.7764±0.6108, 5/5), all three λ tie on one step, and λ = 0 loses clearly on gradient error when the reward is delayed past what V can see (paired 18.1442±3.3853, 5/5) — a synthetic toy, not MuJoCo; paper results 以原文为准, GPU runs 本页未运行.
 
 </Summary>

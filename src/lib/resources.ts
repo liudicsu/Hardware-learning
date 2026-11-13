@@ -6843,6 +6843,20 @@ export const resources: Record<string, Resource> = {
     },
     extra: true,
   },
+  "gae-paper": {
+    id: "gae-paper",
+    url: "https://arxiv.org/abs/1506.02438",
+    title: { zh: "GAE 论文（Schulman 等，2015）", en: "GAE paper (Schulman et al., 2015)" },
+    author: "John Schulman, Philipp Moritz, Sergey Levine, Michael Jordan, Pieter Abbeel",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "High-Dimensional Continuous Control Using Generalized Advantage Estimation（ICLR 2016）：作者按 arXiv 摘要页顺序；PDF 署名写作 Michael I. Jordan（同一人、同一顺序）。GAE(γ, λ) 是各 k 步优势估计的指数加权平均，化简为 TD 残差 δ_t = r_t + γV(s_{t+1}) − V(s_t) 的折扣和（式 16）；λ = 0 为一步残差（式 17），λ = 1 为折扣回报减 V（式 18）；GAE(γ, 1) 不论 V 准不准都是 γ-just 但方差大，GAE(γ, 0) 只在 V 准确时 γ-just、否则有偏但方差通常小得多，0 < λ < 1 在两者间折中。cart-pole 上 λ 取 0.92–0.98 的中间值时提升最快；一步回报（λ = 0）偏差过大、表现差。摘要页与 PDF 正文已读（v6，2018 年 10 月 20 日）；以原文为准。双足 / 四足实验与 GPU 训练：本页未运行。",
+      en: "High-Dimensional Continuous Control Using Generalized Advantage Estimation (ICLR 2016): authors in arXiv abstract-page order; the PDF byline writes Michael I. Jordan (same person, same order). GAE(γ, λ) is the exponentially-weighted average of the k-step advantage estimators and reduces to a discounted sum of TD residuals δ_t = r_t + γV(s_{t+1}) − V(s_t) (Eq. 16); λ = 0 is the one-step residual (Eq. 17) and λ = 1 the discounted return minus V (Eq. 18); GAE(γ, 1) is γ-just regardless of V's accuracy but has high variance, GAE(γ, 0) is γ-just only for the true V and otherwise biased but typically much lower in variance, and 0 < λ < 1 compromises between them. On cart-pole intermediate λ in 0.92–0.98 improved fastest; the one-step return (λ = 0) gave excessive bias and poor performance. Abstract page and PDF body read (v6, 20 Oct 2018); 以原文为准. Biped / quadruped runs and GPU training: 本页未运行.",
+    },
+    license: { zh: "预印本（arXiv 非独占分发许可），© 原作者；仅提供外链", en: "Preprint (arXiv non-exclusive distribution licence), © authors; external link only" },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {
