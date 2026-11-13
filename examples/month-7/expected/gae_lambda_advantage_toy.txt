@@ -1,0 +1,50 @@
+GAE lambda toy: synthetic policy-gradient estimate for lambda = 1, 0.95, 0
+not a neural net; not MuJoCo or SB3; paper locomotion results 以论文为准; GPU / SB3: 本页未运行
+seeds=5 gamma=0.9900 p1=0.5000 c_r=1.0000 sig_r=1.0000 n_ep=16 m_draw=40 (declared)
+score d log pi(a)/d theta = a - P1; terminal value V(H) = 0
+Regimes and parameters were written before the first run
+hand_calc g_true long_noisy = 9.8748
+hand_calc g_true one_step = 0.2500
+hand_calc g_true delayed_coarse = 5.6038
+hand_calc effective horizon 1/(1-GAMMA*LAM) for LAM = 0.95 = 16.8067
+hand_calc effective horizon 1/(1-GAMMA*LAM) for LAM = 1 = 100.0000
+hand_calc H = 1 check: A_hat_0 = delta_0 = r_0 - V(0) for LAM = 0, 0.95, 1, so all three estimators equal r_0 - V(0)
+long_noisy:
+  declared: B consistently lower grad_var than A - keep; C as it comes
+  A_lam1 grad_var 11.6254+-1.8869 grad_mse 11.4808+-2.0361
+  B_lam grad_var 4.8490+-1.6394 grad_mse 4.7481+-1.5870
+  C_lam0 grad_var 0.7308+-0.1566 grad_mse 0.7257+-0.1567
+  paired B-A grad_var: -6.7764+-0.6108: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A grad_mse: -6.7328+-0.6732: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B grad_var: -4.1182+-1.5598: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B grad_mse: -4.0223+-1.5024: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A grad_var: -10.8946+-1.8161: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A grad_mse: -10.7551+-1.9542: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+one_step:
+  declared: all three lambdas tie or near-tie - keep
+  A_lam1 grad_var 0.0137+-0.0027 grad_mse 0.0137+-0.0024
+  B_lam grad_var 0.0137+-0.0027 grad_mse 0.0137+-0.0024
+  C_lam0 grad_var 0.0137+-0.0027 grad_mse 0.0137+-0.0024
+  paired B-A grad_var: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A grad_mse: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B grad_var: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B grad_mse: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A grad_var: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A grad_mse: 0.0000+-0.0000: tie: identical on every seed
+delayed_coarse:
+  declared: C (lambda = 0) loses on grad_mse to B and to A - keep
+  A_lam1 grad_var 11.7344+-3.5691 grad_mse 11.7159+-3.3418
+  B_lam grad_var 4.1314+-1.2587 grad_mse 11.8061+-2.9077
+  C_lam0 grad_var 0.3652+-0.1117 grad_mse 29.9503+-1.5403
+  paired B-A grad_var: -7.6030+-2.3450: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A grad_mse: 0.0902+-3.7467: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired C-B grad_var: -3.7662+-1.2717: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B grad_mse: 18.1442+-3.3853: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A grad_var: -11.3692+-3.5756: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A grad_mse: 18.2344+-4.5531: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative parameters (declared before the run, same seeds, not adopted):
+  long_noisy with LAM = 0.9 (paired X-A grad_var): -8.4984+-1.0608: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  long_noisy with LAM = 0.98 (paired X-A grad_var): -4.2012+-0.4197: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  delayed_coarse with noisy value (SIG_V = 0.3) for C (paired X-C grad_mse): 0.2929+-0.5736: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+No winner beyond the declared lambda trade-off: B keeps grad_var low while C trades bias for a simpler estimate; paper biped / quadruped numbers stand as reported
+Paper biped / quadruped results 以论文为准; GPU / SB3 / MuJoCo: 本页未运行
