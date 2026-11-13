@@ -10037,5 +10037,147 @@ print("protocol pass")
   console.log("lqg-ntc-inrush PR2: LQG separation, NTC inrush limiting, and M5 3570 / M11 3810 / site 39780 locked");
 }
 
+// Batch-22 PR3: PointVLA point-cloud injection into a frozen policy (7.2 depth-pointcloud) and EgoVLA human-video pretraining with retargeting (11.4 umi-style-collection).
+{
+  const read=p=>readFileSync(join(root,p),"utf8"), env={...process.env,PYTHONDONTWRITEBYTECODE:"1"};
+  const cur=read("src/lib/curriculum.ts"), res=read("src/lib/resources.ts");
+  execFileSync("python3",[join(root,"tools/test_b22p3_pointvla_egovla_toys.py")],{cwd:root,encoding:"utf8",env,stdio:"pipe"});
+  ok(true,"b22p3 independent tests tools/test_b22p3_pointvla_egovla_toys.py pass");
+  const NUM="-?\\d+\\.\\d+(?:e-?\\d+)?";
+  const CITED=new Set(["2503.07511","2507.12440","45.93","7.41"]);
+  const cases=[
+    [7,"depth-pointcloud","pointvla_frozen_injector_toy",810,["## PointVLA: adding a point cloud to a frozen 2D policy", "## PointVLA：给冻结的二维策略加上点云"],
+      ["hand_calc", "0.0441", "0.0007", "0.9938", "0.9599", "0.1056", "paired B-A success: -0.0300+-0.0326: near-tie", "paired C-B success: -0.7900+-0.0783: clear gap", "paired B-A success: 0.9750+-0.0177: clear gap", "paired B-A success: 0.4000+-0.1000: clear gap", "paired B-A false_grasp: -1.0000+-0.0000: clear gap", "paired B-A success: -0.3050+-0.0925: clear gap", "paired X-B success: -0.0250+-0.0177: small but consistent", "本页未运行", "以论文为准"],
+      ["-0.0300±0.0326", "-1.8022±0.4029", "-0.7900±0.0783", "0.9750±0.0177", "44.5741±0.5399", "-0.8650±0.0548", "0.1100±0.0548", "0.4000±0.1000", "-1.0000±0.0000", "-0.4800±0.0694", "-0.0800±0.1605", "-0.3050±0.0925", "7.3992±0.7443", "-0.0250±0.0177", "0.0441", "0.0007", "0.9938", "0.9599", "0.1056", "0.9700", "0.8500", "2503.07511", "以论文为准", "本页未运行"],
+      {"en": ["**freezes**", "**injects**", "**skip-block analysis**", "**later, less critical blocks**", "**synthetic**", "**Model assumptions:**", "**declared stand-in**", "**declared toy parameters**", "**Common random numbers:**", "**Integration step.**", "**Code change after the first run.**", "before any regime result", "**does not declare a winner beyond the declared block profile**", "**held**", "**kept**", "**near-tie**"],
+       "zh": ["**冻结**", "**注入**", "**跳块分析**", "**靠后、不那么关键的块**", "**合成**", "**模型假设:**", "**声明替身**", "**声明的玩具参数**", "**共用随机数:**", "**积分步长。**", "**首次运行后的代码改动。**", "任何工况结果之前", "**不宣布声明的块重要度之外的赢家**", "**成立**", "**保留**", "**近似平局**"]},
+      {"en": ["PointVLA", "frozen", "以论文为准", "本页未运行"], "zh": ["PointVLA", "冻结", "以论文为准", "本页未运行"]},
+      ["pointvla-paper"],"**180-minute work plan:**","**180 分钟安排:**",180],
+    [11,"umi-style-collection","egovla_human_pretrain_retarget_toy",600,["## EgoVLA: human egocentric pretraining, then IK, retargeting and robot post-training", "## EgoVLA：先用人类第一人称视频预训练，再做逆运动学、重定向和机器人后训练"],
+      ["hand_calc", "= 0.5510", "= 0.4000", "= 0.6358", "= 0.1635", "= 0.7887", "= 0.3869", "3.0000x tol", "paired B-A long_sr: 0.4300+-0.1430: clear gap", "paired B-A short_sr: 0.2220+-0.0968: clear gap", "paired C-A short_sr: -0.6320+-0.0746: clear gap", "paired B(half_data)-B(in_domain_full) long_sr: -0.1620+-0.0841: clear gap", "paired B-A long_sr: -0.2180+-0.0955: clear gap", "paired C-B long_sr: -0.0160+-0.0219: near-tie", "本页未运行", "以论文为准"],
+      ["0.0120±0.0130", "-0.6320±0.0746", "-0.6660±0.0773", "0.4300±0.1430", "0.2220±0.0968", "0.4900±0.0775", "0.5640±0.0590", "-0.1620±0.0841", "-0.0600±0.0742", "-0.3100±0.1286", "-0.2180±0.0955", "-0.0160±0.0219", "-0.1180±0.1085", "0.4140±0.1724", "-0.1860±0.0713", "0.5510", "0.4000", "0.6358", "0.1635", "0.7887", "0.3869", "3.0000", "2507.12440", "45.93", "7.41", "以论文为准", "本页未运行"],
+      {"en": ["**egocentric human video**", "**wrist pose**", "**inverse kinematics**", "**0 % success on all tasks**", "**synthetic**", "**Model assumptions:**", "**declared stand-in**", "**fixed offset**", "**declared toy parameters**", "**Common random numbers:**", "**Integration step.**", "**Code change after the first run.**", "symmetric row", "that declaration did not hold", "**does not declare a winner beyond the declared prior**", "**held**", "**kept**"],
+       "zh": ["**第一人称人类视频**", "**腕部位姿**", "**逆运动学**", "**在所有任务上成功率都是 0 %**", "**合成**", "**模型假设:**", "**声明替身**", "**固定偏置**", "**声明的玩具参数**", "**共用随机数:**", "**积分步长。**", "**首次运行后的代码改动。**", "对称的那一行", "那项声明没有成立", "**不宣布声明的先验之外的赢家**", "**成立**", "**保留**"]},
+      {"en": ["EgoVLA", "post-training", "以论文为准", "本页未运行"], "zh": ["EgoVLA", "后训练", "以论文为准", "本页未运行"]},
+      ["egovla-paper"],"**180-minute work plan:**","**180 分钟安排:**",180],
+  ];
+  const bag=read("examples/month-7/expected/pointvla_frozen_injector_toy.txt")+read("examples/month-11/expected/egovla_human_pretrain_retarget_toy.txt");
+  for(const [month,slug,toy,minutes,heads,outputs,markers,langMarkers,summaryMarkers,ids,planEn,planZh,planSum] of cases){
+    const file=`examples/month-${month}/${slug}/${toy}.py`,py=read(file).trim(),expected=read(`examples/month-${month}/expected/${toy}.txt`).trim();
+    const harness=read(`examples/month-${month}/check.sh`);
+    const run1=execFileSync("python3",[join(root,file)],{cwd:root,encoding:"utf8",env}), run2=execFileSync("python3",[join(root,file)],{cwd:root,encoding:"utf8",env});
+    ok(run1===run2&&run1===read(`examples/month-${month}/expected/${toy}.txt`),`b22p3 ${toy}: byte-identical rerun equals expected/`);
+    for(const x of outputs)ok(expected.includes(x),`b22p3 ${toy}: printed line ${x}`);
+    ok(/SEEDS = \(0, 1, 2, 3, 4\)/.test(py)&&/Common random numbers/.test(py)&&py.includes("本页未运行")&&py.includes("written before the first run")&&py.includes("ROUND_HALF_UP"),`b22p3 ${toy}: five seeds, CRN, pre-declared, half-up, 本页未运行`);
+    ok(!/^\s*(import|from)\s+(numpy|scipy|torch|pandas|control)/m.test(py),`b22p3 ${toy}: stdlib only`);
+    ok(!/(?<![+\d.e])-0\.0+(?![\d.e])/.test(expected),`b22p3 ${toy}: no signed zero printed`);
+    for(const line of expected.split("\n").filter(l=>l.includes("numerically zero (floating-point residue), effectively a tie"))){
+      const mm=line.match(new RegExp(`: (${NUM})\\+-(${NUM}): `));
+      ok(mm&&Math.abs(+mm[1])<1e-9&&+mm[2]<1e-9&&!/seeds/.test(line.split("effectively a tie")[1]),`b22p3 ${toy}: numerically-zero rule: ${line.slice(0,70)}`);
+    }
+    ok(py.includes("NUM_ZERO = 1e-9")&&py.indexOf("all(d == 0.0 for d in diffs)")<py.indexOf("abs(m) < NUM_ZERO")&&py.indexOf("abs(m) < NUM_ZERO")<py.indexOf("if abs(m) <= s:"),`b22p3 ${toy}: tie, then numerically-zero, then the sd test`);
+    for(const line of expected.split("\n").filter(l=>l.includes("tie: identical on every seed")))ok(line.includes("0.0000+-0.0000: tie: identical on every seed"),`b22p3 ${toy}: tie line is exactly zero: ${line.slice(0,70)}`);
+    for(const line of expected.split("\n")){
+      if(!line.includes("paired ")||/:\s*$/.test(line)) continue;
+      const mm=line.match(new RegExp(`: (${NUM})\\+-(${NUM}): `));
+      ok(!!mm,`b22p3 ${toy}: paired line carries m+-sd: ${line.slice(0,70)}`);
+      if(!mm) continue;
+      ok(line.includes("near-tie")?Math.abs(+mm[1])<=+mm[2]:(line.includes("tie: identical")||line.includes("numerically zero")||Math.abs(+mm[1])>+mm[2]),`b22p3 ${toy}: label matches |m| vs sd: ${line.slice(0,70)}`);
+      if(!line.includes("near-tie")&&!line.includes("tie: identical")&&!line.includes("numerically zero")){
+        ok(/same sign on all 5 seeds|of 5 seeds ha(s|ve) the opposite sign|no seed has the opposite sign/.test(line),`b22p3 ${toy}: sign count on ${line.slice(0,70)}`);
+        const o=line.match(/(\d) of 5 seeds ha/);ok(!o||+o[1]<=1,`b22p3 ${toy}: consistent label has a clear same-sign majority: ${line.slice(0,70)}`);
+      }
+    }
+    ok(cur.match(new RegExp(`slug: "${slug}"[\\s\\S]*?minutes: (\\d+)`))?.[1]===String(minutes),`b22p3 ${slug}: ${minutes} min`);
+    const host=cur.slice(cur.indexOf(`slug: "${slug}"`)).split("\n  },")[0];
+    ok(host.includes(toy)&&ids.every(id=>host.includes(`"${id}"`)),`b22p3 ${slug}: task names toy and resources wired`);
+    for(const m of host.split("\n").filter(l=>/b22p3-|能说明 PointVLA|Explain that PointVLA|能说明 EgoVLA|Explain that EgoVLA/.test(l)).join("\n").matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g))ok(bag.includes(`${m[1]}+-${m[2]}`),`b22p3 ${slug} curriculum: ${m[0]} matches expected/`);
+    for(const id of ids)ok(res.includes(`"${id}": {`)&&new RegExp(`"${id}": \\{[\\s\\S]*?以(原文|文档|论文|报告)为准[\\s\\S]*?extra: true`).test(res),`b22p3 opened source ${id}`);
+    ok(harness.includes(`${slug}/${toy}.py`)&&harness.includes(`${toy}.txt`),`b22p3 ${toy}: month harness compares expected`);
+    for(const [index,lang] of ["en","zh"].entries()){
+      const md=read(`src/content/m${month}/${slug}/${lang}.mdx`),summary=md.indexOf("<Summary>"),end=md.indexOf("</Summary>");
+      ok(summary>0&&summary===md.lastIndexOf("<Summary>")&&md.slice(end+10).trim()==="",`b22p3 ${slug} ${lang}: sole whole-lesson Summary ends page`);
+      const head=md.indexOf(heads[index]);
+      ok(head>0&&head<summary,`b22p3 ${slug} ${lang}: new section before Summary`);
+      const next=md.indexOf("\n## ",head+5), sec=md.slice(head,next>0&&next<summary?next:summary);
+      ok(next<0||next>=summary,`b22p3 ${slug} ${lang}: new section is the last before Summary`);
+      ok(sec.includes(py)&&sec.includes(expected)&&sec.includes(`<CodeSource path="${file}" />`),`b22p3 ${slug} ${lang}: exact source/stdout in section`);
+      for(const id of ids)ok(sec.includes(`<Resource id="${id}" />`),`b22p3 ${slug} ${lang}: Resource ${id} in section`);
+      const ex=sec.lastIndexOf(lang==="en"?"### Exercises":"### 练习");
+      ok(ex>sec.indexOf("</SimOutput>")&&(sec.slice(ex).match(/^\d\. /gm)||[]).length===5,`b22p3 ${slug} ${lang}: five exercises after output`);
+      const prose=sec.replace(expected,"").replace(py,"");
+      const bare=prose.replace(/```[\s\S]*?```/g,"").replace(/`[^`\n]*`/g,"");
+      ok(!/[{}]/.test(bare),`b22p3 ${slug} ${lang}: no curly braces in MDX prose`);
+      ok(!/<[A-Za-z](?![A-Za-z]*[ />])/.test(bare.replace(/<(Resource|Formula|CodeSource|SimOutput)\b[^>]*>|<\/(Formula|SimOutput)>/g,"")),`b22p3 ${slug} ${lang}: no stray JSX-like < in prose`);
+      for(const x of [...markers,...langMarkers[lang]])ok(prose.includes(x),`b22p3 ${slug} ${lang}: mechanism/scope/label ${x}`);
+      ok(sec.includes(lang==="en"?planEn:planZh),`b22p3 ${slug} ${lang}: work plan minutes`);
+      const plan=sec.slice(sec.indexOf(lang==="en"?planEn:planZh)+(lang==="en"?planEn:planZh).length).split("\n")[0];
+      ok([...plan.matchAll(/(\d+) (min|分钟)/g)].reduce((a,m)=>a+(+m[1]),0)===planSum,`b22p3 ${slug} ${lang}: work plan sums to ${planSum}`);
+      ok(!/\b(exact tie|ties exactly)\b|精确打平|−0\.0000(?!\d)/.test(prose),`b22p3 ${slug} ${lang}: no exact-tie wording or signed zero in prose`);
+      ok(!/：\*\*|\*\*：/.test(sec),`b22p3 ${slug} ${lang}: no ** glued to a full-width colon`);
+      ok(!/\|[^|\n]*\|error\|/.test(sec.split("\n").filter(l=>l.startsWith("| ")).join("\n")),`b22p3 ${slug} ${lang}: no bare |error| inside a table row`);
+      for(const m of prose.matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g))ok(expected.includes(`${m[1]}+-${m[2]}`),`b22p3 ${slug} ${lang}: prose ${m[0]} matches expected/`);
+      for(const m of prose.matchAll(/(?<![\w.])(\d+\.\d{2,})(?![\d±]|e-\d)/g))ok(expected.includes(m[1])||CITED.has(m[1]),`b22p3 ${slug} ${lang}: decimal ${m[1]} in prose is printed or a cited paper value`);
+      for(const c of CITED)for(const m of prose.matchAll(new RegExp(c.replace(".","\\."),"g"))){const ctx=prose.slice(Math.max(0,m.index-400),m.index+400); ok(/以(论文|报告)为准/.test(ctx)&&!expected.includes(c),`b22p3 ${slug} ${lang}: cited ${c} carries 以报告为准 and is not a toy output`);}
+      for(const h of sec.match(/^#{2,3} .*$/gm)||[])ok(!/\d+\s*(min|分钟)|Batch|PR\d|\bH\d\b/.test(h),`b22p3 ${slug} ${lang}: heading without minutes/process label ${h}`);
+      const summ=md.slice(summary,end);
+      for(const x of summaryMarkers[lang])ok(summ.includes(x),`b22p3 ${slug} ${lang}: Summary sentence ${x}`);
+      const newLine=summ.split("\n").find(l=>summaryMarkers[lang].every(x=>l.includes(x)))||"";
+      ok(newLine.length>0,`b22p3 ${slug} ${lang}: one Summary sentence carries all markers`);
+      for(const m of newLine.matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g))ok(expected.includes(`${m[1]}+-${m[2]}`),`b22p3 ${slug} ${lang}: Summary ${m[0]} matches expected/`);
+    }
+    const en=read(`src/content/m${month}/${slug}/en.mdx`),zh=read(`src/content/m${month}/${slug}/zh.mdx`);
+    ok((en.match(/```/g)||[]).length===(zh.match(/```/g)||[]).length&&(en.match(/^#{2,3} /gm)||[]).length===(zh.match(/^#{2,3} /gm)||[]).length,`b22p3 ${slug}: en/zh structurally symmetric`);
+    const nums=t=>[...t.matchAll(/-?\d+\.\d+±-?\d+\.\d+/g)].map(m=>m[0]).sort().join(" ");
+    const enSec=en.slice(en.indexOf(heads[0]),en.indexOf("<Summary>")), zhSec=zh.slice(zh.indexOf(heads[1]),zh.indexOf("<Summary>"));
+    ok(nums(enSec)===nums(zhSec),`b22p3 ${slug}: en/zh sections cite the same m±sd values`);
+  }
+  // New toys and their printed output carry no dev-process labels.
+  for(const f of ["examples/month-7/depth-pointcloud/pointvla_frozen_injector_toy.py","examples/month-7/expected/pointvla_frozen_injector_toy.txt","examples/month-11/umi-style-collection/egovla_human_pretrain_retarget_toy.py","examples/month-11/expected/egovla_human_pretrain_retarget_toy.txt"])ok(!/\bbatch\b|\bPR ?\d+\b|sources? notes?\b|来源说明|来源笔记|this batch|本批|this round|本轮|polish|\b[bB]\d{1,2}p(?:\d|ol)\b/i.test(read(f)),`b22p3 ${f}: no dev-process label`);
+  ok(/"pointvla-paper": \{[\s\S]*?url: "https:\/\/arxiv\.org\/abs\/2503\.07511"[\s\S]*?Chengmeng Li[\s\S]*?Yichen Zhu[\s\S]*?以论文为准[\s\S]*?本页未运行[\s\S]*?extra: true/.test(res),"b22p3 pointvla-paper card: URL, authors, 以论文为准, 本页未运行");
+  ok(/"egovla-paper": \{[\s\S]*?url: "https:\/\/arxiv\.org\/abs\/2507\.12440"[\s\S]*?Ruihan Yang[\s\S]*?Xiaolong Wang[\s\S]*?以论文为准[\s\S]*?本页未运行[\s\S]*?extra: true/.test(res),"b22p3 egovla-paper card: URL, authors, 以论文为准, 本页未运行");
+  ok((()=>{const c=res.slice(res.indexOf('"egovla-paper": {')); const a=c.slice(0,c.indexOf("extra: true")); return ["Ruihan Yang","Qinxi Yu","Yecheng Wu","Rui Yan","Borui Li","An-Chieh Cheng","Xueyan Zou","Yunhao Fang","Xuxin Cheng","Ri-Zhao Qiu","Hongxu Yin","Sifei Liu","Song Han","Yao Lu","Xiaolong Wang"].every((n,k,arr)=>a.includes(n)&&(k===0||a.indexOf(n)>a.indexOf(arr[k-1])));})(),"b22p3 egovla-paper card: 15 authors in arXiv order");
+  ok((()=>{const c=res.slice(res.indexOf('"pointvla-paper": {')); const a=c.slice(0,c.indexOf("extra: true")); return ["Chengmeng Li","Junjie Wen","Yan Peng","Yaxin Peng","Feifei Feng","Yichen Zhu"].every((n,k,arr)=>a.includes(n)&&(k===0||a.indexOf(n)>a.indexOf(arr[k-1])));})(),"b22p3 pointvla-paper card: 6 authors in abs-page order");
+  // The new sections sit after the existing host sections and disclose their code changes.
+  for(const lang of ["en","zh"]){
+    const t=read(`src/content/m7/depth-pointcloud/${lang}.mdx`); const h=t.indexOf(lang==="en"?"## PointVLA: adding a point cloud to a frozen 2D policy":"## PointVLA：给冻结的二维策略加上点云"); const sec=t.slice(h,t.indexOf("<Summary>"));
+    ok(h>t.indexOf(lang==="en"?"## Surface normals by local PCA":"## 用局部 PCA 估计表面法向")&&(lang==="en"?sec.includes("B−A success is -0.3050±0.0925, clear")&&sec.includes("byte-identical"):sec.includes("B−A success 为 -0.3050±0.0925，clear")&&sec.includes("逐字节一致")),`b22p3 depth-pointcloud ${lang}: after PCA normals, corrupted-cloud loss stated, crash fix disclosed`);
+    const n=read(`src/content/m11/umi-style-collection/${lang}.mdx`); const hn=n.indexOf(lang==="en"?"## EgoVLA: human egocentric pretraining, then IK, retargeting and robot post-training":"## EgoVLA：先用人类第一人称视频预训练，再做逆运动学、重定向和机器人后训练"); const secn=n.slice(hn,n.indexOf("<Summary>"));
+    ok(hn>0&&(lang==="en"?secn.includes("The fix did change results")&&secn.includes("B−A long_sr -0.2180±0.0955, both clear"):secn.includes("但修正改变了结果")&&secn.includes("B−A long_sr 为 -0.2180±0.0955，都是 clear")),`b22p3 umi-style-collection ${lang}: solver fix and its effect on results disclosed, far-prior loss stated`);
+  }
+  const p7=read("docs/notes/month-7-plan.md"), p11=read("docs/notes/month-11-plan.md");
+  ok(p7.startsWith("# Month 7")&&["Current / 当前：**M7 3510 min**, Batch-22 PR3","## Batch-22 PR3","3330→3510","39780→40140","630→810","0193f7837fcf135a369a678d1abac948651bda88","40140=39780+180+180","30+25+50+40+35=180","## Batch-20 PR3"].every(x=>p7.includes(x))&&p7.indexOf("## Batch-22 PR3")<p7.indexOf("## Batch-20 PR3"),"b22p3 month-7 plan header");
+  ok(/# Month 11/.test(p11.split("\n")[0])&&["Current / 当前：**M11 3990 min**, Batch-22 PR3","## Batch-22 PR3","3810→3990","39780→40140","420→600","0193f7837fcf135a369a678d1abac948651bda88","40140=39780+180+180","30+25+50+40+35=180","## Batch-22 PR2"].every(x=>p11.includes(x))&&p11.indexOf("## Batch-22 PR3")<p11.indexOf("## Batch-22 PR2"),"b22p3 month-11 plan header");
+  const src=read("docs/notes/batch-22-pr3-sources.md");
+  ok(["0193f7837fcf135a369a678d1abac948651bda88","39780","40140","pointvla-paper","egovla-paper","https://arxiv.org/abs/2503.07511","https://arxiv.org/abs/2507.12440","v1 (CC BY 4.0)","v3 (CC BY 4.0)","Chengmeng Li","Xiaolong Wang","Common random numbers","Lock changes","No lock relaxed","Post-hoc choices","Mismatch with §9","Code changes after the first run","declared toy parameter","declared stand-in","-0.3050±0.0925","0.4300±0.1430","-0.1620±0.0841","-0.2180±0.0955","本页未运行","以论文为准"].every(x=>src.includes(x)),"b22p3 sources note");
+  ok(!/opencode|DeepSeek|LongCat|MiniMax|MiMo|GLM/.test(src),"b22p3 sources note: no tools/process narrative");
+  const planSec=(p,h)=>p.slice(p.indexOf(h),p.indexOf("\n## ",p.indexOf(h)+5));
+  for(const m of [...src.matchAll(/(-?\d+\.\d+(?:e-?\d+)?)±(-?\d+\.\d+(?:e-?\d+)?)/g),...planSec(p7,"## Batch-22 PR3").matchAll(/(-?\d+\.\d+(?:e-?\d+)?)±(-?\d+\.\d+(?:e-?\d+)?)/g),...planSec(p11,"## Batch-22 PR3").matchAll(/(-?\d+\.\d+(?:e-?\d+)?)±(-?\d+\.\d+(?:e-?\d+)?)/g)])ok(bag.includes(`${m[1]}+-${m[2]}`),`b22p3 notes: ${m[0]} matches expected/`);
+  ok(/40 140/.test(read("README.md"))&&/约 40 140 分钟/.test(read("README.md")),"b22p3 README site minutes (en + zh)");
+  ok((()=>{const months=[...cur.matchAll(/const month(\d+)Lessons[\s\S]*?\];/g)]; let s=0; for(const m of months){for(const x of m[0].matchAll(/minutes:\s*(\d+)/g))s+=+x[1];} return s;})()===40140,"b22p3 curriculum: 40140 minutes");
+  ok([...cur.matchAll(/slug: "/g)].length>=71,"b22p3 curriculum: catalogue still 71 lessons");
+  for(const [mo,want] of [[7,3510],[11,3990]])ok((()=>{const m=cur.match(new RegExp(`const month${mo}Lessons[\\s\\S]*?\\];`)); return [...m[0].matchAll(/minutes:\s*(\d+)/g)].reduce((a,x)=>a+(+x[1]),0);})()===want,`b22p3 curriculum: M${mo} ${want} minutes`);
+  const r1=read("examples/month-7/README.md"), r3=read("examples/month-11/README.md");
+  ok(r1.includes("depth-pointcloud/pointvla_frozen_injector_toy.py")&&r3.includes("umi-style-collection/egovla_human_pretrain_retarget_toy.py"),"b22p3 examples READMEs list the new toys");
+  for(const [r,t] of [[r1,"pointvla_frozen_injector_toy"],[r3,"egovla_human_pretrain_retarget_toy"]]){const h=r.slice(0,r.indexOf(t)).split("\n## ").pop().split("\n")[0]; ok(!/Batch|批|PR\d/.test(h),`b22p3 examples README heading for ${t} is descriptive: ${h}`);}
+  // Difference-direction tags must match expected/ paired lines.
+  const dirOf=new Map();
+  for(const line of bag.split("\n")){
+    const m=line.match(/paired\s+([A-Za-z0-9_]+)-([A-Za-z0-9_]+)[^:]*:\s*(-?[\d.e+-]+)\+-(-?[\d.e+-]+)/);
+    if(!m) continue;
+    const key=`${m[3]}+-${m[4]}`;
+    if(!dirOf.has(key)) dirOf.set(key,new Set());
+    dirOf.get(key).add(`${m[1]}-${m[2]}`);
+  }
+  const dirRe=/([A-Z])[−-]([A-Z])(?![A-Za-z])(?:[^0-9A-Z]{0,80}?)(-?\d+(?:\.\d+)?(?:e-?\d+)?)±(-?\d+(?:\.\d+)?(?:e-?\d+)?)/g;
+  const checkDiffDirs=(text,tag)=>{let n=0; for(const m of text.matchAll(dirRe)){const key=`${m[3]}+-${m[4]}`; if(!dirOf.has(key)) continue; n++; ok(dirOf.get(key).has(`${m[1]}-${m[2]}`),`${tag}: ${m[1]}-${m[2]} ${m[3]}±${m[4]} must match expected paired ${[...dirOf.get(key)].join("|")}`);} return n;};
+  let dirHits=0;
+  for(const [m,slug,he,hz] of [[7,"depth-pointcloud","## PointVLA: adding a point cloud to a frozen 2D policy","## PointVLA：给冻结的二维策略加上点云"],[11,"umi-style-collection","## EgoVLA: human egocentric pretraining, then IK, retargeting and robot post-training","## EgoVLA：先用人类第一人称视频预训练，再做逆运动学、重定向和机器人后训练"]])for(const lang of ["en","zh"]){const t=read(`src/content/m${m}/${slug}/${lang}.mdx`); dirHits+=checkDiffDirs(t.slice(t.indexOf(lang==="en"?he:hz)),`b22p3 ${slug} ${lang} diff-dir`);}
+  dirHits+=checkDiffDirs(planSec(p7,"## Batch-22 PR3"),"b22p3 month-7-plan diff-dir")+checkDiffDirs(planSec(p11,"## Batch-22 PR3"),"b22p3 month-11-plan diff-dir");
+  dirHits+=checkDiffDirs(src,"b22p3 sources-note diff-dir");
+  ok(dirHits>=40,`b22p3 difference-direction lock ran on ${dirHits} printed pairs`);
+  console.log("pointvla-egovla PR3: PointVLA frozen-policy point-cloud injection, EgoVLA human-video pretraining with retargeting, and M7 3510 / M11 3990 / site 40140 locked");
+}
+
 console.log(`\n${specs.length} diagrams, ${checks} checks, ${failed} failed`);
 process.exit(failed ? 1 : 0);
